@@ -514,6 +514,7 @@ int saberArtIndex(Actor& a, const std::string& name, int fach,
             art.stilGelernt = d.stylesLearned;
             art.stilVerboten = d.stylesForbidden;
             art.stilEineKlinge = d.singleBladeStyle;
+            art.bereitAnim = d.readyAnim;
             for (std::size_t b = 0; b < art.klinge.size(); ++b) {
                 if (!d.bladeColor[b].empty()) {
                     // Eine GENANNTE Farbe - auch "random" - wuerfelt die
@@ -1181,6 +1182,22 @@ PmFigur pmFigurVon(const Actor& a, const ActorState& st, double ms) {
     f.saberStil = saberStilJetzt(a, st);
     f.zweiPistolen = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
     f.md = regelwerkMovieDuels();
+    // Zeitleiste 6: saberInfo_t fuer PM_SetSaberMove(LS_READY)
+    const SaberArt* s0 = artVon(a, st, 0);
+    const SaberArt* s1 = artVon(a, st, 1);
+    if (s0 != nullptr) {
+        f.saberTyp = s0->typ;
+        f.bereitAnim[0] = s0->bereitAnim;
+        f.eineKlingeStil = s0->stilEineKlinge != 0;
+    }
+    f.zweiSchwerter = st.dualSabers;
+    if (st.dualSabers && s1 != nullptr) { f.bereitAnim[1] = s1->bereitAnim; }
+    f.zweitesAn = st.dualSabers && schwertAn(st, 1);
+    f.stab = (s0 != nullptr && s0->typ == "SABER_STAFF") || (st.dualSabers && s1 != nullptr && s1->typ == "SABER_STAFF");
+    f.klinge2An = st.saber[0].klinge[1].an;
+    f.animStil = a.animStil;
+    // animStilAn bleibt aus: g_activateanimationstyle steht im Spiel auf "0" (installierte
+    // MovieDuels-gamex86_64.dll, g_main.cpp:990 mdgit), und nur die MP-Einstellungen bieten sie an.
     return f;
 }
 
@@ -1194,8 +1211,12 @@ void saberGrundhaltung(const Actor& a, ActorState& st, double ms) {
     const auto vorhanden = [&a](const std::string& n) {
         return a.animDauerMs.empty() || a.animDauerMs.count(n) != 0;
     };
-    const std::string haltung = saberHaltungFuerStil(saberStilJetzt(a, st), regelwerkMovieDuels());
-    if (haltung == st.animation || !vorhanden(haltung)) {
+    // Zeitleiste 6: was PM_SetSaberMove(LS_READY) einem stehenden NPC ohne Eingabe gibt -
+    // readyAnim der .sab, SABER_ARC/LANCE/TRIDENT, zwei Schwerter, Stab, sonst die
+    // Kampfhaltung des Stils (pmTorsoLichtschwert; folgt der Oberkoerper, bleibt alles).
+    const PmTorsoWahl bereit = pmTorsoLichtschwert(pmFigurVon(a, st, ms), st.animation, PmTorsoLage{});
+    const std::string haltung = bereit.folgen ? std::string() : bereit.anim;
+    if (haltung.empty() || haltung == st.animation || !vorhanden(haltung)) {
         return;
     }
     if (klingeHatLaenge(st, ms)) {

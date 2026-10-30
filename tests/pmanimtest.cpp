@@ -5,6 +5,7 @@
 //   PM_SetAnimFinal (bg_panimate.cpp OpenJK 4622-5052: Timer, g_noFootSlide,
 //   BONE_ANIM_BLEND), CG_PlayerLegsYawFromMovement (cg_players.cpp).
 #include "bhed/pmanim.h"
+#include "bhed/scene.h"   // parseSaberFile, parseNpcFile
 
 #include <cmath>
 #include <cstdio>
@@ -129,28 +130,122 @@ int main() {
 
     // Zeitleiste 5: PM_AdjustStandAnimForSlope ruft PM_Footsteps nur im Stand und
     // dort nur in diesen Zweigen (bg_pmove.cpp:8165-8330 OJ, 14246-14540 MD).
-    // Zeitleiste 5: PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OJ, :8068 MD)
-    // und PM_SetSaberMove(LS_READY) (bg_pmove.cpp:9208-9262 OJ, :22582 MD).
-    std::printf("PM_TorsoAnimLightsaber\n");
+    // Zeitleiste 5/6: PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OJ, :9205 MD) und
+    // PM_SetSaberMove(LS_READY) (bg_pmove.cpp OJ, :22582 MD) - Erwartungen aus dem Quelltext.
+    std::printf("PM_TorsoAnimLightsaber / PM_SetSaberMove(LS_READY)\n");
     {
         PmFigur oj = figur("WP_SABER", false);
         oj.klingeAn = true;
         oj.klingeLaenge = true;
         oj.saberStil = 1;
-        pruefe(pmTorsoLichtschwert(oj, "BOTH_RUN2", "BOTH_RUN2").folgen, "OJ laeuft (PM_RunningAnim): der Oberkoerper folgt");
-        pruefe(pmTorsoLichtschwert(oj, "BOTH_WALK_STAFF", "BOTH_WALK_STAFF").folgen, "OJ Stab geht: der Oberkoerper folgt");
-        PmTorsoWahl t = pmTorsoLichtschwert(oj, "BOTH_SABERFAST_STANCE", "BOTH_RUN2");
-        pruefe(!t.folgen && t.anim == "BOTH_SABERFAST_STANCE" && t.blendMs == 350.0, "OJ steht: LS_READY, Kampfhaltung mit 350 ms");
-        t = pmTorsoLichtschwert(oj, "BOTH_WALK1", "BOTH_WALK1");
+        PmTorsoLage still;
+        PmTorsoLage geht;
+        geht.eingabe = true;
+        pruefe(pmTorsoLichtschwert(oj, "BOTH_RUN2", geht).folgen, "OJ laeuft (PM_RunningAnim): der Oberkoerper folgt");
+        pruefe(pmTorsoLichtschwert(oj, "BOTH_WALK_STAFF", geht).folgen, "OJ Stab geht: der Oberkoerper folgt");
+        pruefe(pmTorsoLichtschwert(oj, "BOTH_JUMP1", still).folgen, "OJ springt (PM_JumpingAnim): folgt");
+        PmTorsoWahl t = pmTorsoLichtschwert(oj, "BOTH_SABERFAST_STANCE", still);
+        pruefe(!t.folgen && t.anim == "BOTH_SABERFAST_STANCE" && t.blendMs == 350.0 && t.beide,
+               "OJ steht ohne Eingabe: LS_READY, Kampfhaltung, 350 ms, SETANIM_BOTH");
+        t = pmTorsoLichtschwert(oj, "BOTH_SABERFAST_STANCE", geht);
+        pruefe(t.anim == "BOTH_SABERFAST_STANCE" && !t.beide, "mit Eingabe nur SETANIM_TORSO");
+        t = pmTorsoLichtschwert(oj, "LEGS_S1_LUP1", still);
+        pruefe(!t.beide, "am Hang (PM_InSlopeAnim) nur SETANIM_TORSO");
+        PmTorsoLage duck;
+        duck.geduckt = true;
+        pruefe(!pmTorsoLichtschwert(oj, "BOTH_CROUCH1IDLE", duck).beide, "geduckt nur SETANIM_TORSO");
+        t = pmTorsoLichtschwert(oj, "BOTH_WALK1", geht);
         pruefe(t.anim == "BOTH_WALK1", "OJ geht (SS_FAST): \"match torso anim to walk/run anim\" - BOTH_WALK1");
+        PmFigur f = oj;
+        f.bereitAnim[0] = "BOTH_STAND5";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_WALK1", geht).anim == "BOTH_STAND5", "readyAnim der .sab, beim Gehen ohne Angleich");
+        f = oj;
+        f.zweiSchwerter = true;
+        f.bereitAnim[1] = "BOTH_STAND6";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_STAND6", "readyAnim des zweiten Schwerts");
+        f = oj;
+        f.saberTyp = "SABER_ARC";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERFAST_STANCE", "SABER_ARC: BOTH_SABERFAST_STANCE");
+        f = oj;
+        f.zweiSchwerter = true;
+        f.zweitesAn = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERDUAL_STANCE", "zwei Schwerter an: BOTH_SABERDUAL_STANCE");
+        f = oj;
+        f.saberTyp = "SABER_STAFF";
+        f.stab = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERSTAFF_STANCE", "Stab: BOTH_SABERSTAFF_STANCE");
+        pruefe(pmTorsoLichtschwert(f, "BOTH_WALK1", geht).anim == "BOTH_SABERSTAFF_STANCE", "Stab: kein Angleich beim Gehen");
+        f.eineKlingeStil = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERFAST_STANCE",
+               "Stab mit singleBladeStyle, nur die erste Klinge: die Haltung des Stils");
+        f.klinge2An = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERSTAFF_STANCE", "... mit zweiter Klinge wieder der Stab");
+        f = oj;
+        f.saberTyp = "SABER_LANCE";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_WALK1", geht).anim == "BOTH_STAND1", "SABER_LANCE: BOTH_STAND1, kein Angleich");
+        f.saberTyp = "SABER_TRIDENT";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_STAND1", "SABER_TRIDENT: BOTH_STAND1");
+        f = oj;
+        f.blocken = true;
+        t = pmTorsoLichtschwert(f, "BOTH_RUN1", geht);
+        pruefe(!t.folgen && t.anim == "BOTH_P1_S1_T_" && t.beide, "Blocken: laeuft trotzdem LS_READY, BOTH_P1_S1_T_ ueber beide");
+        f.saberTyp = "SABER_CLAW";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", geht).anim == "BOTH_INAIR1", "Blocken mit Klaue: BOTH_INAIR1");
+        f = oj;
+        f.bereitAnim[0] = "BOTH_T1_BR_BL";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_WALK1", geht).beide, "PM_SpinningSaberAnim: ueber beide");
+
         PmFigur md = oj;
         md.md = true;
-        t = pmTorsoLichtschwert(md, "BOTH_WALK1", "BOTH_WALK1");
-        pruefe(t.anim == "BOTH_SABERFAST_STANCE_JKA" && !t.beide && t.blendMs == 350.0, "MD geht (SS_FAST): Oberkoerper in BOTH_SABERFAST_STANCE_JKA");
-        pruefe(pmTorsoLichtschwert(md, "BOTH_WALK1", "BOTH_RUN1").anim.empty(), "MD: ein laufender Oberkoerper bleibt");
-        md.saberStil = 2;
-        t = pmTorsoLichtschwert(md, "BOTH_STAND2", "BOTH_STAND2");
-        pruefe(t.anim == "BOTH_STAND2" && t.beide, "MD steht in einer Kampfhaltung: SETANIM_BOTH");
+        t = pmTorsoLichtschwert(md, "BOTH_SABERFAST_STANCE_JKA", still);
+        pruefe(t.anim == "BOTH_SABERFAST_STANCE_JKA" && t.beide && t.blendMs == 350.0, "MD steht (SS_FAST): JKA-Haltung ueber beide");
+        pruefe(pmTorsoLichtschwert(md, "BOTH_WALK1", geht).folgen, "MD geht (BOTH_WALK1 in der Liste :9244): der Oberkoerper folgt");
+        t = pmTorsoLichtschwert(md, "BOTH_SABERSINGLECROUCH", geht);
+        pruefe(t.anim == "BOTH_SABERSINGLECROUCH" && !t.beide, "MD: Angleich an die Beine (BOTH_SABERSINGLECROUCH in der MD-Liste)");
+        PmTorsoLage mdNull = geht;
+        mdNull.tempoNull = true;
+        pruefe(pmTorsoLichtschwert(md, "BOTH_SABERFAST_STANCE_JKA", mdNull).beide, "MD: ps->speed 0 wie ohne Eingabe");
+        f = md;
+        f.blocken = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", geht).anim == "BOTH_STAND2", "MD blockt (ein Schwert): animToUse BOTH_STAND2");
+        f.saberTyp = "SABER_ARC";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", geht).anim == "BOTH_SABERFAST_STANCE_JKA", "MD blockt mit SABER_ARC: die Haltung");
+        f = md;
+        f.saberTyp = "SABER_LANCE";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERFAST_STANCE_JKA", "MD SABER_LANCE: die Haltung (nicht STAND1)");
+        f = md;
+        f.saberStil = 6;
+        f.animStil = "CS_GALEN_MAREK";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERDUAL_STANCE_JKA", "MD SS_DUAL ohne g_ActivateAnimationStyle");
+        f.animStilAn = true;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERDUAL_STANCE_JKA_GALEN", "... mit 1: Galen Marek");
+        f.saberStil = 7;
+        f.animStil = "CS_GRIEVOUS";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERSTAFF_STANCE_JKA", "SS_STAFF kennt Grievous nicht");
+        f.animStil = "CS_BATTLEDROID";
+        pruefe(pmTorsoLichtschwert(f, "BOTH_STAND1", still).anim == "BOTH_SABERSTAFF_STANCE_JKA_BDROID", "SS_STAFF Kampfdroide");
+        f.saberStil = 1;
+        f.animStil = "CS_VADER";
+        t = pmTorsoLichtschwert(f, "BOTH_CROUCH1IDLE", duck);
+        pruefe(t.anim == "BOTH_SABERSINGLECROUCH_VADER" && !t.beide, "MD geduckt (_Ducked): Vader, nur der Oberkoerper");
+        f.animStilAn = false;
+        pruefe(pmTorsoLichtschwert(f, "BOTH_CROUCH1IDLE", duck).anim == "BOTH_SABERSINGLECROUCH", "... ohne Stil: BOTH_SABERSINGLECROUCH");
+        pruefe(pmTorsoLichtschwert(md, "BOTH_WALKBACK_STAFF_MAUL", geht).folgen, "MD: Maul-Stab rueckwaerts gehend folgt");
+        pruefe(!pmTorsoLichtschwert(oj, "BOTH_WALKBACK_STAFF_MAUL", geht).folgen, "OpenJK kennt die Maul-Animation nicht");
+        pruefe(pmTorsoLichtschwert(md, "BOTH_T5_BL_TR_YODA", geht).beide && !pmTorsoLichtschwert(oj, "BOTH_T5_BL_TR_YODA", geht).beide,
+               "MD: Drehschwung der Beine (nur MD-Liste) ueber beide");
+    }
+
+    std::printf(".sab readyAnim und NPC animationstyle\n");
+    {
+        SaberMap s;
+        parseSaberFile("zl6_test\n{\nname \"t\"\nsaberType SABER_ARC\nreadyAnim both_stand5\n}\n", s);
+        const auto it = s.find("zl6_test");
+        pruefe(it != s.end() && it->second.readyAnim == "BOTH_STAND5" && it->second.type == "SABER_ARC", "readyAnim gross, saberType");
+        NpcMap n;
+        parseNpcFile("zl6_npc\n{\nplayerModel kyle\nanimationstyle galen_marek\n}\nzl6_npc2\n{\nplayerModel kyle\nanimationstyle CS_MAUL\n}\n", n);
+        pruefe(n.count("zl6_npc") != 0 && n["zl6_npc"].animStil == "CS_GALEN_MAREK" && n["zl6_npc2"].animStil == "CS_MAUL",
+               "animationstyle: Kurzname und CS_-Name");
     }
 
     std::printf("PM_AdjustStandAnimForSlope im Stand\n");

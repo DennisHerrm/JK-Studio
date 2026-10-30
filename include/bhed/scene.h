@@ -660,6 +660,7 @@ struct SaberArt {
     int stilGelernt = 0;
     int stilVerboten = 0;
     int stilEineKlinge = 0;
+    std::string bereitAnim;      // readyAnim (PM_SetSaberMove LS_READY)
     // Laenge, Radius und Farbe je Klinge; `an` bleibt hier immer aus.
     std::array<KlingenZustand, kMaxKlingen> klinge{};
     // rc601 (saber): was die .sab zum Beruehren sagt (blockSound, blockEffect,
@@ -730,6 +731,7 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // rc601 integ: "rank" der .npc (klein wie gelesen) - fuer den Takt des
     // Verhaltens unter OpenJK (npcVerhaltenTaktMs, bhed/navlauf.h).
     std::string rang;
+    std::string animStil;   // Zeitleiste 6: MD "animationstyle" als CS_-Name (NpcDef)
     // rc605 (fix605): "class" der .npc (klein wie gelesen) - Mark1 und
     // Interrogator werden nach dem Tod nie zur Leiche (ablaufBleibtFest).
     std::string klasse;
@@ -1164,6 +1166,7 @@ struct NpcDef {
     // `class` (z.B. "CLASS_VADER") und `rank` (z.B. "lt"), klein wie gelesen.
     std::string klasse;
     std::string rang;
+    std::string animStil;   // Zeitleiste 6: Movie Duels "animationstyle" als CS_-Name, leer = keiner
     // rc605: FP_LEVITATION der .npc (NPC_ParseParms: Kraefte als Schluessel,
     // COM_ParseInt, ueber FORCE_LEVEL_5 gekappt) - 0: nicht genannt.
     int levitation = 0;
@@ -1272,6 +1275,7 @@ struct SaberDef {
     int stylesLearned = 0;
     int stylesForbidden = 0;
     int singleBladeStyle = 0;
+    std::string readyAnim;     // Zeitleiste 6: readyAnim (gross), leer = -1
     // Je Klinge, in der Reihenfolge der Datei ausgewertet: saberColor
     // setzt ALLE acht, saberColor2 nur die zweite (wp_saberLoad.cpp:878
     // ff.). Leer bzw. 0 heisst: keine Angabe - dann gilt die Vorgabe

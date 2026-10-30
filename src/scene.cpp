@@ -1942,6 +1942,23 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "rank") {
             cur.rang = wert;
         }
+        // Zeitleiste 6: Movie Duels "animationstyle" (NPC_stats.cpp:3493,
+        // GetIDForString(AnimationstylesTable) - Kurzname oder CS_-Name).
+        if (key == "animationstyle") {
+            static const char* const kStile[][2] = {
+                {"default", "CS_DEFAULT"}, {"anakin", "CS_ANAKIN"}, {"battle_droid", "CS_BATTLEDROID"},
+                {"ben_kenobi", "CS_BENKENOBI"}, {"cal_kestis", "CS_CAL_KESTIS"}, {"clone_trooper", "CS_CLONETROOPER"},
+                {"darkforces2", "CS_DARKFORCES2"}, {"count_dooku", "CS_COUNT_DOOKU"}, {"galen_marek", "CS_GALEN_MAREK"},
+                {"qui_gon_jinn", "CS_QUI_GON_JINN"}, {"grievous", "CS_GRIEVOUS"}, {"jango", "CS_JANGO"}, {"kotor", "CS_KOTOR"},
+                {"luke_skywalker", "CS_LUKE_SKYWALKER"}, {"mace_windu", "CS_MACE_WINDU"}, {"maul", "CS_MAUL"},
+                {"movie_duels", "CS_MOVIEDUELS"}, {"obiwan", "CS_OBIWAN"}, {"obiwan_ep3", "CS_OBIWAN_EP3"},
+                {"palpatine", "CS_PALPATINE"}, {"rebels", "CS_REBELS"}, {"kylo_ren", "CS_KYLO_REN"}, {"rey", "CS_REY"},
+                {"vader", "CS_VADER"}, {"yoda", "CS_YODA"}};
+            cur.animStil.clear();
+            for (const auto& s : kStile) {
+                if (sameName(wert, s[0]) || sameName(wert, s[1])) { cur.animStil = s[1]; }
+            }
+        }
         // rc605: "FP_LEVITATION <n>" (NPC_ParseParms: GetIDForString(FPTable),
         // forcePowerLevel[fp] = n, hoechstens FORCE_LEVEL_5).
         if (key == "fp_levitation") {
@@ -2192,6 +2209,11 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
             }
         }
         else if (key == "sabercolor") { def.color = val; }
+        // Zeitleiste 6: Saber_ParseReadyAnim (wp_saberLoad.cpp) - GetIDForString(animTable), gross
+        else if (key == "readyanim") {
+            def.readyAnim = val;
+            for (char& ch : def.readyAnim) { ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); }
+        }
         else if (key == "saberlength") {
             try { def.length = std::stof(val); } catch (...) {}
         }
@@ -3276,6 +3298,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             // Waffe zaehlt je Denkbild, auch nach SET_WEAPON).
             fresh.raketenTruppler = npcDef != nullptr && sameName(npcDef->klasse, "CLASS_ROCKETTROOPER");
             fresh.rang = npcDef != nullptr ? npcDef->rang : std::string();   // rc601 integ
+            fresh.animStil = npcDef != nullptr ? npcDef->animStil : std::string();   // Zeitleiste 6
             fresh.klasse = npcDef != nullptr ? npcDef->klasse : std::string();   // rc605 fix605
             // rc605: NPC-Spruenge (NPC_spawn.cpp:588-602 MD; NPC_JumpAnimation).
             if (npcDef != nullptr && !regelwerkJediOutcast()) {
@@ -5488,6 +5511,12 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
             }
             for (int stil = 1; stil <= 7; ++stil) {
                 namen.emplace_back(saberHaltungFuerStil(stil, regelwerkMovieDuels()));
+            }
+            // Zeitleiste 6: was PM_SetSaberMove(LS_READY) sonst setzt (SABER_ARC, zwei
+            // Schwerter, Stab) und readyAnim der .sab.
+            for (const char* n : {"BOTH_SABERFAST_STANCE", "BOTH_SABERDUAL_STANCE", "BOTH_SABERSTAFF_STANCE"}) { namen.emplace_back(n); }
+            for (const SaberArt& art : a.saberArten) {
+                if (!art.bereitAnim.empty()) { namen.push_back(art.bereitAnim); }
             }
             for (const ActorStep& st : a.steps) {
                 // Waffen- und Schwertschritte tragen Waffen-, Schwert- und

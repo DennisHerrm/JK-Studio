@@ -26,6 +26,7 @@
 #define BHED_PMANIM_H
 
 #include <functional>
+#include <array>
 #include <string>
 
 namespace bhed {
@@ -51,6 +52,19 @@ struct PmFigur {
     bool zweiPistolen = false;   // gent->weaponModel[1] > 0
     float laufTempo = 0.0F;      // NPC->stats.runSpeed (CLASS_WAMPA: 300 = auf allen vieren)
     bool md = false;             // Regelwerk Movie Duels
+    // Zeitleiste 6: die Schwerter fuer PM_SetSaberMove(LS_READY) (saberInfo_t, .sab)
+    std::string saberTyp;                    // saber[0].type ("SABER_ARC", leer = SABER_SINGLE)
+    std::array<std::string, 2> bereitAnim{}; // saber[n].readyAnim, leer = -1
+    bool zweiSchwerter = false;              // ps.dualSabers
+    bool zweitesAn = false;                  // saber[1].Active()
+    bool stab = false;                       // ps.SaberStaff(): saber[0] oder (zwei) saber[1] ist SABER_STAFF
+    bool eineKlingeStil = false;             // saber[0].singleBladeStyle != 0
+    bool klinge2An = false;                  // saber[0].blade[1].active
+    bool blocken = false;                    // saberBlockingTime > cg.time (manuelles Blocken)
+    // Movie Duels: client->animationstyle ("CS_GALEN_MAREK" ..., leer = CS_DEFAULT, NPC-Datei
+    // "animationstyle") und g_ActivateAnimationStyle (aus g_activateanimationstyle, Vorgabe 0)
+    std::string animStil;
+    bool animStilAn = false;
 };
 
 // Was PM_Footsteps im Zweig am Boden setzt: die Animation, ob es SETANIM_BOTH
@@ -121,17 +135,20 @@ inline constexpr double kPmBlendVorgabe = 100.0;   // SETANIM_BLEND_DEFAULT (bg_
 bool pmSetAnimNormal(PmKnochen& k, const std::string& anim, float tempo, double jetztMs, double blendMs = kPmBlendVorgabe,
                      double halteMs = -1.0);
 
-// PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OpenJK, :8068 MD) fuer eine
-// Figur am Boden mit Klinge (ps.SaberLength(), WEAPON_READY/IDLE, kein Angriff,
-// keine Macht). Laeuft sie (PM_RunningAnim) oder geht sie mit Stab oder zwei
-// Klingen (BOTH_WALK_STAFF, _DUAL, WALKBACK_STAFF, _DUAL), setzt PM_SetAnim den
-// Oberkoerper auf die Beinanimation (folgen = true). Sonst PM_SetSaberMove(
-// LS_READY): die Kampfhaltung (saberHaltungFuerStil) mit der Blende von
-// saberMoveData[LS_READY] (350 ms). OpenJK nimmt dabei fuer BOTH_STAND2 und
-// SABERDUAL/FAST/SLOW_STANCE beim Gehen und Laufen die Beinanimation ("match
-// torso anim to walk/run anim"); Movie Duels setzt die Haltung ueber beide
-// Knochen, wenn die Beine schon in einer Kampfhaltung stehen, und laesst einen
-// laufenden Oberkoerper stehen (anim leer, folgen = false: nichts setzen).
+// PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OpenJK, :9205 MD) fuer eine
+// Figur mit Klinge (ps.SaberLength(), WEAPON_READY, kein Angriff, keine Macht).
+// Springt, landet, schlaegt sie ein Rad oder einen Salto, oder laeuft sie
+// (PM_RunningAnim) bzw. geht mit Stab oder zwei Klingen und blockt nicht,
+// folgt der Oberkoerper den Beinen (folgen = true). Sonst PM_SetSaberMove(
+// LS_READY) (bg_pmove.cpp OpenJK, :22582 MD): beim Blocken BOTH_P1_S1_T_
+// (Klaue, zweites Schwert: BOTH_INAIR1; MD: die Kampfhaltung bzw. BOTH_STAND2),
+// sonst readyAnim der .sab, SABER_ARC, zwei Schwerter, Stab, SABER_LANCE/
+// TRIDENT oder die Kampfhaltung (Movie Duels: PM_ReadyPoseForSaberAnimLevelNPC
+// mit den Figurenvarianten von g_ActivateAnimationStyle 1, geduckt _Ducked).
+// Haltungen wie BOTH_STAND2 und die Kampfhaltungen nehmen beim Gehen und Laufen
+// die Beinanimation ("match torso anim to walk/run anim"). Ohne Eingabe
+// (Movie Duels auch bei Tempo 0) und mit ruhigen Beinen, beim Blocken immer:
+// SETANIM_BOTH. Blende saberMoveData[LS_READY] 350 ms.
 struct PmTorsoWahl {
     bool folgen = false;     // PM_SetAnim(SETANIM_TORSO, legsAnim)
     std::string anim;        // sonst diese (leer: nichts)
@@ -139,7 +156,19 @@ struct PmTorsoWahl {
     bool beide = false;      // SETANIM_BOTH
 };
 inline constexpr double kPmBlendSaberBereit = 350.0;   // saberMoveData[LS_READY].blendTime
-[[nodiscard]] PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const std::string& torso);
+// Was PM_SetSaberMove vom Bewegungsschritt liest: ob cmd forward-, right- oder
+// upmove hat, ps.speed == 0 (Movie Duels), PMF_DUCKED und PM_InRoll ||
+// PM_InKnockDown (Zeitgeber der Beine - die Aufnahme setzt diese Animationen nie).
+struct PmTorsoLage {
+    bool eingabe = false;
+    bool tempoNull = false;
+    bool geduckt = false;
+    bool rolleOderLiegen = false;
+};
+[[nodiscard]] PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const PmTorsoLage& lage);
+// PM_FlippingAnim und PM_SpinningSaberAnim (bg_pmove.cpp OpenJK; Movie Duels mit Zusaetzen).
+[[nodiscard]] bool pmSaltoAnim(const std::string& a, bool md);
+[[nodiscard]] bool pmDrehSchwertAnim(const std::string& a, bool md);
 
 // CG_PlayerLegsYawFromMovement (cg_players.cpp, OpenJK und MD gleich) fuer
 // ein Clientbild, mit Grenzen -60..60 und alwaysFace: die Beine drehen sich

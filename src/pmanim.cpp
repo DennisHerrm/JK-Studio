@@ -5,9 +5,202 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <iterator>
+#include <string_view>
 
 namespace bhed {
 namespace {
+
+// Zeitleiste 6: die Listen der Engine (OpenJK bg_pmove.cpp/bg_panimate.cpp, Movie Duels mit
+// den Zusaetzen dahinter; mit <SP>/zl6/faelle.py aus den Quellen gelesen).
+// PM_FlippingAnim (bg_pmove.cpp OpenJK), Movie Duels mit den Zusaetzen dahinter.
+constexpr std::string_view kSalto[] = {
+    "BOTH_FLIP_F", "BOTH_FLIP_B", "BOTH_FLIP_L", "BOTH_FLIP_R", "BOTH_ALORA_FLIP_1", "BOTH_ALORA_FLIP_2",
+    "BOTH_ALORA_FLIP_3", "BOTH_WALL_RUN_RIGHT_FLIP", "BOTH_WALL_RUN_LEFT_FLIP", "BOTH_WALL_FLIP_RIGHT",
+    "BOTH_WALL_FLIP_LEFT", "BOTH_FLIP_BACK1", "BOTH_FLIP_BACK2", "BOTH_FLIP_BACK3", "BOTH_WALL_FLIP_BACK1",
+    "BOTH_ALORA_FLIP_B", "BOTH_WALL_RUN_RIGHT", "BOTH_WALL_RUN_LEFT", "BOTH_WALL_RUN_RIGHT_STOP",
+    "BOTH_WALL_RUN_LEFT_STOP", "BOTH_BUTTERFLY_LEFT", "BOTH_BUTTERFLY_RIGHT", "BOTH_BUTTERFLY_FL1",
+    "BOTH_BUTTERFLY_FR1", "BOTH_ARIAL_LEFT", "BOTH_ARIAL_RIGHT", "BOTH_ARIAL_F1", "BOTH_CARTWHEEL_LEFT",
+    "BOTH_CARTWHEEL_RIGHT", "BOTH_JUMPFLIPSLASHDOWN1", "BOTH_JUMPFLIPSTABDOWN", "BOTH_JUMPATTACK6",
+    "BOTH_JUMPATTACK7", "BOTH_FORCEWALLRUNFLIP_END", "BOTH_FORCEWALLRUNFLIP_ALT", "BOTH_FLIP_ATTACK7",
+    "BOTH_A7_SOULCAL",
+};
+constexpr std::string_view kSaltoMd[] = {
+    "BOTH_FLIP_B_ANI", "BOTH_FLIP_B_GALEN", "BOTH_FLIP_F_ANI", "BOTH_FLIP_F_GALEN", "BOTH_FLIP_L_ANI",
+    "BOTH_FLIP_L_GALEN", "BOTH_FLIP_R_ANI", "BOTH_FLIP_R_GALEN", "BOTH_JUMPATTACK6_GRIEV",
+};
+// PM_SpinningSaberAnim
+constexpr std::string_view kDrehSchwert[] = {
+    "BOTH_T1_BR_BL", "BOTH_T1__R__L", "BOTH_T1__R_BL", "BOTH_T1_TR_BL", "BOTH_T1_BR_TL", "BOTH_T1_BR__L",
+    "BOTH_T1_TL_BR", "BOTH_T1__L_BR", "BOTH_T1__L__R", "BOTH_T1_BL_BR", "BOTH_T1_BL__R", "BOTH_T1_BL_TR",
+    "BOTH_T2_BR__L", "BOTH_T2_BR_BL", "BOTH_T2__R_BL", "BOTH_T2__L_BR", "BOTH_T2_BL_BR", "BOTH_T2_BL__R",
+    "BOTH_T3_BR__L", "BOTH_T3_BR_BL", "BOTH_T3__R_BL", "BOTH_T3__L_BR", "BOTH_T3_BL_BR", "BOTH_T3_BL__R",
+    "BOTH_T4_BR__L", "BOTH_T4_BR_BL", "BOTH_T4__R_BL", "BOTH_T4__L_BR", "BOTH_T4_BL_BR", "BOTH_T4_BL__R",
+    "BOTH_T5_BR_BL", "BOTH_T5__R__L", "BOTH_T5__R_BL", "BOTH_T5_TR_BL", "BOTH_T5_BR_TL", "BOTH_T5_BR__L",
+    "BOTH_T5_TL_BR", "BOTH_T5__L_BR", "BOTH_T5__L__R", "BOTH_T5_BL_BR", "BOTH_T5_BL__R", "BOTH_T5_BL_TR",
+    "BOTH_T6_BR_TL", "BOTH_T6__R_TL", "BOTH_T6__R__L", "BOTH_T6__R_BL", "BOTH_T6_TR_TL", "BOTH_T6_TR__L",
+    "BOTH_T6_TR_BL", "BOTH_T6_T__TL", "BOTH_T6_T__BL", "BOTH_T6_TL_BR", "BOTH_T6__L_BR", "BOTH_T6__L__R",
+    "BOTH_T6_TL__R", "BOTH_T6_TL_TR", "BOTH_T6__L_TR", "BOTH_T6__L_T_", "BOTH_T6_BL_T_", "BOTH_T6_BR__L",
+    "BOTH_T6_BR_BL", "BOTH_T6_BL_BR", "BOTH_T6_BL__R", "BOTH_T6_BL_TR", "BOTH_T7_BR_TL", "BOTH_T7_BR__L",
+    "BOTH_T7_BR_BL", "BOTH_T7__R__L", "BOTH_T7__R_BL", "BOTH_T7_TR__L", "BOTH_T7_T___R", "BOTH_T7_TL_BR",
+    "BOTH_T7__L_BR", "BOTH_T7__L__R", "BOTH_T7_BL_BR", "BOTH_T7_BL__R", "BOTH_T7_BL_TR", "BOTH_T7_TL_TR",
+    "BOTH_T7_T__BR", "BOTH_T7__L_TR", "BOTH_V7_BL_S7", "BOTH_ATTACK_BACK", "BOTH_CROUCHATTACKBACK1",
+    "BOTH_BUTTERFLY_LEFT", "BOTH_BUTTERFLY_RIGHT", "BOTH_FJSS_TR_BL", "BOTH_FJSS_TL_BR",
+    "BOTH_JUMPFLIPSLASHDOWN1", "BOTH_JUMPFLIPSTABDOWN",
+};
+constexpr std::string_view kDrehSchwertMd[] = {
+    "BOTH_T5_BL_TR_YODA", "BOTH_T5_BL__R_YODA", "BOTH_T5_BR_TL_YODA", "BOTH_T5_TL_BR_YODA",
+    "BOTH_T5__L__R_YODA", "BOTH_T5__R__L_YODA",
+};
+// PM_JumpingAnim
+constexpr std::string_view kSprung[] = {
+    "BOTH_JUMP1", "BOTH_INAIR1", "BOTH_LAND1", "BOTH_LAND2", "BOTH_JUMPBACK1", "BOTH_INAIRBACK1",
+    "BOTH_LANDBACK1", "BOTH_JUMPLEFT1", "BOTH_INAIRLEFT1", "BOTH_LANDLEFT1", "BOTH_JUMPRIGHT1",
+    "BOTH_INAIRRIGHT1", "BOTH_LANDRIGHT1",
+};
+constexpr std::string_view kSprungMd[] = {
+    "BOTH_JUMP1_ANI", "BOTH_JUMP1_YODA", "BOTH_JUMP1_VADER", "BOTH_JUMP1_GALEN", "BOTH_JUMP1_MAUL",
+    "BOTH_INAIR1_ANI", "BOTH_INAIR1_YODA", "BOTH_INAIR1_VADER", "BOTH_INAIR1_GALEN", "BOTH_INAIR1_MAUL",
+    "BOTH_LAND1_ANI", "BOTH_LAND1_YODA", "BOTH_LAND1_VADER", "BOTH_LAND1_GALEN", "BOTH_LAND1_MAUL",
+    "BOTH_INAIRLEFT1_GALEN", "BOTH_INAIRRIGHT1_GALEN",
+};
+// PM_LandingAnim
+constexpr std::string_view kLandung[] = {
+    "BOTH_LAND1", "BOTH_LAND2", "BOTH_LANDBACK1", "BOTH_LANDLEFT1", "BOTH_LANDRIGHT1", "BOTH_FORCELAND1",
+    "BOTH_FORCELANDBACK1", "BOTH_FORCELANDLEFT1", "BOTH_FORCELANDRIGHT1",
+};
+constexpr std::string_view kLandungMd[] = {
+    "BOTH_LAND1_ANI", "BOTH_LAND1_YODA", "BOTH_LAND1_VADER", "BOTH_LAND1_GALEN", "BOTH_LAND1_MAUL",
+    "BOTH_FORCELAND1_VADER", "BOTH_FORCELAND1_PAL",
+};
+// PM_InCartwheel
+constexpr std::string_view kRad[] = {
+    "BOTH_ARIAL_LEFT", "BOTH_ARIAL_RIGHT", "BOTH_ARIAL_F1", "BOTH_CARTWHEEL_LEFT", "BOTH_CARTWHEEL_RIGHT",
+};
+// PM_PainAnim
+constexpr std::string_view kSchmerz[] = {
+    "BOTH_PAIN1", "BOTH_PAIN2", "BOTH_PAIN3", "BOTH_PAIN4", "BOTH_PAIN5", "BOTH_PAIN6", "BOTH_PAIN7",
+    "BOTH_PAIN8", "BOTH_PAIN9", "BOTH_PAIN10", "BOTH_PAIN11", "BOTH_PAIN12", "BOTH_PAIN13", "BOTH_PAIN14",
+    "BOTH_PAIN15", "BOTH_PAIN16", "BOTH_PAIN17", "BOTH_PAIN18",
+};
+constexpr std::string_view kSchmerzMd[] = {
+    "BOTH_PAIN19",
+};
+// PM_InSpecialJump
+constexpr std::string_view kSondersprung[] = {
+    "BOTH_WALL_RUN_RIGHT", "BOTH_WALL_RUN_RIGHT_STOP", "BOTH_WALL_RUN_RIGHT_FLIP", "BOTH_WALL_RUN_LEFT",
+    "BOTH_WALL_RUN_LEFT_STOP", "BOTH_WALL_RUN_LEFT_FLIP", "BOTH_WALL_FLIP_RIGHT", "BOTH_WALL_FLIP_LEFT",
+    "BOTH_WALL_FLIP_BACK1", "BOTH_BUTTERFLY_LEFT", "BOTH_BUTTERFLY_RIGHT", "BOTH_BUTTERFLY_FL1",
+    "BOTH_BUTTERFLY_FR1", "BOTH_FJSS_TR_BL", "BOTH_FJSS_TL_BR", "BOTH_FORCELEAP2_T__B_",
+    "BOTH_JUMPFLIPSLASHDOWN1", "BOTH_JUMPFLIPSTABDOWN", "BOTH_JUMPATTACK6", "BOTH_JUMPATTACK7",
+    "BOTH_ARIAL_LEFT", "BOTH_ARIAL_RIGHT", "BOTH_ARIAL_F1", "BOTH_CARTWHEEL_LEFT", "BOTH_CARTWHEEL_RIGHT",
+    "BOTH_FORCELONGLEAP_START", "BOTH_FORCELONGLEAP_ATTACK", "BOTH_FORCEWALLRUNFLIP_START",
+    "BOTH_FORCEWALLRUNFLIP_END", "BOTH_FORCEWALLRUNFLIP_ALT", "BOTH_FLIP_ATTACK7", "BOTH_FLIP_HOLD7",
+    "BOTH_FLIP_LAND", "BOTH_A7_SOULCAL",
+};
+constexpr std::string_view kSondersprungMd[] = {
+    "BOTH_FORCELEAP2_T__B__PAL", "BOTH_JUMPATTACK6_GRIEV", "BOTH_FORCEJUMPDASH_START",
+    "BOTH_FORCEJUMPDASH_ATTACK",
+};
+// PM_InSlopeAnim
+constexpr std::string_view kHang[] = {
+    "LEGS_LEFTUP1", "LEGS_LEFTUP2", "LEGS_LEFTUP3", "LEGS_LEFTUP4", "LEGS_LEFTUP5", "LEGS_RIGHTUP1",
+    "LEGS_RIGHTUP2", "LEGS_RIGHTUP3", "LEGS_RIGHTUP4", "LEGS_RIGHTUP5", "LEGS_S1_LUP1", "LEGS_S1_LUP2",
+    "LEGS_S1_LUP3", "LEGS_S1_LUP4", "LEGS_S1_LUP5", "LEGS_S1_RUP1", "LEGS_S1_RUP2", "LEGS_S1_RUP3",
+    "LEGS_S1_RUP4", "LEGS_S1_RUP5", "LEGS_S3_LUP1", "LEGS_S3_LUP2", "LEGS_S3_LUP3", "LEGS_S3_LUP4",
+    "LEGS_S3_LUP5", "LEGS_S3_RUP1", "LEGS_S3_RUP2", "LEGS_S3_RUP3", "LEGS_S3_RUP4", "LEGS_S3_RUP5",
+    "LEGS_S4_LUP1", "LEGS_S4_LUP2", "LEGS_S4_LUP3", "LEGS_S4_LUP4", "LEGS_S4_LUP5", "LEGS_S4_RUP1",
+    "LEGS_S4_RUP2", "LEGS_S4_RUP3", "LEGS_S4_RUP4", "LEGS_S4_RUP5", "LEGS_S5_LUP1", "LEGS_S5_LUP2",
+    "LEGS_S5_LUP3", "LEGS_S5_LUP4", "LEGS_S5_LUP5", "LEGS_S5_RUP1", "LEGS_S5_RUP2", "LEGS_S5_RUP3",
+    "LEGS_S5_RUP4", "LEGS_S5_RUP5", "LEGS_S6_LUP1", "LEGS_S6_LUP2", "LEGS_S6_LUP3", "LEGS_S6_LUP4",
+    "LEGS_S6_LUP5", "LEGS_S6_RUP1", "LEGS_S6_RUP2", "LEGS_S6_RUP3", "LEGS_S6_RUP4", "LEGS_S6_RUP5",
+    "LEGS_S7_LUP1", "LEGS_S7_LUP2", "LEGS_S7_LUP3", "LEGS_S7_LUP4", "LEGS_S7_LUP5", "LEGS_S7_RUP1",
+    "LEGS_S7_RUP2", "LEGS_S7_RUP3", "LEGS_S7_RUP4", "LEGS_S7_RUP5",
+};
+// PM_SetSaberMove: "match torso anim to walk/run anim" - Haltungen (MD) und Beine (MD)
+constexpr std::string_view kBereitPassungMd[] = {
+    "BOTH_STAND2", "BOTH_SABERDUAL_STANCE", "BOTH_SABERFAST_STANCE_JKA", "BOTH_SABERFAST_STANCE_JKA_ANI",
+    "BOTH_SABERFAST_STANCE_JKA_BEN", "BOTH_SABERFAST_STANCE_JKA_VADER", "BOTH_SABERFAST_STANCE_JKA_PAL",
+    "BOTH_SABERFAST_STANCE_JKA_DOOKU", "BOTH_SABERFAST_STANCE_JKA_MAUL", "BOTH_SABERFAST_STANCE_JKA_LUKE",
+    "BOTH_SABERFAST_STANCE_JKA_MACE", "BOTH_SABERFAST_STANCE_JKA_OBI", "BOTH_SABERFAST_STANCE_JKA_KOTOR",
+    "BOTH_SABERFAST_STANCE_JKA_DF2", "BOTH_SABERFAST_STANCE_JKA_OBI3", "BOTH_SABERFAST_STANCE_JKA_REN",
+    "BOTH_SABERFAST_STANCE_JKA_REY", "BOTH_SABERFAST_STANCE_JKA_CAL", "BOTH_SABERFAST_STANCE_JKA_GRIEV",
+    "BOTH_SABERSLOW_STANCE", "BOTH_SABERSLOW_STANCE_JKA", "BOTH_SABERSLOW_STANCE_JKA_ANI",
+    "BOTH_SABERSLOW_STANCE_JKA_BEN", "BOTH_SABERSLOW_STANCE_JKA_VADER", "BOTH_SABERSLOW_STANCE_JKA_GALEN",
+    "BOTH_SABERSLOW_STANCE_JKA_LUKE", "BOTH_SABERSLOW_STANCE_JKA_GON", "BOTH_SABERSLOW_STANCE_JKA_OBI",
+    "BOTH_SABERSLOW_STANCE_JKA_KOTOR", "BOTH_SABERSLOW_STANCE_JKA_DF2", "BOTH_SABERSLOW_STANCE_JKA_OBI3",
+    "BOTH_SABERSLOW_STANCE_JKA_REN", "BOTH_SABERSLOW_STANCE_JKA_REY", "BOTH_SABERSLOW_STANCE_JKA_PAL",
+    "BOTH_SABERSLOW_STANCE_JKA_MAUL", "BOTH_SABERTAVION_STANCE", "BOTH_SABERTAVION_STANCE_JKA",
+    "BOTH_SABERTAVION_STANCE_JKA_BEN", "BOTH_SABERTAVION_STANCE_JKA_YODA", "BOTH_SABERTAVION_STANCE_JKA_VADER",
+    "BOTH_SABERTAVION_STANCE_JKA_MAUL", "BOTH_SABERTAVION_STANCE_JKA_MACE", "BOTH_SABERTAVION_STANCE_JKA_DF2",
+    "BOTH_SABERTAVION_STANCE_JKA_OBI3", "BOTH_SABERTAVION_STANCE_JKA_REN", "BOTH_SABERDESANN_STANCE",
+    "BOTH_SABERDESANN_STANCE_JKA", "BOTH_SABERDESANN_STANCE_JKA_ANI", "BOTH_SABERDESANN_STANCE_JKA_DOOKU",
+    "BOTH_SABERDESANN_STANCE_JKA_MACE", "BOTH_SABERDESANN_STANCE_JKA_DF2", "BOTH_SABERDESANN_STANCE_JKA_CAL",
+};
+constexpr std::string_view kGehPassungMd[] = {
+    "BOTH_WALK1", "BOTH_WALK1_VADER", "BOTH_WALK1_GALEN", "BOTH_WALK1_OBI3", "BOTH_WALK1_REN", "BOTH_WALK1_REY",
+    "BOTH_WALK1_JANGO", "BOTH_WALK1_BDROID", "BOTH_WALK1_CAL", "BOTH_WALK1_GRIEV", "BOTH_WALK1_PAL",
+    "BOTH_WALK1_DOOKU", "BOTH_WALK1_MAUL", "BOTH_WALK1_YODA", "BOTH_WALK1_MDA", "BOTH_WALK1_MDA_PAL",
+    "BOTH_WALK1_MDA_BDROID", "BOTH_WALK2", "BOTH_WALK2_VADER", "BOTH_WALK2_GALEN", "BOTH_WALK2_OBI3",
+    "BOTH_WALK2_REN", "BOTH_WALK2_REY", "BOTH_WALK2_JANGO", "BOTH_WALK2_BDROID", "BOTH_WALK2_CAL",
+    "BOTH_WALK2_GRIEV", "BOTH_WALK2_PAL", "BOTH_WALK2_DOOKU", "BOTH_WALK2_MAUL", "BOTH_WALK2_YODA",
+    "BOTH_WALK_STAFF", "BOTH_WALK_STAFF_BEN//#Normalwalkwithstaff", "BOTH_WALK_STAFF_PAL",
+    "BOTH_WALK_STAFF_MAUL", "BOTH_WALK_STAFF_AMD", "BOTH_WALK_DUAL", "BOTH_WALK_DUAL_AMD", "BOTH_WALKBACK1",
+    "BOTH_WALKBACK1_VADER", "BOTH_WALKBACK1_GRIEV", "BOTH_WALKBACK_PISTOL", "BOTH_WALKBACK_BLASTER",
+    "BOTH_WALKBACK_HEAVY", "BOTH_WALKBACK_GRENADE", "BOTH_WALKBACK2", "BOTH_WALKBACK2_YODA",
+    "BOTH_WALKBACK2_GRIEV", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_STAFF_MAUL", "BOTH_WALKBACK_DUAL",
+    "BOTH_WALKBACK_DUAL_GALEN", "BOTH_WALKBACK_DUAL_MAUL", "BOTH_WALKBACK_DUALPISTOL", "BOTH_RUN1",
+    "BOTH_RUN1_YODA", "BOTH_RUN1_VADER", "BOTH_RUN1_PAL", "BOTH_RUN1_MAUL", "BOTH_RUN1_OBI3", "BOTH_RUN1_REY",
+    "BOTH_RUN1_BDROID", "BOTH_RUN1_GRIEV", "BOTH_SPRINT", "BOTH_SPRINT_BEN", "BOTH_SPRINT_YODA",
+    "BOTH_SPRINT_VADER", "BOTH_SPRINT_GALEN", "BOTH_SPRINT_BDROID", "BOTH_SPRINT_GRIEV", "BOTH_SPRINT_PAL",
+    "BOTH_SPRINT_MAUL", "BOTH_SPRINT_SINGLE_LIGHTSABER", "BOTH_SPRINT_SINGLE_LIGHTSABER_BEN",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_YODA", "BOTH_SPRINT_SINGLE_LIGHTSABER_VADER",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_GALEN", "BOTH_SPRINT_SINGLE_LIGHTSABER_OBI3",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_REN", "BOTH_SPRINT_SINGLE_LIGHTSABER_REY",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_BDROID", "BOTH_SPRINT_SINGLE_LIGHTSABER_CAL",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_GRIEV", "BOTH_SPRINT_SINGLE_LIGHTSABER_PAL",
+    "BOTH_SPRINT_SINGLE_LIGHTSABER_DOOKU", "BOTH_SPRINT_SINGLE_LIGHTSABER_MAUL", "BOTH_SPRINT_STAFF_LIGHTSABER",
+    "BOTH_SPRINT_DUAL_LIGHTSABER", "BOTH_SPRINT_DUAL_LIGHTSABER_BEN", "BOTH_SPRINT_DUAL_LIGHTSABER_GALEN",
+    "BOTH_SPRINT_DUAL_LIGHTSABER_BDROID", "BOTH_SPRINT_DUAL_LIGHTSABER_PAL", "BOTH_SPRINT_DUAL_LIGHTSABER_MAUL",
+    "BOTH_RUN2", "BOTH_RUN2_YODA", "BOTH_RUN_STAFF", "BOTH_RUN_STAFF_BEN", "BOTH_RUN_STAFF_MAUL",
+    "BOTH_RUN_STAFF_REY", "BOTH_RUN_STAFF_BDROID", "BOTH_RUN_DUAL", "BOTH_RUN_DUAL_BEN", "BOTH_RUNBACK1",
+    "BOTH_RUNBACK1_VADER", "BOTH_RUNBACK2", "BOTH_RUNBACK2_YODA", "BOTH_RUNBACK2_VADER", "BOTH_RUNBACK2_GALEN",
+    "BOTH_RUNBACK2_GRIEV", "BOTH_RUNBACK_DUAL_GALEN", "BOTH_RUNBACK_STAFF", "BOTH_RUNBACK_STAFF_MAUL",
+    "BOTH_MENUIDLE1", "BOTH_SABERSINGLECROUCH", "BOTH_SABERSINGLECROUCH_ANI", "BOTH_SABERSINGLECROUCH_VADER",
+    "BOTH_SABERSINGLECROUCH_OBI", "BOTH_SABERSINGLECROUCH_DF2", "BOTH_SABERSINGLECROUCH_OBI3",
+    "BOTH_SABERSINGLECROUCH_REN", "BOTH_SABERSINGLECROUCH_REY", "BOTH_SABERDUALCROUCH",
+    "BOTH_SABERDUALCROUCH_GALEN", "BOTH_SABERDUALCROUCH_KOTOR", "BOTH_SABERDUALCROUCH_DF2",
+    "BOTH_SABERSTAFFCROUCH", "BOTH_SABERSTAFFCROUCH_BDROID", "BOTH_SABERSTAFFCROUCH_KOTOR", "BOTH_WALK1_STICK",
+    "BOTH_WALK1_STICK_YODA", "BOTH_WALK1_ANI", "BOTH_WALK2_ANI", "BOTH_WALK_DUAL_ANI", "BOTH_WALK_DUAL_GALEN",
+    "BOTH_WALK_DUAL_BDROID", "BOTH_WALK_DUAL_MAUL", "BOTH_RUN1_ANI", "BOTH_RUN2_ANI", "BOTH_RUN2_GALEN",
+    "BOTH_RUN2_OBI3", "BOTH_RUN2_REN", "BOTH_RUN2_REY", "BOTH_RUN2_BDROID", "BOTH_RUN2_CAL", "BOTH_RUN2_GRIEV",
+    "BOTH_RUN2_DOOKU", "BOTH_RUN_DUAL_ANI", "BOTH_RUN_DUAL_GALEN", "BOTH_RUN_DUAL_REY", "BOTH_RUN_DUAL_BDROID",
+    "BOTH_RUN_STAFF_ANI", "BOTH_SPRINT_SINGLE_LIGHTSABER_ANI", "BOTH_SPRINT_STAFF_LIGHTSABER_ANI",
+    "BOTH_SPRINT_STAFF_LIGHTSABER_GALEN", "BOTH_SPRINT_STAFF_LIGHTSABER_BDROID",
+    "BOTH_SPRINT_STAFF_LIGHTSABER_CAL", "BOTH_SPRINT_STAFF_LIGHTSABER_PAL", "BOTH_SPRINT_STAFF_LIGHTSABER_MAUL",
+    "BOTH_RUN1_BEN", "BOTH_RUN2_BEN", "BOTH_WALK1_BEN", "BOTH_WALK2_BEN",
+};
+// PM_TorsoAnimLightsaber MD: mit Stab oder zwei Klingen gehen (bg_panimate.cpp:9244)
+constexpr std::string_view kStabGehenMd[] = {
+    "BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_STAFF_MAUL",
+    "BOTH_WALKBACK_DUAL", "BOTH_WALKBACK_DUAL_GALEN", "BOTH_WALKBACK_DUAL_MAUL", "BOTH_WALK_STAFF_AMD",
+    "BOTH_WALK_STAFF_BEN", "BOTH_WALK_STAFF_PAL", "BOTH_WALK_STAFF_MAUL", "BOTH_WALK_DUAL_AMD", "BOTH_WALK1",
+    "BOTH_WALK1_VADER", "BOTH_WALK1_GALEN", "BOTH_WALK1_OBI3", "BOTH_WALK1_REN", "BOTH_WALK1_REY",
+    "BOTH_WALK1_JANGO", "BOTH_WALK1_BDROID", "BOTH_WALK1_CAL", "BOTH_WALK1_GRIEV", "BOTH_WALK1_PAL",
+    "BOTH_WALK1_DOOKU", "BOTH_WALK1_MAUL", "BOTH_WALK1_YODA", "BOTH_WALK1_MDA", "BOTH_WALK1_MDA_PAL",
+    "BOTH_WALK1_MDA_BDROID", "BOTH_WALKBACK1", "BOTH_WALKBACK1_VADER", "BOTH_WALKBACK1_GRIEV", "BOTH_WALK2",
+    "BOTH_WALK2_VADER", "BOTH_WALK2_GALEN", "BOTH_WALK2_OBI3", "BOTH_WALK2_REN", "BOTH_WALK2_REY",
+    "BOTH_WALK2_JANGO", "BOTH_WALK2_BDROID", "BOTH_WALK2_CAL", "BOTH_WALK2_GRIEV", "BOTH_WALK2_PAL",
+    "BOTH_WALK2_DOOKU", "BOTH_WALK2_MAUL", "BOTH_WALK2_YODA", "BOTH_WALK1_ANI", "BOTH_WALK2_ANI",
+    "BOTH_WALK_DUAL_ANI", "BOTH_WALK_DUAL_GALEN", "BOTH_WALK_DUAL_BDROID", "BOTH_WALK_DUAL_MAUL",
+    "BOTH_WALK1_BEN", "BOTH_WALK2_BEN", "BOTH_WALKBACK2", "BOTH_WALKBACK2_YODA", "BOTH_WALKBACK2_GRIEV",
+};
+
+template <std::size_t N>
+bool steht(const std::string_view (&liste)[N], const std::string& anim) {
+    return std::find(std::begin(liste), std::end(liste), std::string_view(anim)) != std::end(liste);
+}
+
 
 bool einer(const std::string& a, std::initializer_list<const char*> namen) {
     for (const char* n : namen) {
@@ -383,40 +576,144 @@ bool pmSetAnimNormal(PmKnochen& k, const std::string& anim, float tempo, double 
     return true;
 }
 
-PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const std::string& torso) {
+bool pmSaltoAnim(const std::string& a, bool md) { return steht(kSalto, a) || (md && steht(kSaltoMd, a)); }
+
+bool pmDrehSchwertAnim(const std::string& a, bool md) { return steht(kDrehSchwert, a) || (md && steht(kDrehSchwertMd, a)); }
+
+namespace {
+
+bool sprungAnim(const std::string& a, bool md) { return steht(kSprung, a) || (md && steht(kSprungMd, a)); }
+bool landungAnim(const std::string& a, bool md) { return steht(kLandung, a) || (md && steht(kLandungMd, a)); }
+bool schmerzAnim(const std::string& a, bool md) { return steht(kSchmerz, a) || (md && steht(kSchmerzMd, a)); }
+bool sondersprungAnim(const std::string& a, bool md) { return steht(kSondersprung, a) || (md && steht(kSondersprungMd, a)); }
+
+// PM_Animationstyletable (MD): MATCH(s) = client->animationstyle == s oder g_animationstyle == s
+// (Vorgabe "0" = CS_DEFAULT, das keine der Haltungen hier abfragt).
+bool mdStil(const PmFigur& f, const char* stil) { return f.animStilAn && f.animStil == stil; }
+
+// PM_ReadyPoseForSaberAnimLevelDucked (MD bg_pmove.cpp:17301)
+std::string mdHaltungGeduckt(const PmFigur& f) {
+    switch (f.saberStil) {
+        case 6:   // SS_DUAL
+            if (mdStil(f, "CS_GALEN_MAREK")) { return "BOTH_SABERDUALCROUCH_GALEN"; }
+            if (mdStil(f, "CS_KOTOR")) { return "BOTH_SABERDUALCROUCH_KOTOR"; }
+            if (mdStil(f, "CS_DARKFORCES2")) { return "BOTH_SABERDUALCROUCH_DF2"; }
+            return "BOTH_SABERDUALCROUCH";
+        case 7:   // SS_STAFF
+            if (mdStil(f, "CS_BATTLEDROID")) { return "BOTH_SABERSTAFFCROUCH_BDROID"; }
+            if (mdStil(f, "CS_KOTOR")) { return "BOTH_SABERSTAFFCROUCH_KOTOR"; }
+            return "BOTH_SABERSTAFFCROUCH";
+        case 1: case 2: case 3: case 4: case 5: {
+            static const char* const kStil[][2] = {{"CS_ANAKIN", "_ANI"}, {"CS_VADER", "_VADER"}, {"CS_OBIWAN", "_OBI"},
+                                                   {"CS_DARKFORCES2", "_DF2"}, {"CS_OBIWAN_EP3", "_OBI3"},
+                                                   {"CS_KYLO_REN", "_REN"}, {"CS_REY", "_REY"}};
+            for (const auto& s : kStil) {
+                if (mdStil(f, s[0])) { return std::string("BOTH_SABERSINGLECROUCH") + s[1]; }
+            }
+            return "BOTH_SABERSINGLECROUCH";
+        }
+        default:
+            return "BOTH_SABERSINGLECROUCH";
+    }
+}
+
+// PM_ReadyPoseForSaberAnimLevel: OpenJK der switch, Movie Duels fuer NPCs
+// PM_ReadyPoseForSaberAnimLevelNPC mit g_SerenityJediEngineMode 0 (die "JKA fallback"-
+// Tabelle, bg_pmove.cpp:18688; Figurenvarianten nur fuer SS_DUAL und SS_STAFF).
+std::string bereitHaltung(const PmFigur& f, const PmTorsoLage& lage) {
+    if (!f.md) { return saberHaltungFuerStil(f.saberStil, false); }
+    if (lage.geduckt) { return mdHaltungGeduckt(f); }
+    if (f.saberStil == 6 || f.saberStil == 7) {
+        static const char* const kStil[][2] = {{"CS_GALEN_MAREK", "_GALEN"}, {"CS_MOVIEDUELS", "_MD"}, {"CS_KOTOR", "_KOTOR"},
+                                               {"CS_DARKFORCES2", "_DF2"}, {"CS_BATTLEDROID", "_BDROID"},
+                                               {"CS_CAL_KESTIS", "_CAL"}, {"CS_GRIEVOUS", "_GRIEV"}, {"CS_PALPATINE", "_PAL"},
+                                               {"CS_MAUL", "_MAUL"}};
+        const bool dual = f.saberStil == 6;
+        for (const auto& s : kStil) {
+            const std::string_view n = s[0];
+            // SS_DUAL ohne Kampfdroide, SS_STAFF ohne Grievous und Palpatine
+            if ((dual && n == "CS_BATTLEDROID") || (!dual && (n == "CS_GRIEVOUS" || n == "CS_PALPATINE"))) { continue; }
+            if (mdStil(f, s[0])) { return std::string(dual ? "BOTH_SABERDUAL_STANCE_JKA" : "BOTH_SABERSTAFF_STANCE_JKA") + s[1]; }
+        }
+    }
+    return saberHaltungFuerStil(f.saberStil, true);
+}
+
+}  // namespace
+
+PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const PmTorsoLage& lage) {
     PmTorsoWahl w;
-    // PM_RunningAnim oder Stab/zwei Klingen beim Gehen: der Oberkoerper folgt
-    // (saberBlockingTime < cg.time - ohne Blocken immer).
-    if (pmLaufAnim(beine, f.md) ||
-        einer(beine, {"BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL"})) {
+    const bool md = f.md;
+    // springend, landend, Rad, Salto: der Oberkoerper folgt (PM_SetAnim SETANIM_TORSO legsAnim)
+    if (sprungAnim(beine, md) || landungAnim(beine, md) || steht(kRad, beine) || pmSaltoAnim(beine, md)) {
         w.folgen = true;
         return w;
     }
-    // PM_SetSaberMove(LS_READY): PM_ReadyPoseForSaberAnimLevel
-    std::string bereit = saberHaltungFuerStil(f.saberStil, f.md);
-    w.blendMs = kPmBlendSaberBereit;
-    if (!f.md) {
-        // "match torso anim to walk/run anim if newMove is just LS_READY"
-        if (einer(bereit, {"BOTH_STAND2", "BOTH_SABERDUAL_STANCE", "BOTH_SABERFAST_STANCE", "BOTH_SABERSLOW_STANCE"}) &&
-            einer(beine, {"BOTH_WALK1", "BOTH_WALK2", "BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
-                          "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL", "BOTH_RUN1", "BOTH_RUN2", "BOTH_RUN_STAFF", "BOTH_RUN_DUAL",
-                          "BOTH_RUNBACK1", "BOTH_RUNBACK2", "BOTH_RUNBACK_STAFF"})) {
-            bereit = beine;
+    // "running w/1-handed weapon uses full-body anim" - nur ohne Blocken (saberBlockingTime < cg.time)
+    const bool stabGehen = md ? steht(kStabGehenMd, beine)
+                              : einer(beine, {"BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL"});
+    if ((pmLaufAnim(beine, md) || stabGehen) && !f.blocken) {
+        w.folgen = true;
+        return w;
+    }
+    // --- PM_SetSaberMove(LS_READY) ---
+    const bool arc = f.saberTyp == "SABER_ARC";
+    const bool zweites = f.zweiSchwerter && f.zweitesAn;
+    const bool stabLage = f.stab && (!f.eineKlingeStil || f.klinge2An);
+    std::string a;
+    if (!md) {
+        if (f.blocken) {
+            a = (f.saberTyp == "SABER_CLAW" || zweites) ? "BOTH_INAIR1" : "BOTH_P1_S1_T_";
+        } else if (!f.bereitAnim[0].empty()) {
+            a = f.bereitAnim[0];
+        } else if (f.zweiSchwerter && !f.bereitAnim[1].empty()) {
+            a = f.bereitAnim[1];
+        } else if (arc) {
+            a = "BOTH_SABERFAST_STANCE";
+        } else if (zweites) {
+            a = "BOTH_SABERDUAL_STANCE";
+        } else if (stabLage) {
+            a = "BOTH_SABERSTAFF_STANCE";
+        } else if (f.saberTyp == "SABER_LANCE" || f.saberTyp == "SABER_TRIDENT") {
+            a = "BOTH_STAND1";
+        } else {
+            a = bereitHaltung(f, lage);
         }
-        w.anim = bereit;
-        return w;
+    } else {
+        // ein NPC haelt nie MBF_HOLDINGBLOCK (nur ent->NPC == NULL, g_active.cpp)
+        if (f.blocken) {
+            a = (f.saberTyp == "SABER_CLAW" || zweites || stabLage || arc) ? bereitHaltung(f, lage)
+                                                                           : "BOTH_STAND2";   // saberMoveData[LS_READY].animToUse
+        } else if (!f.bereitAnim[0].empty()) {
+            a = f.bereitAnim[0];
+        } else if (f.zweiSchwerter && !f.bereitAnim[1].empty()) {
+            a = f.bereitAnim[1];
+        } else {
+            a = bereitHaltung(f, lage);
+        }
     }
-    // Movie Duels: stehen die Beine in einer Kampfhaltung (PM_SaberStanceAnim,
-    // ausser BOTH_STAND1), bekommen beide Knochen die Haltung; laeuft der
-    // Oberkoerper noch (PM_RunningAnim torsoAnim), bleibt er.
-    if (einer(beine, {"BOTH_STAND2", "BOTH_STAND2_JKA", "BOTH_SABERFAST_STANCE", "BOTH_SABERSLOW_STANCE", "BOTH_SABERSTAFF_STANCE",
-                      "BOTH_SABERDUAL_STANCE"})) {
-        w.anim = bereit;
+    // "match torso anim to walk/run anim if newMove is just LS_READY"
+    const bool stand1 = (a == "BOTH_STAND1" || (md && a == "BOTH_STAND1_BDROID")) && (arc || zweites);
+    const bool passt = md ? (stand1 || steht(kBereitPassungMd, a))
+                          : (stand1 || einer(a, {"BOTH_STAND2", "BOTH_SABERDUAL_STANCE", "BOTH_SABERFAST_STANCE", "BOTH_SABERSLOW_STANCE"}));
+    if (passt &&
+        (md ? steht(kGehPassungMd, beine)
+            : einer(beine, {"BOTH_WALK1", "BOTH_WALK2", "BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
+                            "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL", "BOTH_RUN1", "BOTH_RUN2", "BOTH_RUN_STAFF", "BOTH_RUN_DUAL",
+                            "BOTH_RUNBACK1", "BOTH_RUNBACK2", "BOTH_RUNBACK_STAFF"}))) {
+        a = beine;
+    }
+    // SETANIM_TORSO oder SETANIM_BOTH
+    if (f.blocken) {
+        w.beide = true;   // !saberBlocked: beim Halten der Haltung ist kein Treffer abzuwehren
+    } else if (pmDrehSchwertAnim(a, md) || (md && pmDrehSchwertAnim(beine, md))) {
         w.beide = true;
-        return w;
+    } else if (!lage.eingabe || (md && lage.tempoNull)) {
+        w.beide = !pmSaltoAnim(beine, md) && !lage.rolleOderLiegen && !sprungAnim(beine, md) && !schmerzAnim(beine, md) &&
+                  !sondersprungAnim(beine, md) && !steht(kHang, beine) && !lage.geduckt;
     }
-    if (pmLaufAnim(torso, true)) { return w; }
-    w.anim = bereit;
+    w.anim = a;
+    w.blendMs = kPmBlendSaberBereit;
     return w;
 }
 

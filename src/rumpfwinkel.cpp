@@ -1,5 +1,6 @@
 #include "bhed/rumpfwinkel.h"
 
+#include "bhed/pmanim.h"      // pmSaltoAnim, pmDrehSchwertAnim
 #include "bhed/todesanim.h"   // engineVectoangles
 
 #include <algorithm>
@@ -10,45 +11,6 @@ namespace bhed {
 
 namespace {
 
-// PM_FlippingAnim (bg_pmove.cpp OpenJK), Movie Duels mit den Zusaetzen dahinter.
-constexpr std::string_view kSalto[] = {
-    "BOTH_FLIP_F", "BOTH_FLIP_B", "BOTH_FLIP_L", "BOTH_FLIP_R", "BOTH_ALORA_FLIP_1", "BOTH_ALORA_FLIP_2",
-    "BOTH_ALORA_FLIP_3", "BOTH_WALL_RUN_RIGHT_FLIP", "BOTH_WALL_RUN_LEFT_FLIP", "BOTH_WALL_FLIP_RIGHT",
-    "BOTH_WALL_FLIP_LEFT", "BOTH_FLIP_BACK1", "BOTH_FLIP_BACK2", "BOTH_FLIP_BACK3", "BOTH_WALL_FLIP_BACK1",
-    "BOTH_ALORA_FLIP_B", "BOTH_WALL_RUN_RIGHT", "BOTH_WALL_RUN_LEFT", "BOTH_WALL_RUN_RIGHT_STOP",
-    "BOTH_WALL_RUN_LEFT_STOP", "BOTH_BUTTERFLY_LEFT", "BOTH_BUTTERFLY_RIGHT", "BOTH_BUTTERFLY_FL1",
-    "BOTH_BUTTERFLY_FR1", "BOTH_ARIAL_LEFT", "BOTH_ARIAL_RIGHT", "BOTH_ARIAL_F1", "BOTH_CARTWHEEL_LEFT",
-    "BOTH_CARTWHEEL_RIGHT", "BOTH_JUMPFLIPSLASHDOWN1", "BOTH_JUMPFLIPSTABDOWN", "BOTH_JUMPATTACK6",
-    "BOTH_JUMPATTACK7", "BOTH_FORCEWALLRUNFLIP_END", "BOTH_FORCEWALLRUNFLIP_ALT", "BOTH_FLIP_ATTACK7",
-    "BOTH_A7_SOULCAL",
-};
-constexpr std::string_view kSaltoMd[] = {
-    "BOTH_FLIP_B_ANI", "BOTH_FLIP_B_GALEN", "BOTH_FLIP_F_ANI", "BOTH_FLIP_F_GALEN", "BOTH_FLIP_L_ANI",
-    "BOTH_FLIP_L_GALEN", "BOTH_FLIP_R_ANI", "BOTH_FLIP_R_GALEN", "BOTH_JUMPATTACK6_GRIEV",
-};
-// PM_SpinningSaberAnim
-constexpr std::string_view kDrehSchwert[] = {
-    "BOTH_T1_BR_BL", "BOTH_T1__R__L", "BOTH_T1__R_BL", "BOTH_T1_TR_BL", "BOTH_T1_BR_TL", "BOTH_T1_BR__L",
-    "BOTH_T1_TL_BR", "BOTH_T1__L_BR", "BOTH_T1__L__R", "BOTH_T1_BL_BR", "BOTH_T1_BL__R", "BOTH_T1_BL_TR",
-    "BOTH_T2_BR__L", "BOTH_T2_BR_BL", "BOTH_T2__R_BL", "BOTH_T2__L_BR", "BOTH_T2_BL_BR", "BOTH_T2_BL__R",
-    "BOTH_T3_BR__L", "BOTH_T3_BR_BL", "BOTH_T3__R_BL", "BOTH_T3__L_BR", "BOTH_T3_BL_BR", "BOTH_T3_BL__R",
-    "BOTH_T4_BR__L", "BOTH_T4_BR_BL", "BOTH_T4__R_BL", "BOTH_T4__L_BR", "BOTH_T4_BL_BR", "BOTH_T4_BL__R",
-    "BOTH_T5_BR_BL", "BOTH_T5__R__L", "BOTH_T5__R_BL", "BOTH_T5_TR_BL", "BOTH_T5_BR_TL", "BOTH_T5_BR__L",
-    "BOTH_T5_TL_BR", "BOTH_T5__L_BR", "BOTH_T5__L__R", "BOTH_T5_BL_BR", "BOTH_T5_BL__R", "BOTH_T5_BL_TR",
-    "BOTH_T6_BR_TL", "BOTH_T6__R_TL", "BOTH_T6__R__L", "BOTH_T6__R_BL", "BOTH_T6_TR_TL", "BOTH_T6_TR__L",
-    "BOTH_T6_TR_BL", "BOTH_T6_T__TL", "BOTH_T6_T__BL", "BOTH_T6_TL_BR", "BOTH_T6__L_BR", "BOTH_T6__L__R",
-    "BOTH_T6_TL__R", "BOTH_T6_TL_TR", "BOTH_T6__L_TR", "BOTH_T6__L_T_", "BOTH_T6_BL_T_", "BOTH_T6_BR__L",
-    "BOTH_T6_BR_BL", "BOTH_T6_BL_BR", "BOTH_T6_BL__R", "BOTH_T6_BL_TR", "BOTH_T7_BR_TL", "BOTH_T7_BR__L",
-    "BOTH_T7_BR_BL", "BOTH_T7__R__L", "BOTH_T7__R_BL", "BOTH_T7_TR__L", "BOTH_T7_T___R", "BOTH_T7_TL_BR",
-    "BOTH_T7__L_BR", "BOTH_T7__L__R", "BOTH_T7_BL_BR", "BOTH_T7_BL__R", "BOTH_T7_BL_TR", "BOTH_T7_TL_TR",
-    "BOTH_T7_T__BR", "BOTH_T7__L_TR", "BOTH_V7_BL_S7", "BOTH_ATTACK_BACK", "BOTH_CROUCHATTACKBACK1",
-    "BOTH_BUTTERFLY_LEFT", "BOTH_BUTTERFLY_RIGHT", "BOTH_FJSS_TR_BL", "BOTH_FJSS_TL_BR",
-    "BOTH_JUMPFLIPSLASHDOWN1", "BOTH_JUMPFLIPSTABDOWN",
-};
-constexpr std::string_view kDrehSchwertMd[] = {
-    "BOTH_T5_BL_TR_YODA", "BOTH_T5_BL__R_YODA", "BOTH_T5_BR_TL_YODA", "BOTH_T5_TL_BR_YODA",
-    "BOTH_T5__L__R_YODA", "BOTH_T5__R__L_YODA",
-};
 // PM_InLedgeMove (nur Movie Duels)
 constexpr std::string_view kKanteMd[] = {
     "BOTH_LEDGE_GRAB", "BOTH_LEDGE_GRAB_GALEN", "BOTH_LEDGE_HOLD", "BOTH_LEDGE_HOLD_GALEN",
@@ -155,9 +117,8 @@ void rumpfKnochenAchsen(RumpfKlasse k, const std::string& knochen, G2Achse& oben
 }
 
 bool rumpfMotionAusgleich(RumpfKlasse k, const std::string& beine, const std::string& torso, bool md) {
-    const auto salto = [md](const std::string& a) { return steht(kSalto, a) || (md && steht(kSaltoMd, a)); };
-    const auto dreh = [md](const std::string& a) { return steht(kDrehSchwert, a) || (md && steht(kDrehSchwertMd, a)); };
-    return k != RumpfKlasse::Ohne && k != RumpfKlasse::SaberDroid && !salto(beine) && !dreh(beine) && !dreh(torso) &&
+    return k != RumpfKlasse::Ohne && k != RumpfKlasse::SaberDroid && !pmSaltoAnim(beine, md) && !pmDrehSchwertAnim(beine, md) &&
+           !pmDrehSchwertAnim(torso, md) &&
            beine != torso && !rumpfSchlechteKnochen(k);
 }
 

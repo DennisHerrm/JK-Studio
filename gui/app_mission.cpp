@@ -4860,8 +4860,12 @@ void aufnahmeAnimSchritt(Aufnahme& r, const NavSpielerEingabe& e, bool gehen, co
     std::string ziel;
     double blend = kPmBlendVorgabe;
     if (r.pm.waffe == "WP_SABER" && r.pm.klingeLaenge) {
-        const PmTorsoWahl t = pmTorsoLichtschwert(r.pm, r.beine.anim, r.torso.anim.empty() ? r.beine.anim : r.torso.anim);
-        if (!t.folgen && t.anim.empty()) { return; }   // MD: der laufende Oberkoerper bleibt
+        // Zeitleiste 6: PM_SetSaberMove liest cmd (forward-, right-, upmove); die Aufnahme
+        // duckt nicht, rollt nicht und liegt nie, und ps->speed eines gelenkten NPC ist
+        // sein Geh- bzw. Lauftempo (nicht 0).
+        PmTorsoLage lage;
+        lage.eingabe = vor != 0 || seit != 0 || e.hoch != 0;
+        const PmTorsoWahl t = pmTorsoLichtschwert(r.pm, r.beine.anim, lage);
         blend = t.blendMs;
         double lerpB = 0.0;
         double haltenB = 0.0;
