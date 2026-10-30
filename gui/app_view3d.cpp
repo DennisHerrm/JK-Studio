@@ -4867,7 +4867,10 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
         an.bolzen = bolzen;
         return &an;
     };
-    if (!st.waffe.empty()) {
+    // Pruefung 4b: Remove vor dem ersten Add hat Ghoul2-Modell 0 entfernt -
+    // Waffe und Griffe hingen an seinen Bolzen und fallen aus G2_Sort_Models.
+    d.ohneKoerper = st.koerperEntfernt;
+    if (!st.waffe.empty() && !st.koerperEntfernt) {
         for (std::size_t n = 0; n < 2; ++n) {
             const HandBelegung& h = st.hand[n];
             const std::string* p = pfad(h.modell);
@@ -4940,8 +4943,12 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
     // (Q3_AddRHandModel & Co., Q3_Interface.cpp:6336 ff.).
     for (const KinoModell& km : st.kino) {
         const std::string* p = pfad(km.modell);
-        if (p != nullptr) {
-            (void)neu(hiltFor(*p), km.links ? "*l_hand" : "*r_hand");
+        if (p == nullptr) {
+            continue;
+        }
+        AnbauDraw* an = neu(hiltFor(*p), km.links ? "*l_hand" : "*r_hand");
+        if (an != nullptr) {
+            an->anWurzel = km.anWurzel;
         }
     }
 }

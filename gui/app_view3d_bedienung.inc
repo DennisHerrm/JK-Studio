@@ -3693,10 +3693,11 @@ void drawMapView() {
                             }
                         }
                         std::string ff;
-                        const int n = gpu::zeichneFigur(
+                        // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerper.
+                        const int n = a.ohneKoerper ? 0 : gpu::zeichneFigur(
                             *a.model, a.textures, skin, fw, vp, &ff, &licht,
                             g_app->showCaps);
-                        if (!nebenbild && auswahl.figur(a.figur)) {
+                        if (!nebenbild && !a.ohneKoerper && auswahl.figur(a.figur)) {
                             UmrissFigur uf;
                             uf.model = a.model;
                             uf.textures = a.textures;
@@ -3763,7 +3764,7 @@ void drawMapView() {
                         // Steht die Figur im Nebel, bekommt sie ihn auch.
                         const int figurNebel =
                             g_app->showFog ? nebelFuer(a.pos) : -1;
-                        if (mitSchatten || figurNebel >= 0) {
+                        if ((mitSchatten || figurNebel >= 0) && !a.ohneKoerper) {
                             gpu::FigurSchatten fs;
                             fs.model = a.model;
                             fs.textures = a.textures;
@@ -3789,19 +3790,13 @@ void drawMapView() {
                             for (int ai2 = 0; ai2 < a.anbauten; ++ai2) {
                                 const AnbauDraw& an =
                                     a.anbau[static_cast<std::size_t>(ai2)];
-                                if (an.model == nullptr) {
-                                    continue;
-                                }
-                                BoneMatrix hand{};
                                 // Fehlt der Bolzen, haengt die Engine NICHTS an
                                 // ("if (bolt_num == -1) return",
                                 // wp_saber.cpp:748) - also auch hier nicht.
-                                const int handSurf = surfaceIndex(*a.model, an.bolzen);
-                                if (!boltMatrix(*a.model, handSurf, welt, *a.anim, hand)) {
+                                float gw2[16];
+                                if (an.model == nullptr || !anbauWelt(a, an, welt, fw, gw2)) {
                                     continue;
                                 }
-                                float gw2[16];
-                                gpu::baueGriffWelt(fw, hand, gw2);
                                 static const std::vector<BoneMatrix> kStarr;
                                 std::string fh;
                                 // rc603 Durchsicht: die Achsen der FIGUR, nicht die

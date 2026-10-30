@@ -241,6 +241,34 @@ void fallenWeltBauen() {
     }
 }
 
+// Pruefung 4b: die Weltmatrix eines Modells im ghoul2-Feld der Figur (Waffe,
+// Schwertgriff, Kinomodell). Am Bolzen: Figurstellung mal Bolzenmatrix
+// (baueGriffWelt). An der Wurzel (AnbauDraw::anWurzel - G2API_AttachG2Model
+// scheiterte): die Achsen des refEntity, AnglesToAxis(0, Gier, 0) mal
+// modelScale (CG_Player), am Ursprung der Figur - wie jedes ungebundene
+// Ghoul2-Modell (RootMatrix ist die Einheit, tr_ghoul2.cpp:2720-2765 OpenJK).
+// false: der Bolzen fehlt (dann haengt die Engine nichts an).
+bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMatrix>& welt, const float fw[16],
+               float gw[16]) {
+    if (an.anWurzel) {
+        const float w[3] = {0.0F, d.yaw + d.yawOffset, 0.0F};
+        float achse[3][3];
+        winkelZuAchsen(w, achse);
+        for (int r = 0; r < 3; ++r) {
+            for (int c = 0; c < 3; ++c) { gw[r * 4 + c] = achse[c][r] * d.skala[c]; }
+            gw[r * 4 + 3] = fw[r * 4 + 3];
+            gw[12 + r] = 0.0F;
+        }
+        gw[15] = 1.0F;
+        return true;
+    }
+    BoneMatrix hand{};
+    const int hs = surfaceIndex(*d.model, an.bolzen);
+    if (hs < 0 || d.anim == nullptr || !boltMatrix(*d.model, hs, welt, *d.anim, hand)) { return false; }
+    gpu::baueGriffWelt(fw, hand, gw);
+    return true;
+}
+
 // G2_TraceModels fuer das Koerpermodell der Figur ai zur Zeit ms (dieselbe
 // Knochenrechnung wie die Zeichnung). -1: kein Netz zu pruefen, 0/1: Treffer.
 int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const float start[3], const float ende[3],
@@ -270,7 +298,9 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     };
     std::vector<float> ecken;
     std::vector<std::uint32_t> idx;
-    for (std::size_t si = 0; si < m.surfaces.size(); ++si) {
+    // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerpernetz (G2_TraceModels
+    // ueberspringt Modelle mit mModelindex -1).
+    for (std::size_t si = 0; si < m.surfaces.size() && !d.ohneKoerper; ++si) {
         const GlmSurface& sf = m.surfaces[si];
         if (aus(si) != 0U || sf.verts.empty()) { continue; }
         bool abgeschnitten = false;
@@ -303,12 +333,8 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     // baueGriffWelt), Ecken starr im Raum des Modells.
     for (int ai2 = 0; ai2 < d.anbauten && !g_fallenOhneAnbau; ++ai2) {
         const AnbauDraw& an = d.anbau[static_cast<std::size_t>(ai2)];
-        if (an.model == nullptr) { continue; }
-        BoneMatrix hand{};
-        const int hs = surfaceIndex(m, an.bolzen);
-        if (hs < 0 || !boltMatrix(m, hs, welt, *d.anim, hand)) { continue; }
         float gw[16];
-        gpu::baueGriffWelt(fw, hand, gw);
+        if (an.model == nullptr || !anbauWelt(d, an, welt, fw, gw)) { continue; }
         for (const GlmSurface& sf : an.model->surfaces) {
             if (sf.flags != 0U || sf.skinnedOff || sf.verts.empty()) { continue; }
             ecken.clear();
