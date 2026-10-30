@@ -56,7 +56,7 @@ static_assert( sizeof( BhedBakeAktiv ) == 32, "Aktiv im Shader" );
 static_assert( sizeof( BhedBakeLicht ) == 128, "Licht im Shader" );
 static_assert( sizeof( BhedBakeGitterPunkt ) == 144, "GitterPunkt im Shader" );
 static_assert( sizeof( BhedBakeBsp::Knoten ) == 16 && sizeof( BhedBakeBsp::Ebene ) == 16 && sizeof( BhedBakeBsp::Blatt ) == 16 &&
-               sizeof( BhedBakeBsp::Brush ) == 16, "BSP im Shader" );
+               sizeof( BhedBakeBsp::Brush ) == 48, "BSP im Shader" );
 
 namespace
 {
@@ -674,7 +674,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	// Speicherbedarf der Szene (BVH-Ersatz: Knoten, Dreiecke; BSP) gegen den Grafikspeicher
 	const size_t bedarf = knoten.size() * sizeof( BhedBakeKnoten ) + items.size() * 4 + dreiecke.size() * sizeof( BhedBakeDreieck ) +
 	                      infos.size() * sizeof( BhedBakeInfo ) + visBytes + bsp.knoten.size() * 16 + bsp.ebenen.size() * 16 + bsp.blaetter.size() * 16 +
-	                      bsp.blattBrushes.size() * 4 + bsp.brushes.size() * 16 + bsp.seiten.size() * 4;
+	                      bsp.blattBrushes.size() * 4 + bsp.brushes.size() * sizeof( BhedBakeBsp::Brush ) + bsp.seiten.size() * 4;
 	std::vector<unsigned char> visKopie( vis != nullptr ? vis : reinterpret_cast<const unsigned char *>( "" ), vis != nullptr ? vis + visBytes : reinterpret_cast<const unsigned char *>( "" ) );
 	visKopie.resize( ( visKopie.size() + 3 ) & ~size_t( 3 ), 0 );
 	if ( visKopie.empty() ) {

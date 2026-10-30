@@ -1841,8 +1841,14 @@ bool BhedBakeVorbereiten( const std::string& adapter ){
 		bsp.blaetter.push_back( { l.cluster, l.firstBSPLeafBrush, l.numBSPLeafBrushes, 0 } );
 	}
 	bsp.blattBrushes = bspLeafBrushes;
+	const std::vector<float>& boxen = BhedBrushBoxenGpu();
+	if ( boxen.size() != bspBrushes.size() * 6 ) {
+		return false;
+	}
 	for ( size_t b = 0; b < bspBrushes.size(); ++b ) {
-		bsp.brushes.push_back( { bspBrushes[ b ].firstSide, bspBrushes[ b ].numSides, b < opaqueBrushes.size() && opaqueBrushes[ b ] ? 1 : 0, 0 } );
+		const float *box = &boxen[ b * 6 ];
+		bsp.brushes.push_back( { bspBrushes[ b ].firstSide, bspBrushes[ b ].numSides, b < opaqueBrushes.size() && opaqueBrushes[ b ] ? 1 : 0, 0,
+		                         { box[ 0 ], box[ 1 ], box[ 2 ] }, 0.0f, { box[ 3 ], box[ 4 ], box[ 5 ] }, 0.0f } );
 	}
 	for ( const bspBrushSide_t& side : bspBrushSides ) {
 		bsp.seiten.push_back( side.planeNum );

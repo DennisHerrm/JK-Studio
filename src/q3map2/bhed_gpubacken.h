@@ -94,7 +94,7 @@ struct BhedBakeBsp {
 	struct Knoten { int ebene, k0, k1, pad; };
 	struct Ebene { float n[ 3 ]; float dist; };
 	struct Blatt { int cluster, ersterBrush, anzahlBrushes, pad; };
-	struct Brush { int ersteSeite, anzahlSeiten, opak, pad; };
+	struct Brush { int ersteSeite, anzahlSeiten, opak, pad; float lo[ 3 ], pad1, hi[ 3 ], pad2; };   // lo/hi: Box (vis4)
 	std::vector<Knoten> knoten;
 	std::vector<Ebene> ebenen;
 	std::vector<Blatt> blaetter;

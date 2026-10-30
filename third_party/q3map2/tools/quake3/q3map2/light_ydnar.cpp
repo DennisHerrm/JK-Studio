@@ -39,6 +39,9 @@
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 #include <numeric> /* BehavEd vis1 */
 #include <memory> /* BehavEd vis1 */
+#include <emmintrin.h> /* BehavEd vis4: SSE2 (the x64 baseline), four brush boxes at once */
+#include <bit> /* BehavEd vis4 */
+#include <limits> /* BehavEd vis4 */
 #include <thread> /* BehavEd vis1 */
 #include <deque> /* BehavEd vis1 */
 #include <queue> /* BehavEd vis1 */
@@ -410,6 +413,100 @@ static bool ClusterVisibleToPoint( const Vector3& point, int cluster ){
    also takes brushes into account for occlusion testing
  */
 
+/* BehavEd vis4: point against the sides of one brush, as in ClusterForPointExt (inside: no side further than epsilon) */
+static bool BhedPunktImBrush( const Vector3& point, float epsilon, int b ){
+	const bspBrush_t& brush = bspBrushes[ b ];
+	for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
+	{
+		const bspPlane_t& plane = bspPlanes[ side.planeNum ];
+		if ( plane3_distance_to_point( plane, point ) > epsilon ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* BehavEd vis4: bounding boxes for ClusterForPointExt. Per leaf the opaque brushes it tests (b <= maxOpaqueBrush,
+   opaqueBrushes[ b ]) in leaf order, each with a box from its axial sides: for a side with the normal +-e_a the
+   distance of a finite point is exactly +-p[ a ] - dist (the products with 0 and 1 are exact, the double difference
+   of two floats too), so a point beyond dist + BHED_BOX_RAND on that axis is further than any epsilon <= BHED_BOX_EPS
+   from that side and ClusterForPointExt rejects the brush there as well. Without an axial side the axis stays open
+   (+-inf). The boxes only skip brushes; the others go through the exact side test in leaf order - same result. */
+#define BHED_BOX_EPS    0.25f   /* the largest epsilon of the callers: LUXEL_EPSILON * 2 */
+#define BHED_BOX_RAND   0.5     /* > BHED_BOX_EPS plus the float rounding of the bound (|dist| < 2^20) */
+namespace
+{
+struct BhedBrushBoxen
+{
+	std::vector<int> blattStart;           /* per leaf: first entry; numBSPLeafs + 1 */
+	std::vector<int> brush;                /* entries: brush number */
+	std::vector<float> lo[ 3 ], hi[ 3 ];   /* entries: box, 3 more for four at once */
+	std::vector<float> brushBox;           /* per brush: lo xyz, hi xyz (for the GPU) */
+};
+BhedBrushBoxen bhedBoxen;
+}
+
+static void BhedBrushBoxenAnlegen(){
+	BhedBrushBoxen& t = bhedBoxen;
+	t = BhedBrushBoxen();
+	const float inf = std::numeric_limits<float>::infinity();
+	t.brushBox.resize( bspBrushes.size() * 6 );
+	for ( size_t b = 0; b < bspBrushes.size(); ++b )
+	{
+		float *box = &t.brushBox[ b * 6 ];
+		box[ 0 ] = box[ 1 ] = box[ 2 ] = -inf;
+		box[ 3 ] = box[ 4 ] = box[ 5 ] = inf;
+		const bspBrush_t& brush = bspBrushes[ b ];
+		for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
+		{
+			const bspPlane_t& plane = bspPlanes[ side.planeNum ];
+			if ( !( std::fabs( plane.dist() ) < 1048576.0f ) ) {
+				continue;
+			}
+			for ( int a = 0; a < 3; ++a )
+			{
+				if ( plane.normal()[ ( a + 1 ) % 3 ] != 0.0f || plane.normal()[ ( a + 2 ) % 3 ] != 0.0f ) {
+					continue;
+				}
+				if ( plane.normal()[ a ] == 1.0f ) {
+					box[ 3 + a ] = std::min( box[ 3 + a ], float( double( plane.dist() ) + BHED_BOX_RAND ) );
+				}
+				else if ( plane.normal()[ a ] == -1.0f ) {
+					box[ a ] = std::max( box[ a ], float( -double( plane.dist() ) - BHED_BOX_RAND ) );
+				}
+			}
+		}
+	}
+	t.blattStart.reserve( bspLeafs.size() + 1 );
+	for ( const bspLeaf_t& leaf : bspLeafs )
+	{
+		t.blattStart.push_back( int( t.brush.size() ) );
+		for ( const int b : Span( &bspLeafBrushes[ leaf.firstBSPLeafBrush ], leaf.numBSPLeafBrushes ) )
+		{
+			if ( b > maxOpaqueBrush || b < 0 || size_t( b ) >= opaqueBrushes.size() || !opaqueBrushes[ b ] ) {
+				continue;
+			}
+			t.brush.push_back( b );
+			for ( int a = 0; a < 3; ++a )
+			{
+				t.lo[ a ].push_back( t.brushBox[ b * 6 + a ] );
+				t.hi[ a ].push_back( t.brushBox[ b * 6 + 3 + a ] );
+			}
+		}
+	}
+	t.blattStart.push_back( int( t.brush.size() ) );
+	for ( int a = 0; a < 3; ++a )
+	{
+		t.lo[ a ].resize( t.brush.size() + 3, inf );
+		t.hi[ a ].resize( t.brush.size() + 3, -inf );
+	}
+}
+
+/* BehavEd vis4: the boxes per brush for the GPU (lo xyz, hi xyz; set up by SetupBrushes) */
+const std::vector<float>& BhedBrushBoxenGpu(){
+	return bhedBoxen.brushBox;
+}
+
 int ClusterForPointExt( const Vector3& point, float epsilon ){
 	/* get leaf for point */
 	const int leafNum = PointInLeafNum( point );
@@ -424,6 +521,29 @@ int ClusterForPointExt( const Vector3& point, float epsilon ){
 		return CLUSTER_OPAQUE;
 	}
 
+	/* BehavEd vis4: four boxes at once, the exact test only for the brushes whose box holds the point */
+	const BhedBrushBoxen& t = bhedBoxen;
+	if ( epsilon <= BHED_BOX_EPS && size_t( leafNum ) + 1 < t.blattStart.size()
+	  && std::isfinite( point[ 0 ] ) && std::isfinite( point[ 1 ] ) && std::isfinite( point[ 2 ] ) ) {
+		const __m128 px = _mm_set1_ps( point[ 0 ] ), py = _mm_set1_ps( point[ 1 ] ), pz = _mm_set1_ps( point[ 2 ] );
+		const int ende = t.blattStart[ leafNum + 1 ];
+		for ( int i = t.blattStart[ leafNum ]; i < ende; i += 4 )
+		{
+			const __m128 aus = _mm_or_ps(
+			    _mm_or_ps( _mm_or_ps( _mm_cmplt_ps( px, _mm_loadu_ps( &t.lo[ 0 ][ i ] ) ), _mm_cmpgt_ps( px, _mm_loadu_ps( &t.hi[ 0 ][ i ] ) ) ),
+			               _mm_or_ps( _mm_cmplt_ps( py, _mm_loadu_ps( &t.lo[ 1 ][ i ] ) ), _mm_cmpgt_ps( py, _mm_loadu_ps( &t.hi[ 1 ][ i ] ) ) ) ),
+			    _mm_or_ps( _mm_cmplt_ps( pz, _mm_loadu_ps( &t.lo[ 2 ][ i ] ) ), _mm_cmpgt_ps( pz, _mm_loadu_ps( &t.hi[ 2 ][ i ] ) ) ) );
+			for ( unsigned int m = ~unsigned( _mm_movemask_ps( aus ) ) & ( 0xfu >> std::max( 0, i + 4 - ende ) ); m != 0; m &= m - 1 )
+			{
+				const int b = t.brush[ i + std::countr_zero( m ) ];
+				if ( BhedPunktImBrush( point, epsilon, b ) ) {
+					return CLUSTER_OPAQUE - b;
+				}
+			}
+		}
+		return cluster;
+	}
+
 	/* transparent leaf, so check point against all brushes in the leaf */
 	for ( const int b : Span( &bspLeafBrushes[ leaf.firstBSPLeafBrush ], leaf.numBSPLeafBrushes ) )
 	{
@@ -434,20 +554,8 @@ int ClusterForPointExt( const Vector3& point, float epsilon ){
 			continue;
 		}
 
-		const bspBrush_t& brush = bspBrushes[ b ];
-		/* check point against all planes */
-		bool inside = true;
-		for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
-		{
-			const bspPlane_t& plane = bspPlanes[ side.planeNum ];
-			if ( plane3_distance_to_point( plane, point ) > epsilon ) {
-				inside = false;
-				break;
-			}
-		}
-
 		/* if inside, return bogus cluster */
-		if ( inside ) {
+		if ( BhedPunktImBrush( point, epsilon, b ) ) {
 			return CLUSTER_OPAQUE - b;
 		}
 	}
@@ -5552,6 +5660,7 @@ void SetupBrushesFlags( int mask_any, int test_any, int mask_all, int test_all )
 
 	/* emit some statistics */
 	Sys_FPrintf( SYS_VRB, "%9d opaque brushes\n", numOpaqueBrushes );
+	BhedBrushBoxenAnlegen(); /* BehavEd vis4 */
 }
 void SetupBrushes(){
 	SetupBrushesFlags( C_TRANSLUCENT, 0, 0, 0 );
