@@ -889,4 +889,57 @@ bool openGlTreiber(std::string& vendor, std::string& renderer, std::string& vers
     return ok;
 }
 
+namespace {
+struct FensterSuche {
+    DWORD pid = 0;
+    HWND fenster = nullptr;
+};
+BOOL CALLBACK fensterDesProzesses(HWND w, LPARAM l) {
+    auto* s = reinterpret_cast<FensterSuche*>(l);
+    DWORD p = 0;
+    GetWindowThreadProcessId(w, &p);
+    if (p == s->pid && IsWindowVisible(w) != FALSE && GetWindow(w, GW_OWNER) == nullptr) {
+        s->fenster = w;
+        return FALSE;
+    }
+    return TRUE;
+}
+void tasteSenden(HWND w, UINT vk, bool runter) {
+    const UINT scan = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC);
+    LPARAM l = 1 | static_cast<LPARAM>(scan << 16);
+    if (!runter) { l |= (1LL << 30) | (1LL << 31); }
+    PostMessageW(w, runter ? WM_KEYDOWN : WM_KEYUP, vk, l);
+}
+}  // namespace
+
+bool spielKonsolenBefehl(unsigned long pid, const std::string& befehl) {
+    FensterSuche s;
+    s.pid = static_cast<DWORD>(pid);
+    EnumWindows(fensterDesProzesses, reinterpret_cast<LPARAM>(&s));
+    if (s.fenster == nullptr) { return false; }
+    auto konsole = [&] {   // Shift+Esc
+        tasteSenden(s.fenster, VK_SHIFT, true);
+        tasteSenden(s.fenster, VK_ESCAPE, true);
+        tasteSenden(s.fenster, VK_ESCAPE, false);
+        tasteSenden(s.fenster, VK_SHIFT, false);
+    };
+    konsole();
+    for (const char c : std::string(1, static_cast<char>(92)) + befehl) {   // fuehrender Backslash: ausdruecklich ein Befehl (Console_Key), auch im MP
+        PostMessageW(s.fenster, WM_CHAR, static_cast<WPARAM>(static_cast<unsigned char>(c)), 1);
+    }
+    tasteSenden(s.fenster, VK_RETURN, true);
+    tasteSenden(s.fenster, VK_RETURN, false);
+    konsole();
+    return true;
+}
+
+bool prozessLaeuft(unsigned long pid) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    if (h == nullptr) { return false; }
+    DWORD code = 0;
+    const bool laeuft = GetExitCodeProcess(h, &code) != FALSE && code == STILL_ACTIVE;
+    CloseHandle(h);
+    return laeuft;
+}
+
 }  // namespace bhed::platform

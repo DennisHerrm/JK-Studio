@@ -3,6 +3,7 @@
 #include "bhed/menue/imspiel.h"
 
 #include <algorithm>
+#include <cctype>
 
 namespace bhed::menue {
 
@@ -56,6 +57,12 @@ MenueTestPlan menueTestPlanen(const MenueTestEingabe& e) {
     if (fsGame != e.basisSpiel || eigeneVorgabeMod) { args += "+set fs_game " + fsGame + " "; }
     args += "+echo jkstudio_menu_test";   // ein Befehl: kein Vorspann
     p.befehl = "\"" + e.enginePfad + e.exe + "\" " + pfadArg + args;
+    if (p.weg != karte::SpielTestWeg::ModOrdner) {
+        std::string exe = e.exe;
+        std::transform(exe.begin(), exe.end(), exe.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        p.uiLoad = exe != "jk2sp.exe";
+        p.ordner = p.pk3.substr(0, p.pk3.rfind('/'));
+    }
     return p;
 }
 

@@ -48,29 +48,9 @@ int menueNamens(const Datei& d, const char* name) {   // Menus_FindByName
     return -1;
 }
 
-// HUDMenuItem_t nach cgi_UI_GetMenuItemInfo (CG_UI_GETITEMINFO): Lage als int, foreColor,
-// background; nicht gefunden = alles 0 (die statische Vorbelegung) - zeichnet nichts.
-struct HudTeil {
-    int x = 0, y = 0, w = 0, h = 0;
-    Farbe farbe{0, 0, 0, 0};
-    std::string bild;
-};
-HudTeil teil(const Datei& d, const char* menue, const char* item) {
-    HudTeil t;
-    const int m = menueNamens(d, menue);
-    if (m < 0) { return t; }
-    for (const Item& it : d.menus[static_cast<std::size_t>(m)].items) {
-        if (!gleich(it.window.name, item)) { continue; }   // Menu_FindItemByName: das erste
-        t.x = static_cast<int>(it.window.rect.x);
-        t.y = static_cast<int>(it.window.rect.y);
-        t.w = static_cast<int>(it.window.rect.w);
-        t.h = static_cast<int>(it.window.rect.h);
-        t.farbe = it.window.foreColor;
-        t.bild = it.window.background;
-        break;
-    }
-    return t;
-}
+// HUDMenuItem_t nach cgi_UI_GetMenuItemInfo - nicht gefunden zeichnet nichts
+using HudTeil = MenueItemInfo;
+HudTeil teil(const Datei& d, const char* menue, const char* item) { return menueItemInfo(d, menue, item); }
 
 class Hud {
 public:
@@ -225,6 +205,24 @@ private:
 };
 
 }  // namespace
+
+MenueItemInfo menueItemInfo(const Datei& d, const char* menue, const char* item) {
+    MenueItemInfo t;
+    const int m = menueNamens(d, menue);
+    if (m < 0) { return t; }
+    for (const Item& it : d.menus[static_cast<std::size_t>(m)].items) {
+        if (!gleich(it.window.name, item)) { continue; }   // Menu_FindItemByName: das erste
+        t.x = static_cast<int>(it.window.rect.x);
+        t.y = static_cast<int>(it.window.rect.y);
+        t.w = static_cast<int>(it.window.rect.w);
+        t.h = static_cast<int>(it.window.rect.h);
+        t.farbe = it.window.foreColor;
+        t.bild = it.window.background;
+        t.gefunden = true;
+        break;
+    }
+    return t;
+}
 
 bool istHud(const Datei& d) { return menueNamens(d, "lefthud") >= 0 || menueNamens(d, "righthud") >= 0; }
 

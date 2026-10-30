@@ -57,6 +57,12 @@ int main() {
                    p.pk3 == "C:/Users/x/AppData/jkstudio/menuetest/base/zzz_jkstudio_menue.pk3" &&
                    p.befehl == "\"C:/Spiele/JKA/jk2sp.exe\" +set fs_basepath \"C:/Users/x/AppData/jkstudio/menuetest\" +set fs_cdpath \"C:/Spiele/JKA\" +echo jkstudio_menu_test",
                "Test: ohne fs_homepath ueber fs_basepath + fs_cdpath: " + p.befehl);
+        // M7 Punkt 13: jk2sp.exe kennt ui_load nicht (Pk3 wie bisher), jasp.exe schon (lose Dateien)
+        pruefe(!p.uiLoad, "M7: jk2sp.exe ohne ui_load");
+        e.exe = "jasp.exe";
+        p = menueTestPlanen(e);
+        pruefe(p.uiLoad && p.ordner == "C:/Users/x/AppData/jkstudio/menuetest/base", "M7: jasp.exe mit ui_load, lose Dateien in <test>/base");
+        e.exe = "jk2sp.exe";
         // jk2sp.exe 1.04 stuerzt mit fs_basepath ab 105 Zeichen ab (gemessen: 100 laeuft, 110 Stapelueberlauf)
         e.testOrdner = "C:/" + std::string(110, 'x');
         p = menueTestPlanen(e);
@@ -67,6 +73,7 @@ int main() {
         p = menueTestPlanen(e);
         pruefe(p.weg == bhed::karte::SpielTestWeg::ModOrdner && p.bestaetigungNoetig && p.befehl.empty(),
                "Test: ohne fs_homepath nur der Mod-Ordner, erst nach Bestaetigung");
+        pruefe(!p.uiLoad, "M7: im Mod-Ordner keine losen Dateien (nicht ins Spiel schreiben)");
         e.modOrdnerErlaubt = true;
         p = menueTestPlanen(e);
         pruefe(p.pk3 == "C:/Spiele/JKA/jkstudio_test/zzz_jkstudio_menue.pk3" && p.befehl.find("+set fs_game jkstudio_test") != std::string::npos,

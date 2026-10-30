@@ -286,6 +286,11 @@ int main() {
         Welt ja(Dialekt::SP);
         pruefe(!ja.od(257).bekannt, "257 nur in Movie Duels");
     }
+    // M7: Renderer-Cvars der Setup-Menues (R_Register vor der Oberflaeche; SP und MP verschieden)
+    pruefe(spielCvarVorgabe(Dialekt::SP, Spiel::JA, "r_texturemode") == "GL_LINEAR_MIPMAP_LINEAR" &&
+               spielCvarVorgabe(Dialekt::MP, Spiel::JA, "r_textureMode") == "GL_LINEAR_MIPMAP_NEAREST" &&
+               spielCvarVorgabe(Dialekt::SP, Spiel::JK2, "r_picmip") == "0" && !spielCvarVorgabe(Dialekt::SP, Spiel::MD, "r_detailtextures").empty(),
+           "Engine-Cvars (R_Register) als Vorgabe");
     std::printf("menueownerdraw: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

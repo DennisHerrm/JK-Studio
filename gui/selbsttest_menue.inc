@@ -1312,7 +1312,25 @@ std::vector<Schritt> schritteM7() {
         diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()));
         return offen.empty();
     }));
-    (void)st;
+    // M5b-Rest: neues Projekt mit Startmenue im Mehrspieler-Format
+    add(tu("M7 MP-Startmenue: alles zu, Format Mehrspieler, neues Projekt", [] {
+        namespace fs = std::filesystem;
+        const fs::path ordner = bhed::utf8Pfad(platform::executableDirectory()) / "projekt_mp";
+        std::error_code ec;
+        fs::remove_all(ordner, ec);
+        fs::create_directories(ordner, ec);
+        me::schliesseAlleOhneSpeichern();
+        me::neuesProjektFormat(true);
+        (void)me::legeProjektAn(pfadText(ordner / "mp.jksmenu"));
+        me::neuesProjektFormat(false);
+    }));
+    add(pause(0.3));
+    add(pruefe("M7 MP-Startmenue: Dokument im MP-Menueordner, MP-Dialekt, ohne Meldung (menudef.h vorab gelesen)", [st] {
+        const std::string n = me::dokumentName();
+        diag::info("Menue-Editor M7 MP-Startmenue: " + n);
+        return me::dokumentMp() && (n == "ui/jamp/mein_menue.menu" || n == "ui/MD_MP/mein_menue.menu" || n == "ui/jk2mp/mein_menue.menu") &&
+               st().meldungen == 0 && st().menus == 1;
+    }));
     return s;
 }
 
@@ -1534,6 +1552,47 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m6: nur die Schritte von M6
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m6") == 0) {
         for (auto& x : schritteM6()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m7jk2 (Spieldaten von Jedi Outcast): Logo mit Chrom-Stufe, Setup mit Renderer-Cvars
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7jk2") == 0) {
+        add(tu("M7 JK2: Hauptmenue aus dem Spiel", [] { (void)me::oeffneAusSpiel("ui/main.menu"); }));
+        add(pause(2.0));
+        add(foto("menue_jk2_logo"));
+        add(pruefe("M7 JK2: Logo (jk2logo.md3) mit beiden Shaderstufen (Grund + tcGen environment)", [st] {
+            diag::info("Menue-Editor M7 JK2 Logo-Stufen: " + std::to_string(st().modellStufen));
+            return st().spiel == 1 && st().modellStufen >= 2;
+        }));
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=m7uiload (M7 Punkt 13, Nachweis von aussen): ein Python-Skript hat das Spiel mit der
+    // Befehlszeile von "Im Spiel testen" gestartet (lose Dateien in BHED_TESTSPIEL_ORDNER, Prozess
+    // BHED_TESTSPIEL_PID); der Editor aendert das Hauptmenue, speichert und laedt es per ui_load neu
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7uiload") == 0) {
+        add(tu("M7 ui_load: Testspiel uebernehmen, Hauptmenue aus dem Spiel, Text einfuegen", [] {
+            const char* pid = std::getenv("BHED_TESTSPIEL_PID");
+            const char* ordner = std::getenv("BHED_TESTSPIEL_ORDNER");
+            me::testSpielUebernehmen(pid != nullptr ? std::strtoul(pid, nullptr, 10) : 0UL, ordner != nullptr ? ordner : "");
+            (void)me::oeffneAusSpiel(std::getenv("BHED_TESTSPIEL_MENUE") != nullptr ? std::getenv("BHED_TESTSPIEL_MENUE") : "ui/main.menu");
+            me::fuegeItemsEin("itemDef { name jkstudio_uiload text \"JK STUDIO UI_LOAD\" rect 120 200 400 60 textscale 1.2 forecolor 1 0.2 0.2 1 "
+                              "decoration visible 1 }");
+        }));
+        add(pause(0.5));
+        add(tu("M7 ui_load: speichern", [] {
+            namespace fs = std::filesystem;
+            const fs::path ziel = bhed::utf8Pfad(platform::executableDirectory()) / "uiload_probe" / "main.menu";
+            std::error_code ec;
+            fs::create_directories(ziel.parent_path(), ec);
+            (void)me::speichereUnter(pfadText(ziel));
+        }));
+        add(pause(1.0));
+        add(pruefe("M7 ui_load: Dateien lose abgelegt und ui_load an das laufende Spiel gegeben", [] {
+            diag::info("Menue-Editor M7 ui_load: Neuladungen " + std::to_string(me::testNeuGeladen()));
+            return me::testNeuGeladen() == 1;
+        }));
+        add(pause(20.0));   // Zeit fuer das Foto im Spiel (das Skript macht es)
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

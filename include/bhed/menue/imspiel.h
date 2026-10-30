@@ -38,6 +38,12 @@ struct MenueTestPlan {
     std::string pk3;      // wohin das Archiv kommt ('/')
     std::string befehl;   // ganze Befehlszeile
     std::string grund;    // Keiner: warum (englisch)
+    // M7 Punkt 13: das Programm kennt ui_load (OpenJK code/ui ausser JK2_MODE, codemp/ui, Movie Duels;
+    // Original: jasp.exe, uix86.dll von jamp, ui.qvm von jk2mp - nicht jk2sp.exe). Dann kommen die
+    // Dateien lose in ordner statt in die pk3: ui_load liest sie neu, eine waehrend des Laufs ersetzte
+    // pk3 nicht (FS liest das Zip-Verzeichnis beim Start). Nur im eigenen Ordner (nicht im Mod-Ordner).
+    bool uiLoad = false;
+    std::string ordner;   // Spielordner im eigenen Ordner ('/')
 };
 
 [[nodiscard]] MenueTestPlan menueTestPlanen(const MenueTestEingabe& e);

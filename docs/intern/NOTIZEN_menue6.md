@@ -246,6 +246,30 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
   HUD (JK2-Art, HUDInnerLeft/ HUDHealth ...) und eigene Inhalte (MD 25 Kräfte, KOTOR-Waffenwahl; JK2
   MissionInformation_Draw) - folgt.
 
+### M5b-Reste
+
+- Tastenbelegung (tasten.cpp, tasten.h): Item_Bind_Paint mit BindingFromName/Controls_GetKeyAssignment
+  (die ersten zwei Tasten in Tastennummer-Folge, Name per Key_KeynumToString bzw. KEYNAMES_KEYNAME_*,
+  "<a> <MENUS_KEYBIND_OR> <b>", Jedi Outcast SP MENUS3_KEYBIND_OR; Befehl nicht in g_bindCommands oder
+  ohne Taste: ???), Schrift bis zum Schirmrand in 0,05-Schritten kleiner (SP misst mit qhMediumFont).
+  Bindungen aus der Vorgabe-Config, wie Com_Init sie ausführt: default.cfg / mpdefault.cfg, Movie Duels
+  MovieDuels-SP-default.cfg / MovieDuels-MP-default.cfg (bind, unbind, unbindall, exec; Befehle durch ";"
+  und Zeilen, Anführungszeichen, // wie Cbuf/Cmd_TokenizeString). Tastennamen (320, keynum nicht immer
+  der Index: SHIFT_ENTER = A_ENTER) und die g_bindCommands-Listen (SP, JK2_MODE, MP, MD) erzeugt
+  tools/gen_tastennamen.py aus den Quellen (src/menue/tasten.inc). ctest menue_tasten.
+- Startmenü eines neuen Projekts im MP-Format: Wahl Einzel-/Mehrspieler im Projektmenü und im leeren
+  Zustand; MP legt ui/jamp/ (JK2 ui/jk2mp/, MD ui/MD_MP/) mein_menue.menu an - dort liest die Engine
+  menudef.h vorab, das Startmenü (WINDOW_STYLE_FILLED) liest ohne Meldung. Selbsttest m7.
+- Renderer-Cvars der Setup-Menüs (alle Spiele, nicht nur JK2): tools/gen_menue_cvarvorgaben.py liest
+  jetzt auch, was die Engine vor der Oberfläche anlegt (qcommon/common.cpp, shared/sdl/sdl_window.cpp,
+  client/cl_main.cpp, client/snd_dma.cpp, rd-vanilla/tr_init.cpp; erstes Cvar_Get gewinnt): kEngineJa
+  (207, auch für JK2 = OpenJK code/ mit JK2_MODE), kEngineMd (204), kEngineMp (253). Z. B. r_textureMode
+  SP GL_LINEAR_MIPMAP_LINEAR, MP GL_LINEAR_MIPMAP_NEAREST. ctest in menue_ownerdraw.
+- Logo-Chromglanz (Jedi Outcast jk2logo.md3, Shader models/map_objects/bespin/jk2logo mit zweiter Stufe
+  gfx/menus/jk2logo, blendFunc GL_ONE GL_ONE, tcGen environment): die Menü-Figuren nehmen seit rc602/603
+  alle Stufen des Shaderskripts (texturesFor -> ModelTextures::stufen, gpu::zeichneFigur mit tcGen
+  environment). Prüfung im Selbsttest BHED_MENUE_NUR=m7jk2 (Zahl der Stufen der Logo-Flächen).
+
 ## Changelog
 
 ## English

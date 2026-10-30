@@ -60,7 +60,8 @@ private:
 };
 
 // Q_Exec( nullptr, cmd, ordner, false, false ): losgeloest starten (die Engine).
-bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner);
+// M7: pid (falls nicht nullptr) = Prozessnummer des gestarteten Programms (ui_load im laufenden Spiel)
+bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner, unsigned long* pid = nullptr);
 
 }  // namespace bhed::gui::bauplattform
 

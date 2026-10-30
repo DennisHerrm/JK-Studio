@@ -38,6 +38,7 @@
 #include "bhed/menue/fluss.h"
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
+#include "bhed/menue/ladebild.h"
 #include "bhed/menue/layout.h"
 #include "bhed/menue/lesbarkeit.h"
 #include "bhed/menue/profil.h"
@@ -240,6 +241,7 @@ struct Zustand {
     bool vorlagenGeladen = false;
     std::string vorlageName;
     int modellAufrufe = 0;                           // Selbsttest: Zeichenaufrufe der Menue-Figuren
+    int modellStufen = 0;                            // M7: meiste Shaderstufen einer Flaeche (Chrom des JK2-Logos)
     std::string modellFehler;                        // letzte Meldung von gpu::zeichneMenueFigur
     Textur weiss;                                    // $whiteimage / *white (tr.whiteImage)
     unsigned weissStand = 0;
@@ -339,11 +341,19 @@ struct Zustand {
     Spielbeispiel spielBeispiel;
     DatapadWerte datapadWerte;
     PazaakZustand pazaakZustand;
+    LadeWerte ladeWerte;                         // M7 Punkt 11: Ladebildschirm (CG_DrawInformation)
+    VerbindungsWerte verbindungsWerte;           // M7 Punkt 11: Verbindungsbild (UI_DrawConnectScreen)
     std::unique_ptr<Datei> datapadHud;            // ui/hud.menu fuer CG_DrawDataPadHUD (einmal gelesen)
     std::vector<std::string> waffenIcon;          // ext_data/weapons.dat weaponIcon
     bool datapadGelesen = false;
     Tastenbelegung tasten[2];                    // M7: Vorgabe-Config des Spiels je Dialekt (SP, MP)
     bool tastenGelesen[2] = {false, false};
+    Dialekt neuDialekt = Dialekt::SP;            // M7: Format des Startmenues eines neuen Projekts
+    // M7 Punkt 13: das zuletzt gestartete Testspiel (ui_load nach dem Speichern)
+    unsigned long testPid = 0;
+    bool testUiLoad = false;
+    std::string testOrdnerLose;
+    int testNeuGeladen = 0;
     int beispielPrims = 0;   // im letzten Bild
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
@@ -708,9 +718,12 @@ bool schreibeDatei(const std::string& pfad, const std::string& inhalt) {
     return static_cast<bool>(f);
 }
 
+void imLaufendenSpielNeuLaden();   // M7 Punkt 13 (unten)
+
 void speichern(Dokument& d, const std::string& ziel) {
     char buf[600];
-    if (schreibeDatei(ziel, d.puffer.text())) {
+    const bool ok = schreibeDatei(ziel, d.puffer.text());
+    if (ok) {
         d.platte = ziel;
         d.gespeichert = d.puffer.text();
         std::snprintf(buf, sizeof(buf), tr(Str::MeGespeichert), ziel.c_str());
@@ -719,6 +732,7 @@ void speichern(Dokument& d, const std::string& ziel) {
     }
     Z().meldung = buf;
     addStatus(buf);
+    if (ok) { imLaufendenSpielNeuLaden(); }
 }
 
 // --- Aenderungen an Text und Flaeche ------------------------------------------
@@ -821,9 +835,9 @@ const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
 
 // M7 Punkt 14: ui.Draw_DataPad(DP_HUD) und DP_* (code/cgame) mit Beispielwerten; nur Jedi Academy SP -
 // Movie Duels und Jedi Outcast zeichnen ihr Datapad mit eigenem HUD (dann false: beschrifteter Kasten)
-bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen) {
+// ui/hud.menu und ext_data/weapons.dat einmal je Spieldatenstand (Datapad, Ladebildschirm)
+void datapadDatenLaden() {
     Zustand& z = Z();
-    if (z.spiel != Spiel::JA) { return false; }
     if (!z.datapadGelesen) {
         z.datapadGelesen = true;
         std::string t;
@@ -834,6 +848,12 @@ bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodi
         }
         if (z.daten.lies("ext_data/weapons.dat", t)) { z.waffenIcon = waffenIcons(t); }
     }
+}
+
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen) {
+    Zustand& z = Z();
+    if (z.spiel != Spiel::JA) { return false; }
+    datapadDatenLaden();
     std::vector<Prim> hud;
     if (z.datapadHud) { zeichneDatapadHud(*z.datapadHud, z.hudWerte, hud); }
     for (const Prim& p : hud) {   // die HUD-Teile sind Bilder (Striche, Ziffern, Rahmen)
@@ -1355,6 +1375,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                             mv.texturen = texturesFor(mv.modell.glm);
                             mv.texturenDa = true;
                         }
+                        for (const auto& st : mv.texturen.stufen) { z.modellStufen = std::max(z.modellStufen, static_cast<int>(st.size())); }
                         const MenueModellBild mb = menueModellBild(mv.modell, it, jetzt, jetzt - animStart, pw, ph, mv.welt);
                         gpu::baueKnochenmatrizen(mv.welt, mv.modell.gla.bones, mv.haut);
                         if (mv.modell.md3) {   // M5b: .md3 starr - ein Knochen, Einheitsmatrix
@@ -1605,6 +1626,24 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     if (z.hudWie && istHud(*quelle)) {   // M3: lefthud, righthud und was cgame darueber legt
         z.hudWerte.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
         zeichneHud(*quelle, mi, u, z.hudWerte, z.hudZustand, prims);
+    } else if (z.hudWie && (istLadebild(*quelle) || istVerbindung(*quelle))) {   // M7 Punkt 11: mit Beispielwerten
+        const auto se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
+        if (istLadebild(*quelle)) {
+            datapadDatenLaden();
+            LadeKontext lk;
+            lk.se = se;
+            lk.bildDa = u.bildDa;
+            lk.waffenIcon = z.waffenIcon;
+            lk.spieler = z.datapadWerte;
+            zeichneLadebild(*quelle, mi, u, z.ladeWerte, lk, prims);
+        } else {
+            zeichneVerbindung(*quelle, mi, u, z.verbindungsWerte, se, prims);
+        }
+        Prim b;   // beschriftet: Werte aus dem Laden/Verbinden sind Beispiele
+        b.art = PrimArt::Beispiel;
+        b.w = 640;
+        b.h = 480;
+        prims.push_back(b);
     } else {
         zeichneMenu(*quelle, mi, u, prims);
     }
@@ -2938,6 +2977,8 @@ void zeichnePruefFenster() {
 
 // --- M2 Punkt 8: Im Spiel testen ---------------------------------------------------------
 
+bool loseDateienSchreiben(const std::string& ordner);
+
 std::string menueImSpielTesten(bool modErlaubt) {
     Zustand& z = Z();
     Dokument* d = doc();
@@ -2993,18 +3034,53 @@ std::string menueImSpielTesten(bool modErlaubt) {
     std::error_code ec;
     fs::create_directories(utf8Pfad(plan.pk3).parent_path(), ec);
     std::string fehler;
-    if (!writePk3(plan.pk3, paketDateien(true), &fehler)) {
+    if (plan.uiLoad) {   // M7 Punkt 13: lose Dateien, die ui_load spaeter neu liest
+        fs::remove(utf8Pfad(plan.pk3), ec);   // eine alte pk3 im selben Ordner stuende darueber
+        if (!loseDateienSchreiben(plan.ordner)) { return {}; }
+    } else if (!writePk3(plan.pk3, paketDateien(true), &fehler)) {
         z.meldung = fehler;
         return {};
     }
     z.testBefehl = plan.befehl;
+    z.testUiLoad = plan.uiLoad;
+    z.testOrdnerLose = plan.uiLoad ? plan.ordner : std::string();
     char buf[2048];
     std::snprintf(buf, sizeof(buf), tr(Str::MeTestBereit), plan.pk3.c_str(), plan.befehl.c_str());
     z.meldung = buf;
     addStatus(buf);
     // Im Selbsttest (BHED_EDITORTEST) nur die Befehlszeile: nie ein Spiel starten
-    if (std::getenv("BHED_EDITORTEST") == nullptr) { (void)bauplattform::losgeloestStarten(plan.befehl, u8(engine)); }
+    if (std::getenv("BHED_EDITORTEST") == nullptr) {
+        unsigned long pid = 0;
+        if (bauplattform::losgeloestStarten(plan.befehl, u8(engine), &pid)) { z.testPid = plan.uiLoad ? pid : 0; }
+    }
     return plan.befehl;
+}
+
+// M7 Punkt 13: alle Dateien des Pakets lose in den Spielordner des eigenen Testordners (nie ins Spiel)
+bool loseDateienSchreiben(const std::string& ordner) {
+    std::error_code ec;
+    for (const Pk3Datei& f : paketDateien(true)) {
+        const fs::path ziel = utf8Pfad(ordner) / utf8Pfad(f.name);
+        fs::create_directories(ziel.parent_path(), ec);
+        if (!schreibeDatei(u8(ziel), f.inhalt)) { return false; }
+    }
+    return true;
+}
+
+// Nach dem Speichern: laeuft das vom Editor gestartete Spiel noch, die Dateien neu ablegen und ui_load
+// in seine Konsole geben (UI_Load: Menus_CloseAll, UI_LoadMenus, das zuletzt offene Menue wieder auf)
+void imLaufendenSpielNeuLaden() {
+    Zustand& z = Z();
+    if (z.testPid == 0 || !z.testUiLoad || z.testOrdnerLose.empty()) { return; }
+    if (!platform::prozessLaeuft(z.testPid)) {
+        z.testPid = 0;
+        return;
+    }
+    if (loseDateienSchreiben(z.testOrdnerLose) && platform::spielKonsolenBefehl(z.testPid, "ui_load")) {
+        ++z.testNeuGeladen;
+        z.meldung = tr(Str::MeTestNeuGeladen);
+        addStatus(z.meldung);
+    }
 }
 
 void zeichneTestFrage() {
@@ -4570,6 +4646,34 @@ void zeichneBeispielWerte(const Dokument& d) {
     if (z.beispielPrims == 0 || !ImGui::CollapsingHeader(tr(Str::MeOdBeispiel), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     ImGui::TextWrapped("%s", tr(Str::MeOdBeispielTip));
     const float breit = ImGui::GetFontSize() * 9;
+    if (istLadebild(d.datei) || istVerbindung(d.datei)) { ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie); }
+    if (istLadebild(d.datei)) {   // M7 Punkt 11: CG_DrawInformation
+        LadeWerte& l = z.ladeWerte;
+        ImGui::SetNextItemWidth(breit);
+        eingabe(tr(Str::MeLadeKarte), &l.karte);
+        ImGui::SetNextItemWidth(breit);
+        eingabe(tr(Str::MeLadeNachricht), &l.nachricht);
+        ImGui::SetNextItemWidth(breit);
+        ImGui::SliderInt(tr(Str::MeLadeStufe), &l.stufe, 0, 9);
+        ImGui::Checkbox(tr(Str::MeLadeErsteKarte), &l.ersteKarte);
+    }
+    if (istVerbindung(d.datei)) {   // M7 Punkt 11: UI_DrawConnectScreen
+        VerbindungsWerte& v = z.verbindungsWerte;
+        ImGui::SetNextItemWidth(breit);
+        eingabe(tr(Str::MeVerbServer), &v.server);
+        ImGui::SetNextItemWidth(breit);
+        eingabe(tr(Str::MeLadeKarte), &v.karte);
+        static const char* const zustaende[] = {"CA_CONNECTING", "CA_CHALLENGING", "CA_CONNECTED"};
+        int zi = std::clamp(v.zustand, 1, 3) - 1;
+        ImGui::SetNextItemWidth(breit);
+        if (ImGui::Combo(tr(Str::MeVerbZustand), &zi, zustaende, 3)) { v.zustand = zi + 1; }
+        ImGui::SetNextItemWidth(breit);
+        ImGui::SliderInt(tr(Str::MeVerbPakete), &v.pakete, 0, 20);
+        ImGui::SetNextItemWidth(breit);
+        eingabe(tr(Str::MeVerbMeldung), &v.meldung);
+        ImGui::SetNextItemWidth(breit);
+        eingabe("motd", &v.motd);
+    }
     if (d.datei.dialekt == Dialekt::SP) {
         DatapadWerte& w = z.datapadWerte;
         static const char* const waffen[] = {"WP_SABER",          "WP_BLASTER_PISTOL", "WP_BLASTER",  "WP_DISRUPTOR", "WP_BOWCASTER",
@@ -5313,6 +5417,7 @@ Stand stand() {
     s.verborgen = static_cast<int>(d->verborgen.size());
     s.gesperrt = static_cast<int>(d->gesperrt.size());
     s.modellAufrufe = z.modellAufrufe;
+    s.modellStufen = z.modellStufen;
     s.klangEreignisse = z.klangEreignisse;
     s.letzterKlang = z.letzterKlang;
     for (const Diagnose& x : d->diagnosen) {
@@ -5582,6 +5687,22 @@ bool oeffneProjekt(const std::string& datei) { return oeffneProjektJetzt(datei);
 void projektVormerken(const std::string& datei) { Z().projektVorgemerkt = datei; }
 bool istProjekt(const std::string& datei) { return istProjektDatei(datei); }
 bool legeProjektAn(const std::string& datei) { return neuesProjekt(datei); }
+void neuesProjektFormat(bool mehrspieler) { Z().neuDialekt = mehrspieler ? Dialekt::MP : Dialekt::SP; }
+void testSpielUebernehmen(unsigned long pid, const std::string& ordner) {
+    Zustand& z = Z();
+    z.testPid = pid;
+    z.testUiLoad = true;
+    z.testOrdnerLose = ordner;
+}
+int testNeuGeladen() { return Z().testNeuGeladen; }
+std::string dokumentName() {
+    const Dokument* d = doc();
+    return d != nullptr ? d->name : std::string();
+}
+bool dokumentMp() {
+    const Dokument* d = doc();
+    return d != nullptr && d->datei.dialekt == Dialekt::MP;
+}
 bool speichereProjektJetzt() { return speichereProjekt(); }
 bool exportiereProjektJetzt() { return exportiereProjekt(); }
 std::string projektDatei() { return Z().projektDatei; }

@@ -3045,6 +3045,18 @@ enum class Str {
     MeOdKraftStufe,
     MeOdMaxRang,
     MeOdServerSuche,
+    MePrjSp,
+    MePrjMp,
+    MePrjDialektTip,
+    MeLadeKarte,
+    MeLadeNachricht,
+    MeLadeStufe,
+    MeLadeErsteKarte,
+    MeVerbServer,
+    MeVerbZustand,
+    MeVerbPakete,
+    MeVerbMeldung,
+    MeTestNeuGeladen,
     Count,
 };
 

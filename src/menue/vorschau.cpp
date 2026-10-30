@@ -329,7 +329,14 @@ private:
             platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
             return;
         }
-        for (const OdTeil& t : o.teile) {
+        teileMalen(o.teile);
+        if (o.beispiel) { platzhalter(it.window.rect, "", PrimArt::Beispiel); }
+    }
+
+public:
+    // M7: Zeichenbefehle von ownerdraws und cgame (Ladebild, Verbindung) mit den Mitteln der Vorschau
+    void teileMalen(const std::vector<OdTeil>& teile) {
+        for (const OdTeil& t : teile) {
             if (t.art == OdTeil::Art::Bild) {
                 bild(t.x, t.y, t.w, t.h, t.inhalt, t.farbe, item_, t.s0, t.t0, t.s1, t.t1);
             } else if (t.art == OdTeil::Art::Fuellen) {
@@ -340,9 +347,9 @@ private:
                 text(t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil, t.font);
             }
         }
-        if (o.beispiel) { platzhalter(it.window.rect, "", PrimArt::Beispiel); }
     }
 
+private:
     // Text_Paint -> RE_Font_DrawString
     void text(float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style, int font) {
         textMit(schrift(font), x, y, scale, c, t, maxPixel, style);
@@ -1109,6 +1116,12 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
     Maler(d, m, u2, out).menu();
 }
 
+void zeichneTeile(const std::vector<OdTeil>& teile, const Umgebung& u, std::vector<Prim>& out) {
+    static const Datei leer{};
+    static const Menu leerM{};
+    Maler(leer, leerM, u, out).teileMalen(teile);
+}
+
 Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {
     static const Datei leer{};
     static const Menu leerM{};
@@ -1288,6 +1301,15 @@ namespace {
 }  // namespace
 
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
+    // M7: was die Engine vor der Oberflaeche anlegt (Com_Init, Fenster, CL_Init, S_Init, R_Register -
+    // die Renderer-Cvars der Setup-Menues); das erste Cvar_Get legt den Wert fest
+    {
+        const CvarVorgabe* anfang = d != Dialekt::SP ? std::begin(kEngineMp) : s == Spiel::MD ? std::begin(kEngineMd) : std::begin(kEngineJa);
+        const CvarVorgabe* ende = d != Dialekt::SP ? std::end(kEngineMp) : s == Spiel::MD ? std::end(kEngineMd) : std::end(kEngineJa);
+        for (const CvarVorgabe* v = anfang; v != ende; ++v) {
+            if (gleichOhneFall(name, v->name)) { return v->wert; }
+        }
+    }
     if (d != Dialekt::SP) {
         // M5: Mehrspieler wie CL_Init + ui_xcvar.h (OpenJK; ohne das waren ui_char_model und model leer
         // und die Figurenmenues zeigten "models/players//model.glm")

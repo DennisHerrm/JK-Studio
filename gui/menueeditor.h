@@ -56,6 +56,7 @@ struct Stand {
     int klangStimmen = 0;          // M4: laufende Klaenge der Vorschau (Ton-Schalter aus = 0)
     int verborgen = 0, gesperrt = 0;   // M4: Items mit Auge aus bzw. Schloss zu (Ebenenliste)
     int modellAufrufe = 0;         // M2: Zeichenaufrufe der 3D-Modelle (gpu::zeichneMenueFigur)
+    int modellStufen = 0;          // M7: meiste Shaderstufen einer Modellflaeche (2 = Chrom-Stufe des JK2-Logos)
     std::string modellFehler;      // letzte Meldung dabei
     int klangEreignisse = 0;       // M2 Punkt 5: ausgeloeste Klaenge (im Selbsttest stumm)
     std::string letzterKlang;
@@ -100,6 +101,13 @@ bool oeffneProjekt(const std::string& datei);         // sofort (Selbsttest, Dia
 void projektVormerken(const std::string& datei);      // Doppelklick/Kommandozeile: im naechsten Bild
 [[nodiscard]] bool istProjekt(const std::string& datei);
 bool legeProjektAn(const std::string& datei);         // die offenen Menues kommen hinein
+void neuesProjektFormat(bool mehrspieler);          // M7: Format des Startmenues (Einzel-/Mehrspieler)
+// M7 Punkt 13: ein laufendes Testspiel uebernehmen (Selbsttest-Nachweis: das Spiel startet ein Python-
+// Skript mit der Befehlszeile von "Im Spiel testen"); Zahl der ui_load-Neuladungen seit dem Start
+void testSpielUebernehmen(unsigned long pid, const std::string& ordner);
+[[nodiscard]] int testNeuGeladen();
+[[nodiscard]] std::string dokumentName();           // M7: Spielpfad des aktiven Dokuments ("" = keins)
+[[nodiscard]] bool dokumentMp();                    // M7: aktives Dokument im MP-Dialekt
 bool speichereProjektJetzt();
 bool exportiereProjektJetzt();
 [[nodiscard]] std::string projektDatei();             // "" = kein Projekt

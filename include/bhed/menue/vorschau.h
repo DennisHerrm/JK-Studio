@@ -143,6 +143,8 @@ struct Umgebung {
 
 // Menu_Paint fuer ein Menue der Datei.
 void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>& out);
+// M7: Zeichenbefehle (cgame-Text, Bilder) mit Schrift und Farbcodes der Vorschau, Item -1
+void zeichneTeile(const std::vector<OdTeil>& teile, const Umgebung& u, std::vector<Prim>& out);
 
 // M4: ITEM_TYPE_TEXTSCROLL. Der Text, wie Item_TextScroll_Paint ihn nimmt (cvar ersetzt text,
 // "@" = SE_GetString), umgebrochen wie Item_TextScroll_BuildLines (Breite rect.w - 16 - 10,

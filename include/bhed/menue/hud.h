@@ -50,6 +50,16 @@ struct HudWerte {
     int zeitMs = 0;            // cg.time (Blinken der letzten Ruestung)
 };
 
+// M7: cgi_UI_GetMenuItemInfo (CG_UI_GETITEMINFO): Lage als int, foreColor, background; gefunden = false:
+// alles 0 (die statische Vorbelegung)
+struct MenueItemInfo {
+    int x = 0, y = 0, w = 0, h = 0;
+    Farbe farbe{0, 0, 0, 0};
+    std::string bild;
+    bool gefunden = false;
+};
+[[nodiscard]] MenueItemInfo menueItemInfo(const Datei& d, const char* menue, const char* item);
+
 // Ist das ein HUD-Menue (hat es lefthud oder righthud)?
 [[nodiscard]] bool istHud(const Datei& d);
 // Bildet die Vorschau nach, was cgame darueber zeichnet? Nur Jedi Academy SP (code/cgame) -

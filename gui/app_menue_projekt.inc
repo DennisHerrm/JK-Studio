@@ -328,6 +328,7 @@ bool speichereProjekt() {
     if (ok) {
         sicherungJetzt();   // alles gespeichert: die Sicherung faellt weg
         ++z.projektGespeichert;
+        imLaufendenSpielNeuLaden();   // M7 Punkt 13
     }
     std::snprintf(b, sizeof(b), ok ? tr(Str::MePrjGespeichert) : tr(Str::MeNichtGespeichert), z.projektDatei.c_str());
     z.meldung = b;
@@ -335,7 +336,14 @@ bool speichereProjekt() {
     return ok;
 }
 
-// Neues Projekt: die offenen Menues (falls welche offen sind) kommen hinein
+// Neues Projekt: die offenen Menues (falls welche offen sind) kommen hinein. M7: ohne offenes Menue
+// beginnt es im gewaehlten Format - Mehrspieler im Menueordner der MP-Fassung (ui/jamp, ui/jk2mp,
+// ui/MD_MP), dort liest die Engine menudef.h vorab (PC_LoadGlobalDefines)
+std::string startMenuePfad(Dialekt d, Spiel s) {
+    if (d == Dialekt::SP) { return "ui/mein_menue.menu"; }
+    return s == Spiel::JK2 ? "ui/jk2mp/mein_menue.menu" : s == Spiel::MD ? "ui/MD_MP/mein_menue.menu" : "ui/jamp/mein_menue.menu";
+}
+
 bool neuesProjekt(const std::string& datei) {
     Zustand& z = Z();
     std::string d = datei;
@@ -344,7 +352,7 @@ bool neuesProjekt(const std::string& datei) {
     z.projektDatei = d;
     z.projekt = Projekt{};
     // ohne offenes Menue: ein leeres Vollbild-Menue zum Anfangen (Tour "Dein erstes eigenes Menue")
-    if (z.docs.empty()) { (void)oeffne("ui/mein_menue.menu", "", kStartMenue); }
+    if (z.docs.empty()) { (void)oeffne(startMenuePfad(z.neuDialekt, z.spiel), "", kStartMenue); }
     return speichereProjekt();
 }
 
@@ -453,6 +461,17 @@ void zeichneZuordnungFrage() {
     ImGui::EndPopup();
 }
 
+// M7: Format des Startmenues eines neuen Projekts (Einzelspieler / Mehrspieler)
+void zeichneNeuDialekt() {
+    Zustand& z = Z();
+    int d = z.neuDialekt == Dialekt::MP ? 1 : 0;
+    ImGui::RadioButton(tr(Str::MePrjSp), &d, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton(tr(Str::MePrjMp), &d, 1);
+    tipp(Str::MePrjDialektTip);
+    z.neuDialekt = d == 1 ? Dialekt::MP : Dialekt::SP;
+}
+
 // Leistenknopf "Projekt" mit Menue
 void zeichneProjektKnopf() {
     Zustand& z = Z();
@@ -460,6 +479,7 @@ void zeichneProjektKnopf() {
                                                      : std::string(tr(Str::MePrjProjekt)) + ": " + fs::path(utf8Pfad(z.projektDatei)).stem().string();
     if (leistenKnopf(titel.c_str(), UiIcon::Mission, tr(Str::MePrjTip))) { ImGui::OpenPopup("##projekt"); }
     if (ImGui::BeginPopup("##projekt")) {
+        zeichneNeuDialekt();
         if (ImGui::MenuItem(tr(Str::MePrjNeu))) {
             const std::string ziel = platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe,
                                                               "mein_menue.jksmenu");
@@ -496,6 +516,7 @@ void zeichneProjektLeer() {
     ImGui::TextWrapped("%s", tr(Str::MeKeinMenue));
     ImGui::Spacing();
     ImGui::TextWrapped("%s", tr(Str::MePrjLeer));
+    zeichneNeuDialekt();
     if (ImGui::Button(tr(Str::MePrjNeu))) {
         const std::string ziel = platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", Z().ordnerAusgabe,
                                                           "mein_menue.jksmenu");

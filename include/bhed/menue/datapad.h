@@ -59,6 +59,9 @@ struct DatapadKontext {
     DatapadWerte werte;
 };
 
+// force_icon_files[fp] der SP-Fassung (cg_main.cpp), "" ausserhalb
+[[nodiscard]] std::string kraftSymbol(int fp);
+
 // ext_data/weapons.dat: weaponIcon je weapontype (Index = WP_*), wie WPN_Parse sie liest
 [[nodiscard]] std::vector<std::string> waffenIcons(const std::string& weaponsDat);
 

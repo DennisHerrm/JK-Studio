@@ -297,6 +297,8 @@ struct Maler {
 
 }  // namespace
 
+std::string kraftSymbol(int fp) { return fp >= 0 && fp < 16 ? kForceIcons[fp] : ""; }
+
 std::vector<std::string> waffenIcons(const std::string& dat) {
     // WPN_Parse: { weapontype WP_x ... weaponIcon <bild> ... }; Kommentare // und /* */
     static constexpr const char* kNamen[] = {"WP_NONE",    "WP_SABER",    "WP_BLASTER_PISTOL", "WP_BLASTER",  "WP_DISRUPTOR", "WP_BOWCASTER",

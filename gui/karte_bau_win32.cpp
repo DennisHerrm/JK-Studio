@@ -282,7 +282,7 @@ void Horcher::schliessen() {
     m->lauschen = INVALID_SOCKET;
 }
 
-bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner) {
+bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordner, unsigned long* pid) {
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
@@ -294,6 +294,7 @@ bool losgeloestStarten(const std::string& befehlszeile, const std::string& ordne
                         o.empty() ? nullptr : o.c_str(), &si, &pi)) {
         return false;
     }
+    if (pid != nullptr) { *pid = pi.dwProcessId; }
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     return true;
