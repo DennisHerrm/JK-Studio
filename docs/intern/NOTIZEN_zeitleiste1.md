@@ -580,6 +580,33 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
     Signal (spuren.cpp) - jetzt wie dowait "wartet auf die Aufgabe".
     spurentest: rot 1 (Art Signal), gruen.
 
+- **Punkt 5: Schlussrunde** (`/y/zl4_ende.sh`, ohne die alte Last): sauberer
+  Neubau aller Ziele 0 Fehler, 0 Warnungen; ctest 168/168 (neu `pmanim`);
+  lint_sources, lint_fassung (rc606), lint_gapp, lint_imgui_context,
+  lint_layout, lint_abstand, lint_doppelanzeige ok, lint_i18n wie vorher 700
+  alte Befunde; Handbuch handbuch_sprachen ok. Selbsttests nach dem Neubau:
+  zeitleiste1 voll 86/0, zeitleiste 47/0, mission1 98/0, ton 34/0, szenen
+  26/0, kamera 95/0, missionsbau 95/0. Voller Bildlauf in vier Sprachen je
+  6/0 und 0 Klickfehler. Modus 1, alle Modi und die Kartenpruefung macht die
+  Schlussrunde nach Integration 6.
+- **Gegen das Vorbild geprueft**: wait ( "name" ) an CTaskManager::Wait/
+  GetTaskGroup/CTaskGroup::Complete und CSequencer::Route/ParseTask (mdgit,
+  OpenJK-Wait per GitHub); PM_Footsteps, PmoveSingle (PMF_BACKWARDS_RUN),
+  PM_SetAnimFinal, PM_WalkingAnim/PM_RunningAnim, PM_GetRunAnim,
+  PM_GetWalkWithSaberOnAnim, PM_SaberDrawPutawayAnim, Pmove (resultspeed,
+  Stopp nach 1 s), CG_PlayerLegsYawFromMovement und CG_G2ClientSpineAngles
+  (OpenJK SP code/game und mdgit code/game, cgame aus mdgit), die
+  Vorgaben g_ActivateAnimationStyle/g_noIgniteTwirl/g_SerenityJediEngineMode
+  aus mdgit g_main.cpp. **Nicht** im laufenden Spiel verglichen (Steam lief
+  zwar seit 09:30, ein NPC laesst sich im Spiel aber nicht mit W/A/S/D
+  steuern - ein Vergleich haette die Spieler-Zweige von PM_Footsteps gezeigt,
+  nicht die des NPC).
+- **Offen**: PM_AdjustStandAnimForSlope, Sprint, Motion-Bone-Korrektur,
+  PM_TorsoAnimLightsaber (siehe Punkt 3); der Stand eines NPC mit Gewehr in
+  der Szene (BOTH_STAND1 statt BOTH_STAND3); das Klappfeld "Spielregeln" ist
+  fuer "Automatic (detected: Movie Duels)" zu schmal; im Undo-Verlauf der
+  Statuszeile heisst das Einfuegen einer Kommentarzeile "inserted ( )".
+
 ## Changelog
 
 ## English
