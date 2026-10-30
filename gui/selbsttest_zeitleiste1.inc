@@ -918,11 +918,12 @@ std::vector<Schritt> untertitelFoto(const std::string& szene) {
 }
 
 // Zeitleiste 2 Punkt 1: Aufnehmen. Eine Taste n Bilder lang halten (mit Umschalt: gehen).
-// Zeitleiste 3: mit probenBis > 0 schon los, sobald so viele Proben (je >= 4
-// Einheiten) da sind - der Weg haengt dann nicht von der Bildzeit ab (unter
-// Last lief guard1 auf md_am_sith in 45 Bildern 443 statt 331 Einheiten weit,
-// hinter das Wegenetz: "finds no path", die Figur bleibt wie im Spiel stehen).
-Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name, int probenBis = 0) {
+// Mit genug schon los, sobald genug() gilt (Integration 5: nach einem festen Weg).
+// Zeitleiste 3 zaehlte dafuer Proben - die kommen aber je Bild, sobald die Figur
+// >= 4 Einheiten weiter ist, und hingen so noch an der Bildzeit: unter Last lief
+// guard1 auf md_am_sith mit 45 Proben 492 statt 331 Einheiten weit, hinter das
+// Wegenetz ("finds no path", die Figur bleibt wie im Spiel stehen).
+Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name, std::function<bool()> genug = {}) {
     return {"zeitleiste1 Aufnahme: " + name + " halten", [=](int b) {
                 ImGuiIO& io = ImGui::GetIO();
                 if (b == 0) {
@@ -930,7 +931,7 @@ Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string&
                     io.AddKeyEvent(taste, true);
                     return false;
                 }
-                if (b < bilder && (probenBis <= 0 || aufnahmeProben() < probenBis)) { return false; }
+                if (b < bilder && !(genug && genug())) { return false; }
                 io.AddKeyEvent(taste, false);
                 if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
                 return b > bilder + 1;
@@ -963,7 +964,15 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     add(klick(tr(Str::AufKnopf), "", 0, true));
     add(pause(0.3));
     add(pruefe("zeitleiste1 Aufnahme " + wo + ": Aufnehmen startet die Steuerung", [] { return aufnahmeLaeuft(); }));
-    add(halteTaste(ImGuiKey_W, 45, false, "W", lFoermig ? 0 : 45));
+    // Wie weit der gesteuerte Ort (aufnahmeFigurZustand) vom Start der Aufnahme ist.
+    const auto wegVomStart = [z] {
+        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->scene.actors.size()) { return 0.0; }
+        const ActorState start = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(z->startMs);
+        ActorState jetzt = start;
+        aufnahmeFigurZustand(z->figur, g_app->playMs, jetzt);
+        return std::hypot(static_cast<double>(jetzt.pos[0] - start.pos[0]), static_cast<double>(jetzt.pos[1] - start.pos[1]));
+    };
+    add(halteTaste(ImGuiKey_W, 45, false, "W", lFoermig ? std::function<bool()>{} : [wegVomStart] { return wegVomStart() >= 330.0; }));
     if (lFoermig) {
         add(halteTaste(ImGuiKey_D, 35, false, "D"));
         add(halteTaste(ImGuiKey_W, 35, true, "Umschalt+W"));
@@ -974,15 +983,34 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
         return aufnahmeProben() > 8 && aufnahmePunkte() >= (lFoermig ? 2 : 1);
     }));
     // Zeitleiste 3: das Modell der Figur geht mit (vorher blieb es am Ort zur
-    // Startzeit stehen, nur der Umriss lief).
-    add(pruefe("zeitleiste1 Aufnahme " + wo + ": das Modell steht am gesteuerten Ort, nicht am Ort der Szene", [=] {
-        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->figurGezeichnet.size()) { return false; }
+    // Startzeit stehen, nur der Umriss lief). Integration 5: gegen den gesteuerten
+    // Ort selbst - wie weit die Figur in den gehaltenen Bildern kommt, haengt von
+    // der Bildzeit ab (mini: Zeitleiste 3 119 .. 391 Einheiten, Integration 5 80).
+    // Nach dem Loslassen gleitet die Figur noch aus, gezeichnet wird sie ein Bild
+    // spaeter: bis zu 60 Bilder warten.
+    const std::string modellText = "zeitleiste1 Aufnahme " + wo + ": das Modell steht am gesteuerten Ort, nicht am Ort der Szene";
+    add({"Pruefe " + modellText, [=](int b) {
+        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->figurGezeichnet.size()) {
+            pruefeWahr(false, modellText);
+            return true;
+        }
         const auto& gez = g_app->figurGezeichnet[static_cast<std::size_t>(z->figur)];
         const ActorState st = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(g_app->playMs);
-        const double weg = std::hypot(static_cast<double>(gez[0] - st.pos[0]), static_cast<double>(gez[1] - st.pos[1]));
-        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Modell gezeichnet " + std::to_string(weg) + " vom Ort der Szene");
-        return weg > 100.0;
-    }));
+        ActorState soll = st;
+        aufnahmeFigurZustand(z->figur, g_app->playMs, soll);
+        const auto abstand = [](const float* p, const float* q) {
+            return std::hypot(static_cast<double>(p[0] - q[0]), static_cast<double>(p[1] - q[1]));
+        };
+        const double weg = abstand(gez.data(), st.pos);
+        const double gesteuert = abstand(soll.pos, st.pos);
+        const double daneben = abstand(gez.data(), soll.pos);
+        const bool ok = gesteuert > 32.0 && daneben < 1.0;
+        if (!ok && b < 60) { return false; }
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Modell gezeichnet " + std::to_string(weg) + " vom Ort der Szene, gesteuert " +
+                     std::to_string(gesteuert) + ", vom gesteuerten Ort " + std::to_string(daneben) + " (Bild " + std::to_string(b) + ")");
+        pruefeWahr(ok, modellText);
+        return true;
+    }});
     // Zeitleiste 3: der Hinweis steht ganz im sichtbaren Teil des Fensters, in
     // dem er liegt, und kein Knopf liegt darueber (vorher begann er unter der
     // Werkzeugleiste am linken Rand der Ansicht und war dort abgeschnitten).

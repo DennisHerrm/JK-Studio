@@ -780,7 +780,7 @@ private:
 }  // namespace
 
 void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale, bool imSchatten,
-                     std::vector<Prim>& out, Kodierung k, bool asienGlyphen) {
+                     std::vector<Prim>& out, Kodierung k, bool asienGlyphen, bool jk2Modus) {
     // fScaleAsian / fAsianYAdjust (Language_IsAsian)
     const bool asien = asiatisch(k);
     const float scaleAsien = (asien && scale > 0.7F) ? scale * 0.75F : scale;
@@ -812,6 +812,8 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
                 c = kFarbtabelle[idx];
                 c.a = a;
             }
+        } else if (ch == '^' && jk2Modus) {
+            // JK2_MODE: case '^' endet mit break - ohne Ziffer wird das ^ nicht gezeichnet
         } else {
             // GetLetter(uiLetter, &hShader): asiatische Glyphe oder mGlyphs[uiLetter & 0xff]
             Glyph asienG;

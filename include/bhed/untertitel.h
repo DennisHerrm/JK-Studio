@@ -141,6 +141,11 @@ inline constexpr double kClientBildMs = 8.0;
 [[nodiscard]] std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& schrift, Spiel spiel, bool imKino,
                                         float balkenZiel);
 
+// CG_DrawCaptionText -> cgi_R_Font_DrawString(x, y, captionText, textcolor_caption, qhFontMedium, -1, fFontScale):
+// eine Zeile als Bilder (menue::schriftZeichnen). Ein ^ ohne Ziffer zeichnen Jedi Academy und Movie Duels
+// ("purposely falls thrugh"), Jedi Outcast (RE_Font_DrawString unter JK2_MODE) nicht.
+void zeichnen(const menue::Schrift& f, const Zeile& z, menue::Farbe farbe, float scale, Spiel spiel, std::vector<menue::Prim>& out);
+
 }  // namespace bhed::untertitel
 
 #endif  // BHED_UNTERTITEL_H
