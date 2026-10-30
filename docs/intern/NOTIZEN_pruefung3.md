@@ -343,6 +343,71 @@ Naechster Schritt (Fortsetzung): Punkt 1 (Totenlauf) und 2 (NPC_RemoveBody)
 nach den Stellen oben; Holster (nur MD) aus Punkt 5; Movie-Duels-Lunge von
 Vader/Desann in PM_TryRoll; Spielfotos. Laufskript SP\p4a\lauf.sh.
 
+### Teil 3 (30.10. abends, angehalten - shank: erst Karten-/Menue-Editor)
+
+Kein Commit am Code (der Stand baute noch nicht); kein Lauf, kein Spielstart,
+keine Sperrdatei. Begonnen mit Punkt 1, der angefangene Code liegt als
+SP\p4a\wip_punkt1_totenlauf.patch (git apply --check gegen 3ebdb154 ok):
+LaufZustand rueckstoss/reibung/aufprallTod und Leiche (Kasten, pitch/roll),
+LaufWerte::FallTod (npcFallTodKlasse) und tot/auge, LaufTakt landung/aufprall,
+LaufPlan fallTodMs/aufprallMs/aufprallTempo, kSaFallDeath1/kSaDeath1,
+pmMaske ohne MONSTERCLIP/BOTCLIP fuer die Leiche, PM_GroundTrace mit
+PMF_TIME_KNOCKBACK. Es fehlen: fallTodPruefen, PM_CrashLand der Leiche,
+PM_DeadMove, Reibung aus ps.friction, PM_DropTimers loescht rueckstoss,
+LaufRechner::schrittTot (DeadThink-Kasten, msec 1 dann 50, pitch_roll_for_slope,
+Ruhe), kein Zwischenspeicher fuer Totenplaene, planSchluessel, ablauf.cpp
+(gleicherZustand/gleicheWerte - die static_asserts auf sizeof wachsen,
+SET_NO_FALLTODEATH, Werte ueber AblaufWelt wie darfRollen).
+
+Gelesen (fuer den Plan, Zeilen OJ, MD/JK2 wo anders):
+- PmoveSingle PM_DEAD (bg_pmove.cpp:14813-14940): ucmd leer, kein
+  PM_CheckDuck, PM_GroundTrace, PM_DeadMove (nur pml.walking: |v| - 20),
+  PM_DropTimers, PM_WalkMove/PM_AirMove, zweites PM_GroundTrace.
+  PM_WalkMove (Leiche): PMF_TIME_KNOCKBACK weg, wenn am Boden und vz <= 0;
+  PM_Friction mit ps.friction, mit PMF_TIME_KNOCKBACK keine Reibung; mit
+  KNOCKBACK vz -= gravity*frametime. PM_GroundTrace "kickoff" auch bei
+  vz > 0 mit KNOCKBACK (alle drei Regelwerke gleich).
+- ps.gravity setzt ClientThink_real vor jedem Pmove neu (g_active.cpp:5214-5225)
+  - "gravity *= 0.8" der Wurfzweige wirkt nur mit SVF_CUSTOM_GRAVITY; ps.friction
+  bleibt (NPC_PostDeathThink ist auskommentiert). Wurfzweige von player_die
+  setzen friction 0 (g_combat.cpp:4335, 4381, 4431).
+- CorpsePhysics: ClientThink mit leerem ucmd (erstes Pmove 1 ms, dann 50),
+  am Boden pitch_roll_for_slope (Punktspur MASK_SOLID ab currentOrigin bis
+  origin+mins[2]+4-300; ps.viewangles PITCH/ROLL; mins[2] = -24 +
+  12*|pitch|/180, kleiner -> origin hoeher). cgame zeichnet Tote mit
+  AnglesToAxis(lerpAngles) und Wirbelknochen auf 0 (cg_players.cpp:2526-2551);
+  die Vorschau baut die Weltmatrix nur aus der Gier (baueFigurWelt).
+  JK2/MD: GM_Dying fuer CLASS_GALAKMECH.
+- DeadThink: maxs[2] = eyePoint[2] - origin[2] + 4 (>= -8), groesser nur ohne
+  allsolid (OJ/MD); JK2 ohne diese Pruefung, dafuer x/y je Bild +1 bis 32,
+  solange velocity 0. eyePoint ohne headBolt = Ursprung (cg_players.cpp:7488).
+- PM_CrashLand einer Leiche: NPCAI_DIE_ON_IMPACT -> PM_CrashLandDamage(1000)
+  zuerst (OJ/MD im else-if mit den Jet-Klassen/jumpZStart, JK2 davor
+  unabhaengig); delta sonst |prev vz|/10 bzw. aus jumpZStart bei
+  FP_LEVITATION >= 1; PM_InDeathAnim (Liste OJ = MD 80, JK2 mit den *_FLOP
+  mehr; BOTH_DEATH_LYING/FALLING/CROUCHED stehen NICHT darin): gravity 1,
+  fallsplat (delta >= 75) bzw. bodyfall_human1-3 (JK2 immer fallsplat),
+  *pain100 beim Sprechen, FALLDEATH1/INAIR -> FALLDEATH1LAND (SETANIM_BOTH);
+  sonst EV_FALL_FAR/SHORT (landSound, *land1). delta >= 75 und 30..50:
+  PM_CrashLandDamage -> G_Damage auf die Leiche -> player_die zuckt
+  (takedamage bleibt). CG_LandingEffect braucht das Material der Flaeche
+  (NavSpur kennt surfaceFlags nicht) - fehlt auch fuer Lebende.
+- PM_FallToDeath (OJ 4428, MD 6378, JK2 2787): BOTH_FALLDEATH1 (sonst DEATH1)
+  Beine OVERRIDE|HOLD, *falling1.wav, NPCAI_DIE_ON_IMPACT, nextBStateThink =
+  Q3_INFINITE (danach last_ucmd/oldMoveDir je Bild, auch MD), friction 1.
+  Bedingungen in PM_GroundTraceMissed nur schon in der Luft; Ausnahmen
+  DESANN (MD auch SITHLORD/VADER), Jet-Klassen (OJ BOBAFETT/ROCKETTROOPER, MD
+  dazu MANDALORIAN/JANGO/JANGODUAL) fliegen los (JET_FlyStart, nicht
+  nachbaubar ohne PM_FlyMove), JK2 ohne NPCAI_JUMP/BS_JUMP/Jetpack.
+  Aufprall: player_die mit MOD_FALLING im Pmove (pm_type noch PM_NORMAL, vz
+  nach dem Gleiten ~ +0 -> BOTH_FALLDEATH1LAND), attacker = Spieler -> enemy
+  gesetzt (NPC_RemoveBody darf die Leiche entfernen).
+- Plan: Totenplan nach schwerkraftEinrechnen (Z zur Todeszeit aus hoehe), als
+  WalkTo-Stueck ohne Gier (Tote drehen nicht: PM_UpdateViewAngles kehrt bei
+  health <= 0 zurueck), dann Schwerkraft nur fuer diese Figuren neu; die
+  Landungen als Klaenge/FALLDEATH1LAND/Zucken in der Szene; Fall-Tode wie
+  hurtTode als Durchgang (deathscript im Ablauf).
+
 ## English
 - Lying figures die like in the game: the torso angle for the death animation now comes from the chest bone of the drawn skeleton (per rule set: OpenJK, Movie Duels, Jedi Outcast) - a figure lying on its back dies with BOTH_DEATH_LYING_UP instead of always BOTH_DEATH_LYING_DN.
 - When a figure dies, the preview now does what the game does besides the animation: the weapon leaves the hand and falls to the ground as an item (or just disappears, depending on weapon and rule set), a saber may drop out of the hand and vanish when it lands, the death cries, falling screams and splats play with the figure's own sounds, and droids explode with their death effects and sounds.
