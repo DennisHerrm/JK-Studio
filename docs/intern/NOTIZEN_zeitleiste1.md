@@ -319,9 +319,33 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
   Untertitel, Pakete KEJIM_POST + ARTUS_MINE). Offen: die Missionsliste
   nach einer eigenen neuen Mission im Selbsttest (Ursache nicht
   untersucht).
-  **Nicht gelaufen** (Zeit): zeitleiste, kamera, missionsbau, umriss,
-  mission1, szenen, ton, karte, Modus 1 - Skript `/y/zl2_ende.sh` liegt
-  bereit.
+  Weitere Selbsttests (`/y/zl2_rest.sh`, hintereinander, unter Last durch
+  die anderen Agenten): kamera 95/0, umriss 45/0, missionsbau 95/0, szenen
+  26/0, karte 229/0; mission1 97/1 ("Gizmo: Kamera - beim Abspielen kein
+  stehengebliebener Gizmo": Achsenfarben beim Abspielen 216/0, nach Stop
+  45 statt ~1338), zeitleiste 46/1 und ton 33/1 (beide "der Klang kommt,
+  sobald sie gezeichnet wird"). ton allein wiederholt: diese Pruefung
+  gruen (Klang bei 1054 ms), dafuer "ein Halt ohne Stopknopf beendet die
+  Schleifen" rot - zeitabhaengige Tonpruefungen unter Last, keine der
+  Aenderungen dieses Zweigs beruehrt den Ton. Allein wiederholt:
+  mission1 98/0 (die Gizmo-Pruefung gruen), zeitleiste 47/0.
+  **Nicht gelaufen** (Zeitgrenze): Modus 1 (90 min), alle Modi,
+  Kartenpruefung - Skript `/y/zl2_ende.sh` liegt bereit.
+
+### Stand beim Anhalten (30.10., 06:40)
+
+- Fertig und committet: Punkte 1, 2, 3, 4, 7; Punkt 5 bis auf die Bilder
+  aus dem vollen Bildlauf; Punkt 6 verkuerzt (oben).
+- Offen: (1) Bilder mit der alten Leiste aus `BHED_EDITORTEST=handbuch`
+  (`/y/zl2_hbvoll.sh` je Sprache, Dauer unbekannt); (2) Modus 1 und die
+  restliche Schlussrunde (`/y/zl2_ende.sh`); (3) JK2-Teil im vollen
+  zeitleiste1-Lauf nach "New mission" (Missionsliste); (4) Aufnahme:
+  waehrend der Aufnahme zeigt die Vorschau einen Umriss statt des Modells;
+  der Hinweis ist bei schmaler Ansicht abgeschnitten; (5) MD
+  cg_textprintscale "0.5f" gegen die installierte DLL nicht pruefbar.
+- Naechster Schritt: `/y/zl2_hbvoll.sh en` (Dauer messen), dann de,
+  zh-Hans, ja; danach `/y/zl2_ende.sh`; mission1/zeitleiste/ton allein
+  wiederholen, wenn sie dort wieder rot sind.
 
 ## Changelog
 
