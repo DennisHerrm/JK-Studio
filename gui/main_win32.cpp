@@ -1536,7 +1536,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // Erst Direct3D 11, dann OpenGL. Auf Rechnern ohne Hardware-Direct3D
     // faellt der erste Versuch durch, und der zweite traegt.
 #ifdef BHED_WITH_D3D11
-    const bool first = runSession(bhed::render::Backend::Direct3D11, hwnd, app);
+    // dock4: BHED_OPENGL=1 nimmt gleich den zweiten Weg (DEBUGGEN.md 3.5) - so laesst
+    // er sich pruefen, ohne dass Direct3D 11 fehlen muss.
+    const bool first = std::getenv("BHED_OPENGL") == nullptr && runSession(bhed::render::Backend::Direct3D11, hwnd, app);
 #else
     const bool first = false;
 #endif

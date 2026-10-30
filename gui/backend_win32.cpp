@@ -999,14 +999,20 @@ void viewportBildLesen(unsigned id) {
 void viewportBildLesenGl(const ImGuiViewport* v) {
     ViewportBild ergebnis;
     ergebnis.id = v->ID;
-    const int w = static_cast<int>(v->Size.x * v->FramebufferScale.x);
-    const int h = static_cast<int>(v->Size.y * v->FramebufferScale.y);
+    RECT innen{};
+    if (GetClientRect(static_cast<HWND>(v->PlatformHandle), &innen) == FALSE) { return; }
+    const int w = innen.right - innen.left;   // der Puffer des Fensters ist so gross wie seine Innenflaeche
+    const int h = innen.bottom - innen.top;
     if (w <= 0 || h <= 0) { return; }
     std::vector<std::uint32_t> punkte(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    while (glGetError() != GL_NO_ERROR) {}   // alte Fehler anderer Aufrufe, sie gelten nicht dem Lesen
     glReadBuffer(GL_BACK);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, punkte.data());
-    if (glGetError() != GL_NO_ERROR) { return; }
+    if (const GLenum fehler = glGetError(); fehler != GL_NO_ERROR) {
+        diag::detail("OpenGL: Bild eines eigenen Fensters nicht lesbar (Fehler " + std::to_string(fehler) + ")");
+        return;
+    }
     std::vector<std::uint32_t> farben;
     for (int y = 0; y < h; y += 2) {
         for (int x = 0; x < w; x += 2) {
