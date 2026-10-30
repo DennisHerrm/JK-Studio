@@ -3861,34 +3861,67 @@ static void BhedIlluminateGpu(){
 		}
 		nebenCv.notify_all();
 	};
-	/* vis4: the gather buffer is full (or the GPU has no block left with BHED_GPUBAKE_NUR_GPU): the GPU computes
-	   every gathered lightmap no thread has taken, then the buffer is empty */
-	const auto sammelAlle = [&]{
+	/* vis4: a batch of the gather buffer on the GPU. With BHED_GPUBAKE_NUR_GPU every gathered lightmap. With
+	   BHED_GPUBAKE_ZUFALL the smallest ones no thread has taken, about the share zufallAnteil of their work: the threads
+	   take the biggest at the same time (a batch takes as long as its longest serial stamp scan, and the threads must
+	   not run dry meanwhile). vis3: the first batch is small (1/16), then the GPU takes the share both sides can finish
+	   at the same time after the rates measured in the batch before (work the GPU did against work the threads took
+	   meanwhile). voll: the buffer is full - afterwards it is empty, the rest stays with the threads (nebenZufall).
+	   Only the order changes: every lightmap is computed by exactly one side, both exactly. */
+	double zufallAnteil = 1.0 / 16;
+	const auto sammelStapel = [&]( bool voll ){
 		std::vector<size_t> teil;
+		size_t genommen = 0, restDanach = 0;
+		const double tStapel = BhedJetzt();
 		{
 			std::lock_guard<std::mutex> l( nebenMutex );
-			for ( size_t i = 0; i < sammel.size(); ++i )
-			{
-				const int r = sammel[ i ].r;
-				if ( zufallUebernahme ) {
-					const auto it = nebenZufall.find( { arbeit( r ), r } );
-					if ( it == nebenZufall.end() ) {
-						continue;   /* a thread has it */
-					}
-					zufallArbeit -= it->first;
-					nebenZufall.erase( it );
+			if ( zufallUebernahme ) {
+				size_t frei = 0;   /* the work of the gathered ones no thread has taken */
+				for ( const auto& [ w, r ] : nebenZufall ) {
+					frei += sammelNr[ r ] >= 0 ? w : 0;
 				}
-				teil.push_back( i );
+				const size_t ziel = size_t( double( frei ) * zufallAnteil );
+				for ( auto it = nebenZufall.begin(); it != nebenZufall.end() && ( teil.empty() || genommen < ziel ); )
+				{
+					if ( sammelNr[ it->second ] < 0 ) {
+						++it;   /* not in the gather buffer: for the threads */
+						continue;
+					}
+					teil.push_back( size_t( sammelNr[ it->second ] ) );
+					genommen += it->first;
+					zufallArbeit -= it->first;
+					it = nebenZufall.erase( it );
+				}
+				restDanach = zufallArbeit;
+			}
+			else{
+				for ( size_t i = 0; i < sammel.size(); ++i ) {
+					teil.push_back( i );
+				}
 			}
 		}
+		std::sort( teil.begin(), teil.end() );   /* ascending in the gather buffer, as the kernels expect */
 		if ( !teil.empty() ) {
 			sammelBlock( teil );
 		}
-		for ( const BhedSammel& e : sammel ) {
-			sammelNr[ e.r ] = -1;
+		if ( voll ) {
+			for ( const BhedSammel& e : sammel ) {
+				sammelNr[ e.r ] = -1;
+			}
+			sammel.clear();
+			sammelBelegt = 0;
 		}
-		sammel.clear();
-		sammelBelegt = 0;
+		if ( zufallUebernahme && !teil.empty() ) {
+			size_t cpuGenommen = 0;
+			{
+				std::lock_guard<std::mutex> l( nebenMutex );
+				cpuGenommen = restDanach > zufallArbeit ? restDanach - zufallArbeit : 0;   /* the batch may give parts back */
+			}
+			const double dauer = std::max( 1e-3, BhedJetzt() - tStapel );
+			const double gpuRate = double( genommen ) / dauer;
+			const double cpuRate = double( cpuGenommen ) / dauer;
+			zufallAnteil = std::clamp( gpuRate / std::max( 1e-9, gpuRate + cpuRate ), 1.0 / 64, 1.0 );
+		}
 	};
 	/* vis4: lightmap li of block b with random subsamples into the gather buffer (its colours are still in the
 	   block's P); false: it does not fit or the GPU is lost - the CPU computes it */
@@ -3899,7 +3932,7 @@ static void BhedIlluminateGpu(){
 			return false;
 		}
 		if ( sammelBelegt + bedarf > sammelPlatz ) {
-			sammelAlle();
+			sammelStapel( true );
 		}
 		BhedSammel e{ r, sammelBelegt, {}, s };
 		const std::uint32_t m = std::uint32_t( L.m );
@@ -4122,53 +4155,27 @@ static void BhedIlluminateGpu(){
 		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
 	}
 	zeit( 7 );
-	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest, as long
-	   as more are left than threads. vis3: a fixed third per batch let the threads run dry while the GPU still
-	   worked on its batch (duel_mos_espa, a bounce: 174 -> 211 s) - the first batch is small (1/16 of the remaining
-	   work), then the GPU takes the share both sides can finish at the same time after the rates measured in the
-	   batch before (work the GPU did against work the threads took meanwhile). Only the order changes: every
-	   lightmap is computed by exactly one side, both exactly. vis4: the batches come from the gather buffer. */
-	double zufallAnteil = 1.0 / 16;
+	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest in
+	   batches (sammelStapel), as long as more are left than threads */
 	while ( zufallUebernahme && !sammel.empty() && BhedBakeBereit() )
 	{
-		std::vector<size_t> teil;
-		size_t genommen = 0, restDanach = 0;
-		const double tStapel = BhedJetzt();
+		bool gesammelte = false;
 		{
 			std::lock_guard<std::mutex> l( nebenMutex );
 			if ( nebenZufall.size() <= size_t( std::max( 1, numthreads ) ) ) {
 				break;
 			}
-			const size_t ziel = size_t( double( zufallArbeit ) * zufallAnteil );
-			for ( auto it = nebenZufall.begin(); it != nebenZufall.end() && genommen < ziel; )
-			{
-				if ( sammelNr[ it->second ] < 0 ) {
-					++it;   /* not in the gather buffer: for the threads */
-					continue;
-				}
-				teil.push_back( size_t( sammelNr[ it->second ] ) );
-				genommen += it->first;
-				zufallArbeit -= it->first;
-				it = nebenZufall.erase( it );
+			for ( const auto& [ w, r ] : nebenZufall ) {
+				gesammelte = gesammelte || sammelNr[ r ] >= 0;
 			}
-			restDanach = zufallArbeit;
 		}
-		if ( teil.empty() ) {
+		if ( !gesammelte ) {
 			break;
 		}
-		std::sort( teil.begin(), teil.end() );   /* ascending in the gather buffer, as the kernels expect */
-		sammelBlock( teil );
-		size_t cpuGenommen = 0;
-		{
-			std::lock_guard<std::mutex> l( nebenMutex );
-			cpuGenommen = restDanach > zufallArbeit ? restDanach - zufallArbeit : 0;   /* the batch may give parts back */
-		}
-		const double gpuRate = double( genommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
-		const double cpuRate = double( cpuGenommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
-		zufallAnteil = std::clamp( gpuRate / std::max( 1e-9, gpuRate + cpuRate ), 1.0 / 64, 0.5 );
+		sammelStapel( false );
 	}
 	if ( nurGpu && !sammel.empty() ) {
-		sammelAlle();   /* vis4: the rest of the gather buffer (lost: to the CPU) */
+		sammelStapel( true );   /* vis4: the rest of the gather buffer (lost: to the CPU) */
 	}
 	/* the processor's threads finish their lightmaps */
 	{
