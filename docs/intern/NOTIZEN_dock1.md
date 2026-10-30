@@ -567,13 +567,110 @@ Fenstern weiter da (mit dem Hinweis).
    (dock1neustart 1 FEHLER) → gespeicherte Fenstereinstellung zählt → grün.
 8. OpenGL: Bild der eigenen Fenster nicht gelesen (Puffergrösse aus
    FramebufferScale = 0) → Innenfläche des Windows-Fensters → grün.
+9. Ablage aus dem zweiten Prozess landete daneben (misc_model -128 144 statt
+   0 48): der Helfer war nicht DPI-bewusst und rechnete bei 150 % mit
+   verkleinerten Fenstermassen – wie der Explorer DPI-bewusst → grün.
+10. **Fotovergleich Schalter an/aus** (karteneditor-Fotolauf, 65 Fotos, je
+   Lauf mit und ohne DockSpace): zuerst jedes Foto anders, entlang der
+   Feldränder (≈6600 Punkte). Zwei Ursachen: (a) ein angedocktes Fenster
+   schneidet seinen Inhalt um seine Randbreite ein – der Rand der Konsole
+   fehlte; (b) das leere Panel liess ImGui Hintergrund und Rand der
+   Kindfenster in die Zeichenliste von ##feldKonsole legen („render
+   decorations in parent“ nur bei nicht leerem Elternfenster), der Feldrahmen
+   kam darüber. Jetzt: angedockte Panels ohne Rand, ohne eigenen Hintergrund
+   und mit einem Punkt ohne Fläche → **62 Fotos gleich**, 3 nur im Namen des
+   Laufordners, den die Konsole zeigt.
 
 ### 4. Handbuch
 
 Seite „Fenster und Bildschirme anordnen“ neu für den DockSpace (überall
 andocken, Dreieck, Karten-Editor mit NRCs Massen, Menü-Editor beide Layouts,
-Fehlerbehebung mit `BHED_DOCKSPACE=0`); Bilder h_dock_* neu, h_dock_ecke neu.
-Alte Bilder mit der Menüleiste ohne „Window“ neu aufgenommen (4 Sprachen).
+Fehlerbehebung mit `BHED_DOCKSPACE=0`); Bilder h_dock_* neu (h_dock_zurueck
+zeigt jetzt ImGuis Markierungen über dem Hauptfenster), h_dock_ecke neu – die
+Fotos laufen mit leerem Missionsordner (vorher stand auf der Startseite ein Pfad
+mit Benutzernamen).
+
+Alte Bilder mit der Menüleiste ohne „Window“: Bildläufe `BHED_EDITORTEST=handbuch`
+mit DockSpace je Sprache (en, de, zh-Hans, ja), Auswahl nach dem Ausschnitt
+(`SP\d4_hb_auswahl.py`: Ausschnitt beginnt in der Schrift der Menüleiste und
+reicht bis dorthin, wo „Window“ steht bzw. „Help“ hinrückte; je Sprache
+vereint mit der englischen Liste, weil „Window“ in zh/ja weiter links steht),
+daraus `tools/handbuch/bilder.py`. Karten-Editor: 29–33 Bilder je Sprache
+(karteneditor, kartebauen, karte4/5/7/8/8b/9c, gpubacken mit dem Tutorial) –
+sie zeigten auch noch nicht den Modus „Menu Editor“ in der Modusleiste.
+Hauptmenüleiste (grosser Bildlauf, Übungsmission und Archiv auf X: wie
+/y/zl4_hbvoll.sh): 28 Bilder je Sprache (Start, Skript, Optionen, Tutorials,
+Karte). Die Karten-Editor-Bilder wurden nach dem Fotovergleich (Fehler 10)
+noch einmal aufgenommen. es/cs: nicht neu aufgenommen (Auftrag: 4 Sprachen) –
+ihre Bilder mit Menüleiste zeigen weiter kein „Window“, die neuen Texte der
+Seite fallen dort auf Englisch zurück (13 Bilder, 76 Texte noch englisch).
+
+### Ergebnisse (Schlussrunde dock4)
+
+Unter Last (andere Agenten laufen parallel); Läufe in SP\dock4_laeufe, je
+eigener Einstellungsordner (dock1neustart im Ordner von dock1). Programm aus
+dem sauberen Neubau (`--clean-first`, alle Ziele): **0 Warnungen**; danach eine
+Zeile in dockvorgabe.cpp, inkrementell gebaut, 0 Warnungen. **ctest 158/158.**
+
+| Lauf (Schalter ab Werk an) | Ergebnis |
+|---|---|
+| dock4 (schaltet selbst um), mit Ablage aus einem zweiten Prozess | **101 OK, 0 FEHLER** |
+| dock1 | **97 OK, 0 FEHLER** (Bildzeit 1 Viewport 4,20 ms, 3 Viewports 4,20 ms) |
+| dock1neustart (zweiter Start) | **18 OK, 0 FEHLER** |
+| dock2mass | **29 OK, 0 FEHLER** |
+| menueeditor | **46 OK, 0 FEHLER** |
+| karteneditor (`BHED_KARTE_NUR=fotos`, mit Fotos) | **78 OK, 0 FEHLER** |
+| missionsbau / szenen / kamera / ton | **95 / 26 / 95 / 34 OK**, je 0 FEHLER |
+| Modus 1 (mit BHED_HANDBUCH) | **2648 OK, 0 FEHLER** |
+| ImGui-Zusicherungen | in keinem Lauf |
+| OpenGL (`BHED_OPENGL=1`, dock1) | 96 OK, 1 FEHLER: Echtzeit-Licht – braucht Direct3D 11 (kartegpu::verfuegbar, vorher schon so); eigene Fenster zeichnen (Zeitleiste 832, Kamera 126, Fläche 285 Farben) |
+
+Messwerte aus dock4: alle 46 Kindfenster der Felder und Spalten (Map Editor
+Regular, Regular Left, Split, Split frei belegt, mit Gruppendialog, MaximizeView,
+ohne XY/Kamera/Texturen, Griff gezogen; Menu Editor beide Layouts) im DockSpace
+auf ±0,5 Punkte wie ohne – z. B. Regular XY 165,110 910x1194, Konsole 165,1312
+910x64, Kamera 1083,110 1364x786, Texturen 1083,904 1364x472; Menü „Text unten“
+Bausteine 165,111 312x803, Text 165,932 2361x358. Hover-Linie 107/107 Zeilen
+2 Punkte breit; Dreieck 136/136 Punkte; Ablage aus dem zweiten Prozess:
+misc_model bei 0 48 (soll 0 48).
+
+Gegen ein Vorbild geprüft: NRCs Anordnungen gegen den bisherigen Weg ohne
+DockSpace (der gegen NRC-Fotos geprüft ist, karteneditor „Anordnung Regular wie
+die NRC-Fotos“), Punkt für Punkt im selben Lauf; ImGuis eigenes Verhalten
+(Dreieck, Markierungen, Reiter) im laufenden Programm; Ablage wie aus dem
+Explorer mit einem zweiten Prozess (WM_DROPFILES über die Prozessgrenze, Windows
+reicht den Block weiter). Nicht geprüft: ein echtes Ziehen aus dem Explorer mit
+der Maus (der echte Zeiger darf im Test nicht bewegt werden).
+
+### Schalter
+
+**Ab Werk AN.** Bedingung aus dem Auftrag erfüllt: 1–4 grün und mit Schalter
+an grün: dock1, dock2mass, dock1neustart, menueeditor, karteneditor kurz +
+Fotos, missionsbau, szenen, kamera, ton, Modus 1 (Tabelle oben), dazu dock4.
+`BHED_DOCKSPACE=0` bleibt der Rückweg (Handbuch: Fenster und Bildschirme
+anordnen > Fehlerbehebung) und ist geprüft: dock1 86 OK, dock1neustart 5 OK,
+menueeditor 46 OK, karteneditor (Fotos) 78 OK, je 0 FEHLER.
+
+### Offen (dock4)
+
+- Events/Mission/Model (app_dockspace.inc, dock2) sind nur in Massen gegen den
+  alten Weg geprüft (dock2mass ±0,5), nicht Punkt für Punkt im Foto wie der
+  Map Editor; ihre Panels haben Polster (= Zellpolster), Fehler 10 betrifft sie
+  so nicht, ein Fotovergleich steht aus.
+- Echtzeit-Licht unter OpenGL: gibt es nicht (kartegpu nur Direct3D 11, vorher
+  schon so) – der OpenGL-Weg zeigt die Kamera ohne Licht.
+- Ein Bau ohne Direct3D (`-DBEHAVED_D3D11=OFF`) lässt sich nicht binden
+  (karte_gpu_win32.cpp ruft D3DCompile, der Selbsttest gpu::figurDeform*,
+  moverSprite* – vorher schon so); geprüft wurde der OpenGL-Weg daher mit
+  `BHED_OPENGL=1`.
+- Ein echtes Ziehen aus dem Explorer mit der Maus ist nicht geprüft (der echte
+  Zeiger darf im Test nicht bewegt werden); geprüft: WS_EX_ACCEPTFILES je
+  Fenster und WM_DROPFILES aus einem zweiten, DPI-bewussten Prozess.
+- Andocken, wenn das Blatt eines Panels fehlt, baut die Vorgabe neu (eine
+  freie Anordnung im Hauptfenster geht dabei verloren; Panels in eigenen
+  Fenstern bleiben draussen) – wie dock3 für Events/Mission/Model.
+- es/cs: Texte der Seite und Bilder mit Menüleiste noch englisch bzw. ohne
+  „Window“.
 
 ## Changelog
 
