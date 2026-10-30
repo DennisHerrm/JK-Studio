@@ -246,6 +246,11 @@ int main() {
         const Datei dd = lies("ui/od.menu", to, oo);
         Umgebung uo = u;
         uo.dialekt = Dialekt::SP;
+        uo.ownerDraw = [](const OdAufruf& a) {   // M7: UI_OwnerDraw ueber ownerdraw.cpp
+            OdKontext k;
+            k.dialekt = Dialekt::SP;
+            return ownerDraw(a, k);
+        };
         std::vector<Prim> po;
         zeichneMenu(dd, 0, uo, po);
         bool taste = false, stand = false;
@@ -680,16 +685,31 @@ int main() {
             const auto it = cvm.find(k);
             return it == cvm.end() ? std::string() : it->second;
         };
-        pruefe(fd.ownerDraw(245, cvf).text == "@MENUS_DUEL", "UI_NETGAMETYPE: gameTypes[ui_netGametype].gtEnum -> UI_GetGameTypeName");
-        pruefe(fd.ownerDraw(210, cvf).text == "@MENUS_HUMAN" && !fd.ownerDraw(210, cvf).halb, "UI_BLUETEAM1: Wert 1 = Mensch");
-        pruefe(fd.ownerDraw(211, cvf).text == "Jan", "UI_BLUETEAM2: Wert 3 = Bot Nr. 1");
-        const OwnerDrawInhalt zu = fd.ownerDraw(219, cvf);
-        pruefe(zu.text == "@MENUS_CLOSED" && zu.halb, "UI_REDTEAM5: Platz 10 > sv_maxClients 8 -> geschlossen, halbe Farbe");
-        pruefe(fd.ownerDraw(207, cvf).text == "@MP_INGAME_SKILL2" && fd.ownerDraw(287, cvf).text == "@MENUS_DEFAULT", "UI_SKILL, UI_SKIN_COLOR");
-        pruefe(fd.ownerDraw(255, cvf).bild == "menu/art/unknownmap_mp" && !fd.ownerDraw(9999, cvf).bekannt,
+        // M7: ueber ownerDraw (ownerdraw.cpp); se gibt den Schluessel mit "@" zurueck
+        OdKontext ok;
+        ok.dialekt = Dialekt::MP;
+        ok.daten = &fd;
+        ok.cvar = cvf;
+        ok.se = [](const std::string& k) { return "@" + k; };
+        auto od = [&](int id) {
+            OdAufruf a;
+            a.id = id;
+            return ownerDraw(a, ok);
+        };
+        auto odText = [&](int id) {
+            const OdErgebnis r = od(id);
+            return r.teile.empty() ? std::string() : r.teile.front().inhalt;
+        };
+        pruefe(odText(245) == "@MENUS_DUEL", "UI_NETGAMETYPE: gameTypes[ui_netGametype].gtEnum -> UI_GetGameTypeName");
+        pruefe(odText(210) == "@MENUS_HUMAN" && od(210).teile.front().farbe.r == 1.0F, "UI_BLUETEAM1: Wert 1 = Mensch");
+        pruefe(odText(211) == "Jan", "UI_BLUETEAM2: Wert 3 = Bot Nr. 1");
+        const OdErgebnis zu = od(219);
+        pruefe(odText(219) == "@MENUS_CLOSED" && zu.teile.front().farbe.r == 0.5F, "UI_REDTEAM5: Platz 10 > sv_maxClients 8 -> geschlossen, halbe Farbe");
+        pruefe(odText(207) == "@MP_INGAME_SKILL2" && odText(287) == "@MENUS_DEFAULT", "UI_SKILL, UI_SKIN_COLOR");
+        pruefe(od(255).teile.front().inhalt == "menu/art/unknownmap_mp" && !od(9999).bekannt,
                "UI_STARTMAPCINEMATIC ohne Levelshot -> unknownmap_mp; unbekannte Nummer bleibt Platzhalter");
-        fd.dialekt = Dialekt::SP;
-        pruefe(!fd.ownerDraw(245, cvf).bekannt, "SP: MP-Ownerdraws gelten nicht");
+        ok.dialekt = Dialekt::SP;
+        pruefe(!od(245).bekannt, "SP: MP-Ownerdraws gelten nicht");
         // Bildliste der MP-Fassung: mehr als doppelt so breit wie ein Element -> Zeilen und Spalten
         LeseOptionen og;
         og.dialekt = Dialekt::MP;

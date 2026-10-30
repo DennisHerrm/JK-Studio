@@ -285,19 +285,63 @@ private:
         return c;
     }
 
-    // M5: Item_OwnerDraw_Paint (codemp/ui/ui_shared.c) mit UI_OwnerDraw: rect = x + text_x, y + text_y;
-    // mit Text erst Item_Text_Paint, dann rechts daneben (+8, wenn der Text nicht leer ist)
-    void ownerDrawMalen(const Item& it, int flags, const OwnerDrawInhalt& o) {
-        Farbe c = textFarbe(it, flags);
-        float x = it.window.rect.x + it.textalignx;
+    // M7: Item_OwnerDraw_Paint (codemp/ui/ui_shared.c, code/ui/ui_shared.cpp): Farbe (colorRanges mit
+    // DC->getValue = 0, Fokus pulsiert, Blinken, enableCvar), mit Text erst Item_Text_Paint und dann
+    // DC->ownerDrawItem rechts daneben (+8; MP nur bei nicht leerem Text), sonst am rect mit textalignx/y
+    void ownerDrawMalen(const Item& it, int flags) {
+        const float puls = 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor);
+        Farbe color = it.window.foreColor;
+        for (const ColorRange& cr : it.colorRanges) {
+            if (0.0F >= cr.low && 0.0F <= cr.high) {
+                color = cr.color;
+                break;
+            }
+        }
+        if ((flags & WINDOW_HASFOCUS) != 0) {
+            color = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls);
+        } else if (it.textStyle == ITEM_TEXTSTYLE_BLINK && ((u_.zeitMs / kBlinkDivisor) & 1) == 0) {
+            color = lerp(it.window.foreColor, mal(it.window.foreColor, 0.8F), puls);
+        }
+        if ((it.cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) != 0 && !itemZeigtUeberCvar(it, CVAR_ENABLE, u_)) { color = m_.disableColor; }
+        OdAufruf a;
+        a.id = it.window.ownerDraw;
+        a.flags = it.window.ownerDrawFlags;
+        a.align = it.alignment;
+        a.special = it.special;
+        a.scale = it.textscale;
+        a.farbe = color;
+        a.shader = it.window.background;
+        a.stil = it.textStyle;
+        a.font = it.font;
+        a.y = it.window.rect.y;
+        a.w = it.window.rect.w;
+        a.h = it.window.rect.h;
+        a.textY = it.textaligny;
         if (!it.text.empty()) {
             textMalen(it, flags);
-            x = tr_.x + tr_.w + (itemText(it).empty() ? 0.0F : 8.0F);
+            a.x = tr_.x + tr_.w + ((u_.dialekt == Dialekt::SP || !itemText(it).empty()) ? 8.0F : 0.0F);
+        } else {
+            a.x = it.window.rect.x;
+            a.textX = it.textalignx;
         }
-        const float y = it.window.rect.y + it.textaligny;
-        if (o.halb) { c = Farbe{c.r * 0.5F, c.g * 0.5F, c.b * 0.5F, c.a}; }
-        if (!o.text.empty()) { text(x, y, it.textscale, c, se(o.text), 0, it.textStyle, it.font); }
-        if (!o.bild.empty()) { bild(x, y, it.window.rect.w, it.window.rect.h, o.bild, Farbe{1, 1, 1, 1}, item_); }
+        const OdErgebnis o = u_.ownerDraw ? u_.ownerDraw(a) : OdErgebnis{};
+        if (!o.bekannt) {
+            platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
+            return;
+        }
+        for (const OdTeil& t : o.teile) {
+            if (t.art == OdTeil::Art::Bild) {
+                bild(t.x, t.y, t.w, t.h, t.inhalt, t.farbe, item_, t.s0, t.t0, t.s1, t.t1);
+            } else if (t.art == OdTeil::Art::Fuellen) {
+                fuellen(t.x, t.y, t.w, t.h, t.farbe);
+            } else if (!t.schrift.empty()) {
+                const Schrift* f = u_.schriftNamens ? u_.schriftNamens(t.schrift) : nullptr;
+                if (f != nullptr && f->ok) { zeichenkette(*f, static_cast<int>(t.x), static_cast<int>(t.y), t.inhalt, t.farbe, t.maxPixel == 0 ? -1 : t.maxPixel, t.scale, false); }
+            } else {
+                text(t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil, t.font);
+            }
+        }
+        if (o.beispiel) { platzhalter(it.window.rect, "", PrimArt::Beispiel); }
     }
 
     // Text_Paint -> RE_Font_DrawString
@@ -483,26 +527,8 @@ private:
         w.flags = flags;
         fenster(w, item_);
         switch (it.type) {
-            case ITEM_TYPE_OWNERDRAW:
-                // M4: UI_OwnerDraw (code/ui/ui_main.cpp) fuer die Einzelspieler-Nummern, die nicht vom
-                // laufenden Spiel abhaengen; der Rest (Datapad, UI_GLINFO, MP-Ownerdraws) bleibt Platzhalter
-                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiKeybindStatus) {
-                    break;   // UI_DrawKeyBindStatus: Text nur, solange eine Taste erwartet wird
-                }
-                if (u_.dialekt == Dialekt::SP && it.window.ownerDraw == kUiAllmapsSelection) {
-                    // Spielstand-Vorschau: levelshots/<karte> des gewaehlten Spielstands, ohne Spielstand
-                    // uis.menuBackShader ("menu/art/unknownmap"); der Kartenname ist dann leer
-                    bild(it.window.rect.x, it.window.rect.y, it.window.rect.w, it.window.rect.h, "menu/art/unknownmap", Farbe{1, 1, 1, 1}, item_);
-                    break;
-                }
-                if (u_.dialekt == Dialekt::MP && u_.ownerDraw) {   // M5: UI_OwnerDraw der MP-Fassung
-                    const OwnerDrawInhalt o = u_.ownerDraw(it.window.ownerDraw);
-                    if (o.bekannt) {
-                        ownerDrawMalen(it, flags, o);
-                        break;
-                    }
-                }
-                platzhalter(it.window.rect, "ownerdraw " + std::to_string(it.window.ownerDraw) + profilName(true, it.window.ownerDraw));
+            case ITEM_TYPE_OWNERDRAW:   // M7: UI_OwnerDraw je Nummer (ownerdraw.cpp)
+                ownerDrawMalen(it, flags);
                 break;
             case ITEM_TYPE_TEXT:
             case ITEM_TYPE_BUTTON:
@@ -939,72 +965,72 @@ std::string textScrollText(const Item& it, const Umgebung& u) {
     return t;
 }
 
+UmbruchZeile naechsteZeile(const std::string& text, std::size_t& pos, int boxBreite, const std::function<int(const std::string&)>& breite,
+                           Kodierung k) {
+    UmbruchZeile z;
+    const bool asien = asiatisch(k);
+    const bool leerzeichen = !(k == Kodierung::Taiwanesisch || k == Kodierung::Japanisch || k == Kodierung::Chinesisch);
+    const auto* s = reinterpret_cast<const unsigned char*>(text.c_str());
+    const std::size_t n = text.size();
+    std::size_t lineStart = pos, best = pos;
+    while (pos < n && s[pos] != 0) {
+        const std::size_t lastGood = pos;
+        int adv = 1;
+        unsigned letter = s[pos];
+        bool punkt = false;
+        if (asien) {   // AnyLanguage_ReadCharFromString
+            letter = zeichenLesen(k, s + pos, n - pos, adv);
+            punkt = adv == 2 ? asienSatzzeichen(k, letter) : false;
+        }
+        if (adv != 2) {
+            letter = s[pos];
+            adv = 1;
+            punkt = letter == '!' || letter == '?' || letter == ',' || letter == '.' || letter == ';' || letter == ':';
+        }
+        pos += static_cast<std::size_t>(adv);
+        if (letter == 32 && z.text.empty()) {   // Leerzeichen am Zeilenanfang ueberspringen
+            ++lineStart;
+            continue;
+        }
+        if (letter > 255) {
+            z.text.push_back(static_cast<char>(letter >> 8));
+            z.text.push_back(static_cast<char>(letter & 0xFF));
+        } else {
+            z.text.push_back(static_cast<char>(letter & 0xFF));
+        }
+        if (letter == '\n') {   // ausdruecklicher Zeilenumbruch
+            z.text.pop_back();
+            z.umbruch = true;
+            return z;
+        }
+        if (breite(z.text) >= boxBreite) {
+            if (!(letter > 255 && punkt && !leerzeichen)) {
+                if (best == lineStart) { best = lastGood; }   // kein Leer- oder Satzzeichen auf der ganzen Zeile
+                z.text.resize(best - lineStart);
+                pos = best;
+                z.umbruch = true;
+                return z;
+            }
+        }
+        if (punkt || letter == ' ' || (letter > 255 && !leerzeichen)) { best = pos; }
+    }
+    return z;
+}
+
 TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u) {
     TextScrollZeilen z;
     const std::string text = textScrollText(it, u);
     const Schrift* f = u.schrift ? u.schrift(it.font) : nullptr;
-    const auto breite = [&](const std::string& s) { return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen) : 0; };
+    const std::function<int(const std::string&)> breite = [&](const std::string& s) {
+        return f != nullptr ? schriftBreite(*f, s, it.textscale, u.kodierung, u.asienGlyphen) : 0;
+    };
     const int iBoxWidth = static_cast<int>(it.window.rect.w - kScrollbar - 10);
-    const bool asien = asiatisch(u.kodierung);
-    const bool leerzeichen = !(u.kodierung == Kodierung::Taiwanesisch || u.kodierung == Kodierung::Japanisch || u.kodierung == Kodierung::Chinesisch);
-    const auto* s = reinterpret_cast<const unsigned char*>(text.c_str());
-    const std::size_t n = text.size();
-    std::size_t lineStart = 0, best = 0, pos = 0;
-    while (pos < n && s[pos] != 0 && z.zeilen.size() < kMaxTextScrollZeilen) {
-        std::string zeile;
-        bool fertig = false;
-        pos = lineStart;
-        while (pos < n && s[pos] != 0) {
-            const std::size_t lastGood = pos;
-            int adv = 1;
-            unsigned letter = s[pos];
-            bool punkt = false;
-            if (asien) {   // AnyLanguage_ReadCharFromString
-                letter = zeichenLesen(u.kodierung, s + pos, n - pos, adv);
-                punkt = adv == 2 ? asienSatzzeichen(u.kodierung, letter) : false;
-            }
-            if (adv != 2) {
-                letter = s[pos];
-                adv = 1;
-                punkt = letter == '!' || letter == '?' || letter == ',' || letter == '.' || letter == ';' || letter == ':';
-            }
-            pos += static_cast<std::size_t>(adv);
-            if (letter == 32 && zeile.empty()) {   // Leerzeichen am Zeilenanfang ueberspringen
-                ++lineStart;
-                continue;
-            }
-            if (letter > 255) {
-                zeile.push_back(static_cast<char>(letter >> 8));
-                zeile.push_back(static_cast<char>(letter & 0xFF));
-            } else {
-                zeile.push_back(static_cast<char>(letter & 0xFF));
-            }
-            if (letter == '\n') {   // ausdruecklicher Zeilenumbruch
-                zeile.pop_back();
-                lineStart = pos;
-                best = pos;
-                z.zeilen.push_back(zeile);
-                z.da.push_back(true);
-                fertig = true;
-                break;
-            }
-            if (breite(zeile) >= iBoxWidth) {
-                if (!(letter > 255 && punkt && !leerzeichen)) {
-                    if (best == lineStart) { best = lastGood; }   // kein Leer- oder Satzzeichen auf der ganzen Zeile
-                    zeile.resize(best - lineStart);
-                    lineStart = pos = best;
-                    z.zeilen.push_back(zeile);
-                    z.da.push_back(true);
-                    fertig = true;
-                    break;
-                }
-            }
-            if (punkt || letter == ' ' || (letter > 255 && !leerzeichen)) { best = pos; }
-        }
-        if (!fertig) {   // letzte Zeile ohne Umbruch (leer = NULL, beim Zeichnen uebersprungen)
-            z.zeilen.push_back(zeile);
-            z.da.push_back(!zeile.empty());
-        }
+    std::size_t pos = 0;
+    while (pos < text.size() && text[pos] != 0 && z.zeilen.size() < kMaxTextScrollZeilen) {
+        const UmbruchZeile zeile = naechsteZeile(text, pos, iBoxWidth, breite, u.kodierung);
+        z.zeilen.push_back(zeile.text);
+        // letzte Zeile ohne Umbruch: leer = NULL, beim Zeichnen uebersprungen
+        z.da.push_back(zeile.umbruch || !zeile.text.empty());
     }
     return z;
 }
@@ -1026,7 +1052,43 @@ void zeichneMenu(const Datei& d, int menu, const Umgebung& u, std::vector<Prim>&
     if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return; }
     const Menu& m = d.menus[static_cast<std::size_t>(menu)];
     if ((m.window.flags & WINDOW_VISIBLE) == 0 && !u.erzwingen) { return; }
-    Maler(d, m, u, out).menu();
+    // M7: UI_DrawForceSide zeigt/verbirgt beim Zeichnen Gruppen seines Menues (Menu_ShowItemByName:
+    // name oder group ohne Gross/Klein) - vom naechsten Bild an gilt das fuer alle Items
+    std::vector<OdErgebnis::Zeigen> zeigen;
+    if (u.ownerDraw) {
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            const Item& it = m.items[i];
+            if (it.type != ITEM_TYPE_OWNERDRAW) { continue; }
+            const bool zu = i < u.zustand.size() && u.zustand[i].gueltig;
+            if (!itemSichtbar(it, zu ? u.zustand[i].flags : it.window.flags, u)) { continue; }
+            OdAufruf a;
+            a.id = it.window.ownerDraw;
+            for (const OdErgebnis::Zeigen& e : u.ownerDraw(a).zeigen) {
+                if (gleichOhneFall(e.menue, m.window.name)) { zeigen.push_back(e); }
+            }
+        }
+    }
+    if (zeigen.empty()) {
+        Maler(d, m, u, out).menu();
+        return;
+    }
+    Umgebung u2 = u;
+    u2.zustand.resize(m.items.size());
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        if (!u2.zustand[i].gueltig) {
+            u2.zustand[i].flags = m.items[i].window.flags;
+            u2.zustand[i].gueltig = true;
+        }
+    }
+    for (const OdErgebnis::Zeigen& e : zeigen) {
+        for (std::size_t i = 0; i < m.items.size(); ++i) {
+            const Fenster& w = m.items[i].window;
+            if (!gleichOhneFall(w.name, e.item) && (w.group.empty() || !gleichOhneFall(w.group, e.item))) { continue; }
+            if (e.zeigen) { u2.zustand[i].flags |= WINDOW_VISIBLE; }
+            else { u2.zustand[i].flags &= ~WINDOW_VISIBLE; }
+        }
+    }
+    Maler(d, m, u2, out).menu();
 }
 
 Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {

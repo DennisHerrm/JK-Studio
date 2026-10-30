@@ -31,6 +31,7 @@
 
 #include "bhed/menue/kodierung.h"
 #include "bhed/menue/menue.h"
+#include "bhed/menue/ownerdraw.h"
 
 #include <functional>
 #include <string>
@@ -78,6 +79,7 @@ enum class PrimArt {
     Platzhalter,  // ownerdraw, Feeder ohne Spiel: Rahmen mit Beschriftung
     Modell,       // ITEM_TYPE_MODEL: die 3D-Vorschau zeichnet die Oberflaeche
     Kino,         // WINDOW_STYLE_CINEMATIC (RoQ)
+    Beispiel,     // M7: Hinweis "Beispielwerte" ueber einem ownerdraw (nur die Oberflaeche, nicht im Spiel)
 };
 
 struct Prim {
@@ -95,15 +97,6 @@ struct FeederEintrag {
     std::vector<std::string> spalten;
     std::string bild;
     std::vector<std::string> spaltenBild;
-};
-
-// M5: was ein MP-Ownerdraw zeigt (UI_OwnerDraw in codemp/ui/ui_main.c): Text ("@" = StringEd) bzw. Bild;
-// halb = Farbe * 0,5 (UI_DrawTeamMember: geschlossener Platz). bekannt = false: Platzhalter.
-struct OwnerDrawInhalt {
-    bool bekannt = false;
-    std::string text;
-    std::string bild;
-    bool halb = false;
 };
 
 // Laufzeitstand eines Items (die Skripte aendern ihn: show/hide/setfocus ...).
@@ -125,8 +118,10 @@ struct Umgebung {
     // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
     // ohne: beschrifteter Platzhalter
     std::function<std::vector<FeederEintrag>(float feeder)> feeder;
-    // M5: Inhalt der MP-Ownerdraws aus den Spieldaten (FeederDaten::ownerDraw); ohne: Platzhalter
-    std::function<OwnerDrawInhalt(int ownerDraw)> ownerDraw;
+    // M7: DC->ownerDrawItem (ownerdraw.h); ohne: Platzhalter
+    std::function<OdErgebnis(const OdAufruf&)> ownerDraw;
+    // M7: Schrift beim Namen (cgame zeichnet mit cgs.media.qhFont* statt item->font); ohne: keine
+    std::function<const Schrift*(const std::string& name)> schriftNamens;
     // M5: laedt der Renderer dieses Bild/diesen Shader? (RE_RegisterShaderNoMip: fehlt es, kommt
     // Griff 0 = "<default>"-Kasten zurueck; ohne: alles da)
     std::function<bool(const std::string& shader)> bildDa;
@@ -155,6 +150,15 @@ struct TextScrollZeilen {
 };
 [[nodiscard]] std::string textScrollText(const Item& it, const Umgebung& u);
 [[nodiscard]] TextScrollZeilen textScrollZeilen(const Item& it, const Umgebung& u);
+// M7: eine Zeile wie Item_TextScroll_BuildLines bzw. CG_DisplayBoxedText (Zeichen wie
+// AnyLanguage_ReadCharFromString, Umbruch hinter dem letzten Leer-/Satzzeichen, sobald die Breite
+// boxBreite erreicht); pos wird weitergesetzt. umbruch = false: der Text endete vorher.
+struct UmbruchZeile {
+    std::string text;
+    bool umbruch = false;
+};
+[[nodiscard]] UmbruchZeile naechsteZeile(const std::string& text, std::size_t& pos, int boxBreite,
+                                         const std::function<int(const std::string&)>& breite, Kodierung k);
 [[nodiscard]] int textScrollMaxScroll(const Item& it, int zeilen);          // Item_TextScroll_MaxScroll
 [[nodiscard]] float textScrollDaumen(const Item& it, int zeilen, int startPos);   // Item_TextScroll_ThumbPosition
 

@@ -3038,6 +3038,8 @@ enum class Str {
     MeLesbarKlein,
     MeLesbarKontrast,
     MeLesbarLang,
+    MeOdBeispiel,
+    MeOdBeispielTip,
     Count,
 };
 

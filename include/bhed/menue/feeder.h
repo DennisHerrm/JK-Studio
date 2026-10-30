@@ -72,17 +72,13 @@ struct FeederDaten {
     // SP (code/ui ui_main.cpp) nimmt den letzten passenden Ordner, MP (codemp UI_UpdateCharacterSkin
     // u. a.) den ersten; ohne Treffer bleibt bzw. wird es 0.
     [[nodiscard]] int speziesIndex(const std::string& modell) const;
-    // M5: MP-Ownerdraws wie UI_OwnerDraw (codemp/ui/ui_main.c): UI_SKIN_COLOR, UI_GAMETYPE,
-    // UI_NETGAMETYPE, UI_SKILL, UI_BLUETEAM1-8/UI_REDTEAM1-8, UI_MAPCINEMATIC/UI_STARTMAPCINEMATIC
-    // (Levelshot; RoQ der Karte nicht gespielt). cvar wie DC->getCVarString.
-    [[nodiscard]] OwnerDrawInhalt ownerDraw(int id, const std::function<std::string(const std::string&)>& cvar) const;
-
     std::vector<Spezies> spezies;
     std::vector<std::string> sprachen;
     std::vector<std::pair<std::string, std::string>> mods;   // Ordner, Beschreibung
     std::vector<std::pair<std::string, std::string>> karten; // MP: Langname, "1" = FFA-tauglich (arenas)
     std::vector<std::string> kartenDatei;                   // MP: mapLoadName je Karte (gleiche Reihenfolge)
     std::vector<std::pair<std::string, int>> spieltypen;    // MP: ui/jamp/gameinfo.txt gametypes (Name, gtEnum)
+    std::vector<std::pair<std::string, int>> joinSpieltypen;   // M7: joingametypes (UI_JOINGAMETYPE)
     std::vector<std::string> bots;                          // MP: Botnamen (UI_LoadBots)
     std::vector<std::string> koepfe;                        // MP: kopf/skin (icon)
     std::vector<std::string> demos, filme, kraefte;

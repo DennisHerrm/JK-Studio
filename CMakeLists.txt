@@ -1127,6 +1127,8 @@ target_sources(bhed_core PRIVATE
   src/menue/roq_import.cpp
   # M2 Punkt 1: Listbox-Feeder aus den Spieldaten (UI_FeederItemText)
   src/menue/feeder.cpp
+  # M7 Punkt 14: UI_OwnerDraw je Nummer (MP-Kraefte, Server, GL-Treiber, Datapad, Pazaak ...)
+  src/menue/ownerdraw.cpp
   # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
   src/menue/modell.cpp
   # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek
@@ -1217,6 +1219,10 @@ if(BEHAVED_TESTS)
   add_executable(menuefluss tests/menuefluss.cpp)
   target_link_libraries(menuefluss PRIVATE bhed_core)
   add_test(NAME menue_fluss COMMAND menuefluss)
+  # M7 Punkt 14: UI_OwnerDraw je Nummer (MP-Kraefte, Server, GL-Treiber, Datapad, Pazaak)
+  add_executable(menueownerdraw tests/menueownerdraw.cpp)
+  target_link_libraries(menueownerdraw PRIVATE bhed_core)
+  add_test(NAME menue_ownerdraw COMMAND menueownerdraw)
   add_executable(menuefokus tests/menuefokus.cpp)
   target_link_libraries(menuefokus PRIVATE bhed_core)
   add_test(NAME menue_fokus COMMAND menuefokus)

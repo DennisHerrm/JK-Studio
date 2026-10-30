@@ -174,6 +174,10 @@ void FeederDaten::baue() {
     filme.clear();
     kraefte.clear();
     spielstaende.clear();
+    spieltypen.clear();
+    joinSpieltypen.clear();
+    bots.clear();
+    kartenDatei.clear();
     if (daten == nullptr) { return; }
     const Spieldaten& d = *daten;
     // UI_BuildPlayerModel_List (SP und MP gleich aufgebaut)
@@ -325,20 +329,23 @@ void FeederDaten::baue() {
             }
             if (koepfe.size() >= 1024) { break; }
         }
-        // UI_ParseGameInfo("ui/jamp/gameinfo.txt"): gametypes { { "Name" gtEnum } ... }
+        // UI_ParseGameInfo("ui/jamp/gameinfo.txt", Jedi Outcast ui/jk2mp/gameinfo.txt): gametypes und
+        // joingametypes { { "Name" gtEnum } ... } (GameType_Parse)
         std::string gi;
-        if (d.lies("ui/jamp/gameinfo.txt", gi)) {
+        if (d.lies(spiel == Spiel::JK2 ? "ui/jk2mp/gameinfo.txt" : "ui/jamp/gameinfo.txt", gi)) {
             Woerter w(gi);
             for (std::string tok = w.naechstes(true); !tok.empty(); tok = w.naechstes(true)) {
-                if (klein(tok) != "gametypes") { continue; }
+                const std::string t = klein(tok);
+                if (t != "gametypes" && t != "joingametypes") { continue; }
+                auto& liste = t == "gametypes" ? spieltypen : joinSpieltypen;
+                liste.clear();
                 if (w.naechstes(true) != "{") { break; }
                 for (std::string x = w.naechstes(true); x == "{"; x = w.naechstes(true)) {
                     const std::string name = w.naechstes(true);
                     const int gt = std::atoi(w.naechstes(true).c_str());
-                    spieltypen.emplace_back(name, gt);
+                    liste.emplace_back(name, gt);
                     if (w.naechstes(true) != "}") { break; }
                 }
-                break;
             }
         }
         // UI_LoadBots: botfiles/bots.txt (g_botsFile leer), dann scripts/*.bot; je { ... name <x> ... }
@@ -372,72 +379,6 @@ int FeederDaten::speziesIndex(const std::string& modell) const {
         if (dialekt == Dialekt::MP) { break; }   // MP: break; SP: Schleife laeuft weiter
     }
     return i;
-}
-
-OwnerDrawInhalt FeederDaten::ownerDraw(int id, const std::function<std::string(const std::string&)>& cvar) const {
-    OwnerDrawInhalt o;
-    if (dialekt != Dialekt::MP) { return o; }
-    auto wert = [&](const std::string& n) { return cvar ? std::atoi(cvar(n).c_str()) : 0; };
-    // uiInfo.gameTypes[ui_netGametype].gtEnum (UI_DrawNetGameType setzt ausserhalb der Liste auf 0)
-    auto gtEnum = [&](const char* cv) {
-        int i = wert(cv);
-        if (i < 0 || static_cast<std::size_t>(i) >= spieltypen.size()) { i = 0; }
-        return spieltypen.empty() ? 0 : spieltypen[static_cast<std::size_t>(i)].second;
-    };
-    auto spieltypName = [](int gt) -> std::string {   // UI_GetGameTypeName
-        switch (gt) {
-            case 0: return "@MENUS_FREE_FOR_ALL";
-            case 1: return "@MENUS_HOLOCRON_FFA";
-            case 3: return "@MENUS_DUEL";
-            case 4: return "@MENUS_POWERDUEL";
-            case 6: return "@MENUS_TEAM_FFA";
-            case 7: return "@MENUS_SIEGE";
-            case 8: return "@MENUS_CAPTURE_THE_FLAG";
-            case 9: return "@MENUS_CAPTURE_THE_YSALIMARI";
-            default: return "@MENUS_SAGA";   // GT_JEDIMASTER, GT_SINGLE_PLAYER und sonst
-        }
-    };
-    constexpr int kSkinColor = 287, kGametype = 205, kNetGametype = 245, kSkill = 207, kMapCinematic = 244, kStartMapCinematic = 255;
-    if (id == kSkinColor) {   // UI_DrawSkinColor(uiSkinColor = TEAM_FREE)
-        o.bekannt = true;
-        o.text = "@MENUS_DEFAULT";
-    } else if (id == kGametype || id == kNetGametype) {
-        o.bekannt = true;
-        o.text = spieltypName(gtEnum(id == kGametype ? "ui_gametype" : "ui_netGametype"));
-    } else if (id == kSkill) {   // UI_DrawSkill: g_spSkill 1..5 -> MP_INGAME_SKILL<n>
-        int i = wert("g_spSkill");
-        if (i < 1 || i > 5) { i = 1; }
-        o.bekannt = true;
-        o.text = "@MP_INGAME_SKILL" + std::to_string(i);
-    } else if ((id >= 210 && id <= 219) || (id >= 280 && id <= 285)) {   // UI_DrawTeamMember
-        const bool blau = (id >= 210 && id <= 214) || (id >= 280 && id <= 282);
-        const int num = id <= 214 ? id - 209 : id <= 219 ? id - 214 : id <= 282 ? id - 274 : id - 277;
-        int value = wert(std::string(blau ? "ui_blueteam" : "ui_redteam") + std::to_string(num));
-        const int maxcl = wert("sv_maxClients");
-        const int numval = num * 2 - (blau ? 1 : 0);
-        if (numval > maxcl) {
-            o.halb = true;
-            value = -1;
-        }
-        if (gtEnum("ui_netGametype") == 7 && value > 1) { value = 1; }   // GT_SIEGE
-        o.bekannt = true;
-        if (value <= 1) {
-            o.text = value == -1 ? "@MENUS_CLOSED" : "@MENUS_HUMAN";
-        } else {
-            value -= 2;
-            if (value >= static_cast<int>(bots.size())) { value = 1; }
-            o.text = value >= 0 && static_cast<std::size_t>(value) < bots.size() ? bots[static_cast<std::size_t>(value)] : std::string("Kyle");
-        }
-    } else if (id == kMapCinematic || id == kStartMapCinematic) {   // UI_DrawMapCinematic -> UI_DrawMapPreview
-        int map = wert(id == kStartMapCinematic ? "ui_currentNetMap" : "ui_currentMap");
-        if (map < 0 || static_cast<std::size_t>(map) > kartenDatei.size()) { map = 0; }
-        o.bekannt = true;
-        o.bild = static_cast<std::size_t>(map) < kartenDatei.size() ? "levelshots/" + kartenDatei[static_cast<std::size_t>(map)] : std::string();
-        if (o.bild.empty() || daten == nullptr || (!daten->gibt(o.bild + ".jpg") && !daten->gibt(o.bild + ".tga") && !daten->gibt(o.bild + ".png"))) {
-            o.bild = "menu/art/unknownmap_mp";
-        }
-    }
-    return o;
 }
 
 std::vector<FeederEintrag> FeederDaten::eintraege(float feeder, int sp, int titel) const {

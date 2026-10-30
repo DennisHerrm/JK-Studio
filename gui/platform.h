@@ -137,6 +137,10 @@ bool zeigerImFenster(void* fenster, int& x, int& y);
 bool zeigerImFensterSetzen(void* fenster, int x, int y);
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 
+// M7: glGetString(GL_VENDOR/RENDERER/VERSION/EXTENSIONS) des OpenGL-Treibers, wie das Spiel sie fuer
+// UI_GLINFO liest (verstecktes Fenster, Pixelformat 32/24/8, Kontext gleich wieder weg). false = kein GL.
+bool openGlTreiber(std::string& vendor, std::string& renderer, std::string& version, std::string& erweiterungen);
+
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
 //
 // Breite eines Textes in Pixeln: Schrift schrift mit lfHeight = -pixel,

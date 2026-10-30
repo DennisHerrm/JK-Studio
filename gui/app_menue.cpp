@@ -46,6 +46,7 @@
 #include "bhed/menue/seitenvorlagen.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
+#include "bhed/menue/ownerdraw.h"
 #include "bhed/menue/roq.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
@@ -329,6 +330,11 @@ struct Zustand {
     bool hudWie = true;
     HudWerte hudWerte;
     HudZustand hudZustand;
+    // M7 Punkt 14: ownerdraws - glGetString des Treibers (einmal gelesen) und Beispielwerte des Spielzustands
+    GlDaten glDaten;
+    bool glGelesen = false;
+    Spielbeispiel spielBeispiel;
+    int beispielPrims = 0;   // im letzten Bild
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
     std::string spielFilter;
@@ -839,7 +845,6 @@ Umgebung umgebung(const Dokument& d) {
     const FeederDaten* fdp = &fd;
     // Kopf/Rumpf/Beine/Farben der Spezies aus ui_char_model (UI_GetCharacterCvars), nicht immer der ersten
     u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
-    u.ownerDraw = [fdp, cv = u.cvar](int id) { return fdp->ownerDraw(id, cv); };   // M5: MP-Ownerdraws
     // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
     u.bildDa = [](const std::string& s) {
         if (textur(s) != nullptr) { return true; }
@@ -857,6 +862,31 @@ Umgebung umgebung(const Dokument& d) {
         const std::string seite = asienSeite(u.kodierung, 0);
         u.asienGlyphen = z.daten.gibt(seite + ".tga") || z.daten.gibt(seite + ".jpg") || z.daten.gibt(seite + ".png");
     }
+    // M7 Punkt 14: DC->ownerDrawItem (ownerdraw.cpp)
+    if (!z.glGelesen) {
+        z.glGelesen = true;
+        z.glDaten.echt = platform::openGlTreiber(z.glDaten.vendor, z.glDaten.renderer, z.glDaten.version, z.glDaten.extensions);
+    }
+    u.schriftNamens = [](const std::string& n) { return schriftNamens(n); };
+    OdKontext k;
+    k.dialekt = d.datei.dialekt;
+    k.spiel = z.spiel;
+    k.daten = fdp;
+    k.cvar = u.cvar;
+    k.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
+    k.breite = [sf = u.schrift, ko = u.kodierung, ag = u.asienGlyphen](const std::string& t, float sc, int font, const std::string& name) {
+        const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
+        return f != nullptr ? schriftBreite(*f, t, sc, ko, ag) : 0;
+    };
+    k.hoehe = [sf = u.schrift](float sc, int font, const std::string& name) {
+        const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
+        return f != nullptr ? schriftHoehe(*f, sc) : 0;
+    };
+    k.bildDa = [](const std::string& b) { return Z().daten.gibt(b + ".jpg") || Z().daten.gibt(b + ".tga") || Z().daten.gibt(b + ".png"); };
+    k.zeitMs = u.zeitMs;
+    k.beispiel = &z.spielBeispiel;
+    k.gl = &z.glDaten;
+    u.ownerDraw = [k](const OdAufruf& a) { return ownerDraw(a, k); };
     return u;
 }
 
@@ -1273,6 +1303,15 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     }
                 }
                 [[fallthrough]];
+            case PrimArt::Beispiel:   // M7: ownerdraw mit Beispielwerten - nur beim Bearbeiten beschriftet
+                if (!Z().interaktion) {
+                    const char* t = tr(Str::MeOdBeispiel);
+                    const ImVec2 g = ImGui::CalcTextSize(t);
+                    const ImVec2 e{a.x + g.x + 6, a.y + g.y + 2};
+                    dl->AddRectFilled(a, e, IM_COL32(40, 40, 120, 190));
+                    dl->AddText(ImVec2{a.x + 3, a.y + 1}, IM_COL32(200, 210, 255, 255), t);
+                }
+                break;
             case PrimArt::Platzhalter: {
                 const ImU32 f = p.art == PrimArt::Modell ? IM_COL32(90, 160, 255, 200)
                                 : p.art == PrimArt::Kino ? IM_COL32(255, 170, 60, 200)
@@ -1495,6 +1534,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
                     prims.end());
     }
     z.letztePrims = static_cast<int>(prims.size());
+    z.beispielPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) { return p.art == PrimArt::Beispiel; }));
     z.asienPrims = static_cast<int>(std::count_if(prims.begin(), prims.end(), [](const Prim& p) {
         return p.shader.compare(0, 6, "fonts/") == 0 && p.shader.find("_1024_") != std::string::npos;
     }));

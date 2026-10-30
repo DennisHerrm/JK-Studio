@@ -183,4 +183,10 @@ MENUE6 = [
      "%s: auf %s ist der Text %.0f breit, das Feld nur %.0f - mach das Feld breiter oder den Text kleiner.",
      "%s:在 %s 中文字宽 %.0f,而字段只有 %.0f——请加宽字段或缩小文字。",
      "%s: %s では文字の幅が %.0f、フィールドは %.0f しかありません。フィールドを広げるか文字を小さくしてください。"),
+    # M7 Punkt 14: ownerdraws mit Beispielwerten
+    ("MeOdBeispiel", "sample values", "Beispielwerte", "示例值", "サンプル値"),
+    ("MeOdBeispielTip", "In the game this element shows values of the running game or the server. The editor draws it exactly like the game, with sample values you can change under Properties > Sample values.",
+     "Im Spiel zeigt dieses Element Werte aus dem laufenden Spiel oder vom Server. Der Editor zeichnet es genau wie das Spiel, mit Beispielwerten, die du unter Eigenschaften > Beispielwerte ändern kannst.",
+     "在游戏中,此元素显示正在进行的游戏或服务器的数值。编辑器完全按照游戏的方式绘制它,并使用示例值,你可以在“属性 > 示例值”中更改。",
+     "ゲームではこの要素は進行中のゲームやサーバーの値を表示します。エディターはゲームとまったく同じように、サンプル値で描画します。サンプル値は「プロパティ > サンプル値」で変更できます。"),
 ]
