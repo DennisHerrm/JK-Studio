@@ -733,3 +733,131 @@ Texte in es/cs (Übersetzung folgt).
 - Aus den Sprach-Notizen unverändert: NRC-Menünamen bleiben englisch; die Auflösungsliste des Menü-Editors
   beginnt fest mit „Window“; Pluralformen im Tschechischen; `lint_i18n.py` ohne `--sprache` meldet die bekannten
   „nirgends benutzt“ (liest `gui/*.inc` nicht).
+
+## Integration 4
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang 1247acc6 (Integration 3 + modell1). Gemergt werden nur die im Auftrag
+genannten Stände (spätere Commits der Zweige kommen in Integration 5). Skripte (nach int3): Selbsttests über
+`SP/int4/idle.sh`, Schlussrunde `SP/int4/ende.sh`, Konflikthelfer `SP/int4/loese.py` (Generator-Listen: beide
+Seiten behalten). Bau je Merge inkrementell in `Y:/karte/build-test` (`--parallel 4`), ctest unter Idle; fünf andere
+Agenten bauten und testeten gleichzeitig (alle Zeiten unter Last).
+
+| Commit | Inhalt |
+|---|---|
+| 0adbdd00 | Merge `uebersetzung1` (3cb87d4c) – keine Konflikte; erzeugte Dateien mit den Generatoren nachgeprüft (gleich). Bau 0 Warnungen (574 s), ctest 166/166 (513 s) |
+| 5c1cde30 | Merge `pruefung1` (32dfcdd8) – keine Konflikte. Bau 0 Warnungen (504 s), ctest 168/168 (450 s) |
+| d216318c | Merge `vis1` (214c4ab2) – Konflikte nur in den Generator-Listen (`tools/gen_i18n.py`, `tools/handbuch/gen_handbuch.py`: VIS1 nach UEBERSETZUNG1, vor den weiteren Sprachen) und den erzeugten Dateien (neu erzeugt). Bau 0 Warnungen (1339 s unter Last) |
+| 5c074713 | Merge `zeitleiste1` (3be1a9c9) – `CMakeLists.txt` (Tests von pruefung1 und der Zeitleiste beide), `gui/selbsttest.cpp` (modell1 und zeitleiste0/1 beide), Generator-Listen, erzeugte Dateien |
+| 669d0f72 | Merge `menue5` (3f83163c, enthält menue3/M4) – Konflikte und zwei Funde unten |
+| ec9b2602 | Merge `dock1` (865cebde) – `gui/selbsttest.cpp` (modell1, zeitleiste0/1 und dock1 nebeneinander; zeitleiste1 behält seine Endschritte), `tools/handbuch/inhalt.py` (Dock-Seite und die Menü-Editor-Seiten), Generator-Listen, erzeugte Dateien; `gui/app_menue.cpp` ohne Konflikt (dock1: Panels als eigene Fenster; M3–M5b-Leiste) |
+| 3ee05b49 | i18n nach den Merges: es/cs-Texte der alten Zeitleiste entfernt, der Pfeil „v“ des Menü-Editors ist ein Zeichen (Fund unten) |
+| (dieser) | Notizen |
+
+**Abweichung vom Ablauf (Zeitgrenze 08:40):** Bau und ctest je Merge dauerten unter der Last der fünf anderen Agenten
+bis zu 22 min + 9 min (vis1: Bau 1339 s, ctest blieb bei `updater_uebergang` > 5 min stehen). Darum: Merges 1–2 je
+Bau + ctest grün; Merge 3 gebaut (0 Warnungen), ctest nach 80/169 grünen Tests abgebrochen (eigene PIDs per
+`taskkill /T`, Restordner `bhed_uebergang_*` entfernt); die Merges 4–6 während des ctest von Merge 3 in einem
+Wegwerf-Klon (`git clone --shared` im SP, danach gelöscht) gelöst und committet, in `Y:\karte` vorgespult und
+**zusammen** gebaut und getestet (unten). Die Konfliktlösungen sind dieselben wie bei Einzelmerges; nur der
+Zwischenstand nach Merge 4 und 5 ist nicht für sich gebaut.
+
+### Konflikte menue5 (669d0f72)
+
+- **`gui/app_menue.cpp`, Leiste** (6 Stellen): M4 ersetzt `iconKnopf` durch `leistenKnopf` (Symbol oder Symbol +
+  Text, Einstellung „Leisten mit Beschriftung“), M5b setzt den Projektknopf davor und lässt „Speichern“ im Projekt das
+  Projekt speichern. menue5 zweigt vor Integration 2 ab und nutzt deshalb die zehn `MeTip…`, die Integration 2
+  zugunsten der H2-Hinweise (`Me…Hint`, zugleich Suchwörter des Helfers) entfernt hat. Behalten: die M4/M5b-Leiste
+  mit den H2-Hinweisen dieser zehn Knöpfe (Speichern: `MeSpeichernHint`, im Projekt `MePrjSpeichernTip`).
+- **Leerer Editor**: M5b `zeichneProjektLeer()` (Text, Neues Projekt / Projekt öffnen) und darunter der H2-Knopf
+  „Zeig mir wie“ (Tour `tut-menue`).
+- **`src/menue/vorschau.cpp`**: zeitleiste1 hat RE_Font_DrawString nach `schriftZeichnen()` verlegt (auch für die
+  Untertitel der Vorschau), M3 hat in der alten Inline-Fassung die asiatischen Zweige ergänzt (fScaleAsian,
+  fAsianYAdjust, AnyLanguage_ReadCharFromString, asiatische Glyphen). Jetzt trägt die gemeinsame Funktion den
+  M3-Code (Parameter `Kodierung`, `asienGlyphen`, Standard Latin1 wie `schriftBreite`); dabei auch der M3-Fix,
+  dass ein `^` ohne Ziffer gezeichnet wird (tr_font.cpp: „purposely falls thrugh“) – gilt damit auch für Untertitel.
+- `gui/menueeditor.h` (H2 `zuEinemSchritt` und die M5b-Projektfunktionen beide), `src/tour.cpp`,
+  `tests/tourtest.cpp`, `gui/tour_messwerte.cpp` (H2 hatte `modus:4` = Menü-Editor schon, die H2-Fassung ist die
+  größere), `tools/handbuch/inhalt.py` (hilfe2- und menue3/5/5b-Seiten), `tools/gen_i18n.py` (MENUE3, MENUE5).
+- `MeAufloesungFenster` stand in `i18n_uebersetzung1.py` und `i18n_menue3.py` (gleicher Text; gen_i18n:
+  „doppelte Kennung“) – die Zeile in `i18n_uebersetzung1.py` entfernt.
+
+### Funde aus dem Zusammenspiel (nachgestellt → behoben → grün)
+
+1. **Zwei Touren `tut-menue`.** H2 hat „Ein Menü ändern“ (aus dem Spiel öffnen, verschieben, bedienen,
+   exportieren; Selbsttest hilfe2), M5b „Dein erstes eigenes Menü“ (Projekt, Knopf, Layout, Ereignis, Speichern;
+   Selbsttest menueeditor `m5b`) – beide unter derselben Kennung, die M5b-Schritte hätten die H2-Schritte
+   überschrieben. Rot: `gen_handbuch.py` bricht ab („doppelte Seiten-id“). Die M5b-Tour heißt jetzt
+   **`tut-menue-eigen`** (Seite `inhalt_menue5b.py`, Schritte `inhalt_touren.py`, Tourliste, Selbsttest
+   `selbsttest_menue.inc`, Kommentare in `tour_messwerte.cpp`, Helferbereich „menue“ in `src/hilfe.cpp`,
+   Tutorial-Übersicht: beide Karten unter „Menü-Editor“). Grün: Handbuch 158 Seiten × 6 Sprachen, beide Seiten mit
+   ihren Bildern (`h_tour_menue`, `h_tut_menue_1…`), dieselben 18 Tourschritte ohne Bild wie vorher.
+2. **Ortskatalog ohne Leiste des Menü-Editors.** `tools/gen_hilfe_orte.py` las seit Integration 2
+   `iconKnopf/iconTextKnopf`; mit M4 heißen die Leistenknöpfe `leistenKnopf` → 167 statt ≥ 179 Orte, 16 Knöpfe
+   fehlten (darunter `knopf:MeAusSpiel`, das Ziel von Schritt 2 der Tour `tut-menue`, und `MeSpeichern`, Schritt 6
+   von `tut-menue-eigen`). Jetzt liest er auch `leistenKnopf` und bedingte Hinweise (`tr(a ? Str::X : Str::Y)`, X
+   gilt): **183 Orte**, nach dock1 191.
+3. **lint_i18n** (liest seit uebersetzung1 auch `gui/*.inc`): 25 es/cs-Übersetzungen zu Kennungen der alten
+   Zeitleiste, die zeitleiste1 entfernt hat (`TlBewegung` … `TracksMoving`) → entfernt; der Knopf „v“ (nach unten,
+   neben „^“) im Layout-Panel von M5 galt als fester Text → in die Zeichen-Ausnahmen wie „x“. Rot 6 → 5
+   Beanstandungen; übrig (offen, unten): 5 übersetzte Texte, die niemand mehr benutzt.
+
+Bekannt und **hier nicht behoben** (Auftrag): mit pruefung1 sind die Echtzeit-Decals im Karteneditor unsichtbar
+(`app_karte_echtfx.inc` reicht keine BSP herein, „ohne Flächen keine Marke“); das behebt der Zweig `reste1`.
+
+### Was auf Spanisch/Tschechisch noch englisch ist (für Übersetzung Runde 2)
+
+uebersetzung1 hatte es/cs auf 0 gebracht; die Texte der danach gemergten Zweige fallen auf Englisch zurück, nie leer.
+
+| | es | cs |
+|---|---|---|
+| Programmtexte (`gen_i18n.py --fehlend`) | **354** | **354** |
+| davon zeitleiste1 / menue5 / menue3 / dock1 / vis1 | 154 / 111 / 63 / 24 / 2 | 154 / 111 / 63 / 24 / 2 |
+| Handbuchtexte (`gen_handbuch.py --pflicht=es/cs`) | **149** | **149** |
+| Handbuchbilder englisch | **25** | **25** |
+
+`gen_handbuch.py`: „66 Einträge in uebersetzung/ werden nicht mehr gebraucht“ – vor allem es/cs-Übersetzungen zu
+Handbuchtexten, deren englischen Wortlaut zeitleiste1 (Zeitleiste neu) und vis1 geändert haben.
+
+### Prüfungen (Endstand 3ee05b49, unter Last)
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau nach Merge 1 / 2 / 3 (inkrementell, /W4 /WX) | **0 Warnungen** (574 / 504 / 1339 s) |
+| ctest nach Merge 1 / 2 | **166/166** (513 s) / **168/168** (450 s) |
+| ctest nach Merge 3 | 80/169 grün, dann abgebrochen (Zeit, s. oben) |
+| Bau nach Merge 4–6 zusammen (inkrementell, fast alles neu übersetzt) | **0 Fehler, 0 Warnungen** (890 s) |
+| ctest gesamt auf dem Endstand | **177/177** (796 s) |
+| lint_sources, lint_fassung, lint_i18n_erzeugt | ok |
+| lint_i18n | 5 Beanstandungen (unbenutzte Texte, offen); vorher 6 |
+| Handbuch-Bau (`gen_handbuch.py`) | 159 Seiten × 6 Sprachen, ohne Änderung gegenüber dem Commit |
+| Selbsttest menueeditor `BHED_MENUE_NUR=m5b` (Tour `tut-menue-eigen` mit echten Aktionen) | **24 OK, 0 FEHLER** (23 s; Tour läuft mit 6 Schritten unter der neuen Kennung) |
+| Selbsttest karteneditor `BHED_KARTE_NUR=hilfe2` (u. a. Tour `tut-menue` auf der M4-Leiste) | **44 OK, 0 FEHLER** (76 s, wie Integration 2/3) |
+| Selbsttests dock1 / menueeditor (voll) | **86 OK, 0 FEHLER** (29 s) / **105 OK, 0 FEHLER** (64 s) |
+| karteneditor kurz + Fotos (`BHED_KARTE_NUR=fotos`, `BHED_FOTOS`) / `stufe9d` / `hilfe1` | **78/0** (44 s) / **28/0** / **59/0** |
+| zeitleiste / modellleistung / kamera / missionsbau | **47/0** / **7/0** / **95/0** / **95/0** |
+| zeitleiste1 | 73 OK, 4 FEHLER – genau der Stand des Zweigs (NOTIZEN_zeitleiste1 „zl2k3: 73 OK, 4 FEHLER“: nur der JK2-Teil im vollen Lauf, kejim_post nach „New mission“ nicht in der Liste; allein grün) – nicht aus dem Zusammenspiel |
+| mission1 (`BHED_FOTOS`) | nur angelaufen: 47 OK, 0 FEHLER bis zur Zeitgrenze des Laufs (240 s, wegen 08:40) – nicht fertig |
+
+Nicht mehr geschafft (Zeitgrenze): sauberer Neubau (`--clean-first`), Selbsttest Modus 1, mission1 zu Ende,
+alle Modi, Kartenprüfung. Das Skript dafür liegt bereit: `SP/int4/ende.sh`
+(`SCHRITTE="neubau ctest modi"`, Modi wie im Auftrag).
+
+### Gegen das Vorbild geprüft / nicht geprüft
+
+Die Integration bringt außer den Funden kein neues Verhalten. `schriftZeichnen` folgt jetzt für Menüs und
+Untertitel derselben Portierung von RE_Font_DrawString (M3, gegen tr_font.cpp; „^“ ohne Ziffer wird gezeichnet) –
+im Programm nur über ctest geprüft, nicht im Spiel. Nicht geprüft: Modus 1 und die übrigen Modi auf dem Endstand, sauberer Neubau,
+Kartenprüfung, Tempo (alles unter Last).
+
+### Offen / nächster Schritt
+
+- **Nächster Schritt:** Rest der Schlussrunde auf diesem Stand: sauberer Neubau und Modus 1
+  (`SCHRITTE="neubau" sh SP/int4/ende.sh`, dann `SCHRITTE=modi MODI="1 mission1" WEITER=1 sh SP/int4/ende.sh`), danach wenn Zeit
+  alle Modi + Kartenprüfung gegen kp606 (wie `SP/int3/ende.sh`, Schritt `kp`).
+- lint_i18n: 5 übersetzte Texte, die niemand mehr benutzt – `TlKamera`, `TlKatBlick`, `TlKatAblauf` (zeitleiste1
+  hat die Bedienung entfernt), `MeKlaenge`, `MeTipKlaenge` (menue5 hat den Knopf „Klänge“ nicht mehr). Entfernen oder
+  wieder anschließen ist Sache der Zweige (Löschen ändert `i18n.h` → Neubau).
+- es/cs: 354 Programmtexte, 149 Handbuchtexte, 25 Bilder (Tabelle oben) – Übersetzung Runde 2.
+- Echtzeit-Decals im Karteneditor (pruefung1) – behebt `reste1`.
+- Aus Integration 3 unverändert: Port 39000 der Bauüberwachung bei parallelen Bauten; `stufe8` allein
+  („Notify when a build is done“); Tutorial-Klicken in Modus 1 unter Last.
