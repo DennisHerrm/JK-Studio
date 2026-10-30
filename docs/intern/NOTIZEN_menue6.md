@@ -201,6 +201,51 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - Befund aus dem Code: UI_CHAT_* hat in UI_OwnerDraw (codemp ui_main.c) keinen Fall - das Spiel zeichnet
   nichts (nur UI_OwnerDrawHandleKey); UI_EFFECTS zeichnet in JKA MP nichts.
 
+### Punkt 14 - umgesetzt
+
+- Modul src/menue/ownerdraw.cpp (ownerdraw.h): DC->ownerDrawItem als Liste von Zeichenbefehlen (Text mit
+  item-Schrift oder cgame-Schrift beim Namen, Bild, Fläche); vorschau.cpp portiert Item_OwnerDraw_Paint
+  (Farbe mit colorRanges/getValue 0, Fokus-Puls, Blinken, enableCvar; mit Text +8, MP nur bei nicht
+  leerem Text). Die MP-Fälle aus FeederDaten::ownerDraw (M5) sind dorthin umgezogen (keine doppelte Logik).
+- MP (codemp ui_main.c/ui_force.c): Kräfte aus der cvar forcepowers wie UI_UpdateForcePowers +
+  UpdateForceUsed (Rang = uiMaxRank, Punkte nach bgForcePowerCost, freier Sprung/Säbel), UI_DrawForceStars
+  (forcestar0/forcecircle<n>/forcestar<n>, 16x16, Abstand 20, y + 6), UI_FORCE_SIDE samt
+  Menu_ShowItemByName (lightpowers/darkpowers..., in der Vorschau auf das ganze Menü angewandt),
+  JEDI_NONJEDI (nur mit g_jediVmerc), FORCE_POINTS/RANK/MASTERY_SET, JOINGAMETYPE (joingametypes aus
+  gameinfo.txt, Grenze "> num" wie die Engine), NETSOURCE (NET_SOURCES-Zeile + Nummer), NETFILTER,
+  ALLMAPS_SELECTION, BOTNAME/BOTSKILL/REDBLUE (uiInfo nach dem Start 0), SELECTEDPLAYER,
+  SERVERREFRESHDATE, SERVERMOTD (Jedi Outcast), KEYBINDSTATUS. UI_CHAT_* und UI_EFFECTS (JKA MP)
+  zeichnen im Spiel nichts - so auch die Vorschau. Jedi Outcast MP UI_EFFECTS: fx_base + fxPic[gamecodetoui
+  [color1-1]] (ui.qvm enthält die fx-Bilder und color1; ohne Quellcode, Q3TA-Erbe - im Spiel zu prüfen).
+- UI_GLINFO SP/MP: glGetString des echten OpenGL-Treibers (platform::openGlTreiber, verstecktes Fenster,
+  Kontext gleich wieder weg); Bits wie OpenJK GLimp_SetMode (24/24/8); MP kürzt auf 128 Erweiterungen
+  (TruncateGLExtensionsString), zwei Spalten, SP eine Spalte mit der Zeilenzählung samt numLines--.
+- Datapad JKA (datapad.cpp, hud.cpp zeichneDatapadHud): CG_DrawDataPadHUD (Striche aus ui/hud.menu,
+  message_off, gfx/menus/datapad), Ziele (ObjectivePrint_Line inkl. Umbruch mit +2 je Zeichen,
+  CT_BLUE3-Kreise), Waffen (weaponIcon aus ext_data/weapons.dat, Erschütterungs-Sonderfall), Kräfte
+  (showDataPadPowers, FP der SP-Fassung), Inventar leer (SP_INGAME_EMPTY_INV, Breite mit ocr_a gemessen,
+  mit ergoec gezeichnet). Zeilenumbruch von CG_DisplayBoxedText und Textscroll jetzt eine Funktion
+  (naechsteZeile).
+- Movie Duels: Pazaak (pazaak.cpp, ui_pazaak.cpp: Karten, Werte, Namen mit Schatten, Punkte mit ^5,
+  Dialog, Zeit, Kartenwahl mit Anzahl, Anleitung) mit Beispielpartie; UI_DUELMAPS_SELECTION;
+  Feeder 84-89 aus den Tabellen von ui_main.cpp (tools/gen_md_tabellen.py -> src/menue/md_tabellen.inc:
+  727 Figuren, 154 Duellkarten, Griffe).
+- Feeder: FeederDaten::art (0 = ohne Darstellung -> Platzhalter, 1 = wie im Spiel, auch leer, 2 = Beispiel).
+  MP SABER_SINGLE/STAFF_INFO wie WP_SaberGetHiltInfo (Parser mit SkipBracedSection-Eigenheit),
+  PLAYER_LIST als Beispiel; Serverliste/-status/Spielersuche/Siege-Listen leer wie im Hauptmenü.
+- Beispielwerte beschriftet („Beispielwerte“ oben links, nur beim Bearbeiten), Abschnitt Beispielwerte in
+  den Eigenschaften (Waffe, Kraft, Stufe, Ziele, HUD-Werte; MP g_jediVmerc, g_forceBasedTeams, Höchstrang,
+  Serversuche, MOTD).
+- Tests: ctest menue_ownerdraw (neu), menue_vorschau angepasst. Selbsttest BHED_MENUE_NUR=m7 zählt die
+  Platzhalter aller Original-Menüs: Movie-Duels-Daten vorher (Stand menue6, Liste oben) alle MP-/Datapad-/
+  Pazaak-/GLINFO-Nummern, jetzt 22: MD-MP 340-350 und das MD-Datapad (203-206).
+- Offen mit Begründung: MD-MP 340-350 (UI_FORCE_RANK_STASIS .. DARK_STASIS laut ui/MD_MP/menudef.h aus
+  z_zzzz_MD_Jace-Update-9.pk3) - kein Quellcode der MD-MP-Oberfläche; die DLL enthält eine 29-zeilige
+  Kostentabelle, die von OpenJK abweicht (Sprung, Säbelwurf) - also zeichnet MD-MP auch die normalen
+  Kraftsterne anders als OpenJK; nicht 1:1 portierbar ohne Quelle. Datapad Movie Duels/Jedi Outcast: eigenes
+  HUD (JK2-Art, HUDInnerLeft/ HUDHealth ...) und eigene Inhalte (MD 25 Kräfte, KOTOR-Waffenwahl; JK2
+  MissionInformation_Draw) - folgt.
+
 ## Changelog
 
 ## English
