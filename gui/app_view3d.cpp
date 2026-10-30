@@ -7142,6 +7142,40 @@ float ansichtsSchalter(bool nurMessen) {
     return breite;
 }
 
+// reste2 Punkt 6: die GPU-Tabelle des Statistikfensters in der Sprache des Programms (bis rc606 immer
+// deutsch) - Aufrufe, Zustaende, je Abschnitt Aufrufe und Zeit; true = eingerueckt.
+std::vector<std::pair<std::string, bool>> gpuTabellenZeilen() {
+    std::vector<std::pair<std::string, bool>> aus;
+    char z[256];
+    std::snprintf(z, sizeof(z), trN(Str::MapGpuCalls, g_app->gpuAufrufe, g_app->gpuUebersprungen), g_app->gpuAufrufe, g_app->gpuUebersprungen);
+    aus.emplace_back(z, false);
+    static constexpr Str kZustaende[] = {Str::MapGpuStatesNone, Str::MapGpuStatesDepth, Str::MapGpuStatesCull, Str::MapGpuStatesBoth};
+    const int zustand = gpu::zustandsArt();
+    aus.emplace_back(zustand < 0 ? tr(Str::MapGpuStatesNoD3d) : tr(kZustaende[std::clamp(zustand, 0, 3)]), false);
+    const struct {
+        Str name;
+        int aufrufe;
+        gpu::Abschnitt a;
+        gpu::Abschnitt b;
+    } zeilen[] = {
+        {Str::MapGpuMap, g_app->gpuKarte, gpu::Abschnitt::KarteDeckend, gpu::Abschnitt::KarteGemischt},
+        {Str::MapGpuEffects, g_app->gpuEffekte, gpu::Abschnitt::EffekteDeckend, gpu::Abschnitt::EffekteGemischt},
+        {Str::MapGpuMovers, g_app->gpuMover, gpu::Abschnitt::MoverDeckend, gpu::Abschnitt::MoverGemischt},
+        {Str::MapGpuFigures, g_app->gpuFiguren2, gpu::Abschnitt::Figuren, gpu::Abschnitt::Figuren},
+        {Str::MapGpuGlow, g_app->gpuGluehen, gpu::Abschnitt::Gluehen, gpu::Abschnitt::Gluehen},
+    };
+    for (const auto& r : zeilen) {
+        const float ms = (r.a == r.b) ? gpu::millisekunden(r.a) : gpu::millisekundenBeide(r.a, r.b);
+        if (ms >= 0.0F) {
+            std::snprintf(z, sizeof(z), trN(Str::MapGpuRow, r.aufrufe), tr(r.name), r.aufrufe, static_cast<double>(ms));
+        } else {
+            std::snprintf(z, sizeof(z), trN(Str::MapGpuRowNoTime, r.aufrufe), tr(r.name), r.aufrufe);
+        }
+        aus.emplace_back(z, true);
+    }
+    return aus;
+}
+
 // Die Zahlen fuer Entwickler und Fehlersuche - eigenes Fenster.
 void drawKartenStatistik() {
     if (!g_app->kartenStatistikOffen) {
@@ -7198,27 +7232,10 @@ void drawKartenStatistik() {
         }
     }
     ImGui::Separator();
-    ImGui::TextDisabled("GPU: %d Aufrufe, %d uebersprungen", g_app->gpuAufrufe, g_app->gpuUebersprungen);
-    ImGui::TextDisabled("%s", gpu::zustandsLage());
-    const struct {
-        const char* name;
-        int aufrufe;
-        gpu::Abschnitt a;
-        gpu::Abschnitt b;
-    } zeilen[] = {
-        {"Karte", g_app->gpuKarte, gpu::Abschnitt::KarteDeckend, gpu::Abschnitt::KarteGemischt},
-        {"Effekte", g_app->gpuEffekte, gpu::Abschnitt::EffekteDeckend, gpu::Abschnitt::EffekteGemischt},
-        {"Mover", g_app->gpuMover, gpu::Abschnitt::MoverDeckend, gpu::Abschnitt::MoverGemischt},
-        {"Figuren", g_app->gpuFiguren2, gpu::Abschnitt::Figuren, gpu::Abschnitt::Figuren},
-        {"Gluehen", g_app->gpuGluehen, gpu::Abschnitt::Gluehen, gpu::Abschnitt::Gluehen},
-    };
-    for (const auto& z : zeilen) {
-        const float ms = (z.a == z.b) ? gpu::millisekunden(z.a) : gpu::millisekundenBeide(z.a, z.b);
-        if (ms >= 0.0F) {
-            ImGui::TextDisabled("  %-8s %5d Aufrufe  %6.2f ms", z.name, z.aufrufe, static_cast<double>(ms));
-        } else {
-            ImGui::TextDisabled("  %-8s %5d Aufrufe", z.name, z.aufrufe);
-        }
+    for (const auto& [zeile, eingerueckt] : gpuTabellenZeilen()) {
+        if (eingerueckt) { ImGui::Indent(); }
+        ImGui::TextDisabled("%s", zeile.c_str());
+        if (eingerueckt) { ImGui::Unindent(); }
     }
     if (!g_app->gpuFehler.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);

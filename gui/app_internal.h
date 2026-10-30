@@ -3367,6 +3367,8 @@ sound::Mixer::Daten tonMischerDaten(const std::string& datei);
 // Aus drawMapView herausgezogen, damit die Schwertproben dieselbe
 // Knochenrechnung haben wie die Zeichnung (app_view3d.cpp):
 void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d);
+// reste2 Punkt 6: die GPU-Tabelle des Statistikfensters der Karte, Zeile fuer Zeile (true = eingerueckt)
+[[nodiscard]] std::vector<std::pair<std::string, bool>> gpuTabellenZeilen();
 void figurWeltMatrix(const ActorDraw& a, float fw[16]);
 void figurKopfGier(const ActorState& st, ActorDraw& d);
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d);

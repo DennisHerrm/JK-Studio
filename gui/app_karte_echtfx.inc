@@ -17,8 +17,10 @@
 // Lebensdauer, Groesse) ganz neben dem Sichtkegel liegt - das Bild bleibt gleich. Grenze: der Editor
 // hat keine .bsp - Teilchen mit usePhysics prallen nicht ab (efx::sim spurt ohne Geometrie).
 // Decals: CG_ImpactMark schneidet das Quadrat mit R_MarkFragments auf die Flaechen der Welt - hier
-// die Brushes und Patches der Karte (markenWeltAusKarte, wie q3map2 sie in die Welt schreibt), gebaut
-// beim ersten Decal nach einer Aenderung der Geometrie.
+// die Brushes, Patches und misc_model der Karte, mit dem Baum und den Verweisen seiner Blaetter, wie
+// q3map2 sie in die .bsp schreibt (markenWeltBauen). Der Bau rechnet wie q3map2 bei grossen Karten
+// Sekunden - er laeuft im Hintergrund, sobald Decals gebraucht werden und die Geometrie eine
+// Viertelsekunde ruht; bis er fertig ist, gilt die letzte Welt.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -34,10 +36,66 @@ struct EchtFx {
     // cullrange: je Effekt und Maske der weggelassenen Primitive eine Kopie ohne sie (feste Adressen)
     std::map<std::pair<const efx::Effect*, std::uint64_t>, std::unique_ptr<efx::Effect>> ohne;
     std::map<const efx::Effect*, float> huellen;   // fxHuelle je Effekt
-    std::unique_ptr<SpurWelt> marken;              // die Flaechen fuer die Decals (nullptr: noch nicht gebaut)
+    std::unique_ptr<SpurWelt> marken;              // die Flaechen fuer die Decals (nullptr: noch keine)
+    std::size_t markenStand = static_cast<std::size_t>(-1);   // der Stand der Geometrie, fuer den marken gilt
+    // reste2 Punkt 4: der Bau im Hintergrund
+    struct MarkenErgebnis {
+        SpurWelt welt;
+        karte::MarkenWeltBericht bericht;
+    };
+    std::future<MarkenErgebnis> markenAuftrag;
+    std::shared_ptr<std::atomic<bool>> markenAbbrechen;
+    std::size_t markenAuftragStand = static_cast<std::size_t>(-1);
+    std::chrono::steady_clock::time_point standSeit = std::chrono::steady_clock::now();   // seit wann die Geometrie ruht
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    EchtFx() = default;
+    EchtFx(const EchtFx&) = delete;
+    EchtFx& operator=(const EchtFx&) = delete;
+    ~EchtFx() {
+        if (markenAbbrechen) { *markenAbbrechen = true; }
+        if (markenAuftrag.valid()) { markenAuftrag.wait(); }
+    }
 };
 EchtFx g_fx;
+
+// reste2 Punkt 4: die Welt fuer die Decals pflegen. Ein fertiger Bau gilt, wenn er nicht abgebrochen
+// wurde; ein Bau fuer einen alten Stand wird abgebrochen; ein neuer beginnt, wenn die Geometrie eine
+// Viertelsekunde ruht (die Abschrift der Karte im Hauptfaden, die Rechnung im Hintergrund).
+void markenPflegen(Editor& ed, std::size_t geoStand) {
+    if (g_fx.markenAuftrag.valid()) {
+        if (g_fx.markenAuftragStand != geoStand) { *g_fx.markenAbbrechen = true; }
+        if (g_fx.markenAuftrag.wait_for(std::chrono::seconds(0)) != std::future_status::ready) { return; }
+        EchtFx::MarkenErgebnis r = g_fx.markenAuftrag.get();
+        if (!g_fx.markenAbbrechen->load()) {
+            g_fx.marken = std::make_unique<SpurWelt>(std::move(r.welt));
+            g_fx.markenStand = g_fx.markenAuftragStand;
+            ed.echtLicht.markenPinsel = static_cast<std::size_t>(r.bericht.pinsel);
+            ed.echtLicht.markenFlaechen = g_fx.marken->flaechen.size();
+        }
+    }
+    if (g_fx.markenStand == geoStand || std::chrono::steady_clock::now() - g_fx.standSeit < std::chrono::milliseconds(250)) { return; }
+    const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+    const auto info = [&sp](const std::string& shader) {
+        karte::Q3ShaderInfo i;
+        if (const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr) {
+            i.surfaceparms = se->surfaceparms;
+            i.autosprite = se->autosprite;
+            i.polygonOffset = se->polygonOffset;
+            i.noClip = se->noClip;
+            i.indexed = se->indexed;
+        }
+        return i;
+    };
+    auto ein = std::make_shared<karte::MarkenEingabe>(karte::markenEingabe(ed.karte, info, !(sp && sp->spiel == kRegelwerkJediOutcast)));
+    auto abbrechen = std::make_shared<std::atomic<bool>>(false);
+    g_fx.markenAbbrechen = abbrechen;
+    g_fx.markenAuftragStand = geoStand;
+    g_fx.markenAuftrag = std::async(std::launch::async, [ein, abbrechen] {
+        EchtFx::MarkenErgebnis r;
+        r.welt = karte::markenWeltBauen(*ein, &r.bericht, abbrechen.get());
+        return r;
+    });
+}
 
 // Eine sichere Huelle eines Effekts um seinen Ursprung (Einheiten); < 0: nicht abschaetzbar (Folgeeffekte,
 // Modelle, Blitze, Licht - dann wird er immer gerechnet)
@@ -199,7 +257,7 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
     const auto t0 = std::chrono::steady_clock::now();
     if (g_fx.stand != geoStand) {
         g_fx.stand = geoStand;
-        g_fx.marken.reset();
+        g_fx.standSeit = std::chrono::steady_clock::now();
         fxLaeuferBauen();
     }
     ed.echtLicht.effektEcken = 0;
@@ -229,14 +287,7 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
     const bool decals = std::any_of(alle.begin(), alle.end(), [](const EffectInstance& l) {
         return std::any_of(l.effect->primitives.begin(), l.effect->primitives.end(), [](const efx::Primitive& pr) { return pr.type == efx::PrimitiveType::Decal; });
     });
-    if (decals && !g_fx.marken) {
-        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
-        const auto parms = [&sp](const std::string& shader) {
-            const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
-            return se != nullptr ? se->surfaceparms : std::vector<std::string>{};
-        };
-        g_fx.marken = std::make_unique<SpurWelt>(karte::markenWeltAusKarte(ed.karte, parms, !(sp && sp->spiel == kRegelwerkJediOutcast)));
-    }
+    if (decals) { markenPflegen(ed, geoStand); }
     const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge, g_fx.marken.get());
     ed.echtLicht.effektEcken = netz.verts.size();
     for (const BspMesh::Batch& b : netz.batches) {

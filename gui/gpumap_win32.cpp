@@ -55,6 +55,7 @@
 #include <iterator>
 #include <map>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "backend.h"
@@ -1307,6 +1308,13 @@ struct BildInhaltHash {
     std::size_t operator()(const BildInhalt& k) const { return static_cast<std::size_t>(k.a ^ (k.b * 31U)); }
 };
 std::unordered_map<BildInhalt, ID3D11ShaderResourceView*, BildInhaltHash> g_figurBildInhalt;
+// reste2 Punkt 2: der Schluessel der Figurenbilder ist die Adresse der TexWache im Bild (TextureSet::Tex);
+// verschwindet das Bild oder bekommt es neuen Inhalt, meldet die Wache es (texWegMelden), und der Eintrag
+// geht samt Grafikbild. Je Adresse der Inhalt, aus dem sie geteilt wurde, und je Inhalt die Zahl der
+// Adressen - ein Inhalt geht mit der letzten. Bis rc606 blieben die Eintraege alter Haeute stehen.
+std::map<const void*, BildInhalt> g_figurBildSchluessel;
+std::unordered_map<BildInhalt, int, BildInhaltHash> g_figurBildInhaltZahl;
+std::thread::id g_figurBildFaden;   // nur der Faden der Grafik raeumt (andere Faeden laden nie hoch)
 bool g_figurBilderTeilen = true;
 int g_figurBilderHochgeladen = 0;   // wirklich hochgeladen (ladeMitStufen)
 int g_figurBilderGeteilt = 0;       // statt hochzuladen geteilt
@@ -1868,23 +1876,63 @@ ID3D11ShaderResourceView* holeErsatzBild() {
     return g_ersatzBild;
 }
 
+// reste2 Punkt 2: einen Eintrag samt Grafikbild loesen; der geteilte Inhalt geht mit seiner letzten Adresse.
+void figurBildLoesen(const void* schluessel) {
+    const auto it = g_figurBilder.find(schluessel);
+    if (it == g_figurBilder.end()) { return; }
+    if (it->second != nullptr) { it->second->Release(); }
+    g_figurBilder.erase(it);
+    g_figurBildDaten.erase(schluessel);
+    if (const auto s = g_figurBildSchluessel.find(schluessel); s != g_figurBildSchluessel.end()) {
+        if (const auto z = g_figurBildInhaltZahl.find(s->second); z != g_figurBildInhaltZahl.end() && --z->second <= 0) {
+            if (const auto c = g_figurBildInhalt.find(s->second); c != g_figurBildInhalt.end()) {
+                if (c->second != nullptr) { c->second->Release(); }
+                g_figurBildInhalt.erase(c);
+            }
+            g_figurBildInhaltZahl.erase(z);
+        }
+        g_figurBildSchluessel.erase(s);
+    }
+    ++g_figurBilderGeneration;
+}
+
+// texWegMelden: ein Bild verschwindet oder bekommt neuen Inhalt
+void figurBildWeg(const void* wache) {
+    if (std::this_thread::get_id() != g_figurBildFaden) { return; }
+    figurBildLoesen(wache);
+}
+
+void figurBilderAllesLoesen() {
+    for (auto& [k, s2] : g_figurBilder) { if (s2 != nullptr) { s2->Release(); } }
+    g_figurBilder.clear();
+    g_figurBildDaten.clear();
+    for (auto& [k, s2] : g_figurBildInhalt) { if (s2 != nullptr) { s2->Release(); } }
+    g_figurBildInhalt.clear();
+    g_figurBildSchluessel.clear();
+    g_figurBildInhaltZahl.clear();
+    ++g_figurBilderGeneration;
+}
+
 // Ein einzelnes Bild aus einem TextureSet::Tex - fuer die Klingen. Derselbe
-// Zwischenspeicher wie die Figurenbilder (Schluessel: die Adresse).
+// Zwischenspeicher wie die Figurenbilder (Schluessel: die Adresse seiner Wache).
 ID3D11ShaderResourceView* holeTexBild(const TextureSet::Tex* t) {
     if (t == nullptr || t->width <= 0 || t->height <= 0 || t->rgba.empty()) {
         return nullptr;
     }
-    const auto it = g_figurBilder.find(t);
+    if (texWegMelden == nullptr) {   // reste2 Punkt 2: ab dem ersten Bild hoert gpumap zu
+        texWegMelden = &figurBildWeg;
+        g_figurBildFaden = std::this_thread::get_id();
+    }
+    const void* schluessel = &t->wache;
+    const auto it = g_figurBilder.find(schluessel);
     if (it != g_figurBilder.end()) {
         // Dieselbe Adresse, aber neue Bildpunkte (neu geladen, andere
         // Haut)? Dann neu hochladen - siehe figurSignatur.
-        const auto d2 = g_figurBildDaten.find(t);
+        const auto d2 = g_figurBildDaten.find(schluessel);
         if (d2 != g_figurBildDaten.end() && d2->second == t->rgba.data()) {
             return it->second;
         }
-        if (it->second != nullptr) { it->second->Release(); }
-        g_figurBilder.erase(it);
-        ++g_figurBilderGeneration;
+        figurBildLoesen(schluessel);
     }
     // rc603: nach dem Inhalt teilen (BildInhalt). Die Liste nach Inhalt haelt
     // eine Referenz, jeder Adresseintrag eine eigene.
@@ -1905,6 +1953,8 @@ ID3D11ShaderResourceView* holeTexBild(const TextureSet::Tex* t) {
             srv->AddRef();
             g_figurBildInhalt[k] = srv;
         }
+        g_figurBildSchluessel[schluessel] = k;
+        ++g_figurBildInhaltZahl[k];
     } else {
         srv = ladeMitStufen(*t);
         if (srv == nullptr) {
@@ -1912,8 +1962,8 @@ ID3D11ShaderResourceView* holeTexBild(const TextureSet::Tex* t) {
         }
         ++g_figurBilderHochgeladen;
     }
-    g_figurBilder[t] = srv;
-    g_figurBildDaten[t] = t->rgba.data();
+    g_figurBilder[schluessel] = srv;
+    g_figurBildDaten[schluessel] = t->rgba.data();
     return srv;
 }
 
@@ -3001,12 +3051,7 @@ void figurAchsenProbe(std::vector<FigurAchsenEintrag>* ziel) { g_figurAchsenProb
 // rc603: Figurenbilder teilen an/aus (Selbsttest) - verwirft alle
 // hochgeladenen Figurenbilder, das naechste Bild laedt neu.
 void figurBilderTeilen(bool an) {
-    for (auto& [k, s2] : g_figurBilder) { if (s2 != nullptr) { s2->Release(); } }
-    g_figurBilder.clear();
-    g_figurBildDaten.clear();
-    for (auto& [k, s2] : g_figurBildInhalt) { if (s2 != nullptr) { s2->Release(); } }
-    g_figurBildInhalt.clear();
-    ++g_figurBilderGeneration;
+    figurBilderAllesLoesen();
     g_figurBilderTeilen = an;
 }
 void figurBilderZahlen(int& hochgeladen, int& geteilt) {
@@ -5870,6 +5915,7 @@ SpeicherStand speicherStand() {
     s.moverNetze = static_cast<int>(g_moverNetze.size());
     s.figuren = static_cast<int>(g_figuren.size());
     s.figurBilder = static_cast<int>(g_figurBilder.size());
+    s.figurBildInhalte = static_cast<int>(g_figurBildInhalt.size());
     // Belegter Grafikspeicher ueber DXGI 1.4 (ab Windows 10).
     if (ID3D11Device* d = dev()) {
         IDXGIDevice* dx = nullptr;
@@ -6019,12 +6065,8 @@ void shutdown() {
         if (fp.ib != nullptr) { fp.ib->Release(); }
     }
     g_figuren.clear();
-    for (auto& [k, s2] : g_figurBilder) { if (s2 != nullptr) { s2->Release(); } }
-    g_figurBilder.clear();
-    ++g_figurBilderGeneration;
-    g_figurBildDaten.clear();
-    for (auto& [k, s2] : g_figurBildInhalt) { if (s2 != nullptr) { s2->Release(); } }   // rc603
-    g_figurBildInhalt.clear();
+    texWegMelden = nullptr;   // reste2 Punkt 2: danach hoert niemand mehr zu
+    figurBilderAllesLoesen();
     ++g_geraetGeneration;   // rc603: gemerkte Zustaende der Figurstufen ungueltig
     if (g_cbFigur != nullptr) { g_cbFigur->Release(); g_cbFigur = nullptr; }
     if (g_cbStufe != nullptr) { g_cbStufe->Release(); g_cbStufe = nullptr; }
@@ -6326,6 +6368,8 @@ std::string berichtText() {
     }
     return s;
 }
+
+int zustandsArt() { return zustandsSchalter(); }
 
 const char* zustandsLage() {
     switch (zustandsSchalter()) {
@@ -7318,6 +7362,7 @@ void beendeMessung(Abschnitt) {}
 float millisekunden(Abschnitt) { return -1.0F; }
 float millisekundenBeide(Abschnitt, Abschnitt) { return -1.0F; }
 const char* zustandsLage() { return "ohne Direct3D gebaut"; }
+int zustandsArt() { return -1; }
 std::vector<std::string> debugMeldungen() { return {}; }
 std::string geraetInfo() { return "ohne Direct3D gebaut"; }
 std::string berichtText() { return "ohne Direct3D gebaut\n"; }

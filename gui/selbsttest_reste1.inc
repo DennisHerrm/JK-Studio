@@ -54,8 +54,10 @@ std::vector<Schritt> decals() {
         const double ohne = (*f)[0][0] + (*f)[0][1] + (*f)[0][2];
         const double mit = (*f)[1][0] + (*f)[1][1] + (*f)[1][2];
         diag::detail("Knopftest: Reste1/1 - Decal: ohne " + stufe9d::farbText((*f)[0]) + ", mit " + stufe9d::farbText((*f)[1]) +
-                     ", Ecken " + std::to_string(ke::editor().echtLicht.effektEcken));
-        return *da && ohne > 0 && mit < ohne - 30.0;
+                     ", Ecken " + std::to_string(ke::editor().echtLicht.effektEcken) + "; Welt der Decals (reste2, wie q3map2): " +
+                     std::to_string(ke::editor().echtLicht.markenPinsel) + " Pinsel, " + std::to_string(ke::editor().echtLicht.markenFlaechen) +
+                     " Flaechen");
+        return *da && ohne > 0 && mit < ohne - 30.0 && ke::editor().echtLicht.markenPinsel > 0 && ke::editor().echtLicht.markenFlaechen > 0;
     }));
     add(tu("Reste1/1: Filter zurueck, Echtzeit-Licht aus, neue Karte", [] {
         ke::Editor& e = ke::editor();

@@ -935,6 +935,7 @@ void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModel
         const Matrix4 m = miscModellMatrix(e);
         EchtModellFlaeche f;
         f.quelle = &e;
+        f.inWelt = eltern == nullptr;
         f.wirft = wirft;
         for (std::size_t i = 0; i < a.modell->flaechen.size() && i < a.shader.size(); ++i) {
             if (a.shader[i].empty()) { continue; }   // die Skin bildet die Flaeche nicht ab

@@ -2481,6 +2481,10 @@ std::vector<Schritt> modellSchritte() {
         return g_app->modellDrehteller && std::fabs(g_app->modelCam.angles[1] - *gier) > 2.0F;
     }));
     add(klick(tr(Str::ModelTurntable), "###main"));
+    // reste2 Punkt 7: der Drehteller dreht mit der Bildzeit (30 Grad je Sekunde mal DeltaTime) - wo er stehen
+    // blieb, hing am Tempo des Laufs, und das Foto streute (zwei Laeufe: das Modell um einige Grad anders
+    // gedreht, der Rest gleich). Fuer das Foto der eingepasste Blick.
+    add(tu("Blick eingepasst (fest fuer das Foto)", [] { modellAnsichtEinpassen(); }));
     add(klick(tr(Str::ModelBones), "###main"));
     add(pause(0.5));
     add(foto("modell_knochen"));

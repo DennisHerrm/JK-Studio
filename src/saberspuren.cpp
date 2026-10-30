@@ -360,63 +360,6 @@ void kastenSetzen(SpurFlaeche& f) {
     }
 }
 
-// Der Baum ueber den Flaechen einer Welt ohne .bsp (spurWeltAusFlaechen). Liefert den Knoten
-// (>= 0) oder das Blatt (-(n + 1)).
-int baumBauen(SpurWelt& w, const std::vector<int>& ids, int tiefe) {
-    constexpr std::size_t kBlatt = 8;
-    constexpr int kTiefe = 32;
-    if (ids.size() > kBlatt && tiefe < kTiefe) {
-        float mi[3] = {1.0e30F, 1.0e30F, 1.0e30F};
-        float ma[3] = {-1.0e30F, -1.0e30F, -1.0e30F};
-        for (const int i : ids) {
-            const SpurFlaeche& f = w.flaechen[static_cast<std::size_t>(i)];
-            for (int k = 0; k < 3; ++k) {
-                mi[k] = std::min(mi[k], f.mins[k]);
-                ma[k] = std::max(ma[k], f.maxs[k]);
-            }
-        }
-        int achsen[3] = {0, 1, 2};
-        std::sort(std::begin(achsen), std::end(achsen), [&](int a, int b) { return ma[a] - mi[a] > ma[b] - mi[b]; });
-        std::vector<float> mitten(ids.size());
-        for (const int a : achsen) {
-            for (std::size_t j = 0; j < ids.size(); ++j) {
-                const SpurFlaeche& f = w.flaechen[static_cast<std::size_t>(ids[j])];
-                mitten[j] = 0.5F * (f.mins[a] + f.maxs[a]);
-            }
-            const auto mitte = mitten.begin() + static_cast<std::ptrdiff_t>(mitten.size() / 2);
-            std::nth_element(mitten.begin(), mitte, mitten.end());
-            const float teil = *mitte;
-            std::vector<int> vorn;
-            std::vector<int> hinten;
-            for (const int i : ids) {
-                const SpurFlaeche& f = w.flaechen[static_cast<std::size_t>(i)];
-                if (f.maxs[a] >= teil) { vorn.push_back(i); }
-                if (f.mins[a] <= teil) { hinten.push_back(i); }
-            }
-            if (vorn.size() == ids.size() || hinten.size() == ids.size()) {
-                continue;
-            }
-            const int nr = static_cast<int>(w.knoten.size());
-            w.knoten.emplace_back();
-            float n[3] = {0.0F, 0.0F, 0.0F};
-            n[a] = 1.0F;
-            w.knoten[static_cast<std::size_t>(nr)].ebene = static_cast<int>(w.ebenen.size());
-            w.ebenen.push_back(spurEbene(n, teil));
-            const int v = baumBauen(w, vorn, tiefe + 1);
-            const int h = baumBauen(w, hinten, tiefe + 1);
-            w.knoten[static_cast<std::size_t>(nr)].kinder[0] = v;
-            w.knoten[static_cast<std::size_t>(nr)].kinder[1] = h;
-            return nr;
-        }
-    }
-    SpurWelt::Blatt b;
-    b.erste = static_cast<int>(w.blattFlaechen.size());
-    b.zahl = static_cast<int>(ids.size());
-    w.blattFlaechen.insert(w.blattFlaechen.end(), ids.begin(), ids.end());
-    w.blaetter.push_back(b);
-    return -static_cast<int>(w.blaetter.size());
-}
-
 }  // namespace
 
 // --- q_math ------------------------------------------------------------------
@@ -685,6 +628,19 @@ SpurFlaeche spurPolygon(const std::vector<std::array<float, 3>>& ecken, const fl
     return f;
 }
 
+SpurFlaeche spurDreiecke(const std::vector<std::array<float, 3>>& punkte, const std::vector<int>& indizes, bool ausgenommen) {
+    SpurFlaeche f;
+    if (punkte.empty() || indizes.size() < 3) {
+        return f;
+    }
+    f.art = SpurFlaeche::Art::Dreiecke;
+    f.ausgenommen = ausgenommen;
+    f.punkte = punkte;
+    f.indizes = indizes;
+    kastenSetzen(f);
+    return f;
+}
+
 SpurFlaeche spurPatch(int breite, int hoehe, const std::vector<std::array<float, 3>>& kontrolle, bool ausgenommen) {
     SpurFlaeche f;
     if (breite < 2 || hoehe < 2 || kontrolle.size() != static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe)) {
@@ -698,31 +654,6 @@ SpurFlaeche spurPatch(int breite, int hoehe, const std::vector<std::array<float,
     f.ausgenommen = ausgenommen;
     kastenSetzen(f);
     return f;
-}
-
-SpurWelt spurWeltAusFlaechen(std::vector<SpurFlaeche> flaechen) {
-    SpurWelt w;
-    w.flaechen = std::move(flaechen);
-    std::vector<int> alle;
-    for (std::size_t i = 0; i < w.flaechen.size(); ++i) {
-        // Was R_BoxSurfaces_r ohnehin liegen laesst, braucht kein Blatt
-        if (w.flaechen[i].art != SpurFlaeche::Art::Keine && !w.flaechen[i].ausgenommen) { alle.push_back(static_cast<int>(i)); }
-    }
-    if (alle.empty()) {
-        return SpurWelt{};
-    }
-    const int wurzel = baumBauen(w, alle, 0);
-    if (wurzel < 0) {   // alles in einem Blatt: ein Knoten, beide Kinder das Blatt
-        const float n[3] = {1.0F, 0.0F, 0.0F};
-        w.ebenen.push_back(spurEbene(n, 131072.0F));
-        SpurWelt::Knoten k;
-        k.ebene = 0;
-        k.kinder[0] = wurzel;
-        k.kinder[1] = wurzel;
-        w.knoten.push_back(k);
-    }
-    w.gesehen.assign(w.flaechen.size(), 0);
-    return w;
 }
 
 // --- R_MarkFragments (tr_marks.cpp:254 OJ) ------------------------------------

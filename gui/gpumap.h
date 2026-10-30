@@ -62,6 +62,7 @@ struct SpeicherStand {
     int moverNetze = 0;
     int figuren = 0;         // Figurenpuffer (nach Modell)
     int figurBilder = 0;
+    int figurBildInhalte = 0;   // reste2 Punkt 2: die nach Inhalt geteilten Figurenbilder
     long long grafikBytes = -1;    // DXGI: belegter Grafikspeicher, -1 = unbekannt
     long long prozessBytes = -1;   // private Bytes des Prozesses, -1 = unbekannt
 };
@@ -533,6 +534,9 @@ enum class Abschnitt : int {
 // Steuerbar ueber BHED_D3D_STATES (0 keine, 1 Tiefe, 2 Keulen, 3 beide).
 // Gehoert in die Anzeige: ein Bild ohne diese Zahl kostet eine Runde.
 [[nodiscard]] const char* zustandsLage();
+// Dasselbe als Zahl fuer die Anzeige in der Sprache des Programms (reste2 Punkt 6): 0 keine, 1 Tiefe,
+// 2 Keulen, 3 beide; -1 ohne Direct3D gebaut.
+[[nodiscard]] int zustandsArt();
 
 // --- Was der Bericht braucht -------------------------------------------
 //

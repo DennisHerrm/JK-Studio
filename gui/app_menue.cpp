@@ -239,6 +239,8 @@ struct Zustand {
     bool vorlagenGeladen = false;
     std::string vorlageName;
     int modellAufrufe = 0;                           // Selbsttest: Zeichenaufrufe der Menue-Figuren
+    double modellMs = 0;                             // reste2 Punkt 7: Prozessorzeit der Figuren (Summe, ms)
+    int modellZeichnungen = 0;                       // reste2 Punkt 7: gezeichnete Figuren (Summe)
     std::string modellFehler;                        // letzte Meldung von gpu::zeichneMenueFigur
     Textur weiss;                                    // $whiteimage / *white (tr.whiteImage)
     unsigned weissStand = 0;
@@ -1242,6 +1244,7 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                         if (static_cast<std::size_t>(p.item) < g.size() && g[static_cast<std::size_t>(p.item)] >= 0) { animStart = g[static_cast<std::size_t>(p.item)]; }
                     }
                     if (mv.nr < 0) { mv.nr = z.naechstesZiel++; }
+                    const auto figurAnfang = std::chrono::steady_clock::now();   // reste2 Punkt 7: Messung
                     // refdef: x = rect.x + 1, w = rect.w - 2 (in Bildpunkten des Fensters)
                     const float sx = (b.x - a.x) / std::max(1.0F, p.w), sy = (b.y - a.y) / std::max(1.0F, p.h);
                     const ImVec2 ia{a.x + sx, a.y + sy}, ib{b.x - sx, b.y - sy};
@@ -1269,6 +1272,8 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                         std::string fehler;
                         z.modellAufrufe += gpu::zeichneMenueFigur(mv.nr, mv.modell.glm, &mv.texturen, mv.haut, mb.viewProj, &l, &fehler);
                         if (!fehler.empty()) { z.modellFehler = fehler; }
+                        z.modellMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - figurAnfang).count();
+                        ++z.modellZeichnungen;
                         if (void* tex = gpu::menueZielTextur(mv.nr)) {
                             dl->AddImage(reinterpret_cast<ImTextureID>(tex), ia, ib);
                             if ((it.itemFlags & ITF_ISANYSABER) != 0 && (it.itemFlags & ITF_ISCHARACTER) == 0) {
@@ -5183,6 +5188,8 @@ Stand stand() {
     s.verborgen = static_cast<int>(d->verborgen.size());
     s.gesperrt = static_cast<int>(d->gesperrt.size());
     s.modellAufrufe = z.modellAufrufe;
+    s.modellMs = z.modellMs;
+    s.modellZeichnungen = z.modellZeichnungen;
     s.klangEreignisse = z.klangEreignisse;
     s.letzterKlang = z.letzterKlang;
     for (const Diagnose& x : d->diagnosen) {

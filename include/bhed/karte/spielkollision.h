@@ -30,6 +30,8 @@
 #include "bhed/kollision.h"
 #include "bhed/saberspuren.h"
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -78,16 +80,76 @@ struct SpielKollisionsBericht {
 // Treffern kann die gemeldete Ebene eine andere sein.
 SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja, KollisionsKarte& aus);
 
-// Die Welt fuer R_MarkFragments (Marken: Decals der Effekte, Brandspuren) aus den
-// Brushes und Patches, wie q3map2 sie als Zeichenflaechen in die Welt der .bsp
-// schreibt: nur worldspawn und func_group (MoveBrushesToWorld, map.cpp:1659 - andere
-// Brush-Entities sind eigene Modelle, R_MarkFragments geht nur tr.world ab); je Seite
-// eines Brushes eine ebene Flaeche, ausser C_NODRAW ohne C_FOG (ClipSidesIntoTree,
-// surface.cpp:1411) und Ursprungs-Brushes; Patches ausser SURF_NODRAW (ParseMesh: SF_SKIP).
-// SURF_NOIMPACT, SURF_NOMARKS und CONTENTS_FOG laesst R_BoxSurfaces_r liegen.
-// Abweichung: die Seiten sind ganz, nicht auf den sichtbaren Teil beschnitten
-// (visibleHull) - Bruchstuecke im Inneren anderer Brushes sieht man nicht.
-[[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja);
+// Was q3map2 aus einem Shaderskript fuer die Zeichenflaechen der Welt braucht (shaderInfo_t,
+// Auszug): die surfaceparms und die Schalter, die CullSides und ClipSidesIntoTree fragen.
+struct Q3ShaderInfo {
+    std::vector<std::string> surfaceparms;
+    bool autosprite = false;      // deformVertexes autosprite[2] (dazu detail und noClip)
+    bool polygonOffset = false;   // polygonOffset
+    bool noClip = false;          // q3map_noClip, q3map_terrain
+    bool indexed = false;         // q3map_indexed, q3map_terrain
+};
+using Q3ShaderInfoFn = std::function<Q3ShaderInfo(const std::string& shader)>;
+
+// Liste reste2 Punkt 4: was beim Bau der Welt fuer die Marken herauskam (Selbsttest, ctest)
+struct MarkenWeltBericht {
+    int pinsel = 0;        // Pinsel der Welt (worldspawn, func_group)
+    int seiten = 0;        // Zeichenflaechen aus Pinselseiten
+    int verdeckt = 0;      // Seiten mit sichtbarem Teil, die CullSides verwirft
+    int patches = 0;
+    int modelle = 0;       // Flaechen der misc_model
+    bool leck = false;     // FloodEntities: von draussen erreichbar
+    bool leer = false;     // keine Entitaet im Freien (q3map2 schreibt dann keine Pinselseite)
+};
+
+// Die Welt fuer R_MarkFragments (Marken: Decals der Effekte, Brandspuren), wie bhed_q3map2 sie
+// als Zeichenflaechen in die Welt der .bsp schreibt (src/karte/sichtbareseiten.inc, ein Port von
+// ProcessWorldModel bis ClipSidesIntoTree): nur worldspawn und func_group (MoveBrushesToWorld -
+// andere Brush-Entities sind eigene Modelle, R_MarkFragments geht nur tr.world ab); je Seite eines
+// Brushes ihr sichtbarer Teil (visibleHull: die konvexe Huelle der Bruchstuecke in offenen
+// Blaettern des BSP aus den Strukturpinseln, nach FloodEntities/FillOutside), ohne von CullSides
+// verdeckte Seiten und ohne C_NODRAW; Patches ausser SURF_NODRAW (ParseMesh: SF_SKIP) und
+// misc_model ohne target (AddTriangleModels, ueber k.kontext.modelle), beide nur, wenn sie ein
+// offenes Blatt beruehren (FilterPatchIntoTree, FilterTrianglesIntoTree). SURF_NOIMPACT,
+// SURF_NOMARKS und CONTENTS_FOG laesst R_BoxSurfaces_r liegen.
+[[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht = nullptr);
+
+// Dasselbe in zwei Teilen: markenEingabe schreibt im Hauptfaden ab, was der Bau aus der Karte liest
+// (was der Editor in die .map schriebe: Ebenenpunkte, Shader, Schluessel, Patches, die Dreiecke der
+// misc_model) - markenWeltBauen rechnet darauf in jedem Faden. *abbrechen true: so bald wie moeglich
+// aufhoeren (leere Welt).
+struct MarkenEingabe {
+    struct Seite {
+        std::array<std::array<double, 3>, 3> punkte{};   // die Ebenenpunkte des Editors
+        int shader = 0;                                  // Index in shader
+        std::uint32_t inhalt = 0;                        // Inhaltsflags der Seite (Detail-Bit)
+    };
+    struct Patch {
+        int breite = 0;
+        int hoehe = 0;
+        std::vector<std::array<float, 3>> punkte;
+        int shader = 0;
+    };
+    struct Ent {
+        std::string klasse;         // klein
+        std::string ursprung;       // "origin"
+        std::string blockGroesse;   // "_blocksize", "blocksize" oder "chopsize"
+        bool welt = false;
+        std::vector<std::vector<Seite>> pinsel;
+        std::vector<Patch> patches;
+    };
+    struct Modell {
+        int shader = 0;
+        std::vector<std::array<float, 3>> dreiecke;   // je drei Ecken, in der Welt
+    };
+    std::vector<Ent> entitaeten;
+    std::vector<Modell> modelle;
+    std::vector<Q3ShaderInfo> shader;
+    bool ja = true;
+    bool ganzzahlig = false;   // ebenenPunkteGanzzahlig()
+};
+[[nodiscard]] MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja);
+[[nodiscard]] SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht = nullptr, const std::atomic<bool>* abbrechen = nullptr);
 
 }  // namespace bhed::karte
 

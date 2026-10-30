@@ -1502,6 +1502,12 @@ std::filesystem::path arbeitskopie() {
         if (p == p.parent_path()) { break; }
         p = p.parent_path();
     }
+    // reste2 Punkt 5: liegt der Laufordner ausserhalb, der Quellordner des Baus (CMake, wie bei den ctests)
+#ifdef BHED_QUELLORDNER
+    const std::filesystem::path quelle = ::bhed::utf8Pfad(BHED_QUELLORDNER);
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(quelle / "tests" / "karte" / "q3map2" / "raum.nrc.bsp", ec)) { return quelle; }
+#endif
     return {};
 }
 
@@ -1518,7 +1524,8 @@ std::string q3map2Quelle() {
     return {};
 }
 
-// Die Erwartungen (raum.nrc.bsp): BHED_Q3MAP2_DATEN, sonst <Arbeitskopie>/tests/karte/q3map2
+// Die Erwartungen (raum.nrc.bsp): BHED_Q3MAP2_DATEN, sonst <Arbeitskopie>/tests/karte/q3map2 (die Arbeitskopie
+// ueber dem Laufordner oder der Quellordner des Baus)
 std::string q3map2Daten() {
     if (const char* d = std::getenv("BHED_Q3MAP2_DATEN"); d != nullptr && d[0] != '\0') { return d; }
     const std::filesystem::path w = arbeitskopie();
@@ -2295,12 +2302,18 @@ std::vector<Schritt> leck() {
         return e.bauRueckmeldungOffen && auswahl && linie;
     }));
     add(foto("karteneditor_s3_leck"));
-    // 2D: die Linie rot, 4 breit (an der Mitte des laengsten Stuecks)
+    // 2D: die Linie rot, 4 breit (an der Mitte des laengsten Stuecks). reste2 Punkt 3: lieferte der Bau
+    // keine Linie (bhed_q3map2.exe fehlt), griffen dieser Schritt und die Pruefungen danach ins Leere
+    // (Absturz, Lesezugriff 0x4) - ohne Linie melden sie den Fehler und lassen sie aus.
     add(tu("2D-Ansicht XY auf die Leck-Linie (Massstab 0.5)", [] {
         ke::Editor& e = ke::editor();
+        const auto& p = e.punktdatei;
+        if (p.size() < 2) {
+            meldeFehler("Stufe 3/5: keine Leck-Linie (" + std::to_string(p.size()) + " Punkte) - die Schritte an der Linie fallen aus");
+            return;
+        }
         e.xy[0].ansicht.typ = karte::Sicht::XY;
         e.xy[0].ansicht.setzeMassstab(0.5F);
-        const auto& p = e.punktdatei;
         e.xy[0].ansicht.setzeUrsprung((p.front() + p.back()) * 0.5F);
         ++e.sichtStand;
     }));
@@ -2308,6 +2321,7 @@ std::vector<Schritt> leck() {
     auto mitte = std::make_shared<karte::Vektor3f>();
     add(pruefe("2D: die Leck-Linie rot ($POINTFILE) auf der Mitte ihres laengsten Stuecks", [mitte] {
         const auto& p = ke::editor().punktdatei;
+        if (p.size() < 2) { return false; }
         std::size_t best = 0;
         float bestL = -1.0F;
         for (std::size_t i = 0; i + 1 < p.size(); ++i) {
@@ -2360,7 +2374,8 @@ std::vector<Schritt> leck() {
     add(pause(0.2));
     add(pruefe("Previous leak spot zurueck bis zum Anfang: \"Start of pointfile\", Kamera an Punkt 1", [] {
         const ke::Editor& e = ke::editor();
-        return konsoleText().find("Start of pointfile\n") != std::string::npos && e.punktdateiStelle == 0 && e.kamera.ursprung == e.punktdatei[0];
+        return konsoleText().find("Start of pointfile\n") != std::string::npos && e.punktdateiStelle == 0 && !e.punktdatei.empty() &&
+               e.kamera.ursprung == e.punktdatei[0];
     }));
     // File > Pointfile
     add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));

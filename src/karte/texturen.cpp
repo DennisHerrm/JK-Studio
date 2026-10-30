@@ -152,6 +152,23 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
                     t.ungetToken();
                 }
             }
+        } else if (k == "deformvertexes") {
+            // reste2 Punkt 4: q3map2 ParseShaderFile - "deformVertexes autosprite[2]"
+            const char* a = t.getToken();
+            if (a == nullptr) {
+                unerwartet(t, a, "#deformVertexes");
+                return false;
+            }
+            if (klein(a).rfind("autosprite", 0) == 0) { s.autosprite = true; }
+        } else if (k == "polygonoffset") {
+            s.polygonOffset = true;
+        } else if (k == "q3map_noclip") {
+            s.noClip = true;
+        } else if (k == "q3map_indexed") {
+            s.indexed = true;
+        } else if (k == "q3map_terrain") {
+            s.noClip = true;
+            s.indexed = true;
         } else if (k == "skyparms") {
             const char* h = t.getToken();
             if (h == nullptr) {

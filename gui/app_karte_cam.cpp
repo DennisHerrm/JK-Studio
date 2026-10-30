@@ -44,13 +44,16 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <future>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <thread>

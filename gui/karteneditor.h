@@ -1089,6 +1089,8 @@ struct Editor {
         std::size_t nebel = 0;             // Stufe 9d: Nebel der Karte (Pinsel mit fogParms, globaler Nebel)
         bool effekte = true;               // Stufe 9d: fx_runner in der Echtzeit-Ansicht ("RealtimeEffects")
         std::size_t effektLaeufer = 0;     // Stufe 9d: laufende fx_runner
+        std::size_t markenPinsel = 0;      // reste2 Punkt 4: Pinsel der Welt fuer die Decals (wie q3map2)
+        std::size_t markenFlaechen = 0;    // reste2 Punkt 4: Flaechen, auf die Decals fallen koennen
         std::size_t effektEcken = 0;       // Stufe 9d: Ecken des Effektnetzes im letzten Bild
         double effektMs = 0;               // Stufe 9d: Effekte im letzten Bild (Prozessor: Teilchen, Netz, Zeichenaufrufe)
         bool portal = false;               // Stufe 9d: der Himmel zeigte im letzten Bild ein misc_skyportal
