@@ -114,7 +114,7 @@ struct Untertitel {
 };
 
 // RE_Font_StrLenPixels: Jedi Academy/Movie Duels ueberspringen ^0-^9, Jedi
-// Outcast (JK2_MODE) zaehlt sie mit.
+// Outcast zaehlt jedes Zeichen (jk2sp.exe, menue::Jk2Schrift::Sp).
 [[nodiscard]] int breite(const menue::Schrift& f, const std::string& text, float scale, Spiel spiel);
 
 // CG_CaptionText: den Text in Zeilen brechen (an Leerzeichen und ! ? , . ; :,
@@ -142,8 +142,10 @@ inline constexpr double kClientBildMs = 8.0;
                                         float balkenZiel);
 
 // CG_DrawCaptionText -> cgi_R_Font_DrawString(x, y, captionText, textcolor_caption, qhFontMedium, -1, fFontScale):
-// eine Zeile als Bilder (menue::schriftZeichnen). Ein ^ ohne Ziffer zeichnen Jedi Academy und Movie Duels
-// ("purposely falls thrugh"), Jedi Outcast (RE_Font_DrawString unter JK2_MODE) nicht.
+// eine Zeile als Bilder (menue::schriftZeichnen) - derselbe RE_Font_DrawString wie die Menues (CG_R_FONTDRAWSTRING
+// -> re.Font_DrawString, code/client/cl_cgame.cpp; die Oberflaeche: uii.R_Font_DrawString, cl_ui.cpp). Ein ^ ohne
+// Ziffer zeichnen Jedi Academy und Movie Duels ("purposely falls thrugh"); Jedi Outcast nimmt jedes Zeichen nach ^
+// als Farbe (jk2sp.exe im Spiel fotografiert, M7).
 void zeichnen(const menue::Schrift& f, const Zeile& z, menue::Farbe farbe, float scale, Spiel spiel, std::vector<menue::Prim>& out);
 
 }  // namespace bhed::untertitel

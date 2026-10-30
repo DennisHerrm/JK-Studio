@@ -171,20 +171,9 @@ std::array<float, 4> textFarbe(const std::string& name) {
 float mdGroesse(float cgTextprintscale) noexcept { return std::clamp(cgTextprintscale, 0.25F, 2.0F); }
 
 int breite(const menue::Schrift& f, const std::string& text, float scale, Spiel spiel) {
-    if (spiel != Spiel::JediOutcast) { return menue::schriftBreite(f, text, scale); }
-    // JK2_MODE: jedes Zeichen zaehlt, 0x0A beginnt neu, ceilf.
-    float maxW = 0.0F;
-    float diese = 0.0F;
-    for (const char ch : text) {
-        const auto c = static_cast<unsigned char>(ch);
-        if (c == 0x0A) {
-            diese = 0.0F;
-        } else {
-            diese += static_cast<float>(f.glyph[c].horizAdvance) * scale;
-            maxW = std::max(maxW, diese);
-        }
-    }
-    return static_cast<int>(std::ceil(maxW));
+    // Untertitel gibt es nur im Einzelspieler: Jedi Outcast wie jk2sp.exe.
+    return menue::schriftBreite(f, text, scale, menue::Kodierung::Latin1, false,
+                                spiel == Spiel::JediOutcast ? menue::Jk2Schrift::Sp : menue::Jk2Schrift::Nein);
 }
 
 Untertitel setzen(const std::string& text, int klangMs, double startMs, bool imKino, float balkenZiel, const menue::Schrift& schrift,

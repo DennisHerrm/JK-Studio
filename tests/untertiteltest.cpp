@@ -7,7 +7,9 @@
 #include "bhed/untertitel.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdio>
+#include <iterator>
 #include <set>
 #include <string>
 #include <vector>
@@ -194,23 +196,41 @@ int main() {
            "MD mit 0.5: halbe Schrift - eine Zeile, y = Mitte - halbe Hoehe - 4 * 0.5");
     pruefe(untertitel::breite(f, "^1ab", 1.0F, Spiel::JediAcademy) == 20 && untertitel::breite(f, "^1ab", 1.0F, Spiel::JediOutcast) == 40,
            "Breite: JKA ueberspringt ^1, JK2 zaehlt es");
+    // GetLetterHorizAdvance: ein Zeichen ohne Vorschub zaehlt wie '.' - auch in JK2_MODE (RE_Font_StrLenPixels).
+    menue::Schrift fp = f;
+    fp.glyph[static_cast<unsigned char>('q')].horizAdvance = 0;
+    fp.glyph[static_cast<unsigned char>('.')].horizAdvance = 7;
+    pruefe(untertitel::breite(fp, "aq", 1.0F, Spiel::JediOutcast) == 17 && untertitel::breite(fp, "aq", 1.0F, Spiel::JediAcademy) == 17,
+           "Breite: Zeichen ohne Vorschub zaehlt wie '.' (JKA und JK2)");
     std::vector<menue::Prim> glyphen;
     menue::schriftZeichnen(f, 20, 432, "ab c", menue::Farbe{1, 1, 1, 1}, -1, 1.0F, false, glyphen);
     pruefe(glyphen.size() == 3 && glyphen[0].x == 20.0F && glyphen[0].y == 432.0F + (22 - 2) - 14 && glyphen[2].x == 50.0F,
            "RE_Font_DrawString: je Zeichen ein Bild, Grundlinie oy + Hoehe - Unterlaenge/2");
-    // Integration 5: ein ^ ohne Ziffer zeichnen Jedi Academy und Movie Duels (tr_font.cpp: "purposely falls
-    // thrugh"), Jedi Outcast (JK2_MODE) laesst es weg; ^1 faerbt in allen dreien rot.
-    const untertitel::Zeile caret{"a^^1b", 20, 432};
+    // Integration 6: Untertitel gehen ueber denselben RE_Font_DrawString wie die Menues (CG_DrawCaptionText ->
+    // cgi_R_Font_DrawString -> CG_R_FONTDRAWSTRING -> re.Font_DrawString). Jedi Academy und Movie Duels zeichnen ein
+    // ^ ohne Ziffer (tr_font.cpp: "purposely falls thrugh"); jk2sp.exe nimmt jedes Zeichen nach ^ als Farbe,
+    // ColorIndex(c) = (c - '0') & 7 - im Spiel fotografiert (M7): "A^Bx^Cy^0z" zeigt A, x gruen, y gelb, z schwarz.
+    menue::Schrift fz = f;   // s der Glyphe = ihr Zeichen: so sieht der Test, welches Zeichen gezeichnet ist
+    for (std::size_t c = 0; c < std::size(fz.glyph); ++c) { fz.glyph[c].s = static_cast<float>(c); }
+    const untertitel::Zeile caret{"A^Bx^Cy^0z", 20, 432};
+    const auto gleich = [](const menue::Farbe& a, float r, float gr, float b) { return a.r == r && a.g == gr && a.b == b; };
     for (const Spiel spiel : {Spiel::JediAcademy, Spiel::MovieDuels, Spiel::JediOutcast}) {
         std::vector<menue::Prim> g;
-        untertitel::zeichnen(f, caret, menue::Farbe{1, 1, 1, 1}, 1.0F, spiel, g);
+        untertitel::zeichnen(fz, caret, menue::Farbe{1, 1, 1, 1}, 1.0F, spiel, g);
+        std::string gezeichnet;
+        for (const menue::Prim& p : g) { gezeichnet += static_cast<char>(static_cast<int>(p.s0)); }
         const bool jk2 = spiel == Spiel::JediOutcast;
-        const bool ok = g.size() == (jk2 ? 2U : 3U) && g.back().x == (jk2 ? 30.0F : 40.0F) && g.back().farbe.r == 1.0F &&
-                        g.back().farbe.g == 0.0F && g.front().farbe.g == 1.0F;
-        pruefe(ok, jk2                       ? "JK2: ^ ohne Ziffer nicht gezeichnet, ^1 faerbt rot"
-                   : spiel == Spiel::MovieDuels ? "MD: ^ ohne Ziffer gezeichnet, ^1 faerbt rot"
-                                             : "JKA: ^ ohne Ziffer gezeichnet, ^1 faerbt rot");
+        bool ok = gezeichnet == (jk2 ? "Axyz" : "A^Bx^Cyz") && g.back().x == (jk2 ? 50.0F : 90.0F) && gleich(g.back().farbe, 0, 0, 0);
+        if (ok && jk2) {
+            ok = gleich(g[0].farbe, 1, 1, 1) && gleich(g[1].farbe, 0, 1, 0) && gleich(g[2].farbe, 1, 1, 0);
+        }
+        for (std::size_t i = 0; ok && !jk2 && i + 1 < g.size(); ++i) { ok = gleich(g[i].farbe, 1, 1, 1); }
+        pruefe(ok, jk2                       ? "JK2 (jk2sp.exe): jedes Zeichen nach ^ ist eine Farbe - A, x gruen, y gelb, z schwarz"
+                   : spiel == Spiel::MovieDuels ? "MD: ^ ohne Ziffer gezeichnet, ^0 faerbt schwarz"
+                                             : "JKA: ^ ohne Ziffer gezeichnet, ^0 faerbt schwarz");
     }
+    pruefe(untertitel::breite(f, caret.text, 1.0F, Spiel::JediAcademy) == 80 && untertitel::breite(f, caret.text, 1.0F, Spiel::JediOutcast) == 100,
+           "Breite: JKA ueberspringt nur ^0, jk2sp.exe zaehlt jedes Zeichen");
 
     std::printf("%s (%d Fehler)\n", fehler == 0 ? "alles gut" : "FEHLER", fehler);
     return fehler == 0 ? 0 : 1;
