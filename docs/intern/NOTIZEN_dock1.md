@@ -330,6 +330,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - New menu **Window**: show/hide panels, put them into their own window, save layout as, load, delete, reset - per area; the current layout is restored at the next start.
   - Windows on an unplugged or too small screen come back; text and size follow the scale of the screen a window is on.
   - Map editor: NetRadiant's layouts stay the default; taken-out views keep drawing (real-time light included), free look and shortcuts work in the window you clicked.
+  - Files can be dragged onto a panel's own window just like onto the main window.
 - The helper (F1) also finds the entries of the **Window** menu.
 - The columns of Events no longer move by one point after the first switch between the areas.
 
@@ -338,6 +339,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - Neues Menü **Fenster**: Panels zeigen/ausblenden, in ein eigenes Fenster nehmen, Anordnung speichern unter, laden, löschen, zurücksetzen – je Bereich; die laufende Anordnung ist beim nächsten Start wieder da.
   - Fenster auf einem abgezogenen oder zu kleinen Bildschirm kommen zurück; Schrift und Größe folgen dem Maßstab des Bildschirms.
   - Karten-Editor: NetRadiants Anordnungen bleiben die Vorgabe; herausgenommene Ansichten zeichnen weiter (auch Echtzeit-Licht), Umschauen und Tastenkürzel gelten im angeklickten Fenster.
+  - Dateien lassen sich auf das eigene Fenster eines Panels ziehen wie auf das Hauptfenster.
 - Der Helfer (F1) findet auch die Einträge des Menüs **Fenster**.
 - Die Spalten von Events verschieben sich nach dem ersten Wechsel zwischen den Bereichen nicht mehr um einen Punkt.
 
@@ -346,6 +348,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - 新菜单 **窗口**:显示/隐藏面板、放入独立窗口、布局另存为、加载、删除、重置——按区域;当前布局在下次启动时恢复。
   - 拔下的或过小的屏幕上的窗口会回来;文字和大小跟随窗口所在屏幕的缩放比例。
   - 地图编辑器:NetRadiant 的布局仍为默认;移出的视图继续绘制(包括实时光照),自由视角和快捷键在所单击的窗口中生效。
+  - 可以像拖到主窗口一样把文件拖到面板的独立窗口上。
 - 帮助助手 (F1) 也能找到 **窗口** 菜单中的条目。
 - 首次在各区域之间切换后,事件的列不再移动一个像素。
 
@@ -354,6 +357,7 @@ toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
   - 新しいメニュー **ウィンドウ**:パネルの表示・非表示、独立ウィンドウ化、レイアウトの保存・読み込み・削除・リセット(領域ごと)。現在のレイアウトは次回の起動時に復元されます。
   - 外した画面や小さすぎる画面にあったウィンドウは戻ってきます。文字と大きさはウィンドウのある画面の拡大率に従います。
   - マップエディター:NetRadiant のレイアウトが引き続き既定です。取り出したビューも描画を続け(リアルタイムライトを含む)、自由視点とショートカットはクリックしたウィンドウで働きます。
+  - メインウィンドウと同じように、パネルの独立ウィンドウにもファイルをドラッグできます。
 - ヘルパー (F1) が **ウィンドウ** メニューの項目も見つけるようになりました。
 - 領域を初めて切り替えた後に、イベントの列が 1 ポイントずれることがなくなりました。
 
