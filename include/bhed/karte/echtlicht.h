@@ -164,6 +164,7 @@ void echtPatchFlaechenLichter(const EchtNetz& netz, const EchtFlaechenShader& s,
 // _castShadows/_cs des Modells bzw. der Eltern). Je Flaeche ein Aufruf, je drei Ecken ein Dreieck.
 struct EchtModellFlaeche {
     const Entitaet* quelle = nullptr;
+    bool inWelt = true;   // reste2: ohne target in der Welt (sonst im Modell der Pinsel-Entitaet)
     std::string shader;
     int wirft = 1;
     std::vector<Vektor3f> ort;

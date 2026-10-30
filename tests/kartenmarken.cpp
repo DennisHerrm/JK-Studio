@@ -1,21 +1,24 @@
-// kartenmarken.cpp - Liste reste1 Punkt 1: Marken (Decals der Effekte) im Karten-Editor.
+// kartenmarken.cpp - Liste reste1 Punkt 1 / reste2 Punkt 4: Marken (Decals der Effekte)
+// im Karten-Editor.
 //
-// Die Welt fuer R_MarkFragments aus den Brushes und Patches der Karte
-// (markenWeltAusKarte) gegen die aus der mit bhed_q3map2 gebauten .bsp
-// (spurWeltAus, wie die Vorschau sie laedt): dasselbe Quadrat wie CG_ImpactMark
-// ergibt auf beiden dieselbe Flaeche und denselben Kasten - auf dem Boden, an der
-// Wand, auf den Stufen, auf der Rampe und auf dem Patch. Keine Marke auf der Tuer
-// (func_door ist ein eigenes Modell), keine auf clip/monsterclip (nodraw). Die
-// Bruchstuecke selbst duerfen anders zerlegt sein (q3map2 dreieckt die Seiten
-// anders als der Faecher des Editors).
-// Abweichung (bewusst): der Editor schneidet die ganzen Seiten, q3map2 nur den
-// sichtbaren Teil (visibleHull) - unter der Stufe 16 liegt darum ein Stueck Boden
-// im Inneren der Stufe mehr (nicht zu sehen).
+// Die Welt fuer R_MarkFragments aus der Karte (markenWeltAusKarte: der Port von
+// ProcessWorldModel, src/karte/sichtbareseiten.inc) gegen die aus der mit bhed_q3map2
+// gebauten .bsp (spurWeltAus, wie die Vorschau sie laedt): dasselbe Quadrat wie
+// CG_ImpactMark ergibt auf beiden dieselbe Flaeche und denselben Kasten. spielraum: auf
+// dem Boden, an der Wand, auf den Stufen (unter der Stufe 16 kein Stueck Boden: das Blatt
+// im Inneren der Stufe ist deckend und verweist auf keine Flaeche), auf der Rampe und auf
+// dem Patch; keine Marke auf der Tuer (func_door ist ein eigenes Modell), keine auf
+// clip/monsterclip (nodraw). markenraum (dicht, FillOutside): der Boden endet an der Wand
+// (sein Teil draussen ist nicht in der .bsp), unter einem Detail-Pinsel bekommt der Boden
+// ein Stueck (Detail macht kein Blatt deckend), das misc_model traegt Marken; dazu je Ebene
+// dieselbe Flaeche der Seiten wie in der .bsp. Die Bruchstuecke selbst duerfen anders zerlegt
+// sein (q3map2 dreieckt die Seiten anders als der Faecher des Editors).
 //
 //   kartenmarken <tests/karte/q3map2>
 #include "bhed/bspgeo.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/spielkollision.h"
 #include "bhed/saberspuren.h"
 
@@ -141,6 +144,50 @@ std::string text(const Ergebnis& e) {
     return b;
 }
 
+// Die Modelle der Testkarte: jedes misc_model ist marken.ase
+class TestModelle final : public ModellQuelle {
+public:
+    explicit TestModelle(const std::string& ase) {
+        auto m = std::make_shared<Modell>();
+        m_gut = aseLesen(ase, "models/test/marken.ase", *m);
+        m_modell = m;
+    }
+    [[nodiscard]] bool gut() const { return m_gut && !m_modell->flaechen.empty(); }
+    [[nodiscard]] ModellAnsicht ansicht(const Entitaet&) const override {
+        ModellAnsicht a;
+        a.modell = m_modell;
+        for (const ModellFlaeche& f : m_modell->flaechen) { a.shader.push_back(f.shader); }
+        return a;
+    }
+
+private:
+    std::shared_ptr<const Modell> m_modell;
+    bool m_gut = false;
+};
+
+// Flaeche der ebenen Flaechen je Ebene (Normale und Abstand auf 1/100 gerundet)
+std::map<std::string, double> flaecheJeEbene(const SpurWelt& w) {
+    std::map<std::string, double> m;
+    for (const SpurFlaeche& f : w.flaechen) {
+        if (f.art != SpurFlaeche::Art::Flaeche) { continue; }
+        double a = 0;
+        for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
+            const auto& p0 = f.punkte[static_cast<std::size_t>(f.indizes[i])];
+            const auto& p1 = f.punkte[static_cast<std::size_t>(f.indizes[i + 1])];
+            const auto& p2 = f.punkte[static_cast<std::size_t>(f.indizes[i + 2])];
+            const double u[3] = {static_cast<double>(p1[0]) - p0[0], static_cast<double>(p1[1]) - p0[1], static_cast<double>(p1[2]) - p0[2]};
+            const double v[3] = {static_cast<double>(p2[0]) - p0[0], static_cast<double>(p2[1]) - p0[1], static_cast<double>(p2[2]) - p0[2]};
+            const double c[3] = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+            a += 0.5 * std::sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+        }
+        char k[96];
+        std::snprintf(k, sizeof(k), "(%.2f %.2f %.2f) %.2f", static_cast<double>(f.ebene.normale[0]) + 0.0, static_cast<double>(f.ebene.normale[1]) + 0.0,
+                      static_cast<double>(f.ebene.normale[2]) + 0.0, static_cast<double>(f.ebene.abstand) + 0.0);
+        m[k] += a;
+    }
+    return m;
+}
+
 bool gleich(const Ergebnis& a, const Ergebnis& b) {
     if ((a.bruchstuecke == 0) != (b.bruchstuecke == 0)) { return false; }
     if (a.bruchstuecke == 0) { return true; }
@@ -163,13 +210,13 @@ int main(int argc, char** argv) {
     (void)karteLesen(lies(ordner + "/spielraum.map"), karte);
     karte.anmelden();
     const auto parms = shaderParms(lies(ordner + "/spielraum.shader"));
-    const SpurWelt ed = markenWeltAusKarte(
-        karte,
-        [&parms](const std::string& sh) {
-            const auto it = parms.find(sh.rfind("textures/", 0) == 0 ? sh : "textures/" + sh);
-            return it != parms.end() ? it->second : std::vector<std::string>{};
-        },
-        true);
+    const Q3ShaderInfoFn info = [&parms](const std::string& sh) {
+        const auto it = parms.find(sh.rfind("textures/", 0) == 0 ? sh : "textures/" + sh);
+        Q3ShaderInfo i;
+        if (it != parms.end()) { i.surfaceparms = it->second; }
+        return i;
+    };
+    const SpurWelt ed = markenWeltAusKarte(karte, info, true);
     BspGeometry geo;
     pruefe(readBspGeometry(lies(ordner + "/spielraum.bsp"), geo), "spielraum.bsp geladen");
     const SpurWelt bsp = spurWeltAus(geo);
@@ -206,18 +253,52 @@ int main(int argc, char** argv) {
         const Ergebnis a = marke(ed, f.o, f.d, f.r);
         const Ergebnis b = marke(bsp, f.o, f.d, f.r);
         std::printf("  %s\n    Editor: %s\n    .bsp:   %s\n", f.was, text(a).c_str(), text(b).c_str());
-        if (f.o[0] == 160.0F) {
-            // Die Stufe (16 hoch) steht auf dem Boden: der Boden unter ihr liegt im Bereich der Marke
-            // (20 hinter der Flaeche). q3map2 schreibt ihn nicht (visibleHull), der Editor hat die ganze
-            // Seite - das Stueck 24 x 24 bei z 0 liegt im Inneren der Stufe und ist nicht zu sehen.
-            Ergebnis ohne = a;
-            ohne.flaeche -= 24.0 * 24.0;
-            ohne.mins[2] = b.mins[2];
-            ohne.bruchstuecke = b.bruchstuecke;
-            pruefe(gleich(ohne, b) && a.mins[2] == 0.0F, std::string("Marke ") + f.was + ": Editor wie .bsp, dazu der Boden im Inneren der Stufe");
-            continue;
-        }
         pruefe(gleich(a, b) && (a.bruchstuecke > 0) == f.treffer, std::string("Marke ") + f.was + ": Editor wie .bsp");
+    }
+    // reste2 Punkt 4: der dichte Raum
+    {
+        Karte raum;
+        (void)karteLesen(lies(ordner + "/markenraum.map"), raum);
+        raum.anmelden();
+        const TestModelle modelle(lies(ordner + "/marken.ase"));
+        pruefe(modelle.gut(), "marken.ase gelesen");
+        raum.kontext.modelle = &modelle;
+        MarkenWeltBericht bericht;
+        const SpurWelt er = markenWeltAusKarte(raum, info, true, &bericht);
+        BspGeometry rgeo;
+        pruefe(readBspGeometry(lies(ordner + "/markenraum.bsp"), rgeo), "markenraum.bsp geladen");
+        const SpurWelt rb = spurWeltAus(rgeo);
+        std::printf("markenraum: %d Pinsel, %d Seiten, %d verdeckt, %d Modellflaechen, Leck %d; Editor %zu Flaechen, .bsp %zu\n", bericht.pinsel,
+                    bericht.seiten, bericht.verdeckt, bericht.modelle, bericht.leck ? 1 : 0, er.flaechen.size(), rb.flaechen.size());
+        pruefe(!bericht.leck && !bericht.leer && bericht.modelle == 1, "markenraum: dicht (FillOutside), das misc_model in der Welt");
+        const std::vector<Fall> raumFaelle = {
+            {"Boden an der Ostwand (der Teil unter der Wand und draussen ist nicht in der .bsp)", {500, 0, 0}, {0, 0, 1}, 24, true},
+            {"Boden mitten im Raum", {-100, -300, 0}, {0, 0, 1}, 32, true},
+            {"Stufe 16 oben (kein Boden darunter)", {160, 0, 16}, {0, 0, 1}, 12, true},
+            {"Detail-Pinsel 8 oben (der Boden darunter bekommt ein Stueck)", {-224, 0, 8}, {0, 0, 1}, 12, true},
+            {"misc_model oben", {0, 256, 32}, {0, 0, 1}, 8, true},
+            {"misc_model und Boden daneben", {0, 284, 0}, {0, 0, 1}, 20, true},
+            {"Decke von unten", {0, 0, 256}, {0, 0, -1}, 32, true},
+        };
+        for (const Fall& f : raumFaelle) {
+            const Ergebnis a = marke(er, f.o, f.d, f.r);
+            const Ergebnis b = marke(rb, f.o, f.d, f.r);
+            std::printf("  %s\n    Editor: %s\n    .bsp:   %s\n", f.was, text(a).c_str(), text(b).c_str());
+            pruefe(gleich(a, b) && (a.bruchstuecke > 0) == f.treffer, std::string("Marke ") + f.was + ": Editor wie .bsp");
+        }
+        // je Ebene dieselbe Flaeche der ebenen Flaechen (visibleHull, CullSides, nur Verwiesenes)
+        const auto fe = flaecheJeEbene(er);
+        const auto fb = flaecheJeEbene(rb);
+        bool alle = fe.size() == fb.size();
+        for (const auto& [k, v] : fb) {
+            const auto it = fe.find(k);
+            const double e = it != fe.end() ? it->second : 0.0;
+            const bool g = std::fabs(e - v) <= 0.005 * std::max(1.0, v);
+            if (!g) { std::printf("    Ebene %s: Editor %.2f, .bsp %.2f\n", k.c_str(), e, v); }
+            alle = alle && g;
+        }
+        std::printf("  %zu Ebenen mit Flaechen (Editor %zu)\n", fb.size(), fe.size());
+        pruefe(alle, "markenraum: je Ebene dieselbe Flaeche wie in der .bsp");
     }
     // Leere Karte: keine Welt, keine Marke (und kein Absturz)
     {

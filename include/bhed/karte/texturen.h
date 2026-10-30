@@ -121,6 +121,11 @@ struct ShaderEintrag {
     // Datei - fuer die Inhalte wie q3map2 (ApplySurfaceParm, Im Editor spielen)
     std::vector<std::string> surfaceparms;
     int lightmapAbtastung = 0;   // Stufe 8b Punkt 5: q3map_lightmapSampleSize (0 = keine Angabe)
+    // reste2 Punkt 4: was q3map2 fuer die Zeichenflaechen der Welt fragt (ParseShaderFile)
+    bool autosprite = false;      // deformVertexes autosprite[2]
+    bool polygonOffset = false;   // polygonOffset
+    bool noClip = false;          // q3map_noClip, q3map_terrain
+    bool indexed = false;         // q3map_indexed, q3map_terrain
     [[nodiscard]] bool istStandard() const { return datei.empty(); }   // IsDefault
 };
 

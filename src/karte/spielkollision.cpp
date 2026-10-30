@@ -28,16 +28,26 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "bhed/karte/spielkollision.h"
+#include "bhed/karte/echtlicht.h"
+#include "bhed/karte/kartenformat.h"
 
 #include "bhed/karte/karte.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
 
+#include <algorithm>
 #include <array>
+#include <cfloat>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <forward_list>
+#include <limits>
+#include <list>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace bhed::karte {
@@ -261,8 +271,12 @@ struct Seite {   // side_t
     bool bevel = false;
 };
 
-// AddBrushBevels (map.cpp:558-743)
-int bevelsDazu(std::vector<Seite>& sides, const float mins[3], const float maxs[3]) {
+// AddBrushBevels (map.cpp:558-743). einrasten( s, plane, punkt ) legt die Ebene einer neuen Seite
+// fest wie FindFloatPlane( plane ) bzw. FindFloatPlane( plane, Span( punkt, 1 ) ) (punkt nullptr: ohne
+// Punkt): die Kollision rastet die Ebene nur ein, der sichtbare Teil der Seiten (reste2,
+// sichtbareseiten.inc) nimmt sie in seine Ebenentabelle.
+template <class S, class F>
+int bevelsDazu(std::vector<S>& sides, const float mins[3], const float maxs[3], F&& einrasten) {
     int dazu = 0;
     std::size_t order = 0;
     for (std::size_t axis = 0; axis < 3; ++axis) {
@@ -272,15 +286,14 @@ int bevelsDazu(std::vector<Seite>& sides, const float mins[3], const float maxs[
                 if ((dir > 0 && sides[i].ebene.n[axis] == 1) || (dir < 0 && sides[i].ebene.n[axis] == -1)) { break; }
             }
             if (i == sides.size()) {
-                Seite s;
+                S s;
                 Ebene plane;
                 plane.n[axis] = static_cast<float>(dir);
                 plane.d = dir == 1 ? maxs[axis] : -mins[axis];   // bevelSnap 0
-                ebeneEinrasten(plane, nullptr, 0);   // FindFloatPlane( plane )
-                s.ebene = plane;
+                einrasten(s, plane, static_cast<const V3f*>(nullptr));   // FindFloatPlane( plane )
                 s.shader = sides[0].shader;
                 s.flags.inhalt = sides[0].flags.inhalt;
-                for (const Seite& side : sides) {   // "handle bevel surfaceflags"
+                for (const S& side : sides) {   // "handle bevel surfaceflags"
                     for (const V3f& point : side.wicklung) {
                         if (std::fabs(plane.d - point[axis]) < .1F) {
                             s.flags.flaeche |= (side.flags.flaeche & S_SURF_BEVELSMASK);
@@ -340,10 +353,8 @@ int bevelsDazu(std::vector<Seite>& sides, const float mins[3], const float maxs[
                         if (minBack > -0.1F) { break; }   // "the winding is on the bevel plane"
                     }
                     if (k != sides.size()) { continue; }   // "wasn't part of the outer hull"
-                    Seite s2;
-                    const Vektor3d punkt(wj[0], wj[1], wj[2]);
-                    ebeneEinrasten(plane, &punkt, 1);   // FindFloatPlane( plane, Span( &w[j], 1 ) )
-                    s2.ebene = plane;
+                    S s2;
+                    einrasten(s2, plane, &wj);   // FindFloatPlane( plane, Span( &w[j], 1 ) )
                     s2.shader = sides[0].shader;
                     s2.flags.inhalt = sides[0].flags.inhalt;
                     s2.flags.flaeche = sides[i].flags.flaeche & S_SURF_BEVELSMASK;
@@ -361,6 +372,8 @@ std::string klein(std::string s) {
     for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     return s;
 }
+
+#include "sichtbareseiten.inc"
 
 }  // namespace
 
@@ -500,7 +513,15 @@ SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& pa
                     ++bericht.ausgelassen;
                     continue;
                 }
-                bericht.bevels += bevelsDazu(sides, mins, maxs);
+                bericht.bevels += bevelsDazu(sides, mins, maxs, [](Seite& s, Ebene& plane, const V3f* punkt) {
+                    if (punkt != nullptr) {
+                        const Vektor3d p((*punkt)[0], (*punkt)[1], (*punkt)[2]);
+                        ebeneEinrasten(plane, &p, 1);
+                    } else {
+                        ebeneEinrasten(plane, nullptr, 0);
+                    }
+                    s.ebene = plane;
+                });
                 KollisionsKarte::Pinsel b;
                 b.ersteSeite = static_cast<int>(aus.seiten.size());
                 b.seiten = static_cast<int>(sides.size());
@@ -577,65 +598,8 @@ SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& pa
     return bericht;
 }
 
-SpurWelt markenWeltAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja) {
-    std::map<std::string, Q3ShaderFlags> merk;
-    const auto flags = [&](const std::string& name) -> const Q3ShaderFlags& {
-        const std::string schluessel = klein(name);
-        auto it = merk.find(schluessel);
-        if (it == merk.end()) { it = merk.emplace(schluessel, q3map2ShaderFlags(parms ? parms(name) : std::vector<std::string>{}, ja)).first; }
-        return it->second;
-    };
-    // R_BoxSurfaces_r (tr_marks.cpp:150 OJ): SURF_NOIMPACT, SURF_NOMARKS, CONTENTS_FOG
-    const auto ausgenommen = [](const Q3ShaderFlags& f) {
-        return (f.flaeche & (S_SURF_NOIMPACT | S_SURF_NOMARKS)) != 0U || (f.inhalt & S_CONT_FOG) != 0U;
-    };
-    std::vector<SpurFlaeche> flaechen;
-    for (const auto& ent : k.entitaeten()) {
-        const std::string klasse = klein(ent->klassenname());
-        if (klasse != "worldspawn" && klasse != "func_group") { continue; }
-        for (const auto& prim : ent->kinder()) {
-            if (prim->art() == Primitiv::Art::Pinsel) {
-                const auto& p = static_cast<const Pinsel&>(*prim);
-                p.bRep(k.kontext);
-                std::vector<Q3ShaderFlags> seitenFlags;
-                for (std::size_t i = 0; i < p.anzahl(); ++i) {
-                    if (p[i].traegtBei()) { seitenFlags.push_back(flags(p[i].shader())); }
-                }
-                if (seitenFlags.size() < 4 || pinselInhalt(seitenFlags).ursprung) { continue; }
-                for (std::size_t i = 0; i < p.anzahl(); ++i) {
-                    const Flaeche& f = p[i];
-                    if (!f.traegtBei()) { continue; }
-                    const Q3ShaderFlags& fl = flags(f.shader());
-                    if ((fl.compile & C_NODRAW) != 0U && (fl.compile & C_FOG) == 0U) { continue; }
-                    // die Ebene wie in die .bsp geschrieben (FindFloatPlane mit SnapPlaneImproved)
-                    Ebene e;
-                    const Ebene3d& fe = f.ebene();
-                    e.n[0] = static_cast<float>(fe.a);
-                    e.n[1] = static_cast<float>(fe.b);
-                    e.n[2] = static_cast<float>(fe.c);
-                    e.d = static_cast<float>(fe.d);
-                    ebeneEinrasten(e, f.ebenenPunkte().data(), 3);
-                    const Wicklung& w = f.wicklung();
-                    std::vector<std::array<float, 3>> ecken;
-                    ecken.reserve(w.numpoints);
-                    for (std::size_t j = 0; j < w.numpoints; ++j) {
-                        const Vektor3d& v = w.points[j].vertex;
-                        ecken.push_back({static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2])});
-                    }
-                    flaechen.push_back(spurPolygon(ecken, e.n, ausgenommen(fl)));
-                }
-            } else if (prim->art() == Primitiv::Art::Patch) {
-                const auto& pa = static_cast<const Patch&>(*prim);
-                const Q3ShaderFlags& fl = flags(pa.shader());
-                if ((fl.flaeche & S_SURF_NODRAW) != 0U) { continue; }
-                std::vector<std::array<float, 3>> pts;
-                pts.reserve(pa.punkte().size());
-                for (const PatchPunkt& pp : pa.punkte()) { pts.push_back({pp.vertex[0], pp.vertex[1], pp.vertex[2]}); }
-                flaechen.push_back(spurPatch(static_cast<int>(pa.breite()), static_cast<int>(pa.hoehe()), pts, ausgenommen(fl)));
-            }
-        }
-    }
-    return spurWeltAusFlaechen(std::move(flaechen));
+SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht) {
+    return sicht::weltBauen(k, info, ja, bericht);
 }
 
 }  // namespace bhed::karte

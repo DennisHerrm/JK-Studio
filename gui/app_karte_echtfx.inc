@@ -17,8 +17,9 @@
 // Lebensdauer, Groesse) ganz neben dem Sichtkegel liegt - das Bild bleibt gleich. Grenze: der Editor
 // hat keine .bsp - Teilchen mit usePhysics prallen nicht ab (efx::sim spurt ohne Geometrie).
 // Decals: CG_ImpactMark schneidet das Quadrat mit R_MarkFragments auf die Flaechen der Welt - hier
-// die Brushes und Patches der Karte (markenWeltAusKarte, wie q3map2 sie in die Welt schreibt), gebaut
-// beim ersten Decal nach einer Aenderung der Geometrie.
+// die Brushes, Patches und misc_model der Karte (markenWeltAusKarte: wie q3map2 sie in die Welt der
+// .bsp schreibt, von jeder Brushseite nur der sichtbare Teil), gebaut beim ersten Decal nach einer
+// Aenderung der Geometrie.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -35,6 +36,7 @@ struct EchtFx {
     std::map<std::pair<const efx::Effect*, std::uint64_t>, std::unique_ptr<efx::Effect>> ohne;
     std::map<const efx::Effect*, float> huellen;   // fxHuelle je Effekt
     std::unique_ptr<SpurWelt> marken;              // die Flaechen fuer die Decals (nullptr: noch nicht gebaut)
+    karte::MarkenWeltBericht markenBericht;        // reste2 Punkt 4: was dabei herauskam (Selbsttest)
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 };
 EchtFx g_fx;
@@ -231,11 +233,18 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
     });
     if (decals && !g_fx.marken) {
         const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
-        const auto parms = [&sp](const std::string& shader) {
-            const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
-            return se != nullptr ? se->surfaceparms : std::vector<std::string>{};
+        const auto info = [&sp](const std::string& shader) {
+            karte::Q3ShaderInfo i;
+            if (const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr) {
+                i.surfaceparms = se->surfaceparms;
+                i.autosprite = se->autosprite;
+                i.polygonOffset = se->polygonOffset;
+                i.noClip = se->noClip;
+                i.indexed = se->indexed;
+            }
+            return i;
         };
-        g_fx.marken = std::make_unique<SpurWelt>(karte::markenWeltAusKarte(ed.karte, parms, !(sp && sp->spiel == kRegelwerkJediOutcast)));
+        g_fx.marken = std::make_unique<SpurWelt>(karte::markenWeltAusKarte(ed.karte, info, !(sp && sp->spiel == kRegelwerkJediOutcast), &g_fx.markenBericht));
     }
     const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge, g_fx.marken.get());
     ed.echtLicht.effektEcken = netz.verts.size();
