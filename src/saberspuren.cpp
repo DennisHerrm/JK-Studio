@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <string>
 
 namespace bhed {
 
@@ -795,13 +797,43 @@ int spurBruchstuecke(const SpurWelt& welt, int numPoints, const float (*points)[
 }
 
 // --- cg_marks.cpp ---------------------------------------------------------------
+namespace {
+std::mutex& spurShaderSperre() {
+    static std::mutex m;
+    return m;
+}
+std::vector<std::string>& spurShaderListe() {
+    static std::vector<std::string> l;
+    return l;
+}
+}  // namespace
+
+int spurShaderNummer(const std::string& name) {
+    const std::lock_guard<std::mutex> sperre(spurShaderSperre());
+    std::vector<std::string>& l = spurShaderListe();
+    for (std::size_t i = 0; i < l.size(); ++i) {
+        if (l[i] == name) { return kSpurShaderEffekt + static_cast<int>(i); }
+    }
+    l.push_back(name);
+    return kSpurShaderEffekt + static_cast<int>(l.size()) - 1;
+}
+
+std::string spurShaderName(int nummer) {
+    if (nummer == 0) { return "gfx/damage/rivetmark"; }
+    if (nummer == 1) { return "gfx/effects/saberDamageGlow"; }
+    const std::lock_guard<std::mutex> sperre(spurShaderSperre());
+    const std::vector<std::string>& l = spurShaderListe();
+    const int i = nummer - kSpurShaderEffekt;
+    return (i >= 0 && static_cast<std::size_t>(i) < l.size()) ? l[static_cast<std::size_t>(i)] : std::string();
+}
+
 void spurFarbe(const SpurPoly& p, int cgZeit, std::uint8_t aus[4]) noexcept {
     // CG_AddMarks: "t = mp->time + MARK_TOTAL_TIME - cg.time"
     const int t = p.zeit + kSpurGesamtZeit - cgZeit;
     aus[0] = p.farbe[0];
     aus[1] = p.farbe[1];
     aus[2] = p.farbe[2];
-    aus[3] = 0;   // Startwert der Ecken (siehe Kopf)
+    aus[3] = p.eckenAlpha;   // Startwert der Ecken (siehe Kopf)
     if (t < kSpurBlendZeit) {
         const int fade = 255 * t / kSpurBlendZeit;
         if (p.alphaFade) {

@@ -435,43 +435,56 @@ void decalMarken() {
     in.normal[0] = -1.0F;
     in.normal[1] = 0.0F;
     in.normal[2] = 0.0F;
-    const float rechts[3] = {0.0F, 1.0F, 0.0F};
-    const float hoch[3] = {0.0F, 0.0F, 1.0F};
-    const auto lage = [](const BspMesh& m, float& xMin, float& xMax, float& zMin, float& zMax) {
-        xMin = zMin = 1.0e9F;
-        xMax = zMax = -1.0e9F;
-        for (const BspVertex& v : m.verts) {
-            xMin = std::min(xMin, v.xyz[0]);
-            xMax = std::max(xMax, v.xyz[0]);
-            zMin = std::min(zMin, v.xyz[2]);
-            zMax = std::max(zMax, v.xyz[2]);
-        }
-    };
+    // Pruefung 3: das Decal liegt als Marke im gemeinsamen Markenspeicher
+    // (effektMarkenIn, markenBild) - buildEffectMesh baut es nicht mehr.
+    const std::vector<EffektMarke> marken = effektMarkenIn({in}, -1.0, 300.0, &g);
     {
-        const BspMesh m = buildEffectMesh({in}, 300.0, rechts, hoch, nullptr, &g);
-        float x0 = 0.0F;
-        float x1 = 0.0F;
-        float z0 = 0.0F;
-        float z1 = 0.0F;
-        lage(m, x0, x1, z0, z1);
-        pruefe(!m.verts.empty() && std::fabs(x0 - 20.0F) < 0.01F && std::fabs(x1 - 20.0F) < 0.01F,
+        float x0 = 1.0e9F;
+        float x1 = -1.0e9F;
+        float z0 = 1.0e9F;
+        float z1 = -1.0e9F;
+        bool da = false;
+        std::uint8_t alpha = 0;
+        for (const EffektMarke& m : marken) {
+            for (const SpurPoly& p : m.polys) {
+                for (int e = 0; e < p.zahl; ++e) {
+                    x0 = std::min(x0, p.xyz[e][0]);
+                    x1 = std::max(x1, p.xyz[e][0]);
+                    z0 = std::min(z0, p.xyz[e][2]);
+                    z1 = std::max(z1, p.xyz[e][2]);
+                    da = true;
+                }
+                alpha = p.eckenAlpha;
+            }
+        }
+        pruefe(da && std::fabs(x0 - 20.0F) < 0.01F && std::fabs(x1 - 20.0F) < 0.01F,
                "Decal: die Marke liegt auf der Wand (x = 20) - x " + std::to_string(x0) + ".." + std::to_string(x1));
-        pruefe(!m.verts.empty() && std::fabs(z0) < 0.01F && std::fabs(z1 - 15.0F) < 0.01F,
+        pruefe(da && std::fabs(z0) < 0.01F && std::fabs(z1 - 15.0F) < 0.01F,
                "Decal: unter der Wand (z < 0) abgeschnitten, Groesse sizeStart 10 - z " + std::to_string(z0) + ".." +
                    std::to_string(z1));
-        pruefe(!m.verts.empty() && m.verts.front().colour[3] == static_cast<std::uint8_t>(0.8F * 255.0F),
-               "Decal: Alpha aus alphaStart (CG_ImpactMark)");
+        pruefe(da && alpha == static_cast<std::uint8_t>(0.8F * 255.0F), "Decal: Alpha aus alphaStart (CG_ImpactMark)");
     }
     {
-        const BspMesh m = buildEffectMesh({in}, 5000.0, rechts, hoch, nullptr, &g);
-        const BspMesh blende = buildEffectMesh({in}, 9500.0, rechts, hoch, nullptr, &g);
-        const BspMesh fort = buildEffectMesh({in}, 10100.0, rechts, hoch, nullptr, &g);
-        pruefe(!m.verts.empty() && !blende.verts.empty() && blende.verts.front().colour[3] == 127 && fort.verts.empty(),
-               "Decal: bleibt MARK_TOTAL_TIME, blendet in der letzten Sekunde ab (CG_AddMarks)");
+        // Die Clientbilder (8 ms) bis 5000, 9500 und 10100 ms: CG_AddMarks laesst
+        // die Marke MARK_TOTAL_TIME stehen und blendet in der letzten Sekunde ab.
+        SpurSpeicher speicher;
+        std::size_t naechstes = 0;
+        std::uint8_t farbe[3][4]{};
+        int zahl[3] = {0, 0, 0};
+        const int bis[3] = {5000, 9500, 10100};
+        int t = 0;
+        for (int stufe = 0; stufe < 3; ++stufe) {
+            for (; t <= bis[stufe]; t += 8) { markenBild(speicher, t, marken, naechstes, nullptr); }
+            zahl[stufe] = speicher.zahl();
+            if (zahl[stufe] > 0) { spurFarbe(*speicher.lebende().front(), t - 8, farbe[stufe]); }
+        }
+        pruefe(zahl[0] > 0 && zahl[1] > 0 && farbe[1][3] < farbe[0][3] && farbe[1][3] > 100 && farbe[1][3] < 140 && zahl[2] == 0,
+               "Decal: bleibt MARK_TOTAL_TIME, blendet in der letzten Sekunde ab (CG_AddMarks) - Alpha " + std::to_string(farbe[0][3]) +
+                   " / " + std::to_string(farbe[1][3]));
     }
     {
-        const BspMesh m = buildEffectMesh({in}, 300.0, rechts, hoch);
-        pruefe(m.verts.empty(), "Decal: ohne Flaechen der Karte keine Marke (R_MarkFragments findet nichts)");
+        const std::vector<EffektMarke> ohne = effektMarkenIn({in}, -1.0, 300.0, nullptr);
+        pruefe(ohne.empty(), "Decal: ohne Flaechen der Karte keine Marke (R_MarkFragments findet nichts)");
     }
 }
 

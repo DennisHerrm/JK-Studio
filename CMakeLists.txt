@@ -128,6 +128,7 @@ add_library(bhed_core STATIC
   # bhed/scene.h, schwerkraftEinrechnen.
   src/schwerkraft.cpp
   src/todesanim.cpp
+  src/abwurf.cpp
   # rc601 bewegung: Laufziele ohne Weg im Wegnetz (STEER::SafeToGoTo /
   # NAV::GoTo). Siehe bhed/scene.h, navZieleOhneWeg.
   src/navweg.cpp
@@ -765,6 +766,10 @@ if(BEHAVED_TESTS)
   add_executable(pruefung2 tests/pruefung2.cpp)
   target_link_libraries(pruefung2 PRIVATE bhed_core)
   add_test(NAME pruefung2 COMMAND pruefung2)
+  # Pruefung 3: der Rest gegen das Spiel (Rumpfwinkel, Tod, Marken, Hocke, Hang ...)
+  add_executable(pruefung3 tests/pruefung3.cpp)
+  target_link_libraries(pruefung3 PRIVATE bhed_core)
+  add_test(NAME pruefung3 COMMAND pruefung3)
   # zeitleiste1: das Modell der Zeitleiste an einer eigenen Mini-Szene.
   add_executable(spurentest tests/spurentest.cpp)
   target_link_libraries(spurentest PRIVATE bhed_core)

@@ -94,6 +94,8 @@ struct AblaufWelt {
     std::shared_ptr<const NavWelt> nav;
     std::function<float(const std::string& figur)> halbBreite;
     std::function<float(const std::string& figur)> hoeheOben;
+    // Pruefung 3: crouchheight je Figur (leer: CROUCH_MAXS_2 16).
+    std::function<float(const std::string& figur)> hockHoehe;
     // rc601 (bewegung, R5/R6): die Drehrate beim Spawnen (Grad/s, < 0
     // unbekannt), ob sie fest ist (Rocket Trooper, WP_EMPLACED_GUN -
     // SET_YAWSPEED wirkt dann nicht), und die Stufe je Klasse.

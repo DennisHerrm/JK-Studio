@@ -487,6 +487,9 @@ struct LaufZustand {
     }
     // rc601 (bewegung, teil 3): PmoveSingle mit Boden und Luft.
     bool amBoden = false;         // ps.groundEntityNum != ENTITYNUM_NONE
+    // Pruefung 3: ps.pm_flags & PMF_DUCKED (PM_CheckDuck) - bleibt von
+    // Denkbild zu Denkbild, bis die Figur aufstehen kann.
+    bool geduckt = false;
     int pmZeit = 0;               // ps.pm_time (PMF_TIME_LAND nach hartem Aufsetzen)
     // rc605 (Ende): ps.groundEntityNum als Index in MapData::entities (sonst
     // kNavWeltEntity / kNavKeineEntity) und bis wann ein Mover darunter die
@@ -610,6 +613,14 @@ struct LaufWerte {
     // PM_Footsteps). Das Tempo ist das ps.speed, das die Figur gerade hat
     // (LaufZustand::tempo).
     bool ohneKoerper = false;
+    // Pruefung 3: SCF_CROUCHED (SET_CROUCHED) - NPC_ApplyScriptFlags setzt in
+    // jedem Denkbild ucmd.upmove = -127 (NPC.cpp:977-987 OJ, :786 MD, JK2
+    // gleich), PM_CheckDuck duckt die Figur auf crouchheight (hockHoehe,
+    // NPC_stats.cpp:2030 OJ CROUCH_MAXS_2 16, .npc "crouchheight" n - 24),
+    // PM_WalkMove begrenzt wishspeed auf ps.speed * pm_duckScale (0,5,
+    // bg_pmove.cpp:3229-3236 OJ), PM_Footsteps waehlt BOTH_CROUCH1WALK(BACK).
+    bool geduckt = false;
+    float hockHoehe = 16.0F;
     // desiredYaw von aussen nach NPC_MoveToGoal (NPC_BSCinematic mit
     // Watchtarget, NPC_behavior.cpp:304-315). false: STEER gilt.
     std::function<bool(double t, const NavVec& ort, float& gier)> fremdGier;
@@ -783,6 +794,9 @@ struct LaufTakt {
     // rc605 (Probe): 1 STEER::GoTo, 2 NAV::GoTo, 3 STEER::Stop; +10 STEER::Blocked
     // in diesem Denkbild (0: kein NPC_MoveToGoal).
     int weg = 0;
+    // Pruefung 3: PMF_DUCKED nach dem Pmove dieses Denkbilds (PM_Footsteps:
+    // BOTH_CROUCH1WALK/-BACK statt Gehen oder Laufen).
+    bool geduckt = false;
 };
 
 struct LaufPlan {

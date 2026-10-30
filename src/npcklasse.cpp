@@ -680,4 +680,82 @@ bool kinoSkelettAnhang(const std::string& skelett, int spiel) {
     return humanoid;
 }
 
+namespace {
+
+std::string kleinText(std::string x) {
+    for (char& c : x) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return x;
+}
+// Q_stricmpn(a, b, n) == 0 fuer den Anfang von b
+bool beginntOhneGross(const std::string& text, const std::string& vorn) {
+    return text.size() >= vorn.size() && kleinText(text.substr(0, vorn.size())) == kleinText(vorn);
+}
+
+}  // namespace
+
+bool standardHumanoid(const std::string& modell, const std::string& gla, int spiel) {
+    if (spiel == kRegelwerkJediOutcast) {
+        // codeJK2 g_client.cpp:806-845: Q_stricmp ganze Namen, Q_strncmp Vorsilben
+        for (const char* n : {"kyle", "rockettrooper", "bespin_cop", "tavion", "desann", "trandoshan", "jan", "luke", "lando",
+                              "reelo", "bartender", "monmothma", "chiss", "galak"}) {
+            if (kleinText(modell) == n) { return true; }
+        }
+        for (const char* n : {"st", "imp", "gran", "rodian", "weequay", "reborn", "shadowtrooper", "swamptrooper", "bespincop",
+                              "rebel", "ugnaught", "morgan", "protocol", "jedi", "prisoner"}) {
+            if (modell.rfind(n, 0) == 0) { return true; }
+        }
+        return false;
+    }
+    if (gla.empty()) { return false; }
+    if (spiel == kRegelwerkMovieDuels) {
+        // g_client.cpp:1263-1338 MD: Q_stricmpn(gla_name, prefix, strlen(prefix))
+        for (const char* v : {"models/players/_humanoid", "models/players/JK2anims", "models/players/protocol/protocol",
+                              "models/players/assassin_droid/model", "models/players/saber_droid/model",
+                              "models/players/hazardtrooper/hazardtrooper", "models/players/rockettrooper/rockettrooper",
+                              "models/players/wampa/wampa", "models/players/galak_mech/galak_mech",
+                              "models/players/droideka/droideka", "models/players/kotor_monster/kotor_monster"}) {
+            if (beginntOhneGross(gla, v)) { return true; }
+        }
+        return false;
+    }
+    // g_client.cpp:1076-1115 OJ
+    if (beginntOhneGross(gla, "models/players/_humanoid")) { return true; }
+    for (const char* v : {"models/players/protocol/protocol", "models/players/assassin_droid/model",
+                          "models/players/saber_droid/model", "models/players/hazardtrooper/hazardtrooper",
+                          "models/players/rockettrooper/rockettrooper", "models/players/wampa/wampa"}) {
+        if (kleinText(gla) == v) { return true; }
+    }
+    return false;
+}
+
+std::string rumpfBolzenKnochen(const std::string& modell, const std::string& gla, const std::string& klasse, int spiel) {
+    const std::string m = kleinText(modell);
+    if (standardHumanoid(modell, gla, spiel)) {
+        // "*sigh*, no thoracic bone": Q_stricmp("protocol", modelName)
+        return m == "protocol" ? "upper_lumbar" : "thoracic";
+    }
+    const bool jk2 = spiel == kRegelwerkJediOutcast;
+    const bool md = spiel == kRegelwerkMovieDuels;
+    // CLASS_VEHICLE und CLASS_HOWLER fragt Jedi Outcast nicht nach der Klasse
+    if (!jk2 && (klasse == "CLASS_VEHICLE" || klasse == "CLASS_HOWLER")) { return {}; }
+    // r2d2/r5d2: Q_stricmpn (OJ, MD) bzw. Q_strncmp (JK2)
+    const bool astro = jk2 ? (modell.rfind("r2d2", 0) == 0 || modell.rfind("r5d2", 0) == 0)
+                           : (m.rfind("r2d2", 0) == 0 || m.rfind("r5d2", 0) == 0);
+    if (m == "gonk" || m == "seeker" || m == "remote" || astro || m == "interrogator" ||
+        (jk2 ? modell.rfind("probe", 0) == 0 : m.rfind("probe", 0) == 0) || m == "sentry" || m == "mark1" || m == "mark2" ||
+        m == "atst" || m == "minemonster") {
+        return {};
+    }
+    if (jk2) {
+        // codeJK2: protocol (nie erreicht, s. o.), howler, galak_mech, sonst thoracic
+        if (modell.rfind("protocol", 0) == 0 || m == "howler" || m == "galak_mech") { return {}; }
+        return "thoracic";
+    }
+    if (md && m == "galak_mech") { return {}; }
+    if (m == "rancor" || m == "mutant_rancor" || m == "sand_creature") { return {}; }
+    if (m == "wampa" || (md && m == "kotor_monster")) { return "upper_spine"; }
+    // "if ( Q_stricmp( "atst", modelName ) )" - atst ist oben schon aussortiert
+    return "thoracic";
+}
+
 }  // namespace bhed

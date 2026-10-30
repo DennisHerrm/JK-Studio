@@ -79,6 +79,7 @@
 #include "bhed/bspgeo.h"
 #include "bhed/efx/effect.h"
 #include "bhed/mapview.h"
+#include "bhed/saberspuren.h"
 
 namespace bhed {
 
@@ -460,6 +461,36 @@ void vergissEffektBahnen();
                                       const EffectShaderSlots* slots = nullptr,
                                       const BspGeometry* geo = nullptr,
                                       const EffectCull* cull = nullptr);
+
+// --- Pruefung 3: Decals als Marken im gemeinsamen Speicher ------------------
+//
+// Ein Decal legt der Zeitplaner beim Anlegen mit CG_ImpactMark als Marke ab
+// (FxScheduler.cpp:1855 MD) - in DENSELBEN Speicher wie die Brandspuren der
+// Schwerter (cg_markPolys, 256 Plaetze, CG_AllocMark wirft die aeltesten
+// ab), und CG_AddMarks zeichnet und blendet beide gleich (cg_marks.cpp OJ).
+// buildEffectMesh baut deshalb keine Decals; die Oberflaeche legt sie mit
+// den Brandspuren in einen SpurSpeicher (bhed/saberspuren.h).
+struct EffektMarke {
+    double ms = 0.0;      // Geburt des Teilchens auf der Zeitleiste
+    // Ohne Verzoegerung im Zeitplan des Effekts legt CreateEffect das Decal
+    // noch im Ereignis an (CG_CheckEvents vor CG_AddPacketEntities), sonst
+    // theFxScheduler.AddScheduledEffects nach CG_AddMarks (cg_view.cpp:
+    // 2142-2205 OJ) - davon haengt die Reihenfolge im Speicher ab.
+    bool sofort = false;
+    std::vector<SpurPoly> polys;   // je Bruchstueck eines, wie CG_AllocMark sie anlegt
+};
+// Die Decals, die nach vonMs bis einschliesslich bisMs entstehen, nach der
+// Geburt geordnet. Ohne Karte (geo) keine - R_MarkFragments braucht Flaechen.
+[[nodiscard]] std::vector<EffektMarke> effektMarkenIn(const std::vector<EffectInstance>& live, double vonMs,
+                                                      double bisMs, const BspGeometry* geo);
+// Ein Clientbild des gemeinsamen Speichers (cg.time = cgZeit) wie
+// CG_DrawActiveFrame (cg_view.cpp OJ): erst die Decals bis cgZeit, die ohne
+// Verzoegerung starten (CG_ProcessSnapshots -> CG_CheckEvents), dann die
+// Brandspuren dieses Bildes (`klingen`, CG_AddPacketEntities), CG_AddMarks,
+// zuletzt die verzoegerten Decals (theFxScheduler.AddScheduledEffects).
+// mark->time ist cgZeit. `naechstes` zaehlt in `decals` (nach ms) weiter.
+void markenBild(SpurSpeicher& speicher, int cgZeit, const std::vector<EffektMarke>& decals, std::size_t& naechstes,
+                const std::vector<SpurPoly>* klingen);
 
 // --- rc601 ton: wann ein Effekt KLINGT ---------------------------------------
 //

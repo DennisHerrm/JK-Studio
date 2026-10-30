@@ -1306,13 +1306,19 @@ ActorState Actor::at(double ms) const {
                     torsoCode = tk[j].torsoAnim;
                     torsoAb = tk[j].torsoAnimAb;
                     lauf = tk[i].gehAnim ? "BOTH_WALK1" : "BOTH_RUN1";
+                    // Pruefung 3: PMF_DUCKED - PM_Footsteps waehlt BOTH_CROUCH1WALK
+                    // (bg_pmove.cpp:8381-8404 OJ), moveSpeedOfAnim 75 (bg_panimate.cpp:4778-4781)
+                    float bezug = tk[i].gehAnim ? kAnimSpeedWalk : kAnimSpeedRun;
+                    if (tk[i].geduckt) {
+                        lauf = "BOTH_CROUCH1WALK";
+                        bezug = kAnimSpeedHocke;
+                    }
                     const NavVec& vor = i == 0 ? weg->lauf->anfang.ort : tk[i - 1].ort;
                     const float dx = tk[i].ort[0] - vor[0];
                     const float dy = tk[i].ort[1] - vor[1];
                     const float dz = tk[i].ort[2] - vor[2];
                     const float result = std::sqrt(dx * dx + dy * dy + dz * dz) / static_cast<float>(kNavDenkMs / 1000.0);
-                    animTempo = std::clamp(result / (tk[i].gehAnim ? kAnimSpeedWalk : kAnimSpeedRun), kAnimSpeedMin,
-                                           kAnimSpeedMax);
+                    animTempo = std::clamp(result / bezug, kAnimSpeedMin, kAnimSpeedMax);
                     break;
                 }
             }
@@ -1322,8 +1328,12 @@ ActorState Actor::at(double ms) const {
                 const float g = st.angles[1] * std::numbers::pi_v<float> / 180.0F;
                 if (mx * mx + my * my > 1.0F && std::cos(g) * mx + std::sin(g) * my < 0.0F) {
                     const bool rennt = lauf == "BOTH_RUN1";
-                    lauf = rennt ? (st.saberActive ? "BOTH_RUNBACK2" : "BOTH_RUNBACK1")
-                                 : (st.saberActive ? "BOTH_WALKBACK2" : "BOTH_WALKBACK1");
+                    if (lauf == "BOTH_CROUCH1WALK") {
+                        lauf = "BOTH_CROUCH1WALKBACK";   // Pruefung 3: PMF_BACKWARDS_RUN geduckt
+                    } else {
+                        lauf = rennt ? (st.saberActive ? "BOTH_RUNBACK2" : "BOTH_RUNBACK1")
+                                     : (st.saberActive ? "BOTH_WALKBACK2" : "BOTH_WALKBACK1");
+                    }
                 }
             }
             if (beinCode != kSaKeine) {   // rc605 FU4
@@ -1869,6 +1879,9 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "playerteam") {
             cur.team = jk2 ? jk2TeamName(wert) : wert;
         }
+        if (key == "snd") {   // Pruefung 3
+            cur.snd = wert.substr(0, wert.find('/'));
+        }
         // saberStyle, gekappt wie NPC_ParseParms (NPC_stats.cpp:4506).
         if (key == "saberstyle") {
             const long n = std::strtol(wert.c_str(), nullptr, 10);
@@ -1948,6 +1961,9 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         // Kasten, mit dem STEER::Reached die Ankunft sieht.
         if (key == "height") {
             cur.hoehe = static_cast<float>(std::atoi(wert.c_str()));
+        }
+        if (key == "crouchheight") {   // Pruefung 3
+            cur.hockHoehe = static_cast<float>(std::atoi(wert.c_str()));
         }
         if (key == "movetype") {
             cur.fliegt = sameName(wert, "flyswim");
@@ -2100,6 +2116,10 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
         else if (key == "soundon") { def.soundOn = val; }
         else if (key == "soundloop") { def.soundLoop = val; }
         else if (key == "soundoff") { def.soundOff = val; }
+        else if (key == "disarmable") { def.nichtEntwaffnbar = std::atoi(val.c_str()) == 0; }   // Pruefung 3
+        else if (key == "fallsound1") { def.fallKlang[0] = val; }
+        else if (key == "fallsound2") { def.fallKlang[1] = val; }
+        else if (key == "fallsound3") { def.fallKlang[2] = val; }
         // rc601 (saber): die Schluessel zum Beruehren (wp_saberLoad.cpp:2794 ff. MD).
         else if (saberKontaktSchluessel(def.kontakt, key, val)) {}
         // Die Kampfstile (Saber_ParseSaberStyle und Verwandte,
@@ -2278,6 +2298,131 @@ LaufZustand laufZustandBei(const Actor& a, double t) {
     return zustandBei(*plan, t);
 }
 
+// Pruefung 3: was der Tod ausser der Animation ausloest - Klaenge, DeathFX,
+// die Waffe verschwindet oder faellt, das Schwert faellt aus der Hand
+// (player_die, TossClientItems, WP_SaberLose; bhed/todesanim.h, abwurf.h).
+void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLage& lage, const TodErgebnis& tod, double wann,
+                        const SzenenHilfe* hilfe) {
+    if (!tod.klaenge.empty() || !tod.effekte.empty()) {
+        TodesFolge f;
+        f.ms = wann;
+        f.figur = a.name;
+        f.klaenge = tod.klaenge;
+        f.effekte = tod.effekte;
+        out.todesFolgen.push_back(std::move(f));
+    }
+    // WP_SaberDrop: ps.saber[0].Deactivate() - vor dem Wechsel auf WP_NONE
+    if (tod.schwertFaellt) {
+        ActorStep aus;
+        aus.kind = ActorStep::Kind::Saber;
+        aus.startMs = wann;
+        aus.endMs = wann;
+        aus.value = 0.0F;
+        a.steps.push_back(aus);
+    }
+    // s.weapon = WP_NONE und G_RemoveWeaponModels - das Modell geht aus der Hand
+    if (tod.waffe != TodWaffe::Bleibt || tod.schwertFaellt) {
+        ActorStep weg;
+        weg.kind = ActorStep::Kind::Waffe;
+        weg.startMs = wann;
+        weg.endMs = wann;
+        weg.text = "WP_NONE";
+        a.steps.push_back(std::move(weg));
+    }
+    if (hilfe == nullptr) { return; }
+    NavSpurFn spur;
+    if (hilfe->nav) {
+        const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+        if (welt->spurZeit) {
+            spur = [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+                return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
+            };
+        } else {
+            spur = welt->spur;
+        }
+    }
+    const float schwer = out.schwerkraft;
+    const NavVec ort{st.pos[0], st.pos[1], st.pos[2]};
+    const auto gegenstand = [&](TodesAbwurf::Art art, const std::string& waffe, const NavVec& mi, const NavVec& ma, const float zufall[2],
+                                bool drehen, std::uint32_t saat) {
+        AbwurfStart s = gegenstandAbwurf(ort, st.angles[1], zufall, drehen);
+        s.ms = wann;
+        s.mins = mi;
+        s.maxs = ma;
+        // LaunchItem: ohne mins/maxs ITEM_RADIUS 15 (g_items.cpp:961-965 OJ)
+        if (mi == NavVec{0.0F, 0.0F, 0.0F} && ma == NavVec{0.0F, 0.0F, 0.0F}) {
+            s.mins = {-15.0F, -15.0F, -15.0F};
+            s.maxs = {15.0F, 15.0F, 15.0F};
+        }
+        s.entity = lage.entity;
+        s.regel = lage.regel;
+        s.schwerkraft = schwer;
+        s.saat = saat;
+        TodesAbwurf ab;
+        ab.figur = a.name;
+        ab.art = art;
+        ab.waffe = waffe;
+        ab.bahn = wirfGegenstand(s, spur);
+        out.abwuerfe.push_back(std::move(ab));
+    };
+    if (tod.kristall && hilfe->kraftGegenstand) {
+        NavVec mi{};
+        NavVec ma{};
+        if (hilfe->kraftGegenstand(mi, ma)) {
+            const float z[2] = {tod.abwurfZufall[2], 0.0F};
+            gegenstand(TodesAbwurf::Art::Kristall, std::string(), mi, ma, z, false, todesSaat(lage.entity, wann + 1.0));
+        }
+    }
+    if (tod.waffe == TodWaffe::Faellt && hilfe->waffenGegenstand) {
+        NavVec mi{};
+        NavVec ma{};
+        if (hilfe->waffenGegenstand(lage.waffe, mi, ma)) {
+            const std::string& w = lage.waffe;
+            const bool drehen = w != "WP_BOWCASTER" && w != "WP_THERMAL" && w != "WP_TRIP_MINE" && w != "WP_DET_PACK";
+            gegenstand(TodesAbwurf::Art::Waffe, w, mi, ma, tod.abwurfZufall, drehen, todesSaat(lage.entity, wann + 2.0));
+        }
+    }
+    if (tod.schwertFaellt && hilfe->handPunkt) {
+        float h[3];
+        float r[3];
+        if (hilfe->handPunkt(a, wann, h, r)) {
+            AbwurfStart s;
+            s.ms = wann;
+            s.ort = {h[0], h[1], h[2]};
+            float w[3];
+            engineVectoangles(r, w);   // vectoangles( renderInfo.muzzleDir, saber->s.apos.trBase )
+            s.winkel = {w[0], w[1], w[2]};
+            // forcePowerLevel[FP_SABERTHROW]: "default: case FORCE_LEVEL_1" -> 600
+            s.drehTempo = {0.0F, 600.0F, 0.0F};
+            s.entity = lage.entity;
+            s.regel = lage.regel;
+            s.schwerkraft = schwer;
+            s.saat = todesSaat(lage.entity, wann + 3.0);
+            std::string griff;
+            const SaberZustand& s0 = st.saber[0];
+            if (s0.art >= 0 && static_cast<std::size_t>(s0.art) < a.saberArten.size()) {
+                const SaberArt& art = a.saberArten[static_cast<std::size_t>(s0.art)];
+                if (art.modell >= 0 && static_cast<std::size_t>(art.modell) < a.modelle.size()) { griff = a.modelle[static_cast<std::size_t>(art.modell)]; }
+                if (hilfe->sabers != nullptr) {
+                    std::string n = art.name;
+                    for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                    const auto it = hilfe->sabers->find(n);
+                    if (it != hilfe->sabers->end()) {
+                        s.fallKlang = it->second.fallKlang;
+                        s.sithSchwert = sameName(it->second.type, "SABER_SITH_SWORD");
+                    }
+                }
+            }
+            TodesAbwurf ab;
+            ab.figur = a.name;
+            ab.art = TodesAbwurf::Art::Schwert;
+            ab.waffe = griff;
+            ab.bahn = wirfSchwert(s, spur);
+            out.abwuerfe.push_back(std::move(ab));
+        }
+    }
+}
+
 // Was player_die von `self` liest (bhed/todesanim.h, TodLage).
 TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf, double wann, bool schonTot,
                   const MapData& map, const SzenenHilfe* hilfe) {
@@ -2358,6 +2503,57 @@ TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf,
     if (hilfe->rumpfWinkel) {
         float w[3] = {0.0F, 0.0F, 0.0F};
         if (hilfe->rumpfWinkel(a, wann, w)) { l.rumpfWinkel = {w[0], w[1], w[2]}; }
+    }
+    // Pruefung 3: Waffe, Klinge, Schwert und Team fuer TossClientItems & Co.
+    l.waffe = (st.waffe == "drop" || st.waffe.empty()) ? std::string() : st.waffe;
+    l.klingeAn = st.saberActive && st.waffe == "WP_SABER";
+    l.npcTyp = a.npcType;
+    {
+        std::string k = map.path;
+        const std::size_t s = k.find_last_of('/');
+        if (s != std::string::npos) { k = k.substr(s + 1); }
+        if (k.size() > 4 && k.compare(k.size() - 4, 4, ".bsp") == 0) { k.resize(k.size() - 4); }
+        for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        l.karte = k;
+    }
+    const SaberZustand& s0 = st.saber[0];
+    if (s0.art >= 0 && static_cast<std::size_t>(s0.art) < a.saberArten.size()) {
+        const SaberArt& art = a.saberArten[static_cast<std::size_t>(s0.art)];
+        l.schwertAusKlang = art.soundOff;
+        if (hilfe->sabers != nullptr) {
+            std::string n = art.name;
+            for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const auto it = hilfe->sabers->find(n);
+            if (it != hilfe->sabers->end()) { l.nichtEntwaffnbar = it->second.nichtEntwaffnbar; }
+        }
+    }
+    if (hilfe->npcs != nullptr) {
+        std::string typ = a.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (const auto it = hilfe->npcs->find(typ); it != hilfe->npcs->end()) {
+            l.spielerTeam = sameName(it->second.team, "TEAM_PLAYER");
+            l.kotorWaffen = it->second.kotorWeapons;
+        }
+    }
+    if (hilfe->handPunkt) {
+        const std::function<bool(const Actor&, double, float[3], float[3])> hand = hilfe->handPunkt;
+        const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+        const NavVec ort = l.ort;
+        const int ent = l.entity;
+        const Actor* fig = &a;
+        l.handFrei = [hand, welt, ort, ent, fig, wann]() {
+            float h[3];
+            float r[3];
+            if (!hand(*fig, wann, h, r) || !welt || !welt->spur) { return true; }
+            // WP_SaberLaunch (wp_saber.cpp:6609-6620 OJ): die Hand mit Kasten 3
+            // nicht im Festen, der Strahl vom Ursprung zur Hand frei (MASK_SOLID)
+            constexpr std::uint32_t kMaske = kNavSolid | kNavTerrain;
+            const NavVec hp{h[0], h[1], h[2]};
+            const NavSpur a1 = welt->spur(hp, {-3.0F, -3.0F, -3.0F}, {3.0F, 3.0F, 3.0F}, hp, kNavKeineEntity, kMaske);
+            if (a1.startsolid || a1.allsolid) { return false; }
+            const NavSpur a2 = welt->spur(ort, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, hp, ent, kMaske);
+            return !(a2.startsolid || a2.allsolid || a2.fraction < 1.0F);
+        };
     }
     if (hilfe->nav) {
         const std::shared_ptr<const NavWelt> welt = hilfe->nav;
@@ -2702,6 +2898,9 @@ Scene buildOnce(const Script& s, const MapData& map,
             }
             if (npcDef != nullptr && npcDef->hoehe >= 0.0F) {
                 fresh.hoeheOben = npcDef->hoehe - 24.0F;   // rc601 (bewegung, Wege): n + DEFAULT_MINS_2
+            }
+            if (npcDef != nullptr && npcDef->hockHoehe >= 0.0F) {
+                fresh.hockHoehe = npcDef->hockHoehe - 24.0F;   // Pruefung 3: n + DEFAULT_MINS_2
             }
             // rc601 (bewegung, R6): die Stufe je Klasse (PM_StepSlideMove,
             // bg_slidemove.cpp:384-416 MD): CLASS_ATST 70, CLASS_RANCOR 48
@@ -3080,6 +3279,8 @@ Scene buildOnce(const Script& s, const MapData& map,
             werte.drehRate = drehRateBei(tt);
             werte.halbBreite = actor->halbBreite;
             werte.hoeheOben = actor->hoeheOben;
+            werte.geduckt = actor->hockSchalter;   // Pruefung 3: SCF_CROUCHED
+            werte.hockHoehe = actor->hockHoehe;
             werte.stufe = actor->stufe;
             werte.gangSchalter = actor->laufSchalter ? 2 : (actor->gehSchalter ? 1 : 0);
             werte.kannSpringen = actor->kannSpringen;   // rc605
@@ -3785,13 +3986,20 @@ Scene buildOnce(const Script& s, const MapData& map,
             }
 
             if (const std::string* v = setValue(child, "SET_CROUCHED")) {
+                // Q3_SetCrouched: Q_stricmp("true", data) (Q3_Interface.cpp OJ)
                 ActorStep step;
                 step.kind = ActorStep::Kind::Crouch;
                 step.startMs = t;
                 step.endMs = t;
-                step.value = (*v == "true") ? 1.0F : 0.0F;
+                step.value = sameName(*v, "true") ? 1.0F : 0.0F;
                 step.path = p;
                 actor->steps.push_back(std::move(step));
+                // Pruefung 3: SCF_CROUCHED gilt auch im Gehen (NPC_ApplyScriptFlags
+                // in jedem Denkbild) - ein laufender Weg geht geduckt weiter.
+                if (npc) {
+                    actor->hockSchalter = sameName(*v, "true");
+                    neuPlanen(t);
+                }
                 continue;
             }
 
@@ -4698,6 +4906,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             const TodLage lage = todesLage(a, st, lauf, wann, schonTot, map, hilfe);
             EngineZufall zufall(todesSaat(a.kartenEntity, wann));
             const TodErgebnis tod = todesAnimation(lage, zufall);
+            todesFolgenAnlegen(out, a, st, lage, tod, wann, hilfe);
             if (!schonTot) {
                 ActorStep halt;
                 halt.kind = ActorStep::Kind::Teleport;

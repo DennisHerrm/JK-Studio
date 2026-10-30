@@ -62,6 +62,8 @@ constexpr float kMinWalkNormal = 0.7F;                // MIN_WALK_NORMAL
 // bg_pmove.cpp:207-219, bg_local.h:32, NPC_spawn.cpp:1928 (ps.friction = 6)
 constexpr float kPmStopSpeed = 100.0F;
 constexpr float kPmAccelerate = 12.0F;
+// Pruefung 3: pm_duckScale (bg_pmove.cpp:163 OJ, codeJK2 und MD gleich)
+constexpr float kPmDuckScale = 0.50F;
 constexpr float kNpcFriction = 6.0F;
 constexpr float kOverclip = 1.001F;
 // b_local.h MIN_ANGLE_ERROR
@@ -2248,7 +2250,8 @@ struct Lauf {
         akt.mover = wl.mover.get();
         akt.gefragt = &kantenGefragt;
         mins = {-w.halbBreite, -w.halbBreite, kDefaultMins2};
-        maxs = {w.halbBreite, w.halbBreite, w.hoeheOben};
+        // Pruefung 3: PM_SetBounds nimmt gent->maxs - geduckt die crouchheight
+        maxs = {w.halbBreite, w.halbBreite, zs.geduckt ? w.hockHoehe : w.hoeheOben};
         akt.da = true;
         akt.springen = w.kannSpringen;   // rc605
         // NAV::ClassifyEntSize (g_navigator.cpp:3654)
@@ -3510,6 +3513,34 @@ struct Lauf {
     // rc604 fix604: pm.tracemask = ent->clipmask (g_active.cpp:11036 MD / 5393
     // OpenJK; G_CheckInSolid ebenso, g_utils.cpp:1645 MD) - ohne CONTENTS_BODY
     // nach SET_SOLID false oder mit SFB_NOTSOLID (NavWelt::pmOhneKoerper).
+    // Pruefung 3: PM_CheckDuck (bg_pmove.cpp:5684-5880 OJ, codeJK2 gleich im
+    // Teil fuer upmove) fuer eine Figur. upmove < 0: maxs[2] = crouchheight,
+    // PMF_DUCKED; in der Luft hebt das Ducken die Fuesse ("origin[2] +=
+    // oldHeight - maxs[2]"). Sonst aufstehen, wenn der Kasten mit
+    // standheight frei ist (in der Luft mit gesenkten Fuessen).
+    void npcDucken() {
+        const float alt = maxs[2];   // oldHeight (pm->maxs aus PM_SetBounds)
+        if (ucmdHoch < 0) {
+            maxs[2] = w.hockHoehe;
+            if (!z.amBoden) { z.ort[2] += alt - maxs[2]; }
+            z.geduckt = true;
+            return;
+        }
+        if (z.geduckt) {
+            maxs[2] = w.hoeheOben;
+            if (!z.amBoden) {
+                z.ort[2] += alt - maxs[2];
+                if (!kastenSpur(z.ort, z.ort, pmMaske()).allsolid) {
+                    z.geduckt = false;
+                } else {
+                    z.ort[2] -= alt - maxs[2];   // "Put us back"
+                }
+            } else if (!kastenSpur(z.ort, z.ort, pmMaske()).allsolid) {
+                z.geduckt = false;
+            }
+        }
+        maxs[2] = z.geduckt ? w.hockHoehe : w.hoeheOben;
+    }
     [[nodiscard]] std::uint32_t pmMaske() const {
         if (spieler) { return kNavMaskPlayerSolid; }   // Stufe 8b Punkt 3: pm->tracemask des Spielers
         return welt.pmOhneKoerper ? (kNavMaskNpcSolid & ~kNavBody) : kNavMaskNpcSolid;
@@ -3777,7 +3808,13 @@ struct Lauf {
     // wishspeed * PM_CmdScale (:382-406).
     void jk2Beschleunigen(const NavVec& normale) {
         if ((!jk2Pm && !spieler) || !istNull(zBewegung)) {
-            beschleunigen(zBewegung, static_cast<float>(z.tempo), kPmAccelerate);
+            // wishspeed = ps.speed; Pruefung 3: "clamp the speed lower if ducking"
+            // (bg_pmove.cpp:3229-3236 OJ, codeJK2 :1960-1966): ps.speed * pm_duckScale
+            float wunsch = static_cast<float>(z.tempo);
+            if (!spieler && z.geduckt && wunsch > static_cast<float>(z.tempo) * kPmDuckScale) {
+                wunsch = static_cast<float>(z.tempo) * kPmDuckScale;
+            }
+            beschleunigen(zBewegung, wunsch, kPmAccelerate);
             return;
         }
         NavVec vorn{};
@@ -3793,8 +3830,9 @@ struct Lauf {
         const auto sm = static_cast<float>(ucmdSeit);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
-        // Stufe 8b Punkt 3: PM_CmdScale des Spielers zaehlt upmove mit
-        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;
+        // Stufe 8b Punkt 3: PM_CmdScale zaehlt upmove mit (Pruefung 3: auch das
+        // -127 von SCF_CROUCHED einer Figur)
+        const int hoch = static_cast<int>(ucmdHoch);
         if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
@@ -3805,7 +3843,8 @@ struct Lauf {
         float wishspeed = vektorNorm(wishdir);
         wishspeed *= scale;
         // pm_duckScale (PM_WalkMove): geduckt hoechstens die Haelfte
-        if (spieler && spielerGeduckt && wishspeed > static_cast<float>(z.tempo) * 0.5F) { wishspeed = static_cast<float>(z.tempo) * 0.5F; }
+        const bool duckt = spieler ? spielerGeduckt : z.geduckt;
+        if (duckt && wishspeed > static_cast<float>(z.tempo) * kPmDuckScale) { wishspeed = static_cast<float>(z.tempo) * kPmDuckScale; }
         beschleunigen(wishdir, wishspeed, kPmAccelerate);
     }
     // PM_WalkMove (bg_pmove.cpp:4251-4530 MD) fuer NPCs mit moveDir.
@@ -3834,7 +3873,7 @@ struct Lauf {
         reibung(false);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
-        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;   // Stufe 8b Punkt 3: PM_CmdScale mit upmove
+        const int hoch = static_cast<int>(ucmdHoch);   // Stufe 8b Punkt 3 / Pruefung 3: PM_CmdScale mit upmove
         if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
@@ -3872,6 +3911,7 @@ struct Lauf {
         const bool amBoden = static_cast<bool>(welt.boden);
         const bool mitWaenden = amBoden && (static_cast<bool>(welt.spur) || static_cast<bool>(welt.spurZeit)) && w.fallen;
         if (mitWaenden) {
+            if (!spieler) { npcDucken(); }   // Pruefung 3: PM_CheckDuck vor PM_GroundTrace (bg_pmove.cpp:14873-14879 OJ)
             const NavVec vorher = z.ort;
             vorherTempo = vel;               // pml.previous_velocity
             bodenSpur();                     // PM_GroundTrace
@@ -3898,6 +3938,7 @@ struct Lauf {
             return;
         }
         // --- ohne Spuren (oder ohne Fallen): wie bis teil 2 ---------------------
+        if (!spieler) { npcDucken(); }   // Pruefung 3: ohne Spuren kann nichts das Aufstehen hindern
         // PM_Friction (bg_pmove.cpp:790): pml.walking -> vec[2] = 0
         {
             NavVec vec = vel;
@@ -5047,7 +5088,8 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
     for (const float f : z.ort) { h = mische(h, bits(f)); }
     for (const float f : z.tempoVek) { h = mische(h, bits(f)); }
     for (const float f : {z.gier, z.wunschGier, z.pfadGier, w.zielRadius, w.maxTempo, w.gehTempo, w.drehRate,
-                          w.halbBreite, w.hoeheOben, w.stufe, static_cast<float>(w.gangSchalter)}) {
+                          w.halbBreite, w.hoeheOben, w.stufe, static_cast<float>(w.gangSchalter),
+                          w.geduckt ? w.hockHoehe : -1.0F, z.geduckt ? 1.0F : 0.0F}) {   // Pruefung 3
         h = mische(h, bits(f));
     }
     for (const float f : w.ziel) { h = mische(h, bits(f)); }
@@ -5629,6 +5671,13 @@ struct LaufRechner {
                 if (e.schubBis < l.jetzt) { e.schub = {0.0F, 0.0F, 0.0F}; }
             }
         }
+        if (!w.ohneKoerper) {
+            // Pruefung 3: NPC_ApplyScriptFlags (NPC.cpp:977-987 OJ): SCF_CROUCHED
+            // -> ucmd.upmove = -127, im Denkbild mit Verhalten; ohne Verhalten
+            // (OpenJK) kommt es mit NPCInfo->last_ucmd.
+            hoch = verhalten ? static_cast<signed char>(w.geduckt ? -127 : 0) : z.letzterHoch;
+            l.ucmdHoch = hoch;
+        }
         if (w.ohneKoerper) {
             // PmoveSingle: PM_NOCLIP -> PM_NoclipMove, PM_DropTimers, return -
             // kein PM_Footsteps, die Beine behalten ihre Animation (bewegt
@@ -5648,7 +5697,7 @@ struct LaufRechner {
             if (verhalten) {
                 z.letzterVor = w.ohneKoerper ? vor : (jk2 ? jk2Vor : l.ucmdVor);
                 z.letzterSeit = w.ohneKoerper ? seit : (jk2 ? jk2Seit : l.ucmdSeit);
-                z.letzterHoch = w.ohneKoerper ? hoch : 0;
+                z.letzterHoch = hoch;
                 z.letzteGehTaste = jk2 ? jk2Geh : gehTaste;
             }
         }
@@ -5683,6 +5732,7 @@ struct LaufRechner {
         // rc605 FU4: ebenso jede Animation der Sprungkette (die Szene zeigt sie im Weg).
         if (z.sprung.beinAnim != kSaKeine) { takt.bewegt = true; }
         takt.weg = wegArt;
+        takt.geduckt = z.geduckt;   // Pruefung 3
         takt.sprungTempo = l.sprungTempo;
         plan.takte.push_back(takt);
         plan.zustaende.push_back(z);

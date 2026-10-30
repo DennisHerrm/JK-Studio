@@ -264,6 +264,7 @@ struct Wesen {
     bool gehend = false;
     bool rennend = false;
     bool keineAkrobatik = false;   // rc605: SET_NO_ACROBATICS
+    bool geduckt = false;          // Pruefung 3: SET_CROUCHED (SCF_CROUCHED)
     float gehTempo = -1.0F;
     float laufTempo = -1.0F;
     std::map<std::string, std::string> parm;
@@ -1087,6 +1088,8 @@ private:
         werte.levitation = welt_.levitation ? welt_.levitation(w.name) : 0;   // rc605 (Rest)
         werte.landKlasse = welt_.landKlasse ? welt_.landKlasse(w.name) : 0;
         werte.keineAkrobatik = w.keineAkrobatik;   // rc605: SET_NO_ACROBATICS
+        werte.geduckt = w.geduckt;                 // Pruefung 3: SCF_CROUCHED
+        werte.hockHoehe = welt_.hockHoehe ? welt_.hockHoehe(w.name) : 16.0F;
         werte.ohneKoerper = w.verhaltenZustand == "BS_NOCLIP";   // NPC_BSNoClip + PM_NoclipMove
         // rc605: BS_JUMP - NPC_BSJump mit den Laengen von BOTH_CROUCH1/BOTH_LAND1.
         werte.bsJump = w.verhaltenZustand == "BS_JUMP";
@@ -2533,6 +2536,7 @@ private:
         // 5623-5647 MD: "true" ohne Gross/klein, alles andere false) - NPC_CanTryJump
         // fragt es in jedem Versuch, ein laufender Weg geht also anders weiter.
         if (k == "set_no_acrobatics") { w.keineAkrobatik = gleich(wert, "true"); wegNeuPlanen(w, t); return true; }
+        if (k == "set_crouched") { w.geduckt = gleich(wert, "true"); wegNeuPlanen(w, t); return true; }   // Pruefung 3
         // ... und beide setzen ps.speed (Q3_Interface.cpp:3621-3657 MD) - das
         // Tempo in BS_NOCLIP (PM_CmdScale).
         if (k == "set_walkspeed") {
@@ -3819,7 +3823,7 @@ bool gleicherZustand(const LaufZustand& a, const LaufZustand& b) {
            a.zielLetzterWegpunkt == b.zielLetzterWegpunkt && a.zielWegpunktBis == b.zielWegpunktBis &&
            a.pfadDa == b.pfadDa && a.pfadEnde == b.pfadEnde && a.pfadErfolg == b.pfadErfolg &&
            a.pfadAStarBis == b.pfadAStarBis && gleicherPfad(a.pfad, b.pfad) && a.pfadGroesse == b.pfadGroesse &&
-           a.amBoden == b.amBoden && a.pmZeit == b.pmZeit && gleichBits(a.gesetztMs, b.gesetztMs) &&
+           a.amBoden == b.amBoden && a.geduckt == b.geduckt && a.pmZeit == b.pmZeit && gleichBits(a.gesetztMs, b.gesetztMs) &&
            a.bodenEnt == b.bodenEnt && gleichBits(a.bodenAbMs, b.bodenAbMs) &&   // rc605 (Ende)
            a.gesetztSpawn == b.gesetztSpawn && a.gesetztImFesten == b.gesetztImFesten &&
            gleichBits(a.denkNullMs, b.denkNullMs) && gleichBits(a.letzteBewegung, b.letzteBewegung) &&   // rc601 integ
@@ -3844,7 +3848,8 @@ bool gleicheWerte(const LaufWerte& a, const LaufWerte& b) {
            a.kannSpringen == b.kannSpringen && gleichBits(a.weltSchwerkraft, b.weltSchwerkraft) &&   // rc605
            a.bsJump == b.bsJump && a.hockeMs == b.hockeMs && a.landMs == b.landMs && a.keineAkrobatik == b.keineAkrobatik &&
            a.sprungAnimArt == b.sprungAnimArt && a.sprungAnimMs == b.sprungAnimMs && a.forceLandMs == b.forceLandMs &&   // rc605 FU4
-           a.levitation == b.levitation && a.landKlasse == b.landKlasse && a.landeMs == b.landeMs;   // rc605 (Rest)
+           a.levitation == b.levitation && a.landKlasse == b.landKlasse && a.landeMs == b.landeMs &&   // rc605 (Rest)
+           a.geduckt == b.geduckt && gleichBits(a.hockHoehe, b.hockHoehe);   // Pruefung 3
 }
 #if defined(_MSC_VER) && defined(_M_X64)
 // Waechst eine dieser Strukturen, fehlt das neue Feld oben im Vergleich.

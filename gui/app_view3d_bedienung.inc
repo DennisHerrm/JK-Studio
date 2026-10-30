@@ -2384,8 +2384,9 @@ void drawMapView() {
                     effectScreenFlashesAt(alle, g_app->playMs, kam.pos, fwd);
                 appendScreenFlashes(netz, blitze, kam.pos, fwd,
                                     rgt, upv, fovX, &g_app->effectShaders);
-                // rc601 saber review: die Brandspuren (CG_AddMarks).
-                saberSpurenAnhaengen(netz, g_app->playMs);
+                // rc601 saber review: die Brandspuren (CG_AddMarks) - Pruefung 3:
+                // mit den Decals der Effekte im selben Markenspeicher.
+                saberSpurenAnhaengen(netz, g_app->playMs, &alle);
             }
             return netz;
         };

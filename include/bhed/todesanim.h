@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace bhed {
 
@@ -43,6 +44,8 @@ public:
     explicit EngineZufall(std::uint32_t saat) noexcept : holdrand_(saat) {}
     // irand(min, max), beide eingeschlossen
     [[nodiscard]] int irand(int lo, int hi) noexcept;
+    // Pruefung 3: flrand(min, max) (q_math.c:233-244 OpenJK, :226-238 MD)
+    [[nodiscard]] float flrand(float lo, float hi) noexcept;
 
 private:
     std::uint32_t holdrand_;
@@ -54,6 +57,27 @@ enum class TodMittel : std::uint8_t {
     Unbekannt,     // MOD_UNKNOWN: kill aus ICARUS
     TriggerHurt,   // MOD_TRIGGER_HURT: trigger_hurt
     Fallen,        // MOD_FALLING: trigger_hurt mit FALLING (spawnflags 32)
+};
+
+// Pruefung 3 - was player_die ausser der Animation tut, in der Reihenfolge
+// des Spiels: Klaenge (G_AddEvent EV_DEATH1-3 -> CG_TryPlayCustomSound
+// "*deathN.wav" auf CHAN_VOICE, cg_event.cpp:794-805 OJ; G_SoundOnEnt;
+// G_Sound/G_SoundIndexOnEnt), DeathFX (G_PlayEffect) und was mit Waffe und
+// Schwert geschieht.
+struct TodKlang {
+    // "*death2.wav": ein eigener Klang der Figur (CG_CustomSound, .npc "snd"),
+    // sonst der Pfad wie im Spiel.
+    std::string datei;
+    enum class Kanal : std::uint8_t { Auto, Voice, VoiceAtten, Body } kanal = Kanal::Auto;
+};
+struct TodEffekt {
+    std::string datei;   // G_PlayEffect("env/med_explode") - G_EffectIndex haengt .efx an
+    NavVec ort{};
+};
+enum class TodWaffe : std::uint8_t {
+    Bleibt,   // bleibt in der Hand (WP_BRYAR_PISTOL u. a.; ein Schwert, das nicht faellt)
+    Weg,      // G_RemoveWeaponModels: die Waffe verschwindet aus der Hand
+    Faellt,   // TossClientItems -> Drop_Item: sie liegt als Gegenstand (abwurf)
 };
 
 // Die Lage der Figur im Augenblick des Todes - was player_die von `self` liest.
@@ -90,6 +114,20 @@ struct TodLage {
     std::function<double(const std::string&)> bild;
     // gi.trace fuer G_CheckForLedge. Leer: nichts im Weg (wie NavWelt::spur).
     NavSpurFn spur;
+    // Pruefung 3:
+    std::string waffe;             // s.weapon ("WP_SABER", ...; leer WP_NONE)
+    bool klingeAn = false;         // ps.SaberActive()
+    std::string schwertAusKlang;   // ps.saber[0].soundOff (.sab "soundOff")
+    bool nichtEntwaffnbar = false; // ps.saber[0].saberFlags & SFL_NOT_DISARMABLE
+    bool schwertImFlug = false;    // ps.saberInFlight
+    std::string npcTyp;            // NPC_type
+    std::string karte;             // mapname (Movie Duels TossClientItems)
+    bool spielerTeam = false;      // client->playerTeam == TEAM_PLAYER (JK2: Klang beim Ausschalten)
+    bool keinAbwurf = false;       // gi.pointcontents(currentOrigin) & CONTENTS_NODROP
+    bool kotorWaffen = false;      // client->charKOTORWeapons (Movie Duels: nichts faellt)
+    // WP_SaberLaunch (wp_saber.cpp OJ): renderInfo.handRPoint nicht im Festen
+    // (Kasten 3) und vom Ursprung aus frei erreichbar. Leer: frei.
+    std::function<bool()> handFrei;
 };
 
 struct TodErgebnis {
@@ -99,9 +137,35 @@ struct TodErgebnis {
     bool verschwindet = false; // Mark1 als Leiche: EF_NODRAW, G_FreeEntity
     int kante = 0;             // cliff_fall aus G_CheckLedgeDive
     NavVec tempo{};            // ps.velocity danach (Wurf ueber die Kante)
+    // Pruefung 3:
+    std::vector<TodKlang> klaenge;     // in der Reihenfolge des Spiels
+    std::vector<TodEffekt> effekte;    // DeathFX
+    TodWaffe waffe = TodWaffe::Bleibt;
+    // TossClientItems -> WP_SaberLose: WP_SaberLaunch, WP_SaberDrop (Klinge
+    // aus, soundOff am Schwert, TR_GRAVITY mit EF_BOUNCE_HALF) - das Schwert
+    // faellt aus der Hand.
+    bool schwertFaellt = false;
+    bool kristall = false;             // Shadowtrooper: Drop_Item(FindItemForAmmo(AMMO_FORCE))
+    // Die Zuege von Q_flrand(-1, 1) fuer Drop_Item (velocity[2] += 200 +
+    // flrand * 50) und LaunchItem (Gier flrand * 180) der fallenden Waffe
+    // bzw. des Kristalls, in dieser Folge.
+    float abwurfZufall[3]{};
+    bool aufprallTod = false;          // NPCAI_DIE_ON_IMPACT gesetzt
+    float reibung = -1.0F;             // ps.friction danach (-1: unveraendert)
 };
 
 [[nodiscard]] TodErgebnis todesAnimation(const TodLage& lage, EngineZufall& zufall);
+
+// Pruefung 3: vectoangles (q_math.c:616-654 OpenJK, atan2f/sqrtf).
+void engineVectoangles(const float v[3], float winkel[3]) noexcept;
+
+// Pruefung 3: renderInfo.torsoAngles aus dem chestBolt (cg_players.cpp:
+// 7516-7522 OJ): G2API_GetBoltMatrix(ghoul2, playerModel, chestBolt,
+// &boltMatrix, tempAngles, ent.origin, cg.time ...), dann
+// G2API_GiveMeVectorFromMatrix(boltMatrix, NEGATIVE_Z, tempAxis) - die dritte
+// Spalte, verneint - und vectoangles(tempAxis, torsoAngles). `bolzen` ist die
+// Bolzenmatrix in der Welt (3x4, Spalten = Achsen, vierte = Ort).
+void rumpfWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept;
 
 }  // namespace bhed
 #endif

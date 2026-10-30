@@ -16,6 +16,8 @@
 #include "bhed/messpunkt.h"
 #include "bhed/kartenpruefung.h"   // rc604 fix604b (B3): imSpiel
 #include "bhed/regelwerk.h"        // rc604 (A2 Rest): roffNotizenOpenJk
+#include "bhed/npcklasse.h"       // Pruefung 3: rumpfBolzenKnochen
+#include "bhed/todesanim.h"       // Pruefung 3: rumpfWinkelAusBolzen
 #include "bhed/arbeiter.h"
 #include "bhed/gpucam.h"
 #include "bhed/grasflaechen.h"   // rc604 surfaceSprites
@@ -4704,6 +4706,57 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]) {
     }
 }
 
+bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d,
+               std::vector<BoneMatrix>& welt, float fw[16]) {
+    if (assets.model.empty()) { return false; }
+    d.model = &assets.model;
+    figurBilderSetzen(a, assets, st, ms, d);
+    if (d.anim == nullptr) { return false; }
+    for (int q = 0; q < 3; ++q) { d.pos[q] = st.pos[q]; }
+    d.yaw = st.angles[1];
+    npcSkalaFuer(a.npcType, d.skala);
+    figurKopfGier(st, d);
+    d.yawOffset = static_cast<float>(g_app->actorYaw);
+    std::vector<BoneMatrix> hilf;
+    if (!figurKnochen(d, welt, hilf) || welt.empty()) { return false; }
+    figurWeltMatrix(d, fw);
+    return true;
+}
+
+bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms, float winkel[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const std::string knochen = rumpfBolzenKnochen(modell, assets.model.animFile, klasse, spiel);
+    if (knochen.empty()) { return false; }
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, a.at(ms), ms, d, welt, fw)) { return false; }
+    // G2API_AddBolt findet den Knochen nicht: chestBolt -1
+    const int b = boneIndex(*d.anim, knochen);
+    if (b < 0 || static_cast<std::size_t>(b) >= welt.size()) { return false; }
+    // G2API_GetBoltMatrix: worldMatrix * (Knochen * BasePose) - welt[b] traegt
+    // die Grundstellung schon (gla.h, worldMatrices), fw ist die Weltmatrix
+    // der Zeichnung (dieselbe, mit der jede Ecke an ihren Ort kommt).
+    float bolzen[3][4]{};
+    const BoneMatrix& k = welt[static_cast<std::size_t>(b)];
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            float v = c == 3 ? fw[r * 4 + 3] : 0.0F;
+            for (int i = 0; i < 3; ++i) { v += fw[r * 4 + i] * k.m[i][c]; }
+            bolzen[r][c] = v;
+        }
+    }
+    rumpfWinkelAusBolzen(bolzen, winkel);
+    return true;
+}
+
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
 void figurKopfGier(const ActorState& st, ActorDraw& d) {
@@ -5892,6 +5945,16 @@ void prepareScene() {
         // Die Tode durch trigger_hurt, die der Nachbau in den flachen Ablauf
         // schrieb (AblaufWelt::hurtTode): MOD_TRIGGER_HURT/MOD_FALLING statt
         // MOD_UNKNOWN.
+        // Pruefung 3: renderInfo.torsoAngles aus dem chestBolt des gezeichneten
+        // Skeletts - die Figur liegt auf dem Ruecken oder dem Bauch, dreht
+        // sich (BOTH_DEATH_LYING_UP/DN, SPIN_90/180 in der Todeskette).
+        hilfe.rumpfWinkel = [index](const Actor& a, double ms, float w[3]) {
+            const auto it = index.find(a.name);
+            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
+                return false;
+            }
+            return figurRumpfWinkel(a, *g_app->actorAssets[it->second], ms, w);
+        };
         hilfe.hurtAusloeser = [](const std::string& f, double ms) {
             for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {
                 if (!h.unsterblich && std::fabs(h.ms - ms) < 1.0 && engineNamenGleich(h.figur, f)) { return h.entity; }
@@ -5962,6 +6025,13 @@ void prepareScene() {
             welt.hoeheOben = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 40.0F : it->second.second;
+            };
+            // Pruefung 3: crouchheight je Figur (PM_CheckDuck mit SCF_CROUCHED)
+            auto hocken = std::make_shared<std::map<std::string, float>>();
+            for (const Actor& a : ersteSzene.actors) { (*hocken)[a.name] = a.hockHoehe; }
+            welt.hockHoehe = [hocken](const std::string& f) {
+                const auto it = hocken->find(f);
+                return it == hocken->end() ? 16.0F : it->second;
             };
         }
         // rc601 (bewegung, teil 3): alle Figuren im selben Takt (andere Figuren

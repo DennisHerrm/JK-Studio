@@ -35,6 +35,7 @@
 #ifndef BHED_SCENE_H
 #define BHED_SCENE_H
 
+#include "bhed/abwurf.h"   // Pruefung 3: was ein Tod fallen laesst
 #include "bhed/bsp.h"
 #include "bhed/navlauf.h"
 #include "bhed/roff.h"
@@ -829,6 +830,10 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // maxs[2]: NPC_ParseParms "height" n setzt maxs[2] = n + DEFAULT_MINS_2
     // (NPC_stats.cpp:3645-3672), Vorgabe DEFAULT_MAXS_2 40.
     float hoeheOben = 40.0F;
+    // Pruefung 3: crouchheight (CROUCH_MAXS_2 16, .npc "crouchheight" n - 24)
+    // und SCF_CROUCHED beim Planen (SET_CROUCHED in Zeitfolge).
+    float hockHoehe = 16.0F;
+    bool hockSchalter = false;
     // rc601 (bewegung, R5): NPC_UpdateAngles (NPC_utils.cpp:274-290 MD) dreht
     // einen Rocket Trooper ohne Feind mit yawSpeed 1, eine Figur mit
     // WP_EMPLACED_GUN mit 20 - unabhaengig von .npc und SET_YAWSPEED. In Grad
@@ -888,9 +893,27 @@ struct RoffEreignis {
     float winkel[3]{};
 };
 
+// Pruefung 3: was ein Tod ausser der Animation ausloest (player_die,
+// bhed/todesanim.h) - Klaenge in der Reihenfolge des Spiels und DeathFX.
+struct TodesFolge {
+    double ms = 0.0;
+    std::string figur;   // affect-Name
+    std::vector<TodKlang> klaenge;
+    std::vector<TodEffekt> effekte;
+};
+// Pruefung 3: was die Figur fallen laesst (bhed/abwurf.h).
+struct TodesAbwurf {
+    std::string figur;
+    enum class Art : std::uint8_t { Waffe, Schwert, Kristall } art = Art::Waffe;
+    std::string waffe;    // Waffe: "WP_..." (FindItemForWeapon); Schwert: das Griffmodell (.glm)
+    AbwurfBahn bahn;
+};
+
 struct Scene {
     std::vector<Actor> actors;
     double durationMs = 0.0;
+    std::vector<TodesFolge> todesFolgen;   // Pruefung 3, nach Zeit
+    std::vector<TodesAbwurf> abwuerfe;     // Pruefung 3
     // Alle ausgeloesten ROFF-Notizen, nach Zeit.
     std::vector<RoffEreignis> roffEreignisse;
     // rc601 (bewegung, Review): g_gravity der Karte - SP_worldspawn setzt es
@@ -966,6 +989,15 @@ struct SzenenHilfe {
     // Toetete dieses kill ein trigger_hurt (AblaufWelt::hurtTode)? Der Index
     // des Ausloesers in MapData::entities, sonst -1 (dann kill aus ICARUS).
     std::function<int(const std::string& figur, double ms)> hurtAusloeser;
+    // Pruefung 3: renderInfo.handRPoint (Bolzen "*r_hand") und muzzleDir (die
+    // Richtung der ersten Klinge, CG_AddSaberBlade) des gezeichneten Skeletts
+    // zur Zeit ms - fuer WP_SaberLaunch/WP_SaberDrop. false: unbekannt.
+    std::function<bool(const struct Actor& figur, double ms, float hand[3], float richtung[3])> handPunkt;
+    // Pruefung 3: der Gegenstand einer Waffe aus items.dat (FindItemForWeapon):
+    // mins/maxs fuer G_RunItem. false: die Waffe hat keinen (dann faellt nichts).
+    std::function<bool(const std::string& waffe, NavVec& mins, NavVec& maxs)> waffenGegenstand;
+    // Pruefung 3: der Kristall des Shadowtroopers (FindItemForAmmo(AMMO_FORCE)).
+    std::function<bool(NavVec& mins, NavVec& maxs)> kraftGegenstand;
 };
 
 [[nodiscard]] Scene buildScene(const Script& s, const MapData& map,
@@ -1058,6 +1090,9 @@ struct NpcDef {
     // rc601 (bewegung, Wege): "height" (NPC_stats.cpp:3645-3672), < 0: nicht
     // angegeben - maxs[2] bleibt DEFAULT_MAXS_2 40.
     float hoehe = -1.0F;
+    // Pruefung 3: "crouchheight" n -> client->crouchheight = n + DEFAULT_MINS_2
+    // (NPC_stats.cpp:3268-3276 OJ), < 0: nicht angegeben - CROUCH_MAXS_2 16.
+    float hockHoehe = -1.0F;
     // --- Fuer Waffe und Schwerter (NPC_ParseParms, NPC_stats.cpp) --------
     //
     // saber2 - das zweite Schwert (ebenda:4094). Leer heisst keines.
@@ -1082,6 +1117,10 @@ struct NpcDef {
     // playerTeam, z.B. "TEAM_ENEMY" (ebenda:3378). Braucht es fuer die
     // Vorgabewaffe, wenn `weapon` fehlt oder WP_NONE ist (npcTeamWaffe).
     std::string team;
+    // Pruefung 3: "snd" - ci->customBasicSoundDir bis zum ersten '/'
+    // (NPC_stats.cpp:3430-3447 OJ): die eigenen Klaenge "*death1.wav" ...
+    // liegen unter sound/chars/<snd>/misc/ (CG_RegisterCustomSounds).
+    std::string snd;
     // kotorWeapons: dann haengt altweaponmodel statt weaponmodel in der
     // Hand (ebenda:4059; NPC_spawn.cpp:679 ff.).
     bool kotorWeapons = false;
@@ -1174,6 +1213,11 @@ struct SaberDef {
     // ff.). Leer bzw. 0 heisst: keine Angabe - dann gilt die Vorgabe
     // (zufaellige Farbe, Laenge 32, Radius 3; ebenda:626 ff.).
     std::array<std::string, kMaxKlingen> bladeColor{};
+    // Pruefung 3: "disarmable 0" -> SFL_NOT_DISARMABLE (Saber_ParseDisarmable,
+    // wp_saberLoad.cpp:860 OJ); "fallSound1..3" (WP_SaberFallSound waehlt mit
+    // Q_irand(0, 2) - nur, wenn die erste gesetzt ist).
+    bool nichtEntwaffnbar = false;
+    std::array<std::string, 3> fallKlang{};
     std::array<float, kMaxKlingen> bladeLength{};
     std::array<float, kMaxKlingen> bladeRadius{};
     // rc601 (saber): blockSound1..3, blockEffect, noWallMarks ... (WP_SaberParseParms).
@@ -1396,6 +1440,7 @@ void muzzlePoint(const float origin[3], float yawDeg,
 // Die Werte stehen im selben Block (ebenda:4778 ff.):
 inline constexpr float kAnimSpeedWalk = 50.0F;    // gehen
 inline constexpr float kAnimSpeedRun = 150.0F;    // laufen
+inline constexpr float kAnimSpeedHocke = 75.0F;   // Pruefung 3: BOTH_CROUCH1WALK(BACK) (bg_panimate.cpp:4778-4781 OJ)
 inline constexpr float kAnimSpeedCrouch = 75.0F;  // geduckt gehen
 // Die Obergrenze aus derselben Stelle. timeScaleMod ist 1, solange die
 // Zeit nicht gedehnt wird.

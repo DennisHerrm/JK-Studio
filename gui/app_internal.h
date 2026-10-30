@@ -3367,6 +3367,14 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]);
 void figurKopfGier(const ActorState& st, ActorDraw& d);
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d);
 void npcSkalaFuer(const std::string& npcType, float aus[3]);
+// Pruefung 3: die Knochen (welt) und die Weltmatrix (fw) einer Figur im
+// Zustand st zur Zeit ms - dieselbe Rechnung wie die Zeichnung
+// (figurBilderSetzen, figurKopfGier, figurKnochen, figurWeltMatrix).
+bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d,
+               std::vector<BoneMatrix>& welt, float fw[16]);
+// Pruefung 3: renderInfo.torsoAngles aus dem chestBolt des gezeichneten
+// Skeletts (cg_players.cpp:7516-7527 OJ); false: kein chestBolt (VectorClear).
+bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms, float winkel[3]);
 const efx::Effect* effectByName(const std::string& name);
 // rc604: eine Effektdatei samt Shadern laden (app_view3d.cpp) - auch fuer den Selbsttest.
 bool ladeEffektDatei(const std::string& path, const std::string& herkunft);
@@ -3425,9 +3433,10 @@ extern int g_saberBlitzeNachBalken;
 // rc601 saber review: Brandspuren (CG_CreateSaberMarks, CG_AddMarks) - ins
 // Effektnetz haengen, ob es welche gibt, und fuer den Selbsttest die lebenden
 // Marken zu ms (rechnet bis ms).
-void saberSpurenAnhaengen(BspMesh& netz, double nowMs);
-bool saberSpurenDa(double nowMs);
-std::vector<SpurPoly> saberSpurenBei(double ms);
+// Pruefung 3: mit den Decals der Effekte `effekte` im selben Markenspeicher.
+void saberSpurenAnhaengen(BspMesh& netz, double nowMs, const std::vector<EffectInstance>* effekte = nullptr);
+bool saberSpurenDa(double nowMs, const std::vector<EffectInstance>* effekte = nullptr);
+std::vector<SpurPoly> saberSpurenBei(double ms, const std::vector<EffectInstance>* effekte = nullptr);
 // Alles vergessen (Selbsttest: Vorspulen gegen Abspielen vergleichen).
 void saberVergessen();
 // rc603 fix603, nur fuer den Selbsttest: hoechstens so viele Clientbilder im

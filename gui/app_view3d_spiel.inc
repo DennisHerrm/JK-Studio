@@ -251,25 +251,14 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     }
     const Actor& a = g_app->scene.actors[ai];
     const App::ActorAssets& assets = *g_app->actorAssets[ai];
-    if (assets.model.empty()) { return -1; }
     ActorDraw d;
     d.figur = static_cast<int>(ai);
-    d.model = &assets.model;
-    figurBilderSetzen(a, assets, st, ms, d);
-    if (d.anim == nullptr) { return -1; }
-    for (int q = 0; q < 3; ++q) { d.pos[q] = st.pos[q]; }
-    d.yaw = st.angles[1];
-    npcSkalaFuer(a.npcType, d.skala);
-    anbautenFuer(a, st, ms, d);
-    figurKopfGier(st, d);
-    d.yawOffset = static_cast<float>(g_app->actorYaw);
     std::vector<BoneMatrix> welt;
-    std::vector<BoneMatrix> hilf;
-    if (!figurKnochen(d, welt, hilf) || welt.empty()) { return -1; }
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return -1; }
+    anbautenFuer(a, st, ms, d);
     std::vector<BoneMatrix> skin;
     gpu::baueKnochenmatrizen(welt, d.anim->bones, skin);
-    float fw[16];
-    figurWeltMatrix(d, fw);
     const GlmModel& m = assets.model;
     // G2_TraceSurfaces: rekursiv ab der Wurzel; offFlags = Ueberschreibung
     // (die .skin mit "*off": G2SURFACEFLAG_OFF) oder die Flaggen der Hierarchie;

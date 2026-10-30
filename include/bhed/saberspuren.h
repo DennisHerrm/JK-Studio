@@ -26,6 +26,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace bhed {
@@ -117,18 +118,31 @@ inline constexpr int kSpurBlendZeit = 1000;      // MARK_FADE_TIME
 struct SpurPoly {   // markPoly_t
     int zeit = 0;                 // mark->time
     bool alphaFade = false;
-    int shader = 0;               // 0 gfx/damage/rivetmark, 1 gfx/effects/saberDamageGlow
+    // 0 gfx/damage/rivetmark, 1 gfx/effects/saberDamageGlow; Pruefung 3: ab
+    // kSpurShaderEffekt der Shader eines Effekt-Decals (spurShaderNummer)
+    int shader = 0;
     int zahl = 0;                 // poly.numVerts
     float xyz[kSpurMaxEcken][3]{};
     float st[kSpurMaxEcken][2]{};
     std::uint8_t farbe[4]{};      // mark->color
+    // Pruefung 3: verts[].modulate[3] beim Anlegen - CG_ImpactMark schreibt
+    // colors[3] hinein (cg_marks.cpp:153-157 OJ), CG_CreateSaberMarks 0 (s. u.)
+    std::uint8_t eckenAlpha = 0;
 };
+// Pruefung 3: ein Decal aus einem Effekt (FxScheduler -> CG_ImpactMark) liegt
+// im selben Speicher wie die Brandspuren der Schwerter (cg_markPolys, 256
+// Plaetze, CG_AllocMark). Sein Shader ist eine Nummer ab kSpurShaderEffekt,
+// die spurShaderNummer je Name einmal vergibt; spurShaderName gibt ihn zurueck.
+inline constexpr int kSpurShaderEffekt = 2;
+[[nodiscard]] int spurShaderNummer(const std::string& name);
+[[nodiscard]] std::string spurShaderName(int nummer);
 // Die Farbe, mit der CG_AddMarks die Ecken zur Zeit cgZeit zeichnet
 // (verts[].modulate). Die Alpha bleibt ausserhalb des Abblendens beim Wert,
-// den CG_CreateSaberMarks in die Ecken schrieb: Movie Duels setzt sie mit
-// "polyVert_t verts[]{}" auf 0, OpenJK laesst sie ungesetzt - beide Shader
-// lesen sie nicht (rivetmark: blendFunc GL_DST_COLOR GL_SRC_COLOR,
-// saberDamageGlow: GL_ONE GL_ONE), hier steht 0.
+// den die Marke beim Anlegen in die Ecken schrieb (eckenAlpha): bei
+// CG_CreateSaberMarks setzt Movie Duels sie mit "polyVert_t verts[]{}" auf 0,
+// OpenJK laesst sie ungesetzt - beide Shader lesen sie nicht (rivetmark:
+// blendFunc GL_DST_COLOR GL_SRC_COLOR, saberDamageGlow: GL_ONE GL_ONE), dort
+// steht 0; CG_ImpactMark schreibt die Alpha des Decals.
 void spurFarbe(const SpurPoly& p, int cgZeit, std::uint8_t aus[4]) noexcept;
 
 class SpurSpeicher {
