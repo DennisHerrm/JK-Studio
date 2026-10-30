@@ -2038,6 +2038,7 @@ struct App {
     float spaltenGesamt = 0.0F;
     // Was Zellraender und Trennlinien der Hauptspalten kosten (gemessen).
     float spaltenUeberhang = 40.0F;
+    bool spaltenUeberhangGemessen = false;   // die erste Messung gilt immer
     int teilerAnzahl = 0;
     // Ruhige Spuren zeigen (nach dem Anfang passiert nichts mehr darin).
     bool zeigeRuhigeSpuren = false;

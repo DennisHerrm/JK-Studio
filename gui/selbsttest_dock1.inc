@@ -1013,6 +1013,16 @@ std::vector<Schritt> dock2MassSchritte() {
     auto neu = std::make_shared<dock2::Masse>();
     const bool vorher = dockraumAn();
     add(tu("dock2mass: alte Anordnung", [] { dockraumAn() = false; }));
+    // Nebenbefund aus dock1: spaltenUeberhang startet bei 40 und wurde erst ab 2
+    // Punkten Unterschied uebernommen - nach dem Start standen die Spalten von
+    // Events 1 Punkt anders als nach einem Wechsel durch die Modi.
+    auto start = std::make_shared<std::array<float, 4>>();
+    add(tu("dock2mass: Events nach dem Start", [] { g_app->leftMode = 0; }));
+    add(stabil("dock2mass: Events nach dem Start", 20));
+    add(tu("dock2mass: Spalten nach dem Start merken", [=] {
+        for (int k = 0; k < 3; ++k) { (*start)[static_cast<std::size_t>(k)] = g_app->spaltenB[k]; }
+        (*start)[3] = g_app->spaltenUeberhang;
+    }));
     for (const int runde : {0, 1, 2}) {
         for (const int modus : {1, 2, 0}) {
             add(tu("dock2mass: Modus " + std::to_string(modus), [=] {
@@ -1024,6 +1034,21 @@ std::vector<Schritt> dock2MassSchritte() {
             add(tu("dock2mass: messen", [=] {
                 const dock2::Masse m = dock2::messen();
                 (runde == 1 ? *alt : *neu).insert(m.begin(), m.end());
+            }));
+        }
+        if (runde == 0) {
+            add(pruefe("dock2mass: Spalten von Events nach dem Start = nach einem Durchgang durch die Modi (spaltenUeberhang)", [=] {
+                bool gleich = true;
+                for (int k = 0; k < 3; ++k) {
+                    if (std::fabs(g_app->spaltenB[k] - (*start)[static_cast<std::size_t>(k)]) > 0.5F) { gleich = false; }
+                }
+                char t[200];
+                std::snprintf(t, sizeof(t), "Knopftest: dock2mass: Start %.0f/%.0f/%.0f (Ueberhang %.0f), nach den Modi %.0f/%.0f/%.0f (Ueberhang %.0f)",
+                              static_cast<double>((*start)[0]), static_cast<double>((*start)[1]), static_cast<double>((*start)[2]),
+                              static_cast<double>((*start)[3]), static_cast<double>(g_app->spaltenB[0]), static_cast<double>(g_app->spaltenB[1]),
+                              static_cast<double>(g_app->spaltenB[2]), static_cast<double>(g_app->spaltenUeberhang));
+                diag::detail(t);
+                return gleich;
             }));
         }
     }

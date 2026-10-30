@@ -6240,8 +6240,13 @@ void draw() {
                         rand += (tabI->Columns[k].MaxX - tabI->Columns[k].MinX) - tabI->Columns[k].WidthGiven;
                     }
                     const float neu = std::clamp(std::round(rand), 0.0F, ImGui::GetFontSize() * 6.0F);
-                    if (std::fabs(neu - g_app->spaltenUeberhang) >= 2.0F) {
+                    // Die erste Messung gilt immer: der Startwert ist nur eine
+                    // Schaetzung. Gemessen 39 bei 40 blieb sonst stehen, und die
+                    // Spalten waren nach dem Start 1 Punkt anders als nach einem
+                    // Wechsel durch die Modi (Selbsttest dock2mass).
+                    if (std::fabs(neu - g_app->spaltenUeberhang) >= 2.0F || !g_app->spaltenUeberhangGemessen) {
                         g_app->spaltenUeberhang = neu;
+                        g_app->spaltenUeberhangGemessen = true;
                     }
                     // Fuer den Selbsttest: was rechts neben der letzten Spalte
                     // frei bleibt (soll nur der Rahmen sein).
