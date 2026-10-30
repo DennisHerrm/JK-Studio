@@ -126,6 +126,25 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
 - Reiter mit ungespeicherten Änderungen schließen fragt: Speichern / Ohne Speichern schließen /
   Abbrechen (Selbsttest).
 
+## Punkt 15 - Handbuch und Selbsttest
+
+- Handbuchseite „Menü-Editor: Fluss, Tab-Reihenfolge, Stile und Vorlagen“
+  (tools/handbuch/inhalt_menue6.py) in vier Sprachen mit sieben Bildern aus dem Selbsttest
+  (menue_fluss, menue_tabfolge, menue_stile, menue_vorlage, menue_assistent, menue_referenzbild,
+  menue_vergleich; SP\m6\hb_fotos.sh, tools/handbuch/bilder.py). Erst hieß das Vergleichsbild
+  menue_original - der Name war schon vom M1-Bild belegt und hätte es überschrieben; umbenannt,
+  das alte Bild aus git zurückgeholt.
+- Selbsttest `menueeditor` um M6 erweitert (BHED_MENUE_NUR=m6, auch im vollen Lauf): 16 Prüfungen
+  mit Aufgabentests - Sackgasse finden (2 Klicks), Tab-Folge c b a zurueck (Schalter + 4 echte
+  Mausklicks, ein Rückgängig byte-gleich), Vorlage über das + (2 Klicks), Assistent (159 Cvars mit
+  Steuerung aus den Movie-Duels-Menüs, Seite mit 2 Einstellungen), Original (rect geändert,
+  zurückgesetzt, Text wie im Spiel), Referenzbild (Text unverändert), Reiter schließen fragt.
+- Fund beim ctest menue_lesbar (rot, behoben, grün): die Textlänge je Sprache maß den
+  @-Schlüssel selbst statt des übersetzten Textes (textRechteck löst nicht auf) - jetzt wie das
+  Spiel über Texte::imSpiel (unbekannt = nichts).
+- Fund beim Handbuchbild: die Tab-Nummer lag links oben über dem Textanfang („A“, „B“, „C“
+  verdeckt) - jetzt rechts oben.
+
 ## Stand - fertig / offen / nächster Schritt
 
 - Fertig (mit ctest und Selbsttest): 1 Menüfluss, 2 Tab-Reihenfolge, 4 Stile, 5 Vorlagen,

@@ -68,7 +68,7 @@ MENUE_EDITOR_M6 = {
             "**{{MeRefBild}}** legt ein PNG, JPG oder TGA halbtransparent auf die Fläche, unter das Menü oder - wenn ein Vollbild-Hintergrund es verdeckt - darüber (**{{MeRefOben}}**), mit einstellbarer **{{MeRefDeckkraft}}**. Es ist nur eine Zeichenhilfe und kommt nie ins Menü oder in die pk3.",
             "**{{MeRefBild}}** 将 PNG、JPG 或 TGA 半透明地放在画布上,位于菜单下方,或在全屏背景遮住时位于上方(**{{MeRefOben}}**),**{{MeRefDeckkraft}}** 可调。它只是绘图辅助,绝不会进入菜单或 pk3。",
             "**{{MeRefBild}}** は PNG、JPG、TGA を半透明でキャンバスに置きます。メニューの下か、全画面の背景で隠れる場合は上(**{{MeRefOben}}**)に置け、**{{MeRefDeckkraft}}** を調整できます。描画の補助にすぎず、メニューや pk3 には入りません。")),
-        ("img", "menue_original", T("An element of the game's main menu was moved - the Properties name the difference and offer the reset.",
+        ("img", "menue_vergleich", T("An element of the game's main menu was moved - the Properties name the difference and offer the reset.",
                                     "Ein Element des Hauptmenüs wurde verschoben - die Eigenschaften nennen den Unterschied und bieten das Zurücksetzen an.",
                                     "游戏主菜单中的一个元素被移动了——属性中会指出差异并提供重置。",
                                     "ゲームのメインメニューの要素を動かしました。プロパティが違いを示し、元に戻す操作を提示します。"), "breit"),

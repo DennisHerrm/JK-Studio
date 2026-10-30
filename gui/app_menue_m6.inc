@@ -241,7 +241,7 @@ void zeichneTabNummern(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab,
         const auto neu = std::find(z.tabNeu.begin(), z.tabNeu.end(), alt[k]);
         const bool gesetzt = neu != z.tabNeu.end();
         const int nr = gesetzt ? static_cast<int>(neu - z.tabNeu.begin()) + 1 : static_cast<int>(k) + 1;
-        const ImVec2 c{o.x + ab.x(q.x) + r + 2, o.y + ab.y(q.y) + r + 2};
+        const ImVec2 c{o.x + ab.x(q.x + q.w) - r - 2, o.y + ab.y(q.y) + r + 2};   // rechts oben: der Text beginnt meist links
         dl->AddRect(ImVec2{o.x + ab.x(q.x), o.y + ab.y(q.y)}, ImVec2{o.x + ab.x(q.x + q.w), o.y + ab.y(q.y + q.h)},
                     gesetzt ? IM_COL32(70, 220, 110, 200) : IM_COL32(90, 160, 255, 160), 0, 0, 1.5F);
         dl->AddCircleFilled(c, r, gesetzt ? IM_COL32(40, 170, 80, 255) : (z.tabNeu.empty() ? IM_COL32(40, 110, 220, 255) : IM_COL32(90, 90, 90, 255)));

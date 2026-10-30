@@ -1458,7 +1458,7 @@ std::vector<Schritt> schritteM6() {
         const auto u = me::originalUnterschiede();
         return u == std::vector<std::string>{"rect"};
     }));
-    add(foto("menue_original"));
+    add(foto("menue_vergleich"));
     add(klick(tr(Str::MeOriginalZuruecksetzen)));
     add(pause(0.3));
     add(pruefe("M6 Original: zurueckgesetzt, Text wieder wie im Spiel", [st, original] { return st().text == *original && me::originalUnterschiede().empty(); }));
