@@ -3164,6 +3164,8 @@ enum class Str {
     DockPanelModelBar,
     DockPanelCanvas,
     DockPanelMenuSide,
+    MeAuswahlItems,
+    MapScriptKeyVon,
     Count,
 };
 

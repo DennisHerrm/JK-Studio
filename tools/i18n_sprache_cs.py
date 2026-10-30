@@ -2625,7 +2625,7 @@ TEXTE = {
     "ZlTeilOben": "horní část těla",
     "ZlTeilUnten": "nohy",
     "ZlFilmTitel": "Snímek kamery v %s",
-    "ZlFilmText": "Takto vypadá kamera scény v tomto místě. Kliknutím sem skočíte.",
+    "ZlFilmText": "Toto zde ukazuje kamera scény. Kliknutím sem skočíte.",
     "MeTextNichtDarstellbar": "%s: tyto znaky hra neumí zobrazit, uloženo jako ?: %s",
     "MeHudWerte": "Hodnoty HUD (jak je čte cgame)",
     "MeHudWie": "Kreslit jako hra (CG_DrawHUD)",
@@ -2824,6 +2824,8 @@ TEXTE = {
     "DockPanelModelBar": "Lišta přehrávání",
     "DockPanelCanvas": "Plátno",
     "DockPanelMenuSide": "Hierarchie, text, vlastnosti",
+    "MeAuswahlItems": "%d {prvek|prvky|prvků}",
+    "MapScriptKeyVon": "%s entity %s",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

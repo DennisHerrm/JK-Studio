@@ -387,6 +387,13 @@ std::vector<Schritt> miniSchritte() {
         return std::fabs(g_app->playMs - std::max(0.0, std::min(6050.0, ende()) - 5000.0)) < 0.5;
     }));
     add(pruefe("zeitleiste1: die Legende nennt die Pfeiltasten", [] { return std::strstr(tr(Str::ZlLegende), "5 s") != nullptr; }));
+    // uebersetzung2: das Suchfeld zeigt seinen Hinweis ganz (Spanisch "Buscar: nombre, marca, SET_ANI|").
+    add(pruefe("zeitleiste1: das Suchfeld zeigt seinen Hinweis ganz", [] {
+        const float soll = ImGui::CalcTextSize(tr(Str::ZlSuche)).x + ImGui::GetStyle().FramePadding.x * 2.0F;
+        diag::detail("Knopftest: zeitleiste1 - Suchfeld " + std::to_string(g_app->zlSucheRect.GetWidth()) + " fuer Hinweis " +
+                     std::to_string(soll));
+        return g_app->zlSucheRect.GetWidth() > 1.0F && soll <= g_app->zlSucheRect.GetWidth() + 0.5F;
+    }));
     return s;
 }
 
@@ -951,6 +958,8 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
                      std::to_string(aufnahmePunkte()) + " Laufziele");
         return aufnahmeProben() > 8 && aufnahmePunkte() >= (lFoermig ? 2 : 1);
     }));
+    // uebersetzung2: der Hinweis unten steht ganz in der Ansicht (lief in jeder Sprache rechts hinaus).
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": der Hinweis steht ganz in der Ansicht", [] { return aufnahmeHinweisGanz(); }));
     add(foto("zl2_aufnahme_" + wo));
     add(taste(ImGuiKey_Enter, "Enter"));
     add(pause(1.2));

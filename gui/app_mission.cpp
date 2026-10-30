@@ -5097,11 +5097,15 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     char t[400];
     std::snprintf(t, sizeof(t), trN(Str::AufHinweis, k.size()), r.name.c_str(), static_cast<int>(k.size()),
                   static_cast<double>(g_app->aufnahmeToleranz));
-    const ImVec2 gr = ImGui::CalcTextSize(t);
+    // uebersetzung2: umgebrochen auf die Breite der Ansicht - in einer Zeile lief er in jeder Sprache
+    // rechts hinaus, und die Zahl der Laufziele und die Toleranz fehlten.
+    const float umbruch = std::max(fs * 8.0F, b.x - a.x - fs * 1.6F);
+    const ImVec2 gr = ImGui::CalcTextSize(t, nullptr, false, umbruch);
     const ImVec2 o{a.x + fs * 0.5F, b.y - gr.y - fs * 0.8F};
     dl->AddRectFilled(ImVec2{o.x - fs * 0.3F, o.y - fs * 0.2F}, ImVec2{o.x + gr.x + fs * 0.3F, o.y + gr.y + fs * 0.2F}, IM_COL32(0, 0, 0, 180),
                       fs * 0.2F);
-    dl->AddText(o, IM_COL32(255, 230, 140, 255), t);
+    dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), o, IM_COL32(255, 230, 140, 255), t, nullptr, umbruch);
+    g_app->aufHinweisRect = ImRect{o, ImVec2{o.x + gr.x, o.y + gr.y}};
     dl->PopClipRect();
 }
 

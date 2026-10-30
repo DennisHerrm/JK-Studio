@@ -4231,7 +4231,7 @@ void zeichneEigenschaften(Dokument& d) {
     }
     const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
     if (d.auswahl.size() > 1) {
-        ImGui::Text("%zu items", d.auswahl.size());
+        ImGui::Text(trN(Str::MeAuswahlItems, d.auswahl.size()), static_cast<int>(d.auswahl.size()));
         auto richte = [&](Ausrichtung a) {
             std::vector<Rechteck> r;
             for (const int i : d.auswahl) { r.push_back(m.items[static_cast<std::size_t>(i)].window.rectClient); }

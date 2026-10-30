@@ -2822,6 +2822,8 @@ TEXTE = {
     "DockPanelModelBar": "Barra de reproducción",
     "DockPanelCanvas": "Lienzo",
     "DockPanelMenuSide": "Jerarquía, texto, propiedades",
+    "MeAuswahlItems": "%d {elemento|elementos}",
+    "MapScriptKeyVon": "%s de %s",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

@@ -3961,7 +3961,7 @@ void drawMapScriptList() {
         }
         ImGui::EndDisabled();
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s von %s", r.key.c_str(), r.owner.c_str());
+            ImGui::SetTooltip(tr(Str::MapScriptKeyVon), r.key.c_str(), r.owner.c_str());
         }
         if (found.empty()) {
             ImGui::SameLine();

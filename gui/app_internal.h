@@ -2090,6 +2090,8 @@ struct App {
     std::string zlSzene;                   // Anfangsausschnitt (30 s) je Szene
     // Fuer den Selbsttest: was in diesem Bild gezeichnet wurde.
     ImRect zlNavRect;
+    ImRect zlSucheRect;                    // uebersetzung2: das Suchfeld der Zeitleiste
+    ImRect aufHinweisRect;                 // uebersetzung2: der Hinweis der Lauf-Aufnahme
     ImRect zlErklaerungRect;
     float zlErklaerungInhaltH = 0.0F;      // so hoch war der Inhalt des Kastens im letzten Bild
     std::string zlErklaerungTitel;

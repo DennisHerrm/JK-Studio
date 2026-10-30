@@ -1182,8 +1182,10 @@ void drawTimeline() {
         ImGui::SameLine();
         if (segment(tr(Str::ZlProbleme), tr(Str::ZlProblemeHint), g_app->zlProbleme)) { g_app->zlProbleme = !g_app->zlProbleme; }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(fsT * 11.0F);
+        // uebersetzung2: mindestens so breit wie der Hinweis (Spanisch "Buscar: nombre, marca, SET_ANI|")
+        ImGui::SetNextItemWidth(std::max(fsT * 11.0F, ImGui::CalcTextSize(tr(Str::ZlSuche)).x + ImGui::GetStyle().FramePadding.x * 2.0F));
         ImGui::InputTextWithHint("##zlsuche", tr(Str::ZlSuche), g_app->zlSuche, sizeof(g_app->zlSuche));
+        g_app->zlSucheRect = ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
     }
     trenner();
     // Eine Kameraeinstellung an der jetzigen Ansicht - vorher ein Textknopf

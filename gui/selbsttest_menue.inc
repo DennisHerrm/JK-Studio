@@ -759,6 +759,9 @@ std::vector<Schritt> schritteM5() {
         return zeile && rect(x.text, "knopf1") == "108 108 60 20" && rect(x.text, "knopf2") == "176 108 60 20" &&
                rect(x.text, "knopf3") == "244 108 60 20" && *schritte <= 5;
     }));
+    // uebersetzung2: auch mit dem Layout-Abschnitt schneidet keine Spalte ab (vorher die Zeile
+    // "Margins (left, top, right, botto|" - schon auf Englisch).
+    add(pruefe("M5 Layout: Abschnitt Layout - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
     add(foto("menue_layout"));
     // Spacer hinter knopf2: knopf3 rutscht an den rechten Rand (108 + 440 - 16 = 532 -> x 472)
     add(tu("M5 Layout: knopf2 waehlen", [] { me::waehle(me::itemNummer("knopf2"), false); }));

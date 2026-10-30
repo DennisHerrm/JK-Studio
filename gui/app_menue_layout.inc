@@ -348,7 +348,10 @@ void zeichneLayout(Dokument& d) {
     if (ImGui::DragFloat(tr(Str::MeLayoutAbstand), &l.abstand, 0.5F, 0.0F, 200.0F, "%.0f")) {}
     neu = neu || ImGui::IsItemDeactivatedAfterEdit();
     tipp(Str::MeLayoutAbstandTip);
-    if (ImGui::DragFloat4(tr(Str::MeLayoutRaender), l.rand, 0.5F, 0.0F, 200.0F, "%.0f")) {}
+    // uebersetzung2: die lange Beschriftung ueber den vier Feldern - rechts daneben schnitt die Spalte sie
+    // ab, schon auf Englisch ("Margins (left, top, right, botto|").
+    ImGui::TextUnformatted(tr(Str::MeLayoutRaender));
+    if (ImGui::DragFloat4("##raender", l.rand, 0.5F, 0.0F, 200.0F, "%.0f")) {}
     neu = neu || ImGui::IsItemDeactivatedAfterEdit();
     const Str ausr[] = {Str::MeLayoutAnfang, Str::MeLayoutMitte, Str::MeLayoutEnde, Str::MeLayoutFuellen};
     auto ausrichtung = [&](Str titel, LayoutAusrichtung& a) {
