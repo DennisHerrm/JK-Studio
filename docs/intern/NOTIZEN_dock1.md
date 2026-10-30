@@ -160,6 +160,145 @@ Standardanordnung = alles zuhause = derselbe Code wie vorher (einzige sichtbare
 - Ältere Handbuchbilder mit der Menüleiste zeigen noch keinen Eintrag
   „Fenster“ (nicht neu aufgenommen).
 
+## dock2 (in Arbeit) – durchgehender DockSpace
+
+Auftrag: SP\auftrag_dock2.md. Abgebrochen durch den Neustart (Windows Update
+00:29), neu begonnen 04:55, harte Zeitgrenze 06:40 – daher nur ein Teil.
+
+### Stand
+
+- **Durchgehender DockSpace für Events, Mission, Model** (`gui/app_dockspace.inc`),
+  **hinter einem Schalter, ab Werk aus**: `BHED_DOCKSPACE=1` schaltet ihn beim
+  Start an (`dockraumAn()`, der Selbsttest `dock2mass` schaltet ihn um). Ohne
+  Schalter ist alles wie in dock1 (alter Weg unverändert).
+  - Prinzip: Die Standardanordnung wird nicht nachgerechnet. Dieselben
+    ImGui-Tabellen wie vorher richten sich ein (nur gemessen, ohne Inhalt:
+    `dockraum::zelleMessen`/`innenMessen` statt drawEventsList/drawFlowArea/
+    drawButtonColumns), und die Dock-Knoten bekommen genau die gemessenen
+    Spalten: je Panel ein Knoten (Modusleiste, Ebenen/Animationen, Ansicht bzw.
+    Ereignisliste, Script Flow, Actions; Zeitleiste/Leiste als Band darunter),
+    Knotenabstand 1 Punkt (= Tabellenrand, `ImGuiStyleVar_DockingSeparatorSize`),
+    Polster der Panelfenster = Zellpolster (Band: ItemSpacing.y − 1), Kinder
+    `frameH = -FLT_MIN` (bis an den Inhaltsrand = altes Spaltenende).
+  - Aufbau per DockBuilder beim ersten Bild des Bereichs (die Panelfenster
+    tragen NoSavedSettings, daher `SetNextWindowDockID` im ersten Begin – mit
+    DockBuilderDockWindow allein standen sie schwebend bei 66,131, rot im
+    ersten dock2mass-Lauf). Script Flow ist der Mittelknoten (nimmt beim
+    freien Anordnen den Rest; ein leerer Mittelknoten bleibt stehen, darum
+    nicht Actions – Lauf 7). Die Breite, die das Band in Mission/Model über die
+    Spalten hinausreicht, geht über die Knotengrössen (`erzwingen` mit der
+    Grösse des Knotens: erstes Kind gemessen, zweites der Rest) in die letzte
+    Spalte; deren Inhaltsbereich wird auf die Spaltenbreite gekürzt.
+  - Geometrie (gemessen, rot → grün in dock2mass): ImGui-Spalten liegen
+    lückenlos [MinX, MaxX], ihr erster Punkt ist der Rand – Knoten daher
+    [MinX+1, MaxX]; die Zellen der inneren Tabelle beginnen ein Zellpolster
+    tiefer als die der äusseren; alle Kinder enden ein Zellpolster über dem
+    Zeilenende (Panelpolster y = 2·CellPadding.y, äussere Panels rücken um
+    CellPadding.y hoch); das Band beginnt am Zeilenende + 1 mit Polster
+    ItemSpacing.y − 1 und reicht über die volle Breite (Inhalt des
+    Hauptfensters ± Zellpolster). Zeilenende ohne Runden (Mission hat
+    gebrochene Höhen: frameH −316,83). Modusleiste: ohne
+    Reiterleiste, nicht abdockbar, nichts darüber andockbar. Übrige Panels:
+    versteckte Reiterleiste mit ImGuis Dreieck (Klick zeigt die Reiter, Ziehen
+    dockt ab) – andocken an jede Stelle, als Reiter, heraus auf andere
+    Bildschirme.
+  - Standardanordnung erkannt (jedes Panel allein in seinem Knoten, Baum
+    unverändert) → vor `DockSpace()` bekommt jede Teilung die gemessenen
+    Grössen (`SizeRef`), ImGuis Teiler sind aus (`NoResize`, gezeichnet als
+    1-Punkt-Linie in TableBorderLight wie der Tabellenrand), die alten Griffe
+    `##spalteLinks/##spalteRechts` (Grenzen, Anteile) und die Ziehkante der
+    Zeitleiste (`drawTlKante`, jetzt im Panel) bleiben → Teiler-Verhalten wie
+    bisher. Sonst (frei angeordnet): ImGuis Teiler, keine erzwungenen Grössen.
+- Menü „Fenster“ im DockSpace (Schalter an, Bereiche 0–2): Ausblenden lässt
+  den Knoten leer (die Nachbarn nehmen den Platz, Einblenden stellt die
+  Standardanordnung wieder her), „eigenes Fenster“ dockt ab
+  (DockContextQueueUndockWindow), Andocken setzt das Panel in seinen Knoten
+  oder baut die Standardanordnung neu, „Zurücksetzen“ baut sie neu.
+  `draussen` = nicht im DockSpace des Bereichs angedockt. Reiterleisten:
+  AutoHideTabBar (zwei Panels in einem Knoten zeigen Reiter).
+- Helfer (F1) kennt das Menü „Fenster“: `tools/gen_hilfe_orte.py` liest
+  `menueInhalt` aus `gui/fenster_dock.cpp` (`fenstermenue()`), 8 neue Orte.
+
+### Selbsttest dock2mass
+
+Misst in Events, Mission und Model die Kindfenster der Panels (modebar, events,
+##flowarea, buttons, toolbar, mapview, modelview, animliste, entlayers,
+toolband) mit den Tabellen und im DockSpace im selben Lauf und vergleicht sie
+(±0,5 Punkte).
+
+- Lauf 1 (rot): Panels schwebend (66,131, winzig) – DockBuilderDockWindow
+  wirkt nicht bei NoSavedSettings → SetNextWindowDockID.
+- Lauf 2 (rot): 1–3 Punkte daneben (Randpunkt der Spalten, Zellpolster der
+  inneren Tabelle, gerundetes Zeilenende, Band zu schmal).
+- Lauf 3 (grün): alle 17 Kindfenster gleich (z. B. Events: modebar
+  12,124 141x1295, events 166,124 435x1295, ##flowarea 614,121 1466x1304,
+  buttons 2093,121 419x1298; Mission toolband 12,1244 2514x184).
+- Lauf 4 (grün, 17 OK): Actions per DockBuilderDockWindow als Reiter zu
+  Script Flow → ein Knoten mit zwei Fenstern im Hauptfenster, keine
+  Standardanordnung mehr; „Anordnung zurücksetzen“ (Menü Fenster) baut neu
+  auf → 4/4 Kindfenster von Events wieder mit den alten Massen; linker Griff
+  80 nach rechts im DockSpace → Ereignisliste +80, Script Flow −80, Actions 0.
+- spaltenUeberhang (Nebenbefund dock1): Lauf 5 rot – Events nach dem Start
+  602/1478/432 (Überhang 40), nach einem Durchgang durch die Modi
+  602/1479/432 (Überhang 39). Ursache: der Startwert 40 wurde erst ab 2
+  Punkten Unterschied durch die Messung ersetzt. Behoben: die erste Messung
+  gilt immer (`spaltenUeberhangGemessen`). Lauf 6 grün (19 OK): Start und
+  nach den Modi 602/1479/432 (Überhang 39).
+- Lauf 7 (26 OK, 2 FEHLER): Menü im DockSpace – Actions ausgeblendet bzw.
+  herausgenommen, Script Flow blieb 1466 breit: Actions war Mittelknoten,
+  ein leerer Mittelknoten bleibt stehen → Script Flow wieder Mittelknoten.
+- Lauf 8 (27/1): ausgeblendet und herausgenommen → Script Flow 1898,
+  eingeblendet und angedockt → 4/4 alte Masse. Reiter-Schritt rot:
+  DockBuilderDockWindow in den Knoten von Script Flow, während Actions noch
+  angedockt war – beim Abdocken verschmilzt ImGui den Baum, der Zielknoten
+  verschwindet, Actions schwebte.
+- Lauf 9: mit DockContextQueueDock bei noch angedocktem Actions Absturz nach
+  dem Zurücksetzen (Zielknoten freigegeben). Test wie ImGuis Ziehen: erst
+  abdocken, dann ablegen.
+- Lauf 10 grün: **29 OK, 0 FEHLER** (17 Kindfenster gleich, Spalten nach dem
+  Start, Reiter, Zurücksetzen, Griff, Aus-/Einblenden, eigenes
+  Fenster/Andocken). dock1 mit Schalter aus danach: 86 OK, 0 FEHLER.
+
+### Regression (Schalter aus)
+
+- dock1 (Schalter aus, mit dem Überhang-Fix): 86 OK, 0 FEHLER (wie vorher).
+- ctest 158/158 (nach vollem, inkrementellem Bau; 0 Warnungen). Kein sauberer
+  Neubau, kein Modus 1, keine übrigen Modi (Zeit) – der alte Weg ist ohne
+  Schalter unverändert bis auf den Überhang-Fix (Events-Spalten nach dem Start
+  jetzt wie nach einem Moduswechsel).
+- lint_sources, lint_fassung, lint_tabellenid, lint_layout, lint_hoehe,
+  lint_gapp, lint_imgui_context u. a.: ok.
+
+### Offen (dock2)
+
+- Schalter einschalten (ab Werk an), sobald Modus 1, dock1 und alle Modi mit
+  `BHED_DOCKSPACE=1` grün sind (nicht gelaufen – Zeit); dann der alte Weg
+  (spaltenFrei, Zurückziehen auf den alten Platz, Anordnungslisten
+  draussen/versteckt, drawDockFenster für Events/Mission/Model) raus. dock1
+  prüft heute das Herausnehmen über die Anordnungslisten – im DockSpace
+  zeichnet drawDockFenster für Bereich 0–2 nicht, dock1 mit Schalter wird
+  daher rot, bis das Menü umgestellt ist.
+- Im DockSpace bekannt, ungeprüft: die Hover-Linie der alten Griffe zeichnet
+  ins Hauptfenster und ist unter den Panels nur im 1-Punkt-Spalt zu sehen
+  (Griff selbst greift über den Panels, FlattenChildren); ImGuis Dreieck der
+  versteckten Reiterleiste liegt auf der linken oberen Ecke jedes Panels
+  (0,55·Schrift Trefferfläche).
+- Im DockSpace: Speichern/Laden der Dock-Bäume (Panelfenster tragen noch
+  NoSavedSettings, der Baum wird je Sitzung neu gebaut), dock1-Anordnungen
+  lesen oder mit Hinweis auf Standard; Andocken, wenn der eigene Knoten als
+  Geschwister des aktuellen beim Abdocken verschmilzt (dann schwebt das
+  Panel – über DockContextQueueDock nach dem Abdocken lösen, wie im Test);
+  Script Flow ausgeblendet lässt den leeren Mittelknoten stehen.
+- Map Editor (je NRC-Layout eine DockBuilder-Vorgabe), Menu Editor („Text
+  unten“), Drag&Drop je OS-Fenster, OpenGL-Weg, alte Handbuchbilder, Handbuch
+  „Fenster und Bildschirme anordnen“, Selbsttest: Panel im DockSpace auf ein
+  eigenes Windows-Fenster und zurück, Neustart mit gespeichertem Dock-Baum,
+  Bildzeit.
+- Helfer: Orte des Menüs „Fenster“ sind im Katalog (ctest hilfe_orte), „Zeig
+  es mir“ im laufenden Programm nicht geprüft.
+- lint_endtable meldet 2 Stellen in app_karte_entitaeten.cpp:1876/1877 (nicht
+  von dock2, Datei unberührt).
+
 ## Changelog
 
 ## English
@@ -167,21 +306,30 @@ Standardanordnung = alles zuhause = derselbe Code wie vorher (einzige sichtbare
   - New menu **Window**: show/hide panels, put them into their own window, save layout as, load, delete, reset - per area; the current layout is restored at the next start.
   - Windows on an unplugged or too small screen come back; text and size follow the scale of the screen a window is on.
   - Map editor: NetRadiant's layouts stay the default; taken-out views keep drawing (real-time light included), free look and shortcuts work in the window you clicked.
+- The helper (F1) also finds the entries of the **Window** menu.
+- The columns of Events no longer move by one point after the first switch between the areas.
 
 ## Deutsch
 - Fensteranordnung wie in Blender: jedes Panel (Ereignisliste, Script Flow, Actions, Missionsansicht, Entities, Zeitleiste, Modellansicht, Ansichten des Karten-Editors, Konsole, Texturbrowser, Fläche des Menü-Editors …) lässt sich in ein eigenes Fenster nehmen – auf einen zweiten Bildschirm ziehen, Panels als Reiter oder nebeneinander zusammensetzen, durch Schließen oder Ziehen auf den alten Platz wieder andocken.
   - Neues Menü **Fenster**: Panels zeigen/ausblenden, in ein eigenes Fenster nehmen, Anordnung speichern unter, laden, löschen, zurücksetzen – je Bereich; die laufende Anordnung ist beim nächsten Start wieder da.
   - Fenster auf einem abgezogenen oder zu kleinen Bildschirm kommen zurück; Schrift und Größe folgen dem Maßstab des Bildschirms.
   - Karten-Editor: NetRadiants Anordnungen bleiben die Vorgabe; herausgenommene Ansichten zeichnen weiter (auch Echtzeit-Licht), Umschauen und Tastenkürzel gelten im angeklickten Fenster.
+- Der Helfer (F1) findet auch die Einträge des Menüs **Fenster**.
+- Die Spalten von Events verschieben sich nach dem ersten Wechsel zwischen den Bereichen nicht mehr um einen Punkt.
 
 ## 中文
 - 像 Blender 一样排列窗口:每个面板(事件列表、Script Flow、Actions、任务视图、实体、时间轴、模型视图、地图编辑器视图、控制台、纹理浏览器、菜单编辑器画布……)都可以移到独立窗口中——拖到第二个屏幕上,以选项卡或并排方式组合面板,关闭或拖回原位置即可重新停靠。
   - 新菜单 **窗口**:显示/隐藏面板、放入独立窗口、布局另存为、加载、删除、重置——按区域;当前布局在下次启动时恢复。
   - 拔下的或过小的屏幕上的窗口会回来;文字和大小跟随窗口所在屏幕的缩放比例。
   - 地图编辑器:NetRadiant 的布局仍为默认;移出的视图继续绘制(包括实时光照),自由视角和快捷键在所单击的窗口中生效。
+- 帮助助手 (F1) 也能找到 **窗口** 菜单中的条目。
+- 首次在各区域之间切换后,事件的列不再移动一个像素。
 
 ## 日本語
 - Blender のようなウィンドウ配置:すべてのパネル(イベント一覧、Script Flow、Actions、ミッションビュー、エンティティ、タイムライン、モデルビュー、マップエディターのビュー、コンソール、テクスチャブラウザー、メニューエディターのキャンバスなど)を独立したウィンドウに取り出せます。2 台目の画面へドラッグし、タブや横並びで組み合わせ、閉じるか元の場所へドラッグすると元に戻ります。
   - 新しいメニュー **ウィンドウ**:パネルの表示・非表示、独立ウィンドウ化、レイアウトの保存・読み込み・削除・リセット(領域ごと)。現在のレイアウトは次回の起動時に復元されます。
   - 外した画面や小さすぎる画面にあったウィンドウは戻ってきます。文字と大きさはウィンドウのある画面の拡大率に従います。
   - マップエディター:NetRadiant のレイアウトが引き続き既定です。取り出したビューも描画を続け(リアルタイムライトを含む)、自由視点とショートカットはクリックしたウィンドウで働きます。
+- ヘルパー (F1) が **ウィンドウ** メニューの項目も見つけるようになりました。
+- 領域を初めて切り替えた後に、イベントの列が 1 ポイントずれることがなくなりました。
+
