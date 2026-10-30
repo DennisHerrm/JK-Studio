@@ -115,12 +115,70 @@ int main() {
         klinge.klingeAn = true;
         klinge.klingeLaenge = true;
         klinge.saberStil = 4;
-        pruefe(beine(klinge, 0, 0, false, false) == "BOTH_SABERDESANN_STANCE", "Klinge SS_DESANN: BOTH_SABERDESANN_STANCE");
+        pruefe(beine(klinge, 0, 0, false, false) == "BOTH_SABERDESANN_STANCE_JKA",
+               "Klinge SS_DESANN: BOTH_SABERDESANN_STANCE_JKA (g_SerenityJediEngineMode 0)");
         pruefe(beine(klinge, -127, 0, false, true) == "BOTH_RUNBACK1", "NPC mit Klinge, S: BOTH_RUNBACK1");
         pruefe(beine(klinge, 127, 0, true, false) == "BOTH_WALK1", "NPC mit Klinge, Umschalt+W: BOTH_WALK1");
+        klinge.saberStil = 7;
+        pruefe(beine(klinge, -127, 0, true, true) == "BOTH_WALKBACK_STAFF", "Stab, Umschalt+S: BOTH_WALKBACK_STAFF (Modus 0)");
+        klinge.saberStil = 4;
         klinge.klingeAn = false;
         pruefe(beine(klinge, 0, 0, false, false) == "BOTH_STAND1", "Klinge faehrt ein (g_noIgniteTwirl 1): BOTH_STAND1");
         pruefe(beine(klinge, 127, 0, false, false) == "BOTH_RUN1", "Klinge aus, W: BOTH_RUN1 (PM_GetRunAnim)");
+    }
+
+    // Zeitleiste 5: PM_AdjustStandAnimForSlope ruft PM_Footsteps nur im Stand und
+    // dort nur in diesen Zweigen (bg_pmove.cpp:8165-8330 OJ, 14246-14540 MD).
+    // Zeitleiste 5: PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OJ, :8068 MD)
+    // und PM_SetSaberMove(LS_READY) (bg_pmove.cpp:9208-9262 OJ, :22582 MD).
+    std::printf("PM_TorsoAnimLightsaber\n");
+    {
+        PmFigur oj = figur("WP_SABER", false);
+        oj.klingeAn = true;
+        oj.klingeLaenge = true;
+        oj.saberStil = 1;
+        pruefe(pmTorsoLichtschwert(oj, "BOTH_RUN2", "BOTH_RUN2").folgen, "OJ laeuft (PM_RunningAnim): der Oberkoerper folgt");
+        pruefe(pmTorsoLichtschwert(oj, "BOTH_WALK_STAFF", "BOTH_WALK_STAFF").folgen, "OJ Stab geht: der Oberkoerper folgt");
+        PmTorsoWahl t = pmTorsoLichtschwert(oj, "BOTH_SABERFAST_STANCE", "BOTH_RUN2");
+        pruefe(!t.folgen && t.anim == "BOTH_SABERFAST_STANCE" && t.blendMs == 350.0, "OJ steht: LS_READY, Kampfhaltung mit 350 ms");
+        t = pmTorsoLichtschwert(oj, "BOTH_WALK1", "BOTH_WALK1");
+        pruefe(t.anim == "BOTH_WALK1", "OJ geht (SS_FAST): \"match torso anim to walk/run anim\" - BOTH_WALK1");
+        PmFigur md = oj;
+        md.md = true;
+        t = pmTorsoLichtschwert(md, "BOTH_WALK1", "BOTH_WALK1");
+        pruefe(t.anim == "BOTH_SABERFAST_STANCE_JKA" && !t.beide && t.blendMs == 350.0, "MD geht (SS_FAST): Oberkoerper in BOTH_SABERFAST_STANCE_JKA");
+        pruefe(pmTorsoLichtschwert(md, "BOTH_WALK1", "BOTH_RUN1").anim.empty(), "MD: ein laufender Oberkoerper bleibt");
+        md.saberStil = 2;
+        t = pmTorsoLichtschwert(md, "BOTH_STAND2", "BOTH_STAND2");
+        pruefe(t.anim == "BOTH_STAND2" && t.beide, "MD steht in einer Kampfhaltung: SETANIM_BOTH");
+    }
+
+    std::printf("PM_AdjustStandAnimForSlope im Stand\n");
+    {
+        int rufe = 0;
+        const auto hangBeine = [&rufe](const PmFigur& f, int vor, const std::string& jetzt, const char* hang) {
+            PmBeinStand z;
+            z.beine = jetzt;
+            z.hang = [&rufe, hang] {
+                ++rufe;
+                return std::string(hang);
+            };
+            return pmFootstepsBeine(f, vor, 0, false, false, z).anim;
+        };
+        pruefe(hangBeine(figur("WP_NONE", false), 0, "BOTH_STAND1", "LEGS_S1_LUP1") == "LEGS_S1_LUP1", "ohne Waffe am Hang: LEGS_S1_LUP1");
+        pruefe(hangBeine(figur("WP_BLASTER", false), 0, "BOTH_STAND3", "LEGS_S3_RUP2") == "LEGS_S3_RUP2", "mit Gewehr am Hang");
+        pruefe(hangBeine(figur("WP_BLASTER", false), 0, "BOTH_STAND3", "") == "BOTH_STAND3", "eben (qfalse): BOTH_STAND3");
+        PmFigur klinge = figur("WP_SABER", false);
+        klinge.klingeAn = true;
+        klinge.klingeLaenge = true;
+        pruefe(hangBeine(klinge, 0, "BOTH_STAND2", "LEGS_LEFTUP1") == "LEGS_LEFTUP1", "mit Klinge am Hang");
+        pruefe(hangBeine(figur("WP_ATST_MAIN", false, "CLASS_ATST"), 0, "BOTH_STAND1", "LEGS_LEFTUP3") == "LEGS_LEFTUP3", "ATST am Hang");
+        pruefe(hangBeine(figur("WP_NONE", false, "CLASS_IMPERIAL"), 0, "BOTH_STAND4", "LEGS_S4_LUP1") == "LEGS_S4_LUP1", "CLASS_IMPERIAL am Hang");
+        const int vorher = rufe;
+        pruefe(hangBeine(figur("WP_BLASTER", false), 0, "BOTH_GUARD_IDLE1", "LEGS_S3_LUP1").empty(), "Wachhaltung: nichts gesetzt");
+        pruefe(hangBeine(figur("WP_NONE", false, "CLASS_GALAKMECH"), 0, "BOTH_STAND1", "LEGS_S1_LUP1") == "BOTH_STAND2", "Galak: BOTH_STAND2");
+        pruefe(hangBeine(figur("WP_NONE", false), 127, "BOTH_STAND1", "LEGS_S1_LUP1") == "BOTH_RUN1", "in Bewegung: BOTH_RUN1");
+        pruefe(rufe == vorher, "Wachhaltung, Galak und Bewegung rufen PM_AdjustStandAnimForSlope nicht (slopeRecalcTime bleibt)");
     }
 
     std::printf("g_noFootSlide\n");

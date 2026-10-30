@@ -220,10 +220,24 @@ void proben() {
         expect(".npc: saberStyle gekappt, class und rank",
                v != nm.end() && v->second.saberStil == 7 && v->second.klasse == "CLASS_VADER" &&
                    v->second.rang == "lt");
-        expect("Haltung: SS_FAST, SS_MEDIUM, SS_STAFF",
-               std::string(bhed::saberHaltungFuerStil(1)) == "BOTH_SABERFAST_STANCE" &&
-                   std::string(bhed::saberHaltungFuerStil(2)) == "BOTH_STAND2" &&
-                   std::string(bhed::saberHaltungFuerStil(7)) == "BOTH_SABERSTAFF_STANCE");
+        // Zeitleiste 5: OpenJK nach dem switch in PM_Footsteps; Movie Duels mit
+        // g_SerenityJediEngineMode 0 (wirksam, siehe scene.h) die "JKA fallback"-
+        // Tabelle von PM_ReadyPoseForSaberAnimLevelNPC.
+        expect("Haltung OpenJK: SS_FAST, SS_MEDIUM, SS_DESANN, SS_TAVION, SS_STAFF",
+               std::string(bhed::saberHaltungFuerStil(1, false)) == "BOTH_SABERFAST_STANCE" &&
+                   std::string(bhed::saberHaltungFuerStil(2, false)) == "BOTH_STAND2" &&
+                   std::string(bhed::saberHaltungFuerStil(4, false)) == "BOTH_STAND2" &&
+                   std::string(bhed::saberHaltungFuerStil(5, false)) == "BOTH_SABERFAST_STANCE" &&
+                   std::string(bhed::saberHaltungFuerStil(7, false)) == "BOTH_SABERSTAFF_STANCE");
+        expect("Haltung Movie Duels: die _JKA-Haltungen, SS_MEDIUM BOTH_STAND2",
+               std::string(bhed::saberHaltungFuerStil(1, true)) == "BOTH_SABERFAST_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(2, true)) == "BOTH_STAND2" &&
+                   std::string(bhed::saberHaltungFuerStil(3, true)) == "BOTH_SABERSLOW_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(4, true)) == "BOTH_SABERDESANN_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(5, true)) == "BOTH_SABERTAVION_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(6, true)) == "BOTH_SABERDUAL_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(7, true)) == "BOTH_SABERSTAFF_STANCE_JKA" &&
+                   std::string(bhed::saberHaltungFuerStil(0, true)) == "BOTH_STAND2");
 
         // Der Jedi (Doppelklinge, ohne saberStyle, ohne Team) hat SS_MEDIUM.
         // Zuenden bei 1000 ms: vorher Stand, danach BOTH_STAND2 mit Blende;
@@ -279,6 +293,16 @@ void proben() {
         expect("Stil: zwei brennende Schwerter -> SS_DUAL", bhed::saberStilJetzt(duo, ds) == 6);
         ds.saber[1].klinge[0].an = false;
         expect("Stil: zweites aus -> Startstil bleibt", bhed::saberStilJetzt(duo, ds) == 2);
+    }
+    // --- Zeitleiste 5: die Grundhaltung wie PM_Footsteps ------------------
+    // Ein NPC mit Gewehr steht in BOTH_STAND3 ("Squadmates use BOTH_STAND3",
+    // bg_pmove.cpp:8275-8291 OJ, :14445 MD), nicht in BOTH_STAND1.
+    {
+        const bhed::Scene sz = szene(d, m, affect("soldat", warte(1000)));
+        const bhed::Actor* s = sz.find("soldat");
+        const bhed::ActorState st = s != nullptr ? s->at(500.0) : bhed::ActorState{};
+        expect("Grundhaltung: NPC mit Gewehr in BOTH_STAND3",
+               s != nullptr && st.waffe == "WP_BLASTER" && st.animation == "BOTH_STAND3");
     }
 
     // --- Der Spieler ist unsichtbar, solange die Skriptkamera laeuft ------

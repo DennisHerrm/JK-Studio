@@ -4927,6 +4927,11 @@ void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& 
 }
 
 bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]) {
+    return figurFussPunkte(a, assets, a.at(ms), ms, links, rechts);
+}
+
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, float links[3],
+                     float rechts[3]) {
     std::string modell;
     std::string typ = a.npcType;
     for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
@@ -4937,7 +4942,6 @@ bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, 
                       : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
     const bool atst = klasse == "CLASS_ATST";
     if (!atst && !standardHumanoid(modell, assets.model.animFile, spiel)) { return false; }
-    const ActorState st = a.at(ms);
     ActorDraw d;
     std::vector<BoneMatrix> welt;
     float fw[16];

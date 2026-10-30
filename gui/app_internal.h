@@ -3405,6 +3405,10 @@ void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& 
 // nur G_StandardHumanoid ("*l_leg_foot") und CLASS_ATST ("*l_foot"), wie
 // PM_AdjustStandAnimForSlope es verlangt.
 bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]);
+// Zeitleiste 5: dasselbe fuer einen gegebenen Zustand (die Aufnahme zeichnet die
+// Figur nicht aus a.at(ms), sondern aus ihrem eigenen Stand).
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, float links[3],
+                     float rechts[3]);
 // Pruefung 3: items.dat des Regelwerks (FindItemForWeapon/FindItemForAmmo).
 const Gegenstandsliste& gegenstandslisteJetzt();
 // Pruefung 3: der Gegenstand einer Waffe (giType IT_WEAPON, giTag == waffe)

@@ -8,6 +8,7 @@
 
 #include "bhed/clock.h"
 #include "bhed/todesanim.h"
+#include "bhed/pmanim.h"   // Zeitleiste 5: die Grundhaltung wie PM_Footsteps
 #include <map>
 #include <set>
 #include <memory>
@@ -1538,6 +1539,22 @@ ActorState Actor::at(double ms) const {
         (beineBis < 0.0 || (beineBis < kNie && ms > beineBis))) {
         saberGrundhaltung(*this, st, ms);
     }
+    // Zeitleiste 5: die Grundhaltung waehlt PM_Footsteps nach Waffe und Klasse -
+    // dieselbe Wahl wie beim Aufnehmen (pmFootstepsBeine, bhed/pmanim.h): ein NPC
+    // mit Gewehr steht in BOTH_STAND3 ("Squadmates use BOTH_STAND3"),
+    // CLASS_IMPERIAL in BOTH_STAND4 ... Nur in der Grundhaltung (wie oben), nur
+    // fuer einen NPC (validNPC) und nur, wenn das Modell die Animation hat
+    // (PM_SetAnimFinal: numFrames 0 setzt nichts).
+    if (!st.moving && !st.crouched && st.animation == "BOTH_STAND1" && !npcType.empty() && !echterSpieler &&
+        (beineBis < 0.0 || (beineBis < kNie && ms > beineBis))) {
+        PmBeinStand z;
+        z.beine = st.animation;
+        z.torso = st.torsoAnimation.empty() ? st.animation : st.torsoAnimation;
+        const PmBeinWahl w = pmFootstepsBeine(pmFigurVon(*this, st, ms), 0, 0, false, false, z);
+        if (!w.anim.empty() && w.anim != st.animation && (animDauerMs.empty() || animDauerMs.count(w.anim) != 0)) {
+            st.animation = w.anim;
+        }
+    }
     ausruestungAbschluss(*this, st);
     // rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - ein NPC mit Waffe (nicht
     // Schwert) haelt sie mit dem Oberkoerper, wo die Engine es tut; nur ohne
@@ -2421,8 +2438,7 @@ void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
                 float l[3];
                 float r[3];
                 if (!eben && hilfe->fussPunkte(a, t, l, r)) {
-                    const float diff = fussHangDiff(spur, l, r, ort, -kFussTiefe, atst, a.kartenEntity);
-                    ziel = hangBeinSchritt(st.animation, diff, atst, t, neuRechnen);
+                    ziel = hangStandBeine(spur, l, r, ort, atst, a.kartenEntity, st.animation, t, neuRechnen);
                 }
             }
             if (a.hangBeine.empty() ? !ziel.empty() : a.hangBeine.back().second != ziel) {
@@ -2813,6 +2829,11 @@ bool hangStandErlaubt(const ActorState& st, double beineBis, double ms) {
     // SETANIM_FLAG_NORMAL: nur ohne laufenden Timer der Beine
     if (beineBis >= 0.0 && !(beineBis < 1.0e300 && ms > beineBis)) { return false; }
     return hangFamilie(st.animation) != "?";
+}
+
+std::string hangStandBeine(const NavSpurFn& spur, const float l[3], const float r[3], const NavVec& ort, bool atst, int ich,
+                           const std::string& beine, double t, double& neuRechnen) {
+    return hangBeinSchritt(beine, fussHangDiff(spur, l, r, ort, -kFussTiefe, atst, ich), atst, t, neuRechnen);
 }
 
 std::string hangBeinSchritt(const std::string& beine, float diff, bool atst, double t, double& neuRechnen) {
@@ -5456,7 +5477,9 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
     if (hilfe != nullptr && hilfe->animDauer) {
         for (Actor& a : sc.actors) {
             // Dazu die Kampfhaltungen (saberGrundhaltung prueft, ob es sie gibt).
-            std::vector<std::string> namen = {"BOTH_STAND1", "BOTH_WALK1", "BOTH_RUN1",
+            // Zeitleiste 5: dazu die Grundhaltungen von PM_Footsteps (pmFootstepsBeine).
+            std::vector<std::string> namen = {"BOTH_STAND1", "BOTH_STAND2", "BOTH_STAND3", "BOTH_STAND4",
+                                              "BOTH_STANDYODA_STICK", "BOTH_MD_CIN_1", "BOTH_WALK1", "BOTH_RUN1",
                                               "BOTH_CROUCH1", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
                                               "BOTH_RUNBACK1", "BOTH_RUNBACK2"};
             // rc605 (Rest): die Sprungkette (Fall, Landung - auch ausserhalb eines Wegs).
@@ -5464,7 +5487,7 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
                 if (const char* n = sprungAnimName(c)) { namen.emplace_back(n); }
             }
             for (int stil = 1; stil <= 7; ++stil) {
-                namen.emplace_back(saberHaltungFuerStil(stil));
+                namen.emplace_back(saberHaltungFuerStil(stil, regelwerkMovieDuels()));
             }
             for (const ActorStep& st : a.steps) {
                 // Waffen- und Schwertschritte tragen Waffen-, Schwert- und

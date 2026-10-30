@@ -17,14 +17,15 @@
 //                       CG_G2ClientSpineAngles, code/cgame/cg_players.cpp)
 //
 // Portiert fuer OpenJK SP und Movie Duels (mdgit, g_ActivateAnimationStyle 0,
-// g_SerenityJediEngineMode 0, g_noIgniteTwirl 1 - die Vorgaben in g_main.cpp)
+// g_SerenityJediEngineMode 0 - wirksam im installierten Spiel, siehe
+// saberHaltungFuerStil in scene.h -, g_noIgniteTwirl 1 wie in der DLL)
 // fuer einen NPC am Boden, nicht geduckt, nicht im Wasser, ohne Leiter: so
-// steuert ihn die Aufnahme (W/A/S/D, Umschalt, Q/E). Nicht dabei: die
-// Hangstellung PM_AdjustStandAnimForSlope (Fusspuren am Modell) und der
-// Sprint (BUTTON_BLOCK eines Spielers) - siehe die Notizen.
+// steuert ihn die Aufnahme (W/A/S/D, Umschalt, Q/E). Im Stand am Hang
+// PM_AdjustStandAnimForSlope (PmBeinStand::hang, die Rechnung der Szene).
 #ifndef BHED_PMANIM_H
 #define BHED_PMANIM_H
 
+#include <functional>
 #include <string>
 
 namespace bhed {
@@ -70,6 +71,12 @@ struct PmBeinStand {
     bool beineTimer = false;
     std::string torso;
     bool inKamera = false;
+    // Zeitleiste 5: PM_AdjustStandAnimForSlope - gerufen nur dort, wo
+    // PM_Footsteps es im Stand ruft (ATST, mit Klinge, mit Waffe ausser den
+    // Wachhaltungen, sonst; nicht CLASS_GALAKMECH), denn es stellt
+    // slopeRecalcTime. Liefert die Hang-Beinanimation (SETANIM_LEGS) oder leer
+    // (qfalse, dann die Grundhaltung). Leer gelassen: kein Hang.
+    std::function<std::string()> hang;
 };
 [[nodiscard]] PmBeinWahl pmFootstepsBeine(const PmFigur& f, int vor, int seit, bool gehen, bool rueckwaerts,
                                           const PmBeinStand& z);
@@ -113,6 +120,26 @@ inline constexpr double kPmBlendVorgabe = 100.0;   // SETANIM_BLEND_DEFAULT (bg_
 // (numFrames - 1) * frameLerp).
 bool pmSetAnimNormal(PmKnochen& k, const std::string& anim, float tempo, double jetztMs, double blendMs = kPmBlendVorgabe,
                      double halteMs = -1.0);
+
+// PM_TorsoAnimLightsaber (bg_panimate.cpp:5160-5505 OpenJK, :8068 MD) fuer eine
+// Figur am Boden mit Klinge (ps.SaberLength(), WEAPON_READY/IDLE, kein Angriff,
+// keine Macht). Laeuft sie (PM_RunningAnim) oder geht sie mit Stab oder zwei
+// Klingen (BOTH_WALK_STAFF, _DUAL, WALKBACK_STAFF, _DUAL), setzt PM_SetAnim den
+// Oberkoerper auf die Beinanimation (folgen = true). Sonst PM_SetSaberMove(
+// LS_READY): die Kampfhaltung (saberHaltungFuerStil) mit der Blende von
+// saberMoveData[LS_READY] (350 ms). OpenJK nimmt dabei fuer BOTH_STAND2 und
+// SABERDUAL/FAST/SLOW_STANCE beim Gehen und Laufen die Beinanimation ("match
+// torso anim to walk/run anim"); Movie Duels setzt die Haltung ueber beide
+// Knochen, wenn die Beine schon in einer Kampfhaltung stehen, und laesst einen
+// laufenden Oberkoerper stehen (anim leer, folgen = false: nichts setzen).
+struct PmTorsoWahl {
+    bool folgen = false;     // PM_SetAnim(SETANIM_TORSO, legsAnim)
+    std::string anim;        // sonst diese (leer: nichts)
+    double blendMs = kPmBlendVorgabe;
+    bool beide = false;      // SETANIM_BOTH
+};
+inline constexpr double kPmBlendSaberBereit = 350.0;   // saberMoveData[LS_READY].blendTime
+[[nodiscard]] PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const std::string& torso);
 
 // CG_PlayerLegsYawFromMovement (cg_players.cpp, OpenJK und MD gleich) fuer
 // ein Clientbild, mit Grenzen -60..60 und alwaysFace: die Beine drehen sich

@@ -41,6 +41,7 @@
 //   (Die Muendung eines Schusses: Bolzen "*flash" des Waffenmodells,
 //   gui/app_view3d.cpp figurMuendung - Pruefung 4a.)
 #include "bhed/regelwerk.h"
+#include "bhed/pmanim.h"
 #include "bhed/scene.h"
 
 #include <algorithm>
@@ -1061,12 +1062,22 @@ double eingefahrenAb(const ActorState& st) {
 
 }  // namespace
 
-const char* saberHaltungFuerStil(int stil) noexcept {
+const char* saberHaltungFuerStil(int stil, bool md) noexcept {
+    if (md) {
+        switch (stil) {
+            case 1: return "BOTH_SABERFAST_STANCE_JKA";
+            case 3: return "BOTH_SABERSLOW_STANCE_JKA";
+            case 4: return "BOTH_SABERDESANN_STANCE_JKA";
+            case 5: return "BOTH_SABERTAVION_STANCE_JKA";
+            case 6: return "BOTH_SABERDUAL_STANCE_JKA";
+            case 7: return "BOTH_SABERSTAFF_STANCE_JKA";
+            default: return "BOTH_STAND2";
+        }
+    }
     switch (stil) {
-        case 1: return "BOTH_SABERFAST_STANCE";
+        case 1:
+        case 5: return "BOTH_SABERFAST_STANCE";
         case 3: return "BOTH_SABERSLOW_STANCE";
-        case 4: return "BOTH_SABERDESANN_STANCE";
-        case 5: return "BOTH_SABERTAVION_STANCE";
         case 6: return "BOTH_SABERDUAL_STANCE";
         case 7: return "BOTH_SABERSTAFF_STANCE";
         default: return "BOTH_STAND2";
@@ -1161,6 +1172,18 @@ int saberStilJetzt(const Actor& a, const ActorState& st) noexcept {
     return stil;
 }
 
+PmFigur pmFigurVon(const Actor& a, const ActorState& st, double ms) {
+    PmFigur f;
+    f.klasse = a.klasse;
+    f.waffe = st.waffe;
+    f.klingeAn = st.saberActive;
+    f.klingeLaenge = st.saberActive || ms - st.saberSinceMs < 1000.0;   // cg_players.cpp: eine Sekunde zum Einfahren
+    f.saberStil = saberStilJetzt(a, st);
+    f.zweiPistolen = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
+    f.md = regelwerkMovieDuels();
+    return f;
+}
+
 void saberGrundhaltung(const Actor& a, ActorState& st, double ms) {
     if (!haeltSaber(st)) {
         return;
@@ -1171,7 +1194,7 @@ void saberGrundhaltung(const Actor& a, ActorState& st, double ms) {
     const auto vorhanden = [&a](const std::string& n) {
         return a.animDauerMs.empty() || a.animDauerMs.count(n) != 0;
     };
-    const std::string haltung = saberHaltungFuerStil(saberStilJetzt(a, st));
+    const std::string haltung = saberHaltungFuerStil(saberStilJetzt(a, st), regelwerkMovieDuels());
     if (haltung == st.animation || !vorhanden(haltung)) {
         return;
     }

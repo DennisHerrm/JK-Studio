@@ -6979,4 +6979,8 @@ TEXTE = {
         "Vedle limitů počítá **Čitelnost** upozornění podle orientačních hodnot editoru (ne limitů hry): text nižší než 8 bodů na obrazovce 640 x 480, kontrast pod 3:1 na vyplněných plochách a texty, které se do svého pole vejdou v jednom jazyce hry, ale ne v jiném (měřeno písmy hry a texty všech jazyků v herních datech). Po najetí myší se zobrazí seznam s řešeními; kliknutím vyberete další prvek s upozorněním.",
     "Closing a tab with unsaved changes now asks first: save, close without saving, or cancel.":
         "Zavření karty s neuloženými změnami se teď nejdřív zeptá: uložit, zavřít bez uložení, nebo zrušit.",
+    "**Standing pose.** Without a script animation an NPC stands the way the game picks it: with a gun in `BOTH_STAND3`, an Imperial officer in `BOTH_STAND4`, otherwise in `BOTH_STAND1`.":
+        "**Postoj.** Bez animace ze skriptu stojí NPC tak, jak to zvolí hra: se střelnou zbraní v `BOTH_STAND3`, imperiální důstojník v `BOTH_STAND4`, jinak v `BOTH_STAND1`.",
+    "Standing still on a slope or a step, the figure puts its feet like the game (the slope leg animations, one step every 100 ms); with a lightsaber its upper body takes the ready stance or follows the legs, as the game decides it (PM_TorsoAnimLightsaber).":
+        "Stojí-li postava na svahu nebo na schodu, staví nohy jako ve hře (animace nohou pro svah, jeden stupeň za 100 ms); se světelným mečem zaujme horní část těla bojový postoj nebo následuje nohy, jak rozhodne hra (PM_TorsoAnimLightsaber).",
 }

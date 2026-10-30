@@ -1222,6 +1222,102 @@ std::vector<Schritt> aufnahmeModell(const std::string& wo, std::shared_ptr<AufSt
     return s;
 }
 
+// Zeitleiste 5 Punkt 1: am Hang stellt PM_Footsteps auch die gesteuerte Figur
+// mit PM_AdjustStandAnimForSlope auf die Hang-Beinanimation (LEGS_*). Gesucht
+// wird eine Stelle nahe dem Startpunkt, an der der Boden unter den Fuessen
+// verschieden hoch liegt (Schraege oder Stufe, der Kasten der Figur frei); die
+// Figur steht quer dazu.
+std::vector<Schritt> aufnahmeHang(std::shared_ptr<AufStand> z) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto gefunden = std::make_shared<bool>(false);
+    auto beine = std::make_shared<std::vector<std::string>>();
+    add(tu("zeitleiste1 Aufnahme Hang: Schraege oder Stufe suchen, zl2_laeufer quer darauf stellen", [=] {
+        const std::shared_ptr<const NavWelt> w = navWeltVorschau();
+        if (!w || !w->spur || z->figur < 0) { return; }
+        const ActorState st = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(g_app->playMs);
+        // Boden unter (x, y): Hoehe, oder -1e30 ohne Treffer
+        const auto boden = [&w, &st](float x, float y) {
+            const NavSpur t = w->spur({x, y, st.pos[2] + 256.0F}, {0, 0, 0}, {0, 0, 0}, {x, y, st.pos[2] - 512.0F}, kNavKeineEntity,
+                                      kNavMaskPlayerSolid);
+            return (t.startsolid || t.fraction >= 1.0F) ? -1.0e30F : t.endpos[2];
+        };
+        // Eine Stelle, an der der Boden 7 Einheiten links und rechts 6..20 hoeher
+        // bzw. tiefer liegt (Schraege oder Stufe unter den Fuessen), die naechste.
+        float best = 1.0e30F;
+        float fund[4] = {0, 0, 0, 0};   // x, y, z, gier
+        for (int i = -50; i <= 50; ++i) {
+            for (int j = -50; j <= 50; ++j) {
+                const float d = static_cast<float>(i * i + j * j);
+                if (d >= best) { continue; }
+                const float x = st.pos[0] + static_cast<float>(i) * 24.0F;
+                const float y = st.pos[1] + static_cast<float>(j) * 24.0F;
+                const float h0 = boden(x, y);
+                if (h0 < -1.0e29F) { continue; }
+                for (int achse = 0; achse < 2; ++achse) {
+                    const float dx = achse == 0 ? 7.0F : 0.0F;
+                    const float dy = achse == 0 ? 0.0F : 7.0F;
+                    const float h1 = boden(x + dx, y + dy);
+                    const float h2 = boden(x - dx, y - dy);
+                    const float diff = std::fabs(h1 - h2);
+                    if (h1 < -1.0e29F || h2 < -1.0e29F || diff < 6.0F || diff > 20.0F) { continue; }
+                    const NavVec o{x, y, std::max({h0, h1, h2}) + 25.0F};
+                    if (w->spur(o, {-15, -15, -24}, {15, 15, 40}, o, kNavKeineEntity, kNavMaskPlayerSolid).startsolid) { continue; }
+                    best = d;
+                    fund[0] = x;
+                    fund[1] = y;
+                    fund[2] = o[2];
+                    fund[3] = achse == 0 ? 90.0F : 0.0F;   // quer: die Fuesse liegen auf der Achse
+                    break;
+                }
+            }
+        }
+        if (best >= 1.0e30F) { return; }
+        *gefunden = true;
+        int e = -1;
+        for (std::size_t i = 0; i < g_app->map.entities.size() && e < 0; ++i) {
+            const std::string* n = g_app->map.entities[i].find("NPC_targetname");
+            if (n != nullptr && *n == "zl2_laeufer") { e = static_cast<int>(i); }
+        }
+        char o[96];
+        std::snprintf(o, sizeof(o), "%.1f %.1f %.1f", static_cast<double>(fund[0]), static_cast<double>(fund[1]),
+                      static_cast<double>(fund[2]));
+        (void)entityKeySetzen(e, "origin", o);
+        (void)entityKeySetzen(e, "angle", std::to_string(static_cast<int>(fund[3])));
+        diag::detail(std::string("Knopftest: Hang bei ") + o + ", Gier " + std::to_string(static_cast<int>(fund[3])));
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+    }));
+    add(pruefe("zeitleiste1 Aufnahme Hang: eine Schraege oder Stufe gefunden", [=] { return *gefunden; }));
+    add(warteBis("zeitleiste1 Aufnahme Hang: Szene neu", [=] {
+        z->figur = mission1::figurNamens("zl2_laeufer");
+        return z->figur >= 0 && g_app->camTrackValid;
+    }, 2000));
+    add(tu("zeitleiste1 Aufnahme Hang: zl2_laeufer waehlen", [=] {
+        g_app->selectedActor = z->figur;
+        g_app->playMs = 500.0;
+    }));
+    add(pause(0.4));
+    add(klick(tr(Str::AufKnopf), "", 0, true));
+    for (int i = 0; i < 6; ++i) {
+        add(pause(0.25));
+        add(tu("zeitleiste1 Aufnahme Hang: Beine merken", [=] {
+            ActorState st;
+            aufnahmeFigurZustand(z->figur, g_app->playMs, st);
+            beine->push_back(st.animation);
+        }));
+    }
+    add(pruefe("zeitleiste1 Aufnahme Hang: im Stand die Hang-Beine (PM_AdjustStandAnimForSlope)", [=] {
+        std::string alle;
+        for (const std::string& b : *beine) { alle += b + " "; }
+        diag::detail("Knopftest: Aufnahme am Hang, Beine " + alle);
+        return !beine->empty() && beine->back().rfind("LEGS_", 0) == 0;
+    }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.4));
+    return s;
+}
+
 std::vector<Schritt> aufnahmeSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1275,6 +1371,7 @@ std::vector<Schritt> aufnahmeSchritte() {
     for (Schritt& x : aufnahmeModell("mini", z)) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1 Aufnahme: zl2_laeufer wieder waehlen (nach dem Modell)", [=] { g_app->selectedActor = z->figur; }));
     for (Schritt& x : aufnahmeZug("mini", z, true)) { s.push_back(std::move(x)); }
+    for (Schritt& x : aufnahmeHang(z)) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1 Aufnahme: Auswahl aufheben", [] {
         g_app->selectedActor = -1;
         mission1::ungespeicherteEntitiesVergessen();
@@ -1355,6 +1452,36 @@ std::vector<Schritt> einstellungenSchritte() {
         diag::detail(z);
         return ok != nullptr && ab != nullptr && ganzSichtbar(*ok) && ganzSichtbar(*ab);
     }));
+    // Zeitleiste 5 Punkt 5: das Klappfeld "Spielregeln" zeigt jeden Eintrag
+    // ganz - ImGui schneidet die Vorschau vor dem Pfeil ab (BeginCombo:
+    // FramePadding.x + Text bis Rand - GetFrameHeight()). In allen 6 Sprachen.
+    const auto sprache = std::make_shared<i18n::Language>(i18n::currentLanguage());
+    for (const i18n::Language l : {i18n::Language::English, i18n::Language::German, i18n::Language::ChineseSimplified,
+                                   i18n::Language::Japanese, i18n::Language::Spanish, i18n::Language::Czech}) {
+        const std::string n = std::to_string(static_cast<int>(l));
+        add(tu("zeitleiste1 Einstellungen: Sprache " + n, [l] { i18n::setLanguage(l); }));
+        add(pause(0.3));
+        add(pruefe("zeitleiste1 Einstellungen: Spielregeln ganz lesbar (Sprache " + n + ")", [] {
+            // e->rect ist der Rahmen ohne Beschriftung (ItemAdd meldet NavRect = bb)
+            const Element* e = finde(tr(Str::PrefsRegelwerk), tr(Str::PrefsTitle), 0, false);
+            if (e == nullptr) { return false; }
+            const float feld = e->rect.GetWidth();
+            float text = 0.0F;
+            for (const Str s : {Str::PrefsRegelMd, Str::PrefsRegelOpenJK, Str::PrefsRegelJk2}) {
+                char z[160];
+                std::snprintf(z, sizeof(z), tr(Str::PrefsRegelAuto), tr(s));
+                text = std::max({text, ImGui::CalcTextSize(z).x, ImGui::CalcTextSize(tr(s)).x});
+            }
+            const float noetig = ImGui::GetStyle().FramePadding.x + text + ImGui::GetFrameHeight();
+            char z[200];
+            std::snprintf(z, sizeof(z), "Knopftest: Spielregeln Feld %.0f px, noetig %.0f px", static_cast<double>(feld),
+                          static_cast<double>(noetig));
+            diag::detail(z);
+            return feld >= noetig;
+        }));
+    }
+    add(tu("zeitleiste1 Einstellungen: Sprache zurueck", [sprache] { i18n::setLanguage(*sprache); }));
+    add(pause(0.3));
     add(klick(tr(Str::EditorCancel), tr(Str::PrefsTitle)));
     add(pause(0.3));
     add(pruefe("zeitleiste1 Einstellungen: Cancel schliesst, kein Fenster sperrt die Maus", [] {
@@ -1368,23 +1495,66 @@ std::vector<Schritt> einstellungenSchritte() {
     return s;
 }
 
+// Zeitleiste 5 Punkt 6: das Undo einer auskommentierten Zeile nennt die
+// Kommentarzeile ("// print ..."), nicht "( )". Das Skript davor kommt zurueck.
+std::vector<Schritt> undoSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Vorher {
+        Script skript;
+        bool sauber = true;
+    };
+    auto v = std::make_shared<Vorher>();
+    add(tu("zeitleiste1 Undo: Skript mit print und wait", [v] {
+        v->skript = g_app->doc.script();
+        v->sauber = !g_app->doc.dirty();
+        Script sc;
+        std::vector<Diag> d;
+        (void)readScript("//Generated by BehavEd\nprint ( \"zl5\" );\nwait ( 500 );\n", sc, d);
+        (void)g_app->doc.replaceAll(sc, "zl5undo");
+    }));
+    add(pause(0.3));   // ein Bild: die Befehle bekommen ihre Kennungen
+    add(tu("zeitleiste1 Undo: print auskommentieren (REM)", [] {
+        const auto& ns = g_app->doc.script().nodes;
+        for (std::size_t i = 0; i < ns.size(); ++i) {
+            if (ns[i].name == "print") { (void)g_app->doc.commentOut(Path{i}); break; }
+        }
+    }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(pruefe("zeitleiste1 Undo: die Meldung nennt die Kommentarzeile, nicht \"( )\"", [] {
+        diag::detail("Knopftest: Undo-Meldung \"" + g_app->undoMeldung + "\"");
+        return g_app->undoMeldung.find("( )") == std::string::npos && g_app->undoMeldung.find("// print") != std::string::npos;
+    }));
+    add(tu("zeitleiste1 Undo: das Skript davor zurueck", [v] {
+        (void)g_app->doc.replaceAll(v->skript, "zl5undo");
+        if (v->sauber) { g_app->doc.markSaved(); }
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
-    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast, =einstellungen: nur die Einstellungen
+    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast, =einstellungen: nur die Einstellungen,
+    // =undo: nur der Undo-Text
     // (schneller Durchlauf beim Arbeiten).
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "einstellungen") == 0) { return zl1::einstellungenSchritte(); }
+    if (nur != nullptr && std::strcmp(nur, "undo") == 0) { return zl1::undoSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "aufnahme") == 0) {
         s = zl1::untertitelSchritte();
         for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
         return s;
     }
     for (Schritt& x : zl1::einstellungenSchritte()) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::undoSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
     if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }

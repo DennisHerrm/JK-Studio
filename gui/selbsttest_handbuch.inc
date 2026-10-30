@@ -2460,7 +2460,9 @@ std::vector<Schritt> handbuchSchritte() {
         // Zeitleiste 4: nach Weg statt nach Bildern - ohne Last kam die Figur in
         // 90 + 60 Bildern kaum vom Fleck (ein Laufziel). Erst W bis 300 Einheiten
         // vom Start, dann D bis 150 Einheiten weiter (wie Integration 5 im
-        // Selbsttest zeitleiste1); hoechstens 600 Bilder.
+        // Selbsttest zeitleiste1); hoechstens 600 Bilder. Zeitleiste 5: D bleibt
+        // fuer das Bild gedrueckt - es zeigt die Figur im Laufen, nicht stehend
+        // (vorher stand sie am Ende an der Konsole).
         auto zug = std::make_shared<std::pair<int, std::array<float, 3>>>(0, std::array<float, 3>{});
         t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [zug](int b) {
                                 ImGuiIO& io = ImGui::GetIO();
@@ -2484,19 +2486,23 @@ std::vector<Schritt> handbuchSchritte() {
                                     return false;
                                 }
                                 if (zug->first == 1 && (weg(zug->second) >= 150.0 || b > 600)) {
-                                    io.AddKeyEvent(ImGuiKey_D, false);
                                     zug->first = 2;
-                                    return false;
                                 }
                                 return zug->first == 2;
                             }});
-        t.push_back(pause(0.3));
         t.push_back(pruefe("Handbuch Zeitleiste: der Aufnahme-Hinweis steht ganz in der Ansicht", [] { return aufnahmeHinweisGanz(); }));
+        t.push_back(pruefe("Handbuch Zeitleiste: die Figur laeuft beim Bild (Laufanimation)", [] {
+            ActorState st;
+            aufnahmeFigurZustand(g_app->selectedActor, g_app->playMs, st);
+            diag::detail("Knopftest: Handbuch h_zl_aufnahme - Beine " + st.animation + (st.moving ? ", in Bewegung" : ", steht"));
+            return st.moving && pmLaufAnim(st.animation, regelwerkMovieDuels());
+        }));
         t.push_back(hb::fotoTeil("h_zl_aufnahme", [] {
             // Die Ansicht und darunter die Transportleiste mit Fertig/Abbrechen/Toleranz.
             return ImRect{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]},
                           ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3] + ImGui::GetFrameHeightWithSpacing() * 1.6F}};
         }));
+        t.push_back(tu("Handbuch Zeitleiste: D loslassen", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_D, false); }));
         t.push_back(tu("Handbuch Zeitleiste: Aufnahme abbrechen", [] {
             aufnahmeBeenden(false);
             g_app->selectedActor = -1;

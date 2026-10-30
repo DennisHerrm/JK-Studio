@@ -1,5 +1,6 @@
 // pmanim.cpp - siehe bhed/pmanim.h
 #include "bhed/pmanim.h"
+#include "bhed/scene.h"   // saberHaltungFuerStil: die Kampfhaltung
 
 #include <algorithm>
 #include <cmath>
@@ -61,31 +62,6 @@ bool waffeVorSprengsatz(const std::string& w) {
                      "WP_ROCKET_LAUNCHER", "WP_THERMAL", "WP_TRIP_MINE"});
 }
 
-// Die Kampfhaltung im Stand mit Klinge. OpenJK: der switch in PM_Footsteps
-// (bg_pmove.cpp:8249-8273). Movie Duels: PM_ReadyPoseForSaberAnimLevel, die
-// Tabelle steht bei saberHaltungFuerStil (scene.h) - hier dieselbe.
-const char* saberStand(int stil, bool md) {
-    if (md) {
-        switch (stil) {
-            case 1: return "BOTH_SABERFAST_STANCE";
-            case 3: return "BOTH_SABERSLOW_STANCE";
-            case 4: return "BOTH_SABERDESANN_STANCE";
-            case 5: return "BOTH_SABERTAVION_STANCE";
-            case 6: return "BOTH_SABERDUAL_STANCE";
-            case 7: return "BOTH_SABERSTAFF_STANCE";
-            default: return "BOTH_STAND2";
-        }
-    }
-    switch (stil) {
-        case 1:
-        case 5: return "BOTH_SABERFAST_STANCE";
-        case 3: return "BOTH_SABERSLOW_STANCE";
-        case 6: return "BOTH_SABERDUAL_STANCE";
-        case 7: return "BOTH_SABERSTAFF_STANCE";
-        default: return "BOTH_STAND2";
-    }
-}
-
 PmBeinWahl beine(const char* a) { return PmBeinWahl{a, false, false}; }
 
 // Anlauf (ATST, Movie Duels auch Droideka): erst ziel_START mit HOLD, wenn
@@ -106,15 +82,24 @@ PmBeinWahl auslauf(const PmBeinStand& z, const char* ziel, const char* lauf) {
 }
 
 // --- Im Stand -------------------------------------------------------------
-PmBeinWahl imStand(const PmFigur& f, const std::string& beineJetzt) {
+// Wo PM_Footsteps im Stand "if ( !PM_AdjustStandAnimForSlope() )" schreibt:
+// am Hang dessen Beinanimation (leer: qfalse).
+std::string hangJetzt(const PmBeinStand& z) { return z.hang ? z.hang() : std::string(); }
+PmBeinWahl standOderHang(const PmBeinStand& z, const char* stand) {
+    std::string h = hangJetzt(z);
+    return h.empty() ? beine(stand) : PmBeinWahl{std::move(h), false, false};
+}
+
+PmBeinWahl imStand(const PmFigur& f, const PmBeinStand& z) {
     const std::string& w = f.waffe;
     const std::string& k = f.klasse;
-    if (k == "CLASS_ATST" || (f.md && k == "CLASS_DROIDEKA")) { return beine("BOTH_STAND1"); }
+    const std::string& beineJetzt = z.beine;
+    if (k == "CLASS_ATST" || (f.md && k == "CLASS_DROIDEKA")) { return standOderHang(z, "BOTH_STAND1"); }
     if (k == "CLASS_GALAKMECH") { return PmBeinWahl{"BOTH_STAND2", true, false}; }
     // Mit Klinge (saberInFlight gibt es beim Steuern nicht). Movie Duels:
     // SaberActive() || (!g_noIgniteTwirl && ...) - g_noIgniteTwirl ist 1.
     if (w == "WP_SABER" && f.klingeLaenge && (!f.md || f.klingeAn) && !ziehtSchwert(beineJetzt, f.md)) {
-        return beine(saberStand(f.saberStil, f.md));
+        return standOderHang(z, saberHaltungFuerStil(f.saberStil, f.md));
     }
     if (waffeVorSprengsatz(w)) {
         // "Don't auto-override the guard idles"
@@ -122,8 +107,10 @@ PmBeinWahl imStand(const PmFigur& f, const std::string& beineJetzt) {
             (f.md && einer(beineJetzt, {"BOTH_GUARD_IDLE1_BDROID", "BOTH_GUARD_IDLE1_JANGO"}))) {
             return PmBeinWahl{};
         }
-        return beine("BOTH_STAND3");
+        return standOderHang(z, "BOTH_STAND3");
     }
+    // sonst: erst der Hang, dann die Grundhaltung nach Klasse und Waffe
+    if (std::string h = hangJetzt(z); !h.empty()) { return PmBeinWahl{std::move(h), false, false}; }
     if (k == "CLASS_IMPERIAL") { return beine("BOTH_STAND4"); }
     if (w == "WP_TUSKEN_STAFF") { return beine("BOTH_STAND1"); }
     // CLASS_RANCOR (count, enemy, wait) und CLASS_WAMPA (count): ohne Opfer und
@@ -173,7 +160,7 @@ PmBeinWahl rueckwaertsMd(const PmFigur& f, bool gehen, const PmBeinStand& z) {
     if (w == "WP_SABER" && f.klingeAn) {
         if (ziehtSchwert(z.torso, true)) { return beine("BOTH_WALKBACK1"); }
         if (f.saberStil == 6) { return beine("BOTH_WALKBACK_DUAL"); }
-        // SS_STAFF mit g_SerenityJediEngineMode 0: BOTH_WALKBACK_STAFF.
+        // SS_STAFF mit g_SerenityJediEngineMode 0 (wirksam, siehe scene.h): BOTH_WALKBACK_STAFF.
         if (f.saberStil == 7) { return beine("BOTH_WALKBACK_STAFF"); }
         return beine("BOTH_WALKBACK2");
     }
@@ -335,7 +322,7 @@ bool pmLaufAnim(const std::string& a, bool md) {
 }
 
 PmBeinWahl pmFootstepsBeine(const PmFigur& f, int vor, int seit, bool gehen, bool rueckwaerts, const PmBeinStand& z) {
-    if (vor == 0 && seit == 0) { return imStand(f, z.beine); }
+    if (vor == 0 && seit == 0) { return imStand(f, z); }
     if (rueckwaerts) { return f.md ? rueckwaertsMd(f, gehen, z) : rueckwaertsOj(f, gehen); }
     return f.md ? vorwaertsMd(f, vor, gehen, z) : vorwaertsOj(f, gehen, z);
 }
@@ -394,6 +381,43 @@ bool pmSetAnimNormal(PmKnochen& k, const std::string& anim, float tempo, double 
     k.tempo = tempo;
     k.timerBisMs = halteMs >= 0.0 ? jetztMs + halteMs : -1.0;
     return true;
+}
+
+PmTorsoWahl pmTorsoLichtschwert(const PmFigur& f, const std::string& beine, const std::string& torso) {
+    PmTorsoWahl w;
+    // PM_RunningAnim oder Stab/zwei Klingen beim Gehen: der Oberkoerper folgt
+    // (saberBlockingTime < cg.time - ohne Blocken immer).
+    if (pmLaufAnim(beine, f.md) ||
+        einer(beine, {"BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL"})) {
+        w.folgen = true;
+        return w;
+    }
+    // PM_SetSaberMove(LS_READY): PM_ReadyPoseForSaberAnimLevel
+    std::string bereit = saberHaltungFuerStil(f.saberStil, f.md);
+    w.blendMs = kPmBlendSaberBereit;
+    if (!f.md) {
+        // "match torso anim to walk/run anim if newMove is just LS_READY"
+        if (einer(bereit, {"BOTH_STAND2", "BOTH_SABERDUAL_STANCE", "BOTH_SABERFAST_STANCE", "BOTH_SABERSLOW_STANCE"}) &&
+            einer(beine, {"BOTH_WALK1", "BOTH_WALK2", "BOTH_WALK_STAFF", "BOTH_WALK_DUAL", "BOTH_WALKBACK1", "BOTH_WALKBACK2",
+                          "BOTH_WALKBACK_STAFF", "BOTH_WALKBACK_DUAL", "BOTH_RUN1", "BOTH_RUN2", "BOTH_RUN_STAFF", "BOTH_RUN_DUAL",
+                          "BOTH_RUNBACK1", "BOTH_RUNBACK2", "BOTH_RUNBACK_STAFF"})) {
+            bereit = beine;
+        }
+        w.anim = bereit;
+        return w;
+    }
+    // Movie Duels: stehen die Beine in einer Kampfhaltung (PM_SaberStanceAnim,
+    // ausser BOTH_STAND1), bekommen beide Knochen die Haltung; laeuft der
+    // Oberkoerper noch (PM_RunningAnim torsoAnim), bleibt er.
+    if (einer(beine, {"BOTH_STAND2", "BOTH_STAND2_JKA", "BOTH_SABERFAST_STANCE", "BOTH_SABERSLOW_STANCE", "BOTH_SABERSTAFF_STANCE",
+                      "BOTH_SABERDUAL_STANCE"})) {
+        w.anim = bereit;
+        w.beide = true;
+        return w;
+    }
+    if (pmLaufAnim(torso, true)) { return w; }
+    w.anim = bereit;
+    return w;
 }
 
 float pmBeinGier(float beinGier, float blickGier, float vx, float vy, bool rueckwaerts, double frameInterpolation) {

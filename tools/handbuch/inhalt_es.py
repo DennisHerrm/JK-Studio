@@ -6982,4 +6982,8 @@ TEXTE = {
         "Junto a los límites, **Legibilidad** cuenta avisos con valores orientativos del editor (no límites del juego): texto de menos de 8 puntos en la pantalla de 640 x 480, contraste por debajo de 3:1 en áreas rellenas, y textos que caben en su campo en un idioma del juego pero no en otro (medidos con las fuentes del juego y los textos de cada idioma de los datos del juego). Pasa el ratón por encima para ver la lista con soluciones; pulsa para seleccionar el siguiente elemento con un aviso.",
     "Closing a tab with unsaved changes now asks first: save, close without saving, or cancel.":
         "Cerrar una pestaña con cambios sin guardar ahora pregunta antes: guardar, cerrar sin guardar o cancelar.",
+    "**Standing pose.** Without a script animation an NPC stands the way the game picks it: with a gun in `BOTH_STAND3`, an Imperial officer in `BOTH_STAND4`, otherwise in `BOTH_STAND1`.":
+        "**Postura de pie.** Sin animación de script, un NPC se queda de pie como lo elige el juego: con un arma de fuego en `BOTH_STAND3`, un oficial imperial en `BOTH_STAND4` y, si no, en `BOTH_STAND1`.",
+    "Standing still on a slope or a step, the figure puts its feet like the game (the slope leg animations, one step every 100 ms); with a lightsaber its upper body takes the ready stance or follows the legs, as the game decides it (PM_TorsoAnimLightsaber).":
+        "Si la figura está quieta en una pendiente o un escalón, apoya los pies como en el juego (las animaciones de piernas para pendientes, un paso cada 100 ms); con un sable de luz, la parte superior del cuerpo adopta la postura de combate o sigue a las piernas, según lo decida el juego (PM_TorsoAnimLightsaber).",
 }

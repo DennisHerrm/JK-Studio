@@ -36,6 +36,7 @@
 #define BHED_SCENE_H
 
 #include "bhed/abwurf.h"   // Pruefung 3: was ein Tod fallen laesst
+#include "bhed/pmanim.h"   // Zeitleiste 5: PmFigur (pmFigurVon)
 #include "bhed/gesicht.h"   // Pruefung 4a: Blinzeln und Mimik
 #include "bhed/bsp.h"
 #include "bhed/navlauf.h"
@@ -1051,6 +1052,13 @@ struct SzenenHilfe {
 // und der jetzigen Beinanimation die neue - leer: qfalse (PM_Footsteps setzt die
 // gewoehnliche Standanimation). neuRechnen ist client->slopeRecalcTime.
 [[nodiscard]] std::string hangBeinSchritt(const std::string& beine, float diff, bool atst, double t, double& neuRechnen);
+// PM_AdjustStandAnimForSlope ab den Fusspunkten l, r (Schritt 1-7): PM_FootSlopeTrace
+// unter beiden Fuessen (Kasten, pm->tracemask, ohne `ich`) ab ort[2] - 24 + 1,
+// dann hangBeinSchritt. Die Szene (Denkbild fuer Denkbild) und die Aufnahme
+// (PM_Footsteps der gesteuerten Figur, bhed/pmanim.h PmBeinStand::hang) rechnen
+// damit. Leer: qfalse.
+[[nodiscard]] std::string hangStandBeine(const NavSpurFn& spur, const float l[3], const float r[3], const NavVec& ort,
+                                         bool atst, int ich, const std::string& beine, double t, double& neuRechnen);
 // Pruefung 3: setzt PM_Footsteps hier eine Standanimation, die PM_AdjustStand-
 // AnimForSlope kennt? (steht, kein Timer der Beine, eine bekannte Haltung)
 [[nodiscard]] bool hangStandErlaubt(const struct ActorState& st, double beineBis, double ms);
@@ -1421,23 +1429,41 @@ void ausruestungAbschluss(const Actor& a, ActorState& st);
 //
 // Eine Figur, die mit Lichtschwert in der Hand steht, steht im Spiel
 // nicht in BOTH_STAND1: PM_Footsteps waehlt, solange irgendeine Klinge
-// Laenge hat, PM_ReadyPoseForSaberAnimLevel (bg_pmove.cpp:11860 ff.) -
-// nach ps.saberAnimLevel. Mit den Einstellungen der Mod
-// (g_SerenityJediEngineMode 2, g_RealisticBlockingMode 0,
-// g_ActivateAnimationStyle 0) ergibt das fuer Spieler und NPC dieselbe
-// Tabelle (PM_ReadyPoseForSaberAnimLevelAMD, ebenda:14660; der
-// "Cosmetic mode" in PM_ReadyPoseForSaberAnimLevelNPC):
+// Laenge hat, eine Kampfhaltung nach ps.saberAnimLevel.
 //
-//     SS_FAST   BOTH_SABERFAST_STANCE     SS_TAVION  BOTH_SABERTAVION_STANCE
-//     SS_MEDIUM BOTH_STAND2               SS_DUAL    BOTH_SABERDUAL_STANCE
-//     SS_STRONG BOTH_SABERSLOW_STANCE     SS_STAFF   BOTH_SABERSTAFF_STANCE
-//     SS_DESANN BOTH_SABERDESANN_STANCE   sonst      BOTH_STAND2
-[[nodiscard]] const char* saberHaltungFuerStil(int stil) noexcept;
+// OpenJK (der switch in PM_Footsteps, bg_pmove.cpp:8249-8273):
+//
+//     SS_FAST, SS_TAVION  BOTH_SABERFAST_STANCE   SS_DUAL   BOTH_SABERDUAL_STANCE
+//     SS_STRONG           BOTH_SABERSLOW_STANCE   SS_STAFF  BOTH_SABERSTAFF_STANCE
+//     sonst               BOTH_STAND2
+//
+// Movie Duels: PM_ReadyPoseForSaberAnimLevel (mdgit bg_pmove.cpp:18789 ff.,
+// fuer einen NPC ...NPC, :17504). Was sie waehlt, haengt an
+// g_SerenityJediEngineMode. Wirksam ist 0 (Zeitleiste 5, nur gelesen): die
+// installierte MovieDuels-gamex86_64.dll (27.10.2026) meldet die Cvar zwar
+// mit "2" an, aber die Oberflaeche in MovieDuels-SP.x86_64.exe hat sie
+// vorher mit "0" angelegt (cvarTable, CL_StartHunkUsers -> CL_InitUI vor
+// SV_SpawnServer -> SV_InitGameProgs; Cvar_Get behaelt den Wert), keine
+// Config setzt sie, und ui/main.menu (Update 9) schreibt beim ersten Start
+// "seta g_SerenityJediEngineMode 0". mdgit hat ueberall "0". Mit 0 und
+// g_ActivateAnimationStyle 0 gilt die "JKA fallback"-Tabelle:
+//
+//     SS_FAST   BOTH_SABERFAST_STANCE_JKA     SS_TAVION  BOTH_SABERTAVION_STANCE_JKA
+//     SS_MEDIUM BOTH_STAND2                   SS_DUAL    BOTH_SABERDUAL_STANCE_JKA
+//     SS_STRONG BOTH_SABERSLOW_STANCE_JKA     SS_STAFF   BOTH_SABERSTAFF_STANCE_JKA
+//     SS_DESANN BOTH_SABERDESANN_STANCE_JKA   sonst      BOTH_STAND2
+//
+// md: Regelwerk Movie Duels. Jedi Outcast nimmt die Tabelle von OpenJK.
+[[nodiscard]] const char* saberHaltungFuerStil(int stil, bool md) noexcept;
 // ps.saberAnimLevel im Zustand st: der Startstil, berichtigt wie in
 // PM_WeaponLightsaber (bg_pmove.cpp:22686 ff.) - singleBladeStyle,
 // verbotene Stile (WP_SaberStyleValidForSaber, WP_UseFirstValidSaberStyle),
 // zwei Schwerter.
 [[nodiscard]] int saberStilJetzt(const Actor& a, const ActorState& st) noexcept;
+// Zeitleiste 5: was PM_Footsteps von der Figur zur Zeit ms weiss (bhed/pmanim.h)
+// - Klasse, Waffe, Klinge, Stil, zweite Pistole, Regelwerk. laufTempo bleibt 0
+// (nur der laufende Wampa braucht es; die Aufnahme setzt es).
+[[nodiscard]] PmFigur pmFigurVon(const Actor& a, const ActorState& st, double ms);
 // Setzt die Kampfhaltung, wenn st gerade in der Grundhaltung steht
 // (Actor::at ruft es nur dann). Mit Blende beim Zuenden und nach dem
 // Einfahren der Klinge zurueck in den Stand.
