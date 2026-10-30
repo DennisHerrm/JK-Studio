@@ -861,3 +861,167 @@ Kartenprüfung, Tempo (alles unter Last).
 - Echtzeit-Decals im Karteneditor (pruefung1) – behebt `reste1`.
 - Aus Integration 3 unverändert: Port 39000 der Bauüberwachung bei parallelen Bauten; `stufe8` allein
   („Notify when a build is done“); Tutorial-Klicken in Modus 1 unter Last.
+
+## Integration 5
+
+Zweig `karte1` (Worktree `Y:\karte`), Ausgang b6309500 (Integration 4). Gemergt werden nur die im Auftrag
+genannten Stände (spätere Commits von M7, dock4, Zeitleiste 4, pruefung3, uebersetzung2 kommen in Integration 6).
+Skripte: `SP/int5/` – `bauct.sh` (Bau und/oder ctest unter Idle, Summe `summe.txt`), `selbst.sh` (Selbsttests
+nacheinander über `idle.sh`, das jetzt mit `CFG=` einen anderen Einstellungsstand nimmt), `ende.sh` (Neubau),
+`loese.py` (Generator-Listen: beide Seiten). Die Merges 3–5 wurden in einem Wegwerf-Klon (`git clone --shared` im
+SP, danach gelöscht) gelöst, während in `Y:\karte` der vorige Merge baute und testete; in `Y:\karte` dann je einzeln
+vorgespult, **gebaut und mit ctest geprüft** (kein Sammelschritt wie in Integration 4). Alle Zeiten unter Last
+(andere Agenten bauten und testeten gleichzeitig).
+
+| Commit | Inhalt |
+|---|---|
+| 086fb3a1 | Merge `reste1` (524a08b1) – keine Konflikte. Bau 0 Warnungen (622 s), ctest **178/178** (415 s) |
+| 6edf475c | Merge `vis1` (6236b69f, vis3) – keine Konflikte. Bau 0 Warnungen (415 s), ctest **178/178** (277 s) |
+| da67549b | Merge `zeitleiste1` (160467ee, Zeitleiste 3) – Konflikte nur in `handbuch/*/suche.js` (neu erzeugt; die es/cs-Seite `zeitleiste` folgt dem neuen englischen Text). Bau 0 Warnungen (502 s), ctest **178/178** (298 s) |
+| 454387b0 | Merge `menue6` (72e43757, M6) – Konflikte unten. Bau 0 Warnungen (682 s), ctest **183/183** (362 s) |
+| 41e04b7d | Merge `dock1` (56f58c66, dock3) – Konflikte nur in `suche.js` (neu erzeugt). Bau 0 Warnungen (525 s), ctest **183/183** (281 s) |
+| d7dd6b28 | Punkt 1: überholte Texte entfernt, Helferpfad der Kameraleiste, Handbuchsatz zum Ton-Schalter |
+| 3cae6104 | Punkt 2: Untertitel von Jedi Outcast zeichnen ein `^` ohne Ziffer nicht (JK2_MODE) |
+| daf88e15, 0a544a42 | Fund 3: Selbsttest zeitleiste1 – Aufnahmeprüfungen unabhängig von der Bildzeit |
+| (dieser) | Notizen |
+
+### Konflikte menue6 (454387b0)
+
+- **`gui/app_menue.cpp`, Leiste** (2 Stellen): menue6 zweigt wie menue5 vor Integration 2 ab und nutzt noch
+  `MeTipExport`/`MeTipAnKanten`, die Integration 2 zugunsten der H2-Hinweise entfernt hat. Behalten: die H2-Hinweise
+  (`MeExportPk3Hint`, `MeAnKantenHint`), dazu die M6-Knöpfe „Menüfluss“ (vor dem Export), Tab-Reihenfolge und
+  Referenzbild (nach „An Kanten“) sowie `zeichneFlussFenster`/`zeichneSchliessenFrage`. Vor dem Commit geprüft: jede
+  `Str::`-Kennung in `app_menue.cpp` und `app_menue_m6.inc` steht in den i18n-Listen.
+- `tools/gen_i18n.py` (DOCK1 und MENUE6 vor „Weitere Sprachen“), `tools/handbuch/inhalt.py` (beide Importe; die
+  Seitenliste von karte1 mit `inhalt_dock` und `inhalt_hilfe2`, `inhalt_menue6` nach `inhalt_menue5b` – die Liste von
+  menue6 kannte hilfe2 noch nicht).
+- Erzeugte Dateien (i18n.h/.cpp, 620 Handbuchseiten de/en/ja/zh – jede Seite trägt die Navigation –, `suche.js`)
+  mit den Generatoren: 3213 Texte, Ortskatalog **195 Orte** (vorher 191, die M6-Knöpfe), Handbuch 160 Seiten × 6 Sprachen.
+
+### Punkt 1: unbenutzte Texte (lint_i18n rot 5 → grün)
+
+| Text | Herkunft | Befund | Gemacht |
+|---|---|---|---|
+| `TlKatBlick`, `TlKatAblauf` | Kategorien „Blick“/„Ablauf“ der alten Zeitleiste | zeitleiste1 baut die Zeilen anders (`ZlDarsteller`, `ZlWartet` …) und hat laut NOTIZEN_zeitleiste1 „TlKat*“ entfernt – diese zwei blieben stehen | überholt: entfernt (gen_i18n.py, es/cs) |
+| `TlKamera` | Zeile „Kamera“ der alten Zeitleiste | blieb laut zeitleiste1 für den Ortskatalog: Pfad der Kameraleiste im Helfer `ViewMap>TlKamera>…` (über `strVonName`, darum sah lint_i18n keine Benutzung). Die neue Zeitleiste heißt die Zeile **„Kamera – Ort“** (`ZlOrt`) – genau das Tourziel `zeitleiste.kamera` der Vorbedingung | Pfad jetzt Map view > Camera – position > … (gen_hilfe_orte.py, 9 Orte); `TlKamera` entfernt |
+| `MeKlaenge`, `MeTipKlaenge` | M2-Knopf „Klänge“ | M4 (992622f5) ersetzte ihn bewusst durch den Ton-Schalter der Leiste (`MeTonAn`/`MeTonAus`, Einstellung `menueTon`, hält laufende Klänge an) – keine Bedienung verloren | überholt: entfernt (i18n_menue2.py, es/cs). Die Handbuchseite `menue_editor_m2` nannte noch `{{MeKlaenge}}` – jetzt der Ton-Schalter (4 Sprachen; die es/cs-Übersetzung mitgezogen, damit sie nicht englisch zurückfällt) |
+
+Rot: lint_i18n „5 übersetzte Texte werden nirgends benutzt“; grün: „i18n-Prüfung: ok“. Danach Handbuch 160 × 6, es/cs
+weiter 172 Texte englisch (unverändert), Selbsttests hilfe1/hilfe2 grün (unten).
+
+### Punkt 2: `^` ohne Ziffer in Untertiteln (rot → grün)
+
+Quellen: `Y:\quellen` enthält weder tr_font.cpp noch cg_text.cpp; gelesen aus `SP\m3\ojq\src` (OpenJK:
+`code/rd-common/tr_font.cpp`, `code/cgame/cg_text.cpp`, `codeJK2/cgame/cg_text.cpp`) und `SP\mdgit\code` (Movie Duels:
+`rd-common/tr_font.cpp`, `cgame/cg_text.cpp`).
+
+- **CG_DrawCaptionText** (JKA, JK2, MD gleich): `cgi_R_Font_DrawString(x, y, cg.captionText[i], textcolor_caption,
+  cgs.media.qhFontMedium, -1, fFontScale)` mit dem unveränderten Text; CG_CaptionText bricht nur die Zeilen
+  (Breite über RE_Font_StrLenPixels) und nimmt keine `^` heraus.
+- **RE_Font_DrawString** ohne JK2_MODE (OpenJK SP und Movie Duels gleich): `case '^'` mit Ziffer setzt die Farbe,
+  sonst „purposely falls thrugh“ – das `^` wird gezeichnet. **Unter JK2_MODE** (Jedi Outcast) endet `case '^'` immer
+  mit `break`: ein `^` ohne Ziffer wird nicht gezeichnet, das nächste Zeichen normal. Die Breiten (StrLenPixels:
+  JKA/MD überspringen `^0`–`^9`, JK2 zählt alles) hatte `untertitel::breite` schon richtig.
+- **Befund:** Jedi Academy und Movie Duels richtig; **Jedi Outcast falsch** – seit Integration 4 zeichnete die
+  gemeinsame Funktion das `^` auch dort. Behoben: `schriftZeichnen(…, jk2Modus)`, `untertitel::zeichnen(…, Spiel)`
+  reicht das Spiel durch, die Zeitleiste zeichnet ihre Untertitel darüber. ctest `untertitel` mit „a^^1b“:
+  **rot** (JK2: 3 Bilder statt 2), **grün** (JKA/MD: `^` gezeichnet, JK2 nicht; `b` in allen drei rot).
+- Nicht Teil dieses Punkts: `mbRoundCalcs` ist für normale Schriften aus (nur Ersatzschriften), `RE_Font_GetVariant`
+  betrifft die `_sharp`-Varianten.
+- **Nebenbefund (nicht behoben, Sache des Menü-Zweigs):** JK2-Menüs im Menü-Editor zeichnen ein `^` ohne Ziffer
+  ebenfalls (die `Umgebung` der Vorschau kennt das Spiel nicht; `z.spiel == Spiel::JK2` wäre vorhanden), und
+  `schriftBreite` überspringt `^0`–`^9` auch für JK2, wo StrLenPixels sie mitzählt (Item_SetTextExtents, Ausrichtung).
+
+### Fund 3 aus den Läufen: Selbsttest zeitleiste1 hing an der Bildzeit (rot → grün)
+
+- Rot: `i5zeitleiste1` und Wiederholung `i5zl1rot` je **79 OK, 1 FEHLER** – „Aufnahme mini: das Modell steht am
+  gesteuerten Ort“: das Modell war 80 Einheiten vom Ort der Szene, die Prüfung wollte mehr als 100 (Zeitleiste 3 maß
+  119 … 391). Das Programm war richtig (das Modell stand am gesteuerten Ort); wie weit die Figur in 45 + 35 + 35
+  gehaltenen Bildern kommt, hängt von der Bildzeit ab.
+- Zwischenlauf `i5zl1gr` (Vergleich mit dem gesteuerten Ort, Toleranz 1): 78 OK, 2 FEHLER – academy1 2,46 Einheiten
+  daneben (die Figur gleitet nach dem Loslassen aus, gezeichnet wird ein Bild später) und md_am_sith „die Vorschau
+  läuft den Weg wie das Spiel“: guard1 lief mit 45 Proben 492 Einheiten weit, hinter das Wegenetz („finds no path“).
+  Die Proben aus Zeitleiste 3 kommen je Bild, sobald die Figur 4 Einheiten weiter ist – also auch bildzeitabhängig.
+- Behoben (nur der Test): W wird losgelassen, sobald der gesteuerte Ort 330 Einheiten vom Start ist (statt nach
+  45 Proben); die Modellprüfung vergleicht das gezeichnete Modell mit dem gesteuerten Ort (≤ 1 Einheit, gesteuert
+  > 32 Einheiten vom Ort der Szene – der Fehler vor Zeitleiste 3 bleibt erkannt) und wartet dafür bis zu 60 Bilder.
+  Grün: `i5zl1gr2` **80 OK, 0 FEHLER** (academy1 0,79 nach 15 Bildern, md_am_sith 375 Einheiten, mini 0).
+
+Sonst zeigten die Selbsttests keine Fehler aus dem Zusammenspiel.
+
+### Prüfungen (unter Last)
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau je Merge (inkrementell, /W4 /WX) | **0 Warnungen** (Tabelle oben) |
+| ctest je Merge | 178/178, 178/178, 178/178, 183/183, 183/183 |
+| Bau + ctest nach Punkt 1 und 2 | 0 Warnungen (612 s), **183/183** (334 s) |
+| Sauberer Neubau (`--clean-first`, alle Ziele) auf 0a544a42 | **0 Fehler, 0 Warnungen** (1360 s) |
+| ctest gesamt danach | **183/183** (440 s) |
+| lint_sources, lint_fassung (rc606), lint_i18n_erzeugt, lint_i18n, lint_gapp, lint_imgui_context, lint_layout, lint_tabellenid, lint_hoehe, lint_feldinit, lint_abstand, lint_doppelanzeige | ok |
+| übrige Lints | dieselben Befunde wie auf b6309500 (d3dbesitz 20, efxflags, endtable 2, fremdprogramm, mapstate, pruefcodes 11, settings 1); lint_portability 233 → 236: drei neue „std::size_t ohne `<cstddef>`“ in den M6-Tests `menuefluss`, `menuefokus`, `menuelesbar` (wie 113 gleichartige Befunde vorher; Sache von menue6) |
+| Handbuch-Bau (`gen_handbuch.py`), gen_i18n, gen_hilfe_orte | 160 Seiten × 6 Sprachen, 3208 Texte, 195 Orte – ohne Änderung gegenüber dem Commit |
+| Selbsttest reste1 (`BHED_KARTE_NUR=reste1`) | **13 OK, 0 FEHLER** |
+| menueeditor, Movie-Duels-Daten / JKA-Daten („GameData original“, nur gelesen) | **121 OK, 0 FEHLER** / **121 OK, 0 FEHLER**; GameData original danach unverändert (keine Datei neuer als der Start) |
+| zeitleiste1 voll | 79/1 → **80 OK, 0 FEHLER** (Fund 3) |
+| zeitleiste | **47 OK, 0 FEHLER** |
+| dock1 ohne / mit `BHED_DOCKSPACE=1` | **86 OK, 0 FEHLER** / **92 OK, 0 FEHLER** |
+| dock2mass | **29 OK, 0 FEHLER** |
+| karteneditor kurz + Fotos (`BHED_KARTE_NUR=fotos`, `BHED_FOTOS`) | **78 OK, 0 FEHLER** |
+| modellleistung | **7 OK, 0 FEHLER** |
+| hilfe1 / hilfe2 (karteneditor) | **59 OK, 0 FEHLER** / **44 OK, 0 FEHLER** |
+| mission1 voll (`BHED_FOTOS`) | **98 OK, 0 FEHLER** (636 s) |
+| Modus 1 (en, `BHED_HANDBUCH`) | erster Lauf 2648 OK, 2 FEHLER (478 s) – beide in der Windows-Zwischenablage („Copy schreibt //(BHVD) …“, „… legt das ganze Skript in die Zwischenablage“); gleichzeitig liefen vier Selbsttests anderer Agenten (missionsbau, Menü-Editor, Handbuch), die dieselbe Zwischenablage des Systems benutzen. Wiederholung: **2650 OK, 0 FEHLER** (500 s), 0 Zusicherungen |
+
+Die Selbsttests liefen auf dem Stand nach Punkt 2 (3cae6104), zeitleiste1 grün auf daf88e15, Modus 1 auf dem
+sauberen Neubau.
+
+### Was auf Spanisch/Tschechisch noch englisch ist (für Übersetzung Runde 2)
+
+| | es | cs |
+|---|---|---|
+| Programmtexte (`gen_i18n.py`) | **428** (Integration 4: 354; dazu vor allem M6) | **428** |
+| Handbuchtexte | **172** | **172** |
+| Handbuchbilder englisch | **32** | **32** |
+
+### Gegen das Vorbild geprüft / nicht geprüft
+
+- Punkt 2 gegen die Quellen (OpenJK SP mit und ohne JK2_MODE, Movie Duels): CG_DrawCaptionText, CG_CaptionText,
+  RE_Font_DrawString, RE_Font_StrLenPixels; im Programm über ctest geprüft, nicht im laufenden Spiel (keine Spielstarts).
+- Punkt 1 gegen die Bedienung: die Kategorien und die Kamerazeile gibt es in der neuen Zeitleiste nicht mehr, der
+  Ton-Schalter ersetzt „Klänge“ (M4-Commit, Handbuch M4); Ortskatalog und Touren über hilfe1/hilfe2.
+- Nicht geprüft (Auftrag): alle Modi, Kartenprüfung (Schlussrunde nach Integration 6); Tempo (alles unter Last).
+
+### Offen / nächster Schritt
+
+- **Nächster Schritt:** Integration 6 (M7, dock4, Zeitleiste 4, pruefung3, uebersetzung2), danach die Schlussrunde mit
+  allen Modi und der Kartenprüfung.
+- Für den Menü-Zweig: JK2-Menüs – `^` ohne Ziffer und die Breite mit Farbcodes wie JK2_MODE (Punkt 2, Nebenbefund);
+  `#include <cstddef>` in den drei M6-Tests (lint_portability).
+- Für den Zeitleisten-Zweig: Fund 3 ändert `gui/selbsttest_zeitleiste1.inc` (`halteTaste` mit `genug` statt
+  `probenBis`, Modellprüfung mit Warten) – bei Zeitleiste 4 mitnehmen.
+- es/cs: 428 Programmtexte, 172 Handbuchtexte, 32 Bilder (Tabelle oben) – Übersetzung Runde 2.
+- Aus Integration 4 unverändert offen: Bilder der Seite zeitleiste in de/zh-Hans/ja (NOTIZEN_zeitleiste1), Stufe 8
+  „Notify when a build is done“ allein und g_figurBilder (NOTIZEN_reste1).
+
+### Changelog
+
+#### English
+
+- Jedi Outcast subtitles in the timeline preview no longer draw a ^ that is not followed by a digit, like the game.
+- Helper: the way to the camera toolbar now names the timeline row "Camera – position".
+
+#### Deutsch
+
+- Untertitel von Jedi Outcast in der Vorschau der Zeitleiste zeichnen ein ^ ohne folgende Ziffer nicht mehr – wie das Spiel.
+- Helfer: der Weg zur Kameraleiste nennt jetzt die Zeile „Kamera – Ort“ der Zeitleiste.
+
+#### 中文
+
+- 时间轴预览中的 Jedi Outcast 字幕不再绘制后面没有数字的 ^,与游戏一致。
+- 帮助:通往摄像机工具栏的路径现在使用时间轴行名“摄像机 – 位置”。
+
+#### 日本語
+
+- タイムラインのプレビューで、Jedi Outcast の字幕は数字が続かない ^ を描画しなくなりました(ゲームと同じ)。
+- ヘルプ: カメラツールバーへの道順に、タイムラインの行名「カメラ – 位置」を表示します。
