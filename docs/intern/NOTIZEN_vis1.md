@@ -744,6 +744,64 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Zeiten ohne Last für alle vis3-Zahlen (die Läufe nach 07:10 lagen unter schwerer Last).
 - Die Punkte aus „Offen“ und „vis2 → Nächster Schritt“ oben, soweit hier nicht erledigt.
 
+## vis4: Licht schneller, bitgleich (Nachauftrag, 30.10. mittags) – angehalten
+
+Auftrag `SP/auftrag_vis4.md`. Um 13:10 vom Koordinator angehalten (höchstens 4 Agenten), wird später fortgesetzt.
+Werkzeuge `SP/vis4`: `lz.py` (wie vis2, Bericht mit „in N runs“, `+budget<N>`, `+E_<NAME>`, Ausgabe nach `LZ_AUS`),
+`laden.py` (nur Laden/Setup von `-light`), `tabelle.py` (Tabelle aus den lz-Zeilen), `rep.py` (Ersetzungen aus
+Datei), Messfassungen `bin/m1..m3.exe` (rdtsc-Zähler, nicht eingecheckt). „v0“ = `SP/vis4/bin/v0.exe` = s3 (874121ef).
+**Alle Zeiten unter Last** (andere Agenten bauten; bis 97 % Last) – nur Tendenz.
+
+### Commits vis4
+
+| Commit | Inhalt |
+|---|---|
+| 642dd15a | WIP Punkt 1: Lightmaps mit Nachproben über mehrere Blöcke gesammelt (Sammelpuffer auf der GPU, `BhedBakeSammeln`/`BhedBakeSammelRechnen`), S mit `-randomsamples` nicht mehr angelegt – gleiche Bytes |
+| 08b08e5f | Punkt 3: TraceLine testet vier Dreiecke auf einmal (SSE2), Nachproben enden am ersten undurchsichtigen Dreieck – gleiche Bytes |
+| 4083fce7 | Punkt 3: FinishShader sucht stFlat vom letzten Pixel rückwärts; WIP Punkt 1: Stapel aus dem Sammelpuffer nach gemessenen Raten – gleiche Bytes |
+| (dieser) | Notizen vis4 |
+
+### Stand
+
+- **Punkt 1 (WIP, hinter `BHED_GPUBAKE_ZUFALL` bzw. `BHED_GPUBAKE_NUR_GPU`)**: die Farben der Erstabtastung der
+  aktiven Lichter jeder Lightmap mit Nachproben gehen per CopySubresourceRegion in einen Sammelpuffer (größte
+  Zweierpotenz bis zum Blockbudget, 16 Byte je Paar – so viel, wie das nicht mehr angelegte S frei macht); ein
+  Lauf baut daraus einen eigenen Block (nur die aktiven Lichter, `paarBase` = Stelle im Puffer), Vorhersage, Kern
+  `zufall`, Filtern wie bisher. Mit Schalter steht jede gesammelte auch in `nebenZufall` (wer zuerst nimmt,
+  rechnet); kein zweites Erst mehr. Voller Puffer und die Stapel nach den Blöcken nehmen den Anteil nach Raten
+  (`sammelStapel`, erst 1/16), der Rest bleibt bei den Threads. Bytes gleich (alle 18 Lumps): md_ch_ben, duel_pit,
+  mp__duel1, t1_inter (CPU, nur GPU, Schalter, kleines Budget), kejim_post de898d504b1c0795 (nur GPU, Schalter),
+  md_am_sith `-bounce 2` 448f3509fa84697b (nur GPU). Kern `zufall` (nur GPU, `BHED_GPUBAKE_ZEITEN`): kejim_post
+  41,3 → 23,9 s (45 Blöcke → 5 Läufe), md_am_sith 377 (vis2) → 208 s (26 Läufe); md_am_sith bleibt je Luxel 5-mal
+  langsamer als kejim_post (9,5k gegen 46k Luxel/s).
+- **Punkt 3**: Profil der Nachproben (m1, taspir1 Extreme, unter Last): TraceLine 66 %, SubmapRawLuxel 23 %,
+  Formfaktor 5 %. TraceLine prüfte je Strahl etwa 70 Dreiecke (Blätter mit bis zu 5) – jetzt die geometrische
+  Prüfung von TraceTriangle mit SSE2 für vier Dreiecke eines Blatts (dieselben float-Operationen; TraceTriangle hat
+  vor dieser Prüfung keine Nebenwirkung, also wird es nur für die durchgelassenen in Item-Folge gerufen), gilt für
+  jedes TraceLine. Für Nachproben (nur die Farbe zählt) testet `TraceLineFarbe_r` die Dreiecke eines Blatts sofort
+  und endet am ersten undurchsichtigen (Knoten −24 %). CPU-Sekunden duel_pit Extreme 45 → 28,5 s, schnelles Profil
+  20 → 14,5 s, taspir1 Wand 143 → 102 s (unter Last, je ein Lauf). LoadSurfaceExtraFile: 99 % in
+  ShaderInfoForShader; darin lief FinishShader über jedes Pixel jedes Bildes, obwohl nur das letzte zählt (bestDist
+  wird nie verkleinert, wie in q3map2) – jetzt rückwärts gesucht. Laden duel_mos_espa unter Last nicht messbar
+  (99–116 s schwankend). Bytes gleich: taspir1 89c381abf3d17268 (CPU, GPU), kejim_post de898d504b1c0795 und
+  2b3544f0b4661e3c (schnell), kleine Karten.
+- **Gefunden (m3, taspir1)**: ClusterForPointExt prüft je Nachprobe etwa **52 Brushes / 105 Seiten** des Blatts
+  (532 Gtick gegen 121 Gtick für PointInLeafNum) – der nächste große Brocken, auch im GPU-Kern (`clusterExt`).
+
+### Nächster Schritt
+
+1. ClusterForPointExt: je undurchsichtigem Brush eine AABB des um ε (größtes benutztes ε = 0,25) erweiterten
+   Brushes (aus Windings), je Blatt die AABBs als SoA; vier Brushes je SSE2-Test, die exakte Seitenprüfung nur für
+   die nicht verworfenen, in Blattfolge (konservativer Rand gegen Rundung) – dasselbe auf der GPU in `clusterExt`.
+   Danach PointInLeafNum je Luxel ab dem tiefsten gemeinsamen Knoten der Probenbox.
+2. Punkt 1/2: GPU + Schalter gegen GPU und CPU messen (kejim_post, taspir1, duel_mos_espa, md_am_sith), dann
+   Auto mit drittem Kandidaten (`gpuwahl.h`, dritte gemerkte Zeit, `-bhedgpubakezeitenz`, Bericht der Wahl,
+   Editor/i18n/Handbuch, ctest karte_gpuwahl) nur wenn er wo schneller ist; Schalter ab Werk nur, wenn nirgends
+   langsamer. Testfall für den Sammelpuffer in ctest q3map2_gpubake (kleines Budget, mehrere Läufe).
+3. Punkt 4/5: `SP/vis4/messung.sh` (eine Zeile je Karte/Weg, `tabelle.py`) anlegen; Bytevergleiche duel_mos_espa
+   `-bounce 1`, md_am_sith `-bounce 2` CPU/GPU/Schalter mit dem Endstand; Schlussrunde (Neubau, ctest,
+   q3map2-Tests, karteneditor kurz, stufe9d, Kartenprüfung). Nicht gelaufen in vis4: ctest, Neubau, Selbsttests.
+
 ## Changelog
 
 ## English
@@ -757,6 +815,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Fixed: a second `-light` on a quake3 BSP that was already lit with light styles crashed (also in NRC's q3map2): the light now takes back the "nomipmaps" surfaces and the shaders of the former light, and gives the same result as lighting the BSP once.
 - bhed_q3map2 `-light`: the vertexes of a vertex lit surface are shared with idle threads instead of keeping one thread busy (same result).
 - bhed_q3map2 `-light`: setting up the raw lightmaps compares a surface only with the later surfaces that can share its lightmap, instead of with all of them (same result) - on duel_mos_espa every light step starts 1-2 s earlier (much more when the computer is busy).
+- bhed_q3map2 `-light`, same result, faster shadow tests: four triangles are tested at once, and a random subsample stops at the first opaque triangle; loading the shader images no longer walks every pixel of every image.
 
 ## Deutsch
 
@@ -769,6 +828,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Behoben: ein zweites `-light` auf einer schon mit Lichtstilen beleuchteten quake3-BSP stürzte ab (auch in NRCs q3map2): das Licht nimmt jetzt die „nomipmaps“-Flächen und die Shader des vorigen Lichts zurück und ergibt dasselbe wie einmal beleuchten.
 - bhed_q3map2 `-light`: die Vertexe einer Vertexlicht-Fläche teilen sich freie Threads, statt einen Thread allein zu beschäftigen (gleiches Ergebnis).
 - bhed_q3map2 `-light`: beim Anlegen der Raw-Lightmaps wird eine Fläche nur noch mit den späteren Flächen verglichen, die ihre Lightmap teilen können, statt mit allen (gleiches Ergebnis) - auf duel_mos_espa beginnt jeder Lichtschritt 1-2 s früher (bei ausgelastetem Rechner deutlich mehr).
+- bhed_q3map2 `-light`, gleiches Ergebnis, schnellere Schattentests: vier Dreiecke werden auf einmal geprüft, und eine zufällige Nachprobe endet am ersten undurchsichtigen Dreieck; das Laden der Shader-Bilder geht nicht mehr jedes Pixel jedes Bildes durch.
 
 ## 中文
 
@@ -781,6 +841,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - 修复:对已用灯光样式照明过的 quake3 BSP 再执行一次 `-light` 会崩溃(NRC 的 q3map2 也是):现在照明会撤销上一次照明添加的“nomipmaps”面和着色器,结果与只照明一次相同。
 - bhed_q3map2 `-light`:顶点光照面的顶点由空闲线程分担,不再让一个线程单独忙碌(结果相同)。
 - bhed_q3map2 `-light`:建立原始光照贴图时,一个面只与之后可能共用其光照贴图的面比较,而不是与所有面比较(结果相同)——在 duel_mos_espa 上每个光照步骤提前 1-2 秒开始(电脑繁忙时提前得更多)。
+- bhed_q3map2 `-light`:结果相同,阴影测试更快:一次测试四个三角形,随机子采样在遇到第一个不透明三角形时即停止;加载着色器图像时不再遍历每张图像的每个像素。
 
 ## 日本語
 
@@ -793,3 +854,4 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - 修正:ライトスタイル付きで照明済みの quake3 BSP にもう一度 `-light` を実行するとクラッシュしていました(NRC の q3map2 でも同じ)。前回の照明が追加した「nomipmaps」の面とシェーダーを取り消し、1 回照明した場合と同じ結果になります。
 - bhed_q3map2 `-light`:頂点ライティングの面の頂点を空いているスレッドで分担し、1 つのスレッドだけが忙しくなることがなくなりました(結果は同じ)。
 - bhed_q3map2 `-light`:raw ライトマップの作成時に、面をすべての後続の面ではなく、そのライトマップを共有できる後続の面とだけ比較します(結果は同じ)。duel_mos_espa では各ライト処理が 1-2 秒早く始まります(コンピューターが混んでいるときはさらに早く)。
+- bhed_q3map2 `-light`:結果は同じで、影のテストが速くなりました。三角形を 4 つずつまとめてテストし、ランダムなサブサンプルは最初の不透明な三角形で止まります。シェーダー画像の読み込みで、すべての画像のすべてのピクセルを調べることはなくなりました。
