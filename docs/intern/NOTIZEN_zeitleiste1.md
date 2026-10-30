@@ -287,6 +287,11 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## English
 
+- Record a walk: select a figure, press "Record" in the timeline's transport bar and steer it in the preview with the game's movement (W/S/A/D, Shift walks, Q/E turns); Enter writes walk targets the way scripts let an NPC walk - one ref_tag and one task with SET_NAVGOAL plus dowait per point, only where the path needs one (adjustable tolerance, walls, gait changes), with SET_WALKING/SET_RUNNING - as one undo step; Esc cancels.
+- Subtitles in the preview picture exactly as the game draws them: line breaks, two lines at a time for as long as the sound, in the lower black bar, colour from SET_CAPTIONTEXTCOLOR, Movie Duels at half size; a "Subtitles" switch offers the game's choices with the game's default (none in Jedi Academy and Movie Duels, in cinematics in Jedi Outcast).
+- Jedi Outcast: the speech row now shows the subtitles from the strip/*.sp files, including the extra packages some maps read.
+- "Open script line" also works for commands from other scripts (run, use, spawnscript): it opens that script and selects the line.
+- Arrow keys over the timeline: 50 ms (one game frame), Shift 1 s, Ctrl 5 s; the legend lists the keys.
 - New timeline in the Mission tab, built after the approved design: **Overview** shows camera position (one block per shot, named after its mark or as readable coordinates) and rotation, speech with speaker, subtitle and waveform, music, the script flow with labelled waits ("waits for 'camera 2'") and one row per actor (named animations on top, numbered walks, dashed where it stands still, hatched where it is not visible); **Detail** splits the camera into move, pan, zoom and fade and draws field of view and fade as straight lines (the game interpolates linearly).
   - Real durations everywhere: a line lasts as long as its sound file, a walk until arrival, an animation until its hold time ends - the timeline and the "Tracks" view now read one shared model.
   - Camera moves that start before the previous one has finished get their own lane and the note "jumps back", with the reason from cg_camera.cpp.
@@ -298,6 +303,11 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## Deutsch
 
+- Einen Lauf aufnehmen: eine Figur wählen, in der Transportleiste der Zeitleiste "Aufnehmen" drücken und sie in der Vorschau mit der Bewegung des Spiels steuern (W/S/A/D, Umschalt geht, Q/E dreht); Enter schreibt Laufziele so, wie Skripte einen NPC laufen lassen - je Punkt ein ref_tag und eine Aufgabe mit SET_NAVGOAL samt dowait, nur wo der Weg einen braucht (einstellbare Toleranz, Wände, Gangwechsel), mit SET_WALKING/SET_RUNNING - als ein Rückgängig-Schritt; Esc bricht ab.
+- Untertitel im Vorschau-Bild genau so, wie das Spiel sie zeichnet: Zeilenumbruch, je zwei Zeilen so lange wie der Klang, im unteren schwarzen Balken, Farbe aus SET_CAPTIONTEXTCOLOR, Movie Duels halb so groß; ein Schalter "Untertitel" bietet die Wahl des Spiels mit dessen Vorgabe (keine in Jedi Academy und Movie Duels, in Zwischensequenzen in Jedi Outcast).
+- Jedi Outcast: die Sprach-Zeile zeigt jetzt die Untertitel aus den strip/*.sp-Dateien, samt der Zusatzpakete mancher Karten.
+- "Skriptzeile öffnen" geht auch bei Befehlen aus anderen Skripten (run, use, spawnscript): es öffnet jenes Skript und wählt die Zeile.
+- Pfeiltasten über der Zeitleiste: 50 ms (ein Spielbild), Umschalt 1 s, Strg 5 s; die Legende nennt die Tasten.
 - Neue Zeitleiste im Mission-Tab nach dem freigegebenen Entwurf: **Übersicht** zeigt Kamera-Ort (je Einstellung ein Block mit dem Namen der Markierung oder lesbaren Koordinaten) und -Drehung, Sprache mit Sprecher, Untertitel und Wellenform, Musik, den Skriptablauf mit beschrifteten Wartezeiten ("wartet auf ‚camera 2‘") und je Darsteller eine Zeile (oben Animationen mit Namen, nummerierte Läufe, gestrichelt, wo er still steht, schraffiert, wo er nicht zu sehen ist); **Detail** trennt Kamerafahrt, Schwenk, Zoom und Blende und zeichnet Sichtfeld und Blende als gerade Linien (das Spiel rechnet linear).
   - Überall echte Dauern: ein Satz so lang wie seine Sounddatei, ein Lauf bis zur Ankunft, eine Animation bis zum Ende ihrer Haltezeit - Zeitleiste und Ansicht "Spuren" lesen jetzt ein gemeinsames Modell.
   - Kamerafahrten, die beginnen, bevor die vorige fertig ist, bekommen eine eigene Bahn und den Hinweis "springt zurück", mit dem Grund aus cg_camera.cpp.
@@ -309,6 +319,11 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## 中文
 
+- 录制行走：选择一个角色，在时间轴的传输栏中按“录制”，并在预览中用游戏的移动方式操控它（W/S/A/D，Shift 走路，Q/E 转身）；Enter 按脚本让 NPC 行走的方式写入行走目标——每个点一个 ref_tag 和一个带 SET_NAVGOAL 的 task 加 dowait，只在路径需要的地方（可调容差、墙、步态变化），并带 SET_WALKING/SET_RUNNING——作为一个撤销步骤；Esc 取消。
+- 预览画面中的字幕与游戏绘制的完全一致：换行、每次两行且持续声音的时长、显示在下方黑条中、颜色来自 SET_CAPTIONTEXTCOLOR、Movie Duels 为一半大小；“字幕”开关提供游戏的选项及其默认值（Jedi Academy 和 Movie Duels 不显示，Jedi Outcast 在过场动画中显示）。
+- Jedi Outcast：语音行现在显示来自 strip/*.sp 文件的字幕，包括某些地图读取的附加包。
+- “打开脚本行”也适用于来自其他脚本（run、use、spawnscript）的命令：它会打开那个脚本并选中该行。
+- 时间轴上的方向键：50 毫秒（一个游戏帧），Shift 1 秒，Ctrl 5 秒；图例列出了这些按键。
 - 任务标签页中按已批准的设计重做的新时间轴：**概览**显示摄像机位置（每个镜头一个块，以标记名称或易读坐标命名）和旋转、带说话者、字幕和波形的语音、音乐、带标注等待的脚本流程（“等待“camera 2””），以及每个角色一行（上方是带名称的动画，编号的行走，静止处为虚线，不可见处为斜线）；**详细**把摄像机分为移动、平移、缩放和淡入淡出，并把视野和淡入淡出画成直线（游戏按线性插值）。
   - 处处使用真实时长：台词与其声音文件一样长，行走持续到到达，动画持续到保持时间结束——时间轴和“轨道”视图现在读取同一个模型。
   - 在上一个移动结束前就开始的摄像机移动会获得自己的轨道和“跳回”提示，并给出来自 cg_camera.cpp 的原因。
@@ -320,6 +335,11 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## 日本語
 
+- 歩きの記録：キャラクターを選び、タイムラインのトランスポートバーで「記録」を押して、プレビューでゲームの移動のまま操作します（W/S/A/D、Shift で歩く、Q/E で向き）。Enter で、スクリプトが NPC を歩かせる方法で移動目標を書き込みます。点ごとに ref_tag と SET_NAVGOAL の task と dowait を、経路が必要とする所だけ（調整できる許容差、壁、歩き方の変化）、SET_WALKING/SET_RUNNING 付きで、元に戻す 1 回分として。Esc でキャンセル。
+- プレビュー画像の字幕をゲームの描き方どおりに表示：改行、音の長さだけ 2 行ずつ、下の黒帯に、色は SET_CAPTIONTEXTCOLOR、Movie Duels は半分の大きさ。「字幕」スイッチでゲームの選択肢とその既定値（Jedi Academy と Movie Duels はなし、Jedi Outcast はムービー中）を選べます。
+- Jedi Outcast：台詞の行に strip/*.sp ファイルの字幕（一部のマップが読む追加パッケージを含む）が表示されるようになりました。
+- 「スクリプト行を開く」が他のスクリプト（run、use、spawnscript）から来たコマンドでも使えます。そのスクリプトを開いて行を選択します。
+- タイムライン上の矢印キー：50 ms（1 ゲームフレーム）、Shift で 1 秒、Ctrl で 5 秒。凡例にキーが載っています。
 - 承認されたデザインに基づくミッションタブの新しいタイムライン：**概要**はカメラの位置（ショットごとに 1 ブロック、マーク名または読みやすい座標）と回転、話者・字幕・波形付きの台詞、音楽、ラベル付きの待機（「「camera 2」を待機」）を含むスクリプトの流れ、キャラクターごとの行（上に名前付きアニメーション、番号付きの移動、静止は破線、非表示は斜線）を表示し、**詳細**はカメラを移動・パン・ズーム・フェードに分け、視野とフェードを直線で描きます（ゲームは直線的に補間）。
   - どこでも実際の長さ：台詞はサウンドファイルの長さ、移動は到着まで、アニメーションは保持時間の終わりまで。タイムラインと「トラック」表示は同じモデルを読みます。
   - 前の移動が終わる前に始まるカメラ移動は専用のレーンと「戻る」の注記が付き、cg_camera.cpp による理由が示されます。
