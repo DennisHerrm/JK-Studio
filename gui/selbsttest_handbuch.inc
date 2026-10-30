@@ -316,7 +316,8 @@ namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
 namespace reste1 {
-std::vector<Schritt> schritte();   // selbsttest_reste1.inc: Liste reste1 (Decals im Editor)
+std::vector<Schritt> schritte();        // selbsttest_reste1.inc: Liste reste1 (Decals im Editor)
+std::vector<Schritt> ruheOhneKarte();   // selbsttest_reste1.inc: Map-Tab ohne Karte ruht (Modus reiter und 1)
 }  // namespace reste1
 
 std::vector<Schritt> karteneditorSchritte() {

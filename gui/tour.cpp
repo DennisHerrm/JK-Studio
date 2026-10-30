@@ -1039,6 +1039,15 @@ void sucheZeichnen(float breite) {
     }
 }
 
+// reste1 Punkt 2: ist die Maus gerade auf einem Knopf des Tutorial-Fensters gedrueckt? Dann darf sich
+// das Fenster bis zum Loslassen nicht aendern (nicht verschieben, nicht weiterschalten) - ein Knopf loest
+// nur aus, wenn er beim Loslassen noch unter der Maus liegt; sonst ginge der Klick still verloren. In
+// langsamen Bildern fiel ein Klick leicht in die Bilder nach einem Schrittwechsel.
+bool fensterGedrueckt() {
+    const ImGuiWindow* w = ImGui::FindWindowByName("###tour");
+    return w != nullptr && GImGui->ActiveId != 0 && GImGui->ActiveIdWindow == w;
+}
+
 // Das Fenster so stellen, dass es kein Ziel verdeckt: eine der vier Ecken
 // der Arbeitsflaeche, zuerst unten rechts.
 void fensterStellen(const std::vector<ImRect>& ziele, float breite) {
@@ -1046,6 +1055,9 @@ void fensterStellen(const std::vector<ImRect>& ziele, float breite) {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const float fs = ImGui::GetFontSize();
     ImGuiWindow* w = ImGui::FindWindowByName("###tour");
+    // Nach einem Schrittwechsel wird das Fenster ein bis drei Bilder spaeter neu gestellt (neue Groesse,
+    // neue Ziele) - nicht unter einer gedrueckten Maus, sondern nach dem Loslassen.
+    if (fensterGedrueckt()) { return; }
     const ImVec2 groesse = (w != nullptr && w->Size.x > 0.0F) ? w->Size : ImVec2{breite, fs * 16.0F};
     const ImRect jetzt = w != nullptr ? w->Rect() : ImRect{};
     bool verdeckt = false;
@@ -1408,7 +1420,8 @@ void tourBild() {
         k.schwebt = s.schwebtSeit >= 0.0 && jetzt - s.schwebtSeit >= 0.4;
         const ImGuiContext& g = *GImGui;
         k.geklickt = s.zielKennung != 0 && g.DeactivatedItemData.ID == s.zielKennung && g.DeactivatedItemData.ElapseFrame >= g.FrameCount;
-        if (!frage && s.ablauf.bild(k, jetzt)) {
+        // Weiterschalten (0,6 s nach einem erledigten Schritt) nicht unter einer gedrueckten Maus
+        if (!frage && !fensterGedrueckt() && s.ablauf.bild(k, jetzt)) {
             diag::detail("Tour: Schritt " + std::to_string(s.ablauf.schritt() + 1) + " erledigt");
         }
         s.hinweis = s.ablauf.hinweis(k);

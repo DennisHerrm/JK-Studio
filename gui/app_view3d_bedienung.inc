@@ -2930,6 +2930,12 @@ void drawMapView() {
         // Statt "No map loaded" die Startflaeche (gui/app_mission.cpp): drei
         // Wege hinein und die zuletzt bearbeiteten Missionen.
         drawStartflaeche(bildW, bildH);
+        // reste1 Punkt 5: ohne Karte gibt es kein Kartenbild nachzuzeichnen.
+        // mapDirty blieb hier stehen (es wird erst unten beim Zeichnen
+        // geloescht), darfRuhen lehnte darum immer ab, und der Map-Tab lief
+        // ohne Eingabe mit voller Bildrate. Das Laden einer Karte setzt es
+        // selbst wieder.
+        g_app->mapDirty = false;
         return;
     }
 
