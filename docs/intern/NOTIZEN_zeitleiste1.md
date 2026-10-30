@@ -347,12 +347,105 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
   zh-Hans, ja; danach `/y/zl2_ende.sh`; mission1/zeitleiste/ton allein
   wiederholen, wenn sie dort wieder rot sind.
 
+## Zeitleiste 3
+
+Auftrag `<SP>/auftrag_zeitleiste3.md` (Reste von Zeitleiste 2 und volle
+Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
+
+- **Punkt 1 JK2-Teil im vollen Lauf** (2c670fb0): Ursache war nicht die neue
+  Mission, sondern die Missionsauswahl: ein neu geoeffnetes Fenster behielt
+  die Rollposition der vorigen Liste (Movie Duels, md_am_sith weit unten),
+  kejim_post lag darueber, waehleInListe rollt nur nach unten (Foto
+  zl2k3/zl2_jk2_kejim_post). Behoben in drawMissionPicker
+  (IsWindowAppearing -> SetNextWindowScroll 0). Neue Pruefung "die
+  Missionsauswahl beginnt oben": rot zl3p1rot (72/6), gruen zl3p1gr (76/1,
+  der Rest siehe unten), voll zl3gr 80/0.
+- **Punkt 3 Aufnahme** (2c670fb0):
+  - Hinweis: er war nicht vom Fensterrand, sondern von der Platzierleiste
+    links (platzierLeiste, je nach Hoehe der Ansicht verschieden hoch)
+    verdeckt. Jetzt mittig im sichtbaren Teil, mit Rand Knopfhoehe + 1,4 fs,
+    umbrochen bei schmaler Ansicht. Pruefung "der Hinweis steht ganz im Bild,
+    frei von Knoepfen" (Fensterrechteck aus ImGui, kein Element darunter,
+    die Spalte der Platzierleiste frei): rot zl3p3rot2 (14/1), gruen zl3gr.
+  - Modell statt Umriss: aufnahmeFigurZustand setzt beim Zeichnen Ort und
+    Blick der gesteuerten Figur, beim Bewegen BOTH_RUN1/BOTH_WALK1 mit dem
+    Tempo der Szene (Geschwindigkeit / kAnimSpeedRun bzw. Walk, begrenzt,
+    hoechstens 1,5 * frameLerp / 50) an der Zeit der Aufnahme; steht sie,
+    bleibt die Haltung zur Startzeit. Der Kasten bleibt als Umriss dazu.
+    Pruefung ueber figurGezeichnet: rot zl3p3rot (Modell 0 vom Ort der
+    Szene), gruen zl3p3rot2/zl3gr (119 .. 391 Einheiten). Abweichung: kein
+    Uebergang (PM_SetAnim-Blend) beim Wechsel Stehen/Laufen, keine
+    Rueckwaerts-/Seitwaertsanimation (die Szene nimmt BOTH_RUNBACK1 nur fuer
+    geschriebene Laeufe).
+  - Untertitel-Seitenwechsel (c3f4887d): wie CG_DrawCaptionText im ersten
+    Clientbild nach captionNextTextTime, die naechste Seite zaehlt ab diesem
+    Bild; Clientbilder alle 8 ms ab der Ankunft des Untertitels
+    (com_maxfps 125, wie kSaberClientTaktMs). ctest untertitel: rot (2
+    Fehler), gruen.
+  - Testfund: guard1 (md_am_sith) lief unter Last in 45 Bildern 443 statt
+    331 Einheiten weit, hinter das Wegenetz ("finds no path", steht wie im
+    Spiel) - die Pruefung "die Vorschau laeuft den Weg" war rot (zl3p1rot,
+    zl3p1gr). Die Tasten halten jetzt bis 45 Proben; richtig war das
+    Programm (Statuszeile meldet den fehlenden Weg).
+- **Punkt 2 Bilder mit der alten Leiste**: Seite zeitleiste in 4 Sprachen
+  neu (`/y/zl1_hb.sh`, je 2-8 min unter Last; 39b3e3fd: h_zl_aufnahme mit
+  Modell und freiem Hinweis, h_zl_untertitel mit MD 0.66, weitere wo sich
+  der Inhalt aenderte). Voller Bildlauf `/y/zl3_hbvoll.sh en 2100` (wie
+  zl2_hbvoll.sh, Zeitgrenze als Argument): nach 27 min waren alle 19
+  ausgewaehlten Bilder und a_k_timen_* da (660 Fotos), der Rest des Laufs
+  wurde abgebrochen; 6055731a uebernimmt 21 englische Bilder. Der volle Lauf
+  meldet unter Last 66 Klickfehler in anderen Teilen (Cancel, ##entsuche,
+  ROFF file ...), die ausgewaehlten Bilder sind durchgesehen (k_waits,
+  c_tl_play: neue Leiste). **Offen: de, zh-Hans, ja** (je ~30 min,
+  `sh /y/zl3_hbvoll.sh de 2400` usw.).
+- **Punkt 4 MD cg_textprintscale** (c3f4887d): in der installierten
+  MovieDuels-gamex86_64.dll (SP, 27.10.2026) steht der Name doch (vorher
+  wohl in der falschen DLL gesucht); der Eintrag der Cvar-Tabelle (Zeiger auf
+  Name, Vorgabe, Flags) lautet "0.66f", CVAR_ARCHIVE. Die 32-Bit-DLL
+  (31.12.2025) und die MP-cgame (02.08.2026) haben "0.5f", mdgit (13.10.)
+  auch. Uebernommen: 0.66 (kMdTextprintscale); keine MD-Config ueberschreibt
+  den Wert. Gelesen mit einem eigenen PE-Leser (nur lesend), Handbuch- und
+  Changelog-Text angepasst ("kleiner" statt "halb so gross").
+
+- **Punkt 5 Schlussrunde (verkuerzt, Zeitgrenze 08:40)**: sauberer Neubau
+  aller Ziele (`--clean-first`, waehrend des Bildlaufs): 0 Fehler, 0
+  Warnungen. ctest 167/167 (521 s unter Last). lint_sources, lint_fassung
+  (rc606), lint_gapp, lint_imgui_context, lint_layout, lint_abstand,
+  lint_doppelanzeige ok, Handbuch handbuch_sprachen ok. Selbsttests nach dem
+  Neubau (`/y/zl3_ende.sh`, nacheinander, unter Last): zeitleiste 47/0,
+  mission1 98/0, ton 34/0
+  (die zeitabhaengigen Tonpruefungen diesmal gruen), umriss 45/0, missionsbau
+  95/0, kamera 95/0, szenen 26/0, karte 229/0. zeitleiste1 voll mit demselben Code vor dem Neubau: zl3gr 80/0.
+  **Nicht gelaufen**: Modus 1 (90 min), alle Modi, Kartenpruefung - die
+  Zeit reichte nach den Punkten 1-4 und dem Bildlauf nicht.
+  Gegen das Vorbild geprueft: Seitenwechsel (cg_text.cpp mdgit:
+  CG_DrawCaptionText), Vorgabe cg_textprintscale (installierte DLL),
+  Lauf-/Gehanimation (Regeln der Szene, scene.cpp); nicht im laufenden
+  Spiel verglichen (keine Spielstarts).
+
+### Stand beim Anhalten (30.10., 08:40)
+
+- Fertig und committet: Punkt 1 (Missionsauswahl oben), Punkt 3 (Hinweis,
+  Modell, Seitenwechsel), Punkt 4 (MD 0.66 aus der DLL), Punkt 2 fuer die
+  Seite zeitleiste (4 Sprachen) und die englischen Bilder des vollen
+  Bildlaufs; Schlussrunde verkuerzt (oben).
+- Offen: (1) die Bilder mit der alten Leiste in de, zh-Hans, ja
+  (`sh /y/zl3_hbvoll.sh <sprache> 2400`, je ~30 min unter Last; die
+  ausgewaehlten Bilder entstehen nach ~25 min, der Rest des Laufs wird nicht
+  gebraucht); (2) Modus 1 mit BHED_HANDBUCH, alle Modi, Kartenpruefung;
+  (3) Aufnahme: kein Animationsuebergang beim Wechsel Stehen/Laufen, keine
+  Rueckwaertsanimation beim Steuern, der Oberkoerper laeuft mit (die Szene
+  behaelt eine Oberkoerper-Skriptanimation).
+- Naechster Schritt: `/y/zl3_hbvoll.sh de 2400`, dann zh-Hans, ja; danach
+  Modus 1 (`/y/zl2_ende.sh` enthaelt ihn) und die uebrigen Modi.
+
 ## Changelog
 
 ## English
 
-- Record a walk: select a figure, press "Record" in the timeline's transport bar and steer it in the preview with the game's movement (W/S/A/D, Shift walks, Q/E turns); Enter writes walk targets the way scripts let an NPC walk - one ref_tag and one task with SET_NAVGOAL plus dowait per point, only where the path needs one (adjustable tolerance, walls, gait changes), with SET_WALKING/SET_RUNNING - as one undo step; Esc cancels.
-- Subtitles in the preview picture exactly as the game draws them: line breaks, two lines at a time for as long as the sound, in the lower black bar, colour from SET_CAPTIONTEXTCOLOR, Movie Duels at half size; a "Subtitles" switch offers the game's choices with the game's default (none in Jedi Academy and Movie Duels, in cinematics in Jedi Outcast).
+- Record a walk: select a figure, press "Record" in the timeline's transport bar and steer it in the preview with the game's movement (W/S/A/D, Shift walks, Q/E turns); Enter writes walk targets the way scripts let an NPC walk - one ref_tag and one task with SET_NAVGOAL plus dowait per point, only where the path needs one (adjustable tolerance, walls, gait changes), with SET_WALKING/SET_RUNNING - as one undo step; Esc cancels. While recording, the figure's model runs or walks along and the hint stays clear of the toolbar.
+- Load mission: the list opens at the top (it kept the scroll position of the previous list, so the first missions of another game could be out of view).
+- Subtitles in the preview picture exactly as the game draws them: line breaks, two lines at a time for as long as the sound, in the lower black bar, pages turning on the game's next frame, colour from SET_CAPTIONTEXTCOLOR, Movie Duels smaller (0.66, the default of the installed game); a "Subtitles" switch offers the game's choices with the game's default (none in Jedi Academy and Movie Duels, in cinematics in Jedi Outcast).
 - Jedi Outcast: the speech row now shows the subtitles from the strip/*.sp files, including the extra packages some maps read.
 - "Open script line" also works for commands from other scripts (run, use, spawnscript): it opens that script and selects the line.
 - Arrow keys over the timeline: 50 ms (one game frame), Shift 1 s, Ctrl 5 s; the legend lists the keys.
@@ -367,8 +460,9 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## Deutsch
 
-- Einen Lauf aufnehmen: eine Figur wählen, in der Transportleiste der Zeitleiste "Aufnehmen" drücken und sie in der Vorschau mit der Bewegung des Spiels steuern (W/S/A/D, Umschalt geht, Q/E dreht); Enter schreibt Laufziele so, wie Skripte einen NPC laufen lassen - je Punkt ein ref_tag und eine Aufgabe mit SET_NAVGOAL samt dowait, nur wo der Weg einen braucht (einstellbare Toleranz, Wände, Gangwechsel), mit SET_WALKING/SET_RUNNING - als ein Rückgängig-Schritt; Esc bricht ab.
-- Untertitel im Vorschau-Bild genau so, wie das Spiel sie zeichnet: Zeilenumbruch, je zwei Zeilen so lange wie der Klang, im unteren schwarzen Balken, Farbe aus SET_CAPTIONTEXTCOLOR, Movie Duels halb so groß; ein Schalter "Untertitel" bietet die Wahl des Spiels mit dessen Vorgabe (keine in Jedi Academy und Movie Duels, in Zwischensequenzen in Jedi Outcast).
+- Einen Lauf aufnehmen: eine Figur wählen, in der Transportleiste der Zeitleiste "Aufnehmen" drücken und sie in der Vorschau mit der Bewegung des Spiels steuern (W/S/A/D, Umschalt geht, Q/E dreht); Enter schreibt Laufziele so, wie Skripte einen NPC laufen lassen - je Punkt ein ref_tag und eine Aufgabe mit SET_NAVGOAL samt dowait, nur wo der Weg einen braucht (einstellbare Toleranz, Wände, Gangwechsel), mit SET_WALKING/SET_RUNNING - als ein Rückgängig-Schritt; Esc bricht ab. Beim Aufnehmen läuft oder geht das Modell der Figur mit, der Hinweis bleibt frei von der Werkzeugleiste.
+- Mission laden: die Liste geht oben auf (sie stand so weit gerollt wie die vorige, die ersten Missionen eines anderen Spiels lagen dann außerhalb).
+- Untertitel im Vorschau-Bild genau so, wie das Spiel sie zeichnet: Zeilenumbruch, je zwei Zeilen so lange wie der Klang, im unteren schwarzen Balken, Seitenwechsel im nächsten Bild des Spiels, Farbe aus SET_CAPTIONTEXTCOLOR, Movie Duels kleiner (0,66, die Vorgabe des installierten Spiels); ein Schalter "Untertitel" bietet die Wahl des Spiels mit dessen Vorgabe (keine in Jedi Academy und Movie Duels, in Zwischensequenzen in Jedi Outcast).
 - Jedi Outcast: die Sprach-Zeile zeigt jetzt die Untertitel aus den strip/*.sp-Dateien, samt der Zusatzpakete mancher Karten.
 - "Skriptzeile öffnen" geht auch bei Befehlen aus anderen Skripten (run, use, spawnscript): es öffnet jenes Skript und wählt die Zeile.
 - Pfeiltasten über der Zeitleiste: 50 ms (ein Spielbild), Umschalt 1 s, Strg 5 s; die Legende nennt die Tasten.
@@ -383,8 +477,9 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## 中文
 
-- 录制行走：选择一个角色，在时间轴的传输栏中按“录制”，并在预览中用游戏的移动方式操控它（W/S/A/D，Shift 走路，Q/E 转身）；Enter 按脚本让 NPC 行走的方式写入行走目标——每个点一个 ref_tag 和一个带 SET_NAVGOAL 的 task 加 dowait，只在路径需要的地方（可调容差、墙、步态变化），并带 SET_WALKING/SET_RUNNING——作为一个撤销步骤；Esc 取消。
-- 预览画面中的字幕与游戏绘制的完全一致：换行、每次两行且持续声音的时长、显示在下方黑条中、颜色来自 SET_CAPTIONTEXTCOLOR、Movie Duels 为一半大小；“字幕”开关提供游戏的选项及其默认值（Jedi Academy 和 Movie Duels 不显示，Jedi Outcast 在过场动画中显示）。
+- 录制行走：选择一个角色，在时间轴的传输栏中按“录制”，并在预览中用游戏的移动方式操控它（W/S/A/D，Shift 走路，Q/E 转身）；Enter 按脚本让 NPC 行走的方式写入行走目标——每个点一个 ref_tag 和一个带 SET_NAVGOAL 的 task 加 dowait，只在路径需要的地方（可调容差、墙、步态变化），并带 SET_WALKING/SET_RUNNING——作为一个撤销步骤；Esc 取消。录制时角色的模型会跟着奔跑或行走，提示不会被工具栏遮住。
+- 加载任务：列表从顶部打开（以前保留上一个列表的滚动位置，另一个游戏的前几个任务可能在视野之外）。
+- 预览画面中的字幕与游戏绘制的完全一致：换行、每次两行且持续声音的时长、显示在下方黑条中、在游戏的下一帧翻页、颜色来自 SET_CAPTIONTEXTCOLOR、Movie Duels 较小（0.66，已安装游戏的默认值）；“字幕”开关提供游戏的选项及其默认值（Jedi Academy 和 Movie Duels 不显示，Jedi Outcast 在过场动画中显示）。
 - Jedi Outcast：语音行现在显示来自 strip/*.sp 文件的字幕，包括某些地图读取的附加包。
 - “打开脚本行”也适用于来自其他脚本（run、use、spawnscript）的命令：它会打开那个脚本并选中该行。
 - 时间轴上的方向键：50 毫秒（一个游戏帧），Shift 1 秒，Ctrl 5 秒；图例列出了这些按键。
@@ -399,8 +494,9 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
 
 ## 日本語
 
-- 歩きの記録：キャラクターを選び、タイムラインのトランスポートバーで「記録」を押して、プレビューでゲームの移動のまま操作します（W/S/A/D、Shift で歩く、Q/E で向き）。Enter で、スクリプトが NPC を歩かせる方法で移動目標を書き込みます。点ごとに ref_tag と SET_NAVGOAL の task と dowait を、経路が必要とする所だけ（調整できる許容差、壁、歩き方の変化）、SET_WALKING/SET_RUNNING 付きで、元に戻す 1 回分として。Esc でキャンセル。
-- プレビュー画像の字幕をゲームの描き方どおりに表示：改行、音の長さだけ 2 行ずつ、下の黒帯に、色は SET_CAPTIONTEXTCOLOR、Movie Duels は半分の大きさ。「字幕」スイッチでゲームの選択肢とその既定値（Jedi Academy と Movie Duels はなし、Jedi Outcast はムービー中）を選べます。
+- 歩きの記録：キャラクターを選び、タイムラインのトランスポートバーで「記録」を押して、プレビューでゲームの移動のまま操作します（W/S/A/D、Shift で歩く、Q/E で向き）。Enter で、スクリプトが NPC を歩かせる方法で移動目標を書き込みます。点ごとに ref_tag と SET_NAVGOAL の task と dowait を、経路が必要とする所だけ（調整できる許容差、壁、歩き方の変化）、SET_WALKING/SET_RUNNING 付きで、元に戻す 1 回分として。Esc でキャンセル。記録中はキャラクターのモデルが一緒に走るか歩き、ヒントはツールバーに隠れません。
+- ミッションの読み込み：リストは先頭から開きます（以前は前のリストのスクロール位置のままで、別のゲームの最初のミッションが見えないことがありました）。
+- プレビュー画像の字幕をゲームの描き方どおりに表示：改行、音の長さだけ 2 行ずつ、下の黒帯に、ページはゲームの次のフレームで切り替わり、色は SET_CAPTIONTEXTCOLOR、Movie Duels は小さめ（0.66、インストール済みゲームの既定値）。「字幕」スイッチでゲームの選択肢とその既定値（Jedi Academy と Movie Duels はなし、Jedi Outcast はムービー中）を選べます。
 - Jedi Outcast：台詞の行に strip/*.sp ファイルの字幕（一部のマップが読む追加パッケージを含む）が表示されるようになりました。
 - 「スクリプト行を開く」が他のスクリプト（run、use、spawnscript）から来たコマンドでも使えます。そのスクリプトを開いて行を選択します。
 - タイムライン上の矢印キー：50 ms（1 ゲームフレーム）、Shift で 1 秒、Ctrl で 5 秒。凡例にキーが載っています。

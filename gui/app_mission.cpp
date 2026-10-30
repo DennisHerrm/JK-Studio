@@ -4736,6 +4736,11 @@ struct Aufnahme {
     std::vector<AufnahmeProbe> proben;
     Camera kameraVorher;
     std::shared_ptr<const NavWelt> welt;
+    ImVec2 hinweisA;   // der zuletzt gezeichnete Hinweis (Selbsttest)
+    ImVec2 hinweisB;
+    double laufMs = 0.0;   // Zeit der Aufnahme: daran laeuft die Animation des Modells
+    float tempo = 0.0F;    // Geschwindigkeit im letzten Bild (Einheiten/s)
+    bool gehen = false;    // Gangart im letzten Bild
 };
 Aufnahme& aufnahme() {
     static Aufnahme a;
@@ -5035,6 +5040,8 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
         int ms = static_cast<int>(r.restMs);
         r.restMs -= ms;
         const NavSpurFn spur = aufnahmeSpur();
+        const NavVec vorher = r.s.ort;
+        const int bildMs = ms;
         while (ms > 0) {   // Pmove: hoechstens 66 ms je PmoveSingle
             const int stueck = std::min(ms, 66);
             navSpielerPmove(r.s, spur, e, stueck);
@@ -5044,6 +5051,14 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
             const float dy = r.s.ort[1] - l.ort[1];
             const float dz = r.s.ort[2] - l.ort[2];
             if (dx * dx + dy * dy + dz * dz >= 16.0F || l.gehen != gehen) { r.proben.push_back(AufnahmeProbe{r.s.ort, gehen}); }
+        }
+        if (bildMs > 0) {
+            const float dx = r.s.ort[0] - vorher[0];
+            const float dy = r.s.ort[1] - vorher[1];
+            const float dz = r.s.ort[2] - vorher[2];
+            r.tempo = std::sqrt(dx * dx + dy * dy + dz * dz) * 1000.0F / static_cast<float>(bildMs);
+            r.laufMs += bildMs;
+            r.gehen = gehen;
         }
     }
     aufnahmeKamera();
@@ -5093,16 +5108,56 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
         ImVec2 p1;
         if (kartenPunktAufSchirm(von, p0) && kartenPunktAufSchirm(nach, p1)) { dl->AddLine(p0, p1, IM_COL32(255, 90, 90, 255), 3.0F); }
     }
-    // Der Hinweis unten in der Ansicht.
+    // Der Hinweis unten im SICHTBAREN Teil der Ansicht (die Ausschnittsgrenze
+    // ist schon mit dem Fenster geschnitten), waagrecht mittig, frei von der
+    // Platzierleiste am linken Rand (vorher begann er darunter) und bei
+    // schmaler Ansicht umbrochen.
     char t[400];
     std::snprintf(t, sizeof(t), tr(Str::AufHinweis), r.name.c_str(), static_cast<int>(k.size()),
                   static_cast<double>(g_app->aufnahmeToleranz));
-    const ImVec2 gr = ImGui::CalcTextSize(t);
-    const ImVec2 o{a.x + fs * 0.5F, b.y - gr.y - fs * 0.8F};
-    dl->AddRectFilled(ImVec2{o.x - fs * 0.3F, o.y - fs * 0.2F}, ImVec2{o.x + gr.x + fs * 0.3F, o.y + gr.y + fs * 0.2F}, IM_COL32(0, 0, 0, 180),
-                      fs * 0.2F);
-    dl->AddText(o, IM_COL32(255, 230, 140, 255), t);
+    const ImVec2 sa = dl->GetClipRectMin();
+    const ImVec2 sb = dl->GetClipRectMax();
+    const float rand = ImGui::GetFrameHeight() + fs * 1.4F;   // platzierLeiste: 0,4 fs + Knopf + Rahmen
+    const float umbruch = std::max(fs * 8.0F, sb.x - sa.x - 2.0F * rand);
+    const ImVec2 gr = ImGui::CalcTextSize(t, nullptr, false, umbruch);
+    const ImVec2 o{std::max(sa.x + rand, std::floor(sa.x + (sb.x - sa.x - gr.x) * 0.5F)), std::floor(sb.y - gr.y - fs * 0.8F)};
+    r.hinweisA = ImVec2{o.x - fs * 0.3F, o.y - fs * 0.2F};
+    r.hinweisB = ImVec2{o.x + gr.x + fs * 0.3F, o.y + gr.y + fs * 0.2F};
+    dl->AddRectFilled(r.hinweisA, r.hinweisB, IM_COL32(0, 0, 0, 180), fs * 0.2F);
+    dl->AddText(ImGui::GetFont(), fs, o, IM_COL32(255, 230, 140, 255), t, nullptr, umbruch);
     dl->PopClipRect();
+}
+
+// Zeitleiste 3: waehrend der Aufnahme steht das MODELL der Figur am
+// gesteuerten Ort mit ihrem Blick (vorher blieb es am Ort zur Startzeit, nur
+// der Umriss lief). Bewegt sie sich, laeuft die Lauf- bzw. Gehanimation wie in
+// der Szene beim Gehen zu einem Laufziel (scene.cpp: BOTH_RUN1/BOTH_WALK1,
+// Tempo = Geschwindigkeit / kAnimSpeedRun bzw. kAnimSpeedWalk, begrenzt, und
+// hoechstens 1,5 * frameLerp / 50) an der Zeit der Aufnahme; steht sie, bleibt
+// die Haltung zur Startzeit.
+void aufnahmeFigurZustand(int figur, double ms, ActorState& st) {
+    const Aufnahme& r = aufnahme();
+    if (!r.aktiv || figur != r.figur || figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return; }
+    for (int k = 0; k < 3; ++k) { st.pos[k] = r.s.ort[static_cast<std::size_t>(k)]; }
+    st.angles[1] = r.s.gier;
+    st.moving = r.tempo > 1.0F;
+    if (!st.moving) { return; }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    st.animation = r.gehen ? "BOTH_WALK1" : "BOTH_RUN1";
+    st.prevAnimation.clear();
+    st.torsoAnimation.clear();
+    st.holdAnim = false;
+    st.animSpeed = std::clamp(r.tempo / (r.gehen ? kAnimSpeedWalk : kAnimSpeedRun), kAnimSpeedMin, kAnimSpeedMax);
+    const auto lerp = a.bildDauerMs.find(st.animation);
+    if (lerp != a.bildDauerMs.end() && lerp->second > 0.0) {
+        st.animSpeed = std::min(st.animSpeed, static_cast<float>(1.5 * lerp->second / 50.0));
+    }
+    st.animStartMs = ms - r.laufMs;
+}
+
+void aufnahmeHinweis(ImVec2& a, ImVec2& b) {
+    a = aufnahme().hinweisA;
+    b = aufnahme().hinweisB;
 }
 
 }  // namespace bhed::gui

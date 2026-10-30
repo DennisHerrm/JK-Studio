@@ -3018,7 +3018,8 @@ void drawMapView() {
                 if (assets.model.empty() || !a.haveStart) {
                     continue;
                 }
-                const ActorState st = a.at(g_app->playMs);
+                ActorState st = a.at(g_app->playMs);
+                aufnahmeFigurZustand(static_cast<int>(ai), g_app->playMs, st);
                 if (!st.visible) {
                     continue;
                 }
