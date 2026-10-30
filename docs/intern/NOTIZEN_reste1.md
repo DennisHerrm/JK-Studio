@@ -154,6 +154,7 @@ Tour-Pruefung (dazu die anderen Agenten).
 - r5gruen (reiter, Endstand, 48 Arbeiter 97 % ueber beide Tour-Abschnitte): 91 OK / 0 FEHLER;
   Punkt 5: mapDirty 0, 13 Bilder in 3,4 s.
 - Sauberer Neubau (`--clean-first`, 21 min unter Last): 0 Warnungen, 0 Fehler.
+- m1mission (mission1, Endstand): 98 OK / 0 FEHLER.
 - ctest: 160/160 (darin neu karte_marken).
 - lint_sources, lint_fassung, lint_headers: ok.
 
