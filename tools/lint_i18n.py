@@ -24,6 +24,8 @@ AUSNAHMEN = {'BehavEd', 'ICARUS', 'OpenJK', 'ImGui', 'Dear ImGui', 'JKA', 'JK2',
              # Schalter der Suche wie in jedem Code-Editor (Regex, Gross/klein,
              # ganzes Wort) und das Schliessen-Kreuz - Zeichen, keine Woerter
              '.*', 'Aa', 'ab', 'x',
+             # M5: Pfeile hoch/runter ("^", "v") im Layout-Panel des Menue-Editors
+             'v',
              # Schluesselwoerter der .menu-Dateien (Eigenschaften im Menue-Editor),
              # Spieltermini wie die ICARUS-Befehle - bleiben in jeder Sprache
              'type', 'style', 'textalign', 'visible'}
