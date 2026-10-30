@@ -42,6 +42,8 @@ struct Panel {
 [[nodiscard]] const Panel* panel(const std::string& id);
 // Das Kennungspraefix der Panels eines Bereichs ("mission." usw.).
 [[nodiscard]] const char* praefix(int bereich);
+// Der ImGui-Name des Panelfensters ("<Titel>###dock.<id>").
+[[nodiscard]] std::string fensterName(const char* id);
 
 // Steht das Panel an seinem Platz im Hauptfenster (Vorgabe)?
 [[nodiscard]] bool zuhause(const char* id);

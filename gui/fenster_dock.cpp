@@ -9,6 +9,7 @@
 #include "app_internal.h"
 #include "bhed/diag.h"
 #include "bhed/fensteranordnung.h"
+#include "dockvorgabe.h"
 #include "hilfe.h"
 #include "tour.h"
 
@@ -61,7 +62,7 @@ Zustand& z() {
 
 const char* const kPraefix[kBereiche] = {"ereignisse.", "mission.", "modell.", "karte.", "menue."};
 
-std::string fensterName(const Panel& p) { return std::string(tr(p.titel)) + fenster::kFensterKennung + p.id; }
+std::string panelFensterName(const Panel& p) { return std::string(tr(p.titel)) + fenster::kFensterKennung + p.id; }
 
 bool istPanelFenster(const ImGuiWindow* w) {
     return w != nullptr && std::string(w->Name).find(fenster::kFensterKennung) != std::string::npos;
@@ -222,6 +223,11 @@ const Panel* panel(const std::string& id) {
 
 const char* praefix(int bereich) { return (bereich >= 0 && bereich < kBereiche) ? kPraefix[bereich] : ""; }
 
+std::string fensterName(const char* id) {
+    const Panel* p = panel(id);
+    return p != nullptr ? panelFensterName(*p) : std::string(fenster::kFensterKennung) + id;
+}
+
 namespace {
 fenster::Anordnung* anordnungVon(const char* id) {
     const Panel* p = panel(id);
@@ -234,16 +240,21 @@ bool verfuegbarIst(const Panel& p) {
 }  // namespace
 
 namespace {
-// dock2: im DockSpace (Schalter an) gelten fuer Events, Mission und Model ImGuis
-// Dock-Baeume statt der Anordnungslisten (app_dockspace.inc).
+// dock2: im DockSpace (Schalter an) gelten ImGuis Dock-Baeume statt der
+// Anordnungslisten - fuer Events, Mission und Model (app_dockspace.inc), dock4
+// auch fuer Map Editor und Menu Editor (dockvorgabe.h).
 bool imDockraum(const char* id) {
     const Panel* p = panel(id);
-    return p != nullptr && p->bereich <= 2 && dockraumAn();
+    return p != nullptr && dockraumAn();
+}
+int bereichVon(const char* id) {
+    const Panel* p = panel(id);
+    return p != nullptr ? p->bereich : -1;
 }
 }  // namespace
 
 bool draussen(const char* id) {
-    if (imDockraum(id)) { return dockraumDraussen(id); }
+    if (imDockraum(id)) { return bereichVon(id) <= 2 ? dockraumDraussen(id) : dockvorgabe::draussen(bereichVon(id), id); }
     const fenster::Anordnung* a = anordnungVon(id);
     return a != nullptr && fenster::enthaelt(a->draussen, id);
 }
@@ -272,7 +283,11 @@ void listeLeeren(int bereich) {
 
 void herausnehmen(const char* id) {
     if (imDockraum(id)) {
-        dockraumHerausnehmen(id);
+        if (bereichVon(id) <= 2) {
+            dockraumHerausnehmen(id);
+        } else {
+            dockvorgabe::herausnehmen(bereichVon(id), id);
+        }
         return;
     }
     fenster::Anordnung* a = anordnungVon(id);
@@ -287,7 +302,11 @@ void andocken(const char* id) {
     if (imDockraum(id)) {
         fenster::Anordnung* v = anordnungVon(id);
         if (v != nullptr) { fenster::entfernen(v->versteckt, id); }
-        dockraumAndocken(id);
+        if (bereichVon(id) <= 2) {
+            dockraumAndocken(id);
+        } else {
+            dockvorgabe::andocken(bereichVon(id), id);
+        }
         return;
     }
     fenster::Anordnung* a = anordnungVon(id);
@@ -316,7 +335,13 @@ void zuruecksetzen(int bereich) {
     fenster::Anordnung& a = z().jetzt[static_cast<std::size_t>(bereich)];
     a.draussen.clear();
     a.versteckt.clear();
-    if (dockraumAn()) { dockraumZuruecksetzen(bereich); }   // dock2: DockSpace neu aufbauen
+    if (dockraumAn()) {   // dock2/dock4: DockSpace neu aufbauen
+        if (bereich <= 2) {
+            dockraumZuruecksetzen(bereich);
+        } else {
+            dockvorgabe::zuruecksetzen(bereich);
+        }
+    }
     diag::detail("Fenster: Anordnung von Bereich " + std::to_string(bereich) + " zurueckgesetzt");
     z().merken = true;
 }
@@ -394,7 +419,13 @@ void vorBild() {
         a.versteckt = s.ladenAnordnung.versteckt;
         // dock3: den geladenen Baum des Bereichs neu lesen (Knotennummern
         // koennen neu vergeben sein) - oder aus einer dock1-Anordnung aufbauen.
-        if (dockraumAn()) { dockraumNeuLesen(s.ladenBereich); }
+        if (dockraumAn()) {
+            if (s.ladenBereich <= 2) {
+                dockraumNeuLesen(s.ladenBereich);
+            } else {
+                dockvorgabe::neuLesen(s.ladenBereich);
+            }
+        }
     }
     s.ladenBereich = -1;
     s.merken = true;
@@ -450,7 +481,7 @@ bool fensterBeginnen(const char* id) {
     // angedocktes Fenster aus seinem Dock-Knoten (BeginDocked, PosUndock) -
     // auch mit ImGuiCond_FirstUseEver, solange ImGui die Bedingung fuer das
     // Fenster noch zulaesst (Selbsttest dock1: geladene Anordnung zerfiel).
-    const std::string name = fensterName(*p);
+    const std::string name = panelFensterName(*p);
     // Ganz im Hauptfenster: ein Fenster, das darueber hinausragt, wird ein eigenes
     // Windows-Fenster und laege ueber den Menues des Hauptfensters (Selbsttest
     // dock1: der Klick auf "Reset layout" traf die Ereignisliste).
