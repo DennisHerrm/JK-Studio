@@ -701,9 +701,30 @@ Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/z
   Kommentarzeile nach ihrem Text, eine auskommentierte (//(BHVDREM)) "// " und den Befehl.
   zeitleiste1 `BHED_ZL1_NUR=undo`: rot zl5p6rot ("Undo: inserted  (  ); ..."), gruen
   zl5p6gr ("Undo: inserted // print ( "zl5" );  deleted print ( zl5 )").
-- **Punkt 7: Handbuchbild h_zl_aufnahme**: D bleibt fuer das Bild gedrueckt, Pruefung "die
-  Figur laeuft beim Bild (Laufanimation)"; neu aufgenommen in en, de, zh, ja (dazu
-  h_einst_vorschau mit dem breiteren Klappfeld).
+- **Punkt 7: Handbuchbild h_zl_aufnahme** (662d81a1): D bleibt fuer das Bild gedrueckt,
+  neue Pruefung "die Figur laeuft beim Bild (Laufanimation)". Rot im ersten Lauf
+  (`BHED_HB_NUR=zeitleiste1`, alle 4 Sprachen 1/1): die gewaehlte Figur stand an der
+  Konsole - BOTH_CONSOLE1 mit Timer - und lief beim Aufnehmen gar nicht los. Jetzt wird
+  eine Figur mit freien Beinen gewaehlt; gruen in en, de, zh, ja je 2/0 (Beine BOTH_RUN1,
+  in Bewegung). Dazu h_einst_vorschau aus dem vollen Bildlauf (je Sprache 6/0) mit dem
+  breiteren Klappfeld; beide mit `tools/handbuch/bilder.py` uebernommen.
+- **Schlussrunde** (`<SP>/zl5/ende.sh`): sauberer Neubau aller Ziele 0 Fehler, 0 Warnungen;
+  ctest 189/189; lint_sources, lint_fassung (rc606), lint_gapp, lint_imgui_context,
+  lint_layout, lint_abstand, lint_doppelanzeige, lint_i18n ok; handbuch_sprachen ok.
+  Selbsttests nach dem Neubau: zeitleiste1 96/0, zeitleiste 47/0, mission1 98/0, szenen
+  26/0, kamera 96/0, missionsbau 95/0, pruefung3 9/0. Modus 1, alle Modi und die
+  Kartenpruefung macht der Abschluss-Agent.
+- **Gegen das Vorbild geprueft**: PM_AdjustStandAnimForSlope/PM_Footsteps-Aufrufstellen
+  (OJ bg_pmove.cpp:8165-8330, MD :14246-14540), PM_TorsoAnimLightsaber und
+  PM_SetSaberMove(LS_READY) (OJ bg_panimate.cpp:5160-5505, bg_pmove.cpp:9208-9262; MD
+  bg_pmove.cpp:22582 ff., 23274 ff.), PM_ReadyPoseForSaberAnimLevel(NPC) (MD :17504,
+  :18789), der Sprint (MD bg_pmove.cpp:15360-15750, PM_HandleSprint, g_active.cpp:8158,
+  10151), die Cvar-Vorgaben in der installierten DLL und exe (nur gelesen), Cvar_Get und
+  die Startreihenfolge (mdgit qcommon/cvar.cpp, client/cl_main.cpp, server/sv_init.cpp).
+  **Nicht** im laufenden Spiel verglichen (kein Spielvergleich in diesem Auftrag).
+- **Offen**: die Motion-Bone-Korrektur (siehe Punkt 2); PM_TorsoAnimLightsaber ohne
+  .sab readyAnim, Schwertarten ARC/LANCE/TRIDENT, Blocken und die Figurenvarianten von
+  g_ActivateAnimationStyle 1.
 
 ## Changelog
 
