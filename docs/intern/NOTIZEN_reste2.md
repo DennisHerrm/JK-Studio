@@ -44,6 +44,25 @@ Behoben:
 - rot (s8rot2, Test neu, Programm alt): Stil des Programms gruen (Mausrad), Stil wie NRC "114
   Eintraege, 1 Spalten, 85 ausserhalb von 4..1524 (Fenster 4..5532)".
 - gruen (s8gruen2): 21 OK / 0, "85 Eintraege, 3 Spalten, 0 ausserhalb von 4..1524 (Fenster 16..1524)".
+- Menues mit einer Spalte bleiben wie bisher (ganze Fensterbreite, WorkRect unveraendert) - die Spalten
+  greifen erst, wenn das Menue im letzten Bild mehr als eine hatte oder gerade umbricht.
+
+## 2. g_figurBilder: Bilder alter Haeute
+
+Nachgestellt (Selbsttest modellleistung, `BHED_MODELL1_NUR=haut`): Sturmtruppler mit model_default
+gemerkt, dann dreimal model_officer und zurueck. rot (hautrot2): Figurenbilder 6 -> 9, Inhalte 6 -> 7 - die
+Eintraege der alten Bilder (Schluessel: Adresse des TextureSet::Tex) blieben stehen, die nach Inhalt
+geteilten Grafikbilder fuer immer. Ein erster Versuch mit bloßem Hin und Her blieb gruen (hautrot: 7 -> 7),
+weil die Speicherverwaltung dieselben Adressen wieder vergab - die Inhalte der anderen Haut blieben aber.
+
+Behoben: jedes TextureSet::Tex traegt eine `TexWache` (include/bhed/mapview.h), die meldet, wenn das Bild
+verschwindet oder neuen Inhalt bekommt (Zerstoeren, Zuweisen; `texWegMelden`). gpumap (gui/gpumap_win32.cpp)
+schluesselt die Figurenbilder nach der Adresse der Wache, loest bei der Meldung den Eintrag samt Grafikbild
+und den geteilten Inhalt mit seiner letzten Adresse (je Adresse ihr Inhalt, je Inhalt die Zahl der
+Adressen); nur der Faden der Grafik raeumt, beim Herunterfahren hoert niemand mehr zu. Das behebt nebenbei
+den alten Fall "neues Bild an der Adresse eines alten mit denselben Bildpunkt-Adressen".
+- gruen (hautgruen): 6 -> 6, 6 -> 6; die beiden Fotos gleich, und beide Byte fuer Byte gleich denen des alten
+  Programms (hautrot2) - das Bild aendert sich nicht.
 
 ## 3. Absturz "2D-Ansicht XY auf die Leck-Linie"
 
@@ -99,10 +118,53 @@ polygonOffset, q3map_noClip, q3map_indexed, q3map_terrain (CullSides und ClipSid
   Flaechen, nicht ihre Flaeche), die Reihenfolge der Flaechen in den Blaettern (zaehlt nur, wenn mehr als 64
   Flaechen im Kasten liegen).
 
+## 5. Stufe 3/4 ".bsp wie NRCs" ausserhalb des Worktrees
+
+Nachgestellt (s3rot, Laufordner `Y:\rs2\s3rot`, `BHED_STUFE3_NUR=bau`): 113 OK / 1 FEHLER - "tests/karte/q3map2
+nicht gefunden (BHED_Q3MAP2_DATEN)". `arbeitskopie()` sucht die Testdaten nur in den Ordnern ueber dem
+Laufordner. Behoben: CMake gibt selbsttest.cpp den Quellordner mit (`BHED_QUELLORDNER`, wie die ctests ihre
+Daten ueber CMake bekommen); liegt der Laufordner ausserhalb, sucht `arbeitskopie()` dort.
+- gruen (s3gruen, derselbe Laufordner ausserhalb): 114 OK / 0 FEHLER ("Lumps 1= 2= 3= 6= 8= leafs= models=
+  brushsides=").
+
+## 6. Statistikfenster der Karte: GPU-Tabelle deutsch
+
+Die Tabelle stand mit festen deutschen Texten im Code (gui/app_view3d.cpp drawKartenStatistik, dazu
+gpu::zustandsLage). Jetzt `gpuTabellenZeilen()` mit Texten aus tools/i18n_reste2.py (en, de, zh, ja; Zaehltexte
+fuer die Aufrufe; die Zustaende ueber gpu::zustandsArt); es/cs zeigen bis zur Uebersetzungsrunde englisch.
+Der Bericht der Grafik im Detailprotokoll bleibt deutsch (intern). Selbsttest Modus karte: die Tabelle in
+en/zh/ja ohne deutsches Wort, in de mit.
+- rot (gpurot: dieselbe Pruefung mit den alten Texten in gpuTabellenZeilen): in allen vier Sprachen "GPU: 0
+  Aufrufe, 0 uebersprungen | Zustaende: Tiefe und Keulen | Karte 0 Aufrufe ...".
+
+## 7. Modell-Tab: Foto modell_knochen, Menue-Figuren in modellleistung
+
+Nachgestellt: zwei Laeufe des Modus modell (m7a, m7b) - modell_knochen.bmp verschieden (6807 Bildpunkte im
+Bereich des Modells, 689..1090 x 728..1318), das Foto modell_npc davor gleich. Ursache: Zeit - der Drehteller
+dreht je Bild um DeltaTime mal 30 Grad (modellDrehteller), wo er nach 0,6 s und den Klicks stehen blieb, hing
+am Tempo des Laufs; das Foto folgte gleich danach. Behoben im Test: vor dem Foto der eingepasste Blick
+(modellAnsichtEinpassen). gruen: zwei Laeufe (m7c, m7d) Byte fuer Byte gleich, 13 OK / 0.
+
 ## English
+- Map editor, menus like NetRadiant-Custom: a menu taller than the screen (the Build menu with many entries) now wraps into columns like in NetRadiant-Custom - before, its last entries ran past the bottom of the screen and could not be reached.
+- Map editor, real-time effects: decals (impact and scorch marks) land where the game puts them. The editor builds the world of the map like q3map2 with its BSP tree: only the visible part of each brush face, the misc_model baked into the world carry marks, and no mark lands on floor hidden under a step. On large maps this takes a few seconds and runs in the background.
+- Model tab and figures in the preview: switching skins no longer keeps the images of the old skin in graphics memory.
+- Map statistics window: the GPU table is shown in the program language (it was always German).
 
 ## Deutsch
+- Karten-Editor, Menüs wie NetRadiant-Custom: ein Menü, das höher ist als der Bildschirm (das Build-Menü mit vielen Einträgen), bricht jetzt wie in NetRadiant-Custom in Spalten um - vorher liefen seine letzten Einträge unten über den Bildschirm hinaus und waren nicht zu erreichen.
+- Karten-Editor, Echtzeit-Effekte: Decals (Einschläge, Brandflecken) landen dort, wo das Spiel sie hinsetzt. Der Editor baut die Welt der Karte wie q3map2 mit ihrem BSP-Baum: von jeder Brushseite nur der sichtbare Teil, die in die Welt gebackenen misc_model tragen Marken, und auf Boden, der unter einer Stufe verborgen liegt, landet keine. Auf großen Karten dauert das ein paar Sekunden und läuft im Hintergrund.
+- Model-Tab und Figuren in der Vorschau: ein Hautwechsel lässt die Bilder der alten Haut nicht mehr im Grafikspeicher.
+- Statistikfenster der Karte: die GPU-Tabelle erscheint in der Sprache des Programms (sie war immer deutsch).
 
 ## 中文
+- 地图编辑器,NetRadiant-Custom 风格的菜单:比屏幕还高的菜单(条目很多的 Build 菜单)现在会像 NetRadiant-Custom 一样分成多列——以前它最后的条目会超出屏幕底部,无法点到。
+- 地图编辑器,实时特效:贴花(弹痕、烧痕)会落在游戏中会出现的位置。编辑器像 q3map2 一样用 BSP 树构建地图世界:每个画刷面只取可见部分,烘焙进世界的 misc_model 也会留下痕迹,而台阶下被遮住的地面不会留下痕迹。在大型地图上这需要几秒,并在后台进行。
+- 模型标签页和预览中的角色:切换皮肤后,旧皮肤的图像不再留在显存中。
+- 地图统计窗口:GPU 表格以程序语言显示(以前始终是德语)。
 
 ## 日本語
+- マップエディター、NetRadiant-Custom 風のメニュー:画面より高いメニュー(項目の多い Build メニュー)が、NetRadiant-Custom と同じように複数の列に折り返されるようになりました。以前は最後の項目が画面の下にはみ出し、選べませんでした。
+- マップエディター、リアルタイムエフェクト:デカール(着弾痕、焦げ跡)がゲームと同じ場所に付くようになりました。エディターは q3map2 と同じように BSP ツリーでマップのワールドを作ります。各ブラシ面の見える部分だけを使い、ワールドに焼き込まれた misc_model にも跡が付き、段差の下に隠れた床には跡が付きません。大きなマップでは数秒かかり、バックグラウンドで計算されます。
+- モデルタブとプレビューのキャラクター:スキンを切り替えても、古いスキンの画像がグラフィックメモリに残らなくなりました。
+- マップの統計ウィンドウ:GPU の表がプログラムの言語で表示されるようになりました(以前は常にドイツ語でした)。

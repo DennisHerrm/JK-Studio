@@ -1502,6 +1502,12 @@ std::filesystem::path arbeitskopie() {
         if (p == p.parent_path()) { break; }
         p = p.parent_path();
     }
+    // reste2 Punkt 5: liegt der Laufordner ausserhalb, der Quellordner des Baus (CMake, wie bei den ctests)
+#ifdef BHED_QUELLORDNER
+    const std::filesystem::path quelle = ::bhed::utf8Pfad(BHED_QUELLORDNER);
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(quelle / "tests" / "karte" / "q3map2" / "raum.nrc.bsp", ec)) { return quelle; }
+#endif
     return {};
 }
 
@@ -1518,7 +1524,8 @@ std::string q3map2Quelle() {
     return {};
 }
 
-// Die Erwartungen (raum.nrc.bsp): BHED_Q3MAP2_DATEN, sonst <Arbeitskopie>/tests/karte/q3map2
+// Die Erwartungen (raum.nrc.bsp): BHED_Q3MAP2_DATEN, sonst <Arbeitskopie>/tests/karte/q3map2 (die Arbeitskopie
+// ueber dem Laufordner oder der Quellordner des Baus)
 std::string q3map2Daten() {
     if (const char* d = std::getenv("BHED_Q3MAP2_DATEN"); d != nullptr && d[0] != '\0') { return d; }
     const std::filesystem::path w = arbeitskopie();

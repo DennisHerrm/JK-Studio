@@ -536,6 +536,9 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   endif()
 
   target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp ws2_32)
+  # reste2 Punkt 5: der Quellordner fuer den Selbsttest - liegt der Laufordner ausserhalb der
+  # Arbeitskopie, findet er seine Testdaten (tests/karte/q3map2) dort, wie die ctests ihre ueber CMake.
+  set_property(SOURCE gui/selbsttest.cpp APPEND PROPERTY COMPILE_DEFINITIONS "BHED_QUELLORDNER=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
   # Stufe 3: das Build-Menue startet bhed_q3map2.exe neben behaved.exe - mit
   # behaved immer mitbauen (lauf_wp.sh baut nur das Ziel behaved).
   if(BHED_Q3MAP2_ZIEL)
