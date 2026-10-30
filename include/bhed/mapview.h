@@ -176,8 +176,35 @@ struct MapImage {
 // Leere Eintraege sind der Normalfall und kein Fehler: nicht jeder Shader
 // hat ein Bild, das sich finden laesst - manche sind reine Hilfsflaechen,
 // manche stecken in einer .pk3, die nicht eingebunden ist.
+// reste2 Punkt 2: wer sich ein Bild nach seiner Adresse merkt (die Figurenbilder auf der Grafikkarte,
+// gui/gpumap_win32.cpp), erfaehrt, wann es verschwindet oder neuen Inhalt bekommt. texWegMelden (nullptr:
+// niemand hoert zu) bekommt die Adresse der TexWache - sie steckt in jedem TextureSet::Tex und ist so
+// eindeutig wie das Tex selbst.
+inline void (*texWegMelden)(const void* wache) = nullptr;
+struct TexWache {
+    TexWache() = default;
+    TexWache(const TexWache& /*andere*/) noexcept {}
+    TexWache(TexWache&& /*andere*/) noexcept {}
+    TexWache& operator=(const TexWache& /*andere*/) noexcept {
+        melden();
+        return *this;
+    }
+    TexWache& operator=(TexWache&& /*andere*/) noexcept {
+        melden();
+        return *this;
+    }
+    ~TexWache() { melden(); }
+
+private:
+    void melden() const noexcept {
+        if (texWegMelden != nullptr) { texWegMelden(this); }
+    }
+};
+
 struct TextureSet {
     struct Tex {
+        // reste2 Punkt 2: meldet Ende und neuen Inhalt (siehe TexWache)
+        TexWache wache;
         int width = 0;
         int height = 0;
         std::vector<std::uint8_t> rgba;

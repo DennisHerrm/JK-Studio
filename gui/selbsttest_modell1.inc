@@ -196,6 +196,75 @@ std::vector<Schritt> modell1RuheSchritte() {
     return s;
 }
 
+// reste2 Punkt 2: Haeute wechseln laesst keine Bilder alter Haeute auf der Grafikkarte zurueck. Die
+// Figurenbilder merkt sich gpumap nach der Adresse des Bildes (TextureSet::Tex); eine neue Haut baut neue
+// Bilder, die alten verschwinden - ihre Eintraege blieben samt Grafikbild stehen (die geteilten Inhalte
+// fuer immer). Sturmtruppler mit model_default gemerkt, dann dreimal model_officer und zurueck: dieselbe
+// Zahl Figurenbilder und Inhalte wie mit model_default allein, das Bild Bildpunkt fuer Bildpunkt gleich.
+bool m1HautWaehlen(const char* name) {
+    for (std::size_t i = 0; i < g_app->modelSkins.size(); ++i) {
+        if (g_app->modelSkins[i] == name) {
+            applySkinByIndex(static_cast<int>(i));
+            g_app->modelDirty = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string m1Datei(const std::string& pfad) {
+    std::ifstream f(std::filesystem::path(pfad), std::ios::binary);
+    std::ostringstream o;
+    o << f.rdbuf();
+    return o.str();
+}
+
+std::vector<Schritt> modell1HautSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("Modell1 Haut: stormtrooper, model_default", [] {
+        std::string fehler;
+        if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Modell1 Haut: " + fehler); }
+        g_app->leftMode = 2;
+        (void)m1HautWaehlen("model_default.skin");
+        m1Grundlage();
+    }));
+    add(pause(0.8));
+    auto stand = std::make_shared<std::array<int, 4>>();
+    add(tu("Modell1 Haut: Stand mit model_default allein", [stand] {
+        const gpu::SpeicherStand st = gpu::speicherStand();
+        (*stand)[0] = st.figurBilder;
+        (*stand)[1] = st.figurBildInhalte;
+    }));
+    add(foto("modell1_haut_vorher"));
+    for (int runde = 0; runde < 3; ++runde) {
+        add(tu("Modell1 Haut: model_officer", [] { (void)m1HautWaehlen("model_officer.skin"); }));
+        add(pause(0.4));
+        add(tu("Modell1 Haut: model_default", [] { (void)m1HautWaehlen("model_default.skin"); }));
+        add(pause(0.4));
+    }
+    add(tu("Modell1 Haut: Stand nach dreimal Hin und Her", [stand] {
+        const gpu::SpeicherStand st = gpu::speicherStand();
+        (*stand)[2] = st.figurBilder;
+        (*stand)[3] = st.figurBildInhalte;
+    }));
+    add(foto("modell1_haut_nachher"));
+    add(pause(0.5));
+    add(pruefe("Modell1 Haut: dreimal hin und her - so viele Figurenbilder und Inhalte wie mit model_default allein, das Bild gleich", [stand] {
+        const char* ordner = std::getenv("BHED_FOTOS");
+        const std::string a = ordner != nullptr ? m1Datei(std::string(ordner) + "\\modell1_haut_vorher.bmp") : std::string();
+        const std::string b = ordner != nullptr ? m1Datei(std::string(ordner) + "\\modell1_haut_nachher.bmp") : std::string();
+        const bool bildGleich = ordner == nullptr || (!a.empty() && a == b);
+        char z[240];
+        std::snprintf(z, sizeof(z), "Knopftest: Modell1 Haut - %zu Haeute; Figurenbilder %d -> %d, Inhalte %d -> %d, Bild %s",
+                      g_app->modelSkins.size(), (*stand)[0], (*stand)[2], (*stand)[1], (*stand)[3],
+                      ordner == nullptr ? "ohne BHED_FOTOS nicht verglichen" : (bildGleich ? "gleich" : "anders"));
+        diag::detail(z);
+        return (*stand)[0] > 0 && (*stand)[2] == (*stand)[0] && (*stand)[3] == (*stand)[1] && bildGleich;
+    }));
+    return s;
+}
+
 std::vector<Schritt> modellLeistungSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -209,6 +278,15 @@ std::vector<Schritt> modellLeistungSchritte() {
     // Nachstellen).
     const char* nur = std::getenv("BHED_MODELL1_NUR");
     const bool nurRuhe = nur != nullptr && std::strcmp(nur, "ruhe") == 0;
+    // BHED_MODELL1_NUR=haut: nur der Hautwechsel (reste2 Punkt 2)
+    if (nur != nullptr && std::strcmp(nur, "haut") == 0) {
+        for (Schritt& x : modell1HautSchritte()) { s.push_back(std::move(x)); }
+        add(tu("Modell1: zurueck", [] {
+            g_app->leftMode = 1;
+            g_app->doc.markSaved();
+        }));
+        return s;
+    }
     if (!nurRuhe) { add(m1Messblock("ohne Figur", "ruhig", [] {})); }
     // JKA: Sturmtruppler; JKA mit vielen Flaechen (jedi_hf, 214); Movie Duels
     // mit den meisten Flaechen (jedi_hm, 236) und den meisten Ecken in LOD 0
@@ -270,6 +348,9 @@ std::vector<Schritt> modellLeistungSchritte() {
             m1Grundlage();
             g_app->npcBrowserOffen = true;
         }));
+    }
+    if (!nurRuhe) {
+        for (Schritt& x : modell1HautSchritte()) { s.push_back(std::move(x)); }
     }
     for (Schritt& x : modell1RuheSchritte()) { s.push_back(std::move(x)); }
     add(tu("Modell1: zurueck", [] {

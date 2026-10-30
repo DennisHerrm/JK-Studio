@@ -62,6 +62,7 @@ struct SpeicherStand {
     int moverNetze = 0;
     int figuren = 0;         // Figurenpuffer (nach Modell)
     int figurBilder = 0;
+    int figurBildInhalte = 0;   // reste2 Punkt 2: die nach Inhalt geteilten Figurenbilder
     long long grafikBytes = -1;    // DXGI: belegter Grafikspeicher, -1 = unbekannt
     long long prozessBytes = -1;   // private Bytes des Prozesses, -1 = unbekannt
 };
