@@ -39,6 +39,7 @@ namespace {
 struct Raum {
     std::string schluessel;            // die Vorgabe, deren Baum gilt
     std::vector<std::string> panels;   // ihre Panels
+    std::vector<Knoten> knoten;        // ihr Baum (Vorgabe::knoten, Wurzel zuletzt)
     ImGuiID wurzel = 0;
     bool geprueft = false;   // gespeicherter Baum gelesen (Start, geladene Anordnung)
     bool neuBauen = false;   // im naechsten dockspace() nach der Vorgabe bauen
@@ -282,6 +283,7 @@ bool beginnen(int bereich, const Vorgabe& v) {
         r.neuBauen = wechsel;
     }
     r.panels = v.panels;
+    r.knoten = v.knoten;
     if (!r.geprueft) {
         r.geprueft = true;
         if (!uebernehmen(bereich, r, v)) { r.neuBauen = true; }
@@ -452,6 +454,26 @@ void dreieckEnde(const Dreieck& d) {
     if (d.aktiv && GImGui->HoveredWindow == nullptr) { GImGui->HoveredWindow = d.vorher; }
 }
 
+bool nebenAndocken(ImGuiWindow* fenster, const std::vector<ImGuiWindow*>& nachbarn, ImGuiDir richtung, ImGuiID wurzel) {
+    if (fenster == nullptr) { return false; }
+    for (const ImGuiWindow* n : nachbarn) {
+        ImGuiDockNode* ziel = n != nullptr ? n->DockNode : nullptr;
+        if (ziel == nullptr || !imBaum(ziel->ID, wurzel)) { continue; }
+        // Wie DockNodePreviewDockSetup beim Ablegen auf einen Pfeil (DockNodeCalcSplitRects, in
+        // imgui.cpp statisch): die neue Seite so gross wie das Fenster, hoechstens die Haelfte
+        // des Platzes ohne den Abstand; der Anteil gilt dem ersten Kind.
+        const int achse = richtung == ImGuiDir_Left || richtung == ImGuiDir_Right ? 0 : 1;
+        const float platz = ziel->Size[achse] - GImGui->Style.ItemInnerSpacing.x;
+        const float gewuenscht = fenster->Size[achse];
+        const float neu = gewuenscht > 0.0F && gewuenscht <= platz * 0.5F ? gewuenscht : IM_TRUNC(platz * 0.5F);
+        const float anteil = ImSaturate(neu / std::max(1.0F, ziel->Size[achse]));
+        ImGui::DockContextQueueDock(GImGui, ziel->HostWindow, ziel, fenster, richtung,
+                                    richtung == ImGuiDir_Right || richtung == ImGuiDir_Down ? 1.0F - anteil : anteil, false);
+        return true;
+    }
+    return false;
+}
+
 bool draussen(int bereich, const char* panel) {
     const std::string name = dock::fensterName(panel);
     const ImGuiWindow* w = ImGui::FindWindowByName(name.c_str());
@@ -485,7 +507,7 @@ void herausnehmen(int bereich, const char* panel) {
 
 void andocken(int bereich, const char* panel) {
     Raum& r = raum(bereich);
-    const ImGuiWindow* w = ImGui::FindWindowByName(dock::fensterName(panel).c_str());
+    ImGuiWindow* w = ImGui::FindWindowByName(dock::fensterName(panel).c_str());
     ImGuiID blatt = 0;
     for (std::size_t i = 0; i < r.panels.size() && i < r.heim.size(); ++i) {
         if (r.panels[i] == panel && r.qt) { blatt = r.heim[i]; }
@@ -496,8 +518,37 @@ void andocken(int bereich, const char* panel) {
         diag::detail(std::string("Fenster: Panel ") + panel + " zurueck in sein Blatt");
         return;
     }
-    // Sein Blatt ist verschmolzen: die Vorgabe neu aufbauen, Panels in eigenen
-    // Fenstern bleiben draussen.
+    // Sein Blatt ist verschmolzen oder der Baum frei angeordnet: neben die Panels auf der
+    // anderen Seite seiner Teilung der Vorgabe (die Anordnung bleibt).
+    for (std::size_t k = 0; w != nullptr && k < r.knoten.size(); ++k) {
+        const Knoten& t = r.knoten[k];
+        for (int seite = 0; seite < 2 && t.panel < 0; ++seite) {
+            const int kind = t.kind[seite];
+            if (kind < 0 || r.knoten[static_cast<std::size_t>(kind)].panel < 0 ||
+                r.panels[static_cast<std::size_t>(r.knoten[static_cast<std::size_t>(kind)].panel)] != panel) {
+                continue;
+            }
+            std::vector<ImGuiWindow*> nachbarn;
+            std::vector<int> offen{t.kind[1 - seite]};   // der andere Teil, das Panel an der Teilung zuerst
+            while (!offen.empty()) {
+                const Knoten& n2 = r.knoten[static_cast<std::size_t>(offen.back())];
+                offen.pop_back();
+                if (n2.panel >= 0) {
+                    nachbarn.push_back(ImGui::FindWindowByName(dock::fensterName(r.panels[static_cast<std::size_t>(n2.panel)].c_str()).c_str()));
+                } else {
+                    offen.push_back(n2.kind[1 - seite]);   // spaeter: weiter weg
+                    offen.push_back(n2.kind[seite]);       // zuerst: zum Panel hin
+                }
+            }
+            const ImGuiDir richtung = t.untereinander ? (seite == 0 ? ImGuiDir_Up : ImGuiDir_Down) : (seite == 0 ? ImGuiDir_Left : ImGuiDir_Right);
+            if (nebenAndocken(w, nachbarn, richtung, r.wurzel)) {
+                diag::detail(std::string("Fenster: Panel ") + panel + " - Blatt fehlt, neben seinen Nachbarn der Vorgabe angedockt");
+                return;
+            }
+        }
+    }
+    // Kein Nachbar im DockSpace: die Vorgabe neu aufbauen, Panels in eigenen Fenstern
+    // bleiben draussen.
     r.neuBauen = true;
     r.draussenLassen.clear();
     for (const std::string& p : r.panels) {

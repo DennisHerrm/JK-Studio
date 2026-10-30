@@ -553,6 +553,31 @@ void andocken(const std::string& panel) {
     for (int b = 0; b < 3; ++b) {
         if (panel.rfind(dock::praefix(b), 0) != 0) { continue; }
         Raum& raum = g_raum[static_cast<std::size_t>(b)];
+        // Abschluss rc607: neben die Panels auf der anderen Seite seiner Teilung der
+        // Standardanordnung (der naechste zuerst) - eine freie Anordnung bleibt.
+        const std::vector<Blatt> p = blaetter(b);
+        const std::vector<std::string> wege = heimWege(b);
+        for (std::size_t i = 0; w != nullptr && i < p.size(); ++i) {
+            if (panel != p[i].id || wege[i].empty()) { continue; }
+            const char seite = wege[i].back();
+            const std::string gegenueber = wege[i].substr(0, wege[i].size() - 1) + (seite == '0' ? '1' : '0');
+            std::vector<std::pair<std::string, ImGuiWindow*>> kandidaten;   // Weg von der Wurzel: links bzw. oben zuerst
+            for (std::size_t j = 0; j < p.size(); ++j) {
+                if (wege[j].rfind(gegenueber, 0) == 0 && !std::string(p[j].id).ends_with(".modus")) {
+                    kandidaten.emplace_back(wege[j], ImGui::FindWindowByName(fensterName(p[j]).c_str()));
+                }
+            }
+            std::sort(kandidaten.begin(), kandidaten.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+            if (seite == '1') { std::reverse(kandidaten.begin(), kandidaten.end()); }
+            std::vector<ImGuiWindow*> nachbarn;
+            for (const auto& k : kandidaten) { nachbarn.push_back(k.second); }
+            const bool band = mitBand(b) && wege[i].size() == 1;   // Teilung nach unten (bauen)
+            const ImGuiDir richtung = band ? (seite == '0' ? ImGuiDir_Up : ImGuiDir_Down) : (seite == '0' ? ImGuiDir_Left : ImGuiDir_Right);
+            if (dockvorgabe::nebenAndocken(w, nachbarn, richtung, raum.wurzel)) {
+                diag::detail("Fenster: Panel " + panel + " - Knoten fehlt, neben seinen Nachbarn der Standardanordnung angedockt");
+                return;
+            }
+        }
         raum.neuBauen = true;
         raum.draussenLassen.clear();
         for (const Blatt& x : blaetter(b)) {

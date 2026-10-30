@@ -769,3 +769,103 @@ std::vector<Schritt> dock4Schritte() {
     add(tu("dock4: Schalter zurueck", [vorher] { dockraumAn() = vorher; }));
     return s;
 }
+
+// --- dock5 (Abschluss rc607, BHED_EDITORTEST=dock5) ------------------------------
+// 1. Andocken, wenn das Blatt eines Panels fehlt: die freie Anordnung im Hauptfenster
+//    bleibt (vorher baute der Bereich seine Vorgabe neu) - Events (dockraum) und Menu
+//    Editor (dockvorgabe).
+// 2. Events, Mission, Model: Foto gegen Foto ohne und mit DockSpace, wie dock4 beim
+//    Karteneditor.
+std::vector<Schritt> dock5Schritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const bool vorher = dockraumAn();
+    // Wie ein Ablegen auf die Mitte (ImGuis Marke): `panel` als Reiter zu `ziel`.
+    const auto alsReiter = [](const char* panel, const char* ziel) {
+        ImGuiWindow* w = dock1::panelFenster(panel);
+        const ImGuiWindow* z = dock1::panelFenster(ziel);
+        if (w != nullptr && z != nullptr && z->DockNode != nullptr) {
+            ImGui::DockContextQueueDock(GImGui, z->DockNode->HostWindow, z->DockNode, w, ImGuiDir_None, 0.5F, false);
+        }
+    };
+    const auto zusammen = [](const char* a, const char* b) {
+        const ImGuiWindow* x = dock1::panelFenster(a);
+        const ImGuiWindow* y = dock1::panelFenster(b);
+        return x != nullptr && y != nullptr && x->DockNode != nullptr && x->DockNode == y->DockNode;
+    };
+    struct Fall {
+        int bereich;
+        const char* reiter;   // kommt als Reiter zu `ziel` (die freie Anordnung)
+        const char* ziel;
+        const char* weg;      // heraus und wieder andocken - sein Blatt ist dann verschmolzen
+    };
+    for (const Fall& f : {Fall{0, "ereignisse.aktionen", "ereignisse.liste", "ereignisse.fluss"},
+                          Fall{4, "menue.reiter", "menue.bausteine", "menue.flaeche"}}) {
+        const std::string wo = f.bereich == 0 ? "Events" : "Menu Editor";
+        add(tu("dock5: " + wo + " im DockSpace, Anordnung zurueck", [f] {
+            dockraumAn() = true;
+            g_app->settings.menueTextUnten = false;
+            if (f.bereich == 4 && menueeditor::stand().dokumente == 0) {
+                (void)menueeditor::oeffneText("dock5.menu", "menuDef\n{\n  name \"dock5\"\n  rect 0 0 640 480\n}\n");
+            }
+            g_app->leftMode = f.bereich;
+            dock::zuruecksetzen(f.bereich);
+        }));
+        add(stabil("dock5: " + wo + " Vorgabe", 20));
+        add(tu("dock5: " + wo + " - " + f.reiter + " als Reiter zu " + f.ziel, [f, alsReiter] { alsReiter(f.reiter, f.ziel); }));
+        add(stabil("dock5: " + wo + " Reiter", 20));
+        add(pruefe("dock5: " + wo + " - frei angeordnet: " + f.reiter + " ist ein Reiter bei " + f.ziel,
+                   [f, zusammen] { return zusammen(f.reiter, f.ziel); }));
+        add(tu("dock5: " + wo + " - " + f.weg + " heraus", [f] { dock::herausnehmen(f.weg); }));
+        add(stabil("dock5: " + wo + " heraus", 20));
+        add(pruefe("dock5: " + wo + " - " + f.weg + " steht in einem eigenen Fenster", [f] { return dock::draussen(f.weg); }));
+        add(tu("dock5: " + wo + " - " + f.weg + " andocken (Menue Fenster)", [f] { dock::andocken(f.weg); }));
+        add(stabil("dock5: " + wo + " angedockt", 20));
+        add(pruefe("dock5: " + wo + " - " + f.weg + " wieder im Hauptfenster, " + f.reiter + " bleibt Reiter bei " + f.ziel,
+                   [f, zusammen] {
+                       const ImGuiWindow* w = dock1::panelFenster(f.weg);
+                       diag::detail(std::string("Knopftest: dock5: ") + f.weg + (dock::draussen(f.weg) ? " draussen" : " im Hauptfenster") +
+                                    (zusammen(f.reiter, f.ziel) ? ", Reiter bleibt" : ", Reiter weg (Vorgabe neu gebaut)"));
+                       return w != nullptr && w->WasActive && !dock::draussen(f.weg) && zusammen(f.reiter, f.ziel) && !zusammen(f.weg, f.ziel);
+                   }));
+        add(tu("dock5: " + wo + " - Anordnung zurueck", [f] { dock::zuruecksetzen(f.bereich); }));
+        add(stabil("dock5: " + wo + " zurueck", 20));
+    }
+
+    // 2. Foto gegen Foto: das ganze Hauptfenster, nur der Schalter dazwischen.
+    for (const int bereich : {0, 1, 2}) {
+        const std::string datei = std::string("dock5_") + (bereich == 0 ? "events" : bereich == 1 ? "mission" : "model");
+        for (const int runde : {0, 1}) {
+            add(tu("dock5: Foto " + datei + (runde == 0 ? " ohne" : " mit") + " DockSpace", [bereich, runde] {
+                dockraumAn() = runde == 1;
+                g_app->leftMode = bereich;
+            }));
+            add(stabil("dock5: Foto " + datei, 30));
+            add(dock4::fotoNach(datei + std::to_string(runde), datei + std::to_string(runde) + ".bmp", [] { dock4::mausAbseits(); }));
+        }
+        add(pruefe("dock5: " + datei + " im Foto Punkt fuer Punkt wie ohne DockSpace", [datei] {
+            const std::string ordner = platform::executableDirectory() + "\\";
+            const dock4::Bild a = dock4::bildLesen(ordner + datei + "0.bmp");
+            const dock4::Bild b = dock4::bildLesen(ordner + datei + "1.bmp");
+            if (!a.da() || !b.da() || a.breite != b.breite || a.hoehe != b.hoehe) { return false; }
+            int n = 0;
+            ImRect anders{ImVec2{1e9F, 1e9F}, ImVec2{-1e9F, -1e9F}};
+            for (int y = 0; y < a.hoehe; ++y) {
+                for (int x = 0; x < a.breite; ++x) {
+                    if (dock4::abstand(a.punkt(x, y), b.punkt(x, y)) == 0) { continue; }
+                    ++n;
+                    anders.Add(ImVec2{static_cast<float>(x), static_cast<float>(y)});
+                }
+            }
+            diag::detail("Knopftest: dock5: Foto " + datei + " " + std::to_string(a.breite) + "x" + std::to_string(a.hoehe) + " - " +
+                         std::to_string(n) + " Punkte anders" + (n > 0 ? " in " + dock1::rechteck(anders) : std::string()));
+            return n == 0;
+        }));
+    }
+    add(tu("dock5: Schalter zurueck, Events", [vorher] {
+        dockraumAn() = vorher;
+        g_app->leftMode = 0;
+    }));
+    add(stabil("dock5: Ende", 15));
+    return s;
+}

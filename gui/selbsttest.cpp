@@ -600,6 +600,17 @@ Schritt tu(const std::string& text, std::function<void()> was) {
             }};
 }
 
+// --- Windows-Zwischenablage (Abschluss rc607) -----------------------------
+//
+// Sie gehoert allen gleichzeitig laufenden Selbsttests: zwischen ablageBelegen und ablageFreigeben
+// schreibt und liest nur dieser Test (warten, bis kein anderer sie haelt - statt auf Glueck).
+Schritt ablageBelegen() {
+    return warteBis("Zwischenablage frei (kein anderer Selbsttest haelt sie)", [] { return platform::zwischenablageSperren(); }, 200000);
+}
+Schritt ablageFreigeben() {
+    return tu("Zwischenablage freigeben", [] { platform::zwischenablageFreigeben(); });
+}
+
 Schritt oeffne(const std::string& befehl, int nte) {
     const std::string was = "Oeffne " + befehl + " #" + std::to_string(nte);
     return {was, [=](int b) {
@@ -715,6 +726,7 @@ std::vector<Schritt> originalSchritte() {
     add(tu("Suchfenster schliessen", [] { g_app->findOpen = false; }));
 
     // ---- Windows-Zwischenablage wie im Original --------------------------
+    add(ablageBelegen());
     add(waehle("print", 0));
     add(klick(tr(Str::ActCopy)));
     add(pruefe("Copy schreibt \"//(BHVD)\" + Zeile in die Windows-Zwischenablage", [] {
@@ -772,6 +784,7 @@ std::vector<Schritt> originalSchritte() {
     }));
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
     add(pruefe("Strg+Z nimmt das Einfuegen zurueck", [=] { return skriptText() == *vorher; }));
+    add(ablageFreigeben());
 
     // ---- Speichernfrage auch ohne "Yes/No query" --------------------------
     add(tu("Yes/No query aus, Skript aendern", [] {
@@ -4899,6 +4912,7 @@ std::vector<Schritt> wunschSchritte() {
         return l != nullptr && l->name == "loop" && l->children.empty() && w != nullptr && w->name == "wait";
     }));
     // Einfuegen aus der Ablage in einen angeklickten Block.
+    add(ablageBelegen());
     add(tu("Wunsch: ein wait in die Ablage", [] {
         Node n;
         n.kind = Node::Kind::Command;
@@ -4921,6 +4935,7 @@ std::vector<Schritt> wunschSchritte() {
         return kinder(Path{0}) == 4U && n != nullptr && n->name == "wait" && !n->args.empty() &&
                n->args[0].text == "300.000";
     }));
+    add(ablageFreigeben());
 
     // --- Compiler-Meldung: "! =" ---------------------------------------------
     add(tu("Wunsch: Skript mit if ( ..., ! =, ... )", [] {
@@ -5839,6 +5854,7 @@ void selbsttest() {
     static const bool nurDock1Neustart = std::strcmp(modus, "dock1neustart") == 0;
     static const bool nurDock2Mass = std::strcmp(modus, "dock2mass") == 0;
     static const bool nurDock4 = std::strcmp(modus, "dock4") == 0;
+    static const bool nurDock5 = std::strcmp(modus, "dock5") == 0;   // Abschluss rc607
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5973,6 +5989,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurDock4) {
                 a.schritte = dock4Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock5) {
+                a.schritte = dock5Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

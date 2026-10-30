@@ -79,6 +79,12 @@ void dreieckEnde(const Dreieck& d);
 // dock1) herausgenommen wurden, nachdem der Baum gespeichert war, schweben beim
 // Uebernehmen des Baums; die Liste ist damit erledigt und wird geleert.
 void alteListeSchweben(int bereich, ImGuiID wurzel, const std::vector<std::string>& panels);
+// Abschluss rc607: ein Panel, dessen Blatt fehlt, andocken wie ein Ablegen auf den Pfeil
+// eines Nachbarn (ImGuis Teilung mit der Groesse seines Fensters, DockNodeCalcSplitRects),
+// statt die Vorgabe neu zu bauen - eine freie Anordnung im Hauptfenster bleibt. `nachbarn`:
+// die Fenster der Panels auf der anderen Seite seiner Teilung in der Vorgabe, der naechste
+// zuerst; `richtung`: seine Seite dort. false, wenn keiner davon im DockSpace `wurzel` steht.
+bool nebenAndocken(ImGuiWindow* fenster, const std::vector<ImGuiWindow*>& nachbarn, ImGuiDir richtung, ImGuiID wurzel);
 
 // Fuer das Menue "Fenster" (fenster_dock) und den Selbsttest.
 [[nodiscard]] bool draussen(int bereich, const char* panel);
