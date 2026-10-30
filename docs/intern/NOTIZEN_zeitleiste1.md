@@ -726,10 +726,89 @@ Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/z
   .sab readyAnim, Schwertarten ARC/LANCE/TRIDENT, Blocken und die Figurenvarianten von
   g_ActivateAnimationStyle 1.
 
+## Zeitleiste 6
+
+Auftrag `<SP>/auftrag_zeitleiste6.md`, direkt auf karte1 (Y:\karte, ab 1274434d). Skripte und
+Spielfotos unter `<SP>/zl6/` (motion.py liest den Motion-Knochen aus einer .gla, spiel.py startet
+Movie Duels, faelle.py liest case-Listen aus den Engine-Quellen, Testkarte `karte/zl6raum.map`).
+
+- **Punkt 1: Motion-Bone-Korrektur** (df16af9e, d44de3d9, Handbuch ac74115d). Neu `bhed/rumpfwinkel.h`: der Port von
+  CG_G2ClientSpineAngles und CG_G2ClientNeckAngles (OJ cg_players.cpp:2022-2401, MD :2366 ff. mit
+  CLASS_DROIDEKA und PM_InLedgeMove) samt G_ClassHasBadBones/G_BoneOrientationsForClass,
+  PM_FlippingAnim/PM_SpinningSaberAnim und cg_motionBoneComp 2 (Vorgabe beider Spiele). Die Vorschau
+  dreht Kopf, Hals und Rumpf jetzt um die Achsen des Knochens mit Nick, Gier und Roll:
+  `g2WinkelMatrix` (G2_Generate_Matrix POSTMULT samt der +180) und `knochenNachMal` (X(b)*M, Teilbaum
+  mit X M X^-1; ersetzt rotateBoneSubtreeYaw, die Lider nutzen dieselbe Matrix). Der thoracic mischt
+  Rumpf und Blick zur Haelfte ("already been set above, blend them") - vorher addierte die Vorschau
+  beides. Der Motion-Bolzen: G2API_GetBoltMatrix ohne Drehung, die Engine-Wurzel ist um 90 Grad
+  gedreht (RootMatrix/identityMatrix), Zeilen normiert.
+  - Wichtig, erst im Spielvergleich gefunden: PM_SetAnimFinal setzt die **Oberkoerperanimation auch
+    auf den Knochen "Motion"** ("special case motion bone - to match up split anims", bg_panimate.cpp:
+    4974 OJ, :7081 MD). Die Korrektur gleicht also das Becken der Beine gegen den Motion-Knochen der
+    Oberkoerperanimation aus. Mit dem Motion-Knochen der Beine (erste Fassung) lehnte die Vorschau
+    einen zurueckgelehnten Rumpf noch weiter (Selbsttest: 51,3 Grad statt aufrecht).
+  - ctest rumpfwinkel (neu, 42 Pruefungen), gla (knochenNachMal), pmanim.
+  - Selbsttest zeitleiste1 `BHED_ZL1_NUR=rumpf` (drei Figuren mit gehaltenen Beinanimationen und
+    BOTH_STAND1 oben, Movie Duels md_am_sith): rot zl6p1rot 6/1 (die Wirbel waren gar nicht gedreht:
+    0,00 statt 25,30/25,30/6,33 Grad), gruen zl6p1n 10/0: je Wirbel gleich der Matrix aus
+    G2_Generate_Matrix (groesste Abweichung 0,00004), BOTH_SIT2HEADTILTLSTART mit Korrektur 7,0 Grad
+    gegen die Senkrechte, ohne 35,5 (zurueckgelehnt).
+  - **Im Spiel geprueft** (Movie Duels SP, fs_game MD, eigene Karte zl6raum mit drei
+    NPC_Stormtrooper, Skript per runscript, Kamera per Skript, Fotos per screenshot_tga):
+    cg_motionBoneComp 2 - die sitzende Figur sitzt aufrecht; cg_motionBoneComp 0 - sie lehnt sich
+    zurueck. Die Vorschau zeigt mit derselben Aufstellung und Kamera dasselbe (Fotos zl6_rumpf_vorn/
+    _seite im Selbsttest, `<SP>/zl6/tga_seite_2.png`, `tga_seite_0.png`, `vorschau_seite.png`).
+    Original-JKA nicht: Steam lief nicht (ActiveUser 0).
+- **Punkt 2: PM_TorsoAnimLightsaber, Luecken** (9267dbbb). PmFigur kennt jetzt die
+  Schwerter (Typ, readyAnim beider, zwei Schwerter, zweites an, Stab, singleBladeStyle, zweite Klinge,
+  Blocken, MD animationstyle) und PmTorsoLage die Eingabe (cmd), ps->speed 0 (MD), PMF_DUCKED und
+  Rolle/Liegen. Neu und gegen die Quellen:
+  - TorsoAnimLightsaber: springen/landen/Rad/Salto -> Oberkoerper folgt; Laufen und (MD: die lange
+    Liste bg_panimate.cpp:9244 samt BOTH_WALK1) Gehen mit Stab/zwei Klingen nur ohne Blocken.
+  - LS_READY OpenJK: Blocken BOTH_P1_S1_T_ (Klaue/zweites Schwert BOTH_INAIR1), readyAnim[0/1],
+    SABER_ARC -> BOTH_SABERFAST_STANCE, zwei Schwerter -> DUAL, Stab (ohne singleBladeStyle oder mit
+    zweiter Klinge) -> STAFF, LANCE/TRIDENT -> BOTH_STAND1, sonst die Haltung des Stils.
+  - LS_READY Movie Duels (NPC, nie MBF_HOLDINGBLOCK): Blocken mit Klaue/zwei/Stab/ARC die Haltung,
+    sonst animToUse BOTH_STAND2; readyAnim; sonst PM_ReadyPoseForSaberAnimLevelNPC (geduckt
+    _Ducked) - mit g_ActivateAnimationStyle 1 die Figurenvarianten fuer SS_DUAL/SS_STAFF und
+    geduckt (Galen, MD, KOTOR, DF2, Kampfdroide, Cal, Grievous, Palpatine, Maul; Anakin, Vader,
+    Obi-Wan ...).
+  - Angleich an Gehen/Laufen (OJ-Liste, MD 52 Haltungen und 162 Beinanimationen) und SETANIM_BOTH
+    ohne Eingabe (MD auch bei Tempo 0) mit ruhigen Beinen (kein Salto, Sprung, Schmerz, Sondersprung,
+    Hang, nicht geduckt), bei Drehschwung (MD auch der Beine) und beim Blocken.
+  - Falsch war in Zeitleiste 5: "MD setzt die Haltung ueber beide Knochen, wenn die Beine in einer
+    Kampfhaltung stehen, und laesst einen laufenden Oberkoerper stehen" - das ist der LS_PUTAWAY-Zweig
+    (bg_pmove.cpp:23086-23309 mdgit), nicht LS_READY; und MD gleicht beim Gehen an (:23405 ff.).
+  - .sab `readyAnim` (Saber_ParseReadyAnim) und NPC `animationstyle` (Kurzname oder CS_-Name) werden
+    gelesen. Die Szene nimmt fuer einen stehenden NPC mit Klinge dieselbe Wahl (saberGrundhaltung).
+  - ctest pmanim: rot (Bau: neue Schnittstelle), gruen mit 39 Faellen gegen die Formeln (davon 2 Lesefaelle).
+  - g_ActivateAnimationStyle bleibt in der Vorschau 0: so steht es in der installierten DLL
+    (g_activateanimationstyle "0"), und nur die MP-Einstellungsmenues bieten es an.
+- **Fenster** (shank 30.10.): das Spielfenster wird sofort rechts neben den virtuellen Bildschirm
+  geschoben (SetWindowPos HWND_BOTTOM, ohne Aktivierung; vid_xpos allein half nicht, Python
+  DPI-bewusst), Fotos per screenshot_tga. jkstudio-Selbsttests lagen schon ganz hinten; gemessen
+  (`<SP>/zl6/vordergrund.py`, alle 50 ms): kein Fenster im Vordergrund, nie oberstes Fenster. Der
+  Vollbild-Umschalter legt ein Selbsttestfenster jetzt ebenfalls nach hinten (HWND_BOTTOM statt
+  HWND_TOP).
+- **Gegen das Vorbild geprueft**: die Formeln oben gegen OpenJK und mdgit (Zeilen genannt); die
+  Rumpfkorrektur im laufenden Movie Duels (Foto). **Nicht** im Spiel: Punkt 2 (nur ctest gegen die
+  Formeln), Original-JKA (Steam aus), cg_motionBoneComp 3 (nicht Vorgabe, nicht portiert).
+- **Schlussrunde** (`<SP>/zl6/ende.sh`): sauberer Neubau aller Ziele 0 Fehler, 0 Warnungen; ctest
+  190/190; lint_sources, lint_fassung (rc606), lint_gapp, lint_imgui_context, lint_layout,
+  lint_abstand, lint_doppelanzeige, lint_i18n ok; handbuch_sprachen ok. Selbsttests nach dem Neubau:
+  zeitleiste1 100/0, zeitleiste 47/0, szenen 26/0, pruefung3 9/0. Waehrenddessen war kein
+  jkstudio-Fenster oberstes Fenster (vordergrund.py, keine Meldung). Spielordner unveraendert
+  (Dateiliste vorher/nachher gleich), keine Sperrdatei, kein Spielprozess.
+- **Offen**: CG_UpdateLookAngles (das Nachziehen des Blicks) und der Nickwinkel des Blicks bleiben
+  wie bisher; Reiten (G_IsRidingVehicle) und die Wendeanimation der Huefte (cg_turnAnims 0) nicht
+  abgebildet; g_ActivateAnimationStyle 1 (MP-Einstellung) waere eine Einstellung der Vorschau.
+
 ## Changelog
 
 ## English
 
+- Preview: when legs and upper body play different animations, the spine turns like the game (motion bone correction, cg_motionBoneComp 2) - with pitch, yaw and roll about the bones' own axes; head and torso now also turn about their bones instead of the vertical. Checked against Movie Duels.
+- Lightsaber stance like the game: the readyAnim of the .sab, arc saber, two sabers, staff, lance and trident, blocking; standing still without input the stance covers the whole body, walking it follows the legs (Movie Duels with its own lists and the character styles of g_ActivateAnimationStyle).
 - Recording a walk: standing on a slope or a step, the figure puts its feet like the game (the slope leg animations); with a lightsaber its upper body takes the ready stance or follows the legs as the game decides.
 - Preview: an NPC with a gun stands in BOTH_STAND3 and an Imperial officer in BOTH_STAND4 - the standing pose the game picks.
 - Movie Duels: a figure with a lit saber stands in the stances the installed game really uses (the "_JKA" stances, g_SerenityJediEngineMode is 0); under OpenJK the Tavion style stands like the fast style and the Desann style in BOTH_STAND2, as in the game.
@@ -756,6 +835,8 @@ Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/z
 
 ## Deutsch
 
+- Vorschau: spielen Beine und Oberkörper verschiedene Animationen, dreht sich die Wirbelsäule wie im Spiel (Motion-Bone-Korrektur, cg_motionBoneComp 2) - mit Nick, Gier und Roll um die Achsen der Knochen; Kopf und Rumpf drehen jetzt ebenfalls um ihre Knochen statt um die Senkrechte. Gegen Movie Duels geprüft.
+- Kampfhaltung mit Lichtschwert wie im Spiel: readyAnim der .sab, Bogenklinge, zwei Schwerter, Stab, Lanze und Dreizack, Blocken; im Stand ohne Eingabe gilt die Haltung für den ganzen Körper, beim Gehen folgt sie den Beinen (Movie Duels mit eigenen Listen und den Figurenstilen von g_ActivateAnimationStyle).
 - Lauf aufnehmen: steht die Figur an einem Hang oder auf einer Stufe, stellt sie die Füße wie im Spiel (die Hang-Beinanimationen); mit Lichtschwert nimmt ihr Oberkörper die Kampfhaltung ein oder folgt den Beinen, wie das Spiel es entscheidet.
 - Vorschau: ein NPC mit Schusswaffe steht in BOTH_STAND3, ein imperialer Offizier in BOTH_STAND4 - die Grundhaltung, die das Spiel wählt.
 - Movie Duels: eine Figur mit brennender Klinge steht in den Haltungen, die das installierte Spiel wirklich nimmt (die "_JKA"-Haltungen, g_SerenityJediEngineMode ist 0); unter OpenJK steht der Tavion-Stil wie der schnelle und der Desann-Stil in BOTH_STAND2, wie im Spiel.
@@ -782,6 +863,8 @@ Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/z
 
 ## 中文
 
+- 预览:双腿和上半身播放不同动画时,脊柱像游戏一样转动(Motion 骨骼修正,cg_motionBoneComp 2)——绕骨骼自身的轴进行俯仰、偏航和翻滚;头部和躯干现在也绕各自骨骼转动,而不是绕竖直轴。已与 Movie Duels 对照。
+- 光剑架势与游戏一致:.sab 的 readyAnim、弧形剑、双剑、双刃剑、长枪和三叉戟、格挡;无输入静止时架势作用于全身,行走时跟随双腿(Movie Duels 使用自己的列表和 g_ActivateAnimationStyle 的角色风格)。
 - 录制行走：角色站在斜坡或台阶上时会像游戏中一样放脚（斜坡腿部动画）；持光剑时上半身按游戏的判断摆出战斗姿势或跟随双腿。
 - 预览：持枪的 NPC 以 BOTH_STAND3 站立，帝国军官以 BOTH_STAND4 站立——即游戏选择的站姿。
 - Movie Duels：点亮光剑的角色使用已安装游戏实际采用的姿势（"_JKA" 姿势，g_SerenityJediEngineMode 为 0）；在 OpenJK 下 Tavion 风格与快速风格站姿相同，Desann 风格为 BOTH_STAND2，与游戏一致。
@@ -808,6 +891,8 @@ Laeufe unter `Y:\karte\laeufe\zl5*` (Skript `<SP>/zl5/lauf.sh`, Bildlauf `<SP>/z
 
 ## 日本語
 
+- プレビュー:脚と上半身が別のアニメーションを再生すると、ゲームと同じように背骨が回ります(Motion ボーン補正、cg_motionBoneComp 2)。ボーン自身の軸でピッチ・ヨー・ロール。頭と胴体も鉛直軸ではなく各ボーンの軸で回ります。Movie Duels と照合済み。
+- ライトセーバーの構えをゲームどおりに:.sab の readyAnim、アーク、二刀、スタッフ、ランス、トライデント、ブロック。入力なしで立つと構えは全身に、歩くと脚に従います(Movie Duels は独自のリストと g_ActivateAnimationStyle のキャラクタースタイル)。
 - 歩きの記録：坂や段の上に立つと、キャラクターはゲームと同じように足を置きます（坂用の脚アニメーション）。ライトセーバーを持つと、上半身はゲームの判断どおり構えを取るか脚に従います。
 - プレビュー：銃を持つ NPC は BOTH_STAND3、帝国士官は BOTH_STAND4 で立ちます――ゲームが選ぶ立ち姿です。
 - Movie Duels：光る刃を持つキャラクターは、インストール済みのゲームが実際に使う構え（"_JKA" の構え、g_SerenityJediEngineMode は 0）で立ちます。OpenJK では Tavion スタイルは高速スタイルと同じ、Desann スタイルは BOTH_STAND2 で、ゲームと同じです。
