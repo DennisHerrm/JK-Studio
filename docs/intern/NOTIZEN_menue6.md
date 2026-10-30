@@ -182,6 +182,25 @@ tools/handbuch/inhalt_menue6.py, GUI gui/app_menue_m6.inc.
   und Item_ApplyHacks führt die Vorschau nicht); die Lesbarkeits-Schwellen sind Richtwerte.
 - Nächster Schritt: 14 (Platzhalter nach Engine-Code), dann 11/12, dann 3.
 
+## M7 (Auftrag SPuftrag_m7.md, 30.10.)
+
+Reihenfolge: 14 Platzhalter, M5b-Reste (Tasten, MP-Startmenü, JK2-Setup, Chromglanz), 11 Lade-/
+Verbindungs-/Ingame-Menüs, 13 ui_load bei „Im Spiel testen“, 3 Komponenten, 12 Gizmo, Selbsttest JKA +
+Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaubt, SP\spiel.lock).
+
+### Punkt 14 - Bestand (SP\m7\od_inventar.py über die Original-pk3s)
+
+- JKA SP: 203/204/206 (Datapad), 236, 249 (UI_GLINFO), 250. JKA MP: UI_GLINFO, 250, ALLMAPS_SELECTION,
+  Teamplätze, BOTNAME/BOTSKILL/REDBLUE, CHAT_* (7), FORCE_SIDE/RANK/POINTS/MASTERY_SET, 18 FORCE_RANK_*,
+  JEDI_NONJEDI, JOINGAMETYPE, NETFILTER, NETSOURCE, NETGAMETYPE, SELECTEDPLAYER, SERVERREFRESHDATE,
+  SKILL, SKIN_COLOR, STARTMAPCINEMATIC. JK2 MP zusätzlich UI_EFFECTS, UI_SERVERMOTD; JK2 SP 203-206.
+- Movie Duels SP: 203-206, 236, 249, 250, 257 (Duellkarten), Pazaak 2001-2900 (sje_pazaak);
+  MD-MP-Menüs (0_MD_Assets_MP_UI.pk3) wie JKA MP plus 340-350 (Kräfte der dritten Spalte).
+- Feeder ohne Inhalt bisher: MP SABER_SINGLE/STAFF_INFO, PLAYER_LIST, SERVERSTATUS, FINDPLAYER, SIEGE_*;
+  MD 85-89 (Modelle, Varianten, Duellkarten, Griffe).
+- Befund aus dem Code: UI_CHAT_* hat in UI_OwnerDraw (codemp ui_main.c) keinen Fall - das Spiel zeichnet
+  nichts (nur UI_OwnerDrawHandleKey); UI_EFFECTS zeichnet in JKA MP nichts.
+
 ## Changelog
 
 ## English
