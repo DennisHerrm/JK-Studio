@@ -90,6 +90,7 @@ void spalte(const char* panel, ImVec2 groesse, Dokument& d) {
         const ImVec2 p = ImGui::GetCursorScreenPos();
         g_menueDock.rechteck.emplace_back(panel, ImRect{p, ImVec2{p.x + g.x, p.y + g.y}});
         ImGui::Dummy(g);   // wie EndChild: ItemSize und ItemAdd mit der Groesse
+        dock::heimPlatz(panel, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         return;
     }
     if (a.kind == nullptr) {

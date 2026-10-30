@@ -139,6 +139,9 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // dock3, Selbsttest: eine Datei auf ein Windows-Fenster ablegen wie aus dem
 // Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
+// dock4, Selbsttest: nimmt das Windows-Fenster Dateien an (WS_EX_ACCEPTFILES,
+// DragAcceptFiles)? Nur dann schickt der Explorer beim Loslassen WM_DROPFILES.
+bool nimmtDateien(void* fenster);
 
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
 //

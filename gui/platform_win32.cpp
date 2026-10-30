@@ -623,6 +623,11 @@ bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y) {
     return true;
 }
 
+bool nimmtDateien(void* fenster) {
+    const auto h = static_cast<HWND>(fenster);
+    return h != nullptr && IsWindow(h) != FALSE && (GetWindowLongPtrW(h, GWL_EXSTYLE) & WS_EX_ACCEPTFILES) != 0;
+}
+
 bool fensterSichtbar(void* fenster) {
     const auto h = static_cast<HWND>(fenster);
     return h != nullptr && IsWindow(h) != FALSE && IsWindowVisible(h) != FALSE;

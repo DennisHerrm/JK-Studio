@@ -994,6 +994,33 @@ void viewportBildLesen(unsigned id) {
 }
 #endif
 
+// OpenGL: der hintere Puffer des Fensters, dessen Kontext gerade gilt
+// (glFensterZeichnen hat ihn gesetzt, ImGui_ImplOpenGL3_RenderWindow gezeichnet).
+void viewportBildLesenGl(const ImGuiViewport* v) {
+    ViewportBild ergebnis;
+    ergebnis.id = v->ID;
+    const int w = static_cast<int>(v->Size.x * v->FramebufferScale.x);
+    const int h = static_cast<int>(v->Size.y * v->FramebufferScale.y);
+    if (w <= 0 || h <= 0) { return; }
+    std::vector<std::uint32_t> punkte(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    glReadBuffer(GL_BACK);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, punkte.data());
+    if (glGetError() != GL_NO_ERROR) { return; }
+    std::vector<std::uint32_t> farben;
+    for (int y = 0; y < h; y += 2) {
+        for (int x = 0; x < w; x += 2) {
+            const std::uint32_t c = punkte[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)] & 0x00FFFFFFU;
+            if (farben.size() < 4096U && std::find(farben.begin(), farben.end(), c) == farben.end()) { farben.push_back(c); }
+        }
+    }
+    ergebnis.breite = w;
+    ergebnis.hoehe = h;
+    ergebnis.farben = static_cast<int>(farben.size());
+    ergebnis.da = true;
+    g_vpBild = ergebnis;
+}
+
 double g_plattformMs = 0.0;
 
 void plattformFenster() {
@@ -1012,6 +1039,10 @@ void plattformFenster() {
             viewportBildLesen(v->ID);
         }
 #endif
+        if (g_backend == Backend::OpenGL3 && g_vpBildFuer != 0 && v->ID == g_vpBildFuer) {
+            g_vpBildFuer = 0;
+            viewportBildLesenGl(v);
+        }
     }
     for (int i = 1; i < pio.Viewports.Size; ++i) {
         ImGuiViewport* v = pio.Viewports[i];

@@ -48,6 +48,7 @@ struct Raum {
     std::vector<ImGuiID> heim;   // Blatt je Panel der Vorgabe (0: keins)
     std::vector<std::string> draussenLassen;
     bool geschlossen = false;    // Schliessknopf des gerade begonnenen Panels
+    Dreieck dreieck;             // ImGuis Dreieck des gerade begonnenen Panels
 };
 std::array<Raum, dock::kBereiche> g_raum;
 
@@ -345,23 +346,26 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     ImGui::SetNextWindowClass(&k);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     int farben = 0;
-    if (imRaum) {
-        // Im DockSpace wie vorher ein Kindfenster: ohne eigenen Hintergrund;
-        // ImGuis Dreieck der versteckten Reiterleiste erst unter der Maus.
-        panelStil(farben);
+    if (imRaum) {   // im DockSpace wie vorher ein Kindfenster: ohne eigenen Hintergrund
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_ChildBg));
+        ++farben;
     }
+    dreieckStil(farben);
     bool offen = true;
     const bool sichtbar = ImGui::Begin(name.c_str(), imRaum ? nullptr : &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleColor(farben);
     ImGui::PopStyleVar();
     r.geschlossen = !offen;
+    r.dreieck = dreieckBeginnen();
     return sichtbar;
 }
 
 void panelEnde(int bereich, const Vorgabe& v, int i) {
-    ImGui::End();
     Raum& r = raum(bereich);
+    dreieckEnde(r.dreieck);
+    r.dreieck = Dreieck{};
+    ImGui::End();
     if (r.geschlossen) {   // Schliessknopf eines eigenen Fensters: zurueck an seinen Platz
         r.geschlossen = false;
         andocken(bereich, v.panels[static_cast<std::size_t>(i)].c_str());
@@ -381,11 +385,34 @@ void fertig(int bereich) {
     r.alteListe = false;
 }
 
-void panelStil(int& farben) {
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_ChildBg));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered));
-    farben += 3;
+void dreieckStil(int& farben) {
+    for (const ImGuiCol c : {ImGuiCol_Button, ImGuiCol_ButtonHovered, ImGuiCol_ButtonActive}) {
+        ImGui::PushStyleColor(c, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+        ++farben;
+    }
+}
+
+Dreieck dreieckBeginnen() {
+    ImGuiContext& g = *GImGui;
+    ImGuiWindow* w = g.CurrentWindow;
+    Dreieck d;
+    if (w == nullptr || !w->DockIsActive || w->DockNode == nullptr || !w->DockNode->IsHiddenTabBar() || w->DockNode->IsNoTabBar()) { return d; }
+    const ImGuiID id = ImHashStr("#UNHIDE", 0, w->ID);   // window->GetID("#UNHIDE") in RenderWindowDecorations
+    if (g.HoveredId != id && g.ActiveId != id) { return d; }
+    // Wie ImGui (RenderWindowDecorations), aber ueber dem Inhalt.
+    const float gross = ImTrunc(g.FontSize * 0.70F);
+    const ImVec2 p = w->DockNode->Pos;
+    ImGui::GetForegroundDrawList(w->Viewport)
+        ->AddTriangleFilled(p, ImVec2{p.x + gross, p.y}, ImVec2{p.x, p.y + gross},
+                            ImGui::GetColorU32(g.ActiveId == id ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered));
+    d.aktiv = true;
+    d.vorher = g.HoveredWindow;
+    g.HoveredWindow = nullptr;
+    return d;
+}
+
+void dreieckEnde(const Dreieck& d) {
+    if (d.aktiv && GImGui->HoveredWindow == nullptr) { GImGui->HoveredWindow = d.vorher; }
 }
 
 bool draussen(int bereich, const char* panel) {

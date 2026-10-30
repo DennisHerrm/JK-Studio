@@ -210,6 +210,9 @@ const std::vector<Panel>& panels() {
         {"menue.bausteine", 4, Str::MePalette},
         {"menue.flaeche", 4, Str::DockPanelCanvas},
         {"menue.reiter", 4, Str::DockPanelMenuSide},
+        // dock4: das Layout "Text unten" (nur im DockSpace)
+        {"menue.eigenschaften", 4, Str::MeReiterEigenschaften},
+        {"menue.text", 4, Str::MeReiterText},
     };
     return p;
 }

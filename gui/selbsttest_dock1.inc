@@ -80,10 +80,8 @@ ImGuiWindow* panelFenster(const char* panel) {
 // Dock-Knotens.
 // dock3: im DockSpace ist jedes Panel gezeichnet - "aktiv" heisst dort: in
 // einem eigenen Fenster (nicht im DockSpace des Hauptfensters).
-bool imDockraum(const char* panel) {
-    const dock::Panel* p = dock::panel(panel);
-    return dockraumAn() && p != nullptr && p->bereich <= 2;
-}
+// dock4: auch Map Editor und Menu Editor stehen im DockSpace.
+bool imDockraum(const char* panel) { return dockraumAn() && dock::panel(panel) != nullptr; }
 
 bool aktiv(const char* panel) {
     const ImGuiWindow* w = panelFenster(panel);
@@ -818,7 +816,8 @@ std::vector<Schritt> dock1Schritte() {
                                       "    rect 100 100 200 40\n    type ITEM_TYPE_BUTTON\n    text \"Hallo\"\n    visible 1\n  }\n}\n");
     }));
     for (const dock::Panel& p : dock::panels()) {
-        if (p.bereich == 3) { continue; }
+        // dock4: Eigenschaften und Text gibt es nur im Layout "Text unten" (Selbsttest dock4).
+        if (p.bereich == 3 || std::strcmp(p.id, "menue.eigenschaften") == 0 || std::strcmp(p.id, "menue.text") == 0) { continue; }
         const std::string id = p.id;
         const int bereich = p.bereich;
         add(tu("dock1: " + id + " in eigenem Fenster", [id, bereich] {

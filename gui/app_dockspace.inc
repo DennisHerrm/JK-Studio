@@ -46,6 +46,18 @@ struct Messung {
 };
 Messung g_mess;
 
+// dock4: die Hover-Linie eines alten Griffs (app.cpp, ##spalteLinks/##spalteRechts).
+// Im Hauptfenster gezeichnet laege sie unter den Panels (zu sehen war nur der
+// 1-Punkt-Spalt) - sie kommt in die Zeichenlisten der Panels, an deren Rand sie liegt.
+struct Linie {
+    bool an = false;
+    float x = 0.0F;
+    float oben = 0.0F;
+    float unten = 0.0F;
+    ImU32 farbe = 0;
+};
+Linie g_linie;
+
 void zelleMessen(int k) {
     const ImGuiTable* t = ImGui::GetCurrentTable();
     if (t == nullptr || k < 0 || k >= 3) { return; }
@@ -236,6 +248,11 @@ bool uebernehmen(int b) {
     raum.heim = heimAusBaum(b, n);
     raum.knoten = static_cast<int>(2 * p.size() - 1);
     raum.frisch = false;
+    // dock4, Randfall Schalter an/aus/an: ohne DockSpace herausgenommene Panels
+    // (Liste aus dock1, neuer als der Baum) schweben; die Liste ist erledigt.
+    std::vector<std::string> ids;
+    for (const Blatt& x : p) { ids.emplace_back(x.id); }
+    dockvorgabe::alteListeSchweben(b, id, ids);
     modusFesthalten(panelKnoten(p[0]));
     diag::detail("Fenster: gespeicherter DockSpace von Bereich " + std::to_string(b) + " uebernommen (" + std::to_string(knotenZaehlen(n)) +
                  " Knoten)");
@@ -417,6 +434,8 @@ void zeichnen(const Layout& l) {
         const bool innen = i < static_cast<std::size_t>(g_mess.innenN);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             ImVec2{st.CellPadding.x, band ? st.ItemSpacing.y - 1.0F : st.CellPadding.y * 2.0F});
+        int farben = 0;
+        dockvorgabe::dreieckStil(farben);   // dock4: ImGuis Dreieck erst unter der Maus, ueber dem Inhalt
         ImGui::SetNextWindowClass(&k);
         const bool lassen = (alteListe && dock::inListeDraussen(p[i].id)) ||
                             std::find(raum.draussenLassen.begin(), raum.draussenLassen.end(), p[i].id) != raum.draussenLassen.end();
@@ -430,7 +449,9 @@ void zeichnen(const Layout& l) {
         // gespeicherte Anordnungen bringen ihn zurueck (uebernehmen).
         const bool sichtbar = ImGui::Begin(fensterName(p[i]).c_str(), schwebt ? &offen : nullptr,
                                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::PopStyleColor(farben);
         ImGui::PopStyleVar();
+        const dockvorgabe::Dreieck dreieck = dockvorgabe::dreieckBeginnen();
         if (sichtbar && !band && !innen) { ImGui::SetCursorPosY(ImGui::GetCursorPosY() - st.CellPadding.y); }
         if (sichtbar && std0 && i == letzteSpalte && i < r.size()) {
             // Der Knoten ist so breit wie das Band; der Inhalt bleibt so breit wie die Spalte.
@@ -442,6 +463,15 @@ void zeichnen(const Layout& l) {
             }
         }
         if (sichtbar) { panelInhalt(p[i].id, l); }
+        if (sichtbar && g_linie.an) {
+            ImGuiWindow* w = ImGui::GetCurrentWindow();
+            if (g_linie.x + 2.0F >= w->Pos.x && g_linie.x - 2.0F <= w->Pos.x + w->Size.x) {
+                w->DrawList->PushClipRect(w->Pos, ImVec2{w->Pos.x + w->Size.x, w->Pos.y + w->Size.y}, false);
+                w->DrawList->AddLine(ImVec2{g_linie.x, g_linie.oben}, ImVec2{g_linie.x, g_linie.unten}, g_linie.farbe, 2.0F);
+                w->DrawList->PopClipRect();
+            }
+        }
+        dockvorgabe::dreieckEnde(dreieck);
         ImGui::End();
         if (!offen) { dock::andocken(p[i].id); }
     }

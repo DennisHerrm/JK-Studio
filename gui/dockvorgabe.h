@@ -61,11 +61,20 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i);
 void panelEnde(int bereich, const Vorgabe& v, int i);
 // Nach den Panels eines Bildes.
 void fertig(int bereich);
-// Stil eines Panels im DockSpace (vor Begin, PopStyleColor(farben) danach):
-// ohne eigenen Hintergrund wie ein Kindfenster; ImGuis Dreieck der
-// versteckten Reiterleiste (Klick zeigt die Reiter, Ziehen nimmt das Panel
-// heraus) erst unter der Maus - es laege sonst auf der Ecke jedes Inhalts.
-void panelStil(int& farben);
+// ImGuis Dreieck der versteckten Reiterleiste (oben links in jedem Panel: Klick
+// zeigt die Reiter, Ziehen nimmt das Panel heraus). ImGui zeichnet es in Begin -
+// unter dem Inhalt, und der Inhalt bekaeme denselben Klick (die Ansichten fragen
+// IsWindowHovered). Daher: dreieckStil vor Begin (ImGuis eigenes unsichtbar,
+// PopStyleColor(farben) nach Begin); dreieckBeginnen direkt nach Begin - liegt
+// die Maus darauf, wird es ueber dem Inhalt gezeichnet und der Inhalt bekommt
+// keine Maus; dreieckEnde vor End.
+struct Dreieck {
+    ImGuiWindow* vorher = nullptr;
+    bool aktiv = false;
+};
+void dreieckStil(int& farben);
+[[nodiscard]] Dreieck dreieckBeginnen();
+void dreieckEnde(const Dreieck& d);
 // dock4, Randfall Schalter an/aus/an: Panels, die ohne DockSpace (Liste aus
 // dock1) herausgenommen wurden, nachdem der Baum gespeichert war, schweben beim
 // Uebernehmen des Baums; die Liste ist damit erledigt und wird geleert.
