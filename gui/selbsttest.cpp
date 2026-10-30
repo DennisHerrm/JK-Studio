@@ -54,6 +54,7 @@
 #include "bhed/kartenpruefung.h"   // rc602
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "fenster_dock.h"           // dock1: Panels herausnehmen, Anordnungen
+#include "dockvorgabe.h"            // dock4: Map Editor und Menu Editor im DockSpace
 #include "bhed/fensteranordnung.h"
 #include "menueeditor.h"            // Menue-Editor M1
 #include "bhed/menue/menue.h"
@@ -5498,6 +5499,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
 #include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
+#include "selbsttest_dock4.inc"   // dock4: Map Editor und Menu Editor im DockSpace
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5833,6 +5835,7 @@ void selbsttest() {
     static const bool nurDock1 = std::strcmp(modus, "dock1") == 0;
     static const bool nurDock1Neustart = std::strcmp(modus, "dock1neustart") == 0;
     static const bool nurDock2Mass = std::strcmp(modus, "dock2mass") == 0;
+    static const bool nurDock4 = std::strcmp(modus, "dock4") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5959,6 +5962,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurDock2Mass) {
                 a.schritte = dock2MassSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurDock4) {
+                a.schritte = dock4Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

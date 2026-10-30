@@ -21,6 +21,7 @@
 #include "app_internal.h"
 #include "tour.h"   // H2: leerer Zustand mit Tutorial
 #include "fenster_dock.h"   // dock1: die Panels als eigene Fenster
+#include "dockvorgabe.h"    // dock4: die Panels im DockSpace
 #include "backend.h"
 #include "gpumap.h"
 #include "platform.h"
@@ -4961,9 +4962,11 @@ void zeichneSeiten(Dokument& d) {
     ImGui::EndTabBar();
 }
 
-void splitter(const char* id, float& wert, bool senkrecht, float min, float max, float laenge, bool umgekehrt = false) {
-    ImGui::InvisibleButton(id, senkrecht ? ImVec2{6, std::max(1.0F, laenge)} : ImVec2{std::max(1.0F, laenge), 6});
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+void splitter(const char* id, float& wert, bool senkrecht, float min, float max, float laenge, bool umgekehrt = false,
+              ImGuiButtonFlags knopf = ImGuiButtonFlags_None) {
+    ImGui::InvisibleButton(id, senkrecht ? ImVec2{6, std::max(1.0F, laenge)} : ImVec2{std::max(1.0F, laenge), 6}, knopf);
+    // dock4: im DockSpace liegt dessen Wirt ueber dem Teiler - IsItemHovered meldet dort nichts, der Knopf selbst schon
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive() || GImGui->HoveredId == ImGui::GetItemID()) {
         ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_ResizeNS);
     }
     if (ImGui::IsItemActive()) {
@@ -5096,6 +5099,8 @@ void panelReiter(Dokument& d) {
     }
 }
 
+#include "app_menue_dock.inc"   // dock4: der Menu Editor im DockSpace
+
 void zeichneInnen(float hoehe);
 
 void zeichne(float hoehe) {
@@ -5159,6 +5164,7 @@ void zeichneInnen(float hoehe) {
     if (d == nullptr) {
         zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
         if (ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("tut-menue", 1); }   // H2: der Weg als Tour
+        menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
     }
     neuParsen(*d);
@@ -5169,81 +5175,67 @@ void zeichneInnen(float hoehe) {
     if (z.linksBreite <= 0) { z.linksBreite = fs * 13; }
     if (z.rechtsBreite <= 0) { z.rechtsBreite = st.menueRechtsBreite > 0 ? st.menueRechtsBreite * fs : fs * (st.menueTextUnten ? 19 : 28); }
     diagnosePflegen(*d);
-    if (st.menueTextUnten) {
-        // altes Layout: links Bausteine und Hierarchie, rechts Eigenschaften, unten der Text
-        if (z.codeHoehe <= 0) { z.codeHoehe = std::floor(rest.y * 0.38F); }
-        const float obenH = std::max(fs * 6, rest.y - z.codeHoehe - 8);
-        ImGui::BeginChild("##links", ImVec2{z.linksBreite, obenH}, ImGuiChildFlags_Borders);
-        panelBausteine(*d);
-        panelHierarchie(*d);
-        ImGui::EndChild();
-        ImGui::SameLine(0, 0);
-        splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, obenH);
-        ImGui::SameLine(0, 0);
-        const float mitteB = std::max(fs * 10, rest.x - z.linksBreite - z.rechtsBreite - 14);
-        ImGui::BeginChild("##mitte", ImVec2{mitteB, obenH}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        panelFlaeche(*d);
-        ImGui::EndChild();
-        ImGui::SameLine(0, 0);
-        splitter("##spl2", z.rechtsBreite, true, fs * 10, rest.x * 0.5F, obenH, true);
-        ImGui::SameLine(0, 0);
-        ImGui::BeginChild("##rechts", ImVec2{0, obenH}, ImGuiChildFlags_Borders);
-        panelEigenschaften(*d);
-        ImGui::EndChild();
-        splitter("##spl3", z.codeHoehe, false, fs * 4, rest.y - fs * 8, rest.x);
-        panelText(*d);
-        return;
-    }
-    // links die Bausteine, in der Mitte die Flaeche in voller Hoehe, rechts die Reiter
-    // dock1: jedes der drei Panels kann in einem eigenen Fenster stehen (fenster_dock.h,
-    // menueeditor::dockFenster) - dann fehlen seine Spalte und sein Teiler, die Flaeche
-    // nimmt den Platz.
-    const bool links = dock::zuhause("menue.bausteine");
-    const bool mitte = dock::zuhause("menue.flaeche");
-    const bool rechts = dock::zuhause("menue.reiter");
-    const float h = rest.y;
+    // "Reiter rechts": links die Bausteine, in der Mitte die Flaeche in voller Hoehe,
+    // rechts die Reiter. "Text unten" (altes Layout): links Bausteine und Hierarchie,
+    // rechts Eigenschaften, unten der Text.
+    // dock1: ein Panel in einem eigenen Fenster (fenster_dock.h, dockFenster) fehlt mit
+    // seiner Spalte und seinem Teiler, die Nachbarn nehmen den Platz.
+    // dock4: im DockSpace misst spalte() nur; die Panels stehen danach in den Blaettern
+    // eines Dock-Baums genau auf diesen Spalten (menueDockZeichnen).
+    const bool dockRaum = menueDockBeginnen();
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const bool unten = st.menueTextUnten;
+    // Ohne DockSpace kennt "Text unten" keine Panels - das Layout bleibt dort, wie es ist.
+    const auto da = [&](const char* panel) { return (unten && !dockRaum) || dock::zuhause(panel); };
+    const bool text = unten && da("menue.text");
+    const bool links = da("menue.bausteine");
+    const bool mitte = da("menue.flaeche");
+    const bool rechts = da(unten ? "menue.eigenschaften" : "menue.reiter");
+    if (unten && z.codeHoehe <= 0) { z.codeHoehe = std::floor(rest.y * 0.38F); }
+    const float h = text && (links || mitte || rechts) ? std::max(fs * 6, rest.y - z.codeHoehe - 8) : rest.y;
     if (links) {
-        ImGui::BeginChild("##links", ImVec2{mitte || rechts ? z.linksBreite : 0.0F, h}, ImGuiChildFlags_Borders);
-        panelBausteine(*d);
-        ImGui::EndChild();
-        dock::heimPlatz("menue.bausteine", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        spalte("menue.bausteine", ImVec2{mitte || rechts ? z.linksBreite : 0.0F, h}, *d);
         if (mitte || rechts) {
             ImGui::SameLine(0, 0);
-            splitter("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
+            spaltenTeiler("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
             ImGui::SameLine(0, 0);
         }
     }
     if (mitte) {
         const float mitteB = std::max(fs * 10, rest.x - (links ? z.linksBreite + 7 : 0.0F) - (rechts ? z.rechtsBreite + 7 : 0.0F));
-        ImGui::BeginChild("##mitte", ImVec2{rechts ? mitteB : 0.0F, h}, ImGuiChildFlags_Borders,
-                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        panelFlaeche(*d);
-        ImGui::EndChild();
-        dock::heimPlatz("menue.flaeche", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        spalte("menue.flaeche", ImVec2{rechts ? mitteB : 0.0F, h}, *d);
         if (rechts) {
             ImGui::SameLine(0, 0);
-            splitter("##spl2", z.rechtsBreite, true, fs * 12, rest.x * 0.6F, h, true);
-            st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F;
+            spaltenTeiler("##spl2", z.rechtsBreite, true, fs * (unten ? 10 : 12), rest.x * (unten ? 0.5F : 0.6F), h, true);
+            if (!unten) { st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F; }
             ImGui::SameLine(0, 0);
         }
     }
-    if (rechts) {
-        ImGui::BeginChild("##rechts", ImVec2{0, h}, ImGuiChildFlags_Borders);
-        panelReiter(*d);
-        ImGui::EndChild();
-        dock::heimPlatz("menue.reiter", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+    if (rechts) { spalte(unten ? "menue.eigenschaften" : "menue.reiter", ImVec2{0, h}, *d); }
+    if (text) {
+        if (links || mitte || rechts) { spaltenTeiler("##spl3", z.codeHoehe, false, fs * 4, rest.y - fs * 8, rest.x); }
+        spalte("menue.text", ImVec2{0, 0}, *d);
     }
+    if (dockRaum) { menueDockZeichnen(*d, ImRect{start, ImVec2{start.x + rest.x, start.y + rest.y}}); }
 }
 
 // dock1: die Panels des Menue-Editors in eigenen Fenstern. Nur im Layout mit den
-// Reitern rechts - "Text unten" (Einstellungen) bleibt, wie es ist.
+// Reitern rechts - "Text unten" (Einstellungen) bleibt, wie es ist. dock4: im
+// DockSpace beide Layouts, die Panels zeichnet dann menueDockZeichnen.
 namespace {
-bool panelVerfuegbar(const char*) { return g_app != nullptr && !g_app->settings.menueTextUnten; }
+bool panelVerfuegbar(const char* id) {
+    if (g_app == nullptr || id == nullptr) { return false; }
+    const bool unten = g_app->settings.menueTextUnten;
+    const std::string p = id;
+    if (p == "menue.eigenschaften" || p == "menue.text") { return unten && dockraumAn(); }
+    if (p == "menue.reiter") { return !unten; }
+    return !unten || dockraumAn();
+}
 }  // namespace
 
 void dockFenster() {
     dock::setzeVerfuegbar(4, panelVerfuegbar);
-    if (!panelVerfuegbar(nullptr)) { return; }
+    if (dockraumAn() || g_app == nullptr || g_app->settings.menueTextUnten) { return; }
     struct P {
         const char* id;
         void (*f)(Dokument&);

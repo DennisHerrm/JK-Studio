@@ -80,10 +80,8 @@ ImGuiWindow* panelFenster(const char* panel) {
 // Dock-Knotens.
 // dock3: im DockSpace ist jedes Panel gezeichnet - "aktiv" heisst dort: in
 // einem eigenen Fenster (nicht im DockSpace des Hauptfensters).
-bool imDockraum(const char* panel) {
-    const dock::Panel* p = dock::panel(panel);
-    return dockraumAn() && p != nullptr && p->bereich <= 2;
-}
+// dock4: auch Map Editor und Menu Editor stehen im DockSpace.
+bool imDockraum(const char* panel) { return dockraumAn() && dock::panel(panel) != nullptr; }
 
 bool aktiv(const char* panel) {
     const ImGuiWindow* w = panelFenster(panel);
@@ -359,8 +357,11 @@ std::vector<Schritt> dock1FotoSchritte() {
                      ImVec2{h.GetWidth() * 0.2F, h.GetHeight() * 0.45F});
     }));
     add(stabil("dock1 Fotos: Ebenenliste schwebt", 10));
+    // dock4: im DockSpace zeigt ImGui beim Ziehen ueber dem Hauptfenster seine
+    // Markierungen - hier auf der Missionsansicht (Mitte: als Reiter).
     add(dock1::ziehenUndHalten("dock1 Fotos: Ebenenliste zurueck ziehen (gehalten)", [] { return dock1::titel("mission.ebenen"); },
                                [] {
+                                   if (dockraumAn()) { return dock1::rect("mission.ansicht").GetCenter(); }
                                    ImVec2 a;
                                    ImVec2 b;
                                    dock::zielPlatz("mission.ebenen", a, b);
@@ -370,6 +371,22 @@ std::vector<Schritt> dock1FotoSchritte() {
     add(dock1::loslassen("dock1 Fotos: loslassen - angedockt"));
     add(warteBis("dock1 Fotos: Ebenenliste angedockt", [] { return dock::zuhause("mission.ebenen"); }, 60));
     add(tu("dock1 Fotos: zuruecksetzen", [] { dock::zuruecksetzen(1); }));
+    add(stabil("dock1 Fotos: zurueckgesetzt", 10));
+    if (dockraumAn()) {   // dock4: ImGuis Dreieck oben links in einem Panel, unter der Maus
+        const auto ecke = [] {
+            const ImGuiWindow* w = dock1::panelFenster("mission.ansicht");
+            return w != nullptr && w->DockNode != nullptr ? ImVec2{w->DockNode->Pos.x + 3.0F, w->DockNode->Pos.y + 3.0F} : ImVec2{5, 5};
+        };
+        add({"dock1 Fotos: Maus auf die Ecke der Missionsansicht", [ecke](int b) {
+                 setzeMaus(ecke());
+                 return b >= 8;
+             }});
+        add(hb::fotoTeil("h_dock_ecke", [ecke] {
+            const ImVec2 p = ecke();
+            const float fs = ImGui::GetFontSize();
+            return ImRect{p.x - fs * 6.0F, p.y - fs * 3.0F, p.x + fs * 18.0F, p.y + fs * 9.0F};
+        }));
+    }
     add(stabil("dock1 Fotos: Ende", 10));
     return s;
 }
@@ -818,7 +835,8 @@ std::vector<Schritt> dock1Schritte() {
                                       "    rect 100 100 200 40\n    type ITEM_TYPE_BUTTON\n    text \"Hallo\"\n    visible 1\n  }\n}\n");
     }));
     for (const dock::Panel& p : dock::panels()) {
-        if (p.bereich == 3) { continue; }
+        // dock4: Eigenschaften und Text gibt es nur im Layout "Text unten" (Selbsttest dock4).
+        if (p.bereich == 3 || std::strcmp(p.id, "menue.eigenschaften") == 0 || std::strcmp(p.id, "menue.text") == 0) { continue; }
         const std::string id = p.id;
         const int bereich = p.bereich;
         add(tu("dock1: " + id + " in eigenem Fenster", [id, bereich] {
@@ -996,6 +1014,36 @@ std::vector<Schritt> dock1Schritte() {
         add(stabil("dock1: Reiter im Hauptfenster fuer den Neustart", 20));
         add(pruefe("dock1: DockSpace - Ebenenliste und Missionsansicht ein Knoten im Hauptfenster",
                    [] { return dock1::reiterImHauptfenster("mission.ebenen", "mission.ansicht"); }));
+        // dock4: auch die Baeume von Map Editor und Menu Editor kommen in die Einstellungen -
+        // XY als Reiter auf der Kamera (Regular), die Flaeche des Menue-Editors schwebt.
+        add(tu("dock1: DockSpace - Map Editor Regular, XY heraus (fuer den Neustart)", [] {
+            g_app->leftMode = 3;
+            dock::herausnehmen("karte.xy");
+        }));
+        add(warteBis("dock1: DockSpace - XY draussen", [] { return dock::draussen("karte.xy"); }, 60));
+        add(stabil("dock1: DockSpace - XY schwebt", 10));
+        add(tu("dock1: DockSpace - XY als Reiter auf die Kamera (fuer den Neustart)", [] {
+            ImGuiWindow* xy = dock1::panelFenster("karte.xy");
+            ImGuiWindow* kam = dock1::panelFenster("karte.kamera");
+            if (xy != nullptr && kam != nullptr && kam->DockNode != nullptr) {
+                ImGui::DockContextQueueDock(GImGui, kam->DockNode->HostWindow, kam->DockNode, xy, ImGuiDir_None, 0.0F, false);
+            }
+        }));
+        add(stabil("dock1: DockSpace - Reiter im Map Editor", 15));
+        add(pruefe("dock1: DockSpace - XY und Kamera ein Knoten im Hauptfenster",
+                   [] { return dock1::reiterImHauptfenster("karte.xy", "karte.kamera"); }));
+        add(tu("dock1: DockSpace - Menu Editor, Flaeche heraus (fuer den Neustart)", [] {
+            g_app->leftMode = 4;
+            dock::herausnehmen("menue.flaeche");
+        }));
+        add(warteBis("dock1: DockSpace - Flaeche draussen", [] { return dock::draussen("menue.flaeche"); }, 60));
+        add(tu("dock1: DockSpace - Flaeche an feste Stelle", [] {
+            const ImGuiPlatformMonitor& m = dock1::hauptMonitor();
+            dock1::setze("menue.flaeche", ImVec2{m.WorkPos.x + 260.0F, m.WorkPos.y + 180.0F}, ImVec2{640.0F, 420.0F});
+        }));
+        add(stabil("dock1: DockSpace - Flaeche schwebt", 15));
+        add(tu("dock1: zurueck zur Mission", [] { g_app->leftMode = 1; }));
+        add(stabil("dock1: Mission", 10));
     }
     add(tu("dock1: Erwartung fuer dock1neustart schreiben", [] {
         dock::jetztMerken();
@@ -1063,6 +1111,27 @@ std::vector<Schritt> dock1NeustartSchritte() {
         add(tu("dock1neustart: Model zuruecksetzen", [] { dock::zuruecksetzen(2); }));
         add(stabil("dock1neustart: Model zurueckgesetzt", 20));
         add(pruefe("dock1neustart: DockSpace - Model = Standardanordnung", [] { return dockraumStandard(2) && !dock1::aktiv("modell.leiste"); }));
+        // dock4: Map Editor und Menu Editor aus den Einstellungen
+        add(tu("dock1neustart: DockSpace - Map Editor", [] { g_app->leftMode = 3; }));
+        add(stabil("dock1neustart: Map Editor", 30));
+        add(pruefe("dock1neustart: DockSpace - XY wieder als Reiter auf der Kamera im Hauptfenster (Baum des Map Editors)", [] {
+            diag::detail("Knopftest: dock1neustart: Map Editor " + dockvorgabe::schluesselVon(3));
+            return dock1::reiterImHauptfenster("karte.xy", "karte.kamera") && !dockvorgabe::standard(3);
+        }));
+        add(tu("dock1neustart: DockSpace - Map Editor zuruecksetzen", [] { dock::zuruecksetzen(3); }));
+        add(stabil("dock1neustart: Map Editor zurueckgesetzt", 20));
+        add(pruefe("dock1neustart: DockSpace - Map Editor = NRCs Anordnung", [] { return dockvorgabe::standard(3) && dock::zuhause("karte.xy"); }));
+        add(tu("dock1neustart: DockSpace - Menu Editor", [] { g_app->leftMode = 4; }));
+        add(stabil("dock1neustart: Menu Editor", 30));
+        add(pruefe("dock1neustart: DockSpace - Flaeche des Menue-Editors schwebt wieder an ihrer Stelle", [] {
+            const ImRect r = dock1::rect("menue.flaeche");
+            const ImGuiPlatformMonitor& m = dock1::hauptMonitor();
+            diag::detail("Knopftest: dock1neustart: Flaeche " + dock1::rechteck(r));
+            return dock::draussen("menue.flaeche") && std::fabs(r.Min.x - (m.WorkPos.x + 260.0F)) <= 1.0F &&
+                   std::fabs(r.Min.y - (m.WorkPos.y + 180.0F)) <= 1.0F && std::fabs(r.GetWidth() - 640.0F) <= 1.0F;
+        }));
+        add(tu("dock1neustart: DockSpace - Menu Editor zuruecksetzen", [] { dock::zuruecksetzen(4); }));
+        add(stabil("dock1neustart: Menu Editor zurueckgesetzt", 20));
         add(tu("dock1neustart: Mission", [] { g_app->leftMode = 1; }));
         add(stabil("dock1neustart: Mission wieder", 20));
     }

@@ -138,7 +138,7 @@ void fotoAnfordern(const std::string& pfad);
 void plattformHakenSetzen();
 // dock1, Selbsttest: das naechste fertige Bild des eigenen Fensters `id`
 // (ImGuiViewport::ID) lesen - Groesse und Zahl der Farben (Stichprobe jedes
-// zweiten Punkts, hoechstens 4096). Nur Direct3D 11.
+// zweiten Punkts, hoechstens 4096). Direct3D 11 und OpenGL (dock4).
 struct ViewportBild {
     unsigned id = 0;
     int breite = 0;

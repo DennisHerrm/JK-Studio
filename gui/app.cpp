@@ -29,6 +29,7 @@
 #include "tour.h"       // rc601 tour: Tutorials im Programm
 #include "hilfe.h"      // H1: der Helfer (F1)
 #include "fenster_dock.h"   // dock1: Panels herausnehmen, Anordnungen
+#include "dockvorgabe.h"    // dock4: Dreieck, alte Liste
 #include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
 #include "menueeditor.h"    // Menue-Editor M1: der Arbeitsbereich Menu Editor
 
@@ -5232,7 +5233,7 @@ void drawTlKante() {
                                : ImGuiCol_Separator));
 }
 
-#include "app_dockspace.inc"   // dock2: durchgehender DockSpace (in Arbeit, Schalter ab Werk aus)
+#include "app_dockspace.inc"   // dock2: durchgehender DockSpace (ab Werk an, BHED_DOCKSPACE=0 = Rueckweg)
 }  // namespace
 
 // dock2: der Schalter des DockSpace (app_dockspace.inc) fuer den Selbsttest.
@@ -6546,6 +6547,7 @@ void draw() {
             // Linie, der beim Ziehen den ANTEIL verschiebt. Die Klemmung
             // oben sorgt dafuer, dass keine Spalte unter ihre Grenze geht -
             // man stoesst an, statt ueber die Nachbarspalte zu ziehen.
+            dockraum::g_linie = dockraum::Linie{};
             if (g_app->spaltenGesamt > 1.0F && g_app->tabelleUnten > g_app->tabelleOben) {
                 const ImVec2 zurueck = ImGui::GetCursorScreenPos();
                 const float griffB = std::max(4.0F, ImGui::GetStyle().ItemSpacing.x);
@@ -6558,18 +6560,24 @@ void draw() {
                                            ImVec2{griffB * 2.0F, g_app->tabelleUnten - g_app->tabelleOben},
                                            static_cast<ImGuiButtonFlags>(dockraum::an() ? static_cast<int>(ImGuiButtonFlags_FlattenChildren) : 0));
                     const bool aktiv = ImGui::IsItemActive();
+                    // dock4: ueber den Panels meldet IsItemHovered nichts (das Hauptfenster ist
+                    // nicht das Fenster unter der Maus) - der Knopf selbst (FlattenChildren) schon.
+                    const bool ueber = ImGui::IsItemHovered() || (dockraum::an() && GImGui->HoveredId == ImGui::GetItemID());
                     if (ImGui::IsItemActivated()) {
                         diag::detail(std::string("Teiler ") + (k == 0 ? "links" : "rechts") + " gepackt bei " +
                                      std::to_string(g_app->teilerX[k]));
                         g_app->teilerStartMaus = ImGui::GetIO().MousePos.x;
                         g_app->teilerStartBreite = g_app->spaltenZiel[k == 0 ? 0 : 2];
                     }
-                    if (ImGui::IsItemHovered() || aktiv) {
+                    if (ueber || aktiv) {
                         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-                        ImGui::GetWindowDrawList()->AddLine(
-                            ImVec2{g_app->teilerX[k], g_app->tabelleOben},
-                            ImVec2{g_app->teilerX[k], g_app->tabelleUnten},
-                            ImGui::GetColorU32(aktiv ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered), 2.0F);
+                        const ImU32 farbe = ImGui::GetColorU32(aktiv ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered);
+                        if (dockraum::an()) {   // dock4: ueber den Panels (dockraum::zeichnen)
+                            dockraum::g_linie = dockraum::Linie{true, g_app->teilerX[k], g_app->tabelleOben, g_app->tabelleUnten, farbe};
+                        } else {
+                            ImGui::GetWindowDrawList()->AddLine(ImVec2{g_app->teilerX[k], g_app->tabelleOben},
+                                                                ImVec2{g_app->teilerX[k], g_app->tabelleUnten}, farbe, 2.0F);
+                        }
                     }
                     if (aktiv) {
                         // ABSOLUT: Breite beim Anfassen plus der Weg der Maus
@@ -6650,8 +6658,9 @@ void draw() {
         dock::heimPlatz(g_app->leftMode == 2 ? "modell.leiste" : "mission.zeitleiste", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         ImGui::PopStyleColor();
     }
-    // dock1: die herausgenommenen Panels in ihren eigenen Fenstern.
-    if (!dockraum::an() || g_app->leftMode > 2) { drawDockFenster(l); }
+    // dock1: die herausgenommenen Panels in ihren eigenen Fenstern (im DockSpace
+    // zeichnet jeder Bereich seine Panels selbst - dockraum::zeichnen, dockvorgabe.h).
+    if (!dockraum::an()) { drawDockFenster(l); }
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

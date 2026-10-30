@@ -1,13 +1,15 @@
-// app_dockspace.inc - dock2 (in Arbeit): ein durchgehender DockSpace je Bereich
+// app_dockspace.inc - dock2: ein durchgehender DockSpace je Bereich
 //
 // shank: "wie bei Blender": jedes Panel ueberall hin - auch an jede Stelle im
 // Hauptfenster (neben, unter, ueber, als Reiter zu jedem anderen Panel).
 //
-// Stand: Events, Mission und Model. Schalter ab Werk AUS (dockraum::an();
-// BHED_DOCKSPACE=1 schaltet ihn beim Start an, der Selbsttest dock2mass schaltet
-// ihn zum Vergleichen um). Map Editor und Menu Editor bleiben wie in dock1.
-// Der Baum steht mit den Panellagen in den Einstellungen (Neustart, benannte
-// Anordnungen); Anordnungen aus dock1 werden beim ersten Aufbau uebernommen.
+// Events, Mission und Model; Map Editor und Menu Editor haben ihre eigene
+// Vorgabe (dockvorgabe.h). Schalter ab Werk AN (dock4; dockraum::an()):
+// BHED_DOCKSPACE=0 schaltet ihn beim Start aus - der Rueckweg zu dock1 (Panels
+// an festen Plaetzen, nur in eigene Fenster); der Selbsttest dock2mass schaltet
+// ihn zum Vergleichen um. Der Baum steht mit den Panellagen in den
+// Einstellungen (Neustart, benannte Anordnungen); Anordnungen aus dock1 werden
+// beim ersten Aufbau uebernommen.
 //
 // Die Standardanordnung entsteht nicht aus eigenen Rechnungen: dieselben
 // ImGui-Tabellen wie vorher richten sich ein (nur gemessen, ohne Inhalt), und
@@ -23,7 +25,7 @@ namespace dockraum {
 bool& an() {
     static bool a = [] {
         const char* e = std::getenv("BHED_DOCKSPACE");
-        return e != nullptr && e[0] == '1';
+        return e == nullptr || e[0] != '0';
     }();
     return a;
 }
@@ -45,6 +47,18 @@ struct Messung {
     float unten = 0.0F;   // Zeilenende der Tabelle (Inhalt der Zellen + Zellpolster)
 };
 Messung g_mess;
+
+// dock4: die Hover-Linie eines alten Griffs (app.cpp, ##spalteLinks/##spalteRechts).
+// Im Hauptfenster gezeichnet laege sie unter den Panels (zu sehen war nur der
+// 1-Punkt-Spalt) - sie kommt in die Zeichenlisten der Panels, an deren Rand sie liegt.
+struct Linie {
+    bool an = false;
+    float x = 0.0F;
+    float oben = 0.0F;
+    float unten = 0.0F;
+    ImU32 farbe = 0;
+};
+Linie g_linie;
 
 void zelleMessen(int k) {
     const ImGuiTable* t = ImGui::GetCurrentTable();
@@ -236,6 +250,11 @@ bool uebernehmen(int b) {
     raum.heim = heimAusBaum(b, n);
     raum.knoten = static_cast<int>(2 * p.size() - 1);
     raum.frisch = false;
+    // dock4, Randfall Schalter an/aus/an: ohne DockSpace herausgenommene Panels
+    // (Liste aus dock1, neuer als der Baum) schweben; die Liste ist erledigt.
+    std::vector<std::string> ids;
+    for (const Blatt& x : p) { ids.emplace_back(x.id); }
+    dockvorgabe::alteListeSchweben(b, id, ids);
     modusFesthalten(panelKnoten(p[0]));
     diag::detail("Fenster: gespeicherter DockSpace von Bereich " + std::to_string(b) + " uebernommen (" + std::to_string(knotenZaehlen(n)) +
                  " Knoten)");
@@ -417,9 +436,31 @@ void zeichnen(const Layout& l) {
         const bool innen = i < static_cast<std::size_t>(g_mess.innenN);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             ImVec2{st.CellPadding.x, band ? st.ItemSpacing.y - 1.0F : st.CellPadding.y * 2.0F});
+        int farben = 0;
+        dockvorgabe::dreieckStil(farben);   // dock4: ImGuis Dreieck erst unter der Maus, ueber dem Inhalt
         ImGui::SetNextWindowClass(&k);
         const bool lassen = (alteListe && dock::inListeDraussen(p[i].id)) ||
                             std::find(raum.draussenLassen.begin(), raum.draussenLassen.end(), p[i].id) != raum.draussenLassen.end();
+        // dock4, Schalter an/aus/an: ohne DockSpace heraus und wieder an seinen Platz -
+        // sein Knoten ist weg (fenster_dock: heimVormerken). In sein Blatt, gibt es das
+        // nicht mehr, die Standardanordnung neu (in eigenen Fenstern bleibt, was draussen ist).
+        const ImGuiID knoten = panelKnoten(p[i]);
+        if (!raum.frisch && !lassen && knoten != 0 && ImGui::DockBuilderGetNode(knoten) == nullptr) {
+            const ImGuiDockNode* h = i < raum.heim.size() && raum.heim[i] != 0 ? ImGui::DockBuilderGetNode(raum.heim[i]) : nullptr;
+            if (h != nullptr && h->IsLeafNode() && h->Windows.Size == 0) {
+                ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always);
+            } else {
+                raum.neuBauen = true;
+                raum.draussenLassen.clear();
+                for (const Blatt& x : p) {
+                    if (x.id != p[i].id && draussen(x.id)) { raum.draussenLassen.emplace_back(x.id); }
+                }
+                diag::detail(std::string("Fenster: Panel ") + p[i].id + " ohne Knoten - Standardanordnung neu");
+                ImGui::PopStyleColor(farben);
+                ImGui::PopStyleVar();
+                continue;
+            }
+        }
         if (raum.frisch && !lassen) { ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always); }
         // In einem eigenen Fenster mit Schliessknopf: Schliessen dockt es wieder an
         // (wie dock1); im Hauptfenster ohne (die Reiterleiste ist versteckt).
@@ -430,7 +471,9 @@ void zeichnen(const Layout& l) {
         // gespeicherte Anordnungen bringen ihn zurueck (uebernehmen).
         const bool sichtbar = ImGui::Begin(fensterName(p[i]).c_str(), schwebt ? &offen : nullptr,
                                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::PopStyleColor(farben);
         ImGui::PopStyleVar();
+        const dockvorgabe::Dreieck dreieck = dockvorgabe::dreieckBeginnen();
         if (sichtbar && !band && !innen) { ImGui::SetCursorPosY(ImGui::GetCursorPosY() - st.CellPadding.y); }
         if (sichtbar && std0 && i == letzteSpalte && i < r.size()) {
             // Der Knoten ist so breit wie das Band; der Inhalt bleibt so breit wie die Spalte.
@@ -442,6 +485,15 @@ void zeichnen(const Layout& l) {
             }
         }
         if (sichtbar) { panelInhalt(p[i].id, l); }
+        if (sichtbar && g_linie.an) {
+            ImGuiWindow* w = ImGui::GetCurrentWindow();
+            if (g_linie.x + 2.0F >= w->Pos.x && g_linie.x - 2.0F <= w->Pos.x + w->Size.x) {
+                w->DrawList->PushClipRect(w->Pos, ImVec2{w->Pos.x + w->Size.x, w->Pos.y + w->Size.y}, false);
+                w->DrawList->AddLine(ImVec2{g_linie.x, g_linie.oben}, ImVec2{g_linie.x, g_linie.unten}, g_linie.farbe, 2.0F);
+                w->DrawList->PopClipRect();
+            }
+        }
+        dockvorgabe::dreieckEnde(dreieck);
         ImGui::End();
         if (!offen) { dock::andocken(p[i].id); }
     }

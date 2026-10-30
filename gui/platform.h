@@ -148,6 +148,9 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // dock3, Selbsttest: eine Datei auf ein Windows-Fenster ablegen wie aus dem
 // Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
+// dock4, Selbsttest: nimmt das Windows-Fenster Dateien an (WS_EX_ACCEPTFILES,
+// DragAcceptFiles)? Nur dann schickt der Explorer beim Loslassen WM_DROPFILES.
+bool nimmtDateien(void* fenster);
 
 // M7: glGetString(GL_VENDOR/RENDERER/VERSION/EXTENSIONS) des OpenGL-Treibers, wie das Spiel sie fuer
 // UI_GLINFO liest (verstecktes Fenster, Pixelformat 32/24/8, Kontext gleich wieder weg). false = kein GL.

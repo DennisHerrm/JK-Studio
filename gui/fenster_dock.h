@@ -42,6 +42,8 @@ struct Panel {
 [[nodiscard]] const Panel* panel(const std::string& id);
 // Das Kennungspraefix der Panels eines Bereichs ("mission." usw.).
 [[nodiscard]] const char* praefix(int bereich);
+// Der ImGui-Name des Panelfensters ("<Titel>###dock.<id>").
+[[nodiscard]] std::string fensterName(const char* id);
 
 // Steht das Panel an seinem Platz im Hauptfenster (Vorgabe)?
 [[nodiscard]] bool zuhause(const char* id);
@@ -88,6 +90,12 @@ void heimPlatz(const char* id, const ImVec2& a, const ImVec2& b);
 // Wohin das Panel beim Zurueckziehen muss: sein zuletzt gemeldeter Platz, sonst
 // die Mitte des Hauptfensters (Bildschirmpunkte).
 void zielPlatz(const char* id, ImVec2& a, ImVec2& b);
+// Startlage eines neuen Panelfensters (vor Begin, nur fuer ein Fenster, das es
+// noch nicht gibt): wo das Panel im Hauptfenster stand, etwas versetzt - man
+// sieht, dass es jetzt ein eigenes Fenster ist - und ganz im Hauptfenster.
+// SetNextWindowPos loest ein angedocktes Fenster aus seinem Dock-Knoten
+// (BeginDocked, PosUndock), daher nur fuer neue Fenster.
+void startLage(const char* id);
 
 // Der Inhalt des Menues "Fenster" fuer den Bereich und das Menue selbst.
 void menueInhalt(int bereich);

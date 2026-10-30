@@ -497,6 +497,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/ki.cpp
     # dock1: Panels herausnehmen, andocken, Anordnungen je Bereich.
     gui/fenster_dock.cpp
+    # dock4: Map Editor und Menu Editor im DockSpace (Vorgabe aus ihren Teilern).
+    gui/dockvorgabe.cpp
     gui/update_win32.cpp
     gui/vektoricons.cpp
     gui/wache_win32.cpp

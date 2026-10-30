@@ -148,6 +148,18 @@ Bisektionsschalter für die Zustände (Tiefe, Keulen). Wenn ein Bildfehler
 nach einer Zustandsänderung auftritt, grenzt er ihn in einem Bau ein statt
 in dreien.
 
+### 3.5 `BHED_OPENGL` (dock4)
+
+```
+BHED_OPENGL=1
+```
+
+startet gleich mit OpenGL 3.3 statt mit Direct3D 11 – der Weg, den das
+Programm sonst nur nimmt, wenn Direct3D 11 nicht startet. Damit lässt sich
+dieser Weg prüfen (eigene Fenster der Panels, deren Bild der Selbsttest dann
+mit `glReadPixels` liest), ohne dass Direct3D fehlen muss. Fotos des
+Selbsttests (`BHED_FOTOS`) gibt es nur unter Direct3D 11.
+
 ---
 
 ## 4. Was noch fehlt — und was am meisten brächte
