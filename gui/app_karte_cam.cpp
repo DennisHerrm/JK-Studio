@@ -35,6 +35,8 @@
 #include "bhed/karte/manipulator.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
+#include "bhed/karte/spielkollision.h"
+#include "bhed/saberspuren.h"
 #include "karte_echtlicht.h"
 #include "karte_gpu.h"
 #include "platform.h"

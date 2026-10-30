@@ -28,6 +28,7 @@
 #define BHED_KARTE_SPIELKOLLISION_H
 
 #include "bhed/kollision.h"
+#include "bhed/saberspuren.h"
 
 #include <cstdint>
 #include <functional>
@@ -76,6 +77,17 @@ struct SpielKollisionsBericht {
 // des Spiels (der BSP-Baum beschleunigt nur), nur bei genau gleich weiten
 // Treffern kann die gemeldete Ebene eine andere sein.
 SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja, KollisionsKarte& aus);
+
+// Die Welt fuer R_MarkFragments (Marken: Decals der Effekte, Brandspuren) aus den
+// Brushes und Patches, wie q3map2 sie als Zeichenflaechen in die Welt der .bsp
+// schreibt: nur worldspawn und func_group (MoveBrushesToWorld, map.cpp:1659 - andere
+// Brush-Entities sind eigene Modelle, R_MarkFragments geht nur tr.world ab); je Seite
+// eines Brushes eine ebene Flaeche, ausser C_NODRAW ohne C_FOG (ClipSidesIntoTree,
+// surface.cpp:1411) und Ursprungs-Brushes; Patches ausser SURF_NODRAW (ParseMesh: SF_SKIP).
+// SURF_NOIMPACT, SURF_NOMARKS und CONTENTS_FOG laesst R_BoxSurfaces_r liegen.
+// Abweichung: die Seiten sind ganz, nicht auf den sichtbaren Teil beschnitten
+// (visibleHull) - Bruchstuecke im Inneren anderer Brushes sieht man nicht.
+[[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const SurfaceparmFn& parms, bool ja);
 
 }  // namespace bhed::karte
 

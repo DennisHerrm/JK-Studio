@@ -82,6 +82,8 @@
 
 namespace bhed {
 
+struct SpurWelt;   // saberspuren.h
+
 // Ein laufender Effekt in der Welt.
 struct EffectInstance {
     const efx::Effect* effect = nullptr;
@@ -454,12 +456,15 @@ struct EffectCull {
 // Proben (Vorlage gegen Hilfe) und fuer wen Speicher freigeben will.
 void vergissEffektBahnen();
 
+// marken: die Flaechen fuer die Decals (R_MarkFragments), wenn es keine .bsp
+// gibt (Karten-Editor: markenWeltAusKarte); sonst die Welt aus geo.
 [[nodiscard]] BspMesh buildEffectMesh(const std::vector<EffectInstance>& live,
                                       double nowMs, const float right[3],
                                       const float up[3],
                                       const EffectShaderSlots* slots = nullptr,
                                       const BspGeometry* geo = nullptr,
-                                      const EffectCull* cull = nullptr);
+                                      const EffectCull* cull = nullptr,
+                                      const SpurWelt* marken = nullptr);
 
 // --- rc601 ton: wann ein Effekt KLINGT ---------------------------------------
 //
