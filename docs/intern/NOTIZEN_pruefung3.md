@@ -228,7 +228,65 @@ Stand:
     Spiel unbelegt (Stapelinhalt) - hier 0. SET_PLAYER_TEAM kennt die Szene
     nicht (Team aus der .npc). maxs[2] des Feindes geduckt nach der
     Animation BOTH_CROUCH*.
-- Punkt 1/2/4/5/6/7: nur gelesen (Engine-Stellen, siehe unten), nichts gebaut.
+- Punkt 4 (PM_TryRoll aus vollem Lauf beim Ducken) fertig: Wegplaner
+  (navlauf) - PM_Footsteps nach der Bewegung: geduckt, am Boden, ucmd mit
+  Bewegung, Beine kamen aus einer Laufanimation (LaufZustand::Sprung::rennt =
+  PM_RunningAnim des letzten PM_Footsteps) -> PM_TryRoll: Spur 192 vorwaerts
+  (CONTENTS_SOLID|MONSTERCLIP|BOTCLIP, Kasten mins+STEPSIZE/crouchheight),
+  frei -> Boden innerhalb 256 darunter, sonst rollen ausser BOTCLIP; G_StartRoll
+  BOTH_ROLL_F/B/R/L (SETANIM_BOTH, HOLDLESS (numFrames-1)*lerp-1, neue Codes
+  kSaRollF..L der Sprungkette). ClientThink in der Rolle: PM_CmdForRoll (127),
+  moveDir leer, ps.speed 400 (G_CheckRollSafety fuer BOTH_ROLL_* immer qtrue);
+  PM_CheckDuck: in der Rolle crouchheight/PMF_DUCKED; PM_WalkMove eines NPC
+  ohne moveDir mit ucmd: wishdir aus ucmd ("Generating MoveDir"), mal
+  pm_duckScale -> 200. Wer darf (npcDarfRollen): OpenJK mit Schwert nur
+  RANK_CREWMAN/ab RANK_LT_JG, andere Waffe nur BOBAFETT/REBORN, ohne Waffe
+  alle; JK2 nur Schwert/ohne Waffe und Rang fuer alle; MD keine Pruefung;
+  SCF_NO_ACROBATICS (OJ/JK2).
+  - Rot (Rolle abgeschaltet): pruefung3 6 Fehler "PM_TryRoll aus vollem Lauf";
+    gruen alle 9 Faelle (3 Regelwerke x WP_NONE / WP_SABER ohne Rang / ltjg).
+  - Offen: Movie Duels ruft fuer CLASS_VADER/CLASS_DESANN in PM_TryRoll
+    PM_SaberLungeAttackMove(qtrue) - in einer Kamerafahrt (in_camera) ohne
+    Wirkung, sonst je Stil ps.velocity 150 vorwaerts/50 hoch; der Wegplaner
+    kennt in_camera nicht, nicht nachgebaut.
+- Punkt 6 (Blinzeln/Leerlaufmimik) fertig: bhed/gesicht.h (gesichtPlanen,
+  gesichtBei) bildet CG_G2PlayerHeadAnims/CG_G2SetHeadBlink nach (tot
+  FACE_DEAD; facial_blink Q_flrand(4000,8000), 300 ms zu, leye/reye YAW -38
+  BONE_ANGLES_POSTMULT - die blendTime 80 wertet G2_TransformBone fuer POSTMULT
+  nicht aus, also ohne Mischung; ohne Kamerafahrt 5 % Zwinkern nur links;
+  facial_timer Q_flrand(6000,10000), Mimik FACE_ALERT+Q_irand(0,2) 2000 ms,
+  dann Q_flrand(7000,10000); Sprechen setzt Q_flrand(2000,7000); nach dem
+  Sprechen bleibt der letzte Mund stehen) und Q3_Face (SET_FACEEYESCLOSED ...
+  SET_FACENORMAL, BLINKFROWN faellt wie im Spiel in FROWN durch). Szene:
+  Actor::gesicht aus den Skripten; Zeichnung: ActorDraw::augeLinks/Rechts ->
+  figurKnochen multipliziert die Lidknochen (Create_Matrix wie G2_Generate_
+  Matrix mit POSITIVE_Y/Z/X); app_view3d gesichtsPlan je Szenenbau.
+  - Abweichung: Q_flrand zieht im Spiel aus dem gemeinsamen Strom aller
+    Aufrufe - hier je Figur ein fester Strom (FNV-1a des Namens), damit die
+    Vorschau beim Spulen gleich bleibt; in_camera = es gibt eine Kamerafahrt.
+  - Test pruefung3 "6. Blinzeln" (Zeitpunkte gegen die Zuege, Sprechen,
+    SET_FACEEYESCLOSED, tot, Zwinkeranteil 30/574); rot: vorher gab es weder
+    Lider noch Mimik ("Nicht nachgebaut" in app_view3d).
+  - Punkt 4 dazu: Ablauf und Szene fragen PM_TryRoll ueber denselben Rueckruf
+    (AblaufWelt/SzenenHilfe::darfRollen) - sonst passen die Schluessel der
+    Koerperplaene nicht (bewegung K4/KJ5-7/UK0/UK15/16 waren rot).
+- Punkt 5 (Teil tag_hack): SABER_ARC, SABER_STAR, SABER_TRIDENT zeichnen ihre
+  Klingen am "*flash" wie CG_AddSaberBlade (KlingenLage Bogen/Stern/Dreizack,
+  ARC mit VectorNormalizeFast = Q_rsqrt; Movie Duels gleich); der tag_hack steht
+  jetzt in mapview klingenTagHack (pruefung3 "7. tag_hack" gegen die Formeln).
+- Punkt 5 (Rest): Zuendklang - spielt schon tonKlingen (gui/app_ton.cpp, aus
+  rc601 integ) fuer jede Klinge, die an ist und bei Laenge 0 anfaengt, also
+  auch nach SET_SABER1/2 (WP_SetSaber zuendet) und BLADEON; der Summton
+  laeuft ebenso. Der Kopf von ausruestung.cpp war veraltet und ist berichtigt.
+  Muendung: CalcMuzzlePoint nimmt renderInfo.muzzlePoint aus dem Bolzen
+  "*flash" des Waffenmodells in der rechten Hand (CG_Player) - jetzt
+  figurMuendung; ohne Waffenmodell (SBD) wie bisher der Ursprung.
+  - Holster: nur Movie Duels (WP_SaberAddHolsteredG2SaberModels; OpenJK und
+    JK2 haben es nicht - dort verschwindet der Griff wie in der Vorschau). Die
+    MD-Holsterorte je holsterPlace/Stil/Schwert (wp_saber.cpp:1170 ff. MD, ueber
+    300 Zeilen, dazu die Aufrufe in NPC_spawn, Q3_Interface, bg_pmove,
+    g_active, g_client) sind in dieser Runde nicht mehr gebaut - offen.
+- Punkt 1/2/5/7: nur gelesen (Engine-Stellen, siehe unten), nichts gebaut.
   - Leiche: CorpsePhysics je NPC_Think (erstes Pmove nach dem Tod 1 ms wegen
     serverTime = level.time - 1000, dann 50), PM_DEAD: kein PM_CheckDuck,
     PM_DeadMove (-20 je Bild am Boden), PM_Friction mit ps.friction (6, 0 nach
@@ -264,6 +322,10 @@ Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
 - A crouched figure (SET_CROUCHED) now walks crouched at half speed with BOTH_CROUCH1WALK (backwards BOTH_CROUCH1WALKBACK) and stands up again when there is room.
 - On a slope, a standing figure puts its feet like in the game (the slope leg animations, one step every 100 ms).
 - SET_ANIM with an animation the model does not have no longer changes anything, like in the game.
+- A figure that dies with its saber blade switched off now also loses the saber like in the game: it is launched from the hand, homes once towards the eyes or a nearby enemy and then falls; a saber that is dropped stays hanging at the hand until the hand has moved away, and in Jedi Outcast a lying saber vanishes only after five seconds.
+- A crouching figure that was running at full speed now rolls forward like in the game (BOTH_ROLL_F and the other rolls), if its rule set, weapon, class and rank allow it.
+- Figures now blink and make idle faces (alert, smile, frown) like in the game, close their eyes when dead, and follow the SET_FACE script commands.
+- Sabers of the types SABER_ARC, SABER_STAR and SABER_TRIDENT without blade tags now place their blades like in the game, and shots leave from the muzzle of the drawn weapon model.
 
 ## Deutsch
 - Liegende Figuren sterben wie im Spiel: der Rumpfwinkel fuer die Todesanimation kommt jetzt aus dem Brustknochen des gezeichneten Skeletts (je Regelwerk: OpenJK, Movie Duels, Jedi Outcast) - eine Figur auf dem Ruecken stirbt mit BOTH_DEATH_LYING_UP statt immer mit BOTH_DEATH_LYING_DN.
@@ -272,6 +334,10 @@ Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
 - Eine geduckte Figur (SET_CROUCHED) geht jetzt geduckt mit halbem Tempo und BOTH_CROUCH1WALK (rueckwaerts BOTH_CROUCH1WALKBACK) und steht wieder auf, wenn Platz ist.
 - Am Hang stellt eine stehende Figur die Fuesse wie im Spiel (die Hang-Beinanimationen, eine Stufe je 100 ms).
 - SET_ANIM mit einer Animation, die das Modell nicht hat, aendert wie im Spiel nichts mehr.
+- Stirbt eine Figur mit ausgeschalteter Klinge, verliert sie das Schwert jetzt ebenfalls wie im Spiel: es geht aus der Hand, zielt einmal zu den Augen oder einem Feind in der Naehe und faellt dann; ein fallen gelassenes Schwert haengt an der Hand, bis die Hand sich entfernt hat, und in Jedi Outcast verschwindet ein liegendes Schwert erst nach fuenf Sekunden.
+- Eine Figur, die aus vollem Lauf in die Hocke geht, rollt jetzt wie im Spiel (BOTH_ROLL_F und die anderen Rollen), wenn Regelwerk, Waffe, Klasse und Rang es erlauben.
+- Figuren blinzeln jetzt und zeigen Leerlaufmimik (wach, Laecheln, Stirnrunzeln) wie im Spiel, schliessen tot die Augen und folgen den Skriptbefehlen SET_FACE*.
+- Schwerter der Arten SABER_ARC, SABER_STAR und SABER_TRIDENT ohne Klingenbolzen legen ihre Klingen jetzt wie im Spiel, und Schuesse gehen von der Muendung des gezeichneten Waffenmodells aus.
 
 ## 中文
 - 躺着的角色死亡时与游戏一致：死亡动画所用的躯干角度现在取自所绘骨架的胸骨（按规则集：OpenJK、Movie Duels、Jedi Outcast）——仰躺的角色以 BOTH_DEATH_LYING_UP 死亡，而不再总是 BOTH_DEATH_LYING_DN。
@@ -280,6 +346,10 @@ Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
 - 蹲下的角色（SET_CROUCHED）现在以一半速度蹲行，使用 BOTH_CROUCH1WALK（后退为 BOTH_CROUCH1WALKBACK），有空间时会重新站起。
 - 在斜坡上，站立的角色会像游戏中一样摆放双脚（斜坡腿部动画，每 100 毫秒一级）。
 - 对模型没有的动画使用 SET_ANIM 时，与游戏一样不再产生任何变化。
+- 角色在光剑关闭状态下死亡时，现在也会像游戏中一样失去光剑：光剑离手，先朝眼睛或附近的敌人飞一次，然后落下；掉落的光剑会悬在手边，直到手移开为止；在 Jedi Outcast 中，落地的光剑五秒后才消失。
+- 全速奔跑的角色蹲下时，现在会像游戏中一样翻滚（BOTH_ROLL_F 及其他翻滚），前提是规则集、武器、职业和等级允许。
+- 角色现在会像游戏中一样眨眼并做出空闲表情（警觉、微笑、皱眉），死亡时闭眼，并遵循 SET_FACE* 脚本命令。
+- 没有剑刃挂点的 SABER_ARC、SABER_STAR 和 SABER_TRIDENT 类型光剑现在像游戏中一样摆放剑刃，射击从所绘武器模型的枪口发出。
 
 ## 日本語
 - 横たわったキャラクターがゲームと同じように死ぬようになりました：死亡アニメーションの胴体角度は、描画されたスケルトンの胸の骨から取るようになりました（ルールセットごと：OpenJK、Movie Duels、Jedi Outcast）。仰向けのキャラクターは、常に BOTH_DEATH_LYING_DN ではなく BOTH_DEATH_LYING_UP で死にます。
@@ -288,3 +358,7 @@ Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
 - しゃがんだキャラクター（SET_CROUCHED）は、半分の速度で BOTH_CROUCH1WALK（後退は BOTH_CROUCH1WALKBACK）を使ってしゃがみ歩きし、空間があれば立ち上がるようになりました。
 - 斜面では、立っているキャラクターがゲームと同じように足を置きます（斜面用の脚アニメーション、100 ミリ秒ごとに 1 段階）。
 - モデルにないアニメーションを SET_ANIM で指定しても、ゲームと同じく何も変わらなくなりました。
+- ブレードをオフにしたまま死んだキャラクターも、ゲームと同じようにライトセーバーを失うようになりました：セーバーは手から離れ、一度だけ目または近くの敵に向かってから落下します。落としたセーバーは手が離れるまで手元に浮いたままで、Jedi Outcast では床のセーバーは 5 秒後に消えます。
+- 全力で走っていたキャラクターがしゃがむと、ルールセット、武器、クラス、ランクが許せばゲームと同じように転がるようになりました（BOTH_ROLL_F などのロール）。
+- キャラクターはゲームと同じようにまばたきし、待機中の表情（警戒、笑顔、しかめ面）を見せ、死ぬと目を閉じ、SET_FACE* スクリプトコマンドに従うようになりました。
+- ブレードタグのない SABER_ARC、SABER_STAR、SABER_TRIDENT 型のセーバーはゲームと同じようにブレードを配置し、射撃は描画された武器モデルの銃口から出るようになりました。

@@ -34,13 +34,12 @@
 //   * Linke Waffe nach NPC_class (REBORN ab RANK_LT_COMM mit
 //     WP_BLASTER_PISTOL, Calo Nord mit WP_REBELBLASTER; NPC_spawn.cpp:716
 //     ff.) - die Klasse steht nicht in NpcDef.
-//   * tag_hack fuer SABER_ARC, SABER_STAR, SABER_TRIDENT.
-//   * Klaenge: nur SET_SABERACTIVE spielt An/Aus (Zeitleiste). Dass die
-//     Engine soundOn auch beim Zuenden durch SET_SABER1/2 und BLADEON
-//     spielt (cg_players.cpp:16263), fehlt; den Summton gibt es als
-//     ActorState::saberLoop, gespielt wird er noch nicht.
-//   * Die Muendung eines Schusses kommt weiter aus dem Ursprung der Figur
-//     (muzzlePoint), nicht vom Bolzen "*flash" des Waffenmodells.
+//   (Der Zuendklang - soundOn fuer jede Klinge, die an ist und bei Laenge 0
+//   anfaengt, also auch nach SET_SABER1/2 und BLADEON - und der Summton
+//   kommen aus gui/app_ton.cpp, tonKlingen; der tag_hack fuer SABER_ARC/STAR/
+//   TRIDENT aus mapview klingenTagHack - Pruefung 4a.)
+//   (Die Muendung eines Schusses: Bolzen "*flash" des Waffenmodells,
+//   gui/app_view3d.cpp figurMuendung - Pruefung 4a.)
 #include "bhed/regelwerk.h"
 #include "bhed/scene.h"
 

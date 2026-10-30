@@ -3383,6 +3383,9 @@ bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, f
 // Pruefung 4a: renderInfo.eyePoint aus dem headBolt (kopfBolzen) zur Zeit ms;
 // false: kein headBolt (dann gilt der Ursprung der Figur).
 bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]);
+// Pruefung 4a: renderInfo.muzzlePoint - der Bolzen "*flash" des Waffenmodells in
+// der rechten Hand (CG_Player, cg_players.cpp:7581-7596 OJ); false: keins.
+bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, float muendung[3]);
 // Pruefung 4a: rumpfWinkel, handPunkt, augenPunkt und fussPunkte der
 // SzenenHilfe aus den gezeichneten Skeletten (index: Name -> actorAssets).
 void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index);

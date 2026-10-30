@@ -4346,9 +4346,14 @@ std::vector<EffectInstance> shotEffectsAt(double nowMs) {
             continue;
         }
 
-        // Die Muendung und die Richtung.
+        // Die Muendung und die Richtung. Pruefung 4a: CalcMuzzlePoint nimmt
+        // renderInfo.muzzlePoint, wenn cgame es eben rechnete (mPCalcTime) - den
+        // Bolzen "*flash" des gezeichneten Waffenmodells; ohne Modell (SBD) den
+        // Ursprung.
         float mp[3] = {};
-        muzzlePoint(st.pos, st.angles[1], waffe, mp);
+        const bool amModell = ai < g_app->actorAssets.size() && g_app->actorAssets[ai] &&
+                              figurMuendung(a, *g_app->actorAssets[ai], nowMs, mp);
+        if (!amModell) { muzzlePoint(st.pos, st.angles[1], waffe, mp); }
         const float r = st.angles[1] * 3.14159265358979F / 180.0F;
         float vorn[3] = {std::cos(r), std::sin(r), 0.0F};
         // Zielt die Figur auf etwas, fliegt es dorthin. SET_WATCHTARGET
@@ -4831,6 +4836,32 @@ bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, f
         l = std::sqrt(l);
         if (l <= 0.0F) { continue; }
         for (int r = 0; r < 3; ++r) { richtung[r] /= l; }
+        return true;
+    }
+    return false;
+}
+
+bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, float muendung[3]) {
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    anbautenFuer(a, st, ms, d);
+    for (int i = 0; i < d.anbauten; ++i) {
+        const AnbauDraw& an = d.anbau[static_cast<std::size_t>(i)];
+        // weaponModel[0]: kein Schwert, an der rechten Hand
+        if (an.model == nullptr || an.saberFach >= 0 || std::string(an.bolzen) != "*r_hand") { continue; }
+        BoneMatrix hand{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, an.bolzen), welt, *d.anim, hand)) { continue; }
+        // G2API_GetBoltMatrix(ghoul2, weaponModel[0], bolt "*flash") -> ORIGIN
+        BoneMatrix flash{};
+        if (!boltMatrixRigid(*an.model, surfaceIndex(*an.model, "*flash"), flash)) { return false; }
+        float gw[16];
+        gpu::baueGriffWelt(fw, hand, gw);
+        for (int r = 0; r < 3; ++r) {
+            muendung[r] = gw[r * 4 + 0] * flash.m[0][3] + gw[r * 4 + 1] * flash.m[1][3] + gw[r * 4 + 2] * flash.m[2][3] + gw[r * 4 + 3];
+        }
         return true;
     }
     return false;

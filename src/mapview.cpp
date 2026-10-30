@@ -4,6 +4,7 @@
 // renderModel). Gezeichnet wird seitdem nur noch ueber die Grafikkarte
 // (gui/gpumap_win32.cpp); geblieben ist, was beide Wege teilten.
 #include "bhed/mapview.h"
+#include "bhed/saberspuren.h"   // Pruefung 4a: spurRsqrt (VectorNormalizeFast)
 
 #include "bhed/wave.h"
 
@@ -920,7 +921,90 @@ KlingenLage klingenLageFuer(const std::string& typ) {
     if (typ == "SABER_PRONG") { return KlingenLage::Zinke; }
     if (typ == "SABER_SAI") { return KlingenLage::Sai; }
     if (typ == "SABER_CLAW") { return KlingenLage::Kralle; }
+    if (typ == "SABER_ARC") { return KlingenLage::Bogen; }
+    if (typ == "SABER_STAR") { return KlingenLage::Stern; }
+    if (typ == "SABER_TRIDENT") { return KlingenLage::Dreizack; }
     return KlingenLage::Einzeln;
+}
+
+// Pruefung 4a: der tag_hack von CG_AddSaberBlade (cg_players.cpp:6131-6299
+// OpenJK, CG_AddSaberBladeGo Movie Duels) - Ort und Achsen einer Klinge am
+// Bolzen "*flash" je saberType.
+void klingenTagHack(KlingenLage lage, int nummer, float org[3], float ax0[3], float ax1[3], const float ax2[3]) {
+    const auto vor = [org](const float* achse, float um) {
+        for (int k = 0; k < 3; ++k) { org[k] += achse[k] * um; }
+    };
+    switch (lage) {
+        case KlingenLage::Stab:
+            if (nummer == 1) {
+                for (int k = 0; k < 3; ++k) { ax0[k] = -ax0[k]; }
+                vor(ax0, 16.0F);
+            }
+            break;
+        case KlingenLage::Breit:
+            if (nummer == 0) { vor(ax1, -1.0F); }
+            if (nummer == 1) { vor(ax1, 1.0F); }
+            break;
+        case KlingenLage::Zinke:
+            if (nummer == 0) { vor(ax1, -3.0F); }
+            if (nummer == 1) { vor(ax1, 3.0F); }
+            break;
+        case KlingenLage::Sai:
+            if (nummer == 1) { vor(ax1, -3.0F); }
+            if (nummer == 2) { vor(ax1, 3.0F); }
+            break;
+        case KlingenLage::Kralle:
+            if (nummer >= 0 && nummer <= 2) {
+                vor(ax0, 2.0F);
+                vor(ax2, 2.0F);
+                if (nummer == 1) { vor(ax1, 2.0F); }
+                if (nummer == 2) { vor(ax1, -2.0F); }
+            }
+            break;
+        case KlingenLage::Bogen: {
+            // VectorSubtract(axis[1], axis[2], axis[1]); VectorNormalizeFast(axis[1])
+            for (int k = 0; k < 3; ++k) { ax1[k] -= ax2[k]; }
+            const float l2 = ax1[0] * ax1[0] + ax1[1] * ax1[1] + ax1[2] * ax1[2];
+            const float inv = spurRsqrt(l2);
+            for (int k = 0; k < 3; ++k) { ax1[k] *= inv; }
+            // je Klinge: org entlang axis[0], axis[0] = a * axis[0] + b * axis[1]
+            static constexpr float kVor[4] = {8.0F, 0.0F, -8.0F, -16.0F};
+            static constexpr float kA[4] = {0.75F, 0.25F, -0.25F, -0.75F};
+            static constexpr float kB[4] = {0.25F, 0.75F, 0.75F, 0.25F};
+            if (nummer >= 0 && nummer <= 3) {
+                const auto i = static_cast<std::size_t>(nummer);
+                if (kVor[i] != 0.0F) { vor(ax0, kVor[i]); }
+                for (int k = 0; k < 3; ++k) { ax0[k] = ax0[k] * kA[i] + ax1[k] * kB[i]; }
+            }
+            break;
+        }
+        case KlingenLage::Stern: {
+            // Klinge 0 und 3 entlang axis[0] (3 umgedreht), die anderen
+            // a * axis[0] + b * axis[2]; je 8 entlang der neuen axis[0]
+            static constexpr float kA[6] = {1.0F, 0.33F, -0.33F, -1.0F, -0.33F, 0.33F};
+            static constexpr float kB[6] = {0.0F, 0.67F, 0.67F, 0.0F, -0.67F, -0.67F};
+            if (nummer >= 0 && nummer <= 5) {
+                const auto i = static_cast<std::size_t>(nummer);
+                if (i != 0U) {
+                    for (int k = 0; k < 3; ++k) { ax0[k] = ax0[k] * kA[i] + ax2[k] * kB[i]; }
+                }
+                vor(ax0, 8.0F);
+            }
+            break;
+        }
+        case KlingenLage::Dreizack:
+            if (nummer >= 0 && nummer <= 2) {
+                if (nummer == 1) { vor(ax1, -6.0F); }
+                if (nummer == 2) { vor(ax1, 6.0F); }
+                vor(ax0, 24.0F);
+            } else if (nummer == 3) {
+                vor(ax0, -32.0F);
+                for (int k = 0; k < 3; ++k) { ax0[k] = -ax0[k]; }
+            }
+            break;
+        case KlingenLage::Einzeln:
+            break;
+    }
 }
 
 // Wurzel und Spitze einer Klinge im Raum des GRIFFS.
@@ -956,41 +1040,7 @@ bool klingenStrecke(const GlmModel& griff, KlingenLage lage, int nummer,
         ax1[k] = -m.m[k][1];
         ax2[k] = m.m[k][2];
     }
-    const auto vor = [&org](const float* achse, float um) {
-        for (int k = 0; k < 3; ++k) { org[k] += achse[k] * um; }
-    };
-    if (hack) {
-        switch (lage) {
-            case KlingenLage::Stab:
-                if (nummer == 1) {
-                    for (float& v : ax0) { v = -v; }
-                    vor(ax0, 16.0F);
-                }
-                break;
-            case KlingenLage::Breit:
-                if (nummer == 0) { vor(ax1, -1.0F); }
-                if (nummer == 1) { vor(ax1, 1.0F); }
-                break;
-            case KlingenLage::Zinke:
-                if (nummer == 0) { vor(ax1, -3.0F); }
-                if (nummer == 1) { vor(ax1, 3.0F); }
-                break;
-            case KlingenLage::Sai:
-                if (nummer == 1) { vor(ax1, -3.0F); }
-                if (nummer == 2) { vor(ax1, 3.0F); }
-                break;
-            case KlingenLage::Kralle:
-                if (nummer >= 0 && nummer <= 2) {
-                    vor(ax0, 2.0F);
-                    vor(ax2, 2.0F);
-                    if (nummer == 1) { vor(ax1, 2.0F); }
-                    if (nummer == 2) { vor(ax1, -2.0F); }
-                }
-                break;
-            case KlingenLage::Einzeln:
-                break;
-        }
-    }
+    if (hack) { klingenTagHack(lage, nummer, org, ax0, ax1, ax2); }
     for (int k = 0; k < 3; ++k) {
         wurzel[k] = org[k];
         spitze[k] = org[k] + ax0[k] * laenge;

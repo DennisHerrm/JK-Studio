@@ -512,8 +512,8 @@ inline constexpr int kAnbauMax = 6;
 // Wie die Klingen liegen, wenn der Griff keine "*bladeN"-Bolzen hat
 // (tag_hack in CG_AddSaberBladeGo, cg_players.cpp:13818 ff.). Nur die
 // Faelle, die Versaetze brauchen; alles andere zeichnet wie ein
-// Einzelschwert. Nicht nachgebildet: SABER_ARC, SABER_STAR und
-// SABER_TRIDENT - in den .sab-Dateien der Mod kommt keiner vor.
+// Einzelschwert. Pruefung 4a: dazu SABER_ARC, SABER_STAR und SABER_TRIDENT
+// (cg_players.cpp:6164-6299 OpenJK, Movie Duels :14076-14200 gleich).
 enum class KlingenLage : std::uint8_t {
     Einzeln,   // SABER_SINGLE und alle Abwandlungen: kein Versatz
     Stab,      // SABER_STAFF & Co.: Klinge 2 umgedreht, 16 weiter
@@ -521,10 +521,16 @@ enum class KlingenLage : std::uint8_t {
     Zinke,     // SABER_PRONG: -3 / +3 quer
     Sai,       // SABER_SAI: Klinge 2 -3, Klinge 3 +3 quer
     Kralle,    // SABER_CLAW: 2 vor, 2 hoch, Klinge 2/3 +-2 quer
+    Bogen,     // SABER_ARC: vier Klingen im Bogen (axis[1] - axis[2], VectorNormalizeFast)
+    Stern,     // SABER_STAR: sechs Klingen im Stern, je 8 vom Bolzen
+    Dreizack,  // SABER_TRIDENT: drei 24 vor (-6/0/+6 quer), eine 32 zurueck
 };
 
 // Die Lage aus dem saberType der .sab (gross geschrieben).
 [[nodiscard]] KlingenLage klingenLageFuer(const std::string& typ);
+// Pruefung 4a: der tag_hack fuer Klinge `nummer` - verschiebt org und dreht
+// ax0/ax1 (axis_[0..2] am Bolzen "*flash") wie CG_AddSaberBlade.
+void klingenTagHack(KlingenLage lage, int nummer, float org[3], float ax0[3], float ax1[3], const float ax2[3]);
 
 // Wurzel und Spitze von Klinge `nummer` im Raum des GRIFFS, nach
 // CG_AddSaberBladeGo: erst der Bolzen "*blade<nummer+1>", sonst "*flash"

@@ -15,6 +15,7 @@
 #include "bhed/bspgeo.h"
 #include "bhed/efx/io.h"
 #include "bhed/efxdraw.h"
+#include "bhed/mapview.h"
 #include "bhed/navlauf.h"
 #include "bhed/npcklasse.h"
 #include "bhed/regelwerk.h"
@@ -1001,6 +1002,44 @@ void gesicht() {
     pruefe(schl > 400 && anteil > 0.02 && anteil < 0.08, "ohne Kamera: Zwinkern " + std::to_string(zw) + " von " + std::to_string(schl));
 }
 
+// --- 7. tag_hack fuer SABER_ARC, SABER_STAR, SABER_TRIDENT (Pruefung 4a) -----
+// cg_players.cpp:6164-6299 OpenJK: Achsen (1,0,0) (0,1,0) (0,0,1) am "*flash".
+void tagHack() {
+    std::printf("--- 7. tag_hack ARC/STAR/TRIDENT ---\n");
+    struct Fall {
+        KlingenLage lage;
+        int nummer;
+        float org[3];
+        float ax0[3];
+        const char* name;
+    };
+    const float h = 0.25F * 0.70710678F;   // 0.25 * VectorNormalizeFast((0,1,-1))
+    const Fall faelle[] = {
+        {KlingenLage::Bogen, 0, {8.0F, 0.0F, 0.0F}, {0.75F, h, -h}, "ARC 0: 8 vor, 0,75 axis[0] + 0,25 axis[1]'"},
+        {KlingenLage::Bogen, 1, {0.0F, 0.0F, 0.0F}, {0.25F, 3.0F * h, -3.0F * h}, "ARC 1: 0,25 axis[0] + 0,75 axis[1]'"},
+        {KlingenLage::Bogen, 3, {-16.0F, 0.0F, 0.0F}, {-0.75F, h, -h}, "ARC 3: 16 zurueck, -0,75 axis[0] + 0,25 axis[1]'"},
+        {KlingenLage::Stern, 1, {2.64F, 0.0F, 5.36F}, {0.33F, 0.0F, 0.67F}, "STAR 1: 0,33 axis[0] + 0,67 axis[2], 8 entlang"},
+        {KlingenLage::Stern, 3, {-8.0F, 0.0F, 0.0F}, {-1.0F, 0.0F, 0.0F}, "STAR 3: umgedreht, 8 entlang"},
+        {KlingenLage::Dreizack, 1, {24.0F, -6.0F, 0.0F}, {1.0F, 0.0F, 0.0F}, "TRIDENT 1: 6 quer, 24 vor"},
+        {KlingenLage::Dreizack, 3, {-32.0F, 0.0F, 0.0F}, {-1.0F, 0.0F, 0.0F}, "TRIDENT 3: 32 zurueck, umgedreht"},
+    };
+    for (const Fall& f : faelle) {
+        float org[3] = {0.0F, 0.0F, 0.0F};
+        float ax0[3] = {1.0F, 0.0F, 0.0F};
+        float ax1[3] = {0.0F, 1.0F, 0.0F};
+        const float ax2[3] = {0.0F, 0.0F, 1.0F};
+        klingenTagHack(f.lage, f.nummer, org, ax0, ax1, ax2);
+        bool ok = true;
+        for (int k = 0; k < 3; ++k) { ok = ok && std::fabs(org[k] - f.org[k]) < 0.003F && std::fabs(ax0[k] - f.ax0[k]) < 0.003F; }
+        pruefe(ok, std::string("tag_hack ") + f.name + " - org " + std::to_string(org[0]) + " " + std::to_string(org[1]) + " " +
+                       std::to_string(org[2]) + ", axis[0] " + std::to_string(ax0[0]) + " " + std::to_string(ax0[1]) + " " +
+                       std::to_string(ax0[2]));
+    }
+    pruefe(klingenLageFuer("SABER_ARC") == KlingenLage::Bogen && klingenLageFuer("SABER_STAR") == KlingenLage::Stern &&
+               klingenLageFuer("SABER_TRIDENT") == KlingenLage::Dreizack,
+           "saberType SABER_ARC/STAR/TRIDENT -> eigene Lage");
+}
+
 }  // namespace
 
 int main() {
@@ -1011,6 +1050,7 @@ int main() {
     hang();
     animOhneBilder();
     gesicht();
+    tagHack();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }
