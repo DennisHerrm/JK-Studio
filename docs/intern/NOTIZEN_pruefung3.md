@@ -192,6 +192,65 @@ SETANIM_FLAG_NORMAL), wo PM_Footsteps die Standanimation setzt.
   geprueft wurde gegen die portierten Formeln (pruefung3) und mit den echten
   Skeletten, Effekten und Karten im Programm (Selbsttest).
 
+## Pruefung 4a (angehalten 30.10. nachmittags, wird fortgesetzt)
+
+Auftrag SPuftrag_pruefung4.md, Liste 4a. Angehalten auf Bitte des
+Koordinators (hoechstens 4 Agenten). Kein Spiel gestartet, keine Sperrdatei.
+
+Stand:
+- Punkt 8 (mission1 ohne BHED_FOTOS 8 FEHLER): Ursache im Test - die acht
+  Gizmo-Proben (je Durchgang vier) werten Fotos aus, die `foto()` nur mit
+  BHED_FOTOS schreibt; ohne lasen sie kein Bild (Werte -1). Rot nachgestellt
+  (Lauf ohne BHED_FOTOS: die vier Gizmo-/Abspiel-Proben FEHLER). Behoben im
+  Test: `mission1::probeFoto` schreibt immer, ohne BHED_FOTOS nach
+  `<Programmordner>\m1_fotos`, `FotoBild::lesen` liest dort. Gebaut; der gruene
+  Lauf (mission1 ohne BHED_FOTOS) steht noch aus.
+- Punkt 3 (Schwert mit ausgeschalteter Klinge) begonnen, nicht eingecheckt:
+  SP\p4a\wip_punkt3_abwurf.patch (abwurf.h/.cpp). Inhalt: AbwurfBahn als
+  trajectory_t je Serverbild (cgame wertet s.pos/s.apos zur Zeit cg.time aus),
+  WP_SaberThrow fuer den toten Besitzer (Haengen innerhalb 16 von handRPoint
+  nach WP_SaberDrop, Klinge aus: WP_SaberLaunch, im naechsten Denkbild
+  WP_RunSaber-Zielen mit saberEntityDist und WP_SaberDrop mit soundOff),
+  apos-Basis nach WP_SaberDrop = currentAngles (0,0,0 statt muzzleDir), JK2:
+  liegendes Schwert erst 5 s nach WP_SaberDrop fort, hitTime als int.
+  Gelesen und fuer die Fortsetzung festgehalten:
+  - Es fehlen noch: Szene (todesFolgenAnlegen: klingeAus, wurfStufe aus .npc
+    "FP_SABERTHROW" (OJ/MD; JK2 setzt in WP_SaberLose FORCE_LEVEL_1), blick,
+    ausKlang, haltung = Hand + eyePoint je Zeit, feind = WP_SaberFindEnemy),
+    todesanim (schwertFaellt auch bei Klinge aus, Klang nur mit Klinge),
+    eyePoint-Haken (headBolt je Klasse: g_client.cpp G_SetG2PlayerModelInfo,
+    "*head_eyes"/"cranium"/"*head"/"*head_f1"/"*headg"/-1 -> ent.origin),
+    pruefung3-Test anpassen (Hand bewegt sich, sonst haengt das Schwert fuer
+    immer - so auch im Spiel).
+- Punkt 1/2/4/5/6/7: nur gelesen (Engine-Stellen, siehe unten), nichts gebaut.
+  - Leiche: CorpsePhysics je NPC_Think (erstes Pmove nach dem Tod 1 ms wegen
+    serverTime = level.time - 1000, dann 50), PM_DEAD: kein PM_CheckDuck,
+    PM_DeadMove (-20 je Bild am Boden), PM_Friction mit ps.friction (6, 0 nach
+    Kantenwurf/Wurf, 1 nach PM_FallToDeath; PMF_TIME_KNOCKBACK ohne Reibung),
+    clipmask ohne MONSTERCLIP/BOTCLIP, DeadThink-Kasten maxs[2] = eyePoint -
+    origin + 4 (>= -8; JK2 waechst x/y bis 32), pitch_roll_for_slope am Boden
+    (Leiche wird geneigt gezeichnet, mins[2]), PM_CrashLand in Todesanimation:
+    fallsplat/bodyfall_humanN, FALLDEATH1 -> FALLDEATH1LAND, NPCAI_DIE_ON_IMPACT
+    -> G_Damage 1000 -> player_die-Zucken. Wurf-Zweige der Todeskette setzen
+    ps.friction = 0 (fehlt in todesanim). Plan: Totenlauf als planeLauf-Modus
+    nach schwerkraftEinrechnen (Z aus hoehe), WalkTo-Stueck + hoehe ab Tod.
+  - PM_FallToDeath in PM_GroundTraceMissed (Vorhersage 400 voraus, >= 128,
+    > 256 freier Fall bzw. Schaden >= health).
+  - NPC_RemoveBody: BodyRemovalPadTime (g_corpseRemovalTime 10, Droiden 0, MD
+    md_ga/gb SBD/BATTLEDROID/DROIDEKA 3000, JK2 fest 10000), DeadThink ->
+    EF_NODRAW fuer Droiden (MD-Liste groesser), G_OkayToRemoveCorpse (message,
+    ICARUS laeuft), TEAM_ENEMY/PROTOCOL: Spieler < 128 oder
+    InFOVFromPlayerView(110, 90, cg.refdef = Kamera) + NPC_ClearLOS, frei nur
+    mit self->enemy (trigger_hurt setzt enemy = Ausloeser, kill nicht).
+  - PM_TryRoll (bg_pmove.cpp:3782 OJ) aus PM_Footsteps bei PMF_DUCKED und
+    PM_RunningAnim; G_StartRoll, waehrend der Rolle PM_CmdForRoll mit speed 400
+    und G_CheckRollSafety.
+  - Punkt 5/6: Stellen in ausruestung.cpp:18-46 und app_view3d.cpp (Blinzeln).
+
+Naechster Schritt: Patch wieder einspielen (`git apply`), Punkt 3 fertig
+(Szene, Haken, Tests rot/gruen), dann Punkt 1, 2, 4, 5, 6, 7, mission1 gruen,
+Spielfotos, Schlussrunde. Laufskript SP\p4a\lauf.sh (Laufordner /y/p4a_laeufe).
+
 ## English
 - Lying figures die like in the game: the torso angle for the death animation now comes from the chest bone of the drawn skeleton (per rule set: OpenJK, Movie Duels, Jedi Outcast) - a figure lying on its back dies with BOTH_DEATH_LYING_UP instead of always BOTH_DEATH_LYING_DN.
 - When a figure dies, the preview now does what the game does besides the animation: the weapon leaves the hand and falls to the ground as an item (or just disappears, depending on weapon and rule set), a saber may drop out of the hand and vanish when it lands, the death cries, falling screams and splats play with the figure's own sounds, and droids explode with their death effects and sounds.

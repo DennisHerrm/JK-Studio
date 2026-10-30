@@ -12,8 +12,8 @@
 //      Schluessel, Ort und Drehung des Anfangs bleiben.
 // Daten: das reine JKA (BHED_JKA_BASIS, sonst der Steam-Ordner
 // "GameData original/base") und die eingerichteten Spielordner (Movie Duels).
-// Die Pruefungen zu 2 lesen die Fotos: BHED_FOTOS muss auf einen Ordner zeigen
-// (ohne sind alle Werte -1 und die vier Gizmo-Pruefungen je Durchgang rot).
+// Die Pruefungen zu 2 lesen Fotos des fertigen Bildes (probeFoto) - mit
+// BHED_FOTOS in diesem Ordner, sonst in <Programmordner>\m1_fotos.
 namespace mission1 {
 
 struct Zustand {
@@ -134,15 +134,24 @@ KoerperBefund koerperBefund(double ms) {
     return k;
 }
 
-// Ein Bild der Fotos (BHED_FOTOS) lesen: 32 Bit BGRA, von oben (fotoSchreiben).
+// Pruefung 4a: der Ordner der Fotos, die die Gizmo-Proben auswerten. Bis dahin
+// schrieb foto() nur mit BHED_FOTOS - ohne lasen die acht Proben kein Bild und
+// meldeten FEHLER (Werte -1). Jetzt: BHED_FOTOS, sonst <Programmordner>\m1_fotos.
+std::string fotoOrdner() {
+    if (const char* o = std::getenv("BHED_FOTOS")) { return o; }
+    const std::string d = platform::executableDirectory() + "\\m1_fotos";
+    std::error_code ec;
+    std::filesystem::create_directories(::bhed::utf8Pfad(d), ec);
+    return d;
+}
+
+// Ein Bild der Fotos lesen: 32 Bit BGRA, von oben (fotoSchreiben).
 struct FotoBild {
     int w = 0;
     int h = 0;
     std::vector<unsigned char> px;
     bool lesen(const std::string& name) {
-        const char* ordner = std::getenv("BHED_FOTOS");
-        if (ordner == nullptr) { return false; }
-        std::ifstream f(std::string(ordner) + "\\" + name + ".bmp", std::ios::binary);
+        std::ifstream f(::bhed::utf8Pfad(fotoOrdner() + "\\" + name + ".bmp"), std::ios::binary);
         std::string d((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
         if (d.size() < 54 || d[0] != 'B' || d[1] != 'M') { return false; }
         std::int32_t ww = 0;
@@ -162,6 +171,14 @@ struct FotoBild {
         return {px[at + 2], px[at + 1], px[at + 0]};
     }
 };
+
+// Schritt: ein Foto fuer eine Probe - immer, auch ohne BHED_FOTOS (fotoOrdner).
+Schritt probeFoto(const std::string& name) {
+    return {"Foto " + name, [=](int b) {
+                if (b == 2) { render::fotoAnfordern(fotoOrdner() + "\\" + name + ".bmp"); }
+                return b >= 5;
+            }};
+}
 
 // Bildpunkte in den Farben der Gizmo-Achsen (rot 235/70/70, gruen 80/210/90,
 // blau 70/130/255, hervorgehoben 255/245/140) in einem Rechteck.
@@ -598,15 +615,15 @@ std::vector<Schritt> mission1GizmoSchritte(const std::string& figurTeil, const s
         g_app->mapDirty = true;
     }));
     add(pause(0.6));
-    add(foto("m1_gizmo_vorher" + k));
+    add(mission1::probeFoto("m1_gizmo_vorher" + k));
     add(klick(tr(Str::TlPlay), "###main"));
     add(pause(0.8));
-    add(foto("m1_gizmo_spielt1" + k));
+    add(mission1::probeFoto("m1_gizmo_spielt1" + k));
     add(pause(0.8));
-    add(foto("m1_gizmo_spielt2" + k));
+    add(mission1::probeFoto("m1_gizmo_spielt2" + k));
     add(klick(tr(Str::TlStop), "###main"));
     add(pause(0.6));
-    add(foto("m1_gizmo_nachher" + k));
+    add(mission1::probeFoto("m1_gizmo_nachher" + k));
     add(pruefe("Abspielen wie im Spiel (Figur gewaehlt): kein Fadenkreuz, keine Auswahl, Griffe, Marken - nach Stop wieder da", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
         const std::string namen[4] = {"m1_gizmo_vorher" + k, "m1_gizmo_spielt1" + k, "m1_gizmo_spielt2" + k, "m1_gizmo_nachher" + k};
@@ -666,15 +683,15 @@ std::vector<Schritt> mission1GizmoSchritte(const std::string& figurTeil, const s
                      std::to_string(g_app->selectedKey) + ", Zeit " + std::to_string(g_app->playMs));
     }));
     add(pause(0.6));
-    add(foto("m1_kgizmo_vorher" + k));
+    add(mission1::probeFoto("m1_kgizmo_vorher" + k));
     add(klick(tr(Str::TlPlay), "###main"));
     add(pause(0.8));
-    add(foto("m1_kgizmo_spielt1" + k));
+    add(mission1::probeFoto("m1_kgizmo_spielt1" + k));
     add(pause(0.8));
-    add(foto("m1_kgizmo_spielt2" + k));
+    add(mission1::probeFoto("m1_kgizmo_spielt2" + k));
     add(klick(tr(Str::TlStop), "###main"));
     add(pause(0.6));
-    add(foto("m1_kgizmo_nachher" + k));
+    add(mission1::probeFoto("m1_kgizmo_nachher" + k));
     add(pruefe("Abspielen wie im Spiel (Kamera gewaehlt): kein Fadenkreuz, keine Auswahl, Griffe, Marken - nach Stop wieder da", [=] {
         const ImRect r{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]}, ImVec2{g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]}};
         const std::string namen[4] = {"m1_kgizmo_vorher" + k, "m1_kgizmo_spielt1" + k, "m1_kgizmo_spielt2" + k, "m1_kgizmo_nachher" + k};
