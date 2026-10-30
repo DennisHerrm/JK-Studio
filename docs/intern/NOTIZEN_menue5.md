@@ -342,6 +342,47 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
 - Handbuchseite „Menü-Editor: Projekte, Mod-Profile, Jedi Outcast“ (Punkte 1, 3-5) und die
   Tutorialseite, vier Sprachen, Bilder aus dem Selbsttest (SP\m5b\hb_fotos.sh, bilder.py).
 
+### Schlussrunde M5b
+
+- Unterbrechung: Windows Update startete den Rechner am 30.10. um 00:29 neu (mitten in der
+  Handbuch-Neuerzeugung). Danach: uncommittete Stände geprüft (eigene Tour-/Handbucharbeit),
+  Handbuch mit den Generatoren neu erzeugt, alle Bilder und Läufe neu gemacht.
+- Bau (alle Ziele, nicht --clean-first - aus Zeitgründen): 0 Warnungen, 0 Fehler. ctest 159/159.
+- Selbsttest menueeditor voll: Movie-Duels-Daten 103 OK / 0 FEHLER; JKA-Daten („GameData
+  original“, nur gelesen) im ersten Lauf 101 OK / 2 FEHLER - die M2/M3-Prüfung „Im Spiel testen“
+  erwartete fs_homepath, jasp.exe bekommt jetzt den neuen Weg fs_basepath + fs_cdpath; Prüfung
+  angepasst, zweiter Lauf 103 OK / 0 FEHLER. Mit JKO-Daten zusätzlich BHED_MENUE_NUR=jk2test 1 OK
+  und die JK2-Rangliste (18 OK).
+- karteneditor kurz (BHED_KARTE_NUR=fotos): 78 OK, 0 FEHLER.
+- Modus 1 komplett: MODUS1.
+- lint_sources, lint_fassung: ok.
+- Spielordner: Jedi Outcast vor dem ersten und nach dem letzten Start gleich (Liste + SHA-1);
+  Jedi Academy und Movie Duels in M5b weder gestartet noch angefasst. Keine eigenen Spiel- oder
+  jkstudio-Prozesse mehr.
+- Eigene Restordner, die das Werkzeug nicht löschen ließ (Sicherheitsprüfung für rm unter Y:\):
+  Y:\m5b_jk2sp, Y:\m5b_jk2mp, acht Y:\m5b_lang_000… (Pfadlängen-Messung) und Y:\$d (Tippfehler im
+  Messskript, enthält nur base\jk2config.cfg und qconsole.log eines JK2-Laufs). Alle im Scratchpad
+  (Y: = SP\wp), nicht im Spielordner - bitte von Hand löschen.
+- Gegen das Vorbild geprüft: JK2-SP-Menüs (17) und JK2-MP-Hauptmenü gegen jk2sp/jk2mp.exe (Fotos),
+  „Im Spiel testen“ mit jk2sp.exe (geändertes Menü erscheint im Spiel), JK2-Tabellen gegen die Namen
+  in jk2sp.exe, Generator gegen die MD-Quellen und die Handtabellen des Editors, setitemrect gegen
+  Script_SetItemRect (SP/MP), Ownerdraw-ID gegen MenuParse_ownerdrawID. Nicht geprüft: die
+  setitemrect-Zustände im laufenden Spiel (Mausbewegung erreicht das Spiel ohne Fokus nicht), die
+  Dateizuordnung mit „Ja“ (der Test antwortet nie Ja), Galactic Legacy (kein Quellcode).
+
+### Stand M5b - fertig / offen / nächster Schritt
+
+- Fertig: Punkt 1 (show/hide je Zustand), Punkt 3 (Projekt, Sicherung, Doppelklick, Zuordnung nach
+  Rückfrage), Punkt 4 (Mod-Profile, Generator, Vorlage; Galactic Legacy ohne Quelle), Punkt 5 (JK2
+  echt: Im Spiel testen nachgewiesen, Rangliste, Tabellen, .md3-Logo), Punkt 6 (Tour + Tutorial,
+  Handbuch für 1 und 3-5 in vier Sprachen mit Bildern, Selbsttest-Aufgaben).
+- Offen (aus Zeitgründen nicht mehr gelaufen): sauberer Neubau mit --clean-first; der Vergleich der
+  82 MD-Menüs gegen die M4-Spielfotos (Auftrag M5b Punkt 6); OFFEN_MODUS1.
+- Offen (fachlich): JK2-Tastenbelegungen und Renderer-Cvars in den Setup-Menüs, JK2-MP-Menüs außer
+  dem Hauptmenü, Chrom-Shader des Logos, Startmenü eines neuen Projekts nur im SP-Format, Schließen
+  eines Reiters fragt nicht nach.
+- Nächster Schritt: Neubau --clean-first, MD-82-Vergleich, ggf. Modus 1 nachholen; dann M6.
+
 ## Changelog
 
 ## English
