@@ -368,9 +368,13 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     const ImGuiWindowClass k = klasse();
     ImGui::SetNextWindowClass(&k);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    // Im DockSpace ohne Rand: ImGui schneidet den Inhalt eines Fensters um seine
+    // Randbreite ein (InnerClipRect) - der Rand des Kindfensters darin (Konsole,
+    // Spalten des Menue-Editors) fehlte sonst (Fotovergleich Schalter an/aus).
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, imRaum ? 0.0F : ImGui::GetStyle().WindowBorderSize);
     int farben = 0;
-    if (imRaum) {   // im DockSpace wie vorher ein Kindfenster: ohne eigenen Hintergrund
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_ChildBg));
+    if (imRaum) {   // ohne eigenen Hintergrund: der Inhalt zeichnet sein Kindfenster wie vorher (##feld..., ##links ...)
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
         ++farben;
     }
     dreieckStil(farben);
@@ -378,9 +382,19 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     const bool sichtbar = ImGui::Begin(name.c_str(), imRaum ? nullptr : &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleColor(farben);
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     r.geschlossen = !offen;
     r.dreieck = dreieckBeginnen();
+    if (sichtbar && imRaum) {
+        // ImGui zeichnet Hintergrund und Rand eines Kindfensters in die Zeichenliste
+        // seines Elternfensters, wenn diese nicht leer ist (Begin, "render decorations in
+        // parent"). Vorher war der Bereich das Elternfenster der Kindfenster ##feld...,
+        // ##links ... - nie leer. Ein Punkt ohne Flaeche haelt das auch fuer das Panel so:
+        // sonst landete z. B. der Rand der Konsole in ##feldKonsole und der Rahmen des
+        // Feldes darueber (Fotovergleich Schalter an/aus).
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled(p, p, IM_COL32(0, 0, 0, 1));
+    }
     return sichtbar;
 }
 
