@@ -976,3 +976,126 @@ std::vector<Schritt> dock1NeustartSchritte() {
     }));
     return s;
 }
+
+// --- BHED_EDITORTEST=dock2mass: DockSpace gegen die alte Anordnung (dock2) -------
+//
+// Misst in Events, Mission und Model die Kindfenster der Panels (Modusleiste,
+// Listen, Ansicht, Script Flow, Actions, Band) einmal mit den Tabellen und
+// einmal im durchgehenden DockSpace (dockraumAn) - die Standardanordnung muss
+// Punkt fuer Punkt dieselbe sein.
+namespace dock2 {
+
+using Masse = std::map<std::string, ImRect>;
+
+Masse messen() {
+    static const char* const kNamen[] = {"/modebar_", "/events_", "/##flowarea_", "/buttons_", "/toolbar_", "/mapview_",
+                                         "/modelview_", "/animliste_", "/toolband_", "/entlayers_"};
+    Masse m;
+    const ImVec2 o = ImGui::GetMainViewport()->Pos;
+    for (const ImGuiWindow* w : GImGui->Windows) {
+        if (!w->WasActive) { continue; }
+        const std::string n = w->Name;
+        for (const char* k : kNamen) {
+            if (n.find(k) == std::string::npos) { continue; }
+            const std::string schluessel = std::to_string(g_app->leftMode) + std::string(k).substr(1, std::string(k).size() - 2);
+            m[schluessel] = ImRect{ImVec2{w->Pos.x - o.x, w->Pos.y - o.y}, ImVec2{w->Pos.x + w->Size.x - o.x, w->Pos.y + w->Size.y - o.y}};
+        }
+    }
+    return m;
+}
+
+}  // namespace dock2
+
+std::vector<Schritt> dock2MassSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto alt = std::make_shared<dock2::Masse>();
+    auto neu = std::make_shared<dock2::Masse>();
+    const bool vorher = dockraumAn();
+    add(tu("dock2mass: alte Anordnung", [] { dockraumAn() = false; }));
+    for (const int runde : {0, 1, 2}) {
+        for (const int modus : {1, 2, 0}) {
+            add(tu("dock2mass: Modus " + std::to_string(modus), [=] {
+                if (runde == 2) { dockraumAn() = true; }
+                g_app->leftMode = modus;
+            }));
+            add(stabil("dock2mass: Modus " + std::to_string(modus), 20));
+            if (runde == 0) { continue; }
+            add(tu("dock2mass: messen", [=] {
+                const dock2::Masse m = dock2::messen();
+                (runde == 1 ? *alt : *neu).insert(m.begin(), m.end());
+            }));
+        }
+    }
+    add(pruefe("dock2mass: Standardanordnung im DockSpace = alte Anordnung (alle Kindfenster der Panels)", [=] {
+        int abweichungen = 0;
+        for (const auto& [k, a] : *alt) {
+            const auto it = neu->find(k);
+            const bool gleich = it != neu->end() && std::fabs(it->second.Min.x - a.Min.x) <= 0.5F && std::fabs(it->second.Min.y - a.Min.y) <= 0.5F &&
+                                std::fabs(it->second.Max.x - a.Max.x) <= 0.5F && std::fabs(it->second.Max.y - a.Max.y) <= 0.5F;
+            diag::detail("Knopftest: dock2mass: " + k + " alt " + dock1::rechteck(a) + " neu " +
+                         (it == neu->end() ? std::string("fehlt") : dock1::rechteck(it->second)) + (gleich ? "" : "  ABWEICHUNG"));
+            if (!gleich) { ++abweichungen; }
+        }
+        return !alt->empty() && abweichungen == 0 && alt->size() == neu->size();
+    }));
+    // Im DockSpace: Actions als Reiter zu Script Flow (fremde Stelle), dann
+    // Zuruecksetzen = wieder die Standardmasse; der linke Griff wie vorher.
+    add(tu("dock2mass: Events", [] { g_app->leftMode = 0; }));
+    add(stabil("dock2mass: Events", 10));
+    add(pruefe("dock2mass: Events steht in der Standardanordnung", [] { return dockraumStandard(0); }));
+    add(tu("dock2mass: Actions als Reiter zu Script Flow", [] {
+        const ImGuiWindow* w = dock1::panelFenster("ereignisse.aktionen");
+        if (w != nullptr) { ImGui::DockBuilderDockWindow(w->Name, dockraumHeim("ereignisse.fluss")); }
+    }));
+    add(stabil("dock2mass: Reiter", 15));
+    add(pruefe("dock2mass: Actions und Script Flow in einem Knoten (Reiter), keine Standardanordnung mehr", [] {
+        const ImGuiWindow* a = dock1::panelFenster("ereignisse.aktionen");
+        const ImGuiWindow* f = dock1::panelFenster("ereignisse.fluss");
+        const bool reiter = a != nullptr && f != nullptr && a->DockNode != nullptr && a->DockNode == f->DockNode && a->DockNode->Windows.Size == 2 &&
+                            a->DockNode->HostWindow != nullptr && a->DockNode->HostWindow->RootWindowDockTree == ImGui::FindWindowByName("###main");
+        diag::detail(std::string("Knopftest: dock2mass: Reiter ") + (reiter ? "ja" : "nein") + ", Standard " + (dockraumStandard(0) ? "ja" : "nein"));
+        return reiter && !dockraumStandard(0);
+    }));
+    add(tu("dock2mass: Anordnung zuruecksetzen (Menue Fenster)", [] { dock::zuruecksetzen(0); }));
+    add(stabil("dock2mass: zurueckgesetzt", 15));
+    add(pruefe("dock2mass: nach dem Zuruecksetzen Standardanordnung mit den alten Massen", [=] {
+        const dock2::Masse m = dock2::messen();
+        int gleich = 0;
+        int gesamt = 0;
+        for (const auto& [k, a] : *alt) {
+            if (k.empty() || k[0] != '0') { continue; }
+            ++gesamt;
+            const auto it = m.find(k);
+            if (it != m.end() && std::fabs(it->second.Min.x - a.Min.x) <= 0.5F && std::fabs(it->second.Max.x - a.Max.x) <= 0.5F &&
+                std::fabs(it->second.Min.y - a.Min.y) <= 0.5F && std::fabs(it->second.Max.y - a.Max.y) <= 0.5F) {
+                ++gleich;
+            }
+        }
+        diag::detail("Knopftest: dock2mass: nach Zuruecksetzen " + std::to_string(gleich) + "/" + std::to_string(gesamt) + " Kindfenster gleich");
+        return dockraumStandard(0) && gesamt > 0 && gleich == gesamt;
+    }));
+    auto breite = std::make_shared<std::array<float, 3>>();
+    add(tu("dock2mass: Breiten merken", [=] {
+        const dock2::Masse m = dock2::messen();
+        (*breite)[0] = m.count("0events") != 0U ? m.at("0events").GetWidth() : 0.0F;
+        (*breite)[1] = m.count("0##flowarea") != 0U ? m.at("0##flowarea").GetWidth() : 0.0F;
+        (*breite)[2] = m.count("0buttons") != 0U ? m.at("0buttons").GetWidth() : 0.0F;
+    }));
+    add(ziehenHalten("dock2mass: linker Griff 80 nach rechts", [] { return ImVec2{g_app->teilerX[0], g_app->teilerY}; }, 80.0F, 0.0F, 20));
+    add(pause(0.3));
+    add(pruefe("dock2mass: linker Griff im DockSpace - Ereignisliste 80 breiter, Script Flow 80 schmaler, Actions bleibt", [=] {
+        const dock2::Masse m = dock2::messen();
+        if (m.count("0events") == 0U || m.count("0##flowarea") == 0U || m.count("0buttons") == 0U) { return false; }
+        const float e = m.at("0events").GetWidth() - (*breite)[0];
+        const float f = m.at("0##flowarea").GetWidth() - (*breite)[1];
+        const float k = m.at("0buttons").GetWidth() - (*breite)[2];
+        diag::detail("Knopftest: dock2mass: Griff: Ereignisliste " + std::to_string(e) + ", Script Flow " + std::to_string(f) + ", Actions " +
+                     std::to_string(k));
+        return std::fabs(e - 80.0F) <= 3.0F && std::fabs(f + 80.0F) <= 3.0F && std::fabs(k) <= 0.5F;
+    }));
+    add(ziehenHalten("dock2mass: linker Griff 80 zurueck", [] { return ImVec2{g_app->teilerX[0], g_app->teilerY}; }, -80.0F, 0.0F, 20));
+    add(pause(0.3));
+    add(tu("dock2mass: Schalter zurueck", [=] { dockraumAn() = vorher; }));
+    return s;
+}

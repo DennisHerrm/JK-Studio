@@ -5163,7 +5163,54 @@ void doAppend() {
 
 #include "app_anordnung.inc"   // Stufe 8d: pk3, Undo-Liste, Klaenge, Karte, Symbole, Anordnung, Compile-Knopf
 #include "app_dock.inc"   // dock1: Panels in eigenen Fenstern, Spalten ohne sie
+// Die Ziehkante ueber der Zeitleiste (Mission), vor dem Band gezeichnet - im
+// Hauptfenster und (dock2) im Panel der Zeitleiste.
+void drawTlKante() {
+    const float kanteH =
+        std::max(4.0F, ImGui::GetStyle().ItemSpacing.y);
+    ImGui::InvisibleButton("##tlkante", ImVec2{-FLT_MIN, kanteH});
+    g_app->tlKanteX = (ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5F;
+    g_app->tlKanteY = (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F;
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    }
+    if (ImGui::IsItemActivated()) {
+        g_app->tlKanteStartMaus = ImGui::GetIO().MousePos.y;
+        g_app->tlKanteStartHoehe = g_app->tlHoeheIst;
+    }
+    if (ImGui::IsItemActive() && g_app->tlPlatz > 1.0F) {
+        // ABSOLUT: Hoehe beim Anfassen plus Weg der Maus, geteilt
+        // durch denselben Platz, aus dem die Hoehe entsteht. Vorher
+        // MouseDelta durch die FENSTERhoehe - die Kante lief langsamer
+        // als die Maus, und unter der Mindesthoehe sammelte sich ein
+        // Rest an, den man erst zurueckziehen musste.
+        // Nach OBEN ziehen macht die Leiste GROESSER.
+        const float weg = ImGui::GetIO().MousePos.y - g_app->tlKanteStartMaus;
+        const float hoehe = g_app->tlKanteStartHoehe - weg;
+        g_app->timelineFrac = std::clamp(hoehe / g_app->tlPlatz, 0.08F, 0.60F);
+    }
+    // Eine sichtbare Linie: einen Griff, den man nicht sieht,
+    // findet niemand (siehe rc193, das Lineal).
+    const ImVec2 kA = ImGui::GetItemRectMin();
+    const ImVec2 kB = ImGui::GetItemRectMax();
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        ImVec2{kA.x, (kA.y + kB.y) * 0.5F - 1.0F},
+        ImVec2{kB.x, (kA.y + kB.y) * 0.5F + 1.0F},
+        ImGui::GetColorU32(ImGui::IsItemHovered() || ImGui::IsItemActive()
+                               ? ImGuiCol_SliderGrabActive
+                               : ImGuiCol_Separator));
+}
+
+#include "app_dockspace.inc"   // dock2: durchgehender DockSpace (in Arbeit, Schalter ab Werk aus)
 }  // namespace
+
+// dock2: der Schalter des DockSpace (app_dockspace.inc) fuer den Selbsttest.
+bool& dockraumAn() { return dockraum::an(); }
+bool dockraumStandard(int bereich) { return bereich >= 0 && bereich <= 2 && dockraum::standard(bereich); }
+void dockraumZuruecksetzen(int bereich) {
+    if (bereich >= 0 && bereich <= 2) { dockraum::g_raum[static_cast<std::size_t>(bereich)].neuBauen = true; }
+}
+ImGuiID dockraumHeim(const char* panel) { return dockraum::heimKnoten(panel); }
 
 // Menue-Editor M1: der Rand des Skript-Editors (rinnenBreite/zeichneRinne aus
 // app_anordnung.inc) fuer den Code-Editor des Menue-Editors.
@@ -5811,14 +5858,24 @@ void draw() {
         drawKartenEditorBereich(l);
     } else if (g_app->leftMode == 4) {
         drawMenueEditorBereich(l);
-    } else if (spaltenFrei()) {
+    } else if (!dockraum::an() && spaltenFrei()) {
         // dock1: Script Flow oder der Inhalt der linken Spalte steht in einem
         // eigenen Fenster - die uebrigen teilen sich den Platz (app_dock.inc).
         drawSpaltenFrei(l);
     } else {
         // dock1: Actions in einem eigenen Fenster - dann zwei Spalten wie bei
         // der Mission.
-        const bool mitKnoepfen = (g_app->leftMode != 1) && dock::zuhause(aktionenPanel());
+        const bool mitKnoepfen = (g_app->leftMode != 1) && (dockraum::an() || dock::zuhause(aktionenPanel()));
+        // dock2: im DockSpace richtet sich die Tabelle nur ein (gemessen, ohne
+        // Inhalt); die Panels stehen danach in Dock-Knoten genau auf ihren Spalten.
+        const ImVec2 tabelleStart = ImGui::GetCursorScreenPos();
+        const float tabelleVerfuegbarY = ImGui::GetContentRegionAvail().y;
+        if (dockraum::an()) {
+            dockraum::g_mess = dockraum::Messung{};
+            dockraum::g_mess.oben = tabelleStart.y;
+            dockraum::g_mess.bandLinks = tabelleStart.x - ImGui::GetStyle().CellPadding.x;
+            dockraum::g_mess.bandRechts = tabelleStart.x + ImGui::GetContentRegionAvail().x + ImGui::GetStyle().CellPadding.x;
+        }
         const int spalten = mitKnoepfen ? 3 : 2;
         // --- KEINE gespeicherten Spaltenbreiten -------------------------
         //
@@ -6348,11 +6405,20 @@ void draw() {
                 }
                 g_app->letzteFensterB = gesamtB;
             }
-            drawEventsList(l);
+            if (dockraum::an()) {
+                dockraum::zelleMessen(0);
+                dockraum::innenMessen();
+            } else {
+                drawEventsList(l);
+            }
 
             ImGui::TableNextColumn();
-            drawFlowArea(l);
-            dock::heimPlatz(flussPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (dockraum::an()) {
+                dockraum::zelleMessen(1);
+            } else {
+                drawFlowArea(l);
+                dock::heimPlatz(flussPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            }
 
             if (mitKnoepfen) {
                 ImGui::TableNextColumn();
@@ -6408,14 +6474,26 @@ void draw() {
                         diag::detail(zk);
                     }
                 }
-                drawButtonColumns(l);
-                dock::heimPlatz(aktionenPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+                if (dockraum::an()) {
+                    dockraum::zelleMessen(2);
+                } else {
+                    drawButtonColumns(l);
+                    dock::heimPlatz(aktionenPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+                }
             }
             ImGui::EndTable();
             // Die GANZE Tabelle: erst nach EndTable steht ihre Hoehe fest -
             // vorher (nach TableNextRow) war es nur die Kopfzeile.
-            g_app->tabelleOben = ImGui::GetItemRectMin().y;
-            g_app->tabelleUnten = ImGui::GetItemRectMax().y;
+            if (dockraum::an()) {
+                // Die Tabelle stand nur zum Messen da: ihr Zeilenende ist das der
+                // Spalten von vorher - "alles Uebrige minus Fuss" plus Zellpolster.
+                dockraum::g_mess.unten = tabelleStart.y + tabelleVerfuegbarY + l.frameH + ImGui::GetStyle().CellPadding.y;
+                g_app->tabelleOben = tabelleStart.y;
+                g_app->tabelleUnten = dockraum::g_mess.unten;
+            } else {
+                g_app->tabelleOben = ImGui::GetItemRectMin().y;
+                g_app->tabelleUnten = ImGui::GetItemRectMax().y;
+            }
             g_app->teilerY = (g_app->tabelleOben + g_app->tabelleUnten) * 0.5F;
             // --- Die eigenen Griffe auf den Trennlinien --------------------
             //
@@ -6429,8 +6507,11 @@ void draw() {
                 const float gB = g_app->spaltenGesamt;
                 for (int k = 0; k < g_app->teilerAnzahl; ++k) {
                     ImGui::SetCursorScreenPos(ImVec2{g_app->teilerX[k] - griffB, g_app->tabelleOben});
+                    // dock2: die Panels liegen als eigene (angedockte) Fenster ueber dem
+                    // Hauptfenster - der Griff gilt auch ueber ihnen (wie ImGuis Teiler).
                     ImGui::InvisibleButton(k == 0 ? "##spalteLinks" : "##spalteRechts",
-                                           ImVec2{griffB * 2.0F, g_app->tabelleUnten - g_app->tabelleOben});
+                                           ImVec2{griffB * 2.0F, g_app->tabelleUnten - g_app->tabelleOben},
+                                           static_cast<ImGuiButtonFlags>(dockraum::an() ? static_cast<int>(ImGuiButtonFlags_FlattenChildren) : 0));
                     const bool aktiv = ImGui::IsItemActive();
                     if (ImGui::IsItemActivated()) {
                         diag::detail(std::string("Teiler ") + (k == 0 ? "links" : "rechts") + " gepackt bei " +
@@ -6475,10 +6556,11 @@ void draw() {
                 ImGui::SetCursorScreenPos(zurueck);
             }
         }
+        if (dockraum::an()) { dockraum::zeichnen(l); }
     }
 
     // Die Bedienleiste UNTER allen drei Spalten, ueber die volle Breite.
-    if (l.toolH > 0.0F && g_app->leftMode != 3 && g_app->leftMode != 4) {
+    if (l.toolH > 0.0F && g_app->leftMode != 3 && g_app->leftMode != 4 && !dockraum::an()) {
         // OHNE eigenen Hintergrund: ein Kasten mit eigener Farbe sieht wie
         // ein zusaetzlicher dunkler Balken aus. Die Bedienung soll auf der
         // Flaeche stehen, die ohnehin da ist.
@@ -6499,41 +6581,7 @@ void draw() {
         // Bereich ab. Dieselbe Reihenfolge-Frage wie bei den Trennlinien
         // des Rasters in rc179 - dort war es genau andersherum, weil der
         // Griff DARIN lag.
-        if (g_app->leftMode == 1) {
-            const float kanteH =
-                std::max(4.0F, ImGui::GetStyle().ItemSpacing.y);
-            ImGui::InvisibleButton("##tlkante", ImVec2{-FLT_MIN, kanteH});
-            g_app->tlKanteX = (ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5F;
-            g_app->tlKanteY = (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F;
-            if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
-            }
-            if (ImGui::IsItemActivated()) {
-                g_app->tlKanteStartMaus = ImGui::GetIO().MousePos.y;
-                g_app->tlKanteStartHoehe = g_app->tlHoeheIst;
-            }
-            if (ImGui::IsItemActive() && g_app->tlPlatz > 1.0F) {
-                // ABSOLUT: Hoehe beim Anfassen plus Weg der Maus, geteilt
-                // durch denselben Platz, aus dem die Hoehe entsteht. Vorher
-                // MouseDelta durch die FENSTERhoehe - die Kante lief langsamer
-                // als die Maus, und unter der Mindesthoehe sammelte sich ein
-                // Rest an, den man erst zurueckziehen musste.
-                // Nach OBEN ziehen macht die Leiste GROESSER.
-                const float weg = ImGui::GetIO().MousePos.y - g_app->tlKanteStartMaus;
-                const float hoehe = g_app->tlKanteStartHoehe - weg;
-                g_app->timelineFrac = std::clamp(hoehe / g_app->tlPlatz, 0.08F, 0.60F);
-            }
-            // Eine sichtbare Linie: einen Griff, den man nicht sieht,
-            // findet niemand (siehe rc193, das Lineal).
-            const ImVec2 kA = ImGui::GetItemRectMin();
-            const ImVec2 kB = ImGui::GetItemRectMax();
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2{kA.x, (kA.y + kB.y) * 0.5F - 1.0F},
-                ImVec2{kB.x, (kA.y + kB.y) * 0.5F + 1.0F},
-                ImGui::GetColorU32(ImGui::IsItemHovered() || ImGui::IsItemActive()
-                                       ? ImGuiCol_SliderGrabActive
-                                       : ImGuiCol_Separator));
-        }
+        if (g_app->leftMode == 1) { drawTlKante(); }
         ImGui::BeginChild("toolband", ImVec2{-FLT_MIN, l.toolH},
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_NoScrollbar |
@@ -6558,7 +6606,7 @@ void draw() {
         ImGui::PopStyleColor();
     }
     // dock1: die herausgenommenen Panels in ihren eigenen Fenstern.
-    drawDockFenster(l);
+    if (!dockraum::an() || g_app->leftMode > 2) { drawDockFenster(l); }
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

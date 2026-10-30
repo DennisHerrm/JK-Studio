@@ -281,6 +281,7 @@ void zuruecksetzen(int bereich) {
     fenster::Anordnung& a = z().jetzt[static_cast<std::size_t>(bereich)];
     a.draussen.clear();
     a.versteckt.clear();
+    if (dockraumAn()) { dockraumZuruecksetzen(bereich); }   // dock2: DockSpace neu aufbauen
     diag::detail("Fenster: Anordnung von Bereich " + std::to_string(bereich) + " zurueckgesetzt");
     z().merken = true;
 }

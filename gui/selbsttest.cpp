@@ -5806,6 +5806,7 @@ void selbsttest() {
     // dock1: Fenster frei anordnen, mehrere Bildschirme.
     static const bool nurDock1 = std::strcmp(modus, "dock1") == 0;
     static const bool nurDock1Neustart = std::strcmp(modus, "dock1neustart") == 0;
+    static const bool nurDock2Mass = std::strcmp(modus, "dock2mass") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5915,6 +5916,8 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurDock1Neustart) {
                 a.schritte = dock1NeustartSchritte();
+            } else if (nurDock2Mass) {
+                a.schritte = dock2MassSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {
