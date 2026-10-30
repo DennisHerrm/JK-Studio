@@ -5782,6 +5782,23 @@ ImGuiWindow* hauptfenster() { return ImGui::FindWindowByName("###main"); }
 std::vector<Schritt> karteSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // reste2 Punkt 6: die GPU-Tabelle im Statistikfenster stand in jeder Sprache deutsch
+    add(pruefe("Statistikfenster: die GPU-Tabelle in der Sprache des Programms (en, de, zh, ja)", [] {
+        const i18n::Language vorher = i18n::currentLanguage();
+        static const char* const kDeutsch[] = {"Aufruf", "bersprungen", "Zust", "Karte", "Effekte", "Figuren", "GlÃ¼hen", "Gluehen", "Keulen"};
+        bool ok = true;
+        for (const i18n::Language l : {i18n::Language::English, i18n::Language::German, i18n::Language::ChineseSimplified, i18n::Language::Japanese}) {
+            i18n::setLanguage(l);
+            std::string alle;
+            for (const auto& [zeile, ein] : gpuTabellenZeilen()) { alle += zeile + " | "; }
+            int deutsch = 0;
+            for (const char* w : kDeutsch) { deutsch += alle.find(w) != std::string::npos ? 1 : 0; }
+            diag::detail("Knopftest: GPU-Tabelle (" + std::string(i18n::kurzCode(l)) + "): " + alle);
+            ok = ok && (l == i18n::Language::German ? deutsch >= 5 : deutsch == 0);
+        }
+        i18n::setLanguage(vorher);
+        return ok;
+    }));
     auto archiv = std::make_shared<std::string>();
     auto reiter = std::make_shared<ImRect>();
 

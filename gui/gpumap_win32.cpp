@@ -6369,6 +6369,8 @@ std::string berichtText() {
     return s;
 }
 
+int zustandsArt() { return zustandsSchalter(); }
+
 const char* zustandsLage() {
     switch (zustandsSchalter()) {
         case 0: return "Zustaende: keine (wie vor rc434)";
@@ -7360,6 +7362,7 @@ void beendeMessung(Abschnitt) {}
 float millisekunden(Abschnitt) { return -1.0F; }
 float millisekundenBeide(Abschnitt, Abschnitt) { return -1.0F; }
 const char* zustandsLage() { return "ohne Direct3D gebaut"; }
+int zustandsArt() { return -1; }
 std::vector<std::string> debugMeldungen() { return {}; }
 std::string geraetInfo() { return "ohne Direct3D gebaut"; }
 std::string berichtText() { return "ohne Direct3D gebaut\n"; }
