@@ -2448,10 +2448,17 @@ std::vector<Schritt> handbuchSchritte() {
             g_app->timelineFrac = 0.30F;   // groessere Ansicht fuer die Spur
             g_app->playMs = 2000.0;
             g_app->mapDirty = true;
-            for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
-                if (aufnahmeMoeglich(static_cast<int>(i))) {
-                    g_app->selectedActor = static_cast<int>(i);
-                    break;
+            // Zeitleiste 5: eine Figur, deren Beine frei sind - die erste stand an
+            // der Konsole (BOTH_CONSOLE1 mit Timer) und lief beim Aufnehmen nicht los.
+            g_app->selectedActor = -1;
+            for (int frei = 1; frei >= 0 && g_app->selectedActor < 0; --frei) {
+                for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+                    const ActorState st = g_app->scene.actors[i].at(g_app->playMs);
+                    const bool beineFrei = st.beineTimerBisMs < 0.0 || (st.beineTimerBisMs < 1.0e300 && g_app->playMs > st.beineTimerBisMs);
+                    if (aufnahmeMoeglich(static_cast<int>(i)) && (frei == 0 || beineFrei)) {
+                        g_app->selectedActor = static_cast<int>(i);
+                        break;
+                    }
                 }
             }
         }));
