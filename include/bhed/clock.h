@@ -16,6 +16,11 @@
 //                                                           des eigenen Zugs
 //   waitsignal ( "x" )    0               0                 bis zum Signal
 //
+// Zeitleiste 4: wait ( "name" ) wartet im Spiel auf die Taskgruppe "name"
+// (CTaskManager::Wait, code/icarus/TaskManager.cpp) - das rechnet der Ablauf
+// (ablauf.h), und die drei Auswerter bekommen sein flaches Skript, in dem jedes
+// Warten schon eine Zahl ist. advance laesst wait ( "name" ) deshalb stehen.
+//
 // Zehn der 284 Skripte der Mod enthalten sowohl waitsignal als auch
 // camera-Befehle. Dort lief die Kamera vor den Figuren her, weil die eine
 // Uhr das Warten kannte und die andere nicht.
@@ -58,14 +63,12 @@ using SignalTimes = std::map<std::string, double>;
 
 // Wie weit haelt dieser Befehl die Uhr an?
 //
-// now ist die aktuelle Zeit des Ablaufs, ownEndMs das Ende dessen, was
-// dieser Ablauf zuletzt angestossen hat (fuer wait mit Namen). Gibt die
-// NEUE Zeit zurueck, nicht die Dauer - bei waitsignal ist das ein Sprung
-// nach vorn und keine Addition.
+// now ist die aktuelle Zeit des Ablaufs. Gibt die NEUE Zeit zurueck, nicht
+// die Dauer - bei waitsignal ist das ein Sprung nach vorn und keine Addition.
 //
-// Nicht behandelte Befehle geben now unveraendert zurueck.
-[[nodiscard]] double advance(const Node& n, double now, double ownEndMs,
-                             const SignalTimes& signals);
+// Nicht behandelte Befehle (auch wait ( "name" ), siehe oben) geben now
+// unveraendert zurueck.
+[[nodiscard]] double advance(const Node& n, double now, const SignalTimes& signals);
 
 }  // namespace bhed
 #endif

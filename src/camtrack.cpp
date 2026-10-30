@@ -543,7 +543,7 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
         // kannte: $random$ ergab 0, waitsignal wurde uebergangen. Damit
         // lief die Kamera in zehn der 284 Skripte vor den Figuren her.
         if (n.name == "wait" || n.name == "waitsignal") {
-            now = advance(n, now, now, signals);
+            now = advance(n, now, signals);
             continue;
         }
         if (n.name != "camera" || n.args.empty()) {

@@ -392,6 +392,54 @@ int main() {
                "SET_CAPTIONTEXTCOLOR mit Zeit und Farbe");
     }
 
+    std::printf("wait mit Namen\n");
+    {
+        // Zeitleiste 4 Punkt 4: wait ( "name" ) wartet auf die Taskgruppe (CTaskManager::Wait) -
+        // wie dowait, nicht auf ein Signal.
+        Script sk;
+        std::vector<Diag> dg;
+        (void)readScript("affect ( \"brakk\", FLUSH )\n{\n\ttask ( \"rede\" )\n\t{\n\t\tsound ( CHAN_VOICE, \"sound/chars/mini/brakk01.mp3\" );\n\t}\n"
+                         "\tdo ( \"rede\" );\n\twait ( \"rede\" );\n\tprint ( \"da\" );\n}\n",
+                         sk, dg);
+        AblaufWelt welt5;
+        welt5.karte = &karte;
+        welt5.klangDauer = [](const std::string&) { return kKlangMs; };
+        const Ablauf a5 = simuliereAblauf(sk, "", welt5);
+        const CameraTrack k5 = buildCameraTrack(a5.flach);
+        Timeline t5 = buildTimeline(a5.flach, db);
+        const Scene sz5 = buildScene(a5.flach, karte);
+        for (TimelineTrack& tr : t5.tracks) {
+            for (TimelineEvent& e : tr.events) {
+                const AblaufHerkunft* h = a5.woher(e.path);
+                if (h == nullptr || h->skript != 0) {
+                    e.path.clear();
+                } else {
+                    e.path = h->path;
+                }
+            }
+        }
+        spuren::SpurenQuellen q5;
+        q5.zeitleiste = &t5;
+        q5.kamera = &k5;
+        q5.szene = &sz5;
+        q5.ablauf = &a5;
+        q5.skript = &sk;
+        const spuren::Spuren s5 = spuren::baue(q5);
+        const spuren::Clip* w5 = nullptr;
+        for (const spuren::Darsteller& x : s5.darsteller) {
+            for (const spuren::Clip& c : x.befehle.clips) {
+                if (c.art == spuren::Art::Warten && c.befehl.rfind("wait", 0) == 0) { w5 = &c; }
+            }
+        }
+        if (w5 != nullptr) {
+            std::printf("  %s: Art %d auf \"%s\", %.0f-%.0f\n", w5->befehl.c_str(), static_cast<int>(w5->warteArt), w5->wartetAuf.c_str(),
+                        w5->startMs, w5->endMs);
+        }
+        pruefe(w5 != nullptr && w5->warteArt == spuren::WarteArt::Aufgabe && w5->wartetAuf == "rede" && w5->sender.empty(),
+               "wait ( \"rede\" ) wartet auf die Aufgabe rede, kein Signal");
+        pruefe(w5 != nullptr && nah(w5->endMs, kKlangMs, 60.0), "wait ( \"rede\" ) endet mit der Stimme");
+    }
+
     std::printf("Hilfen\n");
     pruefe(spuren::anzeigeName("md_jedi_male", "x") == "Jedi male" && spuren::anzeigeName("", "kyle") == "kyle", "anzeigeName");
     {

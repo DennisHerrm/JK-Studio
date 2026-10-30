@@ -783,6 +783,39 @@ void ausloeserParms() {
     pruefe(t2 > 0.0 && std::fabs(t - t2) < 0.5, "der move kommt zur selben Zeit wie mit festen Namen");
 }
 
+// Zeitleiste 4 Punkt 4: wait ( "name" ) wartet auf die Taskgruppe "name"
+// desselben Traegers (CTaskManager::Wait, code/icarus/TaskManager.cpp, OpenJK
+// und Movie Duels gleich). Die Gruppe entsteht beim Laden des Skripts
+// (CSequencer::Route -> ParseTask -> AddTaskGroup); vor dem ersten do hat sie
+// keine Aufgabe und gilt als fertig (CTaskGroup::Complete: m_numCompleted ==
+// m_completedTasks.size(), taskmanager.h). Ohne task dieses Namens liefert
+// GetTaskGroup NULL, completed bleibt false - der wait kommt jedes Bild
+// wieder (PushTask PUSH_BACK) und haengt.
+void wartenAufNamen() {
+    // Die Aufgabe in der Gruppe endet erst mit der Stimme (CHAN_VOICE haelt sie,
+    // G_CheckTasksCompleted) - do laeuft danach sofort weiter.
+    AblaufWelt w;
+    w.klangDauer = [](const std::string&) { return 1500.0; };
+    const auto zeit = [&w](const std::string& rumpf) {
+        return zeitVon(simuliereAblauf(lies("affect ( \"a\", FLUSH )\n{\n" + rumpf + "\tprint ( \"da\" );\n}\n"), "", w), "a",
+                       "print", "da");
+    };
+    const std::string task = "\ttask ( \"rede\" )\n\t{\n\t\tsound ( CHAN_VOICE, \"sound/x.mp3\" );\n\t}\n";
+    const double nurDo = zeit(task + "\tdo ( \"rede\" );\n");
+    const double nachDo = zeit(task + "\tdo ( \"rede\" );\n\twait ( \"rede\" );\n");
+    const double vorDo = zeit(task + "\twait ( \"rede\" );\n");
+    const double fremd = zeit(task + "\twait ( \"gibtsnicht\" );\n");
+    const double ohne = zeit(task + "\tdo ( \"rede\" );\n\twait ( 2000.000 );\n");
+    const double danach = zeit(task + "\tdo ( \"rede\" );\n\twait ( 2000.000 );\n\twait ( \"rede\" );\n");
+    std::printf("  wait ( \"name\" ): nur do %.0f, nach do %.0f, vor do %.0f, ohne task %.0f, nach dem Ende %.0f (ohne wait %.0f)\n",
+                nurDo, nachDo, vorDo, fremd, danach, ohne);
+    pruefe(nurDo >= 0.0 && nurDo < 60.0 && nachDo >= 1500.0 && nachDo < 1600.0,
+           "wait ( \"rede\" ) nach do: bis die Gruppe fertig ist (do allein laeuft weiter)");
+    pruefe(vorDo >= 0.0 && vorDo < 60.0, "wait ( \"rede\" ) vor dem ersten do: die leere Gruppe ist fertig");
+    pruefe(fremd < 0.0, "wait ( \"gibtsnicht\" ) ohne task: haengt wie im Spiel");
+    pruefe(ohne > 0.0 && danach == ohne, "wait ( \"rede\" ) nach dem Ende der Gruppe: sofort");
+}
+
 // rc605 (Ende): SET_MISSIONFAILED - stop_icarus nach dem Bild, wenn keine Kamera
 // laeuft (g_active.cpp:4855-4865 OpenJK); in einer Kamerafahrt erst nach DISABLE.
 void missionGescheitert() {
@@ -898,6 +931,7 @@ int main(int argc, char** argv) {
     ausloeserParms();      // rc605 (fix605)
     missionGescheitert();  // rc605 (Ende)
     kartenwechsel();       // rc605 (Schlussrunde)
+    wartenAufNamen();      // Zeitleiste 4
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }

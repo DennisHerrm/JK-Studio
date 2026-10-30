@@ -795,6 +795,19 @@ private:
         }
     }
 
+    // wait ( "name" ) / das Warten des dowait: CTaskManager::Wait
+    // (code/icarus/TaskManager.cpp, OpenJK und Movie Duels gleich) fragt die
+    // Taskgruppe dieses Namens. Sie entsteht schon beim Laden des Skripts
+    // (CSequencer::Route -> ParseTask -> AddTaskGroup), hat bis zum ersten do
+    // keine Aufgabe und gilt dann als fertig (CTaskGroup::Complete:
+    // m_numCompleted == m_completedTasks.size()). Ohne task dieses Namens
+    // liefert GetTaskGroup NULL, completed bleibt false: ewig.
+    bool gruppeWarteFertig(const Wesen& w) const {
+        const auto it = w.gruppeVon.find(w.warteName);
+        if (it != w.gruppeVon.end()) { return gruppeFertig(it->second); }
+        return w.tasks.count(w.warteName) != 0;
+    }
+
     bool gruppeFertig(int g) const {
         const auto it = gruppenAufgaben_.find(g);
         if (it == gruppenAufgaben_.end()) {
@@ -2918,15 +2931,8 @@ private:
                 return true;
             }
             return false;
-        case Wesen::kGruppe: {
-            const auto it = w.gruppeVon.find(w.warteName);
-            if (it == w.gruppeVon.end()) {
-                // Wait mit unbekanntem Task: die Engine wartet ewig
-                // (GetTaskGroup liefert nullptr, completed bleibt false).
-                return false;
-            }
-            return gruppeFertig(it->second);
-        }
+        case Wesen::kGruppe:
+            return gruppeWarteFertig(w);
         default:
             return true;
         }
@@ -3005,11 +3011,8 @@ private:
             if (w->warte == Wesen::kSignal && signale_.count(w->warteName) != 0) {
                 return true;
             }
-            if (w->warte == Wesen::kGruppe) {
-                const auto g = w->gruppeVon.find(w->warteName);
-                if (g != w->gruppeVon.end() && gruppeFertig(g->second)) {
-                    return true;
-                }
+            if (w->warte == Wesen::kGruppe && gruppeWarteFertig(*w)) {
+                return true;
             }
             // rc605 (fix605): ein solidifier denkt weiter (TID_RESIZE) - wie beim
             // wait hoechstens 60 s lang ein Grund zu warten (steckt die Figur fuer

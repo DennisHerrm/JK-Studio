@@ -119,8 +119,7 @@ SignalTimes collectSignals(const Script& s) {
     return out;
 }
 
-double advance(const Node& n, double now, double ownEndMs,
-               const SignalTimes& signals) {
+double advance(const Node& n, double now, const SignalTimes& signals) {
     if (n.kind != Node::Kind::Command || n.args.empty()) {
         return now;
     }
@@ -128,12 +127,12 @@ double advance(const Node& n, double now, double ownEndMs,
         if (n.args[0].kind != Arg::Kind::String) {
             return now + readMs(n.args[0].text);
         }
-        // wait ( "name" ) wartet, bis das genannte Objekt seine Bewegung
-        // beendet hat. Naeherung: bis zum Ende dessen, was dieser Ablauf
-        // zuletzt angestossen hat. Das trifft das haeufige Muster
-        // move(...); wait("ich"). Steht dort ein anderer Name, ist es
-        // hoechstens zu frueh, nie zu spaet.
-        return std::max(now, ownEndMs);
+        // wait ( "name" ) wartet auf die Taskgruppe "name" desselben
+        // Traegers (CTaskManager::Wait) - wann sie fertig ist, weiss nur der
+        // Ablauf (ablauf.cpp, gruppeWarteFertig), und der schreibt das Warten
+        // als Zahl ins flache Skript. Hier, ohne Taskgruppen, haelt es die
+        // Uhr nicht an.
+        return now;
     }
     if (n.name == "waitsignal") {
         const auto it = signals.find(n.args[0].text);

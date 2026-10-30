@@ -60,7 +60,6 @@ struct Runner {
     double now = 0.0;
     // Wann endet, was dieser Ablauf zuletzt angestossen hat? Fuer
     // wait ( "name" ) - siehe bhed/clock.h.
-    double lastEndMs = 0.0;
 };
 
 class Builder {
@@ -139,7 +138,7 @@ private:
             // Frueher gar nicht behandelt - der Befehl stand als Punkt auf
             // der Leiste, hielt sie aber nicht an. Die Figuren warteten,
             // die Leiste nicht.
-            const double bis = advance(n, r.now, r.lastEndMs, signals_);
+            const double bis = advance(n, r.now, signals_);
             if (bis > r.now) {
                 e.endMs = bis;
             } else {
@@ -151,17 +150,13 @@ private:
         }
 
         if (c == "wait") {
-            // wait ( 3000 ) haelt an; wait ( "signalname" ) wartet auf ein
-            // Signal, dessen Zeitpunkt hier nicht feststeht.
-            const bool bySignal = !n.args.empty() &&
-                                  n.args[0].kind == Arg::Kind::String;
-            if (bySignal) {
-                // Die gemeinsame Uhr weiss es besser als eine Schaetzung:
-                // sie spult bis zum Ende dessen vor, was dieser Ablauf
-                // zuletzt angestossen hat.
-                note(prefix, "wait auf ein Signal - bis zum Ende des eigenen "
-                             "Zugs angenommen");
-                e.endMs = advance(n, r.now, r.lastEndMs, signals_);
+            // wait ( 3000 ) haelt an; wait ( "name" ) wartet auf die
+            // Taskgruppe "name" - ihr Ende kennt nur der Ablauf (clock.h).
+            const bool aufAufgabe = !n.args.empty() &&
+                                    n.args[0].kind == Arg::Kind::String;
+            if (aufAufgabe) {
+                note(prefix, "wait auf die Aufgabe \"" + n.args[0].text + "\" - ihre Zeit kennt nur der Ablauf");
+                e.endMs = advance(n, r.now, signals_);
             } else {
                 bool uncertain = false;
                 const double ms = n.args.empty()
