@@ -38,6 +38,29 @@ Schritt warteSek(const std::string& was, std::function<bool()> bedingung, double
     return x;
 }
 
+// reste2 Punkt 1: wie ein Mensch das Mausrad ueber dem Fenster des Eintrags drehen (eine Raste je
+// zwei Bilder), bis der Eintrag ganz zu sehen ist - hoechstens 60 Rasten.
+Schritt radBisSichtbar(const std::string& label, const std::string& fenster) {
+    return {"Mausrad, bis \"" + label + "\" zu sehen ist", [=](int b) {
+                const Element* e = finde(label, fenster, 0, false);
+                if (e == nullptr) {
+                    meldeFehler("Mausrad: \"" + label + "\" nicht gefunden");
+                    return true;
+                }
+                if (ganzSichtbar(*e)) { return true; }
+                if (b >= 120) {
+                    meldeFehler("Mausrad: \"" + label + "\" nach 60 Rasten nicht zu sehen");
+                    return true;
+                }
+                if (b % 2 == 0) {
+                    if (const ImGuiWindow* w = ImGui::FindWindowByName(e->innen.c_str())) { setzeMaus(w->InnerRect.GetCenter()); }
+                } else {
+                    ImGui::GetIO().AddMouseWheelEvent(0.0F, -1.0F);
+                }
+                return false;
+            }};
+}
+
 std::string bauZeitenDatei() { return platform::settingsDirectory() + "\\karte_bauzeiten.json"; }
 
 bool fensterSichtbar(const char* teil) {
@@ -167,20 +190,79 @@ std::vector<Schritt> fortschritt() {
         return !ke::bauLaeuft() && konsoleText().find(abgebrochenZeile("Test langsam", 1, 1)) != std::string::npos &&
                !fensterSichtbar("###kartebaufortschritt") && ke::editor().bauMeldungenTest == 2;
     }));
-    // Menuepunkt "Melden, wenn der Bau fertig ist": Haken umschalten, gespeichert
+    // Menuepunkt "Melden, wenn der Bau fertig ist": Haken umschalten, gespeichert.
+    // reste2 Punkt 1: mit allen Eintraegen ist das Build-Menue hoeher als der Bildschirm (Stufe 8
+    // allein: der Eintrag lag unter dem sichtbaren Teil, der Klick traf kein Fenster). Mit so vielen
+    // Fuelleintraegen, wie Zeilen des Programms auf den Bildschirm passen, ist es das auf jedem
+    // Bildschirm. Im Stil des Programms begrenzt ImGui das Menue auf den Bildschirm und das Mausrad
+    // rollt es; im Stil von NRC bricht es wie QMenu in Spalten um (updateActionRects) - jeder
+    // Eintrag liegt auf dem Bildschirm.
+    auto stilVorher = std::make_shared<bool>(false);
+    add(tu("Build-Menue hoeher als der Bildschirm: Fuelleintraege, Stil des Programms", [stilVorher] {
+        ke::Editor& e = ke::editor();
+        *stilVorher = e.menueNrcStil;
+        const ImGuiPlatformMonitor* mon = ImGui::GetViewportPlatformMonitor(ImGui::GetMainViewport());
+        const float hoehe = mon != nullptr ? mon->WorkSize.y : ImGui::GetMainViewport()->WorkSize.y;
+        const int fuellung = static_cast<int>(std::ceil(hoehe / ImGui::GetTextLineHeightWithSpacing()));
+        diag::detail("Knopftest: Stufe 8/1 " + std::to_string(fuellung) + " Fuelleintraege");
+        for (int i = 0; i < fuellung; ++i) {
+            e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test Fuellung " + std::to_string(i), {"[q3map2] -meta \"[MapFile]\""}});
+        }
+        e.menueNrcStil = false;
+    }));
     add(klick(ke::trK(Str::KeLBuild), "###main"));
     add(pause(0.25));
+    add(pruefe("Stil des Programms: das Menue rollt, Melden liegt unter dem sichtbaren Teil", [] {
+        const Element* m = finde(ke::trK(Str::KeFsMelden), "##Menu_", 0, false);
+        const ImGuiWindow* w = m != nullptr ? ImGui::FindWindowByName(m->innen.c_str()) : nullptr;
+        return w != nullptr && !ganzSichtbar(*m) && w->ScrollMax.y > 0.0F;
+    }));
+    add(radBisSichtbar(ke::trK(Str::KeFsMelden), "##Menu_"));
     add(klick(ke::trK(Str::KeFsMelden), "##Menu_", 0, false));
     add(pause(0.2));
     add(pruefe("Build > Melden: aus, als BhedBuildNotify 0 gespeichert", [] {
         return !ke::editor().bau.melden && g_app->settings.karte["BhedBuildNotify"] == "0";
     }));
-    add(tu("Melden wieder an, Testeintraege weg", [] {
+    add(tu("Stil wie NRC", [] { ke::editor().menueNrcStil = true; }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(pruefe("Stil wie NRC: das Menue bricht in Spalten um, jeder Eintrag liegt auf dem Bildschirm", [] {
+        const Element* m = finde(ke::trK(Str::KeFsMelden), "##Menu_", 0, false);
+        ImGuiWindow* w = m != nullptr ? ImGui::FindWindowByName(m->innen.c_str()) : nullptr;
+        if (w == nullptr) { return false; }
+        const ImRect platz = ImGui::GetPopupAllowedExtentRect(w);
+        int eintraege = 0;
+        int draussen = 0;
+        std::set<int> spalten;
+        for (const Element& e : g_elemente) {
+            if (e.innen != m->innen || e.label.empty()) { continue; }
+            ++eintraege;
+            spalten.insert(static_cast<int>(std::lround(e.rect.Min.x)));
+            if (e.rect.Min.y < platz.Min.y - 0.5F || e.rect.Max.y > platz.Max.y + 0.5F || e.rect.Min.x < platz.Min.x - 0.5F ||
+                e.rect.Max.x > platz.Max.x + 0.5F) {
+                ++draussen;
+            }
+        }
+        char z[240];
+        std::snprintf(z, sizeof(z), "Knopftest: Stufe 8/1 Build-Menue wie NRC: %d Eintraege, %zu Spalten, %d ausserhalb von %.0f..%.0f (Fenster %.0f..%.0f)",
+                      eintraege, spalten.size(), draussen, static_cast<double>(platz.Min.y), static_cast<double>(platz.Max.y),
+                      static_cast<double>(w->Pos.y), static_cast<double>(w->Pos.y + w->Size.y));
+        diag::detail(z);
+        return spalten.size() >= 2 && draussen == 0 && ganzSichtbar(*m);
+    }));
+    add(klick(ke::trK(Str::KeFsMelden), "##Menu_", 0, false));
+    add(pause(0.2));
+    add(pruefe("Build > Melden: wieder an, als BhedBuildNotify 1 gespeichert", [] {
+        return ke::editor().bau.melden && g_app->settings.karte["BhedBuildNotify"] == "1";
+    }));
+    add(tu("Stil wie vorher, Testeintraege weg", [stilVorher] {
         ke::Editor& e = ke::editor();
-        e.bau.melden = true;
-        ke::einstellungenSpeichern();
+        e.menueNrcStil = *stilVorher;
         auto& v = e.bauProjekt.eintraege;
-        v.erase(std::remove_if(v.begin(), v.end(), [](const karte::BauEintrag& b) { return b.name == "Test Fortschritt" || b.name == "Test langsam"; }),
+        v.erase(std::remove_if(v.begin(), v.end(),
+                               [](const karte::BauEintrag& b) {
+                                   return b.name == "Test Fortschritt" || b.name == "Test langsam" || b.name.rfind("Test Fuellung ", 0) == 0;
+                               }),
                 v.end());
         ke::konsoleLeeren();
     }));

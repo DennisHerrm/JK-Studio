@@ -145,11 +145,22 @@ struct Menue {
     int zeilen = 0;
     int trenner = 0;
     std::vector<Taste> tasten;
+    // reste2 Punkt 1: die Spalten von updateActionRects (qmenu.cpp:478-489; Fusion hat keinen
+    // Scroller, SH_Menu_Scrollable 0) - Bildpunkte ab der Oberkante des Fensters
+    float basis = 0.0F;          // base_y (die Abreisskante)
+    float y = 0.0F;              // Oberkante der naechsten Zeile
+    float unten = 0.0F;          // tiefste Unterkante (sizeHint)
+    float spaltenMax = 0.0F;     // column_max_y
+    float spaltenB = 0.0F;       // max_column_width aus dem letzten Bild (0: noch unbekannt)
+    int spalte = 0;
+    ImGuiWindow* zeilenFenster = nullptr;   // die laufende Zeile: Fenster und dessen WorkRect.Max.x
+    float arbeitRechts = 0.0F;
 };
 struct Groesse {
     float b = 0.0F;
     float h = 0.0F;
     int tab = 0;
+    float spalteB = 0.0F;   // max_column_width
 };
 
 std::vector<Menue> g_stapel;
@@ -344,11 +355,53 @@ void menueBeginnen(ImGuiID key, bool abriss, const Masse& m) {
     neu.id = key;
     neu.abriss = abriss;
     neu.nrc = nrcStil();
+    // updateActionRects: base_y = tearoffHeight (Rand und Rahmen sind in Fusion 0); column_max_y die
+    // Hoehe des Bildschirms (Windows: UseFullScreenForPopupMenu). Abweichung: hier die Hoehe, in der
+    // ImGui das Menue zeigen kann (GetPopupAllowedExtentRect, ohne Taskleiste) - sonst laege die
+    // letzte Zeile einer vollen Spalte unter der Taskleiste.
+    neu.basis = abriss ? m.abriss : 0.0F;
+    neu.y = neu.basis;
+    neu.unten = neu.basis;
+    neu.spaltenMax = ImGui::GetPopupAllowedExtentRect(ImGui::GetCurrentWindow()).GetHeight();
+    if (const auto it = g_groessen.find(key); it != g_groessen.end()) { neu.spaltenB = it->second.spalteB; }
     g_stapel.push_back(neu);
     // Waagerecht kein Abstand: die Zeile reicht genau von Rand zu Rand (Qt:
     // PM_MenuHMargin 0), senkrecht der Rest der Qt-Zeile ueber dem Text.
     if (neu.nrc) { ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, m.abstand}); }
     if (abriss) { abrissZeichnen(m, key); }
+}
+
+// updateActionRects (qmenu.cpp:478-489): die naechste Zeile der Hoehe h. Passt sie nicht mehr in die
+// Spalte (y + h > column_max_y), beginnt rechts daneben eine neue (x += max_column_width, y = base_y).
+// Setzt den Cursor auf die Zeile, begrenzt die Arbeitsflaeche auf die Spalte (der Eintrag reicht bis
+// WorkRect.Max.x) und liefert die Spalte waagerecht in Bildpunkten. Nur im Stil von NRC.
+ImRect zeileAnfangen(float h, float abstand) {
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    ImRect sp{ImVec2{w->Pos.x, 0.0F}, ImVec2{w->Pos.x + w->Size.x, 0.0F}};
+    Menue* mn = oben();
+    if (mn == nullptr || !mn->nrc) { return sp; }
+    if (mn->spaltenMax > 0.0F && mn->y + h > mn->spaltenMax) {
+        ++mn->spalte;
+        mn->y = mn->basis;
+    }
+    if (mn->spaltenB > 0.0F) {
+        sp.Min.x = w->Pos.x + mn->spaltenB * static_cast<float>(mn->spalte);
+        sp.Max.x = sp.Min.x + mn->spaltenB;
+    }
+    if (mn->spalte > 0) { ImGui::SetCursorScreenPos(ImVec2{sp.Min.x, w->Pos.y + mn->y + abstand * 0.5F}); }
+    mn->zeilenFenster = w;
+    mn->arbeitRechts = w->WorkRect.Max.x;
+    w->WorkRect.Max.x = sp.Max.x;
+    return sp;
+}
+
+void zeileBeenden(float h) {
+    Menue* mn = oben();
+    if (mn == nullptr || mn->zeilenFenster == nullptr) { return; }
+    mn->zeilenFenster->WorkRect.Max.x = mn->arbeitRechts;
+    mn->zeilenFenster = nullptr;
+    mn->y += h;
+    mn->unten = std::max(mn->unten, mn->y);
 }
 
 // QMenu::keyPressEvent (qmenu.cpp:3460-3530): ein Buchstabe ohne Strg waehlt
@@ -429,8 +482,10 @@ void menueAbschliessen() {
     }
     breite += mn.tab;   // max_column_width += tabWidth
     Groesse gr;
-    gr.b = px(m, static_cast<float>(breite));
-    gr.h = (mn.abriss ? m.abriss : 0.0F) + static_cast<float>(mn.zeilen) * m.zeile + static_cast<float>(mn.trenner) * m.trenner;
+    gr.spalteB = px(m, static_cast<float>(breite));
+    // sizeHint: die rechte und die untere Kante aller Zeilen
+    gr.b = gr.spalteB * static_cast<float>(mn.spalte + 1);
+    gr.h = mn.nrc ? mn.unten : (mn.abriss ? m.abriss : 0.0F) + static_cast<float>(mn.zeilen) * m.zeile + static_cast<float>(mn.trenner) * m.trenner;
     gr.tab = mn.tab;
     g_groessen[mn.id] = gr;
     tastenAuswerten(mn);
@@ -494,16 +549,21 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, (abriss ? m.abriss : 0.0F) + m.abstand * 0.5F});
     // PM_SubMenuOverlap -1 (Fusion): subMenuPos = actionRect.right() - 1 + 1 - ein Punkt Ueberlappung
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2{px(m, 1.0F), ImGui::GetStyle().ItemInnerSpacing.y});
-    if (!leiste) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F}); }
+    ImRect spalte{ImVec2{fenster->Pos.x, 0.0F}, ImVec2{fenster->Pos.x + fenster->Size.x, 0.0F}};
+    if (!leiste) {
+        spalte = zeileAnfangen(m.zeile, m.abstand);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+    }
     ImDrawList* dl = fenster->DrawList;
     const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
     if (!leiste) { ImGui::PopStyleColor(); }
     ImGui::PopStyleVar(2);
     if (!leiste) {
         Menue* eltern = oben();
+        zeileBeenden(m.zeile);
         const std::string text = sichtbar(id);
         const int mn = mnemonik(nrc, text);
-        const ImRect r{ImVec2{fenster->Pos.x, ImGui::GetItemRectMin().y}, ImVec2{fenster->Pos.x + fenster->Size.x, ImGui::GetItemRectMax().y}};
+        const ImRect r{ImVec2{spalte.Min.x, ImGui::GetItemRectMin().y}, ImVec2{spalte.Max.x, ImGui::GetItemRectMax().y}};
         if (ImGui::IsItemVisible()) {
             QtPunkt p;
             p.aktiv = aktiv;
@@ -591,10 +651,13 @@ bool qtPunkt(const QtPunkt& p) {
     const bool nrc = nrcStil();
     const bool symbol = (p.bild != nullptr && p.bild[0] != 0) || p.farbe != nullptr;
     bool gewaehlt = false;
+    ImRect spalte{ImVec2{w->Pos.x, 0.0F}, ImVec2{w->Pos.x + w->Size.x, 0.0F}};
     if (nrc) {
+        spalte = zeileAnfangen(m.zeile, m.abstand);
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
         gewaehlt = ImGui::MenuItemEx(p.id, nullptr, nullptr, false, p.aktiv);
         ImGui::PopStyleColor();
+        zeileBeenden(m.zeile);
     } else {
         // Stil des Programms: MenuItem mit Taste und Haken (angehakt: Haken
         // rechts, wie im Programm), das Symbol in der Symbolspalte davor.
@@ -619,7 +682,7 @@ bool qtPunkt(const QtPunkt& p) {
             ImGui::CloseCurrentPopup();
         }
     }
-    const ImRect r{ImVec2{w->Pos.x, ImGui::GetItemRectMin().y}, ImVec2{w->Pos.x + w->Size.x, ImGui::GetItemRectMax().y}};
+    const ImRect r{ImVec2{spalte.Min.x, ImGui::GetItemRectMin().y}, ImVec2{spalte.Max.x, ImGui::GetItemRectMax().y}};
     if (nrc && ImGui::IsItemVisible()) { eintragZeichnen(w->DrawList, r, m, text, mn, p.taste, tabWidth(), &p, false); }
     if (!p.tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", p.tooltip.c_str()); }
     if (Menue* menue = oben()) {
@@ -656,15 +719,17 @@ void qtTrenner() {
     }
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     const Masse m = masse();
+    const ImRect spalte = zeileAnfangen(m.trenner, m.abstand);
     // Qts Rechteck des Trenners beginnt am Ende des vorigen Eintrags.
     const float oben0 = w->DC.CursorPos.y - m.abstand * 0.5F;
     const float d = std::max(1.0F, std::round(m.sk));
     const float y = std::round(oben0 + px(m, static_cast<float>(kTrennerOben)));
-    w->DrawList->AddRectFilled(ImVec2{w->Pos.x + px(m, static_cast<float>(kTrennerLinks)), y},
-                               ImVec2{w->Pos.x + w->Size.x - px(m, static_cast<float>(kTrennerRechts)), y + d},
+    w->DrawList->AddRectFilled(ImVec2{spalte.Min.x + px(m, static_cast<float>(kTrennerLinks)), y},
+                               ImVec2{spalte.Max.x - px(m, static_cast<float>(kTrennerRechts)), y + d},
                                ImGui::GetColorU32(ImGuiCol_Separator));
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + m.trenner - m.abstand);
     ImGui::Dummy(ImVec2{0.0F, 0.0F});
+    zeileBeenden(m.trenner);
     if (Menue* mn = oben()) { ++mn->trenner; }
 }
 
