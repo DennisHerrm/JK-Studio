@@ -10,9 +10,11 @@
 // codeJK2).
 #include "bhed/todesanim.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <initializer_list>
+#include <iterator>
 #include <string_view>
 
 namespace bhed {
@@ -24,6 +26,14 @@ int EngineZufall::irand(int lo, int hi) noexcept {
     holdrand_ = (holdrand_ * 214013U) + 2531011U;
     const auto ergebnis = static_cast<int>(holdrand_ >> 17U);
     return ((ergebnis * (max - lo)) >> 15) + lo;
+}
+
+// flrand (q_math.c:233-244 OpenJK): holdrand wie irand, result = holdrand >>
+// 17, ( max - min ) * (float)result / 32768.0f + min.
+float EngineZufall::flrand(float lo, float hi) noexcept {
+    holdrand_ = (holdrand_ * 214013U) + 2531011U;
+    const auto ergebnis = static_cast<int>(holdrand_ >> 17U);
+    return (hi - lo) * static_cast<float>(ergebnis) / 32768.0F + lo;
 }
 
 // FNV-1a ueber die Nummer der Entity und die Todeszeit in ms.
@@ -239,6 +249,9 @@ private:
     [[nodiscard]] bool md() const { return l_.regel == TodRegelwerk::MovieDuels; }
     [[nodiscard]] bool jk() const { return l_.regel == TodRegelwerk::JediOutcast; }
     int qi(int a, int b) { return z_.irand(a, b); }
+    // Q_flrand (q_math.c:233-244 OpenJK): dasselbe holdrand, Bits 17..31 als
+    // Bruchteil von 32768.
+    float qf(float a, float b) { return z_.flrand(a, b); }
     // PM_HasAnimation (bg_panimate.cpp:4325 OJ): eine gueltige Nummer mit Bildern.
     [[nodiscard]] bool hat(const std::string& a) const { return !a.empty() && a != kSchon && l_.hat && l_.hat(a); }
     [[nodiscard]] static bool gesetzt(const std::string& a) { return !a.empty() && a != kSchon; }   // anim >= 0
@@ -348,6 +361,16 @@ private:
     std::string waehle();
     int kanteSpringen();
     void werfen(const NavVec& richtung);
+    // Pruefung 3
+    void waffeVorher(TodErgebnis& e, bool& schwertInHand);
+    void waffeNachher(TodErgebnis& e, bool schwertInHand);
+    void tossClientItems(TodErgebnis& e, bool schwert);
+    void deathFx(TodErgebnis& e);
+    static void klang(TodErgebnis& e, std::string datei, TodKlang::Kanal k = TodKlang::Kanal::Auto) {
+        e.klaenge.push_back(TodKlang{std::move(datei), k});
+    }
+    // Q_irand(EV_DEATH1, EV_DEATH3) -> "*deathN.wav" auf CHAN_VOICE
+    void todesKlang(TodErgebnis& e) { klang(e, "*death" + std::to_string(qi(1, 3)) + ".wav", TodKlang::Kanal::Voice); }
 };
 
 // G_GetHitLocation (g_combat.cpp:1319 OJ, :1678 MD, JK2 :1232 - gleich)
@@ -688,6 +711,211 @@ std::string Kette::waehle() {
     return d;
 }
 
+// --- Pruefung 3: Waffe und Schwert --------------------------------------------
+//
+// Die Folge der Waffen je Regelwerk (weapons.h), fuer "weapon > WP_SABER &&
+// weapon <= MAX_PLAYER_WEAPONS" (OpenJK, JK2: MAX_PLAYER_WEAPONS =
+// WP_STUN_BATON) bzw. playerUsableWeapons[] (g_weaponLoad.cpp:128 MD).
+namespace {
+constexpr const char* kWaffenOj[] = {"WP_NONE", "WP_SABER", "WP_BLASTER_PISTOL", "WP_BLASTER", "WP_DISRUPTOR",
+    "WP_BOWCASTER", "WP_REPEATER", "WP_DEMP2", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL", "WP_TRIP_MINE",
+    "WP_DET_PACK", "WP_CONCUSSION", "WP_MELEE", "WP_ATST_MAIN", "WP_ATST_SIDE", "WP_STUN_BATON"};
+constexpr const char* kWaffenJk[] = {"WP_NONE", "WP_SABER", "WP_BRYAR_PISTOL", "WP_BLASTER", "WP_DISRUPTOR",
+    "WP_BOWCASTER", "WP_REPEATER", "WP_DEMP2", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL", "WP_TRIP_MINE",
+    "WP_DET_PACK", "WP_STUN_BATON"};
+// playerUsableWeapons[] = qtrue (g_weaponLoad.cpp:128-176 MD)
+constexpr const char* kWaffenMdNutzbar[] = {"WP_SABER", "WP_BLASTER_PISTOL", "WP_BLASTER", "WP_DISRUPTOR", "WP_BOWCASTER",
+    "WP_REPEATER", "WP_DEMP2", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL", "WP_TRIP_MINE", "WP_DET_PACK",
+    "WP_CONCUSSION", "WP_MELEE", "WP_ATST_MAIN", "WP_ATST_SIDE", "WP_STUN_BATON", "WP_BRYAR_PISTOL", "WP_DUAL_PISTOL",
+    "WP_DUAL_CLONEPISTOL", "WP_TUSKEN_RIFLE", "WP_NOGHRI_STICK", "WP_BATTLEDROID", "WP_THEFIRSTORDER", "WP_CLONECARBINE",
+    "WP_REBELBLASTER", "WP_CLONERIFLE", "WP_CLONECOMMANDO", "WP_Z6_ROTARY_CANNON", "WP_REBELRIFLE", "WP_REY", "WP_JANGO",
+    "WP_BOBA", "WP_CLONEPISTOL"};
+}  // namespace
+
+// TossClientItems (g_combat.cpp:128-260 OJ, :201-345 MD, JK2 :101-170) fuer
+// die Waffe in der Hand.
+void Kette::tossClientItems(TodErgebnis& e, bool schwert) {
+    const std::string& w = l_.waffe;
+    if (klasse("CLASS_SEEKER") || klasse("CLASS_REMOTE")) { return; }
+    if (!jk() && (klasse("CLASS_SABER_DROID") || klasse("CLASS_VEHICLE") || klasse("CLASS_ATST"))) { return; }
+    if (md()) {
+        // g_AllowWeaponDropping "1", com_kotor "0" (g_main.cpp:929, 950 MD),
+        // dazu die Karten, auf denen Movie Duels nichts fallen laesst
+        // (g_combat.cpp:216-224 MD: "reduce memory use to increase fps").
+        for (const char* k : {"md_ga_jedi", "md_ga_sith", "md_gb_sith", "md_gb_jedi", "md_arena1", "md_arena2", "md_arena3"}) {
+            if (l_.karte == k) { return; }
+        }
+        if (l_.kotorWaffen) { return; }   // "if (self->client->charKOTORWeapons == 1)"
+        if (klasse("CLASS_SBD") || klasse("CLASS_DROIDEKA") || klasse("CLASS_OBJECT")) { return; }
+    }
+    if (schwert || w == "WP_SABER") {
+        // weaponModel[0] < 0 kennt die Vorschau nicht (eine Figur mit WP_SABER
+        // hat ihren Griff). JK2: "if ( self->weaponModel < 0 || WP_SaberLose(...) )".
+        if (!jk() && l_.nichtEntwaffnbar) { return; }
+        // WP_SaberLose: Saber-Droiden nie; WP_SaberLaunch prueft die Hand
+        if (!jk() && klasse("CLASS_SABER_DROID")) { return; }
+        if (l_.handFrei && !l_.handFrei()) { return; }
+        // WP_SaberLose: WP_SaberLaunch immer, WP_SaberDrop nur mit brennender
+        // Klinge ("if ( SaberActive() )") - sonst fliegt es erst (Pruefung 4a)
+        e.schwertFaellt = true;
+        e.schwertKlingeAus = !l_.klingeAn;
+        if (l_.klingeAn) {
+            if (jk()) {
+                // codeJK2 WP_SaberDrop (wp_saber.cpp:4328-4336): nach dem Team
+                klang(e, l_.spielerTeam ? "sound/weapons/saber/saberoff.wav" : "sound/weapons/saber/enemy_saber_off.wav");
+            } else if (!l_.schwertAusKlang.empty()) {
+                klang(e, l_.schwertAusKlang);   // G_SoundIndexOnEnt( saber, CHAN_AUTO, soundOff )
+            }
+        }
+        return;
+    }
+    bool faellt = false;
+    if (jk()) {
+        for (std::size_t i = 2; i < std::size(kWaffenJk); ++i) { faellt = faellt || w == kWaffenJk[i]; }
+    } else if (md()) {
+        if (w == "WP_BLASTER_PISTOL" || w == "WP_STUN_BATON" || w == "WP_MELEE" || w == "WP_DUAL_PISTOL" ||
+            w == "WP_DUAL_CLONEPISTOL" || w == "WP_DROIDEKA") {
+            return;
+        }
+        for (const char* n : kWaffenMdNutzbar) { faellt = faellt || (w == n && w != "WP_SABER"); }
+    } else {
+        if (w == "WP_BLASTER_PISTOL" || w == "WP_STUN_BATON" || w == "WP_MELEE") { return; }
+        for (std::size_t i = 2; i < std::size(kWaffenOj); ++i) { faellt = faellt || w == kWaffenOj[i]; }
+    }
+    if (!faellt) { return; }
+    // Drop_Item: velocity[2] += 200 + Q_flrand(-1, 1) * 50; LaunchItem dreht
+    // eine Waffe (ausser Bowcaster, Thermal, Mine, Sprengsatz) um Q_flrand(-1, 1) * 180.
+    e.waffe = TodWaffe::Faellt;
+    e.abwurfZufall[0] = qf(-1.0F, 1.0F);
+    if (w != "WP_BOWCASTER" && w != "WP_THERMAL" && w != "WP_TRIP_MINE" && w != "WP_DET_PACK") { e.abwurfZufall[1] = qf(-1.0F, 1.0F); }
+}
+
+// player_die vor der Animation (g_combat.cpp:3877-3936 OJ, :4884-4950 MD,
+// JK2 :3428-3475): das Schwert in der Hand (Q_irand(0, 1)), der Kristall des
+// Shadowtroopers, TossClientItems.
+void Kette::waffeVorher(TodErgebnis& e, bool& schwertInHand) {
+    schwertInHand = l_.waffe == "WP_SABER";   // holdingSaber
+    // Ein Schwert im Flug ("just drop it": Deactivate) wirft die Vorschau nicht:
+    // dort laesst player_die es los, ohne zu wuerfeln.
+    if (schwertInHand && !l_.schwertImFlug) {
+        // g_saberPickuppableDroppedSabers "0" (g_main.cpp:675 OJ, :807 MD).
+        // hitLoc ist HL_NONE (kill, trigger_hurt) - der erste Teil gilt, dann
+        // holdingSaber und "Q_irand( 0, 1 ) || meansOfDeath == ... MOD_FALLING ...";
+        // danach "ps.weapon = s.weapon = WP_NONE" - das Griffmodell bleibt in der
+        // Hand, wenn WP_SaberLose nicht gelang.
+        if (qi(0, 1) != 0 || l_.mittel == TodMittel::Fallen) { tossClientItems(e, true); }
+    }
+    // Shadowtrooper (nicht JK2): Drop_Item(FindItemForAmmo(AMMO_FORCE))
+    if (!jk() && klasse("CLASS_SHADOWTROOPER")) {
+        std::string t;
+        for (const char c : l_.npcTyp.substr(0, 13)) { t.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c)))); }
+        if (t == "shadowtrooper") {
+            e.kristall = true;
+            e.abwurfZufall[2] = qf(-1.0F, 1.0F);
+        }
+    }
+    // "if client is in a nodrop area, don't drop anything"
+    if (!schwertInHand && !l_.keinAbwurf && !klasse("CLASS_GALAKMECH")) { tossClientItems(e, false); }
+}
+
+// player_die nach TossClientItems (g_combat.cpp:4092-4105 OJ, :5150-5166 MD,
+// JK2 :3619-3640): die Klinge geht aus, sonst verschwindet die Waffe.
+void Kette::waffeNachher(TodErgebnis& e, bool schwertInHand) {
+    if (schwertInHand) {
+        if (l_.klingeAn && !e.schwertFaellt) {
+            if (jk()) {
+                klang(e, l_.spielerTeam ? "sound/weapons/saber/saberoff.wav" : "sound/weapons/saber/enemy_saber_off.wav");
+            } else if (!l_.schwertAusKlang.empty()) {
+                klang(e, l_.schwertAusKlang);   // G_SoundIndexOnEnt( self, CHAN_AUTO, saber[0].soundOff )
+            }
+        }
+        return;
+    }
+    if (e.waffe == TodWaffe::Faellt) { return; }   // s.weapon WP_NONE, das Modell geht mit
+    const std::string& w = l_.waffe;
+    bool bleibt = false;
+    if (jk()) {
+        bleibt = w == "WP_BLASTER_PISTOL";
+    } else if (md()) {
+        bleibt = w == "WP_BRYAR_PISTOL" || w == "WP_SBD_BLASTER" || w == "WP_JAWA" || w == "WP_DUAL_PISTOL" ||
+                 w == "WP_DUAL_CLONEPISTOL" || w == "WP_WRIST_BLASTER" || w == "WP_DROIDEKA";
+    } else {
+        bleibt = w == "WP_BRYAR_PISTOL";
+    }
+    if (!bleibt && !w.empty() && w != "WP_NONE") { e.waffe = TodWaffe::Weg; }
+}
+
+// DeathFX (g_combat.cpp:599-730 OJ, :813-960 MD, JK2 :660-780).
+void Kette::deathFx(TodErgebnis& e) {
+    const NavVec& o = l_.ort;
+    const float g = l_.gier * kGrad;   // currentAngles mit PITCH = ROLL = 0
+    const NavVec rechts{std::sin(g), -std::cos(g), 0.0F};
+    const auto bei = [&](float rechtsAb, float hoch) {
+        return NavVec{o[0] + rechts[0] * rechtsAb, o[1] + rechts[1] * rechtsAb, o[2] + hoch};
+    };
+    const auto fx = [&](const char* datei, const NavVec& p) { e.effekte.push_back(TodEffekt{datei, p}); };
+    // Movie Duels: NPC_type "cultist_destroyer" (g_combat.cpp:832-840 MD; das
+    // Paar davor fragt jedi_cultist_destroyer( NPC ) mit dem globalen NPC - der
+    // Figur, die gerade denkt, nicht unbedingt der sterbenden).
+    if (md()) {
+        std::string t;
+        for (const char c : l_.npcTyp) { t.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c)))); }
+        if (t == "cultist_destroyer") {
+            fx("explosions/droidexplosion1", bei(10.0F, -15.0F));
+            klang(e, "sound/chars/cultist1/misc/anger1");
+        }
+    }
+    // JK2 schreibt die Explosionen ohne Ordner (G_PlayEffect "droidexplosion1")
+    const char* droid = jk() ? "droidexplosion1" : "explosions/droidexplosion1";
+    if (klasse("CLASS_MOUSE")) {
+        fx("env/small_explode", bei(0.0F, -20.0F));
+        klang(e, "sound/chars/mouse/misc/death1");
+    } else if (klasse("CLASS_PROBE")) {
+        fx(jk() ? "probeexplosion1" : "explosions/probeexplosion1", bei(0.0F, 50.0F));
+    } else if (klasse("CLASS_ATST")) {
+        fx(droid, bei(20.0F, 180.0F));
+        fx(droid, bei(-20.0F, 180.0F));
+    } else if (klasse("CLASS_SEEKER") || klasse("CLASS_REMOTE")) {
+        fx("env/small_explode", o);
+    } else if (klasse("CLASS_GONK")) {
+        klang(e, "sound/chars/gonk/misc/death" + std::to_string(qi(1, 3)) + ".wav");
+        fx("env/med_explode", bei(0.0F, -5.0F));
+    } else if (klasse("CLASS_R2D2") || klasse("CLASS_PROTOCOL") || klasse("CLASS_R5D2")) {
+        fx("env/med_explode", bei(0.0F, -10.0F));
+        klang(e, "sound/chars/mark2/misc/mark2_explo");
+    } else if (klasse("CLASS_MARK2")) {
+        fx(droid, bei(0.0F, -15.0F));
+        klang(e, "sound/chars/mark2/misc/mark2_explo");
+    } else if (klasse("CLASS_INTERROGATOR")) {
+        fx(droid, bei(0.0F, -15.0F));
+        klang(e, "sound/chars/interrogator/misc/int_droid_explo");
+    } else if (klasse("CLASS_MARK1")) {
+        fx(droid, bei(10.0F, -15.0F));
+        fx(droid, bei(-10.0F, -15.0F));
+        fx(droid, bei(-30.0F, -15.0F));
+        klang(e, "sound/chars/mark1/misc/mark1_explo");
+    } else if (klasse("CLASS_SENTRY")) {
+        klang(e, "sound/chars/sentry/misc/sentry_explo");
+        fx("env/med_explode", o);
+    } else if (md() && (klasse("CLASS_BOBAFETT") || klasse("CLASS_MANDALORIAN") || klasse("CLASS_JANGO") ||
+                        klasse("CLASS_JANGODUAL") || klasse("CLASS_ROCKETTROOPER"))) {
+        fx("explosions/droidexplosion1", bei(10.0F, -15.0F));
+        klang(e, "sound/chars/mark1/misc/mark1_explo");
+    } else if (md() && klasse("CLASS_SBD")) {
+        klang(e, "sound/chars/SBD/misc/death2");
+        fx("env/small_explode", bei(10.0F, -15.0F));
+    } else if (md() && (klasse("CLASS_ASSASSIN_DROID") || klasse("CLASS_HAZARD_TROOPER"))) {
+        klang(e, "sound/chars/battledroid/misc/death3");
+        fx("explosions/droidexplosion1", bei(10.0F, -15.0F));
+    } else if (md() && klasse("CLASS_BATTLEDROID")) {
+        fx("env/small_explode", o);
+        klang(e, "sound/chars/battledroid/misc/death2");
+    } else if (md() && klasse("CLASS_DROIDEKA")) {
+        fx("env/small_explode", o);
+        klang(e, "sound/chars/droideka/foldin");
+    }
+}
+
 // player_die (g_combat.cpp:3610 OJ, :4497 MD, JK2 :3335) - was die Animation
 // bestimmt. Die Mittel der Vorschau sind nie MOD_SNIPER/MOD_PROJECTION_END/
 // MOD_CONC_ALT/MOD_ELECTROCUTE/MOD_CRUSH/MOD_WATER/MOD_GAS/MOD_FORCE_DRAIN/
@@ -698,6 +926,7 @@ TodErgebnis Kette::lauf() {
     // Schon tot: Zuckungen (:3621-3645 OJ, :4521-4575 MD, JK2 :3343-3366)
     if (l_.schonTot) {
         if (klasse("CLASS_MARK1")) {
+            deathFx(e);   // DeathFX(self) (g_combat.cpp:3625 OJ)
             e.verschwindet = true;
         } else {
             const std::string a = waehle();
@@ -709,6 +938,11 @@ TodErgebnis Kette::lauf() {
         e.tempo = tempo_;
         return e;
     }
+    // Pruefung 3: Schwert (Q_irand(0, 1)), Kristall, TossClientItems, Klinge aus
+    // oder Waffe weg - im Spiel vor der Animation (g_combat.cpp:3877-4105 OJ).
+    bool schwertInHand = false;
+    waffeVorher(e, schwertInHand);
+    waffeNachher(e, schwertInHand);
     e.timerNie = true;   // PM_SetLegsAnimTimer/PM_SetTorsoAnimTimer(-1) am Ende
     std::string anim;
     const bool fallTod = l_.mittel == TodMittel::Fallen ||
@@ -716,7 +950,7 @@ TodErgebnis Kette::lauf() {
                          (l_.beine == "BOTH_FALLDEATH1" && l_.torso == "BOTH_FALLDEATH1");
     if (klasse("CLASS_MARK1")) {
         // Mark1_die (AI_Mark1.cpp:225 OJ): erst der Klang death%d (Q_irand(1, 2))
-        (void)qi(1, 2);
+        klang(e, "sound/chars/mark1/misc/death" + std::to_string(qi(1, 2)) + ".wav");
         anim = qi(1, 10) > 5 ? "BOTH_DEATH2" : "BOTH_DEATH1";
     } else if (klasse("CLASS_INTERROGATOR")) {
         // Interrogator_die (AI_Interrogator.cpp:55 OJ): keine Animation, er faellt
@@ -724,6 +958,7 @@ TodErgebnis Kette::lauf() {
         (void)qi(-20, -10);
     } else if (klasse("CLASS_GALAKMECH")) {
         anim = "BOTH_DEATH1";
+        todesKlang(e);
     } else if (klasse("CLASS_ATST")) {
         anim = pickAnim();
     } else if (md() && klasse("CLASS_DROIDEKA")) {
@@ -732,15 +967,29 @@ TodErgebnis Kette::lauf() {
         // Schluessel am Arm: eine Animation, die ihn sichtbar laesst
         static constexpr const char* kSchluessel[4] = {"BOTH_DEATH4", "BOTH_DEATH21", "BOTH_DEATH17", "BOTH_DEATH18"};
         anim = kSchluessel[qi(0, 3)];
+        todesKlang(e);   // weder MOD_KNOCKOUT/MELEE noch GAS/FORCE_DRAIN
     } else if (fallTod) {
         if (!l_.amBoden && tempo_[2] < 0 && l_.beine != "BOTH_FALLDEATH1INAIR" && l_.torso != "BOTH_FALLDEATH1INAIR") {
             anim = "BOTH_FALLDEATH1INAIR";
+            // "*falling1.wav" auf CHAN_VOICE; ein NPC setzt NPCAI_DIE_ON_IMPACT und
+            // ps.friction = 1 (g_combat.cpp:4252-4262 OJ, :5329-5341 MD)
+            klang(e, "*falling1.wav", TodKlang::Kanal::Voice);
+            if (!l_.spieler) {
+                e.aufprallTod = true;
+                e.reibung = 1.0F;
+            }
         } else if (inOnGroundAnim()) {
             anim = winkel180(l_.rumpfWinkel[0]) < 0 ? "BOTH_DEATH_LYING_UP" : "BOTH_DEATH_LYING_DN";
         } else if (inKnockDown()) {
             anim = winkel180(l_.rumpfWinkel[0]) < 0 ? "BOTH_DEATH_FALLING_UP" : "BOTH_DEATH_FALLING_DN";
         } else {
             anim = "BOTH_FALLDEATH1LAND";
+        }
+        if (anim != "BOTH_FALLDEATH1INAIR") {
+            // "HMM: check for nodrop?" - fallsplat auf CHAN_BODY; *pain100 nur,
+            // wenn die Figur spricht UND schon NPCAI_DIE_ON_IMPACT traegt - das
+            // setzt erst dieser Tod (g_combat.cpp:4294-4300 OJ)
+            klang(e, "sound/player/fallsplat.wav", TodKlang::Kanal::Body);
         }
     } else {
         // normal death (:4302-4482 OJ, :5383-5522 MD, JK2 :3814-3994)
@@ -754,6 +1003,15 @@ TodErgebnis Kette::lauf() {
                 anim = "BOTH_DEATH17";
             } else {
                 e.kante = kanteSpringen();
+                // "*falling1.wav", NPCAI_DIE_ON_IMPACT und ps.friction = 0
+                // (g_combat.cpp:4323-4337 OJ) - g_gravity > 0, kein Flieger
+                if (e.kante == 2) {
+                    klang(e, "*falling1.wav", TodKlang::Kanal::Voice);
+                    if (!l_.spieler) {
+                        e.aufprallTod = true;
+                        e.reibung = 0.0F;
+                    }
+                }
                 if (pmZeit_ > 0 && rueckstoss_ && tempo_[2] > 0) {
                     NavVec richtung = tempo_;
                     const float geworfen = normiere(richtung);
@@ -804,8 +1062,12 @@ TodErgebnis Kette::lauf() {
         } else if (!jk() && !hat(anim)) {
             anim = pickAnim();
         }
+        // EV_DEATH1-3 - hitLoc HL_NONE, nicht gewuergt; ueber die Kante (cliff_fall
+        // 2) schreit schon *falling1 (g_combat.cpp:4528-4568 OJ, :5690-5722 MD)
+        if (e.kante != 2) { todesKlang(e); }
     }
     if (gesetzt(anim)) { e.anim = anim; }
+    deathFx(e);   // "Start any necessary death fx for this entity" (g_combat.cpp:4694 OJ)
     e.tempo = tempo_;
     return e;
 }
@@ -815,6 +1077,34 @@ TodErgebnis Kette::lauf() {
 TodErgebnis todesAnimation(const TodLage& lage, EngineZufall& zufall) {
     Kette k(lage, zufall);
     return k.lauf();
+}
+
+void engineVectoangles(const float v[3], float winkel[3]) noexcept {
+    constexpr float kPi = 3.14159265358979323846F;   // M_PI
+    float gier = 0.0F;
+    float nick = 0.0F;
+    if (v[1] == 0.0F && v[0] == 0.0F) {
+        nick = v[2] > 0.0F ? 90.0F : 270.0F;
+    } else {
+        if (v[0] != 0.0F) {
+            gier = std::atan2(v[1], v[0]) * 180.0F / kPi;
+        } else {
+            gier = v[1] > 0.0F ? 90.0F : 270.0F;
+        }
+        if (gier < 0.0F) { gier += 360.0F; }
+        const float vorn = std::sqrt(v[0] * v[0] + v[1] * v[1]);
+        nick = std::atan2(v[2], vorn) * 180.0F / kPi;
+        if (nick < 0.0F) { nick += 360.0F; }
+    }
+    winkel[0] = -nick;
+    winkel[1] = gier;
+    winkel[2] = 0.0F;
+}
+
+void rumpfWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept {
+    // NEGATIVE_Z: vec[i] = -boltMatrix.matrix[i][2] (G2_API.cpp, G2API_GiveMeVectorFromMatrix)
+    const float achse[3] = {-bolzen[0][2], -bolzen[1][2], -bolzen[2][2]};
+    engineVectoangles(achse, winkel);
 }
 
 }  // namespace bhed

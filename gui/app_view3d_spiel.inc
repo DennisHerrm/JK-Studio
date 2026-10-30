@@ -251,25 +251,14 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     }
     const Actor& a = g_app->scene.actors[ai];
     const App::ActorAssets& assets = *g_app->actorAssets[ai];
-    if (assets.model.empty()) { return -1; }
     ActorDraw d;
     d.figur = static_cast<int>(ai);
-    d.model = &assets.model;
-    figurBilderSetzen(a, assets, st, ms, d);
-    if (d.anim == nullptr) { return -1; }
-    for (int q = 0; q < 3; ++q) { d.pos[q] = st.pos[q]; }
-    d.yaw = st.angles[1];
-    npcSkalaFuer(a.npcType, d.skala);
-    anbautenFuer(a, st, ms, d);
-    figurKopfGier(st, d);
-    d.yawOffset = static_cast<float>(g_app->actorYaw);
     std::vector<BoneMatrix> welt;
-    std::vector<BoneMatrix> hilf;
-    if (!figurKnochen(d, welt, hilf) || welt.empty()) { return -1; }
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return -1; }
+    anbautenFuer(a, st, ms, d);
     std::vector<BoneMatrix> skin;
     gpu::baueKnochenmatrizen(welt, d.anim->bones, skin);
-    float fw[16];
-    figurWeltMatrix(d, fw);
     const GlmModel& m = assets.model;
     // G2_TraceSurfaces: rekursiv ab der Wurzel; offFlags = Ueberschreibung
     // (die .skin mit "*off": G2SURFACEFLAG_OFF) oder die Flaggen der Hierarchie;
@@ -1579,6 +1568,29 @@ void loadMapEffects() {
     if (g_app->roffFxZahl != 0U) {
         diag::info(std::to_string(g_app->roffFxZahl) + " Effekte aus ROFF-Notizen");
     }
+    // --- Pruefung 3: DeathFX der Tode (G_PlayEffect, player_die) -------------
+    // G_PlayEffect(name, org): ohne Richtung - CG_EntityEvent EV_PLAY_EFFECT
+    // spielt sie mit der Achse (0, 0, 1) (G_PlayEffect, g_utils.cpp OJ).
+    {
+        unsigned nr = 0;
+        for (const TodesFolge& tf : g_app->scene.todesFolgen) {
+            for (const TodEffekt& te : tf.effekte) {
+                std::string pfad = te.datei;
+                if (pfad.size() < 4 || pfad.compare(pfad.size() - 4, 4, ".efx") != 0) { pfad += ".efx"; }
+                if (pfad.rfind("effects/", 0) != 0) { pfad = "effects/" + pfad; }
+                if (!ladeEffektDatei(pfad, te.datei)) { continue; }
+                EffectInstance inst;
+                inst.effect = &g_app->effects[pfad];
+                for (int k = 0; k < 3; ++k) { inst.origin[k] = te.ort[static_cast<std::size_t>(k)]; }
+                inst.startMs = tf.ms;
+                inst.loops = false;
+                inst.seed = static_cast<unsigned>(nr * 2654435761U + 4099U) | 1U;
+                g_app->effectRunners.push_back(inst);
+                ++nr;
+            }
+        }
+        if (nr != 0U) { diag::info(std::to_string(nr) + " Effekte aus Toden (DeathFX)"); }
+    }
     diag::info(std::to_string(gefunden) + " fx_runner laufen, " +
                std::to_string(wartend) + " warten auf ein use (STARTOFF/ONESHOT), " +
                std::to_string(fehlt) + " ohne Datei, " +
@@ -2249,6 +2261,47 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
         ++gefunden;
     }
 }
+
+}  // namespace
+
+// Pruefung 3 - ausserhalb des unbenannten Namensraums (app_internal.h).
+const Gegenstandsliste& gegenstandslisteJetzt() {
+    static Gegenstandsliste liste;
+    static int regel = -1;
+    static int stand = -1;
+    const int r = regelwerkJediOutcast() ? 2 : regelwerkMovieDuels() ? 1 : 0;
+    if (r != regel || stand != g_app->texCacheStand) {
+        regel = r;
+        stand = g_app->texCacheStand;
+        std::string dat;
+        liste = readFromArchives("ext_data/items.dat", dat) ? leseGegenstaende(dat, r == 1, r == 2) : Gegenstandsliste{};
+    }
+    return liste;
+}
+
+namespace {
+// FindItemForWeapon / FindItemForAmmo (bg_misc.cpp OJ): der erste Platz ab 1
+// mit diesem Typ und Tag.
+const Gegenstand* gegenstandMit(const char* typ, const std::string& tag) {
+    const Gegenstandsliste& l = gegenstandslisteJetzt();
+    for (std::size_t i = 1; i < l.plaetze.size(); ++i) {
+        const Gegenstand& g = l.plaetze[i];
+        if (g.typ == typ && engineNamenGleich(g.tag, tag)) { return &g; }
+    }
+    return nullptr;
+}
+}  // namespace
+
+const Gegenstand* gegenstandFuerWaffe(const std::string& waffe) { return gegenstandMit("IT_WEAPON", waffe); }
+const Gegenstand* gegenstandKraftKristall() { return gegenstandMit("IT_AMMO", "AMMO_FORCE"); }
+
+std::string abwurfModell(const TodesAbwurf& ab) {
+    if (ab.art == TodesAbwurf::Art::Schwert) { return ab.waffe; }
+    const Gegenstand* g = ab.art == TodesAbwurf::Art::Waffe ? gegenstandFuerWaffe(ab.waffe) : gegenstandKraftKristall();
+    return g != nullptr ? g->worldmodel : std::string();
+}
+
+namespace {
 
 void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
     g_app->gegenstandGlm.clear();

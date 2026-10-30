@@ -62,6 +62,8 @@ constexpr float kMinWalkNormal = 0.7F;                // MIN_WALK_NORMAL
 // bg_pmove.cpp:207-219, bg_local.h:32, NPC_spawn.cpp:1928 (ps.friction = 6)
 constexpr float kPmStopSpeed = 100.0F;
 constexpr float kPmAccelerate = 12.0F;
+// Pruefung 3: pm_duckScale (bg_pmove.cpp:163 OJ, codeJK2 und MD gleich)
+constexpr float kPmDuckScale = 0.50F;
 constexpr float kNpcFriction = 6.0F;
 constexpr float kOverclip = 1.001F;
 // b_local.h MIN_ANGLE_ERROR
@@ -2248,7 +2250,8 @@ struct Lauf {
         akt.mover = wl.mover.get();
         akt.gefragt = &kantenGefragt;
         mins = {-w.halbBreite, -w.halbBreite, kDefaultMins2};
-        maxs = {w.halbBreite, w.halbBreite, w.hoeheOben};
+        // Pruefung 3: PM_SetBounds nimmt gent->maxs - geduckt die crouchheight
+        maxs = {w.halbBreite, w.halbBreite, zs.geduckt ? w.hockHoehe : w.hoeheOben};
         akt.da = true;
         akt.springen = w.kannSpringen;   // rc605
         // NAV::ClassifyEntSize (g_navigator.cpp:3654)
@@ -3510,6 +3513,36 @@ struct Lauf {
     // rc604 fix604: pm.tracemask = ent->clipmask (g_active.cpp:11036 MD / 5393
     // OpenJK; G_CheckInSolid ebenso, g_utils.cpp:1645 MD) - ohne CONTENTS_BODY
     // nach SET_SOLID false oder mit SFB_NOTSOLID (NavWelt::pmOhneKoerper).
+    // Pruefung 3: PM_CheckDuck (bg_pmove.cpp:5684-5880 OJ, codeJK2 gleich im
+    // Teil fuer upmove) fuer eine Figur. upmove < 0: maxs[2] = crouchheight,
+    // PMF_DUCKED; in der Luft hebt das Ducken die Fuesse ("origin[2] +=
+    // oldHeight - maxs[2]"). Sonst aufstehen, wenn der Kasten mit
+    // standheight frei ist (in der Luft mit gesenkten Fuessen).
+    void npcDucken() {
+        const float alt = maxs[2];   // oldHeight (pm->maxs aus PM_SetBounds)
+        // Pruefung 4a: "if ( PM_InRoll( pm->ps ) )" - maxs[2] = crouchheight,
+        // PMF_DUCKED (bg_pmove.cpp:5746-5763 OJ)
+        if (navInRolle(z.sprung) || ucmdHoch < 0) {
+            maxs[2] = w.hockHoehe;
+            if (!z.amBoden) { z.ort[2] += alt - maxs[2]; }
+            z.geduckt = true;
+            return;
+        }
+        if (z.geduckt) {
+            maxs[2] = w.hoeheOben;
+            if (!z.amBoden) {
+                z.ort[2] += alt - maxs[2];
+                if (!kastenSpur(z.ort, z.ort, pmMaske()).allsolid) {
+                    z.geduckt = false;
+                } else {
+                    z.ort[2] -= alt - maxs[2];   // "Put us back"
+                }
+            } else if (!kastenSpur(z.ort, z.ort, pmMaske()).allsolid) {
+                z.geduckt = false;
+            }
+        }
+        maxs[2] = z.geduckt ? w.hockHoehe : w.hoeheOben;
+    }
     [[nodiscard]] std::uint32_t pmMaske() const {
         if (spieler) { return kNavMaskPlayerSolid; }   // Stufe 8b Punkt 3: pm->tracemask des Spielers
         return welt.pmOhneKoerper ? (kNavMaskNpcSolid & ~kNavBody) : kNavMaskNpcSolid;
@@ -3776,8 +3809,18 @@ struct Lauf {
     // pml.forward/right (flach, auf die Bodenebene geklippt, normiert),
     // wishspeed * PM_CmdScale (:382-406).
     void jk2Beschleunigen(const NavVec& normale) {
-        if ((!jk2Pm && !spieler) || !istNull(zBewegung)) {
-            beschleunigen(zBewegung, static_cast<float>(z.tempo), kPmAccelerate);
+        // Pruefung 4a: "If The UCmds Were Set, But Never Converted Into A MoveDir,
+        // Then Make The WishDir From UCmds" (bg_pmove.cpp:2704-2729 OJ) - die Rolle
+        // leert moveDir und setzt den ucmd (nur sie; die anderen Wege halten moveDir)
+        const bool ausUcmd = navInRolle(z.sprung) && istNull(zBewegung) && (ucmdVor != 0 || ucmdSeit != 0);
+        if (((!jk2Pm && !spieler) && !ausUcmd) || !istNull(zBewegung)) {
+            // wishspeed = ps.speed; Pruefung 3: "clamp the speed lower if ducking"
+            // (bg_pmove.cpp:3229-3236 OJ, codeJK2 :1960-1966): ps.speed * pm_duckScale
+            float wunsch = static_cast<float>(z.tempo);
+            if (!spieler && z.geduckt && wunsch > static_cast<float>(z.tempo) * kPmDuckScale) {
+                wunsch = static_cast<float>(z.tempo) * kPmDuckScale;
+            }
+            beschleunigen(zBewegung, wunsch, kPmAccelerate);
             return;
         }
         NavVec vorn{};
@@ -3793,8 +3836,9 @@ struct Lauf {
         const auto sm = static_cast<float>(ucmdSeit);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
-        // Stufe 8b Punkt 3: PM_CmdScale des Spielers zaehlt upmove mit
-        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;
+        // Stufe 8b Punkt 3: PM_CmdScale zaehlt upmove mit (Pruefung 3: auch das
+        // -127 von SCF_CROUCHED einer Figur)
+        const int hoch = static_cast<int>(ucmdHoch);
         if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
@@ -3805,7 +3849,8 @@ struct Lauf {
         float wishspeed = vektorNorm(wishdir);
         wishspeed *= scale;
         // pm_duckScale (PM_WalkMove): geduckt hoechstens die Haelfte
-        if (spieler && spielerGeduckt && wishspeed > static_cast<float>(z.tempo) * 0.5F) { wishspeed = static_cast<float>(z.tempo) * 0.5F; }
+        const bool duckt = spieler ? spielerGeduckt : z.geduckt;
+        if (duckt && wishspeed > static_cast<float>(z.tempo) * kPmDuckScale) { wishspeed = static_cast<float>(z.tempo) * kPmDuckScale; }
         beschleunigen(wishdir, wishspeed, kPmAccelerate);
     }
     // PM_WalkMove (bg_pmove.cpp:4251-4530 MD) fuer NPCs mit moveDir.
@@ -3834,7 +3879,7 @@ struct Lauf {
         reibung(false);
         int maxm = std::abs(static_cast<int>(ucmdVor));
         if (std::abs(static_cast<int>(ucmdSeit)) > maxm) { maxm = std::abs(static_cast<int>(ucmdSeit)); }
-        const int hoch = spieler ? static_cast<int>(ucmdHoch) : 0;   // Stufe 8b Punkt 3: PM_CmdScale mit upmove
+        const int hoch = static_cast<int>(ucmdHoch);   // Stufe 8b Punkt 3 / Pruefung 3: PM_CmdScale mit upmove
         if (std::abs(hoch) > maxm) { maxm = std::abs(hoch); }
         float scale = 0.0F;
         if (maxm != 0) {
@@ -3872,6 +3917,7 @@ struct Lauf {
         const bool amBoden = static_cast<bool>(welt.boden);
         const bool mitWaenden = amBoden && (static_cast<bool>(welt.spur) || static_cast<bool>(welt.spurZeit)) && w.fallen;
         if (mitWaenden) {
+            if (!spieler) { npcDucken(); }   // Pruefung 3: PM_CheckDuck vor PM_GroundTrace (bg_pmove.cpp:14873-14879 OJ)
             const NavVec vorher = z.ort;
             vorherTempo = vel;               // pml.previous_velocity
             bodenSpur();                     // PM_GroundTrace
@@ -3898,6 +3944,7 @@ struct Lauf {
             return;
         }
         // --- ohne Spuren (oder ohne Fallen): wie bis teil 2 ---------------------
+        if (!spieler) { npcDucken(); }   // Pruefung 3: ohne Spuren kann nichts das Aufstehen hindern
         // PM_Friction (bg_pmove.cpp:790): pml.walking -> vec[2] = 0
         {
             NavVec vec = vel;
@@ -5047,7 +5094,8 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
     for (const float f : z.ort) { h = mische(h, bits(f)); }
     for (const float f : z.tempoVek) { h = mische(h, bits(f)); }
     for (const float f : {z.gier, z.wunschGier, z.pfadGier, w.zielRadius, w.maxTempo, w.gehTempo, w.drehRate,
-                          w.halbBreite, w.hoeheOben, w.stufe, static_cast<float>(w.gangSchalter)}) {
+                          w.halbBreite, w.hoeheOben, w.stufe, static_cast<float>(w.gangSchalter),
+                          w.geduckt ? w.hockHoehe : -1.0F, z.geduckt ? 1.0F : 0.0F}) {   // Pruefung 3
         h = mische(h, bits(f));
     }
     for (const float f : w.ziel) { h = mische(h, bits(f)); }
@@ -5076,10 +5124,11 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
     {
         const LaufZustand::Sprung& sk = z.sprung;
         if (sk.beinAnim != 0 || sk.torsoAnim != 0 || sk.torsoTimer != 0 || sk.abgehoben || w.kannSpringen || w.bsJump ||
-            sk.jumpZStart != 0.0F || sk.rueckwaerts || sk.torsoGesetztAb >= 0) {
+            sk.jumpZStart != 0.0F || sk.rueckwaerts || sk.torsoGesetztAb >= 0 || sk.rennt || w.darfRollen) {
             for (const int i : {0x4b4554, sk.beinAnim, sk.beinAnimAb, sk.torsoAnim, sk.torsoAnimAb, sk.torsoTimer,
                                 static_cast<int>(sk.abgehoben), sk.beinTimer, w.sprungAnimArt, w.sprungAnimMs, w.landMs,
-                                w.forceLandMs, static_cast<int>(sk.rueckwaerts), sk.torsoGesetztAb, static_cast<int>(bits(sk.jumpZStart))}) {
+                                w.forceLandMs, static_cast<int>(sk.rueckwaerts), sk.torsoGesetztAb, static_cast<int>(bits(sk.jumpZStart)),
+                                static_cast<int>(sk.rennt), static_cast<int>(w.darfRollen), static_cast<int>(w.keineAkrobatik)}) {
                 h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i)));
             }
         }
@@ -5470,6 +5519,73 @@ struct LaufRechner {
         ruheSeit = t;
         fertig = !(t <= grenzeMs + 0.5);
     }
+    // Pruefung 4a: PM_Footsteps nach der Bewegung (bg_pmove.cpp:8381-8404 OJ,
+    // MD :14660-14680, codeJK2 :5180-5195): geduckt, am Boden, mit Bewegung im
+    // ucmd und nicht schon in der Rolle (oder sie ist aus und SCF_CROUCHED haelt
+    // upmove < 0) - kommt die Figur aus einer Laufanimation (PM_RunningAnim),
+    // versucht PM_TryRoll die Rolle (G_StartRoll: SETANIM_BOTH mit OVERRIDE|HOLD|
+    // HOLDLESS). Danach: liefen die Beine nach diesem PM_Footsteps?
+    void rolleVersuchen(Lauf& l, bool bewegt, bool gehAnim, double jetztMs) {
+        LaufZustand::Sprung& s = z.sprung;
+        const bool rolle = s.beinAnim >= kSaRollF && s.beinAnim <= kSaRollL;   // PM_InRollIgnoreTimer
+        if (z.geduckt && z.amBoden && (l.ucmdVor != 0 || l.ucmdSeit != 0) && (!rolle || (s.beinTimer <= 0 && l.ucmdHoch < 0)) &&
+            s.rennt) {
+            rolleVersuchenJetzt(l, jetztMs);
+        }
+        const bool kette = s.beinAnim != kSaKeine && s.beinTimer > 0;
+        // in der Luft bleibt die Animation der Beine ("airborne leaves position in cycle intact")
+        if (z.amBoden) { s.rennt = !z.geduckt && bewegt && !gehAnim && !kette; }
+    }
+    // PM_TryRoll (bg_pmove.cpp:3782-3929 OJ) fuer einen NPC
+    void rolleVersuchenJetzt(Lauf& l, double jetztMs) {
+        const bool md = navMovieDuelsRegeln();
+        if (!w.darfRollen) { return; }
+        if (!md && w.keineAkrobatik) { return; }   // SCF_NO_ACROBATICS (Movie Duels fragt nicht)
+        int code = kSaKeine;
+        float weg = 192.0F;   // rollDist
+        float seite = 0.0F;
+        if (l.ucmdVor != 0) {
+            code = l.ucmdVor < 0 ? kSaRollB : kSaRollF;   // PMF_BACKWARDS_RUN: forwardmove < 0
+            if (code == kSaRollB) { weg = -weg; }
+        } else if (l.ucmdSeit > 0) {
+            code = kSaRollR;
+            seite = weg;
+            weg = 0.0F;
+        } else {
+            code = kSaRollL;
+            seite = -weg;
+            weg = 0.0F;
+        }
+        NavVec vorn{};
+        NavVec rechts{};
+        qAchsen(z.gier, vorn, rechts);   // fwdAngles = {0, viewangles[YAW], 0}
+        const NavVec ziel{z.ort[0] + vorn[0] * weg + rechts[0] * seite, z.ort[1] + vorn[1] * weg + rechts[1] * seite, z.ort[2]};
+        const NavVec mi{-w.halbBreite, -w.halbBreite, kDefaultMins2 + kStepSize};
+        const NavVec ma{w.halbBreite, w.halbBreite, w.hockHoehe};
+        bool rollen = false;
+        const NavSpur tr = l.spurMitZeit(z.ort, mi, ma, ziel, kNavKeineEntity, kNavSolid | kNavMonsterClip | kNavBotClip);
+        if (tr.fraction >= 1.0F) {
+            // "check for a bottomless drop"
+            const NavVec unten{ziel[0], ziel[1], ziel[2] - 256.0F};
+            rollen = l.spurMitZeit(ziel, mi, ma, unten, kNavKeineEntity, kNavSolid).fraction < 1.0F;
+        } else {
+            // "NPCs don't care about rolling into walls, just off ledges"
+            rollen = (tr.contents & kNavBotClip) == 0U;
+        }
+        if (!rollen) { return; }
+        // G_StartRoll -> NPC_SetAnim(SETANIM_BOTH, ...): PM_HasAnimation, sonst bleibt alles
+        const int dauer = w.landeMs[static_cast<std::size_t>(code)];
+        if (dauer <= 0) { return; }
+        LaufZustand::Sprung& s = z.sprung;
+        const int ms = static_cast<int>(std::lround(jetztMs));
+        s.beinAnim = code;
+        s.beinAnimAb = ms;
+        s.beinTimer = dauer;
+        s.torsoAnim = code;
+        s.torsoAnimAb = ms;
+        s.torsoTimer = dauer;
+        s.torsoGesetztAb = ms;
+    }
     void schritt() {
         if (fertig) { return; }
         // rc605 (Ende): G_RunMover laeuft im Bild vor dem NPC (die Mover der Karte
@@ -5629,6 +5745,24 @@ struct LaufRechner {
                 if (e.schubBis < l.jetzt) { e.schub = {0.0F, 0.0F, 0.0F}; }
             }
         }
+        // Pruefung 4a: ClientThink in der Rolle (g_active.cpp:3964-3982 OJ, codeJK2
+        // :1456-1467, MD :6100-6121): PM_CmdForRoll, VectorClear(moveDir), ps.speed
+        // 400; G_CheckRollSafety ist fuer BOTH_ROLL_* immer qtrue ("default")
+        if (!w.ohneKoerper && navInRolle(z.sprung)) {
+            const int r = z.sprung.beinAnim;
+            l.ucmdVor = static_cast<signed char>(r == kSaRollF ? 127 : r == kSaRollB ? -127 : 0);
+            l.ucmdSeit = static_cast<signed char>(r == kSaRollR ? 127 : r == kSaRollL ? -127 : 0);
+            l.zBewegung = {0.0F, 0.0F, 0.0F};
+            z.tempo = 400;
+            bewegt = true;
+        }
+        if (!w.ohneKoerper) {
+            // Pruefung 3: NPC_ApplyScriptFlags (NPC.cpp:977-987 OJ): SCF_CROUCHED
+            // -> ucmd.upmove = -127, im Denkbild mit Verhalten; ohne Verhalten
+            // (OpenJK) kommt es mit NPCInfo->last_ucmd.
+            hoch = verhalten ? static_cast<signed char>(w.geduckt ? -127 : 0) : z.letzterHoch;
+            l.ucmdHoch = hoch;
+        }
         if (w.ohneKoerper) {
             // PmoveSingle: PM_NOCLIP -> PM_NoclipMove, PM_DropTimers, return -
             // kein PM_Footsteps, die Beine behalten ihre Animation (bewegt
@@ -5637,6 +5771,7 @@ struct LaufRechner {
         } else {
             l.pmove(static_cast<float>(ersteMs) * 0.001F, ersteMs);
         }
+        if (!w.ohneKoerper) { rolleVersuchen(l, bewegt, gehTaste, t); }
         // rc603 fix603: LaufTakt::msec (PM_NoclipMove rechnet hier fest 50).
         const int bildMs = w.ohneKoerper ? 50 : ersteMs;
         ersteMs = 50;
@@ -5648,7 +5783,7 @@ struct LaufRechner {
             if (verhalten) {
                 z.letzterVor = w.ohneKoerper ? vor : (jk2 ? jk2Vor : l.ucmdVor);
                 z.letzterSeit = w.ohneKoerper ? seit : (jk2 ? jk2Seit : l.ucmdSeit);
-                z.letzterHoch = w.ohneKoerper ? hoch : 0;
+                z.letzterHoch = hoch;
                 z.letzteGehTaste = jk2 ? jk2Geh : gehTaste;
             }
         }
@@ -5683,6 +5818,7 @@ struct LaufRechner {
         // rc605 FU4: ebenso jede Animation der Sprungkette (die Szene zeigt sie im Weg).
         if (z.sprung.beinAnim != kSaKeine) { takt.bewegt = true; }
         takt.weg = wegArt;
+        takt.geduckt = z.geduckt;   // Pruefung 3
         takt.sprungTempo = l.sprungTempo;
         plan.takte.push_back(takt);
         plan.zustaende.push_back(z);
@@ -5932,8 +6068,28 @@ const char* sprungAnimName(int code) {
         case kSaForceLandBack1: return "BOTH_FORCELANDBACK1";
         case kSaForceLandLeft1: return "BOTH_FORCELANDLEFT1";
         case kSaForceLandRight1: return "BOTH_FORCELANDRIGHT1";
+        case kSaRollF: return "BOTH_ROLL_F";
+        case kSaRollB: return "BOTH_ROLL_B";
+        case kSaRollR: return "BOTH_ROLL_R";
+        case kSaRollL: return "BOTH_ROLL_L";
         default: return nullptr;
     }
+}
+
+bool npcDarfRollen(bool movieDuels, bool jk2, const std::string& waffe, const std::string& klasse, const std::string& rang) {
+    if (movieDuels) { return true; }
+    // TranslateRankName: RANK_CREWMAN (1) oder ab RANK_LT_JG (3); ohne "rank" in
+    // der .npc gilt RANK_CIVILIAN (NPC_ParseParms)
+    const std::string r = klein(rang);
+    const bool rangOk = r == "crewman" || r == "ltjg" || r == "lt" || r == "ltcomm" || r == "commander" || r == "captain";
+    const std::string w = klein(waffe);
+    const bool schwert = w == "wp_saber";
+    const bool leer = w.empty() || w == "wp_none";
+    if (jk2) { return (schwert || leer) && rangOk; }
+    if (schwert) { return rangOk; }
+    if (leer) { return true; }
+    const std::string k = klein(klasse);
+    return k == "class_bobafett" || k == "class_reborn";
 }
 
 int npcLandKlasse(bool movieDuels, bool jk2, const std::string& klasse, const std::string& rang) {

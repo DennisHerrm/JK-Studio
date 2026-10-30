@@ -1306,13 +1306,19 @@ ActorState Actor::at(double ms) const {
                     torsoCode = tk[j].torsoAnim;
                     torsoAb = tk[j].torsoAnimAb;
                     lauf = tk[i].gehAnim ? "BOTH_WALK1" : "BOTH_RUN1";
+                    // Pruefung 3: PMF_DUCKED - PM_Footsteps waehlt BOTH_CROUCH1WALK
+                    // (bg_pmove.cpp:8381-8404 OJ), moveSpeedOfAnim 75 (bg_panimate.cpp:4778-4781)
+                    float bezug = tk[i].gehAnim ? kAnimSpeedWalk : kAnimSpeedRun;
+                    if (tk[i].geduckt) {
+                        lauf = "BOTH_CROUCH1WALK";
+                        bezug = kAnimSpeedHocke;
+                    }
                     const NavVec& vor = i == 0 ? weg->lauf->anfang.ort : tk[i - 1].ort;
                     const float dx = tk[i].ort[0] - vor[0];
                     const float dy = tk[i].ort[1] - vor[1];
                     const float dz = tk[i].ort[2] - vor[2];
                     const float result = std::sqrt(dx * dx + dy * dy + dz * dz) / static_cast<float>(kNavDenkMs / 1000.0);
-                    animTempo = std::clamp(result / (tk[i].gehAnim ? kAnimSpeedWalk : kAnimSpeedRun), kAnimSpeedMin,
-                                           kAnimSpeedMax);
+                    animTempo = std::clamp(result / bezug, kAnimSpeedMin, kAnimSpeedMax);
                     break;
                 }
             }
@@ -1322,8 +1328,12 @@ ActorState Actor::at(double ms) const {
                 const float g = st.angles[1] * std::numbers::pi_v<float> / 180.0F;
                 if (mx * mx + my * my > 1.0F && std::cos(g) * mx + std::sin(g) * my < 0.0F) {
                     const bool rennt = lauf == "BOTH_RUN1";
-                    lauf = rennt ? (st.saberActive ? "BOTH_RUNBACK2" : "BOTH_RUNBACK1")
-                                 : (st.saberActive ? "BOTH_WALKBACK2" : "BOTH_WALKBACK1");
+                    if (lauf == "BOTH_CROUCH1WALK") {
+                        lauf = "BOTH_CROUCH1WALKBACK";   // Pruefung 3: PMF_BACKWARDS_RUN geduckt
+                    } else {
+                        lauf = rennt ? (st.saberActive ? "BOTH_RUNBACK2" : "BOTH_RUNBACK1")
+                                     : (st.saberActive ? "BOTH_WALKBACK2" : "BOTH_WALKBACK1");
+                    }
                 }
             }
             if (beinCode != kSaKeine) {   // rc605 FU4
@@ -1593,6 +1603,22 @@ ActorState Actor::at(double ms) const {
     // bekannte Laenge keiner - dann loest ein Weg die Animation ab, siehe beineFest).
     st.beineTimerBisMs = beineFest ? beineBis : -1.0;
     st.torsoTimerBisMs = torsoBis;
+    // Pruefung 3: PM_AdjustStandAnimForSlope - PM_SetAnim(SETANIM_LEGS, ...,
+    // SETANIM_FLAG_NORMAL): nur die Beine; der Oberkoerper bleibt in der Haltung.
+    if (!hangBeine.empty() && hangStandErlaubt(st, st.beineTimerBisMs, ms)) {
+        const auto it = std::upper_bound(hangBeine.begin(), hangBeine.end(), ms,
+                                         [](double m, const std::pair<double, std::string>& e) { return m < e.first; });
+        if (it != hangBeine.begin() && !std::prev(it)->second.empty()) {
+            const auto& [ab, beine] = *std::prev(it);
+            if (st.torsoAnimation.empty()) {
+                st.torsoAnimation = st.animation;
+                st.torsoStartMs = st.animStartMs;
+            }
+            st.animation = beine;
+            st.animStartMs = ab;
+            st.prevAnimation.clear();
+        }
+    }
     return st;
 }
 
@@ -1872,6 +1898,9 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "playerteam") {
             cur.team = jk2 ? jk2TeamName(wert) : wert;
         }
+        if (key == "snd") {   // Pruefung 3
+            cur.snd = wert.substr(0, wert.find('/'));
+        }
         // saberStyle, gekappt wie NPC_ParseParms (NPC_stats.cpp:4506).
         if (key == "saberstyle") {
             const long n = std::strtol(wert.c_str(), nullptr, 10);
@@ -1901,6 +1930,7 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "fp_levitation") {
             cur.levitation = std::clamp(std::atoi(wert.c_str()), 0, 5);
         }
+        if (key.rfind("fp_", 0) == 0) { cur.kraefte[key] = std::clamp(std::atoi(wert.c_str()), 0, 5); }
         // rc605 (Ende, trigger_hurt): "health" n (NPC_ParseParms: COM_ParseInt,
         // stats->health = n).
         if (key == "health") {
@@ -1951,6 +1981,9 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         // Kasten, mit dem STEER::Reached die Ankunft sieht.
         if (key == "height") {
             cur.hoehe = static_cast<float>(std::atoi(wert.c_str()));
+        }
+        if (key == "crouchheight") {   // Pruefung 3
+            cur.hockHoehe = static_cast<float>(std::atoi(wert.c_str()));
         }
         if (key == "movetype") {
             cur.fliegt = sameName(wert, "flyswim");
@@ -2103,6 +2136,10 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
         else if (key == "soundon") { def.soundOn = val; }
         else if (key == "soundloop") { def.soundLoop = val; }
         else if (key == "soundoff") { def.soundOff = val; }
+        else if (key == "disarmable") { def.nichtEntwaffnbar = std::atoi(val.c_str()) == 0; }   // Pruefung 3
+        else if (key == "fallsound1") { def.fallKlang[0] = val; }
+        else if (key == "fallsound2") { def.fallKlang[1] = val; }
+        else if (key == "fallsound3") { def.fallKlang[2] = val; }
         // rc601 (saber): die Schluessel zum Beruehren (wp_saberLoad.cpp:2794 ff. MD).
         else if (saberKontaktSchluessel(def.kontakt, key, val)) {}
         // Die Kampfstile (Saber_ParseSaberStyle und Verwandte,
@@ -2281,6 +2318,561 @@ LaufZustand laufZustandBei(const Actor& a, double t) {
     return zustandBei(*plan, t);
 }
 
+// Pruefung 3: die Familie einer Beinanimation fuer PM_AdjustStandAnimForSlope
+// ("adjust for current legs anim", bg_pmove.cpp:7509-7612 OJ): S1, "" (die
+// allgemeine LEGS_LEFTUP/RIGHTUP), S3 .. S7; "?" keine (BOTH_STAND6 und alles
+// andere: qfalse).
+std::string hangFamilie(const std::string& a) {
+    if (a == "BOTH_STAND1") { return "S1"; }
+    if (a == "BOTH_STAND2" || a == "BOTH_SABERFAST_STANCE" || a == "BOTH_SABERSLOW_STANCE" || a == "BOTH_CROUCH1IDLE" ||
+        a == "BOTH_CROUCH1" || a.rfind("LEGS_LEFTUP", 0) == 0 || a.rfind("LEGS_RIGHTUP", 0) == 0) {
+        return "";
+    }
+    if (a == "BOTH_STAND3") { return "S3"; }
+    if (a == "BOTH_STAND4") { return "S4"; }
+    if (a == "BOTH_STAND5") { return "S5"; }
+    if (a == "BOTH_SABERDUAL_STANCE") { return "S6"; }
+    if (a == "BOTH_SABERSTAFF_STANCE") { return "S7"; }
+    if (a.size() == 12U && a.rfind("LEGS_S", 0) == 0 && a[7] == '_') { return a.substr(5, 2); }
+    return "?";
+}
+// Seite und Stufe einer Hanganimation (LEGS_S1_LUP3: 'L', 3), 0 sonst.
+int hangStufe(const std::string& a, char& seite) {
+    if (a.empty() || std::isdigit(static_cast<unsigned char>(a.back())) == 0) { return 0; }
+    if (a.rfind("LEGS_LEFTUP", 0) == 0) { seite = 'L'; return a.back() - '0'; }
+    if (a.rfind("LEGS_RIGHTUP", 0) == 0) { seite = 'R'; return a.back() - '0'; }
+    if (a.size() == 12U && a.rfind("LEGS_S", 0) == 0 && a[7] == '_') {
+        seite = a[8];
+        return a.back() - '0';
+    }
+    return 0;
+}
+std::string hangName(const std::string& familie, char seite, int stufe) {
+    if (familie.empty()) { return std::string(seite == 'L' ? "LEGS_LEFTUP" : "LEGS_RIGHTUP") + std::to_string(stufe); }
+    return "LEGS_" + familie + (seite == 'L' ? "_LUP" : "_RUP") + std::to_string(stufe);
+}
+
+// PM_FootSlopeTrace (bg_pmove.cpp:7187-7325 OJ): die Fussbolzen auf
+// currentOrigin[2] + mins[2] + 1, je ein Kasten (+-3, 0..1; ATST +-16)
+// interval * 10 hinab (pm->tracemask, ohne sich selbst); diff = links - rechts.
+float fussHangDiff(const NavSpurFn& spur, const float l[3], const float r[3], const NavVec& ort, float minsZ, bool atst, int ich) {
+    const float interval = atst ? 10.0F : 4.0F;
+    const float z0 = ort[2] + minsZ + 1.0F;
+    const NavVec mi = atst ? NavVec{-16.0F, -16.0F, 0.0F} : NavVec{-3.0F, -3.0F, 0.0F};
+    const NavVec ma = atst ? NavVec{16.0F, 16.0F, 1.0F} : NavVec{3.0F, 3.0F, 1.0F};
+    float h[2] = {0.0F, 0.0F};
+    const float* fuss[2] = {l, r};
+    for (int i = 0; i < 2; ++i) {
+        const NavVec a{fuss[i][0], fuss[i][1], z0};
+        const NavVec b{fuss[i][0], fuss[i][1], z0 - interval * 10.0F};
+        h[i] = spur ? spur(a, mi, ma, b, ich, kNavMaskNpcSolid).endpos[2] : b[2];
+    }
+    return h[0] - h[1];
+}
+
+// buildOnce: je Figur (NPC, G_StandardHumanoid oder ATST - fussPunkte liefert nur
+// mit den Bolzen) und Denkbild PM_AdjustStandAnimForSlope, wo PM_Footsteps die
+// Standanimation setzt. Steht die Figur still auf einer Stelle, deren Boden unter
+// dem Kasten eben ist, aendert sich nichts: diff ist dort 0 - das prueft eine
+// Spur je Stelle, bevor die Fuesse gerechnet werden.
+void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
+    if (hilfe == nullptr || !hilfe->fussPunkte || !hilfe->nav) { return; }
+    const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+    for (Actor& a : out.actors) {
+        if (a.npcType.empty() || a.echterSpieler || a.brushModel > 0) { continue; }
+        const bool atst = sameName(a.klasse, "CLASS_ATST");
+        double neuRechnen = -1.0e300;   // client->slopeRecalcTime
+        double ende = out.durationMs;
+        for (const ActorStep& s : a.steps) { ende = std::max(ende, s.endMs); }
+        bool ebenBekannt = false;
+        NavVec ebenOrt{};
+        bool eben = false;
+        // bis zum Ende der Schritte - und solange sich die Beine noch aendern
+        // (hoechstens neun Stufen zu je SLOPE_RECALC_INT bis zum Ziel)
+        double grenze = ende + kNavDenkMs;
+        for (double t = navDenkbildAb(std::max(0.0, a.erscheintMs)); t <= grenze; t += kNavDenkMs) {
+            const ActorState st = a.at(t);   // legsAnim mit den Hangbeinen bis hierher
+            std::string ziel;
+            if (hangStandErlaubt(st, st.beineTimerBisMs, t)) {
+                NavSpurFn spur = welt->spur;
+                if (welt->spurZeit) {
+                    spur = [welt, t](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+                        return welt->spurZeit(s0, mi, ma, e0, ign, m, t);
+                    };
+                }
+                const NavVec ort{st.pos[0], st.pos[1], st.pos[2]};
+                if (!ebenBekannt || ort != ebenOrt) {
+                    // eben: ein Kasten ueber den ganzen Grundriss (+ der Fusskasten)
+                    // trifft dort, wo ein Strahl in der Mitte trifft, auf eine waagrechte Flaeche
+                    const float z0 = ort[2] - kFussTiefe + 1.0F;
+                    const float tief = (atst ? 10.0F : 4.0F) * 10.0F;
+                    const float b = a.halbBreite + (atst ? 16.0F : 3.0F);
+                    const NavSpur gross = spur ? spur({ort[0], ort[1], z0}, {-b, -b, 0.0F}, {b, b, 1.0F}, {ort[0], ort[1], z0 - tief}, a.kartenEntity,
+                                                     kNavMaskNpcSolid)
+                                               : NavSpur{};
+                    const NavSpur mitte = spur ? spur({ort[0], ort[1], z0}, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {ort[0], ort[1], z0 - tief},
+                                                     a.kartenEntity, kNavMaskNpcSolid)
+                                               : NavSpur{};
+                    eben = spur && !gross.startsolid && gross.fraction < 1.0F && gross.normal[2] >= 0.999F &&
+                           std::fabs(gross.endpos[2] - mitte.endpos[2]) < 0.001F;
+                    ebenBekannt = true;
+                    ebenOrt = ort;
+                }
+                float l[3];
+                float r[3];
+                if (!eben && hilfe->fussPunkte(a, t, l, r)) {
+                    const float diff = fussHangDiff(spur, l, r, ort, -kFussTiefe, atst, a.kartenEntity);
+                    ziel = hangBeinSchritt(st.animation, diff, atst, t, neuRechnen);
+                }
+            }
+            if (a.hangBeine.empty() ? !ziel.empty() : a.hangBeine.back().second != ziel) {
+                a.hangBeine.emplace_back(t, ziel);
+                grenze = std::max(grenze, t + 1000.0 + kNavDenkMs);
+            }
+        }
+    }
+}
+
+// Die Spur der Welt zur Zeit wann (die Mover stehen, wo sie dann stehen).
+NavSpurFn todesSpur(const std::shared_ptr<const NavWelt>& welt, double wann) {
+    if (!welt) { return {}; }
+    if (welt->spurZeit) {
+        return [welt, wann](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {
+            return welt->spurZeit(s0, mi, ma, e0, ign, m, wann);
+        };
+    }
+    return welt->spur;
+}
+
+// Pruefung 3: was der Tod ausser der Animation ausloest - Klaenge, DeathFX,
+// die Waffe verschwindet oder faellt, das Schwert faellt aus der Hand
+// (player_die, TossClientItems, WP_SaberLose; bhed/todesanim.h, abwurf.h).
+void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLage& lage, const TodErgebnis& tod, double wann,
+                        const SzenenHilfe* hilfe) {
+    if (!tod.klaenge.empty() || !tod.effekte.empty()) {
+        TodesFolge f;
+        f.ms = wann;
+        f.figur = a.name;
+        f.klaenge = tod.klaenge;
+        f.effekte = tod.effekte;
+        f.rohZ = st.pos[2];
+        out.todesFolgen.push_back(std::move(f));
+    }
+    // s.weapon = WP_NONE und G_RemoveWeaponModels - das Modell geht aus der Hand
+    if (tod.waffe != TodWaffe::Bleibt || tod.schwertFaellt) {
+        ActorStep weg;
+        weg.kind = ActorStep::Kind::Waffe;
+        weg.startMs = wann;
+        weg.endMs = wann;
+        weg.text = "WP_NONE";
+        a.steps.push_back(std::move(weg));
+    }
+    if (hilfe == nullptr) { return; }
+    const NavSpurFn spur = todesSpur(hilfe->nav, wann);
+    const float schwer = out.schwerkraft;
+    const NavVec ort{st.pos[0], st.pos[1], st.pos[2]};
+    const auto gegenstand = [&](TodesAbwurf::Art art, const std::string& waffe, const NavVec& mi, const NavVec& ma, const float zufall[2],
+                                bool drehen, std::uint32_t saat) {
+        AbwurfStart s = gegenstandAbwurf(ort, st.angles[1], zufall, drehen);
+        s.ms = wann;
+        s.mins = mi;
+        s.maxs = ma;
+        // LaunchItem: ohne mins/maxs ITEM_RADIUS 15 (g_items.cpp:961-965 OJ)
+        if (mi == NavVec{0.0F, 0.0F, 0.0F} && ma == NavVec{0.0F, 0.0F, 0.0F}) {
+            s.mins = {-15.0F, -15.0F, -15.0F};
+            s.maxs = {15.0F, 15.0F, 15.0F};
+        }
+        s.entity = lage.entity;
+        s.regel = lage.regel;
+        s.schwerkraft = schwer;
+        s.saat = saat;
+        TodesAbwurf ab;
+        ab.figur = a.name;
+        ab.art = art;
+        ab.waffe = waffe;
+        ab.start = s;
+        ab.rohZ = st.pos[2];
+        ab.bahn = wirfGegenstand(s, spur);
+        out.abwuerfe.push_back(std::move(ab));
+    };
+    if (tod.kristall && hilfe->kraftGegenstand) {
+        NavVec mi{};
+        NavVec ma{};
+        if (hilfe->kraftGegenstand(mi, ma)) {
+            const float z[2] = {tod.abwurfZufall[2], 0.0F};
+            gegenstand(TodesAbwurf::Art::Kristall, std::string(), mi, ma, z, false, todesSaat(lage.entity, wann + 1.0));
+        }
+    }
+    if (tod.waffe == TodWaffe::Faellt && hilfe->waffenGegenstand) {
+        NavVec mi{};
+        NavVec ma{};
+        if (hilfe->waffenGegenstand(lage.waffe, mi, ma)) {
+            const std::string& w = lage.waffe;
+            const bool drehen = w != "WP_BOWCASTER" && w != "WP_THERMAL" && w != "WP_TRIP_MINE" && w != "WP_DET_PACK";
+            gegenstand(TodesAbwurf::Art::Waffe, w, mi, ma, tod.abwurfZufall, drehen, todesSaat(lage.entity, wann + 2.0));
+        }
+    }
+    if (tod.schwertFaellt && hilfe->handPunkt) {
+        float h[3];
+        float r[3];
+        if (hilfe->handPunkt(a, wann, h, r)) {
+            AbwurfStart s;
+            s.ms = wann;
+            s.ort = {h[0], h[1], h[2]};
+            float w[3];
+            engineVectoangles(r, w);   // vectoangles( renderInfo.muzzleDir, saber->s.apos.trBase )
+            s.winkel = {w[0], w[1], w[2]};
+            s.klingeAus = tod.schwertKlingeAus;
+            // forcePowerLevel[FP_SABERTHROW]: die .npc (OpenJK, Movie Duels); der
+            // Spieler hat ohne Cheats keine (WP_InitForcePowers); Jedi Outcasts
+            // WP_SaberLose setzt FORCE_LEVEL_1
+            if (lage.regel == TodRegelwerk::JediOutcast) {
+                s.wurfStufe = 1;
+            } else if (!a.echterSpieler && hilfe->npcs != nullptr) {
+                std::string typ = a.npcType;
+                for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                if (const auto it = hilfe->npcs->find(typ); it != hilfe->npcs->end()) {
+                    if (const auto k = it->second.kraefte.find("fp_saberthrow"); k != it->second.kraefte.end()) { s.wurfStufe = k->second; }
+                }
+            }
+            // WP_SaberLaunch: "default: case FORCE_LEVEL_1" 600, FORCE_LEVEL_2 800, FORCE_LEVEL_3 1200
+            s.drehTempo = {0.0F, s.wurfStufe == 2 ? 800.0F : s.wurfStufe == 3 ? 1200.0F : 600.0F, 0.0F};
+            s.blick = {st.angles[0], st.angles[1], 0.0F};
+            s.spieler = lage.spieler;
+            // WP_SaberDrop: soundOff am Schwert (codeJK2 nach dem Team)
+            s.ausKlang = lage.regel == TodRegelwerk::JediOutcast
+                             ? (lage.spielerTeam ? "sound/weapons/saber/saberoff.wav" : "sound/weapons/saber/enemy_saber_off.wav")
+                             : lage.schwertAusKlang;
+            s.entity = lage.entity;
+            s.regel = lage.regel;
+            s.schwerkraft = schwer;
+            s.saat = todesSaat(lage.entity, wann + 3.0);
+            std::string griff;
+            const SaberZustand& s0 = st.saber[0];
+            if (s0.art >= 0 && static_cast<std::size_t>(s0.art) < a.saberArten.size()) {
+                const SaberArt& art = a.saberArten[static_cast<std::size_t>(s0.art)];
+                if (art.modell >= 0 && static_cast<std::size_t>(art.modell) < a.modelle.size()) { griff = a.modelle[static_cast<std::size_t>(art.modell)]; }
+                if (hilfe->sabers != nullptr) {
+                    std::string n = art.name;
+                    for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                    const auto it = hilfe->sabers->find(n);
+                    if (it != hilfe->sabers->end()) {
+                        s.fallKlang = it->second.fallKlang;
+                        s.sithSchwert = sameName(it->second.type, "SABER_SITH_SWORD");
+                    }
+                }
+            }
+            TodesAbwurf ab;
+            ab.figur = a.name;
+            ab.art = TodesAbwurf::Art::Schwert;
+            ab.waffe = griff;
+            ab.start = s;
+            ab.rohZ = st.pos[2];
+            // player_die: self->enemy = attacker - kill (ICARUS) gibt keinen,
+            // trigger_hurt sich selbst (kein client: WP_RunSaber zielt nicht)
+            ab.zielFrei = lage.mittel == TodMittel::Unbekannt;
+            // die Bahn erst, wenn die Szene steht (schwertBahnRechnen)
+            out.abwuerfe.push_back(std::move(ab));
+        }
+    }
+}
+
+// G_ClearLOS (NPC_senses.cpp:929-955 OJ, MD und JK2 gleich): ein Strahl mit
+// CONTENTS_OPAQUE, durch hoechstens drei Scheiben (SVF_GLASS_BRUSH, func_glass)
+// hindurch, dann mit MASK_OPAQUE weiter.
+bool sichtFrei(const NavSpurFn& spur, const MapData* karte, const NavVec& von, const NavVec& bis) {
+    if (!spur) { return true; }
+    constexpr std::uint32_t kOpak = 0x00008000U;                      // CONTENTS_OPAQUE
+    constexpr std::uint32_t kMaskeOpak = kOpak | 0x00020000U | 0x2U;   // MASK_OPAQUE: OPAQUE|SLIME|LAVA
+    const NavVec null{0.0F, 0.0F, 0.0F};
+    NavSpur tr = spur(von, null, null, bis, kNavKeineEntity, kOpak);
+    for (int scheiben = 0; tr.fraction < 1.0F && scheiben < 3; ++scheiben) {
+        const MapEntity* e = karte != nullptr && tr.entity >= 0 && static_cast<std::size_t>(tr.entity) < karte->entities.size()
+                                 ? &karte->entities[static_cast<std::size_t>(tr.entity)]
+                                 : nullptr;
+        const std::string* kl = e != nullptr ? e->find("classname") : nullptr;
+        if (kl == nullptr || !sameName(*kl, "func_glass")) { return false; }
+        tr = spur(tr.endpos, null, null, bis, tr.entity, kMaskeOpak);
+    }
+    return tr.fraction >= 1.0F;
+}
+
+// AngleVectors, nur forward.
+NavVec vornAusWinkeln(const NavVec& w) {
+    const float p = w[0] * (std::numbers::pi_v<float> / 180.0F);
+    const float y = w[1] * (std::numbers::pi_v<float> / 180.0F);
+    return {std::cos(p) * std::cos(y), std::cos(p) * std::sin(y), -std::sin(p)};
+}
+
+// forcePowersKnown != 0 einer Figur: die Kraefte der .npc mit einer Stufe ueber
+// 0 (NPC_ParseParms, nur die Namen der FPTable des Regelwerks) und die Klassen,
+// denen NPC_SetMiscDefaultData FP_LEVITATION gibt (NPC_spawn.cpp:272-285 OJ,
+// :345-415 MD).
+bool kraefteBekannt(const NpcDef& d, const std::string& klasse, TodRegelwerk regel) {
+    static const char* const kOj[] = {"fp_heal", "fp_levitation", "fp_speed", "fp_push", "fp_pull", "fp_telepathy",
+                                      "fp_grip", "fp_lightning", "fp_saberthrow", "fp_saber_defense", "fp_saber_offense",
+                                      "fp_rage", "fp_protect", "fp_absorb", "fp_drain", "fp_see"};
+    static const char* const kMd[] = {"fp_destruction", "fp_stasis", "fp_grasp", "fp_repulse", "fp_lightning_strike",
+                                      "fp_fear", "fp_deadlysight", "fp_projection", "fp_blast"};
+    const bool md = regel == TodRegelwerk::MovieDuels;
+    for (const auto& [name, stufe] : d.kraefte) {
+        if (stufe <= 0) { continue; }
+        bool gilt = false;
+        for (const char* n : kOj) { gilt = gilt || name == n; }
+        if (md) {
+            for (const char* n : kMd) { gilt = gilt || name == n; }
+        }
+        if (gilt) { return true; }
+    }
+    if (klasse == "CLASS_BOBAFETT" || klasse == "CLASS_ROCKETTROOPER") { return true; }
+    return md && (klasse == "CLASS_MANDALORIAN" || klasse == "CLASS_JANGO" || klasse == "CLASS_JANGODUAL");
+}
+
+// WP_SaberFindEnemy (wp_saber.cpp:6317-6407 OJ, MD gleich) fuer das Schwert
+// einer toten Figur: saber->enemy ist NULL (WP_SaberLaunch), self->enemy auch
+// (sonst zielt WP_RunSaber nicht) - also nur gi.EntitiesInBox um das Schwert.
+struct SchwertFeindSuche {
+    const Scene* sc = nullptr;
+    const Actor* fig = nullptr;
+    NavVec blick{};
+    TodRegelwerk regel = TodRegelwerk::OpenJK;
+    std::function<bool(const Actor&, double, float[3])> augeFn;
+    const std::map<std::string, NpcDef>* npcs = nullptr;
+    NavPvsFn pvs;
+    NavSpurFn spur;
+    const MapData* karte = nullptr;
+
+    [[nodiscard]] const NpcDef* defVon(const Actor& b) const {
+        if (npcs == nullptr) { return nullptr; }
+        std::string typ = b.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = npcs->find(typ);
+        return it == npcs->end() ? nullptr : &it->second;
+    }
+    [[nodiscard]] std::string teamVon(const Actor& b) const {
+        if (b.echterSpieler) { return "TEAM_PLAYER"; }
+        const NpcDef* d = defVon(b);
+        return d != nullptr ? d->team : std::string();
+    }
+    // G_ClearLOS(self, eyePoint, enemy): SPOT_ORIGIN, dann SPOT_HEAD_LEAN
+    [[nodiscard]] bool sieht(const NavVec& auge, const Actor& b, const NavVec& bo, double t) const {
+        if (sichtFrei(spur, karte, auge, bo)) { return true; }
+        NavVec kopf{bo[0], bo[1], bo[2] + 26.0F};   // ohne eyePoint: ps.viewheight (DEFAULT_VIEWHEIGHT)
+        float e[3];
+        if (augeFn && augeFn(b, t, e)) {
+            kopf = {e[0], e[1], e[2]};
+            if (b.klasse == "CLASS_ATST") { kopf[2] += 28.0F; }
+            if (!b.echterSpieler) {   // "always aim from the center of my bbox"
+                kopf[0] = bo[0];
+                kopf[1] = bo[1];
+            }
+        }
+        return sichtFrei(spur, karte, auge, kopf);
+    }
+    bool operator()(double t, const NavVec& schwert, const NavVec& hand, const NavVec& auge, NavVec& ort, float& breite,
+                    float& hoehe) const {
+        const ActorState ich = fig->at(t);
+        const NavVec meinOrt{ich.pos[0], ich.pos[1], ich.pos[2]};
+        const std::string meinTeam = teamVon(*fig);
+        // fwdangles: nur [YAW] gesetzt (PITCH/ROLL im Spiel unbelegt, hier 0)
+        const NavVec vorn = vornAusWinkeln({0.0F, blick[1], 0.0F});
+        constexpr float kRadius = 400.0F;
+        float besteWertung = 0.0F;
+        bool gefunden = false;
+        for (const Actor& b : sc->actors) {
+            if (&b == fig || !b.haveStart || b.brushModel >= 0) { continue; }   // inuse, client
+            const ActorState bs = b.at(t);
+            if (bs.removed || (b.getoetetMs >= 0.0 && t >= b.getoetetMs)) { continue; }   // health <= 0
+            const NavVec bo{bs.pos[0], bs.pos[1], bs.pos[2]};
+            // maxs[2]: geduckt die crouchheight
+            const float oben = bs.animation.rfind("BOTH_CROUCH", 0) == 0 ? b.hockHoehe : b.hoeheOben;
+            // gi.EntitiesInBox(center +- radius): absmin/absmax ueberlappen
+            const bool imKasten = bo[0] + b.halbBreite >= schwert[0] - kRadius && bo[0] - b.halbBreite <= schwert[0] + kRadius &&
+                                  bo[1] + b.halbBreite >= schwert[1] - kRadius && bo[1] - b.halbBreite <= schwert[1] + kRadius &&
+                                  bo[2] + oben >= schwert[2] - kRadius && bo[2] - 24.0F <= schwert[2] + kRadius;
+            if (!imKasten) { continue; }
+            // WP_SaberValidateEnemy: "not other jedi?" nur fuer NPCs
+            const NpcDef* d = defVon(b);
+            if (!b.echterSpieler && d != nullptr && kraefteBekannt(*d, b.klasse, regel)) { continue; }
+            const float dx = bo[0] - hand[0];
+            const float dy = bo[1] - hand[1];
+            const float dz = bo[2] - hand[2];
+            // saberThrowDistSquared[FP_SABERTHROW]: ab Stufe 3 160000 (4 und 5 wie
+            // Movie Duels mit FP_TableLevel, OpenJK liest dort ueber die Tabelle)
+            if (dx * dx + dy * dy + dz * dz > 160000.0F) { continue; }
+            // InFront(enemy, self, viewangles, 0): in der Ebene, ohne PITCH
+            NavVec zu{bo[0] - meinOrt[0], bo[1] - meinOrt[1], 0.0F};
+            const float zl = std::sqrt(zu[0] * zu[0] + zu[1] * zu[1]);
+            if (zl != 0.0F) {
+                zu[0] /= zl;
+                zu[1] /= zl;
+            }
+            const NavVec vornEben = vornAusWinkeln({0.0F, blick[1], blick[2]});
+            const bool vorne = zu[0] * vornEben[0] + zu[1] * vornEben[1] + zu[2] * vornEben[2] > 0.0F;
+            const float hx = bo[0] - meinOrt[0];
+            const float hy = bo[1] - meinOrt[1];
+            if ((!vorne || !sieht(auge, b, bo, t)) && (hx * hx + hy * hy > 65536.0F || std::fabs(bo[2] - meinOrt[2]) > 384.0F)) {
+                continue;
+            }
+            const std::string team = teamVon(b);
+            if (sameName(team, meinTeam)) { continue; }
+            // gi.inPVS(self->currentOrigin, ent->currentOrigin), dann G_ClearLOS
+            if (pvs && !pvs(meinOrt, bo)) { continue; }
+            if (!sieht(auge, b, bo, t)) { continue; }
+            // WP_SaberRateEnemy
+            NavVec dir{bo[0] - schwert[0], bo[1] - schwert[1], bo[2] - schwert[2]};
+            const float l = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+            if (l != 0.0F) {
+                for (float& x : dir) { x /= l; }
+            }
+            const float wertung = (1.0F - l / kRadius) * (vorn[0] * dir[0] + vorn[1] * dir[1] + vorn[2] * dir[2]);
+            if (wertung > besteWertung) {
+                besteWertung = wertung;
+                gefunden = true;
+                ort = bo;
+                breite = b.halbBreite;
+                hoehe = oben;
+            }
+        }
+        return gefunden;
+    }
+};
+
+// Pruefung 4a: die Bahn eines Schwerts aus der Hand der toten Figur - erst,
+// wenn die Szene steht: WP_SaberThrow/WP_RunSaber fragen je Denkbild die Hand
+// und das Auge der Figur, die dann ihre Todesanimation spielt.
+void schwertBahnRechnen(const Scene& sc, TodesAbwurf& ab, const SzenenHilfe& hilfe, const MapData* karte) {
+    const NavSpurFn spur = todesSpur(hilfe.nav, ab.start.ms);
+    const Actor* fig = sc.find(ab.figur);
+    SchwertUmfeld u;
+    if (fig != nullptr && hilfe.handPunkt) {
+        const auto handFn = hilfe.handPunkt;
+        const auto augeFn = hilfe.augenPunkt;
+        u.haltung = [fig, handFn, augeFn](double t, NavVec& hand, NavVec& auge) {
+            float h[3];
+            float r[3];
+            if (handFn(*fig, t, h, r)) { hand = {h[0], h[1], h[2]}; }
+            float e[3];
+            if (augeFn && augeFn(*fig, t, e)) {
+                auge = {e[0], e[1], e[2]};
+            } else {
+                const ActorState st = fig->at(t);
+                auge = {st.pos[0], st.pos[1], st.pos[2]};   // ohne headBolt: ent.origin
+            }
+        };
+    }
+    // Jedi Outcast wirft mit FORCE_LEVEL_1 und fragt nie
+    if (fig != nullptr && ab.zielFrei && ab.start.regel != TodRegelwerk::JediOutcast) {
+        SchwertFeindSuche f;
+        f.sc = &sc;
+        f.fig = fig;
+        f.blick = ab.start.blick;
+        f.regel = ab.start.regel;
+        f.augeFn = hilfe.augenPunkt;
+        f.npcs = hilfe.npcs;
+        if (hilfe.nav) { f.pvs = hilfe.nav->pvs; }
+        f.spur = spur;
+        f.karte = karte;
+        u.feind = f;
+    }
+    ab.bahn = wirfSchwert(ab.start, spur, u);
+}
+
+}  // namespace
+
+void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, const SzenenHilfe& hilfe, const MapData* karte) {
+    for (TodesFolge& f : s.todesFolgen) {
+        const Actor* a = s.find(f.figur);
+        if (a == nullptr) { continue; }
+        const float z = a->at(f.ms).pos[2];
+        for (TodEffekt& e : f.effekte) { e.ort[2] += z - f.rohZ; }
+        f.rohZ = z;
+    }
+    for (TodesAbwurf& ab : s.abwuerfe) {
+        const Actor* a = s.find(ab.figur);
+        if (a == nullptr) { continue; }
+        const float z = a->at(ab.start.ms).pos[2];
+        if (z == ab.rohZ) { continue; }
+        ab.start.ort[2] += z - ab.rohZ;
+        ab.rohZ = z;
+        if (ab.art != TodesAbwurf::Art::Schwert) {
+            ab.bahn = wirfGegenstand(ab.start, todesSpur(welt, ab.start.ms));
+        }
+    }
+    // Pruefung 4a: das Schwert folgt der Hand - auch wenn die Figur nicht
+    // springt, aendert die Schwerkraft ihre Haltung danach (Leiche)
+    SzenenHilfe h = hilfe;
+    h.nav = welt;
+    for (TodesAbwurf& ab : s.abwuerfe) {
+        if (ab.art == TodesAbwurf::Art::Schwert) { schwertBahnRechnen(s, ab, h, karte); }
+    }
+}
+
+bool hangStandErlaubt(const ActorState& st, double beineBis, double ms) {
+    if (st.moving || st.removed || !st.visible) { return false; }
+    // SETANIM_FLAG_NORMAL: nur ohne laufenden Timer der Beine
+    if (beineBis >= 0.0 && !(beineBis < 1.0e300 && ms > beineBis)) { return false; }
+    return hangFamilie(st.animation) != "?";
+}
+
+std::string hangBeinSchritt(const std::string& beine, float diff, bool atst, double t, double& neuRechnen) {
+    constexpr double kSlopeRecalcInt = 100.0;   // SLOPE_RECALC_INT (bg_pmove.cpp:7441 OJ)
+    const float interval = atst ? 10.0F : 4.0F;
+    // step 4: LEGS_LEFTUP1..5 / LEGS_RIGHTUP1..5
+    char seite = 0;
+    int stufe = 0;
+    for (int k = 5; k >= 1 && stufe == 0; --k) {
+        if (diff >= interval * static_cast<float>(k)) {
+            seite = 'L';
+            stufe = k;
+        }
+    }
+    for (int k = 5; k >= 1 && stufe == 0; --k) {
+        if (diff <= -interval * static_cast<float>(k)) {
+            seite = 'R';
+            stufe = k;
+        }
+    }
+    if (stufe == 0) { return {}; }
+    // die Familie nach legsAnim (nur Menschen; der ATST bleibt bei LEFTUP/RIGHTUP)
+    std::string familie;
+    if (!atst) {
+        familie = hangFamilie(beine);
+        if (familie == "?") { return {}; }
+    }
+    // step 6: steht sie schon am Hang, eine Stufe je SLOPE_RECALC_INT - in der
+    // Reihenfolge der Nummern (anims.h: LUP1..5, dann RUP1..5)
+    char altSeite = 0;
+    const int alt = hangStufe(beine, altSeite);
+    if (alt != 0) {
+        const int altNr = (altSeite == 'L' ? 0 : 5) + alt;
+        const int zielNr = (seite == 'L' ? 0 : 5) + stufe;
+        int nr = altNr;
+        if (zielNr > altNr && neuRechnen < t) {
+            nr = altNr + 1;
+            neuRechnen = t + kSlopeRecalcInt;
+        } else if (zielNr < altNr && neuRechnen < t) {
+            nr = altNr - 1;
+            neuRechnen = t + kSlopeRecalcInt;
+        }
+        return hangName(familie, nr > 5 ? 'R' : 'L', nr > 5 ? nr - 5 : nr);
+    }
+    // "in a stand of some sort": erst Stufe 1
+    const bool stand = atst ? (beine == "BOTH_STAND1" || beine == "BOTH_STAND2" || beine == "BOTH_CROUCH1IDLE")
+                            : (beine == "BOTH_STAND1" || beine == "BOTH_STAND2" || beine == "BOTH_SABERFAST_STANCE" ||
+                               beine == "BOTH_SABERSLOW_STANCE" || beine == "BOTH_CROUCH1IDLE" || beine == "BOTH_STAND3" ||
+                               beine == "BOTH_STAND4" || beine == "BOTH_STAND5" || beine == "BOTH_SABERDUAL_STANCE" ||
+                               beine == "BOTH_SABERSTAFF_STANCE");
+    if (stand) {
+        neuRechnen = t + kSlopeRecalcInt;
+        return hangName(familie, seite, 1);
+    }
+    // ohne Fall in der Liste (BOTH_CROUCH1, beim ATST jede andere): step 7 setzt das Ziel
+    return hangName(familie, seite, stufe);
+}
+
+namespace {
+
 // Was player_die von `self` liest (bhed/todesanim.h, TodLage).
 TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf, double wann, bool schonTot,
                   const MapData& map, const SzenenHilfe* hilfe) {
@@ -2361,6 +2953,57 @@ TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf,
     if (hilfe->rumpfWinkel) {
         float w[3] = {0.0F, 0.0F, 0.0F};
         if (hilfe->rumpfWinkel(a, wann, w)) { l.rumpfWinkel = {w[0], w[1], w[2]}; }
+    }
+    // Pruefung 3: Waffe, Klinge, Schwert und Team fuer TossClientItems & Co.
+    l.waffe = (st.waffe == "drop" || st.waffe.empty()) ? std::string() : st.waffe;
+    l.klingeAn = st.saberActive && st.waffe == "WP_SABER";
+    l.npcTyp = a.npcType;
+    {
+        std::string k = map.path;
+        const std::size_t s = k.find_last_of('/');
+        if (s != std::string::npos) { k = k.substr(s + 1); }
+        if (k.size() > 4 && k.compare(k.size() - 4, 4, ".bsp") == 0) { k.resize(k.size() - 4); }
+        for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        l.karte = k;
+    }
+    const SaberZustand& s0 = st.saber[0];
+    if (s0.art >= 0 && static_cast<std::size_t>(s0.art) < a.saberArten.size()) {
+        const SaberArt& art = a.saberArten[static_cast<std::size_t>(s0.art)];
+        l.schwertAusKlang = art.soundOff;
+        if (hilfe->sabers != nullptr) {
+            std::string n = art.name;
+            for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const auto it = hilfe->sabers->find(n);
+            if (it != hilfe->sabers->end()) { l.nichtEntwaffnbar = it->second.nichtEntwaffnbar; }
+        }
+    }
+    if (hilfe->npcs != nullptr) {
+        std::string typ = a.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (const auto it = hilfe->npcs->find(typ); it != hilfe->npcs->end()) {
+            l.spielerTeam = sameName(it->second.team, "TEAM_PLAYER");
+            l.kotorWaffen = it->second.kotorWeapons;
+        }
+    }
+    if (hilfe->handPunkt) {
+        const std::function<bool(const Actor&, double, float[3], float[3])> hand = hilfe->handPunkt;
+        const std::shared_ptr<const NavWelt> welt = hilfe->nav;
+        const NavVec ort = l.ort;
+        const int ent = l.entity;
+        const Actor* fig = &a;
+        l.handFrei = [hand, welt, ort, ent, fig, wann]() {
+            float h[3];
+            float r[3];
+            if (!hand(*fig, wann, h, r) || !welt || !welt->spur) { return true; }
+            // WP_SaberLaunch (wp_saber.cpp:6609-6620 OJ): die Hand mit Kasten 3
+            // nicht im Festen, der Strahl vom Ursprung zur Hand frei (MASK_SOLID)
+            constexpr std::uint32_t kMaske = kNavSolid | kNavTerrain;
+            const NavVec hp{h[0], h[1], h[2]};
+            const NavSpur a1 = welt->spur(hp, {-3.0F, -3.0F, -3.0F}, {3.0F, 3.0F, 3.0F}, hp, kNavKeineEntity, kMaske);
+            if (a1.startsolid || a1.allsolid) { return false; }
+            const NavSpur a2 = welt->spur(ort, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, hp, ent, kMaske);
+            return !(a2.startsolid || a2.allsolid || a2.fraction < 1.0F);
+        };
     }
     if (hilfe->nav) {
         const std::shared_ptr<const NavWelt> welt = hilfe->nav;
@@ -2705,6 +3348,9 @@ Scene buildOnce(const Script& s, const MapData& map,
             }
             if (npcDef != nullptr && npcDef->hoehe >= 0.0F) {
                 fresh.hoeheOben = npcDef->hoehe - 24.0F;   // rc601 (bewegung, Wege): n + DEFAULT_MINS_2
+            }
+            if (npcDef != nullptr && npcDef->hockHoehe >= 0.0F) {
+                fresh.hockHoehe = npcDef->hockHoehe - 24.0F;   // Pruefung 3: n + DEFAULT_MINS_2
             }
             // rc601 (bewegung, R6): die Stufe je Klasse (PM_StepSlideMove,
             // bg_slidemove.cpp:384-416 MD): CLASS_ATST 70, CLASS_RANCOR 48
@@ -3083,6 +3729,8 @@ Scene buildOnce(const Script& s, const MapData& map,
             werte.drehRate = drehRateBei(tt);
             werte.halbBreite = actor->halbBreite;
             werte.hoeheOben = actor->hoeheOben;
+            werte.geduckt = actor->hockSchalter;   // Pruefung 3: SCF_CROUCHED
+            werte.hockHoehe = actor->hockHoehe;
             werte.stufe = actor->stufe;
             werte.gangSchalter = actor->laufSchalter ? 2 : (actor->gehSchalter ? 1 : 0);
             werte.kannSpringen = actor->kannSpringen;   // rc605
@@ -3096,6 +3744,8 @@ Scene buildOnce(const Script& s, const MapData& map,
                 std::string wa = actor->at(tt).waffe;
                 if (wa.empty() || wa == "drop") { wa = wa.empty() ? actor->startWaffe : "WP_NONE"; }
                 werte.schwert = sameName(wa, "WP_SABER");   // rc604 fix604 (JK2)
+                // Pruefung 4a: PM_TryRoll - dieselbe Antwort wie im Ablauf (AblaufWelt::darfRollen)
+                werte.darfRollen = hilfe != nullptr && hilfe->darfRollen && hilfe->darfRollen(actor->name, wa);
                 werte.verhaltenTaktMs = npcVerhaltenTaktMs(navMovieDuelsRegeln(), wa,
                                                            hilfe != nullptr ? hilfe->schwierigkeit : kSchwierigkeitVorgabe,
                                                            actor->rang);
@@ -3118,6 +3768,9 @@ Scene buildOnce(const Script& s, const MapData& map,
                 for (int c = kSaLandBack1; c <= kSaForceLandRight1; ++c) {
                     werte.landeMs[static_cast<std::size_t>(c)] =
                         static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, sprungAnimName(c))));
+                }
+                for (int c = kSaRollF; c <= kSaRollL; ++c) {   // Pruefung 4a: G_StartRoll, HOLDLESS
+                    werte.landeMs[static_cast<std::size_t>(c)] = navHoldlessMs(hilfe->animDauer(actor->name, sprungAnimName(c)));
                 }
                 if (werte.kannSpringen) {
                     const std::string sa = actor->sprungAnim.empty() ? std::string("BOTH_FLIP_F") : actor->sprungAnim;
@@ -3779,14 +4432,31 @@ Scene buildOnce(const Script& s, const MapData& map,
                 continue;
             }
 
+            // Pruefung 4a: Q3_Face - die Zeitgeber fuer Blinzeln und Mimik
+            if (child.name == "set" && child.args.size() >= 2) {
+                GesichtsBefehl b;
+                if (gesichtsBefehlArt(child.args[0].text, b.art)) {
+                    b.ms = t;
+                    b.halten = static_cast<float>(std::atof(child.args[1].text.c_str()));
+                    actor->gesicht.push_back(b);
+                    continue;
+                }
+            }
             if (const std::string* v = setValue(child, "SET_CROUCHED")) {
+                // Q3_SetCrouched: Q_stricmp("true", data) (Q3_Interface.cpp OJ)
                 ActorStep step;
                 step.kind = ActorStep::Kind::Crouch;
                 step.startMs = t;
                 step.endMs = t;
-                step.value = (*v == "true") ? 1.0F : 0.0F;
+                step.value = sameName(*v, "true") ? 1.0F : 0.0F;
                 step.path = p;
                 actor->steps.push_back(std::move(step));
+                // Pruefung 3: SCF_CROUCHED gilt auch im Gehen (NPC_ApplyScriptFlags
+                // in jedem Denkbild) - ein laufender Weg geht geduckt weiter.
+                if (npc) {
+                    actor->hockSchalter = sameName(*v, "true");
+                    neuPlanen(t);
+                }
                 continue;
             }
 
@@ -4223,6 +4893,11 @@ Scene buildOnce(const Script& s, const MapData& map,
                   std::pair{"SET_ANIM_UPPER", AnimPart::Upper},
                   std::pair{"SET_ANIM_LOWER", AnimPart::Lower}}) {
                 if (const std::string* v = setValue(child, key)) {
+                    // Pruefung 3: Q3_SetAnimLower/Upper (Q3_Interface.cpp OJ):
+                    // "if ( !PM_HasAnimation( ent, animID ) ) return qfalse;" -
+                    // eine Animation, die das Modell nicht hat (numFrames 0) oder
+                    // die animTable nicht kennt, setzt nichts.
+                    if (hilfe != nullptr && hilfe->hatAnim && !hilfe->hatAnim(actor->name, *v)) { break; }
                     ActorStep step;
                     step.kind = ActorStep::Kind::Anim;
                     step.startMs = t;
@@ -4713,6 +5388,9 @@ Scene buildOnce(const Script& s, const MapData& map,
                     a.steps.push_back(aus);
                 }
             }
+            // Pruefung 3: Klaenge, DeathFX, Waffe und Schwert - nach dem
+            // Ausschalten der Klinge (dieselbe Zeit, die Reihenfolge zaehlt)
+            todesFolgenAnlegen(out, a, st, lage, tod, wann, hilfe);
             if (tod.verschwindet) {
                 // Mark1 als Leiche: EF_NODRAW, G_FreeEntity im naechsten Bild
                 ActorStep weg;
@@ -4760,6 +5438,9 @@ Scene buildOnce(const Script& s, const MapData& map,
     }
     std::stable_sort(out.roffEreignisse.begin(), out.roffEreignisse.end(),
                      [](const RoffEreignis& x, const RoffEreignis& y) { return x.ms < y.ms; });
+    std::stable_sort(out.todesFolgen.begin(), out.todesFolgen.end(),
+                     [](const TodesFolge& x, const TodesFolge& y) { return x.ms < y.ms; });
+    hangBeineRechnen(out, hilfe);   // Pruefung 3: die Beine am Hang
     return out;
 }
 
@@ -4836,6 +5517,13 @@ Scene buildScene(const Script& s, const MapData& map, const SzenenHilfe* hilfe) 
                     st.spur.push_back({zs.pos[0], zs.pos[1], zs.pos[2]});
                 }
             }
+        }
+    }
+    // Pruefung 4a: die Schwerter aus der Hand der Toten, jetzt, da jede Figur
+    // ihre Todesanimation hat
+    if (hilfe != nullptr) {
+        for (TodesAbwurf& ab : sc.abwuerfe) {
+            if (ab.art == TodesAbwurf::Art::Schwert) { schwertBahnRechnen(sc, ab, *hilfe, &map); }
         }
     }
     return sc;

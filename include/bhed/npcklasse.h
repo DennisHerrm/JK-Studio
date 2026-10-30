@@ -87,6 +87,31 @@ struct NpcKlassenTyp {
 // spiel: kRegelwerkOpenJK, kRegelwerkMovieDuels oder kRegelwerkJediOutcast.
 [[nodiscard]] bool kinoSkelettAnhang(const std::string& skelett, int spiel);
 
+// Pruefung 3: G_StandardHumanoid je Regelwerk. modell ist der playerModel der
+// .npc ("jedi_hm", "protocol" ...), gla der Pfad der .gla ohne Endung
+// ("models/players/_humanoid/_humanoid", G2API_GetGLAName).
+//   OpenJK      g_client.cpp:1076-1115 (GLA "models/players/_humanoid*" und
+//               sechs volle Pfade)
+//   Movie Duels g_client.cpp:1263-1338 g_standard_humanoid (Vorsilben)
+//   Jedi Outcast codeJK2 g_client.cpp:806-845 (nach dem Modellnamen)
+[[nodiscard]] bool standardHumanoid(const std::string& modell, const std::string& gla, int spiel);
+
+// Pruefung 3: der Knochen, an den G_SetG2PlayerModelInfo den chestBolt legt
+// (G2API_AddBolt) - leer: keiner (dann VectorClear(torsoAngles),
+// cg_players.cpp:7524-7527 OJ). G2API_AddBolt scheitert, wenn das Skelett den
+// Knochen nicht hat - das prueft der Aufrufer. klasse: "CLASS_..." gross.
+//   OpenJK      g_client.cpp:1164-1340
+//   Movie Duels g_client.cpp:1657-1870
+//   Jedi Outcast codeJK2 g_client.cpp:897-1012
+[[nodiscard]] std::string rumpfBolzenKnochen(const std::string& modell, const std::string& gla, const std::string& klasse,
+                                             int spiel);
+
+// Pruefung 4a: der Bolzen, an den G_SetG2PlayerModelInfo den headBolt legt -
+// renderInfo.eyePoint (cg_players.cpp:7487-7498 OJ: ohne headBolt der Ursprung
+// der Zeichnung). Leer: keiner (-1). Wie oben; G2API_AddBolt sucht erst eine
+// Flaeche, dann einen Knochen.
+[[nodiscard]] std::string kopfBolzen(const std::string& modell, const std::string& gla, const std::string& klasse, int spiel);
+
 }  // namespace bhed
 
 #endif

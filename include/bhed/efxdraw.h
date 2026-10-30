@@ -79,10 +79,9 @@
 #include "bhed/bspgeo.h"
 #include "bhed/efx/effect.h"
 #include "bhed/mapview.h"
+#include "bhed/saberspuren.h"
 
 namespace bhed {
-
-struct SpurWelt;   // saberspuren.h
 
 // Ein laufender Effekt in der Welt.
 struct EffectInstance {
@@ -456,15 +455,51 @@ struct EffectCull {
 // Proben (Vorlage gegen Hilfe) und fuer wen Speicher freigeben will.
 void vergissEffektBahnen();
 
-// marken: die Flaechen fuer die Decals (R_MarkFragments), wenn es keine .bsp
-// gibt (Karten-Editor: markenWeltAusKarte); sonst die Welt aus geo.
 [[nodiscard]] BspMesh buildEffectMesh(const std::vector<EffectInstance>& live,
                                       double nowMs, const float right[3],
                                       const float up[3],
                                       const EffectShaderSlots* slots = nullptr,
                                       const BspGeometry* geo = nullptr,
-                                      const EffectCull* cull = nullptr,
-                                      const SpurWelt* marken = nullptr);
+                                      const EffectCull* cull = nullptr);
+
+// --- Pruefung 3: Decals als Marken im gemeinsamen Speicher ------------------
+//
+// Ein Decal legt der Zeitplaner beim Anlegen mit CG_ImpactMark als Marke ab
+// (FxScheduler.cpp:1855 MD) - in DENSELBEN Speicher wie die Brandspuren der
+// Schwerter (cg_markPolys, 256 Plaetze, CG_AllocMark wirft die aeltesten
+// ab), und CG_AddMarks zeichnet und blendet beide gleich (cg_marks.cpp OJ).
+// buildEffectMesh baut deshalb keine Decals; die Oberflaeche legt sie mit
+// den Brandspuren in einen SpurSpeicher (bhed/saberspuren.h).
+struct EffektMarke {
+    double ms = 0.0;      // Geburt des Teilchens auf der Zeitleiste
+    // Ohne Verzoegerung im Zeitplan des Effekts legt CreateEffect das Decal
+    // noch im Ereignis an (CG_CheckEvents vor CG_AddPacketEntities), sonst
+    // theFxScheduler.AddScheduledEffects nach CG_AddMarks (cg_view.cpp:
+    // 2142-2205 OJ) - davon haengt die Reihenfolge im Speicher ab.
+    bool sofort = false;
+    std::vector<SpurPoly> polys;   // je Bruchstueck eines, wie CG_AllocMark sie anlegt
+};
+// Die Decals, die nach vonMs bis einschliesslich bisMs entstehen, nach der
+// Geburt geordnet. Ohne Flaechen keine - R_MarkFragments braucht sie: welt,
+// wenn es keine .bsp gibt (Karten-Editor: markenWeltAusKarte), sonst die
+// Welt aus geo.
+[[nodiscard]] std::vector<EffektMarke> effektMarkenIn(const std::vector<EffectInstance>& live, double vonMs,
+                                                      double bisMs, const BspGeometry* geo,
+                                                      const SpurWelt* welt = nullptr);
+// Ein Clientbild des gemeinsamen Speichers (cg.time = cgZeit) wie
+// CG_DrawActiveFrame (cg_view.cpp OJ): erst die Decals bis cgZeit, die ohne
+// Verzoegerung starten (CG_ProcessSnapshots -> CG_CheckEvents), dann die
+// Brandspuren dieses Bildes (`klingen`, CG_AddPacketEntities), CG_AddMarks,
+// zuletzt die verzoegerten Decals (theFxScheduler.AddScheduledEffects).
+// mark->time ist cgZeit. `naechstes` zaehlt in `decals` (nach ms) weiter.
+void markenBild(SpurSpeicher& speicher, int cgZeit, const std::vector<EffektMarke>& decals, std::size_t& naechstes,
+                const std::vector<SpurPoly>* klingen);
+// CG_AddMarks zeichnet die lebenden Marken des Speichers zur Zeit cgZeit:
+// je Shader ein Stapel in netz (in der Reihenfolge seines ersten Auftretens),
+// jede Marke ein Faecher 0, i, i+1 (RB_SurfacePolychain) mit der Farbe aus
+// spurFarbe. Der Platz eines Shaders kommt aus plaetze (klein geschrieben);
+// ohne Platz (kein Bild) fehlt er. Liefert die Zahl der gezeichneten Marken.
+int markenNetz(BspMesh& netz, const SpurSpeicher& speicher, int cgZeit, const EffectShaderSlots& plaetze);
 
 // --- rc601 ton: wann ein Effekt KLINGT ---------------------------------------
 //

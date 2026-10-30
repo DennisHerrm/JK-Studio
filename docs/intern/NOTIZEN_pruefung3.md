@@ -1,0 +1,457 @@
+# Notizen pruefung3 - der Rest gegen das Spiel
+
+Zweig `pruefung3` ab karte1 b6309500 (Integration 4), Worktree `Y:\licht`,
+Build `Y:/licht/build-licht`. Auftrag: die offenen Stellen aus Pruefung 1/2
+(NOTIZEN_pruefung1.md) 1:1 nach der Engine (OpenJK, Movie Duels, Jedi
+Outcast), je Punkt rot/gruen.
+
+Tests: `tests/pruefung3.cpp` (ctest `pruefung3`, Formeln der Engine mit
+eigenen Daten, alle drei Regelwerke) und der Selbsttest-Modus `pruefung3`
+(`gui/selbsttest_pruefung3.inc`: je Punkt eine eigene Mission auf der
+Geometrie von md_am_sith - New mission, eigene Entities, eigenes Skript,
+nichts aus der Original-Mission). Rot = derselbe Test gegen den alten Stand
+der geaenderten Dateien (bzw. ohne den neuen Haken, wo das den alten Stand
+nachbildet).
+
+Engine-Quellen: OpenJK master (code/, codeJK2/; die cgame-Dateien von
+raw.githubusercontent.com nach `SP\p3oj`), MovieDuels-SJE-SP-Rend2 (`SP\mdgit`).
+Gegen das laufende Spiel wurde nicht verglichen (kein Spielstart): die
+Pruefungen laufen gegen die portierten Formeln und gegen die echten Skelette
+und Karten im Programm.
+
+## 1. Rumpfwinkel aus dem Skelett
+
+renderInfo.torsoAngles kommt aus dem chestBolt (cg_players.cpp:7516-7527 OJ):
+G2API_GetBoltMatrix(chestBolt) -> NEGATIVE_Z -> vectoangles.
+- Knochen des chestBolt je Regelwerk (G_SetG2PlayerModelInfo): Humanoid
+  (G_StandardHumanoid: OJ "models/players/_humanoid*" + sechs volle Pfade, MD
+  die Vorsilbenliste, JK2 nach dem Modellnamen) -> "thoracic", protocol
+  "upper_lumbar"; sonst die Ausnahmen (Droiden, Rancor, Sand Creature, ATST,
+  CLASS_VEHICLE/HOWLER - JK2 nach Modellnamen, galak_mech), wampa (MD auch
+  kotor_monster) "upper_spine", sonst "thoracic". G2API_AddBolt scheitert,
+  wenn das Skelett den Knochen nicht hat -> VectorClear.
+  `npcklasse.cpp: standardHumanoid, rumpfBolzenKnochen`;
+  `todesanim.cpp: engineVectoangles (q_math.c:616), rumpfWinkelAusBolzen`.
+- Oberflaeche: `figurPose` (dieselbe Knochenrechnung wie die Zeichnung, aus
+  figurNetzTreffer herausgezogen), `figurRumpfWinkel`, Haken
+  `SzenenHilfe::rumpfWinkel` im zweiten Szenenaufbau.
+- pruefung3: vectoangles, NEGATIVE_Z, Knochen je Regelwerk (46 Proben).
+- Selbsttest (md_ani_ep3_robed auf _humanoid): stehend torsoAngles
+  -350,3 / 91,8 bei Gier 90 (Brust nach vorn, 10 Grad geneigt);
+  BOTH_DEADBACKWARD1 -87,4 -> BOTH_DEATH_LYING_UP (rot: LYING_DN);
+  BOTH_SLEEP1 +6,9 (die Brust zeigt in den Bildern der .gla nach vorn) ->
+  LYING_DN, wie die Formel es sagt.
+- Zeitpunkt: die Engine liest den Wert aus dem letzten gezeichneten Bild vor
+  dem kill; die Vorschau rechnet die Stellung im Augenblick des Todes.
+
+## 2. Tod: Waffe, Schwert, Klaenge, DeathFX
+
+player_die (g_combat.cpp OJ/MD/JK2) ausser der Animation, in der Reihenfolge
+des Spiels (die Zuege von Q_irand/Q_flrand liegen damit wie im Spiel vor bzw.
+nach denen der Animation):
+- Schwert in der Hand: Q_irand(0, 1) (hitLoc HL_NONE, MOD_FALLING wirft
+  immer) -> TossClientItems -> WP_SaberLose: WP_SaberLaunch (Hand frei, Strahl
+  vom Ursprung frei - Haken handPunkt aus dem Bolzen "*r_hand", muzzleDir
+  aus der Klinge), WP_SaberDrop (soundOff am Schwert, JK2 nach Team), das
+  Schwert faellt (TR_GRAVITY, EF_BOUNCE_HALF, G_BounceMissile, je Aufprall
+  WP_SaberFallSound - fallSound1..3 der .sab, Sith-Schwert sword/fallN, sonst
+  saber/bounceN) und ist fort, sobald es liegt (WP_SaberUpdate gibt es frei,
+  der Besitzer ist tot; dreimal je Denkbild eines NPC). Sonst bleibt es in
+  der Hand, die Klinge geht aus.
+- Shadowtrooper: der Kraftkristall (Drop_Item(AMMO_FORCE)).
+- TossClientItems je Regelwerk (Waffenfolge OJ/JK2 bis MAX_PLAYER_WEAPONS,
+  MD playerUsableWeapons[], MD ohne Abwurf auf md_ga_jedi/sith, md_gb_*,
+  md_arena1-3 und mit charKOTORWeapons; Klassen ohne Abwurf) -> Drop_Item:
+  forward * 150, z + 200 + Q_flrand * 50, LaunchItem dreht eine Waffe auf
+  (0, Q_flrand * 180, 90); G_RunItem/G_BounceItem mit physicsBounce 0 (ein
+  abgeworfener Gegenstand: liegt beim ersten Bodenkontakt). OJ/MD:
+  "qboolean droppedSaber = qtrue" gilt fuer JEDEN Gegenstand - beim Aufprall
+  saber/bounceN, beim Liegen PITCH 90, ROLL 0 und pitch_roll_for_slope (so im
+  Spiel; JK2 nicht). Sonst G_RemoveWeaponModels (bleiben: WP_BRYAR_PISTOL, MD
+  auch SBD/JAWA/Doppelpistolen/WRIST/DROIDEKA, JK2 WP_BLASTER_PISTOL).
+- Klaenge: EV_DEATH1-3 -> "*deathN.wav" auf CHAN_VOICE (nicht ueber die
+  Kante), Sturz: "*falling1.wav" (NPCAI_DIE_ON_IMPACT, ps.friction 1) bzw.
+  fallsplat auf CHAN_BODY, Kante: "*falling1.wav" (friction 0), Mark1
+  death1/2, Galak/Schluessel EV_DEATH; DeathFX je Klasse (OJ/JK2/MD mit den
+  MD-Klassen und NPC_type cultist_destroyer) mit Effekten und Klaengen. Die
+  eigenen Klaenge loest die Vorschau wie CG_RegisterCustomSounds auf
+  (sound/chars/<snd>/misc/, g_sex "f": erst _f, fehlend Variante 1).
+- Orte: Actor::hoehe kommt erst nach buildScene (schwerkraftEinrechnen) -
+  `todesFolgenHoehe` setzt DeathFX und Abwurf danach auf den Ort, an dem die
+  Figur stirbt, und rechnet die Bahnen neu.
+- `bhed/abwurf.h` (neu), `todesanim` (waffeVorher/-Nachher, deathFx,
+  tossClientItems, EngineZufall::flrand), `scene` (TodesFolge, TodesAbwurf,
+  todesFolgenAnlegen), Oberflaeche: Klaenge (app_ton), DeathFX als Effekte,
+  Abwurf gezeichnet (Griff/Waffenmodell, G2_GenerateWorldMatrix).
+- pruefung3: Zugfolge (Drop_Item, PM_PickAnim, EV_DEATH), Bahn gegen
+  EvaluateTrajectory, Winkel nach dem Liegen, Schwert mit Abprallern, beide
+  Wuerfe des Schwerts, md_ga_jedi, DeathFX R2D2 - je Regelwerk.
+- Selbsttest p3tod: die Waffe geht aus der Hand und liegt (gezeichnet),
+  DeathFX des R2D2, Todesklaenge. Rot nicht eigens gebaut (neue
+  Schnittstelle); der alte Stand hatte nichts davon (Pruefung 2: "Nicht
+  nachgebaut: Waffe fallen lassen, Schwert verlieren, Todesklaenge, DeathFX").
+- Offen: Leichenphysik nach dem Wurf ueber die Kante (PM_DEAD: PM_DeadMove,
+  ps.friction 0/1, PMF_TIME_KNOCKBACK, die Kiste aus DeadThink) - braucht den
+  Totenlauf im Wegplaner und die Hoehe aus der Schwerkraft; in dieser Runde
+  nicht gebaut. NPC_RemoveBody (Leiche nach g_corpseRemovalTime 10 s fort,
+  Feinde nur ausser Sicht des Spielers, nicht mit Schluessel oder laufendem
+  Skript) - braucht Blick und Sichtlinie des Spielers und den Stand der
+  Skripte je Entity; nicht gebaut. Ein Schwert mit ausgeschalteter Klinge
+  wuerde WP_SaberLaunch ohne WP_SaberDrop fliegen lassen (zurueck zur
+  Leiche) - nicht nachgebaut, selten.
+
+## 3. Gemeinsamer Markenspeicher
+
+Decals der Effekte (FxScheduler -> CG_ImpactMark) und Brandspuren der
+Schwerter (CG_CreateSaberMarks) liegen im Spiel in EINEM Speicher
+(cg_markPolys, 256, CG_AllocMark wirft die aelteste Zeitgruppe ab), CG_AddMarks
+zeichnet und blendet beide.
+- `efxdraw: effektMarkenIn` (die Decals eines Zeitfensters als SpurPoly,
+  sofort/verzoegert), `markenBild` (ein Clientbild wie CG_DrawActiveFrame:
+  sofortige Decals (CG_CheckEvents), Brandspuren (CG_AddPacketEntities),
+  CG_AddMarks, verzoegerte Decals (AddScheduledEffects)). buildEffectMesh
+  baut keine Decals mehr.
+- `saberspuren`: SpurPoly mit eckenAlpha (CG_ImpactMark schreibt die Alpha in
+  die Ecken) und Shader-Nummern ab kSpurShaderEffekt.
+- `app_saber.cpp`: der Speicher spielt Brandspuren und Decals zusammen nach,
+  auch ohne Schwerter; gezeichnet je Shader.
+- pruefung3: Reihenfolge im Bild, 250 Brandspuren + Decal (die Zeitgruppe
+  faellt), Ausblenden, delay -> verzoegert; pruefung2 (Decal als Marke) auf
+  den neuen Weg umgestellt.
+- Selbsttest p3marke: ein eigener Effekt (pk3 im Laufordner) auf einer
+  ebenen Flaeche - 21 Marken im Speicher und vom Markenzeichner gezeichnet.
+  Rot nicht eigens gebaut: Test und Code brauchen die neue Schnittstelle; im
+  alten Stand zeichnete das Effektnetz das Decal, der Markenspeicher kannte
+  es nicht (Pruefung 2: "Offen: der gemeinsame Markenspeicher").
+
+## 4. Gehen in der Hocke, Beine am Hang
+
+SET_CROUCHED setzt SCF_CROUCHED; NPC_ApplyScriptFlags gibt in jedem Denkbild
+ucmd.upmove = -127 (auch mit last_ucmd in Denkbildern ohne Verhalten, OJ),
+PM_CheckDuck duckt auf crouchheight (CROUCH_MAXS_2 16, .npc "crouchheight"),
+steht auf, wenn der Kasten frei ist; PM_WalkMove begrenzt wishspeed auf
+ps.speed * pm_duckScale (0,5); PM_CmdScale zaehlt upmove; PM_Footsteps waehlt
+BOTH_CROUCH1WALK bzw. -BACK (PMF_BACKWARDS_RUN), animSpeed mit
+moveSpeedOfAnim 75.
+- rot 12 Fehler (alter Stand: 200 statt 100, BOTH_RUN1), gruen 0.
+- Offen: aus dem Laufen heraus versucht PM_Footsteps eine Rolle (PM_TryRoll)
+  - nicht nachgebaut.
+
+PM_AdjustStandAnimForSlope: aus den Fussbolzen ("*l_leg_foot"/"*r_leg_foot",
+ATST "*l_foot"/"*r_foot") PM_FootSlopeTrace (Kasten +-3 bzw. +-16, interval 4
+bzw. 10), dann die Stufe LEFTUP/RIGHTUP 1..5, die Familie nach der jetzigen
+Beinanimation (S1, allgemein, S3..S7), eine Stufe je SLOPE_RECALC_INT (100 ms)
+in der Reihenfolge der Animationsnummern; nur die Beine (SETANIM_LEGS,
+SETANIM_FLAG_NORMAL), wo PM_Footsteps die Standanimation setzt.
+- `scene: hangBeinSchritt, hangStandErlaubt, hangBeineRechnen,
+  Actor::hangBeine`; Haken `SzenenHilfe::fussPunkte` (figurFussPunkte).
+  Steht die Figur still auf einer Stelle mit ebenem Boden unter dem ganzen
+  Grundriss, rechnet die Vorschau die Fuesse dort nicht (diff ist 0).
+- pruefung3: Schritte 4-7 gegen die Tabelle (17 Faelle), Szene auf einer Stufe
+  (LUP1, nach 150 ms LUP2, Oberkoerper BOTH_STAND1), ebener Boden ohne. Rot
+  (ohne Fussbolzen = alter Stand): keine Hanganimation.
+- Selbsttest: Fussbolzen des echten Skeletts an den Fuessen, auf ebenem Boden
+  BOTH_STAND1.
+
+## 5. Die uebrigen Stellen aus NOTIZEN_pruefung1.md
+
+- Neu gefunden und behoben: SET_ANIM einer Animation, die das Modell nicht hat
+  (BOTH_DEADFORWARD1 fehlt in _humanoid/animation.cfg) - Q3_SetAnimLower/Upper
+  fragen PM_HasAnimation und setzen nichts. pruefung3 rot (alter Stand
+  BOTH_DEADFORWARD1) / gruen.
+- Nicht in dieser Runde (je Grund): useBBox im Effektpfad (Kastenspur der
+  KollisionsKarte in efx::sim); Geschuetze mit Feind und Schaden von
+  fx_target_beam (die Vorschau hat kein Schadensmodell ausser kill/
+  trigger_hurt); liegende Schwerter mit NPC_type (CG_Item); misc_sentry_turret
+  (pas_think); Blinzeln/Leerlaufmimik; trigger_hurt gegen Spieler/Ruestung;
+  forced_rgb_saber_colours; Fahrzeuge ohne Schwerkraft; Holster/tag_hack/
+  Zuendklang bei SET_SABER1/2/Muendung "*flash"; Remove vor dem ersten Add;
+  PM_FallToDeath (braucht wie die Leichenphysik den Tod aus dem Wegplaner);
+  zweites use waehrend der Bruchverzoegerung; misc_model_breakable target4;
+  CAMERA_ACCEL und ZOOM gleichzeitig (gelesen: ZOOM ueberschreibt FOV_time,
+  FOV2, FOV_duration, die Beschleunigung laeuft damit vom Zoomziel weiter und
+  springt am Ende auf FOV2 - nicht gebaut); wait("name") in clock.cpp gehoert
+  zur Zeitleiste (anderer Zweig).
+
+## Schlussrunde
+
+- Sauberer Neubau (`--clean-first`, unter Last): 0 Warnungen, 0 Fehler.
+- ctest: 178/178 gruen (darin neu `pruefung3`, geaendert `pruefung2` -
+  Decal-Teil auf den Markenspeicher umgestellt).
+- lint_sources, lint_fassung, lint_headers: ok.
+- Selbsttests (Laufordner `Y:\p3_laeufe`, Idle-Prioritaet): pruefung3 9 OK /
+  0 FEHLER, szenen 26/0, kamera 95/0, missionsbau 95/0, umriss 45/0, mission1
+  98/0 (mit BHED_FOTOS - ohne Fotoordner schlagen die acht Bildproben der
+  Gizmos fehl, weil sie die Fotos auswerten), karteneditor kurz
+  (BHED_KARTE_NUR=fotos) 78/0. Nach dem Neubau nur noch todesanim.cpp ohne
+  leere Zweige geaendert: inkrementell gebaut (0 Warnungen), ctest 178/178,
+  pruefung3 9/0 und mission1 98/0 erneut.
+- Handbuch: keine Bedienung geaendert (nur Verhalten wie im Spiel), keine neuen
+  Programmtexte (kein tools/i18n_pruefung3.py noetig).
+- Nicht gegen das laufende Spiel geprueft: kein Spielstart in dieser Runde;
+  geprueft wurde gegen die portierten Formeln (pruefung3) und mit den echten
+  Skeletten, Effekten und Karten im Programm (Selbsttest).
+
+## Pruefung 4a (angehalten 30.10. nachmittags, wird fortgesetzt)
+
+Auftrag SPuftrag_pruefung4.md, Liste 4a. Angehalten auf Bitte des
+Koordinators (hoechstens 4 Agenten). Kein Spiel gestartet, keine Sperrdatei.
+
+Stand:
+- Punkt 8 (mission1 ohne BHED_FOTOS 8 FEHLER): Ursache im Test - die acht
+  Gizmo-Proben (je Durchgang vier) werten Fotos aus, die `foto()` nur mit
+  BHED_FOTOS schreibt; ohne lasen sie kein Bild (Werte -1). Rot nachgestellt
+  (Lauf ohne BHED_FOTOS: die vier Gizmo-/Abspiel-Proben FEHLER). Behoben im
+  Test: `mission1::probeFoto` schreibt immer, ohne BHED_FOTOS nach
+  `<Programmordner>\m1_fotos`, `FotoBild::lesen` liest dort. Gruen: mission1
+  ohne BHED_FOTOS 98 OK, 0 FEHLER (30.10., Lauf m1ohne).
+- Punkt 3 (Schwert mit ausgeschalteter Klinge) fertig (c1112bc2):
+  TossClientItems -> WP_SaberLose wirft jetzt auch mit ausgeschalteter Klinge
+  (WP_SaberLaunch immer, WP_SaberDrop nur mit brennender). AbwurfBahn ist eine
+  trajectory_t je Serverbild (cgame wertet s.pos/s.apos zur Zeit cg.time aus).
+  WP_SaberThrow fuer den toten Besitzer: nach WP_SaberDrop wartet das Schwert,
+  solange es hoechstens 16 von handRPoint ist (WP_SaberCatch faengt nicht) -
+  bleibt die Hand, haengt es (cgame zeichnet TR_GRAVITY weiter, so im Spiel);
+  Klinge aus: im naechsten Denkbild zielt WP_RunSaber es einmal (saberEntityDist
+  aus FP_SABERTHROW der .npc, JK2 FORCE_LEVEL_1; Heim = Hand unter 100, sonst
+  eyePoint aus dem headBolt, npcklasse kopfBolzen; Stufe 3 WP_SaberFindEnemy
+  mit G_ClearLOS/InFront/inPVS/WP_SaberRateEnemy, nur nach kill - trigger_hurt
+  setzt self->enemy), dann WP_SaberDrop mit soundOff. JK2: liegendes Schwert
+  erst 5 s nach WP_SaberDrop fort. apos nach WP_SaberDrop ab currentAngles
+  (0, G_Spawn). Die Bahn entsteht am Ende von buildScene und nach der
+  Schwerkraft neu (todesFolgenHoehe mit Hand/Auge aus figurHakenSetzen).
+  - Rot (alte Regel schwertFaellt = klingeAn): pruefung3 6 Fehler ("Klinge aus,
+    FP_SABERTHROW 0/2/1"); gruen 153 OK, 0 Fehler; ctest 178/178.
+  - Abweichungen: Stufen 4/5 lesen in OpenJK saberThrowDist[]/
+    saberThrowDistSquared[] ueber das Tabellenende - hier wie Movie Duels
+    (FP_TableLevel) Stufe 3. fwdangles[PITCH/ROLL] in WP_SaberFindEnemy sind im
+    Spiel unbelegt (Stapelinhalt) - hier 0. SET_PLAYER_TEAM kennt die Szene
+    nicht (Team aus der .npc). maxs[2] des Feindes geduckt nach der
+    Animation BOTH_CROUCH*.
+- Punkt 4 (PM_TryRoll aus vollem Lauf beim Ducken) fertig: Wegplaner
+  (navlauf) - PM_Footsteps nach der Bewegung: geduckt, am Boden, ucmd mit
+  Bewegung, Beine kamen aus einer Laufanimation (LaufZustand::Sprung::rennt =
+  PM_RunningAnim des letzten PM_Footsteps) -> PM_TryRoll: Spur 192 vorwaerts
+  (CONTENTS_SOLID|MONSTERCLIP|BOTCLIP, Kasten mins+STEPSIZE/crouchheight),
+  frei -> Boden innerhalb 256 darunter, sonst rollen ausser BOTCLIP; G_StartRoll
+  BOTH_ROLL_F/B/R/L (SETANIM_BOTH, HOLDLESS (numFrames-1)*lerp-1, neue Codes
+  kSaRollF..L der Sprungkette). ClientThink in der Rolle: PM_CmdForRoll (127),
+  moveDir leer, ps.speed 400 (G_CheckRollSafety fuer BOTH_ROLL_* immer qtrue);
+  PM_CheckDuck: in der Rolle crouchheight/PMF_DUCKED; PM_WalkMove eines NPC
+  ohne moveDir mit ucmd: wishdir aus ucmd ("Generating MoveDir"), mal
+  pm_duckScale -> 200. Wer darf (npcDarfRollen): OpenJK mit Schwert nur
+  RANK_CREWMAN/ab RANK_LT_JG, andere Waffe nur BOBAFETT/REBORN, ohne Waffe
+  alle; JK2 nur Schwert/ohne Waffe und Rang fuer alle; MD keine Pruefung;
+  SCF_NO_ACROBATICS (OJ/JK2).
+  - Rot (Rolle abgeschaltet): pruefung3 6 Fehler "PM_TryRoll aus vollem Lauf";
+    gruen alle 9 Faelle (3 Regelwerke x WP_NONE / WP_SABER ohne Rang / ltjg).
+  - Offen: Movie Duels ruft fuer CLASS_VADER/CLASS_DESANN in PM_TryRoll
+    PM_SaberLungeAttackMove(qtrue) - in einer Kamerafahrt (in_camera) ohne
+    Wirkung, sonst je Stil ps.velocity 150 vorwaerts/50 hoch; der Wegplaner
+    kennt in_camera nicht, nicht nachgebaut.
+- Punkt 6 (Blinzeln/Leerlaufmimik) fertig: bhed/gesicht.h (gesichtPlanen,
+  gesichtBei) bildet CG_G2PlayerHeadAnims/CG_G2SetHeadBlink nach (tot
+  FACE_DEAD; facial_blink Q_flrand(4000,8000), 300 ms zu, leye/reye YAW -38
+  BONE_ANGLES_POSTMULT - die blendTime 80 wertet G2_TransformBone fuer POSTMULT
+  nicht aus, also ohne Mischung; ohne Kamerafahrt 5 % Zwinkern nur links;
+  facial_timer Q_flrand(6000,10000), Mimik FACE_ALERT+Q_irand(0,2) 2000 ms,
+  dann Q_flrand(7000,10000); Sprechen setzt Q_flrand(2000,7000); nach dem
+  Sprechen bleibt der letzte Mund stehen) und Q3_Face (SET_FACEEYESCLOSED ...
+  SET_FACENORMAL, BLINKFROWN faellt wie im Spiel in FROWN durch). Szene:
+  Actor::gesicht aus den Skripten; Zeichnung: ActorDraw::augeLinks/Rechts ->
+  figurKnochen multipliziert die Lidknochen (Create_Matrix wie G2_Generate_
+  Matrix mit POSITIVE_Y/Z/X); app_view3d gesichtsPlan je Szenenbau.
+  - Abweichung: Q_flrand zieht im Spiel aus dem gemeinsamen Strom aller
+    Aufrufe - hier je Figur ein fester Strom (FNV-1a des Namens), damit die
+    Vorschau beim Spulen gleich bleibt; in_camera = es gibt eine Kamerafahrt.
+  - Test pruefung3 "6. Blinzeln" (Zeitpunkte gegen die Zuege, Sprechen,
+    SET_FACEEYESCLOSED, tot, Zwinkeranteil 30/574); rot: vorher gab es weder
+    Lider noch Mimik ("Nicht nachgebaut" in app_view3d).
+  - Punkt 4 dazu: Ablauf und Szene fragen PM_TryRoll ueber denselben Rueckruf
+    (AblaufWelt/SzenenHilfe::darfRollen) - sonst passen die Schluessel der
+    Koerperplaene nicht (bewegung K4/KJ5-7/UK0/UK15/16 waren rot).
+- Punkt 5 (Teil tag_hack): SABER_ARC, SABER_STAR, SABER_TRIDENT zeichnen ihre
+  Klingen am "*flash" wie CG_AddSaberBlade (KlingenLage Bogen/Stern/Dreizack,
+  ARC mit VectorNormalizeFast = Q_rsqrt; Movie Duels gleich); der tag_hack steht
+  jetzt in mapview klingenTagHack (pruefung3 "7. tag_hack" gegen die Formeln).
+- Punkt 5 (Rest): Zuendklang - spielt schon tonKlingen (gui/app_ton.cpp, aus
+  rc601 integ) fuer jede Klinge, die an ist und bei Laenge 0 anfaengt, also
+  auch nach SET_SABER1/2 (WP_SetSaber zuendet) und BLADEON; der Summton
+  laeuft ebenso. Der Kopf von ausruestung.cpp war veraltet und ist berichtigt.
+  Muendung: CalcMuzzlePoint nimmt renderInfo.muzzlePoint aus dem Bolzen
+  "*flash" des Waffenmodells in der rechten Hand (CG_Player) - jetzt
+  figurMuendung; ohne Waffenmodell (SBD) wie bisher der Ursprung.
+  - Holster: nur Movie Duels (WP_SaberAddHolsteredG2SaberModels; OpenJK und
+    JK2 haben es nicht - dort verschwindet der Griff wie in der Vorschau). Die
+    MD-Holsterorte je holsterPlace/Stil/Schwert (wp_saber.cpp:1170 ff. MD, ueber
+    300 Zeilen, dazu die Aufrufe in NPC_spawn, Q3_Interface, bg_pmove,
+    g_active, g_client) sind in dieser Runde nicht mehr gebaut - offen.
+- Punkt 7 (Rotlaeufe p3tod/p3marke) nachgeholt: derselbe Selbsttest
+  pruefung3 mit dem alten Stand der beiden Wege (todesFolgenAnlegen nicht
+  gerufen, Decals nicht in den Markenspeicher - nur fuer diesen Lauf ueber
+  eine Umgebungsvariable, danach zurueckgesetzt): 4 OK, 5 FEHLER (p3marke:
+  Decal im Markenspeicher; p3tod: Waffe aus der Hand, DeathFX R2D2,
+  Todesklaenge, Waffe liegt am Boden). Neuer Stand: 9 OK, 0 FEHLER.
+- Punkt 1 und 2: NICHT gebaut (offen). Grund: Umfang - beide brauchen eigene
+  Simulationen (Totenlauf als PM_DEAD-Pmove im Wegplaner mit Hoehe aus der
+  Schwerkraft; NPC_RemoveBody mit Sichtpruefung des Spielers/der Kamera und dem
+  Skriptstand je Entity); in dieser Sitzung nach 3-8 nicht mehr zu schaffen,
+  ohne die Schlussrunde zu gefaehrden. Was gelesen ist (fuer die Fortsetzung):
+  - Leiche: CorpsePhysics je NPC_Think (erstes Pmove nach dem Tod 1 ms wegen
+    serverTime = level.time - 1000, dann 50), PM_DEAD: kein PM_CheckDuck,
+    PM_DeadMove (-20 je Bild am Boden), PM_Friction mit ps.friction (6, 0 nach
+    Kantenwurf/Wurf, 1 nach PM_FallToDeath; PMF_TIME_KNOCKBACK ohne Reibung),
+    clipmask ohne MONSTERCLIP/BOTCLIP, DeadThink-Kasten maxs[2] = eyePoint -
+    origin + 4 (>= -8; JK2 waechst x/y bis 32), pitch_roll_for_slope am Boden
+    (Leiche wird geneigt gezeichnet, mins[2]), PM_CrashLand in Todesanimation:
+    fallsplat/bodyfall_humanN, FALLDEATH1 -> FALLDEATH1LAND, NPCAI_DIE_ON_IMPACT
+    -> G_Damage 1000 -> player_die-Zucken. Wurf-Zweige der Todeskette setzen
+    ps.friction = 0 (fehlt in todesanim). Plan: Totenlauf als planeLauf-Modus
+    nach schwerkraftEinrechnen (Z aus hoehe), WalkTo-Stueck + hoehe ab Tod.
+  - PM_FallToDeath in PM_GroundTraceMissed (Vorhersage 400 voraus, >= 128,
+    > 256 freier Fall bzw. Schaden >= health).
+  - NPC_RemoveBody: BodyRemovalPadTime (g_corpseRemovalTime 10, Droiden 0, MD
+    md_ga/gb SBD/BATTLEDROID/DROIDEKA 3000, JK2 fest 10000), DeadThink ->
+    EF_NODRAW fuer Droiden (MD-Liste groesser), G_OkayToRemoveCorpse (message,
+    ICARUS laeuft), TEAM_ENEMY/PROTOCOL: Spieler < 128 oder
+    InFOVFromPlayerView(110, 90, cg.refdef = Kamera) + NPC_ClearLOS, frei nur
+    mit self->enemy (trigger_hurt setzt enemy = Ausloeser, kill nicht).
+    Nachgelesen 4a: Q3_Kill ruft die Todesfunktion mit attacker NULL ->
+    player_die setzt self->enemy = NULL -> eine per kill getoetete Leiche
+    wird nie entfernt (wie jetzt in der Vorschau); entfernt werden nur
+    REMOTE/SENTRY/PROBE/INTERROGATOR/MARK2 (sofort, vor der enemy-Pruefung),
+    Mark1 (Mark1_dying) und Tote durch trigger_hurt (enemy = der Ausloeser,
+    der kein client ist - dann auch WP_RunSaber ohne Feindsuche, Punkt 3).
+  - PM_TryRoll (bg_pmove.cpp:3782 OJ) aus PM_Footsteps bei PMF_DUCKED und
+    PM_RunningAnim; G_StartRoll, waehrend der Rolle PM_CmdForRoll mit speed 400
+    und G_CheckRollSafety.
+  - Punkt 5/6: Stellen in ausruestung.cpp:18-46 und app_view3d.cpp (Blinzeln).
+
+Schlussrunde 4a (30.10. nachmittags, unter Last anderer Agenten): sauberer
+Neubau 0 Warnungen/0 Fehler, ctest 178/178, lint_sources/lint_fassung ok;
+Selbsttests pruefung3 9/0, szenen 26/0, kamera 95/0, missionsbau 95/0, umriss
+45/0, karteneditor kurz (BHED_KARTE_NUR=fotos) 78/0, mission1 (ohne
+BHED_FOTOS) 97/1 - der Fehler ist die zeitabhaengige Probe "Gizmo: Kamera ...
+nach Stop wie vorher": im zweiten Durchgang hielt das Abspielen unter Last bei
+5,86 s statt 4,05 s an, die Achsenfarben zaehlen dann ein anderes Bild (1673
+statt 1288); im Lauf m1ohne vorher 98/0, die Wiederholung (m1zwei) 98/0.
+Gegen das laufende Spiel wurde nicht fotografiert (kein Spielstart in dieser
+Sitzung - die Zeit ging in Punkt 3-8 und die Schlussrunde); die Pruefungen
+laufen gegen die portierten Formeln (ctest) und im Programm (Selbsttests).
+
+Naechster Schritt (Fortsetzung): Punkt 1 (Totenlauf) und 2 (NPC_RemoveBody)
+nach den Stellen oben; Holster (nur MD) aus Punkt 5; Movie-Duels-Lunge von
+Vader/Desann in PM_TryRoll; Spielfotos. Laufskript SP\p4a\lauf.sh.
+
+### Teil 3 (30.10. abends, angehalten - shank: erst Karten-/Menue-Editor)
+
+Kein Commit am Code (der Stand baute noch nicht); kein Lauf, kein Spielstart,
+keine Sperrdatei. Begonnen mit Punkt 1, der angefangene Code liegt als
+SP\p4a\wip_punkt1_totenlauf.patch (git apply --check gegen 3ebdb154 ok):
+LaufZustand rueckstoss/reibung/aufprallTod und Leiche (Kasten, pitch/roll),
+LaufWerte::FallTod (npcFallTodKlasse) und tot/auge, LaufTakt landung/aufprall,
+LaufPlan fallTodMs/aufprallMs/aufprallTempo, kSaFallDeath1/kSaDeath1,
+pmMaske ohne MONSTERCLIP/BOTCLIP fuer die Leiche, PM_GroundTrace mit
+PMF_TIME_KNOCKBACK. Es fehlen: fallTodPruefen, PM_CrashLand der Leiche,
+PM_DeadMove, Reibung aus ps.friction, PM_DropTimers loescht rueckstoss,
+LaufRechner::schrittTot (DeadThink-Kasten, msec 1 dann 50, pitch_roll_for_slope,
+Ruhe), kein Zwischenspeicher fuer Totenplaene, planSchluessel, ablauf.cpp
+(gleicherZustand/gleicheWerte - die static_asserts auf sizeof wachsen,
+SET_NO_FALLTODEATH, Werte ueber AblaufWelt wie darfRollen).
+
+Gelesen (fuer den Plan, Zeilen OJ, MD/JK2 wo anders):
+- PmoveSingle PM_DEAD (bg_pmove.cpp:14813-14940): ucmd leer, kein
+  PM_CheckDuck, PM_GroundTrace, PM_DeadMove (nur pml.walking: |v| - 20),
+  PM_DropTimers, PM_WalkMove/PM_AirMove, zweites PM_GroundTrace.
+  PM_WalkMove (Leiche): PMF_TIME_KNOCKBACK weg, wenn am Boden und vz <= 0;
+  PM_Friction mit ps.friction, mit PMF_TIME_KNOCKBACK keine Reibung; mit
+  KNOCKBACK vz -= gravity*frametime. PM_GroundTrace "kickoff" auch bei
+  vz > 0 mit KNOCKBACK (alle drei Regelwerke gleich).
+- ps.gravity setzt ClientThink_real vor jedem Pmove neu (g_active.cpp:5214-5225)
+  - "gravity *= 0.8" der Wurfzweige wirkt nur mit SVF_CUSTOM_GRAVITY; ps.friction
+  bleibt (NPC_PostDeathThink ist auskommentiert). Wurfzweige von player_die
+  setzen friction 0 (g_combat.cpp:4335, 4381, 4431).
+- CorpsePhysics: ClientThink mit leerem ucmd (erstes Pmove 1 ms, dann 50),
+  am Boden pitch_roll_for_slope (Punktspur MASK_SOLID ab currentOrigin bis
+  origin+mins[2]+4-300; ps.viewangles PITCH/ROLL; mins[2] = -24 +
+  12*|pitch|/180, kleiner -> origin hoeher). cgame zeichnet Tote mit
+  AnglesToAxis(lerpAngles) und Wirbelknochen auf 0 (cg_players.cpp:2526-2551);
+  die Vorschau baut die Weltmatrix nur aus der Gier (baueFigurWelt).
+  JK2/MD: GM_Dying fuer CLASS_GALAKMECH.
+- DeadThink: maxs[2] = eyePoint[2] - origin[2] + 4 (>= -8), groesser nur ohne
+  allsolid (OJ/MD); JK2 ohne diese Pruefung, dafuer x/y je Bild +1 bis 32,
+  solange velocity 0. eyePoint ohne headBolt = Ursprung (cg_players.cpp:7488).
+- PM_CrashLand einer Leiche: NPCAI_DIE_ON_IMPACT -> PM_CrashLandDamage(1000)
+  zuerst (OJ/MD im else-if mit den Jet-Klassen/jumpZStart, JK2 davor
+  unabhaengig); delta sonst |prev vz|/10 bzw. aus jumpZStart bei
+  FP_LEVITATION >= 1; PM_InDeathAnim (Liste OJ = MD 80, JK2 mit den *_FLOP
+  mehr; BOTH_DEATH_LYING/FALLING/CROUCHED stehen NICHT darin): gravity 1,
+  fallsplat (delta >= 75) bzw. bodyfall_human1-3 (JK2 immer fallsplat),
+  *pain100 beim Sprechen, FALLDEATH1/INAIR -> FALLDEATH1LAND (SETANIM_BOTH);
+  sonst EV_FALL_FAR/SHORT (landSound, *land1). delta >= 75 und 30..50:
+  PM_CrashLandDamage -> G_Damage auf die Leiche -> player_die zuckt
+  (takedamage bleibt). CG_LandingEffect braucht das Material der Flaeche
+  (NavSpur kennt surfaceFlags nicht) - fehlt auch fuer Lebende.
+- PM_FallToDeath (OJ 4428, MD 6378, JK2 2787): BOTH_FALLDEATH1 (sonst DEATH1)
+  Beine OVERRIDE|HOLD, *falling1.wav, NPCAI_DIE_ON_IMPACT, nextBStateThink =
+  Q3_INFINITE (danach last_ucmd/oldMoveDir je Bild, auch MD), friction 1.
+  Bedingungen in PM_GroundTraceMissed nur schon in der Luft; Ausnahmen
+  DESANN (MD auch SITHLORD/VADER), Jet-Klassen (OJ BOBAFETT/ROCKETTROOPER, MD
+  dazu MANDALORIAN/JANGO/JANGODUAL) fliegen los (JET_FlyStart, nicht
+  nachbaubar ohne PM_FlyMove), JK2 ohne NPCAI_JUMP/BS_JUMP/Jetpack.
+  Aufprall: player_die mit MOD_FALLING im Pmove (pm_type noch PM_NORMAL, vz
+  nach dem Gleiten ~ +0 -> BOTH_FALLDEATH1LAND), attacker = Spieler -> enemy
+  gesetzt (NPC_RemoveBody darf die Leiche entfernen).
+- Plan: Totenplan nach schwerkraftEinrechnen (Z zur Todeszeit aus hoehe), als
+  WalkTo-Stueck ohne Gier (Tote drehen nicht: PM_UpdateViewAngles kehrt bei
+  health <= 0 zurueck), dann Schwerkraft nur fuer diese Figuren neu; die
+  Landungen als Klaenge/FALLDEATH1LAND/Zucken in der Szene; Fall-Tode wie
+  hurtTode als Durchgang (deathscript im Ablauf).
+
+## English
+- Lying figures die like in the game: the torso angle for the death animation now comes from the chest bone of the drawn skeleton (per rule set: OpenJK, Movie Duels, Jedi Outcast) - a figure lying on its back dies with BOTH_DEATH_LYING_UP instead of always BOTH_DEATH_LYING_DN.
+- When a figure dies, the preview now does what the game does besides the animation: the weapon leaves the hand and falls to the ground as an item (or just disappears, depending on weapon and rule set), a saber may drop out of the hand and vanish when it lands, the death cries, falling screams and splats play with the figure's own sounds, and droids explode with their death effects and sounds.
+- Effect decals and saber burn marks now share one mark store with 256 places like in the game: when it is full the oldest marks of one moment go together, and both fade out in their last second.
+- A crouched figure (SET_CROUCHED) now walks crouched at half speed with BOTH_CROUCH1WALK (backwards BOTH_CROUCH1WALKBACK) and stands up again when there is room.
+- On a slope, a standing figure puts its feet like in the game (the slope leg animations, one step every 100 ms).
+- SET_ANIM with an animation the model does not have no longer changes anything, like in the game.
+- A figure that dies with its saber blade switched off now also loses the saber like in the game: it is launched from the hand, homes once towards the eyes or a nearby enemy and then falls; a saber that is dropped stays hanging at the hand until the hand has moved away, and in Jedi Outcast a lying saber vanishes only after five seconds.
+- A crouching figure that was running at full speed now rolls forward like in the game (BOTH_ROLL_F and the other rolls), if its rule set, weapon, class and rank allow it.
+- Figures now blink and make idle faces (alert, smile, frown) like in the game, close their eyes when dead, and follow the SET_FACE script commands.
+- Sabers of the types SABER_ARC, SABER_STAR and SABER_TRIDENT without blade tags now place their blades like in the game, and shots leave from the muzzle of the drawn weapon model.
+
+## Deutsch
+- Liegende Figuren sterben wie im Spiel: der Rumpfwinkel fuer die Todesanimation kommt jetzt aus dem Brustknochen des gezeichneten Skeletts (je Regelwerk: OpenJK, Movie Duels, Jedi Outcast) - eine Figur auf dem Ruecken stirbt mit BOTH_DEATH_LYING_UP statt immer mit BOTH_DEATH_LYING_DN.
+- Stirbt eine Figur, tut die Vorschau jetzt, was das Spiel ausser der Animation tut: die Waffe geht aus der Hand und faellt als Gegenstand zu Boden (oder verschwindet nur, je nach Waffe und Regelwerk), ein Schwert kann aus der Hand fallen und ist fort, sobald es liegt, Todesschreie, Sturzschreie und Aufprall klingen mit den eigenen Klaengen der Figur, und Droiden explodieren mit ihren Todeseffekten und Klaengen.
+- Decals aus Effekten und Brandspuren der Schwerter teilen sich jetzt wie im Spiel einen Markenspeicher mit 256 Plaetzen: ist er voll, gehen die aeltesten Marken eines Augenblicks zusammen, und beide blenden in ihrer letzten Sekunde aus.
+- Eine geduckte Figur (SET_CROUCHED) geht jetzt geduckt mit halbem Tempo und BOTH_CROUCH1WALK (rueckwaerts BOTH_CROUCH1WALKBACK) und steht wieder auf, wenn Platz ist.
+- Am Hang stellt eine stehende Figur die Fuesse wie im Spiel (die Hang-Beinanimationen, eine Stufe je 100 ms).
+- SET_ANIM mit einer Animation, die das Modell nicht hat, aendert wie im Spiel nichts mehr.
+- Stirbt eine Figur mit ausgeschalteter Klinge, verliert sie das Schwert jetzt ebenfalls wie im Spiel: es geht aus der Hand, zielt einmal zu den Augen oder einem Feind in der Naehe und faellt dann; ein fallen gelassenes Schwert haengt an der Hand, bis die Hand sich entfernt hat, und in Jedi Outcast verschwindet ein liegendes Schwert erst nach fuenf Sekunden.
+- Eine Figur, die aus vollem Lauf in die Hocke geht, rollt jetzt wie im Spiel (BOTH_ROLL_F und die anderen Rollen), wenn Regelwerk, Waffe, Klasse und Rang es erlauben.
+- Figuren blinzeln jetzt und zeigen Leerlaufmimik (wach, Laecheln, Stirnrunzeln) wie im Spiel, schliessen tot die Augen und folgen den Skriptbefehlen SET_FACE*.
+- Schwerter der Arten SABER_ARC, SABER_STAR und SABER_TRIDENT ohne Klingenbolzen legen ihre Klingen jetzt wie im Spiel, und Schuesse gehen von der Muendung des gezeichneten Waffenmodells aus.
+
+## 中文
+- 躺着的角色死亡时与游戏一致：死亡动画所用的躯干角度现在取自所绘骨架的胸骨（按规则集：OpenJK、Movie Duels、Jedi Outcast）——仰躺的角色以 BOTH_DEATH_LYING_UP 死亡，而不再总是 BOTH_DEATH_LYING_DN。
+- 角色死亡时，预览现在会执行游戏在动画之外所做的事：武器离手并作为物品掉落到地上（或根据武器和规则集直接消失），光剑可能脱手并在落地后消失，死亡惨叫、坠落尖叫和落地声使用角色自己的声音播放，机器人会以其死亡特效和声音爆炸。
+- 特效贴花和光剑灼痕现在与游戏一样共用一个 256 个位置的标记存储：存满时同一时刻最旧的标记一起消失，两者都在最后一秒淡出。
+- 蹲下的角色（SET_CROUCHED）现在以一半速度蹲行，使用 BOTH_CROUCH1WALK（后退为 BOTH_CROUCH1WALKBACK），有空间时会重新站起。
+- 在斜坡上，站立的角色会像游戏中一样摆放双脚（斜坡腿部动画，每 100 毫秒一级）。
+- 对模型没有的动画使用 SET_ANIM 时，与游戏一样不再产生任何变化。
+- 角色在光剑关闭状态下死亡时，现在也会像游戏中一样失去光剑：光剑离手，先朝眼睛或附近的敌人飞一次，然后落下；掉落的光剑会悬在手边，直到手移开为止；在 Jedi Outcast 中，落地的光剑五秒后才消失。
+- 全速奔跑的角色蹲下时，现在会像游戏中一样翻滚（BOTH_ROLL_F 及其他翻滚），前提是规则集、武器、职业和等级允许。
+- 角色现在会像游戏中一样眨眼并做出空闲表情（警觉、微笑、皱眉），死亡时闭眼，并遵循 SET_FACE* 脚本命令。
+- 没有剑刃挂点的 SABER_ARC、SABER_STAR 和 SABER_TRIDENT 类型光剑现在像游戏中一样摆放剑刃，射击从所绘武器模型的枪口发出。
+
+## 日本語
+- 横たわったキャラクターがゲームと同じように死ぬようになりました：死亡アニメーションの胴体角度は、描画されたスケルトンの胸の骨から取るようになりました（ルールセットごと：OpenJK、Movie Duels、Jedi Outcast）。仰向けのキャラクターは、常に BOTH_DEATH_LYING_DN ではなく BOTH_DEATH_LYING_UP で死にます。
+- キャラクターが死ぬと、プレビューはアニメーション以外にゲームが行うことも行うようになりました：武器が手から離れてアイテムとして地面に落ち（武器とルールセットによっては消えるだけ）、ライトセーバーは手から落ちて着地すると消えることがあり、断末魔、落下の叫び、着地音がキャラクター自身の音で鳴り、ドロイドは死亡エフェクトと音とともに爆発します。
+- エフェクトのデカールとライトセーバーの焦げ跡は、ゲームと同じく 256 か所のマーク領域を共有するようになりました：いっぱいになると同じ瞬間の最も古いマークがまとめて消え、どちらも最後の 1 秒でフェードアウトします。
+- しゃがんだキャラクター（SET_CROUCHED）は、半分の速度で BOTH_CROUCH1WALK（後退は BOTH_CROUCH1WALKBACK）を使ってしゃがみ歩きし、空間があれば立ち上がるようになりました。
+- 斜面では、立っているキャラクターがゲームと同じように足を置きます（斜面用の脚アニメーション、100 ミリ秒ごとに 1 段階）。
+- モデルにないアニメーションを SET_ANIM で指定しても、ゲームと同じく何も変わらなくなりました。
+- ブレードをオフにしたまま死んだキャラクターも、ゲームと同じようにライトセーバーを失うようになりました：セーバーは手から離れ、一度だけ目または近くの敵に向かってから落下します。落としたセーバーは手が離れるまで手元に浮いたままで、Jedi Outcast では床のセーバーは 5 秒後に消えます。
+- 全力で走っていたキャラクターがしゃがむと、ルールセット、武器、クラス、ランクが許せばゲームと同じように転がるようになりました（BOTH_ROLL_F などのロール）。
+- キャラクターはゲームと同じようにまばたきし、待機中の表情（警戒、笑顔、しかめ面）を見せ、死ぬと目を閉じ、SET_FACE* スクリプトコマンドに従うようになりました。
+- ブレードタグのない SABER_ARC、SABER_STAR、SABER_TRIDENT 型のセーバーはゲームと同じようにブレードを配置し、射撃は描画された武器モデルの銃口から出るようになりました。

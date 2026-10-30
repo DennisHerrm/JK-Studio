@@ -16,6 +16,8 @@
 #include "bhed/messpunkt.h"
 #include "bhed/kartenpruefung.h"   // rc604 fix604b (B3): imSpiel
 #include "bhed/regelwerk.h"        // rc604 (A2 Rest): roffNotizenOpenJk
+#include "bhed/npcklasse.h"       // Pruefung 3: rumpfBolzenKnochen
+#include "bhed/todesanim.h"       // Pruefung 3: rumpfWinkelAusBolzen
 #include "bhed/arbeiter.h"
 #include "bhed/gpucam.h"
 #include "bhed/grasflaechen.h"   // rc604 surfaceSprites
@@ -3383,6 +3385,40 @@ void dumpActorsAtPlayhead() {
     }
 }
 
+// Pruefung 4a: Blinzeln und Leerlaufmimik je Figur (bhed/gesicht.h) - einmal
+// je Szenenbau gerechnet: die Zeiten, in denen sie spricht (die Klaenge ihrer
+// Spur in der Zeitleiste), ihre SET_FACE*-Befehle und ihr Tod.
+const GesichtsPlan& gesichtsPlan(const Actor& a) {
+    static std::uint64_t stand = ~0ULL;
+    static std::map<std::string, GesichtsPlan> plaene;
+    if (stand != g_app->szeneBauten) {
+        plaene.clear();
+        stand = g_app->szeneBauten;
+    }
+    if (const auto it = plaene.find(a.name); it != plaene.end()) { return it->second; }
+    GesichtsEingabe e;
+    // eine feste Saat je Figur (FNV-1a des Namens): beim Spulen dieselben Lidschlaege
+    std::uint32_t h = 2166136261U;
+    for (const char c : a.name) { h = (h ^ static_cast<unsigned char>(c)) * 16777619U; }
+    e.saat = h;
+    e.abMs = std::max(0.0, a.erscheintMs);
+    e.bisMs = std::max(g_app->scene.durationMs, g_app->timeline.durationMs) + 1000.0;
+    e.todMs = a.getoetetMs;
+    e.kamera = !g_app->camTrack.segments.empty();   // in_camera
+    for (const TimelineTrack& track : g_app->timeline.tracks) {
+        if (track.entity != a.name) { continue; }
+        for (const TimelineEvent& ev : track.events) {
+            if (ev.kind != TimelineEvent::Kind::Sound || ev.sound.empty()) { continue; }
+            const sound::Sound* snd = soundFor(ev.sound);
+            if (snd == nullptr || snd->sampleRate <= 0 || snd->channels <= 0) { continue; }
+            const double dauer = static_cast<double>(snd->samples.size()) / snd->channels * 1000.0 / snd->sampleRate;
+            e.sprechen.emplace_back(ev.startMs, ev.startMs + dauer);
+        }
+    }
+    e.befehle = a.gesicht;
+    return plaene.emplace(a.name, gesichtPlanen(e)).first->second;
+}
+
 // Welche Mundanimation eine Figur gerade spielt, oder leer.
 //
 // Gemeldet: "face animationen fehlen noch."
@@ -3400,10 +3436,7 @@ void dumpActorsAtPlayhead() {
 //      und bei -1 (spricht, aber gerade still) FACE_TALK0
 //      (ebenda:5200).
 //
-// Nicht nachgebaut: das Blinzeln und die Leerlaufmimik. Beide haengen in
-// der Engine an Zufallszeitgebern (Q_flrand(4000,8000) fuer den Lidschlag,
-// cg_players.cpp:5159) - etwas Zufaelliges in einer Vorschau, die man
-// anhaelt und zurueckspult, waere kein Gewinn, sondern Unruhe.
+// Das Blinzeln und die Leerlaufmimik rechnet gesichtsPlan (Pruefung 4a).
 std::string faceAnimFor(const std::string& figur, double ms) {
     const TimelineEvent* laufend = nullptr;
     for (const TimelineTrack& track : g_app->timeline.tracks) {
@@ -4313,9 +4346,14 @@ std::vector<EffectInstance> shotEffectsAt(double nowMs) {
             continue;
         }
 
-        // Die Muendung und die Richtung.
+        // Die Muendung und die Richtung. Pruefung 4a: CalcMuzzlePoint nimmt
+        // renderInfo.muzzlePoint, wenn cgame es eben rechnete (mPCalcTime) - den
+        // Bolzen "*flash" des gezeichneten Waffenmodells; ohne Modell (SBD) den
+        // Ursprung.
         float mp[3] = {};
-        muzzlePoint(st.pos, st.angles[1], waffe, mp);
+        const bool amModell = ai < g_app->actorAssets.size() && g_app->actorAssets[ai] &&
+                              figurMuendung(a, *g_app->actorAssets[ai], nowMs, mp);
+        if (!amModell) { muzzlePoint(st.pos, st.angles[1], waffe, mp); }
         const float r = st.angles[1] * 3.14159265358979F / 180.0F;
         float vorn[3] = {std::cos(r), std::sin(r), 0.0F};
         // Zielt die Figur auf etwas, fliegt es dorthin. SET_WATCHTARGET
@@ -4622,9 +4660,19 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
             }
         }
 
-        // Der MUND, wenn die Figur gerade spricht.
-        const std::string mund =
-            faceAnimFor(a.name, ms);
+        // Der MUND, wenn die Figur gerade spricht; Pruefung 4a: sonst die
+        // Mimik von CG_G2PlayerHeadAnims (tot FACE_DEAD) und die Lider.
+        std::string mund = faceAnimFor(a.name, ms);
+        {
+            std::string mimik;
+            double sprachEnde = -1.0;
+            gesichtBei(gesichtsPlan(a), ms, d.augeLinks, d.augeRechts, mimik, sprachEnde);
+            if (mimik == "FACE_DEAD") {
+                mund = mimik;
+            } else if (mund.empty()) {
+                mund = sprachEnde >= 0.0 ? faceAnimFor(a.name, sprachEnde - 1.0) : mimik;
+            }
+        }
         if (!mund.empty()) {
             d.faceFrame = frameForAnimationIn(
                 assets.skeleton->sections, mund, 0.0, false);
@@ -4702,6 +4750,208 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]) {
             fw[11] += 24.0F * (a.skala[2] - 1.0F);
         }
     }
+}
+
+bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d,
+               std::vector<BoneMatrix>& welt, float fw[16]) {
+    if (assets.model.empty()) { return false; }
+    d.model = &assets.model;
+    figurBilderSetzen(a, assets, st, ms, d);
+    if (d.anim == nullptr) { return false; }
+    for (int q = 0; q < 3; ++q) { d.pos[q] = st.pos[q]; }
+    d.yaw = st.angles[1];
+    npcSkalaFuer(a.npcType, d.skala);
+    figurKopfGier(st, d);
+    d.yawOffset = static_cast<float>(g_app->actorYaw);
+    std::vector<BoneMatrix> hilf;
+    if (!figurKnochen(d, welt, hilf) || welt.empty()) { return false; }
+    figurWeltMatrix(d, fw);
+    return true;
+}
+
+bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms, float winkel[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const std::string knochen = rumpfBolzenKnochen(modell, assets.model.animFile, klasse, spiel);
+    if (knochen.empty()) { return false; }
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, a.at(ms), ms, d, welt, fw)) { return false; }
+    // G2API_AddBolt findet den Knochen nicht: chestBolt -1
+    const int b = boneIndex(*d.anim, knochen);
+    if (b < 0 || static_cast<std::size_t>(b) >= welt.size()) { return false; }
+    // G2API_GetBoltMatrix: worldMatrix * (Knochen * BasePose) - welt[b] traegt
+    // die Grundstellung schon (gla.h, worldMatrices), fw ist die Weltmatrix
+    // der Zeichnung (dieselbe, mit der jede Ecke an ihren Ort kommt).
+    float bolzen[3][4]{};
+    const BoneMatrix& k = welt[static_cast<std::size_t>(b)];
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            float v = c == 3 ? fw[r * 4 + 3] : 0.0F;
+            for (int i = 0; i < 3; ++i) { v += fw[r * 4 + i] * k.m[i][c]; }
+            bolzen[r][c] = v;
+        }
+    }
+    rumpfWinkelAusBolzen(bolzen, winkel);
+    return true;
+}
+
+bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]) {
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    anbautenFuer(a, st, ms, d);
+    // CG_Player: handRBolt "*r_hand" -> ORIGIN = renderInfo.handRPoint
+    BoneMatrix hm{};
+    if (!boltMatrix(*d.model, surfaceIndex(*d.model, "*r_hand"), welt, *d.anim, hm)) { return false; }
+    for (int r = 0; r < 3; ++r) {
+        hand[r] = fw[r * 4 + 0] * hm.m[0][3] + fw[r * 4 + 1] * hm.m[1][3] + fw[r * 4 + 2] * hm.m[2][3] + fw[r * 4 + 3];
+    }
+    // CG_AddSaberBlade: renderInfo.muzzleDir = Achse der Klinge (Griff am
+    // Handbolzen, Klinge am Bolzen des Griffs - wie die Zeichnung)
+    for (int i = 0; i < d.anbauten; ++i) {
+        const AnbauDraw& an = d.anbau[static_cast<std::size_t>(i)];
+        if (an.model == nullptr || an.saberFach != 0) { continue; }
+        BoneMatrix gh{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, an.bolzen), welt, *d.anim, gh)) { continue; }
+        float gw[16];
+        gpu::baueGriffWelt(fw, gh, gw);
+        float wl[3];
+        float tl[3];
+        if (!klingenStrecke(*an.model, an.lage, 0, 1.0F, wl, tl)) { continue; }
+        float l = 0.0F;
+        for (int r = 0; r < 3; ++r) {
+            richtung[r] = gw[r * 4 + 0] * (tl[0] - wl[0]) + gw[r * 4 + 1] * (tl[1] - wl[1]) + gw[r * 4 + 2] * (tl[2] - wl[2]);
+            l += richtung[r] * richtung[r];
+        }
+        l = std::sqrt(l);
+        if (l <= 0.0F) { continue; }
+        for (int r = 0; r < 3; ++r) { richtung[r] /= l; }
+        return true;
+    }
+    return false;
+}
+
+bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, float muendung[3]) {
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    anbautenFuer(a, st, ms, d);
+    for (int i = 0; i < d.anbauten; ++i) {
+        const AnbauDraw& an = d.anbau[static_cast<std::size_t>(i)];
+        // weaponModel[0]: kein Schwert, an der rechten Hand
+        if (an.model == nullptr || an.saberFach >= 0 || std::string(an.bolzen) != "*r_hand") { continue; }
+        BoneMatrix hand{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, an.bolzen), welt, *d.anim, hand)) { continue; }
+        // G2API_GetBoltMatrix(ghoul2, weaponModel[0], bolt "*flash") -> ORIGIN
+        BoneMatrix flash{};
+        if (!boltMatrixRigid(*an.model, surfaceIndex(*an.model, "*flash"), flash)) { return false; }
+        float gw[16];
+        gpu::baueGriffWelt(fw, hand, gw);
+        for (int r = 0; r < 3; ++r) {
+            muendung[r] = gw[r * 4 + 0] * flash.m[0][3] + gw[r * 4 + 1] * flash.m[1][3] + gw[r * 4 + 2] * flash.m[2][3] + gw[r * 4 + 3];
+        }
+        return true;
+    }
+    return false;
+}
+
+bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const std::string bolzen = kopfBolzen(modell, assets.model.animFile, klasse, spiel);
+    if (bolzen.empty()) { return false; }
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, a.at(ms), ms, d, welt, fw)) { return false; }
+    // G2API_AddBolt: erst eine Flaeche ("*head_eyes"), dann ein Knochen ("cranium")
+    BoneMatrix bm{};
+    if (!boltMatrix(*d.model, surfaceIndex(*d.model, bolzen), welt, *d.anim, bm)) {
+        const int b = boneIndex(*d.anim, bolzen);
+        if (b < 0 || static_cast<std::size_t>(b) >= welt.size()) { return false; }
+        bm = welt[static_cast<std::size_t>(b)];
+    }
+    // G2API_GiveMeVectorFromMatrix(boltMatrix, ORIGIN, eyePoint)
+    for (int r = 0; r < 3; ++r) {
+        auge[r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+    }
+    return true;
+}
+
+void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index) {
+    // die Figur ueber ihren Namen bei ihren Modelldaten (g_app->actorAssets)
+    const auto daten = [index](const Actor& a) -> const App::ActorAssets* {
+        const auto it = index.find(a.name);
+        if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) { return nullptr; }
+        return g_app->actorAssets[it->second].get();
+    };
+    // Pruefung 3: renderInfo.torsoAngles aus dem chestBolt - die Figur liegt auf
+    // dem Ruecken oder dem Bauch, dreht sich (BOTH_DEATH_LYING_UP/DN, SPIN_90/180)
+    h.rumpfWinkel = [daten](const Actor& a, double ms, float w[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurRumpfWinkel(a, *d, ms, w);
+    };
+    // Pruefung 3: Hand und Klinge fuer WP_SaberLaunch/WP_SaberDrop
+    h.handPunkt = [daten](const Actor& a, double ms, float hp[3], float r[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurHandPunkt(a, *d, ms, hp, r);
+    };
+    // Pruefung 4a: das Auge fuer WP_RunSaber und G_ClearLOS
+    h.augenPunkt = [daten](const Actor& a, double ms, float e[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurAugenPunkt(a, *d, ms, e);
+    };
+    // Pruefung 3: die Fuesse fuer PM_AdjustStandAnimForSlope
+    h.fussPunkte = [daten](const Actor& a, double ms, float l[3], float r[3]) {
+        const App::ActorAssets* d = daten(a);
+        return d != nullptr && figurFussPunkte(a, *d, ms, l, r);
+    };
+}
+
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]) {
+    std::string modell;
+    std::string typ = a.npcType;
+    for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto it = g_app->npcMap.find(typ); it != g_app->npcMap.end()) { modell = it->second.playerModel; }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const bool atst = klasse == "CLASS_ATST";
+    if (!atst && !standardHumanoid(modell, assets.model.animFile, spiel)) { return false; }
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    float* ziel[2] = {links, rechts};
+    const char* namen[2] = {atst ? "*l_foot" : "*l_leg_foot", atst ? "*r_foot" : "*r_leg_foot"};
+    for (int i = 0; i < 2; ++i) {
+        BoneMatrix bm{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, namen[i]), welt, *d.anim, bm)) { return false; }
+        for (int r = 0; r < 3; ++r) {
+            ziel[i][r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+        }
+    }
+    return true;
 }
 
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
@@ -5888,6 +6138,22 @@ void prepareScene() {
         // Die Tode durch trigger_hurt, die der Nachbau in den flachen Ablauf
         // schrieb (AblaufWelt::hurtTode): MOD_TRIGGER_HURT/MOD_FALLING statt
         // MOD_UNKNOWN.
+        // Pruefung 3/4a: Rumpf, Hand, Auge und Fuesse aus dem gezeichneten Skelett
+        figurHakenSetzen(hilfe, index);
+        hilfe.waffenGegenstand = [](const std::string& w, NavVec& mi, NavVec& ma) {
+            const Gegenstand* g = gegenstandFuerWaffe(w);
+            if (g == nullptr) { return false; }
+            mi = g->mins;
+            ma = g->maxs;
+            return true;
+        };
+        hilfe.kraftGegenstand = [](NavVec& mi, NavVec& ma) {
+            const Gegenstand* g = gegenstandKraftKristall();
+            if (g == nullptr) { return false; }
+            mi = g->mins;
+            ma = g->maxs;
+            return true;
+        };
         hilfe.hurtAusloeser = [](const std::string& f, double ms) {
             for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {
                 if (!h.unsterblich && std::fabs(h.ms - ms) < 1.0 && engineNamenGleich(h.figur, f)) { return h.entity; }
@@ -5951,6 +6217,15 @@ void prepareScene() {
                 const auto it = landWerte->find(f);
                 return it == landWerte->end() ? 0 : it->second.second;
             };
+            // Pruefung 4a: PM_TryRoll je Figur (Klasse, Rang) und Waffe
+            auto rollKlassen = std::make_shared<std::map<std::string, std::pair<std::string, std::string>>>();
+            for (const Actor& a : ersteSzene.actors) { (*rollKlassen)[a.name] = {a.klasse, a.rang}; }
+            welt.darfRollen = [rollKlassen](const std::string& f, const std::string& waffe) {
+                const auto it = rollKlassen->find(f);
+                return it != rollKlassen->end() &&
+                       npcDarfRollen(navMovieDuelsRegeln(), navJk2Regeln(), waffe, it->second.first, it->second.second);
+            };
+            hilfe.darfRollen = welt.darfRollen;
             welt.halbBreite = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 16.0F : it->second.first;
@@ -5958,6 +6233,13 @@ void prepareScene() {
             welt.hoeheOben = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 40.0F : it->second.second;
+            };
+            // Pruefung 3: crouchheight je Figur (PM_CheckDuck mit SCF_CROUCHED)
+            auto hocken = std::make_shared<std::map<std::string, float>>();
+            for (const Actor& a : ersteSzene.actors) { (*hocken)[a.name] = a.hockHoehe; }
+            welt.hockHoehe = [hocken](const std::string& f) {
+                const auto it = hocken->find(f);
+                return it == hocken->end() ? 16.0F : it->second;
             };
         }
         // rc601 (bewegung, teil 3): alle Figuren im selben Takt (andere Figuren

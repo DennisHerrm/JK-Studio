@@ -487,6 +487,9 @@ struct LaufZustand {
     }
     // rc601 (bewegung, teil 3): PmoveSingle mit Boden und Luft.
     bool amBoden = false;         // ps.groundEntityNum != ENTITYNUM_NONE
+    // Pruefung 3: ps.pm_flags & PMF_DUCKED (PM_CheckDuck) - bleibt von
+    // Denkbild zu Denkbild, bis die Figur aufstehen kann.
+    bool geduckt = false;
     int pmZeit = 0;               // ps.pm_time (PMF_TIME_LAND nach hartem Aufsetzen)
     // rc605 (Ende): ps.groundEntityNum als Index in MapData::entities (sonst
     // kNavWeltEntity / kNavKeineEntity) und bis wann ein Mover darunter die
@@ -569,6 +572,9 @@ struct LaufZustand {
         // Skriptanimation darauf kommt danach nicht wieder).
         float jumpZStart = 0.0F;
         bool rueckwaerts = false;
+        // Pruefung 4a: PM_RunningAnim(legsAnim) nach PM_Footsteps des letzten
+        // Pmove (BOTH_RUN*, auch rueckwaerts) - Voraussetzung fuer PM_TryRoll.
+        bool rennt = false;
         int torsoGesetztAb = -1;
         bool operator==(const Sprung&) const = default;
     };
@@ -610,6 +616,14 @@ struct LaufWerte {
     // PM_Footsteps). Das Tempo ist das ps.speed, das die Figur gerade hat
     // (LaufZustand::tempo).
     bool ohneKoerper = false;
+    // Pruefung 3: SCF_CROUCHED (SET_CROUCHED) - NPC_ApplyScriptFlags setzt in
+    // jedem Denkbild ucmd.upmove = -127 (NPC.cpp:977-987 OJ, :786 MD, JK2
+    // gleich), PM_CheckDuck duckt die Figur auf crouchheight (hockHoehe,
+    // NPC_stats.cpp:2030 OJ CROUCH_MAXS_2 16, .npc "crouchheight" n - 24),
+    // PM_WalkMove begrenzt wishspeed auf ps.speed * pm_duckScale (0,5,
+    // bg_pmove.cpp:3229-3236 OJ), PM_Footsteps waehlt BOTH_CROUCH1WALK(BACK).
+    bool geduckt = false;
+    float hockHoehe = 16.0F;
     // desiredYaw von aussen nach NPC_MoveToGoal (NPC_BSCinematic mit
     // Watchtarget, NPC_behavior.cpp:304-315). false: STEER gilt.
     std::function<bool(double t, const NavVec& ort, float& gier)> fremdGier;
@@ -654,6 +668,9 @@ struct LaufWerte {
     // MD): NPC_CanTryJump verweigert jeden Sprung (NPC_move.cpp:330 MD); die
     // Sprungkanten bleiben gueltig (is_valid fragt nur SCF_NAV_CAN_JUMP).
     bool keineAkrobatik = false;
+    // Pruefung 4a: PM_TryRoll erlaubt es nach Regelwerk, Waffe, Klasse und Rang
+    // (npcDarfRollen; SCF_NO_ACROBATICS steht in keineAkrobatik).
+    bool darfRollen = false;
     float weltSchwerkraft = 800.0F;
     // rc605: Verhaltenszustand BS_JUMP (NPC_BSJump statt NPC_MoveToGoal) und
     // die Laengen von BOTH_CROUCH1 und BOTH_LAND1 dieser Figur in ms
@@ -674,7 +691,7 @@ struct LaufWerte {
     // (BOTH_LANDBACK1 ... BOTH_FORCELANDRIGHT1; LAND1/FORCELAND1 stehen oben).
     int levitation = 0;
     int landKlasse = 0;
-    std::array<int, 24> landeMs{};
+    std::array<int, 32> landeMs{};
 };
 
 // rc601 integ: der Takt des Verhaltens eines NPC in ms (LaufWerte::
@@ -724,9 +741,34 @@ enum SprungAnim : int {
     kSaForceLandBack1 = 19,
     kSaForceLandLeft1 = 20,
     kSaForceLandRight1 = 21,
-    kSaAnzahl = 22,
+    // Pruefung 4a: PM_TryRoll -> G_StartRoll (bg_pmove.cpp:3774-3925 OJ) aus vollem
+    // Lauf beim Ducken; Laenge HOLDLESS (numFrames - 1) * frameLerp - 1.
+    kSaRollF = 22,
+    kSaRollB = 23,
+    kSaRollR = 24,
+    kSaRollL = 25,
+    kSaAnzahl = 26,
 };
-static_assert(kSaAnzahl <= 24, "LaufWerte::landeMs");
+static_assert(kSaAnzahl <= 32, "LaufWerte::landeMs");
+// Pruefung 4a: PM_TryRoll fuer einen NPC nach Regelwerk, Waffe ("WP_..."),
+// Klasse ("CLASS_...") und Rang (.npc) - ohne SCF_NO_ACROBATICS.
+//   OpenJK      bg_pmove.cpp:3823-3851: mit Schwert RANK_CREWMAN oder ab
+//               RANK_LT_JG; mit einer anderen Waffe nur CLASS_BOBAFETT/REBORN
+//   Jedi Outcast codeJK2 bg_pmove.cpp:2385-2399: nur WP_SABER/WP_NONE, Rang wie oben
+//   Movie Duels bg_pmove.cpp:5414 ff.: keine dieser Pruefungen
+[[nodiscard]] bool npcDarfRollen(bool movieDuels, bool jk2, const std::string& waffe, const std::string& klasse,
+                                 const std::string& rang);
+// Pruefung 4a: der Timer einer Animation mit SETANIM_FLAG_HOLDLESS (PM_SetAnimFinal,
+// bg_panimate.cpp:4721-4722 OJ): (numFrames - 1) * frameLerp - 1 (dauer, < 0: fehlt).
+[[nodiscard]] inline int navHoldlessMs(double dauer) noexcept {
+    if (dauer < 0.0) { return 0; }
+    const int d = static_cast<int>(dauer);
+    return d > 1 ? d - 1 : d;
+}
+// Pruefung 4a: PM_InRoll - legsAnimTimer laeuft und die Beine rollen.
+[[nodiscard]] inline bool navInRolle(const LaufZustand::Sprung& s) noexcept {
+    return s.beinTimer > 0 && s.beinAnim >= kSaRollF && s.beinAnim <= kSaRollL;
+}
 // rc605 (Rest): der Animationsname eines Codes (nullptr: kSaKeine/kSaSprung).
 [[nodiscard]] const char* sprungAnimName(int code);
 // rc605 (Rest): PM_CrashLand-Sonderfaelle nach Klasse und Rang (bg_pmove.cpp:
@@ -783,6 +825,9 @@ struct LaufTakt {
     // rc605 (Probe): 1 STEER::GoTo, 2 NAV::GoTo, 3 STEER::Stop; +10 STEER::Blocked
     // in diesem Denkbild (0: kein NPC_MoveToGoal).
     int weg = 0;
+    // Pruefung 3: PMF_DUCKED nach dem Pmove dieses Denkbilds (PM_Footsteps:
+    // BOTH_CROUCH1WALK/-BACK statt Gehen oder Laufen).
+    bool geduckt = false;
 };
 
 struct LaufPlan {

@@ -5,6 +5,7 @@
 // (gui/gpumap_win32.cpp); geblieben ist, was beide Wege teilten.
 #include "bhed/mapview.h"
 #include "bhed/pmanim.h"
+#include "bhed/saberspuren.h"   // Pruefung 4a: spurRsqrt (VectorNormalizeFast)
 
 #include "bhed/wave.h"
 
@@ -699,7 +700,38 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         // mischt, bekommt bei gebeugten Gliedern zu kurze Knochen.
         const bool koerperMischt = act.frameNext >= 0 && act.frameFraction > 0.001F;
         const bool torsoMischt = !vorrang.empty() && vorrang.front().next >= 0;
-        if (koerperMischt || torsoMischt) {
+        // Pruefung 4a: die Lider - G2API_SetBoneAnglesIndex(leye/reye, (0, YAW, 0),
+        // BONE_ANGLES_POSTMULT, POSITIVE_Y, POSITIVE_Z, POSITIVE_X): G2_Generate_Matrix
+        // nimmt (angles[1], angles[0], angles[2]) = (YAW, 0, 0) fuer Create_Matrix
+        // (AnglesToAxis als Spalten, G2_misc.cpp OpenJK); G2_TransformBone
+        // multipliziert die Endmatrix des Knochens von rechts (tr_ghoul2.cpp:1800-1812).
+        std::vector<std::pair<int, BoneMatrix>> lider;
+        for (int seite = 0; seite < 2; ++seite) {
+            const float yaw = seite == 0 ? act.augeLinks : act.augeRechts;
+            if (yaw == 0.0F) { continue; }
+            const int k = boneIndex(*act.anim, seite == 0 ? "leye" : "reye");
+            if (k < 0) { continue; }
+            const float p = yaw * (3.14159265358979323846F / 180.0F);   // Create_Matrix: PITCH = YAW der Engine
+            const float sp = std::sin(p);
+            const float cp = std::cos(p);
+            // AnglesToAxis(p, 0, 0): forward (cp, 0, -sp), left (0, 1, 0), up (sp, 0, cp) - als Spalten
+            BoneMatrix m = BoneMatrix::identity();
+            m.m[0][0] = cp;
+            m.m[1][0] = 0.0F;
+            m.m[2][0] = -sp;
+            m.m[0][1] = 0.0F;
+            m.m[1][1] = 1.0F;
+            m.m[2][1] = 0.0F;
+            m.m[0][2] = sp;
+            m.m[1][2] = 0.0F;
+            m.m[2][2] = cp;
+            lider.emplace_back(k, m);
+        }
+        if (!lider.empty()) {
+            act.anim->worldMatricesLerp(std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
+                                        std::clamp(koerperMischt ? act.frameNext : act.frame, 0, act.anim->bildZahl() - 1),
+                                        koerperMischt ? act.frameFraction : 0.0F, vorrang, lider, world);
+        } else if (koerperMischt || torsoMischt) {
             act.anim->worldMatricesLerp(
                 std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
                 std::clamp(koerperMischt ? act.frameNext : act.frame, 0,
@@ -904,7 +936,90 @@ KlingenLage klingenLageFuer(const std::string& typ) {
     if (typ == "SABER_PRONG") { return KlingenLage::Zinke; }
     if (typ == "SABER_SAI") { return KlingenLage::Sai; }
     if (typ == "SABER_CLAW") { return KlingenLage::Kralle; }
+    if (typ == "SABER_ARC") { return KlingenLage::Bogen; }
+    if (typ == "SABER_STAR") { return KlingenLage::Stern; }
+    if (typ == "SABER_TRIDENT") { return KlingenLage::Dreizack; }
     return KlingenLage::Einzeln;
+}
+
+// Pruefung 4a: der tag_hack von CG_AddSaberBlade (cg_players.cpp:6131-6299
+// OpenJK, CG_AddSaberBladeGo Movie Duels) - Ort und Achsen einer Klinge am
+// Bolzen "*flash" je saberType.
+void klingenTagHack(KlingenLage lage, int nummer, float org[3], float ax0[3], float ax1[3], const float ax2[3]) {
+    const auto vor = [org](const float* achse, float um) {
+        for (int k = 0; k < 3; ++k) { org[k] += achse[k] * um; }
+    };
+    switch (lage) {
+        case KlingenLage::Stab:
+            if (nummer == 1) {
+                for (int k = 0; k < 3; ++k) { ax0[k] = -ax0[k]; }
+                vor(ax0, 16.0F);
+            }
+            break;
+        case KlingenLage::Breit:
+            if (nummer == 0) { vor(ax1, -1.0F); }
+            if (nummer == 1) { vor(ax1, 1.0F); }
+            break;
+        case KlingenLage::Zinke:
+            if (nummer == 0) { vor(ax1, -3.0F); }
+            if (nummer == 1) { vor(ax1, 3.0F); }
+            break;
+        case KlingenLage::Sai:
+            if (nummer == 1) { vor(ax1, -3.0F); }
+            if (nummer == 2) { vor(ax1, 3.0F); }
+            break;
+        case KlingenLage::Kralle:
+            if (nummer >= 0 && nummer <= 2) {
+                vor(ax0, 2.0F);
+                vor(ax2, 2.0F);
+                if (nummer == 1) { vor(ax1, 2.0F); }
+                if (nummer == 2) { vor(ax1, -2.0F); }
+            }
+            break;
+        case KlingenLage::Bogen: {
+            // VectorSubtract(axis[1], axis[2], axis[1]); VectorNormalizeFast(axis[1])
+            for (int k = 0; k < 3; ++k) { ax1[k] -= ax2[k]; }
+            const float l2 = ax1[0] * ax1[0] + ax1[1] * ax1[1] + ax1[2] * ax1[2];
+            const float inv = spurRsqrt(l2);
+            for (int k = 0; k < 3; ++k) { ax1[k] *= inv; }
+            // je Klinge: org entlang axis[0], axis[0] = a * axis[0] + b * axis[1]
+            static constexpr float kVor[4] = {8.0F, 0.0F, -8.0F, -16.0F};
+            static constexpr float kA[4] = {0.75F, 0.25F, -0.25F, -0.75F};
+            static constexpr float kB[4] = {0.25F, 0.75F, 0.75F, 0.25F};
+            if (nummer >= 0 && nummer <= 3) {
+                const auto i = static_cast<std::size_t>(nummer);
+                if (kVor[i] != 0.0F) { vor(ax0, kVor[i]); }
+                for (int k = 0; k < 3; ++k) { ax0[k] = ax0[k] * kA[i] + ax1[k] * kB[i]; }
+            }
+            break;
+        }
+        case KlingenLage::Stern: {
+            // Klinge 0 und 3 entlang axis[0] (3 umgedreht), die anderen
+            // a * axis[0] + b * axis[2]; je 8 entlang der neuen axis[0]
+            static constexpr float kA[6] = {1.0F, 0.33F, -0.33F, -1.0F, -0.33F, 0.33F};
+            static constexpr float kB[6] = {0.0F, 0.67F, 0.67F, 0.0F, -0.67F, -0.67F};
+            if (nummer >= 0 && nummer <= 5) {
+                const auto i = static_cast<std::size_t>(nummer);
+                if (i != 0U) {
+                    for (int k = 0; k < 3; ++k) { ax0[k] = ax0[k] * kA[i] + ax2[k] * kB[i]; }
+                }
+                vor(ax0, 8.0F);
+            }
+            break;
+        }
+        case KlingenLage::Dreizack:
+            if (nummer >= 0 && nummer <= 2) {
+                if (nummer == 1) { vor(ax1, -6.0F); }
+                if (nummer == 2) { vor(ax1, 6.0F); }
+                vor(ax0, 24.0F);
+            } else if (nummer == 3) {
+                vor(ax0, -32.0F);
+                for (int k = 0; k < 3; ++k) { ax0[k] = -ax0[k]; }
+            }
+            break;
+        case KlingenLage::Einzeln:
+            break;
+    }
 }
 
 // Wurzel und Spitze einer Klinge im Raum des GRIFFS.
@@ -940,41 +1055,7 @@ bool klingenStrecke(const GlmModel& griff, KlingenLage lage, int nummer,
         ax1[k] = -m.m[k][1];
         ax2[k] = m.m[k][2];
     }
-    const auto vor = [&org](const float* achse, float um) {
-        for (int k = 0; k < 3; ++k) { org[k] += achse[k] * um; }
-    };
-    if (hack) {
-        switch (lage) {
-            case KlingenLage::Stab:
-                if (nummer == 1) {
-                    for (float& v : ax0) { v = -v; }
-                    vor(ax0, 16.0F);
-                }
-                break;
-            case KlingenLage::Breit:
-                if (nummer == 0) { vor(ax1, -1.0F); }
-                if (nummer == 1) { vor(ax1, 1.0F); }
-                break;
-            case KlingenLage::Zinke:
-                if (nummer == 0) { vor(ax1, -3.0F); }
-                if (nummer == 1) { vor(ax1, 3.0F); }
-                break;
-            case KlingenLage::Sai:
-                if (nummer == 1) { vor(ax1, -3.0F); }
-                if (nummer == 2) { vor(ax1, 3.0F); }
-                break;
-            case KlingenLage::Kralle:
-                if (nummer >= 0 && nummer <= 2) {
-                    vor(ax0, 2.0F);
-                    vor(ax2, 2.0F);
-                    if (nummer == 1) { vor(ax1, 2.0F); }
-                    if (nummer == 2) { vor(ax1, -2.0F); }
-                }
-                break;
-            case KlingenLage::Einzeln:
-                break;
-        }
-    }
+    if (hack) { klingenTagHack(lage, nummer, org, ax0, ax1, ax2); }
     for (int k = 0; k < 3; ++k) {
         wurzel[k] = org[k];
         spitze[k] = org[k] + ax0[k] * laenge;

@@ -1257,6 +1257,8 @@ struct App {
         int bildIndex = -1;
     };
     std::vector<GegenstandGlm> gegenstandGlm;
+    // Pruefung 3: gezeichnete Abwuerfe (Scene::abwuerfe) seit dem letzten Nullen (Selbsttest).
+    int abwurfGezeichnet = 0;
     // Je Kartenmodell die Figur der Szene, die es bewegt (move, rotate,
     // PLAY_ROFF, SET_INVISIBLE, remove) - oder -1. Nach jedem Szenenaufbau.
     std::vector<int> modellFigur;
@@ -3379,6 +3381,42 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]);
 void figurKopfGier(const ActorState& st, ActorDraw& d);
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d);
 void npcSkalaFuer(const std::string& npcType, float aus[3]);
+// Pruefung 3: die Knochen (welt) und die Weltmatrix (fw) einer Figur im
+// Zustand st zur Zeit ms - dieselbe Rechnung wie die Zeichnung
+// (figurBilderSetzen, figurKopfGier, figurKnochen, figurWeltMatrix).
+bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d,
+               std::vector<BoneMatrix>& welt, float fw[16]);
+// Pruefung 3: renderInfo.torsoAngles aus dem chestBolt des gezeichneten
+// Skeletts (cg_players.cpp:7516-7527 OJ); false: kein chestBolt (VectorClear).
+bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms, float winkel[3]);
+// Pruefung 3: renderInfo.handRPoint (Bolzen "*r_hand") und muzzleDir (Richtung
+// der ersten Klinge des Schwerts in der rechten Hand) zur Zeit ms.
+bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]);
+// Pruefung 4a: renderInfo.eyePoint aus dem headBolt (kopfBolzen) zur Zeit ms;
+// false: kein headBolt (dann gilt der Ursprung der Figur).
+bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]);
+// Pruefung 4a: renderInfo.muzzlePoint - der Bolzen "*flash" des Waffenmodells in
+// der rechten Hand (CG_Player, cg_players.cpp:7581-7596 OJ); false: keins.
+bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, float muendung[3]);
+// Pruefung 4a: rumpfWinkel, handPunkt, augenPunkt und fussPunkte der
+// SzenenHilfe aus den gezeichneten Skeletten (index: Name -> actorAssets).
+void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index);
+// Pruefung 3: renderInfo.footLPoint/footRPoint (footLBolt/footRBolt) zur Zeit ms -
+// nur G_StandardHumanoid ("*l_leg_foot") und CLASS_ATST ("*l_foot"), wie
+// PM_AdjustStandAnimForSlope es verlangt.
+bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, double ms, float links[3], float rechts[3]);
+// Pruefung 3: items.dat des Regelwerks (FindItemForWeapon/FindItemForAmmo).
+const Gegenstandsliste& gegenstandslisteJetzt();
+// Pruefung 3: der Gegenstand einer Waffe (giType IT_WEAPON, giTag == waffe)
+// bzw. des Kristalls (IT_AMMO, AMMO_FORCE) - nullptr: keiner.
+const Gegenstand* gegenstandFuerWaffe(const std::string& waffe);
+const Gegenstand* gegenstandKraftKristall();
+// Pruefung 3: das Modell, mit dem ein Abwurf gezeichnet wird (Waffe/Kristall:
+// worldmodel aus items.dat, Schwert: der Griff).
+std::string abwurfModell(const TodesAbwurf& ab);
+// Pruefung 3: ein eigener Klang "*death1.wav" einer Figur (CG_CustomSound) als
+// Datei - leer, wenn die Figur keinen hat.
+std::string eigenerKlangDatei(const std::string& figur, const std::string& name);
 const efx::Effect* effectByName(const std::string& name);
 // rc604: eine Effektdatei samt Shadern laden (app_view3d.cpp) - auch fuer den Selbsttest.
 bool ladeEffektDatei(const std::string& path, const std::string& herkunft);
@@ -3437,9 +3475,10 @@ extern int g_saberBlitzeNachBalken;
 // rc601 saber review: Brandspuren (CG_CreateSaberMarks, CG_AddMarks) - ins
 // Effektnetz haengen, ob es welche gibt, und fuer den Selbsttest die lebenden
 // Marken zu ms (rechnet bis ms).
-void saberSpurenAnhaengen(BspMesh& netz, double nowMs);
-bool saberSpurenDa(double nowMs);
-std::vector<SpurPoly> saberSpurenBei(double ms);
+// Pruefung 3: mit den Decals der Effekte `effekte` im selben Markenspeicher.
+void saberSpurenAnhaengen(BspMesh& netz, double nowMs, const std::vector<EffectInstance>* effekte = nullptr);
+bool saberSpurenDa(double nowMs, const std::vector<EffectInstance>* effekte = nullptr);
+std::vector<SpurPoly> saberSpurenBei(double ms, const std::vector<EffectInstance>* effekte = nullptr);
 // Alles vergessen (Selbsttest: Vorspulen gegen Abspielen vergleichen).
 void saberVergessen();
 // rc603 fix603, nur fuer den Selbsttest: hoechstens so viele Clientbilder im

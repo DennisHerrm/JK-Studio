@@ -20,7 +20,9 @@
 // die Brushes, Patches und misc_model der Karte, mit dem Baum und den Verweisen seiner Blaetter, wie
 // q3map2 sie in die .bsp schreibt (markenWeltBauen). Der Bau rechnet wie q3map2 bei grossen Karten
 // Sekunden - er laeuft im Hintergrund, sobald Decals gebraucht werden und die Geometrie eine
-// Viertelsekunde ruht; bis er fertig ist, gilt die letzte Welt.
+// Viertelsekunde ruht; bis er fertig ist, gilt die letzte Welt. Wie im Spiel liegen die Decals im
+// Markenspeicher (CG_ImpactMark -> CG_AllocMark, CG_AddMarks blendet und wirft ab, bhed/efxdraw.h
+// markenBild); jedes Bild des Editors ist ein Clientbild.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -38,6 +40,8 @@ struct EchtFx {
     std::map<const efx::Effect*, float> huellen;   // fxHuelle je Effekt
     std::unique_ptr<SpurWelt> marken;              // die Flaechen fuer die Decals (nullptr: noch keine)
     std::size_t markenStand = static_cast<std::size_t>(-1);   // der Stand der Geometrie, fuer den marken gilt
+    SpurSpeicher speicher;                         // cg_markPolys: die angelegten Decals
+    int markenBis = 0;                             // bis zu dieser Zeit liegen die Decals im Speicher
     // reste2 Punkt 4: der Bau im Hintergrund
     struct MarkenErgebnis {
         SpurWelt welt;
@@ -68,6 +72,7 @@ void markenPflegen(Editor& ed, std::size_t geoStand) {
         EchtFx::MarkenErgebnis r = g_fx.markenAuftrag.get();
         if (!g_fx.markenAbbrechen->load()) {
             g_fx.marken = std::make_unique<SpurWelt>(std::move(r.welt));
+            g_fx.speicher = SpurSpeicher{};   // die alten Marken lagen auf der alten Geometrie
             g_fx.markenStand = g_fx.markenAuftragStand;
             ed.echtLicht.markenPinsel = static_cast<std::size_t>(r.bericht.pinsel);
             ed.echtLicht.markenFlaechen = g_fx.marken->flaechen.size();
@@ -288,7 +293,16 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
         return std::any_of(l.effect->primitives.begin(), l.effect->primitives.end(), [](const efx::Primitive& pr) { return pr.type == efx::PrimitiveType::Decal; });
     });
     if (decals) { markenPflegen(ed, geoStand); }
-    const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge, g_fx.marken.get());
+    BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge);
+    // Ein Clientbild des Markenspeichers (cg.time ganze ms): die Decals seit dem letzten Bild, CG_AddMarks
+    const int cgZeit = static_cast<int>(jetzt);
+    const std::vector<EffektMarke> neue =
+        decals ? effektMarkenIn(alle, static_cast<double>(g_fx.markenBis), static_cast<double>(cgZeit), nullptr, g_fx.marken.get())
+               : std::vector<EffektMarke>{};
+    std::size_t naechstes = 0;
+    markenBild(g_fx.speicher, cgZeit, neue, naechstes, nullptr);
+    g_fx.markenBis = cgZeit;
+    (void)markenNetz(netz, g_fx.speicher, cgZeit, g_fx.plaetze);
     ed.echtLicht.effektEcken = netz.verts.size();
     for (const BspMesh::Batch& b : netz.batches) {
         if (b.numIndexes == 0) { continue; }

@@ -94,6 +94,8 @@ struct AblaufWelt {
     std::shared_ptr<const NavWelt> nav;
     std::function<float(const std::string& figur)> halbBreite;
     std::function<float(const std::string& figur)> hoeheOben;
+    // Pruefung 3: crouchheight je Figur (leer: CROUCH_MAXS_2 16).
+    std::function<float(const std::string& figur)> hockHoehe;
     // rc601 (bewegung, R5/R6): die Drehrate beim Spawnen (Grad/s, < 0
     // unbekannt), ob sie fest ist (Rocket Trooper, WP_EMPLACED_GUN -
     // SET_YAWSPEED wirkt dann nicht), und die Stufe je Klasse.
@@ -106,6 +108,8 @@ struct AblaufWelt {
     // rc605 (Rest): PM_CrashLand je Figur - FP_LEVITATION und npcLandKlasse.
     std::function<int(const std::string& figur)> levitation;
     std::function<int(const std::string& figur)> landKlasse;
+    // Pruefung 4a: PM_TryRoll je Figur und Waffe in der Hand (npcDarfRollen).
+    std::function<bool(const std::string& figur, const std::string& waffe)> darfRollen;
     // rc605: die Ziele explodierender misc_trip_mine aus der Spur der Szene
     // (laserfalleLauf): WP_Explode -> G_UseTargets( self, attacker ), attacker
     // ist die Falle selbst (eine Karten-Falle hat weder owner noch activator,

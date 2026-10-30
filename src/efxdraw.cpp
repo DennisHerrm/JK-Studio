@@ -357,13 +357,15 @@ const SpurWelt* spurWeltFuer(const BspGeometry* geo) {
     return merk.welt.get();
 }
 
-// CG_ImpactMark (cg_marks.cpp:133-205 OJ, MD gleich) fuer eine Marke, die vor
-// alterMs angelegt wurde, mit den Farben, die CG_AddMarks (:233-277) ihr dann
-// gibt. Die Ecken liegen AUF den Flaechen (MARKER_OFFSET 0, tr_marks.cpp:28) -
-// gegen das Flimmern hat der Shader der Marke sein polygonOffset. Gezeichnet
-// wie RB_SurfacePolychain: ein Faecher 0, i+1, i+2. Liefert die Zahl der Polygone.
-int impactMarke(BspMesh& mesh, const SpurWelt& welt, const float origin[3], const float dir[3], float orientation,
-                float radius, const std::uint8_t farbe[4], int alterMs) {
+// CG_ImpactMark (cg_marks.cpp:133-205 OJ, MD gleich): das Quadrat mit
+// cgi_CM_MarkFragments (R_MarkFragments) auf die getroffenen Flaechen
+// geschnitten, je Bruchstueck eine Marke (MAX_VERTS_ON_POLY Ecken) fuer
+// CG_AllocMark - Pruefung 3: in den gemeinsamen Markenspeicher (die Zeit
+// mark->time setzt, wer sie einlegt). Die Ecken liegen AUF den Flaechen
+// (MARKER_OFFSET 0, tr_marks.cpp:28) - gegen das Flimmern hat der Shader der
+// Marke sein polygonOffset.
+void impactMarke(std::vector<SpurPoly>& aus, const SpurWelt& welt, const float origin[3], const float dir[3],
+                 float orientation, float radius, const std::uint8_t farbe[4], int shader) {
     constexpr int kMaxPunkte = 384;      // MAX_MARK_POINTS (cg_marks.cpp:131)
     constexpr int kMaxBruchstuecke = 128;   // MAX_MARK_FRAGMENTS (:130)
     float axis[3][3]{};
@@ -392,40 +394,25 @@ int impactMarke(BspMesh& mesh, const SpurWelt& welt, const float origin[3], cons
     SpurBruchstueck markFragments[kMaxBruchstuecke];
     const int numFragments =
         spurBruchstuecke(welt, 4, originalPoints, projection, kMaxPunkte, markPoints, kMaxBruchstuecke, markFragments);
-    // CG_AddMarks: t = mp->time + MARK_TOTAL_TIME - cg.time; in der letzten
-    // MARK_FADE_TIME mit alphaFade nur die Alpha (fade = 255 * t /
-    // MARK_FADE_TIME), sonst die Farbe der Marke und die Alpha aus
-    // CG_ImpactMark (colors[3]).
-    const int t = kSpurGesamtZeit - alterMs;
-    const std::uint8_t modulate[4] = {farbe[0], farbe[1], farbe[2],
-                                      t < kSpurBlendZeit ? static_cast<std::uint8_t>(255 * t / kSpurBlendZeit) : farbe[3]};
     for (int i = 0; i < numFragments; ++i) {
-        const int zahl = std::min(markFragments[i].zahl, kSpurMaxEcken);   // MAX_VERTS_ON_POLY (cg_local.h:70)
-        if (zahl < 3) {
-            continue;
-        }
-        const auto base = static_cast<std::uint32_t>(mesh.verts.size());
-        for (int j = 0; j < zahl; ++j) {
+        SpurPoly p;
+        p.alphaFade = true;   // FxScheduler: CG_ImpactMark(..., qtrue /*alphaFade*/, ..., qfalse)
+        p.shader = shader;
+        p.zahl = std::min(markFragments[i].zahl, kSpurMaxEcken);   // MAX_VERTS_ON_POLY (cg_local.h:70)
+        for (int k = 0; k < 4; ++k) { p.farbe[k] = farbe[k]; }
+        p.eckenAlpha = farbe[3];   // v->modulate[k] = colors[k]
+        for (int j = 0; j < p.zahl; ++j) {
             const float* xyz = markPoints[markFragments[i].ersterPunkt + j];
-            BspVertex v;
             float delta[3];
             for (int k = 0; k < 3; ++k) {
-                v.xyz[k] = xyz[k];
+                p.xyz[j][k] = xyz[k];
                 delta[k] = xyz[k] - origin[k];
-                v.normal[k] = axis[0][k];
             }
-            v.st[0] = 0.5F + (delta[0] * axis[1][0] + delta[1] * axis[1][1] + delta[2] * axis[1][2]) * texCoordScale;
-            v.st[1] = 0.5F + (delta[0] * axis[2][0] + delta[1] * axis[2][1] + delta[2] * axis[2][2]) * texCoordScale;
-            for (int k = 0; k < 4; ++k) { v.colour[k] = modulate[k]; }
-            mesh.verts.push_back(v);
+            p.st[j][0] = 0.5F + (delta[0] * axis[1][0] + delta[1] * axis[1][1] + delta[2] * axis[1][2]) * texCoordScale;
+            p.st[j][1] = 0.5F + (delta[0] * axis[2][0] + delta[1] * axis[2][1] + delta[2] * axis[2][2]) * texCoordScale;
         }
-        for (int j = 0; j + 2 < zahl; ++j) {
-            mesh.indexes.push_back(base);
-            mesh.indexes.push_back(base + static_cast<std::uint32_t>(j) + 1U);
-            mesh.indexes.push_back(base + static_cast<std::uint32_t>(j) + 2U);
-        }
+        aus.push_back(p);
     }
-    return numFragments;
 }
 
 // Ein Band von a nach b mit fester Breitenrichtung `w` (Einheitsvektor),
@@ -1931,11 +1918,20 @@ void vergissEffektBahnen() {
     g_flugMerk.clear();
 }
 
-BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
-                        const float right[3], const float up[3],
-                        const EffectShaderSlots* slots, const BspGeometry* geo,
-                        const EffectCull* cull, const SpurWelt* marken) {
-    BHED_MESS("Effektnetz");
+namespace {
+
+// Pruefung 3: das Fenster, in dem baueEffekte die Decals als Marken sammelt,
+// statt Vierecke zu bauen (effektMarkenIn).
+struct MarkenFenster {
+    double vonMs = 0.0;
+    double bisMs = 0.0;
+    std::vector<EffektMarke>* aus = nullptr;
+    const SpurWelt* welt = nullptr;   // die Flaechen ohne .bsp (Karten-Editor), sonst aus geo
+};
+
+BspMesh baueEffekte(const std::vector<EffectInstance>& live, double nowMs, const float right[3], const float up[3],
+                    const EffectShaderSlots* slots, const BspGeometry* geo, const EffectCull* cull,
+                    const MarkenFenster* fenster) {
     BspMesh mesh;
     // Der Platz je Shadername eines Bausteins, einmal je Aufruf gesucht
     // (rc594): vorher fuer JEDES Teilchen eine kleingeschriebene Kopie des
@@ -2157,9 +2153,14 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
             // Pruefung 2: ein Decal legt CG_ImpactMark beim Anlegen als Marke
             // ab (FxScheduler.cpp:1855 MD) - mit Groesse, Farbe, Alpha und
             // Drehung von DIESEM Augenblick; sie bleibt MARK_TOTAL_TIME.
+            // Pruefung 3: ein Decal legt CG_ImpactMark in den gemeinsamen
+            // Markenspeicher (Brandspuren der Schwerter und Decals, cg_marks.cpp),
+            // der es zeichnet und ausblendet - hier nur im Markenfenster.
             const bool marke = pr.type == efx::PrimitiveType::Decal;
-            const double lebt = marke ? static_cast<double>(kSpurGesamtZeit) : static_cast<double>(life);
-            if (age < 0.0 || age > lebt) {
+            if (marke != (fenster != nullptr)) {
+                continue;
+            }
+            if (marke ? (t.geborenMs <= fenster->vonMs || t.geborenMs > fenster->bisMs) : (age < 0.0 || age > static_cast<double>(life))) {
                 continue;   // noch nicht da oder schon vorbei
             }
             const auto alter = marke ? 0.0F : static_cast<float>(age);
@@ -2280,7 +2281,7 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                 if (marke) {
                     // FxScheduler.cpp:1859-1864 MD: ohne Richtung kein Decal.
                     const float* dir = t.ax[0];
-                    const SpurWelt* welt = marken != nullptr ? marken : spurWeltFuer(geo);
+                    const SpurWelt* welt = fenster->welt != nullptr ? fenster->welt : spurWeltFuer(geo);
                     if ((dir[0] == 0.0F && dir[1] == 0.0F && dir[2] == 0.0F) || welt == nullptr) {
                         continue;
                     }
@@ -2291,8 +2292,13 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                         static_cast<std::uint8_t>(std::clamp(col.y, 0.0F, 1.0F) * 255.0F),
                         static_cast<std::uint8_t>(std::clamp(col.z, 0.0F, 1.0F) * 255.0F),
                         static_cast<std::uint8_t>(alpha * 255.0F)};
-                    quads += impactMarke(mesh, *welt, centre, dir, drehung, size, farbe4,
-                                         static_cast<int>(std::lround(age)));
+                    // der Shader des Teilchens (mMediaHandles.GetHandle(), wie oben)
+                    const std::string& name = pr.shaders.empty() ? std::string() : pr.shaders[std::min(t.medium, pr.shaders.size() - 1U)];
+                    EffektMarke m;
+                    m.ms = t.geborenMs;
+                    m.sofort = sp.timeMs <= 0.0F;
+                    impactMarke(m.polys, *welt, centre, dir, drehung, size, farbe4, spurShaderNummer(name));
+                    if (!m.polys.empty()) { fenster->aus->push_back(std::move(m)); }
                     continue;
                 }
                 // --- Ausgerichtet: flach, senkrecht zu ax[0] --------------
@@ -2460,6 +2466,116 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
 
     batchSchliessen();
     return mesh;
+}
+
+}  // namespace
+
+BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs, const float right[3], const float up[3],
+                        const EffectShaderSlots* slots, const BspGeometry* geo, const EffectCull* cull) {
+    BHED_MESS("Effektnetz");
+    return baueEffekte(live, nowMs, right, up, slots, geo, cull, nullptr);
+}
+
+std::vector<EffektMarke> effektMarkenIn(const std::vector<EffectInstance>& live, double vonMs, double bisMs,
+                                        const BspGeometry* geo, const SpurWelt* welt) {
+    std::vector<EffektMarke> aus;
+    if ((geo == nullptr && welt == nullptr) || bisMs <= vonMs) { return aus; }
+    MarkenFenster f;
+    f.vonMs = vonMs;
+    f.bisMs = bisMs;
+    f.aus = &aus;
+    f.welt = welt;
+    const float rechts[3] = {0.0F, -1.0F, 0.0F};
+    const float oben[3] = {0.0F, 0.0F, 1.0F};
+    (void)baueEffekte(live, bisMs, rechts, oben, nullptr, geo, nullptr, &f);
+    // nach der Geburt; gleich alte in der Reihenfolge der Effekte (stabil)
+    std::stable_sort(aus.begin(), aus.end(), [](const EffektMarke& a, const EffektMarke& b) { return a.ms < b.ms; });
+    return aus;
+}
+
+void markenBild(SpurSpeicher& speicher, int cgZeit, const std::vector<EffektMarke>& decals, std::size_t& naechstes,
+                const std::vector<SpurPoly>* klingen) {
+    std::size_t bis = naechstes;
+    while (bis < decals.size() && decals[bis].ms <= static_cast<double>(cgZeit)) { ++bis; }
+    const auto einlegen = [&](bool sofort) {
+        for (std::size_t i = naechstes; i < bis; ++i) {
+            if (decals[i].sofort != sofort) { continue; }
+            for (const SpurPoly& p : decals[i].polys) {
+                SpurPoly& neu = speicher.neu();   // CG_AllocMark
+                neu = p;
+                neu.zeit = cgZeit;                // mark->time = cg.time
+            }
+        }
+    };
+    einlegen(true);
+    if (klingen != nullptr) {
+        for (const SpurPoly& p : *klingen) { speicher.neu() = p; }
+    }
+    speicher.bild(cgZeit);   // CG_AddMarks
+    einlegen(false);
+    naechstes = bis;
+}
+
+int markenNetz(BspMesh& netz, const SpurSpeicher& speicher, int cgZeit, const EffectShaderSlots& plaetze) {
+    const std::vector<const SpurPoly*> leb = speicher.lebende();
+    // Pruefung 3: die Shader aller lebenden Marken (Brandspuren und Decals),
+    // je einer ein Zeichenaufruf - in der Reihenfolge ihres ersten Auftretens.
+    std::vector<int> shaderListe;
+    for (const SpurPoly* p : leb) {
+        if (std::find(shaderListe.begin(), shaderListe.end(), p->shader) == shaderListe.end()) { shaderListe.push_back(p->shader); }
+    }
+    int gezeichnet = 0;
+    for (const int sh : shaderListe) {
+        std::string name = spurShaderName(sh);
+        for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto sl = plaetze.find(name);
+        if (sl == plaetze.end() || sl->second <= 0) {
+            continue;   // kein Bild - das Spiel zeichnete den Ersatzshader; hier nichts
+        }
+        BspMesh::Batch bt;
+        bt.lightmap = -1;
+        bt.vertexColour = true;
+        bt.shader = sl->second;
+        bt.firstIndex = static_cast<std::uint32_t>(netz.indexes.size());
+        for (const SpurPoly* p : leb) {
+            if (p->shader != sh || p->zahl < 3) {
+                continue;
+            }
+            std::uint8_t farbe[4];
+            spurFarbe(*p, cgZeit, farbe);
+            const auto base = static_cast<std::uint32_t>(netz.verts.size());
+            float n[3];
+            {
+                const float a[3] = {p->xyz[1][0] - p->xyz[0][0], p->xyz[1][1] - p->xyz[0][1], p->xyz[1][2] - p->xyz[0][2]};
+                const float b[3] = {p->xyz[2][0] - p->xyz[0][0], p->xyz[2][1] - p->xyz[0][1], p->xyz[2][2] - p->xyz[0][2]};
+                n[0] = a[1] * b[2] - a[2] * b[1];
+                n[1] = a[2] * b[0] - a[0] * b[2];
+                n[2] = a[0] * b[1] - a[1] * b[0];
+            }
+            for (int j = 0; j < p->zahl; ++j) {
+                BspVertex vx;
+                for (int c = 0; c < 3; ++c) {
+                    vx.xyz[c] = p->xyz[j][c];
+                    vx.normal[c] = n[c];
+                }
+                vx.st[0] = p->st[j][0];
+                vx.st[1] = p->st[j][1];
+                for (int c = 0; c < 4; ++c) { vx.colour[c] = farbe[c]; }
+                netz.verts.push_back(vx);
+            }
+            for (int j = 1; j + 1 < p->zahl; ++j) {
+                netz.indexes.push_back(base);
+                netz.indexes.push_back(base + static_cast<std::uint32_t>(j));
+                netz.indexes.push_back(base + static_cast<std::uint32_t>(j + 1));
+            }
+            ++gezeichnet;
+        }
+        bt.numIndexes = static_cast<std::uint32_t>(netz.indexes.size()) - bt.firstIndex;
+        if (bt.numIndexes > 0U) {
+            netz.batches.push_back(bt);
+        }
+    }
+    return gezeichnet;
 }
 
 std::vector<EmitterModelDraw> emitterModelsAt(

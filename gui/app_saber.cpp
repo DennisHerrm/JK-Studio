@@ -971,10 +971,19 @@ GezeichnetSpeicher& gezeichnet() {
 // ergibt denselben Inhalt: was vor dem Fenster entstand, ist nach 10 s fort
 // (CG_AddMarks), und solange es lebte, fiel beim Vollwerden zuerst es selbst
 // (es ist das aelteste) - die Marken im Fenster trifft es nicht anders.
+//
+// Pruefung 3: in DEMSELBEN Speicher liegen die Decals der Effekte
+// (CG_ImpactMark aus dem Zeitplaner, bhed/efxdraw.h effektMarkenIn). Ein
+// Clientbild t (cg.time = t * 8) laeuft wie CG_DrawActiveFrame (cg_view.cpp
+// OJ): CG_ProcessSnapshots -> CG_CheckEvents legt die Decals der Effekte an,
+// die ohne Verzoegerung starten; CG_AddPacketEntities die Brandspuren der
+// Klingen; CG_AddMarks wirft ab; theFxScheduler.AddScheduledEffects legt die
+// verzoegerten Decals an. mark->time ist cg.time des Bildes.
 struct SpurAnzeige {
     bool gueltig = false;
     std::uint64_t schluessel = 0;
     long long erzeugung = -1;
+    std::uint64_t effekte = 0;   // Pruefung 3: Kennung der Effekte mit Decals
     long long t = LLONG_MIN;
     SpurSpeicher speicher;
 };
@@ -982,27 +991,54 @@ SpurAnzeige& spurAnzeige() {
     static SpurAnzeige a;
     return a;
 }
-const SpurSpeicher* spurenStand(long long ziel) {
+// Die Effekte, die Decals legen koennen, als Kennung - aendert sich eine,
+// wird der Speicher neu nachgespielt.
+std::uint64_t effektKennung(const std::vector<EffectInstance>* effekte) {
+    if (effekte == nullptr) { return 0; }
+    std::uint64_t h = 0;
+    for (const EffectInstance& e : *effekte) {
+        if (e.effect == nullptr) { continue; }
+        bool decal = false;
+        for (const efx::Primitive& pr : e.effect->primitives) { decal = decal || pr.type == efx::PrimitiveType::Decal; }
+        if (!decal) { continue; }
+        h = saberSaat(h, reinterpret_cast<std::uintptr_t>(e.effect), static_cast<std::uint64_t>(std::llround(e.startMs * 8.0)),
+                      static_cast<std::uint64_t>(e.seed) ^ (static_cast<std::uint64_t>(std::llround(e.endMs * 8.0)) << 20U));
+        h = saberSaat(h, static_cast<std::uint64_t>(std::llround(e.origin[0] * 16.0F)), static_cast<std::uint64_t>(std::llround(e.origin[1] * 16.0F)),
+                      static_cast<std::uint64_t>(std::llround(e.origin[2] * 16.0F)) ^ (e.loops ? 1ULL : 0ULL));
+    }
+    return h;
+}
+const SpurSpeicher* spurenStand(long long ziel, const std::vector<EffectInstance>* effekte) {
     SpurAnzeige& a = spurAnzeige();
     const SaberSpeicher& sp = speicher();
-    if (!sp.gueltig || ziel < 0) {
+    if (ziel < 0) {
         return nullptr;
     }
-    const bool weiter = a.gueltig && a.schluessel == sp.schluessel && a.erzeugung == sp.erzeugung && ziel >= a.t &&
+    const std::uint64_t schluessel = sp.gueltig ? sp.schluessel : 0U;
+    const long long erzeugung = sp.gueltig ? sp.erzeugung : -1;
+    const std::uint64_t fx = effektKennung(effekte);
+    const bool weiter = a.gueltig && a.schluessel == schluessel && a.erzeugung == erzeugung && a.effekte == fx && ziel >= a.t &&
                         ziel - a.t <= kSpurFensterTakte;
     if (!weiter) {
         a.speicher = SpurSpeicher{};
         a.t = ziel - kSpurFensterTakte - 1;
-        a.schluessel = sp.schluessel;
-        a.erzeugung = sp.erzeugung;
+        a.schluessel = schluessel;
+        a.erzeugung = erzeugung;
+        a.effekte = fx;
         a.gueltig = true;
     }
+    const std::vector<EffektMarke> decals =
+        (fx != 0U && ziel > a.t)
+            ? effektMarkenIn(*effekte, static_cast<double>(a.t * kSaberClientTaktMs), static_cast<double>(ziel * kSaberClientTaktMs), &g_app->geo)
+            : std::vector<EffektMarke>{};
+    std::size_t k = 0;
     for (long long t = a.t + 1; t <= ziel; ++t) {
-        const auto it = sp.bilder.find(t);
-        if (it != sp.bilder.end()) {
-            for (const SpurPoly& p : it->second.marken) { a.speicher.neu() = p; }
+        const std::vector<SpurPoly>* klingen = nullptr;
+        if (sp.gueltig) {
+            const auto it = sp.bilder.find(t);
+            if (it != sp.bilder.end()) { klingen = &it->second.marken; }
         }
-        a.speicher.bild(static_cast<int>(t * kSaberClientTaktMs));   // CG_AddMarks
+        markenBild(a.speicher, static_cast<int>(t * kSaberClientTaktMs), decals, k, klingen);
     }
     a.t = ziel;
     return &a.speicher;
@@ -1399,20 +1435,20 @@ void saberBlitzZeichnen2D(int ansicht, ImDrawList* dl, ImVec2 a, ImVec2 b, bool 
 // Shader, Mischart, polygonOffset und cull aus den Shaderdateien
 // (gfx/damage/rivetmark, gfx/effects/saberDamageGlow).
 int g_saberSpurenGezeichnet = 0;
-bool saberSpurenDa(double nowMs) {
+bool saberSpurenDa(double nowMs, const std::vector<EffectInstance>* effekte) {
     static const bool aus = std::getenv("BHED_SABER_AUS") != nullptr;
     if (aus) {
         return false;
     }
-    const SpurSpeicher* s = spurenStand(taktVon(nowMs));
+    const SpurSpeicher* s = spurenStand(taktVon(nowMs), effekte);
     return s != nullptr && s->zahl() > 0;
 }
-void saberSpurenAnhaengen(BspMesh& netz, double nowMs) {
-    if (!saberSpurenDa(nowMs)) {
+void saberSpurenAnhaengen(BspMesh& netz, double nowMs, const std::vector<EffectInstance>* effekte) {
+    if (!saberSpurenDa(nowMs, effekte)) {
         return;
     }
     const long long ziel = taktVon(nowMs);
-    const SpurSpeicher* s = spurenStand(ziel);
+    const SpurSpeicher* s = spurenStand(ziel, effekte);
     static efx::Effect s_spurFx = [] {
         efx::Effect e;
         efx::Primitive pr;
@@ -1422,63 +1458,13 @@ void saberSpurenAnhaengen(BspMesh& netz, double nowMs) {
         return e;
     }();
     ladeEffektShader(s_spurFx);
-    const char* namen[2] = {"gfx/damage/rivetmark", "gfx/effects/saberdamageglow"};
-    const std::vector<const SpurPoly*> leb = s->lebende();
-    const int cgZeit = static_cast<int>(ziel * kSaberClientTaktMs);
-    for (int sh = 0; sh < 2; ++sh) {
-        const auto sl = g_app->effectShaders.find(namen[sh]);
-        if (sl == g_app->effectShaders.end() || sl->second <= 0) {
-            continue;   // kein Bild - das Spiel zeichnete den Ersatzshader; hier nichts
-        }
-        BspMesh::Batch bt;
-        bt.lightmap = -1;
-        bt.vertexColour = true;
-        bt.shader = sl->second;
-        bt.firstIndex = static_cast<std::uint32_t>(netz.indexes.size());
-        for (const SpurPoly* p : leb) {
-            if (p->shader != sh || p->zahl < 3) {
-                continue;
-            }
-            std::uint8_t farbe[4];
-            spurFarbe(*p, cgZeit, farbe);
-            const auto base = static_cast<std::uint32_t>(netz.verts.size());
-            float n[3];
-            {
-                const float a[3] = {p->xyz[1][0] - p->xyz[0][0], p->xyz[1][1] - p->xyz[0][1], p->xyz[1][2] - p->xyz[0][2]};
-                const float b[3] = {p->xyz[2][0] - p->xyz[0][0], p->xyz[2][1] - p->xyz[0][1], p->xyz[2][2] - p->xyz[0][2]};
-                n[0] = a[1] * b[2] - a[2] * b[1];
-                n[1] = a[2] * b[0] - a[0] * b[2];
-                n[2] = a[0] * b[1] - a[1] * b[0];
-            }
-            for (int j = 0; j < p->zahl; ++j) {
-                BspVertex vx;
-                for (int c = 0; c < 3; ++c) {
-                    vx.xyz[c] = p->xyz[j][c];
-                    vx.normal[c] = n[c];
-                }
-                vx.st[0] = p->st[j][0];
-                vx.st[1] = p->st[j][1];
-                for (int c = 0; c < 4; ++c) { vx.colour[c] = farbe[c]; }
-                netz.verts.push_back(vx);
-            }
-            for (int j = 1; j + 1 < p->zahl; ++j) {
-                netz.indexes.push_back(base);
-                netz.indexes.push_back(base + static_cast<std::uint32_t>(j));
-                netz.indexes.push_back(base + static_cast<std::uint32_t>(j + 1));
-            }
-            ++g_saberSpurenGezeichnet;
-        }
-        bt.numIndexes = static_cast<std::uint32_t>(netz.indexes.size()) - bt.firstIndex;
-        if (bt.numIndexes > 0U) {
-            netz.batches.push_back(bt);
-        }
-    }
+    g_saberSpurenGezeichnet += markenNetz(netz, *s, static_cast<int>(ziel * kSaberClientTaktMs), g_app->effectShaders);
 }
 
-std::vector<SpurPoly> saberSpurenBei(double ms) {
+std::vector<SpurPoly> saberSpurenBei(double ms, const std::vector<EffectInstance>* effekte) {
     std::vector<SpurPoly> aus;
     rechneBis(ms);
-    if (const SpurSpeicher* s = spurenStand(taktVon(ms))) {
+    if (const SpurSpeicher* s = spurenStand(taktVon(ms), effekte)) {
         for (const SpurPoly* p : s->lebende()) { aus.push_back(*p); }
     }
     return aus;
