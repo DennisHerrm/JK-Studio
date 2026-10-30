@@ -545,7 +545,9 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
     19/0 (BOTH_JOG_BLASTER und BOTH_RUNBACK_BLASTER mit Uebergang aus
     BOTH_STAND3, seitwaerts BOTH_JOG_BLASTER mit 60 Grad, TORSO_WEAPONREST3).
     Die Pruefung "Modell am gesteuerten Ort" hielt die Tasten eine feste
-    Bildzahl (ohne Last nur 85 Einheiten bei Tempo 60) - Grenze jetzt 40.
+    Bildzahl (ohne Last nur 85 Einheiten bei Tempo 60); dafuer gilt jetzt die
+    Fassung aus Integration 5 (karte1 daf88e15, 0a544a42, hier als 8385d9c7,
+    1e2eda71 uebernommen): Vergleich mit dem gesteuerten Ort selbst.
   - Nicht portiert (bewusst, siehe pmanim.h): PM_AdjustStandAnimForSlope (die
     Fusspuren am Modell), Sprint (BUTTON_BLOCK eines Spielers), die
     Motion-Bone-Korrektur von CG_G2ClientSpineAngles (cg_motionBoneComp 2,
