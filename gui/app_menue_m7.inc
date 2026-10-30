@@ -212,7 +212,8 @@ void zeichneKomponente(Dokument& d) {
         for (const Komponente& x : alle) {
             if (x.menu == mi && x.original == item) { k = &x; }
         }
-        std::snprintf(buf, sizeof(buf), tr(Str::MeKompOriginal), name.c_str(), k != nullptr ? static_cast<int>(k->instanzen.size()) : 0);
+        const int kopien = k != nullptr ? static_cast<int>(k->instanzen.size()) : 0;
+        std::snprintf(buf, sizeof(buf), trN(Str::MeKompOriginal, kopien), name.c_str(), kopien);
         ImGui::TextWrapped("%s", buf);
         if (k != nullptr && ImGui::Button(tr(Str::MeKompKopie))) {
             // neben das letzte Stueck der Komponente, Name <original>_<n>
