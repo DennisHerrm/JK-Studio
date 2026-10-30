@@ -364,7 +364,7 @@ private:
     // Pruefung 3
     void waffeVorher(TodErgebnis& e, bool& schwertInHand);
     void waffeNachher(TodErgebnis& e, bool schwertInHand);
-    bool tossClientItems(TodErgebnis& e, bool schwert);
+    void tossClientItems(TodErgebnis& e, bool schwert);
     void deathFx(TodErgebnis& e);
     static void klang(TodErgebnis& e, std::string datei, TodKlang::Kanal k = TodKlang::Kanal::Auto) {
         e.klaenge.push_back(TodKlang{std::move(datei), k});
@@ -733,28 +733,28 @@ constexpr const char* kWaffenMdNutzbar[] = {"WP_SABER", "WP_BLASTER_PISTOL", "WP
 }  // namespace
 
 // TossClientItems (g_combat.cpp:128-260 OJ, :201-345 MD, JK2 :101-170) fuer
-// die Waffe in der Hand. true: s.weapon ist danach WP_NONE.
-bool Kette::tossClientItems(TodErgebnis& e, bool schwert) {
+// die Waffe in der Hand.
+void Kette::tossClientItems(TodErgebnis& e, bool schwert) {
     const std::string& w = l_.waffe;
-    if (klasse("CLASS_SEEKER") || klasse("CLASS_REMOTE")) { return false; }
-    if (!jk() && (klasse("CLASS_SABER_DROID") || klasse("CLASS_VEHICLE") || klasse("CLASS_ATST"))) { return false; }
+    if (klasse("CLASS_SEEKER") || klasse("CLASS_REMOTE")) { return; }
+    if (!jk() && (klasse("CLASS_SABER_DROID") || klasse("CLASS_VEHICLE") || klasse("CLASS_ATST"))) { return; }
     if (md()) {
         // g_AllowWeaponDropping "1", com_kotor "0" (g_main.cpp:929, 950 MD),
         // dazu die Karten, auf denen Movie Duels nichts fallen laesst
         // (g_combat.cpp:216-224 MD: "reduce memory use to increase fps").
         for (const char* k : {"md_ga_jedi", "md_ga_sith", "md_gb_sith", "md_gb_jedi", "md_arena1", "md_arena2", "md_arena3"}) {
-            if (l_.karte == k) { return false; }
+            if (l_.karte == k) { return; }
         }
-        if (l_.kotorWaffen) { return false; }   // "if (self->client->charKOTORWeapons == 1)"
-        if (klasse("CLASS_SBD") || klasse("CLASS_DROIDEKA") || klasse("CLASS_OBJECT")) { return false; }
+        if (l_.kotorWaffen) { return; }   // "if (self->client->charKOTORWeapons == 1)"
+        if (klasse("CLASS_SBD") || klasse("CLASS_DROIDEKA") || klasse("CLASS_OBJECT")) { return; }
     }
     if (schwert || w == "WP_SABER") {
         // weaponModel[0] < 0 kennt die Vorschau nicht (eine Figur mit WP_SABER
         // hat ihren Griff). JK2: "if ( self->weaponModel < 0 || WP_SaberLose(...) )".
-        if (!jk() && l_.nichtEntwaffnbar) { return false; }
+        if (!jk() && l_.nichtEntwaffnbar) { return; }
         // WP_SaberLose: Saber-Droiden nie; WP_SaberLaunch prueft die Hand
-        if (!jk() && klasse("CLASS_SABER_DROID")) { return false; }
-        if (l_.handFrei && !l_.handFrei()) { return false; }
+        if (!jk() && klasse("CLASS_SABER_DROID")) { return; }
+        if (l_.handFrei && !l_.handFrei()) { return; }
         // WP_SaberDrop nur mit brennender Klinge (WP_SaberLose: "if ( SaberActive() )")
         e.schwertFaellt = l_.klingeAn;
         if (l_.klingeAn) {
@@ -765,7 +765,7 @@ bool Kette::tossClientItems(TodErgebnis& e, bool schwert) {
                 klang(e, l_.schwertAusKlang);   // G_SoundIndexOnEnt( saber, CHAN_AUTO, soundOff )
             }
         }
-        return true;
+        return;
     }
     bool faellt = false;
     if (jk()) {
@@ -773,20 +773,19 @@ bool Kette::tossClientItems(TodErgebnis& e, bool schwert) {
     } else if (md()) {
         if (w == "WP_BLASTER_PISTOL" || w == "WP_STUN_BATON" || w == "WP_MELEE" || w == "WP_DUAL_PISTOL" ||
             w == "WP_DUAL_CLONEPISTOL" || w == "WP_DROIDEKA") {
-            return false;
+            return;
         }
         for (const char* n : kWaffenMdNutzbar) { faellt = faellt || (w == n && w != "WP_SABER"); }
     } else {
-        if (w == "WP_BLASTER_PISTOL" || w == "WP_STUN_BATON" || w == "WP_MELEE") { return false; }
+        if (w == "WP_BLASTER_PISTOL" || w == "WP_STUN_BATON" || w == "WP_MELEE") { return; }
         for (std::size_t i = 2; i < std::size(kWaffenOj); ++i) { faellt = faellt || w == kWaffenOj[i]; }
     }
-    if (!faellt) { return false; }
+    if (!faellt) { return; }
     // Drop_Item: velocity[2] += 200 + Q_flrand(-1, 1) * 50; LaunchItem dreht
     // eine Waffe (ausser Bowcaster, Thermal, Mine, Sprengsatz) um Q_flrand(-1, 1) * 180.
     e.waffe = TodWaffe::Faellt;
     e.abwurfZufall[0] = qf(-1.0F, 1.0F);
     if (w != "WP_BOWCASTER" && w != "WP_THERMAL" && w != "WP_TRIP_MINE" && w != "WP_DET_PACK") { e.abwurfZufall[1] = qf(-1.0F, 1.0F); }
-    return true;
 }
 
 // player_die vor der Animation (g_combat.cpp:3877-3936 OJ, :4884-4950 MD,
@@ -794,18 +793,15 @@ bool Kette::tossClientItems(TodErgebnis& e, bool schwert) {
 // Shadowtroopers, TossClientItems.
 void Kette::waffeVorher(TodErgebnis& e, bool& schwertInHand) {
     schwertInHand = l_.waffe == "WP_SABER";   // holdingSaber
-    bool waffeWeg = false;
+    // Ein Schwert im Flug ("just drop it": Deactivate) wirft die Vorschau nicht:
+    // dort laesst player_die es los, ohne zu wuerfeln.
     if (schwertInHand && !l_.schwertImFlug) {
         // g_saberPickuppableDroppedSabers "0" (g_main.cpp:675 OJ, :807 MD).
         // hitLoc ist HL_NONE (kill, trigger_hurt) - der erste Teil gilt, dann
-        // holdingSaber und "Q_irand( 0, 1 ) || meansOfDeath == ... MOD_FALLING ...".
-        const bool wurf = qi(0, 1) != 0 || l_.mittel == TodMittel::Fallen;
-        if (wurf) {
-            (void)tossClientItems(e, true);
-            waffeWeg = true;   // "self->client->ps.weapon = self->s.weapon = WP_NONE"
-        }
-    } else if (l_.schwertImFlug) {
-        // "just drop it": ps.saber[0].Deactivate()
+        // holdingSaber und "Q_irand( 0, 1 ) || meansOfDeath == ... MOD_FALLING ...";
+        // danach "ps.weapon = s.weapon = WP_NONE" - das Griffmodell bleibt in der
+        // Hand, wenn WP_SaberLose nicht gelang.
+        if (qi(0, 1) != 0 || l_.mittel == TodMittel::Fallen) { tossClientItems(e, true); }
     }
     // Shadowtrooper (nicht JK2): Drop_Item(FindItemForAmmo(AMMO_FORCE))
     if (!jk() && klasse("CLASS_SHADOWTROOPER")) {
@@ -817,12 +813,7 @@ void Kette::waffeVorher(TodErgebnis& e, bool& schwertInHand) {
         }
     }
     // "if client is in a nodrop area, don't drop anything"
-    if (!schwertInHand && !l_.keinAbwurf && !klasse("CLASS_GALAKMECH")) {
-        if (tossClientItems(e, false)) { waffeWeg = true; }
-    }
-    if (waffeWeg && e.waffe == TodWaffe::Bleibt && !e.schwertFaellt) {
-        // s.weapon ist WP_NONE; das Modell nimmt erst waffeNachher ab
-    }
+    if (!schwertInHand && !l_.keinAbwurf && !klasse("CLASS_GALAKMECH")) { tossClientItems(e, false); }
 }
 
 // player_die nach TossClientItems (g_combat.cpp:4092-4105 OJ, :5150-5166 MD,
