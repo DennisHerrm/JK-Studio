@@ -48,6 +48,7 @@
 #include "bhed/gegenstaende.h"  // rc602 kartenpruefung: Gegenstaende der Karte
 #include "bhed/timeline.h"
 #include "bhed/spuren.h"
+#include "bhed/pmanim.h"   // Zeitleiste 4: aufnahmePmFigur
 #include "bhed/image.h"
 #include "bhed/gla.h"
 #include "bhed/glm.h"
@@ -2609,6 +2610,10 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern,
 [[nodiscard]] int aufnahmeProben();                      // Selbsttest
 [[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
 void aufnahmeFigurZustand(int figur, double ms, ActorState& st);   // das Modell am gesteuerten Ort
+// Zeitleiste 4 Punkt 3: was PM_Footsteps von der Figur weiss, und ob ihr Modell
+// eine Animation kennt (PM_SetAnimFinal setzt sonst nichts).
+PmFigur aufnahmePmFigur(int figur, double ms);
+bool aufnahmeAnimBekannt(int figur, const std::string& anim);
 void aufnahmeHinweis(ImVec2& a, ImVec2& b);              // Selbsttest: Rechteck des Hinweises im letzten Bild
 float zeitleisteNamenBreite(float verfuegbar);
 void zeitleisteNavigation(float x0, float w, double gesamt);

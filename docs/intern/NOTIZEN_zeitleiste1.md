@@ -439,10 +439,181 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
 - Naechster Schritt: `/y/zl3_hbvoll.sh de 2400`, dann zh-Hans, ja; danach
   Modus 1 (`/y/zl2_ende.sh` enthaelt ihn) und die uebrigen Modi.
 
+## Zeitleiste 4
+
+Auftrag `<SP>/auftrag_zeitleiste4.md`. Laeufe unter `Y:\mission_laeufe\zl4*`,
+voller Bildlauf jetzt `sh /y/zl4_hbvoll.sh <sprache> [sekunden]` (wie
+LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
+
+- **Punkt 1: die 66 Klickfehler des vollen Bildlaufs** (a501e946). Zwei
+  Ursachen, keine verlorenen Klicks unter Last:
+  - Im Programm: die Einstellungen sind bei Oberflaeche 1,3 (der Bildlauf
+    stellt sie ein) hoeher als das Fenster (1462 von 1472 px). ImGui schnitt
+    das ganze Fenster ab, Ok und Cancel lagen unter dem Rand (Cancel unten bei
+    1487); der Klick auf Cancel traf nichts, die Einstellungen blieben offen
+    und sperrten als Modal jeden weiteren Klick ("Fenster -", 62 von 62
+    Klicks bis zum Ende des Laufs). Jetzt rollt nur der Inhalt (Kind mit
+    Hoehenbegrenzung), Ok/Cancel bleiben stehen; das Fenster wird in den
+    ersten Bildern mittig gesetzt (das Kind misst sich ein Bild spaeter -
+    ohne das stand es an der Mitte der ersten, zu kleinen Hoehe und wuchs
+    nach unten aus dem Bild). Pruefung zeitleiste1 `BHED_ZL1_NUR=einstellungen`:
+    rot zl4p1rot (0 OK, 4 Fehler: Cancel nicht ganz sichtbar, Klick kam nicht
+    an, Einstellungen offen), gruen zl4p1gr (2/0).
+  - Im Test/Aufruf: zl2/zl3_hbvoll.sh setzten BHED_MISSION_ARCHIV/NAME nicht;
+    die Vorgabe war md_am_sith ohne Archiv - die Uebungsmission taspir_tut
+    entstand auf md_am_sith (BSP 16,6 MB statt taspir1 15,5 MB), die Raven's
+    Claw fehlte ("ROFF file nicht gefunden", Kyles Lauf ohne Dauer). Auch die
+    englischen Bilder aus 6055731a stammen von dieser falschen Karte (t3_4
+    ohne Schiff und Animationsfenster). Vorgabe jetzt taspir1 aus assets0.pk3
+    der Spielordner, LIESMICH angepasst, neues Skript /y/zl4_hbvoll.sh.
+  - Voller Lauf en danach: 0 Klickfehler, 0 FEHLER, in 7 min ganz durch
+    (zl4hb_en, 669 Fotos; vorher 66 Fehler und nach 35 min abgebrochen).
+- **Punkt 2: Handbuch- und Tourbilder mit der neuen Leiste** (a913f423,
+  249b7add, c735f2cd, Bilder siehe unten). Jedes englische Bild einzeln
+  angesehen - die Bilder aus 6055731a waren nicht fehlerfrei (falsche Karte,
+  siehe Punkt 1) und sind ersetzt. Weitere Fehler in den Bildern, behoben im
+  Bildlauf:
+  - c_tl_klick: Kyles Zeile lag in der Detailansicht ausserhalb der Leiste,
+    der Klick traf nichts, das Bild zeigte die Erklaerung eines anderen Blocks.
+    Jetzt wird Kyle gewaehlt (die Leiste rollt zu ihm), Pruefung "Kyles
+    Laufbalken ganz in der Zeitleiste".
+  - c_tl_kante: die Marke lag auf Kyles Laufbalken (ausserhalb, und ein Lauf
+    behaelt laut Text seine Laenge) - jetzt die rechte Kante der Kamerafahrt.
+  - c_zeit_kamera: endete bei "Blende"; fuer das Bild ist die Leiste hoeher
+    (Wackeln, Bildwinkel, Schwarz im Bild).
+  - k_waits: Marke auf "Detail" und die Leiste noch bei Kyle - jetzt oben, die
+    Marke auf dem ersten Warteblock.
+  - s_sig_zeit: war leer (00:00.00) - talk lief nie, das waitsignal hing; auch
+    das alte Bild vor 6055731a war leer. Jetzt laeuft talk auf Kyle (affect +
+    run; ein run im Intro liefe an Ort und Stelle, CSequencer::ParseRun, das
+    Signal kaeme vor dem waitsignal), der Warteblock wird angeklickt, die
+    Seitenleiste nennt Kyle bei 0:02.0. Pruefung "das waitsignal steht als
+    Block".
+  - a_k_timen: die dritte Zeile des Hinweises beim Ziehen lag unter dem
+    Bildrand; jetzt endet das Bild knapp unter der Leiste, in jedem Bild
+    gleich hoch (sonst baut bilder.py kein bewegtes Bild).
+  - h_einst_vorschau: mit dem neuen Rollbereich ans Ende gerollt, Ok/Cancel
+    ganz im Bild.
+  - Uebernommen in vier Sprachen: c_pilot_taste, c_tl_folgen, c_tl_kante,
+    c_tl_klick, c_tl_play, c_tl_ruhig, c_tl_tempo, c_tl_ton, c_tl_zeit,
+    c_zeit_kamera, g_ansehen_zeit, g_gang_zeit, g_moment, h_einst_vorschau,
+    h_figur_bahn, k_saber, k_waits, s_sig_zeit, s_task_zeit, t3_4, a_k_timen
+    (+ _stand). de/zh/ja auf Kontaktboegen gegen en geprueft. Jeder Lauf: 0
+    Klickfehler, 0 FEHLER, 6 OK (2 neue Pruefungen), ganz durch in 7-8 min.
+  - Gesehen, nicht geaendert: im Klappfeld "Spielregeln" der Einstellungen ist
+    "Automatic (detected: Movie Duels)" abgeschnitten (Breite des Felds, auch
+    vorher so).
+- **Punkt 3: das Modell waehrend der Aufnahme wie im Spiel** (3826604e,
+  ba0d58e4). Neuer Kern `include/bhed/pmanim.h`, `src/pmanim.cpp`, ctest
+  `pmanim` (Erwartungen aus den Quellen mit Zeilen):
+  - PM_Footsteps, Zweig am Boden ohne Ducken/Wasser/Leiter (so steuert die
+    Aufnahme): Stand (STAND1, STAND3 fuer NPC mit Waffe ausser den
+    Wachhaltungen, STAND4 Imperial, Kampfhaltungen nach saberAnimLevel - OpenJK
+    eigene Tabelle, MD PM_ReadyPoseForSaberAnimLevel), vorwaerts/seitwaerts
+    laufen und gehen, rueckwaerts (PMF_BACKWARDS_RUN aus PmoveSingle), Klinge
+    (RUN2/RUN_DUAL/RUN_STAFF, WALK2 ..., MD fuer NPCs RUNBACK1/WALK1), Movie
+    Duels mit g_ActivateAnimationStyle 0 die Waffenvarianten (JOG_/WALK_/
+    RUNBACK_/WALKBACK_ PISTOL, DOUBLE_PISTOL, BLASTER, HEAVY, GRENADE), Klassen
+    (ATST/Droideka mit Anlauf RUN1START und Auslauf RUN1STOP samt HOLD-Timer,
+    Galak, Jawa, Wampa nach runSpeed, Rancor, Hazard Trooper, SBD, Yoda/Vader/
+    Sithlord). Seitwaerts gibt es in beiden Spielen keine eigene Animation: die
+    Laufanimation, und cgame dreht die Beine.
+  - PM_SetAnimFinal: laeuft der Timer (Skriptanimation mit HOLD/HOLDTIME), setzt
+    PM_Footsteps nichts; dieselbe Animation mit neuem Tempo laeuft an derselben
+    Stelle weiter; eine neue blendet 100 ms vom eingefrorenen Bild
+    (SETANIM_BLEND_DEFAULT); g_noFootSlide (resultspeed/moveSpeedOfAnim 150/50,
+    Stab 250/100, Doppel 100, Hazard 50, Rancor 173, geduckt 75; 0,01..1,5;
+    MD in der Kamerafahrt erst ab resultspeed 1); kennt das Modell die
+    Animation nicht (numFrames 0), bleibt die alte. PM_WalkingAnim/
+    PM_RunningAnim als Listen 1:1 (OpenJK, MD).
+  - PM_TorsoAnimation: der Oberkoerper folgt den Beinen oder zeigt die
+    Waffenhaltung (npcWaffenTorso, der Port der Szene), solange kein
+    Torso-Timer haelt; Uebergang auch beim Zurueckfallen auf die Beine.
+  - cgame: CG_PlayerLegsYawFromMovement je Clientbild (8 ms, Anteil zwischen
+    zwei 50-ms-Serverbildern als frameInterpolation; +-60, rueckwaerts
+    gespiegelt, ueber 150 nicht, 5 bzw. 10 Grad je Bild) und
+    CG_G2ClientSpineAngles (Rumpf zurueck zum Blick: lower_lumbar 0,45,
+    upper_lumbar 0,35, thoracic 0,20) - neues Feld rumpfGier in ActorState
+    und ActorDraw, gedreht in mapview.cpp nach dem Uebergang wie der Kopf.
+  - Die Szene gibt die Anim-Timer heraus (beineTimerBisMs, torsoTimerBisMs);
+    die Aufnahme startet mit Beinen, Oberkoerper und Timern der Szene. Dazu
+    "If Have Not Been Moving For A While, Stop" (nach 1 s ohne Bewegung am
+    Boden keine Eingabe mehr fuer die Animation) und resultspeed je Pmove.
+  - Selbsttest zeitleiste1 (`BHED_ZL1_NUR=aufnahme`, Stormtrooper mit
+    WP_BLASTER, Movie Duels): rot zl4p3rot 14/5 (ueberall BOTH_RUN1, kein
+    Uebergang, Beine nicht gedreht, kein Waffen-Oberkoerper), gruen zl4p3gr
+    19/0 (BOTH_JOG_BLASTER und BOTH_RUNBACK_BLASTER mit Uebergang aus
+    BOTH_STAND3, seitwaerts BOTH_JOG_BLASTER mit 60 Grad, TORSO_WEAPONREST3).
+    Die Pruefung "Modell am gesteuerten Ort" hielt die Tasten eine feste
+    Bildzahl (ohne Last nur 85 Einheiten bei Tempo 60); dafuer gilt jetzt die
+    Fassung aus Integration 5 (karte1 daf88e15, 0a544a42, hier als 8385d9c7,
+    1e2eda71 uebernommen): Vergleich mit dem gesteuerten Ort selbst.
+  - Nicht portiert (bewusst, siehe pmanim.h): PM_AdjustStandAnimForSlope (die
+    Fusspuren am Modell), Sprint (BUTTON_BLOCK eines Spielers), die
+    Motion-Bone-Korrektur von CG_G2ClientSpineAngles (cg_motionBoneComp 2,
+    nur wenn Beine und Oberkoerper verschiedene Animationen spielen),
+    PM_TorsoAnimLightsaber (der Oberkoerper folgt mit Klinge den Beinen, wie
+    in der Szene). g_SerenityJediEngineMode: mdgit-Vorgabe 0 genommen (die
+    Kommentare in scene.h nennen 2 fuer die Mod - in den MD-Configs steht
+    nichts; betrifft hier nur Stab rueckwaerts gehend).
+  - Beobachtet, nicht geaendert: die Szene laesst einen stehenden NPC mit
+    Gewehr in BOTH_STAND1; PM_Footsteps setzt BOTH_STAND3 (die Aufnahme zeigt
+    es, sobald sie laeuft).
+- **Punkt 4: wait ( "name" )** (df3650ce). Geklaert an CTaskManager::Wait
+  (code/icarus/TaskManager.cpp, mdgit und OpenJK - OpenJK per GitHub
+  gelesen): wait mit einem Namen wartet auf die Taskgruppe dieses Namens
+  desselben Traegers, nicht auf das Ende einer Bewegung. Die Gruppe entsteht
+  beim Laden (CSequencer::Route -> ParseTask -> AddTaskGroup); vor dem ersten
+  do ist sie leer und gilt als fertig (CTaskGroup::Complete: m_numCompleted
+  == m_completedTasks.size()); ohne task des Namens liefert GetTaskGroup
+  NULL, completed bleibt false, der wait kommt jedes Bild wieder (PUSH_BACK):
+  ewig.
+  - Der Nachbau (ablauf.cpp) kannte das schon fuer do/wait, hing aber bei
+    wait vor dem ersten do: jetzt gruppeWarteFertig (eine Stelle fuer beide
+    Abfragen). ablauftest: rot 1 Fehler ("vor dem ersten do"), gruen.
+  - clock.cpp:132 (die Naeherung "bis zum Ende des eigenen Zugs") kam in der
+    Oberflaeche nie mehr an: Kamerabahn, Zeitleiste und Szene bekommen das
+    flache Skript des Ablaufs, in dem jedes Warten schon eine Zahl ist. Die
+    Naeherung ist weg (advance ohne ownEndMs, timeline.cpp ohne das nie
+    gesetzte lastEndMs, scene.cpp ohne eigene Rechnung), clock.h erklaert es.
+  - Die Erklaerung der Zeitleiste nannte wait ( "name" ) ein Warten auf ein
+    Signal (spuren.cpp) - jetzt wie dowait "wartet auf die Aufgabe".
+    spurentest: rot 1 (Art Signal), gruen.
+
+- **Punkt 5: Schlussrunde** (`/y/zl4_ende.sh`, ohne die alte Last): sauberer
+  Neubau aller Ziele 0 Fehler, 0 Warnungen; ctest 168/168 (neu `pmanim`);
+  lint_sources, lint_fassung (rc606), lint_gapp, lint_imgui_context,
+  lint_layout, lint_abstand, lint_doppelanzeige ok, lint_i18n wie vorher 700
+  alte Befunde; Handbuch handbuch_sprachen ok. Selbsttests nach dem Neubau:
+  zeitleiste1 voll 86/0, zeitleiste 47/0, mission1 98/0, ton 34/0, szenen
+  26/0, kamera 95/0, missionsbau 95/0. Voller Bildlauf in vier Sprachen je
+  6/0 und 0 Klickfehler. Modus 1, alle Modi und die Kartenpruefung macht die
+  Schlussrunde nach Integration 6.
+- **Gegen das Vorbild geprueft**: wait ( "name" ) an CTaskManager::Wait/
+  GetTaskGroup/CTaskGroup::Complete und CSequencer::Route/ParseTask (mdgit,
+  OpenJK-Wait per GitHub); PM_Footsteps, PmoveSingle (PMF_BACKWARDS_RUN),
+  PM_SetAnimFinal, PM_WalkingAnim/PM_RunningAnim, PM_GetRunAnim,
+  PM_GetWalkWithSaberOnAnim, PM_SaberDrawPutawayAnim, Pmove (resultspeed,
+  Stopp nach 1 s), CG_PlayerLegsYawFromMovement und CG_G2ClientSpineAngles
+  (OpenJK SP code/game und mdgit code/game, cgame aus mdgit), die
+  Vorgaben g_ActivateAnimationStyle/g_noIgniteTwirl/g_SerenityJediEngineMode
+  aus mdgit g_main.cpp. **Nicht** im laufenden Spiel verglichen (Steam lief
+  zwar seit 09:30, ein NPC laesst sich im Spiel aber nicht mit W/A/S/D
+  steuern - ein Vergleich haette die Spieler-Zweige von PM_Footsteps gezeigt,
+  nicht die des NPC).
+- **Offen**: PM_AdjustStandAnimForSlope, Sprint, Motion-Bone-Korrektur,
+  PM_TorsoAnimLightsaber (siehe Punkt 3); der Stand eines NPC mit Gewehr in
+  der Szene (BOTH_STAND1 statt BOTH_STAND3); das Klappfeld "Spielregeln" ist
+  fuer "Automatic (detected: Movie Duels)" zu schmal; im Undo-Verlauf der
+  Statuszeile heisst das Einfuegen einer Kommentarzeile "inserted ( )".
+
 ## Changelog
 
 ## English
 
+- Recording a walk: the figure's model moves as in the game - legs run, walk and step backwards as PM_Footsteps picks them (with the weapon, saber and class variants of Jedi Academy and Movie Duels), turn up to 60° toward the direction it moves while the upper body keeps looking ahead, blend from one animation to the next, and a weapon stance or held animation of the upper body stays.
+- wait ( "name" ) waits for the task "name" of the same figure, as in the game: right away if the task has not been started with do yet, never if there is no such task; the timeline explains it as waiting for the task, not for a signal.
+- Preferences: Ok and Cancel always stay in view - with a large interface on a low screen only the settings scroll.
 - Record a walk: select a figure, press "Record" in the timeline's transport bar and steer it in the preview with the game's movement (W/S/A/D, Shift walks, Q/E turns); Enter writes walk targets the way scripts let an NPC walk - one ref_tag and one task with SET_NAVGOAL plus dowait per point, only where the path needs one (adjustable tolerance, walls, gait changes), with SET_WALKING/SET_RUNNING - as one undo step; Esc cancels. While recording, the figure's model runs or walks along and the hint stays clear of the toolbar.
 - Load mission: the list opens at the top (it kept the scroll position of the previous list, so the first missions of another game could be out of view).
 - Subtitles in the preview picture exactly as the game draws them: line breaks, two lines at a time for as long as the sound, in the lower black bar, pages turning on the game's next frame, colour from SET_CAPTIONTEXTCOLOR, Movie Duels smaller (0.66, the default of the installed game); a "Subtitles" switch offers the game's choices with the game's default (none in Jedi Academy and Movie Duels, in cinematics in Jedi Outcast).
@@ -460,6 +631,9 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
 
 ## Deutsch
 
+- Lauf aufnehmen: das Modell der Figur bewegt sich wie im Spiel - die Beine laufen, gehen und gehen rückwärts, wie PM_Footsteps es wählt (mit den Waffen-, Lichtschwert- und Klassenvarianten von Jedi Academy und Movie Duels), drehen sich bis 60° in die Laufrichtung, während der Oberkörper nach vorn schaut, blenden von einer Animation in die nächste, und eine Waffenhaltung oder gehaltene Animation des Oberkörpers bleibt.
+- wait ( "name" ) wartet wie im Spiel auf die Aufgabe "name" derselben Figur: sofort weiter, wenn die Aufgabe noch nicht mit do gestartet ist, nie, wenn es sie nicht gibt; die Zeitleiste erklärt es als Warten auf die Aufgabe, nicht auf ein Signal.
+- Einstellungen: Ok und Abbrechen bleiben immer im Bild - bei großer Oberfläche auf einem niedrigen Bildschirm rollen nur die Einstellungen.
 - Einen Lauf aufnehmen: eine Figur wählen, in der Transportleiste der Zeitleiste "Aufnehmen" drücken und sie in der Vorschau mit der Bewegung des Spiels steuern (W/S/A/D, Umschalt geht, Q/E dreht); Enter schreibt Laufziele so, wie Skripte einen NPC laufen lassen - je Punkt ein ref_tag und eine Aufgabe mit SET_NAVGOAL samt dowait, nur wo der Weg einen braucht (einstellbare Toleranz, Wände, Gangwechsel), mit SET_WALKING/SET_RUNNING - als ein Rückgängig-Schritt; Esc bricht ab. Beim Aufnehmen läuft oder geht das Modell der Figur mit, der Hinweis bleibt frei von der Werkzeugleiste.
 - Mission laden: die Liste geht oben auf (sie stand so weit gerollt wie die vorige, die ersten Missionen eines anderen Spiels lagen dann außerhalb).
 - Untertitel im Vorschau-Bild genau so, wie das Spiel sie zeichnet: Zeilenumbruch, je zwei Zeilen so lange wie der Klang, im unteren schwarzen Balken, Seitenwechsel im nächsten Bild des Spiels, Farbe aus SET_CAPTIONTEXTCOLOR, Movie Duels kleiner (0,66, die Vorgabe des installierten Spiels); ein Schalter "Untertitel" bietet die Wahl des Spiels mit dessen Vorgabe (keine in Jedi Academy und Movie Duels, in Zwischensequenzen in Jedi Outcast).
@@ -477,6 +651,9 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
 
 ## 中文
 
+- 录制行走：角色模型的动作与游戏一致——双腿按 PM_Footsteps 的选择奔跑、行走和后退（包括 Jedi Academy 和 Movie Duels 中武器、光剑和类别的变体），朝移动方向最多转 60°，同时上身保持朝前；动画之间平滑过渡，上身的武器姿势或保持的动画会保留。
+- wait ( "name" ) 与游戏一致，等待同一角色的任务 "name"：若该任务尚未用 do 启动则立即继续，若不存在该任务则永远等待；时间轴将其解释为等待任务，而不是等待信号。
+- 首选项：“确定”和“取消”始终可见——在低屏幕上使用大界面时只有设置部分滚动。
 - 录制行走：选择一个角色，在时间轴的传输栏中按“录制”，并在预览中用游戏的移动方式操控它（W/S/A/D，Shift 走路，Q/E 转身）；Enter 按脚本让 NPC 行走的方式写入行走目标——每个点一个 ref_tag 和一个带 SET_NAVGOAL 的 task 加 dowait，只在路径需要的地方（可调容差、墙、步态变化），并带 SET_WALKING/SET_RUNNING——作为一个撤销步骤；Esc 取消。录制时角色的模型会跟着奔跑或行走，提示不会被工具栏遮住。
 - 加载任务：列表从顶部打开（以前保留上一个列表的滚动位置，另一个游戏的前几个任务可能在视野之外）。
 - 预览画面中的字幕与游戏绘制的完全一致：换行、每次两行且持续声音的时长、显示在下方黑条中、在游戏的下一帧翻页、颜色来自 SET_CAPTIONTEXTCOLOR、Movie Duels 较小（0.66，已安装游戏的默认值）；“字幕”开关提供游戏的选项及其默认值（Jedi Academy 和 Movie Duels 不显示，Jedi Outcast 在过场动画中显示）。
@@ -494,6 +671,9 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
 
 ## 日本語
 
+- 歩きの記録：キャラクターのモデルがゲームと同じように動きます。脚は PM_Footsteps が選ぶとおりに走る・歩く・後ろへ歩き（Jedi Academy と Movie Duels の武器・ライトセーバー・クラスごとの違いを含む）、上半身が前を向いたまま進行方向へ最大 60° 向きを変え、アニメーションの間はブレンドし、上半身の武器の構えや保持されたアニメーションは残ります。
+- wait ( "name" ) はゲームと同じく同じキャラクターのタスク "name" を待ちます。タスクがまだ do で開始されていなければすぐに続行し、そのタスクがなければ永久に待ちます。タイムラインはシグナルではなくタスクの待機として説明します。
+- 設定：OK とキャンセルは常に表示されます。低い画面で大きなインターフェースを使うと、設定部分だけがスクロールします。
 - 歩きの記録：キャラクターを選び、タイムラインのトランスポートバーで「記録」を押して、プレビューでゲームの移動のまま操作します（W/S/A/D、Shift で歩く、Q/E で向き）。Enter で、スクリプトが NPC を歩かせる方法で移動目標を書き込みます。点ごとに ref_tag と SET_NAVGOAL の task と dowait を、経路が必要とする所だけ（調整できる許容差、壁、歩き方の変化）、SET_WALKING/SET_RUNNING 付きで、元に戻す 1 回分として。Esc でキャンセル。記録中はキャラクターのモデルが一緒に走るか歩き、ヒントはツールバーに隠れません。
 - ミッションの読み込み：リストは先頭から開きます（以前は前のリストのスクロール位置のままで、別のゲームの最初のミッションが見えないことがありました）。
 - プレビュー画像の字幕をゲームの描き方どおりに表示：改行、音の長さだけ 2 行ずつ、下の黒帯に、ページはゲームの次のフレームで切り替わり、色は SET_CAPTIONTEXTCOLOR、Movie Duels は小さめ（0.66、インストール済みゲームの既定値）。「字幕」スイッチでゲームの選択肢とその既定値（Jedi Academy と Movie Duels はなし、Jedi Outcast はムービー中）を選べます。

@@ -1589,7 +1589,10 @@ ActorState Actor::at(double ms) const {
             st.pos[2] = hoehe[i] + (hoehe[j] - hoehe[i]) * r;
         }
     }
-    st.beineTimerBisMs = beineBis;
+    // Zeitleiste 4: die Timer fuer die Aufnahme und die Todesanimation (ohne
+    // bekannte Laenge keiner - dann loest ein Weg die Animation ab, siehe beineFest).
+    st.beineTimerBisMs = beineFest ? beineBis : -1.0;
+    st.torsoTimerBisMs = torsoBis;
     return st;
 }
 
@@ -3450,19 +3453,11 @@ Scene buildOnce(const Script& s, const MapData& map,
             if (child.name == "waitsignal" ||
                 (child.name == "wait" && !child.args.empty() &&
                  child.args[0].kind != Arg::Kind::String)) {
-                t = advance(child, t, t, signals);
+                t = advance(child, t, signals);
                 continue;
             }
-            // wait ( "name" ): bis zum Ende dessen, was dieser Ablauf
-            // zuletzt angestossen hat. Die Regel steht in clock.cpp; hier
-            // wird nur der eigene Endzeitpunkt dazugereicht.
-            if (child.name == "wait" && !child.args.empty() &&
-                child.args[0].kind == Arg::Kind::String) {
-                double eigenes = t;
-                for (const ActorStep& done : actor->steps) {
-                    eigenes = std::max(eigenes, done.endMs);
-                }
-                t = advance(child, t, eigenes, signals);
+            // wait ( "name" ) loest der Ablauf auf (clock.h) - hier haelt es nicht an.
+            if (child.name == "wait") {
                 continue;
             }
 

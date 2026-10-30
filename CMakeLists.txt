@@ -72,6 +72,7 @@ add_library(bhed_core STATIC
   src/sound.cpp
   src/timeline.cpp
   src/spuren.cpp
+  src/pmanim.cpp
   # Zeitleiste 2: Untertitel wie das Spiel (Pakete, Schluessel, CG_CaptionText)
   src/untertitel.cpp
   # Zeitleiste 2 Punkt 1: Aufnehmen (gesteuerte Figur -> Laufziele, nur wo noetig)
@@ -772,6 +773,9 @@ if(BEHAVED_TESTS)
   add_executable(spurentest tests/spurentest.cpp)
   target_link_libraries(spurentest PRIVATE bhed_core)
   add_test(NAME spuren COMMAND spurentest)
+  add_executable(pmanimtest tests/pmanimtest.cpp)
+  target_link_libraries(pmanimtest PRIVATE bhed_core)
+  add_test(NAME pmanim COMMAND pmanimtest)
   # Zeitleiste 2: Untertitel (Pakete je Spiel, Schluessel, eigene Mini-Dateien .str/.sp)
   add_executable(untertiteltest tests/untertiteltest.cpp)
   target_link_libraries(untertiteltest PRIVATE bhed_core)

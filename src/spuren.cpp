@@ -542,11 +542,13 @@ private:
             case TimelineEvent::Kind::Wait: {
                 c.art = Art::Warten;
                 const std::string befehl = n != nullptr ? n->name : name;
-                if (befehl == "dowait") {
+                // wait ( "name" ) wartet wie dowait auf die Taskgruppe "name"
+                // (CTaskManager::Wait), nicht auf ein Signal.
+                if (befehl == "dowait" ||
+                    (befehl == "wait" && n != nullptr && !n->args.empty() && n->args[0].kind == Arg::Kind::String)) {
                     c.warteArt = WarteArt::Aufgabe;
                     c.wartetAuf = erstes;
-                } else if (befehl == "waitsignal" ||
-                           (befehl == "wait" && n != nullptr && !n->args.empty() && n->args[0].kind == Arg::Kind::String)) {
+                } else if (befehl == "waitsignal") {
                     c.warteArt = WarteArt::Signal;
                     c.wartetAuf = erstes;
                     const auto it = signale_.find(klein(erstes));

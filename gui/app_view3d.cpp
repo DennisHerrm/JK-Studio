@@ -4707,6 +4707,7 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]) {
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
 void figurKopfGier(const ActorState& st, ActorDraw& d) {
+    d.rumpfGier = st.rumpfGier;   // Zeitleiste 4: Rumpf gegen die Beine (Aufnahme)
     if (st.hasLookTarget && g_app->lookRotation) {
         const float dx = st.lookAt[0] - st.pos[0];
         const float dy = st.lookAt[1] - st.pos[1];
@@ -5857,10 +5858,6 @@ void prepareScene() {
             return nullptr;
         };
         // frameLerp wie die Engine: ceil(1000/fps), negativ floor.
-        const auto lerpVon = [](const AnimEntry& e) {
-            return (e.fps > 0) ? std::ceil(1000.0 / e.fps)
-                               : (e.fps < 0) ? std::fabs(std::floor(1000.0 / e.fps)) : 1000.0;
-        };
         SzenenHilfe hilfe;
         hilfe.npcs = &g_app->npcMap;
         // Fuer Waffe und Schwerter (src/ausruestung.cpp). Beide sind hier
@@ -5874,14 +5871,13 @@ void prepareScene() {
         hilfe.schwierigkeit = schwierigkeitJetzt();   // rc601 integ: -1 nach Regelwerk
         hilfe.kartenFiguren = true;   // rc602: Figuren vom Kartenstart
         hilfe.fremdeDarsteller = &g_app->ablauf.fremdeDarsteller;   // rc604 fix604
-        hilfe.animDauer = [eintrag, lerpVon](const std::string& f, const std::string& a) {
+        hilfe.animDauer = [eintrag](const std::string& f, const std::string& a) {
             const AnimEntry* e = eintrag(f, a);
-            return (e == nullptr) ? -1.0
-                                  : std::max(0, e->numFrames - 1) * lerpVon(*e);
+            return (e == nullptr) ? -1.0 : std::max(0, e->numFrames - 1) * animBildMs(*e);
         };
-        hilfe.bildDauer = [eintrag, lerpVon](const std::string& f, const std::string& a) {
+        hilfe.bildDauer = [eintrag](const std::string& f, const std::string& a) {
             const AnimEntry* e = eintrag(f, a);
-            return (e == nullptr) ? -1.0 : lerpVon(*e);
+            return (e == nullptr) ? -1.0 : animBildMs(*e);
         };
         // Pruefung 2 (Todesanimation, bhed/todesanim.h): PM_HasAnimation -
         // animations[anim].numFrames != 0 (bg_panimate.cpp:4325 OJ).

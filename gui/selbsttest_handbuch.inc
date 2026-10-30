@@ -2457,15 +2457,38 @@ std::vector<Schritt> handbuchSchritte() {
         }));
         t.push_back(pause(0.5));
         t.push_back(tu("Handbuch Zeitleiste: Aufnehmen", [] { aufnahmeStarten(g_app->selectedActor); }));
-        t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [](int b) {
+        // Zeitleiste 4: nach Weg statt nach Bildern - ohne Last kam die Figur in
+        // 90 + 60 Bildern kaum vom Fleck (ein Laufziel). Erst W bis 300 Einheiten
+        // vom Start, dann D bis 150 Einheiten weiter (wie Integration 5 im
+        // Selbsttest zeitleiste1); hoechstens 600 Bilder.
+        auto zug = std::make_shared<std::pair<int, std::array<float, 3>>>(0, std::array<float, 3>{});
+        t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [zug](int b) {
                                 ImGuiIO& io = ImGui::GetIO();
-                                if (b == 0) { io.AddKeyEvent(ImGuiKey_W, true); }
-                                if (b == 90) {
+                                const int fig = g_app->selectedActor;
+                                if (fig < 0 || static_cast<std::size_t>(fig) >= g_app->scene.actors.size()) { return true; }
+                                ActorState st = g_app->scene.actors[static_cast<std::size_t>(fig)].at(g_app->playMs);
+                                aufnahmeFigurZustand(fig, g_app->playMs, st);
+                                const std::array<float, 3> jetzt{st.pos[0], st.pos[1], st.pos[2]};
+                                const auto weg = [&jetzt](const std::array<float, 3>& von) {
+                                    return std::hypot(static_cast<double>(jetzt[0] - von[0]), static_cast<double>(jetzt[1] - von[1]));
+                                };
+                                if (b == 0) {
+                                    *zug = {0, jetzt};
+                                    io.AddKeyEvent(ImGuiKey_W, true);
+                                    return false;
+                                }
+                                if (zug->first == 0 && (weg(zug->second) >= 300.0 || b > 400)) {
                                     io.AddKeyEvent(ImGuiKey_W, false);
                                     io.AddKeyEvent(ImGuiKey_D, true);
+                                    *zug = {1, jetzt};
+                                    return false;
                                 }
-                                if (b == 150) { io.AddKeyEvent(ImGuiKey_D, false); }
-                                return b > 152;
+                                if (zug->first == 1 && (weg(zug->second) >= 150.0 || b > 600)) {
+                                    io.AddKeyEvent(ImGuiKey_D, false);
+                                    zug->first = 2;
+                                    return false;
+                                }
+                                return zug->first == 2;
                             }});
         t.push_back(pause(0.3));
         t.push_back(pruefe("Handbuch Zeitleiste: der Aufnahme-Hinweis steht ganz in der Ansicht", [] { return aufnahmeHinweisGanz(); }));
@@ -2484,8 +2507,12 @@ std::vector<Schritt> handbuchSchritte() {
     }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Zeitleiste 4: ohne Umgebung die Handbuch-Mission selbst - taspir1 aus
+    // assets0.pk3 der eingerichteten Spielordner (vorher md_am_sith ohne
+    // Archiv: die Mission entstand auf der falschen Karte, die Raven's Claw
+    // fehlte, das Animationsfenster blieb zu).
     const std::string archiv = std::getenv("BHED_MISSION_ARCHIV") ? std::getenv("BHED_MISSION_ARCHIV") : "";
-    const std::string name = std::getenv("BHED_MISSION_NAME") ? std::getenv("BHED_MISSION_NAME") : "md_am_sith";
+    const std::string name = std::getenv("BHED_MISSION_NAME") ? std::getenv("BHED_MISSION_NAME") : "taspir1";
     const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
     const auto kartePlusLeiste = [] {
         ImRect r = hb::karte();
@@ -2647,7 +2674,12 @@ std::vector<Schritt> handbuchSchritte() {
     // Die Missionen des Grundspiels in assets0.pk3 - nur das Bild der Auswahl.
     add(tu("Handbuch: Spielordner zu, Missionen der pk3", [=] {
         g_app->pathsOpen = false;
-        missionenAusArchiv(archiv);
+        std::string a = archiv;
+        for (const std::string& o : g_app->settings.gamePaths) {
+            std::error_code ec;
+            if (a.empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets0.pk3"), ec)) { a = o + "\\assets0.pk3"; }
+        }
+        missionenAusArchiv(a);
     }));
     add(pause(0.6));
     // rc603: die weiteren Missionen des Spiels liest "Load mission" im
@@ -2842,7 +2874,14 @@ std::vector<Schritt> handbuchSchritte() {
         markiere("t4_4", speichernKnopf);
         markiere("k_kartenmenue", [=] { return nur(knopf(tr(Str::OpenEnt), "##Popup")); });
         markiere("k_bahnen", [=] { return nur(knopf(tr(Str::CamPathAll))); });
-        markiere("k_waits", [=] { return nur(knopf(tr(Str::ZlDetail))); });
+        // Zeitleiste 4: der erste Warteblock der Zeile Skriptablauf (vorher der
+        // Knopf Detail, der mit den Warteblocks nichts zu tun hat).
+        markiere("k_waits", [=] {
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "skript" && b.art == spuren::Art::Warten) { return nur(b.r); }
+            }
+            return std::vector<hb::Marke>{};
+        });
         markiere("k_dateimenue", [=] { return nur(knopf(tr(Str::FileBackupFolder), "##Menu")); });
         markiere("k_pk3", [=] {
             return std::vector<hb::Marke>{hb::Marke(knopf(tr(Str::Pk3Filter))), hb::Marke(knopf("scripts/taspir1/intro.ibi"))};
@@ -3422,7 +3461,11 @@ std::vector<Schritt> handbuchSchritte() {
         // Nur die belegten Zeilen um den gezogenen Balken, nicht die leere Flaeche darunter.
         add(hb::fotoTeil(n, [=] {
             ImRect r = zeitleiste();
-            r.Max.y = std::min(r.Max.y, balken->y + ImGui::GetFontSize() * 6.0F);
+            // Zeitleiste 4: bis unter den Hinweis zum Ziehen (seine dritte Zeile
+            // lag vorher unter dem Bildrand; er endet knapp unter der Zeitleiste)
+            // - in jedem Bild gleich hoch, sonst wird daraus kein bewegtes Bild,
+            // und ohne die Statuszeile darunter.
+            r.Max.y = std::min(r.Max.y + ImGui::GetFontSize() * 0.4F, ImGui::GetIO().DisplaySize.y);
             return r;
         }));
     }
@@ -3582,6 +3625,14 @@ std::vector<Schritt> handbuchSchritte() {
     // einstellungen#prefs. Nur der untere Teil des Fensters, ab den Pegeln.
     add(tu("Handbuch: Einstellungen oeffnen", [] { g_app->prefsOpen = true; }));
     add(pause(0.6));
+    // Zeitleiste 4: mit 1,3 rollt der Inhalt der Einstellungen (Ok und Cancel
+    // bleiben stehen) - ans Ende, wo die Vorschau-Einstellungen stehen.
+    add(tu("Handbuch: Einstellungen ans Ende rollen", [] {
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (std::strstr(w->Name, "##prefsinhalt") != nullptr) { ImGui::SetScrollY(w, w->ScrollMax.y); }
+        }
+    }));
+    add(pause(0.3));
     add(hb::fotoTeil("h_einst_vorschau", [] {
         ImRect r = hb::fensterRect(tr(Str::PrefsTitle));
         const ImRect pegel = hb::knopf(tr(Str::PrefsTonEffekte), tr(Str::PrefsTitle));
@@ -4112,6 +4163,12 @@ std::vector<Schritt> handbuchSchritte() {
     add(tu("Kurz3: Waits und ruhige Spuren", [] {
         g_app->zlDetail = false;
         g_app->playMs = 5000.0;
+        // Zeitleiste 4: die Leiste stand noch bei Kyle - nach oben, damit die
+        // Zeile Skriptablauf im Bild ist.
+        g_app->selectedActor = -1;
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (std::strstr(w->Name, "tracks") != nullptr) { ImGui::SetScrollY(w, 0.0F); }
+        }
     }));
     add(pause(0.8));
     add(hb::fotoTeil("k_waits", zeitleiste));
@@ -4575,11 +4632,40 @@ std::vector<Schritt> handbuchSchritte() {
         add(klick(tr(Str::SplitToggle), "##Menu"));
         add(klick("1", "##Menu"));
         add(pause(0.4));
+        // Zeitleiste 4: ohne Sender endete die Szene beim waitsignal - die
+        // Leiste war leer (00:00.00). talk laeuft jetzt nebenher auf Kyle (ein
+        // run im Intro selbst liefe an seiner Stelle, CSequencer::ParseRun, und
+        // das Signal waere vor dem waitsignal schon da); dann steht das Warten
+        // als Block da, und ein Klick nennt in der Seitenleiste, wer das Signal
+        // wann gibt.
         setzenSchritt("Zeitleiste mit waits", [=] {
+            skriptSetzen(kopf + "affect ( \"kyle\", /*@AFFECT_TYPE*/ FLUSH )\n{\n\trun ( \"taspir_tut/talk\" );\n}\n\n"
+                                "waitsignal ( \"door_open\" );\n" + kamera);
             g_app->leftMode = 1;
             g_app->playMs = 1500.0;
+            g_app->zlDetail = false;
+            g_app->selectedActor = -1;
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (std::strstr(w->Name, "tracks") != nullptr) { ImGui::SetScrollY(w, 0.0F); }
+            }
         }, 1.0);
-        bildTeil("s_sig_zeit", karteMitZeitleiste, [=] { return M{knopf(tr(Str::ZlDetail))}; });
+        const auto signalWarten = [] {
+            for (const App::ZlBlock& b : g_app->zlBloecke) {
+                if (b.zeile == "skript" && b.art == spuren::Art::Warten) { return b.r; }
+            }
+            return ImRect{};
+        };
+        add(pruefe("Skriptbilder: das waitsignal steht als Block in der Zeile Skriptablauf", [=] {
+            return signalWarten().GetWidth() > ImGui::GetFontSize();
+        }));
+        add(klickAn("das waitsignal", [=] { return signalWarten().GetCenter(); }));
+        add(pause(0.5));
+        add(tu("Skriptbilder: Maus weg", weg));
+        bildTeil("s_sig_zeit", [=] {
+            ImRect r = hb::vereint(karteMitZeitleiste(), g_app->zlErklaerungRect);
+            r.Expand(ImGui::GetFontSize() * 0.3F);
+            return r;
+        }, [=] { return M{signalWarten(), g_app->zlErklaerungRect}; });
         setzenSchritt("Waits aus, Events", [=] {
             g_app->leftMode = 0;
             skriptSetzen(demo);
@@ -4998,14 +5084,39 @@ std::vector<Schritt> handbuchSchritte() {
             if (t.GetWidth() <= 0.0F) { return ImRect{}; }
             return ImRect{t.Min.x + 2.0F, t.Min.y + 2.0F, t.Min.x + ImGui::GetFontSize() * 9.0F, t.Max.y - 2.0F};
         };
+        // Zeitleiste 4: bei 0,40 endete das Bild bei der Zeile Blende - fuer die
+        // Kamerazeilen (Blende, Wackeln, Bildwinkel, Schwarz) hoeher.
+        setzenSchritt("Zeitleiste hoeher fuer die Kamerazeilen", [] { g_app->timelineFrac = 0.62F; }, 0.8);
         bildTeil("c_zeit_kamera", zeitR, [=] { return M{kopfSpalte()}; });
+        setzenSchritt("Zeitleiste wieder 0,40", [] { g_app->timelineFrac = 0.40F; }, 0.8);
+        // Zeitleiste 4: die rechte Kante der laengsten Kamerafahrt - der Text sagt
+        // "the right edge of a camera block or a wait", ein Lauf behaelt seine Laenge
+        // (vorher Kyles Laufbalken, der in der Detailansicht ausserhalb lag).
         bildTeil("c_tl_kante", karteMitZeitleiste, [=] {
-            const ImRect b = figurBalken("kyle");
-            if (b.GetWidth() <= 0.0F) { return M{}; }
-            return M{ImRect{b.Max.x - 8.0F, b.Min.y - 4.0F, b.Max.x + 8.0F, b.Max.y + 4.0F}};
+            const App::ZlBlock* b = nullptr;
+            for (const App::ZlBlock& x : g_app->zlBloecke) {
+                if (x.art == spuren::Art::Fahrt && (b == nullptr || x.r.GetWidth() > b->r.GetWidth())) { b = &x; }
+            }
+            if (b == nullptr) { return M{}; }
+            return M{ImRect{b->r.Max.x - 8.0F, b->r.Min.y - 4.0F, b->r.Max.x + 8.0F, b->r.Max.y + 4.0F}};
         });
         bildTeil("g_moment", karteMitZeitleiste, [=] { return M{zeitAnzeige()}; });
         // Ein Block anklicken: seine Zeile wird gewaehlt.
+        // Zeitleiste 4: in der Detailansicht liegt Kyles Zeile unter den
+        // Kamerazeilen ausserhalb des Bilds - der Klick auf die Mitte seines
+        // Balkens traf nichts, das Bild zeigte die alte Erklaerung. Kyle waehlen
+        // rollt die Leiste zu seiner Zeile (darstellerZeilen, SetScrollHereY).
+        add(tu("Kurz: Kyle waehlen, die Leiste rollt zu ihm", [] {
+            for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
+                if (g_app->scene.actors[i].name == "kyle") { g_app->selectedActor = static_cast<int>(i); }
+            }
+        }));
+        add(pause(0.6));
+        add(pruefe("Kurz: Kyles Laufbalken ganz in der Zeitleiste", [=] {
+            const ImRect b = figurBalken("kyle");
+            const ImRect t = hb::fensterRect("tracks");
+            return b.GetWidth() > 0.0F && t.Contains(b);
+        }));
         add(klickAn("Laufbalken von Kyle", [=] { return mitte(figurBalken("kyle")); }));
         add(pause(0.5));
         add(tu("Kurz: Maus weg", weg));

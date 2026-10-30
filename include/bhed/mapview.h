@@ -687,6 +687,10 @@ struct ActorDraw {
     // Der GANZE Blickausschlag, nicht der Winkel eines einzelnen Knochens.
     // Wie er sich auf Brust, Hals und Kopf verteilt, steht in mapview.cpp.
     float headYaw = 0.0F;
+    // Zeitleiste 4: der Rumpf gegen die Beine (yaw sind die Beine), verteilt
+    // auf lower_lumbar 0,45, upper_lumbar 0,35, thoracic 0,20
+    // (CG_G2ClientSpineAngles, cg_players.cpp; kPmRumpfAnteil in pmanim.h).
+    float rumpfGier = 0.0F;
     // Das Bild der OBERKOERPERanimation, -1 heisst: keine eigene.
     //
     // Gilt fuer den Teilbaum ab "lower_lumbar" - so teilt die Engine Ober-

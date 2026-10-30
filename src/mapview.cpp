@@ -4,6 +4,7 @@
 // renderModel). Gezeichnet wird seitdem nur noch ueber die Grafikkarte
 // (gui/gpumap_win32.cpp); geblieben ist, was beide Wege teilten.
 #include "bhed/mapview.h"
+#include "bhed/pmanim.h"
 
 #include "bhed/wave.h"
 
@@ -803,6 +804,20 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
     // geraten: Knochen 15, Elternteil 14 (cervical), darueber 13
     // (thoracic). Kennt ein Skelett den Namen nicht, gibt boneIndex
     // -1 und rotateBoneSubtreeYaw laesst alles stehen.
+    // --- Zeitleiste 4: der Rumpf zurueck zum Blick ---------------------
+    //
+    // Laufen die Beine schraeg oder seitwaerts, dreht cgame sie zur
+    // Laufrichtung (CG_PlayerLegsYawFromMovement) und den Rumpf ueber drei
+    // Knochen zurueck (CG_G2ClientSpineAngles: lower_lumbar 0,45,
+    // upper_lumbar 0,35, thoracic 0,20 - "each of these distributions must
+    // add up to 1.0f"). Wie beim Kopf um die Senkrechte durch den Knochen,
+    // nach dem Uebergang.
+    if (skinned && act.rumpfGier != 0.0F) {
+        for (int i = 0; i < 3; ++i) {
+            static const char* const kRumpf[3] = {"lower_lumbar", "upper_lumbar", "thoracic"};
+            rotateBoneSubtreeYaw(*act.anim, world, boneIndex(*act.anim, kRumpf[i]), act.rumpfGier * kPmRumpfAnteil[i]);
+        }
+    }
     if (skinned && act.headYaw != 0.0F) {
         // --- Der Blick verteilt sich auf drei Knochen ---------------
         //

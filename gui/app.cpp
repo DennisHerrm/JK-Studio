@@ -3020,9 +3020,19 @@ void drawPrefs() {
         }
         return;
     }
+    // Zeitleiste 4: der rollende Inhalt (unten) misst sich erst ein Bild nach
+    // dem Fenster - in den ersten Bildern nach dem Oeffnen daher mittig setzen,
+    // sonst blieb es an der Mitte der ersten, zu kleinen Hoehe stehen und
+    // wuchs nach unten aus dem Bild.
+    static int mittigBilder = 0;
     if (!g_app->prefsHatVorher) {
         g_app->prefsVorher = g_app->settings;
         g_app->prefsHatVorher = true;
+        mittigBilder = 4;
+    }
+    if (mittigBilder > 0) {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2{0.5F, 0.5F});
+        --mittigBilder;
     }
     ImGui::OpenPopup(tr(Str::PrefsTitle));
     if (!ImGui::BeginPopupModal(tr(Str::PrefsTitle), &g_app->prefsOpen,
@@ -3031,6 +3041,18 @@ void drawPrefs() {
     }
     Settings& st = g_app->settings;
     const float w = ImGui::GetFontSize() * 24.0F;
+    // Zeitleiste 4: Ok und Cancel bleiben im Bild. Ist der Inhalt hoeher als
+    // das Fenster (grosse Oberflaeche, niedriger Bildschirm), rollt nur er;
+    // vorher schnitt ImGui das ganze Fenster am Rand ab, und die Knoepfe lagen
+    // darunter (ein Klick auf das sichtbare Stueck von Cancel traf nichts).
+    {
+        const ImGuiStyle& sty = ImGui::GetStyle();
+        const float knopfZeile = sty.ItemSpacing.y * 4.0F + 1.0F + ImGui::GetFrameHeight();   // Abstaende, Dummy, Linie, Knoepfe
+        const float rahmen = ImGui::GetFrameHeight() + sty.WindowPadding.y * 2.0F + sty.DisplaySafeAreaPadding.y * 2.0F;
+        const float hoechstens = ImGui::GetMainViewport()->WorkSize.y - rahmen - knopfZeile;
+        ImGui::SetNextWindowSizeConstraints(ImVec2{0.0F, 0.0F}, ImVec2{FLT_MAX, std::max(hoechstens, ImGui::GetFontSize() * 6.0F)});
+    }
+    ImGui::BeginChild("##prefsinhalt", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY);
 
     auto pathRow = [&](Str label, std::string* value, bool folder, const char* filter) {
         ImGui::TextUnformatted(tr(label));
@@ -3179,6 +3201,7 @@ void drawPrefs() {
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::PrefsDifficultyNote)); }
     }
 
+    ImGui::EndChild();
     ImGui::Dummy(ImVec2{0, ImGui::GetStyle().ItemSpacing.y});
     ImGui::Separator();
     if (ImGui::Button(tr(Str::EditorOk), ImVec2{ImGui::GetFontSize() * 5.0F, 0.0F})) {

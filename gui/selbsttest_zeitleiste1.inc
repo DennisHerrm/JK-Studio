@@ -938,6 +938,55 @@ Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string&
             }};
 }
 
+// Zeitleiste 4 Punkt 3: was das Modell waehrend der Aufnahme zeigt, je Bild.
+struct ModellProbe {
+    std::string beine;
+    std::string vorher;     // von welcher Animation die Beine zuletzt blendeten (leer: keiner)
+    double blendMs = 0.0;
+    std::string torso;      // leer: folgt den Beinen
+    float rumpf = 0.0F;     // der Rumpf gegen die Beine
+    bool gedrueckt = false; // gemessen, solange die Tasten gehalten werden
+};
+ModellProbe modellJetzt(int figur) {
+    ModellProbe p;
+    if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return p; }
+    ActorState st = g_app->scene.actors[static_cast<std::size_t>(figur)].at(g_app->playMs);
+    aufnahmeFigurZustand(figur, g_app->playMs, st);
+    p.beine = st.animation;
+    p.vorher = st.prevAnimation;
+    p.blendMs = st.blendMs;
+    p.torso = st.torsoAnimation;
+    p.rumpf = st.rumpfGier;
+    return p;
+}
+// Die letzte Probe mit gehaltenen Tasten.
+const ModellProbe& gehalten(const std::vector<ModellProbe>& p) {
+    for (std::size_t i = p.size(); i > 0; --i) {
+        if (p[i - 1].gedrueckt) { return p[i - 1]; }
+    }
+    return p.front();
+}
+// Tasten halten (mit Umschalt) und je Bild messen; probe[0] ist vor dem Druecken.
+Schritt halteUndMiss(std::initializer_list<ImGuiKey> tasten, int bilder, bool umschalt, const std::string& name, std::function<int()> figur,
+                     std::shared_ptr<std::vector<ModellProbe>> proben) {
+    const std::vector<ImGuiKey> t(tasten);
+    return {"zeitleiste1 Aufnahme: " + name + " halten und das Modell messen", [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    proben->assign(1, modellJetzt(figur()));
+                    if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                    for (const ImGuiKey k : t) { io.AddKeyEvent(k, true); }
+                    return false;
+                }
+                proben->push_back(modellJetzt(figur()));
+                proben->back().gedrueckt = b <= bilder;
+                if (b < bilder) { return false; }
+                for (const ImGuiKey k : t) { io.AddKeyEvent(k, false); }
+                if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                return b > bilder + 1;
+            }};
+}
+
 struct AufStand {
     std::string name;   // die Figur (ihr Index aendert sich beim Neubau der Szene)
     std::string skript;
@@ -1099,6 +1148,80 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     return s;
 }
 
+// Zeitleiste 4 Punkt 3: das Modell beim Steuern wie im Spiel - Beine nach
+// PM_Footsteps (vorwaerts, rueckwaerts, seitwaerts), mit Uebergang (PM_SetAnim,
+// SETANIM_BLEND_DEFAULT), Beine zur Laufrichtung und Rumpf zum Blick (cgame),
+// der Oberkoerper wie PM_TorsoAnimation. Die Erwartung rechnet pmanim.h mit
+// dem, was die Figur zur Startzeit hat; kennt ihr Modell die Animation nicht,
+// setzt das Spiel nichts (dann bleibt die vorige).
+std::vector<Schritt> aufnahmeModell(const std::string& wo, std::shared_ptr<AufStand> z) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto vorw = std::make_shared<std::vector<ModellProbe>>();
+    auto rueck = std::make_shared<std::vector<ModellProbe>>();
+    auto seitw = std::make_shared<std::vector<ModellProbe>>();
+    const auto figur = [z] { return z->figur; };
+    // Was PM_Footsteps waehlen muss, und was die Beine danach zeigen (kennt das
+    // Modell die Animation nicht, bleibt die vorige).
+    const auto erwartet = [z](int vor, int seit, bool rueckw, const std::string& vorher) {
+        PmBeinStand st;
+        st.beine = vorher;
+        st.torso = vorher;
+        st.inKamera = camStateAt(g_app->playMs).enabled;
+        const std::string a = pmFootstepsBeine(aufnahmePmFigur(z->figur, g_app->playMs), vor, seit, false, rueckw, st).anim;
+        return (a.empty() || !aufnahmeAnimBekannt(z->figur, a)) ? vorher : a;
+    };
+    add(klick(tr(Str::AufKnopf), "", 0, true));
+    add(pause(0.3));
+    add(halteUndMiss({ImGuiKey_W}, 14, false, "W", figur, vorw));
+    add(halteUndMiss({ImGuiKey_S}, 14, false, "S", figur, rueck));
+    add(halteUndMiss({ImGuiKey_D}, 30, false, "D", figur, seitw));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": Modell vorwaerts - Beine wie PM_Footsteps, mit Uebergang aus dem Stand", [=] {
+        if (vorw->size() < 3) { return false; }
+        const std::string stand = vorw->front().beine;
+        const std::string soll = erwartet(127, 0, false, stand);
+        bool blende = false;
+        for (const ModellProbe& p : *vorw) { blende = blende || (p.vorher == stand && p.beine == soll && p.blendMs == 100.0); }
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - vorwaerts: Stand " + stand + ", Beine " + gehalten(*vorw).beine +
+                     " (soll " + soll + "), Uebergang " + (blende ? "ja" : "nein") + ", Oberkoerper '" + gehalten(*vorw).torso + "'");
+        return gehalten(*vorw).beine == soll && (soll == stand || blende);
+    }));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": Modell rueckwaerts - Rueckwaertsanimation mit Uebergang", [=] {
+        if (rueck->size() < 3) { return false; }
+        const std::string vorher = rueck->front().beine;
+        const std::string soll = erwartet(-127, 0, true, vorher);
+        bool blende = false;
+        for (const ModellProbe& p : *rueck) { blende = blende || (p.vorher == vorher && p.beine == soll && p.blendMs == 100.0); }
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - rueckwaerts: vorher " + vorher + ", Beine " + gehalten(*rueck).beine +
+                     " (soll " + soll + "), Uebergang " + (blende ? "ja" : "nein"));
+        return gehalten(*rueck).beine == soll && soll != vorher && blende;
+    }));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": Modell seitwaerts - Laufanimation, Beine zur Seite gedreht, Rumpf zum Blick", [=] {
+        if (seitw->size() < 3) { return false; }
+        const std::string soll = erwartet(0, 127, false, seitw->front().beine);
+        float rumpf = 0.0F;
+        for (const ModellProbe& p : *seitw) { rumpf = std::max(rumpf, std::fabs(p.rumpf)); }
+        const ModellProbe& g = gehalten(*seitw);
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - seitwaerts: Beine " + g.beine + " (soll " + soll +
+                     "), Rumpf gegen Beine bis " + std::to_string(rumpf) + " Grad, am Ende " + std::to_string(g.rumpf));
+        // D: nach rechts - die Beine drehen bis 60 Grad nach rechts, der Rumpf
+        // also nach links gegen sie (CG_PlayerLegsYawFromMovement, Grenze 60).
+        return g.beine == soll && g.rumpf > 30.0F && rumpf <= 60.5F;
+    }));
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": Oberkoerper wie PM_TorsoAnimation (eigene Waffenhaltung oder mit den Beinen)", [=] {
+        if (vorw->empty() || z->figur < 0) { return false; }
+        const PmFigur f = aufnahmePmFigur(z->figur, g_app->playMs);
+        const ModellProbe& g = gehalten(*vorw);
+        const std::string waffe = npcWaffenTorso(f.waffe, g.beine, f.klasse, f.zweiPistolen, false, false);
+        const std::string soll = (waffe.empty() || !aufnahmeAnimBekannt(z->figur, waffe)) ? std::string() : waffe;
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Oberkoerper '" + g.torso + "' (soll '" + soll + "'), Waffe " + f.waffe);
+        return g.torso == soll;
+    }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.4));
+    return s;
+}
+
 std::vector<Schritt> aufnahmeSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1149,6 +1272,8 @@ std::vector<Schritt> aufnahmeSchritte() {
         return !aufnahmeLaeuft() && skriptText() == z->skript && g_app->doc.undoDepth() == z->tiefe && g_app->map.entities.size() == z->entities;
     }));
     add(tu("zeitleiste1 Aufnahme: zl2_laeufer wieder waehlen", [=] { g_app->selectedActor = z->figur; }));
+    for (Schritt& x : aufnahmeModell("mini", z)) { s.push_back(std::move(x)); }
+    add(tu("zeitleiste1 Aufnahme: zl2_laeufer wieder waehlen (nach dem Modell)", [=] { g_app->selectedActor = z->figur; }));
     for (Schritt& x : aufnahmeZug("mini", z, true)) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1 Aufnahme: Auswahl aufheben", [] {
         g_app->selectedActor = -1;
@@ -1205,20 +1330,61 @@ std::vector<Schritt> aufnahmeOriginal(const std::string& szene) {
     return s;
 }
 
+// Zeitleiste 4 Punkt 1: die Einstellungen bei einer Oberflaeche, mit der ihr
+// Inhalt hoeher ist als das Fenster (der volle Bildlauf stellt 1,3 ein). Dort
+// lagen Ok und Cancel unter dem Fensterrand, der Klick auf Cancel traf nichts,
+// die Einstellungen blieben offen und sperrten alle weiteren Klicks.
+std::vector<Schritt> einstellungenSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto vorher = std::make_shared<float>(1.0F);
+    add(tu("zeitleiste1 Einstellungen: Oberflaeche 1,3 wie im Bildlauf, Einstellungen oeffnen", [=] {
+        *vorher = g_app->uiScale;
+        g_app->uiScale = 1.3F;
+        g_app->prefsOpen = true;
+    }));
+    add(pause(0.6));
+    add(pruefe("zeitleiste1 Einstellungen: Ok und Cancel ganz im Bild", [] {
+        const Element* ok = finde(tr(Str::EditorOk), tr(Str::PrefsTitle), 0, false);
+        const Element* ab = finde(tr(Str::EditorCancel), tr(Str::PrefsTitle), 0, false);
+        const ImGuiWindow* w = ImGui::FindWindowByName(tr(Str::PrefsTitle));
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: Einstellungen %.0f px hoch, Fenster %.0f px, Cancel unten bei %.0f",
+                      w != nullptr ? static_cast<double>(w->Size.y) : 0.0, static_cast<double>(ImGui::GetIO().DisplaySize.y),
+                      ab != nullptr ? static_cast<double>(ab->rect.Max.y) : -1.0);
+        diag::detail(z);
+        return ok != nullptr && ab != nullptr && ganzSichtbar(*ok) && ganzSichtbar(*ab);
+    }));
+    add(klick(tr(Str::EditorCancel), tr(Str::PrefsTitle)));
+    add(pause(0.3));
+    add(pruefe("zeitleiste1 Einstellungen: Cancel schliesst, kein Fenster sperrt die Maus", [] {
+        return !g_app->prefsOpen && ImGui::GetTopMostPopupModal() == nullptr;
+    }));
+    add(tu("zeitleiste1 Einstellungen: Oberflaeche zurueck", [=] {
+        g_app->prefsOpen = false;
+        g_app->uiScale = *vorher;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
-    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast (schneller Durchlauf beim Arbeiten).
+    // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast, =einstellungen: nur die Einstellungen
+    // (schneller Durchlauf beim Arbeiten).
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
+    if (nur != nullptr && std::strcmp(nur, "einstellungen") == 0) { return zl1::einstellungenSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "aufnahme") == 0) {
         s = zl1::untertitelSchritte();
         for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
         return s;
     }
+    for (Schritt& x : zl1::einstellungenSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::miniSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::fremdSchritte()) { s.push_back(std::move(x)); }
     if (nur != nullptr && std::strcmp(nur, "mini") == 0) { return s; }
