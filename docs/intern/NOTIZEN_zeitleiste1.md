@@ -173,12 +173,8 @@ TlKat*, Zoom-Menue ...); TlKamera bleibt (Ortskatalog des Helfers).
 
 ## Offen
 
-- Aufnehmen (Figur steuern -> Laufziele): nicht begonnen.
-- Jedi-Outcast-Untertitel (StripEd .sp, `ladeSp`): Schluessel nicht geprueft,
-  nicht angeschlossen.
-- "Skript oeffnen" bei Befehlen aus anderen Skripten oeffnet das Skript, aber
-  nicht die Zeile (der Pfad im fremden Skript geht in pfadeAufsSkript
-  verloren).
+- Aufnehmen, Jedi-Outcast-Untertitel, "Skriptzeile oeffnen" bei fremden
+  Skripten: erledigt in Zeitleiste 2 (unten).
 - Halte ziehen (Punkt 9, "wenn Zeit bleibt") entfaellt mit der Draufsicht;
   die Griffe der 3D-Ansicht (mission1) bleiben.
 - Andere Handbuchbilder, die die alte Leiste zeigen (Touren c_tl_*,
@@ -282,6 +278,50 @@ Laeufe unter `Y:\mission_laeufe\zl2*`; Schnelllaeufe mit `BHED_ZL1_NUR=mini`,
   Selbsttest (BHED_ZL1_NUR=aufnahme): Esc aendert nichts, Mini-Szene mit
   eigener Figur (Ecke, Gangwechsel), Strg+Z bytegleich; im vollen Lauf
   zusaetzlich academy1 (OpenJK) und md_am_sith (Movie Duels).
+
+- **Punkt 5 Handbuch-/Tourbilder**: die Seite zeitleiste ist neu
+  aufgenommen (h_zeitleiste, h_zl_detail, h_zl_erklaerung, h_zl_probleme,
+  h_zl_ziehen, neu h_zl_aufnahme, h_zl_untertitel; 4 Sprachen,
+  `BHED_HB_NUR=zeitleiste1`, `/y/zl1_hb.sh`). Texte geprueft: k-neu-timen
+  (Pfeiltasten), Touren mit den alten Zeilen "Ablauf"/"Blick" zeigen jetzt
+  auf die Zeile Befehle der Figur. **Offen**: die uebrigen Bilder mit der
+  alten Leiste (c_tl_play, c_tl_ton, c_tl_folgen, c_tl_tempo, c_tl_zeit,
+  c_tl_ruhig, c_tl_kante, c_tl_klick, c_zeit_kamera, c_pilot_taste,
+  g_ansehen_zeit, g_gang_zeit, g_moment, h_figur_bahn, k_saber, k_waits,
+  s_sig_zeit, s_task_zeit, t3_4, a_k_timen) entstehen nur im vollen
+  Bildlauf `BHED_EDITORTEST=handbuch`; `/y/zl2_hbvoll.sh <en|de|zh-Hans|ja>`
+  macht den Lauf und uebernimmt nur diese Bilder (bilder.py auf einer
+  Auswahl). Der englische Lauf war gestartet, als Windows Update den
+  Rechner um 00:29 neu startete - kein Ergebnis. es/cs-Bildsaetze gibt es in
+  diesem Zweig nicht.
+- **Punkt 6 Schlussrunde (verkuerzt, Zeitgrenze 06:40 nach dem Neustart)**:
+  sauberer Neubau 0 Fehler / 0 Warnungen; ctest 167/167 (neu: untertitel,
+  aufnahme); lint_sources, lint_fassung, lint_gapp, lint_imgui_context,
+  lint_layout, lint_abstand, lint_doppelanzeige ok, Handbuch
+  handbuch_sprachen ok (lint_i18n meldet 700 alte Befunde im ganzen
+  Programm, keinen in den neuen Zeilen - es liest keine .inc-Dateien).
+  zeitleiste1 voll: erster Lauf zl2k_zeitleiste1 68/9 - Aufnahme auf den
+  Originalkarten (academy1: npc_kyle1 um 2 s steht hinter einem waitsignal,
+  das Schreiben lehnt ab - richtig, aber der Test waehlte schlecht;
+  md_am_sith: bd3 lief gegen eine Konsole) und der JK2-Teil nach den neuen
+  Missionen ("kejim_post" nicht in der Liste). Test geaendert: Figur zur
+  Zeit ihres ersten eigenen Befehls mit freiem Weg, JK2 vor den neuen
+  Missionen. Danach zl2k2 62/17 (nach dem JK2-Teil gelten dessen Regeln und
+  Spielordner - Untertitel/Aufnahme auf der MD-Karte scheitern; ausserdem
+  fand figurNamens("guard1") die Figur "bigguard1"). Zurueck: JK2 zuletzt,
+  genauer Namensvergleich. **zl2k3: 73 OK, 4 FEHLER** - gruen: Mini-Szene,
+  fremde Skripte, Untertitel (Mini), Aufnahme Mini + academy1 (OpenJK,
+  npc_kyle1, Laufende 5,9 vom Ziel) + md_am_sith (Movie Duels), academy1-
+  und md_am_sith-Szenen, Untertitel-Foto academy1. Rot nur der JK2-Teil
+  im vollen Lauf: nach den Schritten "New mission" (zl2unter) zeigt die
+  Missionsliste kejim_post nicht ("auch nach dem Rollen nicht da") - der
+  JK2-Teil allein (BHED_ZL1_NUR=jk2, zl2k4jk2) ist gruen (6 Saetze, 2 mit
+  Untertitel, Pakete KEJIM_POST + ARTUS_MINE). Offen: die Missionsliste
+  nach einer eigenen neuen Mission im Selbsttest (Ursache nicht
+  untersucht).
+  **Nicht gelaufen** (Zeit): zeitleiste, kamera, missionsbau, umriss,
+  mission1, szenen, ton, karte, Modus 1 - Skript `/y/zl2_ende.sh` liegt
+  bereit.
 
 ## Changelog
 

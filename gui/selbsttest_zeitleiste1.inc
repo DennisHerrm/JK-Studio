@@ -970,7 +970,10 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     }));
     add(pruefe("zeitleiste1 Aufnahme " + wo + ": die Vorschau laeuft den Weg wie das Spiel bis zum letzten Laufziel", [=] {
         const MapEntity& letzt = g_app->map.entities.back();
-        z->figur = mission1::figurNamens(z->name);
+        z->figur = -1;   // genau dieser Name (figurNamens fände "bigguard1" fuer "guard1")
+        for (std::size_t i = 0; i < g_app->scene.actors.size() && z->figur < 0; ++i) {
+            if (g_app->scene.actors[i].name == z->name) { z->figur = static_cast<int>(i); }
+        }
         float o[3] = {0, 0, 0};
         (void)std::sscanf(letzt.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
         double best = 1.0e9;
@@ -1063,18 +1066,40 @@ std::vector<Schritt> aufnahmeSchritte() {
 }
 
 // Auf einer Originalkarte: die erste Figur, die zur Zeit t aufnehmbar ist.
-std::vector<Schritt> aufnahmeOriginal(const std::string& szene, double t) {
+// Gewaehlt wird eine Figur zur Zeit ihres ersten eigenen Befehls (dort ist die
+// Zeit im Skript bekannt - hinter einem waitsignal waere sie es nicht, das
+// Schreiben meldet das und laesst alles) mit freiem Weg 120 Einheiten voraus.
+std::vector<Schritt> aufnahmeOriginal(const std::string& szene) {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto z = std::make_shared<AufStand>();
     add(tu("zeitleiste1 Aufnahme " + szene + ": eine Figur waehlen", [=] {
         g_app->throughCamera = false;
         g_app->playing = false;
-        g_app->playMs = t;
         g_app->mapDirty = true;
         z->figur = -1;
+        const std::shared_ptr<const NavWelt> welt = navWeltVorschau();
         for (std::size_t i = 0; i < g_app->scene.actors.size() && z->figur < 0; ++i) {
-            if (aufnahmeMoeglich(static_cast<int>(i))) { z->figur = static_cast<int>(i); }
+            const Actor& a = g_app->scene.actors[i];
+            double t = -1.0;
+            for (const ActorStep& st : a.steps) {
+                if (!st.path.empty() && st.fremd.empty()) {
+                    t = st.startMs;
+                    break;
+                }
+            }
+            if (t < 0.0) { continue; }
+            g_app->playMs = t;
+            if (!aufnahmeMoeglich(static_cast<int>(i))) { continue; }
+            const ActorState stand = a.at(t);
+            const float g = stand.angles[1] * 3.14159265F / 180.0F;
+            const NavVec von{stand.pos[0], stand.pos[1], stand.pos[2] + 2.0F};
+            const NavVec nach{von[0] + std::cos(g) * 120.0F, von[1] + std::sin(g) * 120.0F, von[2]};
+            const bool frei = !welt || !welt->spur ||
+                              welt->spur(von, NavVec{-15.0F, -15.0F, -6.0F}, NavVec{15.0F, 15.0F, 40.0F}, nach, kNavKeineEntity,
+                                         kNavSolid | kNavPlayerClip)
+                                      .fraction >= 1.0F;
+            if (frei) { z->figur = static_cast<int>(i); }
         }
         g_app->selectedActor = z->figur;
         diag::detail("Knopftest: zeitleiste1 Aufnahme " + szene + " - Figur " +
@@ -1132,7 +1157,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     // Zahlen aus dem Export zeitleiste0 (NOTIZEN_zeitleiste0.md): 15 Saetze, alle mit Laenge und Untertitel.
     for (Schritt& x : zl1::szeneSchritte("academy1_intro", 15, 15)) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelFoto("academy1_intro")) { s.push_back(std::move(x)); }
-    for (Schritt& x : zl1::aufnahmeOriginal("academy1", 2000.0)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::aufnahmeOriginal("academy1")) { s.push_back(std::move(x)); }
     add(tu("zeitleiste1: Load mission (Movie Duels)", [=] {
         mission1::ungespeicherteEntitiesVergessen();
         missionenAusArchiv(st->md);
@@ -1147,9 +1172,10 @@ std::vector<Schritt> zeitleiste1Schritte() {
     add(pause(0.5));
     // Export zeitleiste0: 9 Klaenge, alle mit Laenge, 5 mit Untertitel (die 4 Schiffsklaenge haben keinen).
     for (Schritt& x : zl1::szeneSchritte("md_am_sith", 9, 5)) { s.push_back(std::move(x)); }
-    for (Schritt& x : zl1::aufnahmeOriginal("md_am_sith", 2000.0)) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::aufnahmeOriginal("md_am_sith")) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
+    // Jedi Outcast zuletzt: danach gelten dessen Regeln und Spielordner.
     for (Schritt& x : zl1::jk2Schritte()) { s.push_back(std::move(x)); }
     return s;
 }
