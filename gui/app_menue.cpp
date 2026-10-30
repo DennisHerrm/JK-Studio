@@ -3797,7 +3797,7 @@ void zeichneVideoFenster() {
             std::snprintf(buf, sizeof(buf), tr(Str::MeVideoQuelle), vi.breite, vi.hoehe, vi.fps, zeitText(vi.dauerMs).c_str());
             ImGui::TextUnformatted(buf);
             if (vi.ton) {
-                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoTonQuelle), vi.tonKanaele, vi.tonRate);
+                std::snprintf(buf, sizeof(buf), trN(Str::MeVideoTonQuelle, vi.tonKanaele), vi.tonKanaele, vi.tonRate);
                 ImGui::TextUnformatted(buf);
             } else {
                 ImGui::TextDisabled("%s", tr(Str::MeVideoOhneTon));
@@ -3907,7 +3907,7 @@ void zeichneVideoFenster() {
             if (z.schaetzLaeuft.load() || z.schaetzBytes.load() < 0) {
                 ImGui::TextDisabled("%s", tr(Str::MeVideoSchaetze));
             } else if (z.videoArt == 0) {
-                std::snprintf(buf, sizeof(buf), tr(Str::MeVideoErgebnis), static_cast<int>(bilder), zeitText(dauer).c_str(),
+                std::snprintf(buf, sizeof(buf), trN(Str::MeVideoErgebnis, static_cast<int>(bilder)), static_cast<int>(bilder), zeitText(dauer).c_str(),
                               static_cast<double>(z.schaetzBytes.load()) / (1024.0 * 1024.0));
                 ImGui::TextUnformatted(buf);
             } else {
@@ -4292,7 +4292,7 @@ void zeichneEigenschaften(Dokument& d) {
     }
     const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
     if (d.auswahl.size() > 1) {
-        ImGui::Text("%zu items", d.auswahl.size());
+        ImGui::Text(trN(Str::MeAuswahlItems, d.auswahl.size()), static_cast<int>(d.auswahl.size()));
         auto richte = [&](Ausrichtung a) {
             std::vector<Rechteck> r;
             for (const int i : d.auswahl) { r.push_back(m.items[static_cast<std::size_t>(i)].window.rectClient); }

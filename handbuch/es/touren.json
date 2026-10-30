@@ -877,7 +877,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.",
+      "text": "**Cambia una duración.** Arrastra el borde derecho de un bloque de cámara o de una espera para acortarlo o alargarlo. Un recorrido conserva su duración: sale de la búsqueda de caminos y de la velocidad de la figura.",
       "bild": "c_tl_kante",
       "unter": "El borde derecho de un bloque.",
       "ziel": "gezeichnet:zeitleiste",
@@ -888,7 +888,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.",
+      "text": "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>←</kbd> / <kbd>→</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo, con <kbd>Ctrl</kbd> cinco segundos. El indicador de tiempo muestra dónde estás; púlsalo para cambiar a fotogramas.",
       "bild": "c_tl_zeit",
       "unter": "El indicador de tiempo.",
       "ziel": "gezeichnet:zeitleiste",
@@ -1328,15 +1328,15 @@
   {
    "id": "tut-menue-eigen",
    "gruppe": "tut",
-   "titel": "Your first own menu",
-   "kurz": "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.",
+   "titel": "Tu primer menú propio",
+   "kurz": "De un editor vacío a un proyecto con tres botones en fila que brillan al pasar el ratón: guardado y listo para empaquetar como pk3.",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
      {
-      "text": "**Open the menu editor.** Click **{{ViewMenuEditor}}** in the mode bar.",
+      "text": "**Abre el editor de menús.** Pulsa **{{ViewMenuEditor}}** en la barra de modos.",
       "bild": "h_tut_menue_1",
-      "unter": "The empty menu editor with the project buttons.",
+      "unter": "El editor de menús vacío con los botones de proyecto.",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1345,9 +1345,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Start a project.** Click **{{MePrjNeu}}** and choose a folder for the project file. The editor creates the folders like in a pk3 and an empty full-screen menu.",
+      "text": "**Empieza un proyecto.** Pulsa **{{MePrjNeu}}** y elige una carpeta para el archivo del proyecto. El editor crea las carpetas como en un pk3 y un menú vacío a pantalla completa.",
       "bild": "h_tut_menue_2",
-      "unter": "The new project with its first menu.",
+      "unter": "El proyecto nuevo con su primer menú.",
       "ziel": "knopf:MePrjNeu",
       "fertig": "zahl:menue.projekt",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1356,9 +1356,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Three buttons.** Click **{{MeWButton}}** in the building blocks three times.",
+      "text": "**Tres botones.** Pulsa tres veces **{{MeWButton}}** en los componentes.",
       "bild": "h_tut_menue_3",
-      "unter": "Three new buttons, still on top of each other.",
+      "unter": "Tres botones nuevos, todavía uno encima de otro.",
       "ziel": "knopf:MeWButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1367,9 +1367,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.",
+      "text": "**En fila.** Selecciona los tres botones (Ctrl+clic) y pulsa **{{MeLayoutWaagrecht}}** en Disposición, en las propiedades.",
       "bild": "h_tut_menue_4",
-      "unter": "The buttons side by side with even spacing.",
+      "unter": "Los botones en fila con el mismo espaciado.",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1378,9 +1378,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.",
+      "text": "**Brillo al pasar el ratón.** Selecciona el primer botón, abre la pestaña **Eventos** y pulsa **{{MeEvLeuchten}}**.",
       "bild": "h_tut_menue_5",
-      "unter": "The glow effect: show on hover, hide when the mouse leaves.",
+      "unter": "El efecto de brillo: se muestra al pasar el ratón y se oculta cuando el ratón sale.",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1389,9 +1389,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.",
+      "text": "**Guarda.** Pulsa **{{MeSpeichern}}**: en un proyecto lo guarda todo. Después, **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3 para el juego.",
       "bild": "h_tut_menue_6",
-      "unter": "Saved: the project file and the menu in the project folder.",
+      "unter": "Guardado: el archivo del proyecto y el menú en la carpeta del proyecto.",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

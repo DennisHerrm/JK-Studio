@@ -2203,6 +2203,8 @@ from i18n_menue6 import MENUE6  # noqa: E402  (Menue-Editor M6)
 S += MENUE6
 from i18n_reste2 import RESTE2  # noqa: E402  (reste2: Fehlerliste Karte/Modell vor rc607)
 S += RESTE2
+from i18n_uebersetzung2 import UEBERSETZUNG2  # noqa: E402  (uebersetzung2: zwei feste Texte uebersetzt)
+S += UEBERSETZUNG2
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -241,8 +241,6 @@ TEXTE = {
         "**Dónde dar la señal.** En el otro script, en el momento en que debe seguir, inserta `signal ( \"door_open\" )`.",
     "**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name.":
         "**Comprueba los nombres.** Los dos deben escribirse igual. Solo un script puede esperar una señal de un nombre dado.",
-    "**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks.":
-        "**Míralo en la línea de tiempo.** Despliega el grupo de la figura en la línea de tiempo: la fila **{{TlKatAblauf}}** muestra las esperas y las señales como bloques.",
     "The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.":
         "La línea de tiempo no puede saber cuánto espera un `waitsignal` en el juego: todo lo que va después se coloca como si la señal llegara enseguida.",
     "Use macros":
@@ -319,8 +317,6 @@ TEXTE = {
         "**Zoom.** Elige `ZOOM`: el primer número es el campo de visión (80 es normal, menos es más cerca), el segundo el tiempo en milisegundos para llegar.",
     "**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black.":
         "**Fundido.** Elige `FADE`: color y opacidad iniciales, color y opacidad finales (de 0 a 1), y el tiempo. `0 0 0`, `0` a `0 0 0`, `1` funde a negro.",
-    "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**.":
-        "**Temblor.** Elige `SHAKE`: intensidad de 0 a 16 y la duración en milisegundos. La línea de tiempo muestra zoom, fundido y temblor en sus propias filas bajo **{{TlKamera}}**.",
     "The camera rows of the timeline.":
         "Las filas de cámara de la línea de tiempo.",
     "Retime a cutscene in the timeline":
@@ -337,8 +333,6 @@ TEXTE = {
         "Arrastrando un bloque en la línea de tiempo: todo lo que va detrás se mueve también.",
     "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.":
         "**Cambia una duración.** Arrastra el borde derecho de un bloque (un movimiento de cámara, una espera) para acortarlo o alargarlo.",
-    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.":
-        "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>Izquierda</kbd> / <kbd>Derecha</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo.",
     "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.":
         "**Revisa el script.** Cada arrastre cambia un valor del script (una espera, un tiempo). Pulsa un bloque para ver su línea.",
     "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.":
@@ -385,8 +379,6 @@ TEXTE = {
         "**De pie.** Clic derecho en la entidad objetivo en la lista de entidades → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) o **{{EntityAsLook}}** (`SET_LOOK_TARGET`). El comando va al script tras la línea seleccionada.",
     "**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**.":
         "**Volver a lo normal.** Clic derecho en el destino → **{{BahnBlickFrei}}**.",
-    "**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where.":
-        "**Compruébalo.** Reproduce la línea de tiempo. La categoría **{{TlKatBlick}}** del grupo de la figura muestra cuándo mira adónde.",
     "Turn a figure at a moment":
         "Girar una figura en un momento dado",
     "Set which way a figure faces at a certain time - with the rotate ring on the map.":
@@ -705,8 +697,6 @@ TEXTE = {
         "**Sigue.** Tras el plano de cámara inserta `camera` y elige `FOLLOW`: el grupo `heroe`, una velocidad de giro (por ejemplo `100`) y `1` para fundirse con ello. La cámara se sigue girando ahora hacia la figura.",
     "**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it.":
         "**Guarda la distancia.** `camera ( DISTANCE, 200, 1 )` mantiene la cámara a 200 unidades del grupo, moviéndose con él.",
-    "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts.":
-        "**Míralo.** Activa **{{MapThroughCam}}** y reproduce la línea de tiempo: la vista se sigue girando hacia la figura. En la línea de tiempo, la fila **Seguir** bajo **{{TlKamera}}** muestra cuánto dura.",
     "Through the camera: it keeps turning towards Kyle.":
         "A través de la cámara: se sigue girando hacia Kyle.",
     "`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.":
@@ -1099,12 +1089,8 @@ TEXTE = {
         "La línea de tiempo en detalle",
     "Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves.":
         "Esperas como bloques, filas inactivas, fotogramas en vez de segundos, velocidad, y el aviso de movimientos de cámara solapados.",
-    "**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly.":
-        "**Esperas como bloques.** **{{TlWaits}}** muestra cada `wait` como un bloque propio: arrástralo para cambiarlo directamente.",
     "Waits shown as blocks.":
         "Esperas mostradas como bloques.",
-    "**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start.":
-        "**Filas inactivas.** **{{TlIdleTracks}}** muestra también las filas en las que no pasa nada tras el inicio.",
     "**Frames.** Click the time display to switch between seconds and frames.":
         "**Fotogramas.** Pulsa el indicador de tiempo para cambiar entre segundos y fotogramas.",
     "**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x.":
@@ -1719,34 +1705,16 @@ TEXTE = {
         "Mirando a través de la cámara mientras se reproduce la línea de tiempo.",
     "Some shots stand on a `ref_tag` or look at one. Then the panel says so, and moving the shot moves that ref_tag in the map - the script itself only names it.":
         "Algunos planos están sobre un `ref_tag` o miran a uno. Entonces el panel lo dice, y mover el plano mueve ese ref_tag en el mapa; el script en sí solo lo nombra.",
-    "The timeline plays the scene and shows when every command happens. Drag a block and the script changes with it.":
-        "La línea de tiempo reproduce la escena y muestra cuándo ocurre cada comando. Arrastra un bloque y el script cambia con él.",
-    "The timeline: camera rows on top, one row per figure, sub-rows by kind, the playhead in orange.":
-        "La línea de tiempo: filas de cámara arriba, una fila por figura, subfilas por tipo, el cabezal en naranja.",
     "Playing":
         "Reproducir",
-    "The play button (▶) under the map starts and stops. Click or drag on the ruler to set the time. The speed field slows the scene down (sound only plays at 1x), **{{TlLoop}}** repeats it. The wheel over the ruler zooms, <kbd>Ctrl</kbd>+wheel over the tracks too; **{{TlFit}}** shows everything, the middle mouse button drags. Frames or seconds - the unit button switches.":
-        "El botón de reproducir (▶) bajo el mapa inicia y detiene. Pulsa o arrastra en la regla para fijar el tiempo. El campo de velocidad ralentiza la escena (el sonido solo suena a 1x), **{{TlLoop}}** la repite. La rueda sobre la regla amplía, <kbd>Ctrl</kbd>+rueda sobre las pistas también; **{{TlFit}}** lo muestra todo, el botón central arrastra. Fotogramas o segundos: el botón de unidad cambia.",
     "Sound like in the game":
         "Sonido como en el juego",
     "The preview plays the scene's sounds the way the game does. You hear from the camera the view shows - the cutscene camera while playing. Every sound is updated every frame: move the camera away and it fades, cut to another place and what is there becomes audible. A voice line that started out of range keeps running silently. Like the game, only sources the camera could see (its PVS) make sabers hum, speakers loop, doors and effects sound; voices, ROFF note sounds and breaking objects are always heard. An invisible NPC does not ignite its saber audibly - the ignition sound comes when it appears. The levels follow the game's defaults (effects 0.5, voices 1.0, music 0.25) and can be changed under **{{MenuEdit}} → {{AppPrefs}}**. Sound only plays at 1x speed.":
         "La vista previa reproduce los sonidos de la escena como lo hace el juego. Oyes desde la cámara que muestra la vista; durante la reproducción, la cámara de la cinemática. Cada sonido se actualiza en cada fotograma: aleja la cámara y se apaga, corta a otro sitio y lo que hay allí se vuelve audible. Una frase que empezó fuera de alcance sigue corriendo en silencio. Como en el juego, solo las fuentes que la cámara podría ver (su PVS) hacen zumbar los sables, repetir los altavoces y sonar puertas y efectos; las voces, los sonidos de notas ROFF y los objetos que se rompen siempre se oyen. Un NPC invisible no enciende su sable de forma audible: el sonido de encendido llega cuando aparece. Los volúmenes siguen los valores predeterminados del juego (efectos 0.5, voces 1.0, música 0.25) y se pueden cambiar en **{{MenuEdit}} → {{AppPrefs}}**. El sonido solo suena a velocidad 1x.",
     "A ROFF `sound` note on a figure stays where it started under Movie Duels rules and moves with the figure under OpenJK rules ([[einstellungen#prefs]]). Under OpenJK rules every note of a ROFF frame fires (Movie Duels and Jedi Outcast fire only the first), and `loop sfx <sound>` gives the entity a looping sound until `loop sfx kill`; a `USE <script>` note starts that script on the entity, and `loop rof absolute|relative` restarts the path like the game (the task of the `play` never finishes, so a `dowait` on it waits forever).":
         "Una nota `sound` de ROFF en una figura se queda donde empezó con las reglas de Movie Duels y se mueve con la figura con las reglas de OpenJK ([[einstellungen#prefs]]). Con las reglas de OpenJK se dispara cada nota de un fotograma ROFF (Movie Duels y Jedi Outcast solo disparan la primera), y `loop sfx <sonido>` da a la entidad un sonido en bucle hasta `loop sfx kill`; una nota `USE <script>` inicia ese script en la entidad, y `loop rof absolute|relative` reinicia el trayecto como el juego (la tarea del `play` nunca termina, así que un `dowait` sobre ella espera para siempre).",
-    "Rows and categories":
-        "Filas y categorías",
-    "The **{{TlKamera}}** row holds the camera commands (move, pan, zoom, fade). Below, every figure or mover that the script touches has its own row. Click the arrow at its name to open it: the commands are sorted into **{{TlKatBewegung}}**, **{{TlKatAnimation}}**, **{{TlKatBlick}}**, **{{TlKatTon}}**, **{{TlKatZustand}}** and **{{TlKatAblauf}}**. Rows where nothing happens after the start are hidden; tick **{{TlIdleTracks}}** to show them.":
-        "La fila **{{TlKamera}}** contiene los comandos de cámara (move, pan, zoom, fade). Debajo, cada figura o móvil que toca el script tiene su propia fila. Pulsa la flecha junto a su nombre para abrirla: los comandos se ordenan en **{{TlKatBewegung}}**, **{{TlKatAnimation}}**, **{{TlKatBlick}}**, **{{TlKatTon}}**, **{{TlKatZustand}}** y **{{TlKatAblauf}}**. Las filas en las que no pasa nada tras el inicio se ocultan; marca **{{TlIdleTracks}}** para mostrarlas.",
-    "The `wait` commands are hidden by default - they still place everything in time, and moving a block adjusts them. **{{TlWaits}}** shows them as blocks of their own.":
-        "Los comandos `wait` están ocultos por defecto: siguen colocando todo en el tiempo, y mover un bloque los ajusta. **{{TlWaits}}** los muestra como bloques propios.",
     "Changing time by dragging":
         "Cambiar el tiempo arrastrando",
-    "Drag a block left or right and the `wait` before it changes - the command happens earlier or later, everything after it moves along. A camera block can be dragged at its end to change its duration. Walks and flights appear as bands at the bottom of a figure's row; drag them in time the same way, right-click a walk to switch between walking and running.":
-        "Arrastra un bloque a izquierda o derecha y cambia el `wait` anterior: el comando ocurre antes o después y todo lo que sigue se mueve también. Un bloque de cámara se puede arrastrar por su final para cambiar su duración. Las marchas y los vuelos aparecen como bandas al pie de la fila de una figura; arrástralas en el tiempo del mismo modo, y haz clic derecho en una marcha para cambiar entre caminar y correr.",
-    "Clicking a block selects its line in the script, and the map jumps to that moment - timeline, script and map always show the same thing.":
-        "Pulsar un bloque selecciona su línea en el script, y el mapa salta a ese momento: línea de tiempo, script y mapa siempre muestran lo mismo.",
-    "Times come from a re-creation of the game's ICARUS engine, including its quirks: a `wait` ends one game frame (50 ms) later than written, and a `dowait` waits for the task it names. When a time cannot be known (a `waitsignal`), the timeline says so instead of guessing.":
-        "Los tiempos salen de una recreación del motor ICARUS del juego, con sus peculiaridades: un `wait` termina un fotograma de juego (50 ms) más tarde de lo escrito, y un `dowait` espera a la tarea que nombra. Cuando un tiempo no se puede saber (un `waitsignal`), la línea de tiempo lo dice en vez de adivinar.",
     "Figures and paths":
         "Figuras y trayectos",
     "Figures walk to their navgoals and ships fly their moves - you see the whole path and can change it on the map.":
@@ -1873,8 +1841,6 @@ TEXTE = {
         "Cuando un script reproduce un ROFF terminado en la entidad, la ventana lo lista en **{{AnimRoffPlays}}**. **{{AnimRoffEdit}}** lo convierte en claves (o trozos rectos o una curva suave, lo que necesite menos claves) a menos de media unidad del original. El archivo del juego nunca se sobrescribe: editas una copia (`…_2`) y el comando `play` pasa a apuntar a ella.",
     "A ship flying its ROFF path.":
         "Una nave volando su trayecto ROFF.",
-    "In the timeline a ROFF flight is a band under **{{TlKatBewegung}}**; drag it to start the flight earlier or later.":
-        "En la línea de tiempo un vuelo ROFF es una banda bajo **{{TlKatBewegung}}**; arrástrala para empezar el vuelo antes o después.",
     "The map":
         "El mapa",
     "The map in 3D, drawn like the game draws it - with lights, glow, fog, effects and the figures of the script.":
@@ -3105,8 +3071,6 @@ TEXTE = {
         "El progreso sale de la propia salida de q3map2; una fase con muchos lightmaps o un rebote largo avanza a saltos. El tiempo restante solo es tan bueno como comparable fue la última compilación: otra entrada, otras opciones o un ordenador ocupado lo cambian.",
     "Partial compiles":
         "Compilaciones parciales",
-    "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} and {{KeTkLicht}} switched on, below them {{KeZfMenue}} and {{KeFsMelden}} (not in NetRadiant-Custom).":
-        "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} y {{KeTkLicht}} activados, debajo {{KeZfMenue}} y {{KeFsMelden}} (no están en NetRadiant-Custom).",
     "Two switches in the {{KeLBuild}} menu let every build reuse what has not changed since the last one. The result is **byte for byte the .bsp of a full build** - the ctest `q3map2_teilbau` builds maps both ways and compares the files.":
         "Dos interruptores del menú {{KeLBuild}} permiten que cada compilación reutilice lo que no ha cambiado desde la anterior. El resultado es **byte a byte el .bsp de una compilación completa**: el ctest `q3map2_teilbau` compila mapas de las dos formas y compara los archivos.",
     "**{{KeTkVis}}**: `-vis` runs with `-bhedvisreuse`. bhed_q3map2 keeps the visibility in `<map>.bhedvis` together with the portal file and the switches. If the portals (`.prt`), the switches and the far plane key (`_farplanedist`) are the same, it copies the visibility instead of calculating it - the console says **visibility reused**. Portals change only with structural brushes; entities, detail brushes, patches and textures do not change them.":
@@ -4111,8 +4075,6 @@ TEXTE = {
         "Un comando marcado con `*` en su texto de ayuda (por ejemplo `SET_NAVGOAL`) solo termina su tarea cuando la acción ha concluido: eso es lo que deja que `dowait` lo espere.",
     "camera ( ... ) - the camera commands":
         "camera ( ... ): los comandos de cámara",
-    "The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.":
-        "El primer valor de `camera` elige el comando. behaved muestra cada uno en la línea de tiempo bajo **{{TlKamera}}** y lo reproduce en la vista. Los tiempos van en milisegundos.",
     "Values":
         "Valores",
     "What it does (help text of the game)":
@@ -4937,12 +4899,6 @@ TEXTE = {
         "Muestra más tiempo.",
     "Shows less time, in more detail.":
         "Muestra menos tiempo, con más detalle.",
-    "One row per figure: when each one walks, speaks and acts.":
-        "Una fila por figura: cuándo camina, habla y actúa cada una.",
-    "Also shows rows where nothing happens.":
-        "Muestra también las filas en las que no pasa nada.",
-    "Shows the waits as their own blocks.":
-        "Muestra las esperas como bloques propios.",
     "The time display switches between seconds and frames when you click it; the list next to the play button sets the speed. Drag blocks to move them in time - [[zeitleiste]].":
         "El indicador de tiempo cambia entre segundos y fotogramas al pulsarlo; la lista junto al botón de reproducir fija la velocidad. Arrastra bloques para moverlos en el tiempo: [[zeitleiste]].",
     "The model toolbar (Model mode)":
@@ -5787,8 +5743,6 @@ TEXTE = {
         "**Comprueba los nombres.** Los dos deben escribirse exactamente igual. Solo un script puede esperar una señal de un nombre dado. La vista dividida (**{{MenuFile}} → {{SplitToggle}} → 2**) muestra ambos a la vez.",
     "The same name on both sides.":
         "El mismo nombre en los dos lados.",
-    "**See it in the timeline.** Switch on **{{TlWaits}}** in the timeline: waits become their own blocks. The timeline cannot know how long a `waitsignal` waits in the game - it places everything after it as if the signal came at once.":
-        "**Míralo en la línea de tiempo.** Activa **{{TlWaits}}** en la línea de tiempo: las esperas pasan a ser bloques propios. La línea de tiempo no puede saber cuánto espera un `waitsignal` en el juego: coloca todo lo que va después como si la señal llegara enseguida.",
     "Waits as blocks in the timeline.":
         "Esperas como bloques en la línea de tiempo.",
     "**Find them.** The macros are at the end of the **{{GroupEvents}}** list - scroll down. Each shows how many commands it holds; hover over one to read what it does.":
@@ -5907,20 +5861,14 @@ TEXTE = {
         "**Temblor.** Elige `SHAKE`: (1) la intensidad de 0 a 16 y (2) la duración en milisegundos.",
     "camera ( SHAKE ): strength and duration.":
         "camera ( SHAKE ): intensidad y duración.",
-    "**See them in the timeline.** Under **{{TlKamera}}** the timeline has its own rows for zoom, fade and shake.":
-        "**Míralos en la línea de tiempo.** Bajo **{{TlKamera}}** la línea de tiempo tiene sus propias filas para zoom, fundido y temblor.",
     "The rows of the timeline, among them Zoom, Fade and Shake.":
         "Las filas de la línea de tiempo, entre ellas Zoom, Fundido y Temblor.",
     "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.":
         "**Reprodúcela.** Pulsa ▶ en la línea de tiempo bajo el mapa. Activa **{{TlAudio}}** para oír el diálogo con el que cuadras los cortes.",
     "To start, play - and Sound.":
         "Al inicio, reproducir, y Sonido.",
-    "**Change a duration.** Drag the right edge of a block - a walk, a camera move, a wait - to make it shorter or longer.":
-        "**Cambia una duración.** Arrastra el borde derecho de un bloque (una marcha, un movimiento de cámara, una espera) para acortarlo o alargarlo.",
     "The right edge of a block.":
         "El borde derecho de un bloque.",
-    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.":
-        "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>Izquierda</kbd> / <kbd>Derecha</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo. El indicador de tiempo muestra dónde estás; púlsalo para cambiar a fotogramas.",
     "The time display.":
         "El indicador de tiempo.",
     "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.":
@@ -5969,12 +5917,8 @@ TEXTE = {
         "**Muévete en el tiempo.** Arrastra en la regla de arriba; **{{TracksPlay}}** reproduce.",
     "The ruler and Play at the top of the Tracks view.":
         "La regla y Reproducir arriba de la vista de pistas.",
-    "**Rows.** **{{TlTracks}}** shows one row per figure, **{{TlWaits}}** the waits as blocks. When some figures do nothing after the start, a button **{{TlIdleTracks}}** appears next to them and shows those rows too.":
-        "**Filas.** **{{TlTracks}}** muestra una fila por figura, **{{TlWaits}}** las esperas como bloques. Cuando algunas figuras no hacen nada tras el inicio, aparece a su lado un botón **{{TlIdleTracks}}** que muestra también esas filas.",
     "Character rows and Waits.":
         "Filas de personajes y Esperas.",
-    "**Camera rows.** Click the arrow in front of **{{TlKamera}}** to see move, pan, zoom, fade and shake in their own rows. A warning sign on a camera block means it overlaps the next move - in the game the camera would jump; shorten one of them.":
-        "**Filas de cámara.** Pulsa la flecha delante de **{{TlKamera}}** para ver move, pan, zoom, fundido y temblor en sus propias filas. Una señal de aviso en un bloque de cámara significa que se solapa con el siguiente movimiento: en el juego la cámara saltaría; acorta uno de los dos.",
     "The camera rows.":
         "Las filas de cámara.",
     "Kyle and his path.":
@@ -5997,10 +5941,6 @@ TEXTE = {
         "El menú contextual de una entidad en la lista.",
     "Face the walking direction.":
         "Mirar en la dirección de la marcha.",
-    "**Check it.** Expand the figure in the timeline: the row **{{TlKatBlick}}** shows when it looks where.":
-        "**Compruébalo.** Despliega la figura en la línea de tiempo: la fila **{{TlKatBlick}}** muestra cuándo mira adónde.",
-    "The rows of the expanded figure: Movement and Look.":
-        "Las filas de la figura desplegada: Movimiento y Mirada.",
     "**Go to the moment.** Move the playhead in the timeline to where the figure should face another way. The time display shows where you are.":
         "**Ve al momento.** Mueve el cabezal en la línea de tiempo hasta donde la figura debe mirar hacia otro lado. El indicador de tiempo muestra dónde estás.",
     "The playhead and the time display.":
@@ -6027,8 +5967,6 @@ TEXTE = {
         "El comando sound: examinar y reproducir.",
     "Sound in the timeline.":
         "Sonido en la línea de tiempo.",
-    "**Time it.** A `wait` after the sound keeps the next command until the line is over. With **{{TlWaits}}** on, drag the wait's edge in the timeline to fit.":
-        "**Sincronízala.** Un `wait` tras el sonido retiene el comando siguiente hasta que termina la frase. Con **{{TlWaits}}** activado, arrastra el borde de la espera en la línea de tiempo para ajustarla.",
     "A spawn script with standOnly.":
         "Un script de aparición con standOnly.",
     "The figures in the scene.":
@@ -6642,8 +6580,6 @@ TEXTE = {
         "**Portal de cielo:** con un misc_skyportal el cielo muestra la escena desde el lugar del portal, con la misma vista y el mismo campo de visión, como en el juego (CG_DrawSkyBoxPortal).",
     "A fog brush over the floor of a room (fogParms 0.1 0.9 0.1, 256): the floor gets the fog colour of the game.":
         "Un brush de niebla sobre el suelo de una sala (fogParms 0.1 0.9 0.1, 256): el suelo toma el color de niebla del juego.",
-    "**Full VIS**: before a `-vis` without `-fast` the console names the portals, the clusters and the memory the VIS needs - read from the portal file of the BSP step, counted like q3map2's CreatePassages (q3map2 itself prints only part of it). From the portal count of the optimizer's VIS hint, or when the memory comes close to what the computer has, a warning follows, also in the window: a full VIS can take hours, on open maps days, and the progress counts portals - the expensive ones come last. Ways out: `-vis -fast` for test builds, small structural brushes that do not seal as detail (optimizer: **{{KeOptPrDeko}}**), and **{{KeTkVis}}** for later builds. For a map from File > Open .bsp it also says whether the original was built with `-vis -fast`.":
-        "**VIS completo**: antes de un `-vis` sin `-fast`, la consola indica los portales, los clústeres y la memoria que necesita el VIS, leídos del archivo de portales del paso BSP y contados como CreatePassages de q3map2 (q3map2 solo imprime una parte). A partir del número de portales del aviso de VIS del optimizador, o cuando la memoria se acerca a la que tiene el ordenador, sigue una advertencia, también en la ventana: un VIS completo puede tardar horas, en mapas abiertos días, y el progreso cuenta portales; los costosos van al final. Salidas: `-vis -fast` para compilaciones de prueba, los brushes estructurales pequeños que no sellan, como detail (optimizador: **{{KeOptPrDeko}}**), y **{{KeTkVis}}** para compilaciones posteriores. Para un mapa de File > Open .bsp también dice si el original se compiló con `-vis -fast`.",
     "**{{MeMeldungen}}** shows what the game would print while loading the file, word for word and with the line (for example `Unknown item keyword 'foo' Line #21`). A click jumps to the line; the live diagnosis marks it in the text ([[menue_editor_m2#diagnose]]).":
         "**{{MeMeldungen}}** muestra lo que el juego imprimiría al cargar el archivo, palabra por palabra y con la línea (por ejemplo `Unknown item keyword 'foo' Line #21`). Un clic salta a la línea; el diagnóstico en vivo la marca en el texto ([[menue_editor_m2#diagnose]]).",
     "A new button from the widgets: selected on the canvas, its itemDef in the Text tab on the right.":
@@ -6680,8 +6616,6 @@ TEXTE = {
         "Un vídeo RoQ como cinematic, decodificado como en el juego.",
     "A character model with skin and animation, drawn on the graphics card.":
         "Un modelo de personaje con skin y animación, dibujado en la tarjeta gráfica.",
-    "`cinematic` and `videoMap` play RoQ videos; **{{MeVideoImport}}** converts a video or GIF to RoQ and puts it into `video/`. `ITEM_TYPE_MODEL` shows the model with the camera, light and rotation of the game; the character menu builds the player from the cvars and the feeders (species, heads, colours) like the game. Sabers lie on their side with hilt and blades from the .sab: length, radius, number of blades, single/staff, colour - glow and core drawn like the renderer. Movie Duels follows `cg_SFXSabers` (0 and the default 4 are reproduced).":
-        "`cinematic` y `videoMap` reproducen vídeos RoQ; **{{MeVideoImport}}** convierte un vídeo o GIF a RoQ y lo pone en `video/`. `ITEM_TYPE_MODEL` muestra el modelo con la cámara, la luz y la rotación del juego; el menú de personaje construye el jugador a partir de las cvars y los feeders (especies, cabezas, colores) como el juego. Los sables yacen de lado con la empuñadura y las hojas del .sab: longitud, radio, número de hojas, simple/doble, color; el brillo y el núcleo se dibujan como en el renderizador del juego. Movie Duels sigue `cg_SFXSabers` (se reproducen 0 y el valor por defecto 4).",
     "Library, detail area and menu sets":
         "Biblioteca, área de detalle y conjuntos de menús",
     "The detail area in three levels from the library, ready to operate.":
@@ -6704,4 +6638,348 @@ TEXTE = {
         "Fuentes a partir de TrueType",
     "**{{MeSchriftBauen}}** turns a .ttf or .otf into a game font: `fonts/<name>.fontdat` (the exact format the game reads) and `fonts/<name>.tga` with all characters of the menu texts (Windows-1252). Both go into the package; the preview uses them at once.":
         "**{{MeSchriftBauen}}** convierte un .ttf o .otf en una fuente del juego: `fonts/<nombre>.fontdat` (el formato exacto que lee el juego) y `fonts/<nombre>.tga` con todos los caracteres de los textos de menú (Windows-1252). Ambos van al paquete; la vista previa los usa enseguida.",
+    # uebersetzung2: Zeitleiste neu, Menue-Editor M3-M5b, Fenster anordnen, VIS (nach Integration 4)
+    "**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time.":
+        "**Míralo en la línea de tiempo.** Despliega la fila de la figura en la línea de tiempo (la flecha junto a su nombre): su fila **{{ZlBefehle}}** muestra sus esperas y señales en su momento.",
+    "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows.":
+        "**Temblor.** Elige `SHAKE`: fuerza de 0 a 16 y la duración en milisegundos. En la vista **{{ZlDetail}}**, la línea de tiempo muestra el zoom, el fundido y el temblor en filas propias.",
+    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.":
+        "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>←</kbd> / <kbd>→</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo, con <kbd>Ctrl</kbd> cinco segundos.",
+    "**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time.":
+        "**Compruébalo.** Reproduce la línea de tiempo. Despliega la fila de la figura: su fila **{{ZlBefehle}}** muestra los comandos de mirada en su momento.",
+    "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts.":
+        "**Míralo.** Activa **{{MapThroughCam}}** y reproduce la línea de tiempo: la vista no deja de girar hacia la figura. En la vista **{{ZlDetail}}** de la línea de tiempo, la fila **{{TlCamFollow}}** muestra cuánto dura.",
+    "**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly.":
+        "**Esperas como bloques.** La fila **{{ZlSkript}}** muestra cada `wait` como un bloque rayado con lo que espera: arrastra su borde derecho para cambiarlo directamente.",
+    "**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section.":
+        "**Solo activos.** **{{ZlNurAktive}}** oculta los actores que no hacen nada en el tramo visible.",
+    "The timeline plays the scene and shows when everything happens - camera shots with names, speech with subtitles, music, the script's waits and every actor. Click a block and the side bar explains it; drag it and the script changes.":
+        "La línea de tiempo reproduce la escena y muestra cuándo pasa cada cosa: planos de cámara con nombre, voces con subtítulos, música, las esperas del script y cada actor. Pulsa un bloque y la barra lateral lo explica; arrástralo y el script cambia.",
+    "The timeline in the Overview: camera position and rotation with the names of the marks, speech with speaker and subtitle, music, the script flow with its waits, one row per actor.":
+        "La línea de tiempo en el Resumen: posición y rotación de la cámara con los nombres de las marcas, voces con hablante y subtítulo, música, el flujo del script con sus esperas, una fila por actor.",
+    "Playing and moving around":
+        "Reproducir y moverse",
+    "The play button (▶) under the map starts and stops; with the mouse over the timeline <kbd>Space</kbd> does the same. Click or drag on the ruler to set the time - the 3D view shows the scene at that moment. <kbd>Left</kbd> / <kbd>Right</kbd> move by one game frame (50 ms, the grid of the game logic), with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds, <kbd>Home</kbd> jumps to the start. The legend under the rows lists these keys. The speed field slows the scene down (sound only plays at 1x), **{{TlLoop}}** repeats it. **{{ZlUt}}** shows the subtitles in the preview picture the way the game does (the game setting g_subtitles): with the script camera on, in the middle of the lower black bar, two lines at a time, each pair as long as its letters take of the sound; Movie Duels draws them smaller (cg_textprintscale, 0.66 by default). As in the game, Jedi Academy and Movie Duels show none by default, Jedi Outcast shows them in cinematics, and a figure with `SET_USE_SUBTITLES` always shows its lines; `SET_CAPTIONTEXTCOLOR` changes the colour.":
+        "El botón de reproducir (▶) bajo el mapa inicia y detiene; con el ratón sobre la línea de tiempo, <kbd>Espacio</kbd> hace lo mismo. Pulsa o arrastra en la regla para fijar el tiempo: la vista 3D muestra la escena en ese momento. <kbd>←</kbd> / <kbd>→</kbd> avanzan un fotograma del juego (50 ms, el paso de la lógica del juego), con <kbd>Mayús</kbd> un segundo, con <kbd>Ctrl</kbd> cinco segundos, <kbd>Inicio</kbd> salta al principio. La leyenda bajo las filas enumera estas teclas. El campo de velocidad ralentiza la escena (el sonido solo suena a 1x), **{{TlLoop}}** la repite. **{{ZlUt}}** muestra los subtítulos en la imagen de la vista previa como lo hace el juego (el ajuste del juego g_subtitles): con la cámara del script activa, en el centro de la franja negra inferior, dos líneas cada vez, cada par durante lo que sus letras ocupan del sonido; Movie Duels los dibuja más pequeños (cg_textprintscale, 0,66 por defecto). Como en el juego, Jedi Academy y Movie Duels no muestran ninguno por defecto, Jedi Outcast los muestra en las secuencias, y una figura con `SET_USE_SUBTITLES` siempre muestra sus frases; `SET_CAPTIONTEXTCOLOR` cambia el color.",
+    "A scene starts with a section of about 30 seconds. **{{TlFit}}** shows the whole scene, − and + zoom out and in, <kbd>Ctrl</kbd>+wheel zooms around the mouse pointer, <kbd>Shift</kbd>+wheel scrolls. Only while zoomed in, a slim navigation bar above the ruler shows which part of the scene you see - click or drag it to move there.":
+        "Una escena empieza con un tramo de unos 30 segundos. **{{TlFit}}** muestra toda la escena, − y + alejan y acercan, <kbd>Ctrl</kbd>+rueda amplía alrededor del puntero del ratón, <kbd>Mayús</kbd>+rueda desplaza. Solo con la vista ampliada, una barra de navegación fina sobre la regla muestra qué parte de la escena ves: pulsa o arrástrala para ir allí.",
+    "Overview and Detail":
+        "Resumen y Detalle",
+    "**{{ZlUebersicht}}** shows the scene at a glance: **{{ZlOrt}}** has one block per shot, from one camera move to the next, named after its mark (or as readable coordinates); **{{ZlDrehung}}** shows the pans, a pan without duration is marked as a cut. **{{ZlSprache}}** shows every line as long as its sound file, with speaker, subtitle from the game's string files (Jedi Academy and Movie Duels: strings/english/<map>.str, Jedi Outcast: strip/<map>.sp, with the extra packages some maps read) and the waveform. **{{ZlMusik}}** shows which music plays from when. **{{ZlSkript}}** shows the waits of the script as hatched blocks with what they wait for, and its commands as labelled marks; a map change is a red mark. Each actor has one row: meaningful animations with their names on top, its walks numbered below, a dashed line where it stands still, hatched where it is not visible. The arrow at the name opens its **{{ZlAnimation}}** and **{{ZlBefehle}}**.":
+        "**{{ZlUebersicht}}** muestra la escena de un vistazo: **{{ZlOrt}}** tiene un bloque por plano, de un movimiento de cámara al siguiente, con el nombre de su marca (o con coordenadas legibles); **{{ZlDrehung}}** muestra los giros, y un giro sin duración se marca como corte. **{{ZlSprache}}** muestra cada frase tan larga como su archivo de sonido, con hablante, subtítulo de los archivos de textos del juego (Jedi Academy y Movie Duels: strings/english/<mapa>.str, Jedi Outcast: strip/<mapa>.sp, con los paquetes extra que leen algunos mapas) y la forma de onda. **{{ZlMusik}}** muestra qué música suena y desde cuándo. **{{ZlSkript}}** muestra las esperas del script como bloques rayados con lo que esperan, y sus comandos como marcas con rótulo; un cambio de mapa es una marca roja. Cada actor tiene una fila: arriba las animaciones significativas con su nombre, abajo sus recorridos numerados, una línea discontinua donde está quieto, rayado donde no se ve. La flecha junto al nombre despliega su **{{ZlAnimation}}** y sus **{{ZlBefehle}}**.",
+    "Detail: camera move, pan, zoom and fade separately, field of view and fade as lines. A move that starts before the previous one has finished gets its own lane and the note \"jumps back\".":
+        "Detalle: movimiento, giro, zoom y fundido de cámara por separado, campo de visión y fundido como líneas. Un movimiento que empieza antes de que termine el anterior recibe su propio carril y el aviso \"salta atrás\".",
+    "**{{ZlDetail}}** (or <kbd>Tab</kbd> over the timeline) splits the camera into move, pan, zoom and fade and draws the field of view and the fade as lines. They are straight between two commands because the game interpolates them linearly - there are no ease curves. If a camera move starts before the previous one of the same kind has finished, it gets a lane of its own and the red note **{{ZlSpringt}}**: the game only takes over position and angle at the end of a move (cg_camera.cpp), so the new move starts from where the previous one began - the camera jumps back.":
+        "**{{ZlDetail}}** (o <kbd>Tab</kbd> sobre la línea de tiempo) divide la cámara en movimiento, giro, zoom y fundido, y dibuja el campo de visión y el fundido como líneas. Son rectas entre dos comandos porque el juego los interpola de forma lineal: no hay curvas de suavizado. Si un movimiento de cámara empieza antes de que termine el anterior del mismo tipo, recibe un carril propio y el aviso rojo **{{ZlSpringt}}**: el juego solo asume la posición y el ángulo al final de un movimiento (cg_camera.cpp), así que el nuevo movimiento parte de donde empezó el anterior: la cámara salta atrás.",
+    "What happens here?":
+        "¿Qué pasa aquí?",
+    "A clicked block: the side bar explains it in plain words, with time, command and script line.":
+        "Un bloque pulsado: la barra lateral lo explica con palabras sencillas, con tiempo, comando y línea del script.",
+    "Click any block or mark: the time jumps there, its line is selected in the script, and below the script column the box **{{ZlWas}}** says in plain words what it does - where the camera moves and how long, who speaks which line, what a wait waits for and who sends that signal, which animation plays for how long. **{{ZlZeileOeffnen}}** opens the command in the editor. A command that comes from another script (run, use, spawnscript) names that script and its line there - **{{ZlZeileOeffnen}}** opens that script and selects the line; one the simulation inserted has no line.":
+        "Pulsa cualquier bloque o marca: el tiempo salta allí, su línea se selecciona en el script y, bajo la columna del script, el cuadro **{{ZlWas}}** dice con palabras sencillas lo que hace: adónde se mueve la cámara y cuánto tarda, quién dice qué frase, qué espera un wait y quién envía esa señal, qué animación se reproduce y durante cuánto tiempo. **{{ZlZeileOeffnen}}** abre el comando en el editor. Un comando que viene de otro script (run, use, spawnscript) nombra ese script y su línea allí: **{{ZlZeileOeffnen}}** abre ese script y selecciona la línea; uno que ha insertado la simulación no tiene línea.",
+    "Filters and search":
+        "Filtros y búsqueda",
+    "**{{ZlNurAktive}}** hides actors that do nothing in the visible section. **{{ZlProbleme}}** shows only places with notes: camera moves that jump back, commands the preview does not simulate yet, the map change. The search field filters by name, mark, file, subtitle or command (for example `luke`, `cam1b`, `SET_ANIM`).":
+        "**{{ZlNurAktive}}** oculta los actores que no hacen nada en el tramo visible. **{{ZlProbleme}}** muestra solo los puntos con avisos: movimientos de cámara que saltan atrás, comandos que la vista previa aún no simula, el cambio de mapa. El campo de búsqueda filtra por nombre, marca, archivo, subtítulo o comando (por ejemplo `luke`, `cam1b`, `SET_ANIM`).",
+    "Problems: only the rows with notes remain.":
+        "Problemas: solo quedan las filas con avisos.",
+    "Drag a camera block or a line left or right: the `wait` before it changes, so it happens earlier or later and everything after it moves along; with <kbd>Alt</kbd> the `wait` after it gets shorter by the same amount and the rest stays. Drag the right edge of a camera block to change its duration, the right edge of a wait to make it longer or shorter. A line keeps its length - it is the length of the sound file. A walk cannot be made longer or shorter: its duration comes from the path finding and the speed of the figure. Everything snaps to the game's 50 ms frames, and while you drag a note says what changes in the script.":
+        "Arrastra un bloque de cámara o una frase a la izquierda o a la derecha: cambia el `wait` anterior, así que pasa antes o después y todo lo que viene detrás se mueve con él; con <kbd>Alt</kbd>, el `wait` siguiente se acorta lo mismo y el resto se queda donde está. Arrastra el borde derecho de un bloque de cámara para cambiar su duración, y el borde derecho de una espera para alargarla o acortarla. Una frase conserva su duración: es la del archivo de sonido. Un recorrido no se puede alargar ni acortar: su duración sale de la búsqueda de caminos y de la velocidad de la figura. Todo se ajusta a los fotogramas de 50 ms del juego y, mientras arrastras, un aviso dice qué cambia en el script.",
+    "A dragged wait: changed blocks are outlined with a dashed line until <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes the change back.":
+        "Una espera arrastrada: los bloques cambiados llevan un contorno discontinuo hasta que <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace el cambio.",
+    "Every drag writes the value into the script (comments and formatting stay) and is exactly one step for <kbd>Ctrl</kbd>+<kbd>Z</kbd> - afterwards the script is byte for byte what it was.":
+        "Cada arrastre escribe el valor en el script (los comentarios y el formato se mantienen) y es exactamente un paso de <kbd>Ctrl</kbd>+<kbd>Z</kbd>: después, el script es byte a byte lo que era.",
+    "Recording a walk":
+        "Grabar un recorrido",
+    "Select a figure (an NPC) in the view or in its row and press **{{AufKnopf}}** in the transport bar: from the time of the playhead you steer it in the preview - <kbd>W</kbd>/<kbd>S</kbd>/<kbd>A</kbd>/<kbd>D</kbd> move, <kbd>Shift</kbd> walks instead of running, <kbd>Q</kbd>/<kbd>E</kbd> or the right mouse button turn. It moves with the game's movement code (Pmove), at the speeds from its .npc file and against the walls of the map. The camera follows the figure, which runs or walks as its model; the path is drawn, and the numbered circles are the walk targets that will be written. **{{AufFertig}}** (<kbd>Enter</kbd>) writes them, **{{AufAbbrechen}}** (<kbd>Esc</kbd>) changes nothing.":
+        "Selecciona una figura (un NPC) en la vista o en su fila y pulsa **{{AufKnopf}}** en la barra de reproducción: desde el tiempo del cabezal la controlas en la vista previa; <kbd>W</kbd>/<kbd>S</kbd>/<kbd>A</kbd>/<kbd>D</kbd> la mueven, <kbd>Mayús</kbd> camina en vez de correr, <kbd>Q</kbd>/<kbd>E</kbd> o el botón derecho del ratón la giran. Se mueve con el código de movimiento del juego (Pmove), a las velocidades de su archivo .npc y contra las paredes del mapa. La cámara sigue a la figura, que corre o camina como su modelo; se dibuja el camino, y los círculos numerados son los destinos que se escribirán. **{{AufFertig}}** (<kbd>Intro</kbd>) los escribe, **{{AufAbbrechen}}** (<kbd>Esc</kbd>) no cambia nada.",
+    "Recording: the path so far, the walk targets as numbered circles, the box of the figure and the hint at the bottom.":
+        "Grabación: el camino hasta ahora, los destinos como círculos numerados, la caja de la figura y la indicación de abajo.",
+    "Written is what the game uses to let an NPC walk: one `ref_tag` per point and one `set ( SET_NAVGOAL, ... )`, which waits in the game until the figure has arrived, with `SET_RUNNING`/`SET_WALKING` before it where the gait changes. Points are kept only where they are needed: where the path leaves a straight line by more than the tolerance (in units, adjustable while recording), where a straight line would run into a wall, and where the gait changes. The commands go into the figure's own commands at the time of the playhead (a new `affect` block if it has none) - one step for <kbd>Ctrl</kbd>+<kbd>Z</kbd>. Afterwards the preview walks it like the game: between the points the NPC finds its own way at its own speed - the game has no timing per stretch, so the recording sets only the points and the gait.":
+        "Se escribe lo que usa el juego para que un NPC camine: un `ref_tag` por punto y un `set ( SET_NAVGOAL, ... )`, que en el juego espera hasta que la figura ha llegado, con `SET_RUNNING`/`SET_WALKING` delante donde cambia la forma de andar. Solo se mantienen los puntos necesarios: donde el camino se aparta de una línea recta más que la tolerancia (en unidades, ajustable durante la grabación), donde una línea recta chocaría con una pared y donde cambia la forma de andar. Los comandos van a los comandos propios de la figura en el tiempo del cabezal (un bloque `affect` nuevo si no tiene ninguno): un paso de <kbd>Ctrl</kbd>+<kbd>Z</kbd>. Después, la vista previa lo recorre como el juego: entre los puntos, el NPC busca su propio camino a su propia velocidad; el juego no tiene tiempos por tramo, así que la grabación solo fija los puntos y la forma de andar.",
+    "Subtitles in the preview picture, in cinematics: two lines in the middle of the lower bar.":
+        "Subtítulos en la imagen de la vista previa, en secuencias: dos líneas en el centro de la franja inferior.",
+    "Times come from a re-creation of the game's ICARUS engine, including its quirks: a `wait` ends one game frame (50 ms) later than written, and a `dowait` waits for the task it names. A command the preview does not simulate yet (for example `camera ( TRACK )` or `print`) is shown as a red mark instead of being guessed. The rules of OpenJK or Movie Duels apply as set in [[einstellungen#prefs]].":
+        "Los tiempos salen de una recreación del motor ICARUS del juego, con sus peculiaridades: un `wait` termina un fotograma del juego (50 ms) más tarde de lo escrito, y un `dowait` espera a la tarea que nombra. Un comando que la vista previa aún no simula (por ejemplo `camera ( TRACK )` o `print`) se muestra como una marca roja en vez de adivinarlo. Se aplican las reglas de OpenJK o de Movie Duels según lo ajustado en [[einstellungen#prefs]].",
+    "In the timeline a ROFF flight is a block in the row of its entity (\"ROFF name\"); drag it to start the flight earlier or later.":
+        "En la línea de tiempo, un vuelo ROFF es un bloque en la fila de su entidad (\"ROFF nombre\"); arrástralo para que el vuelo empiece antes o después.",
+    "**Full VIS**: before a `-vis` without `-fast` the console names the portals, the clusters and an estimate of the memory the VIS needs - read from the portal file of the BSP step, counted like q3map2's CreatePassages. bhed_q3map2 keeps of each passage only the part that is not empty (md_rev_TarisUpper2: 1.4 instead of 9 GB) and prints after CreatePassages what the passages really take. From the portal count of the optimizer's VIS hint, or when the memory comes close to what the computer has, a warning follows, also in the window: a full VIS can take hours, on open maps days. Its progress counts the expected work of the portals, not their number - the expensive ones come last - so the remaining time in the first build is close to the real one. Ways out: `-vis -fast` for test builds, small structural brushes that do not seal as detail (optimizer: **{{KeOptPrDeko}}**), and **{{KeTkVis}}** for later builds. For a map from File > Open .bsp it also says whether the original was built with `-vis -fast`.":
+        "**VIS completo**: antes de un `-vis` sin `-fast`, la consola indica los portales, los clústeres y una estimación de la memoria que necesita el VIS, leídos del archivo de portales del paso BSP y contados como CreatePassages de q3map2. bhed_q3map2 guarda de cada pasaje solo la parte que no está vacía (md_rev_TarisUpper2: 1,4 en vez de 9 GB) e imprime tras CreatePassages lo que ocupan realmente los pasajes. A partir del número de portales del aviso de VIS del optimizador, o cuando la memoria se acerca a la que tiene el ordenador, sigue una advertencia, también en la ventana: un VIS completo puede tardar horas, en mapas abiertos días. Su progreso cuenta el trabajo esperado de los portales, no su número (los costosos van al final), así que el tiempo restante ya se acerca al real en la primera compilación. Salidas: `-vis -fast` para compilaciones de prueba, los brushes estructurales pequeños que no sellan, como detail (optimizador: **{{KeOptPrDeko}}**), y **{{KeTkVis}}** para compilaciones posteriores. Para un mapa de File > Open .bsp también dice si el original se compiló con `-vis -fast`.",
+    "**{{KeLBuild}} > {{KeVisExakt}}** (off by default): with several threads a full VIS can come out slightly different from build to build - as with NetRadiant-Custom's q3map2, where a portal uses whatever other portals happen to be finished; every result is valid. Switched on, every `-vis` step gets `-bhedvisexact`, and bhed_q3map2 computes with all threads exactly what one thread computes, byte for byte. You need it for **reproducible builds**: the same .map gives the same .bsp - to compare two builds, for checksums, or when several people build the same map. It waits where a portal needs one that is not finished yet - on closed maps about as fast, on open maps much slower (duel_mos_espa: 5 instead of 1.5 minutes). Off is the faster way.":
+        "**{{KeLBuild}} > {{KeVisExakt}}** (desactivado por defecto): con varios hilos, un VIS completo puede salir ligeramente distinto de una compilación a otra; como en el q3map2 de NetRadiant-Custom, un portal usa los otros portales que ya estén terminados en ese momento, y todos los resultados son válidos. Activado, cada paso `-vis` recibe `-bhedvisexact`, y bhed_q3map2 calcula con todos los hilos exactamente lo mismo que un solo hilo, byte a byte. Lo necesitas para **compilaciones reproducibles**: el mismo .map da el mismo .bsp, para comparar dos compilaciones, para sumas de comprobación o cuando varias personas compilan el mismo mapa. Espera donde un portal necesita otro aún sin terminar: en mapas cerrados es casi igual de rápido, en mapas abiertos mucho más lento (duel_mos_espa: 5 minutos en vez de 1,5). Desactivado es el camino más rápido.",
+    "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} and {{KeTkLicht}} switched on, below them {{KeVisExakt}}, {{KeZfMenue}} and {{KeFsMelden}} (not in NetRadiant-Custom).":
+        "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} y {{KeTkLicht}} activados, debajo {{KeVisExakt}}, {{KeZfMenue}} y {{KeFsMelden}} (no están en NetRadiant-Custom).",
+    "While the graphics card bakes, the processor works at the same time: it computes the lightmaps the graphics card leaves to it, takes over lightmaps the graphics card has not started yet, and shares the points of the light grid with it - whoever is faster does more. With `-randomsamples` (**[Final] Extreme Quality**) the graphics card computes every lightmap that needs no random supersampling; a lightmap with random supersampling is computed on the processor, with the same random numbers as on one thread. The result stays bit-identical.":
+        "Mientras la tarjeta gráfica hornea, el procesador trabaja a la vez: calcula los lightmaps que le deja la tarjeta gráfica, se hace cargo de los lightmaps que la tarjeta aún no ha empezado y se reparte con ella los puntos de la rejilla de luz; quien es más rápido hace más. Con `-randomsamples` (**[Final] Extreme Quality**), la tarjeta gráfica calcula cada lightmap que no necesita supermuestreo aleatorio; un lightmap con supermuestreo aleatorio se calcula en el procesador, con los mismos números aleatorios que en un solo hilo. El resultado sigue siendo idéntico bit a bit.",
+    "`cinematic` and `videoMap` play RoQ videos; **{{MeVideoImport}}** converts a video or GIF to RoQ and puts it into `video/`. `ITEM_TYPE_MODEL` shows the model with the camera, light and rotation of the game; the character menu builds the player from the cvars and the feeders (species, heads, colours) like the game. Sabers lie on their side with hilt and blades from the .sab: length, radius, number of blades, single/staff, colour - glow and core drawn like the renderer. Movie Duels follows `cg_SFXSabers` with all its styles (see the next page).":
+        "`cinematic` y `videoMap` reproducen vídeos RoQ; **{{MeVideoImport}}** convierte un vídeo o GIF a RoQ y lo pone en `video/`. `ITEM_TYPE_MODEL` muestra el modelo con la cámara, la luz y la rotación del juego; el menú de personaje construye el jugador a partir de las cvars y los feeders (especies, cabezas, colores) como el juego. Los sables yacen de lado con la empuñadura y las hojas del .sab: longitud, radio, número de hojas, simple/doble, color; el brillo y el núcleo se dibujan como en el renderizador. Movie Duels sigue `cg_SFXSabers` con todos sus estilos (ver la página siguiente).",
+    "Menu editor: HUD, Asian texts and sabers":
+        "Editor de menús: HUD, textos asiáticos y sables",
+    "Edit the HUD with example values like the game draws it, write your own texts in Korean, Japanese and Chinese, all Movie Duels blade styles and black blades, the character's pose and the sounds like in the game.":
+        "Edita el HUD con valores de ejemplo tal como lo dibuja el juego, escribe tus propios textos en coreano, japonés y chino, todos los estilos de hoja de Movie Duels y las hojas negras, la pose del personaje y los sonidos como en el juego.",
+    "HUD editor":
+        "Editor del HUD",
+    "ui/hud.menu with health 70, armor 30, force 100 and the saber style medium - tics, numbers and crosshair drawn like the game.":
+        "ui/hud.menu con salud 70, blindaje 30, Fuerza 100 y el estilo de sable medio: marcas, números y cruz filar dibujados como en el juego.",
+    "Open `ui/hud.menu` like any other menu. The game does not draw the HUD with the menu alone: the game code reads the position, colour and image of named items (`health_tic1` to `4`, `armor_tic…`, `force_tic…`, `ammo_tic…`, `healthamount`, `armoramount`, `forceamount`, `ammoamount`, `saberstyle_fast/medium/strong`, `frame`) and draws tics, numbers and pictures with the player's values on top. The preview does exactly that: **{{MeHudWerte}}** in the properties has sliders for health, armor, force, ammo, the saber style and the crosshair; full tics are white, the last one fades with the rest, armor under a quarter blinks, ammo 0 turns red. Move or recolour an item and the HUD follows at once.":
+        "Abre `ui/hud.menu` como cualquier otro menú. El juego no dibuja el HUD solo con el menú: el código del juego lee la posición, el color y la imagen de los items con nombre (`health_tic1` a `4`, `armor_tic…`, `force_tic…`, `ammo_tic…`, `healthamount`, `armoramount`, `forceamount`, `ammoamount`, `saberstyle_fast/medium/strong`, `frame`) y dibuja encima marcas, números e imágenes con los valores del jugador. La vista previa hace exactamente eso: **{{MeHudWerte}}** en las propiedades tiene controles deslizantes para salud, blindaje, Fuerza, munición, el estilo de sable y la cruz filar; las marcas llenas son blancas, la última se desvanece con el resto, el blindaje por debajo de un cuarto parpadea y la munición a 0 se vuelve roja. Mueve o cambia el color de un item y el HUD lo sigue al instante.",
+    "This is reproduced for Jedi Academy single player. The multiplayer game code and Movie Duels draw their HUD differently (whole-number steps, HUD modes, block points); there the preview shows only the menus and says so.":
+        "Esto está recreado para Jedi Academy en un jugador. El código del juego multijugador y Movie Duels dibujan su HUD de otra forma (pasos enteros, modos de HUD, puntos de bloqueo); allí la vista previa solo muestra los menús y lo indica.",
+    "Texts in Korean, Japanese and Chinese":
+        "Textos en coreano, japonés y chino",
+    "An own text in Korean, drawn from the game's Hangul glyph pages.":
+        "Un texto propio en coreano, dibujado con las páginas de glifos hangul del juego.",
+    "**{{MeTexte}}** also offers Korean, Taiwanese, Japanese and Chinese. Type normally; the file gets the encoding in which the game's font reads that language (KSC 5601, Big5, Shift-JIS, GB 2312) - other languages stay Latin-1 like the menus. Characters the game cannot show as one character (for example Hangul outside KSC 5601 or half-width katakana) are stored as `?` and listed below the table. With the preview language set to one of these, the preview draws the characters from the game's glyph pages (`fonts/kor_…`, `jap_…`, `chi_…`, `tai_…`) at the game's size, spacing and scale.":
+        "**{{MeTexte}}** también ofrece coreano, taiwanés, japonés y chino. Escribe con normalidad; el archivo recibe la codificación con la que la fuente del juego lee ese idioma (KSC 5601, Big5, Shift-JIS, GB 2312); los demás idiomas siguen en Latin-1 como los menús. Los caracteres que el juego no puede mostrar como un solo carácter (por ejemplo, hangul fuera de KSC 5601 o katakana de ancho medio) se guardan como `?` y se enumeran bajo la tabla. Con el idioma de la vista previa en uno de estos, la vista previa dibuja los caracteres con las páginas de glifos del juego (`fonts/kor_…`, `jap_…`, `chi_…`, `tai_…`) con el tamaño, el espaciado y la escala del juego.",
+    "Movie Duels blade styles and black blades":
+        "Estilos de hoja de Movie Duels y hojas negras",
+    "With Movie Duels data the saber menu follows `cg_SFXSabers` for every style: 0 (Raven), 1 Episode I, 2 Episode II, 3 Episode III, 4 SFX (default), 5 Original Trilogy, 6 Return of the Jedi, 7 The Force Awakens, 8 Unstable, 9 Rebels, 10 Clone Wars, 11 Maul - each with its own glow and core images, sizes (`cg_SFXSabersGlowSize…`, `cg_SFXSabersCoreSize…`) and shape. Unstable hilts always get the unstable blade. Black blades are drawn with their blend mode, so they darken what is behind them like in the game.":
+        "Con los datos de Movie Duels, el menú de sables sigue `cg_SFXSabers` en cada estilo: 0 (Raven), 1 Episode I, 2 Episode II, 3 Episode III, 4 SFX (por defecto), 5 Original Trilogy, 6 Return of the Jedi, 7 The Force Awakens, 8 Unstable, 9 Rebels, 10 Clone Wars, 11 Maul; cada uno con sus propias imágenes de brillo y de núcleo, tamaños (`cg_SFXSabersGlowSize…`, `cg_SFXSabersCoreSize…`) y forma. Las empuñaduras inestables siempre reciben la hoja inestable. Las hojas negras se dibujan con su modo de mezcla, así que oscurecen lo que tienen detrás como en el juego.",
+    "The character's pose and the sounds":
+        "La pose del personaje y los sonidos",
+    "The animation of a model (`model_g2anim`, in the character menu `ui_char_anim`) starts when the game sets it - when the menus load, and again when a script such as `uiScript character` builds the character - and runs at the game's frame timing, blended between two frames, looping or stopping like the game. In **{{MeBedienen}}** scripts read exactly the words the game reads: `uiScript` takes its name and the words that script needs, `exec` one word - commands after them run on even without a `;`. `exec \"music …\"` starts the background music like the console.":
+        "La animación de un modelo (`model_g2anim`, en el menú de personaje `ui_char_anim`) empieza cuando el juego la pone (al cargar los menús, y de nuevo cuando un script como `uiScript character` construye el personaje) y avanza con el ritmo de fotogramas del juego, mezclada entre dos fotogramas, en bucle o deteniéndose como en el juego. En **{{MeBedienen}}**, los scripts leen exactamente las palabras que lee el juego: `uiScript` toma su nombre y las palabras que necesita ese script, `exec` una palabra; los comandos que siguen se ejecutan aunque no haya `;`. `exec \"music …\"` inicia la música de fondo como la consola.",
+    "Menu editor: videos, sound and readability":
+        "Editor de menús: vídeos, sonido y legibilidad",
+    "Import videos the way the game can play them - size, aspect ratio, frame rate, sound, the shader with videoMap - get clear messages for missing codecs, switch the preview sounds off and read the toolbars with labels.":
+        "Importa vídeos tal como el juego puede reproducirlos (tamaño, proporción, fotogramas por segundo, sonido, el shader con videoMap), recibe mensajes claros cuando faltan códecs, desactiva los sonidos de la vista previa y lee las barras con texto.",
+    "Importing a video":
+        "Importar un vídeo",
+    "The import dialog for a 1920 x 1080 video with sound: size 512 x 512, aspect ratio, frames per second, quality, sound (off by default), use in the menu and the estimated size.":
+        "El diálogo de importación de un vídeo de 1920 x 1080 con sonido: tamaño 512 x 512, proporción, fotogramas por segundo, calidad, sonido (desactivado por defecto), uso en el menú y el tamaño estimado.",
+    "**{{MeVideoImport}}** reads MP4, WebM, AVI, WMV, MOV and MKV through Windows, animated GIFs, and RoQ files - a RoQ is taken over unchanged. Choose **{{MeVideoZielGroesse}}**: the game plays only sides that are powers of two, with at most 512 x 512 pixels in total (full-screen videos stop otherwise, larger videos overflow the game's video buffer); 512 x 512 is the default, like every Jedi Academy and Movie Duels video. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (the game stretches the video onto the element anyway), {{MeVideoBalken}} or {{MeVideoZuschneiden}}. Pictures are reduced by averaging all covered pixels, so fine patterns do not flicker. Below the options you see the length, the number of frames and the size the file will have.":
+        "**{{MeVideoImport}}** lee MP4, WebM, AVI, WMV, MOV y MKV a través de Windows, GIF animados y archivos RoQ (un RoQ se incluye sin cambios). Elige **{{MeVideoZielGroesse}}**: el juego solo reproduce lados que sean potencias de dos, con 512 x 512 píxeles en total como máximo (si no, los vídeos a pantalla completa se detienen y los vídeos más grandes desbordan el búfer de vídeo del juego); 512 x 512 es el valor por defecto, como todos los vídeos de Jedi Academy y Movie Duels. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (de todos modos, el juego estira el vídeo sobre el elemento), {{MeVideoBalken}} o {{MeVideoZuschneiden}}. Las imágenes se reducen promediando todos los píxeles cubiertos, así que los patrones finos no parpadean. Bajo las opciones ves la duración, el número de fotogramas y el tamaño que tendrá el archivo.",
+    "The imported video as background of background_video in the Jedi Academy main menu - the preview plays it like the game.":
+        "El vídeo importado como fondo de background_video en el menú principal de Jedi Academy: la vista previa lo reproduce como el juego.",
+    "A menu shows a video through a shader with `videoMap`. The import writes it for you: `menu/video/<name>` in `shaders/<package>.shader`, next to `video/<name>.roq`. **{{MeVideoVerwendung}}** decides what happens in the menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, behind all others) or **{{MeVideoAlsCinematic}}** - only multiplayer menus draw that keyword, single-player menus show nothing (the check says so). Shader, video and menu go together into the exported .pk3 and into **{{MeImSpielTesten}}**.":
+        "Un menú muestra un vídeo mediante un shader con `videoMap`. La importación lo escribe por ti: `menu/video/<nombre>` en `shaders/<paquete>.shader`, junto a `video/<nombre>.roq`. **{{MeVideoVerwendung}}** decide qué pasa en el menú: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, detrás de todos los demás) o **{{MeVideoAlsCinematic}}**: solo los menús multijugador dibujan esa palabra clave, los menús de un jugador no muestran nada (la comprobación lo indica). El shader, el vídeo y el menú van juntos al .pk3 exportado y a **{{MeImSpielTesten}}**.",
+    "Sound":
+        "Sonido",
+    "Menus always play their videos silently - the game starts them without sound. **{{MeVideoTon}}** is therefore off; switch it on for full-screen videos that the game plays with sound (for example `cinematic <name>` from the console or a script). The sound is stored like in the game's videos: 22050 Hz, mono or stereo, between the frames. A video without a sound track gets a note. **{{MeTonAn}}** / **{{MeTonAus}}** in the toolbar switches all preview sounds - focus and click sounds and the menu music - and stops sounds that are playing; the setting is remembered.":
+        "Los menús siempre reproducen sus vídeos sin sonido: el juego los inicia sin sonido. Por eso **{{MeVideoTon}}** está desactivado; actívalo para los vídeos a pantalla completa que el juego reproduce con sonido (por ejemplo `cinematic <nombre>` desde la consola o un script). El sonido se guarda como en los vídeos del juego: 22050 Hz, mono o estéreo, entre los fotogramas. Un vídeo sin pista de sonido recibe un aviso. **{{MeTonAn}}** / **{{MeTonAus}}** en la barra activa o desactiva todos los sonidos de la vista previa (sonidos de foco y de clic y la música del menú) y detiene los que están sonando; el ajuste se recuerda.",
+    "Missing codecs":
+        "Códecs que faltan",
+    "If Windows cannot decode a video, the dialog says which codec it is and what helps: HEVC, AV1 and VP8/VP9 need a free extension from the Microsoft Store, AVI files with DivX/Xvid or unknown codecs should be converted to MP4 (H.264). Nothing is stored in that case - no empty video.":
+        "Si Windows no puede descodificar un vídeo, el diálogo dice qué códec es y qué ayuda: HEVC, AV1 y VP8/VP9 necesitan una extensión gratuita de Microsoft Store; los archivos AVI con DivX/Xvid o códecs desconocidos conviene convertirlos a MP4 (H.264). En ese caso no se guarda nada: ningún vídeo vacío.",
+    "Readability":
+        "Legibilidad",
+    "The toolbars with labels; eye and lock in the hierarchy are real symbols.":
+        "Las barras con texto; el ojo y el candado de la jerarquía son símbolos de verdad.",
+    "Every toolbar symbol names itself and what it does when you hover it; **{{MeEinstLeisteText}}** in the settings puts the name next to each symbol. In the hierarchy the eye hides an element in the preview only and the lock keeps it from being moved. Text never gets smaller than 75 % of the normal size (12 pixels), however far you zoom out with Ctrl and the mouse wheel.":
+        "Cada símbolo de las barras dice su nombre y lo que hace al pasar el ratón por encima; **{{MeEinstLeisteText}}** en las preferencias pone el nombre junto a cada símbolo. En la jerarquía, el ojo oculta un elemento solo en la vista previa y el candado impide moverlo. El texto nunca se hace más pequeño que el 75 % del tamaño normal (12 píxeles), por mucho que alejes con Ctrl y la rueda del ratón.",
+    "Menu editor: layouts and events":
+        "Editor de menús: disposiciones y eventos",
+    "Arrange elements side by side, stacked, in a grid or in two columns with one click, and decide what happens on hover, click, focus and Enter with ready-made effects and action blocks - the result stays ordinary .menu code.":
+        "Ordena elementos en fila, apilados, en cuadrícula o en dos columnas con un clic, y decide qué pasa al pasar el ratón, al hacer clic, con el foco y con Intro mediante efectos ya hechos y bloques de acciones: el resultado sigue siendo código .menu normal.",
+    "Layouts":
+        "Disposiciones",
+    "Three buttons in a panel, arranged with Side by side: margins 8, spacing 8 - the layout is kept as a comment line.":
+        "Tres botones en un panel, ordenados con En fila: márgenes 8, espaciado 8; la disposición se guarda como línea de comentario.",
+    "Select two or more elements (Ctrl+click on the canvas or in the hierarchy) and click **{{MeLayoutWaagrecht}}**, **{{MeLayoutSenkrecht}}**, **{{MeLayoutRaster}}** or **{{MeLayoutTeiler}}** in the **{{MeLayout}}** section (Ctrl+Shift+1 to 4). If one of the selected elements encloses all the others - a panel or background - it becomes the area and the others are placed inside it; otherwise the layout uses the box around the selection. Without a selection, **{{MeLayoutZeigMir}}** selects the first elements for you.":
+        "Selecciona dos o más elementos (Ctrl+clic en el lienzo o en la jerarquía) y pulsa **{{MeLayoutWaagrecht}}**, **{{MeLayoutSenkrecht}}**, **{{MeLayoutRaster}}** o **{{MeLayoutTeiler}}** en la sección **{{MeLayout}}** (Ctrl+Mayús+1 a 4). Si uno de los elementos seleccionados rodea a todos los demás (un panel o un fondo), se convierte en el área y los demás se colocan dentro; si no, la disposición usa la caja alrededor de la selección. Sin selección, **{{MeLayoutZeigMir}}** selecciona por ti los primeros elementos.",
+    "Select an element of the layout to change it: **{{MeLayoutArt}}**, **{{MeLayoutAbstand}}**, **{{MeLayoutRaender}}**, alignment (**{{MeLayoutAnfang}}**, **{{MeLayoutMitte}}**, **{{MeLayoutEnde}}**, **{{MeLayoutFuellen}}**), **{{MeLayoutSpalten}}** of a grid, **{{MeLayoutTeilung}}** and **{{MeLayoutGriff}}** of two columns. **{{MeLayoutSpacerNeu}}** puts a spacer behind the selected element - it takes the free space, for example to push a button to the right edge. Move the area and the elements follow. Every change is one undo step.":
+        "Selecciona un elemento de la disposición para cambiarla: **{{MeLayoutArt}}**, **{{MeLayoutAbstand}}**, **{{MeLayoutRaender}}**, alineación (**{{MeLayoutAnfang}}**, **{{MeLayoutMitte}}**, **{{MeLayoutEnde}}**, **{{MeLayoutFuellen}}**), **{{MeLayoutSpalten}}** de una cuadrícula, **{{MeLayoutTeilung}}** y **{{MeLayoutGriff}}** de dos columnas. **{{MeLayoutSpacerNeu}}** pone un espaciador detrás del elemento seleccionado: ocupa el espacio libre, por ejemplo para empujar un botón hasta el borde derecho. Mueve el área y los elementos la siguen. Cada cambio es un paso de deshacer.",
+    "The game knows no layouts: the .menu only gets fixed `rect` values, and the layout is stored as a comment `// jkstudio:layout …` inside the menuDef, which the game skips and the editor reads again. Menus without a layout stay byte-identical. For texts, the width of the longest translation in all languages of the game data counts; if a text does not fit, the section names the element and the language. **{{MeLayoutVersteckt}}** lets elements that are hidden after opening (`visible 0` or `hide` in onOpen) give up their place. **{{MeLayoutAufloesen}}** removes only the comment - the rects stay.":
+        "El juego no conoce las disposiciones: el .menu solo recibe valores `rect` fijos, y la disposición se guarda como un comentario `// jkstudio:layout …` dentro del menuDef, que el juego se salta y el editor vuelve a leer. Los menús sin disposición quedan idénticos byte a byte. Para los textos cuenta el ancho de la traducción más larga en todos los idiomas de los datos del juego; si un texto no cabe, la sección nombra el elemento y el idioma. **{{MeLayoutVersteckt}}** hace que los elementos ocultos tras abrir el menú (`visible 0` o `hide` en onOpen) cedan su sitio. **{{MeLayoutAufloesen}}** solo quita el comentario: los rects se quedan.",
+    "Events":
+        "Eventos",
+    "The button got the Glow effect and a click sound: the glow element appears on hover, the click plays the sound.":
+        "El botón ha recibido el efecto Brillo y un sonido de clic: el elemento de brillo aparece al pasar el ratón y el clic reproduce el sonido.",
+    "The **{{MeEreignisse}}** section shows for the selected element what happens on **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) and **{{MeEvEnter}}** (accept) - only the events the game's engine knows. Start with a ready-made hover effect: **{{MeEvLeuchten}}** (a glow element behind it, like the original menus), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** or **{{MeEvGroesser}}**, in the colour next to them. **{{MeEvHoverKlang}}** sets `focusSound`, **{{MeEvKlickKlang}}** a `play` at the start of the click; the button next to each field lets you listen.":
+        "La sección **{{MeEreignisse}}** muestra para el elemento seleccionado qué pasa en **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) y **{{MeEvEnter}}** (accept): solo los eventos que conoce el motor del juego. Empieza con un efecto ya hecho al pasar el ratón: **{{MeEvLeuchten}}** (un elemento de brillo detrás, como en los menús originales), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** o **{{MeEvGroesser}}**, en el color que tienen al lado. **{{MeEvHoverKlang}}** pone `focusSound`, **{{MeEvKlickKlang}}** un `play` al empezar el clic; el botón junto a cada campo te deja escucharlo.",
+    "Each event lists its actions as blocks: element names as a list, colours with a colour picker, sounds with a listen button. **{{MeEvAktionNeu}}** offers only the commands of this game's engine (the commandList of ui_shared, so `setcvartocvar` only in multiplayer). The blocks write the script text - the Text tab shows the same at once - and every change is one undo step. Switch on **{{MeBedienen}}** and the events run like in the game.":
+        "Cada evento enumera sus acciones como bloques: nombres de elementos como lista, colores con selector de color, sonidos con botón de escucha. **{{MeEvAktionNeu}}** solo ofrece los comandos del motor de este juego (la commandList de ui_shared, así que `setcvartocvar` solo en multijugador). Los bloques escriben el texto del script (la pestaña Texto muestra lo mismo al instante) y cada cambio es un paso de deshacer. Activa **{{MeBedienen}}** y los eventos funcionan como en el juego.",
+    "Preview checked against the original game":
+        "Vista previa comprobada con el juego original",
+    "All Jedi Academy menus outside a running game were photographed in the original game (single and multiplayer) and compared with the preview. Since then the preview also draws: missing `@` texts as nothing (like the game), missing images of shader elements as the game's grey default box, the colours, heads and parts of the species set in `ui_char_model`, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns, and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.":
+        "Todos los menús de Jedi Academy fuera de una partida en curso se fotografiaron en el juego original (un jugador y multijugador) y se compararon con la vista previa. Desde entonces, la vista previa también dibuja: los textos `@` que faltan como nada (como el juego), las imágenes que faltan de elementos con shader como la caja gris por defecto del juego, los colores, cabezas y partes de la especie puesta en `ui_char_model`, los valores iniciales del multijugador (nombre del jugador, modelo, nombre del servidor, límites), la lista de cabezas del multijugador en filas y columnas, y los owner-draws del multijugador para puestos de equipo, tipo de juego, dificultad, color de equipo y vista previa del mapa.",
+    "Menu editor: projects, mod profiles, Jedi Outcast":
+        "Editor de menús: proyectos, perfiles de mod, Jedi Outcast",
+    "Keep a menu mod in a project folder laid out like the pk3, with automatic backup and restore after a crash; tell the editor what a mod's engine knows with a mod profile; layouts that follow show and hide; Jedi Outcast menus tested in the real game.":
+        "Guarda un mod de menús en una carpeta de proyecto organizada como el pk3, con copia automática y restauración tras un cierre inesperado; indica al editor lo que conoce el motor de un mod con un perfil de mod; disposiciones que siguen a show y hide; menús de Jedi Outcast probados en el juego real.",
+    "Projects":
+        "Proyectos",
+    "**{{MePrjProjekt}} > {{MePrjNeu}}** creates a project file `*.jksmenu` with the folders `ui`, `gfx`, `video`, `shaders` and `strings` next to it - the same layout as the finished pk3. Menus that are open come along; without one, the project starts with an empty full-screen menu. In a project, **{{MeSpeichern}}** saves everything: the menus, their images, videos, texts and fonts, and the project file. The project file remembers the game, the mod profile, the menus and which one was open, the preview (resolution, letterbox, language, cvars) and the export (pk3 name, only changes). **{{MePrjExport}}** packs the pk3.":
+        "**{{MePrjProjekt}} > {{MePrjNeu}}** crea un archivo de proyecto `*.jksmenu` con las carpetas `ui`, `gfx`, `video`, `shaders` y `strings` a su lado: la misma organización que el pk3 terminado. Los menús abiertos se incluyen; sin ninguno, el proyecto empieza con un menú vacío a pantalla completa. En un proyecto, **{{MeSpeichern}}** lo guarda todo: los menús, sus imágenes, vídeos, textos y fuentes, y el archivo del proyecto. El archivo del proyecto recuerda el juego, el perfil de mod, los menús y cuál estaba abierto, la vista previa (resolución, bandas, idioma, cvars) y la exportación (nombre del pk3, solo cambios). **{{MePrjExport}}** empaqueta el pk3.",
+    "Every 30 seconds the editor backs up menus that are not saved yet. If JK Studio was not closed properly, it asks the next time whether to restore them - the restored text counts as an unsaved change, so Undo goes back to the saved version. A double-click on a `.jksmenu` opens JK Studio once you allowed it with **{{MePrjZuordnen}}** (only for your Windows account).":
+        "Cada 30 segundos, el editor hace una copia de los menús que aún no están guardados. Si JK Studio no se cerró correctamente, la vez siguiente pregunta si quieres restaurarlos: el texto restaurado cuenta como un cambio sin guardar, así que Deshacer vuelve a la versión guardada. Un doble clic en un `.jksmenu` abre JK Studio cuando lo hayas permitido con **{{MePrjZuordnen}}** (solo para tu cuenta de Windows).",
+    "After a crash: the editor offers the backed-up menus.":
+        "Tras un cierre inesperado: el editor ofrece los menús copiados.",
+    "Mod profiles":
+        "Perfiles de mod",
+    "A mod's engine may know more than the game: extra keywords, owner-draw and feeder numbers, uiScripts, cvars and menu lists. Choose the mod's profile under **{{MePrjProjekt}} > {{MeProfil}}**: the editor then reads these keywords without a message, shows owner-draws as labelled placeholders and lists the values under **Mod keywords** - the file stays exactly as it is. With the mod's source code, `tools/gen_menue_profil.py` writes the profile; without it, **{{MeProfilVorlage}}** writes a template to fill in. Jedi Academy, Jedi Outcast and Movie Duels have built-in profiles.":
+        "El motor de un mod puede conocer más que el juego: palabras clave extra, números de owner-draw y de feeder, uiScripts, cvars y listas de menús. Elige el perfil del mod en **{{MePrjProjekt}} > {{MeProfil}}**: entonces el editor lee esas palabras clave sin mensaje, muestra los owner-draws como marcadores con rótulo y enumera los valores en **Palabras clave del mod**; el archivo se queda exactamente como está. Con el código fuente del mod, `tools/gen_menue_profil.py` escribe el perfil; sin él, **{{MeProfilVorlage}}** escribe una plantilla para rellenar. Jedi Academy, Jedi Outcast y Movie Duels tienen perfiles integrados.",
+    "A mod keyword from the profile, labelled in the properties.":
+        "Una palabra clave del mod del perfil, con rótulo en las propiedades.",
+    "Layouts that follow show and hide":
+        "Disposiciones que siguen a show y hide",
+    "With **{{MeLayoutVersteckt}}** switched on, every script that shows or hides elements of the layout (a click, a hover, onOpen) also gets `setitemrect` lines that move the other elements into place - calculated for the state after that script and kept up to date with every layout change. Jedi Outcast has no `setitemrect`; there the editor explains what to do instead.":
+        "Con **{{MeLayoutVersteckt}}** activado, cada script que muestra u oculta elementos de la disposición (un clic, el paso del ratón, onOpen) también recibe líneas `setitemrect` que recolocan los demás elementos, calculadas para el estado tras ese script y actualizadas con cada cambio de la disposición. Jedi Outcast no tiene `setitemrect`; allí el editor explica qué hacer en su lugar.",
+    "Button 2 is hidden after opening; Show and Hide move button 3 like the layout.":
+        "El botón 2 está oculto tras abrir; Mostrar y Ocultar mueven el botón 3 como la disposición.",
+    "Jedi Outcast":
+        "Jedi Outcast",
+    "The Jedi Outcast menus were compared with the real game (Steam version). The editor now follows its engine: no `setitemrect`, `setitemtext`, `transition2` or `delay`, no `accept` event, the logo models (`.md3`) with the game's camera. **{{MeImSpielTesten}}** starts `jk2sp.exe` with your own folder as `fs_basepath` and the game data via `fs_cdpath` - nothing is written into the game folder.":
+        "Los menús de Jedi Outcast se compararon con el juego real (versión de Steam). El editor sigue ahora su motor: sin `setitemrect`, `setitemtext`, `transition2` ni `delay`, sin el evento `accept`, los modelos del logotipo (`.md3`) con la cámara del juego. **{{MeImSpielTesten}}** inicia `jk2sp.exe` con tu propia carpeta como `fs_basepath` y los datos del juego mediante `fs_cdpath`: no se escribe nada en la carpeta del juego.",
+    "Your first own menu":
+        "Tu primer menú propio",
+    "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.":
+        "De un editor vacío a un proyecto con tres botones en fila que brillan al pasar el ratón: guardado y listo para empaquetar como pk3.",
+    "Menu editor · about 5 minutes":
+        "Editor de menús · unos 5 minutos",
+    "The pictures were taken while the program did exactly these steps; the self-test checks after each step that it really happened. In the program, the helper (F1) runs this tutorial as a tour and moves on by itself when a step is done.":
+        "Las imágenes se tomaron mientras el programa hacía exactamente estos pasos; la autocomprobación verifica tras cada paso que de verdad ha ocurrido. En el programa, el asistente (F1) ejecuta este tutorial como recorrido y avanza solo cuando un paso está hecho.",
+    "**Open the menu editor.** Click **{{ViewMenuEditor}}** in the mode bar.":
+        "**Abre el editor de menús.** Pulsa **{{ViewMenuEditor}}** en la barra de modos.",
+    "The empty menu editor with the project buttons.":
+        "El editor de menús vacío con los botones de proyecto.",
+    "**Start a project.** Click **{{MePrjNeu}}** and choose a folder for the project file. The editor creates the folders like in a pk3 and an empty full-screen menu.":
+        "**Empieza un proyecto.** Pulsa **{{MePrjNeu}}** y elige una carpeta para el archivo del proyecto. El editor crea las carpetas como en un pk3 y un menú vacío a pantalla completa.",
+    "The new project with its first menu.":
+        "El proyecto nuevo con su primer menú.",
+    "**Three buttons.** Click **{{MeWButton}}** in the building blocks three times.":
+        "**Tres botones.** Pulsa tres veces **{{MeWButton}}** en los componentes.",
+    "Three new buttons, still on top of each other.":
+        "Tres botones nuevos, todavía uno encima de otro.",
+    "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.":
+        "**En fila.** Selecciona los tres botones (Ctrl+clic) y pulsa **{{MeLayoutWaagrecht}}** en Disposición, en las propiedades.",
+    "The buttons side by side with even spacing.":
+        "Los botones en fila con el mismo espaciado.",
+    "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.":
+        "**Brillo al pasar el ratón.** Selecciona el primer botón, abre la pestaña **Eventos** y pulsa **{{MeEvLeuchten}}**.",
+    "The glow effect: show on hover, hide when the mouse leaves.":
+        "El efecto de brillo: se muestra al pasar el ratón y se oculta cuando el ratón sale.",
+    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.":
+        "**Guarda.** Pulsa **{{MeSpeichern}}**: en un proyecto lo guarda todo. Después, **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3 para el juego.",
+    "Saved: the project file and the menu in the project folder.":
+        "Guardado: el archivo del proyecto y el menú en la carpeta del proyecto.",
+    "Arrange windows and screens":
+        "Organizar ventanas y pantallas",
+    "Take any panel out of the main window, put it on a second screen, combine panels as you like and save the arrangement under a name - per area.":
+        "Saca cualquier panel de la ventana principal, ponlo en una segunda pantalla, combina paneles como quieras y guarda la organización con un nombre, por área.",
+    "Every area - **{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** and **{{ViewMenuEditor}}** - is made of panels. As long as you move nothing, every panel stays in its place in the main window: the standard layout, exactly as before.":
+        "Cada área (**{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** y **{{ViewMenuEditor}}**) está hecha de paneles. Mientras no muevas nada, cada panel se queda en su sitio en la ventana principal: la disposición estándar, exactamente como antes.",
+    "Take a panel out":
+        "Sacar un panel",
+    "The menu {{DockMenu}} of the mission: show or hide panels, put them into their own window, save and load layouts.":
+        "El menú {{DockMenu}} de la misión: mostrar u ocultar paneles, ponerlos en su propia ventana, guardar y cargar disposiciones.",
+    "Open the menu **{{DockMenu}}** (in the map editor it is the last menu, after NetRadiant's).":
+        "Abre el menú **{{DockMenu}}** (en el editor de mapas es el último menú, después de los de NetRadiant).",
+    "Under **{{DockOwnWindow}}** click the panel, for example the timeline. It becomes a window of its own; its place in the main window goes to its neighbours - the mission view gets taller.":
+        "En **{{DockOwnWindow}}**, pulsa el panel, por ejemplo la línea de tiempo. Se convierte en una ventana propia; su sitio en la ventana principal pasa a sus vecinos: la vista de misión se hace más alta.",
+    "Drag the window by its title bar out of the main window: it becomes a real Windows window and can go onto a second screen. It keeps drawing there - the 3D views and the real-time light of the map editor included. Files can be dragged onto such a window as onto the main window (for example a .menu file onto the canvas of the menu editor).":
+        "Arrastra la ventana por su barra de título fuera de la ventana principal: se convierte en una ventana de Windows de verdad y puede ir a una segunda pantalla. Allí sigue dibujando, incluidas las vistas 3D y la luz en tiempo real del editor de mapas. Se pueden arrastrar archivos sobre esa ventana igual que sobre la ventana principal (por ejemplo, un archivo .menu sobre el lienzo del editor de menús).",
+    "**{{DockPanels}}** hides a panel completely; its space goes to the neighbours as well. The section **{{DockOther}}** opens the helper, the tutorials and the messages - they are windows of their own anyway.":
+        "**{{DockPanels}}** oculta un panel por completo; su espacio también pasa a los vecinos. La sección **{{DockOther}}** abre el asistente, los tutoriales y los mensajes: de todos modos son ventanas propias.",
+    "Combine panels":
+        "Combinar paneles",
+    "Script Flow dropped onto the timeline window: both panels in one window, as tabs. The mission view uses the whole main window.":
+        "Script Flow soltado sobre la ventana de la línea de tiempo: ambos paneles en una ventana, como pestañas. La vista de misión usa toda la ventana principal.",
+    "Drag the window of one panel onto the window of another: markers appear. Drop it on the middle marker and both become tabs of one window; drop it on an arrow and they sit side by side or one above the other. The dividers between them can be dragged, a tab can be dragged out again. This works for the panels of one area; dialogs such as Find stay on their own.":
+        "Arrastra la ventana de un panel sobre la ventana de otro: aparecen marcadores. Suéltala en el marcador del centro y ambos se convierten en pestañas de una ventana; suéltala en una flecha y quedan uno al lado del otro o uno encima del otro. Los divisores entre ellos se pueden arrastrar, y una pestaña se puede volver a sacar. Esto funciona con los paneles de un área; los diálogos como Buscar van por su cuenta.",
+    "Dock a panel back":
+        "Volver a acoplar un panel",
+    "Dragging a panel window over the main window shows its old place: release it there to dock it back.":
+        "Al arrastrar una ventana de panel sobre la ventana principal se ve su sitio anterior: suéltala allí para acoplarla de nuevo.",
+    "Drag the window onto its old place in the main window (highlighted, **{{DockDropHere}}**) and release it.":
+        "Arrastra la ventana a su sitio anterior en la ventana principal (resaltado, **{{DockDropHere}}**) y suéltala.",
+    "Or close the window with its **x** - the panel goes back to its place, nothing is lost.":
+        "O cierra la ventana con su **x**: el panel vuelve a su sitio y no se pierde nada.",
+    "Or click the panel under **{{DockOwnWindow}}** again.":
+        "O vuelve a pulsar el panel en **{{DockOwnWindow}}**.",
+    "Save, load and reset layouts":
+        "Guardar, cargar y restablecer disposiciones",
+    "Each area has its own layouts. **{{DockSaveAs}}** stores which panels are in their own window or hidden, where these windows are, on which screen, and how they are combined. **{{DockLoad}}** switches to a saved layout, **{{DockDelete}}** removes one, **{{DockReset}}** brings every panel of the area back to the standard layout. The current layout of every area is kept in the settings and is there again at the next start.":
+        "Cada área tiene sus propias disposiciones. **{{DockSaveAs}}** guarda qué paneles están en su propia ventana u ocultos, dónde están esas ventanas, en qué pantalla y cómo están combinadas. **{{DockLoad}}** cambia a una disposición guardada, **{{DockDelete}}** elimina una, **{{DockReset}}** devuelve cada panel del área a la disposición estándar. La disposición actual de cada área se guarda en las preferencias y vuelve a estar ahí en el siguiente inicio.",
+    "Screens that change":
+        "Pantallas que cambian",
+    "A screen is unplugged or arranged differently: windows that were on it come back onto the screen of the main window, at their size.":
+        "Se desconecta una pantalla o se organiza de otra forma: las ventanas que estaban en ella vuelven a la pantalla de la ventana principal, con su tamaño.",
+    "A screen is smaller than a window: the window is made just small enough to fit.":
+        "Una pantalla es más pequeña que una ventana: la ventana se reduce justo lo necesario para que quepa.",
+    "A window moves onto a screen with a different scale (100 %, 150 % ...): its size and text follow the scale of that screen.":
+        "Una ventana pasa a una pantalla con otra escala (100 %, 150 % ...): su tamaño y su texto siguen la escala de esa pantalla.",
+    "Map editor":
+        "Editor de mapas",
+    "NetRadiant's layouts stay the default (Preferences > Layout). In **Regular** the XY view, the console, the camera and the texture browser (or the built-in entity window) can be taken out, in **Split** the four views; their place goes to the neighbours like when a view is hidden in NetRadiant. In **Floating** the views float anyway. A view in its own window draws there with everything it shows in the main window; a click into it makes it the active view, keyboard shortcuts and free look then work in that window - on every screen.":
+        "Las disposiciones de NetRadiant siguen siendo las de por defecto (Preferencias > Disposición). En **Regular** se pueden sacar la vista XY, la consola, la cámara y el navegador de texturas (o la ventana de entidades integrada), en **Split** las cuatro vistas; su sitio pasa a los vecinos como cuando se oculta una vista en NetRadiant. En **Floating** las vistas flotan de todos modos. Una vista en su propia ventana dibuja allí todo lo que muestra en la ventana principal; un clic dentro la convierte en la vista activa, y los atajos de teclado y la vista libre funcionan entonces en esa ventana, en cualquier pantalla.",
+    "**{{MePalette}}**, **{{DockPanelCanvas}}** and the column **{{DockPanelMenuSide}}** are panels of their own - for example the canvas large on a second screen while the text stays in the main window. This works in the layout with the tabs on the right; with the text below (preferences) the editor stays as it is.":
+        "**{{MePalette}}**, **{{DockPanelCanvas}}** y la columna **{{DockPanelMenuSide}}** son paneles propios: por ejemplo, el lienzo grande en una segunda pantalla mientras el texto se queda en la ventana principal. Esto funciona en la disposición con las pestañas a la derecha; con el texto abajo (preferencias), el editor se queda como está.",
+    "The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.":
+        "El primer valor de `camera` elige el comando. behaved muestra cada uno de ellos en la línea de tiempo (en la vista **{{ZlDetail}}**, en su propia fila) y lo reproduce en la vista. Los tiempos van en milisegundos.",
+    "Shows the whole scene.":
+        "Muestra toda la escena.",
+    "One row per actor and the camera shots with their names - the scene at a glance. [[zeitleiste#zeilen]]":
+        "Una fila por actor y los planos de cámara con su nombre: la escena de un vistazo. [[zeitleiste#zeilen]]",
+    "Camera move, pan, zoom and fade separately, field of view and fade as lines, every actor's animations and commands.":
+        "Movimiento, giro, zoom y fundido de cámara por separado, campo de visión y fundido como líneas, las animaciones y los comandos de cada actor.",
+    "Only shows actors that do something in the visible section.":
+        "Muestra solo los actores que hacen algo en el tramo visible.",
+    "Only shows places with notes: camera moves that jump back, commands the preview does not simulate.":
+        "Muestra solo los puntos con avisos: movimientos de cámara que saltan atrás, comandos que la vista previa no simula.",
+    "**See it in the timeline.** The **{{ZlSkript}}** row shows every wait as a hatched block that says what it waits for, and a click on it names who sends the signal and when. If no script sends the signal, the side bar says so - in the game the script would wait forever.":
+        "**Míralo en la línea de tiempo.** La fila **{{ZlSkript}}** muestra cada espera como un bloque rayado que dice lo que espera, y un clic en él nombra quién envía la señal y cuándo. Si ningún script envía la señal, la barra lateral lo dice: en el juego, el script esperaría para siempre.",
+    "**See them in the timeline.** In the **{{ZlDetail}}** view the timeline has its own rows for zoom, fade and shake, and draws the field of view and the fade as lines.":
+        "**Míralos en la línea de tiempo.** En la vista **{{ZlDetail}}**, la línea de tiempo tiene filas propias para el zoom, el fundido y el temblor, y dibuja el campo de visión y el fundido como líneas.",
+    "**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.":
+        "**Cambia una duración.** Arrastra el borde derecho de un bloque de cámara o de una espera para acortarlo o alargarlo. Un recorrido conserva su duración: sale de la búsqueda de caminos y de la velocidad de la figura.",
+    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.":
+        "**Avanza con precisión.** Con el ratón sobre la línea de tiempo, <kbd>←</kbd> / <kbd>→</kbd> mueven el cabezal 50 ms, con <kbd>Mayús</kbd> un segundo, con <kbd>Ctrl</kbd> cinco segundos. El indicador de tiempo muestra dónde estás; púlsalo para cambiar a fotogramas.",
+    "**Rows.** **{{ZlUebersicht}}** shows one row per actor, **{{ZlDetail}}** the camera split into move, pan, zoom and fade and every actor's animations and commands. **{{ZlNurAktive}}** hides actors that do nothing in the visible section.":
+        "**Filas.** **{{ZlUebersicht}}** muestra una fila por actor, **{{ZlDetail}}** la cámara dividida en movimiento, giro, zoom y fundido, y las animaciones y los comandos de cada actor. **{{ZlNurAktive}}** oculta los actores que no hacen nada en el tramo visible.",
+    "**Camera rows.** Switch to **{{ZlDetail}}** to see move, pan, zoom, fade and shake in their own rows. A move that starts before the previous one has finished gets its own lane and the red note **{{ZlSpringt}}** - in the game the camera jumps back; shorten the earlier one or start the later one after it.":
+        "**Filas de cámara.** Cambia a **{{ZlDetail}}** para ver movimiento, giro, zoom, fundido y temblor en filas propias. Un movimiento que empieza antes de que termine el anterior recibe su propio carril y el aviso rojo **{{ZlSpringt}}**: en el juego la cámara salta atrás; acorta el anterior o haz que el siguiente empiece después.",
+    "**Check it.** Open the figure's row in the timeline: its row **{{ZlBefehle}}** shows the look commands at their time.":
+        "**Compruébalo.** Despliega la fila de la figura en la línea de tiempo: su fila **{{ZlBefehle}}** muestra los comandos de mirada en su momento.",
+    "The rows of the opened figure: walks above, its commands below.":
+        "Las filas de la figura desplegada: arriba los recorridos, debajo sus comandos.",
+    "**Time it.** A `wait` after the sound keeps the next command until the line is over. In the **{{ZlSprache}}** row the line is as long as its sound file - drag the right edge of the wait in **{{ZlSkript}}** until it fits.":
+        "**Ajusta el tiempo.** Un `wait` después del sonido retiene el siguiente comando hasta que termina la frase. En la fila **{{ZlSprache}}**, la frase dura lo mismo que su archivo de sonido: arrastra el borde derecho del wait en **{{ZlSkript}}** hasta que encaje.",
+    # uebersetzung2 nach Integration 5
+    "Menu editor: flow, tab order, styles and templates":
+        "Editor de menús: flujo, orden de tabulación, estilos y plantillas",
+    "See which menu opens which and where players get stuck, set the keyboard order with clicks, change colours and fonts everywhere at once, start from ready-made menus or a settings wizard, trace a design over a reference image and reset elements to the game's original.":
+        "Mira qué menú abre a cuál y dónde se atascan los jugadores, fija el orden del teclado con clics, cambia colores y fuentes en todas partes a la vez, empieza con menús ya hechos o con un asistente de ajustes, calca un diseño sobre una imagen de referencia y restablece elementos al original del juego.",
+    "Menu flow":
+        "Flujo de menús",
+    "The flow of a small menu set: the main menu (green frame) opens Options and Credits; Credits is a dead end (red), 'waise' is never opened (grey).":
+        "El flujo de un conjunto de menús pequeño: el menú principal (marco verde) abre Options y Credits; Credits es un callejón sin salida (rojo) y 'waise' nunca se abre (gris).",
+    "**{{MeFluss}}** in the toolbar shows every menu of the open files as a box and every `open` as an arrow, column by column from the menus the game opens itself (green frame: the main menu, the loading screen, the in-game menus - taken from the engine code). Red boxes are dead ends - they take input but nothing leads out - or targets that no open file defines; orange boxes are opened from another menu but have no way back (no `close` of themselves, no onESC, no `open` of the menu they came from); grey boxes are never reached. The list below says in plain words what to do. Click a box or a line of the list to jump to that menu. Open the whole menu set first, otherwise menus from other files look missing.":
+        "**{{MeFluss}}** en la barra muestra cada menú de los archivos abiertos como una caja y cada `open` como una flecha, columna a columna desde los menús que abre el propio juego (marco verde: el menú principal, la pantalla de carga, los menús durante la partida, tomados del código del motor). Las cajas rojas son callejones sin salida (reciben entradas, pero nada lleva fuera) o destinos que ningún archivo abierto define; las naranjas se abren desde otro menú pero no tienen camino de vuelta (ningún `close` de sí mismas, ningún onESC, ningún `open` del menú del que vienen); las grises nunca se alcanzan. La lista de abajo dice con palabras sencillas qué hacer. Pulsa una caja o una línea de la lista para ir a ese menú. Abre antes todo el conjunto de menús; si no, los menús de otros archivos parecen ausentes.",
+    "Tab order":
+        "Orden de tabulación",
+    "The numbers show the order in which Tab and Arrow down move the focus in the game.":
+        "Los números muestran el orden en que Tab y Flecha abajo mueven el foco en el juego.",
+    "**{{MeTabFolge}}** puts a number on every element that can take the keyboard focus, in the order the engine uses (Menu_SetNextCursorItem: the order of the itemDefs, without decorations, hidden elements and elements switched off by a cvar; from no focus the game starts at the second element of the file). To change it, click the elements one after another in the new order - after the last click the editor rearranges the itemDefs (one Undo step). The game draws in the same order, so a later element lies over an earlier one; elements that cannot take the focus stay where they are.":
+        "**{{MeTabFolge}}** pone un número en cada elemento que puede recibir el foco del teclado, en el orden que usa el motor (Menu_SetNextCursorItem: el orden de los itemDef, sin decoraciones, elementos ocultos ni elementos desactivados por una cvar; sin foco, el juego empieza por el segundo elemento del archivo). Para cambiarlo, pulsa los elementos uno tras otro en el orden nuevo: tras el último clic, el editor reordena los itemDef (un paso de deshacer). El juego dibuja en el mismo orden, así que un elemento posterior queda encima de uno anterior; los elementos que no pueden recibir el foco se quedan donde están.",
+    "Styles":
+        "Estilos",
+    "All colours, fonts, text sizes and backgrounds of the file with their number of uses.":
+        "Todos los colores, fuentes, tamaños de texto y fondos del archivo con su número de usos.",
+    "**{{MeStile}}** collects every colour (forecolor, backcolor, bordercolor, outlinecolor, focusColor, disableColor, descColor), font, text size and background of the file - the most used first. Change a value and every place that uses it changes at once, as ordinary values in the .menu (spacing, comments and quotes stay; one Undo step). Values from #include files or macros are counted but stay as they are.":
+        "**{{MeStile}}** reúne cada color (forecolor, backcolor, bordercolor, outlinecolor, focusColor, disableColor, descColor), fuente, tamaño de texto y fondo del archivo, los más usados primero. Cambia un valor y cambian a la vez todos los sitios que lo usan, como valores normales en el .menu (los espacios, comentarios y comillas se mantienen; un paso de deshacer). Los valores de archivos #include o de macros se cuentan, pero se quedan como están.",
+    "Templates and settings wizard":
+        "Plantillas y asistente de ajustes",
+    "A settings page with three tabs from the template - the tabs appear as pages above the canvas.":
+        "Una página de ajustes con tres pestañas a partir de la plantilla: las pestañas aparecen como páginas sobre el lienzo.",
+    "The **+** next to the pages offers **{{MeVorlageLeer}}** or a whole menu: **{{MeVorlageHaupt}}**, **{{MeVorlageEinst}}**, **{{MeVorlageCredits}}** and **{{MeVorlageLaden}}**. They use only keywords every game version reads; the main menu and the loading screen get the names the engine looks for (single player `mainMenu` and `loadscreen`, multiplayer `main` and `Connect`), and the main menu opens the settings and credits templates - the menu flow shows the result without problems.":
+        "El **+** junto a las páginas ofrece **{{MeVorlageLeer}}** o un menú entero: **{{MeVorlageHaupt}}**, **{{MeVorlageEinst}}**, **{{MeVorlageCredits}}** y **{{MeVorlageLaden}}**. Solo usan palabras clave que lee cualquier versión del juego; el menú principal y la pantalla de carga reciben los nombres que busca el motor (en un jugador `mainMenu` y `loadscreen`, en multijugador `main` y `Connect`), y el menú principal abre las plantillas de ajustes y de créditos: el flujo de menús muestra el resultado sin problemas.",
+    "The settings wizard knows the controls of the game's own menus.":
+        "El asistente de ajustes conoce los controles de los propios menús del juego.",
+    "**{{MeAssistent}}** lists every game setting (cvar) that the original menus of the game offer, with the control they use there: a slider with its range, yes/no, or a choice with its entries. Tick the settings you want and click the button below the search field - the editor adds a settings page with these controls, a title and a back button.":
+        "**{{MeAssistent}}** enumera cada ajuste del juego (cvar) que ofrecen los menús originales del juego, con el control que usan allí: un deslizador con su rango, sí/no, o una opción con sus entradas. Marca los ajustes que quieras y pulsa el botón bajo el campo de búsqueda: el editor añade una página de ajustes con esos controles, un título y un botón de volver.",
+    "Reference image, original and limits":
+        "Imagen de referencia, original y límites",
+    "A reference image under the canvas.":
+        "Una imagen de referencia bajo el lienzo.",
+    "**{{MeRefBild}}** places a PNG, JPG or TGA semi-transparently on the canvas, under the menu or - when a full-screen background covers it - over it (**{{MeRefOben}}**), with adjustable **{{MeRefDeckkraft}}**. It is only a drawing aid and never goes into the menu or the pk3.":
+        "**{{MeRefBild}}** pone un PNG, JPG o TGA semitransparente sobre el lienzo, bajo el menú o, cuando un fondo a pantalla completa lo tapa, encima (**{{MeRefOben}}**), con **{{MeRefDeckkraft}}** ajustable. Es solo una ayuda para dibujar y nunca va al menú ni al pk3.",
+    "An element of the game's main menu was moved - the Properties name the difference and offer the reset.":
+        "Se ha movido un elemento del menú principal del juego: las Propiedades nombran la diferencia y ofrecen el restablecimiento.",
+    "For a menu from the game, the Properties show in **{{MeOriginal}}** whether the selected element differs from the game's original file and in which keywords; **{{MeOriginalZuruecksetzen}}** puts the original itemDef back (one Undo step). Below the pages, a line shows how full the menu is against the limits of the game version - elements per menu, menus and the longest script - orange from 80 percent, red at the limit, because beyond it the game silently drops the rest.":
+        "Para un menú del juego, las Propiedades muestran en **{{MeOriginal}}** si el elemento seleccionado difiere del archivo original del juego y en qué palabras clave; **{{MeOriginalZuruecksetzen}}** vuelve a poner el itemDef original (un paso de deshacer). Bajo las páginas, una línea muestra lo lleno que está el menú respecto a los límites de la versión del juego (elementos por menú, menús y el script más largo): naranja a partir del 80 por ciento, rojo en el límite, porque por encima el juego descarta el resto sin avisar.",
+    "Next to the limits, **Readability** counts hints with guide values of the editor (not limits of the game): text lower than 8 points on the 640 x 480 screen, contrast below 3:1 on filled areas, and texts that fit their field in one language of the game but not in another (measured with the game's fonts and the texts of every language in the game data). Hover for the list with solutions; click to select the next element with a hint.":
+        "Junto a los límites, **Legibilidad** cuenta avisos con valores orientativos del editor (no límites del juego): texto de menos de 8 puntos en la pantalla de 640 x 480, contraste por debajo de 3:1 en áreas rellenas, y textos que caben en su campo en un idioma del juego pero no en otro (medidos con las fuentes del juego y los textos de cada idioma de los datos del juego). Pasa el ratón por encima para ver la lista con soluciones; pulsa para seleccionar el siguiente elemento con un aviso.",
+    "Closing a tab with unsaved changes now asks first: save, close without saving, or cancel.":
+        "Cerrar una pestaña con cambios sin guardar ahora pregunta antes: guardar, cerrar sin guardar o cancelar.",
 }

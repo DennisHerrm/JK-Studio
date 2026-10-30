@@ -3250,6 +3250,8 @@ enum class Str {
     MapGpuGlow,
     MapGpuRow,
     MapGpuRowNoTime,
+    MeAuswahlItems,
+    MapScriptKeyVon,
     Count,
 };
 

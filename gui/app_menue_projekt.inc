@@ -254,7 +254,7 @@ void sicherungWiederherstellen() {
     fs::remove_all(ort, ec);
     z.sicherungGefunden.clear();
     char b[300];
-    std::snprintf(b, sizeof(b), tr(Str::MePrjWiederhergestellt), static_cast<int>(z.sicherungListe.size()));
+    std::snprintf(b, sizeof(b), trN(Str::MePrjWiederhergestellt, z.sicherungListe.size()), static_cast<int>(z.sicherungListe.size()));
     z.meldung = b;
     addStatus(b);
 }
@@ -273,7 +273,7 @@ void zeichneSicherungFrage() {
     ImGui::TextUnformatted(tr(Str::MePrjSicherungTitel));
     ImGui::Separator();
     char b[400];
-    std::snprintf(b, sizeof(b), tr(Str::MePrjSicherungText), static_cast<int>(z.sicherungListe.size()), zeit);
+    std::snprintf(b, sizeof(b), trN(Str::MePrjSicherungText, z.sicherungListe.size()), static_cast<int>(z.sicherungListe.size()), zeit);
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
     ImGui::TextWrapped("%s", b);
     for (const SicherungsEintrag& e : z.sicherungListe) { ImGui::BulletText("%s", e.name.c_str()); }
@@ -408,7 +408,7 @@ bool oeffneProjektJetzt(const std::string& datei) {
     z.seitenv = p.balken ? Seitenverhaeltnis::Balken : Seitenverhaeltnis::Strecken;
     if (!p.sprache.empty()) { setzeSprache(p.sprache); }
     z.vorschauCvars = p.cvars;
-    std::snprintf(b, sizeof(b), tr(Str::MePrjGeoeffnet), fs::path(pfad).stem().string().c_str(), static_cast<int>(z.docs.size()));
+    std::snprintf(b, sizeof(b), trN(Str::MePrjGeoeffnet, z.docs.size()), fs::path(pfad).stem().string().c_str(), static_cast<int>(z.docs.size()));
     z.meldung = b;
     if (p.spiel != z.spiel) {
         const char* n[] = {"Jedi Academy", "Jedi Outcast", "Movie Duels"};

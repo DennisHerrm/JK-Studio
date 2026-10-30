@@ -2196,6 +2196,19 @@ std::vector<Schritt> karte8bHandbuchSchritte() {
     return s;
 }
 
+// uebersetzung2: der Hinweis der Lauf-Aufnahme steht ganz in der Kartenansicht des Handbuchbilds -
+// vorher lief er in jeder Sprache rechts hinaus, die Toleranz fehlte (Zeitleiste 3 bricht ihn um).
+bool aufnahmeHinweisGanz() {
+    ImVec2 ha;
+    ImVec2 hb;
+    aufnahmeHinweis(ha, hb);
+    const ImRect h(ha, hb);
+    diag::detail("Knopftest: Aufnahme-Hinweis x " + std::to_string(h.Min.x) + ".." + std::to_string(h.Max.x) + ", Ansicht x " +
+                 std::to_string(g_app->kartenAnsicht[0]) + ".." + std::to_string(g_app->kartenAnsicht[2]));
+    return h.GetWidth() > 1.0F && h.Min.x >= g_app->kartenAnsicht[0] - 0.5F && h.Max.x <= g_app->kartenAnsicht[2] + 0.5F &&
+           h.Min.y >= g_app->kartenAnsicht[1] - 0.5F && h.Max.y <= g_app->kartenAnsicht[3] + 0.5F;
+}
+
 std::vector<Schritt> handbuchSchritte() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -2455,6 +2468,7 @@ std::vector<Schritt> handbuchSchritte() {
                                 return b > 152;
                             }});
         t.push_back(pause(0.3));
+        t.push_back(pruefe("Handbuch Zeitleiste: der Aufnahme-Hinweis steht ganz in der Ansicht", [] { return aufnahmeHinweisGanz(); }));
         t.push_back(hb::fotoTeil("h_zl_aufnahme", [] {
             // Die Ansicht und darunter die Transportleiste mit Fertig/Abbrechen/Toleranz.
             return ImRect{ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]},

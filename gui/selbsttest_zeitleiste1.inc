@@ -387,6 +387,13 @@ std::vector<Schritt> miniSchritte() {
         return std::fabs(g_app->playMs - std::max(0.0, std::min(6050.0, ende()) - 5000.0)) < 0.5;
     }));
     add(pruefe("zeitleiste1: die Legende nennt die Pfeiltasten", [] { return std::strstr(tr(Str::ZlLegende), "5 s") != nullptr; }));
+    // uebersetzung2: das Suchfeld zeigt seinen Hinweis ganz (Spanisch "Buscar: nombre, marca, SET_ANI|").
+    add(pruefe("zeitleiste1: das Suchfeld zeigt seinen Hinweis ganz", [] {
+        const float soll = ImGui::CalcTextSize(tr(Str::ZlSuche)).x + ImGui::GetStyle().FramePadding.x * 2.0F;
+        diag::detail("Knopftest: zeitleiste1 - Suchfeld " + std::to_string(g_app->zlSucheRect.GetWidth()) + " fuer Hinweis " +
+                     std::to_string(soll));
+        return g_app->zlSucheRect.GetWidth() > 1.0F && soll <= g_app->zlSucheRect.GetWidth() + 0.5F;
+    }));
     return s;
 }
 

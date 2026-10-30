@@ -4899,7 +4899,7 @@ bool aufnahmeSchreiben() {
     verbindeMitSkriptSchritt();
     nachSkriptGeaendert();
     char t[200];
-    std::snprintf(t, sizeof(t), tr(Str::AufGeschrieben), static_cast<int>(k.size()), r.name.c_str(), r.startMs / 1000.0);
+    std::snprintf(t, sizeof(t), trN(Str::AufGeschrieben, k.size()), static_cast<int>(k.size()), r.name.c_str(), r.startMs / 1000.0);
     addStatus(t);
     return true;
 }
@@ -5113,7 +5113,7 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     // Platzierleiste am linken Rand (vorher begann er darunter) und bei
     // schmaler Ansicht umbrochen.
     char t[400];
-    std::snprintf(t, sizeof(t), tr(Str::AufHinweis), r.name.c_str(), static_cast<int>(k.size()),
+    std::snprintf(t, sizeof(t), trN(Str::AufHinweis, k.size()), r.name.c_str(), static_cast<int>(k.size()),
                   static_cast<double>(g_app->aufnahmeToleranz));
     const ImVec2 sa = dl->GetClipRectMin();
     const ImVec2 sb = dl->GetClipRectMax();

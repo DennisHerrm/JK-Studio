@@ -88,7 +88,7 @@ void zeichneFlussFenster(Dokument* aktivDok) {
     }
     {
         std::vector<char> b(512);
-        std::snprintf(b.data(), b.size(), tr(Str::MeFlussZusammen), echte, unerreichbar, sack, ohne, fehlt);
+        std::snprintf(b.data(), b.size(), trN(Str::MeFlussZusammen, echte, unerreichbar, sack, ohne, fehlt), echte, unerreichbar, sack, ohne, fehlt);
         ImGui::TextUnformatted(b.data());
     }
     const bool nurDatei = z.docs.size() == 1 && z.docs[0]->satz < 0;
@@ -321,7 +321,7 @@ void zeichneLesbarkeit(Dokument& d) {
     if (b.empty()) {
         std::snprintf(t.data(), t.size(), "%s", tr(Str::MeLesbarGut));
     } else {
-        std::snprintf(t.data(), t.size(), tr(Str::MeLesbar), static_cast<int>(b.size()));
+        std::snprintf(t.data(), t.size(), trN(Str::MeLesbar, b.size()), static_cast<int>(b.size()));
     }
     ImGui::PushStyleColor(ImGuiCol_Text, b.empty() ? ImVec4{0.6F, 0.6F, 0.6F, 1} : ImVec4{1, 0.7F, 0.25F, 1});
     if (ImGui::SmallButton((std::string(t.data()) + "##lesbar").c_str()) && !b.empty()) {
@@ -577,7 +577,7 @@ void zeichneStileFenster(Dokument* d) {
     }
     if (gesperrt > 0) {
         std::vector<char> b(256);
-        std::snprintf(b.data(), b.size(), tr(Str::MeStilGesperrt), gesperrt);
+        std::snprintf(b.data(), b.size(), trN(Str::MeStilGesperrt, gesperrt), gesperrt);
         ImGui::TextDisabled("%s", b.data());
     }
     ImGui::End();
@@ -654,7 +654,7 @@ void zeichneAssistentFenster(Dokument* d) {
     ImGui::SetNextItemWidth(fs * 14);
     eingabe(tr(Str::MeAssistentSuche), &z.assistentSuche);
     std::vector<char> b(128);
-    std::snprintf(b.data(), b.size(), tr(Str::MeAssistentAnlegen), static_cast<int>(z.assistentWahl.size()));
+    std::snprintf(b.data(), b.size(), trN(Str::MeAssistentAnlegen, z.assistentWahl.size()), static_cast<int>(z.assistentWahl.size()));
     ImGui::BeginDisabled(z.assistentWahl.empty());
     if (ImGui::Button(b.data())) { assistentAnlegen(*d); }
     ImGui::EndDisabled();
