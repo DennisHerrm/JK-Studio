@@ -299,6 +299,75 @@ bool itemAnStelle(const Datei& d, int menu, int item, int ziel, std::vector<Erse
     return true;
 }
 
+bool itemsNeuOrdnen(const Datei& d, int menu, const std::vector<int>& plaetze, const std::vector<int>& neu, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size() || plaetze.size() != neu.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    const int n = static_cast<int>(m.items.size());
+    std::vector<int> a(plaetze), b(neu);
+    std::sort(a.begin(), a.end());
+    std::sort(b.begin(), b.end());
+    if (a != b || std::adjacent_find(a.begin(), a.end()) != a.end() || (!a.empty() && (a.front() < 0 || a.back() >= n))) { return false; }
+    for (const Item& it : m.items) {
+        if (it.kopf.datei != 0) { return false; }   // aus einem #include: nicht in diesem Text
+    }
+    for (std::size_t k = 0; k < plaetze.size(); ++k) {
+        if (plaetze[k] == neu[k]) { continue; }
+        std::size_t pa = 0, pe = 0, na = 0, ne = 0;
+        itemSpanne(d, m.items[static_cast<std::size_t>(plaetze[k])], pa, pe);
+        itemSpanne(d, m.items[static_cast<std::size_t>(neu[k])], na, ne);
+        out.push_back(Ersetzung{static_cast<std::uint32_t>(pa), static_cast<std::uint32_t>(pe), d.text.substr(na, ne - na)});
+    }
+    return true;
+}
+
+namespace {
+// Der Text der Argumente einer Eigenschaft (wie er in der Datei steht, Leerraum vereinheitlicht)
+std::string argText(const Datei& d, const Eigenschaft& e) {
+    std::string r;
+    for (const Token& t : e.args) {
+        const std::string& q = t.datei == 0 ? d.text : (static_cast<std::size_t>(t.datei) < d.quellen.size() ? d.quellen[static_cast<std::size_t>(t.datei)].text : d.text);
+        r += (r.empty() ? "" : " ") + (t.ende <= q.size() && t.anfang < t.ende ? q.substr(t.anfang, t.ende - t.anfang) : t.s);
+    }
+    return r;
+}
+}  // namespace
+
+std::vector<std::string> itemUnterschiede(const Datei& a, const Item& ia, const Datei& b, const Item& ib) {
+    std::vector<std::string> r;
+    auto klein = [](std::string s) {
+        for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return s;
+    };
+    auto werte = [&](const Datei& d, const Item& it) {
+        std::vector<std::pair<std::string, std::string>> v;
+        for (const Eigenschaft& e : it.eigenschaften) { v.emplace_back(klein(e.kanon.empty() ? e.schluessel : e.kanon), argText(d, e)); }
+        return v;
+    };
+    const auto va = werte(a, ia), vb = werte(b, ib);
+    auto dazu = [&](const std::string& k) {
+        if (std::find(r.begin(), r.end(), k) == r.end()) { r.push_back(k); }
+    };
+    for (const auto& [k, w] : va) {
+        if (std::count(va.begin(), va.end(), std::make_pair(k, w)) != std::count(vb.begin(), vb.end(), std::make_pair(k, w))) { dazu(k); }
+    }
+    for (const auto& [k, w] : vb) {
+        if (std::count(va.begin(), va.end(), std::make_pair(k, w)) != std::count(vb.begin(), vb.end(), std::make_pair(k, w))) { dazu(k); }
+    }
+    return r;
+}
+
+bool itemErsetzen(const Datei& d, int menu, int item, const std::string& neuerText, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    if (item < 0 || static_cast<std::size_t>(item) >= m.items.size() || m.items[static_cast<std::size_t>(item)].kopf.datei != 0) { return false; }
+    std::size_t a = 0, e = 0;
+    itemSpanne(d, m.items[static_cast<std::size_t>(item)], a, e);
+    std::string t = neuerText;
+    if (!t.empty() && t.back() != '\n' && e > 0 && d.text[e - 1] == '\n') { t += nlVon(d.text); }
+    out.push_back(Ersetzung{static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(e), t});
+    return true;
+}
+
 std::string freierName(const Menu& m, const std::string& basis) {
     std::string b = basis.empty() ? std::string("item") : basis;
     // "_<zahl>" am Ende abschneiden

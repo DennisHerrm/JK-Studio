@@ -119,6 +119,24 @@ int main() {
         pruefe(ok, "Vorlage Typ " + std::to_string(typ) + " liest sich ohne Meldung (SP)");
     }
 
+    // M6 Punkt 8: Unterschied zum Original und Zuruecksetzen eines Items
+    {
+        const std::string orig = "{\n\tmenuDef\n\t{\n\t\tname m\n\t\trect 0 0 640 480\n"
+                                 "\t\titemDef\n\t\t{\n\t\t\tname k\n\t\t\trect 10 10 80 20\n\t\t\tforecolor 1 1 1 1\n\t\t\tvisible 1\n\t\t}\n"
+                                 "\t\titemDef\n\t\t{\n\t\t\tname j\n\t\t\trect 10 40 80 20\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n";
+        std::string geaendert = orig;
+        geaendert.replace(geaendert.find("rect 10 10 80 20"), 16, "rect 14 10 80 20");
+        geaendert.replace(geaendert.find("\t\t\tforecolor 1 1 1 1\n"), std::string("\t\t\tforecolor 1 1 1 1\n").size(),"\t\t\ttextscale 0.8\n");
+        LeseOptionen lo;
+        const Datei a = lies("ui/o.menu", orig, lo);
+        const Datei b = lies("ui/o.menu", geaendert, lo);
+        const std::vector<std::string> u = itemUnterschiede(b, b.menus[0].items[0], a, a.menus[0].items[0]);
+        pruefe(u == std::vector<std::string>{"rect", "textscale", "forecolor"}, "Original: rect, textscale, forecolor anders");
+        pruefe(itemUnterschiede(b, b.menus[0].items[1], a, a.menus[0].items[1]).empty(), "Original: j unveraendert");
+        std::vector<Ersetzung> zurueck;
+        pruefe(itemErsetzen(b, 0, 0, itemText(a, 0, 0), zurueck), "Original: k zuruecksetzen");
+        pruefe(anwenden(b.text, zurueck) == orig, "Original: danach byte-gleich mit dem Original");
+    }
     std::printf("menuewerkzeug: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

@@ -29,21 +29,27 @@
 #include "bhed/mapview.h"
 #include "bhed/wave.h"
 #include "bhed/image.h"
+#include "bhed/menue/assistent.h"
 #include "bhed/menue/bauteile.h"
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/ereignisse.h"
 #include "bhed/menue/feeder.h"
+#include "bhed/menue/fluss.h"
 #include "bhed/menue/hud.h"
 #include "bhed/menue/imspiel.h"
 #include "bhed/menue/layout.h"
+#include "bhed/menue/lesbarkeit.h"
 #include "bhed/menue/profil.h"
+#include "bhed/menue/pruefung.h"
 #include "bhed/menue/projekt.h"
 #include "bhed/menue/schriftbau.h"
+#include "bhed/menue/seitenvorlagen.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
 #include "bhed/menue/roq.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
+#include "bhed/menue/stile.h"
 #include "bhed/menue/textpuffer.h"
 #include "bhed/menue/vorschau.h"
 #include "bhed/menue/werkzeuge.h"
@@ -345,6 +351,39 @@ struct Zustand {
     // M5b Punkt 4: Mod-Profil (eingebaut nach Spiel oder aus <Einstellungen>/menue_profile, Projektordner)
     std::shared_ptr<const ModProfil> profil;
     std::string profilFuer;                       // Name|Spiel, fuer den profil gilt
+    // M6 Punkt 1: Menuefluss (Fenster, Ergebnis je Stand aller Dokumente)
+    bool flussOffen = false;
+    Fluss fluss;
+    std::string flussSchluessel;
+    // M6 Punkt 2: Tab-Reihenfolge auf der Flaeche, neue Folge per Klick
+    bool tabFolge = false;
+    std::vector<int> tabAlt, tabNeu;
+    std::string tabSchluessel, tabNeuFuer;
+    // M6 Punkt 7: Referenzbild (nur Anzeige, nie im Menue oder in der pk3)
+    std::string refPfad, refFehler;
+    Textur refTex;
+    unsigned refStand = 0;
+    float refDeckkraft = 0.5F;
+    bool refOben = false;
+    // M6 Punkt 4: Stile-Fenster; der Wert, der gerade gezogen/getippt wird (erst beim Loslassen ersetzen)
+    bool stileOffen = false;
+    // M6 Punkt 6: Einstellungs-Assistent (Katalog aus den Spielmenues, Auswahl als Cvar-Namen klein)
+    bool assistentOffen = false;
+    std::string assistentFuer, assistentSuche;
+    std::vector<CvarSteuerung> assistentKatalog;
+    std::set<std::string> assistentWahl;
+    // M6 Punkt 9: Lesbarkeit des Menues der Seite (zwischengespeichert), naechstes Element per Klick
+    std::vector<LesbarkeitsBefund> lesbar;
+    std::string lesbarSchluessel;
+    int lesbarNaechster = -1;
+    // M6 Punkt 8: Originaldatei des Spiels zum aktiven Dokument
+    std::string originalFuer;
+    Datei original;
+    bool originalDa = false;
+    std::string stilAktiv, stilText;
+    float stilFarbe[4] = {0, 0, 0, 1};
+    // Rest M5b: Reiter mit ungespeicherten Aenderungen schliessen - Rueckfrage (-1 = keine)
+    int schliessenDok = -1;
 };
 std::shared_ptr<const ModProfil> aktivesProfil();   // M5b (app_menue_projekt.inc)
 bool profilEingebaut(const ModProfil& p);
@@ -1251,6 +1290,11 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
 }
 
 void zeichneBibliothek(Dokument& d);   // M2 (unten)
+void zeichneTabLeiste(Dokument& d);   // M6 Punkt 2 (app_menue_m6.inc)
+void zeichneGrenzenZeile(Dokument& d);   // M6 Punkt 10
+void zeichneTabNummern(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
+bool tabFolgeKlick(Dokument& d, int mi, float vx, float vy, const Umgebung& u);
+void zeichneRefBild(ImDrawList* dl, const Abbildung& ab, ImVec2 o, bool oben);   // M6 Punkt 7
 void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
 
 // --- Arbeitsflaeche --------------------------------------------------------------
@@ -1398,6 +1442,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         }
     }
     dl->PushClipRect(o, ImVec2{o.x + bw, o.y + bh}, true);
+    zeichneRefBild(dl, ab, o, false);   // M6 Punkt 7: unter dem Menue
     // Vorschau
     Umgebung u = umgebung(d);
     const Datei* quelle = &d.datei;
@@ -1461,6 +1506,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const bool verschiebt = z.ziehen == Ziehen::Verschieben;
     z.laufMenue = z.interaktion ? mi : -1;
     zeichnePrims(dl, prims, ab, o, verschiebt ? sel : std::set<int>{}, z.zdx, z.zdy, &m, &u);
+    zeichneRefBild(dl, ab, o, true);   // M6 Punkt 7: ueber dem Menue
+    zeichneTabNummern(dl, d, mi, ab, o);   // M6 Punkt 2
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
         for (float x = 0; x <= 640; x += z.rasterWeite) {
@@ -1586,8 +1633,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     }
     dl->PopClipRect();
 
-    // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse
-    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse (M6: bei Tab-Reihenfolge waehlt er die naechste Nummer)
+    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u)) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
@@ -3398,6 +3445,15 @@ void zeichneCode(Dokument& d) {
 // M4 Punkt 3: Knopf der Leisten des Menue-Editors - Symbol mit Hinweis, wahlweise (Einstellung
 // "Leisten mit Beschriftung") Symbol und Text; eingeschaltete Umschalter mit Akzentflaeche
 bool leistenKnopf(const char* text, UiIcon icon, const char* hinweis, bool an = false, bool aktiv = true, bool umschalter = false) {
+    // M6: passt der Knopf nicht mehr in die Zeile, beginnt eine neue (die Leiste waechst mit den Werkzeugen)
+    {
+        const ImGuiStyle& st = ImGui::GetStyle();
+        const float h = ImGui::GetFrameHeight();
+        const float breite = g_app->settings.menueLeisteText
+                                 ? st.FramePadding.x * 2.0F + std::floor(h * 0.62F) + st.ItemInnerSpacing.x + ImGui::CalcTextSize(text, ImGui::FindRenderedTextEnd(text)).x
+                                 : h;
+        if (ImGui::GetCursorPosX() > st.WindowPadding.x + 1.0F && ImGui::GetCursorPosX() + breite > ImGui::GetContentRegionMax().x) { ImGui::NewLine(); }
+    }
     if (!g_app->settings.menueLeisteText) { return iconKnopf(text, icon, hinweis, an, aktiv, umschalter); }
     if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
     const bool k = iconTextKnopf(text, icon, hinweis, aktiv);
@@ -4467,6 +4523,26 @@ void leistenTrenner() {
 // Datei | Rueckgaengig | Paket (Video, Schrift, Texte, Sprache) | Pruefen, Ausgeben, im Spiel
 // testen | Bearbeiten/Bedienen | Ansicht (Seitenverhaeltnis, Aufloesung, Schalter)
 void zeichneProjektKnopf();   // M5b Punkt 3 (app_menue_projekt.inc)
+void zeichneFlussFenster(Dokument* aktivDok);   // M6 (app_menue_m6.inc)
+void zeichneRefKnopf();
+void zeichneSchliessenFrage();
+void zeichneStileFenster(Dokument* d);
+void zeichneAssistentFenster(Dokument* d);
+void zeichneOriginal(Dokument& d);
+
+// M2 Punkt 3: den Menuesatz zum Dokument oeffnen (UI_LoadMenus) - eine offene menus.txt selbst,
+// sonst die Menuelisten des Mod-Profils (M5b)
+int oeffneMenuesatzFuer(Dokument* d) {
+    int n = 0;
+    if (d != nullptr && kleinPfad(d->name).size() > 4 && kleinPfad(d->name).compare(kleinPfad(d->name).size() - 4, 4, ".txt") == 0) {
+        n = oeffneMenuesatz(d->name);
+    }
+    const bool mp = d != nullptr && d->datei.dialekt == Dialekt::MP;
+    for (const std::string& p : menuelisten(*aktivesProfil(), mp ? Dialekt::MP : Dialekt::SP)) {
+        if (n == 0) { n = oeffneMenuesatz(p); }
+    }
+    return n;
+}
 bool speichereProjekt();
 
 void zeichneLeiste(Dokument* d) {
@@ -4476,16 +4552,7 @@ void zeichneLeiste(Dokument* d) {
     if (leistenKnopf(tr(Str::MeAusSpiel), UiIcon::Liste, tr(Str::MeTipAusSpiel))) { z.spielListeOffen = true; }
     zeichneSpielListe();
     ImGui::SameLine();
-    if (leistenKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) {   // M2 Punkt 3: UI_LoadMenus
-        int n = 0;
-        if (d != nullptr && kleinPfad(d->name).size() > 4 && kleinPfad(d->name).compare(kleinPfad(d->name).size() - 4, 4, ".txt") == 0) {
-            n = oeffneMenuesatz(d->name);
-        }
-        const bool mp = d != nullptr && d->datei.dialekt == Dialekt::MP;
-        for (const std::string& p : menuelisten(*aktivesProfil(), mp ? Dialekt::MP : Dialekt::SP)) {   // M5b: aus dem Mod-Profil
-            if (n == 0) { n = oeffneMenuesatz(p); }
-        }
-    }
+    if (leistenKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) { (void)oeffneMenuesatzFuer(d); }   // M2 Punkt 3
     ImGui::SameLine();
     if (leistenKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeTipDateiOeffnen))) {
         const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt;*.jksmenu)|*.menu;*.txt;*.jksmenu|", "");
@@ -4532,6 +4599,12 @@ void zeichneLeiste(Dokument* d) {
         if (leistenKnopf(tr(Str::MeTexte), UiIcon::Namen, tr(Str::MeTipTexte), z.texteFensterOffen)) { z.texteFensterOffen = !z.texteFensterOffen; }   // M2 Punkt 6
         zeichneTexteFenster(*d);
         ImGui::SameLine();
+        if (leistenKnopf(tr(Str::MeStile), UiIcon::Leuchten, tr(Str::MeStileTip), z.stileOffen)) { z.stileOffen = !z.stileOffen; }   // M6 Punkt 4
+        zeichneStileFenster(d);
+        ImGui::SameLine();
+        if (leistenKnopf(tr(Str::MeAssistent), UiIcon::Einstellungen, tr(Str::MeAssistentTip), z.assistentOffen)) { z.assistentOffen = !z.assistentOffen; }   // M6 Punkt 6
+        zeichneAssistentFenster(d);
+        ImGui::SameLine();
         {
             const std::vector<std::string> sp = sprachenListe();
             ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.5F);
@@ -4550,6 +4623,8 @@ void zeichneLeiste(Dokument* d) {
             z.pruefGelaufen = false;
         }
         zeichnePruefFenster();
+        ImGui::SameLine();
+        if (leistenKnopf(tr(Str::MeFluss), UiIcon::Pfad, tr(Str::MeFlussTip), z.flussOffen)) { z.flussOffen = !z.flussOffen; }   // M6 Punkt 1
         ImGui::SameLine();
         if (leistenKnopf(tr(Str::MeExportPk3), UiIcon::Paket, tr(Str::MeTipExport))) { ImGui::OpenPopup("##export"); }
         if (ImGui::BeginPopup("##export")) {
@@ -4598,10 +4673,66 @@ void zeichneLeiste(Dokument* d) {
     if (leistenKnopf(tr(Str::MeAnRaster), UiIcon::Zielen, tr(Str::MeTipAnRaster), z.anRaster, true, true)) { z.anRaster = !z.anRaster; }
     ImGui::SameLine();
     if (leistenKnopf(tr(Str::MeAnKanten), UiIcon::Einpassen, tr(Str::MeTipAnKanten), z.anKanten, true, true)) { z.anKanten = !z.anKanten; }
+    if (d != nullptr) {
+        ImGui::SameLine();
+        if (leistenKnopf(tr(Str::MeTabFolge), UiIcon::Zeilen, tr(Str::MeTabFolgeTip), z.tabFolge, true, true)) {   // M6 Punkt 2
+            z.tabFolge = !z.tabFolge;
+            z.tabNeu.clear();
+            if (z.tabFolge) { setzeInteraktion(false); }
+        }
+        ImGui::SameLine();
+        zeichneRefKnopf();   // M6 Punkt 7
+    }
+    zeichneFlussFenster(d);
+    zeichneSchliessenFrage();
     if (!z.meldung.empty()) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s", z.meldung.c_str());
     }
+}
+
+// Ein neues menuDef vor die letzte } der Datei (sonst ans Ende): Name basis, bei Gleichnamigem mit
+// Nummer; block(name) liefert den Text. Danach steht die erste Seite des neuen Menues offen.
+void menuEinfuegen(Dokument& d, const std::string& basis, const std::function<std::string(const std::string&)>& block) {
+    std::string name = basis;
+    for (int n = 2; n < 100; ++n) {
+        bool frei = true;
+        for (const Menu& m : d.datei.menus) { frei = frei && !gleichOhneFallStr(m.window.name, name); }
+        if (frei) { break; }
+        name = basis + std::to_string(n);
+    }
+    const std::string& t = d.puffer.text();
+    std::size_t p = t.rfind('}');
+    std::size_t q = (p != std::string::npos && !d.datei.menus.empty() && p >= d.datei.menus.back().ende) ? p : t.size();
+    if (q < t.size()) {
+        while (q > 0 && (t[q - 1] == ' ' || t[q - 1] == '\t')) { --q; }
+    }
+    aendere({Ersetzung{static_cast<std::uint32_t>(q), static_cast<std::uint32_t>(q), block(name)}});
+    neuParsen(d);
+    const std::vector<Seite> s = seitenImMenue(d.datei);
+    d.seite = static_cast<int>(s.size()) - 1;
+    for (std::size_t k = 0; k < s.size(); ++k) {
+        if (s[k].menu == static_cast<int>(d.datei.menus.size()) - 1) {
+            d.seite = static_cast<int>(k);
+            break;
+        }
+    }
+    d.auswahl.clear();
+}
+
+// Neue Seite: leer (vorlage -1) oder eine Vorlage eines ganzen Menues (M6 Punkt 5, SeitenVorlage)
+void neueSeite(Dokument& d, int vorlage) {
+    const std::string nl = d.puffer.zeilenUmbruch();
+    const Dialekt dl = d.datei.dialekt;
+    if (vorlage >= 0) {
+        const auto art = static_cast<SeitenVorlage>(vorlage);
+        menuEinfuegen(d, seitenVorlageName(art, dl), [&](const std::string& name) { return seitenVorlage(art, dl, name, "\t", nl); });
+        return;
+    }
+    menuEinfuegen(d, "newMenu", [&](const std::string& name) {
+        return "\tmenuDef" + nl + "\t{" + nl + "\t\tname\t\t\t\"" + name + "\"" + nl + "\t\tfullScreen\t\t1" + nl + "\t\trect\t\t\t0 0 640 480" + nl +
+               "\t\tvisible\t\t\t1" + nl + "\t\tfocusColor\t\t1 1 1 1" + nl + "\t}" + nl;
+    });
 }
 
 void zeichneSeiten(Dokument& d) {
@@ -4621,29 +4752,16 @@ void zeichneSeiten(Dokument& d) {
             ImGui::EndTabItem();
         }
     }
-    if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip)) {
-        // neue Seite: ein menuDef am Ende der Datei
-        const std::string nl = d.puffer.zeilenUmbruch();
-        std::string name = "newMenu";
-        for (int n = 2; n < 100; ++n) {
-            bool frei = true;
-            for (const Menu& m : d.datei.menus) { frei = frei && m.window.name != name; }
-            if (frei) { break; }
-            name = "newMenu" + std::to_string(n);
+    if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip)) { ImGui::OpenPopup("##neueSeite"); }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s\n%s", tr(Str::MeNeueSeite), tr(Str::MeVorlageTip)); }
+    if (ImGui::BeginPopup("##neueSeite")) {   // M6 Punkt 5: leere Seite oder Vorlage eines ganzen Menues
+        if (ImGui::MenuItem(tr(Str::MeVorlageLeer))) { neueSeite(d, -1); }
+        const Str namen[] = {Str::MeVorlageHaupt, Str::MeVorlageEinst, Str::MeVorlageCredits, Str::MeVorlageLaden};
+        for (int k = 0; k < 4; ++k) {
+            if (ImGui::MenuItem(tr(namen[k]))) { neueSeite(d, k); }
         }
-        const std::string block = "\tmenuDef" + nl + "\t{" + nl + "\t\tname\t\t\t\"" + name + "\"" + nl + "\t\tfullScreen\t\t1" + nl +
-                                  "\t\trect\t\t\t0 0 640 480" + nl + "\t\tvisible\t\t\t1" + nl + "\t\tfocusColor\t\t1 1 1 1" + nl + "\t}" + nl;
-        // vor die letzte } der Datei, sonst ans Ende
-        const std::string& t = d.puffer.text();
-        std::size_t p = t.rfind('}');
-        std::size_t q = (p != std::string::npos && !d.datei.menus.empty() && p >= d.datei.menus.back().ende) ? p : t.size();
-        if (q < t.size()) {
-            while (q > 0 && (t[q - 1] == ' ' || t[q - 1] == '\t')) { --q; }
-        }
-        aendere({Ersetzung{static_cast<std::uint32_t>(q), static_cast<std::uint32_t>(q), block}});
-        d.seite = static_cast<int>(seitenImMenue(d.datei).size()) - 1;
+        ImGui::EndPopup();
     }
-    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeNeueSeite)); }
     ImGui::EndTabBar();
 }
 
@@ -4689,6 +4807,8 @@ void panelHierarchie(Dokument& d) {
 void panelFlaeche(Dokument& d) {
     ImGui::PushID("panelFlaeche");
     zeichneSeiten(d);
+    zeichneTabLeiste(d);   // M6 Punkt 2
+    zeichneGrenzenZeile(d);   // M6 Punkt 10
     zeichneFlaeche(d, ImGui::GetContentRegionAvail());
     ImGui::PopID();
 }
@@ -4719,10 +4839,12 @@ namespace {
 bool exportiere(const std::string& pfad, bool nurAenderungen);   // unten
 }  // namespace
 #include "app_menue_projekt.inc"
+#include "app_menue_m6.inc"
 
 // Eigenschaften mit Cvars, Meldungen der Engine und Skript-Protokoll als Abschnitte
 void panelEigenschaften(Dokument& d) {
     ImGui::PushID("panelEigenschaften");
+    zeichneOriginal(d);        // M6 Punkt 8 (oben: Unterschied und Zuruecksetzen sofort sichtbar)
     zeichneEigenschaften(d);
     zeichneModSchluessel(d);   // M5b Punkt 4
     zeichneLayout(d);
@@ -4824,11 +4946,14 @@ void zeichneInnen(float hoehe) {
             }
             ImGui::EndTabBar();
             z.aktivGezeigt = z.aktiv;
-            if (schliessen >= 0) {
-                z.docs.erase(z.docs.begin() + schliessen);
-                z.aktiv = std::min(z.aktiv, static_cast<int>(z.docs.size()) - 1);
-                z.laufDatei = -1;
-                return;
+            if (schliessen >= 0) {   // M6 (Rest M5b): mit ungespeicherten Aenderungen erst fragen
+                const Dokument& zu = *z.docs[static_cast<std::size_t>(schliessen)];
+                if (zu.puffer.text() != zu.gespeichert) {
+                    z.schliessenDok = schliessen;
+                } else {
+                    schliesseDokument(schliessen);
+                    return;
+                }
             }
         }
     }
@@ -5269,6 +5394,86 @@ void schliesseAlleOhneSpeichern() {
     z.projekt = Projekt{};
 }
 void fragZuordnung() { Z().zuordnungFrage = true; }
+FlussInfo flussInfo() {
+    Zustand& z = Z();
+    FlussInfo r;
+    r.fensterOffen = z.flussOffen;
+    r.stileOffen = z.stileOffen;
+    r.assistentOffen = z.assistentOffen;
+    const Fluss& f = flussAktuell();
+    r.kanten = static_cast<int>(f.kanten.size());
+    for (const FlussMenue& n : f.menues) {
+        if (n.datei < 0) {
+            ++r.fehlend;
+            continue;
+        }
+        ++r.menues;
+        r.unerreichbar += n.erreichbar ? 0 : 1;
+        r.sackgassen += n.sackgasse ? 1 : 0;
+        r.ohneZurueck += (n.ohneZurueck && !n.sackgasse) ? 1 : 0;
+    }
+    if (Dokument* d = doc()) {
+        const int mi = menuDerSeite(*d);
+        if (mi >= 0) { r.aktivesMenue = d->datei.menus[static_cast<std::size_t>(mi)].window.name; }
+    }
+    return r;
+}
+std::vector<std::string> tabFolge() {
+    std::vector<std::string> r;
+    Dokument* d = doc();
+    if (d == nullptr) { return r; }
+    neuParsen(*d);
+    const int mi = menuDerSeite(*d);
+    for (int i : tabFolgeVon(*d, mi)) { r.push_back(d->datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(i)].window.name); }
+    return r;
+}
+bool tabFolgeAn() { return Z().tabFolge; }
+std::vector<std::string> assistentKatalog() {
+    std::vector<std::string> r;
+    if (Dokument* d = doc()) {
+        for (const CvarSteuerung& c : assistentKatalog(d->datei.dialekt)) { r.push_back(c.cvar); }
+    }
+    return r;
+}
+void assistentWaehle(const std::string& cvar) { Z().assistentWahl.insert(kleinPfad(cvar)); }
+std::vector<std::string> originalUnterschiede() {
+    Dokument* d = doc();
+    const Datei* o = d != nullptr ? originalVon(*d) : nullptr;
+    const int mi = d != nullptr ? menuDerSeite(*d) : -1;
+    if (o == nullptr || mi < 0 || d->auswahl.size() != 1) { return {}; }
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+    const Item& it = m.items[static_cast<std::size_t>(d->auswahl[0])];
+    for (const Menu& om : o->menus) {
+        if (!gleichOhneFallStr(om.window.name, m.window.name)) { continue; }
+        for (const Item& oi : om.items) {
+            if (oi.window.name == it.window.name) { return itemUnterschiede(d->datei, it, *o, oi); }
+        }
+    }
+    return {};
+}
+std::string itemNameBei(int item) {
+    Dokument* d = doc();
+    const int mi = d != nullptr ? menuDerSeite(*d) : -1;
+    if (mi < 0 || item < 0 || static_cast<std::size_t>(item) >= d->datei.menus[static_cast<std::size_t>(mi)].items.size()) { return {}; }
+    return d->datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(item)].window.name;
+}
+int menuesImDokument() {
+    Dokument* d = doc();
+    return d == nullptr ? 0 : static_cast<int>(d->datei.menus.size());
+}
+bool referenzbildGeladen() { return Z().refTex.tex != nullptr; }
+void ladeReferenzbild(const std::string& platte) { refBildLaden(platte); }
+bool schliessenFrageOffen() { return Z().schliessenDok >= 0; }
+void schliesseReiter(int dok) {
+    Zustand& z = Z();
+    if (dok < 0 || static_cast<std::size_t>(dok) >= z.docs.size()) { return; }
+    const Dokument& d = *z.docs[static_cast<std::size_t>(dok)];
+    if (d.puffer.text() != d.gespeichert) {
+        z.schliessenDok = dok;
+    } else {
+        schliesseDokument(dok);
+    }
+}
 TourWerte tourWerte() {
     Zustand& z = Z();
     TourWerte w;

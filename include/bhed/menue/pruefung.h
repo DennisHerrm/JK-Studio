@@ -38,6 +38,18 @@ struct Grenzen {
 };
 // Die Grenzen der Fassung, die die Datei liest.
 [[nodiscard]] Grenzen grenzenFuer(Dialekt d, Spiel s);
+// Laenge eines Skripts, wie PC_Script_Parse sie zusammensetzt (-1 = kein Skript).
+[[nodiscard]] int skriptLaenge(const Eigenschaft& e);
+// M6 Punkt 10: wie voll ein Menue gegen die Grenzen ist (live beim Bauen)
+struct Auslastung {
+    int items = 0, menus = 0;
+    int skript = 0;           // laengstes Skript des Menues
+    std::string skriptWo;     // "item: action" bzw. "onOpen"
+    int multi = 0;            // laengste cvarList
+    std::string multiWo;
+    Grenzen g;
+};
+[[nodiscard]] Auslastung auslastung(const Datei& d, int menu);
 
 enum class BefundArt {
     ZuVieleItems,      // a = Items, b = Grenze

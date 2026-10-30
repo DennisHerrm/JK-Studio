@@ -161,6 +161,24 @@ std::vector<std::string> vorlagenIds();
 // Datei direkt ins Paket legen (Spielpfad -> Bytes)
 void legeInsPaket(const std::string& spielPfad, const std::string& bytes);
 
+// M6 (Selbsttest): Menuefluss, Tab-Reihenfolge, Referenzbild, Reiter schliessen
+struct FlussInfo {
+    int menues = 0, unerreichbar = 0, sackgassen = 0, ohneZurueck = 0, fehlend = 0, kanten = 0;
+    bool fensterOffen = false, stileOffen = false, assistentOffen = false;
+    std::string aktivesMenue;            // Name des Menues der Seite
+};
+[[nodiscard]] FlussInfo flussInfo();
+[[nodiscard]] std::vector<std::string> tabFolge();   // Namen in der Tab-Reihenfolge (Menue der Seite)
+[[nodiscard]] bool tabFolgeAn();
+[[nodiscard]] bool referenzbildGeladen();
+void ladeReferenzbild(const std::string& platte);
+[[nodiscard]] bool schliessenFrageOffen();
+void schliesseReiter(int dok);   // wie das x am Reiter (fragt bei Ungespeichertem)
+[[nodiscard]] std::vector<std::string> assistentKatalog();   // Cvars, fuer die der Assistent eine Steuerung kennt
+void assistentWaehle(const std::string& cvar);
+[[nodiscard]] std::vector<std::string> originalUnterschiede();   // Schluessel des gewaehlten Elements, die vom Original abweichen
+[[nodiscard]] int menuesImDokument();
+[[nodiscard]] std::string itemNameBei(int item);   // Name des Items der Seite ("" = keins/ohne Namen)
 }  // namespace bhed::gui::menueeditor
 
 #endif  // BHED_GUI_MENUEEDITOR_H

@@ -55,6 +55,14 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht);
 // zwischen den Bloecken bleiben stehen; eine Ersetzung (ein Rueckgaengig-Schritt).
 [[nodiscard]] bool itemAnStelle(const Datei& d, int menu, int item, int ziel, std::vector<Ersetzung>& out);
 // Name fuer eine Kopie: name_2, name_3 ... (frei im Menue)
+// M6 Punkt 2: die Items neu auf Plaetze verteilen - an die Stelle von Item plaetze[k] kommt der
+// itemDef-Block von Item neu[k] (gleich viele, jedes einmal); die anderen Items bleiben stehen.
+[[nodiscard]] bool itemsNeuOrdnen(const Datei& d, int menu, const std::vector<int>& plaetze, const std::vector<int>& neu,
+                                  std::vector<Ersetzung>& out);
+// M6 Punkt 8: die Schluessel, in denen sich zwei Items unterscheiden (Werte wie im Text; fehlende
+// und zusaetzliche Schluessel zaehlen mit), und ein Item durch einen fertigen itemDef-Text ersetzen.
+[[nodiscard]] std::vector<std::string> itemUnterschiede(const Datei& a, const Item& ia, const Datei& b, const Item& ib);
+[[nodiscard]] bool itemErsetzen(const Datei& d, int menu, int item, const std::string& neuerText, std::vector<Ersetzung>& out);
 [[nodiscard]] std::string freierName(const Menu& m, const std::string& basis);
 // In einem kopierten Item-Text name ersetzen (oder einfuegen).
 [[nodiscard]] std::string umbenennen(const std::string& itemText, const std::string& neuerName, Dialekt d);
