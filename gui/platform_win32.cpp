@@ -764,7 +764,9 @@ bool vollbildUmschalten() {
         // QWindowsWindow::setWindowState( Qt::WindowFullScreen ): WS_POPUP, Bildschirmgroesse;
         // setHasBorderInFullScreen: WS_BORDER
         SetWindowLongW(h, GWL_STYLE, (g_stilVorher & ~static_cast<LONG>(WS_OVERLAPPEDWINDOW)) | static_cast<LONG>(WS_POPUP | WS_BORDER));
-        SetWindowPos(h, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
+        // Im Selbsttest ganz hinten (shank 30.10.: Testfenster nie im Vordergrund)
+        const HWND lage = std::getenv("BHED_EDITORTEST") != nullptr ? HWND_BOTTOM : HWND_TOP;
+        SetWindowPos(h, lage, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
         g_vollbild = true;
     } else {

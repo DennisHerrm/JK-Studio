@@ -667,6 +667,16 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
                     o.fraction = act.torsoFraction;
                 }
                 vorrang.push_back(o);
+                // Zeitleiste 6: PM_SetAnimFinal setzt die Oberkoerperanimation
+                // auch auf den Knochen "Motion" ("special case motion bone - to
+                // match up split anims", g_client.cpp; bg_panimate.cpp:4974 OJ,
+                // :7081 MD). Er sitzt unter dem Becken der Beine; sein Winkel ist
+                // die Motion-Bone-Korrektur (rumpfwinkel.h).
+                const int motion = boneIndex(*act.anim, "Motion");
+                if (motion >= 0) {
+                    o.bone = motion;
+                    vorrang.push_back(o);
+                }
             }
         }
         // Der Mund ist ein DRITTER Lauf, auf dem Knochen "face".
@@ -759,16 +769,18 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         const bool torsoBlend = act.torsoPrevFrame >= 0 && act.torsoBlendLerp < 1.0F;
         if (koerperBlend || torsoBlend) {
             const int taille = boneIndex(*act.anim, "lower_lumbar");
+            const int motion = boneIndex(*act.anim, "Motion");
             std::vector<BoneFrameOverride> alt;
             for (const BoneFrameOverride& o : vorrang) {
-                if (torsoBlend && o.bone == taille) {
+                if (torsoBlend && (o.bone == taille || o.bone == motion)) {
                     continue;   // wird unten durch das alte Bild ersetzt
                 }
                 alt.push_back(BoneFrameOverride{o.bone, o.frame});
             }
             if (torsoBlend && taille >= 0) {
-                alt.push_back(BoneFrameOverride{
-                    taille, std::clamp(act.torsoPrevFrame, 0, act.anim->bildZahl() - 1)});
+                for (const int k : {taille, motion}) {
+                    if (k >= 0) { alt.push_back(BoneFrameOverride{k, std::clamp(act.torsoPrevFrame, 0, act.anim->bildZahl() - 1)}); }
+                }
             }
             act.anim->worldMatrices(
                 std::clamp(koerperBlend ? act.prevFrame : act.frame, 0,
@@ -787,7 +799,7 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
                              p >= 0 && static_cast<std::size_t>(p) < act.anim->bones.size() &&
                              schritte < 256;
                              ++schritte) {
-                            if (p == taille) { oben[b] = 1; break; }
+                            if (p == taille || p == motion) { oben[b] = 1; break; }
                             p = act.anim->bones[static_cast<std::size_t>(p)].parent;
                         }
                     }
