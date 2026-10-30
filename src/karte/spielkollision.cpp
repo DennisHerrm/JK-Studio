@@ -598,8 +598,14 @@ SpielKollisionsBericht kollisionAusKarte(const Karte& k, const SurfaceparmFn& pa
     return bericht;
 }
 
+MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja) { return sicht::eingabeAusKarte(k, info, ja); }
+
+SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht, const std::atomic<bool>* abbrechen) {
+    return sicht::weltBauen(e, bericht, abbrechen);
+}
+
 SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht) {
-    return sicht::weltBauen(k, info, ja, bericht);
+    return markenWeltBauen(markenEingabe(k, info, ja), bericht);
 }
 
 }  // namespace bhed::karte

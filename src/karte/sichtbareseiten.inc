@@ -498,7 +498,6 @@ struct SichtSeite : Seite {   // side_t; Seite::shader: Index in die Shaderliste
     EbeneD ebeneD;            // side.plane aus den Punkten (ohne Einrasten); Normale 0: keine
     Wk huelle;                // visibleHull
     bool culled = false;
-    int quelle = -1;          // Flaeche der Karte (Index in Pinsel::flaechen), -1: Bevel oder Schnitt
 };
 
 struct SichtPinsel {   // brush_t
@@ -508,7 +507,6 @@ struct SichtPinsel {   // brush_t
     bool opaque = true;
     std::uint32_t compile = 0;
     const SichtPinsel* original = nullptr;
-    const Pinsel* karte = nullptr;
 };
 
 bool begrenzen(SichtPinsel& b) {   // BoundBrush
@@ -769,6 +767,8 @@ struct Portal {   // portal_t
 };
 
 struct Baum {   // tree_t
+    const std::atomic<bool>* abbrechen = nullptr;   // ein anderer Faden bittet um das Ende (leere Welt)
+    [[nodiscard]] bool abgebrochen() const { return abbrechen != nullptr && abbrechen->load(std::memory_order_relaxed); }
     std::vector<Knoten> k;
     std::vector<Portal> p;
     int kopf = -1;
@@ -865,7 +865,7 @@ std::pair<int, std::uint32_t> teilerWaehlen(const Baum& t, int knoten, const Fla
 
 void baumBauen_r(Baum& t, int knoten, FlaechenListe& liste, Ebenen& ebenen) {   // BuildFaceTree_r
     FlaechenListe kind[2];
-    const auto [teiler, compile] = teilerWaehlen(t, knoten, liste, ebenen);
+    const auto [teiler, compile] = t.abgebrochen() ? std::pair<int, std::uint32_t>{kBlatt, 0U} : teilerWaehlen(t, knoten, liste, ebenen);
     if (teiler == kBlatt) {
         t.k[static_cast<std::size_t>(knoten)].planenum = kBlatt;
         return;
@@ -958,8 +958,9 @@ FlaechenListe strukturFlaechen(std::list<SichtPinsel>& welt) {   // MakeStructur
     return liste;
 }
 
-Baum flaechenBsp(FlaechenListe& liste, Ebenen& ebenen, const int blockGroesse[3]) {   // FaceBSP
+Baum flaechenBsp(FlaechenListe& liste, Ebenen& ebenen, const int blockGroesse[3], const std::atomic<bool>* abbrechen) {   // FaceBSP
     Baum t;
+    t.abbrechen = abbrechen;
     for (int i = 0; i < 3; ++i) { t.blockGroesse[i] = blockGroesse[i]; }
     for (const Flaeche3& f : liste) { kastenDazu(f.w, t.kasten); }
     t.aussen = t.neuerKnoten();
@@ -1146,7 +1147,7 @@ void baumPortale(Baum& t, const Ebenen& ebenen) {   // MakeTreePortals
 
 // FilterBrushIntoTree_r (nur die Wirkung auf opaque; die Pinsel-Liste der Blaetter braucht der Ablauf nicht)
 void pinselInBaum_r(SichtPinsel b, Baum& t, int knoten, const Ebenen& ebenen) {
-    if (b.seiten.empty()) { return; }
+    if (b.seiten.empty() || t.abgebrochen()) { return; }
     Knoten& n = t.k[static_cast<std::size_t>(knoten)];
     if (n.planenum == kBlatt) {
         if (!b.detail && b.opaque) { n.opaque = true; }
@@ -1255,8 +1256,8 @@ bool seiteImPinsel(SichtSeite& s, const SichtPinsel& b, const Ebenen& ebenen, co
     return true;
 }
 
-void seitenVerdecken(std::list<SichtPinsel>& welt, const Ebenen& ebenen, const std::vector<ShaderDaten>& shader) {   // CullSides
-    for (auto b1 = welt.begin(); b1 != welt.end(); ++b1) {
+void seitenVerdecken(std::list<SichtPinsel>& welt, const Ebenen& ebenen, const std::vector<ShaderDaten>& shader, const Baum& t) {   // CullSides
+    for (auto b1 = welt.begin(); b1 != welt.end() && !t.abgebrochen(); ++b1) {
         if (b1->seiten.empty()) { continue; }
         for (auto b2 = std::next(b1); b2 != welt.end(); ++b2) {
             if (b2->seiten.empty()) { continue; }
@@ -1398,9 +1399,8 @@ void ursprungVerschieben(EntBau& ent, const V3f& offset, Ebenen& ebenen) {
 
 // Die Ebenenpunkte, wie der Editor sie in die .map schreibt (ebenenPunkteSchreiben: auf Wunsch
 // ganzzahlig, sonst "%10.10lf") und q3map2 sie liest (atof)
-V3d punktWieGeschrieben(const Vektor3d& p) {
+V3d punktWieGeschrieben(const std::array<double, 3>& p, bool ganz) {
     V3d r{};
-    const bool ganz = ebenenPunkteGanzzahlig();
     for (std::size_t i = 0; i < 3; ++i) {
         const double v = ganz ? static_cast<double>(std::lrint(p[i])) : p[i];
         r[i] = std::strtod(dezimal(v).c_str(), nullptr);
@@ -1409,16 +1409,11 @@ V3d punktWieGeschrieben(const Vektor3d& p) {
 }
 
 // ParseRawBrush (Ebene und Flags einer Seite), RemoveDuplicateBrushPlanes, SetBrushContents, FinishBrush
-void pinselLesen(const Pinsel& p, const Kontext& kontext, bool welt, bool funcGroup, EntBau& ent, Ebenen& ebenen,
-                 const std::function<int(const std::string&)>& shaderNr, const std::vector<ShaderDaten>& shader) {
-    p.bRep(kontext);
+void pinselLesen(const std::vector<MarkenEingabe::Seite>& seiten, bool ganz, bool welt, bool funcGroup, EntBau& ent, Ebenen& ebenen,
+                 const std::vector<ShaderDaten>& shader) {
     SichtPinsel b;
-    b.karte = &p;
-    for (std::size_t i = 0; i < p.anzahl(); ++i) {
-        const Flaeche& f = p[i];
-        if (!f.traegtBei()) { continue; }
-        const EbenenPunkte& ep = f.ebenenPunkte();
-        const V3d pt[3] = {punktWieGeschrieben(ep[0]), punktWieGeschrieben(ep[1]), punktWieGeschrieben(ep[2])};
+    for (const MarkenEingabe::Seite& f : seiten) {
+        const V3d pt[3] = {punktWieGeschrieben(f.punkte[0], ganz), punktWieGeschrieben(f.punkte[1], ganz), punktWieGeschrieben(f.punkte[2], ganz)};
         // MapPlaneFromPoints: PlaneFromPoints in double, FindFloatPlane( Plane3f( plane ), p )
         EbeneD pd;
         const V3d a{pt[2][0] - pt[0][0], pt[2][1] - pt[0][1], pt[2][2] - pt[0][2]};
@@ -1439,10 +1434,9 @@ void pinselLesen(const Pinsel& p, const Kontext& kontext, bool welt, bool funcGr
         s.planenum = ebenen.finde(pf, pt, 3);
         if (s.planenum >= 0) { s.ebene = ebenen.ebene(s.planenum); }
         s.ebeneD = pd;
-        s.shader = shaderNr(f.shader());
+        s.shader = f.shader;
         s.flags = shader[static_cast<std::size_t>(s.shader)].flags;
-        if ((f.flags().inhaltFlags & C_DETAIL) != 0U) { s.flags.compile |= C_DETAIL; }   // Detail-Bit der .map
-        s.quelle = static_cast<int>(i);
+        if ((f.inhalt & C_DETAIL) != 0U) { s.flags.compile |= C_DETAIL; }   // Detail-Bit der .map
         b.seiten.push_back(std::move(s));
     }
     // RemoveDuplicateBrushPlanes
@@ -1656,8 +1650,8 @@ FlaechenListe sichtbareFlaechen(const std::list<SichtPinsel>& welt) {
 
 // Ein Baum mit Portalen, den Strukturpinseln und der Flut von den Entitaeten
 Baum baumMitFlut(FlaechenListe& flaechen, Ebenen& ebenen, const int blockGroesse[3], const std::list<SichtPinsel>& welt,
-                 const std::vector<V3f>& bewohner, Flut& flut) {
-    Baum t = flaechenBsp(flaechen, ebenen, blockGroesse);
+                 const std::vector<V3f>& bewohner, Flut& flut, const std::atomic<bool>* abbrechen) {
+    Baum t = flaechenBsp(flaechen, ebenen, blockGroesse, abbrechen);
     baumPortale(t, ebenen);
     strukturInBaum(welt, t, ebenen);
     flut = entitaetenFluten(t, bewohner, ebenen);
@@ -1672,53 +1666,56 @@ struct Zeichenflaeche {   // mapDrawSurface_t (der Teil fuer die Marken)
     std::vector<V3f> dreiecke;   // misc_model
 };
 
-SpurWelt weltBauen(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht) {
-    // R_BoxSurfaces_r (tr_marks.cpp:150 OJ): SURF_NOIMPACT, SURF_NOMARKS, CONTENTS_FOG
-    const auto ausgenommen = [](const Q3ShaderFlags& f) {
-        return (f.flaeche & (S_SURF_NOIMPACT | S_SURF_NOMARKS)) != 0U || (f.inhalt & S_CONT_FOG) != 0U;
-    };
+// Die Abschrift der Karte (Hauptfaden): was der Editor in die .map schreiben wuerde
+MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja) {
+    MarkenEingabe ein;
+    ein.ja = ja;
+    ein.ganzzahlig = ebenenPunkteGanzzahlig();
     std::map<std::string, int> nummern;
-    std::vector<ShaderDaten> shader;
     const auto shaderNr = [&](const std::string& name) {
         const std::string schluessel = klein(name);
         const auto it = nummern.find(schluessel);
         if (it != nummern.end()) { return it->second; }
-        const Q3ShaderInfo qi = info ? info(name) : Q3ShaderInfo{};
-        ShaderDaten d;
-        d.flags = q3map2ShaderFlags(qi.surfaceparms, ja);
-        if (qi.autosprite) {   // deformVertexes autosprite: detail und noClip
-            (void)surfaceParmAnwenden("detail", ja, d.flags);
-            d.noClip = true;
-        }
-        d.autosprite = qi.autosprite;
-        d.polygonOffset = qi.polygonOffset;
-        d.noClip = d.noClip || qi.noClip;
-        d.indexed = qi.indexed;
-        shader.push_back(d);
-        const int nr = static_cast<int>(shader.size()) - 1;
+        ein.shader.push_back(info ? info(name) : Q3ShaderInfo{});
+        const int nr = static_cast<int>(ein.shader.size()) - 1;
         nummern.emplace(schluessel, nr);
         return nr;
     };
-    Ebenen ebenen;
-    EntBau welt;
-    std::vector<V3f> bewohner;
-    int blockGroesse[3] = {kBlockGroesse, kBlockGroesse, kBlockGroesse};
     const auto weltE = k.welt();
     for (const auto& ep : k.entitaeten()) {
         const Entitaet& e = *ep;
         const std::string klasse = klein(e.klassenname());
         // was der Editor nicht schreibt (kartenformat: leere Gruppen ohne origin)
         if (e.istBehaelter() && e.kinder().empty() && klasse != "worldspawn" && !e.hat("origin")) { continue; }
-        const bool istWelt = ep == weltE;
-        const bool funcGroup = klasse == "func_group";
-        EntBau ent;
-        ent.ursprung = vektorAus(e.wert("origin"));
+        MarkenEingabe::Ent ent;
+        ent.klasse = klasse;
+        ent.ursprung = e.wert("origin");
+        ent.welt = ep == weltE;
+        for (const char* key : {"_blocksize", "blocksize", "chopsize"}) {
+            ent.blockGroesse = e.wert(key);
+            if (!ent.blockGroesse.empty()) { break; }
+        }
         for (const auto& prim : e.kinder()) {
             if (prim->art() == Primitiv::Art::Pinsel) {
-                pinselLesen(static_cast<const Pinsel&>(*prim), k.kontext, istWelt, funcGroup, ent, ebenen, shaderNr, shader);
+                const auto& p = static_cast<const Pinsel&>(*prim);
+                p.bRep(k.kontext);
+                if (!p.hatBeitragendeFlaechen(k.kontext)) { continue; }   // pinselSchreiben
+                std::vector<MarkenEingabe::Seite> seiten;
+                for (std::size_t i = 0; i < p.anzahl(); ++i) {
+                    const Flaeche& f = p[i];
+                    if (!f.traegtBei()) { continue; }
+                    MarkenEingabe::Seite s;
+                    for (std::size_t a = 0; a < 3; ++a) {
+                        for (std::size_t b = 0; b < 3; ++b) { s.punkte[a][b] = f.ebenenPunkte()[a][b]; }
+                    }
+                    s.shader = shaderNr(f.shader());
+                    s.inhalt = f.flags().inhaltFlags;
+                    seiten.push_back(s);
+                }
+                ent.pinsel.push_back(std::move(seiten));
             } else if (prim->art() == Primitiv::Art::Patch) {
                 const auto& pa = static_cast<const Patch&>(*prim);
-                PatchRoh r;
+                MarkenEingabe::Patch r;
                 r.breite = static_cast<int>(pa.breite());
                 r.hoehe = static_cast<int>(pa.hoehe());
                 for (const PatchPunkt& pp : pa.punkte()) { r.punkte.push_back({pp.vertex[0], pp.vertex[1], pp.vertex[2]}); }
@@ -1726,19 +1723,65 @@ SpurWelt weltBauen(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWe
                 ent.patches.push_back(std::move(r));
             }
         }
+        ein.entitaeten.push_back(std::move(ent));
+    }
+    // AddTriangleModels: misc_model ohne target in der Welt
+    echtModellFlaechen(k, [&](const EchtModellFlaeche& f) {
+        if (!f.inWelt || f.ort.size() < 3) { return; }
+        MarkenEingabe::Modell m;
+        m.shader = shaderNr(f.shader);
+        for (const Vektor3f& v : f.ort) { m.dreiecke.push_back({v[0], v[1], v[2]}); }
+        ein.modelle.push_back(std::move(m));
+    });
+    return ein;
+}
+
+SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const std::atomic<bool>* abbrechen) {
+    // R_BoxSurfaces_r (tr_marks.cpp:150 OJ): SURF_NOIMPACT, SURF_NOMARKS, CONTENTS_FOG
+    const auto ausgenommen = [](const Q3ShaderFlags& f) {
+        return (f.flaeche & (S_SURF_NOIMPACT | S_SURF_NOMARKS)) != 0U || (f.inhalt & S_CONT_FOG) != 0U;
+    };
+    std::vector<ShaderDaten> shader;
+    for (const Q3ShaderInfo& qi : ein.shader) {
+        ShaderDaten d;
+        d.flags = q3map2ShaderFlags(qi.surfaceparms, ein.ja);
+        if (qi.autosprite) {   // deformVertexes autosprite: detail und noClip
+            (void)surfaceParmAnwenden("detail", ein.ja, d.flags);
+            d.noClip = true;
+        }
+        d.autosprite = qi.autosprite;
+        d.polygonOffset = qi.polygonOffset;
+        d.noClip = d.noClip || qi.noClip;
+        d.indexed = qi.indexed;
+        shader.push_back(d);
+    }
+    Ebenen ebenen;
+    EntBau welt;
+    std::vector<V3f> bewohner;
+    int blockGroesse[3] = {kBlockGroesse, kBlockGroesse, kBlockGroesse};
+    for (const MarkenEingabe::Ent& e : ein.entitaeten) {
+        const bool funcGroup = e.klasse == "func_group";
+        EntBau ent;
+        ent.ursprung = vektorAus(e.ursprung);
+        for (const auto& seiten : e.pinsel) { pinselLesen(seiten, ein.ganzzahlig, e.welt, funcGroup, ent, ebenen, shader); }
+        for (const MarkenEingabe::Patch& pa : e.patches) {
+            PatchRoh r;
+            r.breite = pa.breite;
+            r.hoehe = pa.hoehe;
+            r.punkte = pa.punkte;
+            r.shader = pa.shader;
+            ent.patches.push_back(std::move(r));
+        }
         // ParseMapEntity: die Pinsel um den Ursprungs-Pinsel zurueck
         const V3f zurueck{-ent.ursprungsPinsel[0], -ent.ursprungsPinsel[1], -ent.ursprungsPinsel[2]};
         ursprungVerschieben(ent, zurueck, ebenen);
-        if (klasse == "group_info") { continue; }
-        if (istWelt) {
+        if (e.klasse == "group_info") { continue; }
+        if (e.welt) {
             welt.pinsel.splice(welt.pinsel.end(), ent.pinsel);
             welt.patches.insert(welt.patches.end(), ent.patches.begin(), ent.patches.end());
-            for (const char* key : {"_blocksize", "blocksize", "chopsize"}) {
-                const std::string v = e.wert(key);
-                if (v.empty()) { continue; }
-                const int s = std::sscanf(v.c_str(), "%d %d %d", &blockGroesse[0], &blockGroesse[1], &blockGroesse[2]);
-                if (s == 1 || s == 2) { blockGroesse[1] = blockGroesse[2] = blockGroesse[0]; }
-                break;
+            if (!e.blockGroesse.empty()) {
+                const int n = std::sscanf(e.blockGroesse.c_str(), "%d %d %d", &blockGroesse[0], &blockGroesse[1], &blockGroesse[2]);
+                if (n == 1 || n == 2) { blockGroesse[1] = blockGroesse[2] = blockGroesse[0]; }
             }
             continue;
         }
@@ -1753,12 +1796,12 @@ SpurWelt weltBauen(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWe
             continue;
         }
         // FloodEntities: Punkt-Entitaeten (Pinsel- und Patch-Entitaeten duerfen draussen sein)
-        if (ent.pinsel.empty() && ent.patches.empty() && klasse != "_decal") { bewohner.push_back(vektorAus(e.wert("origin"))); }
+        if (ent.pinsel.empty() && ent.patches.empty() && e.klasse != "_decal") { bewohner.push_back(vektorAus(e.ursprung)); }
     }
     // ProcessWorldModel: der erste Baum aus allen Strukturseiten
     Flut flut = Flut::Leer;
     FlaechenListe flaechen = strukturFlaechen(welt.pinsel);
-    Baum baum = baumMitFlut(flaechen, ebenen, blockGroesse, welt.pinsel, bewohner, flut);
+    Baum baum = baumMitFlut(flaechen, ebenen, blockGroesse, welt.pinsel, bewohner, flut, abbrechen);
     const Flut ersteFlut = flut;
     int verdeckt = 0;
     std::vector<Zeichenflaeche> zf;
@@ -1774,7 +1817,7 @@ SpurWelt weltBauen(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWe
     if (flut != Flut::Leer) {
         aussenFuellen_r(baum, baum.kopf);
         // ClipSidesIntoTree
-        seitenVerdecken(welt.pinsel, ebenen, shader);
+        seitenVerdecken(welt.pinsel, ebenen, shader, baum);
         for (SichtPinsel& b : welt.pinsel) {
             for (SichtSeite& s : b.seiten) {
                 if (s.wicklung.empty()) { continue; }
@@ -1807,25 +1850,21 @@ SpurWelt weltBauen(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWe
         }
         // der Baum aus den sichtbaren Seiten, noch einmal geflutet (wirft die Portale im Leeren weg)
         FlaechenListe sichtbar = sichtbareFlaechen(welt.pinsel);
-        baum = baumMitFlut(sichtbar, ebenen, blockGroesse, welt.pinsel, bewohner, flut);
+        baum = baumMitFlut(sichtbar, ebenen, blockGroesse, welt.pinsel, bewohner, flut, abbrechen);
         aussenFuellen_r(baum, baum.kopf);
     }
     // AddTriangleModels: misc_model ohne target in der Welt, ohne C_NODRAW-Flaechen
-    echtModellFlaechen(k, [&](const EchtModellFlaeche& f) {
-        if (!f.inWelt || f.ort.size() < 3) { return; }
-        const ShaderDaten& si = shader[static_cast<std::size_t>(shaderNr(f.shader))];
-        if ((si.flags.compile & C_NODRAW) != 0U) { return; }
+    for (const MarkenEingabe::Modell& m : ein.modelle) {
+        const ShaderDaten& si = shader[static_cast<std::size_t>(m.shader)];
+        if ((si.flags.compile & C_NODRAW) != 0U) { continue; }
         Zeichenflaeche z;
-        std::vector<std::array<float, 3>> punkte;
         std::vector<int> indizes;
-        for (std::size_t i = 0; i < f.ort.size(); ++i) {
-            punkte.push_back({f.ort[i][0], f.ort[i][1], f.ort[i][2]});
-            indizes.push_back(static_cast<int>(i));
-        }
-        z.dreiecke.assign(punkte.begin(), punkte.end());
-        z.spur = spurDreiecke(punkte, indizes, ausgenommen(si.flags));
+        for (std::size_t i = 0; i < m.dreiecke.size(); ++i) { indizes.push_back(static_cast<int>(i)); }
+        z.dreiecke.assign(m.dreiecke.begin(), m.dreiecke.end());
+        z.spur = spurDreiecke(m.dreiecke, indizes, ausgenommen(si.flags));
         zf.push_back(std::move(z));
-    });
+    }
+    if (baum.abgebrochen()) { return SpurWelt{}; }
     // FilterDrawsurfsIntoTree: nur, was ein offenes Blatt beruehrt, kommt in die .bsp
     Verweise v;
     v.jeKnoten.resize(baum.k.size());

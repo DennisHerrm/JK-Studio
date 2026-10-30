@@ -30,6 +30,8 @@
 #include "bhed/kollision.h"
 #include "bhed/saberspuren.h"
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -111,6 +113,43 @@ struct MarkenWeltBericht {
 // offenes Blatt beruehren (FilterPatchIntoTree, FilterTrianglesIntoTree). SURF_NOIMPACT,
 // SURF_NOMARKS und CONTENTS_FOG laesst R_BoxSurfaces_r liegen.
 [[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht = nullptr);
+
+// Dasselbe in zwei Teilen: markenEingabe schreibt im Hauptfaden ab, was der Bau aus der Karte liest
+// (was der Editor in die .map schriebe: Ebenenpunkte, Shader, Schluessel, Patches, die Dreiecke der
+// misc_model) - markenWeltBauen rechnet darauf in jedem Faden. *abbrechen true: so bald wie moeglich
+// aufhoeren (leere Welt).
+struct MarkenEingabe {
+    struct Seite {
+        std::array<std::array<double, 3>, 3> punkte{};   // die Ebenenpunkte des Editors
+        int shader = 0;                                  // Index in shader
+        std::uint32_t inhalt = 0;                        // Inhaltsflags der Seite (Detail-Bit)
+    };
+    struct Patch {
+        int breite = 0;
+        int hoehe = 0;
+        std::vector<std::array<float, 3>> punkte;
+        int shader = 0;
+    };
+    struct Ent {
+        std::string klasse;         // klein
+        std::string ursprung;       // "origin"
+        std::string blockGroesse;   // "_blocksize", "blocksize" oder "chopsize"
+        bool welt = false;
+        std::vector<std::vector<Seite>> pinsel;
+        std::vector<Patch> patches;
+    };
+    struct Modell {
+        int shader = 0;
+        std::vector<std::array<float, 3>> dreiecke;   // je drei Ecken, in der Welt
+    };
+    std::vector<Ent> entitaeten;
+    std::vector<Modell> modelle;
+    std::vector<Q3ShaderInfo> shader;
+    bool ja = true;
+    bool ganzzahlig = false;   // ebenenPunkteGanzzahlig()
+};
+[[nodiscard]] MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja);
+[[nodiscard]] SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht = nullptr, const std::atomic<bool>* abbrechen = nullptr);
 
 }  // namespace bhed::karte
 
