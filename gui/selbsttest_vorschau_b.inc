@@ -822,10 +822,13 @@ std::vector<Schritt> gluehenFigurSchritte() {
             }
             diag::detail("Knopftest: Gluehen Figur - Ort " + std::to_string(p[0]) + " " + std::to_string(p[1]) + " " +
                          std::to_string(p[2]) + " (Skript " + std::to_string(st.pos[1]) + ")");
-            g_app->cam.pos[0] = p[0];
-            g_app->cam.pos[1] = p[1] + 28.0F;
+            // Abschluss rc607: seit Zeitleiste 5 traegt sbd1 den Oberkoerper in TORSO_WEAPONREST2 (Beine
+            // BOTH_STAND1, wie PM_TorsoAnimation) - Kopf und Auge zeigen nach -x, nicht mehr nach +y.
+            // Die Kamera steht davor (vorher von +y: das Auge nur noch von der Seite, 0 rote Punkte).
+            g_app->cam.pos[0] = p[0] - 28.0F;
+            g_app->cam.pos[1] = p[1];
             g_app->cam.pos[2] = p[2] + 50.0F;
-            g_app->cam.angles[0] = 0.0F; g_app->cam.angles[1] = 270.0F; g_app->cam.angles[2] = 0.0F;
+            g_app->cam.angles[0] = 0.0F; g_app->cam.angles[1] = 0.0F; g_app->cam.angles[2] = 0.0F;
         }
         g_app->mapDirty = true;
     };

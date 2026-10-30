@@ -273,12 +273,16 @@ std::vector<Schritt> fortschritt() {
         const ImGuiContext& g = *GImGui;
         const ImGuiWindow* kind = g.OpenPopupStack.Size > 0 ? g.OpenPopupStack.back().Window : nullptr;
         if (w == nullptr || kind == nullptr || kind == w) { return false; }
-        char z[200];
-        std::snprintf(z, sizeof(z), "Knopftest: Stufe 8/1 Untermenue bei x %.0f, Spalte bis %.0f, Menue bis %.0f",
-                      static_cast<double>(kind->Pos.x), static_cast<double>(st->rect.Max.x), static_cast<double>(w->Pos.x + w->Size.x));
+        char z[260];
+        std::snprintf(z, sizeof(z), "Knopftest: Stufe 8/1 Untermenue %.0f..%.0f, Spalte %.0f..%.0f, Menue %.0f..%.0f",
+                      static_cast<double>(kind->Pos.x), static_cast<double>(kind->Pos.x + kind->Size.x), static_cast<double>(st->rect.Min.x),
+                      static_cast<double>(st->rect.Max.x), static_cast<double>(w->Pos.x), static_cast<double>(w->Pos.x + w->Size.x));
         diag::detail(z);
-        // PM_SubMenuOverlap -1 (Fusion): ein Punkt Ueberlappung, je nach Skalierung bis 2 Bildpunkte
-        return kind->Pos.x >= st->rect.Max.x - 3.0F && kind->Pos.x <= st->rect.Max.x + 1.0F;
+        // QMenu::internalDelayedPopup/popup: rechts neben der Spalte, passt es dort nicht auf den Bildschirm,
+        // links davon. PM_SubMenuOverlap -1 (Fusion): ein Punkt Ueberlappung, je nach Skalierung bis 2 Bildpunkte.
+        const bool rechts = kind->Pos.x >= st->rect.Max.x - 3.0F && kind->Pos.x <= st->rect.Max.x + 1.0F;
+        const bool links = kind->Pos.x + kind->Size.x <= st->rect.Min.x + 3.0F && kind->Pos.x + kind->Size.x >= st->rect.Min.x - 1.0F;
+        return rechts || links;
     }));
     add(klick(ke::trK(Str::KeFsMelden), "##Menu_", 0, false));
     add(pause(0.2));

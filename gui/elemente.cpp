@@ -224,6 +224,10 @@ const Element* finde(const std::string& label, const std::string& fenster, int n
             e.innen.find(fenster) == std::string::npos) {
             continue;
         }
+        // Abschluss rc607: Panels im DockSpace, ihre Reiter und Kindfenster tragen den Fensternamen
+        // ("Entities###dock.mission.ebenen/..."); ihr sichtbarer Text ist der Titel des Panels und
+        // verdeckte gleichnamige Knoepfe (die Seitenleiste der Karte). Sie findet nur der volle Name.
+        if (e.label.find("###dock.") != std::string::npos && label.find("###") == std::string::npos) { continue; }
         const std::string sicht = sichtbarerText(e.label.c_str());
         const bool passt = praefix ? (sicht.rfind(label, 0) == 0 || e.label.rfind(label, 0) == 0)
                                    : (e.label == label || sicht == label);
