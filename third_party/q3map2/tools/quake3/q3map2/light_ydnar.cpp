@@ -43,6 +43,9 @@
 #include <deque> /* BehavEd vis1 */
 #include <queue> /* BehavEd vis1 */
 #include <condition_variable> /* BehavEd vis1 */
+#include <functional> /* BehavEd vis2 */
+#include <set> /* BehavEd vis2 */
+#include <chrono> /* BehavEd vis2 */
 #include <mutex> /* BehavEd stage 8g */
 #include <array> /* BehavEd stage 8g */
 #include <limits> /* BehavEd stage 8g */
@@ -2668,16 +2671,95 @@ void IlluminateRawLightmap( int rawLightmapNum ){
 /* BehavEd vis1: the vertex lit surfaces biggest first (vertexes), as the raw lightmaps below - each
    surface with the generator of its own number (BhedPassSeed) */
 static std::vector<int> g_bhedFlaechenReihenfolge;
-static std::vector<char> g_bhedFlaechenVorab;   /* vis1: lit in advance with the pool */
-static thread_local bhed_par::Pool *t_bhedVertexPool = nullptr;   /* vis1: the pool for the vertexes of a big surface */
-static std::atomic<int> g_bhedVertexParallel{ 0 };                 /* vis1: surfaces whose vertexes ran on all threads */
+static std::atomic<int> g_bhedVertexParallel{ 0 };                 /* vis1: surfaces whose vertexes ran on several threads */
+
+/* BehavEd vis2: the vertexes of a vertex lit surface as shared work. The thread lighting a surface puts its
+   vertexes into a list; every thread without work of its own takes single vertexes from there (the help items
+   at the end of the pass, and an owner waiting for the last vertexes of its own surface). Before, a surface was
+   one work item: on duel_mos_espa a few patches took 10 s each on one thread (dark vertexes are nudged and lit
+   up to 125 times), and a bounce of IlluminateVertexes took 31-37 s for about 15 s of work on 32 threads; big
+   surfaces ran in advance with all threads, one after the other, while nothing else ran. Only surfaces whose
+   vertexes do not depend on each other (as before: every light has its style slot, no dirt with random
+   numbers) - each vertex gets the values of the serial loop, the average and the rest stay in vertex order. */
+struct BhedVertexArbeit
+{
+	std::function<void( int )> licht;   /* the light of vertex k (own trace, styles, colours) */
+	int anzahl = 0;
+	std::atomic<int> naechster{ 0 };    /* next vertex to take (taken under g_bhedVaMutex by the helpers) */
+	std::atomic<int> fertig{ 0 };       /* vertexes done */
+};
+static std::mutex g_bhedVaMutex;
+static std::condition_variable g_bhedVaCv;
+static std::vector<BhedVertexArbeit*> g_bhedVaListe;
+static std::atomic<int> g_bhedVaOffen{ 0 };   /* surfaces of the pass not finished yet */
+static bool g_bhedVaAn = false;               /* the threaded pass shares vertexes */
+/* one vertex of another thread's surface; false: there is none */
+static bool BhedVertexHelfen(){
+	BhedVertexArbeit *a = nullptr;
+	int k = 0;
+	{
+		std::lock_guard<std::mutex> sperre( g_bhedVaMutex );
+		for ( BhedVertexArbeit *x : g_bhedVaListe )
+		{
+			k = x->naechster.fetch_add( 1 );
+			if ( k < x->anzahl ) {
+				a = x;
+				break;
+			}
+		}
+	}
+	if ( a == nullptr ) {
+		return false;
+	}
+	a->licht( k );
+	++a->fertig;
+	return true;
+}
+/* the surface's own thread: publish, light vertexes until none is left, wait for the helpers */
+static void BhedVertexeTeilen( BhedVertexArbeit& a ){
+	{
+		std::lock_guard<std::mutex> sperre( g_bhedVaMutex );
+		g_bhedVaListe.push_back( &a );
+	}
+	g_bhedVaCv.notify_all();
+	for ( int k = a.naechster.fetch_add( 1 ); k < a.anzahl; k = a.naechster.fetch_add( 1 ) )
+	{
+		a.licht( k );
+		++a.fertig;
+	}
+	{
+		std::lock_guard<std::mutex> sperre( g_bhedVaMutex );
+		g_bhedVaListe.erase( std::find( g_bhedVaListe.begin(), g_bhedVaListe.end(), &a ) );
+	}
+	while ( a.fertig.load() < a.anzahl )
+	{
+		if ( !BhedVertexHelfen() ) {
+			std::this_thread::yield();
+		}
+	}
+}
 static void IlluminateVertexesGroesste( int k ){
-	const int num = g_bhedFlaechenReihenfolge[ k ];
-	if ( g_bhedFlaechenVorab[ num ] ) {
+	if ( k >= int( g_bhedFlaechenReihenfolge.size() ) ) {
+		/* a help item: vertexes of the others until every surface is done */
+		while ( true )
+		{
+			if ( BhedVertexHelfen() ) {
+				continue;
+			}
+			std::unique_lock<std::mutex> sperre( g_bhedVaMutex );
+			if ( g_bhedVaOffen.load() == 0 ) {
+				break;
+			}
+			g_bhedVaCv.wait_for( sperre, std::chrono::milliseconds( 1 ) );
+		}
 		return;
 	}
+	const int num = g_bhedFlaechenReihenfolge[ k ];
 	g_bhedRandomState = BhedPassSeed( num );
 	IlluminateVertexes( num );
+	if ( --g_bhedVaOffen == 0 ) {
+		g_bhedVaCv.notify_all();
+	}
 }
 /* BehavEd vis1: the light tree for the light lists while a threaded pass runs (BhedTraceLights) */
 static void BhedListenStart();
@@ -2701,41 +2783,15 @@ void BhedIlluminateVertexesAll(){
 	std::stable_sort( g_bhedFlaechenReihenfolge.begin(), g_bhedFlaechenReihenfolge.end(), []( int a, int b ){
 		return bspDrawSurfaces[ a ].numVerts > bspDrawSurfaces[ b ].numVerts;
 	} );
-	/* BehavEd vis1: a vertex lit surface with more vertexes than the share of one thread kept one thread busy
-	   at the end (duel_mos_espa, a bounce: 55 s for 710 thread seconds on 32 threads) - such surfaces first,
-	   each with its vertexes on all threads (IlluminateVertexes, VertexLicht), with the generator of their
-	   work item */
-	g_bhedFlaechenVorab.assign( bspDrawSurfaces.size(), 0 );
+	/* BehavEd vis2: the vertexes as shared work (BhedVertexArbeit); one help item per thread after the surfaces */
 	g_bhedVertexParallel = 0;
-	if ( numthreads > 1 ) {
-		long long verts = 0;   /* the vertexes of the vertex lit surfaces (the others are cheap) */
-		for ( size_t num = 0; num < bspDrawSurfaces.size(); ++num ) {
-			if ( surfaceInfos[ num ].lm == nullptr || cpmaHack ) {
-				verts += bspDrawSurfaces[ num ].numVerts;
-			}
-		}
-		const long long grenze = std::max<long long>( 64, verts / numthreads );
-		for ( const int num : g_bhedFlaechenReihenfolge )
-		{
-			if ( bspDrawSurfaces[ num ].numVerts <= grenze ) {
-				break;
-			}
-			if ( surfaceInfos[ num ].lm != nullptr && !cpmaHack ) {
-				continue;   /* vertex light from the lightmap: cheap */
-			}
-			g_bhedWorkRandom = true;
-			g_bhedRandomState = BhedNextPassSeed( num );
-			t_bhedVertexPool = &bhed_par::pool( numthreads );
-			IlluminateVertexes( num );
-			t_bhedVertexPool = nullptr;
-			g_bhedWorkRandom = false;
-			g_bhedFlaechenVorab[ num ] = 1;
-		}
-		if ( getenv( "BHED_Q3_ZEITEN" ) != nullptr ) { /* for the measurements: the path really ran */
-			Sys_Printf( "BHED-Vertex-Parallel: %d\n", g_bhedVertexParallel.load() );
-		}
+	g_bhedVaAn = numthreads > 1;
+	g_bhedVaOffen = int( bspDrawSurfaces.size() );
+	RunThreadsOnIndividual( int( bspDrawSurfaces.size() ) + ( g_bhedVaAn ? numthreads : 0 ), true, IlluminateVertexesGroesste );
+	g_bhedVaAn = false;
+	if ( numthreads > 1 && getenv( "BHED_Q3_ZEITEN" ) != nullptr ) { /* for the measurements: the path really ran */
+		Sys_Printf( "BHED-Vertex-Parallel: %d\n", g_bhedVertexParallel.load() );
 	}
-	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexesGroesste );
 }
 
 /* BehavEd vis1: the threaded pass hands out the raw lightmaps biggest first (luxels), so that the
@@ -4940,21 +4996,24 @@ void IlluminateVertexes( int num ){
 				}
 
 		};
-		/* BehavEd vis1: a big surface (BhedIlluminateVertexesAll hands over a pool): the vertexes on all threads
-		   first, the average and the rest in vertex order as always. Only when every light of the list already has
-		   its style slot (LightingAtSample sets slots in vertex order) and nothing draws random numbers (dirt) -
-		   then every vertex gets exactly the values of the loop. */
+		/* BehavEd vis1/vis2: the vertexes first, shared with the threads without work (BhedVertexeTeilen), the
+		   average and the rest in vertex order as always. Only when every light of the list already has its style
+		   slot (LightingAtSample sets slots in vertex order) and nothing draws random numbers (dirt) - then every
+		   vertex gets exactly the values of the loop. */
 		bool vorab = false;
-		if ( t_bhedVertexPool != nullptr && !( dirty && !bouncing ) && !debugSurfaces && !debugOrigin && !normalmap && !info.si->noVertexLight &&
+		if ( g_bhedVaAn && ds.numVerts > 1 && !( dirty && !bouncing ) && !debugSurfaces && !debugOrigin && !normalmap && !info.si->noVertexLight &&
 		     !( noVertexLighting > 0 ) && BhedStileFest( trace, ds.vertexStyles ) ) {
 			vorab = true;
 			++g_bhedVertexParallel;
-			t_bhedVertexPool->fuerAlle( ds.numVerts, [&]( int k ){
+			BhedVertexArbeit arbeit;
+			arbeit.anzahl = ds.numVerts;
+			arbeit.licht = [&]( int k ){
 				trace_t tr = trace;
 				Array4<byte> stile = ds.vertexStyles;
 				Array4<Vector3> farben;
 				vertexLicht( k, tr, stile, farben );
-			} );
+			};
+			BhedVertexeTeilen( arbeit );
 		}
 
 		/* walk the surface verts */
