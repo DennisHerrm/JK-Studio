@@ -439,6 +439,56 @@ Schlussrunde). Laeufe unter `Y:\mission_laeufe\zl3*`.
 - Naechster Schritt: `/y/zl3_hbvoll.sh de 2400`, dann zh-Hans, ja; danach
   Modus 1 (`/y/zl2_ende.sh` enthaelt ihn) und die uebrigen Modi.
 
+## Zeitleiste 4
+
+Auftrag `<SP>/auftrag_zeitleiste4.md`. Laeufe unter `Y:\mission_laeufe\zl4*`,
+voller Bildlauf jetzt `sh /y/zl4_hbvoll.sh <sprache> [sekunden]` (wie
+LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
+
+- **Punkt 1: die 66 Klickfehler des vollen Bildlaufs** (a501e946). Zwei
+  Ursachen, keine verlorenen Klicks unter Last:
+  - Im Programm: die Einstellungen sind bei Oberflaeche 1,3 (der Bildlauf
+    stellt sie ein) hoeher als das Fenster (1462 von 1472 px). ImGui schnitt
+    das ganze Fenster ab, Ok und Cancel lagen unter dem Rand (Cancel unten bei
+    1487); der Klick auf Cancel traf nichts, die Einstellungen blieben offen
+    und sperrten als Modal jeden weiteren Klick ("Fenster -", 62 von 62
+    Klicks bis zum Ende des Laufs). Jetzt rollt nur der Inhalt (Kind mit
+    Hoehenbegrenzung), Ok/Cancel bleiben stehen; das Fenster wird in den
+    ersten Bildern mittig gesetzt (das Kind misst sich ein Bild spaeter -
+    ohne das stand es an der Mitte der ersten, zu kleinen Hoehe und wuchs
+    nach unten aus dem Bild). Pruefung zeitleiste1 `BHED_ZL1_NUR=einstellungen`:
+    rot zl4p1rot (0 OK, 4 Fehler: Cancel nicht ganz sichtbar, Klick kam nicht
+    an, Einstellungen offen), gruen zl4p1gr (2/0).
+  - Im Test/Aufruf: zl2/zl3_hbvoll.sh setzten BHED_MISSION_ARCHIV/NAME nicht;
+    die Vorgabe war md_am_sith ohne Archiv - die Uebungsmission taspir_tut
+    entstand auf md_am_sith (BSP 16,6 MB statt taspir1 15,5 MB), die Raven's
+    Claw fehlte ("ROFF file nicht gefunden", Kyles Lauf ohne Dauer). Auch die
+    englischen Bilder aus 6055731a stammen von dieser falschen Karte (t3_4
+    ohne Schiff und Animationsfenster). Vorgabe jetzt taspir1 aus assets0.pk3
+    der Spielordner, LIESMICH angepasst, neues Skript /y/zl4_hbvoll.sh.
+  - Voller Lauf en danach: 0 Klickfehler, 0 FEHLER, in 7 min ganz durch
+    (zl4hb_en, 669 Fotos; vorher 66 Fehler und nach 35 min abgebrochen).
+- **Punkt 4: wait ( "name" )** (df3650ce). Geklaert an CTaskManager::Wait
+  (code/icarus/TaskManager.cpp, mdgit und OpenJK - OpenJK per GitHub
+  gelesen): wait mit einem Namen wartet auf die Taskgruppe dieses Namens
+  desselben Traegers, nicht auf das Ende einer Bewegung. Die Gruppe entsteht
+  beim Laden (CSequencer::Route -> ParseTask -> AddTaskGroup); vor dem ersten
+  do ist sie leer und gilt als fertig (CTaskGroup::Complete: m_numCompleted
+  == m_completedTasks.size()); ohne task des Namens liefert GetTaskGroup
+  NULL, completed bleibt false, der wait kommt jedes Bild wieder (PUSH_BACK):
+  ewig.
+  - Der Nachbau (ablauf.cpp) kannte das schon fuer do/wait, hing aber bei
+    wait vor dem ersten do: jetzt gruppeWarteFertig (eine Stelle fuer beide
+    Abfragen). ablauftest: rot 1 Fehler ("vor dem ersten do"), gruen.
+  - clock.cpp:132 (die Naeherung "bis zum Ende des eigenen Zugs") kam in der
+    Oberflaeche nie mehr an: Kamerabahn, Zeitleiste und Szene bekommen das
+    flache Skript des Ablaufs, in dem jedes Warten schon eine Zahl ist. Die
+    Naeherung ist weg (advance ohne ownEndMs, timeline.cpp ohne das nie
+    gesetzte lastEndMs, scene.cpp ohne eigene Rechnung), clock.h erklaert es.
+  - Die Erklaerung der Zeitleiste nannte wait ( "name" ) ein Warten auf ein
+    Signal (spuren.cpp) - jetzt wie dowait "wartet auf die Aufgabe".
+    spurentest: rot 1 (Art Signal), gruen.
+
 ## Changelog
 
 ## English
