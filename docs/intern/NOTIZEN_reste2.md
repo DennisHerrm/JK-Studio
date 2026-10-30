@@ -6,9 +6,10 @@ Skript `SP\rs2_lauf.sh`).
 
 ## Stand
 
-- Fertig: 1 (Stufe 8 "Notify when a build is done"), 3 (Absturz an der Leck-Linie), 4 (Decals wie im
-  Spiel).
-- In Arbeit: 2, 5-8.
+- Fertig (je rot/gruen, committet): 1 Build-Menue hoeher als der Bildschirm, 2 g_figurBilder, 3 Absturz an der
+  Leck-Linie, 4 Decals wie im Spiel, 5 Testdaten ausserhalb des Worktrees, 6 GPU-Tabelle in der Sprache des
+  Programms, 7 Foto modell_knochen und Menue-Figuren in modellleistung.
+- 8 Schlussrunde: siehe unten.
 
 ## 1. Stufe 8 allein: "Notify when a build is done"
 
