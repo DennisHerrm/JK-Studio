@@ -635,6 +635,45 @@ int Laufzeit::itemBei(int menu, float x, float y, const Umgebung& u) const {
     return -1;
 }
 
+std::vector<int> Laufzeit::tabReihenfolge(int menu) const {
+    std::vector<int> r;
+    if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return r; }
+    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+    Umgebung u;
+    fuelle(menu, u);
+    const int n = static_cast<int>(m.items.size());
+    auto kann = [&](int i) {   // Item_SetFocus: Pruefungen vor dem Setzen
+        const Item& it = m.items[static_cast<std::size_t>(i)];
+        const int flags = items[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)].flags;
+        if ((flags & WINDOW_DECORATION) != 0 || !itemSichtbar(it, flags, u)) { return false; }
+        if (d->dialekt == Dialekt::SP && (flags & WINDOW_INACTIVE) != 0) { return false; }
+        return !((it.cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) != 0 && !itemZeigtUeberCvar(it, CVAR_ENABLE, u));
+    };
+    int cursor = -1;
+    for (int schritt = 0; schritt <= n; ++schritt) {   // Menu_SetNextCursorItem
+        bool wrapped = false;
+        if (cursor == -1) {
+            cursor = 0;
+            wrapped = true;
+        }
+        int gefunden = -1;
+        while (cursor < n) {
+            ++cursor;
+            if (cursor >= n && !wrapped) {
+                wrapped = true;
+                cursor = 0;
+            }
+            if (cursor < n && kann(cursor)) {
+                gefunden = cursor;
+                break;
+            }
+        }
+        if (gefunden < 0 || std::find(r.begin(), r.end(), gefunden) != r.end()) { break; }
+        r.push_back(gefunden);
+    }
+    return r;
+}
+
 void Laufzeit::maus(int menu, float x, float y) {
     if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return; }
     Umgebung u;

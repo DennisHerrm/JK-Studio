@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 
 namespace bhed::untertitel {
@@ -248,13 +249,20 @@ std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& 
         static const std::string leer;
         return n < u.zeilen.size() ? u.zeilen[n] : leer;
     };
+    // cg.captionNextTextTime < cg.time: das Spiel blaettert im ersten
+    // Clientbild NACH captionNextTextTime und rechnet die naechste Seite ab
+    // dessen cg.time. Die Bilder liegen ab der Ankunft (cg.captionTextTime)
+    // alle kClientBildMs.
+    const auto erstesBildNach = [&u](double t) {
+        return u.startMs + (std::floor((t - u.startMs) / kClientBildMs) + 1.0) * kClientBildMs;
+    };
     std::size_t aktuell = 0;
-    double naechste = u.ersteSeiteBis;
-    while (naechste < ms) {   // cg.captionNextTextTime < cg.time
+    double wechsel = erstesBildNach(u.ersteSeiteBis);
+    while (wechsel <= ms) {
         aktuell += 2;
         if (aktuell >= u.zeilen.size()) { return {}; }
         const std::size_t halten = zeile(aktuell).size() + zeile(aktuell + 1).size();
-        naechste += static_cast<double>(halten) * static_cast<double>(u.buchstabenMs);
+        wechsel = erstesBildNach(wechsel + static_cast<double>(halten) * static_cast<double>(u.buchstabenMs));
     }
     const bool md = spiel == Spiel::MovieDuels;
     const float groesse = u.schriftGroesse;

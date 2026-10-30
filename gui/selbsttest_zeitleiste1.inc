@@ -651,6 +651,17 @@ std::vector<Schritt> jk2Schritte() {
         missionenAusArchiv(jk2 + "\\assets0.pk3");
     }));
     add(warteBis("zeitleiste1 JK2: kejim_post in der Auswahl", [] { return missionsliste::hat("kejim_post", true); }, 3500));
+    // Zeitleiste 3: die Auswahl geht oben auf - im vollen Lauf stand die Liste
+    // noch so weit gerollt wie bei md_am_sith (Movie Duels), kejim_post lag
+    // darueber, und waehleInListe rollt nur nach unten.
+    add(warteBis("zeitleiste1 JK2: die Missionsauswahl beginnt oben", [] {
+        for (const Element& e : g_elemente) {
+            if (e.fenster.find("##missionpick") == std::string::npos || e.innen == e.fenster) { continue; }
+            const ImGuiWindow* w = ImGui::FindWindowByName(e.innen.c_str());
+            return w != nullptr && w->Scroll.y == 0.0F;
+        }
+        return false;
+    }, 30));
     add(waehleInListe("kejim_post", false, 0, "##missionpick"));
     add(warteBis("zeitleiste1 JK2: kejim_post geladen, Regelwerk Jedi Outcast", [] {
         return g_app->map.path.find("kejim_post") != std::string::npos && regelwerkJediOutcast() && g_app->missionAktiv;
@@ -704,7 +715,7 @@ const char* const kUnterText1 =
     "This is our own subtitle for the preview: it is long enough to need more than one line on the screen, so the game "
     "breaks it into pages of two lines, each shown as long as its letters take. The letters share the length of the sound "
     "evenly, which is why a long sentence on a short sound flips its pages quickly, while a short one stays for the whole "
-    "sound. Movie Duels draws it at half size by default.";
+    "sound. Movie Duels draws it smaller by default.";
 const char* const kUnterText2 = "Second line, now in yellow.";
 
 std::string stummeWav(double sekunden) {
@@ -907,7 +918,11 @@ std::vector<Schritt> untertitelFoto(const std::string& szene) {
 }
 
 // Zeitleiste 2 Punkt 1: Aufnehmen. Eine Taste n Bilder lang halten (mit Umschalt: gehen).
-Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name) {
+// Zeitleiste 3: mit probenBis > 0 schon los, sobald so viele Proben (je >= 4
+// Einheiten) da sind - der Weg haengt dann nicht von der Bildzeit ab (unter
+// Last lief guard1 auf md_am_sith in 45 Bildern 443 statt 331 Einheiten weit,
+// hinter das Wegenetz: "finds no path", die Figur bleibt wie im Spiel stehen).
+Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name, int probenBis = 0) {
     return {"zeitleiste1 Aufnahme: " + name + " halten", [=](int b) {
                 ImGuiIO& io = ImGui::GetIO();
                 if (b == 0) {
@@ -915,7 +930,7 @@ Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string&
                     io.AddKeyEvent(taste, true);
                     return false;
                 }
-                if (b < bilder) { return false; }
+                if (b < bilder && (probenBis <= 0 || aufnahmeProben() < probenBis)) { return false; }
                 io.AddKeyEvent(taste, false);
                 if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
                 return b > bilder + 1;
@@ -948,7 +963,7 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     add(klick(tr(Str::AufKnopf), "", 0, true));
     add(pause(0.3));
     add(pruefe("zeitleiste1 Aufnahme " + wo + ": Aufnehmen startet die Steuerung", [] { return aufnahmeLaeuft(); }));
-    add(halteTaste(ImGuiKey_W, 45, false, "W"));
+    add(halteTaste(ImGuiKey_W, 45, false, "W", lFoermig ? 0 : 45));
     if (lFoermig) {
         add(halteTaste(ImGuiKey_D, 35, false, "D"));
         add(halteTaste(ImGuiKey_W, 35, true, "Umschalt+W"));
@@ -958,8 +973,49 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
                      std::to_string(aufnahmePunkte()) + " Laufziele");
         return aufnahmeProben() > 8 && aufnahmePunkte() >= (lFoermig ? 2 : 1);
     }));
-    // uebersetzung2: der Hinweis unten steht ganz in der Ansicht (lief in jeder Sprache rechts hinaus).
-    add(pruefe("zeitleiste1 Aufnahme " + wo + ": der Hinweis steht ganz in der Ansicht", [] { return aufnahmeHinweisGanz(); }));
+    // Zeitleiste 3: das Modell der Figur geht mit (vorher blieb es am Ort zur
+    // Startzeit stehen, nur der Umriss lief).
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": das Modell steht am gesteuerten Ort, nicht am Ort der Szene", [=] {
+        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->figurGezeichnet.size()) { return false; }
+        const auto& gez = g_app->figurGezeichnet[static_cast<std::size_t>(z->figur)];
+        const ActorState st = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(g_app->playMs);
+        const double weg = std::hypot(static_cast<double>(gez[0] - st.pos[0]), static_cast<double>(gez[1] - st.pos[1]));
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Modell gezeichnet " + std::to_string(weg) + " vom Ort der Szene");
+        return weg > 100.0;
+    }));
+    // Zeitleiste 3: der Hinweis steht ganz im sichtbaren Teil des Fensters, in
+    // dem er liegt, und kein Knopf liegt darueber (vorher begann er unter der
+    // Werkzeugleiste am linken Rand der Ansicht und war dort abgeschnitten).
+    add(pruefe("zeitleiste1 Aufnahme " + wo + ": der Hinweis steht ganz im Bild, frei von Knoepfen", [=] {
+        ImVec2 ha;
+        ImVec2 hb;
+        aufnahmeHinweis(ha, hb);
+        const ImVec2 mitte{(ha.x + hb.x) * 0.5F, (ha.y + hb.y) * 0.5F};
+        const ImGuiWindow* fenster = nullptr;
+        for (const ImGuiWindow* w : ImGui::GetCurrentContext()->Windows) {
+            if (!w->WasActive || w->Hidden || (w->Flags & (ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_Popup)) != 0) { continue; }
+            if (w->InnerRect.Contains(mitte)) { fenster = w; }
+        }
+        const ImRect hinweis(ha, hb);
+        const bool ganz = fenster != nullptr && hb.x > ha.x && fenster->InnerClipRect.Contains(hinweis);
+        std::string darunter;
+        for (const Element& e : g_elemente) {
+            if (e.rect.Overlaps(hinweis) && !e.rect.Contains(hinweis)) { darunter += " [" + e.label + "]"; }
+            // Die Platzierleiste steht je nach Hoehe der Ansicht verschieden hoch:
+            // ihre ganze Spalte bleibt frei.
+            if (e.innen.find("##platzieren") != std::string::npos && ha.x < e.rect.Max.x && hb.x > e.rect.Min.x) {
+                darunter += " [Spalte der Platzierleiste " + e.label + "]";
+                break;
+            }
+        }
+        diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - Hinweis " + std::to_string(ha.x) + ".." + std::to_string(hb.x) + " x " +
+                     std::to_string(ha.y) + ".." + std::to_string(hb.y) + ", Fenster " +
+                     (fenster != nullptr ? std::string(fenster->Name) + " " + std::to_string(fenster->InnerClipRect.Min.x) + ".." +
+                                               std::to_string(fenster->InnerClipRect.Max.x)
+                                         : std::string("-")) +
+                     ", darunter" + (darunter.empty() ? std::string(" nichts") : darunter));
+        return ganz && darunter.empty();
+    }));
     add(foto("zl2_aufnahme_" + wo));
     add(taste(ImGuiKey_Enter, "Enter"));
     add(pause(1.2));

@@ -2091,7 +2091,6 @@ struct App {
     // Fuer den Selbsttest: was in diesem Bild gezeichnet wurde.
     ImRect zlNavRect;
     ImRect zlSucheRect;                    // uebersetzung2: das Suchfeld der Zeitleiste
-    ImRect aufHinweisRect;                 // uebersetzung2: der Hinweis der Lauf-Aufnahme
     ImRect zlErklaerungRect;
     float zlErklaerungInhaltH = 0.0F;      // so hoch war der Inhalt des Kastens im letzten Bild
     std::string zlErklaerungTitel;
@@ -2609,6 +2608,8 @@ void aufnahmeKnopf();                                    // in der Transportleis
 void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern, Spur, Hinweis
 [[nodiscard]] int aufnahmeProben();                      // Selbsttest
 [[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
+void aufnahmeFigurZustand(int figur, double ms, ActorState& st);   // das Modell am gesteuerten Ort
+void aufnahmeHinweis(ImVec2& a, ImVec2& b);              // Selbsttest: Rechteck des Hinweises im letzten Bild
 float zeitleisteNamenBreite(float verfuegbar);
 void zeitleisteNavigation(float x0, float w, double gesamt);
 void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double sichtSpanne, double ablaufEnde, float hoehe);
@@ -2961,6 +2962,8 @@ ImGuiID dockraumHeim(const char* panel);
 bool dockraumDraussen(const char* panel);
 void dockraumHerausnehmen(const char* panel);
 void dockraumAndocken(const char* panel);
+// dock3: nach dem Laden einer Anordnung den Baum des Bereichs neu lesen.
+void dockraumNeuLesen(int bereich);
 
 // Kartendaten laden - aus einer Datei oder aus einem Archiv.
 void loadMap(const std::string& path);

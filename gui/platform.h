@@ -145,6 +145,9 @@ bool fensterSichtbar(void* fenster);
 bool fensterLage(void* fenster, int& x, int& y, int& b, int& h);
 bool fensterLageSetzen(void* fenster, int x, int y, int b, int h);
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
+// dock3, Selbsttest: eine Datei auf ein Windows-Fenster ablegen wie aus dem
+// Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
+bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
 
 // --- Karten-Editor, Textmasse wie Qt 5 (QWindowsFontEngine, GDI) ---------
 //

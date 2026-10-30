@@ -572,6 +572,39 @@ std::vector<Schritt> tourRegisterSchritte() {
     return s;
 }
 
+// reste1 Punkt 2: unter Last auf den Zustand warten statt eine feste Zeit. Ein Rechteck (Fenster,
+// Element) steht still, wenn es drei Bilder lang gleich ist; hoechstens `maxBilder` Bilder, ohne
+// eigenen Fehler (der Klick oder die Pruefung danach meldet).
+Schritt ruhigBis(const std::string& was, std::function<ImRect()> rechteck, int maxBilder = 600) {
+    auto merk = std::make_shared<std::pair<ImRect, int>>(ImRect{}, 0);
+    return {"Warte: " + was + " steht still", [=](int b) {
+                const ImRect r = rechteck();
+                const bool gleich = r.GetWidth() > 0.0F && r.Min.x == merk->first.Min.x && r.Min.y == merk->first.Min.y &&
+                                    r.Max.x == merk->first.Max.x && r.Max.y == merk->first.Max.y;
+                merk->second = gleich ? merk->second + 1 : 0;
+                merk->first = r;
+                if (merk->second >= 3) {
+                    diag::detail("Knopftest: " + was + " steht still nach " + std::to_string(b) + " Bildern");
+                    return true;
+                }
+                return b >= maxBilder;
+            }};
+}
+// Das Tutorial-Fenster: nach einem Schrittwechsel wird es neu gestellt und waechst ein Bild spaeter;
+// ein erledigter Schritt schaltet 0,6 s spaeter von selbst weiter (Ablauf::bild) - bis dahin steht
+// es nicht still (gesehen unter Last: "All tutorials" wanderte 46 Pixel, waehrend der Klick lief).
+Schritt tourRuhig() {
+    return ruhigBis("Tutorial-Fenster", [] {
+        ImGuiWindow* w = ImGui::FindWindowByName("###tour");
+        const TourSicht v = tourSicht();
+        return w != nullptr && (w->Active || w->WasActive) && !(v.aktiv && v.erfuellt) ? w->Rect() : ImRect{};
+    });
+}
+// Bis die Bedingung gilt, hoechstens 600 Bilder, ohne eigenen Fehler.
+Schritt tourBis(const std::string& was, std::function<bool()> bedingung) {
+    return {"Warte: " + was, [=](int b) { return bedingung() || b >= 600; }};
+}
+
 // =============================================================================
 // Paket tour (rc601): die Tutorials im Programm, mit echter Bedienung
 // =============================================================================
@@ -748,6 +781,7 @@ std::vector<Schritt> tourSchritte() {
         return v.ziele.size() == 1 && e != nullptr && gleich(v.ziele[0], sichtbar(e));
     }));
     gefiltertGleich("Schritt 2 (affect in der Ereignisliste)");
+    add(tourRuhig());
     add(klick(tr(Str::TourBack), "###tour"));
     add(pause(0.8));
     add(pruefe("Tour: Zurueck - wieder Schritt 1, er schaltet NICHT sofort wieder weiter (der Reiter ist schon leer)", [] {
@@ -757,8 +791,10 @@ std::vector<Schritt> tourSchritte() {
     add(pruefe("Tour: nach Zurueck steht Weiter statt Ueberspringen da", [] {
         return finde(tr(Str::TourNext), "###tour", 0, false) != nullptr && finde(tr(Str::TourSkip), "###tour", 0, false) == nullptr;
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourNext), "###tour"));
     add(pause(0.3));
+    add(tourRuhig());
     add(klick(tr(Str::TourShowMe), "###tour"));
     add(pause(0.2));
     add(pruefe("Tour: Zeig es mir - der Geisterzeiger laeuft, geklickt wird nichts", [] {
@@ -772,6 +808,7 @@ std::vector<Schritt> tourSchritte() {
          }});
     add(warteBis("Tour bei Schritt 3 (affect lange genug gezeigt)", [] { return tourSicht().schritt == 2; }, 4000));
     add(pause(0.2));
+    add(tourRuhig());
     add(klick(tr(Str::TourDoIt), "###tour"));
     add(warteBis("Tour bei Schritt 4 (Mach es hat affect eingefuegt)", [] { return tourSicht().schritt == 3; }, 4000));
     add(pause(0.3));
@@ -802,6 +839,7 @@ std::vector<Schritt> tourSchritte() {
     add(pruefe("Tour: das erste Feld von affect ist jetzt kyle", [] { return argText("affect", 0, 0) == "kyle"; }));
     // rc601 tour (Review): Ueberspringen aendert das Skript nicht mehr (es
     // setzte vorher ein wait ein) - das wait in den Block setzt "Mach es".
+    add(tourRuhig());
     add(klick(tr(Str::TourDoIt), "###tour"));
     add(warteBis("Tour bei Schritt 6 (Mach es hat wait eingefuegt)", [] { return tourSicht().schritt == 5; }, 4000));
     add(pruefe("Tour: Mach es - Schritt 6, und die Tour hat wait IN den affect-Block gesetzt", [] {
@@ -817,6 +855,7 @@ std::vector<Schritt> tourSchritte() {
     add(pruefe("Tour: Schritt 6 ist zum Ansehen - Weiter statt Ueberspringen", [] {
         return finde(tr(Str::TourNext), "###tour", 0, false) != nullptr && finde(tr(Str::TourSkip), "###tour", 0, false) == nullptr;
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourNext), "###tour"));
     add(pause(0.4));
     add(pruefe("Tour: Schritt 7 zeigt auf Save - ohne \"Mach es\" (Speichern oeffnet einen Dateidialog)", [=] {
@@ -826,6 +865,7 @@ std::vector<Schritt> tourSchritte() {
         return v.schritt == 6 && v.ziele.size() == 1 && sp != nullptr && gleich(v.ziele[0], sichtbar(sp)) &&
                finde(tr(Str::TourDoIt), "###tour", 0, false) == nullptr;
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(pause(0.3));
     add(pruefe("Tour: geschlossen - keine Hervorhebung, nichts mehr im Register angemeldet, Fortschritt 6/7 gemerkt", [] {
@@ -849,6 +889,7 @@ std::vector<Schritt> tourSchritte() {
                 }});
     add(pause(0.4));
     add(pruefe("Tour: Fortsetzen - wieder bei Schritt 7", [] { return tourSicht().aktiv && tourSicht().schritt == 6; }));
+    add(tourRuhig());
     add(klick(tr(Str::TourAllList), "###tour"));
     add(pause(0.3));
     // Die Suche im Handbuch (suche.js) im selben Fenster.
@@ -858,6 +899,7 @@ std::vector<Schritt> tourSchritte() {
     add(pruefe("Tour: die Suche im Handbuch findet Abschnitte zu affect", [] {
         return finde(tr(Str::TourSearchGuide), "###tour", 0, false) != nullptr;
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourSearchGuide), "###tour"));
     add(pause(0.2));
     add(pruefe("Tour: \"Im Handbuch oeffnen\" fragt die Seite an (im Selbsttest nur in der Statuszeile)", [] {
@@ -882,6 +924,7 @@ std::vector<Schritt> tourSchritte() {
     add(klickAn("Tour: Doppelklick auf wait (Ziel 2)", [=] { return zielMitte(1); }, 0, true));
     add(warteBis("Tour: k-befehl-einfuegen bei Schritt 2", [] { return tourSicht().schritt == 1; }, 4000));
     add(pruefe("Tour: der Doppelklick hat ein wait eingefuegt", [=] { return waitsUeberall() == *knotenVorher + 1; }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(pause(0.3));
 
@@ -927,6 +970,7 @@ std::vector<Schritt> tourSchritte() {
         const auto it = g_app->settings.tourStand.find("k-zeilen-ordnen");
         return tourSicht().fertig && !tourSicht().overlay && it != g_app->settings.tourStand.end() && it->second == "fertig";
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(pause(0.3));
 
@@ -949,6 +993,7 @@ std::vector<Schritt> tourSchritte() {
     }));
     add(klick(tr(Str::Compile), "###main"));
     add(warteBis("Tour: k-uebersetzen bei Schritt 2 (uebersetzt, gescheitert)", [] { return tourSicht().schritt == 1; }, 4000));
+    add(tourRuhig());
     add(klick(tr(Str::TourNext), "###tour"));
     add(pause(0.4));
     add(pruefe("Tour: Schritt 3 zeigt auf den Zaehler in der Statuszeile", [=] {
@@ -959,6 +1004,7 @@ std::vector<Schritt> tourSchritte() {
     add(klickAn("Tour: der hervorgehobene Zaehler", [=] { return zielMitte(0); }));
     add(warteBis("Tour: k-uebersetzen bei Schritt 4 (Meldungen offen)", [] { return tourSicht().schritt == 3; }, 4000));
     add(pruefe("Tour: das Meldungsfenster ist offen", [] { return g_app->messagesOpen; }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(tu("Tour: Meldungen zu", [] { g_app->messagesOpen = false; }));
     add(pause(0.3));
@@ -1068,6 +1114,10 @@ std::vector<Schritt> tourPruefungSchritte() {
         (void)tourStarten("k-werte-bearbeiten");
     }));
     add(pause(0.5));
+    add(ruhigBis("Tour-Pruefung: die set-Zeile", [] {
+        const Element* e = finde("set", "pane0", 0, false);
+        return e != nullptr ? e->rect : ImRect{};
+    }));
     add(klickAn("Tour-Pruefung: Doppelklick auf die set-Zeile (oeffnet den Editor)", [] {
         const Element* e = finde("set", "pane0", 0, false);
         return e != nullptr ? ImVec2{e->rect.Min.x + ImGui::GetFontSize() * 2.0F, e->rect.GetCenter().y} : ImVec2{-1.0F, -1.0F};
@@ -1083,8 +1133,9 @@ std::vector<Schritt> tourPruefungSchritte() {
         return g_app->editorOpen && t >= 0 && e >= 0 && t > e;
     }));
     for (int nach = 2; nach <= 6; ++nach) {
+        add(tourRuhig());
         add(klick(tr(Str::TourNext), "###tour"));
-        add(pause(0.25));
+        add(tourBis("Tour-Pruefung: Schritt " + std::to_string(nach + 1), [nach] { return tourSicht().schritt == nach; }));
         add(pruefe("Tour-Pruefung: \"Weiter\" mit offenem Editor - Schritt " + std::to_string(nach + 1), [nach] {
             return g_app->editorOpen && tourSicht().schritt == nach;
         }));
@@ -1095,12 +1146,14 @@ std::vector<Schritt> tourPruefungSchritte() {
         const Element* ok = finde(tr(Str::EditorOk), "###editor", 0, false);
         return v.schritt == 6 && v.ziele.size() == 2 && ok != nullptr && v.ziele[0].Contains(ok->rect.GetCenter());
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourDoIt), "###tour"));
     add(warteBis("Tour-Pruefung: \"Mach es\" schliesst den Editor - Tutorial fertig", [] { return tourSicht().fertig; }, 600));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: Editor zu und auch aus ImGuis Klappfenster-Stapel (kein Modal sperrt mehr die Maus)", [] {
         return !g_app->editorOpen && ImGui::GetTopMostPopupModal() == nullptr;
     }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: Schliessen kam an", [] { return !tourSicht().fensterOffen; }));
@@ -1120,6 +1173,7 @@ std::vector<Schritt> tourPruefungSchritte() {
     }));
     add(pause(0.5));
     add(tu("Tour-Pruefung: waits zaehlen", [=] { *zaehler = waitsUeberall(); }));
+    add(tourRuhig());
     add(klick(tr(Str::TourSkip), "###tour"));
     add(pause(0.4));
     add(pruefe("Tour-Pruefung: Ueberspringen bei k-befehl-einfuegen - Schritt 2, aber KEIN neues wait im Skript", [=] {
@@ -1128,6 +1182,7 @@ std::vector<Schritt> tourPruefungSchritte() {
         return tourSicht().schritt == 1 && waitsUeberall() == *zaehler;
     }));
     add(tu("Tour-Pruefung: waits zaehlen", [=] { *zaehler = waitsUeberall(); }));
+    add(tourRuhig());
     add(klick(tr(Str::TourDoIt), "###tour"));
     add(warteBis("Tour-Pruefung: \"Mach es\" erledigt Schritt 2", [] { return tourSicht().schritt == 2; }, 4000));
     add(pruefe("Tour-Pruefung: \"Mach es\" hat genau ein wait eingefuegt", [=] { return waitsUeberall() == *zaehler + 1; }));
@@ -1213,6 +1268,7 @@ std::vector<Schritt> tourPruefungSchritte() {
     }));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: die Tour schaltet auf Classic", [] { return g_app->settings.flussAnsicht == 0; }));
+    add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: nach Schliessen wieder Graph", [] {
@@ -1224,6 +1280,7 @@ std::vector<Schritt> tourPruefungSchritte() {
         (void)tourStarten("k-zeilen-ordnen");
     }));
     add(pause(0.3));
+    add(tourRuhig());
     add(klick(tr(Str::TourAllList), "###tour"));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: nach \"Alle Tutorials\" wieder Tracks", [] { return g_app->settings.flussAnsicht == 2; }));
@@ -1233,6 +1290,7 @@ std::vector<Schritt> tourPruefungSchritte() {
         (void)tourStarten("k-zeilen-ordnen", 4);
     }));
     add(pause(0.3));
+    add(tourRuhig());
     add(klick(tr(Str::TourSkip), "###tour"));
     add(pause(0.3));
     add(pruefe("Tour-Pruefung: Tour fertig (letzter Schritt uebersprungen) - wieder Graph", [] {

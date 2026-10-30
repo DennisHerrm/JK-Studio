@@ -109,6 +109,41 @@ std::vector<std::string> skriptWoerter(const std::string& s) {
 }
 }  // namespace
 
+int skriptLaenge(const Eigenschaft& e) {
+    if (e.args.empty() || e.args.front().s != "{") { return -1; }
+    // PC_Script_Parse: je Wort + " ", Woerter laenger als 1 in "" (Q_strcat bis zur Grenze)
+    std::size_t n = 0;
+    for (std::size_t i = 1; i + 1 < e.args.size(); ++i) { n += e.args[i].s.size() + (e.args[i].s.size() > 1 ? 2 : 0) + 1; }
+    return static_cast<int>(n);
+}
+
+Auslastung auslastung(const Datei& d, int menu) {
+    Auslastung a;
+    a.g = grenzenFuer(d.dialekt, d.spiel);
+    a.menus = static_cast<int>(d.menus.size());
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return a; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    a.items = static_cast<int>(m.items.size());
+    auto skripte = [&](const std::string& wer, const std::vector<Eigenschaft>& eig) {
+        for (const Eigenschaft& e : eig) {
+            const int n = skriptLaenge(e);
+            if (n > a.skript) {
+                a.skript = n;
+                a.skriptWo = wer.empty() ? e.schluessel : wer + ": " + e.schluessel;
+            }
+        }
+    };
+    skripte({}, m.eigenschaften);
+    for (const Item& it : m.items) {
+        skripte(it.window.name, it.eigenschaften);
+        if (static_cast<int>(it.cvarList.size()) > a.multi) {
+            a.multi = static_cast<int>(it.cvarList.size());
+            a.multiWo = it.window.name;
+        }
+    }
+    return a;
+}
+
 Grenzen grenzenFuer(Dialekt d, Spiel s) {
     if (d == Dialekt::MP) { return Grenzen{512, 128, 2048, 64, 10, 16}; }   // codemp/ui/ui_shared.h, PC_Script_Parse 2048
     if (s == Spiel::MD) { return Grenzen{4096, 256, 4096, 128, 10, 16}; }   // Movie Duels code/ui/ui_shared.h
@@ -185,11 +220,8 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
         }
         auto skript = [&](int item, const std::vector<Eigenschaft>& eig) {
             for (const Eigenschaft& e : eig) {
-                if (e.args.empty() || e.args.front().s != "{") { continue; }
-                // PC_Script_Parse: je Wort + " ", Woerter laenger als 1 in "" (Q_strcat bis zur Grenze)
-                std::size_t n = 0;
-                for (std::size_t i = 1; i + 1 < e.args.size(); ++i) { n += e.args[i].s.size() + (e.args[i].s.size() > 1 ? 2 : 0) + 1; }
-                if (static_cast<int>(n) >= g.skript) { melde(BefundArt::SkriptZuLang, mn, item, static_cast<int>(n), g.skript, e.schluessel, {}, true); }
+                const int n = skriptLaenge(e);
+                if (n >= g.skript) { melde(BefundArt::SkriptZuLang, mn, item, n, g.skript, e.schluessel, {}, true); }
             }
         };
         skript(-1, m.eigenschaften);

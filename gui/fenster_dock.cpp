@@ -255,6 +255,21 @@ bool versteckt(const char* id) {
 
 bool zuhause(const char* id) { return !draussen(id) && !versteckt(id); }
 
+bool listeDraussen(int bereich) {
+    return bereich >= 0 && bereich < kBereiche && !z().jetzt[static_cast<std::size_t>(bereich)].draussen.empty();
+}
+
+bool inListeDraussen(const char* id) {
+    const fenster::Anordnung* a = anordnungVon(id);
+    return a != nullptr && fenster::enthaelt(a->draussen, id);
+}
+
+void listeLeeren(int bereich) {
+    if (bereich < 0 || bereich >= kBereiche) { return; }
+    z().jetzt[static_cast<std::size_t>(bereich)].draussen.clear();
+    z().merken = true;
+}
+
 void herausnehmen(const char* id) {
     if (imDockraum(id)) {
         dockraumHerausnehmen(id);
@@ -377,6 +392,9 @@ void vorBild() {
         fenster::Anordnung& a = s.jetzt[static_cast<std::size_t>(s.ladenBereich)];
         a.draussen = s.ladenAnordnung.draussen;
         a.versteckt = s.ladenAnordnung.versteckt;
+        // dock3: den geladenen Baum des Bereichs neu lesen (Knotennummern
+        // koennen neu vergeben sein) - oder aus einer dock1-Anordnung aufbauen.
+        if (dockraumAn()) { dockraumNeuLesen(s.ladenBereich); }
     }
     s.ladenBereich = -1;
     s.merken = true;

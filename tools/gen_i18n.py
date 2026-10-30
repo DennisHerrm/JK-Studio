@@ -423,7 +423,6 @@ S = [
     ("CamPilotKeyHint", "Writes the flown view as a camera key at the playhead. In the middle of a move a new key is created there; otherwise the key at that time is changed. Move the timeline and keep flying.", "Schreibt die geflogene Ansicht als Kameraschlüssel zur eingestellten Zeit. Mitten in einer Fahrt entsteht dort ein neuer Schlüssel, sonst wird der Schlüssel dieser Zeit geändert. Zeitleiste verschieben und weiterfliegen.", "将当前飞行视角写入播放头处的摄像机关键帧。在移动中途会在该处新建关键帧,否则修改该时间的关键帧。移动时间轴后继续飞行。", "飛行中のビューを再生位置のカメラキーとして書き込みます。移動の途中なら新しいキーを作成し、そうでなければその時間のキーを変更します。タイムラインを動かして飛行を続けられます。"),
     ("CamPilotKeySet", "Camera key set at %.2f s", "Kameraschlüssel bei %.2f s gesetzt", "已在 %.2f 秒设置摄像机关键帧", "%.2f 秒にカメラキーを設定しました"),
     ("CamAutoKey", "Insert camera key", "Kameraschlüssel einfügen", "插入摄像机关键帧", "カメラキーを挿入"),
-    ("TlKamera", "Camera", "Kamera", "摄像机", "カメラ"),
     ("TlAufklappen", "Click the arrow to expand or collapse", "Pfeil anklicken klappt auf oder zu", "点击箭头展开或折叠", "矢印をクリックで展開/折りたたみ"),
     ("BahnRueckwaerts", "Walk backwards (keeps looking back)", "Rückwärts laufen (schaut zurück)", "倒退行走(保持向后看)", "後ろ向きに歩く(後ろを見たまま)"),
     ("BahnAnsehen", "Look at while walking", "Dabei ansehen", "行走时注视", "歩きながら見る"),
@@ -2200,6 +2199,8 @@ from i18n_menue5 import MENUE5  # noqa: E402  (Menue-Editor M5)
 S += MENUE5
 from i18n_dock1 import DOCK1  # noqa: E402  (dock1: Fenster frei anordnen, mehrere Bildschirme)
 S += DOCK1
+from i18n_menue6 import MENUE6  # noqa: E402  (Menue-Editor M6)
+S += MENUE6
 from i18n_uebersetzung2 import UEBERSETZUNG2  # noqa: E402  (uebersetzung2: zwei feste Texte uebersetzt)
 S += UEBERSETZUNG2
 

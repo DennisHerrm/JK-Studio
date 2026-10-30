@@ -19,6 +19,12 @@
 //   - Bildzeit mit 1 und 3 Fenstern (Viewports).
 // Das Hauptfenster wird dafuer verkleinert und verschoben (ImGuis Ursprung ist
 // dann nicht mehr 0,0) und am Ende zurueckgesetzt.
+// dock3: mit dem durchgehenden DockSpace (dockraumAn, Events/Mission/Model)
+// dieselben Schritte; wo sich die Bedeutung aendert, prueft der Test die
+// DockSpace-Fassung: "in eigenem Fenster" = nicht im DockSpace des
+// Hauptfensters angedockt; Andocken durch Ziehen = als Reiter auf ein anderes
+// Panel im Hauptfenster; Neustart bringt auch den Baum im Hauptfenster zurueck;
+// eine Anordnung aus dock1 wird uebernommen (dock1neustart).
 namespace dock1 {
 
 // Vorgetaeuschte Bildschirme und Massstab (vor ImGui::NewFrame, dock1VorBild).
@@ -72,9 +78,24 @@ ImGuiWindow* panelFenster(const char* panel) {
 
 // Gezeichnet (Begin) im letzten Bild - auch als verdeckter Reiter eines
 // Dock-Knotens.
+// dock3: im DockSpace ist jedes Panel gezeichnet - "aktiv" heisst dort: in
+// einem eigenen Fenster (nicht im DockSpace des Hauptfensters).
+bool imDockraum(const char* panel) {
+    const dock::Panel* p = dock::panel(panel);
+    return dockraumAn() && p != nullptr && p->bereich <= 2;
+}
+
 bool aktiv(const char* panel) {
     const ImGuiWindow* w = panelFenster(panel);
-    return w != nullptr && w->WasActive;
+    return w != nullptr && w->WasActive && (!imDockraum(panel) || dock::draussen(panel));
+}
+
+// Zwei Panels als Reiter in einem Knoten des DockSpace im Hauptfenster.
+bool reiterImHauptfenster(const char* a, const char* b) {
+    const ImGuiWindow* wa = panelFenster(a);
+    const ImGuiWindow* wb = panelFenster(b);
+    return wa != nullptr && wb != nullptr && wa->DockNode != nullptr && wa->DockNode == wb->DockNode && !dock::draussen(a) &&
+           !dock::draussen(b);
 }
 
 // Hat das Fenster ein eigenes Windows-Fenster (nicht das Hauptfenster)?
@@ -561,6 +582,9 @@ std::vector<Schritt> dock1Schritte() {
                  ImVec2 z;
                  dock::zielPlatz("mission.ebenen", a, z);
                  nach = ImVec2{(a.x + z.x) * 0.5F, (a.y + z.y) * 0.5F};
+                 // dock3: im DockSpace auf die Mitte der Missionsansicht - ImGuis
+                 // Ziel "als Reiter" (an jede Stelle des Hauptfensters).
+                 if (dock1::imDockraum("mission.ebenen")) { nach = dock1::rect("mission.ansicht").GetCenter(); }
                  setzeMaus(von);
                  return false;
              }
@@ -574,6 +598,13 @@ std::vector<Schritt> dock1Schritte() {
              return b >= 34;
          }});
     add(warteBis("dock1: Ebenenliste durch Ziehen wieder angedockt", [] { return dock::zuhause("mission.ebenen"); }, 60));
+    if (dockraumAn()) {
+        add(pruefe("dock1: DockSpace - Ebenenliste als Reiter neben der Missionsansicht im Hauptfenster",
+                   [] { return dock1::reiterImHauptfenster("mission.ebenen", "mission.ansicht") && !dockraumStandard(1); }));
+        menueKlick(tr(Str::DockReset));
+        add(stabil("dock1: DockSpace - Mission zurueckgesetzt", 20));
+        add(pruefe("dock1: DockSpace - zurueckgesetzt = Standardanordnung", [] { return dockraumStandard(1); }));
+    }
 
     // --- 7. Fehlerfaelle: Bildschirm fehlt, zu klein, anderer Massstab -------------
     menueKlick(fensterEintrag(Str::DockPanelTimeline, "mission.zeitleiste"));
@@ -876,6 +907,25 @@ std::vector<Schritt> dock1Schritte() {
                      std::to_string(static_cast<int>(z.x - a.x)));
         return dock::draussen("menue.flaeche") && z.x - a.x > *reiterB + 100.0F;
     }));
+    // dock3: Dateien auch auf ein eigenes Fenster ziehen - eine .menu-Datei auf
+    // das Windows-Fenster der Flaeche abgelegt, oeffnet der Menue-Editor.
+    auto dokumente = std::make_shared<int>(0);
+    add(tu("dock1: eine .menu-Datei auf das eigene Fenster der Flaeche ablegen", [dokumente] {
+        *dokumente = menueeditor::stand().dokumente;
+        const std::string pfad = platform::executableDirectory() + "\\dock3ablage.menu";
+        {
+            std::ofstream o(::bhed::utf8Pfad(pfad));
+            o << "menuDef\n{\n  name \"dock3ablage\"\n  rect 0 0 640 480\n}\n";
+        }
+        const ImGuiWindow* w = dock1::panelFenster("menue.flaeche");
+        const bool gesendet = w != nullptr && w->Viewport != nullptr && w->Viewport != ImGui::GetMainViewport() &&
+                              platform::dateiAblegen(w->Viewport->PlatformHandle, pfad, static_cast<int>(w->Viewport->Size.x * 0.5F),
+                                                     static_cast<int>(w->Viewport->Size.y * 0.5F));
+        diag::detail(std::string("Knopftest: dock1 Datei auf das eigene Fenster abgelegt: ") + (gesendet ? "ja" : "nein"));
+    }));
+    add(warteBis("dock1: abgelegte Datei im Menue-Editor geoeffnet",
+                 [dokumente] { return menueeditor::stand().dokumente == *dokumente + 1 && menueeditor::laufInfo().find("dock3ablage") != std::string::npos; },
+                 60));
     add(dock1::schliessknopf("menue.flaeche"));
     add(warteBis("dock1: Schliessknopf - Flaeche wieder im Hauptfenster", [] { return dock::zuhause("menue.flaeche"); }, 60));
     add(tu("dock1: Events", [] { g_app->leftMode = 0; }));
@@ -883,6 +933,12 @@ std::vector<Schritt> dock1Schritte() {
     menueKlick(zeigenEintrag(Str::GroupActions, "ereignisse.aktionen"));
     add(stabil("dock1: Actions ausgeblendet", 20));
     add(pruefe("dock1: Actions ausgeblendet - zwei Spalten, kein Fenster", [] {
+        if (dockraumAn()) {   // dock3: der Knoten bleibt leer, Script Flow reicht bis an den rechten Rand
+            const ImGuiViewport* vp = ImGui::GetMainViewport();
+            const ImGuiWindow* a = dock1::panelFenster("ereignisse.aktionen");
+            return dock::versteckt("ereignisse.aktionen") && (a == nullptr || !a->WasActive) &&
+                   dock1::rect("ereignisse.fluss").Max.x > vp->Pos.x + vp->Size.x - ImGui::GetFontSize() * 2.0F;
+        }
         return dock::versteckt("ereignisse.aktionen") && !dock1::aktiv("ereignisse.aktionen") && g_app->spaltenB[2] == 0.0F;
     }));
     menueKlick(fensterEintrag(Str::GroupEvents, "ereignisse.liste"));
@@ -930,6 +986,17 @@ std::vector<Schritt> dock1Schritte() {
                                [] { return dock1::rect("mission.zeitleiste").GetCenter(); }));
     add(dock1::loslassen("dock1: loslassen"));
     add(stabil("dock1: zusammengesetzt fuer den Neustart", 20));
+    if (dockraumAn()) {   // dock3: auch der Baum im Hauptfenster kommt in die Einstellungen
+        add(tu("dock1: DockSpace - Ebenenliste heraus (fuer den Neustart)", [] { dock::herausnehmen("mission.ebenen"); }));
+        add(warteBis("dock1: DockSpace - Ebenenliste draussen", [] { return dock1::aktiv("mission.ebenen"); }, 60));
+        add(stabil("dock1: DockSpace - Ebenenliste schwebt", 10));
+        add(dock1::ziehenUndHalten("dock1: DockSpace - Ebenenliste als Reiter auf die Missionsansicht (fuer den Neustart)",
+                                   [] { return dock1::titel("mission.ebenen"); }, [] { return dock1::rect("mission.ansicht").GetCenter(); }));
+        add(dock1::loslassen("dock1: loslassen"));
+        add(stabil("dock1: Reiter im Hauptfenster fuer den Neustart", 20));
+        add(pruefe("dock1: DockSpace - Ebenenliste und Missionsansicht ein Knoten im Hauptfenster",
+                   [] { return dock1::reiterImHauptfenster("mission.ebenen", "mission.ansicht"); }));
+    }
     add(tu("dock1: Erwartung fuer dock1neustart schreiben", [] {
         dock::jetztMerken();
         const ImRect r = dock1::rect("mission.zeitleiste");
@@ -969,10 +1036,41 @@ std::vector<Schritt> dock1NeustartSchritte() {
     }));
     add(pruefe("dock1neustart: gespeicherte Anordnung \"Zwei Bildschirme\" noch da",
                [] { return dock::gespeicherte(1) == std::vector<std::string>{"Zwei Bildschirme"}; }));
+    if (dockraumAn()) {
+        add(pruefe("dock1neustart: DockSpace - Ebenenliste wieder als Reiter neben der Missionsansicht im Hauptfenster",
+                   [] { return dock1::reiterImHauptfenster("mission.ebenen", "mission.ansicht"); }));
+        // Eine Anordnung aus dock1 (Liste "in eigenem Fenster", Fensterlage, kein
+        // Baum): die Leiste des Model-Tabs schwebt an ihrer Stelle, die uebrigen
+        // Panels stehen in der Standardanordnung, die Liste ist danach leer.
+        add(tu("dock1neustart: DockSpace - Anordnung aus dock1 fuer Model laden", [] {
+            fenster::Anordnung alt;
+            alt.draussen = {"modell.leiste"};
+            alt.ini = "[Window][dock.modell.leiste]\nPos=300,200\nSize=800,150\nCollapsed=0\n\n";
+            g_app->settings.fenster[fenster::schluesselBenannt(2, "dock1")] = fenster::kodieren(alt);
+            (void)dock::laden(2, "dock1");
+            g_app->leftMode = 2;
+        }));
+        add(stabil("dock1neustart: Model", 30));
+        add(pruefe("dock1neustart: DockSpace - dock1-Anordnung uebernommen: Leiste schwebt an ihrer Stelle, Liste leer", [] {
+            const ImRect r = dock1::rect("modell.leiste");
+            const ImVec2 o = ImGui::GetMainViewport()->Pos;
+            diag::detail("Knopftest: dock1neustart: Leiste " + dock1::rechteck(r) + " (Hauptfenster bei " + std::to_string(static_cast<int>(o.x)) +
+                         "," + std::to_string(static_cast<int>(o.y)) + ")");
+            return dock::draussen("modell.leiste") && dock1::aktiv("modell.leiste") && std::fabs(r.Min.x - 300.0F) <= 1.0F &&
+                   std::fabs(r.Min.y - 200.0F) <= 1.0F && std::fabs(r.GetWidth() - 800.0F) <= 1.0F && !dock::listeDraussen(2) &&
+                   !dock::draussen("modell.ansicht") && !dock::draussen("modell.fluss");
+        }));
+        add(tu("dock1neustart: Model zuruecksetzen", [] { dock::zuruecksetzen(2); }));
+        add(stabil("dock1neustart: Model zurueckgesetzt", 20));
+        add(pruefe("dock1neustart: DockSpace - Model = Standardanordnung", [] { return dockraumStandard(2) && !dock1::aktiv("modell.leiste"); }));
+        add(tu("dock1neustart: Mission", [] { g_app->leftMode = 1; }));
+        add(stabil("dock1neustart: Mission wieder", 20));
+    }
     add(tu("dock1neustart: zuruecksetzen", [] { dock::zuruecksetzen(1); }));
     add(stabil("dock1neustart: zurueckgesetzt", 20));
     add(pruefe("dock1neustart: zurueckgesetzt - Band wieder da, keine Panelfenster", [] {
-        return g_app->lastLayoutLog.toolH > 0 && !dock1::aktiv("mission.zeitleiste") && !dock1::aktiv("mission.fluss");
+        return g_app->lastLayoutLog.toolH > 0 && !dock1::aktiv("mission.zeitleiste") && !dock1::aktiv("mission.fluss") &&
+               (!dockraumAn() || dockraumStandard(1));
     }));
     return s;
 }

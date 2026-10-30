@@ -231,6 +231,27 @@ bool anLaufendeWeitergeben(const std::wstring& name, const std::string& datei) {
 HANDLE g_einzelMutex = nullptr;
 ATOM g_einzelAtom = 0;
 
+// Abgelegte Dateien (WM_DROPFILES) an das Programm - vom Hauptfenster und von
+// eigenen Fenstern (dock3), mit der Stelle in ImGuis Punkten.
+void dateienAusDrop(HWND hwnd, HDROP d) {
+    POINT pt{};
+    DragQueryPoint(d, &pt);
+    // dock1: ImGui rechnet mit eigenen Fenstern in Bildschirmpunkten.
+    if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0) { ClientToScreen(hwnd, &pt); }
+    const UINT n = DragQueryFileW(d, 0xFFFFFFFF, nullptr, 0);
+    for (UINT i = 0; i < n; ++i) {
+        const UINT len = DragQueryFileW(d, i, nullptr, 0);
+        std::wstring w(len + 1, L'\0');
+        DragQueryFileW(d, i, w.data(), len + 1);
+        w.resize(len);
+        const int m = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
+        std::string u(static_cast<std::size_t>(m > 0 ? m : 0), '\0');
+        if (m > 0) { WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), u.data(), m, nullptr, nullptr); }
+        bhed::gui::dateiAbgelegt(u, static_cast<float>(pt.x), static_cast<float>(pt.y));
+    }
+    DragFinish(d);
+}
+
 LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     // Im Selbsttest die Fokusmeldungen NICHT an ImGui: ein kurzer
     // Fokusaussetzer (Fenster im Hintergrund, Klick woanders) setzt dort die
@@ -244,26 +265,9 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 1;
     }
     switch (msg) {
-        case WM_DROPFILES: {   // Stufe 9 Punkt 3: Modelle in den Karten-Editor ziehen
-            HDROP d = reinterpret_cast<HDROP>(wParam);
-            POINT pt{};
-            DragQueryPoint(d, &pt);
-            // dock1: ImGui rechnet mit eigenen Fenstern in Bildschirmpunkten.
-            if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0) { ClientToScreen(hwnd, &pt); }
-            const UINT n = DragQueryFileW(d, 0xFFFFFFFF, nullptr, 0);
-            for (UINT i = 0; i < n; ++i) {
-                const UINT len = DragQueryFileW(d, i, nullptr, 0);
-                std::wstring w(len + 1, L'\0');
-                DragQueryFileW(d, i, w.data(), len + 1);
-                w.resize(len);
-                const int m = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
-                std::string u(static_cast<std::size_t>(m > 0 ? m : 0), '\0');
-                if (m > 0) { WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()), u.data(), m, nullptr, nullptr); }
-                bhed::gui::dateiAbgelegt(u, static_cast<float>(pt.x), static_cast<float>(pt.y));
-            }
-            DragFinish(d);
+        case WM_DROPFILES:   // Stufe 9 Punkt 3: Modelle in den Karten-Editor ziehen
+            dateienAusDrop(hwnd, reinterpret_cast<HDROP>(wParam));
             return 0;
-        }
         case WM_COPYDATA: {
             // Von einer zweiten Instanz: die Datei hier oeffnen.
             const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
@@ -742,6 +746,30 @@ void zeigenImSelbsttest(ImGuiViewport* v) {
 
 void fokusImSelbsttest(ImGuiViewport*) {}
 
+// dock3: Dateien auch auf eigene Fenster ziehen. ImGuis Fensterklasse der
+// eigenen Fenster kennt WM_DROPFILES nicht: jedes neue eigene Fenster nimmt
+// Dateien an und bekommt eine Fensterprozedur davor, die sie wie das
+// Hauptfenster weitergibt (alles andere geht an ImGuis Prozedur).
+void (*g_anlegenOriginal)(ImGuiViewport*) = nullptr;
+WNDPROC g_eigenesFensterProc = nullptr;
+
+LRESULT WINAPI eigenesFensterProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_DROPFILES) {
+        dateienAusDrop(hwnd, reinterpret_cast<HDROP>(wParam));
+        return 0;
+    }
+    return CallWindowProcW(g_eigenesFensterProc, hwnd, msg, wParam, lParam);
+}
+
+void eigenesFensterAnlegen(ImGuiViewport* v) {
+    g_anlegenOriginal(v);
+    HWND h = static_cast<HWND>(v->PlatformHandle);
+    if (h == nullptr) { return; }
+    DragAcceptFiles(h, TRUE);
+    const auto alt = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(h, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(eigenesFensterProc)));
+    if (g_eigenesFensterProc == nullptr) { g_eigenesFensterProc = alt; }
+}
+
 void imguiWin32Starten(HWND hwnd) {
     if (bhed::render::current() == bhed::render::Backend::OpenGL3) {
         ImGui_ImplWin32_InitForOpenGL(hwnd);
@@ -749,8 +777,10 @@ void imguiWin32Starten(HWND hwnd) {
         ImGui_ImplWin32_Init(hwnd);
     }
     bhed::render::plattformHakenSetzen();
+    ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    g_anlegenOriginal = pio.Platform_CreateWindow;
+    pio.Platform_CreateWindow = eigenesFensterAnlegen;
     if (std::getenv("BHED_EDITORTEST") != nullptr) {
-        ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
         g_zeigenOriginal = pio.Platform_ShowWindow;
         pio.Platform_ShowWindow = zeigenImSelbsttest;
         pio.Platform_SetWindowFocus = fokusImSelbsttest;

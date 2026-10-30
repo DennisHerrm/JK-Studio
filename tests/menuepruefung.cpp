@@ -68,6 +68,10 @@ int main() {
         const Datei sp = lese(t, Dialekt::SP, Spiel::JA);
         pruefe(zaehle(pruefeFuerSpiel(mp, PruefKontext{}), BefundArt::SkriptZuLang) == 1, "Grenze: Skript ueber 2048 Zeichen in MP");
         pruefe(zaehle(pruefeFuerSpiel(sp, PruefKontext{}), BefundArt::SkriptZuLang) == 0, "Grenze: dasselbe Skript in SP (4096)");
+        // M6 Punkt 10: Live-Auslastung mit derselben Laenge wie die Pruefung
+        const Auslastung a = auslastung(mp, 0);
+        pruefe(a.items == 1 && a.menus == 1 && a.skript > 2048 && a.skriptWo == "k: action" && a.g.skript == 2048, "Auslastung: laengstes Skript k: action");
+        pruefe(auslastung(lese(viele(151), Dialekt::SP, Spiel::JA), 0).items == 151 && auslastung(sp, 0).g.menuItems == 150, "Auslastung: Items gegen MAX_MENUITEMS");
     }
     // nie sichtbar
     {

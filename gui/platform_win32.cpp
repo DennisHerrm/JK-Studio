@@ -627,6 +627,30 @@ bool zeigerImFenster(void* fenster, int& x, int& y) {
 
 bool zeigerSetzen(int x, int y) { return SetCursorPos(x, y) != 0; }
 
+bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y) {
+    const auto h = static_cast<HWND>(fenster);
+    if (h == nullptr || IsWindow(h) == FALSE) { return false; }
+    const int n = MultiByteToWideChar(CP_UTF8, 0, pfad.c_str(), -1, nullptr, 0);   // mit Endnull
+    if (n <= 0) { return false; }
+    // DROPFILES, dahinter die Namen (UTF-16), mit einer zweiten Null abgeschlossen (GHND: genullt).
+    HGLOBAL g = GlobalAlloc(GHND, sizeof(DROPFILES) + (static_cast<SIZE_T>(n) + 1U) * sizeof(wchar_t));
+    if (g == nullptr) { return false; }
+    auto* df = static_cast<DROPFILES*>(GlobalLock(g));
+    if (df == nullptr) {
+        GlobalFree(g);
+        return false;
+    }
+    df->pFiles = sizeof(DROPFILES);
+    df->pt = POINT{x, y};
+    df->fNC = FALSE;
+    df->fWide = TRUE;
+    MultiByteToWideChar(CP_UTF8, 0, pfad.c_str(), -1, reinterpret_cast<wchar_t*>(reinterpret_cast<char*>(df) + sizeof(DROPFILES)), n);
+    GlobalUnlock(g);
+    // Wie beim Ziehen gibt die Fensterprozedur den Block mit DragFinish frei.
+    SendMessageW(h, WM_DROPFILES, reinterpret_cast<WPARAM>(g), 0);
+    return true;
+}
+
 bool fensterSichtbar(void* fenster) {
     const auto h = static_cast<HWND>(fenster);
     return h != nullptr && IsWindow(h) != FALSE && IsWindowVisible(h) != FALSE;
