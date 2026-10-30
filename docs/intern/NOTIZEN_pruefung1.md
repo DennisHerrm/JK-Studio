@@ -286,7 +286,31 @@ Bleibt (Fundstelle -> Engine-Vorbild, Grund):
 
 ## Pruefung 2 - Schlussrunde
 
-(siehe unten, nach dem Lauf eingetragen)
+Nach dem Neustart des Rechners (Windows Update, 30.10. 00:29) alles neu
+gelaufen - die Laeufe von vorher gelten nicht.
+- Sauberer Neubau (`--clean-first`, 15:51 min unter Last): 0 Warnungen,
+  0 Fehler.
+- ctest: 159/159 gruen (darin neu `pruefung2`; geaendert `szene`/scenetest
+  und `efxtest`, die beide die alten Naeherungen erwarteten).
+- lint_sources, lint_fassung, lint_headers: ok. lint_efxflags meldet "keine
+  Flagtabelle gefunden" - die Tabelle steht seit frueher in
+  app_view3d_spiel.inc, nicht in app_view3d.cpp; nicht von Pruefung 2.
+- Selbsttests (Laufordner `Y:\pq_laeufe\p2_*`, Idle-Prioritaet): mission1
+  98 OK / 0 FEHLER, kamera 95/0, missionsbau 95/0, umriss 46/0, Modus 1
+  (BHED_HANDBUCH) 2648/0.
+- Kartenpruefung (278 Karten, Movie Duels, gegen kpi3): alle Summen gleich -
+  abgestuerzt/haengend, nicht geladen, GPU-Fehler, D3D-Meldungen,
+  Protokollfehler 0 -> 0, nicht gezeichnete Entities 1 -> 1, NPCs ohne
+  Modell 2 -> 2 (832 s).
+- Handbuch: keine Bedienung geaendert (nur Verhalten wie im Spiel), keine
+  neuen Programmtexte.
+- Nicht gegen das Spiel selbst geprueft (kein Spielstart): die Ketten sind
+  Zeile fuer Zeile aus den Quellen portiert und mit Mini-Missionen geprueft;
+  der Zufall (Q_irand) folgt der Formel, nicht der Folge des Spiels.
+- Offen fuer eine naechste Runde: SzenenHilfe::rumpfWinkel in der
+  Oberflaeche (chestBolt aus dem Skelett), Waffe/Schwert fallen lassen,
+  Leichenphysik nach dem Wurf, Todesklaenge, gemeinsamer Markenspeicher mit
+  den Brandspuren, die Liste unter 5.
 
 ## English
 - Death animation as in the game: `kill` from a script and deaths in a `trigger_hurt` now pick the animation like the engine (stance and timer of the legs, crouching, lying, rolls and flips, a key on the arm, Mark1/ATST/Galak, falling deaths, a ledge in front, hit location, then a random one the model has) for OpenJK, Movie Duels and Jedi Outcast; a second `kill` makes the corpse twitch, a saber blade goes out. Before, every figure died with BOTH_DEATH1.
