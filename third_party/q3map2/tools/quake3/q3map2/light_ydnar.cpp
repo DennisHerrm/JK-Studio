@@ -3991,19 +3991,25 @@ static void BhedIlluminateGpu(){
 		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
 	}
 	zeit( 7 );
-	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest, a third
-	   of the remaining work per batch, as long as more are left than threads */
+	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest, as long
+	   as more are left than threads. vis3: a fixed third per batch let the threads run dry while the GPU still
+	   worked on its batch (duel_mos_espa, a bounce: 174 -> 211 s) - the first batch is small (1/16 of the remaining
+	   work), then the GPU takes the share both sides can finish at the same time after the rates measured in the
+	   batch before (work the GPU did against work the threads took meanwhile). Only the order changes: every
+	   lightmap is computed by exactly one side, both exactly. */
+	double zufallAnteil = 1.0 / 16;
 	while ( zufallUebernahme && lightRandomSamples && BhedBakeBereit() )
 	{
 		std::vector<int> nrs;
 		size_t paare = 0;
+		size_t genommen = 0, restDanach = 0;
+		const double tStapel = BhedJetzt();
 		{
 			std::lock_guard<std::mutex> l( nebenMutex );
 			if ( nebenZufall.size() <= size_t( std::max( 1, numthreads ) ) ) {
 				break;
 			}
-			const size_t ziel = zufallArbeit / 3;
-			size_t genommen = 0;
+			const size_t ziel = size_t( double( zufallArbeit ) * zufallAnteil );
 			while ( !nebenZufall.empty() && genommen < ziel )
 			{
 				const auto kleinste = nebenZufall.begin();
@@ -4018,10 +4024,19 @@ static void BhedIlluminateGpu(){
 				zufallArbeit -= kleinste->first;
 				nebenZufall.erase( kleinste );
 			}
+			restDanach = zufallArbeit;
 		}
 		if ( nrs.empty() || !blockRechnen( nrs, paare, true ) ) {
 			break;
 		}
+		size_t cpuGenommen = 0;
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			cpuGenommen = restDanach > zufallArbeit ? restDanach - zufallArbeit : 0;   /* the batch may give parts back */
+		}
+		const double gpuRate = double( genommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
+		const double cpuRate = double( cpuGenommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
+		zufallAnteil = std::clamp( gpuRate / std::max( 1e-9, gpuRate + cpuRate ), 1.0 / 64, 0.5 );
 	}
 	/* the processor's threads finish their lightmaps */
 	{
