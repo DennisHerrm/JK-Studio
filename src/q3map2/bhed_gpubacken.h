@@ -187,9 +187,22 @@ std::size_t BhedBakeBudgetPaare();
 // false: die GPU ist ausgefallen (der Block rechnet die CPU).
 bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, std::vector<std::uint32_t>& flags );
 // Schritt 3 und 4 mit den aktiven Lichtern (b.lms mit aktivBase/nAktiv/zeilenBase/aus): die fertigen Luxel.
-// vis2, -randomsamples: zufallGpu - die Lightmaps mit zufaelligen Nachproben rechnet der Kern zufall, sonst
-// tragen sie in flags 2 (die CPU rechnet sie)
-bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, bool zufallGpu );
+// -randomsamples, die Lightmaps mit zufaelligen Nachproben (ausser Teilen grosser Lightmaps, die tragen immer 2):
+//   Cpu     - sie tragen in flags 2 (die CPU rechnet sie);
+//   Gpu     - der Kern zufall rechnet sie (vis2);
+//   Sammeln - sie tragen in flags 4: ihre Farben bleiben in P, bis BhedBakeSammeln sie in den Sammelpuffer
+//             kopiert (vis4) - der Kern zufall rechnet sie spaeter mit denen anderer Bloecke zusammen
+enum class BhedZufallWeg { Cpu, Gpu, Sammeln };
+bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, BhedZufallWeg weg );
+// vis4: der Sammelpuffer - die Farben der Erstabtastung (P) der aktiven Lichter von Lightmaps mit zufaelligen
+// Nachproben aus mehreren Bloecken, damit der Kern zufall (eine Gruppe je Lightmap, latenzgebunden) genug Gruppen
+// gleichzeitig hat. Plaetze in Paaren (0: kein Speicher dafuer).
+std::size_t BhedBakeSammelPaare();
+// P[ von, von + anzahl ) des letzten Blocks (nach BhedBakeRest) an die Stelle ziel des Sammelpuffers
+bool BhedBakeSammeln( std::uint32_t von, std::uint32_t ziel, std::uint32_t anzahl );
+// ein Block aus gesammelten Lightmaps (paarBase = ihre Stelle im Sammelpuffer, nur ihre aktiven Lichter): die
+// Vorhersage, der Kern zufall und das Filtern wie BhedBakeRest mit Gpu - dieselben Rechnungen wie in ihrem Block
+bool BhedBakeSammelRechnen( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags );
 // TraceGrid fuer die Punkte (in place); false: die GPU ist ausgefallen (die CPU rechnet alle Punkte).
 // vis1: halt (darf nullptr sein) wird vor jedem Dispatch gelesen - gesetzt, hoert die GPU auf, *angehalten
 // wird true und die Punkte sind nicht gerechnet (die CPU hat sie inzwischen alle genommen).
@@ -205,6 +218,7 @@ struct BhedBakeZahlen {
 	long long kernMikros[ 7 ] = {};   // BHED_GPUBAKE_ZEITEN: je Kern (erst, kandidaten, unter, stempellauf, filtern, gitter, zufall), mit Warten gemessen
 	long long zufallLm = 0;           // vis2: Lightmaps mit zufaelligen Nachproben auf der GPU
 	long long zufallLuxel = 0;        // vis2: davon nachabgetastete Luxel
+	long long sammelLaeufe = 0;       // vis4: Laeufe des Kerns zufall ueber gesammelte Lightmaps
 	long long gitterPunkte = 0, gitterCpu = 0;
 	long long kandidaten[ 4 ] = {};   // BHED_GPUBAKE_ZEITEN: neue Kandidaten je Vorhersage-Runde
 	bool ausgefallen = false;
