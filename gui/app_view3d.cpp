@@ -4757,6 +4757,44 @@ bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms,
     return true;
 }
 
+bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]) {
+    const ActorState st = a.at(ms);
+    ActorDraw d;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
+    anbautenFuer(a, st, ms, d);
+    // CG_Player: handRBolt "*r_hand" -> ORIGIN = renderInfo.handRPoint
+    BoneMatrix hm{};
+    if (!boltMatrix(*d.model, surfaceIndex(*d.model, "*r_hand"), welt, *d.anim, hm)) { return false; }
+    for (int r = 0; r < 3; ++r) {
+        hand[r] = fw[r * 4 + 0] * hm.m[0][3] + fw[r * 4 + 1] * hm.m[1][3] + fw[r * 4 + 2] * hm.m[2][3] + fw[r * 4 + 3];
+    }
+    // CG_AddSaberBlade: renderInfo.muzzleDir = Achse der Klinge (Griff am
+    // Handbolzen, Klinge am Bolzen des Griffs - wie die Zeichnung)
+    for (int i = 0; i < d.anbauten; ++i) {
+        const AnbauDraw& an = d.anbau[static_cast<std::size_t>(i)];
+        if (an.model == nullptr || an.saberFach != 0) { continue; }
+        BoneMatrix gh{};
+        if (!boltMatrix(*d.model, surfaceIndex(*d.model, an.bolzen), welt, *d.anim, gh)) { continue; }
+        float gw[16];
+        gpu::baueGriffWelt(fw, gh, gw);
+        float wl[3];
+        float tl[3];
+        if (!klingenStrecke(*an.model, an.lage, 0, 1.0F, wl, tl)) { continue; }
+        float l = 0.0F;
+        for (int r = 0; r < 3; ++r) {
+            richtung[r] = gw[r * 4 + 0] * (tl[0] - wl[0]) + gw[r * 4 + 1] * (tl[1] - wl[1]) + gw[r * 4 + 2] * (tl[2] - wl[2]);
+            l += richtung[r] * richtung[r];
+        }
+        l = std::sqrt(l);
+        if (l <= 0.0F) { continue; }
+        for (int r = 0; r < 3; ++r) { richtung[r] /= l; }
+        return true;
+    }
+    return false;
+}
+
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
 void figurKopfGier(const ActorState& st, ActorDraw& d) {
@@ -5954,6 +5992,29 @@ void prepareScene() {
                 return false;
             }
             return figurRumpfWinkel(a, *g_app->actorAssets[it->second], ms, w);
+        };
+        // Pruefung 3: Hand und Klinge fuer WP_SaberLaunch/WP_SaberDrop, und
+        // die Gegenstaende aus items.dat fuer TossClientItems.
+        hilfe.handPunkt = [index](const Actor& a, double ms, float h[3], float r[3]) {
+            const auto it = index.find(a.name);
+            if (it == index.end() || it->second >= g_app->actorAssets.size() || !g_app->actorAssets[it->second]) {
+                return false;
+            }
+            return figurHandPunkt(a, *g_app->actorAssets[it->second], ms, h, r);
+        };
+        hilfe.waffenGegenstand = [](const std::string& w, NavVec& mi, NavVec& ma) {
+            const Gegenstand* g = gegenstandFuerWaffe(w);
+            if (g == nullptr) { return false; }
+            mi = g->mins;
+            ma = g->maxs;
+            return true;
+        };
+        hilfe.kraftGegenstand = [](NavVec& mi, NavVec& ma) {
+            const Gegenstand* g = gegenstandKraftKristall();
+            if (g == nullptr) { return false; }
+            mi = g->mins;
+            ma = g->maxs;
+            return true;
         };
         hilfe.hurtAusloeser = [](const std::string& f, double ms) {
             for (const AblaufWelt::HurtTod& h : g_app->hurtTode) {

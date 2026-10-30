@@ -253,5 +253,131 @@ std::vector<Schritt> pruefung3Schritte() {
                      (z->fehler.empty() ? "" : ", Fehler:" + z->fehler));
         return *marke >= 0.0 && g_saberSpurenGezeichnet > 0;
     }));
+    // --- 2. Tod: Waffe, Schwert, Klaenge, DeathFX ----------------------------
+    // p3_blaster haelt eine Waffe (SET_WEAPON WP_BLASTER) - TossClientItems laesst
+    // sie fallen; p3_droide ist ein R2D2 (DeathFX env/med_explode, mark2_explo).
+    struct Tod {
+        double blaster = -1.0;
+        double droide = -1.0;
+    };
+    auto tod = std::make_shared<Tod>();
+    add(tu("Pruefung3 2: Mission p3tod - p3_blaster (WP_BLASTER) und p3_droide (r2d2) werden getoetet", [=] {
+        const auto block = [](const char* name, const std::string& zeilen) {
+            return std::string("affect ( \"") + name + "\", /*@AFFECT_TYPE*/ FLUSH )\r\n{\r\n"
+                   "\tset ( /*@SET_TYPES*/ \"SET_BEHAVIOR_STATE\", \"BS_CINEMATIC\" );\r\n" + zeilen +
+                   "\twait ( 1000.000 );\r\n\tkill ( \"" + name + "\" );\r\n}\r\n\r\n";
+        };
+        pruefung3::szeneBauen(*z, "p3tod", {{"p3_blaster", 0.0F, 0.0F}, {"p3_droide", 96.0F, 0.0F}},
+                              block("p3_blaster", "\tset ( /*@SET_TYPES*/ \"SET_WEAPON\", \"WP_BLASTER\" );\r\n") + block("p3_droide", ""));
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            const std::string* n = g_app->map.entities[i].find("NPC_targetname");
+            if (n != nullptr && *n == "p3_droide") { (void)entityKeySetzen(static_cast<int>(i), "NPC_type", "r2d2"); }
+        }
+    }));
+    add(warteBis("Pruefung3 2: Szene von p3tod", [=] {
+        return !z->bereit || (g_app->camTrackValid && pruefung3::figur("p3_droide") >= 0 && jk2probe::figurenGeladen());
+    }, 2000));
+    add(pause(0.5));
+    add(pruefe("Pruefung3 2: nach dem Tod ist die Waffe nicht mehr in der Hand (TossClientItems / G_RemoveWeaponModels)", [=] {
+        prepareScene();
+        const int i = pruefung3::figur("p3_blaster");
+        if (i < 0) { return false; }
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(i)];
+        tod->blaster = a.getoetetMs;
+        const ActorState vor = a.at(tod->blaster - 50.0);
+        const ActorState nach = a.at(tod->blaster + 50.0);
+        diag::detail("Knopftest: Pruefung3 2 - p3_blaster getoetet bei " + pruefung3::grad(static_cast<float>(tod->blaster)) + " ms, Waffe vorher " +
+                     vor.waffe + " (Hand " + std::to_string(vor.hand[0].modell) + "), nachher " + nach.waffe + " (Hand " +
+                     std::to_string(nach.hand[0].modell) + ")");
+        return tod->blaster > 0.0 && vor.waffe == "WP_BLASTER" && vor.hand[0].modell >= 0 && nach.hand[0].modell < 0;
+    }));
+    add(pruefe("Pruefung3 2: DeathFX - der R2D2 explodiert beim Tod (env/med_explode, 10 unter dem Ursprung)", [=] {
+        const int i = pruefung3::figur("p3_droide");
+        if (i < 0) { return false; }
+        const Actor& a = g_app->scene.actors[static_cast<std::size_t>(i)];
+        tod->droide = a.getoetetMs;
+        const efx::Effect* fx = effectByName("env/med_explode");
+        const ActorState st = a.at(tod->droide);
+        bool da = false;
+        std::string gesehen;
+        for (const EffectInstance& in : g_app->effectRunners) {
+            if (fx != nullptr && in.effect == fx) {
+                gesehen += " " + pruefung3::grad(static_cast<float>(in.startMs)) + "@" + pruefung3::grad(in.origin[2]);
+                if (std::fabs(in.startMs - tod->droide) < 1.0 && std::fabs(in.origin[2] - (st.pos[2] - 10.0F)) < 0.5F) { da = true; }
+            }
+        }
+        std::string folgen;
+        for (const TodesFolge& tf : g_app->scene.todesFolgen) {
+            folgen += " " + tf.figur + "@" + pruefung3::grad(static_cast<float>(tf.ms)) + ":" + std::to_string(tf.klaenge.size()) + "/" +
+                      std::to_string(tf.effekte.size());
+        }
+        diag::detail("Knopftest: Pruefung3 2 - p3_droide (" + a.klasse + ") getoetet bei " + pruefung3::grad(static_cast<float>(tod->droide)) +
+                     " ms (z " + pruefung3::grad(st.pos[2]) + "), med_explode:" + gesehen + ", Todesfolgen:" + folgen);
+        return tod->droide > 0.0 && da;
+    }));
+    add(tu("Pruefung3 2: abspielen ueber den Tod - Klaenge mitschreiben (wie tonAbspielen)", [=] {
+        g_app->leftMode = 1;
+        g_app->playAudio = true;
+        g_app->abspielTempo = 1.0F;
+        g_app->followCam = true;
+        g_app->throughCamera = false;
+        g_app->uhrAussetzen = 0;
+        klangMitschrift().clear();
+        klangMitschriftAn(true);
+    }));
+    add({"Pruefung3 2: abspielen bis 800 ms nach dem Tod", [=](int b) {
+             g_app->playing = true;
+             if (b == 0) {
+                 g_app->playMs = 0.0;
+                 g_app->audioUpTo = -1.0;
+                 return false;
+             }
+             const double t = static_cast<double>(b) * 50.0;
+             if (t > tod->blaster + 800.0) {
+                 g_app->playing = false;
+                 return true;
+             }
+             g_app->playMs = t;
+             return false;
+         }});
+    add(pruefe("Pruefung3 2: Todesklaenge - *deathN der Figur (EV_DEATH1-3) und mark2_explo des R2D2 (DeathFX)", [=] {
+        bool todesKlang = false;
+        bool explo = false;
+        std::string liste;
+        for (const KlangMitschrift& k : klangMitschrift()) {
+            if (k.art != 'E') { continue; }
+            if (k.datei.find("/misc/death") != std::string::npos) { todesKlang = true; }
+            if (k.datei.find("mark2_explo") != std::string::npos) { explo = true; }
+            liste += " " + k.datei;
+        }
+        klangMitschriftAn(false);
+        diag::detail("Knopftest: Pruefung3 2 - Klaenge:" + liste);
+        return todesKlang && explo;
+    }));
+    add(tu("Pruefung3 2: 600 ms nach dem Tod zeichnen", [=] {
+        g_app->showEffects = true;
+        g_app->showActors = true;
+        g_app->playing = false;
+        g_app->playMs = tod->blaster + 600.0;
+        g_app->abwurfGezeichnet = 0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("Pruefung3 2: die Waffe liegt am Boden (Drop_Item, G_RunItem) und wird gezeichnet", [=] {
+        const TodesAbwurf* ab = nullptr;
+        for (const TodesAbwurf& x : g_app->scene.abwuerfe) {
+            if (x.figur == "p3_blaster" && x.art == TodesAbwurf::Art::Waffe) { ab = &x; }
+        }
+        const int i = pruefung3::figur("p3_blaster");
+        const float boden = i >= 0 ? g_app->scene.actors[static_cast<std::size_t>(i)].at(tod->blaster).pos[2] - 24.0F : 0.0F;
+        NavVec o{};
+        NavVec w{};
+        const bool liegt = ab != nullptr && ab->bahn.ruheMs > 0.0 && ab->bahn.bei(ab->bahn.ruheMs + 1.0, o, w);
+        diag::detail("Knopftest: Pruefung3 2 - Abwurf " + std::string(ab != nullptr ? abwurfModell(*ab) : "keiner") + ", liegt ab " +
+                     pruefung3::grad(ab != nullptr ? static_cast<float>(ab->bahn.ruheMs) : -1.0F) + " ms bei z " + pruefung3::grad(o[2]) +
+                     " (Boden " + pruefung3::grad(boden) + "), Winkel " + pruefung3::grad(w[0]) + " " + pruefung3::grad(w[1]) + " " +
+                     pruefung3::grad(w[2]) + ", gezeichnet " + std::to_string(g_app->abwurfGezeichnet));
+        return liegt && g_app->abwurfGezeichnet > 0;
+    }));
     return s;
 }

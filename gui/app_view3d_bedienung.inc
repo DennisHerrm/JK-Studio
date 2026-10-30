@@ -4025,6 +4025,44 @@ void drawMapView() {
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;
                         }
+                        // Pruefung 3: was sterbende Figuren fallen liessen - Waffe
+                        // (Drop_Item), Kristall, Schwert (WP_SaberDrop) - am Ort
+                        // ihrer Bahn, starr, mit G2_GenerateWorldMatrix wie oben.
+                        for (const TodesAbwurf& ab : g_app->scene.abwuerfe) {
+                            NavVec o{};
+                            NavVec w{};
+                            if (!ab.bahn.bei(g_app->playMs, o, w)) { continue; }
+                            const App::ActorAssets* as = gegenstandGlmFuer(abwurfModell(ab));
+                            if (as == nullptr) { continue; }
+                            float achse[3][3];
+                            const float wk[3] = {w[0], w[1], w[2]};
+                            winkelZuAchsen(wk, achse);
+                            float abWelt[16]{};
+                            for (int r = 0; r < 3; ++r) {
+                                for (int c = 0; c < 3; ++c) { abWelt[r * 4 + c] = achse[c][r]; }
+                                abWelt[r * 4 + 3] = o[static_cast<std::size_t>(r)];
+                            }
+                            abWelt[15] = 1.0F;
+                            gpu::FigurLicht gl;
+                            for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
+                            gl.zeit = zeit;
+                            const float of[3] = {o[0], o[1], o[2]};
+                            const auto lg = sampleLightGrid(g_app->geo, of);
+                            if (lg.ok) {
+                                gl.gitter = true;
+                                for (int k = 0; k < 3; ++k) {
+                                    gl.umgebung[k] = lg.ambient[k] * g_app->mapBrightness / 255.0F;
+                                    gl.gerichtet[k] = lg.directed[k] * g_app->mapBrightness / 255.0F;
+                                    gl.richtung[k] = lg.dir[k];
+                                }
+                            }
+                            std::string fg;
+                            const int ng = gpu::zeichneFigur(as->model, &as->textures, kStarrGegenstand, abWelt, vp, &fg, &gl,
+                                                             g_app->showCaps);
+                            g_app->gpuAufrufe += ng;
+                            g_app->gpuFiguren2 += ng;
+                            ++g_app->abwurfGezeichnet;
+                        }
                     }
                     gpu::gluehenFigurenEnde();
                     gpu::beendeMessung(gpu::Abschnitt::Figuren);

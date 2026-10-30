@@ -757,7 +757,14 @@ bool Kette::tossClientItems(TodErgebnis& e, bool schwert) {
         if (l_.handFrei && !l_.handFrei()) { return false; }
         // WP_SaberDrop nur mit brennender Klinge (WP_SaberLose: "if ( SaberActive() )")
         e.schwertFaellt = l_.klingeAn;
-        if (l_.klingeAn && !l_.schwertAusKlang.empty()) { klang(e, l_.schwertAusKlang); }   // G_SoundIndexOnEnt( saber, CHAN_AUTO, soundOff )
+        if (l_.klingeAn) {
+            if (jk()) {
+                // codeJK2 WP_SaberDrop (wp_saber.cpp:4328-4336): nach dem Team
+                klang(e, l_.spielerTeam ? "sound/weapons/saber/saberoff.wav" : "sound/weapons/saber/enemy_saber_off.wav");
+            } else if (!l_.schwertAusKlang.empty()) {
+                klang(e, l_.schwertAusKlang);   // G_SoundIndexOnEnt( saber, CHAN_AUTO, soundOff )
+            }
+        }
         return true;
     }
     bool faellt = false;

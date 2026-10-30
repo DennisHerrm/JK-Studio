@@ -2311,15 +2311,6 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
         f.effekte = tod.effekte;
         out.todesFolgen.push_back(std::move(f));
     }
-    // WP_SaberDrop: ps.saber[0].Deactivate() - vor dem Wechsel auf WP_NONE
-    if (tod.schwertFaellt) {
-        ActorStep aus;
-        aus.kind = ActorStep::Kind::Saber;
-        aus.startMs = wann;
-        aus.endMs = wann;
-        aus.value = 0.0F;
-        a.steps.push_back(aus);
-    }
     // s.weapon = WP_NONE und G_RemoveWeaponModels - das Modell geht aus der Hand
     if (tod.waffe != TodWaffe::Bleibt || tod.schwertFaellt) {
         ActorStep weg;
@@ -4906,7 +4897,6 @@ Scene buildOnce(const Script& s, const MapData& map,
             const TodLage lage = todesLage(a, st, lauf, wann, schonTot, map, hilfe);
             EngineZufall zufall(todesSaat(a.kartenEntity, wann));
             const TodErgebnis tod = todesAnimation(lage, zufall);
-            todesFolgenAnlegen(out, a, st, lage, tod, wann, hilfe);
             if (!schonTot) {
                 ActorStep halt;
                 halt.kind = ActorStep::Kind::Teleport;
@@ -4927,6 +4917,9 @@ Scene buildOnce(const Script& s, const MapData& map,
                     a.steps.push_back(aus);
                 }
             }
+            // Pruefung 3: Klaenge, DeathFX, Waffe und Schwert - nach dem
+            // Ausschalten der Klinge (dieselbe Zeit, die Reihenfolge zaehlt)
+            todesFolgenAnlegen(out, a, st, lage, tod, wann, hilfe);
             if (tod.verschwindet) {
                 // Mark1 als Leiche: EF_NODRAW, G_FreeEntity im naechsten Bild
                 ActorStep weg;

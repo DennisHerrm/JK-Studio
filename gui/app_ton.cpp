@@ -999,6 +999,42 @@ void tonBild() {
     tonSchleifen(ohr, rechts, quellen);
 }
 
+// Pruefung 3: CG_RegisterCustomSounds (cg_players.cpp:322-367 OJ) fuer einen
+// eigenen Klang der Figur: sound/chars/<snd>/misc/<name ohne * und Endung> -
+// mit g_sex "f" (Vorgabe, g_main.cpp:630 OJ, :751 MD) zuerst die Fassung _f;
+// fehlt beides, dieselbe mit der Ziffer 1 (GetCustomSound_VariantCapped mit
+// bForceVariant1). Ohne "snd" in der .npc: keiner.
+std::string eigenerKlangDatei(const std::string& figur, const std::string& name) {
+    if (name.empty() || name[0] != '*') { return name; }
+    const Actor* a = g_app->scene.find(figur);
+    if (a == nullptr) { return {}; }
+    const auto it = g_app->npcMap.find(tonKlein(a->npcType));
+    if (it == g_app->npcMap.end() || it->second.snd.empty()) { return {}; }
+    const auto versuche = [&](std::string n) -> std::string {
+        const std::size_t punkt = n.find('.');
+        if (punkt != std::string::npos) { n.resize(punkt); }   // COM_StripExtension
+        const std::string basis = "sound/chars/" + it->second.snd + "/misc/" + n.substr(1);
+        for (const std::string& d : {basis + "_f.wav", basis + ".wav"}) {
+            const std::vector<std::int16_t>* p = klangFuerWiedergabe(d);
+            if (p != nullptr && !p->empty()) { return d; }
+        }
+        return {};
+    };
+    std::string d = versuche(name);
+    if (d.empty()) {
+        // "variant in table was missing, so forcibly-retry with %1 version":
+        // eine Ziffer vor dem Punkt (und keine davor) wird zur 1
+        std::string n = name;
+        const std::size_t punkt = n.find('.');
+        if (punkt != std::string::npos && punkt >= 3 && std::isdigit(static_cast<unsigned char>(n[punkt - 1])) != 0 &&
+            std::isdigit(static_cast<unsigned char>(n[punkt - 2])) == 0) {
+            n[punkt - 1] = '1';
+            d = versuche(n);
+        }
+    }
+    return d;
+}
+
 void tonEreignisse(double vonMs, double bisMs) {
     if (g_app == nullptr) {
         return;
@@ -1092,6 +1128,41 @@ void tonEreignisse(double vonMs, double bisMs) {
         w.moverModell = mk.modell;
         g_app->moverSim.klangOrt(mk.modell, mk.ms, w.ort);
         (void)tonStarte(w);
+    }
+
+    // --- Pruefung 3: die Klaenge der Tode (player_die, DeathFX) an der Figur -
+    //     G_AddEvent EV_DEATH1-3 / G_SoundOnEnt / G_SoundIndexOnEnt: an der
+    //     Entity, mit ihr bewegt, Channel-Stomp auf (Entity, Kanal). ---------
+    for (const TodesFolge& tf : g_app->scene.todesFolgen) {
+        if (tf.ms > bisMs) { break; }
+        if (tf.ms <= vonMs) { continue; }
+        for (const TodKlang& k : tf.klaenge) {
+            KlangWunsch w;
+            w.datei = eigenerKlangDatei(tf.figur, k.datei);
+            if (w.datei.empty()) { continue; }
+            w.quelle = tf.figur;
+            w.kanal = k.kanal == TodKlang::Kanal::Voice        ? sound::Kanal::Voice
+                      : k.kanal == TodKlang::Kanal::VoiceAtten ? sound::Kanal::VoiceAtten
+                      : k.kanal == TodKlang::Kanal::Body       ? sound::Kanal::Body
+                                                                : sound::Kanal::Auto;
+            if (const Actor* a = g_app->scene.find(tf.figur)) {
+                const ActorState st = a->at(tf.ms);
+                for (int i = 0; i < 3; ++i) { w.ort[i] = st.pos[i]; }
+            }
+            w.figur = tf.figur;
+            w.schluessel = w.kanal == sound::Kanal::Auto ? 0U : tonKanalSchluessel(tf.figur, w.kanal);
+            w.amHoerer = istSpieler(tf.figur);
+            (void)tonStarte(w);
+        }
+    }
+    // --- Pruefung 3: was dabei faellt prallt auf (G_Sound am Gegenstand:
+    //     EV_GENERAL_SOUND ueber den Snapshot, CHAN_AUTO, am Ort). -----------
+    for (const TodesAbwurf& ab : g_app->scene.abwuerfe) {
+        for (const AbwurfBahn::Klang& k : ab.bahn.klaenge) {
+            if (k.ms <= vonMs || k.ms > bisMs) { continue; }
+            const float o[3] = {k.ort[0], k.ort[1], k.ort[2]};
+            (void)spieleRaumKlang(k.datei, o, sound::Kanal::Auto, k.ms, true);
+        }
     }
 
     // --- ROFF-Notizen "sound" (G_RoffNotetrackCallback): Movie Duels spielt

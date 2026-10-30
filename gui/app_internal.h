@@ -1256,6 +1256,8 @@ struct App {
         int bildIndex = -1;
     };
     std::vector<GegenstandGlm> gegenstandGlm;
+    // Pruefung 3: gezeichnete Abwuerfe (Scene::abwuerfe) seit dem letzten Nullen (Selbsttest).
+    int abwurfGezeichnet = 0;
     // Je Kartenmodell die Figur der Szene, die es bewegt (move, rotate,
     // PLAY_ROFF, SET_INVISIBLE, remove) - oder -1. Nach jedem Szenenaufbau.
     std::vector<int> modellFigur;
@@ -3375,6 +3377,21 @@ bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState&
 // Pruefung 3: renderInfo.torsoAngles aus dem chestBolt des gezeichneten
 // Skeletts (cg_players.cpp:7516-7527 OJ); false: kein chestBolt (VectorClear).
 bool figurRumpfWinkel(const Actor& a, const App::ActorAssets& assets, double ms, float winkel[3]);
+// Pruefung 3: renderInfo.handRPoint (Bolzen "*r_hand") und muzzleDir (Richtung
+// der ersten Klinge des Schwerts in der rechten Hand) zur Zeit ms.
+bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float hand[3], float richtung[3]);
+// Pruefung 3: items.dat des Regelwerks (FindItemForWeapon/FindItemForAmmo).
+const Gegenstandsliste& gegenstandslisteJetzt();
+// Pruefung 3: der Gegenstand einer Waffe (giType IT_WEAPON, giTag == waffe)
+// bzw. des Kristalls (IT_AMMO, AMMO_FORCE) - nullptr: keiner.
+const Gegenstand* gegenstandFuerWaffe(const std::string& waffe);
+const Gegenstand* gegenstandKraftKristall();
+// Pruefung 3: das Modell, mit dem ein Abwurf gezeichnet wird (Waffe/Kristall:
+// worldmodel aus items.dat, Schwert: der Griff).
+std::string abwurfModell(const TodesAbwurf& ab);
+// Pruefung 3: ein eigener Klang "*death1.wav" einer Figur (CG_CustomSound) als
+// Datei - leer, wenn die Figur keinen hat.
+std::string eigenerKlangDatei(const std::string& figur, const std::string& name);
 const efx::Effect* effectByName(const std::string& name);
 // rc604: eine Effektdatei samt Shadern laden (app_view3d.cpp) - auch fuer den Selbsttest.
 bool ladeEffektDatei(const std::string& path, const std::string& herkunft);
