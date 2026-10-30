@@ -3741,6 +3741,8 @@ Scene buildOnce(const Script& s, const MapData& map,
                 std::string wa = actor->at(tt).waffe;
                 if (wa.empty() || wa == "drop") { wa = wa.empty() ? actor->startWaffe : "WP_NONE"; }
                 werte.schwert = sameName(wa, "WP_SABER");   // rc604 fix604 (JK2)
+                // Pruefung 4a: PM_TryRoll - dieselbe Antwort wie im Ablauf (AblaufWelt::darfRollen)
+                werte.darfRollen = hilfe != nullptr && hilfe->darfRollen && hilfe->darfRollen(actor->name, wa);
                 werte.verhaltenTaktMs = npcVerhaltenTaktMs(navMovieDuelsRegeln(), wa,
                                                            hilfe != nullptr ? hilfe->schwierigkeit : kSchwierigkeitVorgabe,
                                                            actor->rang);
@@ -3763,6 +3765,9 @@ Scene buildOnce(const Script& s, const MapData& map,
                 for (int c = kSaLandBack1; c <= kSaForceLandRight1; ++c) {
                     werte.landeMs[static_cast<std::size_t>(c)] =
                         static_cast<int>(std::max(0.0, hilfe->animDauer(actor->name, sprungAnimName(c))));
+                }
+                for (int c = kSaRollF; c <= kSaRollL; ++c) {   // Pruefung 4a: G_StartRoll, HOLDLESS
+                    werte.landeMs[static_cast<std::size_t>(c)] = navHoldlessMs(hilfe->animDauer(actor->name, sprungAnimName(c)));
                 }
                 if (werte.kannSpringen) {
                     const std::string sa = actor->sprungAnim.empty() ? std::string("BOTH_FLIP_F") : actor->sprungAnim;
@@ -4432,6 +4437,16 @@ Scene buildOnce(const Script& s, const MapData& map,
                 continue;
             }
 
+            // Pruefung 4a: Q3_Face - die Zeitgeber fuer Blinzeln und Mimik
+            if (child.name == "set" && child.args.size() >= 2) {
+                GesichtsBefehl b;
+                if (gesichtsBefehlArt(child.args[0].text, b.art)) {
+                    b.ms = t;
+                    b.halten = static_cast<float>(std::atof(child.args[1].text.c_str()));
+                    actor->gesicht.push_back(b);
+                    continue;
+                }
+            }
             if (const std::string* v = setValue(child, "SET_CROUCHED")) {
                 // Q3_SetCrouched: Q_stricmp("true", data) (Q3_Interface.cpp OJ)
                 ActorStep step;

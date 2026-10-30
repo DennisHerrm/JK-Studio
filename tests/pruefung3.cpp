@@ -294,6 +294,7 @@ struct Welt {
     // Todesanimation) - sonst bleibt sie, und das Schwert haengt an ihr
     bool handWandert = true;
     int saberWurf = 0;                         // .npc "FP_SABERTHROW"
+    std::string rang;                          // .npc "rank" (Pruefung 4a: PM_TryRoll)
     bool fuesse = false;                       // footL/RPoint: +-8 in x unter der Figur
 };
 
@@ -327,6 +328,7 @@ void fahre(const Welt& w, int spiel, Lauf& l) {
     def.saber = "eigenes_schwert";
     def.snd = "eigene_stimme";
     if (w.saberWurf > 0) { def.kraefte["fp_saberthrow"] = w.saberWurf; }
+    def.rang = w.rang;
     npcs["eigen_typ"] = def;
     NpcDef droide = def;
     droide.klasse = "CLASS_R2D2";
@@ -395,12 +397,20 @@ void fahre(const Welt& w, int spiel, Lauf& l) {
     h.fremdeDarsteller = &erst.fremdeDarsteller;
     const Scene ersteSzene = buildScene(erst.flach, l.karte, &h);
     welt.tempo = ablaufTempo(ersteSzene);
+    // wie die Vorschau: PM_TryRoll je Figur aus Klasse und Rang (Pruefung 4a)
+    std::map<std::string, std::pair<std::string, std::string>> rollKlassen;
+    for (const Actor& a : ersteSzene.actors) { rollKlassen[a.name] = {a.klasse, a.rang}; }
+    welt.darfRollen = [rollKlassen](const std::string& f, const std::string& waffe) {
+        const auto it = rollKlassen.find(f);
+        return it != rollKlassen.end() && npcDarfRollen(navMovieDuelsRegeln(), navJk2Regeln(), waffe, it->second.first, it->second.second);
+    };
     std::map<std::string, float> hocken;
     for (const Actor& a : ersteSzene.actors) { hocken[a.name] = a.hockHoehe; }
     welt.hockHoehe = [hocken](const std::string& f) {
         const auto it = hocken.find(f);
         return it == hocken.end() ? 16.0F : it->second;
     };
+    h.darfRollen = welt.darfRollen;
     const Ablauf ablauf = simuliereAblaufMitKoerpern(sc, "start", welt);
     h.koerperPlaene = welt.koerperPlaene;
     h.erscheint = &ablauf.erscheint;
@@ -882,7 +892,113 @@ void hocke() {
         pruefe(std::fabs(v3a - 100.0F) < 2.0F && std::fabs(v3b - 200.0F) < 2.0F && a3 == "BOTH_RUN1",
                "SET_CROUCHED false unterwegs: wieder 200 und BOTH_RUN1 - " + std::to_string(v3a) + " / " + std::to_string(v3b) + " " +
                    a3 + r);
+        // Pruefung 4a: PM_TryRoll - aus vollem Lauf (BOTH_RUN1) geduckt rollt die
+        // Figur (G_StartRoll BOTH_ROLL_F, HOLDLESS 999 ms; ClientThink: ucmd 127
+        // vorwaerts, ps.speed 400, mal pm_duckScale), danach BOTH_CROUCH1WALK.
+        // Mit Schwert nur ab RANK_LT_JG (oder RANK_CREWMAN) - Movie Duels fragt
+        // weder Waffe noch Rang.
+        for (int fall = 0; fall < 3; ++fall) {
+            Welt roll = w;
+            roll.anims.insert("BOTH_ROLL_F");
+            roll.rang = fall == 2 ? "ltjg" : "";
+            roll.skript = affect4(setze("SET_WEAPON", fall == 0 ? "WP_NONE" : "WP_SABER") + setze("SET_NAVGOAL", "ziel") +
+                                  "\twait ( 400.000 );\r\n" + setze("SET_CROUCHED", "true"));
+            Lauf l4;
+            fahre(roll, sp.nr, l4);
+            double ab = -1.0;
+            double bis = -1.0;
+            for (double t = 400.0; t < 3000.0; t += 50.0) {
+                const bool rollt = animBei(l4, t) == "BOTH_ROLL_F";
+                if (rollt && ab < 0.0) { ab = t; }
+                if (!rollt && ab >= 0.0 && bis < 0.0) { bis = t; }
+            }
+            // Jedi Outcast prueft den Rang fuer jeden NPC (auch ohne Waffe)
+            const bool soll = sp.nr == kRegelwerkMovieDuels || fall == 2 || (fall == 0 && sp.nr != kRegelwerkJediOutcast);
+            const std::string nachher = bis > 0.0 ? animBei(l4, bis + 100.0) : std::string("-");
+            const float v = ab > 0.0 ? tempoXY(l4, ab + 200.0, ab + 800.0) : 0.0F;
+            const bool ok = soll ? (ab > 400.0 && ab <= 600.0 && bis - ab >= 950.0 && bis - ab <= 1050.0 &&
+                                    nachher == "BOTH_CROUCH1WALK" && std::fabs(v - 200.0F) < 2.0F)
+                                 : ab < 0.0;
+            const char* was[] = {"WP_NONE", "WP_SABER ohne Rang", "WP_SABER ltjg"};
+            pruefe(ok, std::string("PM_TryRoll aus vollem Lauf, ") + was[fall] + (soll ? ": BOTH_ROLL_F" : ": keine Rolle") + " - ab " +
+                           std::to_string(static_cast<int>(ab)) + " bis " + std::to_string(static_cast<int>(bis)) + ", " + nachher +
+                           ", Tempo " + std::to_string(v) + r);
+        }
     }
+}
+
+// --- 6. Blinzeln und Leerlaufmimik (Pruefung 4a) ------------------------------
+// CG_G2PlayerHeadAnims/CG_G2SetHeadBlink (cg_players.cpp:5046-5232 OJ), Q3_Face.
+void gesicht() {
+    std::printf("--- 6. Blinzeln und Leerlaufmimik ---\n");
+    GesichtsEingabe e;
+    e.saat = 4711U;
+    e.abMs = 0.0;
+    e.bisMs = 60000.0;
+    e.kamera = true;
+    // die ersten Zuege: facial_blink = cg.time + Q_flrand(4000, 8000), facial_timer
+    // = cg.time + Q_flrand(6000, 10000)
+    EngineZufall z(e.saat);
+    const double blink = static_cast<double>(z.flrand(4000.0F, 8000.0F));
+    const double aux = static_cast<double>(z.flrand(6000.0F, 10000.0F));
+    const GesichtsPlan p = gesichtPlanen(e);
+    // "facial_blink < cg.time": im ersten Bild danach zu, 300 ms spaeter
+    // ("-(facial_blink) < cg.time") wieder auf; in einer Kamerafahrt nie nur links
+    bool ok = p.lider.size() >= 4U && p.lider[0].ms == std::floor(blink) + 1.0 && p.lider[0].winkel == -38.0F &&
+              p.lider[1].ms == p.lider[0].ms + 301.0 && p.lider[1].winkel == 0.0F;
+    double abstand = 1.0e9;
+    bool links = false;
+    for (std::size_t i = 0; i + 1 < p.lider.size(); i += 2) {
+        if (i + 2 < p.lider.size()) { abstand = std::min(abstand, p.lider[i + 2].ms - p.lider[i + 1].ms); }
+        links = links || p.lider[i].nurLinks;
+    }
+    pruefe(ok && abstand >= 4000.0 && abstand <= 8001.0 && !links,
+           "Lidschlag: erstes Schliessen " + std::to_string(p.lider.empty() ? -1.0 : p.lider[0].ms) + " ms (Soll " +
+               std::to_string(std::floor(blink) + 1.0) + "), 300 ms zu, Abstand 4000..8000, in der Kamerafahrt beide Augen");
+    // facial_timer: FACE_ALERT + Q_irand(0, 2) fuer 2000 ms
+    const bool mimik = !p.mimik.empty() && std::fabs(p.mimik[0].first - (std::floor(aux) + 1.0)) < 0.5 &&
+                       (p.mimik[0].second == "FACE_ALERT" || p.mimik[0].second == "FACE_SMILE" || p.mimik[0].second == "FACE_FROWN");
+    pruefe(mimik, "Leerlaufmimik: erste nach facial_timer (" + std::to_string(std::floor(aux) + 1.0) + " ms) - " +
+                      (p.mimik.empty() ? std::string("-") : p.mimik[0].second + " bei " + std::to_string(p.mimik[0].first)));
+    // Sprechen schiebt die Mimik auf: facial_timer = cg.time + Q_flrand(2000, 7000)
+    GesichtsEingabe sp = e;
+    sp.sprechen = {{1000.0, 20000.0}};
+    const GesichtsPlan ps = gesichtPlanen(sp);
+    bool still = true;
+    for (const auto& [t, n] : ps.mimik) { still = still && !(t >= 1000.0 && t < 22000.0); }
+    pruefe(still && !ps.mimik.empty(), "Sprechen 1000..20000: keine Mimik bis 2000 ms nach dem Ende, danach wieder");
+    // SET_FACEEYESCLOSED: facial_blink = 1 -> im naechsten Bild zu, bleibt zu
+    GesichtsEingabe zu = e;
+    zu.befehle.push_back({GesichtsBefehl::Art::AugenZu, 1000.0, 0.0F});
+    const GesichtsPlan pz = gesichtPlanen(zu);
+    float l = 0.0F;
+    float r = 0.0F;
+    std::string m;
+    double ende = 0.0;
+    gesichtBei(pz, 50000.0, l, r, m, ende);
+    pruefe(!pz.lider.empty() && pz.lider.back().ms == 1000.0 && l == -38.0F && r == -38.0F,
+           "SET_FACEEYESCLOSED (1000 ms): im selben Bild zu und bleibt zu");
+    // Tot: FACE_DEAD, kein Lidschlag mehr
+    GesichtsEingabe tot = e;
+    tot.todMs = 3000.0;
+    const GesichtsPlan pt = gesichtPlanen(tot);
+    gesichtBei(pt, 40000.0, l, r, m, ende);
+    pruefe(m == "FACE_DEAD" && (pt.lider.empty() || pt.lider.back().ms < 3000.0), "tot: FACE_DEAD, keine Lider mehr - " + m);
+    // ohne Kamerafahrt zwinkert die Figur in 5 % der Lidschlaege (nur links)
+    GesichtsEingabe frei = e;
+    frei.kamera = false;
+    frei.bisMs = 3600000.0;
+    const GesichtsPlan pf = gesichtPlanen(frei);
+    int schl = 0;
+    int zw = 0;
+    for (const GesichtsPlan::Lid& lid : pf.lider) {
+        if (lid.winkel != 0.0F) {
+            ++schl;
+            if (lid.nurLinks) { ++zw; }
+        }
+    }
+    const double anteil = schl > 0 ? static_cast<double>(zw) / schl : 0.0;
+    pruefe(schl > 400 && anteil > 0.02 && anteil < 0.08, "ohne Kamera: Zwinkern " + std::to_string(zw) + " von " + std::to_string(schl));
 }
 
 }  // namespace
@@ -894,6 +1010,7 @@ int main() {
     hocke();
     hang();
     animOhneBilder();
+    gesicht();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

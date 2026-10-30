@@ -698,7 +698,38 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         // mischt, bekommt bei gebeugten Gliedern zu kurze Knochen.
         const bool koerperMischt = act.frameNext >= 0 && act.frameFraction > 0.001F;
         const bool torsoMischt = !vorrang.empty() && vorrang.front().next >= 0;
-        if (koerperMischt || torsoMischt) {
+        // Pruefung 4a: die Lider - G2API_SetBoneAnglesIndex(leye/reye, (0, YAW, 0),
+        // BONE_ANGLES_POSTMULT, POSITIVE_Y, POSITIVE_Z, POSITIVE_X): G2_Generate_Matrix
+        // nimmt (angles[1], angles[0], angles[2]) = (YAW, 0, 0) fuer Create_Matrix
+        // (AnglesToAxis als Spalten, G2_misc.cpp OpenJK); G2_TransformBone
+        // multipliziert die Endmatrix des Knochens von rechts (tr_ghoul2.cpp:1800-1812).
+        std::vector<std::pair<int, BoneMatrix>> lider;
+        for (int seite = 0; seite < 2; ++seite) {
+            const float yaw = seite == 0 ? act.augeLinks : act.augeRechts;
+            if (yaw == 0.0F) { continue; }
+            const int k = boneIndex(*act.anim, seite == 0 ? "leye" : "reye");
+            if (k < 0) { continue; }
+            const float p = yaw * (3.14159265358979323846F / 180.0F);   // Create_Matrix: PITCH = YAW der Engine
+            const float sp = std::sin(p);
+            const float cp = std::cos(p);
+            // AnglesToAxis(p, 0, 0): forward (cp, 0, -sp), left (0, 1, 0), up (sp, 0, cp) - als Spalten
+            BoneMatrix m = BoneMatrix::identity();
+            m.m[0][0] = cp;
+            m.m[1][0] = 0.0F;
+            m.m[2][0] = -sp;
+            m.m[0][1] = 0.0F;
+            m.m[1][1] = 1.0F;
+            m.m[2][1] = 0.0F;
+            m.m[0][2] = sp;
+            m.m[1][2] = 0.0F;
+            m.m[2][2] = cp;
+            lider.emplace_back(k, m);
+        }
+        if (!lider.empty()) {
+            act.anim->worldMatricesLerp(std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
+                                        std::clamp(koerperMischt ? act.frameNext : act.frame, 0, act.anim->bildZahl() - 1),
+                                        koerperMischt ? act.frameFraction : 0.0F, vorrang, lider, world);
+        } else if (koerperMischt || torsoMischt) {
             act.anim->worldMatricesLerp(
                 std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
                 std::clamp(koerperMischt ? act.frameNext : act.frame, 0,

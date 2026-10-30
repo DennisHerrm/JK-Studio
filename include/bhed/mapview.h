@@ -679,6 +679,10 @@ struct ActorDraw {
     // (g_client.cpp:1653, cg_players.cpp:5132), und der Kiefer haengt
     // darunter.
     int faceFrame = -1;
+    // Pruefung 4a: CG_G2SetHeadBlink - YAW der Knochen "leye"/"reye"
+    // (BONE_ANGLES_POSTMULT, bhed/gesicht.h); 0: offen.
+    float augeLinks = 0.0F;
+    float augeRechts = 0.0F;
 
     // --- Das Licht an dieser Stelle --------------------------------------
     //

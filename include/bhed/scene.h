@@ -36,6 +36,7 @@
 #define BHED_SCENE_H
 
 #include "bhed/abwurf.h"   // Pruefung 3: was ein Tod fallen laesst
+#include "bhed/gesicht.h"   // Pruefung 4a: Blinzeln und Mimik
 #include "bhed/bsp.h"
 #include "bhed/navlauf.h"
 #include "bhed/roff.h"
@@ -744,6 +745,8 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // rc605 (Ende): wann die Figur stirbt (kill im Skript oder ein trigger_hurt
     // ueber AblaufWelt::hurtTode); < 0: nie.
     double getoetetMs = -1.0;
+    // Pruefung 4a: SET_FACE* aus den Skripten (Q3_Face, bhed/gesicht.h)
+    std::vector<GesichtsBefehl> gesicht;
     bool startHatSaber = false;
     bool startDual = false;
     std::array<SaberZustand, 2> startSaber{};
@@ -1015,6 +1018,9 @@ struct SzenenHilfe {
     // des gezeichneten Skeletts zur Zeit ms (WP_RunSaber, G_ClearLOS). false:
     // keiner - dann der Ursprung der Figur (cg_players.cpp:7487 OJ).
     std::function<bool(const struct Actor& figur, double ms, float auge[3])> augenPunkt;
+    // Pruefung 4a: PM_TryRoll je Figur und Waffe (npcDarfRollen) - wie
+    // AblaufWelt::darfRollen, damit Ablauf und Szene dieselben Plaene rechnen.
+    std::function<bool(const std::string& figur, const std::string& waffe)> darfRollen;
     // Pruefung 3: der Gegenstand einer Waffe aus items.dat (FindItemForWeapon):
     // mins/maxs fuer G_RunItem. false: die Waffe hat keinen (dann faellt nichts).
     std::function<bool(const std::string& waffe, NavVec& mins, NavVec& maxs)> waffenGegenstand;

@@ -108,6 +108,8 @@ struct AblaufWelt {
     // rc605 (Rest): PM_CrashLand je Figur - FP_LEVITATION und npcLandKlasse.
     std::function<int(const std::string& figur)> levitation;
     std::function<int(const std::string& figur)> landKlasse;
+    // Pruefung 4a: PM_TryRoll je Figur und Waffe in der Hand (npcDarfRollen).
+    std::function<bool(const std::string& figur, const std::string& waffe)> darfRollen;
     // rc605: die Ziele explodierender misc_trip_mine aus der Spur der Szene
     // (laserfalleLauf): WP_Explode -> G_UseTargets( self, attacker ), attacker
     // ist die Falle selbst (eine Karten-Falle hat weder owner noch activator,

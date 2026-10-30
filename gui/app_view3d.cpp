@@ -3385,6 +3385,40 @@ void dumpActorsAtPlayhead() {
     }
 }
 
+// Pruefung 4a: Blinzeln und Leerlaufmimik je Figur (bhed/gesicht.h) - einmal
+// je Szenenbau gerechnet: die Zeiten, in denen sie spricht (die Klaenge ihrer
+// Spur in der Zeitleiste), ihre SET_FACE*-Befehle und ihr Tod.
+const GesichtsPlan& gesichtsPlan(const Actor& a) {
+    static std::uint64_t stand = ~0ULL;
+    static std::map<std::string, GesichtsPlan> plaene;
+    if (stand != g_app->szeneBauten) {
+        plaene.clear();
+        stand = g_app->szeneBauten;
+    }
+    if (const auto it = plaene.find(a.name); it != plaene.end()) { return it->second; }
+    GesichtsEingabe e;
+    // eine feste Saat je Figur (FNV-1a des Namens): beim Spulen dieselben Lidschlaege
+    std::uint32_t h = 2166136261U;
+    for (const char c : a.name) { h = (h ^ static_cast<unsigned char>(c)) * 16777619U; }
+    e.saat = h;
+    e.abMs = std::max(0.0, a.erscheintMs);
+    e.bisMs = std::max(g_app->scene.durationMs, g_app->timeline.durationMs) + 1000.0;
+    e.todMs = a.getoetetMs;
+    e.kamera = !g_app->camTrack.segments.empty();   // in_camera
+    for (const TimelineTrack& track : g_app->timeline.tracks) {
+        if (track.entity != a.name) { continue; }
+        for (const TimelineEvent& ev : track.events) {
+            if (ev.kind != TimelineEvent::Kind::Sound || ev.sound.empty()) { continue; }
+            const sound::Sound* snd = soundFor(ev.sound);
+            if (snd == nullptr || snd->sampleRate <= 0 || snd->channels <= 0) { continue; }
+            const double dauer = static_cast<double>(snd->samples.size()) / snd->channels * 1000.0 / snd->sampleRate;
+            e.sprechen.emplace_back(ev.startMs, ev.startMs + dauer);
+        }
+    }
+    e.befehle = a.gesicht;
+    return plaene.emplace(a.name, gesichtPlanen(e)).first->second;
+}
+
 // Welche Mundanimation eine Figur gerade spielt, oder leer.
 //
 // Gemeldet: "face animationen fehlen noch."
@@ -3402,10 +3436,7 @@ void dumpActorsAtPlayhead() {
 //      und bei -1 (spricht, aber gerade still) FACE_TALK0
 //      (ebenda:5200).
 //
-// Nicht nachgebaut: das Blinzeln und die Leerlaufmimik. Beide haengen in
-// der Engine an Zufallszeitgebern (Q_flrand(4000,8000) fuer den Lidschlag,
-// cg_players.cpp:5159) - etwas Zufaelliges in einer Vorschau, die man
-// anhaelt und zurueckspult, waere kein Gewinn, sondern Unruhe.
+// Das Blinzeln und die Leerlaufmimik rechnet gesichtsPlan (Pruefung 4a).
 std::string faceAnimFor(const std::string& figur, double ms) {
     const TimelineEvent* laufend = nullptr;
     for (const TimelineTrack& track : g_app->timeline.tracks) {
@@ -4624,9 +4655,19 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
             }
         }
 
-        // Der MUND, wenn die Figur gerade spricht.
-        const std::string mund =
-            faceAnimFor(a.name, ms);
+        // Der MUND, wenn die Figur gerade spricht; Pruefung 4a: sonst die
+        // Mimik von CG_G2PlayerHeadAnims (tot FACE_DEAD) und die Lider.
+        std::string mund = faceAnimFor(a.name, ms);
+        {
+            std::string mimik;
+            double sprachEnde = -1.0;
+            gesichtBei(gesichtsPlan(a), ms, d.augeLinks, d.augeRechts, mimik, sprachEnde);
+            if (mimik == "FACE_DEAD") {
+                mund = mimik;
+            } else if (mund.empty()) {
+                mund = sprachEnde >= 0.0 ? faceAnimFor(a.name, sprachEnde - 1.0) : mimik;
+            }
+        }
         if (!mund.empty()) {
             d.faceFrame = frameForAnimationIn(
                 assets.skeleton->sections, mund, 0.0, false);
@@ -6149,6 +6190,15 @@ void prepareScene() {
                 const auto it = landWerte->find(f);
                 return it == landWerte->end() ? 0 : it->second.second;
             };
+            // Pruefung 4a: PM_TryRoll je Figur (Klasse, Rang) und Waffe
+            auto rollKlassen = std::make_shared<std::map<std::string, std::pair<std::string, std::string>>>();
+            for (const Actor& a : ersteSzene.actors) { (*rollKlassen)[a.name] = {a.klasse, a.rang}; }
+            welt.darfRollen = [rollKlassen](const std::string& f, const std::string& waffe) {
+                const auto it = rollKlassen->find(f);
+                return it != rollKlassen->end() &&
+                       npcDarfRollen(navMovieDuelsRegeln(), navJk2Regeln(), waffe, it->second.first, it->second.second);
+            };
+            hilfe.darfRollen = welt.darfRollen;
             welt.halbBreite = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 16.0F : it->second.first;
