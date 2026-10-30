@@ -2431,15 +2431,38 @@ std::vector<Schritt> handbuchSchritte() {
         }));
         t.push_back(pause(0.5));
         t.push_back(tu("Handbuch Zeitleiste: Aufnehmen", [] { aufnahmeStarten(g_app->selectedActor); }));
-        t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [](int b) {
+        // Zeitleiste 4: nach Weg statt nach Bildern - ohne Last kam die Figur in
+        // 90 + 60 Bildern kaum vom Fleck (ein Laufziel). Erst W bis 300 Einheiten
+        // vom Start, dann D bis 150 Einheiten weiter (wie Integration 5 im
+        // Selbsttest zeitleiste1); hoechstens 600 Bilder.
+        auto zug = std::make_shared<std::pair<int, std::array<float, 3>>>(0, std::array<float, 3>{});
+        t.push_back(Schritt{"Handbuch Zeitleiste: W und D halten", [zug](int b) {
                                 ImGuiIO& io = ImGui::GetIO();
-                                if (b == 0) { io.AddKeyEvent(ImGuiKey_W, true); }
-                                if (b == 90) {
+                                const int fig = g_app->selectedActor;
+                                if (fig < 0 || static_cast<std::size_t>(fig) >= g_app->scene.actors.size()) { return true; }
+                                ActorState st = g_app->scene.actors[static_cast<std::size_t>(fig)].at(g_app->playMs);
+                                aufnahmeFigurZustand(fig, g_app->playMs, st);
+                                const std::array<float, 3> jetzt{st.pos[0], st.pos[1], st.pos[2]};
+                                const auto weg = [&jetzt](const std::array<float, 3>& von) {
+                                    return std::hypot(static_cast<double>(jetzt[0] - von[0]), static_cast<double>(jetzt[1] - von[1]));
+                                };
+                                if (b == 0) {
+                                    *zug = {0, jetzt};
+                                    io.AddKeyEvent(ImGuiKey_W, true);
+                                    return false;
+                                }
+                                if (zug->first == 0 && (weg(zug->second) >= 300.0 || b > 400)) {
                                     io.AddKeyEvent(ImGuiKey_W, false);
                                     io.AddKeyEvent(ImGuiKey_D, true);
+                                    *zug = {1, jetzt};
+                                    return false;
                                 }
-                                if (b == 150) { io.AddKeyEvent(ImGuiKey_D, false); }
-                                return b > 152;
+                                if (zug->first == 1 && (weg(zug->second) >= 150.0 || b > 600)) {
+                                    io.AddKeyEvent(ImGuiKey_D, false);
+                                    zug->first = 2;
+                                    return false;
+                                }
+                                return zug->first == 2;
                             }});
         t.push_back(pause(0.3));
         t.push_back(hb::fotoTeil("h_zl_aufnahme", [] {
