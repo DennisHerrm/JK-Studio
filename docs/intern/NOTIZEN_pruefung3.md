@@ -286,6 +286,12 @@ Stand:
     MD-Holsterorte je holsterPlace/Stil/Schwert (wp_saber.cpp:1170 ff. MD, ueber
     300 Zeilen, dazu die Aufrufe in NPC_spawn, Q3_Interface, bg_pmove,
     g_active, g_client) sind in dieser Runde nicht mehr gebaut - offen.
+- Punkt 7 (Rotlaeufe p3tod/p3marke) nachgeholt: derselbe Selbsttest
+  pruefung3 mit dem alten Stand der beiden Wege (todesFolgenAnlegen nicht
+  gerufen, Decals nicht in den Markenspeicher - nur fuer diesen Lauf ueber
+  eine Umgebungsvariable, danach zurueckgesetzt): 4 OK, 5 FEHLER (p3marke:
+  Decal im Markenspeicher; p3tod: Waffe aus der Hand, DeathFX R2D2,
+  Todesklaenge, Waffe liegt am Boden). Neuer Stand: 9 OK, 0 FEHLER.
 - Punkt 1 und 2: NICHT gebaut (offen). Grund: Umfang - beide brauchen eigene
   Simulationen (Totenlauf als PM_DEAD-Pmove im Wegplaner mit Hoehe aus der
   Schwerkraft; NPC_RemoveBody mit Sichtpruefung des Spielers/der Kamera und dem
@@ -320,6 +326,18 @@ Stand:
     PM_RunningAnim; G_StartRoll, waehrend der Rolle PM_CmdForRoll mit speed 400
     und G_CheckRollSafety.
   - Punkt 5/6: Stellen in ausruestung.cpp:18-46 und app_view3d.cpp (Blinzeln).
+
+Schlussrunde 4a (30.10. nachmittags, unter Last anderer Agenten): sauberer
+Neubau 0 Warnungen/0 Fehler, ctest 178/178, lint_sources/lint_fassung ok;
+Selbsttests pruefung3 9/0, szenen 26/0, kamera 95/0, missionsbau 95/0, umriss
+45/0, karteneditor kurz (BHED_KARTE_NUR=fotos) 78/0, mission1 (ohne
+BHED_FOTOS) 97/1 - der Fehler ist die zeitabhaengige Probe "Gizmo: Kamera ...
+nach Stop wie vorher": im zweiten Durchgang hielt das Abspielen unter Last bei
+5,86 s statt 4,05 s an, die Achsenfarben zaehlen dann ein anderes Bild (1673
+statt 1288); im Lauf m1ohne vorher 98/0, die Wiederholung (m1zwei) 98/0.
+Gegen das laufende Spiel wurde nicht fotografiert (kein Spielstart in dieser
+Sitzung - die Zeit ging in Punkt 3-8 und die Schlussrunde); die Pruefungen
+laufen gegen die portierten Formeln (ctest) und im Programm (Selbsttests).
 
 Naechster Schritt (Fortsetzung): Punkt 1 (Totenlauf) und 2 (NPC_RemoveBody)
 nach den Stellen oben; Holster (nur MD) aus Punkt 5; Movie-Duels-Lunge von
