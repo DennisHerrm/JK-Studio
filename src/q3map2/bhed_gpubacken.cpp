@@ -509,7 +509,8 @@ bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
 		kopf.basis = basis;
 		basis += kopf.anzahl;
 		g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
-		g.ktx->Dispatch( ( kopf.anzahl + 63 ) / 64, 1, 1 );
+		const UINT gruppe = k == kZufall ? 256u : 64u;   // vis2: der Kern zufall hat 256 Faeden je Gruppe
+		g.ktx->Dispatch( ( kopf.anzahl + gruppe - 1 ) / gruppe, 1, 1 );
 		++g.zahlen.dispatches;
 		if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
 			ok = false;   // Test: Geraeteverlust vorgetaeuscht (BHED_GPUBAKE_VERLUST)
@@ -854,7 +855,7 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 				Kopf kz = kopf;
 				kz.zRunden = g.zRunden;
 				const auto tz = std::chrono::steady_clock::now();
-				ok = lauf( kZufall, n * 64u, 1, kz );
+				ok = lauf( kZufall, n * 256u, 1, kz );
 				std::uint32_t offen[ 2 ] = {};
 				loesen();
 				ok = ok && lesen( uZaehler, offen, 8 );

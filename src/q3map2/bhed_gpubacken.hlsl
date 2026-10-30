@@ -1361,7 +1361,7 @@ void stempellauf(uint3 id : SV_DispatchThreadID)
     if (g_unsicher) { InterlockedOr(lmFlag[li], 1u); }
 }
 
-// vis2: 4b. Zufaellige Nachproben (-randomsamples), eine Gruppe je Lightmap. Wie BhedZufallsProben
+// vis2: 4b. Zufaellige Nachproben (-randomsamples), eine Gruppe (256 Faeden) je Lightmap. Wie BhedZufallsProben
 //    (light_ydnar.cpp): die aktiven Lichter in ihrer Reihenfolge, je Licht der Stempellauf in Zeilenfolge
 //    (vorhergesagte und "schmutzige" Stempel wie stempellauf), der n-te nachabgetastete Luxel der Lightmap
 //    zieht ab dem Zustand seed nach 2 * lightSamples * n Zuegen. Der Lauf selbst ist seriell (ein
@@ -1371,7 +1371,7 @@ void stempellauf(uint3 id : SV_DispatchThreadID)
 //    zwischen den Dispatches in kandListe (ZSTAND je Lightmap; zRunden Luxel je Dispatch, TDR); zaehler[0]
 //    zaehlt die Lightmaps, die noch nicht fertig sind, zaehler[1] die nachabgetasteten Luxel.
 #define ZSTAND 40                   // [0] fertig [1] Licht [2] laeuft [3] y [4] x [5] Zustand [6] gesetzt [8..23] jetzt [24..39] naechste
-#define ZPROBEN 256                 // Proben je Durchgang (4 je Faden)
+#define ZPROBEN 256                 // Proben je Durchgang (eine je Faden: die Kette der Luxel ist seriell, kurze Wege zaehlen)
 groupshared float zFarbe[3][ZPROBEN];
 groupshared uint zOk[ZPROBEN];
 groupshared float zSumme[3];
@@ -1497,10 +1497,10 @@ void zufallNaechster(Lm lm)
     zZustand = zust;
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(256, 1, 1)]
 void zufall(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID)
 {
-    const uint gi = (id.x + basis) >> 6;
+    const uint gi = (id.x + basis) >> 8;
     const uint tid = gt.x;
     const int li = zufallLms[gi];
     const Lm lm = lms[li];
@@ -1544,7 +1544,7 @@ void zufall(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID)
             if (tid == 0u) { zSumme[0] = 0.0f; zSumme[1] = 0.0f; zSumme[2] = 0.0f; zAbgebildet = 0u; }
             [loop] for (int c = 0; c < lightSamples; c += ZPROBEN)
             {
-                [loop] for (uint t = tid; t < (uint)ZPROBEN; t += 64u)
+                [loop] for (uint t = tid; t < (uint)ZPROBEN; t += 256u)
                 {
                     const int b = c + (int)t;
                     uint ok = 0u;
