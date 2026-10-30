@@ -14,6 +14,7 @@
 
 #include <array>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -62,6 +63,7 @@ inline constexpr int kItmsfNoGlow = 64;
 namespace bhed {
 
 struct MapEntity;
+struct SaberDef;
 
 struct GegenstandAufstellung {
     bool sichtbar = false;
@@ -75,6 +77,8 @@ struct GegenstandAufstellung {
     // spinAngles mit dem ITMSF_VERTICAL-Kippen - gilt nur fuer die Achsen
     // (AnglesToAxis -> ent.axis), also fuer .md3 (CG_Item, cg_ents.cpp:1218 ff.).
     std::array<float, 3> md3Winkel{};
+    // Pruefung 4b: weapon_saber mit NPC_type - modell kommt aus der .sab.
+    bool schwertNpc = false;
 };
 
 // Spur fuer das Fallen: Kasten mins/maxs von start nach ende gegen alles
@@ -85,9 +89,15 @@ using GegenstandSpur = std::function<void(const std::array<float, 3>& start, con
 
 // G_SpawnGEntityFromSpawnVars (notsingle, Schwierigkeit), G_SpawnItem
 // (targetname: erst per use) und FinishSpawningItem (JKA-Zweig) fuer EINEN
-// Gegenstand. spielstufe = g_spskill (regelwerkSpielstufe()).
+// Gegenstand. spielstufe = g_spskill (regelwerkSpielstufe()). sabers: die
+// .sab-Eintraege (Schluessel klein) fuer weapon_saber mit NPC_type.
 [[nodiscard]] GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand& g, int spielstufe,
-                                                         bool movieDuels, const GegenstandSpur& spur);
+                                                         bool movieDuels, const GegenstandSpur& spur,
+                                                         const std::map<std::string, SaberDef>* sabers = nullptr,
+                                                         bool jediOutcast = false);
+// Pruefung 4b: g_saber, mit dem "player" als NPC_type eines weapon_saber
+// aufgeloest wird (gi.cvar("g_saber", "single_1"), g_main.cpp:693 OpenJK).
+inline constexpr const char* kSpielerSchwert = "single_1";
 
 // SpawnForCurrentDifficultySetting (g_spawn.cpp:1222 MD) und "notsingle"
 // (:1259): gilt fuer JEDE Entity, bevor ihre Spawnfunktion laeuft.

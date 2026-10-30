@@ -148,23 +148,26 @@ namespace {
 // falsch: dasselbe Alter muss dasselbe Bild geben, sonst zittert der Funke,
 // sobald die Bildrate schwankt.
 //
-// Zwei Millisekunden - fein genug, dass ein Partikel bei
-// Blastergeschwindigkeit (2300 Einheiten je Sekunde) je Schritt gut vier
-// Einheiten zuruecklegt.
-constexpr float kSchrittS = 0.002F;
+// Pruefung 4b: acht Millisekunden - die Bildzeit des Spiels mit der Vorgabe
+// com_maxfps 125 (shared/sys/sys_main.cpp:162 OpenJK; Movie Duels ebenso).
+// Bis Pruefung 4b waren es zwei: fein, aber nicht das Spiel - und der
+// Spurtest haengt davon ab, wie weit ein Teilchen je Bild kommt (ein Kasten,
+// der schon im Boden steckt, bevor sein Mittelpunkt dort ankommt, beginnt
+// "startsolid" und faellt durch, CParticle::UpdateOrigin).
+constexpr float kSchrittS = 0.008F;
 // Und eine Obergrenze fuer die Schritte. Bis rc569 lag sie bei tausend
 // (zwei Sekunden), danach blieb das Teilchen einfach STEHEN - ein Nebel-
 // sprite aus exegol/fogsprites.efx (`gravity -2 -1`, `life 1.6e+004`)
 // erreicht den Boden aber erst nach knapp drei Sekunden und hing darueber
-// in der Luft. Dreissigtausend Schritte sind sechzig Sekunden, laenger lebt
+// in der Luft. 7500 Schritte zu 8 ms sind sechzig Sekunden, laenger lebt
 // kein Teilchen der Mod (das laengste: `life 5.2e+004` in
 // sarlacc/smoke_explosion.efx). Bezahlbar ist das, weil ein Aufrufer mit
 // FlugZustand nicht jedes Bild von vorn anfaengt.
-constexpr int kMaxSchritte = 30000;
+constexpr int kMaxSchritte = 7500;
 
 // Wie viele VOLLE Schritte passen in `sekunden`? Ganzzahlig, damit jeder
 // Aufruf - ob von vorn oder fortgesetzt - dieselben Schritte macht. Die
-// Toleranz faengt 0.5 / 0.002 = 249.99998 in float ab.
+// Toleranz faengt Quotienten wie 0.5 / 0.002 = 249.99998 in float ab.
 int volleSchritte(float sekunden) {
     const float n = std::floor(sekunden / kSchrittS + 1e-3F);
     return (n <= 0.0F) ? 0 : static_cast<int>(std::min(n, 2.0e9F));
@@ -239,23 +242,22 @@ FlugErgebnis schritte(
     // beginnt an einem Stand, der hoechstens `bekannt` weit ist.
     std::size_t buchPos = 0;
     auto spurVoll = [&](int s, const camera::Vec3& von, const camera::Vec3& bis,
-                        camera::Vec3& punkt, camera::Vec3& normale) {
+                        float sekunde, Spur& sp) {
         if (merk != nullptr && s <= merk->bekannt) {
             const auto& b = merk->buch;
             while (buchPos < b.size() && b[buchPos].schritt < s) {
                 ++buchPos;
             }
             if (buchPos < b.size() && b[buchPos].schritt == s) {
-                punkt = b[buchPos].punkt;
-                normale = b[buchPos].normale;
+                sp = b[buchPos].spur;
                 return true;
             }
             return false;
         }
-        const bool traf = trace(von, bis, punkt, normale);
+        const bool traf = trace(von, bis, sekunde, sp);
         if (merk != nullptr) {
             if (traf) {
-                merk->buch.push_back(FlugZustand::Treffer{s, punkt, normale});
+                merk->buch.push_back(FlugZustand::Treffer{s, sp});
             }
             merk->bekannt = s;
         }
@@ -272,11 +274,12 @@ FlugErgebnis schritte(
         z.v.z += z.a.z * dt;
         const camera::Vec3 ziel{z.p.x + z.v.x * dt, z.p.y + z.v.y * dt,
                                 z.p.z + z.v.z * dt};
-        camera::Vec3 punkt{};
-        camera::Vec3 normale{};
+        Spur sp;
         FlugErgebnis& aus = z.aus;
-        const bool getroffen = (s > 0) ? spurVoll(s, z.p, ziel, punkt, normale)
-                                       : trace(z.p, ziel, punkt, normale);
+        const bool getroffen = (s > 0) ? spurVoll(s, z.p, ziel, bisher, sp)
+                                       : trace(z.p, ziel, bisher, sp);
+        const camera::Vec3& punkt = sp.punkt;
+        const camera::Vec3& normale = sp.normale;
         if (!getroffen) {
             z.p = ziel;
             return;
@@ -295,6 +298,7 @@ FlugErgebnis schritte(
             aus.aufprallPunkt[k] = punkt;
             aus.aufprallNormale[k] = normale;
             aus.aufprallSekunde[k] = bisher;
+            aus.aufprallOhneFx[k] = sp.ohneEinschlag;
             ++aus.aufpralle;
         }
         if (killOnImpact) {
@@ -306,7 +310,12 @@ FlugErgebnis schritte(
             return;
         }
         ++aus.abpraller;
-        // Spiegeln und daempfen - FxPrimitives.cpp:329 ff.
+        // Pruefung 4b: "VectorMA( mVel, mFloatFrameTime * trace.fraction,
+        // mAccel, mVel )" - die Beschleunigung noch einmal fuer den Weg bis
+        // zur Wand, dann spiegeln und daempfen (FxPrimitives.cpp:326-333).
+        z.v.x += z.a.x * dt * sp.anteil;
+        z.v.y += z.a.y * dt * sp.anteil;
+        z.v.z += z.a.z * dt * sp.anteil;
         const float dot =
             z.v.x * normale.x + z.v.y * normale.y + z.v.z * normale.z;
         z.v.x -= 2.0F * dot * normale.x;
@@ -382,15 +391,16 @@ FlugErgebnis schritte(
                     FlugErgebnis& aus = z.aus;
                     if (!aus.traf) {
                         aus.traf = true;
-                        aus.trefferPunkt = t.punkt;
-                        aus.trefferNormale = t.normale;
+                        aus.trefferPunkt = t.spur.punkt;
+                        aus.trefferNormale = t.spur.normale;
                         aus.trefferSekunde = bisher;
                     }
                     if (aus.aufpralle < FlugErgebnis::kMaxAufpralle) {
                         const auto k = static_cast<std::size_t>(aus.aufpralle);
-                        aus.aufprallPunkt[k] = t.punkt;
-                        aus.aufprallNormale[k] = t.normale;
+                        aus.aufprallPunkt[k] = t.spur.punkt;
+                        aus.aufprallNormale[k] = t.spur.normale;
                         aus.aufprallSekunde[k] = bisher;
+                        aus.aufprallOhneFx[k] = t.spur.ohneEinschlag;
                         ++aus.aufpralle;
                     }
                     ++aus.abpraller;

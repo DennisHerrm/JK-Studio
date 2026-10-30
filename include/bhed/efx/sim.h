@@ -23,12 +23,21 @@ namespace bhed::efx::sim {
 // BSP-Geometrie direkt: so bleibt efx frei von der Kartenschicht, und die
 // Proben koennen eine erfundene Wand einsetzen.
 //
-// Gibt `true` und fuellt Punkt und Normale, wenn zwischen `von` und `bis`
-// etwas Festes liegt.
+// Pruefung 4b: der ganze Spurtest von CParticle::UpdateOrigin
+// (FxPrimitives.cpp:280-345 OpenJK) - erst CG_PointContents am neuen Ort
+// (ausser expensivePhysics), dann CG_Trace mit Kasten (useBBox) bzw. Punkt.
+// `true` heisst getroffen: weder startsolid noch allsolid, fraction < 1.
+// `sekunde` ist die Zeit seit dem Entstehen nach dem Schritt (fuer bewegte
+// Brush-Modelle und Figuren).
+struct Spur {
+    camera::Vec3 punkt;            // trace.endpos
+    camera::Vec3 normale;          // trace.plane.normal
+    float anteil = 1.0F;           // trace.fraction
+    bool ohneEinschlag = false;    // SURF_NOIMPACT: kein impactFx
+};
 using TraceFn = std::function<bool(const camera::Vec3& von,
-                                   const camera::Vec3& bis,
-                                   camera::Vec3& punkt,
-                                   camera::Vec3& normale)>;
+                                   const camera::Vec3& bis, float sekunde,
+                                   Spur& aus)>;
 
 // Ein Zufallsgeber, der hereingereicht wird statt intern zu ziehen. Sonst
 // laesst sich nichts davon pruefen: dieselbe Datei muesste zweimal dasselbe
@@ -222,6 +231,9 @@ struct FlugErgebnis {
     camera::Vec3 aufprallPunkt[kMaxAufpralle];
     camera::Vec3 aufprallNormale[kMaxAufpralle];
     float aufprallSekunde[kMaxAufpralle]{};
+    // Pruefung 4b: getroffen auf SURF_NOIMPACT - "if ( mFlags &
+    // FX_IMPACT_RUNS_FX && !(trace.surfaceFlags & SURF_NOIMPACT ))".
+    bool aufprallOhneFx[kMaxAufpralle]{};
 
     // Seit wann es liegt (nur gueltig mit `liegt`). Gebraucht fuer die
     // Drehung eines Emittermodells: CEmitter::Update (FxPrimitives.cpp:1524)
@@ -280,7 +292,7 @@ struct FlugErgebnis {
 //
 // `p`, `v`, `a`, `schritte`, `aus` bleiben der WEITESTE Stand; ein
 // frueheres Alter setzt an der Marke davor an und laesst ihn stehen.
-inline constexpr int kMarkenAbstand = 128;   // 256 ms
+inline constexpr int kMarkenAbstand = 32;   // 256 ms
 struct FlugZustand {
     camera::Vec3 p;
     camera::Vec3 v;
@@ -290,8 +302,7 @@ struct FlugZustand {
     bool gueltig = false;
     struct Treffer {
         int schritt = 0;     // der wievielte volle Schritt (ab 1)
-        camera::Vec3 punkt;
-        camera::Vec3 normale;
+        Spur spur;
     };
     std::vector<Treffer> buch;   // nach Schritt geordnet
     int bekannt = 0;             // die Schritte 1..bekannt stehen im Buch

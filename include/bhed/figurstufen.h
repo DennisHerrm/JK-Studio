@@ -28,6 +28,10 @@ enum class FigurFarbe : std::uint8_t {
     Fest,      // CGEN_CONST
     Welle,     // CGEN_WAVEFORM: RB_CalcWaveColor (zur Zeit ausgewertet)
     Schwarz,   // oneMinusEntity / oneMinusVertex auf Weiss
+    // Pruefung 4b: RF_RGB_TINT - forceRGBGen = CGEN_ENTITY (tr_shade.cpp:1917
+    // OpenJK), die Farbe ist shaderRGBA des refEntity (gpu::FigurLicht::
+    // entityFarbe). Nur fuer eigene Huellen (liegendes Lichtschwert).
+    Entity,
 };
 enum class FigurAlpha : std::uint8_t {
     Eins,      // AGEN_IDENTITY (und vertex auf Weiss)

@@ -1,10 +1,13 @@
 // pruefung4b.cpp - Pruefung 4b: Entities, Effekte, Kamera - je Punkt gegen die
 // Formel der Engine (OpenJK, Movie Duels, Jedi Outcast) mit eigenen Daten.
 //
+// 1. useBBox im Effektpfad: efx::sim gegen eine Abschrift von
+//    CParticle::UpdateOrigin mit der Kastenspur der Kollisionskarte.
 // 6. CAMERA_ACCEL und ZOOM gleichzeitig: client_camera (FOV, FOV2, FOV_time,
 //    FOV_duration, FOV_vel, FOV_acc, CAMERA_ACCEL/CAMERA_ZOOMING) Bild fuer
 //    Bild wie CGCam_Update (cg_camera.cpp:1101-1183 OpenJK) gegen
 //    CameraTrack::at.
+// 3a. weapon_saber mit NPC_type: das Modell aus der .sab (FinishSpawningItem).
 // 3. forced_rgb_saber_colours (Movie Duels): die RGB-Zweige sind hinter
 //    "saberColor"/"saber2Color" unerreichbar - eine RGB-Zeile aendert nichts;
 //    Jedi Outcast kennt nur "saberColor".
@@ -15,6 +18,9 @@
 #include "bhed/ablauf.h"
 #include "bhed/bspgeo.h"
 #include "bhed/camtrack.h"
+#include "bhed/efx/sim.h"
+#include "bhed/gegenstaende.h"
+#include "bhed/kollision.h"
 #include "bhed/mover.h"
 #include "bhed/roff.h"
 #include "bhed/scene.h"
@@ -24,6 +30,7 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -539,6 +546,164 @@ void entfernenVorAdd() {
                 {{true, "models/items/a.glm"}, {false, "x"}, {false, "x"}, {true, "models/items/b.glm"}});
 }
 
+// 1. useBBox im Effektpfad: CParticle::UpdateOrigin (FxPrimitives.cpp:
+// 280-345 OpenJK) als Abschrift - je Bild (com_maxfps 125: 8 ms) erst
+// UpdateVelocity, dann der neue Ort; Physik nur, wenn CG_PointContents dort
+// fest ist (ausser expensivePhysics); Spur mit Kasten (useBBox) bzw. Punkt;
+// startsolid/allsolid/fraction 1 heisst kein Treffer; sonst die Beschleunigung
+// fuer den Weg bis zur Wand, spiegeln, daempfen, liegen bei vel.z < 4.
+struct TeilchenWelt {
+    float ort[3] = {0.0F, 0.0F, -8.0F};
+    float lo[3] = {-1000.0F, -1000.0F, -8.0F};
+    float hi[3] = {1000.0F, 1000.0F, 8.0F};   // Boden z -16 .. 0
+    bool fest(const float q[3]) const {
+        for (int a = 0; a < 3; ++a) {
+            if (q[a] - ort[a] < lo[a] || q[a] - ort[a] > hi[a]) { return false; }
+        }
+        return true;
+    }
+};
+
+struct TeilchenLauf {
+    float o[3];
+    float v[3];
+    bool liegt = false;
+};
+
+// Die Abschrift: Lage nach `bilder` Bildern zu dt Sekunden.
+TeilchenLauf engineTeilchen(const TeilchenWelt& w, const float start[3], const float vel[3], float g, float el,
+                            bool kasten, float halb, bool teuer, int bilder, float dt) {
+    TeilchenLauf t;
+    float a[3] = {0.0F, 0.0F, g};
+    for (int k = 0; k < 3; ++k) {
+        t.o[k] = start[k];
+        t.v[k] = vel[k];
+    }
+    const float mi[3] = {kasten ? -halb : 0.0F, kasten ? -halb : 0.0F, kasten ? -halb : 0.0F};
+    const float ma[3] = {kasten ? halb : 0.0F, kasten ? halb : 0.0F, kasten ? halb : 0.0F};
+    for (int b = 0; b < bilder; ++b) {
+        for (int k = 0; k < 3; ++k) { t.v[k] += a[k] * dt; }   // UpdateVelocity
+        float neu[3];
+        for (int k = 0; k < 3; ++k) { neu[k] = t.o[k] + dt * t.v[k]; }
+        if (!t.liegt && (teuer || w.fest(neu))) {
+            const KollisionsSpur tr = kollisionsSpurKasten(t.o, mi, ma, neu, 1U, w.ort, w.lo, w.hi, 1U);
+            if (!(tr.startsolid || tr.allsolid || tr.fraction == 1.0F)) {
+                for (int k = 0; k < 3; ++k) { t.v[k] += dt * tr.fraction * a[k]; }
+                const float dot = t.v[0] * tr.normale[0] + t.v[1] * tr.normale[1] + t.v[2] * tr.normale[2];
+                for (int k = 0; k < 3; ++k) {
+                    t.v[k] += -2.0F * dot * tr.normale[static_cast<std::size_t>(k)];
+                    t.v[k] *= el;
+                }
+                if (tr.normale[2] > 0.0F && t.v[2] < 4.0F) {
+                    for (int k = 0; k < 3; ++k) {
+                        t.v[k] = 0.0F;
+                        a[k] = 0.0F;
+                    }
+                    t.liegt = true;
+                }
+                for (int k = 0; k < 3; ++k) { t.o[k] = tr.endpos[static_cast<std::size_t>(k)]; }
+                continue;
+            }
+        }
+        for (int k = 0; k < 3; ++k) { t.o[k] = neu[k]; }
+    }
+    return t;
+}
+
+void teilchenSpur() {
+    std::printf("--- 1. useBBox: Kastenspur der Kollisionskarte im Effektpfad ---\n");
+    const TeilchenWelt w;
+    struct Fall {
+        const char* was;
+        bool kasten;
+        bool teuer;
+    };
+    const Fall faelle[] = {{"Punkt", false, false}, {"Kasten +-5 ohne expensivePhysics", true, false},
+                           {"Kasten +-5 mit expensivePhysics", true, true}};
+    const float start[3] = {0.0F, 0.0F, 100.0F};
+    const float vel[3] = {30.0F, 0.0F, 0.0F};
+    for (const Fall& f : faelle) {
+        const float lo[3] = {f.kasten ? -5.0F : 0.0F, f.kasten ? -5.0F : 0.0F, f.kasten ? -5.0F : 0.0F};
+        const float hi[3] = {f.kasten ? 5.0F : 0.0F, f.kasten ? 5.0F : 0.0F, f.kasten ? 5.0F : 0.0F};
+        // Wie efxdraw.cpp spurFuer: erst der Inhalt am neuen Ort, dann die Spur.
+        const efx::sim::TraceFn spur = [&w, lo, hi, f](const efx::camera::Vec3& von, const efx::camera::Vec3& bis,
+                                                         float, efx::sim::Spur& aus) {
+            const float b[3] = {bis.x, bis.y, bis.z};
+            if (!f.teuer && !w.fest(b)) { return false; }
+            const float a[3] = {von.x, von.y, von.z};
+            const KollisionsSpur t = kollisionsSpurKasten(a, lo, hi, b, 1U, w.ort, w.lo, w.hi, 1U);
+            if (t.startsolid || t.allsolid || t.fraction >= 1.0F) { return false; }
+            aus.punkt = efx::camera::Vec3{t.endpos[0], t.endpos[1], t.endpos[2]};
+            aus.normale = efx::camera::Vec3{t.normale[0], t.normale[1], t.normale[2]};
+            aus.anteil = t.fraction;
+            return true;
+        };
+        bool gleich = true;
+        std::string zeilen;
+        for (const int bilder : {50, 62, 63, 100, 200, 400}) {
+            const TeilchenLauf e = engineTeilchen(w, start, vel, -800.0F, 0.5F, f.kasten, 5.0F, f.teuer, bilder, 0.008F);
+            const efx::sim::FlugErgebnis r = efx::sim::flugbahn(
+                efx::camera::Vec3{start[0], start[1], start[2]}, efx::camera::Vec3{vel[0], vel[1], vel[2]},
+                efx::camera::Vec3{0.0F, 0.0F, 0.0F}, -800.0F, static_cast<float>(bilder) * 0.008F, 0.5F, false, spur);
+            gleich = gleich && std::fabs(r.position.z - e.o[2]) < 0.01F && std::fabs(r.position.x - e.o[0]) < 0.01F;
+            char z[96];
+            std::snprintf(z, sizeof(z), " %d:%.2f/%.2f", bilder * 8, static_cast<double>(r.position.z),
+                          static_cast<double>(e.o[2]));
+            zeilen += z;
+        }
+        pruefe(gleich, std::string(f.was) + " (ms:Vorschau/Engine z)" + zeilen);
+    }
+    const TeilchenLauf durch = engineTeilchen(w, start, vel, -800.0F, 0.5F, true, 5.0F, false, 400, 0.008F);
+    const TeilchenLauf liegt = engineTeilchen(w, start, vel, -800.0F, 0.5F, true, 5.0F, true, 400, 0.008F);
+    pruefe(durch.o[2] < -16.0F && liegt.liegt && std::fabs(liegt.o[2] - 5.0F) < 0.2F,
+           "Engine: ohne expensivePhysics faellt der Kasten durch (startsolid), mit liegt er auf (z " +
+               std::to_string(durch.o[2]) + " / " + std::to_string(liegt.o[2]) + ")");
+}
+
+// 3a. weapon_saber mit NPC_type: FinishSpawningItem (g_items.cpp:1138-1158
+// OpenJK, 1589-1616 MD) - das Modell aus WP_SaberParseParms(NPC_type),
+// "player" mit g_saber "single_1", unbekannt oder ohne saberModel die
+// Vorgabe; Jedi Outcast nimmt immer world_model.
+void liegendeSchwerter() {
+    std::printf("--- 3a. weapon_saber mit NPC_type ---\n");
+    std::map<std::string, SaberDef> sabers;
+    sabers["single_1"].model = "models/weapons2/saber_spieler/saber_spieler.glm";
+    sabers["dual_3"].model = "models/weapons2/saber_3/saber_3.glm";
+    sabers["ohne_modell"].name = "ohne";
+    Gegenstand g;
+    g.classname = "weapon_saber";
+    g.worldmodel = "models/weapons2/saber/saber_w.glm";
+    g.typ = "IT_WEAPON";
+    g.tag = "WP_SABER";
+    const auto stelle = [](const char* npc) {
+        MapEntity e;
+        e.classname = "weapon_saber";
+        e.origin = "0 0 0";
+        if (npc != nullptr) { e.keys.emplace_back("NPC_type", npc); }
+        e.keys.emplace_back("spawnflags", "1");   // ITMSF_SUSPEND: ohne Fallen
+        return e;
+    };
+    struct Fall {
+        const char* npc;
+        bool jk2;
+        const char* soll;
+    };
+    const Fall faelle[] = {{"Dual_3", false, "models/weapons2/saber_3/saber_3.glm"},
+                           {"player", false, "models/weapons2/saber_spieler/saber_spieler.glm"},
+                           {"unbekannt", false, kStandardGriff},
+                           {"ohne_modell", false, kStandardGriff},
+                           {nullptr, false, "models/weapons2/saber/saber_w.glm"},
+                           {"dual_3", true, "models/weapons2/saber/saber_w.glm"}};
+    bool alle = true;
+    std::string text;
+    for (const Fall& f : faelle) {
+        const GegenstandAufstellung a = gegenstandAufstellen(stelle(f.npc), g, 1, true, {}, &sabers, f.jk2);
+        alle = alle && a.sichtbar && a.modell == f.soll && a.glm;
+        text += std::string(" ") + (f.npc != nullptr ? f.npc : "-") + (f.jk2 ? "(JK2)" : "") + "=" + a.modell;
+    }
+    pruefe(alle, "Modell je NPC_type:" + text);
+}
+
 }  // namespace
 
 int main() {
@@ -546,6 +711,8 @@ int main() {
     schwertFarben();
     bruchVerzoegerung();
     entfernenVorAdd();
+    teilchenSpur();
+    liegendeSchwerter();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

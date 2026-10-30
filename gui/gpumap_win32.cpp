@@ -4138,6 +4138,10 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         for (int q = 0; q < 3; ++q) { sd[4 + q] = w; }
                         break;
                     }
+                    case FigurFarbe::Entity:   // Pruefung 4b: RF_RGB_TINT
+                        sd[0] = 2.0F;
+                        for (int q = 0; q < 3; ++q) { sd[4 + q] = licht != nullptr ? licht->entityFarbe[q] : 1.0F; }
+                        break;
                 }
                 switch (art.alpha) {
                     case FigurAlpha::Eins: sd[1] = 0.0F; break;
@@ -4230,7 +4234,8 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         st.ds = tiefeAn() ? holeTiefe(z) : nullptr;
                         st.features = z.features;
                         st.glow = fs.bilder.front().glow;
-                        st.zeitabh = fs.art.farbe == FigurFarbe::Welle || fs.art.alpha == FigurAlpha::Welle ||
+                        st.zeitabh = fs.art.farbe == FigurFarbe::Welle || fs.art.farbe == FigurFarbe::Entity ||
+                                     fs.art.alpha == FigurAlpha::Welle ||
                                      fs.bilder.front().numTexMods > 0;   // rc604 fix604b (B4)
                         if (!st.zeitabh) { stufenWerte(fs.art, st.sd); }
                         const std::size_t nb = fs.bilder.size();

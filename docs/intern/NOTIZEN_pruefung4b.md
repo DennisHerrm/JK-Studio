@@ -7,64 +7,80 @@ Remove/Bruch/target4, CAMERA_ACCEL+ZOOM), je Punkt rot/gruen, Abgleich mit dem
 laufenden Spiel.
 
 Tests: `tests/pruefung4b.cpp` (ctest `pruefung4b`, eigene Abschrift der
-Engine-Formeln gegen das Programm). Selbsttest-Modus `pruefung4b` noch nicht
-angelegt.
+Engine-Formeln gegen das Programm). Rotlaeufe: die alte Logik in die
+aktuellen .cpp gesetzt (Skripte im Scratchpad `p4b_rot*.py`), nur
+pruefung4b gebaut, danach zurueck.
 
-## Stand bei der Unterbrechung (30.10., Anhalten auf Wunsch des Koordinators)
+## Stand je Punkt
 
-Angehalten, weil shank die Zahl der Agenten begrenzt. Kein Spiel gestartet,
-keine Sperrdatei angelegt, Spielordner nicht beruehrt. Gebaut nur bhed_core und
-pruefung4b, ablauftest, mover_probe, camtracktest (0 Warnungen), nicht
-jkstudio. Erster Lauf (nur gruen, rot noch nicht):
-- pruefung4b: 6 (Faelle a-f) und 3 gruen; 5b 3 FEHLER - Nachbau: Ziele bei
-  3100 statt 3000 und das use nach 20 ms bricht nicht neu; MoverSim: glas nur
-  ein Bruch. Vermutung: der Takt (Nachbau 50 ms, "wait 1000 -> 1050"; MoverSim
-  verarbeitet uses im 50-ms-Takt) - Sollwerte bzw. Umsetzung im naechsten
-  Schritt klaeren.
-- ablauftest: #12 (auf 1 s nach dem letzten use umgestellt) FEHLER - gehoert
-  zu derselben Klaerung. mover_probe, camtracktest: ok.
+- 6. CAMERA_ACCEL und ZOOM (WIP-Commit 7d7ebc4d): `KameraFov` wie
+  client_camera. pruefung4b Faelle a-e rot mit camtrack.cpp/h von 1b7b4bcd,
+  f (ZOOM allein) war schon richtig; gruen.
+- 3b. forced_rgb_saber_colours: in Movie Duels unerreichbar (die Zweige
+  "saberColor"/"saber2Color" vergleichen 10/11 Zeichen und fangen die
+  RGB-Schreibweise ab - Laenge passt nicht, "WARNING: bad saberColor",
+  nichts gesetzt, NPC_stats.cpp:4215-4305 MD), OpenJK kennt sie nicht.
+  scene.cpp: RGB aendert nichts; Jedi Outcast nur "saberColor". Rot mit
+  scene.cpp von 1b7b4bcd, gruen.
+- 5b. Zweites use in der Bruchverzoegerung (5121c79b): die Sollwerte des
+  Vorgaengers waren falsch, nicht die Umsetzung - ein wait endet im ersten
+  Bild NACH stempel + dauer (TaskManager.cpp:1141 "<"), "wait 1000" ab 0
+  also bei 1050; der Bruch damit bei 3100 bzw. 1 s nach dem LETZTEN use.
+  Dazu gefunden und gebaut: funcBBrushDieGo und G_FreeEntity sind thinks
+  und laufen in G_RunFrame am Platz der Entity (G_RunThink vor ihrem
+  ICARUS, g_main.cpp:1062-1088) - Nachbau: Geplant::Art::Bruch/Frei in
+  Schritt 3 (`denke`), nicht mehr vor allen Entities; ein use vor dem Platz
+  des func_breakable im Bild von G_FreeEntity bricht neu, eines danach
+  findet nichts. Ablauf::Benutzung::reihe und MoverUse::reihe tragen den
+  Platz zu MoverSim (dieselbe Entscheidung). pruefung4b 5b (8 Pruefungen)
+  und ablauftest #12: rot mit der alten Logik (6 + 2 Fehler), gruen.
+- 5a. Remove vor dem ersten Add (36019ed0): Ghoul2-Modell 0 (die Figur) ist
+  fort - Koerper, Waffe und Griffe (Kinder in G2_Sort_Models) werden weder
+  gezeichnet noch vom G2-Netztest getroffen (`ActorDraw::ohneKoerper`);
+  ein Add danach haengt sich nicht an ("Empty Bolt List") und steht mit den
+  Achsen des refEntity am Ursprung (`AnbauDraw::anWurzel`, `anbauWelt`).
+  pruefung4b 5a gegen eine Abschrift des ghoul2-Felds (Init/Attach/Remove/
+  Sort): rot mit dem alten ausruestung.cpp, gruen.
+  - Nicht nachbildbar: haelt die Figur eine Waffe und kommt nach dem Remove
+    ein Add, liegt das neue Modell in Fach 0, und die Waffe haengt wieder an
+    einem gueltigen Modell - G2_GetBoltMatrixLow liest dann dessen LEERE
+    Bolzenliste ohne Pruefung (tr_ghoul2.cpp:2165): undefiniert, im Spiel
+    wohl ein Absturz. Die Vorschau zeichnet die Waffe dann nicht.
+- 1. useBBox im Effektpfad: der Spurtest ist jetzt der von
+  CParticle::UpdateOrigin - CG_PointContents am neuen Ort (Welt + Brush-
+  Entities an s.origin; `kollisionsInhalt` = CM_PointContents), Spur nur,
+  wenn dort MASK_SHOT|CONTENTS_WATER (ausser expensivePhysics, Vorgabe
+  fx_expensivePhysics 1), CG_Trace mit mMin/mMax (useBBox) gegen
+  Kollisionskarte, Brush-Entities am Stand der Mover-Simulation und Figuren
+  (CM_TempBoxModel, `kollisionsSpurKasten`), startsolid/allsolid = kein
+  Treffer, die Beschleunigung fuer den Weg bis zur Wand (VectorMA mit
+  trace.fraction), SURF_NOIMPACT ohne impactFx. Die Schrittweite ist jetzt
+  die Bildzeit der Vorgabe com_maxfps 125 (8 ms statt 2 ms) - davon haengt
+  ab, ob ein Kasten beim Aufsetzen schon im Boden steckt (dann startsolid,
+  er faellt durch; ohne expensivePhysics passiert das mit useBBox oft).
+  `EffektSpurWelt`/`setzeEffektSpurWelt` (efxdraw.h), gesetzt von
+  `effektSpurWeltSetzen` (app_bewegung.cpp) nach jeder Mover-Simulation.
+  pruefung4b 1: efx::sim gegen eine Abschrift (Punkt, Kasten ohne/mit
+  expensivePhysics) - rot mit 2 ms und ohne die Beschleunigung, gruen.
+  efxtest: Boden-Probe mit Welt (Punkt liegt, Kasten faellt durch, mit
+  expensivePhysics liegt er 5 hoeher), Effektnetz-Probe mit Strahl-Welt.
 
-Begonnen (im Commit "WIP"):
-- 6. CAMERA_ACCEL und ZOOM: `KameraFov` (camtrack.h) = client_camera FOV, FOV2,
-  FOV_time, FOV_duration, FOV_vel, FOV_acc, CAMERA_ACCEL/CAMERA_ZOOMING;
-  `kameraFovBild`/`kameraFovBei` wie CGCam_Update (ACCEL vor ZOOMING, "<");
-  ZOOM, fovzoom, fovaccel, fov, ENABLE schreiben den Stand wie die Engine
-  (keiner loescht den Merker des anderen), jeder Zoom-Abschnitt traegt den
-  Stand (`CamSegment::fovStand`), CameraTrack::at rechnet nur daraus; Shake
-  mit FOV/FOV2 des Bilds. Test: pruefung4b Faelle a-f gegen eine Bild-fuer-
-  Bild-Abschrift (1 ms). Rot noch zu laufen (alte camtrack.cpp/h aus HEAD~
-  einsetzen, nur pruefung4b bauen).
-- 3. forced_rgb_saber_colours: in Movie Duels unerreichbar (die Zweige
-  "saberColor"/"saber2Color" fangen die RGB-Schreibweise ab, Laenge passt
-  nicht -> Warnung, nichts gesetzt); OpenJK kennt sie nicht. scene.cpp: RGB
-  aendert nichts mehr; Jedi Outcast nur "saberColor" (codeJK2 NPC_stats.cpp:
-  1707). Test in pruefung4b.
-- 5b. Zweites use in der Bruchverzoegerung: Nachbau (ablauf.cpp,
-  Geplant::Art::Bruch, Wesen::freiUm) und MoverSim (Bruchstelle::freiUm):
-  jedes use laeuft durch funcBBrushDie (use-Skript neu, Bruch neu geplant);
-  ein use in den 50 ms vor G_FreeEntity bricht neu. ablauftest #12 auf das
-  Engine-Verhalten umgestellt (Bruch 1 s nach dem LETZTEN use).
-- 5a. Remove vor dem ersten Add: nur der Zustand (ActorState::kinoNieGesetzt,
-  koerperEntfernt, KinoModell::anWurzel in ausruestung.cpp). Die Zeichnung
-  wertet ihn noch NICHT aus.
+## Offen (Reihenfolge)
 
-## Naechster Schritt
+3a weapon_saber mit NPC_type + Leuchten, 5c target4, 4 Fahrzeuge, 2
+Geschuetze/fx_target_beam/Sentry/trigger_hurt gegen den Spieler,
+Spielabgleich (Geschuetz/Sentry, liegendes Schwert, ACCEL+ZOOM),
+Selbsttest `pruefung4b`, Handbuch/i18n, Schlussrunde.
 
-1. 5b-Fehler klaeren (Takt), voller Bau, pruefung4b rot (alter Stand der
-   geaenderten Dateien) / gruen, ctest.
-2. 5a fertig: anbautenFuer (app_view3d.cpp) bei koerperEntfernt nur
-   Kinomodelle mit anWurzel (neues Feld AnbauDraw::anWurzel, Einheitsmatrix
-   statt Bolzen in den Verbrauchern bedienung.inc:3799, spiel.inc:308),
-   ActorDraw-Merker -> Koerper nicht zeichnen (bedienung.inc:3696); Test.
-3. 5c target4 (misc_model_throw_at_target4 + G_RunObject), 4 Fahrzeuge (.veh
-   type/hoverHeight/hoverStrength/gravity; Laeufer/Tiere fallen mit
-   veh-Schwerkraft, Jaeger PM_FlyVehicleMove mit Schwerkraft, Schweber
-   PM_HoverTrace zweimal je Bild), 3a weapon_saber mit NPC_type (Modell aus der
-   .sab, "player" -> g_saber single_1) und Leuchten (solidWhite_cull-Huelle,
-   14 Sprites yellow_glow, Licht OJ wv*350+180 / MD wv*100), 1 useBBox
-   (Kollisionskarte: CM_PointContents vor der Spur ausser expensivePhysics,
-   Kastenspur MASK_SHOT|CONTENTS_WATER, startsolid/allsolid kein Treffer,
-   VectorMA(mVel, dt*fraction, mAccel) vor dem Spiegeln - TraceFn braucht den
-   Anteil), 2 Geschuetze/fx_target_beam/trigger_hurt gegen den Spieler.
-4. Spielabgleich (Geschuetz/Sentry, liegendes Schwert, ACCEL+ZOOM), Selbsttest
-   `pruefung4b`, Handbuch/i18n, Schlussrunde.
+Gelesen fuer 4 (Fahrzeuge): .veh in assets1.pk3 - nur Swoops setzen gravity
+(800 = g_gravity), hoverHeight > 0 nur Swoops (Jaeger 80, aber FLY_VEHICLE);
+Laeufer/Tiere/Jaeger fallen mit g_gravity (Jaeger ohne Pilot: kein
+SVF_CUSTOM_GRAVITY). Schweber: PM_HoverTrace nach PM_GroundTrace und nach
+der Bewegung (zweimal je Bild), Schub (0.3 - f) * hoverStrength * frametime
+* 60 bei f < 0.3 und normal[2] >= maxSlope; in der Luft schneidet
+PM_ClipVelocity an der Ebene der Schwebespur fast alles ab (sinkt ~1 je
+50-ms-Bild), am Boden PM_WalkMove (|v| erhalten, keine Bewegung ohne x/y);
+PM_Friction mit der Fahrzeugreibung (0.1 bei VEH_FLYING, Tiere nicht).
+Einzubauen in navlauf.cpp (bodenSpur/gehBewegung/luftBewegung) und
+schwerkraft.cpp (pmoveSchritt), Werte aus der .veh (app_view3d_spiel.inc
+liest schon name/model/skin).

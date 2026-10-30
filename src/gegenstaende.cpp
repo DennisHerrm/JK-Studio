@@ -2,6 +2,7 @@
 #include "bhed/gegenstaende.h"
 
 #include "bhed/bsp.h"
+#include "bhed/scene.h"   // Pruefung 4b: SaberDef, kStandardGriff
 
 #include <cctype>
 #include <cstdio>
@@ -233,7 +234,8 @@ bool spawntBeiSchwierigkeit(const MapEntity& e, int spielstufe) {
 }
 
 GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand& g, int spielstufe, bool movieDuels,
-                                           const GegenstandSpur& spur) {
+                                           const GegenstandSpur& spur, const std::map<std::string, SaberDef>* sabers,
+                                           bool jediOutcast) {
     GegenstandAufstellung a;
     if (!spawntBeiSchwierigkeit(e, spielstufe)) {
         a.grund = "Schwierigkeit/notsingle";
@@ -246,19 +248,38 @@ GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand&
     }
     const std::string* sfText = e.find("spawnflags");
     const int sf = sfText != nullptr ? std::atoi(sfText->c_str()) : 0;
-    // FinishSpawningItem, Schritt 5: weapon_saber mit NPC_type nimmt das
-    // Modell aus der .sab (WP_SaberParseParms) - nicht nachgebildet.
-    if (g.typ == "IT_WEAPON" && g.tag == "WP_SABER" && e.find("NPC_type") != nullptr &&
-        !e.find("NPC_type")->empty()) {
-        a.grund = "Schwert mit NPC_type (Modell aus der .sab) - nicht nachgebildet";
-        return a;
-    }
     // ITMSF_INVISIBLE: EF_NODRAW (CG_Item zeichnet nichts).
     if ((sf & kItmsfInvisible) != 0) {
         a.grund = "ITMSF_INVISIBLE";
         return a;
     }
     a.modell = g.worldmodel;
+    // Pruefung 4b: FinishSpawningItem, Schritt 5 (g_items.cpp:1138-1158
+    // OpenJK, 1589-1616 MD): weapon_saber mit NPC_type nimmt das Modell aus
+    // WP_SaberParseParms - "player" das von g_saber ("single_1", ausser
+    // "none"/"NULL"); ein unbekannter Name oder einer ohne saberModel die
+    // Vorgabe DEFAULT_SABER_MODEL. Jedi Outcast kennt das nicht.
+    if (!jediOutcast && g.typ == "IT_WEAPON" && g.tag == "WP_SABER") {
+        const std::string* npc = e.find("NPC_type");
+        if (npc != nullptr && !npc->empty()) {
+            std::string name = *npc;
+            const auto gleich = [](const std::string& x, const char* y) {
+                std::string k = x;
+                for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                return k == y;
+            };
+            if (gleich(name, "player") && !gleich(kSpielerSchwert, "none") && !gleich(kSpielerSchwert, "null")) {
+                name = kSpielerSchwert;
+            }
+            for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            a.modell = kStandardGriff;
+            if (sabers != nullptr) {
+                const auto it = sabers->find(name);
+                if (it != sabers->end() && !it->second.model.empty()) { a.modell = it->second.model; }
+            }
+            a.schwertNpc = true;
+        }
+    }
     if (a.modell.empty()) {
         a.grund = "kein worldmodel";
         return a;

@@ -4019,6 +4019,10 @@ void drawMapView() {
                                                              &fg, &gl, g_app->showCaps);
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;
+                            if (gg.schwertLeuchten) {
+                                schwertLeuchtenZeichnen(gg, *as, *knochen, gl, vp, grechts, ghoch, klingen,
+                                                        schwertLichter);
+                            }
                         }
                         // Pruefung 3: was sterbende Figuren fallen liessen - Waffe
                         // (Drop_Item), Kristall, Schwert (WP_SaberDrop) - am Ort

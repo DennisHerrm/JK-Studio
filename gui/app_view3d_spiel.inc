@@ -1888,24 +1888,17 @@ void loadMapEffects() {
             {efx::kFlagRelative, "relative",
              "ohne Wirkung - der SP-Parser ueberliest es", Stand::OhneWirkung},
             // `expensivePhysics` ERZWINGT in der Engine den Spurtest;
-            // ohne das Flag prueft sie erst billig mit CG_PointContents und
-            // spurt nur, wenn dort etwas Festes steht
-            // (FxPrimitives.cpp:269). behaved spurt bei eingeschalteter
-            // Physik IMMER - das ist strenger, nicht laxer. Das Flag hat
-            // hier also nichts mehr zu tun, und "fehlt" waere die falsche
-            // Auskunft.
-            //
-            // Es steht trotzdem in der Liste, damit die Zahl im Protokoll
-            // erscheint: 60 Vorkommen in 35 Dateien.
+            // ohne das Flag prueft sie erst mit CG_PointContents und spurt
+            // nur, wenn dort etwas Festes steht (FxPrimitives.cpp:283-293).
+            // Pruefung 4b: so auch hier (efxdraw.cpp, spurFuer).
             {efx::kFlagExpensivePhysics, "expensivePhysics",
-             "ohne Wirkung - wir spuren ohnehin immer", Stand::OhneWirkung},
+             "Spurtest auch ohne Festes am neuen Ort", Stand::Gebaut},
             {efx::kFlagSetShaderTime, "setShaderTime",
              "Zeitursprung auf den Beginn des Effekts", Stand::Gebaut},
-            // Seit rc569: Strahl mit Kastenvorlauf (efxdraw.cpp, spurFuer) -
-            // das Teilchen bleibt um seine Ausdehnung vor der Flaeche
-            // stehen. Eine Naeherung, kein echter Kastentest.
+            // Pruefung 4b: die Kastenspur der Kollisionskarte wie
+            // CParticle::UpdateOrigin (efxdraw.cpp, spurFuer).
             {efx::kFlagUseBBox, "useBBox",
-             "Spurtest mit Kastenvorlauf (Naeherung)", Stand::Gebaut},
+             "Kastenspur gegen Kollisionskarte und Figuren", Stand::Gebaut},
         };
         // Getrennt zaehlen. Beides zu melden ist der Punkt: eine Liste
         // allein sagt nie, ob sie die gebauten oder die fehlenden meint.
@@ -2089,6 +2082,71 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
 }
 
 std::map<std::size_t, std::string> g_gegenstandGrund;
+
+// Pruefung 4b: CG_Item "saber pickup item needs to be more visible"
+// (cg_ents.cpp:1075-1100 OpenJK, 1269-1296 MD): wv = sin(cg.time * 0.002) *
+// 0.08 + 0.2; dasselbe Modell noch einmal mit gfx/effects/solidWhite_cull und
+// RF_RGB_TINT (wv, wv, 0); vierzehn Sprites yellowDroppedSaberShader
+// (gfx/effects/yellow_glow) entlang -ent.axis[2] (i = -4 .. 9), Groesse 10,
+// Alpha wv * 0.5 (FX_USE_ALPHA), ein Bild lang; ein Licht (1, 1, 0) mit
+// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels).
+void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAssets& as,
+                             const std::vector<BoneMatrix>& knochen, const gpu::FigurLicht& licht, const float* vp,
+                             const float rechts[3], const float hoch[3], std::vector<gpu::KlingenQuad>& sprites,
+                             std::vector<gpu::WeltLicht>& lichter) {
+    const float cgZeit = std::floor(licht.zeit * 1000.0F);   // cg.time, ganze ms
+    const float wv = std::sin(cgZeit * 0.002F) * 0.08F + 0.2F;
+    auto huelle = g_app->schwertHuellen.find(gg.pfad);
+    if (huelle == g_app->schwertHuellen.end()) {
+        huelle = g_app->schwertHuellen
+                     .emplace(gg.pfad, texturenMitShader(as.model, "gfx/effects/solidWhite_cull", FigurFarbe::Entity))
+                     .first;
+    }
+    if (!huelle->second.stufen.empty()) {
+        gpu::FigurLicht l = licht;
+        l.entityFarbe[0] = wv;
+        l.entityFarbe[1] = wv;
+        l.entityFarbe[2] = 0.0F;
+        std::string f;
+        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, gg.welt, vp, &f, &l, g_app->showCaps);
+        g_app->gpuAufrufe += n;
+        g_app->gpuFiguren2 += n;
+    }
+    static const TextureSet::Tex gelb = [] {
+        TextureSet::Tex t;
+        (void)loadTextureFor("gfx/effects/yellow_glow", t);
+        return t;
+    }();
+    // RB_SurfaceSprite: left = viewaxis[1] * radius, up = viewaxis[2] * radius.
+    constexpr float kGroesse = 10.0F;
+    for (int i = -4; i < 10; ++i) {
+        gpu::KlingenQuad q;
+        float o[3];
+        for (int k = 0; k < 3; ++k) { o[k] = gg.ort[k] - static_cast<float>(i) * gg.oben[k]; }
+        for (int k = 0; k < 3; ++k) {
+            const float links = -rechts[k] * kGroesse;
+            const float oben = hoch[k] * kGroesse;
+            q.ecke[0][k] = o[k] + links + oben;
+            q.ecke[1][k] = o[k] - links + oben;
+            q.ecke[2][k] = o[k] - links - oben;
+            q.ecke[3][k] = o[k] + links - oben;
+            q.farbe[k] = 255.0F;
+        }
+        q.tex = &gelb;
+        q.mischung = 1;   // GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA, Alpha aus der Ecke
+        q.staerke = wv * 0.5F;
+        sprites.push_back(q);
+    }
+    if (g_app->showDynLights) {
+        gpu::WeltLicht wl;
+        for (int k = 0; k < 3; ++k) { wl.ort[k] = gg.ort[k]; }
+        wl.farbe[0] = 1.0F;
+        wl.farbe[1] = 1.0F;
+        wl.farbe[2] = 0.0F;
+        wl.radius = regelwerkMovieDuels() ? wv * 100.0F : wv * 350.0F + 180.0F;
+        lichter.push_back(wl);
+    }
+}
 
 // --- rc604 fix604b (B5): misc_trip_mine -----------------------------------
 //
@@ -2389,7 +2447,8 @@ void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
         const Gegenstand* g = liste.spawnbar(e.classname);
         if (g == nullptr) { continue; }
         const GegenstandAufstellung a =
-            gegenstandAufstellen(e, *g, regelwerkSpielstufe(), md, k ? spur : GegenstandSpur{});
+            gegenstandAufstellen(e, *g, regelwerkSpielstufe(), md, k ? spur : GegenstandSpur{}, &g_app->saberMap,
+                                 regelwerkJediOutcast());
         if (!a.sichtbar) {
             diag::detail("Gegenstand " + e.classname + " #" + std::to_string(i) + ": " + a.grund);
             g_gegenstandGrund[i] = a.grund;
@@ -2416,6 +2475,16 @@ void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
                 gg.ort[r] = a.ort[static_cast<std::size_t>(r)];
             }
             gg.welt[15] = 1.0F;
+            // Pruefung 4b: das Leuchten (CG_Item, cg_ents.cpp:1075-1100 OpenJK,
+            // 1272-1296 MD; Jedi Outcast hat es nicht).
+            const std::string* sfText = e.find("spawnflags");
+            const int sf = sfText != nullptr ? std::atoi(sfText->c_str()) : 0;
+            if (!regelwerkJediOutcast() && g->typ == "IT_WEAPON" && g->tag == "WP_SABER" && (sf & kItmsfNoGlow) == 0) {
+                gg.schwertLeuchten = true;
+                float spin[3][3];
+                winkelZuAchsen(a.md3Winkel.data(), spin);
+                for (int r = 0; r < 3; ++r) { gg.oben[r] = spin[2][r]; }
+            }
             g_app->gegenstandGlm.push_back(std::move(gg));
             ++zahl;
             continue;
