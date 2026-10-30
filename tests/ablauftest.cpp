@@ -280,9 +280,11 @@ void feste() {
             t3 += (b.name == "t3") ? 1 : 0;
         }
         pruefe(felsWer == "player", "Benutzung kennt den Ausloeser (affect player)");
-        pruefe(fels >= 0.0 && std::fabs(runner - fels - 1000.0) < 0.5 && runnerZahl == 1,
-               "func_breakable feuert sein target nach delay 1.9 -> 1 s, und nur einmal");
-        pruefe(zeitVon(a, "runner", "print", "drei") >= fels + 1000.0, "... und startet damit ein Skript");
+        // Pruefung 4b: das zweite use (bei 500) stellt nextthink neu
+        // (funcBBrushDie, g_breakable.cpp:185-198) - der Bruch kommt bei 1500.
+        pruefe(fels >= 0.0 && std::fabs(runner - fels - 1500.0) < 0.5 && runnerZahl == 1,
+               "func_breakable feuert sein target nach delay 1.9 -> 1 s ab dem letzten use, und nur einmal");
+        pruefe(zeitVon(a, "runner", "print", "drei") >= fels + 1500.0, "... und startet damit ein Skript");
         pruefe(t1 == 1 && t3 == 1, "misc_model_breakable: target beim Bruch, target3 beim use danach");
         pruefe(t2 == 2, "USE_NOT_BREAK: jedes use feuert das target");
     }

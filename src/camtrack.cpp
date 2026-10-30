@@ -196,6 +196,50 @@ float shortestAngleDelta(float from, float to) noexcept {
     return (std::fabs(d1) < std::fabs(d2)) ? d1 : d2;
 }
 
+namespace {
+// CAMERA_ACCEL (cg_camera.cpp:1101-1164 OpenJK, 1053-1117 MD):
+//     t = (cg.time - FOV_time) * 0.001;  x = FOV2 + vel*t + 0.5*acc*t*t;  1..180
+float fovBeschleunigt(const KameraFov& s, double ms) {
+    const auto t = static_cast<float>((ms - s.zeit) * 0.001);
+    const float x = s.fov2 + s.tempo * t + static_cast<float>(0.5 * s.beschl * t * t);
+    return std::clamp(x, 1.0F, 180.0F);
+}
+}  // namespace
+
+// CGCam_Update im Bild ms, nur der Bildwinkel. Im Bild, in dem CAMERA_ACCEL
+// ablaeuft, bleibt FOV beim zuletzt gerechneten Wert (dem am Ende der Dauer);
+// erst das naechste Bild sieht CAMERA_ZOOMING - mit denselben FOV_time und
+// FOV_duration, also schon abgelaufen: FOV = FOV2.
+void kameraFovBild(KameraFov& s, double ms) {
+    const double ende = s.zeit + s.dauer;
+    if (s.accel) {
+        if (ende < ms) {
+            s.fov = fovBeschleunigt(s, ende);
+            s.accel = false;
+        } else {
+            s.fov = fovBeschleunigt(s, ms);
+            return;
+        }
+    }
+    if (s.zooming && ende < ms) {
+        s.fov = s.fov2;
+        s.zooming = false;
+    }
+}
+
+float kameraFovBei(const KameraFov& s, double ms) {
+    KameraFov k = s;
+    kameraFovBild(k, ms);
+    if (k.accel) {
+        return k.fov;
+    }
+    if (k.zooming) {
+        // CAMERA_ZOOMING: FOV + (FOV2 - FOV) / FOV_duration * (cg.time - FOV_time)
+        return k.fov + (k.fov2 - k.fov) / static_cast<float>(k.dauer) * static_cast<float>(ms - k.zeit);
+    }
+    return k.fov;
+}
+
 CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffLookup& roffs) {
     const SignalTimes signals = collectSignals(s);
     CameraTrack out;
@@ -221,7 +265,8 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
     double now = 0.0;
     float pos[3] = {0, 0, 0};
     float ang[3] = {0, 0, 0};
-    float fov = 90.0F;
+    // Pruefung 4b: der Bildwinkel als Stand von client_camera (KameraFov).
+    KameraFov fs;
     struct Laufend {
         bool an = false;
         double start = 0.0;
@@ -230,7 +275,6 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
     };
     Laufend fahrt;      // CAMERA_MOVING: ziel = origin2
     Laufend schwenk;    // CAMERA_PANNING: ziel = angles2 (die DELTAS)
-    Laufend zoom;       // CAMERA_ZOOMING: ziel[0] = FOV2
     // --- camera ( PATH ) (Paket kamera, rc601) -------------------------------
     //
     // Der Zustand von CGCam_StartRoff/CGCam_Roff: CAMERA_ROFFING, roff_frame,
@@ -261,24 +305,6 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
     // OpenJK). Es entscheidet, ob nach CGCam_StopRoff der letzte
     // Winkelversatz noch laeuft.
     bool panningFlag = false;
-    // CAMERA_ACCEL aus einer "fovaccel"-Notiz.
-    struct Beschleunigt {
-        bool an = false;
-        double start = 0.0;
-        double ende = 0.0;
-        float von = 0.0F;
-        float tempo = 0.0F;
-        float beschl = 0.0F;
-    };
-    Beschleunigt fovBeschl;
-    // CGCam_Update, CAMERA_ACCEL (cg_camera.cpp:1101-1164 OpenJK, 1053-1117 MD):
-    //     t = (cg.time - FOV_time) * 0.001;  x = FOV2 + vel*t + 0.5*acc*t*t;  1..180
-    // Nach dem Ende bleibt client_camera.FOV beim zuletzt gerechneten Wert.
-    const auto beschlWert = [&](double jetzt) {
-        const auto t = static_cast<float>((std::min(jetzt, fovBeschl.ende) - fovBeschl.start) * 0.001);
-        const float x = fovBeschl.von + fovBeschl.tempo * t + static_cast<float>(0.5 * fovBeschl.beschl * t * t);
-        return std::clamp(x, 1.0F, 180.0F);
-    };
     const auto uebernehmen = [&](double jetzt) {
         // Waehrend CAMERA_ROFFING bringt jedes ROFF-Bild selbst Ort und
         // Winkel weiter (origin = origin2, angles += angles2); das naechste
@@ -293,32 +319,36 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
             schwenk.an = false;
             panningFlag = false;   // "finished panning" (Review)
         }
-        if (zoom.an && jetzt >= zoom.ende) {
-            fov = zoom.ziel[0];
-            zoom.an = false;
-        }
-        if (fovBeschl.an && jetzt >= fovBeschl.ende) {
-            fov = beschlWert(jetzt);
-            fovBeschl.an = false;
-        }
+        // Pruefung 4b: der Bildwinkel wie CGCam_Update. Die Grenze wie oben:
+        // ein Befehl GENAU am Ende sieht den Uebergang als fertig (die Engine
+        // prueft "FOV_time + FOV_duration < cg.time" im Bildtakt).
+        kameraFovBild(fs, std::nextafter(jetzt, std::numeric_limits<double>::infinity()));
+    };
+    // Ein Zoom-Abschnitt mit dem Stand von client_camera nach einem Befehl.
+    // from/to/lerpStartMs/beschleunigt beschreiben ihn fuer Zeitleiste und
+    // Spuren; gerechnet wird aus fovStand (CameraTrack::at).
+    const auto fovAbschnitt = [&](CamSegment& z, double jetzt) {
+        z.kind = CamSegment::Kind::Zoom;
+        z.startMs = jetzt;
+        z.fovStand = fs;
+        z.endMs = (fs.accel || fs.zooming) ? std::max(jetzt, fs.zeit + fs.dauer) : jetzt;
+        z.lerpStartMs = ((fs.accel || fs.zooming) && fs.zeit < jetzt) ? fs.zeit : -1.0;
+        z.beschleunigt = fs.accel;
+        z.zoomTempo = fs.accel ? fs.tempo : 0.0F;
+        z.zoomBeschl = fs.accel ? fs.beschl : 0.0F;
+        z.from[0] = fs.accel ? fs.fov2 : fs.fov;
+        KameraFov danach = fs;
+        kameraFovBild(danach, std::nextafter(z.endMs, std::numeric_limits<double>::infinity()));
+        z.to[0] = danach.fov;
     };
     // CGCam_SetFOV (cg_camera.cpp:353): nur FOV - ein laufender Zoom geht
     // vom neuen Wert aus weiter zu seinem Ziel (wie ZOOM mit Dauer 0 unten).
     const auto fovSetzen = [&](double jetzt, float wert, const Path& p) {
         uebernehmen(jetzt);
         CamSegment z;
-        z.kind = CamSegment::Kind::Zoom;
-        z.startMs = jetzt;
-        z.endMs = jetzt;
         z.path = p;
-        fov = wert;
-        z.from[0] = wert;
-        z.to[0] = wert;
-        if (zoom.an && jetzt < zoom.ende) {
-            z.to[0] = zoom.ziel[0];
-            z.endMs = zoom.ende;
-            z.lerpStartMs = zoom.start;
-        }
+        fs.fov = wert;
+        fovAbschnitt(z, jetzt);
         out.segments.push_back(z);
     };
     // Eine Notiz eines ROFF-Bilds, zerlegt wie CG_RoffNotetrackCallback
@@ -361,8 +391,7 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
             uebernehmen(jetzt);
             std::size_t a = 0;
             const std::string t1 = feld(rest, a);
-            const float von = ziffer(t1) ? static_cast<float>(std::atof(t1.c_str()))
-                                         : (fovBeschl.an ? beschlWert(jetzt) : fov);
+            const float von = ziffer(t1) ? static_cast<float>(std::atof(t1.c_str())) : fs.fov;
             leer(rest, a);
             if (a >= rest.size()) { return; }   // "missing 'end fov' argument"
             const auto bis = static_cast<float>(std::atof(feld(rest, a).c_str()));
@@ -374,19 +403,15 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
                 fovSetzen(jetzt, bis, roffLauf.path);
                 return;
             }
-            fovBeschl.an = false;
-            fov = von;
-            zoom.an = true;
-            zoom.start = jetzt;
-            zoom.ende = jetzt + dauer;
-            zoom.ziel[0] = bis;
+            // CAMERA_ACCEL bleibt (Pruefung 4b) - es rechnet dann von FOV2 = bis.
+            fs.zooming = true;
+            fs.zeit = jetzt;
+            fs.fov = von;
+            fs.fov2 = bis;
+            fs.dauer = dauer;
             CamSegment z;
-            z.kind = CamSegment::Kind::Zoom;
-            z.startMs = jetzt;
-            z.endMs = zoom.ende;
             z.path = roffLauf.path;
-            z.from[0] = von;
-            z.to[0] = bis;
+            fovAbschnitt(z, jetzt);
             out.segments.push_back(z);
         } else if (typ == "fovaccel" && weitere && !rest.empty()) {
             // "fovaccel <begin fov> <fov delta> <fov delta2> <time>":
@@ -394,8 +419,7 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
             uebernehmen(jetzt);
             std::size_t a = 0;
             const std::string t1 = feld(rest, a);
-            const float von = ziffer(t1) ? static_cast<float>(std::atof(t1.c_str()))
-                                         : (fovBeschl.an ? beschlWert(jetzt) : fov);
+            const float von = ziffer(t1) ? static_cast<float>(std::atof(t1.c_str())) : fs.fov;
             leer(rest, a);
             if (a >= rest.size()) { return; }
             const auto tempo = static_cast<float>(std::atof(feld(rest, a).c_str()));
@@ -406,17 +430,17 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
             if (a >= rest.size()) { return; }
             const double dauer = std::atof(feld(rest, a).c_str());
             if (dauer == 0.0) { return; }   // CGCam_ZoomAccel (:395): "if ( !duration ) return;"
-            fovBeschl = {true, jetzt, jetzt + dauer, von, tempo, beschl};
+            // CAMERA_ZOOMING bleibt (Pruefung 4b): nach dem Ende springt das
+            // Bild auf FOV2 = von.
+            fs.accel = true;
+            fs.zeit = jetzt;
+            fs.fov2 = von;
+            fs.tempo = tempo;
+            fs.beschl = beschl;
+            fs.dauer = dauer;
             CamSegment z;
-            z.kind = CamSegment::Kind::Zoom;
-            z.startMs = jetzt;
-            z.endMs = fovBeschl.ende;
             z.path = roffLauf.path;
-            z.beschleunigt = true;
-            z.from[0] = von;
-            z.to[0] = beschlWert(fovBeschl.ende);
-            z.zoomTempo = tempo;
-            z.zoomBeschl = beschl;
+            fovAbschnitt(z, jetzt);
             out.segments.push_back(z);
         }
     };
@@ -592,14 +616,13 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
             roffLauf.naechste = 0.0;
             seg.kind = CamSegment::Kind::Enable;
             out.segments.push_back(seg);
-            // CGCam_Enable setzt FOV und FOV2 auf CAMERA_DEFAULT_FOV. Ein
-            // ZOOM von vorher gilt danach nicht mehr.
-            fov = 90.0F;
-            zoom.an = false;
+            // CGCam_Enable setzt FOV und FOV2 auf CAMERA_DEFAULT_FOV; die
+            // Merker bleiben (Pruefung 4b): ein laufender ZOOM endet bei 90,
+            // ein laufendes "fovaccel" rechnet von 90 aus weiter.
+            fs.fov = 90.0F;
+            fs.fov2 = 90.0F;
             CamSegment z = seg;
-            z.kind = CamSegment::Kind::Zoom;
-            z.from[0] = 90.0F;
-            z.to[0] = 90.0F;
+            fovAbschnitt(z, now);
             out.segments.push_back(z);
             continue;
         }
@@ -699,41 +722,26 @@ CameraTrack buildCameraTrack(const Script& s, const TagLookup& tags, const RoffL
         }
 
         if (type == "ZOOM" && n.args.size() >= 2) {
-            seg.kind = CamSegment::Kind::Zoom;
-            // Paket kamera, rc601: ein ZOOM beendet hier ein "fovaccel" einer
-            // camera ( PATH )-Notiz und rechnet von dessen jetzigem Wert aus.
-            // (In der Engine hat CAMERA_ACCEL Vorrang und rechnet mit dem
-            // ueberschriebenen FOV_time/FOV2 weiter - nicht nachgebaut.)
-            if (fovBeschl.an) {
-                fov = beschlWert(now);
-                fovBeschl.an = false;
-            }
-            const float ziel = readNum(n.args[1].text, fov);
+            // CGCam_Zoom (cg_camera.cpp:364 OpenJK). Pruefung 4b: CAMERA_ACCEL
+            // bleibt - ein laufendes "fovaccel" rechnet ab jetzt von FOV2 =
+            // ziel aus mit der Dauer dieses ZOOM weiter und springt an deren
+            // Ende auf ziel (CGCam_Update fragt CAMERA_ACCEL zuerst).
+            const float ziel = readNum(n.args[1].text, fs.fov);
             const double dur = (n.args.size() >= 3) ? readMs(n.args.back().text) : 0.0;
-            if (dur <= 0.0) {
+            if (dur == 0.0) {
                 // CGCam_SetFOV setzt nur FOV - CAMERA_ZOOMING bleibt. Laeuft
                 // ein Zoom, geht er vom NEUEN Wert aus weiter zu seinem Ziel,
-                // mit seiner alten Zeit.
-                fov = ziel;
-                if (zoom.an && now < zoom.ende) {
-                    seg.from[0] = ziel;
-                    seg.to[0] = zoom.ziel[0];
-                    seg.endMs = zoom.ende;
-                    seg.lerpStartMs = zoom.start;
-                } else {
-                    seg.from[0] = ziel;
-                    seg.to[0] = ziel;
-                }
+                // mit seiner alten Zeit (unter CAMERA_ACCEL ueberschreibt das
+                // naechste Bild FOV wieder).
+                fs.fov = ziel;
             } else {
                 // Vom UEBERNOMMENEN Bildwinkel aus (FOV bleibt der Anfang).
-                seg.from[0] = fov;
-                seg.to[0] = ziel;
-                zoom.an = true;
-                zoom.start = now;
-                zoom.ende = now + dur;
-                zoom.ziel[0] = ziel;
-                seg.endMs = zoom.ende;
+                fs.zooming = true;
+                fs.zeit = now;
+                fs.fov2 = ziel;
+                fs.dauer = dur;
             }
+            fovAbschnitt(seg, now);
             out.segments.push_back(seg);
             continue;
         }
@@ -905,22 +913,17 @@ CameraState CameraTrack::at(double ms) const {
                     st.angles[2] = seg.to[0];
                 }
                 break;
-            case CamSegment::Kind::Zoom:
-                if (seg.beschleunigt) {
-                    // Paket kamera, rc601: "fovaccel" (CAMERA_ACCEL,
-                    // CGCam_Update): x = x0 + v t + 0.5 a t^2, t in Sekunden,
-                    // auf 1..180 begrenzt; danach bleibt der letzte Wert.
-                    const auto ts = static_cast<float>((std::min(ms, seg.endMs) - seg.startMs) * 0.001);
-                    const float x = seg.from[0] + seg.zoomTempo * ts + static_cast<float>(0.5 * seg.zoomBeschl * ts * ts);
-                    st.fovX = std::clamp(x, 1.0F, 180.0F);
-                    fovVon = seg.from[0];
-                    fovZu = st.fovX;
-                    break;
-                }
-                st.fovX = seg.from[0] + (seg.to[0] - seg.from[0]) * f;
-                fovVon = seg.from[0];
-                fovZu = seg.to[0];
+            case CamSegment::Kind::Zoom: {
+                // Pruefung 4b: aus dem Stand von client_camera (CGCam_Update).
+                st.fovX = kameraFovBei(seg.fovStand, ms);
+                // CGCam_UpdateShake laeuft nach dem Bildwinkel: FOV und FOV2
+                // dieses Bilds.
+                KameraFov k = seg.fovStand;
+                kameraFovBild(k, ms);
+                fovVon = k.fov;
+                fovZu = k.fov2;
                 break;
+            }
             case CamSegment::Kind::Pfad: {
                 // Paket kamera, rc601: ein Bild einer camera ( PATH )-Fahrt.
                 // CGCam_Update: Ort origin + (origin2 - origin) / move_duration *

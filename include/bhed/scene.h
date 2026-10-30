@@ -176,6 +176,10 @@ struct HandBelegung {
 struct KinoModell {
     int modell = -1;          // Index in Actor::modelle, -1 heisst: frei
     bool links = false;       // handLBolt statt handRBolt
+    // Pruefung 4b: nach dem Entfernen von Ghoul2-Modell 0 (ActorState::
+    // koerperEntfernt) scheitert G2API_AttachG2Model - das Modell steht
+    // unangehaengt an der Wurzel der Figur.
+    bool anWurzel = false;
 };
 // So viele gleichzeitig angehaengte Kinomodelle werden gefuehrt. Die Engine
 // kennt keine Grenze (siehe Kind::HandModell in Actor::at), die Skripte der
@@ -259,6 +263,13 @@ struct ActorState {
     std::array<HandBelegung, 2> hand{};
     std::array<KinoModell, kMaxKinoModelle> kino{};
     int kinoLetztes = -1;     // ent->cinematicModel: das zuletzt angehaengte
+    // Pruefung 4b: vor dem ersten Add steht ent->cinematicModel auf 0 (die
+    // Entity ist genullt) - ein Remove davor nimmt Ghoul2-Modell 0, die Figur
+    // selbst (G2API_RemoveGhoul2Model). Dann zeichnet der Renderer weder sie
+    // noch, was an ihren Bolzen haengt (G2_Sort_Models nimmt nur Kinder
+    // gueltiger Modelle).
+    bool kinoNieGesetzt = true;
+    bool koerperEntfernt = false;
     // Der Summton, der gerade laeuft - leer heisst keiner. Fuer die
     // Tonseite: sie soll ihn als Schleife an der Figur spielen.
     //

@@ -133,6 +133,32 @@ struct CameraState {
 // woanders hin als die abgespielte.
 void aimAngles(const float from[3], const float to[3], float outAngles[3]);
 
+// --- Pruefung 4b: der Bildwinkel wie client_camera -----------------------
+//
+// cg_camera.cpp (OpenJK 353-409, 1101-1183; Movie Duels 1053-1135): FOV,
+// FOV2, FOV_time, FOV_duration, FOV_vel, FOV_acc und die Merker CAMERA_ACCEL
+// und CAMERA_ZOOMING. ZOOM (CGCam_Zoom), eine "fovzoom"-Notiz (CGCam_Zoom2)
+// und eine "fovaccel"-Notiz (CGCam_ZoomAccel) schreiben DIESELBEN FOV_time,
+// FOV2 und FOV_duration, und keiner loescht den Merker des anderen.
+// CGCam_Update rechnet CAMERA_ACCEL vor CAMERA_ZOOMING: ein ZOOM waehrend
+// "fovaccel" laesst die Beschleunigung vom Zoomziel aus mit der Zoomdauer
+// weiterlaufen, an ihrem Ende springt das Bild auf FOV2.
+struct KameraFov {
+    float fov = 90.0F;    // client_camera.FOV
+    float fov2 = 90.0F;   // FOV2: Zoomziel bzw. Anfang der Beschleunigung
+    double zeit = 0.0;    // FOV_time
+    double dauer = 0.0;   // FOV_duration
+    float tempo = 0.0F;   // FOV_vel
+    float beschl = 0.0F;  // FOV_acc
+    bool accel = false;   // CAMERA_ACCEL
+    bool zooming = false; // CAMERA_ZOOMING
+};
+// Der Bildwinkel-Teil von CGCam_Update im Bild `ms`: schreibt FOV fort und
+// loescht abgelaufene Merker ("FOV_time + FOV_duration < cg.time").
+void kameraFovBild(KameraFov& s, double ms);
+// Der Bildwinkel, den CGCam_Update im Bild `ms` an CG_CalcFOVFromX gibt.
+[[nodiscard]] float kameraFovBei(const KameraFov& s, double ms);
+
 struct CamSegment {
     enum class Kind : std::uint8_t {
         Move, Pan, Zoom, Roll, Enable, Disable, Fade,
@@ -181,11 +207,16 @@ struct CamSegment {
     bool pfadOrt = true;
     bool pfadWinkel = true;
     bool schnitt = false;
-    // Zoom aus einer "fovaccel"-Notiz (CAMERA_ACCEL): from[0] ist der
-    // Anfangswert, dazu Tempo (Grad/s) und Beschleunigung (Grad/s^2).
+    // Zoom mit CAMERA_ACCEL (aus einer "fovaccel"-Notiz, auch ein ZOOM
+    // waehrend einer): from[0] ist der Anfangswert (FOV2), dazu Tempo (Grad/s)
+    // und Beschleunigung (Grad/s^2); to[0] der Wert nach dem Ende.
     bool beschleunigt = false;
     float zoomTempo = 0.0F;
     float zoomBeschl = 0.0F;
+    // Pruefung 4b: bei Zoom der Stand von client_camera nach dem Befehl -
+    // daraus rechnet CameraTrack::at den Bildwinkel (from/to/lerpStartMs/
+    // beschleunigt beschreiben ihn nur, fuer Zeitleiste und Spuren).
+    KameraFov fovStand;
 };
 
 struct CameraTrack {

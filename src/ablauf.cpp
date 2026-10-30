@@ -281,6 +281,9 @@ struct Wesen {
     // G_FreeEntity: ein misc_model_breakable mit "no dmodel" nach dem Bruch.
     // G_Find findet es nicht mehr, ein use geht ins Leere.
     bool entfernt = false;
+    // Pruefung 4b: func_breakable nach funcBBrushDieGo - G_FreeEntity erst
+    // 50 ms spaeter (thinkF_G_FreeEntity); bis dahin bricht ein use es neu.
+    double freiUm = 1.0e300;
     // --- Paket bewegung (rc601): das Laufziel, wie in scene.cpp ----------
     //
     // NPCInfo->goalEntity mit dem Weg dorthin. Der Weg wird wie in der
@@ -371,7 +374,9 @@ double leicheAb(double tod) {
 struct Geplant {
     double ms = 0.0;
     int folge = 0;
-    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten } art = Art::Benutzen;   // rc605 (Ende): Toeten
+    // rc605 (Ende): Toeten; Pruefung 4b: Bruch (funcBBrushDieGo nach "delay",
+    // name = target, wesen = der func_breakable)
+    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch } art = Art::Benutzen;
     std::string name;         // Benutzen: targetname; Skript: Pfad
     int wesen = -1;           // Skript/Spawn: auf wem
     int ausloeser = -1;
@@ -1679,8 +1684,8 @@ private:
             // die ZIELE feuert der Nachbau, denn eines davon kann ein
             // Skript starten - MoverSim bekommt sie dann einzeln
             // (MoverUse::aufgeloest).
-            if (w.entfernt || w.verbraucht) {
-                return;   // zerbrochen: G_FreeEntity ein Bild spaeter, G_Find findet es nicht mehr
+            if (w.entfernt || jetzt_ >= w.freiUm - 1e-6) {
+                return;   // zerbrochen: G_FreeEntity 50 ms spaeter, G_Find findet es nicht mehr
             }
             usescript();
             const std::string t = wertVon(e, "target");
@@ -1688,17 +1693,24 @@ private:
                 benutze(t, ausloeser, tiefe + 1);
                 return;
             }
-            w.verbraucht = true;
-            // "delay" ist ein F_INT (g_spawn.cpp:401): ganze Sekunden;
-            // funcBBrushDieGo feuert die Ziele erst nach dem Warten. (Ein
-            // zweites use in der Wartezeit schiebt den Bruch in der Engine
-            // hinaus - hier nicht nachgebaut.)
+            // funcBBrushDie (g_breakable.cpp:185-198 OpenJK): G_SetEnemy(self,
+            // activator), mit "delay" think = funcBBrushDieGo, nextthink =
+            // jetzt + delay * 1000. "delay" ist ein F_INT (g_spawn.cpp:401):
+            // ganze Sekunden. Pruefung 4b: jedes use - auch in der Wartezeit
+            // oder in den 50 ms vor G_FreeEntity - laeuft hier durch: der
+            // use-Skript startet neu, der Bruch (und mit ihm die Ziele) wird
+            // neu geplant, ein schon geplantes G_FreeEntity faellt weg.
+            geplant_.erase(std::remove_if(geplant_.begin(), geplant_.end(),
+                                          [wi](const Geplant& g) { return g.art == Geplant::Art::Bruch && g.wesen == wi; }),
+                           geplant_.end());
+            w.freiUm = 1.0e300;
             const std::string d = wertVon(e, "delay");
             const int sek = d.empty() ? 0 : std::atoi(d.c_str());
             if (sek > 0) {
-                plane(Geplant{jetzt_ + sek * 1000.0, 0, Geplant::Art::Benutzen, t, -1, ausloeser});
+                plane(Geplant{jetzt_ + sek * 1000.0, 0, Geplant::Art::Bruch, t, wi, ausloeser});
             } else {
                 benutze(t, ausloeser, tiefe + 1);
+                w.freiUm = jetzt_ + 50.0;
             }
             return;
         }
@@ -3182,6 +3194,10 @@ void Nachbau::takte() {
                         starteSkript(zi, it->second, g.ausloeser);
                     }
                 }
+            } else if (g.art == Geplant::Art::Bruch) {
+                // Pruefung 4b: funcBBrushDieGo - die Ziele, G_FreeEntity in 50 ms.
+                benutze(g.name, g.ausloeser, 1);
+                if (g.wesen >= 0) { wesen_[static_cast<std::size_t>(g.wesen)]->freiUm = t + 50.0; }
             } else if (g.art == Geplant::Art::Skript) {
                 starteSkript(g.wesen, g.name, g.ausloeser);
             } else if (g.art == Geplant::Art::Spawn && g.wesen >= 0) {

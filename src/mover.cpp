@@ -368,6 +368,9 @@ struct Bruchstelle {
     std::string bruchAusloeser;
     bool zerbrochen = false;
     bool weg = false;             // G_FreeEntity
+    // Pruefung 4b: func_breakable - funcBBrushDieGo stellt G_FreeEntity auf
+    // 50 ms spaeter; ein use davor ersetzt das think (neuer Bruch).
+    double freiUm = 1.0e300;
     bool erschienen = false;      // misc: count (Start off aufgehoben)
     bool zeigtU1 = false;
     int brueche = 0;
@@ -1199,7 +1202,6 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         Wuerfel w(saatVon(b));
         ++b.brueche;
         b.zerbrochen = true;
-        b.weg = true;
         // "if (self->target && attacker != nullptr) G_UseTargets" - der
         // Angreifer ist, wer benutzt hat. Kam das use aufgeloest, feuert
         // der Nachbau die Ziele (MoverUse::aufgeloest).
@@ -1224,8 +1226,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                      b.noise, t, w);
         // thinkF_G_FreeEntity, nextthink = level.time + 50: im Bild des
         // Bruchs steht der Brush noch, erst im naechsten ist er weg.
+        b.freiUm = t + kTakt;
         if (b.mover >= 0) {
-            mover_[static_cast<std::size_t>(b.mover)].sichtAb.emplace_back(t + kTakt, false);
+            mover_[static_cast<std::size_t>(b.mover)].sichtAb.emplace_back(b.freiUm, false);
         }
         bruch_.push_back(Bruch{b.entity, "func_breakable", t, b.material, groesse, anzahl});
     };
@@ -1280,13 +1283,25 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     };
     // funcBBrushUse, g_breakable.cpp:201
     const auto brushUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
-        if (b.weg) {
+        if (b.weg || t >= b.freiUm - 1e-6) {
             return;
         }
         if ((b.flags & kUseNotBreak) != 0) {
             // "Using it doesn't break it, makes it use it's targets"
             if (tiefe >= 0 && !b.target.empty()) { benutze(b.target, t, tiefe + 1, ausloeser); }
             return;
+        }
+        // Pruefung 4b: ein use nach funcBBrushDieGo, bevor G_FreeEntity
+        // kommt, ersetzt dessen think - der Brush bleibt bis zum neuen Bruch.
+        if (b.freiUm < 1.0e299) {
+            if (b.mover >= 0) {
+                auto& sa = mover_[static_cast<std::size_t>(b.mover)].sichtAb;
+                const double frei = b.freiUm;
+                sa.erase(std::remove_if(sa.begin(), sa.end(),
+                                        [frei](const std::pair<double, bool>& x) { return !x.second && x.first == frei; }),
+                         sa.end());
+            }
+            b.freiUm = 1.0e300;
         }
         // funcBBrushDie: mit "delay" erst spaeter (ein zweites use in der
         // Zwischenzeit stellt nextthink neu).
@@ -1807,7 +1822,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         }
         // Verzoegerte Brueche (thinkF_funcBBrushDieGo nach "delay")
         for (Bruchstelle& b : bruchstellen) {
-            if (b.bruchUm >= 0.0 && t >= b.bruchUm && !b.weg) {
+            if (b.bruchUm >= 0.0 && t >= b.bruchUm && !b.weg && t < b.freiUm) {
                 const double wann = b.bruchUm;
                 b.bruchUm = -1.0;
                 brichBrush(b, wann, b.bruchTiefe, b.bruchAusloeser);

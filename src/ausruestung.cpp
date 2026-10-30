@@ -964,6 +964,7 @@ void ausruestungSchritt(const Actor& a, ActorState& st, const ActorStep& step) {
             // an der Hand. Und Remove nimmt das zuletzt angehaengte, gleich
             // welche Seite der Befehl nennt.
             if (step.value > 0.5F) {
+                st.kinoNieGesetzt = false;
                 if (step.index < 0) {
                     // G2API_InitGhoul2Model schlaegt fehl: cinematicModel
                     // wird -1, ein spaeteres Remove tut nichts.
@@ -980,13 +981,21 @@ void ausruestungSchritt(const Actor& a, ActorState& st, const ActorStep& step) {
                 if (frei < 0) {
                     frei = (st.kinoLetztes + 1 + kMaxKinoModelle) % kMaxKinoModelle;
                 }
-                st.kino[static_cast<std::size_t>(frei)] = KinoModell{step.index, step.slot == 1};
+                // Pruefung 4b: ist Modell 0 fort, landet das neue im freien
+                // Fach 0 (G2API_InitGhoul2Model nimmt das erste mit
+                // mModelindex -1) bzw. haengt sich an ein Kinomodell ohne
+                // Bolzen - G2API_AttachG2Model scheitert ("Empty Bolt List",
+                // G2_API.cpp:1657-1680), es bleibt an der Wurzel.
+                st.kino[static_cast<std::size_t>(frei)] = KinoModell{step.index, step.slot == 1, st.koerperEntfernt};
                 st.kinoLetztes = frei;
+            } else if (st.kinoNieGesetzt) {
+                // Pruefung 4b: Remove vor dem ersten Add - cinematicModel ist
+                // 0, G2API_RemoveGhoul2Model(ghoul2, 0) entfernt die Figur
+                // (Q3_RemoveRHandModel, Q3_Interface.cpp:5874-5882 OpenJK,
+                // 6327-6335 MD; G2_API.cpp:944-974). Ein zweites findet ein
+                // leeres Fach und tut nichts.
+                st.koerperEntfernt = true;
             } else if (st.kinoLetztes >= 0) {
-                // Nicht nachgebildet: vor dem ersten Add steht
-                // cinematicModel auf 0 (der Speicher ist geloescht, nichts
-                // setzt es), und Remove wuerde Ghoul2-Modell 0 entfernen -
-                // die Figur selbst. Hier tut ein solches Remove nichts.
                 st.kino[static_cast<std::size_t>(st.kinoLetztes)].modell = -1;
             }
             break;
