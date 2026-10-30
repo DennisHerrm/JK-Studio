@@ -468,6 +468,41 @@ LIESMICH: taspir1 aus assets0.pk3, Missionen und Archiv auf X: per subst).
     der Spielordner, LIESMICH angepasst, neues Skript /y/zl4_hbvoll.sh.
   - Voller Lauf en danach: 0 Klickfehler, 0 FEHLER, in 7 min ganz durch
     (zl4hb_en, 669 Fotos; vorher 66 Fehler und nach 35 min abgebrochen).
+- **Punkt 2: Handbuch- und Tourbilder mit der neuen Leiste** (a913f423,
+  249b7add, c735f2cd, Bilder siehe unten). Jedes englische Bild einzeln
+  angesehen - die Bilder aus 6055731a waren nicht fehlerfrei (falsche Karte,
+  siehe Punkt 1) und sind ersetzt. Weitere Fehler in den Bildern, behoben im
+  Bildlauf:
+  - c_tl_klick: Kyles Zeile lag in der Detailansicht ausserhalb der Leiste,
+    der Klick traf nichts, das Bild zeigte die Erklaerung eines anderen Blocks.
+    Jetzt wird Kyle gewaehlt (die Leiste rollt zu ihm), Pruefung "Kyles
+    Laufbalken ganz in der Zeitleiste".
+  - c_tl_kante: die Marke lag auf Kyles Laufbalken (ausserhalb, und ein Lauf
+    behaelt laut Text seine Laenge) - jetzt die rechte Kante der Kamerafahrt.
+  - c_zeit_kamera: endete bei "Blende"; fuer das Bild ist die Leiste hoeher
+    (Wackeln, Bildwinkel, Schwarz im Bild).
+  - k_waits: Marke auf "Detail" und die Leiste noch bei Kyle - jetzt oben, die
+    Marke auf dem ersten Warteblock.
+  - s_sig_zeit: war leer (00:00.00) - talk lief nie, das waitsignal hing; auch
+    das alte Bild vor 6055731a war leer. Jetzt laeuft talk auf Kyle (affect +
+    run; ein run im Intro liefe an Ort und Stelle, CSequencer::ParseRun, das
+    Signal kaeme vor dem waitsignal), der Warteblock wird angeklickt, die
+    Seitenleiste nennt Kyle bei 0:02.0. Pruefung "das waitsignal steht als
+    Block".
+  - a_k_timen: die dritte Zeile des Hinweises beim Ziehen lag unter dem
+    Bildrand; jetzt endet das Bild knapp unter der Leiste, in jedem Bild
+    gleich hoch (sonst baut bilder.py kein bewegtes Bild).
+  - h_einst_vorschau: mit dem neuen Rollbereich ans Ende gerollt, Ok/Cancel
+    ganz im Bild.
+  - Uebernommen in vier Sprachen: c_pilot_taste, c_tl_folgen, c_tl_kante,
+    c_tl_klick, c_tl_play, c_tl_ruhig, c_tl_tempo, c_tl_ton, c_tl_zeit,
+    c_zeit_kamera, g_ansehen_zeit, g_gang_zeit, g_moment, h_einst_vorschau,
+    h_figur_bahn, k_saber, k_waits, s_sig_zeit, s_task_zeit, t3_4, a_k_timen
+    (+ _stand). de/zh/ja auf Kontaktboegen gegen en geprueft. Jeder Lauf: 0
+    Klickfehler, 0 FEHLER, 6 OK (2 neue Pruefungen), ganz durch in 7-8 min.
+  - Gesehen, nicht geaendert: im Klappfeld "Spielregeln" der Einstellungen ist
+    "Automatic (detected: Movie Duels)" abgeschnitten (Breite des Felds, auch
+    vorher so).
 - **Punkt 3: das Modell waehrend der Aufnahme wie im Spiel** (3826604e,
   ba0d58e4). Neuer Kern `include/bhed/pmanim.h`, `src/pmanim.cpp`, ctest
   `pmanim` (Erwartungen aus den Quellen mit Zeilen):
