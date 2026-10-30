@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <string>
 #include <utility>
@@ -58,6 +59,12 @@ struct MoverUse {
     // wenn activator->client gesetzt ist, und SV_GameSendServerCommand
     // (sv_game.cpp:111) laesst nur Client 0 durch - also nur den Spieler.
     std::string ausloeser;
+    // Pruefung 4b: der Platz des Benutzers im Bild - G_RunFrame laeuft die
+    // Entities nach ihrer Nummer ab (Karten-Entity i hat i + 1); -1 = vor
+    // allen, int-max = nach allen (Vorgabe). Ist das think eines func_breakable
+    // (funcBBrushDieGo, G_FreeEntity) in diesem Bild faellig, laeuft es vor
+    // einem use mit gleichem oder groesserem Platz (g_main.cpp:1062-1088).
+    int reihe = std::numeric_limits<int>::max();
 };
 
 // --- Was beim Zerbrechen entsteht ------------------------------------------

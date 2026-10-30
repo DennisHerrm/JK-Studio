@@ -6384,7 +6384,7 @@ void prepareScene() {
         for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
             // Mit dem Ausloeser: target_print zeigt nur, was der Spieler
             // ausloest (Use_Target_Print, activator->client).
-            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser});
+            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, b.reihe});
         }
         // rc605: die Ziele explodierender misc_trip_mine (WP_Explode ->
         // G_UseTargets) rechnet der Nachbau (ablaufWelt, AblaufWelt::

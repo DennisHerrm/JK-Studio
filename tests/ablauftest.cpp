@@ -266,6 +266,7 @@ void feste() {
             "use ( \"fels\" );\nwait ( 3000.000 );\n");
         const Ablauf a = simuliereAblauf(s, "", w4);
         double fels = -1.0;
+        double felsLetzt = -1.0;
         double runner = -1.0;
         std::string felsWer;
         int t1 = 0;
@@ -274,17 +275,22 @@ void feste() {
         int runnerZahl = 0;
         for (const Ablauf::Benutzung& b : a.benutzt) {
             if (b.name == "fels" && fels < 0.0) { fels = b.ms; felsWer = b.ausloeser; }
+            if (b.name == "fels") { felsLetzt = b.ms; }
             if (b.name == "runner") { runner = b.ms; ++runnerZahl; }
             t1 += (b.name == "t1") ? 1 : 0;
             t2 += (b.name == "t2") ? 1 : 0;
             t3 += (b.name == "t3") ? 1 : 0;
         }
         pruefe(felsWer == "player", "Benutzung kennt den Ausloeser (affect player)");
-        // Pruefung 4b: das zweite use (bei 500) stellt nextthink neu
-        // (funcBBrushDie, g_breakable.cpp:185-198) - der Bruch kommt bei 1500.
-        pruefe(fels >= 0.0 && std::fabs(runner - fels - 1500.0) < 0.5 && runnerZahl == 1,
-               "func_breakable feuert sein target nach delay 1.9 -> 1 s ab dem letzten use, und nur einmal");
-        pruefe(zeitVon(a, "runner", "print", "drei") >= fels + 1500.0, "... und startet damit ein Skript");
+        // Pruefung 4b: das zweite use (nach dem wait 500 im Bild 550) stellt
+        // nextthink neu (funcBBrushDie, g_breakable.cpp:185-198) - der Bruch
+        // kommt 1 s danach, nicht 1 s nach dem ersten.
+        pruefe(fels >= 0.0 && felsLetzt > fels + 499.0 && std::fabs(runner - felsLetzt - 1000.0) < 0.5 && runnerZahl == 1,
+               ("func_breakable feuert sein target nach delay 1.9 -> 1 s ab dem letzten use, und nur einmal (uses " +
+                std::to_string(fels) + " und " + std::to_string(felsLetzt) + ", runner " + std::to_string(runner) +
+                " x" + std::to_string(runnerZahl) + ")")
+                   .c_str());
+        pruefe(zeitVon(a, "runner", "print", "drei") >= felsLetzt + 1000.0, "... und startet damit ein Skript");
         pruefe(t1 == 1 && t3 == 1, "misc_model_breakable: target beim Bruch, target3 beim use danach");
         pruefe(t2 == 2, "USE_NOT_BREAK: jedes use feuert das target");
     }

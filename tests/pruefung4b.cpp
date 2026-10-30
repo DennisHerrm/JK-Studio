@@ -337,28 +337,55 @@ Script lies(const std::string& rumpf) {
 
 void bruchVerzoegerung() {
     std::printf("--- 5. func_breakable: zweites use in der Bruchverzoegerung ---\n");
+    // Takt 50 ms; wait endet im ersten Bild NACH stempel + dauer
+    // (TaskManager.cpp:1141 "<"). G_RunThink laeuft am Platz der Entity vor
+    // ihrem ICARUS (g_main.cpp:1062-1088). Der Startskript-Traeger kommt nach
+    // allen Karten-Entities, "vorn" (Entity 1) vor "glas2" (Entity 4).
     MapData m;
-    m.entities = {ent("func_breakable", {{"targetname", "fels"}, {"target", "danach"}, {"delay", "2"}, {"model", "*1"},
+    m.entities = {ent("func_usable", {{"targetname", "vorn"}, {"usescript", "x/vorn"}, {"model", "*4"}}),
+                  ent("func_breakable", {{"targetname", "fels"}, {"target", "danach"}, {"delay", "2"}, {"model", "*1"},
                                          {"usescript", "x/ruf"}}),
                   ent("func_breakable", {{"targetname", "glas"}, {"target", "danach2"}, {"model", "*2"}}),
-                  ent("target_relay", {{"targetname", "danach"}}), ent("target_relay", {{"targetname", "danach2"}})};
+                  ent("func_breakable", {{"targetname", "glas2"}, {"target", "danach3"}, {"model", "*3"}}),
+                  ent("target_relay", {{"targetname", "danach"}}), ent("target_relay", {{"targetname", "danach2"}}),
+                  ent("target_relay", {{"targetname", "danach3"}})};
     auto ruf = std::make_shared<Script>(lies("print ( \"ruf\" );\n"));
+    // vorn: bei 50 (der Traeger kommt nach vorn, das Skript startet im
+    // naechsten Bild) Bruch, G_FreeEntity bei 100; use bei 100 vor dem Platz
+    // von glas2 -> bricht neu (frei bei 150), ebenso bei 150; bei 250 ist es fort.
+    auto vorn = std::make_shared<Script>(lies("use ( \"glas2\" );\nwait ( 49.000 );\nuse ( \"glas2\" );\n"
+                                              "wait ( 49.000 );\nuse ( \"glas2\" );\nwait ( 99.000 );\nuse ( \"glas2\" );\n"));
     AblaufWelt w;
     w.karte = &m;
-    w.skript = [ruf](const std::string& p) -> const Script* { return p == "x/ruf" ? ruf.get() : nullptr; };
-    // fels: use bei 0 und bei 1000 (delay 2 s) -> Bruch bei 3000, nicht 2000.
-    // glas: use bei 0 (Bruch sofort, G_FreeEntity bei 50) und bei 20 -> bricht
-    // neu (Ziele zweimal), danach bei 100 nichts mehr.
-    const Script s = lies("use ( \"fels\" );\nuse ( \"glas\" );\nwait ( 20.000 );\nuse ( \"glas\" );\n"
-                          "wait ( 80.000 );\nuse ( \"glas\" );\nwait ( 900.000 );\nuse ( \"fels\" );\nwait ( 4000.000 );\n");
+    w.skript = [ruf, vorn](const std::string& p) -> const Script* {
+        return p == "x/ruf" ? ruf.get() : p == "x/vorn" ? vorn.get() : nullptr;
+    };
+    // fels: use bei 0 und bei 1050 (wait 49 -> 50, wait 950 -> 1050), delay 2 s
+    // -> ein Bruch bei 3050, nicht bei 2000. glas: zweimal im Bild 0 -> zwei
+    // Brueche; bei 50 ist G_FreeEntity (Platz 3) vor dem Traeger dran -> nichts.
+    const Script s = lies("use ( \"fels\" );\nuse ( \"glas\" );\nuse ( \"glas\" );\nuse ( \"vorn\" );\n"
+                          "wait ( 49.000 );\nuse ( \"glas\" );\nwait ( 950.000 );\nuse ( \"fels\" );\nwait ( 4000.000 );\n");
     const Ablauf a = simuliereAblauf(s, "", w);
-    std::vector<double> danach;
-    std::vector<double> danach2;
+    const auto zeiten = [&a](const char* name) {
+        std::vector<double> z;
+        for (const Ablauf::Benutzung& b : a.benutzt) {
+            if (b.name == name) { z.push_back(b.ms); }
+        }
+        return z;
+    };
+    const auto text = [](const std::vector<double>& z) {
+        std::string t;
+        for (const double x : z) { t += " " + std::to_string(static_cast<int>(x)); }
+        return t;
+    };
+    const auto gleich = [](const std::vector<double>& z, const std::vector<double>& soll) {
+        if (z.size() != soll.size()) { return false; }
+        for (std::size_t i = 0; i < z.size(); ++i) {
+            if (std::fabs(z[i] - soll[i]) > 0.5) { return false; }
+        }
+        return true;
+    };
     int rufe = 0;
-    for (const Ablauf::Benutzung& b : a.benutzt) {
-        if (b.name == "danach") { danach.push_back(b.ms); }
-        if (b.name == "danach2") { danach2.push_back(b.ms); }
-    }
     const std::function<void(const std::vector<Node>&)> zaehle = [&](const std::vector<Node>& ns) {
         for (const Node& n : ns) {
             if (n.name == "print" && !n.args.empty() && n.args[0].text == "ruf") { ++rufe; }
@@ -366,43 +393,40 @@ void bruchVerzoegerung() {
         }
     };
     zaehle(a.flach.nodes);
-    std::string zeiten;
-    for (const double t : danach) { zeiten += " " + std::to_string(static_cast<int>(t)); }
-    pruefe(danach.size() == 1U && std::fabs(danach[0] - 3000.0) < 0.5,
-           "Nachbau: zweites use bei 1000 schiebt den Bruch auf 3000 (Ziele bei" + zeiten + ")");
+    const std::vector<double> felsUse = zeiten("fels");
+    pruefe(gleich(felsUse, {0.0, 1050.0}), "Nachbau: fels benutzt bei 0 und 1050 (" + text(felsUse) + ")");
+    pruefe(gleich(zeiten("danach"), {3050.0}),
+           "Nachbau: das zweite use stellt nextthink neu - ein Bruch bei 3050 (Ziele bei" + text(zeiten("danach")) + ")");
     pruefe(rufe == 2, "Nachbau: der use-Skript laeuft bei jedem use (" + std::to_string(rufe) + " mal)");
-    std::string z2;
-    for (const double t : danach2) { z2 += " " + std::to_string(static_cast<int>(t)); }
-    pruefe(danach2.size() == 2U && std::fabs(danach2[0]) < 0.5 && std::fabs(danach2[1] - 20.0) < 0.5,
-           "Nachbau: use 20 ms nach dem Bruch (vor G_FreeEntity) bricht neu, bei 100 nichts (Ziele bei" + z2 + ")");
+    pruefe(gleich(zeiten("danach2"), {0.0, 0.0}),
+           "Nachbau: glas bricht zweimal im Bild 0, bei 50 ist es fort (Ziele bei" + text(zeiten("danach2")) + ")");
+    pruefe(gleich(zeiten("danach3"), {50.0, 100.0, 150.0}),
+           "Nachbau: glas2 - ein use vor seinem Platz im Bild von G_FreeEntity bricht neu (Ziele bei" +
+               text(zeiten("danach3")) + ")");
     BspGeometry g;
-    g.models.resize(3);
-    for (int i = 1; i <= 2; ++i) {
+    g.models.resize(5);
+    for (int i = 1; i <= 4; ++i) {
         auto& mo = g.models[static_cast<std::size_t>(i)];
         mo.maxs[0] = 8;
         mo.maxs[1] = 64;
         mo.maxs[2] = 128;
     }
+    // Wie die Ansicht (app_view3d.cpp): alle uses des Nachbaus, aufgeloest,
+    // mit ihrem Platz im Bild.
+    std::vector<MoverUse> uses;
+    for (const Ablauf::Benutzung& b : a.benutzt) { uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, b.reihe}); }
     MoverSim sim;
-    sim.baue(m, g, {{0.0, "fels"}, {0.0, "glas"}, {20.0, "glas"}, {100.0, "glas"}, {1000.0, "fels"}}, nullptr, 6000.0);
-    int felsBrueche = 0;
-    int glasBrueche = 0;
-    double felsBei = -1.0;
-    std::string gz;
+    sim.baue(m, g, uses, nullptr, 6000.0);
+    std::vector<double> brueche[4];
     for (const Bruch& b : sim.brueche()) {
-        if (b.entity == 0) {
-            ++felsBrueche;
-            felsBei = b.ms;
-        }
-        if (b.entity == 1) {
-            ++glasBrueche;
-            gz += " " + std::to_string(static_cast<int>(b.ms));
-        }
+        if (b.entity >= 1U && b.entity <= 3U) { brueche[b.entity].push_back(b.ms); }
     }
-    pruefe(felsBrueche == 1 && std::fabs(felsBei - 3000.0) < 0.5 && sim.at(1, 3000).sichtbar && !sim.at(1, 3050).sichtbar,
-           "MoverSim: ein Bruch bei 3000, der Brush bis 3050 (" + std::to_string(static_cast<int>(felsBei)) + ")");
-    pruefe(glasBrueche == 2 && sim.at(2, 60).sichtbar && !sim.at(2, 70).sichtbar,
-           "MoverSim: glas bricht bei 0 und 20, weg ab 70 (Brueche bei" + gz + ")");
+    pruefe(gleich(brueche[1], {3050.0}) && sim.at(1, 3050).sichtbar && !sim.at(1, 3100).sichtbar,
+           "MoverSim: fels bricht einmal bei 3050, der Brush steht bis 3100 (" + text(brueche[1]) + ")");
+    pruefe(gleich(brueche[2], {0.0, 0.0}) && sim.at(2, 49).sichtbar && !sim.at(2, 50).sichtbar,
+           "MoverSim: glas bricht zweimal bei 0, weg ab 50 (" + text(brueche[2]) + ")");
+    pruefe(gleich(brueche[3], {50.0, 100.0, 150.0}) && sim.at(3, 199).sichtbar && !sim.at(3, 200).sichtbar,
+           "MoverSim: glas2 bricht bei 50, 100, 150, weg ab 200 (" + text(brueche[3]) + ")");
 }
 
 }  // namespace

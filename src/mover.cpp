@@ -954,11 +954,19 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     }
 
     // --- Die Ereignisse -----------------------------------------------------
-    struct Ereignis { double ms; std::string ziel; int tiefe; std::string ausloeser; };
+    struct Ereignis {
+        double ms;
+        std::string ziel;
+        int tiefe;
+        std::string ausloeser;
+        int reihe = std::numeric_limits<int>::max();   // MoverUse::reihe
+    };
+    // Pruefung 4b: der Platz im Bild des use, das gerade laeuft (MoverUse::reihe).
+    int reiheJetzt = std::numeric_limits<int>::max();
     std::vector<Ereignis> warte;
     for (const MoverUse& u : uses) {
         // tiefe -1: schon aufgeloest (siehe MoverUse::aufgeloest)
-        warte.push_back(Ereignis{u.ms, u.target, u.aufgeloest ? -1 : 0, u.ausloeser});
+        warte.push_back(Ereignis{u.ms, u.target, u.aufgeloest ? -1 : 0, u.ausloeser, u.reihe});
     }
 
     // rc601 (bewegung, teil 3): moverState und MOVER_LOCKED je Tuer merken -
@@ -1283,7 +1291,21 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     };
     // funcBBrushUse, g_breakable.cpp:201
     const auto brushUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
-        if (b.weg || t >= b.freiUm - 1e-6) {
+        // Pruefung 4b: G_RunThink laeuft am Platz der Entity (g_main.cpp:1062-
+        // 1088): ein think dieses Bilds ist vor diesem use dran, wenn der
+        // Benutzer nicht vor dem func_breakable kommt.
+        const auto faellig = [&](double um) {
+            return um < t - 1e-6 || (um <= t + 1e-6 && reiheJetzt >= static_cast<int>(b.entity) + 1);
+        };
+        if (b.bruchUm >= 0.0 && faellig(b.bruchUm)) {
+            const double wann = b.bruchUm;
+            b.bruchUm = -1.0;
+            brichBrush(b, wann, b.bruchTiefe, b.bruchAusloeser);
+        }
+        if (b.freiUm < 1.0e299 && faellig(b.freiUm)) {
+            b.weg = true;   // G_FreeEntity
+        }
+        if (b.weg) {
             return;
         }
         if ((b.flags & kUseNotBreak) != 0) {
@@ -1754,7 +1776,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             if (it == warte.end()) { break; }
             const Ereignis e = *it;
             warte.erase(it);
+            reiheJetzt = e.reihe;
             benutze(e.ziel, e.ms, e.tiefe, e.ausloeser);
+            reiheJetzt = std::numeric_limits<int>::max();
         }
         for (std::size_t ti = 0; ti < teams.size(); ++ti) {
             Team& team = teams[ti];
