@@ -4957,31 +4957,46 @@ std::string aktiverSkriptPfad() {
     return r;
 }
 
-// Ein Skript fuer run / use / spawnscript. Zuerst ein offener Reiter (dann
-// wirken ungespeicherte Aenderungen sofort), sonst aus den Archiven.
-const Script* skriptFuerAblauf(const std::string& pfad) {
-    const auto klein = [](std::string x) {
-        for (char& c : x) {
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            if (c == '\\') { c = '/'; }
+namespace {
+// Klein und mit '/' statt Backslash: so vergleicht der Nachbau Skriptnamen.
+std::string ablaufName(std::string x) {
+    for (char& c : x) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (c == '\\') { c = '/'; }
+    }
+    return x;
+}
+}  // namespace
+
+int reiterMitAblaufSkript(const std::string& pfad, bool aktivLebend) {
+    const std::string k = ablaufName(pfad);
+    for (std::size_t i = 0; i < g_app->tabs.size(); ++i) {
+        const bool lebend = aktivLebend && static_cast<int>(i) == g_app->activeTab;
+        const App::Parked& t = g_app->tabs[i];
+        const std::string& sp = lebend ? g_app->skriptPfad : t.skriptPfad;
+        if (!sp.empty() && ablaufName(sp) == k) {
+            return static_cast<int>(i);
         }
-        return x;
-    };
-    const std::string k = klein(pfad);
-    for (const App::Parked& t : g_app->tabs) {
-        if (!t.skriptPfad.empty() && klein(t.skriptPfad) == k) {
-            return &t.doc.script();
-        }
-        std::string tp = klein(t.path);
+        std::string tp = ablaufName(lebend ? g_app->path : t.path);
         const auto s = tp.rfind("/scripts/");
         if (s != std::string::npos) {
             tp = tp.substr(s + 9);
             const auto punkt = tp.find_last_of('.');
             if (punkt != std::string::npos) { tp.resize(punkt); }
             if (tp == k) {
-                return &t.doc.script();
+                return static_cast<int>(i);
             }
         }
+    }
+    return -1;
+}
+
+// Ein Skript fuer run / use / spawnscript. Zuerst ein offener Reiter (dann
+// wirken ungespeicherte Aenderungen sofort), sonst aus den Archiven.
+const Script* skriptFuerAblauf(const std::string& pfad) {
+    const std::string k = ablaufName(pfad);
+    if (const int r = reiterMitAblaufSkript(pfad, false); r >= 0) {
+        return &g_app->tabs[static_cast<std::size_t>(r)].doc.script();
     }
     const auto it = g_app->ablaufSkripte.find(k);
     if (it != g_app->ablaufSkripte.end()) {
@@ -5575,13 +5590,15 @@ AblaufWelt ablaufWelt() {
 }
 
 // Pfade aus dem flachen Skript zurueck auf das offene Skript. Befehle aus
-// anderen Skripten behalten ihren Skriptnamen in `fremd` und bekommen einen
-// leeren Pfad (dann waehlt ein Klick nichts an, und keine Kante ist
-// ziehbar).
+// anderen Skripten behalten ihren Skriptnamen in `fremd` und ihre Zeile dort
+// in `fremdPfad` ("Skriptzeile oeffnen" oeffnet jenes Skript und waehlt sie)
+// und bekommen einen leeren Pfad (dann waehlt ein Klick hier nichts an, und
+// keine Kante ist ziehbar).
 void pfadeAufsSkript() {
     const Ablauf& a = g_app->ablauf;
-    const auto um = [&a](Path& p, std::string& fremd) {
+    const auto um = [&a](Path& p, std::string& fremd, Path& fremdPfad) {
         const AblaufHerkunft* h = a.woher(p);
+        fremdPfad.clear();
         if (h == nullptr || h->skript < 0) {
             p.clear();
             fremd.clear();
@@ -5593,14 +5610,15 @@ void pfadeAufsSkript() {
             return;
         }
         fremd = a.skripte[static_cast<std::size_t>(h->skript)];
+        fremdPfad = h->path;
         p.clear();
     };
     for (CamSegment& s : g_app->camTrack.segments) {
-        um(s.path, s.fremd);
+        um(s.path, s.fremd, s.fremdPfad);
     }
     for (TimelineTrack& tr : g_app->timeline.tracks) {
         for (TimelineEvent& e : tr.events) {
-            um(e.path, e.fremd);
+            um(e.path, e.fremd, e.fremdPfad);
             // Ein wait traegt den Wert aus dem Skript, nicht die Dauer des
             // Nachbaus - die ist einen Takt laenger (Selbsttest rc601: "wait
             // ( 3050 )" auf dem Block fuer ein wait ( 3000 ) im Skript). Die
@@ -5617,11 +5635,12 @@ void pfadeAufsSkript() {
     }
     for (Diag& d : g_app->timeline.notes) {
         std::string f;
-        um(d.path, f);
+        Path fp;
+        um(d.path, f, fp);
     }
     for (Actor& ac : g_app->scene.actors) {
         for (ActorStep& st : ac.steps) {
-            um(st.path, st.fremd);
+            um(st.path, st.fremd, st.fremdPfad);
         }
     }
 }
@@ -6597,6 +6616,9 @@ void prepareScene() {
         g_app->mapModels.push_back(std::move(item));
         g_app->modellFigur.push_back(static_cast<int>(a));
     }
+    // zeitleiste1: das Modell der Zeitleiste aus Ablauf, Kamerabahn und Szene
+    // dieses Durchgangs (bhed/spuren.h) - auch fuer Szenen ohne Figuren.
+    zeitleisteModellBauen();
     if (g_app->scene.actors.empty()) {
         return;
     }

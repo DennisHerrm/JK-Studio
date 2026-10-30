@@ -94,7 +94,7 @@
  "**Where to wait.** In the script that should pause, insert `waitsignal` and type a name, for example `door_open`.": "**在哪里等待。** 在需要暂停的脚本中插入 `waitsignal` 并输入名称,例如 `door_open`。",
  "**Where to give the signal.** In the other script, at the moment it should go on, insert `signal ( \"door_open\" )`.": "**在哪里发信号。** 在另一个脚本中,在应当继续的时刻插入 `signal ( \"door_open\" )`。",
  "**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name.": "**检查名称。** 两者的拼写必须相同。对于同一个名称的信号,只能有一个脚本等待。",
- "**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks.": "**在时间轴中查看。** 在时间轴中展开角色的分组:**{{TlKatAblauf}}** 行把等待和信号显示为块。",
+ "**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time.": "**在时间轴中查看。** 在时间轴中展开角色的行（名称旁的箭头）：其 **{{ZlBefehle}}** 行在相应时间显示它的等待和信号。",
  "The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.": "时间轴无法知道 `waitsignal` 在游戏中会等待多久——其后的所有内容都按信号立即到来的情况排布。",
  "Use macros": "使用宏",
  "walkOnly, runOnly, standOnly and the patrols: several set commands in one line.": "walkOnly、runOnly、standOnly 和巡逻:一行包含多条 set 命令。",
@@ -133,7 +133,6 @@
  "**Insert a camera command.** Double-click `camera` in the **{{GroupEvents}}** list, then open it with <kbd>Enter</kbd>. The first field chooses what it does.": "**插入摄像机命令。** 在 **{{GroupEvents}}** 列表中双击 `camera`,然后按 <kbd>Enter</kbd> 打开它。第一个字段选择它的作用。",
  "**Zoom.** Choose `ZOOM`: the first number is the field of view (80 is normal, smaller is closer), the second the time in milliseconds to get there.": "**缩放。** 选择 `ZOOM`:第一个数字是视野(80 为正常,越小越近),第二个是到达该值所需的毫秒数。",
  "**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black.": "**淡入淡出。** 选择 `FADE`:起始颜色和不透明度、结束颜色和不透明度(0 到 1),以及时间。`0 0 0`、`0` 到 `0 0 0`、`1` 即淡出到黑屏。",
- "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**.": "**震动。** 选择 `SHAKE`:强度 0 到 16,以及以毫秒为单位的持续时间。时间轴在 **{{TlKamera}}** 下各自的行中显示缩放、淡入淡出和震动。",
  "The camera rows of the timeline.": "时间轴的摄像机行。",
  "Retime a cutscene in the timeline": "在时间轴中重新调整过场动画的时间",
  "Make a shot longer, start a line of dialogue later, move a whole part - by dragging blocks.": "延长一个镜头、让一句台词晚点开始、移动整段内容——只需拖动块。",
@@ -142,7 +141,7 @@
  "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.": "**移动块。** 向左或向右拖动块。其后的所有内容随之移动,其余部分保持同步。按住 <kbd>Alt</kbd> 只移动这一个块。",
  "Dragging a block in the timeline: everything after it moves along.": "在时间轴中拖动块:其后的一切随之移动。",
  "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.": "**改变时长。** 拖动块的右边缘——摄像机移动、wait——使其变短或变长。",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.": "**精确步进。** 鼠标位于时间轴上方时,<kbd>←</kbd> / <kbd>→</kbd> 将播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.": "**精确步进。** 鼠标位于时间轴上方时,<kbd>←</kbd> / <kbd>→</kbd> 将播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒，按住 <kbd>Ctrl</kbd> 则移动五秒。",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.": "**检查脚本。** 每次拖动都会修改脚本中的一个值(某个 wait、某个时间)。单击块即可看到它对应的行。",
  "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.": "摄像机块上的警告标志表示它与下一个块重叠——在游戏中,下一次移动会从这一次的起点开始,摄像机会跳动。",
  "Look through the camera while you work": "工作时透过摄像机观看",
@@ -166,7 +165,7 @@
  "The menu of a walk target: Look at while walking lists the figures of the scene.": "行走目标的菜单:“行走时注视”列出场景中的角色。",
  "**Standing.** Right-click the target entity in the entity list → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) or **{{EntityAsLook}}** (`SET_LOOK_TARGET`). The command goes into the script after the selected line.": "**站立时。** 在实体列表中右键单击目标实体 → **{{EntityAsWatch}}**(`SET_WATCHTARGET`)或 **{{EntityAsLook}}**(`SET_LOOK_TARGET`)。命令会插入到脚本中所选行之后。",
  "**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**.": "**恢复正常。** 右键单击行走目标 → **{{BahnBlickFrei}}**。",
- "**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where.": "**检查。** 播放时间轴。角色分组中的 **{{TlKatBlick}}** 类别显示它何时看向何处。",
+ "**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time.": "**检查。** 播放时间轴。展开角色的行：其 **{{ZlBefehle}}** 行在相应时间显示注视命令。",
  "Turn a figure at a moment": "在某一时刻让角色转身",
  "Set which way a figure faces at a certain time - with the rotate ring on the map.": "设置角色在特定时间面向哪个方向——使用地图上的旋转环。",
  "**Go to the moment.** Move the playhead in the timeline to where the figure should face another way.": "**转到该时刻。** 在时间轴中把播放头移到角色应改变朝向的位置。",
@@ -300,5 +299,6 @@
  "Tutorials: figures": "教程:角色",
  "Tutorials: map and entities": "教程:地图与实体",
  "Tutorials: animation": "教程:动画",
- "Tutorials: missions and models": "教程:任务与模型"
+ "Tutorials: missions and models": "教程:任务与模型",
+ "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows.": "**晃动。** 选择 `SHAKE`：强度 0 到 16，时长以毫秒为单位。在 **{{ZlDetail}}** 视图中，时间轴把缩放、淡入淡出和晃动各显示为一行。"
 }

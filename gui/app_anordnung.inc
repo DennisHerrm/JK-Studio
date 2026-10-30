@@ -3094,12 +3094,20 @@ void drawFlowArea(const Layout& l) {
     for (int i = 0; i < felder; ++i) {
         const Feld& f = felderPos[i];
         ImGui::SetCursorScreenPos(ImVec2{ursprung.x + f.x, ursprung.y + f.y});
+        // zeitleiste1: "Was passiert hier?" - die Erklaerung zum angeklickten
+        // Block der Zeitleiste steht unten in dieser Spalte (Mission-Tab).
+        const float erkl = i == 0 ? zeitleisteErklaerungHoehe(f.h) : 0.0F;
+        const float fh = erkl > 0.0F ? f.h - erkl - luecke : f.h;
         if (feldAnsicht(i) != 0) {
-            drawFlussAnsicht(f.w, f.h, l.headerH, i);
+            drawFlussAnsicht(f.w, fh, l.headerH, i);
         } else if (i == fokus) {
-            drawTree(l, i, f.w, f.h - l.headerH);
+            drawTree(l, i, f.w, fh - l.headerH);
         } else if (!g_app->tabs.empty()) {
-            drawSplitTree(l, i, f.w, f.h - l.headerH);
+            drawSplitTree(l, i, f.w, fh - l.headerH);
+        }
+        if (erkl > 0.0F) {
+            ImGui::SetCursorScreenPos(ImVec2{ursprung.x + f.x, ursprung.y + f.y + fh + luecke});
+            zeitleisteErklaerung(f.w, erkl);
         }
     }
     // --- Die Trennlinien zum Ziehen --------------------------------------

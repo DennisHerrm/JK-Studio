@@ -70,6 +70,11 @@ add_library(bhed_core STATIC
   src/missionsgraph.cpp
   src/sound.cpp
   src/timeline.cpp
+  src/spuren.cpp
+  # Zeitleiste 2: Untertitel wie das Spiel (Pakete, Schluessel, CG_CaptionText)
+  src/untertitel.cpp
+  # Zeitleiste 2 Punkt 1: Aufnehmen (gesteuerte Figur -> Laufziele, nur wo noetig)
+  src/aufnahme.cpp
   src/bspgeo.cpp
   src/gpucam.cpp
   src/gpuconst.cpp
@@ -399,6 +404,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_mission.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
+    gui/app_zeitleiste.cpp
     gui/app_kamera.cpp
     gui/app_wegpunkte.cpp
     gui/app_modell.cpp
@@ -756,6 +762,18 @@ if(BEHAVED_TESTS)
   add_executable(pruefung2 tests/pruefung2.cpp)
   target_link_libraries(pruefung2 PRIVATE bhed_core)
   add_test(NAME pruefung2 COMMAND pruefung2)
+  # zeitleiste1: das Modell der Zeitleiste an einer eigenen Mini-Szene.
+  add_executable(spurentest tests/spurentest.cpp)
+  target_link_libraries(spurentest PRIVATE bhed_core)
+  add_test(NAME spuren COMMAND spurentest)
+  # Zeitleiste 2: Untertitel (Pakete je Spiel, Schluessel, eigene Mini-Dateien .str/.sp)
+  add_executable(untertiteltest tests/untertiteltest.cpp)
+  target_link_libraries(untertiteltest PRIVATE bhed_core)
+  add_test(NAME untertitel COMMAND untertiteltest)
+  # Zeitleiste 2 Punkt 1: aus einer gesteuerten Figur werden Laufziele, nur wo noetig
+  add_executable(aufnahmetest tests/aufnahmetest.cpp)
+  target_link_libraries(aufnahmetest PRIVATE bhed_core)
+  add_test(NAME aufnahme COMMAND aufnahmetest)
   # rc601 bewegung: NPCs laufen, drehen sich und fallen wie im Spiel
   # (scene.cpp, ablauf.cpp) - reine Proben, dazu die md_twj-Daten.
   add_executable(bewegungtest tests/bewegungtest.cpp)

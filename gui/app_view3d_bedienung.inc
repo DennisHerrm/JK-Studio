@@ -722,7 +722,10 @@ bool kantenGriff(const Path& pfad, double startMs, double endMs,
 
 // Einen Befehl in der Zeit verschieben (siehe "Einen Block verschieben" in
 // drawTimeline). Gibt zurueck, ob sich etwas geaendert hat.
-bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
+// warte/vorher (zeitleiste1): welches wait sich aendert (Pfad danach) und
+// sein Inhalt vorher ("name|wert", leer wenn es eingefuegt wird) - fuer die
+// Marke "durch Ziehen geaendert".
+bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser, Path* warte, std::string* vorher) {
     if (p.empty() || std::fabs(delta) < 1.0) {
         return false;
     }
@@ -780,6 +783,7 @@ bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
         std::vector<std::pair<Path, Node>> ersatz;
         Path pw = eltern;
         pw.push_back(g - 1);
+        const std::string alterWert = (*liste)[g - 1].args[0].text;
         ersatz.emplace_back(pw, mitWert((*liste)[g - 1], wert + d));
         if (nurDieser && danachZahl) {
             Path pn = eltern;
@@ -788,6 +792,8 @@ bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
             ersatz.emplace_back(pn, mitWert((*liste)[n], wn - d));
         }
         ok = g_app->doc.replaceMany(ersatz);
+        if (warte != nullptr) { *warte = pw; }
+        if (vorher != nullptr) { *vorher = "wait|" + alterWert; }
     } else if (d > 0.0) {
         // Kein wait davor: eines einfuegen.
         Node w;
@@ -798,7 +804,10 @@ bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
         w.args.push_back(a);
         Path pg = eltern;
         pg.push_back(g);
+        const std::size_t tiefe = g_app->doc.undoDepth();
         ok = g_app->doc.insertBefore(pg, mitWert(w, d));
+        if (warte != nullptr) { *warte = pg; }
+        if (vorher != nullptr) { vorher->clear(); }
         if (ok && nurDieser && danachZahl) {
             Path pn = eltern;
             pn.push_back(n + 1);   // eins weiter: davor kam eine Zeile dazu
@@ -807,6 +816,10 @@ bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
                 const double wn = std::atof(nn->args[0].text.c_str());
                 (void)g_app->doc.replaceAt(pn, mitWert(*nn, wn - d));
             }
+            // Ein Zug ist EIN Rueckgaengig-Schritt (zeitleiste1): das eingefuegte
+            // wait und das gekuerzte danach gehoeren zusammen. Vorher waren es
+            // zwei, und ein Strg+Z liess das eingefuegte wait stehen.
+            if (g_app->doc.undoDepth() > tiefe + 1) { g_app->doc.fasseZusammen(tiefe, "moved in timeline"); }
         }
     }
     if (ok) {
@@ -817,18 +830,6 @@ bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser) {
         g_app->mapDirty = true;
     }
     return ok;
-}
-
-// Passiert in dieser Spur nach dem Anfang noch etwas? "Ruhig" heisst: alle
-// Befehle liegen bei 0 und haben keine Dauer (etwa ein einzelnes set zu
-// Beginn). Solche Spuren blendet die Zeitleiste auf Wunsch aus.
-bool spurIstRuhig(const TimelineTrack& spur) {
-    for (const TimelineEvent& e : spur.events) {
-        if (e.endMs > 1.0 || e.startMs > 1.0) {
-            return false;
-        }
-    }
-    return true;
 }
 
 void klaengeVorladen() {
@@ -993,8 +994,11 @@ void drawTimeline() {
         g_app->mapDirty = true;
     }
     ImGui::SameLine();
+    // Leertaste ueber der Leiste (zeitleiste1) wirkt wie der Knopf.
+    const bool leertaste = std::exchange(g_app->zlAbspielenUmschalten, false);
     if (iconKnopf(g_app->playing ? tr(Str::TlStop) : tr(Str::TlPlay), g_app->playing ? UiIcon::Pause : UiIcon::Abspielen,
-                  tr(Str::TlPlayHint), g_app->playing)) {
+                  tr(Str::TlPlayHint), g_app->playing) ||
+        leertaste) {
         g_app->playing = !g_app->playing;
         if (!g_app->playing) {
             g_app->audio.stopAll();
@@ -1115,102 +1119,71 @@ void drawTimeline() {
         g_app->followCam = !g_app->followCam;
         g_app->mapDirty = true;
     }
+    ImGui::SameLine();
+    untertitelSchalter();
+    ImGui::SameLine();
+    aufnahmeKnopf();
     trenner();
-    // --- Zoom: verkleinern, Menue mit Stufen, vergroessern -----------------
+    // --- Zoom: verkleinern, Alles, vergroessern (Entwurf zeitleiste1) ------
     //
-    // Radeln allein genuegt nicht: man sieht dem Rad nicht an, dass es
-    // etwas tut, und feste Stufen trifft man damit nie genau. Der Knopf
-    // zeigt zugleich den aktuellen Grad an - damit ist beides sichtbar,
-    // die Moeglichkeit und der Zustand.
+    // Beim Umstellen die MITTE festhalten - bzw. den Zeiger, wenn er im Bild
+    // ist: dorthin will man. Faktor 1,6 je Klick wie im Entwurf.
     {
-        // Beim Umstellen die MITTE festhalten - sonst springt man beim
-        // Stufenwechsel an den Anfang zurueck und sucht die Stelle wieder,
-        // die man gerade ansah.
-        const double gesamtM = std::max({g_app->timeline.practicalEndMs, t.durationMs, 1.0});
+        const double gesamtM = std::max({g_app->timeline.practicalEndMs, t.durationMs, 1.0}) * 1.05;
         const auto stellen = [&](double neuerZoom, double mitteMs) {
             const double zz = std::clamp(neuerZoom, 1.0, App::kMaxZoom);
             const double sp = gesamtM / zz;
             g_app->timelineZoom = zz;
             g_app->timelineViewStartMs = std::clamp(mitteMs - sp * 0.5, 0.0, std::max(0.0, gesamtM - sp));
         };
-        const double mitteJetzt =
-            g_app->timelineViewStartMs + gesamtM / std::max(g_app->timelineZoom, 1.0) * 0.5;
+        const double sicht = gesamtM / std::max(g_app->timelineZoom, 1.0);
+        const bool zeigerDa = g_app->playMs >= g_app->timelineViewStartMs && g_app->playMs <= g_app->timelineViewStartMs + sicht;
+        const double mitte = zeigerDa ? g_app->playMs : g_app->timelineViewStartMs + sicht * 0.5;
         if (iconKnopf(tr(Str::TlZoomOut), UiIcon::ZoomMinus, nullptr, false, g_app->timelineZoom > 1.0)) {
-            stellen(g_app->timelineZoom / 2.0, mitteJetzt);
+            stellen(g_app->timelineZoom / 1.6, mitte);
         }
         ImGui::SameLine();
-        char knopf[48];
-        if (g_app->timelineZoom > 1.0) {
-            char grad[24];
-            std::snprintf(grad, sizeof(grad), tr(Str::TlZoomFactor), g_app->timelineZoom);
-            std::snprintf(knopf, sizeof(knopf), "%s: %s", tr(Str::TlZoomMenu), grad);
-        } else {
-            std::snprintf(knopf, sizeof(knopf), "%s: %s", tr(Str::TlZoomMenu), tr(Str::TlFit));
+        ImGui::BeginDisabled(g_app->timelineZoom <= 1.0);
+        if (ImGui::Button(tr(Str::TlFit))) {
+            g_app->timelineZoom = 1.0;
+            g_app->timelineViewStartMs = 0.0;
         }
-        if (ImGui::Button(knopf)) {
-            ImGui::OpenPopup("##zoommenu");
-        }
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", tr(Str::TlZoomHint));
-        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::ZlAllesHint)); }
         ImGui::SameLine();
         if (iconKnopf(tr(Str::TlZoomIn), UiIcon::ZoomPlus, nullptr, false, g_app->timelineZoom < App::kMaxZoom)) {
-            // Um den Zeiger herum, wenn er im Bild ist - dorthin will man.
-            const double sicht = gesamtM / std::max(g_app->timelineZoom, 1.0);
-            const bool zeigerDa =
-                g_app->playMs >= g_app->timelineViewStartMs && g_app->playMs <= g_app->timelineViewStartMs + sicht;
-            stellen(g_app->timelineZoom * 2.0, zeigerDa ? g_app->playMs : mitteJetzt);
-        }
-        if (ImGui::BeginPopup("##zoommenu")) {
-            if (ImGui::MenuItem(tr(Str::TlFit), nullptr, g_app->timelineZoom <= 1.0)) {
-                g_app->timelineZoom = 1.0;
-                g_app->timelineViewStartMs = 0.0;
-            }
-            ImGui::Separator();
-            for (const double stufe : {2.0, 4.0, 8.0, 16.0, 32.0}) {
-                char be[24];
-                std::snprintf(be, sizeof(be), tr(Str::TlZoomFactor), stufe);
-                if (ImGui::MenuItem(be, nullptr, std::fabs(g_app->timelineZoom - stufe) < 0.01)) {
-                    stellen(stufe, mitteJetzt);
-                }
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem(tr(Str::TlZoomToPlay))) {
-                stellen(std::max(g_app->timelineZoom, 8.0), g_app->playMs);
-            }
-            ImGui::EndPopup();
+            stellen(g_app->timelineZoom * 1.6, mitte);
         }
     }
     trenner();
-    // Je Figur eine Zeile, und die ruhigen Spuren (nach dem Anfang passiert
-    // darin nichts mehr - in intro_jedi 6 von 10).
-    if (iconKnopf(tr(Str::TlTracks), UiIcon::Zeilen, tr(Str::TlTracksHint), g_app->showTracks, true, true)) {
-        g_app->showTracks = !g_app->showTracks;
-        g_app->mapDirty = true;
-    }
+    // --- Uebersicht | Detail, Filter, Suche (zeitleiste1) ----------------
     {
-        int ruhig = 0;
-        for (const TimelineTrack& tr2 : g_app->timeline.tracks) {
-            if (spurIstRuhig(tr2)) { ++ruhig; }
-        }
-        if (ruhig > 0 && g_app->showTracks) {
-            ImGui::SameLine();
-            char lab[64];
-            std::snprintf(lab, sizeof(lab), tr(Str::TlIdleTracks), ruhig);
-            if (iconKnopf(lab, UiIcon::Ruhig, tr(Str::TlIdleTracksHint), g_app->zeigeRuhigeSpuren, true, true)) {
-                g_app->zeigeRuhigeSpuren = !g_app->zeigeRuhigeSpuren;
+        const auto segment = [&](const char* text, const char* hinweis, bool an) {
+            if (an) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
             }
-            ImGui::SameLine(0.0F, 2.0F);
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextDisabled("%d", ruhig);
-        }
-        // waits als eigene Bloecke (rc597, sonst ausgeblendet).
-        if (g_app->showTracks) {
-            ImGui::SameLine();
-            if (iconKnopf(tr(Str::TlWaits), UiIcon::Pause, tr(Str::TlWaitsHint), g_app->tlWaitsZeigen, true, true)) {
-                g_app->tlWaitsZeigen = !g_app->tlWaitsZeigen;
+            const bool k = ImGui::Button(text);
+            if (an) {
+                const ImVec2 a = ImGui::GetItemRectMin();
+                const ImVec2 b = ImGui::GetItemRectMax();
+                ImGui::GetWindowDrawList()->AddRectFilled(ImVec2{a.x, b.y - 2.0F}, b, IM_COL32(242, 169, 59, 255));
+                ImGui::PopStyleColor();
             }
-        }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", hinweis); }
+            return k;
+        };
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, ImGui::GetStyle().ItemSpacing.y});
+        if (segment(tr(Str::ZlUebersicht), tr(Str::ZlUebersichtHint), !g_app->zlDetail)) { g_app->zlDetail = false; }
+        ImGui::SameLine();
+        if (segment(tr(Str::ZlDetail), tr(Str::ZlDetailHint), g_app->zlDetail)) { g_app->zlDetail = true; }
+        ImGui::PopStyleVar();
+        ImGui::SameLine(0.0F, gruppe * 0.6F);
+        if (segment(tr(Str::ZlNurAktive), tr(Str::ZlNurAktiveHint), g_app->zlNurAktive)) { g_app->zlNurAktive = !g_app->zlNurAktive; }
+        ImGui::SameLine();
+        if (segment(tr(Str::ZlProbleme), tr(Str::ZlProblemeHint), g_app->zlProbleme)) { g_app->zlProbleme = !g_app->zlProbleme; }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(fsT * 11.0F);
+        ImGui::InputTextWithHint("##zlsuche", tr(Str::ZlSuche), g_app->zlSuche, sizeof(g_app->zlSuche));
     }
     trenner();
     // Eine Kameraeinstellung an der jetzigen Ansicht - vorher ein Textknopf
@@ -1341,14 +1314,7 @@ void drawTimeline() {
     // Jetzt gibt es EINE Kante, an der alles beginnt. Sie richtet sich nach
     // dem laengsten Namen, damit auch "bigguard1" hineinpasst, bleibt aber
     // in Grenzen - sonst frisst die Namensspalte die Zeitachse auf.
-    float labelW = ImGui::GetFontSize() * 6.0F;
-    for (const TimelineTrack& tr2 : g_app->timeline.tracks) {
-        const std::string nm = tr2.entity.empty() ? std::string(tr(Str::TlScript))
-                                                  : tr2.entity;
-        labelW = std::max(labelW, ImGui::CalcTextSize(nm.c_str()).x);
-    }
-    labelW = std::min(labelW + ImGui::GetStyle().ItemSpacing.x * 2.0F,
-                      ImGui::GetContentRegionAvail().x * 0.25F);
+    const float labelW = zeitleisteNamenBreite(ImGui::GetContentRegionAvail().x);
 
     // Der Zeiger steht seit 27.09. IM LINEAL: klicken oder ziehen setzt die
     // Zeit (wie im Unreal-Sequencer und in jedem Schnittprogramm). Der
@@ -1381,6 +1347,20 @@ void drawTimeline() {
     const ImVec2 barMin = ImGui::GetCursorScreenPos();
     const float w = std::max(40.0F, ImGui::GetContentRegionAvail().x - rollBreite);
     (void)rStart;
+    // Eine neue Szene beginnt mit einem Ausschnitt von etwa 30 s (Entwurf);
+    // "Alles" zeigt die ganze.
+    {
+        const std::string szene = g_app->map.path + "|" + aktiverSkriptPfad() + "|" + g_app->shownName;
+        if (szene != g_app->zlSzene) {
+            g_app->zlSzene = szene;
+            g_app->timelineViewStartMs = 0.0;
+            g_app->timelineZoom = std::clamp(rGesamt / 30000.0, 1.0, App::kMaxZoom);
+            g_app->zlAuswahl.da = false;
+            g_app->zlGeaendert.clear();
+        }
+    }
+    // Die schlichte Navigationsleiste - nur, wenn hineingezoomt ist.
+    zeitleisteNavigation(barMin.x, w, rGesamt);
 
     // Der UEBERSICHTSBALKEN stand frueher HIER - zwischen Zeiger und
     // Lineal. Gemeldet: "da ist was ueber unserer Timeline, alles wo Dinge
@@ -1505,6 +1485,9 @@ void drawTimeline() {
         //
         // Mittlere Taste ziehen schiebt den Ausschnitt.
         g_app->tlLinealY = rp.y + lh * 0.5F;
+        // "Zeit" in der Namensspalte neben dem Lineal (Entwurf zeitleiste1).
+        rl->AddText(ImVec2{barMin.x - labelW + ImGui::GetFontSize() * 0.6F, rp.y + (lh - ImGui::GetFontSize()) * 0.5F},
+                    ImGui::GetColorU32(ImGuiCol_TextDisabled), tr(Str::ZlZeit));
         ImGui::InvisibleButton("##zeitlineal", ImVec2{w, lh});
         // Klicken oder Ziehen mit der linken Taste setzt die Zeit.
         if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
@@ -1591,1060 +1574,71 @@ void drawTimeline() {
         }
     }
 
-    // --- Der Uebersichtsbalken -------------------------------------------
+    // --- Die Zeilen (zeitleiste1) ----------------------------------------
     //
-    // Eine Zeile, in der alle Kamerabefehle nebeneinander liegen: blau
-    // fahren, orange schwenken, gruen zoomen. Darunter stehen dieselben
-    // Befehle noch einmal einzeln je Art - der Balken ist der Blick aufs
-    // Ganze, die Zeilen sind die Einzelheiten.
-    //
-    // Er steht seit rc242 UNTER dem Lineal. Vorher lag er darueber, also
-    // auf der falschen Seite der Zeitachse.
-    //
-    // Seit 27.09. nur noch, wenn die Spuren AUS sind: sonst zeigen die
-    // Kamerazeilen darunter genau dasselbe, und die Zeile fehlte den Spuren.
-    if (!g_app->showTracks || g_app->timeline.tracks.empty()) {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        const float h = ImGui::GetFontSize() * 0.5F;
-        // Der Anker kommt vom CURSOR, nicht mehr von der Unterkante des
-        // Zeigers.
-        //
-        // Das ist der Fallstrick aus Abschnitt 4.1 des Handouts: etwas
-        // messen, das man selbst verschoben hat. Bliebe hier barMax.y+2
-        // stehen, zeichnete der Balken weiterhin an der alten Stelle -
-        // ueber dem Lineal -, waehrend die Dummy-Zeile unten Platz
-        // freihielte. Man saehe zwei Fehler auf einmal und keinen davon
-        // erklaert.
-        //
-        // Die x-Kante dagegen MUSS von barMin kommen: sie ist dieselbe
-        // Kante, an der Zeiger, Lineal und Spuren beginnen.
-        ImVec2 top = ImGui::GetCursorScreenPos();
-        top.x = barMin.x;
-        top.y += 2.0F;
-        dl->AddRectFilled(top, ImVec2{top.x + w, top.y + h},
-                          IM_COL32(30, 33, 42, 255));
-        for (const CamSegment& seg : t.segments) {
-            if (t.durationMs <= 0.0) {
-                break;
-            }
-            // Gegen das ZOOMFENSTER rechnen, nicht gegen die Gesamtdauer.
-            //
-            // Gemeldet: "es laeuft asynchron mit dem anderen darunter."
-            //
-            // Der Zeiger darueber laeuft von rStart bis rStart+rSpanne -
-            // dem Ausschnitt, den man gerade sieht. Diese Balken rechneten
-            // gegen t.durationMs, die GESAMTdauer. Zwei Massstaebe
-            // uebereinander: solange der ganze Ablauf zu sehen ist, faellt
-            // es kaum auf, sobald man hineinzoomt, laufen sie auseinander.
-            //
-            // Auch bei "Zoom: All" stimmten sie nicht genau, weil rSpanne
-            // sich nach der Zeitleiste richtet und durationMs nach der
-            // Kamerabahn - das sind nicht dieselben Zahlen.
-            auto x0 = static_cast<float>((seg.startMs - rStart) / rSpanne) * w;
-            auto x1 = static_cast<float>((seg.endMs - rStart) / rSpanne) * w;
-            // Beschneiden, sobald hineingezoomt ist: ein Abschnitt, der vor
-            // dem Ausschnitt beginnt, haette sonst einen negativen Anfang
-            // und zeichnete nach links aus der Leiste heraus.
-            if (x1 < 0.0F || x0 > w) {
-                continue;
-            }
-            x0 = std::max(x0, 0.0F);
-            x1 = std::min(x1, w);
-            ImU32 col = IM_COL32(90, 110, 140, 255);
-            switch (seg.kind) {
-                case CamSegment::Kind::Move: col = IM_COL32(96, 170, 255, 255); break;
-                case CamSegment::Kind::Pan:  col = IM_COL32(255, 190, 80, 255); break;
-                case CamSegment::Kind::Zoom: col = IM_COL32(140, 220, 140, 255); break;
-                default: break;
-            }
-            // Ein Sprung hat keine Dauer - trotzdem zwei Punkte breit
-            // zeichnen, sonst ist er unsichtbar.
-            dl->AddRectFilled(ImVec2{top.x + x0, top.y},
-                              ImVec2{top.x + std::max(x1, x0 + 2.0F), top.y + h},
-                              col);
-        }
-        // Der weisse Strich im Balken lief noch im ALTEN Massstab.
-        //
-        // rc241 hat die farbigen Abschnitte auf das Zoomfenster umgestellt
-        // und diese eine Zeile stehenlassen - sie rechnete weiter
-        // playMs/durationMs, also gegen die Gesamtdauer. Beim Hineinzoomen
-        // stand der Strich damit woanders als die Abschnitte, durch die er
-        // laufen soll. Derselbe Fehler, dieselbe Leiste, nur eine Zeile
-        // weiter unten uebersehen.
-        const auto px = static_cast<float>((g_app->playMs - rStart) / rSpanne) * w;
-        if (px >= 0.0F && px <= w) {
-            dl->AddLine(ImVec2{top.x + px, top.y - 2.0F},
-                        ImVec2{top.x + px, top.y + h + 2.0F},
-                        IM_COL32(255, 255, 255, 220), 1.5F);
-        }
-        ImGui::Dummy(ImVec2{w, h + 4.0F});
-    }
-
-    if (!g_app->showTracks || g_app->timeline.tracks.empty()) {
-        return;
-    }
-
-    // Die Gesamtdauer der SPUREN, nicht die der Kamerabahn: eine Figur kann
-    // nach dem letzten Kamerabefehl noch sprechen.
+    // Gezeichnet in gui/app_zeitleiste.cpp aus dem Modell (bhed/spuren.h):
+    // Kamera, Sprache, Musik, Skriptablauf, je Darsteller eine Zeile. Alles
+    // rechnet im SICHTBAREN Ausschnitt; die Vergroesserung wird geklemmt,
+    // damit man weder hinter das Ende noch vor den Anfang rutscht.
     const double span = rGesamt;
-    // Zeilen so hoch wie eine Textzeile - vorher waren es 0,72 davon, und
-    // die Namen standen gequetscht uebereinander.
-    const float rowH = ImGui::GetTextLineHeightWithSpacing();
-    // labelW steht schon oben - eine Kante fuer alles.
-    const float trackW = std::max(w, 40.0F);
-
-    // --- Der sichtbare Ausschnitt ----------------------------------------
-    //
-    // Alles unterhalb rechnet ab jetzt in DIESEM Ausschnitt, nicht mehr in
-    // der Gesamtdauer. Die Vergroesserung wird geklemmt, damit man weder
-    // hinter das Ende noch vor den Anfang rutscht - sonst sucht man die
-    // Leiste und findet Leere.
     g_app->timelineZoom = std::clamp(g_app->timelineZoom, 1.0, App::kMaxZoom);
     const double sichtSpanne = span / g_app->timelineZoom;
-    g_app->timelineViewStartMs =
-        std::clamp(g_app->timelineViewStartMs, 0.0, std::max(0.0, span - sichtSpanne));
+    g_app->timelineViewStartMs = std::clamp(g_app->timelineViewStartMs, 0.0, std::max(0.0, span - sichtSpanne));
     const double sichtStart = g_app->timelineViewStartMs;
-    // Zeit -> Bildpunkt. EINE Stelle, an der die Umrechnung steht; vorher
-    // stand sie sechsmal ausgeschrieben da, und beim Zoom haetten sechs
-    // Abschriften auseinanderlaufen muessen.
-    const auto xAt = [&](double ms) {
-        return barMin.x +
-               static_cast<float>((ms - sichtStart) / sichtSpanne) * trackW;
-    };
     g_app->tlFeldX = barMin.x;
-    g_app->tlFeldW = trackW;
+    g_app->tlFeldW = w;
     g_app->tlSichtStart = sichtStart;
     g_app->tlSichtSpanne = sichtSpanne;
-    g_app->tlZeilenY.clear();
-    // Die Spuren fuellen, was uebrig ist. Wer die Leiste hochzieht, sieht
-    // MEHR Spuren - genau das ist der Sinn der ziehbaren Kante. Vorher
-    // waren es feste 4,6 Zeilen, egal wie viel Platz da war.
-    const float restH = std::max(rowH, ImGui::GetContentRegionAvail().y - 2.0F);
-    // Die Kamerazeilen zaehlen mit - sonst waere der Platz zu knapp
-    // berechnet und die Spuren darunter waeren nicht mehr erreichbar.
-    // Gezaehlt wird ueber die vorkommenden ARTEN, nicht ueber eine
-    // angenommene Zahl: die Aufzaehlung hat neun Werte, gezeigt werden
-    // sieben (Enable und Disable sind Zustaende, keine Bewegung).
-    int camZeilenZahl = 0;
-    for (const CamSegment::Kind art :
-         {CamSegment::Kind::Move, CamSegment::Kind::Pan,
-          CamSegment::Kind::Zoom, CamSegment::Kind::Roll,
-          CamSegment::Kind::Fade, CamSegment::Kind::Shake,
-          CamSegment::Kind::Follow}) {
-        for (const CamSegment& seg : t.segments) {
-            if (seg.kind == art) {
-                ++camZeilenZahl;
-                break;
-            }
-        }
-    }
-    // --- Spuren je Figur, wie im Unreal Sequencer (rc597) -------------------
-    //
-    // shank: "es ist fuer jeden Character alles in eine Leiste gestopft ...
-    // schau mal nach, wie Unreal Engine das handhabt, so dass es logisch ist
-    // und man auch aufklappen kann". Jede Figur ist eine Gruppe; aufgeklappt
-    // bekommt jede Art von Befehl ihre Spur. Die waits sind nur der Kleber,
-    // der die Befehle in die Zeit setzt - sie erscheinen nur auf Wunsch.
-    //   0 Bewegung  SET_NAVGOAL, SET_WALKING/RUNNING, SET_ORIGIN, move, rotate ...
-    //   1 Animation SET_ANIM_*
-    //   2 Blick     SET_LOOK_TARGET, SET_WATCHTARGET, SET_VIEWTARGET
-    //   3 Ton       sound, use mit Klang
-    //   4 Zustand   alles andere (Waffe, Klinge, Verhalten, use ...)
-    //   5 Ablauf    wait, signal, waitsignal
-    const auto kategorieVon = [](const TimelineEvent& e) -> int {
-        std::string l = e.label;
-        for (char& ch : l) { ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); }
-        const auto hat = [&](const char* t) { return l.find(t) != std::string::npos; };
-        switch (e.kind) {
-            case TimelineEvent::Kind::Wait: return 5;
-            case TimelineEvent::Kind::Move: return 0;
-            case TimelineEvent::Kind::Sound: return 3;
-            case TimelineEvent::Kind::Use: return useSoundFor(e.target, nullptr).empty() ? 4 : 3;
-            case TimelineEvent::Kind::Saber: return 4;
-            case TimelineEvent::Kind::Set:
-                if (hat("SET_ANIM")) { return 1; }
-                if (hat("LOOK_TARGET") || hat("WATCHTARGET") || hat("VIEWTARGET")) { return 2; }
-                if (hat("NAVGOAL") || hat("WALKING") || hat("RUNNING") || hat("ORIGIN") || hat("SET_ANGLES") ||
-                    hat("WALKSPEED") || hat("RUNSPEED") || hat("YAWSPEED") || hat("LOCKYAW") || hat("CROUCH")) {
-                    return 0;
+    // Die Legende unter den Zeilen (wie im Entwurf): Farben und Tasten.
+    const float legendeH = ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+    const float restH = std::max(ImGui::GetFontSize() * 2.0F, ImGui::GetContentRegionAvail().y - legendeH);
+    zeitleisteSpuren(barMin.x, w, labelW, sichtStart, sichtSpanne, ablaufEnde, restH);
+    {
+        const float fs = ImGui::GetFontSize();
+        const float k = fs / 14.0F;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 q = ImGui::GetCursorScreenPos();
+        const float links = q.x;
+        const float rechts = q.x + ImGui::GetContentRegionAvail().x;
+        const float ym = q.y + legendeH * 0.5F;
+        dl->PushClipRect(q, ImVec2{rechts, q.y + legendeH}, true);
+        const auto eintrag = [&](ImU32 farbe, int art, const char* text) {
+            const ImVec2 a{q.x, ym - 5.0F * k};
+            const ImVec2 b{q.x + 18.0F * k, ym + 5.0F * k};
+            if (art == 1) {
+                // schraffiert (Skript wartet)
+                dl->AddRectFilled(a, b, IM_COL32(59, 66, 82, 255), 3.0F * k);
+                for (float x = a.x; x < b.x; x += 8.0F * k) {
+                    dl->AddLine(ImVec2{x, b.y}, ImVec2{std::min(x + 10.0F * k, b.x), a.y}, IM_COL32(51, 57, 72, 255), 3.0F * k);
                 }
-                return 4;
-            default:
-                if (l.rfind("SIGNAL", 0) == 0 || l.rfind("WAITSIGNAL", 0) == 0 || l.rfind("WAIT", 0) == 0) { return 5; }
-                if (hat("PLAY_ROFF")) { return 0; }   // eine Bahn (rc599)
-                return 4;
-        }
-    };
-    struct KatInfo {
-        Str name;
-        UiIcon icon;
-        ImU32 farbe;
-    };
-    static const KatInfo kKat[6] = {
-        {Str::TlKatBewegung, UiIcon::Pfad, IM_COL32(90, 220, 190, 255)},
-        {Str::TlKatAnimation, UiIcon::Animieren, IM_COL32(150, 200, 255, 255)},
-        {Str::TlKatBlick, UiIcon::Zielen, IM_COL32(255, 210, 120, 255)},
-        {Str::TlKatTon, UiIcon::Ton, IM_COL32(255, 120, 200, 255)},
-        {Str::TlKatZustand, UiIcon::Einstellungen, IM_COL32(190, 160, 90, 255)},
-        {Str::TlKatAblauf, UiIcon::Pause, IM_COL32(120, 126, 145, 255)},
-    };
-    // Welche Unterspuren eine Figur hat (fuer die Hoehe und zum Zeichnen).
-    const auto katDerSpur = [&](const TimelineTrack& tr2) {
-        std::array<bool, 6> hatKat{};
-        for (const TimelineEvent& e : tr2.events) { hatKat[static_cast<std::size_t>(kategorieVon(e))] = true; }
-        for (const Actor& ac : g_app->scene.actors) {
-            if (ac.name != tr2.entity) { continue; }
-            for (const ActorStep& st : ac.steps) {
-                if (st.kind == ActorStep::Kind::WalkTo || st.kind == ActorStep::Kind::Glide) { hatKat[0] = true; }
-            }
-        }
-        if (!g_app->tlWaitsZeigen) { hatKat[5] = false; }
-        return hatKat;
-    };
-    int sichtbareSpuren = 0;
-    for (const TimelineTrack& tr2 : g_app->timeline.tracks) {
-        if (g_app->zeigeRuhigeSpuren || !spurIstRuhig(tr2)) {
-            ++sichtbareSpuren;
-            if (!tr2.entity.empty() && g_app->tlOffen.count(tr2.entity) != 0U) {
-                for (const bool b : katDerSpur(tr2)) { sichtbareSpuren += b ? 1 : 0; }
-            }
-        }
-    }
-    const int kameraZeilen = camZeilenZahl > 0 ? 1 + (g_app->tlKameraOffen ? camZeilenZahl : 0) : 0;
-    // Je Zeile auch der Abstand zwischen zwei Elementen - ohne ihn fehlte
-    // bei vielen Zeilen unten eine ganze (rc597: die Kameragruppe hat eine
-    // Kopfzeile mehr, und die Skriptzeile war abgeschnitten).
-    const float noetig =
-        (rowH + ImGui::GetStyle().ItemSpacing.y) * (static_cast<float>(sichtbareSpuren) +
-                                                    static_cast<float>(kameraZeilen)) +
-        8.0F;
-    // Volle Breite UND immer eine Rollleiste: dann ist der Inhalt genau so
-    // breit wie Zeiger und Lineal darueber, und die Kanten fallen zusammen.
-    ImGui::BeginChild("tracks", ImVec2{w + labelW + rollBreite,
-                                       std::min(restH, noetig)},
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    ImDrawList* tl = ImGui::GetWindowDrawList();
-
-    // --- Die Kamera in ihre STUFEN aufgeteilt ----------------------------
-    //
-    // Vorher lag die ganze Kamerabahn in einem einzigen Streifen: Fahrt,
-    // Schwenk und Zoom uebereinander in derselben Zeile, und wo zwei
-    // gleichzeitig laufen, sah man nur den letzten. Gemeldet als "die
-    // Camera ist ein grosser Balken - wenn es mehrere kleine Abschnitte
-    // hat, sollten die besser aufgeteilt sein".
-    //
-    // Jetzt bekommt jeder Unterbefehl seine eigene Zeile - wie die Spuren
-    // eines Schnittprogramms. Eine Zeile bleibt leer, wenn ihr Unterbefehl
-    // im Skript nicht vorkommt; das haelt die Leiste kurz.
-    struct CamZeile {
-        CamSegment::Kind kind;
-        const char* name;
-        ImU32 farbe;
-        Str anzeige;   // was der Anwender liest (rc588): "Kamerafahrt" statt "camera MOVE"
-    };
-    static const CamZeile camZeilen[] = {
-        {CamSegment::Kind::Move, "MOVE", IM_COL32(96, 170, 255, 255), Str::TlCamMove},
-        {CamSegment::Kind::Pan, "PAN", IM_COL32(255, 190, 80, 255), Str::TlCamPan},
-        {CamSegment::Kind::Zoom, "ZOOM", IM_COL32(140, 220, 140, 255), Str::TlCamZoom},
-        {CamSegment::Kind::Roll, "ROLL", IM_COL32(200, 140, 255, 255), Str::TlCamRoll},
-        {CamSegment::Kind::Fade, "FADE", IM_COL32(230, 230, 230, 255), Str::TlCamFade},
-        {CamSegment::Kind::Shake, "SHAKE", IM_COL32(255, 120, 120, 255), Str::TlCamShake},
-        {CamSegment::Kind::Follow, "FOLLOW", IM_COL32(120, 220, 220, 255), Str::TlCamFollow},
-    };
-    // --- Der Spurkopf (rc588) ---------------------------------------------
-    //
-    // shank: "ich bin nicht zufrieden mit der timeline auch wegen den icons
-    // so das alles verstaendlicher ist". Vorher stand dort grauer Text
-    // ("camera MOVE"). Jetzt ein Kopf wie in Unreals Sequencer: Icon in der
-    // Farbe der Spur, lesbarer Name, gewaehlt mit orangem Rand links.
-    const ImU32 akzent = IM_COL32(255, 160, 50, 255);
-    int zeilenNr = 0;
-    // rc597: mit Einzug (Unterspuren) und Pfeil zum Auf- und Zuklappen
-    // (pfeil: -1 keiner, 0 zu, 1 offen) - wie im Unreal Sequencer.
-    const auto spurKopf = [&](ImVec2 p, UiIcon icon, ImU32 iconFarbe, const char* text, bool an, float einzug = 0.0F,
-                              int pfeil = -1) {
-        const ImVec2 e{barMin.x - 3.0F, p.y + rowH - 1.0F};
-        const bool ueber = ImGui::IsMouseHoveringRect(p, e);
-        const ImU32 grund = an      ? IM_COL32(64, 54, 38, 255)
-                            : ueber ? IM_COL32(48, 52, 64, 255)
-                                    : ((zeilenNr % 2) != 0 ? IM_COL32(33, 36, 45, 255) : IM_COL32(38, 41, 51, 255));
-        tl->AddRectFilled(ImVec2{p.x + einzug, p.y + 1.0F}, e, grund, 3.0F);
-        if (an) { tl->AddRectFilled(ImVec2{p.x + einzug, p.y + 1.0F}, ImVec2{p.x + einzug + 3.0F, e.y}, akzent, 1.5F); }
-        float x = p.x + einzug + 7.0F;
-        if (pfeil >= 0) {
-            const float h = std::floor(rowH * 0.32F);
-            const ImVec2 m{std::floor(x + h * 0.5F), std::floor(p.y + rowH * 0.5F)};
-            const ImU32 pf = IM_COL32(200, 205, 220, 255);
-            if (pfeil == 1) {
-                tl->AddTriangleFilled(ImVec2{m.x - h * 0.6F, m.y - h * 0.35F}, ImVec2{m.x + h * 0.6F, m.y - h * 0.35F},
-                                      ImVec2{m.x, m.y + h * 0.45F}, pf);
+            } else if (art == 2) {
+                // gestrichelt (steht still)
+                for (float x = a.x; x < b.x; x += 8.0F * k) {
+                    dl->AddLine(ImVec2{x, ym}, ImVec2{std::min(x + 4.0F * k, b.x), ym}, IM_COL32(107, 115, 133, 255), 2.0F);
+                }
             } else {
-                tl->AddTriangleFilled(ImVec2{m.x - h * 0.35F, m.y - h * 0.6F}, ImVec2{m.x - h * 0.35F, m.y + h * 0.6F},
-                                      ImVec2{m.x + h * 0.45F, m.y}, pf);
+                dl->AddRectFilled(a, b, farbe, 3.0F * k);
             }
-            x += h + 5.0F;
-        }
-        const float g = std::floor(rowH * 0.66F);
-        uiIcon(tl, icon, ImVec2{std::floor(x), std::floor(p.y + (rowH - g) * 0.5F)}, g, iconFarbe);
-        tl->PushClipRect(p, e, true);
-        tl->AddText(ImVec2{std::floor(x + 5.0F + g), std::floor(p.y + (rowH - ImGui::GetFontSize()) * 0.5F)},
-                    an ? IM_COL32(245, 245, 250, 255) : IM_COL32(190, 197, 212, 255), text);
-        tl->PopClipRect();
-        return ueber;
-    };
-    // Bloecke: abgerundet, beim Ueberfahren heller, gewaehlt weiss umrandet.
-    const auto heller = [](ImU32 c) {
-        const auto k = [&](int shift) {
-            return static_cast<ImU32>(std::min(255, static_cast<int>((c >> shift) & 0xFFU) + 40)) << shift;
+            dl->AddText(ImVec2{b.x + 5.0F * k, ym - fs * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), text);
+            q.x = b.x + 5.0F * k + ImGui::CalcTextSize(text).x + 14.0F * k;
         };
-        return k(IM_COL32_R_SHIFT) | k(IM_COL32_G_SHIFT) | k(IM_COL32_B_SHIFT) | (c & IM_COL32_A_MASK);
-    };
-    const float rund = std::max(2.0F, rowH * 0.22F);
-    const auto zeilenGrund = [&](ImVec2 p) {
-        tl->AddRectFilled(ImVec2{barMin.x, p.y + 1.0F}, ImVec2{barMin.x + trackW, p.y + rowH - 1.0F},
-                          (zeilenNr % 2) != 0 ? IM_COL32(26, 29, 37, 255) : IM_COL32(30, 33, 42, 255));
-    };
-    // Eine Zeile anfangen und abschliessen (rc597, fuer Gruppen und Unterspuren).
-    const auto zeilenAnfang = [&](ImVec2 p) {
-        zeilenGrund(p);
-        tl->PushClipRect(ImVec2{barMin.x, p.y}, ImVec2{barMin.x + trackW, p.y + rowH}, true);
-    };
-    const auto zeilenEnde = [&](ImVec2 p) {
-        tl->AddLine(ImVec2{xAt(ablaufEnde), p.y}, ImVec2{xAt(ablaufEnde), p.y + rowH}, IM_COL32(230, 80, 80, 110), 1.0F);
-        const float lx2 = xAt(g_app->playMs);
-        tl->AddLine(ImVec2{lx2, p.y}, ImVec2{lx2, p.y + rowH}, akzent, 1.5F);
-        tl->PopClipRect();
-        ImGui::Dummy(ImVec2{w, rowH});
-        ++zeilenNr;
-    };
-    g_app->tlUeberlappungen = 0;
-    struct RoteStelle {
-        float x0;
-        float x1;
-        ImVec2 a;   // der ganze Block, fuer den Rahmen
-        ImVec2 b;
-    };
-    // Die Kamera als aufklappbare Gruppe (rc597): zugeklappt eine Zeile mit
-    // allen Abschnitten in ihren Farben.
-    if (camZeilenZahl > 0) {
-        const ImVec2 kp = ImGui::GetCursorScreenPos();
-        g_app->tlZeilenY.emplace_back("camera", kp.y + rowH * 0.5F);
-        const bool camAn = g_app->cameraSelected;
-        const bool kUeber = spurKopf(kp, UiIcon::Kamera, IM_COL32(96, 170, 255, 255), tr(Str::TlKamera), camAn, 0.0F,
-                                     g_app->tlKameraOffen ? 1 : 0);
-        // H2: die Kamerazeile ist selbst gezeichnet - die Touren heben sie ueber
-        // "gezeichnet:zeitleiste.kamera" hervor (der Kopf, auf den man klickt).
-        tourZielMelden("zeitleiste.kamera", ImRect{kp, ImVec2{barMin.x - 3.0F, kp.y + rowH - 1.0F}});
-        if (kUeber) {
-            ImGui::SetTooltip("%s\n%s", tr(Str::TlCamRowHint), tr(Str::TlAufklappen));
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                if (ImGui::GetIO().MousePos.x < kp.x + rowH * 1.1F) {
-                    g_app->tlKameraOffen = !g_app->tlKameraOffen;
-                } else {
-                    g_app->cameraSelected = true;
-                    g_app->selectedActor = -1;
-                    g_app->pickedEntity = -1;
-                    if (g_app->selectedKey < 0) { g_app->selectedKey = schluesselFuerZeit(g_app->playMs); }
-                    g_app->mapDirty = true;
-                }
-            }
-        }
-        zeilenAnfang(kp);
-        for (const CamSegment& seg : t.segments) {
-            ImU32 f = IM_COL32(120, 126, 145, 255);
-            for (const CamZeile& cz : camZeilen) {
-                if (cz.kind == seg.kind) { f = cz.farbe; }
-            }
-            const float sx0 = xAt(seg.startMs);
-            const float sx1 = std::max(xAt(seg.endMs), sx0 + 3.0F);
-            tl->AddRectFilled(ImVec2{sx0, kp.y + rowH * 0.3F}, ImVec2{sx1, kp.y + rowH * 0.7F},
-                              (f & 0x00FFFFFFU) | (0xC0U << IM_COL32_A_SHIFT), 2.0F);
-        }
-        zeilenEnde(kp);
-    }
-    for (const CamZeile& cz : camZeilen) {
-        if (!g_app->tlKameraOffen) { break; }
-        std::vector<RoteStelle> roteStellen;
-        bool hat = false;
-        for (const CamSegment& seg : t.segments) {
-            if (seg.kind == cz.kind) { hat = true; break; }
-        }
-        if (!hat) {
-            continue;
-        }
-        const ImVec2 cp = ImGui::GetCursorScreenPos();
-        char nm[24];
-        std::snprintf(nm, sizeof(nm), "camera %s", cz.name);
-        g_app->tlZeilenY.emplace_back(nm, cp.y + rowH * 0.5F);
-        // Der NAME ist anklickbar: er waehlt die Kamera an, und damit
-        // erscheint ihre Bahn in der Ansicht. Angewaehlt steht er hell.
-        const bool camAn = g_app->cameraSelected;
-        if (spurKopf(cp, UiIcon::Kamera, cz.farbe, tr(cz.anzeige), camAn, rowH * 0.9F)) {
-            ImGui::BeginTooltip();
-            ImGui::TextUnformatted(tr(Str::TlCamRowHint));
-            ImGui::TextDisabled("%s", nm);
-            ImGui::EndTooltip();
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                g_app->cameraSelected = true;
-                g_app->selectedActor = -1;
-                g_app->pickedEntity = -1;
-                if (g_app->selectedKey < 0) { g_app->selectedKey = schluesselFuerZeit(g_app->playMs); }
-                g_app->mapDirty = true;
-            }
-        }
-        zeilenGrund(cp);
-        // Ab hier NUR noch im Zeitfeld zeichnen.
-        //
-        // Beim Zoomen liegen Bloecke ausserhalb des Ausschnitts - links
-        // davon und rechts davon. Ohne Beschneiden malen sie ueber die
-        // Namensspalte und ueber den rechten Rand hinaus; im Bild stand
-        // "camer" statt "camera PAN", weil ein Balken darueberlag.
-        tl->PushClipRect(ImVec2{barMin.x, cp.y},
-                         ImVec2{barMin.x + trackW, cp.y + rowH}, true);
-        for (const CamSegment& seg : t.segments) {
-            if (seg.kind != cz.kind) {
-                continue;
-            }
-            const float sx0 = xAt(seg.startMs);
-            // Wird gerade an DIESEM Block gezogen? Dann folgt seine rechte
-            // Kante der Maus statt dem Wert aus dem Skript.
-            const bool zieht =
-                g_app->tlDragging && g_app->tlDragPath == seg.path;
-            const float sx1 = xAt(zieht ? g_app->tlDragEndMs : seg.endMs);
-            const ImVec2 a{sx0, cp.y + 2.0F};
-            const ImVec2 b{std::max(sx1, sx0 + 3.0F), cp.y + rowH - 2.0F};
-            const bool blockUeber = ImGui::IsMouseHoveringRect(a, ImVec2{b.x + 2.0F, b.y});
-            tl->AddRectFilled(a, b, blockUeber || zieht ? heller(cz.farbe) : cz.farbe, rund);
-            if (!seg.path.empty() && seg.path == g_app->selectedPath) {
-                tl->AddRect(ImVec2{a.x - 1.0F, a.y - 1.0F}, ImVec2{b.x + 1.0F, b.y + 1.0F}, IM_COL32(255, 255, 255, 255),
-                            rund, 0, 2.0F);
-            }
-            // --- Laeuft er in den naechsten hinein? ----------------------
-            //
-            // Die Engine uebernimmt Ort/Winkel/Bildwinkel erst, wenn ein
-            // Uebergang FERTIG ist; ein neuer, der vorher beginnt, rechnet
-            // vom Anfang des alten - im Spiel springt die Kamera zurueck.
-            // Rot schraffiert, was sich ueberlappt, auch schon beim Ziehen.
-            const double ende = zieht ? g_app->tlDragEndMs : seg.endMs;
-            const CamSegment* naechster = nullptr;
-            const auto gleicheGruppe = [&](const CamSegment& o) {
-                const bool schwenkA = seg.kind == CamSegment::Kind::Pan ||
-                                      (seg.kind == CamSegment::Kind::Roll && seg.alleAchsen);
-                const bool schwenkB = o.kind == CamSegment::Kind::Pan ||
-                                      (o.kind == CamSegment::Kind::Roll && o.alleAchsen);
-                return schwenkA ? schwenkB : (o.kind == seg.kind);
-            };
-            if (seg.kind == CamSegment::Kind::Move || seg.kind == CamSegment::Kind::Pan ||
-                seg.kind == CamSegment::Kind::Zoom || seg.kind == CamSegment::Kind::Roll) {
-                for (const CamSegment& o : t.segments) {
-                    if (&o != &seg && gleicheGruppe(o) && o.startMs > seg.startMs + 0.5 &&
-                        (naechster == nullptr || o.startMs < naechster->startMs)) {
-                        naechster = &o;
-                    }
-                }
-            }
-            const bool ueberlappt = naechster != nullptr && naechster->startMs < ende - 0.5;
-            if (ueberlappt) {
-                // Erst NACH allen Bloecken der Zeile zeichnen - sonst liegt der
-                // naechste Block darueber, und die Schraffur ist verdeckt.
-                ++g_app->tlUeberlappungen;
-                roteStellen.push_back({std::max(a.x, xAt(naechster->startMs)), b.x, a, b});
-            }
-            // --- Beschriftung: wohin, welcher Winkel, welche Marke --------
-            if (b.x - a.x > ImGui::GetFontSize() * 2.0F) {
-                if (const Node* cn = nodeAt(g_app->doc.script(), seg.path);
-                    cn != nullptr && cn->args.size() >= 2) {
-                    std::string was = cn->args[1].text;
-                    // tag( "cam1b", ORIGIN ) -> cam1b
-                    const std::size_t q1 = was.find('"');
-                    const std::size_t q2 = (q1 == std::string::npos) ? q1 : was.find('"', q1 + 1);
-                    if (q1 != std::string::npos && q2 != std::string::npos && was.find("tag") != std::string::npos) {
-                        was = was.substr(q1 + 1, q2 - q1 - 1);
-                    } else {
-                        // Zahlen kuerzen: "-1762.000 -146.000 1076.000" -> "-1762 -146 1076"
-                        std::string kurz;
-                        std::istringstream zs(was);
-                        std::string teil;
-                        while (zs >> teil) {
-                            char* endp = nullptr;
-                            const double v = std::strtod(teil.c_str(), &endp);
-                            if (endp != nullptr && *endp == '\0') {
-                                char b2[24];
-                                std::snprintf(b2, sizeof(b2), "%g", std::round(v * 10.0) / 10.0);
-                                teil = b2;
-                            }
-                            if (teil != "<" && teil != ">") {
-                                if (!kurz.empty()) { kurz += " "; }
-                                kurz += teil;
-                            }
-                        }
-                        was = kurz;
-                    }
-                    tl->PushClipRect(a, b, true);
-                    tl->AddText(ImVec2{a.x + 3.0F, a.y}, IM_COL32(16, 18, 24, 230), was.c_str());
-                    tl->PopClipRect();
-                }
-            }
-            kantenGriff(seg.path, seg.startMs,
-                        zieht ? g_app->tlDragEndMs : seg.endMs, a, b,
-                        sichtSpanne / std::max(trackW, 1.0F));
-            tl->AddLine(ImVec2{a.x, a.y}, ImVec2{a.x, b.y},
-                        IM_COL32(20, 22, 28, 255), 1.0F);
-            if (ImGui::IsMouseHoveringRect(a, ImVec2{b.x + 2.0F, b.y})) {
-                ImGui::BeginTooltip();
-                ImGui::Text("%s", tr(cz.anzeige));
-                ImGui::SameLine();
-                ImGui::TextDisabled("%s", nm);
-                if (ueberlappt) {
-                    ImGui::TextColored(ImVec4{1.0F, 0.45F, 0.45F, 1.0F}, tr(Str::TlOverlap), cz.name,
-                                       naechster->startMs / 1000.0);
-                }
-                if (g_app->timelineFrames) {
-                    const double fps =
-                        static_cast<double>(std::max(1, g_app->timelineFps));
-                    ImGui::TextDisabled(
-                        tr(Str::TlSpanFrames),
-                        static_cast<int>(seg.startMs / 1000.0 * fps),
-                        static_cast<int>(seg.endMs / 1000.0 * fps));
-                } else {
-                    ImGui::TextDisabled(tr(Str::TlSpanSeconds),
-                                        seg.startMs / 1000.0,
-                                        seg.endMs / 1000.0);
-                }
-                ImGui::EndTooltip();
-                if (!g_app->tlDragging &&
-                    ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                    // Zum Zeitpunkt springen UND die Kamera anwaehlen -
-                    // sonst sieht man zwar die Stellung, aber nicht die
-                    // Bahn, auf der sie dorthin kommt. Ausgefuehrt am Ende
-                    // der Spuren (tlKlickKandidat).
-                    App::TlKandidat& k = g_app->tlKlickKandidat;
-                    k.da = true;
-                    k.pfad = seg.path;
-                    k.startMs = seg.startMs;
-                    k.kamera = true;
-                    k.figur = -1;
-                }
-            }
-        }
-        // Die Ueberlappungen OBENAUF: rot schraffiert, der Block rot umrandet.
-        // Seit rc588 ruhiger: der ueberlappende Teil leicht rot, unten ein
-        // roter Strich und ein Warnzeichen - vorher eine grelle Schraffur, die
-        // aussah wie ein Fehler im Programm statt wie ein Hinweis aufs Skript.
-        for (const RoteStelle& rs : roteStellen) {
-            const ImU32 rot = IM_COL32(235, 70, 70, 255);
-            tl->PushClipRect(ImVec2{rs.x0, rs.a.y}, ImVec2{rs.x1, rs.b.y}, true);
-            tl->AddRectFilled(ImVec2{rs.x0, rs.a.y}, ImVec2{rs.x1, rs.b.y}, IM_COL32(235, 70, 70, 70));
-            tl->AddRectFilled(ImVec2{rs.x0, rs.b.y - 3.0F}, ImVec2{rs.x1, rs.b.y}, rot);
-            const float g = std::floor(rowH * 0.6F);
-            if (rs.x1 - rs.x0 > g + 4.0F) {
-                uiIcon(tl, UiIcon::Warnung, ImVec2{std::floor(rs.x0 + 2.0F), std::floor(rs.a.y + 1.0F)}, g,
-                       IM_COL32(255, 200, 80, 255));
-            }
-            tl->PopClipRect();
-        }
-        const float clx = xAt(g_app->playMs);
-        tl->AddLine(ImVec2{clx, cp.y}, ImVec2{clx, cp.y + rowH}, akzent, 1.5F);
-        tl->PopClipRect();
-        ImGui::Dummy(ImVec2{w, rowH});
-        ++zeilenNr;
-    }
-
-    const int auswahlFigur = g_app->pickedEntity >= 0 ? figurFuerEntity(g_app->pickedEntity) : -1;
-    g_app->tlAuswahlZeile.clear();
-    g_app->tlBewegungsBalken = 0;
-    g_app->tlAusloeser = 0;
-    g_app->tlBalken.clear();
-    g_app->tlWaitBloecke = 0;
-    g_app->tlZeilenH = rowH;
-    g_app->tlKopfX = ImGui::GetCursorScreenPos().x;
-    if (auswahlFigur < 0 && g_app->selectedActor < 0) { g_app->tlRollFigur = -1; }
-    const auto zeichneEreignis = [&](const TimelineEvent& e, const ImVec2 p0, const int figIdx,
-                                     const TimelineTrack& track) {
-        const float x0 = barMin.x;
-        (void)x0;
-        if (e.kind == TimelineEvent::Kind::Wait) { ++g_app->tlWaitBloecke; }
-            // Die Kamerabefehle des Skripts haben ihre eigenen Zeilen oben -
-            // in der Script-Zeile lagen sie noch einmal, UNTER den waits.
-            if (track.entity.empty() && e.kind == TimelineEvent::Kind::Camera) {
-                return;
-            }
-            // Nur zeigen, was beim Abstimmen zaehlt. Ein SET_PARM ist
-            // richtig, aber uninteressant; ein Klang und eine Bewegung
-            // nicht.
-            // Jede Art ihre Farbe - auch Warten und Setzen. Vorher fielen
-            // die unter "default: continue", und damit sah eine Spur wie
-            // ein einziger langer Balken aus: man sah, DASS etwas laeuft,
-            // aber nicht WAS und nicht, wo eines aufhoert und das naechste
-            // anfaengt.
-            ImU32 col = 0;
-            switch (e.kind) {
-                case TimelineEvent::Kind::Sound:
-                    col = IM_COL32(255, 120, 200, 255);
-                    break;
-                // Ein use, das einen Klang ausloest, bekommt dieselbe
-                // Farbe wie ein sound - fuer den Anwender ist es dasselbe:
-                // hier faengt etwas an zu klingen. Ein use ohne Klang
-                // (Tuer, Ausloeser, Speicherpunkt) bleibt gedeckt.
-                case TimelineEvent::Kind::Use:
-                    col = useSoundFor(e.target, nullptr).empty()
-                              ? IM_COL32(120, 130, 150, 255)
-                              : IM_COL32(255, 120, 200, 255);
-                    break;
-                // Die Klinge klingt immer - notfalls mit der Vorgabe.
-                case TimelineEvent::Kind::Saber:
-                    col = IM_COL32(255, 120, 200, 255);
-                    break;
-                case TimelineEvent::Kind::Camera:
-                    col = IM_COL32(96, 170, 255, 255);
-                    break;
-                case TimelineEvent::Kind::Move:
-                    col = IM_COL32(140, 220, 140, 255);
-                    break;
-                case TimelineEvent::Kind::Wait:
-                    // Warten gedeckt und dunkel: es ist eine Luecke, keine
-                    // Handlung - aber eine, die man SEHEN will, weil sie
-                    // den Takt bestimmt.
-                    col = IM_COL32(70, 74, 90, 255);
-                    break;
-                case TimelineEvent::Kind::Set:
-                    col = IM_COL32(190, 160, 90, 255);
-                    break;
-                default:
-                    col = IM_COL32(110, 116, 132, 255);
-                    break;
-            }
-            // Aus einem ANDEREN Skript (run, use, spawnscript): blasser -
-            // man sieht, dass es passiert, aber es ist nicht diese Datei.
-            if (!e.fremd.empty()) {
-                col = (col & 0x00FFFFFFU) | (0x70U << IM_COL32_A_SHIFT);
-            }
-            const float ex0 = xAt(e.startMs);
-            const bool zieht = g_app->tlDragging && g_app->tlDragPath == e.path;
-            const float ex1 = xAt(zieht ? g_app->tlDragEndMs : e.endMs);
-            // Mindestens drei Bildpunkte breit, damit ein Befehl ohne Dauer
-            // (ein Klang, ein set) ueberhaupt zu treffen ist.
-            const ImVec2 a{ex0, p0.y + 2.0F};
-            const ImVec2 b{std::max(ex1, ex0 + 3.0F), p0.y + rowH - 2.0F};
-            const bool blockUeber = ImGui::IsMouseHoveringRect(a, ImVec2{b.x + 2.0F, b.y});
-            tl->AddRectFilled(a, b, blockUeber || zieht ? heller(col) : col, rund);
-            if (!e.path.empty() && e.fremd.empty() && e.path == g_app->selectedPath) {
-                tl->AddRect(ImVec2{a.x - 1.0F, a.y - 1.0F}, ImVec2{b.x + 1.0F, b.y + 1.0F}, IM_COL32(255, 255, 255, 255),
-                            rund, 0, 2.0F);
-            }
-            kantenGriff(e.path, e.startMs,
-                        zieht ? g_app->tlDragEndMs : e.endMs, a, b,
-                        sichtSpanne / std::max(trackW, 1.0F));
-            // Eine dunkle Kante an den Anfang: damit zwei Bloecke, die
-            // aneinanderstossen, als ZWEI zu erkennen sind. Ohne sie
-            // verschmelzen sie zu einem Balken.
-            tl->AddLine(ImVec2{a.x, a.y}, ImVec2{a.x, b.y},
-                        IM_COL32(20, 22, 28, 255), 1.0F);
-
-            // Die Beschriftung hinein, wenn Platz ist. Das ist der
-            // Unterschied zwischen "da laeuft etwas" und "da laeuft PAN".
-            if (b.x - a.x > ImGui::GetFontSize() * 2.0F && !e.label.empty()) {
-                tl->PushClipRect(a, b, true);
-                tl->AddText(ImVec2{a.x + 3.0F, a.y}, IM_COL32(16, 18, 24, 230),
-                            e.label.c_str());
-                tl->PopClipRect();
-            }
-
-            // Ueberfahren zeigt Anfang UND Ende - in der Einheit, die
-            // gerade eingestellt ist.
-            if (ImGui::IsMouseHoveringRect(a, ImVec2{b.x + 2.0F, b.y})) {
-                ImGui::BeginTooltip();
-                if (g_app->timelineFrames) {
-                    const double fps =
-                        static_cast<double>(std::max(1, g_app->timelineFps));
-                    ImGui::Text("%s", e.label.c_str());
-                    ImGui::TextDisabled(
-                        tr(Str::TlSpanFrames),
-                        static_cast<int>(e.startMs / 1000.0 * fps),
-                        static_cast<int>(e.endMs / 1000.0 * fps));
-                } else {
-                    ImGui::Text("%s", e.label.c_str());
-                    ImGui::TextDisabled(tr(Str::TlSpanSeconds),
-                                        e.startMs / 1000.0, e.endMs / 1000.0);
-                }
-                if (!e.sound.empty()) {
-                    ImGui::TextDisabled("%s", e.sound.c_str());
-                }
-                if (!e.fremd.empty()) {
-                    ImGui::TextColored(ImVec4{1.0F, 0.8F, 0.4F, 1.0F}, tr(Str::TlFromScript), e.fremd.c_str());
-                }
-                ImGui::TextDisabled("%s", tr(Str::TlClickHint));
-                ImGui::EndTooltip();
-                // Anklicken springt zur Zeile im Skript UND setzt den
-                // Zeiger dorthin. Damit wird aus der Anzeige ein Werkzeug:
-                // man sucht in der Leiste und landet im Text.
-                // NICHT springen, wenn gerade an einer Kante gezogen wird.
-                // Der Griff liegt im Block, und ein Klick darauf soll die
-                // Dauer aendern - nicht zugleich die Ansicht umstellen.
-                if (!g_app->tlDragging &&
-                    ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                    App::TlKandidat& k = g_app->tlKlickKandidat;
-                    k.da = true;
-                    k.pfad = e.path;
-                    k.startMs = e.startMs;
-                    k.kamera = false;
-                    k.figur = figIdx;
-                }
-            }
-    };
-    const auto zeichneBewegung = [&](const TimelineTrack& track, const ImVec2 p0, const int figIdx,
-                                     const bool figAn) {
-        (void)track;
-        // Unterwegs (rc597): je Gehen (SET_NAVGOAL) und Fliegen (move) ein
-        // Band am unteren Rand der Zeile, kraeftig bei der gewaehlten Figur.
-        // Anfassen und ziehen verschiebt den Befehl in der Zeit (das wait
-        // davor, wie bei jedem Block); Rechtsklick auf einen Lauf: gehen oder
-        // rennen. Der ausloesende Befehl bekommt einen hellen Rahmen.
-        if (figIdx >= 0 && static_cast<std::size_t>(figIdx) < g_app->scene.actors.size()) {
-            const float hb = std::max(4.0F, rowH * 0.28F);
-            const ImU32 tuerkis = IM_COL32(90, 220, 190, 255);
-            const std::vector<ActorStep>& schritte = g_app->scene.actors[static_cast<std::size_t>(figIdx)].steps;
-            for (std::size_t si = 0; si < schritte.size(); ++si) {
-                const ActorStep& st = schritte[si];
-                const bool lauf = st.kind == ActorStep::Kind::WalkTo;
-                // rc599: auch die ROFF-Bahnen (play ( "PLAY_ROFF", ... )).
-                const bool roff = st.kind == ActorStep::Kind::Roff;
-                if ((!lauf && !roff && st.kind != ActorStep::Kind::Glide) || !(st.endMs > st.startMs)) { continue; }
-                // rc601 (bewegung): ein Weg kann aus mehreren Stuecken
-                // bestehen (anderes Tempo unterwegs, scene.cpp) - EIN Band je
-                // SET_NAVGOAL, vom ersten Stueck bis zum letzten.
-                double bandEnde = st.endMs;
-                float weg = 0.0F;
-                {
-                    float w2 = 0.0F;
-                    for (int k = 0; k < 3; ++k) { w2 += (st.to[k] - st.from[k]) * (st.to[k] - st.from[k]); }
-                    weg = std::sqrt(w2);
-                }
-                if (lauf) {
-                    bool fortsetzung = false;
-                    for (std::size_t sj = 0; sj < si; ++sj) {
-                        const ActorStep& v = schritte[sj];
-                        fortsetzung = fortsetzung || (v.kind == ActorStep::Kind::WalkTo && v.teilweg &&
-                                                      v.path == st.path && std::fabs(v.endMs - st.startMs) < 1.0);
-                    }
-                    if (fortsetzung) { continue; }
-                    for (std::size_t sj = si + 1; sj < schritte.size(); ++sj) {
-                        const ActorStep& v = schritte[sj];
-                        if (v.kind == ActorStep::Kind::WalkTo && v.path == st.path && std::fabs(v.startMs - bandEnde) < 1.0) {
-                            bandEnde = v.endMs;
-                            float w2 = 0.0F;
-                            for (int k = 0; k < 3; ++k) { w2 += (v.to[k] - v.from[k]) * (v.to[k] - v.from[k]); }
-                            weg += std::sqrt(w2);
-                        }
-                    }
-                }
-                const ImVec2 a{xAt(st.startMs), p0.y + rowH - 2.0F - hb};
-                const ImVec2 b{std::max(xAt(bandEnde), a.x + 3.0F), p0.y + rowH - 2.0F};
-                const bool ueber = ImGui::IsMouseHoveringRect(a, b);
-                const bool istZiel = !st.path.empty() && st.path == g_app->selectedPath;
-                ImU32 f = figAn ? IM_COL32(90, 220, 190, 235) : IM_COL32(90, 200, 170, 110);
-                if (ueber || istZiel) { f = IM_COL32(150, 245, 220, 255); }
-                tl->AddRectFilled(a, b, f, 2.0F);
-                g_app->tlBalken.push_back(App::TlBalken{st.path, a, b, lauf, figIdx});
-                if (ueber) {
-                    ImGui::BeginTooltip();
-                    if (roff) {
-                        ImGui::Text("ROFF  %s  -  %.2f s, %.0f", st.text.c_str(), (st.endMs - st.startMs) / 1000.0,
-                                    static_cast<double>(weg));
-                    } else {
-                        ImGui::Text(tr(Str::TlBewegung),
-                                    tr(lauf ? (st.text == "BOTH_WALK1" ? Str::BahnGehtJetzt : Str::BahnRenntJetzt) : Str::TlFlug),
-                                    (bandEnde - st.startMs) / 1000.0, static_cast<double>(weg));
-                    }
-                    if (lauf) { ImGui::TextDisabled("%s", tr(Str::BahnZielMenue)); }
-                    ImGui::EndTooltip();
-                    if (!st.path.empty() && st.fremd.empty() && !g_app->tlDragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                        App::TlKandidat& k = g_app->tlKlickKandidat;
-                        k.da = true;
-                        k.pfad = st.path;
-                        k.startMs = st.startMs;
-                        k.kamera = false;
-                        k.figur = figIdx;
-                    }
-                    if (lauf && !st.path.empty() && st.fremd.empty() && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
-                        g_app->bahnMenuePfad = st.path;
-                        ImGui::OpenPopup("##gangart_tl");
-                    }
-                }
-                if (!figAn) { continue; }
-                ++g_app->tlBewegungsBalken;
-                for (const TimelineEvent& e : track.events) {
-                    if (st.path.empty() || e.path != st.path) { continue; }
-                    const float ax = xAt(e.startMs);
-                    const float bx = std::max(xAt(e.endMs), ax + 3.0F);
-                    tl->AddRect(ImVec2{ax - 2.0F, p0.y + 1.0F}, ImVec2{bx + 2.0F, p0.y + rowH - 1.0F}, tuerkis, rund, 0, 2.0F);
-                    tl->AddTriangleFilled(ImVec2{ax - 4.0F, p0.y + 1.0F}, ImVec2{ax + 4.0F, p0.y + 1.0F},
-                                          ImVec2{ax, p0.y + 6.0F}, tuerkis);
-                    ++g_app->tlAusloeser;
-                    break;
-                }
-            }
-        }
-    };
-    for (const TimelineTrack& track : g_app->timeline.tracks) {
-        if (!g_app->zeigeRuhigeSpuren && spurIstRuhig(track)) {
-            continue;
-        }
-        const ImVec2 p0 = ImGui::GetCursorScreenPos();
-        const std::string name = track.entity.empty() ? std::string(tr(Str::TlScript))
-                                                      : track.entity;
-        g_app->tlZeilenY.emplace_back(name, p0.y + rowH * 0.5F);
-        // Der Name waehlt die FIGUR an - dann zeigt die Ansicht ihren
-        // Laufweg, so wie sie es fuer die Kamera schon tut.
-        int figIdx = -1;
-        if (!track.entity.empty()) {
-            for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
-                if (g_app->scene.actors[ai].name == track.entity) {
-                    figIdx = static_cast<int>(ai);
-                    break;
-                }
-            }
-        }
-        // Gewaehlt ist die Figur auch, wenn ihre ENTITY gewaehlt ist (Spawner,
-        // Schiff) - rc597.
-        const bool figAn = (figIdx >= 0 && (figIdx == g_app->selectedActor || figIdx == auswahlFigur));
-        if (figAn) {
-            g_app->tlAuswahlZeile = name;
-            if (g_app->tlRollFigur != figIdx) { g_app->tlOffen.insert(name); }   // neu gewaehlt: aufklappen
-            // Neu gewaehlt? Dann die Zeile ins Bild rollen - sonst lag sie oft
-            // unter Kamera- und Skriptzeile verborgen (rc597).
-            if (g_app->tlRollFigur != figIdx) {
-                ImGui::SetScrollHereY(0.4F);
-                g_app->tlRollFigur = figIdx;
-            }
-        }
-        const bool skript = track.entity.empty();
-        const bool offen = !skript && g_app->tlOffen.count(name) != 0U;
-        const bool kopfUeber = spurKopf(p0, skript ? UiIcon::Skript : UiIcon::Figur,
-                                        ImGui::GetColorU32(uiIconFarbe(skript ? UiIcon::Skript : UiIcon::Figur)),
-                                        name.c_str(), figAn, 0.0F, skript ? -1 : (offen ? 1 : 0));
-        if (!skript && kopfUeber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-            ImGui::GetIO().MousePos.x < p0.x + rowH * 1.1F) {
-            // Der Pfeil klappt auf und zu.
-            if (offen) { g_app->tlOffen.erase(name); } else { g_app->tlOffen.insert(name); }
-        } else if (figIdx >= 0 && kopfUeber) {
-            ImGui::SetTooltip("%s\n%s", tr(Str::TlActorHint), tr(Str::TlAufklappen));
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                // Nochmal derselbe Name hebt die Auswahl auf - dieselbe
-                // Regel wie im Skriptbaum seit rc167.
-                g_app->selectedActor = figAn ? -1 : figIdx;
-                g_app->cameraSelected = false;
-                g_app->mapDirty = true;
-            }
-            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-                if (offen) { g_app->tlOffen.erase(name); } else { g_app->tlOffen.insert(name); }
-            }
-        }
-        zeilenAnfang(p0);
-        if (skript) {
-            // Die Skriptzeile: ihre Befehle, die waits nur auf Wunsch.
-            for (const TimelineEvent& e : track.events) {
-                if (kategorieVon(e) == 5 && !g_app->tlWaitsZeigen && e.kind == TimelineEvent::Kind::Wait) { continue; }
-                zeichneEreignis(e, p0, figIdx, track);
-            }
-        } else {
-            // Zusammenfassung wie im Sequencer: wo etwas passiert, in der
-            // Farbe seiner Spur. Anklicken waehlt den Befehl.
-            for (const TimelineEvent& e : track.events) {
-                const int k = kategorieVon(e);
-                if (k == 5 && !g_app->tlWaitsZeigen) { continue; }
-                const float ax = xAt(e.startMs);
-                const float bx = std::max(xAt(e.endMs), ax + 3.0F);
-                const ImVec2 a{ax, p0.y + rowH * 0.28F};
-                const ImVec2 b{bx, p0.y + rowH * 0.72F};
-                const bool ueber = ImGui::IsMouseHoveringRect(ImVec2{a.x - 1.0F, p0.y}, ImVec2{b.x + 1.0F, p0.y + rowH});
-                ImU32 f = kKat[static_cast<std::size_t>(k)].farbe;
-                if (!ueber) { f = (f & 0x00FFFFFFU) | (0xB0U << IM_COL32_A_SHIFT); }
-                tl->AddRectFilled(a, b, f, 2.0F);
-                if (!e.path.empty() && e.fremd.empty() && e.path == g_app->selectedPath) {
-                    tl->AddRect(ImVec2{a.x - 1.0F, a.y - 1.0F}, ImVec2{b.x + 1.0F, b.y + 1.0F}, IM_COL32(255, 255, 255, 255), 2.0F, 0, 1.5F);
-                }
-                if (ueber) {
-                    ImGui::BeginTooltip();
-                    ImGui::TextUnformatted(e.label.c_str());
-                    ImGui::TextDisabled(tr(Str::TlSpanSeconds), e.startMs / 1000.0, e.endMs / 1000.0);
-                    ImGui::EndTooltip();
-                    if (!e.path.empty() && !g_app->tlDragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                        App::TlKandidat& kk = g_app->tlKlickKandidat;
-                        kk.da = true;
-                        kk.pfad = e.path;
-                        kk.startMs = e.startMs;
-                        kk.kamera = false;
-                        kk.figur = figIdx;
-                    }
-                }
-            }
-            if (!offen) { zeichneBewegung(track, p0, figIdx, figAn); }
-        }
-        zeilenEnde(p0);
-        // Aufgeklappt: je Art eine Unterspur.
-        if (offen) {
-            const std::array<bool, 6> hatKat = katDerSpur(track);
-            for (int k = 0; k < 6; ++k) {
-                if (!hatKat[static_cast<std::size_t>(k)]) { continue; }
-                const KatInfo& ki = kKat[static_cast<std::size_t>(k)];
-                const ImVec2 q = ImGui::GetCursorScreenPos();
-                g_app->tlZeilenY.emplace_back(name + "/" + tr(ki.name), q.y + rowH * 0.5F);
-                (void)spurKopf(q, ki.icon, ki.farbe, tr(ki.name), figAn, rowH * 0.9F);
-                zeilenAnfang(q);
-                for (const TimelineEvent& e : track.events) {
-                    if (kategorieVon(e) == k) { zeichneEreignis(e, q, figIdx, track); }
-                }
-                if (k == 0) { zeichneBewegung(track, q, figIdx, figAn); }
-                zeilenEnde(q);
-            }
+        eintrag(IM_COL32(91, 156, 240, 255), 0, tr(Str::ZlLegFahrt));
+        eintrag(IM_COL32(227, 162, 75, 255), 0, tr(Str::ZlLegSchwenk));
+        eintrag(IM_COL32(111, 207, 138, 255), 0, tr(Str::ZlLegSprache));
+        eintrag(IM_COL32(184, 146, 242, 255), 0, tr(Str::ZlMusik));
+        eintrag(0, 1, tr(Str::ZlLegWartet));
+        eintrag(IM_COL32(233, 193, 90, 255), 0, tr(Str::ZlLegLaeuft));
+        eintrag(IM_COL32(78, 195, 192, 255), 0, tr(Str::ZlAnimation));
+        eintrag(0, 2, tr(Str::ZlSteht));
+        eintrag(IM_COL32(242, 102, 92, 255), 0, tr(Str::ZlLegHinweis));
+        dl->AddText(ImVec2{q.x, ym - fs * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), tr(Str::ZlLegende));
+        dl->PopClipRect();
+        ImGui::Dummy(ImVec2{1.0F, legendeH});
+        // Die Legende kann abgeschnitten sein: die Tasten stehen vollstaendig im Tooltip.
+        if (ImGui::IsMouseHoveringRect(ImVec2{links, ym - legendeH * 0.5F}, ImVec2{rechts, ym + legendeH * 0.5F})) {
+            ImGui::SetTooltip("%s", tr(Str::ZlTasten));
         }
     }
-
-    if (ImGui::BeginPopup("##gangart_tl")) {
-        gangartMenueInhalt();
-        ImGui::EndPopup();
-    }
-    // --- Klick und Kantengriff: der OBERSTE Block gewinnt -----------------
-    //
-    // Beide wurden beim Zeichnen nur vorgemerkt; der zuletzt gezeichnete
-    // Block liegt oben. Eine gepackte Kante geht vor dem Klick auf den Block.
-    if (g_app->tlGriffKandidat.da) {
-        const App::TlKandidat k = g_app->tlGriffKandidat;
-        g_app->tlDragging = true;
-        g_app->tlDragPath = k.pfad;
-        g_app->tlDragStartMs = k.startMs;
-        g_app->tlDragEndMs = k.endMs;
-        const Node* gn = nodeAt(g_app->doc.script(), k.pfad);
-        diag::detail("Zeitleiste: Kante von \"" + std::string(gn != nullptr ? gn->name : "?") + "\" gepackt (" +
-                     std::to_string(k.startMs) + " - " + std::to_string(k.endMs) + " ms)");
-    } else if (g_app->tlKlickKandidat.da) {
-        const App::TlKandidat k = g_app->tlKlickKandidat;
-        // Anklicken springt zur Zeile im Skript UND setzt den Zeiger dorthin -
-        // auch bei einem Kamerablock (vorher nur bei den Spuren).
-        if (!k.pfad.empty()) {
-            selectByPath(k.pfad);
-        }
-        if (k.kamera) {
-            g_app->cameraSelected = true;
-            g_app->selectedActor = -1;
-        } else if (k.figur >= 0) {
-            g_app->selectedActor = k.figur;
-            g_app->cameraSelected = false;
-        }
-        g_app->playMs = k.startMs;
-        g_app->playing = false;
-        g_app->audioUpTo = k.startMs;
-        g_app->audio.stopAll();
-        g_app->laufendeSchleifen.clear();
-        tonZuruecksetzen();   // rc601 ton: auch der Raumklang
-        g_app->musicAudio.stopAll();
-        g_app->mapDirty = true;
-        // Vielleicht wird daraus ein Verschieben: merken, wo es anfing.
-        if (!k.pfad.empty()) {
-            g_app->tlZiehPfad = k.pfad;
-            g_app->tlZiehMausX = ImGui::GetIO().MousePos.x;
-            g_app->tlZiehStartMs = k.startMs;
-            g_app->tlZiehMsJePx = sichtSpanne / std::max(1.0, static_cast<double>(trackW));
-            g_app->tlZiehAktiv = false;
-            g_app->tlZiehDelta = 0.0;
-        }
-    }
-    g_app->tlGriffKandidat = App::TlKandidat{};
-    g_app->tlKlickKandidat = App::TlKandidat{};
-
-    // --- Einen Block verschieben -------------------------------------------
-    //
-    // shank: "hast du eingebaut, dass man die Clips unten nehmen und
-    // verschieben kann?" Jetzt ja. Ein ICARUS-Skript ist eine Folge: ein
-    // Befehl beginnt, wenn das wait davor abgelaufen ist. Einen Block
-    // verschieben heisst also, dieses wait laenger oder kuerzer zu machen -
-    // alles danach rueckt mit (Ripple, wie im Sequencer). Mit Alt bleibt der
-    // Rest stehen: das wait danach wird um dasselbe kuerzer. Im Raster der
-    // Spiellogik (50 ms).
-    if (!g_app->tlZiehPfad.empty()) {
-        const float dx = ImGui::GetIO().MousePos.x - g_app->tlZiehMausX;
-        if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            if (!g_app->tlZiehAktiv && std::fabs(dx) > 4.0F && !g_app->tlDragging) {
-                g_app->tlZiehAktiv = true;
-            }
-            if (g_app->tlZiehAktiv) {
-                g_app->tlZiehDelta = std::round(static_cast<double>(dx) * g_app->tlZiehMsJePx / 50.0) * 50.0;
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-                const float gx = xAt(g_app->tlZiehStartMs + g_app->tlZiehDelta);
-                ImDrawList* dl = ImGui::GetWindowDrawList();
-                const ImVec2 fo = ImGui::GetWindowPos();
-                const ImVec2 fg = ImGui::GetWindowSize();
-                dl->AddLine(ImVec2{gx, fo.y}, ImVec2{gx, fo.y + fg.y}, IM_COL32(255, 210, 90, 230), 2.0F);
-                ImGui::BeginTooltip();
-                ImGui::Text(tr(Str::TlMoveDelta), g_app->tlZiehDelta / 1000.0);
-                ImGui::TextDisabled("%s", tr(ImGui::GetIO().KeyAlt ? Str::TlMoveSlide : Str::TlMoveRipple));
-                ImGui::EndTooltip();
-            }
-        } else {
-            if (g_app->tlZiehAktiv && std::fabs(g_app->tlZiehDelta) >= 1.0) {
-                verschiebeImAblauf(g_app->tlZiehPfad, g_app->tlZiehDelta, ImGui::GetIO().KeyAlt);
-            }
-            g_app->tlZiehPfad.clear();
-            g_app->tlZiehAktiv = false;
-            g_app->tlZiehDelta = 0.0;
-        }
-    }
-
-    // --- Bildschritt per Tastatur (wie in jedem Schnittprogramm) ----------
-    //
-    // Links/rechts ein Spielbild (50 ms), mit Umschalt eine Sekunde, Pos1
-    // und Ende an Anfang und Ende. Nur, solange die Maus ueber der Leiste
-    // steht - sonst gehoeren die Pfeile dem Baum (handleTreeKeys).
-    g_app->tlUeberMaus = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
-    tourZielMelden("zeitleiste", ImGui::GetCurrentWindow()->Rect());   // H2: Ziel der Tour k-neu-timen
-    if (g_app->tlUeberMaus && !ImGui::GetIO().WantTextInput) {
-        const double schritt = ImGui::GetIO().KeyShift ? 1000.0 : 50.0;
-        double ziel = g_app->playMs;
-        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) { ziel += schritt; }
-        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) { ziel -= schritt; }
-        if (ImGui::IsKeyPressed(ImGuiKey_Home, false)) { ziel = 0.0; }
-        if (ImGui::IsKeyPressed(ImGuiKey_End, false)) { ziel = t.durationMs; }
-        ziel = std::clamp(ziel, 0.0, std::max(0.0, t.durationMs));
-        if (ziel != g_app->playMs) {
-            g_app->playMs = ziel;
-            g_app->playing = false;
-            ++g_app->tlSchritte;   // H2: Tour k-neu-timen ("genau schrittweise")
-            g_app->audioUpTo = ziel;
-            g_app->audio.stopAll();
-            g_app->laufendeSchleifen.clear();
-            tonZuruecksetzen();   // rc601 ton: auch der Raumklang
-            g_app->musicAudio.stopAll();
-            g_app->mapDirty = true;
-        }
-    }
-
-    // --- Zoomen auch UEBER DEN SPUREN ------------------------------------
-    //
-    // Dort verbringt man die Zeit, nicht auf dem Lineal. Mit STRG, damit
-    // das Rad allein weiterhin senkrecht rollt - bei vielen Spuren braucht
-    // man das.
-    //
-    // Dieselbe Rechnung wie am Lineal: vergroessert wird um den Punkt unter
-    // der Maus.
-    if (ImGui::IsWindowHovered() && ImGui::GetIO().KeyCtrl) {
-        const float rad2 = ImGui::GetIO().MouseWheel;
-        if (rad2 != 0.0F) {
-            const float mausX = ImGui::GetIO().MousePos.x;
-            const double anteil = std::clamp<double>(
-                (mausX - barMin.x) / std::max(trackW, 1.0F), 0.0, 1.0);
-            const double unterMaus = sichtStart + anteil * sichtSpanne;
-            const double neu = std::clamp(
-                g_app->timelineZoom * std::pow(1.25, rad2), 1.0, App::kMaxZoom);
-            const double neueSpanne = span / neu;
-            g_app->timelineZoom = neu;
-            g_app->timelineViewStartMs =
-                std::clamp(unterMaus - anteil * neueSpanne, 0.0,
-                           std::max(0.0, span - neueSpanne));
-        }
-    }
-    ImGui::EndChild();
 }
 
 // Die Seitenleiste, RECHTS neben der Ansicht.
@@ -2954,8 +1948,10 @@ void drawMapView() {
     //
     // Rechte Maustaste zum Umsehen, wie in jedem Editor. Die linke bleibt
     // frei fuers Anklicken.
+    // Zeitleiste 2 Punkt 1: waehrend einer Aufnahme steuert die Tastatur die
+    // Figur (aufnahmeBild), nicht die Kamera, und nichts in der Ansicht ist greifbar.
     const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
-                         !g_app->throughCamera;
+                         !g_app->throughCamera && !aufnahmeLaeuft();
     ImGuiIO& io = ImGui::GetIO();
 
     // Bedienung wie im Ansichtsfenster von 3ds Max:
@@ -3252,6 +2248,23 @@ void drawMapView() {
     // deren Tiefe treffen.
     std::vector<ActorDraw> gpuFiguren;
     bool gezeichnet = false;   // hat die Grafikkarte in diesem Bild gezeichnet?
+    // zeitleiste1: dieses Bild nimmt nur ein Bild fuer den Filmstreifen auf
+    // (die Skriptkamera zu seiner Zeit). Nur, wenn die Ansicht sonst nichts zu
+    // tun haette - keine Aenderung, keine Maus, kein Abspielen: dann bleiben
+    // Ansicht, Vorschau und Ueberlagerung, wie sie im letzten Bild waren.
+    // Und nur, wenn in der Ansicht nichts gewaehlt ist: mit Auswahl haengen
+    // Griffe und Bahnen am Stand des letzten Bildes (Selbsttest mission1,
+    // "Undo Figur/Kamera": mit Filmbildern dazwischen gingen Zuege an den
+    // Griffen ins Leere, ohne sie nicht).
+    const bool filmBild = g_app->zlFilmWunsch >= 0 && !g_app->mapDirty && !g_app->playing && !ImGui::IsAnyMouseDown() &&
+                          g_app->pickedEntity < 0 && g_app->selectedActor < 0 && !g_app->cameraSelected;
+    // Die Zeit des Filmbilds gilt NUR fuer das Zeichnen hier - alles andere
+    // (Zeitleiste, Inspektor, Selbsttests) sieht weiter die Zeit des Zeigers.
+    const double zeigerMs = g_app->playMs;
+    if (filmBild) {
+        g_app->playMs = g_app->zlFilmZeitMs;
+        g_app->mapDirty = true;   // den Zeichenblock einmal fuer das Filmbild
+    }
     if (g_app->mapDirty) {
         // rc603: fehlen die Modelle der Figuren (rescanGamePaths hat sie
         // geleert - neue Spielordner, etwa die einer Mission eines anderen
@@ -5337,7 +4350,27 @@ void drawMapView() {
             };
             g_app->himmelPortalGezeichnet = false;
             g_app->spiegelGezeichnet = false;
-            if (gpu::bereiteZiel(gw, gh)) {
+            if (filmBild && gpu::bereiteZiel(gw, gh)) {
+                Camera fk = useCam;
+                const CameraState fst = camStateAt(g_app->playMs);
+                for (int k = 0; k < 3; ++k) {
+                    fk.pos[k] = fst.pos[k];
+                    fk.angles[k] = fst.angles[k];
+                }
+                (void)setzeSpielFov(fk, sichtFovX(fst), spiel.seiten, spielFensterJetzt());
+                const int fw = 224;
+                const int fh = std::max(32, static_cast<int>(static_cast<float>(fw) / std::max(0.2F, spiel.seiten)));
+                if (portalFuer(fk, fw, fh)) { gpu::setzeHimmelPortal(2); }
+                if (nebenBild(fk, fw, fh, 4, "Filmstreifen")) {
+                    gpu::waehleZiel(4);
+                    std::vector<std::uint8_t> rgba;
+                    int bw = 0;
+                    int bh = 0;
+                    if (gpu::leseFarbe(rgba, bw, bh)) { zeitleisteFilmBild(g_app->zlFilmWunsch, rgba, bw, bh); }
+                    gpu::waehleZiel(0);
+                }
+                gpu::setzeHimmelPortal(-1);
+            } else if (gpu::bereiteZiel(gw, gh)) {
                 // --- Spiegel (rc593): das Spiegelbild zuerst, in Satz 3 ------
                 if (!g_app->draufsicht && spiegelFuer(useCam, g_app->spiegelEbene)) {
                     g_app->imSpiegelDurchgang = true;
@@ -5497,8 +4530,13 @@ void drawMapView() {
         // Jetzt zeichnet es in ein durchsichtiges Bild derselben Groesse,
         // das ueber das GPU-Bild gelegt wird. Verdeckt wird wie beim
         // Rasterer: die Tiefe kommt aus dem GPU-Tiefenpuffer zurueck.
-        g_app->blendeZeigen = false;
-        if (gpuBereit && g_app->gpuAufrufe > 0 && blende) {
+        if (!filmBild) {
+            g_app->blendeZeigen = false;
+            g_app->untertitelZeigen = false;
+        }
+        if (filmBild) {
+            // zeitleiste1: Ueberlagerung und Blende bleiben wie im letzten Bild.
+        } else if (gpuBereit && g_app->gpuAufrufe > 0 && blende) {
             // Balken und Vollbild-Blende aus dem Kamerastand, wie im Spiel:
             // nach ENABLE blenden die Balken in einer Sekunde ein, nach
             // DISABLE aus; FADE ueberdeckt alles (CGCam_DrawWideScreen).
@@ -5525,6 +4563,7 @@ void drawMapView() {
                 for (int k = 0; k < 4; ++k) { vollblende[k] = cs.fadeColor[k]; }
             }
             g_app->blendeZeigen = true;
+            g_app->untertitelZeigen = zeitleiste;   // Punkt 7: die Szene zur Zeit des Zeigers
             g_app->blendeBalken = balken;
             for (int k = 0; k < 4; ++k) { g_app->blendeFarbe[k] = vollblende[k]; }
             g_app->gizmoZeigen = false;
@@ -5539,6 +4578,7 @@ void drawMapView() {
             // mission1 (shank: "beim Abspielen soll das Bild wie im Spiel
             // aussehen"): keine Bearbeitungshilfen ueber dem Bild, solange die
             // Wiedergabe laeuft - auch nicht in der freien Ansicht.
+            g_app->untertitelZeigen = true;
             g_app->gizmoZeigen = false;
             g_app->gizmoShown = false;
             g_app->gizmoBild.rgba.clear();
@@ -5655,6 +4695,10 @@ void drawMapView() {
     }
     // Das Renderziel selbst wird gezeigt - es wurde direkt bemalt und muss
     // nicht erst hochgeladen werden.
+    if (filmBild) {
+        g_app->playMs = zeigerMs;
+        g_app->zlFilmWunsch = -1;
+    }
     void* zeigeTextur = nullptr;
     if (gpu::zielTextur() != nullptr && g_app->gpuAufrufe > 0) {
         zeigeTextur = gpu::zielTextur();
@@ -5691,6 +4735,18 @@ void drawMapView() {
                               std::max(1, static_cast<int>(std::lround(static_cast<float>(g_app->mapImage.height) *
                                                                        g_app->spielRahmen.hoehe))));
         }
+        // Zeitleiste 2 Punkt 7: die Untertitel nach Balken und Blende
+        // (CG_Draw2D: CGCam_DrawWideScreen ... CG_DrawCaptionText), im Rahmen
+        // des Spielbilds.
+        if (g_app->untertitelZeigen) {
+            ImVec2 ua;
+            ImVec2 ub;
+            spielRahmenRechteck(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ua, ub);
+            untertitelZeichnen(ImGui::GetWindowDrawList(), ua, ub);
+        } else {
+            g_app->untertitelJetzt.clear();
+        }
+        if (aufnahmeLaeuft()) { aufnahmeBild(ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax()); }
         // rc601 saber review 2c: der Klirrblitz NACH den Balken, wie CG_Draw2D.
         saberBlitzZeichnen2D(0, ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
                              g_app->blendeZeigen && g_app->blendeBalken > 0.0F);

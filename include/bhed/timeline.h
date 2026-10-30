@@ -42,6 +42,7 @@ struct TimelineEvent {
     // Stammt der Befehl aus einem ANDEREN Skript (run, use, spawnscript -
     // siehe bhed/ablauf.h), steht hier dessen Pfad, und `path` ist leer.
     std::string fremd;
+    Path fremdPfad;             // dann: die Zeile in jenem Skript
     std::string label;          // wie er in der Leiste steht
     std::string sound;          // bei sound: der Dateiname, sonst leer
     std::string kanal;          // bei sound: der Kanal (CHAN_VOICE ...)

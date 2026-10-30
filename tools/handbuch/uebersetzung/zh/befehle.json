@@ -32,7 +32,6 @@
  "Plays a ROFF file on the entity of the current `affect` block - a recorded movement.": "在当前 `affect` 块的实体上播放 ROFF 文件——一段录制好的运动。",
  "A command marked with `*` in its help text (for example `SET_NAVGOAL`) finishes its task only when the action is done - that is what lets `dowait` wait for it.": "帮助文本中标有 `*` 的命令(例如 `SET_NAVGOAL`)要等动作完成才结束其任务——正因如此,`dowait` 才能等待它。",
  "camera ( ... ) - the camera commands": "camera ( ... )——摄像机命令",
- "The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.": "`camera` 的第一个值决定具体命令。behaved 会在时间轴的 **{{TlKamera}}** 下显示每一个摄像机命令,并在视图中播放。时间单位为毫秒。",
  "Values": "值",
  "What it does (help text of the game)": "作用(游戏的帮助文本)",
  "Puts game in camera mode": "让游戏进入摄像机模式",
@@ -329,5 +328,6 @@
  "Instead of a fixed value, a field can hold an expression. In the editor, **{{EditorHelper}}** builds them:": "字段除了固定值,也可以写表达式。在编辑器中,**{{EditorHelper}}** 可以构建它们:",
  "**{{EditorGet}}** - `get ( FLOAT, \"name\" )` reads a variable declared with `declare`.": "**{{EditorGet}}**——`get ( FLOAT, \"name\" )` 读取用 `declare` 声明的变量。",
  "**{{EditorTag}}** - `tag ( \"cam_door\", ORIGIN )` takes the position (or `ANGLES`) of a `ref_tag` on the map. That is how cameras stand on marks.": "**{{EditorTag}}**——`tag ( \"cam_door\", ORIGIN )` 取地图上某个 `ref_tag` 的位置(或 `ANGLES`)。摄像机就是这样站到标记点上的。",
- "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}**——`random ( 1000, 3000 )` 是两个值之间的随机数,例如用于等待。"
+ "**{{EditorRnd}}** - `random ( 1000, 3000 )` a random number between two values, for example a wait.": "**{{EditorRnd}}**——`random ( 1000, 3000 )` 是两个值之间的随机数,例如用于等待。",
+ "The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.": "`camera` 的第一个值选择命令。behaved 会在时间轴中显示每一个（在 **{{ZlDetail}}** 视图中各占一行），并在视图中播放。时间以毫秒为单位。"
 }

@@ -544,6 +544,7 @@ struct ActorStep {
     std::vector<std::array<float, 3>> spur;
     double spurSchrittMs = 50.0;
     std::string fremd;       // aus einem anderen Skript (dann path leer)
+    Path fremdPfad;          // dann: die Zeile in jenem Skript
     // --- Paket bewegung (rc601) -------------------------------------------
     // WalkTo: dieses Stueck wurde unterwegs abgeschnitten (ein neues Ziel,
     // SET_NAVGOAL "NULL", ein anderes Tempo, SET_ORIGIN, kill). `to` ist dann

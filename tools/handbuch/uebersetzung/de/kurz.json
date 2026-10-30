@@ -94,7 +94,7 @@
  "**Where to wait.** In the script that should pause, insert `waitsignal` and type a name, for example `door_open`.": "**Wo gewartet wird.** Füge in dem Skript, das anhalten soll, `waitsignal` ein und tippe einen Namen, zum Beispiel `door_open`.",
  "**Where to give the signal.** In the other script, at the moment it should go on, insert `signal ( \"door_open\" )`.": "**Wo das Signal gegeben wird.** Füge im anderen Skript an der Stelle, an der es weitergehen soll, `signal ( \"door_open\" )` ein.",
  "**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name.": "**Namen prüfen.** Beide müssen gleich geschrieben sein. Nur ein Skript kann auf ein Signal mit einem bestimmten Namen warten.",
- "**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks.": "**In der Zeitleiste ansehen.** Klapp die Gruppe der Figur in der Zeitleiste auf: Die Zeile **{{TlKatAblauf}}** zeigt Warten und Signale als Blöcke.",
+ "**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time.": "**In der Zeitleiste ansehen.** Die Zeile der Figur in der Zeitleiste aufklappen (der Pfeil am Namen): ihre Zeile **{{ZlBefehle}}** zeigt ihre Wartezeiten und Signale zu ihrer Zeit.",
  "The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.": "Die Zeitleiste kann nicht wissen, wie lange ein `waitsignal` im Spiel wartet - alles danach wird so gesetzt, als käme das Signal sofort.",
  "Use macros": "Makros nutzen",
  "walkOnly, runOnly, standOnly and the patrols: several set commands in one line.": "walkOnly, runOnly, standOnly und die Patrouillen: mehrere set-Befehle in einer Zeile.",
@@ -133,7 +133,6 @@
  "**Insert a camera command.** Double-click `camera` in the **{{GroupEvents}}** list, then open it with <kbd>Enter</kbd>. The first field chooses what it does.": "**Kamerabefehl einfügen.** Doppelklicke in der Liste **{{GroupEvents}}** auf `camera`, dann öffne ihn mit <kbd>Enter</kbd>. Das erste Feld wählt, was er tut.",
  "**Zoom.** Choose `ZOOM`: the first number is the field of view (80 is normal, smaller is closer), the second the time in milliseconds to get there.": "**Zoom.** Wähle `ZOOM`: Die erste Zahl ist der Bildwinkel (80 ist normal, kleiner ist näher), die zweite die Zeit in Millisekunden bis dahin.",
  "**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black.": "**Blende.** Wähle `FADE`: Startfarbe und Deckkraft, Endfarbe und Deckkraft (0 bis 1) und die Zeit. `0 0 0`, `0` zu `0 0 0`, `1` blendet auf Schwarz ab.",
- "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**.": "**Wackeln.** Wähle `SHAKE`: Stärke 0 bis 16 und die Dauer in Millisekunden. Die Zeitleiste zeigt Zoom, Blende und Wackeln in eigenen Zeilen unter **{{TlKamera}}**.",
  "The camera rows of the timeline.": "Die Kamerazeilen der Zeitleiste.",
  "Retime a cutscene in the timeline": "Eine Zwischensequenz in der Zeitleiste neu takten",
  "Make a shot longer, start a line of dialogue later, move a whole part - by dragging blocks.": "Eine Einstellung verlängern, einen Satz später beginnen lassen, einen ganzen Teil verschieben - durch Ziehen von Blöcken.",
@@ -142,7 +141,7 @@
  "**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block.": "**Block verschieben.** Zieh einen Block nach links oder rechts. Alles danach wandert mit, so bleibt der Rest im Takt. Halte <kbd>Alt</kbd>, um nur diesen Block zu verschieben.",
  "Dragging a block in the timeline: everything after it moves along.": "Einen Block in der Zeitleiste ziehen: Alles danach wandert mit.",
  "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.": "**Dauer ändern.** Zieh die rechte Kante eines Blocks - einer Kamerafahrt, eines wait -, um ihn kürzer oder länger zu machen.",
- "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.": "**Genau schrittweise.** Mit der Maus über der Zeitleiste bewegen <kbd>←</kbd> / <kbd>→</kbd> den Zeiger um 50 ms, mit <kbd>Umschalt</kbd> um eine Sekunde.",
+ "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.": "**Genau schrittweise.** Mit der Maus über der Zeitleiste bewegen <kbd>←</kbd> / <kbd>→</kbd> den Zeiger um 50 ms, mit <kbd>Umschalt</kbd> um eine Sekunde, mit <kbd>Strg</kbd> um fünf Sekunden.",
  "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.": "**Skript prüfen.** Jedes Ziehen ändert einen Wert im Skript (ein wait, eine Zeit). Klicke auf einen Block, um seine Zeile zu sehen.",
  "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.": "Ein Warnzeichen auf einem Kamerablock heißt, dass er den nächsten überlappt - im Spiel würde die nächste Fahrt dort beginnen, wo diese begann, und die Kamera springt.",
  "Look through the camera while you work": "Beim Arbeiten durch die Kamera schauen",
@@ -166,7 +165,7 @@
  "The menu of a walk target: Look at while walking lists the figures of the scene.": "Das Menü eines Laufziels: Dabei ansehen listet die Figuren der Szene.",
  "**Standing.** Right-click the target entity in the entity list → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) or **{{EntityAsLook}}** (`SET_LOOK_TARGET`). The command goes into the script after the selected line.": "**Im Stehen.** Rechtsklicke in der Entity-Liste auf die Ziel-Entity → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) oder **{{EntityAsLook}}** (`SET_LOOK_TARGET`). Der Befehl kommt ins Skript hinter die gewählte Zeile.",
  "**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**.": "**Zurück zum Normalen.** Rechtsklicke auf das Laufziel → **{{BahnBlickFrei}}**.",
- "**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where.": "**Prüfen.** Spiel die Zeitleiste ab. Die Art **{{TlKatBlick}}** in der Gruppe der Figur zeigt, wann sie wohin schaut.",
+ "**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time.": "**Prüfen.** Die Zeitleiste abspielen. Die Zeile der Figur aufklappen: ihre Zeile **{{ZlBefehle}}** zeigt die Blickbefehle zu ihrer Zeit.",
  "Turn a figure at a moment": "Eine Figur zu einem Zeitpunkt drehen",
  "Set which way a figure faces at a certain time - with the rotate ring on the map.": "Festlegen, wohin eine Figur zu einer bestimmten Zeit schaut - mit dem Drehring auf der Karte.",
  "**Go to the moment.** Move the playhead in the timeline to where the figure should face another way.": "**Zum Zeitpunkt gehen.** Stell den Zeiger in der Zeitleiste dorthin, wo die Figur in eine andere Richtung schauen soll.",
@@ -300,5 +299,6 @@
  "Tutorials: figures": "Tutorials: Figuren",
  "Tutorials: map and entities": "Tutorials: Karte und Entities",
  "Tutorials: animation": "Tutorials: Animation",
- "Tutorials: missions and models": "Tutorials: Missionen und Modelle"
+ "Tutorials: missions and models": "Tutorials: Missionen und Modelle",
+ "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows.": "**Wackeln.** Wähle `SHAKE`: Stärke 0 bis 16 und die Dauer in Millisekunden. In der Ansicht **{{ZlDetail}}** zeigt die Zeitleiste Zoom, Blende und Wackeln in eigenen Zeilen."
 }

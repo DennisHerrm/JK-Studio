@@ -128,6 +128,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in KARTE9D})
             from i18n_vis1 import VIS1         # vis1: dasselbe VIS in jedem Bau
             texte.update({e[0]: e[1:] for e in VIS1})
+            from i18n_zeitleiste1 import ZEITLEISTE1   # zeitleiste1: neue Zeitleiste im Mission-Tab
+            texte.update({e[0]: e[1:] for e in ZEITLEISTE1})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

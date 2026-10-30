@@ -1140,9 +1140,6 @@ std::vector<Schritt> tonKarteSchritte() {
 std::vector<Schritt> zeitleisteSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
-    // Hier werden waits angeklickt und gezogen - seit rc597 sind sie sonst
-    // ausgeblendet.
-    add(tu("Zeitleiste: waits als Bloecke zeigen", [] { g_app->tlWaitsZeigen = true; }));
     const auto xVon = [](double ms) {
         return g_app->tlFeldX + static_cast<float>((ms - g_app->tlSichtStart) / g_app->tlSichtSpanne) * g_app->tlFeldW;
     };
@@ -1151,6 +1148,16 @@ std::vector<Schritt> zeitleisteSchritte() {
             if (n == zeile) { return y; }
         }
         return -1000.0F;
+    };
+    // zeitleiste1: Zeilen mit Unterbahnen - der Punkt im gezeichneten Block
+    // (Anteil der Breite; 1 = rechte Kante).
+    const auto blockPunkt = [](const std::string& zeile, const Path& pfad, float anteil) {
+        for (const App::ZlBlock& b : g_app->zlBloecke) {
+            if (b.zeile == zeile && b.pfad == pfad) {
+                return ImVec2{anteil >= 1.0F ? b.r.Max.x - 2.0F : b.r.Min.x + b.r.GetWidth() * anteil, b.r.GetCenter().y};
+            }
+        }
+        return ImVec2{-1.0F, -1.0F};
     };
     const auto argVon = [](const Path& p) {
         const Node* n = nodeAt(g_app->doc.script(), p);
@@ -1169,11 +1176,12 @@ std::vector<Schritt> zeitleisteSchritte() {
                              "camera ( /*@CAMERA_COMMANDS*/ MOVE, < 500.000 500.000 100.000 >, 2000.000 );\n"
                              "wait ( 2000.000 );\n",
                              "zeitleiste.txt");
-        g_app->zeigeRuhigeSpuren = false;
         g_app->leftMode = 1;
-        g_app->showTracks = true;
-        // rc597: die Kamera ist eine Gruppe mit eigener Kopfzeile - eine
-        // Zeile mehr, also etwas mehr Hoehe.
+        // zeitleiste1: Kamerafahrt und Schwenk getrennt gibt es in der Ansicht Detail.
+        g_app->zlDetail = true;
+        g_app->zlNurAktive = false;
+        g_app->zlProbleme = false;
+        g_app->zlSuche[0] = '\0';
         g_app->timelineFrac = 0.50F;
         g_app->timelineZoom = 1.0;
         g_app->timelineViewStartMs = 0.0;
@@ -1182,15 +1190,20 @@ std::vector<Schritt> zeitleisteSchritte() {
         g_app->playMs = 0.0;
     }));
     add(pause(0.6));
+    add(tu("Zeitleiste: ganze Szene zeigen", [] {
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
+    }));
+    add(pause(0.2));
     add(pruefe("Zeitleiste: Zeilen fuer MOVE, PAN und Script sind da", [=] {
         std::string z;
         for (const auto& [n, y] : g_app->tlZeilenY) { z += " [" + n + "]"; }
         diag::detail("Knopftest: Zeitleiste - Zeilen" + z + ", Feld " + std::to_string(g_app->tlFeldX) + " +" +
                      std::to_string(g_app->tlFeldW) + ", Spanne " + std::to_string(g_app->tlSichtSpanne));
-        return yVon("camera MOVE") > 0.0F && yVon("camera PAN") > 0.0F && yVon(tr(Str::TlScript)) > 0.0F;
+        return yVon("fahrt") > 0.0F && yVon("schwenk") > 0.0F && yVon("skript") > 0.0F;
     }));
     // 1. Klick auf einen MOVE-Block (der zweite, 3000-5000 ms)
-    add(klickAn("MOVE-Block bei 4 s", [=] { return ImVec2{xVon(3800.0), yVon("camera MOVE")}; }));
+    add(klickAn("MOVE-Block bei 4 s", [=] { return blockPunkt("fahrt", Path{6}, 0.4F); }));
     add(pause(0.2));
     add(pruefe("Zeitleiste: Klick auf einen Kamerablock springt an seinen Anfang und waehlt die Kamera", [] {
         diag::detail("Knopftest: Zeitleiste - nach Klick auf MOVE: playMs " + std::to_string(g_app->playMs) +
@@ -1204,7 +1217,7 @@ std::vector<Schritt> zeitleisteSchritte() {
         return g_app->selectedPath == Path{6};
     }));
     // 2. Klick auf das zweite wait in der Script-Zeile
-    add(klickAn("wait-Block bei 4 s", [=] { return ImVec2{xVon(3800.0), yVon(tr(Str::TlScript))}; }));
+    add(klickAn("wait-Block bei 4 s", [=] { return ImVec2{xVon(3800.0), yVon("skript")}; }));
     add(pause(0.2));
     add(pruefe("Zeitleiste: Klick auf einen Block der Script-Zeile waehlt seine Zeile und springt hin", [] {
         return g_app->selectedPath == Path{7} && std::fabs(g_app->playMs - 3050.0) < 1.0;
@@ -1214,7 +1227,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     add(tu("Zeitleiste: Massstab merken", [=] { *msJePx = g_app->tlSichtSpanne / std::max(1.0F, g_app->tlFeldW); }));
     // Das wait laeuft von 3050 bis 5100 (3050 + 2000 + ein Spielbild).
     add(ziehenAn("Kante des wait um 80 Punkte nach rechts",
-                 [=] { return ImVec2{xVon(5100.0) - 4.0F, yVon(tr(Str::TlScript))}; }, 80.0F, 0.0F, 0));
+                 [=] { return ImVec2{xVon(5100.0) - 4.0F, yVon("skript")}; }, 80.0F, 0.0F, 0));
     add(pause(0.3));
     add(pruefe("Zeitleiste: Kante ziehen verlaengert das wait um die gezogene Strecke", [=] {
         const double neu = argVon(Path{7});
@@ -1230,7 +1243,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     //     Mitte greifen und 100 Punkte nach rechts ziehen - das wait davor
     //     (Zeile 5) wird laenger, im 50-ms-Raster.
     add(ziehenAn("zweiten MOVE-Block um 100 Punkte nach rechts verschieben",
-                 [=] { return ImVec2{xVon(3900.0), yVon("camera MOVE")}; }, 100.0F, 0.0F, 0));
+                 [=] { return blockPunkt("fahrt", Path{6}, 0.4F); }, 100.0F, 0.0F, 0));
     add(pause(0.3));
     add(pruefe("Zeitleiste: Block verschieben verlaengert das wait davor (Ripple, 50-ms-Raster)", [=] {
         const double neu = argVon(Path{5});
@@ -1244,7 +1257,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     add(pruefe("Zeitleiste: Strg+Z nimmt das Verschieben zurueck", [=] { return std::fabs(argVon(Path{5}) - 3000.0) < 0.5; }));
     // 3c. Bildschritt per Tastatur, solange die Maus ueber der Leiste steht.
     add(tu("Maus ueber die Zeitleiste, Zeiger auf 1000 ms", [=] {
-        setzeMaus(ImVec2{xVon(4500.0), yVon(tr(Str::TlScript))});
+        setzeMaus(ImVec2{xVon(4500.0), yVon("skript")});
         g_app->playMs = 1000.0;
         g_app->playing = false;
     }));
@@ -1259,7 +1272,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     add(pruefe("Zeitleiste: Pos1 springt an den Anfang", [] { return g_app->playMs < 0.5; }));
     // 4. Kante eines Kamerablocks ziehen (MOVE 0-3000 -> ueber den naechsten MOVE hinaus)
     add(ziehenAn("Kante des ersten MOVE um 120 Punkte nach rechts",
-                 [=] { return ImVec2{xVon(3000.0) - 1.0F, yVon("camera MOVE")}; }, 120.0F, 0.0F, 0));
+                 [=] { return blockPunkt("fahrt", Path{3}, 1.0F); }, 120.0F, 0.0F, 0));
     add(pause(0.3));
     add(pruefe("Zeitleiste: Kante eines Kamerablocks ziehen aendert seine Dauer", [=] {
         const double neu = argVon(Path{3});
@@ -1298,7 +1311,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     // 6. Strg + Mausrad ueber den Spuren
     add(Schritt{"Strg + Mausrad ueber den Spuren", [=](int b) {
                     ImGuiIO& io = ImGui::GetIO();
-                    if (b == 0) { setzeMaus(ImVec2{g_app->tlFeldX + g_app->tlFeldW * 0.5F, yVon("camera PAN")}); return false; }
+                    if (b == 0) { setzeMaus(ImVec2{g_app->tlFeldX + g_app->tlFeldW * 0.5F, yVon("schwenk")}); return false; }
                     if (b == 1) { io.AddKeyEvent(ImGuiMod_Ctrl, true); return false; }
                     if (b == 2 || b == 3) { io.AddMouseWheelEvent(0.0F, 1.0F); return false; }
                     if (b == 5) { io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
@@ -1312,7 +1325,7 @@ std::vector<Schritt> zeitleisteSchritte() {
     add(pause(0.2));
     // 7. Klick auf den Namen "camera PAN"
     add(tu("Zeitleiste: Kamera abwaehlen", [] { g_app->cameraSelected = false; }));
-    add(klickAn("Name camera PAN", [=] { return ImVec2{g_app->tlFeldX - 40.0F, yVon("camera PAN")}; }));
+    add(klickAn("Name camera PAN", [=] { return ImVec2{g_app->tlFeldX - 40.0F, yVon("schwenk")}; }));
     add(pause(0.2));
     add(pruefe("Zeitleiste: Klick auf einen Kamera-Spurnamen waehlt die Kamera", [] { return g_app->cameraSelected; }));
     // 8. Klick ins Lineal: springt der Zeiger? (Lieferung fuer die Vorschlaege)
@@ -1323,12 +1336,23 @@ std::vector<Schritt> zeitleisteSchritte() {
         diag::detail("Knopftest: Zeitleiste - nach Klick ins Lineal bei 5 s: playMs " + std::to_string(g_app->playMs));
         return std::fabs(g_app->playMs - 5000.0) < 60.0 && !g_app->playing;
     }));
-    // Ruhige Spuren
-    add(pruefe("Zeitleiste: eine ruhige Spur ist ausgeblendet", [=] { return yVon("ruhig") < 0.0F; }));
-    add(tu("Zeitleiste: ruhige Spuren zeigen", [] { g_app->zeigeRuhigeSpuren = true; }));
+    // zeitleiste1: "Nur aktive" blendet Darsteller aus, die im sichtbaren
+    // Ausschnitt nichts tun ("ruhig" setzt nur bei 0 ms etwas).
+    add(pruefe("Zeitleiste: der Darsteller ruhig hat eine Zeile", [=] { return yVon("ruhig") > 0.0F; }));
+    add(tu("Zeitleiste: Ausschnitt ab 2 s, Nur aktive an", [] {
+        g_app->timelineZoom = 2.0;
+        g_app->timelineViewStartMs = 2000.0;
+        g_app->zlNurAktive = true;
+    }));
     add(pause(0.2));
-    add(pruefe("Zeitleiste: mit dem Schalter ist sie wieder da", [=] { return yVon("ruhig") > 0.0F; }));
-    add(tu("Zeitleiste: ruhige Spuren wieder aus", [] { g_app->zeigeRuhigeSpuren = false; }));
+    add(pruefe("Zeitleiste: Nur aktive blendet ihn aus", [=] { return yVon("ruhig") < 0.0F; }));
+    add(tu("Zeitleiste: Nur aktive aus, ganze Szene", [] {
+        g_app->zlNurAktive = false;
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
+    }));
+    add(pause(0.2));
+    add(pruefe("Zeitleiste: ohne Filter ist er wieder da", [=] { return yVon("ruhig") > 0.0F; }));
 
     // --- Die Kante folgt der Maus ------------------------------------
     auto kante = std::make_shared<float>(0.0F);

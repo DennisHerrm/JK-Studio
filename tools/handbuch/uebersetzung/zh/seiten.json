@@ -212,9 +212,6 @@
  "Moves the view along with the camera.": "视图随摄像机一起移动。",
  "Shows more time.": "显示更多时间。",
  "Shows less time, in more detail.": "显示更少时间,更加详细。",
- "One row per figure: when each one walks, speaks and acts.": "每个角色一行:显示每个角色何时行走、说话和行动。",
- "Also shows rows where nothing happens.": "也显示没有任何事件的行。",
- "Shows the waits as their own blocks.": "把等待显示为独立的块。",
  "The time display switches between seconds and frames when you click it; the list next to the play button sets the speed. Drag blocks to move them in time - [[zeitleiste]].": "单击时间显示可在秒和帧之间切换;播放按钮旁的列表用于设置速度。拖动块可在时间上移动它们——[[zeitleiste]]。",
  "The model toolbar (Model mode)": "模型工具栏(模型模式)",
  "The toolbar above the model.": "模型上方的工具栏。",
@@ -238,5 +235,10 @@
  "The event editor for `%s` - the numbers match the table below.": "`%s` 的事件编辑器——编号与下表对应。",
  "`%s` in the script tree.": "脚本树中的 `%s`。",
  "`%s` in the list of the selected script node.": "所选脚本节点列表中的 `%s`。",
- "`%s` in Tracks.": "轨道中的 `%s`。"
+ "`%s` in Tracks.": "轨道中的 `%s`。",
+ "One row per actor and the camera shots with their names - the scene at a glance. [[zeitleiste#zeilen]]": "每个角色一行，摄像机镜头带名称——一眼看清场景。[[zeitleiste#zeilen]]",
+ "Camera move, pan, zoom and fade separately, field of view and fade as lines, every actor's animations and commands.": "摄像机移动、平移、缩放和淡入淡出分开显示，视野和淡入淡出显示为线，每个角色的动画和命令。",
+ "Only shows actors that do something in the visible section.": "只显示在可见范围内有动作的角色。",
+ "Only shows places with notes: camera moves that jump back, commands the preview does not simulate.": "只显示有提示的位置：会跳回的摄像机移动、预览未模拟的命令。",
+ "Shows the whole scene.": "显示整个场景。"
 }

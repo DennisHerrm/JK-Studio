@@ -25,6 +25,7 @@
 #include "update.h"
 #include "tour.h"   // rc601 tour: "Interaktive Tour" auf der Startflaeche
 
+#include "bhed/aufnahme.h"
 #include "bhed/entdefs.h"
 #include "bhed/missionbau.h"
 #include "bhed/roffanim.h"
@@ -4707,6 +4708,401 @@ int entityPlatzieren(const std::string& klasse, float sx, float sy) {
     const int neu = neueEntityAn(klasse, ort);
     g_app->entAuswahl.clear();
     return neu;
+}
+
+// --- Zeitleiste 2 Punkt 1: Aufnehmen (eine Figur steuern -> Laufziele) ---------
+//
+// Die gewaehlte Figur laeuft in der Vorschau mit dem Pmove-Port
+// (navSpielerPmove, Kollision der Vorschau), im Tempo aus ihrer .npc
+// (runSpeed, mit Umschalt walkSpeed). Beim Fertig wird der Weg vereinfacht
+// (bhed/aufnahme.h) und so geschrieben, wie Skripte NPCs laufen lassen: je
+// Punkt ein ref_tag und task ( p ) { set ( SET_NAVGOAL, p ); } dowait ( p ) -
+// SET_NAVGOAL selbst wartet nicht, die Aufgabe ist fertig, wenn die Figur
+// ankommt (TID_MOVE_NAV) -, davor die Gangart (SET_RUNNING/SET_WALKING). Den Weg
+// zwischen den Punkten sucht im Spiel die NPC-Navigation; die Vorschau
+// rechnet ihn danach genauso (navlauf). Ein Rueckgaengig-Schritt fuer
+// Entities und Skript.
+namespace {
+
+struct Aufnahme {
+    bool aktiv = false;
+    int figur = -1;
+    std::string name;
+    double startMs = 0.0;
+    NavSpieler s;
+    double restMs = 0.0;
+    float tempoRennen = 300.0F;   // NPC_stats.cpp: runSpeed 300, walkSpeed 90
+    float tempoGehen = 90.0F;
+    std::vector<AufnahmeProbe> proben;
+    Camera kameraVorher;
+    std::shared_ptr<const NavWelt> welt;
+};
+Aufnahme& aufnahme() {
+    static Aufnahme a;
+    return a;
+}
+
+// Die Kollision der Vorschau ohne Koerper (CONTENTS_BODY): die anderen Figuren
+// stehen beim Aufnehmen still an ihrem Ort zur Startzeit - im Spiel weichen
+// sie sich unterwegs selbst aus; auch der eigene Koerper haelt nicht auf.
+NavSpurFn aufnahmeSpur() {
+    const Aufnahme& r = aufnahme();
+    if (!r.welt || !r.welt->spur) { return NavSpurFn{}; }
+    const std::shared_ptr<const NavWelt> w = r.welt;
+    return [w](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ignoriere, std::uint32_t maske) {
+        return w->spur(a, mi, ma, b, ignoriere, maske & ~kNavBody);
+    };
+}
+
+Node setBefehl(const std::string& typ, const std::string& wert) {
+    Node n;
+    n.kind = Node::Kind::Command;
+    n.name = "set";
+    Arg a0;
+    a0.kind = Arg::Kind::String;
+    a0.text = typ;
+    a0.typeset = "SET_TYPES";
+    Arg a1;
+    a1.kind = Arg::Kind::String;
+    a1.text = wert;
+    n.args = {a0, a1};
+    return n;
+}
+
+// Die Kamera folgt der Figur von hinten oben (wie die dritte Person).
+void aufnahmeKamera() {
+    const Aufnahme& r = aufnahme();
+    const float g = r.s.gier * 3.14159265F / 180.0F;
+    const float abstandH = 180.0F;
+    const float hoch = 90.0F;
+    g_app->cam.pos[0] = r.s.ort[0] - std::cos(g) * abstandH;
+    g_app->cam.pos[1] = r.s.ort[1] - std::sin(g) * abstandH;
+    g_app->cam.pos[2] = r.s.ort[2] + hoch;
+    g_app->cam.angles[0] = std::atan2(hoch - 16.0F, abstandH) * 180.0F / 3.14159265F;
+    g_app->cam.angles[1] = r.s.gier;
+    g_app->cam.angles[2] = 0.0F;
+    g_app->mapDirty = true;
+}
+
+// Die Laufziele schreiben: ref_tags in die Karte, die Befehle in die Folge der
+// Figur zur Zeit der Aufnahme (sonst ein neuer affect-Block). Ein Schritt.
+bool aufnahmeSchreiben() {
+    Aufnahme& r = aufnahme();
+    const std::vector<std::size_t> k = aufnahmeVereinfachen(r.proben, g_app->aufnahmeToleranz, aufnahmeSpur());
+    if (k.empty()) {
+        addStatus(tr(Str::AufNichts));
+        return false;
+    }
+    if (r.figur < 0 || static_cast<std::size_t>(r.figur) >= g_app->scene.actors.size() ||
+        g_app->scene.actors[static_cast<std::size_t>(r.figur)].name != r.name) {
+        return false;
+    }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(r.figur)];
+    // Wie bei figurBlickSetzen: der letzte eigene Befehl der Figur vor der Zeit.
+    const ActorStep* ref = nullptr;
+    for (const ActorStep& st : a.steps) {
+        if (st.startMs > r.startMs) { break; }
+        if (!st.path.empty() && st.fremd.empty()) { ref = &st; }
+    }
+    Script s = g_app->doc.script();
+    std::vector<Node>* geschw = &s.nodes;
+    std::size_t ab = 0;
+    double t0 = 0.0;
+    if (ref != nullptr) {
+        for (std::size_t i = 0; i + 1 < ref->path.size(); ++i) {
+            if (ref->path[i] >= geschw->size()) { return false; }
+            geschw = &(*geschw)[ref->path[i]].children;
+        }
+        ab = ref->path.back() + 1;
+        t0 = ref->startMs;
+    }
+    std::vector<MapEntity> vorher = g_app->map.entities;
+    std::vector<Node> folge;
+    int gang = -1;
+    for (const std::size_t i : k) {
+        const bool gehen = r.proben[i].gehen;
+        if ((gehen ? 1 : 0) != gang) {
+            // Gehen heisst in der Engine walking und NICHT running (gangartSetzen).
+            folge.push_back(setBefehl(gehen ? "SET_RUNNING" : "SET_WALKING", "false"));
+            folge.push_back(setBefehl(gehen ? "SET_WALKING" : "SET_RUNNING", "true"));
+            gang = gehen ? 1 : 0;
+        }
+        const std::string ziel = freierEntityName(r.name + "_lauf");
+        MapEntity e;
+        setKey(e, "classname", "ref_tag");
+        e.classname = "ref_tag";
+        setKey(e, "targetname", ziel);
+        const float o[3] = {r.proben[i].ort[0], r.proben[i].ort[1], r.proben[i].ort[2]};
+        setKey(e, "origin", ortText(o));
+        g_app->map.entities.push_back(std::move(e));
+        Arg name;
+        name.kind = Arg::Kind::String;
+        name.text = ziel;
+        Node aufgabe;
+        aufgabe.kind = Node::Kind::Command;
+        aufgabe.name = "task";
+        aufgabe.args = {name};
+        aufgabe.hasBlock = true;
+        aufgabe.children = {setBefehl("SET_NAVGOAL", ziel)};
+        folge.push_back(std::move(aufgabe));
+        Node warten;
+        warten.kind = Node::Kind::Command;
+        warten.name = "dowait";
+        warten.args = {name};
+        folge.push_back(std::move(warten));
+    }
+    bool ok = false;
+    if (ref == nullptr) {
+        // Die Figur hat noch keinen Befehl: ein eigener Block ab der Zeit.
+        Node blk;
+        blk.kind = Node::Kind::Command;
+        blk.name = "affect";
+        Arg wer;
+        wer.kind = Arg::Kind::String;
+        wer.text = r.name;
+        Arg art;
+        art.kind = Arg::Kind::Ident;
+        art.text = "FLUSH";
+        art.typeset = "AFFECT_TYPE";
+        blk.args = {wer, art};
+        blk.hasBlock = true;
+        blk.children = folge;
+        ok = befehlZurZeit(s.nodes, 0, 0.0, r.startMs, blk);
+    } else {
+        // Der erste zur Zeit (befehlZurZeit), die anderen gleich dahinter -
+        // dowait haelt die Folge an. Wiedergefunden an einer vorlaeufigen Kennung.
+        constexpr Kennung kMerk = ~Kennung{0} - 7U;
+        Node erster = folge[0];
+        erster.kennung = kMerk;
+        if (befehlZurZeit(*geschw, ab, t0, r.startMs, erster)) {
+            for (std::size_t j = ab; j < geschw->size(); ++j) {
+                if ((*geschw)[j].kennung != kMerk) { continue; }
+                (*geschw)[j].kennung = 0;
+                geschw->insert(geschw->begin() + static_cast<std::ptrdiff_t>(j + 1), folge.begin() + 1, folge.end());
+                ok = true;
+                break;
+            }
+        }
+    }
+    if (!ok) {
+        g_app->map.entities = std::move(vorher);
+        addStatus(tr(Str::BahnBlickZeitUnbekannt));
+        return false;
+    }
+    aenderung(std::move(vorher));
+    g_app->doc.ersetzeSkript(std::move(s), tr(Str::AufUndo));
+    verbindeMitSkriptSchritt();
+    nachSkriptGeaendert();
+    char t[200];
+    std::snprintf(t, sizeof(t), tr(Str::AufGeschrieben), static_cast<int>(k.size()), r.name.c_str(), r.startMs / 1000.0);
+    addStatus(t);
+    return true;
+}
+
+}  // namespace
+
+bool aufnahmeLaeuft() { return aufnahme().aktiv; }
+
+bool aufnahmeMoeglich(int figur) {
+    if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size() || g_app->map.entities.empty()) { return false; }
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    // Laufziele kennt nur ein NPC (Q3_SetNavGoal: "on a non-NPC").
+    return !a.npcType.empty() && !a.echterSpieler && a.brushModel <= 0 && a.haveStart && a.at(g_app->playMs).visible;
+}
+
+void aufnahmeStarten(int figur) {
+    if (aufnahme().aktiv || !aufnahmeMoeglich(figur)) { return; }
+    Aufnahme& r = aufnahme();
+    r = Aufnahme{};
+    const Actor& a = g_app->scene.actors[static_cast<std::size_t>(figur)];
+    const ActorState st = a.at(g_app->playMs);
+    r.figur = figur;
+    r.name = a.name;
+    r.startMs = g_app->playMs;
+    r.welt = navWeltVorschau();
+    // Die .npc-Tempi beim Spawnen wie im Nachbau (ablaufTempo); < 0: die Vorgaben.
+    const auto tempo = ablaufTempo(g_app->scene);
+    if (const float t = tempo(a.name, false); t >= 0.0F) { r.tempoRennen = t; }
+    if (const float t = tempo(a.name, true); t >= 0.0F) { r.tempoGehen = t; }
+    r.s = NavSpieler{};
+    r.s.jk2 = regelwerkJediOutcast();
+    r.s.ort = {st.pos[0], st.pos[1], st.pos[2]};
+    r.s.gier = st.angles[1];
+    r.s.noclip = !aufnahmeSpur();   // ohne Kollision kein Boden: waagerecht
+    {
+        // Steckt der Kasten im Boden (der Spawner steht oft knapp darin; das
+        // Spiel hebt den Spieler beim Spawnen um 9, SelectSpawnPoint), von
+        // dort bis zu einer Stufe (18) hoeher anfangen - Pmove setzt ihn ab.
+        const NavSpurFn spur = aufnahmeSpur();
+        float hoch = 0.0F;
+        const auto fest = [&](float dz) {
+            const NavVec o{r.s.ort[0], r.s.ort[1], r.s.ort[2] + dz};
+            return spur && spur(o, NavVec{-15.0F, -15.0F, -24.0F}, NavVec{15.0F, 15.0F, 40.0F}, o, kNavKeineEntity, kNavMaskPlayerSolid).startsolid;
+        };
+        while (fest(hoch) && hoch < 18.0F) { hoch += 1.0F; }
+        r.s.ort[2] += hoch;
+        char z[240];
+        std::snprintf(z, sizeof(z), "Aufnahme %s ab %.0f %.0f %.0f (%.0f angehoben), Tempo %.0f/%.0f, Kollision %d, im Festen %d", a.name.c_str(),
+                      static_cast<double>(r.s.ort[0]), static_cast<double>(r.s.ort[1]), static_cast<double>(r.s.ort[2]),
+                      static_cast<double>(hoch), static_cast<double>(r.tempoRennen), static_cast<double>(r.tempoGehen), spur ? 1 : 0,
+                      fest(0.0F) ? 1 : 0);
+        diag::detail(z);
+    }
+    r.proben.push_back(AufnahmeProbe{r.s.ort, false});
+    r.kameraVorher = g_app->cam;
+    r.aktiv = true;
+    g_app->playing = false;
+    g_app->throughCamera = false;
+    g_app->selectedPath.clear();
+    // Ein Textfeld mit dem Fokus bekaeme sonst W/A/S/D.
+    if (ImGui::GetIO().WantTextInput) { ImGui::ClearActiveID(); }
+    aufnahmeKamera();
+    char t[200];
+    std::snprintf(t, sizeof(t), tr(Str::AufGestartet), r.name.c_str());
+    addStatus(t);
+}
+
+void aufnahmeBeenden(bool schreiben) {
+    Aufnahme& r = aufnahme();
+    if (!r.aktiv) { return; }
+    r.aktiv = false;
+    g_app->cam = r.kameraVorher;
+    g_app->mapDirty = true;
+    if (!schreiben) {
+        addStatus(tr(Str::AufAbgebrochen));
+        return;
+    }
+    (void)aufnahmeSchreiben();
+}
+
+int aufnahmeProben() { return static_cast<int>(aufnahme().proben.size()); }
+
+int aufnahmePunkte() {
+    const Aufnahme& r = aufnahme();
+    return static_cast<int>(aufnahmeVereinfachen(r.proben, g_app->aufnahmeToleranz, aufnahmeSpur()).size());
+}
+
+void aufnahmeKnopf() {
+    if (!aufnahmeLaeuft()) {
+        const bool kann = aufnahmeMoeglich(g_app->selectedActor);
+        if (iconTextKnopf(tr(Str::AufKnopf), UiIcon::Steuern, tr(Str::AufHint), kann)) { aufnahmeStarten(g_app->selectedActor); }
+        return;
+    }
+    if (iconTextKnopf(tr(Str::AufFertig), UiIcon::Haken, tr(Str::AufFertigHint))) { aufnahmeBeenden(true); }
+    ImGui::SameLine();
+    if (iconTextKnopf(tr(Str::AufAbbrechen), UiIcon::Schliessen, tr(Str::AufAbbrechenHint))) { aufnahmeBeenden(false); }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.0F);
+    ImGui::DragFloat("##auftol", &g_app->aufnahmeToleranz, 1.0F, 4.0F, 256.0F, tr(Str::AufToleranz));
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::AufToleranzHint)); }
+}
+
+void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
+    Aufnahme& r = aufnahme();
+    if (!r.aktiv) { return; }
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        aufnahmeBeenden(false);
+        return;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)) {
+        aufnahmeBeenden(true);
+        return;
+    }
+    if (!io.WantTextInput) {
+        // ucmd wie fuer einen NPC: forwardmove/rightmove 127, ps.speed = runSpeed
+        // bzw. walkSpeed (Umschalt: gehen).
+        int vor = 0;
+        int seit = 0;
+        if (ImGui::IsKeyDown(ImGuiKey_W)) { vor += 127; }
+        if (ImGui::IsKeyDown(ImGuiKey_S)) { vor -= 127; }
+        if (ImGui::IsKeyDown(ImGuiKey_D)) { seit += 127; }
+        if (ImGui::IsKeyDown(ImGuiKey_A)) { seit -= 127; }
+        // Ohne Eingabe (die Figur rollt aus) bleibt die Gangart, wie sie war.
+        const bool gehen = (vor != 0 || seit != 0) ? io.KeyShift : r.proben.back().gehen;
+        r.s.geschwindigkeit = static_cast<int>(std::lround(gehen ? r.tempoGehen : r.tempoRennen));
+        NavSpielerEingabe e;
+        e.vor = static_cast<signed char>(std::clamp(vor, -127, 127));
+        e.seit = static_cast<signed char>(std::clamp(seit, -127, 127));
+        // Drehen: Q/E oder die rechte Maustaste (die Pfeile gehoeren dem Skriptbaum).
+        const float dt = std::max(io.DeltaTime, 0.0F);
+        if (ImGui::IsKeyDown(ImGuiKey_Q)) { r.s.gier += 120.0F * dt; }
+        if (ImGui::IsKeyDown(ImGuiKey_E)) { r.s.gier -= 120.0F * dt; }
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
+            r.s.gier -= io.MouseDelta.x * 0.25F;
+        }
+        r.restMs += static_cast<double>(dt) * 1000.0;
+        int ms = static_cast<int>(r.restMs);
+        r.restMs -= ms;
+        const NavSpurFn spur = aufnahmeSpur();
+        while (ms > 0) {   // Pmove: hoechstens 66 ms je PmoveSingle
+            const int stueck = std::min(ms, 66);
+            navSpielerPmove(r.s, spur, e, stueck);
+            ms -= stueck;
+            const AufnahmeProbe& l = r.proben.back();
+            const float dx = r.s.ort[0] - l.ort[0];
+            const float dy = r.s.ort[1] - l.ort[1];
+            const float dz = r.s.ort[2] - l.ort[2];
+            if (dx * dx + dy * dy + dz * dz >= 16.0F || l.gehen != gehen) { r.proben.push_back(AufnahmeProbe{r.s.ort, gehen}); }
+        }
+    }
+    aufnahmeKamera();
+    // Die Spur, die Laufziele mit der Toleranz und der Kasten der Figur.
+    const std::vector<std::size_t> k = aufnahmeVereinfachen(r.proben, g_app->aufnahmeToleranz, aufnahmeSpur());
+    dl->PushClipRect(a, b, true);
+    ImVec2 vorher;
+    bool hatVorher = false;
+    for (const AufnahmeProbe& p : r.proben) {
+        const float w[3] = {p.ort[0], p.ort[1], p.ort[2] - 20.0F};
+        ImVec2 q;
+        const bool da = kartenPunktAufSchirm(w, q);
+        if (da && hatVorher) { dl->AddLine(vorher, q, p.gehen ? IM_COL32(120, 200, 255, 230) : IM_COL32(255, 210, 90, 230), 2.0F); }
+        hatVorher = da;
+        vorher = q;
+    }
+    const float fs = ImGui::GetFontSize();
+    for (std::size_t n = 0; n < k.size(); ++n) {
+        const AufnahmeProbe& p = r.proben[k[n]];
+        const float w[3] = {p.ort[0], p.ort[1], p.ort[2] - 20.0F};
+        ImVec2 q;
+        if (!kartenPunktAufSchirm(w, q)) { continue; }
+        dl->AddCircleFilled(q, fs * 0.55F, IM_COL32(30, 30, 30, 220));
+        dl->AddCircle(q, fs * 0.55F, IM_COL32(255, 210, 90, 255), 0, 2.0F);
+        const std::string z = std::to_string(n + 1);
+        dl->AddText(ImVec2{q.x - ImGui::CalcTextSize(z.c_str()).x * 0.5F, q.y - fs * 0.5F}, IM_COL32(255, 255, 255, 255), z.c_str());
+    }
+    {
+        // Der Kasten der Figur (-15..15, -24..40 um den Ursprung) und ihre Blickrichtung.
+        const float lo[3] = {-15.0F, -15.0F, -24.0F};
+        const float hi[3] = {15.0F, 15.0F, 40.0F};
+        ImVec2 ecke[8];
+        bool alle = true;
+        for (int i = 0; i < 8; ++i) {
+            const float w[3] = {r.s.ort[0] + ((i & 1) != 0 ? hi[0] : lo[0]), r.s.ort[1] + ((i & 2) != 0 ? hi[1] : lo[1]),
+                                r.s.ort[2] + ((i & 4) != 0 ? hi[2] : lo[2])};
+            alle = kartenPunktAufSchirm(w, ecke[i]) && alle;
+        }
+        if (alle) {
+            static const int kanten[12][2] = {{0, 1}, {1, 3}, {3, 2}, {2, 0}, {4, 5}, {5, 7}, {7, 6}, {6, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+            for (const auto& kk : kanten) { dl->AddLine(ecke[kk[0]], ecke[kk[1]], IM_COL32(255, 255, 255, 220), 1.5F); }
+        }
+        const float g = r.s.gier * 3.14159265F / 180.0F;
+        const float von[3] = {r.s.ort[0], r.s.ort[1], r.s.ort[2]};
+        const float nach[3] = {r.s.ort[0] + std::cos(g) * 40.0F, r.s.ort[1] + std::sin(g) * 40.0F, r.s.ort[2]};
+        ImVec2 p0;
+        ImVec2 p1;
+        if (kartenPunktAufSchirm(von, p0) && kartenPunktAufSchirm(nach, p1)) { dl->AddLine(p0, p1, IM_COL32(255, 90, 90, 255), 3.0F); }
+    }
+    // Der Hinweis unten in der Ansicht.
+    char t[400];
+    std::snprintf(t, sizeof(t), tr(Str::AufHinweis), r.name.c_str(), static_cast<int>(k.size()),
+                  static_cast<double>(g_app->aufnahmeToleranz));
+    const ImVec2 gr = ImGui::CalcTextSize(t);
+    const ImVec2 o{a.x + fs * 0.5F, b.y - gr.y - fs * 0.8F};
+    dl->AddRectFilled(ImVec2{o.x - fs * 0.3F, o.y - fs * 0.2F}, ImVec2{o.x + gr.x + fs * 0.3F, o.y + gr.y + fs * 0.2F}, IM_COL32(0, 0, 0, 180),
+                      fs * 0.2F);
+    dl->AddText(o, IM_COL32(255, 230, 140, 255), t);
+    dl->PopClipRect();
 }
 
 }  // namespace bhed::gui

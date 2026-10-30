@@ -55,7 +55,7 @@ KAMERA2 = [
             T("**Put the figure into a group.** In the figure's `affect` block insert `set ( SET_CAMERA_GROUP, \"hero\" )`."),
             T("**Follow.** After the camera shot insert `camera` and choose `FOLLOW`: the group `hero`, a turning speed (for example `100`) and `1` to blend into it. The camera now keeps turning towards the figure."),
             T("**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it."),
-            (T("**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts."),
+            (T("**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts."),
              "k_folgen_blick", T("Through the camera: it keeps turning towards Kyle.")),
         ],
         [T("`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.")]),

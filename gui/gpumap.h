@@ -394,7 +394,7 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
 // --- Zwei Zielsaetze (rc592) --------------------------------------------
 //
 // Satz 0 ist die Kartenansicht, Satz 1 die Bild-im-Bild-Vorschau der
-// Skriptkamera. waehleZiel schaltet um; bereiteZiel, zielTextur, tiefeAbbilden,
+// Skriptkamera (2 Himmelsportal, 3 Spiegel, 4 Filmstreifen der Zeitleiste). waehleZiel schaltet um; bereiteZiel, zielTextur, tiefeAbbilden,
 // leseFarbe und alles Zeichnen gelten danach fuer den gewaehlten Satz. Nach
 // der Vorschau zurueck auf 0 - der Rest des Programms kennt nur den einen.
 void waehleZiel(int satz);

@@ -84,6 +84,14 @@ struct Prim {
 
 // Eine Zeile einer Listbox: DC->feederItemText je Spalte, DC->feederItemImage
 // und die optionalen Bilder je Spalte (SP optionalImage, MP optionalImage1).
+// RE_Font_DrawString (ohne die asiatischen Zweige): je Zeichen ein Bild
+// (PrimArt::Bild, Shader der Schrift) im virtuellen Bildschirm, ab (ox, oy)
+// oben links. ^0-^9 wechseln die Farbe (Deckung bleibt), ausser imSchatten
+// (gbInShadow); maxPixel -1 = ohne Grenze. Auch fuer die Untertitel der
+// Vorschau (bhed/untertitel.h).
+void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& text, Farbe farbe, int maxPixel, float scale,
+                     bool imSchatten, std::vector<Prim>& out);
+
 struct FeederEintrag {
     std::vector<std::string> spalten;
     std::string bild;

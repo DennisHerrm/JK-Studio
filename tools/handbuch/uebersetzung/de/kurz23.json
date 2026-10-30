@@ -24,7 +24,6 @@
  "**Put the figure into a group.** In the figure's `affect` block insert `set ( SET_CAMERA_GROUP, \"hero\" )`.": "**Die Figur in eine Gruppe stecken.** Im `affect`-Block der Figur `set ( SET_CAMERA_GROUP, \"hero\" )` einfügen.",
  "**Follow.** After the camera shot insert `camera` and choose `FOLLOW`: the group `hero`, a turning speed (for example `100`) and `1` to blend into it. The camera now keeps turning towards the figure.": "**Folgen.** Hinter der Kameraeinstellung `camera` einfügen und `FOLLOW` wählen: die Gruppe `hero`, eine Drehgeschwindigkeit (zum Beispiel `100`) und `1` zum Überblenden. Die Kamera dreht sich jetzt laufend zur Figur.",
  "**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it.": "**Abstand halten.** `camera ( DISTANCE, 200, 1 )` hält die Kamera 200 Einheiten von der Gruppe entfernt und fährt mit ihr mit.",
- "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts.": "**Ansehen.** **{{MapThroughCam}}** einschalten und die Zeitleiste abspielen: der Blick dreht sich laufend zur Figur. In der Zeitleiste zeigt die Zeile **Folgen** unter **{{TlKamera}}**, wie lange es dauert.",
  "Through the camera: it keeps turning towards Kyle.": "Durch die Kamera: sie dreht sich laufend zu Kyle.",
  "`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.": "`SET_CAMERA_GROUP_Z_OFS` zielt höher oder tiefer auf die verfolgte Figur.",
  "Show a video or a line of text": "Ein Video oder eine Textzeile zeigen",
@@ -221,9 +220,7 @@
  "**Move through time.** Drag in the ruler; **{{TracksPlay}}** plays.": "**Durch die Zeit gehen.** Im Lineal ziehen; **{{TracksPlay}}** spielt ab.",
  "The timeline in detail": "Die Zeitleiste im Detail",
  "Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves.": "waits als Blöcke, ruhige Zeilen, Bilder statt Sekunden, Tempo - und die Warnung bei sich überlappenden Kamerafahrten.",
- "**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly.": "**waits als Blöcke.** **{{TlWaits}}** zeigt jedes `wait` als eigenen Block - ziehen ändert es direkt.",
  "Waits shown as blocks.": "waits als Blöcke gezeigt.",
- "**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start.": "**Ruhige Zeilen.** **{{TlIdleTracks}}** zeigt auch die Zeilen, in denen nach dem Start nichts geschieht.",
  "**Frames.** Click the time display to switch between seconds and frames.": "**Bilder.** Ein Klick auf die Zeitanzeige schaltet zwischen Sekunden und Bildern um.",
  "**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x.": "**Tempo.** Die Liste neben dem Abspielknopf spielt mit 0,25x bis 2x; Ton nur bei 1x.",
  "**Overlap warning.** A warning sign on a camera block: it overlaps the next move. In the game the next one starts from where this one began, and the camera jumps - shorten one of them.": "**Überlappungswarnung.** Ein Warnzeichen auf einem Kamerablock: er überlappt die nächste Fahrt. Im Spiel beginnt die nächste dort, wo diese begann, und die Kamera springt - kürze eine von beiden.",
@@ -233,5 +230,8 @@
  "The playback bar with the skin list.": "Die Abspielleiste mit der Skin-Liste.",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**Flächen.** Der Flächenzähler zeigt, wie viele Flächen der Skin zeichnet; ein Klick darauf listet sie alle im Detailprotokoll.",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**Kappen.** **{{ModelCaps}}** zeigt die `_off`-Flächen, die die Löcher schließen, wo Gliedmaßen ansetzen.",
- "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**Ein anderes Skelett.** **{{ModelLoadGla}}** lädt eine andere `.gla` mit ihren Animationen."
+ "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**Ein anderes Skelett.** **{{ModelLoadGla}}** lädt eine andere `.gla` mit ihren Animationen.",
+ "**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly.": "**Wartezeiten als Blöcke.** Die Zeile **{{ZlSkript}}** zeigt jedes `wait` als schraffierten Block mit dem, worauf es wartet - seine rechte Kante ziehen ändert es direkt.",
+ "**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section.": "**Nur aktive.** **{{ZlNurAktive}}** blendet die Darsteller aus, die im sichtbaren Ausschnitt nichts tun.",
+ "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts.": "**Ansehen.** Schalte **{{MapThroughCam}}** ein und spiel die Zeitleiste ab: die Ansicht dreht sich immer zur Figur. In der Ansicht **{{ZlDetail}}** der Zeitleiste zeigt die Zeile **{{TlCamFollow}}**, wie lange es dauert."
 }

@@ -24,7 +24,6 @@
  "**Put the figure into a group.** In the figure's `affect` block insert `set ( SET_CAMERA_GROUP, \"hero\" )`.": "**キャラクターをグループに入れる。** キャラクターの `affect` ブロックに `set ( SET_CAMERA_GROUP, \"hero\" )` を挿入します。",
  "**Follow.** After the camera shot insert `camera` and choose `FOLLOW`: the group `hero`, a turning speed (for example `100`) and `1` to blend into it. The camera now keeps turning towards the figure.": "**追従する。** カメラショットの後に `camera` を挿入して `FOLLOW` を選びます。グループ `hero`、回転速度(例えば `100`)、そしてなめらかに移行する `1` を指定します。これでカメラは常にキャラクターの方を向き続けます。",
  "**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it.": "**距離を保つ。** `camera ( DISTANCE, 200, 1 )` はカメラをグループから 200 ユニットの距離に保ち、一緒に動かします。",
- "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts.": "**確かめる。** **{{MapThroughCam}}** をオンにしてタイムラインを再生すると、視点がキャラクターの方を向き続けます。タイムラインでは **{{TlKamera}}** の下の **追従** 行に、どれだけ続くかが表示されます。",
  "Through the camera: it keeps turning towards Kyle.": "カメラ視点:Kyle の方を向き続けます。",
  "`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.": "`SET_CAMERA_GROUP_Z_OFS` で、追う相手のキャラクターの狙う位置を高くしたり低くしたりできます。",
  "Show a video or a line of text": "ビデオや 1 行のテキストを表示する",
@@ -221,9 +220,7 @@
  "**Move through time.** Drag in the ruler; **{{TracksPlay}}** plays.": "**時間を動かす。** ルーラーをドラッグします。**{{TracksPlay}}** で再生します。",
  "The timeline in detail": "タイムラインの詳細",
  "Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves.": "ブロックとしての wait、動きのない行、秒の代わりのフレーム、速度、そしてカメラの動きが重なったときの警告。",
- "**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly.": "**wait をブロックで。** **{{TlWaits}}** は各 `wait` を独立したブロックとして表示します。ドラッグして直接変更できます。",
  "Waits shown as blocks.": "ブロックとして表示した wait。",
- "**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start.": "**動きのない行。** **{{TlIdleTracks}}** は、開始後に何も起こらない行も表示します。",
  "**Frames.** Click the time display to switch between seconds and frames.": "**フレーム。** 時刻表示をクリックすると、秒とフレームが切り替わります。",
  "**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x.": "**速度。** 再生ボタンの横の一覧で 0.25x から 2x の速度で再生できます。音は 1x のときだけ鳴ります。",
  "**Overlap warning.** A warning sign on a camera block: it overlaps the next move. In the game the next one starts from where this one began, and the camera jumps - shorten one of them.": "**重なりの警告。** カメラブロックの警告マークは、次の動きと重なっていることを示します。ゲームでは次の動きがこの動きの始まった位置から始まり、カメラが飛びます。どちらかを短くしてください。",
@@ -233,5 +230,8 @@
  "The playback bar with the skin list.": "スキン一覧のある再生バー。",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**サーフェス。** サーフェスの件数は、そのスキンが描くサーフェスの数を示します。クリックすると、詳細ログにすべて一覧表示されます。",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**キャップ。** **{{ModelCaps}}** は、手足の付け根の穴をふさぐ `_off` サーフェスを表示します。",
- "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**別のスケルトン。** **{{ModelLoadGla}}** で、アニメーション付きの別の `.gla` を読み込みます。"
+ "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**別のスケルトン。** **{{ModelLoadGla}}** で、アニメーション付きの別の `.gla` を読み込みます。",
+ "**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly.": "**待機をブロックで。** **{{ZlSkript}}** の行はすべての `wait` を斜線のブロックで、何を待っているかとともに表示します。右端をドラッグすると直接変更できます。",
+ "**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section.": "**動作中のみ。** **{{ZlNurAktive}}** は表示範囲で何もしていないキャラクターを隠します。",
+ "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts.": "**見る。** **{{MapThroughCam}}** をオンにしてタイムラインを再生すると、ビューがキャラクターの方を向き続けます。タイムラインの **{{ZlDetail}}** 表示では **{{TlCamFollow}}** の行がその長さを示します。"
 }

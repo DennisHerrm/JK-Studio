@@ -184,7 +184,7 @@ SKRIPT = [
             T("**Where to wait.** In the script that should pause, insert `waitsignal` and type a name, for example `door_open`."),
             T("**Where to give the signal.** In the other script, at the moment it should go on, insert `signal ( \"door_open\" )`."),
             T("**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name."),
-            T("**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks."),
+            T("**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time."),
         ],
         [T("The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.")]),
 
@@ -248,7 +248,7 @@ KAMERA = [
             T("**Insert a camera command.** Double-click `camera` in the **{{GroupEvents}}** list, then open it with <kbd>Enter</kbd>. The first field chooses what it does."),
             T("**Zoom.** Choose `ZOOM`: the first number is the field of view (80 is normal, smaller is closer), the second the time in milliseconds to get there."),
             T("**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black."),
-            (T("**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**."),
+            (T("**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows."),
              "h_zeitleiste", T("The camera rows of the timeline.")),
         ]),
 
@@ -261,7 +261,7 @@ KAMERA = [
             (T("**Move a block.** Drag a block left or right. Everything after it moves along, so the rest stays in sync. Hold <kbd>Alt</kbd> to move only this block."),
              "a_k_timen", T("Dragging a block in the timeline: everything after it moves along.")),
             T("**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer."),
-            T("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second."),
+            T("**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds."),
             T("**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line."),
         ],
         [T("A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.")]),
@@ -302,7 +302,7 @@ FIGUREN = [
              "k_gangart", T("The menu of a walk target: Look at while walking lists the figures of the scene.")),
             T("**Standing.** Right-click the target entity in the entity list → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) or **{{EntityAsLook}}** (`SET_LOOK_TARGET`). The command goes into the script after the selected line."),
             T("**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**."),
-            T("**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where."),
+            T("**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time."),
         ]),
 
     tut("k-blickrichtung", "tut_figur",

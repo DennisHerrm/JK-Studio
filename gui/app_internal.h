@@ -47,6 +47,7 @@
 #include "bhed/kollision.h"     // rc601 integ: geladeneKollision
 #include "bhed/gegenstaende.h"  // rc602 kartenpruefung: Gegenstaende der Karte
 #include "bhed/timeline.h"
+#include "bhed/spuren.h"
 #include "bhed/image.h"
 #include "bhed/gla.h"
 #include "bhed/glm.h"
@@ -507,7 +508,6 @@ struct App {
     std::vector<std::array<float, 3>> figurGezeichnet;
     std::string tlAuswahlZeile;
     int tlBewegungsBalken = 0;
-    int tlAusloeser = 0;
     // --- Griffe auf der Bahn (rc597) ------------------------------------------
     //
     // "kann ich den Anfangspunkt und den Endpunkt des bewegten Characters
@@ -549,15 +549,12 @@ struct App {
     };
     std::vector<TlBalken> tlBalken;
     int tlRollFigur = -1;            // zu dieser Figurenzeile ist die Zeitleiste schon gerollt
-    // Aufklappbare Spuren wie im Unreal Sequencer (rc597): welche Figuren
-    // aufgeklappt sind, ob die Kameragruppe offen ist, ob waits als eigene
-    // Bloecke erscheinen.
+    // Aufklappbare Darstellerzeilen (rc597, zeitleiste1): welche Figuren in
+    // der Uebersicht aufgeklappt sind (Animation und Befehle darunter).
     std::set<std::string> tlOffen;
     // Die Maus stand im letzten Bild ueber der Zeitleiste (rc599): dort
     // zoomt Strg+Rad die Zeitleiste, die Oberflaeche bleibt gleich gross.
     bool tlUnterMaus = false;
-    bool tlKameraOffen = true;
-    bool tlWaitsZeigen = false;
     // Auto-Key der Kamera (rc597): beim Anfassen des Gizmos mitten in einer
     // Fahrt wurde dort ein Schluessel eingefuegt (wird ohne Aenderung beim
     // Loslassen zurueckgenommen).
@@ -1431,7 +1428,6 @@ struct App {
     // ohne customSkin nimmt die Shadernamen aus dem .glm).
     std::map<std::string, ActorAssets> gegenstandGlmCache;
     Timeline timeline;
-    bool showTracks = true;
     // Klaenge beim Abspielen mitspielen. Bis wohin sie schon ausgeloest
     // wurden, damit keiner zweimal kommt.
     bool playAudio = true;
@@ -2054,15 +2050,92 @@ struct App {
     // Was Zellraender und Trennlinien der Hauptspalten kosten (gemessen).
     float spaltenUeberhang = 40.0F;
     int teilerAnzahl = 0;
-    // Ruhige Spuren zeigen (nach dem Anfang passiert nichts mehr darin).
-    bool zeigeRuhigeSpuren = false;
     int tlUeberlappungen = 0;     // im letzten Bild rot markierte Bloecke (Selbsttest)
-    TlKandidat tlGriffKandidat;   // Kante gepackt
-    TlKandidat tlKlickKandidat;   // Block angeklickt
+    TlKandidat tlGriffKandidat;   // Kante gepackt (Feldansicht "Spuren")
     Path tlDragPath;             // welcher Block, leer = keiner
     double tlDragStartMs = 0.0;  // sein Anfang - der bleibt stehen
     double tlDragEndMs = 0.0;    // sein Ende, waehrend des Ziehens
     bool tlDragging = false;
+    // --- zeitleiste1: die Zeitleiste im Mission-Tab (gui/app_zeitleiste.cpp) ---
+    spuren::Spuren spuren;                 // das Modell (prepareScene -> zeitleisteModellBauen)
+    bool zlDetail = false;                 // Ansicht Detail statt Uebersicht (Tab)
+    bool zlNurAktive = false;              // nur Darsteller, die im Ausschnitt etwas tun
+    bool zlProbleme = false;               // nur Stellen mit Hinweisen
+    char zlSuche[96] = {};                 // das Suchfeld
+    bool zlAbspielenUmschalten = false;    // Leertaste ueber der Leiste (im naechsten Bild)
+    struct ZlAuswahl {
+        bool da = false;
+        int zeile = 0;
+        spuren::Clip clip;
+        std::string anzeige;               // Darsteller, lesbar
+    };
+    ZlAuswahl zlAuswahl;                   // erklaert in der Seitenleiste ("Was passiert hier?")
+    ZlAuswahl zlKandidat;                  // in diesem Bild angeklickt
+    TlKandidat zlGriffKand;                // Kante gepackt (der zuletzt gezeichnete gewinnt)
+    spuren::Clip zlGriffClip;              // ... und ihr Block
+    TlKandidat zlKlickKand;                // Block angeklickt
+    bool zlKante = false;                  // eine rechte Kante wird gezogen
+    Path zlKantePfad;
+    double zlKanteEndMs = 0.0;
+    spuren::Clip zlZiehClip;               // was gezogen wird (Hinweistext, Zurueckschreiben)
+    float zlZiehMausX = 0.0F;
+    double zlZiehMsJePx = 1.0;
+    // Durch Ziehen geaendert: angezeigter Knoten -> (geaenderter Knoten, sein Text davor).
+    std::map<Kennung, std::pair<Kennung, std::string>> zlGeaendert;
+    std::map<std::string, std::vector<float>> zlWellen;   // Wellenform je Klangdatei (Spitze je 50 ms)
+    std::string zlTexteKarte;              // Untertitel: fuer welche Karte und welches Spiel geladen
+    std::map<std::string, std::string> zlTexte;
+    std::vector<std::string> zlTexteEbenen;
+    std::string zlSzene;                   // Anfangsausschnitt (30 s) je Szene
+    // Fuer den Selbsttest: was in diesem Bild gezeichnet wurde.
+    ImRect zlNavRect;
+    ImRect zlErklaerungRect;
+    float zlErklaerungInhaltH = 0.0F;      // so hoch war der Inhalt des Kastens im letzten Bild
+    std::string zlErklaerungTitel;
+    int zlZeileGeoeffnet = 0;
+    // Zeitleiste 2 Punkt 7: Untertitel im Vorschau-Bild.
+    int untertitelStufe = -1;              // g_subtitles der Vorschau (0, 1, 2); -1 = Vorgabe des Spiels
+    bool untertitelZeigen = false;         // dieses Bild zeigt die Szene zur Zeit des Zeigers
+    std::string untertitelJetzt;           // Selbsttest: die gezeichneten Zeilen, "\n" dazwischen
+    float untertitelOben = 0.0F;           // Selbsttest: Bildzeilen der Schrift (oben, unten)
+    float untertitelUnten = 0.0F;
+    float untertitelFarbe[4]{};            // Selbsttest: die Farbe der Zeilen
+    // Zeitleiste 2 Punkt 1: Aufnehmen - ab welcher Abweichung von der Geraden
+    // ein weiterer Laufpunkt noetig ist (Einheiten).
+    float aufnahmeToleranz = 24.0F;
+    struct ZlBlock {
+        std::string zeile;
+        ImRect r;
+        spuren::Art art = spuren::Art::Befehl;
+        Path pfad;
+        std::string text;
+        bool beschriftet = false;          // Beschriftung ganz zu sehen
+        bool geaendert = false;            // durch Ziehen geaendert (gestrichelt)
+    };
+    std::vector<ZlBlock> zlBloecke;
+    struct ZlText {
+        ImRect r;
+        float zeileY = 0.0F;
+    };
+    std::vector<ZlText> zlBeschriftungen;
+    float zlZeichenMs = 0.0F;              // was das Zeichnen der Zeilen kostet (letztes Bild)
+    // Der Filmstreifen: Bilder der Skriptkamera alle 2 s. Aufgenommen in einem
+    // kurzen Durchgang (je Bild der Ansicht eines, die Ansicht und die Zeit des
+    // Zeigers bleiben stehen - drawMapView, filmBild), gezeigt bis zum naechsten.
+    struct ZlFilmBild {
+        double ms = 0.0;
+        void* textur = nullptr;
+        int w = 0;
+        int h = 0;
+        unsigned stand = 0;                // render::texturStand() beim Anlegen
+    };
+    std::vector<ZlFilmBild> zlFilm;
+    int zlFilmWunsch = -1;                 // in diesem Bild der Ansicht: Filmbild Nummer ... aufnehmen
+    int zlFilmPass = -1;                   // laufender Durchgang: naechstes Bild (-1: keiner)
+    double zlFilmZeitMs = 0.0;             // ... zu dieser Zeit (nur waehrend drawMapView zeichnet)
+    std::uint64_t zlModellStand = 0;       // zaehlt die Modellbauten
+    std::uint64_t zlFilmStand = 0;         // fuer diesen Modellbau gelten die Bilder
+    int zlFilmAufnahmen = 0;               // Selbsttest: aufgenommene Bilder
 
     // Wo die Trennlinien des Rasters liegen, als Anteil - senkrecht und
     // waagerecht. Ziehbar, wie die Kanten zwischen Bereichen in Blender.
@@ -2414,6 +2487,8 @@ void playSoundSchleife(const std::string& name, double dauerMs, float lautstaerk
 void spieleMusik(const std::string& spec, double abMs);
 // Die Levelmusik aus dem worldspawn ("music"), leer wenn keine.
 std::string weltMusik();
+// Klang hinter einem use (target_play_music, target_speaker), leer ohne (app_view3d.cpp)
+std::string useSoundFor(const std::string& ziel, bool* istMusik);
 
 double soundLengthMs(const std::string& name);
 // Klaenge am Ort, wie die Engine sie hoert (app_view3d.cpp)
@@ -2423,6 +2498,10 @@ void spieleLautsprecher(const std::string& name, const std::string& datei);
 // ICARUS-Nachbau (app_view3d.cpp)
 std::string aktiverSkriptPfad();
 const Script* skriptFuerAblauf(const std::string& pfad);
+// Der Reiter mit dem Skript `pfad` (ICARUS-Name, z. B. "md_ga/kill_fett2"): aus dem
+// Speicher geoeffnet oder aus einer Datei unter .../scripts/. aktivLebend: beim
+// aktiven Reiter gelten die Angaben der App statt der geparkten. -1: keiner.
+int reiterMitAblaufSkript(const std::string& pfad, bool aktivLebend);
 std::shared_ptr<const Roff> roffFuer(const std::string& name);
 AblaufWelt ablaufWelt();
 void pfadeAufsSkript();
@@ -2509,7 +2588,33 @@ void rueckwaertsLaufen(const Path& navgoal);
 void gangartMenueInhalt();
 void zurEntityFliegen(std::size_t i);
 void entityMenue(std::size_t i);
-bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser);
+bool verschiebeImAblauf(const Path& p, double delta, bool nurDieser, Path* warte = nullptr, std::string* vorher = nullptr);
+// zeitleiste1 (gui/app_zeitleiste.cpp)
+void zeitleisteModellBauen();
+// Zeitleiste 2 Punkt 7 (app_zeitleiste.cpp): g_subtitles der Vorschau, der
+// Schalter in der Transportleiste und die Untertitel im Spielrahmen a..b
+// (nach Balken und Blende, wie CG_Draw2D).
+[[nodiscard]] int untertitelStufe();
+void untertitelSchalter();
+void untertitelZeichnen(ImDrawList* dl, ImVec2 a, ImVec2 b);
+// Zeitleiste 2 Punkt 1 (app_mission.cpp): eine Figur steuern, daraus Laufziele.
+[[nodiscard]] bool aufnahmeLaeuft();
+[[nodiscard]] bool aufnahmeMoeglich(int figur);
+void aufnahmeStarten(int figur);
+void aufnahmeBeenden(bool schreiben);
+void aufnahmeKnopf();                                    // in der Transportleiste
+void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern, Spur, Hinweis
+[[nodiscard]] int aufnahmeProben();                      // Selbsttest
+[[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
+float zeitleisteNamenBreite(float verfuegbar);
+void zeitleisteNavigation(float x0, float w, double gesamt);
+void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double sichtSpanne, double ablaufEnde, float hoehe);
+float zeitleisteErklaerungHoehe(float verfuegbar);
+void zeitleisteErklaerung(float breite, float hoehe);
+void zeitleisteDauerSchreiben(const spuren::Clip& c, double neuMs);
+void zeitleisteVerschieben(const spuren::Clip& c, double delta, bool nurDieser);
+void zeitleisteFilmBild(int nummer, const std::vector<std::uint8_t>& rgba, int breite, int hoehe);
+std::string untertitelFuer(const std::string& klang, std::string* schluessel);
 void openEditorForNode(const Path& p);
 std::vector<Path> selectionOrCurrent();
 bool isSelected(const Path& p);

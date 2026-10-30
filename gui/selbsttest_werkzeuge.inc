@@ -889,8 +889,10 @@ std::vector<Schritt> folgeSchritte() {
     }));
 
     // --- Zeitleiste: Zeile, Bewegung, Ausloeser (rc597) ---------------------
-    add(tu("Zeitleiste: den Spawner der Figur waehlen, Spuren an", [=] {
-        g_app->showTracks = true;
+    add(tu("Zeitleiste: den Spawner der Figur waehlen (Uebersicht, ganze Szene)", [=] {
+        g_app->zlDetail = false;
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
         g_app->selectedActor = -1;
         entityAuswahlSetzen(figur->entity);
         g_app->playMs = figur->ms;
@@ -898,12 +900,11 @@ std::vector<Schritt> folgeSchritte() {
     }));
     add(pause(0.5));
     add(foto("zeitleiste_figur"));
-    add(pruefe("Zeitleiste: die Zeile der gewaehlten Figur leuchtet, ihre Bewegung und deren Ausloeser sind markiert", [=] {
+    add(pruefe("Zeitleiste: die Zeile der gewaehlten Figur leuchtet, ihre Laeufe sind da", [=] {
         const std::string soll = g_app->scene.actors[static_cast<std::size_t>(std::max(figur->actor, 0))].name;
         diag::detail("Knopftest: Zeitleiste - Zeile \"" + g_app->tlAuswahlZeile + "\" (erwartet \"" + soll + "\"), " +
-                     std::to_string(g_app->tlBewegungsBalken) + " Bewegungsbalken, " + std::to_string(g_app->tlAusloeser) +
-                     " Ausloeser");
-        return figur->actor >= 0 && g_app->tlAuswahlZeile == soll && g_app->tlBewegungsBalken > 0 && g_app->tlAusloeser > 0;
+                     std::to_string(g_app->tlBewegungsBalken) + " Laufbloecke");
+        return figur->actor >= 0 && g_app->tlAuswahlZeile == soll && g_app->tlBewegungsBalken > 0;
     }));
 
     // --- Live ziehen: die Figur geht mit, der Gizmo zittert nicht (rc597) ----
@@ -1546,8 +1547,9 @@ std::vector<Schritt> folgeSchritte2(std::shared_ptr<FolgeZiel> schiff, std::shar
         return m.animation == "BOTH_WALK1" || m.animation == "BOTH_RUN1";
     }));
     // Zeitleiste: den Balken des Laufs anfassen und nach rechts ziehen.
-    add(tu("Zeitleiste: Spuren an, Zeit vor den Lauf", [=] {
-        g_app->showTracks = true;
+    add(tu("Zeitleiste: Zeit vor den Lauf, ganze Szene", [=] {
+        g_app->timelineZoom = 1.0;
+        g_app->timelineViewStartMs = 0.0;
         const ActorStep* st = laufVon(figur->actor);
         if (st != nullptr) { gp->startMs0 = st->startMs; }
     }));
@@ -1585,9 +1587,8 @@ std::vector<Schritt> folgeSchritte2(std::shared_ptr<FolgeZiel> schiff, std::shar
         return -1000.0F;
     };
     auto figName = std::make_shared<std::string>();
-    add(tu("Baum: die Figur waehlen, waits aus", [=] {
-        g_app->showTracks = true;
-        g_app->tlWaitsZeigen = false;
+    add(tu("Baum: die Figur waehlen (Uebersicht)", [=] {
+        g_app->zlDetail = false;
         g_app->tlOffen.clear();
         g_app->tlRollFigur = -1;
         g_app->selectedActor = -1;
@@ -1597,46 +1598,29 @@ std::vector<Schritt> folgeSchritte2(std::shared_ptr<FolgeZiel> schiff, std::shar
     }));
     add(pause(0.5));
     add(foto("zeitleiste_baum"));
-    add(pruefe("Baum: die gewaehlte Figur klappt auf - eigene Spuren je Art, keine wait-Bloecke", [=] {
+    add(pruefe("Baum: die gewaehlte Figur klappt auf - Animation und Befehle darunter", [=] {
         std::string zeilen;
         for (const auto& [z, y] : g_app->tlZeilenY) { zeilen += " [" + z + "]"; }
         diag::detail("Knopftest: Baum - Zeilen" + zeilen + "; wait-Bloecke " + std::to_string(g_app->tlWaitBloecke));
-        return g_app->tlOffen.count(*figName) != 0U && zeileDa(*figName + "/" + tr(Str::TlKatBewegung)) &&
-               g_app->tlWaitBloecke == 0;
+        return g_app->tlOffen.count(*figName) != 0U && zeileDa(*figName + "/animation") && zeileDa(*figName + "/befehle");
     }));
-    add(tu("Baum: waits einblenden", [] { g_app->tlWaitsZeigen = true; }));
-    add(pause(0.3));
-    add(pruefe("Baum: der Schalter zeigt die waits wieder als Bloecke", [] {
-        diag::detail("Knopftest: Baum - mit waits " + std::to_string(g_app->tlWaitBloecke) + " wait-Bloecke");
-        return g_app->tlWaitBloecke > 0;
-    }));
-    add(tu("Baum: waits wieder aus", [] { g_app->tlWaitsZeigen = false; }));
-    add(pause(0.3));
     add(klickAn("Pfeil der Figur (zuklappen)", [=] {
         return ImVec2{g_app->tlKopfX + g_app->tlZeilenH * 0.5F, zeileY(*figName)};
     }));
     add(pause(0.3));
     add(pruefe("Baum: der Pfeil klappt die Figur zu", [=] {
-        return g_app->tlOffen.count(*figName) == 0U && zeileDa(*figName) && !zeileDa(*figName + "/" + tr(Str::TlKatBewegung));
+        return g_app->tlOffen.count(*figName) == 0U && zeileDa(*figName) && !zeileDa(*figName + "/befehle");
     }));
-    add(tu("Baum: Spuren nach oben rollen (die Kamera steht oben)", [] {
-        for (ImGuiWindow* w : GImGui->Windows) {
-            if (w != nullptr && std::strstr(w->Name, "/tracks_") != nullptr) { ImGui::SetScrollY(w, 0.0F); }
-        }
-    }));
+    // zeitleiste1: statt der Kameragruppe die zwei Ansichten - Detail zeigt
+    // Kamerafahrt, Schwenk, Zoom und Blende getrennt, die Uebersicht den Ort.
+    add(tu("Baum: Ansicht Detail", [] { g_app->zlDetail = true; }));
     add(pause(0.3));
-    add(klickAn("Pfeil der Kamera (zuklappen)", [=] {
-        return ImVec2{g_app->tlKopfX + g_app->tlZeilenH * 0.5F, zeileY("camera")};
+    add(pruefe("Baum: Detail zeigt die Kamerafahrt als eigene Zeile, die Uebersichtszeile nicht", [=] {
+        return zeileDa("fahrt") && !zeileDa("ort");
     }));
+    add(tu("Baum: Ansicht Uebersicht", [] { g_app->zlDetail = false; }));
     add(pause(0.3));
-    add(pruefe("Baum: die Kameragruppe klappt zu - ihre Zeilen sind weg, die Gruppe bleibt", [=] {
-        return !g_app->tlKameraOffen && zeileDa("camera") && !zeileDa("camera MOVE");
-    }));
-    add(klickAn("Pfeil der Kamera (aufklappen)", [=] {
-        return ImVec2{g_app->tlKopfX + g_app->tlZeilenH * 0.5F, zeileY("camera")};
-    }));
-    add(pause(0.3));
-    add(pruefe("Baum: und wieder auf", [=] { return g_app->tlKameraOffen && zeileDa("camera MOVE"); }));
+    add(pruefe("Baum: und wieder die Uebersicht mit Kamera - Ort", [=] { return zeileDa("ort") && !zeileDa("fahrt"); }));
     add(klickAn("Pfeil der Figur (aufklappen)", [=] {
         return ImVec2{g_app->tlKopfX + g_app->tlZeilenH * 0.5F, zeileY(*figName)};
     }));

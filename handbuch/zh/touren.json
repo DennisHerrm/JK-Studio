@@ -877,7 +877,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**修改时长。** 拖动块的右边缘——行走、摄像机移动、等待——使其变短或变长。",
+      "text": "**修改时长。** 拖动摄像机块或等待块的右边缘可使其变短或变长。行走保持其长度：它来自寻路和角色速度。",
       "bild": "c_tl_kante",
       "unter": "块的右边缘。",
       "ziel": "gezeichnet:zeitleiste",
@@ -888,7 +888,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒。时间显示会告诉你当前位置;单击它可切换为帧。",
+      "text": "**精确步进。** 鼠标位于时间轴上时,<kbd>←</kbd> / <kbd>→</kbd> 把播放头移动 50 毫秒,按住 <kbd>Shift</kbd> 则移动一秒，按住 <kbd>Ctrl</kbd> 则移动五秒。时间显示会告诉你当前位置;单击它可切换为帧。",
       "bild": "c_tl_zeit",
       "unter": "时间显示。",
       "ziel": "gezeichnet:zeitleiste",

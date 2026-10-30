@@ -877,7 +877,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Změňte délku.** Táhněte pravý okraj bloku - chůze, pohybu kamery, čekání - a zkrátíte nebo prodloužíte ho.",
+      "text": "**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.",
       "bild": "c_tl_kante",
       "unter": "Pravý okraj bloku.",
       "ziel": "gezeichnet:zeitleiste",
@@ -888,7 +888,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Přesné kroky.** S myší nad časovou osou posouvají <kbd>Left</kbd> / <kbd>Right</kbd> ukazatel přehrávání o 50 ms, s <kbd>Shift</kbd> o sekundu. Zobrazení času ukazuje, kde jste; kliknutím přepnete na snímky.",
+      "text": "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.",
       "bild": "c_tl_zeit",
       "unter": "Zobrazení času.",
       "ziel": "gezeichnet:zeitleiste",

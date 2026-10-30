@@ -90,6 +90,7 @@
 #include <string>
 #include <vector>
 
+#include "bhed/untertitel.h"   // Zeitleiste 2: Untertitel im Vorschau-Bild
 #include "bhed/utf8pfad.h"
 
 namespace bhed::gui {
@@ -3879,7 +3880,8 @@ std::vector<Schritt> kartenBreitSchritte() {
     add(klick(tr(Str::TlRewind), "###main"));
     add(pruefe("To start: Zeit auf null", [] { return g_app->playMs < 0.5; }));
     for (const auto& [sw, wert] : std::vector<std::pair<Str, bool*>>{
-             {Str::TlAudio, &g_app->playAudio}, {Str::TlFollow, &g_app->followCam}, {Str::TlTracks, &g_app->showTracks}}) {
+             {Str::TlAudio, &g_app->playAudio}, {Str::TlFollow, &g_app->followCam}, {Str::ZlNurAktive, &g_app->zlNurAktive},
+             {Str::ZlProbleme, &g_app->zlProbleme}}) {
         auto v0 = std::make_shared<bool>(false);
         const std::string name = tr(sw);
         bool* w = wert;
@@ -3894,12 +3896,13 @@ std::vector<Schritt> kartenBreitSchritte() {
     add(klick(g_app->timelineFrames ? tr(Str::TlUnitFrames) : tr(Str::TlUnitSeconds), "###main"));
     add(pruefe("Frames/Seconds schaltet die Anzeige um", [=] { return g_app->timelineFrames != *einheit0; }));
     add(tu("Einheit zurueck", [=] { g_app->timelineFrames = *einheit0; }));
-    add(klick(std::string(tr(Str::TlZoomMenu)) + ":", "###main", 0, true));
-    add(klick("4x", "##Popup", 0, true));
-    add(pruefe("Zoom-Menue: 4x", [] { return std::fabs(g_app->timelineZoom - 4.0F) < 0.01F; }));
-    add(klick(std::string(tr(Str::TlZoomMenu)) + ":", "###main", 0, true));
-    add(klick(tr(Str::TlFit), "##Popup"));
-    add(pruefe("Zoom-Menue: All", [] { return std::fabs(g_app->timelineZoom - 1.0F) < 0.01F; }));
+    // zeitleiste1: "+" vergroessert um 1,6 (Entwurf), "Alles" zeigt die ganze Szene.
+    auto zoom0 = std::make_shared<double>(1.0);
+    add(tu("Zoom merken", [=] { *zoom0 = g_app->timelineZoom; }));
+    add(klick(tr(Str::TlZoomIn), "###main"));
+    add(pruefe("Zoom: + vergroessert um 1,6", [=] { return std::fabs(g_app->timelineZoom - std::min(*zoom0 * 1.6, App::kMaxZoom)) < 0.01; }));
+    add(klick(tr(Str::TlFit), "###main"));
+    add(pruefe("Zoom: Alles", [] { return std::fabs(g_app->timelineZoom - 1.0) < 0.01; }));
     // Der Zeiger steht seit 27.09. im Lineal: dort ziehen setzt die Zeit.
     add(ziehenAn("Abspielzeiger (im Lineal)", [] {
         const Element* e = finde("##zeitlineal", "###main", 0, false);
@@ -5476,6 +5479,8 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
+#include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
+#include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -5788,6 +5793,10 @@ void selbsttest() {
     static const bool nurJk2 = std::strcmp(modus, "jk2") == 0;
     // mission1: die vier Fehler aus shanks Test nach rc606.
     static const bool nurMission1 = std::strcmp(modus, "mission1") == 0;
+    // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
+    static const bool nurZeitleiste0 = std::strcmp(modus, "zeitleiste0") == 0;
+    // zeitleiste1: die neue Zeitleiste (Mini-Szene, academy1, md_am_sith).
+    static const bool nurZeitleiste1 = std::strcmp(modus, "zeitleiste1") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -5892,6 +5901,14 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurMission1) {
                 a.schritte = mission1Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurZeitleiste0) {
+                a.schritte = zeitleiste0Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurZeitleiste1) {
+                a.schritte = zeitleiste1Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

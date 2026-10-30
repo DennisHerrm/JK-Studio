@@ -194,9 +194,9 @@ ZEIT = [
         T("Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves."),
         T("Timeline · five steps"), "k_waits",
         [
-            (T("**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly."),
+            (T("**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly."),
              "k_waits", T("Waits shown as blocks.")),
-            T("**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start."),
+            T("**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section."),
             T("**Frames.** Click the time display to switch between seconds and frames."),
             T("**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x."),
             T("**Overlap warning.** A warning sign on a camera block: it overlaps the next move. In the game the next one starts from where this one began, and the camera jumps - shorten one of them."),
