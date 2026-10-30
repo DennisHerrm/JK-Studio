@@ -322,7 +322,24 @@ void dockspace(int bereich, const Vorgabe& v, const std::vector<ImRect>& rechtec
 bool zeigen(int bereich, const Vorgabe& v, int i, const std::vector<ImRect>& rechteck) {
     const char* id = v.panels[static_cast<std::size_t>(i)].c_str();
     if (dock::versteckt(id)) { return false; }
-    if (!raum(bereich).qt || draussen(bereich, id)) { return true; }
+    Raum& r = raum(bereich);
+    const std::string name = dock::fensterName(id);
+    const ImGuiID knoten = dockIdVon(name);
+    const bool lassen = std::find(r.draussenLassen.begin(), r.draussenLassen.end(), id) != r.draussenLassen.end();
+    if (!r.frisch && !lassen && knoten != 0 && ImGui::DockBuilderGetNode(knoten) == nullptr &&
+        (static_cast<std::size_t>(i) >= r.heim.size() || r.heim[static_cast<std::size_t>(i)] == 0)) {
+        // Sein Knoten ist weg und sein Blatt verschmolzen (ohne DockSpace heraus und
+        // wieder an seinen Platz gekommen): die Vorgabe neu aufbauen, Panels in eigenen
+        // Fenstern bleiben draussen; dieses Bild zeichnet es noch nicht.
+        r.neuBauen = true;
+        r.draussenLassen.clear();
+        for (const std::string& p : r.panels) {
+            if (p != id && draussen(bereich, p.c_str())) { r.draussenLassen.push_back(p); }
+        }
+        diag::detail(std::string("Fenster: Panel ") + id + " ohne Knoten - Vorgabe " + r.schluessel + " neu");
+        return false;
+    }
+    if (!r.qt || draussen(bereich, id)) { return true; }
     return gueltig(rechteck[static_cast<std::size_t>(i)]);
 }
 

@@ -64,6 +64,19 @@ const char* const kPraefix[kBereiche] = {"ereignisse.", "mission.", "modell.", "
 
 std::string panelFensterName(const Panel& p) { return std::string(tr(p.titel)) + fenster::kFensterKennung + p.id; }
 
+// dock4, Schalter an/aus/an: ImGui loest ein Fenster aus seinem Dock-Baum, sobald es
+// gezeichnet wird, waehrend sein DockSpace nicht gezeichnet wird - ohne DockSpace
+// herausgenommen haengt ein Panel danach an keinem Knoten mehr. Kommt es ohne
+// DockSpace wieder an seinen Platz, bekommt sein Fenster einen Knoten, den es nicht
+// gibt: mit DockSpace setzt ihn der Bereich dann in sein Blatt (wie nach einem
+// Neuaufbau), statt dass es schwebt. Ohne DockSpace wird die Marke beim naechsten
+// Herausnehmen wieder entfernt (fensterBeginnen).
+void heimVormerken(const Panel& p) {
+    if (ImGuiWindow* w = ImGui::FindWindowByName(panelFensterName(p).c_str()); w != nullptr && w->DockNode == nullptr) {
+        w->DockId = ImHashStr((std::string("bhed.dock.heim.") + p.id).c_str());
+    }
+}
+
 bool istPanelFenster(const ImGuiWindow* w) {
     return w != nullptr && std::string(w->Name).find(fenster::kFensterKennung) != std::string::npos;
 }
@@ -314,6 +327,7 @@ void andocken(const char* id) {
     }
     fenster::Anordnung* a = anordnungVon(id);
     if (a == nullptr || (!fenster::enthaelt(a->draussen, id) && !fenster::enthaelt(a->versteckt, id))) { return; }
+    if (fenster::enthaelt(a->draussen, id)) { heimVormerken(*panel(id)); }
     fenster::entfernen(a->draussen, id);
     fenster::entfernen(a->versteckt, id);
     diag::detail(std::string("Fenster: Panel ") + id + " wieder im Hauptfenster");
@@ -325,6 +339,7 @@ void ausblenden(const char* id, bool aus) {
     if (a == nullptr || fenster::enthaelt(a->versteckt, id) == aus) { return; }
     if (aus) {
         fenster::einfuegen(a->versteckt, id);
+        if (!dockraumAn() && fenster::enthaelt(a->draussen, id)) { heimVormerken(*panel(id)); }
         fenster::entfernen(a->draussen, id);
     } else {
         fenster::entfernen(a->versteckt, id);
@@ -336,6 +351,11 @@ void ausblenden(const char* id, bool aus) {
 void zuruecksetzen(int bereich) {
     if (bereich < 0 || bereich >= kBereiche) { return; }
     fenster::Anordnung& a = z().jetzt[static_cast<std::size_t>(bereich)];
+    if (!dockraumAn()) {
+        for (const std::string& id : a.draussen) {
+            if (const Panel* p = panel(id); p != nullptr) { heimVormerken(*p); }
+        }
+    }
     a.draussen.clear();
     a.versteckt.clear();
     if (dockraumAn()) {   // dock2/dock4: DockSpace neu aufbauen
@@ -502,7 +522,17 @@ bool fensterBeginnen(const char* id) {
     // auch mit ImGuiCond_FirstUseEver, solange ImGui die Bedingung fuer das
     // Fenster noch zulaesst (Selbsttest dock1: geladene Anordnung zerfiel).
     const std::string name = panelFensterName(*p);
-    if (ImGui::FindWindowByName(name.c_str()) == nullptr) { startLage(id); }
+    // Die Marke aus heimVormerken (oder ein Knoten, den es nicht mehr gibt): ohne
+    // DockSpace schwebt das Panel - ImGui legte sonst einen Knoten mit dieser Nummer an.
+    if (ImGuiWindow* w = ImGui::FindWindowByName(name.c_str()); w != nullptr) {
+        if (w->DockNode == nullptr && w->DockId != 0 && ImGui::DockBuilderGetNode(w->DockId) == nullptr) { w->DockId = 0; }
+    } else {
+        if (ImGuiWindowSettings* st = ImGui::FindWindowSettingsByID(ImHashStr(name.c_str()));
+            st != nullptr && st->DockId != 0 && ImGui::DockBuilderGetNode(st->DockId) == nullptr) {
+            st->DockId = 0;
+        }
+        if (ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())) == nullptr) { startLage(id); }
+    }
     bool offen = true;
     const bool sichtbar = ImGui::Begin(name.c_str(), &offen, ImGuiWindowFlags_NoCollapse);
     s.fensterGeschlossen = !offen;

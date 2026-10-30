@@ -439,6 +439,26 @@ void zeichnen(const Layout& l) {
         ImGui::SetNextWindowClass(&k);
         const bool lassen = (alteListe && dock::inListeDraussen(p[i].id)) ||
                             std::find(raum.draussenLassen.begin(), raum.draussenLassen.end(), p[i].id) != raum.draussenLassen.end();
+        // dock4, Schalter an/aus/an: ohne DockSpace heraus und wieder an seinen Platz -
+        // sein Knoten ist weg (fenster_dock: heimVormerken). In sein Blatt, gibt es das
+        // nicht mehr, die Standardanordnung neu (in eigenen Fenstern bleibt, was draussen ist).
+        const ImGuiID knoten = panelKnoten(p[i]);
+        if (!raum.frisch && !lassen && knoten != 0 && ImGui::DockBuilderGetNode(knoten) == nullptr) {
+            const ImGuiDockNode* h = i < raum.heim.size() && raum.heim[i] != 0 ? ImGui::DockBuilderGetNode(raum.heim[i]) : nullptr;
+            if (h != nullptr && h->IsLeafNode() && h->Windows.Size == 0) {
+                ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always);
+            } else {
+                raum.neuBauen = true;
+                raum.draussenLassen.clear();
+                for (const Blatt& x : p) {
+                    if (x.id != p[i].id && draussen(x.id)) { raum.draussenLassen.emplace_back(x.id); }
+                }
+                diag::detail(std::string("Fenster: Panel ") + p[i].id + " ohne Knoten - Standardanordnung neu");
+                ImGui::PopStyleColor(farben);
+                ImGui::PopStyleVar();
+                continue;
+            }
+        }
         if (raum.frisch && !lassen) { ImGui::SetNextWindowDockID(raum.heim[i], ImGuiCond_Always); }
         // In einem eigenen Fenster mit Schliessknopf: Schliessen dockt es wieder an
         // (wie dock1); im Hauptfenster ohne (die Reiterleiste ist versteckt).

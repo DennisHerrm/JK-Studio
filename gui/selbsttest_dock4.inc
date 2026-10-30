@@ -428,6 +428,26 @@ std::vector<Schritt> dock4Schritte() {
         return dock::zuhause("mission.ebenen") && dock::zuhause("mission.fluss") && dockraumStandard(1);
     }));
 
+    // Ohne DockSpace heraus UND wieder an seinen Platz: mit DockSpace steht es angedockt.
+    add(tu("dock4: Schalter aus, Ebenenliste heraus und wieder zurueck (Liste aus dock1)", [] {
+        dockraumAn() = false;
+        dock::herausnehmen("mission.ebenen");
+    }));
+    add(stabil("dock4: Ebenenliste ohne DockSpace draussen", 20));
+    add(tu("dock4: Ebenenliste ohne DockSpace andocken", [] { dock::andocken("mission.ebenen"); }));
+    add(stabil("dock4: Ebenenliste ohne DockSpace zurueck", 10));
+    add(tu("dock4: Schalter wieder an - gespeicherten Baum lesen", [] {
+        dock::jetztMerken();
+        dockraumAn() = true;
+        dockraumNeuLesen(1);
+    }));
+    add(stabil("dock4: Schalter an (zweites Mal)", 25));
+    add(pruefe("dock4: an/aus/an - ohne DockSpace zurueckgelegt steht die Ebenenliste wieder angedockt, Standardanordnung", [] {
+        diag::detail(std::string("Knopftest: dock4: Ebenenliste ") + (dock::zuhause("mission.ebenen") ? "zuhause" : "draussen") + ", Standard " +
+                     (dockraumStandard(1) ? "ja" : "nein"));
+        return dock::zuhause("mission.ebenen") && dockraumStandard(1);
+    }));
+
     // --- 3. Hover-Linie der alten Griffe von Events -----------------------------
     add(tu("dock4: Events im DockSpace", [] {
         g_app->leftMode = 0;
@@ -603,6 +623,55 @@ std::vector<Schritt> dock4Schritte() {
         diag::detail(t);
         return n == *modelle + 1 && gelesen && std::fabs(x - (*soll)[0]) < 0.5F && std::fabs(y - (*soll)[1]) < 0.5F;
     }));
+    // Wie der Explorer: die Datei kommt aus einem ANDEREN Prozess (WM_DROPFILES per
+    // PostMessage ueber die Prozessgrenze). Nur mit BHED_DOCK4_EXTERN - dann legt
+    // SP\d4_ablage_extern.py die Datei auf die Mitte des Windows-Fensters von XY.
+    if (std::getenv("BHED_DOCK4_EXTERN") != nullptr) {
+        auto modelleVorher = std::make_shared<int>(0);
+        auto ziel = std::make_shared<std::array<float, 2>>();
+        add(tu("dock4: Ablage aus einem anderen Prozess vorbereiten", [modelleVorher, ziel] {
+            {
+                std::ofstream o(::bhed::utf8Pfad(platform::executableDirectory() + "\\dock4extern.obj"));
+                o << "v 0 0 0\nv 16 0 0\nv 0 16 0\nf 1 2 3\n";
+            }
+            *modelleVorher = 0;
+            for (const auto& e : ke::editor().karte.entitaeten()) {
+                if (e->klassenname() == "misc_model") { ++*modelleVorher; }
+            }
+            const ImGuiWindow* w = dock1::panelFenster("karte.xy");
+            if (w == nullptr || w->Viewport == nullptr) { return; }
+            // die Mitte der Innenflaeche des Windows-Fensters (GetClientRect / 2), in Bildschirmpunkten
+            const ImVec2 mitte{w->Viewport->Pos.x + std::floor(w->Viewport->Size.x * 0.5F), w->Viewport->Pos.y + std::floor(w->Viewport->Size.y * 0.5F)};
+            const ke::XyFenster& f = ke::editor().xy[0];
+            const karte::Vektor3f p = f.ansicht.zuPunkt(static_cast<int>(mitte.x - f.bildX), static_cast<int>(mitte.y - f.bildY),
+                                                        ke::editor().raster.einrastGroesse());
+            (*ziel)[0] = p.x();
+            (*ziel)[1] = p.y();
+            diag::detail("Knopftest: dock4: warte auf eine Ablage von aussen (dock4extern.obj auf das Fenster XY)");
+        }));
+        add(warteBis("dock4: Ablage aus einem anderen Prozess angekommen", [modelleVorher] {
+            int n = 0;
+            for (const auto& e : ke::editor().karte.entitaeten()) {
+                if (e->klassenname() == "misc_model") { ++n; }
+            }
+            return n > *modelleVorher;
+        }, 3000));
+        add(pruefe("dock4: Datei aus einem anderen Prozess (wie aus dem Explorer) auf das eigene Fenster - misc_model unter der Mitte", [ziel] {
+            std::string ort;
+            for (const auto& e : ke::editor().karte.entitaeten()) {
+                if (e->klassenname() == "misc_model") { ort = e->wert("origin"); }
+            }
+            float x = 0.0F;
+            float y = 0.0F;
+            float z = 0.0F;
+            const bool gelesen = std::sscanf(ort.c_str(), "%f %f %f", &x, &y, &z) == 3;
+            char t[200];
+            std::snprintf(t, sizeof(t), "Knopftest: dock4: von aussen abgelegt, origin \"%s\", soll x %.0f y %.0f", ort.c_str(),
+                          static_cast<double>((*ziel)[0]), static_cast<double>((*ziel)[1]));
+            diag::detail(t);
+            return gelesen && std::fabs(x - (*ziel)[0]) < 0.5F && std::fabs(y - (*ziel)[1]) < 0.5F;
+        }));
+    }
     add(tu("dock4: XY zurueck, Map Editor wie am Anfang", [stand] {
         dock::andocken("karte.xy");
         ke::Editor& e = ke::editor();
