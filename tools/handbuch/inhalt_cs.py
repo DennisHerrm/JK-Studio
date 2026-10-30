@@ -238,8 +238,6 @@ TEXTE = {
         "**Kde dát signál.** Do druhého skriptu, v okamžiku, kdy má pokračovat, vložte `signal ( \"door_open\" )`.",
     "**Check the names.** Both must be spelled the same. Only one script can wait for a signal of a given name.":
         "**Zkontrolujte názvy.** Oba musí být napsané stejně. Na signál daného názvu může čekat jen jeden skript.",
-    "**See it in the timeline.** Expand the figure's group in the timeline: the row **{{TlKatAblauf}}** shows waits and signals as blocks.":
-        "**Podívejte se na časovou osu.** Rozbalte skupinu postavy na časové ose: řádek **{{TlKatAblauf}}** ukazuje čekání a signály jako bloky.",
     "The timeline cannot know how long a `waitsignal` waits in the game - everything after it is placed as if the signal came at once.":
         "Časová osa nemůže vědět, jak dlouho `waitsignal` ve hře čeká - vše po něm se umístí, jako by signál přišel hned.",
     "Use macros":
@@ -316,8 +314,6 @@ TEXTE = {
         "**Přiblížení.** Zvolte `ZOOM`: první číslo je zorné pole (80 je normální, menší je blíž), druhé čas v milisekundách, za který se ho dosáhne.",
     "**Fade.** Choose `FADE`: start colour and opacity, end colour and opacity (0 to 1), and the time. `0 0 0`, `0` to `0 0 0`, `1` fades to black.":
         "**Zatmívání.** Zvolte `FADE`: počáteční barva a krytí, koncová barva a krytí (0 až 1) a čas. `0 0 0`, `0` na `0 0 0`, `1` zatmí do černa.",
-    "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. The timeline shows zoom, fade and shake in their own rows under **{{TlKamera}}**.":
-        "**Otřesy.** Zvolte `SHAKE`: síla 0 až 16 a doba v milisekundách. Časová osa ukazuje zoom, zatmívání a otřesy ve vlastních řádcích pod **{{TlKamera}}**.",
     "The camera rows of the timeline.":
         "Řádky kamery na časové ose.",
     "Retime a cutscene in the timeline":
@@ -334,8 +330,6 @@ TEXTE = {
         "Tažení bloku na časové ose: vše po něm se posune s ním.",
     "**Change a duration.** Drag the right edge of a block - a camera move, a wait - to make it shorter or longer.":
         "**Změňte délku.** Táhněte pravý okraj bloku - pohyb kamery, čekání - a zkrátíte nebo prodloužíte ho.",
-    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second.":
-        "**Přesné kroky.** S myší nad časovou osou posouvají <kbd>Left</kbd> / <kbd>Right</kbd> ukazatel přehrávání o 50 ms, s <kbd>Shift</kbd> o sekundu.",
     "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block to see its line.":
         "**Zkontrolujte skript.** Každé tažení změní hodnotu ve skriptu (čekání, čas). Kliknutím na blok uvidíte jeho řádek.",
     "A warning sign on a camera block means it overlaps the next one - in the game the next move would start from where this one began, and the camera jumps.":
@@ -382,8 +376,6 @@ TEXTE = {
         "**Ve stoje.** Pravé tlačítko na cílové entitě v seznamu entit → **{{EntityAsWatch}}** (`SET_WATCHTARGET`) nebo **{{EntityAsLook}}** (`SET_LOOK_TARGET`). Příkaz se vloží do skriptu za vybraný řádek.",
     "**Back to normal.** Right-click the walk target → **{{BahnBlickFrei}}**.":
         "**Zpět k normálu.** Pravé tlačítko na cíli chůze → **{{BahnBlickFrei}}**.",
-    "**Check it.** Play the timeline. The category **{{TlKatBlick}}** in the figure's group shows when it looks where.":
-        "**Zkontrolujte to.** Přehrajte časovou osu. Kategorie **{{TlKatBlick}}** ve skupině postavy ukazuje, kdy se dívá kam.",
     "Turn a figure at a moment":
         "Otočit postavu v daném okamžiku",
     "Set which way a figure faces at a certain time - with the rotate ring on the map.":
@@ -702,8 +694,6 @@ TEXTE = {
         "**Sledování.** Za záběr kamery vložte `camera` a zvolte `FOLLOW`: skupinu `hero`, rychlost otáčení (například `100`) a `1` pro plynulý přechod. Kamera se teď stále otáčí k postavě.",
     "**Keep a distance.** `camera ( DISTANCE, 200, 1 )` keeps the camera 200 units from the group, moving with it.":
         "**Držet odstup.** `camera ( DISTANCE, 200, 1 )` drží kameru 200 jednotek od skupiny a pohybuje se s ní.",
-    "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the timeline, the **Follow** row under **{{TlKamera}}** shows how long it lasts.":
-        "**Sledujte to.** Zapněte **{{MapThroughCam}}** a přehrajte časovou osu: pohled se stále otáčí k postavě. Na časové ose ukazuje řádek **Sledování** pod **{{TlKamera}}**, jak dlouho to trvá.",
     "Through the camera: it keeps turning towards Kyle.":
         "Pohledem kamery: stále se otáčí ke Kylovi.",
     "`SET_CAMERA_GROUP_Z_OFS` aims higher or lower on the followed figure.":
@@ -1096,12 +1086,8 @@ TEXTE = {
         "Časová osa podrobně",
     "Waits as blocks, quiet rows, frames instead of seconds, speed - and the warning for overlapping camera moves.":
         "Čekání jako bloky, tiché řádky, snímky místo sekund, rychlost - a varování před překrývajícími se pohyby kamery.",
-    "**Waits as blocks.** **{{TlWaits}}** shows every `wait` as its own block - drag it to change it directly.":
-        "**Čekání jako bloky.** **{{TlWaits}}** ukáže každé `wait` jako samostatný blok - tažením ho přímo změníte.",
     "Waits shown as blocks.":
         "Čekání zobrazená jako bloky.",
-    "**Quiet rows.** **{{TlIdleTracks}}** also shows the rows where nothing happens after the start.":
-        "**Tiché řádky.** **{{TlIdleTracks}}** ukáže i řádky, ve kterých se po začátku nic neděje.",
     "**Frames.** Click the time display to switch between seconds and frames.":
         "**Snímky.** Kliknutím na zobrazení času přepínáte mezi sekundami a snímky.",
     "**Speed.** The list next to the play button plays at 0.25x to 2x; sound only at 1x.":
@@ -1716,34 +1702,16 @@ TEXTE = {
         "Pohled kamerou během přehrávání časové osy.",
     "Some shots stand on a `ref_tag` or look at one. Then the panel says so, and moving the shot moves that ref_tag in the map - the script itself only names it.":
         "Některé záběry stojí na `ref_tag` nebo se na něj dívají. Panel to pak uvádí a posunutí záběru posune tento ref_tag v mapě - samotný skript ho jen jmenuje.",
-    "The timeline plays the scene and shows when every command happens. Drag a block and the script changes with it.":
-        "Časová osa přehrává scénu a ukazuje, kdy se který příkaz stane. Táhněte blok a skript se změní s ním.",
-    "The timeline: camera rows on top, one row per figure, sub-rows by kind, the playhead in orange.":
-        "Časová osa: řádky kamery nahoře, jeden řádek na postavu, podřádky podle druhu, ukazatel přehrávání oranžově.",
     "Playing":
         "Přehrávání",
-    "The play button (▶) under the map starts and stops. Click or drag on the ruler to set the time. The speed field slows the scene down (sound only plays at 1x), **{{TlLoop}}** repeats it. The wheel over the ruler zooms, <kbd>Ctrl</kbd>+wheel over the tracks too; **{{TlFit}}** shows everything, the middle mouse button drags. Frames or seconds - the unit button switches.":
-        "Tlačítko přehrávání (▶) pod mapou spouští a zastavuje. Kliknutím nebo tažením na pravítku nastavíte čas. Pole rychlosti scénu zpomalí (zvuk hraje jen při 1x), **{{TlLoop}}** ji opakuje. Kolečko nad pravítkem přibližuje, <kbd>Ctrl</kbd>+kolečko nad stopami také; **{{TlFit}}** ukáže vše, prostřední tlačítko myši posouvá. Snímky, nebo sekundy - přepíná tlačítko jednotky.",
     "Sound like in the game":
         "Zvuk jako ve hře",
     "The preview plays the scene's sounds the way the game does. You hear from the camera the view shows - the cutscene camera while playing. Every sound is updated every frame: move the camera away and it fades, cut to another place and what is there becomes audible. A voice line that started out of range keeps running silently. Like the game, only sources the camera could see (its PVS) make sabers hum, speakers loop, doors and effects sound; voices, ROFF note sounds and breaking objects are always heard. An invisible NPC does not ignite its saber audibly - the ignition sound comes when it appears. The levels follow the game's defaults (effects 0.5, voices 1.0, music 0.25) and can be changed under **{{MenuEdit}} → {{AppPrefs}}**. Sound only plays at 1x speed.":
         "Náhled přehrává zvuky scény tak, jak to dělá hra. Slyšíte z kamery, kterou pohled ukazuje - při přehrávání z kamery animační sekvence. Každý zvuk se aktualizuje v každém snímku: odsuňte kameru a zeslábne, střihněte na jiné místo a uslyšíte, co je tam. Hlasová replika, která začala mimo dosah, běží dál potichu. Jako ve hře jen zdroje, které kamera mohla vidět (její PVS), nechají meče bzučet, reproduktory hrát ve smyčce, dveře a efekty znít; hlasy, zvuky poznámek ROFF a rozbíjené objekty jsou slyšet vždy. Neviditelné NPC nezapne svůj meč slyšitelně - zvuk zapnutí přijde, až se objeví. Hlasitosti se řídí výchozími hodnotami hry (efekty 0.5, hlasy 1.0, hudba 0.25) a lze je změnit v **{{MenuEdit}} → {{AppPrefs}}**. Zvuk hraje jen při rychlosti 1x.",
     "A ROFF `sound` note on a figure stays where it started under Movie Duels rules and moves with the figure under OpenJK rules ([[einstellungen#prefs]]). Under OpenJK rules every note of a ROFF frame fires (Movie Duels and Jedi Outcast fire only the first), and `loop sfx <sound>` gives the entity a looping sound until `loop sfx kill`; a `USE <script>` note starts that script on the entity, and `loop rof absolute|relative` restarts the path like the game (the task of the `play` never finishes, so a `dowait` on it waits forever).":
         "Poznámka ROFF `sound` na postavě zůstane podle pravidel Movie Duels tam, kde začala, a podle pravidel OpenJK se pohybuje s postavou ([[einstellungen#prefs]]). Podle pravidel OpenJK se spustí každá poznámka snímku ROFF (Movie Duels a Jedi Outcast spustí jen první) a `loop sfx <sound>` dá entitě zvuk ve smyčce až do `loop sfx kill`; poznámka `USE <script>` spustí tento skript na entitě a `loop rof absolute|relative` spustí dráhu znovu jako hra (úloha `play` nikdy neskončí, takže `dowait` na ni čeká navždy).",
-    "Rows and categories":
-        "Řádky a kategorie",
-    "The **{{TlKamera}}** row holds the camera commands (move, pan, zoom, fade). Below, every figure or mover that the script touches has its own row. Click the arrow at its name to open it: the commands are sorted into **{{TlKatBewegung}}**, **{{TlKatAnimation}}**, **{{TlKatBlick}}**, **{{TlKatTon}}**, **{{TlKatZustand}}** and **{{TlKatAblauf}}**. Rows where nothing happens after the start are hidden; tick **{{TlIdleTracks}}** to show them.":
-        "Řádek **{{TlKamera}}** obsahuje příkazy kamery (move, pan, zoom, fade). Pod ním má každá postava nebo mover, se kterým skript pracuje, vlastní řádek. Kliknutím na šipku u jména ho otevřete: příkazy jsou seřazeny do **{{TlKatBewegung}}**, **{{TlKatAnimation}}**, **{{TlKatBlick}}**, **{{TlKatTon}}**, **{{TlKatZustand}}** a **{{TlKatAblauf}}**. Řádky, ve kterých se po začátku nic neděje, jsou skryté; zaškrtnutím **{{TlIdleTracks}}** je zobrazíte.",
-    "The `wait` commands are hidden by default - they still place everything in time, and moving a block adjusts them. **{{TlWaits}}** shows them as blocks of their own.":
-        "Příkazy `wait` jsou ve výchozím stavu skryté - stále umisťují vše v čase a posunutí bloku je upraví. **{{TlWaits}}** je ukáže jako samostatné bloky.",
     "Changing time by dragging":
         "Změna času tažením",
-    "Drag a block left or right and the `wait` before it changes - the command happens earlier or later, everything after it moves along. A camera block can be dragged at its end to change its duration. Walks and flights appear as bands at the bottom of a figure's row; drag them in time the same way, right-click a walk to switch between walking and running.":
-        "Táhněte blok doleva nebo doprava a změní se `wait` před ním - příkaz se stane dřív nebo později, vše po něm se posune s ním. Blok kamery lze táhnout za konec a změnit jeho délku. Chůze a lety se ukazují jako pásy dole v řádku postavy; v čase je táhnete stejně, pravým tlačítkem na chůzi přepnete mezi chůzí a během.",
-    "Clicking a block selects its line in the script, and the map jumps to that moment - timeline, script and map always show the same thing.":
-        "Kliknutí na blok vybere jeho řádek ve skriptu a mapa skočí do toho okamžiku - časová osa, skript a mapa vždy ukazují totéž.",
-    "Times come from a re-creation of the game's ICARUS engine, including its quirks: a `wait` ends one game frame (50 ms) later than written, and a `dowait` waits for the task it names. When a time cannot be known (a `waitsignal`), the timeline says so instead of guessing.":
-        "Časy pocházejí z rekonstrukce enginu ICARUS hry včetně jeho zvláštností: `wait` končí o jeden herní snímek (50 ms) později, než je napsáno, a `dowait` čeká na úlohu, kterou jmenuje. Když čas nelze znát (`waitsignal`), časová osa to řekne místo hádání.",
     "Figures and paths":
         "Postavy a dráhy",
     "Figures walk to their navgoals and ships fly their moves - you see the whole path and can change it on the map.":
@@ -1870,8 +1838,6 @@ TEXTE = {
         "Když skript na entitě přehrává hotový ROFF, okno ho vypíše pod **{{AnimRoffPlays}}**. **{{AnimRoffEdit}}** ho převede na klíče - buď přímé úseky, nebo jednu hladkou křivku, podle toho, co potřebuje méně klíčů - s odchylkou do půl jednotky od originálu. Soubor hry se nikdy nepřepíše: upravujete kopii (`…_2`) a příkaz `play` se přesměruje na ni.",
     "A ship flying its ROFF path.":
         "Loď letící po své dráze ROFF.",
-    "In the timeline a ROFF flight is a band under **{{TlKatBewegung}}**; drag it to start the flight earlier or later.":
-        "Na časové ose je let ROFF pás pod **{{TlKatBewegung}}**; tažením ho let začne dřív nebo později.",
     "The map":
         "Mapa",
     "The map in 3D, drawn like the game draws it - with lights, glow, fog, effects and the figures of the script.":
@@ -3102,8 +3068,6 @@ TEXTE = {
         "Průběh pochází z vlastního výstupu q3map2; fáze s mnoha lightmapami nebo dlouhým odrazem postupuje po krocích. Zbývající čas je jen tak dobrý, jak srovnatelné bylo poslední sestavení - jiná položka, jiné přepínače nebo vytížený počítač ho změní.",
     "Partial compiles":
         "Dílčí kompilace",
-    "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} and {{KeTkLicht}} switched on, below them {{KeZfMenue}} and {{KeFsMelden}} (not in NetRadiant-Custom).":
-        "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} a {{KeTkLicht}} zapnuté, pod nimi {{KeZfMenue}} a {{KeFsMelden}} (není v NetRadiant-Custom).",
     "Two switches in the {{KeLBuild}} menu let every build reuse what has not changed since the last one. The result is **byte for byte the .bsp of a full build** - the ctest `q3map2_teilbau` builds maps both ways and compares the files.":
         "Dva přepínače v nabídce {{KeLBuild}} nechají každé sestavení znovu použít, co se od posledního nezměnilo. Výsledkem je **bajt po bajtu .bsp úplného sestavení** - ctest `q3map2_teilbau` sestavuje mapy oběma způsoby a porovnává soubory.",
     "**{{KeTkVis}}**: `-vis` runs with `-bhedvisreuse`. bhed_q3map2 keeps the visibility in `<map>.bhedvis` together with the portal file and the switches. If the portals (`.prt`), the switches and the far plane key (`_farplanedist`) are the same, it copies the visibility instead of calculating it - the console says **visibility reused**. Portals change only with structural brushes; entities, detail brushes, patches and textures do not change them.":
@@ -4108,8 +4072,6 @@ TEXTE = {
         "Příkaz označený v textu nápovědy `*` (například `SET_NAVGOAL`) dokončí svou úlohu, až když je akce hotová - díky tomu na něj může `dowait` čekat.",
     "camera ( ... ) - the camera commands":
         "camera ( ... ) - příkazy kamery",
-    "The first value of `camera` chooses the command. behaved shows every one of them in the timeline under **{{TlKamera}}** and plays it in the view. Times are in milliseconds.":
-        "První hodnota `camera` volí příkaz. behaved ukazuje každý z nich na časové ose pod **{{TlKamera}}** a přehrává ho v pohledu. Časy jsou v milisekundách.",
     "Values":
         "Hodnoty",
     "What it does (help text of the game)":
@@ -4934,12 +4896,6 @@ TEXTE = {
         "Ukazuje víc času.",
     "Shows less time, in more detail.":
         "Ukazuje méně času, podrobněji.",
-    "One row per figure: when each one walks, speaks and acts.":
-        "Jeden řádek na postavu: kdy která jde, mluví a jedná.",
-    "Also shows rows where nothing happens.":
-        "Ukazuje i řádky, ve kterých se nic neděje.",
-    "Shows the waits as their own blocks.":
-        "Ukazuje čekání jako samostatné bloky.",
     "The time display switches between seconds and frames when you click it; the list next to the play button sets the speed. Drag blocks to move them in time - [[zeitleiste]].":
         "Zobrazení času po kliknutí přepíná mezi sekundami a snímky; seznam vedle tlačítka přehrávání nastavuje rychlost. Tažením bloků je posunete v čase - [[zeitleiste]].",
     "The model toolbar (Model mode)":
@@ -5784,8 +5740,6 @@ TEXTE = {
         "**Zkontrolujte názvy.** Oba musí být napsané přesně stejně. Na signál daného názvu může čekat jen jeden skript. Rozdělené zobrazení (**{{MenuFile}} → {{SplitToggle}} → 2**) ukáže oba najednou.",
     "The same name on both sides.":
         "Stejný název na obou stranách.",
-    "**See it in the timeline.** Switch on **{{TlWaits}}** in the timeline: waits become their own blocks. The timeline cannot know how long a `waitsignal` waits in the game - it places everything after it as if the signal came at once.":
-        "**Podívejte se na časovou osu.** Zapněte na časové ose **{{TlWaits}}**: čekání se stanou samostatnými bloky. Časová osa nemůže vědět, jak dlouho `waitsignal` ve hře čeká - vše po něm umístí, jako by signál přišel hned.",
     "Waits as blocks in the timeline.":
         "Čekání jako bloky na časové ose.",
     "**Find them.** The macros are at the end of the **{{GroupEvents}}** list - scroll down. Each shows how many commands it holds; hover over one to read what it does.":
@@ -5904,20 +5858,14 @@ TEXTE = {
         "**Otřesy.** Zvolte `SHAKE`: (1) síla od 0 do 16 a (2) doba v milisekundách.",
     "camera ( SHAKE ): strength and duration.":
         "camera ( SHAKE ): síla a doba.",
-    "**See them in the timeline.** Under **{{TlKamera}}** the timeline has its own rows for zoom, fade and shake.":
-        "**Podívejte se na ně na časové ose.** Pod **{{TlKamera}}** má časová osa vlastní řádky pro zoom, zatmívání a otřesy.",
     "The rows of the timeline, among them Zoom, Fade and Shake.":
         "Řádky časové osy, mezi nimi Přiblížení, Prolínání a Otřesy.",
     "**Play it.** Press ▶ in the timeline below the map. Switch **{{TlAudio}}** on to hear the dialogue you are matching the cuts against.":
         "**Přehrajte to.** Stiskněte ▶ na časové ose pod mapou. Zapněte **{{TlAudio}}** a uslyšíte dialog, podle kterého ladíte střihy.",
     "To start, play - and Sound.":
         "Na začátek, přehrát - a Zvuk.",
-    "**Change a duration.** Drag the right edge of a block - a walk, a camera move, a wait - to make it shorter or longer.":
-        "**Změňte délku.** Táhněte pravý okraj bloku - chůze, pohybu kamery, čekání - a zkrátíte nebo prodloužíte ho.",
     "The right edge of a block.":
         "Pravý okraj bloku.",
-    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second. The time display shows where you are; click it to switch to frames.":
-        "**Přesné kroky.** S myší nad časovou osou posouvají <kbd>Left</kbd> / <kbd>Right</kbd> ukazatel přehrávání o 50 ms, s <kbd>Shift</kbd> o sekundu. Zobrazení času ukazuje, kde jste; kliknutím přepnete na snímky.",
     "The time display.":
         "Zobrazení času.",
     "**Check the script.** Every drag changes a value in the script (a wait, a time). Click a block: its line is selected in the script column on the right.":
@@ -5966,12 +5914,8 @@ TEXTE = {
         "**Pohyb v čase.** Táhněte v pravítku nahoře; **{{TracksPlay}}** přehrává.",
     "The ruler and Play at the top of the Tracks view.":
         "Pravítko a Přehrát nahoře v zobrazení Stopy.",
-    "**Rows.** **{{TlTracks}}** shows one row per figure, **{{TlWaits}}** the waits as blocks. When some figures do nothing after the start, a button **{{TlIdleTracks}}** appears next to them and shows those rows too.":
-        "**Řádky.** **{{TlTracks}}** ukazují jeden řádek na postavu, **{{TlWaits}}** čekání jako bloky. Když některé postavy po začátku nic nedělají, objeví se vedle nich tlačítko **{{TlIdleTracks}}**, které ukáže i tyto řádky.",
     "Character rows and Waits.":
         "Řádky postav a Čekání.",
-    "**Camera rows.** Click the arrow in front of **{{TlKamera}}** to see move, pan, zoom, fade and shake in their own rows. A warning sign on a camera block means it overlaps the next move - in the game the camera would jump; shorten one of them.":
-        "**Řádky kamery.** Kliknutím na šipku před **{{TlKamera}}** uvidíte pohyb, otočení, zoom, zatmívání a otřesy ve vlastních řádcích. Výstražná značka na bloku kamery znamená, že překrývá další pohyb - ve hře by kamera skočila; jeden z nich zkraťte.",
     "The camera rows.":
         "Řádky kamery.",
     "Kyle and his path.":
@@ -5994,10 +5938,6 @@ TEXTE = {
         "Místní nabídka entity v seznamu.",
     "Face the walking direction.":
         "Dívat se ve směru chůze.",
-    "**Check it.** Expand the figure in the timeline: the row **{{TlKatBlick}}** shows when it looks where.":
-        "**Zkontrolujte to.** Rozbalte postavu na časové ose: řádek **{{TlKatBlick}}** ukazuje, kdy se dívá kam.",
-    "The rows of the expanded figure: Movement and Look.":
-        "Řádky rozbalené postavy: Pohyb a Pohled.",
     "**Go to the moment.** Move the playhead in the timeline to where the figure should face another way. The time display shows where you are.":
         "**Přejděte na okamžik.** Posuňte ukazatel přehrávání na časové ose tam, kde se má postava dívat jinam. Zobrazení času ukazuje, kde jste.",
     "The playhead and the time display.":
@@ -6024,8 +5964,6 @@ TEXTE = {
         "Příkaz zvuku: procházet a přehrát.",
     "Sound in the timeline.":
         "Zvuk na časové ose.",
-    "**Time it.** A `wait` after the sound keeps the next command until the line is over. With **{{TlWaits}}** on, drag the wait's edge in the timeline to fit.":
-        "**Načasujte ji.** `wait` po zvuku pozdrží další příkaz, dokud replika neskončí. Se zapnutým **{{TlWaits}}** přetáhněte okraj čekání na časové ose, aby seděl.",
     "A spawn script with standOnly.":
         "Spawn skript se standOnly.",
     "The figures in the scene.":
@@ -6639,8 +6577,6 @@ TEXTE = {
         "**Portál oblohy:** s misc_skyportal ukazuje obloha scénu z místa portálu, se stejným pohledem a zorným polem, jako ve hře (CG_DrawSkyBoxPortal).",
     "A fog brush over the floor of a room (fogParms 0.1 0.9 0.1, 256): the floor gets the fog colour of the game.":
         "Mlhový brush nad podlahou místnosti (fogParms 0.1 0.9 0.1, 256): podlaha dostane barvu mlhy jako ve hře.",
-    "**Full VIS**: before a `-vis` without `-fast` the console names the portals, the clusters and the memory the VIS needs - read from the portal file of the BSP step, counted like q3map2's CreatePassages (q3map2 itself prints only part of it). From the portal count of the optimizer's VIS hint, or when the memory comes close to what the computer has, a warning follows, also in the window: a full VIS can take hours, on open maps days, and the progress counts portals - the expensive ones come last. Ways out: `-vis -fast` for test builds, small structural brushes that do not seal as detail (optimizer: **{{KeOptPrDeko}}**), and **{{KeTkVis}}** for later builds. For a map from File > Open .bsp it also says whether the original was built with `-vis -fast`.":
-        "**Plné VIS**: před `-vis` bez `-fast` vypíše konzole portály, clustery a paměť, kterou VIS potřebuje - přečtené ze souboru portálů z kroku BSP, spočítané jako CreatePassages v q3map2 (q3map2 sám vypíše jen část). Od počtu portálů z upozornění na VIS v optimalizátoru, nebo když se paměť blíží tomu, co má počítač, následuje varování, i v okně: plné VIS může trvat hodiny, na otevřených mapách dny, a průběh počítá portály - ty náročné přijdou nakonec. Východiska: `-vis -fast` pro testovací sestavení, malé strukturální brushe, které neutěsňují, jako detail (optimalizátor: **{{KeOptPrDeko}}**) a **{{KeTkVis}}** pro další sestavení. U mapy z File > Open .bsp také uvede, zda byl originál sestaven s `-vis -fast`.",
     "**{{MeMeldungen}}** shows what the game would print while loading the file, word for word and with the line (for example `Unknown item keyword 'foo' Line #21`). A click jumps to the line; the live diagnosis marks it in the text ([[menue_editor_m2#diagnose]]).":
         "**{{MeMeldungen}}** ukazují, co by hra vypsala při načítání souboru, slovo od slova a s řádkem (například `Unknown item keyword 'foo' Line #21`). Kliknutí skočí na řádek; živá diagnostika ho označí v textu ([[menue_editor_m2#diagnose]]).",
     "A new button from the widgets: selected on the canvas, its itemDef in the Text tab on the right.":
@@ -6677,8 +6613,6 @@ TEXTE = {
         "Video RoQ jako cinematic, dekódované jako ve hře.",
     "A character model with skin and animation, drawn on the graphics card.":
         "Model postavy se skinem a animací, kreslený na grafické kartě.",
-    "`cinematic` and `videoMap` play RoQ videos; **{{MeVideoImport}}** converts a video or GIF to RoQ and puts it into `video/`. `ITEM_TYPE_MODEL` shows the model with the camera, light and rotation of the game; the character menu builds the player from the cvars and the feeders (species, heads, colours) like the game. Sabers lie on their side with hilt and blades from the .sab: length, radius, number of blades, single/staff, colour - glow and core drawn like the renderer. Movie Duels follows `cg_SFXSabers` (0 and the default 4 are reproduced).":
-        "`cinematic` a `videoMap` přehrávají videa RoQ; **{{MeVideoImport}}** převede video nebo GIF do RoQ a uloží ho do `video/`. `ITEM_TYPE_MODEL` ukazuje model s kamerou, světlem a otáčením hry; menu postavy sestaví hráče z cvarů a feederů (druhy, hlavy, barvy) jako hra. Světelné meče leží na boku s jílcem a čepelemi z .sab: délka, poloměr, počet čepelí, jednoduchý/dvojitý, barva - záře a jádro kreslené jako ve vykreslování hry. Movie Duels se řídí `cg_SFXSabers` (0 a výchozí 4 jsou napodobeny).",
     "Library, detail area and menu sets":
         "Knihovna, oblast detailu a sady menu",
     "The detail area in three levels from the library, ready to operate.":
@@ -6701,4 +6635,301 @@ TEXTE = {
         "Písma z TrueType",
     "**{{MeSchriftBauen}}** turns a .ttf or .otf into a game font: `fonts/<name>.fontdat` (the exact format the game reads) and `fonts/<name>.tga` with all characters of the menu texts (Windows-1252). Both go into the package; the preview uses them at once.":
         "**{{MeSchriftBauen}}** převede .ttf nebo .otf na herní písmo: `fonts/<název>.fontdat` (přesně formát, který hra čte) a `fonts/<název>.tga` se všemi znaky textů menu (Windows-1252). Obojí jde do balíčku; náhled je hned používá.",
+    # uebersetzung2: Zeitleiste neu, Menue-Editor M3-M5b, Fenster anordnen, VIS (nach Integration 4)
+    "**See it in the timeline.** Open the figure's row in the timeline (the arrow at its name): its row **{{ZlBefehle}}** shows its waits and signals at their time.":
+        "**Podívejte se na časovou osu.** Rozbalte řádek postavy na časové ose (šipka u jejího jména): její řádek **{{ZlBefehle}}** ukazuje její čekání a signály v jejich čase.",
+    "**Shake.** Choose `SHAKE`: strength 0 to 16 and the duration in milliseconds. In the **{{ZlDetail}}** view the timeline shows zoom, fade and shake in their own rows.":
+        "**Otřesy.** Zvolte `SHAKE`: síla 0 až 16 a délka v milisekundách. V pohledu **{{ZlDetail}}** ukazuje časová osa přiblížení, prolínání a otřesy ve vlastních řádcích.",
+    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds.":
+        "**Přesné krokování.** S myší nad časovou osou posouvají <kbd>←</kbd> / <kbd>→</kbd> ukazatel přehrávání o 50 ms, se <kbd>Shift</kbd> o sekundu, s <kbd>Ctrl</kbd> o pět sekund.",
+    "**Check it.** Play the timeline. Open the figure's row: its row **{{ZlBefehle}}** shows the look commands at their time.":
+        "**Zkontrolujte to.** Přehrajte časovou osu. Rozbalte řádek postavy: její řádek **{{ZlBefehle}}** ukazuje příkazy pohledu v jejich čase.",
+    "**Watch it.** Turn on **{{MapThroughCam}}** and play the timeline: the view keeps turning towards the figure. In the **{{ZlDetail}}** view of the timeline, the **{{TlCamFollow}}** row shows how long it lasts.":
+        "**Sledujte to.** Zapněte **{{MapThroughCam}}** a přehrajte časovou osu: pohled se stále otáčí k postavě. V pohledu **{{ZlDetail}}** časové osy ukazuje řádek **{{TlCamFollow}}**, jak dlouho to trvá.",
+    "**Waits as blocks.** The **{{ZlSkript}}** row shows every `wait` as a hatched block with what it waits for - drag its right edge to change it directly.":
+        "**Čekání jako bloky.** Řádek **{{ZlSkript}}** ukazuje každý `wait` jako šrafovaný blok s tím, na co čeká - tažením jeho pravého okraje ho přímo změníte.",
+    "**Only active.** **{{ZlNurAktive}}** hides the actors that do nothing in the visible section.":
+        "**Jen aktivní.** **{{ZlNurAktive}}** skryje postavy, které ve viditelném úseku nic nedělají.",
+    "The timeline plays the scene and shows when everything happens - camera shots with names, speech with subtitles, music, the script's waits and every actor. Click a block and the side bar explains it; drag it and the script changes.":
+        "Časová osa přehrává scénu a ukazuje, kdy se co děje - záběry kamery se jmény, řeč s titulky, hudbu, čekání skriptu a každou postavu. Klikněte na blok a postranní panel ho vysvětlí; tažením se změní skript.",
+    "The timeline in the Overview: camera position and rotation with the names of the marks, speech with speaker and subtitle, music, the script flow with its waits, one row per actor.":
+        "Časová osa v Přehledu: poloha a otočení kamery se jmény značek, řeč s mluvčím a titulkem, hudba, průběh skriptu s jeho čekáním, jeden řádek na postavu.",
+    "Playing and moving around":
+        "Přehrávání a pohyb",
+    "The play button (▶) under the map starts and stops; with the mouse over the timeline <kbd>Space</kbd> does the same. Click or drag on the ruler to set the time - the 3D view shows the scene at that moment. <kbd>Left</kbd> / <kbd>Right</kbd> move by one game frame (50 ms, the grid of the game logic), with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds, <kbd>Home</kbd> jumps to the start. The legend under the rows lists these keys. The speed field slows the scene down (sound only plays at 1x), **{{TlLoop}}** repeats it. **{{ZlUt}}** shows the subtitles in the preview picture the way the game does (the game setting g_subtitles): with the script camera on, in the middle of the lower black bar, two lines at a time, each pair as long as its letters take of the sound; Movie Duels draws them at half size (cg_textprintscale). As in the game, Jedi Academy and Movie Duels show none by default, Jedi Outcast shows them in cinematics, and a figure with `SET_USE_SUBTITLES` always shows its lines; `SET_CAPTIONTEXTCOLOR` changes the colour.":
+        "Tlačítko přehrávání (▶) pod mapou spouští a zastavuje; s myší nad časovou osou dělá totéž <kbd>Mezerník</kbd>. Kliknutím nebo tažením na pravítku nastavíte čas - 3D pohled ukazuje scénu v tomto okamžiku. <kbd>←</kbd> / <kbd>→</kbd> posunou o jeden herní snímek (50 ms, rastr herní logiky), se <kbd>Shift</kbd> o sekundu, s <kbd>Ctrl</kbd> o pět sekund, <kbd>Home</kbd> skočí na začátek. Legenda pod řádky tyto klávesy uvádí. Pole rychlosti scénu zpomalí (zvuk hraje jen při 1x), **{{TlLoop}}** ji opakuje. **{{ZlUt}}** zobrazuje titulky v obrazu náhledu tak, jak to dělá hra (herní nastavení g_subtitles): se zapnutou skriptovou kamerou uprostřed spodního černého pruhu, vždy dva řádky, každou dvojici tak dlouho, kolik zvuku zaberou její písmena; Movie Duels je kreslí poloviční velikostí (cg_textprintscale). Jako ve hře je Jedi Academy a Movie Duels ve výchozím stavu nezobrazují, Jedi Outcast je zobrazuje v animačních sekvencích a postava se `SET_USE_SUBTITLES` své repliky zobrazuje vždy; `SET_CAPTIONTEXTCOLOR` mění barvu.",
+    "A scene starts with a section of about 30 seconds. **{{TlFit}}** shows the whole scene, − and + zoom out and in, <kbd>Ctrl</kbd>+wheel zooms around the mouse pointer, <kbd>Shift</kbd>+wheel scrolls. Only while zoomed in, a slim navigation bar above the ruler shows which part of the scene you see - click or drag it to move there.":
+        "Scéna začíná úsekem asi 30 sekund. **{{TlFit}}** zobrazí celou scénu, − a + oddálí a přiblíží, <kbd>Ctrl</kbd>+kolečko přibližuje kolem ukazatele myši, <kbd>Shift</kbd>+kolečko posouvá. Jen při přiblížení ukazuje tenký navigační pruh nad pravítkem, kterou část scény vidíte - kliknutím nebo tažením se tam přesunete.",
+    "Overview and Detail":
+        "Přehled a Detail",
+    "**{{ZlUebersicht}}** shows the scene at a glance: **{{ZlOrt}}** has one block per shot, from one camera move to the next, named after its mark (or as readable coordinates); **{{ZlDrehung}}** shows the pans, a pan without duration is marked as a cut. **{{ZlSprache}}** shows every line as long as its sound file, with speaker, subtitle from the game's string files (Jedi Academy and Movie Duels: strings/english/<map>.str, Jedi Outcast: strip/<map>.sp, with the extra packages some maps read) and the waveform. **{{ZlMusik}}** shows which music plays from when. **{{ZlSkript}}** shows the waits of the script as hatched blocks with what they wait for, and its commands as labelled marks; a map change is a red mark. Each actor has one row: meaningful animations with their names on top, its walks numbered below, a dashed line where it stands still, hatched where it is not visible. The arrow at the name opens its **{{ZlAnimation}}** and **{{ZlBefehle}}**.":
+        "**{{ZlUebersicht}}** ukazuje scénu na první pohled: **{{ZlOrt}}** má jeden blok na záběr, od jednoho pohybu kamery k dalšímu, pojmenovaný podle své značky (nebo čitelnými souřadnicemi); **{{ZlDrehung}}** ukazuje švenky, švenk bez délky je označen jako střih. **{{ZlSprache}}** ukazuje každou repliku tak dlouhou jako její zvukový soubor, s mluvčím, titulkem z textových souborů hry (Jedi Academy a Movie Duels: strings/english/<mapa>.str, Jedi Outcast: strip/<mapa>.sp, včetně doplňkových balíčků, které některé mapy čtou) a průběhem vlny. **{{ZlMusik}}** ukazuje, která hudba hraje od kdy. **{{ZlSkript}}** ukazuje čekání skriptu jako šrafované bloky s tím, na co čekají, a jeho příkazy jako popsané značky; změna mapy je červená značka. Každá postava má jeden řádek: nahoře významné animace se jmény, dole její očíslované chůze, přerušovaná čára, kde stojí, šrafování, kde není vidět. Šipka u jména rozbalí její **{{ZlAnimation}}** a **{{ZlBefehle}}**.",
+    "Detail: camera move, pan, zoom and fade separately, field of view and fade as lines. A move that starts before the previous one has finished gets its own lane and the note \"jumps back\".":
+        "Detail: pohyb, švenk, přiblížení a prolínání kamery zvlášť, zorné pole a prolínání jako čáry. Pohyb, který začne dřív, než skončil předchozí, dostane vlastní dráhu a upozornění \"skočí zpět\".",
+    "**{{ZlDetail}}** (or <kbd>Tab</kbd> over the timeline) splits the camera into move, pan, zoom and fade and draws the field of view and the fade as lines. They are straight between two commands because the game interpolates them linearly - there are no ease curves. If a camera move starts before the previous one of the same kind has finished, it gets a lane of its own and the red note **{{ZlSpringt}}**: the game only takes over position and angle at the end of a move (cg_camera.cpp), so the new move starts from where the previous one began - the camera jumps back.":
+        "**{{ZlDetail}}** (nebo <kbd>Tab</kbd> nad časovou osou) rozdělí kameru na pohyb, švenk, přiblížení a prolínání a kreslí zorné pole a prolínání jako čáry. Mezi dvěma příkazy jsou rovné, protože je hra interpoluje lineárně - křivky náběhu neexistují. Když pohyb kamery začne dřív, než skončil předchozí téhož druhu, dostane vlastní dráhu a červené upozornění **{{ZlSpringt}}**: hra převezme polohu a úhel až na konci pohybu (cg_camera.cpp), nový pohyb tedy začne tam, kde začal předchozí - kamera skočí zpět.",
+    "What happens here?":
+        "Co se tu děje?",
+    "A clicked block: the side bar explains it in plain words, with time, command and script line.":
+        "Blok, na který jste klikli: postranní panel ho vysvětlí srozumitelnými slovy, s časem, příkazem a řádkem skriptu.",
+    "Click any block or mark: the time jumps there, its line is selected in the script, and below the script column the box **{{ZlWas}}** says in plain words what it does - where the camera moves and how long, who speaks which line, what a wait waits for and who sends that signal, which animation plays for how long. **{{ZlZeileOeffnen}}** opens the command in the editor. A command that comes from another script (run, use, spawnscript) names that script and its line there - **{{ZlZeileOeffnen}}** opens that script and selects the line; one the simulation inserted has no line.":
+        "Klikněte na libovolný blok nebo značku: čas tam skočí, jeho řádek se vybere ve skriptu a pod sloupcem skriptu řekne rámeček **{{ZlWas}}** srozumitelnými slovy, co dělá - kam se kamera pohybuje a jak dlouho, kdo říká kterou repliku, na co wait čeká a kdo ten signál posílá, která animace hraje a jak dlouho. **{{ZlZeileOeffnen}}** otevře příkaz v editoru. Příkaz, který pochází z jiného skriptu (run, use, spawnscript), uvádí ten skript a svůj řádek v něm - **{{ZlZeileOeffnen}}** otevře onen skript a vybere řádek; příkaz vložený simulací řádek nemá.",
+    "Filters and search":
+        "Filtry a hledání",
+    "**{{ZlNurAktive}}** hides actors that do nothing in the visible section. **{{ZlProbleme}}** shows only places with notes: camera moves that jump back, commands the preview does not simulate yet, the map change. The search field filters by name, mark, file, subtitle or command (for example `luke`, `cam1b`, `SET_ANIM`).":
+        "**{{ZlNurAktive}}** skryje postavy, které ve viditelném úseku nic nedělají. **{{ZlProbleme}}** ukáže jen místa s upozorněními: pohyby kamery, které skočí zpět, příkazy, které náhled zatím nenapodobuje, změnu mapy. Pole hledání filtruje podle jména, značky, souboru, titulku nebo příkazu (například `luke`, `cam1b`, `SET_ANIM`).",
+    "Problems: only the rows with notes remain.":
+        "Problémy: zůstanou jen řádky s upozorněními.",
+    "Drag a camera block or a line left or right: the `wait` before it changes, so it happens earlier or later and everything after it moves along; with <kbd>Alt</kbd> the `wait` after it gets shorter by the same amount and the rest stays. Drag the right edge of a camera block to change its duration, the right edge of a wait to make it longer or shorter. A line keeps its length - it is the length of the sound file. A walk cannot be made longer or shorter: its duration comes from the path finding and the speed of the figure. Everything snaps to the game's 50 ms frames, and while you drag a note says what changes in the script.":
+        "Přetáhněte blok kamery nebo repliku doleva či doprava: změní se `wait` před ním, takže se stane dřív nebo později, a vše za ním se posune s ním; s <kbd>Alt</kbd> se `wait` za ním zkrátí o stejnou hodnotu a zbytek zůstane na místě. Tažením pravého okraje bloku kamery změníte jeho délku, tažením pravého okraje čekání ho prodloužíte nebo zkrátíte. Replika si ponechá svou délku - je to délka zvukového souboru. Chůzi nelze prodloužit ani zkrátit: její délka vychází z hledání cesty a rychlosti postavy. Vše se přichytává k 50ms snímkům hry a během tažení upozornění říká, co se ve skriptu změní.",
+    "A dragged wait: changed blocks are outlined with a dashed line until <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes the change back.":
+        "Přetažené čekání: změněné bloky mají přerušovaný obrys, dokud <kbd>Ctrl</kbd>+<kbd>Z</kbd> změnu nevrátí.",
+    "Every drag writes the value into the script (comments and formatting stay) and is exactly one step for <kbd>Ctrl</kbd>+<kbd>Z</kbd> - afterwards the script is byte for byte what it was.":
+        "Každé tažení zapíše hodnotu do skriptu (komentáře a formátování zůstanou) a je přesně jeden krok pro <kbd>Ctrl</kbd>+<kbd>Z</kbd> - potom je skript bajt po bajtu takový, jaký byl.",
+    "Recording a walk":
+        "Nahrání chůze",
+    "Select a figure (an NPC) in the view or in its row and press **{{AufKnopf}}** in the transport bar: from the time of the playhead you steer it in the preview - <kbd>W</kbd>/<kbd>S</kbd>/<kbd>A</kbd>/<kbd>D</kbd> move, <kbd>Shift</kbd> walks instead of running, <kbd>Q</kbd>/<kbd>E</kbd> or the right mouse button turn. It moves with the game's movement code (Pmove), at the speeds from its .npc file and against the walls of the map. The camera follows; the path is drawn, and the numbered circles are the walk targets that will be written. **{{AufFertig}}** (<kbd>Enter</kbd>) writes them, **{{AufAbbrechen}}** (<kbd>Esc</kbd>) changes nothing.":
+        "Vyberte postavu (NPC) v pohledu nebo v jejím řádku a v liště přehrávání stiskněte **{{AufKnopf}}**: od času ukazatele přehrávání ji ovládáte v náhledu - <kbd>W</kbd>/<kbd>S</kbd>/<kbd>A</kbd>/<kbd>D</kbd> pohyb, <kbd>Shift</kbd> chůze místo běhu, <kbd>Q</kbd>/<kbd>E</kbd> nebo pravé tlačítko myši otáčení. Pohybuje se pohybovým kódem hry (Pmove), rychlostmi ze svého souboru .npc a naráží na zdi mapy. Kamera ji sleduje; cesta se kreslí a očíslované kruhy jsou cíle chůze, které se zapíšou. **{{AufFertig}}** (<kbd>Enter</kbd>) je zapíše, **{{AufAbbrechen}}** (<kbd>Esc</kbd>) nic nezmění.",
+    "Recording: the path so far, the walk targets as numbered circles, the box of the figure and the hint at the bottom.":
+        "Nahrávání: dosavadní cesta, cíle chůze jako očíslované kruhy, rámeček postavy a nápověda dole.",
+    "Written is what the game uses to let an NPC walk: one `ref_tag` per point and one `set ( SET_NAVGOAL, ... )`, which waits in the game until the figure has arrived, with `SET_RUNNING`/`SET_WALKING` before it where the gait changes. Points are kept only where they are needed: where the path leaves a straight line by more than the tolerance (in units, adjustable while recording), where a straight line would run into a wall, and where the gait changes. The commands go into the figure's own commands at the time of the playhead (a new `affect` block if it has none) - one step for <kbd>Ctrl</kbd>+<kbd>Z</kbd>. Afterwards the preview walks it like the game: between the points the NPC finds its own way at its own speed - the game has no timing per stretch, so the recording sets only the points and the gait.":
+        "Zapíše se to, čím hra nechává NPC chodit: pro každý bod jeden `ref_tag` a jeden `set ( SET_NAVGOAL, ... )`, který ve hře čeká, dokud postava nedorazí, a před ním `SET_RUNNING`/`SET_WALKING` tam, kde se mění způsob pohybu. Body zůstanou jen tam, kde jsou potřeba: kde se cesta odchýlí od přímky víc než o toleranci (v jednotkách, nastavitelnou během nahrávání), kde by přímka narazila do zdi a kde se mění způsob pohybu. Příkazy se vloží do vlastních příkazů postavy v čase ukazatele přehrávání (nový blok `affect`, pokud žádný nemá) - jeden krok pro <kbd>Ctrl</kbd>+<kbd>Z</kbd>. Potom ji náhled vede jako hra: mezi body si NPC hledá cestu sám, svou rychlostí - hra nezná čas pro jednotlivé úseky, proto nahrávání určí jen body a způsob pohybu.",
+    "Subtitles in the preview picture, in cinematics: two lines in the middle of the lower bar.":
+        "Titulky v obrazu náhledu, v animačních sekvencích: dva řádky uprostřed spodního pruhu.",
+    "Times come from a re-creation of the game's ICARUS engine, including its quirks: a `wait` ends one game frame (50 ms) later than written, and a `dowait` waits for the task it names. A command the preview does not simulate yet (for example `camera ( TRACK )` or `print`) is shown as a red mark instead of being guessed. The rules of OpenJK or Movie Duels apply as set in [[einstellungen#prefs]].":
+        "Časy pocházejí z napodobení enginu ICARUS hry, včetně jeho zvláštností: `wait` skončí o jeden herní snímek (50 ms) později, než je napsáno, a `dowait` čeká na úlohu, kterou jmenuje. Příkaz, který náhled zatím nenapodobuje (například `camera ( TRACK )` nebo `print`), se zobrazí jako červená značka, místo aby se hádal. Platí pravidla OpenJK nebo Movie Duels podle nastavení v [[einstellungen#prefs]].",
+    "In the timeline a ROFF flight is a block in the row of its entity (\"ROFF name\"); drag it to start the flight earlier or later.":
+        "Na časové ose je let ROFF blok v řádku své entity (\"ROFF název\"); tažením let začne dřív nebo později.",
+    "**Full VIS**: before a `-vis` without `-fast` the console names the portals, the clusters and an estimate of the memory the VIS needs - read from the portal file of the BSP step, counted like q3map2's CreatePassages. bhed_q3map2 keeps of each passage only the part that is not empty (md_rev_TarisUpper2: 1.4 instead of 9 GB) and prints after CreatePassages what the passages really take. From the portal count of the optimizer's VIS hint, or when the memory comes close to what the computer has, a warning follows, also in the window: a full VIS can take hours, on open maps days. Its progress counts the expected work of the portals, not their number - the expensive ones come last - so the remaining time in the first build is close to the real one. Ways out: `-vis -fast` for test builds, small structural brushes that do not seal as detail (optimizer: **{{KeOptPrDeko}}**), and **{{KeTkVis}}** for later builds. For a map from File > Open .bsp it also says whether the original was built with `-vis -fast`.":
+        "**Plné VIS**: před `-vis` bez `-fast` vypíše konzole portály, clustery a odhad paměti, kterou VIS potřebuje - načteno ze souboru portálů kroku BSP, spočítáno jako CreatePassages v q3map2. bhed_q3map2 si z každé pasáže ponechá jen tu část, která není prázdná (md_rev_TarisUpper2: 1,4 místo 9 GB), a po CreatePassages vypíše, kolik pasáže skutečně zabírají. Od počtu portálů z upozornění optimalizátoru na VIS, nebo když se paměť blíží tomu, co počítač má, následuje varování, i v okně: plné VIS může trvat hodiny, na otevřených mapách dny. Jeho průběh počítá očekávanou práci portálů, ne jejich počet - drahé přijdou nakonec -, takže zbývající čas je už při prvním sestavení blízko skutečnému. Východiska: `-vis -fast` pro zkušební sestavení, malé strukturální brushe, které neutěsňují, jako detail (optimalizátor: **{{KeOptPrDeko}}**) a **{{KeTkVis}}** pro pozdější sestavení. U mapy z File > Open .bsp se také uvede, zda byl originál sestaven s `-vis -fast`.",
+    "**{{KeLBuild}} > {{KeVisExakt}}** (off by default): with several threads a full VIS can come out slightly different from build to build - as with NetRadiant-Custom's q3map2, where a portal uses whatever other portals happen to be finished; every result is valid. Switched on, every `-vis` step gets `-bhedvisexact`, and bhed_q3map2 computes with all threads exactly what one thread computes, byte for byte. You need it for **reproducible builds**: the same .map gives the same .bsp - to compare two builds, for checksums, or when several people build the same map. It waits where a portal needs one that is not finished yet - on closed maps about as fast, on open maps much slower (duel_mos_espa: 5 instead of 1.5 minutes). Off is the faster way.":
+        "**{{KeLBuild}} > {{KeVisExakt}}** (ve výchozím stavu vypnuto): s více vlákny může plné VIS vyjít mezi sestaveními mírně odlišně - jako u q3map2 z NetRadiant-Custom, kde portál použije ty ostatní portály, které jsou právě hotové; každý výsledek je platný. Po zapnutí dostane každý krok `-vis` přepínač `-bhedvisexact` a bhed_q3map2 spočítá se všemi vlákny přesně to, co spočítá jedno vlákno, bajt po bajtu. Potřebujete to pro **reprodukovatelná sestavení**: stejná .map dá stejnou .bsp - k porovnání dvou sestavení, pro kontrolní součty nebo když stejnou mapu sestavuje více lidí. Čeká tam, kde portál potřebuje ještě nehotový portál - na uzavřených mapách zhruba stejně rychle, na otevřených mnohem pomaleji (duel_mos_espa: 5 místo 1,5 minuty). Vypnuto je rychlejší cesta.",
+    "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} and {{KeTkLicht}} switched on, below them {{KeVisExakt}}, {{KeZfMenue}} and {{KeFsMelden}} (not in NetRadiant-Custom).":
+        "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} a {{KeTkLicht}} zapnuté, pod nimi {{KeVisExakt}}, {{KeZfMenue}} a {{KeFsMelden}} (nejsou v NetRadiant-Custom).",
+    "While the graphics card bakes, the processor works at the same time: it computes the lightmaps the graphics card leaves to it, takes over lightmaps the graphics card has not started yet, and shares the points of the light grid with it - whoever is faster does more. With `-randomsamples` (**[Final] Extreme Quality**) the graphics card computes every lightmap that needs no random supersampling; a lightmap with random supersampling is computed on the processor, with the same random numbers as on one thread. The result stays bit-identical.":
+        "Zatímco grafická karta zapéká, pracuje současně procesor: počítá lightmapy, které mu grafická karta přenechá, přebírá lightmapy, které grafická karta ještě nezačala, a dělí se s ní o body světelné mřížky - kdo je rychlejší, udělá víc. S `-randomsamples` (**[Final] Extreme Quality**) počítá grafická karta každou lightmapu, která nepotřebuje náhodné nadvzorkování; lightmapa s náhodným nadvzorkováním se počítá na procesoru, se stejnými náhodnými čísly jako na jednom vlákně. Výsledek zůstává bitově shodný.",
+    "`cinematic` and `videoMap` play RoQ videos; **{{MeVideoImport}}** converts a video or GIF to RoQ and puts it into `video/`. `ITEM_TYPE_MODEL` shows the model with the camera, light and rotation of the game; the character menu builds the player from the cvars and the feeders (species, heads, colours) like the game. Sabers lie on their side with hilt and blades from the .sab: length, radius, number of blades, single/staff, colour - glow and core drawn like the renderer. Movie Duels follows `cg_SFXSabers` with all its styles (see the next page).":
+        "`cinematic` a `videoMap` přehrávají videa RoQ; **{{MeVideoImport}}** převede video nebo GIF do RoQ a uloží ho do `video/`. `ITEM_TYPE_MODEL` zobrazí model s kamerou, světlem a otáčením hry; menu postavy sestaví hráče z cvarů a feederů (druhy, hlavy, barvy) jako hra. Světelné meče leží na boku s jílcem a čepelemi ze .sab: délka, poloměr, počet čepelí, jednoduchý/dvojitý, barva - záře a jádro kreslené jako renderer. Movie Duels se řídí `cg_SFXSabers` se všemi jeho styly (viz další stránka).",
+    "Menu editor: HUD, Asian texts and sabers":
+        "Editor menu: HUD, asijské texty a světelné meče",
+    "Edit the HUD with example values like the game draws it, write your own texts in Korean, Japanese and Chinese, all Movie Duels blade styles and black blades, the character's pose and the sounds like in the game.":
+        "Upravujte HUD s ukázkovými hodnotami tak, jak ho kreslí hra, pište vlastní texty v korejštině, japonštině a čínštině, všechny styly čepelí Movie Duels a černé čepele, póza postavy a zvuky jako ve hře.",
+    "HUD editor":
+        "Editor HUD",
+    "ui/hud.menu with health 70, armor 30, force 100 and the saber style medium - tics, numbers and crosshair drawn like the game.":
+        "ui/hud.menu se zdravím 70, brněním 30, Silou 100 a středním stylem meče - dílky, čísla a zaměřovač kreslené jako ve hře.",
+    "Open `ui/hud.menu` like any other menu. The game does not draw the HUD with the menu alone: the game code reads the position, colour and image of named items (`health_tic1` to `4`, `armor_tic…`, `force_tic…`, `ammo_tic…`, `healthamount`, `armoramount`, `forceamount`, `ammoamount`, `saberstyle_fast/medium/strong`, `frame`) and draws tics, numbers and pictures with the player's values on top. The preview does exactly that: **{{MeHudWerte}}** in the properties has sliders for health, armor, force, ammo, the saber style and the crosshair; full tics are white, the last one fades with the rest, armor under a quarter blinks, ammo 0 turns red. Move or recolour an item and the HUD follows at once.":
+        "Otevřete `ui/hud.menu` jako každé jiné menu. Hra nekreslí HUD jen pomocí menu: herní kód čte polohu, barvu a obrázek pojmenovaných itemů (`health_tic1` až `4`, `armor_tic…`, `force_tic…`, `ammo_tic…`, `healthamount`, `armoramount`, `forceamount`, `ammoamount`, `saberstyle_fast/medium/strong`, `frame`) a kreslí přes ně dílky, čísla a obrázky s hodnotami hráče. Přesně to dělá náhled: **{{MeHudWerte}}** ve vlastnostech má posuvníky pro zdraví, brnění, Sílu, munici, styl meče a zaměřovač; plné dílky jsou bílé, poslední slábne se zbytkem, brnění pod čtvrtinou bliká, munice 0 zčervená. Posuňte nebo přebarvěte item a HUD ho hned následuje.",
+    "This is reproduced for Jedi Academy single player. The multiplayer game code and Movie Duels draw their HUD differently (whole-number steps, HUD modes, block points); there the preview shows only the menus and says so.":
+        "Napodobeno je to pro Jedi Academy pro jednoho hráče. Herní kód pro více hráčů a Movie Duels kreslí svůj HUD jinak (celočíselné kroky, režimy HUD, body bloku); tam náhled zobrazí jen menu a řekne to.",
+    "Texts in Korean, Japanese and Chinese":
+        "Texty v korejštině, japonštině a čínštině",
+    "An own text in Korean, drawn from the game's Hangul glyph pages.":
+        "Vlastní text v korejštině, nakreslený ze stránek glyfů hangul hry.",
+    "**{{MeTexte}}** also offers Korean, Taiwanese, Japanese and Chinese. Type normally; the file gets the encoding in which the game's font reads that language (KSC 5601, Big5, Shift-JIS, GB 2312) - other languages stay Latin-1 like the menus. Characters the game cannot show as one character (for example Hangul outside KSC 5601 or half-width katakana) are stored as `?` and listed below the table. With the preview language set to one of these, the preview draws the characters from the game's glyph pages (`fonts/kor_…`, `jap_…`, `chi_…`, `tai_…`) at the game's size, spacing and scale.":
+        "**{{MeTexte}}** nabízí také korejštinu, tchajwanštinu, japonštinu a čínštinu. Pište normálně; soubor dostane kódování, ve kterém písmo hry daný jazyk čte (KSC 5601, Big5, Shift-JIS, GB 2312) - ostatní jazyky zůstávají v Latin-1 jako menu. Znaky, které hra neumí zobrazit jako jeden znak (například hangul mimo KSC 5601 nebo katakana poloviční šířky), se uloží jako `?` a vypíšou pod tabulkou. Je-li jazyk náhledu nastaven na jeden z těchto jazyků, kreslí náhled znaky ze stránek glyfů hry (`fonts/kor_…`, `jap_…`, `chi_…`, `tai_…`) ve velikosti, rozestupu a měřítku hry.",
+    "Movie Duels blade styles and black blades":
+        "Styly čepelí Movie Duels a černé čepele",
+    "With Movie Duels data the saber menu follows `cg_SFXSabers` for every style: 0 (Raven), 1 Episode I, 2 Episode II, 3 Episode III, 4 SFX (default), 5 Original Trilogy, 6 Return of the Jedi, 7 The Force Awakens, 8 Unstable, 9 Rebels, 10 Clone Wars, 11 Maul - each with its own glow and core images, sizes (`cg_SFXSabersGlowSize…`, `cg_SFXSabersCoreSize…`) and shape. Unstable hilts always get the unstable blade. Black blades are drawn with their blend mode, so they darken what is behind them like in the game.":
+        "S daty Movie Duels se menu mečů řídí `cg_SFXSabers` pro každý styl: 0 (Raven), 1 Episode I, 2 Episode II, 3 Episode III, 4 SFX (výchozí), 5 Original Trilogy, 6 Return of the Jedi, 7 The Force Awakens, 8 Unstable, 9 Rebels, 10 Clone Wars, 11 Maul - každý s vlastními obrázky záře a jádra, velikostmi (`cg_SFXSabersGlowSize…`, `cg_SFXSabersCoreSize…`) a tvarem. Nestabilní jílce dostanou vždy nestabilní čepel. Černé čepele se kreslí se svým režimem míchání, takže jako ve hře ztmaví to, co je za nimi.",
+    "The character's pose and the sounds":
+        "Póza postavy a zvuky",
+    "The animation of a model (`model_g2anim`, in the character menu `ui_char_anim`) starts when the game sets it - when the menus load, and again when a script such as `uiScript character` builds the character - and runs at the game's frame timing, blended between two frames, looping or stopping like the game. In **{{MeBedienen}}** scripts read exactly the words the game reads: `uiScript` takes its name and the words that script needs, `exec` one word - commands after them run on even without a `;`. `exec \"music …\"` starts the background music like the console.":
+        "Animace modelu (`model_g2anim`, v menu postavy `ui_char_anim`) začne, když ji hra nastaví - při načtení menu a znovu, když skript jako `uiScript character` sestaví postavu - a běží v taktu snímků hry, prolínaná mezi dvěma snímky, ve smyčce nebo se zastavením jako ve hře. V režimu **{{MeBedienen}}** čtou skripty přesně ta slova, která čte hra: `uiScript` svůj název a slova, která daný skript potřebuje, `exec` jedno slovo - příkazy za nimi běží dál i bez `;`. `exec \"music …\"` spustí hudbu na pozadí jako konzole.",
+    "Menu editor: videos, sound and readability":
+        "Editor menu: videa, zvuk a čitelnost",
+    "Import videos the way the game can play them - size, aspect ratio, frame rate, sound, the shader with videoMap - get clear messages for missing codecs, switch the preview sounds off and read the toolbars with labels.":
+        "Importujte videa tak, jak je hra umí přehrát - velikost, poměr stran, snímková frekvence, zvuk, shader s videoMap -, dostávejte jasné zprávy při chybějících kodecích, vypněte zvuky náhledu a čtěte panely nástrojů s popisky.",
+    "Importing a video":
+        "Import videa",
+    "The import dialog for a 1920 x 1080 video with sound: size 512 x 512, aspect ratio, frames per second, quality, sound (off by default), use in the menu and the estimated size.":
+        "Dialog importu pro video 1920 x 1080 se zvukem: velikost 512 x 512, poměr stran, snímky za sekundu, kvalita, zvuk (ve výchozím stavu vypnutý), použití v menu a odhadovaná velikost.",
+    "**{{MeVideoImport}}** reads MP4, WebM, AVI, WMV, MOV and MKV through Windows, animated GIFs, and RoQ files - a RoQ is taken over unchanged. Choose **{{MeVideoZielGroesse}}**: the game plays only sides that are powers of two, with at most 512 x 512 pixels in total (full-screen videos stop otherwise, larger videos overflow the game's video buffer); 512 x 512 is the default, like every Jedi Academy and Movie Duels video. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (the game stretches the video onto the element anyway), {{MeVideoBalken}} or {{MeVideoZuschneiden}}. Pictures are reduced by averaging all covered pixels, so fine patterns do not flicker. Below the options you see the length, the number of frames and the size the file will have.":
+        "**{{MeVideoImport}}** čte MP4, WebM, AVI, WMV, MOV a MKV přes Windows, animované GIFy a soubory RoQ - RoQ se převezme beze změny. Zvolte **{{MeVideoZielGroesse}}**: hra přehrává jen strany, které jsou mocninami dvou, s nejvýše 512 x 512 pixely celkem (videa na celou obrazovku jinak skončí, větší videa přetečou vyrovnávací paměť videa hry); 512 x 512 je výchozí, jako u všech videí Jedi Academy a Movie Duels. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (hra video na prvek stejně roztáhne), {{MeVideoBalken}} nebo {{MeVideoZuschneiden}}. Obrázky se zmenšují průměrováním všech zakrytých pixelů, takže jemné vzory neblikají. Pod volbami vidíte délku, počet snímků a velikost, kterou soubor bude mít.",
+    "The imported video as background of background_video in the Jedi Academy main menu - the preview plays it like the game.":
+        "Importované video jako pozadí background_video v hlavním menu Jedi Academy - náhled ho přehrává jako hra.",
+    "A menu shows a video through a shader with `videoMap`. The import writes it for you: `menu/video/<name>` in `shaders/<package>.shader`, next to `video/<name>.roq`. **{{MeVideoVerwendung}}** decides what happens in the menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, behind all others) or **{{MeVideoAlsCinematic}}** - only multiplayer menus draw that keyword, single-player menus show nothing (the check says so). Shader, video and menu go together into the exported .pk3 and into **{{MeImSpielTesten}}**.":
+        "Menu zobrazuje video přes shader s `videoMap`. Import ho zapíše za vás: `menu/video/<název>` do `shaders/<balíček>.shader`, vedle `video/<název>.roq`. **{{MeVideoVerwendung}}** určuje, co se stane v menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, za všemi ostatními) nebo **{{MeVideoAlsCinematic}}** - toto klíčové slovo kreslí jen menu pro více hráčů, menu pro jednoho hráče nezobrazí nic (kontrola to řekne). Shader, video a menu jdou společně do exportované .pk3 a do **{{MeImSpielTesten}}**.",
+    "Sound":
+        "Zvuk",
+    "Menus always play their videos silently - the game starts them without sound. **{{MeVideoTon}}** is therefore off; switch it on for full-screen videos that the game plays with sound (for example `cinematic <name>` from the console or a script). The sound is stored like in the game's videos: 22050 Hz, mono or stereo, between the frames. A video without a sound track gets a note. **{{MeTonAn}}** / **{{MeTonAus}}** in the toolbar switches all preview sounds - focus and click sounds and the menu music - and stops sounds that are playing; the setting is remembered.":
+        "Menu přehrávají svá videa vždy bez zvuku - hra je spouští bez zvuku. **{{MeVideoTon}}** je proto vypnuté; zapněte ho pro videa na celou obrazovku, která hra přehrává se zvukem (například `cinematic <název>` z konzole nebo skriptu). Zvuk se ukládá jako ve videích hry: 22050 Hz, mono nebo stereo, mezi snímky. Video bez zvukové stopy dostane upozornění. **{{MeTonAn}}** / **{{MeTonAus}}** v panelu nástrojů zapíná a vypíná všechny zvuky náhledu - zvuky fokusu a kliknutí a hudbu menu - a zastaví právě hrající zvuky; nastavení se pamatuje.",
+    "Missing codecs":
+        "Chybějící kodeky",
+    "If Windows cannot decode a video, the dialog says which codec it is and what helps: HEVC, AV1 and VP8/VP9 need a free extension from the Microsoft Store, AVI files with DivX/Xvid or unknown codecs should be converted to MP4 (H.264). Nothing is stored in that case - no empty video.":
+        "Pokud Windows video nedokáže dekódovat, dialog řekne, o jaký kodek jde a co pomůže: HEVC, AV1 a VP8/VP9 potřebují bezplatné rozšíření z Microsoft Storu, soubory AVI s DivX/Xvid nebo neznámými kodeky převeďte do MP4 (H.264). V takovém případě se nic neuloží - žádné prázdné video.",
+    "Readability":
+        "Čitelnost",
+    "The toolbars with labels; eye and lock in the hierarchy are real symbols.":
+        "Panely nástrojů s popisky; oko a zámek v hierarchii jsou skutečné symboly.",
+    "Every toolbar symbol names itself and what it does when you hover it; **{{MeEinstLeisteText}}** in the settings puts the name next to each symbol. In the hierarchy the eye hides an element in the preview only and the lock keeps it from being moved. Text never gets smaller than 75 % of the normal size (12 pixels), however far you zoom out with Ctrl and the mouse wheel.":
+        "Každý symbol panelů nástrojů při najetí myší řekne svůj název a co dělá; **{{MeEinstLeisteText}}** v nastavení napíše název vedle každého symbolu. V hierarchii oko skryje prvek jen v náhledu a zámek brání jeho posunutí. Písmo nikdy není menší než 75 % normální velikosti (12 pixelů), ať oddálíte pomocí Ctrl a kolečka myši jakkoli.",
+    "Menu editor: layouts and events":
+        "Editor menu: rozvržení a události",
+    "Arrange elements side by side, stacked, in a grid or in two columns with one click, and decide what happens on hover, click, focus and Enter with ready-made effects and action blocks - the result stays ordinary .menu code.":
+        "Uspořádejte prvky jedním kliknutím vedle sebe, pod sebe, do mřížky nebo do dvou sloupců a hotovými efekty a bloky akcí určete, co se stane při najetí myší, kliknutí, fokusu a Enteru - výsledkem zůstává běžný kód .menu.",
+    "Layouts":
+        "Rozvržení",
+    "Three buttons in a panel, arranged with Side by side: margins 8, spacing 8 - the layout is kept as a comment line.":
+        "Tři tlačítka v panelu, uspořádaná pomocí Vedle sebe: okraje 8, mezera 8 - rozvržení zůstane jako řádek komentáře.",
+    "Select two or more elements (Ctrl+click on the canvas or in the hierarchy) and click **{{MeLayoutWaagrecht}}**, **{{MeLayoutSenkrecht}}**, **{{MeLayoutRaster}}** or **{{MeLayoutTeiler}}** in the **{{MeLayout}}** section (Ctrl+Shift+1 to 4). If one of the selected elements encloses all the others - a panel or background - it becomes the area and the others are placed inside it; otherwise the layout uses the box around the selection. Without a selection, **{{MeLayoutZeigMir}}** selects the first elements for you.":
+        "Vyberte dva nebo více prvků (Ctrl+kliknutí na plátně nebo v hierarchii) a v oddílu **{{MeLayout}}** klikněte na **{{MeLayoutWaagrecht}}**, **{{MeLayoutSenkrecht}}**, **{{MeLayoutRaster}}** nebo **{{MeLayoutTeiler}}** (Ctrl+Shift+1 až 4). Pokud jeden z vybraných prvků obklopuje všechny ostatní - panel nebo pozadí -, stane se plochou a ostatní se umístí do něj; jinak rozvržení použije rámeček kolem výběru. Bez výběru **{{MeLayoutZeigMir}}** vybere první prvky za vás.",
+    "Select an element of the layout to change it: **{{MeLayoutArt}}**, **{{MeLayoutAbstand}}**, **{{MeLayoutRaender}}**, alignment (**{{MeLayoutAnfang}}**, **{{MeLayoutMitte}}**, **{{MeLayoutEnde}}**, **{{MeLayoutFuellen}}**), **{{MeLayoutSpalten}}** of a grid, **{{MeLayoutTeilung}}** and **{{MeLayoutGriff}}** of two columns. **{{MeLayoutSpacerNeu}}** puts a spacer behind the selected element - it takes the free space, for example to push a button to the right edge. Move the area and the elements follow. Every change is one undo step.":
+        "Vyberte prvek rozvržení a změňte ho: **{{MeLayoutArt}}**, **{{MeLayoutAbstand}}**, **{{MeLayoutRaender}}**, zarovnání (**{{MeLayoutAnfang}}**, **{{MeLayoutMitte}}**, **{{MeLayoutEnde}}**, **{{MeLayoutFuellen}}**), **{{MeLayoutSpalten}}** mřížky, **{{MeLayoutTeilung}}** a **{{MeLayoutGriff}}** u dvou sloupců. **{{MeLayoutSpacerNeu}}** vloží výplň za vybraný prvek - zabere volné místo, například aby odsunula tlačítko k pravému okraji. Posuňte plochu a prvky se posunou s ní. Každá změna je jeden krok zpět.",
+    "The game knows no layouts: the .menu only gets fixed `rect` values, and the layout is stored as a comment `// jkstudio:layout …` inside the menuDef, which the game skips and the editor reads again. Menus without a layout stay byte-identical. For texts, the width of the longest translation in all languages of the game data counts; if a text does not fit, the section names the element and the language. **{{MeLayoutVersteckt}}** lets elements that are hidden after opening (`visible 0` or `hide` in onOpen) give up their place. **{{MeLayoutAufloesen}}** removes only the comment - the rects stay.":
+        "Hra rozvržení nezná: do .menu se dostanou jen pevné hodnoty `rect` a rozvržení se uloží jako komentář `// jkstudio:layout …` uvnitř menuDef, který hra přeskočí a editor znovu přečte. Menu bez rozvržení zůstanou bajtově shodná. U textů se počítá šířka nejdelšího překladu ve všech jazycích herních dat; pokud se text nevejde, oddíl uvede prvek a jazyk. **{{MeLayoutVersteckt}}** nechá prvky skryté po otevření (`visible 0` nebo `hide` v onOpen) uvolnit své místo. **{{MeLayoutAufloesen}}** odstraní jen komentář - recty zůstanou.",
+    "Events":
+        "Události",
+    "The button got the Glow effect and a click sound: the glow element appears on hover, the click plays the sound.":
+        "Tlačítko dostalo efekt Záře a zvuk kliknutí: zářící prvek se objeví při najetí myší, kliknutí přehraje zvuk.",
+    "The **{{MeEreignisse}}** section shows for the selected element what happens on **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) and **{{MeEvEnter}}** (accept) - only the events the game's engine knows. Start with a ready-made hover effect: **{{MeEvLeuchten}}** (a glow element behind it, like the original menus), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** or **{{MeEvGroesser}}**, in the colour next to them. **{{MeEvHoverKlang}}** sets `focusSound`, **{{MeEvKlickKlang}}** a `play` at the start of the click; the button next to each field lets you listen.":
+        "Oddíl **{{MeEreignisse}}** ukazuje pro vybraný prvek, co se stane při **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) a **{{MeEvEnter}}** (accept) - jen události, které engine hry zná. Začněte hotovým efektem při najetí: **{{MeEvLeuchten}}** (zářící prvek za ním, jako v původních menu), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** nebo **{{MeEvGroesser}}**, v barvě vedle nich. **{{MeEvHoverKlang}}** nastaví `focusSound`, **{{MeEvKlickKlang}}** `play` na začátku kliknutí; tlačítkem vedle každého pole si zvuk poslechnete.",
+    "Each event lists its actions as blocks: element names as a list, colours with a colour picker, sounds with a listen button. **{{MeEvAktionNeu}}** offers only the commands of this game's engine (the commandList of ui_shared, so `setcvartocvar` only in multiplayer). The blocks write the script text - the Text tab shows the same at once - and every change is one undo step. Switch on **{{MeBedienen}}** and the events run like in the game.":
+        "Každá událost vypisuje své akce jako bloky: názvy prvků jako seznam, barvy s výběrem barvy, zvuky s tlačítkem k poslechu. **{{MeEvAktionNeu}}** nabízí jen příkazy enginu této hry (commandList z ui_shared, takže `setcvartocvar` jen pro více hráčů). Bloky zapisují text skriptu - karta Text ukáže hned totéž - a každá změna je jeden krok zpět. Zapněte **{{MeBedienen}}** a události běží jako ve hře.",
+    "Preview checked against the original game":
+        "Náhled ověřený proti původní hře",
+    "All Jedi Academy menus outside a running game were photographed in the original game (single and multiplayer) and compared with the preview. Since then the preview also draws: missing `@` texts as nothing (like the game), missing images of shader elements as the game's grey default box, the colours, heads and parts of the species set in `ui_char_model`, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns, and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.":
+        "Všechna menu Jedi Academy mimo běžící hru byla vyfotografována v původní hře (pro jednoho i více hráčů) a porovnána s náhledem. Od té doby náhled kreslí také: chybějící texty `@` jako nic (jako hra), chybějící obrázky prvků se shaderem jako šedý výchozí rámeček hry, barvy, hlavy a části druhu nastaveného v `ui_char_model`, počáteční hodnoty hry pro více hráčů (jméno hráče, model, název serveru, limity), seznam hlav pro více hráčů v řádcích a sloupcích a owner-draw pro více hráčů pro místa v týmu, typ hry, obtížnost, barvu týmu a náhled mapy.",
+    "Menu editor: projects, mod profiles, Jedi Outcast":
+        "Editor menu: projekty, profily modů, Jedi Outcast",
+    "Keep a menu mod in a project folder laid out like the pk3, with automatic backup and restore after a crash; tell the editor what a mod's engine knows with a mod profile; layouts that follow show and hide; Jedi Outcast menus tested in the real game.":
+        "Mějte mod menu ve složce projektu uspořádané jako pk3, s automatickou zálohou a obnovením po pádu; profilem modu řekněte editoru, co zná engine modu; rozvržení, která se řídí show a hide; menu Jedi Outcast ověřená ve skutečné hře.",
+    "Projects":
+        "Projekty",
+    "**{{MePrjProjekt}} > {{MePrjNeu}}** creates a project file `*.jksmenu` with the folders `ui`, `gfx`, `video`, `shaders` and `strings` next to it - the same layout as the finished pk3. Menus that are open come along; without one, the project starts with an empty full-screen menu. In a project, **{{MeSpeichern}}** saves everything: the menus, their images, videos, texts and fonts, and the project file. The project file remembers the game, the mod profile, the menus and which one was open, the preview (resolution, letterbox, language, cvars) and the export (pk3 name, only changes). **{{MePrjExport}}** packs the pk3.":
+        "**{{MePrjProjekt}} > {{MePrjNeu}}** vytvoří soubor projektu `*.jksmenu` a vedle něj složky `ui`, `gfx`, `video`, `shaders` a `strings` - stejné uspořádání jako hotová pk3. Otevřená menu se přidají; bez nich začne projekt prázdným menu na celou obrazovku. V projektu uloží **{{MeSpeichern}}** vše: menu, jejich obrázky, videa, texty a písma i soubor projektu. Soubor projektu si pamatuje hru, profil modu, menu a které bylo otevřené, náhled (rozlišení, pruhy, jazyk, cvary) a export (název pk3, jen změny). **{{MePrjExport}}** zabalí pk3.",
+    "Every 30 seconds the editor backs up menus that are not saved yet. If JK Studio was not closed properly, it asks the next time whether to restore them - the restored text counts as an unsaved change, so Undo goes back to the saved version. A double-click on a `.jksmenu` opens JK Studio once you allowed it with **{{MePrjZuordnen}}** (only for your Windows account).":
+        "Každých 30 sekund editor zálohuje menu, která ještě nejsou uložená. Pokud JK Studio nebylo řádně ukončeno, příště se zeptá, zda je obnovit - obnovený text se počítá jako neuložená změna, takže Zpět vrátí uloženou verzi. Dvojklik na `.jksmenu` otevře JK Studio, jakmile to povolíte přes **{{MePrjZuordnen}}** (jen pro váš účet Windows).",
+    "After a crash: the editor offers the backed-up menus.":
+        "Po pádu: editor nabídne zálohovaná menu.",
+    "Mod profiles":
+        "Profily modů",
+    "A mod's engine may know more than the game: extra keywords, owner-draw and feeder numbers, uiScripts, cvars and menu lists. Choose the mod's profile under **{{MePrjProjekt}} > {{MeProfil}}**: the editor then reads these keywords without a message, shows owner-draws as labelled placeholders and lists the values under **Mod keywords** - the file stays exactly as it is. With the mod's source code, `tools/gen_menue_profil.py` writes the profile; without it, **{{MeProfilVorlage}}** writes a template to fill in. Jedi Academy, Jedi Outcast and Movie Duels have built-in profiles.":
+        "Engine modu může znát víc než hra: další klíčová slova, čísla owner-draw a feederů, uiScripts, cvary a seznamy menu. Vyberte profil modu v **{{MePrjProjekt}} > {{MeProfil}}**: editor pak tato klíčová slova čte bez hlášení, zobrazuje owner-draw jako popsané zástupné symboly a vypisuje hodnoty pod **Klíčová slova modu** - soubor zůstane přesně takový, jaký je. Se zdrojovým kódem modu zapíše profil `tools/gen_menue_profil.py`; bez něj zapíše **{{MeProfilVorlage}}** šablonu k vyplnění. Jedi Academy, Jedi Outcast a Movie Duels mají vestavěné profily.",
+    "A mod keyword from the profile, labelled in the properties.":
+        "Klíčové slovo modu z profilu, popsané ve vlastnostech.",
+    "Layouts that follow show and hide":
+        "Rozvržení, která se řídí show a hide",
+    "With **{{MeLayoutVersteckt}}** switched on, every script that shows or hides elements of the layout (a click, a hover, onOpen) also gets `setitemrect` lines that move the other elements into place - calculated for the state after that script and kept up to date with every layout change. Jedi Outcast has no `setitemrect`; there the editor explains what to do instead.":
+        "Se zapnutým **{{MeLayoutVersteckt}}** dostane každý skript, který zobrazuje nebo skrývá prvky rozvržení (kliknutí, najetí myší, onOpen), také řádky `setitemrect`, které posunou ostatní prvky na místo - spočítané pro stav po tomto skriptu a aktualizované při každé změně rozvržení. Jedi Outcast `setitemrect` nemá; tam editor vysvětlí, co dělat místo toho.",
+    "Button 2 is hidden after opening; Show and Hide move button 3 like the layout.":
+        "Tlačítko 2 je po otevření skryté; Zobrazit a Skrýt posouvají tlačítko 3 jako rozvržení.",
+    "Jedi Outcast":
+        "Jedi Outcast",
+    "The Jedi Outcast menus were compared with the real game (Steam version). The editor now follows its engine: no `setitemrect`, `setitemtext`, `transition2` or `delay`, no `accept` event, the logo models (`.md3`) with the game's camera. **{{MeImSpielTesten}}** starts `jk2sp.exe` with your own folder as `fs_basepath` and the game data via `fs_cdpath` - nothing is written into the game folder.":
+        "Menu Jedi Outcast byla porovnána se skutečnou hrou (verze ze Steamu). Editor se nyní řídí jejím enginem: žádné `setitemrect`, `setitemtext`, `transition2` ani `delay`, žádná událost `accept`, modely loga (`.md3`) s kamerou hry. **{{MeImSpielTesten}}** spustí `jk2sp.exe` s vaší vlastní složkou jako `fs_basepath` a herními daty přes `fs_cdpath` - do složky hry se nic nezapíše.",
+    "Your first own menu":
+        "Vaše první vlastní menu",
+    "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.":
+        "Od prázdného editoru k projektu se třemi tlačítky vedle sebe, která při najetí myší září - uloženo a připraveno k zabalení jako pk3.",
+    "Menu editor · about 5 minutes":
+        "Editor menu · asi 5 minut",
+    "The pictures were taken while the program did exactly these steps; the self-test checks after each step that it really happened. In the program, the helper (F1) runs this tutorial as a tour and moves on by itself when a step is done.":
+        "Obrázky vznikly, zatímco program prováděl přesně tyto kroky; autotest po každém kroku ověřuje, že se opravdu stal. V programu pomocník (F1) předvede tento tutoriál jako prohlídku a sám pokračuje, jakmile je krok hotový.",
+    "**Open the menu editor.** Click **{{ViewMenuEditor}}** in the mode bar.":
+        "**Otevřete editor menu.** Klikněte v liště režimů na **{{ViewMenuEditor}}**.",
+    "The empty menu editor with the project buttons.":
+        "Prázdný editor menu s tlačítky projektu.",
+    "**Start a project.** Click **{{MePrjNeu}}** and choose a folder for the project file. The editor creates the folders like in a pk3 and an empty full-screen menu.":
+        "**Založte projekt.** Klikněte na **{{MePrjNeu}}** a vyberte složku pro soubor projektu. Editor vytvoří složky jako v pk3 a prázdné menu na celou obrazovku.",
+    "The new project with its first menu.":
+        "Nový projekt s prvním menu.",
+    "**Three buttons.** Click **{{MeWButton}}** in the building blocks three times.":
+        "**Tři tlačítka.** Klikněte v součástech třikrát na **{{MeWButton}}**.",
+    "Three new buttons, still on top of each other.":
+        "Tři nová tlačítka, zatím přes sebe.",
+    "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.":
+        "**Vedle sebe.** Vyberte tři tlačítka (Ctrl+kliknutí) a ve vlastnostech pod Rozvržení klikněte na **{{MeLayoutWaagrecht}}**.",
+    "The buttons side by side with even spacing.":
+        "Tlačítka vedle sebe se stejnými mezerami.",
+    "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.":
+        "**Záře při najetí.** Vyberte první tlačítko, otevřete kartu **Události** a klikněte na **{{MeEvLeuchten}}**.",
+    "The glow effect: show on hover, hide when the mouse leaves.":
+        "Efekt záře: zobrazit při najetí myší, skrýt, když myš odjede.",
+    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.":
+        "**Uložte.** Klikněte na **{{MeSpeichern}}** - v projektu to uloží vše. **{{MePrjProjekt}} > {{MePrjExport}}** pak zabalí pk3 pro hru.",
+    "Saved: the project file and the menu in the project folder.":
+        "Uloženo: soubor projektu a menu ve složce projektu.",
+    "Arrange windows and screens":
+        "Uspořádání oken a obrazovek",
+    "Take any panel out of the main window, put it on a second screen, combine panels as you like and save the arrangement under a name - per area.":
+        "Vyjměte libovolný panel z hlavního okna, dejte ho na druhou obrazovku, spojujte panely podle libosti a uložte uspořádání pod názvem - pro každou oblast.",
+    "Every area - **{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** and **{{ViewMenuEditor}}** - is made of panels. As long as you move nothing, every panel stays in its place in the main window: the standard layout, exactly as before.":
+        "Každá oblast - **{{ViewEvents}}**, **{{ViewMap}}**, **{{ViewModel}}**, **{{ViewMapEditor}}** a **{{ViewMenuEditor}}** - se skládá z panelů. Dokud nic nepřesunete, zůstává každý panel na svém místě v hlavním okně: výchozí rozvržení, přesně jako dřív.",
+    "Take a panel out":
+        "Vyjmutí panelu",
+    "The menu {{DockMenu}} of the mission: show or hide panels, put them into their own window, save and load layouts.":
+        "Menu {{DockMenu}} mise: zobrazit nebo skrýt panely, dát je do vlastního okna, uložit a načíst rozvržení.",
+    "Open the menu **{{DockMenu}}** (in the map editor it is the last menu, after NetRadiant's).":
+        "Otevřete menu **{{DockMenu}}** (v editoru map je to poslední menu, za menu NetRadiantu).",
+    "Under **{{DockOwnWindow}}** click the panel, for example the timeline. It becomes a window of its own; its place in the main window goes to its neighbours - the mission view gets taller.":
+        "V **{{DockOwnWindow}}** klikněte na panel, například na časovou osu. Stane se vlastním oknem; jeho místo v hlavním okně připadne sousedům - pohled mise se zvětší na výšku.",
+    "Drag the window by its title bar out of the main window: it becomes a real Windows window and can go onto a second screen. It keeps drawing there - the 3D views and the real-time light of the map editor included.":
+        "Přetáhněte okno za záhlaví ven z hlavního okna: stane se skutečným oknem Windows a může jít na druhou obrazovku. Kreslí tam dál - včetně 3D pohledů a světla v reálném čase editoru map.",
+    "**{{DockPanels}}** hides a panel completely; its space goes to the neighbours as well. The section **{{DockOther}}** opens the helper, the tutorials and the messages - they are windows of their own anyway.":
+        "**{{DockPanels}}** skryje panel úplně; i jeho místo připadne sousedům. Oddíl **{{DockOther}}** otevírá pomocníka, tutoriály a zprávy - ta jsou tak jako tak vlastními okny.",
+    "Combine panels":
+        "Spojování panelů",
+    "Script Flow dropped onto the timeline window: both panels in one window, as tabs. The mission view uses the whole main window.":
+        "Script Flow puštěný na okno časové osy: oba panely v jednom okně, jako karty. Pohled mise využívá celé hlavní okno.",
+    "Drag the window of one panel onto the window of another: markers appear. Drop it on the middle marker and both become tabs of one window; drop it on an arrow and they sit side by side or one above the other. The dividers between them can be dragged, a tab can be dragged out again. This works for the panels of one area; dialogs such as Find stay on their own.":
+        "Přetáhněte okno jednoho panelu na okno jiného: objeví se značky. Pusťte ho na prostřední značku a oba se stanou kartami jednoho okna; pusťte ho na šipku a budou vedle sebe nebo nad sebou. Dělicí čáry mezi nimi lze táhnout, kartu lze opět vytáhnout ven. Funguje to s panely jedné oblasti; dialogy jako Hledat zůstávají samostatné.",
+    "Dock a panel back":
+        "Zpětné ukotvení panelu",
+    "Dragging a panel window over the main window shows its old place: release it there to dock it back.":
+        "Při tažení okna panelu nad hlavní okno se ukáže jeho původní místo: pusťte ho tam a znovu se ukotví.",
+    "Drag the window onto its old place in the main window (highlighted, **{{DockDropHere}}**) and release it.":
+        "Přetáhněte okno na jeho původní místo v hlavním okně (zvýrazněné, **{{DockDropHere}}**) a pusťte ho.",
+    "Or close the window with its **x** - the panel goes back to its place, nothing is lost.":
+        "Nebo okno zavřete jeho **x** - panel se vrátí na své místo, nic se neztratí.",
+    "Or click the panel under **{{DockOwnWindow}}** again.":
+        "Nebo na panel v **{{DockOwnWindow}}** klikněte znovu.",
+    "Save, load and reset layouts":
+        "Uložení, načtení a obnovení rozvržení",
+    "Each area has its own layouts. **{{DockSaveAs}}** stores which panels are in their own window or hidden, where these windows are, on which screen, and how they are combined. **{{DockLoad}}** switches to a saved layout, **{{DockDelete}}** removes one, **{{DockReset}}** brings every panel of the area back to the standard layout. The current layout of every area is kept in the settings and is there again at the next start.":
+        "Každá oblast má svá vlastní rozvržení. **{{DockSaveAs}}** si zapamatuje, které panely jsou ve vlastním okně nebo skryté, kde tato okna jsou, na které obrazovce a jak jsou spojená. **{{DockLoad}}** přepne na uložené rozvržení, **{{DockDelete}}** jedno odstraní, **{{DockReset}}** vrátí každý panel oblasti do výchozího rozvržení. Aktuální rozvržení každé oblasti se ukládá v nastavení a při dalším spuštění je opět k dispozici.",
+    "Screens that change":
+        "Když se obrazovky mění",
+    "A screen is unplugged or arranged differently: windows that were on it come back onto the screen of the main window, at their size.":
+        "Obrazovka se odpojí nebo se jinak uspořádá: okna, která na ní byla, se vrátí na obrazovku hlavního okna, ve své velikosti.",
+    "A screen is smaller than a window: the window is made just small enough to fit.":
+        "Obrazovka je menší než okno: okno se zmenší právě tak, aby se vešlo.",
+    "A window moves onto a screen with a different scale (100 %, 150 % ...): its size and text follow the scale of that screen.":
+        "Okno se přesune na obrazovku s jiným měřítkem (100 %, 150 % ...): jeho velikost a písmo se řídí měřítkem té obrazovky.",
+    "Map editor":
+        "Editor map",
+    "NetRadiant's layouts stay the default (Preferences > Layout). In **Regular** the XY view, the console, the camera and the texture browser (or the built-in entity window) can be taken out, in **Split** the four views; their place goes to the neighbours like when a view is hidden in NetRadiant. In **Floating** the views float anyway. A view in its own window draws there with everything it shows in the main window; a click into it makes it the active view, keyboard shortcuts and free look then work in that window - on every screen.":
+        "Rozvržení NetRadiantu zůstávají výchozí (Předvolby > Rozvržení). V **Regular** lze vyjmout pohled XY, konzoli, kameru a prohlížeč textur (nebo vestavěné okno entit), ve **Split** čtyři pohledy; jejich místo připadne sousedům jako při skrytí pohledu v NetRadiantu. Ve **Floating** pohledy plují tak jako tak. Pohled ve vlastním okně kreslí všechno, co ukazuje v hlavním okně; kliknutím do něj se stane aktivním pohledem a klávesové zkratky i volné rozhlížení pak platí v tomto okně - na každé obrazovce.",
+    "**{{MePalette}}**, **{{DockPanelCanvas}}** and the column **{{DockPanelMenuSide}}** are panels of their own - for example the canvas large on a second screen while the text stays in the main window. This works in the layout with the tabs on the right; with the text below (preferences) the editor stays as it is.":
+        "**{{MePalette}}**, **{{DockPanelCanvas}}** a sloupec **{{DockPanelMenuSide}}** jsou samostatné panely - například velké plátno na druhé obrazovce, zatímco text zůstane v hlavním okně. Funguje to v rozvržení s kartami vpravo; s textem dole (předvolby) zůstává editor, jak je.",
+    "The first value of `camera` chooses the command. behaved shows every one of them in the timeline (in the **{{ZlDetail}}** view in its own row) and plays it in the view. Times are in milliseconds.":
+        "První hodnota `camera` volí příkaz. behaved zobrazuje každý z nich na časové ose (v pohledu **{{ZlDetail}}** ve vlastním řádku) a přehrává ho v pohledu. Časy jsou v milisekundách.",
+    "Shows the whole scene.":
+        "Zobrazí celou scénu.",
+    "One row per actor and the camera shots with their names - the scene at a glance. [[zeitleiste#zeilen]]":
+        "Jeden řádek na postavu a záběry kamery se jmény - scéna na první pohled. [[zeitleiste#zeilen]]",
+    "Camera move, pan, zoom and fade separately, field of view and fade as lines, every actor's animations and commands.":
+        "Pohyb, švenk, přiblížení a prolínání kamery zvlášť, zorné pole a prolínání jako čáry, animace a příkazy každé postavy.",
+    "Only shows actors that do something in the visible section.":
+        "Zobrazí jen postavy, které ve viditelném úseku něco dělají.",
+    "Only shows places with notes: camera moves that jump back, commands the preview does not simulate.":
+        "Zobrazí jen místa s upozorněními: pohyby kamery, které skočí zpět, příkazy, které náhled nenapodobuje.",
+    "**See it in the timeline.** The **{{ZlSkript}}** row shows every wait as a hatched block that says what it waits for, and a click on it names who sends the signal and when. If no script sends the signal, the side bar says so - in the game the script would wait forever.":
+        "**Podívejte se na časovou osu.** Řádek **{{ZlSkript}}** ukazuje každé čekání jako šrafovaný blok, který říká, na co čeká, a kliknutí na něj uvede, kdo signál posílá a kdy. Pokud signál neposílá žádný skript, řekne to postranní panel - ve hře by skript čekal navždy.",
+    "**See them in the timeline.** In the **{{ZlDetail}}** view the timeline has its own rows for zoom, fade and shake, and draws the field of view and the fade as lines.":
+        "**Podívejte se na ně na časové ose.** V pohledu **{{ZlDetail}}** má časová osa vlastní řádky pro přiblížení, prolínání a otřesy a kreslí zorné pole a prolínání jako čáry.",
+    "**Change a duration.** Drag the right edge of a camera block or a wait to make it shorter or longer. A walk keeps its length: it comes from the path finding and the speed of the figure.":
+        "**Změňte délku.** Tažením pravého okraje bloku kamery nebo čekání ho zkrátíte nebo prodloužíte. Chůze si ponechá svou délku: vychází z hledání cesty a rychlosti postavy.",
+    "**Step exactly.** With the mouse over the timeline, <kbd>Left</kbd> / <kbd>Right</kbd> move the playhead by 50 ms, with <kbd>Shift</kbd> by one second, with <kbd>Ctrl</kbd> by five seconds. The time display shows where you are; click it to switch to frames.":
+        "**Přesné krokování.** S myší nad časovou osou posouvají <kbd>←</kbd> / <kbd>→</kbd> ukazatel přehrávání o 50 ms, se <kbd>Shift</kbd> o sekundu, s <kbd>Ctrl</kbd> o pět sekund. Zobrazení času ukazuje, kde jste; kliknutím na něj přepnete na snímky.",
+    "**Rows.** **{{ZlUebersicht}}** shows one row per actor, **{{ZlDetail}}** the camera split into move, pan, zoom and fade and every actor's animations and commands. **{{ZlNurAktive}}** hides actors that do nothing in the visible section.":
+        "**Řádky.** **{{ZlUebersicht}}** ukazuje jeden řádek na postavu, **{{ZlDetail}}** kameru rozdělenou na pohyb, švenk, přiblížení a prolínání a animace a příkazy každé postavy. **{{ZlNurAktive}}** skryje postavy, které ve viditelném úseku nic nedělají.",
+    "**Camera rows.** Switch to **{{ZlDetail}}** to see move, pan, zoom, fade and shake in their own rows. A move that starts before the previous one has finished gets its own lane and the red note **{{ZlSpringt}}** - in the game the camera jumps back; shorten the earlier one or start the later one after it.":
+        "**Řádky kamery.** Přepněte na **{{ZlDetail}}** a uvidíte pohyb, švenk, přiblížení, prolínání a otřesy ve vlastních řádcích. Pohyb, který začne dřív, než skončil předchozí, dostane vlastní dráhu a červené upozornění **{{ZlSpringt}}** - ve hře kamera skočí zpět; zkraťte dřívější pohyb nebo nechte pozdější začít až po něm.",
+    "**Check it.** Open the figure's row in the timeline: its row **{{ZlBefehle}}** shows the look commands at their time.":
+        "**Zkontrolujte to.** Rozbalte řádek postavy na časové ose: její řádek **{{ZlBefehle}}** ukazuje příkazy pohledu v jejich čase.",
+    "The rows of the opened figure: walks above, its commands below.":
+        "Řádky rozbalené postavy: nahoře chůze, pod nimi její příkazy.",
+    "**Time it.** A `wait` after the sound keeps the next command until the line is over. In the **{{ZlSprache}}** row the line is as long as its sound file - drag the right edge of the wait in **{{ZlSkript}}** until it fits.":
+        "**Načasujte to.** `wait` po zvuku zdrží další příkaz, dokud replika neskončí. V řádku **{{ZlSprache}}** je replika stejně dlouhá jako její zvukový soubor - táhněte pravý okraj waitu v **{{ZlSkript}}**, dokud nesedí.",
 }
