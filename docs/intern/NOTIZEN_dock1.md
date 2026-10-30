@@ -614,14 +614,19 @@ Zeile in dockvorgabe.cpp, inkrementell gebaut, 0 Warnungen. **ctest 158/158.**
 
 | Lauf (Schalter ab Werk an) | Ergebnis |
 |---|---|
-| dock4 (schaltet selbst um), mit Ablage aus einem zweiten Prozess | **101 OK, 0 FEHLER** |
+| dock4 (schaltet selbst um), mit Ablage aus einem zweiten Prozess und Fotovergleich | **107 OK, 0 FEHLER** |
 | dock1 | **97 OK, 0 FEHLER** (Bildzeit 1 Viewport 4,20 ms, 3 Viewports 4,20 ms) |
 | dock1neustart (zweiter Start) | **18 OK, 0 FEHLER** |
 | dock2mass | **29 OK, 0 FEHLER** |
 | menueeditor | **46 OK, 0 FEHLER** |
-| karteneditor (`BHED_KARTE_NUR=fotos`, mit Fotos) | **78 OK, 0 FEHLER** |
+| karteneditor (`BHED_KARTE_NUR=fotos`, mit Fotos) | **78 OK, 0 FEHLER**; Fotos gegen den Lauf mit `BHED_DOCKSPACE=0`: 62 von 65 gleich, 3 nur im Laufordner in der Konsole |
 | missionsbau / szenen / kamera / ton | **95 / 26 / 95 / 34 OK**, je 0 FEHLER |
 | Modus 1 (mit BHED_HANDBUCH) | **2648 OK, 0 FEHLER** |
+
+dock4, dock1, dock1neustart, menueeditor, karteneditor und Modus 1 liefen nach
+Fehler 10 (letzte Änderung an dockvorgabe.cpp) noch einmal mit dem fertigen
+Programm, mit denselben Zahlen; dock2mass, missionsbau, szenen, kamera, ton
+(nur Events/Mission/Model, von der Änderung nicht berührt) nicht noch einmal.
 | ImGui-Zusicherungen | in keinem Lauf |
 | OpenGL (`BHED_OPENGL=1`, dock1) | 96 OK, 1 FEHLER: Echtzeit-Licht – braucht Direct3D 11 (kartegpu::verfuegbar, vorher schon so); eigene Fenster zeichnen (Zeitleiste 832, Kamera 126, Fläche 285 Farben) |
 
@@ -632,7 +637,10 @@ auf ±0,5 Punkte wie ohne – z. B. Regular XY 165,110 910x1194, Konsole 165,131
 910x64, Kamera 1083,110 1364x786, Texturen 1083,904 1364x472; Menü „Text unten“
 Bausteine 165,111 312x803, Text 165,932 2361x358. Hover-Linie 107/107 Zeilen
 2 Punkte breit; Dreieck 136/136 Punkte; Ablage aus dem zweiten Prozess:
-misc_model bei 0 48 (soll 0 48).
+misc_model bei 0 48 (soll 0 48). Fotovergleich im selben Lauf (beide Fotos
+direkt hintereinander, nur der Schalter dazwischen): Map Editor Regular 0
+Punkte anders (ohne den Text der Konsole, die beim Zurückstellen weiterschreibt),
+Menu Editor 0 Punkte anders.
 
 Gegen ein Vorbild geprüft: NRCs Anordnungen gegen den bisherigen Weg ohne
 DockSpace (der gegen NRC-Fotos geprüft ist, karteneditor „Anordnung Regular wie

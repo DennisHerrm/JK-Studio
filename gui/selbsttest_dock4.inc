@@ -161,6 +161,9 @@ Bild bildLesen(const std::string& pfad) {
 
 int abstand(const unsigned char* a, const unsigned char* b) { return std::abs(a[0] - b[0]) + std::abs(a[1] - b[1]) + std::abs(a[2] - b[2]); }
 
+// Die Maus auf eine Stelle, an der sie nichts hervorhebt (unten links, Statuszeile).
+void mausAbseits() { setzeMaus(ImVec2{ImGui::GetMainViewport()->Pos.x + 4.0F, ImGui::GetMainViewport()->Pos.y + ImGui::GetMainViewport()->Size.y - 4.0F}); }
+
 // Ein Foto schreiben und warten, bis es da ist.
 Schritt fotoNach(const std::string& was, const std::string& datei, std::function<void()> jedesBild) {
     return {"dock4: Foto " + was, [=](int b) {
@@ -313,6 +316,56 @@ std::vector<Schritt> dock4Schritte() {
     }
     add(pruefe("dock4: Map Editor (10 Anordnungen, Griff) und Menu Editor (2 Layouts) im DockSpace Punkt fuer Punkt wie ohne",
                [alt, neu] { return dock4::vergleichen(*alt, *neu); }));
+    // Auch im Bild: die Flaeche der Felder bzw. Spalten Punkt fuer Punkt gleich (gefunden: Rand
+    // der Konsole fehlte, Feldrahmen ueber dem Rand - Fehler 10 der Notizen). Beide Fotos direkt
+    // hintereinander, nur der Schalter dazwischen; der Text in der Konsole zaehlt nicht (sie
+    // schreibt beim Zurueckstellen der Anordnung weiter), ihr Rand schon.
+    for (const int bereich : {3, 4}) {
+        const std::string datei = bereich == 3 ? "dock4_regular" : "dock4_menue";
+        const std::string vorsilbe = bereich == 3 ? "Regular " : "MenuReiterRechts ";
+        for (const int runde : {0, 1}) {
+            add(tu("dock4: Foto " + datei + (runde == 0 ? " ohne" : " mit") + " DockSpace", [bereich, runde, stand] {
+                dockraumAn() = runde == 1;
+                g_app->leftMode = bereich;
+                g_app->settings.menueTextUnten = false;
+                if (bereich == 3) { dock4::karteSetzen(dock4::kartenArten()[0], *stand); }
+            }));
+            add(stabil("dock4: Foto " + datei, 30));
+            add(dock4::fotoNach(datei + std::to_string(runde), datei + std::to_string(runde) + ".bmp", [] { dock4::mausAbseits(); }));
+        }
+        add(pruefe("dock4: " + datei + " im Foto Punkt fuer Punkt wie ohne DockSpace", [alt, datei, vorsilbe] {
+            const std::string ordner = platform::executableDirectory() + "\\";
+            const dock4::Bild a = dock4::bildLesen(ordner + datei + "0.bmp");
+            const dock4::Bild b = dock4::bildLesen(ordner + datei + "1.bmp");
+            ImRect flaeche;
+            bool da = false;
+            for (const auto& [k, r] : *alt) {
+                if (k.rfind(vorsilbe, 0) != 0) { continue; }
+                if (da) {
+                    flaeche.Add(r);
+                } else {
+                    flaeche = r;
+                    da = true;
+                }
+            }
+            if (!a.da() || !b.da() || a.breite != b.breite || a.hoehe != b.hoehe || !da) { return false; }
+            ImRect text;   // das Innere der Konsole (ohne ihren Rand)
+            if (const auto k = alt->find(vorsilbe + "##feldKonsole"); k != alt->end()) {
+                // innerhalb ihres Randes (oben 2 Punkte Abstand und Rand, unten der Rand)
+                text = ImRect{ImVec2{k->second.Min.x + 2.0F, k->second.Min.y + 3.0F}, ImVec2{k->second.Max.x - 2.0F, k->second.Max.y - 1.0F}};
+            }
+            int n = 0;
+            for (int y = static_cast<int>(flaeche.Min.y); y < static_cast<int>(flaeche.Max.y); ++y) {
+                for (int x = static_cast<int>(flaeche.Min.x); x < static_cast<int>(flaeche.Max.x); ++x) {
+                    if (text.Contains(ImVec2{static_cast<float>(x), static_cast<float>(y)})) { continue; }
+                    if (dock4::abstand(a.punkt(x, y), b.punkt(x, y)) != 0) { ++n; }
+                }
+            }
+            diag::detail("Knopftest: dock4: Foto " + datei + " - " + std::to_string(n) + " Punkte anders in " + dock1::rechteck(flaeche) +
+                         (text.GetWidth() > 0.0F ? " (ohne den Text der Konsole " + dock1::rechteck(text) + ")" : std::string()));
+            return n == 0;
+        }));
+    }
 
     // Ohne DockSpace kennt "Text unten" keine Panels: auch mit der Flaeche in einem
     // eigenen Fenster (dort aus "Reiter rechts") steht das Layout wie immer.
