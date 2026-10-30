@@ -1131,6 +1131,8 @@ target_sources(bhed_core PRIVATE
   src/menue/ownerdraw.cpp
   src/menue/datapad.cpp
   src/menue/pazaak.cpp
+  # M7: Tastenbelegung aus der Vorgabe-Config (Item_Bind_Paint/BindingFromName)
+  src/menue/tasten.cpp
   # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
   src/menue/modell.cpp
   # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek
@@ -1222,6 +1224,10 @@ if(BEHAVED_TESTS)
   target_link_libraries(menuefluss PRIVATE bhed_core)
   add_test(NAME menue_fluss COMMAND menuefluss)
   # M7 Punkt 14: UI_OwnerDraw je Nummer (MP-Kraefte, Server, GL-Treiber, Datapad, Pazaak)
+  # M7: Tastenbelegung wie im Spiel (ITEM_TYPE_BIND)
+  add_executable(menuetasten tests/menuetasten.cpp)
+  target_link_libraries(menuetasten PRIVATE bhed_core)
+  add_test(NAME menue_tasten COMMAND menuetasten)
   add_executable(menueownerdraw tests/menueownerdraw.cpp)
   target_link_libraries(menueownerdraw PRIVATE bhed_core)
   add_test(NAME menue_ownerdraw COMMAND menueownerdraw)

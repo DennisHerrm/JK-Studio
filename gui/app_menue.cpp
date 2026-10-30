@@ -53,6 +53,7 @@
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
 #include "bhed/menue/stile.h"
+#include "bhed/menue/tasten.h"
 #include "bhed/menue/textpuffer.h"
 #include "bhed/menue/vorschau.h"
 #include "bhed/menue/werkzeuge.h"
@@ -341,6 +342,8 @@ struct Zustand {
     std::unique_ptr<Datei> datapadHud;            // ui/hud.menu fuer CG_DrawDataPadHUD (einmal gelesen)
     std::vector<std::string> waffenIcon;          // ext_data/weapons.dat weaponIcon
     bool datapadGelesen = false;
+    Tastenbelegung tasten[2];                    // M7: Vorgabe-Config des Spiels je Dialekt (SP, MP)
+    bool tastenGelesen[2] = {false, false};
     int beispielPrims = 0;   // im letzten Bild
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
@@ -454,6 +457,8 @@ void datenPruefen() {
     z.sprachenGeladen = false;
     ++z.texteVersion;
     z.saeberGeladen = false;
+    z.datapadGelesen = false;
+    z.tastenGelesen[0] = z.tastenGelesen[1] = false;
     z.schriften.clear();
     z.texturen.clear();
 }
@@ -903,6 +908,18 @@ Umgebung umgebung(const Dokument& d) {
     fd.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
     u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
     u.feederArt = [fdp](float f) { return fdp->art(f); };
+    // M7: Tastenbelegung aus der Vorgabe-Config (Com_Init: exec default.cfg / mpdefault.cfg ...)
+    const int ti = d.datei.dialekt == Dialekt::MP ? 1 : 0;
+    if (!z.tastenGelesen[ti]) {
+        z.tastenGelesen[ti] = true;
+        z.tasten[ti] = Tastenbelegung{};
+        std::string cfg;
+        const auto lader = [](const std::string& p, std::string& out) { return Z().daten.lies(p, out); };
+        if (z.daten.lies(vorgabeConfig(d.datei.dialekt, z.spiel), cfg)) { configAusfuehren(cfg, z.tasten[ti], lader); }
+    }
+    u.bindung = [tb = &z.tasten[ti], dl = d.datei.dialekt, sp = z.spiel, tx = u.texte](const std::string& befehl) {
+        return bindungsText(*tb, befehl, dl, sp, [tx](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : std::string(); });
+    };
     // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
     u.bildDa = [](const std::string& s) {
         if (textur(s) != nullptr) { return true; }

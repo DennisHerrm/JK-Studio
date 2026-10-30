@@ -586,10 +586,23 @@ private:
                 }
                 break;
             }
-            case ITEM_TYPE_BIND: {   // Item_Bind_Paint: die Taste kommt aus dem Spiel
+            case ITEM_TYPE_BIND: {   // M7: Item_Bind_Paint mit BindingFromName (tasten.cpp)
+                Farbe c;
+                if ((flags & WINDOW_HASFOCUS) != 0) {   // ohne wartende Taste (g_bindItem): Fokusfarbe pulsiert
+                    c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor));
+                } else {
+                    c = u_.dialekt == Dialekt::MP ? it.window.foreColor : textFarbe(it, flags);
+                }
+                if (it.text.empty()) { break; }   // ohne text: "FIXME" (kommt in keinem Menue vor)
                 textMalen(it, flags);
-                const Farbe c = textFarbe(it, flags);
-                text(tr_.x + tr_.w + 8, tr_.y, it.textscale, c, "???", 0, it.textStyle, it.font);
+                const std::string name = u_.bindung ? u_.bindung(it.cvar) : std::string("???");
+                // breiter als der Schirm: Schrift in 0,05-Schritten kleiner (SP misst mit qhMediumFont)
+                const int mf = u_.dialekt == Dialekt::MP ? it.font : 0;
+                float sc = it.textscale;
+                const float x = tr_.x + tr_.w + 8;
+                while (sc > 0.0F && x + static_cast<float>(textBreite(name, sc, mf)) >= kSchirmBreite) { sc -= 0.05F; }
+                const int yAdj = sc != it.textscale ? textHoehe(it.textscale, mf) - textHoehe(sc, mf) : 0;
+                text(x, tr_.y + static_cast<float>(yAdj), sc, c, name, it.maxPaintChars, it.textStyle, it.font);
                 break;
             }
             case ITEM_TYPE_SLIDER:
