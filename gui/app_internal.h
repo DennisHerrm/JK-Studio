@@ -2819,7 +2819,7 @@ void drawModelPanel();
 void drawModelView();
 void drawTimeline();
 void drawCameraGizmos();
-// dock2: Schalter des durchgehenden DockSpace (ab Werk aus, BHED_DOCKSPACE=1).
+// dock2: Schalter des durchgehenden DockSpace (dock4: ab Werk an, BHED_DOCKSPACE=0 = Rueckweg).
 bool& dockraumAn();
 // Steht der Bereich (0..2) in der Standardanordnung? Zuruecksetzen baut sie im
 // naechsten Bild neu auf; der Blattknoten eines Panels der Standardanordnung.

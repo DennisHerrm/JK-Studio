@@ -1,13 +1,15 @@
-// app_dockspace.inc - dock2 (in Arbeit): ein durchgehender DockSpace je Bereich
+// app_dockspace.inc - dock2: ein durchgehender DockSpace je Bereich
 //
 // shank: "wie bei Blender": jedes Panel ueberall hin - auch an jede Stelle im
 // Hauptfenster (neben, unter, ueber, als Reiter zu jedem anderen Panel).
 //
-// Stand: Events, Mission und Model. Schalter ab Werk AUS (dockraum::an();
-// BHED_DOCKSPACE=1 schaltet ihn beim Start an, der Selbsttest dock2mass schaltet
-// ihn zum Vergleichen um). Map Editor und Menu Editor bleiben wie in dock1.
-// Der Baum steht mit den Panellagen in den Einstellungen (Neustart, benannte
-// Anordnungen); Anordnungen aus dock1 werden beim ersten Aufbau uebernommen.
+// Events, Mission und Model; Map Editor und Menu Editor haben ihre eigene
+// Vorgabe (dockvorgabe.h). Schalter ab Werk AN (dock4; dockraum::an()):
+// BHED_DOCKSPACE=0 schaltet ihn beim Start aus - der Rueckweg zu dock1 (Panels
+// an festen Plaetzen, nur in eigene Fenster); der Selbsttest dock2mass schaltet
+// ihn zum Vergleichen um. Der Baum steht mit den Panellagen in den
+// Einstellungen (Neustart, benannte Anordnungen); Anordnungen aus dock1 werden
+// beim ersten Aufbau uebernommen.
 //
 // Die Standardanordnung entsteht nicht aus eigenen Rechnungen: dieselben
 // ImGui-Tabellen wie vorher richten sich ein (nur gemessen, ohne Inhalt), und
@@ -23,7 +25,7 @@ namespace dockraum {
 bool& an() {
     static bool a = [] {
         const char* e = std::getenv("BHED_DOCKSPACE");
-        return e != nullptr && e[0] == '1';
+        return e == nullptr || e[0] != '0';
     }();
     return a;
 }

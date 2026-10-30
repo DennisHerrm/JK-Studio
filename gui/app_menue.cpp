@@ -4231,10 +4231,12 @@ void zeichneInnen(float hoehe) {
     const bool dockRaum = menueDockBeginnen();
     const ImVec2 start = ImGui::GetCursorScreenPos();
     const bool unten = st.menueTextUnten;
-    const bool text = unten && dock::zuhause("menue.text");
-    const bool links = dock::zuhause("menue.bausteine");
-    const bool mitte = dock::zuhause("menue.flaeche");
-    const bool rechts = dock::zuhause(unten ? "menue.eigenschaften" : "menue.reiter");
+    // Ohne DockSpace kennt "Text unten" keine Panels - das Layout bleibt dort, wie es ist.
+    const auto da = [&](const char* panel) { return (unten && !dockRaum) || dock::zuhause(panel); };
+    const bool text = unten && da("menue.text");
+    const bool links = da("menue.bausteine");
+    const bool mitte = da("menue.flaeche");
+    const bool rechts = da(unten ? "menue.eigenschaften" : "menue.reiter");
     if (unten && z.codeHoehe <= 0) { z.codeHoehe = std::floor(rest.y * 0.38F); }
     const float h = text && (links || mitte || rechts) ? std::max(fs * 6, rest.y - z.codeHoehe - 8) : rest.y;
     if (links) {

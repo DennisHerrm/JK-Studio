@@ -314,6 +314,31 @@ std::vector<Schritt> dock4Schritte() {
     add(pruefe("dock4: Map Editor (10 Anordnungen, Griff) und Menu Editor (2 Layouts) im DockSpace Punkt fuer Punkt wie ohne",
                [alt, neu] { return dock4::vergleichen(*alt, *neu); }));
 
+    // Ohne DockSpace kennt "Text unten" keine Panels: auch mit der Flaeche in einem
+    // eigenen Fenster (dort aus "Reiter rechts") steht das Layout wie immer.
+    add(tu("dock4: ohne DockSpace - Flaeche heraus (Reiter rechts), dann Text unten", [] {
+        dockraumAn() = false;
+        g_app->leftMode = 4;
+        g_app->settings.menueTextUnten = false;
+        dock::herausnehmen("menue.flaeche");
+    }));
+    add(stabil("dock4: Flaeche draussen", 15));
+    add(tu("dock4: ohne DockSpace - Text unten", [] { g_app->settings.menueTextUnten = true; }));
+    add(stabil("dock4: Text unten ohne DockSpace", 20));
+    add(pruefe("dock4: ohne DockSpace - Text unten mit der Flaeche an ihrem Platz, Masse wie immer", [alt] {
+        const dock4::Masse m = dock4::messen("MenuTextUnten");
+        dock4::Masse soll;
+        for (const auto& [k, r] : *alt) {
+            if (k.rfind("MenuTextUnten ", 0) == 0) { soll[k] = r; }
+        }
+        return dock4::vergleichen(soll, m);
+    }));
+    add(tu("dock4: ohne DockSpace - Reiter rechts, Flaeche zurueck", [] {
+        g_app->settings.menueTextUnten = false;
+        dock::andocken("menue.flaeche");
+    }));
+    add(stabil("dock4: Flaeche zurueck", 15));
+
     // --- Reiter: keine Vorgabe mehr, Zuruecksetzen = wieder die Masse ----------
     add(tu("dock4: Map Editor Regular im DockSpace", [stand] {
         dockraumAn() = true;

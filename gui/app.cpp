@@ -5202,7 +5202,7 @@ void drawTlKante() {
                                : ImGuiCol_Separator));
 }
 
-#include "app_dockspace.inc"   // dock2: durchgehender DockSpace (in Arbeit, Schalter ab Werk aus)
+#include "app_dockspace.inc"   // dock2: durchgehender DockSpace (ab Werk an, BHED_DOCKSPACE=0 = Rueckweg)
 }  // namespace
 
 // dock2: der Schalter des DockSpace (app_dockspace.inc) fuer den Selbsttest.

@@ -468,41 +468,163 @@ Neustart mit gespeichertem Baum“ (dock1/dock1neustart mit Schalter).
 - Danach: Schalter an, alter Weg (Anordnungslisten, Zurückziehen auf den
   alten Platz, drawDockFenster für Bereich 0–2) raus.
 
+## dock4 – Docking fertig, Schalter an
+
+Auftrag: SP\auftrag_dock4.md (30.10., ab 09:00). Ergebnis: Schalter
+`BHED_DOCKSPACE` **ab Werk AN** (`BHED_DOCKSPACE=0` = Rückweg, im Handbuch unter
+„Fehlerbehebung“).
+
+### 1. Karten-Editor im DockSpace
+
+`gui/dockvorgabe.{h,cpp}` (neu): eine Vorgabe = der Baum einer Anordnung aus
+Blättern (Panels) und Teilungen (nebeneinander/untereinander). Je
+NRC-Anordnung eine Vorgabe mit genau den Teilern von MainFrame::Create
+(`kartenVorgabe`, app_karte.cpp): m_hSplit nebeneinander, darin m_vSplit und
+m_vSplit2 untereinander, der eingebaute Gruppendialog als drittes Kind von
+m_hSplit; Split mit der Belegung der Plätze. Schlüssel (= feste Wurzel
+`bhed.dockraum.<schlüssel>`): `karte.regular`, `karte.regularleft`,
+`karte.split.<belegung>`, je mit `.gruppe`. Floating hat keinen DockSpace.
+
+- **Masse:** Die Teiler rechnen wie bisher (Qts Rechnung, Einklappen,
+  MaximizeView); `feld()` misst im DockSpace nur, und nach `DockSpace()`
+  bekommen die Blätter genau diese Rechtecke (`groessenSetzen`: Pos/Size des
+  Blatts, SizeRef der Teilungen) – solange der Baum der Vorgabe entspricht
+  (`passt`: jedes Blatt leer, mit seinem Panel oder ganz verschmolzen, kein
+  fremdes Fenster, keine fremde Teilung). Dann zeichnet der Bereich NRCs
+  Griffe (Punkte, Ziehen wie QSplitterHandle) über dem Abstand; ImGuis
+  Teiler sind aus (`NoResize`, Randfarbe durchsichtig). Sonst gelten ImGuis
+  Teiler und Masse, NRCs Griffe fehlen. Kein Blatt ist Mittelknoten – ein
+  leeres Blatt gibt seinen Platz ab wie ein versteckter Teil eines QSplitter.
+- Jedes Feld zeichnet in seinem Panel ein Kindfenster `##feld<Name>` wie
+  vorher (Namen, Hintergrund, Polster 0) – die Fotos und Prüfungen der
+  Karten-Selbsttests finden dieselben Fenster.
+- Herausgenommene Ansichten zeichnen weiter (Echtzeit-Licht), Klick macht sie
+  aktiv, Kürzel gelten dort (dock1 mit Schalter: Kamera im eigenen
+  Windows-Fenster, Licht näher = Boden heller, Pfeil hoch fährt, Freelook 300
+  Punkte = 15 Grad).
+- Wechsel der Vorgabe (andere NRC-Anordnung, Belegung): der alte Baum weicht,
+  schwebende Panels bleiben draussen. Neustart/geladene Anordnung: der Baum
+  der aktuellen Vorgabe wird übernommen.
+
+### 2. Menü-Editor im DockSpace
+
+`gui/app_menue_dock.inc` (eingebunden in app_menue.cpp, im Menü-Editor nur ein
+Block geändert): Vorgaben `menue.reiter` (Bausteine | Fläche | Reiter-Spalte)
+und `menue.textunten` (Bausteine+Gliederung | Fläche | Eigenschaften, darunter
+Text). zeichneInnen rechnet die Spalten wie bisher in einem Weg für beide
+Layouts (`spalte`, `spaltenTeiler`); im DockSpace misst `spalte` nur. Neue
+Panels `menue.eigenschaften`, `menue.text` (nur „Text unten“, nur im
+DockSpace; Titel aus vorhandenen Texten). Ohne Menü stehen Panels in eigenen
+Fenstern weiter da (mit dem Hinweis).
+
+### 3. Rest aus dock2/dock3
+
+- **Randfall an/aus/an:** (a) Liste aus dock1 neuer als der Baum: beim
+  Übernehmen schweben ihre Panels, die Liste wird geleert
+  (`alteListeSchweben`) – vorher blieb sie stehen und liess beim nächsten
+  Neuaufbau ein schon wieder angedocktes Panel herausfallen. (b) Ohne
+  DockSpace heraus und wieder zurück: ImGui löst das Fenster beim Zeichnen
+  ohne DockSpace aus dem Baum; jetzt bekommt es beim Zurücklegen eine
+  Knoten-Marke, mit DockSpace setzt der Bereich es in sein Blatt oder baut die
+  Vorgabe neu (vorher schwebte es).
+- **Hover-Linie der alten Griffe:** über den Panels meldete `IsItemHovered`
+  nichts (das Fenster unter der Maus ist ein Panel bzw. der Wirt des
+  DockSpace) – die Linie fehlte ganz (Foto: 0 von 107 Zeilen). Jetzt zählt der
+  Hover-Zustand des Knopfs selbst (FlattenChildren), die Linie kommt in die
+  Zeichenlisten der Panels (107/107 Zeilen, 2 Punkte breit). Dasselbe für
+  NRCs Griffe und die Teiler des Menü-Editors (Zeiger zum Ziehen).
+- **ImGuis Dreieck oben links:** ImGui zeichnet es in Begin unter den Inhalt
+  (im Karten-Editor ganz verdeckt), und ein Klick darauf ging zugleich an die
+  Ansicht darunter (die Ansichten fragen IsWindowHovered). Jetzt: sichtbar nur
+  unter der Maus, über dem Inhalt; solange es die Maus hat, bekommt der Inhalt
+  keine (`dreieckBeginnen`). Klick zeigt den Reiter, Ziehen nimmt heraus.
+- **OpenGL:** `BHED_OPENGL=1` (DEBUGGEN.md 3.5) nimmt gleich den OpenGL-Weg;
+  der Selbsttest liest das Bild eigener Fenster dort mit glReadPixels.
+- **Dateien wie aus dem Explorer:** jedes Windows-Fenster hat
+  WS_EX_ACCEPTFILES (die Bedingung, unter der der Explorer WM_DROPFILES
+  schickt); ein Modell auf die XY-Ansicht im eigenen Fenster landet als
+  misc_model unter dem Zeiger; mit `BHED_DOCK4_EXTERN` legt ein zweiter
+  Prozess (`SP\d4_ablage_extern.py`, PostMessage über die Prozessgrenze wie
+  der Explorer) die Datei ab.
+
+### Fehler unterwegs (rot → grün im selben Test)
+
+1. Menü-Editor im DockSpace: Absturz (ImGui-Zusicherung „SetCursorPos ... to
+   extend window boundaries“) – der DockSpace setzte den Cursor zurück, danach
+   kam kein Element mehr → nicht zurücksetzen (menueeditor 46 OK).
+2. Reiter-Prüfung in dock4 zählte die Griffe der Werkzeugleisten mit – nur
+   NRCs Teiler-Griffe (Testfehler).
+3. Hover-Linie (dock4: 0 von 107 Zeilen) und Zeiger über NRCs Griffen und den
+   Teilern des Menü-Editors (3 FEHLER) → Hover des Knopfs selbst.
+4. Dreieck: über der Ansicht nicht zu sehen, Klick traf zugleich die Ansicht
+   (2 FEHLER) → grün.
+5. Randfall an/aus/an mit Liste (2 FEHLER) → grün; ohne DockSpace heraus und
+   zurück (dock4: Karten-Editor zur Laufzeit umgeschaltet, 1 FEHLER, 40
+   Kindfenster fehlten) → grün.
+6. Herausnehmen eines Panels, dessen Bereich noch nicht gezeigt war (dock1:
+   „menue.bausteine gezeichnet: nicht nach 120 Bildern“) → grün.
+7. Neustart: schwebende Fläche des Menü-Editors ohne Menü nicht gezeichnet
+   (dock1neustart 1 FEHLER) → gespeicherte Fenstereinstellung zählt → grün.
+8. OpenGL: Bild der eigenen Fenster nicht gelesen (Puffergrösse aus
+   FramebufferScale = 0) → Innenfläche des Windows-Fensters → grün.
+
+### 4. Handbuch
+
+Seite „Fenster und Bildschirme anordnen“ neu für den DockSpace (überall
+andocken, Dreieck, Karten-Editor mit NRCs Massen, Menü-Editor beide Layouts,
+Fehlerbehebung mit `BHED_DOCKSPACE=0`); Bilder h_dock_* neu, h_dock_ecke neu.
+Alte Bilder mit der Menüleiste ohne „Window“ neu aufgenommen (4 Sprachen).
+
 ## Changelog
 
 ## English
-- Window layout like Blender: every panel (events list, Script Flow, Actions, mission view, entities, timeline, model view, map editor views, console, texture browser, menu editor canvas …) can be taken out into its own window - drag it onto a second screen, combine panels as tabs or side by side, dock it back by closing it or dragging it onto its old place.
+- Window layout like Blender: every panel (events list, Script Flow, Actions, mission view, entities, timeline, model view, map editor views, console, texture browser, menu editor canvas …) can be docked anywhere in the main window - beside, above, below or as a tab of another panel - or taken out into its own window on a second screen. Dock it back by closing its window, from the menu or by dropping it on a marker.
+  - As long as nothing is moved, every area looks exactly as before, with the same dividers.
   - New menu **Window**: show/hide panels, put them into their own window, save layout as, load, delete, reset - per area; the current layout is restored at the next start.
+  - The small triangle in the top left corner of a panel appears under the mouse: drag it to take the panel out, click it to show the panel's tab. A click on it no longer reaches the view below.
   - Windows on an unplugged or too small screen come back; text and size follow the scale of the screen a window is on.
-  - Map editor: NetRadiant's layouts stay the default; taken-out views keep drawing (real-time light included), free look and shortcuts work in the window you clicked.
+  - Map editor: NetRadiant's layouts (Regular, Regular Left, Split, also with freely assigned places and the built-in entity window) stay the default with exactly NetRadiant's sizes and dividers; taken-out views keep drawing (real-time light included), free look and shortcuts work in the window you clicked.
+  - Menu editor: both layouts - tabs on the right and text below - are made of panels.
   - Files can be dragged onto a panel's own window just like onto the main window.
+  - If docking in the main window causes problems, start with `BHED_DOCKSPACE=0`: panels stay at fixed places and can only be taken out into their own window, as before (Guide: Arrange windows and screens > Troubleshooting).
 - The helper (F1) also finds the entries of the **Window** menu.
 - The columns of Events no longer move by one point after the first switch between the areas.
 
 ## Deutsch
-- Fensteranordnung wie in Blender: jedes Panel (Ereignisliste, Script Flow, Actions, Missionsansicht, Entities, Zeitleiste, Modellansicht, Ansichten des Karten-Editors, Konsole, Texturbrowser, Fläche des Menü-Editors …) lässt sich in ein eigenes Fenster nehmen – auf einen zweiten Bildschirm ziehen, Panels als Reiter oder nebeneinander zusammensetzen, durch Schließen oder Ziehen auf den alten Platz wieder andocken.
+- Fensteranordnung wie in Blender: jedes Panel (Ereignisliste, Script Flow, Actions, Missionsansicht, Entities, Zeitleiste, Modellansicht, Ansichten des Karten-Editors, Konsole, Texturbrowser, Fläche des Menü-Editors …) lässt sich überall im Hauptfenster andocken – neben, über, unter oder als Reiter zu einem anderen Panel – oder in ein eigenes Fenster auf einem zweiten Bildschirm nehmen. Zurück durch Schließen seines Fensters, über das Menü oder durch Ablegen auf einer Markierung.
+  - Solange nichts verschoben ist, sieht jeder Bereich genau aus wie vorher, mit denselben Trennlinien.
   - Neues Menü **Fenster**: Panels zeigen/ausblenden, in ein eigenes Fenster nehmen, Anordnung speichern unter, laden, löschen, zurücksetzen – je Bereich; die laufende Anordnung ist beim nächsten Start wieder da.
+  - Das kleine Dreieck in der linken oberen Ecke eines Panels erscheint unter der Maus: daran ziehen nimmt das Panel heraus, ein Klick zeigt seinen Reiter. Ein Klick darauf erreicht die Ansicht darunter nicht mehr.
   - Fenster auf einem abgezogenen oder zu kleinen Bildschirm kommen zurück; Schrift und Größe folgen dem Maßstab des Bildschirms.
-  - Karten-Editor: NetRadiants Anordnungen bleiben die Vorgabe; herausgenommene Ansichten zeichnen weiter (auch Echtzeit-Licht), Umschauen und Tastenkürzel gelten im angeklickten Fenster.
+  - Karten-Editor: NetRadiants Anordnungen (Regular, Regular Left, Split, auch mit frei belegten Plätzen und dem eingebauten Entity-Fenster) bleiben die Vorgabe mit genau NetRadiants Größen und Trennlinien; herausgenommene Ansichten zeichnen weiter (auch Echtzeit-Licht), Umschauen und Tastenkürzel gelten im angeklickten Fenster.
+  - Menü-Editor: beide Layouts – Reiter rechts und Text unten – bestehen aus Panels.
   - Dateien lassen sich auf das eigene Fenster eines Panels ziehen wie auf das Hauptfenster.
+  - Macht das Andocken im Hauptfenster Probleme, mit `BHED_DOCKSPACE=0` starten: die Panels stehen an festen Plätzen und lassen sich nur in ein eigenes Fenster nehmen, wie vorher (Handbuch: Fenster und Bildschirme anordnen > Fehlerbehebung).
 - Der Helfer (F1) findet auch die Einträge des Menüs **Fenster**.
 - Die Spalten von Events verschieben sich nach dem ersten Wechsel zwischen den Bereichen nicht mehr um einen Punkt.
 
 ## 中文
-- 像 Blender 一样排列窗口:每个面板(事件列表、Script Flow、Actions、任务视图、实体、时间轴、模型视图、地图编辑器视图、控制台、纹理浏览器、菜单编辑器画布……)都可以移到独立窗口中——拖到第二个屏幕上,以选项卡或并排方式组合面板,关闭或拖回原位置即可重新停靠。
+- 像 Blender 一样排列窗口:每个面板(事件列表、Script Flow、Actions、任务视图、实体、时间轴、模型视图、地图编辑器视图、控制台、纹理浏览器、菜单编辑器画布……)都可以停靠到主窗口的任意位置——另一个面板的旁边、上方、下方或作为其选项卡——也可以移到第二个屏幕上的独立窗口中。关闭其窗口、使用菜单或放到标记上即可重新停靠。
+  - 只要不移动任何东西,每个区域看起来都与以前完全相同,分隔线也相同。
   - 新菜单 **窗口**:显示/隐藏面板、放入独立窗口、布局另存为、加载、删除、重置——按区域;当前布局在下次启动时恢复。
+  - 面板左上角的小三角形在鼠标下方出现:拖动它即可移出面板,单击它显示面板的选项卡。单击它不会再同时作用于下方的视图。
   - 拔下的或过小的屏幕上的窗口会回来;文字和大小跟随窗口所在屏幕的缩放比例。
-  - 地图编辑器:NetRadiant 的布局仍为默认;移出的视图继续绘制(包括实时光照),自由视角和快捷键在所单击的窗口中生效。
+  - 地图编辑器:NetRadiant 的布局(Regular、Regular Left、Split,包括自由分配位置和内置实体窗口的情况)仍为默认,尺寸和分隔线与 NetRadiant 完全相同;移出的视图继续绘制(包括实时光照),自由视角和快捷键在所单击的窗口中生效。
+  - 菜单编辑器:两种布局——选项卡在右侧和文本在下方——都由面板组成。
   - 可以像拖到主窗口一样把文件拖到面板的独立窗口上。
+  - 如果在主窗口中停靠出现问题,用 `BHED_DOCKSPACE=0` 启动:面板固定在原位置,只能像以前一样移到独立窗口中(手册:排列窗口和屏幕 > 故障排除)。
 - 帮助助手 (F1) 也能找到 **窗口** 菜单中的条目。
 - 首次在各区域之间切换后,事件的列不再移动一个像素。
 
 ## 日本語
-- Blender のようなウィンドウ配置:すべてのパネル(イベント一覧、Script Flow、Actions、ミッションビュー、エンティティ、タイムライン、モデルビュー、マップエディターのビュー、コンソール、テクスチャブラウザー、メニューエディターのキャンバスなど)を独立したウィンドウに取り出せます。2 台目の画面へドラッグし、タブや横並びで組み合わせ、閉じるか元の場所へドラッグすると元に戻ります。
+- Blender のようなウィンドウ配置:すべてのパネル(イベント一覧、Script Flow、Actions、ミッションビュー、エンティティ、タイムライン、モデルビュー、マップエディターのビュー、コンソール、テクスチャブラウザー、メニューエディターのキャンバスなど)を、メインウィンドウ内の好きな場所(別のパネルの横・上・下・タブ)にドッキングしたり、2 台目の画面の独立したウィンドウに取り出したりできます。ウィンドウを閉じる、メニューを使う、マーカーにドロップする、のいずれかで元に戻ります。
+  - 何も動かさない限り、各領域は区切り線も含めて以前とまったく同じです。
   - 新しいメニュー **ウィンドウ**:パネルの表示・非表示、独立ウィンドウ化、レイアウトの保存・読み込み・削除・リセット(領域ごと)。現在のレイアウトは次回の起動時に復元されます。
+  - パネル左上の角の小さな三角形はマウスを合わせると表示されます。ドラッグするとパネルを取り出し、クリックするとパネルのタブを表示します。クリックが下のビューに届くことはなくなりました。
   - 外した画面や小さすぎる画面にあったウィンドウは戻ってきます。文字と大きさはウィンドウのある画面の拡大率に従います。
-  - マップエディター:NetRadiant のレイアウトが引き続き既定です。取り出したビューも描画を続け(リアルタイムライトを含む)、自由視点とショートカットはクリックしたウィンドウで働きます。
+  - マップエディター:NetRadiant のレイアウト(Regular、Regular Left、Split、場所を自由に割り当てた場合や内蔵のエンティティウィンドウ付きも含む)が NetRadiant とまったく同じ大きさと区切り線で引き続き既定です。取り出したビューも描画を続け(リアルタイムライトを含む)、自由視点とショートカットはクリックしたウィンドウで働きます。
+  - メニューエディター:右側にタブがあるレイアウトもテキストが下にあるレイアウトも、パネルでできています。
   - メインウィンドウと同じように、パネルの独立ウィンドウにもファイルをドラッグできます。
+  - メインウィンドウ内でのドッキングで問題が起きる場合は `BHED_DOCKSPACE=0` で起動します。パネルは固定の場所に置かれ、以前と同じく独立したウィンドウへの取り出しだけができます(ガイド:ウィンドウと画面の配置 > トラブルシューティング)。
 - ヘルパー (F1) が **ウィンドウ** メニューの項目も見つけるようになりました。
 - 領域を初めて切り替えた後に、イベントの列が 1 ポイントずれることがなくなりました。
-

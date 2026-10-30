@@ -325,11 +325,12 @@ bool zeigen(int bereich, const Vorgabe& v, int i, const std::vector<ImRect>& rec
     Raum& r = raum(bereich);
     const std::string name = dock::fensterName(id);
     const ImGuiID knoten = dockIdVon(name);
+    const bool neu = ImGui::FindWindowByName(name.c_str()) == nullptr && ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())) == nullptr;
     const bool lassen = std::find(r.draussenLassen.begin(), r.draussenLassen.end(), id) != r.draussenLassen.end();
-    if (!r.frisch && !lassen && knoten != 0 && ImGui::DockBuilderGetNode(knoten) == nullptr &&
+    if (!r.frisch && !lassen && (neu || (knoten != 0 && ImGui::DockBuilderGetNode(knoten) == nullptr)) &&
         (static_cast<std::size_t>(i) >= r.heim.size() || r.heim[static_cast<std::size_t>(i)] == 0)) {
-        // Sein Knoten ist weg und sein Blatt verschmolzen (ohne DockSpace heraus und
-        // wieder an seinen Platz gekommen): die Vorgabe neu aufbauen, Panels in eigenen
+        // Neu oder sein Knoten ist weg (ohne DockSpace heraus und wieder an seinen Platz
+        // gekommen), und sein Blatt fehlt: die Vorgabe neu aufbauen, Panels in eigenen
         // Fenstern bleiben draussen; dieses Bild zeichnet es noch nicht.
         r.neuBauen = true;
         r.draussenLassen.clear();
