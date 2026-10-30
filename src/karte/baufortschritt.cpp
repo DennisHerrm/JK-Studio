@@ -403,9 +403,16 @@ VisBedarf visBedarfAusPrt(const std::string& prt) {
         zeile();
     }
     for (const long long g : grad) { v.passagen += g * g; }
+    // vis1: eine Passage behaelt nur die Woerter von cansee, die nicht null sind (visflow.cpp
+    // CreatePassages): passage_t (3 Zeiger), je 64 Woerter eine Maske (8 Bytes) und ein Rang
+    // (2 Bytes), dazu die Woerter. Wie viele das sind, steht erst nach BasePortalVis fest - gemessen
+    // 16-30 % der vollen Vektoren auf Karten mit mehr als 50 MB (md_rev_TarisUpper2 16 %,
+    // duel_mos_espa 19 %, mb2_manaan 30 %), geschaetzt mit einem Drittel. portalfront gibt
+    // BasePortalVis wieder frei: je Portalseite bleiben portalflood und portalvis.
     const double portalbytes = static_cast<double>(((v.portale * 2 + 63) & ~63LL) >> 3);
-    const double passage = 16.0 + portalbytes;   // sizeof( passage_t ) mit 64-Bit-Zeiger, dazu cansee
-    v.speicherMB = (static_cast<double>(v.passagen) * passage + static_cast<double>(v.portale) * 2.0 * 3.0 * portalbytes) / (1024.0 * 1024.0);
+    const double maskenwoerter = std::ceil(portalbytes / 8.0 / 64.0);
+    const double passage = 24.0 + 10.0 * maskenwoerter + portalbytes / 3.0;
+    v.speicherMB = (static_cast<double>(v.passagen) * passage + static_cast<double>(v.portale) * 2.0 * 2.0 * portalbytes) / (1024.0 * 1024.0);
     v.ok = true;
     return v;
 }

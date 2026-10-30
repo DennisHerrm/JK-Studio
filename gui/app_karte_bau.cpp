@@ -357,6 +357,17 @@ void bauMenueEintraegeZeichnen() {
         ed.bau.lichtWieder = !ed.bau.lichtWieder;
         einstellungenSpeichern();
     }
+    // vis1 (Abweichung, eigene Funktion): dasselbe VIS in jedem Bau (-bhedvisexact)
+    const std::string visE = std::string(trK(Str::KeVisExakt)) + "##bauvisexakt";
+    QtPunkt ve;
+    ve.id = visE.c_str();
+    ve.art = QtArt::Pruefbar;
+    ve.haken = ed.bau.visExakt;
+    ve.tooltip = trK(Str::KeVisExaktTip);
+    if (qtPunkt(ve)) {
+        ed.bau.visExakt = !ed.bau.visExakt;
+        einstellungenSpeichern();
+    }
     // Stufe 8g (Abweichung, eigene Funktion): die ganze Lichtrechnung auf der GPU (-bhedgpubake)
     const std::string gpu = std::string(trK(Str::KeGpuMenue)) + "##baugpubacken";
     std::string gpuTip = trK(Str::KeGpuMenueTip);
@@ -2213,6 +2224,10 @@ void bauStarten(std::size_t index) {
     // Stufe 8a Punkt 5b/5d (Abweichung): Licht nur fuer betroffene Lightmaps, Nachbearbeitung ohne neu zu tracen
     if (ed.bau.lichtWieder) {
         for (std::string& b : befehle) { b = karte::befehlMitLichtWiederverwendung(b); }
+    }
+    // vis1 (Abweichung): mit mehreren Threads genau das VIS von -threads 1
+    if (ed.bau.visExakt) {
+        for (std::string& b : befehle) { b = karte::befehlMitVisExakt(b); }
     }
     // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU. Stufe 8d: Auto -
     // bhed_q3map2 waehlt mit den gemerkten Zeiten dieser Karte die schnellere Variante

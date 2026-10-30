@@ -138,6 +138,8 @@ std::string befehlMitVisWiederverwendung(const std::string& befehl) { return mit
 
 std::string befehlMitLichtWiederverwendung(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedlightcache"); }
 
+std::string befehlMitVisExakt(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Vis, "-bhedvisexact"); }
+
 std::string befehlMitGpuBacken(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedgpubake"); }
 
 // --- Stufe 8d Punkt 1b: GPU bake Auto ----------------------------------------

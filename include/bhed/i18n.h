@@ -2839,6 +2839,8 @@ enum class Str {
     MeSchriftFertig,
     MeSchriftFehler,
     MeAufloesungFenster,
+    KeVisExakt,
+    KeVisExaktTip,
     Count,
 };
 

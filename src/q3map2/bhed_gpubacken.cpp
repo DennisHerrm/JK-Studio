@@ -83,6 +83,8 @@ namespace
 #include "g_bake_gitterKern_d1_m0.h"
 #include "g_bake_gitterKern_d1_m1.h"
 #include "g_bake_gitterKern_d1_m2.h"
+#include "g_bake_zufall_d0_m0.h"
+#include "g_bake_zufall_d1_m0.h"
 
 struct Bytecode
 {
@@ -94,7 +96,7 @@ constexpr Bytecode bc( const BYTE ( &b )[ N ] ){
 	return Bytecode{ b, N };
 }
 
-enum Kern { kErst, kKandidaten, kUnter, kStempellauf, kFiltern, kGitter, kKerne };
+enum Kern { kErst, kKandidaten, kUnter, kStempellauf, kFiltern, kGitter, kZufall, kKerne };
 
 // die Variante zu double/Messschalter (die Messschalter nur mit double: sie messen die NVIDIA-GPU)
 Bytecode shaderWahl( Kern k, bool doppelt, int mess ){
@@ -120,6 +122,8 @@ Bytecode shaderWahl( Kern k, bool doppelt, int mess ){
 		                                 bc( g_bake_gitterKern_d1_m2 ) };
 		return t[ doppelt ? 1 + m : 0 ];
 	}
+	case kZufall:
+		return doppelt ? bc( g_bake_zufall_d1_m0 ) : bc( g_bake_zufall_d0_m0 );
 	default:
 		return doppelt ? bc( g_bake_filtern_d1_m0 ) : bc( g_bake_filtern_d0_m0 );
 	}
@@ -134,9 +138,9 @@ struct RwPuffer
 	UINT kapazitaet = 0;
 };
 
-// Register t0..t21 (siehe bhed_gpubacken.hlsl)
+// Register t0..t24 (siehe bhed_gpubacken.hlsl)
 enum Srv { sKnoten, sItems, sDreiecke, sInfos, sFlaechen, sVis, sLichter, sWindungen, sLuxel, sLms, sIdx, sLichtListe, sLmCluster, sAktiv, sAktivNr,
-           sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sStartWert, sAnzahl };
+           sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sStartWert, sZufallTafel, sZufallSprung, sZufallLms, sAnzahl };
 // Register u0..u7
 enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uGitter, uZustand, uKand, uHilfe, uAnzahl };
 constexpr int kUavSlots = 8;   // u6/u7: Gitter/Zustand im Gitterkern, Kandidaten/Hilfe in den Lightmap-Kernen
@@ -169,7 +173,8 @@ struct Gpu
 	int gitterTeil = 8;           // Lichter je Gitter-Dispatch (passt sich an)
 	UINT gitterPunkte = 262144;   // Punkte je Gitter-Dispatch (passt sich an; langsame GPUs: TDR)
 	bool nanTest = false, nanGitterTest = false;   // BHED_GPUBAKE_NAN: nicht endliche Werte vortaeuschen
-	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18, 4096 };   // Faeden je Dispatch (passt sich an)
+	UINT stueck[ kKerne ] = { 1u << 18, 1u << 18, 1u << 18, 4096, 1u << 18, 4096, 1u << 18 };   // Faeden je Dispatch (passt sich an)
+	int zRunden = 16;             // vis2: nachabgetastete Luxel je Gruppe und Dispatch im Kern zufall (passt sich an)
 };
 Gpu g;
 
@@ -458,14 +463,15 @@ struct Kopf
 	int cheapgrid, nGitterLichter;
 	int gitterPhase, lichtVon, lichtBis;
 	UINT kandVon;
+	int zRunden, kpad[ 3 ];
 };
-static_assert( sizeof( Kopf ) == 112, "cbuffer Kopf" );
+static_assert( sizeof( Kopf ) == 128, "cbuffer Kopf" );
 
 Kopf kopfFuer( const BhedBakeBlock& b ){
 	const BhedBakeSchalter& s = g.schalter;
 	return Kopf{ 0, 0, g.kopfKnoten, s.faster, s.lightAngleHL, s.bouncing, s.testOcclusion, s.oneSky, s.noSurfaces, s.linearScale, g.visBytes, g.leafBytes,
 	             int( b.lms.size() ), s.lightSamples, s.suchBox, g.maxOpaqueBrush, int( b.aktiv.size() ), int( b.luxel.size() ), int( b.zeilen ), 0.0f, 0.0f,
-	             0.0f, 0, 0, 0, 0, 0, 0 };
+	             0.0f, 0, 0, 0, 0, 0, 0, 0, { 0, 0, 0 } };
 }
 
 // n Faeden des Kerns k in kurzen Dispatches (Windows-Zeitlimit TDR 2 s, die Oberflaeche nutzt
@@ -503,7 +509,8 @@ bool lauf( Kern k, UINT n, int warten, Kopf kopf ){
 		kopf.basis = basis;
 		basis += kopf.anzahl;
 		g.ktx->UpdateSubresource( g.kopf, 0, nullptr, &kopf, 0, 0 );
-		g.ktx->Dispatch( ( kopf.anzahl + 63 ) / 64, 1, 1 );
+		const UINT gruppe = k == kZufall ? 256u : 64u;   // vis2: der Kern zufall hat 256 Faeden je Gruppe
+		g.ktx->Dispatch( ( kopf.anzahl + gruppe - 1 ) / gruppe, 1, 1 );
 		++g.zahlen.dispatches;
 		if ( g.verlustNach >= 0 && g.zahlen.dispatches > g.verlustNach ) {
 			ok = false;   // Test: Geraeteverlust vorgetaeuscht (BHED_GPUBAKE_VERLUST)
@@ -728,6 +735,17 @@ bool BhedBakeLichter( const std::vector<BhedBakeLicht>& lichter, const std::vect
 	return true;
 }
 
+bool BhedBakeZufallTafel( const std::vector<float>& tafel, const std::vector<std::uint32_t>& sprung ){
+	if ( !g.bereit ) {
+		return false;
+	}
+	if ( !puffer( tafel, sZufallTafel ) || !puffer( sprung.data(), 8, UINT( sprung.size() / 2 ), sZufallSprung ) ) {
+		ausfall( "not enough graphics memory for the random tables" );
+		return false;
+	}
+	return true;
+}
+
 std::size_t BhedBakeBudgetPaare(){
 	return g.budget;
 }
@@ -768,7 +786,13 @@ bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, 
 	return true;
 }
 
-bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags ){
+// vis1: -randomsamples - je aktivem Licht der erste vorhergesagte Stempel (0xffffffff: keiner), hilfe[1 + a];
+// vis2: die Lightmaps des Blocks fuer den Kern zufall und der Stand je Lightmap in kandListe (ZSTAND im Shader)
+static std::vector<std::uint32_t> zufallErster;
+static std::vector<int> zufallLms;
+constexpr UINT kZStand = 40;
+
+bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, bool zufallGpu ){
 	luxelAus.assign( size_t( b.aus ) * 4, 0.0f );
 	flags.assign( b.lms.size(), 1 );
 	if ( !g.bereit ) {
@@ -784,7 +808,75 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	binden();
 	const Kopf kopf = kopfFuer( b );
 	bool ok = true;
-	if ( g.schalter.lightSamples > 1 ) {
+	if ( g.schalter.zufall ) {
+		// vis1: -randomsamples. Eine nachabgetastete Lightmap zieht ihre Zufallszahlen in der Reihenfolge des
+		// seriellen Laufs (light_ydnar.cpp BhedZufallsProben). Erst die Vorhersage mit den Werten der
+		// Erstabtastung (Runde 0): ohne vorhergesagten Stempel tastet auch der serielle Lauf nichts nach (er
+		// sieht bis zum ersten Nachabtasten dieselben Werte), die Lightmap ist mit Filtern und Aufsummieren
+		// fertig. vis2: mit zufallGpu laeuft jede andere im Kern zufall (eine Gruppe je Lightmap, der serielle
+		// Lauf mit den Proben auf allen Faeden der Gruppe) - ausser den Teilen grosser Lightmaps (die Nummer der
+		// Nachprobe liefe ueber die Teile); sonst gehen sie an die CPU (Markierung in flags).
+		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
+		g.ktx->ClearUnorderedAccessViewUint( g.rw[ uHilfe ].uav, voll );
+		Kopf k = kopf;
+		k.gitterPhase = 0;
+		k.kandVon = 0;
+		ok = lauf( kKandidaten, b.zeilen, 4, k );
+		zufallErster.assign( b.aktiv.size() + 1, 0xffffffffu );
+		loesen();
+		ok = ok && lesen( uHilfe, zufallErster.data(), zufallErster.size() * 4 );
+		zufallLms.clear();
+		for ( size_t li = 0; li < b.lms.size() && ok && zufallGpu; ++li )
+		{
+			const BhedBakeLm& L = b.lms[ li ];
+			for ( int a = L.aktivBase; a < L.aktivBase + L.nAktiv; ++a )
+			{
+				if ( zufallErster[ 1 + size_t( a ) ] != 0xffffffffu ) {
+					if ( L.start == 0 ) {
+						zufallLms.push_back( int( li ) );
+					}
+					break;
+				}
+			}
+		}
+		if ( ok && !zufallLms.empty() ) {
+			const UINT n = UINT( zufallLms.size() );
+			ok = puffer( zufallLms, sZufallLms ) && platz( uKand, n * kZStand, 4, false );
+			if ( !ok ) {
+				ausfall( "not enough graphics memory for a block" );
+				return false;
+			}
+			const UINT null[ 4 ] = {};
+			g.ktx->ClearUnorderedAccessViewUint( g.rw[ uKand ].uav, null );
+			binden();
+			// der Lauf jeder Lightmap in Stuecken von zRunden Luxeln je Dispatch, bis alle fertig sind
+			while ( ok ) {
+				g.ktx->ClearUnorderedAccessViewUint( g.rw[ uZaehler ].uav, null );
+				Kopf kz = kopf;
+				kz.zRunden = g.zRunden;
+				const auto tz = std::chrono::steady_clock::now();
+				ok = lauf( kZufall, n * 256u, 1, kz );
+				std::uint32_t offen[ 2 ] = {};
+				loesen();
+				ok = ok && lesen( uZaehler, offen, 8 );
+				g.zahlen.zufallLuxel += offen[ 1 ];
+				binden();
+				const double dauer = std::chrono::duration<double>( std::chrono::steady_clock::now() - tz ).count();
+				if ( dauer > 0.25 && g.zRunden > 4 ) {
+					g.zRunden /= 2;
+				}
+				else if ( dauer < 0.05 && g.zRunden < ( 1 << 20 ) ) {
+					g.zRunden *= 2;
+				}
+				if ( offen[ 0 ] == 0 ) {
+					break;
+				}
+			}
+			g.zahlen.zufallLm += n;
+		}
+		binden();
+	}
+	else if ( g.schalter.lightSamples > 1 ) {
 		// Vorhersage: die Kandidaten kommen in eine Liste (hilfe[0] zaehlt ab 0xffffffff), dazu je aktivem Licht
 		// der erste vorhergesagte Stempel; dann nur die Kandidaten unterabtasten
 		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
@@ -820,6 +912,19 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	ok = ok && lauf( kFiltern, UINT( b.luxel.size() ), 4, kopf );
 	loesen();
 	ok = ok && lesen( uR, luxelAus.data(), luxelAus.size() * 4 ) && lesen( uLmFlag, flags.data(), flags.size() * 4 );
+	if ( ok && g.schalter.zufall ) {
+		for ( size_t li = 0; li < b.lms.size(); ++li )
+		{
+			const BhedBakeLm& L = b.lms[ li ];
+			for ( int a = L.aktivBase; a < L.aktivBase + L.nAktiv; ++a )
+			{
+				if ( zufallErster[ 1 + size_t( a ) ] != 0xffffffffu ) {
+					flags[ li ] |= L.start == 0 && zufallGpu ? 0u : 2u;   // nachzutasten auf der CPU
+					break;
+				}
+			}
+		}
+	}
 	if ( g.nanTest && !luxelAus.empty() ) {   // Test: ein Treiberfehler (nicht endlicher Wert) im ersten Block
 		g.nanTest = false;
 		luxelAus[ 0 ] = std::numeric_limits<float>::quiet_NaN();
@@ -833,7 +938,10 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 	return true;
 }
 
-bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s ){
+bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s, const std::atomic<bool> *halt, bool *angehalten ){
+	if ( angehalten != nullptr ) {
+		*angehalten = false;
+	}
 	if ( !g.bereit ) {
 		return false;
 	}
@@ -868,6 +976,14 @@ bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGit
 				kopf.lichtVon = von;
 				kopf.lichtBis = bis;
 				for ( size_t p0 = 0; p0 < m && ok; ) {
+					if ( halt != nullptr && halt->load( std::memory_order_acquire ) ) {   // vis1: die CPU hat alle Punkte
+						loesen();
+						g.zahlen.gpuMikros += mikros( t0 );
+						if ( angehalten != nullptr ) {
+							*angehalten = true;
+						}
+						return true;
+					}
 					const UINT stueck = UINT( std::min<size_t>( g.gitterPunkte, m - p0 ) );
 					kopf.basis = UINT( p0 );
 					kopf.anzahl = stueck;

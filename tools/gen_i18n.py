@@ -2226,6 +2226,8 @@ from i18n_menue2 import MENUE2  # noqa: E402  (Menue-Editor M2)
 S += MENUE2
 from i18n_uebersetzung1 import UEBERSETZUNG1  # noqa: E402  (uebersetzung1: es/cs nachgezogen, Zaehltexte)
 S += UEBERSETZUNG1
+from i18n_vis1 import VIS1  # noqa: E402  (vis1: dasselbe VIS in jedem Bau)
+S += VIS1
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

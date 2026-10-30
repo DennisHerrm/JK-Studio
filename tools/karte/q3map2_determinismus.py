@@ -15,13 +15,14 @@ Aufruf
   q3map2_determinismus.py ctest <bhed_q3map2.exe> <tests/karte/q3map2>
       ctest q3map2_determinismus: raum.map (-game ja) und eine Fassung mit
       Lichtstilen ("style" 1 und 5) mit -game ja und -game quake3 (dort legt
-      q3map2 die Stil-Shader an, GL#173), je 3 Laeufe + 1 Thread.
+      q3map2 die Stil-Shader an, GL#173), je 3 Laeufe + 1 Thread; dazu -light mit
+      -randomsamples (Stufe lichtzufall, vis1).
 
--vis laeuft dabei immer mit -threads 1: mit mehreren Threads haengt NRCs Ergebnis von der
-Reihenfolge der Threads ab (ein Portal schneidet mit portalvis der Portale, die gerade fertig
-sind - auch mitten im Lauf). Jede Regel, die das unabhaengig von der Thread-Zahl macht, war auf
-kejim_post mehr als doppelt so langsam wie NRC (docs/intern/NOTIZEN_karte6.md, offen fuer Stufe 7);
--bsp und -light sind mit beliebig vielen Threads deterministisch.
+-vis laeuft mit mehreren Threads mit -bhedvisexact (Auftrag vis1, docs/intern/NOTIZEN_vis1.md):
+ohne den Schalter haengt das Ergebnis wie bei NRC von der Reihenfolge der Threads ab (ein Portal
+schneidet mit portalvis der Portale, die gerade fertig sind - auch mitten im Lauf); mit ihm liest
+jeder Fluss genau das, was er mit -threads 1 liest. -bsp und -light sind mit beliebig vielen
+Threads deterministisch.
 
 Ohne --basepath ist -fs_basepath ein leerer Ordner (alle Shader implizit).
 Rueckgabe 0: alle Stufen in allen Laeufen gleich und gleich dem 1-Thread-Lauf.
@@ -45,6 +46,9 @@ STUFEN = {
     'bsp': ['-meta'],
     'vis': ['-vis'],
     'light': ['-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8'],
+    # vis1: "[Final] Extreme Quality" mit -randomsamples (Zufallszahlen je Arbeitsschritt, grosse
+    # Lightmaps auf allen Kernen - BhedZufallsProben)
+    'lichtzufall': ['-light', '-fastbounce', '-patchshadows', '-samples', '4', '-randomsamples', '-bounce', '2'],
 }
 IDLE = 0x00000040 if os.name == 'nt' else 0
 
@@ -72,6 +76,7 @@ def merkmale(bsp):
 
 
 PARALLEL = []   # Stufe 7: je Lichtlauf mit mehreren Threads die Zahl der parallel gerechneten Lightmaps
+PARALLEL_ZUFALL = []   # vis1: dasselbe fuer -randomsamples
 
 
 def lauf(exe, ordner, karte, stufe, game, basis, threads, eingabe, quelle):
@@ -82,6 +87,8 @@ def lauf(exe, ordner, karte, stufe, game, basis, threads, eingabe, quelle):
     for ext, q in (eingabe or {}).items():
         shutil.copyfile(q, os.path.join(ordner, 'maps', karte + ext))
     args = [exe, '-game', game, '-fs_basepath', basis.rstrip('/\\') + os.sep] + STUFEN[stufe]
+    if stufe == 'vis' and threads != 1:
+        args.append('-bhedvisexact')
     if threads:
         args += ['-threads', str(threads)]
     args.append('maps/%s.map' % karte)
@@ -90,11 +97,11 @@ def lauf(exe, ordner, karte, stufe, game, basis, threads, eingabe, quelle):
     env = dict(os.environ, BHED_Q3_ZEITEN='1')
     with open(os.path.join(ordner, 'ausgabe.txt'), 'wb') as f:
         p = subprocess.run(args, cwd=ordner, stdout=f, stderr=subprocess.STDOUT, creationflags=IDLE, env=env)
-    if stufe == 'light' and threads != 1:
+    if stufe in ('light', 'lichtzufall') and threads != 1:
         with open(os.path.join(ordner, 'ausgabe.txt'), 'rb') as f:
             for z in f.read().decode('utf-8', 'replace').splitlines():
                 if z.startswith('BHED-Parallel: '):
-                    PARALLEL.append(int(z.split()[1]))
+                    (PARALLEL_ZUFALL if stufe == 'lichtzufall' else PARALLEL).append(int(z.split()[1]))
     bsp = os.path.join(ordner, 'maps', karte + '.bsp')
     if p.returncode != 0 or not os.path.exists(bsp):
         raise RuntimeError('%s %s: Rueckgabe %d (%s)' % (karte, stufe, p.returncode, os.path.join(ordner, 'ausgabe.txt')))
@@ -116,6 +123,10 @@ def ctest(exe, daten):
             # Thread und lief auf CI-Rechnern mit 4 Kernen sonst nie (Release rc605)
             rc |= main([exe, karte, '--game', game, '--laeufe', '3', '--threads', '32',
                         '--arbeit', os.path.join(arbeit, game + '_' + os.path.basename(karte)[:-4])])
+            # vis1: -randomsamples auf der Ausgabe von -vis (ein zweites -light auf einer schon
+            # beleuchteten quake3-.bsp mit Lichtstilen stuerzt ab - auch bei NRC)
+            rc |= main([exe, karte, '--game', game, '--laeufe', '3', '--threads', '32', '--stufen', 'bsp,vis,lichtzufall',
+                        '--arbeit', os.path.join(arbeit, game + '_' + os.path.basename(karte)[:-4] + '_zufall')])
         print('q3map2_determinismus: %s' % ('alle Stufen deterministisch, gleich -threads 1' if rc == 0 else 'NICHT deterministisch'))
         # Stufe 7: die grossen Lightmaps rechnen mit mehreren Threads zeilenweise parallel
         # (BhedIlluminateRawLightmaps) - der Vergleich oben deckt den Weg nur ab, wenn er lief.
@@ -124,6 +135,11 @@ def ctest(exe, daten):
             print('q3map2_determinismus: zeilenweise parallel gerechnete Lightmaps je Lauf bis %d' % n)
             if n == 0:
                 print('q3map2_determinismus: FEHLER - der parallele Weg fuer grosse Lightmaps lief nicht')
+                rc = 1
+            n = max(PARALLEL_ZUFALL, default=0)
+            print('q3map2_determinismus: mit -randomsamples parallel gerechnete Lightmaps je Lauf bis %d' % n)
+            if n == 0:
+                print('q3map2_determinismus: FEHLER - der parallele Weg mit -randomsamples lief nicht')
                 rc = 1
         return rc
     finally:
@@ -158,8 +174,7 @@ def main(argv):
         laeufe = []
         erste = None
         for r in range(a.laeufe):
-            threads = 1 if stufe == 'vis' else a.threads   # siehe oben
-            bsp, m = lauf(a.exe, os.path.join(arbeit, '%s_%s_%d' % (karte, stufe, r)), karte, stufe, a.game, basis, threads, eingabe, a.karte)
+            bsp, m = lauf(a.exe, os.path.join(arbeit, '%s_%s_%d' % (karte, stufe, r)), karte, stufe, a.game, basis, a.threads, eingabe, a.karte)
             laeufe.append(m)
             if erste is None:
                 erste = bsp

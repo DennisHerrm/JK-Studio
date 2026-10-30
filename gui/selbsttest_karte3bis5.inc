@@ -5664,7 +5664,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // Stufe 9 Punkt 1: dazu das Untermenue "Test in game" (eigene Funktion)
         // Stufe 9c: + "Patch shadows (-patchshadows)" 24 (pruefbar, der laengste Text: 241 -> 264)
         // Stufe 9d: + "Real-time effects (fx_runner)" 24 (pruefbar)
-        {"Build", {"Build"}, 264, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24 + 24 + 24},
+        // Auftrag vis1: + "Same VIS in every build (not in NetRadiant-Custom)" 24 (pruefbar, der laengste Text: 264 -> 369)
+        {"Build", {"Build"}, 369, 405 + 7 + 24 + 24 + 24 + 24 + 24 + 5 * 24 + 24 + 24 + 24 + 24 + 24 + 24},
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.

@@ -18,7 +18,11 @@
 //                                         -> GPU, gemessen 1,2 gegen 1,8 s)
 //   5. -samples 4 und mehr, gross     -> CPU (duel_mygeeto: GPU 101 s gegen 67 s); ist die CPU-Zeit
 //                                         gemerkt, lang und die GPU-Zeit nicht, misst Auto einmal die
-//                                         GPU (md_am_sith ist damit 1,9x schneller) - danach Regel 3
+//                                         GPU (md_am_sith ist damit 1,9x schneller) - danach Regel 3.
+//                                         Auch mit -randomsamples ("[Final] Extreme Quality", vis1): auf
+//                                         duel_mos_espa rechnet der Prozessor den vollen Lichtschritt in
+//                                         582 s, die GPU in 717 s (ein Bounce: 237-271 gegen 210-227 s);
+//                                         md_am_sith etwa gleich - welches schneller ist, lernt Auto
 //   6. sonst                          -> GPU (kejim_post 1,2-2,4x, md_am_sith 1,9-2,6x, duel_mygeeto 1,6-1,9x)
 #ifndef BHED_KARTE_GPUWAHL_H
 #define BHED_KARTE_GPUWAHL_H

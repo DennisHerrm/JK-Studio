@@ -53,6 +53,11 @@ int main() {
     expect("-samples 4, CPU-Zeit gemerkt und lang (67 s), GPU unbekannt -> einmal die GPU messen",
            ist(w(D, mygeeto, 2, 4, 67200, 0), true, GpuGrund::Erkunden));
     expect("-samples 4, CPU-Zeit kurz (20 s) -> CPU (samples)", ist(w(D, mygeeto, 2, 4, 20000, 0), false, GpuGrund::Samples));
+    // vis1: "[Final] Extreme Quality" (-samples 4 -randomsamples = 256 Proben): zuerst der Prozessor, nach einem
+    // langen CPU-Lauf einmal die GPU, danach das Schnellere (duel_mos_espa voll: CPU 582 s, GPU 717 s)
+    expect("-samples 4 -randomsamples (256): CPU (samples), nach langem CPU-Lauf einmal die GPU, dann gelernt",
+           ist(w(D, sith, 8, 256), false, GpuGrund::Samples) && ist(w(D, sith, 8, 256, 582000, 0), true, GpuGrund::Erkunden) &&
+               ist(w(D, sith, 8, 256, 582000, 717000), false, GpuGrund::GelerntCpu));
     expect("gelernt: duel_mygeeto -samples 4 (67 / 101 s) -> CPU (learnedcpu)",
            ist(w(D, mygeeto, 2, 4, 67200, 101300), false, GpuGrund::GelerntCpu));
     expect("gelernt: md_am_sith -samples 4 (52,9 / 28,0 s) -> GPU (learnedgpu)",

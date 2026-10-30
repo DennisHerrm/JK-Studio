@@ -627,6 +627,30 @@ std::vector<Schritt> visHinweis() {
         const std::string kopf = stufe8::vorlageAnfang(Str::KeVisBedarf);
         return k.find("-vis -fast -threads 1") != std::string::npos && k.find(kopf) == std::string::npos;
     }));
+    // vis1: Build > Dasselbe VIS in jedem Bau - der Schalter im -vis-Befehl, die Einstellung gespeichert,
+    // bhed_q3map2 rechnet deterministisch; wieder aus: der Befehl ohne Schalter
+    add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeVisExakt), "##Menu_", 0, false));
+    add(pause(0.5));
+    add(pruefe("vis1: Build > Dasselbe VIS in jedem Bau an, gespeichert", [] {
+        return ke::editor().bau.visExakt && g_app->settings.karte["BhedVisExact"] == "1";
+    }));
+    add(stufe3::bauMenuepunkt("Test VIS voll"));
+    add(stufe8::warteSek("Bau mit -bhedvisexact gestartet", [] { return stufe3::konsoleText().find("-bhedvisexact") != std::string::npos; }, 60));
+    add(stufe8::warteSek("Bau mit -bhedvisexact fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pause(1.0));
+    add(pruefe("vis1: -vis mit -bhedvisexact, bhed_q3map2 meldet das deterministische VIS", [] {
+        const std::string k = stufe3::konsoleText();
+        return k.find("-vis -saveprt -threads 1 -bhedvisexact \"") != std::string::npos &&
+               k.find("BehavEd: deterministic vis (the result of -threads 1)") != std::string::npos;
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(klick(ke::trK(Str::KeVisExakt), "##Menu_", 0, false));
+    add(pause(0.5));
+    add(pruefe("vis1: wieder aus, gespeichert", [] { return !ke::editor().bau.visExakt && g_app->settings.karte["BhedVisExact"] == "0"; }));
     add(tu("Portal-Schwelle zurueck, Eintraege weg", [schwelle] {
         ke::Editor& e = ke::editor();
         e.optimierer.portalSchwelle = *schwelle;

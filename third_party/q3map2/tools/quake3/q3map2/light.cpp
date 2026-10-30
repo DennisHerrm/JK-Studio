@@ -36,8 +36,12 @@
 #include "bhed/gpuwahl.h" /* BehavEd stage 8d: -bhedgpubakeauto */
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */
 #include "bspfile_rbsp.h"
+#include "surface_extra.h" /* BehavEd vis2: the shader of a surface from the .srf */
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, grid pre-pass in parallel */
 #include <set>
+#include <atomic> /* BehavEd vis1 */
+#include <mutex> /* BehavEd vis1 */
+#include <thread> /* BehavEd vis1 */
 
 
 
@@ -1822,40 +1826,131 @@ static void BhedTraceGridAlle(){
 		}
 		const BhedBakeGitterSchalter schalter{ gridSize[ vector3_max_abs_component_index( gridSize ) ] * 0.5f, gridAmbientDirectionality, gridDirectionality,
 		                                       cheapgrid ? 1 : 0 };
-		if ( BhedBakeGitter( punkte, schalter ) ) {
-			std::atomic<long long> cpu{ 0 };
-			bhed_par::pool( numthreads ).fuerAlle( int( nrs.size() ), [&]( int k ){
-				const int num = nrs[ k ];
-				const BhedBakeGitterPunkt& p = punkte[ k ];
-				bool endlich = std::isfinite( p.dir[ 0 ] ) && std::isfinite( p.dir[ 1 ] ) && std::isfinite( p.dir[ 2 ] );
-				for ( int j = 0; j < 12 && endlich; ++j ) {
-					endlich = std::isfinite( p.ambient[ j ] ) && std::isfinite( p.directed[ j ] );
-				}
-				if ( p.flag != 0 || !endlich ) { /* not exact on the GPU, or not finite (driver fault): the CPU */
-					++cpu;
-					TraceGrid( num );
-					return;
-				}
-				rawGridPoint_t& gp = rawGridPoints[ num ];
-				bspGridPoint_t& bgp = bspGridPoints[ num ];
-				for ( int j = 0; j < 3; ++j ) {
-					gp.dir[ j ] = p.dir[ j ];
-					for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-						gp.ambient[ s ][ j ] = p.ambient[ s * 3 + j ];
-						gp.directed[ s ][ j ] = p.directed[ s * 3 + j ];
-					}
-				}
+		/* BehavEd vis1: counts as the pass RunThreadsOnIndividual( TraceGrid ) would be - the passes after it
+		   (-randomsamples: the generator of every raw lightmap and vertex surface) get the same numbers */
+		BhedPassBegin();
+		const auto setzen = [&]( size_t k, const BhedBakeGitterPunkt& p ) -> bool {
+			const int num = nrs[ k ];
+			bool endlich = std::isfinite( p.dir[ 0 ] ) && std::isfinite( p.dir[ 1 ] ) && std::isfinite( p.dir[ 2 ] );
+			for ( int j = 0; j < 12 && endlich; ++j ) {
+				endlich = std::isfinite( p.ambient[ j ] ) && std::isfinite( p.directed[ j ] );
+			}
+			if ( p.flag != 0 || !endlich ) { /* not exact on the GPU, or not finite (driver fault): the CPU */
+				TraceGrid( num );
+				return false;
+			}
+			rawGridPoint_t& gp = rawGridPoints[ num ];
+			bspGridPoint_t& bgp = bspGridPoints[ num ];
+			for ( int j = 0; j < 3; ++j ) {
+				gp.dir[ j ] = p.dir[ j ];
 				for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-					gp.styles[ s ] = byte( p.stile >> ( 8 * s ) );
-					if ( p.neu & ( 1u << s ) ) {
-						bgp.styles[ s ] = gp.styles[ s ];
+					gp.ambient[ s ][ j ] = p.ambient[ s * 3 + j ];
+					gp.directed[ s ][ j ] = p.directed[ s * 3 + j ];
+				}
+			}
+			for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
+				gp.styles[ s ] = byte( p.stile >> ( 8 * s ) );
+				if ( p.neu & ( 1u << s ) ) {
+					bgp.styles[ s ] = gp.styles[ s ];
+				}
+			}
+			BhedGitterSpeichern( num );
+			return true;
+		};
+		/* BehavEd vis1: the graphics card and the processor share the points. The GPU takes parts from the
+		   front, numthreads threads take single points from the end; when nothing is left, the threads take the
+		   points of the part on the GPU from its end too, and once they have all of them the GPU stops. Every
+		   point is computed by exactly one side (a claim per point), both exactly - the same grid. Before, the
+		   GPU traced every point alone: "[Final] Extreme Quality" (no -fast, every light reaches far) took
+		   353 s on md_am_sith against 75 s on 32 threads, 86 s against 3 s on duel_mos_espa.
+		   BHED_GPUBAKE_NUR_GPU: the GPU alone (the ctest checks its points). */
+		const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;
+		std::vector<char> genommen( nrs.size(), 0 );
+		const auto nehmen = [&]( size_t k ){
+			return std::atomic_ref<char>( genommen[ k ] ).exchange( 1 ) == 0;
+		};
+		std::mutex teilMutex;
+		size_t vorne = 0, hinten = nrs.size();       /* not handed out yet */
+		size_t laufVon = 0, laufHinten = 0;          /* the part on the GPU, its points the threads have not taken */
+		std::atomic<bool> halt{ false };
+		std::atomic<long long> cpu{ 0 }, gpuPunkte{ 0 };
+		const size_t jeTeil = nurGpu ? nrs.size() : 16384;
+		std::thread gpuFaden( [&]{
+			std::vector<BhedBakeGitterPunkt> teil;
+			while ( true )
+			{
+				size_t a0, e0;
+				{
+					std::lock_guard<std::mutex> l( teilMutex );
+					if ( vorne >= hinten ) {
+						break;
+					}
+					a0 = vorne;
+					e0 = std::min( hinten, vorne + jeTeil );
+					vorne = e0;
+					laufVon = a0;
+					laufHinten = e0;
+				}
+				teil.assign( punkte.begin() + a0, punkte.begin() + e0 );
+				bool angehalten = false;
+				if ( !BhedBakeGitter( teil, schalter, &halt, &angehalten ) || angehalten ) {
+					break;   /* lost (the threads take the rest, this part too), or the threads took the part */
+				}
+				{
+					std::lock_guard<std::mutex> l( teilMutex );
+					laufHinten = laufVon;
+				}
+				for ( size_t k = a0; k < e0; ++k )
+				{
+					if ( nehmen( k ) ) {
+						if ( setzen( k, teil[ k - a0 ] ) ) {
+							++gpuPunkte;
+						}
+						else{
+							++cpu;
+						}
 					}
 				}
-				BhedGitterSpeichern( num );
+			}
+		} );
+		bhed_par::Pool& pool = bhed_par::pool( numthreads );
+		if ( !nurGpu ) {
+			pool.fuerAlle( std::max( 1, numthreads ), [&]( int ){
+				while ( true )
+				{
+					size_t k;
+					{
+						std::lock_guard<std::mutex> l( teilMutex );
+						if ( vorne < hinten ) {
+							k = --hinten;
+						}
+						else if ( laufHinten > laufVon ) {
+							k = --laufHinten;
+							if ( laufHinten == laufVon ) {
+								halt.store( true, std::memory_order_release );
+							}
+						}
+						else{
+							break;
+						}
+					}
+					if ( nehmen( k ) ) {
+						++cpu;
+						TraceGrid( nrs[ k ] );
+					}
+				}
 			} );
-			BhedBakeGitterZaehlen( static_cast<long long>( nrs.size() ) - cpu.load(), cpu.load() );
-			return;
 		}
+		gpuFaden.join();
+		/* after a lost device: the points nobody took */
+		pool.fuerAlle( int( nrs.size() ), [&]( int k ){
+			if ( nehmen( size_t( k ) ) ) {
+				++cpu;
+				TraceGrid( nrs[ k ] );
+			}
+		} );
+		BhedBakeGitterZaehlen( gpuPunkte.load(), cpu.load() );
+		return;
 	}
 	if ( g_bhedBakeAn ) {
 		BhedBakeGitterZaehlen( 0, static_cast<long long>( rawGridPoints.size() ) );
@@ -2120,6 +2215,93 @@ static void WriteBSPFileAfterLight( const char *bspFileName ){
 
 
 
+/* BehavEd vis2: -light on a bsp that a -light already lit. With external lightmaps in custom shaders (the
+   quake3 lightstyles hack) WriteBSPFileAfterLight puts "nomipmaps" flare surfaces in front of the surfaces;
+   the surface numbers no longer fit the .srf, and the second -light crashed (NRC's q3map2.exe too). Here the
+   light takes back what a light added: the flares and their index shifts, and the shaders a light made
+   (CustomShader: <map>/<md4>, and maps/<map>/nomipmaps<n> - always at the end of the shader list) go back to
+   each surface's own shader from the .srf. Then the light starts from the bsp of -vis (lightmaps, grid and
+   vertex colours are written new anyway) and gives the result of lighting that once. Without a fitting .srf
+   only the flares are taken out. */
+static void BhedVorigesLichtEntfernen(){
+	const auto nomip = String64( "maps/", mapName, "/nomipmaps" );
+	const auto istNomip = [&]( const char *name ){
+		return striEqualPrefix( name, nomip );
+	};
+	size_t n = 0;
+	while ( n < bspDrawSurfaces.size() && bspDrawSurfaces[ n ].surfaceType == MST_FLARE && bspDrawSurfaces[ n ].numVerts == 0 &&
+	        bspDrawSurfaces[ n ].shaderNum >= 0 && size_t( bspDrawSurfaces[ n ].shaderNum ) < bspShaders.size() &&
+	        istNomip( bspShaders[ bspDrawSurfaces[ n ].shaderNum ].shader ) ) {
+		++n;
+	}
+	if ( n > 0 ) {
+		bspDrawSurfaces.erase( bspDrawSurfaces.begin(), bspDrawSurfaces.begin() + n );
+		for ( int& index : bspLeafSurfaces ) {
+			index -= int( n );
+		}
+		for ( bspBrushSide_t& side : bspBrushSides ) {
+			if ( side.surfaceNum >= 0 ) {   /* IBSP keeps no surface numbers (-1) */
+				side.surfaceNum -= int( n );
+			}
+		}
+		for ( bspModel_t& model : bspModels ) {
+			model.firstBSPSurface -= int( n );
+		}
+		Sys_Printf( "%9zu nomipmaps surfaces of a former light removed\n", n );
+	}
+	/* the shaders a light made: CustomShader names them <mapName>/<32 hex digits> */
+	const auto vonLicht = [&]( const char *name ){
+		if ( istNomip( name ) ) {
+			return true;
+		}
+		const size_t m = strlen( mapName );
+		if ( strlen( name ) != m + 33 || !strniEqual( name, mapName, m ) || name[ m ] != '/' ) {
+			return false;
+		}
+		return std::all_of( name + m + 1, name + m + 33, []( char c ){ return ( c >= '0' && c <= '9' ) || ( c >= 'A' && c <= 'F' ); } );
+	};
+	size_t erster = bspShaders.size();
+	while ( erster > 0 && vonLicht( bspShaders[ erster - 1 ].shader ) ) {
+		--erster;
+	}
+	if ( erster == bspShaders.size() ) {
+		return;
+	}
+	for ( const bspBrushSide_t& side : bspBrushSides ) {
+		if ( side.shaderNum >= int( erster ) ) {
+			return;
+		}
+	}
+	std::vector<int> eigener( bspDrawSurfaces.size(), -1 );
+	for ( size_t i = 0; i < bspDrawSurfaces.size(); ++i )
+	{
+		if ( bspDrawSurfaces[ i ].shaderNum < int( erster ) ) {
+			continue;
+		}
+		const shaderInfo_t *si = GetSurfaceExtra( int( i ) ).si;
+		if ( si == nullptr ) {
+			return;
+		}
+		int k = 0;
+		while ( k < int( erster ) && !striEqual( bspShaders[ k ].shader, si->shader.c_str() ) ) {
+			++k;
+		}
+		if ( k == int( erster ) ) {
+			return;
+		}
+		eigener[ i ] = k;
+	}
+	for ( size_t i = 0; i < bspDrawSurfaces.size(); ++i ) {
+		if ( eigener[ i ] >= 0 ) {
+			bspDrawSurfaces[ i ].shaderNum = eigener[ i ];
+		}
+	}
+	Sys_Printf( "%9zu shaders of a former light removed\n", bspShaders.size() - erster );
+	bspShaders.resize( erster );
+}
+
+
+
 /*
    LightWorld()
    does what it says...
@@ -2255,7 +2437,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	BhedZeit( "StitchSurfaceLightmaps" );
 
 	Sys_Printf( "--- IlluminateVertexes ---\n" );
-	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
+	BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 	Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 	BhedZeit( "IlluminateVertexes" );
 	BhedLichtCacheSchreiben(); /* BehavEd stage 8a: <map>.bhedlight (only without -bounce) */
@@ -2341,7 +2523,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		BhedZeit( "Bounce: StitchSurfaceLightmaps" );
 
 		Sys_Printf( "--- IlluminateVertexes ---\n" );
-		RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes );
+		BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 		BhedZeit( "Bounce: IlluminateVertexes" );
 
@@ -3196,6 +3378,7 @@ int LightMain( Args& args ){
 	/* load bsp file */
 	BhedLichtCacheSchalter( bhedLichtCache, argsToInject, source ); /* BehavEd stage 8a */
 	LoadBSPFile( source );
+	BhedVorigesLichtEntfernen(); /* BehavEd vis2 */
 
 	/* parse bsp entities */
 	ParseEntities();

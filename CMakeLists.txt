@@ -960,6 +960,12 @@ if(BEHAVED_TESTS)
       add_test(NAME q3map2_determinismus
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_determinismus.py ctest
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+      # Auftrag vis1: -vis -bhedvisexact mit 8 und 32 Threads Byte fuer Byte gleich -threads 1 (auch
+      # -nopassage, -passageOnly), der Visibility-Lump gleich NRCs q3map2.exe -threads 1
+      add_test(NAME q3map2_visgleich
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_visgleich.py ctest
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_visgleich)
+      set_tests_properties(q3map2_visgleich PROPERTIES TIMEOUT 900)
       # Stufe 8a Punkt 5: Teil-Kompilierungen Byte fuer Byte gleich der vollen (VIS wiederverwenden, ...)
       add_test(NAME q3map2_teilbau
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_teilbau.py

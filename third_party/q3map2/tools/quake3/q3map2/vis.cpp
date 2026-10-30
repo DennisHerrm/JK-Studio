@@ -181,7 +181,7 @@ static void CalcPortalVis(){
 	//get rid of the counter
 	RunThreadsOnIndividual( numportals * 2, false, PortalFlow );
 #else
-	RunThreadsOnIndividual( numportals * 2, true, PortalFlow );
+	BhedRunFlow( PortalFlow );
 #endif
 }
 
@@ -203,9 +203,10 @@ static void CalcPassageVis(){
 #else
 	Sys_Printf( "\n--- CreatePassages (%d) ---\n", numportals * 2 );
 	RunThreadsOnIndividual( numportals * 2, true, CreatePassages );
+	BhedPassageMemoryUsed();
 
 	Sys_Printf( "\n--- PassageFlow (%d) ---\n", numportals * 2 );
-	RunThreadsOnIndividual( numportals * 2, true, PassageFlow );
+	BhedRunFlow( PassageFlow );
 #endif
 }
 
@@ -227,9 +228,10 @@ static void CalcPassagePortalVis(){
 #else
 	Sys_Printf( "\n--- CreatePassages (%d) ---\n", numportals * 2 );
 	RunThreadsOnIndividual( numportals * 2, true, CreatePassages );
+	BhedPassageMemoryUsed();
 
 	Sys_Printf( "\n--- PassagePortalFlow (%d) ---\n", numportals * 2 );
-	RunThreadsOnIndividual( numportals * 2, true, PassagePortalFlow );
+	BhedRunFlow( PassagePortalFlow );
 #endif
 }
 
@@ -252,6 +254,10 @@ static void CalcFastVis(){
    CalcVis
    ==================
  */
+/* BehavEd vis1: -bhedvisexact - with several threads the visibility of -threads 1 (visflow.cpp,
+   BhedVector), taken before argsToInject like -bhedvisreuse: the .bsp equals that of -threads 1 */
+static bool bhedExact;
+
 static void CalcVis(){
 	int i, minvis, maxvis;
 	double mu, sigma, totalvis, totalvis2;
@@ -281,6 +287,7 @@ static void CalcVis(){
 //	RunThreadsOnIndividual( numportals * 2, true, BetterPortalVis );
 
 	SortPortals();
+	BhedSortedRanks( bhedExact );
 
 	if ( fastvis ) {
 		CalcFastVis();
@@ -719,6 +726,8 @@ static void LoadPortals( char *name ){
 
 	portalbytes = ( ( numportals * 2 + 63 ) & ~63 ) >> 3;
 	portallongs = portalbytes / sizeof( long );
+	portalwords = portalbytes / 8;
+	portalmaskwords = ( portalwords + 63 ) / 64;
 
 	// each file portal is split into two memory portals
 	portals = safe_calloc( 2 * numportals * sizeof( vportal_t ) );
@@ -914,6 +923,10 @@ int VisMain( Args& args ){
 	}
 	const char *fileName = args.takeBack();
 	const bool bhedReuse = args.takeArg( "-bhedvisreuse" ); /* BehavEd stage 8a: before argsToInject */
+	bhedExact = args.takeArg( "-bhedvisexact" );            /* BehavEd vis1: the same */
+	if ( bhedExact ) {
+		Sys_Printf( "BehavEd: deterministic vis (the result of -threads 1)\n" );
+	}
 	const auto argsToInject = args.getVector();
 	{
 		while ( args.takeArg( "-fast" ) ) {

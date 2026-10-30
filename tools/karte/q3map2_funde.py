@@ -20,8 +20,15 @@ Faelle:
   gl143    -meta -patchmeta: die Patches werden Dreiecke, die Ausgabe ist nicht leer
   gl108    q3map_lightmapBrightness 0.25 macht die Lightmap einer Flaeche dunkler
   gl128    q3map_lightSubdivide teilt ein Flaechenlicht, der Backsplash bleibt
+  relicht  (vis2) ein zweites -light auf einer schon beleuchteten quake3-.bsp mit Lichtstilen
+           stuerzte ab (auch NRCs q3map2.exe): der Stil-Trick schreibt externe Lightmaps und
+           stellt den Flaechen Flare-Flaechen fuer "nomipmaps" voran - die Nummern passten nicht
+           mehr zur .srf. Das zweite -light muss dasselbe ergeben wie das erste auf der Ausgabe
+           von -vis (alle 17 Lumps, Shader-Datei und externe Lightmaps gleich), mit und ohne
+           -randomsamples (dann Bounce-Runden)
 """
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -321,7 +328,55 @@ def gl128(exe, ordner):
     return 0 if gut else 1
 
 
-FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102, 'gt113': gt113, 'gl143': gl143, 'gl108': gl108, 'gl128': gl128}
+def ibsp_lumps(bsp):
+    if not os.path.exists(bsp):
+        return None
+    d = open(bsp, 'rb').read()
+    if d[:4] != b'IBSP':
+        return None
+    return [d[o:o + n] for o, n in (struct.unpack_from('<ii', d, 8 + i * 8) for i in range(17))]
+
+
+def relicht(exe, ordner):
+    # raum.map mit zwei Lichtern mit Stil (wie ctest q3map2_determinismus mit raum_stil.map, game quake3)
+    text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tests', 'karte', 'q3map2', 'raum.map'), encoding='utf-8').read()
+    text = text.replace('"light" "400"' + NL, '"light" "400"' + NL + '"style" "1"' + NL, 1).replace('"light" "300"' + NL, '"light" "300"' + NL + '"style" "5"' + NL, 1)
+    fehler = 0
+    for art, licht in (('fast', ['-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '2']),
+                       ('zufall', ['-light', '-fastbounce', '-patchshadows', '-samples', '4', '-randomsamples', '-bounce', '2'])):
+        erg = {}
+        for name, stufen in (('neu', [['-meta'], ['-vis'], licht]), ('zweimal', [['-meta'], ['-vis'], licht, licht])):
+            unter = os.path.join(ordner, art + '_' + name)
+            os.makedirs(os.path.join(unter, 'maps'))
+            schreiben(os.path.join(unter, 'maps', 'r.map'), text)
+            rcs = []
+            for st in stufen:
+                rc, _ = lauf(exe, ['-game', 'quake3', '-fs_basepath', ordner, '-threads', '4'] + st + ['maps/r.map'], unter)
+                rcs.append(rc & 0xffffffff)
+                if rc != 0:
+                    break
+            extern = sorted(os.listdir(os.path.join(unter, 'maps', 'r'))) if os.path.isdir(os.path.join(unter, 'maps', 'r')) else []
+            dateien = {e: open(os.path.join(unter, 'maps', 'r', e), 'rb').read() for e in extern}
+            sh = os.path.join(unter, 'scripts', 'q3map2_r.shader')
+            erg[name] = (rcs, ibsp_lumps(os.path.join(unter, 'maps', 'r.bsp')), dateien, open(sh, 'rb').read() if os.path.exists(sh) else None)
+        rn, ln, dn, sn = erg['neu']
+        rz, lz, dz, sz = erg['zweimal']
+        # die Entities ohne _q3map2_cmdline (der Verlauf der Schritte)
+        for l in (ln, lz):
+            if l:
+                l[0] = re.sub(rb'"_q3map2_cmdline" "[^"]*"', b'', l[0])
+        anders = [i for i in range(17) if ln and lz and ln[i] != lz[i]]
+        gut = all(r == 0 for r in rn + rz) and len(rz) == 4 and ln is not None and lz is not None and not anders and dn == dz and len(dn) > 0 and sn == sz and sn
+        fehler += 0 if gut else 1
+        print(('ok    ' if gut else 'FEHL  ') + 'relicht (%s): zweites -light auf der beleuchteten quake3-.bsp mit Stilen - Rueckgaben %s / %s, '
+              'Lumps anders %s, externe Lightmaps %d %s, Shader-Datei %s' %
+              (art, rn, ['0x%x' % r if r > 255 else r for r in rz], anders, len(dn), 'gleich' if dn == dz else 'anders',
+               'gleich' if sn == sz and sn else 'anders/fehlt'))
+    return fehler
+
+
+FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102, 'gt113': gt113, 'gl143': gl143, 'gl108': gl108, 'gl128': gl128,
+          'relicht': relicht}
 
 
 def main():

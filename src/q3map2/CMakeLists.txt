@@ -277,7 +277,7 @@ endfunction()
 # Stufe 8g: sechs Einstiege (Erstabtastung, Vorhersage, Unterabtastung, Stempellauf,
 # Filtern, Lichtgitter), je mit und ohne double; die Messschalter (MESS 1/2) nur fuer die Kerne mit
 # Strahlen und nur mit double.
-foreach(k erst kandidaten unter stempellauf filtern gitterKern)
+foreach(k erst kandidaten unter stempellauf filtern gitterKern zufall)
   foreach(d 0 1)
     bhed_fxc(g_bake_${k}_d${d}_m0 bhed_gpubacken.hlsl ${k} DOPPELT=${d} MESS=0)
   endforeach()
