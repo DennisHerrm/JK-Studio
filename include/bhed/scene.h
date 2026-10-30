@@ -380,6 +380,18 @@ struct ActorState {
     double torsoBlendStartMs = 0.0;
     double torsoBlendMs = 0.0;
 
+    // Zeitleiste 4: die Anim-Timer der Engine (legsAnimTimer, torsoAnimTimer)
+    // als Endzeit - < 0 keiner, 1e300 haelt immer (SET_ANIM_HOLDTIME -1).
+    // Die Aufnahme braucht sie: solange ein Timer laeuft, setzt PM_Footsteps
+    // die Beine nicht neu (PM_SetAnimFinal, bodyPlay).
+    double beineTimerBisMs = -1.0;
+    double torsoTimerBisMs = -1.0;
+    // Zeitleiste 4: wie weit der Rumpf gegen die Beine gedreht ist (Grad) -
+    // cgame dreht die Beine zur Laufrichtung (CG_PlayerLegsYawFromMovement)
+    // und den Rumpf zurueck zum Blick (CG_G2ClientSpineAngles). angles[1]
+    // ist dann die Gier der Beine. Bisher nur beim Aufnehmen gesetzt.
+    float rumpfGier = 0.0F;
+
     // Wohin die Figur schaut, wenn ein SET_LOOK_TARGET gesetzt ist.
     bool hasLookTarget = false;
     float lookAt[3]{};

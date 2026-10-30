@@ -1688,6 +1688,10 @@ ActorState Actor::at(double ms) const {
             st.pos[2] = hoehe[i] + (hoehe[j] - hoehe[i]) * r;
         }
     }
+    // Zeitleiste 4: die Timer fuer die Aufnahme (ohne bekannte Laenge keiner -
+    // dann loest ein Weg die Animation ab, siehe beineFest).
+    st.beineTimerBisMs = beineFest ? beineBis : -1.0;
+    st.torsoTimerBisMs = torsoBis;
     return st;
 }
 

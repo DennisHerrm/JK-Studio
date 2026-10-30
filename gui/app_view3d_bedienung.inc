@@ -4470,6 +4470,7 @@ void drawMapView() {
                 dazu(d.pos, sizeof(d.pos));
                 dazu(&d.yaw, sizeof(d.yaw));
                 dazu(&d.headYaw, sizeof(d.headYaw));
+                dazu(&d.rumpfGier, sizeof(d.rumpfGier));
                 dazu(&d.torsoFrame, sizeof(d.torsoFrame));
                 dazu(&d.torsoNext, sizeof(d.torsoNext));
                 dazu(&d.torsoFraction, sizeof(d.torsoFraction));

@@ -1,0 +1,129 @@
+// pmanim.h - Beine und Oberkoerper einer gesteuerten Figur, wie im Spiel.
+//
+// Zeitleiste 4 Punkt 3: beim Aufnehmen (gui/app_mission.cpp) laeuft die Figur
+// mit dem Pmove-Port (navSpielerPmove). Was das Modell dabei zeigt, waehlt im
+// Spiel danach
+//
+//   PM_Footsteps        die Beinanimation aus forwardmove/rightmove,
+//                       BUTTON_WALKING, PMF_BACKWARDS_RUN, Waffe, Klinge,
+//                       NPC_class (code/game/bg_pmove.cpp)
+//   PM_SetAnimFinal     wann sie wirklich gesetzt wird (Timer), mit welchem
+//                       Tempo (g_noFootSlide) und mit Uebergang
+//                       (BONE_ANIM_BLEND, SETANIM_BLEND_DEFAULT 100 ms)
+//                       (code/game/bg_panimate.cpp)
+//   PM_TorsoAnimation   den Oberkoerper (ohne Waffe folgt er den Beinen)
+//   cgame               die Beine drehen sich zur Laufrichtung, der Rumpf
+//                       zurueck zum Blick (CG_PlayerLegsYawFromMovement,
+//                       CG_G2ClientSpineAngles, code/cgame/cg_players.cpp)
+//
+// Portiert fuer OpenJK SP und Movie Duels (mdgit, g_ActivateAnimationStyle 0,
+// g_SerenityJediEngineMode 0, g_noIgniteTwirl 1 - die Vorgaben in g_main.cpp)
+// fuer einen NPC am Boden, nicht geduckt, nicht im Wasser, ohne Leiter: so
+// steuert ihn die Aufnahme (W/A/S/D, Umschalt, Q/E). Nicht dabei: die
+// Hangstellung PM_AdjustStandAnimForSlope (Fusspuren am Modell) und der
+// Sprint (BUTTON_BLOCK eines Spielers) - siehe die Notizen.
+#ifndef BHED_PMANIM_H
+#define BHED_PMANIM_H
+
+#include <string>
+
+namespace bhed {
+
+// PMF_BACKWARDS_RUN nach PmoveSingle (bg_pmove.cpp:14806-14811 OpenJK): bei
+// forwardmove < 0 an, bei forwardmove > 0 oder rein seitwaerts aus, ohne
+// Eingabe unveraendert.
+void pmRueckwaertsSetzen(bool& rueckwaerts, int vor, int seit) noexcept;
+
+// PM_WalkingAnim / PM_RunningAnim (bg_pmove.cpp:6927-6968 OpenJK,
+// 10305-10547 MD) - die Listen 1:1.
+[[nodiscard]] bool pmGehAnim(const std::string& anim, bool md);
+[[nodiscard]] bool pmLaufAnim(const std::string& anim, bool md);
+
+// Was PM_Footsteps und PM_SetAnimFinal von der Figur lesen.
+struct PmFigur {
+    std::string klasse;          // client->NPC_class ("CLASS_IMPERIAL"), leer = keine
+    std::string waffe;           // ps.weapon, leer = WP_NONE
+    bool klingeAn = false;       // ps.SaberActive()
+    bool klingeLaenge = false;   // ps.SaberLength() > 0 (auch beim Ein- und Ausfahren)
+    int saberStil = 0;           // ps.saberAnimLevel: SS_NONE 0, FAST 1, MEDIUM 2, STRONG 3,
+                                 // DESANN 4, TAVION 5, DUAL 6, STAFF 7
+    bool zweiPistolen = false;   // gent->weaponModel[1] > 0
+    float laufTempo = 0.0F;      // NPC->stats.runSpeed (CLASS_WAMPA: 300 = auf allen vieren)
+    bool md = false;             // Regelwerk Movie Duels
+};
+
+// Was PM_Footsteps im Zweig am Boden setzt: die Animation, ob es SETANIM_BOTH
+// ist (CLASS_GALAKMECH, CLASS_SBD) und ob mit SETANIM_FLAG_HOLD (Anlauf und
+// Auslauf von ATST und Droideka: BOTH_RUN1START, BOTH_RUN1STOP). Leer: es
+// setzt nichts (die Wachhaltung eines NPC mit Waffe bleibt stehen, der Anlauf
+// laeuft noch).
+struct PmBeinWahl {
+    std::string anim;
+    bool beide = false;
+    bool halten = false;
+};
+// Was PM_Footsteps vom Zustand liest: ps.legsAnim, ob legsAnimTimer laeuft,
+// ps.torsoAnim (PM_SaberDrawPutawayAnim) und in_camera (Movie Duels: der An-
+// und Auslauf der Droideka nur ausserhalb einer Kamerafahrt).
+struct PmBeinStand {
+    std::string beine;
+    bool beineTimer = false;
+    std::string torso;
+    bool inKamera = false;
+};
+[[nodiscard]] PmBeinWahl pmFootstepsBeine(const PmFigur& f, int vor, int seit, bool gehen, bool rueckwaerts,
+                                          const PmBeinStand& z);
+
+// g_noFootSlide in PM_SetAnimFinal: das Tempo einer Lauf- oder Gehanimation
+// (PM_WalkingAnim, PM_RunningAnim, BOTH_CROUCH1WALK/-BACK) gegenueber ihrer
+// .cfg - animSpeed = 50/frameLerp * resultspeed/moveSpeedOfAnim, 0,01 .. 1,5.
+// frameLerpMs: ms je Bild der Animation (0 = unbekannt, dann 50). inKamera:
+// Movie Duels skaliert in einer Kamerafahrt erst ab resultspeed 1.
+// Sonst 1 (das Tempo der .cfg).
+[[nodiscard]] float pmFussTempo(const std::string& anim, float resultSpeed, const PmFigur& f, double frameLerpMs,
+                                bool inKamera);
+
+// Ein Knochen, wie PM_SetAnimFinal ihn fuehrt (Beine: rootBone, Oberkoerper:
+// lowerLumbarBone). Zeiten in ms einer eigenen Uhr; die Stelle in der
+// Animation (ms der .cfg) ist (jetzt - startMs) * tempo.
+struct PmKnochen {
+    std::string anim;
+    double startMs = 0.0;
+    float tempo = 1.0F;
+    // legsAnimTimer/torsoAnimTimer als Endzeit: < 0 kein Timer, kPmNie = -1
+    // der Engine (haelt immer).
+    double timerBisMs = -1.0;
+    // Der Uebergang: das eingefrorene Bild der vorigen Animation (ghoul2
+    // mischt gegen ein Standbild), ab wann und wie lange.
+    std::string vorher;
+    double vorherStelleMs = 0.0;
+    double blendAbMs = 0.0;
+    double blendMs = 0.0;
+};
+inline constexpr double kPmNie = 1.0e300;
+inline constexpr double kPmBlendVorgabe = 100.0;   // SETANIM_BLEND_DEFAULT (bg_public.h)
+
+[[nodiscard]] double pmStelle(const PmKnochen& k, double jetztMs) noexcept;
+// PM_SetAnim mit SETANIM_FLAG_NORMAL (PM_Footsteps, PM_TorsoAnimation):
+// laeuft der Timer, bleibt alles (bodyPlay = animOverride || !bodyTimerOn).
+// Dieselbe Animation mit demselben Tempo: nichts; mit anderem Tempo laeuft
+// sie an derselben Stelle weiter, ohne Uebergang. Eine andere beginnt vorn,
+// mit Uebergang vom jetzigen Bild. true, wenn sie gesetzt wurde.
+// halteMs >= 0: SETANIM_FLAG_HOLD - der Timer laeuft so lange (animHoldMSec:
+// (numFrames - 1) * frameLerp).
+bool pmSetAnimNormal(PmKnochen& k, const std::string& anim, float tempo, double jetztMs, double blendMs = kPmBlendVorgabe,
+                     double halteMs = -1.0);
+
+// CG_PlayerLegsYawFromMovement (cg_players.cpp, OpenJK und MD gleich) fuer
+// ein Clientbild, mit Grenzen -60..60 und alwaysFace: die Beine drehen sich
+// zur Bewegung (rueckwaerts gespiegelt, ueber 150 Grad gar nicht), hoechstens
+// 5 Grad je Bild in Bewegung, 10 im Stehen, und um frameInterpolation des
+// Rests. Gibt die neue Gier der Beine zurueck.
+[[nodiscard]] float pmBeinGier(float beinGier, float blickGier, float vx, float vy, bool rueckwaerts,
+                               double frameInterpolation);
+// CG_G2ClientSpineAngles: der Ausschlag des Rumpfs gegen die Beine verteilt
+// sich auf lower_lumbar, upper_lumbar und thoracic.
+inline constexpr float kPmRumpfAnteil[3] = {0.45F, 0.35F, 0.20F};
+
+}  // namespace bhed
+#endif

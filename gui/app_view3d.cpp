@@ -4707,6 +4707,7 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]) {
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
 void figurKopfGier(const ActorState& st, ActorDraw& d) {
+    d.rumpfGier = st.rumpfGier;   // Zeitleiste 4: Rumpf gegen die Beine (Aufnahme)
     if (st.hasLookTarget && g_app->lookRotation) {
         const float dx = st.lookAt[0] - st.pos[0];
         const float dy = st.lookAt[1] - st.pos[1];
