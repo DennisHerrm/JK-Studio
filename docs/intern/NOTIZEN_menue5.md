@@ -347,7 +347,7 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
 - Unterbrechung: Windows Update startete den Rechner am 30.10. um 00:29 neu (mitten in der
   Handbuch-Neuerzeugung). Danach: uncommittete Stände geprüft (eigene Tour-/Handbucharbeit),
   Handbuch mit den Generatoren neu erzeugt, alle Bilder und Läufe neu gemacht.
-- Bau (alle Ziele, nicht --clean-first - aus Zeitgründen): 0 Warnungen, 0 Fehler. ctest 159/159.
+- Sauberer Neubau (alle Ziele, --clean-first, 9 Minuten): 0 Warnungen, 0 Fehler; ctest danach 159/159.
 - Selbsttest menueeditor voll: Movie-Duels-Daten 103 OK / 0 FEHLER; JKA-Daten („GameData
   original“, nur gelesen) im ersten Lauf 101 OK / 2 FEHLER - die M2/M3-Prüfung „Im Spiel testen“
   erwartete fs_homepath, jasp.exe bekommt jetzt den neuen Weg fs_basepath + fs_cdpath; Prüfung
@@ -382,11 +382,10 @@ Aus Zeit- bzw. Kontextgründen nicht angefangen; Stand und Vorarbeit:
   Rückfrage), Punkt 4 (Mod-Profile, Generator, Vorlage; Galactic Legacy ohne Quelle), Punkt 5 (JK2
   echt: Im Spiel testen nachgewiesen, Rangliste, Tabellen, .md3-Logo), Punkt 6 (Tour + Tutorial,
   Handbuch für 1 und 3-5 in vier Sprachen mit Bildern, Selbsttest-Aufgaben).
-- Offen (aus Zeitgründen nicht mehr gelaufen): sauberer Neubau mit --clean-first.
 - Offen (fachlich): JK2-Tastenbelegungen und Renderer-Cvars in den Setup-Menüs, JK2-MP-Menüs außer
   dem Hauptmenü, Chrom-Shader des Logos, Startmenü eines neuen Projekts nur im SP-Format, Schließen
   eines Reiters fragt nicht nach.
-- Nächster Schritt: Neubau --clean-first nachholen; dann M6.
+- Nächster Schritt: M6 (die fachlich offenen Punkte oben, JK2-MP-Menüs fotografieren).
 
 ## Changelog
 
