@@ -416,6 +416,13 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - Menu editor: reference image under the canvas, compare an element with the game's original and reset it, live limits (elements, menus, script length) while building.
 - Menu editor: readability hints - text too small, too little contrast, translations that do not fit their field.
 - Menu editor: closing a tab with unsaved changes asks first.
+- Menu editor: elements drawn by the game's code are now shown as in the game instead of placeholders - datapad (Jedi Academy, Jedi Outcast, Movie Duels), multiplayer Force ranks, server and bot lists, graphics driver page, Movie Duels Pazaak and duel maps; sample values are labelled and can be changed.
+- Menu editor: key binding elements show the keys from the game's default config instead of ???.
+- Menu editor: loading and connect screens with sample level shot, weapons, Force powers and loading bar.
+- Menu editor: Test in game reloads your menus in the running game after every save (OpenJK and Movie Duels).
+- Menu editor: components - linked copies of an element that follow their original.
+- Menu editor: handles to turn, move and zoom models; new projects can start in multiplayer format.
+- Menu editor: sliders with the size of each game, Jedi Outcast colour codes as in the game, settings wizard as a clear table.
 
 ## Deutsch
 
@@ -426,6 +433,13 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - Menü-Editor: Referenzbild unter der Fläche, Element mit dem Original vergleichen und zurücksetzen, Live-Grenzen (Elemente, Menüs, Skriptlänge) beim Bauen.
 - Menü-Editor: Lesbarkeits-Hinweise - zu kleine Schrift, zu wenig Kontrast, Übersetzungen, die nicht ins Feld passen.
 - Menü-Editor: Reiter mit ungespeicherten Änderungen fragt beim Schließen nach.
+- Menü-Editor: Elemente, die der Code des Spiels zeichnet, erscheinen jetzt wie im Spiel statt als Platzhalter - Datapad (Jedi Academy, Jedi Outcast, Movie Duels), Machtränge im Mehrspieler, Server- und Botlisten, Grafiktreiber-Seite, Pazaak und Duellkarten von Movie Duels; Beispielwerte sind beschriftet und änderbar.
+- Menü-Editor: Tastenbelegungs-Elemente zeigen die Tasten aus der Vorgabe-Config des Spiels statt ???.
+- Menü-Editor: Lade- und Verbindungsbild mit Beispiel-Levelshot, Waffen, Machtkräften und Ladebalken.
+- Menü-Editor: Im Spiel testen lädt deine Menüs nach jedem Speichern im laufenden Spiel neu (OpenJK und Movie Duels).
+- Menü-Editor: Komponenten - verknüpfte Kopien eines Elements, die ihrem Original folgen.
+- Menü-Editor: Griffe zum Drehen, Verschieben und Zoomen von Modellen; neue Projekte können im Mehrspieler-Format beginnen.
+- Menü-Editor: Schieber in der Größe des jeweiligen Spiels, Farbcodes von Jedi Outcast wie im Spiel, Einstellungs-Assistent als übersichtliche Tabelle.
 
 ## 中文
 
@@ -436,6 +450,13 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - 菜单编辑器:画布下的参考图、元素与游戏原版比较并重置、搭建时的实时上限(元素、菜单、脚本长度)。
 - 菜单编辑器:可读性提示——文字太小、对比度不足、译文放不进字段。
 - 菜单编辑器:关闭含未保存更改的标签页时会先询问。
+- 菜单编辑器:由游戏代码绘制的元素现在与游戏中一致,不再是占位框——数据板(Jedi Academy、Jedi Outcast、Movie Duels)、多人游戏原力等级、服务器和机器人列表、显卡驱动页面、Movie Duels 的 Pazaak 和决斗地图;示例值有标注且可修改。
+- 菜单编辑器:按键绑定元素显示游戏默认配置中的按键,而不是 ???。
+- 菜单编辑器:加载画面和连接画面带示例关卡截图、武器、原力和加载条。
+- 菜单编辑器:游戏内测试会在每次保存后在运行中的游戏里重新加载菜单(OpenJK 和 Movie Duels)。
+- 菜单编辑器:组件——跟随原件的元素链接副本。
+- 菜单编辑器:用于旋转、移动和缩放模型的手柄;新项目可以以多人游戏格式开始。
+- 菜单编辑器:滑块采用各游戏的尺寸,Jedi Outcast 的颜色代码与游戏一致,设置向导改为清晰的表格。
 
 ## 日本語
 
@@ -446,3 +467,10 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - メニューエディター: キャンバスの下の参考画像、要素をゲームのオリジナルと比較して戻す機能、作成中の上限表示(要素、メニュー、スクリプトの長さ)。
 - メニューエディター: 読みやすさのヒント - 小さすぎる文字、足りないコントラスト、フィールドに収まらない訳文。
 - メニューエディター: 保存していない変更のあるタブを閉じるときに確認。
+- メニューエディター: ゲームのコードが描く要素を、プレースホルダーではなくゲームと同じように表示 - データパッド(Jedi Academy、Jedi Outcast、Movie Duels)、マルチプレイのフォースランク、サーバーとボットの一覧、グラフィックドライバーのページ、Movie Duels の Pazaak と決闘マップ。サンプル値はラベル付きで変更可能。
+- メニューエディター: キー割り当て要素は ??? ではなく、ゲームの既定の設定にあるキーを表示。
+- メニューエディター: ロード画面と接続画面に、サンプルのレベル画像、武器、フォース、ロードバー。
+- メニューエディター: ゲームでテストすると、保存のたびに実行中のゲームでメニューを読み直し(OpenJK と Movie Duels)。
+- メニューエディター: コンポーネント - 原本に追従する要素のリンクコピー。
+- メニューエディター: モデルを回転・移動・ズームするハンドル。新しいプロジェクトはマルチプレイ形式でも開始可能。
+- メニューエディター: スライダーは各ゲームの大きさ、Jedi Outcast の色コードはゲームどおり、設定ウィザードは見やすい表に。
