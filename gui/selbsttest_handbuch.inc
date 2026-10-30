@@ -315,6 +315,10 @@ std::vector<Schritt> schritte();   // selbsttest_karte9d.inc: Stufe 9d (Nebel, E
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
+namespace reste1 {
+std::vector<Schritt> schritte();        // selbsttest_reste1.inc: Liste reste1 (Decals im Editor)
+std::vector<Schritt> ruheOhneKarte();   // selbsttest_reste1.inc: Map-Tab ohne Karte ruht (Modus reiter und 1)
+}  // namespace reste1
 
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
@@ -564,6 +568,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =reste1: Liste reste1 (Decals in der Echtzeit-Ansicht)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "reste1") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : reste1::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =leisten1/leisten2: Leisten verschieben ueber einen echten Neustart (ein Einstellungsordner)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "leisten", 7) == 0 && (nur[7] == '1' || nur[7] == '2')) {
         for (Schritt& x : stufe9c::leistenNeustart(nur[7] - '0')) { add(std::move(x)); }
@@ -605,6 +616,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
     for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
     for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }   // Stufe 9d: Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke
+    for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
@@ -887,6 +899,7 @@ void skriptNeu() {
 #include "selbsttest_karte9c.inc"
 #include "selbsttest_karte9d.inc"   // Stufe 9d: Nebel, Effekte, Skyportal, Modellschatten, Shader live, Patch-Bruecke
 #include "selbsttest_optsicher.inc"
+#include "selbsttest_reste1.inc"   // Liste reste1: Decals in der Echtzeit-Ansicht
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //

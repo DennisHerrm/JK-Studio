@@ -90,6 +90,22 @@ struct SpurWelt {
 // (q3map2 schreibt dort die surfaceparms der Shaderdateien hinein).
 [[nodiscard]] SpurWelt spurWeltAus(const BspGeometry& geo);
 
+// --- Eine Welt ohne .bsp (Karten-Editor, Liste reste1 Punkt 1) ---------------
+//
+// Der Karten-Editor hat keine .bsp. Die Flaechen kommen fertig herein: eine
+// ebene Flaeche wie srfSurfaceFace_t (Ecken, Faecher 0, i, i + 1, Ebene aus der
+// Normalen und der ersten Ecke), ein Patch als Gitter wie im Spiel
+// (R_SubdividePatchToGrid, r_subdivisions "4"). Den Baum, den R_BoxSurfaces_r
+// abgeht, baut spurWeltAusFlaechen darueber: achsparallele Teilungen am Median
+// der Flaechenmitten, hoechstens 8 Flaechen je Blatt; eine Flaeche, die eine
+// Teilungsebene beruehrt, liegt in beiden Kindern (BoxOnPlaneSide geht bei
+// Beruehrung nur auf eine Seite). R_MarkFragments findet so jede Flaeche, die
+// den Kasten der Marke schneidet, wie in der .bsp - nur die Reihenfolge der
+// Bruchstuecke kann anders sein.
+[[nodiscard]] SpurFlaeche spurPolygon(const std::vector<std::array<float, 3>>& ecken, const float normale[3], bool ausgenommen);
+[[nodiscard]] SpurFlaeche spurPatch(int breite, int hoehe, const std::vector<std::array<float, 3>>& kontrolle, bool ausgenommen);
+[[nodiscard]] SpurWelt spurWeltAusFlaechen(std::vector<SpurFlaeche> flaechen);
+
 // R_SubdividePatchToGrid (tr_curve.cpp:287 OJ), nur die Orte. punkte: breite x
 // hoehe Kontrollpunkte (Zeile fuer Zeile). Liefert das Gitter wie
 // srfGridMesh_t::verts (Zeile j, Spalte i an j * breiteAus + i).

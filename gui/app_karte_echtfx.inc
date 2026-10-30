@@ -16,6 +16,9 @@
 // seines Effekts (Ursprung, Geschwindigkeit, Beschleunigung und Schwerkraft ueber die laengste
 // Lebensdauer, Groesse) ganz neben dem Sichtkegel liegt - das Bild bleibt gleich. Grenze: der Editor
 // hat keine .bsp - Teilchen mit usePhysics prallen nicht ab (efx::sim spurt ohne Geometrie).
+// Decals: CG_ImpactMark schneidet das Quadrat mit R_MarkFragments auf die Flaechen der Welt - hier
+// die Brushes und Patches der Karte (markenWeltAusKarte, wie q3map2 sie in die Welt schreibt), gebaut
+// beim ersten Decal nach einer Aenderung der Geometrie.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
@@ -31,6 +34,7 @@ struct EchtFx {
     // cullrange: je Effekt und Maske der weggelassenen Primitive eine Kopie ohne sie (feste Adressen)
     std::map<std::pair<const efx::Effect*, std::uint64_t>, std::unique_ptr<efx::Effect>> ohne;
     std::map<const efx::Effect*, float> huellen;   // fxHuelle je Effekt
+    std::unique_ptr<SpurWelt> marken;              // die Flaechen fuer die Decals (nullptr: noch nicht gebaut)
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 };
 EchtFx g_fx;
@@ -195,6 +199,7 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
     const auto t0 = std::chrono::steady_clock::now();
     if (g_fx.stand != geoStand) {
         g_fx.stand = geoStand;
+        g_fx.marken.reset();
         fxLaeuferBauen();
     }
     ed.echtLicht.effektEcken = 0;
@@ -221,7 +226,18 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
     }
     const std::vector<EffectInstance> folge = effectFollowUpsAt(alle, jetzt, nullptr, [](const std::string& n) { return fxLaden(n); });
     alle.insert(alle.end(), folge.begin(), folge.end());
-    const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge);
+    const bool decals = std::any_of(alle.begin(), alle.end(), [](const EffectInstance& l) {
+        return std::any_of(l.effect->primitives.begin(), l.effect->primitives.end(), [](const efx::Primitive& pr) { return pr.type == efx::PrimitiveType::Decal; });
+    });
+    if (decals && !g_fx.marken) {
+        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+        const auto parms = [&sp](const std::string& shader) {
+            const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
+            return se != nullptr ? se->surfaceparms : std::vector<std::string>{};
+        };
+        g_fx.marken = std::make_unique<SpurWelt>(karte::markenWeltAusKarte(ed.karte, parms, !(sp && sp->spiel == kRegelwerkJediOutcast)));
+    }
+    const BspMesh netz = buildEffectMesh(alle, jetzt, rechts, oben, &g_fx.plaetze, nullptr, &auge, g_fx.marken.get());
     ed.echtLicht.effektEcken = netz.verts.size();
     for (const BspMesh::Batch& b : netz.batches) {
         if (b.numIndexes == 0) { continue; }

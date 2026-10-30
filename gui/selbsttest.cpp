@@ -357,6 +357,19 @@ Schritt klick(const std::string& label, const std::string& fenster = "",
                     io.AddMouseButtonEvent(maustaste, false);
                     return false;
                 }
+                if (b == 3 && maustaste == 0) {
+                    // reste1 Punkt 2: das Loslassen kam im letzten Bild an - ein Knopf loest nur aus,
+                    // wenn er dort noch unter der Maus lag. Wanderte er zwischen Druecken und
+                    // Loslassen (ein Fenster wurde neu gestellt), ging der Klick still verloren.
+                    const Element* e = finde(label, fenster, nte, praefix, nachbar);
+                    if (e != nullptr && e->id == *kennung && !e->rect.Contains(*ziel)) {
+                        char z[160];
+                        std::snprintf(z, sizeof(z), ": beim Loslassen nicht mehr unter der Maus (%.0f/%.0f, Element jetzt %.0f/%.0f-%.0f/%.0f)",
+                                      static_cast<double>(ziel->x), static_cast<double>(ziel->y), static_cast<double>(e->rect.Min.x),
+                                      static_cast<double>(e->rect.Min.y), static_cast<double>(e->rect.Max.x), static_cast<double>(e->rect.Max.y));
+                        meldeFehler(was + z);
+                    }
+                }
                 return b >= 5;
             }};
 }
@@ -5980,6 +5993,7 @@ void selbsttest() {
                 for (Schritt& x : tourRegisterSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 tour
                 for (Schritt& x : tourSchritte()) { a.schritte.push_back(std::move(x)); }           // rc601 tour
                 for (Schritt& x : tourPruefungSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 tour (Pruefung)
+                for (Schritt& x : reste1::ruheOhneKarte()) { a.schritte.push_back(std::move(x)); }   // reste1 Punkt 5
                 for (Schritt& x : reiterRadSchritte()) { a.schritte.push_back(std::move(x)); }
                 for (Schritt& x : schutzBeendenSchritte()) { a.schritte.push_back(std::move(x)); }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
@@ -6294,6 +6308,7 @@ void selbsttest() {
             for (Schritt& x : tourRegisterSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 tour
             for (Schritt& x : tourSchritte()) { a.schritte.push_back(std::move(x)); }           // rc601 tour
             for (Schritt& x : tourPruefungSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 tour (Pruefung)
+            for (Schritt& x : reste1::ruheOhneKarte()) { a.schritte.push_back(std::move(x)); }   // reste1 Punkt 5
             for (Schritt& x : reiterRadSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : sicherungSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : zeitleisteSchritte()) { a.schritte.push_back(std::move(x)); }

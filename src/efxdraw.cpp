@@ -1934,7 +1934,7 @@ void vergissEffektBahnen() {
 BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                         const float right[3], const float up[3],
                         const EffectShaderSlots* slots, const BspGeometry* geo,
-                        const EffectCull* cull) {
+                        const EffectCull* cull, const SpurWelt* marken) {
     BHED_MESS("Effektnetz");
     BspMesh mesh;
     // Der Platz je Shadername eines Bausteins, einmal je Aufruf gesucht
@@ -2280,7 +2280,7 @@ BspMesh buildEffectMesh(const std::vector<EffectInstance>& live, double nowMs,
                 if (marke) {
                     // FxScheduler.cpp:1859-1864 MD: ohne Richtung kein Decal.
                     const float* dir = t.ax[0];
-                    const SpurWelt* welt = spurWeltFuer(geo);
+                    const SpurWelt* welt = marken != nullptr ? marken : spurWeltFuer(geo);
                     if ((dir[0] == 0.0F && dir[1] == 0.0F && dir[2] == 0.0F) || welt == nullptr) {
                         continue;
                     }

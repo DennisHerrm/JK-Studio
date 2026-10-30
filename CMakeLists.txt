@@ -1510,6 +1510,10 @@ if(BEHAVED_TESTS)
   add_executable(kartespielen tests/kartespielen.cpp)
   target_link_libraries(kartespielen PRIVATE bhed_core)
   add_test(NAME karte_spielen COMMAND kartespielen ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
+  # Liste reste1 Punkt 1: Marken (Decals) gegen die Brushes und Patches wie gegen die .bsp
+  add_executable(kartenmarken tests/kartenmarken.cpp)
+  target_link_libraries(kartenmarken PRIVATE bhed_core)
+  add_test(NAME karte_marken COMMAND kartenmarken ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   # Stufe 8b Punkt 4: der Graph der Logik-Ansicht
   add_executable(kartelogik tests/kartelogik.cpp)
   target_link_libraries(kartelogik PRIVATE bhed_core)
