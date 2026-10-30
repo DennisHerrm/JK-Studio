@@ -6,11 +6,16 @@ namespace {
 
 // --- Punkt 14 und 11: Datapad und Beispielwerte -------------------------------------------------
 
-// M7 Punkt 14: ui.Draw_DataPad(DP_HUD) und DP_* (code/cgame) mit Beispielwerten; nur Jedi Academy SP -
-// Movie Duels und Jedi Outcast zeichnen ihr Datapad mit eigenem HUD (dann false: beschrifteter Kasten)
-// ui/hud.menu und ext_data/weapons.dat einmal je Spieldatenstand (Datapad, Ladebildschirm)
+// M7 Punkt 14: ui.Draw_DataPad(DP_HUD) und DP_* (cgame) mit Beispielwerten - Jedi Academy mit den Strichen
+// aus ui/hud.menu, Jedi Outcast und Movie Duels mit ihrem eigenen HUD (zeichneDatapadHudJk2).
+// ui/hud.menu und ext_data/weapons.dat einmal je Spieldatenstand (Datapad, Ladebildschirm); das Beispiel
+// passend zum Spiel
 void datapadDatenLaden() {
     Zustand& z = Z();
+    if (z.datapadFuer != z.spiel) {
+        z.datapadFuer = z.spiel;
+        z.datapadWerte = datapadBeispiel(z.spiel);
+    }
     if (!z.datapadGelesen) {
         z.datapadGelesen = true;
         std::string t;
@@ -19,16 +24,19 @@ void datapadDatenLaden() {
             o.dialekt = Dialekt::SP;
             z.datapadHud = std::make_unique<Datei>(lies("ui/hud.menu", t, o));
         }
-        if (z.daten.lies("ext_data/weapons.dat", t)) { z.waffenIcon = waffenIcons(t); }
+        if (z.daten.lies("ext_data/weapons.dat", t)) { z.waffenIcon = waffenIcons(t, z.spiel); }
     }
 }
 
-bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen) {
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const DatapadUmgebung& du) {
     Zustand& z = Z();
-    if (z.spiel != Spiel::JA) { return false; }
     datapadDatenLaden();
     std::vector<Prim> hud;
-    if (z.datapadHud) { zeichneDatapadHud(*z.datapadHud, z.hudWerte, hud); }
+    if (z.spiel != Spiel::JA) {
+        zeichneDatapadHudJk2(z.spiel, z.hudWerte, hud);
+    } else if (z.datapadHud) {
+        zeichneDatapadHud(*z.datapadHud, z.hudWerte, hud);
+    }
     for (const Prim& p : hud) {   // die HUD-Teile sind Bilder (Striche, Ziffern, Rahmen)
         OdTeil t;
         t.art = p.art == PrimArt::Fuellen ? OdTeil::Art::Fuellen : OdTeil::Art::Bild;
@@ -45,17 +53,23 @@ bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodi
         out.push_back(std::move(t));
     }
     DatapadKontext k;
-    k.se = [texte](const std::string& key) { return texte != nullptr ? texte->imSpiel("@" + key) : key; };
-    k.breite = [kodierung, asienGlyphen](const std::string& t, float sc, const std::string& name) {
+    k.spiel = z.spiel;
+    k.se = [texte = du.texte](const std::string& key) { return texte != nullptr ? texte->imSpiel("@" + key) : key; };
+    k.breite = [du](const std::string& t, float sc, const std::string& name) {
         const Schrift* f = schriftNamens(name);
-        return f != nullptr ? schriftBreite(*f, t, sc, kodierung, asienGlyphen) : 0;
+        return f != nullptr ? schriftBreite(*f, t, sc, du.kodierung, du.asienGlyphen, du.jk2) : 0;
     };
     k.hoehe = [](float sc, const std::string& name) {
         const Schrift* f = schriftNamens(name);
         return f != nullptr ? schriftHoehe(*f, sc) : 0;
     };
-    k.kodierung = kodierung;
+    k.kodierung = du.kodierung;
     k.waffenIcon = z.waffenIcon;
+    if (z.spiel == Spiel::MD) {   // CG_DisplayBoxedText(..., 4, ...): Griff 4 der Movie-Duels-Schriften
+        const Schrift* f = du.schriftNr ? du.schriftNr(4) : nullptr;
+        k.schrift4 = f != nullptr ? f->name : std::string();
+        k.bildDa = du.bildDa;
+    }
     k.werte = z.datapadWerte;
     zeichneDatapad(art, k, out);
     return true;
@@ -96,25 +110,26 @@ void zeichneBeispielWerte(const Dokument& d) {
         eingabe("motd", &v.motd);
     }
     if (d.datei.dialekt == Dialekt::SP) {
+        datapadDatenLaden();
         DatapadWerte& w = z.datapadWerte;
-        static const char* const waffen[] = {"WP_SABER",          "WP_BLASTER_PISTOL", "WP_BLASTER",  "WP_DISRUPTOR", "WP_BOWCASTER",
-                                             "WP_REPEATER",       "WP_DEMP2",          "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL",
-                                             "WP_TRIP_MINE",      "WP_DET_PACK",       "WP_CONCUSSION"};
+        const std::vector<std::string> waffen = datapadWaffenNamen(z.spiel);
         int wi = std::clamp(w.waffe, 1, 13) - 1;
         ImGui::SetNextItemWidth(breit);
-        if (ImGui::Combo(tr(Str::MeOdWaffe), &wi, waffen, 13)) {
+        if (ImGui::Combo(tr(Str::MeOdWaffe), &wi, [](void* p, int i) { return (*static_cast<const std::vector<std::string>*>(p))[static_cast<std::size_t>(i)].c_str(); },
+                         const_cast<std::vector<std::string>*>(&waffen), 13)) {
             w.waffe = wi + 1;
             w.waffen |= 1U << w.waffe;
         }
-        static const char* const kraefte[] = {"ABSORB", "HEAL",          "PROTECT",       "MIND_TRICK", "JUMP",  "SPEED",     "PUSH", "PULL",
-                                              "SABER_THROW", "SABER_DEFENSE", "SABER_OFFENSE", "SENSE",   "DRAIN", "LIGHTNING", "RAGE", "GRIP"};
-        static constexpr int kFp[16] = {13, 0, 12, 5, 1, 2, 3, 4, 8, 9, 10, 15, 14, 7, 11, 6};   // showDataPadPowers
+        const std::vector<std::string> kraefte = datapadKraftNamen(z.spiel);
+        const std::vector<int> fp = datapadKraefte(z.spiel);   // showDataPadPowers
+        const int n = static_cast<int>(fp.size());
+        auto stufeVon = [&]() -> int& { return w.kraft[static_cast<std::size_t>(fp[static_cast<std::size_t>(std::clamp(w.kraftWahl, 0, n - 1))])]; };
         ImGui::SetNextItemWidth(breit);
-        if (ImGui::Combo(tr(Str::MeOdKraft), &w.kraftWahl, kraefte, 16)) {
-            int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
-            if (stufe == 0) { stufe = 1; }
+        if (ImGui::Combo(tr(Str::MeOdKraft), &w.kraftWahl, [](void* p, int i) { return (*static_cast<const std::vector<std::string>*>(p))[static_cast<std::size_t>(i)].c_str(); },
+                         const_cast<std::vector<std::string>*>(&kraefte), n)) {
+            if (stufeVon() == 0) { stufeVon() = 1; }
         }
-        int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
+        int& stufe = stufeVon();
         ImGui::SetNextItemWidth(breit);
         ImGui::SliderInt(tr(Str::MeOdKraftStufe), &stufe, 1, 3);
         for (std::size_t i = 0; i < w.ziele.size(); ++i) {

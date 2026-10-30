@@ -85,6 +85,13 @@ void zeichneHud(const Datei& d, int aktuell, const Umgebung& u, const HudWerte& 
 // (526 + 33, 286 + 41, gfx/hud/message_off) und gfx/menus/datapad ueber den ganzen Schirm.
 void zeichneDatapadHud(const Datei& hud, const HudWerte& w, std::vector<Prim>& out);
 
+// M7: CG_DrawDataPadHUD von Jedi Outcast (codeJK2/cgame/cg_draw.cpp: CG_DrawHUDLeftFrame1, CG_DrawArmor,
+// CG_DrawHealth, CG_DrawHUDRightFrame1, CG_DrawForcePower, CG_DrawAmmo, CG_DrawMessageLit) und Movie Duels
+// (dazu CG_DrawHUDLeftFrame2/RightFrame2, eigene Bilder gfx/hud/Datapad*, sieben Saebelstile) - ohne
+// hud.menu: Ringe, Striche (forceTicPos/ammoTicPos, rechts gespiegelt) und Zahlen an festen Stellen,
+// darueber gfx/hud/datapad2.
+void zeichneDatapadHudJk2(Spiel spiel, const HudWerte& w, std::vector<Prim>& out);
+
 }  // namespace bhed::menue
 
 #endif  // BHED_MENUE_HUD_H

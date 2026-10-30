@@ -242,9 +242,9 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
 - Offen mit Begründung: MD-MP 340-350 (UI_FORCE_RANK_STASIS .. DARK_STASIS laut ui/MD_MP/menudef.h aus
   z_zzzz_MD_Jace-Update-9.pk3) - kein Quellcode der MD-MP-Oberfläche; die DLL enthält eine 29-zeilige
   Kostentabelle, die von OpenJK abweicht (Sprung, Säbelwurf) - also zeichnet MD-MP auch die normalen
-  Kraftsterne anders als OpenJK; nicht 1:1 portierbar ohne Quelle. Datapad Movie Duels/Jedi Outcast: eigenes
-  HUD (JK2-Art, HUDInnerLeft/ HUDHealth ...) und eigene Inhalte (MD 25 Kräfte, KOTOR-Waffenwahl; JK2
-  MissionInformation_Draw) - folgt.
+  Kraftsterne anders als OpenJK; nicht 1:1 portierbar ohne Quelle. Der Selbsttest zählt sie getrennt
+  („davon ohne Quelle“) und wertet nur andere Platzhalter als Fehler. Datapad Movie Duels/Jedi Outcast:
+  erledigt (Abschnitt „Punkt 14 - Datapad von Jedi Outcast und Movie Duels“ unten).
 
 ### M5b-Reste
 
@@ -323,6 +323,35 @@ Spielfotos der Vorlagen. Steam läuft seit 30.10. 09:30 (Original-JKA/JK2 erlaub
   beim Ziehen über eine Kopie der Datei, beim Loslassen eine Ersetzung. Selbsttest mit echten Mauszügen
   (model_angle 30, g2mins/maxs geschrieben). Jedi Outcast: Blickwinkel fest 45 und Drehung nach Zeit
   (JK2_MODE) - dort wirken nur Abstand und Höhe.
+
+### Punkt 14 - Datapad von Jedi Outcast und Movie Duels
+
+- Quellen: OpenJK codeJK2/cgame (SP\m3\ojq) und Movie Duels code/cgame (SP\mdgit). Beide zeichnen das Datapad
+  nach Jedi-Outcast-Art: CG_DrawDataPadHUD mit Ringen statt hud.menu (hud.cpp zeichneDatapadHudJk2:
+  CG_DrawHUDLeftFrame1(+2 MD), CG_DrawArmor (MD CG_DrawDataPadArmor), CG_DrawHealth mit zeroFill,
+  CG_DrawHUDRightFrame1(+2 MD), CG_DrawForcePower/CG_DrawAmmo mit forceTicPos/ammoTicPos (rechte Hälfte mit
+  negativer Breite = gespiegelt), Säbelstil 80x40 (JK2 drei, MD sieben Bilder gfx/hud/DataPad*), MessageLit,
+  gfx/hud/datapad2). CG_DrawDataPadIconBackground (Band oben gespiegelt, Zinken) vor Waffen, Inventar, Kräften.
+- Jedi Outcast: MissionInformation_Draw/MissionPrint_Line (Titel INGAME_OBJECTIVES bei 96, Kreise 88, Text
+  108 in CT_BLUE3, Sicherheitscodes von kejim_post/doom_comm), Waffen 40/80 mit Pad 8, Seiten mit Deckung
+  0,6, Text INGAME_*_DESC in ocr_a 0,7 (Farbe .875 .718 .121); Kräfte 30/60 (11 Kräfte, force_icon_files
+  gfx/hud/f_icon_*), Text CT_ICON_BLUE; Inventar leer INGAME_EMPTY_INV; eigene Waffennamen in weapons.dat
+  (WP_BRYAR_PISTOL, WP_STUN_BATON).
+- Movie Duels: Ziele wie JA, aber Text CT_BLUE3, „keine“ CT_LTBLUE1, dazu die Codes der JK2-Ziele; Waffen und
+  Kräfte mit einer Nachbarin je Seite, 22/45 groß, Pad 32/64, 25 Kräfte (showDataPadPowers hell/Kern/dunkel),
+  Symbol nur wenn der Shader da ist, Texte SP_INGAME_* sonst SPMOD_INGAME_*, CG_DisplayBoxedText mit dem
+  Schriftgriff 4 (die Movie-Duels-Griffe der Vorschau). KOTOR-Waffenwahl (cg_com_kotor/charKOTORWeapons)
+  nicht nachgebildet - beides ist im Grundzustand 0.
+- Beispielwerte je Spiel (datapadBeispiel: JK2 kejim_post-Ziele, Kraftwahl Sprung), Auswahl in den
+  Eigenschaften mit den Waffen- und Kraftlisten des jeweiligen Spiels; Breiten mit Jk2Schrift.
+- Tests: ctest menue_ownerdraw (Lagen, Farben, Texte, SPMOD-Rückfall, fehlendes Symbol, HUD-Ringe/Striche);
+  Selbsttest m7 öffnet die vier Datapad-Seiten mit den Daten des Spiels: Platzhalter MD 22 -> 17 (nur noch
+  MD-MP 340-350), JK2 0, JA 0. Im Spiel: Movie Duels mit `+map duel_tradefed +datapad` und `+uimenu
+  datapadWeaponsMenu` fotografiert (SP\m7\datapad_md.py, SP\m7\spiel_md_dp.png) - Band, Mitte bei 320, Nachbar bei
+  406, Text und Ringe stehen wie in der Vorschau (Werte vom Spieler der Karte: Säbel und Fäuste, keine
+  Macht, also keine Macht-Striche). Jedi Outcast nur gegen die Quellen: versucht mit `+devmap kejim_post
+  +datapad` (SP\m7\datapad_jk2.py) - die Karte beginnt mit der Zwischensequenz, in der das Datapad nicht
+  aufgeht, und überspringen ginge nur mit einer Taste.
 
 ### M6-Vorlagen im laufenden Spiel
 

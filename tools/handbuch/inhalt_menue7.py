@@ -26,6 +26,11 @@ MENUE_EDITOR_M7 = {
                                    "Jedi Academy 数据板的武器页,带示例武器——HUD 刻度、边框、图标和说明与游戏中一致。",
                                    "サンプルの武器を表示した Jedi Academy のデータパッドの武器ページ。HUD の目盛り、枠、アイコン、説明がゲームと同じです。"), "breit"),
         ("p", T(
+            "Jedi Outcast and Movie Duels draw their own datapad: health, armour, Force and ammo rings of the Jedi Outcast HUD, an icon strip with prongs behind the weapons, inventory and Force powers, and in Movie Duels smaller icons with one neighbour on each side, its 25 Force powers and its own texts. The preview follows the game whose data is loaded.",
+            "Jedi Outcast und Movie Duels zeichnen ihr eigenes Datapad: Ringe für Gesundheit, Rüstung, Macht und Munition aus dem HUD von Jedi Outcast, ein Symbolband mit Zinken hinter Waffen, Inventar und Machtkräften, und in Movie Duels kleinere Symbole mit je einem Nachbarn, seine 25 Machtkräfte und eigene Texte. Die Vorschau folgt dem Spiel, dessen Daten geladen sind.",
+            "Jedi Outcast 和 Movie Duels 绘制自己的数据板:Jedi Outcast HUD 的生命、护甲、原力和弹药圆环,武器、物品和原力后面带尖角的图标条;Movie Duels 中图标更小、两侧各一个相邻图标,并有它的 25 种原力和自己的文字。预览跟随已加载数据的游戏。",
+            "Jedi Outcast と Movie Duels は独自のデータパッドを描きます: Jedi Outcast の HUD の体力・アーマー・フォース・弾薬のリング、武器・インベントリ・フォースの後ろの突起付きアイコン帯、そして Movie Duels では左右に 1 つずつの小さめのアイコン、25 種類のフォースと独自のテキスト。プレビューは読み込んだデータのゲームに合わせます。")),
+        ("p", T(
             "**Key bindings**: the key binding elements of the controls menus now show the keys the game binds by default (from the game's default config, for example `default.cfg` or `mpdefault.cfg`), with the game's key names - instead of `???`. Commands the game does not list stay `???`, as in the game.",
             "**Tastenbelegung**: Die Tastenbelegungs-Elemente der Steuerungsmenüs zeigen jetzt die Tasten, die das Spiel ab Werk belegt (aus der Vorgabe-Config des Spiels, etwa `default.cfg` oder `mpdefault.cfg`), mit den Tastennamen des Spiels - statt `???`. Befehle, die das Spiel nicht führt, bleiben wie im Spiel `???`.",
             "**按键绑定**:控制菜单中的按键绑定元素现在显示游戏默认绑定的按键(来自游戏的默认配置,例如 `default.cfg` 或 `mpdefault.cfg`),并使用游戏的按键名称,而不是 `???`。游戏未列出的命令与游戏中一样仍显示 `???`。",

@@ -353,6 +353,7 @@ struct Zustand {
     std::unique_ptr<Datei> datapadHud;            // ui/hud.menu fuer CG_DrawDataPadHUD (einmal gelesen)
     std::vector<std::string> waffenIcon;          // ext_data/weapons.dat weaponIcon
     bool datapadGelesen = false;
+    Spiel datapadFuer = Spiel::JA;                // fuer welches Spiel datapadWerte das Beispiel ist
     Tastenbelegung tasten[2];                    // M7: Vorgabe-Config des Spiels je Dialekt (SP, MP)
     bool tastenGelesen[2] = {false, false};
     Dialekt neuDialekt = Dialekt::SP;            // M7: Format des Startmenues eines neuen Projekts
@@ -854,7 +855,16 @@ const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
 
 // M7 (app_menue_m7.inc)
 void datapadDatenLaden();
-bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen);
+// Was das Datapad aus der Umgebung der Vorschau braucht (Texte, Schrift, Bilder)
+struct DatapadUmgebung {
+    const Texte* texte = nullptr;
+    Kodierung kodierung = Kodierung::Latin1;
+    bool asienGlyphen = false;
+    Jk2Schrift jk2 = Jk2Schrift::Nein;
+    std::function<const Schrift*(int)> schriftNr;
+    std::function<bool(const std::string&)> bildDa;
+};
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const DatapadUmgebung& du);
 
 Umgebung umgebung(const Dokument& d) {
     Zustand& z = Z();
@@ -951,8 +961,8 @@ Umgebung umgebung(const Dokument& d) {
     k.beispiel = &z.spielBeispiel;
     k.gl = &z.glDaten;
     k.pazaak = &z.pazaakZustand;
-    k.datapad = [tx = u.texte, ko = u.kodierung, ag = u.asienGlyphen](int art, std::vector<OdTeil>& out) {
-        return datapadZeichnen(art, out, tx, ko, ag);
+    k.datapad = [du = DatapadUmgebung{u.texte, u.kodierung, u.asienGlyphen, u.jk2, u.schrift, u.bildDa}](int art, std::vector<OdTeil>& out) {
+        return datapadZeichnen(art, out, du);
     };
     u.ownerDraw = [k](const OdAufruf& a) { return ownerDraw(a, k); };
     return u;

@@ -2,6 +2,7 @@
 // (codemp/ui/ui_main.c, ui_force.c, code/ui/ui_main.cpp; Movie Duels ui_main.cpp, ui_pazaak.cpp).
 #include "bhed/menue/datapad.h"
 #include "bhed/menue/feeder.h"
+#include "bhed/menue/hud.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/ownerdraw.h"
 #include "bhed/menue/pazaak.h"
@@ -228,6 +229,100 @@ int main() {
         z.clear();
         zeichneDatapad(kDpObjectives, k, z);
         pruefe(z.size() == 2 && z[1].inhalt == "@SP_INGAME_OBJNONE", "keine Ziele: SP_INGAME_OBJNONE");
+
+        // M7: Jedi Outcast (codeJK2/cgame) - eigene Waffennamen, Hintergrund mit Zinken, 40/80 und Deckung 0,6
+        const std::vector<std::string> jk2Icons = waffenIcons("{ weapontype WP_SABER weaponIcon gfx/hud/w_icon_lightsaber }"
+                                                              "{ weapontype WP_BRYAR_PISTOL weaponIcon gfx/hud/w_icon_blaster_pistol }"
+                                                              "{ weapontype WP_BLASTER weaponIcon gfx/hud/w_icon_blaster }"
+                                                              "{ weapontype WP_THERMAL weaponIcon gfx/hud/w_icon_thermal }",
+                                                              Spiel::JK2);
+        pruefe(jk2Icons.size() == 14 && jk2Icons[2] == "gfx/hud/w_icon_blaster_pistol" && datapadWaffenNamen(Spiel::JK2)[12] == "WP_STUN_BATON",
+               "Jedi Outcast: WP_BRYAR_PISTOL und WP_STUN_BATON");
+        auto text = [](const std::vector<OdTeil>& v, std::size_t ab) {   // umbrochene Zeilen zusammen
+            std::string t;
+            for (std::size_t i = ab; i < v.size(); ++i) { t += v[i].inhalt; }
+            return t;
+        };
+        DatapadKontext j = k;
+        j.spiel = Spiel::JK2;
+        j.waffenIcon = jk2Icons;
+        j.werte = datapadBeispiel(Spiel::JK2);
+        std::vector<OdTeil> jw;
+        zeichneDatapad(kDpWeapons, j, jw);
+        pruefe(jw.size() == 9 && jw[0].inhalt == "gfx/hud/background" && nah(jw[0].x, 110) && nah(jw[0].y, 325) && nah(jw[0].h, -60) && nah(jw[1].y, 323) &&
+                   jw[2].inhalt == "gfx/hud/prong_on_w" && nah(jw[2].x, 105) && nah(jw[3].x, 536) && nah(jw[3].w, -40),
+               "CG_DrawDataPadIconBackground: Hintergrund oben gespiegelt, Zinken");
+        pruefe(jw.size() == 9 && jw[4].inhalt == "gfx/hud/w_icon_thermal" && nah(jw[4].x, 232) && nah(jw[4].y, 310) && nah(jw[4].farbe.a, 0.6F) &&
+                   jw[5].inhalt == "gfx/hud/w_icon_lightsaber" && nah(jw[5].x, 280) && nah(jw[5].y, 290) && nah(jw[5].farbe.a, 1) && nah(jw[6].x, 368) &&
+                   nah(jw[7].x, 416) && jw[8].inhalt == "@INGAME_SABER_DESC" && jw[8].schrift == "ocr_a" && nah(jw[8].scale, 0.7F) && nah(jw[8].x, 70),
+               "Jedi Outcast CG_DrawDataPadWeaponSelect: Seiten 0,6, Mitte, Text qhFontSmall 0,7");
+        std::vector<OdTeil> jf;
+        zeichneDatapad(kDpForcePowers, j, jf);
+        pruefe(jf.size() >= 12 && jf[4].inhalt == "gfx/hud/f_icon_saber_attack" && nah(jf[4].x, 252) && nah(jf[6].x, 176) && jf[7].inhalt == "gfx/hud/f_icon_levitation" &&
+                   nah(jf[7].x, 290) && nah(jf[7].y, 295) && nah(jf[7].w, 60) && jf[8].inhalt == "gfx/hud/f_icon_speed" && nah(jf[8].x, 358) && nah(jf[10].x, 434) &&
+                   text(jf, 11) == "@INGAME_FORCE_JUMP_DESC@INGAME_FORCE_JUMP_LVL1_DESC" && nah(jf[11].farbe.a, 0.75F) && jf[11].schrift == "ocr_a",
+               "Jedi Outcast CG_DrawDataPadForceSelect: 30/60, Pad 8, Text CT_ICON_BLUE");
+        std::vector<OdTeil> jz;
+        zeichneDatapad(kDpObjectives, j, jz);
+        pruefe(jz.size() == 6 && jz[0].inhalt == "@INGAME_OBJECTIVES" && nah(jz[0].x, 96) && nah(jz[0].y, 56) && nah(jz[1].x, 88) && nah(jz[1].y, 89) &&
+                   jz[3].inhalt == "@OBJECTIVES_KEJIM_POST_OBJ1" && nah(jz[3].x, 108) && nah(jz[3].y, 79) && nah(jz[3].farbe.b, 0.92F) && nah(jz[4].y, 109) &&
+                   nah(jz[5].y, 99),
+               "MissionInformation_Draw: Titel 96, Kreise 88, Text 108 in CT_BLUE3");
+        std::vector<OdTeil> ji;
+        zeichneDatapad(kDpInventory, j, ji);
+        pruefe(ji.size() == 5 && ji[0].inhalt == "gfx/hud/background_i" && ji[4].inhalt == "@INGAME_EMPTY_INV", "Jedi Outcast: Inventar leer (INGAME_EMPTY_INV)");
+
+        // M7: Movie Duels - 25 Kraefte, eine je Seite, 22/45, Text mit Griff 4, SPMOD_ wenn SP_ fehlt
+        DatapadKontext m = k;
+        m.spiel = Spiel::MD;
+        m.schrift4 = "griff4";
+        m.werte = datapadBeispiel(Spiel::MD);
+        pruefe(datapadKraefte(Spiel::MD).size() == 25 && datapadKraefte(Spiel::MD)[7] == 1 && datapadKraftNamen(Spiel::MD)[4] == "LIGHTNINGSTRIKE",
+               "Movie Duels showDataPadPowers");
+        std::vector<OdTeil> mf;
+        zeichneDatapad(kDpForcePowers, m, mf);
+        pruefe(mf.size() >= 8 && mf[4].inhalt == "gfx/mp/f_icon_sight" && nah(mf[4].x, 212) && nah(mf[4].y, 310) && nah(mf[4].w, 22) &&
+                   mf[5].inhalt == "gfx/mp/f_icon_levitation" && nah(mf[5].x, 298) && nah(mf[5].y, 299) && nah(mf[5].w, 45) && mf[6].inhalt == "gfx/mp/f_icon_speed" &&
+                   nah(mf[6].x, 406) && text(mf, 7) == "@SP_INGAME_FORCE_JUMP_DESC@SP_INGAME_FORCE_JUMP_LVL1_DESC" && mf[7].schrift == "griff4" &&
+                   nah(mf[7].x, 40),
+               "Movie Duels CG_DrawDataPadForceSelect: Lage, Text mit Griff 4");
+        m.waffenIcon = icons;
+        std::vector<OdTeil> mw;
+        zeichneDatapad(kDpWeapons, m, mw);
+        pruefe(mw.size() == 8 && mw[4].inhalt == "gfx/hud/w_icon_thermal" && nah(mw[4].x, 212) && nah(mw[4].y, 300) && nah(mw[5].x, 298) && nah(mw[5].y, 299) &&
+                   mw[6].inhalt == "gfx/hud/w_icon_blaster_pistol" && nah(mw[6].x, 406) && mw[7].inhalt == "@SP_INGAME_SABER_DESC",
+               "Movie Duels CG_DrawDataPadWeaponSelect: eine Waffe je Seite");
+        m.se = [](const std::string& key) { return key.rfind("SP_INGAME_", 0) == 0 ? std::string() : "@" + key; };
+        m.bildDa = [](const std::string& s) { return s != "gfx/mp/f_icon_sight"; };
+        mf.clear();
+        zeichneDatapad(kDpForcePowers, m, mf);
+        pruefe(mf.size() >= 7 && mf[4].inhalt == "gfx/mp/f_icon_levitation" && text(mf, 6) == "@SPMOD_INGAME_FORCE_JUMP_DESC@SPMOD_INGAME_FORCE_JUMP_LVL1_DESC",
+               "Movie Duels: fehlendes Symbol nicht gezeichnet, Text aus SPMOD_INGAME_");
+    }
+    // --- M7: Datapad-HUD von Jedi Outcast und Movie Duels (CG_DrawDataPadHUD) ---------------------
+    {
+        HudWerte hw;
+        hw.gesundheit = 45;
+        std::vector<Prim> h;
+        zeichneDatapadHudJk2(Spiel::JK2, hw, h);
+        auto finde = [&](const std::string& s, float x, float y) {
+            for (const Prim& p : h) {
+                if (p.shader == s && nah(p.x, x) && nah(p.y, y)) { return &p; }
+            }
+            return static_cast<const Prim*>(nullptr);
+        };
+        const Prim* tic = finde("gfx/hud/force_tick1", 526 + 69, 286 + 41);
+        pruefe(!h.empty() && h[0].shader == "gfx/hud/hudleft_innerframe" && finde("gfx/2d/numbers/t_zero", 34 + 16, 286 + 40) != nullptr &&
+                   tic != nullptr && nah(tic->w, -20) && nah(tic->farbe.r, 0.75F) && finde("gfx/hud/saber_stylesMed", 526, 286) != nullptr &&
+                   h.back().shader == "gfx/hud/datapad2",
+               "Jedi Outcast CG_DrawDataPadHUD: Rahmen, Gesundheit mit fuehrender Null, Macht-Striche gespiegelt, Saebelstil, datapad2");
+        const Prim* gesund = finde("gfx/hud/health", 34, 286);
+        pruefe(gesund != nullptr && nah(gesund->farbe.r, 0.835F * 0.45F), "CG_DrawHealth: CT_HUD_RED * Anteil");
+        h.clear();
+        zeichneDatapadHudJk2(Spiel::MD, hw, h);
+        pruefe(finde("gfx/hud/hudleftframe", 34, 286) != nullptr && finde("gfx/hud/DataPadforce_tick1", 526 + 69, 286 + 41) != nullptr &&
+                   finde("gfx/hud/DataPadsaber_stylesmed", 526, 286) != nullptr,
+               "Movie Duels: zweiter Rahmen, eigene Datapad-Bilder");
     }
     // --- Feeder: Movie Duels (Tabellen aus ui_main.cpp), MP-Saebel, Darstellung ja/nein -------
     {
