@@ -1685,6 +1685,17 @@ void gehZuDefinition(Dokument& d) {
     if (wort[0] == '@') { Z().meldung = wort + " = " + texte().aufloesen(wort); }
 }
 
+// uebersetzung1: in der schmalen rechten Spalte (M2) passte die Suchzeile schon auf
+// Englisch nicht ("In all op|"): das naechste Element in dieselbe Zeile, sonst in die naechste.
+void daneben(float breite) {
+    ImGui::SameLine();
+    if (ImGui::GetContentRegionAvail().x < breite) { ImGui::NewLine(); }
+}
+float knopfBreite(const char* text) { return ImGui::CalcTextSize(text, nullptr, true).x + ImGui::GetStyle().FramePadding.x * 2.0F; }
+float hakenBreite(const char* text) {
+    return ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(text, nullptr, true).x;
+}
+
 void zeichneSuchleiste(Dokument& d) {
     Zustand& z = Z();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
@@ -1699,7 +1710,7 @@ void zeichneSuchleiste(Dokument& d) {
     neu |= ImGui::Checkbox("Aa", &z.suchOpt.gross);
     ImGui::SameLine();
     neu |= ImGui::Checkbox("ab", &z.suchOpt.wort);
-    ImGui::SameLine();
+    daneben(hakenBreite(tr(Str::MeInAllen)));
     ImGui::Checkbox(tr(Str::MeInAllen), &z.inAllen);
     std::string fehler;
     const std::vector<Treffer> t = d.puffer.suche(z.such, z.suchOpt, &fehler);
@@ -1708,10 +1719,10 @@ void zeichneSuchleiste(Dokument& d) {
         gesamt = 0;
         for (const auto& o : z.docs) { gesamt += static_cast<int>(o->puffer.suche(z.such, z.suchOpt).size()); }
     }
-    ImGui::SameLine();
     char b[200];
     if (!fehler.empty()) { std::snprintf(b, sizeof(b), tr(Str::MeRegexFehler), fehler.c_str()); }
     else { std::snprintf(b, sizeof(b), trN(Str::MeTreffer, gesamt), gesamt); }
+    daneben(ImGui::CalcTextSize(b).x);
     ImGui::TextUnformatted(b);
     auto naechster = [&](bool vor) {
         if (t.empty()) { return; }
@@ -1731,7 +1742,7 @@ void zeichneSuchleiste(Dokument& d) {
         d.puffer.cursor.assign(1, Cursor{w->ende, w->anfang});
         d.springeZeile = d.puffer.pos(w->anfang).zeile;
     };
-    ImGui::SameLine();
+    daneben(ImGui::GetFrameHeight() * 2.0F + ImGui::GetStyle().ItemSpacing.x);
     if (ImGui::ArrowButton("##zurueck", ImGuiDir_Up)) { naechster(false); }
     ImGui::SameLine();
     if (ImGui::ArrowButton("##vor", ImGuiDir_Down) || (neu && !t.empty())) { naechster(true); }
@@ -1739,9 +1750,9 @@ void zeichneSuchleiste(Dokument& d) {
     if (z.ersetzenOffen) {
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
         eingabe("##ersatz", &z.ersatz);
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeErsetzen)));
         if (ImGui::Button(tr(Str::MeErsetzen))) { d.puffer.ersetzeEinen(z.such, z.ersatz, z.suchOpt); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeErsetzenAlle)));
         if (ImGui::Button(tr(Str::MeErsetzenAlle))) {
             if (z.inAllen) {
                 for (auto& o : z.docs) { o->puffer.ersetzeAlle(z.such, z.ersatz, z.suchOpt); }
@@ -3540,7 +3551,10 @@ void zeichneBibliothek(Dokument& d) {
         }
         ImGui::PopID();
     }
+    // uebersetzung1: umbrechen - der Hinweis war schon auf Englisch breiter als die Spalte
+    ImGui::PushTextWrapPos(0.0F);
     ImGui::TextDisabled("%s", tr(Str::MeBibliothekHinweis));
+    ImGui::PopTextWrapPos();
     // Aus der Auswahl eine Vorlage speichern
     ImGui::BeginDisabled(d.auswahl.empty());
     ImGui::SetNextItemWidth(-1);
@@ -3985,7 +3999,9 @@ void zeichneLeiste(Dokument* d) {
     // Ansicht
     int sv = z.seitenv == Seitenverhaeltnis::Strecken ? 0 : 1;
     const char* svn[] = {tr(Str::MeStrecken), tr(Str::MeBalken)};
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
+    // uebersetzung1: so breit wie der laengste Eintrag (cs "Roztáhnout (originál)" war abgeschnitten)
+    ImGui::SetNextItemWidth(std::max(ImGui::CalcTextSize(svn[0]).x, ImGui::CalcTextSize(svn[1]).x) + ImGui::GetFrameHeight() +
+                            ImGui::GetStyle().FramePadding.x * 2.0F);
     if (ImGui::Combo("##sv", &sv, svn, 2)) { z.seitenv = sv == 0 ? Seitenverhaeltnis::Strecken : Seitenverhaeltnis::Balken; }
     ImGui::SameLine();
     const char* const aufl[] = {tr(Str::MeAufloesungFenster), "640x480", "800x600", "1024x768", "1280x720", "1366x768", "1600x900", "1920x1080", "2560x1440", "3440x1440"};

@@ -2350,7 +2350,7 @@ TEXTE = {
     "MeWEingabe": "Campo de texto",
     "MeWListe": "Lista",
     "MeWModell": "Modelo",
-    "MeWTaste": "Asignación de tecla",
+    "MeWTaste": "Asignar tecla",
     "MeBildDazu": "Añadir imagen...",
     "MeBildHinzu": "Imagen %s añadida como %s",
     "MeLinks": "Izquierda",
