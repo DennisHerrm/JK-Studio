@@ -28,7 +28,10 @@ AUSNAHMEN = {'BehavEd', 'ICARUS', 'OpenJK', 'ImGui', 'Dear ImGui', 'JKA', 'JK2',
              'v',
              # Schluesselwoerter der .menu-Dateien (Eigenschaften im Menue-Editor),
              # Spieltermini wie die ICARUS-Befehle - bleiben in jeder Sprache
-             'type', 'style', 'textalign', 'visible'}
+             'type', 'style', 'textalign', 'visible',
+             # M7: Cvars des Spiels, deren Beispielwerte der Menue-Editor fuer die
+             # Ownerdraws einstellt - ihr Name wie in der Konsole des Spiels
+             'g_jediVmerc', 'g_forceBasedTeams'}
 
 CALL = re.compile(r'ImGui::(' + '|'.join(SHOWN) + r')\s*\(\s*("(?:[^"\\]|\\.)*")')
 
