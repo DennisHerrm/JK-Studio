@@ -4052,7 +4052,8 @@ void zeichneSeiten(Dokument& d) {
 void splitter(const char* id, float& wert, bool senkrecht, float min, float max, float laenge, bool umgekehrt = false,
               ImGuiButtonFlags knopf = ImGuiButtonFlags_None) {
     ImGui::InvisibleButton(id, senkrecht ? ImVec2{6, std::max(1.0F, laenge)} : ImVec2{std::max(1.0F, laenge), 6}, knopf);
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+    // dock4: im DockSpace liegt dessen Wirt ueber dem Teiler - IsItemHovered meldet dort nichts, der Knopf selbst schon
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive() || GImGui->HoveredId == ImGui::GetItemID()) {
         ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_ResizeNS);
     }
     if (ImGui::IsItemActive()) {

@@ -1070,7 +1070,10 @@ void teilerZeichnen(const char* id, karte::Teiler& t, bool senkrecht, int x, int
             ImGui::InvisibleButton(kennung.c_str(), ImVec2{std::max(1.0F, p1.x - p0.x), std::max(1.0F, p1.y - p0.y)},
                                    static_cast<ImGuiButtonFlags>(g_dock.aktiv ? static_cast<int>(ImGuiButtonFlags_FlattenChildren) : 0));
             const bool aktivGriff = ImGui::IsItemActive();
-            if (ImGui::IsItemHovered() || aktivGriff) {
+            // dock4: ueber dem Wirt des DockSpace meldet IsItemHovered nichts (das Fenster
+            // unter der Maus ist der Wirt) - der Knopf selbst (FlattenChildren) schon.
+            const bool ueberGriff = ImGui::IsItemHovered() || (g_dock.aktiv && GImGui->HoveredId == ImGui::GetItemID());
+            if (ueberGriff || aktivGriff) {
                 ImGui::SetMouseCursor(senkrecht ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
             }
             // Fusion zeichnet den Griff in der Fensterfarbe mit Punkten in der

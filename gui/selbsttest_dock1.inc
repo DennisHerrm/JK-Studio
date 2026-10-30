@@ -357,8 +357,11 @@ std::vector<Schritt> dock1FotoSchritte() {
                      ImVec2{h.GetWidth() * 0.2F, h.GetHeight() * 0.45F});
     }));
     add(stabil("dock1 Fotos: Ebenenliste schwebt", 10));
+    // dock4: im DockSpace zeigt ImGui beim Ziehen ueber dem Hauptfenster seine
+    // Markierungen - hier auf der Missionsansicht (Mitte: als Reiter).
     add(dock1::ziehenUndHalten("dock1 Fotos: Ebenenliste zurueck ziehen (gehalten)", [] { return dock1::titel("mission.ebenen"); },
                                [] {
+                                   if (dockraumAn()) { return dock1::rect("mission.ansicht").GetCenter(); }
                                    ImVec2 a;
                                    ImVec2 b;
                                    dock::zielPlatz("mission.ebenen", a, b);
@@ -368,6 +371,22 @@ std::vector<Schritt> dock1FotoSchritte() {
     add(dock1::loslassen("dock1 Fotos: loslassen - angedockt"));
     add(warteBis("dock1 Fotos: Ebenenliste angedockt", [] { return dock::zuhause("mission.ebenen"); }, 60));
     add(tu("dock1 Fotos: zuruecksetzen", [] { dock::zuruecksetzen(1); }));
+    add(stabil("dock1 Fotos: zurueckgesetzt", 10));
+    if (dockraumAn()) {   // dock4: ImGuis Dreieck oben links in einem Panel, unter der Maus
+        const auto ecke = [] {
+            const ImGuiWindow* w = dock1::panelFenster("mission.ansicht");
+            return w != nullptr && w->DockNode != nullptr ? ImVec2{w->DockNode->Pos.x + 3.0F, w->DockNode->Pos.y + 3.0F} : ImVec2{5, 5};
+        };
+        add({"dock1 Fotos: Maus auf die Ecke der Missionsansicht", [ecke](int b) {
+                 setzeMaus(ecke());
+                 return b >= 8;
+             }});
+        add(hb::fotoTeil("h_dock_ecke", [ecke] {
+            const ImVec2 p = ecke();
+            const float fs = ImGui::GetFontSize();
+            return ImRect{p.x - fs * 6.0F, p.y - fs * 3.0F, p.x + fs * 18.0F, p.y + fs * 9.0F};
+        }));
+    }
     add(stabil("dock1 Fotos: Ende", 10));
     return s;
 }
