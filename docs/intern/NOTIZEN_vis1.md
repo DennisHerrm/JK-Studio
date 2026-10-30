@@ -442,6 +442,134 @@ Nicht gegen das Vorbild geprüft:
 - lint_i18n_erzeugt scheitert wie auf 744c1e7a (die Prüfkopie kopiert i18n_karte2.py ff. nicht),
   lint_fremdprogramm 1 (tools/kartenpruefung.py) wie vorher.
 
+## vis2: Licht weiter beschleunigen, bitgleich (Nachauftrag, Stand 30.10. früh)
+
+Auftrag `SP/auftrag_vis2.md`. Windows Update startete den Rechner am 30.10. um 00:29 neu – alle Läufe und
+Messungen davor sind abgebrochen bzw. ungültig; alle Bytevergleiche unten sind nach dem Neustart neu
+gelaufen. Harte Zeitgrenze 06:40 (Rechner um 07:00 aus), darum nur Teile des Auftrags. Messwerkzeuge
+`SP/vis2`: `lz.py` (eine Karte `-light` mit mehreren exes, je Lauf eigene Schalter/Umgebung, Hash aller
+18 Lumps, GPU-Bericht kurz), `klein.sh` (Bytevergleich vier kleine Karten), `absturz.py`, `rl.py`, `ibsp.py`
+(Punkt 3), `teilen.py` (Hunks eines Diffs auf zwei Commits verteilen). „alt“ = `SP/vis2/bin/a0.exe` = Stand
+24bbef3c (vis1 fertig).
+
+### Commits vis2
+
+| Commit | Inhalt |
+|---|---|
+| 48aba3bd | Punkt 3: zweites `-light` auf beleuchteter quake3-BSP mit Stilen stürzt nicht mehr ab; ctest q3map2_funde Fall `relicht`; Grenzen-Tafel light.cpp:2047 |
+| c1259468 | Punkt 2: IlluminateVertexes teilt die Vertexe einer Fläche mit freien Threads – gleiche Bytes |
+| 3c542830, f459fddf | WIP Punkt 1: zufällige Nachproben auf der GPU (Kern `zufall`), Übernahme durch die GPU hinter `BHED_GPUBAKE_ZUFALL` (ab Werk aus); ctest q3map2_gpubake 7e |
+| (dieser) | Notizen vis2 |
+
+### 1. Zufällige Nachproben auf der GPU – WIP (bitgleich, aber noch nicht schneller)
+
+- **Kern `zufall`** (bhed_gpubacken.hlsl): eine Gruppe (64 Fäden) je Lightmap. Faden 0 führt den seriellen
+  Lauf von BhedZufallsProben (aktive Lichter in Listenfolge, je Licht der Stempellauf in Zeilenfolge, nur
+  vorhergesagte und „schmutzige“ Stempel wie `stempellauf`); jeder neu nachzutastende Luxel bekommt den
+  Zustand des Generators der Lightmap (`seed` = BhedPassSeed wie BhedCpuLightmap) nach 2·lightSamples·n Zügen
+  (Sprung je Luxel aus `zufallSprung[lightSamples]`). Die lightSamples Proben eines Luxels rechnen alle Fäden
+  (Zustand je Probe `s·x_b + y_b`, Sprungtafel für 2·b Züge), aufsummiert in Probenfolge (je Farbkanal ein
+  Faden), dann `/ mapped` mit der genau gerundeten Division.
+- GaussLikeRandom auf der GPU ohne cos/sin/sqrt: `random()` hat nur 32768 Werte; GaussLikeRandom ist in
+  `GaussLikeWinkel`/`GaussLikeRadius` geteilt (dieselben Rechnungen), die Tafeln (x, y vor dem Radius, Radius)
+  entstehen auf der CPU aus genau diesem Code, auf der GPU nur noch zwei float-Multiplikationen.
+- Wiederaufnahme: der Stand des Laufs je Lightmap liegt zwischen den Dispatches in `kandListe` (40 Wörter),
+  höchstens `zRunden` Luxel je Gruppe und Dispatch (passt sich an, TDR); `zaehler[0]` zählt offene Lightmaps,
+  `zaehler[1]` die nachgetasteten Luxel (Bericht „N with random subsamples on the GPU (M luxels)“).
+- **Gefunden beim Bau (TDR)**: der Leiter-Faden mit `while (true)` und `return`/`continue` in der Schleife
+  (innerhalb eines `if (tid == 0)` zwischen Gruppen-Syncs) hängte die NVIDIA-GPU (Gerät verloren nach 25 s,
+  schon beim zweiten Stempel; mit einer zusätzlichen Zählvariable lief derselbe Code). Umgeschrieben ohne
+  `return`/`continue` (Zustand in Registern, ein `suchen`-Merker) – seitdem stabil.
+- Auf der CPU: die Nachprüfung einer GPU-Lightmap (`-bhedgpubakecheck`) rechnet jetzt mit dem Generator des
+  Arbeitsschritts der Lightmap (vorher `rand()` – für Lightmaps mit Zufallsproben nötig).
+- **Bytegleich** (nach dem Neustart, `klein.sh`, alle 18 Lumps gleich alt CPU): md_ch_ben (41 Lightmaps mit
+  Nachproben, 1798 Luxel auf der GPU), duel_pit (414 / 43803), mp__duel1 (131 / 2776), t1_inter (keine), jeweils
+  mit `BHED_GPUBAKE_NUR_GPU` (alle Nachproben auf der GPU), Vorgabe (wie bisher: Prozessor) und
+  `BHED_GPUBAKE_ZUFALL=1` (duel_pit: 370 Lightmaps von der GPU übernommen, 16458 Luxel); jede nachgeprüfte
+  GPU-Lightmap 100 % gleich.
+- **Messung (vor dem Neustart, unter Last, kein A/B)**: md_am_sith `-bounce 2`, alle Nachproben nur auf der GPU:
+  erster Durchgang IlluminateRawLightmap 1432 s gegen 722 s im alten Weg (Prozessor rechnet die 13131
+  Lightmaps mit Nachproben neben der GPU) – **die GPU allein ist hier halb so schnell wie 32 Threads**.
+  Vermutete Ursachen: je Block (Budget 40 Mio. Paare, md_am_sith etwa 275 Blöcke) nur etwa 50 Lightmaps mit
+  Nachproben → 50 Gruppen, die GPU ist kaum ausgelastet, und alles wartet je Block; jede der 256 Proben eines
+  Luxels rechnet bei Flächenlichtern ohne `-fast` den Formfaktor mit double-acos (Verbraucher-GPU: double 1/64).
+- Darum der **Mischweg** (WIP, `BHED_GPUBAKE_ZUFALL=1`): die Lightmaps mit Nachproben gehen zuerst an den
+  Prozessor (`nebenZufall`, die Threads nehmen die größten); hat die GPU keinen eigenen Block mehr, nimmt sie die
+  kleinsten in Stapeln (je ein Drittel der Restarbeit, solange mehr übrig sind als Threads) – beide rechnen bis
+  zum Ende. Bitgleich (oben), aber auf großen Karten **nicht gemessen** → ab Werk aus; ohne den Schalter ist
+  der Weg genau der bisherige (dieselben Warteschlangen). Die Auto-Regel (gpuwahl.h) bleibt unverändert.
+- **Messung nach dem Neustart** (duel_mos_espa `-bounce 1`, GPU-Backen, unter Last, je ein Lauf): ohne Schalter
+  154,7 s, mit `BHED_GPUBAKE_ZUFALL=1` 187,4 s – langsamer; die GPU übernahm 524 Lightmaps mit 13577
+  nachgetasteten Luxeln, Kern `zufall` 15,4 s, dazu die Erstabtastung dieser Lightmaps noch einmal (Kern `erst`
+  35,7 → 48,4 s). Lumps gleich (1a1f3e708921e3d9). Etwa 1 ms je Luxel in der seriellen Kette einer Gruppe: ein
+  GPU-Faden braucht für einen Strahl durch den BSP ein Vielfaches eines CPU-Kerns, und mit 64 Fäden rechnet jeder
+  4 der 256 Proben nacheinander. Mit 256 Fäden je Gruppe (f459fddf, eine Probe je Faden): Kern `zufall` 4,8 s für
+  14433 Luxel (3,4-mal schneller je Luxel; md_ch_ben 0,145 → 0,053 s), der ganze Schritt mit Schalter aber
+  immer noch langsamer als ohne (210,9 gegen 173,6 s, unter Last; die Erstabtastung der übernommenen Lightmaps
+  kommt doppelt dazu) – Schalter bleibt aus.
+- **Nächster Schritt**: md_am_sith und duel_mos_espa mit und ohne `BHED_GPUBAKE_ZUFALL` A/B messen; den Kern
+  auslasten (Lightmaps mit Nachproben aus mehreren Blöcken sammeln statt je Block, alle neuen Luxel eines
+  Stempels in einem Durchgang, 128/256 Fäden je Gruppe), Kernzeit mit `BHED_GPUBAKE_ZEITEN` („zufall“) gegen
+  die Luxelzahl; erst wenn schneller: Schalter weg, Auto-Regel und Handbuch.
+
+### 2. IlluminateVertexes besser verteilen (c1259468)
+
+- Vorher war eine Vertexlicht-Fläche ein Arbeitsschritt; große Flächen (mehr Vertexe als der Anteil eines
+  Threads) liefen vorab mit allen Threads nacheinander, während sonst nichts lief, und auf duel_mos_espa
+  hielten einzelne Patches (225 Vertexe, 114 Lichter, dunkle Vertexe bis 125-mal verschoben) je 10 s einen
+  Thread allein.
+- Jetzt (`BhedVertexArbeit`): der Thread einer Fläche stellt ihre Vertexe in eine Liste; wer keine eigene
+  Arbeit hat, nimmt einzelne Vertexe (je Thread ein Hilfs-Arbeitsschritt hinter den Flächen in
+  RunThreadsOnIndividual, und der Besitzer, solange er auf die letzten Vertexe seiner Fläche wartet). Nur Flächen,
+  deren Vertexe unabhängig sind (wie bisher: jedes Licht hat seinen Stilplatz, kein Dirt mit Zufallszahlen);
+  Mittelwert und Rest in Vertexfolge. Die Fortschrittsanzeige zählt die Hilfsschritte mit (am Ende).
+- Bytegleich: siehe Punkt 1 (`klein.sh`, CPU und GPU, mit und ohne `-randomsamples`); geteilte Flächen je
+  Durchgang md_ch_ben 10, duel_pit 6, mp__duel1 16 (vorher 1, 0, 0).
+- Messung duel_mos_espa `-light -fastbounce -patchshadows -samples 4 -randomsamples -bounce 1`, Prozessor,
+  32 Threads, nach dem Neustart, **unter Last** (die anderen Agenten arbeiteten), je ein Lauf alt/neu:
+
+| | alt | neu |
+|---|---|---|
+| Bounce: IlluminateVertexes | 33,0 s | **9,9 s** |
+| erster Durchgang: IlluminateVertexes | 9,6 s | 12,7 s |
+| unveränderte Abschnitte (Last-Vergleich): SetupTraceNodes, TraceGrid, IlluminateRawLightmap erster Durchgang / Bounce | 8,2 s, 3,8 s, 42,0 s / 78,8 s | 10,8 s, 7,3 s, 78,3 s / 112,5 s |
+| ganzer `-light`-Schritt (Wand) | 221,9 s | 280,5 s |
+| Lumps | 1a1f3e708921e3d9 | gleich |
+
+Der Lauf „neu“ lag unter deutlich mehr Last (die unveränderten Abschnitte 1,3- bis 1,9-mal langsamer); trotzdem
+ist IlluminateVertexes im Bounce 3,3-mal schneller (2382 Flächen geteilt, in beiden Durchgängen), im ersten
+Durchgang unter dieser Last etwa gleich (nicht weiter untersucht) – Endmessung bei niedriger Last offen.
+
+### 3. NRC-Absturz bei zweitem `-light` (48aba3bd)
+
+- Nachgestellt (`SP/vis2/absturz.py`, dann ctest): raum.map mit Stil 1/5, `-game quake3`, `-meta`, `-vis`,
+  `-light …`, dann noch einmal `-light` – 0xc0000005 schon bei `-light -fast` (rot im neuen Fall `relicht` von
+  ctest q3map2_funde, auch mit `-randomsamples`).
+- Ursache: der quake3-Stiltrick schreibt externe Lightmaps in eigene Shader; WriteBSPFileAfterLight stellt dann
+  für „nomipmaps“ Flare-Flächen (MST_FLARE, 0 Vertexe, Shader `maps/<karte>/nomipmaps<n>`) vor alle Flächen und
+  verschiebt Blatt-Flächen, Pinselseiten und Modelle. Das zweite `-light` liest diese BSP, die Flächennummern
+  passen nicht mehr zur .srf (Fläche 0 bekommt die Angaben der ersten echten Fläche) → Absturz.
+- Behebung (`BhedVorigesLichtEntfernen` nach LoadBSPFile): die vorangestellten Flares samt Verschiebungen
+  zurücknehmen; die Shader, die ein Licht angelegt hat (`<karte>/<md4>` von CustomShader und die
+  nomipmaps-Shader – immer am Ende der Liste), durch den eigenen Shader jeder Fläche aus der .srf ersetzen und
+  die Liste kürzen (nur wenn .srf und Liste passen; sonst nur die Flares). Ergebnis: alle 17 Lumps (Entities ohne
+  `_q3map2_cmdline`, den Schrittverlauf), die Shader-Datei und die externen Lightmaps gleich einem einzigen
+  `-light` auf der Ausgabe von `-vis` – grün, mit und ohne `-randomsamples`.
+
+### 4.–6. Nicht erreicht (Zeitgrenze)
+
+- Punkt 4 (Profil des vollen „[Final] Extreme Quality“ auf duel_mos_espa, md_am_sith, taspir1, kejim_post):
+  nicht begonnen.
+- Punkt 5: Messtabelle nur wie oben (Vertexe); keine Endmessung bei niedriger Last.
+- Punkt 6 (Schlussrunde): nach dem Neustart: Bau bhed_q3map2 0 Fehler/0 Warnungen (nur das Ziel
+  bhed_q3map2_clang und kartegrenzen neu gebaut, kein sauberer Neubau des Ganzen), ctest 159/159 (90 s, -j 4,
+  auf dem Stand 3c542830), danach q3map2_gpubake/q3map2_determinismus/q3map2_funde mit f459fddf grün;
+  lint_sources ok, lint_fassung ok (rc606), lint_cbuffer ok. Nicht gelaufen: sauberer Neubau, Selbsttest
+  karteneditor (kurz, stufe9d), Modus 1, Kartenprüfung, Bytevergleiche auf kejim_post/taspir1/großen MD-Karten
+  (nur md_ch_ben, duel_pit, mp__duel1, t1_inter, duel_mos_espa). Außerhalb von q3map2 geändert: nur der Text der
+  Prüfstelle in grenzen.cpp/grenzen.json (ctest karte_grenzen grün).
+- Handbuch: keine Bedienänderung (der GPU-Schalter ist nur eine Umgebungsvariable, WIP).
+
 ## Changelog
 
 ## English
@@ -452,6 +580,8 @@ Nicht gegen das Vorbild geprüft:
 - GPU bake also with `-randomsamples`: the graphics card computes every lightmap that needs no random supersampling, the processor the others at the same time; the processor also finishes the graphics card's lightmaps and shares the light grid with it. The same bytes as on the processor - duel_mos_espa (one bounce) 828 → about 220 s, light grid of md_am_sith 353 → 63 s. GPU bake Auto learns here too which is faster (on duel_mos_espa the processor).
 - Map editor, build progress: the VIS progress counts the expected work of the portals instead of their number, so the remaining time of a first build is close to the real one; the memory hint before a full VIS estimates the compact passages.
 - Fixed: bhed_q3map2 with more than 64 threads (`-threads`) wrote past its thread table.
+- Fixed: a second `-light` on a quake3 BSP that was already lit with light styles crashed (also in NRC's q3map2): the light now takes back the "nomipmaps" surfaces and the shaders of the former light, and gives the same result as lighting the BSP once.
+- bhed_q3map2 `-light`: the vertexes of a vertex lit surface are shared with idle threads instead of keeping one thread busy (same result).
 
 ## Deutsch
 
@@ -461,6 +591,8 @@ Nicht gegen das Vorbild geprüft:
 - GPU-Backen auch mit `-randomsamples`: die Grafikkarte rechnet jede Lightmap ohne zufällige Nachabtastung, der Prozessor gleichzeitig die anderen; außerdem stellt der Prozessor die Lightmaps der Grafikkarte fertig und teilt sich mit ihr das Lichtgitter. Dieselben Bytes wie auf dem Prozessor - duel_mos_espa (ein Bounce) 828 → etwa 220 s, Lichtgitter von md_am_sith 353 → 63 s. GPU-Backen Auto lernt auch hier, was schneller ist (auf duel_mos_espa der Prozessor).
 - Karten-Editor, Bau-Fortschritt: der VIS-Fortschritt zählt die erwartete Arbeit der Portale statt ihrer Zahl, die Restzeit eines ersten Baus liegt damit nahe an der echten; der Speicherhinweis vor einem vollen VIS schätzt die kompakten Passagen.
 - Behoben: bhed_q3map2 mit mehr als 64 Threads (`-threads`) schrieb über seine Thread-Tafel hinaus.
+- Behoben: ein zweites `-light` auf einer schon mit Lichtstilen beleuchteten quake3-BSP stürzte ab (auch in NRCs q3map2): das Licht nimmt jetzt die „nomipmaps“-Flächen und die Shader des vorigen Lichts zurück und ergibt dasselbe wie einmal beleuchten.
+- bhed_q3map2 `-light`: die Vertexe einer Vertexlicht-Fläche teilen sich freie Threads, statt einen Thread allein zu beschäftigen (gleiches Ergebnis).
 
 ## 中文
 
@@ -470,6 +602,8 @@ Nicht gegen das Vorbild geprüft:
 - GPU 烘焙也支持 `-randomsamples`:显卡计算所有不需要随机超采样的光照贴图,处理器同时计算其余的;处理器还负责完成显卡的光照贴图,并与显卡分担光照网格。结果与处理器逐字节相同——duel_mos_espa(一次反弹)828 → 约 220 秒,md_am_sith 的光照网格 353 → 63 秒。GPU 烘焙“自动”在这里同样会学习哪一方更快(在 duel_mos_espa 上是处理器)。
 - 地图编辑器,编译进度:VIS 进度按门户的预计工作量计算,而不是按门户数,因此第一次编译的剩余时间也接近实际时间;完整 VIS 之前的内存提示按紧凑通道估算。
 - 修复:bhed_q3map2 使用超过 64 个线程(`-threads`)时会写出线程表的范围。
+- 修复:对已用灯光样式照明过的 quake3 BSP 再执行一次 `-light` 会崩溃(NRC 的 q3map2 也是):现在照明会撤销上一次照明添加的“nomipmaps”面和着色器,结果与只照明一次相同。
+- bhed_q3map2 `-light`:顶点光照面的顶点由空闲线程分担,不再让一个线程单独忙碌(结果相同)。
 
 ## 日本語
 
@@ -479,3 +613,5 @@ Nicht gegen das Vorbild geprüft:
 - GPU ベイクも `-randomsamples` に対応しました。ランダムなスーパーサンプリングが不要なライトマップはグラフィックカードが、それ以外は同時にプロセッサーが計算します。さらにプロセッサーはグラフィックカードのライトマップを仕上げ、ライトグリッドもグラフィックカードと分け合います。結果はプロセッサーとバイト単位で同じです。duel_mos_espa(バウンス 1 回)828 → 約 220 秒、md_am_sith のライトグリッド 353 → 63 秒。GPU ベイクの「自動」はここでもどちらが速いかを学習します(duel_mos_espa ではプロセッサー)。
 - マップエディター、ビルドの進行状況:VIS の進行状況はポータルの数ではなく見込み作業量で数えるため、初回ビルドの残り時間も実際に近くなります。完全な VIS の前のメモリのヒントはコンパクトなパッセージで見積もります。
 - 修正:bhed_q3map2 で 64 を超えるスレッド(`-threads`)を使うと、スレッド表の範囲外に書き込んでいました。
+- 修正:ライトスタイル付きで照明済みの quake3 BSP にもう一度 `-light` を実行するとクラッシュしていました(NRC の q3map2 でも同じ)。前回の照明が追加した「nomipmaps」の面とシェーダーを取り消し、1 回照明した場合と同じ結果になります。
+- bhed_q3map2 `-light`:頂点ライティングの面の頂点を空いているスレッドで分担し、1 つのスレッドだけが忙しくなることがなくなりました(結果は同じ)。
