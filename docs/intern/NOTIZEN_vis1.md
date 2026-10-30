@@ -700,10 +700,12 @@ GPU-Lightmap 100 % gleich.
   (nie gelesen – alle Leser bleiben in `firstLightSurface … + numLightSurfaces`).
 - Laden/Setup duel_mos_espa (`BHED-Zeit light: BSP/Karte laden, Setup*`, abwechselnd, **unter schwerer Last** –
   die anderen Agenten übersetzten mit normaler Priorität, meine Läufe idle): s2 über 160 s (abgebrochen) /
-  119,2 s, s3 93,6 / 48,5 s. Bytes gleich (alle 18 Lumps, s2 gegen s3): md_ch_ben 6552431bbafc6d79, duel_pit 04401b6d9323b064,
+  119,2 s, s3 93,6 / 48,5 s; **bei niedrigerer Last (08:16, abwechselnd) s2 25,0 / 22,8 s, s3 22,6 / 21,6 s** – ohne
+  schwere Last also nur 1–2 s (5–10 %): die 22,8 s des Merge oben waren zum großen Teil Last. Bytes gleich (alle 18
+  Lumps, s2 gegen s3): md_ch_ben 6552431bbafc6d79, duel_pit 04401b6d9323b064,
   mp__duel1 64095e6df6fbd3f8, t1_inter 7064907cdcf03b00 (schnelles Profil, CPU), duel_mos_espa e48a5464e2380376
-  (schnelles Profil, GPU; 661,5† gegen 716,0† s); ctest q3map2_* (14 Tests), karte_grenzen, karte_bau grün. kejim_post
-  und taspir1 mit s3 nicht mehr gelaufen (Zeitgrenze, abgebrochen).
+  (schnelles Profil, GPU; 661,5† gegen 716,0† s); kejim_post 2b3544f0b4661e3c, taspir1 06c3eb7e6e0e6384 (schnelles Profil, CPU);
+  ctest q3map2_* (14 Tests), karte_grenzen, karte_bau grün.
 - **Nicht angegangen** (Zeitgrenze): ein bitgleicher schnellerer Weg für RandomSubsampleRawLuxel auf dem
   Prozessor (je Probe SubmapRawLuxel + LightContributionToSample mit Schattenstrahl, der größte Abschnitt),
   LoadSurfaceExtraFile (16 s unter Last, einfädig). Ein voller Lauf von „[Final] Extreme Quality“ auf md_am_sith
@@ -729,7 +731,7 @@ duel_mos_espa `-bounce 1`, Abschnitte (direkt nacheinander, unter Last): Bounce 
 IlluminateVertexes je Durchgang 7–10 s (vis2: Bounce 33 s vor c1259468).
 
 Kern `zufall` (nur GPU, `BHED_GPUBAKE_ZEITEN`): duel_pit 1,611 → 1,587 s, md_ch_ben 0,051 → 0,048 s (3f40c7e0).
-Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s (874121ef).
+Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei niedrigerer Last s2 25,0 / 22,8 s, s3 22,6 / 21,6 s (874121ef).
 
 ### Offen nach vis3
 
@@ -754,7 +756,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s (8741
 - Fixed: bhed_q3map2 with more than 64 threads (`-threads`) wrote past its thread table.
 - Fixed: a second `-light` on a quake3 BSP that was already lit with light styles crashed (also in NRC's q3map2): the light now takes back the "nomipmaps" surfaces and the shaders of the former light, and gives the same result as lighting the BSP once.
 - bhed_q3map2 `-light`: the vertexes of a vertex lit surface are shared with idle threads instead of keeping one thread busy (same result).
-- bhed_q3map2 `-light`: setting up the raw lightmaps compares a surface only with the later surfaces that can share its lightmap, instead of with all of them (same result) - on big maps like duel_mos_espa every light step starts many seconds earlier.
+- bhed_q3map2 `-light`: setting up the raw lightmaps compares a surface only with the later surfaces that can share its lightmap, instead of with all of them (same result) - on duel_mos_espa every light step starts 1-2 s earlier (much more when the computer is busy).
 
 ## Deutsch
 
@@ -766,7 +768,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s (8741
 - Behoben: bhed_q3map2 mit mehr als 64 Threads (`-threads`) schrieb über seine Thread-Tafel hinaus.
 - Behoben: ein zweites `-light` auf einer schon mit Lichtstilen beleuchteten quake3-BSP stürzte ab (auch in NRCs q3map2): das Licht nimmt jetzt die „nomipmaps“-Flächen und die Shader des vorigen Lichts zurück und ergibt dasselbe wie einmal beleuchten.
 - bhed_q3map2 `-light`: die Vertexe einer Vertexlicht-Fläche teilen sich freie Threads, statt einen Thread allein zu beschäftigen (gleiches Ergebnis).
-- bhed_q3map2 `-light`: beim Anlegen der Raw-Lightmaps wird eine Fläche nur noch mit den späteren Flächen verglichen, die ihre Lightmap teilen können, statt mit allen (gleiches Ergebnis) - auf großen Karten wie duel_mos_espa beginnt jeder Lichtschritt viele Sekunden früher.
+- bhed_q3map2 `-light`: beim Anlegen der Raw-Lightmaps wird eine Fläche nur noch mit den späteren Flächen verglichen, die ihre Lightmap teilen können, statt mit allen (gleiches Ergebnis) - auf duel_mos_espa beginnt jeder Lichtschritt 1-2 s früher (bei ausgelastetem Rechner deutlich mehr).
 
 ## 中文
 
@@ -778,7 +780,7 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s (8741
 - 修复:bhed_q3map2 使用超过 64 个线程(`-threads`)时会写出线程表的范围。
 - 修复:对已用灯光样式照明过的 quake3 BSP 再执行一次 `-light` 会崩溃(NRC 的 q3map2 也是):现在照明会撤销上一次照明添加的“nomipmaps”面和着色器,结果与只照明一次相同。
 - bhed_q3map2 `-light`:顶点光照面的顶点由空闲线程分担,不再让一个线程单独忙碌(结果相同)。
-- bhed_q3map2 `-light`:建立原始光照贴图时,一个面只与之后可能共用其光照贴图的面比较,而不是与所有面比较(结果相同)——在 duel_mos_espa 这样的大地图上,每个光照步骤都提前许多秒开始。
+- bhed_q3map2 `-light`:建立原始光照贴图时,一个面只与之后可能共用其光照贴图的面比较,而不是与所有面比较(结果相同)——在 duel_mos_espa 上每个光照步骤提前 1-2 秒开始(电脑繁忙时提前得更多)。
 
 ## 日本語
 
@@ -790,4 +792,4 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s (8741
 - 修正:bhed_q3map2 で 64 を超えるスレッド(`-threads`)を使うと、スレッド表の範囲外に書き込んでいました。
 - 修正:ライトスタイル付きで照明済みの quake3 BSP にもう一度 `-light` を実行するとクラッシュしていました(NRC の q3map2 でも同じ)。前回の照明が追加した「nomipmaps」の面とシェーダーを取り消し、1 回照明した場合と同じ結果になります。
 - bhed_q3map2 `-light`:頂点ライティングの面の頂点を空いているスレッドで分担し、1 つのスレッドだけが忙しくなることがなくなりました(結果は同じ)。
-- bhed_q3map2 `-light`:raw ライトマップの作成時に、面をすべての後続の面ではなく、そのライトマップを共有できる後続の面とだけ比較します(結果は同じ)。duel_mos_espa のような大きなマップでは、各ライト処理が何秒も早く始まります。
+- bhed_q3map2 `-light`:raw ライトマップの作成時に、面をすべての後続の面ではなく、そのライトマップを共有できる後続の面とだけ比較します(結果は同じ)。duel_mos_espa では各ライト処理が 1-2 秒早く始まります(コンピューターが混んでいるときはさらに早く)。
