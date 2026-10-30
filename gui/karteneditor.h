@@ -1727,8 +1727,9 @@ void bauSchritt();                     // CWatchBSP::RoutineProcessing (jedes Bi
 // Stufe 8d Punkt 1b (GPU bake Auto): die gemerkten -light-Zeiten (Datei karte_gpuzeiten.txt im
 // Einstellungsordner) und der Text "was Auto gewaehlt hat und warum" (app_karte_bau.cpp)
 [[nodiscard]] karte::GpuZeiten gpuZeitenHolen(const std::string& karte, const std::string& schalter);
-void gpuZeitMerken(const std::string& karte, const std::string& schalter, bool gpu, double sekunden);
-[[nodiscard]] std::string gpuWahlText(const karte::GpuBackBericht& b, long long cpuMs, long long gpuMs);
+void gpuZeitMerken(const std::string& karte, const std::string& schalter, karte::GpuWeg weg, double sekunden);
+[[nodiscard]] karte::GpuWeg gpuWegDesLaufs(const karte::GpuBackBericht& b, karte::GpuBacken modus);   // vis4
+[[nodiscard]] std::string gpuWahlText(const karte::GpuBackBericht& b, const karte::GpuZeiten& z);
 void bauAbbrechen();                   // Abweichung: Bauen abbrechen
 void bauBeimBeenden();                 // ~CWatchBSP: kein q3map2 ohne Editor
 void bauRueckmeldungenZeichnen();

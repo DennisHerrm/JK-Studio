@@ -1210,7 +1210,7 @@ struct BauLauf {
     bool hatVerlauf = false;
     karte::GpuBackBericht gpu;                     // Stufe 8g: was bhed_q3map2 -bhedgpubake ausgibt
     karte::GpuBacken gpuModus = karte::GpuBacken::Aus;   // Stufe 8d: Aus/Ein/Auto dieses Baus
-    long long autoCpuMs = 0, autoGpuMs = 0;        // Stufe 8d: die an -bhedgpubakezeiten gegebenen Zeiten
+    karte::GpuZeiten autoZeiten;                   // Stufe 8d: die an -bhedgpubakezeiten(z) gegebenen Zeiten
     bool autoGemeldet = false;                     // Stufe 8d: die Wahl steht schon in der Konsole
     std::string gpuRest;                           // angefangene Zeile dazu
     karte::BauLaufZeiten verlauf;                  // der letzte Bau dieser Karte mit diesem Eintrag
@@ -1249,18 +1249,26 @@ karte::GpuZeiten gpuZeitenHolen(const std::string& karte, const std::string& sch
     return sp.holen(karte, schalter);
 }
 
-void gpuZeitMerken(const std::string& karte, const std::string& schalter, bool gpu, double sekunden) {
+void gpuZeitMerken(const std::string& karte, const std::string& schalter, karte::GpuWeg weg, double sekunden) {
     karte::GpuZeitenSpeicher sp;
     std::string text;
     if (dateiLesen(gpuZeitenPfad(), text)) { (void)sp.lesen(text); }
-    sp.merken(karte, schalter, gpu, static_cast<long long>(sekunden * 1000.0 + 0.5));
+    sp.merken(karte, schalter, weg, static_cast<long long>(sekunden * 1000.0 + 0.5));
     std::ofstream f(pfadAus(gpuZeitenPfad()), std::ios::binary | std::ios::trunc);
     const std::string t = sp.schreiben();
     if (f) { f.write(t.data(), static_cast<std::streamsize>(t.size())); }
-    diag::detail("GPU bake Auto: " + karte + " [" + schalter + "] " + (gpu ? "GPU " : "CPU ") + std::to_string(sekunden) + " s gemerkt");
+    diag::detail("GPU bake Auto: " + karte + " [" + schalter + "] " +
+                 (weg == karte::GpuWeg::GpuNachproben ? "GPU+subsamples " : weg == karte::GpuWeg::Gpu ? "GPU " : "CPU ") +
+                 std::to_string(sekunden) + " s gemerkt");
 }
 
-std::string gpuWahlText(const karte::GpuBackBericht& b, long long cpuMs, long long gpuMs) {
+// vis4: auf welchem Weg ein -light-Lauf rechnete (fuer die gemerkte Zeit)
+karte::GpuWeg gpuWegDesLaufs(const karte::GpuBackBericht& b, karte::GpuBacken modus) {
+    if (b.keineGpu || modus == karte::GpuBacken::Aus || (modus == karte::GpuBacken::Auto && !b.autoGpu)) { return karte::GpuWeg::Cpu; }
+    return modus == karte::GpuBacken::Auto && b.autoNachproben ? karte::GpuWeg::GpuNachproben : karte::GpuWeg::Gpu;
+}
+
+std::string gpuWahlText(const karte::GpuBackBericht& b, const karte::GpuZeiten& zeiten) {
     if (!b.autoGesehen) { return {}; }
     const auto sek = [](long long ms) {
         char z[32];
@@ -1274,19 +1282,25 @@ std::string gpuWahlText(const karte::GpuBackBericht& b, long long cpuMs, long lo
         std::snprintf(grund, sizeof(grund), "%s", trK(Str::KeGpuGrundNogpu));
     } else if (g == "nodouble") {
         std::snprintf(grund, sizeof(grund), "%s", trK(Str::KeGpuGrundNodouble));
-    } else if (g == "learnedgpu" || g == "learnedcpu") {
-        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundLearned), sek(cpuMs).c_str(), sek(gpuMs).c_str());
+    } else if ((g == "learnedgpu" || g == "learnedcpu") && zeiten.gpuzMs <= 0) {
+        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundLearned), sek(zeiten.cpuMs).c_str(), sek(zeiten.gpuMs).c_str());
+    } else if (g == "learnedgpu" || g == "learnedcpu" || g == "learnedgpuz") {   // vis4: drei gemerkte Zeiten
+        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundLearnedZ), sek(zeiten.cpuMs).c_str(), sek(zeiten.gpuMs).c_str(),
+                      sek(zeiten.gpuzMs).c_str());
+    } else if (g == "measuregpuz") {   // vis4
+        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundMeasureZ), sek(zeiten.gpuMs).c_str(), sek(zeiten.cpuMs).c_str());
     } else if (g == "small") {
         std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundSmall), luxel.c_str());
     } else if (g == "samples") {
         std::snprintf(grund, sizeof(grund), "%s", trK(Str::KeGpuGrundSamples));
     } else if (g == "measuregpu") {
-        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundMeasure), sek(cpuMs).c_str());
+        std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundMeasure), sek(zeiten.cpuMs).c_str());
     } else {
         std::snprintf(grund, sizeof(grund), trK(Str::KeGpuGrundLarge), luxel.c_str());
     }
     char z[768];
-    std::snprintf(z, sizeof(z), trK(Str::KeGpuWahl), trK(b.autoGpu ? Str::KeGpuWahlGpu : Str::KeGpuWahlCpu), grund);
+    std::snprintf(z, sizeof(z), trK(Str::KeGpuWahl), trK(b.autoNachproben ? Str::KeGpuWahlGpuZ : b.autoGpu ? Str::KeGpuWahlGpu : Str::KeGpuWahlCpu),
+                  grund);
     return z;
 }
 
@@ -1312,7 +1326,7 @@ void gpuBeobachten(const std::string& text) {
         if (karte::gpuBackZeile(z, l.gpu) && !l.gpu.adapter.empty()) { e().bau.gpuAdapter = l.gpu.adapter; }
         if (l.gpu.autoGesehen && !l.autoGemeldet) {   // Stufe 8d: was Auto gewaehlt hat und warum
             l.autoGemeldet = true;
-            e().bau.gpuWahlText = gpuWahlText(l.gpu, l.autoCpuMs, l.autoGpuMs);
+            e().bau.gpuWahlText = gpuWahlText(l.gpu, l.autoZeiten);
             konsoleSchreiben(KonsolenZeile::Art::Ausgabe, e().bau.gpuWahlText + "\n");
         }
     }
@@ -1436,9 +1450,7 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
         for (const auto& st : l.jetzt.schritte) {
             const std::string sch = karte::lichtSchalter(st.befehl);
             if (sch.empty() || l.kartenPfad.empty()) { continue; }
-            const bool gpuLief = !l.gpu.keineGpu && (l.gpuModus == karte::GpuBacken::Ein ||
-                                                     (l.gpuModus == karte::GpuBacken::Auto && l.gpu.autoGpu));
-            gpuZeitMerken(l.kartenPfad, sch, gpuLief, st.dauer);
+            gpuZeitMerken(l.kartenPfad, sch, gpuWegDesLaufs(l.gpu, l.gpuModus), st.dauer);
         }
         bauFertigMelden();
         // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
@@ -1707,7 +1719,7 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     l.gpu = karte::GpuBackBericht{};
     l.gpuRest.clear();
     l.autoGemeldet = false;   // Stufe 8d
-    l.autoCpuMs = l.autoGpuMs = 0;
+    l.autoZeiten = {};
     ed.bau.gpuAdapter.clear();   // Stufe 8g: die GPU dieses Baus (aus seiner Ausgabe)
     if (!l.kartenPfad.empty()) {
         const karte::BauZeitenSpeicher sp = bauZeitenLesen();
@@ -2246,18 +2258,15 @@ void bauStarten(std::size_t index) {
     }
     // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU. Stufe 8d: Auto -
     // bhed_q3map2 waehlt mit den gemerkten Zeiten dieser Karte die schnellere Variante
-    long long autoCpu = 0;
-    long long autoGpu = 0;
+    karte::GpuZeiten autoZeiten;
     if (ed.bau.gpuBacken == karte::GpuBacken::Ein) {
         for (std::string& b : befehle) { b = karte::befehlMitGpuBacken(b); }
     } else if (ed.bau.gpuBacken == karte::GpuBacken::Auto) {
         for (std::string& b : befehle) {
             const std::string sch = karte::lichtSchalter(b);
             if (sch.empty()) { continue; }
-            const karte::GpuZeiten z = gpuZeitenHolen(ed.name, sch);
-            autoCpu = z.cpuMs;
-            autoGpu = z.gpuMs;
-            b = karte::befehlMitGpuBackenAuto(b, z.cpuMs, z.gpuMs);
+            autoZeiten = gpuZeitenHolen(ed.name, sch);
+            b = karte::befehlMitGpuBackenAuto(b, autoZeiten.cpuMs, autoZeiten.gpuMs, autoZeiten.gpuzMs);
         }
     }
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
@@ -2275,8 +2284,7 @@ void bauStarten(std::size_t index) {
     }
     bauAusfuehren(befehle);
     g_lauf.gpuModus = ed.bau.gpuBacken;   // Stufe 8d
-    g_lauf.autoCpuMs = autoCpu;
-    g_lauf.autoGpuMs = autoGpu;
+    g_lauf.autoZeiten = autoZeiten;
     g_lauf.editorDatenQuelle = edQuelle;
     g_lauf.editorDatenBsp = edBsp;
 }

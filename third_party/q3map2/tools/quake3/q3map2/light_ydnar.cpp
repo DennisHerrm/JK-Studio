@@ -39,6 +39,9 @@
 #include "bhed_parallel.h" /* BehavEd stage 7: src/q3map2/kompat, parallel rows of big lightmaps */
 #include <numeric> /* BehavEd vis1 */
 #include <memory> /* BehavEd vis1 */
+#include <emmintrin.h> /* BehavEd vis4: SSE2 (the x64 baseline), four brush boxes at once */
+#include <bit> /* BehavEd vis4 */
+#include <limits> /* BehavEd vis4 */
 #include <thread> /* BehavEd vis1 */
 #include <deque> /* BehavEd vis1 */
 #include <queue> /* BehavEd vis1 */
@@ -410,6 +413,100 @@ static bool ClusterVisibleToPoint( const Vector3& point, int cluster ){
    also takes brushes into account for occlusion testing
  */
 
+/* BehavEd vis4: point against the sides of one brush, as in ClusterForPointExt (inside: no side further than epsilon) */
+static bool BhedPunktImBrush( const Vector3& point, float epsilon, int b ){
+	const bspBrush_t& brush = bspBrushes[ b ];
+	for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
+	{
+		const bspPlane_t& plane = bspPlanes[ side.planeNum ];
+		if ( plane3_distance_to_point( plane, point ) > epsilon ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* BehavEd vis4: bounding boxes for ClusterForPointExt. Per leaf the opaque brushes it tests (b <= maxOpaqueBrush,
+   opaqueBrushes[ b ]) in leaf order, each with a box from its axial sides: for a side with the normal +-e_a the
+   distance of a finite point is exactly +-p[ a ] - dist (the products with 0 and 1 are exact, the double difference
+   of two floats too), so a point beyond dist + BHED_BOX_RAND on that axis is further than any epsilon <= BHED_BOX_EPS
+   from that side and ClusterForPointExt rejects the brush there as well. Without an axial side the axis stays open
+   (+-inf). The boxes only skip brushes; the others go through the exact side test in leaf order - same result. */
+#define BHED_BOX_EPS    0.25f   /* the largest epsilon of the callers: LUXEL_EPSILON * 2 */
+#define BHED_BOX_RAND   0.5     /* > BHED_BOX_EPS plus the float rounding of the bound (|dist| < 2^20) */
+namespace
+{
+struct BhedBrushBoxen
+{
+	std::vector<int> blattStart;           /* per leaf: first entry; numBSPLeafs + 1 */
+	std::vector<int> brush;                /* entries: brush number */
+	std::vector<float> lo[ 3 ], hi[ 3 ];   /* entries: box, 3 more for four at once */
+	std::vector<float> brushBox;           /* per brush: lo xyz, hi xyz (for the GPU) */
+};
+BhedBrushBoxen bhedBoxen;
+}
+
+static void BhedBrushBoxenAnlegen(){
+	BhedBrushBoxen& t = bhedBoxen;
+	t = BhedBrushBoxen();
+	const float inf = std::numeric_limits<float>::infinity();
+	t.brushBox.resize( bspBrushes.size() * 6 );
+	for ( size_t b = 0; b < bspBrushes.size(); ++b )
+	{
+		float *box = &t.brushBox[ b * 6 ];
+		box[ 0 ] = box[ 1 ] = box[ 2 ] = -inf;
+		box[ 3 ] = box[ 4 ] = box[ 5 ] = inf;
+		const bspBrush_t& brush = bspBrushes[ b ];
+		for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
+		{
+			const bspPlane_t& plane = bspPlanes[ side.planeNum ];
+			if ( !( std::fabs( plane.dist() ) < 1048576.0f ) ) {
+				continue;
+			}
+			for ( int a = 0; a < 3; ++a )
+			{
+				if ( plane.normal()[ ( a + 1 ) % 3 ] != 0.0f || plane.normal()[ ( a + 2 ) % 3 ] != 0.0f ) {
+					continue;
+				}
+				if ( plane.normal()[ a ] == 1.0f ) {
+					box[ 3 + a ] = std::min( box[ 3 + a ], float( double( plane.dist() ) + BHED_BOX_RAND ) );
+				}
+				else if ( plane.normal()[ a ] == -1.0f ) {
+					box[ a ] = std::max( box[ a ], float( -double( plane.dist() ) - BHED_BOX_RAND ) );
+				}
+			}
+		}
+	}
+	t.blattStart.reserve( bspLeafs.size() + 1 );
+	for ( const bspLeaf_t& leaf : bspLeafs )
+	{
+		t.blattStart.push_back( int( t.brush.size() ) );
+		for ( const int b : Span( &bspLeafBrushes[ leaf.firstBSPLeafBrush ], leaf.numBSPLeafBrushes ) )
+		{
+			if ( b > maxOpaqueBrush || b < 0 || size_t( b ) >= opaqueBrushes.size() || !opaqueBrushes[ b ] ) {
+				continue;
+			}
+			t.brush.push_back( b );
+			for ( int a = 0; a < 3; ++a )
+			{
+				t.lo[ a ].push_back( t.brushBox[ b * 6 + a ] );
+				t.hi[ a ].push_back( t.brushBox[ b * 6 + 3 + a ] );
+			}
+		}
+	}
+	t.blattStart.push_back( int( t.brush.size() ) );
+	for ( int a = 0; a < 3; ++a )
+	{
+		t.lo[ a ].resize( t.brush.size() + 3, inf );
+		t.hi[ a ].resize( t.brush.size() + 3, -inf );
+	}
+}
+
+/* BehavEd vis4: the boxes per brush for the GPU (lo xyz, hi xyz; set up by SetupBrushes) */
+const std::vector<float>& BhedBrushBoxenGpu(){
+	return bhedBoxen.brushBox;
+}
+
 int ClusterForPointExt( const Vector3& point, float epsilon ){
 	/* get leaf for point */
 	const int leafNum = PointInLeafNum( point );
@@ -424,6 +521,29 @@ int ClusterForPointExt( const Vector3& point, float epsilon ){
 		return CLUSTER_OPAQUE;
 	}
 
+	/* BehavEd vis4: four boxes at once, the exact test only for the brushes whose box holds the point */
+	const BhedBrushBoxen& t = bhedBoxen;
+	if ( epsilon <= BHED_BOX_EPS && size_t( leafNum ) + 1 < t.blattStart.size()
+	  && std::isfinite( point[ 0 ] ) && std::isfinite( point[ 1 ] ) && std::isfinite( point[ 2 ] ) ) {
+		const __m128 px = _mm_set1_ps( point[ 0 ] ), py = _mm_set1_ps( point[ 1 ] ), pz = _mm_set1_ps( point[ 2 ] );
+		const int ende = t.blattStart[ leafNum + 1 ];
+		for ( int i = t.blattStart[ leafNum ]; i < ende; i += 4 )
+		{
+			const __m128 aus = _mm_or_ps(
+			    _mm_or_ps( _mm_or_ps( _mm_cmplt_ps( px, _mm_loadu_ps( &t.lo[ 0 ][ i ] ) ), _mm_cmpgt_ps( px, _mm_loadu_ps( &t.hi[ 0 ][ i ] ) ) ),
+			               _mm_or_ps( _mm_cmplt_ps( py, _mm_loadu_ps( &t.lo[ 1 ][ i ] ) ), _mm_cmpgt_ps( py, _mm_loadu_ps( &t.hi[ 1 ][ i ] ) ) ) ),
+			    _mm_or_ps( _mm_cmplt_ps( pz, _mm_loadu_ps( &t.lo[ 2 ][ i ] ) ), _mm_cmpgt_ps( pz, _mm_loadu_ps( &t.hi[ 2 ][ i ] ) ) ) );
+			for ( unsigned int m = ~unsigned( _mm_movemask_ps( aus ) ) & ( 0xfu >> std::max( 0, i + 4 - ende ) ); m != 0; m &= m - 1 )
+			{
+				const int b = t.brush[ i + std::countr_zero( m ) ];
+				if ( BhedPunktImBrush( point, epsilon, b ) ) {
+					return CLUSTER_OPAQUE - b;
+				}
+			}
+		}
+		return cluster;
+	}
+
 	/* transparent leaf, so check point against all brushes in the leaf */
 	for ( const int b : Span( &bspLeafBrushes[ leaf.firstBSPLeafBrush ], leaf.numBSPLeafBrushes ) )
 	{
@@ -434,20 +554,8 @@ int ClusterForPointExt( const Vector3& point, float epsilon ){
 			continue;
 		}
 
-		const bspBrush_t& brush = bspBrushes[ b ];
-		/* check point against all planes */
-		bool inside = true;
-		for ( const bspBrushSide_t& side : Span( &bspBrushSides[ brush.firstSide ], brush.numSides ) )
-		{
-			const bspPlane_t& plane = bspPlanes[ side.planeNum ];
-			if ( plane3_distance_to_point( plane, point ) > epsilon ) {
-				inside = false;
-				break;
-			}
-		}
-
 		/* if inside, return bogus cluster */
-		if ( inside ) {
+		if ( BhedPunktImBrush( point, epsilon, b ) ) {
 			return CLUSTER_OPAQUE - b;
 		}
 	}
@@ -1971,6 +2079,8 @@ static void RandomSubsampleRawLuxel( RandomSource& random, rawLightmap_t *lm, tr
 	Vector3 origin, normal;
 	Vector3 total( 0 ), totaldirection( 0 );
 	float dx, dy;
+	const bool nurFarbe = trace->bhedNurFarbe;
+	trace->bhedNurFarbe = true;   /* BehavEd vis4: only color and directionContribution are read here (TraceLine) */
 
 	for ( b = 0; b < lightSamples; ++b )
 	{
@@ -1995,6 +2105,8 @@ static void RandomSubsampleRawLuxel( RandomSource& random, rawLightmap_t *lm, tr
 			totaldirection += trace->directionContribution;
 		}
 	}
+
+	trace->bhedNurFarbe = nurFarbe;
 
 	/* add to luxel */
 	if ( mapped > 0 ) {
@@ -3624,13 +3736,19 @@ static void BhedIlluminateGpu(){
 	   The threads also finish the GPU lightmaps (the rest of IlluminateRawLightmap, with a copy of their
 	   luxels), so the main thread goes on with the next block at once - in the pool of the main thread
 	   that took 57 s next to the busy threads (duel_mos_espa, a bounce).
-	   With -randomsamples the processor takes no GPU lightmap: the lightmaps with random subsamples are
+	   vis1 left the GPU lightmaps to the GPU with -randomsamples: the lightmaps with random subsamples were
 	   more work than the GPU's whole list (duel_mos_espa: 120 s against 33 s), every taken one made the
-	   end later (bounce 150 -> 199 s).
-	   vis2 (work in progress, BHED_GPUBAKE_ZUFALL): the GPU can light those too (kernel zufall), but alone it
+	   end later (bounce 150 -> 199 s). vis4: the random subsamples on the processor are much faster now
+	   (TraceLine four triangles at once, the first opaque one ends the trace, brush boxes), and the threads
+	   waited for the GPU to find their lightmaps - so they take GPU lightmaps from the end again when they
+	   have nothing of their own (still last, after nebenFertig, nebenWarte and nebenZufall). Under load,
+	   "[Final] Extreme Quality" with -bhedgpubake: taspir1 76.0 -> 65.5 s, md_am_sith 493 -> 410 s,
+	   duel_mos_espa (-bounce 1) 124.5/125.7 -> 130.7/113.3 s, kejim_post 41.6 -> 40.5 s.
+	   vis2/vis4 (GPU + random subsamples, g_bhedBakeZufall): the GPU can light those too (kernel zufall), but alone it
 	   is slower than the processor's threads (md_am_sith, first pass: 1432 s against about 700 s) - so they go
 	   to the processor first (nebenZufall), and when the GPU has no block of its own left it takes the smallest
-	   of them in batches (a third of the remaining work each), while the threads take the biggest. */
+	   of them in batches, while the threads take the biggest. vis4: the GPU keeps them in a gather buffer (see
+	   sammel) instead of lighting them a second time. */
 	std::stable_sort( gpuListe.begin(), gpuListe.end(), [&]( int a, int b ){
 		return size_t( abgebildet[ a ] ) * liste[ a ].size() > size_t( abgebildet[ b ] ) * liste[ b ].size();
 	} );
@@ -3651,12 +3769,30 @@ static void BhedIlluminateGpu(){
 	size_t vorne = 0, hinten = gpuListe.size();   /* gpuListe[ vorne, hinten ): nobody has taken them yet */
 	bool gpuEnde = false, arbeiterEnde = false;
 	const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;   /* the ctest: the processor takes no GPU lightmap */
-	/* vis2 (work in progress, off by default): BHED_GPUBAKE_ZUFALL - the GPU takes lightmaps with random subsamples
-	   from the processor when it has no block of its own left (see nebenZufall); with BHED_GPUBAKE_NUR_GPU the GPU
-	   lights every one of them itself (kernel zufall) */
-	const bool zufallUebernahme = !nurGpu && getenv( "BHED_GPUBAKE_ZUFALL" ) != nullptr;
-	const bool uebernehmen = !nurGpu && !lightRandomSamples;
+	/* vis2/vis4: GPU + random subsamples (g_bhedBakeZufall: BHED_GPUBAKE_ZUFALL, or Auto where it is learned the
+	   fastest, bhed/gpuwahl.h) - the GPU takes lightmaps with random subsamples from the processor (see nebenZufall,
+	   sammelStapel); with BHED_GPUBAKE_NUR_GPU the GPU lights every one of them itself (kernel zufall) */
+	const bool zufallUebernahme = !nurGpu && g_bhedBakeZufall;
+	const bool uebernehmen = !nurGpu;
 	std::atomic<long long> nebenAnzahl{ 0 }, nebenUebernommen{ 0 }, nebenZufallCpu{ 0 };
+	/* vis4: the kernel zufall is latency bound (one group per lightmap, the serial stamp scan) and a block had only
+	   about 50 lightmaps with random subsamples (md_am_sith) - so the GPU gathers them over several blocks: the
+	   colours of their initial pass (only the active lights) go to a gather buffer, and the kernel zufall, the
+	   filtering and adding run for many of them at once (sammelBlock), with the same operations as in their own
+	   block. With g_bhedBakeZufall every gathered one is in nebenZufall too: whoever takes it first computes
+	   it (the threads the biggest, the GPU the smallest), both exactly. */
+	struct BhedSammel
+	{
+		int r;
+		std::uint32_t ziel;              /* its first pair in the gather buffer */
+		std::vector<int> lichter;        /* its active lights (numbers in the light table) */
+		BhedStil stil;                   /* the style check in its block, aktiv[ i ].j = i */
+	};
+	std::vector<BhedSammel> sammel;      /* ascending in the gather buffer */
+	std::vector<int> sammelNr( numRawLightmaps, -1 );   /* entry in sammel, -1: none (or computed) */
+	std::uint32_t sammelBelegt = 0;
+	const bool sammeln = ( nurGpu || zufallUebernahme ) && lightRandomSamples;
+	const size_t sammelPlatz = sammeln ? BhedBakeSammelPaare() : 0;
 	/* the work of a lightmap: mapped luxels times lights (all luxels without the light lists). Taken the
 	   biggest first, the big ones do not start last: FIFO, the biggest of a bounce on duel_mos_espa started
 	   after 108 s and ended 30 s after all others. */
@@ -3765,13 +3901,182 @@ static void BhedIlluminateGpu(){
 	bool ersteGeprueft = false;
 	std::vector<std::uint32_t> zaehler, flags, flags2;
 	std::vector<float> aus;
-	/* one block of lightmaps on the GPU; false: the GPU is lost (the block went to the processor).
-	   zufallGpu (vis2): the random subsamples on the GPU, otherwise such lightmaps go to nebenZufall */
-	const auto blockRechnen = [&]( const std::vector<int>& nrs, size_t paare, bool zufallGpu ){
-		BhedBakeBlock b;
-		for ( int r : nrs ) {
-			cpu[ r ] = 0;   /* vis2: a lightmap with random subsamples the GPU takes back from nebenZufall */
+	/* a lightmap the GPU has finished (L: its entry in the block, the luxels in luxel): the threads finish it */
+	const auto gpuFertig = [&]( int r, const BhedBakeLm& L, const std::vector<float>& luxel, const BhedStil& s ){
+		BhedBakeFertig& f = g_bhedBakeFertig[ r ];
+		f.da = true;
+		/* vis1: a copy of the luxels - the threads finish it while the next block reuses aus */
+		std::vector<float>& eigen = g_bhedBakeLuxel[ r ];
+		size_t teile = 0;
+		for ( int t = 0; t < MAX_LIGHTMAPS; ++t ) {
+			teile += L.aus[ t ] >= 0 ? 1 : 0;
 		}
+		eigen.resize( teile * size_t( L.m ) * 4 );
+		int stelle = 0;
+		for ( int t = 0; t < MAX_LIGHTMAPS; ++t ) {
+			f.aus[ t ] = -1;
+			if ( L.aus[ t ] >= 0 ) {
+				std::copy( luxel.begin() + size_t( L.aus[ t ] ) * 4, luxel.begin() + ( size_t( L.aus[ t ] ) + size_t( L.m ) ) * 4, eigen.begin() + size_t( stelle ) * 4 );
+				f.aus[ t ] = stelle;
+				stelle += L.m;
+			}
+		}
+		f.luxel = eigen.data();
+		f.numLights = int( liste[ r ].size() );
+		f.paare = size_t( L.m ) * liste[ r ].size();
+		f.warnungen = s.warnungen;
+		f.styles = s.styles;
+		f.pruefen = !ersteGeprueft && f.paare <= ( size_t( 1 ) << 20 );
+		ersteGeprueft = ersteGeprueft || f.pruefen;
+		++g_bbGpuLm;
+	};
+	/* vis4: gathered lightmaps (entries of sammel, ascending) on the GPU - a block of their own with only their
+	   active lights, the colours of the initial pass from the gather buffer */
+	const auto sammelBlock = [&]( const std::vector<size_t>& teil ){
+		BhedBakeBlock gb;
+		std::vector<BhedStil> stile;
+		for ( size_t i : teil )
+		{
+			const BhedSammel& e = sammel[ i ];
+			BhedBlockLm( gb, e.r, lmInfo[ e.r ], abgebildet[ e.r ], e.lichter.data(), int( e.lichter.size() ), e.ziel );
+			stile.push_back( e.stil );
+			gb.paare = std::max( gb.paare, e.ziel + std::uint32_t( abgebildet[ e.r ] ) * std::uint32_t( e.lichter.size() ) );
+		}
+		BhedAktivSetzen( gb, stile, std::vector<std::uint32_t>( teil.size(), 0 ) );
+		std::vector<float> sAus;
+		std::vector<std::uint32_t> sFlags;
+		const bool ok = BhedBakeSammelRechnen( gb, sAus, sFlags );
+		std::vector<int> fertig;
+		for ( size_t li = 0; li < teil.size(); ++li )
+		{
+			const BhedSammel& e = sammel[ teil[ li ] ];
+			sammelNr[ e.r ] = -1;
+			if ( !ok ) {
+				++g_bbZufallLm;   /* lost: on the CPU */
+				zurCpu( e.r );
+			}
+			else if ( sFlags[ li ] != 0 ) {
+				++g_bbAlphaLm;
+				zurCpu( e.r );
+			}
+			else if ( !BhedEndlich( gb.lms[ li ], sAus ) ) {
+				++g_bbNichtEndlichLm;
+				zurCpu( e.r );
+			}
+			else{
+				gpuFertig( e.r, gb.lms[ li ], sAus, e.stil );
+				fertig.push_back( e.r );
+			}
+		}
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			nebenFertig.insert( nebenFertig.end(), fertig.begin(), fertig.end() );
+		}
+		nebenCv.notify_all();
+	};
+	/* vis4: a batch of the gather buffer on the GPU. With BHED_GPUBAKE_NUR_GPU every gathered lightmap. With
+	   g_bhedBakeZufall the smallest ones no thread has taken, about the share zufallAnteil of their work: the threads
+	   take the biggest at the same time (a batch takes as long as its longest serial stamp scan, and the threads must
+	   not run dry meanwhile). vis3: the first batch is small (1/16), then the GPU takes the share both sides can finish
+	   at the same time after the rates measured in the batch before (work the GPU did against work the threads took
+	   meanwhile). voll: the buffer is full - afterwards it is empty, the rest stays with the threads (nebenZufall).
+	   Only the order changes: every lightmap is computed by exactly one side, both exactly. */
+	double zufallAnteil = 1.0 / 16;
+	const auto sammelStapel = [&]( bool voll ){
+		std::vector<size_t> teil;
+		size_t genommen = 0, restDanach = 0;
+		const double tStapel = BhedJetzt();
+		{
+			std::lock_guard<std::mutex> l( nebenMutex );
+			if ( zufallUebernahme ) {
+				size_t frei = 0;   /* the work of the gathered ones no thread has taken */
+				for ( const auto& [ w, r ] : nebenZufall ) {
+					frei += sammelNr[ r ] >= 0 ? w : 0;
+				}
+				const size_t ziel = size_t( double( frei ) * zufallAnteil );
+				for ( auto it = nebenZufall.begin(); it != nebenZufall.end() && ( teil.empty() || genommen < ziel ); )
+				{
+					if ( sammelNr[ it->second ] < 0 ) {
+						++it;   /* not in the gather buffer: for the threads */
+						continue;
+					}
+					teil.push_back( size_t( sammelNr[ it->second ] ) );
+					genommen += it->first;
+					zufallArbeit -= it->first;
+					it = nebenZufall.erase( it );
+				}
+				restDanach = zufallArbeit;
+			}
+			else{
+				for ( size_t i = 0; i < sammel.size(); ++i ) {
+					teil.push_back( i );
+				}
+			}
+		}
+		std::sort( teil.begin(), teil.end() );   /* ascending in the gather buffer, as the kernels expect */
+		if ( !teil.empty() ) {
+			sammelBlock( teil );
+		}
+		if ( voll ) {
+			for ( const BhedSammel& e : sammel ) {
+				sammelNr[ e.r ] = -1;
+			}
+			sammel.clear();
+			sammelBelegt = 0;
+		}
+		if ( zufallUebernahme && !teil.empty() ) {
+			size_t cpuGenommen = 0;
+			{
+				std::lock_guard<std::mutex> l( nebenMutex );
+				cpuGenommen = restDanach > zufallArbeit ? restDanach - zufallArbeit : 0;   /* the batch may give parts back */
+			}
+			const double dauer = std::max( 1e-3, BhedJetzt() - tStapel );
+			const double gpuRate = double( genommen ) / dauer;
+			const double cpuRate = double( cpuGenommen ) / dauer;
+			zufallAnteil = std::clamp( gpuRate / std::max( 1e-9, gpuRate + cpuRate ), 1.0 / 64, 1.0 );
+		}
+	};
+	/* vis4: lightmap li of block b with random subsamples into the gather buffer (its colours are still in the
+	   block's P); false: it does not fit or the GPU is lost - the CPU computes it */
+	const auto sammelAufnehmen = [&]( int r, const BhedBakeBlock& b, size_t li, const BhedStil& s ){
+		const BhedBakeLm& L = b.lms[ li ];
+		const size_t bedarf = size_t( L.m ) * s.aktiv.size();
+		if ( bedarf == 0 || bedarf > sammelPlatz ) {
+			return false;
+		}
+		if ( sammelBelegt + bedarf > sammelPlatz ) {
+			sammelStapel( true );
+		}
+		BhedSammel e{ r, sammelBelegt, {}, s };
+		const std::uint32_t m = std::uint32_t( L.m );
+		for ( size_t i = 0; i < s.aktiv.size(); )
+		{
+			/* lights one after another in the light list: one copy */
+			size_t i1 = i + 1;
+			while ( i1 < s.aktiv.size() && s.aktiv[ i1 ].j == s.aktiv[ i1 - 1 ].j + 1 ) {
+				++i1;
+			}
+			if ( !BhedBakeSammeln( std::uint32_t( L.paarBase ) + std::uint32_t( s.aktiv[ i ].j ) * m, e.ziel + std::uint32_t( i ) * m, std::uint32_t( i1 - i ) * m ) ) {
+				return false;
+			}
+			i = i1;
+		}
+		for ( size_t i = 0; i < s.aktiv.size(); ++i )
+		{
+			e.lichter.push_back( b.lichtListe[ L.lichtBase + s.aktiv[ i ].j ] );
+			e.stil.aktiv[ i ].j = int( i );
+		}
+		sammelBelegt += std::uint32_t( bedarf );
+		sammelNr[ r ] = int( sammel.size() );
+		sammel.push_back( std::move( e ) );
+		if ( zufallUebernahme ) {
+			zumZufall( r );
+		}
+		return true;
+	};
+	/* one block of lightmaps on the GPU; false: the GPU is lost (the block went to the processor) */
+	const auto blockRechnen = [&]( const std::vector<int>& nrs, size_t paare ){
+		BhedBakeBlock b;
 		size_t basis = 0;
 		for ( int r : nrs )
 		{
@@ -3801,7 +4106,7 @@ static void BhedIlluminateGpu(){
 		BhedAktivSetzen( b, stil, flags );
 		zeit( 3 );
 		/* 3. and 4. supersampling, filtering and adding on the GPU; the finished luxels back */
-		if ( !BhedBakeRest( b, aus, flags2, zufallGpu ) ) {
+		if ( !BhedBakeRest( b, aus, flags2, sammeln ? BhedZufallWeg::Sammeln : BhedZufallWeg::Cpu ) ) {
 			for ( int r : nrs ) {
 				zurCpu( r );
 			}
@@ -3814,15 +4119,12 @@ static void BhedIlluminateGpu(){
 			const BhedBakeLm& L = b.lms[ li ];
 			if ( flags[ li ] != 0 || flags2[ li ] != 0 ) {
 				cpu[ r ] = 1;
-				if ( flags[ li ] == 0 && flags2[ li ] == 2u ) {
-					/* vis1: only because of random subsamples (vis2: the GPU may take it later) */
-					if ( zufallUebernahme ) {
-						zumZufall( r );
-					}
-					else{
-						++g_bbZufallLm;
-						zurCpu( r );
-					}
+				if ( flags[ li ] == 0 && flags2[ li ] == 4u && sammelAufnehmen( r, b, li, stil[ li ] ) ) {
+					continue;   /* vis4: in the gather buffer */
+				}
+				if ( flags[ li ] == 0 && ( flags2[ li ] == 2u || flags2[ li ] == 4u ) ) {
+					++g_bbZufallLm;   /* vis1: only because of random subsamples */
+					zurCpu( r );
 					continue;
 				}
 				++g_bbAlphaLm;
@@ -3835,32 +4137,7 @@ static void BhedIlluminateGpu(){
 				zurCpu( r );
 				continue;
 			}
-			BhedBakeFertig& f = g_bhedBakeFertig[ r ];
-			f.da = true;
-			/* vis1: a copy of the luxels - the threads finish it while the next block reuses aus */
-			std::vector<float>& eigen = g_bhedBakeLuxel[ r ];
-			size_t teile = 0;
-			for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-				teile += L.aus[ s ] >= 0 ? 1 : 0;
-			}
-			eigen.resize( teile * size_t( L.m ) * 4 );
-			int stelle = 0;
-			for ( int s = 0; s < MAX_LIGHTMAPS; ++s ) {
-				f.aus[ s ] = -1;
-				if ( L.aus[ s ] >= 0 ) {
-					std::copy( aus.begin() + size_t( L.aus[ s ] ) * 4, aus.begin() + ( size_t( L.aus[ s ] ) + size_t( L.m ) ) * 4, eigen.begin() + size_t( stelle ) * 4 );
-					f.aus[ s ] = stelle;
-					stelle += L.m;
-				}
-			}
-			f.luxel = eigen.data();
-			f.numLights = L.nLichter;
-			f.paare = size_t( L.m ) * size_t( L.nLichter );
-			f.warnungen = stil[ li ].warnungen;
-			f.styles = stil[ li ].styles;
-			f.pruefen = !ersteGeprueft && f.paare <= ( size_t( 1 ) << 20 );
-			ersteGeprueft = ersteGeprueft || f.pruefen;
-			++g_bbGpuLm;
+			gpuFertig( r, L, aus, stil[ li ] );
 		}
 		/* the rest of IlluminateRawLightmap on the processor's threads (vis1) */
 		{
@@ -3894,7 +4171,7 @@ static void BhedIlluminateGpu(){
 				++vorne;
 			}
 		}
-		if ( nrs.empty() || !blockRechnen( nrs, paare, nurGpu ) ) {   /* the ctest (only the GPU): every random subsample on the GPU */
+		if ( nrs.empty() || !blockRechnen( nrs, paare ) ) {
 			break;
 		}
 	}
@@ -3954,7 +4231,7 @@ static void BhedIlluminateGpu(){
 					}
 				}
 			}
-			if ( !BhedBakeRest( b, aus, flags2, false ) || flags2[ 0 ] != 0 || !BhedEndlich( L, aus ) ) {
+			if ( !BhedBakeRest( b, aus, flags2, BhedZufallWeg::Cpu ) || flags2[ 0 ] != 0 || !BhedEndlich( L, aus ) ) {
 				alpha = BhedBakeBereit();
 				zufall = flags2[ 0 ] == 2u;
 				ok = false;
@@ -3991,52 +4268,27 @@ static void BhedIlluminateGpu(){
 		g_bhedBakeFertig[ r ] = BhedBakeFertig{};
 	}
 	zeit( 7 );
-	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest, as long
-	   as more are left than threads. vis3: a fixed third per batch let the threads run dry while the GPU still
-	   worked on its batch (duel_mos_espa, a bounce: 174 -> 211 s) - the first batch is small (1/16 of the remaining
-	   work), then the GPU takes the share both sides can finish at the same time after the rates measured in the
-	   batch before (work the GPU did against work the threads took meanwhile). Only the order changes: every
-	   lightmap is computed by exactly one side, both exactly. */
-	double zufallAnteil = 1.0 / 16;
-	while ( zufallUebernahme && lightRandomSamples && BhedBakeBereit() )
+	/* vis2: the lightmaps with random subsamples the threads have not taken yet - the GPU takes the smallest in
+	   batches (sammelStapel), as long as more are left than threads */
+	while ( zufallUebernahme && !sammel.empty() && BhedBakeBereit() )
 	{
-		std::vector<int> nrs;
-		size_t paare = 0;
-		size_t genommen = 0, restDanach = 0;
-		const double tStapel = BhedJetzt();
+		bool gesammelte = false;
 		{
 			std::lock_guard<std::mutex> l( nebenMutex );
 			if ( nebenZufall.size() <= size_t( std::max( 1, numthreads ) ) ) {
 				break;
 			}
-			const size_t ziel = size_t( double( zufallArbeit ) * zufallAnteil );
-			while ( !nebenZufall.empty() && genommen < ziel )
-			{
-				const auto kleinste = nebenZufall.begin();
-				const int r = kleinste->second;
-				const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
-				if ( !nrs.empty() && paare + bedarf > budget ) {
-					break;
-				}
-				nrs.push_back( r );
-				paare += bedarf;
-				genommen += kleinste->first;
-				zufallArbeit -= kleinste->first;
-				nebenZufall.erase( kleinste );
+			for ( const auto& [ w, r ] : nebenZufall ) {
+				gesammelte = gesammelte || sammelNr[ r ] >= 0;
 			}
-			restDanach = zufallArbeit;
 		}
-		if ( nrs.empty() || !blockRechnen( nrs, paare, true ) ) {
+		if ( !gesammelte ) {
 			break;
 		}
-		size_t cpuGenommen = 0;
-		{
-			std::lock_guard<std::mutex> l( nebenMutex );
-			cpuGenommen = restDanach > zufallArbeit ? restDanach - zufallArbeit : 0;   /* the batch may give parts back */
-		}
-		const double gpuRate = double( genommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
-		const double cpuRate = double( cpuGenommen ) / std::max( 1e-3, BhedJetzt() - tStapel );
-		zufallAnteil = std::clamp( gpuRate / std::max( 1e-9, gpuRate + cpuRate ), 1.0 / 64, 0.5 );
+		sammelStapel( false );
+	}
+	if ( nurGpu && !sammel.empty() ) {
+		sammelStapel( true );   /* vis4: the rest of the gather buffer (lost: to the CPU) */
 	}
 	/* the processor's threads finish their lightmaps */
 	{
@@ -4069,9 +4321,9 @@ void BhedBakeBericht( const char *quelle ){
 	const long long anders = proben - gleich;
 	const double mittel = anders > 0 ? double( g_bbSummeMikro.load() ) / 1e6 / double( proben ) : 0.0;
 	Sys_Printf( "BehavEd GPU bake: %s, %s, %lld rounds, %lld lightmaps on the GPU (%lld without light, %lld in parts), %lld on the CPU (%lld alpha shadow/unsafe, %lld not finite, %lld too big), "
-	            "%lld of them with random subsamples, %lld taken over while the GPU baked, %lld with random subsamples on the GPU (%lld luxels), %lld pairs on the GPU, %lld blocks, %lld dispatches, GPU %.2f s%s%s\n",
+	            "%lld of them with random subsamples, %lld taken over while the GPU baked, %lld with random subsamples on the GPU (%lld luxels in %lld runs), %lld pairs on the GPU, %lld blocks, %lld dispatches, GPU %.2f s%s%s\n",
 	            BhedBakeAdapter().c_str(), BhedBakeDoppelt() ? "double" : "float only", g_bbRunden.load(), g_bbGpuLm.load() + g_bbLeerLm.load(), g_bbLeerLm.load(), g_bbGeteiltLm.load(), g_bbCpuLm.load(),
-	            g_bbAlphaLm.load(), g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), g_bbZufallLm.load(), g_bbUebernommenLm.load(), z.zufallLm, z.zufallLuxel, z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6,
+	            g_bbAlphaLm.load(), g_bbNichtEndlichLm.load(), g_bbZuGrossLm.load(), g_bbZufallLm.load(), g_bbUebernommenLm.load(), z.zufallLm, z.zufallLuxel, z.sammelLaeufe, z.paare, z.bloecke, z.dispatches, double( z.gpuMikros ) / 1e6,
 	            z.ausgefallen ? " - failed: " : "", z.ausgefallen ? z.grund.c_str() : "" );
 	Sys_Printf( "BehavEd GPU bake report: %lld luxels in %lld lightmaps checked on the CPU, %.4f %% identical; %lld lightmaps with a difference "
 	            "(%lld in styles), mean |diff| %.6f, max |diff| %.6f; light grid: %lld points on the GPU, %lld on the CPU\n",
@@ -5413,6 +5665,7 @@ void SetupBrushesFlags( int mask_any, int test_any, int mask_all, int test_all )
 
 	/* emit some statistics */
 	Sys_FPrintf( SYS_VRB, "%9d opaque brushes\n", numOpaqueBrushes );
+	BhedBrushBoxenAnlegen(); /* BehavEd vis4 */
 }
 void SetupBrushes(){
 	SetupBrushesFlags( C_TRANSLUCENT, 0, 0, 0 );

@@ -744,6 +744,158 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Zeiten ohne Last für alle vis3-Zahlen (die Läufe nach 07:10 lagen unter schwerer Last).
 - Die Punkte aus „Offen“ und „vis2 → Nächster Schritt“ oben, soweit hier nicht erledigt.
 
+## vis4: Licht schneller, bitgleich (Nachauftrag, 30.10. mittags und nachmittags) – angehalten (16:30)
+
+Auftrag `SP/auftrag_vis4.md`. Um 13:10 vom Koordinator angehalten (höchstens 4 Agenten), ab 14:00 fortgesetzt.
+Werkzeuge `SP/vis4`: `lz.py` (wie vis2, Bericht mit „in N runs“, `+budget<N>`, `+E_<NAME>`, `+auto`, Ausgabe nach
+`LZ_AUS`), `laden.py` (nur Laden/Setup von `-light`), `tabelle.py` (Tabelle aus den lz-Zeilen, mit Auto-Wahl),
+`messung.sh` (ruhige Endmessung, siehe unten), `st4.py` (Selbsttest wie `SP/vis3/st3.py`, Quelle aus `ST_QUELLE`),
+`rep.py`, Messfassungen `bin/m1..m3.exe` (rdtsc-Zähler, nicht eingecheckt). „v0“ = `SP/vis4/bin/v0.exe` = s3
+(874121ef, vor vis4), „c1“ = da96abce, „u1“ = dd8737f7 mit einem Test-Schalter für Punkt 3c.
+**Alle Zeiten unter Last** (andere Agenten bauten und testeten, 15–45 % Last) – nur Tendenz; A/B wo angegeben
+direkt nacheinander.
+
+### Commits vis4
+
+| Commit | Inhalt |
+|---|---|
+| 642dd15a | Punkt 1: Lightmaps mit Nachproben über mehrere Blöcke gesammelt (Sammelpuffer auf der GPU, `BhedBakeSammeln`/`BhedBakeSammelRechnen`), S mit `-randomsamples` nicht mehr angelegt – gleiche Bytes |
+| 08b08e5f | Punkt 3: TraceLine testet vier Dreiecke auf einmal (SSE2), Nachproben enden am ersten undurchsichtigen Dreieck – gleiche Bytes |
+| 4083fce7 | Punkt 3: FinishShader sucht stFlat vom letzten Pixel rückwärts; Punkt 1: Stapel aus dem Sammelpuffer nach gemessenen Raten – gleiche Bytes |
+| db35d51e | Notizen beim Anhalten |
+| da96abce | Punkt 3: ClusterForPointExt prüft nur die Brushes, deren Box (aus ihren achsparallelen Seiten) den Punkt hält – CPU vier auf einmal, GPU-Kern ebenso – gleiche Bytes |
+| dd8737f7 | Punkt 2: Auto mit drittem Kandidaten GPU + Nachproben; Punkt 3c: mit `-randomsamples` nehmen freie Threads wieder GPU-Lightmaps; Tests, i18n, Handbuch |
+| d79bbd25 | Test q3map2_gpubake: mit Threads nebenher bekommt der Sammelpuffer auf der kleinen Karte oft nichts |
+| (dieser) | Notizen vis4, Changelog |
+
+### 1. GPU-Nachproben über Blöcke sammeln (Sammelpuffer)
+
+- Umsetzung (642dd15a, 4083fce7, vor der Pause): die Farben der Erstabtastung der aktiven Lichter jeder Lightmap mit
+  Nachproben gehen per CopySubresourceRegion in einen Sammelpuffer (größte Zweierpotenz bis zum Blockbudget, 16 Byte
+  je Paar – so viel, wie das nicht mehr angelegte S frei macht); ein Lauf baut daraus einen eigenen Block (nur die
+  aktiven Lichter, `paarBase` = Stelle im Puffer), Vorhersage, Kern `zufall`, Filtern wie bisher. Mit Schalter steht
+  jede gesammelte auch in `nebenZufall` (wer zuerst nimmt, rechnet); kein zweites Erst mehr. Voller Puffer und die
+  Stapel nach den Blöcken nehmen den Anteil nach Raten (`sammelStapel`, erst 1/16), der Rest bleibt bei den Threads.
+- Kern `zufall` (nur GPU, `BHED_GPUBAKE_ZEITEN`): kejim_post 41,3 → 23,9 s (45 Blöcke → 5 Läufe), md_am_sith
+  377 (vis2) → 208 s (26 Läufe).
+- Test (rot/grün): ctest q3map2_gpubake prüft jetzt den Sammelpuffer – nur GPU mit `BHED_GPUBAKE_BUDGET_MB=1`:
+  20 Lightmaps mit Nachproben (998 Luxel) in 3 Läufen, Lumps gleich der CPU; mit Schalter neben den Threads: Lumps
+  gleich (die Threads nehmen auf der kleinen Karte oft alle selbst). Rot mit v0 (kein „in N runs“), grün mit dd8737f7.
+- Ergebnis (c1, unter Last, ganzer `-light`-Schritt): GPU + Schalter schneller als GPU auf taspir1 (61,9 gegen 68,2 s)
+  und kejim_post (33,3 gegen 36,1 s), langsamer auf duel_mos_espa `-bounce 1` (179,3 gegen 150,4 s); auf md_am_sith
+  `-bounce 2` schneller als die GPU (437,2 gegen 493,4 s), aber die CPU allein ist dort schneller (399,2 s).
+  **Der Schalter bleibt ab Werk aus** (Punkt 5: auf duel_mos_espa langsamer) – Auto entscheidet (Punkt 2).
+
+### 2. Auto mit drittem Kandidaten (dd8737f7)
+
+- `bhed/gpuwahl.h`: mit `-randomsamples` gibt es „GPU + Nachproben“. Regel 3a: sind CPU- und GPU-Zeit gemerkt, die GPU
+  schneller und die Zeit mit Nachproben unbekannt, misst Auto sie einmal (`measuregpuz`); 3b: sind alle drei gemerkt,
+  nimmt Auto sie nur, wenn sie die schnellste ist (`learnedgpuz`), sonst wie bisher die schnellere von CPU und GPU.
+  Wo die CPU gewinnt (duel_mos_espa, md_am_sith mit dem schnelleren Prozessor-Weg), wird sie nie gemessen – kein Lauf
+  kostet dort etwas; auf taspir1/kejim_post kostet das Lernen nichts (sie ist dort schneller).
+- bhed_q3map2: `-bhedgpubakezeitenz <ms>`, `g_bhedBakeZufall` (Umgebung `BHED_GPUBAKE_ZUFALL` oder Auto), Zeile
+  „BehavEd GPU bake auto: GPU+subsamples (measuregpuz) … last GPU+subsamples N ms“.
+- Editor: dritte gemerkte Zeit (`GpuZeiten::gpuzMs`, fünftes Feld in `karte_gpuzeiten.txt`, alte Dateien lesen sich
+  weiter), `GpuWeg` statt bool, Wahltext „Grafikkarte mit Nachproben“ mit den Gründen (`tools/i18n_vis1.py`),
+  Handbuch „Karten-Editor: GPU-Backen“ ein Absatz in vier Sprachen (keine Bildänderung: nur die Konsole zeigt es).
+- Tests: ctest karte_gpuwahl (Tabelle mit den vis4-Zahlen, Speicher, Befehl, Ausgabezeile – rot: kompiliert gegen den
+  alten Stand nicht), q3map2_gpubake (Auto mit `-randomsamples`: measuregpuz, learnedgpuz, learnedgpu, Lumps gleich
+  der CPU – rot mit v0: 3 Fehler), Selbsttest stufe8g (Build > [Final] Extreme Quality zweimal: erst CPU, dann mit der
+  GPU als schneller gemerkt „Grafikkarte mit Nachproben“, Lumps gleich dem CPU-Lauf, gemerkt 801/401/692 ms).
+
+### 3. CPU-Seite
+
+- 3a (vor der Pause, 08b08e5f, 4083fce7): TraceLine vier Dreiecke auf einmal, Nachproben enden am ersten
+  undurchsichtigen Dreieck; FinishShader rückwärts (LoadSurfaceExtraFile: 99 % in ShaderInfoForShader). CPU-Sekunden
+  duel_pit Extreme 45 → 28,5 s, taspir1 Wand 143 → 102 s.
+- 3b ClusterForPointExt (da96abce): je Blatt die undurchsichtigen Brushes, die es prüft (b ≤ maxOpaqueBrush,
+  opaqueBrushes), mit einer Box aus ihren achsparallelen Seiten. Für eine Seite mit Normale ±e_a ist der Abstand eines
+  endlichen Punkts genau ±p[a] − dist (Produkte mit 0 und 1 exakt, die double-Differenz zweier floats auch), also
+  verwirft auch die genaue Prüfung jeden Brush, dessen Box (dist + 0,5) den Punkt nicht hält, für jedes ε ≤ 0,25
+  (größtes der Aufrufer). Ohne achsparallele Seite bleibt die Achse offen; nicht endliche Punkte und größeres ε gehen
+  den alten Weg. CPU: vier Boxen je SSE2-Vergleich, die genaue Prüfung nur für die übrigen in Blattfolge; GPU-Kern
+  `clusterExt` dieselbe Box je Brush. Gezählt (Messfassung, taspir1 Extreme): 234 Mio. Aufrufe, 13,1 Mrd.
+  Blatt-Einträge (56 je Aufruf), nur 105 Mio. genaue Prüfungen (0,45 je Aufruf). Zeit: taspir1 CPU-s 2035 → 2003
+  (je ein Lauf, unter Last) – die 532 Gtick der Messfassung m3 waren zum großen Teil Messaufwand; kleiner Gewinn.
+- 3c Verteilung (dd8737f7): mit `-randomsamples` nahmen die Threads keine GPU-Lightmap (vis1: die Nachproben auf dem
+  Prozessor waren mehr Arbeit als die ganze GPU-Liste). Mit dem schnelleren Prozessor-Weg warteten sie auf die GPU,
+  die ihre Lightmaps erst finden muss – der GPU-Weg war langsamer als die CPU allein (md_am_sith 493,4 gegen 399,2 s,
+  duel_mos_espa 150,4 gegen 121,9 s). Jetzt nehmen freie Threads wieder GPU-Lightmaps vom Ende der Liste (weiter
+  zuletzt, nach den eigenen). A/B (u1, Test-Schalter, direkt nacheinander, unter Last): taspir1 76,0 → 65,5 s,
+  kejim_post 41,6 → 40,5 s, duel_mos_espa 124,5/125,7 → 130,7/113,3 s (Reihenfolge getauscht, im Mittel 125,1 →
+  122,0 s), md_am_sith 493,4 (c1) → 409,5 s. Bytes überall gleich.
+- LoadSurfaceExtraFile: nach 3a nicht weiter angegangen – Laden/Setup duel_mos_espa jetzt 23,7–25,8 s (c1, unter
+  Last; darin SetupSurfaceLightmaps, siehe vis3), kejim_post 1,8 s.
+
+### 4. Bytevergleiche (Hash aller 18 Lumps)
+
+Profile wie vis3: X2 = `-light -fastbounce -patchshadows -samples 4 -randomsamples -bounce 2`, X1 dasselbe mit
+`-bounce 1`, F2 = `-light -fast -patchshadows -samples 2 -filter -bounce 2`.
+
+| Karte | Profil | Hash | gleich bei (alle Läufe dieses Abschnitts) |
+|---|---|---|---|
+| taspir1 | X2 | 89c381abf3d17268 | t4 (db35d51e) CPU, c1 CPU/GPU/GPU + Schalter, u1 GPU/GPU + Threads nehmen/dazu Schalter (= vis3) |
+| kejim_post | X2 | de898d504b1c0795 | c1 CPU/GPU/GPU + Schalter (auch mit `BHED_GPUBAKE_ZEITEN`), u1 GPU/Threads nehmen/dazu Schalter (= vis3) |
+| duel_mos_espa | X1 | 1a1f3e708921e3d9 | c1 CPU/GPU/GPU + Schalter (580 Lightmaps / 15902 Luxel in 3 Läufen auf der GPU), u1 GPU/Threads nehmen (zweimal) – **neu in vis4: CPU und Schalter** (= vis3) |
+| md_am_sith | X2 | 448f3509fa84697b | c1 CPU, GPU, GPU + Schalter (6335 Lightmaps / 756358 Luxel in 18 Läufen auf der GPU), u1 Threads nehmen – **neu in vis4: CPU und Schalter** (= vis3) |
+| duel_pit, md_ch_ben, mp__duel1 | X2 | 1bf84e5eac04f19d, 6f84669d794e2765, d7f8bc9615577d73 | t4 CPU, c1 CPU, nur GPU, GPU + Schalter (= vis3) |
+
+Mit dem Endstand (e1 = Neubau von d79bbd25) noch nicht wiederholt – siehe Nächster Schritt.
+
+### 5. Messtabelle vis4 (Wand des ganzen `-light`-Schritts in s, unter Last – nur Tendenz)
+
+| Karte | Profil | CPU | GPU | GPU + Schalter | GPU, Threads nehmen GPU-Lightmaps (u1) |
+|---|---|---|---|---|---|
+| taspir1 | X2 | 86,6 | 68,2 / 76,0 | 61,9 | 65,5 (Schalter dazu 67,6) |
+| kejim_post | X2 | 39,1 / 45,9 | 33,7 / 36,1 / 41,6 | 33,3 / 34,5† | 40,5 (Schalter dazu 37,3) |
+| duel_mos_espa | X1 | 121,9 | 150,4 / 124,5 / 125,7 | 179,3 | 130,7 / 113,3 |
+| md_am_sith | X2 | 399,2 | 493,4 | 437,2 | 409,5 |
+
+† mit `BHED_GPUBAKE_ZEITEN`. vis3 zum Vergleich (schwerere Last): md_am_sith CPU 1155,8†, GPU 998,4†;
+duel_mos_espa CPU 413,9†, GPU 219,3. Abschnitte c1 duel_mos_espa X1: erster Durchgang IlluminateRawLightmap CPU
+12,8 / GPU 17,1 / Schalter 19,1 s, Bounce 48,9 / 72,1 / 92,8 s; md_am_sith X2 erster Durchgang CPU 327,1 / GPU 410,0 s
+(GPU 216 s beschäftigt).
+
+**Ruhige Endmessung** (eigener Schritt): `sh SP/vis4/messung.sh <neu.exe> [alt.exe] [ausgabe.txt]` – je Karte und
+Weg eine Befehlszeile (`lz.py`: cpu, gpu, gpuz = GPU + Schalter, auto = `-bhedgpubakeauto` ohne gemerkte Zeiten,
+alt = v0 auf dem Prozessor), am Ende die Tabelle (`tabelle.py`: Wand, CPU, Spitze, Hash, gleich der ersten Zeile der
+Gruppe, Nachproben auf der GPU, Auto-Wahl). Dauer unter Last etwa 1 h (md_am_sith 5 × 400–500 s).
+
+### 6. Schlussrunde vis4
+
+Um 16:30 vom Koordinator erneut angehalten (shank: erst Karten- und Menü-Editor veröffentlichen; rc607 nimmt vis1
+bis 6236b69f). Bis dahin:
+
+| Schritt | Ergebnis |
+|---|---|
+| Neubau (`--clean-first`, `--parallel 4`) | 0 Fehler, 0 Compiler-Warnungen (9:38 min; einmal MSB8064 an ZERO_CHECK wie bisher). Der innere Ninja-Bau `build-vis/q3map2_clang` wird davon nicht gesäubert – eigens `--target clean` und neu: 461 Schritte samt fxc, 0 Warnungen (5:21 min) |
+| ctest | **159 / 159** (79 s, `-j 4`); vorher gezielt q3map2_*, karte_gpuwahl, karte_grenzen, karte_bau 15 / 15 |
+| q3map2_gpubake | grün (0 Fehler); mit v0 rot: 5 Fehler (Sammelpuffer zweimal, Auto mit `-randomsamples` dreimal) |
+| Selbsttest stufe8g | 42 OK / 3 FEHLER – die neuen Auto-Schritte grün; die 3 FEHLER („Pack map as .pk3“ 1–2 Pixel außerhalb) ebenso mit `laeufe/frei` (vis3) |
+| Lints | lint_sources ok, lint_fassung ok (rc606), lint_cbuffer ok, lint_feldinit ok, lint_headers ok, lint_i18n ohne Beanstandung der neuen Texte; lint_i18n_erzeugt scheitert schon vorher am Import der i18n_*.py in seiner Kopie – die Generatoren erzeugen die eingecheckten Dateien unverändert |
+| Nicht gelaufen | Selbsttest karteneditor kurz (`BHED_KARTE_NUR=fotos`), stufe9d, Modus 1, Kartenprüfung, Bytevergleich mit dem Endstand |
+
+### Offen nach vis4
+
+- Ruhige Endmessung mit `SP/vis4/messung.sh` (alle Zeiten oben unter Last).
+- GPU + Schalter auf duel_mos_espa langsamer: die GPU bleibt dort der Engpass, jeder Stapel des Sammelpuffers nimmt ihr
+  Zeit für die eigene Liste; Auto misst den Schalter dort nie (die CPU ist schneller).
+- LoadSurfaceExtraFile/SetupSurfaceLightmaps (Laden 24 s auf duel_mos_espa) und PointInLeafNum je Nachprobe
+  (ab dem gemeinsamen Knoten der Probenbox) nicht weiter angegangen.
+- Selbsttest stufe8g: „Pack map as .pk3“ im Build-Menü 1–2 Pixel außerhalb des Fensters (3 FEHLER im Tutorial der
+  Stufe 8c) – ebenso mit dem eingefrorenen Stand von vis3 (`laeufe/frei`), also nicht aus vis4; vermutlich die
+  Bildschirmhöhe dieser Sitzung.
+
+### Nächster Schritt
+
+1. Schlussrunde fertig: mit den eingefrorenen Dateien `Y:/vis/laeufe/frei4` (Neubau von d79bbd25, q3map2 auch als
+   `SP/vis4/bin/e1.exe`): `ST_QUELLE='Y:/vis/laeufe/frei4' python -I SP/vis4/st4.py karteneditor <name> 1500
+   BHED_KARTE_NUR=fotos` und `=stufe9d`, Modus 1 (`st4.py 1 <name> 1500`), Kartenprüfung `sh SP/vis4/kp4.sh` (gegen
+   rc606). Vorher prüfen, ob seit d79bbd25 etwas geändert wurde – sonst neu bauen und einfrieren.
+2. Bytevergleich mit dem Endstand: `sh SP/vis4/messung.sh <e1.exe>` (liefert zugleich alle Hashes je Weg); unter Last
+   nur die Bytes werten, die ruhige Zeitmessung ist ein eigener Schritt.
+3. Danach Notizen (Abschnitt 4–6 oben) ergänzen; Schalter bleibt ab Werk aus (auf duel_mos_espa langsamer).
+
 ## Changelog
 
 ## English
@@ -757,6 +909,9 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Fixed: a second `-light` on a quake3 BSP that was already lit with light styles crashed (also in NRC's q3map2): the light now takes back the "nomipmaps" surfaces and the shaders of the former light, and gives the same result as lighting the BSP once.
 - bhed_q3map2 `-light`: the vertexes of a vertex lit surface are shared with idle threads instead of keeping one thread busy (same result).
 - bhed_q3map2 `-light`: setting up the raw lightmaps compares a surface only with the later surfaces that can share its lightmap, instead of with all of them (same result) - on duel_mos_espa every light step starts 1-2 s earlier (much more when the computer is busy).
+- bhed_q3map2 `-light`, same result, faster shadow tests: four triangles are tested at once, and a random subsample stops at the first opaque triangle; loading the shader images no longer walks every pixel of every image.
+- bhed_q3map2 `-light`, same result: a point is tested only against the opaque brushes whose box holds it (four boxes at a time, also on the graphics card); with the graphics card and `-randomsamples`, idle processor threads take lightmaps from the graphics card again (taspir1 and md_am_sith clearly faster).
+- GPU bake Auto with `-randomsamples` ("[Final] Extreme Quality"): a third choice, the graphics card computing the random subsamples too (gathered over several blocks). Auto measures it once only where the graphics card was faster than the processor and keeps it only where it was the fastest - faster on maps with many small lightmaps (taspir1, kejim_post), never taken where it is slower.
 
 ## Deutsch
 
@@ -769,6 +924,9 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - Behoben: ein zweites `-light` auf einer schon mit Lichtstilen beleuchteten quake3-BSP stürzte ab (auch in NRCs q3map2): das Licht nimmt jetzt die „nomipmaps“-Flächen und die Shader des vorigen Lichts zurück und ergibt dasselbe wie einmal beleuchten.
 - bhed_q3map2 `-light`: die Vertexe einer Vertexlicht-Fläche teilen sich freie Threads, statt einen Thread allein zu beschäftigen (gleiches Ergebnis).
 - bhed_q3map2 `-light`: beim Anlegen der Raw-Lightmaps wird eine Fläche nur noch mit den späteren Flächen verglichen, die ihre Lightmap teilen können, statt mit allen (gleiches Ergebnis) - auf duel_mos_espa beginnt jeder Lichtschritt 1-2 s früher (bei ausgelastetem Rechner deutlich mehr).
+- bhed_q3map2 `-light`, gleiches Ergebnis, schnellere Schattentests: vier Dreiecke werden auf einmal geprüft, und eine zufällige Nachprobe endet am ersten undurchsichtigen Dreieck; das Laden der Shader-Bilder geht nicht mehr jedes Pixel jedes Bildes durch.
+- bhed_q3map2 `-light`, gleiches Ergebnis: ein Punkt wird nur gegen die undurchsichtigen Brushes geprüft, deren Box ihn hält (vier Boxen auf einmal, auch auf der Grafikkarte); mit der Grafikkarte und `-randomsamples` nehmen freie Prozessor-Threads wieder Lightmaps der Grafikkarte (taspir1 und md_am_sith deutlich schneller).
+- GPU-Backen Auto mit `-randomsamples` („[Final] Extreme Quality“): eine dritte Wahl, die Grafikkarte rechnet auch die zufälligen Nachproben (über mehrere Blöcke gesammelt). Auto misst sie nur dort einmal, wo die Grafikkarte schneller als der Prozessor war, und behält sie nur, wo sie die schnellste war - schneller auf Karten mit vielen kleinen Lightmaps (taspir1, kejim_post), nie genommen, wo sie langsamer ist.
 
 ## 中文
 
@@ -781,6 +939,9 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - 修复:对已用灯光样式照明过的 quake3 BSP 再执行一次 `-light` 会崩溃(NRC 的 q3map2 也是):现在照明会撤销上一次照明添加的“nomipmaps”面和着色器,结果与只照明一次相同。
 - bhed_q3map2 `-light`:顶点光照面的顶点由空闲线程分担,不再让一个线程单独忙碌(结果相同)。
 - bhed_q3map2 `-light`:建立原始光照贴图时,一个面只与之后可能共用其光照贴图的面比较,而不是与所有面比较(结果相同)——在 duel_mos_espa 上每个光照步骤提前 1-2 秒开始(电脑繁忙时提前得更多)。
+- bhed_q3map2 `-light`:结果相同,阴影测试更快:一次测试四个三角形,随机子采样在遇到第一个不透明三角形时即停止;加载着色器图像时不再遍历每张图像的每个像素。
+- bhed_q3map2 `-light`:结果相同:一个点只与包围盒包含它的不透明画刷比较(一次四个包围盒,显卡上也一样);使用显卡和 `-randomsamples` 时,空闲的处理器线程会再次接手显卡的光照贴图(taspir1 和 md_am_sith 明显更快)。
+- 使用 `-randomsamples`(“[Final] Extreme Quality”)时 GPU 烘焙自动模式有第三种选择:显卡也计算随机子采样(跨多个块收集)。自动模式只在显卡比处理器快的地图上测量一次,并只在它最快的地图上继续使用——在光照贴图多而小的地图(taspir1、kejim_post)上更快,在更慢的地图上从不选用。
 
 ## 日本語
 
@@ -793,3 +954,6 @@ Laden/Setup duel_mos_espa: s2 >160† / 119,2† s, s3 93,6† / 48,5† s; bei 
 - 修正:ライトスタイル付きで照明済みの quake3 BSP にもう一度 `-light` を実行するとクラッシュしていました(NRC の q3map2 でも同じ)。前回の照明が追加した「nomipmaps」の面とシェーダーを取り消し、1 回照明した場合と同じ結果になります。
 - bhed_q3map2 `-light`:頂点ライティングの面の頂点を空いているスレッドで分担し、1 つのスレッドだけが忙しくなることがなくなりました(結果は同じ)。
 - bhed_q3map2 `-light`:raw ライトマップの作成時に、面をすべての後続の面ではなく、そのライトマップを共有できる後続の面とだけ比較します(結果は同じ)。duel_mos_espa では各ライト処理が 1-2 秒早く始まります(コンピューターが混んでいるときはさらに早く)。
+- bhed_q3map2 `-light`:結果は同じで、影のテストが速くなりました。三角形を 4 つずつまとめてテストし、ランダムなサブサンプルは最初の不透明な三角形で止まります。シェーダー画像の読み込みで、すべての画像のすべてのピクセルを調べることはなくなりました。
+- bhed_q3map2 `-light`:結果は同じで、点はボックスがその点を含む不透明なブラシとだけ比較されます(ボックスを 4 つずつ、グラフィックカードでも同様)。グラフィックカードと `-randomsamples` では、空いているプロセッサーのスレッドが再びグラフィックカードのライトマップを引き受けます(taspir1 と md_am_sith がはっきり速くなりました)。
+- `-randomsamples`(「[Final] Extreme Quality」)での GPU ベイクの自動に 3 つ目の選択肢:グラフィックカードがランダムなサブサンプルも計算します(複数のブロックにまたがって集めます)。自動はグラフィックカードがプロセッサーより速かったマップでだけ一度計測し、最も速かったマップでだけ使い続けます。小さなライトマップが多いマップ(taspir1、kejim_post)で速く、遅くなるマップでは選ばれません。

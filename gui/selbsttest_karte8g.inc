@@ -9,6 +9,11 @@
 // Bau oben), dann Auto: der -light-Befehl hat -bhedgpubakeauto mit den gemerkten Zeiten, die Konsole
 // nennt Wahl und Grund, die Lumps sind wieder die des CPU-Baus, die Zeit ist gemerkt; am Ende Auto.
 //
+// vis4: Auto mit dem dritten Kandidaten GPU + Nachproben (bhed/gpuwahl.h): Build > [Final] Extreme
+// Quality (-randomsamples) einmal - die kleine Karte rechnet die CPU -, dann die GPU als schneller
+// gemerkt und noch einmal: Auto misst GPU + Nachproben (-bhedgpubakezeiten, Wahl in der Konsole),
+// die Lumps sind die des CPU-Laufs davor, die Zeit steht als dritte Zeit im Speicher.
+//
 // Eingebunden in gui/selbsttest.cpp nach selbsttest_karte8c.inc. Modus karteneditor
 // (BHED_KARTE_NUR=stufe8g: Tutorial und dieser Teil) und Bildlauf BHED_HB_NUR=gpubacken.
 namespace stufe8g {
@@ -16,6 +21,41 @@ namespace stufe8g {
 namespace ke = karteneditor;
 using stufe3::istDatei;
 using stufe3::konsoleText;
+
+// alle 18 Lumps zweier .bsp Byte fuer Byte gleich
+bool lumpsGleich(const std::string& a, const std::string& b) {
+    if (a.size() != b.size() || a.size() < 152) { return false; }
+    for (int i = 0; i < 18; ++i) {
+        std::uint32_t oa = 0, la = 0, ob = 0, lb = 0;
+        std::memcpy(&oa, a.data() + 8 + 8 * i, 4);
+        std::memcpy(&la, a.data() + 12 + 8 * i, 4);
+        std::memcpy(&ob, b.data() + 8 + 8 * i, 4);
+        std::memcpy(&lb, b.data() + 12 + 8 * i, 4);
+        if (la != lb || oa + la > a.size() || ob + lb > b.size() || std::memcmp(a.data() + oa, b.data() + ob, la) != 0) { return false; }
+    }
+    return true;
+}
+
+// die Licht-Schalter (Schluessel der gemerkten Zeiten) des ersten -light-Befehls in der Konsole
+std::string lichtSchalterAusKonsole() {
+    const std::string k = konsoleText();
+    const std::size_t pos = k.find("-light");
+    if (pos == std::string::npos) { return {}; }
+    const std::size_t ende = k.find('\n', pos);
+    return karte::lichtSchalter("q " + k.substr(pos, ende == std::string::npos ? std::string::npos : ende - pos));
+}
+
+// Build > <name> starten
+void bauEintragStarten(const char* name) {
+    const auto& v = ke::editor().bauProjekt.eintraege;
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        if (v[i].name == name) {
+            ke::bauStarten(i);
+            return;
+        }
+    }
+    meldeFehler(std::string("GPU-Backen: Eintrag ") + name + " fehlt");
+}
 
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
@@ -104,14 +144,7 @@ std::vector<Schritt> schritte() {
         karteDialogeZu();
         ke::konsoleLeeren();
         ke::editor().bau.gpuWahlText.clear();
-        const auto& v = ke::editor().bauProjekt.eintraege;
-        for (std::size_t i = 0; i < v.size(); ++i) {
-            if (v[i].name == "[Final] Fast") {
-                ke::bauStarten(i);
-                return;
-            }
-        }
-        meldeFehler("GPU-Backen Auto: Eintrag [Final] Fast fehlt");
+        bauEintragStarten("[Final] Fast");
     }));
     add(stufe8::warteSek("GPU-Backen Auto: Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
     add(pause(0.3));
@@ -121,16 +154,7 @@ std::vector<Schritt> schritte() {
         const std::string& w = ke::editor().bau.gpuWahlText;
         const bool schalter = k.find("-bhedgpubakeauto -bhedgpubakezeiten ") != std::string::npos;
         const bool text = !w.empty() && k.find(w) != std::string::npos;
-        const std::string g = dateiInhalt(stufe8c::stamm() + ".bsp");
-        bool lumpsGleich = g.size() == cpuBsp->size() && g.size() >= 152;
-        for (int i = 0; i < 18 && lumpsGleich; ++i) {
-            std::uint32_t oa = 0, la = 0, ob = 0, lb = 0;
-            std::memcpy(&oa, g.data() + 8 + 8 * i, 4);
-            std::memcpy(&la, g.data() + 12 + 8 * i, 4);
-            std::memcpy(&ob, cpuBsp->data() + 8 + 8 * i, 4);
-            std::memcpy(&lb, cpuBsp->data() + 12 + 8 * i, 4);
-            lumpsGleich = la == lb && oa + la <= g.size() && ob + lb <= cpuBsp->size() && std::memcmp(g.data() + oa, cpuBsp->data() + ob, la) == 0;
-        }
+        const bool gleich = lumpsGleich(dateiInhalt(stufe8c::stamm() + ".bsp"), *cpuBsp);
         bool gemerkt = false;
         for (std::size_t pos = k.find("-light"); pos != std::string::npos && !gemerkt; pos = k.find("-light", pos + 1)) {
             const std::size_t ende = k.find('\n', pos);
@@ -139,8 +163,52 @@ std::vector<Schritt> schritte() {
             gemerkt = z.cpuMs > 0 || z.gpuMs > 0;
         }
         diag::detail("Knopftest: GPU-Backen Auto - Schalter " + std::to_string(schalter ? 1 : 0) + ", Wahl \"" + w + "\", Lumps gleich " +
-                     std::to_string(lumpsGleich ? 1 : 0) + ", gemerkt " + std::to_string(gemerkt ? 1 : 0));
-        return schalter && text && lumpsGleich && gemerkt;
+                     std::to_string(gleich ? 1 : 0) + ", gemerkt " + std::to_string(gemerkt ? 1 : 0));
+        return schalter && text && gleich && gemerkt;
+    }));
+    // vis4: Auto mit dem dritten Kandidaten GPU + Nachproben ([Final] Extreme Quality, -randomsamples)
+    auto extremeBsp = std::make_shared<std::string>();
+    auto extremeSchalter = std::make_shared<std::string>();
+    add(tu("GPU-Backen Auto, Nachproben: Konsole leeren, Build > [Final] Extreme Quality", [] {
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::editor().bau.gpuWahlText.clear();
+        bauEintragStarten("[Final] Extreme Quality");
+    }));
+    add(stufe8::warteSek("GPU-Backen Auto, Nachproben: erster Bau fertig", [] { return !ke::bauLaeuft(); }, 600));
+    add(pause(0.3));
+    add(pruefe("GPU-Backen Auto, Nachproben: erster Lauf auf der CPU (kleine Karte, nichts gemerkt), CPU-Zeit gemerkt",
+               [extremeBsp, extremeSchalter] {
+        *extremeBsp = dateiInhalt(stufe8c::stamm() + ".bsp");
+        *extremeSchalter = lichtSchalterAusKonsole();
+        const karte::GpuZeiten z = ke::gpuZeitenHolen(ke::editor().name, *extremeSchalter);
+        diag::detail("Knopftest: GPU-Backen Auto, Nachproben 1 - Schalter [" + *extremeSchalter + "], Wahl \"" + ke::editor().bau.gpuWahlText +
+                     "\", CPU " + std::to_string(z.cpuMs) + " ms");
+        return !extremeBsp->empty() && extremeSchalter->find("-randomsamples") != std::string::npos && z.cpuMs > 0 && z.gpuzMs == 0 &&
+               ke::editor().bau.gpuWahlText.find(ke::trK(Str::KeGpuWahlCpu)) != std::string::npos;
+    }));
+    add(tu("GPU-Backen Auto, Nachproben: die GPU als schneller merken, noch einmal [Final] Extreme Quality", [extremeSchalter] {
+        const karte::GpuZeiten z = ke::gpuZeitenHolen(ke::editor().name, *extremeSchalter);
+        ke::gpuZeitMerken(ke::editor().name, *extremeSchalter, karte::GpuWeg::Gpu, static_cast<double>(z.cpuMs) / 2000.0);
+        karteDialogeZu();
+        ke::konsoleLeeren();
+        ke::editor().bau.gpuWahlText.clear();
+        bauEintragStarten("[Final] Extreme Quality");
+    }));
+    add(stufe8::warteSek("GPU-Backen Auto, Nachproben: zweiter Bau fertig", [] { return !ke::bauLaeuft(); }, 600));
+    add(pause(0.3));
+    add(pruefe("GPU-Backen Auto, Nachproben: GPU + Nachproben einmal gemessen (Konsole), Lumps gleich dem CPU-Lauf, dritte Zeit gemerkt",
+               [extremeBsp, extremeSchalter] {
+        const std::string k = konsoleText();
+        const std::string& w = ke::editor().bau.gpuWahlText;
+        const bool keineGpu = k.find("no usable GPU") != std::string::npos || k.find("without double") != std::string::npos;
+        const bool wahl = !w.empty() && k.find(w) != std::string::npos && w.find(ke::trK(Str::KeGpuWahlGpuZ)) != std::string::npos;
+        const bool gleich = lumpsGleich(dateiInhalt(stufe8c::stamm() + ".bsp"), *extremeBsp);
+        const karte::GpuZeiten z = ke::gpuZeitenHolen(ke::editor().name, *extremeSchalter);
+        diag::detail("Knopftest: GPU-Backen Auto, Nachproben 2 - Wahl \"" + w + "\", Lumps gleich " + std::to_string(gleich ? 1 : 0) +
+                     ", gemerkt CPU/GPU/Nachproben " + std::to_string(z.cpuMs) + "/" + std::to_string(z.gpuMs) + "/" + std::to_string(z.gpuzMs) +
+                     (keineGpu ? " (keine GPU mit double)" : ""));
+        return gleich && (keineGpu || (wahl && z.gpuzMs > 0 && k.find("-bhedgpubakezeiten ") != std::string::npos));
     }));
     add(tu("GPU-Backen: Ende - Dialoge zu", [] {
         karteDialogeZu();

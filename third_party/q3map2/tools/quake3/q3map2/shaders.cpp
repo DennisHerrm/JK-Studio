@@ -606,12 +606,25 @@ static void FinishShader( shaderInfo_t& si ){
 	}
 
 	/* find pixel coordinates best matching the average color of the image */
-	float bestDist = 99999999.f;
+	/* BehavEd vis4: bestDist is never lowered (as in q3map2), so stFlat is the st of the last pixel (row by row) that
+	   is closer than bestDist - searched from the last pixel backwards, usually the first one tested (it walked every
+	   pixel of every shader image before: most of LoadSurfaceExtraFile). st are the same float sums as in the walk. */
+	const float bestDist = 99999999.f;
 	const Vector2 o( 1.0f / si.shaderImage->width, 1.0f / si.shaderImage->height );
-	for ( y = 0, st[ 1 ] = 0; y < si.shaderImage->height; ++y, st[ 1 ] += o[ 1 ] )
+	std::vector<float> stX( std::max( 0, si.shaderImage->width ) ), stY( std::max( 0, si.shaderImage->height ) );
+	for ( x = 0, st[ 0 ] = 0; x < si.shaderImage->width; ++x, st[ 0 ] += o[ 0 ] ) {
+		stX[ x ] = st[ 0 ];
+	}
+	for ( y = 0, st[ 1 ] = 0; y < si.shaderImage->height; ++y, st[ 1 ] += o[ 1 ] ) {
+		stY[ y ] = st[ 1 ];
+	}
+	bool gefunden = false;
+	for ( y = si.shaderImage->height - 1; y >= 0 && !gefunden; --y )
 	{
-		for ( x = 0, st[ 0 ] = 0; x < si.shaderImage->width; ++x, st[ 0 ] += o[ 0 ] )
+		for ( x = si.shaderImage->width - 1; x >= 0 && !gefunden; --x )
 		{
+			st = Vector2( stX[ x ], stY[ y ] );
+
 			/* sample the shader image */
 			Color4f color;
 			RadSampleImage( si.shaderImage->pixels, si.shaderImage->width, si.shaderImage->height, st, color );
@@ -621,6 +634,7 @@ static void FinishShader( shaderInfo_t& si ){
 			const float dist = vector4_dot( delta, delta );
 			if ( dist < bestDist ) {
 				si.stFlat = st;
+				gefunden = true;
 			}
 		}
 	}

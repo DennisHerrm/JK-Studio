@@ -650,11 +650,10 @@ void schnellBauStarten(std::size_t kartenStand) {
                 }
                 const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - lichtStart).count();
                 if (p.rueckgabe() == 0 && modus != karte::GpuBacken::Aus) {
-                    const bool gpuLief = !bericht.keineGpu && (modus == karte::GpuBacken::Ein || bericht.autoGpu);
-                    gpuZeitMerken(kartenName, "-light -fast", gpuLief, sek);
+                    gpuZeitMerken(kartenName, "-light -fast", gpuWegDesLaufs(bericht, modus), sek);
                 }
                 std::lock_guard<std::mutex> l(g_backen.mutex);
-                g_backen.wahl = gpuWahlText(bericht, zeiten.cpuMs, zeiten.gpuMs);
+                g_backen.wahl = gpuWahlText(bericht, zeiten);
             }
             if (p.rueckgabe() != 0) {
                 std::lock_guard<std::mutex> l(g_backen.mutex);

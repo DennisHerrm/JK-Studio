@@ -1222,6 +1222,7 @@ struct trace_t
 {
 	/* constant input */
 	bool testOcclusion, forceSunlight, testAll;
+	bool bhedNurFarbe = false;          /* BehavEd vis4: the caller reads only color and directionContribution (TraceLine) */
 	int recvShadows;
 
 	int numSurfaces;
@@ -1855,6 +1856,7 @@ void                        SetupBrushesFlags( int mask_any, int test_any, int m
 void                        SetupBrushes();
 bool                        ClusterVisible( int a, int b );
 int                         ClusterForPointExt( const Vector3& point, float epsilon );
+const std::vector<float>&   BhedBrushBoxenGpu(); /* BehavEd vis4: boxes per brush for the GPU (lo xyz, hi xyz) */
 void                        SetupEnvelopes( bool forGrid, bool fastFlag );
 
 

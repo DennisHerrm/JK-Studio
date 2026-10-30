@@ -56,7 +56,7 @@ static_assert( sizeof( BhedBakeAktiv ) == 32, "Aktiv im Shader" );
 static_assert( sizeof( BhedBakeLicht ) == 128, "Licht im Shader" );
 static_assert( sizeof( BhedBakeGitterPunkt ) == 144, "GitterPunkt im Shader" );
 static_assert( sizeof( BhedBakeBsp::Knoten ) == 16 && sizeof( BhedBakeBsp::Ebene ) == 16 && sizeof( BhedBakeBsp::Blatt ) == 16 &&
-               sizeof( BhedBakeBsp::Brush ) == 16, "BSP im Shader" );
+               sizeof( BhedBakeBsp::Brush ) == 48, "BSP im Shader" );
 
 namespace
 {
@@ -141,8 +141,8 @@ struct RwPuffer
 // Register t0..t24 (siehe bhed_gpubacken.hlsl)
 enum Srv { sKnoten, sItems, sDreiecke, sInfos, sFlaechen, sVis, sLichter, sWindungen, sLuxel, sLms, sIdx, sLichtListe, sLmCluster, sAktiv, sAktivNr,
            sBspKnoten, sEbenen, sBlaetter, sBlattBrushes, sBrushes, sSeiten, sStartWert, sZufallTafel, sZufallSprung, sZufallLms, sAnzahl };
-// Register u0..u7
-enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uGitter, uZustand, uKand, uHilfe, uAnzahl };
+// Register u0..u7 (uSammel: vis4, nie gebunden - im Lauf ueber gesammelte Lightmaps tauscht er mit uP)
+enum Uav { uP, uF, uS, uZaehler, uLmFlag, uR, uGitter, uZustand, uKand, uHilfe, uSammel, uAnzahl };
 constexpr int kUavSlots = 8;   // u6/u7: Gitter/Zustand im Gitterkern, Kandidaten/Hilfe in den Lightmap-Kernen
 
 struct Gpu
@@ -674,7 +674,7 @@ bool BhedBakeStart( const std::vector<BhedBakeKnoten>& knoten, const std::vector
 	// Speicherbedarf der Szene (BVH-Ersatz: Knoten, Dreiecke; BSP) gegen den Grafikspeicher
 	const size_t bedarf = knoten.size() * sizeof( BhedBakeKnoten ) + items.size() * 4 + dreiecke.size() * sizeof( BhedBakeDreieck ) +
 	                      infos.size() * sizeof( BhedBakeInfo ) + visBytes + bsp.knoten.size() * 16 + bsp.ebenen.size() * 16 + bsp.blaetter.size() * 16 +
-	                      bsp.blattBrushes.size() * 4 + bsp.brushes.size() * 16 + bsp.seiten.size() * 4;
+	                      bsp.blattBrushes.size() * 4 + bsp.brushes.size() * sizeof( BhedBakeBsp::Brush ) + bsp.seiten.size() * 4;
 	std::vector<unsigned char> visKopie( vis != nullptr ? vis : reinterpret_cast<const unsigned char *>( "" ), vis != nullptr ? vis + visBytes : reinterpret_cast<const unsigned char *>( "" ) );
 	visKopie.resize( ( visKopie.size() + 3 ) & ~size_t( 3 ), 0 );
 	if ( visKopie.empty() ) {
@@ -762,7 +762,7 @@ bool BhedBakeErst( const BhedBakeBlock& b, std::vector<std::uint32_t>& zaehler, 
 	const UINT n = std::max<UINT>( b.paare, 1 );
 	if ( !puffer( b.luxel, sLuxel ) || !puffer( b.lms, sLms ) || !puffer( b.idx, sIdx ) || !puffer( b.lichtListe, sLichtListe ) ||
 	     !puffer( b.lmCluster, sLmCluster ) || !puffer( keinAktiv, sAktiv ) || !puffer( keineNr, sAktivNr ) || !puffer( b.startWert.empty() ? nullptr : b.startWert.data(), 16, UINT( b.startWert.size() / 4 ), sStartWert ) ||
-	     !platz( uP, n, 16, false ) || !platz( uF, n, 4, false ) || !platz( uS, g.schalter.lightSamples > 1 ? n : 1, 16, false ) ||
+	     !platz( uP, n, 16, false ) || !platz( uF, n, 4, false ) || !platz( uS, g.schalter.lightSamples > 1 && !g.schalter.zufall ? n : 1, 16, false ) ||
 	     !platz( uZaehler, UINT( std::max<size_t>( b.lichtListe.size(), 1 ) ), 4, true ) || !platz( uLmFlag, UINT( std::max<size_t>( b.lms.size(), 1 ) ), 4, true ) ||
 	     !platz( uR, 1, 16, true ) || !platz( uKand, g.schalter.lightSamples > 1 ? n : 1, 4, false ) || !platz( uHilfe, 1, 4, true ) ) {
 		ausfall( "not enough graphics memory for a block" );
@@ -792,7 +792,8 @@ static std::vector<std::uint32_t> zufallErster;
 static std::vector<int> zufallLms;
 constexpr UINT kZStand = 40;
 
-bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, bool zufallGpu ){
+bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags, BhedZufallWeg weg ){
+	const bool zufallGpu = weg == BhedZufallWeg::Gpu;
 	luxelAus.assign( size_t( b.aus ) * 4, 0.0f );
 	flags.assign( b.lms.size(), 1 );
 	if ( !g.bereit ) {
@@ -815,7 +816,8 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 		// sieht bis zum ersten Nachabtasten dieselben Werte), die Lightmap ist mit Filtern und Aufsummieren
 		// fertig. vis2: mit zufallGpu laeuft jede andere im Kern zufall (eine Gruppe je Lightmap, der serielle
 		// Lauf mit den Proben auf allen Faeden der Gruppe) - ausser den Teilen grosser Lightmaps (die Nummer der
-		// Nachprobe liefe ueber die Teile); sonst gehen sie an die CPU (Markierung in flags).
+		// Nachprobe liefe ueber die Teile); sonst gehen sie an die CPU oder in den Sammelpuffer (Markierung in
+		// flags; S braucht dieser Weg nicht, BhedBakeErst legt es dann nicht an).
 		const UINT voll[ 4 ] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
 		g.ktx->ClearUnorderedAccessViewUint( g.rw[ uHilfe ].uav, voll );
 		Kopf k = kopf;
@@ -919,7 +921,8 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 			for ( int a = L.aktivBase; a < L.aktivBase + L.nAktiv; ++a )
 			{
 				if ( zufallErster[ 1 + size_t( a ) ] != 0xffffffffu ) {
-					flags[ li ] |= L.start == 0 && zufallGpu ? 0u : 2u;   // nachzutasten auf der CPU
+					// nachzutasten auf der CPU (2) oder ueber den Sammelpuffer (4, vis4)
+					flags[ li ] |= L.start != 0 || weg == BhedZufallWeg::Cpu ? 2u : weg == BhedZufallWeg::Sammeln ? 4u : 0u;
 					break;
 				}
 			}
@@ -936,6 +939,62 @@ bool BhedBakeRest( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::ve
 		return false;
 	}
 	return true;
+}
+
+// vis4: der Sammelpuffer. Er kommt ohne Speicherreserve aus: mit -randomsamples legt BhedBakeErst S nicht an
+// (16 Byte je Paar des Budgets), der Sammelpuffer belegt hoechstens ebenso viel (die groesste Zweierpotenz bis
+// zum Budget, platz rundet nicht weiter auf).
+std::size_t BhedBakeSammelPaare(){
+	if ( !g.bereit ) {
+		return 0;
+	}
+	if ( g.rw[ uSammel ].kapazitaet == 0 ) {
+		UINT k = 1024;
+		while ( size_t( k ) * 2 <= g.budget && k < 0x40000000u ) {
+			k *= 2;
+		}
+		if ( !platz( uSammel, k, 16, false ) ) {
+			RwPuffer& p = g.rw[ uSammel ];
+			frei( p.uav );
+			frei( p.buf );
+			p.kapazitaet = 0;
+		}
+	}
+	return g.rw[ uSammel ].kapazitaet;
+}
+
+bool BhedBakeSammeln( std::uint32_t von, std::uint32_t ziel, std::uint32_t anzahl ){
+	if ( !g.bereit || anzahl == 0 ) {
+		return g.bereit;
+	}
+	const D3D11_BOX box{ von * 16u, 0, 0, ( von + anzahl ) * 16u, 1, 1 };
+	g.ktx->CopySubresourceRegion( g.rw[ uSammel ].buf, 0, ziel * 16u, 0, 0, g.rw[ uP ].buf, 0, &box );
+	return true;
+}
+
+bool BhedBakeSammelRechnen( const BhedBakeBlock& b, std::vector<float>& luxelAus, std::vector<std::uint32_t>& flags ){
+	luxelAus.assign( size_t( b.aus ) * 4, 0.0f );
+	flags.assign( b.lms.size(), 1 );
+	if ( !g.bereit ) {
+		return false;
+	}
+	// die gesammelten Farben als P; F wie nach der Erstabtastung (0), die Merker der Lightmaps leer
+	std::swap( g.rw[ uP ], g.rw[ uSammel ] );
+	const UINT n = std::max<UINT>( b.paare, 1 );
+	if ( !puffer( b.luxel, sLuxel ) || !puffer( b.idx, sIdx ) || !puffer( b.lichtListe, sLichtListe ) || !puffer( b.lmCluster, sLmCluster ) ||
+	     !platz( uF, n, 4, false ) || !platz( uKand, n, 4, false ) || !platz( uLmFlag, UINT( std::max<size_t>( b.lms.size(), 1 ) ), 4, true ) ||
+	     !platz( uZaehler, 2, 4, true ) ) {
+		std::swap( g.rw[ uP ], g.rw[ uSammel ] );
+		ausfall( "not enough graphics memory for the gathered lightmaps" );
+		return false;
+	}
+	const UINT null[ 4 ] = {};
+	g.ktx->ClearUnorderedAccessViewUint( g.rw[ uF ].uav, null );
+	g.ktx->ClearUnorderedAccessViewUint( g.rw[ uLmFlag ].uav, null );
+	const bool ok = BhedBakeRest( b, luxelAus, flags, BhedZufallWeg::Gpu );
+	std::swap( g.rw[ uP ], g.rw[ uSammel ] );
+	++g.zahlen.sammelLaeufe;
+	return ok;
 }
 
 bool BhedBakeGitter( std::vector<BhedBakeGitterPunkt>& punkte, const BhedBakeGitterSchalter& s, const std::atomic<bool> *halt, bool *angehalten ){

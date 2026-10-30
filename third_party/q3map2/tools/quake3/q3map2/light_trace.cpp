@@ -33,6 +33,9 @@
 #include "bhed_gpuschatten.h"
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */ /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
 #include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake, light contributions on the GPU */
+#include <bit>
+#include <emmintrin.h> /* BehavEd vis4: SSE2 (the x64 baseline) for four triangles at once */
+#include <vector>
 
 
 #define MAX_NODE_ITEMS          5
@@ -1070,6 +1073,44 @@ static void PopulateTraceNodes(){
    creates a balanced bsp with axis-aligned splits for efficient raytracing
  */
 
+/* BehavEd vis4: the triangles of every leaf of the trace tree in groups of four, component by component (vertex 0,
+   edge 1, edge 2 - for the geometric test of TraceTriangle on four triangles at once, BhedViererTest); unused lanes
+   are zero (det 0: rejected) */
+struct alignas( 16 ) BhedVierer
+{
+	float v0[ 3 ][ 4 ], e1[ 3 ][ 4 ], e2[ 3 ][ 4 ];
+};
+static std::vector<BhedVierer> g_bhedVierer;
+static std::vector<int> g_bhedViererAb;   /* per trace node: its first group (leaves with triangles), else -1 */
+
+static void BhedViererBauen(){
+	g_bhedVierer.clear();
+	g_bhedViererAb.assign( numTraceNodes, -1 );
+	for ( int n = 0; n < numTraceNodes; ++n )
+	{
+		const traceNode_t& node = traceNodes[ n ];
+		if ( node.type >= 0 || node.numItems <= 0 ) {
+			continue;
+		}
+		g_bhedViererAb[ n ] = int( g_bhedVierer.size() );
+		for ( int j0 = 0; j0 < node.numItems; j0 += 4 )
+		{
+			BhedVierer g{};
+			for ( int l = 0; l < 4 && j0 + l < node.numItems; ++l )
+			{
+				const traceTriangle_t& tt = traceTriangles[ node.items[ j0 + l ] ];
+				for ( int c = 0; c < 3; ++c )
+				{
+					g.v0[ c ][ l ] = tt.v[ 0 ].xyz[ c ];
+					g.e1[ c ][ l ] = tt.edge1[ c ];
+					g.e2[ c ][ l ] = tt.edge2[ c ];
+				}
+			}
+			g_bhedVierer.push_back( g );
+		}
+	}
+}
+
 void SetupTraceNodes(){
 	/* note it */
 	Sys_FPrintf( SYS_VRB, "--- SetupTraceNodes ---\n" );
@@ -1112,6 +1153,8 @@ void SetupTraceNodes(){
 	numTraceWindings = 0;
 	maxTraceWindings = 0;
 	deadWinding = -1;
+
+	BhedViererBauen(); /* BehavEd vis4 */
 
 	/* debug code: write out trace triangles to an alias obj file */
 	#if 0
@@ -1324,6 +1367,68 @@ static bool TraceTriangle( const traceInfo_t& ti, const traceTriangle_t& tt, tra
 
 
 
+/* BehavEd vis4: the geometric test of TraceTriangle (determinant, u, v, depth against inhibitRadius and distance) for
+   the four triangles of a group at once - the same float operations in the same order as there (vector3_cross,
+   vector3_dot left to right; the product of the float dot and invDet in double is exact, so its float rounding is
+   the float product; /fp:precise and SSE2, no FMA, so the scalar code has no contraction either). Returns the lanes
+   that pass it (NaN passes like there: only the comparisons that reject are tested). TraceTriangle has no side
+   effects before that test, so a triangle that fails it can be skipped: TraceLine calls TraceTriangle only for the
+   others, in item order - the same result. */
+struct BhedStrahl
+{
+	__m128 dx, dy, dz, ox, oy, oz, inhibit, distanz;
+};
+static BhedStrahl BhedStrahlSetzen( const trace_t *trace ){
+	return BhedStrahl{ _mm_set1_ps( trace->direction[ 0 ] ), _mm_set1_ps( trace->direction[ 1 ] ), _mm_set1_ps( trace->direction[ 2 ] ),
+	                   _mm_set1_ps( trace->origin[ 0 ] ), _mm_set1_ps( trace->origin[ 1 ] ), _mm_set1_ps( trace->origin[ 2 ] ),
+	                   _mm_set1_ps( trace->inhibitRadius ), _mm_set1_ps( trace->distance ) };
+}
+static inline int BhedViererTest( const BhedVierer& g, const BhedStrahl& s ){
+	const __m128 e1x = _mm_load_ps( g.e1[ 0 ] ), e1y = _mm_load_ps( g.e1[ 1 ] ), e1z = _mm_load_ps( g.e1[ 2 ] );
+	const __m128 e2x = _mm_load_ps( g.e2[ 0 ] ), e2y = _mm_load_ps( g.e2[ 1 ] ), e2z = _mm_load_ps( g.e2[ 2 ] );
+	/* pvec = cross( direction, edge2 ), det = dot( edge1, pvec ) */
+	const __m128 px = _mm_sub_ps( _mm_mul_ps( s.dy, e2z ), _mm_mul_ps( s.dz, e2y ) );
+	const __m128 py = _mm_sub_ps( _mm_mul_ps( s.dz, e2x ), _mm_mul_ps( s.dx, e2z ) );
+	const __m128 pz = _mm_sub_ps( _mm_mul_ps( s.dx, e2y ), _mm_mul_ps( s.dy, e2x ) );
+	const __m128 det = _mm_add_ps( _mm_add_ps( _mm_mul_ps( e1x, px ), _mm_mul_ps( e1y, py ) ), _mm_mul_ps( e1z, pz ) );
+	__m128 weg = _mm_cmplt_ps( _mm_andnot_ps( _mm_set1_ps( -0.0f ), det ), _mm_set1_ps( COPLANAR_EPSILON ) );
+	const __m128 invDet = _mm_div_ps( _mm_set1_ps( 1.0f ), det );
+	/* tvec = origin - v0, u = dot( tvec, pvec ) * invDet */
+	const __m128 tx = _mm_sub_ps( s.ox, _mm_load_ps( g.v0[ 0 ] ) );
+	const __m128 ty = _mm_sub_ps( s.oy, _mm_load_ps( g.v0[ 1 ] ) );
+	const __m128 tz = _mm_sub_ps( s.oz, _mm_load_ps( g.v0[ 2 ] ) );
+	const __m128 u = _mm_mul_ps( _mm_add_ps( _mm_add_ps( _mm_mul_ps( tx, px ), _mm_mul_ps( ty, py ) ), _mm_mul_ps( tz, pz ) ), invDet );
+	const __m128 baryUnten = _mm_set1_ps( -BARY_EPSILON ), baryOben = _mm_set1_ps( 1.0f + BARY_EPSILON );
+	weg = _mm_or_ps( weg, _mm_or_ps( _mm_cmplt_ps( u, baryUnten ), _mm_cmpgt_ps( u, baryOben ) ) );
+	/* qvec = cross( tvec, edge1 ), v = dot( direction, qvec ) * invDet, depth = dot( edge2, qvec ) * invDet */
+	const __m128 qx = _mm_sub_ps( _mm_mul_ps( ty, e1z ), _mm_mul_ps( tz, e1y ) );
+	const __m128 qy = _mm_sub_ps( _mm_mul_ps( tz, e1x ), _mm_mul_ps( tx, e1z ) );
+	const __m128 qz = _mm_sub_ps( _mm_mul_ps( tx, e1y ), _mm_mul_ps( ty, e1x ) );
+	const __m128 v = _mm_mul_ps( _mm_add_ps( _mm_add_ps( _mm_mul_ps( s.dx, qx ), _mm_mul_ps( s.dy, qy ) ), _mm_mul_ps( s.dz, qz ) ), invDet );
+	weg = _mm_or_ps( weg, _mm_or_ps( _mm_cmplt_ps( v, baryUnten ), _mm_cmpgt_ps( _mm_add_ps( u, v ), baryOben ) ) );
+	const __m128 depth = _mm_mul_ps( _mm_add_ps( _mm_add_ps( _mm_mul_ps( e2x, qx ), _mm_mul_ps( e2y, qy ) ), _mm_mul_ps( e2z, qz ) ), invDet );
+	weg = _mm_or_ps( weg, _mm_or_ps( _mm_cmple_ps( depth, s.inhibit ), _mm_cmpge_ps( depth, s.distanz ) ) );
+	return ~_mm_movemask_ps( weg ) & 0xf;
+}
+
+/* BehavEd vis4: the triangles of a leaf in item order, TraceTriangle only for those that pass the geometric test
+   (BhedViererTest); true: an opaque hit, tracing can stop */
+static bool BhedBlattTesten( int nodeNum, const BhedStrahl& s, trace_t *trace ){
+	const traceNode_t& node = traceNodes[ nodeNum ];
+	const BhedVierer *g = g_bhedVierer.data() + g_bhedViererAb[ nodeNum ];
+	for ( int j0 = 0; j0 < node.numItems; j0 += 4, ++g )
+	{
+		for ( unsigned int m = unsigned( BhedViererTest( *g, s ) ); m != 0; m &= m - 1 )
+		{
+			const traceTriangle_t& tt = traceTriangles[ node.items[ j0 + std::countr_zero( m ) ] ];
+			if ( TraceTriangle( traceInfos[ tt.infoNum ], tt, trace ) ) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 /*
    TraceWinding() - ydnar
    temporary hack
@@ -1488,6 +1593,74 @@ static bool TraceLine_r( int nodeNum, const Vector3& origin, const Vector3& end,
 }
 
 
+
+/* BehavEd vis4: TraceLine for a caller that reads only color and directionContribution (trace->bhedNurFarbe:
+   the random subsamples, the biggest part of "[Final] Extreme Quality"), without testAll and with surfaces.
+   TraceLine first walks the whole ray to its end or the first solid leaf, noting the leaves with triangles
+   (front to back, at most MAX_TRACE_TEST_NODES), and only then tests their triangles in that order. Here the
+   triangles of such a leaf are tested as soon as the walk reaches it, in the same order; the first opaque one
+   ends the trace. The color is the same: an opaque triangle or a solid leaf makes it 0 in both (LightContribution-
+   ToSample), and otherwise every triangle of the noted leaves is tested in the same order (the same light
+   filters). Only forceSubsampling, compileFlags, skyIndices and hit can differ, which such a caller does not
+   read. */
+static bool TraceLineFarbe_r( int nodeNum, const Vector3& start, const Vector3& end, const BhedStrahl& s, trace_t *trace ){
+	Vector3 origin( start );
+	while ( true )
+	{
+		if ( nodeNum < 0 ) {
+			trace->passSolid = true;
+			return true;
+		}
+		const traceNode_t& node = traceNodes[ nodeNum ];
+		if ( node.type == TRACE_LEAF_SOLID ) {
+			trace->passSolid = true;
+			return true;
+		}
+		if ( node.type < 0 ) {
+			if ( node.numItems > 0 && trace->numTestNodes < MAX_TRACE_TEST_NODES ) {
+				++trace->numTestNodes;
+				return BhedBlattTesten( nodeNum, s, trace );
+			}
+			return false;
+		}
+		float front, back;
+		switch ( node.type )
+		{
+		case ePlaneX:
+			front = origin[ 0 ] - node.plane.dist();
+			back = end[ 0 ] - node.plane.dist();
+			break;
+		case ePlaneY:
+			front = origin[ 1 ] - node.plane.dist();
+			back = end[ 1 ] - node.plane.dist();
+			break;
+		case ePlaneZ:
+			front = origin[ 2 ] - node.plane.dist();
+			back = end[ 2 ] - node.plane.dist();
+			break;
+		default:
+			front = plane3_distance_to_point( node.plane, origin );
+			back = plane3_distance_to_point( node.plane, end );
+			break;
+		}
+		if ( front >= -TRACE_ON_EPSILON && back >= -TRACE_ON_EPSILON ) {
+			nodeNum = node.children[ 0 ];
+			continue;
+		}
+		if ( front < TRACE_ON_EPSILON && back < TRACE_ON_EPSILON ) {
+			nodeNum = node.children[ 1 ];
+			continue;
+		}
+		const int side = front < 0;
+		const float frac = front / ( front - back );
+		const Vector3 mid = origin + ( end - origin ) * frac;
+		if ( TraceLineFarbe_r( node.children[ side ], origin, mid, s, trace ) ) {
+			return true;
+		}
+		nodeNum = node.children[ !side ];
+		origin = mid;
+	}
+}
 
 /*
    TraceLine() - ydnar
@@ -1668,8 +1841,14 @@ bool BhedBakeVorbereiten( const std::string& adapter ){
 		bsp.blaetter.push_back( { l.cluster, l.firstBSPLeafBrush, l.numBSPLeafBrushes, 0 } );
 	}
 	bsp.blattBrushes = bspLeafBrushes;
+	const std::vector<float>& boxen = BhedBrushBoxenGpu();
+	if ( boxen.size() != bspBrushes.size() * 6 ) {
+		return false;
+	}
 	for ( size_t b = 0; b < bspBrushes.size(); ++b ) {
-		bsp.brushes.push_back( { bspBrushes[ b ].firstSide, bspBrushes[ b ].numSides, b < opaqueBrushes.size() && opaqueBrushes[ b ] ? 1 : 0, 0 } );
+		const float *box = &boxen[ b * 6 ];
+		bsp.brushes.push_back( { bspBrushes[ b ].firstSide, bspBrushes[ b ].numSides, b < opaqueBrushes.size() && opaqueBrushes[ b ] ? 1 : 0, 0,
+		                         { box[ 0 ], box[ 1 ], box[ 2 ] }, 0.0f, { box[ 3 ], box[ 4 ], box[ 5 ] }, 0.0f } );
 	}
 	for ( const bspBrushSide_t& side : bspBrushSides ) {
 		bsp.seiten.push_back( side.planeNum );
@@ -1717,6 +1896,15 @@ void TraceLine( trace_t *trace ){
 		return;
 	}
 
+	/* BehavEd vis4: only the color counts - stop at the first opaque triangle (TraceLineFarbe_r) */
+	if ( trace->bhedNurFarbe && !trace->testAll && !noSurfaces ) {
+		TraceLineFarbe_r( headNodeNum, trace->origin, trace->end, BhedStrahlSetzen( trace ), trace );
+		if ( trace->passSolid ) {
+			trace->opaque = true;
+		}
+		return;
+	}
+
 	/* trace through nodes */
 	TraceLine_r( headNodeNum, trace->origin, trace->end, trace );
 	if ( trace->passSolid && !trace->testAll ) {
@@ -1737,22 +1925,12 @@ void TraceLine( trace_t *trace ){
 		TraceLine_r( skyboxNodeNum, trace->origin, trace->end, trace );
 	}
 
-	/* walk node list */
+	/* walk node list (BehavEd vis4: four triangles at a time, BhedBlattTesten) */
+	const BhedStrahl s = BhedStrahlSetzen( trace );
 	for ( int i = 0; i < trace->numTestNodes; ++i )
 	{
-		/* get node */
-		traceNode_t& node = traceNodes[ trace->testNodes[ i ] ];
-
-		/* walk node item list */
-		for ( int j = 0; j < node.numItems; ++j )
-		{
-			const traceTriangle_t& tt = traceTriangles[ node.items[ j ] ];
-			traceInfo_t& ti = traceInfos[ tt.infoNum ];
-			if ( TraceTriangle( ti, tt, trace ) ) {
-				return;
-			}
-			//%	if( TraceWinding( &traceWindings[ node.items[ j ] ], trace ) )
-			//%		return;
+		if ( BhedBlattTesten( trace->testNodes[ i ], s, trace ) ) {
+			return;
 		}
 	}
 }

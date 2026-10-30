@@ -61,7 +61,7 @@ struct Aktiv { int j; int slot; int radius; int negativ; int maske; int apad0; i
 struct BspKnoten { int ebene; int k0; int k1; int pad; };
 struct Ebene { float nx; float ny; float nz; float dist; };
 struct Blatt { int cluster; int ersterBrush; int anzahlBrushes; int pad; };
-struct Brush { int ersteSeite; int anzahlSeiten; int opak; int pad; };
+struct Brush { int ersteSeite; int anzahlSeiten; int opak; int pad; float3 lo; float pad1; float3 hi; float pad2; };   // lo/hi: Box aus den achsparallelen Seiten (vis4)
 // ein Punkt des Lichtgitters (rawGridPoint_t): Ursprung und Cluster aus dem Vorlauf, dir, ambient,
 // directed, styles (4 Byte); zurueck dazu neu (in diesem Lauf vergebene Stile) und flag (1: die CPU)
 struct GitterPunkt
@@ -959,12 +959,15 @@ int clusterExt(float3 p, float eps)
     const int blatt = punktBlatt(p);
     const Blatt bl = blaetter[blatt];
     if (bl.cluster <= -1) { return -1; }
+    // vis4: wie BhedBrushBoxen der CPU - ausserhalb der Box verwirft auch der genaue Test den Brush
+    const bool boxen = eps <= 0.25f && all(abs(p) <= 3.0e38f);
     [loop] for (int i = 0; i < bl.anzahlBrushes; ++i)
     {
         const int b = blattBrushes[bl.ersterBrush + i];
         if (b > maxOpaqueBrush) { continue; }
         const Brush br = brushes[b];
         if (br.opak == 0) { continue; }
+        if (boxen && (any(p < br.lo) || any(p > br.hi))) { continue; }
         bool innen = true;
         [loop] for (int s = 0; s < br.anzahlSeiten; ++s)
         {
