@@ -15,6 +15,7 @@
 #include "bhed/menue/ownerdraw.h"
 
 #include "bhed/menue/feeder.h"
+#include "bhed/menue/pazaak.h"
 
 #include <algorithm>
 #include <cmath>
@@ -374,6 +375,7 @@ void mp(Zeichner& z, OdErgebnis& r) {
 
 void sp(Zeichner& z, OdErgebnis& r) {
     const OdAufruf& a = z.a;
+    const OdKontext& k = z.k;
     const float x = a.x + a.textX;
     const float y = a.y + a.textY;
     r.bekannt = true;
@@ -391,6 +393,23 @@ void sp(Zeichner& z, OdErgebnis& r) {
             break;
         }
         case SP_GLINFO: glInfo(z, x, y, a.w, a.h); break;
+        case 257:   // Movie Duels UI_DUELMAPS_SELECTION: duelMaps[duelMapIndex = 1].duelMapImage, sonst menuBackShader
+            if (k.spiel != Spiel::MD) {
+                r.bekannt = false;
+                break;
+            }
+            {
+                const std::string b = mdDuellKarteBild(1);
+                z.bild(a.x, a.y, a.w, a.h, !b.empty() && k.bildDa && k.bildDa(b) ? b : std::string("menu/art/unknownmap"));
+            }
+            break;
+        case 203:   // UI_DATAPAD_MISSION .. UI_DATAPAD_FORCEPOWERS: cgame (Beispielwerte)
+        case 204:
+        case 205:
+        case 206:
+            r.bekannt = k.datapad && k.datapad(a.id, r.teile);
+            r.beispiel = true;
+            break;
         default: r.bekannt = false; break;
     }
 }
@@ -505,6 +524,15 @@ MpKraft mpKraft(const std::string& forcePowers, bool freeSaber, const Spielbeisp
 
 OdErgebnis ownerDraw(const OdAufruf& a, const OdKontext& k) {
     OdErgebnis r;
+    if (k.spiel == Spiel::MD && a.id >= 2000 && a.id < 3000) {   // Movie Duels: erst UI_Pazaak_OwnerDraw
+        PazaakKontext pk;
+        pk.breite = [&k](const std::string& t, float sc) { return k.breite ? k.breite(t, sc, 0, "ergoec") : 0; };
+        pk.zeitMs = k.zeitMs;
+        if (k.pazaak != nullptr) { pk.zustand = *k.pazaak; }
+        r.bekannt = pazaakOwnerDraw(a.id, a.x, a.y, a.w, a.h, a.shader, pk, r.teile);
+        r.beispiel = true;
+        return r;
+    }
     Zeichner z{a, k, r};
     if (k.dialekt == Dialekt::MP) {
         mp(z, r);

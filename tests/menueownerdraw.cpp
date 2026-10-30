@@ -1,8 +1,10 @@
 // menueownerdraw.cpp - Menue-Editor M7 Punkt 14: UI_OwnerDraw je Nummer wie die Engine
 // (codemp/ui/ui_main.c, ui_force.c, code/ui/ui_main.cpp; Movie Duels ui_main.cpp, ui_pazaak.cpp).
+#include "bhed/menue/datapad.h"
 #include "bhed/menue/feeder.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/ownerdraw.h"
+#include "bhed/menue/pazaak.h"
 #include "bhed/menue/vorschau.h"
 
 #include <cmath>
@@ -183,6 +185,106 @@ int main() {
                "SP UI_DrawGLInfo: eine Spalte, letzte gezaehlte Zeile faellt weg");
         s.k.gl = nullptr;
         pruefe(s.od(249).beispiel, "ohne Treiberdaten: Beispiel");
+    }
+    // --- Datapad (code/cgame CG_DrawDataPad*) ---------------------------------------------
+    {
+        const std::vector<std::string> icons = waffenIcons("// x\n{\nweapontype WP_SABER\nweaponIcon gfx/hud/w_icon_lightsaber\n}\n"
+                                                           "{ weapontype WP_BLASTER_PISTOL weaponIcon gfx/hud/w_icon_blaster_pistol }\n"
+                                                           "{ weapontype WP_BLASTER weaponIcon gfx/hud/w_icon_blaster }\n"
+                                                           "/* { weapontype WP_THERMAL weaponIcon falsch } */ { weapontype WP_THERMAL weaponIcon gfx/hud/w_icon_thermal }");
+        pruefe(icons.size() == 14 && icons[1] == "gfx/hud/w_icon_lightsaber" && icons[10] == "gfx/hud/w_icon_thermal", "weapons.dat: weaponIcon je weapontype");
+        DatapadKontext k;
+        k.se = [](const std::string& key) { return "@" + key; };
+        k.breite = [](const std::string& t, float, const std::string&) { return static_cast<int>(t.size()) * 10; };
+        k.hoehe = [](float, const std::string&) { return 20; };
+        k.waffenIcon = icons;
+        std::vector<OdTeil> w;
+        zeichneDatapad(kDpWeapons, k, w);
+        // 4 Waffen, Saebel gewaehlt: links 1 (Thermal, rueckwaerts ueber Erschuetterung), Mitte, rechts 2
+        pruefe(w.size() >= 4 && w[0].inhalt == "gfx/hud/w_icon_thermal" && nah(w[0].x, 176) && w[1].inhalt == "gfx/hud/w_icon_lightsaber" &&
+                   nah(w[1].x, 280) && nah(w[1].y, 330) && nah(w[1].w, 80) && w[2].inhalt == "gfx/hud/w_icon_blaster_pistol" && nah(w[2].x, 424) &&
+                   nah(w[3].x, 496),
+               "CG_DrawDataPadWeaponSelect: Lage der Symbole");
+        pruefe(w.size() >= 5 && w[4].inhalt == "@SP_INGAME_SABER_DESC" && w[4].schrift == "arialnb" && nah(w[4].x, 40) && nah(w[4].y, 60),
+               "Waffentext in CG_DisplayBoxedText(40, 60, ..., arialnb)");
+        std::vector<OdTeil> f;
+        zeichneDatapad(kDpForcePowers, k, f);
+        // 8 Kraefte, Sprung gewaehlt (Index 4): links 3, Mitte 70x70, rechts 3
+        pruefe(f.size() >= 8 && f[3].inhalt == "gfx/mp/f_icon_levitation" && nah(f[3].x, 285) && nah(f[3].y, 325) && nah(f[3].w, 70) &&
+                   f[0].inhalt == "gfx/mp/f_icon_sight" && nah(f[0].x, 181) && nah(f[2].x, 37) && f[4].inhalt == "gfx/mp/f_icon_speed" && nah(f[6].x, 563),
+               "CG_DrawDataPadForceSelect: Mitte und Nachbarn");
+        std::string ft;
+        for (std::size_t i = 7; i < f.size(); ++i) { ft += f[i].inhalt; }
+        pruefe(ft == "@SP_INGAME_FORCE_JUMP_DESC@SP_INGAME_FORCE_JUMP_LVL1_DESC" && f.size() == 9 && nah(f[8].y, 90), "Krafttext + Stufe 1, umbrochen (1,5 * Hoehe)");
+        std::vector<OdTeil> z;
+        zeichneDatapad(kDpObjectives, k, z);
+        // Titel, Kreis, Punkt (erfuellt), Text, Kreis, Text
+        pruefe(z.size() == 6 && z[0].inhalt == "@SP_INGAME_OBJECTIVES" && nah(z[0].x, 38) && nah(z[0].y, 52) && z[1].inhalt == "gfx/hud/objective_circle" &&
+                   nah(z[1].x, 36) && nah(z[1].y, 83) && z[2].inhalt == "gfx/hud/message_on" && z[3].inhalt == "@OBJECTIVES_T1_SOUR_OBJ1" && nah(z[3].y, 75) &&
+                   nah(z[5].y, 95),
+               "CG_DrawDataPadObjectives: Titel, Kreise, Zeilen");
+        k.werte.ziele.clear();
+        z.clear();
+        zeichneDatapad(kDpObjectives, k, z);
+        pruefe(z.size() == 2 && z[1].inhalt == "@SP_INGAME_OBJNONE", "keine Ziele: SP_INGAME_OBJNONE");
+    }
+    // --- Feeder: Movie Duels (Tabellen aus ui_main.cpp), MP-Saebel, Darstellung ja/nein -------
+    {
+        FeederDaten fd;
+        fd.gebaut = true;
+        fd.dialekt = Dialekt::SP;
+        fd.spiel = Spiel::MD;
+        const std::vector<FeederEintrag> karten = fd.eintraege(87);
+        pruefe(!karten.empty() && karten[0].spalten[0] == "@MD_MENU_MAIN_DM_EPISODE_1" && karten[1].spalten[0] == "@MD_MENU_MAIN_DM_N_TFF",
+               "MD FEEDER_DUEL_MAPS: duelMaps[].duelMapName");
+        const std::vector<FeederEintrag> figuren = fd.eintraege(85);
+        pruefe(!figuren.empty() && figuren[0].bild == "gfx/menus/charactermenuicons/md_atris", "MD FEEDER_MD_MODELS: Symbol aus npc, wenn icon leer");
+        pruefe(fd.eintraege(84).size() == 8 && fd.eintraege(88).size() > 1 && fd.eintraege(88)[0].spalten[0] == "@MENUS_SINGLE_HILT1",
+               "MD Epochen und Griffe");
+        pruefe(fd.art(87) == 1 && fd.art(0x60) == 0 && fd.art(feeder_sp::SAVEGAMES) == 1, "Darstellung: MD-Liste ja, unbekannte nein");
+        fd.dialekt = Dialekt::MP;
+        fd.spiel = Spiel::JA;
+        pruefe(fd.art(feeder_mp::PLAYER_LIST) == 2 && fd.eintraege(feeder_mp::PLAYER_LIST).size() == 3 && fd.art(0x0d) == 1 && fd.art(0x99) == 0,
+               "MP: Spielerliste als Beispiel, Serverstatus leer wie im Hauptmenue, unbekannt = Platzhalter");
+        std::vector<std::string> ein, stab;
+        // Name, "{" in der naechsten Zeile; notInMP 1 faellt weg; twoHanded -> Stab; "{" in derselben Zeile wird nicht erkannt
+        saberListen("single_1\n{\nname \"@MENUS_SINGLE\"\n}\nkylesaber\n{\nname Kyle\nnotInMP 1\n}\n"
+                    "dual_1\n{\nname \"Stab 1\"\ntwoHanded 1\n}\nfalsch {\nname X\n}\n",
+                    ein, stab);
+        pruefe(ein.size() == 1 && ein[0] == "@MENUS_SINGLE" && stab.size() == 1 && stab[0] == "Stab 1", "WP_SaberGetHiltInfo: Listen wie das Spiel");
+        fd.saberEinhand = ein;
+        fd.se = [](const std::string& k) { return "<" + k + ">"; };
+        pruefe(fd.eintraege(feeder_mp::SABER_SINGLE_INFO).size() == 1 && fd.eintraege(feeder_mp::SABER_SINGLE_INFO)[0].spalten[0] == "<MENUS_SINGLE>",
+               "FEEDER_SABER_SINGLE_INFO: UI_SaberProperNameForSaber uebersetzt @");
+    }
+    // --- Movie Duels: Pazaak (ui_pazaak.cpp) und UI_DUELMAPS_SELECTION ---------------------
+    {
+        PazaakKontext pk;
+        pk.breite = [](const std::string& t, float) { return static_cast<int>(t.size()) * 10; };
+        std::vector<OdTeil> f;
+        // Feld 1: Deckkarte 5 (green_m), Text in der Kartenmitte: x + w/4 + (w/4 - Breite*0,5/2), y + h*0,25
+        pruefe(pazaakOwnerDraw(2001, 100, 50, 40, 60, "", pk, f) && f.size() == 2 && f[0].inhalt == "gfx/minigames/pazaak/cards/green_m.png" &&
+                   nah(f[0].farbe.a, 0.8F) && f[1].inhalt == "5" && nah(f[1].x, 117) && nah(f[1].y, 65) && f[1].schrift == "ergoec" && nah(f[1].scale, 0.5F),
+               "Pazaak Feldkarte");
+        f.clear();
+        (void)pazaakOwnerDraw(2105, 0, 0, 40, 60, "", pk, f);
+        pruefe(f.size() == 2 && f[0].inhalt == "gfx/minigames/pazaak/cards/back_m.png" && f[1].inhalt.empty(), "Pazaak Gegnerhand: Rueckseite ohne Wert");
+        f.clear();
+        (void)pazaakOwnerDraw(2301, 300, 20, 0, 0, "", pk, f);
+        pruefe(f.size() == 1 && f[0].inhalt == "( ^516 ^7)" && nah(f[0].x, 300 - 50), "Pazaak Punkte rechtsbuendig, Farbcodes");
+        f.clear();
+        (void)pazaakOwnerDraw(2202, 400, 20, 0, 0, "", pk, f);
+        pruefe(f.size() == 2 && f[1].inhalt == "Gambler" && nah(f[0].scale, 0.51F) && nah(f[1].x, 400 - 35), "Pazaak Gegnername mit Schatten");
+        f.clear();
+        (void)pazaakOwnerDraw(2601, 0, 0, 40, 60, "", pk, f);
+        pruefe(f.size() == 3 && f[2].inhalt == "1" && f[2].stil == 3, "Pazaak Kartenwahl: Anzahl - im Deck, mit Schatten");
+        pruefe(!pazaakOwnerDraw(1999, 0, 0, 1, 1, "", pk, f), "keine Pazaak-Nummer");
+        Welt w(Dialekt::SP, Spiel::MD);
+        w.k.bildDa = [](const std::string& b) { return b == "levelshots/bg_tradefed"; };
+        const OdErgebnis d = w.od(257);
+        pruefe(d.bekannt && d.teile.size() == 1 && d.teile[0].inhalt == "levelshots/bg_tradefed", "MD UI_DUELMAPS_SELECTION: duelMaps[1].duelMapImage");
+        Welt ja(Dialekt::SP);
+        pruefe(!ja.od(257).bekannt, "257 nur in Movie Duels");
     }
     std::printf("menueownerdraw: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

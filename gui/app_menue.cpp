@@ -31,6 +31,7 @@
 #include "bhed/image.h"
 #include "bhed/menue/assistent.h"
 #include "bhed/menue/bauteile.h"
+#include "bhed/menue/datapad.h"
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/ereignisse.h"
 #include "bhed/menue/feeder.h"
@@ -47,6 +48,7 @@
 #include "bhed/menue/menue.h"
 #include "bhed/menue/modell.h"
 #include "bhed/menue/ownerdraw.h"
+#include "bhed/menue/pazaak.h"
 #include "bhed/menue/roq.h"
 #include "bhed/menue/skript.h"
 #include "bhed/menue/spieldaten.h"
@@ -334,6 +336,11 @@ struct Zustand {
     GlDaten glDaten;
     bool glGelesen = false;
     Spielbeispiel spielBeispiel;
+    DatapadWerte datapadWerte;
+    PazaakZustand pazaakZustand;
+    std::unique_ptr<Datei> datapadHud;            // ui/hud.menu fuer CG_DrawDataPadHUD (einmal gelesen)
+    std::vector<std::string> waffenIcon;          // ext_data/weapons.dat weaponIcon
+    bool datapadGelesen = false;
     int beispielPrims = 0;   // im letzten Bild
     std::map<std::string, std::string> textFehlt;   // M3: Sprache -> nicht darstellbare Zeichen der letzten Eingabe
     bool spielListeOffen = false;
@@ -807,6 +814,55 @@ void auswahlAusCursor(Dokument& d) {
 
 const Texte& vorschauTexte(Dokument& d);   // M2 Punkt 6 (unten)
 
+// M7 Punkt 14: ui.Draw_DataPad(DP_HUD) und DP_* (code/cgame) mit Beispielwerten; nur Jedi Academy SP -
+// Movie Duels und Jedi Outcast zeichnen ihr Datapad mit eigenem HUD (dann false: beschrifteter Kasten)
+bool datapadZeichnen(int art, std::vector<OdTeil>& out, const Texte* texte, Kodierung kodierung, bool asienGlyphen) {
+    Zustand& z = Z();
+    if (z.spiel != Spiel::JA) { return false; }
+    if (!z.datapadGelesen) {
+        z.datapadGelesen = true;
+        std::string t;
+        if (z.daten.lies("ui/hud.menu", t)) {
+            LeseOptionen o = leseOptionen("ui/hud.menu");
+            o.dialekt = Dialekt::SP;
+            z.datapadHud = std::make_unique<Datei>(lies("ui/hud.menu", t, o));
+        }
+        if (z.daten.lies("ext_data/weapons.dat", t)) { z.waffenIcon = waffenIcons(t); }
+    }
+    std::vector<Prim> hud;
+    if (z.datapadHud) { zeichneDatapadHud(*z.datapadHud, z.hudWerte, hud); }
+    for (const Prim& p : hud) {   // die HUD-Teile sind Bilder (Striche, Ziffern, Rahmen)
+        OdTeil t;
+        t.art = p.art == PrimArt::Fuellen ? OdTeil::Art::Fuellen : OdTeil::Art::Bild;
+        t.x = p.x;
+        t.y = p.y;
+        t.w = p.w;
+        t.h = p.h;
+        t.s0 = p.s0;
+        t.t0 = p.t0;
+        t.s1 = p.s1;
+        t.t1 = p.t1;
+        t.farbe = p.farbe;
+        t.inhalt = p.shader;
+        out.push_back(std::move(t));
+    }
+    DatapadKontext k;
+    k.se = [texte](const std::string& key) { return texte != nullptr ? texte->imSpiel("@" + key) : key; };
+    k.breite = [kodierung, asienGlyphen](const std::string& t, float sc, const std::string& name) {
+        const Schrift* f = schriftNamens(name);
+        return f != nullptr ? schriftBreite(*f, t, sc, kodierung, asienGlyphen) : 0;
+    };
+    k.hoehe = [](float sc, const std::string& name) {
+        const Schrift* f = schriftNamens(name);
+        return f != nullptr ? schriftHoehe(*f, sc) : 0;
+    };
+    k.kodierung = kodierung;
+    k.waffenIcon = z.waffenIcon;
+    k.werte = z.datapadWerte;
+    zeichneDatapad(art, k, out);
+    return true;
+}
+
 Umgebung umgebung(const Dokument& d) {
     Zustand& z = Z();
     schriftNamenLaden();
@@ -844,7 +900,9 @@ Umgebung umgebung(const Dokument& d) {
     }
     const FeederDaten* fdp = &fd;
     // Kopf/Rumpf/Beine/Farben der Spezies aus ui_char_model (UI_GetCharacterCvars), nicht immer der ersten
+    fd.se = [tx = u.texte](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : key; };
     u.feeder = [fdp, cv = u.cvar](float f) { return fdp->eintraege(f, fdp->speziesIndex(cv("ui_char_model"))); };
+    u.feederArt = [fdp](float f) { return fdp->art(f); };
     // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
     u.bildDa = [](const std::string& s) {
         if (textur(s) != nullptr) { return true; }
@@ -882,10 +940,14 @@ Umgebung umgebung(const Dokument& d) {
         const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
         return f != nullptr ? schriftHoehe(*f, sc) : 0;
     };
-    k.bildDa = [](const std::string& b) { return Z().daten.gibt(b + ".jpg") || Z().daten.gibt(b + ".tga") || Z().daten.gibt(b + ".png"); };
+    k.bildDa = u.bildDa;   // R_RegisterShaderNoMip: Bild oder Shaderskript
     k.zeitMs = u.zeitMs;
     k.beispiel = &z.spielBeispiel;
     k.gl = &z.glDaten;
+    k.pazaak = &z.pazaakZustand;
+    k.datapad = [tx = u.texte, ko = u.kodierung, ag = u.asienGlyphen](int art, std::vector<OdTeil>& out) {
+        return datapadZeichnen(art, out, tx, ko, ag);
+    };
     u.ownerDraw = [k](const OdAufruf& a) { return ownerDraw(a, k); };
     return u;
 }
@@ -4446,12 +4508,8 @@ void zeichneEigenschaften(Dokument& d) {
 }
 
 // M3 Punkt 5: die Werte, die cgame fuer das HUD liest (playerState, cvars), als Regler
-void zeichneHudWerte(const Dokument& d) {
-    Zustand& z = Z();
-    if (!istHud(d.datei) || !ImGui::CollapsingHeader(tr(Str::MeHudWerte), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
-    ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie);
-    if (!hudNachgebildet(d.datei)) { ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeHudNichtNachgebildet)); }
-    HudWerte& w = z.hudWerte;
+// M3 Punkt 5 / M7: die Werte des Spielers (playerState) als Regler - fuer das HUD und das Datapad
+void hudRegler(HudWerte& w) {
     const float breit = ImGui::GetFontSize() * 9;
     auto regler = [&](Str name, int* v, int lo, int hi) {
         ImGui::SetNextItemWidth(breit);
@@ -4473,14 +4531,75 @@ void zeichneHudWerte(const Dokument& d) {
         regler(Str::MeHudMunition, &w.munition, -1, 999);
         regler(Str::MeHudMunitionMax, &w.munitionMax, 1, 999);
     }
-    regler(Str::MeHudFadenkreuz, &w.fadenkreuz, 0, 9);
+}
+
+void zeichneHudWerte(const Dokument& d) {
+    Zustand& z = Z();
+    if (!istHud(d.datei) || !ImGui::CollapsingHeader(tr(Str::MeHudWerte), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie);
+    if (!hudNachgebildet(d.datei)) { ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeHudNichtNachgebildet)); }
+    HudWerte& w = z.hudWerte;
+    hudRegler(w);
+    const float breit = ImGui::GetFontSize() * 9;
+    ImGui::SetNextItemWidth(breit);
+    ImGui::SliderInt(tr(Str::MeHudFadenkreuz), &w.fadenkreuz, 0, 9);
     ImGui::SetNextItemWidth(breit);
     ImGui::SliderFloat(tr(Str::MeHudFadenkreuzGroesse), &w.fadenkreuzGroesse, 4, 64, "%.0f");
+}
+
+// M7 Punkt 14: Beispielwerte fuer ownerdraws, die im Spiel Werte des laufenden Spiels zeigen
+void zeichneBeispielWerte(const Dokument& d) {
+    Zustand& z = Z();
+    if (z.beispielPrims == 0 || !ImGui::CollapsingHeader(tr(Str::MeOdBeispiel), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    ImGui::TextWrapped("%s", tr(Str::MeOdBeispielTip));
+    const float breit = ImGui::GetFontSize() * 9;
+    if (d.datei.dialekt == Dialekt::SP) {
+        DatapadWerte& w = z.datapadWerte;
+        static const char* const waffen[] = {"WP_SABER",          "WP_BLASTER_PISTOL", "WP_BLASTER",  "WP_DISRUPTOR", "WP_BOWCASTER",
+                                             "WP_REPEATER",       "WP_DEMP2",          "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_THERMAL",
+                                             "WP_TRIP_MINE",      "WP_DET_PACK",       "WP_CONCUSSION"};
+        int wi = std::clamp(w.waffe, 1, 13) - 1;
+        ImGui::SetNextItemWidth(breit);
+        if (ImGui::Combo(tr(Str::MeOdWaffe), &wi, waffen, 13)) {
+            w.waffe = wi + 1;
+            w.waffen |= 1U << w.waffe;
+        }
+        static const char* const kraefte[] = {"ABSORB", "HEAL",          "PROTECT",       "MIND_TRICK", "JUMP",  "SPEED",     "PUSH", "PULL",
+                                              "SABER_THROW", "SABER_DEFENSE", "SABER_OFFENSE", "SENSE",   "DRAIN", "LIGHTNING", "RAGE", "GRIP"};
+        static constexpr int kFp[16] = {13, 0, 12, 5, 1, 2, 3, 4, 8, 9, 10, 15, 14, 7, 11, 6};   // showDataPadPowers
+        ImGui::SetNextItemWidth(breit);
+        if (ImGui::Combo(tr(Str::MeOdKraft), &w.kraftWahl, kraefte, 16)) {
+            int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
+            if (stufe == 0) { stufe = 1; }
+        }
+        int& stufe = w.kraft[static_cast<std::size_t>(kFp[std::clamp(w.kraftWahl, 0, 15)])];
+        ImGui::SetNextItemWidth(breit);
+        ImGui::SliderInt(tr(Str::MeOdKraftStufe), &stufe, 1, 3);
+        for (std::size_t i = 0; i < w.ziele.size(); ++i) {
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::Checkbox(w.ziele[i].name.c_str(), &w.ziele[i].erfuellt);
+            ImGui::PopID();
+        }
+        hudRegler(z.hudWerte);
+    } else {
+        Spielbeispiel& b = z.spielBeispiel;
+        ImGui::Checkbox("g_jediVmerc", &b.jediVmerc);
+        ImGui::Checkbox("g_forceBasedTeams", &b.forceBasedTeams);
+        ImGui::SetNextItemWidth(breit);
+        ImGui::SliderInt(tr(Str::MeOdMaxRang), &b.maxRank, 0, 7);
+        ImGui::Checkbox(tr(Str::MeOdServerSuche), &b.serverRefresh);
+        if (b.serverRefresh) {
+            ImGui::SetNextItemWidth(breit);
+            ImGui::SliderInt("LAN_GetServerCount", &b.serverAnzahl, 0, 500);
+        }
+        if (z.spiel == Spiel::JK2) { eingabe("MOTD", &b.motd); }
+    }
 }
 
 void zeichneCvars(Dokument& d) {
     Zustand& z = Z();
     zeichneHudWerte(d);
+    zeichneBeispielWerte(d);
     if (!ImGui::CollapsingHeader(tr(Str::MeCvars), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
     ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
@@ -5119,6 +5238,32 @@ bool oeffneDatei(const std::string& platte) {
 bool oeffneText(const std::string& name, const std::string& text) {
     datenPruefen();
     return oeffne(name, "", text);
+}
+
+// M7 Punkt 14: jedes menuDef aller Original-Menues (ui/**/*.menu) zeichnen wie die Vorschau und die
+// ownerdraws/Feeder sammeln, die noch einen beschrifteten Platzhalter statt der Darstellung bekommen
+std::vector<std::string> platzhalterImSpiel() {
+    datenPruefen();
+    Zustand& z = Z();
+    std::set<std::string> offen;
+    for (const std::string& pfad : z.daten.liste("ui/", {".menu"})) {
+        std::string t;
+        if (!z.daten.lies(pfad, t)) { continue; }
+        Dokument d;
+        d.name = pfad;
+        d.datei = lies(pfad, t, leseOptionen(pfad));
+        const Umgebung u = umgebung(d);
+        for (std::size_t m = 0; m < d.datei.menus.size(); ++m) {
+            std::vector<Prim> p;
+            zeichneMenu(d.datei, static_cast<int>(m), u, p);
+            for (const Prim& x : p) {
+                if (x.art != PrimArt::Platzhalter) { continue; }
+                if (x.shader.compare(0, 10, "ownerdraw ") != 0 && x.shader.compare(0, 7, "feeder ") != 0) { continue; }
+                offen.insert(std::string(d.datei.dialekt == Dialekt::MP ? "MP " : "SP ") + x.shader + " (" + pfad + ")");
+            }
+        }
+    }
+    return {offen.begin(), offen.end()};
 }
 
 Stand stand() {

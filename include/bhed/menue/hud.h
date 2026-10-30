@@ -70,6 +70,11 @@ struct HudZustand {
 // Zeichenbefehle der Menues ausser `aktuell` tragen item -1 (nicht waehlbar).
 void zeichneHud(const Datei& d, int aktuell, const Umgebung& u, const HudWerte& w, HudZustand& z, std::vector<Prim>& out);
 
+// M7: CG_DrawDataPadHUD (code/cgame/cg_draw.cpp, Jedi Academy): CG_DrawHealth, CG_DrawForcePower,
+// CG_DrawAmmo mit den Strichen aus lefthud/righthud der HUD-Datei (ui/hud.menu), CG_DrawMessageLit
+// (526 + 33, 286 + 41, gfx/hud/message_off) und gfx/menus/datapad ueber den ganzen Schirm.
+void zeichneDatapadHud(const Datei& hud, const HudWerte& w, std::vector<Prim>& out);
+
 }  // namespace bhed::menue
 
 #endif  // BHED_MENUE_HUD_H

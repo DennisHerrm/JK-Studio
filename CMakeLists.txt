@@ -1129,6 +1129,8 @@ target_sources(bhed_core PRIVATE
   src/menue/feeder.cpp
   # M7 Punkt 14: UI_OwnerDraw je Nummer (MP-Kraefte, Server, GL-Treiber, Datapad, Pazaak ...)
   src/menue/ownerdraw.cpp
+  src/menue/datapad.cpp
+  src/menue/pazaak.cpp
   # M2 Punkt 1: ITEM_TYPE_MODEL (Item_Model_Paint) mit der Figurendarstellung
   src/menue/modell.cpp
   # M2 Punkt 3/4: Detailbereich in drei Ebenen, Bauteil-Bibliothek

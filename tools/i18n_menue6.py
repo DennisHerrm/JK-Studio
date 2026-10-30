@@ -189,4 +189,9 @@ MENUE6 = [
      "Im Spiel zeigt dieses Element Werte aus dem laufenden Spiel oder vom Server. Der Editor zeichnet es genau wie das Spiel, mit Beispielwerten, die du unter Eigenschaften > Beispielwerte ändern kannst.",
      "在游戏中,此元素显示正在进行的游戏或服务器的数值。编辑器完全按照游戏的方式绘制它,并使用示例值,你可以在“属性 > 示例值”中更改。",
      "ゲームではこの要素は進行中のゲームやサーバーの値を表示します。エディターはゲームとまったく同じように、サンプル値で描画します。サンプル値は「プロパティ > サンプル値」で変更できます。"),
+    ("MeOdWaffe", "Selected weapon", "Gewählte Waffe", "所选武器", "選択中の武器"),
+    ("MeOdKraft", "Selected Force power", "Gewählte Machtkraft", "所选原力", "選択中のフォース"),
+    ("MeOdKraftStufe", "Level", "Stufe", "等级", "レベル"),
+    ("MeOdMaxRang", "Highest Force rank of the server", "Höchster Machtrang des Servers", "服务器最高原力等级", "サーバーの最高フォースランク"),
+    ("MeOdServerSuche", "Server list is being refreshed", "Serverliste wird aktualisiert", "正在刷新服务器列表", "サーバーリストを更新中"),
 ]

@@ -265,4 +265,14 @@ void zeichneHud(const Datei& d, int aktuell, const Umgebung& u, const HudWerte& 
     h.fadenkreuz();
 }
 
+void zeichneDatapadHud(const Datei& hud, const HudWerte& w, std::vector<Prim>& out) {
+    HudZustand z;
+    Hud h(hud, w, z, out);
+    h.gesundheit();
+    h.macht();
+    h.munition();   // CG_DrawAmmo auch mit dem Saebel (ammo[AMMO_FORCE])
+    h.bild(526 + 33, 286 + 41, 16, 16, "gfx/hud/message_off", kWeiss);   // ohne missionInfoFlashTime
+    h.bild(0, 0, 640, 480, "gfx/menus/datapad", kWeiss);
+}
+
 }  // namespace bhed::menue

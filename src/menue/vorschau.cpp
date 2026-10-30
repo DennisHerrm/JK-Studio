@@ -335,8 +335,7 @@ private:
             } else if (t.art == OdTeil::Art::Fuellen) {
                 fuellen(t.x, t.y, t.w, t.h, t.farbe);
             } else if (!t.schrift.empty()) {
-                const Schrift* f = u_.schriftNamens ? u_.schriftNamens(t.schrift) : nullptr;
-                if (f != nullptr && f->ok) { zeichenkette(*f, static_cast<int>(t.x), static_cast<int>(t.y), t.inhalt, t.farbe, t.maxPixel == 0 ? -1 : t.maxPixel, t.scale, false); }
+                textMit(u_.schriftNamens ? u_.schriftNamens(t.schrift) : nullptr, t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil);
             } else {
                 text(t.x, t.y, t.scale, t.farbe, t.inhalt, t.maxPixel, t.stil, t.font);
             }
@@ -346,7 +345,10 @@ private:
 
     // Text_Paint -> RE_Font_DrawString
     void text(float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style, int font) {
-        const Schrift* f = schrift(font);
+        textMit(schrift(font), x, y, scale, c, t, maxPixel, style);
+    }
+    // M7: dasselbe mit einer Schrift beim Namen (cgame/Pazaak zeichnen mit eigenem Griff)
+    void textMit(const Schrift* f, float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style) {
         if (f == nullptr || !f->ok) { return; }
         bool blink = false;
         bool schatten = false;
@@ -839,7 +841,10 @@ private:
             if (size < it.elementHeight || it.elementHeight <= 0) { break; }
             y += it.elementHeight;
         }
-        if (count == 0 && !u_.feeder) { platzhalter(r, "feeder " + zahlText(it.special) + profilName(false, static_cast<int>(it.special))); }
+        // M7: ohne Darstellung (unbekannte Liste) der beschriftete Kasten; Beispielwerte beschriftet
+        const int art = u_.feederArt ? u_.feederArt(it.special) : 1;
+        if (count == 0 && (!u_.feeder || art == 0)) { platzhalter(r, "feeder " + zahlText(it.special) + profilName(false, static_cast<int>(it.special))); }
+        if (art == 2) { platzhalter(r, "", PrimArt::Beispiel); }
     }
 
     const Datei& d_;

@@ -1300,6 +1300,22 @@ Schritt klickFlaeche(const std::string& was, float vx, float vy) {
                    }};
 }
 
+// M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
+std::vector<Schritt> schritteM7() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = [] { return me::stand(); };
+    // Punkt 14: kein ownerdraw/Feeder der Original-Menues bleibt ohne Darstellung
+    add(pruefe("M7 Punkt 14: alle ownerdraws und Feeder der Original-Menues haben eine Darstellung (0 Platzhalter)", [] {
+        const std::vector<std::string> offen = me::platzhalterImSpiel();
+        for (const std::string& o : offen) { diag::info("Menue-Editor M7 Platzhalter: " + o); }
+        diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()));
+        return offen.empty();
+    }));
+    (void)st;
+    return s;
+}
+
 std::vector<Schritt> schritteM6() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1521,6 +1537,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=m7: nur die Schritte von M7
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m7") == 0) {
+        for (auto& x : schritteM7()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=m4: nur die Schritte von M4
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m4") == 0) {
         for (auto& x : schritteM4()) { add(std::move(x)); }
@@ -1669,6 +1691,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM5()) { add(std::move(x)); }
     for (auto& x : schritteM5b()) { add(std::move(x)); }
     for (auto& x : schritteM6()) { add(std::move(x)); }
+    for (auto& x : schritteM7()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

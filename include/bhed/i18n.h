@@ -3040,6 +3040,11 @@ enum class Str {
     MeLesbarLang,
     MeOdBeispiel,
     MeOdBeispielTip,
+    MeOdWaffe,
+    MeOdKraft,
+    MeOdKraftStufe,
+    MeOdMaxRang,
+    MeOdServerSuche,
     Count,
 };
 

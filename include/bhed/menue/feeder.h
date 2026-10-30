@@ -45,7 +45,8 @@ inline constexpr int SAVEGAMES = 0x00, MODS = 0x09, PLAYER_SPECIES = 0x10, PLAYE
 namespace feeder_mp {
 inline constexpr int MAPS = 0x01, SERVERS = 0x02, ALLMAPS = 0x04, MODS = 0x09, DEMOS = 0x0a, Q3HEADS = 0x0c, CINEMATICS = 0x0f,
                      FORCECFG = 0x10, PLAYER_SPECIES = 0x13, PLAYER_SKIN_HEAD = 0x14, PLAYER_SKIN_TORSO = 0x15, PLAYER_SKIN_LEGS = 0x16,
-                     COLORCHOICES = 0x17, LANGUAGES = 0x28, MOVES = 0x29, MOVES_TITLES = 0x2a;
+                     COLORCHOICES = 0x17, LANGUAGES = 0x28, MOVES = 0x29, MOVES_TITLES = 0x2a, PLAYER_LIST = 0x07,
+                     SABER_SINGLE_INFO = 0x2b, SABER_STAFF_INFO = 0x2c;
 }
 
 // Ein Spezies-Ordner aus models/players (UI_BuildPlayerModel_List)
@@ -72,6 +73,10 @@ struct FeederDaten {
     // SP (code/ui ui_main.cpp) nimmt den letzten passenden Ordner, MP (codemp UI_UpdateCharacterSkin
     // u. a.) den ersten; ohne Treffer bleibt bzw. wird es 0.
     [[nodiscard]] int speziesIndex(const std::string& modell) const;
+    // M7: hat die Liste eine Darstellung? 0 = nein (Platzhalter), 1 = wie im Spiel (auch leer, z. B. die
+    // Serverliste vor der Abfrage), 2 = Beispielwerte (nur im laufenden Spiel gefuellt)
+    [[nodiscard]] int art(float feeder) const;
+    void mdEintraege(int f, std::vector<FeederEintrag>& r) const;
     std::vector<Spezies> spezies;
     std::vector<std::string> sprachen;
     std::vector<std::pair<std::string, std::string>> mods;   // Ordner, Beschreibung
@@ -82,12 +87,20 @@ struct FeederDaten {
     std::vector<std::string> bots;                          // MP: Botnamen (UI_LoadBots)
     std::vector<std::string> koepfe;                        // MP: kopf/skin (icon)
     std::vector<std::string> demos, filme, kraefte;
+    std::function<std::string(const std::string&)> se;   // M7: SE_GetStringTextString (ohne "@"); die Oberflaeche setzt es
+    std::vector<std::string> saberEinhand, saberStab;   // M7: WP_SaberGetHiltInfo (MP), Name wie UI_SaberProperNameForSaber
     std::vector<std::pair<std::string, std::string>> spielstaende;   // Name, Datum
     bool gebaut = false;
 };
 
 // FS_GetFileList(pfad, endung) wie die Engine; endung "/" = Ordner.
 [[nodiscard]] std::vector<std::string> dateiListe(const Spieldaten& d, const std::string& pfad, const std::string& endung);
+
+// M7: WP_SaberGetHiltInfo ueber saberParms (alle .sab hintereinander): jeder Name mit "{" auf einer
+// folgenden Zeile, ohne notInMP; twoHanded -> Stab. Eintrag = "name" des Saebels (UI_SaberProperNameForSaber).
+void saberListen(const std::string& parms, std::vector<std::string>& einhand, std::vector<std::string>& stab);
+// M7: Movie Duels duelMaps[index].duelMapImage (UI_DUELMAPS_SELECTION); "" ausserhalb
+[[nodiscard]] std::string mdDuellKarteBild(int index);
 
 }  // namespace bhed::menue
 

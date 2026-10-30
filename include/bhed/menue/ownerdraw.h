@@ -42,6 +42,7 @@
 namespace bhed::menue {
 
 struct FeederDaten;
+struct PazaakZustand;
 
 // Ein Zeichenbefehl: Text_Paint / R_Font_DrawString, UI_DrawHandlePic, UI_FillRect
 struct OdTeil {
@@ -107,6 +108,9 @@ struct OdKontext {
     int zeitMs = 0;                                        // DC->realTime
     const Spielbeispiel* beispiel = nullptr;
     const GlDaten* gl = nullptr;
+    // M7: ui.Draw_DataPad(DP_HUD) + DP_* fuer UI_DATAPAD_* 203-206 (datapad.h, hud.h); false = nicht moeglich
+    std::function<bool(int art, std::vector<OdTeil>& out)> datapad;
+    const PazaakZustand* pazaak = nullptr;   // M7: Movie Duels Pazaak (Beispielpartie)
 };
 
 struct OdErgebnis {

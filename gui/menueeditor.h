@@ -19,6 +19,8 @@ namespace bhed::gui::menueeditor {
 void zeichne(float hoehe);
 // Fuer den Selbsttest und die Tour: Menue aus dem Spiel bzw. Text oeffnen.
 bool oeffneAusSpiel(const std::string& spielPfad);
+// M7 Punkt 14: ownerdraws/Feeder der Original-Menues, die noch einen Platzhalter bekommen ("SP ownerdraw 249 (ui/x.menu)")
+[[nodiscard]] std::vector<std::string> platzhalterImSpiel();
 bool oeffneText(const std::string& name, const std::string& text);
 // Eine .menu/.txt von der Platte (abgelegt oder ueber den Dialog).
 bool oeffneDatei(const std::string& platte);

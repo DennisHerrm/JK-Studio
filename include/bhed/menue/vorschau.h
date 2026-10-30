@@ -118,6 +118,8 @@ struct Umgebung {
     // Feeder: die Zeilen einer Listbox (DC->feederCount/feederItemText/feederItemImage);
     // ohne: beschrifteter Platzhalter
     std::function<std::vector<FeederEintrag>(float feeder)> feeder;
+    // M7: 0 = Liste ohne Darstellung (Platzhalter), 1 = wie im Spiel, 2 = Beispielwerte (FeederDaten::art); ohne: 1
+    std::function<int(float feeder)> feederArt;
     // M7: DC->ownerDrawItem (ownerdraw.h); ohne: Platzhalter
     std::function<OdErgebnis(const OdAufruf&)> ownerDraw;
     // M7: Schrift beim Namen (cgame zeichnet mit cgs.media.qhFont* statt item->font); ohne: keine
