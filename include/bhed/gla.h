@@ -247,31 +247,27 @@ int frameForAnimationIn(const std::vector<AnimEntry>& sections,
 // Der Index eines Knochens, -1 wenn es ihn nicht gibt.
 [[nodiscard]] int boneIndex(const GlaAnimation& anim, const std::string& name);
 
-// Den Kopf drehen, ohne die Figur zu drehen.
+// --- Knochenwinkel wie G2API_SetBoneAngles (BONE_ANGLES_POSTMULT) --------
 //
-// Gemeldet: "das mit den Kopfbewegungen klappt noch nicht."
-//
-// SET_LOOK_TARGET dreht in der Engine NICHT den Koerper. cg_players.cpp
-// setzt damit renderInfo.headAngles, und die wirken ueber
-// CG_UpdateAngleClamp (ebenda:3319 f.) nur auf den Kopf - mit Anschlaegen:
-//
-//     CG_UpdateAngleClamp( lookAngles[YAW],
-//                          headYawClampMin/1.25, headYawClampMax/1.25, ... )
-//
-// headYawRangeLeft und -Right stehen in NPC_stats.cpp:2019 f. auf je 80
-// Grad. Durch 1.25 bleiben 64 - so weit dreht ein Kopf, und keinen Grad
-// weiter. Wer weiter schauen soll, muss den Koerper drehen, und das tut
-// SET_WATCHTARGET.
-//
-// Gedreht wird um die SENKRECHTE durch den Ursprung des Knochens, samt
-// aller Nachkommen: der cranium traegt die Gesichtsknochen, und ohne sie
-// bekaeme die Figur ein verdrehtes Gesicht statt eines gedrehten Kopfes.
-//
-// Nur der Gierwinkel. Der Nickwinkel (headPitchRange 45, also 36 nach dem
-// Teiler) fehlt noch - bei Figuren auf gleicher Hoehe faellt er kaum ins
-// Gewicht, und ihn ohne Beleg dazuzuerfinden waere geraten.
-void rotateBoneSubtreeYaw(const GlaAnimation& anim,
-                          std::vector<BoneMatrix>& world, int bone,
-                          float yawDeg);
+// Zeitleiste 6: Kopf, Hals und Rumpf drehen um die Achsen des KNOCHENS, nicht
+// um die Senkrechte der Welt. Die Engine setzt die Winkel mit
+// BG_G2SetBoneAngles(..., BONE_ANGLES_POSTMULT, oben, rechts, vorn)
+// (cg_players.cpp CG_G2ClientSpineAngles/CG_G2ClientNeckAngles OpenJK und MD);
+// G2_Generate_Matrix waehlt mit den drei Achsen, welcher Winkel um welche
+// Knochenachse dreht (G2_bones.cpp), und G2_TransformBone multipliziert die
+// Endmatrix des Knochens von rechts mit BasePose * M * BasePoseInv
+// (tr_ghoul2.cpp:1800-1812) - der Teilbaum erbt es.
+enum class G2Achse : std::uint8_t { PosX, PosY, PosZ, NegX, NegY, NegZ };
+
+// M aus G2_Generate_Matrix (PREMULT/POSTMULT) ohne die Basispose: newAngles
+// aus winkel (PITCH, YAW, ROLL) samt der +180 der Engine, dann Create_Matrix
+// (AnglesToAxis als Spalten, G2_misc.cpp).
+[[nodiscard]] BoneMatrix g2WinkelMatrix(const float winkel[3], G2Achse oben, G2Achse links, G2Achse vorn) noexcept;
+
+// Die fertige Stellung (worldMatrices: Endmatrix * BasePose) eines Knochens
+// mit M von rechts: X(b) * M; jeder Nachkomme d wird mit X(b) M X(b)^-1 von
+// links mitgenommen - so, als haette die Engine die Kette mit dem gedrehten
+// Knochen weitergerechnet. Ein unbekannter Knochen (-1) aendert nichts.
+void knochenNachMal(const GlaAnimation& anim, std::vector<BoneMatrix>& world, int bone, const BoneMatrix& m);
 }  // namespace bhed
 #endif

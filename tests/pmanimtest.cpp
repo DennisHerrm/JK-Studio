@@ -241,7 +241,6 @@ int main() {
         float teil = 58.0F;
         teil = pmBeinGier(teil, 0.0F, 0.0F, 300.0F, false, 0.25);
         pruefe(nah(teil, 58.5F), "Rest 2 Grad, frameInterpolation 0,25: 0,5");
-        pruefe(nah(kPmRumpfAnteil[0] + kPmRumpfAnteil[1] + kPmRumpfAnteil[2], 1.0), "der Rumpf: Anteile zusammen 1");
     }
 
     std::printf("%s (%d Fehler)\n", fehler == 0 ? "alles gut" : "FEHLER", fehler);

@@ -4577,6 +4577,11 @@ const App::ActorAssets* hiltFor(const std::string& pfad) {
 // den Zeitpunkt `ms` statt g_app->playMs: die Schwertproben (app_saber.cpp)
 // brauchen die Lage der Haende zu beliebigen Takten - mit derselben Rechnung,
 // sonst laege die geprobte Klinge woanders als die gezeichnete.
+namespace {
+// SETANIM_TORSO beim Schuss (bg_pmove.cpp:13810)
+const std::string kSchussAnim = "BOTH_ATTACK3";
+}  // namespace
+
 void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d) {
     // Welche NPC-Typen schon gemeldet wurden, dass ihnen die
     // Schussanimation fehlt. Ohne das kaeme die Zeile in jedem Bild.
@@ -4636,6 +4641,7 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
         // Sie geht VOR einer Oberkoerperanimation aus dem
         // Skript: die Engine setzt sie im Bewegungsschritt,
         // also nach allem, was ICARUS gesetzt hat.
+        bool schussBild = false;
         if (st.firing && assets.skeleton != nullptr) {
             // Seit dem FEUERBEGINN, nicht seit dem
             // Animationsbeginn - siehe firingSinceMs.
@@ -4646,10 +4652,11 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
                           static_cast<double>(
                               std::max(st.shotSpacingMs, 1.0F)));
             const int bild = frameForAnimationIn(
-                assets.skeleton->sections, "BOTH_ATTACK3", takt,
+                assets.skeleton->sections, kSchussAnim, takt,
                 false);
             if (bild >= 0) {
                 d.torsoFrame = bild;
+                schussBild = true;
             } else if (!schussFehlt.count(a.npcType)) {
                 // EINMAL je NPC-Typ melden, nicht je Bild.
                 schussFehlt.insert(a.npcType);
@@ -4733,6 +4740,17 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
             // umschalten als gegen ein falsches Bild mischen.
             d.blendLerp = (d.prevFrame < 0) ? 1.0F : l;
         }
+        // Zeitleiste 6: Rumpf und Hals wie CG_G2PlayerAngles - die Klasse,
+        // und ob Beine und Oberkoerper verschiedene Animationen spielen
+        // (legsAnim != torsoAnim: die Motion-Bone-Korrektur). Ohne eigenes
+        // Oberkoerperbild folgt er den Beinen, also dieselbe Animation.
+        std::string klasse = a.klasse;
+        for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+        const bool md = regelwerkMovieDuels();
+        d.rumpfKlasse = rumpfKlasseFuer(klasse, md);
+        const std::string& torso = d.torsoFrame < 0 ? st.animation : schussBild ? kSchussAnim : st.torsoAnimation;
+        d.rumpfMotion = rumpfMotionAusgleich(d.rumpfKlasse, st.animation, torso, md);
+        d.rumpfKante = rumpfAnDerKante(st.animation, md);
     }
 }
 

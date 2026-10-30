@@ -148,9 +148,5 @@ inline constexpr double kPmBlendSaberBereit = 350.0;   // saberMoveData[LS_READY
 // Rests. Gibt die neue Gier der Beine zurueck.
 [[nodiscard]] float pmBeinGier(float beinGier, float blickGier, float vx, float vy, bool rueckwaerts,
                                double frameInterpolation);
-// CG_G2ClientSpineAngles: der Ausschlag des Rumpfs gegen die Beine verteilt
-// sich auf lower_lumbar, upper_lumbar und thoracic.
-inline constexpr float kPmRumpfAnteil[3] = {0.45F, 0.35F, 0.20F};
-
 }  // namespace bhed
 #endif

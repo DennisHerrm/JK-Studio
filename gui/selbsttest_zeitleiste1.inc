@@ -1535,19 +1535,219 @@ std::vector<Schritt> undoSchritte() {
     return s;
 }
 
+// --- Zeitleiste 6: Rumpf wie CG_G2ClientSpineAngles (Motion-Bone-Korrektur) ---
+//
+// Eine Figur spielt mit den Beinen BOTH_COCKPIT_TALKGESTURE8START und mit dem
+// Oberkoerper BOTH_STAND1. Im Motion-Knochen dieser Beinanimation zeigt
+// NEGATIVE_Y rund 63 Grad nach unten (_humanoid.gla von Movie Duels, mit
+// <SP>/zl6/motion.py nachgerechnet; in Ravens _humanoid.gla ist es BOTH_WALK2);
+// cg_motionBoneComp 2 zieht das vom Blick ab und verteilt es: lower_lumbar 0,4,
+// upper_lumbar 0,4, thoracic 0,2 (vom Hals noch halbiert). Geprueft wird am
+// fertigen Skelett: die Stellung jedes Wirbels gegen seinen Elternteil,
+// verglichen mit derselben Oberkoerperanimation ohne Korrektur, ist um genau
+// diesen Winkel gedreht.
+namespace {
+
+BoneMatrix rumpfUmkehrung(const BoneMatrix& x) {
+    const auto& a = x.m;
+    BoneMatrix r;
+    const float det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
+                      a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+    const float k = det != 0.0F ? 1.0F / det : 0.0F;
+    r.m[0][0] = (a[1][1] * a[2][2] - a[1][2] * a[2][1]) * k;
+    r.m[0][1] = (a[0][2] * a[2][1] - a[0][1] * a[2][2]) * k;
+    r.m[0][2] = (a[0][1] * a[1][2] - a[0][2] * a[1][1]) * k;
+    r.m[1][0] = (a[1][2] * a[2][0] - a[1][0] * a[2][2]) * k;
+    r.m[1][1] = (a[0][0] * a[2][2] - a[0][2] * a[2][0]) * k;
+    r.m[1][2] = (a[0][2] * a[1][0] - a[0][0] * a[1][2]) * k;
+    r.m[2][0] = (a[1][0] * a[2][1] - a[1][1] * a[2][0]) * k;
+    r.m[2][1] = (a[0][1] * a[2][0] - a[0][0] * a[2][1]) * k;
+    r.m[2][2] = (a[0][0] * a[1][1] - a[0][1] * a[1][0]) * k;
+    for (int i = 0; i < 3; ++i) { r.m[i][3] = -(r.m[i][0] * a[0][3] + r.m[i][1] * a[1][3] + r.m[i][2] * a[2][3]); }
+    return r;
+}
+
+// Wie weit der Knochen gegen seinen Elternteil zusaetzlich gedreht ist:
+// (Xr(p)^-1 Xr(b))^-1 (X(p)^-1 X(b)), Xr ohne Korrektur.
+BoneMatrix rumpfZusatz(const std::vector<BoneMatrix>& mit, const std::vector<BoneMatrix>& roh, int p, int b) {
+    const BoneMatrix rel = rumpfUmkehrung(mit[static_cast<std::size_t>(p)]) * mit[static_cast<std::size_t>(b)];
+    const BoneMatrix relRoh = rumpfUmkehrung(roh[static_cast<std::size_t>(p)]) * roh[static_cast<std::size_t>(b)];
+    return rumpfUmkehrung(relRoh) * rel;
+}
+
+float rumpfDrehwinkel(const BoneMatrix& c) {
+    const float spur = c.m[0][0] + c.m[1][1] + c.m[2][2];
+    return std::acos(std::clamp((spur - 1.0F) * 0.5F, -1.0F, 1.0F)) * 180.0F / 3.14159265F;
+}
+
+struct RumpfStand {
+    int figur = -1;
+    int ausweich = -1;
+};
+
+}  // namespace
+
+std::vector<Schritt> rumpfSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto r = std::make_shared<RumpfStand>();
+    add(tu("zeitleiste1 Rumpf: Figur zl6_rumpf, Beine BOTH_COCKPIT_TALKGESTURE8START, Oberkoerper BOTH_STAND1", [] {
+        float o[3] = {0, 0, 0};
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.classname == "info_player_start" && o[0] == 0.0F && o[1] == 0.0F) { (void)std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]); }
+        }
+        const int i = neueEntityAn("NPC_spawner", o);
+        if (i < 0) { return; }
+        (void)entityKeySetzen(i, "NPC_targetname", "zl6_rumpf");
+        (void)entityKeySetzen(i, "NPC_type", "stormtrooper");
+        // die zweite Figur: BOTH_DODGE_HOLD_R neigt den Motion-Knochen um alle drei Achsen
+        // (Nick -7,3, Gier 7,3, Roll -12,6 in beiden _humanoid.gla)
+        o[1] += 64.0F;
+        const int j = neueEntityAn("NPC_spawner", o);
+        if (j < 0) { return; }
+        (void)entityKeySetzen(j, "NPC_targetname", "zl6_ausweich");
+        (void)entityKeySetzen(j, "NPC_type", "stormtrooper");
+        Script neu;
+        std::vector<Diag> d;
+        (void)readScript("affect ( \"zl6_rumpf\", /*@AFFECT_TYPE*/ FLUSH )\n{\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_LOWER\", \"BOTH_COCKPIT_TALKGESTURE8START\" );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_LOWER\", -1 );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_UPPER\", \"BOTH_STAND1\" );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_UPPER\", -1 );\n}\n"
+                         "affect ( \"zl6_ausweich\", /*@AFFECT_TYPE*/ FLUSH )\n{\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_LOWER\", \"BOTH_DODGE_HOLD_R\" );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_LOWER\", -1 );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_UPPER\", \"BOTH_STAND1\" );\n"
+                         "\tset ( /*@SET_TYPES*/ \"SET_ANIM_HOLDTIME_UPPER\", -1 );\n}\n",
+                         neu, d);
+        g_app->doc.ersetzeSkript(std::move(neu), "zl6rumpf");
+        rebuildTree();
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+        g_app->leftMode = 1;
+        g_app->throughCamera = false;
+        g_app->playing = false;
+    }));
+    add(warteBis("zeitleiste1 Rumpf: zl6_rumpf in der Szene", [=] {
+        r->figur = mission1::figurNamens("zl6_rumpf");
+        r->ausweich = mission1::figurNamens("zl6_ausweich");
+        return r->figur >= 0 && r->ausweich >= 0 && g_app->camTrackValid && static_cast<std::size_t>(r->figur) < g_app->actorAssets.size() &&
+               g_app->actorAssets[static_cast<std::size_t>(r->figur)] != nullptr;
+    }, 2500));
+    add(tu("zeitleiste1 Rumpf: Zeit 3 s (nach dem Uebergang)", [] {
+        g_app->playMs = 3000.0;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.3));
+    add(pruefe("zeitleiste1 Rumpf: Motion-Bone-Korrektur an lower_lumbar, upper_lumbar und thoracic (0,4 / 0,4 / 0,1 des Nicks)", [=] {
+        const auto ai = static_cast<std::size_t>(r->figur);
+        const Actor& a = g_app->scene.actors[ai];
+        const ActorState st = a.at(g_app->playMs);
+        ActorDraw d;
+        std::vector<BoneMatrix> welt;
+        float fw[16];
+        if (!figurPose(a, *g_app->actorAssets[ai], st, g_app->playMs, d, welt, fw) || d.torsoFrame < 0) {
+            diag::detail("Knopftest: zeitleiste1 Rumpf - keine Pose (Beine " + st.animation + ", Oberkoerper " + st.torsoAnimation + ")");
+            return false;
+        }
+        std::vector<BoneMatrix> roh;
+        d.anim->worldMatricesLerp(d.torsoFrame, d.torsoNext >= 0 ? d.torsoNext : d.torsoFrame, d.torsoFraction, roh);
+        const int knochen[5] = {boneIndex(*d.anim, "pelvis"), boneIndex(*d.anim, "lower_lumbar"), boneIndex(*d.anim, "upper_lumbar"),
+                                boneIndex(*d.anim, "thoracic"), boneIndex(*d.anim, "Motion")};
+        for (const int k : knochen) {
+            if (k < 0 || static_cast<std::size_t>(k) >= welt.size() || roh.size() != welt.size()) { return false; }
+        }
+        // G2API_GetBoltMatrix(motionBolt, Winkel 0): die Wurzel der Engine ist um 90 Grad gedreht
+        const BoneMatrix& m = welt[static_cast<std::size_t>(knochen[4])];
+        const float vorn[3] = {m.m[1][1], -m.m[0][1], -m.m[2][1]};   // NEGATIVE_Y von R90 * X
+        const float nick = std::atan2(vorn[2], std::sqrt(vorn[0] * vorn[0] + vorn[1] * vorn[1])) * 180.0F / 3.14159265F;
+        float w[3];
+        for (int i = 0; i < 3; ++i) { w[i] = rumpfDrehwinkel(rumpfZusatz(welt, roh, knochen[i], knochen[i + 1])); }
+        const float soll[3] = {std::fabs(nick) * 0.4F, std::fabs(nick) * 0.4F, std::fabs(nick) * 0.1F};
+        char z[256];
+        std::snprintf(z, sizeof z, "Motion-Nick %.2f, gedreht lower %.2f (soll %.2f) upper %.2f (%.2f) thoracic %.2f (%.2f)",
+                      static_cast<double>(nick), static_cast<double>(w[0]), static_cast<double>(soll[0]), static_cast<double>(w[1]),
+                      static_cast<double>(soll[1]), static_cast<double>(w[2]), static_cast<double>(soll[2]));
+        diag::detail(std::string("Knopftest: zeitleiste1 Rumpf - ") + z + "; Beine " + st.animation + " Bild " + std::to_string(d.frame) +
+                     ", Oberkoerper " + st.torsoAnimation + " Bild " + std::to_string(d.torsoFrame) + " (" +
+                     std::to_string(d.torsoNext) + ", " + std::to_string(d.torsoFraction) + "), Uebergang " +
+                     std::to_string(d.blendLerp) + "/" + std::to_string(d.torsoBlendLerp) + ", Blick " + std::to_string(d.headYaw) +
+                     ", Modell " + a.npcType + ", vorher " + st.prevAnimation + "/" + st.torsoPrevAnimation + " ab " +
+                     std::to_string(st.blendStartMs) + "/" + std::to_string(st.torsoBlendStartMs) + " Start " +
+                     std::to_string(st.animStartMs) + "/" + std::to_string(st.torsoStartMs));
+        bool ok = std::fabs(nick) > 50.0F;
+        for (int i = 0; i < 3; ++i) { ok = ok && std::fabs(w[i] - soll[i]) < 0.1F; }
+        return ok;
+    }));
+    // Alle drei Achsen: die Zusatzdrehung jedes Wirbels ist genau die Matrix, die
+    // G2_Generate_Matrix aus den Winkeln der Engine baut (oben POSITIVE_X, rechts
+    // NEGATIVE_Y, vorn NEGATIVE_Z). Die Motion-Winkel rechnet die Probe selbst aus dem
+    // Knochen: Nick = -Hoehenwinkel von NEGATIVE_Y, Gier = atan2, Roll = Hoehenwinkel
+    // von NEGATIVE_X; viewAngles = -motionAngles, verteilt 0,4/0,45/0,45,
+    // 0,4/0,35/0,35 und am thoracic 0,2 (halbiert).
+    add(pruefe("zeitleiste1 Rumpf: BOTH_DODGE_HOLD_R - Nick, Gier und Roll an den drei Wirbeln wie G2_Generate_Matrix", [=] {
+        const auto ai = static_cast<std::size_t>(r->ausweich);
+        const Actor& a = g_app->scene.actors[ai];
+        const ActorState st = a.at(g_app->playMs);
+        ActorDraw d;
+        std::vector<BoneMatrix> welt;
+        float fw[16];
+        if (!figurPose(a, *g_app->actorAssets[ai], st, g_app->playMs, d, welt, fw) || d.torsoFrame < 0) { return false; }
+        std::vector<BoneMatrix> roh;
+        d.anim->worldMatricesLerp(d.torsoFrame, d.torsoNext >= 0 ? d.torsoNext : d.torsoFrame, d.torsoFraction, roh);
+        const int knochen[5] = {boneIndex(*d.anim, "pelvis"), boneIndex(*d.anim, "lower_lumbar"), boneIndex(*d.anim, "upper_lumbar"),
+                                boneIndex(*d.anim, "thoracic"), boneIndex(*d.anim, "Motion")};
+        for (const int k : knochen) {
+            if (k < 0 || static_cast<std::size_t>(k) >= welt.size() || roh.size() != welt.size()) { return false; }
+        }
+        const BoneMatrix& m = welt[static_cast<std::size_t>(knochen[4])];
+        constexpr float kGrad = 180.0F / 3.14159265F;
+        const auto hoehe = [](const float v[3]) { return std::atan2(v[2], std::sqrt(v[0] * v[0] + v[1] * v[1])) * kGrad; };
+        const float vorn[3] = {m.m[1][1], -m.m[0][1], -m.m[2][1]};    // NEGATIVE_Y von R90 * X
+        const float rechts[3] = {m.m[1][0], -m.m[0][0], -m.m[2][0]};  // NEGATIVE_X
+        const float motion[3] = {-hoehe(vorn), std::atan2(vorn[1], vorn[0]) * kGrad, hoehe(rechts)};
+        const float anteil[3][3] = {{0.4F, 0.45F, 0.45F}, {0.4F, 0.35F, 0.35F}, {0.1F, 0.1F, 0.1F}};
+        float abw = 0.0F;
+        for (int i = 0; i < 3; ++i) {
+            float soll[3];
+            for (int k = 0; k < 3; ++k) { soll[k] = -motion[k] * anteil[i][k]; }
+            const BoneMatrix c = rumpfZusatz(welt, roh, knochen[i], knochen[i + 1]);
+            const BoneMatrix e = g2WinkelMatrix(soll, G2Achse::PosX, G2Achse::NegY, G2Achse::NegZ);
+            for (int y = 0; y < 3; ++y) {
+                for (int x = 0; x < 3; ++x) { abw = std::max(abw, std::fabs(c.m[y][x] - e.m[y][x])); }
+            }
+        }
+        char z[200];
+        std::snprintf(z, sizeof z, "Motion %.2f %.2f %.2f, groesste Abweichung %.5f (Beine %s)", static_cast<double>(motion[0]),
+                      static_cast<double>(motion[1]), static_cast<double>(motion[2]), static_cast<double>(abw), st.animation.c_str());
+        diag::detail(std::string("Knopftest: zeitleiste1 Rumpf - ") + z);
+        return std::fabs(motion[2]) > 10.0F && std::fabs(motion[1]) > 5.0F && abw < 2e-3F;
+    }));
+    add(tu("zeitleiste1 Rumpf: aufraeumen", [] {
+        mission1::ungespeicherteEntitiesVergessen();
+        g_app->doc.markSaved();
+    }));
+    return s;
+}
+
 }  // namespace zl1
 
 std::vector<Schritt> zeitleiste1Schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     // BHED_ZL1_NUR=mini: nur die Mini-Szene, =jk2: nur Jedi Outcast, =einstellungen: nur die Einstellungen,
-    // =undo: nur der Undo-Text
+    // =undo: nur der Undo-Text, =rumpf: nur der Rumpf (Zeitleiste 6)
     // (schneller Durchlauf beim Arbeiten).
     const char* nur = std::getenv("BHED_ZL1_NUR");
     if (nur != nullptr && std::strcmp(nur, "jk2") == 0) { return zl1::jk2Schritte(); }
     if (nur != nullptr && std::strcmp(nur, "untertitel") == 0) { return zl1::untertitelSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "einstellungen") == 0) { return zl1::einstellungenSchritte(); }
     if (nur != nullptr && std::strcmp(nur, "undo") == 0) { return zl1::undoSchritte(); }
+    if (nur != nullptr && std::strcmp(nur, "rumpf") == 0) {
+        s = zl1::untertitelSchritte();
+        for (Schritt& x : zl1::rumpfSchritte()) { s.push_back(std::move(x)); }
+        return s;
+    }
     if (nur != nullptr && std::strcmp(nur, "aufnahme") == 0) {
         s = zl1::untertitelSchritte();
         for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
@@ -1604,6 +1804,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
     for (Schritt& x : zl1::aufnahmeOriginal("md_am_sith")) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelSchritte()) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::aufnahmeSchritte()) { s.push_back(std::move(x)); }
+    for (Schritt& x : zl1::rumpfSchritte()) { s.push_back(std::move(x)); }
     // Jedi Outcast zuletzt: danach gelten dessen Regeln und Spielordner.
     for (Schritt& x : zl1::jk2Schritte()) { s.push_back(std::move(x)); }
     return s;

@@ -11,6 +11,7 @@
 #include "bhed/figurstufen.h"   // rc602 kartenpruefung
 #include "bhed/gla.h"
 #include "bhed/glm.h"
+#include "bhed/rumpfwinkel.h"
 
 #include <array>
 #include <cstdint>
@@ -693,10 +694,16 @@ struct ActorDraw {
     // Der GANZE Blickausschlag, nicht der Winkel eines einzelnen Knochens.
     // Wie er sich auf Brust, Hals und Kopf verteilt, steht in mapview.cpp.
     float headYaw = 0.0F;
-    // Zeitleiste 4: der Rumpf gegen die Beine (yaw sind die Beine), verteilt
-    // auf lower_lumbar 0,45, upper_lumbar 0,35, thoracic 0,20
-    // (CG_G2ClientSpineAngles, cg_players.cpp; kPmRumpfAnteil in pmanim.h).
+    // Zeitleiste 4: der Rumpf gegen die Beine (yaw sind die Beine) - viewAngles
+    // [YAW] von CG_G2ClientSpineAngles; wie er sich verteilt, steht in
+    // rumpfwinkel.h.
     float rumpfGier = 0.0F;
+    // Zeitleiste 6: die NPC_class fuer Rumpf und Hals, ob die Motion-Bone-
+    // Korrektur wirkt (rumpfMotionAusgleich: Beine und Oberkoerper spielen
+    // verschiedene Animationen) und ob die Beine an der Kante haengen (MD).
+    RumpfKlasse rumpfKlasse = RumpfKlasse::Mensch;
+    bool rumpfMotion = false;
+    bool rumpfKante = false;
     // Das Bild der OBERKOERPERanimation, -1 heisst: keine eigene.
     //
     // Gilt fuer den Teilbaum ab "lower_lumbar" - so teilt die Engine Ober-

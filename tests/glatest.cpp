@@ -240,8 +240,14 @@ int main() {
         // Das Gesicht sitzt zehn Einheiten VOR dem Kopf, in +x.
         ruhe[3].m[0][3] = 110.0F; ruhe[3].m[1][3] = 200.0F; ruhe[3].m[2][3] = 70.0F;
 
+        // Zeitleiste 6: knochenNachMal - X(b) * M, der Teilbaum mit
+        // X(b) M X(b)^-1. Der Kopf steht hier ungedreht, also ist seine
+        // Z-Achse die Senkrechte; M dreht um 90 Grad um sie.
+        bhed::BoneMatrix viertel = bhed::BoneMatrix::identity();
+        viertel.m[0][0] = 0.0F; viertel.m[0][1] = -1.0F;
+        viertel.m[1][0] = 1.0F; viertel.m[1][1] = 0.0F;
         std::vector<bhed::BoneMatrix> g = ruhe;
-        bhed::rotateBoneSubtreeYaw(a, g, 2, 90.0F);
+        bhed::knochenNachMal(a, g, 2, viertel);
 
         expect("der Kopf bleibt an seinem Ort",
                near(g[2].m[0][3], 100.0F, 0.01F) &&
@@ -265,12 +271,12 @@ int main() {
                near(g[1].m[0][0], 1.0F, 0.001F));
 
         std::vector<bhed::BoneMatrix> null = ruhe;
-        bhed::rotateBoneSubtreeYaw(a, null, 2, 0.0F);
-        expect("null Grad laesst alles stehen",
+        bhed::knochenNachMal(a, null, 2, bhed::BoneMatrix::identity());
+        expect("die Einheitsmatrix laesst alles stehen",
                near(null[3].m[0][3], 110.0F, 0.0001F));
 
         std::vector<bhed::BoneMatrix> fehlt = ruhe;
-        bhed::rotateBoneSubtreeYaw(a, fehlt, -1, 45.0F);
+        bhed::knochenNachMal(a, fehlt, -1, viertel);
         expect("ein unbekannter Knochen laesst alles stehen",
                near(fehlt[3].m[0][3], 110.0F, 0.0001F));
     }

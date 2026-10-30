@@ -4,7 +4,7 @@
 // renderModel). Gezeichnet wird seitdem nur noch ueber die Grafikkarte
 // (gui/gpumap_win32.cpp); geblieben ist, was beide Wege teilten.
 #include "bhed/mapview.h"
-#include "bhed/pmanim.h"
+#include "bhed/rumpfwinkel.h"
 #include "bhed/saberspuren.h"   // Pruefung 4a: spurRsqrt (VectorNormalizeFast)
 
 #include "bhed/wave.h"
@@ -711,21 +711,8 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
             if (yaw == 0.0F) { continue; }
             const int k = boneIndex(*act.anim, seite == 0 ? "leye" : "reye");
             if (k < 0) { continue; }
-            const float p = yaw * (3.14159265358979323846F / 180.0F);   // Create_Matrix: PITCH = YAW der Engine
-            const float sp = std::sin(p);
-            const float cp = std::cos(p);
-            // AnglesToAxis(p, 0, 0): forward (cp, 0, -sp), left (0, 1, 0), up (sp, 0, cp) - als Spalten
-            BoneMatrix m = BoneMatrix::identity();
-            m.m[0][0] = cp;
-            m.m[1][0] = 0.0F;
-            m.m[2][0] = -sp;
-            m.m[0][1] = 0.0F;
-            m.m[1][1] = 1.0F;
-            m.m[2][1] = 0.0F;
-            m.m[0][2] = sp;
-            m.m[1][2] = 0.0F;
-            m.m[2][2] = cp;
-            lider.emplace_back(k, m);
+            const float winkel[3] = {0.0F, yaw, 0.0F};
+            lider.emplace_back(k, g2WinkelMatrix(winkel, G2Achse::PosY, G2Achse::PosZ, G2Achse::PosX));
         }
         if (!lider.empty()) {
             act.anim->worldMatricesLerp(std::clamp(act.frame, 0, act.anim->bildZahl() - 1),
@@ -824,73 +811,49 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         }
     }
 
-    // --- Der Kopf, NACH dem Uebergang -------------------------------
+    // --- Rumpf, Hals und Kopf, NACH dem Uebergang ----------------------
     //
-    // Die Reihenfolge ist keine Geschmacksfrage: die Engine setzt die
-    // Kopfwinkel auf die FERTIGEN Knochen, und ein Uebergang zwischen
-    // zwei Animationen soll die Blickrichtung nicht mit herumziehen.
-    // Wer den Kopf VOR dem Mischen drehte, bekaeme bei jedem
-    // Animationswechsel ein Zucken im Blick.
+    // Die Engine setzt diese Knochenwinkel auf die FERTIGEN Knochen
+    // (G2_TransformBone: die Animation samt Uebergang, dann
+    // BONE_ANGLES_POSTMULT), und ein Uebergang zwischen zwei Animationen soll
+    // die Blickrichtung nicht mit herumziehen.
     //
-    // "cranium" ist der Kopfknochen in _humanoid - nachgesehen, nicht
-    // geraten: Knochen 15, Elternteil 14 (cervical), darueber 13
-    // (thoracic). Kennt ein Skelett den Namen nicht, gibt boneIndex
-    // -1 und rotateBoneSubtreeYaw laesst alles stehen.
-    // --- Zeitleiste 4: der Rumpf zurueck zum Blick ---------------------
-    //
-    // Laufen die Beine schraeg oder seitwaerts, dreht cgame sie zur
-    // Laufrichtung (CG_PlayerLegsYawFromMovement) und den Rumpf ueber drei
-    // Knochen zurueck (CG_G2ClientSpineAngles: lower_lumbar 0,45,
-    // upper_lumbar 0,35, thoracic 0,20 - "each of these distributions must
-    // add up to 1.0f"). Wie beim Kopf um die Senkrechte durch den Knochen,
-    // nach dem Uebergang.
-    if (skinned && act.rumpfGier != 0.0F) {
-        for (int i = 0; i < 3; ++i) {
-            static const char* const kRumpf[3] = {"lower_lumbar", "upper_lumbar", "thoracic"};
-            rotateBoneSubtreeYaw(*act.anim, world, boneIndex(*act.anim, kRumpf[i]), act.rumpfGier * kPmRumpfAnteil[i]);
+    // Zeitleiste 6: wie im Spiel um die Achsen des Knochens und mit allen
+    // drei Winkeln (rumpfwinkel.h): CG_G2ClientSpineAngles verteilt den Rumpf
+    // gegen die Beine (rumpfGier) und die Motion-Bone-Korrektur auf
+    // lower_lumbar, upper_lumbar und thoracic, CG_G2ClientNeckAngles den
+    // Blick (headYaw) auf thoracic, cervical und cranium - der thoracic
+    // mischt beide zur Haelfte. Bis Zeitleiste 5 drehten Rumpf und Kopf nur
+    // um die Senkrechte, und den Motion-Knochen gab es gar nicht.
+    if (skinned) {
+        RumpfEingabe e;
+        e.klasse = act.rumpfKlasse;
+        e.blick[1] = act.rumpfGier;
+        e.kopf[1] = act.headYaw;
+        e.kante = act.rumpfKante;
+        const int motion = act.rumpfMotion ? boneIndex(*act.anim, "Motion") : -1;
+        if (motion >= 0 && static_cast<std::size_t>(motion) < world.size()) {
+            // G2API_GetBoltMatrix(motionBolt, Winkel 0): die Wurzel der Engine
+            // ist um 90 Grad gedreht (tr_ghoul2.cpp RootMatrix, identityMatrix
+            // {0,-1,0},{1,0,0},{0,0,1}) - dieselbe Drehung wie gpu::baueFigurWelt.
+            // Die Zeilen werden normiert (G2API_GetBoltMatrix).
+            float bolzen[3][4];
+            const BoneMatrix& m = world[static_cast<std::size_t>(motion)];
+            for (int c = 0; c < 4; ++c) {
+                bolzen[0][c] = -m.m[1][c];
+                bolzen[1][c] = m.m[0][c];
+                bolzen[2][c] = m.m[2][c];
+            }
+            for (auto& z : bolzen) {
+                const float l = std::sqrt(z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
+                if (l > 0.0F) {
+                    for (int c = 0; c < 3; ++c) { z[c] /= l; }
+                }
+            }
+            e.motion = true;
+            motionWinkelAusBolzen(bolzen, e.motionWinkel);
         }
-    }
-    if (skinned && act.headYaw != 0.0F) {
-        // --- Der Blick verteilt sich auf drei Knochen ---------------
-        //
-        // Gemeldet: "nicht immer dreht sich der Oberkoerper mit dem
-        // Kopf mit."
-        //
-        // Er dreht sich GAR NICHT mit - jedenfalls nicht bei einem
-        // Ghoul2-Modell, und das sind in Movie Duels alle. rc254 hatte
-        // die Oberkoerperdrehung aus `CG_PlayerAngles`
-        // (cg_players.cpp:3030) abgeschrieben, dem alten Weg fuer
-        // MD3-Modelle. Ghoul2 laeuft ueber `CG_G2PlayerAngles`
-        // (ebenda:2479), und der endet mit `return`, bevor jener Block
-        // je erreicht wird.
-        //
-        // Was dort steht, ist allein `CG_G2ClientNeckAngles`
-        // (ebenda:2301 ff.):
-        //
-        //     thoracicAngles[YAW] = lA[YAW] * 0.1f;
-        //     neckAngles[YAW]     = lA[YAW] * 0.3f;
-        //     headAngles[YAW]     = lA[YAW] * 0.6f;
-        //
-        // Drei Knochen, Summe eins. Die Brustwirbel bekommen ein
-        // Zehntel - das ist alles, was vom Oberkoerper mitgeht.
-        //
-        // Die Reihenfolge ist von aussen nach innen. Jede Drehung wirkt
-        // um den Ursprung ihres Knochens, WIE ER GERADE STEHT - also
-        // muss die aeussere schon drin sein, wenn die innere an die
-        // Reihe kommt. Andersherum saesse der Kopf neben dem Hals.
-        const struct {
-            const char* knochen;
-            float anteil;
-        } kette[] = {
-            {"thoracic", 0.10F},
-            {"cervical", 0.30F},
-            {"cranium", 0.60F},
-        };
-        for (const auto& g : kette) {
-            rotateBoneSubtreeYaw(*act.anim, world,
-                                 boneIndex(*act.anim, g.knochen),
-                                 act.headYaw * g.anteil);
-        }
+        rumpfWinkelAnlegen(*act.anim, world, act.rumpfKlasse, rumpfWinkel(e));
     }
 
     // Die Figur steht am Ort und ist um yaw gedreht.

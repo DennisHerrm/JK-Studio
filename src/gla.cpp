@@ -697,64 +697,97 @@ int boneIndex(const GlaAnimation& anim, const std::string& name) {
     return -1;
 }
 
-void rotateBoneSubtreeYaw(const GlaAnimation& anim,
-                          std::vector<BoneMatrix>& world, int bone,
-                          float yawDeg) {
-    if (bone < 0 || static_cast<std::size_t>(bone) >= world.size() ||
-        world.size() != anim.bones.size() || yawDeg == 0.0F) {
+BoneMatrix g2WinkelMatrix(const float winkel[3], G2Achse oben, G2Achse links, G2Achse vorn) noexcept {
+    // G2_Generate_Matrix (G2_bones.cpp OpenJK): "swap y and z because of wacky Quake setup"
+    const auto wahl = [winkel](G2Achse a, const float plus[6]) {
+        switch (a) {
+            case G2Achse::NegX: return winkel[2] + plus[3];
+            case G2Achse::PosX: return winkel[2] + plus[0];
+            case G2Achse::NegY: return winkel[0] + plus[4];
+            case G2Achse::PosY: return winkel[0] + plus[1];
+            case G2Achse::NegZ: return winkel[1] + plus[5];
+            case G2Achse::PosZ: return winkel[1] + plus[2];
+        }
+        return 0.0F;
+    };
+    // die +180 je Fall, Reihenfolge PosX, PosY, PosZ, NegX, NegY, NegZ
+    static constexpr float kGier[6] = {0.0F, 0.0F, 0.0F, 180.0F, 0.0F, 180.0F};
+    static constexpr float kNick[6] = {180.0F, 180.0F, 0.0F, 0.0F, 0.0F, 0.0F};
+    static constexpr float kRoll[6] = {0.0F, 180.0F, 180.0F, 0.0F, 0.0F, 0.0F};
+    const float neu[3] = {wahl(links, kNick), wahl(oben, kGier), wahl(vorn, kRoll)};
+    // Create_Matrix: AnglesToAxis (q_math.c AngleVectors, links = -rechts) als Spalten
+    constexpr float kGrad = 3.14159265358979323846F / 180.0F;
+    const float sy = std::sin(neu[1] * kGrad);
+    const float cy = std::cos(neu[1] * kGrad);
+    const float sp = std::sin(neu[0] * kGrad);
+    const float cp = std::cos(neu[0] * kGrad);
+    const float sr = std::sin(neu[2] * kGrad);
+    const float cr = std::cos(neu[2] * kGrad);
+    const float vor[3] = {cp * cy, cp * sy, -sp};
+    const float rechts[3] = {-1 * sr * sp * cy + -1 * cr * -sy, -1 * sr * sp * sy + -1 * cr * cy, -1 * sr * cp};
+    const float hoch[3] = {cr * sp * cy + -sr * -sy, cr * sp * sy + -sr * cy, cr * cp};
+    BoneMatrix m = BoneMatrix::identity();
+    for (int r = 0; r < 3; ++r) {
+        m.m[r][0] = vor[r];
+        m.m[r][1] = -rechts[r];
+        m.m[r][2] = hoch[r];
+        m.m[r][3] = 0.0F;
+    }
+    return m;
+}
+
+namespace {
+
+// Umkehrung einer 3x4-Matrix (affin): A^-1 ueber die Adjunkte, Ort -A^-1 t.
+// Die Stellungen sind nach dem Mischen (tr_ghoul2.cpp:1531, zwoelf Werte linear)
+// nicht mehr genau orthonormal - deshalb nicht einfach transponieren.
+BoneMatrix umkehrung(const BoneMatrix& x) noexcept {
+    const auto& a = x.m;
+    const float c00 = a[1][1] * a[2][2] - a[1][2] * a[2][1];
+    const float c01 = a[1][2] * a[2][0] - a[1][0] * a[2][2];
+    const float c02 = a[1][0] * a[2][1] - a[1][1] * a[2][0];
+    const float det = a[0][0] * c00 + a[0][1] * c01 + a[0][2] * c02;
+    if (std::fabs(det) < 1e-12F) { return BoneMatrix::identity(); }
+    const float k = 1.0F / det;
+    BoneMatrix r;
+    r.m[0][0] = c00 * k;
+    r.m[0][1] = (a[0][2] * a[2][1] - a[0][1] * a[2][2]) * k;
+    r.m[0][2] = (a[0][1] * a[1][2] - a[0][2] * a[1][1]) * k;
+    r.m[1][0] = c01 * k;
+    r.m[1][1] = (a[0][0] * a[2][2] - a[0][2] * a[2][0]) * k;
+    r.m[1][2] = (a[0][2] * a[1][0] - a[0][0] * a[1][2]) * k;
+    r.m[2][0] = c02 * k;
+    r.m[2][1] = (a[0][1] * a[2][0] - a[0][0] * a[2][1]) * k;
+    r.m[2][2] = (a[0][0] * a[1][1] - a[0][1] * a[1][0]) * k;
+    for (int i = 0; i < 3; ++i) {
+        r.m[i][3] = -(r.m[i][0] * a[0][3] + r.m[i][1] * a[1][3] + r.m[i][2] * a[2][3]);
+    }
+    return r;
+}
+
+}  // namespace
+
+void knochenNachMal(const GlaAnimation& anim, std::vector<BoneMatrix>& world, int bone, const BoneMatrix& m) {
+    if (bone < 0 || static_cast<std::size_t>(bone) >= world.size() || world.size() != anim.bones.size()) {
         return;
     }
-    // Die Nachkommen mitnehmen.
-    //
-    // Der Kopf traegt in _humanoid die Gesichtsknochen; drehte man nur den
-    // cranium, bliebe das Gesicht stehen und die Figur bekaeme ein
-    // verdrehtes Gesicht statt eines gedrehten Kopfes.
-    //
-    // Die Reihenfolge der Knochen in der Datei ist nicht die des Baums -
-    // in Ravens _humanoid.gla haben acht Knochen ihren Elternteil HINTER
-    // sich (siehe topologicalOrder). Deshalb wird die Zugehoerigkeit ueber
-    // die Elternkette bestimmt und nicht ueber den Index.
+    // Der Teilbaum ueber die Elternkette, nicht ueber den Index: in Ravens
+    // _humanoid.gla haben acht Knochen ihren Elternteil HINTER sich
+    // (topologicalOrder). Der cranium traegt die Gesichtsknochen, die
+    // Lendenwirbel den ganzen Oberkoerper samt Armen und Klinge.
     std::vector<char> dazu(world.size(), 0);
     dazu[static_cast<std::size_t>(bone)] = 1;
     for (const int b : anim.topologicalOrder()) {
         const auto ub = static_cast<std::size_t>(b);
         const int p = anim.bones[ub].parent;
-        if (p >= 0 && static_cast<std::size_t>(p) < dazu.size() &&
-            dazu[static_cast<std::size_t>(p)] != 0) {
+        if (p >= 0 && static_cast<std::size_t>(p) < dazu.size() && dazu[static_cast<std::size_t>(p)] != 0) {
             dazu[ub] = 1;
         }
     }
-
-    // Gedreht wird um die SENKRECHTE durch den Ursprung des Knochens.
-    //
-    // Also erst dorthin verschieben, drehen, zurueckschieben. Der Ursprung
-    // des Kopfes bleibt damit stehen, wo er ist - der Kopf dreht sich, er
-    // wandert nicht. Das ist die Zusicherung, an der eine Probe den
-    // Unterschied zu einer Drehung um den Weltnullpunkt festmacht.
-    const BoneMatrix& kopf = world[static_cast<std::size_t>(bone)];
-    const float px = kopf.m[0][3];
-    const float py = kopf.m[1][3];
-    const float rad = yawDeg * 3.14159265F / 180.0F;
-    const float cs = std::cos(rad);
-    const float sn = std::sin(rad);
-
+    const BoneMatrix& x = world[static_cast<std::size_t>(bone)];
+    const BoneMatrix d = x * m * umkehrung(x);
     for (std::size_t b = 0; b < world.size(); ++b) {
-        if (dazu[b] == 0) {
-            continue;
-        }
-        BoneMatrix& m = world[b];
-        // Die drei Spalten der Ausrichtung drehen ...
-        for (int c = 0; c < 3; ++c) {
-            const float x = m.m[0][c];
-            const float y = m.m[1][c];
-            m.m[0][c] = cs * x - sn * y;
-            m.m[1][c] = sn * x + cs * y;
-        }
-        // ... und den Ort um den Kopfursprung herum.
-        const float dx = m.m[0][3] - px;
-        const float dy = m.m[1][3] - py;
-        m.m[0][3] = px + cs * dx - sn * dy;
-        m.m[1][3] = py + sn * dx + cs * dy;
+        if (dazu[b] != 0) { world[b] = d * world[b]; }
     }
 }
 
