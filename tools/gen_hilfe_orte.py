@@ -149,7 +149,8 @@ def pfade(zeilen):
         z = zeilen[i]
         if z.startswith("}"):
             break
-        for m in re.finditer(r"ImGui::(?:SeparatorText|TextDisabled|TextUnformatted)\((?:\"%s\", )?tr\(Str::(\w+)\)", z):
+        # uebersetzung1: Zaehltexte kommen ueber trN(Str::X, zahl, ...)
+        for m in re.finditer(r"ImGui::(?:SeparatorText|TextDisabled|TextUnformatted)\((?:\"%s\", )?trN?\(Str::(\w+)[,)]", z):
             inhalt.append(m.group(1))
         m = re.search(r"ImGui::(?:Button|Checkbox)\(tr\(Str::(\w+)\)", z)
         if m:
