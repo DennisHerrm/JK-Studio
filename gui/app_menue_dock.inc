@@ -115,6 +115,19 @@ void spaltenTeiler(const char* id, float& wert, bool senkrecht, float min, float
              static_cast<ImGuiButtonFlags>(g_menueDock.aktiv ? static_cast<int>(ImGuiButtonFlags_FlattenChildren) : 0));
 }
 
+// Ohne Menue (zeichneInnen zeigt nur den Hinweis): kein DockSpace, aber Panels in
+// eigenen Fenstern stehen weiter da (wie dock1) - mit demselben Hinweis.
+void menueDockOhneMenue() {
+    if (!dockraumAn()) { return; }
+    const dockvorgabe::Vorgabe v = menueVorgabe();
+    for (std::size_t i = 0; i < v.panels.size(); ++i) {
+        if (!dock::draussen(v.panels[i].c_str()) || dock::versteckt(v.panels[i].c_str())) { continue; }
+        const int k = static_cast<int>(i);
+        if (dockvorgabe::panelBeginnen(4, v, k)) { ImGui::TextDisabled("%s", tr(Str::MeKeinMenue)); }
+        dockvorgabe::panelEnde(4, v, k);
+    }
+}
+
 // Nach den Spalten: der DockSpace auf `flaeche` und die Panels in ihren
 // Blaettern (auch in eigenen Fenstern) - jedes mit seinem Kindfenster wie vorher.
 void menueDockZeichnen(Dokument& d, const ImRect& flaeche) {

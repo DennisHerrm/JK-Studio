@@ -466,6 +466,23 @@ void zielPlatz(const char* id, ImVec2& a, ImVec2& b) {
     b = r.Max;
 }
 
+void startLage(const char* id) {
+    // Ganz im Hauptfenster: ein Fenster, das darueber hinausragt, wird ein eigenes
+    // Windows-Fenster und laege ueber den Menues des Hauptfensters (Selbsttest
+    // dock1: der Klick auf "Reset layout" traf die Ereignisliste).
+    const ImRect r = zielRechteck(id);
+    const float fs = ImGui::GetFontSize();
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const ImVec2 lo{vp->WorkPos.x + fs, vp->WorkPos.y + fs};
+    const ImVec2 hi{vp->WorkPos.x + vp->WorkSize.x - fs, vp->WorkPos.y + vp->WorkSize.y - fs};
+    const ImVec2 gr{std::min(std::max(r.GetWidth(), fs * 16.0F), std::max(fs * 8.0F, hi.x - lo.x)),
+                    std::min(std::max(r.GetHeight(), fs * 10.0F), std::max(fs * 6.0F, hi.y - lo.y))};
+    const ImVec2 pos{std::clamp(r.Min.x + fs * 2.0F, lo.x, std::max(lo.x, hi.x - gr.x)),
+                     std::clamp(r.Min.y + fs * 2.0F, lo.y, std::max(lo.y, hi.y - gr.y))};
+    ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(gr, ImGuiCond_FirstUseEver);
+}
+
 bool fensterBeginnen(const char* id) {
     Zustand& s = z();
     const Panel* p = panel(id);
@@ -485,22 +502,7 @@ bool fensterBeginnen(const char* id) {
     // auch mit ImGuiCond_FirstUseEver, solange ImGui die Bedingung fuer das
     // Fenster noch zulaesst (Selbsttest dock1: geladene Anordnung zerfiel).
     const std::string name = panelFensterName(*p);
-    // Ganz im Hauptfenster: ein Fenster, das darueber hinausragt, wird ein eigenes
-    // Windows-Fenster und laege ueber den Menues des Hauptfensters (Selbsttest
-    // dock1: der Klick auf "Reset layout" traf die Ereignisliste).
-    if (ImGui::FindWindowByName(name.c_str()) == nullptr) {
-        const ImRect r = zielRechteck(id);
-        const float fs = ImGui::GetFontSize();
-        const ImGuiViewport* vp = ImGui::GetMainViewport();
-        const ImVec2 lo{vp->WorkPos.x + fs, vp->WorkPos.y + fs};
-        const ImVec2 hi{vp->WorkPos.x + vp->WorkSize.x - fs, vp->WorkPos.y + vp->WorkSize.y - fs};
-        const ImVec2 gr{std::min(std::max(r.GetWidth(), fs * 16.0F), std::max(fs * 8.0F, hi.x - lo.x)),
-                        std::min(std::max(r.GetHeight(), fs * 10.0F), std::max(fs * 6.0F, hi.y - lo.y))};
-        const ImVec2 pos{std::clamp(r.Min.x + fs * 2.0F, lo.x, std::max(lo.x, hi.x - gr.x)),
-                         std::clamp(r.Min.y + fs * 2.0F, lo.y, std::max(lo.y, hi.y - gr.y))};
-        ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(gr, ImGuiCond_FirstUseEver);
-    }
+    if (ImGui::FindWindowByName(name.c_str()) == nullptr) { startLage(id); }
     bool offen = true;
     const bool sichtbar = ImGui::Begin(name.c_str(), &offen, ImGuiWindowFlags_NoCollapse);
     s.fensterGeschlossen = !offen;

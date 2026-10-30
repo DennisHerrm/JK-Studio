@@ -182,6 +182,18 @@ std::vector<Schritt> dock4Schritte() {
     auto stand = std::make_shared<dock4::KartenStand>();
     const bool vorher = dockraumAn();
 
+    // Menu Editor ohne Menue: kein DockSpace, aber ein Panel laesst sich herausnehmen
+    // (es steht mit dem Hinweis in einem eigenen Fenster) und spaeter andocken.
+    add(tu("dock4: Menu Editor ohne Menue im DockSpace, Flaeche herausnehmen", [] {
+        dockraumAn() = true;
+        g_app->leftMode = 4;
+        dock::herausnehmen("menue.flaeche");
+    }));
+    add(stabil("dock4: Menu Editor ohne Menue", 20));
+    add(pruefe("dock4: ohne Menue - die Flaeche steht in einem eigenen Fenster", [] {
+        const ImGuiWindow* w = dock1::panelFenster("menue.flaeche");
+        return menueeditor::stand().dokumente == 0 && w != nullptr && w->WasActive && dock::draussen("menue.flaeche");
+    }));
     add(tu("dock4: Ausgangslage - alle Anordnungen zurueck, ein Menue offen, Map Editor", [stand] {
         for (int b = 0; b < dock::kBereiche; ++b) { dock::zuruecksetzen(b); }
         (void)menueeditor::oeffneText("dock4.menu",
@@ -198,6 +210,15 @@ std::vector<Schritt> dock4Schritte() {
         stand->v2 = e.v2Groessen;
     }));
     add(warteBis("dock4: Spiel bereit (Karten-Editor)", [] { return ke::spielBereit(); }, 6000));
+    add(tu("dock4: mit Menue - Flaeche andocken", [] {
+        g_app->leftMode = 4;
+        dock::andocken("menue.flaeche");
+    }));
+    add(stabil("dock4: Flaeche angedockt", 20));
+    add(pruefe("dock4: mit Menue - die Flaeche ist wieder an ihrem Platz, Vorgabe", [] {
+        return dock::zuhause("menue.flaeche") && dockvorgabe::standard(4);
+    }));
+    add(tu("dock4: Map Editor", [] { g_app->leftMode = 3; }));
 
     // --- 1. und 2.: dieselben Masse ohne und mit DockSpace ---------------------
     for (const int runde : {0, 1}) {

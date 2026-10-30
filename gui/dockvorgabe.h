@@ -87,7 +87,6 @@ void andocken(int bereich, const char* panel);
 void zuruecksetzen(int bereich);
 void neuLesen(int bereich);
 [[nodiscard]] bool standard(int bereich);
-[[nodiscard]] ImGuiID wurzelVon(int bereich);
 [[nodiscard]] std::string schluesselVon(int bereich);
 
 }  // namespace bhed::gui::dockvorgabe

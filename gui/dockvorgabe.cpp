@@ -263,7 +263,9 @@ bool beginnen(int bereich, const Vorgabe& v) {
         // Panels, die gerade schweben, bleiben draussen; der Baum der alten
         // Vorgabe weicht (seine Panels kommen in die Blaetter der neuen).
         const bool wechsel = !r.schluessel.empty();
-        std::vector<std::string> lassen;
+        // Beim ersten Bild des Bereichs bleiben Wuensche von vorher (herausnehmen, bevor
+        // das Panel je gezeichnet wurde) stehen.
+        std::vector<std::string> lassen = wechsel ? std::vector<std::string>{} : r.draussenLassen;
         if (wechsel) {
             for (const std::string& p : r.panels) {
                 const ImGuiWindow* w = ImGui::FindWindowByName(dock::fensterName(p.c_str()).c_str());
@@ -341,6 +343,9 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     if ((r.frisch || verwaist) && !lassen && static_cast<std::size_t>(i) < r.heim.size() && r.heim[static_cast<std::size_t>(i)] != 0) {
         ImGui::SetNextWindowDockID(r.heim[static_cast<std::size_t>(i)], ImGuiCond_Always);
         imRaum = true;
+    } else if (neu) {   // neu und draussen gelassen: ein eigenes Fenster an seiner Startlage
+        dock::startLage(id.c_str());
+        imRaum = false;
     }
     const ImGuiWindowClass k = klasse();
     ImGui::SetNextWindowClass(&k);
@@ -416,18 +421,32 @@ void dreieckEnde(const Dreieck& d) {
 }
 
 bool draussen(int bereich, const char* panel) {
-    (void)bereich;
-    const ImGuiWindow* w = ImGui::FindWindowByName(dock::fensterName(panel).c_str());
-    if (w == nullptr) { return false; }   // noch nie gezeichnet: an seinem Platz
-    const ImGuiDockNode* n = w->DockNode != nullptr ? w->DockNode : (w->DockId != 0 ? ImGui::DockBuilderGetNode(w->DockId) : nullptr);
-    if (n == nullptr && w->DockId != 0) { return false; }   // Knoten weg: kommt beim Zeigen in sein Blatt
+    const std::string name = dock::fensterName(panel);
+    const ImGuiWindow* w = ImGui::FindWindowByName(name.c_str());
+    ImGuiID knoten = 0;
+    if (w != nullptr) {
+        knoten = w->DockNode != nullptr ? w->DockNode->ID : w->DockId;
+    } else if (const ImGuiWindowSettings* st = ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())); st != nullptr) {
+        knoten = st->DockId;   // in dieser Sitzung noch nicht gezeichnet: wie gespeichert (Neustart)
+    } else {   // noch nie gezeichnet: an seinem Platz - oder es soll in ein eigenes Fenster
+        const Raum& r = raum(bereich);
+        return std::find(r.draussenLassen.begin(), r.draussenLassen.end(), panel) != r.draussenLassen.end();
+    }
+    const ImGuiDockNode* n = knoten != 0 ? ImGui::DockBuilderGetNode(knoten) : nullptr;
+    if (n == nullptr && knoten != 0) { return false; }   // Knoten weg: kommt beim Zeigen in sein Blatt
     while (n != nullptr && n->ParentNode != nullptr) { n = n->ParentNode; }
     return n == nullptr || !n->IsDockSpace();
 }
 
 void herausnehmen(int bereich, const char* panel) {
     ImGuiWindow* w = ImGui::FindWindowByName(dock::fensterName(panel).c_str());
-    if (w == nullptr || draussen(bereich, panel)) { return; }
+    if (w == nullptr) {   // noch nie gezeichnet (Bereich noch nicht gezeigt, Menue-Editor ohne Menue)
+        Raum& r = raum(bereich);
+        if (std::find(r.draussenLassen.begin(), r.draussenLassen.end(), panel) == r.draussenLassen.end()) { r.draussenLassen.emplace_back(panel); }
+        diag::detail(std::string("Fenster: Panel ") + panel + " kommt beim ersten Zeichnen in ein eigenes Fenster");
+        return;
+    }
+    if (draussen(bereich, panel)) { return; }
     ImGui::DockContextQueueUndockWindow(GImGui, w);
     diag::detail(std::string("Fenster: Panel ") + panel + " aus dem DockSpace in ein eigenes Fenster");
 }
@@ -472,7 +491,6 @@ bool standard(int bereich) {
     return r.wurzel != 0 && r.qt && !r.neuBauen;
 }
 
-ImGuiID wurzelVon(int bereich) { return raum(bereich).wurzel; }
 std::string schluesselVon(int bereich) { return raum(bereich).schluessel; }
 
 }  // namespace bhed::gui::dockvorgabe

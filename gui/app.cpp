@@ -6627,8 +6627,9 @@ void draw() {
         dock::heimPlatz(g_app->leftMode == 2 ? "modell.leiste" : "mission.zeitleiste", ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         ImGui::PopStyleColor();
     }
-    // dock1: die herausgenommenen Panels in ihren eigenen Fenstern.
-    if (!dockraum::an() || g_app->leftMode > 2) { drawDockFenster(l); }
+    // dock1: die herausgenommenen Panels in ihren eigenen Fenstern (im DockSpace
+    // zeichnet jeder Bereich seine Panels selbst - dockraum::zeichnen, dockvorgabe.h).
+    if (!dockraum::an()) { drawDockFenster(l); }
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

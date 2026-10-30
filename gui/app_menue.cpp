@@ -4210,6 +4210,7 @@ void zeichneInnen(float hoehe) {
     if (d == nullptr) {
         ImGui::TextDisabled("%s", tr(Str::MeKeinMenue));
         if (ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("tut-menue", 1); }   // H2: der Weg als Tour
+        menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
     }
     neuParsen(*d);
