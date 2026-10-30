@@ -73,7 +73,19 @@ void flachen(const std::vector<Node>& ns, Path& weg, std::map<Kennung, Flach>& o
 }
 
 std::string kurzZeile(const Node& n) {
-    std::string z = rowText(n, g_app->treeOpt);
+    // Zeitleiste 5: eine Kommentarzeile hat weder Namen noch Argumente (rowText
+    // gaebe "( )") - sie heisst wie im Baum nach ihrem Text, eine
+    // auskommentierte (//(BHVDREM), REM-Knopf) "// " und der Befehl darin.
+    std::string z;
+    std::string inhalt;
+    if (n.kind == Node::Kind::LineComment && remInhalt(n.raw, &inhalt)) {
+        if (!inhalt.empty() && inhalt.back() == ';') { inhalt.pop_back(); }   // wie rowText ohne ";"
+        z = "// " + inhalt;
+    } else if (n.kind == Node::Kind::LineComment) {
+        z = n.raw.substr(std::min(n.raw.find_first_not_of(" 	"), n.raw.size()));
+    } else {
+        z = rowText(n, g_app->treeOpt);
+    }
     constexpr std::size_t kMax = 60;
     if (z.size() > kMax) {
         z = z.substr(0, kMax) + "...";

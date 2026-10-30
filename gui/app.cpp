@@ -3176,7 +3176,18 @@ void drawPrefs() {
         const char* const regeln[4] = {autoName, tr(Str::PrefsRegelOpenJK), tr(Str::PrefsRegelMd),
                                        tr(Str::PrefsRegelJk2)};
         int r = std::clamp(st.regelwerk, 0, 3);
-        ImGui::SetNextItemWidth(w * 0.5F);
+        // Zeitleiste 5: so breit, dass jeder Eintrag ganz zu lesen ist - auch
+        // "automatisch" mit jedem erkennbaren Spiel, damit das Feld nicht
+        // springt ("Automatic (detected: OpenJK (Jedi Academy))", in jeder
+        // Sprache); das Fenster waechst mit (AlwaysAutoResize, Inhalt AutoResizeX).
+        float breit = 0.0F;
+        for (const Str s : {Str::PrefsRegelOpenJK, Str::PrefsRegelMd, Str::PrefsRegelJk2}) {
+            char z[160];
+            std::snprintf(z, sizeof(z), tr(Str::PrefsRegelAuto), tr(s));
+            breit = std::max({breit, ImGui::CalcTextSize(z).x, ImGui::CalcTextSize(tr(s)).x});
+        }
+        breit += ImGui::GetStyle().FramePadding.x * 2.0F + ImGui::GetFrameHeight();
+        ImGui::SetNextItemWidth(std::max(w * 0.5F, breit));
         if (ImGui::Combo(tr(Str::PrefsRegelwerk), &r, regeln, 4)) {
             st.regelwerk = r;
             (void)regelwerkPruefen();
