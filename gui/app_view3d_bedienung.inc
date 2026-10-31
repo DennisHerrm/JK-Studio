@@ -5605,8 +5605,10 @@ g_app->gizmoAxis = g_app->gizmoHover;
         // mission1 (shank: "beim Abspielen ist das Fadenkreuz noch zu sehen"):
         // nicht, solange die Wiedergabe laeuft.
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        const ImVec2 mid{topLeft.x + static_cast<float>(w) * 0.5F,
-                         topLeft.y + static_cast<float>(h) * 0.5F};
+        // Auf ganzen Punkten: bei ungerader Ansichtsgroesse lag es sonst zwischen zwei Zeilen und zeichnete
+        // beide halb (blass und breit - z. B. auf Spanisch, wo die linke Spalte breiter ist).
+        const ImVec2 mid{std::floor(topLeft.x + static_cast<float>(w) * 0.5F),
+                         std::floor(topLeft.y + static_cast<float>(h) * 0.5F)};
         const float arm = ImGui::GetFontSize() * 0.55F;
         const float gap = arm * 0.35F;
         const ImU32 col = IM_COL32(255, 210, 60, 200);

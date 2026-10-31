@@ -1959,6 +1959,14 @@ std::vector<Schritt> karteneditorAuswahlSchritte() {
 // den Shader, M3 waehlt nur), Filter, View-Menue, U / Ctrl+A, Rad, M2-Ziehen,
 // Kontextmenue, Shader Info / Text, Doppelklick, Refresh, Find / Replace,
 // Einstellungsseite, Teiler.
+
+// Der Titel des Textur-Browsers in der Sprache des Laufs (TextureBrowser_exportTitle).
+std::string karteTexturTitel(const char* verzeichnis) {
+    char z[512];
+    std::snprintf(z, sizeof(z), karteneditor::trK(Str::KeTexTitle), verzeichnis);
+    return z;
+}
+
 std::vector<Schritt> karteneditorTexturSchritte() {
     namespace ke = karteneditor;
     namespace kb = karte::befehle;
@@ -2036,7 +2044,7 @@ std::vector<Schritt> karteneditorTexturSchritte() {
         for (const auto& x : n) { t += " " + x; }
         diag::detail("Knopftest: Texturen - gezeigt:" + t);
         return n.size() == 2 && n[0] == "textures/" && n[1] == "textures/common/caulk" && c != nullptr && c->imGebrauch &&
-               e.texBro.shader == "textures/" && ke::texturTitel() == "Textures: all";
+               e.texBro.shader == "textures/" && ke::texturTitel() == karteTexturTitel(ke::trK(Str::KeTexAll));
     }));
     add(warteBis("Texturen: Bilder geladen", [] { return ke::kameraBilderFertig(); }, 2000));
     add(foto("karteneditor_texturen_start"));
@@ -2066,7 +2074,7 @@ std::vector<Schritt> karteneditorTexturSchritte() {
         ke::Editor& e = ke::editor();
         diag::detail("Knopftest: Texturen - Verzeichnis " + e.texBro.verzeichnis + ", " + ke::texturTitel());
         return !e.texBro.verzeichnis.empty() && e.texBro.verzeichnis.back() == '/' && konsoleHat("Showing ") &&
-               ke::texturTitel() == "Textures: " + e.texBro.verzeichnis;
+               ke::texturTitel() == karteTexturTitel(e.texBro.verzeichnis.c_str());
     }));
     add(tu("system/ zeigen (TextureBrowser_ShowDirectory)", [] { ke::texturVerzeichnisZeigen("system/"); }));
     add(pause(0.3));
@@ -2920,7 +2928,9 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
     add(pruefe("N: Gruppendialog auf Entities (Reiter gezeichnet)", [feldVon] {
         return ke::editor().gruppenDialogOffen && ke::editor().gruppenSeite == 0 && feldVon("Gruppe:Reiter:0") != nullptr;
     }));
-    add(pruefe("Lagen wie NRC: Reiter unten 25 hoch ab 0 (Text + 24), Inhalt 2 innen 440 x 750, Teiler 55 / 175 / 255 / 255 mit Griffen 4",
+    // Abschluss rc607: NRCs 777 Punkte Hoehe nur, wenn sie ins Programmfenster passen (gruppenDialog, bei 2560 x 1600
+    // und 200 % nicht) - sonst bleibt der Dialog darin; die Teiler teilen dann wie QSplitter im selben Verhaeltnis.
+    add(pruefe("Lagen wie NRC: Reiter unten 25 hoch ab 0 (Text + 24), Inhalt 2 innen 440 x 750 (oder was ins Programmfenster passt), Teiler 55 / 175 / 255 / 255 mit Griffen 4",
                [feldVon] {
                    const auto* r0 = feldVon("Gruppe:Reiter:0");
                    const auto* r3 = feldVon("Gruppe:Reiter:3");
@@ -2941,11 +2951,17 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
                                 std::to_string(in->h) + "; Teiler " + std::to_string(k->h) + "/" + std::to_string(c->h) + "/" +
                                 std::to_string(b->h) + "/" + std::to_string(a->h) + " bei " + std::to_string(k->y) + "/" +
                                 std::to_string(c->y) + "/" + std::to_string(b->y) + "/" + std::to_string(a->y));
-                   const bool reiter = r0->x == 0 && r0->h == 25 && r0->y == 777 - 25 && r3->x == r0->b && r4->x == r3->x + r3->b;
-                   const bool inhalt = in->x == 2 && in->y == 2 && in->b == 440 && in->h == 750;
-                   const bool summe = k->h + c->h + b->h + a->h + 3 * 4 == 750;
-                   const bool nahe = std::abs(k->h - 55) <= 1 && std::abs(c->h - 175) <= 1 && std::abs(b->h - 255) <= 1 &&
-                                     std::abs(a->h - 255) <= 2 && c->y == k->y + k->h + 4 && b->y == c->y + c->h + 4;
+                   const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+                   const int passt = static_cast<int>(std::lround((ImGui::GetMainViewport()->Size.y - titelH) / ke::massstab()));
+                   const int hoehe = std::min(777, passt);   // Reiter + Inhalt
+                   const int innen = hoehe - 27;
+                   const double anteil = static_cast<double>(innen - 3 * 4) / static_cast<double>(750 - 3 * 4);
+                   const auto wie = [anteil](int h, int nrc, double spiel) { return std::abs(h - nrc * anteil) <= spiel; };
+                   const bool reiter = r0->x == 0 && r0->h == 25 && r0->y == hoehe - 25 && r3->x == r0->b && r4->x == r3->x + r3->b;
+                   const bool inhalt = in->x == 2 && in->y == 2 && in->b == 440 && in->h == innen;
+                   const bool summe = k->h + c->h + b->h + a->h + 3 * 4 == innen;
+                   const bool nahe = wie(k->h, 55, 1.0) && wie(c->h, 175, 1.0) && wie(b->h, 255, 1.5) && wie(a->h, 255, 2.0) &&
+                                     c->y == k->y + k->h + 4 && b->y == c->y + c->h + 4;
                    return reiter && inhalt && summe && nahe;
                }));
     // Punkt 13 (Handbuchbild): die Umrisse der Reiter kamen mit der Dicke 192
@@ -5212,12 +5228,12 @@ ImVec2 kameraBild(const karte::Vektor3f& w) {
 }
 
 // Ein Bildpunkt in der Auswahlfarbe der Kamera im Umkreis von 2 um den Punkt?
-bool kameraAuswahlBei(const karte::Vektor3f& w) {
+bool kameraAuswahlBei(const karte::Vektor3f& w, int toleranz = 30) {
     const ImVec2 b = kameraBild(w);
     for (int dy = -2; dy <= 2; ++dy) {
         for (int dx = -2; dx <= 2; ++dx) {
             unsigned char p[4] = {};
-            if (ke::kameraPixel(static_cast<int>(b.x) + dx, static_cast<int>(b.y) + dy, p) && farbeNahe(p, ke::editor().farben.auswahl3d, 30)) {
+            if (ke::kameraPixel(static_cast<int>(b.x) + dx, static_cast<int>(b.y) + dy, p) && farbeNahe(p, ke::editor().farben.auswahl3d, toleranz)) {
                 return true;
             }
         }
@@ -5600,7 +5616,9 @@ std::vector<Schritt> einstellungen11() {
     }));
     add(pause(0.4));
     add(pruefe("Selected faces wire an: Kante der Flaeche in der Auswahlfarbe ($CAM_FACEWIRE)", [] {
-        return ke::editor().karte.auswahl.flaechen().size() == 1 && kameraAuswahlBei(karte::Vektor3f(-64, 0, 64));
+        // Die Linie ist geglaettet: je nach Hoehe der Ansicht liegt sie zwischen zwei Zeilen (Spanisch: 68,118,176
+        // statt 76,142,218), darum mehr Spielraum als sonst.
+        return ke::editor().karte.auswahl.flaechen().size() == 1 && kameraAuswahlBei(karte::Vektor3f(-64, 0, 64), 45);
     }));
     add(tu("Selected faces wire aus", [] { ke::editor().kameraE.flaechenDraht = false; }));
     add(pause(0.4));

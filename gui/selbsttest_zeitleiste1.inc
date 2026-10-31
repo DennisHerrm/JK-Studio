@@ -924,17 +924,22 @@ std::vector<Schritt> untertitelFoto(const std::string& szene) {
 // guard1 auf md_am_sith mit 45 Proben 492 statt 331 Einheiten weit, hinter das
 // Wegenetz ("finds no path", die Figur bleibt wie im Spiel stehen).
 Schritt halteTaste(ImGuiKey taste, int bilder, bool umschalt, const std::string& name, std::function<bool()> genug = {}) {
+    auto los = std::make_shared<int>(-1);   // das Bild des Loslassens
     return {"zeitleiste1 Aufnahme: " + name + " halten", [=](int b) {
                 ImGuiIO& io = ImGui::GetIO();
                 if (b == 0) {
+                    *los = -1;
                     if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, true); }
                     io.AddKeyEvent(taste, true);
                     return false;
                 }
-                if (b < bilder && !(genug && genug())) { return false; }
-                io.AddKeyEvent(taste, false);
-                if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
-                return b > bilder + 1;
+                if (*los < 0) {
+                    if (b < bilder && !(genug && genug())) { return false; }
+                    io.AddKeyEvent(taste, false);
+                    if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                    *los = b;
+                }
+                return b > *los + 1;
             }};
 }
 
@@ -1013,18 +1018,28 @@ std::vector<Schritt> aufnahmeZug(const std::string& wo, std::shared_ptr<AufStand
     add(klick(tr(Str::AufKnopf), "", 0, true));
     add(pause(0.3));
     add(pruefe("zeitleiste1 Aufnahme " + wo + ": Aufnehmen startet die Steuerung", [] { return aufnahmeLaeuft(); }));
-    // Wie weit der gesteuerte Ort (aufnahmeFigurZustand) vom Start der Aufnahme ist.
-    const auto wegVomStart = [z] {
-        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->scene.actors.size()) { return 0.0; }
-        const ActorState start = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(z->startMs);
-        ActorState jetzt = start;
+    // Bis zu einer Strecke halten, nicht eine feste Zahl Bilder: wie weit die Figur in einem Bild kommt,
+    // haengt von der Bildzeit ab (45 + 35 + 35 Bilder: mal 391 Einheiten vom Ort der Szene, bei 240 Bildern
+    // je Sekunde 27). Die Obergrenze gilt, falls eine Wand sie aufhaelt.
+    constexpr int kHoechstens = 240;
+    const auto ortJetzt = [z]() -> std::array<float, 2> {
+        if (z->figur < 0 || static_cast<std::size_t>(z->figur) >= g_app->scene.actors.size()) { return {0.0F, 0.0F}; }
+        ActorState jetzt = g_app->scene.actors[static_cast<std::size_t>(z->figur)].at(z->startMs);
         aufnahmeFigurZustand(z->figur, g_app->playMs, jetzt);
-        return std::hypot(static_cast<double>(jetzt.pos[0] - start.pos[0]), static_cast<double>(jetzt.pos[1] - start.pos[1]));
+        return {jetzt.pos[0], jetzt.pos[1]};
     };
-    add(halteTaste(ImGuiKey_W, 45, false, "W", lFoermig ? std::function<bool()>{} : [wegVomStart] { return wegVomStart() >= 330.0; }));
+    auto ecke = std::make_shared<std::array<float, 2>>();
+    const auto halten = [&](ImGuiKey taste, bool umschalt, const std::string& name, double strecke) {
+        add(tu("zeitleiste1 Aufnahme " + wo + ": " + name + " ab hier", [=] { *ecke = ortJetzt(); }));
+        add(halteTaste(taste, kHoechstens, umschalt, name, [=] {
+            const std::array<float, 2> o = ortJetzt();
+            return std::hypot(static_cast<double>(o[0] - (*ecke)[0]), static_cast<double>(o[1] - (*ecke)[1])) >= strecke;
+        }));
+    };
+    halten(ImGuiKey_W, false, "W", lFoermig ? 96.0 : 128.0);
     if (lFoermig) {
-        add(halteTaste(ImGuiKey_D, 35, false, "D"));
-        add(halteTaste(ImGuiKey_W, 35, true, "Umschalt+W"));
+        halten(ImGuiKey_D, false, "D", 64.0);
+        halten(ImGuiKey_W, true, "Umschalt+W", 32.0);
     }
     add(pruefe("zeitleiste1 Aufnahme " + wo + ": die Figur laeuft, Laufziele mit der Toleranz", [=] {
         diag::detail("Knopftest: zeitleiste1 Aufnahme " + wo + " - " + std::to_string(aufnahmeProben()) + " Proben, " +

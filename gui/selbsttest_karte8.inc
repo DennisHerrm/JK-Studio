@@ -151,9 +151,11 @@ std::vector<Schritt> fortschritt() {
         *start = std::chrono::steady_clock::now();
     }));
     add(bauMenuepunkt(kEintrag));
-    add(warteSek("zweiter Bau: Schritt 3 seit gut einer Sekunde", [] {
+    // Nicht die Phase: "Radiosity" steht nur kurz je Durchgang (die Lichtphasen des Durchgangs folgen), die
+    // Bilder trafen sie mal, mal nicht (rot bei 3,9 s LIGHT). Der Durchgang bleibt bis zum Ende des Schritts.
+    add(warteSek("zweiter Bau: Schritt 3 im zweiten Durchgang", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
-        return st.laeuft && st.schritt == 2 && st.phase.find("Radiosity") != std::string::npos && st.bounce >= 2;
+        return st.laeuft && st.schritt == 2 && st.stufe == "LIGHT" && st.bounce >= 2;
     }, 60));
     add(pruefe("zweiter Bau: Restzeit aus dem letzten Bau dieser Karte", [schaetzung] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();

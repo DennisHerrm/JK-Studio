@@ -214,7 +214,8 @@ float fadenkreuzAnteil(const FotoBild& b) {
             for (int o = -1; o <= 1 && !da; ++o) {
                 const bool waag = q[1] == static_cast<int>(my);
                 const std::array<int, 3> c = b.bei(q[0] + (waag ? 0 : o), q[1] + (waag ? o : 0));
-                da = std::abs(c[0] - 255) + std::abs(c[1] - 210) + std::abs(c[2] - 60) < 90;
+                // Deckkraft 200 von 255: auf dunklem Grund bis 113 von der vollen Farbe entfernt
+                da = std::abs(c[0] - 255) + std::abs(c[1] - 210) + std::abs(c[2] - 60) < 120;
             }
             ++n;
             treffer += da ? 1 : 0;

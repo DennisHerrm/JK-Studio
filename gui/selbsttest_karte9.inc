@@ -12,6 +12,17 @@
 namespace stufe9 {
 namespace ke = karteneditor;
 using stufe3::konsoleText;
+
+// Eine Meldung in der Konsole, in der Sprache des Laufs: der Anfang der Vorlage bis zum ersten Platzhalter.
+bool konsoleMit(Str id) { return konsoleText().find(stufe8::vorlageAnfang(id)) != std::string::npos; }
+
+// "%s placed at %.0f ...": das Feste zwischen dem Namen und den Koordinaten.
+std::string abgelegtText() {
+    const std::string v = ke::trK(Str::KeAbAbgelegt);
+    const std::size_t a = v.find("%s") + 2;
+    return v.substr(a, v.find('%', a) - a);
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -52,9 +63,8 @@ std::vector<Schritt> schritte() {
                 archivOk = readPk3File(a, *en, inhalt) && inhalt == dateiInhalt(stufe8c::stamm() + ".bsp") && !inhalt.empty();
             }
         }
-        const std::string k = konsoleText();
         diag::detail("Knopftest: Im Spiel testen - Archiv " + ed.bau.testPk3 + " ok " + std::to_string(archivOk ? 1 : 0));
-        return !ke::bauLaeuft() && ed.bau.testPk3.rfind(tst + "/", 0) == 0 && archivOk && k.find("up to date") != std::string::npos;
+        return !ke::bauLaeuft() && ed.bau.testPk3.rfind(tst + "/", 0) == 0 && archivOk && konsoleMit(Str::KeStAktuell);
     }));
     add(pruefe("Im Spiel testen: Befehlszeile mit fs_cdpath/fs_homepath auf den Testordner und +devmap meinekarte, nur gemerkt (nicht gestartet)", [] {
         const ke::Editor& ed = ke::editor();
@@ -255,7 +265,7 @@ std::vector<Schritt> schritte() {
         for (const auto& pl : ke::pluginLinien2d()) { linien += pl.linien.size(); }
         diag::detail("Knopftest: Sprung - Punkte " + std::to_string(b->punkte.size()) + ", stehen " + std::to_string(stehen) + ", Kanten " +
                      std::to_string(b->kanten) + ", Spruenge " + std::to_string(b->spruenge.size()) + ", Linien " + std::to_string(linien));
-        return stehen >= 20 && b->kanten >= 4 && linien >= 2 * stehen && konsoleText().find("Jumps and space:") != std::string::npos;
+        return stehen >= 20 && b->kanten >= 4 && linien >= 2 * stehen && konsoleMit(Str::KeSjFertig);
     }));
     add(tu("Sprung: Clear, Einstellungen speichern", [] {
         ke::sprungPruefungLeeren();
@@ -309,7 +319,7 @@ std::vector<Schritt> schritte() {
         const int kanten = ed.npcWelt && ed.npcWelt->netz ? ed.npcWelt->netz->zahlKanten() : -1;
         const std::size_t punkte = ed.npcWelt && ed.npcWelt->netz ? ed.npcWelt->netz->knoten.size() - 1 : 0;
         diag::detail("Knopftest: NPC-Wege - Punkte " + std::to_string(punkte) + ", Kanten " + std::to_string(kanten));
-        return ed.npcNetzZeigen && punkte == 4 && kanten >= 3 && konsoleText().find("Waypoint network: 4 points") != std::string::npos;
+        return ed.npcNetzZeigen && punkte == 4 && kanten >= 3 && konsoleMit(Str::KeNwNetzInfo);
     }));
     add(klick(ke::trK(Str::KeLView), "###main"));
     add(pause(0.3));
@@ -325,7 +335,7 @@ std::vector<Schritt> schritte() {
         std::size_t linien = 0;
         for (const auto& pl : ke::pluginLinien2d()) { linien += pl.linien.size(); }
         diag::detail("Knopftest: NPC-Wege - Ankunft " + std::to_string(ed.npcLauf->ankunftMs) + " ms, Linien " + std::to_string(linien));
-        return ed.npcLauf->ankunftMs > 0 && !ed.npcLauf->nie && linien > 12 && konsoleText().find("Test walk: arrives") != std::string::npos;
+        return ed.npcLauf->ankunftMs > 0 && !ed.npcLauf->nie && linien > 12 && konsoleMit(Str::KeNwAn);
     }));
     add(tu("NPC-Wege: aus, Testlauf leeren, Undo", [] {
         karteDialogeZu();
@@ -384,7 +394,7 @@ std::vector<Schritt> schritte() {
         const auto a = vbGruppe(0);
         const auto c = vbGruppe(1);
         return a && c && a->kinder().size() == 1 && c->kinder().size() == 1 && a->wert(karte::kVerbundName) == c->wert(karte::kVerbundName) &&
-               konsoleText().find("Linked copy 'link1'") != std::string::npos;
+               konsoleMit(Str::KeVbFertig) && konsoleText().find("'link1'") != std::string::npos;
     }));
     add(tu("Verbund: ein zweiter Brush in der ersten Gruppe (ein Befehl)", [vbGruppe, vbQuader] {
         karte::Befehl b(ke::editor().karte.undo, "brushCreate");
@@ -439,7 +449,7 @@ std::vector<Schritt> schritte() {
         const auto& kinder = ke::editor().karte.welt()->kinder();
         if (kinder.size() != *kuPatches + 1 || !kinder.back() || kinder.back()->art() != karte::Primitiv::Art::Patch) { return false; }
         const auto& p = static_cast<const karte::Patch&>(*kinder.back());
-        return p.breite() == 3 && p.hoehe() >= 5 && konsoleText().find("Curve tool: curve through 3 points - 1 new") != std::string::npos;
+        return p.breite() == 3 && p.hoehe() >= 5 && konsoleMit(Str::KeKuFertig);
     }));
     add(tu("Kurve: Undo, dann die Auswahl der drei info_null zurueck und path_corner", [] {
         (void)ke::ausfuehren("Undo");
@@ -524,7 +534,7 @@ std::vector<Schritt> schritte() {
         }
         diag::detail("Knopftest: Verteilen - " + std::to_string(n) + " Kopien, Boden " + std::to_string(*vtBoden));
         return n == 10 && aufBoden && ed.karte.auswahl.anzahl() == 10 && ed.karte.entitaeten().size() == *vtVorher + 11 &&
-               konsoleText().find("Scatter models: 10 x misc_model_static") != std::string::npos;
+               konsoleMit(Str::KeVtFertig);
     }));
     add(tu("Verteilen: zwei Undo", [] {
         karteDialogeZu();
@@ -618,7 +628,7 @@ std::vector<Schritt> schritte() {
         float abw = 0;
         for (std::size_t i = 0; i < 3; ++i) { abw += std::fabs(b.origin[i] - blKasten->origin[i]) + std::fabs(b.extents[i] - blKasten->extents[i]); }
         diag::detail("Knopftest: Blender - Abweichung der Grenzen " + std::to_string(abw));
-        return abw < 0.05F && konsoleText().find("Exported for Blender") != std::string::npos;
+        return abw < 0.05F && konsoleMit(Str::KeBlFertig);
     }));
     add(tu("Blender: zwei Undo", [] {
         (void)ke::ausfuehren("Undo");
@@ -720,7 +730,7 @@ std::vector<Schritt> schritte() {
         const karte::Vektor3f o = karte::entitaetUrsprung(*en);
         diag::detail("Knopftest: Assets - abgelegt bei " + en->wert("origin"));
         return en->wert("classname") == "misc_model" && en->wert("model") == ab->modell && std::fabs(o[0]) <= 8.0F && std::fabs(o[1]) <= 8.0F &&
-               konsoleText().find(" placed at ") != std::string::npos;
+               konsoleText().find(abgelegtText()) != std::string::npos;
     }));
     add(tu("Assets: ein Klang (wie Doppelklick: vor die Kamera), ein Brush als Prefab st9prefab", [ab, vbQuader] {
         ke::konsoleLeeren();
@@ -747,7 +757,7 @@ std::vector<Schritt> schritte() {
         for (const auto& en : ed.karte.entitaeten()) { sp = sp || (en->wert("classname") == "target_speaker" && en->wert("noise") == ab->klang); }
         std::error_code ec;
         return sp && !ab->prefab.empty() && std::filesystem::is_regular_file(std::filesystem::path(std::u8string(ab->prefab.begin(), ab->prefab.end())), ec) &&
-               konsoleText().find("Prefab saved") != std::string::npos;
+               konsoleMit(Str::KeAbGespeichert);
     }));
     add(tu("Assets: das Prefab einsetzen (wie Doppelklick)", [ab] {
         ke::konsoleLeeren();
@@ -755,7 +765,7 @@ std::vector<Schritt> schritte() {
     }));
     add(pause(0.3));
     add(pruefe("Assets: ein Brush mehr (das Prefab), Konsole", [ab] {
-        return ke::editor().karte.welt()->kinder().size() == ab->kinder + 2 && konsoleText().find(" placed at ") != std::string::npos;
+        return ke::editor().karte.welt()->kinder().size() == ab->kinder + 2 && konsoleText().find(abgelegtText()) != std::string::npos;
     }));
     add(tu("Assets: Undo bis zum Anfang, Browser zu", [ab] {
         ke::Editor& ed = ke::editor();
@@ -839,7 +849,7 @@ std::vector<Schritt> schritte() {
                sh.find("textures/" + basis + "_0to1") != std::string::npos && sh.find("textures/test/fels.tga") != std::string::npos &&
                std::filesystem::is_regular_file(std::filesystem::path(std::u8string(datei.begin(), datei.end())), ec) &&
                im.breite == 128 && im.hoehe == 128 && std::all_of(im.index.begin(), im.index.end(), [](unsigned char v) { return v == 0; }) && flaechen &&
-               konsoleText().find("Texture blending set up") != std::string::npos;
+               konsoleMit(Str::KeUbEingerichtet);
     }));
     add(Schritt{"Ueberblenden: Schicht 1 mit der Maus in die Draufsicht malen", [](int b) {
                     ImGuiIO& io = ImGui::GetIO();
@@ -878,7 +888,7 @@ std::vector<Schritt> schritte() {
         const auto n1 = std::count(im.index.begin(), im.index.end(), static_cast<unsigned char>(1));
         diag::detail("Knopftest: Ueberblenden - " + std::to_string(n1) + " Punkte Schicht 1");
         return im.index[64 * 128 + 64] == 1 && im.index[0] == 0 && n1 > 100 && gelesen && z.index == im.index &&
-               konsoleText().find("Index map saved") != std::string::npos;
+               konsoleMit(Str::KeUbGespeichert);
     }));
     add(tu("Ueberblenden: Undo bis zum Anfang, Fenster zu, Shader-Datei weg", [ub] {
         ke::Editor& ed = ke::editor();
@@ -926,7 +936,7 @@ std::vector<Schritt> schritte() {
         const ke::Editor& ed = ke::editor();
         bool da = false;
         for (const auto& en : ed.karte.entitaeten()) { da = da || en->wert("targetname") == "st9wieder"; }
-        return da && ed.name == *whName && ke::geaendert() && konsoleText().find("Restored from") != std::string::npos;
+        return da && ed.name == *whName && ke::geaendert() && konsoleMit(Str::KeWhFertig);
     }));
     add(tu("Wiederherstellen: die Karte neu laden, Autosave weg", [whName] {
         const std::string auto1 = karte::autosavePfad(*whName);

@@ -2467,7 +2467,7 @@ TEXTE = {
     "MeSchriftFertig": "Fuente guardada en el paquete como fonts/%s.fontdat.",
     "MeSchriftFehler": "No se pudo leer el archivo TTF.",
     # uebersetzung2: Texte aus vis1, zeitleiste1, menue3, menue5 und dock1 (nach Integration 4)
-    "KeVisExakt": "El mismo VIS en cada compilación (no está en NetRadiant-Custom)",
+    "KeVisExakt": "VIS igual en cada compilación (no en NetRadiant-Custom)",
     "KeVisExaktTip": "Cada paso -vis recibe -bhedvisexact. Con varios hilos, un VIS completo puede salir ligeramente distinto de una compilación a otra: como en el q3map2 de NetRadiant-Custom, un portal usa los otros portales que ya estén terminados en ese momento; todos los resultados son válidos. Con esta opción, bhed_q3map2 calcula con todos los hilos exactamente lo mismo que un solo hilo, byte a byte. Hace falta para compilaciones reproducibles: el mismo .map da el mismo .bsp (comparar compilaciones, sumas de comprobación, un equipo que compila el mismo mapa). Espera donde un portal necesita otro aún sin terminar: en mapas cerrados es casi igual de rápido, en mapas abiertos mucho más lento (duel_mos_espa: 5 minutos en vez de 1,5). Desactivado: el camino más rápido.",
     "ZlFilm": "Imágenes de cámara",
     "ZlFilmUnter": "cada 2 s",

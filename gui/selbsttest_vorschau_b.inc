@@ -5061,6 +5061,11 @@ std::map<std::string, std::pair<std::string, std::string>>& summen() {
     static std::map<std::string, std::pair<std::string, std::string>> m;
     return m;
 }
+using ZeitSummen = std::map<double, std::array<std::uint64_t, 5>>;
+std::map<std::string, std::pair<ZeitSummen, ZeitSummen>>& summenJeZeit() {
+    static std::map<std::string, std::pair<ZeitSummen, ZeitSummen>> m;
+    return m;
+}
 
 // obergrenze > 0: der Schwertspeicher haelt nur so viele Clientbilder
 // (saberObergrenze) - dann fehlen zurueck Bilder, die Rechnung setzt an
@@ -5118,8 +5123,10 @@ void probe(std::vector<Schritt>& s, const std::string& reiter, std::size_t oberg
                  };
                  // Ganze Punkte wie eine echte Maus; je Bild mindestens einer.
                  float alt = -1.0e9F;
+                 // Nicht links vom Lineal: die Namensspalte ist nicht immer ganzzahlig breit (intro2_sith: Lineal ab
+                 // 363,3 - ein Druck auf 363 traf es nicht, die Zeit blieb bei 0).
                  for (double ms = 0.0; ms <= dauer + 0.5; ms += schritt) {
-                     const float x = std::round(xVon(ms));
+                     const float x = std::max(std::ceil(g_app->tlFeldX), std::round(xVon(ms)));
                      if (x > alt) {
                          L->xs.push_back(x);
                          alt = x;
@@ -5286,9 +5293,32 @@ void probe(std::vector<Schritt>& s, const std::string& reiter, std::size_t oberg
         bool wieOhne = true;
         if (obergrenze == 0) {
             summen()[reiter] = {gv, gz};
+            summenJeZeit()[reiter] = {L->vor, L->zurueck};
         } else {
             const auto o = summen().find(reiter);
-            wieOhne = o != summen().end() && o->second.first == gv && o->second.second == gz;
+            // Je Zeit vergleichen, nicht die Gesamtsumme: gezeichnet wird je Mausstellung, und mal faellt ein Bild
+            // auf eine Zeit des einen Laufs, die der andere nicht hat (es: 118000 ms gegen 92000 ms) - das ist keine
+            // Abweichung; jede Zeit, die beide Laeufe haben, muss Bit fuer Bit gleich sein.
+            const auto jeZeit = summenJeZeit().find(reiter);
+            int verschieden = 0;
+            int nurEiner = 0;
+            const auto zaehlen = [&verschieden, &nurEiner](const ZeitSummen& a, const ZeitSummen& b) {
+                for (const auto& [ms, teile] : a) {
+                    const auto it = b.find(ms);
+                    if (it == b.end()) {
+                        ++nurEiner;
+                    } else if (it->second != teile) {
+                        ++verschieden;
+                    }
+                }
+            };
+            if (jeZeit != summenJeZeit().end()) {
+                zaehlen(L->vor, jeZeit->second.first);
+                zaehlen(L->zurueck, jeZeit->second.second);
+            }
+            wieOhne = o != summen().end() && verschieden == 0 && nurEiner <= static_cast<int>(L->vor.size()) / 50;
+            diag::detail("Knopftest: Spulen " + name + " - gegen den Lauf ohne Obergrenze: " + std::to_string(verschieden) + " Zeiten verschieden, " +
+                         std::to_string(nurEiner) + " nur in diesem Lauf");
             diag::detail("Knopftest: Spulen " + name + " - ohne Obergrenze: " +
                          (o != summen().end() ? "vor " + o->second.first + ", zurueck " + o->second.second
                                               : std::string("kein Lauf")) +

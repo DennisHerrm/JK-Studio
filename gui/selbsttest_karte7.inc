@@ -718,6 +718,9 @@ std::string einstellung7(const std::string& k) {
 std::vector<Schritt> menue() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // Die Schritte entstehen vor dem Lauf, der Test stellt erst beim Laufen auf Englisch: Beschriftungen
+    // nicht in der Sprache des Starts (auf es/cs fand er sonst "Tema" im englischen Menue nicht).
+    const auto en = [](Str id) { return i18n::trIn(i18n::Language::English, id); };
     auto z = std::make_shared<MenueZustand>();
     add(tu("Stufe 7/6b: Zustand merken, Begriffe des Programms (Englisch)", [z] {
         z->nrcStil = ke::editor().menueNrcStil;
@@ -753,7 +756,7 @@ std::vector<Schritt> menue() {
         return w != nullptr && std::fabs(leisteH - soll) < 0.5F && std::fabs(e.editorOben - e.leisteUnten) < 0.5F;
     }));
     // View: am Ende Zielspiel, Farbgebung, Sprache, Skalierung, Knopfgroesse
-    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(klick(en(Str::KeLView), "###main"));
     add(pause(0.3));
     add(pruefe("Stufe 7/6b: View endet mit Target game, Theme, Language, Interface Scale, Toolbar Button Size", [] {
         return finde(ke::trK(Str::ViewTarget), "##Menu_", 0, false) != nullptr && finde(ke::trK(Str::ViewTheme), "##Menu_", 0, false) != nullptr &&
@@ -764,7 +767,7 @@ std::vector<Schritt> menue() {
     add(pruefe("Stufe 7/6b: kein Hinweis auf Strg + Mausrad im Karten-Editor", [] { return finde(tr(Str::ViewScaleHint), "", 0, false) == nullptr; }));
     add(foto("karte7_menue_view_programm"));
     // Farbgebung
-    add(klick(ke::trK(Str::ViewTheme), "##Menu_", 0, false));
+    add(klick(en(Str::ViewTheme), "##Menu_", 0, false));
     add(pause(0.3));
     add({"Stufe 7/6b: View > Theme > Light", [](int b) {
              static Schritt k;
@@ -777,9 +780,9 @@ std::vector<Schritt> menue() {
     }));
     add(tu("Menues zu", [] { karteDialogeZu(); }));
     // Sprache
-    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(klick(en(Str::KeLView), "###main"));
     add(pause(0.3));
-    add(klick(ke::trK(Str::ViewLanguage), "##Menu_", 0, false));
+    add(klick(en(Str::ViewLanguage), "##Menu_", 0, false));
     add(pause(0.3));
     add(klick("Deutsch", "##Menu_", 0, false));
     add(pause(0.4));
@@ -796,7 +799,7 @@ std::vector<Schritt> menue() {
                                                            {"\xc4\x8c" "e\xc5\xa1tina", i18n::Language::Czech}};
     for (const auto& [name, sprache] : neue) {
         const i18n::Language soll = sprache;
-        add(klick(ke::trK(Str::KeLView), "###main"));
+        add(klick(en(Str::KeLView), "###main"));
         add(pause(0.3));
         add({"View > Language", [](int b) {
                  static Schritt k;
@@ -814,9 +817,9 @@ std::vector<Schritt> menue() {
         add(pause(0.3));
     }
     // Skalierung
-    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(klick(en(Str::KeLView), "###main"));
     add(pause(0.3));
-    add(klick(ke::trK(Str::ViewDpiScale), "##Menu_", 0, false));
+    add(klick(en(Str::ViewDpiScale), "##Menu_", 0, false));
     add(pause(0.3));
     add(klick("125 %", "##Menu_", 0, false));
     add(pause(0.4));
@@ -827,11 +830,11 @@ std::vector<Schritt> menue() {
     }));
     add(pause(0.4));
     // Zielspiel
-    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(klick(en(Str::KeLView), "###main"));
     add(pause(0.3));
-    add(klick(ke::trK(Str::ViewTarget), "##Menu_", 0, false));
+    add(klick(en(Str::ViewTarget), "##Menu_", 0, false));
     add(pause(0.3));
-    add(klick(ke::trK(Str::TargetMp), "##Menu_", 0, false));
+    add(klick(en(Str::TargetMp), "##Menu_", 0, false));
     add(pause(0.3));
     add(pruefe("Stufe 7/6b: View > Target game > Multiplayer: settings.mpZiel", [] { return g_app->settings.mpZiel; }));
     add(tu("Menues zu, Zielspiel zurueck", [z] {
@@ -847,11 +850,11 @@ std::vector<Schritt> menue() {
         int knopf;
     };
     for (const Stufe st : {Stufe{0, Str::KeKnopfKlein, 23}, Stufe{2, Str::KeKnopfGross, 39}, Stufe{1, Str::KeKnopfNormal, 31}}) {
-        add(klick(ke::trK(Str::KeLView), "###main"));
+        add(klick(en(Str::KeLView), "###main"));
         add(pause(0.3));
-        add(klick(ke::trK(Str::KeKnopfGroesse), "##Menu_", 0, false));
+        add(klick(en(Str::KeKnopfGroesse), "##Menu_", 0, false));
         add(pause(0.3));
-        add(klick(ke::trK(st.name), "##Menu_", 0, false));
+        add(klick(en(st.name), "##Menu_", 0, false));
         add(pause(0.4));
         add(pruefe("Stufe 7/6b: Knopfgroesse " + std::string(i18n::trIn(i18n::Language::English, st.name)) + " - Knopf " + std::to_string(st.knopf) +
                        ", Leiste " + std::to_string(st.knopf + 8) + ", Ansichten darunter, gespeichert",
@@ -886,12 +889,12 @@ std::vector<Schritt> menue() {
     // Preferences > Interface: "Menus like NetRadiant-Custom" und die Knopfgroesse
     add(tu("Preferences > Interface oeffnen", [] { (void)ke::ausfuehren("Preferences"); }));
     add(pause(0.3));
-    add(klick(ke::trK(Str::KePgInterface), "###karteeinstellungen"));
+    add(klick(en(Str::KePgInterface), "###karteeinstellungen"));
     add(pause(0.3));
     add(foto("karte7_pref_interface"));
-    add(klick(ke::trK(Str::KeMenueNrc), "###karteeinstellungen", 0, true));
+    add(klick(en(Str::KeMenueNrc), "###karteeinstellungen", 0, true));
     add(pause(0.2));
-    add(klick(ke::trK(Str::KePrefOk), "###karteeinstellungen"));
+    add(klick(en(Str::KePrefOk), "###karteeinstellungen"));
     add(pause(0.4));
     add(pruefe("Stufe 7/6b: Preferences > Interface > Menus like NetRadiant-Custom: an und gespeichert, Leiste wieder 21 hoch (Segoe UI)", [] {
         const ImGuiWindow* w = ImGui::FindWindowByName("###main");
