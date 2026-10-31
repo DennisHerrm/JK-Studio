@@ -97,11 +97,12 @@ void zielPlatz(const char* id, ImVec2& a, ImVec2& b);
 // (BeginDocked, PosUndock), daher nur fuer neue Fenster.
 void startLage(const char* id);
 
-// Abschluss rc607: vor einem Menue der Menueleiste des Hauptfensters. Liegt ein eigenes Fenster (Panel,
-// schwebendes Feld des Karten-Editors) ueber dem Hauptfenster, bekommt das Menue ein eigenes Fenster:
-// ImGui legt ein Menue sonst in das Fenster seines Elternfensters, und Windows zeigt die eigenen Fenster
-// immer ueber dem Hauptfenster - das Menue lag darunter (Floating, wenn ein Feld ueber den Rand ragt).
-void menueFensterWaehlen();
+// Abschluss rc607: vor einem Menue der Menueleiste oder einem Dialog des Hauptfensters. Liegt ein eigenes
+// Fenster (Panel, schwebendes Feld oder Gruppendialog des Karten-Editors) ueber dem Hauptfenster, bekommt
+// das Menue bzw. der Dialog dort, wo es verdeckt waere, ein eigenes Fenster: ImGui legt es sonst in das
+// Hauptfenster, und Windows zeigt die eigenen Fenster immer darueber (wie bei NRC liegen Menues und
+// Dialoge oben).
+void eigenesFensterWennVerdeckt();
 // Der Inhalt des Menues "Fenster" fuer den Bereich und das Menue selbst.
 void menueInhalt(int bereich);
 void menue(int bereich);

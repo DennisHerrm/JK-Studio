@@ -1547,13 +1547,16 @@ void gruppenDialog() {
     const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
     const ImVec2 bereich = ImGui::GetMainViewport()->Size;
     const ImVec2 vp = ImGui::GetMainViewport()->Pos;
-    // Abschluss rc607: hoechstens so gross wie das Programmfenster - wie bei schwebend(): ein Fenster, das
-    // hinausragt, wird ein eigenes Windows-Fenster ueber Menues und Dialogen (bei 200 % 888 x 1594 Punkte).
-    const ImVec2 groesse{std::min(std::round(444.0F * g_s), bereich.x), std::min(std::round(777.0F * g_s) + titelH, bereich.y)};
+    const ImVec2 groesse{std::round(444.0F * g_s), std::round(777.0F * g_s) + titelH};
     ImGui::SetNextWindowPos(ImVec2{vp.x + std::max(0.0F, (bereich.x - groesse.x) * 0.5F),
                                    vp.y + std::max(0.0F, (bereich.y - groesse.y) * 0.5F)},
                             ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
+    // Abschluss rc607: passt der Dialog in NRCs Groesse (444 x 777 Punkte) nicht ins Programmfenster (bei 200 %
+    // 888 x 1594), bleibt er darin und ragt hinaus wie vor dock1. Als eigenes Windows-Fenster laege er ueber
+    // Menues und Dialogen, und Windows kuerzte ihn auf den Bildschirm (Selbsttest karteneditor: Inhalt 693
+    // statt 750 hoch).
+    if (groesse.x > bereich.x || groesse.y > bereich.y) { ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID); }
     const char* seitenTitel[5] = {trK(Str::KePageEntities), trK(Str::KePageConsole), trK(Str::KePageTextures),
                                   trK(Str::KePageModels), trK(Str::KePageLayers)};
     // GroupDialog_updatePageTitle: die Textur-Seite meldet ihren Titel

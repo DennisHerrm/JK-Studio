@@ -642,7 +642,7 @@ void menueInhalt(int bereich) {
     if (ImGui::MenuItem(tr(Str::MessagesTitle), nullptr, g_app->messagesOpen)) { g_app->messagesOpen = !g_app->messagesOpen; }
 }
 
-void menueFensterWaehlen() {
+void eigenesFensterWennVerdeckt() {
     ImGuiContext& g = *GImGui;
     if ((g.IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0 || ImGui::GetWindowViewport() != ImGui::GetMainViewport()) { return; }
     const ImGuiViewport* haupt = ImGui::GetMainViewport();
@@ -662,7 +662,7 @@ void menueFensterWaehlen() {
 }
 
 void menue(int bereich) {
-    menueFensterWaehlen();
+    eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::DockMenu))) {
         menueInhalt(bereich);
         ImGui::EndMenu();

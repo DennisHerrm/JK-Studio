@@ -4932,7 +4932,7 @@ void drawMessages() {
 
 void drawMenu() {
     if (!ImGui::BeginMenuBar()) { return; }
-    dock::menueFensterWaehlen();
+    dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuFile))) {
         if (ImGui::MenuItem(tr(Str::FileNew))) { doNew(); }
         if (ImGui::MenuItem(tr(Str::FileOpen), "Ctrl+O")) { doOpen(); }
@@ -5089,7 +5089,7 @@ void drawMenu() {
         }
         ImGui::EndMenu();
     }
-    dock::menueFensterWaehlen();
+    dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuEdit))) {
         if (ImGui::BeginMenu(tr(Str::MenuBookmarks))) {
             if (ImGui::MenuItem(tr(Str::ActBookmarkToggle), chordName(keys::Action::BookmarkToggle))) {
@@ -5163,7 +5163,7 @@ void drawMenu() {
     //
     // Er hat recht - "View" beantwortet die Frage "wie sieht es aus",
     // "Debug" die Frage "was ist da los". Zwei verschiedene Fragen.
-    dock::menueFensterWaehlen();
+    dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuDebug))) {
 
         // Auf Zuruf, nicht dauernd: bei 62 Figuren und sechzig Bildern je
@@ -5277,7 +5277,7 @@ void drawMenu() {
         ImGui::EndMenu();
     }
 
-    dock::menueFensterWaehlen();
+    dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuView))) {
         // Zielspiel. Im Multiplayer tut vieles aus dem Singleplayer nichts -
         // meist ohne jede Meldung im Spiel (@Seph, MP-Bericht 08.10.,
@@ -5454,7 +5454,7 @@ void drawMenu() {
     // shank (11.10.): "mach einen neuen Reiter mit About und da Update und
     // Changelog rein". Vorher standen Update und Changelog im Datei-Menue
     // und About nur als Knopf bei den Programmknoepfen (der bleibt).
-    dock::menueFensterWaehlen();
+    dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuHelp))) {
         // H1: der Helfer - "Was willst du tun?" (F1).
         if (ImGui::MenuItem(tr(Str::HlfMenu), chordName(keys::Action::Guide))) { hilfeOeffnen(); }

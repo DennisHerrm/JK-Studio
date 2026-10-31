@@ -27,7 +27,6 @@
 #include "bhed/eingebaut.h"
 
 #include "imgui.h"
-#include "imgui_internal.h"   // Abschluss rc607: ImGuiViewportP::Window (zeigenImSelbsttest)
 #include "imgui_impl_win32.h"
 
 #include <windows.h>
@@ -743,24 +742,27 @@ void zeigenImSelbsttest(ImGuiViewport* v) {
     v->Flags |= ImGuiViewportFlags_NoFocusOnAppearing;
     g_zeigenOriginal(v);
     const HWND h = static_cast<HWND>(v->PlatformHandle);
-    // Abschluss rc607: ein Menue, Popup oder Tooltip in eigenem Fenster gehoert ueber die anderen eigenen
-    // Fenster (wie beim Anwender, dem es oben erscheint) - ganz hinten lag es unter einem schwebenden Feld
-    // des Karten-Editors (Floating) in eigenem Fenster, und der Klick auf "Preferences..." traf das Feld.
-    // Vor fremde Fenster kommt es nicht: direkt ueber das oberste eigene Fenster.
-    const ImGuiWindow* w = static_cast<ImGuiViewportP*>(v)->Window;
+    // Abschluss rc607: ein neues eigenes Fenster (Menue, Dialog, Panel) kommt ueber die anderen eigenen
+    // Fenster - wie beim Anwender, dem ein neues Fenster oben erscheint. Ganz hinten lag ein Menue unter einem
+    // schwebenden Feld des Karten-Editors in eigenem Fenster, und der Klick auf "Preferences..." traf das Feld.
+    // Vor fremde Fenster kommt es nicht: direkt unter das Fenster ueber dem obersten eigenen Fenster. Eigene
+    // TopMost-Fenster (Tooltips) zaehlen dabei nicht - sie stehen ueber allem, und ein neues Fenster kaeme
+    // sonst ganz nach oben (gemessen mit SP\zl6\vordergrund.py); ein Tooltip selbst kommt wie bisher ganz
+    // nach hinten (HWND_BOTTOM nimmt ihm TopMost).
     HWND danach = HWND_BOTTOM;
-    if (w != nullptr && (w->Flags & (ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_ChildMenu)) != 0) {
+    const auto topMost = [](HWND z) { return (GetWindowLongW(z, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0; };
+    if (!topMost(h)) {
         const DWORD ich = GetCurrentProcessId();
         for (HWND z = GetTopWindow(nullptr); z != nullptr; z = GetWindow(z, GW_HWNDNEXT)) {
             DWORD pid = 0;
             GetWindowThreadProcessId(z, &pid);
-            if (z == h || pid != ich || IsWindowVisible(z) == FALSE) { continue; }
+            if (z == h || pid != ich || IsWindowVisible(z) == FALSE || topMost(z)) { continue; }
             const HWND davor = GetWindow(z, GW_HWNDPREV);
-            danach = davor == nullptr ? HWND_TOP : davor;
+            if (davor != nullptr && !topMost(davor)) { danach = davor; }
             break;
         }
-        if (danach == h) { return; }
     }
+    if (danach == h) { return; }
     SetWindowPos(h, danach, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 

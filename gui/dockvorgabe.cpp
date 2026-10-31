@@ -381,8 +381,12 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     }
     dreieckStil(farben);
     bool offen = true;
+    // Abschluss rc607: NoFocusOnAppearing - ein eingeklapptes Feld, das beim Herausziehen seines Griffs
+    // wieder erscheint, nahm sonst den Fokus, und ImGui beendete dabei das Ziehen (FocusWindow -> ClearActiveID):
+    // der Griff blieb nach 14 Punkten stehen (Selbsttest karteneditor, Teiler "vom Rand zurueckgezogen").
     const bool sichtbar = ImGui::Begin(name.c_str(), imRaum ? nullptr : &offen,
-                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                           ImGuiWindowFlags_NoFocusOnAppearing);
     ImGui::PopStyleColor(farben);
     ImGui::PopStyleVar(2);
     r.geschlossen = !offen;
