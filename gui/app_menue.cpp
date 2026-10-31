@@ -104,6 +104,7 @@ struct TextZeile {
 struct Dokument {
     std::string name;          // Spielpfad (ui/main.menu) - bestimmt Dialekt
     std::string platte;        // Datei auf der Platte ("" = aus dem Spiel)
+    std::vector<Datei> altStaende;   // rc608: die Lesestaende dieses Bildes; die Panels halten Verweise hinein
     Textpuffer puffer;
     std::string geladen;       // Text beim Oeffnen
     std::string gespeichert;   // Text beim letzten Speichern
@@ -114,6 +115,9 @@ struct Dokument {
     std::set<int> gesperrt;    // Items, die die Flaeche nicht bewegt
     std::set<std::pair<int, int>> verborgen;   // M2 Ebenenliste: (Menue, Item) nur in der Vorschau ausgeblendet
     int umbenennen = -1;       // Item, dessen Name in der Ebenenliste bearbeitet wird
+    int umbenennenMenu = -1;   // rc608: das Menue dazu; der Index allein gilt in jedem Menue
+    bool umbenennenNeu = false;   // rc608: den Fokus nur beim Anfang nehmen
+    int umbenennenBild = 0;
     std::string neuerName;
     int seite = 0;
     int seiteGezeigt = -1;     // welcher Reiter zuletzt offen war
@@ -367,6 +371,15 @@ struct Zustand {
     bool tastenGelesen[2] = {false, false};
     Dialekt neuDialekt = Dialekt::SP;            // M7: Format des Startmenues eines neuen Projekts
     std::function<std::string(bool)> projektDialog;   // rc608: Selbsttest statt der Windows-Dateidialoge
+    // rc608: das Feld in Properties oder Events, das gerade gezogen oder getippt wird (siehe zahlenFeld)
+    struct HaltFeld {
+        ImGuiID id = 0;
+        std::vector<float> zahlen;
+        std::string text;
+        ImRect rect;
+        int bild = 0;
+        std::function<void()> schreiben;
+    } halt;
     // M7 Punkt 13: das zuletzt gestartete Testspiel (ui_load nach dem Speichern)
     unsigned long testPid = 0;
     bool testUiLoad = false;
@@ -678,6 +691,7 @@ bool saberModellFuer(const std::string& saber, std::string& modell, std::string&
 void neuParsen(Dokument& d) {
     if (d.geparst == d.puffer.version()) { return; }
     LeseOptionen o = leseOptionen(d.name);
+    d.altStaende.push_back(std::move(d.datei));
     d.datei = lies(d.name, d.puffer.text(), o);
     d.geparst = d.puffer.version();
     if (d.datei.menus.empty()) { d.seite = 0; }
@@ -767,6 +781,83 @@ void speichern(Dokument& d, const std::string& ziel) {
 
 // --- Aenderungen an Text und Flaeche ------------------------------------------
 
+// rc608 (Tester: "I move a button, but when I click off, it resets"): die Felder in Properties und Events
+// lesen ihren Wert in jedem Bild neu aus dem Text. Was gezogen oder getippt wird, lebt darum hier, bis es
+// fertig ist: Maustaste los, Enter, Klick daneben. Dann wird es geschrieben, als ein Rueckgaengig-Schritt.
+void haltSchreiben();
+
+// Ein Doppelklick macht aus einem Zugfeld ein Eingabefeld, das seinen Wert erst beim Verlassen abliefert. Nimmt ihm
+// ein Klick auf die Flaeche die Aktivitaet, bevor es gezeichnet wird, liefert es gar nichts ab. Darum hier mitlesen.
+// k und n wie beim Feld; true, wenn sich ein Wert aendert.
+bool getipptLesen(const char* k, float* v, int n) {
+    const ImGuiID aktiv = GImGui->ActiveId;
+    const ImGuiInputTextState* st = ImGui::GetInputTextState(aktiv);
+    if (st == nullptr) { return false; }
+    int stelle = n == 1 ? 0 : -1;
+    if (n > 1) {   // DragFloatN: PushID(k), PushID(i), ""; ColorEdit: PushID(k), "##X" ...
+        static const char* const achsen[] = {"##X", "##Y", "##Z", "##W"};
+        ImGui::PushID(k);
+        for (int i = 0; i < n && i < 4; ++i) {
+            ImGui::PushID(i);
+            if (ImGui::GetID("") == aktiv) { stelle = i; }
+            ImGui::PopID();
+            if (ImGui::GetID(achsen[i]) == aktiv) { stelle = i; }
+        }
+        ImGui::PopID();
+    }
+    if (stelle < 0) { return false; }
+    const char* text = st->TextA.Data;
+    char* ende = nullptr;
+    const float x = text != nullptr ? std::strtof(text, &ende) : 0.0F;
+    if (text == nullptr || ende == text || x == v[stelle]) { return false; }
+    v[stelle] = x;
+    return true;
+}
+
+template <class Zeichnen, class Schreiben>
+void zahlenFeld(const char* k, float* v, int n, Zeichnen zeichne, Schreiben schreiben) {
+    Zustand& z = Z();
+    const ImGuiID id = ImGui::GetID(k);
+    if (z.halt.id == id) { std::copy_n(z.halt.zahlen.begin(), n, v); }
+    const bool esc = ImGui::IsKeyPressed(ImGuiKey_Escape);
+    bool neu = zeichne();
+    const bool aktiv = ImGui::IsItemActive();
+    if (aktiv && getipptLesen(k, v, n)) { neu = true; }
+    if (esc && z.halt.id == id) {   // Esc: wie vorher, nichts schreiben
+        z.halt = {};
+        return;
+    }
+    if (neu) {
+        z.halt.id = id;
+        z.halt.zahlen.assign(v, v + n);
+        z.halt.schreiben = [schreiben, werte = z.halt.zahlen] { schreiben(werte); };
+    }
+    if (z.halt.id == id) {
+        z.halt.rect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        z.halt.bild = ImGui::GetFrameCount();
+        if (!aktiv && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { haltSchreiben(); }
+    }
+}
+
+template <class Schreiben>
+void textFeld(const char* k, std::string* wert, Schreiben schreiben) {
+    Zustand& z = Z();
+    const ImGuiID id = ImGui::GetID(k);
+    if (z.halt.id == id) { *wert = z.halt.text; }
+    const bool neu = eingabe(k, wert);
+    const bool aktiv = ImGui::IsItemActive();
+    if (neu) {
+        z.halt.id = id;
+        z.halt.text = *wert;
+        z.halt.schreiben = [schreiben, t = *wert] { schreiben(t); };
+    }
+    if (z.halt.id == id) {
+        z.halt.rect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        z.halt.bild = ImGui::GetFrameCount();
+        if (!aktiv && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { haltSchreiben(); }
+    }
+}
+
 std::vector<Ersetzung> mitKopienAbgleich(const Dokument& d, std::vector<Ersetzung> e);   // M7 Punkt 3 (app_menue_m7.inc)
 
 void aendere(std::vector<Ersetzung> e) {
@@ -775,6 +866,30 @@ void aendere(std::vector<Ersetzung> e) {
     e = mitKopienAbgleich(*d, std::move(e));
     d->puffer.ersetzeViele(std::move(e));
     neuParsen(*d);
+}
+
+void haltSchreiben() {
+    Zustand& z = Z();
+    if (z.halt.id == 0) { return; }
+    const std::function<void()> f = std::move(z.halt.schreiben);
+    z.halt.id = 0;
+    z.halt.schreiben = nullptr;
+    if (f) { f(); }
+}
+
+// Vor den Panels: ein Klick neben das Feld oder ein Feld, das nicht mehr gezeichnet wird, schreibt jetzt -
+// noch bevor der Klick die Auswahl oder den Reiter wechselt.
+void haltPruefen() {
+    const Zustand& z = Z();
+    if (z.halt.id == 0) { return; }
+    const bool daneben = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !z.halt.rect.Contains(ImGui::GetIO().MousePos);
+    if (daneben || z.halt.bild + 1 < ImGui::GetFrameCount()) { haltSchreiben(); }
+}
+
+// Kann ein Wert nicht geschrieben werden, sagt es das Programm sichtbar, statt still beim alten zu bleiben.
+void ausMakroMelden() {
+    Z().meldung = tr(Str::MeAusMakro);
+    ::bhed::gui::meldung(tr(Str::MeAusMakro), "", true);
 }
 
 Rechteck clientRect(const Menu& m, const Item& it) { (void)m; return it.window.rectClient; }
@@ -809,7 +924,7 @@ void setzeRects(const std::vector<std::pair<int, Rechteck>>& neu) {
     for (const auto& [i, r] : neu) {
         std::vector<Ersetzung> x;
         if (setzeRect(d->datei, mi, i, r, x)) { e.insert(e.end(), x.begin(), x.end()); }
-        else { Z().meldung = tr(Str::MeAusMakro); }
+        else { ausMakroMelden(); }
     }
     aendere(std::move(e));
 }
@@ -824,7 +939,7 @@ void eigenschaft(int item, const char* schluessel, const std::vector<std::string
     if (d == nullptr) { return; }
     std::vector<Ersetzung> e;
     if (setzeEigenschaft(d->datei, menuDerSeite(*d), item, schluessel, werte, e)) { aendere(std::move(e)); }
-    else { Z().meldung = tr(Str::MeAusMakro); }
+    else { ausMakroMelden(); }
 }
 
 std::string farbText(const Farbe& c) {
@@ -4392,15 +4507,24 @@ void zeichneEbene(Dokument& d, int menu, int i) {
         if (gesperrt) { d.gesperrt.erase(i); } else { d.gesperrt.insert(i); }
     }
     ImGui::SameLine();
-    if (d.umbenennen == i && aufSeite) {
+    if (d.umbenennen == i && d.umbenennenMenu == menu) {
+        // rc608: nimmt den Fokus nur am Anfang. Es endet mit Enter, Esc (ohne Aenderung) oder mit dem Klick
+        // daneben, also auch mit jedem Auswahl- oder Reiterwechsel; bis dahin Getipptes zaehlt.
+        d.umbenennenBild = ImGui::GetFrameCount();
         ImGui::SetNextItemWidth(-1);
-        if (ImGui::IsWindowAppearing() || !ImGui::IsAnyItemActive()) { ImGui::SetKeyboardFocusHere(); }
-        if (eingabe("##neu", &d.neuerName, ImGuiInputTextFlags_EnterReturnsTrue)) {
-            if (!d.neuerName.empty()) { eigenschaft(i, "name", {inAnf(utf8ZuLatin1(d.neuerName.c_str()))}); }
-            d.umbenennen = -1;
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-            d.umbenennen = -1;
+        if (d.umbenennenNeu) {
+            ImGui::SetKeyboardFocusHere();
+            d.umbenennenNeu = false;
         }
+        const std::string alt = it.window.name;
+        Dokument* dp = &d;
+        textFeld("##neu", &d.neuerName, [dp, menu, i, alt](const std::string& t) {
+            if (t.empty() || utf8ZuLatin1(t.c_str()) == alt) { return; }
+            std::vector<Ersetzung> e;
+            if (setzeEigenschaft(dp->datei, menu, i, "name", {inAnf(utf8ZuLatin1(t.c_str()))}, e)) { aendere(std::move(e)); }
+            else { ausMakroMelden(); }
+        });
+        if (ImGui::IsItemDeactivated()) { d.umbenennen = -1; }
     } else {
         const bool sel = aufSeite && std::find(d.auswahl.begin(), d.auswahl.end(), i) != d.auswahl.end();
         char l[300];
@@ -4415,6 +4539,9 @@ void zeichneEbene(Dokument& d, int menu, int i) {
             waehle(i, ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeyShift);
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                 d.umbenennen = i;
+                d.umbenennenMenu = menu;
+                d.umbenennenNeu = true;
+                d.umbenennenBild = ImGui::GetFrameCount();
                 d.neuerName = anzeige(it.window.name);
             }
         }
@@ -4528,9 +4655,11 @@ void zeichneEigenschaften(Dokument& d) {
     const Item& it = m.items[static_cast<std::size_t>(i)];
     ImGui::PushID(i);
     std::string name = it.window.name;
-    if (eingabe("name", &name, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "name", {name}); }
+    textFeld("name", &name, [i](const std::string& t) {
+        if (!t.empty()) { eigenschaft(i, "name", {inAnf(t)}); }
+    });
     std::string gruppe = it.window.group;
-    if (eingabe("group", &gruppe, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "group", {gruppe}); }
+    textFeld("group", &gruppe, [i](const std::string& t) { eigenschaft(i, "group", {inAnf(t)}); });
     // type / style
     int typ = std::clamp(it.type, 0, 14);
     if (ImGui::BeginCombo("type", typName(typ))) {
@@ -4547,25 +4676,24 @@ void zeichneEigenschaften(Dokument& d) {
         ImGui::EndCombo();
     }
     float r[4] = {it.window.rectClient.x, it.window.rectClient.y, it.window.rectClient.w, it.window.rectClient.h};
-    if (ImGui::DragFloat4("rect", r, 1.0F)) {}
-    if (ImGui::IsItemDeactivatedAfterEdit()) { setzeRects({{i, Rechteck{r[0], r[1], r[2], r[3]}}}); }
+    zahlenFeld("rect", r, 4, [&r] { return ImGui::DragFloat4("rect", r, 1.0F); },
+               [i](const std::vector<float>& w) { setzeRects({{i, Rechteck{w[0], w[1], w[2], w[3]}}}); });
     std::string text = it.text;
-    if (eingabe("text", &text, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "text", {inAnf(text)}); }
+    textFeld("text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
     if (!it.text.empty() && it.text[0] == '@') {
         // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
         ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
     }
     float ts = it.textscale;
-    ImGui::DragFloat("textscale", &ts, 0.01F, 0.05F, 4.0F);
-    if (ImGui::IsItemDeactivatedAfterEdit()) { eigenschaft(i, "textscale", {zahlText(ts)}); }
+    zahlenFeld("textscale", &ts, 1, [&ts] { return ImGui::DragFloat("textscale", &ts, 0.01F, 0.05F, 4.0F); },
+               [i](const std::vector<float>& w) { eigenschaft(i, "textscale", {zahlText(w[0])}); });
     float ta[2] = {it.textalignx, it.textaligny};
-    ImGui::DragFloat2("textalignx/y", ta, 1.0F);
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    zahlenFeld("textalignx/y", ta, 2, [&ta] { return ImGui::DragFloat2("textalignx/y", ta, 1.0F); }, [&d, mi, i](const std::vector<float>& w) {
         std::vector<Ersetzung> e;
-        (void)setzeEigenschaft(d.datei, mi, i, "textalignx", {zahlText(ta[0])}, e);
-        (void)setzeEigenschaft(d.datei, mi, i, "textaligny", {zahlText(ta[1])}, e);
+        (void)setzeEigenschaft(d.datei, mi, i, "textalignx", {zahlText(w[0])}, e);
+        (void)setzeEigenschaft(d.datei, mi, i, "textaligny", {zahlText(w[1])}, e);
         aendere(std::move(e));
-    }
+    });
     static const char* const ausr[] = {"ITEM_ALIGN_LEFT", "ITEM_ALIGN_CENTER", "ITEM_ALIGN_RIGHT"};
     if (ImGui::BeginCombo("textalign", ausr[std::clamp(it.textalignment, 0, 2)])) {
         for (int t = 0; t < 3; ++t) {
@@ -4575,18 +4703,23 @@ void zeichneEigenschaften(Dokument& d) {
     }
     auto farbe = [&](const char* k, const Farbe& f) {
         float c[4] = {f.r, f.g, f.b, f.a};
-        ImGui::ColorEdit4(k, c, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaBar);
-        if (ImGui::IsItemDeactivatedAfterEdit()) { eigenschaft(i, k, {farbText(Farbe{c[0], c[1], c[2], c[3]})}); }
+        zahlenFeld(k, c, 4, [&c, k] { return ImGui::ColorEdit4(k, c, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaBar); },
+                   [i, k](const std::vector<float>& w) { eigenschaft(i, k, {farbText(Farbe{w[0], w[1], w[2], w[3]})}); });
     };
     farbe("forecolor", it.window.foreColor);
     farbe("backcolor", it.window.backColor);
     farbe("bordercolor", it.window.borderColor);
-    int border = it.window.border;
-    if (ImGui::InputInt("border", &border, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "border", {std::to_string(border)}); }
+    float border = static_cast<float>(it.window.border);
+    zahlenFeld("border", &border, 1, [&border] {
+        int b = static_cast<int>(border);
+        const bool neu = ImGui::InputInt("border", &b, 1, 1);
+        border = static_cast<float>(b);
+        return neu;
+    }, [i](const std::vector<float>& w) { eigenschaft(i, "border", {std::to_string(static_cast<int>(w[0]))}); });
     std::string bg = it.window.background;
-    if (eingabe("background", &bg, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "background", {inAnf(bg)}); }
+    textFeld("background", &bg, [i](const std::string& t) { eigenschaft(i, "background", {inAnf(t)}); });
     std::string cvar = it.cvar;
-    if (eingabe("cvar", &cvar, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "cvar", {inAnf(cvar)}); }
+    textFeld("cvar", &cvar, [i](const std::string& t) { eigenschaft(i, "cvar", {inAnf(t)}); });
     bool sichtbar = (it.window.flags & WINDOW_VISIBLE) != 0;
     if (ImGui::Checkbox("visible", &sichtbar)) { eigenschaft(i, "visible", {sichtbar ? "1" : "0"}); }
     bool gesperrt = d.gesperrt.count(i) != 0;
@@ -5192,11 +5325,15 @@ void zeichneInnen(float hoehe) {
     }
     d = doc();
     if (d == nullptr) {
+        z.halt = {};
         zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
         menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
     }
     neuParsen(*d);
+    d->altStaende.clear();
+    haltPruefen();
+    if (d->umbenennen >= 0 && d->umbenennenBild + 1 < ImGui::GetFrameCount()) { d->umbenennen = -1; }   // Zeile nicht mehr da
     const float fs = ImGui::GetFontSize();
     const ImVec2 rest = ImGui::GetContentRegionAvail();
     Settings& st = g_app->settings;
@@ -5324,6 +5461,30 @@ int oeffneMenuesatz(const std::string& spielPfad) {
     if (erstes >= 0) { z.aktiv = erstes; }   // die erste Datei des Satzes
     return n;
 }
+
+std::vector<ItemLage> itemLagen() {
+    std::vector<ItemLage> v;
+    Dokument* d = doc();
+    if (d == nullptr) { return v; }
+    neuParsen(*d);
+    const int mi = menuDerSeite(*d);
+    if (mi < 0) { return v; }
+    for (const Item& it : d->datei.menus[static_cast<std::size_t>(mi)].items) {
+        ItemLage l;
+        l.name = it.window.name;
+        l.x = it.window.rectClient.x;
+        l.y = it.window.rectClient.y;
+        l.b = it.window.rectClient.w;
+        l.h = it.window.rectClient.h;
+        l.sx = it.window.rect.x;
+        l.sy = it.window.rect.y;
+        l.sichtbar = (it.window.flags & WINDOW_VISIBLE) != 0;
+        v.push_back(l);
+    }
+    return v;
+}
+
+std::string letzteMeldung() { return Z().meldung; }
 
 bool oeffneAusSpiel(const std::string& spielPfad) {
     datenPruefen();

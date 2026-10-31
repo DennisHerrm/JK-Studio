@@ -369,7 +369,7 @@ void zeichneModellGizmo(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab
             }
             if (g.fovx != s.fovx) { ok = setzeEigenschaft(d.datei, mi, item, "model_fovx", {zahl(g.fovx)}, e) && ok; }
             if (g.fovy != s.fovy) { ok = setzeEigenschaft(d.datei, mi, item, "model_fovy", {zahl(g.fovy)}, e) && ok; }
-            if (!ok) { z.meldung = tr(Str::MeAusMakro); }
+            if (!ok) { ausMakroMelden(); }
             else if (!e.empty()) { aendere(std::move(e)); }
             z.gizmoArt = 0;
             z.gizmoItem = -1;

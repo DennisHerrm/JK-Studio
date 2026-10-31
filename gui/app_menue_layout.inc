@@ -126,7 +126,7 @@ void layoutsAnwenden(Dokument& d, int mi, const Layout* geaendert, bool loeschen
         if (alt.x == rr.x && alt.y == rr.y && alt.w == rr.w && alt.h == rr.h) { continue; }
         std::vector<Ersetzung> x;
         if (setzeRect(d.datei, mi, i, rr, x)) { e.insert(e.end(), x.begin(), x.end()); }
-        else { z.meldung = tr(Str::MeAusMakro); }
+        else { ausMakroMelden(); }
     }
     z.layoutWarnungen.clear();
     for (const std::string& n : r.warnungen) {
@@ -345,14 +345,23 @@ void zeichneLayout(Dokument& d) {
         }
         ImGui::EndCombo();
     }
-    if (ImGui::DragFloat(tr(Str::MeLayoutAbstand), &l.abstand, 0.5F, 0.0F, 200.0F, "%.0f")) {}
-    neu = neu || ImGui::IsItemDeactivatedAfterEdit();
+    Dokument* dp = &d;
+    zahlenFeld(tr(Str::MeLayoutAbstand), &l.abstand, 1, [&l] { return ImGui::DragFloat(tr(Str::MeLayoutAbstand), &l.abstand, 0.5F, 0.0F, 200.0F, "%.0f"); },
+               [dp, mi, l](const std::vector<float>& w) {
+                   Layout x = l;
+                   x.abstand = w[0];
+                   layoutAendern(*dp, mi, x);
+               });
     tipp(Str::MeLayoutAbstandTip);
     // uebersetzung2: die lange Beschriftung ueber den vier Feldern - rechts daneben schnitt die Spalte sie
     // ab, schon auf Englisch ("Margins (left, top, right, botto|").
     ImGui::TextUnformatted(tr(Str::MeLayoutRaender));
-    if (ImGui::DragFloat4("##raender", l.rand, 0.5F, 0.0F, 200.0F, "%.0f")) {}
-    neu = neu || ImGui::IsItemDeactivatedAfterEdit();
+    zahlenFeld("##raender", l.rand, 4, [&l] { return ImGui::DragFloat4("##raender", l.rand, 0.5F, 0.0F, 200.0F, "%.0f"); },
+               [dp, mi, l](const std::vector<float>& w) {
+                   Layout x = l;
+                   std::copy_n(w.begin(), 4, x.rand);
+                   layoutAendern(*dp, mi, x);
+               });
     const Str ausr[] = {Str::MeLayoutAnfang, Str::MeLayoutMitte, Str::MeLayoutEnde, Str::MeLayoutFuellen};
     auto ausrichtung = [&](Str titel, LayoutAusrichtung& a) {
         int w = static_cast<int>(a);
@@ -371,14 +380,32 @@ void zeichneLayout(Dokument& d) {
         ausrichtung(Str::MeLayoutAusrV, l.v);
     }
     if (l.art == LayoutArt::Raster) {
-        if (ImGui::SliderInt(tr(Str::MeLayoutSpalten), &l.spalten, 1, 8)) {}
-        neu = neu || ImGui::IsItemDeactivatedAfterEdit();
+        float spalten = static_cast<float>(l.spalten);
+        zahlenFeld(tr(Str::MeLayoutSpalten), &spalten, 1, [&spalten] {
+            int s = static_cast<int>(spalten);
+            const bool anders = ImGui::SliderInt(tr(Str::MeLayoutSpalten), &s, 1, 8);
+            spalten = static_cast<float>(s);
+            return anders;
+        }, [dp, mi, l](const std::vector<float>& w) {
+            Layout x = l;
+            x.spalten = static_cast<int>(w[0]);
+            layoutAendern(*dp, mi, x);
+        });
+        l.spalten = static_cast<int>(spalten);
     }
     if (l.art == LayoutArt::Teiler) {
-        if (ImGui::SliderFloat(tr(Str::MeLayoutTeilung), &l.teilung, 0.05F, 0.95F, "%.2f")) {}
-        neu = neu || ImGui::IsItemDeactivatedAfterEdit();
-        if (ImGui::DragFloat(tr(Str::MeLayoutGriff), &l.griff, 0.5F, 0.0F, 64.0F, "%.0f")) {}
-        neu = neu || ImGui::IsItemDeactivatedAfterEdit();
+        zahlenFeld(tr(Str::MeLayoutTeilung), &l.teilung, 1, [&l] { return ImGui::SliderFloat(tr(Str::MeLayoutTeilung), &l.teilung, 0.05F, 0.95F, "%.2f"); },
+                   [dp, mi, l](const std::vector<float>& w) {
+                       Layout x = l;
+                       x.teilung = w[0];
+                       layoutAendern(*dp, mi, x);
+                   });
+        zahlenFeld(tr(Str::MeLayoutGriff), &l.griff, 1, [&l] { return ImGui::DragFloat(tr(Str::MeLayoutGriff), &l.griff, 0.5F, 0.0F, 64.0F, "%.0f"); },
+                   [dp, mi, l](const std::vector<float>& w) {
+                       Layout x = l;
+                       x.griff = w[0];
+                       layoutAendern(*dp, mi, x);
+                   });
     }
     if (ImGui::Checkbox(tr(Str::MeLayoutVersteckt), &l.versteckteAuslassen)) { neu = true; }
     tipp(Str::MeLayoutVerstecktTip);

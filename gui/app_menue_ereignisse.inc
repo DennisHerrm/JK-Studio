@@ -20,7 +20,7 @@ std::string skriptVon(const Item& it, int art) {
 void ereignisSchreiben(Dokument& d, int item, const char* schluessel, const std::vector<Baustein>& b) {
     std::vector<Ersetzung> e;
     if (skriptSetzen(d.datei, menuDerSeite(d), item, schluessel, zusammensetzen(b), e)) { aendere(std::move(e)); }
-    else { Z().meldung = tr(Str::MeAusMakro); }
+    else { ausMakroMelden(); }
 }
 
 // Probehoeren ueber denselben Weg wie die Klaenge der Vorschau (Ton-Schalter, stumm im Selbsttest)
@@ -93,7 +93,7 @@ void zeichneEreignisse(Dokument& d) {
                 // Leuchten setzt das Glow-Element davor: die Auswahl bleibt beim Element selbst
                 if (static_cast<HoverEffekt>(k) == HoverEffekt::Leuchten) { d.auswahl.assign(1, i + 1); }
             } else {
-                z.meldung = tr(Str::MeAusMakro);
+                ausMakroMelden();
             }
         }
         tipp(effTip[k]);
@@ -115,26 +115,30 @@ void zeichneEreignisse(Dokument& d) {
     }
     const float knopf = ImGui::GetFrameHeight();
     ImGui::SetNextItemWidth(-knopf * 2 - ImGui::GetFontSize() * 6);
-    if (eingabe(tr(Str::MeEvHoverKlang), &fokusKlang, ImGuiInputTextFlags_EnterReturnsTrue)) { eigenschaft(i, "focusSound", {inAnf(fokusKlang)}); }
+    textFeld(tr(Str::MeEvHoverKlang), &fokusKlang, [i](const std::string& t) { eigenschaft(i, "focusSound", {inAnf(t)}); });
     tipp(Str::MeEvHoverKlangTip);
     ImGui::SameLine();
     if (ImGui::Button(">##hk")) { probehoeren(fokusKlang); }
     tipp(Str::MeEvProbe);
     ImGui::SetNextItemWidth(-knopf * 2 - ImGui::GetFontSize() * 6);
-    if (eingabe(tr(Str::MeEvKlickKlang), &klickKlang, ImGuiInputTextFlags_EnterReturnsTrue)) {
-        bool gesetzt = false;
-        for (Baustein& b : klick) {
-            if (b.befehl == "play" && !b.args.empty()) {
-                b.args[0] = klickKlang;
-                gesetzt = true;
-                break;
+    {
+        Dokument* dp = &d;
+        textFeld(tr(Str::MeEvKlickKlang), &klickKlang, [dp, i, klick](const std::string& t) {
+            std::vector<Baustein> liste = klick;
+            bool gesetzt = false;
+            for (Baustein& b : liste) {
+                if (b.befehl == "play" && !b.args.empty()) {
+                    b.args[0] = t;
+                    gesetzt = true;
+                    break;
+                }
             }
-        }
-        if (!gesetzt) { klick.insert(klick.begin(), Baustein{"play", {klickKlang}, {true}}); }
-        if (klickKlang.empty()) {
-            klick.erase(std::remove_if(klick.begin(), klick.end(), [](const Baustein& b) { return b.befehl == "play"; }), klick.end());
-        }
-        ereignisSchreiben(d, i, "action", klick);
+            if (!gesetzt) { liste.insert(liste.begin(), Baustein{"play", {t}, {true}}); }
+            if (t.empty()) {
+                liste.erase(std::remove_if(liste.begin(), liste.end(), [](const Baustein& b) { return b.befehl == "play"; }), liste.end());
+            }
+            ereignisSchreiben(*dp, i, "action", liste);
+        });
     }
     tipp(Str::MeEvKlickKlangTip);
     ImGui::SameLine();
@@ -170,8 +174,14 @@ void zeichneEreignisse(Dokument& d) {
                             }
                             ImGui::EndCombo();
                         }
-                    } else if (eingabe("##a", &x.args[a], ImGuiInputTextFlags_EnterReturnsTrue)) {
-                        geaendert = true;
+                    } else {
+                        Dokument* dp = &d;
+                        const std::string schluessel = e.schluessel;
+                        textFeld("##a", &x.args[a], [dp, i, schluessel, b, k, a](const std::string& t) {
+                            std::vector<Baustein> liste = b;
+                            liste[k].args[a] = t;
+                            ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
+                        });
                     }
                     ImGui::PopID();
                 }
@@ -179,11 +189,14 @@ void zeichneEreignisse(Dokument& d) {
                     float c[4];
                     for (int q = 0; q < 4; ++q) { c[q] = static_cast<float>(std::atof(x.args[static_cast<std::size_t>(2 + q)].c_str())); }
                     ImGui::SameLine();
-                    if (ImGui::ColorEdit4("##c", c, ImGuiColorEditFlags_NoInputs)) {}
-                    if (ImGui::IsItemDeactivatedAfterEdit()) {
-                        for (int q = 0; q < 4; ++q) { x.args[static_cast<std::size_t>(2 + q)] = zahlText(c[q]); }
-                        geaendert = true;
-                    }
+                    Dokument* dp = &d;
+                    const std::string schluessel = e.schluessel;
+                    zahlenFeld("##c", c, 4, [&c] { return ImGui::ColorEdit4("##c", c, ImGuiColorEditFlags_NoInputs); },
+                               [dp, i, schluessel, b, k](const std::vector<float>& w) {
+                                   std::vector<Baustein> liste = b;
+                                   for (std::size_t q = 0; q < 4; ++q) { liste[k].args[2 + q] = zahlText(w[q]); }
+                                   ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
+                               });
                 }
                 if ((x.befehl == "play" || x.befehl == "playlooped") && !x.args.empty()) {
                     ImGui::SameLine();

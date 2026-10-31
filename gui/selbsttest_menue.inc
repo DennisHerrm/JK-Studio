@@ -1718,6 +1718,247 @@ std::vector<Schritt> schritteZiehen() {
     return s;
 }
 
+// Ziehen wie ziehFlaeche, die Stelle wird erst beim Lauf bestimmt
+Schritt ziehFlaecheBei(const std::string& was, std::shared_ptr<ImVec2> stelle, float dx, float dy) {
+    auto innen = std::make_shared<Schritt>();
+    return Schritt{was, [=](int b) {
+                       if (b == 0) { *innen = ziehFlaeche(was, stelle->x, stelle->y, 0, 0, dx, dy); }
+                       return innen->tun(b);
+                   }};
+}
+
+// Fokus wie ein Klick in das Panel. teil: Teil des Fensternamens
+void fokusAuf(const std::string& teil) {
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if (w->WasActive && std::string(w->Name).find(teil) != std::string::npos) {
+            ImGui::FocusWindow(w);
+            return;
+        }
+    }
+    diag::detail("Knopftest: kein Fenster mit " + teil);
+}
+
+// rc608 (Tester: "Like I move a button, but when I click off, it resets"): was gezogen oder in Properties
+// geaendert ist, bleibt - nach dem Klick daneben, Reiterwechsel, Fokuswechsel, Speichern und neu Laden.
+std::vector<Schritt> schritteBleiben() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    namespace fs = std::filesystem;
+    struct Probe {
+        std::string name, inhalt;   // Spielpfad; Inhalt nur bei neuen Menues
+    };
+    static const Probe proben[] = {
+        {"ui/main.menu", ""},        {"ui/ingameforceselect.menu", ""}, {"ui/jamp/main.menu", ""},
+        {"ui/jk2mp/main.menu", ""},  {"ui/MD_MP/main.menu", ""},        {"ui/zug_sp.menu", kZugText},
+        {"ui/jamp/zug_mp.menu", "menuDef\n{\n  name \"zug\"\n  rect 0 0 640 480\n  visible 1\n  itemDef\n  {\n    name \"frei\"\n    type 1\n    rect 400 300 100 50\n    style 1\n    visible 1\n  }\n}\n"},
+    };
+    for (const Probe& pr : proben) {
+        const std::string n = pr.name;
+        const std::string inhalt = pr.inhalt;
+        auto da = std::make_shared<bool>(false);
+        auto stelle = std::make_shared<ImVec2>();
+        auto nr = std::make_shared<int>(-1);
+        auto vor = std::make_shared<me::ItemLage>();
+        auto nach = std::make_shared<me::ItemLage>();
+        auto text = std::make_shared<std::string>();
+        const auto lage = [nr] {
+            const std::vector<me::ItemLage> l = me::itemLagen();
+            return *nr >= 0 && static_cast<std::size_t>(*nr) < l.size() ? l[static_cast<std::size_t>(*nr)] : me::ItemLage{};
+        };
+        add(tu("rc608 Bleiben " + n + ": oeffnen", [n, inhalt, da, nr] {
+            me::schliesseAlleOhneSpeichern();
+            g_app->leftMode = 4;
+            tourSchliessen();
+            *nr = -1;
+            *da = inhalt.empty() ? me::oeffneAusSpiel(n) : me::oeffneText(n, inhalt);
+            me::setzeInteraktion(false);
+            if (!*da) { diag::detail("Knopftest: Bleiben " + n + " - nicht in den Spieldaten dieses Laufs"); }
+        }));
+        add(pause(1.0));
+        // Das vorderste sichtbare Element mittlerer Groesse; der erste Druck zeigt, was dort wirklich vorn ist
+        add(tu("rc608 Bleiben " + n + ": Element suchen", [da, stelle] {
+            if (!*da) { return; }
+            const std::vector<me::ItemLage> l = me::itemLagen();
+            *stelle = ImVec2{-1.0F, -1.0F};
+            for (const me::ItemLage& x : l) {
+                if (x.sichtbar && x.b >= 20.0F && x.b <= 400.0F && x.h >= 10.0F && x.h <= 200.0F && x.sx >= 0.0F && x.sy >= 0.0F && x.sx + x.b <= 640.0F && x.sy + x.h <= 480.0F) {
+                    *stelle = ImVec2{x.sx + x.b * 0.5F, x.sy + x.h * 0.5F};
+                }
+            }
+        }));
+        add(ziehFlaecheBei("rc608 Bleiben " + n + ": erster Druck waehlt", stelle, 0, 0));
+        add(tu("rc608 Bleiben " + n + ": Lage merken", [da, nr, vor, text, lage] {
+            if (!*da) { return; }
+            const auto x = me::stand();
+            *nr = x.auswahl.empty() ? -1 : x.auswahl[0];
+            *vor = lage();
+            *text = x.text;
+        }));
+        add(ziehFlaecheBei("rc608 Bleiben " + n + ": neuer Druck zieht", stelle, 90, 45));
+        add(pruefe("rc608 Bleiben " + n + ": das gezogene Element steht woanders oder das Programm sagt warum nicht", [=] {
+            if (!*da || *nr < 0) { return true; }
+            *nach = lage();
+            const bool bewegt = nach->x != vor->x || nach->y != vor->y;
+            const std::string warum = me::letzteMeldung();
+            diag::detail("Knopftest: Bleiben " + n + " - " + vor->name + " " + std::to_string(vor->x) + "," + std::to_string(vor->y) + " -> " +
+                         std::to_string(nach->x) + "," + std::to_string(nach->y) + (bewegt ? "" : ", Meldung: " + warum));
+            return bewegt || !warum.empty();
+        }));
+        add(tu("rc608 Bleiben " + n + ": Text nach dem Zug merken", [text] { *text = me::stand().text; }));
+        const auto bleibt = [=](const std::string& nachWas) {
+            return pruefe("rc608 Bleiben " + n + ": nach " + nachWas + " bleibt die Lage", [=] {
+                if (!*da || *nr < 0) { return true; }
+                const me::ItemLage jetzt = lage();
+                const bool gut = jetzt.x == nach->x && jetzt.y == nach->y && me::stand().text == *text;
+                if (!gut) { diag::detail("Knopftest: Bleiben " + n + " nach " + nachWas + ": " + std::to_string(jetzt.x) + "," + std::to_string(jetzt.y)); }
+                return gut;
+            });
+        };
+        add(ziehFlaeche("rc608 Bleiben " + n + ": Klick daneben", 2, 478, 0, 0, 0, 0));
+        add(pause(0.3));
+        add(bleibt("dem Klick daneben"));
+        add(tu("rc608 Bleiben " + n + ": zurueck auf das Element", [da, nr] {
+            if (*da && *nr >= 0) { me::waehle(*nr, false); }
+        }));
+        for (int r = 0; r < 4; ++r) {
+            add(tu("rc608 Bleiben " + n + ": Reiter " + std::to_string(r), [r] { me::setzeReiter(r); }));
+            add(pause(0.2));
+        }
+        add(bleibt("den Reitern"));
+        add(tu("rc608 Bleiben " + n + ": Reiter Text", [] { me::setzeReiter(1); }));
+        add(pause(0.2));
+        add(Schritt{"rc608 Bleiben " + n + ": Klick in den Text-Editor", [da, innen = klick("##codeflaeche")](int b) { return !*da || innen.tun(b); }});
+        add(pause(0.2));
+        add(bleibt("dem Fokus im Text-Editor"));
+        add(tu("rc608 Bleiben " + n + ": Reiter Properties", [] { me::setzeReiter(2); }));
+        add(pause(0.2));
+        add(bleibt("dem Fokus in Properties"));
+        const auto datei = std::make_shared<std::string>(pfadText(bhed::utf8Pfad(platform::executableDirectory()) / "bleiben_probe.menu"));
+        add(tu("rc608 Bleiben " + n + ": speichern und neu laden", [da, nr, datei, nach] {
+            if (!*da || *nr < 0) { return; }
+            (void)me::speichereUnter(*datei);
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneDatei(*datei);
+        }));
+        add(pause(0.6));
+        add(pruefe("rc608 Bleiben " + n + ": nach Speichern und neu Laden bleibt die Lage", [=] {
+            if (!*da || *nr < 0) { return true; }
+            const me::ItemLage jetzt = lage();
+            return jetzt.x == nach->x && jetzt.y == nach->y;
+        }));
+        add(tu("rc608 Bleiben " + n + ": aufraeumen", [datei] {
+            me::schliesseAlleOhneSpeichern();
+            std::error_code ec;
+            fs::remove(bhed::utf8Pfad(*datei), ec);
+        }));
+    }
+    return s;
+}
+
+// Lage des rect-Feldes in Properties: die Zeile ueber "text"
+ImVec2 rectFeldStelle(float anteil) {
+    const Element* e = finde("text", "", 0, false);
+    if (e == nullptr) { return ImVec2{-1.0F, -1.0F}; }
+    return ImVec2{e->rect.Min.x + e->rect.GetWidth() * anteil, e->rect.Min.y - ImGui::GetStyle().ItemSpacing.y - ImGui::GetFrameHeight() * 0.5F};
+}
+
+// rc608 (Tester): Felder in Properties: Tippen und daneben klicken, rect mit der Maus ziehen
+std::vector<Schritt> schritteFelder() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("rc608 Felder: Probe oeffnen, frei waehlen, Properties", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("felder.menu", kZugText);
+        me::setzeInteraktion(false);
+        me::waehle(2, false);
+        me::setzeReiter(2);
+    }));
+    add(pause(0.6));
+    add(foto("menue_felder"));
+    // rect mit der Maus: das Feld zieht um mehr als ein Bild
+    add(Schritt{"rc608 Felder: rect mit der Maus ziehen", [](int b) {
+                    ImGuiIO& io = ImGui::GetIO();
+                    const ImVec2 start = rectFeldStelle(0.08F);
+                    if (b == 0) { setzeMaus(start); return false; }
+                    if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
+                    if (b >= 3 && b <= 13) { setzeMaus(ImVec2{start.x + static_cast<float>(b - 2) * 4.0F, start.y}); return false; }
+                    if (b == 14) { io.AddMouseButtonEvent(0, false); return false; }
+                    return b >= 17;
+                }});
+    add(pruefe("rc608 Felder: rect mit der Maus gezogen, die Zahl bleibt (nicht nur das letzte Bild)", [] {
+        const std::string r = rectVon("frei");
+        diag::detail("Knopftest: Felder rect gezogen " + r);
+        int x = 0;
+        std::istringstream(r) >> x;
+        return x >= 400 + 20;
+    }));
+    add(tu("rc608 Felder: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Felder: Rueckgaengig nimmt das Ziehen in einem Schritt zurueck", [] { return rectVon("frei") == "400 300 100 50"; }));
+    // rect tippen (Doppelklick auf das Feld), daneben klicken
+    add(klickAn("rc608 Felder: Doppelklick auf das erste rect-Feld", [] { return rectFeldStelle(0.08F); }, 0, true));
+    add(pause(0.2));
+    add(pruefe("rc608 Felder: der Doppelklick oeffnet das Feld zum Tippen", [] { return ImGui::GetIO().WantTextInput; }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tippe("123"));
+    add(pause(0.2));
+    add(ziehFlaeche("rc608 Felder: Klick daneben", 2, 478, 0, 0, 0, 0));
+    add(pause(0.3));
+    add(pruefe("rc608 Felder: rect getippt, Klick daneben - der Wert bleibt", [] {
+        diag::detail("Knopftest: Felder rect getippt " + rectVon("frei"));
+        return rectVon("frei").rfind("123 300", 0) == 0;
+    }));
+    // Texte: tippen, daneben klicken
+    struct Feld {
+        const char* label;
+        const char* schluessel;
+        const char* neu;
+        bool anfuehrung;
+    };
+    static const Feld felder[] = {{"name", "name", "anders", true}, {"group", "group", "gruppe2", true}, {"text", "text", "Hallo", true}, {"cvar", "cvar", "ui_probe", true}};
+    for (const Feld& f : felder) {
+        const std::string l = f.label;
+        const std::string n = f.neu;
+        const std::string k = f.schluessel;
+        add(tu("rc608 Felder " + l + ": hinten waehlen", [] {
+            me::waehle(0, false);
+            me::setzeReiter(2);
+        }));
+        add(pause(0.3));
+        add(klick(l));
+        add(pause(0.2));
+        add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+        add(tippe(n));
+        add(pause(0.2));
+        add(ziehFlaeche("rc608 Felder " + l + ": Klick daneben", 2, 478, 0, 0, 0, 0));
+        add(pause(0.3));
+        add(pruefe("rc608 Felder " + l + ": getippt, Klick daneben - der Wert steht im Text", [l, n, k] {
+            const std::string t = me::stand().text;
+            const bool gut = t.find(k + " \"" + n + "\"") != std::string::npos || t.find(k + "	\"" + n + "\"") != std::string::npos;
+            if (!gut) { diag::detail("Knopftest: Felder " + l + " nicht geschrieben: " + t.substr(0, 400)); }
+            return gut;
+        }));
+    }
+    // Kommt rect aus einem Makro, kann der Zug nicht geschrieben werden: das Programm sagt es sichtbar
+    add(tu("rc608 Felder: Menue, dessen rect aus einem Makro kommt", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->einblendungen.clear();
+        (void)me::oeffneText("ui/jamp/makro.menu",
+                             "#define LAGE 400 300 100 50\nmenuDef\n{\n  name \"m\"\n  rect 0 0 640 480\n  visible 1\n  itemDef\n  {\n    name \"frei\"\n    type 1\n    rect LAGE\n    style 1\n    visible 1\n  }\n}\n");
+        me::waehle(0, false);
+    }));
+    add(pause(0.5));
+    add(ziehFlaeche("rc608 Felder: Element mit Makro-rect ziehen", 450, 325, 0, 0, 60, 30));
+    add(pruefe("rc608 Felder: Makro-rect - der Text bleibt, die Einblendung und die Leiste sagen warum", [] {
+        return me::stand().text.find("rect LAGE") != std::string::npos && me::letzteMeldung() == tr(Str::MeAusMakro) && !g_app->einblendungen.empty();
+    }));
+    add(foto("menue_makro_meldung"));
+    add(tu("rc608 Felder: Aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
 std::vector<Schritt> schritteM7() {
     std::vector<Schritt> s;
@@ -2070,6 +2311,13 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=bleiben: was gezogen oder in Properties geaendert ist, bleibt (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "bleiben") == 0) {
+        for (auto& x : schritteFelder()) { add(std::move(x)); }
+        for (auto& x : schritteBleiben()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=ziehen: nur Auswaehlen und Ziehen auf der Flaeche (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "ziehen") == 0) {
         for (auto& x : schritteZiehen()) { add(std::move(x)); }
@@ -2285,6 +2533,8 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM7()) { add(std::move(x)); }
     for (auto& x : schritteStart()) { add(std::move(x)); }
     for (auto& x : schritteZiehen()) { add(std::move(x)); }
+    for (auto& x : schritteFelder()) { add(std::move(x)); }
+    for (auto& x : schritteBleiben()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

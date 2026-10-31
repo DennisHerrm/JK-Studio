@@ -83,6 +83,14 @@ struct Stand {
 // Befehle wie die Knoepfe (Selbsttest)
 void waehle(int item, bool dazu);
 [[nodiscard]] int itemNummer(const std::string& name);   // M4: Item der Seite nach Namen, -1 = keins
+// rc608: die Items im Menue der Seite, wie gelesen: rect im Text (x, y, b, h) und auf dem Bildschirm (sx, sy)
+struct ItemLage {
+    std::string name;
+    float x = 0, y = 0, b = 0, h = 0, sx = 0, sy = 0;
+    bool sichtbar = false;
+};
+[[nodiscard]] std::vector<ItemLage> itemLagen();
+[[nodiscard]] std::string letzteMeldung();   // rc608: was die Leiste gerade meldet ("" = nichts)
 void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
