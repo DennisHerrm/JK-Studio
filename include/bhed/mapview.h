@@ -14,6 +14,7 @@
 #include "bhed/rumpfwinkel.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>

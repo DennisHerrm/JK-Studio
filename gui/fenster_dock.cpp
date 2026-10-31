@@ -642,7 +642,27 @@ void menueInhalt(int bereich) {
     if (ImGui::MenuItem(tr(Str::MessagesTitle), nullptr, g_app->messagesOpen)) { g_app->messagesOpen = !g_app->messagesOpen; }
 }
 
+void menueFensterWaehlen() {
+    ImGuiContext& g = *GImGui;
+    if ((g.IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0 || ImGui::GetWindowViewport() != ImGui::GetMainViewport()) { return; }
+    const ImGuiViewport* haupt = ImGui::GetMainViewport();
+    const ImRect flaeche{haupt->Pos, ImVec2{haupt->Pos.x + haupt->Size.x, haupt->Pos.y + haupt->Size.y}};
+    for (const ImGuiViewportP* v : g.Viewports) {
+        if (v == haupt || !v->PlatformWindowCreated || v->Window == nullptr ||
+            (v->Window->Flags & (ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_ChildMenu)) != 0) {
+            continue;
+        }
+        if (ImRect{v->Pos, ImVec2{v->Pos.x + v->Size.x, v->Pos.y + v->Size.y}}.Overlaps(flaeche)) {
+            // Eine Kennung ohne Fenster: ImGui findet keins, prueft die Ueberdeckung (UpdateTryMergeWindowIntoHostViewport)
+            // und legt das Menue nur dann in ein eigenes Fenster, wenn ein eigenes Fenster ueber ihm liegt.
+            ImGui::SetNextWindowViewport(ImHashStr("bhed.menue.eigenesfenster"));
+            return;
+        }
+    }
+}
+
 void menue(int bereich) {
+    menueFensterWaehlen();
     if (ImGui::BeginMenu(tr(Str::DockMenu))) {
         menueInhalt(bereich);
         ImGui::EndMenu();

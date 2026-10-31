@@ -1356,10 +1356,17 @@ void schwebend(Feld f, const char* titel, bool& sichtbar, int lx, int ly) {
     const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
     const ImVec2 vp = ImGui::GetMainViewport()->Pos;
     const ImGuiCond wann = editor().schwebendZuruecksetzen ? ImGuiCond_Always : ImGuiCond_FirstUseEver;
-    ImGui::SetNextWindowPos(ImVec2{vp.x + std::round(static_cast<float>(lx) * g_s), vp.y + std::round(static_cast<float>(ly) * g_s)},
-                            wann);
     // Innenmass 400 x 300: ImGui-Fenster ohne Polster, Inhalt = Groesse minus Titelleiste.
-    ImGui::SetNextWindowSize(ImVec2{std::round(400.0F * g_s), std::round(300.0F * g_s) + titelH}, wann);
+    const ImVec2 groesse{std::round(400.0F * g_s), std::round(300.0F * g_s) + titelH};
+    // Abschluss rc607: ragt die Lage von NRC (in Punkten, mal Skalierung) ueber das Programmfenster hinaus,
+    // rueckt das Feld so weit hinein, dass es ganz darin liegt. Sonst wurde es ein eigenes Windows-Fenster,
+    // das Windows immer ueber dem Hauptfenster zeigt - ueber Menues und Dialogen (Selbsttest karteneditor
+    // bei 200 %: YZ und XZ deckten Edit > Preferences und den Dialog zu).
+    const ImVec2 vg = ImGui::GetMainViewport()->Size;
+    ImGui::SetNextWindowPos(ImVec2{vp.x + std::max(0.0F, std::min(std::round(static_cast<float>(lx) * g_s), vg.x - groesse.x)),
+                                   vp.y + std::max(0.0F, std::min(std::round(static_cast<float>(ly) * g_s), vg.y - groesse.y))},
+                            wann);
+    ImGui::SetNextWindowSize(groesse, wann);
     const std::string id = std::string(titel) + "###schwebend" + feldName(f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     if (ImGui::Begin(id.c_str(), &sichtbar, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse)) {
@@ -1540,7 +1547,9 @@ void gruppenDialog() {
     const float titelH = ImGui::GetFontSize() + st.FramePadding.y * 2.0F;
     const ImVec2 bereich = ImGui::GetMainViewport()->Size;
     const ImVec2 vp = ImGui::GetMainViewport()->Pos;
-    const ImVec2 groesse{std::round(444.0F * g_s), std::round(777.0F * g_s) + titelH};
+    // Abschluss rc607: hoechstens so gross wie das Programmfenster - wie bei schwebend(): ein Fenster, das
+    // hinausragt, wird ein eigenes Windows-Fenster ueber Menues und Dialogen (bei 200 % 888 x 1594 Punkte).
+    const ImVec2 groesse{std::min(std::round(444.0F * g_s), bereich.x), std::min(std::round(777.0F * g_s) + titelH, bereich.y)};
     ImGui::SetNextWindowPos(ImVec2{vp.x + std::max(0.0F, (bereich.x - groesse.x) * 0.5F),
                                    vp.y + std::max(0.0F, (bereich.y - groesse.y) * 0.5F)},
                             ImGuiCond_FirstUseEver);

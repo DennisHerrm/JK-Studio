@@ -593,6 +593,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =rahmen: nur die Anordnungen und Rahmen (Abschluss rc607, gezielter Rot/Gruen-Test)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rahmen") == 0) {
+        for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }

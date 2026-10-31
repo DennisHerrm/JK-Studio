@@ -27,6 +27,7 @@
 #include "bhed/eingebaut.h"
 
 #include "imgui.h"
+#include "imgui_internal.h"   // Abschluss rc607: ImGuiViewportP::Window (zeigenImSelbsttest)
 #include "imgui_impl_win32.h"
 
 #include <windows.h>
@@ -741,7 +742,26 @@ void (*g_zeigenOriginal)(ImGuiViewport*) = nullptr;
 void zeigenImSelbsttest(ImGuiViewport* v) {
     v->Flags |= ImGuiViewportFlags_NoFocusOnAppearing;
     g_zeigenOriginal(v);
-    SetWindowPos(static_cast<HWND>(v->PlatformHandle), HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    const HWND h = static_cast<HWND>(v->PlatformHandle);
+    // Abschluss rc607: ein Menue, Popup oder Tooltip in eigenem Fenster gehoert ueber die anderen eigenen
+    // Fenster (wie beim Anwender, dem es oben erscheint) - ganz hinten lag es unter einem schwebenden Feld
+    // des Karten-Editors (Floating) in eigenem Fenster, und der Klick auf "Preferences..." traf das Feld.
+    // Vor fremde Fenster kommt es nicht: direkt ueber das oberste eigene Fenster.
+    const ImGuiWindow* w = static_cast<ImGuiViewportP*>(v)->Window;
+    HWND danach = HWND_BOTTOM;
+    if (w != nullptr && (w->Flags & (ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_ChildMenu)) != 0) {
+        const DWORD ich = GetCurrentProcessId();
+        for (HWND z = GetTopWindow(nullptr); z != nullptr; z = GetWindow(z, GW_HWNDNEXT)) {
+            DWORD pid = 0;
+            GetWindowThreadProcessId(z, &pid);
+            if (z == h || pid != ich || IsWindowVisible(z) == FALSE) { continue; }
+            const HWND davor = GetWindow(z, GW_HWNDPREV);
+            danach = davor == nullptr ? HWND_TOP : davor;
+            break;
+        }
+        if (danach == h) { return; }
+    }
+    SetWindowPos(h, danach, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 void fokusImSelbsttest(ImGuiViewport*) {}

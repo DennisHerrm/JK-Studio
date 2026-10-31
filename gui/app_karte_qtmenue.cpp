@@ -54,6 +54,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "fenster_dock.h"
 #include "platform.h"
 
 #include <algorithm>
@@ -536,6 +537,7 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
     if (!nrcStil()) {
         // Stil des Programms: ein ImGui-Menue wie in app.cpp drawMenu
         programmPolsterAn(m, abriss);
+        if (leiste) { dock::menueFensterWaehlen(); }
         const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
         ImGui::PopStyleVar();
         if (!leiste) {
@@ -572,6 +574,7 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
         fenster->Pos.x = spalte.Min.x;
         fenster->Size.x = spalte.GetWidth();
     }
+    if (leiste) { dock::menueFensterWaehlen(); }
     const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
     if (spaltig) {
         fenster->Pos.x = fensterX;
