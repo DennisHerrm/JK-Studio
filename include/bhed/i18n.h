@@ -3294,6 +3294,7 @@ enum class Str {
     MeStartNeuSub,
     MeStartOeffnenSub,
     MeStartZeigenTip,
+    CliUnbekannt,
     MeTypFestTip,
     MeMenuVerworfen,
     MeZurZeile,

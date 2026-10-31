@@ -51,6 +51,7 @@ add_library(bhed_core STATIC
   src/tree.cpp
   src/edit.cpp
   src/ibi.cpp
+  src/befehlszeile.cpp
   src/i18n.cpp
   src/changelog.cpp
   src/mpfelder.cpp
@@ -1277,6 +1278,9 @@ if(BEHAVED_TESTS)
   target_link_libraries(menuevorschau PRIVATE bhed_core)
   add_test(NAME menue_vorschau COMMAND menuevorschau)
   # Punkt 3: Textpuffer (Mehrfachcursor, Undo, Suchen/Ersetzen, Klammern, Falten, Rand, Farben)
+  add_executable(befehlszeile tests/befehlszeile.cpp)
+  target_link_libraries(befehlszeile PRIVATE bhed_core)
+  add_test(NAME befehlszeile COMMAND befehlszeile)
   add_executable(menuetext tests/menuetext.cpp)
   target_link_libraries(menuetext PRIVATE bhed_core)
   add_test(NAME menue_text COMMAND menuetext)

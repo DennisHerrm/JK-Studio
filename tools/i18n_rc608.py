@@ -26,6 +26,12 @@ RC608 = [
      "Das Programm zeigt dir Schritt für Schritt, wie du ein Menü des Spiels änderst.",
      "程序会一步步演示如何修改游戏的菜单。",
      "ゲームのメニューを変更する方法をプログラムが順番に案内します。"),
+    # Punkt 2: Befehlszeile
+    ("CliUnbekannt",
+     "Unknown switch: %s\nJK Studio was not opened. It knows --version and --mcp. To open a file with such a name, write its path, for example .\\%s",
+     "Unbekannter Schalter: %s\nJK Studio wurde nicht geöffnet. Es kennt --version und --mcp. Um eine Datei mit so einem Namen zu öffnen, schreib ihren Pfad, zum Beispiel .\\%s",
+     "未知开关:%s\nJK Studio 未打开。它支持 --version 和 --mcp。要打开这样命名的文件,请写出路径,例如 .\\%s",
+     "不明なスイッチ: %s\nJK Studio は開きませんでした。使えるのは --version と --mcp です。このような名前のファイルを開くにはパスを書いてください。例: .\\%s"),
     # Punkt 0b: der Typ eines Elements bleibt, eine ungueltige Zeile zerreisst das Menue nicht
     ("MeTypFestTip",
      "An element keeps its type. For another type, insert a new element.",

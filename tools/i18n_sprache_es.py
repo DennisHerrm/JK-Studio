@@ -2959,6 +2959,7 @@ TEXTE = {
     "MeTypFestTip": "Un elemento conserva su tipo. Para otro tipo, inserta un elemento nuevo.",
     "MeMenuVerworfen": "El juego descartaría todo este menú: deja de leer en la línea %d. La vista previa sigue leyendo para que puedas seguir trabajando.",
     "MeZurZeile": "Ir a la línea",
+    "CliUnbekannt": "Interruptor desconocido: %s\nJK Studio no se ha abierto. Conoce --version y --mcp. Para abrir un archivo con ese nombre, escribe su ruta, por ejemplo .\\%s",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

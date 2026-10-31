@@ -19,6 +19,7 @@
 #include "bhed/gpustate.h"
 #include "bhed/diag.h"
 #include "bhed/fassung.h"
+#include "bhed/befehlszeile.h"
 #include "bhed/edit.h"
 #include "bhed/i18n.h"
 #include "bhed/theme.h"
@@ -138,21 +139,12 @@ bool g_fontsDirty = true;
 constexpr ULONG_PTR kEinzelKennung = 0x42454844UL;   // 'BEHD'
 constexpr const wchar_t* kEinzelEigenschaft = L"BehavEdEinzel";
 
+const bhed::Befehl& befehl();
+
 // H1: mit --mcp startet eine MCP-App (Claude Desktop, Cursor ...) das
 // Programm und spricht ueber stdin/stdout mit ihm (gui/ki.cpp). Diese Instanz
 // muss selbst laufen - sie gibt nichts an eine schon laufende ab.
-bool mitMcp() {
-    int argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    bool ja = false;
-    for (int i = 1; argv != nullptr && i < argc; ++i) {
-        ja = ja || std::wcscmp(argv[i], L"--mcp") == 0;
-    }
-    if (argv != nullptr) {
-        LocalFree(argv);
-    }
-    return ja;
-}
+bool mitMcp() { return befehl().mcp; }
 
 bool einzelAktiv() {
     if (std::getenv("BHED_EINZEL_AUS") != nullptr || mitMcp()) {
@@ -458,13 +450,7 @@ void schreibeAusgabe(const std::string& text) {
 // ohne Meldungsfenster (das hielte einen CI-Lauf bis zur Zeitgrenze an).
 // Rueckgabe -1: nicht verlangt; 0: geladen; 3: nicht geladen.
 int pruefeDatenAufruf() {
-    int argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    const bool verlangt = argv != nullptr && argc > 1 && std::wcscmp(argv[1], L"--pruefe-daten") == 0;
-    if (argv != nullptr) {
-        LocalFree(argv);
-    }
-    if (!verlangt) {
+    if (befehl().art != bhed::Befehl::Art::PruefeDaten) {
         return -1;
     }
     std::string bericht;
@@ -509,6 +495,59 @@ std::string systemLocale() {
         return toUtf8(name);
     }
     return "en";
+}
+
+// rc608: die Befehlszeile, einmal ausgewertet (bhed/befehlszeile.h, dort der ctest)
+const bhed::Befehl& befehl() {
+    static const bhed::Befehl b = [] {
+        std::vector<std::string> argumente;
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        for (int i = 1; argv != nullptr && i < argc; ++i) { argumente.push_back(toUtf8(argv[i])); }
+        if (argv != nullptr) { LocalFree(argv); }
+        return bhed::werteBefehlszeileAus(argumente);
+    }();
+    return b;
+}
+
+// In eine Umleitung (> datei, Pipe), sonst in die Konsole, aus der gestartet wurde; ohne beides ein Fenster.
+void befehlAusgeben(const std::string& text, bool fehler) {
+    const HANDLE h = GetStdHandle(fehler ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
+    const DWORD art = (h != nullptr && h != INVALID_HANDLE_VALUE) ? GetFileType(h) : FILE_TYPE_UNKNOWN;
+    if (art == FILE_TYPE_DISK || art == FILE_TYPE_PIPE) {
+        DWORD geschrieben = 0;
+        (void)WriteFile(h, text.data(), static_cast<DWORD>(text.size()), &geschrieben, nullptr);
+        return;
+    }
+    if (AttachConsole(ATTACH_PARENT_PROCESS) != 0) {
+        const HANDLE c = CreateFileW(L"CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (c != INVALID_HANDLE_VALUE) {
+            const std::wstring w = breitAusUtf8(text);
+            DWORD geschrieben = 0;
+            (void)WriteConsoleW(c, w.data(), static_cast<DWORD>(w.size()), &geschrieben, nullptr);
+            CloseHandle(c);
+        }
+        FreeConsole();
+        return;
+    }
+    if (!keinMeldungsfenster()) {
+        MessageBoxW(nullptr, breitAusUtf8(text).c_str(), L"JK Studio", fehler ? MB_ICONERROR : MB_ICONINFORMATION);
+    }
+}
+
+// --version und unbekannte Schalter: eine Antwort statt des Programms. Rueckgabe: Ende mit diesem Wert, -1: weiter.
+int befehlBeantworten() {
+    const bhed::Befehl& b = befehl();
+    if (b.art == bhed::Befehl::Art::Version) {
+        befehlAusgeben(std::string("JK Studio 1.0.0-") + bhed::kFassung + "\n", false);
+        return 0;
+    }
+    if (b.art != bhed::Befehl::Art::Unbekannt) { return -1; }
+    bhed::i18n::setLanguage(bhed::i18n::fromSystemLocale(systemLocale()));
+    std::vector<char> text(b.wert.size() * 2 + 1024);
+    std::snprintf(text.data(), text.size(), bhed::i18n::tr(bhed::i18n::Str::CliUnbekannt), b.wert.c_str(), b.wert.c_str());
+    befehlAusgeben(std::string(text.data()) + "\n", true);
+    return 2;
 }
 
 // GetDpiForWindow gibt es erst seit Windows 10. Direkt aufgerufen waere es
@@ -1225,20 +1264,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // zu spaet und alles erscheint verwaschen.
     announceDpiAwareness();
 
+    // rc608: --version und unbekannte Schalter bekommen eine Antwort, das Programm geht nicht auf.
+    if (const int antwort = befehlBeantworten(); antwort >= 0) {
+        return antwort;
+    }
+
     // Selbsttest "pruefung": der Neustart nach einem Update kommt an. Nur
     // eine Marke schreiben und gleich wieder gehen - ein zweiter Testlauf im
     // selben Ordner wuerde das Protokoll des ersten ueberschreiben.
     if (std::getenv("BHED_EDITORTEST") != nullptr) {
-        int argc = 0;
-        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-        const bool neustart = argv != nullptr && argc > 1 && std::wstring(argv[1]).rfind(L"--nach-update=", 0) == 0;
+        const bool neustart = befehl().art == bhed::Befehl::Art::NachUpdate;
         if (neustart) {
-            (void)bhed::gui::updater::warteAufVorgaenger(toUtf8(argv[1]));
-        }
-        if (argv != nullptr) {
-            LocalFree(argv);
-        }
-        if (neustart) {
+            (void)bhed::gui::updater::warteAufVorgaenger(befehl().wert);
             const std::filesystem::path marke =
                 ::bhed::utf8Pfad(bhed::platform::executableDirectory()) / "neustart_angekommen.txt";
             if (FILE* f = _wfopen(marke.c_str(), L"wb")) {
@@ -1256,23 +1293,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     const std::wstring einzelKennung = einzelAktiv() ? einzelName() : std::wstring();
     if (!einzelKennung.empty()) {
         std::string datei;
-        {
-            int argc = 0;
-            LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-            if (argv != nullptr) {
-                if (argc > 1) {
-                    // Absolut machen: die laufende Instanz hat ein anderes
-                    // Arbeitsverzeichnis.
-                    wchar_t voll[4096] = {};
-                    const DWORD n = GetFullPathNameW(argv[1], 4096, voll, nullptr);
-                    datei = toUtf8((n > 0 && n < 4096) ? voll : argv[1]);
-                    if (std::wstring(argv[1]).rfind(L"--nach-update=", 0) == 0) {
-                        (void)bhed::gui::updater::warteAufVorgaenger(toUtf8(argv[1]));
-                        datei.clear();
-                    }
-                }
-                LocalFree(argv);
-            }
+        if (befehl().art == bhed::Befehl::Art::Datei) {
+            // Absolut machen: die laufende Instanz hat ein anderes Arbeitsverzeichnis.
+            const std::wstring pfad = breitAusUtf8(befehl().wert);
+            wchar_t voll[4096] = {};
+            const DWORD n = GetFullPathNameW(pfad.c_str(), 4096, voll, nullptr);
+            datei = (n > 0 && n < 4096) ? toUtf8(voll) : befehl().wert;
+        } else if (befehl().art == bhed::Befehl::Art::NachUpdate) {
+            (void)bhed::gui::updater::warteAufVorgaenger(befehl().wert);
         }
         g_einzelMutex = CreateMutexW(nullptr, FALSE, (L"Local\\" + einzelKennung).c_str());
         if (g_einzelMutex != nullptr && GetLastError() == ERROR_ALREADY_EXISTS &&
@@ -1447,21 +1475,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // .exe gezogen, oder der "run"-Knopf einer anderen Instanz) geht vor
     // "Re-open last file" - wie im Original.
     std::string kommandozeile;
-    {
-        int argc = 0;
-        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-        if (argv != nullptr) {
-            if (argc > 1 && std::wcscmp(argv[1], L"--mcp") != 0) {   // H1: --mcp ist keine Datei
-                kommandozeile = toUtf8(argv[1]);
-                // Neustart nach einem Update: auf die alte Instanz warten -
-                // das ist keine Datei zum Oeffnen.
-                if (bhed::gui::updater::warteAufVorgaenger(kommandozeile)) {
-                    kommandozeile.clear();
-                    bhed::gui::changelogZeigen();   // was ist neu?
-                }
-            }
-            LocalFree(argv);
-        }
+    if (befehl().art == bhed::Befehl::Art::Datei) {
+        kommandozeile = befehl().wert;
+    } else if (befehl().art == bhed::Befehl::Art::NachUpdate) {
+        // Neustart nach einem Update: auf die alte Instanz warten - das ist keine Datei zum Oeffnen.
+        (void)bhed::gui::updater::warteAufVorgaenger(befehl().wert);
+        bhed::gui::changelogZeigen();   // was ist neu?
     }
     bhed::gui::reopenLastIfWanted(app, kommandozeile);
 
