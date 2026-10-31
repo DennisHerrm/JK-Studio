@@ -179,8 +179,8 @@ std::vector<MetaEcke> eckenDerSeite(const Wk& w, const SichtSeite& s, int planeN
 }
 
 // --- surface.cpp: SubdivideFaceSurfaces -----------------------------------------------------
-void seiteUnterteilen_r(Wk w, float teilung, std::vector<Wk>& aus) {
-    if (w.empty()) { return; }
+void seiteUnterteilen_r(Wk w, float teilung, std::vector<Wk>& aus, const std::atomic<bool>* abbrechen) {
+    if (w.empty() || (abbrechen != nullptr && abbrechen->load())) { return; }
     MinMax kasten;
     for (const V3f& p : w) { kasten.dazu(p); }
     for (std::size_t achse = 0; achse < 3; ++achse) {
@@ -198,8 +198,8 @@ void seiteUnterteilen_r(Wk w, float teilung, std::vector<Wk>& aus) {
             } else if (hinten.empty()) {
                 w.swap(vorn);
             } else {
-                seiteUnterteilen_r(std::move(vorn), teilung, aus);
-                seiteUnterteilen_r(std::move(hinten), teilung, aus);
+                seiteUnterteilen_r(std::move(vorn), teilung, aus, abbrechen);
+                seiteUnterteilen_r(std::move(hinten), teilung, aus, abbrechen);
                 return;
             }
         }
@@ -443,6 +443,7 @@ void patchKanten(MetaDs& ds, Kanten& k) {   // AddPatchEdges
     };
     const int b = ds.patchBreite;
     const int h = ds.patchHoehe;
+    if (b < 1 || h < 1 || ds.ecken.size() != static_cast<std::size_t>(b) * static_cast<std::size_t>(h)) { return; }
     for (int i = 0; i < b - 2; i += 2) {
         probe(i, i + 1, i + 2);
         probe((h - 1) * b + i, (h - 1) * b + i + 1, (h - 1) * b + i + 2);
@@ -1184,7 +1185,7 @@ std::vector<Zeichenflaeche> metaFlaechen(std::vector<Zeichenflaeche> zf, Ebenen&
             const ShaderDaten& si = *z.si;
             if (si.tessSize >= 1.0F && (si.flags.compile & C_SKY) == 0U) {
                 std::vector<Wk> stuecke;
-                seiteUnterteilen_r(z.w, si.tessSize, stuecke);
+                seiteUnterteilen_r(z.w, si.tessSize, stuecke, abbrechen);
                 for (const Wk& w : stuecke) {
                     MetaDs ds = wie(z, MetaDs::Typ::Seite);
                     ds.planeNum = z.planeNum;

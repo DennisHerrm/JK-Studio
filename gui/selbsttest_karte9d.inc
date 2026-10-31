@@ -282,8 +282,13 @@ std::vector<Schritt> effekte() {
     }));
     add(pause(3.0));
     add(warteBis("Stufe 9d/3: Effektbilder", [] { return ke::kameraBilderFertig(); }, 3000));
-    add(pause(0.5));
-    add(tu("Stufe 9d/3: Bild mit Effekt", [f] { (*f)[1] = mittelFarbe(24, 0, 0); }));
+    // Die Flamme flackert zufaellig (auf einem einzelnen Bild +0,9 bis +29): warten, bis sie im Bild steht
+    add(warteBis("Stufe 9d/3: Bild mit Effekt", [f] {
+        (*f)[1] = mittelFarbe(24, 0, 0);
+        double d = 0;
+        for (std::size_t c = 0; c < 3; ++c) { d = std::max(d, std::fabs((*f)[1][c] - (*f)[0][c])); }
+        return d > 3.0;
+    }, 900));
     add(foto("karteneditor_s9d_effekt"));
     add(pruefe("Stufe 9d/3: fx_runner spielt in der Echtzeit-Ansicht (Effektsystem der Vorschau)", [fx, f] {
         const ke::Editor& e = ke::editor();
