@@ -6,6 +6,200 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ")
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc607 2026-10-31
+[en]
+- Map editor with decals and a real-time view like the game, much faster light and VIS with the same result, a large menu editor update, a new timeline, dockable windows, Spanish and Czech.
+- Map editor: Real-time view like the game: fog brushes and global fog, fx_runner effects (Build > Real-time effects), sky portals; misc_model shadows and surface light, patches and -meta faces shine like -light.
+- Map editor: Decals of effects land where the game puts them: the editor builds the world with q3map2's BSP tree (visible part of each face, misc_model in the world, nothing under a step), fades them out like the game's marks; surfaces with "deformVertexes move" are widened like q3map2 does.
+- Map editor: With -meta (the Build menu's default) decals pick the same faces as the game, also with more than 64 in a mark's box; the editor builds the faces like q3map2.
+- Map editor: Edit shader live (texture browser), Curve > Bridge patch edges, a warning with the memory before a full VIS, the optimizer suggests detail only for brushes that do not touch the void.
+- Map editor: Menus taller than the screen wrap into columns like NetRadiant-Custom; a submenu in such a column opens beside its column.
+- Map editor: Two builds at the same time no longer fight over port 39000.
+- Map editor: Fixed: dropped models wrote their shader to scripts/ (now shaders/); a recovered misc_model could show meshes the .bsp did not have.
+- Light and VIS (bhed_q3map2): -vis: same result, 2-3 times faster with a third of the memory; new "Same VIS in every build" (-bhedvisexact).
+- Light and VIS (bhed_q3map2): -light: same bytes, much faster with bounces and [Final] Extreme Quality - md_am_sith (2 bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 bounce) 328 → 94 s (quiet machine, processor).
+- Light and VIS (bhed_q3map2): GPU bake also with random subsamples; Auto learns per map which way is fastest (a third choice for maps with many small lightmaps).
+- Light and VIS (bhed_q3map2): Fixed: more than 64 threads, a second -light on a lit BSP, uninitialised points when widening "deformVertexes move" surfaces.
+- Menu editor: Tabs Hierarchy / Text / Properties, live diagnosis with quick fixes, videos (import with sound), 3D models and sabers like the game, HUD editor, Asian texts.
+- Menu editor: Projects with backup, mod profiles, layouts like Qt, events per element, menu flow, tab order, styles, templates, settings wizard, reference image, readability hints.
+- Menu editor: Game-drawn elements (datapad, Force ranks, server lists, Pazaak, loading and connect screens) drawn like the game with sample values; real key bindings; components; handles for models.
+- Menu editor: Test in game reloads your menus after every save (OpenJK, Movie Duels); checked against Jedi Academy, Jedi Outcast and Movie Duels.
+- Timeline and mission: New timeline: Overview and Detail, real durations, camera film strip, "What happens here?", dragging with one undo step, arrow keys in game frames.
+- Timeline and mission: Record a walk: steer an NPC with the game's movement, the script gets walk targets.
+- Timeline and mission: Subtitles exactly like the game (also Jedi Outcast), wait("name") like the game.
+- Timeline and mission: Load mission works with shared scripts, walks after the last point add a navgoal, story cutscene animations of the level.
+- Scene preview: Deaths like the game (animation, dropped weapons and sabers, sounds, droid explosions), crouch-walking and rolls, blinking and faces.
+- Scene preview: Standing poses, slope feet, saber stances and the spine turning like the game (motion bone correction).
+- Scene preview: Decals and saber burns share the game's mark store.
+- Windows and docking: Every panel can be docked anywhere or taken out to its own window (second screen); layouts per area, saved and restored at start; menu Window.
+- Windows and docking: Docking a panel whose place has gone keeps your arrangement (before, the default came back).
+- Windows and docking: Docking a panel back restores the default layout again (Text below the whole row, the timeline below all columns); dragged splitters in Split are saved again.
+- Helper and tutorials: Nine more interactive tutorials; every tutorial step now has its picture.
+- Helper and tutorials: The helper understands word forms and typos, "Show me" opens the way step by step, AI chat with follow-up questions.
+- Languages: Spanish and Czech, complete with the guide and its pictures; counts with the right plural forms.
+- Fixes: Model tab smooth and quiet when nothing moves; no images of old skins kept; GPU table in the program language.
+- Fixes: The crosshair of the 3D view stays sharp at every window size; a long Spanish entry no longer pushes the Build menu off the screen.
+[de]
+- Karten-Editor mit Decals und Echtzeitansicht wie im Spiel, viel schnelleres Licht und VIS bei gleichem Ergebnis, großer Ausbau des Menü-Editors, neue Zeitleiste, andockbare Fenster, Spanisch und Tschechisch.
+- Karten-Editor: Echtzeitansicht wie im Spiel: Nebelpinsel und globaler Nebel, fx_runner-Effekte (Build > Echtzeit-Effekte), Himmelsportale; Schatten und Flächenlicht der misc_model, Patches und -meta-Flächen leuchten wie bei -light.
+- Karten-Editor: Decals der Effekte landen dort, wo das Spiel sie hinsetzt: der Editor baut die Welt mit dem BSP-Baum von q3map2 (sichtbarer Teil jeder Fläche, misc_model in der Welt, nichts unter einer Stufe) und blendet sie aus wie die Marken des Spiels; Flächen mit „deformVertexes move“ werden wie in q3map2 verdickt.
+- Karten-Editor: Mit -meta (der Vorgabe im Build-Menü) treffen Decals dieselben Flächen wie im Spiel, auch mit mehr als 64 im Kasten einer Marke; der Editor baut die Flächen wie q3map2.
+- Karten-Editor: Shader live bearbeiten (Texturbrowser), Curve > Patch-Kanten verbinden, Warnung mit dem Speicherbedarf vor einem vollen VIS, der Optimierer schlägt Detail nur für Pinsel ohne Kontakt zum Leeren vor.
+- Karten-Editor: Menüs, die höher als der Bildschirm sind, brechen wie in NetRadiant-Custom in Spalten um; ein Untermenü in so einer Spalte öffnet neben seiner Spalte.
+- Karten-Editor: Zwei Bauten gleichzeitig streiten nicht mehr um Port 39000.
+- Karten-Editor: Behoben: abgelegte Modelle schrieben ihren Shader nach scripts/ (jetzt shaders/); ein zurückgeholtes misc_model konnte Teile zeigen, die die .bsp nicht hatte.
+- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 2- bis 3-mal schneller mit einem Drittel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
+- Licht und VIS (bhed_q3map2): -light: gleiche Bytes, viel schneller mit Bounces und [Final] Extreme Quality – md_am_sith (2 Bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 Bounce) 328 → 94 s (ruhige Maschine, Prozessor).
+- Licht und VIS (bhed_q3map2): GPU-Backen auch mit Zufalls-Nachproben; Auto lernt je Karte den schnellsten Weg (eine dritte Wahl für Karten mit vielen kleinen Lightmaps).
+- Licht und VIS (bhed_q3map2): Behoben: mehr als 64 Threads, ein zweites -light auf einer beleuchteten BSP, uninitialisierte Punkte beim Verdicken von „deformVertexes move“-Flächen.
+- Menü-Editor: Reiter Hierarchie / Text / Eigenschaften, Live-Diagnose mit Schnellkorrekturen, Videos (Import mit Ton), 3D-Modelle und Schwerter wie im Spiel, HUD-Editor, asiatische Texte.
+- Menü-Editor: Projekte mit Sicherung, Mod-Profile, Layouts wie Qt, Ereignisse je Element, Menüfluss, Tab-Reihenfolge, Stile, Vorlagen, Einstellungs-Assistent, Referenzbild, Lesbarkeitshinweise.
+- Menü-Editor: Vom Spiel gezeichnete Elemente (Datapad, Machtränge, Serverlisten, Pazaak, Lade- und Verbindungsbildschirme) wie im Spiel mit Beispielwerten; echte Tastenbelegungen; Komponenten; Griffe für Modelle.
+- Menü-Editor: Im Spiel testen lädt die Menüs nach jedem Speichern neu (OpenJK, Movie Duels); geprüft gegen Jedi Academy, Jedi Outcast und Movie Duels.
+- Zeitleiste und Mission: Neue Zeitleiste: Übersicht und Detail, echte Dauern, Filmstreifen der Kamera, „Was passiert hier?“, Ziehen mit einem Rückgängig-Schritt, Pfeiltasten in Spielbildern.
+- Zeitleiste und Mission: Lauf aufnehmen: einen NPC mit der Bewegung des Spiels steuern, das Skript bekommt Laufziele.
+- Zeitleiste und Mission: Untertitel genau wie im Spiel (auch Jedi Outcast), wait("name") wie im Spiel.
+- Zeitleiste und Mission: Mission laden mit geteilten Skripten, Laufen nach dem letzten Punkt legt ein Navgoal an, Zwischensequenz-Animationen der Karte.
+- Szenen-Vorschau: Tod wie im Spiel (Animation, fallengelassene Waffen und Schwerter, Klänge, explodierende Droiden), Gehen in der Hocke und Rollen, Blinzeln und Gesichter.
+- Szenen-Vorschau: Standhaltungen, Füße am Hang, Schwerthaltungen und die Drehung der Wirbelsäule wie im Spiel (Motion-Bone-Korrektur).
+- Szenen-Vorschau: Decals und Schwert-Brandspuren teilen den Markenspeicher des Spiels.
+- Fenster und Docking: Jedes Panel lässt sich überall andocken oder in ein eigenes Fenster nehmen (zweiter Bildschirm); Anordnungen je Bereich, gespeichert und beim Start wieder da; Menü Fenster.
+- Fenster und Docking: Wer ein Panel andockt, dessen Platz verschwunden ist, behält seine Anordnung (vorher kam die Vorgabe zurück).
+- Fenster und Docking: Ein zurückgelegtes Panel stellt die Standardanordnung wieder her (Text unter der ganzen Reihe, Zeitleiste unter allen Spalten); gezogene Teiler in Split werden wieder gespeichert.
+- Helfer und Tutorials: Neun weitere interaktive Tutorials; jeder Tutorial-Schritt hat jetzt sein Bild.
+- Helfer und Tutorials: Der Helfer versteht Wortformen und Tippfehler, „Zeig es mir“ öffnet den Weg Schritt für Schritt, KI-Chat mit Rückfragen.
+- Sprachen: Spanisch und Tschechisch, vollständig mit Handbuch und Bildern; Zählwörter mit den richtigen Mehrzahlformen.
+- Fehler: Model-Tab flüssig und ruhig, wenn sich nichts bewegt; keine Bilder alter Häute mehr im Speicher; GPU-Tabelle in der Sprache des Programms.
+- Fehler: Das Fadenkreuz der 3D-Ansicht bleibt bei jeder Fenstergröße scharf; ein langer spanischer Eintrag schiebt das Build-Menü nicht mehr aus dem Bildschirm.
+[zh]
+- 地图编辑器的贴花和实时视图与游戏一致，光照和 VIS 大幅提速且结果不变，菜单编辑器大幅扩展，全新时间轴，可停靠窗口，新增西班牙语和捷克语。
+- 地图编辑器：实时视图与游戏一致:雾刷与全局雾、fx_runner 效果(Build > 实时效果)、天空传送门;misc_model 的阴影与表面光,面片和 -meta 面的发光与 -light 相同。
+- 地图编辑器：效果贴花落在游戏放置的位置:编辑器用 q3map2 的 BSP 树构建世界(每个面的可见部分、世界中的 misc_model、台阶下没有贴花),并像游戏的痕迹一样淡出;带 “deformVertexes move” 的表面像 q3map2 一样加厚。
+- 地图编辑器：使用 -meta(Build 菜单的默认设置)时,贴花命中与游戏相同的表面,范围内超过 64 个表面时也是如此;编辑器像 q3map2 一样构建表面。
+- 地图编辑器：实时编辑着色器(纹理浏览器)、Curve > 连接面片边缘、完整 VIS 之前显示所需内存的警告,优化器只对不接触虚空的笔刷建议细节。
+- 地图编辑器：高于屏幕的菜单像 NetRadiant-Custom 一样分栏;这种栏中的子菜单在其栏旁边打开。
+- 地图编辑器：同时进行两次编译不再争用端口 39000。
+- 地图编辑器：已修复:拖入的模型把着色器写到 scripts/(现在是 shaders/);恢复的 misc_model 可能显示 .bsp 中没有的网格。
+- 光照与 VIS(bhed_q3map2)：-vis:结果相同,速度快 2–3 倍,内存只需三分之一;新增“每次编译相同的 VIS”(-bhedvisexact)。
+- 光照与 VIS(bhed_q3map2)：-light:字节相同,反弹和 [Final] Extreme Quality 快得多——md_am_sith(2 次反弹)743 → 306 秒,taspir1 125 → 81 秒,kejim_post 62 → 37 秒,duel_mos_espa(1 次反弹)328 → 94 秒(空闲机器,处理器)。
+- 光照与 VIS(bhed_q3map2)：GPU 烘焙也支持随机子采样;Auto 按地图学习最快的方式(多小光照贴图的地图有第三种选择)。
+- 光照与 VIS(bhed_q3map2)：已修复:超过 64 个线程、在已照明的 BSP 上再次 -light、加厚 “deformVertexes move” 表面时未初始化的点。
+- 菜单编辑器：层级 / 文本 / 属性 选项卡,带快速修复的实时诊断,视频(带声音导入),与游戏相同的 3D 模型和光剑,HUD 编辑器,亚洲文字。
+- 菜单编辑器：带备份的项目、模组配置、Qt 式布局、每个元素的事件、菜单流程、Tab 顺序、样式、模板、设置向导、参考图、可读性提示。
+- 菜单编辑器：由游戏绘制的元素(数据板、原力等级、服务器列表、Pazaak、加载和连接画面)以示例值按游戏方式绘制;真实按键绑定;组件;模型手柄。
+- 菜单编辑器：在游戏中测试:每次保存后重新加载菜单(OpenJK、Movie Duels);已对照 Jedi Academy、Jedi Outcast 和 Movie Duels 检查。
+- 时间轴与任务：新时间轴:概览与细节、真实时长、摄像机胶片条、“这里发生了什么?”、拖动只需一步撤销、方向键按游戏帧移动。
+- 时间轴与任务：录制行走:用游戏的移动方式操控 NPC,脚本获得行走目标。
+- 时间轴与任务：字幕与游戏完全一致(包括 Jedi Outcast),wait("name") 与游戏一致。
+- 时间轴与任务：加载使用共享脚本的任务,最后一点之后的行走会添加 navgoal,关卡自带的过场动画。
+- 场景预览：死亡与游戏一致(动画、掉落的武器和光剑、声音、机器人爆炸),蹲行和翻滚,眨眼和表情。
+- 场景预览：站姿、斜坡上的脚、光剑姿势以及脊柱转动与游戏一致(运动骨骼校正)。
+- 场景预览：贴花和光剑灼痕共用游戏的痕迹存储。
+- 窗口与停靠：每个面板都可以停靠到任意位置或移到独立窗口(第二屏幕);每个区域的布局会保存并在启动时恢复;“窗口”菜单。
+- 窗口与停靠：停靠一个原位置已消失的面板时保留你的布局(以前会恢复默认布局)。
+- 窗口与停靠：把面板停靠回去时重新恢复默认布局(文本位于整行下方,时间轴位于所有列下方);在 Split 中拖动的分隔条会再次保存。
+- 助手与教程：新增九个交互式教程;每个教程步骤现在都有图片。
+- 助手与教程：助手能理解词形变化和拼写错误,“演示给我看”逐步打开路径,带追问的 AI 聊天。
+- 语言：西班牙语和捷克语,包括手册及其图片;计数使用正确的复数形式。
+- 修复：模型选项卡在静止时流畅且不占资源;不再保留旧皮肤的图像;GPU 表格使用程序语言。
+- 修复：3D 视图的十字准星在任何窗口大小下都保持清晰;较长的西班牙语条目不再把 Build 菜单推出屏幕。
+[ja]
+- マップエディタのデカールとリアルタイム表示がゲームと同じになり、ライトと VIS は結果を変えずに大幅に高速化。メニューエディタの大幅な拡張、新しいタイムライン、ドッキング可能なウィンドウ、スペイン語とチェコ語に対応しました。
+- マップエディター：ゲームと同じリアルタイム表示: フォグブラシとグローバルフォグ、fx_runner エフェクト(Build > リアルタイムエフェクト)、スカイポータル。misc_model の影と表面光、パッチと -meta 面は -light と同じように光ります。
+- マップエディター：エフェクトのデカールはゲームが置く場所に付きます: エディターは q3map2 の BSP ツリーでワールドを構築し(各面の見える部分、ワールド内の misc_model、段差の下には付かない)、ゲームのマークと同じようにフェードアウトします。「deformVertexes move」の面は q3map2 と同じように広げられます。
+- マップエディター：-meta(Build メニューの既定)でも、デカールはゲームと同じ面に当たります。マークのボックスに 64 面を超えて入る場合も同じです。エディターは q3map2 と同じように面を作ります。
+- マップエディター：シェーダーのライブ編集(テクスチャブラウザー)、Curve > パッチの辺をつなぐ、完全な VIS の前に必要メモリの警告、最適化は空間に触れないブラシにだけディテールを提案します。
+- マップエディター：画面より高いメニューは NetRadiant-Custom と同じように列に折り返し、その列のサブメニューは列の横に開きます。
+- マップエディター：同時に 2 つのビルドを行ってもポート 39000 を取り合いません。
+- マップエディター：修正: ドロップしたモデルがシェーダーを scripts/ に書いていた問題(現在は shaders/)、復元した misc_model が .bsp にないメッシュを表示することがあった問題。
+- ライトと VIS(bhed_q3map2)：-vis: 同じ結果で 2~3 倍速く、メモリは 3 分の 1。新しい「どのビルドでも同じ VIS」(-bhedvisexact)。
+- ライトと VIS(bhed_q3map2)：-light: 同じバイトのまま、バウンスと [Final] Extreme Quality が大幅に高速化 — md_am_sith(2 バウンス)743 → 306 秒、taspir1 125 → 81 秒、kejim_post 62 → 37 秒、duel_mos_espa(1 バウンス)328 → 94 秒(負荷のないマシン、プロセッサー)。
+- ライトと VIS(bhed_q3map2)：GPU ベイクがランダムサブサンプルにも対応。Auto はマップごとに最速の方法を学習します(小さなライトマップが多いマップには 3 つ目の選択肢)。
+- ライトと VIS(bhed_q3map2)：修正: 64 を超えるスレッド、照明済み BSP への 2 回目の -light、「deformVertexes move」の面を広げるときの未初期化の点。
+- メニューエディター：階層 / テキスト / プロパティ のタブ、クイック修正付きのライブ診断、動画(音声付きインポート)、ゲームと同じ 3D モデルとライトセーバー、HUD エディター、アジアの文字。
+- メニューエディター：バックアップ付きプロジェクト、MOD プロファイル、Qt 風レイアウト、要素ごとのイベント、メニューフロー、タブ順、スタイル、テンプレート、設定ウィザード、参照画像、読みやすさのヒント。
+- メニューエディター：ゲームが描く要素(データパッド、フォースランク、サーバー一覧、Pazaak、ロード画面と接続画面)をサンプル値でゲームと同じように描画。実際のキー割り当て、コンポーネント、モデル用ハンドル。
+- メニューエディター：ゲームでテスト: 保存のたびにメニューを再読み込み(OpenJK、Movie Duels)。Jedi Academy、Jedi Outcast、Movie Duels と照合済み。
+- タイムラインとミッション：新しいタイムライン: 概要と詳細、実際の長さ、カメラのフィルムストリップ、「ここで何が起こる?」、ドラッグは 1 回の元に戻すで取り消し、矢印キーはゲームのフレーム単位。
+- タイムラインとミッション：歩きを記録: ゲームの移動で NPC を操作すると、スクリプトに歩行目標が入ります。
+- タイムラインとミッション：字幕はゲームとまったく同じ(Jedi Outcast も)、wait("name") もゲームと同じ。
+- タイムラインとミッション：共有スクリプトを使うミッションの読み込み、最後の点の後の歩行は navgoal を追加、マップ固有のカットシーンアニメーション。
+- シーンプレビュー：ゲームと同じ死亡(アニメーション、落ちる武器とセーバー、音、ドロイドの爆発)、しゃがみ歩きと転がり、まばたきと表情。
+- シーンプレビュー：立ち姿勢、斜面の足、セーバーの構え、背骨のひねりがゲームと同じ(モーションボーン補正)。
+- シーンプレビュー：デカールとセーバーの焦げ跡はゲームのマーク保存領域を共有します。
+- ウィンドウとドッキング：すべてのパネルを好きな場所にドッキングしたり、独立したウィンドウ(2 台目の画面)に出したりできます。領域ごとのレイアウトは保存され、起動時に戻ります。「ウィンドウ」メニュー。
+- ウィンドウとドッキング：元の場所がなくなったパネルをドッキングしても、あなたの配置は保たれます(以前は既定の配置に戻っていました)。
+- ウィンドウとドッキング：パネルをドックに戻すと既定の配置に戻ります(テキストは行全体の下、タイムラインはすべての列の下)。Split でドラッグした分割線も再び保存されます。
+- ヘルパーとチュートリアル：インタラクティブなチュートリアルを 9 つ追加。どのチュートリアルの手順にも画像が付きました。
+- ヘルパーとチュートリアル：ヘルパーは語形変化や打ち間違いを理解し、「見せて」で手順を一つずつ開きます。追加質問ができる AI チャット。
+- 言語：スペイン語とチェコ語に完全対応(ガイドと画像を含む)。数は正しい複数形で表示。
+- 修正：何も動かないときモデルタブは滑らかで静か。古いスキンの画像を保持しない。GPU 表はプログラムの言語で表示。
+- 修正：3D ビューの照準はどのウィンドウサイズでもくっきり表示されます。スペイン語の長い項目で Build メニューが画面外にはみ出さなくなりました。
+[es]
+- Editor de mapas con calcomanías y vista en tiempo real como en el juego, luz y VIS mucho más rápidos con el mismo resultado, gran ampliación del editor de menús, nueva línea de tiempo, ventanas acoplables, español y checo.
+- Editor de mapas: Vista en tiempo real como el juego: brushes de niebla y niebla global, efectos fx_runner (Build > Efectos en tiempo real), portales de cielo; sombras y luz de superficie de misc_model, los parches y las caras -meta iluminan como con -light.
+- Editor de mapas: Los decals de los efectos caen donde los pone el juego: el editor construye el mundo con el árbol BSP de q3map2 (la parte visible de cada cara, misc_model en el mundo, nada bajo un escalón) y los desvanece como las marcas del juego; las superficies con "deformVertexes move" se ensanchan como en q3map2.
+- Editor de mapas: Con -meta (el valor predeterminado del menú Build) las calcomanías eligen las mismas caras que el juego, también con más de 64 en la caja de una marca; el editor construye las caras como q3map2.
+- Editor de mapas: Editar shader en vivo (navegador de texturas), Curve > Unir bordes de parches, aviso con la memoria necesaria antes de un VIS completo; el optimizador solo propone detail para brushes que no tocan el vacío.
+- Editor de mapas: Los menús más altos que la pantalla se reparten en columnas como en NetRadiant-Custom; un submenú de una de esas columnas se abre junto a su columna.
+- Editor de mapas: Dos compilaciones a la vez ya no se pelean por el puerto 39000.
+- Editor de mapas: Corregido: los modelos arrastrados escribían su shader en scripts/ (ahora shaders/); un misc_model recuperado podía mostrar mallas que la .bsp no tenía.
+- Luz y VIS (bhed_q3map2): -vis: mismo resultado, de 2 a 3 veces más rápido con un tercio de la memoria; nuevo "El mismo VIS en cada compilación" (-bhedvisexact).
+- Luz y VIS (bhed_q3map2): -light: los mismos bytes, mucho más rápido con rebotes y [Final] Extreme Quality: md_am_sith (2 rebotes) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 rebote) 328 → 94 s (equipo en reposo, procesador).
+- Luz y VIS (bhed_q3map2): Horneado en GPU también con submuestras aleatorias; Auto aprende por mapa qué camino es más rápido (una tercera opción para mapas con muchos lightmaps pequeños).
+- Luz y VIS (bhed_q3map2): Corregido: más de 64 hilos, un segundo -light sobre una BSP ya iluminada, puntos sin inicializar al ensanchar superficies con "deformVertexes move".
+- Editor de menús: Pestañas Jerarquía / Texto / Propiedades, diagnóstico en vivo con correcciones rápidas, vídeos (importación con sonido), modelos 3D y sables como en el juego, editor de HUD, textos asiáticos.
+- Editor de menús: Proyectos con copia de seguridad, perfiles de mod, disposiciones como Qt, eventos por elemento, flujo de menús, orden de tabulación, estilos, plantillas, asistente de ajustes, imagen de referencia, avisos de legibilidad.
+- Editor de menús: Elementos que dibuja el juego (datapad, rangos de la Fuerza, listas de servidores, Pazaak, pantallas de carga y de conexión) como en el juego con valores de ejemplo; asignaciones de teclas reales; componentes; tiradores para modelos.
+- Editor de menús: Probar en el juego recarga tus menús después de cada guardado (OpenJK, Movie Duels); comprobado con Jedi Academy, Jedi Outcast y Movie Duels.
+- Línea de tiempo y misión: Nueva línea de tiempo: vista general y detalle, duraciones reales, tira de película de la cámara, "¿Qué pasa aquí?", arrastrar con un solo paso de deshacer, flechas en fotogramas del juego.
+- Línea de tiempo y misión: Grabar un recorrido: maneja un NPC con el movimiento del juego y el script recibe los destinos.
+- Línea de tiempo y misión: Subtítulos exactamente como el juego (también Jedi Outcast), wait("name") como el juego.
+- Línea de tiempo y misión: Cargar misiones con scripts compartidos, andar después del último punto añade un navgoal, animaciones de cinemáticas propias del nivel.
+- Vista previa de la escena: Muertes como en el juego (animación, armas y sables que caen, sonidos, droides que explotan), andar agachado y rodar, parpadeo y gestos.
+- Vista previa de la escena: Posturas de pie, pies en pendientes, posturas del sable y giro de la columna como el juego (corrección del hueso de movimiento).
+- Vista previa de la escena: Los decals y las quemaduras del sable comparten el almacén de marcas del juego.
+- Ventanas y acoplamiento: Cada panel se puede acoplar en cualquier sitio o sacar a su propia ventana (segunda pantalla); disposiciones por área, guardadas y restauradas al iniciar; menú Ventana.
+- Ventanas y acoplamiento: Al acoplar un panel cuyo sitio ha desaparecido se conserva tu disposición (antes volvía la predeterminada).
+- Ventanas y acoplamiento: Volver a acoplar un panel restablece la disposición predeterminada (el texto bajo toda la fila, la línea de tiempo bajo todas las columnas); los separadores arrastrados en Split vuelven a guardarse.
+- Ayudante y tutoriales: Nueve tutoriales interactivos más; cada paso de tutorial tiene ahora su imagen.
+- Ayudante y tutoriales: El ayudante entiende formas de palabras y errores de escritura, "Muéstramelo" abre el camino paso a paso, chat de IA con preguntas de seguimiento.
+- Idiomas: Español y checo, completos con la guía y sus imágenes; recuentos con las formas de plural correctas.
+- Correcciones: Pestaña de modelos fluida y en reposo cuando nada se mueve; ya no se guardan imágenes de skins antiguas; tabla de GPU en el idioma del programa.
+- Correcciones: La cruz de la vista 3D se ve nítida con cualquier tamaño de ventana; una entrada larga en español ya no saca el menú Build de la pantalla.
+[cs]
+- Editor map s obtisky a zobrazením v reálném čase jako ve hře, mnohem rychlejší světlo a VIS se stejným výsledkem, velké rozšíření editoru nabídek, nová časová osa, ukotvitelná okna, španělština a čeština.
+- Editor map: Zobrazení v reálném čase jako ve hře: mlhové brushe a globální mlha, efekty fx_runner (Build > Efekty v reálném čase), portály oblohy; stíny a plošné světlo misc_model, patche a plochy -meta svítí jako u -light.
+- Editor map: Obtisky (decals) efektů dopadají tam, kam je dá hra: editor sestaví svět se stromem BSP z q3map2 (viditelná část každé plochy, misc_model ve světě, nic pod schodem) a nechá je mizet jako stopy ve hře; plochy s „deformVertexes move“ se rozšíří jako v q3map2.
+- Editor map: S -meta (výchozí nastavení nabídky Build) zasahují obtisky stejné plochy jako ve hře, i když je jich v rámci značky víc než 64; editor skládá plochy jako q3map2.
+- Editor map: Úprava shaderu naživo (prohlížeč textur), Curve > Spojit okraje patchů, varování s potřebnou pamětí před plným VIS; optimalizátor navrhuje detail jen pro brushe, které se nedotýkají prázdna.
+- Editor map: Menu vyšší než obrazovka se zalomí do sloupců jako v NetRadiant-Custom; podmenu v takovém sloupci se otevře vedle svého sloupce.
+- Editor map: Dvě sestavení najednou už nesoupeří o port 39000.
+- Editor map: Opraveno: přetažené modely zapisovaly svůj shader do scripts/ (nyní shaders/); obnovený misc_model mohl ukazovat sítě, které .bsp neměl.
+- Světlo a VIS (bhed_q3map2): -vis: stejný výsledek, 2–3krát rychlejší s třetinou paměti; nové „Stejné VIS v každém sestavení“ (-bhedvisexact).
+- Světlo a VIS (bhed_q3map2): -light: stejné bajty, mnohem rychlejší s odrazy a [Final] Extreme Quality – md_am_sith (2 odrazy) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 odraz) 328 → 94 s (klidný počítač, procesor).
+- Světlo a VIS (bhed_q3map2): Zapékání na GPU i s náhodnými podvzorky; Auto se pro každou mapu učí nejrychlejší cestu (třetí možnost pro mapy s mnoha malými lightmapami).
+- Světlo a VIS (bhed_q3map2): Opraveno: více než 64 vláken, druhé -light na již osvětleném BSP, neinicializované body při rozšiřování ploch s „deformVertexes move“.
+- Editor menu: Karty Hierarchie / Text / Vlastnosti, diagnostika naživo s rychlými opravami, videa (import se zvukem), 3D modely a meče jako ve hře, editor HUD, asijské texty.
+- Editor menu: Projekty se zálohou, profily modů, rozvržení jako v Qt, události pro každý prvek, tok menu, pořadí tabulátoru, styly, šablony, průvodce nastavením, referenční obrázek, rady k čitelnosti.
+- Editor menu: Prvky, které kreslí hra (datapad, hodnosti Síly, seznamy serverů, Pazaak, obrazovky načítání a připojení), jako ve hře s ukázkovými hodnotami; skutečná přiřazení kláves; komponenty; úchyty pro modely.
+- Editor menu: Vyzkoušet ve hře po každém uložení znovu načte vaše menu (OpenJK, Movie Duels); ověřeno proti Jedi Academy, Jedi Outcast a Movie Duels.
+- Časová osa a mise: Nová časová osa: přehled a detail, skutečné délky, filmový pás kamery, „Co se tu děje?“, tažení s jedním krokem Zpět, šipky po snímcích hry.
+- Časová osa a mise: Nahrávání chůze: řiďte NPC pohybem hry, skript dostane cíle chůze.
+- Časová osa a mise: Titulky přesně jako ve hře (i Jedi Outcast), wait("name") jako ve hře.
+- Časová osa a mise: Načítání misí se sdílenými skripty, chůze za posledním bodem přidá navgoal, animace vlastních cutscén úrovně.
+- Náhled scény: Smrt jako ve hře (animace, upuštěné zbraně a meče, zvuky, explodující droidi), chůze v podřepu a kotouly, mrkání a výrazy.
+- Náhled scény: Postoje, nohy na svahu, postoje s mečem a natočení páteře jako ve hře (korekce pohybové kosti).
+- Náhled scény: Obtisky a spáleniny od meče sdílejí úložiště stop jako hra.
+- Okna a ukotvení: Každý panel lze ukotvit kamkoli nebo vyjmout do vlastního okna (druhá obrazovka); rozvržení pro každou oblast, uložená a obnovená při spuštění; menu Okno.
+- Okna a ukotvení: Ukotvení panelu, jehož místo zmizelo, zachová vaše uspořádání (dříve se vrátilo výchozí).
+- Okna a ukotvení: Vrácení panelu zpět do doku znovu obnoví výchozí rozložení (text pod celou řadou, časová osa pod všemi sloupci); přetažené rozdělovače ve Split se znovu ukládají.
+- Pomocník a tutoriály: Devět dalších interaktivních tutoriálů; každý krok tutoriálu má nyní svůj obrázek.
+- Pomocník a tutoriály: Pomocník rozumí tvarům slov a překlepům, „Ukaž mi to“ otevírá cestu krok za krokem, chat s AI s doplňujícími otázkami.
+- Jazyky: Španělština a čeština, kompletní včetně příručky a obrázků; počty se správnými tvary množného čísla.
+- Opravy: Karta Model plynulá a v klidu, když se nic nehýbe; obrázky starých skinů se už neuchovávají; tabulka GPU v jazyce programu.
+- Opravy: Záměrný kříž 3D pohledu zůstává ostrý při každé velikosti okna; dlouhá španělská položka už nevytlačí nabídku Build mimo obrazovku.
+
 ## rc606 2026-10-29
 [en]
 - The map part of JK Studio is complete: test in game, import geometry as brushes, map tools (jumps, NPC paths, linked copies, curves, scatter, terrain sculpt), an asset browser, texture blending, a safer optimizer, movable toolbars and real-time light that matches the baked light. New: a menu editor (text and visual) and an in-app helper with interactive tours and an optional, off-by-default AI.

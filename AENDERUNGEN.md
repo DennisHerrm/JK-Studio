@@ -1,5 +1,41 @@
 # Änderungen seit rc94
 
+## rc607 — Karten-Editor wie im Spiel, schnelleres Licht, Menü-Editor, neue Zeitleiste, Docking
+
+Gewünscht: Mapping und Menü richtig fertig machen, das schnellere Licht und die Zeitleiste noch vor der Veröffentlichung, Testfenster nicht mehr im Vordergrund.
+
+- Karten-Editor mit Decals und Echtzeitansicht wie im Spiel, viel schnelleres Licht und VIS bei gleichem Ergebnis, großer Ausbau des Menü-Editors, neue Zeitleiste, andockbare Fenster, Spanisch und Tschechisch.
+- Karten-Editor: Echtzeitansicht wie im Spiel: Nebelpinsel und globaler Nebel, fx_runner-Effekte (Build > Echtzeit-Effekte), Himmelsportale; Schatten und Flächenlicht der misc_model, Patches und -meta-Flächen leuchten wie bei -light.
+- Karten-Editor: Decals der Effekte landen dort, wo das Spiel sie hinsetzt: der Editor baut die Welt mit dem BSP-Baum von q3map2 (sichtbarer Teil jeder Fläche, misc_model in der Welt, nichts unter einer Stufe) und blendet sie aus wie die Marken des Spiels; Flächen mit „deformVertexes move“ werden wie in q3map2 verdickt.
+- Karten-Editor: Mit -meta (der Vorgabe im Build-Menü) treffen Decals dieselben Flächen wie im Spiel, auch mit mehr als 64 im Kasten einer Marke; der Editor baut die Flächen wie q3map2.
+- Karten-Editor: Shader live bearbeiten (Texturbrowser), Curve > Patch-Kanten verbinden, Warnung mit dem Speicherbedarf vor einem vollen VIS, der Optimierer schlägt Detail nur für Pinsel ohne Kontakt zum Leeren vor.
+- Karten-Editor: Menüs, die höher als der Bildschirm sind, brechen wie in NetRadiant-Custom in Spalten um; ein Untermenü in so einer Spalte öffnet neben seiner Spalte.
+- Karten-Editor: Zwei Bauten gleichzeitig streiten nicht mehr um Port 39000.
+- Karten-Editor: Behoben: abgelegte Modelle schrieben ihren Shader nach scripts/ (jetzt shaders/); ein zurückgeholtes misc_model konnte Teile zeigen, die die .bsp nicht hatte.
+- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 2- bis 3-mal schneller mit einem Drittel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
+- Licht und VIS (bhed_q3map2): -light: gleiche Bytes, viel schneller mit Bounces und [Final] Extreme Quality – md_am_sith (2 Bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 Bounce) 328 → 94 s (ruhige Maschine, Prozessor).
+- Licht und VIS (bhed_q3map2): GPU-Backen auch mit Zufalls-Nachproben; Auto lernt je Karte den schnellsten Weg (eine dritte Wahl für Karten mit vielen kleinen Lightmaps).
+- Licht und VIS (bhed_q3map2): Behoben: mehr als 64 Threads, ein zweites -light auf einer beleuchteten BSP, uninitialisierte Punkte beim Verdicken von „deformVertexes move“-Flächen.
+- Menü-Editor: Reiter Hierarchie / Text / Eigenschaften, Live-Diagnose mit Schnellkorrekturen, Videos (Import mit Ton), 3D-Modelle und Schwerter wie im Spiel, HUD-Editor, asiatische Texte.
+- Menü-Editor: Projekte mit Sicherung, Mod-Profile, Layouts wie Qt, Ereignisse je Element, Menüfluss, Tab-Reihenfolge, Stile, Vorlagen, Einstellungs-Assistent, Referenzbild, Lesbarkeitshinweise.
+- Menü-Editor: Vom Spiel gezeichnete Elemente (Datapad, Machtränge, Serverlisten, Pazaak, Lade- und Verbindungsbildschirme) wie im Spiel mit Beispielwerten; echte Tastenbelegungen; Komponenten; Griffe für Modelle.
+- Menü-Editor: Im Spiel testen lädt die Menüs nach jedem Speichern neu (OpenJK, Movie Duels); geprüft gegen Jedi Academy, Jedi Outcast und Movie Duels.
+- Zeitleiste und Mission: Neue Zeitleiste: Übersicht und Detail, echte Dauern, Filmstreifen der Kamera, „Was passiert hier?“, Ziehen mit einem Rückgängig-Schritt, Pfeiltasten in Spielbildern.
+- Zeitleiste und Mission: Lauf aufnehmen: einen NPC mit der Bewegung des Spiels steuern, das Skript bekommt Laufziele.
+- Zeitleiste und Mission: Untertitel genau wie im Spiel (auch Jedi Outcast), wait("name") wie im Spiel.
+- Zeitleiste und Mission: Mission laden mit geteilten Skripten, Laufen nach dem letzten Punkt legt ein Navgoal an, Zwischensequenz-Animationen der Karte.
+- Szenen-Vorschau: Tod wie im Spiel (Animation, fallengelassene Waffen und Schwerter, Klänge, explodierende Droiden), Gehen in der Hocke und Rollen, Blinzeln und Gesichter.
+- Szenen-Vorschau: Standhaltungen, Füße am Hang, Schwerthaltungen und die Drehung der Wirbelsäule wie im Spiel (Motion-Bone-Korrektur).
+- Szenen-Vorschau: Decals und Schwert-Brandspuren teilen den Markenspeicher des Spiels.
+- Fenster und Docking: Jedes Panel lässt sich überall andocken oder in ein eigenes Fenster nehmen (zweiter Bildschirm); Anordnungen je Bereich, gespeichert und beim Start wieder da; Menü Fenster.
+- Fenster und Docking: Wer ein Panel andockt, dessen Platz verschwunden ist, behält seine Anordnung (vorher kam die Vorgabe zurück).
+- Fenster und Docking: Ein zurückgelegtes Panel stellt die Standardanordnung wieder her (Text unter der ganzen Reihe, Zeitleiste unter allen Spalten); gezogene Teiler in Split werden wieder gespeichert.
+- Helfer und Tutorials: Neun weitere interaktive Tutorials; jeder Tutorial-Schritt hat jetzt sein Bild.
+- Helfer und Tutorials: Der Helfer versteht Wortformen und Tippfehler, „Zeig es mir“ öffnet den Weg Schritt für Schritt, KI-Chat mit Rückfragen.
+- Sprachen: Spanisch und Tschechisch, vollständig mit Handbuch und Bildern; Zählwörter mit den richtigen Mehrzahlformen.
+- Fehler: Model-Tab flüssig und ruhig, wenn sich nichts bewegt; keine Bilder alter Häute mehr im Speicher; GPU-Tabelle in der Sprache des Programms.
+- Fehler: Das Fadenkreuz der 3D-Ansicht bleibt bei jeder Fenstergröße scharf; ein langer spanischer Eintrag schiebt das Build-Menü nicht mehr aus dem Bildschirm.
+
 ## rc606 — Kartenteil fertig, Menü-Editor, Helfer mit Touren und optionaler KI
 
 Gewünscht: den Kartenteil fertig machen (Tester-Rückmeldungen: Optimierer, Werkzeugleisten, Licht wie im Spiel), einen Menü-Editor und Tutorials für das ganze Programm mit einer KI, die im Programm zeigt und hilft – sicher angebunden.
