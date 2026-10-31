@@ -458,24 +458,53 @@ void dreieckEnde(const Dreieck& d) {
     if (d.aktiv && GImGui->HoveredWindow == nullptr) { GImGui->HoveredWindow = d.vorher; }
 }
 
-bool nebenAndocken(ImGuiWindow* fenster, const std::vector<ImGuiWindow*>& nachbarn, ImGuiDir richtung, ImGuiID wurzel) {
-    if (fenster == nullptr) { return false; }
-    for (const ImGuiWindow* n : nachbarn) {
-        ImGuiDockNode* ziel = n != nullptr ? n->DockNode : nullptr;
-        if (ziel == nullptr || !imBaum(ziel->ID, wurzel)) { continue; }
-        // Wie DockNodePreviewDockSetup beim Ablegen auf einen Pfeil (DockNodeCalcSplitRects, in
-        // imgui.cpp statisch): die neue Seite so gross wie das Fenster, hoechstens die Haelfte
-        // des Platzes ohne den Abstand; der Anteil gilt dem ersten Kind.
-        const int achse = richtung == ImGuiDir_Left || richtung == ImGuiDir_Right ? 0 : 1;
-        const float platz = ziel->Size[achse] - GImGui->Style.ItemInnerSpacing.x;
-        const float gewuenscht = fenster->Size[achse];
-        const float neu = gewuenscht > 0.0F && gewuenscht <= platz * 0.5F ? gewuenscht : IM_TRUNC(platz * 0.5F);
-        const float anteil = ImSaturate(neu / std::max(1.0F, ziel->Size[achse]));
-        ImGui::DockContextQueueDock(GImGui, ziel->HostWindow, ziel, fenster, richtung,
-                                    richtung == ImGuiDir_Right || richtung == ImGuiDir_Down ? 1.0F - anteil : anteil, false);
-        return true;
+// Der kleinste Knoten des DockSpace `wurzel` mit allen Fenstern der Seite, die dort stehen -
+// nullptr, wenn keines dort steht oder in dem Knoten auch fremde Fenster stehen (frei angeordnet).
+ImGuiDockNode* seitenKnoten(const std::vector<ImGuiWindow*>& seite, ImGuiID wurzel) {
+    const auto enthaelt = [](const ImGuiDockNode* oben, const ImGuiDockNode* n) {
+        while (n != nullptr && n != oben) { n = n->ParentNode; }
+        return n != nullptr;
+    };
+    ImGuiDockNode* k = nullptr;
+    for (const ImGuiWindow* f : seite) {
+        ImGuiDockNode* n = f != nullptr ? f->DockNode : nullptr;
+        if (n == nullptr || !imBaum(n->ID, wurzel)) { continue; }
+        if (k == nullptr) { k = n; }
+        while (!enthaelt(k, n)) { k = k->ParentNode; }
     }
-    return false;
+    const auto nurDieSeite = [&seite](const auto& selbst, const ImGuiDockNode* n) -> bool {
+        if (n->IsSplitNode()) { return selbst(selbst, n->ChildNodes[0]) && selbst(selbst, n->ChildNodes[1]); }
+        return std::all_of(n->Windows.begin(), n->Windows.end(),
+                           [&seite](ImGuiWindow* f) { return std::find(seite.begin(), seite.end(), f) != seite.end(); });
+    };
+    return k != nullptr && nurDieSeite(nurDieSeite, k) ? k : nullptr;
+}
+
+bool nebenAndocken(ImGuiWindow* fenster, const std::vector<ImGuiWindow*>& nachbarn, const std::vector<ImGuiWindow*>& seite, ImGuiDir richtung,
+                   ImGuiID wurzel) {
+    if (fenster == nullptr) { return false; }
+    ImGuiDockNode* ziel = nullptr;
+    for (const ImGuiWindow* n : nachbarn) {
+        if (n != nullptr && n->DockNode != nullptr && imBaum(n->DockNode->ID, wurzel)) {
+            ziel = n->DockNode;
+            break;
+        }
+    }
+    if (ziel == nullptr) { return false; }
+    // Steht die andere Seite noch beisammen: neben sie alle, wie das Blatt in der Vorgabe (der
+    // Text unten geht unter die ganze obere Reihe, das Band unter alle Spalten).
+    if (ImGuiDockNode* ganz = seitenKnoten(seite, wurzel); ganz != nullptr) { ziel = ganz; }
+    // Wie DockNodePreviewDockSetup beim Ablegen auf einen Pfeil (DockNodeCalcSplitRects, in
+    // imgui.cpp statisch): die neue Seite so gross wie das Fenster, hoechstens die Haelfte
+    // des Platzes ohne den Abstand; der Anteil gilt dem ersten Kind.
+    const int achse = richtung == ImGuiDir_Left || richtung == ImGuiDir_Right ? 0 : 1;
+    const float platz = ziel->Size[achse] - GImGui->Style.ItemInnerSpacing.x;
+    const float gewuenscht = fenster->Size[achse];
+    const float neu = gewuenscht > 0.0F && gewuenscht <= platz * 0.5F ? gewuenscht : IM_TRUNC(platz * 0.5F);
+    const float anteil = ImSaturate(neu / std::max(1.0F, ziel->Size[achse]));
+    ImGui::DockContextQueueDock(GImGui, ziel->HostWindow, ziel, fenster, richtung,
+                                richtung == ImGuiDir_Right || richtung == ImGuiDir_Down ? 1.0F - anteil : anteil, false);
+    return true;
 }
 
 bool draussen(int bereich, const char* panel) {
@@ -545,7 +574,7 @@ void andocken(int bereich, const char* panel) {
                 }
             }
             const ImGuiDir richtung = t.untereinander ? (seite == 0 ? ImGuiDir_Up : ImGuiDir_Down) : (seite == 0 ? ImGuiDir_Left : ImGuiDir_Right);
-            if (nebenAndocken(w, nachbarn, richtung, r.wurzel)) {
+            if (nebenAndocken(w, nachbarn, nachbarn, richtung, r.wurzel)) {
                 diag::detail(std::string("Fenster: Panel ") + panel + " - Blatt fehlt, neben seinen Nachbarn der Vorgabe angedockt");
                 return;
             }

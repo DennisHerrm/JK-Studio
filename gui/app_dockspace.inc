@@ -318,6 +318,23 @@ bool standard(int b) {
     return true;
 }
 
+// Hat der Baum wieder die Form der Standardanordnung, nur mit neuen Knoten (ein Panel kam neben
+// seine Nachbarn zurueck, andocken), sind das jetzt die Heimknoten.
+void heimNachfuehren(int b) {
+    Raum& raum = g_raum[static_cast<std::size_t>(b)];
+    const ImGuiDockNode* wurzel = raum.wurzel != 0 ? ImGui::DockBuilderGetNode(raum.wurzel) : nullptr;
+    const std::vector<Blatt> p = blaetter(b);
+    if (wurzel == nullptr || knotenZaehlen(wurzel) != static_cast<int>(2 * p.size() - 1)) { return; }
+    const std::vector<ImGuiID> heim = heimAusBaum(b, wurzel);
+    if (heim == raum.heim) { return; }
+    for (std::size_t i = 0; i < p.size(); ++i) {
+        const ImGuiWindow* w = ImGui::FindWindowByName(fensterName(p[i]).c_str());
+        if (w == nullptr || w->DockNode == nullptr || w->DockNode->ID != heim[i] || w->DockNode->Windows.Size != 1) { return; }
+    }
+    raum.heim = heim;
+    raum.knoten = knotenZaehlen(wurzel);
+}
+
 // Die Groessen der Standardanordnung in die Knoten, vor DockSpace(): jede
 // Teilung bekommt fuer ihr erstes Kind genau die gemessene Breite (Hoehe).
 ImRect spanne(const ImGuiDockNode* n, const std::vector<ImGuiID>& heim, const std::vector<ImRect>& r) {
@@ -429,6 +446,7 @@ void zeichnen(const Layout& l) {
     // DockSpace-Baum): diese Panels kommen beim Aufbau nicht in ihre Knoten,
     // sondern schweben an ihrer gespeicherten Stelle; danach gilt der Baum.
     const bool alteListe = raum.frisch && dock::listeDraussen(b);
+    heimNachfuehren(b);
     const bool std0 = standard(b);
     if (std0) { erzwingen(ImGui::DockBuilderGetNode(raum.wurzel), raum.heim, r, groesse); }
     ImGui::SetCursorScreenPos(alles.Min);
@@ -571,16 +589,19 @@ void herausnehmen(const std::string& panel) {
 
 ImGuiID heimKnoten(const std::string& panel);
 
-// Zurueck an seinen Platz der Standardanordnung: in seinen Knoten, wenn es ihn
-// noch gibt (ausgeblendet oder als Reiter woanders), sonst die
-// Standardanordnung des Bereichs neu aufbauen - Panels in eigenen Fenstern
-// bleiben dabei draussen (ImGui verschmilzt einen Knoten, den sein letztes
-// Panel verlaesst, mit dem Nachbarn; der Platz ist dann nicht mehr da).
+// Zurueck an seinen Platz der Standardanordnung: in seinen Knoten, wenn er noch
+// frei ist (ausgeblendet oder als Reiter woanders), sonst neben die Panels auf
+// der anderen Seite seiner Teilung (ImGui verschmilzt einen Knoten, den sein
+// letztes Panel verlaesst, mit dem Nachbarn; der Platz ist dann nicht mehr da).
+// Ist von denen keins mehr im Hauptfenster: die Standardanordnung des Bereichs
+// neu aufbauen - Panels in eigenen Fenstern bleiben dabei draussen.
 void andocken(const std::string& panel) {
     ImGuiWindow* w = panelFenster(panel);
     const ImGuiID heim = heimKnoten(panel);
     const ImGuiDockNode* n = heim != 0 ? ImGui::DockBuilderGetNode(heim) : nullptr;
-    if (w != nullptr && n != nullptr && n->IsLeafNode()) {
+    // Nur ein freier Knoten: im gespeicherten Baum ohne dieses Panel fuehrt sein Weg zum Blatt eines
+    // anderen (es stuende dort als Reiter, nicht mehr in der Standardanordnung).
+    if (w != nullptr && n != nullptr && n->IsLeafNode() && n->Windows.Size == 0) {
         ImGui::DockBuilderDockWindow(w->Name, heim);
         diag::detail("Fenster: Panel " + panel + " zurueck in seinen Knoten");
         return;
@@ -596,11 +617,14 @@ void andocken(const std::string& panel) {
             if (panel != p[i].id || wege[i].empty()) { continue; }
             const char seite = wege[i].back();
             const std::string gegenueber = wege[i].substr(0, wege[i].size() - 1) + (seite == '0' ? '1' : '0');
+            // Die Modus-Leiste zaehlt zur Seite, aber niemand dockt allein neben sie (ihr Knoten ist fest).
             std::vector<std::pair<std::string, ImGuiWindow*>> kandidaten;   // Weg von der Wurzel: links bzw. oben zuerst
+            std::vector<ImGuiWindow*> ganzeSeite;
             for (std::size_t j = 0; j < p.size(); ++j) {
-                if (wege[j].rfind(gegenueber, 0) == 0 && !std::string(p[j].id).ends_with(".modus")) {
-                    kandidaten.emplace_back(wege[j], ImGui::FindWindowByName(fensterName(p[j]).c_str()));
-                }
+                if (wege[j].rfind(gegenueber, 0) != 0) { continue; }
+                ImGuiWindow* f = ImGui::FindWindowByName(fensterName(p[j]).c_str());
+                ganzeSeite.push_back(f);
+                if (!std::string(p[j].id).ends_with(".modus")) { kandidaten.emplace_back(wege[j], f); }
             }
             std::sort(kandidaten.begin(), kandidaten.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
             if (seite == '1') { std::reverse(kandidaten.begin(), kandidaten.end()); }
@@ -608,7 +632,7 @@ void andocken(const std::string& panel) {
             for (const auto& k : kandidaten) { nachbarn.push_back(k.second); }
             const bool band = mitBand(b) && wege[i].size() == 1;   // Teilung nach unten (bauen)
             const ImGuiDir richtung = band ? (seite == '0' ? ImGuiDir_Up : ImGuiDir_Down) : (seite == '0' ? ImGuiDir_Left : ImGuiDir_Right);
-            if (dockvorgabe::nebenAndocken(w, nachbarn, richtung, raum.wurzel)) {
+            if (dockvorgabe::nebenAndocken(w, nachbarn, ganzeSeite, richtung, raum.wurzel)) {
                 diag::detail("Fenster: Panel " + panel + " - Knoten fehlt, neben seinen Nachbarn der Standardanordnung angedockt");
                 return;
             }

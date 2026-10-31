@@ -351,8 +351,8 @@ std::vector<Schritt> dock4Schritte() {
             if (!a.da() || !b.da() || a.breite != b.breite || a.hoehe != b.hoehe || !da) { return false; }
             ImRect text;   // das Innere der Konsole (ohne ihren Rand)
             if (const auto k = alt->find(vorsilbe + "##feldKonsole"); k != alt->end()) {
-                // innerhalb ihres Randes (oben 2 Punkte Abstand und Rand, unten der Rand)
-                text = ImRect{ImVec2{k->second.Min.x + 2.0F, k->second.Min.y + 3.0F}, ImVec2{k->second.Max.x - 2.0F, k->second.Max.y - 1.0F}};
+                // innerhalb ihres Randes (oben und unten 1 Punkt): eine weggerollte Zeile reicht bis direkt unter den Rand
+                text = ImRect{ImVec2{k->second.Min.x + 2.0F, k->second.Min.y + 1.0F}, ImVec2{k->second.Max.x - 2.0F, k->second.Max.y - 1.0F}};
             }
             int n = 0;
             for (int y = static_cast<int>(flaeche.Min.y); y < static_cast<int>(flaeche.Max.y); ++y) {
@@ -496,7 +496,7 @@ std::vector<Schritt> dock4Schritte() {
     }));
     add(tu("dock4: Ebenenliste andocken", [] { dock::andocken("mission.ebenen"); }));
     add(stabil("dock4: angedockt", 20));
-    add(tu("dock4: Script Flow heraus und wieder zurueck (baut die Standardanordnung neu)", [] { dock::herausnehmen("mission.fluss"); }));
+    add(tu("dock4: Script Flow heraus und wieder zurueck (neben seine Nachbarn: wieder die Standardanordnung)", [] { dock::herausnehmen("mission.fluss"); }));
     add(warteBis("dock4: Script Flow draussen", [] { return dock::draussen("mission.fluss"); }, 60));
     add(tu("dock4: Script Flow andocken", [] { dock::andocken("mission.fluss"); }));
     add(stabil("dock4: Script Flow zurueck", 20));
@@ -505,6 +505,21 @@ std::vector<Schritt> dock4Schritte() {
                      (dock::zuhause("mission.fluss") ? "zuhause" : "draussen") + ", Standard " + (dockraumStandard(1) ? "ja" : "nein"));
         return dock::zuhause("mission.ebenen") && dock::zuhause("mission.fluss") && dockraumStandard(1);
     }));
+
+    // Jedes Panel einzeln heraus und zurueck (sein Knoten ist verschmolzen): wieder die Standardanordnung,
+    // auch wenn die andere Seite seiner Teilung mehrere Panels hat - das Band unter alle Spalten, die
+    // Ebenenliste links neben Ansicht und Script Flow.
+    for (const char* panel : {"mission.zeitleiste", "mission.ebenen", "mission.ansicht"}) {
+        const std::string name = panel;
+        add(tu("dock4: " + name + " heraus", [panel] { dock::herausnehmen(panel); }));
+        add(warteBis("dock4: " + name + " draussen", [panel] { return dock::draussen(panel); }, 60));
+        add(stabil("dock4: " + name + " draussen", 10));
+        add(tu("dock4: " + name + " andocken", [panel] { dock::andocken(panel); }));
+        add(stabil("dock4: " + name + " zurueck", 20));
+        add(pruefe("dock4: " + name + " heraus und zurueck - wieder die Standardanordnung", [panel] {
+            return dock::zuhause(panel) && dockraumStandard(1);
+        }));
+    }
 
     // Ohne DockSpace heraus UND wieder an seinen Platz: mit DockSpace steht es angedockt.
     add(tu("dock4: Schalter aus, Ebenenliste heraus und wieder zurueck (Liste aus dock1)", [] {
