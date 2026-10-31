@@ -295,7 +295,10 @@ How to make a release:
    and `SHA256SUMS.txt`; the PDB is kept as the artifact
    `JK-Studio-rcNNN-debug-symbols` for 90 days. Download the artifact
    (`gh run download <run-id> -n JK-Studio-rcNNN`) into a scratch folder
-   and run the GUI self-test (mode 1) on exactly that exe.
+   and run the GUI self-test (mode 1) on exactly that exe, with `BHED_ABLAGE_PROBE=1`:
+   only then does the test write to the real Windows clipboard and put the
+   user's content back. Without it no self-test writes there; that the clipboard
+   stays untouched is checked in every run.
 4. Publish: `gh release edit v1.0.0-rcNNN --draft=false --latest`.
 5. Then run self-test mode `update` (`BHED_UPDATE_LOKAL=rc500`) from a copy
    of the program folder.

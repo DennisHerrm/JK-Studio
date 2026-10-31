@@ -92,6 +92,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "bhed/untertitel.h"   // Zeitleiste 2: Untertitel im Vorschau-Bild
@@ -621,9 +622,15 @@ void einbauen() {
     pio.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) { g_inhalt = text != nullptr ? text : ""; };
 }
 
+// Ein Mitleser (Verlauf der Zwischenablage, Virenscanner) haelt die Ablage kurz offen: dann liefert ImGui nichts,
+// obwohl Text darin ist (rc608: "danach 0 Bytes"). Nur eine wirklich textlose Ablage ist leer.
 std::string echtLesen() {
-    const char* c = g_echtLesen != nullptr ? g_echtLesen(ImGui::GetCurrentContext()) : nullptr;
-    return c != nullptr ? c : "";
+    for (int versuch = 0; versuch < 200 && g_echtLesen != nullptr; ++versuch) {
+        if (const char* c = g_echtLesen(ImGui::GetCurrentContext()); c != nullptr) { return c; }
+        if (!platform::zwischenablageHatText()) { return ""; }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return "";
 }
 
 // Schreibt einmal in die echte Zwischenablage, liest es zurueck und stellt den alten Inhalt wieder her.
@@ -645,6 +652,9 @@ bool probe(std::string& bericht) {
             continue;
         }
         const bool zurueck = platform::zwischenablageZurueck(alt);
+        // Wie am 31.10. in Modus original: ein Mitleser (Verlauf der Zwischenablage) oeffnet sie gleich nach der
+        // Aenderung. Der laeuft bei uns schneller als jeder Zufall, wenn ihn der Stoerer des Testlaufs spielt.
+        platform::zwischenablageStoererRufen();
         const std::string danach = echtLesen();
         bericht = "gelesen " + std::to_string(gelesen.size()) + " Bytes, alter Inhalt " + std::to_string(altText.size()) + " Bytes, " +
                   std::to_string(alt.formate.size()) + " Formate, danach " + std::to_string(danach.size()) + " Bytes";
@@ -838,14 +848,17 @@ std::vector<Schritt> originalSchritte() {
     add(pruefe("Copy und Paste liessen die Windows-Zwischenablage des Nutzers in Ruhe", [] {
         return testablage::echtLesen() != testablage::g_inhalt && testablage::echtLesen().rfind("//(BHVD)", 0) != 0;
     }));
-    add(ablageBelegen());
-    add(pruefe("Windows-Zwischenablage: Text hin und zurueck, danach wieder der Inhalt des Nutzers", [] {
-        std::string bericht;
-        const bool gut = testablage::probe(bericht);
-        diag::detail("Knopftest: Zwischenablage - " + bericht);
-        return gut;
-    }));
-    add(ablageFreigeben());
+    // rc608: die Probe fasst die echte Ablage an, darum nur auf Verlangen (Release-Selbsttest, TESTING.md).
+    if (std::getenv("BHED_ABLAGE_PROBE") != nullptr) {
+        add(ablageBelegen());
+        add(pruefe("Windows-Zwischenablage: Text hin und zurueck, danach wieder der Inhalt des Nutzers", [] {
+            std::string bericht;
+            const bool gut = testablage::probe(bericht);
+            diag::detail("Knopftest: Zwischenablage - " + bericht);
+            return gut;
+        }));
+        add(ablageFreigeben());
+    }
 
     // ---- Speichernfrage auch ohne "Yes/No query" --------------------------
     add(tu("Yes/No query aus, Skript aendern", [] {

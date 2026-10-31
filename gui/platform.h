@@ -168,6 +168,9 @@ struct ZwischenablageSicherung {
 bool zwischenablageSichern(ZwischenablageSicherung& s);
 bool zwischenablageZurueck(ZwischenablageSicherung& s);
 unsigned zwischenablageNummer();
+[[nodiscard]] bool zwischenablageHatText();   // geht auch, wenn gerade ein anderes Programm sie offen hat
+// Selbsttest: laeuft ein Stoerer (STOERER=leser in SP/ab/lauf.py), haelt er die Ablage ab jetzt kurz offen. Sonst nichts.
+void zwischenablageStoererRufen();
 // dock4, Selbsttest: nimmt das Windows-Fenster Dateien an (WS_EX_ACCEPTFILES,
 // DragAcceptFiles)? Nur dann schickt der Explorer beim Loslassen WM_DROPFILES.
 bool nimmtDateien(void* fenster);

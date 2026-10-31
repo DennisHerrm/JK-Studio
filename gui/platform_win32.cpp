@@ -698,6 +698,20 @@ bool ablageOeffnen() {
 }
 }  // namespace
 
+void zwischenablageStoererRufen() {
+    const HANDLE frage = OpenEventW(EVENT_MODIFY_STATE, FALSE, L"Local\\JKStudio.Selbsttest.AblageFrage");
+    if (frage == nullptr) { return; }
+    const HANDLE offen = OpenEventW(SYNCHRONIZE, FALSE, L"Local\\JKStudio.Selbsttest.AblageOffen");
+    SetEvent(frage);
+    if (offen != nullptr) {
+        WaitForSingleObject(offen, 500);
+        CloseHandle(offen);
+    }
+    CloseHandle(frage);
+}
+
+bool zwischenablageHatText() { return IsClipboardFormatAvailable(CF_UNICODETEXT) != 0; }
+
 bool zwischenablageSichern(ZwischenablageSicherung& s) {
     s.formate.clear();
     if (!ablageOeffnen()) { return false; }
