@@ -1486,6 +1486,35 @@ Einziger Agent, direkt auf karte1. Je Fehler rot → behoben → im selben Test 
    - **Vordergrund**: 71189 Proben, alle 58 Treffer 14:02:55–14:02:58: shank hat das Fenster selbst nach vorn geholt (vom Hauptstrang bestätigt). Kein vom Test
      verursachter Vordergrund.
 
+9. **Schlussrunde** (Endstand 18aa37e8; danach nur Notizen). Vorgabe des Hauptstrangs, von shank freigegeben: en komplett, es und cs nacheinander nur
+   karteneditor, Modus 1, menueeditor, hilfe2, hilfe1, kuerzel, zeitleiste1; die übrigen Modi auf es/cs gelten vom Stand cba5b79f (vor ffad20a2 und 18aa37e8).
+
+   | Lauf | Stand | Ergebnis |
+   |---|---|---|
+   | Sauberer Neubau, alle Ziele | 18aa37e8 | 0 Fehler, 0 Warnungen |
+   | ctest gesamt | 18aa37e8 | 190/190 |
+   | lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_gapp u. a. | 18aa37e8 | ok |
+   | lint_d3dbesitz / lint_portability | 18aa37e8 | 11 (rc606 11) / 106 (rc606 192) |
+   | lint_endtable 2, lint_pruefcodes 11, lint_settings 1, lint_fremdprogramm 1 | 18aa37e8 | wie rc606 |
+   | gen_handbuch --pflicht=es --pflicht=cs | 18aa37e8 | ok |
+   | en, alle 43 Modi | 18aa37e8 | alle 0 FEHLER: karteneditor 3297, menueeditor 134, menueeditorja 134, mission1 98, hilfe2 44, hilfe1 59, stufe9d 28, stufe8 41, stufe8g 43, optsicher 14, 1 2652, kuerzel 199, karte 230, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 14, kamera 96, missionsbau 95, szenen 26, ton 34, npcklasse 13, gluehen 9, gras 14, spulen 14, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1, zeitleiste1 100, zeitleiste 47, dock1 97, dock4 115, dock5 26, dock2mass 29, modellleistung 10, pruefung3 9, original 48 |
+   | es, 7 Modi | 18aa37e8 | alle 0 FEHLER: karteneditor 3297, 1 2652, menueeditor 134, hilfe2 44, hilfe1 59, kuerzel 199, zeitleiste1 100 |
+   | cs, 7 Modi | 18aa37e8 | alle 0 FEHLER: karteneditor 3297, 1 2652, menueeditor 134, hilfe2 44, hilfe1 59, kuerzel 199, zeitleiste1 100 |
+   | es, übrige 36 Modi | cba5b79f | alle 0 FEHLER: menueeditorja 134, mission1 98, stufe9d 28, stufe8 41, stufe8g 43, optsicher 14, karte 230, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 14, kamera 96, missionsbau 95, szenen 26, ton 34, npcklasse 13, gluehen 9, gras 14, spulen 14, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1, zeitleiste 47, dock1 97, dock4 115, dock5 26, dock2mass 29, modellleistung 10, pruefung3 9, original 46 |
+   | cs, übrige 36 Modi | cba5b79f | alle 0 FEHLER: menueeditorja 134, mission1 98, stufe9d 28, stufe8 41, stufe8g 43, optsicher 14, karte 230, kartenfunde 53, fix604b 32, laserfalle 8, geschuetzanim 3, zielstrahl 2, effektgrund 1, figurdeform 1, jk2 15, tuerlauf 14, kamera 96, missionsbau 95, szenen 26, ton 34, npcklasse 13, gluehen 9, gras 14, spulen 14, figurstufen 8, missionsliste 11, rest605 6, modellimfesten 1, zeitleiste 47, dock1 97, dock4 115, dock5 26, dock2mass 29, modellleistung 10, pruefung3 9, original 46 |
+   | Kartenprüfung gegen kp606 (278 Karten) | 18aa37e8 | exit 0; Summen wie kp606, kein Absturz, keine Protokollfehler |
+   | Fenster nie vorn (vordergrund.py, 1 h, en karteneditor bis Modus 1 ff.) | cba5b79f | 71189 Proben, nur 14:02:55-14:02:58: shank selbst |
+   | Spielordner (GameData, GameData original, GameData Movie Duels, Jedi Outcast) | beide Runden | Dateiliste mit Größe und Zeit vorher/nachher gleich |
+
+   In der Runde auf cba5b79f rot und auf dem Endstand grün: karteneditor en/es/cs „Lagen wie NRC“, Modus 1 es und (allein wiederholt, en) die
+   Zwischenablage. Handbuchbilder: nur die drei spanischen mit dem Build-Menü neu (der gekürzte Text); das Fadenkreuz ändert kein Bild sichtbar.
+   Textfehler auf es/cs wurden in dieser Runde nicht gesucht (shanks Regel: halten rc607 nicht auf).
+
+### Offen nach Abschluss 2
+
+Nichts aus dem Auftrag. Bewusst nicht nachgebaut bei den Decals: siehe Punkt 7 (Nebel-Zerschneiden, Index-Karten u. a.). Ton und Minidump
+(Abschnitt „Offen“ oben) waren unter Last nicht nachstellbar und sind in allen Läufen grün.
+
 ### Changelog
 
 Entwurf in sechs Sprachen: `SP\rc607_changelog.md` (nicht in tools/changelog.txt).
