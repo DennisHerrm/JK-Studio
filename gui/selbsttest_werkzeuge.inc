@@ -1860,7 +1860,6 @@ std::vector<Schritt> ablageSchliessenSchritte() {
         }
         return z;
     };
-    add(ablageBelegen());
     for (int fall = 0; fall < 2; ++fall) {
         const std::string f = std::to_string(fall);
         const std::string ziel = "ablage_ziel" + f + ".txt";
@@ -1926,7 +1925,6 @@ std::vector<Schritt> ablageSchliessenSchritte() {
         diag::detail("Knopftest: Ablage/Neu - aktiv " + g_app->shownName + ", print " + std::to_string(zahl("print", "aus der Quelle")));
         return zahl("print", "aus der Quelle") == 1;
     }));
-    add(ablageFreigeben());
     add(tu("Ablage/Neu: aufraeumen", [=] {
         for (const char* n : {"ablage_quelle2.txt"}) {
             const int i = findeReiter(n);

@@ -6,6 +6,8 @@
 #include "bhed/menue/vorschau.h"
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 

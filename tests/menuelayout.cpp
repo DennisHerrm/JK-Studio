@@ -7,6 +7,7 @@
 #include "bhed/menue/skript.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <map>
 #include <string>

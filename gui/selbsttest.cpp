@@ -600,10 +600,62 @@ Schritt tu(const std::string& text, std::function<void()> was) {
             }};
 }
 
-// --- Windows-Zwischenablage (Abschluss rc607) -----------------------------
+// --- Zwischenablage (Abschluss 2) --------------------------------------------
 //
-// Sie gehoert allen gleichzeitig laufenden Selbsttests: zwischen ablageBelegen und ablageFreigeben
-// schreibt und liest nur dieser Test (warten, bis kein anderer sie haelt - statt auf Glueck).
+// Die Windows-Zwischenablage gehoert dem Nutzer: ein Selbsttest ueberschreibt sie nicht, und was
+// der Nutzer gerade kopiert, stoert ihn nicht (Modus 1 auf Spanisch rot, waehrend shank am Rechner
+// arbeitete). ImGui bekommt im Selbsttest eine eigene Ablage dieses Prozesses; alles im Programm
+// (Copy, Paste, Konsole, Bau-Dialog, Textfelder) geht ueber ImGui und prueft damit seine eigene
+// Kopie. Nur ablageProbe() geht an die echte: ImGuis Weg nach Windows und zurueck, der Inhalt des
+// Nutzers ist danach wieder da.
+namespace testablage {
+std::string g_inhalt;
+const char* (*g_echtLesen)(ImGuiContext*) = nullptr;
+void (*g_echtSchreiben)(ImGuiContext*, const char*) = nullptr;
+
+void einbauen() {
+    ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    g_echtLesen = pio.Platform_GetClipboardTextFn;
+    g_echtSchreiben = pio.Platform_SetClipboardTextFn;
+    pio.Platform_GetClipboardTextFn = [](ImGuiContext*) { return g_inhalt.c_str(); };
+    pio.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) { g_inhalt = text != nullptr ? text : ""; };
+}
+
+std::string echtLesen() {
+    const char* c = g_echtLesen != nullptr ? g_echtLesen(ImGui::GetCurrentContext()) : nullptr;
+    return c != nullptr ? c : "";
+}
+
+// Schreibt einmal in die echte Zwischenablage, liest es zurueck und stellt den alten Inhalt wieder her.
+// Hat ein fremdes Programm dazwischen geschrieben, zaehlt der Versuch nicht - und dessen Inhalt bleibt.
+bool probe(std::string& bericht) {
+    const std::string text = "JK Studio Selbsttest Ã¤æ¼¢ " + std::to_string(platform::zwischenablageNummer());
+    for (int versuch = 0; versuch < 5; ++versuch) {
+        platform::ZwischenablageSicherung alt;
+        if (!platform::zwischenablageSichern(alt)) {
+            bericht = "nicht zu oeffnen";
+            continue;
+        }
+        const std::string altText = echtLesen();
+        g_echtSchreiben(ImGui::GetCurrentContext(), text.c_str());
+        const unsigned nummer = platform::zwischenablageNummer();
+        const std::string gelesen = echtLesen();
+        if (platform::zwischenablageNummer() != nummer) {
+            bericht = "ein anderes Programm hat geschrieben";
+            continue;
+        }
+        const bool zurueck = platform::zwischenablageZurueck(alt);
+        const std::string danach = echtLesen();
+        bericht = "gelesen " + std::to_string(gelesen.size()) + " Bytes, alter Inhalt " + std::to_string(altText.size()) + " Bytes, " +
+                  std::to_string(alt.formate.size()) + " Formate, danach " + std::to_string(danach.size()) + " Bytes";
+        return gelesen == text && zurueck && danach == altText;
+    }
+    return false;
+}
+}  // namespace testablage
+
+// Die Probe teilen sich gleichzeitig laufende Selbsttests: zwischen ablageBelegen und ablageFreigeben
+// geht nur dieser Test an die echte Zwischenablage.
 Schritt ablageBelegen() {
     return warteBis("Zwischenablage frei (kein anderer Selbsttest haelt sie)", [] { return platform::zwischenablageSperren(); }, 200000);
 }
@@ -725,8 +777,7 @@ std::vector<Schritt> originalSchritte() {
                [=] { return g_app->findHits.empty() && g_app->selectedPath == gesehen->front(); }));
     add(tu("Suchfenster schliessen", [] { g_app->findOpen = false; }));
 
-    // ---- Windows-Zwischenablage wie im Original --------------------------
-    add(ablageBelegen());
+    // ---- Zwischenablage wie im Original (eigene Ablage des Selbsttests: testablage) ---
     add(waehle("print", 0));
     add(klick(tr(Str::ActCopy)));
     add(pruefe("Copy schreibt \"//(BHVD)\" + Zeile in die Windows-Zwischenablage", [] {
@@ -784,6 +835,16 @@ std::vector<Schritt> originalSchritte() {
     }));
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
     add(pruefe("Strg+Z nimmt das Einfuegen zurueck", [=] { return skriptText() == *vorher; }));
+    add(pruefe("Copy und Paste liessen die Windows-Zwischenablage des Nutzers in Ruhe", [] {
+        return testablage::echtLesen() != testablage::g_inhalt && testablage::echtLesen().rfind("//(BHVD)", 0) != 0;
+    }));
+    add(ablageBelegen());
+    add(pruefe("Windows-Zwischenablage: Text hin und zurueck, danach wieder der Inhalt des Nutzers", [] {
+        std::string bericht;
+        const bool gut = testablage::probe(bericht);
+        diag::detail("Knopftest: Zwischenablage - " + bericht);
+        return gut;
+    }));
     add(ablageFreigeben());
 
     // ---- Speichernfrage auch ohne "Yes/No query" --------------------------
@@ -4912,7 +4973,6 @@ std::vector<Schritt> wunschSchritte() {
         return l != nullptr && l->name == "loop" && l->children.empty() && w != nullptr && w->name == "wait";
     }));
     // Einfuegen aus der Ablage in einen angeklickten Block.
-    add(ablageBelegen());
     add(tu("Wunsch: ein wait in die Ablage", [] {
         Node n;
         n.kind = Node::Kind::Command;
@@ -4935,7 +4995,6 @@ std::vector<Schritt> wunschSchritte() {
         return kinder(Path{0}) == 4U && n != nullptr && n->name == "wait" && !n->args.empty() &&
                n->args[0].text == "300.000";
     }));
-    add(ablageFreigeben());
 
     // --- Compiler-Meldung: "! =" ---------------------------------------------
     add(tu("Wunsch: Skript mit if ( ..., ! =, ... )", [] {
@@ -5769,6 +5828,11 @@ void selbsttestVorBackend() { karteneditor::zeigerSimVorBackend(); }
 void selbsttest() {
     static const char* const modus = std::getenv("BHED_EDITORTEST");
     if (modus == nullptr || g_app == nullptr) { return; }
+    static const bool ablageEigen = [] {
+        testablage::einbauen();
+        return true;
+    }();
+    (void)ablageEigen;
     // BHED_EDITORTEST=geteilt: nur die geteilte Ansicht (schnell, zum
     // Wiederholen). Jeder andere Wert: alles.
     static const bool nurGeteilt = std::strcmp(modus, "geteilt") == 0;

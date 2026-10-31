@@ -12,7 +12,9 @@
 #include "bhed/spuren.h"
 #include "bhed/timeline.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <string>

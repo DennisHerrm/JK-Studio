@@ -59,10 +59,10 @@ int main() {
     // Der Selbsttest prueft dieselben Zeichen in den ImGui-Schriften.
     {
         const char* const zeichen =
-            "\xc3\xb1\xc3\xa1\xc3\xa9\xc3\xad\xc3\xb3\xc3\xba\xc3\xbc\xc2\xbf\xc2\xa1"          // ñ á é í ó ú ü ¿ ¡
-            "\xc3\x91\xc3\x81\xc3\x89\xc3\x8d\xc3\x93\xc3\x9a\xc3\x9c"                            // Ñ Á É Í Ó Ú Ü
-            "\xc4\x9b\xc5\xa1\xc4\x8d\xc5\x99\xc5\xbe\xc3\xbd\xc5\xaf\xc4\x8f\xc5\xa5\xc5\x88"  // ě š č ř ž ý ů ď ť ň
-            "\xc4\x9a\xc5\xa0\xc4\x8c\xc5\x98\xc5\xbd\xc3\x9d\xc5\xae\xc4\x8e\xc5\xa4\xc5\x87";  // Ě Š Č Ř Ž Ý Ů Ď Ť Ň
+            "\xc3\xb1\xc3\xa1\xc3\xa9\xc3\xad\xc3\xb3\xc3\xba\xc3\xbc\xc2\xbf\xc2\xa1"          // es klein: n, a, e, i, o, u, u mit Zeichen, ? und ! umgekehrt
+            "\xc3\x91\xc3\x81\xc3\x89\xc3\x8d\xc3\x93\xc3\x9a\xc3\x9c"                            // es gross: dieselben
+            "\xc4\x9b\xc5\xa1\xc4\x8d\xc5\x99\xc5\xbe\xc3\xbd\xc5\xaf\xc4\x8f\xc5\xa5\xc5\x88"  // cs klein: e, s, c, r, z, y, u, d, t, n mit Zeichen
+            "\xc4\x9a\xc5\xa0\xc4\x8c\xc5\x98\xc5\xbd\xc3\x9d\xc5\xae\xc4\x8e\xc5\xa4\xc5\x87";  // cs gross: dieselben
         const std::pair<const wchar_t*, bool> schriften[] = {{L"Segoe UI", false}, {L"Tahoma", false}, {L"Tahoma", true}};
         for (const auto& [schrift, fett] : schriften) {
             const std::string fehlt = bhed::platform::qtFehlendeZeichen(zeichen, schrift, fett);

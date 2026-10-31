@@ -1730,14 +1730,12 @@ std::vector<Schritt> baumenue() {
                karte.size() > 14 && karte.compare(karte.size() - 14, 14, "s3bau/raum.map") == 0 && v.at("BspFile").find("s3bau/raum.bsp") != std::string::npos &&
                v.at("MapName") == "raum.map" && v.at("MonitorAddress") == "127.0.0.1:39000" && v.at("GameName") == spiel;
     }));
-    add(ablageBelegen());
     add(klickAn("[MapFile] anklicken (Spalte 0)", bauZeile(3, 5, 0)));
     add(pause(0.15));
     add(pruefe("Klick auf [MapFile]: \"[MapFile]\" in der Zwischenablage, Tooltip \"Copied to clipboard.\"", [] {
         const char* c = ImGui::GetClipboardText();
         return c != nullptr && std::string(c) == "[MapFile]" && ke::bauDialogStand().kopiertSichtbar;
     }));
-    add(ablageFreigeben());
     add(pruefe("Werkzeug q3map2 ausgewertet: \"<Programm>/bhed_q3map2.exe\" -v ... -connect 127.0.0.1:39000 -game ja -fs_basepath ... -fs_game base", [] {
         karte::BauVariablen v = ke::bauVariablen();
         karte::bauWerkzeugeAuswerten(ke::editor().bauProjekt, v);

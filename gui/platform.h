@@ -153,6 +153,21 @@ bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
 // Sperre: sperren wartet nicht (true: jetzt gehalten), freigeben gibt sie wieder ab.
 bool zwischenablageSperren();
 void zwischenablageFreigeben();
+// Abschluss 2, Selbsttest: was der Nutzer in der Zwischenablage hat, sichern und zurueckschreiben -
+// alle Formate, die sich kopieren lassen. Das Zurueckschreiben legt keinen neuen Eintrag in den
+// Windows-Zwischenablageverlauf. Die Nummer (GetClipboardSequenceNumber) aendert sich bei jedem
+// Schreiben, auch von fremden Programmen.
+struct ZwischenablageSicherung {
+    struct Format {
+        unsigned format = 0;
+        std::vector<unsigned char> daten;
+        void* gdi = nullptr;   // CF_BITMAP, CF_ENHMETAFILE: eine eigene Kopie
+    };
+    std::vector<Format> formate;
+};
+bool zwischenablageSichern(ZwischenablageSicherung& s);
+bool zwischenablageZurueck(ZwischenablageSicherung& s);
+unsigned zwischenablageNummer();
 // dock4, Selbsttest: nimmt das Windows-Fenster Dateien an (WS_EX_ACCEPTFILES,
 // DragAcceptFiles)? Nur dann schickt der Explorer beim Loslassen WM_DROPFILES.
 bool nimmtDateien(void* fenster);

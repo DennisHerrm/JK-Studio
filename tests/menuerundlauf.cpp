@@ -15,6 +15,7 @@
 #include "bhed/menue/spieldaten.h"
 #include "bhed/shaderscript.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <map>

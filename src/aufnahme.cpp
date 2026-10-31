@@ -3,6 +3,7 @@
 #include "bhed/aufnahme.h"
 
 #include <cmath>
+#include <cstddef>
 
 namespace bhed {
 namespace {

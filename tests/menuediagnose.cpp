@@ -5,6 +5,7 @@
 #include "bhed/menue/diagnose.h"
 #include "bhed/menue/menue.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <set>
 #include <string>

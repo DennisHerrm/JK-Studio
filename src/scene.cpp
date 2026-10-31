@@ -1130,7 +1130,7 @@ ActorState Actor::at(double ms) const {
         // rc601 (bewegung, Durchsicht 2): auf einem Stueck mit Plan (planeLauf)
         // IST die Gier die des Plans je Denkbild - NPC_UpdateAngles nach
         // STEER::DeActivate mit desiredYaw aus der Geschwindigkeit, nicht die
-        // Richtung des Stuecks. Gemeldet in §8.7: "an Ecken weicht das leicht
+        // Richtung des Stuecks. Gemeldet in Abschnitt 8.7: "an Ecken weicht das leicht
         // ab". Am Ende des Stuecks uebernimmt der Regler den Zustand des Plans
         // (viewangles und desiredYaw) und dreht von dort weiter.
         const ActorStep* planWeg = nullptr;
@@ -1459,7 +1459,7 @@ ActorState Actor::at(double ms) const {
     // Denkbild davor gesetzt hat: kam BS_NOCLIP mitten im Rennen, laeuft
     // BOTH_RUN1 weiter, auch ueber die Ankunft hinaus. Eine Skriptanimation
     // danach (PM_SetAnim aus ICARUS) gilt trotzdem. Bis zur Durchsicht 2 stand
-    // hier die Standanimation (§8.7).
+    // hier die Standanimation (Abschnitt 8.7).
     if (noclipAb >= 0.0 && ms >= noclipAb && beineAbMs < noclipAb && npcFigur) {
         // Das Denkbild, in dem BS_NOCLIP gesetzt wurde, lief noch mit
         // PM_Footsteps (das Skript laeuft am Ende von NPC_Think).

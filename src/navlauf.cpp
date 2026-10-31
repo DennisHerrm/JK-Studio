@@ -3405,7 +3405,7 @@ struct Lauf {
     // clipmask MASK_NPCSOLID, NPC_spawn.cpp:1897, g_active.cpp:11036) an der
     // Wand entlang und steigen Stufen bis step_size hinauf.
     //
-    // Was hier fehlt, steht in NOTIZEN §9: andere Figuren (CONTENTS_BODY
+    // Was hier fehlt, steht in NOTIZEN Abschnitt 9: andere Figuren (CONTENTS_BODY
     // kennt die Spur nicht), Patches, und das Fallen ueber mehr als eine
     // Stufe (der Plan haelt dann die Hoehe; gezeichnet wird die Schwerkraft).
     // rc601 (bewegung, teil 3): "Falling more than one step inside the walk

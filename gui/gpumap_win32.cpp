@@ -1574,7 +1574,12 @@ ID3D11ShaderResourceView* g_ersatzBild = nullptr;
 ID3D11Texture2D* g_modellTex = nullptr;
 ID3D11RenderTargetView* g_modellRtv = nullptr;
 bool g_menueZielAktiv = false;   // Menue-Editor M2: zeichneMenueFigur hat sein Ziel gebunden
-ID3D11DepthStencilView* g_menueTiefe = nullptr;   // dessen Tiefe und Groesse (zeichneMenueKlingen)
+// dessen Tiefe und Groesse (zeichneMenueKlingen). Die Tiefe ist nur geliehen, solange die Klingen zeichnen:
+// sie gehoert dem Ziel (gibMenueZielFrei), hier wird nichts freigegeben.
+struct MenueTiefeGeliehen {
+    ID3D11DepthStencilView* dsv = nullptr;
+};
+MenueTiefeGeliehen g_menueTiefe;
 int g_menueW = 0, g_menueH = 0;
 ID3D11ShaderResourceView* g_modellSrv = nullptr;
 ID3D11Texture2D* g_modellTiefeTex = nullptr;
@@ -5377,7 +5382,7 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
     if (quads.empty()) {
         return 0;
     }
-    ID3D11DepthStencilView* const tiefe = g_menueZielAktiv ? g_menueTiefe : g_tiefeDsv;
+    ID3D11DepthStencilView* const tiefe = g_menueZielAktiv ? g_menueTiefe.dsv : g_tiefeDsv;
     if (d == nullptr || c == nullptr || viewProj == nullptr || (g_zielRtv == nullptr && !g_menueZielAktiv) ||
         tiefe == nullptr || g_cbBild == nullptr) {
         if (fehler != nullptr) { *fehler = "Klingen: kein Ziel"; }
@@ -5845,22 +5850,22 @@ int zeichneMenueFigur(int nr, const GlmModel& model, const ModelTextures* textur
         ID3DBlob* vs = uebersetze(kMenueAlphaVs, "vs_4_0", "menuealpha", fehler);
         ID3DBlob* ps = uebersetze(kMenueAlphaPs, "ps_4_0", "menuealpha", fehler);
         if (vs != nullptr) {
-            d->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, &g_menueAlphaVs);
+            if (g_menueAlphaVs == nullptr) { d->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, &g_menueAlphaVs); }
             vs->Release();
         }
         if (ps != nullptr) {
-            d->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, &g_menueAlphaPs);
+            if (g_menueAlphaPs == nullptr) { d->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, &g_menueAlphaPs); }
             ps->Release();
         }
         D3D11_BLEND_DESC bd{};
         bd.RenderTarget[0].BlendEnable = FALSE;
         bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALPHA;
-        d->CreateBlendState(&bd, &g_menueAlphaMisch);
+        if (g_menueAlphaMisch == nullptr) { d->CreateBlendState(&bd, &g_menueAlphaMisch); }
         D3D11_DEPTH_STENCIL_DESC ds{};
         ds.DepthEnable = TRUE;
         ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
         ds.DepthFunc = D3D11_COMPARISON_GREATER;
-        d->CreateDepthStencilState(&ds, &g_menueAlphaTiefe);
+        if (g_menueAlphaTiefe == nullptr) { d->CreateDepthStencilState(&ds, &g_menueAlphaTiefe); }
     }
     if (g_menueAlphaVs != nullptr && g_menueAlphaPs != nullptr && g_menueAlphaMisch != nullptr && g_menueAlphaTiefe != nullptr) {
         c->IASetInputLayout(nullptr);
@@ -5897,12 +5902,12 @@ int zeichneMenueKlingen(int nr, const std::vector<KlingenQuad>& quads, const flo
         c->ClearDepthStencilView(z.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     }
     g_menueZielAktiv = true;
-    g_menueTiefe = tiefe;
+    g_menueTiefe.dsv = tiefe;
     g_menueW = z.w;
     g_menueH = z.h;
     const int n = zeichneKlingenIn(quads, viewProj, fehler, z.rtv);
     g_menueZielAktiv = false;
-    g_menueTiefe = nullptr;
+    g_menueTiefe.dsv = nullptr;
     return n;
 }
 
@@ -5994,6 +5999,10 @@ void shutdown() {
     gibNebelFrei();
     // Ausgeschrieben fuer lint_d3dbesitz (die drei Aufrufe darueber haben
     // schon genullt).
+    if (g_menueAlphaVs != nullptr) { g_menueAlphaVs->Release(); g_menueAlphaVs = nullptr; }
+    if (g_menueAlphaPs != nullptr) { g_menueAlphaPs->Release(); g_menueAlphaPs = nullptr; }
+    if (g_menueAlphaMisch != nullptr) { g_menueAlphaMisch->Release(); g_menueAlphaMisch = nullptr; }
+    if (g_menueAlphaTiefe != nullptr) { g_menueAlphaTiefe->Release(); g_menueAlphaTiefe = nullptr; }
     if (g_lichtVs != nullptr) { g_lichtVs->Release(); g_lichtVs = nullptr; }
     if (g_lichtPs != nullptr) { g_lichtPs->Release(); g_lichtPs = nullptr; }
     if (g_schattenPs != nullptr) { g_schattenPs->Release(); g_schattenPs = nullptr; }
@@ -6067,6 +6076,7 @@ void shutdown() {
     g_figuren.clear();
     texWegMelden = nullptr;   // reste2 Punkt 2: danach hoert niemand mehr zu
     figurBilderAllesLoesen();
+    g_figurBilder.clear();   // ausgeschrieben fuer lint_d3dbesitz (figurBilderAllesLoesen hat freigegeben)
     ++g_geraetGeneration;   // rc603: gemerkte Zustaende der Figurstufen ungueltig
     if (g_cbFigur != nullptr) { g_cbFigur->Release(); g_cbFigur = nullptr; }
     if (g_cbStufe != nullptr) { g_cbStufe->Release(); g_cbStufe = nullptr; }

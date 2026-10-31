@@ -101,9 +101,9 @@ bool istFremdBuchstabe(unsigned cp) { return cp >= 0xC0U && cp < 0x3000U && cp !
 // Lateinische Buchstaben mit Akzent (Latin-1 U+00C0..U+00FF, Latin
 // Extended-A U+0100..U+017F) auf ihren Grundbuchstaben: Spanisch (n mit
 // Tilde, a/e/i/o/u mit Akut), Tschechisch (e/u mit Ring/Hacek, c, s, r, z, d,
-// t, n mit Hacek) ... - "animacion" und "animación" sind dasselbe Wort, wie
+// t, n mit Hacek) ... - "animacion" und "animacion" sind dasselbe Wort, wie
 // im Handbuch (handbuch.js). 0 = kein einzelner Grundbuchstabe (ae, oe, ue
-// und ss faltet zerlegeText vorher; Zeichen wie x/÷ sind keine Buchstaben).
+// und ss faltet zerlegeText vorher; Zeichen wie x// sind keine Buchstaben).
 char grundBuchstabe(unsigned cp) {
     static constexpr char kLatein1[] = "aaaa?a?ceeeeiiiidnoooo??ouuu?y??aaaa?a?ceeeeiiiidnoooo??ouuu?y?y";
     static constexpr char kErweitertA[] =
@@ -441,7 +441,7 @@ void kettenText(const std::string& kette, i18n::Language sp, std::string& pfad, 
 
 std::string ersterSatz(const std::string& t, std::size_t hoechstens = 220) {
     std::string s = t;
-    for (const char* ende : {". ", "。", "! ", "? "}) {
+    for (const char* ende : {". ", "\xe3\x80\x82", "! ", "? "}) {
         const std::size_t p = s.find(ende);
         if (p != std::string::npos && p > 10) { s.resize(p + std::char_traits<char>::length(ende)); }
     }

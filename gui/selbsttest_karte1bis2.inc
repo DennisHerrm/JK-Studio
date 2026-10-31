@@ -2716,14 +2716,12 @@ std::vector<Schritt> karteneditorKonsoleSchritte() {
                finde(std::string(ke::trK(Str::KeKoClear)) + "##konsoleclear", "", 0, false) != nullptr;
     }));
     add(foto("karteneditor_konsole_menue"));
-    add(ablageBelegen());
     add(klick(std::string(ke::trK(Str::KeKoCopy)) + "##konsolecopy"));
     add(pause(0.2));
     add(pruefe("Copy: \"Open\" in der Zwischenablage", [] {
         const char* c = ImGui::GetClipboardText();
         return c != nullptr && std::string(c) == "Open";
     }));
-    add(ablageFreigeben());
     add({"Rechtsklick in die Konsole", [](int b) {
              static Schritt k;
              if (b == 0) {
@@ -2760,14 +2758,12 @@ std::vector<Schritt> karteneditorKonsoleSchritte() {
              return k.tun(b);
          }});
     add(pause(0.2));
-    add(ablageBelegen());
     add(klick(std::string(ke::trK(Str::KeKoCopyAll)) + "##konsolecopyall"));
     add(pause(0.2));
     add(pruefe("Copy All: der ganze Text (toPlainText)", [] {
         const char* c = ImGui::GetClipboardText();
         return c != nullptr && std::string(c).rfind("Open file x for read...failure\nzwei\nZeilen\nwort0 ", 0) == 0;
     }));
-    add(ablageFreigeben());
     add({"Rechtsklick in die Konsole", [](int b) {
              static Schritt k;
              if (b == 0) {

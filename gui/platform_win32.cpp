@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <cctype>
 #include <cwchar>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -685,6 +686,90 @@ bool zwischenablageSperren() {
 void zwischenablageFreigeben() {
     if (g_ablageSperre != nullptr) { (void)ReleaseMutex(g_ablageSperre); }
 }
+
+namespace {
+// Ein anderes Programm kann sie gerade offen haben (nur Millisekunden).
+bool ablageOeffnen() {
+    for (int versuch = 0; versuch < 50; ++versuch) {
+        if (OpenClipboard(nullptr) != 0) { return true; }
+        Sleep(10);
+    }
+    return false;
+}
+}  // namespace
+
+bool zwischenablageSichern(ZwischenablageSicherung& s) {
+    s.formate.clear();
+    if (!ablageOeffnen()) { return false; }
+    for (UINT f = EnumClipboardFormats(0); f != 0; f = EnumClipboardFormats(f)) {
+        ZwischenablageSicherung::Format z;
+        z.format = f;
+        if (f == CF_BITMAP) {
+            z.gdi = CopyImage(GetClipboardData(f), IMAGE_BITMAP, 0, 0, 0);
+            if (z.gdi == nullptr) { continue; }
+        } else if (f == CF_ENHMETAFILE) {
+            z.gdi = CopyEnhMetaFileW(static_cast<HENHMETAFILE>(GetClipboardData(f)), nullptr);
+            if (z.gdi == nullptr) { continue; }
+        } else if (f == CF_PALETTE || f == CF_METAFILEPICT || f == CF_OWNERDISPLAY || f == CF_DSPBITMAP || f == CF_DSPMETAFILEPICT ||
+                   f == CF_DSPENHMETAFILE) {
+            continue;   // keine einfachen Speicherbloecke; Windows leitet sie aus den uebrigen Formaten ab
+        } else {
+            HANDLE h = GetClipboardData(f);
+            const void* p = h != nullptr ? GlobalLock(h) : nullptr;
+            if (p == nullptr) { continue; }
+            z.daten.resize(GlobalSize(h));
+            std::memcpy(z.daten.data(), p, z.daten.size());
+            GlobalUnlock(h);
+        }
+        s.formate.push_back(std::move(z));
+    }
+    CloseClipboard();
+    return true;
+}
+
+bool zwischenablageZurueck(ZwischenablageSicherung& s) {
+    if (!ablageOeffnen()) { return false; }
+    EmptyClipboard();
+    bool gut = true;
+    for (ZwischenablageSicherung::Format& z : s.formate) {
+        if (z.gdi != nullptr) {
+            if (SetClipboardData(z.format, z.gdi) != nullptr) {
+                z.gdi = nullptr;   // gehoert jetzt der Zwischenablage
+            } else {
+                gut = false;
+            }
+            continue;
+        }
+        HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, z.daten.size());
+        void* p = g != nullptr ? GlobalLock(g) : nullptr;
+        if (p == nullptr) {
+            if (g != nullptr) { GlobalFree(g); }
+            gut = false;
+            continue;
+        }
+        std::memcpy(p, z.daten.data(), z.daten.size());
+        GlobalUnlock(g);
+        if (SetClipboardData(z.format, g) == nullptr) {
+            GlobalFree(g);
+            gut = false;
+        }
+    }
+    // Das Zurueckschreiben ist nichts Neues fuer den Verlauf (Win+V) und die Cloud
+    for (const wchar_t* name : {L"CanIncludeInClipboardHistory", L"CanUploadToCloudClipboard"}) {
+        const UINT f = RegisterClipboardFormatW(name);
+        HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
+        void* p = g != nullptr ? GlobalLock(g) : nullptr;
+        if (p != nullptr) {
+            *static_cast<DWORD*>(p) = 0;
+            GlobalUnlock(g);
+            if (SetClipboardData(f, g) == nullptr) { GlobalFree(g); }
+        }
+    }
+    CloseClipboard();
+    return gut;
+}
+
+unsigned zwischenablageNummer() { return GetClipboardSequenceNumber(); }
 
 bool fensterLageSetzen(void* fenster, int x, int y, int b, int h) {
     return fenster != nullptr &&

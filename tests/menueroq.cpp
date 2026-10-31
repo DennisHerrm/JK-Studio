@@ -18,7 +18,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <random>
 #include <string>
 #include <vector>

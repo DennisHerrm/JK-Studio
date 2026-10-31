@@ -12,6 +12,7 @@
 #include "bhed/menue/skript.h"
 #include "bhed/menue/vorschau.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <string>

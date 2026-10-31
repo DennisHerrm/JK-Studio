@@ -154,8 +154,8 @@ int main() {
     }
 
     // uebersetzung1: Pluralformen nach CLDR. Tschechisch hat drei (1 soubor,
-    // 2-4 soubory, 5+ souborů), Englisch, Deutsch, Spanisch zwei, Chinesisch
-    // und Japanisch eine; vorher stand "%d souborů" auch fuer 2 bis 4.
+    // 2-4 soubory, 5+ souboru), Englisch, Deutsch, Spanisch zwei, Chinesisch
+    // und Japanisch eine; vorher stand "%d souboru" auch fuer 2 bis 4.
     {
         using bhed::i18n::Str;
         using bhed::i18n::pluralForm;

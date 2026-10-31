@@ -911,7 +911,7 @@ int navMoverTraegt(const NavMoverPlan& mp, int entity, double vonMs, double bisM
 // rc601 (bewegung, teil 3): Movie Duels oder reines JKA (OpenJK)? Der
 // Betreuer will beide Regelwerke; rc601 integ: gesetzt vom zentralen Schalter
 // (bhed/regelwerk.h, regelwerkAnwenden) - ohne ihn Movie Duels. Wo beide Quellen gleich sind, gilt der
-// Schalter nicht; die Tabelle steht in NOTIZEN_bewegung.md §10.
+// Schalter nicht; die Tabelle steht in NOTIZEN_bewegung.md Abschnitt 10.
 void navMovieDuelsRegeln(bool an);
 [[nodiscard]] bool navMovieDuelsRegeln();
 // rc604 fix604 (JK2 Stufe 3): Jedi Outcast - NPC_MoveToGoal mit dem alten

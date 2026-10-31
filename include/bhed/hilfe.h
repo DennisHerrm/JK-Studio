@@ -19,7 +19,7 @@
 // werden klein geschrieben, Umlaute gefaltet (ae, oe, ue, ss) und grob
 // gestutzt (Kameras -> kamera); CJK zaehlt als Einzel- und Doppelzeichen.
 // Begriffe (src/hilfe_daten.inc, BEGRIFFE) verbinden Woerter ueber die
-// Sprachen: "Kamerafahrt", "camera path", "镜头" und "カメラ" tragen alle den
+// Sprachen: "Kamerafahrt", "camera path" und die Woerter auf Chinesisch und Japanisch tragen alle den
 // Begriff @kamera - so findet eine deutsche Frage auch einen englischen Text.
 //
 // Rein (ohne Oberflaeche), geprueft in tests/hilfetest.cpp: mindestens 60
@@ -64,7 +64,7 @@ struct Treffer {
 };
 
 // Ein Wort-Zerleger fuer Index und Frage. Liefert die Woerter und die
-// Begriffe ("@kamera"). Akzente werden gefaltet (animación -> animacion);
+// Begriffe ("@kamera"). Akzente werden gefaltet (animacion -> animacion);
 // Stoppwoerter, Endungen und Begriffe haengen von der Sprache ab (die vier
 // ersten teilen sich eine Liste, die weiteren ergaenzen sie:
 // src/hilfe_sprache_<kurz>.inc). Ohne Sprache: Englisch.

@@ -2389,7 +2389,7 @@ Language currentLanguage();
 void setLanguage(Language language);
 
 // uebersetzung1: Zaehltexte. Richtet sich ein Wort nach einer Zahl ("1 file",
-// "2 files"; cs "1 soubor", "2 soubory", "5 souborů"), stehen seine Formen im
+// "2 files"; cs "1 soubor", "2 soubory", "5 souboru"), stehen seine Formen im
 // Text (tools/gen_i18n.py, Abschnitt Zaehltexte), und trN waehlt sie nach den
 // Zahlen - in der Reihenfolge, in der der Aufruf sie nennt, nach der
 // CLDR-Regel der Sprache, deren Text es ist (fehlt einer Sprache der Text:

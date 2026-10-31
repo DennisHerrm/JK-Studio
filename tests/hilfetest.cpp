@@ -49,31 +49,31 @@ void woerterProben() {
     expect("Texturen -> textur", hat(a, "textur"));
     expect("Kamerafahrt traegt @kamera und @fahrt", hat(a, "@kamera") && hat(a, "@fahrt"));
     expect("Texturen traegt @textur", hat(a, "@textur"));
-    const std::vector<std::string> b = bhed::hilfe::woerter("Größe ändern für Türen");
+    const std::vector<std::string> b = bhed::hilfe::woerter("Gr\xc3\xb6\xc3\x9f" "e \xc3\xa4ndern f\xc3\xbcr T\xc3\xbcren");
     expect("Umlaute gefaltet und gestutzt: groess, aend, tuer", hat(b, "groess") && hat(b, "aend") && hat(b, "tuer"));
     expect("Tueren -> @tuer", hat(b, "@tuer"));
-    const std::vector<std::string> c = bhed::hilfe::woerter("制作镜头运动");
-    expect("CJK: Einzel- und Doppelzeichen", hat(c, "镜") && hat(c, "镜头") && hat(c, "运动"));
-    expect("CJK: 镜头 -> @kamera", hat(c, "@kamera"));
-    const std::vector<std::string> d = bhed::hilfe::woerter("カメラワークを作る");
-    expect("Katakana: カメラ -> @kamera, 作る -> @neu", hat(d, "@kamera") && hat(d, "@neu"));
+    const std::vector<std::string> c = bhed::hilfe::woerter("\xe5\x88\xb6\xe4\xbd\x9c\xe9\x95\x9c\xe5\xa4\xb4\xe8\xbf\x90\xe5\x8a\xa8");
+    expect("CJK: Einzel- und Doppelzeichen", hat(c, "\xe9\x95\x9c") && hat(c, "\xe9\x95\x9c\xe5\xa4\xb4") && hat(c, "\xe8\xbf\x90\xe5\x8a\xa8"));
+    expect("CJK: \xe9\x95\x9c\xe5\xa4\xb4 -> @kamera", hat(c, "@kamera"));
+    const std::vector<std::string> d = bhed::hilfe::woerter("\xe3\x82\xab\xe3\x83\xa1\xe3\x83\xa9\xe3\x83\xaf\xe3\x83\xbc\xe3\x82\xaf\xe3\x82\x92\xe4\xbd\x9c\xe3\x82\x8b");
+    expect("Katakana: \xe3\x82\xab\xe3\x83\xa1\xe3\x83\xa9 -> @kamera, \xe4\xbd\x9c\xe3\x82\x8b -> @neu", hat(d, "@kamera") && hat(d, "@neu"));
     const std::vector<std::string> e = bhed::hilfe::woerter("camera path");
     expect("camera path -> @fahrt (zwei Woerter)", hat(e, "@fahrt"));
     expect("leer -> nichts", bhed::hilfe::woerter("   ").empty());
     // Weitere Sprachen: Akzente gefaltet (wie die Suche im Handbuch), Stoppwoerter
     // und Endungen der Sprache (src/hilfe_sprache_<kurz>.inc).
     using L = bhed::i18n::Language;
-    expect("Akzente: Animación = animacion (Spanisch)",
-           bhed::hilfe::woerter("Animación", L::Spanish) == bhed::hilfe::woerter("animacion", L::Spanish));
-    expect("Akzente: Čeština = cestina, Ěščřžýáíéůúďťň = escrzyaieuudtn (Tschechisch)",
-           bhed::hilfe::woerter("Čeština", L::Czech) == bhed::hilfe::woerter("cestina", L::Czech) &&
-               bhed::hilfe::woerter("Ěščřžýáíéůúďťň", L::Czech) == bhed::hilfe::woerter("escrzyaieuudtn", L::Czech));
-    expect("Akzente: ñ -> n, á é í ó ú -> a e i o u",
-           bhed::hilfe::woerter("Año cámara tránsito", L::Spanish) == bhed::hilfe::woerter("ano camara transito", L::Spanish));
-    const std::vector<std::string> es = bhed::hilfe::woerter("¿Cómo hago una animación con las texturas?", L::Spanish);
+    expect("Akzente: Animaci\xc3\xb3n = animacion (Spanisch)",
+           bhed::hilfe::woerter("Animaci\xc3\xb3n", L::Spanish) == bhed::hilfe::woerter("animacion", L::Spanish));
+    expect("Akzente: \xc4\x8c" "e\xc5\xa1tina = cestina, \xc4\x9a\xc5\xa1\xc4\x8d\xc5\x99\xc5\xbe\xc3\xbd\xc3\xa1\xc3\xad\xc3\xa9\xc5\xaf\xc3\xba\xc4\x8f\xc5\xa5\xc5\x88 = escrzyaieuudtn (Tschechisch)",
+           bhed::hilfe::woerter("\xc4\x8c" "e\xc5\xa1tina", L::Czech) == bhed::hilfe::woerter("cestina", L::Czech) &&
+               bhed::hilfe::woerter("\xc4\x9a\xc5\xa1\xc4\x8d\xc5\x99\xc5\xbe\xc3\xbd\xc3\xa1\xc3\xad\xc3\xa9\xc5\xaf\xc3\xba\xc4\x8f\xc5\xa5\xc5\x88", L::Czech) == bhed::hilfe::woerter("escrzyaieuudtn", L::Czech));
+    expect("Akzente: \xc3\xb1 -> n, \xc3\xa1 \xc3\xa9 \xc3\xad \xc3\xb3 \xc3\xba -> a e i o u",
+           bhed::hilfe::woerter("A\xc3\xb1o c\xc3\xa1mara tr\xc3\xa1nsito", L::Spanish) == bhed::hilfe::woerter("ano camara transito", L::Spanish));
+    const std::vector<std::string> es = bhed::hilfe::woerter("\xc2\xbf" "C\xc3\xb3mo hago una animaci\xc3\xb3n con las texturas?", L::Spanish);
     expect("Spanisch: Stoppwoerter fallen weg (como, hago, una, con, las)",
            !hat(es, "como") && !hat(es, "hago") && !hat(es, "una") && !hat(es, "con") && !hat(es, "las"));
-    expect("Spanisch: animación, animaciones, animar, animado -> anim",
+    expect("Spanisch: animaci\xc3\xb3n, animaciones, animar, animado -> anim",
            hat(es, "anim") && hat(bhed::hilfe::woerter("animaciones", L::Spanish), "anim") &&
                hat(bhed::hilfe::woerter("animar", L::Spanish), "anim") && hat(bhed::hilfe::woerter("animado", L::Spanish), "anim"));
     expect("Spanisch: textura, texturas -> textur (wie texture)",
@@ -164,19 +164,19 @@ const Frage kFragen[] = {
     {"de", "Optimierer benutzen", "tour:tut-karte@11|seite:karte_optimierer|ort:menue:KeLBuild>KeOptMenue"},
     {"de", "Im Editor durch die Karte laufen", "tour:tut-karte@13|ort:menue:KeLView>KeSpMenue"},
     {"de", "Erstes Skript schreiben", "tour:k-neues-skript"},
-    {"de", "Skript in eine ibi übersetzen", "tour:k-uebersetzen|seite:k-ibi"},
-    {"de", "Befehl einfügen", "tour:k-befehl-einfuegen"},
-    {"de", "Kamerafahrt für eine Zwischensequenz", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"de", "Skript in eine ibi \xc3\xbc" "bersetzen", "tour:k-uebersetzen|seite:k-ibi"},
+    {"de", "Befehl einf\xc3\xbcgen", "tour:k-befehl-einfuegen"},
+    {"de", "Kamerafahrt f\xc3\xbcr eine Zwischensequenz", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
     {"de", "NPC zu einem Wegpunkt laufen lassen", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
     {"de", "Wo finde ich die Einstellungen?", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen|tour:k-spielordner@3"},
     {"de", "Sprache auf Englisch umstellen", "ort:menue:MenuView>ViewLanguage"},
     {"de", "Gibt es eine neue Version?", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck"},
-    {"de", "Modell öffnen", "ort:menue:MenuFile>OpenGlm|ort:knopf:OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
+    {"de", "Modell \xc3\xb6" "ffnen", "ort:menue:MenuFile>OpenGlm|ort:knopf:OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
     {"de", "Mission laden", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
-    {"de", "Tastenkürzel ändern", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
-    {"de", "Raum aushöhlen", "tour:tut-karte@5"},
+    {"de", "Tastenk\xc3\xbcrzel \xc3\xa4ndern", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
+    {"de", "Raum aush\xc3\xb6hlen", "tour:tut-karte@5"},
     {"de", "Dunkles Design einschalten", "ort:menue:MenuView>ViewTheme"},
-    {"de", "Rückgängig machen", "seite:k-rueckgaengig|ort:menue:MenuEdit|ort:menue:KeLEdit>KeLUndo"},
+    {"de", "R\xc3\xbc" "ckg\xc3\xa4ngig machen", "seite:k-rueckgaengig|ort:menue:MenuEdit|ort:menue:KeLEdit>KeLUndo"},
     // --- English ---
     {"en", "How do I make my first map?", "tour:tut-karte"},
     {"en", "apply a texture to a brush", "tour:tut-karte@4|tour:tut-karte@6"},
@@ -199,74 +199,74 @@ const Frage kFragen[] = {
     {"en", "change keyboard shortcuts", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"en", "hollow out a room", "tour:tut-karte@5"},
     {"en", "the text is too small", "ort:menue:MenuView>ViewDpiScale"},
-    // --- 中文 ---
-    {"zh", "怎么制作第一张地图", "tour:tut-karte"},
-    {"zh", "给画刷应用纹理", "tour:tut-karte@4|tour:tut-karte@6"},
-    {"zh", "添加灯光", "tour:tut-karte@7"},
-    {"zh", "设置玩家出生点", "tour:tut-karte@8"},
-    {"zh", "编译地图", "tour:tut-karte@12|seite:karteneditor_bauen|seite:karte_bauen"},
-    {"zh", "把地图打包成pk3", "tour:tut-karte@14|ort:menue:KeLBuild>KePkMenue"},
-    {"zh", "使用优化器", "tour:tut-karte@11|seite:karte_optimierer|ort:menue:KeLBuild>KeOptMenue"},
-    {"zh", "在编辑器中试玩地图", "tour:tut-karte@13|ort:menue:KeLView>KeSpMenue"},
-    {"zh", "写第一个脚本", "tour:k-neues-skript"},
-    {"zh", "编译脚本", "tour:k-uebersetzen|seite:k-ibi"},
-    {"zh", "插入命令", "tour:k-befehl-einfuegen"},
-    {"zh", "制作过场动画的镜头运动", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
-    {"zh", "让NPC走到路径点", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
-    {"zh", "打开设置", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
-    {"zh", "更改语言", "ort:menue:MenuView>ViewLanguage"},
-    {"zh", "检查更新", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
-    {"zh", "打开模型", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
-    {"zh", "载入任务", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
-    {"zh", "修改快捷键", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
-    {"zh", "挖空房间", "tour:tut-karte@5"},
-    // --- 日本語 ---
-    {"ja", "初めてのマップを作るには", "tour:tut-karte"},
-    {"ja", "ブラシにテクスチャを貼る", "tour:tut-karte@4|tour:tut-karte@6"},
-    {"ja", "ライトを置く", "tour:tut-karte@7"},
-    {"ja", "スポーン地点を設定", "tour:tut-karte@8"},
-    {"ja", "マップをビルドする", "tour:tut-karte@12|seite:karteneditor_bauen|seite:karte_bauen"},
-    {"ja", "マップをpk3にパックする", "tour:tut-karte@14|ort:menue:KeLBuild>KePkMenue"},
-    {"ja", "最適化ツールを使う", "tour:tut-karte@11|seite:karte_optimierer|ort:menue:KeLBuild>KeOptMenue"},
-    {"ja", "エディターでマップを歩き回る", "tour:tut-karte@13|ort:menue:KeLView>KeSpMenue"},
-    {"ja", "最初のスクリプトを書く", "tour:k-neues-skript"},
-    {"ja", "スクリプトをコンパイル", "tour:k-uebersetzen|seite:k-ibi"},
-    {"ja", "コマンドを挿入する", "tour:k-befehl-einfuegen"},
-    {"ja", "カットシーンのカメラワークを作る", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
-    {"ja", "NPCをウェイポイントまで歩かせる", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
-    {"ja", "設定を開く", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
-    {"ja", "言語を変更する", "ort:menue:MenuView>ViewLanguage"},
-    {"ja", "アップデートを確認", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
-    {"ja", "モデルを開く", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
-    {"ja", "ミッションを読み込む", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
-    {"ja", "ショートカットを変更", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
-    {"ja", "部屋を中空にする", "tour:tut-karte@5"},
+    // --- Chinesisch ---
+    {"zh", "\xe6\x80\x8e\xe4\xb9\x88\xe5\x88\xb6\xe4\xbd\x9c\xe7\xac\xac\xe4\xb8\x80\xe5\xbc\xa0\xe5\x9c\xb0\xe5\x9b\xbe", "tour:tut-karte"},
+    {"zh", "\xe7\xbb\x99\xe7\x94\xbb\xe5\x88\xb7\xe5\xba\x94\xe7\x94\xa8\xe7\xba\xb9\xe7\x90\x86", "tour:tut-karte@4|tour:tut-karte@6"},
+    {"zh", "\xe6\xb7\xbb\xe5\x8a\xa0\xe7\x81\xaf\xe5\x85\x89", "tour:tut-karte@7"},
+    {"zh", "\xe8\xae\xbe\xe7\xbd\xae\xe7\x8e\xa9\xe5\xae\xb6\xe5\x87\xba\xe7\x94\x9f\xe7\x82\xb9", "tour:tut-karte@8"},
+    {"zh", "\xe7\xbc\x96\xe8\xaf\x91\xe5\x9c\xb0\xe5\x9b\xbe", "tour:tut-karte@12|seite:karteneditor_bauen|seite:karte_bauen"},
+    {"zh", "\xe6\x8a\x8a\xe5\x9c\xb0\xe5\x9b\xbe\xe6\x89\x93\xe5\x8c\x85\xe6\x88\x90pk3", "tour:tut-karte@14|ort:menue:KeLBuild>KePkMenue"},
+    {"zh", "\xe4\xbd\xbf\xe7\x94\xa8\xe4\xbc\x98\xe5\x8c\x96\xe5\x99\xa8", "tour:tut-karte@11|seite:karte_optimierer|ort:menue:KeLBuild>KeOptMenue"},
+    {"zh", "\xe5\x9c\xa8\xe7\xbc\x96\xe8\xbe\x91\xe5\x99\xa8\xe4\xb8\xad\xe8\xaf\x95\xe7\x8e\xa9\xe5\x9c\xb0\xe5\x9b\xbe", "tour:tut-karte@13|ort:menue:KeLView>KeSpMenue"},
+    {"zh", "\xe5\x86\x99\xe7\xac\xac\xe4\xb8\x80\xe4\xb8\xaa\xe8\x84\x9a\xe6\x9c\xac", "tour:k-neues-skript"},
+    {"zh", "\xe7\xbc\x96\xe8\xaf\x91\xe8\x84\x9a\xe6\x9c\xac", "tour:k-uebersetzen|seite:k-ibi"},
+    {"zh", "\xe6\x8f\x92\xe5\x85\xa5\xe5\x91\xbd\xe4\xbb\xa4", "tour:k-befehl-einfuegen"},
+    {"zh", "\xe5\x88\xb6\xe4\xbd\x9c\xe8\xbf\x87\xe5\x9c\xba\xe5\x8a\xa8\xe7\x94\xbb\xe7\x9a\x84\xe9\x95\x9c\xe5\xa4\xb4\xe8\xbf\x90\xe5\x8a\xa8", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"zh", "\xe8\xae\xa9NPC\xe8\xb5\xb0\xe5\x88\xb0\xe8\xb7\xaf\xe5\xbe\x84\xe7\x82\xb9", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
+    {"zh", "\xe6\x89\x93\xe5\xbc\x80\xe8\xae\xbe\xe7\xbd\xae", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
+    {"zh", "\xe6\x9b\xb4\xe6\x94\xb9\xe8\xaf\xad\xe8\xa8\x80", "ort:menue:MenuView>ViewLanguage"},
+    {"zh", "\xe6\xa3\x80\xe6\x9f\xa5\xe6\x9b\xb4\xe6\x96\xb0", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
+    {"zh", "\xe6\x89\x93\xe5\xbc\x80\xe6\xa8\xa1\xe5\x9e\x8b", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
+    {"zh", "\xe8\xbd\xbd\xe5\x85\xa5\xe4\xbb\xbb\xe5\x8a\xa1", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
+    {"zh", "\xe4\xbf\xae\xe6\x94\xb9\xe5\xbf\xab\xe6\x8d\xb7\xe9\x94\xae", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
+    {"zh", "\xe6\x8c\x96\xe7\xa9\xba\xe6\x88\xbf\xe9\x97\xb4", "tour:tut-karte@5"},
+    // --- Japanisch ---
+    {"ja", "\xe5\x88\x9d\xe3\x82\x81\xe3\x81\xa6\xe3\x81\xae\xe3\x83\x9e\xe3\x83\x83\xe3\x83\x97\xe3\x82\x92\xe4\xbd\x9c\xe3\x82\x8b\xe3\x81\xab\xe3\x81\xaf", "tour:tut-karte"},
+    {"ja", "\xe3\x83\x96\xe3\x83\xa9\xe3\x82\xb7\xe3\x81\xab\xe3\x83\x86\xe3\x82\xaf\xe3\x82\xb9\xe3\x83\x81\xe3\x83\xa3\xe3\x82\x92\xe8\xb2\xbc\xe3\x82\x8b", "tour:tut-karte@4|tour:tut-karte@6"},
+    {"ja", "\xe3\x83\xa9\xe3\x82\xa4\xe3\x83\x88\xe3\x82\x92\xe7\xbd\xae\xe3\x81\x8f", "tour:tut-karte@7"},
+    {"ja", "\xe3\x82\xb9\xe3\x83\x9d\xe3\x83\xbc\xe3\x83\xb3\xe5\x9c\xb0\xe7\x82\xb9\xe3\x82\x92\xe8\xa8\xad\xe5\xae\x9a", "tour:tut-karte@8"},
+    {"ja", "\xe3\x83\x9e\xe3\x83\x83\xe3\x83\x97\xe3\x82\x92\xe3\x83\x93\xe3\x83\xab\xe3\x83\x89\xe3\x81\x99\xe3\x82\x8b", "tour:tut-karte@12|seite:karteneditor_bauen|seite:karte_bauen"},
+    {"ja", "\xe3\x83\x9e\xe3\x83\x83\xe3\x83\x97\xe3\x82\x92pk3\xe3\x81\xab\xe3\x83\x91\xe3\x83\x83\xe3\x82\xaf\xe3\x81\x99\xe3\x82\x8b", "tour:tut-karte@14|ort:menue:KeLBuild>KePkMenue"},
+    {"ja", "\xe6\x9c\x80\xe9\x81\xa9\xe5\x8c\x96\xe3\x83\x84\xe3\x83\xbc\xe3\x83\xab\xe3\x82\x92\xe4\xbd\xbf\xe3\x81\x86", "tour:tut-karte@11|seite:karte_optimierer|ort:menue:KeLBuild>KeOptMenue"},
+    {"ja", "\xe3\x82\xa8\xe3\x83\x87\xe3\x82\xa3\xe3\x82\xbf\xe3\x83\xbc\xe3\x81\xa7\xe3\x83\x9e\xe3\x83\x83\xe3\x83\x97\xe3\x82\x92\xe6\xad\xa9\xe3\x81\x8d\xe5\x9b\x9e\xe3\x82\x8b", "tour:tut-karte@13|ort:menue:KeLView>KeSpMenue"},
+    {"ja", "\xe6\x9c\x80\xe5\x88\x9d\xe3\x81\xae\xe3\x82\xb9\xe3\x82\xaf\xe3\x83\xaa\xe3\x83\x97\xe3\x83\x88\xe3\x82\x92\xe6\x9b\xb8\xe3\x81\x8f", "tour:k-neues-skript"},
+    {"ja", "\xe3\x82\xb9\xe3\x82\xaf\xe3\x83\xaa\xe3\x83\x97\xe3\x83\x88\xe3\x82\x92\xe3\x82\xb3\xe3\x83\xb3\xe3\x83\x91\xe3\x82\xa4\xe3\x83\xab", "tour:k-uebersetzen|seite:k-ibi"},
+    {"ja", "\xe3\x82\xb3\xe3\x83\x9e\xe3\x83\xb3\xe3\x83\x89\xe3\x82\x92\xe6\x8c\xbf\xe5\x85\xa5\xe3\x81\x99\xe3\x82\x8b", "tour:k-befehl-einfuegen"},
+    {"ja", "\xe3\x82\xab\xe3\x83\x83\xe3\x83\x88\xe3\x82\xb7\xe3\x83\xbc\xe3\x83\xb3\xe3\x81\xae\xe3\x82\xab\xe3\x83\xa1\xe3\x83\xa9\xe3\x83\xaf\xe3\x83\xbc\xe3\x82\xaf\xe3\x82\x92\xe4\xbd\x9c\xe3\x82\x8b", "tour:k-kamera-ansicht@|seite:k-kamera|seite:kamera|seite:cmd-cam|seite:tut-p4|seite:tut-projekt"},
+    {"ja", "NPC\xe3\x82\x92\xe3\x82\xa6\xe3\x82\xa7\xe3\x82\xa4\xe3\x83\x9d\xe3\x82\xa4\xe3\x83\xb3\xe3\x83\x88\xe3\x81\xbe\xe3\x81\xa7\xe6\xad\xa9\xe3\x81\x8b\xe3\x81\x9b\xe3\x82\x8b", "seite:k-gangart|seite:k-wegpunkte|seite:k-patrouille|seite:wegpunkte"},
+    {"ja", "\xe8\xa8\xad\xe5\xae\x9a\xe3\x82\x92\xe9\x96\x8b\xe3\x81\x8f", "ort:menue:MenuEdit>AppPrefs|seite:einstellungen"},
+    {"ja", "\xe8\xa8\x80\xe8\xaa\x9e\xe3\x82\x92\xe5\xa4\x89\xe6\x9b\xb4\xe3\x81\x99\xe3\x82\x8b", "ort:menue:MenuView>ViewLanguage"},
+    {"ja", "\xe3\x82\xa2\xe3\x83\x83\xe3\x83\x97\xe3\x83\x87\xe3\x83\xbc\xe3\x83\x88\xe3\x82\x92\xe7\xa2\xba\xe8\xaa\x8d", "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|tour:k-update"},
+    {"ja", "\xe3\x83\xa2\xe3\x83\x87\xe3\x83\xab\xe3\x82\x92\xe9\x96\x8b\xe3\x81\x8f", "ort:menue:MenuFile>OpenGlm|ort:knopf:ViewModel@modebar|seite:modell|tour:k-modell@|seite:k-modell"},
+    {"ja", "\xe3\x83\x9f\xe3\x83\x83\xe3\x82\xb7\xe3\x83\xa7\xe3\x83\xb3\xe3\x82\x92\xe8\xaa\xad\xe3\x81\xbf\xe8\xbe\xbc\xe3\x82\x80", "ort:menue:MenuFile>LoadMission|seite:missionen|seite:tut-p1|seite:tut-projekt"},
+    {"ja", "\xe3\x82\xb7\xe3\x83\xa7\xe3\x83\xbc\xe3\x83\x88\xe3\x82\xab\xe3\x83\x83\xe3\x83\x88\xe3\x82\x92\xe5\xa4\x89\xe6\x9b\xb4", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
+    {"ja", "\xe9\x83\xa8\xe5\xb1\x8b\xe3\x82\x92\xe4\xb8\xad\xe7\xa9\xba\xe3\x81\xab\xe3\x81\x99\xe3\x82\x8b", "tour:tut-karte@5"},
     // --- frei formuliert (keine Woerter aus den Wortlisten der Ziele) ---
     {"de", "Mein Raum ist viel zu dunkel", "tour:tut-karte@7|seite:k-hell"},
     {"de", "Wo stelle ich den Ordner vom Spiel ein?", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
-    {"de", "Wie baue ich eine Tür, die aufgeht?", "seite:k-tuer|tour:tut-karte-tuer"},
+    {"de", "Wie baue ich eine T\xc3\xbcr, die aufgeht?", "seite:k-tuer|tour:tut-karte-tuer"},
     {"de", "Eine Figur soll etwas sagen", "seite:k-dialog"},
     {"en", "my level is way too dark", "tour:tut-karte@7|seite:k-hell"},
     {"en", "where do I set the game folder", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
     {"en", "how to build a door that opens", "seite:k-tuer|tour:tut-karte-tuer"},
     {"en", "a character should say a line", "seite:k-dialog"},
-    {"zh", "房间太暗了", "tour:tut-karte@7|seite:k-hell"},
-    {"zh", "设置游戏文件夹", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
-    {"zh", "怎么做一扇会打开的门", "seite:k-tuer"},
-    {"zh", "让角色说一句台词", "seite:k-dialog"},
-    {"ja", "部屋が暗すぎる", "tour:tut-karte@7|seite:k-hell"},
-    {"ja", "ゲームのフォルダを設定する", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen"},
-    {"ja", "開くドアの作り方", "seite:k-tuer"},
-    {"ja", "キャラにセリフを言わせる", "seite:k-dialog"},
+    {"zh", "\xe6\x88\xbf\xe9\x97\xb4\xe5\xa4\xaa\xe6\x9a\x97\xe4\xba\x86", "tour:tut-karte@7|seite:k-hell"},
+    {"zh", "\xe8\xae\xbe\xe7\xbd\xae\xe6\xb8\xb8\xe6\x88\x8f\xe6\x96\x87\xe4\xbb\xb6\xe5\xa4\xb9", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen|tour:k-spielordner@|ort:knopf:Pk3AddPath"},
+    {"zh", "\xe6\x80\x8e\xe4\xb9\x88\xe5\x81\x9a\xe4\xb8\x80\xe6\x89\x87\xe4\xbc\x9a\xe6\x89\x93\xe5\xbc\x80\xe7\x9a\x84\xe9\x97\xa8", "seite:k-tuer"},
+    {"zh", "\xe8\xae\xa9\xe8\xa7\x92\xe8\x89\xb2\xe8\xaf\xb4\xe4\xb8\x80\xe5\x8f\xa5\xe5\x8f\xb0\xe8\xaf\x8d", "seite:k-dialog"},
+    {"ja", "\xe9\x83\xa8\xe5\xb1\x8b\xe3\x81\x8c\xe6\x9a\x97\xe3\x81\x99\xe3\x81\x8e\xe3\x82\x8b", "tour:tut-karte@7|seite:k-hell"},
+    {"ja", "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0\xe3\x81\xae\xe3\x83\x95\xe3\x82\xa9\xe3\x83\xab\xe3\x83\x80\xe3\x82\x92\xe8\xa8\xad\xe5\xae\x9a\xe3\x81\x99\xe3\x82\x8b", "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|tour:tut-karte@0|seite:einstellungen"},
+    {"ja", "\xe9\x96\x8b\xe3\x81\x8f\xe3\x83\x89\xe3\x82\xa2\xe3\x81\xae\xe4\xbd\x9c\xe3\x82\x8a\xe6\x96\xb9", "seite:k-tuer"},
+    {"ja", "\xe3\x82\xad\xe3\x83\xa3\xe3\x83\xa9\xe3\x81\xab\xe3\x82\xbb\xe3\x83\xaa\xe3\x83\x95\xe3\x82\x92\xe8\xa8\x80\xe3\x82\x8f\xe3\x81\x9b\xe3\x82\x8b", "seite:k-dialog"},
 };
 
 // Unabhaengige Fragen: nach dem Abstimmen der Wortlisten geschrieben und NICHT
 // daran angepasst - die ehrliche Messung (wird gezeigt, ist keine Schranke).
 const Frage kUnabhaengig[] = {
     {"de", "Wie stelle ich ein, dass die Figur rennt statt geht?", "seite:k-gangart"},
-    {"de", "Ich will dass eine Tür aufgeht wenn der Spieler kommt", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"de", "Ich will dass eine T\xc3\xbcr aufgeht wenn der Spieler kommt", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
     {"de", "Kann man das Programm auf Japanisch stellen?", "ort:menue:MenuView>ViewLanguage"},
-    {"de", "Meine Karte hat ein Loch nach draußen (Leak)", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"de", "Meine Karte hat ein Loch nach drau\xc3\x9f" "en (Leak)", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
     {"de", "Wie schalte ich die KI wieder aus?", "seite:helfer"},
     {"de", "Musik in der Szene abspielen", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
     {"en", "how do I make the character run instead of walk", "seite:k-gangart"},
@@ -275,18 +275,18 @@ const Frage kUnabhaengig[] = {
     {"en", "my map leaks into the void", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
     {"en", "how do I turn the AI off again", "seite:helfer"},
     {"en", "play music during the scene", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
-    {"zh", "怎么让角色跑而不是走", "seite:k-gangart"},
-    {"zh", "玩家靠近时让门打开", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
-    {"zh", "把程序切换成日语", "ort:menue:MenuView>ViewLanguage"},
-    {"zh", "我的地图有泄漏", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
-    {"zh", "怎么再关闭 AI", "seite:helfer"},
-    {"zh", "在场景中播放音乐", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
-    {"ja", "キャラを歩きではなく走らせたい", "seite:k-gangart"},
-    {"ja", "プレイヤーが近づいたらドアを開ける", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
-    {"ja", "プログラムを日本語にする", "ort:menue:MenuView>ViewLanguage"},
-    {"ja", "マップがリークしている", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
-    {"ja", "AI をもう一度オフにするには", "seite:helfer"},
-    {"ja", "シーンで音楽を流す", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+    {"zh", "\xe6\x80\x8e\xe4\xb9\x88\xe8\xae\xa9\xe8\xa7\x92\xe8\x89\xb2\xe8\xb7\x91\xe8\x80\x8c\xe4\xb8\x8d\xe6\x98\xaf\xe8\xb5\xb0", "seite:k-gangart"},
+    {"zh", "\xe7\x8e\xa9\xe5\xae\xb6\xe9\x9d\xa0\xe8\xbf\x91\xe6\x97\xb6\xe8\xae\xa9\xe9\x97\xa8\xe6\x89\x93\xe5\xbc\x80", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"zh", "\xe6\x8a\x8a\xe7\xa8\x8b\xe5\xba\x8f\xe5\x88\x87\xe6\x8d\xa2\xe6\x88\x90\xe6\x97\xa5\xe8\xaf\xad", "ort:menue:MenuView>ViewLanguage"},
+    {"zh", "\xe6\x88\x91\xe7\x9a\x84\xe5\x9c\xb0\xe5\x9b\xbe\xe6\x9c\x89\xe6\xb3\x84\xe6\xbc\x8f", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"zh", "\xe6\x80\x8e\xe4\xb9\x88\xe5\x86\x8d\xe5\x85\xb3\xe9\x97\xad AI", "seite:helfer"},
+    {"zh", "\xe5\x9c\xa8\xe5\x9c\xba\xe6\x99\xaf\xe4\xb8\xad\xe6\x92\xad\xe6\x94\xbe\xe9\x9f\xb3\xe4\xb9\x90", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
+    {"ja", "\xe3\x82\xad\xe3\x83\xa3\xe3\x83\xa9\xe3\x82\x92\xe6\xad\xa9\xe3\x81\x8d\xe3\x81\xa7\xe3\x81\xaf\xe3\x81\xaa\xe3\x81\x8f\xe8\xb5\xb0\xe3\x82\x89\xe3\x81\x9b\xe3\x81\x9f\xe3\x81\x84", "seite:k-gangart"},
+    {"ja", "\xe3\x83\x97\xe3\x83\xac\xe3\x82\xa4\xe3\x83\xa4\xe3\x83\xbc\xe3\x81\x8c\xe8\xbf\x91\xe3\x81\xa5\xe3\x81\x84\xe3\x81\x9f\xe3\x82\x89\xe3\x83\x89\xe3\x82\xa2\xe3\x82\x92\xe9\x96\x8b\xe3\x81\x91\xe3\x82\x8b", "seite:k-tuer|seite:k-trigger|seite:k-tuer-use"},
+    {"ja", "\xe3\x83\x97\xe3\x83\xad\xe3\x82\xb0\xe3\x83\xa9\xe3\x83\xa0\xe3\x82\x92\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e\xe3\x81\xab\xe3\x81\x99\xe3\x82\x8b", "ort:menue:MenuView>ViewLanguage"},
+    {"ja", "\xe3\x83\x9e\xe3\x83\x83\xe3\x83\x97\xe3\x81\x8c\xe3\x83\xaa\xe3\x83\xbc\xe3\x82\xaf\xe3\x81\x97\xe3\x81\xa6\xe3\x81\x84\xe3\x82\x8b", "seite:karteneditor_bauen|seite:karte_bauen|tour:tut-karte@12|seite:karte_optimierer"},
+    {"ja", "AI \xe3\x82\x92\xe3\x82\x82\xe3\x81\x86\xe4\xb8\x80\xe5\xba\xa6\xe3\x82\xaa\xe3\x83\x95\xe3\x81\xab\xe3\x81\x99\xe3\x82\x8b\xe3\x81\xab\xe3\x81\xaf", "seite:helfer"},
+    {"ja", "\xe3\x82\xb7\xe3\x83\xbc\xe3\x83\xb3\xe3\x81\xa7\xe9\x9f\xb3\xe6\xa5\xbd\xe3\x82\x92\xe6\xb5\x81\xe3\x81\x99", "seite:k-effekt-musik|seite:cmd-play|seite:cmd-sound"},
 };
 
 // H2: die neue unabhaengige Liste (eingefroren, siehe dort).

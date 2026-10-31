@@ -13,6 +13,8 @@
 #include "bhed/menue/menue.h"
 #include "bhed/menue/vorschau.h"
 
+#include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <random>
 #include <string>
