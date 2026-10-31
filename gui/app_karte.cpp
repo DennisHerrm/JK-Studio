@@ -1037,9 +1037,14 @@ void feld(Feld f, int x, int y, int b, int h) {
 using Inhalt = std::function<void(int x, int y, int b, int h)>;
 
 // dock1: steht eines der Felder in einem eigenen Fenster oder ist es ausgeblendet?
+bool kartenPanelVerfuegbar(const char* id);
+
 bool feldDraussen() {
     for (const Feld f : kAlleFelder) {
-        if (!dock::zuhause(feldPanel(f))) { return true; }
+        // Nur die Felder dieser Anordnung: im DockSpace steht ein Feld, das es hier nicht
+        // gibt (Konsole, Texturen bei Split), ausserhalb des Baums - die Groessen blieben sonst
+        // ungespeichert.
+        if (kartenPanelVerfuegbar(feldPanel(f)) && !dock::zuhause(feldPanel(f))) { return true; }
     }
     return false;
 }

@@ -530,6 +530,25 @@ std::vector<Schritt> split() {
                e.xy[1].ansicht.typ == karte::Sicht::XZ && e.xy[2].ansicht.typ == karte::Sicht::YZ && k.find("BhedSplitSlots") == k.end();
     }));
     add(tu("Regular, alles zurueck", [] { splitZurueck(); }));
+    // Auch Regular nach Split: die Felder, die es hier nicht gibt, stehen im DockSpace ausserhalb
+    // des Baums; die Groessen blieben ungespeichert, solange sie als "draussen" galten.
+    auto hVorher = std::make_shared<std::vector<int>>();
+    add(tu("Regular nach Split", [hVorher] {
+        splitZurueck();
+        *hVorher = ke::editor().hGroessen;
+    }));
+    add(pause(0.3));
+    add(ziehenAn("Regular: Teiler der Spalten 60 nach links", [] { return spaltenGriff(); }, -60.0F * ke::massstab(), 0.0F, 0));
+    add(pause(0.3));
+    add(pruefe("Regular nach Split > Teiler ziehen: die Groessen gespeichert", [hVorher] {
+        return !ke::editor().hGroessen.empty() && ke::editor().hGroessen != *hVorher;
+    }));
+    add(tu("Regular: Groessen zurueck", [hVorher] {
+        ke::Editor& e = ke::editor();
+        e.hGroessen = *hVorher;
+        e.teilerFuer = -1;
+        ke::einstellungenSpeichern();
+    }));
     return s;
 }
 
