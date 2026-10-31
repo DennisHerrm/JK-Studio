@@ -1202,3 +1202,216 @@ en/de/zh/ja neu aufgenommen).
 
 - タイムラインのプレビューで、Jedi Outcast の字幕は ^ の後の文字をすべて色コードとして扱います(ゲームと同じ。jk2sp.exe の画面で確認)。
 - メニューエディター: コンポーネントの原本が、コピーの数を正しい単複形で表示します。
+
+## Abschluss rc607
+
+Auftrag `SP\auftrag_abschluss.md` (einziger Agent, direkt auf karte1 in `Y:\karte` ab ec4dcb70). Skripte und Läufe
+unter `SP\ab\` (`lauf.py`: Selbsttest mit Idle-Priorität über CreateProcess, eigener Laufordner `Y:\karte\laeufe\<name>`,
+bhed_q3map2 daneben, 8-GB-Wächter; `last.py`/`stoerer.py`: künstliche Last und ein fremder Schreiber der Zwischenablage;
+`bilder.sh`/`auswahl.py`: Handbuchbilder; `messung.sh`: Lichtmessung; `ende.sh`: Schlussrunde).
+
+### 0. Testfenster nicht im Vordergrund
+
+Schon gebaut (Zeitleiste 6): Selbsttestfenster liegen ohne Aktivierung ganz hinten (HWND_BOTTOM, auch der
+Vollbild-Umschalter), das Spielfenster wird sofort rechts neben den virtuellen Bildschirm geschoben (`SP\zl6\spiel.py`,
+vid_xpos allein half nicht). Hier nur genutzt: alle Läufe über `lauf.py` (Idle, kein Fokus), der eine Spielstart
+(Punkt 2, Movie Duels) über `spiel.py`. Keine Änderung an Fenstercode → Fotos byte-gleich wie vorher.
+
+### 1. Übersetzung 3 (es/cs)
+
+- 38cbba0b: 49 Programmtexte je Sprache (M7 33, reste2 13, vis4 3) als Block „Abschluss rc607“ in
+  `tools/i18n_sprache_es.py`/`_cs.py`; 44 Handbuchtexte je Sprache (dock4 „Fenster und Bildschirme anordnen“, M7,
+  reste2, Zeitleiste 4, vis4) in `inhalt_es.py`/`inhalt_cs.py`, dabei 15 Übersetzungen alter englischer Fassungen je
+  Sprache entfernt („30 Einträge nicht mehr gebraucht“ ist weg). Zähltexte mit trN-Formen (cs drei: „volání“, „kopie/
+  kopií“). Begriffe wie im Bestand (es: línea de tiempo, disposición, lienzo, tiradores; cs: časová osa, rozvržení,
+  plátno, úchyty; cs mit „vy“).
+- `gen_i18n.py --fehlend`: es 0, cs 0 (vorher 49/49). `gen_handbuch.py --pflicht=es --pflicht=cs`: 0 Texte englisch.
+- **18 Tutorial-Schritte ohne Bild: nicht gewollt** – jedes andere Tutorial hat ein Bild je Schritt; die vier Touren aus
+  hilfe2 (k-spielordner, k-update, tut-karte-tuer, tut-menue) hatten nur ihr Titelbild und ein Tourbild. Jetzt
+  (29240c14): `schrittFoto()` in `gui/selbsttest_hilfe2.inc` fotografiert jede Tour an jedem Schritt mit ihrer
+  Hervorhebung (im Selbsttest hilfe2 ein leerer Schritt ohne `BHED_FOTOS`; der Handbuchlauf `BHED_HB_NUR=hilfe2` läuft
+  die vier Touren mit), `inhalt_hilfe2.py` hängt die Bilder `h_tut_<tour>_<schritt>` an (Bildunterschrift „Schritt N im
+  Programm …“ in sechs Sprachen). Bilder in allen sechs Sprachen (Tabelle unten).
+- Bilder es/cs: alle es/cs-Bilder, deren englische Fassung jünger ist (Git-Zeit je Datei: 88 – alte Zeitleiste,
+  Menüleiste ohne „Window“, Karten-Editor-Sätze, dock4, M7, menue_assistent), dazu die 5 fehlenden (h_dock_ecke,
+  menue_datapad/_gizmo/_komponente/_ladebild) und die 18 neuen Tutorialbilder – aus dem großen Bildlauf (Missionen auf
+  X: wie zl4_hbvoll), den Karten-Editor-Sätzen (karteneditor, kartebauen, karte4/5/7/8/8b/9c, gpubacken), dock1-Fotos,
+  Menü-Editor M7 mit JKA-Daten und hilfe2.
+
+### 2. Karte, Docking, Tests
+
+- **NRC-Menüs, Untermenü in einer linken Spalte** (74fda6f7): ImGui legt ein Untermenü neben das ganze Elternfenster
+  (FindBestWindowPosForPopup meidet Pos.x..Pos.x+Size.x), Qt neben die Spalte des Eintrags (QMenu::internalDelayedPopup:
+  actionRect.right(); passt es nicht, links davon). `qtMenueAnfang` stellt das Elternfenster für BeginMenuEx waagerecht
+  auf die Spalte. Selbsttest stufe8: so viele Füllzeilen, bis nur „Melden“ rechts von „Im Spiel testen“ steht, dann
+  das Untermenü öffnen. Rot: 1480..2130 (in der eigenen Spalte 1480..2218, neben dem ganzen Menü 4..2956 links),
+  grün: 832..1482 – links an der Spalte (rechts passte es nicht auf den Bildschirm), 40/1 → 39 OK (die drei „zweiter
+  Bau“-Zeitprüfungen im zweiten grünen Lauf: siehe Schlussrunde).
+- **Docking, Blatt fehlt** (3edad1cc): `dockvorgabe::nebenAndocken` – das Panel kommt neben ein Panel von der anderen
+  Seite seiner Teilung in der Vorgabe (das nächste zuerst), so groß wie sein Fenster, höchstens die Hälfte (wie ImGuis
+  Ablegen auf einen Pfeil, DockNodePreviewDockSetup/DockNodeCalcSplitRects), statt die Vorgabe neu zu bauen. Für
+  Events/Mission/Model (`app_dockspace.inc`, Wege der Standardanordnung) und Karten-/Menü-Editor (`dockvorgabe.cpp`,
+  Knotenbaum der Vorgabe). Neuer Selbsttest **dock5**: Actions als Reiter zu Events, Script Flow heraus und wieder
+  andocken; Menü-Editor: Reiter-Spalte als Reiter zu den Bausteinen, Fläche heraus und andocken. Rot (rd5): in beiden
+  Fällen „Reiter weg (Vorgabe neu gebaut)“, grün: die Reiter bleiben, das Panel ist wieder im Hauptfenster.
+- **Docking, Foto gegen Foto Events/Mission/Model** (dock5, d3318f35): rot – Events 4029, Mission 10624, Model 7546
+  Punkte anders. Gefunden: (1) ImGui zeichnet die festen Teiler (NoResize) in der Randfarbe (DockNodeUpdate legt
+  ImGuiCol_Separator auf ImGuiCol_Border; das PushStyleColor(Separator) davor wirkte nie) – die alte Tabelle hatte
+  zwischen den Spalten TableBorderLight und über dem Band keine Linie; die Linien der inneren Tabelle beginnen und
+  enden ein Zellpolster weiter innen. Der Bereich zeichnet sie jetzt selbst (`spaltenLinien`). (2) Nach dem DockSpace
+  stand die Zeile bis zu einem Punkt tiefer als nach dem alten Band (ImGui rundet nach jedem Element ab, ItemSize
+  IM_TRUNC): die Statuszeile war im Mission-Tab anders geglättet – und das Hauptfenster um einen Punkt rollbar
+  (Selbsttest karte „Hauptfenster hat nichts zu rollen“, rot auch mit dem Stand ec4dcb70). Grün: alle drei 0 Punkte
+  anders (ohne die Bildrate rechts in der Statuszeile), dock5 26/0.
+- **Decals** (8ca5d510):
+  - Verdickung bei „deformVertexes move“: der Editor liest `deformVertexes move x y z func base amp` (shaderInfo minmax:
+    mins = amt·base, maxs = amt·amp + mins; nur wenn MinMax::valid(), also mins < maxs auf allen Achsen – die acht
+    „move 0 0 0“ in Jedi Academys fogs.shader verdicken nichts) und verdickt Seiten und Modelldreiecke am Kopfknoten
+    wie FilterWindingIntoTree_r. Dabei gefunden: **bhed_q3map2 schrieb die Schlusspunkte der zweiten und dritten
+    Teilwicklung an 2n und 3n** – sie überschrieben je einen Punkt, und 2n+1, 3n+2 blieben uninitialisiert (Vector3
+    ohne Initialisierer): welche Blätter eine solche Fläche bekamen, hing vom Speicher ab. Behoben (BehavEd-Kommentar
+    in surface.cpp), der Editor rechnet genauso. Auf der Testkarte: ungerichtet 2800 statt 2804 Bytes Blattflächen
+    (Lumps 4 und 5).
+  - ctest karte_marken: neue Karte `markenreihe` (`tools/karte/gen_markenreihe.py`, ohne -meta gebaut): bewegter Boden
+    unter einer Stufe, 100 Säulen. Rot: „Stufe oben auf dem bewegten Boden“ Editor 576 / .bsp 1152 (der verdickte Boden
+    steht in der .bsp auch über der Stufe), dazu die zwei Shader-Lesefälle (beim ersten Versuch zeigten alle sechs
+    Token auf denselben Puffer des Tokenizers – gefunden vom Test, behoben). Grün: 37/37.
+  - **Reihenfolge der Flächen in den Blättern** (über 64 Flächen im Kasten): ohne -meta stimmt sie schon – geprüft mit
+    100 Deckflächen in einem Kasten (die ersten 64 zählen): dieselben 128 Bruchstücke, Fläche, Kasten und Punktsumme
+    wie die .bsp (AddReferenceToLeaf dieser NRC-Fassung hängt hinten an, wie der Editor). **Mit -meta** (die Vorgaben
+    von NRC) nicht: q3map2 sortiert die Meta-Dreiecke räumlich und setzt sie neu zu Flächen zusammen
+    (MergeMetaTriangles/MetaTrianglesToSurface, FixMetaTJunctions; surface_meta.cpp, ~800 Zeilen mit Helfern) – Probe
+    mit derselben Karte: nur der Fall „100 Deckflächen“ weicht ab (andere 64). Das braucht den Port der Meta-Stufe; nicht
+    gemacht (Umfang), siehe Offen. Alle anderen Fälle sind auch gegen die -meta-.bsp gleich.
+- **Tests mit fester Wartezeit** (84ecac5b): Ton – auf die Schleifen warten statt 0,25 s; Minidump-Probe – der Wachfaden
+  schreibt, der Test wartet je Bild auf das Ergebnis (`wache::probeStarten`/`probeStand`) statt 20 s zu blockieren;
+  Zwischenablage – prozessübergreifende Sperre `Local\JKStudio.Selbsttest.Zwischenablage` (`platform::
+  zwischenablageSperren`) um jeden Abschnitt, der schreibt und liest (original, Konsole des Karten-Editors, Bau-Dialog,
+  Ablage). Rot nachgestellt: original mit einem zweiten Schreiber (`stoerer.py frei`): 44/4 (Paste, Undo, „Yes“ liest
+  den Text …); grün mit Schreiber, der die Sperre achtet (wie ein zweiter Selbsttest): 46/0. Ton und Minidump unter
+  künstlicher Last (32 Brenner mit normaler Priorität zwischen den Protokollzeilen, `last.py`): auch mit dem alten Stand
+  grün (34/0, Probe in 3 s) – nicht nachstellbar; Beleg ist der reste2-Lauf (smodus1 2648/2, skarte 229/1).
+- Selbsttest **karte** (lief seit reste2 nicht mehr): rot auf ec4dcb70 227/5 – (a) „Hauptfenster hat nichts zu rollen“
+  (oben, Docking (2)); (b) „Klick Entities kam nicht an“ ×2 und „Seitenleiste: Entities schaltet um“: die Panels im
+  DockSpace, ihre Reiter und Kindfenster tragen den Fensternamen „Entities###dock.mission.ebenen/…“ – die Suche nach dem
+  sichtbaren Text traf das Panel statt des Knopfs der Seitenleiste. `elemente::finde` findet solche Fenster nur noch
+  über den vollen Namen (1bf2ae8d); (c) „Glühen Figur: rotes Auge von sbd1 im Bild“ 0 Punkte: seit Zeitleiste 5 trägt
+  sbd1 den Oberkörper in TORSO_WEAPONREST2 (Beine BOTH_STAND1), Kopf und Auge zeigen nach -x; die Kamera des Tests
+  steht jetzt davor (116 Punkte). Grün: siehe Schlussrunde.
+- vis4 „stufe8g: 'Pack map as .pk3' 1-2 px außerhalb“: auf karte1 grün (Integration 6: 43/0) – in der Schlussrunde.
+- **Selbsttest karteneditor (voll), lief seit dock4 nicht mehr**: auf ec4dcb70 **3032 OK / 374 FEHLER** (`SP\ab\alt`,
+  Lauf altke). Ursachen und Behebung (ad891e63, 0bb2e788):
+  - Floating bei 200 %: NRCs Lagen der Felder (YZ 50,450, XZ 500,450; 400 x 300) ragten über das Programmfenster und
+    wurden eigene Windows-Fenster – Windows zeigt eigene Fenster immer über dem Hauptfenster, ImGui legt ein Menü aber
+    in das Fenster seines Elternfensters: Edit > Preferences lag unter YZ, danach scheiterte jede weitere Anordnung
+    (Kaskade). Rot nachgestellt mit dem neuen `BHED_KARTE_NUR=rahmen` (18 FEHLER), Fenster und Viewport geloggt
+    („YZ … pos 100 900 size 800 640 main 0“). Jetzt: ein schwebendes Feld rückt ins Programmfenster, wenn es hinausragt;
+    Menüs der Menüleiste bekommen ein eigenes Fenster, wenn ein eigenes Fenster über dem Hauptfenster liegt
+    (`dock::eigenesFensterWennVerdeckt`, SetNextWindowViewport mit einer Kennung ohne Fenster – ImGui prüft dann die
+    Überdeckung); der zu große Gruppendialog (888 x 1594) bleibt im Programmfenster wie vor dock1; im Selbsttest kommt
+    ein neues eigenes Fenster über die eigenen Fenster statt ganz nach hinten (nie über TopMost-Fenster, nie vor
+    fremde). `rahmen` grün 66/0.
+  - Teiler im DockSpace: ein eingeklapptes Feld erscheint beim Herausziehen wieder – sein Panel nahm dabei den Fokus,
+    und ImGui beendete das Ziehen (FocusWindow → ClearActiveID): der Griff blieb nach 14 Punkten stehen (geloggt:
+    „hGroessen 1123 14“). Panels jetzt mit NoFocusOnAppearing. Rot `BHED_KARTE_NUR=stufe3 BHED_STUFE3_NUR=maus`
+    84/20 (mit `BHED_DOCKSPACE=0` 104/0), grün 104/0.
+  - Danach **3290 OK / 7 FEHLER**; davon schon auf ec4dcb70 rot: „Lagen wie NRC … Inhalt 440 x 750“ (der Gruppendialog
+    in NRC-Größe passt auf einem 1600 Punkte hohen Bildschirm bei 200 % nicht – Inhalt 693 hoch), „zweiter Bau“ (3
+    Zeitprüfungen des Bau-Fortschritts), „Split > Teiler ziehen … BhedSplitH“ und „nach dem simulierten Neustart“ (die
+    Spalte wird schmaler, die Größen landen im DockSpace aber nicht in splitHGroessen); einmal „fx_runner spielt“
+    (Helligkeit 28,1 → 29,0, im Lauf davor und auf ec4dcb70 grün – zeitabhängig). Siehe Offen.
+- **Fenster nie vorn** (Punkt 0, `SP\zl6\vordergrund.py` alle 50 ms): 4 h während der Bildläufe und der ersten
+  Schlussrunde: nie im Vordergrund, zweimal ein 434 x 576-Fenster von jkstudio als oberstes großes Fenster (03:15/03:16 –
+  das Popup über einem eigenen TopMost-Tooltip, die erste Fassung der Platzierung nahm dann HWND_TOP). Behoben (0bb2e788:
+  TopMost-Fenster zählen nicht, ein Tooltip kommt wie bisher nach hinten); Nachmessung siehe Schlussrunde.
+
+### 3. Licht: ruhige Endmessung
+
+`SP\ab\messung.sh` (nach `SP\vis4\messung.sh`) am 30.10. 23:15–00:06, als sonst nichts lief (keine Bauten, keine Tests,
+kein anderer Agent): bhed_q3map2 von karte1 ec4dcb70 (eingefroren `SP\ab\bin\neu.exe`) gegen bhed_q3map2 aus dem
+rc606-Paket (`rel606\JK-Studio-rc606-windows-x64.zip`). Wege: rc606 (Prozessor), cpu, gpu (`-bhedgpubake`), auto
+(`-bhedgpubakeauto` ohne gemerkte Zeiten). Profile: X2 = [Final] Extreme Quality mit 2 Bounces (`-light -fastbounce
+-patchshadows -samples 4 -randomsamples -bounce 2`), X1 = dasselbe mit 1 Bounce, F2 = `-light -fast -patchshadows
+-samples 2 -filter -bounce 2`. Wand-Zeit in Sekunden. **Alle 18 Lumps byte-gleich** in jeder Zeile einer Karte und eines
+Profils (Hash aller Lumps je Gruppe gleich, `SP\ab\messung_tabelle.md`).
+
+| Karte | Profil | rc606 | jetzt CPU | jetzt GPU | jetzt Auto (Wahl) | Lumps |
+|---|---|---|---|---|---|---|
+| taspir1 | X2 | 124,7 | 80,6 | 63,5 | 74,3 (CPU, samples) | gleich |
+| kejim_post | X2 | 61,5 | 36,7 | 35,3 | 36,1 (CPU, samples) | gleich |
+| md_am_sith | X2 | 742,6 | 306,2 | 393,5 | 309,4 (CPU, samples) | gleich |
+| duel_mos_espa | X1 | 328,0 | 94,0 | 98,4 | 96,2 (CPU, samples) | gleich |
+| md_ch_ben | X2 | 3,8 | 2,2 | 2,2 | 3,0 (CPU, small) | gleich |
+| duel_pit | X2 | 2,6 | 1,4 | 2,4 | 2,6 (CPU, small) | gleich |
+| mp__duel1 | X2 | 1,8 | 1,2 | 1,6 | 2,4 (CPU, small) | gleich |
+| t1_inter | X2 | 0,4 | 0,4 | 1,0 | 1,0 (CPU, samples) | gleich |
+| taspir1 | F2 | 23,4 | 13,4 | 11,4 | 11,2 (GPU, large) | gleich |
+| kejim_post | F2 | 30,5 | 17,2 | 10,4 | 10,4 (GPU, large) | gleich |
+
+Auto ohne gemerkte Zeiten nimmt bei `-samples 4` auf großen Karten den Prozessor (Regel „samples“) – auf taspir1 und
+kejim_post wäre die GPU knapp schneller gewesen; mit einer gemerkten Zeit lernt Auto das (vis4). Die „GPU +
+Nachproben“-Wahl (dritter Kandidat) kommt ohne gemerkte Zeiten nicht vor.
+
+### 4. Schlussrunde (Stand beim Anhalten, 31.10.)
+
+Angehalten auf Anweisung (Token-Limit) während der cs-Läufe; letzter Code-Stand 65e5c303 (Gruppendialog wieder auf
+das Programmfenster begrenzt – inkrementell gebaut, 0 Warnungen; die Läufe unten liefen auf 0bb2e788, nur der Gruppendialog
+unterscheidet sich). Alle eigenen Prozesse beendet und geprüft, keine Sperrdatei, Spielordner („Jedi Academy\GameData“,
+„GameData original“, „Jedi Outcast\GameData“: Dateiliste mit Größe und Zeit) vorher/nachher gleich.
+
+| Lauf | Ergebnis |
+|---|---|
+| Sauberer Neubau (0bb2e788, alle Ziele) | **0 Fehler, 0 Warnungen** |
+| ctest gesamt | **190/190** |
+| lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_gapp, lint_imgui_context, lint_layout, lint_abstand, lint_doppelanzeige u. a. | ok; übrige wie Integration 6 (d3dbesitz 21 Falschmeldung, endtable 2, pruefcodes 11, settings 1, fremdprogramm 1), lint_portability 240 → **236** (cstddef nachgetragen) |
+| gen_handbuch `--pflicht=es --pflicht=cs` | **ok** (0 Texte, 0 Bilder englisch, keine Tutorial-Schritte ohne Bild) |
+| en: menueeditor (MD / JKA), mission1, hilfe2, hilfe1, stufe9d, stufe8g, optsicher, **Modus 1 (2650/0)**, kuerzel, karte (230/0), kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf, kamera, missionsbau, szenen, ton, npcklasse, gluehen, gras, figurstufen, missionsliste, rest605, modellimfesten, zeitleiste1 (100/0), zeitleiste, dock1, dock5 (26/0), dock2mass, modellleistung, pruefung3, original | **alle 0 FEHLER** |
+| en karteneditor (voll) | 3292 OK / **4** (ec4dcb70: 3032 / 374) |
+| en stufe8 | 39 / **3** („zweiter Bau“, auf ec4dcb70 ebenso) |
+| en spulen | 13 / **1** |
+| en dock4 | 103 / **3** |
+| es: Modus 1 (2650/0), menueeditor, hilfe2, hilfe1, stufe9d, optsicher, kuerzel, karte, kartenfunde, fix604b, laserfalle, geschuetzanim, zielstrahl, effektgrund, figurdeform, jk2, tuerlauf, kamera, missionsbau, szenen, ton, npcklasse, gluehen, gras, figurstufen, missionsliste, rest605, modellimfesten, zeitleiste, dock1, dock5 | **alle 0 FEHLER** |
+| es karteneditor / mission1 / spulen / zeitleiste1 | 3267 / **46**; 96 / **2**; 13 / **1**; 99 / **1** |
+| cs: Modus 1 **2650/0**, menueeditor 134/0; karteneditor 3269 / **43** | übrige cs-Läufe nicht mehr gelaufen |
+| Kartenprüfung gegen kp606 | **nicht gelaufen** |
+| Fenster nie vorn (vordergrund.py, zweite Messung ab 0bb2e788) | abgebrochen, ohne Meldung bis zum Anhalten |
+
+### Offen (mit dem, was über die Ursache bekannt ist)
+
+- karteneditor voll (en 4): „Lagen wie NRC … Inhalt 440 x 750“ – der Gruppendialog in NRC-Größe passt auf diesem
+  Bildschirm (2560 x 1600, 200 %) nicht ins Programmfenster, Inhalt 693 hoch (schon auf ec4dcb70); Erwartung müsste die
+  verfügbare Höhe berücksichtigen. „Split > Teiler ziehen … BhedSplitH“ und „nach dem simulierten Neustart“ – die Spalte
+  wird schmaler, aber im DockSpace landen die Größen nicht in splitHGroessen/BhedSplitH (schon auf ec4dcb70; vermutlich
+  zieht ImGuis Teiler statt des eigenen, nachstellen mit `BHED_KARTE_NUR` der Stufe 8b). „fx_runner spielt“ (Helligkeit
+  +0,9 statt mehr) – rot, solange der Gruppendialog im Programmfenster festgehalten war, mit 65e5c303 wieder begrenzt
+  (nicht mehr nachgeprüft).
+- karteneditor es/cs (46/43): nicht ausgewertet; u. a. „Klick 'Tamaño de los botones de las barras' nicht gefunden“ (3×),
+  Wiederherstellen/Verteilen/Verbund/Überblenden – vermutlich Folgefehler eines Klicks in der Sprache; nachstellen mit
+  dem Lauf `Y:\karte\letzter_eeskarteneditor.txt`.
+- stufe8 „zweiter Bau“ (3): der zweite Bau ist nach 0,00 s fertig (Schritt 3 läuft nie eine Sekunde) – auch auf
+  ec4dcb70 und im Lauf gs8b, in gs8 grün: zeitabhängig, Ursache offen.
+- spulen (en/es 1): „intro2_sith – zurück zeigt zu jeder Zeit Bit für Bit dasselbe wie vor“ – nicht untersucht.
+- dock4 (en 3): „dock4_regular im Foto Punkt für Punkt wie ohne DockSpace“, „Text zurück – Maße“, „an/aus/an –
+  Ebenenliste …“ – vermutlich Folge von NoFocusOnAppearing/Teiler-Linien (Integration 6: 106/0); nachstellen.
+- mission1 es (2): „Abspielen wie im Spiel (Kamera gewählt): kein Fadenkreuz …“; zeitleiste1 es (1): „Aufnahme mini:
+  das Modell steht am gesteuerten Ort“ – en grün, nur es; nicht untersucht.
+- Decals mit `-meta`: die Reihenfolge/Zusammensetzung der Flächen kommt aus MergeMetaTriangles/MetaTrianglesToSurface
+  (nicht portiert) – nur wenn mehr als 64 Flächen im Kasten liegen.
+- Ton und Minidump: Rot unter künstlicher Last nicht nachstellbar (siehe oben).
+
+### Was noch fehlt
+
+- cs: alle Modi außer Modus 1, menueeditor und karteneditor; es/cs-Läufe nach den Korrekturen der Fehler oben.
+- Kartenprüfung gegen kp606 (`SCHRITTE=kp sh SP/ab/ende.sh`).
+- en karteneditor auf 65e5c303 nachprüfen (fx_runner); vordergrund.py über einen ganzen Lauf.
+- Lichtmessung: fertig (oben, Abschnitt 3).
+
+### Nächster Schritt
+
+1. dock4 (en 3) und karteneditor es/cs nachstellen (`BHED_SPRACHE`, `SPRACHE=es`), beheben.
+2. „Split … BhedSplitH“ und „Lagen wie NRC“ im DockSpace beheben bzw. die Erwartung an die verfügbare Höhe binden.
+3. Danach `MODI_ESCS="…" SCHRITTE="escs kp" WEITER=1 sh SP/ab/ende.sh` für die restlichen cs-Modi und die Kartenprüfung.
+
+### Changelog
+
+Entwurf in sechs Sprachen: `SP\rc607_changelog.md` (nicht in tools/changelog.txt).
