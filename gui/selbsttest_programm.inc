@@ -48,14 +48,18 @@ std::vector<Schritt> updateSchritte() {
     add(foto("update_fertig"));
     add(pruefe("Update: installiert, die alte .exe beiseitegelegt, data/ da", [] {
         const updater::Zustand z = updater::zustand();
+        // rc608: beiseite kommt die laufende .exe, wie sie auch heisst; behaved.exe ist der Starter (Uebergang).
+        const std::string laufend = platform::executablePath();
         const std::string ordner = platform::executableDirectory();
-        const bool alt = std::filesystem::exists(::bhed::utf8Pfad(ordner + "/behaved.exe.alt"));
-        const bool exe = std::filesystem::exists(::bhed::utf8Pfad(ordner + "/behaved.exe"));
+        const bool alt = std::filesystem::exists(::bhed::utf8Pfad(laufend + ".alt"));
+        const bool exe = std::filesystem::exists(::bhed::utf8Pfad(laufend));
+        const bool starter = std::filesystem::exists(::bhed::utf8Pfad(ordner + "/behaved.exe"));
         const bool daten = std::filesystem::exists(::bhed::utf8Pfad(ordner + "/data/base/anims.h"));
         diag::detail("Knopftest: Update - Stand " + std::to_string(static_cast<int>(z.stand)) + ", " +
                      std::to_string(z.dateien) + " Dateien, alt " + (alt ? "ja" : "nein") + ", exe " +
-                     (exe ? "ja" : "nein") + ", data " + (daten ? "ja" : "nein") + ", Meldung " + z.meldung);
-        return z.stand == updater::Stand::Fertig && z.dateien > 0 && alt && exe && daten;
+                     (exe ? "ja" : "nein") + ", Starter " + (starter ? "ja" : "nein") + ", data " + (daten ? "ja" : "nein") +
+                     ", Meldung " + z.meldung);
+        return z.stand == updater::Stand::Fertig && z.dateien > 0 && alt && exe && starter && daten;
     }));
     return s;
 }
