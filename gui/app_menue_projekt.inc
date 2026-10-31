@@ -94,6 +94,7 @@ LeseOptionen leseOptionen(const std::string& pfad) {
     Zustand& z = Z();
     LeseOptionen o = optionenFuer(pfad, z.spiel, z.daten.lader());
     o.profil = aktivesProfil();
+    o.weiterlesen = true;   // rc608: eine ungueltige Zeile laesst die uebrigen Elemente stehen
     return o;
 }
 

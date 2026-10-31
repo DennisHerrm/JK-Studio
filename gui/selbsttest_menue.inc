@@ -2215,6 +2215,99 @@ std::vector<Schritt> schritteUndo() {
     return s;
 }
 
+// rc608 Punkt 0b (shank: "von type model zu type checkbox"): ein Element behaelt seinen Typ. Im Text-Editor bleibt
+// freies Schreiben moeglich; eine Zeile, an der das Spiel aufhoert zu lesen, zerreisst die uebrigen Elemente nicht.
+std::vector<Schritt> schritteTyp() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    static const char* const namen[] = {"ITEM_TYPE_TEXT", "ITEM_TYPE_BUTTON", "ITEM_TYPE_RADIOBUTTON", "ITEM_TYPE_CHECKBOX", "ITEM_TYPE_EDITFIELD",
+                                        "ITEM_TYPE_COMBO", "ITEM_TYPE_LISTBOX", "ITEM_TYPE_MODEL", "ITEM_TYPE_OWNERDRAW", "ITEM_TYPE_NUMERICFIELD",
+                                        "ITEM_TYPE_SLIDER", "ITEM_TYPE_YESNO", "ITEM_TYPE_MULTI", "ITEM_TYPE_BIND", "ITEM_TYPE_TEXTSCROLL"};
+    for (const bool mp : {false, true}) {
+        const std::string dialekt = mp ? "MP" : "SP";
+        const std::string modellTyp = mp ? "type 7" : "type ITEM_TYPE_MODEL";
+        const std::string text = "menuDef\n{\n  name \"t\"\n  rect 0 0 640 480\n  visible 1\n"
+                                 "  itemDef\n  {\n    name \"erstes\"\n    " + std::string(mp ? "type 0" : "type ITEM_TYPE_TEXT") + "\n    rect 20 20 100 30\n    text \"A\"\n    visible 1\n  }\n"
+                                 "  itemDef\n  {\n    name \"model_2\"\n    " + modellTyp + "\n    rect 10 140 200 197\n    asset_model \"models/players/kyle/model.glm\"\n    model_fovx 40\n    model_fovy 40\n    model_angle 180\n    visible 1\n  }\n"
+                                 "  itemDef\n  {\n    name \"drittes\"\n    " + std::string(mp ? "type 1" : "type ITEM_TYPE_BUTTON") + "\n    rect 300 300 100 50\n    visible 1\n  }\n}\n";
+        const std::string datei = mp ? "ui/jamp/typ.menu" : "ui/typ.menu";
+        add(tu("rc608 Typ " + dialekt + ": Probe oeffnen, Modell waehlen, Properties", [text, datei] {
+            me::schliesseAlleOhneSpeichern();
+            g_app->leftMode = 4;
+            tourSchliessen();
+            (void)me::oeffneText(datei, text);
+            me::setzeInteraktion(false);
+            me::waehle(1, false);
+            me::setzeReiter(2);
+        }));
+        add(pause(0.5));
+        add(foto("menue_typ_" + dialekt));
+        add(pruefe("rc608 Typ " + dialekt + ": die Probe liest sich ohne Abbruch", [] { return me::stand().abbruchZeile == 0 && me::itemLagen().size() == 3U; }));
+        add(pruefe("rc608 Typ " + dialekt + ": type ist nur Anzeige, keine Auswahl", [] {
+            const Element* e = finde("type", "", 0, false);
+            return e != nullptr && (e->flags & ImGuiItemStatusFlags_Openable) == 0;
+        }));
+        add(klickAn("rc608 Typ " + dialekt + ": auf das Feld type", [] {
+            const Element* e = finde("type", "", 0, false);
+            return e != nullptr ? e->rect.GetCenter() : ImVec2{-1.0F, -1.0F};
+        }));
+        add(pause(0.2));
+        add(pruefe("rc608 Typ " + dialekt + ": der Klick auf type aendert nichts, nichts klappt auf", [text] {
+            return me::stand().text == text && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+        }));
+        // Jede type-Zeile im Text-Editor: alle Elemente bleiben, wo sie sind; ein Rueckgaengig stellt alles her
+        for (int t = 0; t < 15; ++t) {
+            const std::string neu = mp ? "type " + std::to_string(t) : std::string("type ") + namen[t];
+            add(tu("rc608 Typ " + dialekt + ": " + neu, [modellTyp, neu] { (void)me::ersetzeAlle(modellTyp, neu, false); }));
+            add(pruefe("rc608 Typ " + dialekt + ": " + neu + " - die Lage aller Elemente bleibt", [] {
+                const std::vector<me::ItemLage> l = me::itemLagen();
+                const bool gut = l.size() == 3U && l[0].sx == 20.0F && l[0].sy == 20.0F && l[0].b == 100.0F && l[1].sx == 10.0F && l[1].sy == 140.0F && l[1].b == 200.0F &&
+                                 l[1].h == 197.0F && l[2].sx == 300.0F && l[2].sy == 300.0F && l[2].h == 50.0F;
+                if (!gut) {
+                    std::string b = "Knopftest: Typ Lage";
+                    for (const me::ItemLage& x : l) { b += " " + x.name + " " + std::to_string(x.sx) + "," + std::to_string(x.sy) + " " + std::to_string(x.b); }
+                    diag::detail(b);
+                }
+                return gut;
+            }));
+            if (t == 3) {   // shanks Fall: Modell -> Checkbox. Das Spiel hoert bei asset_model auf
+                add(pause(0.3));
+                add(pruefe("rc608 Typ " + dialekt + ": Checkbox - die Abbruchzeile ist die von asset_model", [] {
+                    const auto x = me::stand();
+                    diag::detail("Knopftest: Typ Abbruch Zeile " + std::to_string(x.abbruchZeile));
+                    return x.abbruchZeile > 0 && x.meldungen > 0;
+                }));
+                add(foto("menue_typ_abbruch_" + dialekt));
+                add(klick(tr(Str::MeZurZeile)));
+                add(pause(0.3));
+                add(pruefe("rc608 Typ " + dialekt + ": Zur Zeile zeigt den Text-Editor auf der Zeile mit asset_model", [] {
+                    return me::reiter() == 1 && me::stand().cursorZeile.find("asset_model") != std::string::npos;
+                }));
+                add(tu("rc608 Typ " + dialekt + ": zurueck zu Properties", [] { me::setzeReiter(2); }));
+            }
+            add(tu("rc608 Typ " + dialekt + ": Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+            add(pruefe("rc608 Typ " + dialekt + ": " + neu + " - Rueckgaengig stellt den Text her", [text] { return me::stand().text == text; }));
+        }
+        // Darf ein anderer Wert das Menue so kaputtmachen? style und textalign nicht
+        for (const char* wert : {"WINDOW_STYLE_EMPTY", "WINDOW_STYLE_FILLED", "WINDOW_STYLE_GRADIENT", "WINDOW_STYLE_SHADER", "WINDOW_STYLE_TEAMCOLOR", "WINDOW_STYLE_CINEMATIC"}) {
+            const std::string w = wert;
+            add(tu("rc608 Typ " + dialekt + ": style " + w, [w, mp] {
+                static const std::map<std::string, std::string> zahl = {{"WINDOW_STYLE_EMPTY", "0"}, {"WINDOW_STYLE_FILLED", "1"}, {"WINDOW_STYLE_GRADIENT", "2"},
+                                                                        {"WINDOW_STYLE_SHADER", "3"}, {"WINDOW_STYLE_TEAMCOLOR", "4"}, {"WINDOW_STYLE_CINEMATIC", "5"}};
+                me::setzeEigenschaftAuswahl("style", {mp ? zahl.at(w) : w});
+            }));
+            add(pruefe("rc608 Typ " + dialekt + ": style " + w + " - kein Abbruch", [] { return me::stand().abbruchZeile == 0 && me::itemLagen().size() == 3U; }));
+        }
+        for (int a = 0; a < 3; ++a) {
+            static const char* const ausr[] = {"ITEM_ALIGN_LEFT", "ITEM_ALIGN_CENTER", "ITEM_ALIGN_RIGHT"};
+            add(tu("rc608 Typ " + dialekt + ": textalign " + ausr[a], [a, mp] { me::setzeEigenschaftAuswahl("textalign", {mp ? std::to_string(a) : std::string(ausr[a])}); }));
+            add(pruefe("rc608 Typ " + dialekt + ": textalign - kein Abbruch", [] { return me::stand().abbruchZeile == 0; }));
+        }
+    }
+    add(tu("rc608 Typ: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
 std::vector<Schritt> schritteM7() {
     std::vector<Schritt> s;
@@ -2567,6 +2660,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=typ: der Typ eines Elements bleibt, eine ungueltige Zeile zerreisst nichts (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "typ") == 0) {
+        for (auto& x : schritteTyp()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=undo: die Tabelle Aktion gegen Weg (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "undo") == 0) {
         for (auto& x : schritteUndo()) { add(std::move(x)); }
@@ -2798,6 +2897,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteFelder()) { add(std::move(x)); }
     for (auto& x : schritteBleiben()) { add(std::move(x)); }
     for (auto& x : schritteUndo()) { add(std::move(x)); }
+    for (auto& x : schritteTyp()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

@@ -106,6 +106,19 @@ int main() {
         }
     }
     pruefe(hatMeldung(d, "Unknown item keyword 'foo'", 21), "SP: Warnung 'Unknown item keyword' in Zeile 21");
+    {   // rc608: was dem Spiel das Menue nimmt, laesst dem Editor die uebrigen Elemente
+        const std::string probe = "menuDef\n{\n name \"m\"\n rect 0 0 640 480\n itemDef\n {\n  name \"a\"\n  type ITEM_TYPE_CHECKBOX\n  rect 10 20 30 40\n  asset_model \"x.glm\"\n  visible 1\n }\n itemDef\n {\n  name \"b\"\n  type ITEM_TYPE_BUTTON\n  rect 50 60 70 80\n  visible 1\n }\n}\n";
+        LeseOptionen spiel;
+        const Datei g = lies("ui/p.menu", probe, spiel);
+        pruefe(g.menus.size() == 1 && !g.menus[0].ok && g.menus[0].items.size() == 1 && g.menus[0].abbruchZeile == 0, "Wie im Spiel: das Menue bricht beim ungueltigen Schluessel ab");
+        LeseOptionen ed = spiel;
+        ed.weiterlesen = true;
+        const Datei e = lies("ui/p.menu", probe, ed);
+        pruefe(e.menus.size() == 1 && !e.menus[0].ok && e.menus[0].items.size() == 2 && e.menus[0].abbruchZeile == 10, "Editor: gleiches Urteil, die Zeile wird genannt, das zweite Element ist da");
+        pruefe(e.menus[0].items.size() == 2 && e.menus[0].items[1].window.rect.x == 50.0F && e.menus[0].items[0].window.rect.y == 20.0F && (e.menus[0].items[0].window.flags & WINDOW_VISIBLE) != 0,
+               "Editor: Bildschirmlage auch nach der ungueltigen Zeile, die uebrigen Schluessel des Elements gelten");
+        pruefe(hatMeldung(e, "Couldn't parse item keyword 'asset_model'"), "Editor: dieselbe Meldung wie das Spiel");
+    }
     pruefe(hatMeldung(d, "Couldn't parse item keyword 'cvarFloat'"), "SP: Warnung 'Couldn't parse item keyword'");
     if (g_fehler != 0) { zeigeMeldungen(d); }
     {

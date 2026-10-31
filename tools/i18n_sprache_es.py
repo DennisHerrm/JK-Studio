@@ -2956,6 +2956,9 @@ TEXTE = {
     "MeStartZeigenTip": "El programa te enseña paso a paso cómo cambiar un menú del juego.",
     "MeStartHandbuch": "Manual",
     "MeStartHandbuchTip": "Abre la página del editor de menús en el manual.",
+    "MeTypFestTip": "Un elemento conserva su tipo. Para otro tipo, inserta un elemento nuevo.",
+    "MeMenuVerworfen": "El juego descartaría todo este menú: deja de leer en la línea %d. La vista previa sigue leyendo para que puedas seguir trabajando.",
+    "MeZurZeile": "Ir a la línea",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

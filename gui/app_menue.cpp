@@ -4697,13 +4697,13 @@ void zeichneEigenschaften(Dokument& d) {
     std::string gruppe = it.window.group;
     textFeld("group", &gruppe, [i](const std::string& t) { eigenschaft(i, "group", {inAnf(t)}); });
     // type / style
-    int typ = std::clamp(it.type, 0, 14);
-    if (ImGui::BeginCombo("type", typName(typ))) {
-        for (int t = 0; t < 15; ++t) {
-            if (ImGui::Selectable(typName(t), t == typ)) { eigenschaft(i, "type", {konstante(d.datei, typName(t), t)}); }
-        }
-        ImGui::EndCombo();
-    }
+    // rc608 (shank: "statt das er den type immer behaelt"): nur Anzeige. Die Schluessel eines Typs gelten beim
+    // anderen nicht, und das Spiel verwirft dann das ganze Menue.
+    std::string typText = typName(it.type);
+    ImGui::BeginDisabled();
+    ImGui::InputText("type", typText.data(), typText.size() + 1, ImGuiInputTextFlags_ReadOnly);
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MeTypFestTip)); }
     const int sty = std::clamp(it.window.style, 0, 5);
     if (ImGui::BeginCombo("style", styleName(sty))) {
         for (int t = 0; t < 6; ++t) {
@@ -5202,11 +5202,28 @@ void panelHierarchie(Dokument& d) {
 }
 
 // Arbeitsflaeche: Seiten-Reiter und die 640x480-Flaeche
+// rc608: nie still alles auf 0, 0 - das Spiel verwirft dieses Menue, und hier steht, wo und warum
+void zeichneAbbruchZeile(Dokument& d) {
+    const int mi = menuDerSeite(d);
+    if (mi < 0 || d.datei.menus[static_cast<std::size_t>(mi)].abbruchZeile == 0) { return; }
+    const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
+    std::vector<char> b(512);
+    std::snprintf(b.data(), b.size(), tr(Str::MeMenuVerworfen), m.abbruchZeile);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
+    ImGui::TextWrapped("%s", b.data());
+    ImGui::PopStyleColor();
+    if (ImGui::SmallButton(tr(Str::MeZurZeile))) {
+        Z().reiterGewollt = 1;
+        springe(d, m.abbruchStelle);
+    }
+}
+
 void panelFlaeche(Dokument& d) {
     ImGui::PushID("panelFlaeche");
     zeichneSeiten(d);
     zeichneTabLeiste(d);   // M6 Punkt 2
     zeichneGrenzenZeile(d);   // M6 Punkt 10
+    zeichneAbbruchZeile(d);
     zeichneFlaeche(d, ImGui::GetContentRegionAvail());
     ImGui::PopID();
 }
@@ -5578,6 +5595,7 @@ Stand stand() {
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
     s.exporte = z.exporte;
     s.undoSchritte = d->puffer.undoTiefe();
+    if (const int mi = menuDerSeite(*d); mi >= 0) { s.abbruchZeile = d->datei.menus[static_cast<std::size_t>(mi)].abbruchZeile; }
     for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
     s.bildzeitMs = z.bildzeitMs;
     s.kinoBilder = z.kinoBilder;

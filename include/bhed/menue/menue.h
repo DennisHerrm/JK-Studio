@@ -195,6 +195,9 @@ struct Menu {
     std::uint32_t anfang = 0, ende = 0;
     int zeile = 0;
     bool ok = true;
+    // rc608, nur mit LeseOptionen::weiterlesen: wo das Spiel aufgehoert haette (Zeile 0 = gar nicht)
+    int abbruchZeile = 0;
+    std::uint32_t abbruchStelle = 0;
 };
 
 // assetGlobalDef (Asset_Parse in ui_main)
@@ -229,6 +232,10 @@ struct LeseOptionen {
     std::string globaleDefines;           // MP: ui/jamp/menudef.h (leer = keine)
     Lader lader;                          // fuer #include und globale Defines
     std::shared_ptr<const ModProfil> profil;   // M5b: was die Engine der Mod zusaetzlich kennt (profil.h)
+    // rc608, fuer den Editor: Das Spiel verwirft ein Menue, sobald ein Schluessel nicht geht (Menu_New: Menu_Parse
+    // false, kein Menu_PostParse, menuCount bleibt). Hier geht es in der naechsten Zeile weiter, damit nicht alle
+    // Elemente verschwinden: Menu::ok bleibt false, abbruchZeile nennt die Stelle, die Meldungen bleiben dieselben.
+    bool weiterlesen = false;
 };
 
 // Liest eine .menu (oder menus.txt) wie UI_ParseMenu / UI_LoadMenus.

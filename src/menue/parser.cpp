@@ -906,6 +906,7 @@ std::string assetWarnName(const std::string& k) {
 class Leser {
 public:
     Leser(Grund& g, Datei& d) : g_(g), d_(d) {}
+    bool weiterlesen = false;   // LeseOptionen::weiterlesen
 
     // M5b: ein Schluessel aus dem Mod-Profil als Tabelleneintrag (Name zeigt in das Profil)
     bool profilSchluessel(bool item, const std::string& wort, Schluessel& out) const {
@@ -920,10 +921,11 @@ public:
     }
 
     // Item_Parse (nach "itemDef")
-    bool item(Item& it) {
+    bool item(Item& it, Menu& m) {
         Token t;
         if (!g_.schluesselwort(t, true)) { return false; }
         if (t.s.empty() || t.s[0] != '{') { return false; }
+        int stumm = 0;   // weiterlesen: die uebrigen Woerter der Zeile, an der das Spiel aufhoert
         while (true) {
             if (!g_.schluesselwort(t, true)) {
                 g_.warn(mp() ? "end of file inside menu item" : "End of file inside menu item", mp());
@@ -933,6 +935,7 @@ public:
                 it.ende = t.ende;
                 return true;
             }
+            if (t.zeile == stumm) { continue; }
             const Schluessel* k = sucheIn(kItem, t.s, d_.dialekt, d_.spiel);
             Eigenschaft e;
             e.schluessel = t.s;
@@ -957,14 +960,25 @@ public:
             if (!ok) {
                 g_.warn(mp() ? "couldn't parse menu item keyword " + t.s : "Couldn't parse item keyword '" + t.s + "'",
                         mp());
-                return false;
+                if (!weiterlesen) { return false; }
+                abbruchMerken(m, t);
+                it.ok = false;
+                stumm = t.zeile;
             }
+        }
+    }
+
+    void abbruchMerken(Menu& m, const Token& t) const {
+        if (m.abbruchZeile == 0) {
+            m.abbruchZeile = t.zeile;
+            m.abbruchStelle = t.anfang;
         }
     }
 
     // Menu_Parse (nach "menuDef")
     bool menu(Menu& m) {
         Token t;
+        int stumm = 0;   // wie in item
         if (mp()) {
             if (!g_.schluesselwort(t, false)) { return false; }
             if (t.s.empty() || t.s[0] != '{') { return false; }
@@ -983,8 +997,9 @@ public:
             }
             if (!t.s.empty() && t.s[0] == '}') {
                 m.ende = t.ende;
-                return true;
+                return m.abbruchZeile == 0;
             }
+            if (t.zeile == stumm) { continue; }
             const Schluessel* k = sucheIn(kMenu, t.s, d_.dialekt, d_.spiel);
             Schluessel ausProfil{};
             const bool vomProfil = k == nullptr && profilSchluessel(false, t.s, ausProfil);   // M5b
@@ -1004,14 +1019,16 @@ public:
                 it.kopf = t;
                 it.anfang = t.anfang;
                 it.zeile = t.zeile;
-                const bool ok = item(it);
-                it.ok = ok;
-                if (!ok) {
+                const bool ok = item(it, m);
+                const bool geschlossen = ok && it.ok;
+                it.ok = geschlossen;
+                if (!geschlossen) {
                     if (it.ende < it.anfang) { it.ende = it.anfang; }
                     m.items.push_back(std::move(it));
                     g_.warn(mp() ? "couldn't parse menu keyword " + t.s : "Couldn't parse menu keyword " + t.s + " as " + k->name,
                             mp());
-                    return false;
+                    if (!ok) { return false; }   // Dateiende: auch weiterlesen geht nicht
+                    continue;
                 }
                 m.items.push_back(std::move(it));
                 continue;
@@ -1029,7 +1046,9 @@ public:
             if (!ok) {
                 g_.warn(mp() ? "couldn't parse menu keyword " + t.s : "Couldn't parse menu keyword " + t.s + " as " + k->name,
                         mp());
-                return false;
+                if (!weiterlesen) { return false; }
+                abbruchMerken(m, t);
+                stumm = t.zeile;
             }
         }
     }
@@ -1176,8 +1195,9 @@ Datei lies(const std::string& pfad, const std::string& text, const LeseOptionen&
         m.kopf = kopf;
         m.anfang = kopf.anfang;
         m.zeile = kopf.zeile;
+        l.weiterlesen = opt.weiterlesen;
         m.ok = l.menu(m);
-        if (m.ok) { nachLesen(m); }
+        if (m.ok || opt.weiterlesen) { nachLesen(m); }
         if (m.ende < m.anfang) {
             m.ende = m.items.empty() ? m.anfang : std::max(m.anfang, m.items.back().ende);
         }

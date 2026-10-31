@@ -2958,6 +2958,9 @@ TEXTE = {
     "MeStartZeigenTip": "Program vám krok za krokem ukáže, jak změnit menu hry.",
     "MeStartHandbuch": "Příručka",
     "MeStartHandbuchTip": "Otevře stránku o editoru menu v příručce.",
+    "MeTypFestTip": "Prvek si zachovává svůj typ. Pro jiný typ vložte nový prvek.",
+    "MeMenuVerworfen": "Hra by celé toto menu zahodila: přestane číst na řádku %d. Náhled čte dál, abyste mohli pokračovat v práci.",
+    "MeZurZeile": "Přejít na řádek",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
