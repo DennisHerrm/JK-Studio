@@ -826,6 +826,11 @@ std::vector<Schritt> handbuchFotos() {
         const ImVec2 d = ImGui::GetIO().DisplaySize;
         return ImRect{0.0F, 0.0F, d.x, d.y};
     };
+    // Abschluss rc607: zuerst die Bilder jedes Schritts (schrittFoto) - die Touren wie im Selbsttest, vor den
+    // Bildern unten (die oeffnen ui/jamp/main.menu schon; tut-menue Schritt 2 oeffnet es selbst)
+    for (std::vector<Schritt> (*teil)() : {menue, karteTuer, update, spielordner}) {
+        for (Schritt& x : teil()) { add(std::move(x)); }
+    }
     // k-spielordner, Schritt 2: "Spielordner hinzufuegen" im Fenster Pfade.
     add(tu("H2 Fotos: Modus Events, Pfade offen, Tour k-spielordner ab Schritt 2", [] {
         g_app->leftMode = 0;
@@ -858,10 +863,6 @@ std::vector<Schritt> handbuchFotos() {
         tourSchliessen();
         g_app->leftMode = 0;
     }));
-    // Abschluss rc607: die Bilder jedes Schritts (schrittFoto) - die Touren wie im Selbsttest
-    for (std::vector<Schritt> (*teil)() : {menue, karteTuer, update, spielordner}) {
-        for (Schritt& x : teil()) { add(std::move(x)); }
-    }
     return s;
 }
 
