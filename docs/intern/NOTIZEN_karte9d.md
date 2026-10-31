@@ -1412,6 +1412,60 @@ unterscheidet sich). Alle eigenen Prozesse beendet und geprüft, keine Sperrdate
 2. „Split … BhedSplitH“ und „Lagen wie NRC“ im DockSpace beheben bzw. die Erwartung an die verfügbare Höhe binden.
 3. Danach `MODI_ESCS="…" SCHRITTE="escs kp" WEITER=1 sh SP/ab/ende.sh` für die restlichen cs-Modi und die Kartenprüfung.
 
+### Abschluss 2 (Auftrag `SP\auftrag_abschluss2.md`, 31.10.)
+
+Einziger Agent, direkt auf karte1. Je Fehler rot → behoben → im selben Test grün.
+
+1. **dock4 en 3** (rot 103/3, grün 115/0; dock1 97/0, dock5 26/0):
+   - „Text zurück“, „an/aus/an“: `nebenAndocken` (3edad1cc) dockte nur neben den nächsten Nachbarn – Text unten unter ein
+     Panel der oberen Reihe, das Band unter eine Spalte, nicht die Standardanordnung. Jetzt: steht die andere Seite der
+     Teilung noch beisammen, kommt das Panel neben sie alle (Ablegen auf den äußeren Pfeil, `seitenKnoten`). Dazu: der
+     Bereich übernimmt die neuen Knoten eines Baums in Form der Standardanordnung (`heimNachfuehren`), und in seinen Knoten
+     kommt ein Panel nur, wenn der frei ist (im gespeicherten Baum ohne das Panel führte sein Weg zum Blatt eines anderen –
+     es stand dort als Reiter).
+   - „dock4_regular im Foto“: Testfehler. Die 32 Punkte sind Text einer weggerollten Konsolenzeile in den zwei Zeilen direkt
+     unter dem Rand (Rand gleich); die Ausnahme für den Konsolentext begann 2 Zeilen zu tief.
+2. **Split im DockSpace** (stufe8b rot 78/2, grün 81/0; echter Neustart split1-3: `h 449,688` bleibt): `feldDraussen()` zählte
+   Felder mit, die es in der Anordnung nicht gibt (Konsole, Texturen bei Split; XZ/YZ bei Regular nach Split) – im DockSpace
+   stehen sie außerhalb des Baums, also „draußen“, und der Griff speicherte nie. Traf auch Regular, sobald einmal Split offen
+   war (neue Prüfung „Regular nach Split“).
+3. **„Lagen wie NRC“**: Programm richtig (der Dialog bleibt im Programmfenster, 65e5c303). Erwartung an die Höhe des Dialogs
+   gebunden: NRCs 777, wenn sie passen, sonst was passt; Teiler im selben Verhältnis wie QSplitter. `fx_runner spielt` auf dem
+   Stand danach grün (karteneditor en, siehe unten).
+4. **karteneditor es/cs (46/43)** – erster Fehler jeweils gefunden, alles grün:
+   - Testfehler: Stufe 7 baute die Beschriftungen vor dem Umschalten auf Englisch („Tema“ im englischen Menü, 25 Folgefehler);
+     Stufe 9 und Texturen verglichen mit festem englischem Konsolentext/Titel (`konsoleMit`, `karteTexturTitel`);
+     Faces wire: die geglättete Linie lag bei anderer Ansichtshöhe zwischen zwei Zeilen (68,118,176 statt 76,142,218).
+   - Programmfehler: spanischer Text „El mismo VIS en cada compilación (no está en NetRadiant-Custom)“ zu lang – drei Spalten des
+     NRC-Menüs 2700 breit auf 2560 (22 Einträge außerhalb). Gekürzt („VIS igual en cada compilación (no en NetRadiant-Custom)“).
+5. **stufe8 „zweiter Bau“** (en rot 39/3, grün 41/0): Testfehler, zeitabhängig. Die Restzeit liefert beim Nutzer richtig („about
+   0:02 left“, Schätzung ±1 %). Die Bedingung verlangte die Phase „Radiosity“, die je Durchgang nur kurz steht (danach die
+   Lichtphasen des Durchgangs); 3,9 s LIGHT und kein Bild traf sie. Jetzt: Schritt 3, Durchgang ≥ 2.
+6. **Weitere**:
+   - spulen en/es (1): Testfehler. Das Lineal von intro2_sith beginnt bei 363,3 (Namensspalte nicht ganzzahlig), der Druck auf
+     363 traf es nicht – die Zeit blieb bei 0. Dazu Obergrenze: die Gesamtsumme hing daran, auf welche Zeit ein gezeichnetes Bild
+     fiel (118000 gegen 92000 ms); jetzt je Zeit Bit für Bit.
+   - mission1 es (2): das Fadenkreuz lag bei ungerader Ansichtshöhe zwischen zwei Zeilen (blass und zwei Zeilen breit):
+     **Programm** rundet jetzt auf ganze Punkte. Messung: Deckkraft 200 auf dunklem Grund liegt bis 113 von der vollen Farbe (Toleranz 120).
+   - zeitleiste1 es (1): Testfehler, Bildzeit. Die Tasten wurden 45 + 35 + 35 Bilder gehalten (bei 240 Bildern je Sekunde 27 Einheiten
+     vom Ort der Szene statt > 32). Jetzt bis zu einer Strecke (96 + 64 + 32 Einheiten, höchstens 240 Bilder).
+7. **Decals mit -meta** (`src/karte/metaflaechen.inc`, ctest karte_marken 52/0): Port von DrawSurfaceForSide (st aller drei
+   Texturformate, Einrasten auf 1/8), SubdivideFaceSurfaces, FixTJunctions (stapelweise wie BhedKantenAbarbeiten, Sortierung wie
+   bhed_q3map2: kompat/gcc_sort.h), ClassifySurface, StripFaceSurface/FanFaceSurface, metaTriangle_insert, SmoothMetaTriangles,
+   MergeMetaTriangles/MetaTrianglesToSurface, OptimizeTriangleSurface, EmitTriangleSurface. Dabei behoben: die Reihenfolge der
+   Patches (ParsePatch hängt vorn an, der Port hinten). Ohne -meta läuft derselbe Weg ohne Zusammensetzen.
+   - Der Editor richtet sich nach dem BSP-Schritt des zuletzt gebauten Build-Eintrags (sonst des ersten), ohne Eintrag -meta.
+   - Prüfung gegen das Vorbild: **ganze Welt gegen die .bsp** (jede Fläche: Art, Punkte, Dreiecke in Reihenfolge, Ebene; je Blatt
+     die Flächen in Reihenfolge): markenraum, markenreihe (ohne und mit -meta; 100 Deckflächen im Kasten, dieselben Bruchstücke),
+     markenmeta in beiden Brush-Formaten (`tools/karte/gen_markenmeta.py`: Shader mit nonplanar, tessSize, notjunc, lightmapAxis,
+     shadeAngle, tcGen, invert, textureSize, globaltexture, pointlight, autosprite; func_group mit eigener Abtastung und Farbe; Patch).
+     Einmalig auch gegen große Karten, vom Editor geschrieben und mit bhed_q3map2 -meta gebaut: duel_mos_espa 72256 Flächen,
+     5332 Blätter; TarisUpper2 33776 Flächen, 18395 Blätter: **keine Abweichung**. Rechenzeit der Welt: 14 s / 25 s im Hintergrund (Idle-Last).
+   - Nicht geprüft/nicht nachgebaut (im Kopf der Datei): FogDrawSurfaces, Index-Karten, -patchmeta, -maxarea, -np, Klon-/Rückseiten-Shader,
+     _decal-Entitäten; die Reihenfolge der Dreiecke in einem Modell (die Nummern seiner Ecken kommen aus dem Modell-Lader von q3map2;
+     der Test vergleicht bei Modellen die Dreiecke als Menge).
+   - Handbuch (6 Sprachen) und Changelog ergänzt.
+
 ### Changelog
 
 Entwurf in sechs Sprachen: `SP\rc607_changelog.md` (nicht in tools/changelog.txt).
