@@ -12,7 +12,7 @@ Gewünscht: Mapping und Menü richtig fertig machen, das schnellere Licht und di
 - Karten-Editor: Menüs, die höher als der Bildschirm sind, brechen wie in NetRadiant-Custom in Spalten um; ein Untermenü in so einer Spalte öffnet neben seiner Spalte.
 - Karten-Editor: Zwei Bauten gleichzeitig streiten nicht mehr um Port 39000.
 - Karten-Editor: Behoben: abgelegte Modelle schrieben ihren Shader nach scripts/ (jetzt shaders/); ein zurückgeholtes misc_model konnte Teile zeigen, die die .bsp nicht hatte.
-- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 2- bis 3-mal schneller mit einem Drittel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
+- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 1,5- bis 2,6-mal schneller mit einem Drittel bis Viertel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
 - Licht und VIS (bhed_q3map2): -light: gleiche Bytes, viel schneller mit Bounces und [Final] Extreme Quality – md_am_sith (2 Bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 Bounce) 328 → 94 s (ruhige Maschine, Prozessor).
 - Licht und VIS (bhed_q3map2): GPU-Backen auch mit Zufalls-Nachproben; Auto lernt je Karte den schnellsten Weg (eine dritte Wahl für Karten mit vielen kleinen Lightmaps).
 - Licht und VIS (bhed_q3map2): Behoben: mehr als 64 Threads, ein zweites -light auf einer beleuchteten BSP, uninitialisierte Punkte beim Verdicken von „deformVertexes move“-Flächen.

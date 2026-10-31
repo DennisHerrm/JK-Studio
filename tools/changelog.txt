@@ -16,7 +16,7 @@
 - Map editor: Menus taller than the screen wrap into columns like NetRadiant-Custom; a submenu in such a column opens beside its column.
 - Map editor: Two builds at the same time no longer fight over port 39000.
 - Map editor: Fixed: dropped models wrote their shader to scripts/ (now shaders/); a recovered misc_model could show meshes the .bsp did not have.
-- Light and VIS (bhed_q3map2): -vis: same result, 2-3 times faster with a third of the memory; new "Same VIS in every build" (-bhedvisexact).
+- Light and VIS (bhed_q3map2): -vis: same result, 1.5 to 2.6 times faster with a third to a quarter of the memory; new "Same VIS in every build" (-bhedvisexact).
 - Light and VIS (bhed_q3map2): -light: same bytes, much faster with bounces and [Final] Extreme Quality - md_am_sith (2 bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 bounce) 328 → 94 s (quiet machine, processor).
 - Light and VIS (bhed_q3map2): GPU bake also with random subsamples; Auto learns per map which way is fastest (a third choice for maps with many small lightmaps).
 - Light and VIS (bhed_q3map2): Fixed: more than 64 threads, a second -light on a lit BSP, uninitialised points when widening "deformVertexes move" surfaces.
@@ -48,7 +48,7 @@
 - Karten-Editor: Menüs, die höher als der Bildschirm sind, brechen wie in NetRadiant-Custom in Spalten um; ein Untermenü in so einer Spalte öffnet neben seiner Spalte.
 - Karten-Editor: Zwei Bauten gleichzeitig streiten nicht mehr um Port 39000.
 - Karten-Editor: Behoben: abgelegte Modelle schrieben ihren Shader nach scripts/ (jetzt shaders/); ein zurückgeholtes misc_model konnte Teile zeigen, die die .bsp nicht hatte.
-- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 2- bis 3-mal schneller mit einem Drittel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
+- Licht und VIS (bhed_q3map2): -vis: gleiches Ergebnis, 1,5- bis 2,6-mal schneller mit einem Drittel bis Viertel des Speichers; neu „Gleiches VIS in jedem Bau“ (-bhedvisexact).
 - Licht und VIS (bhed_q3map2): -light: gleiche Bytes, viel schneller mit Bounces und [Final] Extreme Quality – md_am_sith (2 Bounces) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 Bounce) 328 → 94 s (ruhige Maschine, Prozessor).
 - Licht und VIS (bhed_q3map2): GPU-Backen auch mit Zufalls-Nachproben; Auto lernt je Karte den schnellsten Weg (eine dritte Wahl für Karten mit vielen kleinen Lightmaps).
 - Licht und VIS (bhed_q3map2): Behoben: mehr als 64 Threads, ein zweites -light auf einer beleuchteten BSP, uninitialisierte Punkte beim Verdicken von „deformVertexes move“-Flächen.
@@ -80,7 +80,7 @@
 - 地图编辑器：高于屏幕的菜单像 NetRadiant-Custom 一样分栏;这种栏中的子菜单在其栏旁边打开。
 - 地图编辑器：同时进行两次编译不再争用端口 39000。
 - 地图编辑器：已修复:拖入的模型把着色器写到 scripts/(现在是 shaders/);恢复的 misc_model 可能显示 .bsp 中没有的网格。
-- 光照与 VIS(bhed_q3map2)：-vis:结果相同,速度快 2–3 倍,内存只需三分之一;新增“每次编译相同的 VIS”(-bhedvisexact)。
+- 光照与 VIS(bhed_q3map2)：-vis:结果相同,速度快 1.5–2.6 倍,内存只需三分之一到四分之一;新增“每次编译相同的 VIS”(-bhedvisexact)。
 - 光照与 VIS(bhed_q3map2)：-light:字节相同,反弹和 [Final] Extreme Quality 快得多——md_am_sith(2 次反弹)743 → 306 秒,taspir1 125 → 81 秒,kejim_post 62 → 37 秒,duel_mos_espa(1 次反弹)328 → 94 秒(空闲机器,处理器)。
 - 光照与 VIS(bhed_q3map2)：GPU 烘焙也支持随机子采样;Auto 按地图学习最快的方式(多小光照贴图的地图有第三种选择)。
 - 光照与 VIS(bhed_q3map2)：已修复:超过 64 个线程、在已照明的 BSP 上再次 -light、加厚 “deformVertexes move” 表面时未初始化的点。
@@ -112,7 +112,7 @@
 - マップエディター：画面より高いメニューは NetRadiant-Custom と同じように列に折り返し、その列のサブメニューは列の横に開きます。
 - マップエディター：同時に 2 つのビルドを行ってもポート 39000 を取り合いません。
 - マップエディター：修正: ドロップしたモデルがシェーダーを scripts/ に書いていた問題(現在は shaders/)、復元した misc_model が .bsp にないメッシュを表示することがあった問題。
-- ライトと VIS(bhed_q3map2)：-vis: 同じ結果で 2~3 倍速く、メモリは 3 分の 1。新しい「どのビルドでも同じ VIS」(-bhedvisexact)。
+- ライトと VIS(bhed_q3map2)：-vis: 同じ結果で 1.5~2.6 倍速く、メモリは 3 分の 1 から 4 分の 1。新しい「どのビルドでも同じ VIS」(-bhedvisexact)。
 - ライトと VIS(bhed_q3map2)：-light: 同じバイトのまま、バウンスと [Final] Extreme Quality が大幅に高速化 — md_am_sith(2 バウンス)743 → 306 秒、taspir1 125 → 81 秒、kejim_post 62 → 37 秒、duel_mos_espa(1 バウンス)328 → 94 秒(負荷のないマシン、プロセッサー)。
 - ライトと VIS(bhed_q3map2)：GPU ベイクがランダムサブサンプルにも対応。Auto はマップごとに最速の方法を学習します(小さなライトマップが多いマップには 3 つ目の選択肢)。
 - ライトと VIS(bhed_q3map2)：修正: 64 を超えるスレッド、照明済み BSP への 2 回目の -light、「deformVertexes move」の面を広げるときの未初期化の点。
@@ -144,7 +144,7 @@
 - Editor de mapas: Los menús más altos que la pantalla se reparten en columnas como en NetRadiant-Custom; un submenú de una de esas columnas se abre junto a su columna.
 - Editor de mapas: Dos compilaciones a la vez ya no se pelean por el puerto 39000.
 - Editor de mapas: Corregido: los modelos arrastrados escribían su shader en scripts/ (ahora shaders/); un misc_model recuperado podía mostrar mallas que la .bsp no tenía.
-- Luz y VIS (bhed_q3map2): -vis: mismo resultado, de 2 a 3 veces más rápido con un tercio de la memoria; nuevo "El mismo VIS en cada compilación" (-bhedvisexact).
+- Luz y VIS (bhed_q3map2): -vis: mismo resultado, de 1,5 a 2,6 veces más rápido con entre un tercio y un cuarto de la memoria; nuevo "El mismo VIS en cada compilación" (-bhedvisexact).
 - Luz y VIS (bhed_q3map2): -light: los mismos bytes, mucho más rápido con rebotes y [Final] Extreme Quality: md_am_sith (2 rebotes) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 rebote) 328 → 94 s (equipo en reposo, procesador).
 - Luz y VIS (bhed_q3map2): Horneado en GPU también con submuestras aleatorias; Auto aprende por mapa qué camino es más rápido (una tercera opción para mapas con muchos lightmaps pequeños).
 - Luz y VIS (bhed_q3map2): Corregido: más de 64 hilos, un segundo -light sobre una BSP ya iluminada, puntos sin inicializar al ensanchar superficies con "deformVertexes move".
@@ -176,7 +176,7 @@
 - Editor map: Menu vyšší než obrazovka se zalomí do sloupců jako v NetRadiant-Custom; podmenu v takovém sloupci se otevře vedle svého sloupce.
 - Editor map: Dvě sestavení najednou už nesoupeří o port 39000.
 - Editor map: Opraveno: přetažené modely zapisovaly svůj shader do scripts/ (nyní shaders/); obnovený misc_model mohl ukazovat sítě, které .bsp neměl.
-- Světlo a VIS (bhed_q3map2): -vis: stejný výsledek, 2–3krát rychlejší s třetinou paměti; nové „Stejné VIS v každém sestavení“ (-bhedvisexact).
+- Světlo a VIS (bhed_q3map2): -vis: stejný výsledek, 1,5–2,6krát rychlejší s třetinou až čtvrtinou paměti; nové „Stejné VIS v každém sestavení“ (-bhedvisexact).
 - Světlo a VIS (bhed_q3map2): -light: stejné bajty, mnohem rychlejší s odrazy a [Final] Extreme Quality – md_am_sith (2 odrazy) 743 → 306 s, taspir1 125 → 81 s, kejim_post 62 → 37 s, duel_mos_espa (1 odraz) 328 → 94 s (klidný počítač, procesor).
 - Světlo a VIS (bhed_q3map2): Zapékání na GPU i s náhodnými podvzorky; Auto se pro každou mapu učí nejrychlejší cestu (třetí možnost pro mapy s mnoha malými lightmapami).
 - Světlo a VIS (bhed_q3map2): Opraveno: více než 64 vláken, druhé -light na již osvětleném BSP, neinicializované body při rozšiřování ploch s „deformVertexes move“.
