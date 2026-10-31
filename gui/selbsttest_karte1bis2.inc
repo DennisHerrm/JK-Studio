@@ -2954,7 +2954,8 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
                    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
                    const int passt = static_cast<int>(std::lround((ImGui::GetMainViewport()->Size.y - titelH) / ke::massstab()));
                    const ImGuiWindow* dialog = ImGui::FindWindowByName("###kartegruppe");
-                   const int hoehe = dialog != nullptr ? static_cast<int>(std::lround((dialog->Size.y - titelH) / ke::massstab())) : -1;   // Reiter + Inhalt
+                   // die Hoehe innen (die Titelleiste richtet sich nach der Schrift beim Oeffnen): Reiter + Inhalt
+                   const int hoehe = dialog != nullptr ? static_cast<int>(std::lround(dialog->InnerRect.GetHeight() / ke::massstab())) : -1;
                    diag::detail("Knopftest: Entitaeten - Dialog " + std::to_string(hoehe) + " hoch, Programmfenster fasst " + std::to_string(passt));
                    if (hoehe != std::min(777, passt) && (passt >= 777 || hoehe > passt)) { return false; }
                    const int innen = hoehe - 27;
