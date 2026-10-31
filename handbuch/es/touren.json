@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**Abre las rutas.** **{{MenuEdit}} → {{PathsTitle}}**. En el editor de mapas cambia antes a **{{ViewEvents}}**: ahí están los menús **{{MenuFile}}**, **{{MenuEdit}}** y **{{MenuView}}**.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "Paso 1 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**Revisa la lista.** Cada carpeta muestra cuántos archivos .pk3 encontró. Si dice que ninguno, elegiste la carpeta equivocada: quítala y prueba de nuevo. Luego cierra la ventana.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**Abre las preferencias.** **{{MenuEdit}} → {{AppPrefs}}**: volúmenes de sonido, las reglas del juego de la vista previa, la dificultad y cómo se comporta el programa.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "Paso 4 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**Elige las reglas.** **{{PrefsRegelwerk}}**: *automático* sigue a tu carpeta del juego; OpenJK o Movie Duels hacen que la vista previa se comporte exactamente como ese juego: marchas, puertas, tiempos.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "Paso 5 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "Paso 2 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**Al iniciar o no.** **{{MenuHelp}} → {{UpdAutoCheck}}** activa o desactiva la comprobación al iniciar. Nunca se envía nada más.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**¿Qué cambió?** **{{ChangelogMenu}}** en la ventana (o en **{{MenuHelp}}**) lista los cambios de cada versión.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "Paso 4 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**Abre el editor de mapas.** **{{ViewMapEditor}}** en la barra de modos. Abre tu mapa de Tu primer mapa: una sala por la que caminar, o cualquier mapa con una sala.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "Paso 1 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**Dibuja la puerta.** Arrastra un brush fino con el botón IZQUIERDO en una vista 2D, donde debe estar la puerta; por ejemplo de 16 unidades de grosor.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "Paso 2 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**Conviértelo en puerta.** Mantenlo seleccionado, haz clic derecho en la vista 2D y elige **func → func_door**. El brush es ahora una entidad que se mueve.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**Hacia dónde abre.** Pulsa <kbd>N</kbd> para el inspector de entidades. Pon la clave `angle` a `90` (se desliza hacia el norte; `-1` es arriba, `-2` abajo) y pulsa <kbd>Intro</kbd>.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "Paso 4 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**Dibuja el trigger.** Dibuja un segundo brush delante de la puerta, haz clic derecho y elige **trigger → trigger_multiple**. Los triggers son invisibles en el juego.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "Paso 5 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**Conéctalos.** Selecciona primero el trigger, luego la puerta (<kbd>Mayús</kbd>+clic) y pulsa <kbd>Ctrl</kbd>+<kbd>K</kbd>: **{{KeLEntity}} → {{KeLConnectEntities}}**. El `target` del trigger nombra ahora el `targetname` de la puerta.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "Paso 6 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**Pruébalo.** Compila el mapa y recórrelo como en Tu primer mapa: una sala por la que caminar: la puerta se abre cuando entras en el trigger.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "Paso 7 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**Abre el editor de menús.** **{{ViewMenuEditor}}** en la barra de modos.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "Paso 1 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**Abre un menú del juego.** **{{MeAusSpiel}}** y elige uno, por ejemplo `ui/jamp/main.menu`. Se lee de los archivos del juego y se dibuja como en el juego; la carpeta del juego no cambia.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "Paso 2 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**Mueve un elemento.** Pulsa un botón en el lienzo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**Empaquétalo.** **{{MeExportPk3}}** escribe el menú cambiado en un .pk3 para la carpeta de tu mod, por ejemplo `zz_menu.pk3`. Nunca se escribe en la propia carpeta del juego.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "Paso 5 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**打开路径。** **{{MenuEdit}} → {{PathsTitle}}**。在地图编辑器中请先切换到 **{{ViewEvents}}**,**{{MenuFile}}**、**{{MenuEdit}}** 和 **{{MenuView}}** 菜单在那里。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "程序中的第 1 步:教程高亮显示下一步的位置。",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**检查列表。** 每个文件夹都会显示找到了多少个压缩包。如果一个都没有,说明选错了文件夹——删除它再试一次。然后关闭窗口。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "程序中的第 3 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**打开首选项。** **{{MenuEdit}} → {{AppPrefs}}**:音量、预览的游戏规则、难度以及程序的行为。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "程序中的第 4 步:教程高亮显示下一步的位置。",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**选择规则。** **{{PrefsRegelwerk}}**:*auto* 跟随你的游戏文件夹;选择 OpenJK 或 Movie Duels 时,预览会完全按该游戏运行——行走、门、时间。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "程序中的第 5 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**阅读答复。** 窗口会告诉你已是最新版本,或显示新版本及其说明和 **{{UpdInstall}}**。没有网络时它会说明;**{{UpdRetry}}** 会再试一次。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "程序中的第 2 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**启动时是否检查。** **{{MenuHelp}} → {{UpdAutoCheck}}** 开启或关闭启动时的检查。除此之外不会发送任何内容。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "程序中的第 3 步:教程高亮显示下一步的位置。",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**有哪些变化?** 窗口中(或 **{{MenuHelp}}** 菜单中)的 **{{ChangelogMenu}}** 列出每个版本的更改。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "程序中的第 4 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**打开地图编辑器。** 在模式栏中选择 **{{ViewMapEditor}}**。打开 你的第一张地图:一个可以走动的房间 中的地图,或任何有房间的地图。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "程序中的第 1 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**画出门。** 在 2D 视图中门所在的位置,用鼠标左键拖出一个薄画刷,例如 16 个单位厚。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "程序中的第 2 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**把它变成门。** 保持选中,在 2D 视图中右键点击,选择 **func → func_door**。这个画刷现在是会移动的实体。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "程序中的第 3 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**打开的方向。** 按 <kbd>N</kbd> 打开实体检查器。把键 `angle` 设为 `90`(向北滑开;`-1` 向上,`-2` 向下),然后按 <kbd>Enter</kbd>。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "程序中的第 4 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**画出触发器。** 在门前画第二个画刷,右键点击并选择 **trigger → trigger_multiple**。触发器在游戏中是看不见的。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "程序中的第 5 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**连接它们。** 先选中触发器,再选中门(<kbd>Shift</kbd>+点击),然后按 <kbd>Ctrl</kbd>+<kbd>K</kbd>,即 **{{KeLEntity}} → {{KeLConnectEntities}}**。触发器的 `target` 现在指向门的 `targetname`。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "程序中的第 6 步:教程高亮显示下一步的位置。",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**试一试。** 像 你的第一张地图:一个可以走动的房间 中那样编译地图并走一遍:你走进触发器时门就会打开。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "程序中的第 7 步:教程高亮显示下一步的位置。",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**打开菜单编辑器。** 在模式栏中选择 **{{ViewMenuEditor}}**。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "程序中的第 1 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**打开游戏中的菜单。** 点击 **{{MeAusSpiel}}** 并选择一个,例如 `ui/jamp/main.menu`。它从游戏文件读取并按游戏的方式绘制,游戏文件夹不会被修改。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "程序中的第 2 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**移动一个元素。** 在画布上点击一个按钮并拖动它,或用方向键微调。下方代码中的 `rect` 会随之改变。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "程序中的第 3 步:教程高亮显示下一步的位置。",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**打包。** **{{MeExportPk3}}** 把修改后的菜单写入一个用于模组文件夹的 .pk3,例如 `zz_menu.pk3`。绝不会写入游戏文件夹本身。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "程序中的第 5 步:教程高亮显示下一步的位置。",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

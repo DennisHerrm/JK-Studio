@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**Öffne die Pfade.** **{{MenuEdit}} → {{PathsTitle}}**. Im Karten-Editor wechsle zuerst zu **{{ViewEvents}}** - dort stehen die Menüs **{{MenuFile}}**, **{{MenuEdit}}** und **{{MenuView}}**.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "Schritt 1 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**Prüf die Liste.** Jeder Ordner zeigt, wie viele Archive er gefunden hat. Steht dort keins, war es der falsche Ordner - entfern ihn und versuch es noch einmal. Dann schließ das Fenster.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**Öffne die Einstellungen.** **{{MenuEdit}} → {{AppPrefs}}**: Lautstärken, die Spielregeln der Vorschau, Schwierigkeit und wie sich das Programm verhält.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "Schritt 4 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**Wähl die Regeln.** **{{PrefsRegelwerk}}**: *auto* richtet sich nach deinem Spielordner; OpenJK oder Movie Duels lassen die Vorschau genau wie dieses Spiel laufen - Gehen, Türen, Zeiten.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "Schritt 5 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**Lies die Antwort.** Das Fenster sagt, dass du die neueste Fassung hast - oder zeigt die neue mit ihren Notizen und **{{UpdInstall}}**. Ohne Verbindung sagt es das; **{{UpdRetry}}** versucht es noch einmal.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "Schritt 2 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**Beim Start oder nicht.** **{{MenuHelp}} → {{UpdAutoCheck}}** schaltet die Suche beim Start ein oder aus. Sonst wird nie etwas gesendet.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**Was ist neu?** **{{ChangelogMenu}}** im Fenster (oder im Menü **{{MenuHelp}}**) zeigt die Änderungen jeder Fassung.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "Schritt 4 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**Öffne den Karten-Editor.** **{{ViewMapEditor}}** in der Modusleiste. Öffne deine Karte aus Deine erste Karte: ein Raum zum Herumlaufen - oder eine andere mit einem Raum.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "Schritt 1 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**Zieh die Tür.** Zieh mit der LINKEN Maustaste in einer 2D-Ansicht einen dünnen Brush, wo die Tür hin soll - zum Beispiel 16 Einheiten dick.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "Schritt 2 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**Mach eine Tür daraus.** Lass ihn gewählt, klick rechts in die 2D-Ansicht und wähl **func → func_door**. Der Brush ist jetzt eine Entity, die sich bewegt.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**Wohin sie aufgeht.** Drück <kbd>N</kbd> für den Entity-Inspektor. Setz den Schlüssel `angle` auf `90` (sie gleitet nach Norden; `-1` ist hoch, `-2` runter) und drück <kbd>Enter</kbd>.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "Schritt 4 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**Zieh den Trigger.** Zieh einen zweiten Brush vor der Tür, klick rechts und wähl **trigger → trigger_multiple**. Trigger sind im Spiel unsichtbar.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "Schritt 5 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**Verbinde sie.** Wähl zuerst den Trigger, dann die Tür (<kbd>Umschalt</kbd>+Klick), und drück <kbd>Strg</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. Der `target` des Triggers nennt jetzt den `targetname` der Tür.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "Schritt 6 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**Probier es aus.** Bau die Karte und lauf durch wie in Deine erste Karte: ein Raum zum Herumlaufen: Die Tür geht auf, wenn du in den Trigger trittst.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "Schritt 7 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**Öffne den Menü-Editor.** **{{ViewMenuEditor}}** in der Modusleiste.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "Schritt 1 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**Öffne ein Menü des Spiels.** **{{MeAusSpiel}}** und wähl eins, zum Beispiel `ui/jamp/main.menu`. Es wird aus den Spieldateien gelesen und wie im Spiel gezeichnet - der Spielordner bleibt unverändert.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "Schritt 2 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` im Code darunter ändert sich mit.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**Pack es.** **{{MeExportPk3}}** schreibt das geänderte Menü in eine .pk3 für deinen Mod-Ordner, zum Beispiel `zz_menu.pk3`. In den Spielordner selbst wird nie geschrieben.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "Schritt 5 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

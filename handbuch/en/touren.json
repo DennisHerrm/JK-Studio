@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**Open the paths.** **{{MenuEdit}} → {{PathsTitle}}**. In the map editor switch to **{{ViewEvents}}** first - the menus **{{MenuFile}}**, **{{MenuEdit}}** and **{{MenuView}}** are there.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "Step 1 in the program: the tutorial highlights where to go next.",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**Check the list.** Every folder shows how many archives it found. If it says none, you picked the wrong folder - remove it and try again. Then close the window.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**Open the preferences.** **{{MenuEdit}} → {{AppPrefs}}**: sound levels, the game rules of the preview, difficulty and how the program behaves.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "Step 4 in the program: the tutorial highlights where to go next.",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**Choose the rules.** **{{PrefsRegelwerk}}**: *auto* follows your game folder; OpenJK or Movie Duels make the preview behave exactly like that game - walking, doors, timing.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "Step 5 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "Step 2 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "Step 4 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**Open the map editor.** **{{ViewMapEditor}}** in the mode bar. Open your map from Your first map: a room to walk in - or any map with a room.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "Step 1 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**Draw the door.** Drag a thin brush with the LEFT mouse button in a 2D view, where the door should be - for example 16 units thick.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "Step 2 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**Make it a door.** Keep it selected, right-click in the 2D view and choose **func → func_door**. The brush is now an entity that moves.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**Which way it opens.** Press <kbd>N</kbd> for the entity inspector. Set the key `angle` to `90` (it slides north; `-1` is up, `-2` down) and press <kbd>Enter</kbd>.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "Step 4 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**Draw the trigger.** Draw a second brush in front of the door, right-click and choose **trigger → trigger_multiple**. Triggers are invisible in the game.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "Step 5 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**Connect them.** Select the trigger first, then the door (<kbd>Shift</kbd>+click), and press <kbd>Ctrl</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. The trigger's `target` now names the door's `targetname`.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "Step 6 in the program: the tutorial highlights where to go next.",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**Try it.** Build the map and walk through it as in Your first map: a room to walk in: the door opens when you step into the trigger.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "Step 7 in the program: the tutorial highlights where to go next.",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**Open the menu editor.** **{{ViewMenuEditor}}** in the mode bar.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "Step 1 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**Open a menu of the game.** **{{MeAusSpiel}}** and pick one, for example `ui/jamp/main.menu`. It is read from the game files and drawn like the game - the game folder is not changed.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "Step 2 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**Move an element.** Click a button on the canvas and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**Pack it.** **{{MeExportPk3}}** writes the changed menu into a .pk3 for your mod folder, for example `zz_menu.pk3`. The game folder itself is never written.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "Step 5 in the program: the tutorial highlights where to go next.",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

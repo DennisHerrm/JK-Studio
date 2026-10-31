@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**パスを開きます。** **{{MenuEdit}} → {{PathsTitle}}**。マップエディターでは先に **{{ViewEvents}}** に切り替えてください。**{{MenuFile}}**・**{{MenuEdit}}**・**{{MenuView}}** メニューはそこにあります。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "プログラムでの手順 1: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**一覧を確認します。** 各フォルダーに見つかったアーカイブの数が表示されます。0 なら別のフォルダーです。削除してやり直してください。終わったらウィンドウを閉じます。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**設定を開きます。** **{{MenuEdit}} → {{AppPrefs}}**:音量、プレビューのゲームルール、難易度、プログラムの動作。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "プログラムでの手順 4: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**ルールを選びます。** **{{PrefsRegelwerk}}**:*auto* はゲームフォルダーに合わせます。OpenJK か Movie Duels を選ぶと、歩き方・ドア・タイミングがそのゲームとまったく同じになります。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "プログラムでの手順 5: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**答えを読みます。** 最新版であること、または新しいバージョンとその説明と **{{UpdInstall}}** が表示されます。接続がないときはそう表示され、**{{UpdRetry}}** で再試行します。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "プログラムでの手順 2: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**起動時に確認するか。** **{{MenuHelp}} → {{UpdAutoCheck}}** で起動時の確認をオン/オフします。それ以外に何かを送ることはありません。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**何が変わった?** ウィンドウ(または **{{MenuHelp}}** メニュー)の **{{ChangelogMenu}}** に各バージョンの変更が並びます。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "プログラムでの手順 4: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**マップエディターを開きます。** モードバーの **{{ViewMapEditor}}**。はじめてのマップ:歩き回れる部屋 のマップか、部屋のある別のマップを開きます。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "プログラムでの手順 1: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**ドアを描きます。** 2D ビューのドアを置きたい場所で、マウスの左ボタンで薄いブラシをドラッグします(例えば厚さ 16 ユニット)。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "プログラムでの手順 2: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**ドアにします。** 選択したまま 2D ビューで右クリックし、**func → func_door** を選びます。ブラシが動くエンティティになります。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**開く向き。** <kbd>N</kbd> でエンティティインスペクターを開きます。キー `angle` を `90` にして(北へ滑ります。`-1` は上、`-2` は下)<kbd>Enter</kbd> を押します。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "プログラムでの手順 4: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**トリガーを描きます。** ドアの前に 2 つ目のブラシを描き、右クリックして **trigger → trigger_multiple** を選びます。トリガーはゲーム内では見えません。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "プログラムでの手順 5: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**つなぎます。** 先にトリガー、次にドアを選び(<kbd>Shift</kbd>+クリック)、<kbd>Ctrl</kbd>+<kbd>K</kbd> を押します(**{{KeLEntity}} → {{KeLConnectEntities}}**)。トリガーの `target` がドアの `targetname` を指すようになります。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "プログラムでの手順 6: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**試します。** はじめてのマップ:歩き回れる部屋 と同じようにマップをビルドして歩きます。トリガーに入るとドアが開きます。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "プログラムでの手順 7: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**メニューエディターを開きます。** モードバーの **{{ViewMenuEditor}}**。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "プログラムでの手順 1: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**ゲームのメニューを開きます。** **{{MeAusSpiel}}** を押して、例えば `ui/jamp/main.menu` を選びます。ゲームのファイルから読み込まれ、ゲームと同じように描かれます。ゲームフォルダーは変わりません。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "プログラムでの手順 2: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**要素を動かします。** キャンバスのボタンをクリックしてドラッグするか、矢印キーで少しずつ動かします。下のコードの `rect` も一緒に変わります。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**まとめます。** **{{MeExportPk3}}** で変更したメニューを MOD フォルダー用の .pk3(例えば `zz_menu.pk3`)に書き出します。ゲームフォルダー自体には書き込みません。",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "プログラムでの手順 5: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

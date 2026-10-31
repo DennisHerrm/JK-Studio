@@ -1038,8 +1038,8 @@
     "classic": [
      {
       "text": "**Otevřete cesty.** **{{MenuEdit}} → {{PathsTitle}}**. V editoru map nejdřív přepněte na **{{ViewEvents}}** - tam jsou nabídky **{{MenuFile}}**, **{{MenuEdit}}** a **{{MenuView}}**.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_1",
+      "unter": "Krok 1 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "menue:MenuEdit>PathsTitle",
       "fertig": "zahl:programm.pfade",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1060,8 +1060,8 @@
      },
      {
       "text": "**Zkontrolujte seznam.** Každá složka ukazuje, kolik archivů našla. Pokud žádný, vybrali jste špatnou složku - odeberte ji a zkuste to znovu. Pak okno zavřete.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_3",
+      "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:###paths",
       "fertig": "manuell",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.pfade < menue:MenuEdit>PathsTitle",
@@ -1071,8 +1071,8 @@
      },
      {
       "text": "**Otevřete předvolby.** **{{MenuEdit}} → {{AppPrefs}}**: hlasitost zvuku, pravidla hry pro náhled, obtížnost a chování programu.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_4",
+      "unter": "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "menue:MenuEdit>AppPrefs",
       "fertig": "zahl:programm.einstellungen",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1082,8 +1082,8 @@
      },
      {
       "text": "**Zvolte pravidla.** **{{PrefsRegelwerk}}**: *automaticky* se řídí vaší složkou hry; OpenJK nebo Movie Duels nechají náhled chovat se přesně jako tato hra - chůze, dveře, načasování.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_spielordner_5",
+      "unter": "Krok 5 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:PrefsRegelwerk",
       "fertig": "zahl:programm.regelwerk~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs",
@@ -1115,8 +1115,8 @@
      },
      {
       "text": "**Přečtěte si odpověď.** Okno řekne, že máte nejnovější verzi - nebo ukáže novou s poznámkami a **{{UpdInstall}}**. Bez připojení to oznámí; **{{UpdRetry}}** to zkusí znovu.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_2",
+      "unter": "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:###update",
       "fertig": "zahl:update.ergebnis",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
@@ -1126,8 +1126,8 @@
      },
      {
       "text": "**Při spuštění, nebo ne.** **{{MenuHelp}} → {{UpdAutoCheck}}** zapíná nebo vypíná kontrolu při spuštění. Nic jiného se nikdy neposílá.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_3",
+      "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "menue:MenuHelp>UpdAutoCheck",
       "fertig": "zahl:update.auto~",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1137,8 +1137,8 @@
      },
      {
       "text": "**Co se změnilo?** **{{ChangelogMenu}}** v okně (nebo v **{{MenuHelp}}**) vypíše změny každé verze.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_update_4",
+      "unter": "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
@@ -1159,8 +1159,8 @@
     "classic": [
      {
       "text": "**Otevřete editor map.** **{{ViewMapEditor}}** v liště režimů. Otevřete svou mapu z Vaše první mapa: místnost k procházení - nebo libovolnou mapu s místností.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_1",
+      "unter": "Krok 1 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:ViewMapEditor@modebar",
       "fertig": "modus:3",
       "voraus": "",
@@ -1170,8 +1170,8 @@
      },
      {
       "text": "**Nakreslete dveře.** Táhněte LEVÝM tlačítkem myši ve 2D pohledu tenký brush tam, kde mají být dveře - například 16 jednotek silný.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_2",
+      "unter": "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.pinsel+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1187,8 +1187,8 @@
      },
      {
       "text": "**Udělejte z něj dveře.** Nechte ho vybraný, klikněte pravým tlačítkem ve 2D pohledu a zvolte **func → func_door**. Brush je teď entita, která se pohybuje.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_3",
+      "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.func_door+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1208,8 +1208,8 @@
      },
      {
       "text": "**Kam se otevírají.** Stiskněte <kbd>N</kbd> pro inspektor entit. Nastavte klíč `angle` na `90` (vysune se na sever; `-1` je nahoru, `-2` dolů) a stiskněte <kbd>Enter</kbd>.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_4",
+      "unter": "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##feldGruppe",
       "fertig": "zahl:karte.schluessel~",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1219,8 +1219,8 @@
      },
      {
       "text": "**Nakreslete trigger.** Nakreslete před dveřmi druhý brush, klikněte pravým tlačítkem a zvolte **trigger → trigger_multiple**. Triggery jsou ve hře neviditelné.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_5",
+      "unter": "Krok 5 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##feldXY",
       "fertig": "zahl:karte.ent.trigger_multiple+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1230,8 +1230,8 @@
      },
      {
       "text": "**Spojte je.** Vyberte nejdřív trigger, pak dveře (<kbd>Shift</kbd>+kliknutí) a stiskněte <kbd>Ctrl</kbd>+<kbd>K</kbd> - **{{KeLEntity}} → {{KeLConnectEntities}}**. `target` triggeru teď jmenuje `targetname` dveří.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_6",
+      "unter": "Krok 6 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "menue:KeLEntity>KeLConnectEntities",
       "fertig": "zahl:karte.verbindungen+",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1241,8 +1241,8 @@
      },
      {
       "text": "**Vyzkoušejte to.** Sestavte mapu a projděte ji jako v Vaše první mapa: místnost k procházení: dveře se otevřou, když vstoupíte do triggeru.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_karte_tuer_7",
+      "unter": "Krok 7 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "menue:KeLBuild",
       "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
       "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
@@ -1263,8 +1263,8 @@
     "classic": [
      {
       "text": "**Otevřete editor menu.** **{{ViewMenuEditor}}** v liště režimů.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_1",
+      "unter": "Krok 1 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:ViewMenuEditor@modebar",
       "fertig": "modus:4",
       "voraus": "",
@@ -1274,8 +1274,8 @@
      },
      {
       "text": "**Otevřete menu hry.** **{{MeAusSpiel}}** a vyberte jedno, například `ui/jamp/main.menu`. Načte se ze souborů hry a kreslí se jako ve hře - složka hry se nemění.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_2",
+      "unter": "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:MeAusSpiel",
       "fertig": "zahl:menue.dokumente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1285,8 +1285,8 @@
      },
      {
       "text": "**Posuňte prvek.** Klikněte na tlačítko na plátně a táhněte ho - nebo ho postrčte šipkami. Jeho `rect` v kódu níže se mění s ním.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_3",
+      "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##mitte",
       "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
@@ -1313,8 +1313,8 @@
      },
      {
       "text": "**Zabalte ho.** **{{MeExportPk3}}** zapíše změněné menu do .pk3 pro složku vašeho modu, například `zz_menu.pk3`. Do samotné složky hry se nikdy nezapisuje.",
-      "bild": "",
-      "unter": "",
+      "bild": "h_tut_menue_h2_5",
+      "unter": "Krok 5 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "knopf:MeExportPk3",
       "fertig": "zahl:menue.exporte+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
