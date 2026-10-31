@@ -1131,6 +1131,210 @@ std::vector<Schritt> schritteTourMenue() {
     return s;
 }
 
+// rc608 Punkt 1: der Startbildschirm ohne offenes Menue. Die Bauteile sind die der Startflaeche des
+// Mission-Tabs; hier: alle Knoepfe tun, was sie vorher taten, und bei 100 % und 200 %, im schmalen
+// Fenster und in jeder Sprache ragt nichts hinaus.
+// Geprueft wird, was in diesem Bild zu sehen ist (gerollte Teile meldet ImGui nicht): nichts ragt seitlich
+// hinaus, die Karten fassen ihre Texte. Was ganz im Bild steht, kommt in `gesehen`.
+void startPruefen(std::set<std::string>& gesehen, std::string& bericht) {
+    const char* const fenster = "##menuestart";
+    for (const Str k : {Str::MePrjSp, Str::MePrjMp, Str::MePrjNeu, Str::MePrjOeffnen, Str::EmptyShowHow, Str::MeStartHandbuch}) {
+        const Element* e = finde(tr(k), fenster, 0, false);
+        if (e == nullptr) { continue; }
+        if (e->rect.Min.x < e->clip.Min.x - 0.5F || e->rect.Max.x > e->clip.Max.x + 0.5F) { bericht += std::string(" ragt hinaus: ") + tr(k); }
+        // Bei 200 % im kleinsten Fenster kann eine Karte fast so hoch sein wie der sichtbare Teil: das Rollen
+        // in Schritten trifft dann die eine Stellung nicht, in der sie ganz zu sehen ist.
+        if (ganzSichtbar(*e) || e->rect.GetHeight() + ImGui::GetFontSize() > e->clip.GetHeight()) { gesehen.insert(tr(k)); }
+    }
+    const std::pair<Str, Str> karten[] = {{Str::MePrjNeu, Str::MeStartNeuSub}, {Str::MePrjOeffnen, Str::MeStartOeffnenSub}};
+    for (const auto& [titel, unter] : karten) {
+        const Element* e = finde(tr(titel), fenster, 0, false);
+        if (e != nullptr && e->rect.GetHeight() + 0.5F < startKarteHoehe(tr(titel), tr(unter), e->rect.GetWidth())) {
+            bericht += std::string(" Karte zu klein: ") + tr(titel);
+        }
+    }
+}
+
+ImGuiWindow* startFenster() {
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if (w->WasActive && std::string(w->Name).find("##menuestart") != std::string::npos) { return w; }
+    }
+    return nullptr;
+}
+
+// Rollt den Startbildschirm von oben nach unten durch: jedes Bauteil muss dabei einmal ganz im Bild stehen.
+Schritt startAbtasten(const std::string& name) {
+    auto gesehen = std::make_shared<std::set<std::string>>();
+    auto bericht = std::make_shared<std::string>();
+    const std::string text = "rc608 Start: " + name + " - alles erreichbar, nichts ragt hinaus, Karten fassen ihre Texte";
+    return {"Pruefe " + text, [=](int b) {
+                ImGuiWindow* w = startFenster();
+                if (w == nullptr) {
+                    pruefeWahr(false, text);
+                    return true;
+                }
+                if (b == 0) {
+                    gesehen->clear();
+                    bericht->clear();
+                    ImGui::SetScrollY(w, 0.0F);
+                }
+                if (b % 3 != 2) { return false; }
+                startPruefen(*gesehen, *bericht);
+                if (w->Scroll.y < w->ScrollMax.y - 0.5F) {
+                    ImGui::SetScrollY(w, std::min(w->ScrollMax.y, w->Scroll.y + ImGui::GetFontSize()));
+                    return false;
+                }
+                ImGui::SetScrollY(w, 0.0F);
+                const bool gut = gesehen->size() == 6U && bericht->empty();
+                if (!gut) { diag::detail("Knopftest: Start " + name + ": " + std::to_string(gesehen->size()) + " von 6 ganz im Bild" + *bericht); }
+                pruefeWahr(gut, text);
+                return true;
+            }};
+}
+
+std::vector<Schritt> schritteStart() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    namespace fs = std::filesystem;
+    const auto ordner = std::make_shared<fs::path>(bhed::utf8Pfad(platform::executableDirectory()) / "start_projekt");
+    const auto antwort = std::make_shared<std::string>();
+    const auto frei = [] {
+        me::schliesseAlleOhneSpeichern();
+        me::neuesProjektFormat(false);
+        g_app->leftMode = 4;
+        tourSchliessen();
+    };
+    add(tu("rc608 Start: kein Menue offen, Dateidialoge ersetzt", [frei, ordner, antwort] {
+        std::error_code ec;
+        fs::remove_all(*ordner, ec);
+        fs::create_directories(*ordner, ec);
+        me::setzeProjektDialog([antwort](bool) { return *antwort; });
+        frei();
+    }));
+    add(pause(0.5));
+    add(foto("menue_start"));
+    add(tu("rc608 Start: Mission-Tab ohne Karte", [] { g_app->leftMode = 1; }));
+    add(pause(0.5));
+    add(foto("mission_start"));
+    add(tu("rc608 Start: zurueck in den Menue-Editor", [] { g_app->leftMode = 4; }));
+    add(pause(0.3));
+
+    add(pruefe("rc608 Start: der Satz stimmt - Aus dem Spiel ist der zweite Knopf der Leiste", [] {
+        const Element* p = finde(tr(Str::MePrjProjekt), "", 0, false);
+        const Element* a = finde(tr(Str::MeAusSpiel), "", 0, false);
+        return p != nullptr && a != nullptr && p->rect.Max.x <= a->rect.Min.x && a->rect.Min.x - p->rect.Max.x < ImGui::GetFontSize();
+    }));
+    // Alle Sprachen, 100 % und 200 %, grosses und das kleinste erlaubte Fenster
+    auto skala = std::make_shared<float>(1.0F);
+    auto groesse = std::make_shared<std::pair<int, int>>(0, 0);
+    auto sprache = std::make_shared<i18n::Language>(i18n::currentLanguage());
+    add(tu("rc608 Start: Oberflaeche und Fenster merken", [skala, groesse, sprache] {
+        *skala = g_app->uiScale;
+        *sprache = i18n::currentLanguage();
+        *groesse = platform::hauptfensterGroesse(1360, 900);
+    }));
+    struct Mass {
+        const char* name;
+        float zoom;
+        int b, h;
+    };
+    static const Mass masse[] = {{"100", 1.0F, 1360, 900}, {"200", 2.0F, 1360, 900}, {"schmal100", 1.0F, 900, 600}, {"schmal200", 2.0F, 900, 600}};
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language sp = l.language;
+        const std::string kurz = i18n::kurzCode(sp);
+        for (const Mass& m : masse) {
+            const std::string name = kurz + " " + m.name;
+            add(tu("rc608 Start: " + name, [sp, m] {
+                i18n::setLanguage(sp);
+                g_app->uiScale = m.zoom;
+                (void)platform::hauptfensterGroesse(m.b, m.h);
+            }));
+            add(pause(0.3));
+            if (kurz == "en" || kurz == "de" || kurz == "ja") { add(foto("menue_start_" + kurz + "_" + m.name)); }
+            add(startAbtasten(name));
+        }
+    }
+    add(tu("rc608 Start: Oberflaeche und Fenster zurueck", [skala, groesse, sprache] {
+        i18n::setLanguage(*sprache);
+        g_app->uiScale = *skala;
+        if (groesse->first > 0) { (void)platform::hauptfensterGroesse(groesse->first, groesse->second); }
+    }));
+    add(pause(0.5));
+
+    // Die Knoepfe tun, was sie vorher taten
+    add(tu("rc608 Start: Status leeren", [] { g_app->statusLines.clear(); }));
+    add(klick(tr(Str::MeStartHandbuch), "##menuestart"));
+    add(pause(0.2));
+    add(pruefe("rc608 Start: der Handbuch-Knopf verlangt die Seite des Menue-Editors", [] {
+        for (const std::string& z : g_app->statusLines) {
+            if (z.find("Handbuch angefragt: menue_editor.html") != std::string::npos) { return true; }
+        }
+        return false;
+    }));
+    add(klick(tr(Str::EmptyShowHow), "##menuestart"));
+    add(pause(0.3));
+    add(pruefe("rc608 Start: Zeig mir, wie startet das Tutorial tut-menue bei seinem zweiten Schritt", [] {
+        const TourSicht t = tourSicht();
+        return t.aktiv && t.id == "tut-menue" && t.schritt == 1;
+    }));
+    add(warteBis("rc608 Start: tut-menue zeigt auf den Knopf Aus dem Spiel", [] {
+        const TourSicht t = tourSicht();
+        const Element* e = finde(tr(Str::MeAusSpiel), "", 0, false);
+        return e != nullptr && t.overlay && t.ziele.size() == 1 && t.ziele[0].Overlaps(e->rect);
+    }, 300));
+    add(tu("rc608 Start: Tour tut-menue-eigen ab Schritt 2", [] {
+        tourSchliessen();
+        (void)tourStarten("tut-menue-eigen", 1);
+    }));
+    add(warteBis("rc608 Start: tut-menue-eigen zeigt auf die Karte Neues Projekt", [] {
+        const TourSicht t = tourSicht();
+        const Element* e = finde(tr(Str::MePrjNeu), "##menuestart", 0, false);
+        return e != nullptr && t.overlay && t.ziele.size() == 1 && t.ziele[0].Overlaps(e->rect);
+    }, 300));
+    add(tu("rc608 Start: Tour zu, Dialog antwortet mit dem Pfad", [ordner, antwort] {
+        tourSchliessen();
+        *antwort = pfadText(*ordner / "sp.jksmenu");
+    }));
+    add(pause(0.2));
+    add(klick(tr(Str::MePrjSp), "##menuestart"));
+    add(klick(tr(Str::MePrjNeu), "##menuestart"));
+    add(pause(0.4));
+    add(pruefe("rc608 Start: Einzelspieler + Neues Projekt legt ui/mein_menue.menu an", [antwort] {
+        return me::projektDatei() == *antwort && !me::dokumentMp() && me::dokumentName() == "ui/mein_menue.menu";
+    }));
+    add(tu("rc608 Start: wieder ohne Menue", [frei, ordner, antwort] {
+        frei();
+        *antwort = pfadText(*ordner / "mp.jksmenu");
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::MePrjMp), "##menuestart"));
+    add(klick(tr(Str::MePrjNeu), "##menuestart"));
+    add(pause(0.4));
+    add(pruefe("rc608 Start: Mehrspieler + Neues Projekt legt das Menue im MP-Ordner an", [antwort] {
+        const std::string n = me::dokumentName();
+        diag::detail("Knopftest: Start MP " + n);
+        return me::projektDatei() == *antwort && me::dokumentMp() &&
+               (n == "ui/jamp/mein_menue.menu" || n == "ui/MD_MP/mein_menue.menu" || n == "ui/jk2mp/mein_menue.menu");
+    }));
+    add(tu("rc608 Start: wieder ohne Menue, Dialog nennt das SP-Projekt", [frei, ordner, antwort] {
+        frei();
+        *antwort = pfadText(*ordner / "sp.jksmenu");
+    }));
+    add(pause(0.3));
+    add(klick(tr(Str::MePrjOeffnen), "##menuestart"));
+    add(pause(0.4));
+    add(pruefe("rc608 Start: Projekt oeffnen oeffnet das Projekt aus dem Dialog", [antwort] {
+        return me::projektDatei() == *antwort && me::stand().dokumente == 1;
+    }));
+    add(tu("rc608 Start: aufraeumen", [frei, ordner] {
+        frei();
+        me::setzeProjektDialog(nullptr);
+        std::error_code ec;
+        fs::remove_all(*ordner, ec);
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritteM5b() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1707,6 +1911,18 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=tourmenue: nur die Tour "Dein erstes eigenes Menue" mit ihren Handbuchbildern (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "tourmenue") == 0) {
+        for (auto& x : schritteTourMenue()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=start: nur der Startbildschirm ohne offenes Menue (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "start") == 0) {
+        for (auto& x : schritteStart()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=m6: nur die Schritte von M6
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m6") == 0) {
         for (auto& x : schritteM6()) { add(std::move(x)); }
@@ -1908,6 +2124,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM5b()) { add(std::move(x)); }
     for (auto& x : schritteM6()) { add(std::move(x)); }
     for (auto& x : schritteM7()) { add(std::move(x)); }
+    for (auto& x : schritteStart()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

@@ -363,6 +363,7 @@ struct Zustand {
     Tastenbelegung tasten[2];                    // M7: Vorgabe-Config des Spiels je Dialekt (SP, MP)
     bool tastenGelesen[2] = {false, false};
     Dialekt neuDialekt = Dialekt::SP;            // M7: Format des Startmenues eines neuen Projekts
+    std::function<std::string(bool)> projektDialog;   // rc608: Selbsttest statt der Windows-Dateidialoge
     // M7 Punkt 13: das zuletzt gestartete Testspiel (ui_load nach dem Speichern)
     unsigned long testPid = 0;
     bool testUiLoad = false;
@@ -5163,7 +5164,6 @@ void zeichneInnen(float hoehe) {
     d = doc();
     if (d == nullptr) {
         zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
-        if (ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("tut-menue", 1); }   // H2: der Weg als Tour
         menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
     }
@@ -5629,6 +5629,7 @@ void projektVormerken(const std::string& datei) { Z().projektVorgemerkt = datei;
 bool istProjekt(const std::string& datei) { return istProjektDatei(datei); }
 bool legeProjektAn(const std::string& datei) { return neuesProjekt(datei); }
 void neuesProjektFormat(bool mehrspieler) { Z().neuDialekt = mehrspieler ? Dialekt::MP : Dialekt::SP; }
+void setzeProjektDialog(std::function<std::string(bool)> antwort) { Z().projektDialog = std::move(antwort); }
 void testSpielUebernehmen(unsigned long pid, const std::string& ordner) {
     Zustand& z = Z();
     z.testPid = pid;

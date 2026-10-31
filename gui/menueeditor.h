@@ -8,6 +8,7 @@
 
 #include "bhed/menue/hud.h"
 #include <map>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -113,6 +114,8 @@ void projektVormerken(const std::string& datei);      // Doppelklick/Kommandozei
 [[nodiscard]] bool istProjekt(const std::string& datei);
 bool legeProjektAn(const std::string& datei);         // die offenen Menues kommen hinein
 void neuesProjektFormat(bool mehrspieler);          // M7: Format des Startmenues (Einzel-/Mehrspieler)
+// rc608 Selbsttest: liefert den Pfad statt der Dateidialoge von "Neues Projekt" (true) und "Projekt oeffnen" (false)
+void setzeProjektDialog(std::function<std::string(bool)> antwort);
 // M7 Punkt 13: ein laufendes Testspiel uebernehmen (Selbsttest-Nachweis: das Spiel startet ein Python-
 // Skript mit der Befehlszeile von "Im Spiel testen"); Zahl der ui_load-Neuladungen seit dem Start
 void testSpielUebernehmen(unsigned long pid, const std::string& ordner);

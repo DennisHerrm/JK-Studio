@@ -3288,6 +3288,14 @@ enum class Str {
     MapGpuRowNoTime,
     MeAuswahlItems,
     MapScriptKeyVon,
+    MeStartTitel,
+    MeStartFormat,
+    MeStartFormatSatz,
+    MeStartNeuSub,
+    MeStartOeffnenSub,
+    MeStartZeigenTip,
+    MeStartHandbuch,
+    MeStartHandbuchTip,
     Count,
 };
 

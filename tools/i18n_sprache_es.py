@@ -2770,7 +2770,7 @@ TEXTE = {
     "MePrjExport": "Exportar proyecto como pk3",
     "MePrjExportZiel": "Cambiar destino del pk3...",
     "MePrjOrdnerZeigen": "Mostrar carpeta del proyecto",
-    "MePrjLeer": "Empieza con un proyecto: lo guarda todo en una carpeta y hace una copia de tu trabajo automáticamente cada 30 segundos. O abre un menú del juego con el primer botón de arriba.",
+    "MePrjLeer": "Empieza con un proyecto: lo guarda todo en una carpeta y hace una copia de tu trabajo automáticamente cada 30 segundos. O abre un menú del juego con el segundo botón de arriba.",
     "MePrjGespeichert": "Proyecto guardado: %s",
     "MePrjGeoeffnet": "Proyecto %s abierto (%d {menú|menús}).",
     "MePrjFehltDatei": "El archivo de proyecto %s no existe (ya): ¿se ha movido o renombrado?",
@@ -2948,6 +2948,14 @@ TEXTE = {
     "MapGpuGlow": "Resplandor",
     "MapGpuRow": "%s: %d {llamada|llamadas}, %.2f ms",
     "MapGpuRowNoTime": "%s: %d {llamada|llamadas}",
+    "MeStartTitel": "Crear un menú",
+    "MeStartFormat": "Formato de un proyecto nuevo",
+    "MeStartFormatSatz": "Decide la carpeta (ui/ o la carpeta multijugador), el formato y lo que el propio juego dibuja en el menú.",
+    "MeStartNeuSub": "Elige un lugar para el archivo del proyecto. Empieza con un menú vacío a pantalla completa.",
+    "MeStartOeffnenSub": "Continúa un proyecto guardado (.jksmenu).",
+    "MeStartZeigenTip": "El programa te enseña paso a paso cómo cambiar un menú del juego.",
+    "MeStartHandbuch": "Manual",
+    "MeStartHandbuchTip": "Abre la página del editor de menús en el manual.",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

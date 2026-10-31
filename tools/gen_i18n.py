@@ -2205,6 +2205,8 @@ from i18n_reste2 import RESTE2  # noqa: E402  (reste2: Fehlerliste Karte/Modell 
 S += RESTE2
 from i18n_uebersetzung2 import UEBERSETZUNG2  # noqa: E402  (uebersetzung2: zwei feste Texte uebersetzt)
 S += UEBERSETZUNG2
+from i18n_rc608 import RC608  # noqa: E402  (rc608: Startbildschirm des Menue-Editors, Befehlszeile)
+S += RC608
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -4301,54 +4301,61 @@ void missionsOrdnerWaehlen() {
 // Vorher stand im leeren Map-Tab nur "No map loaded". Wie Unreals
 // Projektbrowser: drei grosse Wege hinein und die zuletzt bearbeiteten
 // Missionen.
-void drawStartflaeche(float breite, float hoehe) {
-    ImGui::BeginChild("##startflaeche", ImVec2{breite, hoehe}, ImGuiChildFlags_Borders);
+float startKarteHoehe(const char* titel, const char* unter, float breite) {
+    const float fs = ImGui::GetFontSize();
+    const float w = breite - fs * 2.0F;
+    return fs * 4.3F + ImGui::CalcTextSize(titel, nullptr, false, w).y + ImGui::CalcTextSize(unter, nullptr, false, w).y + fs;
+}
+
+StartSpalte startKopf(const char* fensterId, ImVec2 groesse, const char* titel, const char* unter) {
+    ImGui::BeginChild(fensterId, groesse, ImGuiChildFlags_Borders);
+    const float fs = ImGui::GetFontSize();
+    StartSpalte sp;
+    sp.breite = std::max(fs * 8.0F, std::min(ImGui::GetContentRegionAvail().x - fs * 2.0F, fs * 46.0F));
+    sp.links = std::max(fs, (ImGui::GetContentRegionAvail().x - sp.breite) * 0.5F);
+    ImGui::SetCursorPosY(std::max(fs, groesse.y * 0.06F));
+    // Stufe 8d: das Logo von JK Studio ueber dem Titel (bis 8c nur im Ueber-Dialog und im Handbuch)
+    int lb = 0;
+    int lh = 0;
+    if (void* jk = jkLogoTextur(lb, lh); jk != nullptr && lh > 0 && groesse.y >= fs * 24.0F) {   // wenig Platz: gleich der Titel
+        const float h = fs * 6.0F;
+        ImGui::SetCursorPosX(sp.links);
+        ImGui::Image(reinterpret_cast<ImTextureID>(jk), ImVec2{h * static_cast<float>(lb) / static_cast<float>(lh), h});
+        ImGui::Dummy(ImVec2{0.0F, fs * 0.3F});
+    }
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::PushTextWrapPos(sp.links + sp.breite);
+    ImGui::PushFont(nullptr, fs * 1.6F);
+    ImGui::TextUnformatted(titel);
+    ImGui::PopFont();
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::TextDisabled("%s", unter);
+    ImGui::PopTextWrapPos();
+    return sp;
+}
+
+int startKarten(const StartSpalte& sp, const StartKarte* karten, int anzahl) {
     const float fs = ImGui::GetFontSize();
     const ImGuiStyle& st = ImGui::GetStyle();
-    const float spalte = std::min(ImGui::GetContentRegionAvail().x - fs * 2.0F, fs * 46.0F);
-    const float links = std::max(fs, (ImGui::GetContentRegionAvail().x - spalte) * 0.5F);
-    ImGui::SetCursorPosY(std::max(fs, hoehe * 0.06F));
-    // Stufe 8d: das Logo von JK Studio ueber dem Titel (bis 8c nur im Ueber-Dialog und im Handbuch)
-    {
-        int lb = 0;
-        int lh = 0;
-        if (void* jk = jkLogoTextur(lb, lh); jk != nullptr && lh > 0) {
-            const float h = fs * 6.0F;
-            ImGui::SetCursorPosX(links);
-            ImGui::Image(reinterpret_cast<ImTextureID>(jk), ImVec2{h * static_cast<float>(lb) / static_cast<float>(lh), h});
-            ImGui::Dummy(ImVec2{0.0F, fs * 0.3F});
+    const float nebeneinander = (sp.breite - st.ItemSpacing.x * static_cast<float>(anzahl - 1)) / static_cast<float>(anzahl);
+    const bool stapel = nebeneinander < fs * 11.0F;   // zu schmal fuer die Texte: untereinander
+    const float kb = stapel ? sp.breite : nebeneinander;
+    float kh = fs * 8.0F;
+    for (int k = 0; k < anzahl; ++k) { kh = std::max(kh, startKarteHoehe(karten[k].titel, karten[k].unter, kb)); }
+    int geklickt = -1;
+    ImGui::SetCursorPosX(sp.links);
+    for (int k = 0; k < anzahl; ++k) {
+        if (k > 0) {
+            if (stapel) {
+                ImGui::SetCursorPosX(sp.links);
+            } else {
+                ImGui::SameLine();
+            }
         }
-    }
-    ImGui::SetCursorPosX(links);
-    ImGui::PushFont(nullptr, fs * 1.6F);
-    ImGui::TextUnformatted(tr(Str::StartTitle));
-    ImGui::PopFont();
-    ImGui::SetCursorPosX(links);
-    ImGui::PushTextWrapPos(links + spalte);
-    ImGui::TextDisabled("%s", tr(Str::StartSub));
-    ImGui::PopTextWrapPos();
-    ImGui::Dummy(ImVec2{0.0F, fs * 0.8F});
-
-    // Drei Karten
-    struct Karte {
-        Str titel;
-        Str unter;
-        UiIcon icon;
-        int wer;
-    };
-    const Karte karten[] = {
-        {Str::StartCardNew, Str::StartCardNewSub, UiIcon::Neu, 0},
-        {Str::StartCardLoad, Str::StartCardLoadSub, UiIcon::Paket, 1},
-        {Str::StartCardMap, Str::StartCardMapSub, UiIcon::Karte, 2},
-    };
-    const float kb = (spalte - st.ItemSpacing.x * 2.0F) / 3.0F;
-    const float kh = fs * 8.0F;
-    ImGui::SetCursorPosX(links);
-    for (int k = 0; k < 3; ++k) {
-        if (k > 0) { ImGui::SameLine(); }
-        const Karte& c = karten[k];
-        const bool geklickt = ImGui::InvisibleButton(tr(c.titel), ImVec2{kb, kh});
+        const StartKarte& c = karten[k];
+        if (ImGui::InvisibleButton(c.titel, ImVec2{kb, kh})) { geklickt = k; }
         const bool ueber = ImGui::IsItemHovered();
+        if (ueber && c.hinweis != nullptr) { ImGui::SetTooltip("%s", c.hinweis); }
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 a = ImGui::GetItemRectMin();
         const ImVec2 b = ImGui::GetItemRectMax();
@@ -4356,36 +4363,67 @@ void drawStartflaeche(float breite, float hoehe) {
         const ImVec4 farbe = uiIconFarbe(c.icon);
         if (ueber) { dl->AddRect(a, b, ImGui::GetColorU32(farbe), fs * 0.5F, 0, 2.0F); }
         const float ig = fs * 2.4F;
+        const float w = kb - fs * 2.0F;
         uiIcon(dl, c.icon, ImVec2{std::floor(a.x + fs), std::floor(a.y + fs)}, ig, ImGui::GetColorU32(farbe));
-        dl->AddText(ImVec2{a.x + fs, a.y + fs * 1.6F + ig}, ImGui::GetColorU32(ImGuiCol_Text), tr(c.titel));
-        dl->AddText(nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 2.9F + ig}, ImGui::GetColorU32(ImGuiCol_TextDisabled),
-                    tr(c.unter), nullptr, kb - fs * 2.0F);
-        if (geklickt) {
-            if (c.wer == 0) { g_app->neueMissionOffen = true; }
-            if (c.wer == 1) { loadMissionArchive(); }
-            if (c.wer == 2) { doLoadMap(); }
-        }
+        dl->AddText(nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.6F + ig}, ImGui::GetColorU32(ImGuiCol_Text), c.titel, nullptr, w);
+        const float titelH = ImGui::CalcTextSize(c.titel, nullptr, false, w).y;
+        dl->AddText(nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.9F + ig + titelH}, ImGui::GetColorU32(ImGuiCol_TextDisabled), c.unter, nullptr, w);
     }
+    return geklickt;
+}
+
+int startKnopfZeile(const StartSpalte& sp, const char* titel, const StartKnopf* knoepfe, int anzahl) {
+    const float abstand = ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("%s", titel);
+    float x = sp.links + ImGui::CalcTextSize(titel).x;
+    int geklickt = -1;
+    for (int k = 0; k < anzahl; ++k) {
+        const float b = iconTextKnopfBreite(knoepfe[k].text);
+        if (x + abstand + b <= sp.links + sp.breite) {
+            ImGui::SameLine();
+            x += abstand + b;
+        } else {
+            ImGui::SetCursorPosX(sp.links);
+            x = sp.links + b;
+        }
+        if (iconTextKnopf(knoepfe[k].text, knoepfe[k].icon, knoepfe[k].hinweis)) { geklickt = k; }
+    }
+    return geklickt;
+}
+
+void drawStartflaeche(float breite, float hoehe) {
+    const StartSpalte sp = startKopf("##startflaeche", ImVec2{breite, hoehe}, tr(Str::StartTitle), tr(Str::StartSub));
+    const float fs = ImGui::GetFontSize();
+    const float links = sp.links;
+    const float spalte = sp.breite;
+    ImGui::Dummy(ImVec2{0.0F, fs * 0.8F});
+
+    // Drei Karten
+    const StartKarte karten[] = {
+        {tr(Str::StartCardNew), tr(Str::StartCardNewSub), UiIcon::Neu, nullptr},
+        {tr(Str::StartCardLoad), tr(Str::StartCardLoadSub), UiIcon::Paket, nullptr},
+        {tr(Str::StartCardMap), tr(Str::StartCardMapSub), UiIcon::Karte, nullptr},
+    };
+    const int wahl = startKarten(sp, karten, 3);
+    if (wahl == 0) { g_app->neueMissionOffen = true; }
+    if (wahl == 1) { loadMissionArchive(); }
+    if (wahl == 2) { doLoadMap(); }
     ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
 
     // Neu hier? Verweis aufs Handbuch (shank: "hier auch noch auf das Handbuch
-    // verweisen wegen Tutorials, get started").
-    ImGui::SetCursorPosX(links);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%s", tr(Str::StartGuide));
-    ImGui::SameLine();
-    if (iconTextKnopf(tr(Str::StartGuideFirst), UiIcon::Abspielen, tr(Str::StartGuideFirstHint))) {
-        handbuchOeffnen("erste-schritte.html");
-    }
-    ImGui::SameLine();
-    if (iconTextKnopf(tr(Str::StartGuideTut), UiIcon::Liste, tr(Str::StartGuideTutHint))) {
-        handbuchOeffnen("tutorials.html");
-    }
-    // rc601 tour: die Tutorials im Programm - es zeigt selbst, was zu klicken ist.
-    ImGui::SameLine();
-    if (iconTextKnopf(tr(Str::TourStartGuide), UiIcon::Zielen, tr(Str::TourStartGuideHint))) {
-        tourFensterOeffnen();
-    }
+    // verweisen wegen Tutorials, get started"); rc601 tour: die Tutorials im
+    // Programm - es zeigt selbst, was zu klicken ist.
+    const StartKnopf hilfe[] = {
+        {tr(Str::StartGuideFirst), UiIcon::Abspielen, tr(Str::StartGuideFirstHint)},
+        {tr(Str::StartGuideTut), UiIcon::Liste, tr(Str::StartGuideTutHint)},
+        {tr(Str::TourStartGuide), UiIcon::Zielen, tr(Str::TourStartGuideHint)},
+    };
+    const int weg = startKnopfZeile(sp, tr(Str::StartGuide), hilfe, 3);
+    if (weg == 0) { handbuchOeffnen("erste-schritte.html"); }
+    if (weg == 1) { handbuchOeffnen("tutorials.html"); }
+    if (weg == 2) { tourFensterOeffnen(); }
     ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
 
     // Zuletzt bearbeitet

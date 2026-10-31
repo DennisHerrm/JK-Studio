@@ -472,6 +472,22 @@ void zeichneNeuDialekt() {
     z.neuDialekt = d == 1 ? Dialekt::MP : Dialekt::SP;
 }
 
+// Die beiden Wege zu einem Projekt, fuer den Leistenknopf und den Startbildschirm
+void neuesProjektWaehlen() {
+    Zustand& z = Z();
+    const std::string ziel = z.projektDialog ? z.projektDialog(true)
+                                             : platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe,
+                                                                        "mein_menue.jksmenu");
+    if (!ziel.empty()) { (void)neuesProjekt(ziel); }
+}
+
+void projektOeffnenWaehlen() {
+    Zustand& z = Z();
+    const std::string ziel = z.projektDialog ? z.projektDialog(false)
+                                             : platform::openFileDialog(tr(Str::MePrjOeffnen), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe);
+    if (!ziel.empty()) { (void)oeffneProjektJetzt(ziel); }
+}
+
 // Leistenknopf "Projekt" mit Menue
 void zeichneProjektKnopf() {
     Zustand& z = Z();
@@ -480,15 +496,8 @@ void zeichneProjektKnopf() {
     if (leistenKnopf(titel.c_str(), UiIcon::Mission, tr(Str::MePrjTip))) { ImGui::OpenPopup("##projekt"); }
     if (ImGui::BeginPopup("##projekt")) {
         zeichneNeuDialekt();
-        if (ImGui::MenuItem(tr(Str::MePrjNeu))) {
-            const std::string ziel = platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe,
-                                                              "mein_menue.jksmenu");
-            if (!ziel.empty()) { (void)neuesProjekt(ziel); }
-        }
-        if (ImGui::MenuItem(tr(Str::MePrjOeffnen))) {
-            const std::string ziel = platform::openFileDialog(tr(Str::MePrjOeffnen), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe);
-            if (!ziel.empty()) { (void)oeffneProjektJetzt(ziel); }
-        }
+        if (ImGui::MenuItem(tr(Str::MePrjNeu))) { neuesProjektWaehlen(); }
+        if (ImGui::MenuItem(tr(Str::MePrjOeffnen))) { projektOeffnenWaehlen(); }
         const bool offen = !z.projektDatei.empty();
         if (ImGui::MenuItem(tr(Str::MePrjSpeichern), nullptr, false, offen)) { (void)speichereProjekt(); }
         ImGui::Separator();
@@ -511,23 +520,42 @@ void zeichneProjektKnopf() {
     zeichneZuordnungFrage();
 }
 
-// Leerer Zustand: noch kein Menue offen
+// Leerer Zustand: noch kein Menue offen. rc608 (shank: "schoener wie beim Mission tab"): dieselben
+// Bauteile wie die Startflaeche des Mission-Tabs.
 void zeichneProjektLeer() {
-    ImGui::TextWrapped("%s", tr(Str::MeKeinMenue));
-    ImGui::Spacing();
-    ImGui::TextWrapped("%s", tr(Str::MePrjLeer));
+    const StartSpalte sp = startKopf("##menuestart", ImGui::GetContentRegionAvail(), tr(Str::MeStartTitel), tr(Str::MeKeinMenue));
+    const float fs = ImGui::GetFontSize();
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::PushTextWrapPos(sp.links + sp.breite);
+    ImGui::TextDisabled("%s", tr(Str::MePrjLeer));
+    ImGui::Dummy(ImVec2{0.0F, fs * 0.8F});
+    // Einzelspieler oder Mehrspieler: gilt fuer das neue Projekt
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::TextUnformatted(tr(Str::MeStartFormat));
+    ImGui::SetCursorPosX(sp.links);
     zeichneNeuDialekt();
-    if (ImGui::Button(tr(Str::MePrjNeu))) {
-        const std::string ziel = platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", Z().ordnerAusgabe,
-                                                          "mein_menue.jksmenu");
-        if (!ziel.empty()) { (void)neuesProjekt(ziel); }
-    }
-    tipp(Str::MePrjNeuTip);
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MePrjOeffnen))) {
-        const std::string ziel = platform::openFileDialog(tr(Str::MePrjOeffnen), "JK Studio menu project (*.jksmenu)|*.jksmenu|", Z().ordnerAusgabe);
-        if (!ziel.empty()) { (void)oeffneProjektJetzt(ziel); }
-    }
+    ImGui::SetCursorPosX(sp.links);
+    ImGui::TextDisabled("%s", tr(Str::MeStartFormatSatz));
+    ImGui::PopTextWrapPos();
+    ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
+
+    const StartKarte karten[] = {
+        {tr(Str::MePrjNeu), tr(Str::MeStartNeuSub), UiIcon::Neu, tr(Str::MePrjNeuTip)},
+        {tr(Str::MePrjOeffnen), tr(Str::MeStartOeffnenSub), UiIcon::Oeffnen, nullptr},
+    };
+    const int wahl = startKarten(sp, karten, 2);
+    if (wahl == 0) { neuesProjektWaehlen(); }
+    if (wahl == 1) { projektOeffnenWaehlen(); }
+    ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
+
+    const StartKnopf hilfe[] = {
+        {tr(Str::EmptyShowHow), UiIcon::Zielen, tr(Str::MeStartZeigenTip)},
+        {tr(Str::MeStartHandbuch), UiIcon::Liste, tr(Str::MeStartHandbuchTip)},
+    };
+    const int weg = startKnopfZeile(sp, tr(Str::StartGuide), hilfe, 2);
+    if (weg == 0) { (void)tourStarten("tut-menue", 1); }   // H2: der Weg als Tour
+    if (weg == 1) { handbuchOeffnen("menue_editor.html"); }
+    ImGui::EndChild();
 }
 
 }  // namespace

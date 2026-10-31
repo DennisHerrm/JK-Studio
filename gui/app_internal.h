@@ -2735,6 +2735,7 @@ bool iconKnopf(const char* text, UiIcon icon, const char* hinweis, bool an = fal
 ImVec4 uiIconFarbe(UiIcon icon);
 // Icon und Text nebeneinander.
 bool iconTextKnopf(const char* text, UiIcon icon, const char* hinweis, bool aktiv = true);
+float iconTextKnopfBreite(const char* text);
 // Das Handbuch im Standardbrowser, auf der Seite der Sprache (rc599; rc600:
 // auch eine bestimmte Seite, etwa "tutorials.html" von der Startflaeche).
 void handbuchOeffnen(const char* seite = "index.html");
@@ -2925,6 +2926,30 @@ std::vector<LetzteMission> letzteMissionenAlle();
 void letzteMissionOeffnen(const std::string& eintrag);
 void missionsOrdnerWaehlen();
 void drawStartflaeche(float breite, float hoehe);
+// rc608: die Bauteile der Startflaeche; der Menue-Editor baut seinen Startbildschirm ebenfalls daraus.
+struct StartSpalte {
+    float links = 0.0F;    // Fensterkoordinaten, fuer SetCursorPosX und PushTextWrapPos
+    float breite = 0.0F;
+};
+struct StartKarte {
+    const char* titel;
+    const char* unter;
+    UiIcon icon;
+    const char* hinweis;   // Tooltip oder nullptr
+};
+struct StartKnopf {
+    const char* text;
+    UiIcon icon;
+    const char* hinweis;
+};
+// Beginnt das Kindfenster (zu mit ImGui::EndChild) und zeichnet Logo, Titel und Untertitel.
+StartSpalte startKopf(const char* fensterId, ImVec2 groesse, const char* titel, const char* unter);
+// Die Karten nebeneinander, im schmalen Fenster untereinander. Rueckgabe: Index der geklickten, sonst -1.
+int startKarten(const StartSpalte& sp, const StartKarte* karten, int anzahl);
+// "Neu hier?" und die Knoepfe dazu; was nicht mehr in die Zeile passt, bricht um. Rueckgabe wie oben.
+int startKnopfZeile(const StartSpalte& sp, const char* titel, const StartKnopf* knoepfe, int anzahl);
+// Die Hoehe, die eine Karte fuer ihre Texte braucht (bei dieser Breite)
+float startKarteHoehe(const char* titel, const char* unter, float breite);
 void meldung(const std::string& text, const std::string& ordner, bool warnung = false);
 void drawEinblendungen();
 // Gibt es an der Mission Ungespeichertes (Entities oder Skripte)?

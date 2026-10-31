@@ -2772,7 +2772,7 @@ TEXTE = {
     "MePrjExport": "Exportovat projekt jako pk3",
     "MePrjExportZiel": "Změnit umístění pk3...",
     "MePrjOrdnerZeigen": "Zobrazit složku projektu",
-    "MePrjLeer": "Začněte projektem: drží vše v jedné složce a každých 30 sekund vaši práci automaticky zálohuje. Nebo otevřete menu ze hry prvním tlačítkem nahoře.",
+    "MePrjLeer": "Začněte projektem: drží vše v jedné složce a každých 30 sekund vaši práci automaticky zálohuje. Nebo otevřete menu ze hry druhým tlačítkem nahoře.",
     "MePrjGespeichert": "Projekt uložen: %s",
     "MePrjGeoeffnet": "Projekt %s otevřen (%d menu).",
     "MePrjFehltDatei": "Soubor projektu %s (už) neexistuje - byl přesunut nebo přejmenován?",
@@ -2950,6 +2950,14 @@ TEXTE = {
     "MapGpuGlow": "Záře",
     "MapGpuRow": "%s: %d {volání|volání|volání}, %.2f ms",
     "MapGpuRowNoTime": "%s: %d {volání|volání|volání}",
+    "MeStartTitel": "Vytvořit menu",
+    "MeStartFormat": "Formát nového projektu",
+    "MeStartFormatSatz": "Určuje složku (ui/ nebo složku pro více hráčů), formát a to, co do menu kreslí sama hra.",
+    "MeStartNeuSub": "Vyberte místo pro soubor projektu. Začíná prázdným menu na celou obrazovku.",
+    "MeStartOeffnenSub": "Pokračujte v uloženém projektu (.jksmenu).",
+    "MeStartZeigenTip": "Program vám krok za krokem ukáže, jak změnit menu hry.",
+    "MeStartHandbuch": "Příručka",
+    "MeStartHandbuchTip": "Otevře stránku o editoru menu v příručce.",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

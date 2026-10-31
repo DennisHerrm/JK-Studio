@@ -526,13 +526,18 @@ bool iconKnopf(const char* text, UiIcon icon, const char* hinweis, bool an, bool
 }
 
 // Ein Knopf mit Icon und Text. Der Text ist zugleich die Kennung.
+float iconTextKnopfBreite(const char* text) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float tw = ImGui::CalcTextSize(text, ImGui::FindRenderedTextEnd(text)).x;
+    return st.FramePadding.x * 2.0F + std::floor(ImGui::GetFrameHeight() * 0.62F) + st.ItemInnerSpacing.x + tw;
+}
+
 bool iconTextKnopf(const char* text, UiIcon icon, const char* hinweis, bool aktiv) {
     const float h = ImGui::GetFrameHeight();
     const ImGuiStyle& st = ImGui::GetStyle();
     const char* ende = ImGui::FindRenderedTextEnd(text);
-    const float tw = ImGui::CalcTextSize(text, ende).x;
     const float g = std::floor(h * 0.62F);
-    const float breite = st.FramePadding.x * 2.0F + g + st.ItemInnerSpacing.x + tw;
+    const float breite = iconTextKnopfBreite(text);
     ImGui::BeginDisabled(!aktiv);
     const bool geklickt = ImGui::InvisibleButton(text, ImVec2{breite, h});
     const bool ueber = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
