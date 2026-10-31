@@ -92,6 +92,11 @@ public:
     bool wiederholen();
     [[nodiscard]] bool kannRueckgaengig() const noexcept { return !undo_.empty(); }
     [[nodiscard]] int undoTiefe() const noexcept { return static_cast<int>(undo_.size()); }
+    // Was der Besitzer mit jedem Schritt festhaelt und zurueckbekommt (Menue-Editor: Seite und Auswahl).
+    // festhalten: in jedem Bild; es gilt als Stand vor dem naechsten Schritt und als Stand nach dem letzten.
+    // Nach rueckgaengig/wiederholen steht in beiwerk() der Stand, der wieder gilt.
+    void beiwerkFesthalten(std::vector<int> jetzt);
+    [[nodiscard]] const std::vector<int>& beiwerk() const noexcept { return beiwerk_; }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !redo_.empty(); }
 
     // --- Suchen -------------------------------------------------------------
@@ -114,11 +119,14 @@ private:
         std::vector<Ersetzung> zurueck; // angewandt auf den Text danach
         std::vector<Cursor> cursorVor, cursorNach;
         bool tippen = false;
+        std::vector<int> beiwerkVor, beiwerkNach;
+        bool nachOffen = true;   // beiwerkNach kommt mit dem naechsten festhalten
     };
     void zeilenNeu();
     void anwenden(std::vector<Ersetzung> e, bool tippen);
     std::string text_;
     std::vector<std::uint32_t> anfang_;
+    std::vector<int> beiwerk_;
     std::vector<Schritt> undo_, redo_;
     int version_ = 0;
 };

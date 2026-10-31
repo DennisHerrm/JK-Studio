@@ -28,6 +28,20 @@ int main() {
     pruefe(p.zeile(2) == "\tname \"a{b\" // }", "Zeile ohne CRLF");
     pruefe(p.zeilenUmbruch() == "\r\n", "CRLF erkannt");
 
+    {   // rc608: was der Besitzer mit jedem Schritt festhaelt (Menue-Editor: Seite und Auswahl)
+        Textpuffer b("abc");
+        b.beiwerkFesthalten({0, 2});
+        b.ersetze(0, 1, "X");
+        b.beiwerkFesthalten({0, 5});
+        b.ersetze(1, 2, "Y");
+        b.beiwerkFesthalten({1, 7});
+        b.beiwerkFesthalten({1, 8});   // nur eine andere Auswahl: der Stand nach dem Schritt bleibt
+        const auto ist = [&b](std::initializer_list<int> w) { return b.beiwerk() == std::vector<int>(w); };
+        pruefe(b.rueckgaengig() && ist({0, 5}) && b.text() == "Xbc", "Beiwerk: Rueckgaengig bringt den Stand vor dem Schritt");
+        pruefe(b.rueckgaengig() && ist({0, 2}) && b.text() == "abc", "Beiwerk: zweites Rueckgaengig ebenso");
+        pruefe(b.wiederholen() && ist({0, 5}), "Beiwerk: Wiederholen bringt den Stand nach dem Schritt");
+        pruefe(b.wiederholen() && ist({1, 7}) && b.text() == "XYc", "Beiwerk: zweites Wiederholen ebenso");
+    }
     // Mehrfachcursor tippen
     p.einCursor(p.off(Pos{5, 2}));
     p.cursorDazu(p.off(Pos{2, 1}));

@@ -305,6 +305,9 @@ struct Zustand {
     std::map<std::string, std::string> vorschauCvars;   // Editor-Modus
     // Code-Editor
     bool codeFokus = false;
+    int codeBild = -2;    // rc608: zuletzt hatte der Text-Editor den Fokus (Bildnummer)
+    int undoWunsch = 0;   // rc608: aus dem Text-Editor: -1 rueckgaengig, 1 wiederholen
+    int werteBild = -2;   // rc608: zuletzt hatte ein Panel mit Werten den Fokus (Properties, Events, Text-Editor)
     bool suchenOffen = false;
     bool suchFokus = false;
     bool ersetzenOffen = false;
@@ -697,6 +700,11 @@ void neuParsen(Dokument& d) {
     if (d.datei.menus.empty()) { d.seite = 0; }
     const std::vector<Seite> s = seitenImMenue(d.datei);
     d.seite = std::clamp(d.seite, 0, std::max(0, static_cast<int>(s.size()) - 1));
+    // rc608: Rueckgaengig nach dem Einfuegen oder Tippen im Text-Editor kann das gewaehlte Item nehmen (war ein Absturz)
+    const int mi = s.empty() ? -1 : s[static_cast<std::size_t>(d.seite)].menu;
+    const int anzahl = mi < 0 ? 0 : static_cast<int>(d.datei.menus[static_cast<std::size_t>(mi)].items.size());
+    d.auswahl.erase(std::remove_if(d.auswahl.begin(), d.auswahl.end(), [anzahl](int i) { return i < 0 || i >= anzahl; }), d.auswahl.end());
+    if (d.umbenennen >= anzahl) { d.umbenennen = -1; }
 }
 
 int menuDerSeite(const Dokument& d) {
@@ -866,6 +874,15 @@ void aendere(std::vector<Ersetzung> e) {
     e = mitKopienAbgleich(*d, std::move(e));
     d->puffer.ersetzeViele(std::move(e));
     neuParsen(*d);
+}
+
+// Was zu einem Rueckgaengig-Schritt gehoert: die Seite und die Auswahl
+std::vector<int> anzeigeStand(const Dokument& d) {
+    std::vector<int> v;
+    v.reserve(d.auswahl.size() + 1);
+    v.push_back(d.seite);
+    v.insert(v.end(), d.auswahl.begin(), d.auswahl.end());
+    return v;
 }
 
 void haltSchreiben() {
@@ -2040,27 +2057,41 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         z.zdx = z.zdy = 0;
         z.linien.clear();
     }
-    // Tasten der Flaeche
-    if (ImGui::IsWindowFocused() && !z.codeFokus && !ImGui::GetIO().WantTextInput && !d.auswahl.empty()) {
-        const float schritt = ImGui::GetIO().KeyShift ? 10.0F : 1.0F;
-        float dx = 0, dy = 0;
-        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) { dx = -schritt; }
-        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) { dx = schritt; }
-        if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) { dy = -schritt; }
-        if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) { dy = schritt; }
-        if (dx != 0 || dy != 0) { verschiebeAuswahl(dx, dy); }
-        const bool strg = ImGui::GetIO().KeyCtrl;
-        if (ImGui::IsKeyPressed(ImGuiKey_Delete)) { loescheAuswahl(); }
-        if (strg && ImGui::IsKeyPressed(ImGuiKey_D)) { dupliziereAuswahl(); }
-        if (strg && ImGui::IsKeyPressed(ImGuiKey_C)) { ImGui::SetClipboardText(anzeige(kopiereAuswahl()).c_str()); }
-        if (strg && ImGui::IsKeyPressed(ImGuiKey_Z)) { rueckgaengig(); }
-        if (strg && ImGui::IsKeyPressed(ImGuiKey_Y)) { wiederholen(); }
-        layoutTasten(d);   // M5: Strg+Umschalt+1..4
+}
+
+// rc608 (shank: "warum auch immer geht so gut wie kein undo in dem Menu tab"): die Tasten gelten im ganzen
+// Menue-Editor, in jedem Bild vor den Panels. Nur echte Eingabefelder, der Text-Editor (gleicher Puffer,
+// eigene Tasten) und offene Fenster behalten sie. Die Tasten fuer die Auswahl gelten, wo nicht gerade ein
+// Panel mit Werten den Fokus hat (Pfeile wandern dort durch die Felder, Entf gehoert dem Feld).
+void editorTasten(Dokument& d) {
+    Zustand& z = Z();
+    const ImGuiIO& io = ImGui::GetIO();
+    const int bild = ImGui::GetFrameCount();
+    if (z.undoWunsch != 0) {
+        const int wunsch = z.undoWunsch;
+        z.undoWunsch = 0;
+        (void)(wunsch < 0 ? rueckgaengig() : wiederholen());
     }
-    if (ImGui::IsWindowFocused() && !z.codeFokus && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl &&
-        ImGui::IsKeyPressed(ImGuiKey_V)) {
+    if (io.WantTextInput || z.codeBild + 1 >= bild || ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) { return; }
+    const bool strg = io.KeyCtrl;
+    if (strg && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) { (void)rueckgaengig(); }
+    if (strg && (ImGui::IsKeyPressed(ImGuiKey_Y) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)))) { (void)wiederholen(); }
+    if (z.werteBild + 1 >= bild) { return; }
+    if (strg && ImGui::IsKeyPressed(ImGuiKey_V)) {
         if (const char* c = ImGui::GetClipboardText()) { fuegeItemsEin(utf8ZuLatin1(c)); }
     }
+    if (d.auswahl.empty()) { return; }
+    const float schritt = io.KeyShift ? 10.0F : 1.0F;
+    float dx = 0, dy = 0;
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) { dx = -schritt; }
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) { dx = schritt; }
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) { dy = -schritt; }
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) { dy = schritt; }
+    if (dx != 0 || dy != 0) { verschiebeAuswahl(dx, dy); }
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete)) { loescheAuswahl(); }
+    if (strg && ImGui::IsKeyPressed(ImGuiKey_D)) { dupliziereAuswahl(); }
+    if (strg && ImGui::IsKeyPressed(ImGuiKey_C)) { ImGui::SetClipboardText(anzeige(kopiereAuswahl()).c_str()); }
+    layoutTasten(d);   // M5: Strg+Umschalt+1..4
 }
 
 // --- Code-Editor ------------------------------------------------------------------
@@ -2288,8 +2319,9 @@ void codeTasten(Dokument& d) {
         }
         if (taste(ImGuiKey_Escape)) { z.vervollOffen = false; return; }
     }
-    if (strg && taste(ImGuiKey_Z)) { p.rueckgaengig(); return; }
-    if (strg && (taste(ImGuiKey_Y) || (um && taste(ImGuiKey_Z)))) { p.wiederholen(); return; }
+    // rc608: erst vor dem naechsten Bild - der Editor zeichnet gerade aus dem jetzigen Text
+    if (strg && !um && taste(ImGuiKey_Z)) { z.undoWunsch = -1; return; }
+    if (strg && (taste(ImGuiKey_Y) || (um && taste(ImGuiKey_Z)))) { z.undoWunsch = 1; return; }
     if (strg && taste(ImGuiKey_A)) { p.allesWaehlen(); return; }
     if (strg && (taste(ImGuiKey_C) || taste(ImGuiKey_X))) {
         const std::string s = p.auswahlText();
@@ -3513,6 +3545,7 @@ void zeichneCode(Dokument& d) {
         }
     }
     if (z.codeFokus && ImGui::IsWindowFocused()) {
+        z.codeBild = ImGui::GetFrameCount();
         ImGui::GetIO().WantTextInput = true;
         const int v = p.version();
         codeTasten(d);
@@ -4404,6 +4437,7 @@ void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy) {
     Dokument* d = doc();
     const std::vector<Vorlage>& v = vorlagen();
     if (d == nullptr || nr >= v.size()) { return; }
+    const std::string vorher = d->puffer.text();
     fuegeItemsEin(v[nr].text);
     neuParsen(*d);
     const int mi = menuDerSeite(*d);
@@ -4429,6 +4463,8 @@ void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy) {
             if (setzeEigenschaft(d->datei, mi, -1, "onOpen", {"{ " + mm.onOpen + detailOnOpen(o) + " }"}, e)) { aendere(std::move(e)); }
         }
     }
+    (void)zuEinemSchritt(vorher);   // rc608: Einfuegen, an die Stelle ruecken und onOpen sind eine Handlung
+    neuParsen(*d);
 }
 
 void zeichneBibliothek(Dokument& d) {
@@ -5254,6 +5290,7 @@ void panelReiter(Dokument& d) {
                 } else {
                     reiter[i].f(d);
                 }
+                if (reiter[i].f != panelHierarchie && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) { z.werteBild = ImGui::GetFrameCount(); }
                 ImGui::EndTabItem();
             }
         }
@@ -5333,6 +5370,10 @@ void zeichneInnen(float hoehe) {
     neuParsen(*d);
     d->altStaende.clear();
     haltPruefen();
+    editorTasten(*d);
+    d = doc();
+    if (d == nullptr) { return; }
+    d->puffer.beiwerkFesthalten(anzeigeStand(*d));
     if (d->umbenennen >= 0 && d->umbenennenBild + 1 < ImGui::GetFrameCount()) { d->umbenennen = -1; }   // Zeile nicht mehr da
     const float fs = ImGui::GetFontSize();
     const ImVec2 rest = ImGui::GetContentRegionAvail();
@@ -5679,17 +5720,31 @@ std::string cvarWert(const std::string& name) {
     return it == z.vorschauCvars.end() ? std::string() : it->second;
 }
 
+// rc608: Rueckgaengig stellt auch Seite und Auswahl wieder her (festgehalten in anzeigeFesthalten)
+void anzeigeHolen(Dokument& d) {
+    const std::vector<int>& b = d.puffer.beiwerk();
+    if (b.empty()) { return; }
+    d.seite = b[0];
+    d.auswahl.assign(b.begin() + 1, b.end());
+}
+
 bool rueckgaengig() {
     Dokument* d = doc();
-    if (d == nullptr || !d->puffer.rueckgaengig()) { return false; }
+    if (d == nullptr) { return false; }
+    haltSchreiben();
+    if (!d->puffer.rueckgaengig()) { return false; }
     neuParsen(*d);
+    anzeigeHolen(*d);
     return true;
 }
 
 bool wiederholen() {
     Dokument* d = doc();
-    if (d == nullptr || !d->puffer.wiederholen()) { return false; }
+    if (d == nullptr) { return false; }
+    haltSchreiben();
+    if (!d->puffer.wiederholen()) { return false; }
     neuParsen(*d);
+    anzeigeHolen(*d);
     return true;
 }
 

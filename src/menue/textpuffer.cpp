@@ -229,6 +229,7 @@ void Textpuffer::anwenden(std::vector<Ersetzung> e, bool tippen) {
     Schritt s;
     s.cursorVor = cursor;
     s.tippen = tippen;
+    s.beiwerkVor = beiwerk_;
     // Rueckweg: die Spannen im neuen Text
     std::int64_t versatz = 0;
     for (const Ersetzung& x : e) {
@@ -266,6 +267,7 @@ void Textpuffer::anwenden(std::vector<Ersetzung> e, bool tippen) {
         v.hin[0].neu += s.hin[0].neu;
         v.zurueck[0].ende += static_cast<std::uint32_t>(s.hin[0].neu.size());
         v.cursorNach = s.cursorNach;
+        v.nachOffen = true;
     } else {
         undo_.push_back(std::move(s));
         if (undo_.size() > 1000) { undo_.erase(undo_.begin()); }
@@ -380,6 +382,14 @@ void Textpuffer::kommentar() {
     anwenden(std::move(e), false);
 }
 
+void Textpuffer::beiwerkFesthalten(std::vector<int> jetzt) {
+    if (!undo_.empty() && undo_.back().nachOffen) {
+        undo_.back().beiwerkNach = jetzt;
+        undo_.back().nachOffen = false;
+    }
+    beiwerk_ = std::move(jetzt);
+}
+
 bool Textpuffer::rueckgaengig() {
     if (undo_.empty()) { return false; }
     Schritt s = std::move(undo_.back());
@@ -388,6 +398,7 @@ bool Textpuffer::rueckgaengig() {
     std::sort(z.begin(), z.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang > b.anfang; });
     for (const Ersetzung& x : z) { text_.replace(x.anfang, x.ende - x.anfang, x.neu); }
     cursor = s.cursorVor;
+    beiwerk_ = s.beiwerkVor;
     redo_.push_back(std::move(s));
     zeilenNeu();
     ++version_;
@@ -402,6 +413,7 @@ bool Textpuffer::wiederholen() {
     std::sort(h.begin(), h.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang > b.anfang; });
     for (const Ersetzung& x : h) { text_.replace(x.anfang, x.ende - x.anfang, x.neu); }
     cursor = s.cursorNach;
+    beiwerk_ = s.beiwerkNach;
     undo_.push_back(std::move(s));
     zeilenNeu();
     ++version_;

@@ -1590,7 +1590,7 @@ std::string auswahlText() {
     return a;
 }
 
-Schritt taste(ImGuiKey mod, bool an) {
+Schritt halteTaste(ImGuiKey mod, bool an) {
     return tu(std::string("Taste ") + ImGui::GetKeyName(mod) + (an ? " halten" : " loslassen"), [mod, an] { ImGui::GetIO().AddKeyEvent(mod, an); });
 }
 
@@ -1661,9 +1661,9 @@ std::vector<Schritt> schritteZiehen() {
     add(zustand("Rueckgaengig nimmt den Griffzug zurueck", "2", H, V, F));
 
     // Strg: nimmt hinzu, ohne zu ziehen
-    add(taste(ImGuiMod_Ctrl, true));
+    add(halteTaste(ImGuiMod_Ctrl, true));
     add(ziehFlaeche("rc608 Ziehen: Strg+Druck auf vorn, Maus wandert", 330, 150, 0, 0, 50, 20));
-    add(taste(ImGuiMod_Ctrl, false));
+    add(halteTaste(ImGuiMod_Ctrl, false));
     add(zustand("Strg nimmt vorn hinzu, nichts bewegt sich", "2,1", H, V, F));
     add(schritte("Strg-Auswahl", 0));
 
@@ -1686,9 +1686,9 @@ std::vector<Schritt> schritteZiehen() {
     add(ziehFlaeche("rc608 Ziehen: Klick auf frei ohne Ziehen", 450, 325, 0, 0, 0, 0));
     add(zustand("der Klick auf ein Element der Auswahl laesst nur dieses gewaehlt", "2", H, V, F));
     // Strg+Klick auf das Gewaehlte nimmt es wieder heraus
-    add(taste(ImGuiMod_Ctrl, true));
+    add(halteTaste(ImGuiMod_Ctrl, true));
     add(ziehFlaeche("rc608 Ziehen: Strg+Klick auf frei", 450, 325, 0, 0, 0, 0));
-    add(taste(ImGuiMod_Ctrl, false));
+    add(halteTaste(ImGuiMod_Ctrl, false));
     add(zustand("Strg+Klick nimmt frei heraus", "", H, V, F));
 
     // Ueberlappung: ein Druck meint das vorderste Element (Rahmen und Name unter dem Zeiger)
@@ -1697,13 +1697,13 @@ std::vector<Schritt> schritteZiehen() {
     add(ziehFlaeche("rc608 Ziehen: Druck auf die Ueberlappung, Maus wandert", 250, 140, 0, 0, 40, 0));
     add(zustand("der Druck auf die Ueberlappung waehlt das vordere, nichts bewegt sich", "1", H, V, F));
     // Alt: der Klick geht durch den Stapel, nichts bewegt sich
-    add(taste(ImGuiMod_Alt, true));
+    add(halteTaste(ImGuiMod_Alt, true));
     add(ziehFlaeche("rc608 Ziehen: Alt+Klick auf die Ueberlappung", 250, 140, 0, 0, 0, 0));
     add(zustand("Alt+Klick waehlt das naechste darunter, nichts bewegt sich", "0", H, V, F));
     // Alt+Ziehen: bewegt das Gewaehlte, auch wenn es verdeckt ist
     add(merke());
     add(ziehFlaeche("rc608 Ziehen: Alt+Ziehen auf der Ueberlappung", 250, 140, 0, 0, 40, 0));
-    add(taste(ImGuiMod_Alt, false));
+    add(halteTaste(ImGuiMod_Alt, false));
     add(pruefe("rc608 Ziehen: Alt+Ziehen bewegt das verdeckte Gewaehlte, das vordere bleibt", [H, V] {
         return rectVon("hinten") != H && rectVon("vorn") == V && auswahlText() == "0";
     }));
@@ -1956,6 +1956,262 @@ std::vector<Schritt> schritteFelder() {
     }));
     add(foto("menue_makro_meldung"));
     add(tu("rc608 Felder: Aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
+// Die Zeile eines Items in der Hierarchie ("name  ITEM_TYPE_...")
+ImVec2 zeileVon(const std::string& name) {
+    for (const Element& e : elemente::alle()) {
+        if (e.label.rfind(name + "  ", 0) == 0) { return e.rect.GetCenter(); }
+    }
+    return ImVec2{-1.0F, -1.0F};
+}
+
+// Eine leere Stelle im rechten Panel, zum Fokussieren wie ein Klick dorthin
+ImVec2 leerImPanel() {
+    const auto x = me::stand();
+    const Element* e = finde(tr(Str::MeReiterHierarchie), "", 0, false);
+    return e != nullptr ? ImVec2{e->rect.Min.x + ImGui::GetFontSize(), x.flaeche[1] + x.flaeche[3] - ImGui::GetFontSize()} : ImVec2{-1.0F, -1.0F};
+}
+
+// rc608 Punkt 0 (shank: "warum auch immer geht so gut wie kein undo in dem Menu tab"): die Tabelle Aktion gegen
+// Weg. Jede Aktion ist genau ein Schritt; jeder Weg nimmt sie zurueck (Text und Auswahl) und wiederholt sie.
+std::vector<Schritt> schritteUndo() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    using Liste = std::vector<Schritt>;
+    const auto klickLeer = [] { return ziehFlaeche("Klick auf die leere Flaeche", 2, 478, 0, 0, 0, 0); };
+    const auto zurFlaeche = [=](Liste& l) {   // Fokus auf die Flaeche, frei bleibt gewaehlt
+        l.push_back(klickLeer());
+        l.push_back(tu("frei waehlen", [] { me::waehle(2, false); }));
+    };
+    struct Aktion {
+        std::string name;
+        std::function<void(Liste&)> tun;
+        int gewaehlt = 2;   // was davor gewaehlt ist: frei, sonst hinten
+        std::function<void(Liste&)> vorbereiten = nullptr;   // gehoert nicht zum Schritt (Klick in den Text-Editor setzt die Auswahl)
+    };
+    const std::vector<Aktion> aktionen = {
+        {"Ziehen", [](Liste& l) { l.push_back(ziehFlaeche("frei ziehen", 450, 325, 0, 0, 60, 30)); }},
+        {"Skalieren", [](Liste& l) { l.push_back(ziehFlaeche("Griff ziehen", 500, 350, 0, 0, 40, 30)); }},
+        {"Pfeiltaste", [=](Liste& l) {
+             zurFlaeche(l);
+             l.push_back(taste(ImGuiKey_RightArrow, std::string("Pfeil rechts")));
+         }},
+        {"Widget einfuegen", [](Liste& l) { l.push_back(klick(tr(Str::MeWButton))); }},
+        {"Bibliothek einfuegen", [](Liste& l) { l.push_back(tu("Vorlage einfuegen", [] { (void)me::fuegeVorlageEin("detail", 20, 40); })); }},
+        {"Loeschen", [=](Liste& l) {
+             zurFlaeche(l);
+             l.push_back(taste(ImGuiKey_Delete, std::string("Entf")));
+         }},
+        {"Duplizieren", [=](Liste& l) {
+             zurFlaeche(l);
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_D, "Strg+D"));
+         }},
+        {"Properties rect", [](Liste& l) {
+             l.push_back(klickAn("rect-Feld", [] { return rectFeldStelle(0.08F); }, 0, true));
+             l.push_back(pause(0.1));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("123"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }},
+        {"Properties name", [](Liste& l) {
+             l.push_back(klick("name"));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("umbenannt"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }},
+        {"Properties visible", [](Liste& l) { l.push_back(klick("visible")); }},
+        {"Properties style", [](Liste& l) { l.push_back(tu("style setzen", [] { me::setzeEigenschaftAuswahl("style", {"WINDOW_STYLE_SHADER"}); })); }},
+        {"Events", [](Liste& l) {
+             l.push_back(tu("Reiter Events", [] { me::setzeReiter(3); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick(tr(Str::MeEvLeuchten)));
+         }},
+        {"Hierarchie umbenennen", [](Liste& l) {
+             l.push_back(tu("Reiter Hierarchie", [] { me::setzeReiter(0); }));
+             l.push_back(pause(0.1));
+             l.push_back(klickAn("Doppelklick auf die Zeile", [] { return zeileVon("frei"); }, 0, true));
+             l.push_back(pause(0.1));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("umbenannt"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }},
+        {"Ebene nach vorn", [](Liste& l) { l.push_back(klick(tr(Str::MeNachVorn))); }, 0},
+        {"Text-Editor", [](Liste& l) { l.push_back(tu("Zeichen tippen", [] { ImGui::GetIO().AddInputCharactersUTF8("// x"); })); }, 2, [](Liste& l) {
+             l.push_back(tu("Reiter Text", [] { me::setzeReiter(1); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick("##codeflaeche"));
+             l.push_back(pause(0.1));
+         }},
+    };
+    struct Weg {
+        std::string name;
+        std::function<void(Liste&)> fokus;
+        bool knopf;
+    };
+    const auto panelFokus = [](int reiter) {
+        return [reiter](Liste& l) {
+            l.push_back(tu("Reiter", [reiter] { me::setzeReiter(reiter); }));
+            l.push_back(pause(0.1));
+            l.push_back(klickAn("in das Panel", [] { return leerImPanel(); }));
+        };
+    };
+    const std::vector<Weg> wege = {
+        {"Strg, Fokus Flaeche, mit Auswahl", [](Liste& l) {
+             l.push_back(ziehFlaeche("Klick auf die leere Flaeche", 2, 478, 0, 0, 0, 0));
+             l.push_back(tu("Auswahl setzen", [] { me::waehle(me::itemNummer("hinten") >= 0 ? me::itemNummer("hinten") : 0, false); }));
+         }, false},
+        {"Strg, Fokus Flaeche, ohne Auswahl", [](Liste& l) { l.push_back(ziehFlaeche("Klick auf die leere Flaeche", 2, 478, 0, 0, 0, 0)); }, false},
+        {"Strg, Fokus Hierarchie", panelFokus(0), false},
+        {"Strg, Fokus Properties", panelFokus(2), false},
+        {"Strg, Fokus Events", panelFokus(3), false},
+        {"Strg, Fokus Text-Editor", [](Liste& l) {
+             l.push_back(tu("Reiter Text", [] { me::setzeReiter(1); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick("##codeflaeche"));
+         }, false},
+        {"Pfeile der Leiste", [](Liste&) {}, true},
+        {"Pfeile, Umbenennen offen", [](Liste& l) {
+             l.push_back(tu("Reiter Hierarchie", [] { me::setzeReiter(0); }));
+             l.push_back(pause(0.1));
+             l.push_back(klickAn("Doppelklick auf die Zeile", [] {
+                 const ImVec2 v = zeileVon("vorn");
+                 return v.x >= 0.0F ? v : zeileVon("hinten");
+             }, 0, true));
+             l.push_back(pause(0.1));
+         }, true},
+    };
+    const auto vor = std::make_shared<std::string>();
+    const auto nach = std::make_shared<std::string>();
+    const auto wahlVor = std::make_shared<std::string>();
+    const auto wahlNach = std::make_shared<std::string>();
+    const auto tiefe = std::make_shared<int>(0);
+    const auto zeile = [](const std::string& was, bool gut) {
+        diag::detail("Knopftest: Undo-Tabelle | " + was + " | " + (gut ? "gut" : "ROT"));
+        return gut;
+    };
+    const char* const nurAktionen = std::getenv("BHED_UNDO_AKTION");   // zum gezielten Nachlaufen: Namen, durch Komma getrennt
+    for (const Aktion& a : aktionen) {
+        if (nurAktionen != nullptr && std::string(nurAktionen).find(a.name) == std::string::npos) { continue; }
+        const int gewaehlt = a.gewaehlt;
+        for (const Weg& w : wege) {
+            const std::string fall = a.name + " | " + w.name;
+            add(tu("rc608 Undo " + fall + ": Probe oeffnen, frei gewaehlt", [gewaehlt] {
+                me::schliesseAlleOhneSpeichern();
+                g_app->leftMode = 4;
+                (void)me::oeffneText("undo.menu", kZugText);
+                me::setzeInteraktion(false);
+                me::waehle(gewaehlt, false);
+                me::setzeReiter(2);
+            }));
+            add(pause(0.1));
+            if (a.vorbereiten) {
+                Liste vor0;
+                a.vorbereiten(vor0);
+                for (Schritt& x : vor0) { add(std::move(x)); }
+            }
+            add(tu("rc608 Undo " + fall + ": merken", [=] {
+                *vor = me::stand().text;
+                *wahlVor = auswahlText();
+                *tiefe = me::stand().undoSchritte;
+            }));
+            Liste tun;
+            a.tun(tun);
+            for (Schritt& x : tun) { add(std::move(x)); }
+            add(pause(0.1));
+            add(pruefe("rc608 Undo " + a.name + " (" + w.name + "): die Aktion ist genau ein Schritt", [=] {
+                const auto x = me::stand();
+                *nach = x.text;
+                *wahlNach = auswahlText();
+                if (x.undoSchritte != *tiefe + 1) { diag::detail("Knopftest: Undo " + a.name + ": " + std::to_string(x.undoSchritte - *tiefe) + " Schritte"); }
+                return zeile(a.name + " | ein Schritt", x.text != *vor && x.undoSchritte == *tiefe + 1);
+            }));
+            add(tu("rc608 Undo " + fall + ": fuer den Vergleich vor dem Weg merken", [] {}));
+            Liste fokus;
+            w.fokus(fokus);
+            for (Schritt& x : fokus) { add(std::move(x)); }
+            add(pause(0.1));
+            if (w.knopf) {
+                add(klick(tr(Str::MeRueckgaengig)));
+            } else {
+                add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+            }
+            add(pause(0.1));
+            add(pruefe("rc608 Undo " + fall + ": zurueck, Text und Auswahl", [=] {
+                const bool gut = me::stand().text == *vor && auswahlText() == *wahlVor;
+                if (!gut) { diag::detail("Knopftest: Undo " + fall + ": Auswahl " + auswahlText() + " statt " + *wahlVor + (me::stand().text == *vor ? "" : ", Text anders")); }
+                return zeile(fall + " | zurueck", gut);
+            }));
+            if (w.knopf) {
+                add(klick(tr(Str::MeWiederholen)));
+            } else {
+                add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Y, "Strg+Y"));
+            }
+            add(pause(0.1));
+            add(pruefe("rc608 Undo " + fall + ": wiederholt, Text und Auswahl", [=] {
+                const bool gut = me::stand().text == *nach && auswahlText() == *wahlNach;
+                if (!gut) { diag::detail("Knopftest: Undo " + fall + ": Auswahl " + auswahlText() + " statt " + *wahlNach + (me::stand().text == *nach ? "" : ", Text anders")); }
+                return zeile(fall + " | wiederholt", gut);
+            }));
+        }
+    }
+    // Kein Schritt: reines Auswaehlen und das Auge (nur Vorschau, steht nicht in der Datei)
+    add(tu("rc608 Undo: Probe fuer die Nicht-Schritte", [=] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("undo.menu", kZugText);
+        me::setzeReiter(0);
+    }));
+    add(pause(0.3));
+    add(tu("rc608 Undo: merken", [=] { *tiefe = me::stand().undoSchritte; *vor = me::stand().text; }));
+    add(ziehFlaeche("rc608 Undo: Klick waehlt frei", 450, 325, 0, 0, 0, 0));
+    add(klick("##auge"));
+    add(pause(0.2));
+    add(pruefe("rc608 Undo: Auswaehlen und Auge sind kein Schritt, der Text bleibt", [=] {
+        const auto x = me::stand();
+        return zeile("Auswaehlen und Auge | kein Schritt", x.undoSchritte == *tiefe && x.text == *vor && x.verborgen == 1);
+    }));
+    add(klick("##auge"));
+
+    // Das Umbenennen-Feld (Punkt 6 aus Teil 2): endet beim Klick daneben, nimmt den Fokus nicht zurueck, trifft das richtige Element
+    add(tu("rc608 Umbenennen: Probe mit zwei Menues, Hierarchie", [=] {
+        me::schliesseAlleOhneSpeichern();
+        const std::string zwei = std::string(kZugText) + "menuDef\n{\n  name \"zweites\"\n  rect 0 0 640 480\n  visible 1\n  itemDef\n  {\n    name \"anderes\"\n    type ITEM_TYPE_BUTTON\n    rect 10 10 50 50\n    visible 1\n  }\n}\n";
+        (void)me::oeffneText("undo.menu", zwei);
+        me::setzeReiter(0);
+        me::waehle(2, false);
+    }));
+    add(pause(0.4));
+    const auto umbenennen = [&](const std::string& name) {
+        add(klickAn("rc608 Umbenennen: Doppelklick auf " + name, [name] { return zeileVon(name); }, 0, true));
+        add(pause(0.2));
+        add(pruefe("rc608 Umbenennen: das Feld ist offen", [] { return ImGui::GetIO().WantTextInput; }));
+    };
+    umbenennen("frei");
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tippe("neu1"));
+    add(ziehFlaeche("rc608 Umbenennen: Klick daneben", 2, 478, 0, 0, 0, 0));
+    add(pause(0.3));
+    add(pruefe("rc608 Umbenennen: der Klick daneben schreibt und beendet, der Fokus bleibt nicht im Feld", [] {
+        return rectVon("neu1") == "400 300 100 50" && !ImGui::GetIO().WantTextInput;
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(pruefe("rc608 Umbenennen: danach geht Strg+Z", [] { return rectVon("frei") == "400 300 100 50"; }));
+    umbenennen("vorn");
+    add(tu("rc608 Umbenennen: Reiter wechseln", [] { me::setzeReiter(2); }));
+    add(pause(0.3));
+    add(pruefe("rc608 Umbenennen: der Reiterwechsel beendet es", [] { return !ImGui::GetIO().WantTextInput; }));
+    add(tu("rc608 Umbenennen: zurueck zur Hierarchie", [] { me::setzeReiter(0); }));
+    add(pause(0.3));
+    add(pruefe("rc608 Umbenennen: das Feld kommt nicht wieder", [] { return !ImGui::GetIO().WantTextInput && zeileVon("vorn").x >= 0.0F; }));
+    umbenennen("hinten");
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tippe("verworfen"));
+    add(taste(ImGuiKey_Escape, std::string("Esc")));
+    add(pause(0.3));
+    add(pruefe("rc608 Umbenennen: Esc beendet ohne Aenderung", [] { return rectVon("hinten") == "100 100 200 100" && rectVon("verworfen").empty() && !ImGui::GetIO().WantTextInput; }));
+    add(tu("rc608 Undo: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
     return s;
 }
 
@@ -2311,6 +2567,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=undo: die Tabelle Aktion gegen Weg (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "undo") == 0) {
+        for (auto& x : schritteUndo()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=bleiben: was gezogen oder in Properties geaendert ist, bleibt (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "bleiben") == 0) {
         for (auto& x : schritteFelder()) { add(std::move(x)); }
@@ -2535,6 +2797,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteZiehen()) { add(std::move(x)); }
     for (auto& x : schritteFelder()) { add(std::move(x)); }
     for (auto& x : schritteBleiben()) { add(std::move(x)); }
+    for (auto& x : schritteUndo()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }
