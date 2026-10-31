@@ -1466,6 +1466,26 @@ Einziger Agent, direkt auf karte1. Je Fehler rot → behoben → im selben Test 
      der Test vergleicht bei Modellen die Dreiecke als Menge).
    - Handbuch (6 Sprachen) und Changelog ergänzt.
 
+8. **Funde des Hauptstrangs aus der ersten Schlussrunde** (cba5b79f):
+   - **Zwischenablage** (Modus 1 rot: es „… legt das ganze Skript in die Zwischenablage“, allein wiederholt „Copy schreibt …“ – shank
+     arbeitete am Rechner): jeder Selbsttest schrieb in die echte Windows-Zwischenablage, überschrieb also, was der Nutzer kopiert
+     hatte, und was der Nutzer kopierte, störte den Test. Jetzt bekommt ImGui im Selbsttest eine Ablage dieses Prozesses
+     (`testablage`); alles im Programm geht über ImGui, die Prüfungen bleiben dieselben und prüfen die eigene Kopie. Neue Prüfung:
+     die Windows-Zwischenablage bleibt dabei unberührt. Nur eine Probe (`testablage::probe`) geht an die echte: ImGuis Weg hin und
+     zurück, dann der Inhalt des Nutzers wieder (`platform::zwischenablageSichern/Zurueck`: alle kopierbaren Formate, kein neuer
+     Verlaufseintrag; schreibt ein fremdes Programm dazwischen, bleibt dessen Inhalt). Lauf: 36 Bytes hin und zurück, alter Inhalt 81
+     Bytes in 6 Formaten wieder da. Die Sperre `ablageBelegen` gilt nur noch für diese Probe.
+   - **lint_d3dbesitz 21 → 11** (rc606: 11): nachgemessen kein Leck: bei einem Lauf mit Menüfigur vor `gibMenueZieleFrei()` Referenzzähler 1
+     für alle vier `g_menueAlpha*`, danach nullptr; `g_figurBilder` 13 → 0 nach `figurBilderAllesLoesen()`; beide laufen in `shutdown()`,
+     das Anlegen hängt an `g_menueAlphaVersucht`. Der Lint sieht nur `shutdown()` selbst. Wie bei den übrigen Feldern ausgeschrieben, beim Anlegen auf
+     nullptr geprüft; `g_menueTiefe` ist geliehen (gehört dem Ziel) und steht jetzt so im Code (`MenueTiefeGeliehen`).
+   - **lint_portability 236 → 106** (rc606 zählte 192; die Zahl zählt Fundstellen, nicht Dateien): alle neuen behoben (fehlende Standard-Header,
+     Kommentare in ASCII, Zeichenketten in tests/ und hilfe.cpp als dieselben Bytes, der Kopf von i18n.h über gen_i18n.py). Keine neue Beanstandung bleibt.
+   - **„Lagen wie NRC“** (en/es/cs je 1 in der ersten Runde): die Runde lief mit dem Stand vor ffad20a2. Die Titelleiste des Dialogs richtet sich nach der
+     Schrift beim Öffnen (Inhalt 689 oder 693 bei gleichem Fenster): die Erwartung nimmt jetzt die Höhe innen. Bestätigt im vollen Lauf auf en, es, cs (unten).
+   - **Vordergrund**: 71189 Proben, alle 58 Treffer 14:02:55–14:02:58: shank hat das Fenster selbst nach vorn geholt (vom Hauptstrang bestätigt). Kein vom Test
+     verursachter Vordergrund.
+
 ### Changelog
 
 Entwurf in sechs Sprachen: `SP\rc607_changelog.md` (nicht in tools/changelog.txt).
