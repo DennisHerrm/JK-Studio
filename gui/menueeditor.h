@@ -55,6 +55,7 @@ struct Stand {
     bool interaktion = false;
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     int exporte = 0;         // H2: erfolgreiche .pk3-Exporte (Tour "Ein Menue aendern")
+    int undoSchritte = 0;    // rc608: Schritte, die Rueckgaengig zuruecknehmen kann
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
     int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos
     int klangStimmen = 0;          // M4: laufende Klaenge der Vorschau (Ton-Schalter aus = 0)

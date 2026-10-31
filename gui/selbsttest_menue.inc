@@ -1565,6 +1565,159 @@ Schritt ziehFlaeche(const std::string& was, float vx, float vy, float px, float 
                    }};
 }
 
+// rc608 Punkt 6 (shank: "wenn ich das anfasse mit links click bewegt es sich sofort statt erst auswaehlen"):
+// der erste Druck waehlt nur aus, erst ein neuer Druck auf das Ausgewaehlte zieht - mit Schwelle, ein Undo je Zug.
+const char* const kZugText =
+    "menuDef\n{\n  name \"zug\"\n  rect 0 0 640 480\n  visible 1\n"
+    "  itemDef\n  {\n    name \"hinten\"\n    type ITEM_TYPE_BUTTON\n    rect 100 100 200 100\n    style WINDOW_STYLE_FILLED\n    backcolor 0.2 0.2 0.6 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"vorn\"\n    type ITEM_TYPE_BUTTON\n    rect 200 120 150 60\n    style WINDOW_STYLE_FILLED\n    backcolor 0.6 0.2 0.2 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"frei\"\n    type ITEM_TYPE_BUTTON\n    rect 400 300 100 50\n    style WINDOW_STYLE_FILLED\n    backcolor 0.2 0.6 0.2 1\n    visible 1\n  }\n"
+    "}\n";
+
+// Die Zahlen von rect des Items `name` im Text
+std::string rectVon(const std::string& name) {
+    const std::string t = me::stand().text;
+    const std::size_t p = t.find("name \"" + name + "\"");
+    if (p == std::string::npos) { return ""; }
+    const std::size_t r = t.find("rect ", p);
+    return r == std::string::npos ? std::string() : t.substr(r + 5, t.find('\n', r) - r - 5);
+}
+
+// Die Auswahl als Text, zum Vergleichen und Melden: "0,2"
+std::string auswahlText() {
+    std::string a;
+    for (const int i : me::stand().auswahl) { a += (a.empty() ? "" : ",") + std::to_string(i); }
+    return a;
+}
+
+Schritt taste(ImGuiKey mod, bool an) {
+    return tu(std::string("Taste ") + ImGui::GetKeyName(mod) + (an ? " halten" : " loslassen"), [mod, an] { ImGui::GetIO().AddKeyEvent(mod, an); });
+}
+
+std::vector<Schritt> schritteZiehen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto zustand = [](const std::string& was, const std::string& auswahl, const std::string& h, const std::string& v, const std::string& f) {
+        return pruefe("rc608 Ziehen: " + was, [=] {
+            const bool gut = auswahlText() == auswahl && rectVon("hinten") == h && rectVon("vorn") == v && rectVon("frei") == f;
+            if (!gut) {
+                diag::detail("Knopftest: Ziehen " + was + " - Auswahl " + auswahlText() + ", hinten " + rectVon("hinten") + ", vorn " + rectVon("vorn") + ", frei " + rectVon("frei"));
+            }
+            return gut;
+        });
+    };
+    const std::string H = "100 100 200 100";
+    const std::string V = "200 120 150 60";
+    const std::string F = "400 300 100 50";
+    const auto tiefe = std::make_shared<int>(0);
+    const auto merke = [tiefe] { return tu("rc608 Ziehen: Undo-Tiefe merken", [tiefe] { *tiefe = me::stand().undoSchritte; }); };
+    const auto schritte = [tiefe](const std::string& was, int n) {
+        return pruefe("rc608 Ziehen: " + was + " - " + std::to_string(n) + " Undo-Schritt(e)", [tiefe, n] { return me::stand().undoSchritte == *tiefe + n; });
+    };
+    add(tu("rc608 Ziehen: Probe oeffnen, Bearbeiten", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("zug.menu", kZugText);
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.6));
+    add(foto("menue_ziehen_start"));
+
+    // Erster Druck auf ein nicht ausgewaehltes Element: waehlt nur, auch wenn die Maus wandert
+    add(merke());
+    add(ziehFlaeche("rc608 Ziehen: Druck auf frei, Maus wandert 60 Punkte", 450, 325, 0, 0, 60, 30));
+    add(zustand("der erste Druck waehlt frei, nichts bewegt sich", "2", H, V, F));
+    add(schritte("reines Auswaehlen", 0));
+    add(foto("menue_ziehen_gewaehlt"));
+
+    // Neuer Druck auf das Ausgewaehlte: ein Klick (unter der Schwelle) versetzt nichts
+    add(ziehFlaeche("rc608 Ziehen: Druck auf frei, Maus wandert 2 Punkte", 450, 325, 0, 0, 2, 1));
+    add(zustand("ein Klick mit kleiner Wanderung versetzt nichts", "2", H, V, F));
+    add(schritte("Klick unter der Schwelle", 0));
+
+    // ... ueber der Schwelle zieht er, ein Undo-Schritt
+    add(ziehFlaeche("rc608 Ziehen: neuer Druck auf frei, 60 Punkte ziehen", 450, 325, 0, 0, 60, 30));
+    add(pruefe("rc608 Ziehen: der zweite Druck zieht frei", [F] { return rectVon("frei") != F && auswahlText() == "2"; }));
+    add(schritte("ein Zug", 1));
+    add(foto("menue_ziehen_gezogen"));
+    add(tu("rc608 Ziehen: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(zustand("Rueckgaengig nimmt den ganzen Zug zurueck", "2", H, V, F));
+    add(schritte("nach Rueckgaengig", 0));
+
+    // Griffe: Druck ohne Bewegung aendert nichts, Ziehen ist ein Schritt
+    add(ziehFlaeche("rc608 Ziehen: Griff unten rechts ohne Bewegung", 500, 350, 0, 0, 1, 0));
+    add(zustand("der Griff ohne Bewegung aendert nichts", "2", H, V, F));
+    add(schritte("Griff ohne Bewegung", 0));
+    add(ziehFlaeche("rc608 Ziehen: Griff unten rechts ziehen", 500, 350, 0, 0, 40, 30));
+    add(pruefe("rc608 Ziehen: der Griff aendert die Groesse, die Ecke oben links bleibt", [F] {
+        const std::string r = rectVon("frei");
+        return r != F && r.rfind("400 300 ", 0) == 0;
+    }));
+    add(schritte("ein Griffzug", 1));
+    add(tu("rc608 Ziehen: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(zustand("Rueckgaengig nimmt den Griffzug zurueck", "2", H, V, F));
+
+    // Strg: nimmt hinzu, ohne zu ziehen
+    add(taste(ImGuiMod_Ctrl, true));
+    add(ziehFlaeche("rc608 Ziehen: Strg+Druck auf vorn, Maus wandert", 330, 150, 0, 0, 50, 20));
+    add(taste(ImGuiMod_Ctrl, false));
+    add(zustand("Strg nimmt vorn hinzu, nichts bewegt sich", "2,1", H, V, F));
+    add(schritte("Strg-Auswahl", 0));
+
+    // Neuer Druck auf ein Element der Auswahl: zieht die ganze Auswahl, ein Schritt
+    add(ziehFlaeche("rc608 Ziehen: Druck auf frei zieht beide", 450, 325, 0, 0, 60, 30));
+    add(pruefe("rc608 Ziehen: beide bewegen sich um dasselbe Stueck, hinten bleibt", [H, V, F] {
+        std::istringstream a(rectVon("frei"));
+        std::istringstream b(rectVon("vorn"));
+        int ax = 0, ay = 0, bx = 0, by = 0;
+        a >> ax >> ay;
+        b >> bx >> by;
+        return rectVon("hinten") == H && ax != 400 && ax - 400 == bx - 200 && ay - 300 == by - 120 && auswahlText() == "2,1";
+    }));
+    add(schritte("Zug der Auswahl", 1));
+    add(tu("rc608 Ziehen: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(zustand("Rueckgaengig nimmt beide zurueck", "2,1", H, V, F));
+
+    // Klick ohne Ziehen auf ein Element der Auswahl: nur noch dieses
+    add(ziehFlaeche("rc608 Ziehen: Klick auf frei ohne Ziehen", 450, 325, 0, 0, 0, 0));
+    add(zustand("der Klick auf ein Element der Auswahl laesst nur dieses gewaehlt", "2", H, V, F));
+    // Strg+Klick auf das Gewaehlte nimmt es wieder heraus
+    add(taste(ImGuiMod_Ctrl, true));
+    add(ziehFlaeche("rc608 Ziehen: Strg+Klick auf frei", 450, 325, 0, 0, 0, 0));
+    add(taste(ImGuiMod_Ctrl, false));
+    add(zustand("Strg+Klick nimmt frei heraus", "", H, V, F));
+
+    // Ueberlappung: ein Druck meint das vorderste Element (Rahmen und Name unter dem Zeiger)
+    add(tu("rc608 Ziehen: hinten waehlen (von vorn verdeckt an dieser Stelle)", [] { me::waehle(0, false); }));
+    add(pause(0.2));
+    add(ziehFlaeche("rc608 Ziehen: Druck auf die Ueberlappung, Maus wandert", 250, 140, 0, 0, 40, 0));
+    add(zustand("der Druck auf die Ueberlappung waehlt das vordere, nichts bewegt sich", "1", H, V, F));
+    // Alt: der Klick geht durch den Stapel, nichts bewegt sich
+    add(taste(ImGuiMod_Alt, true));
+    add(ziehFlaeche("rc608 Ziehen: Alt+Klick auf die Ueberlappung", 250, 140, 0, 0, 0, 0));
+    add(zustand("Alt+Klick waehlt das naechste darunter, nichts bewegt sich", "0", H, V, F));
+    // Alt+Ziehen: bewegt das Gewaehlte, auch wenn es verdeckt ist
+    add(merke());
+    add(ziehFlaeche("rc608 Ziehen: Alt+Ziehen auf der Ueberlappung", 250, 140, 0, 0, 40, 0));
+    add(taste(ImGuiMod_Alt, false));
+    add(pruefe("rc608 Ziehen: Alt+Ziehen bewegt das verdeckte Gewaehlte, das vordere bleibt", [H, V] {
+        return rectVon("hinten") != H && rectVon("vorn") == V && auswahlText() == "0";
+    }));
+    add(schritte("Alt-Zug", 1));
+    add(tu("rc608 Ziehen: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(zustand("Rueckgaengig nimmt den Alt-Zug zurueck", "0", H, V, F));
+    // Druck ins Leere: Auswahl weg, nichts bewegt sich
+    add(ziehFlaeche("rc608 Ziehen: Druck ins Leere", 30, 400, 0, 0, 20, 20));
+    add(zustand("der Druck ins Leere leert die Auswahl", "", H, V, F));
+    add(tu("rc608 Ziehen: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
 std::vector<Schritt> schritteM7() {
     std::vector<Schritt> s;
@@ -1917,6 +2070,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=ziehen: nur Auswaehlen und Ziehen auf der Flaeche (rc608)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "ziehen") == 0) {
+        for (auto& x : schritteZiehen()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=start: nur der Startbildschirm ohne offenes Menue (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "start") == 0) {
         for (auto& x : schritteStart()) { add(std::move(x)); }
@@ -2125,6 +2284,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM6()) { add(std::move(x)); }
     for (auto& x : schritteM7()) { add(std::move(x)); }
     for (auto& x : schritteStart()) { add(std::move(x)); }
+    for (auto& x : schritteZiehen()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

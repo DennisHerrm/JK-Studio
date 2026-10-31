@@ -284,6 +284,9 @@ struct Zustand {
     // Ziehen
     Ziehen ziehen = Ziehen::Nichts;
     int griff = -1;
+    ImVec2 ziehDruck{};       // rc608: wo der Druck war (Bildpunkte); erst ab der Schwelle zieht er
+    bool ziehLaeuft = false;
+    int klickWahl = -1;       // rc608: was ein Klick ohne Ziehen beim Loslassen waehlt (Alt, Mehrfachauswahl)
     ImVec2 ziehStart{0, 0};
     float zdx = 0, zdy = 0;
     Rechteck groesseNeu;
@@ -1800,6 +1803,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
+        z.ziehDruck = maus;
+        z.ziehLaeuft = false;
+        z.klickWahl = -1;
         z.zdx = z.zdy = 0;
         if (maus.y < o.y && maus.x > o.x) {
             z.ziehen = Ziehen::Lineal;   // Hilfslinie aus dem oberen Lineal
@@ -1812,25 +1818,46 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             z.griff = griffUnter;
             z.groesseNeu = einzel;
         } else if (unterMaus >= 0) {
-            const bool shift = ImGui::GetIO().KeyShift || ImGui::GetIO().KeyCtrl;
+            // rc608 (shank): ein Druck meint das vorderste Element unter dem Zeiger, das mit dem Rahmen und dem
+            // Namen. Ist es noch nicht gewaehlt, waehlt er es nur; erst ein neuer Druck auf Gewaehltes zieht.
+            // Alt: der Klick geht beim Loslassen durch den Stapel, Ziehen bewegt das Gewaehlte auch verdeckt.
+            const ImGuiIO& io = ImGui::GetIO();
+            const bool dazu = io.KeyShift || io.KeyCtrl;
             const auto it = std::find(d.auswahl.begin(), d.auswahl.end(), unterMaus);
-            if (shift) {
+            const bool gewaehltDarunter = std::any_of(alleUnter.begin(), alleUnter.end(), [&d](int i) {
+                return std::find(d.auswahl.begin(), d.auswahl.end(), i) != d.auswahl.end();
+            });
+            bool ziehen = false;
+            if (dazu) {
                 if (it != d.auswahl.end()) { d.auswahl.erase(it); }
                 else { d.auswahl.push_back(unterMaus); }
+            } else if (io.KeyAlt && gewaehltDarunter) {
+                z.klickWahl = unterMaus;
+                ziehen = true;
             } else if (it == d.auswahl.end()) {
                 d.auswahl.assign(1, unterMaus);
+            } else {
+                if (d.auswahl.size() > 1) { z.klickWahl = unterMaus; }
+                ziehen = true;
             }
             if (!d.auswahl.empty()) {
                 springe(d, m.items[static_cast<std::size_t>(unterMaus)].anfang);
                 bool frei = true;
                 for (const int i : d.auswahl) { frei = frei && d.gesperrt.count(i) == 0; }
-                if (frei) { z.ziehen = Ziehen::Verschieben; }
+                if (ziehen && frei) { z.ziehen = Ziehen::Verschieben; }
             }
         } else {
             d.auswahl.clear();
         }
     }
-    if (z.ziehen != Ziehen::Nichts && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    // rc608: die Zieh-Schwelle - ein Klick versetzt nichts, auch wenn die Hand ein wenig wandert
+    if (z.ziehen != Ziehen::Nichts && !z.ziehLaeuft) {
+        const float wx = maus.x - z.ziehDruck.x;
+        const float wy = maus.y - z.ziehDruck.y;
+        const float schwelle = ImGui::GetFontSize() * 0.25F;
+        z.ziehLaeuft = wx * wx + wy * wy >= schwelle * schwelle;
+    }
+    if (z.ziehen != Ziehen::Nichts && z.ziehLaeuft && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         float dx = vx - z.ziehStart.x;
         float dy = vy - z.ziehStart.y;
         if (ImGui::GetIO().KeyShift) {   // nur waagrecht oder senkrecht
@@ -1871,7 +1898,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         }
     }
     if (z.ziehen != Ziehen::Nichts && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-        if (z.ziehen == Ziehen::Verschieben && (z.zdx != 0 || z.zdy != 0)) {
+        if (z.ziehen == Ziehen::Verschieben && !z.ziehLaeuft && z.klickWahl >= 0) {
+            d.auswahl.assign(1, z.klickWahl);
+        } else if (z.ziehen == Ziehen::Verschieben && (z.zdx != 0 || z.zdy != 0)) {
             std::vector<std::pair<int, Rechteck>> neu;
             for (const int i : d.auswahl) {
                 Rechteck r = clientRect(m, m.items[static_cast<std::size_t>(i)]);
@@ -1880,7 +1909,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
                 neu.emplace_back(i, r);
             }
             setzeRects(neu);
-        } else if (z.ziehen == Ziehen::Groesse) {
+        } else if (z.ziehen == Ziehen::Groesse && z.ziehLaeuft) {
             const Rechteck alt = einzel;
             Rechteck r = clientRect(m, m.items[static_cast<std::size_t>(d.auswahl[0])]);
             r.x += z.groesseNeu.x - alt.x;
@@ -5346,6 +5375,7 @@ Stand stand() {
     s.interaktion = z.interaktion;
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
     s.exporte = z.exporte;
+    s.undoSchritte = d->puffer.undoTiefe();
     for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
     s.bildzeitMs = z.bildzeitMs;
     s.kinoBilder = z.kinoBilder;

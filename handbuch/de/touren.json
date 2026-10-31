@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` im Code darunter ändert sich mit.",
+      "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an, um ihn auszuwählen, drück ihn dann erneut und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` im Code darunter ändert sich mit.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##mitte",

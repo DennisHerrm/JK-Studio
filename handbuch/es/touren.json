@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Mueve un elemento.** Pulsa un botón en el lienzo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
+      "text": "**Mueve un elemento.** Pulsa un botón en el lienzo para seleccionarlo, vuelve a pulsarlo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##mitte",

@@ -91,6 +91,7 @@ public:
     bool rueckgaengig();
     bool wiederholen();
     [[nodiscard]] bool kannRueckgaengig() const noexcept { return !undo_.empty(); }
+    [[nodiscard]] int undoTiefe() const noexcept { return static_cast<int>(undo_.size()); }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !redo_.empty(); }
 
     // --- Suchen -------------------------------------------------------------

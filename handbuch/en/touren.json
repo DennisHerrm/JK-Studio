@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Move an element.** Click a button on the canvas and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
+      "text": "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##mitte",

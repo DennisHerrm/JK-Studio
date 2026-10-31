@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Posuňte prvek.** Klikněte na tlačítko na plátně a táhněte ho - nebo ho postrčte šipkami. Jeho `rect` v kódu níže se mění s ním.",
+      "text": "**Posuňte prvek.** Kliknutím na tlačítko na plátně ho vyberte, pak ho znovu stiskněte a táhněte - nebo ho postrčte šipkami. Jeho `rect` v kódu níže se mění s ním.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##mitte",

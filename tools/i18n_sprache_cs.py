@@ -2252,7 +2252,7 @@ TEXTE = {
     "MeDateiOeffnenHint": "Otevřít soubor .menu nebo .txt z disku, například ze složky vašeho modu.",
     "MeSpeichernHint": "Uložit menu. Menu ze hry se zeptá na místo mimo složku hry.",
     "MeExportPk3Hint": "Zabalit menu a jeho obrázky do .pk3 pro složku vašeho modu.",
-    "MeBearbeitenHint": "Úpravy: kliknutí vybírá, tažení posouvá a mění velikost prvků.",
+    "MeBearbeitenHint": "Úpravy: kliknutí vybírá, nový stisk vybraného prvku ho táhne, úchyty mění velikost.",
     "MeBedienenHint": "Ovládání: používejte menu jako ve hře - tlačítka reagují, cvary se mění (jen v náhledu).",
     "MeAlleItemsHint": "Zobrazit i prvky, které menu momentálně skrývá.",
     "MeRasterHint": "Zobrazit nad plátnem mřížku.",

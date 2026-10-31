@@ -2250,7 +2250,7 @@ TEXTE = {
     "MeDateiOeffnenHint": "Abre un archivo .menu o .txt de tu disco, por ejemplo de la carpeta de tu mod.",
     "MeSpeichernHint": "Guarda el menú. Un menú del juego pide un sitio fuera de la carpeta del juego.",
     "MeExportPk3Hint": "Empaqueta el menú y sus imágenes en un .pk3 para la carpeta de tu mod.",
-    "MeBearbeitenHint": "Editar: clic selecciona, arrastrar mueve y cambia el tamaño de los elementos.",
+    "MeBearbeitenHint": "Editar: un clic selecciona, otra pulsación sobre lo seleccionado lo arrastra, las asas cambian el tamaño.",
     "MeBedienenHint": "Interactuar: usa el menú como en el juego - los botones reaccionan, las cvars cambian (solo en la vista previa).",
     "MeAlleItemsHint": "Muestra también los elementos que el menú oculta en este momento.",
     "MeRasterHint": "Muestra una rejilla sobre el lienzo.",
