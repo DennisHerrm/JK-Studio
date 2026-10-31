@@ -50,6 +50,7 @@ struct EchtFx {
     std::future<MarkenErgebnis> markenAuftrag;
     std::shared_ptr<std::atomic<bool>> markenAbbrechen;
     std::size_t markenAuftragStand = static_cast<std::size_t>(-1);
+    bool markenMeta = true;   // gebaut wie -meta (der Stand, fuer den die Welt gilt oder gerade entsteht)
     std::chrono::steady_clock::time_point standSeit = std::chrono::steady_clock::now();   // seit wann die Geometrie ruht
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     EchtFx() = default;
@@ -66,8 +67,22 @@ EchtFx g_fx;
 // wurde; ein Bau fuer einen alten Stand wird abgebrochen; ein neuer beginnt, wenn die Geometrie eine
 // Viertelsekunde ruht (die Abschrift der Karte im Hauptfaden, die Rechnung im Hintergrund).
 void markenPflegen(Editor& ed, std::size_t geoStand) {
+    // Wie die Karte gebaut wird: der zuletzt gebaute Eintrag des Build-Menues, sonst der erste
+    // (Build_runRecentExecutedBuild), dort der BSP-Schritt; ohne einen die Vorgabe von NRC (-meta).
+    bool meta = true;
+    const std::vector<karte::BauEintrag>& eintraege = ed.bauProjekt.eintraege;
+    if (!eintraege.empty()) {
+        const long long i = ed.bauZuletzt;
+        const karte::BauEintrag& e = eintraege[i >= 0 && i < static_cast<long long>(eintraege.size()) ? static_cast<std::size_t>(i) : 0U];
+        for (const std::string& b : e.befehle) {
+            if (karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp) {
+                meta = b.find("-meta") != std::string::npos;
+                break;
+            }
+        }
+    }
     if (g_fx.markenAuftrag.valid()) {
-        if (g_fx.markenAuftragStand != geoStand) { *g_fx.markenAbbrechen = true; }
+        if (g_fx.markenAuftragStand != geoStand || g_fx.markenMeta != meta) { *g_fx.markenAbbrechen = true; }
         if (g_fx.markenAuftrag.wait_for(std::chrono::seconds(0)) != std::future_status::ready) { return; }
         EchtFx::MarkenErgebnis r = g_fx.markenAuftrag.get();
         if (!g_fx.markenAbbrechen->load()) {
@@ -78,10 +93,11 @@ void markenPflegen(Editor& ed, std::size_t geoStand) {
             ed.echtLicht.markenFlaechen = g_fx.marken->flaechen.size();
         }
     }
-    if (g_fx.markenStand == geoStand || std::chrono::steady_clock::now() - g_fx.standSeit < std::chrono::milliseconds(250)) { return; }
+    if ((g_fx.markenStand == geoStand && g_fx.markenMeta == meta) || std::chrono::steady_clock::now() - g_fx.standSeit < std::chrono::milliseconds(250)) { return; }
     const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
     const auto info = [&sp](const std::string& shader) { return karte::q3ShaderInfoAus(sp ? sp->inventar.shaderFinden(shader) : nullptr); };
-    auto ein = std::make_shared<karte::MarkenEingabe>(karte::markenEingabe(ed.karte, info, !(sp && sp->spiel == kRegelwerkJediOutcast)));
+    auto ein = std::make_shared<karte::MarkenEingabe>(karte::markenEingabe(ed.karte, info, !(sp && sp->spiel == kRegelwerkJediOutcast), meta));
+    g_fx.markenMeta = meta;
     auto abbrechen = std::make_shared<std::atomic<bool>>(false);
     g_fx.markenAbbrechen = abbrechen;
     g_fx.markenAuftragStand = geoStand;

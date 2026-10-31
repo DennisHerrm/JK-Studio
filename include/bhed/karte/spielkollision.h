@@ -29,6 +29,7 @@
 
 #include "bhed/kollision.h"
 #include "bhed/saberspuren.h"
+#include "bhed/karte/pinsel.h"
 
 #include <array>
 #include <atomic>
@@ -88,6 +89,22 @@ struct Q3ShaderInfo {
     bool polygonOffset = false;   // polygonOffset
     bool noClip = false;          // q3map_noClip, q3map_terrain
     bool indexed = false;         // q3map_indexed, q3map_terrain
+    // Abschluss rc607 (-meta, metaflaechen.inc): shaderInfo_t
+    std::string name;             // shader, klein, ohne Endung (sortiert die Meta-Dreiecke)
+    int breite = 64;              // shaderWidth (Bild oder q3map_textureSize; ohne Bild *default)
+    int hoehe = 64;               // shaderHeight
+    bool nonplanar = false;       // q3map_nonplanar, q3map_terrain
+    bool forceMeta = false;       // q3map_forceMeta, q3map_terrain
+    bool notjunc = false;         // q3map_notjunc, autosprite, q3map_terrain
+    bool globalTexture = false;   // q3map_globaltexture
+    bool invert = false;          // q3map_invert
+    bool tcGen = false;           // q3map_tcGen vector / ivector
+    std::array<std::array<float, 3>, 2> tcVecs{};
+    float shadeAngle = 0;         // q3map_shadeAngle
+    int lmSample = 0;             // q3map_lightmapSampleSize
+    int lmBreite = 128;           // q3map_lightmapSize (LIGHTMAP_WIDTH)
+    std::array<float, 3> lmAchse{};   // q3map_lightmapAxis
+    float tessSize = 0;           // tessSize, q3map_tessSize
     bool bewegt = false;          // deformVertexes move: shaderInfo minmax gueltig (ShaderEintrag)
     std::array<float, 3> bewegtMin{};
     std::array<float, 3> bewegtMax{};
@@ -118,15 +135,33 @@ struct MarkenWeltBericht {
 // misc_model ohne target (AddTriangleModels, ueber k.kontext.modelle), beide nur, wenn sie ein
 // offenes Blatt beruehren (FilterPatchIntoTree, FilterTrianglesIntoTree). SURF_NOIMPACT,
 // SURF_NOMARKS und CONTENTS_FOG laesst R_BoxSurfaces_r liegen.
-[[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht = nullptr);
+// meta: wie die Karte gebaut wird - mit -meta (die Vorgabe von NRC) setzt q3map2 die Flaechen neu zusammen.
+[[nodiscard]] SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht = nullptr, bool meta = true);
 
 // Dasselbe in zwei Teilen: markenEingabe schreibt im Hauptfaden ab, was der Bau aus der Karte liest
 // (was der Editor in die .map schriebe: Ebenenpunkte, Shader, Schluessel, Patches, die Dreiecke der
 // misc_model) - markenWeltBauen rechnet darauf in jedem Faden. *abbrechen true: so bald wie moeglich
 // aufhoeren (leere Welt).
 struct MarkenEingabe {
+    // Die Texturangaben einer Seite, wie sie in der .map stehen (fuer die st der Meta-Dreiecke)
+    struct Textur {
+        std::array<float, 5> quake{};                     // shift, shift, rotate, scale, scale
+        std::array<std::array<float, 3>, 2> bp{};         // texMat (brushDef)
+        std::array<std::array<float, 4>, 2> valve{};      // side.vecs (Valve 220, schon durch scale geteilt)
+    };
+    // Was ParseEntityCompileParams aus den Schluesseln einer Entitaet liest
+    struct Werte {
+        int entityNum = 0;
+        int cast = 1;
+        int recv = 1;
+        int sampleSize = 0;
+        float lmScale = 0;
+        float shadeAngle = 0;
+        std::array<float, 3> ambient{1, 1, 1};
+    };
     struct Seite {
         std::array<std::array<double, 3>, 3> punkte{};   // die Ebenenpunkte des Editors
+        Textur textur;
         int shader = 0;                                  // Index in shader
         std::uint32_t inhalt = 0;                        // Inhaltsflags der Seite (Detail-Bit)
     };
@@ -140,6 +175,7 @@ struct MarkenEingabe {
         std::string klasse;         // klein
         std::string ursprung;       // "origin"
         std::string blockGroesse;   // "_blocksize", "blocksize" oder "chopsize"
+        Werte werte;
         bool welt = false;
         std::vector<std::vector<Seite>> pinsel;
         std::vector<Patch> patches;
@@ -147,14 +183,20 @@ struct MarkenEingabe {
     struct Modell {
         int shader = 0;
         std::vector<std::array<float, 3>> dreiecke;   // je drei Ecken, in der Welt
+        std::vector<std::array<float, 3>> normalen;   // je Ecke
+        std::vector<std::array<float, 2>> st;         // je Ecke
+        bool erzwungen = false;                       // q3map_forceMeta oder spawnflags 4: geht in die Meta-Stufe
+        Werte werte;
     };
     std::vector<Ent> entitaeten;
     std::vector<Modell> modelle;
     std::vector<Q3ShaderInfo> shader;
     bool ja = true;
     bool ganzzahlig = false;   // ebenenPunkteGanzzahlig()
+    bool meta = true;          // gebaut mit -meta (die Vorgabe von NRC): metaflaechen.inc
+    PinselFormat format = PinselFormat::Quake3;
 };
-[[nodiscard]] MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja);
+[[nodiscard]] MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja, bool meta = true);
 [[nodiscard]] SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht = nullptr, const std::atomic<bool>* abbrechen = nullptr);
 
 }  // namespace bhed::karte

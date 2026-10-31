@@ -153,6 +153,58 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
                     t.ungetToken();
                 }
             }
+        } else if (k == "q3map_nonplanar") {
+            s.q3Nonplanar = true;
+        } else if (k == "q3map_forcemeta") {
+            s.q3ForceMeta = true;
+        } else if (k == "q3map_notjunc") {
+            s.q3NoTjunc = true;
+        } else if (k == "q3map_terrain") {
+            s.q3NoTjunc = true;
+            s.q3Nonplanar = true;
+            s.q3ForceMeta = true;
+        } else if (k == "q3map_globaltexture") {
+            s.q3GlobalTexture = true;
+        } else if (k == "q3map_invert") {
+            s.q3Invert = true;
+        } else if (k == "q3map_shadeangle" || k == "tesssize" || k == "q3map_tesssize") {   // atof wie ParseShaderFile
+            const char* n = t.getToken();
+            const float v = n != nullptr ? static_cast<float>(std::atof(n)) : 0.0F;
+            if (k == "q3map_shadeangle") {
+                s.q3ShadeAngle = v;
+            } else {
+                s.q3TessSize = v;
+            }
+        } else if (k == "q3map_lightmapsize" || k == "q3map_texturesize") {
+            const char* n = t.getToken();
+            const int w = n != nullptr ? std::atoi(n) : 0;
+            n = t.getToken();
+            const int h = n != nullptr ? std::atoi(n) : 0;
+            if (k == "q3map_texturesize") {
+                s.q3TexturBreite = w;
+                s.q3TexturHoehe = h;
+            } else if (((w - 1) & w) == 0 && ((h - 1) & h) == 0) {   // "must be a power of 2"
+                s.q3LmBreite = w;
+            }
+        } else if (k == "q3map_lightmapaxis") {
+            const char* n = t.getToken();
+            const std::string a = n != nullptr ? klein(n) : std::string();
+            s.q3LmAchse = a == "x" ? std::array<float, 3>{1, 0, 0} : a == "y" ? std::array<float, 3>{0, 1, 0} : a == "z" ? std::array<float, 3>{0, 0, 1} : std::array<float, 3>{};
+        } else if (k == "q3map_tcgen") {
+            const char* n = t.getToken();
+            const std::string art = n != nullptr ? klein(n) : std::string();
+            s.q3TcGen = true;
+            if (art == "vector" || art == "ivector") {   // Parse1DMatrixAppend: ( x y z ) ( x y z )
+                for (std::array<float, 3>& vec : s.q3TcVecs) {
+                    (void)t.getToken();   // (
+                    for (float& w : vec) {
+                        const char* z = t.getToken();
+                        const float v = z != nullptr ? static_cast<float>(std::atof(z)) : 0.0F;
+                        w = art == "vector" ? v : (v != 0 ? static_cast<float>(1.0 / static_cast<double>(v)) : 0.0F);
+                    }
+                    (void)t.getToken();   // )
+                }
+            }
         } else if (k == "deformvertexes") {
             // reste2 Punkt 4: q3map2 ParseShaderFile - "deformVertexes autosprite[2]"
             const char* a = t.getToken();

@@ -630,6 +630,18 @@ SpurFlaeche spurPolygon(const std::vector<std::array<float, 3>>& ecken, const fl
     return f;
 }
 
+SpurFlaeche spurFlaecheIndiziert(const std::vector<std::array<float, 3>>& punkte, const std::vector<int>& indizes, const float normale[3], bool ausgenommen) {
+    SpurFlaeche f;
+    if (punkte.size() < 3 || indizes.size() < 3) { return f; }
+    f.art = SpurFlaeche::Art::Flaeche;
+    f.ausgenommen = ausgenommen;
+    f.punkte = punkte;
+    f.indizes = indizes;
+    f.ebene = spurEbene(normale, punkt(f.punkte[0].data(), normale));
+    kastenSetzen(f);
+    return f;
+}
+
 SpurFlaeche spurDreiecke(const std::vector<std::array<float, 3>>& punkte, const std::vector<int>& indizes, bool ausgenommen) {
     SpurFlaeche f;
     if (punkte.empty() || indizes.size() < 3) {

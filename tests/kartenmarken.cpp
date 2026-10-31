@@ -193,6 +193,99 @@ std::map<std::string, double> flaecheJeEbene(const SpurWelt& w) {
     return m;
 }
 
+// Abschluss rc607: ganze Welt gegen die .bsp - jede Flaeche (Art, Punkte, Dreiecke in ihrer Reihenfolge, Ebene) und je
+// Blatt die Flaechen in ihrer Reihenfolge, die Blaetter von der Wurzel aus.
+void blattFolge(const SpurWelt& w, int n, std::vector<int>& aus) {
+    if (n < 0) {
+        aus.push_back(-n - 1);
+        return;
+    }
+    blattFolge(w, w.knoten[static_cast<std::size_t>(n)].kinder[0], aus);
+    blattFolge(w, w.knoten[static_cast<std::size_t>(n)].kinder[1], aus);
+}
+
+bool weltGleich(const SpurWelt& a, const SpurWelt& b, const std::string& name) {
+    int anders = 0;
+    const auto melde = [&anders, &name](const std::string& t) {
+        if (++anders <= 12) { std::printf("    %s: %s\n", name.c_str(), t.c_str()); }
+    };
+    if (a.flaechen.size() != b.flaechen.size()) { melde("Flaechen Editor " + std::to_string(a.flaechen.size()) + ", .bsp " + std::to_string(b.flaechen.size())); }
+    for (std::size_t i = 0; i < std::min(a.flaechen.size(), b.flaechen.size()); ++i) {
+        const SpurFlaeche& x = a.flaechen[i];
+        const SpurFlaeche& y = b.flaechen[i];
+        const std::string nr = "Flaeche " + std::to_string(i);
+        if (x.art != y.art) {
+            melde(nr + ": Art " + std::to_string(static_cast<int>(x.art)) + " gegen " + std::to_string(static_cast<int>(y.art)) + ", Punkte " +
+                  std::to_string(x.punkte.size()) + " gegen " + std::to_string(y.punkte.size()));
+            continue;
+        }
+        if (x.ausgenommen != y.ausgenommen) { melde(nr + ": ausgenommen"); }
+        if (x.art == SpurFlaeche::Art::Dreiecke) {
+            // Modelle: der Editor kennt die Nummern ihrer Ecken nicht (die Reihenfolge der Dreiecke und welche Ecke vorn
+            // steht, haengt an OptimizeTriangleSurface) - dieselben Dreiecke mit derselben Drehrichtung
+            using Dreieck = std::array<std::array<long, 3>, 3>;
+            const auto dreiecke = [](const SpurFlaeche& s) {
+                std::vector<Dreieck> l;
+                for (std::size_t q = 0; q + 2 < s.indizes.size(); q += 3) {
+                    Dreieck d{};
+                    for (std::size_t r = 0; r < 3; ++r) {
+                        const auto& u = s.punkte[static_cast<std::size_t>(s.indizes[q + r])];
+                        d[r] = {std::lround(u[0] * 100.0F), std::lround(u[1] * 100.0F), std::lround(u[2] * 100.0F)};
+                    }
+                    while (d[0] > d[1] || d[0] > d[2]) { std::rotate(d.begin(), d.begin() + 1, d.end()); }
+                    l.push_back(d);
+                }
+                std::sort(l.begin(), l.end());
+                return l;
+            };
+            if (dreiecke(x) != dreiecke(y)) { melde(nr + ": Dreiecke anders (" + std::to_string(x.indizes.size()) + " gegen " + std::to_string(y.indizes.size()) + ")"); }
+            continue;
+        }
+        if (x.punkte.size() != y.punkte.size()) {
+            melde(nr + ": Punkte " + std::to_string(x.punkte.size()) + " gegen " + std::to_string(y.punkte.size()));
+            continue;
+        }
+        bool punkteGleich = true;
+        for (std::size_t p = 0; p < x.punkte.size(); ++p) {
+            for (std::size_t k = 0; k < 3; ++k) { punkteGleich = punkteGleich && std::fabs(x.punkte[p][k] - y.punkte[p][k]) < 0.01F; }
+        }
+        if (!punkteGleich) {
+            char z[160];
+            std::snprintf(z, sizeof(z), ": Punkte anders, erster %.2f %.2f %.2f gegen %.2f %.2f %.2f", static_cast<double>(x.punkte[0][0]),
+                          static_cast<double>(x.punkte[0][1]), static_cast<double>(x.punkte[0][2]), static_cast<double>(y.punkte[0][0]),
+                          static_cast<double>(y.punkte[0][1]), static_cast<double>(y.punkte[0][2]));
+            melde(nr + z);
+        }
+        if (x.indizes != y.indizes) { melde(nr + ": Dreiecke anders (" + std::to_string(x.indizes.size()) + " gegen " + std::to_string(y.indizes.size()) + ")"); }
+        if (x.art == SpurFlaeche::Art::Flaeche) {
+            for (int k = 0; k < 3; ++k) {
+                if (std::fabs(x.ebene.normale[k] - y.ebene.normale[k]) > 0.001F) { melde(nr + ": Normale anders"); }
+            }
+        }
+    }
+    std::vector<int> la;
+    std::vector<int> lb;
+    if (!a.knoten.empty()) { blattFolge(a, 0, la); }
+    if (!b.knoten.empty()) { blattFolge(b, 0, lb); }
+    if (la.size() != lb.size()) { melde("Blaetter " + std::to_string(la.size()) + " gegen " + std::to_string(lb.size())); }
+    for (std::size_t i = 0; i < std::min(la.size(), lb.size()); ++i) {
+        const SpurWelt::Blatt& x = a.blaetter[static_cast<std::size_t>(la[i])];
+        const SpurWelt::Blatt& y = b.blaetter[static_cast<std::size_t>(lb[i])];
+        const auto liste = [](const SpurWelt& w, const SpurWelt::Blatt& bl) {
+            return std::vector<int>(w.blattFlaechen.begin() + bl.erste, w.blattFlaechen.begin() + bl.erste + bl.zahl);
+        };
+        if (liste(a, x) != liste(b, y)) {
+            std::string z = "Blatt " + std::to_string(i) + ": Flaechen";
+            for (const int f : liste(a, x)) { z += " " + std::to_string(f); }
+            z += " gegen";
+            for (const int f : liste(b, y)) { z += " " + std::to_string(f); }
+            melde(z);
+        }
+    }
+    std::printf("  %s: %zu Flaechen, %zu Blaetter, %d Abweichungen\n", name.c_str(), a.flaechen.size(), la.size(), anders);
+    return anders == 0;
+}
+
 bool gleich(const Ergebnis& a, const Ergebnis& b) {
     if ((a.bruchstuecke == 0) != (b.bruchstuecke == 0)) { return false; }
     if (a.bruchstuecke == 0) { return true; }
@@ -273,6 +366,7 @@ int main(int argc, char** argv) {
         BspGeometry rgeo;
         pruefe(readBspGeometry(lies(ordner + "/markenraum.bsp"), rgeo), "markenraum.bsp geladen");
         const SpurWelt rb = spurWeltAus(rgeo);
+        pruefe(weltGleich(er, rb, "markenraum -meta"), "markenraum -meta: jede Flaeche und jedes Blatt wie in der .bsp");
         std::printf("markenraum: %d Pinsel, %d Seiten, %d verdeckt, %d Modellflaechen, Leck %d; Editor %zu Flaechen, .bsp %zu\n", bericht.pinsel,
                     bericht.seiten, bericht.verdeckt, bericht.modelle, bericht.leck ? 1 : 0, er.flaechen.size(), rb.flaechen.size());
         pruefe(!bericht.leck && !bericht.leer && bericht.modelle == 1, "markenraum: dicht (FillOutside), das misc_model in der Welt");
@@ -332,11 +426,12 @@ int main(int argc, char** argv) {
         Karte reihe;
         (void)karteLesen(lies(ordner + "/markenreihe.map"), reihe);
         reihe.anmelden();
-        const SpurWelt er = markenWeltAusKarte(reihe, infoReihe, true);
+        const SpurWelt er = markenWeltAusKarte(reihe, infoReihe, true, nullptr, false);
         BspGeometry rgeo;
         pruefe(readBspGeometry(lies(ordner + "/markenreihe.bsp"), rgeo), "markenreihe.bsp geladen");
         const SpurWelt rb = spurWeltAus(rgeo);
         std::printf("markenreihe: Editor %zu Flaechen, .bsp %zu\n", er.flaechen.size(), rb.flaechen.size());
+        pruefe(weltGleich(er, rb, "markenreihe ohne -meta"), "markenreihe ohne -meta: jede Flaeche und jedes Blatt wie in der .bsp");
         const std::vector<Fall> reiheFaelle = {
             {"Stufe oben auf dem bewegten Boden (der verdickte Boden steht auch ueber der Stufe)", {-160, 0, 16}, {0, 0, 1}, 12, true},
             {"bewegter Boden frei", {-400, 100, 0}, {0, 0, 1}, 16, true},
@@ -355,6 +450,53 @@ int main(int argc, char** argv) {
                         b.summe[2]);
             pruefe(gleich(a, b) && a.bruchstuecke == b.bruchstuecke && punkte && (a.bruchstuecke > 0) == f.treffer,
                    std::string("Marke ") + f.was + ": Editor wie .bsp, dieselben Bruchstuecke");
+        }
+        // Abschluss rc607: dieselbe Karte mit -meta (die Vorgabe von NRC): q3map2 setzt die Flaechen neu zusammen -
+        // jetzt der Editor auch (metaflaechen.inc): Marken und die ganze Welt wie die -meta-.bsp
+        const SpurWelt em = markenWeltAusKarte(reihe, infoReihe, true);
+        BspGeometry mgeo;
+        pruefe(readBspGeometry(lies(ordner + "/markenreihe_meta.bsp"), mgeo), "markenreihe_meta.bsp geladen");
+        const SpurWelt mb = spurWeltAus(mgeo);
+        for (const Fall& f : reiheFaelle) {
+            const Ergebnis a = marke(em, f.o, f.d, f.r);
+            const Ergebnis b = marke(mb, f.o, f.d, f.r);
+            std::printf("  -meta: %s\n    Editor: %s\n    .bsp:   %s\n", f.was, text(a).c_str(), text(b).c_str());
+            const bool punkte = std::fabs(a.summe[0] - b.summe[0]) < 0.5 && std::fabs(a.summe[1] - b.summe[1]) < 0.5 && std::fabs(a.summe[2] - b.summe[2]) < 0.5;
+            pruefe(gleich(a, b) && a.bruchstuecke == b.bruchstuecke && punkte && (a.bruchstuecke > 0) == f.treffer,
+                   std::string("-meta, Marke ") + f.was + ": Editor wie .bsp, dieselben Bruchstuecke");
+        }
+        pruefe(weltGleich(em, mb, "markenreihe -meta"), "markenreihe -meta: jede Flaeche und jedes Blatt wie in der .bsp");
+        std::filesystem::remove_all(tmp, ec);
+    }
+    // Abschluss rc607: die Karte mit allem, was die Meta-Stufe unterscheidet (tools/karte/gen_markenmeta.py), auch als brushDef
+    {
+        const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "jkstudio_kartenmarken_meta";
+        std::error_code ec;
+        std::filesystem::remove_all(tmp, ec);
+        std::filesystem::create_directories(tmp / "base" / "shaders", ec);
+        {
+            std::ofstream o(tmp / "base" / "shaders" / "markenmeta.shader", std::ios::binary);
+            o << lies(ordner + "/markenmeta.shader");
+        }
+        Dateisystem fs;
+        fs.ordnerHinzufuegen((tmp / "base").string(), "sp");
+        Texturinventar inv;
+        inv.laden(fs);
+        const Q3ShaderInfoFn infoMeta = [&inv](const std::string& sh) {
+            return q3ShaderInfoAus(inv.shaderFinden(sh.rfind("textures/", 0) == 0 ? sh : "textures/" + sh));
+        };
+        const ShaderEintrag* tc = inv.shaderFinden("textures/meta/tc");
+        pruefe(tc != nullptr && tc->q3TcGen && std::fabs(tc->q3TcVecs[0][0] - 1.0F / 256.0F) < 1e-6F && tc->q3TexturBreite == 256, "q3map_tcGen ivector und q3map_textureSize gelesen");
+        const ShaderEintrag* teil = inv.shaderFinden("textures/meta/teil");
+        pruefe(teil != nullptr && teil->q3TessSize == 64.0F, "tessSize gelesen");
+        for (const char* name : {"markenmeta", "markenmeta_bp"}) {
+            Karte k;
+            (void)karteLesen(lies(ordner + "/" + name + ".map"), k);
+            k.anmelden();
+            const SpurWelt e = markenWeltAusKarte(k, infoMeta, true);
+            BspGeometry mgeo2;
+            pruefe(readBspGeometry(lies(ordner + "/" + name + ".bsp"), mgeo2), std::string(name) + ".bsp geladen");
+            pruefe(weltGleich(e, spurWeltAus(mgeo2), name), std::string(name) + ": jede Flaeche und jedes Blatt wie in der -meta-.bsp");
         }
         std::filesystem::remove_all(tmp, ec);
     }

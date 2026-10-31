@@ -483,6 +483,21 @@ struct Ebenen {
 // --- brush.cpp --------------------------------------------------------------------------
 struct ShaderDaten {   // shaderInfo_t (der Teil, den der Ablauf braucht)
     Q3ShaderFlags flags;
+    std::string name;
+    int breite = 64;
+    int hoehe = 64;
+    bool nonplanar = false;
+    bool forceMeta = false;
+    bool notjunc = false;
+    bool globalTexture = false;
+    bool invert = false;
+    bool tcGen = false;
+    std::array<std::array<float, 3>, 2> tcVecs{};
+    float shadeAngle = 0;
+    int lmSample = 0;
+    int lmBreite = 128;
+    std::array<float, 3> lmAchse{};
+    float tessSize = 0;
     bool autosprite = false;
     bool polygonOffset = false;
     bool noClip = false;
@@ -495,12 +510,14 @@ struct ShaderDaten {   // shaderInfo_t (der Teil, den der Ablauf braucht)
 struct SichtSeite : Seite {   // side_t; Seite::shader: Index in die Shaderliste, -1 ohne shaderInfo
     int planenum = -1;
     EbeneD ebeneD;            // side.plane aus den Punkten (ohne Einrasten); Normale 0: keine
+    MarkenEingabe::Textur textur;
     Wk huelle;                // visibleHull
     bool culled = false;
 };
 
 struct SichtPinsel {   // brush_t
     std::vector<SichtSeite> seiten;
+    MarkenEingabe::Werte werte;   // entityNum, lightmapSampleSize, ... (ParseMapEntity)
     MinMax kasten;
     bool detail = false;
     bool opaque = true;
@@ -1356,6 +1373,7 @@ struct PatchRoh {   // parseMesh_t (der Teil fuer die Marken)
 
 struct EntBau {   // entity_t beim Lesen
     std::list<SichtPinsel> pinsel;
+    MarkenEingabe::Werte werte;
     std::vector<PatchRoh> patches;
     V3f ursprungsPinsel{0, 0, 0};   // originbrush_origin
     V3f ursprung{0, 0, 0};          // "origin" (MergeOrigin schreibt ihn um)
@@ -1411,6 +1429,7 @@ V3d punktWieGeschrieben(const std::array<double, 3>& p, bool ganz) {
 void pinselLesen(const std::vector<MarkenEingabe::Seite>& seiten, bool ganz, bool welt, bool funcGroup, EntBau& ent, Ebenen& ebenen,
                  const std::vector<ShaderDaten>& shader) {
     SichtPinsel b;
+    b.werte = ent.werte;
     for (const MarkenEingabe::Seite& f : seiten) {
         const V3d pt[3] = {punktWieGeschrieben(f.punkte[0], ganz), punktWieGeschrieben(f.punkte[1], ganz), punktWieGeschrieben(f.punkte[2], ganz)};
         // MapPlaneFromPoints: PlaneFromPoints in double, FindFloatPlane( Plane3f( plane ), p )
@@ -1433,6 +1452,7 @@ void pinselLesen(const std::vector<MarkenEingabe::Seite>& seiten, bool ganz, boo
         s.planenum = ebenen.finde(pf, pt, 3);
         if (s.planenum >= 0) { s.ebene = ebenen.ebene(s.planenum); }
         s.ebeneD = pd;
+        s.textur = f.textur;
         s.shader = f.shader;
         s.flags = shader[static_cast<std::size_t>(s.shader)].flags;
         if ((f.inhalt & C_DETAIL) != 0U) { s.flags.compile |= C_DETAIL; }   // Detail-Bit der .map
@@ -1684,7 +1704,36 @@ struct Zeichenflaeche {   // mapDrawSurface_t (der Teil fuer die Marken)
     const PatchRoh* patch = nullptr;
     std::vector<V3f> dreiecke;   // misc_model
     const ShaderDaten* si = nullptr;   // shaderInfo (Seiten, Modelle): die Verdickung von deformVertexes move
+    // -meta (metaflaechen.inc)
+    const SichtSeite* seite = nullptr;
+    const MarkenEingabe::Werte* werte = nullptr;
+    const MarkenEingabe::Modell* modell = nullptr;
+    bool meta = false;                 // aus der Meta-Stufe: Dreiecke mit eigener Ebene, zaehlen als Seiten
 };
+
+#include "metaflaechen.inc"
+
+// Die Entitaets-Schluessel, die ParseEntityCompileParams liest (die ersten vorhandenen je Liste)
+MarkenEingabe::Werte werteAus(const Entitaet& e, int nummer, bool weltGruppe) {
+    MarkenEingabe::Werte w;
+    w.entityNum = nummer;
+    w.cast = weltGruppe ? 1 : 0;   // WORLDSPAWN_CAST_SHADOWS, ENTITY_CAST_SHADOWS
+    w.recv = 1;
+    const auto text = [&e](std::initializer_list<const char*> namen) {
+        for (const char* n : namen) {
+            if (e.hat(n)) { return e.wert(n); }
+        }
+        return std::string();
+    };
+    if (const std::string c = text({"_castShadows", "_cs"}); !c.empty()) { w.cast = std::atoi(c.c_str()); }
+    if (const std::string r = text({"_receiveShadows", "_rs"}); !r.empty()) { w.recv = std::atoi(r.c_str()); }
+    w.lmScale = std::max(0.0F, static_cast<float>(std::atof(text({"lightmapscale", "_lightmapscale", "_ls"}).c_str())));
+    w.shadeAngle = std::max(0.0F, static_cast<float>(std::atof(text({"_shadeangle", "_smoothnormals", "_sn", "_sa", "_smooth"}).c_str())));
+    w.sampleSize = std::max(0, std::atoi(text({"_lightmapsamplesize", "_samplesize", "_ss"}).c_str()));
+    const V3f farbe = vektorAus(e.wert("_color"));
+    if (farbe != V3f{0, 0, 0}) { w.ambient = farbe; }
+    return w;
+}
 
 // Die Abschrift der Karte (Hauptfaden): was der Editor in die .map schreiben wuerde
 MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja) {
@@ -1696,11 +1745,21 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
         const std::string schluessel = klein(name);
         const auto it = nummern.find(schluessel);
         if (it != nummern.end()) { return it->second; }
-        ein.shader.push_back(info ? info(name) : Q3ShaderInfo{});
+        Q3ShaderInfo si = info ? info(name) : Q3ShaderInfo{};
+        // ShaderInfoForShader: "textures/..." fuer Seiten und Patches steht schon im Namen des Editors, ohne Endung
+        const std::size_t punkt = schluessel.rfind('.');
+        si.name = punkt != std::string::npos && schluessel.find('/', punkt) == std::string::npos ? schluessel.substr(0, punkt) : schluessel;
+        if (si.breite == 64 && si.hoehe == 64) {   // ohne q3map_textureSize: das Bild des Shaders (LoadShaderImages)
+            const auto g = k.kontext.groesse(name);
+            si.breite = static_cast<int>(g.first);
+            si.hoehe = static_cast<int>(g.second);
+        }
+        ein.shader.push_back(std::move(si));
         const int nr = static_cast<int>(ein.shader.size()) - 1;
         nummern.emplace(schluessel, nr);
         return nr;
     };
+    ein.format = k.kontext.format;
     const auto weltE = k.welt();
     for (const auto& ep : k.entitaeten()) {
         const Entitaet& e = *ep;
@@ -1711,6 +1770,7 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
         ent.klasse = klasse;
         ent.ursprung = e.wert("origin");
         ent.welt = ep == weltE;
+        ent.werte = werteAus(e, static_cast<int>(ein.entitaeten.size()), ent.welt || klasse == "func_group");
         for (const char* key : {"_blocksize", "blocksize", "chopsize"}) {
             ent.blockGroesse = e.wert(key);
             if (!ent.blockGroesse.empty()) { break; }
@@ -1730,6 +1790,17 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
                     }
                     s.shader = shaderNr(f.shader());
                     s.inhalt = f.flags().inhaltFlags;
+                    // wie flaecheSchreiben sie schreibt und ParseRawBrush sie liest (atof der Dezimalzahl)
+                    const TexturProjektion& tp = f.projektion();
+                    const auto zahl = [](double v) { return static_cast<float>(std::atof(dezimal(v).c_str())); };
+                    s.textur.quake = {zahl(tp.texdef.shift[0]), zahl(tp.texdef.shift[1]), zahl(tp.texdef.rotate), zahl(tp.texdef.scale[0]), zahl(tp.texdef.scale[1])};
+                    for (std::size_t z = 0; z < 2; ++z) {
+                        for (std::size_t c = 0; c < 3; ++c) { s.textur.bp[z][c] = zahl(tp.bp.coords[static_cast<int>(z)][static_cast<int>(c)]); }
+                    }
+                    const float sk0 = zahl(tp.texdef.scale[0]) != 0 ? zahl(tp.texdef.scale[0]) : 1.0F;
+                    const float sk1 = zahl(tp.texdef.scale[1]) != 0 ? zahl(tp.texdef.scale[1]) : 1.0F;
+                    s.textur.valve[0] = {zahl(tp.basisS.x()) / sk0, zahl(tp.basisS.y()) / sk0, zahl(tp.basisS.z()) / sk0, zahl(tp.texdef.shift[0])};
+                    s.textur.valve[1] = {zahl(tp.basisT.x()) / sk1, zahl(tp.basisT.y()) / sk1, zahl(tp.basisT.z()) / sk1, zahl(tp.texdef.shift[1])};
                     seiten.push_back(s);
                 }
                 ent.pinsel.push_back(std::move(seiten));
@@ -1751,6 +1822,13 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
         MarkenEingabe::Modell m;
         m.shader = shaderNr(f.shader);
         for (const Vektor3f& v : f.ort) { m.dreiecke.push_back({v[0], v[1], v[2]}); }
+        for (const Vektor3f& v : f.normale) { m.normalen.push_back({v[0], v[1], v[2]}); }
+        for (const Vektor2f& v : f.st) { m.st.push_back({v[0], v[1]}); }
+        if (f.quelle != nullptr) {
+            m.werte = werteAus(*f.quelle, 0, true);   // InsertModel: entity = worldspawn, Schatten-Gruppe der Welt
+            m.erzwungen = (std::atoi(f.quelle->wert("spawnflags").c_str()) & 4) != 0;   // eForceMeta
+        }
+        m.erzwungen = m.erzwungen || ein.shader[static_cast<std::size_t>(m.shader)].forceMeta;
         ein.modelle.push_back(std::move(m));
     });
     return ein;
@@ -1765,6 +1843,21 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
     for (const Q3ShaderInfo& qi : ein.shader) {
         ShaderDaten d;
         d.flags = q3map2ShaderFlags(qi.surfaceparms, ein.ja);
+        d.name = qi.name;
+        d.breite = qi.breite;
+        d.hoehe = qi.hoehe;
+        d.nonplanar = qi.nonplanar;
+        d.forceMeta = qi.forceMeta;
+        d.notjunc = qi.notjunc;
+        d.globalTexture = qi.globalTexture;
+        d.invert = qi.invert;
+        d.tcGen = qi.tcGen;
+        d.tcVecs = qi.tcVecs;
+        d.shadeAngle = qi.shadeAngle;
+        d.lmSample = qi.lmSample;
+        d.lmBreite = qi.lmBreite;
+        d.lmAchse = qi.lmAchse;
+        d.tessSize = qi.tessSize;
         if (qi.autosprite) {   // deformVertexes autosprite: detail und noClip
             (void)surfaceParmAnwenden("detail", ein.ja, d.flags);
             d.noClip = true;
@@ -1785,6 +1878,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
     for (const MarkenEingabe::Ent& e : ein.entitaeten) {
         const bool funcGroup = e.klasse == "func_group";
         EntBau ent;
+        ent.werte = e.werte;
         ent.ursprung = vektorAus(e.ursprung);
         for (const auto& seiten : e.pinsel) { pinselLesen(seiten, ein.ganzzahlig, e.welt, funcGroup, ent, ebenen, shader); }
         for (const MarkenEingabe::Patch& pa : e.patches) {
@@ -1793,7 +1887,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
             r.hoehe = pa.hoehe;
             r.punkte = pa.punkte;
             r.shader = pa.shader;
-            ent.patches.push_back(std::move(r));
+            ent.patches.insert(ent.patches.begin(), std::move(r));   // ParsePatch: mapEnt.patches.emplace_front()
         }
         // ParseMapEntity: die Pinsel um den Ursprungs-Pinsel zurueck
         const V3f zurueck{-ent.ursprungsPinsel[0], -ent.ursprungsPinsel[1], -ent.ursprungsPinsel[2]};
@@ -1835,6 +1929,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         Zeichenflaeche z;
         z.spur = spurPatch(p.breite, p.hoehe, p.punkte, ausgenommen(si.flags));
         z.patch = &p;
+        z.si = &si;
         zf.push_back(std::move(z));
     }
     if (flut != Flut::Leer) {
@@ -1862,12 +1957,16 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
                 z.w = w;
                 z.planeNum = s.planenum;
                 z.si = &si;
+                z.seite = &s;
+                z.werte = &b.werte;
                 zf.push_back(std::move(z));
                 if ((si.flags.compile & C_FOG) != 0U) {   // "make a back side for fog"
                     Zeichenflaeche r;
                     r.w.assign(w.rbegin(), w.rend());
                     r.planeNum = s.planenum ^ 1;
                     r.si = &si;
+                    r.seite = &s;
+                    r.werte = &b.werte;
                     r.spur = spurPolygon(r.w, ebenen.ebene(r.planeNum).n, ausgenommen(si.flags));
                     zf.push_back(std::move(r));
                 }
@@ -1887,9 +1986,13 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         for (std::size_t i = 0; i < m.dreiecke.size(); ++i) { indizes.push_back(static_cast<int>(i)); }
         z.dreiecke.assign(m.dreiecke.begin(), m.dreiecke.end());
         z.si = &si;
+        z.modell = &m;
+        z.werte = &m.werte;
         z.spur = spurDreiecke(m.dreiecke, indizes, ausgenommen(si.flags));
         zf.push_back(std::move(z));
     }
+    if (!baum.abgebrochen()) { zf = metaFlaechen(std::move(zf), ebenen, ein.format, ein.meta, ausgenommen, abbrechen); }
+    if (abbrechen != nullptr && abbrechen->load()) { return SpurWelt{}; }
     if (baum.abgebrochen()) { return SpurWelt{}; }
     // FilterDrawsurfsIntoTree: nur, was ein offenes Blatt beruehrt, kommt in die .bsp
     Verweise v;
@@ -1905,7 +2008,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         } else if (!z.dreiecke.empty()) {   // FilterTrianglesIntoTree
             for (std::size_t i = 0; i + 2 < z.dreiecke.size(); i += 3) {
                 const Wk d{z.dreiecke[i], z.dreiecke[i + 1], z.dreiecke[i + 2]};
-                refs += wicklungInBaum_r(z.si != nullptr ? verdickt(d, *z.si) : d, -1, baum, baum.kopf, ebenen, v);
+                refs += wicklungInBaum_r(z.si != nullptr ? verdickt(d, *z.si) : d, z.planeNum, baum, baum.kopf, ebenen, v);
             }
             for (const V3f& p : z.dreiecke) { refs += punktInBaum_r(p, baum, baum.kopf, ebenen, v); }
         } else {   // FilterFaceIntoTree
@@ -1914,7 +2017,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         if (refs == 0) { continue; }
         if (z.patch != nullptr) {
             ++b.patches;
-        } else if (!z.dreiecke.empty()) {
+        } else if (!z.dreiecke.empty() && !z.meta) {
             ++b.modelle;
         } else {
             ++b.seiten;

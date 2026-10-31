@@ -121,6 +121,20 @@ struct ShaderEintrag {
     // Datei - fuer die Inhalte wie q3map2 (ApplySurfaceParm, Im Editor spielen)
     std::vector<std::string> surfaceparms;
     int lightmapAbtastung = 0;   // Stufe 8b Punkt 5: q3map_lightmapSampleSize (0 = keine Angabe)
+    // Abschluss rc607: was q3map2 fuer -meta aus dem Shader liest (metaflaechen.inc)
+    bool q3Nonplanar = false;      // q3map_nonplanar, q3map_terrain
+    bool q3ForceMeta = false;      // q3map_forceMeta, q3map_terrain
+    bool q3NoTjunc = false;        // q3map_notjunc, q3map_terrain
+    bool q3GlobalTexture = false;  // q3map_globaltexture
+    bool q3Invert = false;         // q3map_invert
+    bool q3TcGen = false;          // q3map_tcGen vector / ivector
+    std::array<std::array<float, 3>, 2> q3TcVecs{};
+    float q3ShadeAngle = 0;        // q3map_shadeAngle
+    int q3LmBreite = 128;          // q3map_lightmapSize
+    std::array<float, 3> q3LmAchse{};   // q3map_lightmapAxis
+    float q3TessSize = 0;          // tessSize, q3map_tessSize
+    int q3TexturBreite = 0;        // q3map_textureSize
+    int q3TexturHoehe = 0;
     // reste2 Punkt 4: was q3map2 fuer die Zeichenflaechen der Welt fragt (ParseShaderFile)
     bool autosprite = false;      // deformVertexes autosprite[2]
     bool polygonOffset = false;   // polygonOffset

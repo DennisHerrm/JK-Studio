@@ -101,6 +101,8 @@ struct SpurWelt {
 // Den Baum mit den Verweisen der Blaetter baut markenWeltAusKarte
 // (bhed/karte/spielkollision.h) wie q3map2.
 [[nodiscard]] SpurFlaeche spurPolygon(const std::vector<std::array<float, 3>>& ecken, const float normale[3], bool ausgenommen);
+// Eine ebene Flaeche mit eigener Dreiecksliste (ParseFace: die Ebene aus der Normale und dem ersten Punkt)
+[[nodiscard]] SpurFlaeche spurFlaecheIndiziert(const std::vector<std::array<float, 3>>& punkte, const std::vector<int>& indizes, const float normale[3], bool ausgenommen);
 [[nodiscard]] SpurFlaeche spurPatch(int breite, int hoehe, const std::vector<std::array<float, 3>>& kontrolle, bool ausgenommen);
 [[nodiscard]] SpurFlaeche spurDreiecke(const std::vector<std::array<float, 3>>& punkte, const std::vector<int>& indizes, bool ausgenommen);
 

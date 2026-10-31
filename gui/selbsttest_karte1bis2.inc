@@ -2953,7 +2953,10 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
                                 std::to_string(c->y) + "/" + std::to_string(b->y) + "/" + std::to_string(a->y));
                    const float titelH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
                    const int passt = static_cast<int>(std::lround((ImGui::GetMainViewport()->Size.y - titelH) / ke::massstab()));
-                   const int hoehe = std::min(777, passt);   // Reiter + Inhalt
+                   const ImGuiWindow* dialog = ImGui::FindWindowByName("###kartegruppe");
+                   const int hoehe = dialog != nullptr ? static_cast<int>(std::lround((dialog->Size.y - titelH) / ke::massstab())) : -1;   // Reiter + Inhalt
+                   diag::detail("Knopftest: Entitaeten - Dialog " + std::to_string(hoehe) + " hoch, Programmfenster fasst " + std::to_string(passt));
+                   if (hoehe != std::min(777, passt) && (passt >= 777 || hoehe > passt)) { return false; }
                    const int innen = hoehe - 27;
                    const double anteil = static_cast<double>(innen - 3 * 4) / static_cast<double>(750 - 3 * 4);
                    const auto wie = [anteil](int h, int nrc, double spiel) { return std::abs(h - nrc * anteil) <= spiel; };

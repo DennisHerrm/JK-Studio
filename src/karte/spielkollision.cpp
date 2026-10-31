@@ -36,6 +36,8 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texturen.h"
 
+#include "../q3map2/kompat/gcc_sort.h"
+
 #include <algorithm>
 #include <array>
 #include <cfloat>
@@ -43,10 +45,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <execution>
 #include <forward_list>
+#include <functional>
 #include <limits>
 #include <list>
 #include <map>
+#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -607,20 +612,40 @@ Q3ShaderInfo q3ShaderInfoAus(const ShaderEintrag* se) {
     i.polygonOffset = se->polygonOffset;
     i.noClip = se->noClip;
     i.indexed = se->indexed;
+    i.nonplanar = se->q3Nonplanar;
+    i.forceMeta = se->q3ForceMeta;
+    i.notjunc = se->q3NoTjunc || se->autosprite;
+    i.globalTexture = se->q3GlobalTexture;
+    i.invert = se->q3Invert;
+    i.tcGen = se->q3TcGen;
+    i.tcVecs = se->q3TcVecs;
+    i.shadeAngle = se->q3ShadeAngle;
+    i.lmSample = se->lightmapAbtastung;
+    i.lmBreite = se->q3LmBreite;
+    i.lmAchse = se->q3LmAchse;
+    i.tessSize = se->q3TessSize;
+    if (se->q3TexturBreite > 0) {
+        i.breite = se->q3TexturBreite;
+        i.hoehe = se->q3TexturHoehe;
+    }
     i.bewegt = se->bewegt;
     i.bewegtMin = se->bewegtMin;
     i.bewegtMax = se->bewegtMax;
     return i;
 }
 
-MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja) { return sicht::eingabeAusKarte(k, info, ja); }
+MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja, bool meta) {
+    MarkenEingabe e = sicht::eingabeAusKarte(k, info, ja);
+    e.meta = meta;
+    return e;
+}
 
 SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht, const std::atomic<bool>* abbrechen) {
     return sicht::weltBauen(e, bericht, abbrechen);
 }
 
-SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht) {
-    return markenWeltBauen(markenEingabe(k, info, ja), bericht);
+SpurWelt markenWeltAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool ja, MarkenWeltBericht* bericht, bool meta) {
+    return markenWeltBauen(markenEingabe(k, info, ja, meta), bericht);
 }
 
 }  // namespace bhed::karte
