@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.",
+      "text": "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in {{MeReiterEigenschaften}} and in the {{MeReiterText}} changes with it.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Step 3 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:##mitte",
@@ -1329,7 +1329,7 @@
    "id": "tut-menue-eigen",
    "gruppe": "tut",
    "titel": "Your first own menu",
-   "kurz": "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.",
+   "kurz": "From an empty editor to a project with three named buttons side by side: one glows on hover, one has a job. Saved, packed and tested in the game.",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Three buttons.** Double-click **{{MlTypButton}}** in the building blocks three times, or drag it onto the canvas.",
+      "text": "**Three buttons.** Double-click **{{MlTypButton}}** under **{{MlLZeigen}}** three times, or drag it onto the canvas.",
       "bild": "h_tut_menue_3",
-      "unter": "Three new buttons next to each other, not yet evenly spaced.",
-      "ziel": "knopf:MlTypButton",
+      "unter": "Three new buttons, slightly offset from each other.",
+      "ziel": "knopf:MlTypButton@##links",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
@@ -1367,33 +1367,77 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.",
+      "text": "**Side by side.** Drag from an empty spot on the canvas to draw a frame around the three buttons (or Ctrl+click them). Then click **{{MeLayoutWaagrecht}}** under **{{MlGrOrdnen}}** in **{{MeReiterEigenschaften}}**.",
       "bild": "h_tut_menue_4",
       "unter": "The buttons side by side with even spacing.",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Name them.** Double-click the first button on the canvas, type `Start` and press Enter. Name the others `Options` and `Quit` the same way.",
+      "bild": "h_tut_menue_5",
+      "unter": "Each button says what it is, in the font of the game.",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.",
-      "bild": "h_tut_menue_5",
-      "unter": "The glow effect: show on hover, hide when the mouse leaves.",
+      "text": "**Glow on hover.** Click the first button, open the **{{MeEreignisse}}** tab, choose the trigger **{{MeEvHover}}** and click **{{MeEvLeuchten}}**.",
+      "bild": "h_tut_menue_6",
+      "unter": "The glow as two steps: on when the pointer enters, off again when it leaves.",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Give a button a job.** Click the third button. In **{{MeEreignisse}}** choose the trigger **{{MeEvKlick}}**, click **{{MlAddStep}}**, pick the command `exec` and type `quit` in its field.",
+      "bild": "h_tut_menue_7",
+      "unter": "A step in plain words; the field holds the console command.",
+      "ziel": "knopf:MlAddStep",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Try it.** Click **{{MeBedienen}}** and point at the first button: It glows. **{{MeBearbeiten}}** takes you back.",
+      "bild": "h_tut_menue_8",
+      "unter": "In interact mode the canvas reacts as the game does.",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.",
-      "bild": "h_tut_menue_6",
+      "text": "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything.",
+      "bild": "h_tut_menue_9",
       "unter": "Saved: the project file and the menu in the project folder.",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**In the game.** Click **{{MeImSpielTesten}}**: the game starts and shows your menu right away, without touching the game folder. **{{MePrjProjekt}} > {{MePrjExport}}** packs the pk3. Your new menu is in the game's menu list by itself; to reach it from another menu, add the step `open my_menu` to a button there.",
+      "bild": "h_tut_menue_10",
+      "unter": "The test package is ready; the command line stands in the toolbar.",
+      "ziel": "knopf:MeImSpielTesten",
+      "fertig": "zahl:menue.spieltests+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,

@@ -50,7 +50,7 @@ main { flex: 1; min-width: 0; }
 .sprachen a { color: var(--leise); text-decoration: none; margin-left: 12px; font-size: .9em; }
 .sprachen a.aktiv { color: var(--text); font-weight: 600; border-bottom: 2px solid var(--akzent); }
 .thema { background: none; border: 1px solid var(--rand); color: var(--text); border-radius: 8px; width: 34px; height: 30px; cursor: pointer; }
-article { max-width: 1120px; padding: 10px 56px 60px; }
+article { max-width: 1640px; padding: 10px 56px 60px; }
 .ueber { color: var(--leise); text-transform: uppercase; letter-spacing: .18em; font-size: .78em; margin-top: 18px; }
 h1 { font-size: 2.6em; line-height: 1.15; margin: 6px 0 12px; }
 .einleitung { font-size: 1.2em; color: var(--text); opacity: .9; max-width: 760px; }
@@ -113,8 +113,10 @@ figure.bild.schmal { max-width: 300px; }
 /* rc600: Bilder hoechstens in Originalgroesse (kleine Ausschnitte nicht
    hochskalieren), Schrittbilder duerfen breiter sein als der Text. */
 figure img { width: auto; max-width: 100%; }
-figure.bild, figure.breit, .schritt figure { max-width: 1060px; }
-ol.schritte { max-width: 1110px; }
+/* rc608: Die Bilder sind bis 2560 breit und zeigen sich im Text so gross, wie die Seite es zulaesst (shank: "nicht so winzig"); der Klick zeigt sie in voller Groesse. */
+figure.bild, figure.breit, .schritt figure { max-width: 100%; }
+figure.anim { max-width: 100%; }
+ol.schritte { max-width: 100%; }
 .schritt p { max-width: 760px; }
 /* rc600: Ausklapp-Pfeile in der Seitenleiste (statt der Nummern), Untergruppen. */
 .pfeil { flex: none; width: 8px; height: 8px; border-right: 2px solid var(--leise); border-bottom: 2px solid var(--leise);

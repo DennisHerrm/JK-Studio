@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**要素を動かします。** キャンバスのボタンをクリックして選択し、もう一度押してドラッグするか、矢印キーで少しずつ動かします。下のコードの `rect` も一緒に変わります。",
+      "text": "**要素を動かします。** キャンバスのボタンをクリックして選択し、もう一度押してドラッグするか、矢印キーで少しずつ動かします。{{MeReiterEigenschaften}} と {{MeReiterText}} の `rect` も一緒に変わります。",
       "bild": "h_tut_menue_h2_3",
       "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
       "ziel": "fenster:##mitte",
@@ -1329,7 +1329,7 @@
    "id": "tut-menue-eigen",
    "gruppe": "tut",
    "titel": "はじめての自作メニュー",
-   "kurz": "空のエディターから、ホバーで光る 3 つのボタンが横に並んだプロジェクトまで。保存して pk3 にできる状態にします。",
+   "kurz": "空のエディターから、名前付きの 3 つのボタンが横に並んだプロジェクトまで。1 つはホバーで光り、1 つは機能を持ちます。保存して pk3 にし、ゲームでテストします。",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**3 つのボタン。** パーツの **{{MlTypButton}}** を 3 回ダブルクリックするか、キャンバスへドラッグします。",
+      "text": "**3 つのボタン。** **{{MlLZeigen}}** の **{{MlTypButton}}** を 3 回ダブルクリックするか、キャンバスへドラッグします。",
       "bild": "h_tut_menue_3",
-      "unter": "隣り合った 3 つの新しいボタン。間隔はまだそろっていません。",
-      "ziel": "knopf:MlTypButton",
+      "unter": "少しずつずれた 3 つの新しいボタン。",
+      "ziel": "knopf:MlTypButton@##links",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
@@ -1367,33 +1367,77 @@
       "ueberspringen": ""
      },
      {
-      "text": "**横に並べる。** 3 つのボタンを選び(Ctrl+クリック)、プロパティのレイアウトで **{{MeLayoutWaagrecht}}** をクリックします。",
+      "text": "**横に並べる。** キャンバスの空いている場所からドラッグして 3 つのボタンを枠で囲みます (または Ctrl+クリック)。次に **{{MeReiterEigenschaften}}** の **{{MlGrOrdnen}}** で **{{MeLayoutWaagrecht}}** をクリックします。",
       "bild": "h_tut_menue_4",
       "unter": "等間隔で横に並んだボタン。",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**名前を付ける。** キャンバス上の最初のボタンをダブルクリックし、`Start` と入力して Enter を押します。残りも同じように `Options` と `Quit` にします。",
+      "bild": "h_tut_menue_5",
+      "unter": "各ボタンがゲームのフォントで名前を表示します。",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**ホバーで光る。** 最初のボタンを選び、**イベント** タブを開いて **{{MeEvLeuchten}}** をクリックします。",
-      "bild": "h_tut_menue_5",
-      "unter": "光る効果: ホバーで表示、離れると非表示。",
+      "text": "**ホバーで光る。** 最初のボタンをクリックし、**{{MeEreignisse}}** タブを開いてトリガー **{{MeEvHover}}** を選び、**{{MeEvLeuchten}}** をクリックします。",
+      "bild": "h_tut_menue_6",
+      "unter": "光は 2 つのステップです。ポインターが入るとオン、離れるとオフ。",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ボタンに機能を持たせる。** 3 番目のボタンをクリックします。**{{MeEreignisse}}** でトリガー **{{MeEvKlick}}** を選び、**{{MlAddStep}}** をクリックし、コマンド `exec` を選んで欄に `quit` と入力します。",
+      "bild": "h_tut_menue_7",
+      "unter": "言葉で示されたステップ。欄にはコンソールコマンドが入ります。",
+      "ziel": "knopf:MlAddStep",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**試す。** **{{MeBedienen}}** をクリックして最初のボタンを指すと光ります。**{{MeBearbeiten}}** で戻ります。",
+      "bild": "h_tut_menue_8",
+      "unter": "操作モードではキャンバスがゲームと同じように反応します。",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**保存する。** **{{MeSpeichern}}** をクリックします。プロジェクトではすべてを保存します。その後 **{{MePrjProjekt}} > {{MePrjExport}}** でゲーム用の pk3 を作ります。",
-      "bild": "h_tut_menue_6",
+      "text": "**保存する。** **{{MeSpeichern}}** をクリックします。プロジェクトではすべてを保存します。",
+      "bild": "h_tut_menue_9",
       "unter": "保存済み: プロジェクトファイルとプロジェクトフォルダーのメニュー。",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ゲームで。** **{{MeImSpielTesten}}** をクリックすると、ゲームが起動してすぐにメニューを表示します。ゲームフォルダーは変更しません。**{{MePrjProjekt}} > {{MePrjExport}}** で pk3 を作ります。新しいメニューはゲームのメニューリストに自動で入ります。別のメニューから開くには、そこのボタンにステップ `open my_menu` を追加します。",
+      "bild": "h_tut_menue_10",
+      "unter": "テストパッケージの準備ができました。コマンドラインはツールバーに表示されます。",
+      "ziel": "knopf:MeImSpielTesten",
+      "fertig": "zahl:menue.spieltests+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,

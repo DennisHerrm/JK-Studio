@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Posuňte prvek.** Kliknutím na tlačítko na plátně ho vyberte, pak ho znovu stiskněte a táhněte - nebo ho postrčte šipkami. Jeho `rect` v kódu níže se mění s ním.",
+      "text": "**Přesuňte prvek.** Kliknutím na tlačítko na ploše ho vyberte, znovu ho stiskněte a táhněte, nebo ho posuňte šipkami. Jeho `rect` v {{MeReiterEigenschaften}} a v {{MeReiterText}} se změní s ním.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
       "ziel": "fenster:##mitte",
@@ -1329,7 +1329,7 @@
    "id": "tut-menue-eigen",
    "gruppe": "tut",
    "titel": "Vaše první vlastní menu",
-   "kurz": "Od prázdného editoru k projektu se třemi tlačítky vedle sebe, která při najetí myší září - uloženo a připraveno k zabalení jako pk3.",
+   "kurz": "Od prázdného editoru k projektu se třemi pojmenovanými tlačítky vedle sebe: jedno při najetí svítí, jedno má úkol. Uloženo, zabaleno a vyzkoušeno ve hře.",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Tři tlačítka.** Třikrát dvakrát klikněte na **{{MlTypButton}}** ve stavebních blocích, nebo ho přetáhněte na plochu.",
+      "text": "**Tři tlačítka.** Třikrát poklepejte na **{{MlTypButton}}** v **{{MlLZeigen}}**, nebo ho přetáhněte na plochu.",
       "bild": "h_tut_menue_3",
-      "unter": "Tři nová tlačítka vedle sebe, zatím ne rovnoměrně rozmístěná.",
-      "ziel": "knopf:MlTypButton",
+      "unter": "Tři nová tlačítka, mírně posunutá vůči sobě.",
+      "ziel": "knopf:MlTypButton@##links",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
@@ -1367,33 +1367,77 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Vedle sebe.** Vyberte tři tlačítka (Ctrl+kliknutí) a ve vlastnostech pod Rozvržení klikněte na **{{MeLayoutWaagrecht}}**.",
+      "text": "**Vedle sebe.** Táhněte z prázdného místa plochy a nakreslete rámeček kolem tří tlačítek (nebo Ctrl+kliknutí). Pak v **{{MeReiterEigenschaften}}** v části **{{MlGrOrdnen}}** klikněte na **{{MeLayoutWaagrecht}}**.",
       "bild": "h_tut_menue_4",
       "unter": "Tlačítka vedle sebe se stejnými mezerami.",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Pojmenujte je.** Poklepejte na první tlačítko na ploše, napište `Start` a stiskněte Enter. Stejně pojmenujte ostatní `Options` a `Quit`.",
+      "bild": "h_tut_menue_5",
+      "unter": "Každé tlačítko říká, co je, písmem hry.",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Záře při najetí.** Vyberte první tlačítko, otevřete kartu **Události** a klikněte na **{{MeEvLeuchten}}**.",
-      "bild": "h_tut_menue_5",
-      "unter": "Efekt záře: zobrazit při najetí myší, skrýt, když myš odjede.",
+      "text": "**Záře při najetí.** Klikněte na první tlačítko, otevřete kartu **{{MeEreignisse}}**, zvolte spouštěč **{{MeEvHover}}** a klikněte na **{{MeEvLeuchten}}**.",
+      "bild": "h_tut_menue_6",
+      "unter": "Záře jako dva kroky: zapne se při příchodu ukazatele a vypne při odchodu.",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Dejte tlačítku úkol.** Klikněte na třetí tlačítko. V **{{MeEreignisse}}** zvolte spouštěč **{{MeEvKlick}}**, klikněte na **{{MlAddStep}}**, vyberte příkaz `exec` a do jeho pole napište `quit`.",
+      "bild": "h_tut_menue_7",
+      "unter": "Krok slovy; pole obsahuje příkaz konzole.",
+      "ziel": "knopf:MlAddStep",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Vyzkoušejte.** Klikněte na **{{MeBedienen}}** a ukažte na první tlačítko: Rozsvítí se. **{{MeBearbeiten}}** vás vrátí zpět.",
+      "bild": "h_tut_menue_8",
+      "unter": "V režimu ovládání plocha reaguje jako hra.",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Uložte.** Klikněte na **{{MeSpeichern}}** - v projektu to uloží vše. **{{MePrjProjekt}} > {{MePrjExport}}** pak zabalí pk3 pro hru.",
-      "bild": "h_tut_menue_6",
+      "text": "**Uložte.** Klikněte na **{{MeSpeichern}}** - v projektu se uloží vše.",
+      "bild": "h_tut_menue_9",
       "unter": "Uloženo: soubor projektu a menu ve složce projektu.",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ve hře.** Klikněte na **{{MeImSpielTesten}}**: Hra se spustí a hned ukáže vaše menu, složka hry zůstane nedotčená. **{{MePrjProjekt}} > {{MePrjExport}}** zabalí pk3. Nové menu se samo dostane do seznamu menu hry; chcete-li se k němu dostat z jiného menu, přidejte tam tlačítku krok `open my_menu`.",
+      "bild": "h_tut_menue_10",
+      "unter": "Testovací balíček je hotový; příkazový řádek je na liště.",
+      "ziel": "knopf:MeImSpielTesten",
+      "fertig": "zahl:menue.spieltests+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,

@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Mueve un elemento.** Pulsa un botón en el lienzo para seleccionarlo, vuelve a pulsarlo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
+      "text": "**Mueve un elemento.** Haz clic en un botón del lienzo para seleccionarlo, púlsalo otra vez y arrástralo, o muévelo con las flechas. Su `rect` en {{MeReiterEigenschaften}} y en {{MeReiterText}} cambia con él.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Paso 3 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:##mitte",
@@ -1329,7 +1329,7 @@
    "id": "tut-menue-eigen",
    "gruppe": "tut",
    "titel": "Tu primer menú propio",
-   "kurz": "De un editor vacío a un proyecto con tres botones en fila que brillan al pasar el ratón: guardado y listo para empaquetar como pk3.",
+   "kurz": "De un editor vacío a un proyecto con tres botones con nombre, uno al lado del otro: uno brilla al pasar el ratón y otro tiene una función. Guardado, empaquetado y probado en el juego.",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Tres botones.** Haz doble clic tres veces en **{{MlTypButton}}** en los bloques de construcción, o arrástralo al lienzo.",
+      "text": "**Tres botones.** Haz doble clic tres veces en **{{MlTypButton}}** en **{{MlLZeigen}}**, o arrástralo al lienzo.",
       "bild": "h_tut_menue_3",
-      "unter": "Tres botones nuevos uno junto a otro, aún sin espaciado uniforme.",
-      "ziel": "knopf:MlTypButton",
+      "unter": "Tres botones nuevos, algo desplazados entre sí.",
+      "ziel": "knopf:MlTypButton@##links",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
@@ -1367,33 +1367,77 @@
       "ueberspringen": ""
      },
      {
-      "text": "**En fila.** Selecciona los tres botones (Ctrl+clic) y pulsa **{{MeLayoutWaagrecht}}** en Disposición, en las propiedades.",
+      "text": "**Uno al lado del otro.** Arrastra desde un punto vacío del lienzo para trazar un marco alrededor de los tres botones (o Ctrl+clic). Luego haz clic en **{{MeLayoutWaagrecht}}** en **{{MlGrOrdnen}}** de **{{MeReiterEigenschaften}}**.",
       "bild": "h_tut_menue_4",
       "unter": "Los botones en fila con el mismo espaciado.",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ponles nombre.** Haz doble clic en el primer botón del lienzo, escribe `Start` y pulsa Intro. Nombra los otros `Options` y `Quit` de la misma forma.",
+      "bild": "h_tut_menue_5",
+      "unter": "Cada botón dice lo que es, con la fuente del juego.",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Brillo al pasar el ratón.** Selecciona el primer botón, abre la pestaña **Eventos** y pulsa **{{MeEvLeuchten}}**.",
-      "bild": "h_tut_menue_5",
-      "unter": "El efecto de brillo: se muestra al pasar el ratón y se oculta cuando el ratón sale.",
+      "text": "**Brillo al pasar el ratón.** Haz clic en el primer botón, abre la pestaña **{{MeEreignisse}}**, elige el disparador **{{MeEvHover}}** y haz clic en **{{MeEvLeuchten}}**.",
+      "bild": "h_tut_menue_6",
+      "unter": "El brillo en dos pasos: se enciende al entrar el puntero y se apaga al salir.",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Dale una función a un botón.** Haz clic en el tercer botón. En **{{MeEreignisse}}** elige el disparador **{{MeEvKlick}}**, haz clic en **{{MlAddStep}}**, elige la orden `exec` y escribe `quit` en su campo.",
+      "bild": "h_tut_menue_7",
+      "unter": "Un paso en palabras; el campo contiene la orden de consola.",
+      "ziel": "knopf:MlAddStep",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Pruébalo.** Haz clic en **{{MeBedienen}}** y señala el primer botón: brilla. **{{MeBearbeiten}}** te lleva de vuelta.",
+      "bild": "h_tut_menue_8",
+      "unter": "En el modo de interacción el lienzo reacciona como el juego.",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Guarda.** Pulsa **{{MeSpeichern}}**: en un proyecto lo guarda todo. Después, **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3 para el juego.",
-      "bild": "h_tut_menue_6",
+      "text": "**Guarda.** Haz clic en **{{MeSpeichern}}**: en un proyecto guarda todo.",
+      "bild": "h_tut_menue_9",
       "unter": "Guardado: el archivo del proyecto y el menú en la carpeta del proyecto.",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**En el juego.** Haz clic en **{{MeImSpielTesten}}**: el juego arranca y muestra tu menú enseguida, sin tocar la carpeta del juego. **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3. Tu menú nuevo entra solo en la lista de menús del juego; para llegar a él desde otro menú, añade allí a un botón el paso `open my_menu`.",
+      "bild": "h_tut_menue_10",
+      "unter": "El paquete de prueba está listo; la línea de órdenes aparece en la barra.",
+      "ziel": "knopf:MeImSpielTesten",
+      "fertig": "zahl:menue.spieltests+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,

@@ -1284,7 +1284,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an, um ihn auszuwählen, drück ihn dann erneut und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` im Code darunter ändert sich mit.",
+      "text": "**Verschieb ein Element.** Klick einen Knopf auf der Fläche an, um ihn auszuwählen, drück ihn dann erneut und zieh ihn - oder schieb ihn mit den Pfeiltasten. Sein `rect` in {{MeReiterEigenschaften}} und im {{MeReiterText}} ändert sich mit.",
       "bild": "h_tut_menue_h2_3",
       "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:##mitte",
@@ -1329,7 +1329,7 @@
    "id": "tut-menue-eigen",
    "gruppe": "tut",
    "titel": "Dein erstes eigenes Menü",
-   "kurz": "Vom leeren Editor zum Projekt mit drei Knöpfen nebeneinander, die beim Hover leuchten - gespeichert und bereit für die pk3.",
+   "kurz": "Vom leeren Editor zum Projekt mit drei benannten Knöpfen nebeneinander: Einer leuchtet beim Hover, einer hat eine Aufgabe. Gespeichert, gepackt und im Spiel getestet.",
    "seite": "tut-menue-eigen.html",
    "ansichten": {
     "classic": [
@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Drei Knöpfe.** Doppelklicke bei den Bausteinen dreimal auf **{{MlTypButton}}** oder zieh ihn auf die Fläche.",
+      "text": "**Drei Knöpfe.** Doppelklicke unter **{{MlLZeigen}}** dreimal auf **{{MlTypButton}}** oder zieh ihn auf die Fläche.",
       "bild": "h_tut_menue_3",
-      "unter": "Drei neue Knöpfe nebeneinander, noch nicht gleichmäßig verteilt.",
-      "ziel": "knopf:MlTypButton",
+      "unter": "Drei neue Knöpfe, leicht gegeneinander versetzt.",
+      "ziel": "knopf:MlTypButton@##links",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
@@ -1367,33 +1367,77 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Nebeneinander.** Wähle die drei Knöpfe (Strg+Klick) und klicke in den Eigenschaften unter Layout auf **{{MeLayoutWaagrecht}}**.",
+      "text": "**Nebeneinander.** Ziehe von einer leeren Stelle der Fläche einen Rahmen um die drei Knöpfe (oder Strg+Klick). Klicke dann in **{{MeReiterEigenschaften}}** unter **{{MlGrOrdnen}}** auf **{{MeLayoutWaagrecht}}**.",
       "bild": "h_tut_menue_4",
       "unter": "Die Knöpfe nebeneinander mit gleichem Abstand.",
       "ziel": "knopf:MeLayoutWaagrecht",
       "fertig": "zahl:menue.layouts+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Benennen.** Doppelklicke den ersten Knopf auf der Fläche, tippe `Start` und drücke Enter. Benenne die anderen ebenso `Options` und `Quit`.",
+      "bild": "h_tut_menue_5",
+      "unter": "Jeder Knopf sagt, was er ist, in der Schrift des Spiels.",
+      "ziel": "fenster:##mitte",
+      "fertig": "zahl:menue.text~",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Leuchten beim Hover.** Wähle den ersten Knopf, öffne den Reiter **Ereignisse** und klicke auf **{{MeEvLeuchten}}**.",
-      "bild": "h_tut_menue_5",
-      "unter": "Der Leucht-Effekt: zeigen beim Hover, verstecken beim Verlassen.",
+      "text": "**Leuchten beim Hover.** Klicke den ersten Knopf, öffne den Reiter **{{MeEreignisse}}**, wähle den Auslöser **{{MeEvHover}}** und klicke auf **{{MeEvLeuchten}}**.",
+      "bild": "h_tut_menue_6",
+      "unter": "Das Leuchten als zwei Schritte: an, wenn der Zeiger kommt, wieder aus, wenn er geht.",
       "ziel": "knopf:MeEvLeuchten",
       "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Einem Knopf eine Aufgabe geben.** Klicke den dritten Knopf. Wähle in **{{MeEreignisse}}** den Auslöser **{{MeEvKlick}}**, klicke **{{MlAddStep}}**, nimm den Befehl `exec` und tippe `quit` in sein Feld.",
+      "bild": "h_tut_menue_7",
+      "unter": "Ein Schritt in Worten; das Feld enthält den Konsolenbefehl.",
+      "ziel": "knopf:MlAddStep",
+      "fertig": "zahl:menue.ereignisse+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Ausprobieren.** Klicke auf **{{MeBedienen}}** und zeige auf den ersten Knopf: Er leuchtet. **{{MeBearbeiten}}** führt zurück.",
+      "bild": "h_tut_menue_8",
+      "unter": "Im Bedienmodus reagiert die Fläche wie das Spiel.",
+      "ziel": "knopf:MeBedienen",
+      "fertig": "zahl:menue.bedienen",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Speichern.** Klicke auf **{{MeSpeichern}}** - im Projekt speichert das alles. **{{MePrjProjekt}} > {{MePrjExport}}** packt danach die pk3 fürs Spiel.",
-      "bild": "h_tut_menue_6",
+      "text": "**Speichern.** Klicke auf **{{MeSpeichern}}** - im Projekt speichert das alles.",
+      "bild": "h_tut_menue_9",
       "unter": "Gespeichert: die Projektdatei und das Menü im Projektordner.",
       "ziel": "knopf:MeSpeichern",
       "fertig": "zahl:menue.gespeichert+",
+      "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Im Spiel.** Klicke auf **{{MeImSpielTesten}}**: Das Spiel startet und zeigt dein Menü gleich, der Spielordner bleibt unberührt. **{{MePrjProjekt}} > {{MePrjExport}}** packt die pk3. Dein neues Menü steht von selbst in der Menüliste des Spiels; um es aus einem anderen Menü zu erreichen, gib dort einem Knopf den Schritt `open my_menu`.",
+      "bild": "h_tut_menue_10",
+      "unter": "Das Testpaket ist fertig; die Befehlszeile steht in der Leiste.",
+      "ziel": "knopf:MeImSpielTesten",
+      "fertig": "zahl:menue.spieltests+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
       "sicher": false,
