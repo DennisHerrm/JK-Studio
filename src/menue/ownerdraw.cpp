@@ -248,7 +248,9 @@ void mp(Zeichner& z, OdErgebnis& r) {
         z.text(x, y, c, std::to_string(kraft.verfuegbar));
         r.beispiel = true;
     } else if (id == UI_FORCE_MASTERY_SET || id == UI_FORCE_RANK) {   // UI_DrawForceMastery
-        const int i = std::clamp(kraft.rang, 0, kMaxForceRank);
+        // rc608: im Spiel steht beim Server g_maxForceRank (jk2mp: Jedi Knight), nicht der Rang des Spielers (Jedi Master)
+        const std::string serverRang = id == UI_FORCE_MASTERY_SET && k.cvar ? k.cvar("g_maxForceRank") : std::string();
+        const int i = std::clamp(serverRang.empty() ? kraft.rang : std::atoi(serverRang.c_str()), 0, kMaxForceRank);
         z.text(x, y, c, se(k, std::string("MP_INGAME_") + kForceMasteryLevels[i]));
         r.beispiel = id == UI_FORCE_RANK;
     } else if (id > UI_FORCE_RANK && id <= UI_FORCE_RANK_SABERTHROW) {   // UI_DrawForceStars
@@ -355,16 +357,13 @@ void mp(Zeichner& z, OdErgebnis& r) {
     } else if (id == UI_KEYBINDSTATUS) {
         // Display_KeyBindPending: ohne wartende Taste nichts
     } else if (id == UI_EFFECTS) {
-        // JKA MP: "case UI_EFFECTS: break;". Jedi Outcast MP (ui.qvm, Q3TA-Erbe): UI_DrawEffects mit
-        // fxBasePic und fxPic[effectsColor], effectsColor = gamecodetoui[color1 - 1]
+        // JKA MP: "case UI_EFFECTS: break;". Jedi Outcast MP: das Saebelbild ueber das ganze Feld, color1 ist die Nummer
+        // (im Spiel nachgesehen, rc608: 0 rot ... 5 lila; die Q3-Bilder fx_* laedt ui.qvm zwar, zeichnet sie aber nicht).
         if (k.spiel == Spiel::JK2) {
-            static constexpr int kGameCodeToUi[7] = {4, 2, 3, 0, 5, 1, 6};
-            static constexpr const char* kFx[7] = {"menu/art/fx_red", "menu/art/fx_orange", "menu/art/fx_yel", "menu/art/fx_grn",
-                                                   "menu/art/fx_blue", "menu/art/fx_purple", "menu/art/fx_white"};
-            const int c1 = std::clamp(zahl(k, "color1"), 1, 7);
-            const int e = kGameCodeToUi[c1 - 1];
-            z.bild(x, y - 14, 128, 8, "menu/art/fx_base");
-            z.bild(x + static_cast<float>(e * 16) + 8, y - 16, 16, 12, kFx[e]);
+            static constexpr const char* kSaebel[6] = {"menu/art/saber_red", "menu/art/saber_orange", "menu/art/saber_yellow",
+                                                       "menu/art/saber_green", "menu/art/saber_blue", "menu/art/saber_purple"};
+            const int c1 = zahl(k, "color1");
+            if (c1 >= 0 && c1 < 6) { z.bild(a.x, a.y, a.w, a.h, kSaebel[c1]); }
         }
     } else if (id >= UI_CHAT_MAIN && id <= UI_CHAT_TACTICAL) {
         // UI_OwnerDraw hat keinen Fall: nichts (nur UI_OwnerDrawHandleKey)

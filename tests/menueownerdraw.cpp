@@ -160,8 +160,10 @@ int main() {
         Welt j(Dialekt::MP, Spiel::JK2);
         j.cvars["color1"] = "4";
         const OdErgebnis e = j.od(201);
-        pruefe(e.teile.size() == 2 && e.teile[0].inhalt == "menu/art/fx_base" && e.teile[1].inhalt == "menu/art/fx_red" && nah(e.teile[1].x, 108),
-               "Jedi Outcast MP: UI_EFFECTS fx_base + fxPic[gamecodetoui[color1-1]]");
+        // rc608: im laufenden jk2mp nachgesehen: das Saebelbild ueber das ganze Feld, color1 ist die Nummer (4 blau)
+        pruefe(e.teile.size() == 1 && e.teile[0].inhalt == "menu/art/saber_blue", "Jedi Outcast MP: UI_EFFECTS Saebelbild nach color1");
+        j.cvars["color1"] = "7";
+        pruefe(j.od(201).teile.empty(), "Jedi Outcast MP: color1 ausserhalb der sechs Saebelfarben zeichnet kein Saebelbild");
     }
     // --- UI_GLINFO --------------------------------------------------------------------------
     {
@@ -385,7 +387,7 @@ int main() {
     // M7: Renderer-Cvars der Setup-Menues (R_Register vor der Oberflaeche; SP und MP verschieden)
     pruefe(spielCvarVorgabe(Dialekt::SP, Spiel::JA, "r_texturemode") == "GL_LINEAR_MIPMAP_LINEAR" &&
                spielCvarVorgabe(Dialekt::MP, Spiel::JA, "r_textureMode") == "GL_LINEAR_MIPMAP_NEAREST" &&
-               spielCvarVorgabe(Dialekt::SP, Spiel::JK2, "r_picmip") == "0" && !spielCvarVorgabe(Dialekt::SP, Spiel::MD, "r_detailtextures").empty(),
+               spielCvarVorgabe(Dialekt::SP, Spiel::JK2, "r_picmip") == "1" && !spielCvarVorgabe(Dialekt::SP, Spiel::MD, "r_detailtextures").empty(),
            "Engine-Cvars (R_Register) als Vorgabe");
     std::printf("menueownerdraw: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

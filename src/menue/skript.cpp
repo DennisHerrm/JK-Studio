@@ -973,7 +973,46 @@ bool Laufzeit::uiSkript(int menu, const std::string& name) {
         modellHaut[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)] = h.empty() ? std::string("-") : h;
         ++version;
     };
-    if (name == "character") { figur(); }
+    if (name == "updateforcestatus") {
+        // UpdateForceStatus (codemp/ui/ui_main.c), ohne Partie: CS_SERVERINFO leer, g_gametype 0. rc608: fehlte; darum standen in
+        // ingame_player "The Force" und "Force Disabled", Apply und Join Game aufeinander.
+        const auto zeigen = [&](const char* gruppe, bool an) {
+            const Menu& m = d->menus[static_cast<std::size_t>(menu)];
+            for (std::size_t i = 0; i < m.items.size(); ++i) {
+                if (gleich(m.items[i].window.name, gruppe) || (!m.items[i].window.group.empty() && gleich(m.items[i].window.group, gruppe))) {
+                    if (an) { items[static_cast<std::size_t>(menu)][i].flags |= WINDOW_VISIBLE; }
+                    else { items[static_cast<std::size_t>(menu)][i].flags &= ~WINDOW_VISIBLE; }
+                }
+            }
+        };
+        if (gleich(d->menus[static_cast<std::size_t>(menu)].window.name, "ingame_player")) {
+            const bool spektator = std::atoi(cvar("ui_myteam").c_str()) == 3;
+            zeigen("jedinonjedi", false);
+            zeigen("noforce", false);
+            zeigen("yesforce", true);
+            zeigen("nosaber", false);
+            zeigen("yessaber", true);
+            zeigen("playerapply", !spektator);
+            zeigen("playerforcejoin", spektator);
+            zeigen("playerforcered", !spektator);
+            zeigen("playerforceblue", !spektator);
+            zeigen("playerforcespectate", true);
+            ++version;
+        }
+        // jk2mp (ui.qvm) legt ui_about_gametype dabei an; ohne ihn gelten die "hideCvar 0; 1 ..."-Elemente als sichtbar
+        if (d->spiel == Spiel::JK2 && cvar("ui_about_gametype").empty()) { setzeCvar("ui_about_gametype", "0"); }
+    }
+    else if (name == "getvideosetup") {
+        // UI_GetVideoSetup (code/ui/ui_main.cpp, codemp/ui/ui_main.c): die Setup-Seiten zeigen Kopien der r_-Cvars.
+        // rc608: fehlte; in Jedi Outcast stand darum "High Quality" und "Off" statt "Custom" und "On".
+        if (cvar("ui_r_glCustom").empty()) { setzeCvar("ui_r_glCustom", "4"); }
+        for (const char* teil : {"mode", "colorbits", "fullscreen", "lodbias", "picmip", "texturebits", "texturemode", "detailtextures",
+                                 "ext_compress_textures", "depthbits", "subdivisions", "fastSky", "inGameVideo", "allowExtensions"}) {
+            setzeCvar(std::string("ui_r_") + teil, cvar(std::string("r_") + teil));
+        }
+        setzeCvar("ui_r_modified", "0");
+    }
+    else if (name == "character") { figur(); }
     else if (name == "characterchanged") { figur(); }
     else if (name == "char_skin") { haut(); }
     else if (name == "saber_hilt") { griff(false); }

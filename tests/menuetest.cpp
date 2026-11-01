@@ -106,6 +106,12 @@ int main() {
         }
     }
     pruefe(hatMeldung(d, "Unknown item keyword 'foo'", 21), "SP: Warnung 'Unknown item keyword' in Zeile 21");
+    {   // rc608: Jedi Outcast hat eigene Werte, unbekannte Cvars sind leer wie im Spiel
+        pruefe(spielCvarVorgabe(Dialekt::MP, Spiel::JK2, "sv_hostname") == "noname", "JK2-MP: sv_hostname wie im Spiel");
+        pruefe(spielCvarVorgabe(Dialekt::MP, Spiel::JK2, "ui_Name") == "Padawan", "JK2-MP: ui_Name wie nach dem Oeffnen im Spiel");
+        pruefe(spielCvarVorgabe(Dialekt::MP, Spiel::JK2, "ui_about_gametype").empty(), "JK2-MP: ui_about_gametype kennt das Spiel im Hauptmenue nicht");
+        pruefe(spielCvarVorgabe(Dialekt::MP, Spiel::JA, "sv_hostname") != "noname", "JKA-MP: bleibt bei seinen Werten");
+    }
     {   // rc608: was dem Spiel das Menue nimmt, laesst dem Editor die uebrigen Elemente
         const std::string probe = "menuDef\n{\n name \"m\"\n rect 0 0 640 480\n itemDef\n {\n  name \"a\"\n  type ITEM_TYPE_CHECKBOX\n  rect 10 20 30 40\n  asset_model \"x.glm\"\n  visible 1\n }\n itemDef\n {\n  name \"b\"\n  type ITEM_TYPE_BUTTON\n  rect 50 60 70 80\n  visible 1\n }\n}\n";
         LeseOptionen spiel;

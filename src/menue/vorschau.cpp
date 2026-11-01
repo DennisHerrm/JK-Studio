@@ -352,6 +352,12 @@ public:
 private:
     // Text_Paint -> RE_Font_DrawString
     void text(float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style, int font) {
+        // rc608: jk2mp zaehlt hier Zeichen (Q3: Text_Paint limit), JKA Bildpunkte. Sonst blieben von "Bespin Streets"
+        // mit "columns 1 2 190 25" nur "Bes" (25 Bildpunkte) uebrig; im Spiel steht der ganze Name.
+        if (d_.spiel == Spiel::JK2 && u_.dialekt == Dialekt::MP && maxPixel > 0) {
+            textMit(schrift(font), x, y, scale, c, t.substr(0, static_cast<std::size_t>(maxPixel)), 0, style);
+            return;
+        }
         textMit(schrift(font), x, y, scale, c, t, maxPixel, style);
     }
     // M7: dasselbe mit einer Schrift beim Namen (cgame/Pazaak zeichnen mit eigenem Griff)
@@ -708,6 +714,10 @@ private:
                     size -= it.elementWidth;
                     if (size < it.elementWidth || it.elementWidth <= 0) { break; }
                     x += it.elementWidth;
+                }
+                // rc608: jk2mp schreibt den Namen des gewaehlten Bilds unter die Liste ("rebel/default", im Spiel gesehen)
+                if (d_.spiel == Spiel::JK2 && mp && cursorPos >= 0 && cursorPos < count) {
+                    text(r.x, r.y + r.h, it.textscale, it.window.foreColor, spalte(z[static_cast<std::size_t>(cursorPos)], 0), 0, it.textStyle, it.font);
                 }
             }
             return;
@@ -1329,9 +1339,23 @@ std::string multiText(const Item& it, const Umgebung& u) {   // Item_Multi_Setti
 
 namespace {
 #include "cvarvorgaben.inc"
+#include "cvarvorgaben_jk2.inc"
 }  // namespace
 
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
+    // rc608: Jedi Outcast hat eigene Werte (sv_hostname noname, ui_netSource 0), aus dem laufenden Spiel
+    if (s == Spiel::JK2) {
+        const CvarVorgabe* anfang = d != Dialekt::SP ? std::begin(kVorgabenJk2Mp) : std::begin(kVorgabenJk2Sp);
+        const CvarVorgabe* ende = d != Dialekt::SP ? std::end(kVorgabenJk2Mp) : std::end(kVorgabenJk2Sp);
+        for (const CvarVorgabe* v = anfang; v != ende; ++v) {
+            if (gleichOhneFall(name, v->name)) { return v->wert; }
+        }
+        // Sonst kennt das Spiel ihn hier nicht (ui_about_gametype leer: die Elemente fuer "keine Macht" bleiben versteckt).
+        // Nur was der Foto-Lauf selbst setzt, fehlt in der Tabelle: dafuer gilt weiter die Tabelle der Engine.
+        static const char* const vomLauf[] = {"in_mouse", "in_joystick", "r_fullscreen", "r_mode", "r_customwidth", "r_customheight",
+                                              "s_initsound", "s_volume", "s_musicvolume", "com_maxfps", "sp_language"};
+        if (std::none_of(std::begin(vomLauf), std::end(vomLauf), [&name](const char* n) { return gleichOhneFall(name, n); })) { return {}; }
+    }
     // M7: was die Engine vor der Oberflaeche anlegt (Com_Init, Fenster, CL_Init, S_Init, R_Register -
     // die Renderer-Cvars der Setup-Menues); das erste Cvar_Get legt den Wert fest
     {

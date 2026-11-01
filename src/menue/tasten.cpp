@@ -172,7 +172,7 @@ std::string bindungsText(const Tastenbelegung& b, const std::string& befehl, Dia
             return freund.empty() ? roh : freund;
         };
         if (taste[1] == -1) { return name(taste[0]); }
-        std::string oder = se ? se(s == Spiel::JK2 && d == Dialekt::SP ? "MENUS3_KEYBIND_OR" : "MENUS_KEYBIND_OR") : std::string("or");
+        std::string oder = se ? se(s == Spiel::JK2 ? "MENUS3_KEYBIND_OR" : "MENUS_KEYBIND_OR") : std::string("or");
         if (oder.size() > 31) { oder.resize(31); }   // char sOR[32]
         return name(taste[0]) + " " + oder + " " + name(taste[1]);
     }

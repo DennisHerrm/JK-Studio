@@ -397,7 +397,10 @@ void FeederDaten::baue() {
     }
     if (dialekt == Dialekt::MP) {
         // UI_LoadArenas: scripts/*.arena, je { map ... longname ... type ... }
-        for (const std::string& f : dateiListe(d, "scripts", ".arena")) {
+        std::vector<std::string> arenen = dateiListe(d, "scripts", ".arena");
+        // rc608: Jedi Outcast hat fast alle in scripts/arenas.txt (die Kartenliste blieb leer)
+        if (spiel == Spiel::JK2) { arenen.insert(arenen.begin(), "arenas.txt"); }
+        for (const std::string& f : arenen) {
             std::string t;
             if (!d.lies("scripts/" + f, t)) { continue; }
             Woerter w(t);

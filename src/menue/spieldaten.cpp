@@ -87,6 +87,23 @@ Lader Spieldaten::lader() const {
     return [this](const std::string& pfad, std::string& inhalt) { return lies(pfad, inhalt); };
 }
 
+// rc608: Jedi Outcast legt seine Texte anders ab als Jedi Academy: die Menue-Texte in Pakete MENUS0..3, die der
+// Oberflaeche in INGAMETEXT (vm/ui.qvm: "INGAMETEXT_SERVER_REFRESHTIME"). Die Vorschau fragt nach den Namen von Jedi
+// Academy; ohne das stand hinter "Lightsaber Only:" oder "Type:" nichts. Was jk2mp als festen Text zeichnet, steht unten.
+void jk2Namen(Texte& t) {
+    std::vector<std::pair<std::string, std::string>> dazu;
+    for (const auto& [k, wert] : t.werte) {
+        if (k.size() > 7 && k.compare(0, 5, "MENUS") == 0 && k[5] >= '0' && k[5] <= '9' && k[6] == '_') {
+            dazu.emplace_back("MENUS_" + k.substr(7), wert);
+        } else if (k.compare(0, 11, "INGAMETEXT_") == 0) {
+            dazu.emplace_back("MP_INGAME_" + k.substr(11), wert);
+        }
+    }
+    dazu.emplace_back("MENUS_HUMAN", "HUMAN");
+    dazu.emplace_back("MENUS_CLOSED", "CLOSED");
+    for (const auto& [k, wert] : dazu) { t.werte.emplace(k, wert); }
+}
+
 Texte ladeTexte(const Spieldaten& d, Spiel spiel, const std::string& sprache) {
     Texte t;
     if (spiel == Spiel::JK2) {
@@ -98,6 +115,7 @@ Texte ladeTexte(const Spieldaten& d, Spiel spiel, const std::string& sprache) {
             std::string inhalt;
             if (d.lies(f, inhalt)) { t.ladeSp(inhalt, nr); }
         }
+        jk2Namen(t);
         return t;
     }
     std::string up = sprache;
