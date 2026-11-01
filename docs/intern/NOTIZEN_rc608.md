@@ -218,6 +218,53 @@ Kein Unterschied, nur der Augenblick: die Griffe mit dem Ring (im Spiel dreht er
 - Tutorials: nach Wunsch von shank in Teil 3 einmal komplett. Hier nur Schritt "Drei Knoepfe" von "Dein erstes eigenes Menue", weil Einzelklick seit Punkt 11 nichts einfuegt und der Test rot blieb.
 - Bemerkt, nicht geaendert: Mit Aufloesung "Window" und "Stretch" streckt die Flaeche 640 x 480 auf das Feld. Das war schon so; mit der breiteren rechten Spalte ist die Flaeche ab Werk bei 2538 x 1472 hochkant (1113 x 1173), ein Knopf wirkt also hoeher als im Spiel. "4:3 with bars" oder eine feste Aufloesung zeigen es richtig. Fuer den Neubau in Teil 3 mitbedenken.
 
+## Teil 3a
+
+Oberflaeche des Menue-Editors neu nach `entwurf_panel/index.html`, dazu die linke Leiste (freigegeben: "linke seite passt") und die Reste aus Teil 2. Teil 3b (Gesamtpruefung, Tutorials, Handbuchbilder) bleibt liegen. Vorgaben fuer Fotos: Spielfenster 1920 x 1440, Vergleiche ein Bild je Paar, Einzelbild 1920 breit.
+
+### Rechte Leiste
+- Reiter nur noch Properties, Events, Text editor (Nummern bleiben semantisch: 1 Text, 2 Properties, 3 Events). Karte mit Symbol, Name, Typ und einer Knopfreihe ausserhalb des rollenden Teils, Feldsuche, File keys, Gruppen mit Zusammenfassung, Farbzeile, Umschalter, Zahlen tippen oder an der Beschriftung ziehen, Hilfezeile, Fuss mit Component, Preview cvars, Engine messages. Geaenderte Werte markiert und zuruecksetzbar, zuletzt benutzte Farben.
+- Ausrichtung: Es gibt keinen Merker. Die Zahlen selbst entscheiden (`textXFolgt`, `textSenkrecht`); wer die Zahl von Hand aendert, hat damit das Folgen abgeschaltet. Beim Skalieren bleibt sie auch senkrecht.
+- Senkrecht rechnet jetzt mit den Massen von `RE_Font_DrawString` (`textMasse`: Grundlinie und Oberkante der grossen Buchstaben). `Text_Height` allein traf die grossen Schriften nicht (Spielfoto).
+- Events: Ausloeser, Schritte in Worten, Add step, Try. Umbenennen zieht die Ziele mit (`itemUmbenennen`), fehlendes Ziel gelb und in der Pruefung (`zielDa` wie `Menu_ItemsMatchingGroup`).
+- Abweichungen vom Entwurf: Fuellung hat zusaetzlich "..." fuer GRADIENT, TEAMCOLOR, CINEMATIC (das Spiel kennt 6 Stile); Rand hat eine 5. Stellung (Verlauf); Bild auch bei FILLED mit vorhandenem background (`Window_Paint`); Anordnen folgt der Lage (vorhandene Layouts, `jkstudio:layout`), nicht der Wahlfolge; Arrange enthaelt zusaetzlich Ausrichten, Verteilen, Gruppieren; das Hierarchie-Auge bleibt reine Vorschau, das Karten-Auge schreibt `visible`; Hover-Klang ist `focusSound`, Klick-Klang `play` in `action`; Loeschen von Vorlagen ueber eine Zeile "Zurueckholen"; ein Hover-Farbfeld zusaetzlich; das Menue hat zusaetzlich den Ausloeser Enter (`onAccept`, den liest das Spiel); die Layout-Knoepfe "Zeig mir" entfallen.
+
+### Bild und Video, Bauteile, linke Leiste
+- Bild und Video: erst ein Rahmen (`istBildRahmen`, Video mit Kennung `// jkstudio:rahmen video`, solange leer), Doppelklick oder Knopf oeffnet die Auswahl. Der Merker ist noetig, weil ein leerer Video-Rahmen in der Datei sonst nicht von einem Bild-Rahmen zu unterscheiden ist, und faellt weg, sobald ein Video gewaehlt ist. Video kommt als Shader `menu/video/<name>` mit `videoMap` ins Paket.
+- Fertige Teile als Kacheln mit Namen. Hierarchy dauerhaft links, zuklappbar, mit Suche, Auge, Schloss, Strg und Umschalt. Gruppen Show und Player input, Teile-Suche, Hinweis verschwindet nach dem ersten Einfuegen. My templates mit Vorschaubild, Umbenennen, Loeschen (zuruecknehmbar). Save selection nur mit Auswahl. Der doppelte Button-Eintrag ist weg, der Button hat eine sichtbare Flaeche.
+- Doppelklick auf eine Kachel: erst beim Loslassen und nur ohne Ziehen. Griff man schnell ein zweites Mal zu und zog, setzte die Kachel zweimal ein (im vollen Lauf aufgefallen). Die linke Spalte gibt nach, bevor die Flaeche unter ihr Mass faellt.
+- Text-Editor: Strg+Rad 50 bis 300 %, Strg+0 zurueck, Stufe in den Einstellungen; Treffer, Cursor, Umbruch und Balken je Stufe bei 100 % und 200 % geprueft.
+- Flaeche: bleibt immer 4:3. 1920 x 1080 bei 200 %: Die Hoehe begrenzt sie auf 297 x 223; Zoom und Verschieben helfen weiter. Der Test verlangt dort 290 statt der frueheren 320, weil die Flaeche vorher verzerrt war.
+
+### Rahmen uebereinander (shank, mit Foto)
+- Ursache: `einrasten` legte die Ecke beim Ablegen exakt auf die eines gleich grossen Elements; der Stapelschutz galt nur fuer Doppelklick. Einfuegen und Duplizieren legten die Kopie immer genau auf das Original.
+- `ohneDeckung`: liegt das Neue genau auf einem gleich grossen, rueckt es um 20, 20, bis es frei ist (wie beim Doppelklick). Einrasten an Kanten bleibt, Alt schaltet beides aus, der Rahmen beim Ziehen zeigt die echte Stelle. Einfuegen, Duplizieren und Ruecken sind ein Schritt (`einfuegenOhneDeckung`).
+- `rahmenPlatzhalter`: Der Text steht nur, wenn kein spaeterer Rahmen ihn bedeckt. Die Datei bleibt unberuehrt.
+- Rot `BHED_MENUE_NUR=stapel`: 3 OK, 5 FEHLER (`Platzhalter fuer 0 1 2 3`, abgelegt auf 100, 100). Gruen 8 von 8, dazu das schnelle Zweitgreifen.
+
+### Spielvergleich (Movie Duels, nur per Foto)
+Vergleichsbilder: `SP/rc608/3a/<name>_spiel_vorschau.png`, oben Spiel, unten Vorschau.
+- SP Texte und Schriften: gleich. Senkrechte Mitte: vorher sass Schrift 3 falsch, jetzt gleich.
+- MP Schriften: Die Vorschau las in Movie Duels den Menuesatz von Jedi Academy. Das Spiel liest `ui/MovieDuels-MP-Menus.txt`; dort ist font 2 `albertus_bold` und font 3 `ergoec`. Rot `mpschrift`: "font 2 = ergoec, font 3 = anewhope". Gruen: "font 2 = albertus_bold, font 3 = ergoec". Foto danach gleich.
+- Vorgabe des Knopfs in Movie Duels MP: Ohne Nummer stand dort albertus_bold, fast viermal so gross; der Text ragte aus dem Knopf (Foto). Neue Elemente und fertige Teile tragen dort `font 3` (`vorlageMitSpielSchrift`, ctest `menuewerkzeug`, `menuebauteile`). Sonst gleich: Flaeche, Mitte, Farbe.
+- Modell: In SP gleich (Quotient Vorschau zu Spiel 0,92 bis 1,00 bei 1920 Punkten; Hemd, Hose, Kopf). Im MP war die Vorschau 1,6- bis 2-mal zu hell: `codemp/ui` setzt kein Licht am Augpunkt, `code/ui` schon, und Movie Duels hat das Mindestlicht entfernt (`tr_light.cpp`: 150 statt 182). Nach `ModellLicht` Quotient 0,96 bis 1,04. shanks Eindruck "dunkler" im SP-Foto kam vom schwarzen Hintergrund gegen den bunten, das bleibt. Das MP-Licht von OpenJK (182) ist aus dem Code, nicht fotografiert.
+- Rahmen ohne Bild: gleich (`gfx/menus/menu_box1`-Rest erledigt: grauer Kasten des Standard-Shaders mit weissem Rand). Video: im MP gleich. Im SP stand es zuerst auf dem ersten Bild, weil das Hauptmenue dahinter offen blieb und selbst ein Video zeigt: Die Engine spielt nur einen Griff zur Zeit (`cin.current_handle`), zwei laufende Videos setzen einander zurueck. Mit geschlossenem Hauptmenue laeuft es. Die Vorschau spielt beide; das ist im Abschnitt Offen notiert.
+- Leeres Menue im laufenden Spiel: SP auf `duel_kor`, MP in der Partie auf `mp/ffa3` (`ui_openmenu`, Menueliste in der Partie: `ui/MovieDuels-MP-Ingame.txt`; MP braucht `s_initsound 1` bei Lautstaerke 0, sonst bricht es beim Laden der Karte ab). SP: `fullScreen 0` zeigt das Spiel, `fullScreen 1` schwarz, mit background das Bild, mit backcolor die Farbe. MP: `fullScreen 0` das Spiel, `fullScreen 1` der graue Kasten, auch mit backcolor, mit background das Bild. Alles wie in Teil 2 aus dem Code gebaut. Fotos `SP/rc608/3a/leer_sp_*.png`, `leer_mp_*.png`. Original-JKA: offen, Steam laeuft nicht.
+
+### Weitere Reste
+- Eigener @-Text an Ort und Stelle: Rot `cschreiben` (kein Undo-Schritt, Rueckgaengig falsch), gruen `dschreiben`. Kopieren, Einfuegen, Bild auf und ab: beim ersten Lauf gruen, ohne Aenderung.
+- Eigene `animation.cfg`: `BHED_MENUE_NUR=eigeneanim` 2 von 2, beim ersten Lauf gruen. Wirkt nur beim ersten Laden der Spieldaten, darum nicht im vollen Lauf.
+- `undo` zehnmal nacheinander: zehnmal 609 von 609. Die Zeile "Properties rect | Fokus Text-Editor" trat nicht wieder auf; die Ursache des einen Rots aus Teil 2 ist damit nicht gefunden.
+- Echte exe mit unsichtbarer Konsole (`SP/rc608/p_cli_echt.py`, CREATE_NO_WINDOW): `--version` exit 0, Ausgabe in Datei und Konsole; `--gibtesnicht` exit 2 mit Erklaerung in Datei und Konsole. Der Fall ohne Konsole lief nach Auftrag nicht real.
+
+### Laeufe am Ende
+- Voller Lauf `menueeditor`: Movie Duels 2246 von 2246, JKA (`SP/rc608/nur_ja.cfg`) 2246 von 2246. Der volle Lauf enthaelt jetzt alle Schritte von Teil 3a ausser `eigeneanim` (2 von 2 als eigener Lauf) und `spielprobe` (nur Dateien und Fotos). `BHED_MENUE_NUR=a+b` kettet Teile; damit liessen sich die Folgefehler im vollen Lauf nachstellen, alle waren Testzustand (gerollte Kachelliste, offene Suchzeile, liegengebliebene Vorlage, offenes Changelog-Fenster), ausser dem Doppeleinsetzen der Kachel und der zu breiten linken Spalte.
+- JK2 (`m5b/behaved_jk2.cfg`): `felder` 18 von 18, `modell` 9 von 9, `leer` 5 von 5. Nur diese drei; der volle Lauf lief nicht mit JK2.
+- Alle Sprachen: `leistebreit` 684 von 684 (Properties und Events, jedes Element, 300, 500, 1000 Punkte, 100 und 200 %, 6 Sprachen), `events` und `breiten` ebenso. Der volle Lauf selbst lief nur auf Englisch.
+
+### Rot und gruen
+Rot gelaufen: `stapel`, `mpschrift`, `schreiben` (eigener @-Text), Modell MP und Knopfvorgabe (Foto und Messung). Der Neubau selbst hatte keinen getrennten Rotlauf vor dem Bau: Die Tests entstanden mit ihm. Auffaelligkeiten fanden `hleistebreit` (Typ-Marke ragte bei 300 Punkten und bei 200 % aus dem Feld: 217 Fehler, danach 684 von 684) und der volle Lauf (Doppeleinsetzen der Kachel).
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben (Kontaktboegen in `SP/rc608/jk2/`):
 - Datapad: Die ausgeschnittenen Knopfflaechen (WEAPONS, INVENTORY, FORCE) sind in der Vorschau grau mit Verlauf, im Spiel schwarz. `datapad2.tga` ist dort voll durchsichtig (Alpha 0), `frame_pic` zeichnet schwarz davor; was das Grau zeichnet, ist nicht gefunden.
@@ -229,13 +276,13 @@ Aus dem JK2-Vergleich, nicht behoben (Kontaktboegen in `SP/rc608/jk2/`):
 - JK2-Ingame-Menues mit Spielzustand (Abstimmung, Spielerliste) sind ohne Partie verglichen.
 
 Weiter offen:
-- Die Ausgabe von `--version` und unbekannten Schaltern ist nach Auftrag nicht mit der echten exe gelaufen (Konsole, Umleitung, Meldungsfenster).
+- Punkt 9, leeres Menue: Original-JKA und JK2 im Spiel nicht verglichen (Steam laeuft nicht).
+- Zwei Videos gleichzeitig: Das Spiel laesst sie einander anhalten (`cin.current_handle`), die Vorschau spielt beide. Ein Hinweis in der Pruefung waere sinnvoll, Port noch nicht gebaut.
+- Das MP-Licht von OpenJK (Umgebung 182) ist aus dem Code uebernommen, nicht im Spiel fotografiert (Original nur mit Steam, die MD-exe hat ihren eigenen Renderer).
+- Das eine Rot "Properties rect | Fokus Text-Editor" aus Teil 2 kam in zehn Laeufen nicht wieder; Ursache nicht gefunden.
+- Tutorial "Glow on hover": Der Text im Handbuch braucht noch den Hover-Knopf (Teil 3b).
 - Liste "Zuletzt bearbeitet" fuer Menue-Projekte: gibt es nicht, waere ein eigener Wunsch.
 - Handbuchbilder und Tutorials des Menue-Editors: einmal am Ende von Teil 3.
-- Punkt 9 im laufenden Spiel (academy1, md_am_sith beginnen mit Zwischensequenz), MP in der Partie, Original-JKA/JK2 (Steam nicht angemeldet).
-- `gfx/menus/menu_box1` (Punkt 15) nicht im Spiel fotografiert.
-- Punkt 5: Kopieren/Einfuegen und Bild-Auf/Ab beim Schreiben nicht getestet; ein schon eigener @-Text aendert sich ohne Undo-Schritt, die Einblendung sagt das.
-- Punkt 14: selbst gebaute `animation.cfg` nicht getestet. Punkt 12: Figur auf dem Foto der Vorschau etwas dunkler als im Spiel, nicht untersucht.
 
 ## English
 - Menu editor: new start screen in the style of the Mission tab, with the format choice explained.
@@ -261,6 +308,14 @@ Weiter offen:
 - Menu editor: An empty menu looks as in the game: black in single player, the grey default box in multiplayer; a switch for full screen or overlay explains the difference; a checkerboard marks what shows through, only as a display
 - Changelog window: Every version is divided by area with headings you can fold; points without an area stand under General; the release notes use the same headings
 - Menu editor: Engine messages says what it shows and "No messages" when the list is empty; long messages wrap and a click on them jumps to the line
+- Menu editor: new right panel with Properties, Events and Text editor: a card with name, type and one row of buttons, field search, groups with a summary, numbers you can type or drag by their label, a help line; changed values are marked and can be reset; recently used colours
+- Menu editor: Events in plain words: triggers and steps, Add step and Try; renaming an element carries its targets along; a missing target turns yellow and the check names it
+- Menu editor: new Image and Video elements start as an empty frame; a double-click chooses the picture or video
+- Menu editor: left panel with tiles and names; the hierarchy stays on the left with search, eye, lock, Ctrl and Shift; part search; My templates with preview, rename and delete, which you can take back
+- Menu editor: Ctrl+mouse wheel zooms the text editor, Ctrl+0 resets it; the canvas always keeps the shape of the game window
+- Menu editor: text alignment stays when an element is resized, also vertically, and now follows the font measures of the game, so the large fonts sit in the middle as in the game
+- Menu editor: Movie Duels multiplayer shows the fonts of its own menus; new elements there use the matching font. The figure in multiplayer has the game's light and is no longer too bright
+- Menu editor: a new, pasted or duplicated element no longer lands exactly on one of the same size, and frames lying over each other show their hint once; quickly grabbing a tile a second time no longer inserts it twice
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -286,6 +341,14 @@ Weiter offen:
 - Menü-Editor: Ein leeres Menü sieht aus wie im Spiel: schwarz im Einzelspieler, der graue Standardkasten im Mehrspieler; ein Schalter für Vollbild oder Überlagerung erklärt den Unterschied; ein Schachbrett zeigt, was durchscheint, nur als Anzeige
 - Changelog-Fenster: Jede Fassung ist nach Bereichen gegliedert, mit Überschriften zum Zuklappen; Punkte ohne Bereich stehen unter Allgemein; die Release-Notizen haben dieselben Überschriften
 - Menü-Editor: Engine messages sagt, was es zeigt, und "Keine Meldungen" bei leerer Liste; lange Meldungen brechen um, ein Klick springt zur Zeile
+- Menü-Editor: neue rechte Leiste mit Properties, Events und Text editor: Karte mit Name, Typ und einer Knopfreihe, Feldsuche, Gruppen mit Zusammenfassung, Zahlen tippen oder an der Beschriftung ziehen, Hilfezeile; geänderte Werte sind markiert und lassen sich zurücksetzen; zuletzt benutzte Farben
+- Menü-Editor: Events in Worten: Auslöser und Schritte, Add step und Try; Umbenennen zieht die Ziele mit; ein fehlendes Ziel wird gelb, und die Prüfung nennt es
+- Menü-Editor: Neue Bild- und Video-Elemente beginnen als leerer Rahmen; ein Doppelklick wählt Bild oder Video
+- Menü-Editor: linke Leiste mit Kacheln und Namen; die Hierarchie steht links, mit Suche, Auge, Schloss, Strg und Umschalt; Teile-Suche; My templates mit Vorschau, Umbenennen und Löschen, das sich zurücknehmen lässt
+- Menü-Editor: Strg+Mausrad zoomt den Text-Editor, Strg+0 setzt zurück; die Fläche behält immer die Form des Spielfensters
+- Menü-Editor: Die Textausrichtung bleibt beim Skalieren, auch senkrecht, und folgt jetzt den Schriftmaßen des Spiels, die großen Schriften sitzen wie dort in der Mitte
+- Menü-Editor: Movie Duels Multiplayer zeigt die Schriften seiner eigenen Menüs, neue Elemente nehmen dort die passende Schrift. Die Figur hat im Multiplayer das Licht des Spiels und ist nicht mehr zu hell
+- Menü-Editor: Ein neues, eingefügtes oder dupliziertes Element landet nicht mehr genau auf einem gleich großen, übereinanderliegende Rahmen zeigen ihren Hinweis nur einmal; schnelles zweites Zugreifen auf eine Kachel setzt nicht mehr zweimal ein
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -311,6 +374,14 @@ Weiter offen:
 - 菜单编辑器:空菜单与游戏中一致:单人游戏为黑色,多人游戏为灰色默认方框;全屏或叠加开关说明区别;棋盘格标出透过的部分,仅用于显示
 - 更新日志窗口:每个版本按区域划分,标题可折叠;没有区域的条目位于“常规”下;发布说明使用相同的标题
 - 菜单编辑器:Engine messages 说明其显示内容,列表为空时显示“没有消息”;长消息会换行,单击可跳到该行
+- 菜单编辑器:新的右侧面板,包含 Properties、Events 和 Text editor:卡片显示名称、类型和一排按钮,字段搜索,带摘要的分组,数字可输入或拖动标签修改,帮助行;已更改的值有标记并可重置;最近使用的颜色
+- 菜单编辑器:用文字描述 Events:触发器和步骤,Add step 和 Try;重命名元素时目标随之更新;缺失的目标显示为黄色,检查会指出
+- 菜单编辑器:新的图像和视频元素先是空框;双击选择图像或视频
+- 菜单编辑器:左侧面板使用带名称的图块;层级固定在左侧,带搜索、眼睛、锁、Ctrl 和 Shift;部件搜索;My templates 带预览、重命名和可撤销的删除
+- 菜单编辑器:Ctrl+鼠标滚轮缩放文本编辑器,Ctrl+0 复位;画布始终保持游戏窗口的形状
+- 菜单编辑器:缩放元素时文字对齐保持不变,垂直方向也一样,并按游戏的字体度量计算,大字体与游戏中一样居中
+- 菜单编辑器:Movie Duels 多人模式显示其自身菜单的字体,新元素使用相应字体。多人模式中的人物使用游戏的光照,不再过亮
+- 菜单编辑器:新建、粘贴或复制的元素不再正好落在同样大小的元素上,重叠的框只显示一次提示;快速再次抓取图块不再插入两次
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -336,6 +407,14 @@ Weiter offen:
 - メニューエディター: 空のメニューがゲームと同じ表示になりました。シングルプレイは黒、マルチプレイは灰色の標準ボックスです。全画面とオーバーレイの切り替えが違いを説明し、市松模様が透ける部分を示します(表示のみ)
 - 変更履歴ウィンドウ: 各バージョンを分野ごとに分け、見出しは折りたためます。分野のない項目は「全般」にあります。リリースノートも同じ見出しです
 - メニューエディター: Engine messages に内容の説明が付き、空のときは「メッセージはありません」と表示します。長いメッセージは折り返し、クリックでその行へ移動します
+- メニューエディター:右パネルを刷新(Properties、Events、Text editor)。名前と種類とボタン列のカード、フィールド検索、概要付きグループ、入力またはラベルのドラッグで変更できる数値、ヘルプ行。変更した値には印が付き、元に戻せます。最近使った色も表示します
+- メニューエディター:Events を言葉で表示(トリガーとステップ、Add step、Try)。要素の名前を変えると参照先も追従し、見つからない参照先は黄色になり、チェックでも示されます
+- メニューエディター:新しい画像要素と動画要素は空の枠から始まり、ダブルクリックで画像や動画を選びます
+- メニューエディター:左パネルは名前付きのタイルに。階層は左に常時表示され、検索、目、鍵、Ctrl、Shift が使えます。パーツ検索、プレビュー付きの My templates(名前変更、取り消せる削除)
+- メニューエディター:Ctrl+マウスホイールでテキストエディターをズーム、Ctrl+0 で元に戻します。キャンバスは常にゲームウィンドウの形を保ちます
+- メニューエディター:要素の拡大縮小でも文字の揃えは縦方向も保たれ、ゲームのフォント寸法に従うので、大きなフォントもゲームと同じく中央に来ます
+- メニューエディター:Movie Duels マルチプレイヤーは専用メニューのフォントを表示し、新しい要素も対応するフォントを使います。マルチプレイヤーの人物はゲームと同じ照明になり、明るすぎなくなりました
+- メニューエディター:新規・貼り付け・複製した要素が同じ大きさの要素にぴったり重ならなくなり、重なった枠のヒントは 1 回だけ表示されます。タイルを素早くつかみ直しても二重に挿入されません
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -361,6 +440,14 @@ Weiter offen:
 - Editor de menús: Un menú vacío se ve como en el juego: negro en un jugador, el cuadro gris predeterminado en multijugador; un interruptor de pantalla completa o superposición explica la diferencia; un tablero marca lo que se transparenta, solo como indicación
 - Ventana de cambios: cada versión se divide por áreas con títulos plegables; los puntos sin área están en General; las notas de la versión usan los mismos títulos
 - Editor de menús: Engine messages dice qué muestra y "No hay mensajes" si la lista está vacía; los mensajes largos se ajustan y un clic salta a la línea
+- Editor de menús: nuevo panel derecho con Properties, Events y Text editor: una tarjeta con nombre, tipo y una fila de botones, búsqueda de campos, grupos con resumen, números que se escriben o se arrastran por la etiqueta, una línea de ayuda; los valores cambiados se marcan y se pueden restablecer; colores usados hace poco
+- Editor de menús: Events en palabras: disparadores y pasos, Add step y Try; al renombrar un elemento sus destinos lo siguen; un destino que falta se pone amarillo y la comprobación lo nombra
+- Editor de menús: los nuevos elementos de imagen y vídeo empiezan como un marco vacío; un doble clic elige la imagen o el vídeo
+- Editor de menús: panel izquierdo con mosaicos y nombres; la jerarquía queda a la izquierda con búsqueda, ojo, candado, Ctrl y Mayús; búsqueda de piezas; My templates con vista previa, renombrar y borrar, que se puede deshacer
+- Editor de menús: Ctrl+rueda amplía el editor de texto, Ctrl+0 lo restablece; el lienzo siempre conserva la forma de la ventana del juego
+- Editor de menús: la alineación del texto se mantiene al escalar, también en vertical, y sigue las medidas de fuente del juego; las fuentes grandes quedan centradas como allí
+- Editor de menús: Movie Duels multijugador muestra las fuentes de sus propios menús y los elementos nuevos usan la adecuada. La figura en multijugador tiene la luz del juego y ya no está demasiado clara
+- Editor de menús: un elemento nuevo, pegado o duplicado ya no cae justo sobre otro del mismo tamaño, los marcos superpuestos muestran su aviso una vez; agarrar rápido un mosaico por segunda vez ya no lo inserta dos veces
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -386,3 +473,11 @@ Weiter offen:
 - Editor menu: Prázdné menu vypadá jako ve hře: černé v jednom hráči, šedý výchozí rámeček ve více hráčích; přepínač celé obrazovky nebo překrytí vysvětluje rozdíl; šachovnice označuje, co prosvítá, jen jako zobrazení
 - Okno seznamu změn: Každá verze je rozdělena podle oblastí s nadpisy, které lze sbalit; body bez oblasti jsou pod Obecné; poznámky k vydání mají stejné nadpisy
 - Editor menu: Engine messages říká, co ukazuje, a při prázdném seznamu "Žádné zprávy"; dlouhé zprávy se zalamují a kliknutí přejde na řádek
+- Editor menu: nový pravý panel s Properties, Events a Text editor: karta s názvem, typem a řadou tlačítek, hledání polí, skupiny se shrnutím, čísla lze psát nebo měnit tažením popisku, řádek nápovědy; změněné hodnoty jsou označené a lze je vrátit; naposledy použité barvy
+- Editor menu: Events slovy: spouštěče a kroky, Add step a Try; přejmenování prvku přenese i cíle; chybějící cíl zežloutne a kontrola ho uvede
+- Editor menu: nové prvky obrázku a videa začínají jako prázdný rámec; dvojklik vybere obrázek nebo video
+- Editor menu: levý panel s dlaždicemi a názvy; hierarchie zůstává vlevo s hledáním, okem, zámkem, Ctrl a Shift; hledání dílů; My templates s náhledem, přejmenováním a mazáním, které lze vrátit
+- Editor menu: Ctrl+kolečko přibližuje textový editor, Ctrl+0 ho vrátí; plocha si vždy drží tvar herního okna
+- Editor menu: zarovnání textu zůstává při změně velikosti, i svislé, a řídí se mírami písma ze hry; velká písma sedí uprostřed jako ve hře
+- Editor menu: Movie Duels multiplayer ukazuje písma svých vlastních menu a nové prvky používají to správné. Postava v multiplayeru má světlo ze hry a už není příliš světlá
+- Editor menu: nový, vložený nebo duplikovaný prvek už nepřistane přesně na stejně velkém, překrývající se rámce ukážou nápovědu jednou; rychlé druhé uchopení dlaždice už ji nevloží dvakrát
