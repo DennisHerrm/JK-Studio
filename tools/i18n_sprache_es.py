@@ -2406,7 +2406,7 @@ TEXTE = {
     "MeTestBereit": "Carpeta de prueba %s lista - iniciando: %s",
     "MeTestKeinSpiel": "No se encontró ningún programa del juego junto a las carpetas del juego.",
     "MeReiterHierarchie": "Jerarquía",
-    "MeReiterText": "Texto",
+    "MeReiterText": "Editor de texto",
     "MeReiterEigenschaften": "Propiedades",
     "MeEinstGruppe": "Editor de menús",
     "MeEinstTextUnten": "Editor de texto abajo (diseño antiguo)",

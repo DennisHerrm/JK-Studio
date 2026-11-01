@@ -63,7 +63,7 @@ MENUE2 = [
      "在游戏文件夹旁未找到游戏程序。", "ゲームフォルダーの隣にゲームプログラムが見つかりません。"),
     # Layout: rechte Spalte mit Reitern
     ("MeReiterHierarchie", "Hierarchy", "Hierarchie", "层级", "階層"),
-    ("MeReiterText", "Text", "Text", "文本", "テキスト"),
+    ("MeReiterText", "Text editor", "Text-Editor", "文本编辑器", "テキストエディター"),
     ("MeReiterEigenschaften", "Properties", "Eigenschaften", "属性", "プロパティ"),
     ("MeEinstGruppe", "Menu editor", "Menü-Editor", "菜单编辑器", "メニューエディター"),
     ("MeEinstTextUnten", "Text editor at the bottom (old layout)", "Text-Editor unten (altes Layout)", "文本编辑器在底部(旧布局)",

@@ -10,6 +10,73 @@ ImVec2 fensterMitte(const std::string& teil) {
     return ImVec2{};
 }
 
+// Die Reiter der rechten Spalte: (Name, Rechteck); ganz = kein Reiter ist gestaucht
+struct ReiterLage {
+    std::vector<std::pair<std::string, ImRect>> reiter;
+    bool ganz = true;
+    float rechts = 0;      // rechter Rand des Felds
+};
+ReiterLage reiterLage() {
+    ReiterLage r;
+    for (int i = 0; i < GImGui->TabBars.GetMapSize(); ++i) {
+        ImGuiTabBar* b = GImGui->TabBars.TryGetMapData(i);
+        if (b == nullptr || b->Tabs.Size != 4 || b->CurrFrameVisible < GImGui->FrameCount - 1) { continue; }
+        const auto name = [&](ImGuiTabItem& t) {
+            const char* n = ImGui::TabBarGetTabName(b, &t);
+            return std::string(n, ImGui::FindRenderedTextEnd(n));
+        };
+        bool unsere = false;
+        for (ImGuiTabItem& t : b->Tabs) { unsere = unsere || name(t) == tr(Str::MeReiterHierarchie); }
+        if (!unsere) { continue; }
+        r.rechts = b->BarRect.Max.x;
+        for (ImGuiTabItem& t : b->Tabs) {
+            r.reiter.emplace_back(name(t), ImRect(b->BarRect.Min.x + t.Offset, b->BarRect.Min.y, b->BarRect.Min.x + t.Offset + t.Width, b->BarRect.Max.y));
+            r.ganz = r.ganz && t.Width + 0.5F >= t.ContentWidth;
+        }
+    }
+    return r;
+}
+
+// rc608 Punkt 1 (shank: "das muss nicht Text sondern Text editor heissen"), in allen Sprachen und ungestaucht
+std::vector<Schritt> schritteReiter() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("rc608 Reiter: Probe oeffnen", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("reiter.menu", "menuDef\n{\n  name \"reiter\"\n  rect 0 0 640 480\n  visible 1\n}\n");
+        me::setzeReiter(1);
+    }));
+    add(pause(0.3));
+    static const std::map<std::string, std::string> kSoll = {{"en", "Text editor"},  {"de", "Text-Editor"},     {"zh-Hans", "文本编辑器"},
+                                                             {"ja", "テキストエディター"}, {"es", "Editor de texto"}, {"cs", "Textový editor"}};
+    const i18n::Language vorher = i18n::currentLanguage();
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language sprache = l.language;
+        const std::string kurz = l.code;
+        add(tu("rc608 Reiter: Sprache " + kurz, [sprache] { i18n::setLanguage(sprache); }));
+        add(pause(0.3));
+        add(pruefe("rc608 Reiter: " + kurz + " heisst der zweite Reiter wie gewuenscht, nichts gestaucht", [kurz] {
+            const ReiterLage r = reiterLage();
+            const auto soll = kSoll.find(kurz);
+            bool gut = r.reiter.size() == 4 && soll != kSoll.end() && r.reiter[1].first == soll->second && r.ganz;
+            for (const auto& [name, rect] : r.reiter) {
+                gut = gut && rect.Max.x <= r.rechts + 0.5F;
+                diag::info("Knopftest: Reiter " + kurz + " " + name + " Breite " + std::to_string(rect.GetWidth()));
+            }
+            return gut;
+        }));
+    }
+    add(foto("menue_reiter"));
+    add(tu("rc608 Reiter: aufraeumen", [vorher] {
+        i18n::setLanguage(vorher);
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

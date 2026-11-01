@@ -2408,7 +2408,7 @@ TEXTE = {
     "MeTestBereit": "Testovací složka %s připravena - spouští se: %s",
     "MeTestKeinSpiel": "Vedle složek hry nebyl nalezen žádný program hry.",
     "MeReiterHierarchie": "Hierarchie",
-    "MeReiterText": "Text",
+    "MeReiterText": "Textový editor",
     "MeReiterEigenschaften": "Vlastnosti",
     "MeEinstGruppe": "Editor menu",
     "MeEinstTextUnten": "Textový editor dole (staré rozvržení)",
