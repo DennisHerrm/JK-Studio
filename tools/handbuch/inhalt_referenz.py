@@ -106,6 +106,10 @@ EINSTELLUNGEN = {
             "**{{MenuHelp}} → {{UpdMenu}}** fragt GitHub nach einer neueren Fassung und zeigt, was neu ist; **{{UpdInstall}}** ersetzt die Programmdateien (bei der einzelnen `.exe` nur das Programm, egal wie die Datei heißt) und bietet einen Neustart an. Der Schalter daneben entscheidet, ob das beim Start geschieht. **{{MenuHelp}} → {{ChangelogMenu}}** zeigt Fassung für Fassung, was behoben und hinzugekommen ist, in deiner Sprache - nach einem Update öffnet sie sich einmal von selbst.",
             "**{{MenuHelp}} → {{UpdMenu}}** 会向 GitHub 查询新版本并显示更新内容;**{{UpdInstall}}** 会替换程序文件(使用单独的 `.exe` 时只替换程序,无论文件名是什么)并提示重启。旁边的开关决定是否在启动时检查。**{{MenuHelp}} → {{ChangelogMenu}}** 按版本以你的语言显示修复和新增的内容——更新后会自动打开一次。",
             "**{{MenuHelp}} → {{UpdMenu}}** で GitHub に新しいバージョンを問い合わせ、新機能を表示します。**{{UpdInstall}}** でプログラムファイル(単体の `.exe` ならファイル名に関係なくプログラムだけ)を置き換え、再起動を案内します。隣の切り替えで起動時に確認するかを決めます。**{{MenuHelp}} → {{ChangelogMenu}}** はバージョンごとの修正と追加をあなたの言語で表示し、アップデート後に一度自動で開きます。")),
+        ("p", T("Each version is divided by area (map editor, menu editor, timeline and so on), and each group can be folded. Points without an area stand under **{{ChangelogAllgemein}}**.",
+              "Jede Fassung ist nach Bereichen gegliedert (Karten-Editor, Menü-Editor, Zeitleiste und so weiter), jede Gruppe lässt sich zuklappen. Punkte ohne Bereich stehen unter **{{ChangelogAllgemein}}**.",
+              "每个版本按区域划分(地图编辑器、菜单编辑器、时间线等),每个分组都可折叠。没有区域的条目位于 **{{ChangelogAllgemein}}** 下。",
+              "各バージョンは分野ごと(マップエディター、メニューエディター、タイムラインなど)に分かれ、グループは折りたためます。分野のない項目は **{{ChangelogAllgemein}}** にあります。")),
     ],
 }
 

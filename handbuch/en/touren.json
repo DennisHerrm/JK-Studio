@@ -1356,9 +1356,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Three buttons.** Click **{{MeWButton}}** in the building blocks three times.",
+      "text": "**Three buttons.** Double-click **{{MeWButton}}** in the building blocks three times, or drag it onto the canvas.",
       "bild": "h_tut_menue_3",
-      "unter": "Three new buttons, still on top of each other.",
+      "unter": "Three new buttons next to each other, not yet evenly spaced.",
       "ziel": "knopf:MeWButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

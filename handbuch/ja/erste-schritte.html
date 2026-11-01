@@ -36,6 +36,7 @@
 <div class="hinweis"><strong>プログラムだけでよい場合:</strong> 同じリリースの <code>JK Studio-…-windows-x64.exe</code> は単体で動きます。初回起動時にデータを <code>%APPDATA%\behaved\data\base</code> に置きます。ガイドは zip にだけ入っています。プログラムにコード署名がないため、初回起動時に Windows SmartScreen が警告することがあります:<strong>詳細情報 → 実行</strong> をクリックしてください。</div>
 <h2 id="spielordner">ゲームフォルダーを指定する<a class="anker" href="#spielordner">#</a></h2>
 <p>マップ、モデル、サウンド、ゲームのスクリプトはゲームの <code>.pk3</code> アーカイブに入っています。<strong><span class="ui">編集</span> → <span class="ui">ゲームフォルダー</span></strong> を開き、<strong><span class="ui">ゲームフォルダーを追加…</span></strong> でゲームフォルダーを追加します。まず <code>base</code>、次に Movie Duels(<code>MD</code>)などの MOD。ゲームで <code>fs_game</code> が <code>base</code> を上書きするのと同じく、一番下のフォルダーが優先されます。</p>
+<p>ゲームと同じように、MOD フォルダーの隣の <code>base</code> も常に読み込まれます。<code>MD</code> だけを追加しても、そのメニューはシェーダーと画像を <code>base</code> から見つけます。</p>
 <figure class="bild"><a href="../bilder/ja/h_spielordner.webp" class="zoom"><img src="../bilder/ja/h_spielordner.webp" alt="ゲームフォルダー:最初に base、その下に MOD。一番下が優先されます。" loading="lazy"></a><figcaption>ゲームフォルダー:最初に base、その下に MOD。一番下が優先されます。</figcaption></figure>
 <h2 id="oeffnen">何かを開く<a class="anker" href="#oeffnen">#</a></h2>
 <p>入り口はいくつかあります。マップタブのスタート画面(マップが開かれていないとき)には、新しいミッション、<code>.pk3</code> のミッション、マップだけ、最近のミッションがあります。メニューからは:</p>

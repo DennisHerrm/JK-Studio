@@ -1356,9 +1356,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**3 つのボタン。** パーツの **{{MeWButton}}** を 3 回クリックします。",
+      "text": "**3 つのボタン。** パーツの **{{MeWButton}}** を 3 回ダブルクリックするか、キャンバスへドラッグします。",
       "bild": "h_tut_menue_3",
-      "unter": "3 つの新しいボタン。まだ重なっています。",
+      "unter": "隣り合った 3 つの新しいボタン。間隔はまだそろっていません。",
       "ziel": "knopf:MeWButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

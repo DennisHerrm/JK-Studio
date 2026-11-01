@@ -1356,9 +1356,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Tres botones.** Pulsa tres veces **{{MeWButton}}** en los componentes.",
+      "text": "**Tres botones.** Haz doble clic tres veces en **{{MeWButton}}** en los bloques de construcción, o arrástralo al lienzo.",
       "bild": "h_tut_menue_3",
-      "unter": "Tres botones nuevos, todavía uno encima de otro.",
+      "unter": "Tres botones nuevos uno junto a otro, aún sin espaciado uniforme.",
       "ziel": "knopf:MeWButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",

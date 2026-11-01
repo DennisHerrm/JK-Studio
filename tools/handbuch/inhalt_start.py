@@ -157,6 +157,10 @@ SEITEN = [
                 "Karten, Modelle, Klänge und die Skripte des Spiels liegen in seinen `.pk3`-Archiven. Öffne **{{MenuEdit}} → {{PathsTitle}}** und trage die Spielordner mit **{{Pk3AddPath}}** ein: zuerst `base`, dann einen Mod wie Movie Duels (`MD`). Der unterste Ordner gewinnt, genau wie `fs_game` im Spiel `base` überschreibt.",
                 "地图、模型、声音和游戏脚本都在游戏的 `.pk3` 压缩包中。打开 **{{MenuEdit}} → {{PathsTitle}}**,用 **{{Pk3AddPath}}** 添加游戏文件夹:先 `base`,再添加模组,例如 Movie Duels(`MD`)。最下面的文件夹优先,正如游戏中 `fs_game` 覆盖 `base`。",
                 "マップ、モデル、サウンド、ゲームのスクリプトはゲームの `.pk3` アーカイブに入っています。**{{MenuEdit}} → {{PathsTitle}}** を開き、**{{Pk3AddPath}}** でゲームフォルダーを追加します。まず `base`、次に Movie Duels(`MD`)などの MOD。ゲームで `fs_game` が `base` を上書きするのと同じく、一番下のフォルダーが優先されます。")),
+        ("p", T("The `base` next to a mod folder is always read as well, as in the game: if you only add `MD`, its menus still find their shaders and images in `base`.",
+              "Das `base` neben einem Mod-Ordner wird immer mitgelesen, wie im Spiel: Trägst du nur `MD` ein, finden seine Menüs ihre Shader und Bilder trotzdem in `base`.",
+              "模组文件夹旁边的 `base` 始终会一起读取,与游戏相同:即使只添加 `MD`,其菜单也能在 `base` 中找到着色器和图像。",
+              "ゲームと同じように、MOD フォルダーの隣の `base` も常に読み込まれます。`MD` だけを追加しても、そのメニューはシェーダーと画像を `base` から見つけます。")),
             ("img", "h_spielordner", T(
                 "The game folders: base first, the mod below it - the bottom one wins.",
                 "Die Spielordner: zuerst base, darunter der Mod - der unterste gewinnt.",

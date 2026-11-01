@@ -138,6 +138,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in ZEITLEISTE1})
             from i18n_dock1 import DOCK1       # dock1: Fenster frei anordnen, mehrere Bildschirme
             texte.update({e[0]: e[1:] for e in DOCK1})
+            from i18n_rc608 import RC608       # rc608: Menue-Editor bedienbar machen
+            texte.update({e[0]: e[1:] for e in RC608})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
