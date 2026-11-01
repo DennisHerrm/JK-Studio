@@ -472,6 +472,11 @@ void RoqSpieler::interrupt() {   // RoQInterrupt (stumm)
     roqPlayed_ += static_cast<long>(roqFrameSize_) + 8;
 }
 
+void RoqSpieler::griffGewechselt() {
+    if (status_ == Status::Eof) { return; }
+    roqReset();
+}
+
 RoqSpieler::Status RoqSpieler::lauf(int jetztMs) {   // CIN_RunCinematic
     if (status_ == Status::Eof) { return Status::Eof; }
     if (status_ == Status::Idle) { return status_; }

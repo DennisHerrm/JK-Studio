@@ -57,6 +57,8 @@ public:
     bool start(std::string datei, int startMs = 0, bool schleife = true, bool shader = false);
     // CIN_RunCinematic mit Sys_Milliseconds() = jetztMs (com_timescale 1).
     Status lauf(int jetztMs);
+    // rc608 Teil 3b: CIN_RunCinematic, wenn zuletzt ein anderes Video lief (cin.currentHandle != handle): RoQReset, in diesem Lauf kein neues Bild
+    void griffGewechselt();
     // cinTable.buf: das zuletzt fertige Bild (RGBA, breite x hoehe), sonst nullptr.
     [[nodiscard]] const std::uint8_t* bild() const;
     [[nodiscard]] int breite() const noexcept { return static_cast<int>(xsize_); }

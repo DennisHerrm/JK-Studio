@@ -265,24 +265,102 @@ Vergleichsbilder: `SP/rc608/3a/<name>_spiel_vorschau.png`, oben Spiel, unten Vor
 ### Rot und gruen
 Rot gelaufen: `stapel`, `mpschrift`, `schreiben` (eigener @-Text), Modell MP und Knopfvorgabe (Foto und Messung). Der Neubau selbst hatte keinen getrennten Rotlauf vor dem Bau: Die Tests entstanden mit ihm. Auffaelligkeiten fanden `hleistebreit` (Typ-Marke ragte bei 300 Punkten und bei 200 % aus dem Feld: 217 Fehler, danach 684 von 684) und der volle Lauf (Doppeleinsetzen der Kachel).
 
+## Teil 3b
+
+Gesamtpruefung des Menue-Editors, Tutorials, Handbuchbilder. Funktionstabelle: `docs/intern/rc608_funktionstabelle.md`. Undo-Tabelle: `docs/intern/rc608_undo_tabelle.md`. Neue Teile im Selbsttest (`BHED_MENUE_NUR`): kontext, datei, seiten, satz, zweivideos, widgets, unsinn, kodierung, feldneu, undomehr, anfaenger, eng, tourspiel, touralle (Datei `gui/selbsttest_menue_pruefung.inc`).
+
+### Testregel von shank (waehrend dieses Teils gekommen)
+Was gruen war, laeuft nicht noch einmal. Kein voller Lauf `menueeditor` waehrend der Arbeit und am Ende von 3b; er kommt einmal in der Endrunde von rc608. Der einzige volle Lauf `v1` wurde deshalb bei "rc608 Breiten" abgebrochen (1794 OK, 2 FEHLER, beide nur alte Erwartungen, Test nachgezogen). Die Teile hinter "Breiten" hatten vorher einzeln gruen.
+
+### Fehler, jeweils rot und gruen
+- Neue Bedienung (Rahmen, Rechtsklick, Speichern unter, Aenderung von aussen, Seiten verwalten): mit Schalter im Test einmal rot (kontext, datei, seiten: 31 OK, 69 FEHLER), danach gruen (80 von 80).
+- `freierName` haengte immer `_2` an: rot "Folge x,y,a_2", gruen. Darum heisst das erste Duplikat jetzt `button_2` statt `button_3`; zwei alte Testzeilen nachgezogen (Verhalten geaendert, keine Lockerung).
+- Absturz bei `background "Gruesse"` mit Umlauten (Latin-1): schmale `fs::path`-Umwandlung im Lesen der Spieldaten, per Minidump gefunden, rot `u1`, gruen `u2`. `utf8Pfad` nimmt jetzt ungueltiges UTF-8 als Bytes.
+- Unsinn in Feldern: `cvarTest ""`, `"`, `showCvar "}"`, `cvar ""` zerstoerten das Menue. Eine zentrale Probe in `aendere()` lehnt jede Aenderung ab, die ein lesbares Menue unlesbar macht; Feld leer entfernt die Zeile. Rot, gruen 330 von 330.
+- Umlaute aus Properties standen als UTF-8 in der Datei: rot, gruen (`kodierung`).
+- Prueffenster: veraltet und abgeschnitten, jetzt live und umbrechend (rot, gruen).
+- 1920 x 1080 bei 200 %: Flaeche 297 x 223; jetzt 457 x 343 (linke Spalte zu, Ansicht-Knopf, Grenzen weg). Die Lockerung `textbreite` 320 auf 290 ist zurueck auf 320.
+- Spalten falteten im Dock-Layout nicht (`frei` schloss den Dock-Raum aus): rot, gruen (`eng`).
+- Zwei Videos zugleich: 0 Bilder in 1,5 s zu zweit, 46 allein, wie `CIN_RunCinematic` (`cin.currentHandle`); rot, gruen (`zweivideos`).
+- Ohne `focusColor` verschwand der Text unter dem Zeiger im Spiel und in der Vorschau wie im Spiel; das Startmenue hat die Farbe jetzt, Properties und Pruefung kennen sie.
+- Rahmendicke haengt an der Spielaufloesung (`_UI_DrawSides`: `size *= xscale`): Vorschau gleich, gegen Spielfoto.
+- JK2 SP leeres Menue schwarz, JKA MP Menue mit eigener Fuellung deckt den grauen Kasten (`Menu_Paint` ruft `Window_Paint` immer): gegen Spielfoto.
+- JK2 Datapad-Knopfflaechen: Vorschau jetzt schwarz wie im Spiel. CLOSED im jk2mp-Servermenue: Faktor 0,2 wie im Spiel.
+- `autowrapped` und `wrapped` im Einzelspieler: Die Vorschau rechnete wie codemp. code/ui bricht bei Breite - textalignx um, rueckt um Hoehe + 4 vor, endet am Boden mit "...", `wrapped` Hoehe + 5. Rot, gruen im ctest `menue_vorschau`.
+- Tutorial-Fenster (`gui/tour.cpp`): lag bei 1920 x 1080 ueber der Liste von Add step (rot `a1`, `a3`) und bei 200 % ueber dem Knopf des Schritts (rot `a5`). Jetzt hoechstens 40 % der Fensterbreite, haelt Klappfenster, die rechte Spalte, wenn der Schritt dort zeigt, und die Elemente auf der Flaeche frei; ohne freie Ecke die Stelle mit der kleinsten Ueberdeckung. Gruen `a15` (en, cs, ja bei 100 %).
+- Tutorial: Der Hinweis "gerade verdeckt" war abgeschnitten, er bricht jetzt um. Neues Projekt beginnt immer im Bearbeiten (stand noch Bedienen, schlug der Rahmen in Schritt 4 fehl, rot `a3`, gruen `a15`). Export-Klick ohne Windows-Dialog im Test (`setzeSpeichernDialog`).
+- Rechte Spalte: Anderes Element gewaehlt beginnt wieder oben (die Ausloeser lagen sonst ueber dem Rand); die aufgeklappte Liste von Add step rollt ins Bild.
+- Grenzen gemessen statt geschaetzt: jasp 150, jamp 256 (OpenJK 512, Warnung `NurOpenJk`), jk2sp 128, jk2mp 256, MD SP und MP 4096 (bis 600 im Spiel gesehen; 4097 meldet "unknown menu keyword", ein Element bei 1024 sichtbar). `MAX_MENUFILE` gilt nur fuer `GetMenuBuffer`/teamFile, `MAX_MENUDEFFILE` ist unbenutzt, darum keine Pruefung der Dateigroesse.
+
+### Punkte aus 3a
+- Undo "Properties rect | Fokus Text-Editor": Code gelesen, keine Reihenfolge- oder Zeitabhaengigkeit gefunden. Kandidaten, nicht bewiesen: Der Weg ueber den Text-Editor macht Undo ein Bild spaeter (`undoWunsch`), Fokusverlust des Fensters setzt Tasten zurueck. `BHED_TEST_BREMSE` (unregelmaessige Bildbremse) ist dafuer neu; Lauf `u10` mit 300 ms: alle Wege von "Properties rect" gut, das Rot kam nicht wieder.
+- `// jkstudio:rahmen video`: Das Spiel ignoriert den Kommentar; waehlt man ein Video, faellt die Zeile weg. Bleibt so.
+- Tutorial "Leuchten beim Hover": Schritt waehlt den Ausloeser, der Text nennt den Hover-Knopf, Tour-Anker `trighover`.
+- 50 unbenutzte `Me*`-Texte und 36 Eintraege in es/cs entfernt (mehr als die gemeldeten 25 und 22, gemessen ueber den Generator und `lint_i18n`).
+- Zwei Videos: portiert, siehe oben.
+- MP-Licht OpenJK (182): Keine OpenJK-exe ohne Steam-Start. Vergleich mit Original-jamp (`ja_mp_jks_modell3`): zweite Figur gleich hell.
+- `data/karte/bt/bt-el2.txt`: Kein Test und kein Werkzeug loescht in `data/karte/bt` (nur `app_karte_plugins.cpp` liest). Vermutlich Bluescreen-Folge, nur so erklaerbar, nicht bewiesen.
+
+### Anfaenger-Durchgang: unklar, geaendert
+- Hintergrund laesst sich aus Versehen ziehen: Dekoration ueber den ganzen Schirm laesst Klicks durch, Wahl ueber Hierarchie oder Rechtsklick.
+- Wie waehle ich mehrere: Rahmen auf der Flaeche, Strg+A.
+- Rechtsklick tat nichts: Menue auf Element, Flaeche und Hierarchiezeile, mit Liste von allem unter dem Zeiger.
+- Warum oeffnet das Spiel mein Menue nicht: Menueliste im Paket von selbst, Im Spiel testen oeffnet das Menue der offenen Seite, Pruefung "nichts oeffnet dieses Menue".
+- Text verschwindet unter dem Zeiger: focusColor im Startmenue und als Feld "Text unter dem Zeiger".
+- Was heisst MP-Badge oben: Tipp am Badge.
+- Wozu cvarTest und showCvar: eine Zeile "Bedingung" in Worten (zeigen, verbergen, benutzbar, unbenutzbar).
+- Mehrfachwahl: Liste aus Text und Wert statt Skript von Hand.
+- Listen und Spielinhalt: eigene Gruppe mit Worten fuer ownerdraw, feeder; im SP nur Zahlen, weil das Spiel dort keine Namen kennt.
+- Namen in der Landessprache im Menue: neue Teile heissen englisch (back, title, background, my_menu).
+- Speichern: Strg+S und Speichern unter fehlten am Knopf.
+- Kleines Fenster: Spalten klappen, Ansicht hinter einem Knopf.
+Der Teil `anfaenger` prueft zusaetzlich, dass jedes Feld und jeder Leistenknopf einen Tipp hat.
+
+### Abweichungen vom Entwurf (`entwurf_panel/index.html`)
+- Speichern unter steht in der Leiste, nicht auf der Karte.
+- Gruppen `auswahlen` und `spielinhalt` sind neu (der Entwurf kennt sie nicht); ohne sie gaebe es diese Felder nur im Text-Editor.
+- Fuellung, Rand und Bild wie in Teil 3a.
+
+### Tutorials
+- "Dein erstes eigenes Menue" (`tut-menue-eigen`, 10 Schritte) und "Ein Menue aus dem Spiel aendern" (`tut-menue`, 5 Schritte, neu mit echten Klicks statt Funktionsaufrufen, `tourspiel`): von Anfang bis Ende per Klick, gruen in en, cs, ja bei 1920 x 1080 und 100 % (Lauf `a15`). Sprachwahl nach der neuen Testregel: laengste Texte und breite Zeichen; de, zh, es liefen nicht einzeln durch.
+- Eigenes Menue im MP-Format (`BHED_TOUR_MP=1`) mit Movie Duels, JKA, JK2 durchgelaufen; das Testpaket zeigt im laufenden Spiel die drei Knoepfe: MD SP, MD MP, jasp, jamp, jk2sp, jk2mp. Im MP-Format blieb eine Testzeile rot, die Layout-Pruefung selbst (sie las den Text ohne die Definitionen aus `menudef.h`); sie liest jetzt die Lagen des Editors, das MP-Format lief danach nicht noch einmal. Die SP-Fotos stammen aus einem frueheren Bau dieses Teils.
+- Die Texte fordern drei Knoepfe, die Tour geht beim ersten weiter (bewusst: sonst haengt sie, falls jemand nur zwei will).
+- 200 %: Der Schirm hier hat 2560 x 1600, das Fenster ist bei 2564 x 1570 am Ende; 4K laesst sich nicht pruefen. Bei 2564 x 1570 und 200 % (cs) kommt der Test bis Schritt 7, dann findet er den Eintrag `exec` in der Liste von Add step nicht (Lauf `a14`, Ursache offen). Bei 1920 x 1080 und 200 % (960 x 540 Punkte) reicht der Platz fuer Tutorial und Spalten zugleich nicht.
+
+### Nur per Foto oder Bildvergleich gegen das Spiel
+Spielfotos unter `SP/rc608/3b/orig/` (`SP` = Scratchpad dieser Sitzung): leere Menues, Modell, Rahmendicke, Datapad JK2, jk2mp-Listen, Tutorialmenue im Spiel.
+JK2-Datapad: `jk2_sp_dpforce` und `jk2_sp_dpinv` waren falsch (zeigten die Mission, weil `+uimenu` diese Seiten nicht oeffnet) und sind neu in 1920 x 1440. Force ueber `cg_updatedDataPadForcePower1` wie `UI_DataPadMenu`, Inventar ueber ein loses `datapadmission.menu`, das weiterleitet. Vergleich `jk2_dp_force_inventar_spiel_vorschau.png`: Rahmen, Knoepfe, Leiste und Textfeld gleich; Beispielwerte verschieden (Vorschau Force Jump, Spiel Force Heal; Vorschau leeres Inventar, Spiel `give all`).
+Die Fotos der Originale haben sonst 1280 x 960: jk2sp, jamp usw. sind nicht DPI-faehig und sehen diesen Schirm (2560 x 1600 bei 150 %) als 1707 x 1067, das Fenster passt dort nur bis zu dieser Groesse. Mit `__COMPAT_LAYER=HighDpiAware` nur fuer den Prozess gehen 1920 x 1440; bestehende Fotos wurden nicht nur deshalb neu gemacht.
+
+### Handbuchbilder
+- Alle Bilder des Menue-Editors einmal in 6 Sprachen: `BHED_MENUE_BILDER=1` (Fenster 2560 x 1500, schmale Spalten, die Flaeche ist der groesste Teil des Bilds, gespeichert 2538 x 1444), dazu das Datapad mit den Daten von Jedi Academy und die Tutorialschritte von "Ein Menue aendern" (`BHED_HB_NUR=hilfe2`). `menue_eng_zu` hat bewusst 1898 x 1024: Es zeigt 1920 x 1080.
+- Die Testzeilen dieses Laufs schlagen teils fehl (rund 55 je Sprache): Sie sind auf die breite Spalte und das kleinere Fenster ausgelegt. Nur zwei Bilder waren davon betroffen (`menue_leiste_addstep`, `menue_rahmen_wahl_sp`, nach Sichtung erkannt), sie haben den eigenen Teil `bildnach` (0 Fehler). Alle Bilder wurden je Sprache auf Fehlen geprueft, durchgesehen nur eine Auswahl (rund 20 Bilder in en, Stichproben in cs, ja, zh). Die uebrigen sind nicht einzeln angesehen.
+- Bewegte Bilder neu mit `BHED_HB_FENSTER=3840x2160@2 BHED_FOTO_NUR=a_`; das Fenster endet auf diesem Schirm bei 2564 x 1570. `a_k_setzen`, `a_k_timen`, `a_roff` haben 1920 Breite. **Unter 1920 bleiben die Ausschnitte kleiner Bereiche:** `a_k_pilot` und `a_kamera` 1191, `a_einmal` 971 (ein Knopf oder eine Liste, kein ganzes Fenster; hochrechnen waere nur Unschaerfe). `a_kamera` gibt es weiter nur auf Englisch. Die Symbole `i_*` bleiben, wie sie waren.
+- Anzeige: `stil.css` zeigt die Bilder in voller Spaltenbreite (Spalte 1640 statt Bilder bis 1060), ein Klick oeffnet die volle Groesse, auch bei bewegten Bildern.
+- Groesse: Handbuch im Repo 248.2 MB vorher, 280.6 MB nachher (Bilder 223.3 MB, 255.5 MB). Paket (`release_paket.py zip`): 286.5 MB nachher; vorher rund 254 MB (Handbuch und `data/base` als Zip 227,9 MB plus Programme, mit derselben exe gerechnet, kein eigener Bau von rc607).
+
+### Pruefstand am Ende
+ctest einmal am Ende: 190 von 192 gruen, `hilfe_orte` (Generator nicht gelaufen) und `menue_bauteile` (alte Namen im Test nach den neutralen Namen) nachgezogen, beide einzeln gruen. Keine Warnung im Bau. Danach nur noch Testschritte fuer Bilder und Namen im Test geaendert. **Nicht im Gesamtlauf bestaetigt (Testregel, Endrunde rc608):** voller Lauf `menueeditor` mit Movie Duels und mit JKA, Gesamtlauf aller Modi. Der abgebrochene Lauf `v1` kam bis "rc608 Breiten"; die spaeteren Aenderungen an `tour.cpp`, `tourKlapptAuf`, Spaltenrollen und `autowrapped` sind nur in `tourspiel`, `touralle`, `eng`, `textbreite`, `m5b`, `undo` (nur Properties rect, mit Bremse) und im ctest gelaufen. Die Texte `MeEigenschaften` und acht weitere wurden entfernt, ohne danach die Sprachlaeufe zu wiederholen (der Bau und `lint_i18n` sagen, dass nichts sie braucht).
+
+### Lockerungen
+- Neue Griff-Tests erlauben +-1 Punkt (die Maus liegt auf Bildpunkten, neuer Test, keine alte Stelle).
+- Keine alte Teststelle gelockert. `textbreite` wieder 320. Alte Erwartungen geaendert, weil sich das Verhalten geaendert hat: `button_2` statt `button_3`, `letzterExport() == 2 + Listen`.
+
 ## Offen
-Aus dem JK2-Vergleich, nicht behoben (Kontaktboegen in `SP/rc608/jk2/`):
-- Datapad: Die ausgeschnittenen Knopfflaechen (WEAPONS, INVENTORY, FORCE) sind in der Vorschau grau mit Verlauf, im Spiel schwarz. `datapad2.tga` ist dort voll durchsichtig (Alpha 0), `frame_pic` zeichnet schwarz davor; was das Grau zeichnet, ist nicht gefunden.
-- Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great").
-- Datapad Force-Seite: Nachgeholt auf kejim_base; im Spiel ohne Kraefte leer, in der Vorschau mit Beispielkraeften. Rahmen gleich, die Kraefte selbst sind so nicht verglichen.
-- jk2mp Listen: Die Zeilen stehen im Spiel rund 2,7 virtuelle Punkte hoeher (createserver, Kartenliste). Ursache nicht gefunden, darum nicht geschoben.
-- jk2mp createserver: "CLOSED" ist im Spiel dunkler als in der Vorschau.
-- jk2mp ingame: Die Leiste ist auf dem Foto weiss verrauscht, weil das Menue ohne Partie geoeffnet wurde; im Spiel so nicht pruefbar ohne Tastendruck (kein Fokus).
-- JK2-Ingame-Menues mit Spielzustand (Abstimmung, Spielerliste) sind ohne Partie verglichen.
+Aus dem JK2-Vergleich, nicht behoben:
+- Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
+- Datapad Force- und Inventar-Seite: Die Vorschau hat im JK2-Format keine Beispiele fuer das Inventar (zeigt EMPTY INVENTORY), die Kraefte haben andere Beispielwerte. Die Eintraege selbst sind darum nicht Stueck fuer Stueck verglichen.
+- Datapad: Die rechte Anzeige (Munition und Kraft) sieht in der Vorschau anders aus als im Spiel.
+- jk2mp Listen: Die Zeilen stehen im Spiel rund 1,7 virtuelle Punkte hoeher (gemessen; Teil 1 schaetzte 2,7). Ursache nicht gefunden, darum nicht geschoben.
+- jk2mp ingame: Join Game und Force Mastery haengen am Spielzustand, sonst gleich.
 
 Weiter offen:
-- Punkt 9, leeres Menue: Original-JKA und JK2 im Spiel nicht verglichen (Steam laeuft nicht).
-- Zwei Videos gleichzeitig: Das Spiel laesst sie einander anhalten (`cin.current_handle`), die Vorschau spielt beide. Ein Hinweis in der Pruefung waere sinnvoll, Port noch nicht gebaut.
-- Das MP-Licht von OpenJK (Umgebung 182) ist aus dem Code uebernommen, nicht im Spiel fotografiert (Original nur mit Steam, die MD-exe hat ihren eigenen Renderer).
-- Das eine Rot "Properties rect | Fokus Text-Editor" aus Teil 2 kam in zehn Laeufen nicht wieder; Ursache nicht gefunden.
-- Tutorial "Glow on hover": Der Text im Handbuch braucht noch den Hover-Knopf (Teil 3b).
+- Modell im MP ohne `model_g2skin`: Spiel dunkel (jamp, MD MP), Vorschau zeigt die Standardhaut. Pruefung nennt es.
+- Transition und Fade im Spiel nicht pruefbar (ohne Fokus laeuft kein Tastendruck); Code portiert in `skript.cpp`.
+- MP-Licht OpenJK (182) nur gegen das Original verglichen, nicht gegen eine OpenJK-exe.
+- Tutorial bei 200 % unter 4K: siehe Abschnitt Tutorials.
 - Liste "Zuletzt bearbeitet" fuer Menue-Projekte: gibt es nicht, waere ein eigener Wunsch.
-- Handbuchbilder und Tutorials des Menue-Editors: einmal am Ende von Teil 3.
+- Der volle Lauf `menueeditor` und der Gesamtlauf aller Modi stehen aus: Endrunde von rc608.
 
 ## English
 - Menu editor: new start screen in the style of the Mission tab, with the format choice explained.
@@ -316,6 +394,22 @@ Weiter offen:
 - Menu editor: text alignment stays when an element is resized, also vertically, and now follows the font measures of the game, so the large fonts sit in the middle as in the game
 - Menu editor: Movie Duels multiplayer shows the fonts of its own menus; new elements there use the matching font. The figure in multiplayer has the game's light and is no longer too bright
 - Menu editor: a new, pasted or duplicated element no longer lands exactly on one of the same size, and frames lying over each other show their hint once; quickly grabbing a tile a second time no longer inserts it twice
+- Tutorials: the window keeps clear of open lists, of the panel the step points to and of the elements on the canvas; at 200 % it takes less room
+- Menu editor: preview: single-player text that wraps by itself breaks and ends with "..." as in the game
+- Menu editor: drag a frame on the canvas to select several elements; Ctrl+A selects all, Ctrl+X cuts
+- Menu editor: right-click an element or a hierarchy row for cut, copy, paste, duplicate, delete, front, back, lock, hide and save as template
+- Menu editor: a decoration that fills the screen lets clicks through, so a background can no longer be moved by accident
+- Menu editor: Save As and Ctrl+S; a line above the canvas appears when another program changed the open file
+- Menu editor: right-click a tab to rename, duplicate, delete or move its menu
+- Menu editor: a new menu file enters the game's menu list in the package by itself; Test in game opens the menu of the open page at once; the check says when nothing opens a menu
+- Menu editor: the first own menu tutorial now ends with a working menu in the game
+- Menu editor: limits measured in the games: Jedi Academy 150 elements in single player, 256 in multiplayer (OpenJK 512), Jedi Outcast 128 and 256, Movie Duels 4096
+- Menu editor: Properties: conditions show, hide, enable, disable; the choices of a multi choice; list and game-drawn fields; text under the pointer (focusColor); new menus have it, the check names it when it is missing
+- Menu editor: nothing typed into a field can destroy a menu any more; what the game could not read is refused with a message; umlauts are written in the encoding of the game; a path with umlauts no longer crashes
+- Menu editor: preview as in the game: two videos at once hold each other, border thickness follows the game resolution, a menu with its own fill covers the grey box, Jedi Outcast single player ignores backcolor without an image, CLOSED in the Jedi Outcast server menu is as dark as in the game
+- Menu editor: with little room the left panel folds by itself; arrows above the canvas fold both panels; view switches move behind one button
+- Menu editor: schemas of new menus and parts use English names (back, title, background, my_menu) in every language
+- Manual: images up to 2560 wide, animated images 1920; the pages show them much larger, a click shows them in full size
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -349,6 +443,22 @@ Weiter offen:
 - Menü-Editor: Die Textausrichtung bleibt beim Skalieren, auch senkrecht, und folgt jetzt den Schriftmaßen des Spiels, die großen Schriften sitzen wie dort in der Mitte
 - Menü-Editor: Movie Duels Multiplayer zeigt die Schriften seiner eigenen Menüs, neue Elemente nehmen dort die passende Schrift. Die Figur hat im Multiplayer das Licht des Spiels und ist nicht mehr zu hell
 - Menü-Editor: Ein neues, eingefügtes oder dupliziertes Element landet nicht mehr genau auf einem gleich großen, übereinanderliegende Rahmen zeigen ihren Hinweis nur einmal; schnelles zweites Zugreifen auf eine Kachel setzt nicht mehr zweimal ein
+- Tutorials: Das Fenster hält offene Listen, die Spalte des Schritts und die Elemente auf der Fläche frei; bei 200 % braucht es weniger Platz
+- Menü-Editor: Vorschau: Selbst umbrechender Text im Einzelspieler bricht um und endet mit "..." wie im Spiel
+- Menü-Editor: Auf der Fläche einen Rahmen aufziehen wählt mehrere Elemente; Strg+A wählt alle, Strg+X schneidet aus
+- Menü-Editor: Rechtsklick auf ein Element oder eine Hierarchiezeile: Ausschneiden, Kopieren, Einfügen, Duplizieren, Löschen, ganz vorn, ganz hinten, Sperren, Ausblenden, als Vorlage speichern
+- Menü-Editor: Eine Dekoration über den ganzen Schirm lässt Klicks durch, ein Hintergrund lässt sich nicht mehr aus Versehen verschieben
+- Menü-Editor: Speichern unter und Strg+S; eine Zeile über der Fläche meldet, wenn ein anderes Programm die offene Datei geändert hat
+- Menü-Editor: Rechtsklick auf einen Reiter benennt sein Menü um, dupliziert, löscht oder verschiebt es
+- Menü-Editor: Eine neue Menüdatei kommt im Paket von selbst in die Menüliste des Spiels; Im Spiel testen öffnet das Menü der offenen Seite sofort; die Prüfung sagt, wenn nichts ein Menü öffnet
+- Menü-Editor: Das Tutorial zum ersten eigenen Menü endet jetzt mit einem funktionierenden Menü im Spiel
+- Menü-Editor: Grenzen in den Spielen gemessen: Jedi Academy 150 Elemente im Einzelspieler, 256 im Mehrspieler (OpenJK 512), Jedi Outcast 128 und 256, Movie Duels 4096
+- Menü-Editor: Properties: Bedingungen zeigen, verbergen, benutzbar, unbenutzbar; die Auswahl einer Mehrfachwahl; Felder für Listen und vom Spiel Gezeichnetes; Text unter dem Zeiger (focusColor); neue Menüs haben sie, die Prüfung nennt es, wenn sie fehlt
+- Menü-Editor: Nichts, was man in ein Feld tippt, zerstört mehr ein Menü; was das Spiel nicht lesen könnte, wird mit einer Meldung abgelehnt; Umlaute stehen in der Kodierung des Spiels; ein Pfad mit Umlauten stürzt nicht mehr ab
+- Menü-Editor: Vorschau wie im Spiel: zwei Videos zugleich halten einander an, die Rahmendicke folgt der Auflösung des Spiels, ein Menü mit eigener Füllung deckt den grauen Kasten, Jedi Outcast Einzelspieler ignoriert backcolor ohne Bild, CLOSED im Servermenü von Jedi Outcast ist so dunkel wie im Spiel
+- Menü-Editor: Bei wenig Platz klappt die linke Spalte von selbst zu; Pfeile über der Fläche klappen beide Spalten; die Ansicht-Schalter wandern hinter einen Knopf
+- Menü-Editor: Neue Menüs und Teile tragen englische Namen (back, title, background, my_menu), in jeder Sprache
+- Handbuch: Bilder bis 2560 breit, bewegte Bilder 1920; die Seiten zeigen sie viel größer, ein Klick zeigt die volle Größe
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -382,6 +492,22 @@ Weiter offen:
 - 菜单编辑器:缩放元素时文字对齐保持不变,垂直方向也一样,并按游戏的字体度量计算,大字体与游戏中一样居中
 - 菜单编辑器:Movie Duels 多人模式显示其自身菜单的字体,新元素使用相应字体。多人模式中的人物使用游戏的光照,不再过亮
 - 菜单编辑器:新建、粘贴或复制的元素不再正好落在同样大小的元素上,重叠的框只显示一次提示;快速再次抓取图块不再插入两次
+- 教程:窗口会避开打开的列表、步骤所指的面板和画布上的元素;在 200% 时占用更少空间
+- 菜单编辑器:预览:单人模式中自动换行的文字与游戏一样换行并以 "..." 结束
+- 菜单编辑器:在画布上拖出框可选择多个元素;Ctrl+A 全选,Ctrl+X 剪切
+- 菜单编辑器:右键单击元素或层级行:剪切、复制、粘贴、复制副本、删除、置于顶层、置于底层、锁定、隐藏、保存为模板
+- 菜单编辑器:填满屏幕的装饰让单击穿过,背景不再会被意外移动
+- 菜单编辑器:另存为和 Ctrl+S;其他程序更改打开的文件时,画布上方会显示一行提示
+- 菜单编辑器:右键单击标签可重命名、复制、删除或移动其菜单
+- 菜单编辑器:新菜单文件自动进入包内游戏的菜单列表;“在游戏中测试”会立即打开当前页面的菜单;没有内容打开菜单时检查会提示
+- 菜单编辑器:第一个自制菜单教程现在以游戏中可用的菜单结束
+- 菜单编辑器:在游戏中测量的限制:Jedi Academy 单人 150 个元素,多人 256 个 (OpenJK 512),Jedi Outcast 128 和 256,Movie Duels 4096
+- 菜单编辑器:Properties:条件显示、隐藏、启用、禁用;多选的选项;列表和由游戏绘制的字段;指针下的文字 (focusColor);新菜单已包含,缺失时检查会指出
+- 菜单编辑器:在字段中输入的内容不再破坏菜单;游戏无法读取的内容会被拒绝并提示;变音符号按游戏编码写入;带变音符号的路径不再崩溃
+- 菜单编辑器:预览与游戏一致:同时两个视频互相卡住,边框粗细随游戏分辨率变化,自带填充的菜单覆盖灰色方框,Jedi Outcast 单人模式无图时忽略 backcolor,Jedi Outcast 服务器菜单中的 CLOSED 与游戏一样暗
+- 菜单编辑器:空间不足时左侧面板自动折叠;画布上方的箭头可折叠两侧面板;视图开关移到一个按钮后面
+- 菜单编辑器:新菜单和部件在所有语言中都使用英文名称 (back、title、background、my_menu)
+- 手册:图片宽度最大 2560,动画图片 1920;页面上显示得更大,单击可查看完整尺寸
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -415,6 +541,22 @@ Weiter offen:
 - メニューエディター:要素の拡大縮小でも文字の揃えは縦方向も保たれ、ゲームのフォント寸法に従うので、大きなフォントもゲームと同じく中央に来ます
 - メニューエディター:Movie Duels マルチプレイヤーは専用メニューのフォントを表示し、新しい要素も対応するフォントを使います。マルチプレイヤーの人物はゲームと同じ照明になり、明るすぎなくなりました
 - メニューエディター:新規・貼り付け・複製した要素が同じ大きさの要素にぴったり重ならなくなり、重なった枠のヒントは 1 回だけ表示されます。タイルを素早くつかみ直しても二重に挿入されません
+- チュートリアル: ウィンドウは開いた一覧、手順が指すパネル、キャンバス上の要素を避けます。200% では占める場所が減ります
+- メニューエディター: プレビュー: シングルの自動折り返しテキストはゲームと同じく折り返され "..." で終わります
+- メニューエディター: キャンバスで枠をドラッグして複数の要素を選択。Ctrl+A ですべて選択、Ctrl+X で切り取り
+- メニューエディター: 要素または階層の行を右クリック: 切り取り、コピー、貼り付け、複製、削除、最前面、最背面、ロック、非表示、テンプレートとして保存
+- メニューエディター: 画面全体を覆う装飾はクリックを通すので、背景を誤って動かさなくなりました
+- メニューエディター: 名前を付けて保存と Ctrl+S。別のプログラムが開いているファイルを変更すると、キャンバスの上に表示します
+- メニューエディター: タブを右クリックしてメニューの名前変更、複製、削除、移動
+- メニューエディター: 新しいメニューファイルはパッケージ内でゲームのメニューリストに自動で入ります。ゲームでテストは開いているページのメニューをすぐに開きます。どこからも開かれないメニューは検査が知らせます
+- メニューエディター: はじめての自作メニューのチュートリアルは、ゲームで動くメニューで終わるようになりました
+- メニューエディター: ゲームで測定した制限: Jedi Academy はシングル 150 要素、マルチ 256 (OpenJK 512)、Jedi Outcast は 128 と 256、Movie Duels は 4096
+- メニューエディター: Properties: 条件の表示、非表示、使用可、使用不可。複数選択の選択肢。リストとゲームが描く要素の欄。ポインターの下のテキスト (focusColor)。新しいメニューには入っており、ないと検査が知らせます
+- メニューエディター: 欄への入力でメニューが壊れなくなりました。ゲームが読めないものはメッセージとともに拒否します。ウムラウトはゲームのエンコードで書き込みます。ウムラウトを含むパスで落ちなくなりました
+- メニューエディター: プレビューをゲームと同じに: 同時に 2 つの動画は互いに止まり、枠の太さはゲームの解像度に従い、独自の塗りを持つメニューは灰色のボックスを覆い、Jedi Outcast シングルは画像なしの backcolor を無視し、Jedi Outcast のサーバーメニューの CLOSED はゲームと同じ暗さです
+- メニューエディター: スペースが少ないと左パネルが自動で閉じます。キャンバスの上の矢印で両パネルを閉じられます。表示スイッチは 1 つのボタンの中に移ります
+- メニューエディター: 新しいメニューとパーツはどの言語でも英語の名前 (back、title、background、my_menu) を使います
+- マニュアル: 画像は幅 2560 まで、アニメーション画像は 1920。ページではより大きく表示され、クリックで実寸を表示します
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -448,6 +590,22 @@ Weiter offen:
 - Editor de menús: la alineación del texto se mantiene al escalar, también en vertical, y sigue las medidas de fuente del juego; las fuentes grandes quedan centradas como allí
 - Editor de menús: Movie Duels multijugador muestra las fuentes de sus propios menús y los elementos nuevos usan la adecuada. La figura en multijugador tiene la luz del juego y ya no está demasiado clara
 - Editor de menús: un elemento nuevo, pegado o duplicado ya no cae justo sobre otro del mismo tamaño, los marcos superpuestos muestran su aviso una vez; agarrar rápido un mosaico por segunda vez ya no lo inserta dos veces
+- Tutoriales: la ventana deja libres las listas abiertas, el panel al que apunta el paso y los elementos del lienzo; al 200 % ocupa menos
+- Editor de menús: vista previa: el texto de un jugador con ajuste automático se parte y termina con "..." como en el juego
+- Editor de menús: arrastra un marco en el lienzo para seleccionar varios elementos; Ctrl+A selecciona todo, Ctrl+X corta
+- Editor de menús: clic derecho en un elemento o una fila de la jerarquía: cortar, copiar, pegar, duplicar, eliminar, al frente, al fondo, bloquear, ocultar y guardar como plantilla
+- Editor de menús: una decoración que llena la pantalla deja pasar los clics; un fondo ya no se mueve por accidente
+- Editor de menús: Guardar como y Ctrl+S; una línea sobre el lienzo avisa cuando otro programa cambió el archivo abierto
+- Editor de menús: clic derecho en una pestaña para renombrar, duplicar, eliminar o mover su menú
+- Editor de menús: un archivo de menú nuevo entra solo en la lista de menús del juego dentro del paquete; Probar en el juego abre enseguida el menú de la página abierta; la comprobación avisa si nada abre un menú
+- Editor de menús: el tutorial del primer menú propio termina ahora con un menú que funciona en el juego
+- Editor de menús: límites medidos en los juegos: Jedi Academy 150 elementos en un jugador, 256 en multijugador (OpenJK 512), Jedi Outcast 128 y 256, Movie Duels 4096
+- Editor de menús: Properties: condiciones mostrar, ocultar, activar, desactivar; las opciones de una opción múltiple; campos de listas y de lo que dibuja el juego; texto bajo el puntero (focusColor); los menús nuevos lo tienen y la comprobación avisa si falta
+- Editor de menús: lo que se escribe en un campo ya no destruye un menú; lo que el juego no podría leer se rechaza con un mensaje; las diéresis se escriben en la codificación del juego; una ruta con diéresis ya no bloquea el programa
+- Editor de menús: vista previa como en el juego: dos vídeos a la vez se detienen entre sí, el grosor del borde sigue la resolución del juego, un menú con relleno propio cubre el cuadro gris, Jedi Outcast un jugador ignora backcolor sin imagen, CLOSED en el menú de servidor de Jedi Outcast es tan oscuro como en el juego
+- Editor de menús: con poco espacio el panel izquierdo se pliega solo; las flechas sobre el lienzo pliegan ambos paneles; los interruptores de vista pasan a un botón
+- Editor de menús: los menús y piezas nuevos usan nombres en inglés (back, title, background, my_menu) en todos los idiomas
+- Manual: imágenes de hasta 2560 de ancho, imágenes animadas de 1920; las páginas las muestran mucho más grandes y un clic las muestra a tamaño completo
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -481,3 +639,19 @@ Weiter offen:
 - Editor menu: zarovnání textu zůstává při změně velikosti, i svislé, a řídí se mírami písma ze hry; velká písma sedí uprostřed jako ve hře
 - Editor menu: Movie Duels multiplayer ukazuje písma svých vlastních menu a nové prvky používají to správné. Postava v multiplayeru má světlo ze hry a už není příliš světlá
 - Editor menu: nový, vložený nebo duplikovaný prvek už nepřistane přesně na stejně velkém, překrývající se rámce ukážou nápovědu jednou; rychlé druhé uchopení dlaždice už ji nevloží dvakrát
+- Tutoriály: okno nechává volné otevřené seznamy, panel, na který krok ukazuje, a prvky na ploše; při 200 % zabírá méně místa
+- Editor menu: náhled: text se samočinným zalamováním pro jednoho hráče se zalamuje a končí "..." jako ve hře
+- Editor menu: tažením rámečku na ploše vyberete více prvků; Ctrl+A vybere vše, Ctrl+X vyjme
+- Editor menu: pravé tlačítko na prvku nebo řádku hierarchie: vyjmout, kopírovat, vložit, duplikovat, smazat, dopředu, dozadu, zamknout, skrýt a uložit jako šablonu
+- Editor menu: ozdoba přes celou obrazovku nechá kliknutí projít, pozadí už omylem neposunete
+- Editor menu: Uložit jako a Ctrl+S; řádek nad plochou upozorní, když jiný program změnil otevřený soubor
+- Editor menu: pravým tlačítkem na kartě přejmenujete, duplikujete, smažete nebo přesunete její menu
+- Editor menu: nový soubor menu se v balíčku sám dostane do seznamu menu hry; Otestovat ve hře hned otevře menu otevřené stránky; kontrola upozorní, když menu nic neotevírá
+- Editor menu: tutoriál prvního vlastního menu nyní končí funkčním menu ve hře
+- Editor menu: limity změřené ve hrách: Jedi Academy 150 prvků pro jednoho hráče, 256 pro více hráčů (OpenJK 512), Jedi Outcast 128 a 256, Movie Duels 4096
+- Editor menu: Properties: podmínky zobrazit, skrýt, povolit, zakázat; možnosti vícenásobné volby; pole seznamů a toho, co kreslí hra; text pod ukazatelem (focusColor); nová menu ji mají a kontrola upozorní, když chybí
+- Editor menu: co napíšete do pole, už menu nezničí; co by hra nepřečetla, je odmítnuto se zprávou; přehlásky se zapisují v kódování hry; cesta s přehláskami už program neshodí
+- Editor menu: náhled jako ve hře: dvě videa najednou se navzájem zastaví, tloušťka okraje se řídí rozlišením hry, menu s vlastní výplní zakryje šedý rámeček, Jedi Outcast pro jednoho hráče ignoruje backcolor bez obrázku, CLOSED v serverovém menu Jedi Outcast je tmavé jako ve hře
+- Editor menu: při nedostatku místa se levý panel sám sbalí; šipky nad plochou sbalí oba panely; přepínače zobrazení se přesunou za jedno tlačítko
+- Editor menu: nová menu a díly mají anglické názvy (back, title, background, my_menu) ve všech jazycích
+- Příručka: obrázky do šířky 2560, animované 1920; stránky je ukazují mnohem větší, kliknutí v plné velikosti

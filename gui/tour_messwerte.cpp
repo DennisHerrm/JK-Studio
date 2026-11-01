@@ -35,6 +35,9 @@
 //   menue.layouts        Layouts in diesem Menue
 //   menue.ereignisse     Ereignis-Skripte seiner Items
 //   menue.gespeichert    erfolgreiche Projekt-Speicherungen seit dem Start
+//   menue.spieltests     "Im Spiel testen" fertig vorbereitet
+//   menue.reiterprop, menue.reiterevents   der Reiter rechts
+//   menue.trighover, menue.trigklick       der gewaehlte Ausloeser in Events
 //
 // H2 (mehr interaktive Touren):
 //   vorschau.laeuft      1, solange die Zeitleiste abspielt
@@ -292,6 +295,11 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
         werte["menue.layouts"] = m.layouts;
         werte["menue.ereignisse"] = m.ereignisse;
         werte["menue.gespeichert"] = m.gespeichert;
+        werte["menue.spieltests"] = m.spieltests;
+        werte["menue.reiterprop"] = m.reiterProp ? 1.0 : 0.0;
+        werte["menue.reiterevents"] = m.reiterEvents ? 1.0 : 0.0;
+        werte["menue.trighover"] = m.trigHover ? 1.0 : 0.0;
+        werte["menue.trigklick"] = m.trigKlick ? 1.0 : 0.0;
     }
 }
 

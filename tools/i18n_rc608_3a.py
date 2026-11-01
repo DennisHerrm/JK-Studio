@@ -121,7 +121,6 @@ ZEILEN = [
     ("MlFStartwertTip", "Where the slider stands if the setting has no value yet.", "Wo der Schieber steht, solange die Einstellung keinen Wert hat.", "设置尚无值时滑块的位置。", "設定に値がないときのスライダーの位置です。", "Dónde está el control si el ajuste aún no tiene valor.", "Kde posuvník stojí, dokud nastavení nemá hodnotu."),
     ("MlFVonBis", "From, to", "Von, bis", "从,到", "最小、最大", "De, a", "Od, do"),
     ("MlFVonBisTip", "Lowest and highest value.", "Kleinster und größter Wert.", "最小值和最大值。", "最小値と最大値です。", "Valor mínimo y máximo.", "Nejnižší a nejvyšší hodnota."),
-    ("MlFNurWenn", "Show only if", "Nur zeigen, wenn", "仅在以下情况显示", "表示の条件", "Mostrar solo si", "Zobrazit jen když"),
     ("MlFNurWennTip", "Hides the element unless the setting has this value.", "Verbirgt das Element, außer die Einstellung hat diesen Wert.", "除非设置为此值,否则隐藏元素。", "設定がこの値でないとき要素を隠します。", "Oculta el elemento salvo que el ajuste tenga este valor.", "Skryje prvek, pokud nastavení nemá tuto hodnotu."),
     ("MlFCvar", "Cvar", "Cvar", "Cvar", "Cvar", "Cvar", "Cvar"),
     ("MlFHatWert", "has this value", "hat diesen Wert", "具有此值", "この値のとき", "tiene este valor", "má tuto hodnotu"),

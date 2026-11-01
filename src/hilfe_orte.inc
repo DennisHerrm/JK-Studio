@@ -163,6 +163,7 @@
 {"menue", "knopf:MeAnRaster", "ViewMenuEditor>MeAnRaster", "MeAnRasterHint", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeAnKanten", "ViewMenuEditor>MeAnKanten", "MeAnKantenHint", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeTabFolge", "ViewMenuEditor>MeTabFolge", "MeTabFolgeTip", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
+{"menue", "knopf:MeAnsichtKnopf", "ViewMenuEditor>MeAnsichtKnopf", "MeAnsichtKnopfTip", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeInAllen", "ViewMenuEditor>MeInAllen", "", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeTextNeu", "ViewMenuEditor>MeTextNeu", "", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeJa", "ViewMenuEditor>MeJa", "", "modus:4 < knopf:ViewMenuEditor@modebar", ""},

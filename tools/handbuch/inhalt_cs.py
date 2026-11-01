@@ -40,14 +40,10 @@ TEXTE = {
         "**{{MeReiterHierarchie}}** zobrazuje jen prvky otevřené karty a sleduje výběr na ploše. **{{MeGanzeDatei}}** zobrazí všechny `menuDef` souboru, například pro přesun prvku na jinou stránku. Na stavové kartě (`ui_sel=0_0`) je uvedeno jen to, co je tam vidět. Panel si drží minimální šířku, při které jsou všechna čísla čitelná; dlouhé řádky se zalamují.",
     "wrap long lines on or off, as in VS Code (on by default, the file does not change); without wrapping Shift+mouse wheel or the scrollbar at the bottom scrolls sideways":
         "zapíná nebo vypíná zalamování dlouhých řádků jako ve VS Code (ve výchozím stavu zapnuto, soubor se nemění); bez zalamování posouvá vodorovně Shift+kolečko nebo posuvník dole",
-    "**Zoom:** Ctrl+mouse wheel zooms around the pointer (25 to 800 %), Ctrl+0 fits, Ctrl+1 is 100 %, the middle button or Space+drag moves the view. The zoom is only a view: it is not an undo step and not in the file. Rulers, handles, snapping and dragging stay right at every step.":
-        "**Přiblížení:** Ctrl+kolečko myši přibližuje kolem ukazatele (25 až 800 %), Ctrl+0 přizpůsobí, Ctrl+1 je 100 %, prostřední tlačítko nebo mezerník+tažení posouvá pohled. Přiblížení je jen pohled: není to krok zpět a není v souboru. Pravítka, úchyty, přichytávání a tažení jsou správně na každé úrovni.",
     "**Mouse pointer:** It shows what a press does: resize arrows on the handles and on the edges of the selected element (the edges resize too), the move pointer on the element itself, the text cursor over text.":
         "**Ukazatel myši:** ukazuje, co stisk udělá: šipky změny velikosti na úchytech a okrajích vybraného prvku (mění i okraje), ukazatel přesunu na prvku, textový kurzor nad textem.",
     "**Write text in place:** Double-click an element on the canvas and type. The text appears in the game's font, size, colour and wrapping, with cursor, selection, copy and paste. Esc discards, Enter or a click elsewhere keeps it as one undo step; Ctrl+Enter starts a new line where the element wraps. A text from the game (`@MENUS_...`) stays as it is: the element gets its own text in your project's text package, and the other languages keep their translation. Where the text comes from a cvar, the game itself or an image, the double-click says so. **{{MeReiterHierarchie}}** shows the text in the row, **{{MeReiterEigenschaften}}** has it at the very top.":
         "**Psaní textu na místě:** dvakrát klikněte na prvek na ploše a pište. Text se zobrazí písmem, velikostí, barvou a zalomením hry, s kurzorem, výběrem, kopírováním a vložením. Esc zahodí, Enter nebo klik jinam uloží jako jeden krok zpět; Ctrl+Enter vytvoří nový řádek tam, kde prvek zalamuje. Text hry (`@MENUS_...`) zůstává beze změny: prvek dostane vlastní text v textovém balíčku projektu a ostatní jazyky si ponechají překlad. Pokud text pochází z cvaru, ze samotné hry nebo z obrázku, dvojklik to řekne. **{{MeReiterHierarchie}}** ukazuje text v řádku, **{{MeReiterEigenschaften}}** úplně nahoře.",
-    "**Properties** shows only what the game reads for this kind of element; a model has no text fields, for example, but its own group with model, skin, animation from a searchable list (the names of the model's `animation.cfg`), facing, height, distance and field of view. Lines in the file that do not apply stay there and appear under **{{MeWeitereEintraege}}**. With nothing selected, Properties has the switch between **{{MeVollbild}}** and **{{MeUeberlagerung}}**.":
-        "**Properties** zobrazuje jen to, co hra u tohoto druhu prvku čte; model například nemá textová pole, ale vlastní skupinu s modelem, skinem, animací ze seznamu s hledáním (názvy z `animation.cfg` modelu), směrem pohledu, výškou, vzdáleností a zorným polem. Řádky v souboru, které neplatí, tam zůstávají a jsou v části **{{MeWeitereEintraege}}**. Když není nic vybráno, má Properties přepínač mezi **{{MeVollbild}}** a **{{MeUeberlagerung}}**.",
     "**An empty menu:** With full screen the game draws nothing underneath. In single player an empty menu is black (without `backcolor`, even a plain image in `background` stays invisible); in multiplayer the game shows its grey default box until a `background` or an element covers it, and the diagnosis says so. Without full screen you see through the menu; the canvas marks this with a checkerboard, which you can switch off and which never goes into the file.":
         "**Prázdné menu:** s celou obrazovkou hra pod ním nic nekreslí. V jednom hráči je prázdné menu černé (bez `backcolor` zůstane neviditelný i obyčejný obrázek v `background`); ve více hráčích hra ukazuje svůj šedý výchozí rámeček, dokud ho `background` nebo prvek nezakryje, a diagnostika to oznámí. Bez celé obrazovky je přes menu vidět; plocha to označí šachovnicí, kterou lze vypnout a která se nikdy nezapíše do souboru.",
     "Nothing is selected yet. Click the brush in a 2D view first, then the texture.":
@@ -1212,8 +1208,8 @@ TEXTE = {
         "**Otevřete editor menu.** **{{ViewMenuEditor}}** v liště režimů.",
     "**Open a menu of the game.** **{{MeAusSpiel}}** and pick one, for example `ui/jamp/main.menu`. It is read from the game files and drawn like the game - the game folder is not changed.":
         "**Otevřete menu hry.** **{{MeAusSpiel}}** a vyberte jedno, například `ui/jamp/main.menu`. Načte se ze souborů hry a kreslí se jako ve hře - složka hry se nemění.",
-    "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.":
-        "**Posuňte prvek.** Kliknutím na tlačítko na plátně ho vyberte, pak ho znovu stiskněte a táhněte - nebo ho postrčte šipkami. Jeho `rect` v kódu níže se mění s ním.",
+    "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in {{MeReiterEigenschaften}} and in the {{MeReiterText}} changes with it.":
+        "**Přesuňte prvek.** Kliknutím na tlačítko na ploše ho vyberte, znovu ho stiskněte a táhněte, nebo ho posuňte šipkami. Jeho `rect` v {{MeReiterEigenschaften}} a v {{MeReiterText}} se změní s ním.",
     "**Try it like in the game.** **{{MeBedienen}}**: clicks now press buttons and change cvars - only in the preview, never in your game. **{{MeBearbeiten}}** brings you back.":
         "**Vyzkoušejte to jako ve hře.** **{{MeBedienen}}**: kliknutí teď mačkají tlačítka a mění cvary - jen v náhledu, nikdy ve vaší hře. **{{MeBearbeiten}}** vás vrátí zpět.",
     "Step 4 of the tutorial in the menu editor.":
@@ -3480,24 +3476,16 @@ TEXTE = {
         "Hlavní menu Jedi Academy pro více hráčů, načtené ze souborů hry a kreslené jako ve hře.",
     "Every `menuDef` of the file is a tab above the canvas; items that are shown by a cvar with several values (`cvarTest` + `showCvar`, like `ui_tab` pages) get a tab per value. **+** adds a new `menuDef`. The canvas is the game's virtual 640x480 screen: **{{MeStrecken}}** like the original game, **{{MeBalken}}**, and preset resolutions to check the aspect ratio.":
         "Každý `menuDef` souboru je karta nad plátnem; prvky, které se ukazují podle cvaru s několika hodnotami (`cvarTest` + `showCvar`, jako stránky `ui_tab`), dostanou kartu na každou hodnotu. **+** přidá nový `menuDef`. Plátno je virtuální obrazovka hry 640x480: **{{MeStrecken}}** jako původní hra, **{{MeBalken}}** a přednastavená rozlišení pro kontrolu poměru stran.",
-    "An element keeps its type: **type** in the properties only shows it. For another type, insert a new element. In the text editor you can still write anything; if a line makes the game drop the whole menu, the preview reads on, keeps all elements in place and says above the canvas which line it is.":
-        "Prvek si zachovává svůj typ: **type** ve vlastnostech ho jen zobrazuje. Pro jiný typ vložte nový prvek. V textovém editoru můžete dál psát cokoli; pokud kvůli některému řádku hra celé menu zahodí, náhled čte dál, nechá všechny prvky na místě a nad plátnem uvede, který řádek to je.",
     "Ctrl+Z, Ctrl+Y and the arrows in the bar work wherever the focus is in the menu editor and also restore the selection. Only a field you are typing in and the text editor use their own keys; selecting something is not a step.":
         "Ctrl+Z, Ctrl+Y a šipky na liště fungují všude v editoru menu a obnovují i výběr. Vlastní klávesy má jen pole, do kterého právě píšete, a textový editor; výběr není krok.",
     "A click selects (Shift/Ctrl adds) and never moves anything. Press a selected element again and drag it to move it - the whole selection moves along, in one undo step; the white handles resize. Where elements overlap, a press means the front one, the one with the frame and name under the pointer; Alt+click goes through the stack, Alt+drag moves the selected one even when it is covered. Only the numbers of `rect` change in the text - comments and indentation stay.":
         "Kliknutí vybírá (Shift/Ctrl přidává) a nikdy nic neposouvá. Vybraný prvek posunete tak, že ho znovu stisknete a táhnete - celý výběr se posune s ním, jako jeden krok zpět; bílé úchyty mění velikost. Kde se prvky překrývají, stisk platí pro přední, ten s rámečkem a názvem pod ukazatelem; Alt+kliknutí prochází vrstvami a Alt+tažení posune vybraný prvek, i když je zakrytý. V textu se mění jen čísla `rect` - komentáře a odsazení zůstanou.",
     "**{{MeAnKanten}}** snaps to edges and centres of the other items, the screen and your guides (drag them out of the rulers); **{{MeAnRaster}}** to the grid. Alt switches snapping off while dragging, Shift keeps the direction. Arrow keys move by 1, with Shift by 10. A new, pasted or duplicated element never lands exactly on one of the same size: it moves 20 points right and down. Dragging with Alt puts it exactly where you drop it. Frames lying exactly over each other show their hint only once.":
         "**{{MeAnKanten}}** přichytává k okrajům a středům ostatních prvků, obrazovky a vašich vodítek (vytáhněte je z pravítek); **{{MeAnRaster}}** k mřížce. Alt během tažení přichytávání vypne, Shift drží směr. Šipky posouvají o 1, s Shift o 10. Nový, vložený nebo duplikovaný prvek nikdy nepřistane přesně na stejně velkém prvku: posune se o 20 bodů doprava dolů. Tažením s Alt ho položíte přesně tam, kde pustíte. Pokud rámce leží přesně na sobě, jejich nápověda se ukáže jen jednou.",
-    "**{{MePalette}}** holds one bare element each (text, button, image, yes/no, multi choice, slider, edit field, list box, model, key bind). Drag one onto the canvas: a frame shows where it lands and it snaps like a moved element. A double-click puts it in the middle, next to what is already there; a plain click does nothing. **{{MeBibliothek}}** further down holds ready-made parts of one or many elements with everything already set; the tooltip says what each contains. **{{MeBildDazu}}** takes a PNG, JPG or TGA as `gfx/menus/<name>`; it is packed into the .pk3 on export.":
-        "**{{MePalette}}** obsahuje po jednom základním prvku (text, tlačítko, obrázek, ano/ne, vícenásobná volba, posuvník, editační pole, seznam, model, přiřazení klávesy). Přetáhněte jeden na plochu: rámeček ukazuje, kam dopadne, a přichytává se jako při přesunu. Dvojklik ho vloží doprostřed vedle toho, co tam už je; prosté kliknutí nedělá nic. **{{MeBibliothek}}** níže obsahuje hotové díly z jednoho nebo mnoha prvků se vším nastaveným; popisek říká, co obsahují. **{{MeBildDazu}}** převezme PNG, JPG nebo TGA jako `gfx/menus/<name>`; při exportu se zabalí do .pk3.",
-    "**{{MeEigenschaften}}** edits the selected item; with several items it aligns, distributes and groups them. **{{MeNachVorn}}**/**{{MeNachHinten}}** change the drawing order (the game draws in file order). **{{MeSperren}}** keeps an item from moving.":
-        "**{{MeEigenschaften}}** upravuje vybraný prvek; s několika prvky je zarovnává, rozmisťuje a seskupuje. **{{MeNachVorn}}**/**{{MeNachHinten}}** mění pořadí kreslení (hra kreslí v pořadí souboru). **{{MeSperren}}** zabrání posunutí prvku.",
     "Interact and cvars":
         "Ovládání a cvary",
     "**{{MeBedienen}}** runs the menu like the game: hovering gives focus (`mouseEnter`, `onFocus`), a click runs the item's `action`, yes/no, multi choice and sliders change their cvar, and `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... work like in ui_shared. What needs the game (sounds, `exec`, `uiScript`) appears in **{{MeProtokoll}}**.":
         "**{{MeBedienen}}** spustí menu jako hra: najetí myší dává fokus (`mouseEnter`, `onFocus`), kliknutí spustí `action` prvku, ano/ne, výběr z více a posuvníky mění svůj cvar a `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... fungují jako v ui_shared. Co potřebuje hru (zvuky, `exec`, `uiScript`), se objeví v **{{MeProtokoll}}**.",
-    "**{{MeCvars}}** lists every cvar the menu reads or sets, the ones that control visibility first, with the values that occur. Change them to see other states. They exist only in the preview - your game configuration is never touched.":
-        "**{{MeCvars}}** vypíše každý cvar, který menu čte nebo nastavuje, ty řídící viditelnost první, s hodnotami, které se vyskytují. Změňte je a uvidíte jiné stavy. Existují jen v náhledu - konfigurace vaší hry se nikdy nezmění.",
     "Code editor":
         "Editor kódu",
     "Interact: the page cvar `ui_tab` shows the red box, a click on Yes/No changes `ui_probe`.":
@@ -6619,20 +6607,18 @@ TEXTE = {
         "Mlhový brush nad podlahou místnosti (fogParms 0.1 0.9 0.1, 256): podlaha dostane barvu mlhy jako ve hře.",
     "**{{MeMeldungen}}** shows what the game would print while loading the file, word for word and with the line (for example `Unknown item keyword 'foo' Line #21`). A click jumps to the line; the live diagnosis marks it in the text ([[menue_editor_m2#diagnose]]).":
         "**{{MeMeldungen}}** ukazují, co by hra vypsala při načítání souboru, slovo od slova a s řádkem (například `Unknown item keyword 'foo' Line #21`). Kliknutí skočí na řádek; živá diagnostika ho označí v textu ([[menue_editor_m2#diagnose]]).",
-    "A new button from the widgets: selected on the canvas, its itemDef in the Text tab on the right.":
-        "Nové tlačítko z prvků: vybrané na plátně, jeho itemDef vpravo na kartě Text.",
+    "A new button from the parts: selected on the canvas, its itemDef in the {{MeReiterText}} on the right.":
+        "Nové tlačítko z dílů: vybrané na ploše, jeho itemDef v {{MeReiterText}} vpravo.",
     "Menu editor: preview, checks and packaging":
         "Editor menu: náhled, kontroly a balíček",
     "The right column with tabs, the live diagnosis while typing, videos, 3D models and sabers like in the game, the widget library, texts in several languages, sounds, the checks for the game, a test in the game and fonts from TrueType.":
         "Pravý sloupec s kartami, živá diagnostika při psaní, videa, 3D modely a světelné meče jako ve hře, knihovna prvků, texty v několika jazycích, zvuky, kontroly pro hru, test ve hře a písma z TrueType.",
     "Layout: canvas at full height":
         "Rozvržení: plátno na celou výšku",
-    "Widgets as tiles on the left, the canvas in the middle, the right column with the tab Hierarchy.":
-        "Prvky jako dlaždice vlevo, plátno uprostřed, pravý sloupec s kartou Hierarchie.",
+    "Parts as tiles and the hierarchy on the left, the canvas in the middle, the tabs {{MeReiterEigenschaften}}, {{MeEreignisse}} and {{MeReiterText}} on the right.":
+        "Vlevo díly jako dlaždice a hierarchie, uprostřed plocha, vpravo karty {{MeReiterEigenschaften}}, {{MeEreignisse}} a {{MeReiterText}}.",
     "The same column with the tab Text: the code editor, the problems below.":
         "Tentýž sloupec s kartou Text: editor kódu, pod ním problémy.",
-    "The right column holds **{{MeReiterHierarchie}}** (menus, groups and items; the eye hides an item in the preview only, the lock keeps it from moving, dragging changes the drawing order), **{{MeReiterText}}** (the code editor with the problems below) and **{{MeReiterEigenschaften}}** (properties, cvars, engine messages and the script log as sections). Drag the divider to change the width; the tab and the width are remembered. A click on the canvas moves the text cursor to the itemDef even while another tab is open - switch to **{{MeReiterText}}** and the line is there. The old layout with the text at the bottom is in the preferences (**{{MeEinstTextUnten}}**), as is **{{MeEinstUmbruch}}** (otherwise long lines scroll sideways with Shift + mouse wheel).":
-        "Pravý sloupec obsahuje **{{MeReiterHierarchie}}** (menu, skupiny a prvky; oko skryje prvek jen v náhledu, zámek mu brání v posunu, tažení mění pořadí kreslení), **{{MeReiterText}}** (editor kódu, pod ním problémy) a **{{MeReiterEigenschaften}}** (vlastnosti, cvary, zprávy enginu a protokol skriptu jako oddíly). Šířku změníte tažením oddělovače; karta i šířka se pamatují. Kliknutí na plátno přesune textový kurzor na itemDef, i když je otevřená jiná karta - přepněte na **{{MeReiterText}}** a řádek je tam. Staré rozvržení s textem dole je v předvolbách (**{{MeEinstTextUnten}}**), stejně jako **{{MeEinstUmbruch}}** (jinak se dlouhé řádky posouvají do strany pomocí Shift + kolečka myši).",
     "Live diagnosis":
         "Živá diagnostika",
     "A broken menu: the brace that is never closed and where it is missing, the misspelled keyword with the game's message, a show on an item that does not exist; the item is marked on the canvas.":
@@ -6653,12 +6639,10 @@ TEXTE = {
         "Video RoQ jako cinematic, dekódované jako ve hře.",
     "A character model with skin and animation, drawn on the graphics card.":
         "Model postavy se skinem a animací, kreslený na grafické kartě.",
-    "Library, detail area and menu sets":
-        "Knihovna, oblast detailu a sady menu",
-    "The detail area in three levels from the library, ready to operate.":
-        "Oblast detailu ve třech úrovních z knihovny, hned ovladatelná.",
-    "**{{MeBibliothek}}** holds ready parts (button with background and click sound, slider with cvar, tab bar, detail area in three levels, list); drag one onto the canvas or double-click it. **{{MeVorlageSpeichern}}** turns the selection into your own template. **{{MeMenuesatzOeffnen}}** opens every file of `menus.txt`; `open` in a script then switches to the file of the menu.":
-        "**{{MeBibliothek}}** obsahuje hotové díly (tlačítko s pozadím a zvukem kliknutí, posuvník s cvarem, lišta karet, oblast podrobností ve třech úrovních, seznam); přetáhněte na plochu nebo dvakrát klikněte. **{{MeVorlageSpeichern}}** udělá z výběru vlastní šablonu. **{{MeMenuesatzOeffnen}}** otevře každý soubor z `menus.txt`; `open` ve skriptu pak přepne do souboru menu.",
+    "Parts, detail area and menu sets":
+        "Díly, oblast detailů a sady menu",
+    "The detail area in three levels from the ready-made parts, ready to operate.":
+        "Oblast detailů ve třech úrovních z hotových dílů, připravená k ovládání.",
     "Texts in several languages and sounds":
         "Texty v několika jazycích a zvuky",
     "An own text @MYMENU_START, shown in German in the preview.":
@@ -6786,8 +6770,6 @@ TEXTE = {
         "**{{MeVideoImport}}** čte MP4, WebM, AVI, WMV, MOV a MKV přes Windows, animované GIFy a soubory RoQ - RoQ se převezme beze změny. Zvolte **{{MeVideoZielGroesse}}**: hra přehrává jen strany, které jsou mocninami dvou, s nejvýše 512 x 512 pixely celkem (videa na celou obrazovku jinak skončí, větší videa přetečou vyrovnávací paměť videa hry); 512 x 512 je výchozí, jako u všech videí Jedi Academy a Movie Duels. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (hra video na prvek stejně roztáhne), {{MeVideoBalken}} nebo {{MeVideoZuschneiden}}. Obrázky se zmenšují průměrováním všech zakrytých pixelů, takže jemné vzory neblikají. Pod volbami vidíte délku, počet snímků a velikost, kterou soubor bude mít.",
     "The imported video as background of background_video in the Jedi Academy main menu - the preview plays it like the game.":
         "Importované video jako pozadí background_video v hlavním menu Jedi Academy - náhled ho přehrává jako hra.",
-    "A menu shows a video through a shader with `videoMap`. The import writes it for you: `menu/video/<name>` in `shaders/<package>.shader`, next to `video/<name>.roq`. **{{MeVideoVerwendung}}** decides what happens in the menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, behind all others) or **{{MeVideoAlsCinematic}}** - only multiplayer menus draw that keyword, single-player menus show nothing (the check says so). Shader, video and menu go together into the exported .pk3 and into **{{MeImSpielTesten}}**.":
-        "Menu zobrazuje video přes shader s `videoMap`. Import ho zapíše za vás: `menu/video/<název>` do `shaders/<balíček>.shader`, vedle `video/<název>.roq`. **{{MeVideoVerwendung}}** určuje, co se stane v menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, za všemi ostatními) nebo **{{MeVideoAlsCinematic}}** - toto klíčové slovo kreslí jen menu pro více hráčů, menu pro jednoho hráče nezobrazí nic (kontrola to řekne). Shader, video a menu jdou společně do exportované .pk3 a do **{{MeImSpielTesten}}**.",
     "Sound":
         "Zvuk",
     "Menus always play their videos silently - the game starts them without sound. **{{MeVideoTon}}** is therefore off; switch it on for full-screen videos that the game plays with sound (for example `cinematic <name>` from the console or a script). The sound is stored like in the game's videos: 22050 Hz, mono or stereo, between the frames. A video without a sound track gets a note. **{{MeTonAn}}** / **{{MeTonAus}}** in the toolbar switches all preview sounds - focus and click sounds and the menu music - and stops sounds that are playing; the setting is remembered.":
@@ -6820,10 +6802,6 @@ TEXTE = {
         "Události",
     "The button got the Glow effect and a click sound: the glow element appears on hover, the click plays the sound.":
         "Tlačítko dostalo efekt Záře a zvuk kliknutí: zářící prvek se objeví při najetí myší, kliknutí přehraje zvuk.",
-    "The **{{MeEreignisse}}** section shows for the selected element what happens on **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) and **{{MeEvEnter}}** (accept) - only the events the game's engine knows. Start with a ready-made hover effect: **{{MeEvLeuchten}}** (a glow element behind it, like the original menus), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** or **{{MeEvGroesser}}**, in the colour next to them. **{{MeEvHoverKlang}}** sets `focusSound`, **{{MeEvKlickKlang}}** a `play` at the start of the click; the button next to each field lets you listen.":
-        "Oddíl **{{MeEreignisse}}** ukazuje pro vybraný prvek, co se stane při **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) a **{{MeEvEnter}}** (accept) - jen události, které engine hry zná. Začněte hotovým efektem při najetí: **{{MeEvLeuchten}}** (zářící prvek za ním, jako v původních menu), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** nebo **{{MeEvGroesser}}**, v barvě vedle nich. **{{MeEvHoverKlang}}** nastaví `focusSound`, **{{MeEvKlickKlang}}** `play` na začátku kliknutí; tlačítkem vedle každého pole si zvuk poslechnete.",
-    "Each event lists its actions as blocks: element names as a list, colours with a colour picker, sounds with a listen button. **{{MeEvAktionNeu}}** offers only the commands of this game's engine (the commandList of ui_shared, so `setcvartocvar` only in multiplayer). The blocks write the script text - the Text tab shows the same at once - and every change is one undo step. Switch on **{{MeBedienen}}** and the events run like in the game.":
-        "Každá událost vypisuje své akce jako bloky: názvy prvků jako seznam, barvy s výběrem barvy, zvuky s tlačítkem k poslechu. **{{MeEvAktionNeu}}** nabízí jen příkazy enginu této hry (commandList z ui_shared, takže `setcvartocvar` jen pro více hráčů). Bloky zapisují text skriptu - karta Text ukáže hned totéž - a každá změna je jeden krok zpět. Zapněte **{{MeBedienen}}** a události běží jako ve hře.",
     "Preview checked against the original game":
         "Náhled ověřený proti původní hře",
     "All Jedi Academy menus outside a running game were photographed in the original game (single and multiplayer) and compared with the preview. Since then the preview also draws: missing `@` texts as nothing (like the game), missing images of shader elements as the game's grey default box, the colours, heads and parts of the species set in `ui_char_model`, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns, and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.":
@@ -6858,8 +6836,6 @@ TEXTE = {
         "Menu Jedi Outcast byla porovnána se skutečnou hrou (verze ze Steamu). Editor se nyní řídí jejím enginem: žádné `setitemrect`, `setitemtext`, `transition2` ani `delay`, žádná událost `accept`, modely loga (`.md3`) s kamerou hry. **{{MeImSpielTesten}}** spustí `jk2sp.exe` s vaší vlastní složkou jako `fs_basepath` a herními daty přes `fs_cdpath` - do složky hry se nic nezapíše.",
     "Your first own menu":
         "Vaše první vlastní menu",
-    "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.":
-        "Od prázdného editoru k projektu se třemi tlačítky vedle sebe, která při najetí myší září - uloženo a připraveno k zabalení jako pk3.",
     "Menu editor · about 5 minutes":
         "Editor menu · asi 5 minut",
     "The pictures were taken while the program did exactly these steps; the self-test checks after each step that it really happened. In the program, the helper (F1) runs this tutorial as a tour and moves on by itself when a step is done.":
@@ -6872,20 +6848,8 @@ TEXTE = {
         "**Založte projekt.** Klikněte na **{{MePrjNeu}}** a vyberte složku pro soubor projektu. Editor vytvoří složky jako v pk3 a prázdné menu na celou obrazovku.",
     "The new project with its first menu.":
         "Nový projekt s prvním menu.",
-    "**Three buttons.** Double-click **{{MlTypButton}}** in the building blocks three times, or drag it onto the canvas.":
-        "**Tři tlačítka.** Třikrát dvakrát klikněte na **{{MlTypButton}}** ve stavebních blocích, nebo ho přetáhněte na plochu.",
-    "Three new buttons next to each other, not yet evenly spaced.":
-        "Tři nová tlačítka vedle sebe, zatím ne rovnoměrně rozmístěná.",
-    "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.":
-        "**Vedle sebe.** Vyberte tři tlačítka (Ctrl+kliknutí) a ve vlastnostech pod Rozvržení klikněte na **{{MeLayoutWaagrecht}}**.",
     "The buttons side by side with even spacing.":
         "Tlačítka vedle sebe se stejnými mezerami.",
-    "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.":
-        "**Záře při najetí.** Vyberte první tlačítko, otevřete kartu **Události** a klikněte na **{{MeEvLeuchten}}**.",
-    "The glow effect: show on hover, hide when the mouse leaves.":
-        "Efekt záře: zobrazit při najetí myší, skrýt, když myš odjede.",
-    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.":
-        "**Uložte.** Klikněte na **{{MeSpeichern}}** - v projektu to uloží vše. **{{MePrjProjekt}} > {{MePrjExport}}** pak zabalí pk3 pro hru.",
     "Saved: the project file and the menu in the project folder.":
         "Uloženo: soubor projektu a menu ve složce projektu.",
     "Arrange windows and screens":
@@ -7104,4 +7068,90 @@ TEXTE = {
         "**Obtisky (decals):** stopy po zásazích a spáleniny z efektů dopadají na stěny, které by označila hra: jako q3map2 sestaví editor svět mapy s jejím stromem BSP - jen viditelnou část každé stěny brushe, modely `misc_model` zapečené do světa a jen stěny vedle otevřeného listu stromu (žádná stopa na podlaze skryté pod schodem). Na velké mapě to trvá několik sekund jako sestavení; běží to na pozadí, a dokud to není hotové, platí poslední svět. Stěny, jejichž shader posouvá vrcholy (`deformVertexes move`), se počítají v celém rozsahu pohybu, jak je q3map2 řadí do stromu.",
     "Close its window with its **x** - the panel goes back to its place, nothing is lost. If that place is gone because you rearranged the area, it docks beside its neighbour and your arrangement stays.":
         "Zavřete jeho okno jeho **x** - panel se vrátí na své místo, nic se neztratí. Pokud to místo už neexistuje, protože jste oblast přeuspořádali, ukotví se vedle svého souseda a vaše uspořádání zůstane.",
+    "**Select several:** drag from an empty spot to draw a frame; it selects everything it touches. Ctrl or Shift adds to the selection, <kbd>Ctrl</kbd>+<kbd>A</kbd> selects everything. Locked and hidden elements stay out.":
+        "**Výběr více prvků:** Táhněte z prázdného místa a nakreslete rámeček; vybere vše, čeho se dotkne. Ctrl nebo Shift přidávají do výběru, <kbd>Ctrl</kbd>+<kbd>A</kbd> vybere vše. Zamčené a skryté prvky zůstanou mimo.",
+    "**Right-click** an element or a row of the hierarchy: cut, copy, paste, duplicate, delete, bring to front, send to back, lock, hide in the preview, save as your own template. On the canvas the menu also lists everything under the pointer.":
+        "**Pravé tlačítko** na prvku nebo řádku hierarchie: vyjmout, kopírovat, vložit, duplikovat, smazat, přenést dopředu, přesunout dozadu, zamknout, skrýt v náhledu, uložit jako vlastní šablonu. Na ploše nabídka uvádí i vše pod ukazatelem.",
+    "**Backgrounds let clicks through:** a decoration that fills the whole screen cannot be moved by accident. To change it, choose it in the hierarchy, in the right-click menu or with Alt+click.":
+        "**Pozadí nechávají kliknutí projít:** Ozdobu přes celou obrazovku omylem neposunete. Chcete-li ji změnit, vyberte ji v hierarchii, v nabídce pravého tlačítka nebo pomocí Alt+kliknutí.",
+    "**Manage menus:** right-click a tab above the canvas to rename, duplicate, delete or move its menu. Renaming also changes `open` and `close` in this file. Each is one undo step.":
+        "**Správa menu:** Pravým tlačítkem na kartě nad plochou její menu přejmenujete, duplikujete, smažete nebo přesunete. Přejmenování změní i `open` a `close` v tomto souboru. Každá akce je jeden krok zpět.",
+    "**Little room:** the two arrows above the canvas fold the left and the right panel. In a small window the left panel folds by itself, and the view switches move behind the **{{MeAnsichtKnopf}}** button.":
+        "**Málo místa:** Dvě šipky nad plochou sbalí levý a pravý panel. V malém okně se levý sbalí sám a přepínače zobrazení se přesunou za tlačítko **{{MeAnsichtKnopf}}**.",
+    "**Conditions:** {{MlFBedingung}} chooses whether a setting shows, hides, enables or disables the element. **{{MlFWerteListe}}** of a {{MlTypMulti}} element are a list of text and value. Lists and game-drawn elements have the group **{{MlGrSpielInhalt}}**; what the game could not read is refused with a message and the menu stays intact.":
+        "**Podmínky:** {{MlFBedingung}} volí, zda nastavení prvek zobrazí, skryje, povolí nebo zakáže. **{{MlFWerteListe}}** prvku {{MlTypMulti}} je seznam textu a hodnoty. Seznamy a prvky kreslené hrou mají skupinu **{{MlGrSpielInhalt}}**; co by hra nepřečetla, je odmítnuto se zprávou a menu zůstane celé.",
+    "**{{ActSaveAs}}** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) saves under a new name; in a project it writes a copy. <kbd>Ctrl</kbd>+<kbd>S</kbd> saves, also with the cursor in the text editor. If another program changes an open file, a line above the canvas offers **{{MeFremdLaden}}** (one undo step) or **{{MeFremdBehalten}}**.":
+        "**{{ActSaveAs}}** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) uloží pod novým názvem; v projektu zapíše kopii. <kbd>Ctrl</kbd>+<kbd>S</kbd> ukládá, i s kurzorem v textovém editoru. Změní-li jiný program otevřený soubor, řádek nad plochou nabídne **{{MeFremdLaden}}** (jeden krok zpět) nebo **{{MeFremdBehalten}}**.",
+    "A new menu file enters the game's menu list in the package by itself (`loadMenu`), otherwise the game would never load it. **{{MePruefen}}** warns when no menu opens it. **{{MeImSpielTesten}}** opens the menu of the open page right after the start; that step is only in the test package, never in the exported pk3. In multiplayer the original reads up to 256 elements per menu and 64 menus, OpenJK 512 and 128: between the two the check warns, above them it reports an error.":
+        "Nový soubor menu se v balíčku sám dostane do seznamu menu hry (`loadMenu`), jinak by ho hra nikdy nenačetla. **{{MePruefen}}** varuje, když ho žádné menu neotevírá. **{{MeImSpielTesten}}** otevře menu otevřené stránky hned po startu; to je jen v testovacím balíčku, nikdy v exportovaném pk3. Ve více hráčích čte originál až 256 prvků na menu a 64 menu, OpenJK 512 a 128: mezi tím kontrola varuje, nad tím hlásí chybu.",
+    "Two videos at once do not run: the engine plays one video at a time, and in the game they hold each other. The preview does the same and says so above the canvas.":
+        "Dvě videa najednou neběží: engine přehrává jedno video naráz a ve hře se navzájem zastaví. Náhled dělá totéž a řekne to nad plochou.",
+    "Select, right-click, manage menus":
+        "Výběr, pravé tlačítko, správa menu",
+    "**Three buttons.** Double-click **{{MlTypButton}}** under **{{MlLZeigen}}** three times, or drag it onto the canvas.":
+        "**Tři tlačítka.** Třikrát poklepejte na **{{MlTypButton}}** v **{{MlLZeigen}}**, nebo ho přetáhněte na plochu.",
+    "Three new buttons, slightly offset from each other.":
+        "Tři nová tlačítka, mírně posunutá vůči sobě.",
+    "**Side by side.** Drag from an empty spot on the canvas to draw a frame around the three buttons (or Ctrl+click them). Then click **{{MeLayoutWaagrecht}}** under **{{MlGrOrdnen}}** in **{{MeReiterEigenschaften}}**.":
+        "**Vedle sebe.** Táhněte z prázdného místa plochy a nakreslete rámeček kolem tří tlačítek (nebo Ctrl+kliknutí). Pak v **{{MeReiterEigenschaften}}** v části **{{MlGrOrdnen}}** klikněte na **{{MeLayoutWaagrecht}}**.",
+    "**Name them.** Double-click the first button on the canvas, type `Start` and press Enter. Name the others `Options` and `Quit` the same way.":
+        "**Pojmenujte je.** Poklepejte na první tlačítko na ploše, napište `Start` a stiskněte Enter. Stejně pojmenujte ostatní `Options` a `Quit`.",
+    "Each button says what it is, in the font of the game.":
+        "Každé tlačítko říká, co je, písmem hry.",
+    "**Glow on hover.** Click the first button, open the **{{MeEreignisse}}** tab, choose the trigger **{{MeEvHover}}** and click **{{MeEvLeuchten}}**.":
+        "**Záře při najetí.** Klikněte na první tlačítko, otevřete kartu **{{MeEreignisse}}**, zvolte spouštěč **{{MeEvHover}}** a klikněte na **{{MeEvLeuchten}}**.",
+    "The glow as two steps: on when the pointer enters, off again when it leaves.":
+        "Záře jako dva kroky: zapne se při příchodu ukazatele a vypne při odchodu.",
+    "**Give a button a job.** Click the third button. In **{{MeEreignisse}}** choose the trigger **{{MeEvKlick}}**, click **{{MlAddStep}}**, pick the command `exec` and type `quit` in its field.":
+        "**Dejte tlačítku úkol.** Klikněte na třetí tlačítko. V **{{MeEreignisse}}** zvolte spouštěč **{{MeEvKlick}}**, klikněte na **{{MlAddStep}}**, vyberte příkaz `exec` a do jeho pole napište `quit`.",
+    "A step in plain words; the field holds the console command.":
+        "Krok slovy; pole obsahuje příkaz konzole.",
+    "**Try it.** Click **{{MeBedienen}}** and point at the first button: It glows. **{{MeBearbeiten}}** takes you back.":
+        "**Vyzkoušejte.** Klikněte na **{{MeBedienen}}** a ukažte na první tlačítko: Rozsvítí se. **{{MeBearbeiten}}** vás vrátí zpět.",
+    "In interact mode the canvas reacts as the game does.":
+        "V režimu ovládání plocha reaguje jako hra.",
+    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything.":
+        "**Uložte.** Klikněte na **{{MeSpeichern}}** - v projektu se uloží vše.",
+    "**In the game.** Click **{{MeImSpielTesten}}**: the game starts and shows your menu right away, without touching the game folder. **{{MePrjProjekt}} > {{MePrjExport}}** packs the pk3. Your new menu is in the game's menu list by itself; to reach it from another menu, add the step `open my_menu` to a button there.":
+        "**Ve hře.** Klikněte na **{{MeImSpielTesten}}**: Hra se spustí a hned ukáže vaše menu, složka hry zůstane nedotčená. **{{MePrjProjekt}} > {{MePrjExport}}** zabalí pk3. Nové menu se samo dostane do seznamu menu hry; chcete-li se k němu dostat z jiného menu, přidejte tam tlačítku krok `open my_menu`.",
+    "The test package is ready; the command line stands in the toolbar.":
+        "Testovací balíček je hotový; příkazový řádek je na liště.",
+    "From an empty editor to a project with three named buttons side by side: one glows on hover, one has a job. Saved, packed and tested in the game.":
+        "Od prázdného editoru k projektu se třemi pojmenovanými tlačítky vedle sebe: jedno při najetí svítí, jedno má úkol. Uloženo, zabaleno a vyzkoušeno ve hře.",
+    "The left panel: parts as tiles, sorted by what they do, and the hierarchy below them.":
+        "Levý panel: díly jako dlaždice seřazené podle účelu a pod nimi hierarchie.",
+    "A selection frame: everything it touches is selected.":
+        "Výběrový rámeček: Vybráno je vše, čeho se dotkne.",
+    "The right-click menu of an element, with the list of everything under the pointer.":
+        "Nabídka pravého tlačítka prvku se seznamem všeho pod ukazatelem.",
+    "Right-click on a tab: rename, duplicate, delete or move its menu.":
+        "Pravé tlačítko na kartě: přejmenovat, duplikovat, smazat nebo přesunout její menu.",
+    "Properties of a button: the card with its buttons at the top, groups with a summary below.":
+        "Properties tlačítka: nahoře karta s tlačítky, pod ní skupiny se shrnutím.",
+    "The choices of a multi choice element: text and value, one row each.":
+        "Možnosti prvku vícenásobné volby: text a hodnota, na každém řádku jedna.",
+    "Events in plain words: the triggers on top, the steps of the chosen trigger below.":
+        "Events slovy: nahoře spouštěče, pod nimi kroky zvoleného spouštěče.",
+    "Add step: search, the most used commands, and groups.":
+        "Add step: hledání, nejpoužívanější příkazy a skupiny.",
+    "Choosing an image for a frame: images and shaders of the game with a search, or from a file.":
+        "Výběr obrázku pro rámec: obrázky a shadery hry s hledáním, nebo ze souboru.",
+    "1920 x 1080 at 200 %: the left panel has folded by itself, the arrows above the canvas bring it back.":
+        "1920 x 1080 při 200 %: Levý panel se sám sbalil, šipky nad plochou ho vrátí.",
+    "Writing on the canvas: a double-click on a text opens it in place, the menu shows what you type.":
+        "Psaní na ploše: Dvojklik na text ho otevře přímo na místě a menu ukazuje, co píšete.",
+    "An empty menu as in the game; the switch above the canvas shows what the game would draw with no background.":
+        "Prázdné menu jako ve hře; přepínač nad plochou ukazuje, co hra kreslí bez pozadí.",
+    "Dragging a part from the left onto the canvas: it lands where you let go.":
+        "Přetažení dílu zleva na plochu: Skončí tam, kde ho pustíte.",
+    "The hierarchy shows the open page only: its elements with eye and lock.":
+        "Hierarchie ukazuje jen otevřenou stránku: její prvky s okem a zámkem.",
+    "Events in a wide panel: triggers and steps side by side.":
+        "Events v širokém panelu: spouštěče a kroky vedle sebe.",
+    "Another program changed the open file: the line above the canvas offers to reload it or to keep your version.":
+        "Jiný program změnil otevřený soubor: Řádek nad plochou nabídne znovu načíst nebo ponechat vaši verzi.",
+    "An animation of the model chosen from the game's list in Properties; the preview plays it.":
+        "Animace modelu vybraná v Properties ze seznamu hry; náhled ji přehrává.",
+    "**Limits as measured in the games:** Jedi Academy draws 150 elements per menu in single player and 256 in multiplayer (OpenJK 512, the check warns about that), Jedi Outcast 128 in single player and 256 in multiplayer, Movie Duels 4096. What is beyond is dropped, the menu stays. **Text under the pointer:** without `focusColor` a button's text disappears as soon as the pointer is on it; new menus have it, {{MlFFokusFarbe}} in Properties sets it and the check names the elements without it. **Models in multiplayer:** without `model_g2skin` the game draws the model dark; the check says so, the preview keeps showing the default skin. **Nothing opens the menu:** the check also says when no other menu has an `open` for it.":
+        "**Limity změřené ve hrách:** Jedi Academy kreslí 150 prvků na menu pro jednoho hráče a 256 pro více hráčů (OpenJK 512, kontrola na to upozorní), Jedi Outcast 128 pro jednoho hráče a 256 pro více hráčů, Movie Duels 4096. Co je nad limit, odpadne, menu zůstane. **Text pod ukazatelem:** Bez `focusColor` text tlačítka zmizí, jakmile je na něm ukazatel; nová menu ji mají, {{MlFFokusFarbe}} v Properties ji nastaví a kontrola jmenuje prvky bez ní. **Modely pro více hráčů:** Bez `model_g2skin` hra kreslí model tmavý; kontrola to řekne, náhled dál ukazuje výchozí skin. **Menu nic neotevírá:** Kontrola také upozorní, když pro něj žádné jiné menu nemá `open`.",
 }

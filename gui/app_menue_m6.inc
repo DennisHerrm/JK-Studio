@@ -342,6 +342,19 @@ void zeichneLesbarkeit(Dokument& d) {
 // Eine Zeile unter den Seiten: Elemente, Menues, laengstes Skript gegen die Grenzen der Fassung
 void zeichneGrenzenZeile(Dokument& d) {
     const Auslastung a = auslastung(d.datei, menuDerSeite(d));
+    // rc608 Teil 3b: Spalten neben der Flaeche auf- und zuklappen
+    if (Z().spaltenFrei) {
+        Zustand& z = Z();
+        const auto pfeil = [](const char* id, bool nachLinks, const char* tip) {
+            const bool k = ImGui::ArrowButton(id, nachLinks ? ImGuiDir_Left : ImGuiDir_Right);
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tip); }
+            return k;
+        };
+        if (pfeil("##links_zu", !z.linksZu, tr(z.linksZu ? Str::MeLinksAuf : Str::MeLinksZu))) { z.linksZu = !z.linksZu; }
+        ImGui::SameLine();
+        if (pfeil("##rechts_zu", z.rechtsZu, tr(z.rechtsZu ? Str::MeRechtsAuf : Str::MeRechtsZu))) { z.rechtsZu = !z.rechtsZu; }
+        ImGui::SameLine(0, ImGui::GetFontSize());
+    }
     auto teil = [](Str s, int wert, int grenze) {
         const float anteil = grenze > 0 ? static_cast<float>(wert) / static_cast<float>(grenze) : 0.0F;
         const ImVec4 c = anteil >= 1.0F ? ImVec4{1, 0.35F, 0.3F, 1} : (anteil >= 0.8F ? ImVec4{1, 0.7F, 0.25F, 1} : ImVec4{0.6F, 0.6F, 0.6F, 1});
@@ -349,16 +362,22 @@ void zeichneGrenzenZeile(Dokument& d) {
         std::snprintf(b.data(), b.size(), tr(s), wert, grenze);
         ImGui::TextColored(c, "%s", b.data());
     };
-    ImGui::BeginGroup();
-    teil(Str::MeGrenzenItems, a.items, a.g.menuItems);
-    ImGui::SameLine(0, ImGui::GetFontSize());
-    teil(Str::MeGrenzenMenues, a.menus, a.g.menus);
-    ImGui::SameLine(0, ImGui::GetFontSize());
-    teil(Str::MeGrenzenSkript, a.skript, a.g.skript);
-    ImGui::EndGroup();
-    const bool grenzenHover = ImGui::IsItemHovered();
-    ImGui::SameLine(0, ImGui::GetFontSize());
-    zeichneLesbarkeit(d);   // Punkt 9
+    // rc608 Teil 3b: Bei wenig Hoehe nur, wenn eine Grenze nahe ist; die Flaeche braucht die Zeile
+    const auto nahe = [](int wert, int grenze) { return grenze > 0 && wert * 5 >= grenze * 4; };
+    const bool zeigen = ImGui::GetContentRegionAvail().y >= ImGui::GetFontSize() * 15.0F || nahe(a.items, a.g.menuItems) || nahe(a.menus, a.g.menus) || nahe(a.skript, a.g.skript);
+    bool grenzenHover = false;
+    if (zeigen) {
+        ImGui::BeginGroup();
+        teil(Str::MeGrenzenItems, a.items, a.g.menuItems);
+        ImGui::SameLine(0, ImGui::GetFontSize());
+        teil(Str::MeGrenzenMenues, a.menus, a.g.menus);
+        ImGui::SameLine(0, ImGui::GetFontSize());
+        teil(Str::MeGrenzenSkript, a.skript, a.g.skript);
+        ImGui::EndGroup();
+        grenzenHover = ImGui::IsItemHovered();
+        ImGui::SameLine(0, ImGui::GetFontSize());
+        zeichneLesbarkeit(d);   // Punkt 9
+    }
     // rc608 Punkt 9: nur bei einem Menue ohne fullScreen
     if (const int mi = menuDerSeite(d); mi >= 0 && d.datei.menus[static_cast<std::size_t>(mi)].fullScreen == 0) {
         daneben(hakenBreite(tr(Str::MeSchachbrett)));
@@ -492,7 +511,7 @@ void zeichneSchliessenFrage() {
     if (ImGui::Button(tr(Str::MeSpeichern))) {
         std::string ziel = d.platte;
         if (ziel.empty() || imSpielordner(ziel)) {
-            ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe, fs::path(d.name).filename().string());
+            ziel = platform::saveFileDialog(tr(Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe, u8(utf8Pfad(d.name).filename()));
         }
         if (!ziel.empty()) {
             speichern(d, ziel);

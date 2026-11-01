@@ -43,7 +43,7 @@ Datei lese(const std::string& text, Dialekt d, Spiel s) {
 }
 std::string viele(int n) {
     std::string t = "{\nmenuDef\n{\nname viele\nrect 0 0 640 480\n";
-    for (int i = 0; i < n; ++i) { t += "itemDef { name i" + std::to_string(i) + " rect 10 10 20 20 style WINDOW_STYLE_FILLED visible 1 }\n"; }
+    for (int i = 0; i < n; ++i) { t += "itemDef { name i" + std::to_string(i) + " rect 10 10 20 20 visible 1 }\n"; }
     return t + "}\n}\n";
 }
 }  // namespace
@@ -57,7 +57,21 @@ int main() {
         const Datei md = lese(viele(151), Dialekt::SP, Spiel::MD);
         pruefe(zaehle(pruefeFuerSpiel(md, PruefKontext{}), BefundArt::ZuVieleItems) == 0, "Grenze: 151 Items in Movie Duels (4096)");
         const Grenzen g = grenzenFuer(Dialekt::MP, Spiel::JA);
-        pruefe(g.menuItems == 512 && g.skript == 2048 && g.menus == 128, "Grenzen MP: 512 Items, 2048 Zeichen Skript, 128 Menues");
+        pruefe(g.menuItems == 256 && g.menuItemsOpenJk == 512 && g.skript == 2048 && g.menus == 64 && g.menusOpenJk == 128, "Grenzen JA MP: Original 256 Items und 64 Menues, OpenJK 512 und 128, 2048 Zeichen Skript");
+        // rc608 Teil 3b: zwischen Original und OpenJK eine Warnung, darueber ein Fehler; JK2 kennt nur das Original
+        const std::vector<Befund> mitte = pruefeFuerSpiel(lese(viele(300), Dialekt::MP, Spiel::JA), PruefKontext{});
+        pruefe(zaehle(mitte, BefundArt::NurOpenJk) == 1 && zaehle(mitte, BefundArt::ZuVieleItems) == 0, "Grenze: 300 Items in JA MP: nur mit OpenJK");
+        const std::vector<Befund> drueber = pruefeFuerSpiel(lese(viele(513), Dialekt::MP, Spiel::JA), PruefKontext{});
+        pruefe(zaehle(drueber, BefundArt::ZuVieleItems) == 1 && zaehle(drueber, BefundArt::NurOpenJk) == 0, "Grenze: 513 Items in JA MP: auch fuer OpenJK zu viel");
+        pruefe(zaehle(pruefeFuerSpiel(lese(viele(300), Dialekt::MP, Spiel::JK2), PruefKontext{}), BefundArt::ZuVieleItems) == 1, "Grenze: 300 Items in JK2 MP (Original 256)");
+        pruefe(zaehle(pruefeFuerSpiel(lese(viele(300), Dialekt::MP, Spiel::MD), PruefKontext{}), BefundArt::ZuVieleItems) == 0, "Grenze: 300 Items in Movie Duels MP (gemessen: 4096)");
+        pruefe(zaehle(pruefeFuerSpiel(lese(viele(129), Dialekt::SP, Spiel::JK2), PruefKontext{}), BefundArt::ZuVieleItems) == 1, "Grenze: 129 Items in JK2 SP (im Spiel gemessen: 128)");
+        pruefe(zaehle(pruefeFuerSpiel(lese(viele(128), Dialekt::SP, Spiel::JK2), PruefKontext{}), BefundArt::ZuVieleItems) == 0, "Grenze: 128 Items in JK2 SP");
+    }
+    // rc608 Teil 3b: Modell ohne Skin im MP
+    {
+        const std::string m = "{\nmenuDef\n{\nname m\nrect 0 0 640 480\nitemDef { name k type 7 rect 0 0 100 100 asset_model \"models/players/kyle/model.glm\" visible 1 }\n}\n}\n";
+        pruefe(zaehle(pruefeFuerSpiel(lese(m, Dialekt::MP, Spiel::JA), PruefKontext{}), BefundArt::ModellOhneSkin) == 1, "MP-Modell ohne model_g2skin wird genannt");
     }
     // Skriptlaenge: ein action-Skript ueber 2048 Zeichen ist in MP zu lang, in SP nicht
     {

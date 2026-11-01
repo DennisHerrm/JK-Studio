@@ -159,7 +159,7 @@ void zeichneBeispielWerte(const Dokument& d) {
 // M7 Punkt 13: alle Dateien des Pakets lose in den Spielordner des eigenen Testordners (nie ins Spiel)
 bool loseDateienSchreiben(const std::string& ordner) {
     std::error_code ec;
-    for (const Pk3Datei& f : paketDateien(true)) {
+    for (const Pk3Datei& f : testPaketDateien()) {
         const fs::path ziel = utf8Pfad(ordner) / utf8Pfad(f.name);
         fs::create_directories(ziel.parent_path(), ec);
         if (!schreibeDatei(u8(ziel), f.inhalt)) { return false; }

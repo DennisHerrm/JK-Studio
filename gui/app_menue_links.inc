@@ -391,7 +391,8 @@ void zeichnePalette(Dokument& d) {
     // Suche und, bis zum ersten Einfuegen, der Hinweis
     ImGui::SetNextItemWidth(-FLT_MIN);
     (void)eingabe("##teile_suche", &z.teileSuche, 0, tr(Str::MlTeileSuche));
-    if (!g_app->settings.menueTeileHinweisWeg) {
+    // rc608 Teil 3b: Bei wenig Hoehe braucht die Liste den Platz; der Name jeder Kachel und ihr Tipp sagen dasselbe
+    if (!g_app->settings.menueTeileHinweisWeg && ImGui::GetContentRegionAvail().y >= fs * 14.0F) {
         ImGui::PushTextWrapPos(0.0F);
         ImGui::TextDisabled("%s", tr(Str::MlTeileHinweis));
         ImGui::PopTextWrapPos();
@@ -417,8 +418,9 @@ void panelBausteine(Dokument& d) {
     const float h = ImGui::GetContentRegionAvail().y;
     const float kopf = std::floor(ImGui::GetFontSize() * 1.75F) + ImGui::GetStyle().ItemSpacing.y;
     const bool hierarchieOffen = l.zu.count("l_hier") == 0;
-    const float unten = hierarchieOffen ? std::floor(h * 0.37F) : kopf;
-    ImGui::BeginChild("##teile", ImVec2{0.0F, std::max(ImGui::GetFontSize() * 6.0F, h - unten - ImGui::GetStyle().ItemSpacing.y)}, ImGuiChildFlags_None);
+    // rc608 Teil 3b: Wenig Hoehe (1920 x 1080 bei 200 %): Die Hierarchie braucht ihre Zeilen, die Kacheln rollen
+    const float unten = hierarchieOffen ? std::floor(h * (h < ImGui::GetFontSize() * 18.0F ? 0.58F : 0.37F)) : kopf;
+    ImGui::BeginChild("##teile", ImVec2{0.0F, std::max(ImGui::GetFontSize() * 4.5F, h - unten - ImGui::GetStyle().ItemSpacing.y)}, ImGuiChildFlags_None);
     zeichnePalette(d);
     ImGui::EndChild();
     ImGui::BeginChild("##ebenen", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);

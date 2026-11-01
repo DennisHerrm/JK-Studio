@@ -43,7 +43,7 @@ void knopf(Bau& b, const std::string& name, const std::string& text, const std::
 }
 
 void titel(Bau& b, const std::string& text) {
-    b.item("titel", {{"rect", "0 30 640 60"},
+    b.item("title", {{"rect", "0 30 640 60"},
                      {"text", zit(text)},
                      {"textscale", "1.6"},
                      {"textalign", "ITEM_ALIGN_CENTER"},
@@ -54,7 +54,7 @@ void titel(Bau& b, const std::string& text) {
 }
 
 void hintergrund(Bau& b) {
-    b.item("hintergrund", {{"rect", "0 0 640 480"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.02 0.03 0.08 1"}, {"decoration", ""}, {"visible", "1"}});
+    b.item("background", {{"rect", "0 0 640 480"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.02 0.03 0.08 1"}, {"decoration", ""}, {"visible", "1"}});
 }
 
 }  // namespace
@@ -82,9 +82,9 @@ std::string seitenVorlage(SeitenVorlage art, Dialekt d, const std::string& name,
         case SeitenVorlage::Hauptmenue:
             hintergrund(b);
             titel(b, "MY MOD");
-            knopf(b, "knopf_einstellungen", "Settings", "230 200 180 30", "open " + seitenVorlageName(SeitenVorlage::Einstellungen, d));
-            knopf(b, "knopf_credits", "Credits", "230 245 180 30", "open " + seitenVorlageName(SeitenVorlage::Credits, d));
-            knopf(b, "knopf_beenden", "Quit", "230 290 180 30", "exec \"quit\"");
+            knopf(b, "button_settings", "Settings", "230 200 180 30", "open " + seitenVorlageName(SeitenVorlage::Einstellungen, d));
+            knopf(b, "button_credits", "Credits", "230 245 180 30", "open " + seitenVorlageName(SeitenVorlage::Credits, d));
+            knopf(b, "button_quit", "Quit", "230 290 180 30", "exec \"quit\"");
             break;
         case SeitenVorlage::Einstellungen: {
             b.kv(1, "onOpen", "{ setcvar ui_jks_tab 1 }");
@@ -94,7 +94,7 @@ std::string seitenVorlage(SeitenVorlage art, Dialekt d, const std::string& name,
             const char* const reiter[] = {"Video", "Sound", "Controls"};
             for (int i = 0; i < 3; ++i) {
                 const std::string n = std::to_string(i + 1);
-                knopf(b, "reiter" + n, reiter[i], std::to_string(40 + i * 190) + " 100 180 30", "setcvar ui_jks_tab " + n);
+                knopf(b, "tab" + n, reiter[i], std::to_string(40 + i * 190) + " 100 180 30", "setcvar ui_jks_tab " + n);
             }
             struct Feld {
                 int reiter;
@@ -129,7 +129,7 @@ std::string seitenVorlage(SeitenVorlage art, Dialekt d, const std::string& name,
                 else { k.emplace_back("cvar", zit(f.cvar)); }
                 b.item(f.name, k);
             }
-            knopf(b, "zurueck", "Back", "40 420 180 30", "close " + name);
+            knopf(b, "back", "Back", "40 420 180 30", "close " + name);
             break;
         }
         case SeitenVorlage::Credits: {
@@ -138,7 +138,7 @@ std::string seitenVorlage(SeitenVorlage art, Dialekt d, const std::string& name,
             titel(b, "CREDITS");
             const char* const zeilen[] = {"Design: your name", "Menus: made with JK Studio", "Thanks: the Jedi Academy modding community"};
             for (int i = 0; i < 3; ++i) {
-                b.item("zeile" + std::to_string(i + 1), {{"rect", "0 " + std::to_string(160 + i * 40) + " 640 30"},
+                b.item("line" + std::to_string(i + 1), {{"rect", "0 " + std::to_string(160 + i * 40) + " 640 30"},
                                                          {"text", zit(zeilen[i])},
                                                          {"textscale", "1"},
                                                          {"textalign", "ITEM_ALIGN_CENTER"},
@@ -147,15 +147,15 @@ std::string seitenVorlage(SeitenVorlage art, Dialekt d, const std::string& name,
                                                          {"decoration", ""},
                                                          {"visible", "1"}});
             }
-            knopf(b, "zurueck", "Back", "40 420 180 30", "close " + name);
+            knopf(b, "back", "Back", "40 420 180 30", "close " + name);
             break;
         }
         case SeitenVorlage::Ladebildschirm:
             hintergrund(b);
             titel(b, "LOADING");
-            b.item("balken_rahmen", {{"rect", "120 400 400 16"}, {"style", "WINDOW_STYLE_EMPTY"}, {"border", "1"}, {"bordersize", "1"},
+            b.item("bar_frame", {{"rect", "120 400 400 16"}, {"style", "WINDOW_STYLE_EMPTY"}, {"border", "1"}, {"bordersize", "1"},
                                      {"bordercolor", "0.6 0.7 1 1"}, {"decoration", ""}, {"visible", "1"}});
-            b.item("balken", {{"rect", "122 402 240 12"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.3 0.5 1 1"}, {"decoration", ""}, {"visible", "1"}});
+            b.item("bar", {{"rect", "122 402 240 12"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.3 0.5 1 1"}, {"decoration", ""}, {"visible", "1"}});
             break;
     }
     b.zeile(0, "}");

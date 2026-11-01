@@ -106,14 +106,15 @@ public:
                 // zeichnet nichts und ist schwarz, weil _UI_IsFullscreen das Spielbild darunter weglaesst; auch ein Bild ohne backcolor
                 // (implizit rgbGen vertex) bleibt unsichtbar.
                 if (bildDa) { bild(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.background, m_.window.backColor, -1); }
-                else if (m_.window.backColor.a > 0.0F) { fuellen(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.backColor); }
+                // rc608 Teil 3b, im Spiel fotografiert: jk2sp.exe zeichnet backcolor ohne Bild nicht, jasp und Movie Duels fuellen
+                else if (m_.window.backColor.a > 0.0F && d_.spiel != Spiel::JK2) { fuellen(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.backColor); }
             } else {
                 // codemp/ui Menu_Paint: DC->drawHandlePic mit Griff 0 ("FIXME: make sure we have a default shader"): der graue "<default>"-Kasten
                 bild(0, 0, kSchirmBreite, kSchirmHoehe, bildDa ? m_.window.background : std::string(kDefaultShader), Farbe{1, 1, 1, 1}, -1);
             }
-        } else if (!m_.window.background.empty()) {
-            fenster(m_.window, -1);
         }
+        // rc608 Teil 3b, im Spiel fotografiert: Menu_Paint ruft Window_Paint immer. Ein Menue mit style FILLED und backcolor deckt auch den grauen Kasten des MP.
+        fenster(m_.window, -1);
         for (std::size_t i = 0; i < m_.items.size(); ++i) {
             item_ = static_cast<int>(i);
             item(m_.items[i]);
@@ -219,11 +220,21 @@ private:
     }
 
     // DC->drawRect (UI_DrawRect: drawSides + drawTopBottom)
+    // rc608 Teil 3b, im Spiel gemessen (Rahmen 1: 4 Bildpunkte bei 1280 x 960): _UI_DrawSides und _UI_DrawTopBottom rechnen size *= xscale bzw. yscale,
+    // und das Bild skaliert danach noch einmal. Die Dicke haengt also von der Aufloesung des Spiels ab.
+    void seiten(float x, float y, float w, float h, float size, const Farbe& c) {
+        const float s = size * u_.rahmenX;
+        fuellen(x, y, s, h, c);
+        fuellen(x + w - s, y, s, h, c);
+    }
+    void obenUnten(float x, float y, float w, float h, float size, const Farbe& c) {
+        const float s = size * u_.rahmenY;
+        fuellen(x, y, w, s, c);
+        fuellen(x, y + h - s, w, s, c);
+    }
     void rahmen(float x, float y, float w, float h, float size, const Farbe& c) {
-        fuellen(x, y, size, h, c);
-        fuellen(x + w - size, y, size, h, c);
-        fuellen(x, y, w, size, c);
-        fuellen(x, y + h - size, w, size, c);
+        seiten(x, y, w, h, size, c);
+        obenUnten(x, y, w, h, size, c);
     }
 
     // Window_Paint
@@ -262,11 +273,9 @@ private:
         if (w.border == WINDOW_BORDER_FULL) {
             rahmen(w.rect.x, w.rect.y, w.rect.w, w.rect.h, w.borderSize, w.borderColor);
         } else if (w.border == WINDOW_BORDER_HORZ) {   // drawTopBottom
-            fuellen(w.rect.x, w.rect.y, w.rect.w, w.borderSize, w.borderColor);
-            fuellen(w.rect.x, w.rect.y + w.rect.h - w.borderSize, w.rect.w, w.borderSize, w.borderColor);
+            obenUnten(w.rect.x, w.rect.y, w.rect.w, w.rect.h, w.borderSize, w.borderColor);
         } else if (w.border == WINDOW_BORDER_VERT) {   // drawSides
-            fuellen(w.rect.x, w.rect.y, w.borderSize, w.rect.h, w.borderColor);
-            fuellen(w.rect.x + w.rect.w - w.borderSize, w.rect.y, w.borderSize, w.rect.h, w.borderColor);
+            seiten(w.rect.x, w.rect.y, w.rect.w, w.rect.h, w.borderSize, w.borderColor);
         }
     }
 
@@ -441,7 +450,7 @@ private:
         std::size_t p = t.find('\r');
         while (p != std::string::npos) {
             text(tr_.x, y, it.textscale, c, t.substr(start, p - start), 0, it.textStyle, it.font);
-            y += hoehe + 2;
+            y += hoehe + (u_.dialekt == Dialekt::SP ? 5 : 2);   // rc608 Teil 3b: code/ui + 5, codemp/ui + 2
             start = p + 1;
             p = t.find('\r', p + 1);
         }
@@ -454,6 +463,12 @@ private:
         if (t.empty()) { return; }
         const Farbe c = textFarbe(it, flags);
         const int hoehe = textHoehe(it.textscale, it.font);
+        // rc608 Teil 3b: code/ui bricht schon bei Breite - textalignx um, rueckt um Hoehe + 4 vor und hoert am Boden des
+        // Kastens mit "..." auf (cursorPos bleibt 0, ohne Tastendruck kein Rollen); codemp/ui nichts davon.
+        const bool sp = u_.dialekt == Dialekt::SP;
+        const float grenze = sp ? it.window.rect.w - it.textalignx : it.window.rect.w;
+        const int vorschub = hoehe + (sp ? 4 : 5);
+        const float boden = it.window.rect.h - static_cast<float>(hoehe);
         float y = it.textaligny;
         std::string buff;
         std::size_t newLine = 0;
@@ -469,17 +484,24 @@ private:
                 newLineWidth = textWidth;
             }
             textWidth = textBreite(buff, it.textscale, 0);
-            if ((newLine != 0 && static_cast<float>(textWidth) > it.window.rect.w) || ch == '\n' || ch == '\0') {
+            const bool voll = sp ? static_cast<float>(textWidth) >= grenze : static_cast<float>(textWidth) > grenze;
+            if ((newLine != 0 && voll) || ch == '\n' || ch == '\0') {
                 if (!buff.empty()) {
                     float x = it.textalignx;
                     if (it.textalignment == ITEM_ALIGN_RIGHT) { x = it.textalignx - static_cast<float>(newLineWidth); }
                     else if (it.textalignment == ITEM_ALIGN_CENTER) { x = it.textalignx - static_cast<float>(newLineWidth / 2); }
                     float yy = y;
                     zuFenster(x, yy, it.window);
-                    text(x, yy, it.textscale, c, buff.substr(0, newLine), 0, it.textStyle, it.font);
+                    std::string zeile = buff.substr(0, newLine);
+                    if (sp && ch != '\0' && y + static_cast<float>(vorschub) > boden) { zeile += "..."; }
+                    text(x, yy, it.textscale, c, zeile, 0, it.textStyle, it.font);
+                }
+                if (sp) {
+                    y += static_cast<float>(vorschub);
+                    if (y > boden) { break; }
                 }
                 if (ch == '\0') { break; }
-                y += static_cast<float>(hoehe + 5);
+                if (!sp) { y += static_cast<float>(vorschub); }
                 p = newLinePtr;
                 buff.clear();
                 newLine = 0;

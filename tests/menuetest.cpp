@@ -96,6 +96,41 @@ void leeresMenue() {
     pruefe(prims("fullScreen 1", Dialekt::SP).empty(), "SP fullScreen ohne background zeichnet nichts (schwarz)");
     const std::vector<Prim> farbe = prims("fullScreen 1 backcolor 0.2 0.3 0.8 1", Dialekt::SP);
     pruefe(farbe.size() == 1 && farbe[0].art == PrimArt::Fuellen && farbe[0].farbe.b > 0.7F && farbe[0].w == 640.0F, "SP fullScreen mit backcolor fuellt");
+    // rc608 Teil 3b, im Spiel fotografiert: jk2sp.exe fuellt mit backcolor ohne Bild nichts, jasp schon
+    {
+        LeseOptionen o;
+        o.dialekt = Dialekt::SP;
+        o.spiel = Spiel::JK2;
+        const Datei d = lies("ui/x.menu", "{ menuDef { name m rect 0 0 640 480 visible 1 fullScreen 1 backcolor 0.2 0.3 0.8 1 } }", o);
+        Umgebung u;
+        u.dialekt = Dialekt::SP;
+        std::vector<Prim> v;
+        zeichneMenu(d, 0, u, v);
+        pruefe(v.empty(), "JK2 SP fullScreen mit backcolor fuellt nicht");
+    }
+    // rc608 Teil 3b, im Spiel fotografiert: Menu_Paint ruft Window_Paint immer
+    {
+        const std::vector<Prim> v = prims("fullScreen 1 style 1 backcolor 0 0 0 1", Dialekt::MP);
+        pruefe(v.size() == 2 && v[1].art == PrimArt::Fuellen && v[1].farbe.a > 0.9F, "MP fullScreen mit style FILLED: die Farbe liegt ueber dem grauen Kasten");
+    }
+    // rc608 Teil 3b, im Spiel gemessen: Rahmendicke = size * Aufloesung / 640
+    {
+        LeseOptionen o;
+        o.dialekt = Dialekt::MP;
+        const Datei d = lies("ui/x.menu", "{ menuDef { name m rect 0 0 640 480 visible 1 itemDef { name k rect 10 10 100 50 border 1 bordercolor 1 1 1 1 visible 1 } } }", o);
+        Umgebung u;
+        u.dialekt = Dialekt::MP;
+        u.rahmenX = 2.0F;
+        u.rahmenY = 3.0F;
+        std::vector<Prim> v;
+        zeichneMenu(d, 0, u, v);
+        bool seite = false, oben = false;
+        for (const Prim& p : v) {
+            seite = seite || (p.art == PrimArt::Fuellen && p.w == 2.0F && p.h == 50.0F);
+            oben = oben || (p.art == PrimArt::Fuellen && p.h == 3.0F && p.w == 100.0F);
+        }
+        pruefe(seite && oben, "Rahmen rechnen mit der Aufloesung des Spiels");
+    }
     const std::vector<Prim> bildSp = prims("fullScreen 1 background \"x\"", Dialekt::SP);
     pruefe(bildSp.size() == 1 && bildSp[0].shader == "x" && bildSp[0].farbe.a == 0.0F, "SP background ohne backcolor: Alpha 0");
     const std::vector<Prim> mp = prims("fullScreen 1", Dialekt::MP);

@@ -2209,6 +2209,8 @@ from i18n_rc608 import RC608  # noqa: E402  (rc608: Startbildschirm des Menue-Ed
 S += RC608
 from i18n_rc608_3a import zeilen_vier as _rc608_3a  # noqa: E402  (rc608 Teil 3a: Seitenleisten des Menue-Editors)
 S += _rc608_3a()
+from i18n_rc608_3b import zeilen_vier as _rc608_3b  # noqa: E402  (rc608 Teil 3b: Gesamtpruefung des Menue-Editors)
+S += _rc608_3b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

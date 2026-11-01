@@ -317,10 +317,16 @@ MENUE = "modus:4 < knopf:ViewMenuEditor@modebar"
 NACH_SCHRITT.update({
     ("tut-menue-eigen", "classic", 1): A("knopf:ViewMenuEditor@modebar", "modus:4", einrichten="modus:4", sicher=True),
     ("tut-menue-eigen", "classic", 2): A("knopf:MePrjNeu", "zahl:menue.projekt", voraus=MENUE),
-    ("tut-menue-eigen", "classic", 3): A("knopf:MlTypButton", "zahl:menue.elemente+", voraus=MENUE),
-    ("tut-menue-eigen", "classic", 4): A("knopf:MeLayoutWaagrecht", "zahl:menue.layouts+", voraus=MENUE),
-    ("tut-menue-eigen", "classic", 5): A("knopf:MeEvLeuchten", "zahl:menue.ereignisse+", voraus=MENUE),
-    ("tut-menue-eigen", "classic", 6): A("knopf:MeSpeichern", "zahl:menue.gespeichert+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 3): A("knopf:MlTypButton@##links", "zahl:menue.elemente+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 4): A("knopf:MeLayoutWaagrecht", "zahl:menue.layouts+", voraus=MENUE + " && zahl:menue.reiterprop < knopf:MeReiterEigenschaften@##rechts"),
+    ("tut-menue-eigen", "classic", 5): A("fenster:##mitte", "zahl:menue.text~", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 6): A("knopf:MeEvLeuchten", "zahl:menue.ereignisse+",
+                                         voraus=MENUE + " && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trighover < knopfN:##tr_mouseEnter@##rechts"),
+    ("tut-menue-eigen", "classic", 7): A("knopf:MlAddStep", "zahl:menue.ereignisse+",
+                                         voraus=MENUE + " && zahl:menue.reiterevents < knopf:MeEreignisse@##rechts && zahl:menue.trigklick < knopfN:##tr_action@##rechts"),
+    ("tut-menue-eigen", "classic", 8): A("knopf:MeBedienen", "zahl:menue.bedienen", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 9): A("knopf:MeSpeichern", "zahl:menue.gespeichert+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 10): A("knopf:MeImSpielTesten", "zahl:menue.spieltests+", voraus=MENUE),
 })
 
 

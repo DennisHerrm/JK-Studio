@@ -4778,7 +4778,7 @@ void drawStatus(const Layout& l) {
     // shank: "Don't really need an FPS counter for scripting, maybe just have
     // it on the map window" - die Bildrate nur im Karten-Reiter.
     std::vector<std::string> teile;
-    if (!g_app->statusLines.empty()) {
+    if (!g_app->statusLines.empty() && !(g_app->leftMode == 4 && g_app->statusLines.back() == g_app->statusModell)) {
         teile.push_back(g_app->statusLines.back());
     }
     if (!letzteZeit.empty()) {
@@ -4789,6 +4789,7 @@ void drawStatus(const Layout& l) {
         std::snprintf(fps, sizeof(fps), "%.0f fps", static_cast<double>(ImGui::GetIO().Framerate));
         teile.emplace_back(fps);
     }
+    g_app->statusTeile = teile;
     const ImGuiStyle& st = ImGui::GetStyle();
     const float strich = ImGui::CalcTextSize("|").x + st.ItemSpacing.x * 2.0F;
     float breite = 0.0F;

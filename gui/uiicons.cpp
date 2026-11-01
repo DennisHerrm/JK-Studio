@@ -70,6 +70,7 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::Neu: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;          // gruen
         case UiIcon::Oeffnen: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;      // bernstein
         case UiIcon::Speichern: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;    // blau
+        case UiIcon::SpeichernUnter: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
         case UiIcon::Mission: c = ImVec4{1.00F, 0.58F, 0.28F, 1.0F}; break;      // orange
         case UiIcon::Karte: c = ImVec4{0.35F, 0.85F, 0.78F, 1.0F}; break;        // tuerkis
         case UiIcon::Paket: c = ImVec4{0.85F, 0.66F, 0.42F, 1.0F}; break;
@@ -149,6 +150,12 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
                    ImVec2{2.0F, 14.0F}}, true);
             z.rahmen(4.5F, 2.0F, 10.5F, 6.0F, 0.0F);
             z.rahmen(4.5F, 9.0F, 11.5F, 14.0F, 0.5F);
+            break;
+        case UiIcon::SpeichernUnter:   // kleine Diskette mit Stift
+            z.zug({ImVec2{1.5F, 3.0F}, ImVec2{8.5F, 3.0F}, ImVec2{10.5F, 5.0F}, ImVec2{10.5F, 7.0F}});
+            z.zug({ImVec2{7.0F, 13.5F}, ImVec2{1.5F, 13.5F}, ImVec2{1.5F, 3.0F}});
+            z.rahmen(3.5F, 3.0F, 7.5F, 6.0F, 0.0F);
+            z.zug({ImVec2{8.5F, 14.0F}, ImVec2{8.5F, 11.5F}, ImVec2{13.0F, 7.0F}, ImVec2{15.0F, 9.0F}, ImVec2{10.5F, 13.5F}}, true);
             break;
         case UiIcon::Mehr:   // Pfeil nach unten (Klappmenue)
             z.zug({ImVec2{4.0F, 6.5F}, ImVec2{8.0F, 10.5F}, ImVec2{12.0F, 6.5F}});

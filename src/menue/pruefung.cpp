@@ -145,9 +145,34 @@ Auslastung auslastung(const Datei& d, int menu) {
 }
 
 Grenzen grenzenFuer(Dialekt d, Spiel s) {
-    if (d == Dialekt::MP) { return Grenzen{512, 128, 2048, 64, 10, 16}; }   // codemp/ui/ui_shared.h, PC_Script_Parse 2048
-    if (s == Spiel::MD) { return Grenzen{4096, 256, 4096, 128, 10, 16}; }   // Movie Duels code/ui/ui_shared.h
-    return Grenzen{150, 64, 4096, 64, 10, 16};                               // code/ui/ui_shared.h, PC_Script_Parse 4096
+    Grenzen g;
+    g.skript = d == Dialekt::MP ? 2048 : 4096;   // PC_Script_Parse
+    g.farbBereiche = 10;
+    g.spalten = 16;
+    if (d == Dialekt::MP && s == Spiel::MD) {   // Movie Duels MP: im Spiel gemessen, Elemente bis 4096 (ein Menue mit 4097 meldet "unknown menu keyword"); der Rest aus dem SP-Code
+        g.menuItems = 4096;
+        g.menus = 256;
+        g.multiCvars = 128;
+    } else if (d == Dialekt::MP) {
+        // codemp/ui/ui_shared.h in OpenJK nennt die Werte des Originals: MAX_MENUITEMS 512 //256, MAX_MENUS 128 //64, MAX_MULTI_CVARS 64//32.
+        // Im Spiel gemessen (jamp und jk2mp): 256 Elemente gehen, das 257. fehlt. Dazwischen laeuft es nur mit OpenJK: eine Warnung, kein Fehler.
+        g.menuItems = 256;
+        g.menus = 64;
+        g.multiCvars = 32;
+        g.menuItemsOpenJk = s == Spiel::JA ? 512 : 0;
+        g.menusOpenJk = s == Spiel::JA ? 128 : 0;
+        g.multiOpenJk = s == Spiel::JA ? 64 : 0;
+    } else if (s == Spiel::MD) {   // Movie Duels code/ui/ui_shared.h
+        g.menuItems = 4096;
+        g.menus = 256;
+        g.multiCvars = 128;
+    } else {   // code/ui/ui_shared.h: MAX_MENUITEMS 150, MAX_MENUS 64, MAX_MULTI_CVARS 64//32. Im Spiel gemessen: jasp 150, jk2sp nur 128 (das 129. fehlt)
+        g.menuItems = s == Spiel::JK2 ? 128 : 150;
+        g.menus = 64;
+        g.multiCvars = 32;
+        g.multiOpenJk = s == Spiel::JA ? 64 : 0;
+    }
+    return g;
 }
 
 std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
@@ -165,10 +190,22 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
         x.fehler = fehler;
         r.push_back(std::move(x));
     };
-    if (static_cast<int>(d.menus.size()) > g.menus) { melde(BefundArt::ZuVieleMenues, -1, -1, static_cast<int>(d.menus.size()), g.menus, {}, {}, true); }
+    // rc608 Teil 3b: Zwischen Original und OpenJK warnen; ueber OpenJK hinaus verliert jedes Spiel etwas
+    const auto grenze = [&](BefundArt art, const char* was, int menu, int anzahl, int original, int openjk, const std::string& wo) {
+        if (anzahl <= original) { return; }
+        if (openjk > 0 && anzahl <= openjk) {
+            melde(BefundArt::NurOpenJk, menu, -1, anzahl, original, was, std::to_string(openjk), false);
+        } else {
+            melde(art, menu, -1, anzahl, openjk > 0 ? openjk : original, wo, {}, true);
+        }
+    };
+    grenze(BefundArt::ZuVieleMenues, "menus", -1, static_cast<int>(d.menus.size()), g.menus, g.menusOpenJk, {});
     for (std::size_t mi = 0; mi < d.menus.size(); ++mi) {
         const Menu& m = d.menus[mi];
         const int mn = static_cast<int>(mi);
+        if (m.focusColor.a <= 0.0F && std::any_of(m.items.begin(), m.items.end(), [](const Item& it) { return (it.window.flags & WINDOW_DECORATION) == 0 && !it.text.empty() && it.type != ITEM_TYPE_TEXT; })) {
+            melde(BefundArt::KeineFokusFarbe, mn, -1, 0, 0, m.window.name, {}, false);
+        }
         // Die Skripte dieses Menues (Script_Show & Co. suchen nur im eigenen Menue): wen zeigen
         // sie (show, fadein), wen bewegen sie (setitemrect, transition, orbit)?
         std::vector<std::string> gezeigt, bewegt;
@@ -216,7 +253,7 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
         };
         klaenge(-1, m.eigenschaften);
         if (static_cast<int>(m.items.size()) > g.menuItems) {
-            melde(BefundArt::ZuVieleItems, mn, -1, static_cast<int>(m.items.size()), g.menuItems, m.window.name, {}, true);
+            grenze(BefundArt::ZuVieleItems, "items", mn, static_cast<int>(m.items.size()), g.menuItems, g.menuItemsOpenJk, m.window.name);
         }
         auto skript = [&](int item, const std::vector<Eigenschaft>& eig) {
             for (const Eigenschaft& e : eig) {
@@ -249,7 +286,12 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
             if (it.window.style == WINDOW_STYLE_SHADER && it.window.background.empty() && (it.window.flags & WINDOW_VISIBLE) != 0) {
                 melde(BefundArt::KeinBild, mn, in, 0, 0, it.window.name, {}, true);
             }
-            if (static_cast<int>(it.cvarList.size()) > g.multiCvars) {
+            if (d.dialekt == Dialekt::MP && d.spiel != Spiel::JK2 && it.type == ITEM_TYPE_MODEL && !it.assetModel.empty() && it.g2skin.empty() && (it.itemFlags & (ITF_ISCHARACTER | ITF_ISSABER)) == 0) {
+                melde(BefundArt::ModellOhneSkin, mn, in, 0, 0, it.window.name, {}, false);
+            }
+            if (static_cast<int>(it.cvarList.size()) > g.multiCvars && static_cast<int>(it.cvarList.size()) <= g.multiOpenJk) {
+                melde(BefundArt::NurOpenJk, mn, in, static_cast<int>(it.cvarList.size()), g.multiCvars, "multi", std::to_string(g.multiOpenJk), false);
+            } else if (static_cast<int>(it.cvarList.size()) > g.multiCvars) {
                 melde(BefundArt::ZuVieleWerte, mn, in, static_cast<int>(it.cvarList.size()), g.multiCvars, it.window.name, {}, true);
             }
             if (static_cast<int>(it.colorRanges.size()) > g.farbBereiche) {

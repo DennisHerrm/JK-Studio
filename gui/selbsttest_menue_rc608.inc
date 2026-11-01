@@ -1406,13 +1406,14 @@ std::vector<Schritt> schritteTextBreite() {
             g_app->settings.menueRechtsBreite = 0.0F;
         }));
         add(pause(0.8));
+        add(foto("menue_masz_" + std::to_string(m.b) + "_" + std::to_string(static_cast<int>(m.zoom * 100.0F))));
         add(pruefe("rc608 Textbreite: " + was + ": rechtes Feld brauchbar, Flaeche bleibt", [was] {
             const float fs = ImGui::GetFontSize();
             const auto x = me::stand();
             diag::info("Knopftest: Textbreite " + was + ": rechts " + std::to_string(me::rechteSpalte() / fs) + " Schrifthoehen, Flaeche " + std::to_string(x.flaeche[2] / fs) + " Schrifthoehen, Text " + std::to_string(me::textAnsicht().flaeche / fs));
             // In Bildpunkten: Bei 200 % auf 1920 Punkten passen nur 40 Schrifthoehen in die Breite; 320 Punkte sind die halbe Spielflaeche, Zoom und Verschieben helfen weiter
-            // rc608 Teil 3a: Die Flaeche bleibt 4:3, darum begrenzt bei 1080 Punkten und 200 % die Hoehe sie: 297 x 223, Breite 12 Schrifthoehen
-            return me::rechteSpalte() >= fs * 16.0F - 0.5F && x.flaeche[2] >= 290.0F && std::fabs(x.flaeche[2] / x.flaeche[3] - 4.0F / 3.0F) < 0.01F;
+            // rc608 Teil 3b: Bei 1080 Punkten und 200 % geht die linke Spalte von selbst zu, die Ansicht-Schalter wandern hinter einen Knopf: wieder ueber 320 (Teil 3a: 297 x 223)
+            return me::rechteSpalte() >= fs * 16.0F - 0.5F && x.flaeche[2] >= 320.0F && std::fabs(x.flaeche[2] / x.flaeche[3] - 4.0F / 3.0F) < 0.01F;
         }));
     }
     add(tu("rc608 Textbreite: zurueck", [skala, groesse] {

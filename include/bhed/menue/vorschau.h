@@ -137,6 +137,7 @@ struct TextLauf {
 };
 
 struct Umgebung {
+    float rahmenX = 1.0F, rahmenY = 1.0F;   // uiInfo.uiDC.xscale, yscale: Aufloesung des Spiels / 640 x 480 (Dicke der Rahmen)
     const Texte* texte = nullptr;
     // DC->getCVarString; "" wenn unbekannt
     std::function<std::string(const std::string&)> cvar;

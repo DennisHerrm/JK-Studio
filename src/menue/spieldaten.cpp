@@ -2,6 +2,7 @@
 //
 // Eigener Code.
 #include "bhed/menue/spieldaten.h"
+#include "bhed/utf8pfad.h"
 
 #include <algorithm>
 #include <cctype>
@@ -42,7 +43,8 @@ bool Spieldaten::lies(const std::string& pfad, std::string& out) const {
             if (e != nullptr && readPk3File(*a, *e, out, nullptr)) { return true; }
         }
         std::error_code ec;
-        const std::filesystem::path lose = std::filesystem::path(o->directory) / pfad;
+        // rc608 Teil 3b: Namen aus Menues sind Latin-1, das Programm laeuft mit UTF-8 als Systemseite: Ein schmaler Pfad warf hier eine Ausnahme
+        const std::filesystem::path lose = utf8Pfad(o->directory) / utf8Pfad(pfad);
         if (!o->directory.empty() && std::filesystem::is_regular_file(lose, ec)) {
             std::ifstream f(lose, std::ios::binary);
             std::ostringstream s;
@@ -61,7 +63,7 @@ bool Spieldaten::gibt(const std::string& pfad) const {
             if (a.find(n) != nullptr) { return true; }
         }
         std::error_code ec;
-        if (!o.directory.empty() && std::filesystem::is_regular_file(std::filesystem::path(o.directory) / pfad, ec)) { return true; }
+        if (!o.directory.empty() && std::filesystem::is_regular_file(utf8Pfad(o.directory) / utf8Pfad(pfad), ec)) { return true; }
     }
     return false;
 }
@@ -89,8 +91,8 @@ std::vector<std::string> Spieldaten::listeWieSpiel(const std::string& praefix, c
         // Die losen Dateien des Ordners (FS_ListFiles liest auch sie). Ganze Spielordner (leeres praefix) laeuft niemand durch.
         if (p.empty() || o->directory.empty()) { continue; }
         std::error_code ec;
-        const std::filesystem::path wurzel(o->directory);
-        for (std::filesystem::recursive_directory_iterator it(wurzel / praefix, std::filesystem::directory_options::skip_permission_denied, ec), ende;
+        const std::filesystem::path wurzel = utf8Pfad(o->directory);
+        for (std::filesystem::recursive_directory_iterator it(wurzel / utf8Pfad(praefix), std::filesystem::directory_options::skip_permission_denied, ec), ende;
              !ec && it != ende; it.increment(ec)) {
             if (!it->is_regular_file(ec)) { continue; }
             const std::string name = it->path().lexically_relative(wurzel).generic_string();

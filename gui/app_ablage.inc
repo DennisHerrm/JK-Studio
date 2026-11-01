@@ -3776,6 +3776,7 @@ bool loadModel(App* a, const std::string& dataDir, std::string* error) {
                   static_cast<int>(a->db.typesets.size()),
                   static_cast<int>(a->db.macros.size()));
     a->statusLines.push_back(msg);
+    a->statusModell = msg;
     return true;
 }
 

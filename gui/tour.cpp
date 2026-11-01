@@ -32,6 +32,7 @@
 #include "app_internal.h"
 #include "elemente.h"
 #include "karteneditor.h"
+#include "menueeditor.h"
 #include "bhed/tour.h"
 
 #include <algorithm>
@@ -935,7 +936,9 @@ void schrittZeichnen(float breite) {
         // Erst nach einem Moment: im ersten Bild nach einem Schrittwechsel hat
         // das Register die neuen Beschriftungen noch nicht (sie werden fuer das
         // naechste Bild angemeldet).
-        ImGui::TextDisabled("%s", tr(Str::TourNotVisible));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", tr(Str::TourNotVisible));   // rc608 Teil 3b: war am Fensterrand abgeschnitten
+        ImGui::PopStyleColor();
     }
     if (a.erfuellt()) {
         const ImVec2 q = ImGui::GetCursorScreenPos();
@@ -1080,15 +1083,37 @@ void fensterStellen(const std::vector<ImRect>& ziele, float breite) {
     const float rechts = vp->WorkPos.x + vp->WorkSize.x - groesse.x - rand;
     const ImVec2 ecken[] = {{rechts, unten}, {links, unten}, {rechts, oben}, {links, oben}};
     ImVec2 wahl = ecken[0];
-    for (const ImVec2& e : ecken) {
+    bool gefunden = false;
+    const auto ueberdeckung = [&](const ImVec2& e) {
+        float flaeche = 0.0F;
         const ImRect kandidat{e, ImVec2{e.x + groesse.x, e.y + groesse.y}};
-        bool frei = true;
         for (const ImRect& r : ziele) {
-            if (kandidat.Overlaps(r)) { frei = false; }
+            ImRect schnitt = kandidat;
+            schnitt.ClipWithFull(r);
+            if (kandidat.Overlaps(r)) { flaeche += std::max(1.0F, schnitt.GetWidth() * schnitt.GetHeight()); }
         }
-        if (frei) {
+        return flaeche;
+    };
+    for (const ImVec2& e : ecken) {
+        if (ueberdeckung(e) <= 0.0F) {
             wahl = e;
+            gefunden = true;
             break;
+        }
+    }
+    // rc608 Teil 3b: Keine Ecke frei (bei 200 % ist das Fenster gross): Die Stelle am Rand, die am wenigsten verdeckt; ein
+    // Schritt, dessen Knopf unter dem Tutorial liegt, liesse sich sonst nicht ausfuehren.
+    if (!gefunden) {
+        float beste = ueberdeckung(wahl);
+        for (int ix = 0; ix < 5; ++ix) {
+            for (int iy = 0; iy < 7; ++iy) {
+                const ImVec2 e{links + (rechts - links) * static_cast<float>(ix) / 4.0F, oben + (unten - oben) * static_cast<float>(iy) / 6.0F};
+                const float f = ueberdeckung(e);
+                if (f < beste) {
+                    beste = f;
+                    wahl = e;
+                }
+            }
         }
     }
     ImGui::SetNextWindowPos(wahl, ImGuiCond_Always);
@@ -1111,8 +1136,41 @@ void fensterStellen(const std::vector<ImRect>& ziele, float breite) {
 bool fensterZeichnen(ImGuiWindow* modal) {
     Zustand& s = z();
     const float fs = ImGui::GetFontSize();
-    const float breite = fs * 25.0F;
-    fensterStellen(s.ziele, breite);
+    // rc608 Teil 3b: Bei 200 % waren 25 Zeichen zwei Drittel des Fensters, dann bleibt kein Platz neben dem Ziel
+    const float breite = std::min(fs * 25.0F, ImGui::GetMainViewport()->WorkSize.x * 0.40F);
+    // rc608 Teil 3b: Auch ein offenes Klappfenster gehoert zum Schritt: Die Liste von "Add step" lag sonst unter dem Tutorial.
+    std::vector<ImRect> freiLassen = s.ziele;
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if ((!w->Active && !w->WasActive) || w->Hidden || (w->Flags & ImGuiWindowFlags_Popup) == 0) { continue; }   // das Tutorial kann vor dem Klappfenster an der Reihe sein
+        if ((w->Flags & (ImGuiWindowFlags_Modal | ImGuiWindowFlags_Tooltip)) != 0) { continue; }
+        freiLassen.push_back(w->Rect());
+    }
+    // Die rechte Spalte des Menue-Editors klappt innerhalb des Schritts auf (Add step, Auswahllisten): Zeigt der Schritt
+    // dorthin, gehoert die ganze Spalte dazu.
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if ((!w->Active && !w->WasActive) || w->Hidden || std::strstr(w->Name, "##rechts") == nullptr) { continue; }
+        for (const ImRect& r : s.ziele) {
+            if (w->Rect().Overlaps(r)) {
+                freiLassen.push_back(w->Rect());
+                break;
+            }
+        }
+    }
+    // Menue-Tutorials: Die ganze Flaeche als Ziel laesst sich nicht freihalten, die Elemente auf ihr schon: Die soll man anklicken.
+    if (g_app != nullptr && g_app->leftMode == 4 && s.ablauf.tour() != nullptr && s.ablauf.tour()->id.rfind("tut-menue", 0) == 0) {
+        const auto st = menueeditor::stand();
+        const ImRect flaeche{st.flaeche[0], st.flaeche[1], st.flaeche[0] + st.flaeche[2], st.flaeche[1] + st.flaeche[3]};
+        if (flaeche.GetWidth() > 0.0F) {
+            freiLassen.erase(std::remove_if(freiLassen.begin(), freiLassen.end(), [&](const ImRect& r) { return r.Contains(flaeche); }), freiLassen.end());
+            const float mx = st.flaeche[2] / 640.0F, my = st.flaeche[3] / 480.0F;
+            for (const menueeditor::ItemLage& l : menueeditor::itemLagen()) {
+                if (!l.sichtbar || l.b >= 600.0F) { continue; }
+                const ImVec2 a{st.flaeche[0] + l.x * mx, st.flaeche[1] + l.y * my};
+                freiLassen.push_back(ImRect{a, ImVec2{a.x + l.b * mx, a.y + l.h * my}});
+            }
+        }
+    }
+    fensterStellen(freiLassen, breite);
     // Feste Breite; hoechstens 85 % der Hoehe (darueber rollt das Fenster).
     ImGui::SetNextWindowSizeConstraints(
         ImVec2{breite + ImGui::GetStyle().WindowPadding.x * 2.0F, 0.0F},

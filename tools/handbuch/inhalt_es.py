@@ -43,14 +43,10 @@ TEXTE = {
         "**{{MeReiterHierarchie}}** muestra solo los elementos de la pestaña abierta y sigue la selección del lienzo. **{{MeGanzeDatei}}** muestra todos los `menuDef` del archivo, por ejemplo para mover un elemento a otra página. En una pestaña de estado (`ui_sel=0_0`) solo aparece lo visible allí. El panel mantiene un ancho mínimo en el que todos los números son legibles; las filas largas se ajustan.",
     "wrap long lines on or off, as in VS Code (on by default, the file does not change); without wrapping Shift+mouse wheel or the scrollbar at the bottom scrolls sideways":
         "activa o desactiva el ajuste de líneas largas, como en VS Code (activado de forma predeterminada, el archivo no cambia); sin ajuste, Mayús+rueda o la barra inferior desplazan en horizontal",
-    "**Zoom:** Ctrl+mouse wheel zooms around the pointer (25 to 800 %), Ctrl+0 fits, Ctrl+1 is 100 %, the middle button or Space+drag moves the view. The zoom is only a view: it is not an undo step and not in the file. Rulers, handles, snapping and dragging stay right at every step.":
-        "**Zoom:** Ctrl+rueda del ratón acerca alrededor del puntero (25 a 800 %), Ctrl+0 ajusta, Ctrl+1 es 100 %, el botón central o Espacio+arrastrar mueve la vista. El zoom es solo una vista: no es un paso de deshacer ni está en el archivo. Reglas, tiradores, ajuste y arrastre son correctos en cada nivel.",
     "**Mouse pointer:** It shows what a press does: resize arrows on the handles and on the edges of the selected element (the edges resize too), the move pointer on the element itself, the text cursor over text.":
         "**Puntero del ratón:** muestra qué hará una pulsación: flechas de tamaño en los tiradores y bordes del elemento elegido (los bordes también escalan), el puntero de mover sobre el elemento, el cursor de texto sobre el texto.",
     "**Write text in place:** Double-click an element on the canvas and type. The text appears in the game's font, size, colour and wrapping, with cursor, selection, copy and paste. Esc discards, Enter or a click elsewhere keeps it as one undo step; Ctrl+Enter starts a new line where the element wraps. A text from the game (`@MENUS_...`) stays as it is: the element gets its own text in your project's text package, and the other languages keep their translation. Where the text comes from a cvar, the game itself or an image, the double-click says so. **{{MeReiterHierarchie}}** shows the text in the row, **{{MeReiterEigenschaften}}** has it at the very top.":
         "**Escribir el texto en el sitio:** haz doble clic en un elemento del lienzo y escribe. El texto aparece con la fuente, el tamaño, el color y el ajuste del juego, con cursor, selección, copiar y pegar. Esc descarta, Intro o un clic fuera lo conserva como un solo paso de deshacer; Ctrl+Intro crea una línea nueva donde el elemento ajusta. Un texto del juego (`@MENUS_...`) queda como está: el elemento recibe su propio texto en el paquete de textos del proyecto y los demás idiomas conservan su traducción. Si el texto viene de un cvar, del propio juego o de una imagen, el doble clic lo indica. **{{MeReiterHierarchie}}** muestra el texto en la fila, **{{MeReiterEigenschaften}}** arriba del todo.",
-    "**Properties** shows only what the game reads for this kind of element; a model has no text fields, for example, but its own group with model, skin, animation from a searchable list (the names of the model's `animation.cfg`), facing, height, distance and field of view. Lines in the file that do not apply stay there and appear under **{{MeWeitereEintraege}}**. With nothing selected, Properties has the switch between **{{MeVollbild}}** and **{{MeUeberlagerung}}**.":
-        "**Properties** muestra solo lo que el juego lee para este tipo de elemento; un modelo, por ejemplo, no tiene campos de texto, sino su propio grupo con modelo, skin, animación de una lista con búsqueda (los nombres del `animation.cfg` del modelo), orientación, altura, distancia y campo de visión. Las líneas del archivo que no corresponden permanecen allí y aparecen en **{{MeWeitereEintraege}}**. Sin nada seleccionado, Properties tiene el interruptor entre **{{MeVollbild}}** y **{{MeUeberlagerung}}**.",
     "**An empty menu:** With full screen the game draws nothing underneath. In single player an empty menu is black (without `backcolor`, even a plain image in `background` stays invisible); in multiplayer the game shows its grey default box until a `background` or an element covers it, and the diagnosis says so. Without full screen you see through the menu; the canvas marks this with a checkerboard, which you can switch off and which never goes into the file.":
         "**Un menú vacío:** con pantalla completa el juego no dibuja nada debajo. En un jugador un menú vacío es negro (sin `backcolor`, incluso una imagen simple en `background` queda invisible); en multijugador el juego muestra su cuadro gris predeterminado hasta que un `background` o un elemento lo cubre, y el diagnóstico lo indica. Sin pantalla completa se ve a través del menú; el lienzo lo marca con un tablero, que se puede desactivar y nunca entra en el archivo.",
     "Nothing is selected yet. Click the brush in a 2D view first, then the texture.":
@@ -1215,8 +1211,8 @@ TEXTE = {
         "**Abre el editor de menús.** **{{ViewMenuEditor}}** en la barra de modos.",
     "**Open a menu of the game.** **{{MeAusSpiel}}** and pick one, for example `ui/jamp/main.menu`. It is read from the game files and drawn like the game - the game folder is not changed.":
         "**Abre un menú del juego.** **{{MeAusSpiel}}** y elige uno, por ejemplo `ui/jamp/main.menu`. Se lee de los archivos del juego y se dibuja como en el juego; la carpeta del juego no cambia.",
-    "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in the code below changes with it.":
-        "**Mueve un elemento.** Pulsa un botón en el lienzo para seleccionarlo, vuelve a pulsarlo y arrástralo, o empújalo con las flechas. Su `rect` en el código de abajo cambia con él.",
+    "**Move an element.** Click a button on the canvas to select it, then press it again and drag it - or nudge it with the arrow keys. Its `rect` in {{MeReiterEigenschaften}} and in the {{MeReiterText}} changes with it.":
+        "**Mueve un elemento.** Haz clic en un botón del lienzo para seleccionarlo, púlsalo otra vez y arrástralo, o muévelo con las flechas. Su `rect` en {{MeReiterEigenschaften}} y en {{MeReiterText}} cambia con él.",
     "**Try it like in the game.** **{{MeBedienen}}**: clicks now press buttons and change cvars - only in the preview, never in your game. **{{MeBearbeiten}}** brings you back.":
         "**Pruébalo como en el juego.** **{{MeBedienen}}**: los clics pulsan ahora botones y cambian cvars, solo en la vista previa, nunca en tu juego. **{{MeBearbeiten}}** te devuelve.",
     "Step 4 of the tutorial in the menu editor.":
@@ -3483,24 +3479,16 @@ TEXTE = {
         "El menú principal de multijugador de Jedi Academy, leído de los archivos del juego y dibujado como en el juego.",
     "Every `menuDef` of the file is a tab above the canvas; items that are shown by a cvar with several values (`cvarTest` + `showCvar`, like `ui_tab` pages) get a tab per value. **+** adds a new `menuDef`. The canvas is the game's virtual 640x480 screen: **{{MeStrecken}}** like the original game, **{{MeBalken}}**, and preset resolutions to check the aspect ratio.":
         "Cada `menuDef` del archivo es una pestaña encima del lienzo; los elementos que muestra una cvar con varios valores (`cvarTest` + `showCvar`, como las páginas de `ui_tab`) reciben una pestaña por valor. **+** añade un `menuDef` nuevo. El lienzo es la pantalla virtual de 640x480 del juego: **{{MeStrecken}}** como el juego original, **{{MeBalken}}**, y resoluciones predefinidas para comprobar la relación de aspecto.",
-    "An element keeps its type: **type** in the properties only shows it. For another type, insert a new element. In the text editor you can still write anything; if a line makes the game drop the whole menu, the preview reads on, keeps all elements in place and says above the canvas which line it is.":
-        "Un elemento conserva su tipo: **type** en las propiedades solo lo muestra. Para otro tipo, inserta un elemento nuevo. En el editor de texto puedes seguir escribiendo lo que quieras; si una línea hace que el juego descarte todo el menú, la vista previa sigue leyendo, deja todos los elementos en su sitio e indica sobre el lienzo qué línea es.",
     "Ctrl+Z, Ctrl+Y and the arrows in the bar work wherever the focus is in the menu editor and also restore the selection. Only a field you are typing in and the text editor use their own keys; selecting something is not a step.":
         "Ctrl+Z, Ctrl+Y y las flechas de la barra funcionan en todo el editor de menús y también restauran la selección. Solo el campo en el que escribes y el editor de texto usan sus propias teclas; seleccionar no es un paso.",
     "A click selects (Shift/Ctrl adds) and never moves anything. Press a selected element again and drag it to move it - the whole selection moves along, in one undo step; the white handles resize. Where elements overlap, a press means the front one, the one with the frame and name under the pointer; Alt+click goes through the stack, Alt+drag moves the selected one even when it is covered. Only the numbers of `rect` change in the text - comments and indentation stay.":
         "Un clic selecciona (Mayús/Ctrl añade) y nunca mueve nada. Vuelve a pulsar un elemento seleccionado y arrástralo para moverlo: toda la selección se mueve con él, en un solo paso de deshacer; las asas blancas cambian el tamaño. Donde hay elementos superpuestos, una pulsación se refiere al de delante, el que muestra el marco y el nombre bajo el puntero; Alt+clic recorre la pila y Alt+arrastrar mueve el seleccionado aunque esté tapado. En el texto solo cambian los números de `rect`: los comentarios y la sangría se quedan.",
     "**{{MeAnKanten}}** snaps to edges and centres of the other items, the screen and your guides (drag them out of the rulers); **{{MeAnRaster}}** to the grid. Alt switches snapping off while dragging, Shift keeps the direction. Arrow keys move by 1, with Shift by 10. A new, pasted or duplicated element never lands exactly on one of the same size: it moves 20 points right and down. Dragging with Alt puts it exactly where you drop it. Frames lying exactly over each other show their hint only once.":
         "**{{MeAnKanten}}** ajusta a los bordes y centros de los demás elementos, de la pantalla y de tus guías (arrástralas desde las reglas); **{{MeAnRaster}}** a la rejilla. Alt desactiva el ajuste mientras arrastras, Mayús mantiene la dirección. Las flechas mueven 1, con Mayús 10. Un elemento nuevo, pegado o duplicado nunca cae justo sobre otro del mismo tamaño: se desplaza 20 puntos a la derecha y abajo. Al arrastrar con Alt queda justo donde lo sueltas. Si dos marcos están justo uno sobre otro, su aviso aparece una sola vez.",
-    "**{{MePalette}}** holds one bare element each (text, button, image, yes/no, multi choice, slider, edit field, list box, model, key bind). Drag one onto the canvas: a frame shows where it lands and it snaps like a moved element. A double-click puts it in the middle, next to what is already there; a plain click does nothing. **{{MeBibliothek}}** further down holds ready-made parts of one or many elements with everything already set; the tooltip says what each contains. **{{MeBildDazu}}** takes a PNG, JPG or TGA as `gfx/menus/<name>`; it is packed into the .pk3 on export.":
-        "**{{MePalette}}** contiene un elemento básico de cada tipo (texto, botón, imagen, sí/no, opción múltiple, deslizador, campo de edición, lista, modelo, asignación de tecla). Arrastra uno al lienzo: un marco muestra dónde queda y se ajusta como al mover. Un doble clic lo pone en el centro, junto a lo que ya hay; un clic simple no hace nada. **{{MeBibliothek}}**, más abajo, contiene piezas listas de uno o muchos elementos con todo configurado; la descripción emergente dice qué contienen. **{{MeBildDazu}}** toma un PNG, JPG o TGA como `gfx/menus/<name>`; al exportar se empaqueta en el .pk3.",
-    "**{{MeEigenschaften}}** edits the selected item; with several items it aligns, distributes and groups them. **{{MeNachVorn}}**/**{{MeNachHinten}}** change the drawing order (the game draws in file order). **{{MeSperren}}** keeps an item from moving.":
-        "**{{MeEigenschaften}}** edita el elemento seleccionado; con varios elementos los alinea, distribuye y agrupa. **{{MeNachVorn}}**/**{{MeNachHinten}}** cambian el orden de dibujo (el juego dibuja en el orden del archivo). **{{MeSperren}}** impide que un elemento se mueva.",
     "Interact and cvars":
         "Interactuar y cvars",
     "**{{MeBedienen}}** runs the menu like the game: hovering gives focus (`mouseEnter`, `onFocus`), a click runs the item's `action`, yes/no, multi choice and sliders change their cvar, and `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... work like in ui_shared. What needs the game (sounds, `exec`, `uiScript`) appears in **{{MeProtokoll}}**.":
         "**{{MeBedienen}}** ejecuta el menú como el juego: pasar el ratón da el foco (`mouseEnter`, `onFocus`), un clic ejecuta la `action` del elemento, sí/no, opción múltiple y los deslizadores cambian su cvar, y `open`, `close`, `show`, `hide`, `setfocus`, `setcvar`, `setitemtext`, `transition` ... funcionan como en ui_shared. Lo que necesita el juego (sonidos, `exec`, `uiScript`) aparece en **{{MeProtokoll}}**.",
-    "**{{MeCvars}}** lists every cvar the menu reads or sets, the ones that control visibility first, with the values that occur. Change them to see other states. They exist only in the preview - your game configuration is never touched.":
-        "**{{MeCvars}}** lista cada cvar que el menú lee o fija, primero las que controlan la visibilidad, con los valores que aparecen. Cámbialas para ver otros estados. Solo existen en la vista previa: la configuración de tu juego nunca se toca.",
     "Code editor":
         "Editor de código",
     "Interact: the page cvar `ui_tab` shows the red box, a click on Yes/No changes `ui_probe`.":
@@ -6622,20 +6610,18 @@ TEXTE = {
         "Un brush de niebla sobre el suelo de una sala (fogParms 0.1 0.9 0.1, 256): el suelo toma el color de niebla del juego.",
     "**{{MeMeldungen}}** shows what the game would print while loading the file, word for word and with the line (for example `Unknown item keyword 'foo' Line #21`). A click jumps to the line; the live diagnosis marks it in the text ([[menue_editor_m2#diagnose]]).":
         "**{{MeMeldungen}}** muestra lo que el juego imprimiría al cargar el archivo, palabra por palabra y con la línea (por ejemplo `Unknown item keyword 'foo' Line #21`). Un clic salta a la línea; el diagnóstico en vivo la marca en el texto ([[menue_editor_m2#diagnose]]).",
-    "A new button from the widgets: selected on the canvas, its itemDef in the Text tab on the right.":
-        "Un botón nuevo de los elementos: seleccionado en el lienzo, su itemDef en la pestaña Texto de la derecha.",
+    "A new button from the parts: selected on the canvas, its itemDef in the {{MeReiterText}} on the right.":
+        "Un botón nuevo de las piezas: seleccionado en el lienzo, su itemDef en {{MeReiterText}}, a la derecha.",
     "Menu editor: preview, checks and packaging":
         "Editor de menús: vista previa, comprobaciones y paquete",
     "The right column with tabs, the live diagnosis while typing, videos, 3D models and sabers like in the game, the widget library, texts in several languages, sounds, the checks for the game, a test in the game and fonts from TrueType.":
         "La columna derecha con pestañas, el diagnóstico en vivo mientras escribes, vídeos, modelos 3D y sables como en el juego, la biblioteca de elementos, textos en varios idiomas, sonidos, las comprobaciones para el juego, una prueba en el juego y fuentes a partir de TrueType.",
     "Layout: canvas at full height":
         "Distribución: lienzo a toda altura",
-    "Widgets as tiles on the left, the canvas in the middle, the right column with the tab Hierarchy.":
-        "Los elementos como mosaicos a la izquierda, el lienzo en el centro, la columna derecha con la pestaña Jerarquía.",
+    "Parts as tiles and the hierarchy on the left, the canvas in the middle, the tabs {{MeReiterEigenschaften}}, {{MeEreignisse}} and {{MeReiterText}} on the right.":
+        "A la izquierda las piezas en mosaicos y la jerarquía, en el centro el lienzo, a la derecha las pestañas {{MeReiterEigenschaften}}, {{MeEreignisse}} y {{MeReiterText}}.",
     "The same column with the tab Text: the code editor, the problems below.":
         "La misma columna con la pestaña Texto: el editor de código y, debajo, los problemas.",
-    "The right column holds **{{MeReiterHierarchie}}** (menus, groups and items; the eye hides an item in the preview only, the lock keeps it from moving, dragging changes the drawing order), **{{MeReiterText}}** (the code editor with the problems below) and **{{MeReiterEigenschaften}}** (properties, cvars, engine messages and the script log as sections). Drag the divider to change the width; the tab and the width are remembered. A click on the canvas moves the text cursor to the itemDef even while another tab is open - switch to **{{MeReiterText}}** and the line is there. The old layout with the text at the bottom is in the preferences (**{{MeEinstTextUnten}}**), as is **{{MeEinstUmbruch}}** (otherwise long lines scroll sideways with Shift + mouse wheel).":
-        "La columna derecha contiene **{{MeReiterHierarchie}}** (menús, grupos y elementos; el ojo oculta un elemento solo en la vista previa, el candado impide moverlo, arrastrar cambia el orden de dibujo), **{{MeReiterText}}** (el editor de código con los problemas debajo) y **{{MeReiterEigenschaften}}** (propiedades, cvars, mensajes del motor y el registro de scripts como secciones). Arrastra el divisor para cambiar el ancho; la pestaña y el ancho se recuerdan. Un clic en el lienzo lleva el cursor de texto al itemDef aunque haya otra pestaña abierta: cambia a **{{MeReiterText}}** y la línea está ahí. El diseño antiguo con el texto abajo está en las preferencias (**{{MeEinstTextUnten}}**), igual que **{{MeEinstUmbruch}}** (si no, las líneas largas se desplazan en horizontal con Mayús + rueda del ratón).",
     "Live diagnosis":
         "Diagnóstico en vivo",
     "A broken menu: the brace that is never closed and where it is missing, the misspelled keyword with the game's message, a show on an item that does not exist; the item is marked on the canvas.":
@@ -6656,12 +6642,10 @@ TEXTE = {
         "Un vídeo RoQ como cinematic, decodificado como en el juego.",
     "A character model with skin and animation, drawn on the graphics card.":
         "Un modelo de personaje con skin y animación, dibujado en la tarjeta gráfica.",
-    "Library, detail area and menu sets":
-        "Biblioteca, área de detalle y conjuntos de menús",
-    "The detail area in three levels from the library, ready to operate.":
-        "El área de detalle en tres niveles desde la biblioteca, lista para usar.",
-    "**{{MeBibliothek}}** holds ready parts (button with background and click sound, slider with cvar, tab bar, detail area in three levels, list); drag one onto the canvas or double-click it. **{{MeVorlageSpeichern}}** turns the selection into your own template. **{{MeMenuesatzOeffnen}}** opens every file of `menus.txt`; `open` in a script then switches to the file of the menu.":
-        "**{{MeBibliothek}}** contiene piezas listas (botón con fondo y sonido de clic, deslizador con cvar, barra de pestañas, área de detalle en tres niveles, lista); arrastra una al lienzo o haz doble clic. **{{MeVorlageSpeichern}}** convierte la selección en una plantilla propia. **{{MeMenuesatzOeffnen}}** abre todos los archivos de `menus.txt`; `open` en un script cambia entonces al archivo del menú.",
+    "Parts, detail area and menu sets":
+        "Piezas, área de detalle y conjuntos de menús",
+    "The detail area in three levels from the ready-made parts, ready to operate.":
+        "El área de detalle en tres niveles de las piezas listas, lista para usar.",
     "Texts in several languages and sounds":
         "Textos en varios idiomas y sonidos",
     "An own text @MYMENU_START, shown in German in the preview.":
@@ -6789,8 +6773,6 @@ TEXTE = {
         "**{{MeVideoImport}}** lee MP4, WebM, AVI, WMV, MOV y MKV a través de Windows, GIF animados y archivos RoQ (un RoQ se incluye sin cambios). Elige **{{MeVideoZielGroesse}}**: el juego solo reproduce lados que sean potencias de dos, con 512 x 512 píxeles en total como máximo (si no, los vídeos a pantalla completa se detienen y los vídeos más grandes desbordan el búfer de vídeo del juego); 512 x 512 es el valor por defecto, como todos los vídeos de Jedi Academy y Movie Duels. **{{MeVideoEinpassen}}**: {{MeVideoStrecken}} (de todos modos, el juego estira el vídeo sobre el elemento), {{MeVideoBalken}} o {{MeVideoZuschneiden}}. Las imágenes se reducen promediando todos los píxeles cubiertos, así que los patrones finos no parpadean. Bajo las opciones ves la duración, el número de fotogramas y el tamaño que tendrá el archivo.",
     "The imported video as background of background_video in the Jedi Academy main menu - the preview plays it like the game.":
         "El vídeo importado como fondo de background_video en el menú principal de Jedi Academy: la vista previa lo reproduce como el juego.",
-    "A menu shows a video through a shader with `videoMap`. The import writes it for you: `menu/video/<name>` in `shaders/<package>.shader`, next to `video/<name>.roq`. **{{MeVideoVerwendung}}** decides what happens in the menu: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, behind all others) or **{{MeVideoAlsCinematic}}** - only multiplayer menus draw that keyword, single-player menus show nothing (the check says so). Shader, video and menu go together into the exported .pk3 and into **{{MeImSpielTesten}}**.":
-        "Un menú muestra un vídeo mediante un shader con `videoMap`. La importación lo escribe por ti: `menu/video/<nombre>` en `shaders/<paquete>.shader`, junto a `video/<nombre>.roq`. **{{MeVideoVerwendung}}** decide qué pasa en el menú: **{{MeVideoAlsHintergrund}}**, **{{MeVideoNeuesElement}}** (640 x 480, detrás de todos los demás) o **{{MeVideoAlsCinematic}}**: solo los menús multijugador dibujan esa palabra clave, los menús de un jugador no muestran nada (la comprobación lo indica). El shader, el vídeo y el menú van juntos al .pk3 exportado y a **{{MeImSpielTesten}}**.",
     "Sound":
         "Sonido",
     "Menus always play their videos silently - the game starts them without sound. **{{MeVideoTon}}** is therefore off; switch it on for full-screen videos that the game plays with sound (for example `cinematic <name>` from the console or a script). The sound is stored like in the game's videos: 22050 Hz, mono or stereo, between the frames. A video without a sound track gets a note. **{{MeTonAn}}** / **{{MeTonAus}}** in the toolbar switches all preview sounds - focus and click sounds and the menu music - and stops sounds that are playing; the setting is remembered.":
@@ -6823,10 +6805,6 @@ TEXTE = {
         "Eventos",
     "The button got the Glow effect and a click sound: the glow element appears on hover, the click plays the sound.":
         "El botón ha recibido el efecto Brillo y un sonido de clic: el elemento de brillo aparece al pasar el ratón y el clic reproduce el sonido.",
-    "The **{{MeEreignisse}}** section shows for the selected element what happens on **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) and **{{MeEvEnter}}** (accept) - only the events the game's engine knows. Start with a ready-made hover effect: **{{MeEvLeuchten}}** (a glow element behind it, like the original menus), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** or **{{MeEvGroesser}}**, in the colour next to them. **{{MeEvHoverKlang}}** sets `focusSound`, **{{MeEvKlickKlang}}** a `play` at the start of the click; the button next to each field lets you listen.":
-        "La sección **{{MeEreignisse}}** muestra para el elemento seleccionado qué pasa en **{{MeEvHover}}** (mouseEnter), **{{MeEvHoverEnde}}** (mouseExit), **{{MeEvKlick}}** (action), **{{MeEvFokus}}** (onFocus), **{{MeEvFokusEnde}}** (leaveFocus) y **{{MeEvEnter}}** (accept): solo los eventos que conoce el motor del juego. Empieza con un efecto ya hecho al pasar el ratón: **{{MeEvLeuchten}}** (un elemento de brillo detrás, como en los menús originales), **{{MeEvFarbe}}**, **{{MeEvRahmen}}** o **{{MeEvGroesser}}**, en el color que tienen al lado. **{{MeEvHoverKlang}}** pone `focusSound`, **{{MeEvKlickKlang}}** un `play` al empezar el clic; el botón junto a cada campo te deja escucharlo.",
-    "Each event lists its actions as blocks: element names as a list, colours with a colour picker, sounds with a listen button. **{{MeEvAktionNeu}}** offers only the commands of this game's engine (the commandList of ui_shared, so `setcvartocvar` only in multiplayer). The blocks write the script text - the Text tab shows the same at once - and every change is one undo step. Switch on **{{MeBedienen}}** and the events run like in the game.":
-        "Cada evento enumera sus acciones como bloques: nombres de elementos como lista, colores con selector de color, sonidos con botón de escucha. **{{MeEvAktionNeu}}** solo ofrece los comandos del motor de este juego (la commandList de ui_shared, así que `setcvartocvar` solo en multijugador). Los bloques escriben el texto del script (la pestaña Texto muestra lo mismo al instante) y cada cambio es un paso de deshacer. Activa **{{MeBedienen}}** y los eventos funcionan como en el juego.",
     "Preview checked against the original game":
         "Vista previa comprobada con el juego original",
     "All Jedi Academy menus outside a running game were photographed in the original game (single and multiplayer) and compared with the preview. Since then the preview also draws: missing `@` texts as nothing (like the game), missing images of shader elements as the game's grey default box, the colours, heads and parts of the species set in `ui_char_model`, the multiplayer start values (player name, model, server name, limits), the multiplayer head list in rows and columns, and the multiplayer owner-draws for team slots, game type, skill, team colour and map preview.":
@@ -6861,8 +6839,6 @@ TEXTE = {
         "Los menús de Jedi Outcast se compararon con el juego real (versión de Steam). El editor sigue ahora su motor: sin `setitemrect`, `setitemtext`, `transition2` ni `delay`, sin el evento `accept`, los modelos del logotipo (`.md3`) con la cámara del juego. **{{MeImSpielTesten}}** inicia `jk2sp.exe` con tu propia carpeta como `fs_basepath` y los datos del juego mediante `fs_cdpath`: no se escribe nada en la carpeta del juego.",
     "Your first own menu":
         "Tu primer menú propio",
-    "From an empty editor to a project with three buttons side by side that glow on hover - saved, ready to pack as a pk3.":
-        "De un editor vacío a un proyecto con tres botones en fila que brillan al pasar el ratón: guardado y listo para empaquetar como pk3.",
     "Menu editor · about 5 minutes":
         "Editor de menús · unos 5 minutos",
     "The pictures were taken while the program did exactly these steps; the self-test checks after each step that it really happened. In the program, the helper (F1) runs this tutorial as a tour and moves on by itself when a step is done.":
@@ -6875,20 +6851,8 @@ TEXTE = {
         "**Empieza un proyecto.** Pulsa **{{MePrjNeu}}** y elige una carpeta para el archivo del proyecto. El editor crea las carpetas como en un pk3 y un menú vacío a pantalla completa.",
     "The new project with its first menu.":
         "El proyecto nuevo con su primer menú.",
-    "**Three buttons.** Double-click **{{MlTypButton}}** in the building blocks three times, or drag it onto the canvas.":
-        "**Tres botones.** Haz doble clic tres veces en **{{MlTypButton}}** en los bloques de construcción, o arrástralo al lienzo.",
-    "Three new buttons next to each other, not yet evenly spaced.":
-        "Tres botones nuevos uno junto a otro, aún sin espaciado uniforme.",
-    "**Side by side.** Select the three buttons (Ctrl+click) and click **{{MeLayoutWaagrecht}}** under Layout in the properties.":
-        "**En fila.** Selecciona los tres botones (Ctrl+clic) y pulsa **{{MeLayoutWaagrecht}}** en Disposición, en las propiedades.",
     "The buttons side by side with even spacing.":
         "Los botones en fila con el mismo espaciado.",
-    "**Glow on hover.** Select the first button, open the **Events** tab and click **{{MeEvLeuchten}}**.":
-        "**Brillo al pasar el ratón.** Selecciona el primer botón, abre la pestaña **Eventos** y pulsa **{{MeEvLeuchten}}**.",
-    "The glow effect: show on hover, hide when the mouse leaves.":
-        "El efecto de brillo: se muestra al pasar el ratón y se oculta cuando el ratón sale.",
-    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything. **{{MePrjProjekt}} > {{MePrjExport}}** then packs the pk3 for the game.":
-        "**Guarda.** Pulsa **{{MeSpeichern}}**: en un proyecto lo guarda todo. Después, **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3 para el juego.",
     "Saved: the project file and the menu in the project folder.":
         "Guardado: el archivo del proyecto y el menú en la carpeta del proyecto.",
     "Arrange windows and screens":
@@ -7107,4 +7071,90 @@ TEXTE = {
         "**Decals:** las marcas de impacto y de quemadura de los efectos caen en las caras que marcaría el juego: como q3map2, el editor construye el mundo del mapa con su árbol BSP - solo la parte visible de cada cara de brush, los modelos de `misc_model` integrados en el mundo, y solo las caras junto a una hoja abierta del árbol (ninguna marca en el suelo oculto bajo un escalón). En un mapa grande esto tarda unos segundos, como una compilación; se hace en segundo plano y, hasta que termina, cuenta el último mundo. Las caras cuyo shader mueve sus vértices (`deformVertexes move`) cuentan en toda la caja del movimiento, como las ordena q3map2 en el árbol.",
     "Close its window with its **x** - the panel goes back to its place, nothing is lost. If that place is gone because you rearranged the area, it docks beside its neighbour and your arrangement stays.":
         "Cierra su ventana con su **x** - el panel vuelve a su sitio, no se pierde nada. Si ese sitio ya no existe porque has reorganizado el área, se acopla junto a su vecino y tu disposición se conserva.",
+    "**Select several:** drag from an empty spot to draw a frame; it selects everything it touches. Ctrl or Shift adds to the selection, <kbd>Ctrl</kbd>+<kbd>A</kbd> selects everything. Locked and hidden elements stay out.":
+        "**Seleccionar varios:** arrastra desde un punto vacío para trazar un marco; selecciona todo lo que toca. Ctrl o Mayús añaden a la selección, <kbd>Ctrl</kbd>+<kbd>A</kbd> selecciona todo. Los elementos bloqueados y ocultos quedan fuera.",
+    "**Right-click** an element or a row of the hierarchy: cut, copy, paste, duplicate, delete, bring to front, send to back, lock, hide in the preview, save as your own template. On the canvas the menu also lists everything under the pointer.":
+        "**Clic derecho** en un elemento o una fila de la jerarquía: cortar, copiar, pegar, duplicar, eliminar, traer al frente, enviar al fondo, bloquear, ocultar en la vista previa, guardar como plantilla propia. En el lienzo el menú también nombra todo lo que hay bajo el puntero.",
+    "**Backgrounds let clicks through:** a decoration that fills the whole screen cannot be moved by accident. To change it, choose it in the hierarchy, in the right-click menu or with Alt+click.":
+        "**Los fondos dejan pasar los clics:** una decoración que llena la pantalla no se mueve por accidente. Para cambiarla, elígela en la jerarquía, en el menú del clic derecho o con Alt+clic.",
+    "**Manage menus:** right-click a tab above the canvas to rename, duplicate, delete or move its menu. Renaming also changes `open` and `close` in this file. Each is one undo step.":
+        "**Gestionar menús:** con clic derecho en una pestaña sobre el lienzo renombras, duplicas, eliminas o mueves su menú. Renombrar también cambia `open` y `close` en este archivo. Cada acción es un paso de deshacer.",
+    "**Little room:** the two arrows above the canvas fold the left and the right panel. In a small window the left panel folds by itself, and the view switches move behind the **{{MeAnsichtKnopf}}** button.":
+        "**Poco espacio:** las dos flechas sobre el lienzo pliegan los paneles izquierdo y derecho. En una ventana pequeña el izquierdo se pliega solo y los interruptores de vista pasan al botón **{{MeAnsichtKnopf}}**.",
+    "**Conditions:** {{MlFBedingung}} chooses whether a setting shows, hides, enables or disables the element. **{{MlFWerteListe}}** of a {{MlTypMulti}} element are a list of text and value. Lists and game-drawn elements have the group **{{MlGrSpielInhalt}}**; what the game could not read is refused with a message and the menu stays intact.":
+        "**Condiciones:** {{MlFBedingung}} elige si un ajuste muestra, oculta, activa o desactiva el elemento. **{{MlFWerteListe}}** de un elemento {{MlTypMulti}} es una lista de texto y valor. Las listas y los elementos que dibuja el juego tienen el grupo **{{MlGrSpielInhalt}}**; lo que el juego no podría leer se rechaza con un mensaje y el menú queda intacto.",
+    "**{{ActSaveAs}}** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) saves under a new name; in a project it writes a copy. <kbd>Ctrl</kbd>+<kbd>S</kbd> saves, also with the cursor in the text editor. If another program changes an open file, a line above the canvas offers **{{MeFremdLaden}}** (one undo step) or **{{MeFremdBehalten}}**.":
+        "**{{ActSaveAs}}** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) guarda con otro nombre; en un proyecto escribe una copia. <kbd>Ctrl</kbd>+<kbd>S</kbd> guarda, también con el cursor en el editor de texto. Si otro programa cambia un archivo abierto, una línea sobre el lienzo ofrece **{{MeFremdLaden}}** (un paso de deshacer) o **{{MeFremdBehalten}}**.",
+    "A new menu file enters the game's menu list in the package by itself (`loadMenu`), otherwise the game would never load it. **{{MePruefen}}** warns when no menu opens it. **{{MeImSpielTesten}}** opens the menu of the open page right after the start; that step is only in the test package, never in the exported pk3. In multiplayer the original reads up to 256 elements per menu and 64 menus, OpenJK 512 and 128: between the two the check warns, above them it reports an error.":
+        "Un archivo de menú nuevo entra solo en la lista de menús del juego dentro del paquete (`loadMenu`); si no, el juego nunca lo cargaría. **{{MePruefen}}** avisa si ningún menú lo abre. **{{MeImSpielTesten}}** abre el menú de la página abierta justo tras el inicio; eso solo está en el paquete de prueba, nunca en el pk3 exportado. En multijugador el original lee hasta 256 elementos por menú y 64 menús, OpenJK 512 y 128: entre ambos la comprobación avisa, por encima informa de un error.",
+    "Two videos at once do not run: the engine plays one video at a time, and in the game they hold each other. The preview does the same and says so above the canvas.":
+        "Dos vídeos a la vez no se reproducen: el motor reproduce uno cada vez y en el juego se detienen entre sí. La vista previa hace lo mismo y lo indica sobre el lienzo.",
+    "Select, right-click, manage menus":
+        "Seleccionar, clic derecho, gestionar menús",
+    "**Three buttons.** Double-click **{{MlTypButton}}** under **{{MlLZeigen}}** three times, or drag it onto the canvas.":
+        "**Tres botones.** Haz doble clic tres veces en **{{MlTypButton}}** en **{{MlLZeigen}}**, o arrástralo al lienzo.",
+    "Three new buttons, slightly offset from each other.":
+        "Tres botones nuevos, algo desplazados entre sí.",
+    "**Side by side.** Drag from an empty spot on the canvas to draw a frame around the three buttons (or Ctrl+click them). Then click **{{MeLayoutWaagrecht}}** under **{{MlGrOrdnen}}** in **{{MeReiterEigenschaften}}**.":
+        "**Uno al lado del otro.** Arrastra desde un punto vacío del lienzo para trazar un marco alrededor de los tres botones (o Ctrl+clic). Luego haz clic en **{{MeLayoutWaagrecht}}** en **{{MlGrOrdnen}}** de **{{MeReiterEigenschaften}}**.",
+    "**Name them.** Double-click the first button on the canvas, type `Start` and press Enter. Name the others `Options` and `Quit` the same way.":
+        "**Ponles nombre.** Haz doble clic en el primer botón del lienzo, escribe `Start` y pulsa Intro. Nombra los otros `Options` y `Quit` de la misma forma.",
+    "Each button says what it is, in the font of the game.":
+        "Cada botón dice lo que es, con la fuente del juego.",
+    "**Glow on hover.** Click the first button, open the **{{MeEreignisse}}** tab, choose the trigger **{{MeEvHover}}** and click **{{MeEvLeuchten}}**.":
+        "**Brillo al pasar el ratón.** Haz clic en el primer botón, abre la pestaña **{{MeEreignisse}}**, elige el disparador **{{MeEvHover}}** y haz clic en **{{MeEvLeuchten}}**.",
+    "The glow as two steps: on when the pointer enters, off again when it leaves.":
+        "El brillo en dos pasos: se enciende al entrar el puntero y se apaga al salir.",
+    "**Give a button a job.** Click the third button. In **{{MeEreignisse}}** choose the trigger **{{MeEvKlick}}**, click **{{MlAddStep}}**, pick the command `exec` and type `quit` in its field.":
+        "**Dale una función a un botón.** Haz clic en el tercer botón. En **{{MeEreignisse}}** elige el disparador **{{MeEvKlick}}**, haz clic en **{{MlAddStep}}**, elige la orden `exec` y escribe `quit` en su campo.",
+    "A step in plain words; the field holds the console command.":
+        "Un paso en palabras; el campo contiene la orden de consola.",
+    "**Try it.** Click **{{MeBedienen}}** and point at the first button: It glows. **{{MeBearbeiten}}** takes you back.":
+        "**Pruébalo.** Haz clic en **{{MeBedienen}}** y señala el primer botón: brilla. **{{MeBearbeiten}}** te lleva de vuelta.",
+    "In interact mode the canvas reacts as the game does.":
+        "En el modo de interacción el lienzo reacciona como el juego.",
+    "**Save.** Click **{{MeSpeichern}}** - in a project it saves everything.":
+        "**Guarda.** Haz clic en **{{MeSpeichern}}**: en un proyecto guarda todo.",
+    "**In the game.** Click **{{MeImSpielTesten}}**: the game starts and shows your menu right away, without touching the game folder. **{{MePrjProjekt}} > {{MePrjExport}}** packs the pk3. Your new menu is in the game's menu list by itself; to reach it from another menu, add the step `open my_menu` to a button there.":
+        "**En el juego.** Haz clic en **{{MeImSpielTesten}}**: el juego arranca y muestra tu menú enseguida, sin tocar la carpeta del juego. **{{MePrjProjekt}} > {{MePrjExport}}** empaqueta el pk3. Tu menú nuevo entra solo en la lista de menús del juego; para llegar a él desde otro menú, añade allí a un botón el paso `open my_menu`.",
+    "The test package is ready; the command line stands in the toolbar.":
+        "El paquete de prueba está listo; la línea de órdenes aparece en la barra.",
+    "From an empty editor to a project with three named buttons side by side: one glows on hover, one has a job. Saved, packed and tested in the game.":
+        "De un editor vacío a un proyecto con tres botones con nombre, uno al lado del otro: uno brilla al pasar el ratón y otro tiene una función. Guardado, empaquetado y probado en el juego.",
+    "The left panel: parts as tiles, sorted by what they do, and the hierarchy below them.":
+        "El panel izquierdo: piezas en mosaicos ordenadas por función y debajo la jerarquía.",
+    "A selection frame: everything it touches is selected.":
+        "Un marco de selección: se selecciona todo lo que toca.",
+    "The right-click menu of an element, with the list of everything under the pointer.":
+        "El menú de clic derecho de un elemento, con la lista de todo lo que hay bajo el puntero.",
+    "Right-click on a tab: rename, duplicate, delete or move its menu.":
+        "Clic derecho en una pestaña: renombrar, duplicar, eliminar o mover su menú.",
+    "Properties of a button: the card with its buttons at the top, groups with a summary below.":
+        "Properties de un botón: arriba la tarjeta con sus botones, debajo grupos con resumen.",
+    "The choices of a multi choice element: text and value, one row each.":
+        "Las opciones de un elemento de opción múltiple: texto y valor, una fila cada una.",
+    "Events in plain words: the triggers on top, the steps of the chosen trigger below.":
+        "Events en palabras: arriba los disparadores, debajo los pasos del elegido.",
+    "Add step: search, the most used commands, and groups.":
+        "Add step: búsqueda, las órdenes más usadas y grupos.",
+    "Choosing an image for a frame: images and shaders of the game with a search, or from a file.":
+        "Elegir una imagen para un marco: imágenes y shaders del juego con búsqueda, o desde un archivo.",
+    "1920 x 1080 at 200 %: the left panel has folded by itself, the arrows above the canvas bring it back.":
+        "1920 x 1080 al 200 %: el panel izquierdo se ha plegado solo; las flechas sobre el lienzo lo recuperan.",
+    "Writing on the canvas: a double-click on a text opens it in place, the menu shows what you type.":
+        "Escribir en el lienzo: un doble clic en un texto lo abre en su sitio y el menú muestra lo que escribes.",
+    "An empty menu as in the game; the switch above the canvas shows what the game would draw with no background.":
+        "Un menú vacío como en el juego; el interruptor sobre el lienzo muestra lo que dibuja el juego sin fondo.",
+    "Dragging a part from the left onto the canvas: it lands where you let go.":
+        "Arrastrar una pieza desde la izquierda al lienzo: queda donde la sueltas.",
+    "The hierarchy shows the open page only: its elements with eye and lock.":
+        "La jerarquía muestra solo la página abierta: sus elementos con ojo y candado.",
+    "Events in a wide panel: triggers and steps side by side.":
+        "Events en un panel ancho: disparadores y pasos uno al lado del otro.",
+    "Another program changed the open file: the line above the canvas offers to reload it or to keep your version.":
+        "Otro programa cambió el archivo abierto: la línea sobre el lienzo ofrece recargarlo o conservar tu versión.",
+    "An animation of the model chosen from the game's list in Properties; the preview plays it.":
+        "Una animación del modelo elegida en Properties de la lista del juego; la vista previa la reproduce.",
+    "**Limits as measured in the games:** Jedi Academy draws 150 elements per menu in single player and 256 in multiplayer (OpenJK 512, the check warns about that), Jedi Outcast 128 in single player and 256 in multiplayer, Movie Duels 4096. What is beyond is dropped, the menu stays. **Text under the pointer:** without `focusColor` a button's text disappears as soon as the pointer is on it; new menus have it, {{MlFFokusFarbe}} in Properties sets it and the check names the elements without it. **Models in multiplayer:** without `model_g2skin` the game draws the model dark; the check says so, the preview keeps showing the default skin. **Nothing opens the menu:** the check also says when no other menu has an `open` for it.":
+        "**Límites medidos en los juegos:** Jedi Academy dibuja 150 elementos por menú en un jugador y 256 en multijugador (OpenJK 512, la comprobación lo avisa), Jedi Outcast 128 en un jugador y 256 en multijugador, Movie Duels 4096. Lo que sobra se pierde, el menú queda. **Texto bajo el puntero:** sin `focusColor` el texto de un botón desaparece en cuanto el puntero está encima; los menús nuevos lo tienen, {{MlFFokusFarbe}} en Properties lo define y la comprobación nombra los elementos sin él. **Modelos en multijugador:** sin `model_g2skin` el juego dibuja el modelo oscuro; la comprobación lo dice, la vista previa sigue mostrando la piel estándar. **Nada abre el menú:** la comprobación también avisa cuando ningún otro menú tiene un `open` para él.",
 }

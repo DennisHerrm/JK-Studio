@@ -70,28 +70,28 @@ int main() {
                    !itemSichtbar(m.items[static_cast<std::size_t>(t01)], l.items[0][static_cast<std::size_t>(t01)].flags, u),
                was + ": Detail 0_0 sichtbar, 0_1 nicht");
         // Klick auf Unterreiter 0_1
-        const int u01 = itemNr(m, "dt_unter_0_1");
+        const int u01 = itemNr(m, "dt_sub_0_1");
         if (u01 >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(u01)].window.rect;
             l.klick(0, r.x + 5, r.y + 5);
         }
         pruefe(l.cvar("ui_sel") == "0_1", was + ": Klick auf Unterreiter setzt ui_sel 0_1");
         // Reiter 2 klicken -> ui_tab 2, ui_sel 2_0
-        const int r2 = itemNr(m, "dt_reiter_2_0");
+        const int r2 = itemNr(m, "dt_tab_2_0");
         if (r2 >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(r2)].window.rect;
             l.klick(0, r.x + 5, r.y + 5);
         }
         pruefe(l.cvar("ui_tab") == "2" && l.cvar("ui_sel") == "2_0", was + ": Klick auf Reiter 3 setzt ui_tab 2 und ui_sel 2_0");
         // blaettern: Pfeil rechts bei Stellung 0
-        const int re = itemNr(m, "dt_rechts_0");
+        const int re = itemNr(m, "dt_right_0");
         if (re >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(re)].window.rect;
             l.klick(0, r.x + 3, r.y + 5);
         }
         pruefe(l.cvar("ui_tabofs") == "1", was + ": Pfeil rechts blaettert die Reiter (ui_tabofs 1)");
         l.fuelle(0, u);
-        const int r4 = itemNr(m, "dt_reiter_4_1");
+        const int r4 = itemNr(m, "dt_tab_4_1");
         pruefe(r4 >= 0 && itemSichtbar(m.items[static_cast<std::size_t>(r4)], l.items[0][static_cast<std::size_t>(r4)].flags, u),
                was + ": nach dem Blaettern ist Reiter 5 sichtbar");
         // Vorlagen

@@ -81,8 +81,8 @@ std::string einstellungsSeite(const std::vector<CvarSteuerung>& wahl, const std:
         for (const auto& [a, b] : k) { kv(2, a, b); }
         z(1, "}");
     };
-    item({{"name", "hintergrund"}, {"rect", "0 0 640 480"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.02 0.03 0.08 1"}, {"decoration", ""}, {"visible", "1"}});
-    item({{"name", "titel"}, {"rect", "0 30 640 50"}, {"text", zit("SETTINGS")}, {"textscale", "1.4"}, {"textalign", "ITEM_ALIGN_CENTER"},
+    item({{"name", "background"}, {"rect", "0 0 640 480"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.02 0.03 0.08 1"}, {"decoration", ""}, {"visible", "1"}});
+    item({{"name", "title"}, {"rect", "0 30 640 50"}, {"text", zit("SETTINGS")}, {"textscale", "1.4"}, {"textalign", "ITEM_ALIGN_CENTER"},
           {"textalignx", "320"}, {"forecolor", "1 0.8 0.3 1"}, {"decoration", ""}, {"visible", "1"}});
     const bool zweiSpalten = wahl.size() > 10;
     for (std::size_t i = 0; i < wahl.size(); ++i) {
@@ -94,7 +94,7 @@ std::string einstellungsSeite(const std::vector<CvarSteuerung>& wahl, const std:
         std::string feld;
         for (char ch : klein(c.cvar)) { feld += std::isalnum(static_cast<unsigned char>(ch)) != 0 ? ch : '_'; }
         std::vector<std::pair<std::string, std::string>> k = {
-            {"name", "einst_" + feld},
+            {"name", "setting_" + feld},
             {"type", c.typ == ITEM_TYPE_SLIDER ? "ITEM_TYPE_SLIDER" : c.typ == ITEM_TYPE_MULTI ? "ITEM_TYPE_MULTI" : "ITEM_TYPE_YESNO"},
             {"rect", std::to_string(x) + " " + std::to_string(100 + zeile * 32) + " " + std::to_string(b) + " 28"},
             {"text", zit(c.text.empty() ? c.cvar + ":" : c.text)},
@@ -115,7 +115,7 @@ std::string einstellungsSeite(const std::vector<CvarSteuerung>& wahl, const std:
         }
         item(k);
     }
-    item({{"name", "zurueck"}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", "40 430 160 30"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.1 0.2 0.4 0.6"},
+    item({{"name", "back"}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", "40 430 160 30"}, {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0.1 0.2 0.4 0.6"},
           {"text", zit("Back")}, {"textscale", "1"}, {"textalign", "ITEM_ALIGN_CENTER"}, {"textalignx", "80"}, {"forecolor", "0.9 0.9 1 1"},
           {"visible", "1"}, {"action", "{ close " + name + " }"}});
     z(0, "}");

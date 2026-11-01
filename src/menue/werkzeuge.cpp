@@ -344,6 +344,84 @@ bool itemLoeschen(const Datei& d, int menu, int item, std::vector<Ersetzung>& ou
     return true;
 }
 
+namespace {
+bool menuSpanne(const Datei& d, int menu, std::size_t& a, std::size_t& e) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    if (m.kopf.datei != 0 || m.ende <= m.anfang) { return false; }
+    a = m.anfang;
+    e = m.ende;
+    if (nurLeerDavor(d.text, a)) { a = zeilenAnfang(d.text, a); }
+    const std::size_t n = nachZeile(d.text, e);
+    if (n > e && (n >= d.text.size() || d.text[n - 1] == '\n')) { e = n; }
+    return true;
+}
+}  // namespace
+
+bool menuLoeschen(const Datei& d, int menu, std::vector<Ersetzung>& out) {
+    std::size_t a = 0, e = 0;
+    if (!menuSpanne(d, menu, a, e)) { return false; }
+    out.push_back(Ersetzung{static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(e), ""});
+    return true;
+}
+
+bool menuTauschen(const Datei& d, int menu, std::vector<Ersetzung>& out) {
+    std::size_t a0 = 0, e0 = 0, a1 = 0, e1 = 0;
+    if (!menuSpanne(d, menu, a0, e0) || !menuSpanne(d, menu + 1, a1, e1)) { return false; }
+    out.push_back(Ersetzung{static_cast<std::uint32_t>(a0), static_cast<std::uint32_t>(e0), d.text.substr(a1, e1 - a1)});
+    out.push_back(Ersetzung{static_cast<std::uint32_t>(a1), static_cast<std::uint32_t>(e1), d.text.substr(a0, e0 - a0)});
+    return true;
+}
+
+bool menuUmbenennen(const Datei& d, int menu, const std::string& neu, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const std::string alt = d.menus[static_cast<std::size_t>(menu)].window.name;
+    if (!setzeEigenschaft(d, menu, -1, "name", {"\"" + neu + "\""}, out)) { return false; }
+    const auto gleich = [](const std::string& x, const std::string& y) {
+        return x.size() == y.size() && std::equal(x.begin(), x.end(), y.begin(), [](char p, char q) { return std::tolower(static_cast<unsigned char>(p)) == std::tolower(static_cast<unsigned char>(q)); });
+    };
+    const auto skripte = [&](const std::vector<Eigenschaft>& eig) {
+        for (const Eigenschaft& s : eig) {
+            bool amAnfang = false;
+            for (std::size_t k = 0; k + 1 < s.args.size(); ++k) {
+                const Token& t = s.args[k];
+                if (t.s == "{" || t.s == ";") {
+                    amAnfang = true;
+                    continue;
+                }
+                if (!amAnfang) { continue; }
+                amAnfang = false;
+                if (!gleich(t.s, "open") && !gleich(t.s, "close")) { continue; }
+                const Token& ziel = s.args[k + 1];
+                std::string w = ziel.s;
+                if (w.size() > 1 && w.back() == ';') { w.pop_back(); }
+                if (!gleich(w, alt) || ziel.datei != 0 || ziel.ausMakro) { continue; }
+                const std::size_t p = d.text.find(w, ziel.anfang);
+                if (p == std::string::npos || p + w.size() > ziel.ende) { continue; }
+                out.push_back(Ersetzung{static_cast<std::uint32_t>(p), static_cast<std::uint32_t>(p + w.size()), neu});
+            }
+        }
+    };
+    for (const Menu& m : d.menus) {
+        skripte(m.eigenschaften);
+        for (const Item& it : m.items) { skripte(it.eigenschaften); }
+    }
+    return true;
+}
+
+std::string menuTextMitName(const Datei& d, int menu, const std::string& name) {
+    std::size_t a = 0, e = 0;
+    if (!menuSpanne(d, menu, a, e)) { return {}; }
+    std::vector<Ersetzung> r;
+    if (!setzeEigenschaft(d, menu, -1, "name", {"\"" + name + "\""}, r)) { return d.text.substr(a, e - a); }
+    std::string t = d.text.substr(a, e - a);
+    std::sort(r.begin(), r.end(), [](const Ersetzung& x, const Ersetzung& y) { return x.anfang > y.anfang; });
+    for (const Ersetzung& x : r) {
+        if (x.anfang >= a && x.ende <= e) { t.replace(x.anfang - a, x.ende - x.anfang, x.neu); }
+    }
+    return t;
+}
+
 std::string itemText(const Datei& d, int menu, int item) {
     if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return {}; }
     const Menu& m = d.menus[static_cast<std::size_t>(menu)];
@@ -470,6 +548,8 @@ bool itemErsetzen(const Datei& d, int menu, int item, const std::string& neuerTe
 
 std::string freierName(const Menu& m, const std::string& basis) {
     std::string b = basis.empty() ? std::string("item") : basis;
+    // rc608 Teil 3b: Ist der Name hier frei (Einfuegen auf einer anderen Seite), bleibt er
+    if (std::none_of(m.items.begin(), m.items.end(), [&b](const Item& it) { return it.window.name == b; })) { return b; }
     // "_<zahl>" am Ende abschneiden
     const std::size_t u = b.find_last_of('_');
     if (u != std::string::npos && u + 1 < b.size() &&

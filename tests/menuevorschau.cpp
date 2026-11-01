@@ -221,6 +221,41 @@ int main() {
                            : "SP: cinematic und TEAMCOLOR-Flaeche nicht gezeichnet (Window_Paint der SP-Fassung)");
         }
     }
+    // rc608 Teil 3b: Item_Text_AutoWrapped_Paint und Item_Text_Wrapped_Paint sind in SP und MP verschieden
+    // (Probeschrift: Vorschub 10, Hoehe 20). SP: Umbruch ab Breite - textalignx, Abstand Hoehe + 4, "..." am Boden,
+    // wrapped Hoehe + 5; MP: Umbruch ueber Breite, Abstand Hoehe + 5, wrapped Hoehe + 2.
+    {
+        const auto zeilen = [&](Dialekt dl, const std::string& kopf, const std::string& text) {
+            const std::string tw = "{ menuDef { name aw rect 0 0 640 480 visible 1\n"
+                                   " itemDef { name t type 0 " + kopf + " textscale 1 visible 1 text \"x\" } } }\n";
+            LeseOptionen ow;
+            ow.dialekt = dl;
+            Datei dw = lies("ui/aw.menu", tw, ow);
+            dw.menus[0].items[0].text = text;
+            Umgebung uw = u;
+            uw.dialekt = dl;
+            std::vector<Prim> pw;
+            zeichneMenu(dw, 0, uw, pw);
+            std::map<float, int> z;
+            for (const Prim& x : pw) {
+                if (x.item == 0 && x.shader == "fonts/probe") { ++z[x.y]; }
+            }
+            std::vector<std::pair<float, int>> v(z.begin(), z.end());
+            return v;
+        };
+        const std::string kasten = "rect 0 0 100 50 textalignx 20 autowrapped";
+        const auto sp = zeilen(Dialekt::SP, kasten, "aaaa bbbb cccc dddd");
+        pruefe(sp.size() == 2 && sp[0].second == 4 && sp[1].second == 7 && nah(sp[1].first - sp[0].first, 24),
+               "autowrapped SP: Umbruch bei Breite - textalignx, Abstand Hoehe + 4, \"...\" am Boden");
+        const auto mp = zeilen(Dialekt::MP, kasten, "aaaa bbbb cccc dddd");
+        pruefe(mp.size() == 2 && mp[0].second == 8 && mp[1].second == 8 && nah(mp[1].first - mp[0].first, 25),
+               "autowrapped MP: Umbruch ueber der Breite, Abstand Hoehe + 5, ohne \"...\"");
+        const auto ws = zeilen(Dialekt::SP, "rect 0 0 300 100 wrapped", "aaa\rbbb");
+        pruefe(ws.size() == 2 && nah(ws[1].first - ws[0].first, 25), "wrapped SP: Abstand Hoehe + 5");
+        const auto wm = zeilen(Dialekt::MP, "rect 0 0 300 100 wrapped", "aaa\rbbb");
+        pruefe(wm.size() == 2 && nah(wm[1].first - wm[0].first, 22), "wrapped MP: Abstand Hoehe + 2");
+    }
+
     // M4: ITEM_TYPE_TEXTSCROLL wie Item_TextScroll_BuildLines/Item_TextScroll_Paint (Probeschrift:
     // Vorschub 10 je Zeichen; Breite 120 -> iBoxWidth 94: "aaa bbb cc" erreicht 100 -> Umbruch nach "bbb ")
     {

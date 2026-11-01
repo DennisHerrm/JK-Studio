@@ -16,6 +16,7 @@
 //   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/feeder.h"
+#include "bhed/utf8pfad.h"
 
 #include "bhed/pk3.h"
 
@@ -236,7 +237,7 @@ std::vector<std::string> dateiListe(const Spieldaten& d, const std::string& pfad
     for (auto o = d.ordner.rbegin(); o != d.ordner.rend(); ++o) {
         if (!o->directory.empty()) {
             std::error_code ec;
-            const std::filesystem::path dir = std::filesystem::path(o->directory) / pfadRoh;
+            const std::filesystem::path dir = utf8Pfad(o->directory) / utf8Pfad(pfadRoh);
             std::vector<std::string> lose;
             if (std::filesystem::is_directory(dir, ec)) {
                 for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
@@ -355,7 +356,7 @@ void FeederDaten::baue() {
         }
         std::sort(ord.begin(), ord.end(), [](const std::string& a, const std::string& b) { return klein(a) < klein(b); });
         for (const std::string& n : ord) {
-            const std::filesystem::path dir = std::filesystem::path(basisOrdner) / n;
+            const std::filesystem::path dir = utf8Pfad(basisOrdner) / utf8Pfad(n);
             bool hatPk3 = false;
             for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
                 hatPk3 = hatPk3 || endetMitOhneFall(e.path().filename().string(), ".pk3");

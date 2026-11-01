@@ -284,7 +284,9 @@ void mp(Zeichner& z, OdErgebnis& r) {
         const int numval = num * 2 - (blau ? 1 : 0);
         Farbe f = c;
         if (numval > maxcl) {
-            f = Farbe{c.r * 0.5F, c.g * 0.5F, c.b * 0.5F, c.a};
+            // rc608 Teil 3b: JK2 MP im Spiel gemessen: rot 255 wird 51, also 0,2; JKA und Movie Duels 0,5 (UI_DrawTeamMember)
+            const float dunkel = k.spiel == Spiel::JK2 ? 0.2F : 0.5F;
+            f = Farbe{c.r * dunkel, c.g * dunkel, c.b * dunkel, c.a};
             value = -1;
         }
         const std::vector<std::pair<std::string, int>> leer;

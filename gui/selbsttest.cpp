@@ -6513,6 +6513,10 @@ void selbsttest() {
                     fokusVorher = fokus;
                 }
             }
+            // rc608 Teil 3b: BHED_TEST_BREMSE=<ms>: jedes Bild unregelmaessig bis zu so lang (macht Zeit- und Reihenfolgefehler sichtbar, wie unter Last)
+            if (static const char* bremse = std::getenv("BHED_TEST_BREMSE"); bremse != nullptr) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(ImGui::GetFrameCount() * 7919 % (std::atoi(bremse) + 1)));
+            }
             const std::function<bool(int)> tun = a.schritte[a.schritt].tun;
             g_liste = &a.schritte;
             g_einfuegeAn = a.schritt + 1U;

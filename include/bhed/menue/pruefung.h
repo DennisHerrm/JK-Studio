@@ -34,6 +34,7 @@
 namespace bhed::menue {
 
 struct Grenzen {
+    int menuItemsOpenJk = 0, menusOpenJk = 0, multiOpenJk = 0;   // rc608 Teil 3b: OpenJK liest mehr als das Original (0 = gleich)
     int menuItems = 0, menus = 0, skript = 0, multiCvars = 0, farbBereiche = 0, spalten = 0;
 };
 // Die Grenzen der Fassung, die die Datei liest.
@@ -53,6 +54,10 @@ struct Auslastung {
 
 enum class BefundArt {
     ZuVieleItems,      // a = Items, b = Grenze
+    NurOpenJk,         // rc608 Teil 3b: a = Anzahl, b = Grenze im Original, name = "items", "menus", "multi"; wert = Grenze in OpenJK
+    ModellOhneSkin,    // rc608 Teil 3b: MP, Modell ohne model_g2skin und ohne isCharacter: im Spiel dunkel und ohne Textur (fotografiert: jamp, Movie Duels MP)
+    KeineFokusFarbe,   // rc608 Teil 3b: Menue mit Knoepfen ohne focusColor: Item_TextColor nimmt (0,0,0,0), der Text verschwindet unter dem Zeiger
+    NiemandOeffnet,    // rc608 Teil 3b: name = Menue: kein Menue oeffnet es, und das Spiel oeffnet es nicht selbst
     ZuVieleMenues,     // a = Menues, b = Grenze
     SkriptZuLang,      // a = Laenge, b = Grenze, name = Schluessel
     ZuVieleWerte,      // a = Werte, b = Grenze (cvarList/cvarFloatList)

@@ -8,8 +8,8 @@ constexpr double kSicherungAlle = 30.0;   // Sekunden zwischen zwei Sicherungen
 
 // Das erste Menue eines neuen Projekts: Vollbild mit dunkelblauem Grund
 constexpr const char* kStartMenue =
-    "{\n\tmenuDef\n\t{\n\t\tname\t\tmein_menue\n\t\tfullscreen\t1\n\t\trect\t\t0 0 640 480\n\t\tvisible\t\t1\n\t\titemDef\n\t\t{\n\t\t\tname\t\thinter"
-    "grund\n\t\t\tstyle\t\tWINDOW_STYLE_FILLED\n\t\t\tbackcolor\t0 0 0.25 1\n\t\t\trect\t\t0 0 640 480\n\t\t\tvisible\t\t1\n\t\t\tdecoration\n\t\t}\n\t}\n}\n";
+    "{\n\tmenuDef\n\t{\n\t\tname\t\tmy_menu\n\t\tfullscreen\t1\n\t\trect\t\t0 0 640 480\n\t\tvisible\t\t1\n\t\tfocusColor\t1 1 1 1\n\t\titemDef\n\t\t{\n\t\t\tname\t\tback"
+    "ground\n\t\t\tstyle\t\tWINDOW_STYLE_FILLED\n\t\t\tbackcolor\t0 0 0.25 1\n\t\t\trect\t\t0 0 640 480\n\t\t\tvisible\t\t1\n\t\t\tdecoration\n\t\t}\n\t}\n}\n";
 
 fs::path projektOrdner() { return utf8Pfad(Z().projektDatei).parent_path(); }
 
@@ -342,11 +342,12 @@ bool speichereProjekt() {
 // beginnt es im gewaehlten Format - Mehrspieler im Menueordner der MP-Fassung (ui/jamp, ui/jk2mp,
 // ui/MD_MP), dort liest die Engine menudef.h vorab (PC_LoadGlobalDefines)
 std::string startMenuePfad(Dialekt d, Spiel s) {
-    if (d == Dialekt::SP) { return "ui/mein_menue.menu"; }
-    return s == Spiel::JK2 ? "ui/jk2mp/mein_menue.menu" : s == Spiel::MD ? "ui/MD_MP/mein_menue.menu" : "ui/jamp/mein_menue.menu";
+    if (d == Dialekt::SP) { return "ui/my_menu.menu"; }
+    return s == Spiel::JK2 ? "ui/jk2mp/my_menu.menu" : s == Spiel::MD ? "ui/MD_MP/my_menu.menu" : "ui/jamp/my_menu.menu";
 }
 
 bool neuesProjekt(const std::string& datei) {
+    setzeInteraktion(false);   // rc608 Teil 3b: Ein neues Projekt beginnt im Bearbeiten, auch wenn vorher Bedienen an war (Tutorial Schritt 4: Rahmen)
     Zustand& z = Z();
     std::string d = datei;
     if (!istProjektDatei(d)) { d += kProjektEndung; }
@@ -479,7 +480,7 @@ void neuesProjektWaehlen() {
     Zustand& z = Z();
     const std::string ziel = z.projektDialog ? z.projektDialog(true)
                                              : platform::saveFileDialog(tr(Str::MePrjNeu), "JK Studio menu project (*.jksmenu)|*.jksmenu|", z.ordnerAusgabe,
-                                                                        "mein_menue.jksmenu");
+                                                                        "my_menu.jksmenu");
     if (!ziel.empty()) { (void)neuesProjekt(ziel); }
 }
 

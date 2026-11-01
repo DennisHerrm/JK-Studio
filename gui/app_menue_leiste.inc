@@ -565,7 +565,7 @@ void zeichneKarte(Dokument& d, int art) {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(n.c_str());
         daneben(ImGui::CalcTextSize(tr(Str::MlTypMenue)).x + fs);
-        lsBadge(tr(Str::MlTypMenue), nullptr);
+        lsBadge(tr(Str::MlTypMenue), tr(Str::MlNichtsGewaehlt));
         ImGui::EndGroup();
         if (art == 0) {
             ImGui::PushTextWrapPos(0.0F);
@@ -709,9 +709,18 @@ std::string zahlenKurz(std::initializer_list<float> v, const char* zwischen) {
 }
 
 // Der gesuchte oder einzige Wert von showCvar { "wert" }; viele = mehr als ein Wert (bleibt unter "weitere Eintraege")
+// rc608 Teil 3b: alle vier Bedingungen des Spiels (ItemParse_showCvar, hideCvar, enableCvar, disableCvar)
+const char* const kBedingung[4] = {"showCvar", "hideCvar", "enableCvar", "disableCvar"};
+int bedingungArt(const Item& it) {
+    for (int k = 0; k < 4; ++k) {
+        if (finde(it, kBedingung[k]) != nullptr) { return k; }
+    }
+    return 0;
+}
+
 std::string showCvarWert(const Item& it, bool& viele) {
     viele = false;
-    const Eigenschaft* e = finde(it, "showCvar");
+    const Eigenschaft* e = finde(it, kBedingung[bedingungArt(it)]);
     if (e == nullptr) { return {}; }
     std::vector<std::string> w;
     for (const Token& t : e->args) {
@@ -780,8 +789,9 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
         zus += std::to_string(static_cast<int>(std::lround(it.textscale * 100.0F))) + " %";
         gruppe("inhalt", tr(Str::MlGrInhalt), zus, [&] {
             if (gilt("text") && feldKopf(tr(Str::MlFText), "text", tr(Str::MlFTextTip))) {
-                std::string text = it.text;
-                textFeld("##text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
+                std::string text = textAusDatei(z.sprache, it.text);   // rc608 Teil 3b: Die Datei hat die Kodierung der Sprache, das Feld UTF-8
+                const Dialekt dialekt = d.datei.dialekt;
+                textFeld("##text", &text, [i, dialekt](const std::string& t) { eigenschaft(i, "text", {schreibZeichenkette(textFuerDatei(Z().sprache, t), dialekt)}); });
                 if (!it.text.empty() && it.text[0] == '@') {
                     // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
                     ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
@@ -934,6 +944,113 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
             }
         });
     }
+    // rc608 Teil 3b: Die Eintraege einer Mehrfachwahl: Das Element taugt sonst nur im Text-Editor. Geschrieben wird die ganze Liste, ein Schritt.
+    if (it.type == ITEM_TYPE_MULTI) {
+        const Eigenschaft* ls = finde(it, "cvarStrList");
+        const bool zahlen = ls == nullptr && finde(it, "cvarFloatList") != nullptr;
+        if (zahlen) { ls = finde(it, "cvarFloatList"); }
+        std::vector<std::string> w;
+        if (ls != nullptr) {
+            for (const Token& tk : ls->args) {
+                if (tk.s != "{" && tk.s != "}" && tk.s != ";") { w.push_back(tk.s); }
+            }
+        }
+        if (w.size() % 2 != 0) { w.emplace_back(); }
+        const char* key = zahlen ? "cvarFloatList" : "cvarStrList";
+        const auto schreibeListe = [i, key, zahlen](const std::vector<std::string>& neu) {
+            std::string s = "{";
+            for (std::size_t k = 0; k < neu.size(); ++k) {
+                const bool zahl = zahlen && k % 2 == 1;
+                s += " " + (zahl ? (neu[k].empty() ? std::string("0") : neu[k]) : "\"" + neu[k] + "\"");
+            }
+            eigenschaft(i, key, {s + " }"});
+        };
+        char zus[64];
+        std::snprintf(zus, sizeof(zus), "%d", static_cast<int>(w.size() / 2));
+        gruppe("auswahlen", tr(Str::MlFWerteListe), zus, [&] {
+            if (l.zaehlen) { return; }
+            ImGui::PushTextWrapPos(0.0F);
+            ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlFWerteListeTip));
+            ImGui::PopTextWrapPos();
+            const float x = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x;
+            const float breit = (ImGui::GetContentRegionAvail().x - x - ImGui::GetStyle().ItemSpacing.x) * 0.5F;
+            for (std::size_t k = 0; k + 1 < w.size(); k += 2) {
+                ImGui::PushID(static_cast<int>(k));
+                ImGui::SetNextItemWidth(breit);
+                std::string a = anzeige(w[k]);
+                textFeld("##wl", &a, [schreibeListe, w, k](const std::string& t) {
+                    std::vector<std::string> neu = w;
+                    neu[k] = utf8ZuLatin1(t.c_str());
+                    neu[k].erase(std::remove(neu[k].begin(), neu[k].end(), '"'), neu[k].end());
+                    schreibeListe(neu);
+                }, tr(Str::MlWerteText));
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(breit);
+                std::string b = anzeige(w[k + 1]);
+                textFeld("##wv", &b, [schreibeListe, w, k](const std::string& t) {
+                    std::vector<std::string> neu = w;
+                    neu[k + 1] = utf8ZuLatin1(t.c_str());
+                    neu[k + 1].erase(std::remove(neu[k + 1].begin(), neu[k + 1].end(), '"'), neu[k + 1].end());
+                    schreibeListe(neu);
+                }, tr(Str::MlWerteWert));
+                ImGui::SameLine();
+                if (lsKnopf("##wx", Ls::Weg, tr(Str::ActDelete), false, true)) {
+                    std::vector<std::string> neu = w;
+                    neu.erase(neu.begin() + static_cast<std::ptrdiff_t>(k), neu.begin() + static_cast<std::ptrdiff_t>(k) + 2);
+                    schreibeListe(neu);
+                }
+                ImGui::PopID();
+            }
+            if (ImGui::Button(tr(Str::MlWerteNeu))) {
+                std::vector<std::string> neu = w;
+                neu.emplace_back(tr(Str::MlWerteNeuText));
+                neu.emplace_back(std::to_string(w.size() / 2));
+                schreibeListe(neu);
+            }
+        });
+    }
+    // rc608 Teil 3b: Was der Code des Spiels fuellt: frei tippbar, das Spiel muss es lesen koennen. Der Tipp sagt in einem Satz, was es ist.
+    if (gilt("ownerdraw") || gilt("feeder")) {
+        const auto wortZeile = [&](const char* key, Str name, Str tip) {
+            if (!gilt(key) || !feldKopf(tr(name), key, tr(tip))) { return; }
+            const Eigenschaft* e0 = finde(it, key);
+            std::string wort;
+            if (e0 != nullptr) {
+                for (const Token& tk : e0->args) { wort += (wort.empty() ? "" : " ") + anzeige(tk.s); }
+            }
+            const std::string id = std::string("##wort_") + key;
+            textFeld(id.c_str(), &wort, [i, key](const std::string& t) {
+                const std::string b = utf8ZuLatin1(t.c_str());
+                // Im Einzelspieler liest PC_ParseInt mit atoi: Aus einem Wort wuerde still eine 0. Im Mehrspieler entscheidet die Probe (PC_Int_Parse, menudef.h).
+                const Dokument* dd = doc();
+                const bool zahl = std::all_of(b.begin(), b.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0 || c == ' ' || c == '-'; });
+                if (dd != nullptr && dd->datei.dialekt == Dialekt::SP && !zahl) {
+                    std::vector<char> m(400);
+                    std::snprintf(m.data(), m.size(), tr(Str::MlUngueltig), b.c_str());
+                    Z().meldung = m.data();
+                    addStatus(m.data());
+                    return;
+                }
+                if (!b.empty()) {
+                    std::vector<std::string> w;
+                    std::size_t von = 0;
+                    while (von < b.size()) {
+                        const std::size_t bis = std::min(b.find(' ', von), b.size());
+                        if (bis > von) { w.push_back(b.substr(von, bis - von)); }
+                        von = bis + 1;
+                    }
+                    eigenschaft(i, key, w);
+                }
+            }, tr(Str::MlKeine));
+        };
+        gruppe("spielinhalt", tr(Str::MlGrSpielInhalt), {}, [&] {
+            wortZeile("ownerdraw", Str::MlFOwnerdraw, Str::MlFOwnerdrawTip);
+            wortZeile("feeder", Str::MlFFeeder, Str::MlFFeederTip);
+            wortZeile("elementwidth", Str::MlFZeileBreite, Str::MlFZeileBreiteTip);
+            wortZeile("elementheight", Str::MlFZeileHoehe, Str::MlFZeileHoeheTip);
+            wortZeile("columns", Str::MlFSpalten, Str::MlFSpaltenTip);
+        });
+    }
     // Lage und Groesse: immer 2 und 2
     gruppe("lage", tr(Str::MlGrLage), zahlenKurz({rc.x, rc.y}, ", ") + " \xC2\xB7 " + zahlenKurz({rc.w, rc.h}, " x "), [&] {
         if (feldKopf(tr(Str::MlFLage), "rect", tr(Str::MlFLageTip))) {
@@ -1008,23 +1125,53 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
         const std::string wert = showCvarWert(it, viele);
         gruppe("logik", tr(Str::MlGrLogik), it.cvarTest.empty() ? std::string(tr(Str::MlZusImmerSichtbar)) : anzeige(it.cvarTest + " = " + wert), [&] {
             if (feldKopf(tr(Str::MlFGruppe), "group", tr(Str::MlFGruppeTip))) {
-                std::string g = it.window.group;
+                std::string g = anzeige(it.window.group);
                 textFeld("##group", &g, [i](const std::string& t) { eigenschaft(i, "group", {inAnf(t)}); }, tr(Str::MlKeine));
             }
             if (gilt("cvar") && it.type != ITEM_TYPE_SLIDER && feldKopf(tr(Str::MlFEinstellung), "cvar", tr(Str::MlFEinstellungTip))) {
-                std::string c = it.cvar;
+                std::string c = anzeige(it.cvar);
                 textFeld("##cvar", &c, [i](const std::string& t) { eigenschaft(i, "cvar", {inAnf(t)}); }, tr(Str::MlKeine));
             }
-            if (feldKopf(tr(Str::MlFNurWenn), viele ? "cvarTest" : "cvarTest, showCvar", tr(Str::MlFNurWennTip))) {
-                std::string c = it.cvarTest;
-                std::string w = wert;
+            const int bed = bedingungArt(it);
+            if (feldKopf(tr(Str::MlFBedingung), "showCvar, hideCvar, enableCvar, disableCvar", tr(Str::MlFBedingungTip))) {
+                static const Str kNamen[4] = {Str::MlBedZeigen, Str::MlBedVerbergen, Str::MlBedAktiv, Str::MlBedGesperrt};
+                const bool offen = ImGui::BeginCombo("##bedingung", tr(kNamen[bed]));
+                z.feldStelle["##bedingung"] = ImVec2{(ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5F, (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F};
+                if (offen) {
+                    for (int k = 0; k < 4; ++k) {
+                        if (ImGui::Selectable(tr(kNamen[k]), k == bed) && k != bed) {
+                            // Die Art wechseln: Der Wert bleibt, die alte Zeile geht
+                            const std::string w0 = wert;
+                            std::vector<Ersetzung> e;
+                            if (!w0.empty() && !viele && entferneEigenschaft(d.datei, mi, i, kBedingung[bed], e) &&
+                                setzeEigenschaft(d.datei, mi, i, kBedingung[k], {"{ " + inAnf(anzeige(w0)) + " }"}, e)) {
+                                aendere(std::move(e));
+                            } else {
+                                z.bedingungNeu = k;
+                            }
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+            static const char* const kSchluessel[4] = {"cvarTest, showCvar", "cvarTest, hideCvar", "cvarTest, enableCvar", "cvarTest, disableCvar"};
+            if (feldKopf(tr(Str::MlFBedingungWert), viele ? "cvarTest" : kSchluessel[bed], tr(Str::MlFNurWennTip))) {
+                std::string c = anzeige(it.cvarTest);
+                std::string w = anzeige(wert);
                 const float halb = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5F;
                 ImGui::SetNextItemWidth(halb);
                 textFeld("##cvartest", &c, [i](const std::string& t) { eigenschaft(i, "cvarTest", {inAnf(t)}); }, tr(Str::MlFCvar));
                 if (!viele) {
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(halb);
-                    textFeld("##showcvar", &w, [i](const std::string& t) { eigenschaft(i, "showCvar", {"{ " + inAnf(t) + " }"}); }, tr(Str::MlFHatWert));
+                    const char* schluessel = kBedingung[z.bedingungNeu >= 0 ? z.bedingungNeu : bed];
+                    textFeld("##showcvar", &w, [i, schluessel](const std::string& t) {
+                        // PC_Script_Parse beendet den Block an "}" auch in Anfuehrungszeichen: Diese Zeichen kann ein Wert hier nicht tragen
+                        std::string wert = t;
+                        wert.erase(std::remove_if(wert.begin(), wert.end(), [](char c) { return c == '{' || c == '}' || c == ';'; }), wert.end());
+                        eigenschaft(i, schluessel, {"{ " + inAnf(wert) + " }"});
+                        Z().bedingungNeu = -1;
+                    }, tr(Str::MlFHatWert));
                 }
             }
         });
@@ -1084,6 +1231,8 @@ void eigenschaftenMenue(Dokument& d, int mi, const Menu& m) {
                 if (!t.empty()) { setze("name", inAnf(utf8ZuLatin1(t.c_str()))); }
             });
         }
+        // rc608 Teil 3b: Fehlt sie, verschwindet der Text jedes Knopfs unter dem Zeiger (Item_TextColor)
+        farbZeile(tr(Str::MlFFokusFarbe), "focusColor", tr(Str::MlFFokusFarbeTip), m.focusColor, "focusColor", [setze](const Farbe& f) { setze("focusColor", farbText(f)); });
         if (feldKopf(tr(Str::MlFAnzeige), "fullScreen", tr(Str::MlFAnzeigeTip))) {
             const int k = lsUmschalter("##anzeige", {{tr(Str::MeVollbild), nullptr}, {tr(Str::MeUeberlagerung), nullptr}}, voll ? 0 : 1);
             if (k == 0 && !voll) { setze("fullScreen", "1"); }
@@ -1924,7 +2073,12 @@ void zeichneEreignisse(Dokument& d) {
             l.addq.clear();
         }
         ImGui::PopStyleColor(3);
+        // rc608 Teil 3b: Bei wenig Hoehe lag der Knopf oder die aufgeklappte Liste unter dem Rand der Spalte
+        if (!ImGui::IsItemVisible() && tourSicht().aktiv && tourSicht().id == "tut-menue-eigen" && tourSicht().schritt == 6 && schluessel == "action") { ImGui::SetScrollHereY(0.9F); }
+        const bool listeNeu = l.add && l.addNeu;
+        const std::string suchVorher = l.addq;
         if (l.add) { zeichneSchrittWahl(d, b, it, m, geaendert); }
+        if (listeNeu || suchVorher != l.addq) { ImGui::SetScrollHereY(1.0F); }
     }
     if (geaendert) { ereignisSchreiben(d, i, schluessel.c_str(), b); }
     lsZeilenEnde();
@@ -2043,6 +2197,10 @@ void leisteSeite(Dokument& d, int art) {
         ImGui::EndChild();
     } else {
         ImGui::BeginChild("##inhalt", ImVec2{0.0F, -unten}, ImGuiChildFlags_None);
+        if (Z().leiste.auswahlVorher != d.auswahl) {   // Die Ausloeser des neuen Elements lagen sonst ueber dem Rand der Spalte
+            Z().leiste.auswahlVorher = d.auswahl;
+            ImGui::SetScrollY(0.0F);
+        }
         if (art == 0) {
             zeichneEigenschaften(d);
             if (g_app->settings.menueTextUnten) {   // ohne Reiter: Events darunter

@@ -74,6 +74,13 @@ inline constexpr const char* kVideoRahmenKennung = "// jkstudio:rahmen video";
 // gezeichnet, ganz hinten). Der Block zieht mit seinen eigenen Zeilen um, Kommentare
 // zwischen den Bloecken bleiben stehen; eine Ersetzung (ein Rueckgaengig-Schritt).
 [[nodiscard]] bool itemAnStelle(const Datei& d, int menu, int item, int ziel, std::vector<Ersetzung>& out);
+// rc608 Teil 3b: ganze Menues einer Datei. Loeschen samt Zeile; Tauschen vertauscht ein Menue mit dem folgenden;
+// Umbenennen zieht open und close in der ganzen Datei mit. false, wenn das Menue aus einem Makro oder einer anderen Datei kommt.
+[[nodiscard]] bool menuLoeschen(const Datei& d, int menu, std::vector<Ersetzung>& out);
+[[nodiscard]] bool menuTauschen(const Datei& d, int menu, std::vector<Ersetzung>& out);
+[[nodiscard]] bool menuUmbenennen(const Datei& d, int menu, const std::string& neu, std::vector<Ersetzung>& out);
+// Der Text eines Menues mit einem anderen Namen (Duplizieren)
+[[nodiscard]] std::string menuTextMitName(const Datei& d, int menu, const std::string& name);
 // Name fuer eine Kopie: name_2, name_3 ... (frei im Menue)
 // M6 Punkt 2: die Items neu auf Plaetze verteilen - an die Stelle von Item plaetze[k] kommt der
 // itemDef-Block von Item neu[k] (gleich viele, jedes einmal); die anderen Items bleiben stehen.

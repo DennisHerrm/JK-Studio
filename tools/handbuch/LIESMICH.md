@@ -67,6 +67,7 @@ schreibt er den Ausschnitt (`<name>.rect`). Umgebung:
 
 - `BHED_FOTOS` – Zielordner, `BHED_SPRACHE` – en / de / zh-Hans / ja / es / cs (Kennungen wie in der Einstellungsdatei)
 - `BHED_MISSION_ARCHIV`, `BHED_MISSION_NAME` – Archiv und Karte der Übungsmission (ohne: `assets0.pk3` aus den Spielordnern, `taspir1`)
+- `BHED_HB_FENSTER=3840x2160@2` – Fenster x Höhe @ Oberfläche für große Bilder (wird auf den Schirm begrenzt), `BHED_FOTO_NUR=a_` – nur Bilder mit diesem Anfang (die bewegten). Die Bilder des Menü-Editors nimmt `BHED_EDITORTEST=menueeditor BHED_MENUE_BILDER=1` auf (Fenster 2560 x 1500, schmale Spalten, das Menü groß), das Datapad von Jedi Academy `BHED_MENUE_NUR=m7` mit den Original-Spieldaten.
 - `BHED_MISSIONEN`, `BHED_HB_ZIEL` – die Übungsmission und ihr Archiv. Beim
   Aufnehmen auf ein Laufwerk aus `subst` legen (z. B. `X:\missionen`), damit
   kein Benutzerpfad im Bild steht; danach `subst X: /d`.

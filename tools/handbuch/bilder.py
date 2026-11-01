@@ -6,8 +6,8 @@ Aufruf:  python tools/handbuch/bilder.py <fotoordner> <sprache> [<ziel-handbuch>
   <fotoordner>/<name>.rect  "x0 y0 x1 y1" - der Ausschnitt (fehlt/leer: ganz)
   <name>_00 ... _NN         eine Bildfolge -> ein bewegtes Bild <name>.webp
 
-Ziel: handbuch/bilder/<sprache>/<name>.webp (Breite hoechstens 1600 Pixel,
-bewegte Bilder 1200). Braucht Pillow.
+Ziel: handbuch/bilder/<sprache>/<name>.webp (Breite hoechstens 2560 Pixel, bewegte Bilder 1920;
+shank: "so 1920 ... nicht so winzige Bilder und Gifs"). Kleinere Ausschnitte bleiben, wie sie sind: Sie sind in voller Aufloesung. Braucht Pillow.
 """
 import glob
 import os
@@ -211,8 +211,7 @@ def main():
             folgen.setdefault(m.group(1), []).append(bmp)
             continue
         bild, marken = lade(bmp, True)
-        # Ganze Fenster breiter lassen - beim Vergroessern bleibt der Text lesbar.
-        kl = klein(bild, 2200 if bild.width > 2000 else 1600)
+        kl = klein(bild, 2560)
         kl = zeichne_marken(kl, marken, kl.width / bild.width)
         kl.save(os.path.join(ziel, name + ".webp"), "WEBP", quality=84, method=6)
         einzeln += 1
@@ -224,7 +223,7 @@ def main():
         bilder = []
         for b in liste:
             roh, marken = lade(b, True)
-            kl = klein(roh, 1200)
+            kl = klein(roh, 1920)
             bilder.append(zeichne_marken(kl, marken, kl.width / roh.width))
         # Viele Bilder: fluessig (shank: "die GIFs sollten mehr Bilder haben,
         # damit sie hochwertiger sind"), wenige: Zeit zum Hinsehen.

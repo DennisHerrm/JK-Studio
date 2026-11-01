@@ -70,17 +70,17 @@ std::string erzeugeDetailbereich(const DetailOptionen& o, Dialekt d) {
     const std::string& p = o.praefix;
     std::string s;
     // Rahmen der beiden unteren Ebenen
-    s += item({{"name", p + "_rahmen_liste"}, {"rect", rect(b.x, innenY, listeW, innenH)}, {"style", "WINDOW_STYLE_FILLED"},
+    s += item({{"name", p + "_frame_list"}, {"rect", rect(b.x, innenY, listeW, innenH)}, {"style", "WINDOW_STYLE_FILLED"},
                {"backcolor", "0 0 0 0.45"}, {"border", "1"}, {"bordercolor", "0.5 0.6 0.8 0.6"}, {"visible", "1"}, {"decoration", ""}});
-    s += item({{"name", p + "_rahmen_detail"}, {"rect", rect(b.x + listeW + 8, innenY, b.w - listeW - 8, innenH)},
+    s += item({{"name", p + "_frame_detail"}, {"rect", rect(b.x + listeW + 8, innenY, b.w - listeW - 8, innenH)},
                {"style", "WINDOW_STYLE_FILLED"}, {"backcolor", "0 0 0 0.45"}, {"border", "1"}, {"bordercolor", "0.5 0.6 0.8 0.6"},
                {"visible", "1"}, {"decoration", ""}});
     // Ebene 1: Reiter je Blaetterstellung (cvarTest ui_tabofs)
     for (int ofs = 0; ofs < ofsAnzahl; ++ofs) {
         for (int k = 0; k < sichtbar && ofs + k < n; ++k) {
             const int t = ofs + k;
-            s += item({{"name", p + "_reiter_" + std::to_string(t) + "_" + std::to_string(ofs)},
-                       {"group", p + "_reiter"},
+            s += item({{"name", p + "_tab_" + std::to_string(t) + "_" + std::to_string(ofs)},
+                       {"group", p + "_tab"},
                        {"type", "ITEM_TYPE_BUTTON"},
                        {"rect", rect(b.x + pfeil + static_cast<float>(k) * reiterW, b.y, reiterW - 2, reiterH)},
                        {"style", "WINDOW_STYLE_FILLED"},
@@ -99,14 +99,14 @@ std::string erzeugeDetailbereich(const DetailOptionen& o, Dialekt d) {
         }
         if (n > sichtbar) {   // Blaettern: je Stellung ein Pfeil links und rechts
             if (ofs > 0) {
-                s += item({{"name", p + "_links_" + std::to_string(ofs)}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", rect(b.x, b.y, pfeil - 2, reiterH)},
+                s += item({{"name", p + "_left_" + std::to_string(ofs)}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", rect(b.x, b.y, pfeil - 2, reiterH)},
                            {"text", anf("<")}, {"textalign", "ITEM_ALIGN_CENTER"}, {"textalignx", z((pfeil - 2) / 2)}, {"textaligny", "2"},
                            {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"cvarTest", anf(o.cvarOfs)},
                            {"showCvar", "{ " + anf(std::to_string(ofs)) + " }"}, {"visible", "1"},
                            {"action", "{ setcvar " + o.cvarOfs + " " + anf(std::to_string(ofs - 1)) + " }"}});
             }
             if (ofs < ofsAnzahl - 1) {
-                s += item({{"name", p + "_rechts_" + std::to_string(ofs)}, {"type", "ITEM_TYPE_BUTTON"},
+                s += item({{"name", p + "_right_" + std::to_string(ofs)}, {"type", "ITEM_TYPE_BUTTON"},
                            {"rect", rect(b.x + b.w - pfeil + 2, b.y, pfeil - 2, reiterH)}, {"text", anf(">")}, {"textalign", "ITEM_ALIGN_CENTER"},
                            {"textalignx", z((pfeil - 2) / 2)}, {"textaligny", "2"}, {"textscale", "0.7"}, {"forecolor", "1 1 1 1"},
                            {"cvarTest", anf(o.cvarOfs)}, {"showCvar", "{ " + anf(std::to_string(ofs)) + " }"}, {"visible", "1"},
@@ -119,24 +119,24 @@ std::string erzeugeDetailbereich(const DetailOptionen& o, Dialekt d) {
     for (int t = 0; t < n; ++t) {
         const DetailReiter& r = o.reiter[static_cast<std::size_t>(t)];
         const std::string tt = std::to_string(t);
-        s += item({{"name", p + "_titel_" + tt}, {"rect", rect(b.x + 6, innenY + 4, listeW - 12, zeileH)}, {"text", anf(r.titel)},
+        s += item({{"name", p + "_title_" + tt}, {"rect", rect(b.x + 6, innenY + 4, listeW - 12, zeileH)}, {"text", anf(r.titel)},
                    {"textscale", "0.8"}, {"textaligny", "2"}, {"forecolor", "1 0.85 0.4 1"}, {"cvarTest", anf(o.cvarReiter)},
                    {"showCvar", "{ " + anf(tt) + " }"}, {"visible", "1"}, {"decoration", ""}});
         for (std::size_t u = 0; u < r.unter.size(); ++u) {
             const std::string sel = tt + "_" + std::to_string(u);
             const float y = innenY + 8 + zeileH * static_cast<float>(u + 1);
             // Markierung des gewaehlten Unterreiters (cvarTest ui_sel = "t_u")
-            s += item({{"name", p + "_wahl_" + sel}, {"rect", rect(b.x + 4, y, listeW - 8, zeileH - 2)}, {"style", "WINDOW_STYLE_FILLED"},
+            s += item({{"name", p + "_pick_" + sel}, {"rect", rect(b.x + 4, y, listeW - 8, zeileH - 2)}, {"style", "WINDOW_STYLE_FILLED"},
                        {"backcolor", "0.3 0.45 0.8 0.5"}, {"cvarTest", anf(o.cvarSel)}, {"showCvar", "{ " + anf(sel) + " }"},
                        {"visible", "1"}, {"decoration", ""}});
-            s += item({{"name", p + "_unter_" + sel}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", rect(b.x + 4, y, listeW - 8, zeileH - 2)},
+            s += item({{"name", p + "_sub_" + sel}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", rect(b.x + 4, y, listeW - 8, zeileH - 2)},
                        {"text", anf(r.unter[u].titel)}, {"textalignx", "6"}, {"textaligny", "2"}, {"textscale", "0.6"},
                        {"forecolor", "0.9 0.9 0.9 1"}, {"cvarTest", anf(o.cvarReiter)}, {"showCvar", "{ " + anf(tt) + " }"},
                        {"visible", "1"}, {"action", "{ setcvar " + o.cvarSel + " " + anf(sel) + " }"}});
             // Ebene 3: Detail (cvarTest ui_sel = "t_u")
             const float dx = b.x + listeW + 16;
             const float dw = b.w - listeW - 24;
-            s += item({{"name", p + "_kopf_" + sel}, {"rect", rect(dx, innenY + 6, dw, 28)}, {"text", anf(r.unter[u].titel)},
+            s += item({{"name", p + "_head_" + sel}, {"rect", rect(dx, innenY + 6, dw, 28)}, {"text", anf(r.unter[u].titel)},
                        {"textscale", "0.9"}, {"textaligny", "2"}, {"forecolor", "1 1 1 1"}, {"cvarTest", anf(o.cvarSel)},
                        {"showCvar", "{ " + anf(sel) + " }"}, {"visible", "1"}, {"decoration", ""}});
             s += item({{"name", p + "_text_" + sel}, {"rect", rect(dx, innenY + 40, dw, innenH - 50)}, {"text", anf(r.unter[u].text)},
@@ -171,7 +171,7 @@ std::vector<Vorlage> standardVorlagen(Dialekt d) {
     std::vector<Vorlage> v;
     // rc608 Teil 3a: Der Knopf steht nur noch einmal: das einzelne Element hat jetzt selbst eine sichtbare Flaeche
     v.push_back({"schieber", "Slider with cvar",
-                 item({{"name", "schieber"}, {"type", "ITEM_TYPE_SLIDER"}, {"rect", "200 240 240 24"}, {"text", anf("Volume:")},
+                 item({{"name", "slider"}, {"type", "ITEM_TYPE_SLIDER"}, {"rect", "200 240 240 24"}, {"text", anf("Volume:")},
                        {"cvarfloat", "\"s_volume\" 0.8 0 1"}, {"textalign", "ITEM_ALIGN_RIGHT"}, {"textalignx", "90"}, {"textaligny", "2"},
                        {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"visible", "1"}}),
                  false});
@@ -179,7 +179,7 @@ std::vector<Vorlage> standardVorlagen(Dialekt d) {
     // Reiterleiste: drei Reiter, setzen ui_tab
     std::string reiter;
     for (int i = 0; i < 3; ++i) {
-        reiter += item({{"name", "reiter" + std::to_string(i)}, {"group", "reiterleiste"}, {"type", "ITEM_TYPE_BUTTON"},
+        reiter += item({{"name", "tab" + std::to_string(i)}, {"group", "tab_bar"}, {"type", "ITEM_TYPE_BUTTON"},
                         {"rect", rect(120 + static_cast<float>(i) * 135, 60, 130, 26)}, {"style", "WINDOW_STYLE_FILLED"},
                         {"backcolor", "0.12 0.14 0.2 0.85"}, {"text", anf("Tab " + std::to_string(i + 1))}, {"textalign", "ITEM_ALIGN_CENTER"},
                         {"textalignx", "65"}, {"textaligny", "2"}, {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"visible", "1"},
@@ -189,7 +189,7 @@ std::vector<Vorlage> standardVorlagen(Dialekt d) {
     DetailOptionen o = beispielDetail();
     v.push_back({"detail", "Detail area (3 levels)", erzeugeDetailbereich(o, d), false});
     v.push_back({"liste", "List",
-                 item({{"name", "liste"}, {"type", "ITEM_TYPE_LISTBOX"}, {"rect", "200 120 240 200"}, {"style", "WINDOW_STYLE_FILLED"},
+                 item({{"name", "list"}, {"type", "ITEM_TYPE_LISTBOX"}, {"rect", "200 120 240 200"}, {"style", "WINDOW_STYLE_FILLED"},
                        {"backcolor", "0 0 0 0.5"}, {"border", "1"}, {"bordercolor", "0.5 0.5 0.5 1"},
                        {"feeder", d == Dialekt::SP ? "16" : "19"},   // FEEDER_PLAYER_SPECIES (SP 0x10, MP 0x13)
                        {"elementwidth", "220"}, {"elementheight", "20"}, {"textscale", "0.6"}, {"forecolor", "1 1 1 1"},

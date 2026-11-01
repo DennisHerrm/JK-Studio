@@ -682,6 +682,8 @@ Schritt fotoTeil(const std::string& name, std::function<ImRect()> ausschnitt, Ma
     return {"Foto " + name, [=](int b) {
                 const char* ordner = std::getenv("BHED_FOTOS");
                 if (ordner == nullptr) { return true; }
+                // rc608 Teil 3b: BHED_FOTO_NUR=a_: nur diese Bilder (3840 x 2160 sind 25 MB je Bild)
+                if (const char* nur = std::getenv("BHED_FOTO_NUR"); nur != nullptr && name.rfind(nur, 0) != 0) { return true; }
                 Marken mk = marken;
                 if (!mk) {
                     auto& liste = markenListe();
@@ -2215,7 +2217,25 @@ bool aufnahmeHinweisGanz() {
            h.Min.y >= g_app->kartenAnsicht[1] - 0.5F && h.Max.y <= g_app->kartenAnsicht[3] + 0.5F;
 }
 
+std::vector<Schritt> handbuchSchritteInhalt();
+
+// rc608 Teil 3b: BHED_HB_FENSTER=3840x2160@2: die Bilder in voller Groesse (Fenster x Hoehe @ Oberflaeche), wie mit "Interface Scale"
 std::vector<Schritt> handbuchSchritte() {
+    std::vector<Schritt> s = handbuchSchritteInhalt();
+    if (const char* f = std::getenv("BHED_HB_FENSTER")) {
+        int b = 0, h = 0;
+        float z = 1.0F;
+        if (std::sscanf(f, "%dx%d@%f", &b, &h, &z) >= 2 && b > 0 && h > 0) {
+            s.insert(s.begin(), tu("Handbuch: Fenster fuer grosse Bilder", [b, h, z] {
+                (void)platform::hauptfensterGroesse(b, h);
+                g_app->uiScale = z;
+            }));
+        }
+    }
+    return s;
+}
+
+std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
     if (const char* sp = std::getenv("BHED_SPRACHE")) {

@@ -7,6 +7,7 @@
 #define BHED_GUI_MENUEEDITOR_H
 
 #include "bhed/menue/hud.h"
+#include <array>
 #include <map>
 #include <functional>
 #include <string>
@@ -189,6 +190,7 @@ void fuegeItemsEin(const std::string& text);
 void einfuegenOhneDeckung(const std::string& text);   // rc608 Teil 3a: Einfuegen aus der Zwischenablage, nie deckungsgleich; ein Schritt
 std::vector<int> rahmenTexte();                       // rc608 Teil 3a: Selbsttest: Rahmen, deren Platzhaltertext gerade steht
 bool speichereUnter(const std::string& pfad);
+void setzeSpeichernDialog(std::function<std::string()> antwort);   // rc608 Teil 3b: Selbsttest: Pfad statt des Dialogs "Speichern unter"
 // H2 (KI-Auftraege): die Textaenderungen seit `vorher` als EIN Rueckgaengig-Schritt.
 // false, wenn sich die Schritte nicht zusammenfassen liessen (dann bleiben sie einzeln).
 bool zuEinemSchritt(const std::string& vorher);
@@ -226,6 +228,9 @@ struct TourWerte {
     int layouts = 0;          // Layouts in diesem Menue
     int ereignisse = 0;       // Ereignis-Skripte (mouseEnter ... accept) seiner Items
     int gespeichert = 0;      // erfolgreiche Projekt-Speicherungen seit dem Start
+    int spieltests = 0;       // rc608 Teil 3b: "Im Spiel testen" fertig vorbereitet
+    bool reiterProp = false, reiterEvents = false;   // welcher Reiter rechts offen ist
+    bool trigHover = false, trigKlick = false;       // welcher Ausloeser in Events gewaehlt ist
 };
 [[nodiscard]] TourWerte tourWerte();
 // M5b Punkt 4: Mod-Profile (bhed/menue/profil.h); "" = das eingebaute des Spiels
@@ -233,6 +238,14 @@ void setzeModProfil(const std::string& name);
 [[nodiscard]] std::string modProfil();
 bool legeProfilVorlageAn(const std::string& pfad);    // Vorlage zum Ausfuellen schreiben
 bool exportierePk3(const std::string& pfad);
+// rc608 Teil 3b (Selbsttest): eine Datei des Pakets, wie sie exportiert (test false) oder ins Testpaket (true) kommt; "" = nicht drin
+[[nodiscard]] std::string paketDatei(const std::string& name, bool test);
+// rc608 Teil 3b (Selbsttest): das Testpaket in einen Ordner legen (Stichprobe im laufenden Spiel)
+void testPaketAblegen(const std::string& ordner);
+[[nodiscard]] std::vector<std::string> pruefZeilen();   // die Zeilen im Fenster der Pruefung, letztes Bild
+[[nodiscard]] bool linkeSpalteZu();   // die linke Spalte ist zugeklappt
+[[nodiscard]] bool zweiVideosGemeldet();
+[[nodiscard]] std::array<float, 2> leisteFeldStelle(const char* id);   // die Mitte eines Felds der rechten Leiste, das gerade gezeichnet wurde (auch Auswahlfelder ohne Beschriftung)   // die Zeile ueber der Flaeche steht
 // M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen
 bool exportiereAenderungen(const std::string& pfad);
 [[nodiscard]] int letzterExport();   // Dateien im zuletzt geschriebenen Paket

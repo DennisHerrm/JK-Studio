@@ -159,6 +159,8 @@ struct App {
     //     (0) : ( Exported )
     //     (1) : ( Exported )
     std::vector<std::string> statusLines;
+    std::string statusModell;                // rc608 Teil 3b: die Zeile "Command model ...", im Menue-Editor ohne Sinn
+    std::vector<std::string> statusTeile;    // ... was die Statuszeile rechts gerade zeigt
     MapData map;
     // Die Entities je Karte (Kennung = MapData::path), wenn sie NICHT aus
     // der .bsp stammen: aus einer .ent (Mission, "Open .ent...") oder
@@ -2726,6 +2728,8 @@ enum class UiIcon : int {
     Bildschirm,
     // Menue-Editor M4: Ton aus, Schloss zu/offen (Ebenenliste)
     TonAus, Schloss, SchlossOffen,
+    // rc608 Teil 3b: Speichern unter neben Speichern; zwei gleiche Disketten sagten nichts
+    SpeichernUnter,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

@@ -960,7 +960,8 @@ std::vector<Schritt> schritteM5bProjekt() {
         std::ifstream f(*ordner / "ui" / "projektprobe.menu", std::ios::binary);
         std::ostringstream t;
         t << f.rdbuf();
-        return t.str() == *geaendert && fs::is_regular_file(*ordner / "zz_menu.pk3", ec) && me::letzterExport() == 2;
+        return t.str() == *geaendert && fs::is_regular_file(*ordner / "zz_menu.pk3", ec) &&
+               me::letzterExport() == 2 + (me::paketDatei("ui/menus.txt", false).empty() ? 0 : 1) + (me::paketDatei("ui/ingame.txt", false).empty() ? 0 : 1);   // rc608 Teil 3b: dazu die Menueliste des Spiels
     }));
     // Doppelklick: derselbe Weg wie eine zweite Instanz (WM_COPYDATA) bzw. die Kommandozeile (loadPath)
     add(tu("M5b Projekt: alles zu, Skript-Modus, Projekt per Doppelklick-Weg", [datei] {
@@ -1033,6 +1034,57 @@ std::vector<Schritt> schritteM5bProjekt() {
 // die Gegenprobe (der Schritt ist noch nicht erledigt, auch nicht durch eine andere Aktion), danach
 // muss die Tour selbst weiterschalten. Die Bilder h_tut_menue_1..6 sind die des Tutorials.
 Schritt rolleZuKachel(const std::string& name);   // selbsttest_menue_rc608.inc
+// Der Knopf "Edit" der Leiste: Das Hauptmenue steht vorn und heisst in manchen Sprachen gleich, in anderen nicht
+Schritt klickBearbeiten() {
+    return klickAn("Bearbeiten (der Knopf der Leiste)", [] {
+        ImVec2 p{-1.0F, -1.0F};
+        for (const elemente::Element& e : elemente::alle()) {
+            if (e.label == tr(Str::MeBearbeiten)) { p = e.rect.GetCenter(); }
+        }
+        return p;
+    });
+}
+// Von einem Punkt der Flaeche zu einem anderen, in virtuellen Punkten (rc608 Teil 3b; hier schon gebraucht, die gleiche Bewegung wie zieheVirt)
+Schritt zieheFlaecheVon(const std::string& was, float x0, float y0, float x1, float y1) {
+    auto druck = std::make_shared<int>(-1);
+    return Schritt{was, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       const auto st = me::stand();
+                       const auto bei = [&st](float x, float y) { return ImVec2{st.flaeche[0] + x / 640.0F * st.flaeche[2], st.flaeche[1] + y / 480.0F * st.flaeche[3]}; };
+                       if (b == 0) {
+                           *druck = -1;
+                           setzeMaus(bei(x0, y0));
+                           return false;
+                       }
+                       if (*druck < 0) {
+                           if (b < 2 || ImGui::GetTime() - io.MouseClickedTime[0] < static_cast<double>(io.MouseDoubleClickTime) + 0.05) { return false; }
+                           io.AddMouseButtonEvent(0, true);
+                           *druck = b;
+                           return false;
+                       }
+                       const int k = b - *druck;
+                       if (k >= 1 && k <= 5) {
+                           const float t = static_cast<float>(k) / 5.0F;
+                           setzeMaus(bei(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t));
+                           return false;
+                       }
+                       if (k == 6) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return k >= 9;
+                   }};
+}
+
+// Wie oben, der Start kommt erst zur Laufzeit (ein Element, das der Test im Menue aussucht)
+Schritt zieheFlaecheVon(const std::string& was, std::shared_ptr<ImVec2> start, float dx, float dy) {
+    auto innen = std::make_shared<Schritt>();
+    return Schritt{was, [=](int b) {
+                       if (b == 0) { *innen = zieheFlaecheVon(was, start->x, start->y, start->x + dx, start->y + dy); }
+                       return innen->tun(b);
+                   }};
+}
+
 std::vector<Schritt> schritteTourMenue() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1059,26 +1111,48 @@ std::vector<Schritt> schritteTourMenue() {
         (void)tourStarten("tut-menue-eigen", 0);
     }));
     add(pause(0.4));
-    add(pruefe("M5b Tour: laeuft mit 6 Schritten", [] {
+    add(pruefe("M5b Tour: laeuft mit 10 Schritten", [] {
         const TourSicht t = tourSicht();
-        return t.aktiv && t.id == "tut-menue-eigen" && t.anzahl == 6;
+        return t.aktiv && t.id == "tut-menue-eigen" && t.anzahl == 10;
     }));
+    // Jeder Schritt zeigt auf etwas, das zu sehen ist
+    const auto zeigt = [&](int n) {
+        add(pause(0.25));
+        add(pruefe("Tour Menue: Schritt " + std::to_string(n + 1) + " zeigt auf ein sichtbares Bauteil", [n] {
+            const TourSicht t = tourSicht();
+            const ImVec2 g = ImGui::GetIO().DisplaySize;
+            bool gut = t.aktiv && t.schritt == n && !t.ziele.empty();
+            for (const ImRect& r : t.ziele) { gut = gut && r.Min.x >= -1.0F && r.Min.y >= -1.0F && r.Max.x <= g.x + 1.0F && r.Max.y <= g.y + 1.0F && r.GetWidth() > 2.0F && r.GetHeight() > 2.0F; }
+            if (!gut) { diag::info("Knopftest: Tour Schritt " + std::to_string(n + 1) + ": Ziele " + std::to_string(t.ziele.size()) + ", Schritt " + std::to_string(t.schritt)); }
+            return gut;
+        }));
+    };
     offen(0, "Skript-Modus");
+    zeigt(0);
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     erledigt(1);
     add(foto("h_tut_menue_1"));
     offen(1, "Menue-Editor ohne Projekt");
-    add(tu("M5b Tour: Neues Projekt (wie der Knopf nach dem Dateidialog)", [datei] {
+    zeigt(1);
+    add(tu("M5b Tour: Der Dialog antwortet mit dem Pfad", [datei] {
+        me::neuesProjektFormat(std::getenv("BHED_TOUR_MP") != nullptr);   // rc608 Teil 3b: dasselbe Tutorial im Mehrspieler-Format
         std::error_code ec;
         fs::create_directories(fs::path(bhed::utf8Pfad(*datei)).parent_path(), ec);
-        (void)me::legeProjektAn(*datei);
+        me::setzeProjektDialog([datei](bool) { return *datei; });
     }));
+    add(klick(tr(Str::MePrjNeu)));
     erledigt(2);
+    add(tu("M5b Tour: Dialog wieder echt", [] {
+        me::setzeProjektDialog(nullptr);
+        me::setzeSpalten(0.0F, 0.0F);
+        me::leisteVorgabe();
+    }));
     add(foto("h_tut_menue_2"));
     add(pruefe("M5b Tour: das Projekt hat ein leeres Vollbild-Menue (ein Element: der Hintergrund)", [] {
         return !me::projektDatei().empty() && me::tourWerte().elemente == 1;
     }));
     offen(2, "noch kein Knopf");
+    zeigt(2);
     // rc608 Punkt 11: ein einfacher Klick setzt nicht mehr ein, die Tour sagt Doppelklick oder Ziehen
     const auto doppelKnopf = [] {
         return klickAn("M5b Tour: Doppelklick auf den Knopf-Baustein", [] {
@@ -1093,59 +1167,169 @@ std::vector<Schritt> schritteTourMenue() {
     add(pause(0.2));
     add(doppelKnopf());
     add(pause(0.3));
-    add(tu("M5b Tour: Reiter Eigenschaften", [] { me::setzeReiter(2); }));
     add(foto("h_tut_menue_3"));
-    add(tu("M5b Tour: die drei Knoepfe waehlen (Strg+Klick)", [] {
-        me::waehle(1, false);
-        me::waehle(2, true);
-        me::waehle(3, true);
-    }));
+    add(pruefe("Tour Menue: drei Knoepfe", [] { return me::tourWerte().elemente == 4; }));
+    // Schritt 4: Rahmen aufziehen, wie im Text
+    add(zieheFlaecheVon("Tour Menue: Rahmen um die drei Knoepfe", 2.0F, 2.0F, 638.0F, 478.0F));
     add(pause(0.3));
+    add(pruefe("Tour Menue: Der Rahmen waehlt die drei Knoepfe, nicht den Hintergrund", [] { return me::stand().auswahl.size() == 3U; }));
     offen(3, "nur gewaehlt, noch kein Layout");
+    zeigt(3);
     add(klick(tr(Str::MeLayoutWaagrecht)));
     erledigt(4);
     add(pruefe("M5b Tour: die drei (vorher uebereinander liegenden) Knoepfe stehen nebeneinander, ohne sich zu ueberdecken", [] {
-        const auto x = me::stand();
-        bhed::menue::LeseOptionen o;
-        o.dialekt = bhed::menue::Dialekt::SP;
-        const bhed::menue::Datei d = bhed::menue::lies("ui/mein_menue.menu", x.text, o);
-        if (d.menus.size() != 1 || d.menus[0].items.size() != 4) { return false; }
-        const auto& it = d.menus[0].items;
-        const auto& a = it[1].window.rectClient;
-        const auto& b = it[2].window.rectClient;
-        const auto& c = it[3].window.rectClient;
+        // Die Lagen des Editors statt eines zweiten Lesens: Im MP-Format braucht das Lesen die Definitionen aus menudef.h
+        const auto lagen = me::itemLagen();
+        if (lagen.size() != 4) { return false; }
+        struct R { float x, w; };
+        const R a{lagen[1].x, lagen[1].b}, b{lagen[2].x, lagen[2].b}, c{lagen[3].x, lagen[3].b};
         diag::info("Menue-Editor M5b Tour Layout: " + std::to_string(a.x) + "/" + std::to_string(a.w) + " " + std::to_string(b.x) + "/" +
                    std::to_string(b.w) + " " + std::to_string(c.x) + "/" + std::to_string(c.w));
         return a.w > 0 && b.x >= a.x + a.w + 8 - 0.5F && c.x >= b.x + b.w + 8 - 0.5F && std::fabs(a.w - b.w) < 0.5F && a.x >= 0 &&
                c.x + c.w <= 640.5F;
     }));
     add(foto("h_tut_menue_4"));
-    add(tu("M5b Tour: ersten Knopf waehlen, Reiter Ereignisse", [] {
-        me::waehle(1, false);
-        me::setzeReiter(3);
-    }));
-    add(pause(0.3));
-    offen(4, "Reiter Ereignisse offen, noch kein Effekt");
-    add(klick("##tr_mouseEnter"));
-    add(pause(0.2));
-    add(klick(tr(Str::MeEvLeuchten)));
+    // Schritt 5: benennen, direkt auf der Flaeche
+    zeigt(4);
+    const auto benennen = [&](int nr, const char* wort) {
+        add(klickAn(std::string("Tour Menue: Doppelklick auf Knopf ") + wort, [nr] {
+            const auto lagen = me::itemLagen();
+            const auto st = me::stand();
+            if (static_cast<std::size_t>(nr) >= lagen.size()) { return ImVec2{-1.0F, -1.0F}; }
+            const me::ItemLage& l = lagen[static_cast<std::size_t>(nr)];
+            return ImVec2{st.flaeche[0] + (l.x + l.b * 0.5F) / 640.0F * st.flaeche[2], st.flaeche[1] + (l.y + l.h * 0.5F) / 480.0F * st.flaeche[3]};
+        }, 0, true));
+        add(pause(0.3));
+        add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+        add(tippe(wort));
+        add(taste(ImGuiKey_Enter, std::string("Enter")));
+        add(pause(0.3));
+    };
+    benennen(1, "Start");
     erledigt(5);
+    benennen(2, "Options");
+    benennen(3, "Quit");
     add(foto("h_tut_menue_5"));
-    add(tu("M5b Tour: zurueck zum Reiter Eigenschaften", [] { me::setzeReiter(2); }));
-    add(pause(0.2));
-    offen(5, "noch nicht gespeichert");
-    add(klick(tr(Str::MeSpeichern)));
+    add(pruefe("Tour Menue: Die Knoepfe heissen wie getippt", [] {
+        const std::string t = me::stand().text;
+        return t.find("\"Start\"") != std::string::npos && t.find("\"Options\"") != std::string::npos && t.find("\"Quit\"") != std::string::npos;
+    }));
+    // Nach Namen: Das Leuchten legt ein Element davor, die Nummern wandern
+    const auto knopfMitte = [](const char* name) {
+        return [name] {
+            const auto lagen = me::itemLagen();
+            const auto st = me::stand();
+            const int nr = me::itemNummer(name);
+            if (nr < 0 || static_cast<std::size_t>(nr) >= lagen.size()) { return ImVec2{-1.0F, -1.0F}; }
+            const me::ItemLage& l = lagen[static_cast<std::size_t>(nr)];
+            return ImVec2{st.flaeche[0] + (l.x + l.b * 0.5F) / 640.0F * st.flaeche[2], st.flaeche[1] + (l.y + l.h * 0.5F) / 480.0F * st.flaeche[3]};
+        };
+    };
+    // Schritt 6: Leuchten beim Hover
+    add(pause(0.5));
+    add(klickAn("Tour Menue: Klick auf den ersten Knopf", knopfMitte("button")));
+    add(pause(0.5));
+    offen(5, "Knopf gewaehlt, noch kein Effekt");
+    zeigt(5);
+    add(klick(tr(Str::MeEreignisse), "##rechts"));
+    add(pause(0.3));
+    zeigt(5);
+    add(klick("##tr_mouseEnter"));
+    add(pause(0.3));
+    zeigt(5);
+    add(klick(tr(Str::MeEvLeuchten)));
     erledigt(6);
-    add(pruefe("M5b Tour: ganz durch; Projektdatei und Menue mit Layout und Leuchten auf der Platte", [datei] {
-        const fs::path menu = fs::path(bhed::utf8Pfad(*datei)).parent_path() / "ui" / "mein_menue.menu";
+    add(foto("h_tut_menue_6"));
+    // Schritt 7: der dritte Knopf bekommt eine Aufgabe
+    add(klickAn("Tour Menue: Klick auf den dritten Knopf", knopfMitte("button_3")));
+    add(pause(0.3));
+    offen(6, "noch keine Aufgabe");
+    {   // Klick ist schon gewaehlt, wenn das Element noch keinen Hover hat; bei wenig Hoehe steht die Zeile dann ueber dem Rand
+        auto zeile = std::make_shared<Schritt>(klick("##tr_action"));
+        add(Schritt{"Tour Menue: Ausloeser Klick, wenn noch nicht gewaehlt", [zeile](int b) { return me::tourWerte().trigKlick || zeile->tun(b); }});
+    }
+    add(pause(0.3));
+    zeigt(6);
+    add(klick(tr(Str::MlAddStep)));
+    add(pause(0.3));
+    add(klick("##add_q"));
+    add(tippe("exec"));
+    add(pause(0.3));
+    // Das Rad: Bei wenig Hoehe liegt die Liste unter dem Rand der Spalte
+    add(Schritt{"Tour Menue: Spalte bis zur Liste rollen", [](int b) {
+                    if (b > 0) { return b >= 3; }
+                    for (ImGuiWindow* w : GImGui->Windows) {
+                        if (w->WasActive && std::string(w->Name).find("/##inhalt_") != std::string::npos && std::string(w->Name).find("##add_liste") == std::string::npos) { ImGui::SetScrollY(w, w->ScrollMax.y); }
+                    }
+                    return false;
+                }});
+    add(klick("##neu_alleexec"));
+    erledigt(7);
+    add(klick("##a0"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tippe("quit"));
+    add(taste(ImGuiKey_Enter, std::string("Enter")));
+    add(pause(0.3));
+    add(foto("h_tut_menue_7"));
+    add(pruefe("Tour Menue: Der Schritt steht in der Datei", [] {
+        const std::string t = me::stand().text;
+        if (const std::size_t i = t.rfind("itemDef"); i != std::string::npos) { diag::info("Knopftest: Tour Text " + t.substr(i)); }
+        return t.find("exec \"quit\"") != std::string::npos || t.find("exec quit") != std::string::npos;
+    }));
+    // Schritt 8: Ausprobieren: Der Zeiger laesst den ersten Knopf leuchten
+    offen(7, "noch im Bearbeiten");
+    zeigt(7);
+    auto prims0 = std::make_shared<int>(0);
+    add(klick(tr(Str::MeBedienen)));
+    erledigt(8);
+    add(tu("Tour Menue: Zeichenbefehle ohne Hover", [prims0] { *prims0 = me::stand().prims; }));
+    add(tu("Tour Menue: Zeiger auf den ersten Knopf", [knopfMitte] { setzeMaus(knopfMitte("button")()); }));
+    add(pause(0.5));
+    add(foto("h_tut_menue_8"));
+    add(pruefe("Tour Menue: Das neue Menue hat eine Fokusfarbe: Der Text bleibt beim Hover sichtbar", [] { return me::stand().text.find("focusColor") != std::string::npos; }));
+    add(pruefe("Tour Menue: Im Bedienmodus leuchtet der Knopf beim Hover: ein Element mehr im Bild", [prims0] {
+        diag::info("Knopftest: Tour Hover " + std::to_string(*prims0) + " -> " + std::to_string(me::stand().prims));
+        return me::stand().prims > *prims0;
+    }));
+    add(klickBearbeiten());
+    add(pause(0.5));
+    add(foto("menue_tour_zurueck"));
+    // Schritt 9: speichern
+    offen(8, "noch nicht gespeichert");
+    zeigt(8);
+    add(klick(tr(Str::MeSpeichern)));
+    erledigt(9);
+    add(pruefe("M5b Tour: Projektdatei und Menue mit Layout, Leuchten und Aufgabe auf der Platte", [datei] {
+        const fs::path menu = fs::path(bhed::utf8Pfad(*datei)).parent_path() / bhed::utf8Pfad(me::dokumentName());
         std::ifstream f(menu, std::ios::binary);
         std::ostringstream t;
         t << f.rdbuf();
         std::error_code ec;
-        return tourSicht().fertig && fs::is_regular_file(bhed::utf8Pfad(*datei), ec) && t.str().find("jkstudio:layout") != std::string::npos &&
-               t.str().find("_glow") != std::string::npos;
+        return fs::is_regular_file(bhed::utf8Pfad(*datei), ec) && t.str().find("jkstudio:layout") != std::string::npos &&
+               t.str().find("_glow") != std::string::npos && t.str().find("quit") != std::string::npos;
     }));
-    add(foto("h_tut_menue_6"));
+    add(foto("h_tut_menue_9"));
+    // Schritt 10: im Spiel
+    offen(9, "noch nicht im Spiel getestet");
+    zeigt(9);
+    add(klick(tr(Str::MeImSpielTesten)));
+    erledigt(10);
+    add(foto("h_tut_menue_10"));
+    add(pruefe("Tour Menue: ganz durch, im Testpaket stehen Menue, Liste und Einstieg", [] {
+        if (!tourSicht().fertig) { diag::info("Knopftest: Tour Schritt " + std::to_string(tourSicht().schritt)); }
+        const std::string ordner = me::dokumentName().substr(0, me::dokumentName().rfind('/') + 1);
+        const std::string haupt = me::paketDatei(ordner + "main.menu", true);
+        diag::info("Knopftest: Tour Befehl " + me::letzteMeldung());
+        std::string satz;
+        for (const char* n : {"ui/menus.txt", "ui/jampmenus.txt", "ui/jk2mpmenus.txt", "ui/MovieDuels-MP-Menus.txt"}) {
+            if (me::dokumentMp() == (std::strcmp(n, "ui/menus.txt") != 0) && satz.empty()) { satz = me::paketDatei(n, false); }
+        }
+        return tourSicht().fertig && haupt.find("open \"my_menu\"") != std::string::npos && satz.find(me::dokumentName()) != std::string::npos;
+    }));
+    add(tu("Tour Menue: Frage schliessen, Stichprobe fuer das laufende Spiel", [] {
+        me::schliesseTestFrage();
+        if (const char* aus = std::getenv("BHED_PROBE_AUS")) { me::testPaketAblegen(aus); }
+    }));
     add(tu("M5b Tour: schliessen, Projekt zu", [] {
         tourSchliessen();
         me::schliesseAlleOhneSpeichern();
@@ -1321,8 +1505,8 @@ std::vector<Schritt> schritteStart() {
     add(klick(tr(Str::MePrjSp), "##menuestart"));
     add(klick(tr(Str::MePrjNeu), "##menuestart"));
     add(pause(0.4));
-    add(pruefe("rc608 Start: Einzelspieler + Neues Projekt legt ui/mein_menue.menu an", [antwort] {
-        return me::projektDatei() == *antwort && !me::dokumentMp() && me::dokumentName() == "ui/mein_menue.menu";
+    add(pruefe("rc608 Start: Einzelspieler + Neues Projekt legt ui/my_menu.menu an", [antwort] {
+        return me::projektDatei() == *antwort && !me::dokumentMp() && me::dokumentName() == "ui/my_menu.menu";
     }));
     add(tu("rc608 Start: wieder ohne Menue", [frei, ordner, antwort] {
         frei();
@@ -1336,7 +1520,7 @@ std::vector<Schritt> schritteStart() {
         const std::string n = me::dokumentName();
         diag::detail("Knopftest: Start MP " + n);
         return me::projektDatei() == *antwort && me::dokumentMp() &&
-               (n == "ui/jamp/mein_menue.menu" || n == "ui/MD_MP/mein_menue.menu" || n == "ui/jk2mp/mein_menue.menu");
+               (n == "ui/jamp/my_menu.menu" || n == "ui/MD_MP/my_menu.menu" || n == "ui/jk2mp/my_menu.menu");
     }));
     add(tu("rc608 Start: wieder ohne Menue, Dialog nennt das SP-Projekt", [frei, ordner, antwort] {
         frei();
@@ -2020,6 +2204,20 @@ ImVec2 leerImPanel(int reiter) {
     return ImVec2{-1.0F, -1.0F};
 }
 
+// Rechtsklick auf die Flaeche und auf den Reiter eines Menues (rc608 Teil 3b)
+Schritt ziehFlaecheRechts(const std::string& was, float vx, float vy) {
+    return klickAn(was, [vx, vy] {
+        const auto st = me::stand();
+        return ImVec2{st.flaeche[0] + vx / 640.0F * st.flaeche[2], st.flaeche[1] + vy / 480.0F * st.flaeche[3]};
+    }, 1);
+}
+Schritt reiterRechts(const std::string& name) {
+    return klickAn("Rechtsklick auf den Reiter " + name, [name] {
+        const Element* e = finde(name, "", 0, true);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{-1.0F, -1.0F};
+    }, 1);
+}
+
 // rc608 Punkt 0 (shank: "warum auch immer geht so gut wie kein undo in dem Menu tab"): die Tabelle Aktion gegen
 // Weg. Jede Aktion ist genau ein Schritt; jeder Weg nimmt sie zurueck (Text und Auswahl) und wiederholt sie.
 std::vector<Schritt> schritteUndo() {
@@ -2137,6 +2335,38 @@ std::vector<Schritt> schritteUndo() {
                  const Element* e = finde(tr(Str::MlBtReiter), "##links", 0, false);
                  return e != nullptr ? e->rect.GetCenter() : ImVec2{};
              }, 0, true));
+         }},
+        // rc608 Teil 3b: Rechtsklick, Tasten, Seiten
+        {"Rechtsklick ganz nach vorn", [](Liste& l) {
+             l.push_back(ziehFlaecheRechts("Rechtsklick auf hinten", 150, 150));
+             l.push_back(pause(0.1));
+             l.push_back(klick(tr(Str::MkGanzVorn)));
+         }, 0},
+        {"Rechtsklick ausschneiden", [](Liste& l) {
+             l.push_back(ziehFlaecheRechts("Rechtsklick auf frei", 450, 325));
+             l.push_back(pause(0.1));
+             l.push_back(klick(tr(Str::ActCut)));
+         }},
+        {"Strg+X", [=](Liste& l) {
+             zurFlaeche(l);
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_X, "Strg+X"));
+         }},
+        {"Strg+V", [=](Liste& l) {
+             zurFlaeche(l);
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_C, "Strg+C"));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_V, "Strg+V"));
+         }},
+        {"Menue umbenennen", [](Liste& l) {
+             l.push_back(reiterRechts("zug"));
+             l.push_back(pause(0.1));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("umbenannt"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }},
+        {"Menue duplizieren", [](Liste& l) {
+             l.push_back(reiterRechts("zug"));
+             l.push_back(pause(0.1));
+             l.push_back(klick(tr(Str::MsDuplizieren)));
          }},
         {"Text-Editor", [](Liste& l) { l.push_back(tu("Zeichen tippen", [] { ImGui::GetIO().AddInputCharactersUTF8("// x"); })); }, 2, [](Liste& l) {
              l.push_back(tu("Reiter Text", [] { me::setzeReiter(1); }));
@@ -2547,7 +2777,7 @@ std::vector<Schritt> schritteM7() {
     add(pruefe("M7 MP-Startmenue: Dokument im MP-Menueordner, MP-Dialekt, ohne Meldung (menudef.h vorab gelesen)", [st] {
         const std::string n = me::dokumentName();
         diag::info("Menue-Editor M7 MP-Startmenue: " + n);
-        return me::dokumentMp() && (n == "ui/jamp/mein_menue.menu" || n == "ui/MD_MP/mein_menue.menu" || n == "ui/jk2mp/mein_menue.menu") &&
+        return me::dokumentMp() && (n == "ui/jamp/my_menu.menu" || n == "ui/MD_MP/my_menu.menu" || n == "ui/jk2mp/my_menu.menu") &&
                st().meldungen == 0 && st().menus == 1;
     }));
     return s;
@@ -2729,6 +2959,7 @@ std::vector<Schritt> schritteM6() {
 
 #include "selbsttest_menue_rc608.inc"   // rc608 Teil 2
 #include "selbsttest_menue_leiste.inc"  // rc608 Teil 3a
+#include "selbsttest_menue_pruefung.inc"  // rc608 Teil 3b
 
 std::vector<Schritt> schritte() {
     // Mehrere Teile hintereinander: BHED_MENUE_NUR=a+b
@@ -2753,6 +2984,8 @@ std::vector<Schritt> schritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = [] { return me::stand(); };
     auto orig = std::make_shared<std::string>(kSp);
+    // rc608 Teil 3b: Handbuchbilder in einem grossen Fenster
+    if (std::getenv("BHED_MENUE_BILDER") != nullptr) { add(tu("Handbuchbilder: Fenster 2560 x 1500", [] { (void)platform::hauptfensterGroesse(2560, 1500); })); }
     add(pause(1.0));   // erst das Fenster in Ruhe (ja: der Knopf lag beim ersten Bild noch halb draussen)
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(pause(0.2));
@@ -2790,6 +3023,69 @@ std::vector<Schritt> schritte() {
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
         for (auto& x : schritteM5b()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // rc608 Teil 3b: Gesamtpruefung
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "kontext") == 0) {
+        for (auto& x : schritteKontext()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "datei") == 0) {
+        for (auto& x : schritteDatei()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "zweivideos") == 0) {
+        for (auto& x : schritteZweiVideos()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "widgets") == 0) {
+        for (auto& x : schritteWidgets()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "unsinn") == 0) {
+        for (auto& x : schritteUnsinn()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "kodierung") == 0) {
+        for (auto& x : schritteKodierung()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "anfaenger") == 0) {
+        for (auto& x : schritteAnfaenger()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "feldneu") == 0) {
+        for (auto& x : schritteFelderNeu()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "undomehr") == 0) {
+        for (auto& x : schritteUndoMehr()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "eng") == 0) {
+        for (auto& x : schritteEng()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "tourspiel") == 0) {
+        for (auto& x : schritteTourSpiel()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "bildnach") == 0) {
+        for (auto& x : schritteBildNach()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "touralle") == 0) {
+        for (auto& x : schritteTourAlle()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "satz") == 0) {
+        for (auto& x : schritteSatz()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "seiten") == 0) {
+        for (auto& x : schritteSeiten()) { add(std::move(x)); }
         return s;
     }
     // BHED_MENUE_NUR=leiste, leistebreit, verzerrt, textzoom: die Seitenleisten, die Flaeche, der Text-Editor (rc608 Teil 3a)
@@ -3084,14 +3380,14 @@ std::vector<Schritt> schritte() {
     }));
     add(foto("menue_palette"));
     add(tu("Duplizieren (Strg+D)", [] { me::dupliziereAuswahl(); }));
-    add(pruefe("Duplizieren: 6 Items, button_3 neu und gewaehlt", [st] {
+    add(pruefe("Duplizieren: 6 Items, button_2 neu und gewaehlt", [st] {   // rc608 Teil 3b: Das neue Element heisst button, solange der Name frei ist
         const auto x = st();
-        return x.items == 6 && x.text.find("button_3") != std::string::npos && x.auswahl.size() == 1 && x.auswahl[0] == 5;
+        return x.items == 6 && x.text.find("button_2") != std::string::npos && x.auswahl.size() == 1 && x.auswahl[0] == 5;
     }));
     add(tu("Loeschen (Entf)", [] { me::loescheAuswahl(); }));
-    add(pruefe("Loeschen: wieder 5 Items, button_3 weg", [st] {
+    add(pruefe("Loeschen: wieder 5 Items, button_2 weg", [st] {
         const auto x = st();
-        return x.items == 5 && x.text.find("button_3") == std::string::npos;
+        return x.items == 5 && x.text.find("button_2") == std::string::npos;
     }));
     // Suchen und Ersetzen
     add(pruefe("Suchen: rect 6x", [] { return me::suche("rect", false) == 6; }));
@@ -3162,6 +3458,25 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteM5b()) { add(std::move(x)); }
     for (auto& x : schritteM6()) { add(std::move(x)); }
     for (auto& x : schritteM7()) { add(std::move(x)); }
+    // rc608 Teil 3b: Handbuchbilder: nur die Teile mit Bildern
+    if (std::getenv("BHED_MENUE_BILDER") != nullptr) {
+        for (auto& x : schritteSchreiben()) { add(std::move(x)); }
+        for (auto& x : schritteHierarchie()) { add(std::move(x)); }
+        for (auto& x : schritteAblegen()) { add(std::move(x)); }
+        for (auto& x : schritteFelderJeTyp()) { add(std::move(x)); }
+        for (auto& x : schritteEreignisseBloecke()) { add(std::move(x)); }
+        for (auto& x : schritteDatei()) { add(std::move(x)); }
+        for (auto& x : schritteLeeresMenue()) { add(std::move(x)); }
+        for (auto& x : schritteLeiste()) { add(std::move(x)); }
+        for (auto& x : schritteRahmen()) { add(std::move(x)); }
+        for (auto& x : schritteLinks()) { add(std::move(x)); }
+        for (auto& x : schritteEng()) { add(std::move(x)); }   // vor den Unsinn-Proben: Deren Meldung stuende sonst im Bild
+        for (auto& x : schritteKontext()) { add(std::move(x)); }
+        for (auto& x : schritteSeiten()) { add(std::move(x)); }
+        for (auto& x : schritteFelderNeu()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     for (auto& x : schritteStart()) { add(std::move(x)); }
     for (auto& x : schritteZiehen()) { add(std::move(x)); }
     for (auto& x : schritteFelder()) { add(std::move(x)); }
@@ -3192,6 +3507,18 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteStapel()) { add(std::move(x)); }
     for (auto& x : schritteMpSchrift()) { add(std::move(x)); }
     for (auto& x : schritteChangelog()) { add(std::move(x)); }
+    // rc608 Teil 3b
+    for (auto& x : schritteKontext()) { add(std::move(x)); }
+    for (auto& x : schritteDatei()) { add(std::move(x)); }
+    for (auto& x : schritteSeiten()) { add(std::move(x)); }
+    for (auto& x : schritteSatz()) { add(std::move(x)); }
+    for (auto& x : schritteZweiVideos()) { add(std::move(x)); }
+    for (auto& x : schritteFelderNeu()) { add(std::move(x)); }
+    for (auto& x : schritteKodierung()) { add(std::move(x)); }
+    for (auto& x : schritteWidgets()) { add(std::move(x)); }
+    for (auto& x : schritteUndoMehr()) { add(std::move(x)); }
+    for (auto& x : schritteAnfaenger()) { add(std::move(x)); }
+    for (auto& x : schritteEng()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

@@ -142,6 +142,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in RC608})
             from i18n_rc608_3a import zeilen_vier as _rc608_3a   # rc608 Teil 3a: die Seitenleisten
             texte.update({e[0]: e[1:] for e in _rc608_3a()})
+            from i18n_rc608_3b import zeilen_vier as _rc608_3b   # rc608 Teil 3b: Gesamtpruefung des Menue-Editors
+            texte.update({e[0]: e[1:] for e in _rc608_3b()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
