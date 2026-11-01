@@ -2721,6 +2721,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=events: Events als Bloecke (rc608 Punkt 3)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "events") == 0) {
+        for (auto& x : schritteEreignisseBloecke()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=reiter: die Reiter der rechten Spalte (rc608 Punkt 1)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "reiter") == 0) {
         for (auto& x : schritteReiter()) { add(std::move(x)); }

@@ -3346,6 +3346,10 @@ enum class Str {
     MeModellSaberTip,
     MeWeitereEintraege,
     MeWeitereEintraegeTip,
+    MeEvVon,
+    MeEvNach,
+    MeEvZeit,
+    MeEvSchritte,
     Count,
 };
 

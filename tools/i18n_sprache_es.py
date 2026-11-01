@@ -3006,6 +3006,10 @@ TEXTE = {
     "MeModellSaberTip": "Muestra un sable de luz: el juego tumba la empuñadura y dibuja la hoja.",
     "MeWeitereEintraege": "Más entradas en el archivo",
     "MeWeitereEintraegeTip": "Estas líneas permanecen en el archivo. Algunas no tienen efecto en este tipo de elemento; cámbialas en el editor de texto.",
+    "MeEvVon": "Desde",
+    "MeEvNach": "Hasta",
+    "MeEvZeit": "Tiempo",
+    "MeEvSchritte": "Paso",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

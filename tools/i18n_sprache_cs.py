@@ -3008,6 +3008,10 @@ TEXTE = {
     "MeModellSaberTip": "Zobrazí světelný meč: hra položí jílec na bok a nakreslí čepel.",
     "MeWeitereEintraege": "Další položky v souboru",
     "MeWeitereEintraegeTip": "Tyto řádky zůstávají v souboru. Některé u tohoto typu prvku nemají účinek; změnit je lze v textovém editoru.",
+    "MeEvVon": "Z",
+    "MeEvNach": "Do",
+    "MeEvZeit": "Čas",
+    "MeEvSchritte": "Krok",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

@@ -1056,8 +1056,9 @@ bool rechtsGanz(std::string& fehler) {
     }
     for (const Element& e : elemente::alle()) {
         if (e.innen.find("##inhalt") == std::string::npos) { continue; }
-        if (e.rect.Min.x < w->Pos.x - 0.5F || e.rect.Max.x > w->Pos.x + w->Size.x + 0.5F) {
-            fehler += " [" + e.label + " bis " + std::to_string(e.rect.Max.x - w->Pos.x - w->Size.x) + " bei y " + std::to_string(e.rect.Min.y - w->Pos.y + w->Scroll.y) + "]";
+        if (e.rect.Min.x >= w->InnerRect.Max.x - 1.0F || e.label.find("##inhalt_") != std::string::npos) { continue; }   // der Rollbalken und das Fenster selbst
+        if (e.rect.Min.x < w->Pos.x - 0.5F || e.rect.Max.x > w->InnerRect.Max.x + 0.5F) {
+            fehler += " [" + e.label + " bis " + std::to_string(e.rect.Max.x - w->InnerRect.Max.x) + " bei y " + std::to_string(e.rect.Min.y - w->Pos.y + w->Scroll.y) + "]";
             gut = false;
         }
     }
@@ -1273,6 +1274,76 @@ std::vector<Schritt> schritteTextBreite() {
     add(tu("rc608 Textbreite: aufraeumen", [] {
         me::setzeSpalten(0.0F, 0.0F);
         g_app->settings.menueRechtsBreite = 0.0F;
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
+// rc608 Punkt 3 (shank: "die events scalen nicht gut mit und sind echt nicht gut zu gebrauchen")
+std::vector<Schritt> schritteEreignisseBloecke() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("rc608 Events: Probe", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ui/breit.menu", kBreitenText);
+        me::setzeInteraktion(false);
+        me::setzeReiter(3);
+        me::waehle(0, false);
+    }));
+    add(pause(0.6));
+    add(foto("menue_events_breit"));
+    // Je Aktion Hoch und Loeschen, im Feld (gezaehlt, was gerade zu sehen ist; bei schmalem Feld liegt der Rest weiter unten).
+    // Die Rechtecke prueft breitenTabelle.
+    const auto knoepfeDa = [](std::string& f) {
+        int hoch = 0;
+        int weg = 0;
+        for (const Element& e : elemente::alle()) {
+            if (e.innen.find("##inhalt") == std::string::npos) { continue; }
+            hoch += e.label == "^" ? 1 : 0;
+            weg += e.label == "x" ? 1 : 0;
+        }
+        if (hoch == 0 || hoch != weg) {
+            f += " Knoepfe ^ " + std::to_string(hoch) + ", x " + std::to_string(weg);
+            return false;
+        }
+        return true;
+    };
+    for (auto& x : breitenTabelle("Events", 3, {0}, knoepfeDa)) { add(std::move(x)); }
+    add(tu("rc608 Events: Mindestbreite", [] {
+        me::setzeSpalten(0.0F, 1.0F);
+        me::waehle(0, false);
+    }));
+    add(pause(0.3));
+    add(foto("menue_events_mindest"));
+    add(tu("rc608 Events: Breite 500", [] {
+        me::setzeSpalten(0.0F, 500.0F);
+        me::waehle(0, false);
+    }));
+    add(pause(0.3));
+    add(foto("menue_events_schmal"));
+    // transition: das Feld w von "nach" aendert genau das achte Wort, Folge und Datei wie im Spiel
+    add(klickAn("rc608 Events: nach w doppelklicken", [] {
+        const Element* e = finde("##Z", "##inhalt", 3, false);   // B der beiden Farben, w von "Von", w von "Nach"
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+    }, 0, true));
+    add(pause(0.2));
+    add(tippe("77"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.3));
+    add(pruefe("rc608 Events: transition: geaendert wird der richtige Wert, die Folge bleibt", [] {
+        std::string t = me::stand().text;
+        t.erase(std::remove(t.begin(), t.end(), '"'), t.end());   // der Baustein schreibt zitierte Woerter, String_Parse liest beides
+        diag::info("Knopftest: " + t.substr(t.find("transition"), 60));
+        return t.find("transition knopf 10 10 100 30 6 6 77 38 10 1") != std::string::npos;
+    }));
+    add(tu("rc608 Events: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Events: Rueckgaengig", [] { return me::stand().text.find("6 6 108 38") != std::string::npos; }));
+    add(tu("rc608 Events: aufraeumen", [] {
+        me::setzeSpalten(0.0F, 0.0F);
         me::schliesseAlleOhneSpeichern();
         me::setzeReiter(0);
     }));

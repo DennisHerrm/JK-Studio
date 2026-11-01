@@ -85,7 +85,7 @@ void zeichneEreignisse(Dokument& d) {
     const Str eff[] = {Str::MeEvLeuchten, Str::MeEvFarbe, Str::MeEvRahmen, Str::MeEvGroesser};
     const Str effTip[] = {Str::MeEvLeuchtenTip, Str::MeEvFarbeEffTip, Str::MeEvRahmenTip, Str::MeEvGroesserTip};
     for (int k = 0; k < 4; ++k) {
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(eff[k])));
         if (ImGui::Button(tr(eff[k]))) {
             std::vector<Ersetzung> e;
             if (hoverEffekt(d.datei, mi, i, static_cast<HoverEffekt>(k), z.hoverFarbe, e)) {
@@ -113,17 +113,23 @@ void zeichneEreignisse(Dokument& d) {
             }
         }
     }
-    const float knopf = ImGui::GetFrameHeight();
-    ImGui::SetNextItemWidth(-knopf * 2 - ImGui::GetFontSize() * 6);
-    textFeld(tr(Str::MeEvHoverKlang), &fokusKlang, [i](const std::string& t) { eigenschaft(i, "focusSound", {inAnf(t)}); });
+    // rc608 Punkt 3: Beschriftung, Feld, Knopf vollstaendig; das Feld wird nicht breiter, als ein Pfad braucht
+    const auto klangBreite = [] {
+        const float rest = ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() * 1.6F - ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * 4.0F, std::min(rest, ImGui::GetFontSize() * 24.0F)));
+    };
+    feldKopf(tr(Str::MeEvHoverKlang));
+    klangBreite();
+    textFeld("##hoverklang", &fokusKlang, [i](const std::string& t) { eigenschaft(i, "focusSound", {inAnf(t)}); });
     tipp(Str::MeEvHoverKlangTip);
     ImGui::SameLine();
     if (ImGui::Button(">##hk")) { probehoeren(fokusKlang); }
     tipp(Str::MeEvProbe);
-    ImGui::SetNextItemWidth(-knopf * 2 - ImGui::GetFontSize() * 6);
+    feldKopf(tr(Str::MeEvKlickKlang));
+    klangBreite();
     {
         Dokument* dp = &d;
-        textFeld(tr(Str::MeEvKlickKlang), &klickKlang, [dp, i, klick](const std::string& t) {
+        textFeld("##klickklang", &klickKlang, [dp, i, klick](const std::string& t) {
             std::vector<Baustein> liste = klick;
             bool gesetzt = false;
             for (Baustein& b : liste) {
@@ -157,69 +163,130 @@ void zeichneEreignisse(Dokument& d) {
             for (std::size_t k = 0; k < b.size(); ++k) {
                 ImGui::PushID(static_cast<int>(k));
                 Baustein& x = b[k];
-                ImGui::TextUnformatted(x.befehl.c_str());
-                const bool farbe = x.befehl == "setitemcolor" && x.args.size() == 6;
-                for (std::size_t a = 0; a < x.args.size(); ++a) {
-                    if (farbe && a >= 2) { break; }
-                    ImGui::SameLine();
-                    ImGui::PushID(static_cast<int>(a));
-                    ImGui::SetNextItemWidth(ImGui::GetFontSize() * (argIstItem(x.befehl, a) ? 7.0F : 5.0F));
-                    if (argIstItem(x.befehl, a)) {
-                        if (ImGui::BeginCombo("##it", x.args[a].c_str())) {
-                            for (const Item& o : m.items) {
-                                if (!o.window.name.empty() && ImGui::Selectable(o.window.name.c_str(), o.window.name == x.args[a])) {
-                                    x.args[a] = o.window.name;
-                                    geaendert = true;
-                                }
+                // rc608 Punkt 3 (shank: "die events scalen nicht gut mit"): ein Block. Erste Zeile: Befehl und Ziel, Hoch und Loeschen immer
+                // an fester Stelle rechts. Darunter die Werte, die mit der Breite umbrechen.
+                const float fs = ImGui::GetFontSize();
+                const float kn = ImGui::GetFrameHeight();
+                const float luft = ImGui::GetStyle().ItemSpacing.x;
+                const float startX = ImGui::GetCursorPosX();
+                const float breit = ImGui::GetContentRegionAvail().x;
+                const float rechts = kn * 2.0F + luft;
+                const bool mitZiel = !x.args.empty() && argIstItem(x.befehl, 0);
+                const bool klang = (x.befehl == "play" || x.befehl == "playlooped") && !x.args.empty();
+                const bool zielUnten = mitZiel && ImGui::CalcTextSize(x.befehl.c_str()).x + fs * 5.0F + rechts + luft * 2.0F > breit;
+                const auto zielFeld = [&](float b0) {
+                    ImGui::SetNextItemWidth(b0);
+                    if (ImGui::BeginCombo("##it", x.args[0].c_str())) {
+                        for (const Item& o : m.items) {
+                            if (!o.window.name.empty() && ImGui::Selectable(o.window.name.c_str(), o.window.name == x.args[0])) {
+                                x.args[0] = o.window.name;
+                                geaendert = true;
                             }
-                            ImGui::EndCombo();
                         }
-                    } else {
-                        Dokument* dp = &d;
-                        const std::string schluessel = e.schluessel;
-                        textFeld("##a", &x.args[a], [dp, i, schluessel, b, k, a](const std::string& t) {
-                            std::vector<Baustein> liste = b;
-                            liste[k].args[a] = t;
-                            ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
-                        });
+                        ImGui::EndCombo();
                     }
-                    ImGui::PopID();
-                }
-                if (farbe) {
-                    float c[4];
-                    for (int q = 0; q < 4; ++q) { c[q] = static_cast<float>(std::atof(x.args[static_cast<std::size_t>(2 + q)].c_str())); }
+                };
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted(x.befehl.c_str());
+                if (mitZiel && !zielUnten) {
                     ImGui::SameLine();
-                    Dokument* dp = &d;
-                    const std::string schluessel = e.schluessel;
-                    zahlenFeld("##c", c, 4, [&c] { return ImGui::ColorEdit4("##c", c, ImGuiColorEditFlags_NoInputs); },
-                               [dp, i, schluessel, b, k](const std::vector<float>& w) {
-                                   std::vector<Baustein> liste = b;
-                                   for (std::size_t q = 0; q < 4; ++q) { liste[k].args[2 + q] = zahlText(w[q]); }
-                                   ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
-                               });
+                    zielFeld(std::max(fs * 3.0F, breit - ImGui::CalcTextSize(x.befehl.c_str()).x - rechts - luft * 2.0F));
                 }
-                if ((x.befehl == "play" || x.befehl == "playlooped") && !x.args.empty()) {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton(">")) { probehoeren(x.args[0]); }
-                    tipp(Str::MeEvProbe);
-                }
+                ImGui::SameLine(startX + breit - rechts);
+                const ImVec2 kq{kn, kn};
+                const bool hoch = ImGui::Button("^", kq);
+                tipp(Str::MeLayoutHoch);
                 ImGui::SameLine();
-                if (ImGui::SmallButton("^") && k > 0) {
+                const bool weg = ImGui::Button("x", kq);
+                tipp(Str::MeEvEntfernen);
+                if (hoch && k > 0) {
                     std::swap(b[k], b[k - 1]);
                     geaendert = true;
                 }
-                tipp(Str::MeLayoutHoch);
-                ImGui::SameLine();
-                if (ImGui::SmallButton("x")) {
+                if (weg) {
                     b.erase(b.begin() + static_cast<std::ptrdiff_t>(k));
                     geaendert = true;
                     ImGui::PopID();
                     break;
                 }
-                tipp(Str::MeEvEntfernen);
+                if (zielUnten) { zielFeld(-FLT_MIN); }
+                Dokument* dp = &d;
+                const std::string schluessel = e.schluessel;
+                // ab: Stelle in den Woertern; ein Zahlenblock schreibt die Woerter zurueck, die Folge bleibt wie im Spiel
+                const auto zahlen = [&](const char* id, std::size_t ab, int n, const char* const* teile, float tempo) {
+                    float w[4] = {0, 0, 0, 0};
+                    for (int q = 0; q < n; ++q) { w[q] = static_cast<float>(std::atof(x.args[ab + static_cast<std::size_t>(q)].c_str())); }
+                    zahlenFeld(id, w, n, [&w, id, n, teile, tempo] { return zahlenReihe(id, w, n, teile, tempo, "%g"); },
+                               [dp, i, schluessel, b, k, ab, n](const std::vector<float>& wert) {
+                                   std::vector<Baustein> liste = b;
+                                   for (int q = 0; q < n; ++q) { liste[k].args[ab + static_cast<std::size_t>(q)] = zahlText(wert[static_cast<std::size_t>(q)]); }
+                                   ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
+                               });
+                };
+                if ((x.befehl == "transition" || x.befehl == "transition2") && x.args.size() == 11) {
+                    // Script_Transition: Name, von (Rect_Parse), nach (Rect_Parse), Zeit, Schrittweite
+                    static const char* const kRect[4] = {"x", "y", "w", "h"};
+                    ImGui::TextUnformatted(tr(Str::MeEvVon));
+                    zahlen("von", 1, 4, kRect, 1.0F);
+                    ImGui::TextUnformatted(tr(Str::MeEvNach));
+                    zahlen("nach", 5, 4, kRect, 1.0F);
+                    const char* const teile[2] = {tr(Str::MeEvZeit), tr(Str::MeEvSchritte)};
+                    zahlen("zeit", 9, 2, teile, 1.0F);
+                } else if (x.befehl == "setitemcolor" && x.args.size() == 6) {
+                    // Script_SetItemColor: Ziel, Eigenschaft, Farbe
+                    static const char* const kEigen[3] = {"forecolor", "backcolor", "bordercolor"};
+                    static const char* const kRgba[4] = {"R", "G", "B", "A"};
+                    ImGui::SetNextItemWidth(std::min(fs * 9.0F, breit));
+                    if (ImGui::BeginCombo("##eigenschaft", x.args[1].c_str())) {
+                        for (const char* en : kEigen) {
+                            if (ImGui::Selectable(en, x.args[1] == en)) {
+                                x.args[1] = en;
+                                geaendert = true;
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                    float c[4];
+                    for (int q = 0; q < 4; ++q) { c[q] = static_cast<float>(std::atof(x.args[static_cast<std::size_t>(2 + q)].c_str())); }
+                    zahlenFeld("##c", c, 4, [&c] {
+                        ImGui::BeginGroup();
+                        bool neu = ImGui::ColorEdit4("##bild", c, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_Float);
+                        ImGui::SameLine();
+                        neu |= zahlenReihe("##c", c, 4, kRgba, 0.01F, "%.2f");
+                        ImGui::EndGroup();
+                        return neu;
+                    }, [dp, i, schluessel, b, k](const std::vector<float>& w) {
+                        std::vector<Baustein> liste = b;
+                        for (std::size_t q = 0; q < 4; ++q) { liste[k].args[2 + q] = zahlText(w[q]); }
+                        ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
+                    });
+                } else {
+                    const float zelle = std::max(fs * 7.0F, std::min(breit, fs * 14.0F));
+                    bool erstes = true;
+                    for (std::size_t a = mitZiel ? 1 : 0; a < x.args.size(); ++a) {
+                        ImGui::PushID(static_cast<int>(a));
+                        if (!erstes) { daneben(zelle); }
+                        erstes = false;
+                        const float rest = ImGui::GetContentRegionAvail().x;
+                        const float kk = klang ? kn + luft : 0.0F;
+                        ImGui::SetNextItemWidth(std::min(rest - kk, x.args.size() - (mitZiel ? 1U : 0U) == 1U ? fs * 24.0F : zelle));
+                        textFeld("##a", &x.args[a], [dp, i, schluessel, b, k, a](const std::string& t) {
+                            std::vector<Baustein> liste = b;
+                            liste[k].args[a] = t;
+                            ereignisSchreiben(*dp, i, schluessel.c_str(), liste);
+                        });
+                        if (klang && a == 0) {
+                            ImGui::SameLine();
+                            if (ImGui::Button(">", ImVec2{kn, kn})) { probehoeren(x.args[0]); }
+                            tipp(Str::MeEvProbe);
+                        }
+                        ImGui::PopID();
+                    }
+                }
+                ImGui::Separator();
                 ImGui::PopID();
             }
-            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+            ImGui::SetNextItemWidth(std::min(ImGui::GetFontSize() * 10.0F, ImGui::GetContentRegionAvail().x));
             if (ImGui::BeginCombo("##neu", tr(Str::MeEvAktionNeu))) {
                 for (const std::string& c : bausteinBefehle(d.datei.dialekt, z.spiel)) {
                     if (ImGui::Selectable(c.c_str())) {

@@ -2825,8 +2825,9 @@ void gehZuDefinition(Dokument& d) {
 // uebersetzung1: in der schmalen rechten Spalte (M2) passte die Suchzeile schon auf
 // Englisch nicht ("In all op|"): das naechste Element in dieselbe Zeile, sonst in die naechste.
 void daneben(float breite) {
-    ImGui::SameLine();
-    if (ImGui::GetContentRegionAvail().x < breite) { ImGui::NewLine(); }
+    // rc608: erst messen. SameLine + NewLine zaehlte den Abstand als Inhalt, und das Feld wurde um diesen Abstand zu schmal.
+    const float rest = ImGui::GetCurrentWindow()->WorkRect.Max.x - ImGui::GetItemRectMax().x - ImGui::GetStyle().ItemSpacing.x;
+    if (rest >= breite) { ImGui::SameLine(); }
 }
 float knopfBreite(const char* text) { return ImGui::CalcTextSize(text, nullptr, true).x + ImGui::GetStyle().FramePadding.x * 2.0F; }
 float hakenBreite(const char* text) {
