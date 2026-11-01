@@ -56,4 +56,15 @@ RC608 = [
      "Wird wie im Spiel mitgelesen: %s",
      "也会像游戏中一样读取:%s",
      "ゲームと同様に一緒に読み込みます: %s"),
+    # Punkt 4: Zoom der Flaeche
+    ("MeZoomPassend",
+     "Fit",
+     "Passend",
+     "适应",
+     "全体表示"),
+    ("MeZoomTip",
+     "Ctrl+mouse wheel zooms around the pointer (25 to 800 %). Ctrl+0: fit. Ctrl+1: 100 %. Middle button or Space+drag moves the view. Only the view changes: nothing goes into the file or into Undo.",
+     "Strg+Mausrad zoomt um den Zeiger (25 bis 800 %). Strg+0: passend. Strg+1: 100 %. Mitteltaste oder Leertaste+Ziehen verschiebt die Ansicht. Es ändert sich nur die Ansicht: nichts kommt in die Datei oder ins Rückgängig.",
+     "Ctrl+鼠标滚轮围绕指针缩放(25% 到 800%)。Ctrl+0:适应。Ctrl+1:100%。按住中键或空格键拖动可移动视图。只改变视图:不会写入文件,也不会进入撤销记录。",
+     "Ctrl+マウスホイールでポインターを中心にズームします(25~800%)。Ctrl+0: 全体表示。Ctrl+1: 100%。中ボタンまたは Space+ドラッグで表示を移動します。変わるのは表示だけで、ファイルにも「元に戻す」にも入りません。"),
 ]

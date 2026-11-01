@@ -2963,6 +2963,8 @@ TEXTE = {
     "MeZurZeile": "Přejít na řádek",
     "CliUnbekannt": "Neznámý přepínač: %s\nJK Studio se neotevřelo. Zná --version a --mcp. Chcete-li otevřít soubor s takovým názvem, napište jeho cestu, například .\\%s",
     "PrefsBaseImmer": "Čte se také, stejně jako ve hře: %s",
+    "MeZoomPassend": "Přizpůsobit",
+    "MeZoomTip": "Ctrl+kolečko myši přibližuje kolem ukazatele (25 až 800 %). Ctrl+0: přizpůsobit. Ctrl+1: 100 %. Prostřední tlačítko nebo mezerník+tažení posouvá pohled. Mění se jen pohled: nic se nezapíše do souboru ani do Zpět.",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

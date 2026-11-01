@@ -3301,6 +3301,8 @@ enum class Str {
     MeStartHandbuch,
     MeStartHandbuchTip,
     PrefsBaseImmer,
+    MeZoomPassend,
+    MeZoomTip,
     Count,
 };
 

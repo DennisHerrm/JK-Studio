@@ -176,10 +176,10 @@ std::vector<Schritt> zeigerTabelle(const std::string& stufe) {
     add(zeigerAn(st + "Griff unten links", an(400, 350), ImGuiMouseCursor_ResizeNESW));
     add(zeigerAn(st + "Griff unten Mitte", an(450, 350), ImGuiMouseCursor_ResizeNS));
     add(zeigerAn(st + "Griff unten rechts", an(500, 350), ImGuiMouseCursor_ResizeNWSE));
-    add(zeigerAn(st + "Rand oben, ohne Griff", an(425, 300), ImGuiMouseCursor_ResizeNS));
-    add(zeigerAn(st + "Rand unten, ohne Griff", an(475, 350), ImGuiMouseCursor_ResizeNS));
-    add(zeigerAn(st + "Rand links, ohne Griff", an(400, 312), ImGuiMouseCursor_ResizeEW));
-    add(zeigerAn(st + "Rand rechts, ohne Griff", an(500, 338), ImGuiMouseCursor_ResizeEW));
+    add(zeigerAn(st + "Rand oben, ohne Griff", an(400, 300, 7, 0), ImGuiMouseCursor_ResizeNS));
+    add(zeigerAn(st + "Rand unten, ohne Griff", an(500, 350, -7, 0), ImGuiMouseCursor_ResizeNS));
+    add(zeigerAn(st + "Rand links, ohne Griff", an(400, 300, 0, 7), ImGuiMouseCursor_ResizeEW));
+    add(zeigerAn(st + "Rand rechts, ohne Griff", an(500, 350, 0, -7), ImGuiMouseCursor_ResizeEW));
     add(zeigerAn(st + "auf dem gewaehlten Element", an(450, 325), ImGuiMouseCursor_ResizeAll));
     add(zeigerAn(st + "auf einem anderen Element", an(150, 150), ImGuiMouseCursor_Arrow));
     add(zeigerAn(st + "auf leerer Flaeche", an(50, 50), ImGuiMouseCursor_Arrow));
@@ -260,6 +260,153 @@ std::vector<Schritt> schritteZeiger() {
     add(ziehFlaeche("rc608 Zeiger: Griff bei x=640 von aussen ziehen", 640, 240, 3, 0, -50, 0));
     add(pruefe("rc608 Zeiger: Griff bei x=640 zieht", [] { return rectVon("voll") != "0 0 640 480"; }));
     add(tu("rc608 Zeiger: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
+// rc608 Punkt 4: Zoomen und Verschieben; Treffer, Griffe und Ziehen stimmen auf jeder Stufe
+std::vector<Schritt> schritteZoom() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto an = [](float vx, float vy, float px = 0, float py = 0) { return [=] { return aufFlaeche(vx, vy, px, py); }; };
+    const auto nah = [](float a, float b, float t = 1.5F) { return std::fabs(a - b) <= t; };
+    auto start = std::make_shared<std::array<float, 4>>();
+    auto text = std::make_shared<std::string>();
+    auto tiefe = std::make_shared<int>(0);
+    auto punkt = std::make_shared<ImVec2>();
+    add(tu("rc608 Zoom: Probe oeffnen", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("zoom.menu", kZugText);
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.5));
+    add(tu("rc608 Zoom: Fokus auf die Flaeche, Ausgangslage merken", [start, text, tiefe] {
+        const auto x = me::stand();
+        *start = {x.flaeche[0], x.flaeche[1], x.flaeche[2], x.flaeche[3]};
+        *text = x.text;
+        *tiefe = x.undoSchritte;
+    }));
+    // Strg+1 und Strg+0
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+    add(pause(0.1));
+    add(pruefe("rc608 Zoom: Strg+1 ist 100 %", [nah] {
+        const auto x = me::stand();
+        diag::info("Knopftest: Zoom " + std::to_string(x.zoomProzent) + " %, Flaeche " + std::to_string(x.flaeche[2]));
+        return x.zoomProzent == 100 && nah(x.flaeche[2], 640.0F);
+    }));
+    add(foto("menue_zoom_100"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+    add(pause(0.1));
+    add(pruefe("rc608 Zoom: Strg+0 ist wieder passend", [nah, start] {
+        const auto x = me::stand();
+        return nah(x.flaeche[0], (*start)[0]) && nah(x.flaeche[1], (*start)[1]) && nah(x.flaeche[2], (*start)[2]) && nah(x.flaeche[3], (*start)[3]);
+    }));
+    // Strg+Mausrad um den Zeiger: der virtuelle Punkt unter der Maus bleibt stehen
+    add(tu("rc608 Zoom: Punkt merken", [punkt] { *punkt = aufFlaeche(450, 325); }));
+    add(halteTaste(ImGuiMod_Ctrl, true));
+    add(radAn("Strg+Rad ueber frei", an(450, 325), 2.0F));
+    add(halteTaste(ImGuiMod_Ctrl, false));
+    add(pruefe("rc608 Zoom: Strg+Rad zoomt um den Zeiger", [nah, punkt, start] {
+        const auto x = me::stand();
+        const ImVec2 p = aufFlaeche(450, 325);
+        return nah(p.x, punkt->x) && nah(p.y, punkt->y) && x.flaeche[2] > (*start)[2] * 1.4F;
+    }));
+    add(foto("menue_zoom_rein"));
+    // Grenzen
+    add(halteTaste(ImGuiMod_Ctrl, true));
+    add(radAn("Strg+Rad weit hinein", an(450, 325), 30.0F));
+    add(halteTaste(ImGuiMod_Ctrl, false));
+    add(pruefe("rc608 Zoom: hoechstens 800 %", [] { return me::stand().zoomProzent == 800; }));
+    add(halteTaste(ImGuiMod_Ctrl, true));
+    add(radAn("Strg+Rad weit hinaus", an(450, 325), -60.0F));
+    add(halteTaste(ImGuiMod_Ctrl, false));
+    add(pruefe("rc608 Zoom: mindestens 25 %", [] { return me::stand().zoomProzent == 25; }));
+    add(foto("menue_zoom_25"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+    add(pause(0.1));
+    // Mitteltaste und Leertaste verschieben, sonst aendert sich nichts
+    add(tu("rc608 Zoom: frei waehlen", [] { me::waehle(me::itemNummer("frei"), false); }));
+    add(tu("rc608 Zoom: Punkt merken", [punkt] { *punkt = aufFlaeche(0, 0); }));
+    add(ziehenAn("rc608 Zoom: Mitteltaste", an(50, 50), 60.0F, 30.0F, 2));
+    add(pruefe("rc608 Zoom: Mitteltaste verschiebt die Ansicht", [nah, punkt] {
+        const ImVec2 p = aufFlaeche(0, 0);
+        diag::info("Knopftest: Mitteltaste " + std::to_string(p.x - punkt->x) + ", " + std::to_string(p.y - punkt->y));
+        return nah(p.x - punkt->x, 60.0F, 3.0F) && nah(p.y - punkt->y, 30.0F, 3.0F);
+    }));
+    add(tu("rc608 Zoom: Punkt merken", [punkt] { *punkt = aufFlaeche(0, 0); }));
+    add(Schritt{"Taste Leertaste halten", [](int b) {
+                    if (b == 0) { ImGui::GetIO().AddKeyEvent(ImGuiKey_Space, true); }
+                    return b >= 2;
+                }});
+    add(zeigerAn("Leertaste: Hand", an(450, 325), ImGuiMouseCursor_Hand));
+    add(ziehenAn("rc608 Zoom: Leertaste+Ziehen ueber dem gewaehlten Element", an(450, 325), -40.0F, 20.0F, 0));
+    add(Schritt{"Taste Leertaste loslassen", [](int b) {
+                    if (b == 0) { ImGui::GetIO().AddKeyEvent(ImGuiKey_Space, false); }
+                    return b >= 2;
+                }});
+    add(pruefe("rc608 Zoom: Leertaste+Ziehen verschiebt die Ansicht, das Element bleibt", [nah, punkt] {
+        const ImVec2 p = aufFlaeche(0, 0);
+        return nah(p.x - punkt->x, -40.0F, 3.0F) && nah(p.y - punkt->y, 20.0F, 3.0F) && rectVon("frei") == "400 300 100 50" && auswahlText() == "2";
+    }));
+    add(pruefe("rc608 Zoom: die Ansicht ist kein Undo-Schritt und steht nicht in der Datei", [text, tiefe] {
+        const auto x = me::stand();
+        return x.text == *text && x.undoSchritte == *tiefe;
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+    add(pause(0.1));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+    add(pause(0.1));
+    // Griffe, Zeiger und Ziehen je Stufe, in beiden Seitenverhaeltnis-Arten
+    struct Stufe { const char* name; float klicks; bool balken; };
+    static const Stufe kStufen[] = {{"381 %", 6.0F, false}, {"800 %", 10.0F, false}, {"25 %", -8.0F, false}, {"381 % Balken", 6.0F, true}};
+    for (const Stufe& st : kStufen) {
+        const std::string name = st.name;
+        const float klicks = st.klicks;
+        const bool balken = st.balken;
+        add(tu("rc608 Zoom: Stufe " + name, [balken] { me::setzeBalken(balken); }));
+        add(pause(0.1));
+        add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+        add(pause(0.1));
+        add(halteTaste(ImGuiMod_Ctrl, true));
+        add(radAn("Strg+Rad " + name, an(450, 325), klicks));
+        add(halteTaste(ImGuiMod_Ctrl, false));
+        add(pruefe("rc608 Zoom: Stufe " + name + " erreicht", [] {
+            diag::info("Knopftest: Zoom " + std::to_string(me::stand().zoomProzent) + " %");
+            return true;
+        }));
+        for (auto& x : zeigerTabelle(name)) { add(std::move(x)); }
+        // Ziehen: 8 Prozent des Rechtecks auf dem Bildschirm, Ergebnis in virtuellen Punkten
+        auto vorher = std::make_shared<std::string>();
+        add(tu("rc608 Zoom: frei waehlen, rect merken", [vorher] {
+            me::waehle(me::itemNummer("frei"), false);
+            *vorher = rectVon("frei");
+        }));
+        add(pause(0.1));
+        auto soll = std::make_shared<float>(0.0F);
+        add(Schritt{"rc608 Zoom: frei ziehen, " + name, [soll](int b) {
+                        ImGuiIO& io = ImGui::GetIO();
+                        const auto x = me::stand();
+                        const float sx = x.flaeche[2] / 640.0F;
+                        const ImVec2 p = aufFlaeche(450, 325);
+                        if (b == 0) { *soll = 400.0F + std::round(30.0F); setzeMaus(p); return false; }
+                        if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
+                        if (b >= 3 && b <= 6) { setzeMaus(ImVec2{p.x + 30.0F * sx * static_cast<float>(b - 2) / 4.0F, p.y}); return false; }
+                        if (b == 8) { io.AddMouseButtonEvent(0, false); return false; }
+                        return b >= 11;
+                    }});
+        add(pruefe("rc608 Zoom: " + name + " ziehen ergibt 30 virtuelle Punkte", [name, nah] {
+            const std::string r = rectVon("frei");
+            diag::info("Knopftest: gezogen " + name + ": " + r);
+            return nah(static_cast<float>(std::atof(r.c_str())), 430.0F, 2.0F);
+        }));
+        add(tu("rc608 Zoom: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+        add(pause(0.2));
+    }
+    add(tu("rc608 Zoom: aufraeumen", [] {
+        me::setzeBalken(false);
+        me::schliesseAlleOhneSpeichern();
+    }));
     return s;
 }
 

@@ -359,6 +359,32 @@ void zeichneGrenzenZeile(Dokument& d) {
     const bool grenzenHover = ImGui::IsItemHovered();
     ImGui::SameLine(0, ImGui::GetFontSize());
     zeichneLesbarkeit(d);   // Punkt 9
+    // rc608 Punkt 4: Zoom, nur Ansicht
+    {
+        char pr[32];
+        std::snprintf(pr, sizeof(pr), "%d %%", d.zoomProzent);
+        const float luft = ImGui::GetStyle().ItemSpacing.x;
+        const float breite = ImGui::CalcTextSize(pr).x + ImGui::CalcTextSize(tr(Str::MeZoomPassend)).x + ImGui::CalcTextSize("100 %").x +
+                             ImGui::CalcTextSize("-+").x + ImGui::GetStyle().FramePadding.x * 8.0F + luft * 4.0F;
+        daneben(breite);
+        const auto tipp = [] {
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeZoomTip)); }
+        };
+        if (ImGui::SmallButton("-##zoom")) { d.zoomWunsch = -1; }
+        tipp();
+        ImGui::SameLine();
+        ImGui::TextUnformatted(pr);
+        tipp();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+##zoom")) { d.zoomWunsch = 1; }
+        tipp();
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr(Str::MeZoomPassend))) { d.zoomWunsch = 2; }
+        tipp();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("100 %##zoom")) { d.zoomWunsch = 3; }
+        tipp();
+    }
     if (grenzenHover) {
         std::string t = tr(Str::MeGrenzenTip);
         if (!a.skriptWo.empty()) {

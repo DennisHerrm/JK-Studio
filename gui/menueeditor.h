@@ -57,6 +57,7 @@ struct Stand {
     std::string cursorZeile; // Text der Zeile unter dem ersten Cursor
     int exporte = 0;         // H2: erfolgreiche .pk3-Exporte (Tour "Ein Menue aendern")
     int undoSchritte = 0;    // rc608: Schritte, die Rueckgaengig zuruecknehmen kann
+    int zoomProzent = 0;     // rc608: Zoom der Flaeche
     int abbruchZeile = 0;    // rc608: Zeile, an der das Spiel dieses Menue verwirft (0 = es liest es ganz)
     bool codeFestbreite = false;   // M2: Code-Editor mit Festbreitenschrift
     int kinoBilder = 0;            // M2: gezeigte Bilder aus RoQ-Videos

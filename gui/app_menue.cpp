@@ -110,6 +110,11 @@ struct Dokument {
     std::string gespeichert;   // Text beim letzten Speichern
     Datei datei;
     int geparst = -1;          // Pufferversion des Modells
+    // rc608 Punkt 4: die Ansicht der Flaeche. Nur Anzeige: kein Undo-Schritt, nicht in der Datei.
+    float zoom = 1.0F;         // Faktor auf "passend"
+    float panX = 0, panY = 0;  // Bildpunkte
+    int zoomProzent = 100;     // Bildpunkte je virtuellem Punkt (x-Richtung) in Prozent
+    int zoomWunsch = 0;        // aus Tasten und Knoepfen: 1 naeher, -1 weiter, 2 passend, 3 100 %
     std::set<int> lesezeichen;
     std::set<int> gefaltet;    // Anfangszeilen eingeklappter Bloecke
     std::set<int> gesperrt;    // Items, die die Flaeche nicht bewegt
@@ -319,6 +324,7 @@ struct Zustand {
     int vervollWahl = 0;
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
+    bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
     int reiterGewollt = -2;   // rechte Spalte: -2 = aus den Einstellungen, -1 = keiner, sonst setzen
     // M2 Live-Diagnose
     std::shared_ptr<const DiagDaten> diagDaten;
@@ -1667,7 +1673,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const int mi = menuDerSeite(d);
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 o0 = ImGui::GetCursorScreenPos();
-    const float lineal = std::floor(ImGui::GetFontSize() * 1.2F);
+    const float fsLineal = ImGui::GetFontSize();
+    const float lineal = std::floor(fsLineal * 1.2F);
     // Aufloesung: Fenster oder Voreinstellung (das Seitenverhaeltnis der Vorschau)
     static const float kAufl[][2] = {{0, 0}, {640, 480}, {800, 600}, {1024, 768}, {1280, 720}, {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3440, 1440}};
     // rc608 Punkt 8: rechts und unten ein schmaler Rand, sonst laegen die Griffe bei x = 640 und y = 480 halb ausserhalb
@@ -1680,16 +1687,61 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         bh = ay * f;
     }
     const ImVec2 o{o0.x + lineal, o0.y + lineal};
-    const Abbildung ab = abbildung(bw, bh, z.seitenv);
+    const Abbildung passend = abbildung(bw, bh, z.seitenv);
+    dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + bh}, IM_COL32(0, 0, 0, 255));
+    ImGui::InvisibleButton("##flaeche", ImVec2{std::max(1.0F, groesse.x), std::max(1.0F, groesse.y)},
+                           ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
+    const bool hover = ImGui::IsItemHovered();
+    const ImVec2 maus = ImGui::GetIO().MousePos;
+    // rc608 Punkt 4 (shank: "ich kann nicht rein zoomen mit CNTRL + Mausrad"): Strg+Mausrad um den Zeiger, 25 bis 800 %,
+    // Strg+0 passend, Strg+1 100 %, Mitteltaste oder Leertaste+Ziehen verschiebt.
+    const bool leertaste = !ImGui::GetIO().WantTextInput && ImGui::IsKeyDown(ImGuiKey_Space);
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        const auto zoomAuf = [&](float sx, float mx, float my) {   // sx: Bildpunkte je virtuellem Punkt, (mx, my) bleibt stehen
+            const float neu = std::clamp(sx, 0.25F, 8.0F) / std::max(0.001F, passend.sx);
+            const float vx0 = (mx - passend.ox - d.panX) / (passend.sx * d.zoom);
+            const float vy0 = (my - passend.oy - d.panY) / (passend.sy * d.zoom);
+            d.zoom = neu;
+            d.panX = mx - vx0 * passend.sx * neu - passend.ox;
+            d.panY = my - vy0 * passend.sy * neu - passend.oy;
+        };
+        const float jetzt = passend.sx * d.zoom;
+        if (d.zoomWunsch == 2) {
+            d.zoom = 1.0F;
+            d.panX = d.panY = 0.0F;
+        } else if (d.zoomWunsch == 3) {
+            zoomAuf(1.0F, bw * 0.5F, bh * 0.5F);
+        } else if (d.zoomWunsch != 0) {
+            zoomAuf(jetzt * (d.zoomWunsch > 0 ? 1.25F : 0.8F), bw * 0.5F, bh * 0.5F);
+        }
+        d.zoomWunsch = 0;
+        if (hover && io.KeyCtrl && io.MouseWheel != 0.0F) { zoomAuf(jetzt * std::pow(1.25F, io.MouseWheel), maus.x - o.x, maus.y - o.y); }
+        if (hover && (ImGui::IsMouseClicked(ImGuiMouseButton_Middle) || (leertaste && ImGui::IsMouseClicked(ImGuiMouseButton_Left)))) { z.pannt = true; }
+        if (z.pannt) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Middle) || ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                d.panX += io.MouseDelta.x;
+                d.panY += io.MouseDelta.y;
+            } else {
+                z.pannt = false;
+            }
+        }
+        // Ein Stueck der Flaeche bleibt immer im Bild
+        const float bleibt = lineal * 2.0F;
+        d.panX = std::clamp(d.panX, bleibt - kSchirmBreite * passend.sx * d.zoom - passend.ox, bw - bleibt - passend.ox);
+        d.panY = std::clamp(d.panY, bleibt - kSchirmHoehe * passend.sy * d.zoom - passend.oy, bh - bleibt - passend.oy);
+    }
+    Abbildung ab = passend;
+    ab.sx *= d.zoom;
+    ab.sy *= d.zoom;
+    ab.ox += d.panX;
+    ab.oy += d.panY;
+    d.zoomProzent = static_cast<int>(std::lround(ab.sx * 100.0F));
     z.flaeche[0] = o.x + ab.ox;
     z.flaeche[1] = o.y + ab.oy;
     z.flaeche[2] = kSchirmBreite * ab.sx;
     z.flaeche[3] = kSchirmHoehe * ab.sy;
-    dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + bh}, IM_COL32(0, 0, 0, 255));
-    ImGui::InvisibleButton("##flaeche", ImVec2{std::max(1.0F, groesse.x), std::max(1.0F, groesse.y)},
-                           ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-    const bool hover = ImGui::IsItemHovered();
-    const ImVec2 maus = ImGui::GetIO().MousePos;
+    if (z.pannt || (hover && leertaste)) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); }
     const float vx = (maus.x - o.x - ab.ox) / ab.sx;
     const float vy = (maus.y - o.y - ab.oy) / ab.sy;
     if (ImGui::BeginDragDropTarget()) {   // M2: Vorlage aus der Bibliothek
@@ -1709,18 +1761,33 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         const ImU32 grund = IM_COL32(40, 40, 46, 255), strich = IM_COL32(150, 150, 160, 255);
         dl->AddRectFilled(ImVec2{o0.x, o0.y}, ImVec2{o0.x + groesse.x, o.y}, grund);
         dl->AddRectFilled(ImVec2{o0.x, o0.y}, ImVec2{o.x, o0.y + groesse.y}, grund);
-        for (int v = 0; v <= 640; v += 10) {
+        // Die Zahlen stehen so dicht, wie sie lesbar bleiben; ohne Zoom wie bisher (alle 100, Striche alle 10)
+        struct Teilung { int zahl, lang, kurz; };
+        static const Teilung kTeilung[] = {{10, 5, 1}, {20, 10, 2}, {50, 10, 5}, {100, 50, 10}, {200, 100, 50}};
+        const float dichte = std::min(ab.sx, ab.sy);
+        Teilung t = kTeilung[std::size(kTeilung) - 1];
+        for (const Teilung& k : kTeilung) {
+            if (static_cast<float>(k.zahl) * dichte >= fsLineal * 8.0F) {
+                t = k;
+                break;
+            }
+        }
+        dl->PushClipRect(ImVec2{o.x, o0.y}, ImVec2{o0.x + groesse.x, o.y}, true);
+        for (int v = 0; v <= 640; v += t.kurz) {
             const float x = o.x + ab.x(static_cast<float>(v));
-            const float l = (v % 50 == 0) ? lineal * 0.6F : lineal * 0.25F;
+            const float l = (v % t.lang == 0) ? lineal * 0.6F : lineal * 0.25F;
             dl->AddLine(ImVec2{x, o.y - l}, ImVec2{x, o.y}, strich);
-            if (v % 100 == 0) { dl->AddText(ImVec2{x + 2, o0.y}, strich, std::to_string(v).c_str()); }
+            if (v % t.zahl == 0) { dl->AddText(ImVec2{x + 2, o0.y}, strich, std::to_string(v).c_str()); }
         }
-        for (int v = 0; v <= 480; v += 10) {
+        dl->PopClipRect();
+        dl->PushClipRect(ImVec2{o0.x, o.y}, ImVec2{o.x, o0.y + groesse.y}, true);
+        for (int v = 0; v <= 480; v += t.kurz) {
             const float y = o.y + ab.y(static_cast<float>(v));
-            const float l = (v % 50 == 0) ? lineal * 0.6F : lineal * 0.25F;
+            const float l = (v % t.lang == 0) ? lineal * 0.6F : lineal * 0.25F;
             dl->AddLine(ImVec2{o.x - l, y}, ImVec2{o.x, y}, strich);
-            if (v % 100 == 0) { dl->AddText(ImVec2{o0.x + 1, y + 1}, strich, std::to_string(v).c_str()); }
+            if (v % t.zahl == 0) { dl->AddText(ImVec2{o0.x + 1, y + 1}, strich, std::to_string(v).c_str()); }
         }
+        dl->PopClipRect();
         if (hover) {
             dl->AddLine(ImVec2{maus.x, o0.y}, ImVec2{maus.x, o.y}, IM_COL32(255, 200, 0, 255));
             dl->AddLine(ImVec2{o0.x, maus.y}, ImVec2{o.x, maus.y}, IM_COL32(255, 200, 0, 255));
@@ -1836,12 +1903,16 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         dl->AddLine(ImVec2{o.x, o.y + ab.y(y)}, ImVec2{o.x + bw, o.y + ab.y(y)}, IM_COL32(0, 200, 255, 160));
     }
 
+    if (d.zoom != 1.0F || d.panX != 0.0F || d.panY != 0.0F) {   // rc608 Punkt 4: wo der Schirm des Spiels endet
+        dl->AddRect(ImVec2{o.x + ab.x(0), o.y + ab.y(0)}, ImVec2{o.x + ab.x(kSchirmBreite), o.y + ab.y(kSchirmHoehe)}, IM_COL32(150, 150, 160, 160));
+    }
+
     if (z.interaktion) {
         dl->PopClipRect();
         if (hover) {
             z.lauf.maus(mi, vx, vy);
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) { z.lauf.klick(mi, vx, vy); }
-            if (ImGui::GetIO().MouseWheel != 0.0F) { z.lauf.rad(mi, vx, vy, static_cast<int>(ImGui::GetIO().MouseWheel)); }   // M4: Textscroll (Movie Duels)
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !leertaste) { z.lauf.klick(mi, vx, vy); }
+            if (ImGui::GetIO().MouseWheel != 0.0F && !ImGui::GetIO().KeyCtrl) { z.lauf.rad(mi, vx, vy, static_cast<int>(ImGui::GetIO().MouseWheel)); }   // M4: Textscroll (Movie Duels)
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { z.lauf.escape(mi); }
         }
         if (satzWechsel()) { return; }   // M2 Punkt 3
@@ -1929,7 +2000,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         };
         const auto waehlbar = std::find(d.auswahl.begin(), d.auswahl.end(), unterMaus) != d.auswahl.end();
         const bool frei = std::none_of(d.auswahl.begin(), d.auswahl.end(), [&d](int i) { return d.gesperrt.count(i) != 0; });
-        if (z.ziehen == Ziehen::Groesse) {
+        if (z.pannt || leertaste) {
+            // Hand (oben gesetzt)
+        } else if (z.ziehen == Ziehen::Groesse) {
             ImGui::SetMouseCursor(griffZeiger(z.griff));
         } else if (z.ziehen == Ziehen::Verschieben) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
@@ -1980,7 +2053,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     dl->PopClipRect();
 
     // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse (M6: bei Tab-Reihenfolge waehlt er die naechste Nummer)
-    if (hover && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
+    if (hover && !leertaste && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
@@ -2125,6 +2198,8 @@ void editorTasten(Dokument& d) {
     const bool strg = io.KeyCtrl;
     if (strg && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)) { (void)rueckgaengig(); }
     if (strg && (ImGui::IsKeyPressed(ImGuiKey_Y) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z)))) { (void)wiederholen(); }
+    if (strg && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_0, false)) { d.zoomWunsch = 2; }
+    if (strg && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_1, false)) { d.zoomWunsch = 3; }
     if (z.werteBild + 1 >= bild) { return; }
     if (strg && ImGui::IsKeyPressed(ImGuiKey_V)) {
         if (const char* c = ImGui::GetClipboardText()) { fuegeItemsEin(utf8ZuLatin1(c)); }
@@ -5743,6 +5818,7 @@ Stand stand() {
     s.cursorZeile = std::string(d->puffer.zeile(d->puffer.pos(d->puffer.cursor.front().pos).zeile));
     s.exporte = z.exporte;
     s.undoSchritte = d->puffer.undoTiefe();
+    s.zoomProzent = d->zoomProzent;
     if (const int mi = menuDerSeite(*d); mi >= 0) { s.abbruchZeile = d->datei.menus[static_cast<std::size_t>(mi)].abbruchZeile; }
     for (int i = 0; i < 4; ++i) { s.flaeche[i] = z.flaeche[i]; }
     s.bildzeitMs = z.bildzeitMs;

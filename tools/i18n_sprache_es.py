@@ -2961,6 +2961,8 @@ TEXTE = {
     "MeZurZeile": "Ir a la línea",
     "CliUnbekannt": "Interruptor desconocido: %s\nJK Studio no se ha abierto. Conoce --version y --mcp. Para abrir un archivo con ese nombre, escribe su ruta, por ejemplo .\\%s",
     "PrefsBaseImmer": "También se lee, como en el juego: %s",
+    "MeZoomPassend": "Ajustar",
+    "MeZoomTip": "Ctrl+rueda del ratón acerca alrededor del puntero (25 a 800 %). Ctrl+0: ajustar. Ctrl+1: 100 %. El botón central o Espacio+arrastrar mueve la vista. Solo cambia la vista: nada entra en el archivo ni en Deshacer.",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
