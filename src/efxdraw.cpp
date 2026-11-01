@@ -1062,72 +1062,69 @@ V3 farbeBei(const Farbe& f, float alter, float life) {
 
 // --- Der Spurtest eines Teilchens --------------------------------------
 //
-// Ohne `usePhysics` oder ohne Karte gar keiner. Mit `useBBox` (121 mal in
-// den Effektdateien, fast immer an Truemmern) spurt die Engine mit einem
-// KASTEN (CParticle::UpdateOrigin, FxPrimitives.cpp:285):
-//
-//     theFxHelper.Trace( &trace, mOrigin1, mMin, mMax, new_origin, ... );
-//
-// Ein Kastentest gegen die Dreiecke der Karte gibt es in behaved nicht.
-// Nachgebildet wird, was man davon SIEHT: das Teilchen bleibt um seine
-// Ausdehnung vor der Flaeche stehen, statt mit dem Mittelpunkt darin zu
-// stecken - ein Brocken mit `min -3 -3 -3` liegt auf dem Boden, nicht zur
-// Haelfte darin. Dazu wird der Strahl in Flugrichtung um so viel
-// verlaengert, wie der Kasten in diese Richtung ueber seinen Mittelpunkt
-// hinausreicht, und der Treffer um genau so viel zurueckgenommen.
-//
-// NAEHERUNG: an einer Kante, die der Strahl knapp verfehlt, haengt ein
-// echter Kasten trotzdem - dieser hier nicht.
-efx::sim::TraceFn spurFuer(const BspGeometry* geo, const efx::Primitive& pr,
-                           std::uint32_t flags) {
-    if (geo == nullptr || (flags & efx::kFlagApplyPhysics) == 0U) {
+// Pruefung 4b: wie CParticle::UpdateOrigin (FxPrimitives.cpp:280-345
+// OpenJK, Movie Duels gleich) - siehe EffektSpurWelt in bhed/efxdraw.h.
+// Bis Pruefung 4b ein verlaengerter Strahl gegen die Dreiecke der Karte.
+std::mutex g_spurWeltSperre;
+const BspGeometry* g_spurWeltGeo = nullptr;
+std::shared_ptr<const EffektSpurWelt> g_spurWelt;
+std::uint32_t g_spurWeltStand = 0;
+
+struct SpurWeltStand {
+    std::shared_ptr<const EffektSpurWelt> welt;
+    std::uint32_t stand = 0;
+};
+SpurWeltStand spurWeltZu(const BspGeometry* geo) {
+    const std::lock_guard<std::mutex> sperre(g_spurWeltSperre);
+    if (geo == nullptr || geo != g_spurWeltGeo) {
         return {};
     }
-    auto strahl = [geo](const V3& von, const V3& bis, V3& punkt, V3& normale,
-                        float& anteil) {
-        const float a[3] = {von.x, von.y, von.z};
-        const float b[3] = {bis.x, bis.y, bis.z};
-        const TraceTreffer t = traceRay(*geo, a, b);
-        if (!t.hit) {
-            return false;
-        }
-        punkt = V3{t.point[0], t.point[1], t.point[2]};
-        normale = V3{t.normal[0], t.normal[1], t.normal[2]};
-        anteil = t.fraction;
-        return true;
-    };
-    if ((flags & efx::kFlagUseBBox) == 0U) {
-        return [strahl](const V3& von, const V3& bis, V3& punkt, V3& normale) {
-            float anteil = 1.0F;
-            return strahl(von, bis, punkt, normale, anteil);
-        };
+    return SpurWeltStand{g_spurWelt, g_spurWeltStand};
+}
+
+// MASK_SHOT | CONTENTS_WATER (bg_public.h:724 OpenJK; surfaceflags.h:
+// SOLID 1, WATER 0x20, SHOTCLIP 0x80, BODY 0x100, CORPSE 0x200, TERRAIN
+// 0x40000) und SURF_NOIMPACT 0x10 (surfaceflags.h:89).
+constexpr std::uint32_t kMaskeTeilchen = 0x1U | 0x20U | 0x80U | 0x100U | 0x200U | 0x40000U;
+constexpr std::uint32_t kSurfNoImpact = 0x10U;
+
+efx::sim::TraceFn spurFuer(const BspGeometry* geo, const efx::Primitive& pr,
+                           std::uint32_t flags, double geborenMs) {
+    if ((flags & efx::kFlagApplyPhysics) == 0U) {
+        return {};
     }
-    const std::array<float, 3> lo{pr.min.min[0], pr.min.min[1], pr.min.min[2]};
-    const std::array<float, 3> hi{pr.max.min[0], pr.max.min[1], pr.max.min[2]};
-    return [strahl, lo, hi](const V3& von, const V3& bis, V3& punkt,
-                            V3& normale) {
-        const V3 d = bis - von;
-        const float len = efx::camera::length(d);
-        float anteil = 1.0F;
-        if (len < 1e-6F) {
-            return strahl(von, bis, punkt, normale, anteil);
-        }
-        const V3 dir = d * (1.0F / len);
-        // Wie weit reicht der Kasten in Flugrichtung ueber den Mittelpunkt?
-        const float komp[3] = {dir.x, dir.y, dir.z};
-        float weit = 0.0F;
-        for (std::size_t k = 0; k < 3; ++k) {
-            weit += komp[k] * (komp[k] > 0.0F ? hi[k] : lo[k]);
-        }
-        if (weit <= 0.0F) {
-            return strahl(von, bis, punkt, normale, anteil);
-        }
-        const V3 lang = bis + dir * weit;
-        if (!strahl(von, lang, punkt, normale, anteil)) {
+    const SpurWeltStand w = spurWeltZu(geo);
+    if (!w.welt || !w.welt->inhalt || !w.welt->spur) {
+        return {};
+    }
+    // mMin/mMax nur mit FX_USE_BBOX, sonst Punkt (NULL, NULL).
+    const bool kasten = (flags & efx::kFlagUseBBox) != 0U;
+    const std::array<float, 3> lo{kasten ? pr.min.min[0] : 0.0F, kasten ? pr.min.min[1] : 0.0F,
+                                  kasten ? pr.min.min[2] : 0.0F};
+    const std::array<float, 3> hi{kasten ? pr.max.min[0] : 0.0F, kasten ? pr.max.min[1] : 0.0F,
+                                  kasten ? pr.max.min[2] : 0.0F};
+    // fx_expensivePhysics "1" (cg_main.cpp:453): mit expensivePhysics immer.
+    const bool immer = (flags & efx::kFlagExpensivePhysics) != 0U;
+    const std::shared_ptr<const EffektSpurWelt> welt = w.welt;
+    return [welt, lo, hi, immer, geborenMs](const V3& von, const V3& bis, float sekunde,
+                                            efx::sim::Spur& aus) {
+        const double ms = geborenMs + static_cast<double>(sekunde) * 1000.0;
+        const float b[3] = {bis.x, bis.y, bis.z};
+        if (!immer && (welt->inhalt(b, ms) & kMaskeTeilchen) == 0U) {
             return false;
         }
-        const float zurueck = std::max(0.0F, anteil * (len + weit) - weit);
-        punkt = von + dir * zurueck;
+        const float a[3] = {von.x, von.y, von.z};
+        float punkt[3];
+        float normale[3];
+        float anteil = 1.0F;
+        std::uint32_t flaeche = 0U;
+        if (!welt->spur(a, lo.data(), hi.data(), b, kMaskeTeilchen, ms, punkt, normale, anteil, flaeche)) {
+            return false;
+        }
+        aus.punkt = V3{punkt[0], punkt[1], punkt[2]};
+        aus.normale = V3{normale[0], normale[1], normale[2]};
+        aus.anteil = anteil;
+        aus.ohneEinschlag = (flaeche & kSurfNoImpact) != 0U;
         return true;
     };
 }
@@ -1187,6 +1184,9 @@ std::unordered_map<FlugSchluessel, std::unique_ptr<efx::sim::FlugZustand>,
 
 FlugSchluessel flugSchluessel(const V3& start, const Teilchen& t,
                               const BspGeometry* geo) {
+    // Pruefung 4b: die Welt (ihr Stand) und die Geburt - Figuren und Brush-
+    // Entities bewegen sich, dieselbe Bahn zu anderer Zeit trifft anderes.
+    const std::uint32_t stand = spurWeltZu(geo).stand;
     const bool toetet = (t.flags & efx::kFlagKillOnImpact) != 0U;
     FlugSchluessel k;
     const float roh[] = {start.x, start.y, start.z, t.vel.x, t.vel.y, t.vel.z,
@@ -1197,13 +1197,14 @@ FlugSchluessel flugSchluessel(const V3& start, const Teilchen& t,
     for (const float f : roh) {
         k.w[i++] = bitsVon(f);
     }
-    k.w[i++] = (toetet ? 1U : 0U) | ((t.flags & efx::kFlagUseBBox) != 0U ? 2U : 0U);
-    const auto adr = reinterpret_cast<std::uintptr_t>(geo);
-    k.w[i++] = static_cast<std::uint32_t>(adr);
-    k.w[i++] = static_cast<std::uint32_t>(static_cast<std::uint64_t>(adr) >> 32U);
-    k.w[i++] = static_cast<std::uint32_t>(geo->verts.size());
-    k.w[i] = static_cast<std::uint32_t>(geo->surfaces.size()) ^
-             (geo->verts.empty() ? 0U : bitsVon(geo->verts[0].xyz[0]));
+    k.w[i++] = (toetet ? 1U : 0U) | ((t.flags & efx::kFlagUseBBox) != 0U ? 2U : 0U) |
+               ((t.flags & efx::kFlagExpensivePhysics) != 0U ? 4U : 0U);
+    k.w[i++] = stand;
+    std::uint64_t geburt = 0;
+    static_assert(sizeof(geburt) == sizeof(t.geborenMs));
+    std::memcpy(&geburt, &t.geborenMs, sizeof(geburt));
+    k.w[i++] = static_cast<std::uint32_t>(geburt);
+    k.w[i] = static_cast<std::uint32_t>(geburt >> 32U);
     return k;
 }
 
@@ -1306,7 +1307,7 @@ Lage lageBei(const Teilchen& t, const EffectInstance& inst, double jetztMs,
         // nicht am Effekt: Funken prallten an Waenden ab, die dort stehen,
         // wo die Karte ihren Ursprung hat - oder fielen durch den Boden.
         // Jetzt startet die Bahn an der Weltlage.
-        const efx::sim::TraceFn spur = spurFuer(geo, pr, t.flags);
+        const efx::sim::TraceFn spur = spurFuer(geo, pr, t.flags, t.geborenMs);
         if (spur) {
             l.bahn = flugMitMerk(start, t, ts, spur, geo);
             l.tot = l.bahn.gestorben;
@@ -1465,7 +1466,7 @@ void vorrechnen(const std::vector<Vorrechnung>& alle, const BspGeometry* geo) {
     // Dieselbe Bahn kann mehrfach gesammelt sein (Durchlauf und Modell);
     // doppelt zu rechnen waere nur Verschwendung, falsch waere es nicht.
     auto rechne = [&](const Vorrechnung& v) {
-        const efx::sim::TraceFn spur = spurFuer(geo, *v.t.pr, v.t.flags);
+        const efx::sim::TraceFn spur = spurFuer(geo, *v.t.pr, v.t.flags, v.t.geborenMs);
         if (spur) {
             (void)flugMitMerk(v.start, v.t, v.ts, spur, geo);
         }
@@ -1916,6 +1917,16 @@ void blitz(BspMesh& mesh, const float start[3], const float ziel[3],
 void vergissEffektBahnen() {
     const std::lock_guard<std::mutex> sperre(g_flugMerkSperre);
     g_flugMerk.clear();
+}
+
+void setzeEffektSpurWelt(const BspGeometry* geo, std::shared_ptr<const EffektSpurWelt> welt) {
+    {
+        const std::lock_guard<std::mutex> sperre(g_spurWeltSperre);
+        g_spurWeltGeo = welt ? geo : nullptr;
+        g_spurWelt = std::move(welt);
+        ++g_spurWeltStand;
+    }
+    vergissEffektBahnen();
 }
 
 namespace {
@@ -2847,6 +2858,9 @@ void folgeEffekte(const EffectInstance& inst, double nowMs,
             if (willImpact && !t.relativ) {
                 for (int k = 0; k < l.bahn.aufpralle; ++k) {
                     const auto kk = static_cast<std::size_t>(k);
+                    if (l.bahn.aufprallOhneFx[kk]) {
+                        continue;   // Pruefung 4b: SURF_NOIMPACT
+                    }
                     const float p[3] = {l.bahn.aufprallPunkt[kk].x,
                                         l.bahn.aufprallPunkt[kk].y,
                                         l.bahn.aufprallPunkt[kk].z};
@@ -2912,7 +2926,7 @@ void folgeEffekte(const EffectInstance& inst, double nowMs,
                 V3 letzter = start;
                 float schritt = 0.0F;
                 int wieviele = 0;
-                const efx::sim::TraceFn spur = spurFuer(geo, pr, flags);
+                const efx::sim::TraceFn spur = spurFuer(geo, pr, flags, t.geborenMs);
                 FlugSchluessel schluessel;
                 std::unique_ptr<efx::sim::FlugZustand> zustand;
                 if (spur) {

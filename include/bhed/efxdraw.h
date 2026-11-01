@@ -48,10 +48,11 @@
 //   * Decals werden NICHT gegen die Geometrie geschnitten
 //     (CM_MarkFragments) - ueber einer Kante steht das Viereck durch die
 //     Wand.
-//   * useBBox spurt mit einem verlaengerten Strahl statt mit einem Kasten
-//     (behaved hat keinen Kastenspurtest gegen die Dreiecke). Das Teilchen
-//     bleibt um die Kastenausdehnung vor der Flaeche stehen - an Kanten
-//     kann ein echter Kasten frueher haengen bleiben.
+//   * Pruefung 4b: der Spurtest der Teilchen ist der des Spiels
+//     (CParticle::UpdateOrigin) - Punktinhalt am neuen Ort, Kastenspur
+//     (useBBox) gegen die Kollisionskarte, Brush-Entities und Figuren, je
+//     Bild der Vorgabe com_maxfps 125. Ohne gesetzte Welt (setzeEffektSpurWelt)
+//     prallt nichts ab.
 //   * FX_RELATIVE entsteht in der Engine nur zur Laufzeit (ein Effekt an
 //     einem Knochen oder einer Figur, G_PlayEffect mit isRelative). Das
 //     Wort "relative" in einer .efx ueberliest der SP-Parser. Gebaut ist
@@ -71,7 +72,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <map>
 #include <vector>
@@ -510,5 +513,27 @@ int markenNetz(BspMesh& netz, const SpurSpeicher& speicher, int cgZeit, const Ef
 // hunderte Wiederholungen im Fenster.
 [[nodiscard]] std::vector<double> klangStarts(const EffectInstance& inst, double vonMs, double bisMs,
                                               int hoechstens = 3);
+
+// --- Pruefung 4b: die Welt fuer den Spurtest der Teilchen -----------------
+//
+// CParticle::UpdateOrigin (FxPrimitives.cpp:280-345 OpenJK) fragt erst
+// CG_PointContents(new_origin, ENTITYNUM_WORLD) - Welt und Brush-Entities an
+// ihrem s.origin (cg_predict.cpp) - und spurt nur, wenn dort etwas aus
+// MASK_SHOT | CONTENTS_WATER ist (ausser expensivePhysics mit der Vorgabe
+// fx_expensivePhysics 1). Dann CG_Trace (Welt, Brush-Entities an lerpOrigin,
+// Figuren als Kasten mit CONTENTS_BODY) mit mMin/mMax (useBBox) oder als
+// Punkt. ms: Zeitleiste.
+struct EffektSpurWelt {
+    std::function<std::uint32_t(const float p[3], double ms)> inhalt;
+    // true: getroffen (nicht startsolid/allsolid, fraction < 1); flaeche =
+    // trace.surfaceFlags.
+    std::function<bool(const float von[3], const float mins[3], const float maxs[3], const float bis[3],
+                       std::uint32_t maske, double ms, float punkt[3], float normale[3], float& anteil,
+                       std::uint32_t& flaeche)>
+        spur;
+};
+// Die Welt zu dieser Karte (geo). Jede neue Welt macht die gemerkten Bahnen
+// ungueltig. nullptr: keine.
+void setzeEffektSpurWelt(const BspGeometry* geo, std::shared_ptr<const EffektSpurWelt> welt);
 
 }  // namespace bhed

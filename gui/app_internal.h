@@ -981,6 +981,18 @@ struct App {
     std::vector<FallenKnall> fallenKnalle;
     std::string fallenKnalleKarte;
     std::vector<FallenKnall> fallenKnalleNeu;
+    // Pruefung 4b: die Treffer von fx_target_beam auf Figuren (G_Damage mit
+    // "damage") - wie die Explosionen aus dem letzten Durchgang.
+    struct StrahlTreffer {
+        double ms = 0.0;
+        std::string figur;
+        int schaden = 0;
+        int entity = -1;
+        bool operator==(const StrahlTreffer&) const = default;
+    };
+    std::vector<StrahlTreffer> strahlTreffer;
+    std::string strahlTrefferKarte;
+    std::vector<StrahlTreffer> strahlTrefferNeu;
     // rc605 (Ende): die Figuren, die MoverSim::blockiert meldet (Index ->
     // Name), fuer MoverSim::quetschungen in hurtTodeBerechnen.
     std::vector<std::string> quetschFiguren;
@@ -1219,6 +1231,9 @@ struct App {
     // abgespielt wird, kostet damit dreissig Netze - aber nur die, die
     // wirklich vorkommen.
     struct MapModel {
+        // Pruefung 4b: misc_model_breakable mit "gravity" - die Bahn ab dem
+        // ersten Wurf (target4, wirfObjekt); leer: steht.
+        std::shared_ptr<const AbwurfBahn> wurf;
         std::string path;
         int frames = 1;
         float origin[3]{};
@@ -1257,8 +1272,15 @@ struct App {
         // rc604 fix604b (B3): EF_SHADER_ANIM - das animMap-Bild s.frame statt
         // nach der Zeit (R_BindAnimatedImage mit RF_SETANIMINDEX); -1: nach Zeit.
         int bildIndex = -1;
+        // Pruefung 4b: CG_Item "saber pickup item needs to be more visible"
+        // (IT_WEAPON/WP_SABER ohne ITMSF_NOGLOW) - Huelle, Sprites, Licht;
+        // oben = ent.axis[2] aus spinAngles.
+        bool schwertLeuchten = false;
+        float oben[3]{0.0F, 0.0F, 1.0F};
     };
     std::vector<GegenstandGlm> gegenstandGlm;
+    // Pruefung 4b: die Huelle (gfx/effects/solidWhite_cull, RF_RGB_TINT) je Modell.
+    std::map<std::string, ModelTextures> schwertHuellen;
     // Pruefung 3: gezeichnete Abwuerfe (Scene::abwuerfe) seit dem letzten Nullen (Selbsttest).
     int abwurfGezeichnet = 0;
     // Je Kartenmodell die Figur der Szene, die es bewegt (move, rotate,
@@ -3112,6 +3134,13 @@ void kollisionLaden(const std::string& bsp, const std::string& karte);
 // (g_app->moverSim, bis endeMs) fuer die Wege uebernehmen (NavWelt::mover,
 // spurZeit). true: er hat sich geaendert - Ablauf und Szene noch einmal.
 bool navMoverPlanAusSim(double endeMs);
+// Pruefung 4b: die Welt fuer den Spurtest der Effektteilchen (setzeEffektSpurWelt,
+// bhed/efxdraw.h) aus Kollisionskarte, Mover-Stand und Figuren der Szene.
+void effektSpurWeltSetzen();
+// Pruefung 4b: misc_model_breakable mit "gravity" - auf den Boden gesetzt und an
+// den Hang gelegt (objektAbsetzen), die Wuerfe der MoverSim als Bahn am
+// Kartenmodell (App::MapModel::wurf).
+void objektWuerfeSetzen();
 [[nodiscard]] bool schwerkraftMitMovernNoetig();
 // rc601 (bewegung, Durchsicht 2): die Schwierigkeit der Vorschau (g_spskill
 // 0-3, Einstellungen) setzen - die Szene wird danach neu aufgebaut, denn
@@ -3241,6 +3270,10 @@ const std::vector<std::int16_t>* klangFuerWiedergabe(const std::string& name);
 // Alle Klaenge der Zeitleiste vorladen - vor dem Start der Uhr.
 void klaengeVorladen();
 ModelTextures texturesFor(const GlmModel& model);
+// Pruefung 4b: dasselbe Modell ganz mit EINEM Shader (refEntity.customShader,
+// R_AddGhoulSurfaces) und der Farbe `farbe` fuer alle Stufen (RF_RGB_TINT:
+// FigurFarbe::Entity). Leer, wenn der Shader fehlt.
+ModelTextures texturenMitShader(const GlmModel& model, const std::string& shader, FigurFarbe farbe);
 // Bilder und Farbe einer Lichtschwertklinge (app_view3d.cpp) - auch fuer die
 // Saeber in Menues (Menue-Editor M2).
 const TextureSet::Tex* bladeTexture(const std::string& farbe, bool glow);

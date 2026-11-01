@@ -178,6 +178,10 @@ struct HandBelegung {
 struct KinoModell {
     int modell = -1;          // Index in Actor::modelle, -1 heisst: frei
     bool links = false;       // handLBolt statt handRBolt
+    // Pruefung 4b: nach dem Entfernen von Ghoul2-Modell 0 (ActorState::
+    // koerperEntfernt) scheitert G2API_AttachG2Model - das Modell steht
+    // unangehaengt an der Wurzel der Figur.
+    bool anWurzel = false;
 };
 // So viele gleichzeitig angehaengte Kinomodelle werden gefuehrt. Die Engine
 // kennt keine Grenze (siehe Kind::HandModell in Actor::at), die Skripte der
@@ -261,6 +265,13 @@ struct ActorState {
     std::array<HandBelegung, 2> hand{};
     std::array<KinoModell, kMaxKinoModelle> kino{};
     int kinoLetztes = -1;     // ent->cinematicModel: das zuletzt angehaengte
+    // Pruefung 4b: vor dem ersten Add steht ent->cinematicModel auf 0 (die
+    // Entity ist genullt) - ein Remove davor nimmt Ghoul2-Modell 0, die Figur
+    // selbst (G2API_RemoveGhoul2Model). Dann zeichnet der Renderer weder sie
+    // noch, was an ihren Bolzen haengt (G2_Sort_Models nimmt nur Kinder
+    // gueltiger Modelle).
+    bool kinoNieGesetzt = true;
+    bool koerperEntfernt = false;
     // Der Summton, der gerade laeuft - leer heisst keiner. Fuer die
     // Tonseite: sie soll ihn als Schleife an der Figur spielen.
     //
@@ -672,6 +683,20 @@ struct SaberArt {
 // (DEFAULT_SABER_MODEL, bg_public.h:35).
 inline constexpr const char* kStandardGriff = "models/weapons2/saber_1/saber_1.glm";
 
+// Pruefung 4b: was die Schwerkraft eines Fahrzeugs (CLASS_VEHICLE) aus seiner
+// .veh braucht (BG_VehicleSetDefaults/vehicleFields, bg_vehicleLoad.cpp:
+// 500-830 OpenJK): type, gravity (Vorgabe 800), hoverHeight, hoverStrength,
+// maxSlope (Vorgabe 0.65), friction.
+struct FahrzeugDaten {
+    bool da = false;
+    std::string typ;              // "VH_SPEEDER" ...
+    float schwerkraft = 800.0F;   // VEH_DEFAULT_GRAVITY
+    float schwebeHoehe = 0.0F;
+    float schwebeKraft = 0.0F;
+    float hang = 0.65F;           // VEH_DEFAULT_MAX_SLOPE
+    float reibung = 0.0F;
+};
+
 struct Actor {    std::string name;        // der Name aus dem affect
     // rc602: Index des Spawners in MapData::entities (-1: keiner). Eine
     // Kartenfigur ohne NPC_targetname heisst "<classname>#<index>".
@@ -825,7 +850,10 @@ struct Actor {    std::string name;        // der Name aus dem affect
     std::vector<FallAnim> fallAnims;
     int spawnflags = 0;
     float halbBreite = 16.0F;       // mins/maxs[0] (NPC_ParseParms "width", Vorgabe 16)
-    bool ohneSchwerkraft = false;   // Flieger (MT_FLYSWIM), Fahrzeuge
+    // Flieger (MT_FLYSWIM) und Fahrzeuge: kein Fallen im Wegplaner. Pruefung
+    // 4b: Fahrzeuge fallen dafuer in schwerkraft.cpp nach `fahrzeug`.
+    bool ohneSchwerkraft = false;
+    FahrzeugDaten fahrzeug;
     bool haengtAnfangs = false;     // JSF_AMBUSH: noclip ("hang") bis SET_BEHAVIOR_STATE
     // Spawnt erst waehrend des Ablaufs, ab hier (setzt die Oberflaeche aus
     // Ablauf::erscheint). < 0: es gibt sie schon vor dem Skript - beim
@@ -1149,6 +1177,7 @@ struct NpcDef {
     // Schwerkraft. breite < 0: nicht angegeben, es gilt 16 (playerMaxs).
     float breite = -1.0F;
     bool fliegt = false;
+    FahrzeugDaten fahrzeug;   // Pruefung 4b: CLASS_VEHICLE
     // rc601 (bewegung, Wege): "height" (NPC_stats.cpp:3645-3672), < 0: nicht
     // angegeben - maxs[2] bleibt DEFAULT_MAXS_2 40.
     float hoehe = -1.0F;

@@ -82,14 +82,23 @@ struct Marken {
     std::vector<std::uint32_t> patchStand;   // rc601 (bewegung, teil 3): patch->checkcount
     std::uint32_t zaehler = 0;
 };
+// Pruefung 4b: vier Plaetze je Thread - die Kastenspur gegen eine Figur
+// (kollisionsSpurKasten) laeuft im Wechsel mit der Karte und soll deren
+// Marken nicht jedes Mal neu anlegen.
 Marken& marken(const KollisionsKarte& k) {
-    thread_local Marken m;
-    if (m.karte != &k || m.stand.size() != k.pinsel.size() || m.patchStand.size() != k.patches.size()) {
-        m.karte = &k;
-        m.stand.assign(k.pinsel.size(), 0U);
-        m.patchStand.assign(k.patches.size(), 0U);
-        m.zaehler = 0;
+    thread_local std::array<Marken, 4> plaetze;
+    thread_local std::size_t naechster = 0;
+    for (Marken& m : plaetze) {
+        if (m.karte == &k && m.stand.size() == k.pinsel.size() && m.patchStand.size() == k.patches.size()) {
+            return m;
+        }
     }
+    Marken& m = plaetze[naechster];
+    naechster = (naechster + 1U) % plaetze.size();
+    m.karte = &k;
+    m.stand.assign(k.pinsel.size(), 0U);
+    m.patchStand.assign(k.patches.size(), 0U);
+    m.zaehler = 0;
     return m;
 }
 
@@ -1583,6 +1592,101 @@ KollisionsSpur kollisionsSpur(const KollisionsKarte& k, const float start[3], co
         t.endpos[static_cast<std::size_t>(a)] = start[a] + t.fraction * (ende[a] - start[a]);
     }
     return t;
+}
+
+// Pruefung 4b: CM_PointContents (cm_test.cpp:270-381 OpenJK, der #if-1-Zweig):
+// Welt - das Blatt ueber CM_PointLeafnum_r; ein Brush-Modell - sein eigenes
+// Blatt (seine Brushes). Ein Brush enthaelt den Punkt, wenn er vor keiner
+// Seite liegt ("d > dist" bricht ab). Patches zaehlen nicht.
+std::uint32_t kollisionsInhalt(const KollisionsKarte& k, const float p[3], int modell, const float ursprung[3],
+                               const float winkel[3]) {
+    if (k.leer()) { return 0U; }
+    float q[3] = {p[0], p[1], p[2]};
+    int erster = 0;
+    int zahl = 0;
+    const int* liste = nullptr;
+    if (modell > 0) {
+        if (static_cast<std::size_t>(modell) >= k.modelle.size()) { return 0U; }
+        // CM_TransformedPointContents (cm_test.cpp:467-488)
+        for (int a = 0; a < 3; ++a) { q[a] -= ursprung != nullptr ? ursprung[a] : 0.0F; }
+        if (winkel != nullptr && (winkel[0] != 0.0F || winkel[1] != 0.0F || winkel[2] != 0.0F)) {
+            float vorn[3];
+            float rechts[3];
+            float oben[3];
+            winkelVektoren(winkel, vorn, rechts, oben);
+            const float t[3] = {q[0], q[1], q[2]};
+            q[0] = punkt(t, vorn);
+            q[1] = -punkt(t, rechts);
+            q[2] = punkt(t, oben);
+        }
+        const KollisionsKarte::Modell& m = k.modelle[static_cast<std::size_t>(modell)];
+        erster = m.erster;
+        zahl = m.zahl;
+    } else {
+        int num = 0;   // CM_PointLeafnum_r
+        while (num >= 0) {
+            const KollisionsKarte::Knoten& n = k.knoten[static_cast<std::size_t>(num)];
+            const KollisionsKarte::Ebene& e = k.ebenen[static_cast<std::size_t>(n.ebene)];
+            const float d = (e.typ < 3 ? q[e.typ] : punkt(e.normale, q)) - e.abstand;
+            num = d < 0.0F ? n.kinder[1] : n.kinder[0];
+        }
+        const KollisionsKarte::Blatt& b = k.blaetter[static_cast<std::size_t>(-1 - num)];
+        erster = b.erstePinsel;
+        zahl = b.pinsel;
+        liste = k.blattPinsel.data();
+    }
+    std::uint32_t inhalt = 0U;
+    for (int i = 0; i < zahl; ++i) {
+        const int nr = liste != nullptr ? liste[erster + i] : erster + i;
+        const KollisionsKarte::Pinsel& b = k.pinsel[static_cast<std::size_t>(nr)];
+        int s = 0;
+        for (; s < b.seiten; ++s) {
+            const KollisionsKarte::Ebene& e =
+                k.ebenen[static_cast<std::size_t>(k.seiten[static_cast<std::size_t>(b.ersteSeite + s)].ebene)];
+            if (punkt(q, e.normale) > e.abstand) { break; }
+        }
+        if (s == b.seiten) { inhalt |= b.inhalt; }
+    }
+    return inhalt;
+}
+
+// Pruefung 4b: CM_TempBoxModel (cm_test.cpp/cm_load.cpp CM_InitBoxHull OpenJK):
+// ein Brush mit sechs achsparallelen Seiten (+x, -x, +y, -y, +z, -z), contents
+// CONTENTS_BODY, als Modell 1 einer eigenen kleinen Karte - getraced mit
+// CM_TransformedBoxTrace am Ursprung ohne Drehung (CG_ClipMoveToEntities).
+KollisionsSpur kollisionsSpurKasten(const float start[3], const float mins[3], const float maxs[3], const float ende[3],
+                                    std::uint32_t maske, const float ursprung[3], const float kastenMin[3],
+                                    const float kastenMax[3], std::uint32_t inhalt) {
+    thread_local KollisionsKarte k = [] {
+        KollisionsKarte b;
+        b.knoten.resize(1);
+        b.ebenen.resize(6);
+        for (int i = 0; i < 6; ++i) {
+            KollisionsKarte::Ebene& e = b.ebenen[static_cast<std::size_t>(i)];
+            const int achse = i >> 1;
+            e.normale[achse] = (i & 1) != 0 ? -1.0F : 1.0F;
+            e.typ = (i & 1) != 0 ? 3 + achse : achse;
+            e.vorzeichen = (i & 1) != 0 ? (1 << achse) : 0;
+            b.seiten.push_back(KollisionsKarte::Seite{i, -1});
+        }
+        KollisionsKarte::Pinsel p;
+        p.seiten = 6;
+        b.pinsel.push_back(p);
+        b.modelle.resize(2);
+        b.modelle[1].erster = 0;
+        b.modelle[1].zahl = 1;
+        return b;
+    }();
+    for (int a = 0; a < 3; ++a) {
+        k.ebenen[static_cast<std::size_t>(2 * a)].abstand = kastenMax[a];
+        k.ebenen[static_cast<std::size_t>(2 * a + 1)].abstand = -kastenMin[a];
+        k.pinsel[0].mins[a] = kastenMin[a];
+        k.pinsel[0].maxs[a] = kastenMax[a];
+        k.modelle[1].mins[a] = kastenMin[a];
+        k.modelle[1].maxs[a] = kastenMax[a];
+    }
+    k.pinsel[0].inhalt = inhalt;
+    return kollisionsSpur(k, start, mins, maxs, ende, maske, 1, ursprung, nullptr);
 }
 
 

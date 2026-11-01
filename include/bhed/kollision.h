@@ -133,5 +133,16 @@ struct KollisionsSpur {
                                             int modell = 0, const float ursprung[3] = nullptr,
                                             const float winkel[3] = nullptr);
 
+// Pruefung 4b: CM_PointContents gegen die Welt (modell 0) bzw.
+// CM_TransformedPointContents gegen ein Brush-Modell mit Ursprung und Winkeln.
+[[nodiscard]] std::uint32_t kollisionsInhalt(const KollisionsKarte& k, const float p[3], int modell = 0,
+                                             const float ursprung[3] = nullptr, const float winkel[3] = nullptr);
+// Pruefung 4b: gegen einen Kasten kastenMin..kastenMax um `ursprung` mit
+// diesem Inhalt (CM_TempBoxModel + CM_TransformedBoxTrace, eine Figur).
+[[nodiscard]] KollisionsSpur kollisionsSpurKasten(const float start[3], const float mins[3], const float maxs[3],
+                                                  const float ende[3], std::uint32_t maske, const float ursprung[3],
+                                                  const float kastenMin[3], const float kastenMax[3],
+                                                  std::uint32_t inhalt);
+
 }  // namespace bhed
 #endif

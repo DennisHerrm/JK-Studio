@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <string>
 #include <utility>
@@ -58,6 +59,12 @@ struct MoverUse {
     // wenn activator->client gesetzt ist, und SV_GameSendServerCommand
     // (sv_game.cpp:111) laesst nur Client 0 durch - also nur den Spieler.
     std::string ausloeser;
+    // Pruefung 4b: der Platz des Benutzers im Bild - G_RunFrame laeuft die
+    // Entities nach ihrer Nummer ab (Karten-Entity i hat i + 1); -1 = vor
+    // allen, int-max = nach allen (Vorgabe). Ist das think eines func_breakable
+    // (funcBBrushDieGo, G_FreeEntity) in diesem Bild faellig, laeuft es vor
+    // einem use mit gleichem oder groesserem Platz (g_main.cpp:1062-1088).
+    int reihe = std::numeric_limits<int>::max();
 };
 
 // --- Was beim Zerbrechen entsteht ------------------------------------------
@@ -231,6 +238,7 @@ struct LaserfalleSpur {
     float normale[3]{};   // trace.plane.normal (rc604: fuer fx_target_beam)
     bool startsolid = false;
     bool figur = false;   // tr.entityNum ist ein Client
+    int figurNr = -1;     // Pruefung 4b: welche (Index in Scene::actors)
 };
 // Die Spur zur Zeit ms (die Mover und Figuren dann an ihrem Platz).
 using LaserfalleSpurFn = std::function<LaserfalleSpur(double ms, const float start[3], const float mins[3],
@@ -283,6 +291,20 @@ struct KastenSpur {
 // selben Raum wie start/ende, `idx` je drei eine Dreiecksfolge.
 [[nodiscard]] bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx,
                                    const float start[3], const float ende[3], float radius);
+// Pruefung 4b: dasselbe mit G2_COLLIDE (G2_RadiusTracePolys ohne
+// G2_RETURNONHIT): JEDES getroffene Dreieck wird ein Eintrag mit hitPoint (der
+// Schnitt des Strahls mit der Ebene des Dreiecks) und mDistance, solange Platz
+// ist (MAX_G2_COLLISIONS). Zurueck: wie viele dazukamen.
+struct G2Kollision {
+    float abstand = 0.0F;   // mDistance
+    float punkt[3]{};       // mCollisionPosition
+    int flaeche = -1;       // mSurfaceIndex
+    int modell = 0;         // mModelIndex (im ghoul2-Feld)
+    int entity = -1;        // mEntityNum
+};
+inline constexpr std::size_t kG2KollisionenMax = 16;   // MAX_G2_COLLISIONS (ghoul2_shared.h)
+int g2RadiusKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                        const float ende[3], float radius, const G2Kollision& vorlage, std::vector<G2Kollision>& aus);
 
 // --- rc604: Geschuetze mit Knochenanimation ------------------------------
 // G2API_SetBoneAnimIndex(rootBone, startFrame, endFrame, BONE_ANIM_OVERRIDE_FREEZE,
@@ -416,6 +438,13 @@ public:
     [[nodiscard]] const std::vector<Quetschung>& quetschungen() const { return quetsch_; }
 
     [[nodiscard]] const std::vector<Bruch>& brueche() const { return bruch_; }
+    // Pruefung 4b: misc_model_breakable mit gravity + throwtarget - jedes use
+    // wirft (misc_model_use -> misc_model_throw_at_target4, g_breakable.cpp:697-702).
+    struct ObjektWurf {
+        std::size_t entity = 0;
+        double ms = 0.0;
+    };
+    [[nodiscard]] const std::vector<ObjektWurf>& wuerfe() const { return wuerfe_; }
     [[nodiscard]] const std::vector<BruchEffekt>& bruchEffekte() const { return bruchFx_; }
     [[nodiscard]] const std::vector<Truemmer>& truemmer() const { return truemmer_; }
     // Klaenge beim Zerbrechen, nach Zeit geordnet.
@@ -514,6 +543,7 @@ private:
     std::vector<std::pair<std::size_t, double>> entityUse_;   // rc604: Fallen, Ionenkanonen, Wachgeschuetze
     std::vector<Oeffnung> auf_;
     std::vector<Bruch> bruch_;
+    std::vector<ObjektWurf> wuerfe_;   // Pruefung 4b
     std::vector<BruchEffekt> bruchFx_;
     std::vector<Truemmer> truemmer_;
     std::vector<KartenKlang> bruchKlang_;

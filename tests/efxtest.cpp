@@ -12,6 +12,7 @@
 #include "bhed/efxdraw.h"
 #include "bhed/efx/io.h"
 #include "bhed/bspgeo.h"
+#include "bhed/kollision.h"
 
 #include <cctype>
 #include <cstddef>
@@ -24,6 +25,7 @@
 #include <array>
 #include <cmath>
 #include <map>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -544,13 +546,13 @@ void probenRc569() {
     {
         auto boden = [](const bhed::efx::camera::Vec3& von,
                         const bhed::efx::camera::Vec3& bis,
-                        bhed::efx::camera::Vec3& punkt,
-                        bhed::efx::camera::Vec3& normale) {
+                        float, bhed::efx::sim::Spur& sp) {
             if (von.z >= 0.0F && bis.z < 0.0F) {
                 const float f = von.z / (von.z - bis.z);
-                punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * f,
-                                                von.y + (bis.y - von.y) * f, 0.0F};
-                normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * f,
+                                                   von.y + (bis.y - von.y) * f, 0.0F};
+                sp.normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.anteil = f;
                 return true;
             }
             return false;
@@ -620,6 +622,34 @@ void probenRc569() {
         sf.maxs[1] = 1000.0F;
         sf.maxs[2] = 1.0F;
         geo.surfaces.push_back(sf);
+        // Pruefung 4b: der Spurtest kommt aus der Welt (setzeEffektSpurWelt) -
+        // derselbe Boden als fester Brush z -16..0 (CONTENTS_SOLID 1).
+        auto welt = std::make_shared<bhed::EffektSpurWelt>();
+        const float bodenOrt[3] = {5000.0F, 0.0F, 0.0F};
+        const float bodenLo[3] = {-1000.0F, -1000.0F, -16.0F};
+        const float bodenHi[3] = {1000.0F, 1000.0F, 0.0F};
+        welt->inhalt = [=](const float q[3], double) {
+            bool drin = true;
+            for (int a = 0; a < 3; ++a) {
+                drin = drin && q[a] - bodenOrt[a] >= bodenLo[a] && q[a] - bodenOrt[a] <= bodenHi[a];
+            }
+            return drin ? 1U : 0U;
+        };
+        welt->spur = [=](const float von[3], const float mins[3], const float maxs[3], const float bis[3],
+                         std::uint32_t maske, double, float punkt[3], float normale[3], float& anteil,
+                         std::uint32_t& flaeche) {
+            const bhed::KollisionsSpur t =
+                bhed::kollisionsSpurKasten(von, mins, maxs, bis, maske, bodenOrt, bodenLo, bodenHi, 1U);
+            if (t.startsolid || t.allsolid || t.fraction >= 1.0F) { return false; }
+            for (std::size_t a = 0; a < 3; ++a) {
+                punkt[a] = t.endpos[a];
+                normale[a] = t.normale[a];
+            }
+            anteil = t.fraction;
+            flaeche = t.flaeche;
+            return true;
+        };
+        bhed::setzeEffektSpurWelt(&geo, welt);
 
         auto fallText = [](const char* extra) {
             return std::string("Particle\n{\n\tflags\t\tusePhysics impactFx\n"
@@ -630,6 +660,14 @@ void probenRc569() {
         };
         const auto rP = bhed::efx::read(fallText(""));
         const auto rB = bhed::efx::read(fallText("\tmin\t\t-5 -5 -5\n\tmax\t\t5 5 5\n"));
+        // Pruefung 4b: useBBox + expensivePhysics - ohne spurt die Engine erst,
+        // wenn der MITTELPUNKT im Festen ist; dann steckt der Kasten schon im
+        // Boden, die Spur beginnt startsolid, und der Brocken faellt durch.
+        const bhed::efx::ReadResult rE = [&]() {
+            std::string t = fallText("\tmin\t\t-5 -5 -5\n\tmax\t\t5 5 5\n");
+            t.replace(t.find("usePhysics"), 10, "usePhysics useBBox expensivePhysics");
+            return bhed::efx::read(t);
+        }();
         bhed::EffectInstance in;
         in.effect = &rP.effect;
         in.origin[0] = 5000.0F;
@@ -647,11 +685,15 @@ void probenRc569() {
         bhed::EffectInstance box = in;
         box.effect = &rB.effect;
         const float zKasten = hoehe(box, 2500.0);
-        std::printf("     liegt bei z = %.2f (Strahl), %.2f (Kasten -5..5)\n",
-                    static_cast<double>(zPunkt), static_cast<double>(zKasten));
+        bhed::EffectInstance teuer = in;
+        teuer.effect = &rE.effect;
+        const float zTeuer = hoehe(teuer, 2500.0);
+        std::printf("     liegt bei z = %.2f (Punkt), %.2f (Kasten -5..5), %.2f (Kasten, expensivePhysics)\n",
+                    static_cast<double>(zPunkt), static_cast<double>(zKasten), static_cast<double>(zTeuer));
         expect("der Boden unter dem Effekt haelt es auf (Weltlage)",
                near(zPunkt, 0.0F, 0.5F));
-        expect("useBBox: es liegt um die Kastenhoehe hoeher", near(zKasten, 5.0F, 0.5F));
+        expect("useBBox ohne expensivePhysics: startsolid, faellt durch den Boden", zKasten < -16.0F);
+        expect("useBBox mit expensivePhysics: liegt um die Kastenhoehe hoeher", near(zTeuer, 5.0F, 0.5F));
         // Der Merkzettel fuer fertige Bahnen (efxdraw.cpp, flugMitMerk):
         // bei 2500 ms liegt das Teilchen, das Ergebnis ist gemerkt. Bei
         // 2900 ms kommt es aus dem Merkzettel - und muss BITGLEICH sein mit
@@ -661,8 +703,10 @@ void probenRc569() {
             const bhed::BspGeometry kopie = geo;
             const bhed::BspMesh gemerkt =
                 bhed::buildEffectMesh({in}, 2900.0, right, up, nullptr, &geo);
+            bhed::setzeEffektSpurWelt(&kopie, welt);
             const bhed::BspMesh frisch =
                 bhed::buildEffectMesh({in}, 2900.0, right, up, nullptr, &kopie);
+            bhed::setzeEffektSpurWelt(&geo, welt);
             expect("gemerkte Bahn = frisch gerechnete Bahn (bitgleich)",
                    !gemerkt.verts.empty() && gleicheNetze(gemerkt, frisch));
         }
@@ -679,8 +723,10 @@ void probenRc569() {
             const bhed::BspMesh weiter =
                 bhed::buildEffectMesh({langsam}, 5000.0, right, up, nullptr, &geo);
             const bhed::BspGeometry kopie2 = geo;
+            bhed::setzeEffektSpurWelt(&kopie2, welt);
             const bhed::BspMesh frisch2 =
                 bhed::buildEffectMesh({langsam}, 5000.0, right, up, nullptr, &kopie2);
+            bhed::setzeEffektSpurWelt(&geo, welt);
             expect("fortgesetzte Bahn = frisch gerechnete Bahn (bitgleich)",
                    !weiter.verts.empty() && gleicheNetze(weiter, frisch2));
         }
@@ -690,10 +736,14 @@ void probenRc569() {
         std::printf("     Aufpralleffekte: %zu\n", staub.size());
         bool amBoden = staub.size() >= 2U;
         for (const auto& s0 : staub) {
-            amBoden = amBoden && near(s0.origin[2], 0.0F, 0.01F) &&
+            // Pruefung 4b: trace.endpos bleibt bis SURFACE_CLIP_EPSILON (0.125,
+            // cm_local.h) vor der Flaeche - beginnt die Spur naeher, ist
+            // fraction 0 und endpos der Anfang.
+            amBoden = amBoden && s0.origin[2] >= 0.0F && s0.origin[2] < 0.13F &&
                       near(s0.origin[0], 5000.0F, 0.5F) && near(s0.normal[2], 1.0F, 0.01F);
         }
         expect("jeder Aufprall einen, alle auf dem Boden", amBoden);
+        bhed::setzeEffektSpurWelt(&geo, nullptr);
     }
 }
 
@@ -1093,13 +1143,14 @@ void probenLeistung() {
     // --- 2. Spurbuch: flugbahnWeiter in beliebiger Reihenfolge -----------
     {
         const std::vector<sim::Plane> raum = sim::roomPlanes(200.0F, 150.0F, 300.0F);
-        const sim::TraceFn wand = [&raum](const V& von, const V& bis, V& punkt, V& normale) {
+        const sim::TraceFn wand = [&raum](const V& von, const V& bis, float, sim::Spur& sp) {
             const sim::Hit h = sim::trace(von, bis, raum);
             if (!h.hit) {
                 return false;
             }
-            punkt = h.point;
-            normale = h.normal;
+            sp.punkt = h.point;
+            sp.normale = h.normal;
+            sp.anteil = h.fraction;
             return true;
         };
         struct Fall {
@@ -1206,6 +1257,24 @@ void probenLeistung() {
             }
             return nullptr;
         };
+        // Pruefung 4b: der Spurtest kommt aus der Welt - hier der Strahl gegen
+        // die Dreiecke der Probenkarte (traceRay, mit setzeSpurVorlage
+        // traceRayEinfach), immer gespurt (kein Inhalt in einer Dreieckskarte).
+        auto strahlWelt = std::make_shared<bhed::EffektSpurWelt>();
+        strahlWelt->inhalt = [](const float*, double) { return 1U; };
+        strahlWelt->spur = [&geo](const float von[3], const float*, const float*, const float bis[3], std::uint32_t,
+                                  double, float punkt[3], float normale[3], float& anteil, std::uint32_t& flaeche) {
+            const bhed::TraceTreffer t = bhed::traceRay(geo, von, bis);
+            if (!t.hit) { return false; }
+            for (int a = 0; a < 3; ++a) {
+                punkt[a] = t.point[a];
+                normale[a] = t.normal[a];
+            }
+            anteil = t.fraction;
+            flaeche = 0U;
+            return true;
+        };
+        bhed::setzeEffektSpurWelt(&geo, strahlWelt);
         std::vector<bhed::EffectInstance> live;
         for (int i = 0; i < 2; ++i) {
             bhed::EffectInstance in;
@@ -1297,6 +1366,7 @@ void probenLeistung() {
         expect("Effektnetz: neuer Weg = alter Weg, der Reihe nach (bitgleich)",
                reihe && vierecke > 100U && folgen > 10U && modelle > 0U);
         expect("Effektnetz: neuer Weg = alter Weg, gesprungen und rueckwaerts (bitgleich)", sprung);
+        bhed::setzeEffektSpurWelt(&geo, nullptr);
     }
 }
 
@@ -1845,14 +1915,14 @@ int main(int argc, char** argv) {
         // Ein Boden bei z=0: alles, was darunter will, wird geblockt.
         auto boden = [](const bhed::efx::camera::Vec3& von,
                         const bhed::efx::camera::Vec3& bis,
-                        bhed::efx::camera::Vec3& punkt,
-                        bhed::efx::camera::Vec3& normale) {
+                        float, bhed::efx::sim::Spur& sp) {
             if (von.z >= 0.0F && bis.z < 0.0F) {
                 const float t = von.z / (von.z - bis.z);
-                punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * t,
-                                                von.y + (bis.y - von.y) * t,
-                                                0.0F};
-                normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * t,
+                                                   von.y + (bis.y - von.y) * t,
+                                                   0.0F};
+                sp.normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.anteil = t;
                 return true;
             }
             return false;
@@ -1930,14 +2000,14 @@ int main(int argc, char** argv) {
     {
         auto boden = [](const bhed::efx::camera::Vec3& von,
                         const bhed::efx::camera::Vec3& bis,
-                        bhed::efx::camera::Vec3& punkt,
-                        bhed::efx::camera::Vec3& normale) {
+                        float, bhed::efx::sim::Spur& sp) {
             if (von.z >= 0.0F && bis.z < 0.0F) {
                 const float t = von.z / (von.z - bis.z);
-                punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * t,
-                                                von.y + (bis.y - von.y) * t,
-                                                0.0F};
-                normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.punkt = bhed::efx::camera::Vec3{von.x + (bis.x - von.x) * t,
+                                                   von.y + (bis.y - von.y) * t,
+                                                   0.0F};
+                sp.normale = bhed::efx::camera::Vec3{0.0F, 0.0F, 1.0F};
+                sp.anteil = t;
                 return true;
             }
             return false;

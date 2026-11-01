@@ -37,6 +37,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -224,6 +225,8 @@ struct Ablauf {
         // auf der das Skript lief, auch ueber Relais hinweg. Leer =
         // unbekannt. target_print zeigt nur, was der SPIELER ausloest.
         std::string ausloeser;
+        // Pruefung 4b: der Platz im Bild, an dem benutzt wurde (MoverUse::reihe).
+        int reihe = std::numeric_limits<int>::max();
     };
     std::vector<Benutzung> benutzt;
     // rc605 (Ende): ein target_level_change wurde benutzt - target_level_change_use

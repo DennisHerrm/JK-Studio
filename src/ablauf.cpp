@@ -45,6 +45,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -371,7 +372,12 @@ double leicheAb(double tod) {
 struct Geplant {
     double ms = 0.0;
     int folge = 0;
-    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten } art = Art::Benutzen;   // rc605 (Ende): Toeten
+    // rc605 (Ende): Toeten. Pruefung 4b: die thinks eines func_breakable -
+    // Bruch (thinkF_funcBBrushDieGo nach "delay", name = target) und Frei
+    // (thinkF_G_FreeEntity 50 ms nach dem Bruch); wesen = der func_breakable.
+    // Beide laufen in Schritt 3 von takte an seinem Platz (G_RunThink vor
+    // seinem ICARUS-Update, g_main.cpp:1062-1088 OpenJK), nicht in Schritt 2.
+    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch, Frei } art = Art::Benutzen;
     std::string name;         // Benutzen: targetname; Skript: Pfad
     int wesen = -1;           // Skript/Spawn: auf wem
     int ausloeser = -1;
@@ -408,6 +414,9 @@ private:
     std::map<std::string, int> wesenNach_;   // klein(name) -> Index
     std::map<std::pair<int, int>, int> starts_;   // (Entity, Skript) -> wie oft gestartet
     std::map<const MapEntity*, int> wesenVonEnt_;
+    // Pruefung 4b: der Platz (Wesen::reihe), an dem G_RunFrame gerade ist -
+    // -1 vor allen Entities (Schritt 2), int-max danach (Ablauf::Benutzung::reihe).
+    int amZug_ = -1;
     std::vector<Eintrag> eintraege_;
     std::set<std::string> signale_;
     std::map<std::string, std::string> variablen_;   // klein -> Wert
@@ -433,6 +442,9 @@ private:
     // Kartenstart 0).
     bool kameraAn_ = false;
     double statusTotMs_ = -1.0;
+    // Pruefung 4b: der Spieler ist tot (player_die durch Schaden): pm_type
+    // PM_DEAD - mit missionStatusDeadTime haelt ClientThink die Skripte an.
+    double spielerTotMs_ = -1.0;
     bool icarusStopp_ = false;   // rc605 (Ende): stop_icarus ist gesetzt (SET_HEALTH 0 auf den Spieler)   // 0 im Spiel, level.time dort immer > 0
     int startFolge_ = 0;
 
@@ -1463,6 +1475,36 @@ private:
         geplant_.push_back(std::move(g));
     }
 
+    // Pruefung 4b: ein think eines func_breakable (laeuft an seinem Platz).
+    static bool istDenken(const Geplant& g) { return g.art == Geplant::Art::Bruch || g.art == Geplant::Art::Frei; }
+
+    // funcBBrushDieGo (g_breakable.cpp:79-182 OpenJK): die Ziele, dann
+    // think = G_FreeEntity, nextthink = level.time + 50.
+    void bruchGo(int wi, const std::string& ziel, int ausloeser, int tiefe) {
+        benutze(ziel, ausloeser, tiefe);
+        plane(Geplant{jetzt_ + 50.0, 0, Geplant::Art::Frei, std::string{}, wi, ausloeser});
+    }
+
+    // G_RunThink einer Entity in Schritt 3 von takte (g_main.cpp:1062-1076
+    // OpenJK): das faellige think eines func_breakable, vor ihrem ICARUS.
+    void denke(int wi, double t) {
+        for (;;) {
+            const auto it = std::find_if(geplant_.begin(), geplant_.end(), [wi, t](const Geplant& g) {
+                return istDenken(g) && g.wesen == wi && g.ms <= t + 1e-6;
+            });
+            if (it == geplant_.end()) {
+                return;
+            }
+            const Geplant g = *it;
+            geplant_.erase(it);
+            if (g.art == Geplant::Art::Bruch) {
+                bruchGo(wi, g.name, g.ausloeser, 1);
+            } else {
+                wesen_[static_cast<std::size_t>(wi)]->entfernt = true;   // G_FreeEntity
+            }
+        }
+    }
+
     void benutzeZiele(const MapEntity& e, int ausloeser, const char* key = "target") {
         const std::string t = wertVon(e, key);
         if (!t.empty()) {
@@ -1478,7 +1520,7 @@ private:
         const std::string wer = (ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < wesen_.size())
                                     ? wesen_[static_cast<std::size_t>(ausloeser)]->name
                                     : std::string{};
-        aus_.benutzt.push_back(Ablauf::Benutzung{jetzt_, name, wer});
+        aus_.benutzt.push_back(Ablauf::Benutzung{jetzt_, name, wer, amZug_});
         if (welt_.karte == nullptr) {
             return;
         }
@@ -1699,8 +1741,8 @@ private:
             // die ZIELE feuert der Nachbau, denn eines davon kann ein
             // Skript starten - MoverSim bekommt sie dann einzeln
             // (MoverUse::aufgeloest).
-            if (w.entfernt || w.verbraucht) {
-                return;   // zerbrochen: G_FreeEntity ein Bild spaeter, G_Find findet es nicht mehr
+            if (w.entfernt) {
+                return;   // G_FreeEntity: G_Find findet es nicht mehr
             }
             usescript();
             const std::string t = wertVon(e, "target");
@@ -1708,17 +1750,23 @@ private:
                 benutze(t, ausloeser, tiefe + 1);
                 return;
             }
-            w.verbraucht = true;
-            // "delay" ist ein F_INT (g_spawn.cpp:401): ganze Sekunden;
-            // funcBBrushDieGo feuert die Ziele erst nach dem Warten. (Ein
-            // zweites use in der Wartezeit schiebt den Bruch in der Engine
-            // hinaus - hier nicht nachgebaut.)
+            // funcBBrushDie (g_breakable.cpp:185-198 OpenJK): G_SetEnemy(self,
+            // activator), mit "delay" think = funcBBrushDieGo, nextthink =
+            // jetzt + delay * 1000. "delay" ist ein F_INT (g_spawn.cpp:401):
+            // ganze Sekunden. Pruefung 4b: jedes use, bis G_FreeEntity
+            // gelaufen ist, kommt hier durch - auch in der Wartezeit (der Bruch
+            // wird neu geplant) und nach dem Bruch (im selben Bild oder im
+            // naechsten vor dem Platz des func_breakable): das neue think
+            // ersetzt das alte, es bricht noch einmal.
+            geplant_.erase(std::remove_if(geplant_.begin(), geplant_.end(),
+                                          [wi](const Geplant& g) { return istDenken(g) && g.wesen == wi; }),
+                           geplant_.end());
             const std::string d = wertVon(e, "delay");
             const int sek = d.empty() ? 0 : std::atoi(d.c_str());
             if (sek > 0) {
-                plane(Geplant{jetzt_ + sek * 1000.0, 0, Geplant::Art::Benutzen, t, -1, ausloeser});
+                plane(Geplant{jetzt_ + sek * 1000.0, 0, Geplant::Art::Bruch, t, wi, ausloeser});
             } else {
-                benutze(t, ausloeser, tiefe + 1);
+                bruchGo(wi, t, ausloeser, tiefe + 1);
             }
             return;
         }
@@ -3138,13 +3186,18 @@ void Nachbau::takte() {
             solidify(*w, t);   // rc605 (fix605): TID_RESIZE
             pruefeFaecher(*w, t);
         }
-        // 2. Geplantes (Verzoegerungen, Spawns)
+        // 2. Geplantes (Verzoegerungen, Spawns) - die thinks der func_breakable
+        // laufen erst in Schritt 3 an ihrem Platz (denke).
+        amZug_ = -1;
         std::stable_sort(geplant_.begin(), geplant_.end(), [](const Geplant& a, const Geplant& b) {
             return a.ms < b.ms || (a.ms == b.ms && a.folge < b.folge);
         });
-        while (!geplant_.empty() && geplant_.front().ms <= t + 1e-6) {
-            const Geplant g = geplant_.front();
-            geplant_.erase(geplant_.begin());
+        for (;;) {
+            auto naechstes = geplant_.begin();
+            while (naechstes != geplant_.end() && istDenken(*naechstes) && naechstes->ms <= t + 1e-6) { ++naechstes; }
+            if (naechstes == geplant_.end() || naechstes->ms > t + 1e-6) { break; }
+            const Geplant g = *naechstes;
+            geplant_.erase(naechstes);
             if (g.art == Geplant::Art::Benutzen) {
                 if (!g.name.empty() && g.name[0] == '\x01') {
                     // trigger nach seiner Verzoegerung: usescript und Ziele
@@ -3172,6 +3225,12 @@ void Nachbau::takte() {
                 // (g_combat.cpp:9276-9292 MD). Das kill steht im flachen Ablauf
                 // beim Traeger, damit die Szene den Tod zeigt (getoetet).
                 const AblaufWelt::HurtTod& h = welt_.hurtTode[static_cast<std::size_t>(std::stoul(g.name))];
+                // Pruefung 4b: player_die des Spielers - cg.missionStatusDeadTime =
+                // level.time + 1000 (g_combat.cpp:4044 OpenJK).
+                if (klein(h.figur) == "player" && !h.unsterblich && spielerTotMs_ < 0.0) {
+                    spielerTotMs_ = t;
+                    statusTotMs_ = t + 1000.0;
+                }
                 const int zi = wesen(h.figur, false);
                 if (zi >= 0) {
                     Wesen& z = *wesen_[static_cast<std::size_t>(zi)];
@@ -3222,9 +3281,12 @@ void Nachbau::takte() {
             return wesen_[static_cast<std::size_t>(a)]->reihe < wesen_[static_cast<std::size_t>(b)]->reihe;
         });
         for (const int wi : reihe) {
+            amZug_ = wesen_[static_cast<std::size_t>(wi)]->reihe;
+            denke(wi, t);   // Pruefung 4b: G_RunThink vor dem ICARUS-Update
             if (icarusStopp_) { break; }   // rc605 (Ende): "if( ent->taskManager && !stop_icarus )"
             aktualisiere(wi, t);
         }
+        amZug_ = std::numeric_limits<int>::max();   // danach: ClientThink des Spielers
         // rc603: Kartenstart - der Spieler kommt ins Spiel (ClientBegin ->
         // ClientSpawn -> G_UseTargets der Startposition, g_client.cpp:2432-
         // 2434), am Ende des ersten Bildes im Spiel (kSpielerBeginnMs).
@@ -3247,7 +3309,7 @@ void Nachbau::takte() {
             if (ende < 0.0) { ende = t; }
             break;
         }
-        if (aus_.missionFailedMs >= 0.0 && !kameraAn_ && statusTotMs_ < t) {
+        if ((aus_.missionFailedMs >= 0.0 || spielerTotMs_ >= 0.0) && !kameraAn_ && statusTotMs_ < t) {
             aus_.skripteStoppMs = t;
             if (ende < 0.0) { ende = t; }
             break;

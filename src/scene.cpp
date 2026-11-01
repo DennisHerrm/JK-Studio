@@ -1841,25 +1841,26 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
             cur.saber2 = wert;
             schwertNeu(1);
         }
-        // saberColor, saberColor2..8, saber2Color, saber2Color2..8 und die
-        // RGB-Schreibweisen (NPC_stats.cpp:4128 ff.). Ohne Ziffer: alle
+        // saberColor, saberColor2..8, saber2Color, saber2Color2..8
+        // (NPC_stats.cpp:3680-3760 OpenJK, 4216-4307 MD). Ohne Ziffer: alle
         // acht Klingen. Mit Ziffer N: Klinge N-1, und nur 2..8 gelten -
         // "atoi - 1" muss zwischen 1 und 7 liegen, saberColor1 wird mit
         // einer Warnung verworfen.
         //
-        // Nicht nachgebildet: forced_rgb_saber_colours. Ein saberColorRGB
-        // schuetzt dort seine Klingen gegen ein SPAETERES saberColor; hier
-        // gilt einfach das spaetere. In den Dateien der Mod steht keine
-        // RGB-Schreibweise.
+        // Pruefung 4b, forced_rgb_saber_colours (nur Movie Duels,
+        // NPC_stats.cpp:2229, 4309-4392): die Zweige fuer saberColorRGB und
+        // saber2ColorRGB stehen HINTER denen fuer "saberColor" (Vergleich der
+        // ersten 10 Zeichen) und "saber2Color" (11) - die fangen die
+        // RGB-Schreibweise ab, die Laenge (13/14 bzw. 14/15) passt zu keinem
+        // Fall: "WARNING: bad saberColor", nichts gesetzt. Die Schutzmerker
+        // werden nie gesetzt; OpenJK kennt die Schreibweise gar nicht. Beides
+        // heisst: eine RGB-Zeile aendert nichts.
         const auto jeKlinge = [&key](const char* vorsatz, int& klinge) {
             const std::string v = vorsatz;
             if (key.compare(0, v.size(), v) != 0) {
                 return false;
             }
-            std::string rest = key.substr(v.size());
-            if (rest.compare(0, 3, "rgb") == 0) {
-                rest = rest.substr(3);
-            }
+            const std::string rest = key.substr(v.size());
             if (rest.empty()) {
                 klinge = -1;
                 return true;
@@ -1879,9 +1880,14 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
             }
         };
         int klinge = -2;
-        // Die laengeren Vorsaetze zuerst: "saber2color" beginnt nicht mit
-        // "sabercolor", aber "sabercolorrgb" mit "sabercolor".
-        if (jeKlinge("saber2color", klinge)) {
+        if (jk2) {
+            // Pruefung 4b: Jedi Outcast kennt nur "saberColor" - eine Farbe
+            // fuer die eine Klinge (codeJK2/game/NPC_stats.cpp:1707-1716,
+            // Q_stricmp); jede andere Schreibweise ist ein unbekanntes Wort.
+            if (key == "sabercolor") {
+                setze(cur.saberFarbe[0], -1, wert);
+            }
+        } else if (jeKlinge("saber2color", klinge)) {
             setze(cur.saberFarbe[1], klinge, wert);
         } else if (jeKlinge("sabercolor", klinge)) {
             setze(cur.saberFarbe[0], klinge, wert);
@@ -3376,10 +3382,10 @@ Scene buildOnce(const Script& s, const MapData& map,
             //     _REMOTE, _GLIDER, _INTERROGATOR, _SENTRY (ps.gravity = 0,
             //     MT_FLYSWIM), dazu "movetype flyswim" aus der .npc.
             //     OpenJK kennt CLASS_GLIDER hier nicht.
-            //   * Fahrzeuge (CLASS_VEHICLE): Jaeger und Gleiter fliegen bzw.
-            //     schweben (FLY_VEHICLE/FLY_HOVER, bg_pmove.cpp:33205-33221);
-            //     Laeufer fallen zwar, behaved kennt die Fahrzeugart aber
-            //     nicht - alle bleiben ohne Schwerkraft (Naeherung).
+            //   * Fahrzeuge (CLASS_VEHICLE): kein Fallen im Wegplaner - Pruefung
+            //     4b: sie fallen in schwerkraft.cpp nach ihrer .veh (Laeufer,
+            //     Tiere, Jaeger ohne Pilot mit Schwerkraft; Gleiter mit
+            //     hoverHeight per PM_HoverTrace).
             //   * JSF_AMBUSH (spawnflags 16, "CEILING") haengt (client->noclip)
             //     bei TEAM_PLAYER CLASS_JEDI, _KYLE, _AHSOKA, _JEDIMASTER,
             //     _LUKE und TEAM_ENEMY CLASS_TAVION, _ALORA, _GALEN, _REBORN
@@ -3387,6 +3393,7 @@ Scene buildOnce(const Script& s, const MapData& map,
             //     _SHADOWTROOPER. OpenJK: JEDI/KYLE/LUKE und TAVION/ALORA/
             //     REBORN mit Klinge/DESANN/SHADOWTROOPER.
             fresh.spawnflags = spawnflags;
+            if (npcDef != nullptr) { fresh.fahrzeug = npcDef->fahrzeug; }   // Pruefung 4b
             if (npcDef != nullptr && npcDef->breite >= 0.0F) {
                 fresh.halbBreite = npcDef->breite;
             }

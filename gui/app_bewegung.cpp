@@ -23,6 +23,7 @@
 #include "app_internal.h"
 
 #include "bhed/bspgeo.h"
+#include "bhed/efxdraw.h"   // Pruefung 4b: setzeEffektSpurWelt
 #include "bhed/gegenstaende.h"   // rc604: spawntBeiSchwierigkeit
 #include "bhed/gpuskin.h"
 #include "bhed/kollision.h"
@@ -39,7 +40,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -1040,6 +1043,158 @@ bool navMoverPlanAusSim(double endeMs) {
     sp.mitPlan.reset();
     diag::detail("Wege: Mover zur Zeit - " + std::to_string(plan->mover.size()) + " Brush-Entities bewegen sich oder stehen anders als beim Spawnen");
     return true;
+}
+
+// Pruefung 4b: siehe app_internal.h. Die Teilchen der Effekte spuren wie
+// CParticle::UpdateOrigin (EffektSpurWelt, bhed/efxdraw.h):
+//  - CG_PointContents(p, ENTITYNUM_WORLD) (cg_predict.cpp OpenJK): die Welt
+//    und jedes Brush-Modell der Momentaufnahme an seinem s.origin/s.angles -
+//    dem Stand beim Spawnen (G_SetOrigin; ein Mover aendert nur s.pos).
+//    Brush-Entities ohne contents (func_wall START_OFF: SVF_NOCLIENT) oder
+//    freigegeben (zerbrochen) sind nicht in der Momentaufnahme.
+//  - CG_Trace -> CG_ClipMoveToEntities: Welt, Brush-Modelle an lerpOrigin
+//    (dem Stand der Mover-Simulation zur Zeit) und Figuren mit s.solid
+//    (SV_LinkEntity: contents SOLID|BODY - lebend, nicht tot) als Kasten
+//    +-maxs[0], -mins[2] .. maxs[2] mit CONTENTS_BODY (CM_TempBoxModel), am
+//    zwischen zwei Serverbildern gemittelten Ort.
+void effektSpurWeltSetzen() {
+    NavWeltSpeicher& sp = navWeltSpeicher();
+    (void)navWeltBasis();
+    if (!sp.karte || sp.karte->leer() || !sp.brushes) {
+        setzeEffektSpurWelt(&g_app->geo, nullptr);
+        return;
+    }
+    const std::shared_ptr<const KollisionsKarte> k = sp.karte;
+    const std::shared_ptr<const std::vector<NavBrush>> brushes = sp.brushes;
+    const std::shared_ptr<const NavMoverPlan> plan = sp.plan;
+    // Die Figuren je Serverbild (50 ms), bei Bedarf gerechnet.
+    struct Kasten {
+        float ort[3]{};
+        float halb = 16.0F;
+        float unten = -24.0F;
+        float oben = 40.0F;
+        int figur = -1;
+    };
+    struct Figurenbilder {
+        std::mutex sperre;
+        std::map<long, std::vector<Kasten>> bilder;
+        std::vector<const Actor*> figuren;
+    };
+    auto fb = std::make_shared<Figurenbilder>();
+    for (const Actor& a : g_app->scene.actors) {
+        if (a.brushModel > 0 || !a.haveStart) { continue; }
+        fb->figuren.push_back(&a);
+    }
+    const auto bild = [fb](long nr) {
+        const std::lock_guard<std::mutex> sperre(fb->sperre);
+        const auto da = fb->bilder.find(nr);
+        if (da != fb->bilder.end()) { return da->second; }
+        std::vector<Kasten> v;
+        const double t = static_cast<double>(nr) * 50.0;
+        for (std::size_t i = 0; i < fb->figuren.size(); ++i) {
+            const Actor& a = *fb->figuren[i];
+            if (a.getoetetMs >= 0.0 && t >= a.getoetetMs) { continue; }   // CONTENTS_CORPSE: s.solid 0
+            const ActorState st = a.at(t);
+            if (!st.visible || st.removed) { continue; }
+            Kasten kk;
+            for (int q = 0; q < 3; ++q) { kk.ort[q] = st.pos[q]; }
+            kk.halb = a.halbBreite;
+            kk.oben = st.crouched ? a.hockHoehe : a.hoeheOben;
+            kk.figur = static_cast<int>(i);
+            v.push_back(kk);
+        }
+        fb->bilder.emplace(nr, v);
+        return v;
+    };
+    // Ort zwischen zwei Serverbildern (cgame mittelt, CG_InterpolateEntityPosition).
+    const auto figurenBei = [bild](double ms) {
+        const double f = std::max(0.0, ms) / 50.0;
+        const long a = static_cast<long>(std::floor(f));
+        const auto anteil = static_cast<float>(f - static_cast<double>(a));
+        std::vector<Kasten> v = bild(a);
+        const std::vector<Kasten> n = bild(a + 1);
+        for (Kasten& x : v) {
+            for (const Kasten& y : n) {
+                if (y.figur != x.figur) { continue; }
+                for (int q = 0; q < 3; ++q) { x.ort[q] += anteil * (y.ort[q] - x.ort[q]); }
+            }
+        }
+        return v;
+    };
+    const auto stellung = [plan](const NavBrush& b, double ms, float ort[3], float winkel[3]) {
+        if (plan) {
+            if (const NavMoverPlan::Stand* s = plan->standVon(b.entity, ms)) {
+                for (int a = 0; a < 3; ++a) {
+                    ort[a] = s->ort[static_cast<std::size_t>(a)];
+                    winkel[a] = s->winkel[static_cast<std::size_t>(a)];
+                }
+                return s->fest;
+            }
+        }
+        for (int a = 0; a < 3; ++a) {
+            ort[a] = b.ort[a];
+            winkel[a] = b.winkel[a];
+        }
+        return b.festLaufzeit;
+    };
+    auto welt = std::make_shared<EffektSpurWelt>();
+    welt->inhalt = [k, brushes, stellung](const float p[3], double ms) {
+        std::uint32_t c = kollisionsInhalt(*k, p);
+        for (const NavBrush& b : *brushes) {
+            float ort[3];
+            float winkel[3];
+            if (!stellung(b, ms, ort, winkel)) { continue; }   // nicht in der Momentaufnahme
+            bool weit = false;
+            for (int a = 0; a < 3; ++a) {
+                if (std::fabs(p[a] - b.ort[a]) > b.radius + 1.0F) { weit = true; }
+            }
+            if (weit) { continue; }
+            c |= kollisionsInhalt(*k, p, b.modell, b.ort, b.winkel);   // s.origin, s.angles
+        }
+        return c;
+    };
+    welt->spur = [k, brushes, stellung, figurenBei](const float von[3], const float mins[3], const float maxs[3],
+                                                    const float bis[3], std::uint32_t maske, double ms, float punkt[3],
+                                                    float normale[3], float& anteil, std::uint32_t& flaeche) {
+        // CG_Trace: erst die Welt, dann CG_ClipMoveToEntities - die naechste
+        // Beruehrung gewinnt, startsolid/allsolid sammeln sich.
+        KollisionsSpur r = kollisionsSpur(*k, von, mins, maxs, bis, maske);
+        const auto nimm = [&r](const KollisionsSpur& t) {
+            if (t.allsolid) { r.allsolid = true; }
+            if (t.startsolid) { r.startsolid = true; }
+            if (t.fraction < r.fraction) {
+                const bool alt = r.startsolid;
+                const bool altAll = r.allsolid;
+                r = t;
+                r.startsolid = r.startsolid || alt;
+                r.allsolid = r.allsolid || altAll;
+            }
+        };
+        for (const NavBrush& b : *brushes) {
+            if (r.allsolid) { break; }
+            float ort[3];
+            float winkel[3];
+            if (!stellung(b, ms, ort, winkel)) { continue; }
+            nimm(kollisionsSpur(*k, von, mins, maxs, bis, maske, b.modell, ort, winkel));
+        }
+        if ((maske & 0x100U) != 0U && !r.allsolid) {   // CONTENTS_BODY
+            for (const auto& f : figurenBei(ms)) {
+                // CM_TempBoxModel: ein Brush mit sechs Seiten, CONTENTS_BODY.
+                const float lo[3] = {-f.halb, -f.halb, f.unten};
+                const float hi[3] = {f.halb, f.halb, f.oben};
+                nimm(kollisionsSpurKasten(von, mins, maxs, bis, maske, f.ort, lo, hi, 0x100U));
+            }
+        }
+        if (r.startsolid || r.allsolid || r.fraction >= 1.0F) { return false; }
+        for (int a = 0; a < 3; ++a) {
+            punkt[a] = r.endpos[static_cast<std::size_t>(a)];
+            normale[a] = r.normale[static_cast<std::size_t>(a)];
+        }
+        anteil = r.fraction;
+        flaeche = r.flaeche;
+        return true;
+    };
+    setzeEffektSpurWelt(&g_app->geo, std::move(welt));
 }
 
 // rc601 (bewegung, Durchsicht 2): siehe app_internal.h.

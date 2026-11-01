@@ -133,6 +133,7 @@ add_library(bhed_core STATIC
   src/todesanim.cpp
   src/abwurf.cpp
   src/gesicht.cpp
+  src/geschuetz.cpp
   # rc601 bewegung: Laufziele ohne Weg im Wegnetz (STEER::SafeToGoTo /
   # NAV::GoTo). Siehe bhed/scene.h, navZieleOhneWeg.
   src/navweg.cpp
@@ -779,6 +780,10 @@ if(BEHAVED_TESTS)
   add_executable(pruefung3 tests/pruefung3.cpp)
   target_link_libraries(pruefung3 PRIVATE bhed_core)
   add_test(NAME pruefung3 COMMAND pruefung3)
+  # Pruefung 4b: Entities, Effekte, Kamera gegen die Formeln der Engine
+  add_executable(pruefung4b tests/pruefung4b.cpp)
+  target_link_libraries(pruefung4b PRIVATE bhed_core)
+  add_test(NAME pruefung4b COMMAND pruefung4b)
   # zeitleiste1: das Modell der Zeitleiste an einer eigenen Mini-Szene.
   add_executable(spurentest tests/spurentest.cpp)
   target_link_libraries(spurentest PRIVATE bhed_core)

@@ -145,6 +145,8 @@ struct FigurLicht {
     float achsen[3][3]{{1.0F, 0.0F, 0.0F}, {0.0F, 1.0F, 0.0F}, {0.0F, 0.0F, 1.0F}};
     bool achsenGesetzt = false;
     float zeit = 0.0F;
+    // Pruefung 4b: shaderRGBA / 255 fuer Stufen mit FigurFarbe::Entity.
+    float entityFarbe[3]{1.0F, 1.0F, 1.0F};
     // rc603 Durchsicht, nur fuer den Selbsttest (figurAchsenProbe): zu welcher
     // Figur der Aufruf gehoert (Index in Scene::actors, -1: keiner).
     int besitzer = -1;

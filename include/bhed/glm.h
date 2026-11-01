@@ -52,6 +52,10 @@ struct GlmSurface {
     std::uint32_t flags = 0;
     std::vector<GlmVertex> verts;
     std::vector<std::uint32_t> indexes;
+    // Pruefung 4b: die groebste LOD-Stufe (leer bei nur einer) - fuer Spuren
+    // mit traceLod 10 (G2_DecideTraceLod: numLODs - 1).
+    std::vector<GlmVertex> grobVerts;
+    std::vector<std::uint32_t> grobIndexes;
 
     // Ob die .skin diese Flaeche abgeschaltet hat.
     //

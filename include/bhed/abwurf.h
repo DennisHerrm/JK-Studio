@@ -113,6 +113,14 @@ struct AbwurfBahn {
         NavVec ort{};
     };
     std::vector<Klang> klaenge;   // G_Sound am Gegenstand
+    // Pruefung 4b: G_PlayEffect beim Aufprall (G_RunObject).
+    struct Effekt {
+        double ms = 0.0;
+        std::string datei;     // "melee/kick_impact_silent"
+        NavVec ort{};
+        NavVec richtung{};
+    };
+    std::vector<Effekt> effekte;
     // Ort und Winkel zur Zeit ms: die Bahn des letzten Serverbilds bis ms,
     // ausgewertet zur Zeit ms (CG_CalcEntityLerpPositions, cg_ents.cpp OJ).
     [[nodiscard]] bool bei(double ms, NavVec& ort, NavVec& winkel) const;
@@ -132,6 +140,33 @@ struct AbwurfBahn {
 // und verschwindet, sobald es liegt (Jedi Outcast: 5 s nach WP_SaberDrop).
 [[nodiscard]] AbwurfBahn wirfSchwert(const AbwurfStart& s, const NavSpurFn& spur, const SchwertUmfeld& umfeld = {},
                                      double grenzeMs = 20000.0);
+
+// --- Pruefung 4b: misc_model_breakable mit "gravity" (target4) -------------
+//
+// misc_model_breakable_gravity_init (g_breakable.cpp:1035-1103 OpenJK):
+// EF_BOUNCE_HALF, clipmask MASK_SOLID|CONTENTS_BODY|MONSTERCLIP|BOTCLIP, mass
+// (ohne Angabe |maxs| + |mins|), mit dropToFloor eine Spur MASK_NPCSOLID von
+// origin + 1 bis MIN_WORLD_COORD; danach G_RunObject je FRAMETIME
+// (g_object.cpp:77-263): in Ruhe TR_GRAVITY ab previousTime, Spur, auf
+// begehbarem Boden pitch_roll_for_slope und G_StopObjectMoving.
+struct ObjektStart {
+    NavVec ort{};             // currentOrigin
+    NavVec winkel{};          // currentAngles
+    NavVec mins{-16.0F, -16.0F, -16.0F};
+    NavVec maxs{16.0F, 16.0F, 16.0F};
+    float masse = 0.0F;       // "mass"; 0: |maxs| + |mins|
+    int entity = kNavKeineEntity;
+    float schwerkraft = 800.0F;   // g_gravity
+};
+// Spawn: auf den Boden (dropToFloor) und das erste G_RunObject (spawn +
+// FRAMETIME) an den Hang gelegt - Ort und Winkel danach.
+[[nodiscard]] ObjektStart objektAbsetzen(const ObjektStart& s, const NavSpurFn& spur);
+// misc_model_throw_at_target4 (g_breakable.cpp:629-695): bei jedem use (ms,
+// aufsteigend) zum Ziel geworfen - trBase = currentOrigin, trTime = ms,
+// TR_GRAVITY, trDelta += kvel (g_knockback 1000) -, dazwischen G_RunObject
+// je FRAMETIME bis zur Ruhe.
+[[nodiscard]] AbwurfBahn wirfObjekt(const ObjektStart& s, const std::vector<double>& wuerfe, const NavVec& ziel,
+                                    const NavSpurFn& spur, double grenzeMs = 20000.0);
 
 }  // namespace bhed
 #endif

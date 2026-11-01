@@ -90,6 +90,14 @@ struct Pmove {
     bool jk2 = false;
     bool luftAnim = false;   // der Uebergang setzte BOTH_INAIR1 (Beine)
     std::vector<Actor::FallAnim>* anims = nullptr;
+    // Pruefung 4b: ein Gleiter (CLASS_VEHICLE, hoverHeight > 0, kein Jaeger):
+    // FLY_HOVER (PM_SetSpecialMoveValues, bg_pmove.cpp:14363-14384 OpenJK).
+    bool schweben = false;
+    float schwebeHoehe = 0.0F;
+    float schwebeKraft = 0.0F;
+    float hang = 0.7F;          // minNormal = maxSlope des Fahrzeugs
+    float reibung = 0.0F;       // friction des Fahrzeugs
+    bool fliegt = false;        // VEH_FLYING
 };
 
 // rc605 (Rest): der Uebergang in den freien Fall fuer eine Figur, die stand
@@ -152,10 +160,78 @@ bool bodenFragen(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb
     return p.da;
 }
 
+// Pruefung 4b: PM_HoverTrace (bg_pmove.cpp:5328-5450 OpenJK, 7620-7700 MD)
+// ohne Wasser: Spur von origin bis origin - 3 * hoverHeight; bei
+// normal[2] >= maxSlope und fraction < 0.3 Schub (0.3 - fraction) *
+// hoverStrength * m_fTimeModifier (frametime * 60, :14782) und groundPlane,
+// sonst VEH_FLYING. Ebener Boden (das Raster kennt keine Normale): 1.
+void schwebeSpur(Pmove& p, float boden, bool da, float dt, bool& ebene) {
+    ebene = false;
+    const float abstand = (p.z - kFussTiefe) - boden;
+    // CM_TraceThroughBrush: fraction = (d1 - SURFACE_CLIP_EPSILON) / (d1 - d2)
+    const float f = da ? std::max(0.0F, (abstand - 0.125F) / (3.0F * p.schwebeHoehe)) : 1.0F;
+    if (da && f < 0.3F && 1.0F >= p.hang) {
+        p.vz += (0.3F - f) * p.schwebeKraft * (dt * 60.0F);
+        ebene = true;
+    }
+    p.fliegt = !ebene;
+}
+
+// Pruefung 4b: ein Pmove-Takt eines Gleiters (FLY_HOVER) ohne Pilot, nur Z:
+// PM_GroundTrace (minNormal maxSlope; beim Aufsetzen behaelt FLY_HOVER
+// velocity[2]), PM_HoverTrace, dann PM_WalkMove (am Boden: |v| bleibt, nach
+// oben gerichtet, ohne x/y keine Bewegung) bzw. PM_AirMove (PM_Friction mit
+// der Fahrzeugreibung, 0.1 bei VEH_FLYING, auf |v|; an der Ebene der
+// Schwebespur PM_ClipVelocity mit OVERCLIP 1.001; PM_StepSlideMove(1) mit
+// der Schwerkraft); bewegt: PM_GroundTrace und PM_HoverTrace noch einmal.
+void schwebeSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb, double t, float dt, float g) {
+    float boden = 0.0F;
+    bool beweglich = false;
+    bool da = bodenFragen(h, p, x, y, hb, t, boden, beweglich);
+    const auto bodenSpur = [&]() { p.amBoden = da && (p.z - kFussTiefe) - boden <= kBodenSpalt; };
+    bodenSpur();
+    bool ebene = false;
+    schwebeSpur(p, boden, da, dt, ebene);
+    const float vorher = p.z;
+    if (p.amBoden) {
+        p.vz = std::fabs(p.vz);   // PM_WalkMove: ClipVelocity, Normalize, Scale(vel)
+    } else {
+        const float speed = std::fabs(p.vz);
+        if (speed >= 1.0F) {
+            const float reibung = p.fliegt ? 0.10F : p.reibung;
+            const float drop = std::max(speed, 100.0F) * reibung * dt;   // pm_stopspeed 100
+            const float neu = std::max(speed - drop, 0.0F);
+            p.vz *= neu / speed;
+        }
+        if (ebene) {
+            p.vz -= p.vz < 0.0F ? p.vz * 1.001F : p.vz / 1.001F;   // PM_ClipVelocity, OVERCLIP
+        }
+        const float vNeu = p.vz - g * dt;
+        const float zNeu = p.z + 0.5F * (p.vz + vNeu) * dt;
+        if (da && zNeu - kFussTiefe <= boden) {
+            p.z = boden + kFussTiefe;
+            p.vz = 0.0F;
+        } else {
+            p.z = zNeu;
+            p.vz = vNeu;
+        }
+        p.gefragt = false;
+    }
+    if (p.z != vorher) {
+        da = bodenFragen(h, p, x, y, hb, t, boden, beweglich);
+        bodenSpur();
+        schwebeSpur(p, boden, da, dt, ebene);
+    }
+}
+
 // Ein Pmove-Schritt von dt Sekunden, nur in Z. `waagrecht`: wie weit die
 // Figur seit dem letzten Takt in X/Y kam.
 void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float waagrecht, float hb, double t,
                   float dt, float g) {
+    if (p.schweben) {
+        schwebeSchritt(h, p, x, y, hb, t, dt, g);   // Pruefung 4b
+        return;
+    }
     if (g < 0.0F) {
         // rc601 (bewegung, R8): Schwerkraft unter 0. PM_WalkMove
         // (bg_pmove.cpp:4259-4273 MD): am Boden velocity[2] -= gravity *
@@ -450,6 +526,22 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
             p.landKlasse = npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), a.klasse, a.rang);
             p.jk2 = navJk2Regeln();
             p.anims = anims;
+            // Pruefung 4b: Fahrzeuge. Vehicle_Initialize (g_vehicles.cpp:1588-
+            // 1593 OpenJK): gravity != g_gravity -> SVF_CUSTOM_GRAVITY und
+            // ps.gravity = gravity; ein Jaeger ohne Pilot nimmt das Flag in
+            // BG_FighterUpdate zurueck (FighterNPC.cpp:146-151) - g_gravity.
+            if (a.fahrzeug.da) {
+                const bool jaeger = a.fahrzeug.typ == "VH_FIGHTER";
+                if (!jaeger && a.fahrzeug.schwerkraft != 0.0F && a.fahrzeug.schwerkraft != g) {
+                    g = a.fahrzeug.schwerkraft;
+                    eigeneAktiv = true;
+                }
+                p.schweben = !jaeger && a.fahrzeug.schwebeHoehe > 0.0F;
+                p.schwebeHoehe = a.fahrzeug.schwebeHoehe;
+                p.schwebeKraft = a.fahrzeug.schwebeKraft;
+                p.hang = a.fahrzeug.hang;
+                p.reibung = a.fahrzeug.reibung;
+            }
             if (!imAblauf) {
                 // rc601 (bewegung, Kartenstart): beim Laden der Karte gespawnt
                 // (NPC_Spawn_Go) - und NICHT laengst gelandet. Bis rc601 stand
@@ -691,8 +783,9 @@ void schwerkraftEinrechnen(Scene& s, const SchwerkraftHilfe& h) {
     }
     for (Actor& a : s.actors) {
         // Brush-Modelle sind keine clients; ohne NPC_type keine Figur; ohne
-        // Startort nichts zu rechnen; Flieger und Fahrzeuge fallen nicht.
-        if (a.brushModel > 0 || a.npcType.empty() || !a.haveStart || a.ohneSchwerkraft) {
+        // Startort nichts zu rechnen; Flieger fallen nicht (Pruefung 4b:
+        // Fahrzeuge schon, nach ihrer .veh).
+        if (a.brushModel > 0 || a.npcType.empty() || !a.haveStart || (a.ohneSchwerkraft && !a.fahrzeug.da)) {
             continue;
         }
         a.hoehe = backen(a, h, s.schwerkraft, s.schwerkraftAb, &a.fallAnims);

@@ -241,6 +241,34 @@ void fallenWeltBauen() {
     }
 }
 
+// Pruefung 4b: die Weltmatrix eines Modells im ghoul2-Feld der Figur (Waffe,
+// Schwertgriff, Kinomodell). Am Bolzen: Figurstellung mal Bolzenmatrix
+// (baueGriffWelt). An der Wurzel (AnbauDraw::anWurzel - G2API_AttachG2Model
+// scheiterte): die Achsen des refEntity, AnglesToAxis(0, Gier, 0) mal
+// modelScale (CG_Player), am Ursprung der Figur - wie jedes ungebundene
+// Ghoul2-Modell (RootMatrix ist die Einheit, tr_ghoul2.cpp:2720-2765 OpenJK).
+// false: der Bolzen fehlt (dann haengt die Engine nichts an).
+bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMatrix>& welt, const float fw[16],
+               float gw[16]) {
+    if (an.anWurzel) {
+        const float w[3] = {0.0F, d.yaw + d.yawOffset, 0.0F};
+        float achse[3][3];
+        winkelZuAchsen(w, achse);
+        for (int r = 0; r < 3; ++r) {
+            for (int c = 0; c < 3; ++c) { gw[r * 4 + c] = achse[c][r] * d.skala[c]; }
+            gw[r * 4 + 3] = fw[r * 4 + 3];
+            gw[12 + r] = 0.0F;
+        }
+        gw[15] = 1.0F;
+        return true;
+    }
+    BoneMatrix hand{};
+    const int hs = surfaceIndex(*d.model, an.bolzen);
+    if (hs < 0 || d.anim == nullptr || !boltMatrix(*d.model, hs, welt, *d.anim, hand)) { return false; }
+    gpu::baueGriffWelt(fw, hand, gw);
+    return true;
+}
+
 // G2_TraceModels fuer das Koerpermodell der Figur ai zur Zeit ms (dieselbe
 // Knochenrechnung wie die Zeichnung). -1: kein Netz zu pruefen, 0/1: Treffer.
 int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const float start[3], const float ende[3],
@@ -270,7 +298,9 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     };
     std::vector<float> ecken;
     std::vector<std::uint32_t> idx;
-    for (std::size_t si = 0; si < m.surfaces.size(); ++si) {
+    // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerpernetz (G2_TraceModels
+    // ueberspringt Modelle mit mModelindex -1).
+    for (std::size_t si = 0; si < m.surfaces.size() && !d.ohneKoerper; ++si) {
         const GlmSurface& sf = m.surfaces[si];
         if (aus(si) != 0U || sf.verts.empty()) { continue; }
         bool abgeschnitten = false;
@@ -303,12 +333,8 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     // baueGriffWelt), Ecken starr im Raum des Modells.
     for (int ai2 = 0; ai2 < d.anbauten && !g_fallenOhneAnbau; ++ai2) {
         const AnbauDraw& an = d.anbau[static_cast<std::size_t>(ai2)];
-        if (an.model == nullptr) { continue; }
-        BoneMatrix hand{};
-        const int hs = surfaceIndex(m, an.bolzen);
-        if (hs < 0 || !boltMatrix(m, hs, welt, *d.anim, hand)) { continue; }
         float gw[16];
-        gpu::baueGriffWelt(fw, hand, gw);
+        if (an.model == nullptr || !anbauWelt(d, an, welt, fw, gw)) { continue; }
         for (const GlmSurface& sf : an.model->surfaces) {
             if (sf.flags != 0U || sf.skinnedOff || sf.verts.empty()) { continue; }
             ecken.clear();
@@ -340,6 +366,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
     bool startsolid = welt.startsolid;
     bool allsolid = welt.allsolid;
     bool figur = false;
+    int figurNr = -1;   // Pruefung 4b
     float endpos[3] = {welt.endpos[0], welt.endpos[1], welt.endpos[2]};
     float normale[3] = {welt.normale[0], welt.normale[1], welt.normale[2]};
     if (frac != 0.0F) {
@@ -461,6 +488,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             const bool altStart = startsolid;
             const bool altAll = allsolid;
             const bool altFigur = figur;
+            const int altFigurNr = figurNr;
             const float altEnd[3] = {endpos[0], endpos[1], endpos[2]};
             const float altNorm[3] = {normale[0], normale[1], normale[2]};
             bool diese = false;
@@ -483,6 +511,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             if (!diese) { continue; }
             if (!g2) {   // G2_NOCOLLIDE: der Kasten gilt
                 figur = true;
+                figurNr = static_cast<int>(ai);
                 continue;
             }
             const float radius = (maxs[0] - mins[0]) / 2.0F;
@@ -492,6 +521,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
                 startsolid = altStart;
                 allsolid = altAll;
                 figur = altFigur;
+                figurNr = altFigurNr;
                 for (int q = 0; q < 3; ++q) {
                     endpos[q] = altEnd[q];
                     normale[q] = altNorm[q];
@@ -500,6 +530,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
             }
             ++(netz > 0 ? g_app->fallenNetzTreffer : g_app->fallenKastenTreffer);
             figur = true;
+            figurNr = static_cast<int>(ai);
         }
     }
     for (int q = 0; q < 3; ++q) {
@@ -508,6 +539,7 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
     }
     r.startsolid = startsolid;
     r.figur = figur;
+    r.figurNr = figur ? figurNr : -1;
     return r;
 }
 }  // namespace
@@ -1338,6 +1370,7 @@ void loadMapEffects() {
         // G_SpawnInt("damage", "0") ohnehin auf 0 setzt). Schuesse mit
         // demselben Ende im gleichen Abstand werden eine Wiederholung.
         int strahlen = 0;
+        g_app->strahlTrefferNeu.clear();   // Pruefung 4b
         for (std::size_t i = 0; g_fallenWelt.k && i < g_app->map.entities.size(); ++i) {
             const MapEntity& e = g_app->map.entities[i];
             if (e.classname != "fx_target_beam" || !kartenpruefung::imSpiel(e.classname, regelwerkMovieDuels()) ||
@@ -1369,6 +1402,9 @@ void loadMapEffects() {
             std::stable_sort(ein.uses.begin(), ein.uses.end());
             const std::vector<double> feuer = zielStrahlFeuer(ein);
             if (feuer.empty()) { continue; }
+            // SP_fx_target_beam: G_SpawnInt( "damage", "0", &ent->damage )
+            int schaden = 0;
+            if (const std::string* d = e.find("damage")) { schaden = std::atoi(d->c_str()); }
             float start[3] = {0.0F, 0.0F, 0.0F};
             float origin2[3] = {0.0F, 0.0F, 0.0F};
             (void)std::sscanf(e.origin.c_str(), "%f %f %f", &start[0], &start[1], &start[2]);
@@ -1422,6 +1458,16 @@ void loadMapEffects() {
                 laenge = std::sqrt(laenge);
                 for (float& d : dir) { d = laenge > 0.0F ? d / laenge : 0.0F; }
                 const LaserfalleSpur sp = laserfalleSpurBei(t, start, null3, null3, org, static_cast<std::size_t>(-1), false);
+                // Pruefung 4b: "if ( victim && victim->takedamage ) G_Damage( victim,
+                // ent, ent->activator, dir, trace.endpos, ent->damage, ...)"
+                // (fx_target_beam_fire, g_fx.cpp:1043-1057 OpenJK) - eine Figur
+                // nimmt den Schaden in hurtTodeBerechnen.
+                if (schaden > 0 && sp.figur && sp.figurNr >= 0 &&
+                    static_cast<std::size_t>(sp.figurNr) < g_app->scene.actors.size()) {
+                    g_app->strahlTrefferNeu.push_back(
+                        App::StrahlTreffer{t, g_app->scene.actors[static_cast<std::size_t>(sp.figurNr)].name, schaden,
+                                           static_cast<int>(i)});
+                }
                 Schuss x;
                 x.t = t;
                 for (int q = 0; q < 3; ++q) {
@@ -1862,24 +1908,17 @@ void loadMapEffects() {
             {efx::kFlagRelative, "relative",
              "ohne Wirkung - der SP-Parser ueberliest es", Stand::OhneWirkung},
             // `expensivePhysics` ERZWINGT in der Engine den Spurtest;
-            // ohne das Flag prueft sie erst billig mit CG_PointContents und
-            // spurt nur, wenn dort etwas Festes steht
-            // (FxPrimitives.cpp:269). behaved spurt bei eingeschalteter
-            // Physik IMMER - das ist strenger, nicht laxer. Das Flag hat
-            // hier also nichts mehr zu tun, und "fehlt" waere die falsche
-            // Auskunft.
-            //
-            // Es steht trotzdem in der Liste, damit die Zahl im Protokoll
-            // erscheint: 60 Vorkommen in 35 Dateien.
+            // ohne das Flag prueft sie erst mit CG_PointContents und spurt
+            // nur, wenn dort etwas Festes steht (FxPrimitives.cpp:283-293).
+            // Pruefung 4b: so auch hier (efxdraw.cpp, spurFuer).
             {efx::kFlagExpensivePhysics, "expensivePhysics",
-             "ohne Wirkung - wir spuren ohnehin immer", Stand::OhneWirkung},
+             "Spurtest auch ohne Festes am neuen Ort", Stand::Gebaut},
             {efx::kFlagSetShaderTime, "setShaderTime",
              "Zeitursprung auf den Beginn des Effekts", Stand::Gebaut},
-            // Seit rc569: Strahl mit Kastenvorlauf (efxdraw.cpp, spurFuer) -
-            // das Teilchen bleibt um seine Ausdehnung vor der Flaeche
-            // stehen. Eine Naeherung, kein echter Kastentest.
+            // Pruefung 4b: die Kastenspur der Kollisionskarte wie
+            // CParticle::UpdateOrigin (efxdraw.cpp, spurFuer).
             {efx::kFlagUseBBox, "useBBox",
-             "Spurtest mit Kastenvorlauf (Naeherung)", Stand::Gebaut},
+             "Kastenspur gegen Kollisionskarte und Figuren", Stand::Gebaut},
         };
         // Getrennt zaehlen. Beides zu melden ist der Punkt: eine Liste
         // allein sagt nie, ob sie die gebauten oder die fehlenden meint.
@@ -2063,6 +2102,71 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
 }
 
 std::map<std::size_t, std::string> g_gegenstandGrund;
+
+// Pruefung 4b: CG_Item "saber pickup item needs to be more visible"
+// (cg_ents.cpp:1075-1100 OpenJK, 1269-1296 MD): wv = sin(cg.time * 0.002) *
+// 0.08 + 0.2; dasselbe Modell noch einmal mit gfx/effects/solidWhite_cull und
+// RF_RGB_TINT (wv, wv, 0); vierzehn Sprites yellowDroppedSaberShader
+// (gfx/effects/yellow_glow) entlang -ent.axis[2] (i = -4 .. 9), Groesse 10,
+// Alpha wv * 0.5 (FX_USE_ALPHA), ein Bild lang; ein Licht (1, 1, 0) mit
+// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels).
+void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAssets& as,
+                             const std::vector<BoneMatrix>& knochen, const gpu::FigurLicht& licht, const float* vp,
+                             const float rechts[3], const float hoch[3], std::vector<gpu::KlingenQuad>& sprites,
+                             std::vector<gpu::WeltLicht>& lichter) {
+    const float cgZeit = std::floor(licht.zeit * 1000.0F);   // cg.time, ganze ms
+    const float wv = std::sin(cgZeit * 0.002F) * 0.08F + 0.2F;
+    auto huelle = g_app->schwertHuellen.find(gg.pfad);
+    if (huelle == g_app->schwertHuellen.end()) {
+        huelle = g_app->schwertHuellen
+                     .emplace(gg.pfad, texturenMitShader(as.model, "gfx/effects/solidWhite_cull", FigurFarbe::Entity))
+                     .first;
+    }
+    if (!huelle->second.stufen.empty()) {
+        gpu::FigurLicht l = licht;
+        l.entityFarbe[0] = wv;
+        l.entityFarbe[1] = wv;
+        l.entityFarbe[2] = 0.0F;
+        std::string f;
+        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, gg.welt, vp, &f, &l, g_app->showCaps);
+        g_app->gpuAufrufe += n;
+        g_app->gpuFiguren2 += n;
+    }
+    static const TextureSet::Tex gelb = [] {
+        TextureSet::Tex t;
+        (void)loadTextureFor("gfx/effects/yellow_glow", t);
+        return t;
+    }();
+    // RB_SurfaceSprite: left = viewaxis[1] * radius, up = viewaxis[2] * radius.
+    constexpr float kGroesse = 10.0F;
+    for (int i = -4; i < 10; ++i) {
+        gpu::KlingenQuad q;
+        float o[3];
+        for (int k = 0; k < 3; ++k) { o[k] = gg.ort[k] - static_cast<float>(i) * gg.oben[k]; }
+        for (int k = 0; k < 3; ++k) {
+            const float links = -rechts[k] * kGroesse;
+            const float oben = hoch[k] * kGroesse;
+            q.ecke[0][k] = o[k] + links + oben;
+            q.ecke[1][k] = o[k] - links + oben;
+            q.ecke[2][k] = o[k] - links - oben;
+            q.ecke[3][k] = o[k] + links - oben;
+            q.farbe[k] = 255.0F;
+        }
+        q.tex = &gelb;
+        q.mischung = 1;   // GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA, Alpha aus der Ecke
+        q.staerke = wv * 0.5F;
+        sprites.push_back(q);
+    }
+    if (g_app->showDynLights) {
+        gpu::WeltLicht wl;
+        for (int k = 0; k < 3; ++k) { wl.ort[k] = gg.ort[k]; }
+        wl.farbe[0] = 1.0F;
+        wl.farbe[1] = 1.0F;
+        wl.farbe[2] = 0.0F;
+        wl.radius = regelwerkMovieDuels() ? wv * 100.0F : wv * 350.0F + 180.0F;
+        lichter.push_back(wl);
+    }
+}
 
 // --- rc604 fix604b (B5): misc_trip_mine -----------------------------------
 //
@@ -2363,7 +2467,8 @@ void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
         const Gegenstand* g = liste.spawnbar(e.classname);
         if (g == nullptr) { continue; }
         const GegenstandAufstellung a =
-            gegenstandAufstellen(e, *g, regelwerkSpielstufe(), md, k ? spur : GegenstandSpur{});
+            gegenstandAufstellen(e, *g, regelwerkSpielstufe(), md, k ? spur : GegenstandSpur{}, &g_app->saberMap,
+                                 regelwerkJediOutcast());
         if (!a.sichtbar) {
             diag::detail("Gegenstand " + e.classname + " #" + std::to_string(i) + ": " + a.grund);
             g_gegenstandGrund[i] = a.grund;
@@ -2390,6 +2495,16 @@ void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
                 gg.ort[r] = a.ort[static_cast<std::size_t>(r)];
             }
             gg.welt[15] = 1.0F;
+            // Pruefung 4b: das Leuchten (CG_Item, cg_ents.cpp:1075-1100 OpenJK,
+            // 1272-1296 MD; Jedi Outcast hat es nicht).
+            const std::string* sfText = e.find("spawnflags");
+            const int sf = sfText != nullptr ? std::atoi(sfText->c_str()) : 0;
+            if (!regelwerkJediOutcast() && g->typ == "IT_WEAPON" && g->tag == "WP_SABER" && (sf & kItmsfNoGlow) == 0) {
+                gg.schwertLeuchten = true;
+                float spin[3][3];
+                winkelZuAchsen(a.md3Winkel.data(), spin);
+                for (int r = 0; r < 3; ++r) { gg.oben[r] = spin[2][r]; }
+            }
             g_app->gegenstandGlm.push_back(std::move(gg));
             ++zahl;
             continue;
@@ -2489,6 +2604,60 @@ void gegenstandVerstecken(std::size_t entity, bool aus) {
                 g_versteckteMd3.erase(v);
             }
         }
+    }
+}
+
+// Pruefung 4b: siehe app_internal.h. Der Kasten wie SP_misc_model_breakable
+// ("mins"/"maxs", sonst +-16; tie_bomber +-80; mal modelscale), die Spur der
+// Wege (Welt und Brush-Entities; Figuren trifft sie nicht - siehe Notizen).
+void objektWuerfeSetzen() {
+    const std::shared_ptr<const NavWelt> welt = navWeltVorschau();
+    const NavSpurFn spur = welt ? welt->spur : NavSpurFn{};
+    for (App::MapModel& mm : g_app->mapModels) {
+        if (mm.entity >= g_app->map.entities.size()) { continue; }
+        const MapEntity& e = g_app->map.entities[mm.entity];
+        mm.wurf.reset();
+        if (e.classname != "misc_model_breakable") { continue; }
+        const std::string* gr = e.find("gravity");
+        if (gr == nullptr || std::atof(gr->c_str()) == 0.0) { continue; }
+        ObjektStart s;
+        (void)std::sscanf(e.origin.c_str(), "%f %f %f", &s.ort[0], &s.ort[1], &s.ort[2]);
+        for (int k = 0; k < 3; ++k) { s.winkel[static_cast<std::size_t>(k)] = mm.angles[k]; }
+        if (const std::string* v = e.find("mins")) { (void)std::sscanf(v->c_str(), "%f %f %f", &s.mins[0], &s.mins[1], &s.mins[2]); }
+        if (const std::string* v = e.find("maxs")) { (void)std::sscanf(v->c_str(), "%f %f %f", &s.maxs[0], &s.maxs[1], &s.maxs[2]); }
+        if (s.mins == NavVec{0.0F, 0.0F, 0.0F}) { s.mins = {-16.0F, -16.0F, -16.0F}; }
+        if (s.maxs == NavVec{0.0F, 0.0F, 0.0F}) { s.maxs = {16.0F, 16.0F, 16.0F}; }
+        for (std::size_t k = 0; k < 3; ++k) {
+            s.mins[k] *= mm.scale[k];
+            s.maxs[k] *= mm.scale[k];
+        }
+        if (const std::string* v = e.find("mass")) { s.masse = static_cast<float>(std::atof(v->c_str())); }
+        s.entity = static_cast<int>(mm.entity);
+        const ObjektStart ab = objektAbsetzen(s, spur);
+        for (std::size_t k = 0; k < 3; ++k) {
+            mm.origin[k] = ab.ort[k];
+            mm.angles[k] = ab.winkel[k];
+        }
+        const std::string* zielName = e.find("throwtarget");
+        if (zielName == nullptr || zielName->empty()) { continue; }
+        // G_Find(NULL, FOFS(targetname), target4): das erste mit diesem Namen.
+        const MapEntity* ziel = nullptr;
+        for (const MapEntity& z : g_app->map.entities) {
+            if (engineNamenGleich(z.targetname, *zielName)) {
+                ziel = &z;
+                break;
+            }
+        }
+        if (ziel == nullptr) { continue; }   // "nothing to throw ourselves at"
+        NavVec zielOrt{};
+        (void)std::sscanf(ziel->origin.c_str(), "%f %f %f", &zielOrt[0], &zielOrt[1], &zielOrt[2]);
+        std::vector<double> zeiten;
+        for (const MoverSim::ObjektWurf& w : g_app->moverSim.wuerfe()) {
+            if (w.entity == mm.entity) { zeiten.push_back(w.ms); }
+        }
+        if (zeiten.empty()) { continue; }
+        std::sort(zeiten.begin(), zeiten.end());
+        mm.wurf = std::make_shared<const AbwurfBahn>(wirfObjekt(ab, zeiten, zielOrt, spur));
     }
 }
 
@@ -3143,6 +3312,7 @@ void loadActorModels() {
         // soundSet nennt, sonst ein zufaelliger - hier der erste.
         {
             std::map<std::string, std::pair<std::string, std::string>> fahrzeuge;   // name -> model, skin
+            std::map<std::string, FahrzeugDaten> fahrzeugDaten;                      // Pruefung 4b
             for (const GamePath& gp : g_app->gamePaths) {
                 for (const FoundFile& f : findByExtension(gp, {".veh"})) {
                     std::string text;
@@ -3152,6 +3322,8 @@ void loadActorModels() {
                     std::string vname;
                     std::string vmodel;
                     std::string vskin;
+                    FahrzeugDaten fd;   // Pruefung 4b: BG_VehicleSetDefaults, dann die Schluessel
+                    fd.da = true;
                     std::istringstream is(text);
                     std::string zeile;
                     while (std::getline(is, zeile)) {
@@ -3164,11 +3336,19 @@ void loadActorModels() {
                         if (k == "name" && vname.empty()) { vname = v; }
                         if (k == "model" && vmodel.empty()) { vmodel = v; }
                         if (k == "skin" && vskin.empty()) { vskin = v; }
+                        // Pruefung 4b: VF_INT gravity, VF_FLOAT die anderen, type als Name
+                        if (k == "type") { fd.typ = v; }
+                        if (k == "gravity") { fd.schwerkraft = static_cast<float>(std::atoi(v.c_str())); }
+                        if (k == "hoverheight") { fd.schwebeHoehe = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
                     }
                     for (char& c : vname) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
                     if (!vname.empty() && !vmodel.empty()) {
                         fahrzeuge[vname] = {vmodel, vskin.substr(0, vskin.find('|'))};
                     }
+                    if (!vname.empty()) { fahrzeugDaten[vname] = fd; }
                 }
             }
             for (auto& [typ, def] : g_app->npcMap) {
@@ -3180,6 +3360,7 @@ void loadActorModels() {
                 if (kl != "CLASS_VEHICLE") {
                     continue;
                 }
+                if (const auto fd = fahrzeugDaten.find(typ); fd != fahrzeugDaten.end()) { def.fahrzeug = fd->second; }
                 const auto v = fahrzeuge.find(typ);
                 if (v == fahrzeuge.end()) {
                     continue;

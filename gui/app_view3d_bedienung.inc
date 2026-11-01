@@ -2544,14 +2544,18 @@ void drawMapView() {
             }
             MoverDraw d;
             d.mesh = &netz->second;
+            NavVec wurfOrt{};
+            NavVec wurfWinkel{};
+            const bool fliegt = !bewegt && mm.wurf && mm.wurf->bei(g_app->playMs, wurfOrt, wurfWinkel);   // Pruefung 4b
             for (int k = 0; k < 3; ++k) {
-                d.offset[k] = bewegt ? figStand.pos[k] : mm.origin[k];
+                d.offset[k] = bewegt ? figStand.pos[k] : fliegt ? wurfOrt[static_cast<std::size_t>(k)] : mm.origin[k];
                 d.pivot[k] = 0.0F;
                 d.scale[k] = mm.scale[k];
             }
-            d.pitch = bewegt ? figStand.angles[0] : mm.angles[0];
-            d.yaw = bewegt ? figStand.angles[1] : mm.angles[1];
-            d.roll = bewegt ? figStand.angles[2] : mm.angles[2];
+            const float* drehung = bewegt ? figStand.angles : fliegt ? wurfWinkel.data() : mm.angles;
+            d.pitch = drehung[0];
+            d.yaw = drehung[1];
+            d.roll = drehung[2];
             d.entity = static_cast<int>(mm.entity);
             movers.push_back(d);
         }
@@ -3702,10 +3706,11 @@ void drawMapView() {
                             }
                         }
                         std::string ff;
-                        const int n = gpu::zeichneFigur(
+                        // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerper.
+                        const int n = a.ohneKoerper ? 0 : gpu::zeichneFigur(
                             *a.model, a.textures, skin, fw, vp, &ff, &licht,
                             g_app->showCaps);
-                        if (!nebenbild && auswahl.figur(a.figur)) {
+                        if (!nebenbild && !a.ohneKoerper && auswahl.figur(a.figur)) {
                             UmrissFigur uf;
                             uf.model = a.model;
                             uf.textures = a.textures;
@@ -3772,7 +3777,7 @@ void drawMapView() {
                         // Steht die Figur im Nebel, bekommt sie ihn auch.
                         const int figurNebel =
                             g_app->showFog ? nebelFuer(a.pos) : -1;
-                        if (mitSchatten || figurNebel >= 0) {
+                        if ((mitSchatten || figurNebel >= 0) && !a.ohneKoerper) {
                             gpu::FigurSchatten fs;
                             fs.model = a.model;
                             fs.textures = a.textures;
@@ -3798,19 +3803,13 @@ void drawMapView() {
                             for (int ai2 = 0; ai2 < a.anbauten; ++ai2) {
                                 const AnbauDraw& an =
                                     a.anbau[static_cast<std::size_t>(ai2)];
-                                if (an.model == nullptr) {
-                                    continue;
-                                }
-                                BoneMatrix hand{};
                                 // Fehlt der Bolzen, haengt die Engine NICHTS an
                                 // ("if (bolt_num == -1) return",
                                 // wp_saber.cpp:748) - also auch hier nicht.
-                                const int handSurf = surfaceIndex(*a.model, an.bolzen);
-                                if (!boltMatrix(*a.model, handSurf, welt, *a.anim, hand)) {
+                                float gw2[16];
+                                if (an.model == nullptr || !anbauWelt(a, an, welt, fw, gw2)) {
                                     continue;
                                 }
-                                float gw2[16];
-                                gpu::baueGriffWelt(fw, hand, gw2);
                                 static const std::vector<BoneMatrix> kStarr;
                                 std::string fh;
                                 // rc603 Durchsicht: die Achsen der FIGUR, nicht die
@@ -4033,6 +4032,10 @@ void drawMapView() {
                                                              &fg, &gl, g_app->showCaps);
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;
+                            if (gg.schwertLeuchten) {
+                                schwertLeuchtenZeichnen(gg, *as, *knochen, gl, vp, grechts, ghoch, klingen,
+                                                        schwertLichter);
+                            }
                         }
                         // Pruefung 3: was sterbende Figuren fallen liessen - Waffe
                         // (Drop_Item), Kristall, Schwert (WP_SaberDrop) - am Ort

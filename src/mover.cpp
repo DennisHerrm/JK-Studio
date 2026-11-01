@@ -2,6 +2,8 @@
 //
 // Die Zeilenangaben beziehen sich auf OpenJK, code/game/.
 #include "bhed/mover.h"
+
+#include "bhed/geschuetz.h"
 #include "bhed/gegenstaende.h"   // rc604: spawntBeiSchwierigkeit
 #include "bhed/navlauf.h"        // rc604: kNavKartenSpawnMs
 
@@ -368,6 +370,9 @@ struct Bruchstelle {
     std::string bruchAusloeser;
     bool zerbrochen = false;
     bool weg = false;             // G_FreeEntity
+    // Pruefung 4b: func_breakable - funcBBrushDieGo stellt G_FreeEntity auf
+    // 50 ms spaeter; ein use davor ersetzt das think (neuer Bruch).
+    double freiUm = 1.0e300;
     bool erschienen = false;      // misc: count (Start off aufgehoben)
     bool zeigtU1 = false;
     int brueche = 0;
@@ -500,6 +505,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     entityUse_.clear();   // rc604: Fallen, Ionenkanonen, Wachgeschuetze
     auf_.clear();
     bruch_.clear();
+    wuerfe_.clear();
     bruchFx_.clear();
     truemmer_.clear();
     bruchKlang_.clear();
@@ -951,11 +957,19 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     }
 
     // --- Die Ereignisse -----------------------------------------------------
-    struct Ereignis { double ms; std::string ziel; int tiefe; std::string ausloeser; };
+    struct Ereignis {
+        double ms;
+        std::string ziel;
+        int tiefe;
+        std::string ausloeser;
+        int reihe = std::numeric_limits<int>::max();   // MoverUse::reihe
+    };
+    // Pruefung 4b: der Platz im Bild des use, das gerade laeuft (MoverUse::reihe).
+    int reiheJetzt = std::numeric_limits<int>::max();
     std::vector<Ereignis> warte;
     for (const MoverUse& u : uses) {
         // tiefe -1: schon aufgeloest (siehe MoverUse::aufgeloest)
-        warte.push_back(Ereignis{u.ms, u.target, u.aufgeloest ? -1 : 0, u.ausloeser});
+        warte.push_back(Ereignis{u.ms, u.target, u.aufgeloest ? -1 : 0, u.ausloeser, u.reihe});
     }
 
     // rc601 (bewegung, teil 3): moverState und MOVER_LOCKED je Tuer merken -
@@ -1199,7 +1213,6 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         Wuerfel w(saatVon(b));
         ++b.brueche;
         b.zerbrochen = true;
-        b.weg = true;
         // "if (self->target && attacker != nullptr) G_UseTargets" - der
         // Angreifer ist, wer benutzt hat. Kam das use aufgeloest, feuert
         // der Nachbau die Ziele (MoverUse::aufgeloest).
@@ -1224,8 +1237,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                      b.noise, t, w);
         // thinkF_G_FreeEntity, nextthink = level.time + 50: im Bild des
         // Bruchs steht der Brush noch, erst im naechsten ist er weg.
+        b.freiUm = t + kTakt;
         if (b.mover >= 0) {
-            mover_[static_cast<std::size_t>(b.mover)].sichtAb.emplace_back(t + kTakt, false);
+            mover_[static_cast<std::size_t>(b.mover)].sichtAb.emplace_back(b.freiUm, false);
         }
         bruch_.push_back(Bruch{b.entity, "func_breakable", t, b.material, groesse, anzahl});
     };
@@ -1280,6 +1294,20 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     };
     // funcBBrushUse, g_breakable.cpp:201
     const auto brushUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
+        // Pruefung 4b: G_RunThink laeuft am Platz der Entity (g_main.cpp:1062-
+        // 1088): ein think dieses Bilds ist vor diesem use dran, wenn der
+        // Benutzer nicht vor dem func_breakable kommt.
+        const auto faellig = [&](double um) {
+            return um < t - 1e-6 || (um <= t + 1e-6 && reiheJetzt >= static_cast<int>(b.entity) + 1);
+        };
+        if (b.bruchUm >= 0.0 && faellig(b.bruchUm)) {
+            const double wann = b.bruchUm;
+            b.bruchUm = -1.0;
+            brichBrush(b, wann, b.bruchTiefe, b.bruchAusloeser);
+        }
+        if (b.freiUm < 1.0e299 && faellig(b.freiUm)) {
+            b.weg = true;   // G_FreeEntity
+        }
         if (b.weg) {
             return;
         }
@@ -1287,6 +1315,18 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             // "Using it doesn't break it, makes it use it's targets"
             if (tiefe >= 0 && !b.target.empty()) { benutze(b.target, t, tiefe + 1, ausloeser); }
             return;
+        }
+        // Pruefung 4b: ein use nach funcBBrushDieGo, bevor G_FreeEntity
+        // kommt, ersetzt dessen think - der Brush bleibt bis zum neuen Bruch.
+        if (b.freiUm < 1.0e299) {
+            if (b.mover >= 0) {
+                auto& sa = mover_[static_cast<std::size_t>(b.mover)].sichtAb;
+                const double frei = b.freiUm;
+                sa.erase(std::remove_if(sa.begin(), sa.end(),
+                                        [frei](const std::pair<double, bool>& x) { return !x.second && x.first == frei; }),
+                         sa.end());
+            }
+            b.freiUm = 1.0e300;
         }
         // funcBBrushDie: mit "delay" erst spaeter (ein zweites use in der
         // Zwischenzeit stellt nextthink neu).
@@ -1300,8 +1340,14 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     };
     // misc_model_use, g_breakable.cpp:723
     const auto modellUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
-        if (b.weg || b.geworfen) {
-            return;   // freigegeben, oder target4: wirft sich - nicht nachgebaut
+        if (b.weg) {
+            return;   // freigegeben
+        }
+        if (b.geworfen) {
+            // Pruefung 4b: target4 wirft sich (misc_model_throw_at_target4) -
+            // die Bahn rechnet wirfObjekt (bhed/abwurf.h) mit der Welt.
+            wuerfe_.push_back(ObjektWurf{b.entity, t});
+            return;
         }
         if (b.zerbrochen && b.hatGesundheit) {
             // "used while broken fired target3"
@@ -1739,7 +1785,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             if (it == warte.end()) { break; }
             const Ereignis e = *it;
             warte.erase(it);
+            reiheJetzt = e.reihe;
             benutze(e.ziel, e.ms, e.tiefe, e.ausloeser);
+            reiheJetzt = std::numeric_limits<int>::max();
         }
         for (std::size_t ti = 0; ti < teams.size(); ++ti) {
             Team& team = teams[ti];
@@ -1807,7 +1855,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         }
         // Verzoegerte Brueche (thinkF_funcBBrushDieGo nach "delay")
         for (Bruchstelle& b : bruchstellen) {
-            if (b.bruchUm >= 0.0 && t >= b.bruchUm && !b.weg) {
+            if (b.bruchUm >= 0.0 && t >= b.bruchUm && !b.weg && t < b.freiUm) {
                 const double wann = b.bruchUm;
                 b.bruchUm = -1.0;
                 brichBrush(b, wann, b.bruchTiefe, b.bruchAusloeser);
@@ -2394,13 +2442,14 @@ KastenSpur figurKastenSpur(const float start[3], const float ende[3], const floa
     return r;
 }
 
-bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
-                     const float ende[3], float radius) {
-    // G2_RadiusTracePolys (code/rd-vanilla/G2_misc.cpp:1254-1460 OpenJK),
-    // woertlich: zwei Achsen quer zum Strahl (basis1/basis2, theta 0), s/t/u
-    // je Ecke, sechs Seitenbits; die ganze Flaeche faellt weg, wenn eine Seite
-    // alle Ecken ausschliesst, ein Dreieck trifft, wenn keine Seite alle drei
-    // seiner Ecken ausschliesst.
+namespace {
+// G2_RadiusTracePolys (code/rd-vanilla/G2_misc.cpp:1254-1460 OpenJK), woertlich:
+// zwei Achsen quer zum Strahl (basis1/basis2, theta 0), s/t/u je Ecke, sechs
+// Seitenbits; die ganze Flaeche faellt weg, wenn eine Seite alle Ecken
+// ausschliesst, ein Dreieck trifft, wenn keine Seite alle drei seiner Ecken
+// ausschliesst. aus == nullptr: G2_RETURNONHIT (beim ersten Treffer fertig).
+int g2RadiusSpur(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                 const float ende[3], float radius, const G2Kollision* vorlage, std::vector<G2Kollision>* aus) {
     const auto kreuz = [](const float a[3], const float b[3], float o[3]) {
         o[0] = a[1] * b[2] - a[2] * b[1];
         o[1] = a[2] * b[0] - a[0] * b[2];
@@ -2414,10 +2463,11 @@ bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uin
             for (int q = 0; q < 3; ++q) { v[q] *= il; }
         }
     };
-    if (radius == 0.0F || ecken.size() < 3U) { return false; }
+    if (radius == 0.0F || ecken.size() < 3U) { return 0; }
     float basis1[3];
     float basis2[3] = {0.0F, 0.0F, 1.0F};
     float dir[3] = {ende[0] - start[0], ende[1] - start[1], ende[2] - start[2]};
+    const float strahl[3] = {dir[0], dir[1], dir[2]};
     kreuz(dir, basis2, basis1);
     if (punkt(basis1, basis1) < 0.1F) {
         basis2[0] = 0.0F;
@@ -2437,7 +2487,7 @@ bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uin
         saxis[q] = basis1[q] * (-0.5F * sn / radius) + basis2[q] * (0.5F * c / radius);
     }
     const float f = punkt(dir, dir);
-    if (f == 0.0F) { return false; }
+    if (f == 0.0F) { return 0; }
     for (float& d : dir) { d /= f; }
     const std::size_t n = ecken.size() / 3U;
     std::vector<int> eckBits(n, 0);
@@ -2458,12 +2508,52 @@ bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uin
         flags &= v;
         eckBits[j] = v;
     }
-    if (flags != 0) { return false; }
+    if (flags != 0) { return 0; }
+    int neu = 0;
     for (std::size_t j = 0; j + 2 < idx.size(); j += 3) {
         if (idx[j] >= n || idx[j + 1] >= n || idx[j + 2] >= n) { continue; }
-        if ((63 & eckBits[idx[j]] & eckBits[idx[j + 1]] & eckBits[idx[j + 2]]) == 0) { return true; }
+        if ((63 & eckBits[idx[j]] & eckBits[idx[j + 1]] & eckBits[idx[j + 2]]) != 0) { continue; }
+        if (aus == nullptr) { return 1; }
+        if (aus->size() >= kG2KollisionenMax) { return neu; }   // "run out of collision record space"
+        // hitPoint: der Schnitt mit der Ebene des Dreiecks (Normale = edgeBA x edgeAC)
+        const float* A = &ecken[idx[j] * 3U];
+        const float* B = &ecken[idx[j + 1] * 3U];
+        const float* C = &ecken[idx[j + 2] * 3U];
+        const float edgeAC[3] = {C[0] - A[0], C[1] - A[1], C[2] - A[2]};
+        const float edgeBA[3] = {B[0] - A[0], B[1] - A[1], B[2] - A[2]};
+        float normal[3];
+        kreuz(edgeBA, edgeAC, normal);
+        const float third = -(A[0] * (B[1] * C[2] - C[1] * B[2]) + B[0] * (C[1] * A[2] - A[1] * C[2]) +
+                              C[0] * (A[1] * B[2] - B[1] * A[2]));
+        const float side = normal[0] * start[0] + normal[1] * start[1] + normal[2] * start[2] + third;
+        const float side2 = punkt(normal, strahl);
+        G2Kollision k = *vorlage;
+        if (std::fabs(side2) < 1E-8F) {
+            const float zuA[3] = {A[0] - start[0], A[1] - start[1], A[2] - start[2]};
+            const float dist = std::sqrt(punkt(zuA, zuA));
+            const float laenge = std::sqrt(punkt(strahl, strahl));
+            for (int q = 0; q < 3; ++q) { k.punkt[q] = start[q] + dist / laenge * strahl[q]; }
+        } else {
+            const float dist = side / side2;
+            for (int q = 0; q < 3; ++q) { k.punkt[q] = start[q] - dist * strahl[q]; }
+        }
+        const float weg[3] = {k.punkt[0] - start[0], k.punkt[1] - start[1], k.punkt[2] - start[2]};
+        k.abstand = std::sqrt(punkt(weg, weg));
+        aus->push_back(k);
+        ++neu;
     }
-    return false;
+    return neu;
+}
+}  // namespace
+
+bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                     const float ende[3], float radius) {
+    return g2RadiusSpur(ecken, idx, start, ende, radius, nullptr, nullptr) > 0;
+}
+
+int g2RadiusKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                        const float ende[3], float radius, const G2Kollision& vorlage, std::vector<G2Kollision>& aus) {
+    return g2RadiusSpur(ecken, idx, start, ende, radius, &vorlage, &aus);
 }
 
 }  // namespace bhed
@@ -2568,69 +2658,38 @@ IonenkanoneErgebnis ionenkanoneLauf(const IonenkanoneEingabe& e) {
     return r;
 }
 
+// Pruefung 4b: beide rechnet jetzt GeschuetzSim (bhed/geschuetz.h) - ein
+// misc_sentry_turret ohne Figuren, Bild fuer Bild ab dem Spawnen.
+namespace {
+GeschuetzSim pasOhneFeind(bool startOff, double spawnMs, const std::vector<double>& uses, double endeMs, float gier, int count) {
+    GeschuetzDaten d;
+    d.art = GeschuetzArt::Wache;
+    d.winkel[1] = gier;
+    d.spawnflags = startOff ? 1 : 0;
+    d.count = count;
+    d.uses = uses;
+    GeschuetzSim sim;
+    sim.setze({d}, TodRegelwerk::OpenJK, spawnMs, true);
+    std::vector<SchadenAuftrag> auftraege;
+    for (double t = spawnMs; t <= endeMs + 1e-6; t += 50.0) { sim.bild(t, {}, GeschuetzWelt{}, auftraege); }
+    return sim;
+}
+}  // namespace
+
 double pasAufklappenMs(bool startOff, double spawnMs, const std::vector<double>& uses, double endeMs) {
-    // SP_PAS (code/game/g_turret.cpp:1784-1890 OpenJK): ohne START_OFF denkt
-    // pas_think ab spawn + 1000. pas_use (:1395-1411) kippt spawnflags & 1: an
-    // -> think in 50 ms, aus -> kein think. Das erste pas_think (damage 0)
-    // klappt auf: G2API_SetBoneAnimIndex(rootBone, 0, 11, FREEZE, 0.8).
-    bool aus = startOff;
-    double denken = aus ? 1.0e300 : spawnMs + 1000.0;
-    for (const double u : uses) {
-        if (u < spawnMs) { continue; }
-        if (u > endeMs) { break; }
-        if (denken <= u) { break; }   // schon gedacht -> aufgeklappt
-        aus = !aus;
-        denken = aus ? 1.0e300 : u + 50.0;
-    }
-    return denken <= endeMs ? denken : -1.0;
+    const GeschuetzSim sim = pasOhneFeind(startOff, spawnMs, uses, endeMs, 0.0F, 150);
+    const GeschuetzLauf& l = sim.laeufe().front();
+    return l.aufklappen.empty() ? -1.0 : l.aufklappen.front().first;
 }
 
 std::vector<PasSchwenk> pasSchwenkLauf(bool startOff, double spawnMs, const std::vector<double>& uses, double endeMs,
                                        float gier, int count) {
-    // AngleNormalize360 (q_math.cpp): auf 65536 Stufen.
-    const auto norm360 = [](float a) {
-        return static_cast<float>((360.0 / 65536) * (static_cast<int>(a * (65536 / 360.0)) & 65535));
-    };
+    const GeschuetzSim sim = pasOhneFeind(startOff, spawnMs, uses, endeMs, gier, count);
+    const GeschuetzLauf& l = sim.laeufe().front();
     std::vector<PasSchwenk> r;
-    bool aus = startOff;
-    bool aufgeklappt = false;   // ent->damage
-    double denken = aus ? 1.0e300 : spawnMs + 1000.0;
-    float speed = gier;         // SP_PAS: base->speed = base->s.angles[YAW]
-    std::size_t naechsterUse = 0;
-    while (true) {
-        while (naechsterUse < uses.size() && uses[naechsterUse] < spawnMs) { ++naechsterUse; }
-        const bool useZuerst = naechsterUse < uses.size() && uses[naechsterUse] <= endeMs && uses[naechsterUse] < denken;
-        if (useZuerst) {
-            // pas_use (g_turret.cpp:1395-1411 OpenJK): spawnflags ^= 1; aus ->
-            // nextthink 0, an -> level.time + 50.
-            const double u = uses[naechsterUse++];
-            aus = !aus;
-            denken = aus ? 1.0e300 : u + 50.0;
-            continue;
-        }
-        if (denken > endeMs) { break; }
-        if (!aufgeklappt) {
-            // "let us do our animation": damage = 1, nextthink + 1200.
-            aufgeklappt = true;
-            denken += 1200.0;
-            continue;
-        }
-        // count > 0: ohne Feind schiesst es nie (count-- nur mit ent->enemy).
-        speed = norm360(speed);
-        const auto levelZeit = static_cast<int>(std::lround(denken - spawnMs + 1000.0));
-        // "no enemy, so make us slowly sweep back and forth": sin() der C-Bibliothek (double).
-        const auto diff = static_cast<float>(std::sin(static_cast<float>(levelZeit) * 0.0001F + static_cast<float>(count)) * 2.0F);
-        if (std::fabs(diff) > 0.25F) {
-            if (std::fabs(diff) > 10.0F) {
-                speed += diff > 0.0F ? -10.0F : 10.0F;
-            } else {
-                speed -= diff;
-            }
-        }
-        // back_angles = (0, 0, speed - s.angles[YAW]) fuer bone_hinge; front_angles
-        // (-random, 0, 0) bleiben ohne Feind 0 (random wird nie gesetzt).
-        r.push_back(PasSchwenk{denken, speed - gier});
-        denken += 100.0;   // FRAMETIME
+    if (l.aufklappen.empty()) { return r; }
+    for (const GeschuetzStand& s : l.staende) {
+        if (s.gedacht && s.ms > l.aufklappen.front().first) { r.push_back(PasSchwenk{s.ms, s.pasGier}); }
     }
     return r;
 }

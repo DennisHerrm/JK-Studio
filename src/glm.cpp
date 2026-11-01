@@ -185,31 +185,33 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
     }
 
     bool first = true;
-    for (std::int32_t i = 0; i < numSurfaces; ++i) {
-        const std::int32_t rel = i32(b, lod + 4 + static_cast<std::size_t>(i) * 4);
-        const std::size_t base = lod + 4 + static_cast<std::size_t>(rel);
+    // Eine Flaeche einer LOD-Stufe (Versatzliste ab lodAt) nach verts/indexes;
+    // grenzen: mins/maxs mitfuehren (nur LOD 0).
+    const auto liesFlaeche = [&](std::size_t lodAt, std::int32_t i, std::vector<GlmVertex>& vertsAus,
+                                 std::vector<std::uint32_t>& indexAus, bool grenzen) {
+        const std::int32_t rel = i32(b, lodAt + 4 + static_cast<std::size_t>(i) * 4);
+        const std::size_t base = lodAt + 4 + static_cast<std::size_t>(rel);
         if (rel < 0 || base + 40 > b.size()) {
-            continue;
+            return;
         }
-        GlmSurface& s = out.surfaces[static_cast<std::size_t>(i)];
         const std::int32_t numVerts = i32(b, base + 12);
         const std::int32_t ofsVerts = i32(b, base + 16);
         const std::int32_t numTris = i32(b, base + 20);
         const std::int32_t ofsTris = i32(b, base + 24);
         if (numVerts < 0 || numTris < 0 || numVerts > 65536 || numTris > 65536) {
-            continue;
+            return;
         }
 
         // Dreiecke: je drei int32.
         const std::size_t triAt = base + static_cast<std::size_t>(ofsTris);
         if (triAt + static_cast<std::size_t>(numTris) * 12 <= b.size()) {
-            s.indexes.reserve(static_cast<std::size_t>(numTris) * 3);
+            indexAus.reserve(static_cast<std::size_t>(numTris) * 3);
             for (std::int32_t t = 0; t < numTris; ++t) {
                 for (int k = 0; k < 3; ++k) {
                     const std::int32_t idx =
                         i32(b, triAt + static_cast<std::size_t>(t) * 12 +
                                    static_cast<std::size_t>(k) * 4);
-                    s.indexes.push_back(
+                    indexAus.push_back(
                         (idx >= 0 && idx < numVerts) ? static_cast<std::uint32_t>(idx) : 0U);
                 }
             }
@@ -256,12 +258,12 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
         constexpr std::size_t kVertSize = 32;
         const std::size_t stAt = vAt + static_cast<std::size_t>(numVerts) * kVertSize;
         if (stAt + static_cast<std::size_t>(numVerts) * 8 > b.size()) {
-            continue;
+            return;
         }
-        s.verts.resize(static_cast<std::size_t>(numVerts));
+        vertsAus.resize(static_cast<std::size_t>(numVerts));
         for (std::int32_t v = 0; v < numVerts; ++v) {
             const std::size_t o = vAt + static_cast<std::size_t>(v) * kVertSize;
-            GlmVertex& gv = s.verts[static_cast<std::size_t>(v)];
+            GlmVertex& gv = vertsAus[static_cast<std::size_t>(v)];
             for (int k = 0; k < 3; ++k) {
                 gv.normal[k] = f32(b, o + static_cast<std::size_t>(k) * 4);
                 gv.xyz[k] = f32(b, o + 12 + static_cast<std::size_t>(k) * 4);
@@ -320,7 +322,7 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
                 }
             }
 
-            for (int k = 0; k < 3; ++k) {
+            for (int k = 0; k < 3 && grenzen; ++k) {
                 if (first) {
                     out.mins[k] = out.maxs[k] = gv.xyz[k];
                 } else {
@@ -328,7 +330,27 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
                     out.maxs[k] = std::max(out.maxs[k], gv.xyz[k]);
                 }
             }
-            first = false;
+            first = grenzen ? false : first;
+        }
+    };
+    for (std::int32_t i = 0; i < numSurfaces; ++i) {
+        GlmSurface& s = out.surfaces[static_cast<std::size_t>(i)];
+        liesFlaeche(lod, i, s.verts, s.indexes, true);
+    }
+    // Pruefung 4b: die groebste Stufe - G2_DecideTraceLod nimmt fuer Spuren mit
+    // traceLod 10 (Geschosse, G_RunMissile) die letzte (numLODs - 1). Die Stufen
+    // folgen aufeinander, mdxmLOD_t::ofsEnd zaehlt ab ihrem Anfang.
+    if (out.numLods > 1 && out.numLods <= 16) {
+        std::size_t grob = lod;
+        bool da = true;
+        for (int stufe = 0; stufe + 1 < out.numLods && da; ++stufe) {
+            const std::int32_t ende = i32(b, grob);
+            da = ende > 0 && grob + static_cast<std::size_t>(ende) + 4 + static_cast<std::size_t>(numSurfaces) * 4 <= b.size();
+            if (da) { grob += static_cast<std::size_t>(ende); }
+        }
+        for (std::int32_t i = 0; i < numSurfaces && da; ++i) {
+            GlmSurface& s = out.surfaces[static_cast<std::size_t>(i)];
+            liesFlaeche(grob, i, s.grobVerts, s.grobIndexes, false);
         }
     }
     // Was das Modell wirklich mitbringt.

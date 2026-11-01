@@ -76,6 +76,166 @@ NavVec AbwurfTrajektorie::deltaBei(double t, float g) const {
     return v;
 }
 
+namespace {
+
+// misc_model_breakable_gravity_init: clipmask (MASK_SOLID | CONTENTS_BODY |
+// CONTENTS_MONSTERCLIP | CONTENTS_BOTCLIP) und mass.
+constexpr std::uint32_t kObjektMaske = kMaskSolid | kNavBody | kNavMonsterClip | kNavBotClip;
+
+float objektMasse(const ObjektStart& s) {
+    if (s.masse != 0.0F) { return s.masse; }
+    const auto laenge = [](const NavVec& v) { return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); };
+    return laenge(s.maxs) + laenge(s.mins);
+}
+
+// Ein G_RunObject (g_object.cpp:77-263 OpenJK) zur Zeit t; false: nichts mehr
+// zu tun (in Ruhe). EF_BOUNCE_HALF, apos bleibt stehen (kein Drehen: der
+// think ist G_RunObject).
+struct ObjektLauf {
+    Bahn pos;
+    NavVec ort{};
+    NavVec winkel{};
+    float masse = 0.0F;
+};
+
+void objektDenken(ObjektLauf& o, const ObjektStart& s, double t, const NavSpurFn& spur, AbwurfBahn* b) {
+    if (o.pos.art == Bahn::Art::Steht) {
+        o.pos.art = Bahn::Art::Schwer;
+        o.pos.basis = o.ort;
+        o.pos.zeit = t - kServerMs;   // previousTime
+    }
+    const NavVec alt = o.ort;
+    const NavVec ziel = o.pos.bei(t, s.schwerkraft);
+    if (ziel == o.ort) { return; }   // "error - didn't move at all!"
+    NavSpur tr = spur ? spur(o.ort, s.mins, s.maxs, ziel, s.entity, kObjektMaske) : NavSpur{};
+    if (!spur) { tr.endpos = ziel; }
+    if (!tr.startsolid && !tr.allsolid && tr.fraction != 0.0F) {
+        o.ort = tr.endpos;
+    } else {
+        tr.fraction = 0.0F;
+    }
+    if (tr.fraction == 1.0F) { return; }   // g_gravity > 0
+    if (tr.fraction != 0.0F && o.ort != alt && b != nullptr) {
+        // getroffen und bewegt: die Welt (takedamage 0) - kick_impact_silent mit
+        // der Normalen; objectHitHeavy ab mass 100
+        b->effekte.push_back({t, "melee/kick_impact_silent", tr.endpos, tr.normal});
+        b->klaenge.push_back({t, o.masse > 100.0F ? "sound/movers/objects/objectHitHeavy.wav"
+                                                  : "sound/movers/objects/objectHit.wav",
+                              o.ort});
+    }
+    if (o.pos.art != Bahn::Art::Schwer) { return; }
+    if (tr.normal[2] < 0.7F) {
+        // EF_BOUNCE_HALF
+        if (tr.fraction <= 0.0F) {
+            o.pos.basis = tr.endpos;
+            o.ort = tr.endpos;
+            o.pos.delta = {0.0F, 0.0F, 0.0F};
+            o.pos.zeit = t;
+            return;
+        }
+        // G_BounceObject (g_object.cpp:36-70)
+        const double hit = (t - kServerMs) + kServerMs * static_cast<double>(tr.fraction);
+        const NavVec v = o.pos.deltaBei(hit, s.schwerkraft);
+        const float dot = punkt(v, tr.normal);
+        float faktor = 60.0F / o.masse;
+        if (faktor > 1.0F) { faktor = 1.0F; }
+        for (std::size_t k = 0; k < 3; ++k) { o.pos.delta[k] = (v[k] + -2.0F * dot * faktor * tr.normal[k]) * 0.5F; }
+        if (tr.normal[2] > 0.7F && o.pos.delta[2] < 40.0F) {
+            o.ort = tr.endpos;
+            o.pos.basis = tr.endpos;
+            o.pos.zeit = t;
+            return;
+        }
+        o.ort = tr.endpos;
+        o.pos.zeit = hit;
+        o.pos.basis = o.ort;
+        return;
+    }
+    // auf dem Boden: pitch_roll_for_slope(ent, normal), G_StopObjectMoving
+    neigungFuerHang(tr.normal, o.winkel, false);
+    o.pos.art = Bahn::Art::Steht;
+    o.pos.basis = o.ort;
+    o.pos.delta = {0.0F, 0.0F, 0.0F};
+}
+
+// s.pos und s.apos des Objekts ab dem Serverbild t: apos bleibt stehen.
+void merkeObjekt(AbwurfBahn& b, double t, const ObjektLauf& o) {
+    Bahn apos;
+    apos.basis = o.winkel;
+    Bahn pos = o.pos;
+    if (pos.art == Bahn::Art::Steht) { pos.basis = o.ort; }
+    merke(b, t, pos, apos);
+}
+
+}  // namespace
+
+ObjektStart objektAbsetzen(const ObjektStart& s, const NavSpurFn& spur) {
+    ObjektStart r = s;
+    if (spur) {
+        const NavVec oben{s.ort[0], s.ort[1], s.ort[2] + 1.0F};
+        const NavVec unten{s.ort[0], s.ort[1], -65536.0F};   // MIN_WORLD_COORD
+        const NavSpur tr = spur(oben, s.mins, s.maxs, unten, s.entity, kNavMaskNpcSolid);
+        if (!tr.allsolid && !tr.startsolid && tr.fraction < 1.0F) { r.ort = tr.endpos; }
+    }
+    ObjektLauf o;
+    o.ort = r.ort;
+    o.winkel = r.winkel;
+    o.masse = objektMasse(r);
+    objektDenken(o, r, kServerMs, spur, nullptr);
+    r.ort = o.ort;
+    r.winkel = o.winkel;
+    return r;
+}
+
+AbwurfBahn wirfObjekt(const ObjektStart& s, const std::vector<double>& wuerfe, const NavVec& ziel,
+                      const NavSpurFn& spur, double grenzeMs) {
+    AbwurfBahn b;
+    b.schwerkraft = s.schwerkraft;
+    if (wuerfe.empty()) { return b; }
+    ObjektLauf o;
+    o.ort = s.ort;
+    o.winkel = s.winkel;
+    o.masse = objektMasse(s);
+    std::size_t naechster = 0;
+    const auto werfen = [&](double ms) {
+        // misc_model_throw_at_target4
+        NavVec dir{ziel[0] - o.ort[0], ziel[1] - o.ort[1], ziel[2] - o.ort[2]};
+        float knockback = 200.0F;
+        const float l = std::sqrt(punkt(dir, dir));
+        if (l != 0.0F) {
+            for (float& d : dir) { d /= l; }
+        }
+        knockback -= l;
+        if (knockback < 100.0F) { knockback = 100.0F; }
+        float masse = o.masse;
+        if (masse < 50.0F) { masse = 50.0F; }
+        constexpr float kRueckstoss = 1000.0F;   // g_knockback
+        o.pos.art = Bahn::Art::Schwer;
+        o.pos.zeit = ms;
+        o.pos.basis = o.ort;
+        NavVec kvel{};
+        for (std::size_t k = 0; k < 3; ++k) { kvel[k] = dir[k] * (kRueckstoss * knockback / masse * 0.8F); }
+        kvel[2] = dir[2] * kRueckstoss * knockback / masse * 1.5F;
+        for (std::size_t k = 0; k < 3; ++k) { o.pos.delta[k] += kvel[k]; }
+        if (o.pos.delta[2] < knockback) { o.pos.delta[2] = knockback; }
+    };
+    werfen(wuerfe[naechster++]);
+    merkeObjekt(b, wuerfe.front(), o);
+    // das naechste G_RunObject ein Bild spaeter; ein use dazwischen wirft neu
+    for (double t = wuerfe.front() + kServerMs;; t += kServerMs) {
+        while (naechster < wuerfe.size() && wuerfe[naechster] < t - 1e-6) { werfen(wuerfe[naechster++]); }
+        objektDenken(o, s, t, spur, &b);
+        merkeObjekt(b, t, o);
+        const bool ruht = o.pos.art == Bahn::Art::Steht;
+        if (ruht && naechster >= wuerfe.size()) {
+            b.ruheMs = t;
+            break;
+        }
+        if (t > wuerfe.back() + grenzeMs) { break; }
+    }
+    return b;
+}
+
 bool AbwurfBahn::bei(double ms, NavVec& ort, NavVec& winkel) const {
     if (punkte.empty() || ms < punkte.front().ms || (wegMs >= 0.0 && ms >= wegMs)) { return false; }
     std::size_t i = punkte.size() - 1U;

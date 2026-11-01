@@ -2291,6 +2291,133 @@ void loadModelTextures() {
     g_app->modelDirty = true;
 }
 
+// rc603: die Bildpunkte einmal je Bild (App::figurStufenBilder), nicht je
+// Figur und Stufe kopiert - siehe ModelTextures::FigurStufe::pixel.
+std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildName) {
+    constexpr int kMaxSize = 256;
+    // rc603 Durchsicht: tr.whiteImage - R_CreateBuiltinImages legt "*white"
+    // als 8x8 Bild mit allen Bytes 255 an (tr_image.cpp:1273-1276 MD,
+    // 1328 OJ). ParseStage bindet es fuer "map $whiteimage" und, an Figuren
+    // (lightmapsNone), fuer "map $lightmap" (tr_shader.cpp:1202-1220 MD,
+    // 1239-1250 OJ);
+    // R_FindImageFile("*white") findet es unter seinem Namen.
+    if (bildName == "*white") {
+        static const std::shared_ptr<const TextureSet::Tex> kWeiss = [] {
+            auto w = std::make_shared<TextureSet::Tex>();
+            w->width = 8;
+            w->height = 8;
+            w->rgba.assign(8U * 8U * 4U, 255U);
+            return std::shared_ptr<const TextureSet::Tex>(std::move(w));
+        }();
+        return kWeiss;
+    }
+    const std::string sk = image::mappingName(bildName) + "@" + std::to_string(kMaxSize);
+    if (const auto da = g_app->figurStufenBilder.find(sk); da != g_app->figurStufenBilder.end()) {
+        if (auto lebt = da->second.lock()) { return lebt; }
+    }
+    std::shared_ptr<TextureSet::Tex> neu;
+    const auto hit = g_app->texCache.find(sk);
+    if (hit != g_app->texCache.end()) {
+        if (hit->second.rgba.empty()) { return nullptr; }
+        neu = std::make_shared<TextureSet::Tex>();
+        neu->width = hit->second.width;
+        neu->height = hit->second.height;
+        neu->rgba = hit->second.rgba;
+    } else {
+        std::string data;
+        for (const std::string& kandidat : textureCandidates(bildName)) {
+            if (!readFromArchives(kandidat, data)) { continue; }
+            const image::Image im =
+                image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
+            if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
+            TextureSet::Tex t = shrink(im, kMaxSize);
+            g_app->texCache[sk] = t;
+            neu = std::make_shared<TextureSet::Tex>(std::move(t));
+            break;
+        }
+    }
+    if (!neu) { return nullptr; }
+    g_app->figurStufenBilder[sk] = neu;
+    return neu;
+}
+
+// Die Stufen eines Shaderskripts an einer Figur (bis vor stufenZahl), mit
+// Bildern - false: ein Bild fehlt.
+bool figurStufenListe(const ShaderInfo& info, std::size_t stufenZahl, std::vector<ModelTextures::FigurStufe>& liste) {
+    bool vollstaendig = true;
+    for (const FigurStufenArt& art : figurStufen(info)) {
+        if (art.stufe >= stufenZahl) { break; }   // rc604: nur die Stufen vor dem fehlenden Bild
+        const ShaderInfo::Stage& st = info.stages[art.stufe];
+        ModelTextures::FigurStufe fs;
+        fs.art = art;
+        fs.animFreq = st.animFreq;
+        fs.animEinmal = st.animOneShot;
+        // rc603 Durchsicht: $whiteimage/$lightmap - tr.whiteImage (siehe oben).
+        const std::vector<std::string> bilder = art.weiss                ? std::vector<std::string>{"*white"}
+                                                : st.animImages.empty() ? std::vector<std::string>{st.image}
+                                                                        : st.animImages;
+        for (const std::string& b : bilder) {
+            std::shared_ptr<const TextureSet::Tex> px = ladeStufenBild(b);
+            if (!px) {
+                vollstaendig = false;
+                break;
+            }
+            TextureSet::Tex z;   // Groesse und Zustand, die Bildpunkte in fs.pixel
+            z.width = px->width;
+            z.height = px->height;
+            z.blend = st.blend;
+            z.srcFactor = st.srcFactor;
+            z.dstFactor = st.dstFactor;
+            z.alphaTest = st.alphaTest;
+            z.alphaConst = st.alphaConst;
+            z.glow = st.glow;
+            z.ausSkript = true;
+            z.rgbVertex = st.rgbVertex;
+            z.cull = info.cull;
+            z.depthWrite = st.depthWrite;
+            z.depthFunc = st.depthFunc;
+            // rc604 fix604b (B4): tcMod der Stufe (turb, rotate, scroll ...) -
+            // gpumap_win32.cpp packt die Kette je Bild wie bei der Karte.
+            z.numTexMods = st.numTexMods;
+            for (int k = 0; k < st.numTexMods; ++k) { z.texMods[k] = st.texMods[k]; }
+            // rc604: deformVertexes gilt fuer den ganzen Shader (RB_DeformTessGeometry
+            // vor allen Stufen) - gpumap_win32.cpp packt es je Stufe in b3.
+            z.deformWave = info.deformWave;
+            z.deformSpread = info.deformSpread;
+            z.deform2 = info.deform2;
+            fs.bilder.push_back(std::move(z));
+            fs.pixel.push_back(std::move(px));
+        }
+        if (!vollstaendig) { break; }
+        liste.push_back(std::move(fs));
+    }
+    return vollstaendig;
+}
+
+ModelTextures texturenMitShader(const GlmModel& model, const std::string& shader, FigurFarbe farbe) {
+    ModelTextures out;
+    std::string key = shader;
+    for (char& c : key) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    const auto it = g_app->shaderMap.find(key);
+    std::vector<ModelTextures::FigurStufe> liste;
+    if (model.empty() || it == g_app->shaderMap.end() ||
+        !figurStufenListe(it->second, it->second.stages.size(), liste) || liste.empty()) {
+        return out;
+    }
+    for (ModelTextures::FigurStufe& fs : liste) { fs.art.farbe = farbe; }
+    TextureSet::Tex basis = liste.front().bilder.front();
+    basis.rgba = liste.front().pixel.front()->rgba;
+    out.bySurface.assign(model.surfaces.size(), TextureSet::Tex{});
+    out.gluehStufen.assign(model.surfaces.size(), {});
+    out.stufen.assign(model.surfaces.size(), {});
+    for (std::size_t i = 0; i < model.surfaces.size(); ++i) {
+        if (model.surfaces[i].isTag()) { continue; }
+        out.bySurface[i] = basis;
+        out.stufen[i] = liste;
+    }
+    return out;
+}
+
 ModelTextures texturesFor(const GlmModel& model) {
     ModelTextures out;
     if (model.empty()) {
@@ -2611,54 +2738,6 @@ ModelTextures texturesFor(const GlmModel& model) {
     // gluehStufen bleibt fuer diese Flaeche leer.
     out.stufen.assign(model.surfaces.size(), {});
     int stufenFlaechen = 0;
-    // rc603: die Bildpunkte einmal je Bild (App::figurStufenBilder), nicht je
-    // Figur und Stufe kopiert - siehe ModelTextures::FigurStufe::pixel.
-    auto ladeStufenBild = [&](const std::string& bildName) -> std::shared_ptr<const TextureSet::Tex> {
-        // rc603 Durchsicht: tr.whiteImage - R_CreateBuiltinImages legt "*white"
-        // als 8x8 Bild mit allen Bytes 255 an (tr_image.cpp:1273-1276 MD,
-        // 1328 OJ). ParseStage bindet es fuer "map $whiteimage" und, an Figuren
-        // (lightmapsNone), fuer "map $lightmap" (tr_shader.cpp:1202-1220 MD,
-        // 1239-1250 OJ);
-        // R_FindImageFile("*white") findet es unter seinem Namen.
-        if (bildName == "*white") {
-            static const std::shared_ptr<const TextureSet::Tex> kWeiss = [] {
-                auto w = std::make_shared<TextureSet::Tex>();
-                w->width = 8;
-                w->height = 8;
-                w->rgba.assign(8U * 8U * 4U, 255U);
-                return std::shared_ptr<const TextureSet::Tex>(std::move(w));
-            }();
-            return kWeiss;
-        }
-        const std::string sk = image::mappingName(bildName) + "@" + std::to_string(kMaxSize);
-        if (const auto da = g_app->figurStufenBilder.find(sk); da != g_app->figurStufenBilder.end()) {
-            if (auto lebt = da->second.lock()) { return lebt; }
-        }
-        std::shared_ptr<TextureSet::Tex> neu;
-        const auto hit = g_app->texCache.find(sk);
-        if (hit != g_app->texCache.end()) {
-            if (hit->second.rgba.empty()) { return nullptr; }
-            neu = std::make_shared<TextureSet::Tex>();
-            neu->width = hit->second.width;
-            neu->height = hit->second.height;
-            neu->rgba = hit->second.rgba;
-        } else {
-            std::string data;
-            for (const std::string& kandidat : textureCandidates(bildName)) {
-                if (!readFromArchives(kandidat, data)) { continue; }
-                const image::Image im =
-                    image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
-                if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
-                TextureSet::Tex t = shrink(im, kMaxSize);
-                g_app->texCache[sk] = t;
-                neu = std::make_shared<TextureSet::Tex>(std::move(t));
-                break;
-            }
-        }
-        if (!neu) { return nullptr; }
-        g_app->figurStufenBilder[sk] = neu;
-        return neu;
-    };
     for (std::size_t i = 0; i < model.surfaces.size(); ++i) {
         const GlmSurface& s = model.surfaces[i];
         if (s.isTag()) { continue; }
@@ -2733,52 +2812,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             ++stufenFlaechen;
             continue;
         }
-        for (const FigurStufenArt& art : figurStufen(it->second)) {
-            if (art.stufe >= ersatz.stufen) { break; }   // rc604: nur die Stufen vor dem fehlenden Bild
-            const ShaderInfo::Stage& st = it->second.stages[art.stufe];
-            ModelTextures::FigurStufe fs;
-            fs.art = art;
-            fs.animFreq = st.animFreq;
-            fs.animEinmal = st.animOneShot;
-            // rc603 Durchsicht: $whiteimage/$lightmap - tr.whiteImage (siehe oben).
-            const std::vector<std::string> bilder = art.weiss                ? std::vector<std::string>{"*white"}
-                                                    : st.animImages.empty() ? std::vector<std::string>{st.image}
-                                                                            : st.animImages;
-            for (const std::string& b : bilder) {
-                std::shared_ptr<const TextureSet::Tex> px = ladeStufenBild(b);
-                if (!px) {
-                    vollstaendig = false;
-                    break;
-                }
-                TextureSet::Tex z;   // Groesse und Zustand, die Bildpunkte in fs.pixel
-                z.width = px->width;
-                z.height = px->height;
-                z.blend = st.blend;
-                z.srcFactor = st.srcFactor;
-                z.dstFactor = st.dstFactor;
-                z.alphaTest = st.alphaTest;
-                z.alphaConst = st.alphaConst;
-                z.glow = st.glow;
-                z.ausSkript = true;
-                z.rgbVertex = st.rgbVertex;
-                z.cull = it->second.cull;
-                z.depthWrite = st.depthWrite;
-                z.depthFunc = st.depthFunc;
-                // rc604 fix604b (B4): tcMod der Stufe (turb, rotate, scroll ...) -
-                // gpumap_win32.cpp packt die Kette je Bild wie bei der Karte.
-                z.numTexMods = st.numTexMods;
-                for (int k = 0; k < st.numTexMods; ++k) { z.texMods[k] = st.texMods[k]; }
-                // rc604: deformVertexes gilt fuer den ganzen Shader (RB_DeformTessGeometry
-                // vor allen Stufen) - gpumap_win32.cpp packt es je Stufe in b3.
-                z.deformWave = it->second.deformWave;
-                z.deformSpread = it->second.deformSpread;
-                z.deform2 = it->second.deform2;
-                fs.bilder.push_back(std::move(z));
-                fs.pixel.push_back(std::move(px));
-            }
-            if (!vollstaendig) { break; }
-            liste.push_back(std::move(fs));
-        }
+        vollstaendig = figurStufenListe(it->second, ersatz.stufen, liste);
         if (ersatz.stufen < it->second.stages.size()) {
             diag::detail("Figurstufen: Bild fehlt in " + key + " - " + std::to_string(ersatz.stufen) +
                          " Stufe(n) davor bleiben");
@@ -5021,7 +5055,10 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
         an.bolzen = bolzen;
         return &an;
     };
-    if (!st.waffe.empty()) {
+    // Pruefung 4b: Remove vor dem ersten Add hat Ghoul2-Modell 0 entfernt -
+    // Waffe und Griffe hingen an seinen Bolzen und fallen aus G2_Sort_Models.
+    d.ohneKoerper = st.koerperEntfernt;
+    if (!st.waffe.empty() && !st.koerperEntfernt) {
         for (std::size_t n = 0; n < 2; ++n) {
             const HandBelegung& h = st.hand[n];
             const std::string* p = pfad(h.modell);
@@ -5094,8 +5131,12 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
     // (Q3_AddRHandModel & Co., Q3_Interface.cpp:6336 ff.).
     for (const KinoModell& km : st.kino) {
         const std::string* p = pfad(km.modell);
-        if (p != nullptr) {
-            (void)neu(hiltFor(*p), km.links ? "*l_hand" : "*r_hand");
+        if (p == nullptr) {
+            continue;
+        }
+        AnbauDraw* an = neu(hiltFor(*p), km.links ? "*l_hand" : "*r_hand");
+        if (an != nullptr) {
+            an->anWurzel = km.anWurzel;
         }
     }
 }
@@ -5481,7 +5522,11 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // rc605 (Ende): blockierte Mover schaden der Figur (MoverSim::quetschungen).
     std::vector<MoverSim::Quetschung> quetsch = g_app->moverSim.quetschungen();
     const std::vector<std::string> quetschNamen = g_app->quetschFiguren;
-    if (felder.empty() && knalle.empty() && quetsch.empty()) { return aus; }
+    // Pruefung 4b: Treffer von fx_target_beam aus dem letzten Durchgang.
+    std::vector<App::StrahlTreffer> strahl;
+    if (g_app->strahlTrefferKarte == karte.path) { strahl = g_app->strahlTreffer; }
+    std::stable_sort(strahl.begin(), strahl.end(), [](const auto& x, const auto& y) { return x.ms < y.ms; });
+    if (felder.empty() && knalle.empty() && quetsch.empty() && strahl.empty()) { return aus; }
     if (!knalle.empty()) { fallenWeltBauen(); }   // die Spuren von CanDamage mit dieser Szene
     // Wer schaltet: hurt_use und target_(de)activate aus den Benutzungen.
     std::vector<const Ablauf::Benutzung*> uses;
@@ -5508,7 +5553,12 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     };
     std::vector<Figur> figuren;
     for (const Actor& a : g_app->scene.actors) {
-        if (a.brushModel > 0 || !a.haveStart || a.echterSpieler) { continue; }
+        // Pruefung 4b: der Spieler auch - ClientSpawn: health = STAT_MAX_HEALTH
+        // (100), STAT_ARMOR 0; SET_HEALTH/SET_ARMOR wie bei NPCs. Stirbt er,
+        // zeigt player_die nach 1000 ms die Missionsanzeige, und ClientThink
+        // haelt dann alle Skripte an (g_combat.cpp:4044, g_active.cpp:4862-4865
+        // OpenJK; 5102 MD; codeJK2 g_combat.cpp:3570).
+        if (a.brushModel > 0 || !a.haveStart) { continue; }
         Figur f;
         f.a = &a;
         f.gesundheit = a.gesundheitStart;
@@ -5537,8 +5587,10 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         std::stable_sort(figuren.begin(), figuren.end(), [&reiheNach](const Figur& x, const Figur& y) {
             const auto ix = reiheNach.find(x.a->name);
             const auto iy = reiheNach.find(y.a->name);
-            const int rx = ix == reiheNach.end() ? std::numeric_limits<int>::max() : ix->second;
-            const int ry = iy == reiheNach.end() ? std::numeric_limits<int>::max() : iy->second;
+            // Pruefung 4b: der Spieler beruehrt in seinem ClientThink (zwischen
+            // den Bildern) vor allen NPCs.
+            const int rx = x.a->echterSpieler ? -1 : ix == reiheNach.end() ? std::numeric_limits<int>::max() : ix->second;
+            const int ry = y.a->echterSpieler ? -1 : iy == reiheNach.end() ? std::numeric_limits<int>::max() : iy->second;
             return rx < ry;
         });
     }
@@ -5555,7 +5607,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // Ohne Rueckstoss (G_ApplyKnockback/G_CheckKnockdown) und ohne Schmerz-Reaktion.
     constexpr int kDamageRadius = 0x00000001;      // DAMAGE_RADIUS
     constexpr int kDamageNoArmor = 0x00000002;     // DAMAGE_NO_ARMOR
-    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush };
+    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush, Strahl };
     // CheckArmor (g_combat.cpp:4832-4973 OpenJK, 6020-6185 MD, codeJK2 4298-4372).
     const auto checkArmor = [&](Figur& fi, int damage, int dflags) -> int {
         const Actor& a = *fi.a;
@@ -5620,6 +5672,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::size_t ui = 0;
     std::size_t ki = 0;   // rc605 (Ende): naechste Explosion
     std::size_t qi = 0;   // rc605 (Ende): naechste Quetschung
+    std::size_t si = 0;   // Pruefung 4b: naechster Strahltreffer
     const float alle[3] = {0.0F, 0.0F, 0.0F};
     for (double t = 0.0; t <= ende; t += kBild) {
         while (ui < uses.size() && uses[ui]->ms <= t + 1e-6) {
@@ -5692,6 +5745,20 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                              std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
             }
         }
+        // Pruefung 4b: fx_target_beam_fire in diesem Bild - G_Damage(victim, ...,
+        // ent->damage, 0 bzw. DAMAGE_NO_KNOCKBACK, MOD_UNKNOWN).
+        while (si < strahl.size() && strahl[si].ms <= t + 1e-6) {
+            const App::StrahlTreffer& st = strahl[si++];
+            if (st.ms <= t - kBild + 1e-6) { continue; }
+            for (Figur& fi : figuren) {
+                if (fi.tot || fi.gesundheit <= 0 || fi.a->name != st.figur) { continue; }
+                const int vorher = fi.gesundheit;
+                gDamage(fi, st.schaden, 0, Art::Strahl, t, st.entity);
+                diag::detail("fx_target_beam #" + std::to_string(st.entity) + " trifft " + fi.a->name + " bei " +
+                             std::to_string(static_cast<long>(t)) + " ms, Lebenspunkte " + std::to_string(vorher) + " -> " +
+                             std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+            }
+        }
         // rc605 (Ende): ein Mover haelt in diesem Bild an einer Figur (G_MoverTeam vor den
         // NPCs): G_TryPushingEntity bzw. Blocked_Door -> G_Damage(..., damage, 0, MOD_CRUSH).
         while (qi < quetsch.size() && quetsch[qi].ms <= t + 1e-6) {
@@ -5737,7 +5804,8 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             for (int i = 0; i < 3; ++i) { fi.letzt[i] = st.pos[i]; }
             fi.hatLetzten = true;
             if (zurZeit(fi.noclip, t) || fi.gesundheit <= 0) { continue; }
-            const float hb = a.halbBreite;
+            // Pruefung 4b: playerMins/playerMaxs (-15 -15 -24 / 15 15 40, g_client.cpp OpenJK)
+            const float hb = a.echterSpieler ? 15.0F : a.halbBreite;
             const float mins[3] = {-hb, -hb, -24.0F};
             const float maxs[3] = {hb, hb, a.hoeheOben};
             float diff[3] = {jetzt[0] - letzt[0], jetzt[1] - letzt[1], jetzt[2] - letzt[2]};
@@ -6517,7 +6585,7 @@ void prepareScene() {
         for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
             // Mit dem Ausloeser: target_print zeigt nur, was der Spieler
             // ausloest (Use_Target_Print, activator->client).
-            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser});
+            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, b.reihe});
         }
         // rc605: die Ziele explodierender misc_trip_mine (WP_Explode ->
         // G_UseTargets) rechnet der Nachbau (ablaufWelt, AblaufWelt::
@@ -6680,6 +6748,8 @@ void prepareScene() {
         // nur an den Figuren VOR t haengt und die Figuren zur Zeit t nur an
         // den Movern bis t, ist der Stand danach genau der des Spiels.
         moverStandNeu = navMoverPlanAusSim(ende);
+        effektSpurWeltSetzen();   // Pruefung 4b: Spurtest der Effektteilchen
+        objektWuerfeSetzen();     // Pruefung 4b: misc_model_breakable mit gravity (target4)
         for (const Bruch& b : g_app->moverSim.brueche()) {
             diag::detail(b.klasse + " #" + std::to_string(b.entity) + " zerbricht bei " +
                          std::to_string(static_cast<int>(b.ms)) + " ms (Material " +
@@ -6933,7 +7003,8 @@ void prepareScene() {
     {
         static int fallenDurchgang = 0;
         // rc605 (Ende): ebenso, wenn die Explosionen (G_RadiusDamage auf Figuren) andere sind.
-        const bool knalleAnders = g_app->fallenKnalleKarte != g_app->map.path || g_app->fallenKnalleNeu != g_app->fallenKnalle;
+        const bool knalleAnders = g_app->fallenKnalleKarte != g_app->map.path || g_app->fallenKnalleNeu != g_app->fallenKnalle ||
+                                  g_app->strahlTrefferKarte != g_app->map.path || g_app->strahlTrefferNeu != g_app->strahlTreffer;
         if (g_app->fallenUsesKarte != g_app->map.path || g_app->fallenUsesNeu != g_app->fallenUses || knalleAnders) {
             const bool vorher = (g_app->fallenUsesKarte == g_app->map.path && !g_app->fallenUses.empty()) ||
                                 (g_app->fallenKnalleKarte == g_app->map.path && !g_app->fallenKnalle.empty());
@@ -6941,7 +7012,10 @@ void prepareScene() {
             g_app->fallenUsesKarte = g_app->map.path;
             g_app->fallenKnalle = g_app->fallenKnalleNeu;
             g_app->fallenKnalleKarte = g_app->map.path;
-            if ((vorher || !g_app->fallenUses.empty() || !g_app->fallenKnalle.empty()) && fallenDurchgang < 3) {
+            g_app->strahlTreffer = g_app->strahlTrefferNeu;   // Pruefung 4b
+            g_app->strahlTrefferKarte = g_app->map.path;
+            if ((vorher || !g_app->fallenUses.empty() || !g_app->fallenKnalle.empty() || !g_app->strahlTreffer.empty()) &&
+                fallenDurchgang < 3) {
                 ++fallenDurchgang;
                 diag::detail("misc_trip_mine: " + std::to_string(g_app->fallenUses.size()) +
                              " Ziele explodierter Fallen - Durchgang mit ihnen im Nachbau und in der Mover-Simulation");

@@ -620,6 +620,9 @@ struct AnbauDraw {
     // -1: kein Lichtschwert (Waffe, Kinomodell, Griff ohne Klingen).
     int saberFach = -1;
     std::array<KlingeDraw, kAnbauKlingen> klinge{};
+    // Pruefung 4b: nicht angehaengt (KinoModell::anWurzel) - steht mit den
+    // Achsen der Figur an ihrem Ursprung, nicht am Bolzen.
+    bool anWurzel = false;
 };
 
 // Eine Figur, wie sie in diesem Bild gezeichnet wird.
@@ -757,6 +760,10 @@ struct ActorDraw {
     // Q3_Interface.cpp:6343). Welche es sind, steht in anbau[0..anbauten).
     std::array<AnbauDraw, kAnbauMax> anbau{};
     int anbauten = 0;
+    // Pruefung 4b: Ghoul2-Modell 0 ist fort (ActorState::koerperEntfernt) -
+    // weder der Koerper noch, was an seinen Bolzen hing, wird gezeichnet
+    // (G2_Sort_Models, tr_ghoul2.cpp:2446-2500 OpenJK).
+    bool ohneKoerper = false;
 };
 
 // --- Der Helligkeitsfaktor gilt auch fuer Figuren ----------------------
