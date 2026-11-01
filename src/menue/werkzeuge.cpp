@@ -119,6 +119,35 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht) {
     }
 }
 
+bool feldGilt(const std::string& schluessel, int typ, int style, Spiel spiel) {
+    std::string k = schluessel;
+    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    const bool modell = typ == ITEM_TYPE_MODEL;
+    const bool liste = typ == ITEM_TYPE_LISTBOX;
+    const bool scroll = typ == ITEM_TYPE_TEXTSCROLL;
+    if (k == "text" || k == "text2" || k == "text2alignx" || k == "text2aligny") { return !modell && !liste; }
+    // Item_ListBox_Paint: Zeilen in textscale, textStyle und iMenuFont; Item_TextScroll_Paint: textalignx/y, aber keine Ausrichtung
+    if (k == "textscale" || k == "textstyle" || k == "font") { return !modell; }
+    if (k == "textalign") { return !modell && !liste && !scroll; }
+    if (k == "textalignx" || k == "textaligny") { return !modell && !liste; }
+    // Window_Paint nimmt foreColor nur bei WINDOW_STYLE_SHADER; beim Modell gibt es sonst keinen Text, der sie nutzt
+    if (k == "forecolor") { return !modell || style == WINDOW_STYLE_SHADER; }
+    if (k == "cvar") {
+        return typ == ITEM_TYPE_TEXT || scroll || typ == ITEM_TYPE_YESNO || typ == ITEM_TYPE_MULTI || typ == ITEM_TYPE_SLIDER || typ == ITEM_TYPE_EDITFIELD ||
+               typ == ITEM_TYPE_NUMERICFIELD || typ == ITEM_TYPE_RADIOBUTTON || typ == ITEM_TYPE_CHECKBOX || typ == ITEM_TYPE_BIND;
+    }
+    if (k == "asset_model" || k == "model_angle" || k == "model_rotation" || k == "model_fovx" || k == "model_fovy") { return modell; }
+    if (k == "model_origin") { return modell && spiel == Spiel::JK2; }
+    if (k == "model_g2mins" || k == "model_g2maxs" || k == "model_g2skin" || k == "model_g2anim" || k == "ischaracter" || k == "issaber" || k == "issaber2") {
+        return modell && spiel != Spiel::JK2;
+    }
+    if (k == "feeder" || k == "elementwidth" || k == "elementheight" || k == "elementtype" || k == "columns") { return liste; }
+    if (k == "lineheight") { return scroll; }
+    if (k == "ownerdraw" || k == "ownerdrawflag") { return typ == ITEM_TYPE_OWNERDRAW; }
+    if (k == "maxchars" || k == "maxpaintchars") { return typ == ITEM_TYPE_EDITFIELD || typ == ITEM_TYPE_NUMERICFIELD; }
+    return true;
+}
+
 std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Rechteck& r, const std::string& einr,
                         const std::string& nl, Spiel spiel) {
     const std::string e = einr + "\t";

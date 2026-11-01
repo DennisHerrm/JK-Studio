@@ -102,6 +102,9 @@ struct BildZeile {
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
 // rc608 Punkt 12 (Selbsttest): die Griffe des gewaehlten Modells auf dem Bildschirm (Mitte x, y; Kantenlaenge g); false = keins gewaehlt
 [[nodiscard]] bool modellGriffe(float* xy8, float* g);
+// rc608 Punkt 14 (Selbsttest): die Felder der Properties und die weiteren Eintraege im letzten Bild
+[[nodiscard]] std::vector<std::string> eigenschaftsFelder();
+[[nodiscard]] std::vector<std::string> weitereEintraege();
 // rc608 Punkt 11 (Selbsttest): Pfad statt des Dateidialogs von "Bild hinzufuegen"; Rahmen beim Ziehen
 void setzeBildDialog(std::function<std::string()> antwort);
 [[nodiscard]] bool ablageRahmen(float* xywh);

@@ -37,6 +37,7 @@
 #include "tour.h"       // rc601 tour: Tutorials im Programm (tourSicht)
 #include "hilfe.h"      // H1: der Helfer
 #include "ki.h"         // H1: KI-Anbindung (kiSicht)
+#include "bhed/menue/werkzeuge.h"
 #include "bhed/ki.h"
 #include "backend.h"
 #include "karte_gpu.h"

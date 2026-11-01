@@ -326,6 +326,10 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    std::vector<std::string> felderGezeigt;   // rc608 Punkt 14: die Felder der Properties im letzten Bild
+    std::vector<std::string> weitereEintraege;
+    std::string listenFilter;
+    std::vector<std::string> modellListe, skinListe, animListe;
     Abbildung letztesAb;   // Selbsttest: die Abbildung und der Ursprung der Flaeche im letzten Bild
     ImVec2 letztesO{0, 0};
     bool ablageAn = false, ablageWar = false;   // rc608 Punkt 11: gerade wird etwas ueber die Flaeche gezogen
@@ -897,6 +901,70 @@ void textFeld(const char* k, std::string* wert, Schreiben schreiben) {
         z.halt.bild = ImGui::GetFrameCount();
         if (!aktiv && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { haltSchreiben(); }
     }
+}
+
+// rc608 Punkte 3, 13, 14: Bausteine fuer Properties und Events. Die Beschriftung steht vorn, im schmalen Feld darueber; das Feld nimmt den Rest.
+void feldKopf(const char* label) {
+    Z().felderGezeigt.emplace_back(label);
+    const float fs = ImGui::GetFontSize();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    if (ImGui::GetContentRegionAvail().x >= fs * 16.0F) { ImGui::SameLine(fs * 7.0F); }
+    ImGui::SetNextItemWidth(-FLT_MIN);
+}
+
+// Eine Reihe beschrifteter Zahlen: bricht mit der Breite um, nichts wird abgeschnitten. Die Kennungen passen zu getipptLesen.
+bool zahlenReihe(const char* k, float* v, int n, const char* const* teile, float tempo, const char* format) {
+    static const char* const achsen[] = {"##X", "##Y", "##Z", "##W"};
+    const float fs = ImGui::GetFontSize();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    bool neu = false;
+    ImGui::PushID(k);
+    ImGui::BeginGroup();
+    const float breit = std::max(fs * 4.0F, ImGui::GetContentRegionAvail().x);
+    const float mindest = fs * 5.5F;
+    const int spalten = std::clamp(static_cast<int>((breit + st.ItemSpacing.x) / (mindest + st.ItemSpacing.x)), 1, n);
+    const float zelle = (breit - st.ItemSpacing.x * static_cast<float>(spalten - 1)) / static_cast<float>(spalten);
+    for (int i = 0; i < n; ++i) {
+        if (i % spalten != 0) { ImGui::SameLine(); }
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(teile[i]);
+        ImGui::SameLine(0, st.ItemInnerSpacing.x);
+        ImGui::SetNextItemWidth(std::max(fs * 2.0F, zelle - ImGui::CalcTextSize(teile[i]).x - st.ItemInnerSpacing.x));
+        neu |= ImGui::DragFloat(achsen[i], &v[i], tempo, 0.0F, 0.0F, format);
+    }
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return neu;
+}
+
+// Ein Eintrag aus einer Liste mit Suche (Animationen, Modelle, Skins). true = gewaehlt
+bool suchListe(const char* id, const char* knopf, std::string& filter, const std::vector<std::string>& liste, std::string& gewaehlt) {
+    bool neu = false;
+    if (ImGui::Button(knopf)) {
+        filter.clear();
+        ImGui::OpenPopup(id);
+    }
+    ImGui::SetNextWindowSizeConstraints(ImVec2{ImGui::GetFontSize() * 18.0F, 0}, ImVec2{ImGui::GetFontSize() * 30.0F, ImGui::GetFontSize() * 24.0F});
+    if (ImGui::BeginPopup(id)) {
+        if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        (void)eingabe("##suche", &filter, 0, tr(Str::MeListeSuche));
+        std::string f = filter;
+        for (char& c : f) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        for (const std::string& s : liste) {
+            std::string l = s;
+            for (char& c : l) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            if (!f.empty() && l.find(f) == std::string::npos) { continue; }
+            if (ImGui::Selectable(s.c_str())) {
+                gewaehlt = s;
+                neu = true;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::EndPopup();
+    }
+    return neu;
 }
 
 std::vector<Ersetzung> mitKopienAbgleich(const Dokument& d, std::vector<Ersetzung> e);   // M7 Punkt 3 (app_menue_m7.inc)
@@ -2693,7 +2761,19 @@ std::string utf8ZuLatin1(const char* s) {
 
 std::vector<std::string> kandidaten(const Dokument& d) {
     std::vector<std::string> k = menuSchluessel(d.datei.dialekt, d.datei.spiel);
-    for (const std::string& s : itemSchluessel(d.datei.dialekt, d.datei.spiel)) { k.push_back(s); }
+    // rc608 Punkt 14: Steht der Cursor in einem itemDef, schlaegt es nur vor, was das Spiel bei diesem Typ auswertet
+    const Item* imItem = nullptr;
+    if (!d.puffer.cursor.empty()) {
+        const std::uint32_t c = d.puffer.cursor.front().pos;
+        for (const Menu& m : d.datei.menus) {
+            for (const Item& it : m.items) {
+                if (it.kopf.datei == 0 && c >= it.anfang && c <= it.ende) { imItem = &it; }
+            }
+        }
+    }
+    for (const std::string& s : itemSchluessel(d.datei.dialekt, d.datei.spiel)) {
+        if (imItem == nullptr || feldGilt(s, imItem->type, imItem->window.style, d.datei.spiel)) { k.push_back(s); }
+    }
     for (const std::string& s : skriptBefehle()) { k.push_back(s); }
     for (int t = 0; t < 15; ++t) { k.emplace_back(typName(t)); }
     for (int t = 0; t < 6; ++t) { k.emplace_back(styleName(t)); }
@@ -5332,6 +5412,189 @@ void zeichneGliederung(Dokument& d) {
     }
 }
 
+GizmoWerte gizmoAus(const Item& it);   // app_menue_m7.inc
+
+// rc608 Punkt 14 (shank: "wo kann ich da die animation auswaehlen"): model_g2anim wirkt nur vor asset_model (ItemParse_asset_model_go),
+// darum steht die Zeile dort; mit isCharacter genuegt sie an der alten Stelle. Ein Undo-Schritt.
+void setzeModellAnim(Dokument& d, int mi, int i, const Item& it, const std::string& anim) {
+    const std::string& t = d.puffer.text();
+    const std::string wert = "\"" + anim + "\"";
+    std::vector<Ersetzung> e;
+    const auto zeile = [&](const char* schluessel, std::size_t& von, std::size_t& bis) {
+        const std::string key = schluessel;
+        std::size_t p = it.anfang;
+        while (p < it.ende && p < t.size()) {
+            std::size_t ende = t.find('\n', p);
+            if (ende == std::string::npos) { ende = t.size(); }
+            std::size_t s = p;
+            while (s < ende && (t[s] == ' ' || t[s] == '\t')) { ++s; }
+            if (s + key.size() <= ende && gleichOhneFallStr(t.substr(s, key.size()), key) && (s + key.size() == ende || std::isspace(static_cast<unsigned char>(t[s + key.size()])) != 0)) {
+                von = p;
+                bis = std::min(ende + 1, t.size());
+                return true;
+            }
+            p = ende + 1;
+        }
+        return false;
+    };
+    std::size_t av = 0, ab = 0, mv = 0, mb = 0;
+    const bool hatAnim = zeile("model_g2anim", av, ab);
+    const bool hatModell = zeile("asset_model", mv, mb);
+    const bool direkt = (it.itemFlags & ITF_ISCHARACTER) != 0 || !hatModell || (hatAnim && av < mv) || it.kopf.datei != 0;
+    if (direkt) {
+        if (setzeEigenschaft(d.datei, mi, i, "model_g2anim", {wert}, e)) { aendere(std::move(e)); }
+        else { ausMakroMelden(); }
+        return;
+    }
+    std::size_t s = mv;
+    while (s < mb && (t[s] == ' ' || t[s] == '\t')) { ++s; }
+    const std::string neueZeile = t.substr(mv, s - mv) + "model_g2anim\t\t\t" + wert + d.puffer.zeilenUmbruch();
+    if (hatAnim) { e.push_back(Ersetzung{static_cast<std::uint32_t>(av), static_cast<std::uint32_t>(ab), ""}); }
+    e.push_back(Ersetzung{static_cast<std::uint32_t>(mv), static_cast<std::uint32_t>(mv), neueZeile});
+    aendere(std::move(e));
+}
+
+void zeichneModellFelder(Dokument& d, int mi, int i, const Item& it) {
+    Zustand& z = Z();
+    ImGui::SeparatorText(tr(Str::MeModellGruppe));
+    const bool jk2 = d.datei.spiel == Spiel::JK2;
+    for (const char* k : {"model_angle", "model_rotation", "model_g2mins", "model_g2maxs"}) { z.felderGezeigt.emplace_back(k); }
+    // Modell
+    std::string modell = it.assetModel;
+    feldKopf("asset_model");
+    textFeld("##asset_model", &modell, [i](const std::string& t) { eigenschaft(i, "asset_model", {inAnf(t)}); });
+    std::string gewaehlt;
+    if (ImGui::IsPopupOpen("##modelle")) { z.modellListe = z.daten.liste("models/players/", {"/model.glm"}); }
+    if (suchListe("##modelle", tr(Str::MeModellWaehlen), z.listenFilter, z.modellListe, gewaehlt)) { eigenschaft(i, "asset_model", {inAnf(gewaehlt)}); }
+    if (!jk2) {
+        // Skin aus dem Ordner des Modells
+        std::string skin = it.g2skin;
+        feldKopf("model_g2skin");
+        textFeld("##model_g2skin", &skin, [i](const std::string& t) { eigenschaft(i, "model_g2skin", {inAnf(t)}); });
+        std::string ordner = kleinPfad(it.assetModel);
+        const std::size_t sl = ordner.rfind('/');
+        ordner = sl == std::string::npos ? std::string() : ordner.substr(0, sl + 1);
+        if (ImGui::IsPopupOpen("##skins") && !ordner.empty()) { z.skinListe = z.daten.liste(ordner, {".skin"}); }
+        if (suchListe("##skins", tr(Str::MeSkinWaehlen), z.listenFilter, z.skinListe, gewaehlt)) { eigenschaft(i, "model_g2skin", {inAnf(gewaehlt)}); }
+        // Animation: die Namen der animation.cfg des gewaehlten Modells
+        feldKopf("model_g2anim");
+        ImGui::TextDisabled("%s", it.g2anim.empty() ? tr(Str::MeModellKeineAnim) : it.g2anim.c_str());
+        if (it.g2animOhneWirkung && (it.itemFlags & ITF_ISCHARACTER) == 0 && !it.g2anim.empty()) {
+            ImGui::PushTextWrapPos(0.0F);
+            ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", tr(Str::MeModellAnimOhneWirkung));
+            ImGui::PopTextWrapPos();
+        }
+        if (ImGui::IsPopupOpen("##anims")) {
+            z.animListe.clear();
+            const auto mv = z.modelle.find(modellSchluessel(it, umgebung(d).cvar));
+            if (mv != z.modelle.end()) {
+                for (const AnimEntry& a : mv->second.modell.anims) { z.animListe.push_back(a.name); }
+            }
+            std::sort(z.animListe.begin(), z.animListe.end());
+        }
+        if (suchListe("##anims", tr(Str::MeModellAnimWaehlen), z.listenFilter, z.animListe, gewaehlt)) { setzeModellAnim(d, mi, i, it, gewaehlt); }
+    }
+    // Blickrichtung und laufende Drehung sind zwei Dinge: model_angle steht, model_rotation dreht von selbst
+    float winkel = static_cast<float>(it.angle);
+    feldKopf(tr(Str::MeModellRichtung));
+    zahlenFeld("model_angle", &winkel, 1, [&winkel] { return ImGui::DragFloat("##angle", &winkel, 1.0F, -360.0F, 720.0F, "%.0f"); },
+               [i](const std::vector<float>& w) { eigenschaft(i, "model_angle", {std::to_string(static_cast<int>(w[0]))}); });
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeModellRichtungTip)); }
+    float dreh = static_cast<float>(it.rotationSpeed);
+    feldKopf(tr(Str::MeModellDrehung));
+    zahlenFeld("model_rotation", &dreh, 1, [&dreh] { return ImGui::DragFloat("##rotation", &dreh, 1.0F, 0.0F, 500.0F, "%.0f"); },
+               [i](const std::vector<float>& w) { eigenschaft(i, "model_rotation", {std::to_string(static_cast<int>(w[0]))}); });
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeModellDrehungTip)); }
+    // Hoehe und Abstand: wie die Griffe auf der Flaeche ueber g2mins/g2maxs, denn daraus setzt das Spiel die Figur (Item_Model_Paint)
+    if (!jk2) {
+        const GizmoWerte g = gizmoAus(it);
+        float hoehe = 0.5F * (g.mins[2] + g.maxs[2]);
+        feldKopf(tr(Str::MeModellHoehe));
+        zahlenFeld("model_hoehe", &hoehe, 1, [&hoehe] { return ImGui::DragFloat("##hoehe", &hoehe, 0.5F, 0.0F, 0.0F, "%.1f"); }, [&d, mi, i, g](const std::vector<float>& w) {
+            const float halb = 0.5F * (g.maxs[2] - g.mins[2]);
+            std::vector<Ersetzung> e;
+            (void)setzeEigenschaft(d.datei, mi, i, "model_g2mins", {zahlText(g.mins[0]), zahlText(g.mins[1]), zahlText(w[0] - halb)}, e);
+            (void)setzeEigenschaft(d.datei, mi, i, "model_g2maxs", {zahlText(g.maxs[0]), zahlText(g.maxs[1]), zahlText(w[0] + halb)}, e);
+            aendere(std::move(e));
+        });
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeGizmoHoehe)); }
+        float abstand = g.maxs[2] - g.mins[2];
+        feldKopf(tr(Str::MeModellAbstand));
+        zahlenFeld("model_abstand", &abstand, 1, [&abstand] { return ImGui::DragFloat("##abstand", &abstand, 0.5F, 1.0F, 1000.0F, "%.1f"); }, [&d, mi, i, g](const std::vector<float>& w) {
+            const float mitte = 0.5F * (g.mins[2] + g.maxs[2]);
+            std::vector<Ersetzung> e;
+            (void)setzeEigenschaft(d.datei, mi, i, "model_g2mins", {zahlText(g.mins[0]), zahlText(g.mins[1]), zahlText(mitte - 0.5F * w[0])}, e);
+            (void)setzeEigenschaft(d.datei, mi, i, "model_g2maxs", {zahlText(g.maxs[0]), zahlText(g.maxs[1]), zahlText(mitte + 0.5F * w[0])}, e);
+            aendere(std::move(e));
+        });
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeGizmoAbstand)); }
+    }
+    static const char* const kFov[2] = {"x", "y"};
+    float fov[2] = {it.fovx, it.fovy};
+    z.felderGezeigt.emplace_back("model_fovx");
+    z.felderGezeigt.emplace_back("model_fovy");
+    ImGui::TextUnformatted(tr(Str::MeModellBlickwinkel));
+    zahlenFeld("model_fov", fov, 2, [&fov] { return zahlenReihe("model_fov", fov, 2, kFov, 0.5F, "%g"); }, [&d, mi, i](const std::vector<float>& w) {
+        std::vector<Ersetzung> e;
+        (void)setzeEigenschaft(d.datei, mi, i, "model_fovx", {zahlText(w[0])}, e);
+        (void)setzeEigenschaft(d.datei, mi, i, "model_fovy", {zahlText(w[1])}, e);
+        aendere(std::move(e));
+    });
+    if (!jk2) {
+        bool figur = (it.itemFlags & ITF_ISCHARACTER) != 0;
+        if (ImGui::Checkbox("isCharacter", &figur)) { eigenschaft(i, "isCharacter", {figur ? "1" : "0"}); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeModellFigurTip)); }
+        ImGui::SameLine();
+        bool saber = (it.itemFlags & ITF_ISSABER) != 0;
+        if (ImGui::Checkbox("isSaber", &saber)) { eigenschaft(i, "isSaber", {saber ? "1" : "0"}); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeModellSaberTip)); }
+        z.felderGezeigt.emplace_back("ischaracter");
+        z.felderGezeigt.emplace_back("issaber");
+    }
+}
+
+// Stehen in der Datei Schluessel, die Properties nicht zeigt (auch solche, die bei diesem Typ nichts bewirken), bleiben sie erhalten und stehen hier
+void zeichneWeitereEintraege(const Dokument& d, const Item& it) {
+    Zustand& z = Z();
+    z.weitereEintraege.clear();
+    if (it.kopf.datei != 0) { return; }
+    const std::string& t = d.puffer.text();
+    std::set<std::string> gezeigt = {"itemdef", "visible", "decoration", "name", "group", "type", "style", "rect", "text", "border", "background"};
+    for (const std::string& f : z.felderGezeigt) { gezeigt.insert(kleinPfad(f)); }
+    std::size_t p = it.anfang;
+    int tiefe = 0;
+    while (p < it.ende && p < t.size()) {
+        std::size_t ende = t.find('\n', p);
+        if (ende == std::string::npos || ende > it.ende) { ende = std::min<std::size_t>(it.ende, t.size()); }
+        std::string zeile = t.substr(p, ende - p);
+        p = ende + 1;
+        if (const std::size_t k = zeile.find("//"); k != std::string::npos) { zeile.resize(k); }
+        const std::size_t a = zeile.find_first_not_of(" \t\r");
+        if (a == std::string::npos) { continue; }
+        const int vorher = tiefe;
+        for (const char c : zeile) {
+            if (c == '{') { ++tiefe; }
+            if (c == '}') { --tiefe; }
+        }
+        if (vorher != 1 || zeile[a] == '{' || zeile[a] == '}') { continue; }
+        std::size_t e = a;
+        while (e < zeile.size() && std::isspace(static_cast<unsigned char>(zeile[e])) == 0 && zeile[e] != '{') { ++e; }
+        const std::string schluessel = zeile.substr(a, e - a);
+        if (gezeigt.count(kleinPfad(schluessel)) != 0) { continue; }
+        z.weitereEintraege.push_back(zeile.substr(a));
+    }
+    if (z.weitereEintraege.empty()) { return; }
+    ImGui::SeparatorText(tr(Str::MeWeitereEintraege));
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeWeitereEintraegeTip)); }
+    ImGui::PushTextWrapPos(0.0F);
+    for (const std::string& zeile : z.weitereEintraege) {
+        std::string s = anzeige(zeile);
+        if (!s.empty() && s.back() == '\r') { s.pop_back(); }
+        ImGui::TextDisabled("%s", s.c_str());
+    }
+    ImGui::PopTextWrapPos();
+}
+
 void zeichneEigenschaften(Dokument& d) {
     Zustand& z = Z();
     if (!ImGui::CollapsingHeader(tr(Str::MeEigenschaften), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
@@ -5387,73 +5650,114 @@ void zeichneEigenschaften(Dokument& d) {
     if (static_cast<std::size_t>(i) >= m.items.size()) { return; }
     const Item& it = m.items[static_cast<std::size_t>(i)];
     ImGui::PushID(i);
+    z.felderGezeigt.clear();
+    const auto gilt = [&](const char* k) { return feldGilt(k, it.type, it.window.style, d.datei.spiel); };
     // rc608 Punkt 5: der Text ganz oben, gut sichtbar
-    std::string text = it.text;
-    textFeld("text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
-    if (!it.text.empty() && it.text[0] == '@') {
-        // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
-        ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
+    if (gilt("text")) {
+        std::string text = it.text;
+        feldKopf("text");
+        textFeld("##text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
+        if (!it.text.empty() && it.text[0] == '@') {
+            // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
+            ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
+        }
     }
     std::string name = it.window.name;
-    textFeld("name", &name, [i](const std::string& t) {
+    feldKopf("name");
+    textFeld("##name", &name, [i](const std::string& t) {
         if (!t.empty()) { eigenschaft(i, "name", {inAnf(t)}); }
     });
     std::string gruppe = it.window.group;
-    textFeld("group", &gruppe, [i](const std::string& t) { eigenschaft(i, "group", {inAnf(t)}); });
+    feldKopf("group");
+    textFeld("##group", &gruppe, [i](const std::string& t) { eigenschaft(i, "group", {inAnf(t)}); });
     // type / style
     // rc608 (shank: "statt das er den type immer behaelt"): nur Anzeige. Die Schluessel eines Typs gelten beim
     // anderen nicht, und das Spiel verwirft dann das ganze Menue.
     std::string typText = typName(it.type);
+    feldKopf("type");
     ImGui::BeginDisabled();
-    ImGui::InputText("type", typText.data(), typText.size() + 1, ImGuiInputTextFlags_ReadOnly);
+    ImGui::InputText("##type", typText.data(), typText.size() + 1, ImGuiInputTextFlags_ReadOnly);
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MeTypFestTip)); }
     const int sty = std::clamp(it.window.style, 0, 5);
-    if (ImGui::BeginCombo("style", styleName(sty))) {
+    feldKopf("style");
+    if (ImGui::BeginCombo("##style", styleName(sty))) {
         for (int t = 0; t < 6; ++t) {
             if (ImGui::Selectable(styleName(t), t == sty)) { eigenschaft(i, "style", {konstante(d.datei, styleName(t), t)}); }
         }
         ImGui::EndCombo();
     }
+    static const char* const kRect[4] = {"x", "y", "w", "h"};
     float r[4] = {it.window.rectClient.x, it.window.rectClient.y, it.window.rectClient.w, it.window.rectClient.h};
-    zahlenFeld("rect", r, 4, [&r] { return ImGui::DragFloat4("rect", r, 1.0F); },
+    z.felderGezeigt.emplace_back("rect");
+    ImGui::TextUnformatted("rect");
+    zahlenFeld("rect", r, 4, [&r] { return zahlenReihe("rect", r, 4, kRect, 1.0F, "%g"); },
                [i](const std::vector<float>& w) { setzeRects({{i, Rechteck{w[0], w[1], w[2], w[3]}}}); });
-    float ts = it.textscale;
-    zahlenFeld("textscale", &ts, 1, [&ts] { return ImGui::DragFloat("textscale", &ts, 0.01F, 0.05F, 4.0F); },
-               [i](const std::vector<float>& w) { eigenschaft(i, "textscale", {zahlText(w[0])}); });
-    float ta[2] = {it.textalignx, it.textaligny};
-    zahlenFeld("textalignx/y", ta, 2, [&ta] { return ImGui::DragFloat2("textalignx/y", ta, 1.0F); }, [&d, mi, i](const std::vector<float>& w) {
-        std::vector<Ersetzung> e;
-        (void)setzeEigenschaft(d.datei, mi, i, "textalignx", {zahlText(w[0])}, e);
-        (void)setzeEigenschaft(d.datei, mi, i, "textaligny", {zahlText(w[1])}, e);
-        aendere(std::move(e));
-    });
-    static const char* const ausr[] = {"ITEM_ALIGN_LEFT", "ITEM_ALIGN_CENTER", "ITEM_ALIGN_RIGHT"};
-    if (ImGui::BeginCombo("textalign", ausr[std::clamp(it.textalignment, 0, 2)])) {
-        for (int t = 0; t < 3; ++t) {
-            if (ImGui::Selectable(ausr[t], t == it.textalignment)) { eigenschaft(i, "textalign", {konstante(d.datei, ausr[t], t)}); }
+    if (gilt("textscale")) {
+        float ts = it.textscale;
+        feldKopf("textscale");
+        zahlenFeld("textscale", &ts, 1, [&ts] { return ImGui::DragFloat("##textscale", &ts, 0.01F, 0.05F, 4.0F); },
+                   [i](const std::vector<float>& w) { eigenschaft(i, "textscale", {zahlText(w[0])}); });
+    }
+    if (gilt("textalignx")) {
+        static const char* const kAlign[2] = {"x", "y"};
+        float ta[2] = {it.textalignx, it.textaligny};
+        z.felderGezeigt.emplace_back("textalignx");
+        z.felderGezeigt.emplace_back("textaligny");
+        ImGui::TextUnformatted("textalignx, textaligny");
+        zahlenFeld("textalignx/y", ta, 2, [&ta] { return zahlenReihe("textalignx/y", ta, 2, kAlign, 1.0F, "%g"); }, [&d, mi, i](const std::vector<float>& w) {
+            std::vector<Ersetzung> e;
+            (void)setzeEigenschaft(d.datei, mi, i, "textalignx", {zahlText(w[0])}, e);
+            (void)setzeEigenschaft(d.datei, mi, i, "textaligny", {zahlText(w[1])}, e);
+            aendere(std::move(e));
+        });
+    }
+    if (gilt("textalign")) {
+        static const char* const ausr[] = {"ITEM_ALIGN_LEFT", "ITEM_ALIGN_CENTER", "ITEM_ALIGN_RIGHT"};
+        feldKopf("textalign");
+        if (ImGui::BeginCombo("##textalign", ausr[std::clamp(it.textalignment, 0, 2)])) {
+            for (int t = 0; t < 3; ++t) {
+                if (ImGui::Selectable(ausr[t], t == it.textalignment)) { eigenschaft(i, "textalign", {konstante(d.datei, ausr[t], t)}); }
+            }
+            ImGui::EndCombo();
         }
-        ImGui::EndCombo();
     }
     auto farbe = [&](const char* k, const Farbe& f) {
+        static const char* const kRgba[4] = {"R", "G", "B", "A"};
         float c[4] = {f.r, f.g, f.b, f.a};
-        zahlenFeld(k, c, 4, [&c, k] { return ImGui::ColorEdit4(k, c, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaBar); },
-                   [i, k](const std::vector<float>& w) { eigenschaft(i, k, {farbText(Farbe{w[0], w[1], w[2], w[3]})}); });
+        z.felderGezeigt.emplace_back(k);
+        ImGui::TextUnformatted(k);
+        zahlenFeld(k, c, 4, [&c, k] {
+            ImGui::BeginGroup();
+            ImGui::PushID(k);
+            bool neu = ImGui::ColorEdit4("##bild", c, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+            ImGui::PopID();
+            ImGui::SameLine();
+            neu |= zahlenReihe(k, c, 4, kRgba, 0.01F, "%.2f");
+            ImGui::EndGroup();
+            return neu;
+        }, [i, k](const std::vector<float>& w) { eigenschaft(i, k, {farbText(Farbe{w[0], w[1], w[2], w[3]})}); });
     };
-    farbe("forecolor", it.window.foreColor);
+    if (gilt("forecolor")) { farbe("forecolor", it.window.foreColor); }
     farbe("backcolor", it.window.backColor);
     farbe("bordercolor", it.window.borderColor);
     float border = static_cast<float>(it.window.border);
+    feldKopf("border");
     zahlenFeld("border", &border, 1, [&border] {
         int b = static_cast<int>(border);
-        const bool neu = ImGui::InputInt("border", &b, 1, 1);
+        const bool neu = ImGui::InputInt("##border", &b, 1, 1);
         border = static_cast<float>(b);
         return neu;
     }, [i](const std::vector<float>& w) { eigenschaft(i, "border", {std::to_string(static_cast<int>(w[0]))}); });
     std::string bg = it.window.background;
-    textFeld("background", &bg, [i](const std::string& t) { eigenschaft(i, "background", {inAnf(t)}); });
-    std::string cvar = it.cvar;
-    textFeld("cvar", &cvar, [i](const std::string& t) { eigenschaft(i, "cvar", {inAnf(t)}); });
+    feldKopf("background");
+    textFeld("##background", &bg, [i](const std::string& t) { eigenschaft(i, "background", {inAnf(t)}); });
+    if (gilt("cvar")) {
+        std::string cvar = it.cvar;
+        feldKopf("cvar");
+        textFeld("##cvar", &cvar, [i](const std::string& t) { eigenschaft(i, "cvar", {inAnf(t)}); });
+    }
+    if (it.type == ITEM_TYPE_MODEL) { zeichneModellFelder(d, mi, i, it); }
     bool sichtbar = (it.window.flags & WINDOW_VISIBLE) != 0;
     if (ImGui::Checkbox("visible", &sichtbar)) { eigenschaft(i, "visible", {sichtbar ? "1" : "0"}); }
     bool gesperrt = d.gesperrt.count(i) != 0;
@@ -5483,7 +5787,7 @@ void zeichneEigenschaften(Dokument& d) {
         return;
     }
     if (!it.action.empty()) { ImGui::TextWrapped("action: %s", anzeige(it.action).c_str()); }
-    (void)z;
+    zeichneWeitereEintraege(d, it);
     ImGui::PopID();
 }
 
@@ -6312,6 +6616,9 @@ bool modellGriffe(float* xy8, float* g) {
     *g = gizmoGroesse();
     return true;
 }
+
+std::vector<std::string> eigenschaftsFelder() { return Z().felderGezeigt; }
+std::vector<std::string> weitereEintraege() { return Z().weitereEintraege; }
 
 void setzeBildDialog(std::function<std::string()> antwort) { Z().bildDialog = std::move(antwort); }
 bool ablageRahmen(float* xywh) {

@@ -1857,9 +1857,10 @@ std::vector<Schritt> schritteBleiben() {
 
 // Lage des rect-Feldes in Properties: die Zeile ueber "text"
 ImVec2 rectFeldStelle(float anteil) {
-    const Element* e = finde("text", "", 0, false);
+    (void)anteil;
+    const Element* e = finde("##X", "##inhalt", 0, false);   // rc608: Das erste Zahlenfeld in Properties ist x von rect
     if (e == nullptr) { return ImVec2{-1.0F, -1.0F}; }
-    return ImVec2{e->rect.Min.x + e->rect.GetWidth() * anteil, e->rect.Min.y - ImGui::GetStyle().ItemSpacing.y - ImGui::GetFrameHeight() * 0.5F};
+    return e->rect.GetCenter();
 }
 
 // rc608 (Tester): Felder in Properties: Tippen und daneben klicken, rect mit der Maus ziehen
@@ -1917,7 +1918,7 @@ std::vector<Schritt> schritteFelder() {
         const char* neu;
         bool anfuehrung;
     };
-    static const Feld felder[] = {{"name", "name", "anders", true}, {"group", "group", "gruppe2", true}, {"text", "text", "Hallo", true}, {"cvar", "cvar", "ui_probe", true}};
+    static const Feld felder[] = {{"name", "name", "anders", true}, {"group", "group", "gruppe2", true}, {"text", "text", "Hallo", true}, {"background", "background", "gfx/neu", true}};
     for (const Feld& f : felder) {
         const std::string l = f.label;
         const std::string n = f.neu;
@@ -1927,7 +1928,7 @@ std::vector<Schritt> schritteFelder() {
             me::setzeReiter(2);
         }));
         add(pause(0.3));
-        add(klick(l));
+        add(klick("##" + l));
         add(pause(0.2));
         add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
         add(tippe(n));
@@ -1970,6 +1971,10 @@ ImVec2 zeileVon(const std::string& name) {
 // Eine leere Stelle im rechten Panel, zum Fokussieren wie ein Klick dorthin
 ImVec2 leerImPanel() {
     const auto x = me::stand();
+    // rc608: In Properties steht unten jetzt ein Knopf (das Feld ist voller); die Beschriftung "name" ist immer frei
+    if (me::reiter() == 2) {
+        if (const Element* n = finde("##name", "##inhalt", 0, false)) { return ImVec2{n->rect.Min.x - ImGui::GetFontSize() * 2.0F, n->rect.GetCenter().y}; }
+    }
     const Element* e = finde(tr(Str::MeReiterHierarchie), "", 0, false);
     return e != nullptr ? ImVec2{e->rect.Min.x + ImGui::GetFontSize(), x.flaeche[1] + x.flaeche[3] - ImGui::GetFontSize()} : ImVec2{-1.0F, -1.0F};
 }
@@ -1998,7 +2003,12 @@ std::vector<Schritt> schritteUndo() {
              zurFlaeche(l);
              l.push_back(taste(ImGuiKey_RightArrow, std::string("Pfeil rechts")));
          }},
-        {"Widget einfuegen", [](Liste& l) { l.push_back(klick(tr(Str::MeWButton))); }},
+        {"Widget einfuegen", [](Liste& l) {
+             l.push_back(klickAn("Doppelklick auf das Widget", [] {   // rc608 Punkt 11: ein einfacher Klick setzt nichts mehr ein
+                 const Element* e = finde(tr(Str::MeWButton), "##links", 0, false);
+                 return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+             }, 0, true));
+         }},
         {"Bibliothek einfuegen", [](Liste& l) { l.push_back(tu("Vorlage einfuegen", [] { (void)me::fuegeVorlageEin("detail", 20, 40); })); }},
         {"Loeschen", [=](Liste& l) {
              zurFlaeche(l);
@@ -2016,7 +2026,7 @@ std::vector<Schritt> schritteUndo() {
              l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
          }},
         {"Properties name", [](Liste& l) {
-             l.push_back(klick("name"));
+             l.push_back(klick("##name"));
              l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
              l.push_back(tippe("umbenannt"));
              l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
@@ -2244,11 +2254,11 @@ std::vector<Schritt> schritteTyp() {
         add(foto("menue_typ_" + dialekt));
         add(pruefe("rc608 Typ " + dialekt + ": die Probe liest sich ohne Abbruch", [] { return me::stand().abbruchZeile == 0 && me::itemLagen().size() == 3U; }));
         add(pruefe("rc608 Typ " + dialekt + ": type ist nur Anzeige, keine Auswahl", [] {
-            const Element* e = finde("type", "", 0, false);
+            const Element* e = finde("##type", "", 0, false);
             return e != nullptr && (e->flags & ImGuiItemStatusFlags_Openable) == 0;
         }));
         add(klickAn("rc608 Typ " + dialekt + ": auf das Feld type", [] {
-            const Element* e = finde("type", "", 0, false);
+            const Element* e = finde("##type", "", 0, false);
             return e != nullptr ? e->rect.GetCenter() : ImVec2{-1.0F, -1.0F};
         }));
         add(pause(0.2));
@@ -2690,6 +2700,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=modell: Modell einfuegen und drehen (rc608 Punkt 12)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "modell") == 0) {
         for (auto& x : schritteModell()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=felder: Properties je Typ, Animation waehlen (rc608 Punkt 14)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "felder") == 0) {
+        for (auto& x : schritteFelderJeTyp()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

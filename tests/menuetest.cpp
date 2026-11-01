@@ -11,6 +11,7 @@
 //     die Zahlen (Kommentare bleiben); fehlendes rect wird eingefuegt;
 //     rect aus einem Makro wird nicht angefasst.
 //   - @MENUS-Texte aus .str und .sp.
+#include "bhed/menue/werkzeuge.h"
 #include "bhed/menue/kodierung.h"
 #include "bhed/menue/menue.h"
 #include "bhed/menue/vorschau.h"
@@ -60,8 +61,28 @@ void g2animReihenfolge() {
     pruefe(wirkungslos(davor, Dialekt::MP, Spiel::JA), "OpenJK-MP: g2anim allein spielt nie");
 }
 
+// rc608 Punkt 14: die Tabelle Typ gegen Felder (NOTIZEN_rc608.md), gegen ui_shared SP und MP
+void felderJeTyp() {
+    struct Z { const char* k; int typ; int style; bool soll; };
+    static const Z kZeilen[] = {
+        {"text", ITEM_TYPE_MODEL, 0, false},       {"textalign", ITEM_TYPE_MODEL, 0, false},  {"textscale", ITEM_TYPE_MODEL, 0, false},
+        {"forecolor", ITEM_TYPE_MODEL, 0, false},  {"forecolor", ITEM_TYPE_MODEL, WINDOW_STYLE_SHADER, true},
+        {"cvar", ITEM_TYPE_MODEL, 0, false},       {"asset_model", ITEM_TYPE_MODEL, 0, true},  {"model_g2anim", ITEM_TYPE_MODEL, 0, true},
+        {"text", ITEM_TYPE_LISTBOX, 0, false},     {"textscale", ITEM_TYPE_LISTBOX, 0, true}, {"textalign", ITEM_TYPE_LISTBOX, 0, false},
+        {"feeder", ITEM_TYPE_LISTBOX, 0, true},    {"feeder", ITEM_TYPE_BUTTON, 0, false},
+        {"textalign", ITEM_TYPE_TEXTSCROLL, 0, false}, {"textalignx", ITEM_TYPE_TEXTSCROLL, 0, true}, {"lineHeight", ITEM_TYPE_TEXTSCROLL, 0, true},
+        {"text", ITEM_TYPE_BUTTON, 0, true},       {"cvar", ITEM_TYPE_BUTTON, 0, false},      {"cvar", ITEM_TYPE_YESNO, 0, true},
+        {"cvar", ITEM_TYPE_TEXT, 0, true},         {"maxchars", ITEM_TYPE_EDITFIELD, 0, true}, {"maxchars", ITEM_TYPE_TEXT, 0, false},
+        {"asset_model", ITEM_TYPE_BUTTON, 0, false}, {"name", ITEM_TYPE_MODEL, 0, true},      {"backcolor", ITEM_TYPE_MODEL, 0, true},
+    };
+    for (const Z& z : kZeilen) { pruefe(feldGilt(z.k, z.typ, z.style, Spiel::JA) == z.soll, std::string("Felder: ") + z.k + " bei Typ " + std::to_string(z.typ)); }
+    pruefe(!feldGilt("model_g2anim", ITEM_TYPE_MODEL, 0, Spiel::JK2), "Felder: JK2 kennt kein model_g2anim");
+    pruefe(feldGilt("model_origin", ITEM_TYPE_MODEL, 0, Spiel::JK2) && !feldGilt("model_origin", ITEM_TYPE_MODEL, 0, Spiel::MD), "Felder: model_origin nur JK2");
+}
+
 int main() {
     g2animReihenfolge();
+    felderJeTyp();
     // --- SP ------------------------------------------------------------------
     const std::string sp =
         "// Kopf\r\n"

@@ -41,6 +41,10 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht);
 [[nodiscard]] std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Rechteck& r,
                                       const std::string& einr, const std::string& nl, Spiel spiel = Spiel::JA);   // rc608: spiel entscheidet, was ein neues Modell zeigt
 
+// rc608 Punkt 14: Wertet das Spiel diesen Schluessel bei diesem Elementtyp aus? (ui_shared SP und MP; JK2 kennt kein Ghoul2 im Menue.)
+// Tabelle in docs/intern/NOTIZEN_rc608.md. Gemeinsames (name, group, rect, style, visible, background, Farben der Flaeche) gilt immer.
+[[nodiscard]] bool feldGilt(const std::string& schluessel, int typ, int style, Spiel spiel);
+
 // Ein neues Item am Ende des Menues (vor dessen schliessender }).
 [[nodiscard]] bool itemEinfuegen(const Datei& d, int menu, const std::string& itemText, std::vector<Ersetzung>& out);
 // Item-Block samt Einrueckung und Zeilenende entfernen.

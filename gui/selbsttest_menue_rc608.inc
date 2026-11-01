@@ -952,6 +952,91 @@ std::vector<Schritt> schritteModell() {
     return s;
 }
 
+// rc608 Punkt 14 (shank: "ich hab auch in dem Model Text allignemt dabei"): je Typ nur, was das Spiel auswertet
+std::vector<Schritt> schritteFelderJeTyp() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("rc608 Felder: Probe", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        std::string t = "menuDef\n{\n  name \"felder\"\n  rect 0 0 640 480\n  visible 1\n";
+        for (int typ = 0; typ < 15; ++typ) {
+            t += "  itemDef\n  {\n    name \"e" + std::to_string(typ) + "\"\n    type " + std::string(bhed::menue::typName(typ)) + "\n    rect 10 10 100 30\n    textalign ITEM_ALIGN_CENTER\n    visible 1\n  }\n";
+        }
+        t += "}\n";
+        (void)me::oeffneText("ui/felder.menu", t);
+        me::setzeReiter(2);
+    }));
+    add(pause(0.4));
+    for (int typ = 0; typ < 15; ++typ) {
+        const std::string name = "e" + std::to_string(typ);
+        add(tu("rc608 Felder: " + name + " waehlen", [name] { me::waehle(me::itemNummer(name), false); }));
+        add(pause(0.15));
+        add(pruefe("rc608 Felder: " + std::string(bhed::menue::typName(typ)) + " zeigt, was gilt", [typ, name] {
+            const std::vector<std::string> f = me::eigenschaftsFelder();
+            const auto hat = [&](const char* k) { return std::find(f.begin(), f.end(), k) != f.end(); };
+            bool gut = true;
+            for (const char* k : {"text", "textscale", "textalignx", "textalign", "forecolor", "cvar", "asset_model"}) {
+                const bool soll = bhed::menue::feldGilt(k, typ, 0, me::stand().spiel == 1 ? bhed::menue::Spiel::JK2 : me::stand().spiel == 2 ? bhed::menue::Spiel::MD : bhed::menue::Spiel::JA);
+                if (hat(k) != soll) {
+                    diag::info("Knopftest: Felder " + name + ": " + k + (soll ? " fehlt" : " zu viel"));
+                    gut = false;
+                }
+            }
+            // textalign steht in der Datei: gilt er nicht, erscheint er unten statt zu verschwinden
+            const std::vector<std::string> w = me::weitereEintraege();
+            const bool unten = std::any_of(w.begin(), w.end(), [](const std::string& z) { return z.rfind("textalign", 0) == 0; });
+            return gut && unten == !hat("textalign");
+        }));
+    }
+    add(tu("rc608 Felder: Modell", [] { me::waehle(me::itemNummer("e7"), false); }));
+    add(pause(0.2));
+    add(foto("menue_properties_modell_ohne_text"));
+    // Animation aus der Liste mit Suche, die Zeile kommt vor asset_model
+    add(tu("rc608 Felder: ein richtiges Modell", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/anim.menu", "menuDef\n{\n  name \"anim\"\n  rect 0 0 640 480\n  visible 1\n"
+                                             "  itemDef\n  {\n    name \"figur\"\n    type ITEM_TYPE_MODEL\n    rect 200 100 200 225\n    asset_model \"models/players/kyle/model.glm\"\n    model_g2skin \"models/players/kyle/model_default.skin\"\n    model_angle 180\n    model_g2anim \"BOTH_WALK1\"\n    visible 1\n  }\n}\n");
+        me::setzeInteraktion(false);
+        me::waehle(0, false);
+        me::setzeReiter(2);
+    }));
+    add(pause(1.5));
+    add(foto("menue_properties_modell"));
+    add(pruefe("rc608 Felder: die Warnung nennt die Reihenfolge", [] { return me::stand().text.find("model_g2anim") > me::stand().text.find("asset_model"); }));
+    auto tiefe = std::make_shared<int>(0);
+    add(tu("rc608 Felder: Undo-Tiefe merken", [tiefe] { *tiefe = me::stand().undoSchritte; }));
+    add(klick(tr(Str::MeModellAnimWaehlen)));
+    add(pause(0.3));
+    add(foto("menue_properties_animliste"));
+    add(tippe("BOTH_STAND1"));
+    add(pause(0.3));
+    add(klick("BOTH_STAND1"));
+    add(pause(1.0));
+    add(pruefe("rc608 Felder: Animation gewaehlt: Zeile vor asset_model, ein Undo-Schritt", [tiefe] {
+        const auto x = me::stand();
+        const std::size_t a = x.text.find("BOTH_STAND1"), m = x.text.find("asset_model");
+        diag::info("Knopftest: Anim an " + std::to_string(a) + ", Modell an " + std::to_string(m) + ", Undo " + std::to_string(x.undoSchritte - *tiefe));
+        return a != std::string::npos && a < m && x.text.find("BOTH_WALK1") == std::string::npos && x.undoSchritte == *tiefe + 1;
+    }));
+    add(foto("menue_properties_anim_gewaehlt"));
+    add(pruefe("rc608 Felder: was die Modell-Gruppe zeigt, steht nicht doppelt unten; keine doppelten Kennungen", [] {
+        const std::vector<std::string> w = me::weitereEintraege();
+        for (const std::string& z : w) { diag::info("Knopftest: weiter unten: " + z); }
+        for (const elemente::IdKonflikt& k : elemente::idKonflikte()) { diag::info("Knopftest: doppelte Kennung in " + k.fenster + " bei " + std::to_string(k.rect.Min.x) + ", " + std::to_string(k.rect.Min.y)); }
+        return std::none_of(w.begin(), w.end(), [](const std::string& z) { return z.rfind("model_", 0) == 0 || z.rfind("asset_", 0) == 0; }) && elemente::idKonflikte().empty();
+    }));
+    add(tu("rc608 Felder: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.3));
+    add(pruefe("rc608 Felder: Rueckgaengig stellt die alte Zeile her", [] { return me::stand().text.find("BOTH_WALK1") != std::string::npos && me::stand().text.find("BOTH_STAND1") == std::string::npos; }));
+    add(tu("rc608 Felder: aufraeumen", [] {
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;
