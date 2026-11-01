@@ -1,6 +1,6 @@
 // spieldaten.h - Menue-Editor M1: Dateien aus den Spielordnern lesen (nur
-// lesen) - pk3 in der Reihenfolge der Engine, spaetere gewinnen, lose
-// Dateien im Ordner vor den Archiven desselben Ordners.
+// lesen) - in der Reihenfolge der Engine (FS_AddGameDirectory): spaetere pk3 gewinnen, die pk3 eines Ordners
+// vor seinen losen Dateien (fs_dirbeforepak ist ab Werk 0), spaetere Ordner vor frueheren.
 //
 // Eigener Code.
 #ifndef BHED_MENUE_SPIELDATEN_H
@@ -27,6 +27,9 @@ struct Spieldaten {
     // ohne Doppelte, Pfad wie im Archiv mit der hoechsten Prioritaet.
     [[nodiscard]] std::vector<std::string> liste(const std::string& praefix,
                                                  const std::vector<std::string>& endungen) const;
+    // Wie liste, aber in der Suchreihenfolge des Spiels (FS_ListFiles: hoechster Rang zuerst), nicht sortiert.
+    [[nodiscard]] std::vector<std::string> listeWieSpiel(const std::string& praefix,
+                                                         const std::vector<std::string>& endungen) const;
     // Lader fuer menue::lies (#include, menudef.h).
     [[nodiscard]] Lader lader() const;
 };

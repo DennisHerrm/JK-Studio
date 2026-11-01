@@ -1002,6 +1002,12 @@ bool Laufzeit::uiSkript(int menu, const std::string& name) {
         // jk2mp (ui.qvm) legt ui_about_gametype dabei an; ohne ihn gelten die "hideCvar 0; 1 ..."-Elemente als sichtbar
         if (d->spiel == Spiel::JK2 && cvar("ui_about_gametype").empty()) { setzeCvar("ui_about_gametype", "0"); }
     }
+    else if (name == "initallocforcepower" && d->dialekt == Dialekt::SP) {
+        // UI_InitAllocForcePowers -> UI_ForcePowerWeaponsButton(qfalse): ohne Partie sind keine Kraefte verteilt
+        const int i = itemNamens("weaponbutton");
+        if (i >= 0) { items[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)].flags |= WINDOW_INACTIVE; }
+        ++version;
+    }
     else if (name == "getvideosetup") {
         // UI_GetVideoSetup (code/ui/ui_main.cpp, codemp/ui/ui_main.c): die Setup-Seiten zeigen Kopien der r_-Cvars.
         // rc608: fehlte; in Jedi Outcast stand darum "High Quality" und "Off" statt "Custom" und "On".

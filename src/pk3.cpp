@@ -295,6 +295,28 @@ bool scanGamePath(const std::string& directory, GamePath& out) {
     return !out.archives.empty();
 }
 
+std::vector<std::string> spielordnerMitBase(const std::vector<std::string>& ordner) {
+    const auto schluessel = [](const std::string& p) {
+        std::string k = lower(fs::path(p).lexically_normal().generic_string());
+        while (!k.empty() && k.back() == '/') { k.pop_back(); }
+        return k;
+    };
+    std::vector<std::string> davor;
+    for (const std::string& o : ordner) {
+        fs::path p = fs::path(o).lexically_normal();
+        if (!p.has_filename()) { p = p.parent_path(); }
+        if (lower(p.filename().string()) == "base") { continue; }
+        const fs::path b = p.parent_path() / "base";
+        std::error_code ec;
+        if (!fs::is_directory(b, ec)) { continue; }
+        const std::string k = schluessel(b.string());
+        const auto gleich = [&](const std::string& x) { return schluessel(x) == k; };
+        if (std::none_of(ordner.begin(), ordner.end(), gleich) && std::none_of(davor.begin(), davor.end(), gleich)) { davor.push_back(b.string()); }
+    }
+    davor.insert(davor.end(), ordner.begin(), ordner.end());
+    return davor;
+}
+
 std::vector<FoundFile> findByExtension(const GamePath& path,
                                        const std::vector<std::string>& extensions) {
     std::vector<FoundFile> out;

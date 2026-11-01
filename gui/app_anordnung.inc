@@ -584,7 +584,7 @@ bool findSoundData(const std::string& name, std::string& out) {
         }
         // Auch ausgepackt neben dem Spielordner nachsehen (rc603: den
         // geltenden - auch denen dieser Sitzung).
-        for (const std::string& dir : aktiveSpielordner()) {
+        for (const std::string& dir : spielordnerMitBase(aktiveSpielordner())) {
             const std::string p = dir + "/" + t;
             std::ifstream f(p, std::ios::binary);
             if (f) {

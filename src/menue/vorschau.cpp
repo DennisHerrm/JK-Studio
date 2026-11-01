@@ -282,6 +282,7 @@ private:
                 c = m_.disableColor;
             }
         }
+        if (u_.dialekt == Dialekt::SP && (flags & WINDOW_INACTIVE) != 0) { c = Farbe{0.5F, 0.5F, 0.5F, 1.0F}; }   // greyColor
         return c;
     }
 

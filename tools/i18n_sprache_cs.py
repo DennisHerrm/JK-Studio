@@ -2962,6 +2962,7 @@ TEXTE = {
     "MeMenuVerworfen": "Hra by celé toto menu zahodila: přestane číst na řádku %d. Náhled čte dál, abyste mohli pokračovat v práci.",
     "MeZurZeile": "Přejít na řádek",
     "CliUnbekannt": "Neznámý přepínač: %s\nJK Studio se neotevřelo. Zná --version a --mcp. Chcete-li otevřít soubor s takovým názvem, napište jeho cestu, například .\\%s",
+    "PrefsBaseImmer": "Čte se také, stejně jako ve hře: %s",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

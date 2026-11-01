@@ -50,4 +50,10 @@ RC608 = [
      "Öffnet die Seite zum Menü-Editor im Handbuch.",
      "打开手册中关于菜单编辑器的页面。",
      "マニュアルのメニューエディターのページを開きます。"),
+    # Punkt 15: base wird immer mitgelesen
+    ("PrefsBaseImmer",
+     "Also read, like in the game: %s",
+     "Wird wie im Spiel mitgelesen: %s",
+     "也会像游戏中一样读取:%s",
+     "ゲームと同様に一緒に読み込みます: %s"),
 ]

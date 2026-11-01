@@ -2605,6 +2605,8 @@ std::vector<Schritt> schritteM6() {
     return s;
 }
 
+#include "selbsttest_menue_rc608.inc"   // rc608 Teil 2
+
 std::vector<Schritt> schritte() {
     if (std::getenv("BHED_MENUE_VERGLEICH") != nullptr) { return vergleichSchritte(); }
     // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = Kurzname aus tools/sprachen.py
@@ -2651,6 +2653,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=m5b: nur die Schritte von M5b
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
         for (auto& x : schritteM5b()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=shader: Bilder und Shader wie im Spiel (rc608 Punkt 15)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "shader") == 0) {
+        for (auto& x : schritteShader()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

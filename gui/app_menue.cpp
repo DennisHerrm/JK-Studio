@@ -612,6 +612,7 @@ void schriftNamenLaden() {
 }
 
 void shaderLaden();
+bool bildRegistriert(const std::string& s);
 const Textur* textur(const std::string& shaderName) {
     Zustand& z = Z();
     if (shaderName.empty()) { return nullptr; }
@@ -1063,15 +1064,7 @@ Umgebung umgebung(const Dokument& d) {
     u.bindung = [tb = &z.tasten[ti], dl = d.datei.dialekt, sp = z.spiel, tx = u.texte](const std::string& befehl) {
         return bindungsText(*tb, befehl, dl, sp, [tx](const std::string& key) { return tx != nullptr ? tx->imSpiel("@" + key) : std::string(); });
     };
-    // M5: fehlende Bilder wie RE_RegisterShaderNoMip (Griff 0): Bild ladbar oder Shaderskript mit Stufen
-    u.bildDa = [](const std::string& s) {
-        if (textur(s) != nullptr) { return true; }
-        std::string key = kleinPfad(s);
-        const std::size_t punkt = key.rfind('.');
-        if (punkt != std::string::npos && punkt + 5 >= key.size() && key.find('/', punkt) == std::string::npos) { key = key.substr(0, punkt); }
-        const auto it = Z().shader.find(key);
-        return it != Z().shader.end() && !it->second.stages.empty();
-    };
+    u.bildDa = [](const std::string& s) { return bildRegistriert(s); };
     u.zeitMs = static_cast<int>(ImGui::GetTime() * 1000.0);
     u.alleItems = z.alleItems && !z.interaktion;
     // M3: Schrift wie se_language; Glyphenseiten da (AsianGlyphsAvailable: Seite 0 laedt)
@@ -1195,6 +1188,26 @@ const Textur* stufenBild(const std::string& name) {
         break;
     }
     return t.tex != nullptr ? &t : nullptr;
+}
+
+// M5, rc608: wie RE_RegisterShaderNoMip (0 = Griff 0, der "<default>"-Kasten): Shaderskript vor Bild, *white ist eingebaut.
+// Findet eine Stufe ihr Bild nicht, verwirft ParseStage den ganzen Shader, auch wenn die uebrigen Stufen da waeren.
+bool bildRegistriert(const std::string& s) {
+    Zustand& z = Z();
+    if (s == "*white") { return true; }
+    const Textur* t = textur(s);   // laedt auch die Shaderskripte
+    std::string key = kleinPfad(s);
+    const std::size_t punkt = key.rfind('.');
+    if (punkt != std::string::npos && punkt + 5 >= key.size() && key.find('/', punkt) == std::string::npos) { key = key.substr(0, punkt); }
+    const auto it = z.shader.find(key);
+    if (it == z.shader.end() || it->second.stages.empty()) { return t != nullptr; }
+    for (const ShaderInfo::Stage& st : it->second.stages) {
+        if (!st.image.empty() && stufenBild(st.image) == nullptr) { return false; }
+        for (const std::string& a : st.animImages) {
+            if (stufenBild(a) == nullptr) { return false; }
+        }
+    }
+    return true;
 }
 
 // M2: ein Menue-Bild mit Shaderskript Stufe fuer Stufe wie RB_StageIteratorGeneric
@@ -2437,6 +2450,19 @@ std::string normPfad(std::string p) {
     return p;
 }
 
+// RE_RegisterShaderNoMip: Shaderskript vor Bild, *white ist eingebaut (tr.whiteImage), Gross/Klein egal
+bool bildBekannt(const DiagDaten& dd, const std::string& n0, const std::function<bool(const std::string&)>& gibt) {
+    const std::string n = normPfad(n0);
+    if (n == "*white") { return true; }
+    const std::size_t pt = n.rfind('.');
+    const std::string ohne = (pt != std::string::npos && n.find('/', pt) == std::string::npos) ? n.substr(0, pt) : n;
+    if (dd.shader.count(n) != 0 || dd.shader.count(ohne) != 0) { return true; }
+    for (const char* e : {".jpg", ".png", ".tga", ".jpeg"}) {
+        if (gibt(ohne + e)) { return true; }
+    }
+    return gibt(n);
+}
+
 // Menuenamen und Cvars aus einer .menu (grob nach Woertern, fuer die Diagnose genug)
 void menueWoerter(const std::string& t, std::set<std::string>& menues, std::set<std::string>& cvars) {
     std::vector<std::string> w;
@@ -2479,7 +2505,9 @@ void shaderLaden() {
     Zustand& z = Z();
     if (z.shaderGeladen) { return; }
     z.shaderGeladen = true;
-    for (const std::string& f : z.daten.liste("shaders/", {".shader"})) {
+    // ScanAndLoadShaderFiles haengt die Dateien in umgekehrter Reihenfolge von FS_ListFiles aneinander, und der erste
+    // Treffer im Text gilt (ShaderEntryPtrs_Insert). Das heisst hier: in der Reihenfolge von FS_ListFiles, der letzte gilt.
+    for (const std::string& f : z.daten.listeWieSpiel("shaders/", {".shader"})) {
         std::string inhalt;
         if (z.daten.lies(f, inhalt)) { parseShaderScript(inhalt, z.shader); }
     }
@@ -2498,8 +2526,22 @@ std::shared_ptr<const DiagDaten> diagDaten() {
     auto dd = std::make_shared<DiagDaten>();
     for (const std::string& p : z.daten.liste("", {})) { dd->dateien.insert(normPfad(p)); }
     shaderLaden();
-    for (const auto& [k, v] : z.shader) { dd->shader.insert(k); }
     for (const GamePath& g : z.daten.ordner) { dd->ordner.push_back(g.directory); }
+    // Wie bildRegistriert: Findet eine Stufe ihr Bild nicht, gilt der ganze Shader nicht (ParseStage)
+    const auto stufeDa = [&](const std::string& bild) {
+        for (const std::string& k : textureCandidates(normPfad(bild))) {
+            if (dd->dateien.count(k) != 0) { return true; }
+        }
+        return false;
+    };
+    for (const auto& [k, v] : z.shader) {
+        bool gut = true;
+        for (const ShaderInfo::Stage& st : v.stages) {
+            gut = gut && (st.image.empty() || stufeDa(st.image));
+            for (const std::string& a : st.animImages) { gut = gut && stufeDa(a); }
+        }
+        if (gut) { dd->shader.insert(k); }
+    }
     std::set<std::string> cvars;
     for (const std::string& p : z.daten.liste("ui/", {".menu"})) {
         std::string t;
@@ -2544,16 +2586,7 @@ void diagnosePflegen(Dokument& d) {
             }
             return false;
         };
-        k.pruefung.gibtBild = [&](const std::string& n0) {
-            std::string n = normPfad(n0);
-            const std::size_t pt = n.rfind('.');
-            const std::string ohne = (pt != std::string::npos && n.find('/', pt) == std::string::npos) ? n.substr(0, pt) : n;
-            if (dd->shader.count(n) != 0 || dd->shader.count(ohne) != 0) { return true; }
-            for (const char* e : {".tga", ".jpg", ".png"}) {
-                if (k.pruefung.gibt(ohne + e)) { return true; }
-            }
-            return k.pruefung.gibt(n);
-        };
+        k.pruefung.gibtBild = [&](const std::string& n0) { return bildBekannt(*dd, n0, k.pruefung.gibt); };
         k.menueBekannt = [&](const std::string& n) { return dd->menues.count(normPfad(n)) != 0 || offeneMenues.count(normPfad(n)) != 0; };
         k.bekannteCvars = dd->cvars;
         k.pfadVorschlag = [&](const std::string& p0) -> std::string {
@@ -3104,16 +3137,7 @@ int pruefeAlleMenues() {
             const std::string p = normPfad(p0);
             return paket.count(p) != 0 || dd->dateien.count(p) != 0;
         };
-        k.gibtBild = [&](const std::string& n0) {
-            std::string n = normPfad(n0);
-            const std::size_t pt = n.rfind('.');
-            const std::string ohne = (pt != std::string::npos && n.find('/', pt) == std::string::npos) ? n.substr(0, pt) : n;
-            if (dd->shader.count(n) != 0 || dd->shader.count(ohne) != 0) { return true; }
-            for (const char* e : {".tga", ".jpg", ".png"}) {
-                if (k.gibt(ohne + e)) { return true; }
-            }
-            return k.gibt(n);
-        };
+        k.gibtBild = [&](const std::string& n0) { return bildBekannt(*dd, n0, k.gibt); };
         DiagKontext dk;
         dk.pruefung = k;
         for (const Diagnose& x : diagnose(od.datei, dk)) {
@@ -5518,6 +5542,62 @@ int oeffneMenuesatz(const std::string& spielPfad) {
     }
     if (erstes >= 0) { z.aktiv = erstes; }   // die erste Datei des Satzes
     return n;
+}
+
+std::vector<BildZeile> bildTabelle() {
+    Zustand& z = Z();
+    datenPruefen();
+    std::vector<BildZeile> tab;
+    for (const std::string& pfad : z.daten.liste("ui/", {".menu"})) {
+        std::string inhalt;
+        if (!z.daten.lies(pfad, inhalt)) { continue; }
+        std::size_t an = 0;
+        int nr = 0;
+        while (an < inhalt.size()) {
+            std::size_t ende = inhalt.find('\n', an);
+            if (ende == std::string::npos) { ende = inhalt.size(); }
+            std::string zeile = inhalt.substr(an, ende - an);
+            an = ende + 1;
+            ++nr;
+            if (const std::size_t k = zeile.find("//"); k != std::string::npos) { zeile.resize(k); }
+            std::vector<std::string> w;
+            for (std::size_t i = 0; i < zeile.size();) {
+                const char c = zeile[i];
+                if (std::isspace(static_cast<unsigned char>(c)) != 0 || c == '{' || c == '}' || c == ';') {
+                    ++i;
+                } else if (c == '"') {
+                    const std::size_t q = zeile.find('"', i + 1);
+                    const std::size_t e = q == std::string::npos ? zeile.size() : q;
+                    w.push_back(zeile.substr(i + 1, e - i - 1));
+                    i = e + 1;
+                } else {
+                    std::size_t e = i;
+                    while (e < zeile.size() && std::isspace(static_cast<unsigned char>(zeile[e])) == 0 && std::strchr("{};\"", zeile[e]) == nullptr) { ++e; }
+                    w.push_back(zeile.substr(i, e - i));
+                    i = e;
+                }
+            }
+            const auto eintrag = [&](const std::string& art, const std::string& name) {
+                BildZeile b;
+                b.datei = pfad;
+                b.art = art;
+                b.name = name;
+                b.zeile = nr;
+                b.da = art == "cinematic" ? z.daten.gibt(kinoPfad(name)) : bildRegistriert(name);
+                tab.push_back(std::move(b));
+            };
+            if (w.size() >= 2) {
+                const std::string a = kleinPfad(w[0]);
+                if (a == "background" || a == "asset_shader" || a == "cinematic") { eintrag(a, w[1]); }
+            }
+            for (std::size_t i = 0; i < w.size(); ++i) {
+                const std::string a = kleinPfad(w[i]);
+                if (a == "setbackground" && i + 1 < w.size()) { eintrag(a, w[i + 1]); }
+                if (a == "setitembackground" && i + 2 < w.size()) { eintrag(a, w[i + 2]); }
+            }
+        }
+    }
+    return tab;
 }
 
 std::vector<ItemLage> itemLagen() {

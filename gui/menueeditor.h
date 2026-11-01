@@ -91,6 +91,13 @@ struct ItemLage {
     bool sichtbar = false;
 };
 [[nodiscard]] std::vector<ItemLage> itemLagen();
+// rc608 Punkt 15: jedes Bild und Video der Originalmenues, aufgeloest auf dem Weg, den auch die Vorschau geht
+struct BildZeile {
+    std::string datei, art, name;
+    int zeile = 0;
+    bool da = false;
+};
+[[nodiscard]] std::vector<BildZeile> bildTabelle();
 [[nodiscard]] std::string letzteMeldung();   // rc608: was die Leiste gerade meldet ("" = nichts)
 void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);

@@ -37,6 +37,10 @@ bool Spieldaten::ordnerDazu(const std::string& pfad) {
 bool Spieldaten::lies(const std::string& pfad, std::string& out) const {
     const std::string n = norm(pfad);
     for (auto o = ordner.rbegin(); o != ordner.rend(); ++o) {
+        for (auto a = o->archives.rbegin(); a != o->archives.rend(); ++a) {
+            const Pk3Entry* e = a->find(n);
+            if (e != nullptr && readPk3File(*a, *e, out, nullptr)) { return true; }
+        }
         std::error_code ec;
         const std::filesystem::path lose = std::filesystem::path(o->directory) / pfad;
         if (!o->directory.empty() && std::filesystem::is_regular_file(lose, ec)) {
@@ -45,10 +49,6 @@ bool Spieldaten::lies(const std::string& pfad, std::string& out) const {
             s << f.rdbuf();
             out = s.str();
             return true;
-        }
-        for (auto a = o->archives.rbegin(); a != o->archives.rend(); ++a) {
-            const Pk3Entry* e = a->find(n);
-            if (e != nullptr && readPk3File(*a, *e, out, nullptr)) { return true; }
         }
     }
     return false;
@@ -60,11 +60,19 @@ bool Spieldaten::gibt(const std::string& pfad) const {
         for (const Pk3& a : o.archives) {
             if (a.find(n) != nullptr) { return true; }
         }
+        std::error_code ec;
+        if (!o.directory.empty() && std::filesystem::is_regular_file(std::filesystem::path(o.directory) / pfad, ec)) { return true; }
     }
     return false;
 }
 
 std::vector<std::string> Spieldaten::liste(const std::string& praefix, const std::vector<std::string>& endungen) const {
+    std::vector<std::string> v = listeWieSpiel(praefix, endungen);
+    std::sort(v.begin(), v.end(), [](const std::string& a, const std::string& b) { return norm(a) < norm(b); });
+    return v;
+}
+
+std::vector<std::string> Spieldaten::listeWieSpiel(const std::string& praefix, const std::vector<std::string>& endungen) const {
     std::vector<std::string> v;
     std::set<std::string> gesehen;
     const std::string p = norm(praefix);
@@ -78,8 +86,20 @@ std::vector<std::string> Spieldaten::liste(const std::string& praefix, const std
                 if (passt && gesehen.insert(n).second) { v.push_back(e.name); }
             }
         }
+        // Die losen Dateien des Ordners (FS_ListFiles liest auch sie). Ganze Spielordner (leeres praefix) laeuft niemand durch.
+        if (p.empty() || o->directory.empty()) { continue; }
+        std::error_code ec;
+        const std::filesystem::path wurzel(o->directory);
+        for (std::filesystem::recursive_directory_iterator it(wurzel / praefix, std::filesystem::directory_options::skip_permission_denied, ec), ende;
+             !ec && it != ende; it.increment(ec)) {
+            if (!it->is_regular_file(ec)) { continue; }
+            const std::string name = it->path().lexically_relative(wurzel).generic_string();
+            const std::string n = norm(name);
+            bool passt = endungen.empty();
+            for (const std::string& en : endungen) { passt = passt || endetMit(n, en); }
+            if (passt && gesehen.insert(n).second) { v.push_back(name); }
+        }
     }
-    std::sort(v.begin(), v.end(), [](const std::string& a, const std::string& b) { return norm(a) < norm(b); });
     return v;
 }
 

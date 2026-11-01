@@ -3448,18 +3448,21 @@ void drawGamePaths() {
             // Was in diesem Ordner gefunden wurde - sonst raet man, ob er stimmt.
             // rc603: nur, wenn die eingerichteten gelten (sonst gehoeren die
             // eingelesenen Ordner zur Sitzung).
-            if (aktiv && i < g_app->gamePaths.size()) {
-                const GamePath& gp = g_app->gamePaths[i];
+            if (aktiv) {
+                const GamePath* gp = nullptr;
+                for (const GamePath& g : g_app->gamePaths) {
+                    if (g.directory == liste[i]) { gp = &g; }
+                }
                 ImGui::SameLine();
-                if (gp.archives.empty()) {
+                if (gp == nullptr || gp->archives.empty()) {
                     // Ein Ordner ohne Archive ist fast immer ein Tippfehler im
                     // Pfad. Das soll auffallen.
                     ImGui::TextColored(ImVec4{0.90F, 0.75F, 0.35F, 1.0F}, "%s",
                                        tr(Str::PrefsEmptyPath));
                 } else {
-                    ImGui::TextDisabled(trN(Str::PrefsArchives, gp.archives.size(), gp.fileCount),
-                                        static_cast<int>(gp.archives.size()),
-                                        gp.fileCount);
+                    ImGui::TextDisabled(trN(Str::PrefsArchives, gp->archives.size(), gp->fileCount),
+                                        static_cast<int>(gp->archives.size()),
+                                        gp->fileCount);
                 }
             }
             // Und wer bei Namensgleichheit gewinnt.
@@ -3475,6 +3478,13 @@ void drawGamePaths() {
     ImGui::SeparatorText(tr(Str::PrefsGamePaths));
     ImGui::TextDisabled("%s", tr(Str::PrefsGamePathsNote));
     zeichneListe(st.gamePaths, !sitzung && !jk2Liste);
+    // rc608: was das Spiel ohnehin mitliest, soll man sehen, statt zu raten (spielordnerMitBase)
+    if (!sitzung && !jk2Liste) {
+        const std::vector<std::string> mitBase = spielordnerMitBase(st.gamePaths);
+        for (std::size_t i = 0; i + st.gamePaths.size() < mitBase.size(); ++i) {
+            ImGui::TextDisabled(tr(Str::PrefsBaseImmer), mitBase[i].c_str());
+        }
+    }
     ImGui::SeparatorText(tr(Str::PathsJk2));
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 38.0F);
     ImGui::TextDisabled("%s", tr(Str::PathsJk2Note));

@@ -3300,6 +3300,7 @@ enum class Str {
     MeZurZeile,
     MeStartHandbuch,
     MeStartHandbuchTip,
+    PrefsBaseImmer,
     Count,
 };
 

@@ -1622,7 +1622,7 @@ void rescanGamePaths() {
     // (setzeSitzungsSpielordner vergleicht damit).
     g_app->eingeleseneSpielordner = aktiveSpielordner();
     g_app->spielordnerEingelesen = true;
-    for (const std::string& dir : aktiveSpielordner()) {
+    for (const std::string& dir : spielordnerMitBase(aktiveSpielordner())) {
         GamePath gp;
         if (scanGamePath(dir, gp)) {
             diag::info(dir + ": " + std::to_string(gp.archives.size()) + " Archive, " +

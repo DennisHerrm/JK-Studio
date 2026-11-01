@@ -67,6 +67,9 @@ struct GamePath {
 };
 
 [[nodiscard]] bool scanGamePath(const std::string& directory, GamePath& out);
+// rc608: FS_Startup liest base immer mit. Wer nur den Mod-Ordner einrichtet (".../MD"), bekommt den Ordner base
+// daneben als niedrigsten Rang dazu, wie im Spiel. Die Reihenfolge der uebrigen bleibt.
+[[nodiscard]] std::vector<std::string> spielordnerMitBase(const std::vector<std::string>& ordner);
 
 // rc604: FS_PathCmp (code/qcommon/files.cpp:2475-2508 OpenJK, auch Movie Duels
 // und Jedi Outcast): Buchstaben a-z gross, '\' und ':' als '/'. paksort
