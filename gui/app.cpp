@@ -3931,17 +3931,22 @@ void drawChangelog() {
                 // Die neuesten zwei offen, der Rest zugeklappt.
                 ImGui::SetNextItemOpen(i < 2, ImGuiCond_Appearing);
                 if (ImGui::CollapsingHeader(titel.c_str())) {
-                    const char* t = changelog::text(e[i], sprache);
-                    ImGui::PushTextWrapPos(0.0F);
-                    for (const char* a = t; *a != '\0';) {
-                        const char* ende = std::strchr(a, '\n');
-                        const std::string punkt = ende != nullptr ? std::string(a, ende) : std::string(a);
-                        ImGui::Bullet();
-                        ImGui::TextWrapped("%s", punkt.c_str());
-                        if (ende == nullptr) { break; }
-                        a = ende + 1;
+                    // rc608 Punkt 7 (shank: "mit ueberschrift welchen Tab was gefixt wurde"): je Bereich eine aufklappbare Gruppe;
+                    // was keinen Bereich hat, steht unter "Allgemein"
+                    int nr = 0;
+                    for (const changelog::Gruppe& g : changelog::gruppen(changelog::text(e[i], sprache))) {
+                        const std::string kopf2 = (g.titel.empty() ? std::string(tr(Str::ChangelogAllgemein)) : g.titel) + "###g" + std::to_string(i) + "_" + std::to_string(nr++);
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
+                        if (ImGui::TreeNodeEx(kopf2.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth)) {
+                            ImGui::PushTextWrapPos(0.0F);
+                            for (const std::string& punkt : g.punkte) {
+                                ImGui::Bullet();
+                                ImGui::TextWrapped("%s", punkt.c_str());
+                            }
+                            ImGui::PopTextWrapPos();
+                            ImGui::TreePop();
+                        }
                     }
-                    ImGui::PopTextWrapPos();
                     ImGui::Spacing();
                 }
             }

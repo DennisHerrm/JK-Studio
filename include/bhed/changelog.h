@@ -2,6 +2,8 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
+#include <vector>
 
 namespace bhed::changelog {
 
@@ -19,5 +21,11 @@ struct Eintrag {
 // Die Punkte einer Fassung in einer Sprache (Index wie i18n::Language) -
 // englisch, wenn die Fassung sie nicht hat.
 [[nodiscard]] const char* text(const Eintrag& e, int sprache);
+// Eine Fassung nach Bereichen ("### Bereich" in tools/changelog.txt). titel leer: Punkte ohne Bereich.
+struct Gruppe {
+    std::string titel;
+    std::vector<std::string> punkte;
+};
+[[nodiscard]] std::vector<Gruppe> gruppen(const char* text);
 
 }  // namespace bhed::changelog

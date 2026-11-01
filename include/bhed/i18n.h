@@ -3359,6 +3359,7 @@ enum class Str {
     MeVollbildSatzMp,
     MeUeberlagerungSatz,
     MeDiagVollbildOhneBild,
+    ChangelogAllgemein,
     Count,
 };
 

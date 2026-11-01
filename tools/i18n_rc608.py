@@ -354,4 +354,10 @@ RC608 = [
      "fullScreen ohne background: Das Spiel zeigt hier seinen grauen Standardkasten. Setze einen background oder ein Element, das den Schirm deckt.",
      "fullScreen 没有 background:游戏在此显示灰色默认方框。请添加 background 或覆盖屏幕的元素。",
      "fullScreen に background がありません。ゲームはここに灰色の標準ボックスを表示します。background か画面を覆う要素を追加してください。"),
+    # Punkt 7: Changelog nach Bereichen
+    ("ChangelogAllgemein",
+     "General",
+     "Allgemein",
+     "常规",
+     "全般"),
 ]

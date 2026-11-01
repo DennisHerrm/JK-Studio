@@ -3019,6 +3019,7 @@ TEXTE = {
     "MeVollbildSatzMp": "fullScreen 1: el juego no dibuja nada debajo. Sin background muestra su cuadro gris predeterminado hasta que un elemento lo cubra.",
     "MeUeberlagerungSatz": "fullScreen 0: se ve a través del menú lo que hay detrás: el juego en marcha o, en el menú principal, su fondo.",
     "MeDiagVollbildOhneBild": "fullScreen sin background: el juego muestra aquí su cuadro gris predeterminado. Añade un background o un elemento que cubra la pantalla.",
+    "ChangelogAllgemein": "General",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

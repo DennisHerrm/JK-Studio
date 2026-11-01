@@ -3021,6 +3021,7 @@ TEXTE = {
     "MeVollbildSatzMp": "fullScreen 1: hra pod ním nic nekreslí. Bez background ukazuje svůj šedý výchozí rámeček, dokud ho nějaký prvek nezakryje.",
     "MeUeberlagerungSatz": "fullScreen 0: přes menu je vidět to, co je za ním: běžící hra nebo v hlavním menu jeho pozadí.",
     "MeDiagVollbildOhneBild": "fullScreen bez background: hra zde ukazuje svůj šedý výchozí rámeček. Přidejte background nebo prvek, který zakryje obrazovku.",
+    "ChangelogAllgemein": "Obecné",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

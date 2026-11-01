@@ -1434,6 +1434,48 @@ std::vector<Schritt> schritteLeeresMenue() {
     return s;
 }
 
+// rc608 Punkt 7: das Changelog-Fenster nach Bereichen, alle Sprachen
+std::vector<Schritt> schritteChangelog() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const i18n::Language vorher = i18n::currentLanguage();
+    add(tu("rc608 Changelog: Fenster oeffnen", [] { g_app->changelogOpen = true; }));
+    add(pause(0.5));
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string kurz = l.code;
+        add(tu("rc608 Changelog: Sprache " + kurz, [lang] { i18n::setLanguage(lang); }));
+        add(pause(0.4));
+        add(pruefe("rc608 Changelog: " + kurz + ": die oberste Fassung steht nach Bereichen, jede Gruppe mit Titel im Fenster", [kurz] {
+            const changelog::Eintrag* e = changelog::eintraege();
+            int grosseFassung = -1;
+            for (std::size_t i = 0; i < changelog::anzahl(); ++i) {
+                if (std::string(e[i].fassung) == "rc607") { grosseFassung = static_cast<int>(i); }
+            }
+            if (grosseFassung < 0) { return false; }
+            const std::vector<changelog::Gruppe> g = changelog::gruppen(changelog::text(e[grosseFassung], static_cast<int>(i18n::currentLanguage())));
+            int mitTitel = 0;
+            bool gut = true;
+            for (const changelog::Gruppe& x : g) {
+                if (x.titel.empty()) { continue; }
+                ++mitTitel;
+                if (finde(x.titel, "###changelog", 0, false) == nullptr) {
+                    diag::info("Knopftest: Changelog " + kurz + ": Gruppe nicht im Fenster: " + x.titel);
+                    gut = false;
+                }
+            }
+            diag::info("Knopftest: Changelog " + kurz + ": " + std::to_string(g.size()) + " Gruppen, davon mit Titel " + std::to_string(mitTitel));
+            return gut && mitTitel >= 5;
+        }));
+    }
+    add(foto("changelog_gruppen"));
+    add(tu("rc608 Changelog: zurueck", [vorher] {
+        i18n::setLanguage(vorher);
+        g_app->changelogOpen = false;
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

@@ -70,6 +70,9 @@ def lies(pfad=os.path.join(HIER, 'changelog.txt')):
             continue
         if akt is None or sprache is None:
             sys.exit('Zeile %d: Text ausserhalb einer Fassung/Sprache: %s' % (nr, z))
+        if z.startswith('### '):
+            akt['text'][sprache].append(z.strip())
+            continue
         if not z.startswith('- '):
             sys.exit('Zeile %d: Punkte beginnen mit "- ": %s' % (nr, z))
         akt['text'][sprache].append(z[2:].strip())
@@ -77,6 +80,10 @@ def lies(pfad=os.path.join(HIER, 'changelog.txt')):
         for s in PFLICHT:
             if not e['text'].get(s):
                 sys.exit('Fassung %s: Sprache %s fehlt' % (e['fassung'], s))
+        # Jede Sprache hat dieselben Gruppen in derselben Reihenfolge (die Titel sind uebersetzt)
+        zahlen = {s: [sum(1 for z in zeilen if z.startswith('### '))] for s, zeilen in e['text'].items()}
+        if len({tuple(v) for v in zahlen.values()}) > 1:
+            sys.exit('Fassung %s: die Sprachen haben verschieden viele Bereiche: %s' % (e['fassung'], zahlen))
     return eintraege
 
 
@@ -86,6 +93,8 @@ def main():
 #pragma once
 
 #include <cstddef>
+#include <string>
+#include <vector>
 
 namespace bhed::changelog {
 
@@ -103,11 +112,17 @@ struct Eintrag {
 // Die Punkte einer Fassung in einer Sprache (Index wie i18n::Language) -
 // englisch, wenn die Fassung sie nicht hat.
 [[nodiscard]] const char* text(const Eintrag& e, int sprache);
+// Eine Fassung nach Bereichen ("### Bereich" in tools/changelog.txt). titel leer: Punkte ohne Bereich.
+struct Gruppe {
+    std::string titel;
+    std::vector<std::string> punkte;
+};
+[[nodiscard]] std::vector<Gruppe> gruppen(const char* text);
 
 }  // namespace bhed::changelog
 ''' % len(SPRACHEN)
     c = ['// Erzeugt von tools/gen_changelog.py aus tools/changelog.txt - nicht von Hand aendern.',
-         '#include "bhed/changelog.h"', '', '#include <cstddef>', '', 'namespace bhed::changelog {', '', 'namespace {',
+         '#include "bhed/changelog.h"', '', '#include <cstddef>', '#include <string>', '#include <vector>', '', 'namespace bhed::changelog {', '', 'namespace {',
          'const Eintrag kEintraege[] = {']
     for e in eintraege:
         # je Zeile ein eigenes Literal: MSVC bricht ab 16380 Zeichen je Literal ab (C2026)
@@ -121,6 +136,26 @@ struct Eintrag {
           'const char* text(const Eintrag& e, int sprache) {',
           '    constexpr int kSprachen = static_cast<int>(sizeof(e.text) / sizeof(e.text[0]));',
           '    return sprache >= 0 && sprache < kSprachen && e.text[sprache] != nullptr ? e.text[sprache] : e.text[0];',
+          '}', '',
+          'std::vector<Gruppe> gruppen(const char* text) {',
+          '    std::vector<Gruppe> v;',
+          '    std::string z;',
+          '    const std::string t = text != nullptr ? text : "";',
+          '    std::size_t a = 0;',
+          '    while (a <= t.size()) {',
+          "        std::size_t e = t.find('\\n', a);",
+          '        if (e == std::string::npos) { e = t.size(); }',
+          '        z = t.substr(a, e - a);',
+          '        a = e + 1;',
+          '        if (z.empty()) { continue; }',
+          '        if (z.compare(0, 4, "### ") == 0) {',
+          '            v.push_back(Gruppe{z.substr(4), {}});',
+          '            continue;',
+          '        }',
+          '        if (v.empty()) { v.push_back(Gruppe{}); }',
+          '        v.back().punkte.push_back(z);',
+          '    }',
+          '    return v;',
           '}', '',
           '}  // namespace bhed::changelog', '']
     open(os.path.join(WURZEL, 'include', 'bhed', 'changelog.h'), 'w', encoding='utf-8', newline='\n').write(h)
@@ -151,7 +186,21 @@ def selbsttest():
         except SystemExit:
             abbruch = True
         print('  %s  ohne [de] bricht ab' % ('ok  ' if abbruch else 'FEHL'))
-        return 0 if ok and abbruch else 1
+        # Bereiche: gelesen, und alle Sprachen muessen gleich viele haben
+        with open(pfad, 'w', encoding='utf-8', newline='\n') as f:
+            f.write('## rc999 2026-12-01\n[en]\n### Map\n- A\n[de]\n### Karte\n- A\n[zh]\n### x\n- A\n[ja]\n### x\n- A\n')
+        g = lies(pfad)
+        bereiche = g[0]['text']['de'] == ['### Karte', 'A']
+        print('  %s  ### Bereich wird gelesen' % ('ok  ' if bereiche else 'FEHL'))
+        with open(pfad, 'w', encoding='utf-8', newline='\n') as f:
+            f.write('## rc999 2026-12-01\n[en]\n### Map\n- A\n[de]\n- A\n[zh]\n### x\n- A\n[ja]\n### x\n- A\n')
+        try:
+            lies(pfad)
+            ungleich = False
+        except SystemExit:
+            ungleich = True
+        print('  %s  ungleiche Bereiche brechen ab' % ('ok  ' if ungleich else 'FEHL'))
+        return 0 if ok and abbruch and bereiche and ungleich else 1
     finally:
         shutil.rmtree(ordner, ignore_errors=True)
 

@@ -525,7 +525,7 @@ def changelog_en(wurzel, rc):
                     break
                 oben = m.group(1)
                 continue
-            if oben is None or zeile.startswith("#"):
+            if oben is None or (zeile.startswith("#") and not zeile.startswith("### ")):
                 continue
             m = re.match(r"^\[(en|de|zh|ja)\]\s*$", zeile)
             if m:
@@ -686,7 +686,7 @@ def selbsttest():
         schreibe(os.path.join(wurzel, "include", "bhed", "fassung.h"),
                  'inline constexpr const char* kFassung = "%s";\n' % rc)
         schreibe(os.path.join(wurzel, "tools", "changelog.txt"),
-                 "# Kommentar\n\n## rc900 2026-10-17\n[en]\n- New: a thing.\n- Fixed: another one.\n"
+                 "# Kommentar\n\n## rc900 2026-10-17\n[en]\n- New: a thing.\n### Map editor\n- Fixed: another one.\n"
                  "[de]\n- Neu: etwas.\n[zh]\n- \u65b0\n[ja]\n- \u65b0\u3057\u3044\n\n"
                  "## rc899 2026-10-16\n[en]\n- Old.\n")
         daten = {"anims.h": b"enum {BOTH_A};\r\n" * 30, "behaved.bhc": b"// bhc\r\n" * 50,
@@ -858,6 +858,7 @@ def selbsttest():
         erwarte("notizen: der [en]-Block von rc900, nicht [de] und nicht rc899",
                 "- New: a thing." in text and "- Fixed: another one." in text and "Neu: etwas" not in text
                 and "- Old." not in text)
+        erwarte("notizen: Bereiche bleiben als Ueberschriften stehen", "### Map editor\n- Fixed: another one." in text)
         with open(ziel, "rb") as f:
             roh = f.read()
         erwarte("notizen: UTF-8 mit LF (Gedankenstrich und Pfeil heil)",
