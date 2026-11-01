@@ -3022,6 +3022,8 @@ TEXTE = {
     "MeUeberlagerungSatz": "fullScreen 0: přes menu je vidět to, co je za ním: běžící hra nebo v hlavním menu jeho pozadí.",
     "MeDiagVollbildOhneBild": "fullScreen bez background: hra zde ukazuje svůj šedý výchozí rámeček. Přidejte background nebo prvek, který zakryje obrazovku.",
     "ChangelogAllgemein": "Obecné",
+    "MeMeldungenSatz": "Co o tomto souboru při čtení říká analyzátor hry, slovo od slova; kliknutí přejde na řádek.",
+    "MeMeldungenKeine": "Žádné zprávy.",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

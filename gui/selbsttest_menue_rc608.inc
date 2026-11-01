@@ -644,6 +644,32 @@ std::vector<Schritt> schritteHierarchie() {
     add(klick(tr(Str::MeGanzeDatei)));
     add(pause(0.2));
     add(pruefe("rc608 Hierarchie: und wieder nur die Seite", [gibt] { return !gibt("eins_a") && gibt("zwei_a"); }));
+    // Rest aus Teil 1: Pfeiltasten und Entf wirken mit dem Fokus in der Hierarchie wie auf der Flaeche
+    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(pause(0.2));
+    add(taste(ImGuiKey_RightArrow, "Pfeil rechts"));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: Pfeil rechts schiebt um 1, ein Schritt", [] {
+        const std::string t = me::stand().text;
+        diag::info("Knopftest: Hierarchie Pfeil, Auswahl " + std::to_string(me::stand().auswahl.size()));
+        return t.find("rect 201 10 100 30") != std::string::npos && me::stand().auswahl == std::vector<int>{0};
+    }));
+    add(tasteMit(ImGuiMod_Shift, ImGuiKey_DownArrow, "Umschalt+Pfeil unten"));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: Umschalt+Pfeil schiebt um 10", [] { return me::stand().text.find("rect 201 20 100 30") != std::string::npos; }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: Rueckgaengig nimmt beide zurueck", [] { return me::stand().text.find("rect 200 10 100 30") != std::string::npos; }));
+    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(pause(0.2));
+    add(taste(ImGuiKey_Delete, "Entf"));
+    add(pause(0.3));
+    add(pruefe("rc608 Hierarchie: Entf loescht das gewaehlte Element", [] { return me::stand().text.find("zwei_a") == std::string::npos; }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(pruefe("rc608 Hierarchie: Rueckgaengig bringt es wieder", [] { return me::stand().text.find("zwei_a") != std::string::npos; }));
     // Zustandsreiter: nur, was dort sichtbar ist
     add(tu("rc608 Hierarchie: Bauteil Detail area", [] {
         me::schliesseAlleOhneSpeichern();
@@ -1163,6 +1189,49 @@ std::vector<Schritt> schritteBreiten() {
         return x.flaeche[2] >= ImGui::GetFontSize() * 15.0F;
     }));
     add(foto("menue_properties_breit"));
+    // Engine messages (shank fragte, was der Abschnitt macht): ein Satz, "Keine Meldungen", lange Meldungen umbrechen, ein Klick springt
+    add(tu("rc608 Meldungen: Reiter Properties", [] {
+        me::setzeSpalten(0.0F, 0.0F);
+        me::setzeReiter(2);
+        me::waehle(0, false);
+    }));
+    add(pause(0.4));
+    add(pruefe("rc608 Meldungen: bei leerer Liste steht es da", [] {
+        const int alter = ImGui::GetFrameCount() - me::meldungenLeerBild();
+        diag::info("Knopftest: Meldungen " + std::to_string(me::stand().meldungen) + ", Keine-Meldungen vor " + std::to_string(alter) + " Bildern");
+        return me::stand().meldungen == 0 && alter <= 2;
+    }));
+    add(tu("rc608 Meldungen: Datei mit einer langen Meldung", [] {
+        const std::string wort(160, 'x');
+        const std::string text = "menuDef\n{\n\tname mld\n\trect 0 0 640 480\n\titemDef\n\t{\n\t\tname a\n\t\trect 10 10 100 30\n\t\t" + wort + " 1\n\t\tvisible 1\n\t}\n}\n";
+        (void)me::oeffneText("ui/mld.menu", text);
+        me::setzeInteraktion(false);
+        me::setzeReiter(2);
+        me::waehle(-1, false);
+    }));
+    add(pause(0.8));
+    add(pruefe("rc608 Meldungen: die Meldung bricht um und bleibt im Feld", [] {
+        const Element* e = finde("##meldung", "", 0, false);
+        if (e == nullptr) { return false; }
+        std::string fehler;
+        const bool gut = rechtsGanz(fehler);
+        diag::info("Knopftest: Meldung " + std::to_string(e->rect.GetHeight()) + " hoch" + (gut ? "" : ", ragt hinaus: " + fehler));
+        return me::stand().meldungen >= 1 && e->rect.GetHeight() > ImGui::GetFontSize() * 1.5F && gut;
+    }));
+    add(klick("##meldung", "", 0, false));
+    add(pause(0.3));
+    add(pruefe("rc608 Meldungen: ein Klick springt zur Zeile", [] {
+        const std::string z = me::stand().cursorZeile;
+        diag::info("Knopftest: Cursorzeile " + z.substr(0, 30));
+        return z.find("xxxx") != std::string::npos;
+    }));
+    add(foto("menue_meldungen"));
+    add(tu("rc608 Meldungen: schliessen", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/breit.menu", kBreitenText);
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.3));
     add(tu("rc608 Breiten: Vorgabe", [] {
         me::setzeSpalten(0.0F, 0.0F);
         me::schliesseAlleOhneSpeichern();

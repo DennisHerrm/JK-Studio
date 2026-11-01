@@ -1067,11 +1067,18 @@ std::vector<Schritt> schritteTourMenue() {
         return !me::projektDatei().empty() && me::tourWerte().elemente == 1;
     }));
     offen(2, "noch kein Knopf");
-    add(klick(tr(Str::MeWButton)));
+    // rc608 Punkt 11: ein einfacher Klick setzt nicht mehr ein, die Tour sagt Doppelklick oder Ziehen
+    const auto doppelKnopf = [] {
+        return klickAn("M5b Tour: Doppelklick auf den Knopf-Baustein", [] {
+            const Element* e = finde(tr(Str::MeWButton), "##links", 0, false);
+            return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+        }, 0, true);
+    };
+    add(doppelKnopf());
     erledigt(3);
-    add(klick(tr(Str::MeWButton)));
+    add(doppelKnopf());
     add(pause(0.2));
-    add(klick(tr(Str::MeWButton)));
+    add(doppelKnopf());
     add(pause(0.3));
     add(tu("M5b Tour: Reiter Eigenschaften", [] { me::setzeReiter(2); }));
     add(foto("h_tut_menue_3"));
@@ -3001,6 +3008,22 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteBleiben()) { add(std::move(x)); }
     for (auto& x : schritteUndo()) { add(std::move(x)); }
     for (auto& x : schritteTyp()) { add(std::move(x)); }
+    for (auto& x : schritteShader()) { add(std::move(x)); }
+    for (auto& x : schritteErsetzen()) { add(std::move(x)); }
+    for (auto& x : schritteReiter()) { add(std::move(x)); }
+    for (auto& x : schritteTextZeiger()) { add(std::move(x)); }
+    for (auto& x : schritteZeiger()) { add(std::move(x)); }
+    for (auto& x : schritteZoom()) { add(std::move(x)); }
+    for (auto& x : schritteSchreiben()) { add(std::move(x)); }
+    for (auto& x : schritteHierarchie()) { add(std::move(x)); }
+    for (auto& x : schritteAblegen()) { add(std::move(x)); }
+    for (auto& x : schritteModell()) { add(std::move(x)); }
+    for (auto& x : schritteFelderJeTyp()) { add(std::move(x)); }
+    for (auto& x : schritteBreiten()) { add(std::move(x)); }
+    for (auto& x : schritteTextBreite()) { add(std::move(x)); }
+    for (auto& x : schritteEreignisseBloecke()) { add(std::move(x)); }
+    for (auto& x : schritteLeeresMenue()) { add(std::move(x)); }
+    for (auto& x : schritteChangelog()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

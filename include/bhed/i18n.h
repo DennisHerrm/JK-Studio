@@ -3360,6 +3360,8 @@ enum class Str {
     MeUeberlagerungSatz,
     MeDiagVollbildOhneBild,
     ChangelogAllgemein,
+    MeMeldungenSatz,
+    MeMeldungenKeine,
     Count,
 };
 

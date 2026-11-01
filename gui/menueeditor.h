@@ -104,6 +104,8 @@ struct BildZeile {
 [[nodiscard]] bool modellGriffe(float* xy8, float* g);
 // rc608 Punkt 9 (Selbsttest): gezeichnete Zellen des Schachbretts im letzten Bild
 [[nodiscard]] int schachbrettZellen();
+// rc608 (Selbsttest): das letzte Bild, in dem Engine messages "Keine Meldungen" zeigte
+[[nodiscard]] int meldungenLeerBild();
 // rc608 Punkt 2 (Selbsttest): der Text-Editor im letzten Bild
 struct TextAnsicht {
     long long zeichen = 0;

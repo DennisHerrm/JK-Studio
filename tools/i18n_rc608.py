@@ -360,4 +360,15 @@ RC608 = [
      "Allgemein",
      "常规",
      "全般"),
+    # Kleinigkeit: Engine messages
+    ("MeMeldungenSatz",
+     "What the game's parser says about this file while it reads it, word for word; a click jumps to the line.",
+     "Was der Parser des Spiels beim Lesen zu dieser Datei sagt, Wort für Wort; ein Klick springt zur Zeile.",
+     "游戏解析器读取此文件时给出的消息,逐字显示;单击可跳到该行。",
+     "ゲームのパーサーがこのファイルを読むときに出すメッセージをそのまま表示します。クリックするとその行へ移動します。"),
+    ("MeMeldungenKeine",
+     "No messages.",
+     "Keine Meldungen.",
+     "没有消息。",
+     "メッセージはありません。"),
 ]

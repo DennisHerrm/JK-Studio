@@ -328,6 +328,7 @@ struct Zustand {
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
     bool schachbrett = true;     // rc608 Punkt 9: zeigt, dass ein Menue ohne fullScreen nichts deckt
     int schachbrettZellen = 0;
+    int meldungenLeerBild = -1;   // rc608: letztes Bild, in dem "Keine Meldungen" stand
     bool balkenZieht = false;   // rc608 Punkt 2: der waagerechte Rollbalken des Text-Editors
     float balkenGriff = 0;
     ImRect balkenRect;
@@ -5944,13 +5945,26 @@ void zeichneCvars(Dokument& d) {
 void zeichneMeldungen(Dokument& d) {
     Zustand& z = Z();
     if (!ImGui::CollapsingHeader(tr(Str::MeMeldungen), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    // rc608 (shank fragte, was der Abschnitt macht, weil er leer dastand)
+    ImGui::PushTextWrapPos(0.0F);
+    ImGui::TextDisabled("%s", tr(Str::MeMeldungenSatz));
+    if (d.datei.meldungen.empty()) {
+        ImGui::TextUnformatted(tr(Str::MeMeldungenKeine));
+        z.meldungenLeerBild = ImGui::GetFrameCount();
+    }
+    ImGui::PopTextWrapPos();
     for (std::size_t k = 0; k < d.datei.meldungen.size(); ++k) {
         const Meldung& m = d.datei.meldungen[k];
         ImGui::PushID(static_cast<int>(k));
         const std::string t = meldungText(d.datei, m);
-        ImGui::PushStyleColor(ImGuiCol_Text, m.fehler ? ImVec4{1, 0.45F, 0.45F, 1} : ImVec4{1, 0.85F, 0.4F, 1});
-        if (ImGui::Selectable(t.c_str()) && m.datei == 0 && m.zeile > 0) { springe(d, d.puffer.zeilenAnfang(m.zeile - 1)); }
-        ImGui::PopStyleColor();
+        const ImU32 farbe = ImGui::ColorConvertFloat4ToU32(m.fehler ? ImVec4{1, 0.45F, 0.45F, 1} : ImVec4{1, 0.85F, 0.4F, 1});
+        // Umbricht statt abzuschneiden; die ganze Meldung ist die Klickflaeche, ein Klick springt zur Zeile
+        const float breite = ImGui::GetContentRegionAvail().x;
+        const float hoehe = ImGui::CalcTextSize(t.c_str(), nullptr, false, breite).y;
+        // NoPadWithHalfSpacing: sonst ragt die Flaeche ueber das Feld hinaus und der Text laege um den halben Abstand daneben
+        const bool klick = ImGui::Selectable("##meldung", false, ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2{0.0F, hoehe});
+        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImGui::GetItemRectMin(), farbe, t.c_str(), nullptr, breite);
+        if (klick && m.datei == 0 && m.zeile > 0) { springe(d, d.puffer.zeilenAnfang(m.zeile - 1)); }
         ImGui::PopID();
     }
     if (z.interaktion && ImGui::CollapsingHeader(tr(Str::MeProtokoll), ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -6708,6 +6722,7 @@ bool modellGriffe(float* xy8, float* g) {
 }
 
 int schachbrettZellen() { return Z().schachbrettZellen; }
+int meldungenLeerBild() { return Z().meldungenLeerBild; }
 
 TextAnsicht textAnsicht() {
     const Zustand& z = Z();
