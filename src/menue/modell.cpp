@@ -184,7 +184,8 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
     if (m.jk2Kamera) { yaw = static_cast<float>(zeitMs) / 20.0F; }   // JK2_MODE: angles (0, refdef.time / 20, 0)
     b.yawGrad = yaw;
     // "hack to put saber on it's side": ITF_ISANYSABER ohne ITF_ISCHARACTER -> (curYaw, 0, 90)
-    float winkel[3] = {0, yaw, 0};
+    // rc608 Punkt 12: Das Skelett einer gla steht 90 Grad gegen die Achsen des Spiels: model_angle 180 ist dort von vorn, 0 von hinten (Foto)
+    float winkel[3] = {0, m.gla.empty() ? yaw : yaw + 90.0F, 0};
     if ((it.itemFlags & ITF_ISANYSABER) != 0 && (it.itemFlags & ITF_ISCHARACTER) == 0) {
         winkel[0] = yaw;
         winkel[1] = 0;
@@ -244,7 +245,9 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
     weltKnochen.clear();
     if (!m.gla.empty()) {
         G2Bild g;
-        const std::string name = klein(it.g2anim);
+        // rc608: wie im Spiel fotografiert: ohne Wirkung die T-Pose (Bild 0)
+        const bool spielt = !it.g2animOhneWirkung || (it.itemFlags & ITF_ISCHARACTER) != 0;
+        const std::string name = spielt ? klein(it.g2anim) : std::string();
         for (const AnimEntry& a : m.anims) {
             if (!name.empty() && klein(a.name) == name) {
                 g = g2Bild(a, static_cast<double>(animSeitMs));

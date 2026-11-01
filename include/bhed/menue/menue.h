@@ -160,6 +160,7 @@ struct Item {
     std::string multiFeeder;    // cvarStrList feeder (FEEDER_PLAYER_SPECIES, ...)
     // modelDef_t
     std::string assetModel, assetShader, g2skin, g2anim;
+    bool g2animOhneWirkung = false;   // rc608: model_g2anim erst nach asset_model (MP von OpenJK: immer) - nur isCharacter spielt sie dann
     float origin[3] = {0, 0, 0};
     float g2mins[3] = {0, 0, 0}, g2maxs[3] = {0, 0, 0}, g2scale[3] = {0, 0, 0};
     float fovx = 0, fovy = 0;

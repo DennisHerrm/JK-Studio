@@ -841,6 +841,117 @@ std::vector<Schritt> schritteAblegen() {
     return s;
 }
 
+// rc608 Punkt 12: Modell einfuegen und drehen
+std::vector<Schritt> schritteModell() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto griffe = std::make_shared<std::array<float, 8>>();
+    auto groesse = std::make_shared<float>(0.0F);
+    const auto hol = [griffe, groesse] { return me::modellGriffe(griffe->data(), groesse.get()); };
+    add(tu("rc608 Modell: leeres Menue", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("modell.menu", "menuDef\n{\n  name \"modell\"\n  rect 0 0 640 480\n  visible 1\n}\n");
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.5));
+    add(tu("rc608 Modell: einfuegen wie der Doppelklick", [] { me::fuegeEin(bhed::menue::ITEM_TYPE_MODEL); }));
+    add(pause(2.5));
+    add(foto("menue_modell_neu"));
+    add(pruefe("rc608 Modell: Vorgaben wie in den Menues des Spiels", [] {
+        const auto x = me::stand();
+        const std::string t = x.text;
+        const std::vector<me::ItemLage> l = me::itemLagen();
+        diag::info("Knopftest: Modell " + std::to_string(l.empty() ? 0.0F : l[0].b) + " x " + std::to_string(l.empty() ? 0.0F : l[0].h) + ", Aufrufe " + std::to_string(x.modellAufrufe) + ", Fehler " + x.modellFehler);
+        if (x.spiel == 1) { return t.find("jk2logo") != std::string::npos; }
+        return !l.empty() && l[0].b == 200.0F && l[0].h == 225.0F && t.find("model_angle") != std::string::npos && t.find("BOTH_MENUIDLE1") != std::string::npos && x.modellAufrufe > 0 &&
+               t.find("model_g2anim") < t.find("asset_model");
+    }));
+    // Griffe: so gross wie ein Knopf, kein Griff zum Skalieren darunter, je Zoomstufe und bei einem kleinen Element
+    const auto griffePruefen = [&](const std::string& was) {
+        add(pruefe("rc608 Modell: " + was + ": die Griffe sind gross genug und liegen nicht auf den Griffen zum Skalieren", [hol, griffe, groesse] {
+            if (!hol()) { return false; }
+            const float g = *groesse;
+            const std::vector<me::ItemLage> l = me::itemLagen();
+            const auto st = me::stand();
+            const me::ItemLage& n = l[static_cast<std::size_t>(st.auswahl[0])];
+            const float kx[3] = {n.x, n.x + n.b * 0.5F, n.x + n.b};
+            const float ky[3] = {n.y, n.y + n.h * 0.5F, n.y + n.h};
+            bool gut = g >= ImGui::GetFrameHeight();
+            for (int k = 0; k < 4; ++k) {
+                const float cx = (*griffe)[static_cast<std::size_t>(k * 2)], cy = (*griffe)[static_cast<std::size_t>(k * 2 + 1)];
+                for (int yy = 0; yy < 3; ++yy) {
+                    for (int xx = 0; xx < 3; ++xx) {
+                        if (xx == 1 && yy == 1) { continue; }
+                        const ImVec2 h = aufFlaeche(kx[xx], ky[yy]);
+                        const bool ueberlappt = std::fabs(h.x - cx) < g * 0.5F + 5.0F && std::fabs(h.y - cy) < g * 0.5F + 5.0F;
+                        gut = gut && !ueberlappt;
+                    }
+                }
+            }
+            diag::info("Knopftest: Griffgroesse " + std::to_string(g) + ", Knopf " + std::to_string(ImGui::GetFrameHeight()));
+            return gut;
+        }));
+    };
+    add(pause(0.2));
+    griffePruefen("Vorgabe");
+    add(foto("menue_modell_griffe"));
+    // Blickrichtung drehen: ein Zug, ein Schritt, nur model_angle
+    auto tiefe = std::make_shared<int>(0);
+    auto text = std::make_shared<std::string>();
+    add(tu("rc608 Modell: Stand merken", [tiefe, text] {
+        *tiefe = me::stand().undoSchritte;
+        *text = me::stand().text;
+    }));
+    add(zeigerAn("auf dem Griff Drehen", [griffe] { return ImVec2{(*griffe)[0], (*griffe)[1]}; }, ImGuiMouseCursor_ResizeEW));
+    add(ziehenAn("rc608 Modell: Griff Drehen", [griffe] { return ImVec2{(*griffe)[0], (*griffe)[1]}; }, 60.0F, 0.0F, 0));
+    add(pause(0.2));
+    add(pruefe("rc608 Modell: Drehen schreibt model_angle, ein Undo-Schritt, sonst nichts", [tiefe, text] {
+        const auto x = me::stand();
+        const std::size_t p = x.text.find("model_angle");
+        const std::string zeile = p == std::string::npos ? std::string() : x.text.substr(p, x.text.find('\n', p) - p);
+        diag::info("Knopftest: " + zeile);
+        return x.undoSchritte == *tiefe + 1 && zeile.find("210") != std::string::npos && x.text.size() == text->size();
+    }));
+    add(foto("menue_modell_gedreht"));
+    add(tu("rc608 Modell: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Modell: Rueckgaengig stellt die Richtung her", [text] { return me::stand().text == *text; }));
+    // Hoehe und Abstand
+    add(tu("rc608 Modell: Griffe lesen", [hol] { (void)hol(); }));
+    add(ziehenAn("rc608 Modell: Griff Hoehe", [griffe] { return ImVec2{(*griffe)[4], (*griffe)[5]}; }, 0.0F, 40.0F, 0));
+    add(pause(0.2));
+    add(pruefe("rc608 Modell: Hoehe schreibt model_g2mins und model_g2maxs", [text] {
+        const std::string t = me::stand().text;
+        return t != *text && t.find("model_g2mins") != std::string::npos;
+    }));
+    add(tu("rc608 Modell: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    // Griffe bei 381 %, bei 25 % und bei einem kleinen Element
+    add(tu("rc608 Modell: Griffe lesen", [hol] { (void)hol(); }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+    add(pause(0.1));
+    add(halteTaste(ImGuiMod_Ctrl, true));
+    add(radAn("Strg+Rad", [] { return aufFlaeche(370, 200); }, 6.0F));
+    add(halteTaste(ImGuiMod_Ctrl, false));
+    griffePruefen("381 %");
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+    add(pause(0.1));
+    add(halteTaste(ImGuiMod_Ctrl, true));
+    add(radAn("Strg+Rad", [] { return aufFlaeche(370, 200); }, -8.0F));
+    add(halteTaste(ImGuiMod_Ctrl, false));
+    griffePruefen("25 %");
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+    add(pause(0.1));
+    add(tu("rc608 Modell: kleines Element", [] { me::setzeEigenschaftAuswahl("rect", {"220", "200", "200", "40"}); }));
+    add(pause(0.3));
+    griffePruefen("200 x 40");
+    add(foto("menue_modell_griffe_klein"));
+    add(tu("rc608 Modell: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

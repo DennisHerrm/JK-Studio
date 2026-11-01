@@ -296,10 +296,43 @@ bool gizmoVorschau(const Dokument& d, int mi, Datei& kopie) {
 
 // Die Griffe am gewaehlten Modell: 1 Drehen (waagrecht ziehen), 2 Abstand (senkrecht), 3 Hoehe (senkrecht),
 // 4 Blickwinkel (waagrecht). Rueckgabe true, wenn ein Klick einen Griff traf.
+// rc608 Punkt 12 (shank: "zu wintzig", "liegen auf den Mittelgriffen"): so gross wie ein normaler Knopf, in einer Reihe. Im Element oben
+// links, neben den Griffen zum Skalieren; passt die Reihe nicht hinein, steht sie darueber (am oberen Rand darunter).
+float gizmoGroesse() { return std::floor(ImGui::GetFrameHeight() * 1.15F); }
 std::array<ImVec2, 4> gizmoGriffe(const Rechteck& r, const Abbildung& ab, ImVec2 o) {
     const ImVec2 a{o.x + ab.x(r.x), o.y + ab.y(r.y)}, b{o.x + ab.x(r.x + r.w), o.y + ab.y(r.y + r.h)};
-    const float m = (a.x + b.x) * 0.5F;
-    return {ImVec2{m, a.y + 12}, ImVec2{b.x - 12, (a.y + b.y) * 0.5F}, ImVec2{a.x + 12, (a.y + b.y) * 0.5F}, ImVec2{m, b.y - 12}};
+    const float g = gizmoGroesse(), luft = g * 0.15F, rand = 10.0F;
+    const float reihe = g * 4.0F + luft * 3.0F;
+    const bool innen = b.x - a.x >= reihe + rand * 2.0F && b.y - a.y >= g + rand * 2.0F + 12.0F;
+    const float x0 = innen ? a.x + rand : a.x;
+    const float oben = a.y - g - 8.0F;
+    const float y = innen ? a.y + rand : (oben >= o.y ? oben : b.y + ImGui::GetFontSize() + 10.0F);
+    std::array<ImVec2, 4> c;
+    for (int i = 0; i < 4; ++i) { c[static_cast<std::size_t>(i)] = ImVec2{x0 + g * 0.5F + static_cast<float>(i) * (g + luft), y + g * 0.5F}; }
+    return c;
+}
+
+void gizmoSymbol(ImDrawList* dl, int art, ImVec2 p, float g, ImU32 c) {
+    const float r = g * 0.3F, d = 1.6F;
+    if (art == 0) {   // um die Hochachse drehen: Bogen mit Pfeil
+        dl->PathArcTo(p, r, 0.6F, 5.4F, 16);
+        dl->PathStroke(c, 0, d);
+        const ImVec2 e{p.x + r * std::cos(5.4F), p.y + r * std::sin(5.4F)};
+        dl->AddTriangleFilled(ImVec2{e.x + r * 0.55F, e.y + r * 0.05F}, ImVec2{e.x - r * 0.35F, e.y - r * 0.45F}, ImVec2{e.x - r * 0.1F, e.y + r * 0.55F}, c);
+    } else if (art == 1) {   // Abstand: Lupe
+        dl->AddCircle(ImVec2{p.x - r * 0.2F, p.y - r * 0.2F}, r * 0.7F, c, 16, d);
+        dl->AddLine(ImVec2{p.x + r * 0.3F, p.y + r * 0.3F}, ImVec2{p.x + r, p.y + r}, c, d + 0.6F);
+    } else if (art == 2) {   // Hoehe: Doppelpfeil senkrecht
+        dl->AddLine(ImVec2{p.x, p.y - r}, ImVec2{p.x, p.y + r}, c, d);
+        dl->AddTriangleFilled(ImVec2{p.x, p.y - r * 1.2F}, ImVec2{p.x + r * 0.5F, p.y - r * 0.45F}, ImVec2{p.x - r * 0.5F, p.y - r * 0.45F}, c);
+        dl->AddTriangleFilled(ImVec2{p.x, p.y + r * 1.2F}, ImVec2{p.x - r * 0.5F, p.y + r * 0.45F}, ImVec2{p.x + r * 0.5F, p.y + r * 0.45F}, c);
+    } else {   // Blickwinkel: Kegel
+        const ImVec2 s{p.x - r, p.y};
+        dl->AddLine(s, ImVec2{p.x + r, p.y - r}, c, d);
+        dl->AddLine(s, ImVec2{p.x + r, p.y + r}, c, d);
+        dl->PathArcTo(s, r * 1.7F, -0.45F, 0.45F, 8);
+        dl->PathStroke(c, 0, d);
+    }
 }
 
 int gizmoTreffer(const Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec2 maus) {
@@ -307,12 +340,9 @@ int gizmoTreffer(const Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec
     const Item& it = d.datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(d.auswahl[0])];
     if (it.type != ITEM_TYPE_MODEL) { return 0; }
     const std::array<ImVec2, 4> g = gizmoGriffe(it.window.rect, ab, o);
+    const float halb = gizmoGroesse() * 0.5F;
     for (int i = 0; i < 4; ++i) {
-        if ((maus.x - g[static_cast<std::size_t>(i)].x) * (maus.x - g[static_cast<std::size_t>(i)].x) +
-                (maus.y - g[static_cast<std::size_t>(i)].y) * (maus.y - g[static_cast<std::size_t>(i)].y) <=
-            100.0F) {
-            return i + 1;
-        }
+        if (std::fabs(maus.x - g[static_cast<std::size_t>(i)].x) <= halb && std::fabs(maus.y - g[static_cast<std::size_t>(i)].y) <= halb) { return i + 1; }
     }
     return 0;
 }
@@ -379,16 +409,23 @@ void zeichneModellGizmo(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab
     const Item& it = d.datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(d.auswahl[0])];
     if (it.type != ITEM_TYPE_MODEL) { return; }
     const std::array<ImVec2, 4> griffe = gizmoGriffe(it.window.rect, ab, o);
-    static const char* const zeichen[4] = {"<>", "+-", "^v", "fov"};
     static const Str hilfe[4] = {Str::MeGizmoDrehen, Str::MeGizmoAbstand, Str::MeGizmoHoehe, Str::MeGizmoFov};
     const int ueber = gizmoTreffer(d, mi, ab, o, ImGui::GetIO().MousePos);
+    const float g0 = gizmoGroesse();
+    // Die Griffe duerfen aus der Flaeche ragen (schmale Elemente am Rand)
+    dl->PushClipRect(ImVec2{o.x - g0, o.y - g0}, ImVec2{ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y}, false);
     for (int i = 0; i < 4; ++i) {
         const bool aktiv = z.gizmoArt == i + 1 || ueber == i + 1;
         const ImVec2 p = griffe[static_cast<std::size_t>(i)];
-        dl->AddCircleFilled(p, 10.0F, aktiv ? IM_COL32(255, 190, 40, 230) : IM_COL32(40, 120, 220, 210));
-        const ImVec2 t = ImGui::CalcTextSize(zeichen[i]);
-        dl->AddText(ImVec2{p.x - t.x * 0.5F, p.y - t.y * 0.5F}, IM_COL32(255, 255, 255, 255), zeichen[i]);
+        const ImVec2 lo{p.x - g0 * 0.5F, p.y - g0 * 0.5F}, hi{p.x + g0 * 0.5F, p.y + g0 * 0.5F};
+        dl->AddRectFilled(lo, hi, aktiv ? IM_COL32(255, 190, 40, 240) : IM_COL32(40, 120, 220, 230), g0 * 0.2F);
+        dl->AddRect(lo, hi, IM_COL32(255, 255, 255, 200), g0 * 0.2F);
+        gizmoSymbol(dl, i, p, g0, IM_COL32(255, 255, 255, 255));
     }
+    dl->PopClipRect();
+    const int zeigerArt = z.gizmoArt != 0 ? z.gizmoArt : ueber;
+    if (zeigerArt == 2 || zeigerArt == 3) { ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS); }
+    else if (zeigerArt != 0) { ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW); }
     if (ueber != 0 || z.gizmoArt != 0) {
         const GizmoWerte g = z.gizmoArt != 0 ? z.gizmoJetzt : gizmoAus(it);
         char b[200];

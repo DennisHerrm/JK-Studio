@@ -120,7 +120,7 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht) {
 }
 
 std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Rechteck& r, const std::string& einr,
-                        const std::string& nl) {
+                        const std::string& nl, Spiel spiel) {
     const std::string e = einr + "\t";
     std::string s = einr + "itemDef" + nl + einr + "{" + nl;
     auto z = [&](const std::string& k, const std::string& v) { s += e + k + "\t\t\t" + v + nl; };
@@ -174,9 +174,34 @@ std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Recht
             z("outlinecolor", "1 1 1 0.25");
             break;
         case ITEM_TYPE_MODEL:
-            z("asset_model", "\"models/players/kyle/model.glm\"");
-            z("model_fovx", "40");
-            z("model_fovy", "40");
+            // rc608 Punkt 12: aus den echten Menues statt geschaetzt. JK2 kennt in Menues nur Modelle ohne Ghoul2 (ui/credits.menu, logomodel).
+            // JKA und MD: Figur ganz im Bild, von vorn, Standpose wie ui/jamp/ingame_player2.menu (Grenzen, Blickwinkel, model_angle 180)
+            // und ui/md_mp/ingame_player.menu (BOTH_MENUIDLE1).
+            if (spiel == Spiel::JK2) {
+                z("asset_model", "\"models/map_objects/bespin/jk2logo.md3\"");
+                z("model_fovx", "37");
+                z("model_fovy", "34");
+                z("model_origin", "100 100 100");
+                z("model_angle", "90");
+                break;
+            }
+            // Die Reihenfolge zaehlt: ItemParse_asset_model_go setzt die Animation, die zu dem Zeitpunkt schon gelesen ist; steht
+            // model_g2anim dahinter, zeigt das Spiel die T-Pose (OpenJK code/ui, MD; im Spiel fotografiert). Nur isCharacter stellt sie spaeter.
+            // Das MP von OpenJK spielt model_g2anim nur mit isCharacter (dann die Figur aus ui_char_model).
+            if (d == Dialekt::MP && spiel != Spiel::MD) {
+                z("asset_model", "\"ui_char_model\"");
+                z("model_g2anim", "\"BOTH_WALK1\"");
+                z("isCharacter", "1");
+            } else {
+                z("model_g2anim", "\"BOTH_MENUIDLE1\"");
+                z("asset_model", "\"models/players/kyle/model.glm\"");
+                z("model_g2skin", "\"models/players/kyle/model_default.skin\"");
+            }
+            z("model_fovx", "50");
+            z("model_fovy", "50");
+            z("model_angle", "180");
+            z("model_g2mins", "-30 -15 -14");
+            z("model_g2maxs", "20 15 30");
             break;
         case ITEM_TYPE_BIND:
             z("text", "\"Attack:\"");

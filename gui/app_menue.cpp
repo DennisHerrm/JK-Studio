@@ -184,6 +184,7 @@ struct Kino {
 // M2: ein 3D-Modell eines ITEM_TYPE_MODEL - Modell, Haeute und Bilder einmal
 // geladen; gezeichnet von gpu::zeichneMenueFigur in sein Ziel Nr. nr
 struct ModellAnsicht {
+    std::map<int, int> zielJeItem;
     MenueModell modell;
     ModelTextures texturen;
     bool texturenDa = false;
@@ -325,6 +326,8 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    Abbildung letztesAb;   // Selbsttest: die Abbildung und der Ursprung der Flaeche im letzten Bild
+    ImVec2 letztesO{0, 0};
     bool ablageAn = false, ablageWar = false;   // rc608 Punkt 11: gerade wird etwas ueber die Flaeche gezogen
     Rechteck ablageRect;
     std::function<std::string()> bildDialog;    // Selbsttest statt des Dateidialogs
@@ -1530,7 +1533,9 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                         const std::vector<int>& g = z.lauf.animGesetzt[static_cast<std::size_t>(z.laufMenue)];
                         if (static_cast<std::size_t>(p.item) < g.size() && g[static_cast<std::size_t>(p.item)] >= 0) { animStart = g[static_cast<std::size_t>(p.item)]; }
                     }
-                    if (mv.nr < 0) { mv.nr = z.naechstesZiel++; }
+                    // rc608: je Item ein Ziel. Zwei Items mit demselben Modell teilten sonst ein Bild, und das letzte model_angle galt fuer beide.
+                    if (mv.zielJeItem.count(p.item) == 0) { mv.zielJeItem[p.item] = z.naechstesZiel++; }
+                    mv.nr = mv.zielJeItem[p.item];
                     const auto figurAnfang = std::chrono::steady_clock::now();   // reste2 Punkt 7: Messung
                     // refdef: x = rect.x + 1, w = rect.w - 2 (in Bildpunkten des Fensters)
                     const float sx = (b.x - a.x) / std::max(1.0F, p.w), sy = (b.y - a.y) / std::max(1.0F, p.h);
@@ -1605,6 +1610,7 @@ bool tabFolgeKlick(Dokument& d, int mi, float vx, float vy, const Umgebung& u);
 // M7 Punkt 12 (app_menue_m7.inc)
 bool gizmoVorschau(const Dokument& d, int mi, Datei& kopie);
 bool gizmoKlick(Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec2 maus);
+int gizmoTreffer(const Dokument& d, int mi, const Abbildung& ab, ImVec2 o, ImVec2 maus);
 void zeichneModellGizmo(ImDrawList* dl, Dokument& d, int mi, const Abbildung& ab, ImVec2 o);
 void zeichneRefBild(ImDrawList* dl, const Abbildung& ab, ImVec2 o, bool oben);   // M6 Punkt 7
 void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy);
@@ -1955,6 +1961,10 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     ab.ox += d.panX;
     ab.oy += d.panY;
     d.zoomProzent = static_cast<int>(std::lround(ab.sx * 100.0F));
+    z.letztesAb = ab;
+    z.letztesO = o;
+    z.letztesAb = ab;
+    z.letztesO = o;
     z.flaeche[0] = o.x + ab.ox;
     z.flaeche[1] = o.y + ab.oy;
     z.flaeche[2] = kSchirmBreite * ab.sx;
@@ -2252,8 +2262,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         };
         const auto waehlbar = std::find(d.auswahl.begin(), d.auswahl.end(), unterMaus) != d.auswahl.end();
         const bool frei = std::none_of(d.auswahl.begin(), d.auswahl.end(), [&d](int i) { return d.gesperrt.count(i) != 0; });
-        if (z.pannt || leertaste) {
-            // Hand (oben gesetzt)
+        if (z.pannt || leertaste || z.gizmoArt != 0 || gizmoTreffer(d, mi, ab, o, maus) != 0) {
+            // Hand (oben gesetzt) oder der Zeiger des Modell-Griffs
         } else if (z.ziehen == Ziehen::Groesse) {
             ImGui::SetMouseCursor(griffZeiger(z.griff));
         } else if (z.ziehen == Ziehen::Verschieben) {
@@ -4928,8 +4938,8 @@ bool bauteilKachel(const char* name, int typ, ImVec2 groesse, const char* hinwei
 }
 
 ImVec2 widgetGroesse(int typ) {
-    (void)typ;
-    return ImVec2{200, 40};
+    if (typ != ITEM_TYPE_MODEL) { return ImVec2{200, 40}; }
+    return Z().spiel == Spiel::JK2 ? ImVec2{250, 250} : ImVec2{200, 225};   // ui/jk2mp/credits.menu, ui/jamp/ingame_player2.menu
 }
 
 void zeichnePalette(Dokument& d) {
@@ -5023,7 +5033,7 @@ std::string ablageText(int n) {
     for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     const ImVec2 gr = widgetGroesse(typ);
     const Rechteck r{static_cast<float>(220 - m.window.rect.x), static_cast<float>(200 - m.window.rect.y), gr.x, gr.y};
-    return itemVorlage(typ, d->datei.dialekt, name, r, "\t\t", d->puffer.zeilenUmbruch());
+    return itemVorlage(typ, d->datei.dialekt, name, r, "\t\t", d->puffer.zeilenUmbruch(), d->datei.spiel);
 }
 
 // Wie gross das Abgelegte wird (Umriss aller rect-Zeilen), fuer den Rahmen beim Ziehen
@@ -6284,6 +6294,23 @@ std::vector<ItemLage> itemLagen() {
         v.push_back(l);
     }
     return v;
+}
+
+bool modellGriffe(float* xy8, float* g) {
+    Zustand& z = Z();
+    const Dokument* d = doc();
+    if (d == nullptr || d->auswahl.size() != 1 || z.letztesAb.sx <= 0.0F) { return false; }
+    const int mi = menuDerSeite(*d);
+    if (mi < 0) { return false; }
+    const Item& it = d->datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(d->auswahl[0])];
+    if (it.type != ITEM_TYPE_MODEL) { return false; }
+    const std::array<ImVec2, 4> m = gizmoGriffe(it.window.rect, z.letztesAb, z.letztesO);
+    for (int i = 0; i < 4; ++i) {
+        xy8[i * 2] = m[static_cast<std::size_t>(i)].x;
+        xy8[i * 2 + 1] = m[static_cast<std::size_t>(i)].y;
+    }
+    *g = gizmoGroesse();
+    return true;
 }
 
 void setzeBildDialog(std::function<std::string()> antwort) { Z().bildDialog = std::move(antwort); }

@@ -529,7 +529,10 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
             else if (n == "asset_model") { it.assetModel = s; }
             else if (n == "asset_shader") { it.assetShader = s; }
             else if (n == "model_g2skin") { it.g2skin = s; }
-            else if (n == "model_g2anim") { it.g2anim = s; }
+            else if (n == "model_g2anim") {
+                it.g2anim = s;
+                it.g2animOhneWirkung = !it.assetModel.empty() || (d == Dialekt::MP && spiel != Spiel::MD);
+            }
             else if (n == "rectcvar") { it.rectcvar = s; }
             return true;
         }

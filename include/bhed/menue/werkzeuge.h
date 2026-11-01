@@ -39,7 +39,7 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht);
 // Vorlage fuer ein neues Item des Typs (ITEM_TYPE_*), passend zum Dialekt,
 // eingerueckt mit einr (eine Zeile pro Schluesselwort).
 [[nodiscard]] std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Rechteck& r,
-                                      const std::string& einr, const std::string& nl);
+                                      const std::string& einr, const std::string& nl, Spiel spiel = Spiel::JA);   // rc608: spiel entscheidet, was ein neues Modell zeigt
 
 // Ein neues Item am Ende des Menues (vor dessen schliessender }).
 [[nodiscard]] bool itemEinfuegen(const Datei& d, int menu, const std::string& itemText, std::vector<Ersetzung>& out);

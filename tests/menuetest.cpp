@@ -40,7 +40,28 @@ void zeigeMeldungen(const Datei& d) {
 }
 }  // namespace
 
+// rc608: Die Reihenfolge von asset_model und model_g2anim entscheidet im Spiel, ob die Animation laeuft
+void g2animReihenfolge() {
+    const auto lesen = [](const char* text, Dialekt dia, Spiel spiel) {
+        LeseOptionen o;
+        o.dialekt = dia;
+        o.spiel = spiel;
+        return lies("ui/x.menu", text, o);
+    };
+    const char* const davor = "{ menuDef { name m itemDef { name a type 7 model_g2anim \"BOTH_STAND1\" asset_model \"models/players/kyle/model.glm\" } } }";
+    const char* const dahinter = "{ menuDef { name m itemDef { name a type 7 asset_model \"models/players/kyle/model.glm\" model_g2anim \"BOTH_STAND1\" } } }";
+    const auto wirkungslos = [&](const char* t, Dialekt dia, Spiel sp) {
+        const Datei d = lesen(t, dia, sp);
+        return !d.menus.empty() && !d.menus[0].items.empty() && d.menus[0].items[0].g2animOhneWirkung;
+    };
+    pruefe(!wirkungslos(davor, Dialekt::SP, Spiel::JA), "g2anim vor asset_model: SP spielt sie");
+    pruefe(wirkungslos(dahinter, Dialekt::SP, Spiel::JA), "g2anim nach asset_model: SP zeigt die T-Pose");
+    pruefe(!wirkungslos(davor, Dialekt::MP, Spiel::MD), "g2anim vor asset_model: MD-MP spielt sie");
+    pruefe(wirkungslos(davor, Dialekt::MP, Spiel::JA), "OpenJK-MP: g2anim allein spielt nie");
+}
+
 int main() {
+    g2animReihenfolge();
     // --- SP ------------------------------------------------------------------
     const std::string sp =
         "// Kopf\r\n"
