@@ -87,6 +87,12 @@ Kein Unterschied, nur der Augenblick: die Griffe mit dem Ring (im Spiel dreht er
 - Spielfotos Movie Duels (`SP/rc608/mdspiel.py`, `SP/rc608/md/`): Forcemenue wie im Spiel, nebeneinander in `SP/rc608/shader/`. Stichprobe fehlendes Bild `ingametutorial`: das Spiel zeichnet denselben grauen Kasten mit weissem Rand. Machtsymbole und Hex-Muster (additiv, Reihenfolge) stimmen, also nichts an den Stufen geaendert.
 - Gefunden dabei: WEAPONS ist im Spiel grau (UI_ForcePowerWeaponsButton, `uiScript initallocforcepower`, greyColor in Item_TextColor), jetzt auch in der Vorschau.
 
+### Punkt 17: Ersetzen bei Strg+F
+- Rot: `BHED_MENUE_NUR=ersetzen`, 9 Fehler (Feld und Knoepfe nicht da, Strg+F schaltete das Ersetzen sogar ab). Gruen: 7/7. Foto: `SP/rc608/vorher_p17_strgf.png`, `SP/rc608/nachher_p17_strgf.png`.
+- Strg+F zeigt jetzt immer Suchen und Ersetzen, mit den Beschriftungen des Skript-Bereichs (`FindReplaceBtn`, `FindReplaceAll`, `FindReplaceAllDocs`). Alle ersetzen: ein Undo-Schritt je Datei, Anzahl in der Einblendung und in der Leiste. Ohne Suchtext grau.
+- Strg+H bleibt: gleiche Leiste, der Cursor steht gleich im Ersetzen-Feld. Strg+F ohne Auswahl behaelt den letzten Suchtext (vorher leer).
+- "In all open menus" bleibt fuer die Trefferzahl; ersetzt wird in allen Dateien nur ueber den eigenen Knopf, statt ueber den Haken am selben Knopf.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben (Kontaktboegen in `SP/rc608/jk2/`):
 - Datapad: Die ausgeschnittenen Knopfflaechen (WEAPONS, INVENTORY, FORCE) sind in der Vorschau grau mit Verlauf, im Spiel schwarz. `datapad2.tga` ist dort voll durchsichtig (Alpha 0), `frame_pic` zeichnet schwarz davor; was das Grau zeichnet, ist nicht gefunden.
@@ -112,6 +118,7 @@ Weiter offen:
 - Menu editor: all Jedi Outcast multiplayer menus compared with the running game: texts, values, saber picture, map list, force templates and setup pages now match.
 - Command line: unknown switches are no longer opened as files; --version names the version.
 - Menu editor: images and shaders are found as in the game: base is always read along with a mod folder, also when only the mod folder is set up (force icons no longer empty with Movie Duels)
+- Menu editor: Ctrl+F shows find and replace together, as in the script section; Replace All is one undo step and reports the count
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -123,6 +130,7 @@ Weiter offen:
 - Menü-Editor: alle Mehrspieler-Menüs von Jedi Outcast mit dem laufenden Spiel verglichen: Texte, Werte, Säbelbild, Kartenliste, Force-Vorlagen und Setup-Seiten stimmen jetzt.
 - Befehlszeile: Unbekannte Schalter werden nicht mehr als Datei geöffnet, --version nennt die Fassung.
 - Menü-Editor: Bilder und Shader werden gefunden wie im Spiel: base wird immer mitgelesen, auch wenn nur der Mod-Ordner eingerichtet ist (Macht-Symbole bei Movie Duels nicht mehr leer)
+- Menü-Editor: Strg+F zeigt Suchen und Ersetzen zusammen, wie im Skript-Bereich; Alle ersetzen ist ein Undo-Schritt und meldet die Anzahl
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -134,6 +142,7 @@ Weiter offen:
 - 菜单编辑器:所有 Jedi Outcast 多人菜单已与运行中的游戏对比:文本、数值、光剑图片、地图列表、原力模板和设置页现在一致。
 - 命令行:未知开关不再被当作文件打开,--version 显示版本。
 - 菜单编辑器:图片和着色器的查找方式与游戏相同:即使只设置了模组文件夹,也始终同时读取 base(Movie Duels 的原力图标不再为空)
+- 菜单编辑器:Ctrl+F 同时显示查找和替换,与脚本区域相同;“全部替换”是一个撤销步骤并报告数量
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -145,6 +154,7 @@ Weiter offen:
 - メニューエディター: Jedi Outcast のマルチプレイメニューをすべて実際のゲームと比較し、テキスト、値、セイバー画像、マップ一覧、フォーステンプレート、設定ページを一致させました。
 - コマンドライン: 不明なスイッチをファイルとして開かなくなり、--version でバージョンを表示します。
 - メニューエディター: 画像とシェーダーをゲームと同じように探します。MOD フォルダーだけを設定していても base を常に一緒に読み込みます(Movie Duels のフォースアイコンが空になりません)
+- メニューエディター: Ctrl+F で検索と置換を一緒に表示します(スクリプト領域と同じ)。すべて置換は 1 回の元に戻す操作で、件数を表示します
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -156,6 +166,7 @@ Weiter offen:
 - Editor de menús: todos los menús multijugador de Jedi Outcast comparados con el juego en marcha: textos, valores, imagen del sable, lista de mapas, plantillas de la Fuerza y páginas de configuración ya coinciden.
 - Línea de comandos: los interruptores desconocidos ya no se abren como archivos; --version indica la versión.
 - Editor de menús: las imágenes y los shaders se encuentran como en el juego: base siempre se lee junto a la carpeta del mod, aunque solo esté configurada esta (los iconos de Fuerza de Movie Duels ya no salen vacíos)
+- Editor de menús: Ctrl+F muestra buscar y reemplazar juntos, como en la sección de scripts; Reemplazar todo es un solo paso de deshacer e indica la cantidad
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -167,3 +178,4 @@ Weiter offen:
 - Editor menu: všechna menu pro více hráčů Jedi Outcast porovnána s běžící hrou: texty, hodnoty, obrázek meče, seznam map, šablony Síly a stránky nastavení nyní souhlasí.
 - Příkazový řádek: neznámé přepínače se už neotevírají jako soubory, --version uvede verzi.
 - Editor menu: obrázky a shadery se hledají stejně jako ve hře: base se čte vždy, i když je nastavena jen složka modu (ikony Síly v Movie Duels už nejsou prázdné)
+- Editor menu: Ctrl+F zobrazí hledání i nahrazení společně, jako v sekci skriptů; Nahradit vše je jeden krok zpět a oznámí počet

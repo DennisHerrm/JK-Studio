@@ -2656,6 +2656,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=ersetzen: Suchen und Ersetzen im Text-Editor (rc608 Punkt 17)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "ersetzen") == 0) {
+        for (auto& x : schritteErsetzen()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=shader: Bilder und Shader wie im Spiel (rc608 Punkt 15)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "shader") == 0) {
         for (auto& x : schritteShader()) { add(std::move(x)); }

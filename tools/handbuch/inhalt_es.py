@@ -3469,8 +3469,8 @@ TEXTE = {
         "Editor de código",
     "Interact: the page cvar `ui_tab` shows the red box, a click on Yes/No changes `ui_probe`.":
         "Interactuar: la cvar de página `ui_tab` muestra el cuadro rojo, un clic en Sí/No cambia `ui_probe`.",
-    "find / replace (regex, case, whole word, all open menus); matches are marked in the minimap":
-        "buscar / reemplazar (regex, mayúsculas, palabra completa, todos los menús abiertos); las coincidencias se marcan en el minimapa",
+    "find and replace, as in the script section (regex, case, whole word, all open menus). Replace All is one undo step and reports the count; Ctrl+H puts the cursor in the replace field; matches are marked in the minimap":
+        "buscar y reemplazar, como en la sección de scripts (regex, mayúsculas, palabra completa, todos los menús abiertos). Reemplazar todo es un solo paso de deshacer e indica la cantidad; Ctrl+H pone el cursor en el campo de reemplazo; las coincidencias se marcan en el minimapa",
     "next occurrence / all occurrences / extra cursor (multi-cursor)":
         "siguiente aparición / todas las apariciones / cursor extra (multicursor)",
     "completion: keywords, cvars, item names, shader paths, @MENUS strings":

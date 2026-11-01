@@ -3466,8 +3466,8 @@ TEXTE = {
         "Editor kódu",
     "Interact: the page cvar `ui_tab` shows the red box, a click on Yes/No changes `ui_probe`.":
         "Ovládání: cvar stránky `ui_tab` ukazuje červený rámeček, kliknutí na Ano/Ne mění `ui_probe`.",
-    "find / replace (regex, case, whole word, all open menus); matches are marked in the minimap":
-        "najít / nahradit (regex, velikost písmen, celé slovo, všechna otevřená menu); shody jsou označené v minimapě",
+    "find and replace, as in the script section (regex, case, whole word, all open menus). Replace All is one undo step and reports the count; Ctrl+H puts the cursor in the replace field; matches are marked in the minimap":
+        "hledání a nahrazení, jako v sekci skriptů (regex, velikost písmen, celé slovo, všechna otevřená menu). Nahradit vše je jeden krok zpět a oznámí počet; Ctrl+H přesune kurzor do pole nahrazení; shody jsou označeny v minimapě",
     "next occurrence / all occurrences / extra cursor (multi-cursor)":
         "další výskyt / všechny výskyty / další kurzor (více kurzorů)",
     "completion: keywords, cvars, item names, shader paths, @MENUS strings":

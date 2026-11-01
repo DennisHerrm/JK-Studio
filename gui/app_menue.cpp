@@ -310,7 +310,7 @@ struct Zustand {
     int werteBild = -2;   // rc608: zuletzt hatte ein Panel mit Werten den Fokus (Properties, Events, Text-Editor)
     bool suchenOffen = false;
     bool suchFokus = false;
-    bool ersetzenOffen = false;
+    bool ersatzFokus = false;
     std::string such, ersatz;
     SuchOptionen suchOpt;
     bool inAllen = false;
@@ -2291,20 +2291,41 @@ void zeichneSuchleiste(Dokument& d) {
     ImGui::SameLine();
     if (ImGui::ArrowButton("##vor", ImGuiDir_Down) || (neu && !t.empty())) { naechster(true); }
     if (ImGui::IsKeyPressed(ImGuiKey_Enter) && ImGui::IsItemFocused()) { naechster(!ImGui::GetIO().KeyShift); }
-    if (z.ersetzenOffen) {
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
-        eingabe("##ersatz", &z.ersatz);
-        daneben(knopfBreite(tr(Str::MeErsetzen)));
-        if (ImGui::Button(tr(Str::MeErsetzen))) { d.puffer.ersetzeEinen(z.such, z.ersatz, z.suchOpt); }
-        daneben(knopfBreite(tr(Str::MeErsetzenAlle)));
-        if (ImGui::Button(tr(Str::MeErsetzenAlle))) {
-            if (z.inAllen) {
-                for (auto& o : z.docs) { o->puffer.ersetzeAlle(z.such, z.ersatz, z.suchOpt); }
-            } else {
-                d.puffer.ersetzeAlle(z.such, z.ersatz, z.suchOpt);
-            }
-        }
+    // rc608 Punkt 17: Suchen und Ersetzen gehoeren zusammen, mit den Beschriftungen des Skript-Bereichs (drawFindDialog)
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    if (z.ersatzFokus) {
+        ImGui::SetKeyboardFocusHere();
+        z.ersatzFokus = false;
     }
+    eingabe("##ersatz", &z.ersatz, 0, tr(Str::FindReplaceWith));
+    ImGui::BeginDisabled(z.such.empty());
+    daneben(knopfBreite(tr(Str::FindReplaceBtn)));
+    if (ImGui::Button(tr(Str::FindReplaceBtn))) { d.puffer.ersetzeEinen(z.such, z.ersatz, z.suchOpt); }
+    const auto melde = [&](const std::string& text) {
+        z.meldung = text;
+        ::bhed::gui::meldung(text, "", false);
+    };
+    daneben(knopfBreite(tr(Str::FindReplaceAll)));
+    if (ImGui::Button(tr(Str::FindReplaceAll))) {
+        char m[120];
+        const int n = d.puffer.ersetzeAlle(z.such, z.ersatz, z.suchOpt);
+        std::snprintf(m, sizeof(m), tr(Str::FindReplacedN), n);
+        melde(m);
+    }
+    daneben(knopfBreite(tr(Str::FindReplaceAllDocs)));
+    if (ImGui::Button(tr(Str::FindReplaceAllDocs))) {
+        char m[160];
+        int n = 0;
+        int dateien = 0;
+        for (auto& o : z.docs) {
+            const int k = o->puffer.ersetzeAlle(z.such, z.ersatz, z.suchOpt);
+            n += k;
+            dateien += k > 0 ? 1 : 0;
+        }
+        std::snprintf(m, sizeof(m), trN(Str::FindReplacedDocs, dateien), n, dateien);
+        melde(m);
+    }
+    ImGui::EndDisabled();
 }
 
 void codeTasten(Dokument& d) {
@@ -2360,8 +2381,17 @@ void codeTasten(Dokument& d) {
     if (strg && um && taste(ImGuiKey_L)) { p.alleVorkommen(); return; }
     if (strg && taste(ImGuiKey_D)) { p.naechstesVorkommenDazu(); return; }
     if (strg && taste(ImGuiKey_Slash)) { p.kommentar(); return; }
-    if (strg && taste(ImGuiKey_F)) { z.suchenOffen = z.suchFokus = true; z.ersetzenOffen = false; z.such = p.auswahlText(); return; }
-    if (strg && taste(ImGuiKey_H)) { z.suchenOffen = z.ersetzenOffen = z.suchFokus = true; return; }
+    if (strg && taste(ImGuiKey_F)) {
+        z.suchenOffen = z.suchFokus = true;
+        if (const std::string a = p.auswahlText(); !a.empty()) { z.such = a; }
+        return;
+    }
+    if (strg && taste(ImGuiKey_H)) {   // wie Strg+F, nur steht der Cursor gleich im Ersetzen-Feld
+        z.suchenOffen = true;
+        z.ersatzFokus = true;
+        if (const std::string a = p.auswahlText(); !a.empty()) { z.such = a; }
+        return;
+    }
     if (strg && taste(ImGuiKey_Space)) {
         const Treffer w = p.wortBei(p.cursor.front().pos);
         z.vervoll = vorschlaege(p.text().substr(w.anfang, p.cursor.front().pos - w.anfang), kandidaten(d));
