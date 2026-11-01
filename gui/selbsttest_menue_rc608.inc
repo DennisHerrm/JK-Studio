@@ -1037,6 +1037,139 @@ std::vector<Schritt> schritteFelderJeTyp() {
     return s;
 }
 
+// Liegt alles im Inhalt der rechten Spalte? Waagerechtes Rollen waere der letzte Ausweg: ScrollMax.x bleibt 0,
+// jedes Element liegt ganz im Fenster. fehler: was hinausragt.
+bool rechtsGanz(std::string& fehler) {
+    ImGuiWindow* w = nullptr;
+    for (ImGuiWindow* x : GImGui->Windows) {
+        const std::string n = x->Name;
+        if (x->WasActive && n.find("/##inhalt_") != std::string::npos && n.find("##rechts") != std::string::npos) { w = x; }
+    }
+    if (w == nullptr) {
+        fehler = "kein Inhalt";
+        return false;
+    }
+    bool gut = true;
+    if (w->ScrollMax.x > 0.5F) {
+        fehler += " ScrollMax " + std::to_string(w->ScrollMax.x);
+        gut = false;
+    }
+    for (const Element& e : elemente::alle()) {
+        if (e.innen.find("##inhalt") == std::string::npos) { continue; }
+        if (e.rect.Min.x < w->Pos.x - 0.5F || e.rect.Max.x > w->Pos.x + w->Size.x + 0.5F) {
+            fehler += " [" + e.label + " bis " + std::to_string(e.rect.Max.x - w->Pos.x - w->Size.x) + " bei y " + std::to_string(e.rect.Min.y - w->Pos.y + w->Scroll.y) + "]";
+            gut = false;
+        }
+    }
+    return gut;
+}
+
+// Der Probeinhalt fuer die Breiten: alle Felder eines Modells und eines Knopfs, dazu Ereignisse mit den breiten Aktionen
+const char* const kBreitenText =
+    "menuDef\n{\n  name \"breit\"\n  rect 0 0 640 480\n  visible 1\n"
+    "  itemDef\n  {\n    name \"knopf\"\n    type ITEM_TYPE_BUTTON\n    rect 100 100 200 40\n    text \"Back\"\n    focusSound \"sound/interface/button1.wav\"\n    visible 1\n"
+    "    action { play \"sound/interface/button1.wav\" ; setitemcolor knopf forecolor 1 0.5 0.25 1 ; transition knopf 10 10 100 30 6 6 108 38 10 1 ; setcvar ui_name 1 ; show knopf }\n"
+    "    mouseEnter { setitemcolor knopf backcolor 1 1 1 1 }\n  }\n"
+    "  itemDef\n  {\n    name \"figur\"\n    type ITEM_TYPE_MODEL\n    rect 300 100 200 225\n    model_g2anim \"BOTH_STAND1\"\n    asset_model \"models/players/kyle/model.glm\"\n    model_angle 180\n    visible 1\n  }\n"
+    "}\n";
+
+// rc608 Punkte 3 und 13: Bei 300, 500 und 1000 Punkten, 100 % und 200 %, in jeder Sprache liegt alles im Feld
+std::vector<Schritt> breitenTabelle(const std::string& wer, int reiter, std::vector<int> elemente, std::function<bool(std::string&)> zusatz) {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto skala = std::make_shared<float>(1.0F);
+    const i18n::Language sprache = i18n::currentLanguage();
+    add(tu("rc608 Breiten " + wer + ": Oberflaeche merken", [skala, reiter] {
+        *skala = g_app->uiScale;
+        me::setzeReiter(reiter);
+    }));
+    for (const float zoom : {1.0F, 2.0F}) {
+        for (const i18n::LanguageInfo& l : i18n::languages()) {
+            const i18n::Language lang = l.language;
+            const std::string kurz = l.code;
+            for (const float breite : {300.0F, 500.0F, 1000.0F}) {
+                for (const int el : elemente) {
+                    const std::string was = "rc608 Breiten " + wer + " " + kurz + " " + std::to_string(static_cast<int>(zoom * 100.0F)) + " % " + std::to_string(static_cast<int>(breite)) + " Punkte Element " + std::to_string(el);
+                    add(tu(was, [lang, zoom, breite, el] {
+                        i18n::setLanguage(lang);
+                        g_app->uiScale = zoom;
+                        me::setzeSpalten(me::linkeSpalte(), breite);
+                        me::waehle(el, false);
+                    }));
+                    add(pause(0.12));
+                    add(pruefe(was + " liegt ganz im Feld", [was, zusatz] {
+                        std::string f;
+                        bool gut = rechtsGanz(f);
+                        if (zusatz) { gut = zusatz(f) && gut; }
+                        if (!gut) { diag::info("Knopftest: " + was + ": rechts " + std::to_string(me::rechteSpalte()) + f); }
+                        return gut;
+                    }));
+                }
+            }
+        }
+    }
+    add(tu("rc608 Breiten " + wer + ": Oberflaeche zurueck", [skala, sprache] {
+        g_app->uiScale = *skala;
+        i18n::setLanguage(sprache);
+    }));
+    return s;
+}
+
+std::vector<Schritt> schritteBreiten() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("rc608 Breiten: Probe", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ui/breit.menu", kBreitenText);
+        me::setzeInteraktion(false);
+    }));
+    add(pause(1.0));
+    for (auto& x : breitenTabelle("Properties", 2, {0, 1}, {})) { add(std::move(x)); }
+    // Mindestbreite: kleiner geht es nicht, und die Zahlen sind lesbar
+    add(tu("rc608 Breiten: viel zu schmal", [] {
+        me::setzeReiter(2);
+        me::waehle(0, false);
+        me::setzeSpalten(10.0F, 10.0F);
+    }));
+    add(pause(0.2));
+    add(foto("menue_properties_schmal"));
+    add(pruefe("rc608 Breiten: Mindestbreiten rechts und links", [] {
+        const float fs = ImGui::GetFontSize();
+        diag::info("Knopftest: Mindestbreite rechts " + std::to_string(me::rechteSpalte()) + ", links " + std::to_string(me::linkeSpalte()) + ", Schrift " + std::to_string(fs));
+        return me::rechteSpalte() >= fs * 16.0F - 0.5F && me::linkeSpalte() >= fs * 11.0F - 0.5F;
+    }));
+    const i18n::Language spracheVorher = i18n::currentLanguage();
+    for (const i18n::LanguageInfo& l : i18n::languages()) {
+        const i18n::Language lang = l.language;
+        const std::string kurz = l.code;
+        add(tu("rc608 Breiten: links schmal, " + kurz, [lang] { i18n::setLanguage(lang); }));
+        add(pause(0.15));
+        add(pruefe("rc608 Breiten: die Spalten zeigen ihren Inhalt ganz, alle Reiter im Feld, " + kurz, [] {
+            const ReiterLage r = reiterLage();
+            bool reiterGut = r.reiter.size() == 4;
+            for (const auto& [name, rect] : r.reiter) { reiterGut = reiterGut && rect.Max.x <= r.rechts + 0.5F && rect.GetWidth() >= 30.0F; }
+            return spaltenGanz() && reiterGut;
+        }));
+    }
+    add(tu("rc608 Breiten: Sprache zurueck", [spracheVorher] { i18n::setLanguage(spracheVorher); }));
+    add(tu("rc608 Breiten: viel zu breit", [] { me::setzeSpalten(100000.0F, 100000.0F); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Breiten: die Flaeche behaelt ihren Platz", [] {
+        const auto x = me::stand();
+        diag::info("Knopftest: Flaeche bei breiten Spalten " + std::to_string(x.flaeche[2]));
+        return x.flaeche[2] >= ImGui::GetFontSize() * 15.0F;
+    }));
+    add(foto("menue_properties_breit"));
+    add(tu("rc608 Breiten: Vorgabe", [] {
+        me::setzeSpalten(0.0F, 0.0F);
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

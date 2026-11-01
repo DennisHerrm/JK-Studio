@@ -239,9 +239,9 @@ void zeichneKomponente(Dokument& d) {
             z.kompFuer = fuer;
             z.kompName = it.window.name.empty() ? std::string("komponente") : it.window.name;
         }
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+        ImGui::SetNextItemWidth(std::min(ImGui::GetFontSize() * 10.0F, ImGui::GetContentRegionAvail().x));
         eingabe("##kompname", &z.kompName);
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeKompAnlegen)));
         if (ImGui::Button(tr(Str::MeKompAnlegen))) {
             std::vector<Ersetzung> e;
             if (alsKomponente(d.datei, text, mi, item, z.kompName, e)) { aendere(std::move(e)); }

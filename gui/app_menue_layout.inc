@@ -312,12 +312,12 @@ void zeichneLayout(Dokument& d) {
         ImGui::BeginDisabled(!genug);
         if (ImGui::Button(tr(Str::MeLayoutWaagrecht))) { layoutAusAuswahl(d, LayoutArt::Waagrecht); }
         tipp(Str::MeLayoutWaagrechtTip);
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeLayoutSenkrecht)));
         if (ImGui::Button(tr(Str::MeLayoutSenkrecht))) { layoutAusAuswahl(d, LayoutArt::Senkrecht); }
         tipp(Str::MeLayoutSenkrechtTip);
         if (ImGui::Button(tr(Str::MeLayoutRaster))) { layoutAusAuswahl(d, LayoutArt::Raster); }
         tipp(Str::MeLayoutRasterTip);
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeLayoutTeiler)));
         if (ImGui::Button(tr(Str::MeLayoutTeiler))) { layoutAusAuswahl(d, LayoutArt::Teiler); }
         tipp(Str::MeLayoutTeilerTip);
         ImGui::EndDisabled();
@@ -326,8 +326,7 @@ void zeichneLayout(Dokument& d) {
     }
     Layout l = ls[static_cast<std::size_t>(li)];
     bool neu = false;   // nach dem Loslassen der Regler bzw. sofort bei Knoepfen
-    ImGui::Text("%s: %s", tr(Str::MeLayout), l.name.c_str());
-    ImGui::SameLine();
+    ImGui::TextWrapped("%s: %s", tr(Str::MeLayout), l.name.c_str());
     if (ImGui::SmallButton(tr(Str::MeLayoutAufloesen))) {   // oben: ohne Blaettern erreichbar
         layoutAendern(d, mi, l, true);
         ImGui::PopID();
@@ -336,7 +335,8 @@ void zeichneLayout(Dokument& d) {
     tipp(Str::MeLayoutAufloesenTip);
     const Str arten[] = {Str::MeLayoutWaagrecht, Str::MeLayoutSenkrecht, Str::MeLayoutRaster, Str::MeLayoutTeiler};
     int art = static_cast<int>(l.art);
-    if (ImGui::BeginCombo(tr(Str::MeLayoutArt), tr(arten[art]))) {
+    feldKopf(tr(Str::MeLayoutArt));
+    if (ImGui::BeginCombo("##art", tr(arten[art]))) {
         for (int a = 0; a < 4; ++a) {
             if (ImGui::Selectable(tr(arten[a]), a == art)) {
                 l.art = static_cast<LayoutArt>(a);
@@ -346,7 +346,8 @@ void zeichneLayout(Dokument& d) {
         ImGui::EndCombo();
     }
     Dokument* dp = &d;
-    zahlenFeld(tr(Str::MeLayoutAbstand), &l.abstand, 1, [&l] { return ImGui::DragFloat(tr(Str::MeLayoutAbstand), &l.abstand, 0.5F, 0.0F, 200.0F, "%.0f"); },
+    feldKopf(tr(Str::MeLayoutAbstand));
+    zahlenFeld("##abstand", &l.abstand, 1, [&l] { return ImGui::DragFloat("##abstand", &l.abstand, 0.5F, 0.0F, 200.0F, "%.0f"); },
                [dp, mi, l](const std::vector<float>& w) {
                    Layout x = l;
                    x.abstand = w[0];
@@ -356,7 +357,8 @@ void zeichneLayout(Dokument& d) {
     // uebersetzung2: die lange Beschriftung ueber den vier Feldern - rechts daneben schnitt die Spalte sie
     // ab, schon auf Englisch ("Margins (left, top, right, botto|").
     ImGui::TextUnformatted(tr(Str::MeLayoutRaender));
-    zahlenFeld("##raender", l.rand, 4, [&l] { return ImGui::DragFloat4("##raender", l.rand, 0.5F, 0.0F, 200.0F, "%.0f"); },
+    static const char* const kRand[4] = {"L", "O", "R", "U"};
+    zahlenFeld("##raender", l.rand, 4, [&l] { return zahlenReihe("##raender", l.rand, 4, kRand, 0.5F, "%.0f"); },
                [dp, mi, l](const std::vector<float>& w) {
                    Layout x = l;
                    std::copy_n(w.begin(), 4, x.rand);
@@ -365,7 +367,11 @@ void zeichneLayout(Dokument& d) {
     const Str ausr[] = {Str::MeLayoutAnfang, Str::MeLayoutMitte, Str::MeLayoutEnde, Str::MeLayoutFuellen};
     auto ausrichtung = [&](Str titel, LayoutAusrichtung& a) {
         int w = static_cast<int>(a);
-        if (ImGui::BeginCombo(tr(titel), tr(ausr[w]))) {
+        feldKopf(tr(titel));
+        ImGui::PushID(tr(titel));
+        const bool offen = ImGui::BeginCombo("##ausr", tr(ausr[w]));
+        ImGui::PopID();
+        if (offen) {
             for (int k = 0; k < 4; ++k) {
                 if (ImGui::Selectable(tr(ausr[k]), k == w)) {
                     a = static_cast<LayoutAusrichtung>(k);
@@ -381,9 +387,10 @@ void zeichneLayout(Dokument& d) {
     }
     if (l.art == LayoutArt::Raster) {
         float spalten = static_cast<float>(l.spalten);
-        zahlenFeld(tr(Str::MeLayoutSpalten), &spalten, 1, [&spalten] {
+        feldKopf(tr(Str::MeLayoutSpalten));
+        zahlenFeld("##spalten", &spalten, 1, [&spalten] {
             int s = static_cast<int>(spalten);
-            const bool anders = ImGui::SliderInt(tr(Str::MeLayoutSpalten), &s, 1, 8);
+            const bool anders = ImGui::SliderInt("##spalten", &s, 1, 8);
             spalten = static_cast<float>(s);
             return anders;
         }, [dp, mi, l](const std::vector<float>& w) {
@@ -394,7 +401,8 @@ void zeichneLayout(Dokument& d) {
         l.spalten = static_cast<int>(spalten);
     }
     if (l.art == LayoutArt::Teiler) {
-        zahlenFeld(tr(Str::MeLayoutTeilung), &l.teilung, 1, [&l] { return ImGui::SliderFloat(tr(Str::MeLayoutTeilung), &l.teilung, 0.05F, 0.95F, "%.2f"); },
+        feldKopf(tr(Str::MeLayoutTeilung));
+        zahlenFeld("##teilung", &l.teilung, 1, [&l] { return ImGui::SliderFloat("##teilung", &l.teilung, 0.05F, 0.95F, "%.2f"); },
                    [dp, mi, l](const std::vector<float>& w) {
                        Layout x = l;
                        x.teilung = w[0];

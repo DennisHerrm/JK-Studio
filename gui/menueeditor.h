@@ -102,6 +102,10 @@ struct BildZeile {
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
 // rc608 Punkt 12 (Selbsttest): die Griffe des gewaehlten Modells auf dem Bildschirm (Mitte x, y; Kantenlaenge g); false = keins gewaehlt
 [[nodiscard]] bool modellGriffe(float* xy8, float* g);
+// rc608 Punkt 13 (Selbsttest): die Breiten der Spalten (Bildpunkte); was daraus wird, begrenzt das Programm
+void setzeSpalten(float links, float rechts);
+[[nodiscard]] float rechteSpalte();
+[[nodiscard]] float linkeSpalte();
 // rc608 Punkt 14 (Selbsttest): die Felder der Properties und die weiteren Eintraege im letzten Bild
 [[nodiscard]] std::vector<std::string> eigenschaftsFelder();
 [[nodiscard]] std::vector<std::string> weitereEintraege();

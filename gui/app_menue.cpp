@@ -907,9 +907,12 @@ void textFeld(const char* k, std::string* wert, Schreiben schreiben) {
 void feldKopf(const char* label) {
     Z().felderGezeigt.emplace_back(label);
     const float fs = ImGui::GetFontSize();
+    const float start = ImGui::GetCursorPosX();
+    const float lw = ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemSpacing.x;
+    const float breit = ImGui::GetContentRegionAvail().x;
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
-    if (ImGui::GetContentRegionAvail().x >= fs * 16.0F) { ImGui::SameLine(fs * 7.0F); }
+    if (breit >= std::max(fs * 7.0F, lw) + fs * 8.0F) { ImGui::SameLine(start + std::max(fs * 7.0F, lw)); }
     ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
@@ -5615,14 +5618,14 @@ void zeichneEigenschaften(Dokument& d) {
             setzeRects(neu);
         };
         if (ImGui::Button(tr(Str::MeLinks))) { richte(Ausrichtung::Links); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeMitteH)));
         if (ImGui::Button(tr(Str::MeMitteH))) { richte(Ausrichtung::MitteH); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeRechts)));
         if (ImGui::Button(tr(Str::MeRechts))) { richte(Ausrichtung::Rechts); }
         if (ImGui::Button(tr(Str::MeOben))) { richte(Ausrichtung::Oben); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeMitteV)));
         if (ImGui::Button(tr(Str::MeMitteV))) { richte(Ausrichtung::MitteV); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeUnten)));
         if (ImGui::Button(tr(Str::MeUnten))) { richte(Ausrichtung::Unten); }
         auto verteile = [&](bool w) {
             std::vector<Rechteck> r;
@@ -5633,7 +5636,7 @@ void zeichneEigenschaften(Dokument& d) {
             setzeRects(neu);
         };
         if (ImGui::Button(tr(Str::MeVerteilenH))) { verteile(true); }
-        ImGui::SameLine();
+        daneben(knopfBreite(tr(Str::MeVerteilenV)));
         if (ImGui::Button(tr(Str::MeVerteilenV))) { verteile(false); }
         static std::string gruppe;
         ImGui::SetNextItemWidth(-ImGui::GetFontSize() * 6);
@@ -5771,7 +5774,7 @@ void zeichneEigenschaften(Dokument& d) {
             d.auswahl.assign(1, i + 1);
         }
     }
-    ImGui::SameLine();
+    daneben(knopfBreite(tr(Str::MeNachHinten)));
     if (ImGui::Button(tr(Str::MeNachHinten))) {
         std::vector<Ersetzung> e;
         if (itemVerschieben(d.datei, mi, i, false, e)) {
@@ -5780,7 +5783,7 @@ void zeichneEigenschaften(Dokument& d) {
         }
     }
     if (ImGui::Button(tr(Str::ActClone))) { dupliziereAuswahl(); }
-    ImGui::SameLine();
+    daneben(knopfBreite(tr(Str::ActDelete)));
     if (ImGui::Button(tr(Str::ActDelete))) {
         loescheAuswahl();
         ImGui::PopID();
@@ -5838,7 +5841,9 @@ void zeichneCvars(Dokument& d) {
     zeichneHudWerte(d);
     zeichneBeispielWerte(d);
     if (!ImGui::CollapsingHeader(tr(Str::MeCvars), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    ImGui::PushTextWrapPos(0.0F);
     ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
+    ImGui::PopTextWrapPos();
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
         z.vorschauCvars.clear();
         z.lauf.cvars.clear();
@@ -5849,7 +5854,7 @@ void zeichneCvars(Dokument& d) {
         std::string w = z.interaktion ? z.lauf.cvar(c.name) : (z.vorschauCvars.count(kleinPfad(c.name)) != 0 ? z.vorschauCvars[kleinPfad(c.name)] : "");
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5);
         if (eingabe("##w", &w)) { setzeCvar(c.name, w); }
-        ImGui::SameLine();
+        daneben(ImGui::CalcTextSize(c.name.c_str()).x);
         if (c.sichtbarkeit) { ImGui::TextColored(ImVec4{0.4F, 0.8F, 1.0F, 1.0F}, "%s", c.name.c_str()); }
         else { ImGui::TextUnformatted(c.name.c_str()); }
         if (ImGui::IsItemHovered() && !c.wofuer.empty()) {
@@ -5858,7 +5863,7 @@ void zeichneCvars(Dokument& d) {
             ImGui::SetTooltip("%s", t.c_str());
         }
         for (const std::string& v : c.werte) {
-            ImGui::SameLine();
+            daneben(knopfBreite(v.c_str()));
             if (ImGui::SmallButton(v.c_str())) { setzeCvar(c.name, v); }
         }
         ImGui::PopID();
@@ -6286,7 +6291,8 @@ void panelReiter(Dokument& d) {
     Zustand& z = Z();
     Settings& st = g_app->settings;
     if (z.reiterGewollt == -2) { z.reiterGewollt = std::clamp(st.menueReiter, 0, 3); }
-    if (ImGui::BeginTabBar("##rechtsReiter")) {
+    // rc608 Punkt 1: In schmalen Feldern werden die Reiter schmaler statt zu rollen, alle bleiben sichtbar; der Tooltip nennt den ganzen Namen
+    if (ImGui::BeginTabBar("##rechtsReiter", ImGuiTabBarFlags_FittingPolicyShrink)) {
         struct R {
             Str name;
             void (*f)(Dokument&);
@@ -6300,7 +6306,9 @@ void panelReiter(Dokument& d) {
         for (int i = 0; i < static_cast<int>(std::size(reiter)); ++i) {
             const std::string l = std::string(tr(reiter[i].name)) + "###reiter" + std::to_string(i);
             const ImGuiTabItemFlags f = i == gewollt ? ImGuiTabItemFlags_SetSelected : 0;
-            if (ImGui::BeginTabItem(l.c_str(), nullptr, f)) {
+            const bool reiterOffen = ImGui::BeginTabItem(l.c_str(), nullptr, f);
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(reiter[i].name)); }
+            if (reiterOffen) {
                 if (gewollt < 0 || i == gewollt) { st.menueReiter = i; }
                 if (reiter[i].rollt) {
                     ImGui::BeginChild("##inhalt", ImVec2{0, 0}, ImGuiChildFlags_None);
@@ -6400,6 +6408,12 @@ void zeichneInnen(float hoehe) {
     (void)hoehe;
     if (z.linksBreite <= 0) { z.linksBreite = fs * 13; }
     if (z.rechtsBreite <= 0) { z.rechtsBreite = st.menueRechtsBreite > 0 ? st.menueRechtsBreite * fs : fs * (st.menueTextUnten ? 19 : 28); }
+    // rc608 Punkt 13 (shank: "ich kann auch rechts viel zu klein scalen das ich die Zahlen nicht mehr sehe"): Mindestbreiten, die Flaeche behaelt ihren Platz
+    const float linksMin = fs * 11.0F, rechtsMin = fs * 16.0F, mitteMin = fs * 20.0F;
+    const float linksMax = std::max(linksMin, rest.x * 0.4F);
+    z.linksBreite = std::clamp(z.linksBreite, linksMin, linksMax);
+    const float rechtsMax = std::max(rechtsMin, rest.x - z.linksBreite - 14.0F - mitteMin);
+    z.rechtsBreite = std::clamp(z.rechtsBreite, rechtsMin, rechtsMax);
     diagnosePflegen(*d);
     // "Reiter rechts": links die Bausteine, in der Mitte die Flaeche in voller Hoehe,
     // rechts die Reiter. "Text unten" (altes Layout): links Bausteine und Hierarchie,
@@ -6423,7 +6437,7 @@ void zeichneInnen(float hoehe) {
         spalte("menue.bausteine", ImVec2{mitte || rechts ? z.linksBreite : 0.0F, h}, *d);
         if (mitte || rechts) {
             ImGui::SameLine(0, 0);
-            spaltenTeiler("##spl1", z.linksBreite, true, fs * 6, rest.x * 0.4F, h);
+            spaltenTeiler("##spl1", z.linksBreite, true, linksMin, linksMax, h);
             ImGui::SameLine(0, 0);
         }
     }
@@ -6432,7 +6446,7 @@ void zeichneInnen(float hoehe) {
         spalte("menue.flaeche", ImVec2{rechts ? mitteB : 0.0F, h}, *d);
         if (rechts) {
             ImGui::SameLine(0, 0);
-            spaltenTeiler("##spl2", z.rechtsBreite, true, fs * (unten ? 10 : 12), rest.x * (unten ? 0.5F : 0.6F), h, true);
+            spaltenTeiler("##spl2", z.rechtsBreite, true, rechtsMin, rechtsMax, h, true);
             if (!unten) { st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F; }
             ImGui::SameLine(0, 0);
         }
@@ -6617,6 +6631,12 @@ bool modellGriffe(float* xy8, float* g) {
     return true;
 }
 
+void setzeSpalten(float links, float rechts) {
+    Z().linksBreite = links;
+    Z().rechtsBreite = rechts;
+}
+float rechteSpalte() { return Z().rechtsBreite; }
+float linkeSpalte() { return Z().linksBreite; }
 std::vector<std::string> eigenschaftsFelder() { return Z().felderGezeigt; }
 std::vector<std::string> weitereEintraege() { return Z().weitereEintraege; }
 
