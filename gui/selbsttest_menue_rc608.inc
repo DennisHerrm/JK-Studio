@@ -596,6 +596,86 @@ std::vector<Schritt> schritteSchreiben() {
     return s;
 }
 
+// rc608 Punkt 10: die Hierarchie zeigt nur die offene Seite
+std::vector<Schritt> schritteHierarchie() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    static const char* const kZwei =
+        "{\nmenuDef\n{\n  name \"erstes\"\n  rect 0 0 640 480\n  visible 1\n"
+        "  itemDef\n  {\n    name \"eins_a\"\n    type ITEM_TYPE_BUTTON\n    rect 10 10 100 30\n    visible 1\n  }\n"
+        "  itemDef\n  {\n    name \"eins_b\"\n    type ITEM_TYPE_BUTTON\n    rect 10 50 100 30\n    visible 1\n  }\n}\n"
+        "menuDef\n{\n  name \"zweites\"\n  rect 0 0 640 480\n  visible 1\n"
+        "  itemDef\n  {\n    name \"zwei_a\"\n    type ITEM_TYPE_BUTTON\n    rect 200 10 100 30\n    visible 1\n  }\n}\n}\n";
+    const auto gibt = [](const std::string& name) {
+        const std::vector<std::string> z = me::hierarchieZeilen();
+        return std::find(z.begin(), z.end(), name) != z.end();
+    };
+    add(tu("rc608 Hierarchie: Datei mit zwei Menues", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        g_app->settings.menueGanzeDatei = false;
+        (void)me::oeffneText("ui/zwei.menu", kZwei);
+        me::setzeReiter(0);
+    }));
+    add(pause(0.4));
+    add(foto("menue_hierarchie_seite"));
+    add(pruefe("rc608 Hierarchie: nur die Elemente der offenen Seite", [gibt] {
+        return gibt("eins_a") && gibt("eins_b") && !gibt("zwei_a");
+    }));
+    add(klick("zweites"));
+    add(pause(0.3));
+    add(pruefe("rc608 Hierarchie: der Reiter wechselt, die Liste wechselt mit", [gibt] {
+        return !gibt("eins_a") && gibt("zwei_a");
+    }));
+    // Gleichklang: Auswahl auf der Flaeche und in der Liste
+    add(klickAn("rc608 Hierarchie: zwei_a auf der Flaeche", [] { return aufFlaeche(250, 25); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: Auswahl auf der Flaeche", [] { return me::stand().auswahl == std::vector<int>{0}; }));
+    add(tu("rc608 Hierarchie: Auswahl leeren", [] { me::waehle(-1, false); }));
+    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: Auswahl aus der Liste", [] { return me::stand().auswahl == std::vector<int>{0}; }));
+    // Der Umschalter
+    add(klick(tr(Str::MeGanzeDatei)));
+    add(pause(0.2));
+    add(foto("menue_hierarchie_datei"));
+    add(pruefe("rc608 Hierarchie: Ganze Datei zeigt beide Menues", [gibt] { return gibt("eins_a") && gibt("zwei_a"); }));
+    add(klick(tr(Str::MeGanzeDatei)));
+    add(pause(0.2));
+    add(pruefe("rc608 Hierarchie: und wieder nur die Seite", [gibt] { return !gibt("eins_a") && gibt("zwei_a"); }));
+    // Zustandsreiter: nur, was dort sichtbar ist
+    add(tu("rc608 Hierarchie: Bauteil Detail area", [] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/detail.menu", kZugText);
+        (void)me::fuegeVorlageEin("detail", 100.0F, 100.0F);
+    }));
+    add(pause(0.4));
+    add(foto("menue_hierarchie_zustand"));
+    auto alle = std::make_shared<std::size_t>(0);
+    add(pruefe("rc608 Hierarchie: es gibt Zustandsreiter", [alle] {
+        *alle = me::hierarchieZeilen().size();
+        diag::info("Knopftest: Seiten nach Detail area: " + std::to_string(me::stand().seiten) + ", Zeilen " + std::to_string(*alle));
+        return me::stand().seiten >= 2;
+    }));
+    add(tu("rc608 Hierarchie: ersten Zustandsreiter oeffnen", [] { me::setzeSeite(1); }));
+    add(pause(0.3));
+    add(foto("menue_hierarchie_zustandsreiter"));
+    add(pruefe("rc608 Hierarchie: ein Zustandsreiter zeigt nur das dort Sichtbare", [alle] {
+        const std::size_t n = me::hierarchieZeilen().size();
+        diag::info("Knopftest: Zeilen im Zustandsreiter " + std::to_string(n));
+        return n > 0 && n < *alle;
+    }));
+    // Titelleiste
+    add(pruefe("rc608 Hierarchie: die Titelleiste nennt die Menuedatei", [] {
+        const std::string t = windowTitle();
+        diag::info("Knopftest: Titel " + t);
+        return t.find("ui/detail.menu") != std::string::npos;
+    }));
+    add(tu("rc608 Hierarchie: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

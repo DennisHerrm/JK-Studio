@@ -103,4 +103,15 @@ RC608 = [
      "Dein eigener Text @%s wurde für %s geändert. Er gehört zum Textpaket des Projekts, nicht zur Menüdatei, darum nimmt Rückgängig ihn nicht zurück.",
      "你自己的文本 @%s 已为 %s 更改。它属于项目的文本包,而不是菜单文件,因此撤销无法恢复。",
      "独自テキスト @%s を %s 用に変更しました。これはメニューファイルではなくプロジェクトのテキストパッケージに属するため、「元に戻す」では戻りません。"),
+    # Punkt 10: Hierarchie nur fuer die offene Seite
+    ("MeGanzeDatei",
+     "Whole file",
+     "Ganze Datei",
+     "整个文件",
+     "ファイル全体"),
+    ("MeGanzeDateiTip",
+     "Shows every menuDef of this file, for example to move elements between pages. Off: only the open tab.",
+     "Zeigt alle menuDef dieser Datei, zum Beispiel um Elemente zwischen Seiten zu verschieben. Aus: nur der offene Reiter.",
+     "显示此文件的所有 menuDef,例如用于在页面之间移动元素。关闭:只显示打开的选项卡。",
+     "このファイルのすべての menuDef を表示します(ページ間で要素を移動するときなど)。オフ: 開いているタブのみ。"),
 ]

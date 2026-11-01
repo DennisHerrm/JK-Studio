@@ -150,6 +150,9 @@ void testSpielUebernehmen(unsigned long pid, const std::string& ordner);
 // M7 Punkt 3: Schluessel des gewaehlten Elements setzen wie die Eigenschaften (ein Rueckgaengig-Schritt)
 void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<std::string>& werte);
 [[nodiscard]] std::string dokumentName();           // M7: Spielpfad des aktiven Dokuments ("" = keins)
+[[nodiscard]] std::string fensterTitel();           // rc608: Titel der Fensterleiste, "ui/ail.menu * - JK Studio"
+[[nodiscard]] std::vector<std::string> hierarchieZeilen();   // rc608: Namen der Elemente in der Hierarchie, letztes Bild
+void setzeSeite(int seite);
 [[nodiscard]] bool dokumentMp();                    // M7: aktives Dokument im MP-Dialekt
 bool speichereProjektJetzt();
 bool exportiereProjektJetzt();

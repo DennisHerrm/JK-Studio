@@ -4095,6 +4095,8 @@ std::string windowTitle() {
     // Stufe 7 Punkt 6f: im Map-Editor der Titel von NRC (Kartenname, " *"),
     // nicht der des Skripts; in den Skript-Modi wie bisher.
     if (karteneditor::aktiv()) { return karteneditor::fensterTitel(); }
+    // rc608 Punkt 10: im Menue-Editor die offene Menuedatei, nicht das Skript
+    if (menueeditor::aktiv() && !menueeditor::dokumentName().empty()) { return menueeditor::fensterTitel(); }
     std::string t;
     if (!g_app->path.empty()) {
         t = fileName(g_app->path);

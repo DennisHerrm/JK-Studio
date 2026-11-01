@@ -139,6 +139,7 @@ std::string writeSettings(const Settings& s) {
     std::snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(s.menueRechtsBreite));
     put(o, "menueRechtsBreite", std::string(buf));
     put(o, "menueTextUnten", s.menueTextUnten);
+    put(o, "menueGanzeDatei", s.menueGanzeDatei);
     put(o, "menueUmbruch", s.menueUmbruch);
     put(o, "menueTon", s.menueTon);
     put(o, "menueLeisteText", s.menueLeisteText);
@@ -283,6 +284,7 @@ bool readSettings(const std::string& text, Settings& out) {
             if (parseFloat(value, v) && v >= 0.0F && v <= 200.0F) { out.menueRechtsBreite = v; }
         }
         else if (key == "menueTextUnten") { out.menueTextUnten = toBool(value); }
+        else if (key == "menueGanzeDatei") { out.menueGanzeDatei = toBool(value); }
         else if (key == "menueUmbruch") { out.menueUmbruch = toBool(value); }
         else if (key == "menueTon") { out.menueTon = toBool(value); }
         else if (key == "menueLeisteText") { out.menueLeisteText = toBool(value); }

@@ -216,6 +216,7 @@ struct Settings {
     int menueReiter = 0;
     float menueRechtsBreite = 0.0F;
     bool menueTextUnten = false;
+    bool menueGanzeDatei = false;   // rc608: Hierarchie zeigt alle menuDef der Datei statt nur die offene Seite
     bool menueUmbruch = false;
     bool menueTon = true;       // Menue-Editor M4: Klaenge der Vorschau (Fokus, Klick, Musik) an
     bool menueLeisteText = false;   // Menue-Editor M4: Leistenknoepfe mit Beschriftung

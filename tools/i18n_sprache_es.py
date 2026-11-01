@@ -2970,6 +2970,8 @@ TEXTE = {
     "MeSchreibenBild": "Este elemento muestra una imagen (%s), no texto. Las palabras que se ven forman parte del archivo de imagen. El texto encima es otro elemento.",
     "MeSchreibenEigenerNeu": "El texto @%s del juego queda como está. Este elemento usa ahora tu propio texto @%s (cambiado para %s; los demás idiomas conservan su traducción). Edítalo en Textos.",
     "MeSchreibenEigenerGeaendert": "Tu propio texto @%s se ha cambiado para %s. Pertenece al paquete de textos del proyecto, no al archivo de menú, por lo que Deshacer no lo revierte.",
+    "MeGanzeDatei": "Archivo completo",
+    "MeGanzeDateiTip": "Muestra todos los menuDef de este archivo, por ejemplo para mover elementos entre páginas. Desactivado: solo la pestaña abierta.",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

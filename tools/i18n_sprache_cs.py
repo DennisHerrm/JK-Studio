@@ -2972,6 +2972,8 @@ TEXTE = {
     "MeSchreibenBild": "Tento prvek zobrazuje obrázek (%s), ne text. Slova, která jsou vidět, jsou součástí souboru obrázku. Text nad ním je samostatný prvek.",
     "MeSchreibenEigenerNeu": "Text hry @%s zůstává beze změny. Tento prvek nyní používá váš vlastní text @%s (změněno pro %s; ostatní jazyky si ponechají překlad). Upravit ho lze v části Texty.",
     "MeSchreibenEigenerGeaendert": "Váš vlastní text @%s byl změněn pro %s. Patří do textového balíčku projektu, ne do souboru menu, takže Zpět jej nevrátí.",
+    "MeGanzeDatei": "Celý soubor",
+    "MeGanzeDateiTip": "Zobrazí všechny menuDef tohoto souboru, například pro přesun prvků mezi stránkami. Vypnuto: jen otevřená karta.",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

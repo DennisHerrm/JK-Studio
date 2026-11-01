@@ -3310,6 +3310,8 @@ enum class Str {
     MeSchreibenBild,
     MeSchreibenEigenerNeu,
     MeSchreibenEigenerGeaendert,
+    MeGanzeDatei,
+    MeGanzeDateiTip,
     Count,
 };
 

@@ -325,6 +325,9 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    bool hierarchieRollen = false;      // rc608 Punkt 10: die Auswahl hat sich geaendert, die Liste rollt hin
+    std::vector<int> hierarchieAuswahl;
+    std::vector<std::string> hierarchieZeilen;   // Selbsttest: die Zeilen im letzten Bild
     // rc608 Punkt 5: Text an Ort und Stelle schreiben. Die Vorschau zeichnet das Getippte wie das Spiel, Eingabe und
     // Bearbeiten (Tasten, Ablage, eigenes Rueckgaengig) macht ein unsichtbares ImGui-Feld ueber dem Element.
     struct Schreiben {
@@ -5088,7 +5091,10 @@ void zeichneEbene(Dokument& d, int menu, int i) {
                 std::snprintf(l + lang, sizeof(l) - lang, "  \"%s\"", gezeigt.c_str());
             }
         }
-        if (ImGui::Selectable(l, sel, ImGuiSelectableFlags_AllowDoubleClick)) {
+        Z().hierarchieZeilen.push_back(it.window.name);
+        const bool angeklickt = ImGui::Selectable(l, sel, ImGuiSelectableFlags_AllowDoubleClick);
+        if (sel && Z().hierarchieRollen) { ImGui::SetScrollHereY(0.3F); }
+        if (angeklickt) {
             if (!aufSeite) {
                 const std::vector<Seite> s = seitenImMenue(d.datei);
                 for (std::size_t k = 0; k < s.size(); ++k) {
@@ -5122,8 +5128,31 @@ void zeichneEbene(Dokument& d, int menu, int i) {
 }
 
 void zeichneGliederung(Dokument& d) {
+    Zustand& z = Z();
     ImGui::SeparatorText(tr(Str::MeGliederung));
+    // rc608 Punkt 10 (shank: "wieso sehe rechts in der Leiste jeden Tab seine Hierachy und nicht nur den Tab den ich gerade
+    // geoeffnet habe?"): ab Werk nur die offene Seite; die ganze Datei braucht man zum Verschieben zwischen den Seiten.
+    ImGui::Checkbox(tr(Str::MeGanzeDatei), &g_app->settings.menueGanzeDatei);
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeGanzeDateiTip)); }
+    const int offenesMenue = menuDerSeite(d);
+    // Zustandsreiter (ui_sel=0_0): nur, was dort sichtbar ist
+    const std::vector<Seite> seiten = seitenImMenue(d.datei);
+    const Seite* zustand = nullptr;
+    if (!g_app->settings.menueGanzeDatei && !seiten.empty()) {
+        const Seite& sei = seiten[static_cast<std::size_t>(std::clamp(d.seite, 0, static_cast<int>(seiten.size()) - 1))];
+        if (!sei.cvar.empty()) { zustand = &sei; }
+    }
+    const Umgebung uHier = zustand != nullptr ? umgebung(d) : Umgebung{};
+    const auto zeigen = [&](const Item& it) {
+        if (zustand == nullptr || it.cvarTest.empty() || kleinPfad(it.cvarTest) != kleinPfad(zustand->cvar)) { return true; }
+        return (it.cvarFlags & (CVAR_SHOW | CVAR_HIDE)) == 0 || itemZeigtUeberCvar(it, CVAR_SHOW, uHier);
+    };
+    // Die Liste folgt der Auswahl auf der Flaeche
+    z.hierarchieZeilen.clear();
+    z.hierarchieRollen = d.auswahl != z.hierarchieAuswahl;
+    z.hierarchieAuswahl = d.auswahl;
     for (std::size_t m = 0; m < d.datei.menus.size(); ++m) {
+        if (!g_app->settings.menueGanzeDatei && static_cast<int>(m) != offenesMenue) { continue; }
         const Menu& me = d.datei.menus[m];
         ImGui::PushID(static_cast<int>(m));
         const bool offen = ImGui::TreeNodeEx("##m", ImGuiTreeNodeFlags_DefaultOpen, "menuDef %s%s", me.window.name.c_str(), me.ok ? "" : " (!)");
@@ -5141,13 +5170,16 @@ void zeichneGliederung(Dokument& d) {
             for (std::size_t r = me.items.size(); r-- > 0;) {
                 const std::string& g = me.items[r].window.group;
                 if (g.empty()) {
-                    zeichneEbene(d, static_cast<int>(m), static_cast<int>(r));
+                    if (zeigen(me.items[r])) { zeichneEbene(d, static_cast<int>(m), static_cast<int>(r)); }
                     continue;
                 }
                 if (!gruppenGezeigt.insert(g).second) { continue; }
+                bool etwas = false;
+                for (const Item& it : me.items) { etwas = etwas || (it.window.group == g && zeigen(it)); }
+                if (!etwas) { continue; }
                 if (ImGui::TreeNodeEx(("##g" + g).c_str(), ImGuiTreeNodeFlags_DefaultOpen, "group %s", anzeige(g).c_str())) {
                     for (std::size_t q = me.items.size(); q-- > 0;) {
-                        if (me.items[q].window.group == g) { zeichneEbene(d, static_cast<int>(m), static_cast<int>(q)); }
+                        if (me.items[q].window.group == g && zeigen(me.items[q])) { zeichneEbene(d, static_cast<int>(m), static_cast<int>(q)); }
                     }
                     ImGui::TreePop();
                 }
@@ -6500,6 +6532,17 @@ void setzeEigenschaftAuswahl(const std::string& schluessel, const std::vector<st
     std::vector<Ersetzung> e;
     if (setzeEigenschaft(d->datei, menuDerSeite(*d), d->auswahl[0], schluessel.c_str(), werte, e)) { aendere(std::move(e)); }
 }
+std::vector<std::string> hierarchieZeilen() { return Z().hierarchieZeilen; }
+void setzeSeite(int seite) {
+    if (Dokument* d = doc()) { d->seite = seite; }
+}
+
+std::string fensterTitel() {
+    const Dokument* d = doc();
+    if (d == nullptr) { return "JK Studio"; }
+    return d->name + (d->puffer.text() != d->gespeichert ? " *" : "") + " - JK Studio";
+}
+
 std::string dokumentName() {
     const Dokument* d = doc();
     return d != nullptr ? d->name : std::string();
