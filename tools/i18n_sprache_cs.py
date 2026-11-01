@@ -2965,6 +2965,13 @@ TEXTE = {
     "PrefsBaseImmer": "Čte se také, stejně jako ve hře: %s",
     "MeZoomPassend": "Přizpůsobit",
     "MeZoomTip": "Ctrl+kolečko myši přibližuje kolem ukazatele (25 až 800 %). Ctrl+0: přizpůsobit. Ctrl+1: 100 %. Prostřední tlačítko nebo mezerník+tažení posouvá pohled. Mění se jen pohled: nic se nezapíše do souboru ani do Zpět.",
+    "MeSchreibenOwnerdraw": "Tento text kreslí sama hra (ownerdraw %d), proto ho zde nelze psát.",
+    "MeSchreibenFeeder": "Tento seznam plní hra za běhu (feeder), proto jeho řádky nelze psát zde.",
+    "MeSchreibenCvar": "Tento text je hodnota cvaru %s. Hra zobrazuje, co obsahuje; změnit ji lze v Properties v části Cvars.",
+    "MeSchreibenModell": "Tento prvek zobrazuje 3D model. Nemá žádný text.",
+    "MeSchreibenBild": "Tento prvek zobrazuje obrázek (%s), ne text. Slova, která jsou vidět, jsou součástí souboru obrázku. Text nad ním je samostatný prvek.",
+    "MeSchreibenEigenerNeu": "Text hry @%s zůstává beze změny. Tento prvek nyní používá váš vlastní text @%s (změněno pro %s; ostatní jazyky si ponechají překlad). Upravit ho lze v části Texty.",
+    "MeSchreibenEigenerGeaendert": "Váš vlastní text @%s byl změněn pro %s. Patří do textového balíčku projektu, ne do souboru menu, takže Zpět jej nevrátí.",
 }
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.

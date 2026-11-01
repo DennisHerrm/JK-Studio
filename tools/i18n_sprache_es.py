@@ -2963,6 +2963,13 @@ TEXTE = {
     "PrefsBaseImmer": "También se lee, como en el juego: %s",
     "MeZoomPassend": "Ajustar",
     "MeZoomTip": "Ctrl+rueda del ratón acerca alrededor del puntero (25 a 800 %). Ctrl+0: ajustar. Ctrl+1: 100 %. El botón central o Espacio+arrastrar mueve la vista. Solo cambia la vista: nada entra en el archivo ni en Deshacer.",
+    "MeSchreibenOwnerdraw": "Este texto lo dibuja el propio juego (ownerdraw %d), por eso no se puede escribir aquí.",
+    "MeSchreibenFeeder": "El juego rellena esta lista mientras se ejecuta (feeder), por eso sus líneas no se pueden escribir aquí.",
+    "MeSchreibenCvar": "Este texto es el valor del cvar %s. El juego muestra lo que contenga; puedes cambiarlo en la sección Cvars de Properties.",
+    "MeSchreibenModell": "Este elemento muestra un modelo 3D. No tiene texto.",
+    "MeSchreibenBild": "Este elemento muestra una imagen (%s), no texto. Las palabras que se ven forman parte del archivo de imagen. El texto encima es otro elemento.",
+    "MeSchreibenEigenerNeu": "El texto @%s del juego queda como está. Este elemento usa ahora tu propio texto @%s (cambiado para %s; los demás idiomas conservan su traducción). Edítalo en Textos.",
+    "MeSchreibenEigenerGeaendert": "Tu propio texto @%s se ha cambiado para %s. Pertenece al paquete de textos del proyecto, no al archivo de menú, por lo que Deshacer no lo revierte.",
 }
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch

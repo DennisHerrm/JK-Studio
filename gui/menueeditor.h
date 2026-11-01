@@ -100,6 +100,14 @@ struct BildZeile {
     bool da = false;
 };
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
+// rc608 Punkt 5: Text an Ort und Stelle (Selbsttest)
+struct SchreibStand {
+    bool an = false;
+    int item = -1;
+    std::string puffer;
+    float cursorX = 0, cursorY = 0, textRechts = 0;
+};
+[[nodiscard]] SchreibStand schreibStand();
 [[nodiscard]] std::string letzteMeldung();   // rc608: was die Leiste gerade meldet ("" = nichts)
 void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);

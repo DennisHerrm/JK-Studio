@@ -129,6 +129,13 @@ struct ItemZustand {
     int startPos = 0;     // M4: textScrollDef_t.startPos (erste gezeigte Zeile)
 };
 
+// rc608 Punkt 5: eine vom Spiel gezeichnete Textzeile, fuer das Schreiben an Ort und Stelle (Cursor und Auswahl)
+struct TextLauf {
+    float x = 0, y = 0, scale = 1;
+    const Schrift* schrift = nullptr;
+    std::string text;
+};
+
 struct Umgebung {
     const Texte* texte = nullptr;
     // DC->getCVarString; "" wenn unbekannt
@@ -152,6 +159,10 @@ struct Umgebung {
     // M5: laedt der Renderer dieses Bild/diesen Shader? (RE_RegisterShaderNoMip: fehlt es, kommt
     // Griff 0 = "<default>"-Kasten zurueck; ohne: alles da)
     std::function<bool(const std::string& shader)> bildDa;
+    // rc608 Punkt 5: die Textzeilen dieses Items aufzeichnen, und ab welcher Zeile ein Textscroll zeigt
+    std::vector<TextLauf>* textLaeufe = nullptr;
+    int textLaeufeItem = -1;
+    int textLaeufeStart = 0;
     int listCursor = 0;                   // item->cursorPos
     int zeitMs = 0;                       // DC->realTime
     std::vector<ItemZustand> zustand;     // je Item (leer = gelesene Flags)

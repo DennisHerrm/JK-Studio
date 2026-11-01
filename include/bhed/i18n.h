@@ -3303,6 +3303,13 @@ enum class Str {
     PrefsBaseImmer,
     MeZoomPassend,
     MeZoomTip,
+    MeSchreibenOwnerdraw,
+    MeSchreibenFeeder,
+    MeSchreibenCvar,
+    MeSchreibenModell,
+    MeSchreibenBild,
+    MeSchreibenEigenerNeu,
+    MeSchreibenEigenerGeaendert,
     Count,
 };
 

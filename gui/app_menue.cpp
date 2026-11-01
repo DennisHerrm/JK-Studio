@@ -325,6 +325,23 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    // rc608 Punkt 5: Text an Ort und Stelle schreiben. Die Vorschau zeichnet das Getippte wie das Spiel, Eingabe und
+    // Bearbeiten (Tasten, Ablage, eigenes Rueckgaengig) macht ein unsichtbares ImGui-Feld ueber dem Element.
+    struct Schreiben {
+        bool an = false, neu = false, mehrzeilig = false, zieht = false, warAktiv = false;
+        Dokument* d = nullptr;
+        int menu = -1, item = -1;
+        std::string puffer, start;       // UTF-8, wie im Feld
+        std::string schluessel;          // "@..." bei einem Text aus einem Paket
+        int startPos = 0;                // Textscroll: erste Zeile
+        int anker = 0;                   // Auswahl mit der Maus (Stelle im Feld)
+        int cursorWunsch = -1;           // Stelle im Feld nach dem Doppelklick
+        ImVec2 klick{0, 0};              // wo doppelgeklickt wurde
+        ImVec2 a{0, 0}, b{0, 0};         // Rechteck auf dem Bildschirm
+        std::vector<TextLauf> laeufe;
+        float cursorX = 0, cursorY = 0;  // virtuell, fuer den Selbsttest
+        float textRechts = 0;
+    } schreib;
     int reiterGewollt = -2;   // rechte Spalte: -2 = aus den Einstellungen, -1 = keiner, sonst setzen
     // M2 Live-Diagnose
     std::shared_ptr<const DiagDaten> diagDaten;
@@ -1668,6 +1685,159 @@ void spieleKlaenge();                                              // M2 Punkt 5
 ImU32 schwereFarbe(Schwere s);                                     // M2 Live-Diagnose (unten)
 void schwereSymbol(ImDrawList* dl, ImVec2 m, float r, Schwere s);
 
+// --- rc608 Punkt 5: Text an Ort und Stelle schreiben ---
+const Texte& vorschauTexte(Dokument& d);
+void eigeneTexteLesen(Dokument& d);
+void eigeneTexteSchreiben(Dokument& d);
+std::string textFuerDatei(const std::string& sprache, const std::string& utf8, std::string* nichtDarstellbar = nullptr);
+std::string textAusDatei(const std::string& sprache, const std::string& bytes);
+std::vector<std::string> sprachenListe();
+
+// So kommt ein Text in die Datei: SP liest mit COM_ParseExt (kennt kein Escape, Zeilenumbruch steht roh im String, " ist
+// nicht moeglich und wird beim Tippen nicht angenommen), MP mit dem Skript-Lexer aus der Botlib (kein Umbruch im String, dafuer \n).
+std::string schreibZeichenkette(const std::string& bytes, Dialekt dialekt) {
+    std::string t = "\"";
+    for (const char c : bytes) {
+        if (dialekt == Dialekt::MP && (c == '\\' || c == '"')) { t += '\\'; }
+        if (dialekt == Dialekt::MP && c == '\n') { t += "\\n"; }
+        else { t += c; }
+    }
+    return t + "\"";
+}
+
+int schreibRueckruf(ImGuiInputTextCallbackData* c) {
+    if (c->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+        auto* s = static_cast<std::string*>(c->UserData);
+        s->resize(static_cast<std::size_t>(c->BufTextLen));
+        c->Buf = s->data();
+    } else if (c->EventFlag == ImGuiInputTextFlags_CallbackCharFilter) {
+        // Das Zeichen steht in SP nicht in einem String der Datei
+        Dokument* d = doc();
+        if (c->EventChar == '"' && d != nullptr && d->datei.dialekt == Dialekt::SP) { return 1; }
+    }
+    return 0;
+}
+
+// Warum ein Element hier nicht beschrieben werden kann; "" = es geht
+std::string schreibenHindernis(const Item& it) {
+    char b[400];
+    if (!it.text.empty()) { return {}; }
+    if (it.type == ITEM_TYPE_OWNERDRAW || it.window.ownerDraw != 0) {
+        std::snprintf(b, sizeof(b), tr(Str::MeSchreibenOwnerdraw), it.window.ownerDraw);
+        return b;
+    }
+    if (it.type == ITEM_TYPE_LISTBOX) { return tr(Str::MeSchreibenFeeder); }
+    if (!it.cvar.empty()) {
+        std::snprintf(b, sizeof(b), tr(Str::MeSchreibenCvar), it.cvar.c_str());
+        return b;
+    }
+    if (it.type == ITEM_TYPE_MODEL) { return tr(Str::MeSchreibenModell); }
+    if (!it.window.background.empty()) {
+        std::snprintf(b, sizeof(b), tr(Str::MeSchreibenBild), it.window.background.c_str());
+        return b;
+    }
+    return {};
+}
+
+void schreibenBeginnen(Dokument& d, int menu, int item, ImVec2 klick) {
+    Zustand& z = Z();
+    const Item& it = d.datei.menus[static_cast<std::size_t>(menu)].items[static_cast<std::size_t>(item)];
+    const std::string warum = schreibenHindernis(it);
+    if (!warum.empty()) {
+        z.meldung = warum;
+        ::bhed::gui::meldung(warum, "", false);
+        return;
+    }
+    z.schreib = Zustand::Schreiben{};
+    Zustand::Schreiben& s = z.schreib;
+    s.an = s.neu = true;
+    s.d = &d;
+    s.menu = menu;
+    s.item = item;
+    s.klick = klick;
+    s.mehrzeilig = it.type == ITEM_TYPE_TEXTSCROLL || (it.window.flags & (WINDOW_WRAPPED | WINDOW_AUTOWRAPPED)) != 0;
+    if (!it.text.empty() && it.text[0] == '@') {
+        s.schluessel = it.text;
+        s.puffer = textAusDatei(z.sprache, vorschauTexte(d).imSpiel(it.text));
+    } else {
+        s.puffer = textAusDatei(z.sprache, it.text);
+    }
+    s.start = s.puffer;
+}
+
+// Beendet das Schreiben; Rueckgaengig: ein Schritt, im Text aendert sich nur die Zeile text
+void schreibenEnde(bool uebernehmen) {
+    Zustand& z = Z();
+    if (!z.schreib.an) { return; }
+    const Zustand::Schreiben s = std::move(z.schreib);
+    z.schreib = Zustand::Schreiben{};
+    if (!uebernehmen || s.d == nullptr || s.puffer == s.start) { return; }
+    Dokument& d = *s.d;
+    std::string neu = s.puffer;
+    if (!s.mehrzeilig) { std::replace(neu.begin(), neu.end(), '\n', ' '); }
+    std::string nichtDarstellbar;
+    const std::string bytes = textFuerDatei(z.sprache, neu, &nichtDarstellbar);
+    std::vector<Ersetzung> e;
+    const auto zeileSetzen = [&](const std::string& wert) {
+        if (setzeEigenschaft(d.datei, s.menu, s.item, "text", {wert}, e)) { aendere(std::move(e)); }
+        else { ausMakroMelden(); }
+    };
+    if (s.schluessel.empty()) {
+        zeileSetzen(schreibZeichenkette(bytes, d.datei.dialekt));
+        return;
+    }
+    // Ein Text aus einem Paket: Das Spiel-Paket selbst bleibt, wie es ist. Das Element bekommt einen eigenen Text
+    // (Texte-Fenster, Paket des Projekts), die anderen Sprachen behalten ihre Uebersetzung.
+    eigeneTexteLesen(d);
+    if (d.textPaket.empty()) { d.textPaket = "MYMENU"; }
+    const std::string alt = s.schluessel.substr(1);
+    const std::string vor = d.textPaket + "_";
+    std::string kurz = alt;
+    if (kurz.compare(0, vor.size(), vor) == 0) { kurz = kurz.substr(vor.size()); }
+    for (char& c : kurz) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    TextZeile* zeile = nullptr;
+    for (TextZeile& r : d.eigeneTexte) {
+        if (r.schluessel == kurz) { zeile = &r; }
+    }
+    char m[500];
+    if (zeile != nullptr) {
+        zeile->text[z.sprache] = bytes;
+        eigeneTexteSchreiben(d);
+        std::snprintf(m, sizeof(m), tr(Str::MeSchreibenEigenerGeaendert), (vor + kurz).c_str(), z.sprache.c_str());
+    } else {
+        TextZeile r;
+        r.schluessel = kurz;
+        for (const std::string& sprache : sprachenListe()) {
+            const Texte t = ladeTexte(z.daten, z.spiel, sprache);
+            if (t.kennt(s.schluessel)) { r.text[sprache] = t.imSpiel(s.schluessel); }
+        }
+        r.text[z.sprache] = bytes;
+        d.eigeneTexte.push_back(r);
+        eigeneTexteSchreiben(d);
+        zeileSetzen("@" + vor + kurz);
+        std::snprintf(m, sizeof(m), tr(Str::MeSchreibenEigenerNeu), alt.c_str(), (vor + kurz).c_str(), z.sprache.c_str());
+    }
+    z.meldung = m;
+    ::bhed::gui::meldung(m, "", false);
+}
+
+// Wo steht die Stelle `feld` (Bytes im UTF-8 des Felds) in den gezeichneten Zeilen? Ergebnis virtuell; false = in keiner sichtbaren Zeile.
+struct LaufStelle {
+    std::size_t lauf = 0;
+    std::size_t anfang = 0;   // Byte des Laufs im Text der Datei
+};
+std::vector<LaufStelle> laufStellen(const std::vector<TextLauf>& laeufe, const std::string& bytes) {
+    std::vector<LaufStelle> v;
+    std::size_t von = 0;
+    for (std::size_t i = 0; i < laeufe.size(); ++i) {
+        const std::size_t p = bytes.find(laeufe[i].text, von);
+        const std::size_t an = p == std::string::npos ? von : p;
+        v.push_back(LaufStelle{i, an});
+        von = an + laeufe[i].text.size();
+    }
+    return v;
+}
+
 void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     Zustand& z = Z();
     const int mi = menuDerSeite(d);
@@ -1689,6 +1859,39 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const ImVec2 o{o0.x + lineal, o0.y + lineal};
     const Abbildung passend = abbildung(bw, bh, z.seitenv);
     dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + bh}, IM_COL32(0, 0, 0, 255));
+    // rc608 Punkt 5: das unsichtbare Eingabefeld liegt ueber dem Element und kommt vor der Flaeche an die Reihe
+    const bool schreibt = z.schreib.an && z.schreib.d == &d && !z.interaktion && menuDerSeite(d) == z.schreib.menu;
+    ImGuiInputTextState* schreibFeld = nullptr;
+    if (z.schreib.an && !schreibt) { schreibenEnde(true); }
+    if (schreibt) {
+        Zustand::Schreiben& s = z.schreib;
+        ImGui::SetCursorScreenPos(s.a);
+        if (s.neu) { ImGui::SetKeyboardFocusHere(); }
+        // Nicht 0: Mit Alpha 0 versteckt ImGui das Kindfenster des Felds, und jeder Klick hinein beendet es
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.001F);
+        const ImVec2 feld{std::max(s.b.x - s.a.x, fsLineal * 2.0F), std::max(s.b.y - s.a.y, fsLineal)};
+        const bool enter = ImGui::InputTextMultiline("##schreiben", s.puffer.data(), s.puffer.capacity() + 1, feld,
+                                                     ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CtrlEnterForNewLine | ImGuiInputTextFlags_NoHorizontalScroll |
+                                                         ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter,
+                                                     schreibRueckruf, &s.puffer);
+        ImGui::PopStyleVar();
+        s.puffer.resize(std::strlen(s.puffer.c_str()));
+        const ImGuiID kennung = ImGui::GetID("##schreiben");
+        const bool aktiv = ImGui::GetActiveID() == kennung;
+        schreibFeld = aktiv ? ImGui::GetInputTextState(kennung) : nullptr;
+        s.neu = false;
+        ImGui::SetCursorScreenPos(o0);
+        if (aktiv && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+            schreibenEnde(false);
+            schreibFeld = nullptr;
+        } else if (enter || (s.warAktiv && !aktiv)) {
+            schreibenEnde(true);
+            schreibFeld = nullptr;
+        } else {
+            s.warAktiv = aktiv;
+        }
+    }
+    const bool schreibtNoch = schreibt && z.schreib.an;
     ImGui::InvisibleButton("##flaeche", ImVec2{std::max(1.0F, groesse.x), std::max(1.0F, groesse.y)},
                            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
     const bool hover = ImGui::IsItemHovered();
@@ -1839,6 +2042,16 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     if (z.gizmoArt != 0) {
         gizmoKopie = *quelle;
         if (gizmoVorschau(d, mi, gizmoKopie)) { quelle = &gizmoKopie; }
+    }
+    Datei schreibKopie;   // rc608 Punkt 5: das Getippte, gezeichnet wie im Spiel
+    if (schreibtNoch && static_cast<std::size_t>(z.schreib.item) < quelle->menus[static_cast<std::size_t>(mi)].items.size()) {
+        schreibKopie = *quelle;
+        schreibKopie.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(z.schreib.item)].text = textFuerDatei(z.sprache, z.schreib.puffer, nullptr);
+        quelle = &schreibKopie;
+        z.schreib.laeufe.clear();
+        u.textLaeufe = &z.schreib.laeufe;
+        u.textLaeufeItem = z.schreib.item;
+        u.textLaeufeStart = z.schreib.startPos;
     }
     std::vector<Prim> prims;
     if (z.hudWie && istHud(*quelle)) {   // M3: lefthud, righthud und was cgame darueber legt
@@ -2052,8 +2265,130 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     }
     dl->PopClipRect();
 
+    // rc608 Punkt 5: Cursor und Auswahl im Text, wie gezeichnet; die Maus setzt sie um
+    if (schreibtNoch) {
+        Zustand::Schreiben& s = z.schreib;
+        const auto [ra, rb] = bild(m.items[static_cast<std::size_t>(s.item)].window.rect);
+        s.a = ra;
+        s.b = rb;
+        s.textRechts = 0.0F;
+        for (const Prim& p : prims) {
+            if (p.item == s.item && p.shader.compare(0, 6, "fonts/") == 0) { s.textRechts = std::max(s.textRechts, p.x + p.w); }
+        }
+        const std::string bytes = textFuerDatei(z.sprache, s.puffer, nullptr);
+        const auto dateiStelle = [&](int feld) { return textFuerDatei(z.sprache, s.puffer.substr(0, static_cast<std::size_t>(std::clamp(feld, 0, static_cast<int>(s.puffer.size())))), nullptr).size(); };
+        const std::vector<LaufStelle> stellen = laufStellen(s.laeufe, bytes);
+        const auto xVon = [&](const LaufStelle& l, std::size_t byte) {
+            const TextLauf& r = s.laeufe[l.lauf];
+            if (r.schrift == nullptr) { return r.x; }
+            const std::size_t n = byte > l.anfang ? std::min(byte - l.anfang, r.text.size()) : 0;
+            return r.x + static_cast<float>(schriftBreite(*r.schrift, r.text.substr(0, n), r.scale, u.kodierung, u.asienGlyphen));
+        };
+        // Mausstelle: die naechste Zeile, darin das naechste Zeichen, als Stelle im Feld
+        const auto feldBei = [&](float mx, float my) {
+            if (stellen.empty()) { return static_cast<int>(s.puffer.size()); }
+            std::size_t beste = 0;
+            float abstand = 1e9F;
+            for (std::size_t k = 0; k < stellen.size(); ++k) {
+                const TextLauf& r = s.laeufe[stellen[k].lauf];
+                const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale)) : 16.0F;
+                const float w = my < r.y ? r.y - my : (my > r.y + hoehe ? my - r.y - hoehe : 0.0F);
+                if (w < abstand) {
+                    abstand = w;
+                    beste = k;
+                }
+            }
+            const LaufStelle& l = stellen[beste];
+            const std::size_t anfang = l.anfang, ende = l.anfang + s.laeufe[l.lauf].text.size();
+            int gefunden = -1;
+            float best = 1e9F;
+            for (int f = 0; f <= static_cast<int>(s.puffer.size()); ++f) {
+                if (f < static_cast<int>(s.puffer.size()) && (static_cast<unsigned char>(s.puffer[static_cast<std::size_t>(f)]) & 0xC0U) == 0x80U) { continue; }
+                const std::size_t by = dateiStelle(f);
+                if (by < anfang || by > ende) { continue; }
+                const float dx = std::fabs(xVon(l, by) - mx);
+                if (dx < best) {
+                    best = dx;
+                    gefunden = f;
+                }
+            }
+            return gefunden >= 0 ? gefunden : static_cast<int>(s.puffer.size());
+        };
+        const float mvx = (maus.x - o.x - ab.ox) / ab.sx, mvy = (maus.y - o.y - ab.oy) / ab.sy;
+        const bool drin = maus.x >= s.a.x && maus.x <= s.b.x && maus.y >= s.a.y && maus.y <= s.b.y;
+        if (schreibFeld != nullptr) {
+            if (s.cursorWunsch < -1 && !stellen.empty()) {
+                const int f = feldBei((s.klick.x - o.x - ab.ox) / ab.sx, (s.klick.y - o.y - ab.oy) / ab.sy);
+                schreibFeld->SetSelection(f, f);
+                s.cursorWunsch = -1;
+            }
+            if (drin && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                s.anker = feldBei(mvx, mvy);
+                s.zieht = true;
+            }
+            if (s.zieht) {
+                schreibFeld->SetSelection(s.anker, feldBei(mvx, mvy));
+                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) { s.zieht = false; }
+            }
+        }
+        const int cur = schreibFeld != nullptr ? schreibFeld->GetCursorPos() : static_cast<int>(s.puffer.size());
+        const int sa = schreibFeld != nullptr ? schreibFeld->GetSelectionStart() : cur;
+        const int se = schreibFeld != nullptr ? schreibFeld->GetSelectionEnd() : cur;
+        const std::size_t cb = dateiStelle(cur), sab = dateiStelle(std::min(sa, se)), seb = dateiStelle(std::max(sa, se));
+        dl->PushClipRect(o, ImVec2{o.x + bw, o.y + bh}, true);
+        bool cursorGezeichnet = false;
+        for (const LaufStelle& l : stellen) {
+            const TextLauf& r = s.laeufe[l.lauf];
+            const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale)) : 16.0F;
+            const std::size_t ende = l.anfang + r.text.size();
+            if (sab < seb && seb > l.anfang && sab < ende) {
+                dl->AddRectFilled(ImVec2{o.x + ab.x(xVon(l, std::max(sab, l.anfang))), o.y + ab.y(r.y)}, ImVec2{o.x + ab.x(xVon(l, std::min(seb, ende))), o.y + ab.y(r.y + hoehe)}, IM_COL32(60, 130, 255, 110));
+            }
+            if (!cursorGezeichnet && cb >= l.anfang && cb <= ende) {
+                cursorGezeichnet = true;
+                s.cursorX = xVon(l, cb);
+                s.cursorY = r.y;
+                if (std::fmod(ImGui::GetTime(), 1.0) < 0.6) {
+                    dl->AddLine(ImVec2{o.x + ab.x(s.cursorX), o.y + ab.y(r.y)}, ImVec2{o.x + ab.x(s.cursorX), o.y + ab.y(r.y + hoehe)}, IM_COL32(255, 255, 255, 255), 2.0F);
+                }
+            }
+        }
+        if (stellen.empty()) {   // noch kein Text: der Cursor steht, wo der Text anfangen wird
+            const Item& gi = m.items[static_cast<std::size_t>(s.item)];
+            s.cursorX = gi.window.rect.x + gi.textalignx;
+            s.cursorY = gi.window.rect.y + gi.textaligny;
+            if (std::fmod(ImGui::GetTime(), 1.0) < 0.6) {
+                dl->AddLine(ImVec2{o.x + ab.x(s.cursorX), o.y + ab.y(s.cursorY)}, ImVec2{o.x + ab.x(s.cursorX), o.y + ab.y(s.cursorY) + fsLineal}, IM_COL32(255, 255, 255, 255), 2.0F);
+            }
+        } else if (!cursorGezeichnet) {   // Textscroll: der Cursor liegt ausserhalb der sichtbaren Zeilen
+            s.startPos = std::max(0, s.startPos + (cb < stellen.front().anfang ? -1 : 1));
+        }
+        dl->PopClipRect();
+        if (drin) { ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput); }
+    }
+    // rc608 Punkt 5: Doppelklick schreibt und zieht nie; gemeint ist das vorderste Element mit Text unter dem Zeiger
+    if (!schreibt && hover && !leertaste && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !alleUnter.empty()) {
+        int ziel = alleUnter.front();
+        for (const int i : alleUnter) {
+            if (!m.items[static_cast<std::size_t>(i)].text.empty()) {
+                ziel = i;
+                break;
+            }
+        }
+        z.ziehen = Ziehen::Nichts;
+        z.ziehLaeuft = false;
+        d.auswahl.assign(1, ziel);
+        schreibenBeginnen(d, mi, ziel, maus);
+        if (z.schreib.an) {
+            const auto [ra, rb] = bild(m.items[static_cast<std::size_t>(ziel)].window.rect);
+            z.schreib.a = ra;
+            z.schreib.b = rb;
+            z.schreib.cursorWunsch = -2;
+        }
+        return;
+    }
     // Maus: Klick waehlt, Ziehen verschiebt/aendert die Groesse (M6: bei Tab-Reihenfolge waehlt er die naechste Nummer)
-    if (hover && !leertaste && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
+    if (hover && !schreibt && !leertaste && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !tabFolgeKlick(d, mi, vx, vy, u) && !gizmoKlick(d, mi, ab, o, maus)) {
         ImGui::SetKeyboardFocusHere(-1);
         z.codeFokus = false;
         z.ziehStart = ImVec2{vx, vy};
@@ -2189,6 +2524,11 @@ void editorTasten(Dokument& d) {
     Zustand& z = Z();
     const ImGuiIO& io = ImGui::GetIO();
     const int bild = ImGui::GetFrameCount();
+    if (z.schreib.an) {
+        const ImVec2 m = io.MousePos;
+        const bool drin = m.x >= z.schreib.a.x && m.x <= z.schreib.b.x && m.y >= z.schreib.a.y && m.y <= z.schreib.b.y;
+        if (!drin && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))) { schreibenEnde(true); }
+    }
     if (z.undoWunsch != 0) {
         const int wunsch = z.undoWunsch;
         z.undoWunsch = 0;
@@ -2975,7 +3315,7 @@ int spNummer(const std::string& sprache) {
 
 // M3 Punkt 7: Eingabe der Oberflaeche (UTF-8) -> Bytes der Datei in der Kodierung, in der
 // die Engine die Sprache liest (kodierung.h), und zurueck fuer die Anzeige
-std::string textFuerDatei(const std::string& sprache, const std::string& utf8, std::string* nichtDarstellbar = nullptr) {
+std::string textFuerDatei(const std::string& sprache, const std::string& utf8, std::string* nichtDarstellbar) {
     return ausUtf8(utf8, kodierungDerSprache(sprache), nichtDarstellbar);
 }
 std::string textAusDatei(const std::string& sprache, const std::string& bytes) {
@@ -4730,8 +5070,24 @@ void zeichneEbene(Dokument& d, int menu, int i) {
         if (ImGui::IsItemDeactivated()) { d.umbenennen = -1; }
     } else {
         const bool sel = aufSeite && std::find(d.auswahl.begin(), d.auswahl.end(), i) != d.auswahl.end();
-        char l[300];
+        char l[400];
         std::snprintf(l, sizeof(l), "%s  %s", it.window.name.empty() ? "?" : anzeige(it.window.name).c_str(), typName(it.type));
+        // rc608 Punkt 5: ein Button hat seinen Text als Eigenschaft, darum kein Kindelement: er steht mit in der Zeile
+        if (!it.text.empty()) {
+            std::string gezeigt = textAusDatei(Z().sprache, vorschauTexte(d).imSpiel(it.text));
+            for (char& c : gezeigt) {
+                if (c == '\n' || c == '\r' || c == '\t') { c = ' '; }
+            }
+            if (gezeigt.size() > 28) {
+                std::size_t n = 28;
+                while (n > 0 && (static_cast<unsigned char>(gezeigt[n]) & 0xC0U) == 0x80U) { --n; }
+                gezeigt = gezeigt.substr(0, n) + "...";
+            }
+            if (!gezeigt.empty()) {
+                const std::size_t lang = std::strlen(l);
+                std::snprintf(l + lang, sizeof(l) - lang, "  \"%s\"", gezeigt.c_str());
+            }
+        }
         if (ImGui::Selectable(l, sel, ImGuiSelectableFlags_AllowDoubleClick)) {
             if (!aufSeite) {
                 const std::vector<Seite> s = seitenImMenue(d.datei);
@@ -4857,6 +5213,13 @@ void zeichneEigenschaften(Dokument& d) {
     if (static_cast<std::size_t>(i) >= m.items.size()) { return; }
     const Item& it = m.items[static_cast<std::size_t>(i)];
     ImGui::PushID(i);
+    // rc608 Punkt 5: der Text ganz oben, gut sichtbar
+    std::string text = it.text;
+    textFeld("text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
+    if (!it.text.empty() && it.text[0] == '@') {
+        // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
+        ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
+    }
     std::string name = it.window.name;
     textFeld("name", &name, [i](const std::string& t) {
         if (!t.empty()) { eigenschaft(i, "name", {inAnf(t)}); }
@@ -4881,12 +5244,6 @@ void zeichneEigenschaften(Dokument& d) {
     float r[4] = {it.window.rectClient.x, it.window.rectClient.y, it.window.rectClient.w, it.window.rectClient.h};
     zahlenFeld("rect", r, 4, [&r] { return ImGui::DragFloat4("rect", r, 1.0F); },
                [i](const std::vector<float>& w) { setzeRects({{i, Rechteck{w[0], w[1], w[2], w[3]}}}); });
-    std::string text = it.text;
-    textFeld("text", &text, [i](const std::string& t) { eigenschaft(i, "text", {inAnf(t)}); });
-    if (!it.text.empty() && it.text[0] == '@') {
-        // fehlt der Schluessel, zeigt das Spiel nichts (SE_GetString liefert ""): so sagen statt den Schluessel zu wiederholen
-        ImGui::TextDisabled("= %s", texte().kennt(it.text) ? anzeige(texte().aufloesen(it.text)).c_str() : tr(Str::MeTextFehltImSpiel));
-    }
     float ts = it.textscale;
     zahlenFeld("textscale", &ts, 1, [&ts] { return ImGui::DragFloat("textscale", &ts, 0.01F, 0.05F, 4.0F); },
                [i](const std::vector<float>& w) { eigenschaft(i, "textscale", {zahlText(w[0])}); });
@@ -5763,6 +6120,18 @@ std::vector<ItemLage> itemLagen() {
         v.push_back(l);
     }
     return v;
+}
+
+SchreibStand schreibStand() {
+    const auto& s = Z().schreib;
+    SchreibStand x;
+    x.an = s.an;
+    x.item = s.item;
+    x.puffer = s.puffer;
+    x.cursorX = s.cursorX;
+    x.cursorY = s.cursorY;
+    x.textRechts = s.textRechts;
+    return x;
 }
 
 std::string letzteMeldung() { return Z().meldung; }

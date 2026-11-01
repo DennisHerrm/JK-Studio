@@ -353,6 +353,9 @@ public:
 private:
     // Text_Paint -> RE_Font_DrawString
     void text(float x, float y, float scale, const Farbe& c, const std::string& t, int maxPixel, int style, int font) {
+        if (u_.textLaeufe != nullptr && item_ == u_.textLaeufeItem) {
+            u_.textLaeufe->push_back(TextLauf{static_cast<float>(static_cast<int>(x)), static_cast<float>(static_cast<int>(y)), scale, schrift(font), t});
+        }
         // rc608: jk2mp zaehlt hier Zeichen (Q3: Text_Paint limit), JKA Bildpunkte. Sonst blieben von "Bespin Streets"
         // mit "columns 1 2 190 25" nur "Bes" (25 Bildpunkte) uebrig; im Spiel steht der ganze Name.
         if (d_.spiel == Spiel::JK2 && u_.dialekt == Dialekt::MP && maxPixel > 0) {
@@ -627,7 +630,8 @@ private:
     // die Zeilen mit lineHeight, bis der Platz kleiner als eine Zeile ist.
     void textscroll(const Item& it) {
         int startPos = 0;
-        if (static_cast<std::size_t>(item_) < u_.zustand.size()) { startPos = u_.zustand[static_cast<std::size_t>(item_)].startPos; }
+        if (u_.textLaeufe != nullptr && item_ == u_.textLaeufeItem) { startPos = u_.textLaeufeStart; }
+        else if (static_cast<std::size_t>(item_) < u_.zustand.size()) { startPos = u_.zustand[static_cast<std::size_t>(item_)].startPos; }
         const TextScrollZeilen z = textScrollZeilen(it, u_);
         const Rechteck& r = it.window.rect;
         const int count = static_cast<int>(z.zeilen.size());

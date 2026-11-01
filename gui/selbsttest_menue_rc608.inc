@@ -410,6 +410,192 @@ std::vector<Schritt> schritteZoom() {
     return s;
 }
 
+// rc608 Punkt 5 (shank: "wieso kann ich nicht schreiben direkt wenn ich dopplklick mache um den Text in dem Style zu schreiben?")
+const char* const kSchreibText =
+    "menuDef\n{\n  name \"schreiben\"\n  rect 0 0 640 480\n  visible 1\n"
+    "  itemDef\n  {\n    name \"titel\"\n    type ITEM_TYPE_TEXT\n    rect 100 40 300 40\n    text \"Probe\"\n    font 1\n    textscale 1\n    forecolor 1 1 0 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"knopf\"\n    type ITEM_TYPE_BUTTON\n    rect 100 100 200 40\n    text \"Back\"\n    font 2\n    textscale 1\n    textalign ITEM_ALIGN_CENTER\n    textalignx 100\n    forecolor 1 1 1 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"spieltext\"\n    type ITEM_TYPE_BUTTON\n    rect 100 150 200 40\n    text @MENUS_BACK\n    font 2\n    textscale 1\n    forecolor 1 1 1 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"lauftext\"\n    type ITEM_TYPE_TEXTSCROLL\n    rect 330 100 280 120\n    text \"Eins zwei drei\"\n    font 2\n    textscale 0.7\n    lineHeight 20\n    forecolor 1 1 1 1\n    autowrapped\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"auscvar\"\n    type ITEM_TYPE_TEXT\n    rect 100 200 200 30\n    cvar \"ui_name\"\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"auscode\"\n    type ITEM_TYPE_OWNERDRAW\n    rect 100 240 200 30\n    ownerdraw 12\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"liste\"\n    type ITEM_TYPE_LISTBOX\n    rect 100 280 200 30\n    feeder 1\n    visible 1\n  }\n"
+    "  itemDef\n  {\n    name \"bild\"\n    style WINDOW_STYLE_SHADER\n    rect 100 320 200 30\n    background \"gfx/menus/menu_blendbox\"\n    visible 1\n  }\n"
+    "}\n";
+
+std::string textVon(const std::string& name) {
+    const std::string t = me::stand().text;
+    const std::size_t p = t.find("name \"" + name + "\"");
+    if (p == std::string::npos) { return ""; }
+    const std::size_t r = t.find("    text ", p);
+    if (r == std::string::npos) { return ""; }
+    const std::size_t e = t.find("\n    ", r + 9);
+    return t.substr(r + 9, e - r - 9);
+}
+
+std::vector<Schritt> schritteSchreiben() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto doppel = [](const std::string& was, float vx, float vy) {
+        return klickAn("rc608 Schreiben: Doppelklick " + was, [=] { return aufFlaeche(vx, vy); }, 0, true);
+    };
+    auto tiefe = std::make_shared<int>(0);
+    const auto merke = [tiefe] { return tu("rc608 Schreiben: Undo-Tiefe merken", [tiefe] { *tiefe = me::stand().undoSchritte; }); };
+    const auto schritte = [tiefe](const std::string& was, int n) {
+        return pruefe("rc608 Schreiben: " + was + ": " + std::to_string(n) + " Undo-Schritt(e)", [tiefe, n] { return me::stand().undoSchritte == *tiefe + n; });
+    };
+    add(tu("rc608 Schreiben: Probe oeffnen", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ui/schreiben.menu", kSchreibText);
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.6));
+    add(foto("menue_schreiben_vorher"));
+    // Doppelklick: schreibt, zieht nicht, der Cursor steht wie gezeichnet
+    add(merke());
+    add(doppel("titel", 150, 55));
+    add(pause(0.4));
+    add(pruefe("rc608 Schreiben: Doppelklick oeffnet das Schreiben", [] {
+        const auto x = me::schreibStand();
+        return x.an && x.puffer == "Probe" && x.item == me::itemNummer("titel") && rectVon("titel") == "100 40 300 40";
+    }));
+    add(foto("menue_schreiben_an"));
+    add(zeigerAn("beim Schreiben der Text-Cursor", [] { return aufFlaeche(200, 60); }, ImGuiMouseCursor_TextInput));
+    add(taste(ImGuiKey_End, "Ende"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Cursor am Ende sitzt am Ende des gezeichneten Textes", [] {
+        const auto x = me::schreibStand();
+        diag::info("Knopftest: Cursor " + std::to_string(x.cursorX) + ", Text rechts " + std::to_string(x.textRechts));
+        return x.textRechts > 100.0F && std::fabs(x.cursorX - x.textRechts) < 4.0F;
+    }));
+    // Klick in den Text setzt den Cursor auf das Zeichen unter der Maus
+    auto mitte = std::make_shared<float>(0.0F);
+    add(tu("rc608 Schreiben: Mitte des Textes merken", [mitte] { *mitte = 100.0F + (me::schreibStand().textRechts - 100.0F) * 0.5F; }));
+    add(klickAn("rc608 Schreiben: Klick in die Mitte des Textes", [mitte] { return aufFlaeche(*mitte, 55); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: der Klick setzt den Cursor in die Mitte, das Schreiben bleibt", [mitte] {
+        const auto x = me::schreibStand();
+        diag::info("Knopftest: Cursor nach Klick " + std::to_string(x.cursorX) + ", Mitte " + std::to_string(*mitte));
+        return x.an && std::fabs(x.cursorX - *mitte) < 12.0F;
+    }));
+    // Tippen zeigt sofort, Esc verwirft
+    add(tippe("Etwas"));
+    add(pause(0.2));
+    add(foto("menue_schreiben_tippen"));
+    add(pruefe("rc608 Schreiben: das Getippte steht im Feld, die Datei noch nicht", [tiefe] {
+        return me::schreibStand().puffer == "Etwas" && textVon("titel") == "\"Probe\"" && me::stand().undoSchritte == *tiefe;
+    }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Esc verwirft", [] { return !me::schreibStand().an && textVon("titel") == "\"Probe\""; }));
+    add(schritte("nach Esc", 0));
+    // Enter uebernimmt: nur die Zeile text aendert sich, ein Schritt
+    auto vorherText = std::make_shared<std::string>();
+    add(tu("rc608 Schreiben: Text merken", [vorherText] { *vorherText = me::stand().text; }));
+    add(merke());
+    add(doppel("titel", 150, 55));
+    add(pause(0.3));
+    add(tippe("Neu"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Enter uebernimmt, nur die Zeile text aendert sich", [vorherText] {
+        std::string soll = *vorherText;
+        const std::string alt = "text \"Probe\"";
+        soll.replace(soll.find(alt), alt.size(), "text \"Neu\"");
+        return !me::schreibStand().an && me::stand().text == soll;
+    }));
+    add(schritte("nach Enter", 1));
+    add(foto("menue_schreiben_fertig"));
+    add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Rueckgaengig stellt den Text her", [vorherText] { return me::stand().text == *vorherText; }));
+    // Klick daneben uebernimmt
+    add(merke());
+    add(doppel("knopf", 200, 120));
+    add(pause(0.3));
+    add(pruefe("rc608 Schreiben: Button mit Text", [] { return me::schreibStand().puffer == "Back"; }));
+    add(tippe("Zurueck"));
+    add(klickAn("rc608 Schreiben: Klick daneben", [] { return aufFlaeche(50, 440); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Klick daneben uebernimmt", [] { return !me::schreibStand().an && textVon("knopf") == "\"Zurueck\""; }));
+    add(schritte("nach Klick daneben", 1));
+    add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    // Mehrzeilig: Strg+Enter macht die neue Zeile, die Datei liest sich wieder
+    add(doppel("lauftext", 400, 110));
+    add(pause(0.3));
+    add(tippe("A"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Enter, "Strg+Enter"));
+    add(Schritt{"Tippe B", [](int b) {
+                    if (b == 0) { ImGui::GetIO().AddInputCharactersUTF8("B"); }
+                    return b >= 3;
+                }});
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Strg+Enter macht im Lauftext eine neue Zeile", [] { return me::schreibStand().puffer == "A\nB"; }));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: SP: der Umbruch steht roh im String", [] { return textVon("lauftext").rfind("\"A\nB\"", 0) == 0; }));
+    add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    // @-Texte: aufgeloest zeigen, das Spiel-Paket bleibt; das Element bekommt einen eigenen Text
+    add(merke());
+    add(doppel("spieltext", 200, 170));
+    add(pause(0.3));
+    add(pruefe("rc608 Schreiben: @-Text zeigt den aufgeloesten Text", [] {
+        const auto x = me::schreibStand();
+        diag::info("Knopftest: @MENUS_BACK ist " + x.puffer);
+        return x.an && !x.puffer.empty() && x.puffer[0] != '@' && x.puffer == me::loeseText("@MENUS_BACK");
+    }));
+    add(tippe("Eigen"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: das Element nutzt einen eigenen Text, der des Spiels bleibt", [] {
+        const std::string t = textVon("spieltext");
+        diag::info("Knopftest: Zeile text " + t + ", Meldung " + me::letzteMeldung());
+        return t.rfind("@MYMENU_MENUS_BACK", 0) == 0 && me::loeseText("@MYMENU_MENUS_BACK") == "Eigen" && me::loeseText("@MENUS_BACK") != "Eigen" &&
+               me::letzteMeldung().find("MENUS_BACK") != std::string::npos;
+    }));
+    add(schritte("nach dem eigenen Text", 1));
+    add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Rueckgaengig: wieder der Text des Spiels", [] { return textVon("spieltext").rfind("@MENUS_BACK", 0) == 0; }));
+    // Woher der Text sonst kommt: erklaeren statt nichts tun
+    const auto erklaert = [&](const std::string& was, float vx, float vy, std::function<std::string()> soll) {
+        add(tu("rc608 Schreiben: Meldung leeren", [] { (void)me::rueckgaengig(); (void)me::wiederholen(); }));
+        add(doppel(was, vx, vy));
+        add(pause(0.3));
+        add(pruefe("rc608 Schreiben: " + was + " wird erklaert", [soll] {
+            diag::info("Knopftest: Meldung " + me::letzteMeldung());
+            return !me::schreibStand().an && me::letzteMeldung() == soll();
+        }));
+    };
+    const auto mit = [](Str str, const std::string& wert) {
+        return [str, wert] {
+            char b[400];
+            std::snprintf(b, sizeof(b), tr(str), wert.c_str());
+            return std::string(b);
+        };
+    };
+    erklaert("auscvar", 200, 215, mit(Str::MeSchreibenCvar, "ui_name"));
+    erklaert("auscode", 200, 255, [] {
+        char b[400];
+        std::snprintf(b, sizeof(b), tr(Str::MeSchreibenOwnerdraw), 12);
+        return std::string(b);
+    });
+    erklaert("liste", 200, 295, [] { return std::string(tr(Str::MeSchreibenFeeder)); });
+    erklaert("bild", 200, 335, mit(Str::MeSchreibenBild, "gfx/menus/menu_blendbox"));
+    // Hierarchie zeigt den Text in der Zeile
+    add(tu("rc608 Schreiben: Reiter Hierarchie", [] { me::setzeReiter(0); }));
+    add(pause(0.2));
+    add(klick("knopf  ITEM_TYPE_BUTTON  \"Back\""));
+    add(pruefe("rc608 Schreiben: die Hierarchie zeigt den Text in der Zeile und waehlt", [] { return me::stand().auswahl == std::vector<int>{me::itemNummer("knopf")}; }));
+    add(foto("menue_schreiben_hierarchie"));
+    add(tu("rc608 Schreiben: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;
