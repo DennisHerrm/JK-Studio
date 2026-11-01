@@ -7219,6 +7219,7 @@ int menuesImDokument() {
 }
 bool referenzbildGeladen() { return Z().refTex.tex != nullptr; }
 void ladeReferenzbild(const std::string& platte) { refBildLaden(platte); }
+void entferneReferenzbild() { refBildEntfernen(); }
 bool schliessenFrageOffen() { return Z().schliessenDok >= 0; }
 void schliesseReiter(int dok) {
     Zustand& z = Z();

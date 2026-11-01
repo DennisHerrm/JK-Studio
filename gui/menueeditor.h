@@ -252,6 +252,7 @@ struct FlussInfo {
 [[nodiscard]] bool tabFolgeAn();
 [[nodiscard]] bool referenzbildGeladen();
 void ladeReferenzbild(const std::string& platte);
+void entferneReferenzbild();
 [[nodiscard]] bool schliessenFrageOffen();
 void schliesseReiter(int dok);   // wie das x am Reiter (fragt bei Ungespeichertem)
 [[nodiscard]] std::vector<std::string> assistentKatalog();   // Cvars, fuer die der Assistent eine Steuerung kennt

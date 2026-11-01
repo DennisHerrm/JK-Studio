@@ -766,6 +766,14 @@ std::vector<Schritt> schritteM5() {
     // Spacer hinter knopf2: knopf3 rutscht an den rechten Rand (108 + 440 - 16 = 532 -> x 472)
     add(tu("M5 Layout: knopf2 waehlen", [] { me::waehle(me::itemNummer("knopf2"), false); }));
     add(pause(0.2));
+    // Der Abschnitt Layout steht unter den Feldern des Elements; was ausserhalb liegt, hat im Selbsttest keine Beschriftung
+    add(tu("M5 Layout: zum Abschnitt rollen", [] {
+        for (ImGuiWindow* x : GImGui->Windows) {
+            const std::string n = x->Name;
+            if (x->WasActive && n.find("/##inhalt_") != std::string::npos && n.find("##rechts") != std::string::npos) { ImGui::SetScrollY(x, x->ScrollMax.y); }
+        }
+    }));
+    add(pause(0.3));
     add(klick(tr(Str::MeLayoutSpacerNeu)));
     add(pause(0.3));
     add(pruefe("M5 Layout: Spacer schiebt knopf3 an den rechten Rand", [st, rect] { return rect(st().text, "knopf3") == "472 108 60 20"; }));
@@ -809,7 +817,7 @@ std::vector<Schritt> schritteM5() {
     add(pause(0.3));
     add(klick(tr(Str::MeEvLeuchten)));
     add(pause(0.3));
-    add(klick(tr(Str::MeEvKlickKlang)));
+    add(klick("##klickklang"));
     add(tippe("sound/interface/button1.wav"));
     add(taste(ImGuiKey_Enter, "Enter"));
     add(tu("M5 Ereignisse Aufgabe: Schritte zaehlen (Leuchten, Feld, Tippen, Enter)", [ev] { *ev += 4; }));
@@ -1547,28 +1555,34 @@ const char* const kM7Probe =
 
 // Echtes Ziehen auf der Flaeche: von (vx, vy) + (px, py) Bildpunkte um (dx, dy) Bildpunkte, in Schritten
 Schritt ziehFlaeche(const std::string& was, float vx, float vy, float px, float py, float dx, float dy) {
+    auto druck = std::make_shared<int>(-1);
     return Schritt{was, [=](int b) {
                        ImGuiIO& io = ImGui::GetIO();
                        const auto x = me::stand();
                        const ImVec2 start{x.flaeche[0] + vx / 640.0F * x.flaeche[2] + px, x.flaeche[1] + vy / 480.0F * x.flaeche[3] + py};
                        if (b == 0) {
+                           *druck = -1;
                            setzeMaus(start);
                            return false;
                        }
-                       if (b == 2) {
+                       if (*druck < 0) {
+                           // Zwei Druecke kurz hintereinander an derselben Stelle waeren ein Doppelklick, und der schreibt (rc608 Punkt 5)
+                           if (b < 2 || ImGui::GetTime() - io.MouseClickedTime[0] < static_cast<double>(io.MouseDoubleClickTime) + 0.05) { return false; }
                            io.AddMouseButtonEvent(0, true);
+                           *druck = b;
                            return false;
                        }
-                       if (b >= 3 && b <= 7) {
-                           const float t = static_cast<float>(b - 2) / 5.0F;
+                       const int k = b - *druck;
+                       if (k >= 1 && k <= 5) {
+                           const float t = static_cast<float>(k) / 5.0F;
                            setzeMaus(ImVec2{start.x + dx * t, start.y + dy * t});
                            return false;
                        }
-                       if (b == 8) {
+                       if (k == 6) {
                            io.AddMouseButtonEvent(0, false);
                            return false;
                        }
-                       return b >= 11;
+                       return k >= 9;
                    }};
 }
 
@@ -2381,7 +2395,15 @@ std::vector<Schritt> schritteM7() {
     // Punkt 12: Gizmo - am Drehgriff (oben mittig, 12 Bildpunkte unter dem Rand) 60 Bildpunkte nach rechts ziehen
     add(tu("M7 Gizmo: Modell waehlen", [] { me::waehle(me::itemNummer("figur"), false); }));
     add(pause(0.3));
-    add(ziehFlaeche("M7 Gizmo: Drehgriff ziehen", 420, 100, 0, 12, 60, 0));
+    const auto griffOrt = [](int nr) {
+        return [nr] {
+            float xy[8] = {};
+            float g = 0.0F;
+            (void)me::modellGriffe(xy, &g);
+            return ImVec2{xy[nr * 2], xy[nr * 2 + 1]};
+        };
+    };
+    add(ziehenAn("M7 Gizmo: Drehgriff ziehen", griffOrt(0), 60.0F, 0.0F, 0));
     add(pause(0.2));
     add(foto("menue_gizmo"));
     add(pruefe("M7 Gizmo: model_angle 30 (0,5 Grad je Bildpunkt), ein Rueckgaengig-Schritt", [st] {
@@ -2391,7 +2413,7 @@ std::vector<Schritt> schritteM7() {
         (void)me::rueckgaengig();
         return st().text.find("model_angle 0") != std::string::npos;
     }));
-    add(ziehFlaeche("M7 Gizmo: Abstandsgriff nach unten ziehen", 540, 250, -12, 0, 0, 40));
+    add(ziehenAn("M7 Gizmo: Abstandsgriff nach unten ziehen", griffOrt(1), 0.0F, 40.0F, 0));
     add(pause(0.2));
     add(pruefe("M7 Gizmo: model_g2mins/maxs geschrieben, z-Spanne gewachsen (weiter weg)", [st] {
         const std::string t = st().text;
@@ -2535,6 +2557,7 @@ std::vector<Schritt> schritteM6() {
     add(pause(0.3));
     add(pruefe("M6 Referenzbild: geladen, Menuetext unveraendert", [st, vorher] { return me::referenzbildGeladen() && st().text == *vorher; }));
     add(foto("menue_referenzbild"));
+    add(tu("M6 Referenzbild: wieder entfernen, sonst liegt es unter allen weiteren Fotos", [] { me::entferneReferenzbild(); }));
     // Rest M5b: ein geaenderter Reiter fragt beim Schliessen
     add(tu("M6 Schliessen: Text aendern, Reiter schliessen", [] {
         me::waehle(me::itemNummer("a"), false);

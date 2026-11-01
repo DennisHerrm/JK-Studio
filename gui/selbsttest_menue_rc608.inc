@@ -199,6 +199,7 @@ std::vector<Schritt> schritteZeiger() {
         tourSchliessen();
         (void)me::oeffneText("zeiger.menu", kZugText);
         me::setzeInteraktion(false);
+        me::setzeSpalten(0.0F, 0.0F);
     }));
     add(pause(0.5));
     for (auto& x : zeigerTabelle("100 %")) { add(std::move(x)); }
@@ -279,6 +280,7 @@ std::vector<Schritt> schritteZoom() {
         tourSchliessen();
         (void)me::oeffneText("zoom.menu", kZugText);
         me::setzeInteraktion(false);
+        me::setzeSpalten(0.0F, 0.0F);
     }));
     add(pause(0.5));
     add(tu("rc608 Zoom: Fokus auf die Flaeche, Ausgangslage merken", [start, text, tiefe] {
@@ -366,13 +368,21 @@ std::vector<Schritt> schritteZoom() {
         const bool balken = st.balken;
         add(tu("rc608 Zoom: Stufe " + name, [balken] { me::setzeBalken(balken); }));
         add(pause(0.1));
+        // Erst passend: Strg+1 behaelt die Mitte der Ansicht, und das Element soll im Bild bleiben
+        add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+        add(pause(0.1));
         add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+        add(pause(0.1));
+        // frei in die Mitte der Ansicht (bei 800 % ist es 800 Punkte breit, die Flaeche je nach Sprache kaum breiter)
+        add(ziehenAn("rc608 Zoom: frei in die Mitte, " + name, an(450, 325), -130.0F, -85.0F, 2));
         add(pause(0.1));
         add(halteTaste(ImGuiMod_Ctrl, true));
         add(radAn("Strg+Rad " + name, an(450, 325), klicks));
         add(halteTaste(ImGuiMod_Ctrl, false));
         add(pruefe("rc608 Zoom: Stufe " + name + " erreicht", [] {
-            diag::info("Knopftest: Zoom " + std::to_string(me::stand().zoomProzent) + " %");
+            const auto x = me::stand();
+            const ImVec2 p = aufFlaeche(500, 350);
+            diag::info("Knopftest: Zoom " + std::to_string(x.zoomProzent) + " %, Flaeche " + std::to_string(x.flaeche[0]) + " " + std::to_string(x.flaeche[1]) + " " + std::to_string(x.flaeche[2]) + " " + std::to_string(x.flaeche[3]) + ", Griff unten rechts " + std::to_string(p.x) + " " + std::to_string(p.y));
             return true;
         }));
         for (auto& x : zeigerTabelle(name)) { add(std::move(x)); }
