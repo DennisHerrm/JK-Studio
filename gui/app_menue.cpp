@@ -1670,7 +1670,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const float lineal = std::floor(ImGui::GetFontSize() * 1.2F);
     // Aufloesung: Fenster oder Voreinstellung (das Seitenverhaeltnis der Vorschau)
     static const float kAufl[][2] = {{0, 0}, {640, 480}, {800, 600}, {1024, 768}, {1280, 720}, {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3440, 1440}};
-    float bw = groesse.x - lineal, bh = groesse.y - lineal;
+    // rc608 Punkt 8: rechts und unten ein schmaler Rand, sonst laegen die Griffe bei x = 640 und y = 480 halb ausserhalb
+    const float griffRand = 6.0F;
+    float bw = groesse.x - lineal - griffRand, bh = groesse.y - lineal - griffRand;
     if (z.aufloesung > 0) {
         const float ax = kAufl[z.aufloesung][0], ay = kAufl[z.aufloesung][1];
         const float f = std::min(bw / ax, bh / ay);
@@ -1905,7 +1907,40 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
                 if (std::fabs(maus.x - c.x) <= hs + 1 && std::fabs(maus.y - c.y) <= hs + 1) { griffUnter = yy * 3 + xx; }
             }
         }
+        // rc608 Punkt 8: auch die Raender zwischen den Griffen skalieren (Griff der Kantenmitte: 1 oben, 3 links, 5 rechts, 7 unten)
+        if (griffUnter < 0) {
+            const float rl = o.x + ab.x(einzel.x), rr = o.x + ab.x(einzel.x + einzel.w);
+            const float rt = o.y + ab.y(einzel.y), rb = o.y + ab.y(einzel.y + einzel.h);
+            const bool imX = maus.x >= rl && maus.x <= rr;
+            const bool imY = maus.y >= rt && maus.y <= rb;
+            if (imY && std::fabs(maus.x - rl) <= hs) { griffUnter = 3; }
+            else if (imY && std::fabs(maus.x - rr) <= hs) { griffUnter = 5; }
+            else if (imX && std::fabs(maus.y - rt) <= hs) { griffUnter = 1; }
+            else if (imX && std::fabs(maus.y - rb) <= hs) { griffUnter = 7; }
+        }
+        if (d.gesperrt.count(d.auswahl[0]) != 0 || (!hover && z.ziehen == Ziehen::Nichts)) { griffUnter = -1; }
     }
+    // rc608 Punkt 8: der Zeiger sagt, was ein Druck hier tut, und bleibt beim Ziehen
+    {
+        const auto griffZeiger = [](int g) {
+            if (g == 0 || g == 8) { return ImGuiMouseCursor_ResizeNWSE; }
+            if (g == 2 || g == 6) { return ImGuiMouseCursor_ResizeNESW; }
+            return g == 1 || g == 7 ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW;
+        };
+        const auto waehlbar = std::find(d.auswahl.begin(), d.auswahl.end(), unterMaus) != d.auswahl.end();
+        const bool frei = std::none_of(d.auswahl.begin(), d.auswahl.end(), [&d](int i) { return d.gesperrt.count(i) != 0; });
+        if (z.ziehen == Ziehen::Groesse) {
+            ImGui::SetMouseCursor(griffZeiger(z.griff));
+        } else if (z.ziehen == Ziehen::Verschieben) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        } else if (z.ziehen == Ziehen::Nichts && griffUnter >= 0) {
+            ImGui::SetMouseCursor(griffZeiger(griffUnter));
+        } else if (z.ziehen == Ziehen::Nichts && hover && waehlbar && frei) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        }
+    }
+    // Rahmen und Griffe duerfen ueber den Rand der Flaeche ragen (bei x = 0 ueber das Lineal)
+    dl->PushClipRect(ImVec2{o.x - hs - 1.0F, o.y - hs - 1.0F}, ImVec2{o0.x + groesse.x, o0.y + groesse.y}, false);
     for (const int i : d.auswahl) {
         if (static_cast<std::size_t>(i) >= m.items.size()) { continue; }
         Rechteck r = m.items[static_cast<std::size_t>(i)].window.rect;
@@ -1934,6 +1969,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             dl->AddText(ImVec2{a.x, b.y + 2}, IM_COL32(60, 170, 255, 255), t);
         }
     }
+    dl->PopClipRect();
     for (const Hilfslinie& h : z.linien) {
         if (h.senkrecht) {
             dl->AddLine(ImVec2{o.x + ab.x(h.wert), o.y + ab.y(h.von)}, ImVec2{o.x + ab.x(h.wert), o.y + ab.y(h.bis)}, IM_COL32(255, 60, 200, 255));
@@ -1952,16 +1988,16 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         z.ziehLaeuft = false;
         z.klickWahl = -1;
         z.zdx = z.zdy = 0;
-        if (maus.y < o.y && maus.x > o.x) {
+        if (griffUnter >= 0 && d.auswahl.size() == 1 && d.gesperrt.count(d.auswahl[0]) == 0) {
+            z.ziehen = Ziehen::Groesse;
+            z.griff = griffUnter;
+            z.groesseNeu = einzel;
+        } else if (maus.y < o.y && maus.x > o.x) {
             z.ziehen = Ziehen::Lineal;   // Hilfslinie aus dem oberen Lineal
             z.griff = 1;
         } else if (maus.x < o.x && maus.y > o.y) {
             z.ziehen = Ziehen::Lineal;
             z.griff = 0;
-        } else if (griffUnter >= 0 && d.auswahl.size() == 1 && d.gesperrt.count(d.auswahl[0]) == 0) {
-            z.ziehen = Ziehen::Groesse;
-            z.griff = griffUnter;
-            z.groesseNeu = einzel;
         } else if (unterMaus >= 0) {
             // rc608 (shank): ein Druck meint das vorderste Element unter dem Zeiger, das mit dem Rahmen und dem
             // Namen. Ist es noch nicht gewaehlt, waehlt er es nur; erst ein neuer Druck auf Gewaehltes zieht.
@@ -3536,6 +3572,8 @@ void zeichneCode(Dokument& d) {
     // Eingabe
     ImGui::InvisibleButton("##codeflaeche", ImVec2{std::max(1.0F, bereich.x), std::max(1.0F, bereich.y)});
     const bool hover = ImGui::IsItemHovered();
+    // rc608 Punkt 16: ueber dem Text der Text-Cursor, im Zeilenrand und ueber der Minimap der Pfeil
+    if (hover && io.MousePos.x >= textX && io.MousePos.x < textX + textB) { ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput); }
     if (ImGui::IsItemActivated()) { z.codeFokus = true; }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !hover && !ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
         z.codeFokus = false;
@@ -6255,6 +6293,12 @@ void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
 void setzeBalken(bool balken) { Z().seitenv = balken ? Seitenverhaeltnis::Balken : Seitenverhaeltnis::Strecken; }
 
 std::string letzterSatzWechsel() { return Z().satzWechsel; }
+
+void sperreItem(int item, bool sperren) {
+    Dokument* d = doc();
+    if (d == nullptr) { return; }
+    if (sperren) { d->gesperrt.insert(item); } else { d->gesperrt.erase(item); }
+}
 
 void verbergeItem(int item, bool verbergen) {
     Dokument* d = doc();

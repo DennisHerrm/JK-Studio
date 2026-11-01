@@ -33,6 +33,7 @@ int oeffneMenuesatz(const std::string& spielPfad);
 [[nodiscard]] std::string laufInfo();   // Selbsttest: aktives Dokument, Satz, Skriptprotokoll
 // M2 Ebenenliste: Auge (nur Vorschau), Reihenfolge (verschiebt das itemDef im Text), Alt+Klick-Durchwahl
 void verbergeItem(int item, bool verbergen);
+void sperreItem(int item, bool sperren);   // rc608: das Schloss der Ebenenliste
 bool ebeneAnStelle(int item, int ziel);
 void altKlickVorschau(float x, float y);   // Selbsttest: Menue, in dessen Datei zuletzt gewechselt wurde
 // Zustand fuer den Selbsttest (Wirkungspruefung).
