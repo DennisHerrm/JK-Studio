@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Drei Knöpfe.** Doppelklicke bei den Bausteinen dreimal auf **{{MeWButton}}** oder zieh ihn auf die Fläche.",
+      "text": "**Drei Knöpfe.** Doppelklicke bei den Bausteinen dreimal auf **{{MlTypButton}}** oder zieh ihn auf die Fläche.",
       "bild": "h_tut_menue_3",
       "unter": "Drei neue Knöpfe nebeneinander, noch nicht gleichmäßig verteilt.",
-      "ziel": "knopf:MeWButton",
+      "ziel": "knopf:MlTypButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",

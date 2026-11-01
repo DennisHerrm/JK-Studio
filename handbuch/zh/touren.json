@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**三个按钮。** 在构件中双击三次 **{{MeWButton}}**,或把它拖到画布上。",
+      "text": "**三个按钮。** 在构件中双击三次 **{{MlTypButton}}**,或把它拖到画布上。",
       "bild": "h_tut_menue_3",
       "unter": "三个新按钮彼此相邻,间距尚不均匀。",
-      "ziel": "knopf:MeWButton",
+      "ziel": "knopf:MlTypButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",

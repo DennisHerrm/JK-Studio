@@ -317,7 +317,7 @@ MENUE = "modus:4 < knopf:ViewMenuEditor@modebar"
 NACH_SCHRITT.update({
     ("tut-menue-eigen", "classic", 1): A("knopf:ViewMenuEditor@modebar", "modus:4", einrichten="modus:4", sicher=True),
     ("tut-menue-eigen", "classic", 2): A("knopf:MePrjNeu", "zahl:menue.projekt", voraus=MENUE),
-    ("tut-menue-eigen", "classic", 3): A("knopf:MeWButton", "zahl:menue.elemente+", voraus=MENUE),
+    ("tut-menue-eigen", "classic", 3): A("knopf:MlTypButton", "zahl:menue.elemente+", voraus=MENUE),
     ("tut-menue-eigen", "classic", 4): A("knopf:MeLayoutWaagrecht", "zahl:menue.layouts+", voraus=MENUE),
     ("tut-menue-eigen", "classic", 5): A("knopf:MeEvLeuchten", "zahl:menue.ereignisse+", voraus=MENUE),
     ("tut-menue-eigen", "classic", 6): A("knopf:MeSpeichern", "zahl:menue.gespeichert+", voraus=MENUE),

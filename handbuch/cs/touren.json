@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Tři tlačítka.** Třikrát dvakrát klikněte na **{{MeWButton}}** ve stavebních blocích, nebo ho přetáhněte na plochu.",
+      "text": "**Tři tlačítka.** Třikrát dvakrát klikněte na **{{MlTypButton}}** ve stavebních blocích, nebo ho přetáhněte na plochu.",
       "bild": "h_tut_menue_3",
       "unter": "Tři nová tlačítka vedle sebe, zatím ne rovnoměrně rozmístěná.",
-      "ziel": "knopf:MeWButton",
+      "ziel": "knopf:MlTypButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",

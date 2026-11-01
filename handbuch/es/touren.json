@@ -1356,10 +1356,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Tres botones.** Haz doble clic tres veces en **{{MeWButton}}** en los bloques de construcción, o arrástralo al lienzo.",
+      "text": "**Tres botones.** Haz doble clic tres veces en **{{MlTypButton}}** en los bloques de construcción, o arrástralo al lienzo.",
       "bild": "h_tut_menue_3",
       "unter": "Tres botones nuevos uno junto a otro, aún sin espaciado uniforme.",
-      "ziel": "knopf:MeWButton",
+      "ziel": "knopf:MlTypButton",
       "fertig": "zahl:menue.elemente+",
       "voraus": "modus:4 < knopf:ViewMenuEditor@modebar",
       "einrichten": "",
