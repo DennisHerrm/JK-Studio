@@ -232,6 +232,15 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
         if (!m.window.background.empty() && k.gibtBild && !k.gibtBild(m.window.background)) {
             melde(BefundArt::DateiFehlt, mn, -1, 0, 0, m.window.background, "background", false);
         }
+        if (d.dialekt == Dialekt::MP && m.fullScreen != 0 && m.window.background.empty()) {
+            // Menu_Paint zeichnet Griff 0. Stoeren tut das nur, wenn kein Element ihn ganz deckt.
+            const bool gedeckt = std::any_of(m.items.begin(), m.items.end(), [](const Item& it) {
+                const Rechteck& r = it.window.rect;
+                return r.x <= 0.0F && r.y <= 0.0F && r.x + r.w >= 640.0F && r.y + r.h >= 480.0F &&
+                       (it.window.style == WINDOW_STYLE_FILLED || it.window.style == WINDOW_STYLE_SHADER) && (it.window.flags & WINDOW_VISIBLE) != 0;
+            });
+            if (!gedeckt) { melde(BefundArt::VollbildOhneBild, mn, -1, 0, 0, "", "", false); }
+        }
         for (std::size_t ii = 0; ii < m.items.size(); ++ii) {
             const Item& it = m.items[ii];
             const int in = static_cast<int>(ii);

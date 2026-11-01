@@ -102,6 +102,8 @@ struct BildZeile {
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
 // rc608 Punkt 12 (Selbsttest): die Griffe des gewaehlten Modells auf dem Bildschirm (Mitte x, y; Kantenlaenge g); false = keins gewaehlt
 [[nodiscard]] bool modellGriffe(float* xy8, float* g);
+// rc608 Punkt 9 (Selbsttest): gezeichnete Zellen des Schachbretts im letzten Bild
+[[nodiscard]] int schachbrettZellen();
 // rc608 Punkt 2 (Selbsttest): der Text-Editor im letzten Bild
 struct TextAnsicht {
     long long zeichen = 0;

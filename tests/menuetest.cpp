@@ -80,7 +80,33 @@ void felderJeTyp() {
     pruefe(feldGilt("model_origin", ITEM_TYPE_MODEL, 0, Spiel::JK2) && !feldGilt("model_origin", ITEM_TYPE_MODEL, 0, Spiel::MD), "Felder: model_origin nur JK2");
 }
 
+// rc608 Punkt 9: der Grund eines fullScreen-Menues, wie im Spiel fotografiert
+void leeresMenue() {
+    const auto prims = [](const std::string& kopf, Dialekt dia) {
+        LeseOptionen o;
+        o.dialekt = dia;
+        o.spiel = Spiel::JA;
+        const Datei d = lies("ui/x.menu", "{ menuDef { name m rect 0 0 640 480 visible 1 " + kopf + " } }", o);
+        Umgebung u;
+        u.dialekt = dia;
+        std::vector<Prim> v;
+        zeichneMenu(d, 0, u, v);
+        return v;
+    };
+    pruefe(prims("fullScreen 1", Dialekt::SP).empty(), "SP fullScreen ohne background zeichnet nichts (schwarz)");
+    const std::vector<Prim> farbe = prims("fullScreen 1 backcolor 0.2 0.3 0.8 1", Dialekt::SP);
+    pruefe(farbe.size() == 1 && farbe[0].art == PrimArt::Fuellen && farbe[0].farbe.b > 0.7F && farbe[0].w == 640.0F, "SP fullScreen mit backcolor fuellt");
+    const std::vector<Prim> bildSp = prims("fullScreen 1 background \"x\"", Dialekt::SP);
+    pruefe(bildSp.size() == 1 && bildSp[0].shader == "x" && bildSp[0].farbe.a == 0.0F, "SP background ohne backcolor: Alpha 0");
+    const std::vector<Prim> mp = prims("fullScreen 1", Dialekt::MP);
+    pruefe(mp.size() == 1 && mp[0].shader == kDefaultShader && mp[0].w == 640.0F, "MP fullScreen ohne background: der graue Kasten");
+    const std::vector<Prim> bildMp = prims("fullScreen 1 background \"x\" backcolor 1 0 0 0", Dialekt::MP);
+    pruefe(bildMp.size() == 1 && bildMp[0].shader == "x" && bildMp[0].farbe.a == 1.0F, "MP background: unabhaengig von backcolor");
+    pruefe(prims("fullScreen 0", Dialekt::MP).empty() && prims("fullScreen 0", Dialekt::SP).empty(), "ohne fullScreen nichts");
+}
+
 int main() {
+    leeresMenue();
     g2animReihenfolge();
     felderJeTyp();
     // --- SP ------------------------------------------------------------------

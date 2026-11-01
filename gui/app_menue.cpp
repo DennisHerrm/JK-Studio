@@ -326,6 +326,8 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    bool schachbrett = true;     // rc608 Punkt 9: zeigt, dass ein Menue ohne fullScreen nichts deckt
+    int schachbrettZellen = 0;
     bool balkenZieht = false;   // rc608 Punkt 2: der waagerechte Rollbalken des Text-Editors
     float balkenGriff = 0;
     ImRect balkenRect;
@@ -2122,6 +2124,20 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         }
     }
     dl->PushClipRect(o, ImVec2{o.x + bw, o.y + bh}, true);
+    // rc608 Punkt 9: Ohne fullScreen sieht man im Spiel durch das Menue. Das Schachbrett zeigt das; nur Anzeige, nie in der Datei.
+    z.schachbrettZellen = 0;
+    if (z.schachbrett && d.datei.menus[static_cast<std::size_t>(mi)].fullScreen == 0) {
+        const float zelle = std::max(8.0F, std::floor(fsLineal * 0.75F));
+        const float x0 = o.x + ab.x(0), y0 = o.y + ab.y(0), x1 = o.x + ab.x(kSchirmBreite), y1 = o.y + ab.y(kSchirmHoehe);
+        dl->AddRectFilled(ImVec2{x0, y0}, ImVec2{x1, y1}, IM_COL32(44, 44, 50, 255));
+        int zeile = 0;
+        for (float y = y0; y < y1; y += zelle, ++zeile) {
+            for (float x = x0 + ((zeile & 1) != 0 ? zelle : 0.0F); x < x1; x += zelle * 2.0F) {
+                dl->AddRectFilled(ImVec2{x, y}, ImVec2{std::min(x + zelle, x1), std::min(y + zelle, y1)}, IM_COL32(64, 64, 72, 255));
+                ++z.schachbrettZellen;
+            }
+        }
+    }
     zeichneRefBild(dl, ab, o, false);   // M6 Punkt 7: unter dem Menue
     // Vorschau
     Umgebung u = umgebung(d);
@@ -3304,6 +3320,7 @@ std::string diagMeldung(const Diagnose& x) {
                 case BefundArt::DateiFehlt: return fmt(Str::MeDiagDateiFehlt, anzeige(b.name), anzeige(b.wert));
                 case BefundArt::UnbekanntIn: return fmt(Str::MeDiagUnbekanntIn, anzeige(b.name), anzeige(b.wert));
                 case BefundArt::CinematicSp: return tr(Str::MeDiagCinematicSp);
+                case BefundArt::VollbildOhneBild: return tr(Str::MeDiagVollbildOhneBild);
             }
             return {};
         }
@@ -5641,6 +5658,23 @@ void zeichneEigenschaften(Dokument& d) {
     const int mi = menuDerSeite(d);
     if (mi < 0 || d.auswahl.empty()) {
         ImGui::TextDisabled("%s", tr(Str::MeNichtsGewaehlt));
+        if (mi >= 0) {
+            // rc608 Punkt 9: Vollbild oder Ueberlagerung, mit einem Satz, was das heisst
+            ImGui::SeparatorText(tr(Str::MeMenueGruppe));
+            const Menu& dasMenue = d.datei.menus[static_cast<std::size_t>(mi)];
+            const bool voll = dasMenue.fullScreen != 0;
+            const auto setze = [&](const char* wert) {
+                std::vector<Ersetzung> e;
+                if (setzeEigenschaft(d.datei, mi, -1, "fullScreen", {wert}, e)) { aendere(std::move(e)); }
+                else { ausMakroMelden(); }
+            };
+            if (ImGui::RadioButton(tr(Str::MeVollbild), voll) && !voll) { setze("1"); }
+            daneben(hakenBreite(tr(Str::MeUeberlagerung)));
+            if (ImGui::RadioButton(tr(Str::MeUeberlagerung), !voll) && voll) { setze("0"); }
+            ImGui::PushTextWrapPos(0.0F);
+            ImGui::TextDisabled("%s", tr(voll ? (d.datei.dialekt == Dialekt::MP ? Str::MeVollbildSatzMp : Str::MeVollbildSatzSp) : Str::MeUeberlagerungSatz));
+            ImGui::PopTextWrapPos();
+        }
         return;
     }
     const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
@@ -6170,8 +6204,12 @@ void neueSeite(Dokument& d, int vorlage) {
         return;
     }
     menuEinfuegen(d, "newMenu", [&](const std::string& name) {
+        // rc608 Punkt 9: Im MP zeichnet fullScreen ohne background den grauen Kasten: Das neue Menue deckt ihn mit einem schwarzen Element
+        const std::string grund = dl == Dialekt::MP ? "\t\titemDef" + nl + "\t\t{" + nl + "\t\t\tname\t\t\thintergrund" + nl + "\t\t\trect\t\t\t0 0 640 480" + nl +
+                                                          "\t\t\tstyle\t\t\t1" + nl + "\t\t\tbackcolor\t\t0 0 0 1" + nl + "\t\t\tdecoration" + nl + "\t\t\tvisible\t\t\t1" + nl + "\t\t}" + nl
+                                                    : std::string();
         return "\tmenuDef" + nl + "\t{" + nl + "\t\tname\t\t\t\"" + name + "\"" + nl + "\t\tfullScreen\t\t1" + nl + "\t\trect\t\t\t0 0 640 480" + nl +
-               "\t\tvisible\t\t\t1" + nl + "\t\tfocusColor\t\t1 1 1 1" + nl + "\t}" + nl;
+               "\t\tvisible\t\t\t1" + nl + "\t\tfocusColor\t\t1 1 1 1" + nl + grund + "\t}" + nl;
     });
 }
 
@@ -6668,6 +6706,8 @@ bool modellGriffe(float* xy8, float* g) {
     *g = gizmoGroesse();
     return true;
 }
+
+int schachbrettZellen() { return Z().schachbrettZellen; }
 
 TextAnsicht textAnsicht() {
     const Zustand& z = Z();

@@ -1350,6 +1350,90 @@ std::vector<Schritt> schritteEreignisseBloecke() {
     return s;
 }
 
+// rc608 Punkt 9 (shank: warum ist ein neues leeres Menue schwarz und nicht transparent?)
+std::vector<Schritt> schritteLeeresMenue() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto text = [](const char* name, int voll, const char* zusatz) {
+        return std::string("{\n\tmenuDef\n\t{\n\t\tname ") + name + "\n\t\tfullScreen " + std::to_string(voll) + "\n\t\trect 0 0 640 480\n\t\tvisible 1\n" + zusatz +
+               "\t\titemDef\n\t\t{\n\t\t\tname marke\n\t\t\trect 10 10 200 30\n\t\t\ttext \"" + name + "\"\n\t\t\tfont 2\n\t\t\ttextscale 0.7\n\t\t\tforecolor 1 1 0 1\n\t\t\tvisible 1\n\t\t\tdecoration\n\t\t}\n\t}\n}\n";
+    };
+    // Dieselben Menues wie auf den Spielfotos (SP/rc608/md/): SP und MP
+    struct Fall { const char* datei; const char* foto; int voll; const char* zusatz; };
+    static const Fall kFaelle[] = {
+        {"ui/jks_leer1.menu", "menue_leer_sp_voll", 1, ""},
+        {"ui/jks_leer0.menu", "menue_leer_sp_ueberlagerung", 0, ""},
+        {"ui/jks_leerfarbe.menu", "menue_leer_sp_farbe", 1, "\t\tbackcolor 0.2 0.3 0.8 1\n"},
+        {"ui/jks_leerbild2.menu", "menue_leer_sp_bild", 1, "\t\tbackground \"gfx/mp/new_f_icon_push\"\n"},
+        {"ui/MD_MP/jks_leer1.menu", "menue_leer_mp_voll", 1, ""},
+        {"ui/MD_MP/jks_leer0.menu", "menue_leer_mp_ueberlagerung", 0, ""},
+        {"ui/MD_MP/jks_leerbild2.menu", "menue_leer_mp_bild", 1, "\t\tbackground \"gfx/mp/new_f_icon_push\"\n"},
+    };
+    add(tu("rc608 Leer: Editor", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        me::setzeInteraktion(false);
+    }));
+    for (const Fall& f : kFaelle) {
+        const std::string datei = f.datei;
+        const std::string inhalt = text("leer", f.voll, f.zusatz);
+        add(tu("rc608 Leer: " + datei, [datei, inhalt] {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneText(datei, inhalt);
+        }));
+        add(pause(0.4));
+        add(foto(f.foto));
+    }
+    // Schachbrett: nur ohne fullScreen, abschaltbar, nur Anzeige
+    auto inhalt0 = std::make_shared<std::string>();
+    add(tu("rc608 Leer: Ueberlagerung", [inhalt0, text] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/jks_leer0.menu", text("leer", 0, ""));
+        *inhalt0 = me::stand().text;
+        me::setzeReiter(2);
+    }));
+    add(pause(0.3));
+    add(pruefe("rc608 Leer: ohne fullScreen das Schachbrett", [] { return me::schachbrettZellen() > 100; }));
+    add(klick(tr(Str::MeSchachbrett)));
+    add(pause(0.2));
+    add(pruefe("rc608 Leer: das Schachbrett laesst sich abschalten, die Datei bleibt", [inhalt0] { return me::schachbrettZellen() == 0 && me::stand().text == *inhalt0; }));
+    add(klick(tr(Str::MeSchachbrett)));
+    add(pause(0.2));
+    // Der Schalter in den Properties des Menues
+    auto tiefe = std::make_shared<int>(0);
+    add(tu("rc608 Leer: nichts gewaehlt", [tiefe] {
+        me::waehle(-1, false);
+        *tiefe = me::stand().undoSchritte;
+    }));
+    add(pause(0.2));
+    add(foto("menue_leer_schalter"));
+    add(klick(tr(Str::MeVollbild)));
+    add(pause(0.2));
+    add(pruefe("rc608 Leer: Vollbild schreibt fullScreen 1, ein Schritt, das Schachbrett geht", [tiefe] {
+        const auto x = me::stand();
+        return x.text.find("fullScreen 1") != std::string::npos && x.undoSchritte == *tiefe + 1 && me::schachbrettZellen() == 0;
+    }));
+    add(tu("rc608 Leer: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Leer: Rueckgaengig", [inhalt0] { return me::stand().text == *inhalt0 && me::schachbrettZellen() > 100; }));
+    // Ein neues MP-Menue ueberrascht nicht: Hinweis, und die Vorlage deckt
+    add(tu("rc608 Leer: MP ohne background", [text] {
+        me::schliesseAlleOhneSpeichern();
+        (void)me::oeffneText("ui/MD_MP/jks_leer1.menu", text("leer", 1, ""));
+    }));
+    add(pause(1.0));
+    add(pruefe("rc608 Leer: MP fullScreen ohne background: die Diagnose sagt es", [] {
+        const auto x = me::stand();
+        return std::any_of(x.diagnosen.begin(), x.diagnosen.end(), [](const std::string& d) { return d.find(tr(Str::MeDiagVollbildOhneBild)) != std::string::npos; });
+    }));
+    add(tu("rc608 Leer: aufraeumen", [] {
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

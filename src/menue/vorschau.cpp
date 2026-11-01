@@ -99,8 +99,17 @@ public:
             return;
         }
         if (m_.fullScreen != 0) {
-            if (!m_.window.background.empty()) {
-                bild(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.background, Farbe{1, 1, 1, 1}, -1);
+            // rc608 Punkt 9, im Spiel fotografiert (Movie Duels SP und MP): RE_RegisterShaderNoMip liefert ohne Bild Griff 0.
+            const bool bildDa = !m_.window.background.empty() && (!u_.bildDa || u_.bildDa(m_.window.background));
+            if (u_.dialekt == Dialekt::SP) {
+                // code/ui Menu_Paint: R_SetColor(backColor), ohne Bild whiteShader. backColor ist ab Werk (0,0,0,0): ein leeres Menue
+                // zeichnet nichts und ist schwarz, weil _UI_IsFullscreen das Spielbild darunter weglaesst; auch ein Bild ohne backcolor
+                // (implizit rgbGen vertex) bleibt unsichtbar.
+                if (bildDa) { bild(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.background, m_.window.backColor, -1); }
+                else if (m_.window.backColor.a > 0.0F) { fuellen(0, 0, kSchirmBreite, kSchirmHoehe, m_.window.backColor); }
+            } else {
+                // codemp/ui Menu_Paint: DC->drawHandlePic mit Griff 0 ("FIXME: make sure we have a default shader"): der graue "<default>"-Kasten
+                bild(0, 0, kSchirmBreite, kSchirmHoehe, bildDa ? m_.window.background : std::string(kDefaultShader), Farbe{1, 1, 1, 1}, -1);
             }
         } else if (!m_.window.background.empty()) {
             fenster(m_.window, -1);

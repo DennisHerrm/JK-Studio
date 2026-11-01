@@ -359,6 +359,12 @@ void zeichneGrenzenZeile(Dokument& d) {
     const bool grenzenHover = ImGui::IsItemHovered();
     ImGui::SameLine(0, ImGui::GetFontSize());
     zeichneLesbarkeit(d);   // Punkt 9
+    // rc608 Punkt 9: nur bei einem Menue ohne fullScreen
+    if (const int mi = menuDerSeite(d); mi >= 0 && d.datei.menus[static_cast<std::size_t>(mi)].fullScreen == 0) {
+        daneben(hakenBreite(tr(Str::MeSchachbrett)));
+        ImGui::Checkbox(tr(Str::MeSchachbrett), &Z().schachbrett);
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeSchachbrettTip)); }
+    }
     // rc608 Punkt 4: Zoom, nur Ansicht
     {
         char pr[32];

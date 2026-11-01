@@ -3350,6 +3350,15 @@ enum class Str {
     MeEvNach,
     MeEvZeit,
     MeEvSchritte,
+    MeSchachbrett,
+    MeSchachbrettTip,
+    MeMenueGruppe,
+    MeVollbild,
+    MeUeberlagerung,
+    MeVollbildSatzSp,
+    MeVollbildSatzMp,
+    MeUeberlagerungSatz,
+    MeDiagVollbildOhneBild,
     Count,
 };
 
