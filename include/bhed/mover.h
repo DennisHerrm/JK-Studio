@@ -239,6 +239,7 @@ struct LaserfalleSpur {
     bool startsolid = false;
     bool figur = false;   // tr.entityNum ist ein Client
     int figurNr = -1;     // Pruefung 4b: welche (Index in Scene::actors)
+    int entity = -1;      // tr.entityNum (bhed/geschuetz.h: kSchuss*)
 };
 // Die Spur zur Zeit ms (die Mover und Figuren dann an ihrem Platz).
 using LaserfalleSpurFn = std::function<LaserfalleSpur(double ms, const float start[3], const float mins[3],
@@ -301,10 +302,15 @@ struct G2Kollision {
     int flaeche = -1;       // mSurfaceIndex
     int modell = 0;         // mModelIndex (im ghoul2-Feld)
     int entity = -1;        // mEntityNum
+    float normale[3]{};     // mCollisionNormal (kommt in plane.normal der Spur)
 };
 inline constexpr std::size_t kG2KollisionenMax = 16;   // MAX_G2_COLLISIONS (ghoul2_shared.h)
 int g2RadiusKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
                         const float ende[3], float radius, const G2Kollision& vorlage, std::vector<G2Kollision>& aus);
+// G2_TracePolys mit G2_SegmentTriangleTest (G2_misc.cpp:725-790, 1125-1175
+// OpenJK) - die Spur ohne Kasten (radius 0, die Geschosse des Turbolasers).
+int g2StrahlKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                        const float ende[3], const G2Kollision& vorlage, std::vector<G2Kollision>& aus);
 
 // --- rc604: Geschuetze mit Knochenanimation ------------------------------
 // G2API_SetBoneAnimIndex(rootBone, startFrame, endFrame, BONE_ANIM_OVERRIDE_FREEZE,

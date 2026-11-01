@@ -4838,6 +4838,11 @@ Scene buildOnce(const Script& s, const MapData& map,
                 actor->gottmodus.emplace_back(t, sameName(*gv, "true"));
             } else if (const std::string* uv = setValue(child, "SET_UNDYING")) {
                 actor->unsterblich.emplace_back(t, sameName(*uv, "true"));
+            } else if (const std::string* nv = setValue(child, "SET_NOTARGET")) {
+                // Q3_Set: nur "true"/"false" (Q3_Interface.cpp:8597-8602 OpenJK)
+                if (sameName(*nv, "true") || sameName(*nv, "false")) { actor->keinZiel.emplace_back(t, sameName(*nv, "true")); }
+            } else if (const std::string* tv = setValue(child, "SET_PLAYER_TEAM")) {
+                actor->teamGesetzt.emplace_back(t, *tv);
             } else if (const std::string* av = setValue(child, "SET_ARMOR")) {
                 // rc605 (Ende): Q3_SetArmor - ps.stats[STAT_ARMOR] = data (nur der
                 // Spieler wird auf STAT_MAX_HEALTH begrenzt; Q3_Interface.cpp:2335-2358 OpenJK).

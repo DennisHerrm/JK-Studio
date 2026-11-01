@@ -54,6 +54,7 @@
 #include "bhed/glm.h"
 #include "bhed/mapview.h"
 #include "bhed/efxdraw.h"
+#include "bhed/geschuetz.h"
 #include "bhed/mover.h"
 #include "bhed/md3.h"
 #include "bhed/efx/io.h"
@@ -969,6 +970,22 @@ struct App {
     std::vector<AblaufWelt::FallenUse> fallenUses;
     std::string fallenUsesKarte;
     std::vector<AblaufWelt::FallenUse> fallenUsesNeu;
+    // Rc608: die Geschuetze der Karte (app_view3d_geschuetz.inc). Was ihr Lauf in
+    // hurtTodeBerechnen ergab, zaehlt im naechsten Durchgang: G_UseTargets, was G_Damage
+    // zerbricht, und Laserfallen, die er sprengt (Entity -> ms) - je fuer diese Karte.
+    GeschuetzSim geschuetzSim;
+    double geschuetzBildMs = 0.0;     // Zeit des laufenden Bilds (fuer gi.pointcontents)
+    int geschuetzSchuesse = 0;
+    int geschuetzEinschlaege = 0;
+    std::vector<AblaufWelt::FallenUse> geschuetzUses;
+    std::vector<AblaufWelt::FallenUse> geschuetzUsesNeu;
+    std::vector<AblaufWelt::SchadenBruch> schadenBrueche;
+    std::vector<AblaufWelt::SchadenBruch> schadenBruecheNeu;
+    std::string schadenKarte;
+    std::set<int> schadenZiele;       // takedamage: func_breakable, misc_model_breakable, misc_trip_mine
+    std::map<int, double> fallenFremd;
+    std::map<int, double> fallenFremdNeu;
+    std::string fallenFremdKarte;
     // rc605 (Ende): die Explosionen der Laserfallen (WP_Explode) - G_RadiusDamage
     // trifft auch Figuren (hurtTodeBerechnen). fallenKnalle aus dem letzten
     // fallenEffekteSetzen zur Karte fallenKnalleKarte, fallenKnalleNeu von jetzt.
@@ -988,6 +1005,7 @@ struct App {
         std::string figur;
         int schaden = 0;
         int entity = -1;
+        int ziel = -1;   // Rc608: statt einer Figur eine Kartenentity (Geschuetz, Zerbrechliches)
         bool operator==(const StrahlTreffer&) const = default;
     };
     std::vector<StrahlTreffer> strahlTreffer;
@@ -3457,6 +3475,30 @@ bool figurHandPunkt(const Actor& a, const App::ActorAssets& assets, double ms, f
 // Pruefung 4a: renderInfo.eyePoint aus dem headBolt (kopfBolzen) zur Zeit ms;
 // false: kein headBolt (dann gilt der Ursprung der Figur).
 bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]);
+// Rc608: die Geschuetze (gui/app_view3d_geschuetz.inc).
+// Rc608: was sonst Schaden nimmt und zerbricht (takedamage): func_breakable
+// (SP_func_breakable: ohne spawnflags 1 mindestens health 10), misc_model_breakable
+// (SP_misc_model_breakable: health) und misc_trip_mine (health 15).
+struct BruchZiel {
+    int entity = -1;
+    int health = 0;
+    float lo[3]{};              // absmin
+    float hi[3]{};              // absmax
+    float splashOrt[3]{};       // org in funcBBrushDieGo / misc_model_breakable_die
+    int splashSchaden = 0;
+    float splashWeite = 0.0F;
+    double bruchVerzug = 0.0;   // "delay": funcBBrushDie -> funcBBrushDieGo
+    bool nurSchwer = false;     // FL_DMG_BY_HEAVY_WEAP_ONLY
+    bool nurSchwert = false;    // FL_DMG_BY_SABER_ONLY
+    bool mine = false;
+    double abMs = -1.0e300;     // Mine: takedamage ab
+    double bisMs = 1.0e300;     // Mine: G_FreeEntity
+};
+std::vector<BruchZiel> bruchZieleDerKarte();
+GeschuetzWelt geschuetzWeltJetzt();
+void geschuetzeStarten();
+void geschuetzErgebnisUebernehmen();
+void geschuetzGeschosseZeichnen(double jetzt, std::vector<EffectInstance>& aus);
 // Pruefung 4a: renderInfo.muzzlePoint - der Bolzen "*flash" des Waffenmodells in
 // der rechten Hand (CG_Player, cg_players.cpp:7581-7596 OJ); false: keins.
 bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, float muendung[3]);

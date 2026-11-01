@@ -2429,6 +2429,7 @@ void drawMapView() {
             const std::vector<EffectInstance> schuesse =
                 shotEffectsAt(g_app->playMs);
             alle.insert(alle.end(), schuesse.begin(), schuesse.end());
+            geschuetzGeschosseZeichnen(g_app->playMs, alle);   // Rc608
             alle.insert(alle.end(), schwertFx.begin(), schwertFx.end());   // rc601 saber
 
             // --- Und was daraus entsteht - ueber ALLE Stufen ------------
@@ -4002,7 +4003,19 @@ void drawMapView() {
                                  (fs->second.second >= 0.0 && g_app->playMs >= fs->second.second))) {
                                 continue;
                             }
-                            const App::ActorAssets* as = gegenstandGlmFuer(gg.pfad, gg.bildIndex);   // rc604 fix604b (B3)
+                            // Rc608: Geschuetze nach ihrer Simulation - s.apos, die Knochenwinkel,
+                            // s.frame (EF_SHADER_ANIM); was ObjectDie freigibt, ist weg.
+                            const GeschuetzLauf* gLauf = geschuetzLaufVon(gg.entity);
+                            if (gLauf != nullptr && gLauf->freiMs >= 0.0 && g_app->playMs >= gLauf->freiMs) { continue; }
+                            int bildNr = gg.bildIndex;
+                            if (gLauf != nullptr && bildNr >= 0) {
+                                for (const GeschuetzStand& gs : gLauf->staende) {
+                                    if (gs.ms > g_app->playMs) { break; }
+                                    bildNr = gs.bild;
+                                }
+                            }
+                            const App::ActorAssets* as =
+                                gegenstandGlmFuer(gLauf != nullptr ? std::string(geschuetzModellPfad(*gLauf)) : gg.pfad, bildNr);   // rc604 fix604b (B3)
                             if (as == nullptr) { continue; }
                             gpu::FigurLicht gl;
                             for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
@@ -4021,14 +4034,24 @@ void drawMapView() {
                             const std::vector<BoneMatrix>* knochen = &kStarrGegenstand;
                             std::vector<BoneMatrix> animWelt;
                             std::vector<BoneMatrix> animSkin;
-                            const auto ps = g_app->pasSchwenks.find(gg.entity);   // rc605 FU4
-                            if (const auto ga = g_app->geschuetzAnims.find(gg.entity);
-                                ga != g_app->geschuetzAnims.end() &&
-                                geschuetzKnochen(*as, ga->second, g_app->playMs, animWelt, animSkin,
-                                                 ps != g_app->pasSchwenks.end() ? &ps->second : nullptr)) {
+                            float ggWelt[16];
+                            std::copy(std::begin(gg.welt), std::end(gg.welt), std::begin(ggWelt));
+                            if (gLauf != nullptr) {
+                                const GeschuetzKnochen gk = geschuetzKnochenBei(*gLauf, g_app->playMs);
+                                if (geschuetzSkelett(*gLauf, *as, gk, g_app->playMs, animWelt, animSkin)) { knochen = &animSkin; }
+                                float gAchse[3][3];
+                                winkelZuAchsen(gk.winkel, gAchse);
+                                for (int r = 0; r < 3; ++r) {
+                                    for (int c = 0; c < 3; ++c) { ggWelt[r * 4 + c] = gAchse[c][r] * gLauf->skala; }
+                                    ggWelt[r * 4 + 3] = gk.ort[r];
+                                }
+                            } else if (const auto ga = g_app->geschuetzAnims.find(gg.entity);
+                                       ga != g_app->geschuetzAnims.end() && geschuetzKnochen(*as, ga->second, g_app->playMs, animWelt, animSkin)) {
                                 knochen = &animSkin;
                             }
-                            const int ng = gpu::zeichneFigur(as->model, &as->textures, *knochen, gg.welt, vp,
+                            float ggWurzel[16];
+                            g2WurzelWelt(ggWelt, ggWurzel);
+                            const int ng = gpu::zeichneFigur(as->model, &as->textures, *knochen, ggWurzel, vp,
                                                              &fg, &gl, g_app->showCaps);
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;
@@ -4055,6 +4078,7 @@ void drawMapView() {
                                 abWelt[r * 4 + 3] = o[static_cast<std::size_t>(r)];
                             }
                             abWelt[15] = 1.0F;
+                            g2WurzelWelt(abWelt, abWelt);
                             gpu::FigurLicht gl;
                             for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
                             gl.zeit = zeit;

@@ -417,6 +417,7 @@ private:
     // Pruefung 4b: der Platz (Wesen::reihe), an dem G_RunFrame gerade ist -
     // -1 vor allen Entities (Schritt 2), int-max danach (Ablauf::Benutzung::reihe).
     int amZug_ = -1;
+    bool schadenTod_ = false;   // Rc608: benutzeEine fuer G_Damage statt use
     std::vector<Eintrag> eintraege_;
     std::set<std::string> signale_;
     std::map<std::string, std::string> variablen_;   // klein -> Wert
@@ -1524,6 +1525,17 @@ private:
         if (welt_.karte == nullptr) {
             return;
         }
+        // Rc608: "\x02<Index>": G_Damage zerstoert diese Entity (AblaufWelt::
+        // schadenBrueche) - auch eine ohne targetname.
+        if (name[0] == '\x02') {
+            const auto ei = static_cast<std::size_t>(std::atoi(name.c_str() + 1));
+            if (ei < welt_.karte->entities.size()) {
+                schadenTod_ = true;
+                benutzeEine(welt_.karte->entities[ei], ausloeser, tiefe);
+                schadenTod_ = false;
+            }
+            return;
+        }
         bool traf = false;
         for (const MapEntity& e : welt_.karte->entities) {
             if (!gleich(e.targetname, name)) {
@@ -1744,9 +1756,9 @@ private:
             if (w.entfernt) {
                 return;   // G_FreeEntity: G_Find findet es nicht mehr
             }
-            usescript();
+            if (!schadenTod_) { usescript(); }
             const std::string t = wertVon(e, "target");
-            if ((flags & 64) != 0) {   // USE_NOT_BREAK: nur die Ziele
+            if ((flags & 64) != 0 && !schadenTod_) {   // USE_NOT_BREAK: nur die Ziele
                 benutze(t, ausloeser, tiefe + 1);
                 return;
             }
@@ -1776,7 +1788,7 @@ private:
                 return;
             }
             const std::string grav = wertVon(e, "gravity");
-            if (!grav.empty() && zahl(grav) != 0.0 && !wertVon(e, "throwtarget").empty()) {
+            if (!schadenTod_ && !grav.empty() && zahl(grav) != 0.0 && !wertVon(e, "throwtarget").empty()) {
                 return;   // target4: wirft sich auf sein Ziel, kein Bruch
             }
             const std::string gesundheit = wertVon(e, "health");
@@ -1785,8 +1797,8 @@ private:
                 benutze(wertVon(e, "target3"), ausloeser, tiefe + 1);   // "used while broken"
                 return;
             }
-            usescript();
-            if ((flags & 64) != 0) {
+            if (!schadenTod_) { usescript(); }
+            if ((flags & 64) != 0 && !schadenTod_) {
                 return;   // USE_NOT_BREAK
             }
             // misc_model_breakable_die: erst die Ziele, dann BSET_DEATH -
@@ -3161,6 +3173,9 @@ void Nachbau::hurtPlanen() {
 // fallenUses); der Ausloeser ist die Falle selbst (attacker = self, eine
 // Karten-Falle hat weder owner noch activator).
 void Nachbau::fallenPlanen() {
+    for (const AblaufWelt::SchadenBruch& b : welt_.schadenBrueche) {
+        plane(Geplant{b.ms, 0, Geplant::Art::Benutzen, "\x02" + std::to_string(b.entity), -1, -1});
+    }
     for (const AblaufWelt::FallenUse& f : welt_.fallenUses) {
         if (f.ziel.empty()) { continue; }
         int wer = -1;

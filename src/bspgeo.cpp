@@ -352,6 +352,7 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
                 const std::size_t at = lf.offset + i;
                 BspGeometry::Leaf l;
                 l.cluster = i32(b, at);
+                l.area = i32(b, at + 4);
                 for (int k = 0; k < 3; ++k) {
                     l.mins[k] = static_cast<float>(
                         i32(b, at + 8 + static_cast<std::size_t>(k) * 4));

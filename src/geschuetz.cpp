@@ -245,44 +245,6 @@ void winkelVektoren(const float w[3], float vorn[3], float rechts[3], float oben
     }
 }
 
-void g2WinkelMatrix(const float winkel[3], G2Achse oben, G2Achse links, G2Achse vorn, float m[3][3]) noexcept {
-    float n[3] = {0.0F, 0.0F, 0.0F};
-    switch (oben) {
-        case G2Achse::NegX: n[1] = winkel[2] + 180.0F; break;
-        case G2Achse::PosX: n[1] = winkel[2]; break;
-        case G2Achse::NegY:
-        case G2Achse::PosY: n[1] = winkel[0]; break;
-        case G2Achse::NegZ: n[1] = winkel[1] + 180.0F; break;
-        case G2Achse::PosZ: n[1] = winkel[1]; break;
-    }
-    switch (links) {
-        case G2Achse::NegX: n[0] = winkel[2]; break;
-        case G2Achse::PosX: n[0] = winkel[2] + 180.0F; break;
-        case G2Achse::NegY: n[0] = winkel[0]; break;
-        case G2Achse::PosY: n[0] = winkel[0] + 180.0F; break;
-        case G2Achse::NegZ:
-        case G2Achse::PosZ: n[0] = winkel[1]; break;
-    }
-    switch (vorn) {
-        case G2Achse::NegX:
-        case G2Achse::PosX: n[2] = winkel[2]; break;
-        case G2Achse::NegY: n[2] = winkel[0]; break;
-        case G2Achse::PosY: n[2] = winkel[0] + 180.0F; break;
-        case G2Achse::NegZ: n[2] = winkel[1]; break;
-        case G2Achse::PosZ: n[2] = winkel[1] + 180.0F; break;
-    }
-    // Create_Matrix: AnglesToAxis, axis[c] als Spalte c.
-    float f[3];
-    float r[3];
-    float u[3];
-    winkelVektoren(n, f, r, u);
-    for (int z = 0; z < 3; ++z) {
-        m[z][0] = f[z];
-        m[z][1] = -r[z];
-        m[z][2] = u[z];
-    }
-}
-
 // --- Die Simulation -----------------------------------------------------------------
 
 void GeschuetzSim::setze(std::vector<GeschuetzDaten> geschuetze, TodRegelwerk regel, double spawnMs, bool snapRunden) {
@@ -345,6 +307,7 @@ void GeschuetzSim::setze(std::vector<GeschuetzDaten> geschuetze, TodRegelwerk re
                 respawn = d.count != 0 ? d.count : 20000;
             }
             if (regel == TodRegelwerk::JediOutcast) { z.sf &= ~kTurbo; }   // JK2 kennt keinen Turbo
+            l.turbo = (z.sf & kTurbo) != 0;
             // finish_spawning_turret
             if ((z.sf & 2) != 0) {
                 l.winkel[2] += 180.0F;
@@ -467,6 +430,7 @@ void GeschuetzSim::merke(std::size_t i, double t, bool gedacht) {
     s.feind = z.feind != kSchussKeine;
     s.bild = z.bild;
     s.gedacht = gedacht;
+    s.dreht = z.dreht;
     std::vector<GeschuetzStand>& st = laeufe_[i].staende;
     if (!st.empty() && st.back().ms == t) {
         s.gedacht = s.gedacht || st.back().gedacht;
@@ -635,13 +599,17 @@ void GeschuetzSim::pasDenken(std::size_t i, double lt, const std::vector<SchussZ
         if (behalten) {
             z.bounceCount = lt + 500.0 + static_cast<double>(z.zufall.flrand(0.0F, 1.0F) * 150.0F);
         } else if (z.bounceCount < lt) {
-            z.feind = kSchussKeine;   // shutdown.wav
+            z.feind = kSchussKeine;
+            l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/shutdown.wav"});
             z.aimDebounce = lt + 5000.0;
         }
     }
     if (z.feind == kSchussKeine) {
         // pas_find_enemies
-        if (z.aimDebounce > lt && z.painDebounce < lt) { z.painDebounce = lt + 1000.0; }   // ping.wav
+        if (z.aimDebounce > lt && z.painDebounce < lt) {
+            z.painDebounce = lt + 1000.0;
+            l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/ping.wav"});
+        }
         float org2[3];
         (void)augeBolzen(org2);
         float besterAbstand = z.radius * z.radius;
@@ -659,7 +627,8 @@ void GeschuetzSim::pasDenken(std::size_t i, double lt, const std::vector<SchussZ
             // (G_StartFlee fuer NPCs: KI - nicht nachgebildet)
             if (abstand < besterAbstand) {
                 if (z.attackDebounce + 2000.0 < lt) {
-                    // startup.wav, "Wind up turrets for a bit"
+                    // "Wind up turrets for a bit"
+                    l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/startup.wav"});
                     z.attackDebounce = lt + 900.0 + static_cast<double>(z.zufall.flrand(0.0F, 1.0F) * 200.0F);
                 }
                 z.feind = zz.nummer;   // G_SetEnemy
@@ -748,8 +717,9 @@ void GeschuetzSim::pasDenken(std::size_t i, double lt, const std::vector<SchussZ
             g.lebenBis = lt + 10000.0;
             geschosse_.push_back(g);
         } else {
-            z.denkt = false;   // nextthink = 0, shutdown.wav
+            z.denkt = false;   // nextthink = 0
             z.naechstes = 0.0;
+            l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/shutdown.wav"});
         }
     }
 }
@@ -840,7 +810,8 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
             z.knochen.turboAb = lt;
             l.turboAnims.emplace_back(t, std::make_pair(4, 5));
         }
-        z.aimDebounce = lt + 5000.0;   // shutdown.wav
+        l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/shutdown.wav"});
+        z.aimDebounce = lt + 5000.0;
         z.feind = kSchussKeine;
     };
     const auto zielen = [&]() {
@@ -892,6 +863,7 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
             }
             z.knochen.nick = z.speed;
         }
+        z.dreht = diffYaw != 0.0F || diffPitch != 0.0F;   // s.loopSound
     };
     if ((z.sf & 1) != 0) {
         // "not turned on"
@@ -905,7 +877,10 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
     if (z.feind == kSchussKeine) {
         // turret_find_enemies
         if (!(turbo && !(md && mp))) {
-            if (z.aimDebounce > lt && z.painDebounce < lt) { z.painDebounce = lt + 1000.0; }   // ping.wav
+            if (z.aimDebounce > lt && z.painDebounce < lt) {
+                z.painDebounce = lt + 1000.0;
+                l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/ping.wav"});
+            }
             float org2[3] = {l.ursprung[0], l.ursprung[1], l.ursprung[2]};
             org2[2] += (z.sf & 2) != 0 ? 20.0F : -20.0F;
             float besterAbstand = z.radius * z.radius;
@@ -928,7 +903,10 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
                 if (tr.allsolid || tr.startsolid || !(tr.fraction == 1.0F || tr.entity == zz.nummer)) { continue; }
                 const float abstand = abstandQuadrat(zz.ort, l.ursprung);
                 if (abstand < besterAbstand) {
-                    if (z.attackDebounce < lt) { z.attackDebounce = lt + 1400.0; }   // startup.wav
+                    if (z.attackDebounce < lt) {
+                        z.attackDebounce = lt + 1400.0;
+                        l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/startup.wav"});
+                    }
                     bester = zz.nummer;
                     besterAbstand = abstand;
                 }
@@ -1034,6 +1012,7 @@ void GeschuetzSim::feuere(std::size_t i, double lt, const float start[3], const 
         // G_PlayEffect("turret/turb_muzzle_flash", org, ang) - OpenJK gibt die
         // WINKEL als Richtung (MD: dir).
         s.effekt = "turret/turb_muzzle_flash";
+        l.klaenge.push_back(GeschuetzKlang{t, "sound/vehicles/weapons/turbolaser/fire1.wav"});
         for (int k = 0; k < 3; ++k) { s.richtung[k] = regel_ == TodRegelwerk::MovieDuels ? dir[k] : ang[k]; }
         // WP_FireTurboLaserMissile: CreateMissile(start, dir, (int)mass, 10000) ohne SnapVector
         const auto tempo = static_cast<float>(static_cast<int>(z.masse));
@@ -1248,6 +1227,7 @@ void GeschuetzSim::stirb(std::size_t i, double lt, int angreifer, std::vector<Sc
     z.tot = true;
     z.takedamage = false;
     z.health = 0;
+    z.dreht = false;   // s.loopSound = 0
     l.totMs = t;
     float vorn[3] = {0.0F, 0.0F, -1.0F};
     if ((z.sf & 2) != 0) { vorn[2] = 1.0F; }

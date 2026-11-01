@@ -134,6 +134,8 @@ struct EffectInstance {
     // Gibt der Anker false zurueck, gelten `origin` und `normal`.
     std::function<bool(double ms, float org[3], float fwd[3])> anker;
     bool relativ = false;
+    // Rc608: aus der Geschuetz-Simulation - jeder neue Lauf ersetzt ihre Instanzen.
+    bool ausGeschuetz = false;
 };
 
 // --- Ein dynamisches Licht aus einem Effekt ------------------------------

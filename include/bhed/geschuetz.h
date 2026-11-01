@@ -89,13 +89,6 @@ struct TrefferOrtLage {
 [[nodiscard]] float winkelAbzug(float a1, float a2) noexcept;  // AngleSubtract
 void winkelVektoren(const float w[3], float vorn[3], float rechts[3], float oben[3]) noexcept;   // AngleVectors
 
-// G2_Generate_Matrix fuer BONE_ANGLES_POSTMULT (G2_bones.cpp OJ): aus Winkeln und
-// den drei Ausrichtungen die Winkel fuer Create_Matrix und daraus die Drehung
-// (Spalten = AnglesToAxis). Die Basispose-Klammer macht GlaAnimation
-// (worldMatricesLerp mit nachMal).
-enum class G2Achse : std::uint8_t { PosX, NegX, PosY, NegY, PosZ, NegZ };
-void g2WinkelMatrix(const float winkel[3], G2Achse oben, G2Achse links, G2Achse vorn, float m[3][3]) noexcept;
-
 // --- Geschuetze --------------------------------------------------------------
 enum class GeschuetzArt : std::uint8_t { Wache, Turm, TurmG2 };   // misc_sentry_turret, misc_turret, misc_turretG2
 
@@ -201,6 +194,12 @@ struct GeschuetzStand {
     bool feind = false;
     int bild = 0;   // s.frame (EF_SHADER_ANIM: 0 leuchtet, 1 schwarz)
     bool gedacht = false;   // ein think in diesem Bild (sonst use, Schaden, Tod)
+    bool dreht = false;     // s.loopSound (turret_aim: move.wav bzw. turn.wav)
+};
+// G_Sound / G_SoundOnEnt am Geschuetz.
+struct GeschuetzKlang {
+    double ms = 0.0;
+    const char* datei = "";
 };
 struct GeschuetzSchuss {
     double ms = 0.0;
@@ -221,7 +220,9 @@ struct GeschuetzLauf {
     float ursprung[3]{};         // currentOrigin (UPSIDE_DOWN: -22)
     float winkel[3]{};           // s.angles nach finish_spawning_turret
     float skala = 1.0F;          // s.modelScale
+    bool turbo = false;          // SPF_TURRETG2_TURBO (laser_cannon_model.glm)
     std::vector<GeschuetzStand> staende;
+    std::vector<GeschuetzKlang> klaenge;
     std::vector<GeschuetzSchuss> schuesse;
     std::vector<GeschuetzEffekt> effekte;
     std::vector<std::pair<double, std::uint8_t>> aufklappen;   // PAS: Animation ab
@@ -346,6 +347,7 @@ private:
         double bounceCount = 0.0;
         double paintargetBis = 0.0;  // disconnectDebounceTime (MD)
         bool altFire = false;
+        bool dreht = false;          // s.loopSound
         int health = 0;
         int maxHealth = 0;
         bool takedamage = false;

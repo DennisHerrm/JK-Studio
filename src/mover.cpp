@@ -1293,6 +1293,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         bruch_.push_back(Bruch{b.entity, "misc_model_breakable", t, b.material, groesse, anzahl});
     };
     // funcBBrushUse, g_breakable.cpp:201
+    bool schadenTod = false;   // Rc608: G_Damage -> funcBBrushDie (kein USE_NOT_BREAK)
     const auto brushUse = [&](Bruchstelle& b, double t, int tiefe, const std::string& ausloeser) {
         // Pruefung 4b: G_RunThink laeuft am Platz der Entity (g_main.cpp:1062-
         // 1088): ein think dieses Bilds ist vor diesem use dran, wenn der
@@ -1311,7 +1312,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         if (b.weg) {
             return;
         }
-        if ((b.flags & kUseNotBreak) != 0) {
+        if ((b.flags & kUseNotBreak) != 0 && !schadenTod) {
             // "Using it doesn't break it, makes it use it's targets"
             if (tiefe >= 0 && !b.target.empty()) { benutze(b.target, t, tiefe + 1, ausloeser); }
             return;
@@ -1552,6 +1553,21 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         if (ziel.empty() || tiefe > 16) {
             return;
         }
+        // Rc608: "<Index>": G_Damage zerstoert diese Entity (AblaufWelt::schadenBrueche).
+        if (ziel[0] == '') {
+            const auto ei = static_cast<std::size_t>(std::atoi(ziel.c_str() + 1));
+            if (ei < map.entities.size() && bruchVonEntity[ei] >= 0) {
+                Bruchstelle& b = bruchstellen[static_cast<std::size_t>(bruchVonEntity[ei])];
+                if (!b.istModell) {
+                    schadenTod = true;
+                    brushUse(b, t, tiefe, ausloeser);
+                    schadenTod = false;
+                } else if (!b.weg && !b.zerbrochen) {
+                    brichModell(b, t, tiefe, ausloeser);
+                }
+            }
+            return;
+        }
         std::vector<bool> teamSchon(teams.size(), false);
         for (std::size_t ei = 0; ei < map.entities.size(); ++ei) {
             const MapEntity& e = map.entities[ei];
@@ -1648,11 +1664,11 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                 continue;
             }
             if (e.classname == "misc_trip_mine" || e.classname == "misc_ion_cannon" ||
-                e.classname == "misc_sentry_turret") {
+                e.classname == "misc_sentry_turret" || e.classname == "misc_turret" || e.classname == "misc_turretG2") {
                 // rc604: misc_trip_mine_activate (g_misc.cpp:1799-1817 OpenJK),
                 // ion_cannon_use (g_turret.cpp:2028-2041), pas_use (:1395-1411) -
                 // was daraus folgt, rechnen laserfalleLauf, ionenkanoneLauf und
-                // pasAufklappenMs.
+                // pasAufklappenMs. Rc608: turret_base_use rechnet GeschuetzSim.
                 entityUse_.emplace_back(ei, t);
                 continue;
             }
@@ -2539,6 +2555,8 @@ int g2RadiusSpur(const std::vector<float>& ecken, const std::vector<std::uint32_
         }
         const float weg[3] = {k.punkt[0] - start[0], k.punkt[1] - start[1], k.punkt[2] - start[2]};
         k.abstand = std::sqrt(punkt(weg, weg));
+        for (int q = 0; q < 3; ++q) { k.normale[q] = normal[q]; }
+        normiere(k.normale);
         aus->push_back(k);
         ++neu;
     }
@@ -2554,6 +2572,58 @@ bool g2RadiusTreffer(const std::vector<float>& ecken, const std::vector<std::uin
 int g2RadiusKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
                         const float ende[3], float radius, const G2Kollision& vorlage, std::vector<G2Kollision>& aus) {
     return g2RadiusSpur(ecken, idx, start, ende, radius, &vorlage, &aus);
+}
+
+int g2StrahlKollisionen(const std::vector<float>& ecken, const std::vector<std::uint32_t>& idx, const float start[3],
+                        const float ende[3], const G2Kollision& vorlage, std::vector<G2Kollision>& aus) {
+    const auto kreuz = [](const float a[3], const float b[3], float r[3]) {
+        r[0] = a[1] * b[2] - a[2] * b[1];
+        r[1] = a[2] * b[0] - a[0] * b[2];
+        r[2] = a[0] * b[1] - a[1] * b[0];
+    };
+    const auto punkt = [](const float a[3], const float b[3]) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    const std::size_t n = ecken.size() / 3U;
+    int neu = 0;
+    for (std::size_t j = 0; j + 2 < idx.size(); j += 3) {
+        if (idx[j] >= n || idx[j + 1] >= n || idx[j + 2] >= n) { continue; }
+        const float* A = &ecken[idx[j] * 3U];
+        const float* B = &ecken[idx[j + 1] * 3U];
+        const float* C = &ecken[idx[j + 2] * 3U];
+        const float edgeAC[3] = {C[0] - A[0], C[1] - A[1], C[2] - A[2]};
+        const float edgeAB[3] = {B[0] - A[0], B[1] - A[1], B[2] - A[2]};
+        float normal[3];
+        kreuz(edgeAB, edgeAC, normal);
+        const float ray[3] = {ende[0] - start[0], ende[1] - start[1], ende[2] - start[2]};
+        const float denom = punkt(ray, normal);
+        if (std::fabs(denom) < 1E-10F) { continue; }   // parallel
+        const float zuEbene[3] = {A[0] - start[0], A[1] - start[1], A[2] - start[2]};
+        const float t = punkt(zuEbene, normal) / denom;
+        if (t < 0.0F || t > 1.0F) { continue; }   // "off segment"
+        float p[3];
+        for (int q = 0; q < 3; ++q) { p[q] = start[q] + t * ray[q]; }
+        const float pa[3] = {A[0] - p[0], A[1] - p[1], A[2] - p[2]};
+        const float pb[3] = {B[0] - p[0], B[1] - p[1], B[2] - p[2]};
+        const float pc[3] = {C[0] - p[0], C[1] - p[1], C[2] - p[2]};
+        float temp[3];
+        kreuz(pa, pb, temp);
+        if (punkt(temp, normal) < 0.0F) { continue; }
+        kreuz(pc, pa, temp);
+        if (punkt(temp, normal) < 0.0F) { continue; }
+        kreuz(pb, pc, temp);
+        if (punkt(temp, normal) < 0.0F) { continue; }
+        if (aus.size() >= kG2KollisionenMax) { return neu; }
+        G2Kollision k = vorlage;
+        const float weg[3] = {p[0] - start[0], p[1] - start[1], p[2] - start[2]};
+        k.abstand = std::sqrt(punkt(weg, weg));
+        const float l = std::sqrt(punkt(normal, normal));
+        for (int q = 0; q < 3; ++q) {
+            k.punkt[q] = p[q];
+            k.normale[q] = l > 0.0F ? normal[q] / l : 0.0F;
+        }
+        aus.push_back(k);
+        ++neu;
+    }
+    return neu;
 }
 
 }  // namespace bhed

@@ -265,6 +265,7 @@ struct BspGeometry {
     };
     struct Leaf {
         int cluster = -1;
+        int area = -1;          // Rc608: gi.inPVS (CM_AreasConnected)
         int firstSurface = 0;
         int numSurfaces = 0;
         float mins[3]{};

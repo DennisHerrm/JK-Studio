@@ -131,6 +131,8 @@ pruefung4b gebaut, danach zurueck.
   portierten Formeln (pruefung4b) und die Engine-Quellen (OpenJK, Movie Duels,
   Jedi Outcast).
 
+Fertig in rc608, siehe `NOTIZEN_rc608.md` Abschnitt "Teil 4: Geschuetze".
+
 ## Teil 3 - angehalten (30.10. nachmittags, Neupriorisierung: erst Karten- und Menue-Editor)
 
 Stand (baut, ctest mover/pruefung4b gruen; noch ohne GUI-Anbindung):

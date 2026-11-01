@@ -23,6 +23,7 @@
 #include "bhed/bspgeo.h"
 #include "bhed/camtrack.h"
 #include "bhed/efx/sim.h"
+#include "bhed/geschuetz.h"
 #include "bhed/gegenstaende.h"
 #include "bhed/kollision.h"
 #include "bhed/mover.h"
@@ -841,7 +842,10 @@ void objektWurf() {
         NavVec o{};
         NavVec w{};
         const bool da = b.bei(t, o, w);
-        gleich = gleich && da && std::fabs(o[0] - e.cur[0]) < 1e-3F && std::fabs(o[2] - e.cur[2]) < 1e-3F &&
+        // Gezeichnet wird s.pos zur Zeit t (CG_CalcEntityLerpPositions, seit Pruefung 4a in
+        // AbwurfBahn::bei); im Bild des Abpralls ist das nicht currentOrigin.
+        const NavVec bahn = e.eval(t);
+        gleich = gleich && da && std::fabs(o[0] - bahn[0]) < 1e-3F && std::fabs(o[2] - bahn[2]) < 1e-3F &&
                  std::fabs(w[0] - e.winkel[0]) < 1e-3F;
         if (static_cast<long>(t) % 500 == 0) {
             char z[80];
@@ -977,6 +981,365 @@ void spielerTod() {
            "mit laufender Kamera erst nach DISABLE (" + std::to_string(b.skripteStoppMs) + ")");
 }
 
+// --- rc608: GeschuetzSim gegen Abschriften von pas_think, turret_base_think, G_RunMissile ------------------
+//
+// Eine Welt ohne Waende: nur der Kasten der Figur und (auf Wunsch) eine Flaeche mit surfaceFlags, die
+// Bolzen an der Mitte des Modells mit POSITIVE_Y entlang der Gier.
+struct GWelt {
+    float zielLo[3]{};
+    float zielHi[3]{};
+    int zielNr = kSchussFigur;
+    bool wand = false;
+    float wandX = 0.0F;
+    std::uint32_t wandFlags = 0;
+};
+
+GeschuetzWelt gWelt(const GWelt& g) {
+    GeschuetzWelt w;
+    w.spur = [g](double, const float start[3], const float mins[3], const float maxs[3], const float ende[3], int ignoriere, bool) {
+        SchussSpur t;
+        for (int k = 0; k < 3; ++k) { t.endpos[k] = ende[k]; }
+        // Die Wand steht nur Geschossen im Weg (mit Kasten), die Sicht geht durch.
+        if (g.wand && maxs[0] != 0.0F && (start[0] - g.wandX) * (ende[0] - g.wandX) < 0.0F) {
+            const float f = (g.wandX - start[0]) / (ende[0] - start[0]);
+            t.fraction = f;
+            for (int k = 0; k < 3; ++k) { t.endpos[k] = start[k] + f * (ende[k] - start[k]); }
+            t.normale[0] = start[0] < g.wandX ? -1.0F : 1.0F;
+            t.flaechenFlags = g.wandFlags;
+            t.entity = kSchussWelt;
+        }
+        if (ignoriere != g.zielNr) {
+            const KastenSpur k = figurKastenSpur(start, ende, mins, maxs, g.zielLo, g.zielHi);
+            if (k.fraction < t.fraction) {
+                t.fraction = k.fraction;
+                t.entity = g.zielNr;
+                for (int q = 0; q < 3; ++q) {
+                    t.endpos[q] = start[q] + k.fraction * (ende[q] - start[q]);
+                    t.normale[q] = k.normale[q];
+                }
+            }
+        }
+        return t;
+    };
+    w.pvs = [](const float[3], const float[3]) { return true; };
+    w.inhalt = [](const float[3], int) { return 0U; };
+    w.bolzen = [](std::size_t, double, const GeschuetzKnochen& k, const char*, float m[3][4]) {
+        const float gier = (k.winkel[1] + k.pasGier) * 3.14159265358979F / 180.0F;
+        for (int r = 0; r < 3; ++r) { m[r][3] = k.ort[r]; }
+        m[0][1] = std::cos(gier);
+        m[1][1] = std::sin(gier);
+        m[2][1] = 0.0F;
+        return true;
+    };
+    return w;
+}
+
+SchussZiel gZiel(const float ort[3]) {
+    SchussZiel z;
+    z.nummer = kSchussFigur;
+    z.team = kTeamFeind;
+    for (int k = 0; k < 3; ++k) {
+        z.ort[k] = ort[k];
+        z.auge[k] = ort[k];
+        z.lo[k] = ort[k] + (k == 2 ? -24.0F : -15.0F);
+        z.hi[k] = ort[k] + (k == 2 ? 40.0F : 15.0F);
+    }
+    z.auge[2] += 36.0F;
+    return z;
+}
+
+GWelt gWeltFuer(const SchussZiel& z) {
+    GWelt g;
+    for (int k = 0; k < 3; ++k) {
+        g.zielLo[k] = z.lo[k];
+        g.zielHi[k] = z.hi[k];
+    }
+    return g;
+}
+
+std::vector<SchadenAuftrag> gLauf(GeschuetzSim& sim, const std::vector<SchussZiel>& ziele, const GeschuetzWelt& w, double bis) {
+    std::vector<SchadenAuftrag> a;
+    for (double t = -200.0; t <= bis + 1e-6; t += 50.0) { sim.bild(t, ziele, w, a); }
+    return a;
+}
+
+void geschuetzWache() {
+    std::printf("--- rc608: misc_sentry_turret (pas_think) ---\n");
+    GeschuetzDaten d;
+    d.art = GeschuetzArt::Wache;
+    d.nummer = 5;
+    GeschuetzSim sim;
+    sim.setze({d}, TodRegelwerk::OpenJK, -200.0, true);
+    const float ort[3] = {0.0F, 200.0F, 0.0F};
+    SchussZiel z = gZiel(ort);
+    z.auge[2] = 40.0F;   // pas_think zielt auf eyePoint - 40: genau waagerecht
+    const std::vector<SchadenAuftrag> a = gLauf(sim, {z}, gWelt(gWeltFuer(z)), 6000.0);
+    const GeschuetzLauf& l = sim.laeufe().front();
+    pruefe(!l.aufklappen.empty() && std::fabs(l.aufklappen.front().first - 800.0) < 0.5, "das erste pas_think klappt 1000 ms nach dem Spawnen auf");
+    // Abschrift: speed = 0, ziel 90; je think (ab 800 + 1200, FRAMETIME) +10 bis auf 90.
+    float speed = 0.0F;
+    bool gierGleich = true;
+    int thinks = 0;
+    for (const GeschuetzStand& s : l.staende) {
+        if (!s.gedacht || s.ms <= 800.0) { continue; }
+        speed = winkelNorm360(speed);   // AngleNormalize360: auf 360/65536 abgeschnitten
+        const float diff = winkelAbzug(speed, 90.0F);
+        if (std::fabs(diff) > 0.25F) {
+            if (std::fabs(diff) > 10.0F) {
+                speed += diff > 0.0F ? -10.0F : 10.0F;
+            } else {
+                speed -= diff;
+            }
+        }
+        gierGleich = gierGleich && std::fabs(winkelAbzug(s.pasGier, speed)) < 0.01F;
+        ++thinks;
+    }
+    pruefe(gierGleich && thinks > 20, "bone_hinge wie die Abschrift von pas_think (+10 Grad je think bis zum Ziel, " + std::to_string(thinks) + " thinks)");
+    pruefe(!l.schuesse.empty() && l.schuesse.front().ms >= 2900.0 - 1e-6 && l.schuesse.front().ms < 3300.0,
+           "erster Schuss 900..1100 ms nach dem Finden (" + std::to_string(l.schuesse.empty() ? -1.0 : l.schuesse.front().ms) + ")");
+    bool auftragGleich = !a.empty();
+    for (const SchadenAuftrag& x : a) {
+        auftragGleich = auftragGleich && !x.radius && x.ziel == kSchussFigur && x.schaden == 2 && x.dflags == kSchadenOhneRueckstoss && x.angreifer == 5;
+    }
+    pruefe(auftragGleich, "G_MissileImpacted: PAS_DAMAGE 2, DAMAGE_NO_KNOCKBACK, attacker das Geschuetz (" + std::to_string(a.size()) + " Treffer)");
+    // CreateMissile mit 900: Flugzeit bis zum Kasten in ganzen Bildern von 50 ms (G_RunMissile).
+    const Geschoss* g = sim.geschosse().empty() ? nullptr : &sim.geschosse().front();
+    bool flug = false;
+    if (g != nullptr && g->endeMs >= 0.0) {
+        const float o[3] = {g->bahnen.front().basis[0], g->bahnen.front().basis[1], g->bahnen.front().basis[2]};
+        const float dy = (z.lo[1] - 1.0F) - o[1];
+        const double bilder = std::ceil(static_cast<double>(dy) / (900.0 * 0.05));
+        flug = std::fabs((g->endeMs - g->abMs) - bilder * 50.0) < 50.5 && g->waffe == 1 && g->fleisch && g->einschlag;
+    }
+    pruefe(flug, "das Geschoss (WP_TURRET, 900) trifft nach der Flugzeit und zaehlt als Fleisch");
+    bool startup = false;
+    bool shutdown = false;
+    for (const GeschuetzKlang& k : l.klaenge) {
+        startup = startup || std::string(k.datei) == "sound/chars/turret/startup.wav";
+        shutdown = shutdown || std::string(k.datei) == "sound/chars/turret/shutdown.wav";
+    }
+    pruefe(startup && !shutdown, "startup.wav beim Finden, solange der Feind steht kein shutdown.wav");
+
+    // Der Feind faellt: pas_adjust_enemy gibt ihn frei, sobald bounceCount abgelaufen ist.
+    GeschuetzSim sim2;
+    sim2.setze({d}, TodRegelwerk::OpenJK, -200.0, true);
+    std::vector<SchadenAuftrag> a2;
+    const GeschuetzWelt w2 = gWelt(gWeltFuer(z));
+    SchussZiel lebt = z;
+    for (double t = -200.0; t <= 8000.0 + 1e-6; t += 50.0) {
+        lebt.health = t < 4000.0 ? 100 : 0;
+        sim2.bild(t, {lebt}, w2, a2);
+    }
+    const GeschuetzLauf& l2 = sim2.laeufe().front();
+    pruefe(!l2.schuesse.empty() && l2.schuesse.back().ms <= 4000.0 + 650.0 + 100.0, "nach dem Tod hoechstens bounceCount (500 + 150 ms) weiter (letzter Schuss " +
+           std::to_string(l2.schuesse.empty() ? -1.0 : l2.schuesse.back().ms) + ")");
+    bool aus = false;
+    for (const GeschuetzKlang& k : l2.klaenge) { aus = aus || std::string(k.datei) == "sound/chars/turret/shutdown.wav"; }
+    pruefe(aus, "dann shutdown.wav");
+
+    // Wer im Team des Geschuetzes ist oder FL_NOTARGET hat, wird nicht gefunden (pas_find_enemies).
+    SchussZiel gleich = z;
+    gleich.team = kTeamNeutral;
+    SchussZiel versteckt = z;
+    versteckt.notarget = true;
+    for (const SchussZiel* x : {&gleich, &versteckt}) {
+        GeschuetzSim s3;
+        s3.setze({d}, TodRegelwerk::OpenJK, -200.0, true);
+        (void)gLauf(s3, {*x}, gWelt(gWeltFuer(*x)), 5000.0);
+        pruefe(s3.laeufe().front().schuesse.empty(), x == &gleich ? "noDamageTeam (Vorgabe TEAM_NEUTRAL): kein Ziel" : "FL_NOTARGET: kein Ziel");
+    }
+}
+
+void geschuetzTurm() {
+    std::printf("--- rc608: misc_turret (turret_base_think, turret_aim) ---\n");
+    GeschuetzDaten d;
+    d.art = GeschuetzArt::Turm;
+    d.nummer = 9;
+    d.team = "player";
+    d.ursprung[2] = 30.0F;
+    GeschuetzSim sim;
+    sim.setze({d}, TodRegelwerk::OpenJK, -200.0, true);
+    const float ort[3] = {-60.0F, 200.0F, 0.0F};
+    const SchussZiel z = gZiel(ort);
+    const std::vector<SchadenAuftrag> a = gLauf(sim, {z}, gWelt(gWeltFuer(z)), 6000.0);
+    const GeschuetzLauf& l = sim.laeufe().front();
+    pruefe(!l.schuesse.empty() && l.schuesse.front().ms >= 1700.0 - 1e-6 && l.schuesse.front().ms < 2000.0,
+           "erster Schuss 1400 ms nach dem Finden im ersten think (spawn + 500) (" + std::to_string(l.schuesse.empty() ? -1.0 : l.schuesse.front().ms) + ")");
+    float maxDelta = 0.0F;
+    float maxNick = 0.0F;
+    float nickAlt = 0.0F;
+    for (const GeschuetzStand& s : l.staende) {
+        if (!s.gedacht) { continue; }
+        maxDelta = std::max(maxDelta, std::fabs(s.aposDelta[1]));
+        maxNick = std::max(maxNick, std::fabs(winkelAbzug(s.nick, nickAlt)));
+        nickAlt = s.nick;
+    }
+    pruefe(maxDelta > 0.0F && maxDelta <= 70.0F + 1e-3F, "turret_aim: s.apos hoechstens 14 Grad * 5 (" + std::to_string(maxDelta) + ")");
+    pruefe(maxNick > 0.0F && maxNick <= 3.0F + 1e-3F, "turret_aim: Nick hoechstens 3 Grad je think (" + std::to_string(maxNick) + ")");
+    bool gleich = !a.empty();
+    for (const SchadenAuftrag& x : a) {
+        gleich = gleich && !x.radius && x.schaden == 5 && x.dflags == (kSchadenOhneRueckstoss | kSchadenSchwereWaffe);
+    }
+    pruefe(gleich, "turret_fire: damage 5, DAMAGE_NO_KNOCKBACK | DAMAGE_HEAVY_WEAP_CLASS");
+    double abstand = 1.0e9;
+    for (std::size_t i = 1; i < l.schuesse.size(); ++i) { abstand = std::min(abstand, l.schuesse[i].ms - l.schuesse[i - 1].ms); }
+    pruefe(abstand >= 150.0 - 1e-6, "wait: 150 + Zufall * 55 ms - im Takt der thinks (" + std::to_string(abstand) + ")");
+
+    // Abschaltung (Start_Off): turret_base_use schaltet das Bild (s.frame 1 schwarz)
+    GeschuetzDaten aus = d;
+    aus.spawnflags = 1;
+    aus.uses = {3000.0};
+    GeschuetzSim sim2;
+    sim2.setze({aus}, TodRegelwerk::OpenJK, -200.0, true);
+    (void)gLauf(sim2, {z}, gWelt(gWeltFuer(z)), 6000.0);
+    const GeschuetzLauf& l2 = sim2.laeufe().front();
+    pruefe(!l2.schuesse.empty() && l2.schuesse.front().ms >= 3000.0 && l2.staende.front().bild == 1 && l2.staende.back().bild == 0,
+           "Start_Off: schwarz und still bis zum use");
+
+    // Regelwerk: Streuung von turret_fire - OpenJK mit random, Jedi Outcast nicht (kein Zufall in der Richtung).
+    GeschuetzDaten mitStreuung = d;
+    mitStreuung.random = 5.0F;
+    const auto richtungen = [&](TodRegelwerk r) {
+        GeschuetzSim s;
+        s.setze({mitStreuung}, r, -200.0, true);
+        (void)gLauf(s, {z}, gWelt(gWeltFuer(z)), 6000.0);
+        std::vector<float> v;
+        for (const GeschuetzSchuss& x : s.laeufe().front().schuesse) { v.push_back(x.richtung[0]); }
+        return v;
+    };
+    const auto streut = [](const std::vector<float>& v) {
+        // Die zweite Haelfte: das Geschuetz hat sich eingedreht.
+        for (std::size_t i = v.size() / 2U + 1U; i < v.size(); ++i) {
+            if (std::fabs(v[i] - v[i - 1]) > 0.02F) { return true; }
+        }
+        return false;
+    };
+    pruefe(streut(richtungen(TodRegelwerk::OpenJK)), "OpenJK: Streuung mit random");
+    pruefe(!streut(richtungen(TodRegelwerk::JediOutcast)), "Jedi Outcast: keine Streuung");
+    pruefe(trefferOrtFaktor(kOrtKopf, TodRegelwerk::OpenJK) == 2.0F && trefferOrtFaktor(kOrtKopf, TodRegelwerk::MovieDuels) == 1.0F &&
+               trefferOrtFaktor(kOrtKopf, TodRegelwerk::JediOutcast) == 2.0F && trefferOrtFaktor(kOrtFussR, TodRegelwerk::OpenJK) == 0.25F,
+           "damageModifier: Kopf 2.0 in OpenJK und Jedi Outcast, 1.0 in Movie Duels; Fuss 0.25");
+}
+
+void geschuetzGeschoss() {
+    std::printf("--- rc608: G_RunMissile, G_MissileImpact ---\n");
+    GeschuetzDaten d;
+    d.art = GeschuetzArt::Turm;
+    d.nummer = 3;
+    d.team = "player";
+    d.ursprung[0] = -100.0F;
+    d.ursprung[2] = 50.0F;
+    // Die Geschosse fliegen nach +x auf die Wand zu; dahinter steht die Figur.
+    const GeschuetzDaten seitlich = d;
+    GeschuetzSim sim;
+    sim.setze({seitlich}, TodRegelwerk::OpenJK, -200.0, true);
+    const float ortX[3] = {300.0F, 0.0F, 30.0F};
+    SchussZiel zx = gZiel(ortX);
+    GWelt gx = gWeltFuer(zx);
+    gx.wand = true;
+    gx.wandX = 100.0F;
+    gx.wandFlags = kFlaecheOhneEinschlag;
+    (void)gLauf(sim, {zx}, gWelt(gx), 6000.0);
+    bool freiOhneEinschlag = false;
+    for (const Geschoss& x : sim.geschosse()) { freiOhneEinschlag = freiOhneEinschlag || (x.endeMs >= 0.0 && !x.einschlag && !x.fleisch); }
+    pruefe(freiOhneEinschlag, "SURF_NOIMPACT: \"never explode or bounce on sky\" - ohne Einschlag frei");
+    gx.wandFlags = kFlaecheKraftfeld;
+    GeschuetzSim sim2;
+    sim2.setze({seitlich}, TodRegelwerk::OpenJK, -200.0, true);
+    (void)gLauf(sim2, {zx}, gWelt(gx), 3000.0);
+    bool abprall = false;
+    for (const Geschoss& x : sim2.geschosse()) {
+        if (x.bahnen.size() < 2U) { continue; }
+        abprall = abprall || (x.besitzer == kSchussKeine && x.bahnen[1].delta[0] == -x.bahnen[0].delta[0] && x.bahnen[1].delta[1] == x.bahnen[0].delta[1]);
+    }
+    pruefe(abprall, "SURF_FORCEFIELD: G_BounceMissile spiegelt an der Ebene, der Besitzer ist danach frei");
+    // Ohne Wand und Treffer: G_FreeEntity nach 10 s.
+    GWelt leer;
+    leer.zielLo[0] = leer.zielHi[0] = 1.0e6F;
+    SchussZiel fern = zx;
+    GeschuetzSim sim3;
+    sim3.setze({seitlich}, TodRegelwerk::OpenJK, -200.0, true);
+    (void)gLauf(sim3, {fern}, gWelt(leer), 14000.0);
+    const Geschoss* ge = sim3.geschosse().empty() ? nullptr : &sim3.geschosse().front();
+    pruefe(ge != nullptr && ge->endeMs >= 0.0 && std::fabs(ge->endeMs - ge->abMs - 10000.0) < 50.5 && !ge->einschlag, "ohne Treffer: frei nach der Lebenszeit 10000");
+}
+
+void geschuetzTod() {
+    std::printf("--- rc608: G_Damage auf Geschuetze, turret_die, ObjectDie ---\n");
+    GeschuetzDaten w;
+    w.art = GeschuetzArt::Wache;
+    w.nummer = 1;
+    w.ursprung[2] = 10.0F;
+    w.hatTarget = true;
+    GeschuetzSim sim;
+    sim.setze({w}, TodRegelwerk::OpenJK, -200.0, true);
+    std::vector<SchadenAuftrag> folgen;
+    const float punkt[3] = {0.0F, 0.0F, 20.0F};
+    pruefe(sim.schaden(1, 1000.0, 49, 0, SchussMittel::Energie, kSchussFigur, punkt, folgen), "misc_sentry_turret nimmt Schaden (health 50)");
+    const GeschuetzLauf& l = sim.laeufe().front();
+    pruefe(l.totMs < 0.0 && l.effekte.size() == 1U && std::string(l.effekte[0].effekt) == "sparks/spark_exp_nosnd", "TurretPain: Funken, noch nicht tot");
+    (void)sim.schaden(1, 1100.0, 1, 0, SchussMittel::Energie, kSchussFigur, punkt, folgen);
+    pruefe(l.totMs == 1100.0 && l.freiMs == 1100.0, "turret_die -> ObjectDie: frei im selben Augenblick");
+    pruefe(l.effekte.size() == 2U && std::string(l.effekte[1].effekt) == "turret/explode" && std::fabs(l.effekte[1].ort[2] - 22.0F) < 1e-3F && l.effekte[1].richtung[2] == 1.0F,
+           "fxID turret/explode 12 Einheiten ueber dem Ursprung, nach oben (der spawnflags-2-Trick von SP_PAS)");
+    pruefe(sim.benutzungen().size() == 1U && sim.benutzungen()[0].art == 0, "G_UseTargets(target)");
+    pruefe(folgen.empty(), "PAS hat keinen Radiusschaden");
+    float lo[3];
+    float hi[3];
+    pruefe(!sim.steht(1, 1200.0, lo, hi) && sim.steht(1, 1000.0, lo, hi), "die Spuren sehen es bis zur Freigabe");
+
+    GeschuetzDaten t;
+    t.art = GeschuetzArt::Turm;
+    t.nummer = 2;
+    t.hatTarget = true;
+    GeschuetzSim sim2;
+    sim2.setze({t}, TodRegelwerk::OpenJK, -200.0, true);
+    std::vector<SchadenAuftrag> f2;
+    (void)sim2.schaden(2, 500.0, 100, 0, SchussMittel::Energie, kSchussFigur, punkt, f2);
+    const GeschuetzLauf& l2 = sim2.laeufe().front();
+    pruefe(l2.totMs == 500.0 && l2.freiMs < 0.0 && l2.staende.back().bild == 1, "misc_turret: das Schadensmodell bleibt (modelindex2), s.frame 1");
+    pruefe(f2.size() == 1U && f2[0].radius && f2[0].schaden == 10 && f2[0].weite == 25.0F && f2[0].ignoriere == kSchussFigur,
+           "G_RadiusDamage(currentOrigin, attacker, 10, 25, attacker, MOD_UNKNOWN)");
+
+    GeschuetzDaten g2;
+    g2.art = GeschuetzArt::TurmG2;
+    g2.nummer = 4;
+    g2.spawnflags = 4;   // CANRESPAWN
+    g2.count = 3000;
+    GeschuetzSim sim3;
+    sim3.setze({g2}, TodRegelwerk::MovieDuels, -200.0, true);
+    std::vector<SchadenAuftrag> f3;
+    for (double b = -200.0; b <= 400.0; b += 50.0) { sim3.bild(b, {}, GeschuetzWelt{}, f3); }
+    (void)sim3.schaden(4, 400.0, 100, 0, SchussMittel::Energie, kSchussFigur, punkt, f3);
+    for (double b = 450.0; b <= 4000.0; b += 50.0) { sim3.bild(b, {}, GeschuetzWelt{}, f3); }
+    const GeschuetzLauf& l3 = sim3.laeufe().front();
+    pruefe(l3.wiederMs.size() == 1U && std::fabs(l3.wiederMs[0] - 3400.0) < 50.5, "misc_turretG2 CANRESPAWN: wieder nach count ms (Movie Duels)");
+}
+
+void g2Strahl() {
+    std::printf("--- rc608: G2_SegmentTriangleTest (Spur ohne Kasten) ---\n");
+    const std::vector<float> ecken = {0.0F, -10.0F, -10.0F, 0.0F, 10.0F, -10.0F, 0.0F, 0.0F, 10.0F};
+    const std::vector<std::uint32_t> idx = {0U, 1U, 2U};
+    const float start[3] = {-20.0F, 0.0F, 0.0F};
+    const float ende[3] = {20.0F, 0.0F, 0.0F};
+    G2Kollision vorlage;
+    vorlage.flaeche = 3;
+    std::vector<G2Kollision> aus;
+    const int n = g2StrahlKollisionen(ecken, idx, start, ende, vorlage, aus);
+    pruefe(n == 1 && std::fabs(aus[0].abstand - 20.0F) < 1e-3F && std::fabs(aus[0].punkt[0]) < 1e-3F && aus[0].flaeche == 3 && std::fabs(std::fabs(aus[0].normale[0]) - 1.0F) < 1e-3F,
+           "Treffer mit Punkt, Abstand und Normale");
+    const float neben[3] = {-20.0F, 50.0F, 0.0F};
+    const float neben2[3] = {20.0F, 50.0F, 0.0F};
+    aus.clear();
+    pruefe(g2StrahlKollisionen(ecken, idx, neben, neben2, vorlage, aus) == 0, "daneben");
+    const float kurz[3] = {-10.0F, 0.0F, 0.0F};
+    aus.clear();
+    pruefe(g2StrahlKollisionen(ecken, idx, start, kurz, vorlage, aus) == 0, "die Strecke endet vor dem Dreieck");
+    aus.clear();
+    (void)g2RadiusKollisionen(ecken, idx, start, ende, 2.0F, vorlage, aus);
+    pruefe(aus.size() == 1U && std::fabs(std::fabs(aus[0].normale[0]) - 1.0F) < 1e-3F, "G2_RadiusTracePolys: die Normale kommt mit");
+}
+
 }  // namespace
 
 int main() {
@@ -989,6 +1352,11 @@ int main() {
     objektWurf();
     fahrzeuge();
     spielerTod();
+    geschuetzWache();
+    geschuetzTurm();
+    geschuetzGeschoss();
+    geschuetzTod();
+    g2Strahl();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

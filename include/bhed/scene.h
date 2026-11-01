@@ -780,6 +780,10 @@ struct Actor {    std::string name;        // der Name aus dem affect
     std::vector<std::pair<double, int>> ruestungGesetzt;
     std::vector<std::pair<double, bool>> gottmodus;
     std::vector<std::pair<double, bool>> unsterblich;
+    // Rc608: SET_NOTARGET (FL_NOTARGET, Q3_SetNoTarget) und SET_PLAYER_TEAM (team_t,
+    // teamAusSkript in bhed/geschuetz.h) - was ein Geschuetz von der Figur liest.
+    std::vector<std::pair<double, bool>> keinZiel;
+    std::vector<std::pair<double, std::string>> teamGesetzt;
     // rc605 (Ende): wann die Figur stirbt (kill im Skript oder ein trigger_hurt
     // ueber AblaufWelt::hurtTode); < 0: nie.
     double getoetetMs = -1.0;

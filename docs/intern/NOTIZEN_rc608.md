@@ -346,6 +346,36 @@ ctest einmal am Ende: 190 von 192 gruen, `hilfe_orte` (Generator nicht gelaufen)
 - Neue Griff-Tests erlauben +-1 Punkt (die Maus liegt auf Bildpunkten, neuer Test, keine alte Stelle).
 - Keine alte Teststelle gelockert. `textbreite` wieder 320. Alte Erwartungen geaendert, weil sich das Verhalten geaendert hat: `button_2` statt `button_3`, `letzterExport() == 2 + Listen`.
 
+## Teil 4: Geschuetze
+
+Zweig `pruefung4b` (7 Commits) ist in karte1 (Konflikte: `CMakeLists.txt`, `abwurf.h`, `abwurf.cpp`; `wirfObjekt` merkt seit dem Merge die Bahn s.pos statt des Orts, wie Pruefung 4a es fuer `AbwurfBahn::bei` eingefuehrt hat). Der Entwurf `p4b_t3_spiel_wip.patch` ist eingespielt und fertig gebaut.
+
+- `gui/app_view3d_geschuetz.inc`: `GeschuetzSim` in der Vorschau. Spuren (`schussSpurBei` nach SV_ClipMoveToEntities mit G2_COLLIDE, Normale aus der Kollision, traceLod 10), gi.inPVS, gi.pointcontents, Bolzen und Netze der Geschuetzmodelle, Trefferort aus der getroffenen Flaeche. Regelwerk OpenJK, Movie Duels und Jedi Outcast folgt der Einstellung; SnapVector rundet bei Movie Duels wie x64 `(int)`, sonst wie die x86-exe.
+- `hurtTodeBerechnen` laesst die Geschuetze je Bild mit den Figuren laufen und traegt den Schaden aus: Figuren (damageModifier nach Trefferort, Ruestung), andere Geschuetze (TurretPain, turret_die, ObjectDie, CANRESPAWN), func_breakable und misc_model_breakable (`AblaufWelt::schadenBrueche`, Name `\x02<Entity>` im Nachbau und in MoverSim: ohne usescript und USE_NOT_BREAK), misc_trip_mine (Fremdschaden in `fallenKette`), G_RadiusDamage auf alles davon. fx_target_beam trifft jetzt auch Kartenentities. G_UseTargets der Geschuetze laufen ueber den Nachbau. Der Block steht jetzt hinter `loadActorModels`, weil die Spuren die Netze der Figuren brauchen.
+- `SET_NOTARGET` und `SET_PLAYER_TEAM` gelten; misc_turret und misc_turretG2 hoeren auf use.
+- Zeichnung: s.apos, Knochenwinkel, s.frame, Freigabe; Geschosse je Bild am Bahnort mit verkuerzter Richtung in den ersten 75 ms; Muendungsblitz, Einschlag, Funken, Explosion als Effekte; Klaenge (ping, startup, shutdown, move/turn, fire1).
+- **Gefunden im Spielvergleich:** Die Wurzel jedes Ghoul2-Skeletts ist in der Engine nicht die Einheit: `identityMatrix` in `tr_ghoul2.cpp:92` ist (0 -1 0 / 1 0 0 / 0 0 1). Die Figuren hatten das als 90-Grad-Zuschlag in `baueFigurWelt`, die Gegenstaende nicht: Geschuetze zielten eine Vierteldrehung daneben, und alle GLM-Gegenstaende, Abwuerfe und der Bolzen der Ionenkanone lagen seit rc602/rc604 um 90 Grad falsch. Jetzt `g2WurzelWelt` und `g2WurzelBolzen`.
+- `figurNetzTreffer` kennt G2_COLLIDE und die groebste LOD; `g2StrahlKollisionen` ist G2_TracePolys fuer Spuren ohne Kasten (Turbolaser). Das doppelte `g2WinkelMatrix` in `geschuetz.cpp` ist weg (das aus `gla.cpp` gilt).
+
+Tests:
+- Selbsttest `geschuetze` (neu, je Punkt eine Mission): Rot mit abgeschalteter Simulation 1 OK, 9 FEHLER. Gruen 10 OK, 0 FEHLER. Die eine OK-Zeile im Rotlauf ist die Regelwerkprobe (misc_turretG2 gibt es unter OpenJK nicht), die haengt nicht an der Simulation.
+- Ctest `pruefung4b`: Abschriften von pas_think, turret_base_think, turret_aim, G_RunMissile, G_MissileImpact, turret_die, ObjectDie, CANRESPAWN, damageModifier, G2_SegmentTriangleTest. Diese Pruefungen hatten keinen Rotlauf gegen die Bibliothek (die gab es schon); zwei Fehler in meinen eigenen Abschriften wurden dort behoben (AngleNormalize360 schneidet auf 360/65536 ab; die Teststrecke schoss am Kasten vorbei).
+- Geaenderte Teststelle: Der Wurf in `pruefung4b` (5c) vergleicht jetzt die Bahn s.pos statt currentOrigin. Gezeichnet wird seit 4a s.pos; im Bild des Abpralls unterscheidet sich das. Keine Lockerung der Formel.
+- Toleranz im neuen Selbsttest: 14 Grad x 5 und 3 Grad mit 0,05 Spiel, wegen AngleNormalize360.
+
+Spielvergleich (eigene Testkarten nur im eigenen Ordner: Geometrie der Vorlage, neuer Entity-Lump; Fenster ausserhalb des Sichtbaren):
+- Movie Duels, 1920 x 1440, Karte aus md_am_sith mit misc_turret und misc_sentry_turret, der Spieler als Ziel: Geschuetz schwenkt auf den Spieler, Geschosse, Funken am Treffer, Wachgeschuetz mit gruenem Leuchten; Vorschau gleich. Foto `paar_md_turm.png`.
+- Original-JKA (Steam angemeldet), Karte aus t3_byss: Der Lauf zeigt auf den Spieler, Modell und Haltung wie in der Vorschau. Das Fenster blieb bei 1280 x 960, auch mit `__COMPAT_LAYER=HighDpiAware`. GameData danach wie vorher (Liste verglichen). Foto `paar_org_byss.png`; die Kamera des Spiels steht nicht deckungsgleich, der Blick im Spiel geht nach oben rechts und der Abstand ist groesser, also nur Ausrichtung und Modell verglichen.
+
+Offen:
+- Bilder der Geschosse und Schadenszahlen sind im laufenden Spiel nicht gemessen, nur per Foto angesehen. Ein Treffer an einer bestimmten Stelle des Koerpers (Trefferort aus dem Netz) ist nur gegen die Formel geprueft.
+- Figuren und Geschuetz sind in der Vorschau heller als im Spiel (`paar_md_turm.png`). Nicht in diesem Teil untersucht.
+- Der Feuerfaecher der Treffer steht im Foto des Spiels am Kopf nach oben, in der Vorschau liegt er flacher zum Boden. Normale aus G2_RadiusTracePolys ist portiert; nicht geklaert, ob es Zeitpunkt oder Normale ist.
+- Der Spieler ist nur Ziel, wenn die Szene ihn enthaelt (`affect player`); das Spiel hat ihn immer.
+- SET_INVISIBLE gilt hier als abwesend; im Spiel bleibt die Figur fuer G_RadiusList da und nur contents 0.
+- Nicht nachgebildet: G_StartFlee (KI-Flucht vor dem Wachgeschuetz), Areaportale in gi.inPVS (Tueren), Schwertabwehr von Geschossen (CONTENTS_LIGHTSABER), CG_AddGhoul2Mark (Brandmal auf der Figur), Rueckstoss und Schmerzanimation, paintarget von func_breakable, func_glass als Ziel, DoImpact geworfener misc_model_breakable gegen Figuren (5c-Rest).
+- Die 90 Grad gelten jetzt auch fuer alle anderen GLM-Gegenstaende: per Quelle begruendet, per Foto nur fuer die Geschuetze bestaetigt.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -410,6 +440,8 @@ Weiter offen:
 - Menu editor: with little room the left panel folds by itself; arrows above the canvas fold both panels; view switches move behind one button
 - Menu editor: schemas of new menus and parts use English names (back, title, background, my_menu) in every language
 - Manual: images up to 2560 wide, animated images 1920; the pages show them much larger, a click shows them in full size
+- Preview: sentry guns, turrets and (under Movie Duels) misc_turretG2 now find figures, aim, fire and do damage by the rules of the chosen game: figures die, turrets, breakables and laser trip mines can be destroyed, and their targets fire. All Ghoul2 items stand the right way round (they were a quarter turn off).
+- Preview: from the same check: ZOOM during a camera accel, func_breakable timing, particle traces, floor sabers, thrown breakables, falling vehicles, trigger_hurt and fx_target_beam damage like in the game.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -459,6 +491,8 @@ Weiter offen:
 - Menü-Editor: Bei wenig Platz klappt die linke Spalte von selbst zu; Pfeile über der Fläche klappen beide Spalten; die Ansicht-Schalter wandern hinter einen Knopf
 - Menü-Editor: Neue Menüs und Teile tragen englische Namen (back, title, background, my_menu), in jeder Sprache
 - Handbuch: Bilder bis 2560 breit, bewegte Bilder 1920; die Seiten zeigen sie viel größer, ein Klick zeigt die volle Größe
+- Vorschau: Wachgeschuetze, Geschuetze und (unter Movie Duels) misc_turretG2 finden jetzt Figuren, zielen, feuern und machen Schaden nach den Regeln des gewaehlten Spiels: Figuren sterben, Geschuetze, Zerbrechliches und Laserfallen lassen sich zerstoeren, und ihre Ziele werden ausgeloest. Alle Ghoul2-Gegenstaende stehen richtig herum (sie waren eine Vierteldrehung verdreht).
+- Vorschau: aus derselben Pruefung: ZOOM waehrend einer Kamerabeschleunigung, Zeitablauf von func_breakable, Teilchenspuren, liegende Schwerter, geworfene Zerbrechliche, fallende Fahrzeuge, Schaden von trigger_hurt und fx_target_beam wie im Spiel.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -508,6 +542,8 @@ Weiter offen:
 - 菜单编辑器:空间不足时左侧面板自动折叠;画布上方的箭头可折叠两侧面板;视图开关移到一个按钮后面
 - 菜单编辑器:新菜单和部件在所有语言中都使用英文名称 (back、title、background、my_menu)
 - 手册:图片宽度最大 2560,动画图片 1920;页面上显示得更大,单击可查看完整尺寸
+- 预览:哨戒炮、炮塔以及(Movie Duels 下的)misc_turretG2 现在会按所选游戏的规则寻找角色、瞄准、开火并造成伤害:角色会死亡,炮塔、可破坏物体和激光绊雷可被摧毁,并触发它们的目标。所有 Ghoul2 物品的朝向都已修正(之前偏了四分之一圈)。
+- 预览:同一轮检查还修正了:摄像机加速期间的 ZOOM、func_breakable 的时序、粒子轨迹、地上的光剑、被抛出的可破坏物体、下落的载具,以及 trigger_hurt 和 fx_target_beam 的伤害,均与游戏一致。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -557,6 +593,8 @@ Weiter offen:
 - メニューエディター: スペースが少ないと左パネルが自動で閉じます。キャンバスの上の矢印で両パネルを閉じられます。表示スイッチは 1 つのボタンの中に移ります
 - メニューエディター: 新しいメニューとパーツはどの言語でも英語の名前 (back、title、background、my_menu) を使います
 - マニュアル: 画像は幅 2560 まで、アニメーション画像は 1920。ページではより大きく表示され、クリックで実寸を表示します
+- プレビュー:セントリーガン、タレット、(Movie Duels の)misc_turretG2 が、選んだゲームの規則どおりにキャラクターを探し、狙い、撃ち、ダメージを与えるようになりました。キャラクターは死に、タレット、破壊可能物、レーザートリップマインは破壊でき、そのターゲットが発動します。Ghoul2 のアイテムはすべて正しい向きになりました(4 分の 1 回転ずれていました)。
+- プレビュー:同じ検証から、カメラ加速中の ZOOM、func_breakable のタイミング、パーティクルのトレース、床のセーバー、投げられる破壊可能物、落下する乗り物、trigger_hurt と fx_target_beam のダメージがゲームと同じになりました。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -606,6 +644,8 @@ Weiter offen:
 - Editor de menús: con poco espacio el panel izquierdo se pliega solo; las flechas sobre el lienzo pliegan ambos paneles; los interruptores de vista pasan a un botón
 - Editor de menús: los menús y piezas nuevos usan nombres en inglés (back, title, background, my_menu) en todos los idiomas
 - Manual: imágenes de hasta 2560 de ancho, imágenes animadas de 1920; las páginas las muestran mucho más grandes y un clic las muestra a tamaño completo
+- Vista previa: las torretas centinela, las torretas y (con Movie Duels) misc_turretG2 ahora buscan figuras, apuntan, disparan y hacen daño según las reglas del juego elegido: las figuras mueren; las torretas, lo rompible y las minas láser se pueden destruir, y se activan sus objetivos. Todos los objetos Ghoul2 están bien orientados (estaban girados un cuarto de vuelta).
+- Vista previa: de la misma revisión: ZOOM durante una aceleración de cámara, tiempos de func_breakable, trazas de partículas, sables en el suelo, rompibles lanzados, vehículos que caen y daño de trigger_hurt y fx_target_beam como en el juego.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -655,3 +695,5 @@ Weiter offen:
 - Editor menu: při nedostatku místa se levý panel sám sbalí; šipky nad plochou sbalí oba panely; přepínače zobrazení se přesunou za jedno tlačítko
 - Editor menu: nová menu a díly mají anglické názvy (back, title, background, my_menu) ve všech jazycích
 - Příručka: obrázky do šířky 2560, animované 1920; stránky je ukazují mnohem větší, kliknutí v plné velikosti
+- Náhled: strážní děla, věže a (v Movie Duels) misc_turretG2 teď hledají postavy, míří, střílejí a zraňují podle pravidel zvolené hry: postavy umírají; věže, rozbitné věci a laserové miny lze zničit a spustí se jejich cíle. Všechny předměty Ghoul2 stojí správně (byly otočené o čtvrt otáčky).
+- Náhled: ze stejné kontroly: ZOOM během zrychlení kamery, časování func_breakable, stopy částic, šavle na zemi, házené rozbitné věci, padající vozidla a poškození od trigger_hurt a fx_target_beam jako ve hře.

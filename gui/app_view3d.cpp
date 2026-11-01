@@ -5440,13 +5440,16 @@ std::shared_ptr<const Roff> roffFuer(const std::string& name) {
 // ein deathscript, das FL_UNDYING bei jeder weiteren Beruehrung neu startet
 // (hier einmal).
 namespace {
-void fallenWeltBauen();
 bool fallenKannTreffenBei(double ms, const float von[3], const float mitte[3]);
 }  // namespace
 
 std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::vector<AblaufWelt::HurtTod> aus;
     const MapData& karte = g_app->map;
+    g_app->geschuetzUsesNeu.clear();
+    g_app->schadenBruecheNeu.clear();
+    g_app->fallenFremdNeu.clear();
+    g_app->schadenZiele.clear();
     if (karte.empty() || g_app->scene.actors.empty()) { return aus; }
     struct Feld {
         int entity = -1;
@@ -5526,8 +5529,12 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::vector<App::StrahlTreffer> strahl;
     if (g_app->strahlTrefferKarte == karte.path) { strahl = g_app->strahlTreffer; }
     std::stable_sort(strahl.begin(), strahl.end(), [](const auto& x, const auto& y) { return x.ms < y.ms; });
-    if (felder.empty() && knalle.empty() && quetsch.empty() && strahl.empty()) { return aus; }
-    if (!knalle.empty()) { fallenWeltBauen(); }   // die Spuren von CanDamage mit dieser Szene
+    // Rc608: die Geschuetze dieser Szene - je Bild neben den Figuren (G_RunFrame). Die Spuren
+    // laufen gegen g_fallenWelt aus dem letzten fallenEffekteSetzen dieses Durchgangs.
+    geschuetzeStarten();
+    GeschuetzSim& geschuetze = g_app->geschuetzSim;
+    const bool mitGeschuetzen = !geschuetze.laeufe().empty();
+    if (felder.empty() && knalle.empty() && quetsch.empty() && strahl.empty() && !mitGeschuetzen) { return aus; }
     // Wer schaltet: hurt_use und target_(de)activate aus den Benutzungen.
     std::vector<const Ablauf::Benutzung*> uses;
     for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) { uses.push_back(&b); }
@@ -5594,6 +5601,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             return rx < ry;
         });
     }
+    constexpr double kBildMs = 50.0;
     const auto zurZeit = [](const std::vector<std::pair<double, bool>>& v, double t) {
         bool an = false;
         for (const auto& [ms, w] : v) {
@@ -5607,7 +5615,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     // Ohne Rueckstoss (G_ApplyKnockback/G_CheckKnockdown) und ohne Schmerz-Reaktion.
     constexpr int kDamageRadius = 0x00000001;      // DAMAGE_RADIUS
     constexpr int kDamageNoArmor = 0x00000002;     // DAMAGE_NO_ARMOR
-    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush, Strahl };
+    enum class Art : std::uint8_t { TriggerHurt, Falling, ExplosiveSplash, Crush, Strahl, Geschuetz };
     // CheckArmor (g_combat.cpp:4832-4973 OpenJK, 6020-6185 MD, codeJK2 4298-4372).
     const auto checkArmor = [&](Figur& fi, int damage, int dflags) -> int {
         const Actor& a = *fi.a;
@@ -5633,7 +5641,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         fi.ruestung -= save;
         return save;
     };
-    const auto gDamage = [&](Figur& fi, int damage, int dflags, Art art, double t, int entity) {
+    const auto gDamage = [&](Figur& fi, int damage, int dflags, Art art, double t, int entity, int trefferOrt = kOrtKeiner) {
         const Actor& a = *fi.a;
         // Rancor: von einem Nicht-Rancor unter 10 nichts, sonst 10 (OpenJK :5560-5572, MD).
         if (!jk2 && gleichName(a.klasse, "CLASS_RANCOR")) { damage = damage < 10 ? 0 : 10; }
@@ -5649,7 +5657,13 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         if (zurZeit(a.gottmodus, t)) { return; }   // FL_GODMODE
         int take = damage;
         take -= checkArmor(fi, take, dflags);
-        // hitLoc HL_NONE: damageModifier 1.0 (MOD_EXPLOSIVE_SPLASH zaehlt ohnehin nicht).
+        // "take = ceil((float)take * damageModifier[hitLoc])" (g_combat.cpp:6411-6418 OpenJK).
+        // HL_NONE: 1.0; MOD_ENERGY, MOD_EMPLACED und MOD_UNKNOWN sind ortsabhaengig
+        // (G_NonLocationSpecificDamage), MOD_EXPLOSIVE_SPLASH zaehlt ohnehin nicht.
+        if (trefferOrt != kOrtKeiner) {
+            const TodRegelwerk regel = jk2 ? TodRegelwerk::JediOutcast : md ? TodRegelwerk::MovieDuels : TodRegelwerk::OpenJK;
+            take = static_cast<int>(std::ceil(static_cast<float>(take) * trefferOrtFaktor(trefferOrt, regel)));
+        }
         if (take == 0) { return; }   // "if ( take || (dflags&DAMAGE_NO_DAMAGE) )"
         fi.gesundheit = std::max(0, fi.gesundheit - take);
         // FL_UNDYING: "if(targ->health < 1) { G_ActivateBehavior( targ, BSET_DEATH );
@@ -5666,6 +5680,141 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             fi.tot = true;
         }
     };
+    std::vector<BruchZiel> bruchziele = bruchZieleDerKarte();
+    for (const BruchZiel& z : bruchziele) { g_app->schadenZiele.insert(z.entity); }
+    // Was nach einer Verzoegerung noch explodiert (func_breakable mit "delay").
+    std::vector<SchadenAuftrag> spaeter;
+    // G_Damage auf eine Entity, die keine Figur ist; Folgen (Explosionen) hinten an.
+    const auto entitySchaden = [&](int nummer, int schaden, int dflags, SchussMittel mittel, int angreifer, const float punkt[3],
+                                   double t, std::vector<SchadenAuftrag>& folgen) {
+        if (geschuetze.schaden(nummer, t, schaden, dflags, mittel, angreifer, punkt, folgen)) { return; }
+        for (BruchZiel& z : bruchziele) {
+            if (z.entity != nummer || z.health <= 0 || t < z.abMs || t >= z.bisMs || z.nurSchwert) { continue; }
+            if (z.nurSchwer && (dflags & kSchadenSchwereWaffe) == 0) { continue; }
+            z.health = std::max(0, z.health - schaden);
+            if (z.health > 0) { continue; }
+            g_app->schadenZiele.erase(z.entity);
+            if (z.mine) {
+                g_app->fallenFremdNeu[z.entity] = t;
+                continue;
+            }
+            g_app->schadenBruecheNeu.push_back(AblaufWelt::SchadenBruch{t, z.entity});
+            if (z.splashSchaden > 0 && z.splashWeite > 0.0F) {
+                SchadenAuftrag a;
+                a.radius = true;
+                a.ms = t + z.bruchVerzug;
+                a.angreifer = z.entity;
+                a.ignoriere = z.entity;
+                a.schaden = z.splashSchaden;
+                a.weite = z.splashWeite;
+                a.dflags = kDamageRadius;
+                a.mittel = SchussMittel::Unbekannt;
+                for (int q = 0; q < 3; ++q) { a.punkt[q] = z.splashOrt[q]; }
+                spaeter.push_back(a);
+            }
+        }
+    };
+    // G_RadiusDamage (g_combat.cpp:6850-6980 OpenJK, 9704 ff. MD, codeJK2 5451-5530): der
+    // Abstand zum Kasten, points = damage * (1 - dist / radius), CanDamage.
+    const auto radiusSchaden = [&](const float ort[3], float schaden, float weite, int ignoriere, int angreifer, int dflags,
+                                   SchussMittel mittel, Art art, double t, int entity, std::vector<SchadenAuftrag>& folgen) {
+        const auto abstand = [&](const float lo[3], const float hi[3]) {
+            float v[3];
+            for (int q = 0; q < 3; ++q) { v[q] = ort[q] < lo[q] ? lo[q] - ort[q] : (ort[q] > hi[q] ? ort[q] - hi[q] : 0.0F); }
+            return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        };
+        for (Figur& fi : figuren) {
+            const Actor& a = *fi.a;
+            if (fi.tot || fi.gesundheit <= 0) { continue; }
+            if (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) { continue; }
+            if (kSchussFigur + static_cast<int>(&a - g_app->scene.actors.data()) == ignoriere) { continue; }
+            const ActorState st = a.at(t);
+            if (!st.visible || st.removed) { continue; }   // contents 0 / G_FreeEntity
+            const float hb = a.halbBreite;
+            // absmin/absmax: SV_LinkEntity, je 1 weiter
+            const float lo[3] = {st.pos[0] - hb - 1.0F, st.pos[1] - hb - 1.0F, st.pos[2] - 24.0F - 1.0F};
+            const float hi[3] = {st.pos[0] + hb + 1.0F, st.pos[1] + hb + 1.0F, st.pos[2] + a.hoeheOben + 1.0F};
+            const float dist = abstand(lo, hi);
+            if (dist >= weite) { continue; }
+            const float points = schaden * (1.0F - dist / weite);
+            const float mitte[3] = {(lo[0] + hi[0]) * 0.5F, (lo[1] + hi[1]) * 0.5F, (lo[2] + hi[2]) * 0.5F};
+            if (!fallenKannTreffenBei(t, ort, mitte)) { continue; }
+            const int vorher = fi.gesundheit;
+            gDamage(fi, static_cast<int>(points), dflags, art, t, entity);
+            diag::detail("Explosion von #" + std::to_string(entity) + " bei " + std::to_string(static_cast<long>(t)) + " ms: " + a.name +
+                         " Abstand " + std::to_string(static_cast<int>(dist)) + ", Schaden " + std::to_string(static_cast<int>(points)) +
+                         ", Lebenspunkte " + std::to_string(vorher) + " -> " + std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+        }
+        const auto andere = [&](int nummer, const float lo[3], const float hi[3]) {
+            if (nummer == ignoriere) { return; }
+            const float dist = abstand(lo, hi);
+            if (dist >= weite) { return; }
+            const float mitte[3] = {(lo[0] + hi[0]) * 0.5F, (lo[1] + hi[1]) * 0.5F, (lo[2] + hi[2]) * 0.5F};
+            if (!fallenKannTreffenBei(t, ort, mitte)) { return; }
+            entitySchaden(nummer, static_cast<int>(schaden * (1.0F - dist / weite)), dflags, mittel, angreifer, ort, t, folgen);
+        };
+        for (const GeschuetzLauf& gl : geschuetze.laeufe()) {
+            float lo[3];
+            float hi[3];
+            if (geschuetze.nimmtSchaden(gl.daten.nummer, lo, hi)) { andere(gl.daten.nummer, lo, hi); }
+        }
+        for (const BruchZiel& z : bruchziele) {
+            // Die Minen selbst sprengt fallenKette untereinander; hier nur fremde Explosionen.
+            if (z.health > 0 && !(z.mine && art == Art::ExplosiveSplash)) { andere(z.entity, z.lo, z.hi); }
+        }
+    };
+    // Rc608: was ein Geschuetz von den Figuren sieht (zur Zeit des Bilds).
+    const auto npcTeam = [&](const Actor& a) {
+        if (a.echterSpieler) { return kTeamSpieler; }
+        std::string typ = a.npcType;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = g_app->npcMap.find(typ);
+        if (it == g_app->npcMap.end()) { return kTeamFrei; }
+        const TodRegelwerk regel = jk2 ? TodRegelwerk::JediOutcast : md ? TodRegelwerk::MovieDuels : TodRegelwerk::OpenJK;
+        return std::max(kTeamFrei, teamAusName(it->second.team, regel));
+    };
+    std::vector<SchussZiel> ziele;
+    const auto zieleBauen = [&](double t) {
+        ziele.clear();
+        for (const Figur& fi : figuren) {
+            const Actor& a = *fi.a;
+            const ActorState st = a.at(t);
+            if (!st.visible || st.removed) { continue; }
+            const auto ai = static_cast<std::size_t>(&a - g_app->scene.actors.data());
+            SchussZiel z;
+            z.nummer = kSchussFigur + static_cast<int>(ai);
+            const float hb = a.halbBreite;
+            const ActorState alt = a.at(t - kBildMs);
+            for (int q = 0; q < 3; ++q) {
+                z.ort[q] = st.pos[q];
+                z.auge[q] = st.pos[q];
+                z.lo[q] = st.pos[q] + (q == 2 ? -24.0F : -hb) - 1.0F;
+                z.hi[q] = st.pos[q] + (q == 2 ? (st.crouched ? 16.0F : a.hoeheOben) : hb) + 1.0F;
+                z.tempo[q] = (st.pos[q] - alt.pos[q]) / static_cast<float>(kBildMs * 0.001);
+            }
+            // renderInfo.eyePoint nur, wenn ein Geschuetz die Figur erreichen kann.
+            bool nah = false;
+            for (const GeschuetzLauf& gl : geschuetze.laeufe()) {
+                float o = 0.0F;
+                for (int q = 0; q < 3; ++q) { o += (st.pos[q] - gl.ursprung[q]) * (st.pos[q] - gl.ursprung[q]); }
+                const float r = (gl.daten.radius != 0.0F ? gl.daten.radius : gl.turbo ? 32768.0F : 512.0F) + 128.0F;
+                if (o < r * r) { nah = true; }
+            }
+            if (nah && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
+                (void)figurAugenPunkt(a, *g_app->actorAssets[ai], t, z.auge);
+            }
+            z.fahrzeug = a.fahrzeug.da;
+            int team = npcTeam(a);
+            for (const auto& [ms, name] : a.teamGesetzt) {
+                if (ms <= t + 1e-6) { team = teamAusSkript(name); }
+            }
+            z.team = team;
+            z.health = fi.tot || (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) ? 0 : fi.gesundheit;
+            z.notarget = zurZeit(a.keinZiel, t);
+            ziele.push_back(z);
+        }
+    };
+    const GeschuetzWelt geschuetzWelt = mitGeschuetzen ? geschuetzWeltJetzt() : GeschuetzWelt{};
     const double ende = std::max(g_app->camTrack.durationMs, g_app->timeline.practicalEndMs) + 5000.0;
     constexpr double kBild = 50.0;
     constexpr double kFrametime = 100.0;   // FRAMETIME (g_local.h:48)
@@ -5718,38 +5867,23 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         while (ki < knalle.size() && knalle[ki].ms <= t + 1e-6) {
             const App::FallenKnall& kn = knalle[ki++];
             if (kn.ms <= t - kBild + 1e-6) { continue; }
-            for (Figur& fi : figuren) {
-                const Actor& a = *fi.a;
-                if (fi.tot || fi.gesundheit <= 0) { continue; }
-                if (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) { continue; }
-                const ActorState st = a.at(t);
-                if (!st.visible || st.removed) { continue; }   // contents 0 / G_FreeEntity
-                const float hb = a.halbBreite;
-                // absmin/absmax: SV_LinkEntity, je 1 weiter
-                const float lo[3] = {st.pos[0] - hb - 1.0F, st.pos[1] - hb - 1.0F, st.pos[2] - 24.0F - 1.0F};
-                const float hi[3] = {st.pos[0] + hb + 1.0F, st.pos[1] + hb + 1.0F, st.pos[2] + a.hoeheOben + 1.0F};
-                float v[3];
-                for (int q = 0; q < 3; ++q) {
-                    v[q] = kn.ort[q] < lo[q] ? lo[q] - kn.ort[q] : (kn.ort[q] > hi[q] ? kn.ort[q] - hi[q] : 0.0F);
-                }
-                const float dist = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-                if (dist >= 256.0F) { continue; }
-                const float points = 90.0F * (1.0F - dist / 256.0F);
-                const float mitte[3] = {(lo[0] + hi[0]) * 0.5F, (lo[1] + hi[1]) * 0.5F, (lo[2] + hi[2]) * 0.5F};
-                if (!fallenKannTreffenBei(t, kn.ort, mitte)) { continue; }
-                const int vorher = fi.gesundheit;
-                gDamage(fi, static_cast<int>(points), kDamageRadius, Art::ExplosiveSplash, t, kn.entity);
-                diag::detail("misc_trip_mine #" + std::to_string(kn.entity) + " explodiert bei " + std::to_string(static_cast<long>(kn.ms)) +
-                             " ms: " + a.name + " Abstand " + std::to_string(static_cast<int>(dist)) + ", Schaden " +
-                             std::to_string(static_cast<int>(points)) + ", Lebenspunkte " + std::to_string(vorher) + " -> " +
-                             std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
-            }
+            std::vector<SchadenAuftrag> folgen;
+            radiusSchaden(kn.ort, 90.0F, 256.0F, kSchussKeine, kn.entity, kDamageRadius, SchussMittel::Unbekannt, Art::ExplosiveSplash, t,
+                          kn.entity, folgen);
+            spaeter.insert(spaeter.end(), folgen.begin(), folgen.end());
         }
         // Pruefung 4b: fx_target_beam_fire in diesem Bild - G_Damage(victim, ...,
         // ent->damage, 0 bzw. DAMAGE_NO_KNOCKBACK, MOD_UNKNOWN).
         while (si < strahl.size() && strahl[si].ms <= t + 1e-6) {
             const App::StrahlTreffer& st = strahl[si++];
             if (st.ms <= t - kBild + 1e-6) { continue; }
+            if (st.ziel >= 0) {
+                std::vector<SchadenAuftrag> folgen;
+                const float nullOrt[3] = {0.0F, 0.0F, 0.0F};
+                entitySchaden(st.ziel, st.schaden, 0, SchussMittel::Unbekannt, st.entity, nullOrt, t, folgen);
+                spaeter.insert(spaeter.end(), folgen.begin(), folgen.end());
+                continue;
+            }
             for (Figur& fi : figuren) {
                 if (fi.tot || fi.gesundheit <= 0 || fi.a->name != st.figur) { continue; }
                 const int vorher = fi.gesundheit;
@@ -5757,6 +5891,46 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                 diag::detail("fx_target_beam #" + std::to_string(st.entity) + " trifft " + fi.a->name + " bei " +
                              std::to_string(static_cast<long>(t)) + " ms, Lebenspunkte " + std::to_string(vorher) + " -> " +
                              std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+            }
+        }
+        // Rc608: die Geschuetze und ihre Geschosse in diesem Bild; G_Damage und
+        // G_RadiusDamage auf das, was sie treffen, und was daraus folgt.
+        if (mitGeschuetzen || !spaeter.empty()) {
+            g_app->geschuetzBildMs = t;
+            std::vector<SchadenAuftrag> auftraege;
+            if (mitGeschuetzen) {
+                zieleBauen(t);
+                geschuetze.bild(t, ziele, geschuetzWelt, auftraege);
+            }
+            for (std::size_t sp = 0; sp < spaeter.size();) {
+                if (spaeter[sp].ms <= t + 1e-6) {
+                    auftraege.push_back(spaeter[sp]);
+                    spaeter.erase(spaeter.begin() + static_cast<std::ptrdiff_t>(sp));
+                } else {
+                    ++sp;
+                }
+            }
+            for (std::size_t ai = 0; ai < auftraege.size(); ++ai) {
+                const SchadenAuftrag a = auftraege[ai];
+                std::vector<SchadenAuftrag> folgen;
+                if (a.radius) {
+                    radiusSchaden(a.punkt, static_cast<float>(a.schaden), a.weite, a.ignoriere, a.angreifer, a.dflags, a.mittel, Art::Geschuetz,
+                                  t, a.angreifer, folgen);
+                } else if (a.ziel >= kSchussFigur) {
+                    const Actor* wen = &g_app->scene.actors[static_cast<std::size_t>(a.ziel - kSchussFigur)];
+                    for (Figur& fi : figuren) {
+                        if (fi.a != wen || fi.tot || fi.gesundheit <= 0) { continue; }
+                        const int vorher = fi.gesundheit;
+                        gDamage(fi, a.schaden, a.dflags, Art::Geschuetz, t, a.angreifer, a.trefferOrt);
+                        diag::detail("Geschuetz #" + std::to_string(a.angreifer) + " trifft " + wen->name + " bei " +
+                                     std::to_string(static_cast<long>(t)) + " ms: Schaden " + std::to_string(a.schaden) + ", Ort " +
+                                     std::to_string(a.trefferOrt) + ", Lebenspunkte " + std::to_string(vorher) + " -> " +
+                                     std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
+                    }
+                } else if (a.ziel >= 0) {
+                    entitySchaden(a.ziel, a.schaden, a.dflags, a.mittel, a.angreifer, a.punkt, t, folgen);
+                }
+                auftraege.insert(auftraege.end(), folgen.begin(), folgen.end());
             }
         }
         // rc605 (Ende): ein Mover haelt in diesem Bild an einer Figur (G_MoverTeam vor den
@@ -5879,6 +6053,21 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             }
         }
     }
+    if (mitGeschuetzen) {
+        const char* const kSchluessel[3] = {"target", "target2", "paintarget"};
+        for (const GeschuetzBenutzung& b : geschuetze.benutzungen()) {
+            const std::string* ziel = karte.entities[static_cast<std::size_t>(b.geschuetz)].find(kSchluessel[b.art]);
+            if (ziel != nullptr && !ziel->empty()) { g_app->geschuetzUsesNeu.push_back(AblaufWelt::FallenUse{b.ms, *ziel, b.geschuetz}); }
+        }
+        geschuetzErgebnisUebernehmen();
+        for (const GeschuetzLauf& gl : geschuetze.laeufe()) {
+            if (!gl.schuesse.empty()) {
+                diag::detail("Geschuetz #" + std::to_string(gl.daten.nummer) + ": " + std::to_string(gl.schuesse.size()) + " Schuesse ab " +
+                             std::to_string(static_cast<long>(gl.schuesse.front().ms)) + " ms" +
+                             (gl.totMs >= 0.0 ? ", zerstoert bei " + std::to_string(static_cast<long>(gl.totMs)) + " ms" : ""));
+            }
+        }
+    }
     return aus;
 }
 
@@ -5888,6 +6077,11 @@ AblaufWelt ablaufWelt() {
     // rc605: die Ziele explodierter misc_trip_mine aus dem letzten Durchgang
     // (fallenEffekteSetzen) - der Nachbau benutzt sie zur Zeit der Explosion.
     if (g_app->fallenUsesKarte == g_app->map.path) { w.fallenUses = g_app->fallenUses; }
+    // Rc608: G_UseTargets der Geschuetze und was G_Damage zerbricht (letzter Durchgang).
+    if (g_app->schadenKarte == g_app->map.path) {
+        w.fallenUses.insert(w.fallenUses.end(), g_app->geschuetzUses.begin(), g_app->geschuetzUses.end());
+        w.schadenBrueche = g_app->schadenBrueche;
+    }
     w.skript = [](const std::string& p) { return skriptFuerAblauf(p); };
     w.klangDauer = [](const std::string& f) { return soundLengthMs(f); };
     // Wie lange play ( "PLAY_ROFF", ... ) die Aufgabe haelt. Ohne
@@ -6800,29 +6994,6 @@ void prepareScene() {
             diag::info("Wege: der Stand der Mover kommt nach 9 Durchgaengen nicht zur Ruhe");
         }
     }
-    // rc605 (Ende): trigger_hurt - toetet ein Feld eine Figur, laeuft der
-    // Nachbau noch einmal mit diesem Tod (deathscript, Leiche, die Szene zeigt
-    // den Tod), bis die Liste gleich bleibt.
-    {
-        static int hurtDurchgang = 0;
-        std::vector<AblaufWelt::HurtTod> neu = hurtTodeBerechnen();
-        for (const AblaufWelt::HurtTod& h : neu) {
-            diag::detail("trigger_hurt: " + h.figur + (h.unsterblich ? " (SET_UNDYING) faellt auf 1 bei " : " stirbt bei ") +
-                         std::to_string(static_cast<long>(h.ms)) + " ms (Entity " + std::to_string(h.entity) + ")");
-        }
-        if (g_app->hurtTodeSchluessel != hurtSchluessel || neu != g_app->hurtTode) {
-            const bool vorher = g_app->hurtTodeSchluessel == hurtSchluessel && !g_app->hurtTode.empty();
-            g_app->hurtTode = std::move(neu);
-            g_app->hurtTodeSchluessel = hurtSchluessel;
-            if ((vorher || !g_app->hurtTode.empty()) && hurtDurchgang < 3) {
-                ++hurtDurchgang;
-                diag::detail("trigger_hurt: " + std::to_string(g_app->hurtTode.size()) + " Tode - Durchgang mit ihnen im Nachbau");
-                prepareScene();
-                --hurtDurchgang;
-                return;
-            }
-        }
-    }
     // Die LAENGE der Klaenge nachtragen.
     //
     // Das Skript sagt nur, WANN ein sound anfaengt - wie lange er dauert,
@@ -7021,6 +7192,41 @@ void prepareScene() {
                              " Ziele explodierter Fallen - Durchgang mit ihnen im Nachbau und in der Mover-Simulation");
                 prepareScene();
                 --fallenDurchgang;
+                return;
+            }
+        }
+    }
+    // rc605 (Ende): trigger_hurt - toetet ein Feld eine Figur, laeuft der
+    // Nachbau noch einmal mit diesem Tod (deathscript, Leiche, die Szene zeigt
+    // den Tod), bis die Liste gleich bleibt. Rc608: auch Geschuetze (G_Damage, ihre
+    // Spuren brauchen die Netze der Figuren - darum nach loadActorModels), G_UseTargets
+    // und was der Schaden zerbricht; dann auch die Fallen, die er sprengt.
+    {
+        static int hurtDurchgang = 0;
+        std::vector<AblaufWelt::HurtTod> neu = hurtTodeBerechnen();
+        for (const AblaufWelt::HurtTod& h : neu) {
+            diag::detail("trigger_hurt: " + h.figur + (h.unsterblich ? " (SET_UNDYING) faellt auf 1 bei " : " stirbt bei ") +
+                         std::to_string(static_cast<long>(h.ms)) + " ms (Entity " + std::to_string(h.entity) + ")");
+        }
+        const bool schadenAnders = g_app->schadenKarte != g_app->map.path || g_app->schadenBruecheNeu != g_app->schadenBrueche ||
+                                   g_app->geschuetzUsesNeu != g_app->geschuetzUses || g_app->fallenFremdKarte != g_app->map.path ||
+                                   g_app->fallenFremdNeu != g_app->fallenFremd;
+        if (g_app->hurtTodeSchluessel != hurtSchluessel || neu != g_app->hurtTode || schadenAnders) {
+            const bool vorher = (g_app->hurtTodeSchluessel == hurtSchluessel && !g_app->hurtTode.empty()) || !g_app->schadenBrueche.empty() ||
+                                !g_app->geschuetzUses.empty() || !g_app->fallenFremd.empty();
+            g_app->hurtTode = std::move(neu);
+            g_app->hurtTodeSchluessel = hurtSchluessel;
+            g_app->schadenBrueche = g_app->schadenBruecheNeu;
+            g_app->geschuetzUses = g_app->geschuetzUsesNeu;
+            g_app->schadenKarte = g_app->map.path;
+            g_app->fallenFremd = g_app->fallenFremdNeu;
+            g_app->fallenFremdKarte = g_app->map.path;
+            const bool etwas = !g_app->hurtTode.empty() || !g_app->schadenBrueche.empty() || !g_app->geschuetzUses.empty() || !g_app->fallenFremd.empty();
+            if ((vorher || etwas) && hurtDurchgang < 3) {
+                ++hurtDurchgang;
+                diag::detail("trigger_hurt: " + std::to_string(g_app->hurtTode.size()) + " Tode - Durchgang mit ihnen im Nachbau");
+                prepareScene();
+                --hurtDurchgang;
                 return;
             }
         }
@@ -7331,7 +7537,8 @@ bool ladeEffektDatei(const std::string& path, const std::string& herkunft) {
     return true;
 }
 
-#include "app_view3d_spiel.inc"   // Stufe 8d: das Spiel in der Vorschau - gi.trace, Laserfallen, Geschuetze, Gegenstaende, Klingen
+#include "app_view3d_spiel.inc"
+#include "app_view3d_geschuetz.inc"   // rc608: die Geschuetze in der Vorschau   // Stufe 8d: das Spiel in der Vorschau - gi.trace, Laserfallen, Geschuetze, Gegenstaende, Klingen
 #include "app_view3d_bedienung.inc"   // Stufe 8d: Bedienung der Vorschau - Entity-Gruppen, Platzieren, Ansichten, Zeitleiste, Spielfenster
 // --- Die Ansicht einstellen: Kopfzeile statt Seitenleiste -------------------
 //

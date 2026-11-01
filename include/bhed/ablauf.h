@@ -140,6 +140,15 @@ struct AblaufWelt {
         bool operator==(const HurtTod&) const = default;
     };
     std::vector<HurtTod> hurtTode;
+    // Rc608: func_breakable und misc_model_breakable, die G_Damage zerstoert
+    // (funcBBrushDie, misc_model_breakable_die): zur Zeit ms wie ein use, aber ohne
+    // usescript und ohne USE_NOT_BREAK. entity: Index in karte->entities.
+    struct SchadenBruch {
+        double ms = 0.0;
+        int entity = -1;
+        bool operator==(const SchadenBruch&) const = default;
+    };
+    std::vector<SchadenBruch> schadenBrueche;
     // rc601 (bewegung, Durchsicht 2): die Drehrate je Denkbild nach der Waffe
     // in der Hand (SET_WEAPON, NPC_utils.cpp:274-290 MD) - ablaufDrehrate und
     // ablaufDrehrateYaw aus bhed/scene.h. Gesetzt, ersetzen sie drehrate/

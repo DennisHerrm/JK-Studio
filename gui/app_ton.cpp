@@ -996,6 +996,22 @@ void tonBild() {
             if (sichtbar) { quellen.push_back(std::move(q)); }
         }
     }
+    // Rc608: s.loopSound eines Geschuetzes, das gerade dreht (turret_aim; die Schleife
+    // spielt CG_EntityEffects fuer die Entity im Snapshot).
+    for (const GeschuetzLauf& gl : g_app->geschuetzSim.laeufe()) {
+        if (gl.freiMs >= 0.0 && jetzt >= gl.freiMs) { continue; }
+        const GeschuetzStand* gs = nullptr;
+        for (const GeschuetzStand& x : gl.staende) {
+            if (x.ms > jetzt) { break; }
+            gs = &x;
+        }
+        if (gs == nullptr || !gs->dreht || !tonKastenSichtbar(ohr, gl.ursprung, kPunkt, kPunkt)) { continue; }
+        SchleifenQuelle q;
+        q.datei = gl.turbo && regelwerkMovieDuels() ? "sound/vehicles/weapons/turbolaser/turn.wav" : "sound/chars/turret/move.wav";
+        q.quelle = "geschuetz #" + std::to_string(gl.daten.nummer);
+        for (int i = 0; i < 3; ++i) { q.ort[i] = gl.ursprung[i]; }
+        quellen.push_back(std::move(q));
+    }
     tonSchleifen(ohr, rechts, quellen);
 }
 
@@ -1162,6 +1178,14 @@ void tonEreignisse(double vonMs, double bisMs) {
             if (k.ms <= vonMs || k.ms > bisMs) { continue; }
             const float o[3] = {k.ort[0], k.ort[1], k.ort[2]};
             (void)spieleRaumKlang(k.datei, o, sound::Kanal::Auto, k.ms, true);
+        }
+    }
+
+    // --- Rc608: die Geschuetze - G_Sound am Ort (EV_GENERAL_SOUND ueber den Snapshot). --
+    for (const GeschuetzLauf& gl : g_app->geschuetzSim.laeufe()) {
+        for (const GeschuetzKlang& k : gl.klaenge) {
+            if (k.ms <= vonMs || k.ms > bisMs) { continue; }
+            (void)spieleRaumKlang(k.datei, gl.ursprung, sound::Kanal::Auto, k.ms, true);
         }
     }
 

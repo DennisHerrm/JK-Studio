@@ -120,6 +120,28 @@ bool fallenKannTreffenBei(double ms, const float von[3], const float mitte[3]) {
     return false;
 }
 
+// Die Wurzel jedes Ghoul2-Skeletts: rootMatrix ist "identityMatrix" (tr_ghoul2.cpp:92 OpenJK) - in
+// Wahrheit (0 -1 0 / 1 0 0 / 0 0 1), dieselben 90 Grad wie in gpu::baueFigurWelt. Nach den Achsen der
+// Entity, vor den Knochen: fuer alles, was keine Figur ist (Geschuetze, Gegenstaende, Abwuerfe).
+void g2WurzelWelt(const float ein[16], float aus[16]) {
+    for (int r = 0; r < 4; ++r) {
+        const float x = ein[r * 4 + 0];
+        const float y = ein[r * 4 + 1];
+        aus[r * 4 + 0] = y;
+        aus[r * 4 + 1] = -x;
+        aus[r * 4 + 2] = ein[r * 4 + 2];
+        aus[r * 4 + 3] = ein[r * 4 + 3];
+    }
+}
+// Dasselbe fuer eine Bolzenmatrix (G2_GetBoltMatrixLow liest die Knochen samt Wurzel).
+void g2WurzelBolzen(BoneMatrix& b) {
+    for (int c = 0; c < 4; ++c) {
+        const float x = b.m[0][c];
+        b.m[0][c] = -b.m[1][c];
+        b.m[1][c] = x;
+    }
+}
+
 void fallenWeltBauen() {
     FallenWelt& w = g_fallenWelt;
     w = FallenWelt{};
@@ -269,10 +291,32 @@ bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMa
     return true;
 }
 
+// Ecken einer Flaeche im Raum der Welt.
+void g2Ecken(const std::vector<GlmVertex>& verts, const std::vector<BoneMatrix>& skin, const float fw[16], std::vector<float>& ecken) {
+    ecken.clear();
+    ecken.reserve(verts.size() * 3U);
+    for (const GlmVertex& v : verts) {
+        float p[3] = {0.0F, 0.0F, 0.0F};
+        for (int b = 0; b < 4; ++b) {
+            const float wgt = v.weights[b];
+            if (wgt == 0.0F || v.bones[b] >= skin.size()) { continue; }
+            const BoneMatrix& bm = skin[v.bones[b]];
+            for (int r = 0; r < 3; ++r) {
+                p[r] += wgt * (bm.m[r][0] * v.xyz[0] + bm.m[r][1] * v.xyz[1] + bm.m[r][2] * v.xyz[2] + bm.m[r][3]);
+            }
+        }
+        for (int r = 0; r < 3; ++r) {
+            ecken.push_back(fw[r * 4] * p[0] + fw[r * 4 + 1] * p[1] + fw[r * 4 + 2] * p[2] + fw[r * 4 + 3]);
+        }
+    }
+}
+
 // G2_TraceModels fuer das Koerpermodell der Figur ai zur Zeit ms (dieselbe
 // Knochenrechnung wie die Zeichnung). -1: kein Netz zu pruefen, 0/1: Treffer.
+// Rc608: kollisionen gesetzt ist G2_COLLIDE (alle Dreiecke, Eintraege mit nummer,
+// zurueck: wie viele); lodGrob: traceLod 10, die groebste Stufe; radius 0: G2_TracePolys.
 int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const float start[3], const float ende[3],
-                     float radius) {
+                     float radius, bool lodGrob = false, std::vector<G2Kollision>* kollisionen = nullptr, int nummer = -1) {
     if (ai >= g_app->actorAssets.size() || g_app->actorAssets.size() != g_app->scene.actors.size() ||
         !g_app->actorAssets[ai]) {
         return -1;
@@ -298,6 +342,7 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
     };
     std::vector<float> ecken;
     std::vector<std::uint32_t> idx;
+    int treffer = 0;
     // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerpernetz (G2_TraceModels
     // ueberspringt Modelle mit mModelindex -1).
     for (std::size_t si = 0; si < m.surfaces.size() && !d.ohneKoerper; ++si) {
@@ -309,24 +354,19 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
             if ((aus(static_cast<std::size_t>(p)) & kOhneKinder) != 0U) { abgeschnitten = true; }
         }
         if (abgeschnitten) { continue; }
-        ecken.clear();
-        ecken.reserve(sf.verts.size() * 3U);
-        for (const GlmVertex& v : sf.verts) {
-            float p[3] = {0.0F, 0.0F, 0.0F};
-            for (int b = 0; b < 4; ++b) {
-                const float wgt = v.weights[b];
-                if (wgt == 0.0F || v.bones[b] >= skin.size()) { continue; }
-                const BoneMatrix& bm = skin[v.bones[b]];
-                for (int r = 0; r < 3; ++r) {
-                    p[r] += wgt * (bm.m[r][0] * v.xyz[0] + bm.m[r][1] * v.xyz[1] + bm.m[r][2] * v.xyz[2] + bm.m[r][3]);
-                }
-            }
-            for (int r = 0; r < 3; ++r) {
-                ecken.push_back(fw[r * 4] * p[0] + fw[r * 4 + 1] * p[1] + fw[r * 4 + 2] * p[2] + fw[r * 4 + 3]);
-            }
+        const std::vector<GlmVertex>& vs = lodGrob && !sf.grobVerts.empty() ? sf.grobVerts : sf.verts;
+        const std::vector<std::uint32_t>& ix = lodGrob && !sf.grobVerts.empty() ? sf.grobIndexes : sf.indexes;
+        g2Ecken(vs, skin, fw, ecken);
+        idx.assign(ix.begin(), ix.end());
+        if (kollisionen != nullptr) {
+            G2Kollision vorlage;
+            vorlage.flaeche = static_cast<int>(si);
+            vorlage.entity = nummer;
+            treffer += radius == 0.0F ? g2StrahlKollisionen(ecken, idx, start, ende, vorlage, *kollisionen)
+                                      : g2RadiusKollisionen(ecken, idx, start, ende, radius, vorlage, *kollisionen);
+        } else if (g2RadiusTreffer(ecken, idx, start, ende, radius)) {
+            return 1;
         }
-        idx.assign(sf.indexes.begin(), sf.indexes.end());
-        if (g2RadiusTreffer(ecken, idx, start, ende, radius)) { return 1; }
     }
     // rc605 (Rest): die weiteren Modelle des ghoul2-Felds (Waffe, Schwertgriff,
     // Kinomodell) an ihrem Bolzen - wie die Zeichnung (Griff am Handbolzen,
@@ -335,211 +375,271 @@ int figurNetzTreffer(std::size_t ai, const ActorState& st, double ms, const floa
         const AnbauDraw& an = d.anbau[static_cast<std::size_t>(ai2)];
         float gw[16];
         if (an.model == nullptr || !anbauWelt(d, an, welt, fw, gw)) { continue; }
-        for (const GlmSurface& sf : an.model->surfaces) {
+        for (std::size_t si = 0; si < an.model->surfaces.size(); ++si) {
+            const GlmSurface& sf = an.model->surfaces[si];
             if (sf.flags != 0U || sf.skinnedOff || sf.verts.empty()) { continue; }
+            const std::vector<GlmVertex>& vs = lodGrob && !sf.grobVerts.empty() ? sf.grobVerts : sf.verts;
+            const std::vector<std::uint32_t>& ix = lodGrob && !sf.grobVerts.empty() ? sf.grobIndexes : sf.indexes;
             ecken.clear();
-            for (const GlmVertex& v : sf.verts) {
+            for (const GlmVertex& v : vs) {
                 for (int r = 0; r < 3; ++r) {
                     ecken.push_back(gw[r * 4] * v.xyz[0] + gw[r * 4 + 1] * v.xyz[1] + gw[r * 4 + 2] * v.xyz[2] + gw[r * 4 + 3]);
                 }
             }
-            idx.assign(sf.indexes.begin(), sf.indexes.end());
-            if (g2RadiusTreffer(ecken, idx, start, ende, radius)) {
+            idx.assign(ix.begin(), ix.end());
+            if (kollisionen != nullptr) {
+                G2Kollision vorlage;
+                vorlage.flaeche = static_cast<int>(si);
+                vorlage.modell = ai2 + 1;
+                vorlage.entity = nummer;
+                treffer += radius == 0.0F ? g2StrahlKollisionen(ecken, idx, start, ende, vorlage, *kollisionen)
+                                          : g2RadiusKollisionen(ecken, idx, start, ende, radius, vorlage, *kollisionen);
+            } else if (g2RadiusTreffer(ecken, idx, start, ende, radius)) {
                 ++g_app->fallenAnbauTreffer;
                 return 1;
             }
         }
     }
-    return 0;
+    return treffer;
+}
+
+// Pruefung 4b: gi.trace der Vorschau mit Entity-Nummern - SV_Trace und
+// SV_ClipMoveToEntities (code/server/sv_world.cpp OpenJK): die Welt zuerst
+// (entityNum WORLD bei fraction < 1, NONE sonst; fraction 0 -> fertig), dann je
+// Entity im Weg CM_TransformedBoxTrace und genau diese Regeln: allsolid bzw.
+// startsolid setzen das Feld der Spur und die Nummer der Entity in IHRER Spur,
+// die nur uebernommen wird, wenn ihre fraction kleiner ist (ein startsolid von
+// vorher bleibt). Mit G2-Kollision (nicht fuer EG2_Collision 0) muss eine
+// Entity mit Ghoul2-Modell, die die Spur gerade bekam, auch am Netz getroffen
+// sein - sonst gilt die Spur von vorher. Hindernisse: die Brush-Entities am
+// Stand der Mover-Simulation bzw. ihres Skripts, Fallen (CONTENTS_SHOTCLIP
+// +-4), misc_model_breakable (Kasten), Geschuetze (Kasten, Ghoul2) und Figuren
+// (Kasten, Ghoul2). Die Reihenfolge der Entities ist hier die der Arten, nicht
+// die des Areal-Baums (zaehlt nur bei Gleichstand).
+struct SchussSpurArt {
+    std::size_t selbst = static_cast<std::size_t>(-1);   // passEntityNum (Kartenentity)
+    int selbstFigur = -1;            // passEntityNum (Figur)
+    bool g2 = true;                  // nicht EG2_Collision 0
+    bool lodGrob = false;            // traceLod 10: die groebste Stufe
+    std::vector<G2Kollision>* kollisionen = nullptr;   // G2_COLLIDE statt G2_RETURNONHIT
+};
+bool geschuetzHindernis(std::size_t ent, double ms, float lo[3], float hi[3]);
+int geschuetzNetzTreffer(std::size_t ent, double ms, const float start[3], const float ende[3], float radius, bool lodGrob,
+                         std::vector<G2Kollision>* kollisionen);
+std::string geschuetzFlaechenName(const G2Kollision& k);
+SchussSpur schussSpurBei(double ms, const float start[3], const float mins[3], const float maxs[3], const float ende[3],
+                         const SchussSpurArt& art) {
+    SchussSpur r;
+    for (int q = 0; q < 3; ++q) { r.endpos[q] = ende[q]; }
+    const FallenWelt& w = g_fallenWelt;
+    if (!w.k) { return r; }
+    const KollisionsSpur welt = kollisionsSpur(*w.k, start, mins, maxs, ende, kMaskeSchussWelt);
+    r.allsolid = welt.allsolid;
+    r.startsolid = welt.startsolid;
+    r.fraction = welt.fraction;
+    r.flaechenFlags = welt.flaeche;
+    for (int q = 0; q < 3; ++q) {
+        r.endpos[q] = welt.endpos[static_cast<std::size_t>(q)];
+        r.normale[q] = welt.normale[static_cast<std::size_t>(q)];
+    }
+    r.entity = r.fraction != 1.0F ? kSchussWelt : kSchussKeine;
+    if (r.fraction == 0.0F) { return r; }   // "blocked immediately by the world"
+    float lo[3];
+    float hi[3];
+    for (int q = 0; q < 3; ++q) {
+        lo[q] = std::min(start[q], ende[q]) + mins[q] - 1.0F;
+        hi[q] = std::max(start[q], ende[q]) + maxs[q] + 1.0F;
+    }
+    // Die Regeln fuer eine Entity. Zurueck: trace.entityNum == touch->s.number, die
+    // Ghoul2-Pruefung ist dran. "clip->trace = trace" nimmt auch G2CollisionMap der
+    // kuerzeren Spur (leer).
+    const auto nimm = [&](SchussSpur t, int nummer) {
+        bool diese = false;
+        if (t.allsolid) {
+            r.allsolid = true;
+            diese = true;
+        } else if (t.startsolid) {
+            r.startsolid = true;
+            diese = true;
+        }
+        if (t.fraction < r.fraction) {
+            const bool alt = r.startsolid;
+            t.entity = nummer;
+            r = t;
+            if (alt) { r.startsolid = true; }
+            if (art.kollisionen != nullptr) { art.kollisionen->clear(); }
+            diese = true;
+        }
+        return diese;
+    };
+    const auto ausKasten = [&](const KastenSpur& ks) {
+        SchussSpur t;
+        t.allsolid = ks.allsolid;
+        t.startsolid = ks.startsolid;
+        t.fraction = ks.fraction;
+        for (int q = 0; q < 3; ++q) {
+            t.endpos[q] = start[q] + ks.fraction * (ende[q] - start[q]);
+            t.normale[q] = ks.normale[q];
+        }
+        return t;
+    };
+    const auto weit = [&](const float kmin[3], const float kmax[3]) {
+        for (int q = 0; q < 3; ++q) {
+            if (kmax[q] + 1.0F < lo[q] || kmin[q] - 1.0F > hi[q]) { return true; }
+        }
+        return false;
+    };
+    // Ghoul2: hat die Entity die Spur gerade bekommen, muss das Netz getroffen sein -
+    // sonst die Spur von vorher (samt ihren Kollisionen), sonst kommt die Normale des
+    // naechsten Eintrags dieser Entity in plane.normal (sv_world.cpp:732-815 OpenJK).
+    // netz: -1 kein Netz zu pruefen (der Kasten gilt), sonst die Treffer.
+    const auto mitNetz = [&](const SchussSpur& t, int nummer, const std::function<int(std::vector<G2Kollision>*)>& netz) {
+        const SchussSpur vorher = r;
+        std::vector<G2Kollision> kollVorher;
+        if (art.kollisionen != nullptr) { kollVorher = *art.kollisionen; }
+        if (!nimm(t, nummer) || !art.g2) { return; }
+        const std::size_t alt = art.kollisionen != nullptr ? art.kollisionen->size() : 0U;
+        const int n = netz(art.kollisionen);
+        if (n < 0) {
+            ++g_app->fallenKastenTreffer;
+            return;
+        }
+        if (art.kollisionen != nullptr ? art.kollisionen->size() <= alt : n == 0) {
+            r = vorher;
+            if (art.kollisionen != nullptr) { *art.kollisionen = kollVorher; }
+            return;
+        }
+        ++g_app->fallenNetzTreffer;
+        if (art.kollisionen != nullptr) {
+            const G2Kollision* erste = nullptr;
+            for (const G2Kollision& k : *art.kollisionen) {
+                if (k.entity == nummer && (erste == nullptr || k.abstand < erste->abstand)) { erste = &k; }
+            }
+            if (erste != nullptr) {
+                for (int q = 0; q < 3; ++q) { r.normale[q] = erste->normale[q]; }
+            }
+        }
+    };
+    for (const FallenBrush& b : w.brushes) {
+        if (r.allsolid) { break; }
+        if (b.entity == art.selbst) { continue; }
+        float ort[3] = {b.ort0[0], b.ort0[1], b.ort0[2]};
+        float winkel[3] = {0.0F, 0.0F, 0.0F};
+        if (b.skript != nullptr) {
+            const ActorState st = b.skript->at(ms);
+            if (!st.visible) { continue; }
+            for (int q = 0; q < 3; ++q) {
+                ort[q] = st.pos[q];
+                winkel[q] = st.angles[q];
+            }
+        } else {
+            const MoverSim::Stand m = g_app->moverSim.at(b.modell, ms);
+            if (m.bekannt) {
+                if (!m.sichtbar) { continue; }
+                for (int q = 0; q < 3; ++q) {
+                    ort[q] = m.origin[q];
+                    winkel[q] = m.angles[q];
+                }
+            }
+        }
+        bool fern = false;
+        for (int q = 0; q < 3; ++q) {
+            if (ort[q] + b.radius < lo[q] || ort[q] - b.radius > hi[q]) { fern = true; }
+        }
+        if (fern) { continue; }
+        const KollisionsSpur k = kollisionsSpur(*w.k, start, mins, maxs, ende, kMaskeSchussWelt, b.modell, ort, winkel);
+        SchussSpur t;
+        t.allsolid = k.allsolid;
+        t.startsolid = k.startsolid;
+        t.fraction = k.fraction;
+        t.flaechenFlags = k.flaeche;
+        for (int q = 0; q < 3; ++q) {
+            t.endpos[q] = k.endpos[static_cast<std::size_t>(q)];
+            t.normale[q] = k.normale[static_cast<std::size_t>(q)];
+        }
+        (void)nimm(t, static_cast<int>(b.entity));
+    }
+    // rc605 (Rest): andere Fallen (CONTENTS_SHOTCLIP, -4..4) und
+    // misc_model_breakable (CM_TempBoxModel, Winkel 0) - Punkt-Entities ohne
+    // Ghoul2: der Kasten gilt.
+    for (const FallenMine& fm : w.minen) {
+        if (r.allsolid) { break; }
+        if (fm.entity == art.selbst || ms >= fm.wegMs) { continue; }
+        const float kmin[3] = {fm.ort[0] - 4.0F, fm.ort[1] - 4.0F, fm.ort[2] - 4.0F};
+        const float kmax[3] = {fm.ort[0] + 4.0F, fm.ort[1] + 4.0F, fm.ort[2] + 4.0F};
+        if (weit(kmin, kmax)) { continue; }
+        const float alt = r.fraction;
+        (void)nimm(ausKasten(figurKastenSpur(start, ende, mins, maxs, kmin, kmax)), static_cast<int>(fm.entity));
+        if (r.fraction < alt) { ++g_app->fallenFallenTreffer; }
+    }
+    for (const FallenModell& fm : w.modelle) {
+        if (r.allsolid) { break; }
+        if (fm.entity == art.selbst) { continue; }
+        // Vor dem Bruch dieses Bilds: der Schuss, der es zerbricht, trifft es noch.
+        const MoverSim::ModellStand bs = g_app->moverSim.modellAt(fm.entity, ms - 0.5);
+        const bool gebrochen = bs.bekannt && (!bs.sichtbar || bs.modell != fm.pfad);
+        if (gebrochen && !fm.festNachBruch) { continue; }
+        if (weit(fm.mins, fm.maxs)) { continue; }
+        const float alt = r.fraction;
+        (void)nimm(ausKasten(figurKastenSpur(start, ende, mins, maxs, fm.mins, fm.maxs)), static_cast<int>(fm.entity));
+        if (r.fraction < alt) { ++g_app->fallenModellTreffer; }
+    }
+    // Pruefung 4b: Geschuetze (misc_turret: CONTENTS_BODY, misc_sentry_turret:
+    // CONTENTS_SHOTCLIP|CONTENTS_CORPSE) - Kasten und Ghoul2-Modell.
+    for (const GeschuetzLauf& gl : g_app->geschuetzSim.laeufe()) {
+        if (r.allsolid) { break; }
+        const auto ei = static_cast<std::size_t>(gl.daten.nummer);
+        float kmin[3];
+        float kmax[3];
+        if (ei == art.selbst || !geschuetzHindernis(ei, ms, kmin, kmax) || weit(kmin, kmax)) { continue; }
+        mitNetz(ausKasten(figurKastenSpur(start, ende, mins, maxs, kmin, kmax)), static_cast<int>(ei), [&](std::vector<G2Kollision>* k) {
+            return geschuetzNetzTreffer(ei, ms, start, ende, (maxs[0] - mins[0]) / 2.0F, art.lodGrob, k);
+        });
+    }
+    for (const std::size_t ai : w.figuren) {
+        if (r.allsolid) { break; }
+        if (static_cast<int>(ai) == art.selbstFigur) { continue; }
+        const Actor& a = g_app->scene.actors[ai];
+        const ActorState st = a.at(ms);
+        if (!st.visible || st.removed) { continue; }
+        const float hb = a.halbBreite;
+        const float kmin[3] = {st.pos[0] - hb, st.pos[1] - hb, st.pos[2] - 24.0F};
+        const float kmax[3] = {st.pos[0] + hb, st.pos[1] + hb, st.pos[2] + (st.crouched ? 16.0F : a.hoeheOben)};
+        if (weit(kmin, kmax)) { continue; }
+        const int nummer = kSchussFigur + static_cast<int>(ai);
+        mitNetz(ausKasten(figurKastenSpur(start, ende, mins, maxs, kmin, kmax)), nummer, [&](std::vector<G2Kollision>* k) {
+            return figurNetzTreffer(ai, st, ms, start, ende, (maxs[0] - mins[0]) / 2.0F, art.lodGrob, k, nummer);
+        });
+    }
+    // G2API_CollisionDetect: qsort nach Abstand; die Flaeche liest G_RunMissile aus dem
+    // ersten Eintrag (mFlags: G2_RadiusTracePolys setzt immer G2_FRONTFACE).
+    if (art.kollisionen != nullptr && !art.kollisionen->empty()) {
+        std::stable_sort(art.kollisionen->begin(), art.kollisionen->end(),
+                         [](const G2Kollision& x, const G2Kollision& y) { return x.abstand < y.abstand; });
+        const G2Kollision& k = art.kollisionen->front();
+        r.flaeche = geschuetzFlaechenName(k);
+        for (int q = 0; q < 3; ++q) { r.g2Punkt[q] = k.punkt[q]; }
+    }
+    return r;
 }
 
 // g2 false: EG2_Collision 0 (G2_NOCOLLIDE) - nur der Kasten der Figur
 // (fx_target_beam_fire, g_fx.cpp:1039 OpenJK).
 LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mins[3], const float maxs[3],
                                  const float ende[3], std::size_t selbst, bool g2 = true) {
+    SchussSpurArt art;
+    art.selbst = selbst;
+    art.g2 = g2;
+    const SchussSpur s = schussSpurBei(ms, start, mins, maxs, ende, art);
     LaserfalleSpur r;
-    for (int q = 0; q < 3; ++q) { r.endpos[q] = ende[q]; }
-    const FallenWelt& w = g_fallenWelt;
-    if (!w.k) { return r; }
-    const KollisionsSpur welt = kollisionsSpur(*w.k, start, mins, maxs, ende, kMaskeSchussWelt);
-    float frac = welt.fraction;
-    bool startsolid = welt.startsolid;
-    bool allsolid = welt.allsolid;
-    bool figur = false;
-    int figurNr = -1;   // Pruefung 4b
-    float endpos[3] = {welt.endpos[0], welt.endpos[1], welt.endpos[2]};
-    float normale[3] = {welt.normale[0], welt.normale[1], welt.normale[2]};
-    if (frac != 0.0F) {
-        float lo[3];
-        float hi[3];
-        for (int q = 0; q < 3; ++q) {
-            lo[q] = std::min(start[q], ende[q]) + mins[q] - 1.0F;
-            hi[q] = std::max(start[q], ende[q]) + maxs[q] + 1.0F;
-        }
-        for (const FallenBrush& b : w.brushes) {
-            if (allsolid) { break; }
-            if (b.entity == selbst) { continue; }
-            float ort[3] = {b.ort0[0], b.ort0[1], b.ort0[2]};
-            float winkel[3] = {0.0F, 0.0F, 0.0F};
-            if (b.skript != nullptr) {
-                const ActorState st = b.skript->at(ms);
-                if (!st.visible) { continue; }
-                for (int q = 0; q < 3; ++q) {
-                    ort[q] = st.pos[q];
-                    winkel[q] = st.angles[q];
-                }
-            } else {
-                const MoverSim::Stand m = g_app->moverSim.at(b.modell, ms);
-                if (m.bekannt) {
-                    if (!m.sichtbar) { continue; }
-                    for (int q = 0; q < 3; ++q) {
-                        ort[q] = m.origin[q];
-                        winkel[q] = m.angles[q];
-                    }
-                }
-            }
-            bool weit = false;
-            for (int q = 0; q < 3; ++q) {
-                if (ort[q] + b.radius < lo[q] || ort[q] - b.radius > hi[q]) { weit = true; }
-            }
-            if (weit) { continue; }
-            const KollisionsSpur t = kollisionsSpur(*w.k, start, mins, maxs, ende, kMaskeSchussWelt, b.modell, ort, winkel);
-            if (t.allsolid) {
-                allsolid = true;
-                figur = false;
-            } else if (t.startsolid) {
-                if (!startsolid) { figur = false; }
-                startsolid = true;
-            }
-            if (t.fraction < frac) {
-                frac = t.fraction;
-                for (int q = 0; q < 3; ++q) {
-                    endpos[q] = t.endpos[static_cast<std::size_t>(q)];
-                    normale[q] = t.normale[static_cast<std::size_t>(q)];
-                }
-                figur = false;
-                if (t.allsolid) { allsolid = true; }
-            }
-        }
-        // rc605 (Rest): andere Fallen (CONTENTS_SHOTCLIP, -4..4) und
-        // misc_model_breakable (CM_TempBoxModel, Winkel 0) - Punkt-Entities ohne
-        // Ghoul2: der Kasten gilt.
-        const auto kastenNehmen = [&](const float kmin[3], const float kmax[3]) {
-            bool weit = false;
-            for (int q = 0; q < 3; ++q) {
-                if (kmax[q] + 1.0F < lo[q] || kmin[q] - 1.0F > hi[q]) { weit = true; }
-            }
-            if (weit) { return; }
-            const KastenSpur ks = figurKastenSpur(start, ende, mins, maxs, kmin, kmax);
-            if (ks.allsolid) {
-                allsolid = true;
-                figur = false;
-            } else if (ks.startsolid) {
-                if (!startsolid) { figur = false; }
-                startsolid = true;
-            }
-            if (ks.fraction < frac) {
-                frac = ks.fraction;
-                for (int q = 0; q < 3; ++q) {
-                    endpos[q] = start[q] + ks.fraction * (ende[q] - start[q]);
-                    normale[q] = ks.normale[q];
-                }
-                figur = false;
-                if (ks.allsolid) { allsolid = true; }
-            }
-        };
-        for (const FallenMine& fm : w.minen) {
-            if (allsolid) { break; }
-            if (fm.entity == selbst || ms >= fm.wegMs) { continue; }
-            const float kmin[3] = {fm.ort[0] - 4.0F, fm.ort[1] - 4.0F, fm.ort[2] - 4.0F};
-            const float kmax[3] = {fm.ort[0] + 4.0F, fm.ort[1] + 4.0F, fm.ort[2] + 4.0F};
-            const float altFrac = frac;
-            kastenNehmen(kmin, kmax);
-            if (frac < altFrac) { ++g_app->fallenFallenTreffer; }
-        }
-        for (const FallenModell& fm : w.modelle) {
-            if (allsolid) { break; }
-            if (fm.entity == selbst) { continue; }
-            const MoverSim::ModellStand bs = g_app->moverSim.modellAt(fm.entity, ms);
-            const bool gebrochen = bs.bekannt && (!bs.sichtbar || bs.modell != fm.pfad);
-            if (gebrochen && !fm.festNachBruch) { continue; }
-            const float altFrac = frac;
-            kastenNehmen(fm.mins, fm.maxs);
-            if (frac < altFrac) { ++g_app->fallenModellTreffer; }
-        }
-        for (const std::size_t ai : w.figuren) {
-            if (allsolid) { break; }
-            const Actor& a = g_app->scene.actors[ai];
-            const ActorState st = a.at(ms);
-            if (!st.visible || st.removed) { continue; }
-            const float hb = a.halbBreite;
-            const float kmin[3] = {st.pos[0] - hb, st.pos[1] - hb, st.pos[2] - 24.0F};
-            const float kmax[3] = {st.pos[0] + hb, st.pos[1] + hb, st.pos[2] + (st.crouched ? 16.0F : a.hoeheOben)};
-            bool weit = false;
-            for (int q = 0; q < 3; ++q) {
-                if (kmax[q] + 1.0F < lo[q] || kmin[q] - 1.0F > hi[q]) { weit = true; }
-            }
-            if (weit) { continue; }
-            const KastenSpur ks = figurKastenSpur(start, ende, mins, maxs, kmin, kmax);
-            // SV_ClipMoveToEntities: oldTrace, dann allsolid/startsolid und die
-            // kuerzere fraction uebernehmen; trace.entityNum == diese Figur ->
-            // Ghoul2-Pruefung.
-            const float altFrac = frac;
-            const bool altStart = startsolid;
-            const bool altAll = allsolid;
-            const bool altFigur = figur;
-            const int altFigurNr = figurNr;
-            const float altEnd[3] = {endpos[0], endpos[1], endpos[2]};
-            const float altNorm[3] = {normale[0], normale[1], normale[2]};
-            bool diese = false;
-            if (ks.allsolid) {
-                allsolid = true;
-                diese = true;
-            } else if (ks.startsolid) {
-                startsolid = true;
-                diese = true;
-            }
-            if (ks.fraction < frac) {
-                frac = ks.fraction;
-                for (int q = 0; q < 3; ++q) {
-                    endpos[q] = start[q] + ks.fraction * (ende[q] - start[q]);
-                    normale[q] = ks.normale[q];
-                }
-                if (ks.allsolid) { allsolid = true; }
-                diese = true;
-            }
-            if (!diese) { continue; }
-            if (!g2) {   // G2_NOCOLLIDE: der Kasten gilt
-                figur = true;
-                figurNr = static_cast<int>(ai);
-                continue;
-            }
-            const float radius = (maxs[0] - mins[0]) / 2.0F;
-            const int netz = figurNetzTreffer(ai, st, ms, start, ende, radius);
-            if (netz == 0) {
-                frac = altFrac;
-                startsolid = altStart;
-                allsolid = altAll;
-                figur = altFigur;
-                figurNr = altFigurNr;
-                for (int q = 0; q < 3; ++q) {
-                    endpos[q] = altEnd[q];
-                    normale[q] = altNorm[q];
-                }
-                continue;
-            }
-            ++(netz > 0 ? g_app->fallenNetzTreffer : g_app->fallenKastenTreffer);
-            figur = true;
-            figurNr = static_cast<int>(ai);
-        }
-    }
     for (int q = 0; q < 3; ++q) {
-        r.endpos[q] = endpos[q];
-        r.normale[q] = normale[q];
+        r.endpos[q] = s.endpos[q];
+        r.normale[q] = s.normale[q];
     }
-    r.startsolid = startsolid;
-    r.figur = figur;
-    r.figurNr = figur ? figurNr : -1;
+    r.startsolid = s.startsolid;
+    r.figur = s.entity >= kSchussFigur;
+    r.figurNr = r.figur ? s.entity - kSchussFigur : -1;
+    r.entity = s.entity;
     return r;
 }
 }  // namespace
@@ -573,9 +673,8 @@ LaserfalleSpur laserfalleSpurBei(double ms, const float start[3], const float mi
 // ionenkanoneLauf (bhed/mover.h); die uses kommen aus der Mover-Simulation.
 // rc605 FU4: das Schwenken des Wachgeschuetzes ohne Feind (pas_think: bone_hinge
 // per G2API_SetBoneAngles, BONE_ANGLES_POSTMULT) - pasSchwenkLauf (bhed/mover.h)
-// und geschuetzKnochen. Nicht nachgebildet: alles mit einem Feind (Zielen,
-// pas_fire; pas_find_enemies findet auch den Spieler, ausser mit SET_NO_TARGET);
-// G_UseTargets2 (target2) der Ionenkanone.
+// und geschuetzKnochen. Rc608: alles mit einem Feind rechnet GeschuetzSim
+// (app_view3d_geschuetz.inc). Nicht nachgebildet: G_UseTargets2 (target2) der Ionenkanone.
 bool geschuetzKnochen(const App::ActorAssets& as, const std::vector<KnochenAnim>& anims, double ms,
                       std::vector<BoneMatrix>& welt, std::vector<BoneMatrix>& skin,
                       const std::vector<PasSchwenk>* schwenk = nullptr) {
@@ -683,6 +782,8 @@ float pasKnochenDrehung(std::size_t ent, double ms, const std::string& knochen) 
     return -1.0F;
 }
 
+void geschuetzeOhneZieleRechnen();
+
 void geschuetzeTakten() {
     g_app->geschuetzAnims.clear();
     g_app->pasSchwenks.clear();   // rc605 FU4
@@ -692,9 +793,8 @@ void geschuetzeTakten() {
     const std::string fxPfad = "effects/env/ion_cannon.efx";
     for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
         const MapEntity& e = g_app->map.entities[i];
-        const bool pas = e.classname == "misc_sentry_turret";
         const bool ion = e.classname == "misc_ion_cannon";
-        if ((!pas && !ion) || !kartenpruefung::imSpiel(e.classname, md) || !gespawntImSpiel(e) || e.origin.empty()) {
+        if (!ion || !kartenpruefung::imSpiel(e.classname, md) || !gespawntImSpiel(e) || e.origin.empty()) {
             continue;
         }
         int sf = 0;
@@ -704,27 +804,6 @@ void geschuetzeTakten() {
             if (ent == i) { uses.push_back(ms); }
         }
         std::stable_sort(uses.begin(), uses.end());
-        if (pas) {
-            const double t = pasAufklappenMs((sf & 1) != 0, kNavKartenSpawnMs, uses, endeMs);
-            // Ohne Animation steht der Knochen auf Bild 0 - auch das ist ein Eintrag.
-            std::vector<KnochenAnim>& anims = g_app->geschuetzAnims[i];
-            if (t >= 0.0) { anims.push_back(KnochenAnim{t, 0, 11, 0.8F}); }
-            // rc605 FU4: der Schwenk ohne Feind (pas_think); s.angles[YAW] und
-            // count (SP_PAS: 0 -> 150) aus der Entity.
-            float gier = 0.0F;
-            if (const std::string* a = e.find("angles")) {
-                float w3[3] = {0.0F, 0.0F, 0.0F};
-                (void)std::sscanf(a->c_str(), "%f %f %f", &w3[0], &w3[1], &w3[2]);
-                gier = w3[1];
-            } else if (const std::string* a1 = e.find("angle")) {
-                gier = static_cast<float>(std::atof(a1->c_str()));
-            }
-            int munition = 0;
-            if (const std::string* c = e.find("count")) { munition = std::atoi(c->c_str()); }
-            if (munition == 0) { munition = 150; }
-            g_app->pasSchwenks[i] = pasSchwenkLauf((sf & 1) != 0, kNavKartenSpawnMs, uses, endeMs, gier, munition);
-            continue;
-        }
         IonenkanoneEingabe ein;
         ein.startOff = (sf & 1) != 0;
         ein.bursts = (sf & 2) != 0;
@@ -763,6 +842,7 @@ void geschuetzeTakten() {
             if (fx && as != nullptr && sk != nullptr && bolzen >= 0 && geschuetzKnochen(*as, anims, t, welt, skin)) {
                 BoneMatrix b{};
                 if (boltMatrix(as->model, bolzen, welt, sk->anim, b)) {
+                    g2WurzelBolzen(b);
                     EffectInstance x;
                     x.effect = &g_app->effects[fxPfad];
                     float laenge = 0.0F;
@@ -790,6 +870,8 @@ void geschuetzeTakten() {
         diag::detail("misc_ion_cannon #" + std::to_string(i) + ": " + std::to_string(lr.schuesse.size()) +
                      " Schuesse, der erste bei " + std::to_string(static_cast<int>(lr.schuesse.front())) + " ms");
     }
+    // Rc608: misc_sentry_turret, misc_turret und misc_turretG2 (GeschuetzSim).
+    geschuetzeOhneZieleRechnen();
 }
 
 // rc605 (Rest) Selbsttest: G2_TraceModels einer Figur (Netz der Figur, mit oder
@@ -922,10 +1004,23 @@ void fallenEffekteSetzen() {
                 const auto it = natuerlich.find(mi[i].entity);
                 if (it != natuerlich.end() && it->second < 1.0e299) { reihe.emplace_back(it->second, i); }
             }
+            // Rc608: von einem Geschoss oder dessen Explosion zerstoert (G_Damage aus
+            // hurtTodeBerechnen): explodiert wie von einer anderen Falle gesprengt.
+            std::vector<double> fremd(mi.size(), 1.0e300);
+            if (g_app->fallenFremdKarte == g_app->map.path) {
+                for (std::size_t i = 0; i < mi.size(); ++i) {
+                    const auto it = g_app->fallenFremd.find(static_cast<int>(mi[i].entity));
+                    if (it != g_app->fallenFremd.end()) {
+                        fremd[i] = it->second;
+                        reihe.emplace_back(it->second, i);
+                    }
+                }
+            }
             std::stable_sort(reihe.begin(), reihe.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
             for (const auto& [t, a] : reihe) {
                 if (knall[a] <= t) { continue; }
                 knall[a] = t;
+                if (fremd[a] == t) { zwang[a] = t; }
                 sprengt(a, t);
             }
             bool anders = false;
@@ -937,7 +1032,7 @@ void fallenEffekteSetzen() {
             }
             return anders;
         };
-        if (g_fallenWelt.minen.size() > 1U) {
+        if (g_fallenWelt.minen.size() > 1U || (g_app->fallenFremdKarte == g_app->map.path && !g_app->fallenFremd.empty())) {
             for (int runde = 0; runde < 4; ++runde) {
                 std::map<std::size_t, double> weg;
                 std::map<std::size_t, double> natuerlich;   // rc605 (Ende)
@@ -1364,11 +1459,10 @@ void loadMapEffects() {
         // gerade ist - ein func_train faehrt, die Mover-Simulation weiss wo),
         // bei info_null s.origin2 (das Ende des letzten Schusses), und spurt
         // MASK_SHOT ohne Ghoul2 (EG2_Collision 0) gegen Welt, Brush-Modelle und
-        // Figurenkaesten (laserfalleSpurBei). Schaden: G_Damage auf das Opfer
-        // der Spur wird nicht nachgebildet (die Figur spielt weiter wie im
-        // Skript; vjun2 schreibt "dmg", das SP_fx_target_beam mit
-        // G_SpawnInt("damage", "0") ohnehin auf 0 setzt). Schuesse mit
-        // demselben Ende im gleichen Abstand werden eine Wiederholung.
+        // Figurenkaesten (laserfalleSpurBei). Schaden: "damage" (vjun2 schreibt
+        // "dmg", das SP_fx_target_beam mit G_SpawnInt("damage", "0") ohnehin auf 0
+        // setzt) rechnet hurtTodeBerechnen. Schuesse mit demselben Ende im gleichen
+        // Abstand werden eine Wiederholung.
         int strahlen = 0;
         g_app->strahlTrefferNeu.clear();   // Pruefung 4b
         for (std::size_t i = 0; g_fallenWelt.k && i < g_app->map.entities.size(); ++i) {
@@ -1466,7 +1560,10 @@ void loadMapEffects() {
                     static_cast<std::size_t>(sp.figurNr) < g_app->scene.actors.size()) {
                     g_app->strahlTrefferNeu.push_back(
                         App::StrahlTreffer{t, g_app->scene.actors[static_cast<std::size_t>(sp.figurNr)].name, schaden,
-                                           static_cast<int>(i)});
+                                           static_cast<int>(i), -1});
+                } else if (schaden > 0 && !sp.figur && sp.entity >= 0) {
+                    // Rc608: auch Geschuetze und Zerbrechliches (victim->takedamage)
+                    g_app->strahlTrefferNeu.push_back(App::StrahlTreffer{t, std::string{}, schaden, static_cast<int>(i), sp.entity});
                 }
                 Schuss x;
                 x.t = t;
@@ -2272,7 +2369,9 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             // SP_misc_turret (code/game/g_turret.cpp:865-891 OpenJK, md_g_turret.cpp:1014 MD):
             // turret_set_models -> turret_canon.glm; finish_spawning_turret; Start_Off
             // (spawnflags 1) s.frame 1 "black", sonst 0 "glow", EF_SHADER_ANIM.
-            pfad = "models/map_objects/imp_mine/turret_canon.glm";
+            // Rc608: SPF_TURRETG2_TURBO (4, nicht in Jedi Outcast): laser_cannon_model.glm (turret_set_models).
+            pfad = (sf & 4) != 0 && !regelwerkJediOutcast() ? "models/map_objects/wedge/laser_cannon_model.glm"
+                                                            : "models/map_objects/imp_mine/turret_canon.glm";
             kopfueber = (sf & 2) != 0;
             bild = (sf & 1) != 0 ? 1 : 0;
         } else if (c == "misc_turretG2") {
@@ -2296,7 +2395,6 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             pfad = "models/map_objects/hoth/eweb_model.glm";
         } else if (c == "misc_sentry_turret") {
             // SP_PAS (g_turret.cpp:1784-1800 OpenJK): models/items/psgun.glm, modelScale 1.
-            // (pas_think klappt es nach 1 s per Animation auf - nicht nachgebildet.)
             pfad = "models/items/psgun.glm";
         } else if (c == "misc_trip_mine") {
             // rc604 fix604b (B5): siehe tripMineLage.

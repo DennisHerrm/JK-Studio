@@ -5584,6 +5584,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
 #include "selbsttest_pruefung3.inc"   // pruefung3: der Rest gegen das Spiel (Rumpfwinkel, Tod, Marken, Hocke, Hang)
+#include "selbsttest_geschuetze.inc"   // geschuetze: Sentry und Turm mit Feind und Schaden (rc608)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -5923,6 +5924,8 @@ void selbsttest() {
     static const bool nurMission1 = std::strcmp(modus, "mission1") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
+    // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
+    static const bool nurGeschuetze = std::strcmp(modus, "geschuetze") == 0;
     // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
     static const bool nurZeitleiste0 = std::strcmp(modus, "zeitleiste0") == 0;
     // zeitleiste1: die neue Zeitleiste (Mini-Szene, academy1, md_am_sith).
@@ -6041,6 +6044,16 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurPruefung3) {
                 a.schritte = pruefung3Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurGeschuetze) {
+                if (const char* pk3 = std::getenv("BHED_GV_PK3"); pk3 != nullptr && *pk3 != 0) {
+                    a.schritte = geschuetzVergleichSchritte(pk3);
+                } else if (std::getenv("BHED_GESCHUETZ_BILD") != nullptr) {
+                    a.schritte = geschuetzBildSchritte();
+                } else {
+                    a.schritte = geschuetzSimSchritte();
+                }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurZeitleiste0) {
