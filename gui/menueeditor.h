@@ -100,6 +100,9 @@ struct BildZeile {
     bool da = false;
 };
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
+// rc608 Punkt 11 (Selbsttest): Pfad statt des Dateidialogs von "Bild hinzufuegen"; Rahmen beim Ziehen
+void setzeBildDialog(std::function<std::string()> antwort);
+[[nodiscard]] bool ablageRahmen(float* xywh);
 // rc608 Punkt 5: Text an Ort und Stelle (Selbsttest)
 struct SchreibStand {
     bool an = false;

@@ -325,6 +325,9 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    bool ablageAn = false, ablageWar = false;   // rc608 Punkt 11: gerade wird etwas ueber die Flaeche gezogen
+    Rechteck ablageRect;
+    std::function<std::string()> bildDialog;    // Selbsttest statt des Dateidialogs
     bool hierarchieRollen = false;      // rc608 Punkt 10: die Auswahl hat sich geaendert, die Liste rollt hin
     std::vector<int> hierarchieAuswahl;
     std::vector<std::string> hierarchieZeilen;   // Selbsttest: die Zeilen im letzten Bild
@@ -1688,6 +1691,15 @@ void spieleKlaenge();                                              // M2 Punkt 5
 ImU32 schwereFarbe(Schwere s);                                     // M2 Live-Diagnose (unten)
 void schwereSymbol(ImDrawList* dl, ImVec2 m, float r, Schwere s);
 
+// rc608 Punkt 11: ME_VORLAGE traegt eine Bibliothek-Nummer (>= 0) oder ein Widget (-100 - Typ)
+constexpr int ablageWidget(int typ) { return -100 - typ; }
+constexpr int ablageTyp(int n) { return -100 - n; }
+// Vorgabegroesse eines neuen Elements (Punkt 12: das Modell aus den Menues der Spiele)
+ImVec2 widgetGroesse(int typ);
+void setzeAblageEin(int n, bool mitZiel, float zx, float zy);
+ImVec2 ablageGroesse(int n);
+void bildDazu(Dokument& d, bool mitZiel, float zx, float zy);
+
 // --- rc608 Punkt 5: Text an Ort und Stelle schreiben ---
 const Texte& vorschauTexte(Dokument& d);
 void eigeneTexteLesen(Dokument& d);
@@ -1950,14 +1962,38 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     if (z.pannt || (hover && leertaste)) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); }
     const float vx = (maus.x - o.x - ab.ox) / ab.sx;
     const float vy = (maus.y - o.y - ab.oy) / ab.sy;
-    if (ImGui::BeginDragDropTarget()) {   // M2: Vorlage aus der Bibliothek
-        if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("ME_VORLAGE")) {
+    // rc608 Punkt 11: Bibliothek und Widgets: Rahmen beim Ziehen, Einrasten, Ablegen genau dort (ein Undo-Schritt)
+    z.ablageAn = false;
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("ME_VORLAGE", ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
             int n = 0;
             std::memcpy(&n, pl->Data, sizeof(n));
-            setzeVorlageEin(static_cast<std::size_t>(std::max(0, n)), true, vx, vy);
+            const ImVec2 gr = ablageGroesse(n);
+            Rechteck r{std::round(vx), std::round(vy), gr.x, gr.y};
+            z.linien.clear();
+            if (mi >= 0 && !ImGui::GetIO().KeyAlt) {
+                std::vector<Rechteck> andere;
+                for (const Item& it : d.datei.menus[static_cast<std::size_t>(mi)].items) { andere.push_back(it.window.rect); }
+                for (const float x : z.hilfslinienX) { andere.push_back(Rechteck{x, 0, 0, 480}); }
+                for (const float y : z.hilfslinienY) { andere.push_back(Rechteck{0, y, 640, 0}); }
+                const Einrasten e = einrasten(r, andere, z.rasterWeite, 5.0F / std::max(0.01F, ab.sx), z.anRaster, z.anKanten);
+                r.x = std::round(r.x + e.dx);
+                r.y = std::round(r.y + e.dy);
+                z.linien = e.linien;
+            }
+            z.ablageAn = true;
+            z.ablageRect = r;
+            if (pl->IsDelivery()) {
+                z.ablageAn = false;
+                z.linien.clear();
+                if (n < 0 && ablageTyp(n) == -2) { bildDazu(d, true, r.x, r.y); }
+                else { setzeAblageEin(n, true, r.x, r.y); }
+            }
         }
         ImGui::EndDragDropTarget();
     }
+    if (z.ablageWar && !z.ablageAn && z.ziehen == Ziehen::Nichts) { z.linien.clear(); }   // abgebrochen oder von der Flaeche gezogen
+    z.ablageWar = z.ablageAn;
     if (mi < 0) {
         z.letztePrims = 0;
         return;
@@ -2368,6 +2404,11 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         }
         dl->PopClipRect();
         if (drin) { ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput); }
+    }
+    if (z.ablageAn) {   // rc608 Punkt 11: wo es landen wird
+        const auto [ra, rb] = bild(z.ablageRect);
+        dl->AddRectFilled(ra, rb, IM_COL32(60, 170, 255, 40));
+        dl->AddRect(ra, rb, IM_COL32(60, 170, 255, 255), 0, 0, 1.5F);
     }
     // rc608 Punkt 5: Doppelklick schreibt und zieht nie; gemeint ist das vorderste Element mit Text unter dem Zeiger
     if (!schreibt && hover && !leertaste && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !alleUnter.empty()) {
@@ -4806,9 +4847,17 @@ void zeichneVideoFenster() {
 
 
 // M2 modernes Aussehen: ein Bauteil als Kachel mit kleinem Bild der Art und Namen
-bool bauteilKachel(const char* name, int typ, ImVec2 groesse) {
-    const bool geklickt = ImGui::InvisibleButton(name, groesse);
+// rc608 Punkt 11: Ein Klick tut nichts, Doppelklick setzt ein (true), Ziehen legt auf der Flaeche ab
+bool bauteilKachel(const char* name, int typ, ImVec2 groesse, const char* hinweis) {
+    (void)ImGui::InvisibleButton(name, groesse);
     const bool ueber = ImGui::IsItemHovered();
+    const bool doppelt = ueber && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+    if (ImGui::BeginDragDropSource()) {
+        const int n = ablageWidget(typ);
+        ImGui::SetDragDropPayload("ME_VORLAGE", &n, sizeof(n));
+        ImGui::TextUnformatted(name, ImGui::FindRenderedTextEnd(name));
+        ImGui::EndDragDropSource();
+    }
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
     const ImGuiStyle& st = ImGui::GetStyle();
@@ -4874,19 +4923,25 @@ bool bauteilKachel(const char* name, int typ, ImVec2 groesse) {
     dl->PushClipRect(a, b, true);
     dl->AddText(ImVec2{std::max(a.x + 3, (a.x + b.x - tw) * 0.5F), b.y - fs * 1.35F}, c, name, ende);
     dl->PopClipRect();
-    if (ueber) { ImGui::SetTooltip("%s", name); }
-    return geklickt;
+    if (ueber && !ImGui::IsDragDropActive()) { ImGui::SetTooltip("%s", hinweis); }
+    return doppelt;
+}
+
+ImVec2 widgetGroesse(int typ) {
+    (void)typ;
+    return ImVec2{200, 40};
 }
 
 void zeichnePalette(Dokument& d) {
     struct W {
         int typ;
-        Str name;
+        Str name, tip;
     };
-    static const W w[] = {{ITEM_TYPE_TEXT, Str::MeWText},       {ITEM_TYPE_BUTTON, Str::MeWButton}, {-1, Str::MeWBild},
-                          {ITEM_TYPE_YESNO, Str::MeWJaNein},     {ITEM_TYPE_MULTI, Str::MeWMulti},   {ITEM_TYPE_SLIDER, Str::MeWSchieber},
-                          {ITEM_TYPE_EDITFIELD, Str::MeWEingabe}, {ITEM_TYPE_LISTBOX, Str::MeWListe}, {ITEM_TYPE_MODEL, Str::MeWModell},
-                          {ITEM_TYPE_BIND, Str::MeWTaste}};
+    static const W w[] = {{ITEM_TYPE_TEXT, Str::MeWText, Str::MeWTextTip},          {ITEM_TYPE_BUTTON, Str::MeWButton, Str::MeWButtonTip},
+                          {-1, Str::MeWBild, Str::MeWBildTip},                      {ITEM_TYPE_YESNO, Str::MeWJaNein, Str::MeWJaNeinTip},
+                          {ITEM_TYPE_MULTI, Str::MeWMulti, Str::MeWMultiTip},       {ITEM_TYPE_SLIDER, Str::MeWSchieber, Str::MeWSchieberTip},
+                          {ITEM_TYPE_EDITFIELD, Str::MeWEingabe, Str::MeWEingabeTip}, {ITEM_TYPE_LISTBOX, Str::MeWListe, Str::MeWListeTip},
+                          {ITEM_TYPE_MODEL, Str::MeWModell, Str::MeWModellTip},     {ITEM_TYPE_BIND, Str::MeWTaste, Str::MeWTasteTip}};
     ImGui::SeparatorText(tr(Str::MePalette));
     const float fs = ImGui::GetFontSize();
     const float abstand = ImGui::GetStyle().ItemSpacing.x;
@@ -4898,11 +4953,18 @@ void zeichnePalette(Dokument& d) {
         if (++nr % spalten != 0) { ImGui::SameLine(); }
     };
     for (const W& x : w) {
-        if (bauteilKachel(tr(x.name), x.typ, kachel)) { fuegeEin(x.typ); }
+        if (bauteilKachel(tr(x.name), x.typ, kachel, tr(x.tip))) { fuegeEin(x.typ); }
         weiter();
     }
-    if (bauteilKachel(tr(Str::MeBildDazu), -2, kachel)) {
-        const std::string pfad = platform::openFileDialog(tr(Str::MeBildDazu), "Images (*.png;*.jpg;*.tga)|*.png;*.jpg;*.jpeg;*.tga|", "");
+    if (bauteilKachel(tr(Str::MeBildDazu), -2, kachel, tr(Str::MeBildDazuTip))) { bildDazu(d, false, 0, 0); }
+    zeichneBibliothek(d);
+}
+
+// Bild von der Platte ins Paket und als neues Element (Doppelklick: Mitte, Ablegen: an die Stelle)
+void bildDazu(Dokument& d, bool mitZiel, float zx, float zy) {
+    Zustand& z = Z();
+    {
+        const std::string pfad = z.bildDialog ? z.bildDialog() : platform::openFileDialog(tr(Str::MeBildDazu), "Images (*.png;*.jpg;*.tga)|*.png;*.jpg;*.jpeg;*.tga|", "");
         if (!pfad.empty()) {
             std::ifstream f(utf8Pfad(pfad), std::ios::binary);
             std::ostringstream s;
@@ -4912,19 +4974,21 @@ void zeichnePalette(Dokument& d) {
             const std::string ext = kleinPfad(u8(utf8Pfad(pfad).extension()));
             const std::string spiel = "gfx/menus/" + base + (ext == ".jpeg" ? std::string(".jpg") : ext);
             d.bilder[spiel] = s.str();
-            Z().texturen.erase("gfx/menus/" + base);
-            fuegeEin(-1);
+            z.texturen.erase("gfx/menus/" + base);
+            const std::string vorher = d.puffer.text();
+            setzeAblageEin(ablageWidget(-1), mitZiel, zx, zy);
             const int mi = menuDerSeite(d);
             if (mi >= 0 && !d.datei.menus[static_cast<std::size_t>(mi)].items.empty()) {
                 eigenschaft(static_cast<int>(d.datei.menus[static_cast<std::size_t>(mi)].items.size()) - 1, "background",
                             {inAnf("gfx/menus/" + base)});
             }
+            (void)zuEinemSchritt(vorher);
+            neuParsen(d);
             char b[400];
             std::snprintf(b, sizeof(b), tr(Str::MeBildHinzu), u8(utf8Pfad(pfad).filename()).c_str(), spiel.c_str());
-            Z().meldung = b;
+            z.meldung = b;
         }
     }
-    zeichneBibliothek(d);
 }
 
 // --- M2 Punkt 4: Bauteil-Bibliothek --------------------------------------------------
@@ -4943,28 +5007,79 @@ const std::vector<Vorlage>& vorlagen() {
 }
 
 // Eine Vorlage einsetzen; mit Ziel (virtueller Bildschirm) an diese Stelle schieben.
-void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy) {
+// rc608 Punkt 11: Was man ablegt, ist eine Bibliothek-Nummer (>= 0) oder ein Widget (ablageWidget); ein Weg fuer beide.
+std::string ablageText(int n) {
     Dokument* d = doc();
-    const std::vector<Vorlage>& v = vorlagen();
-    if (d == nullptr || nr >= v.size()) { return; }
+    if (d == nullptr) { return {}; }
+    if (n >= 0) {
+        const std::vector<Vorlage>& v = vorlagen();
+        return static_cast<std::size_t>(n) < v.size() ? v[static_cast<std::size_t>(n)].text : std::string();
+    }
+    const int typ = ablageTyp(n);
+    const int mi = menuDerSeite(*d);
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(std::max(0, mi))];
+    const std::string basis = typ < 0 ? "image" : std::string(typName(typ)).substr(10);
+    std::string name = basis;
+    for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    const ImVec2 gr = widgetGroesse(typ);
+    const Rechteck r{static_cast<float>(220 - m.window.rect.x), static_cast<float>(200 - m.window.rect.y), gr.x, gr.y};
+    return itemVorlage(typ, d->datei.dialekt, name, r, "\t\t", d->puffer.zeilenUmbruch());
+}
+
+// Wie gross das Abgelegte wird (Umriss aller rect-Zeilen), fuer den Rahmen beim Ziehen
+ImVec2 ablageGroesse(int n) {
+    const std::string t = ablageText(n);
+    float x0 = 1e9F, y0 = 1e9F, x1 = -1e9F, y1 = -1e9F;
+    std::size_t p = 0;
+    while ((p = t.find("rect", p)) != std::string::npos) {
+        float a = 0, b = 0, c = 0, e = 0;
+        if (std::sscanf(t.c_str() + p + 4, " %f %f %f %f", &a, &b, &c, &e) == 4) {
+            x0 = std::min(x0, a);
+            y0 = std::min(y0, b);
+            x1 = std::max(x1, a + c);
+            y1 = std::max(y1, b + e);
+        }
+        p += 4;
+    }
+    return x1 > x0 ? ImVec2{x1 - x0, y1 - y0} : ImVec2{200, 40};
+}
+
+void setzeAblageEin(int n, bool mitZiel, float zx, float zy) {
+    Dokument* d = doc();
+    if (d == nullptr) { return; }
+    const std::string text = ablageText(n);
+    if (text.empty()) { return; }
     const std::string vorher = d->puffer.text();
-    fuegeItemsEin(v[nr].text);
+    fuegeItemsEin(text);
     neuParsen(*d);
     const int mi = menuDerSeite(*d);
     if (mi < 0 || d->auswahl.empty()) { return; }
     const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
-    if (mitZiel) {   // linke obere Ecke der eingesetzten Items an die Stelle des Loslassens
-        float lx = 1e9F, ly = 1e9F;
-        for (const int i : d->auswahl) {
-            if (i >= 0 && static_cast<std::size_t>(i) < m.items.size()) {
-                lx = std::min(lx, m.items[static_cast<std::size_t>(i)].window.rect.x);
-                ly = std::min(ly, m.items[static_cast<std::size_t>(i)].window.rect.y);
-            }
+    float lx = 1e9F, ly = 1e9F;
+    for (const int i : d->auswahl) {
+        if (i >= 0 && static_cast<std::size_t>(i) < m.items.size()) {
+            lx = std::min(lx, m.items[static_cast<std::size_t>(i)].window.rect.x);
+            ly = std::min(ly, m.items[static_cast<std::size_t>(i)].window.rect.y);
         }
+    }
+    if (mitZiel) {   // linke obere Ecke der eingesetzten Items an die Stelle des Loslassens
         if (lx < 1e8F) { verschiebeAuswahl(std::round(zx - lx), std::round(zy - ly)); }
+    } else if (lx < 1e8F) {
+        // Doppelklick: nicht uebereinanderstapeln, Versatz wie beim Einfuegen ueblich
+        float versatz = 0;
+        const auto belegt = [&](float x, float y) {
+            for (std::size_t i = 0; i < m.items.size(); ++i) {
+                if (std::find(d->auswahl.begin(), d->auswahl.end(), static_cast<int>(i)) != d->auswahl.end()) { continue; }
+                if (std::fabs(m.items[i].window.rect.x - x) < 1.0F && std::fabs(m.items[i].window.rect.y - y) < 1.0F) { return true; }
+            }
+            return false;
+        };
+        while (belegt(lx + versatz, ly + versatz) && versatz < 400.0F) { versatz += 20.0F; }
+        if (versatz > 0.0F) { verschiebeAuswahl(versatz, versatz); }
     }
     // Detailbereich: onOpen oeffnet Reiter 0 / Unterreiter 0
-    if (v[nr].id == "detail") {
+    const std::vector<Vorlage>& v = vorlagen();
+    if (n >= 0 && static_cast<std::size_t>(n) < v.size() && v[static_cast<std::size_t>(n)].id == "detail") {
         neuParsen(*d);
         const Menu& mm = d->datei.menus[static_cast<std::size_t>(mi)];
         const DetailOptionen o = beispielDetail();
@@ -4980,19 +5095,36 @@ void setzeVorlageEin(std::size_t nr, bool mitZiel, float zx, float zy) {
 void zeichneBibliothek(Dokument& d) {
     Zustand& z = Z();
     ImGui::SeparatorText(tr(Str::MeBibliothek));
+    // Was in einem Eintrag steckt: wie viele Elemente und was vorverdrahtet ist
+    const auto tippText = [](const Vorlage& v) {
+        int n = 0;
+        for (std::size_t p = v.text.find("itemDef"); p != std::string::npos; p = v.text.find("itemDef", p + 7)) { ++n; }
+        char b[120];
+        std::snprintf(b, sizeof(b), trN(Str::MeBtAnzahl, n), n);
+        std::string t = b;
+        if (!v.eigen) {
+            static const std::pair<const char*, Str> kTips[] = {{"knopf", Str::MeBtKnopfTip}, {"schieber", Str::MeBtSchieberTip}, {"reiter", Str::MeBtReiterTip},
+                                                                {"detail", Str::MeBtDetailTip}, {"liste", Str::MeBtListeTip}};
+            for (const auto& [id, str] : kTips) {
+                if (v.id == id) { t += std::string("\n") + tr(str); }
+            }
+        }
+        return t;
+    };
     const std::vector<Vorlage>& v = vorlagen();
     for (std::size_t i = 0; i < v.size(); ++i) {
-        static const Str namen[] = {Str::MeBtKnopf, Str::MeBtSchieber, Str::MeBtJaNein, Str::MeBtReiter, Str::MeBtDetail, Str::MeBtListe};
-        static const char* const ids[] = {"knopf", "schieber", "janein", "reiter", "detail", "liste"};
+        static const Str namen[] = {Str::MeBtKnopf, Str::MeBtSchieber, Str::MeBtReiter, Str::MeBtDetail, Str::MeBtListe};
+        static const char* const ids[] = {"knopf", "schieber", "reiter", "detail", "liste"};
         std::string anzeigeName = anzeige(v[i].name);
-        for (int k = 0; k < 6; ++k) {
+        for (int k = 0; k < 5; ++k) {
             if (!v[i].eigen && v[i].id == ids[k]) { anzeigeName = tr(namen[k]); }
         }
         if (v[i].eigen) { anzeigeName = "* " + anzeigeName; }
         ImGui::PushID(static_cast<int>(i));
         if (ImGui::Selectable(anzeigeName.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-            setzeVorlageEin(i, false, 0, 0);
+            setzeAblageEin(static_cast<int>(i), false, 0, 0);
         }
+        if (ImGui::IsItemHovered() && !ImGui::IsDragDropActive()) { ImGui::SetTooltip("%s", tippText(v[i]).c_str()); }
         if (ImGui::BeginDragDropSource()) {   // auf die Flaeche ziehen
             const int n = static_cast<int>(i);
             ImGui::SetDragDropPayload("ME_VORLAGE", &n, sizeof(n));
@@ -6154,6 +6286,16 @@ std::vector<ItemLage> itemLagen() {
     return v;
 }
 
+void setzeBildDialog(std::function<std::string()> antwort) { Z().bildDialog = std::move(antwort); }
+bool ablageRahmen(float* xywh) {
+    const Zustand& z = Z();
+    xywh[0] = z.ablageRect.x;
+    xywh[1] = z.ablageRect.y;
+    xywh[2] = z.ablageRect.w;
+    xywh[3] = z.ablageRect.h;
+    return z.ablageAn;
+}
+
 SchreibStand schreibStand() {
     const auto& s = Z().schreib;
     SchreibStand x;
@@ -6396,26 +6538,7 @@ void fuegeEin(int typ) {
     if (d == nullptr) { return; }
     const int mi = menuDerSeite(*d);
     if (mi < 0) { return; }
-    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
-    const std::string basis = typ < 0 ? "image" : std::string(typName(typ)).substr(10);
-    std::string name = basis;
-    for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-    name = freierName(m, name);
-    std::string einr = "\t\t";
-    if (!m.items.empty() && m.items.front().kopf.datei == 0) {
-        const std::string& t = d->puffer.text();
-        std::size_t a = m.items.front().anfang;
-        std::size_t s = a;
-        while (s > 0 && t[s - 1] != '\n') { --s; }
-        einr = t.substr(s, a - s);
-    }
-    const Rechteck r{static_cast<float>(220 - m.window.rect.x), static_cast<float>(200 - m.window.rect.y), 200, 40};
-    std::vector<Ersetzung> e;
-    if (itemEinfuegen(d->datei, mi, itemVorlage(typ, d->datei.dialekt, name, r, einr, d->puffer.zeilenUmbruch()), e)) {
-        aendere(std::move(e));
-        const int neu = static_cast<int>(d->datei.menus[static_cast<std::size_t>(mi)].items.size()) - 1;
-        waehle(neu, false);
-    }
+    setzeAblageEin(ablageWidget(typ), false, 0, 0);
 }
 
 int suche(const std::string& muster, bool regex) {
@@ -6820,7 +6943,7 @@ bool fuegeVorlageEin(const std::string& id, float x, float y) {
     const std::vector<Vorlage>& v = vorlagen();
     for (std::size_t i = 0; i < v.size(); ++i) {
         if (v[i].id == id) {
-            setzeVorlageEin(i, true, x, y);
+            setzeAblageEin(static_cast<int>(i), true, x, y);
             return true;
         }
     }

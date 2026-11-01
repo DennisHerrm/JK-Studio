@@ -25,7 +25,7 @@ MENUE1 = [
      "Kein Menü offen - eines aus dem Spiel oder einer Datei öffnen.",
      "没有打开的菜单——请从游戏或文件中打开一个。",
      "メニューが開かれていません。ゲームかファイルから開いてください。"),
-    ("MePalette", "Widgets", "Bauteile", "控件", "部品"),
+    ("MePalette", "Single elements", "Einzelne Elemente", "单个元素", "単一の要素"),
     ("MeGliederung", "Outline", "Gliederung", "大纲", "アウトライン"),
     ("MeEigenschaften", "Properties", "Eigenschaften", "属性", "プロパティ"),
     ("MeNichtsGewaehlt", "Nothing selected.", "Nichts ausgewählt.", "未选择任何内容。", "何も選択されていません。"),

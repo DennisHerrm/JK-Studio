@@ -160,11 +160,7 @@ std::vector<Vorlage> standardVorlagen(Dialekt d) {
                        {"cvarfloat", "\"s_volume\" 0.8 0 1"}, {"textalign", "ITEM_ALIGN_RIGHT"}, {"textalignx", "90"}, {"textaligny", "2"},
                        {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"visible", "1"}}),
                  false});
-    v.push_back({"janein", "Yes/No",
-                 item({{"name", "janein"}, {"type", "ITEM_TYPE_YESNO"}, {"rect", "200 280 240 24"}, {"text", anf("Option:")},
-                       {"cvar", anf("ui_option")}, {"textalign", "ITEM_ALIGN_RIGHT"}, {"textalignx", "90"}, {"textaligny", "2"},
-                       {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"visible", "1"}}),
-                 false});
+    // rc608 Punkt 11: Ein Eintrag "Yes/No" ist weg: Er unterschied sich vom einzelnen Element nur in der Ausrichtung des Textes.
     // Reiterleiste: drei Reiter, setzen ui_tab
     std::string reiter;
     for (int i = 0; i < 3; ++i) {

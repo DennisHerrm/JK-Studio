@@ -676,6 +676,171 @@ std::vector<Schritt> schritteHierarchie() {
     return s;
 }
 
+// Ein Element (Beschriftung) auf die Flaeche ziehen und an der virtuellen Stelle (vx, vy) ablegen
+Schritt zieheAufFlaeche(const std::string& label, float vx, float vy, std::function<void()> kurzVorDemLoslassen = {}) {
+    auto start = std::make_shared<ImVec2>();
+    return Schritt{"rc608 Ablegen: " + label, [=](int b) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (b == 0) {
+                           const Element* e = finde(label, "##links", 0, false);
+                           if (e == nullptr) {
+                               meldeFehler("rc608 Ablegen: " + label + " nicht gefunden");
+                               return true;
+                           }
+                           *start = e->rect.GetCenter();
+                           setzeMaus(*start);
+                           return false;
+                       }
+                       if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
+                       if (b >= 3 && b <= 7) { setzeMaus(ImVec2{start->x + 5.0F * static_cast<float>(b - 2), start->y + 3.0F * static_cast<float>(b - 2)}); return false; }
+                       if (b >= 8 && b <= 10) { setzeMaus(aufFlaeche(vx, vy)); return false; }
+                       if (b == 12) {
+                           if (kurzVorDemLoslassen) { kurzVorDemLoslassen(); }
+                           return false;
+                       }
+                       if (b == 13) { io.AddMouseButtonEvent(0, false); return false; }
+                       return b >= 17;
+                   }};
+}
+
+// rc608 Punkt 11 (shank: "warum kann ich die Libary sachen nehemn und rueber schieben aber die sachen oben ... nur doppel klicken")
+std::vector<Schritt> schritteAblegen() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto tiefe = std::make_shared<int>(0);
+    auto anzahl = std::make_shared<int>(0);
+    const auto merke = [tiefe, anzahl] {
+        return tu("rc608 Ablegen: Stand merken", [tiefe, anzahl] {
+            const auto x = me::stand();
+            *tiefe = x.undoSchritte;
+            *anzahl = x.items;
+        });
+    };
+    add(tu("rc608 Ablegen: leeres Menue", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ablegen.menu", "menuDef\n{\n  name \"ablegen\"\n  rect 0 0 640 480\n  visible 1\n}\n");
+        me::setzeInteraktion(false);
+    }));
+    add(pause(0.5));
+    // Ein Klick tut nichts
+    add(merke());
+    add(klick(tr(Str::MeWButton)));
+    add(pause(0.3));
+    add(pruefe("rc608 Ablegen: ein einfacher Klick auf ein Widget setzt nichts ein", [anzahl] { return me::stand().items == *anzahl; }));
+    // Jedes Widget auf die Flaeche
+    struct W { Str name; float x, y; const char* typ; };
+    static const W kWidgets[] = {{Str::MeWText, 20, 30, "ITEM_TYPE_TEXT"},       {Str::MeWButton, 240, 30, "ITEM_TYPE_BUTTON"}, {Str::MeWBild, 450, 30, "WINDOW_STYLE_SHADER"},
+                                 {Str::MeWJaNein, 20, 110, "ITEM_TYPE_YESNO"},   {Str::MeWMulti, 240, 110, "ITEM_TYPE_MULTI"},  {Str::MeWSchieber, 450, 110, "ITEM_TYPE_SLIDER"},
+                                 {Str::MeWEingabe, 20, 190, "ITEM_TYPE_EDITFIELD"}, {Str::MeWListe, 240, 190, "ITEM_TYPE_LISTBOX"}, {Str::MeWModell, 450, 190, "ITEM_TYPE_MODEL"},
+                                 {Str::MeWTaste, 20, 270, "ITEM_TYPE_BIND"}};
+    for (const W& w : kWidgets) {
+        const std::string label = tr(w.name);
+        const float x = w.x, y = w.y;
+        const std::string typ = w.typ;
+        add(merke());
+        auto rahmen = std::make_shared<std::array<float, 4>>();
+        auto zeigt = std::make_shared<bool>(false);
+        add(zieheAufFlaeche(label, x, y, [rahmen, zeigt] { *zeigt = me::ablageRahmen(rahmen->data()); }));
+        add(pause(0.1));
+        add(pruefe("rc608 Ablegen: " + label + " liegt genau an der Stelle, gewaehlt, ein Schritt, mit Rahmen beim Ziehen", [=] {
+            const auto st = me::stand();
+            const std::vector<me::ItemLage> l = me::itemLagen();
+            if (st.items != *anzahl + 1 || l.empty() || st.undoSchritte != *tiefe + 1 || st.auswahl.size() != 1) {
+                diag::info("Knopftest: Ablegen " + label + ": Elemente " + std::to_string(st.items) + ", Undo " + std::to_string(st.undoSchritte - *tiefe));
+                return false;
+            }
+            const me::ItemLage& n = l[static_cast<std::size_t>(st.auswahl[0])];
+            diag::info("Knopftest: Ablegen " + label + " auf " + std::to_string(n.x) + ", " + std::to_string(n.y) + ", Rahmen " + std::to_string((*rahmen)[0]) + ", " + std::to_string((*rahmen)[1]));
+            return *zeigt && std::fabs(n.x - x) <= 6.0F && std::fabs(n.y - y) <= 6.0F && std::fabs(n.x - (*rahmen)[0]) < 0.5F && std::fabs(n.y - (*rahmen)[1]) < 0.5F &&
+                   st.text.find(typ) != std::string::npos;
+        }));
+    }
+    add(foto("menue_ablegen"));
+    // Bild hinzufuegen: der Dateidialog kommt beim Ablegen, das Bild liegt an der Stelle
+    const std::string bildPfad = (std::filesystem::path(platform::settingsDirectory()) / "probebild.tga").string();
+    add(tu("rc608 Ablegen: Dateidialog ersetzen", [bildPfad] {
+        std::ofstream f(bildPfad, std::ios::binary);
+        const unsigned char tga[] = {0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 24, 0, 255, 255, 255};
+        f.write(reinterpret_cast<const char*>(tga), sizeof(tga));
+        f.close();
+        me::setzeBildDialog([bildPfad] { return bildPfad; });
+    }));
+    add(merke());
+    add(zieheAufFlaeche(tr(Str::MeBildDazu), 240, 270));
+    add(pause(0.2));
+    add(pruefe("rc608 Ablegen: Bild hinzufuegen legt ab, ein Schritt", [tiefe, anzahl] {
+        const auto st = me::stand();
+        const std::vector<me::ItemLage> l = me::itemLagen();
+        return st.items == *anzahl + 1 && st.undoSchritte == *tiefe + 1 && !st.auswahl.empty() && std::fabs(l[static_cast<std::size_t>(st.auswahl[0])].x - 240.0F) <= 6.0F &&
+               st.text.find("gfx/menus/probebild") != std::string::npos;
+    }));
+    add(tu("rc608 Ablegen: Dateidialog zurueck", [] { me::setzeBildDialog({}); }));
+    // Einrasten beim Ablegen: 2 Punkte neben der Kante des Textes rastet ein
+    add(merke());
+    add(zieheAufFlaeche(tr(Str::MeWButton), 22, 350));
+    add(pause(0.1));
+    add(pruefe("rc608 Ablegen: rastet an der Kante ein", [] {
+        const auto st = me::stand();
+        const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
+        diag::info("Knopftest: eingerastet auf " + std::to_string(n.x));
+        return std::fabs(n.x - 20.0F) < 0.5F;
+    }));
+    // Bei Zoom: genau dort
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
+    add(pause(0.2));
+    add(merke());
+    add(zieheAufFlaeche(tr(Str::MeWText), 330, 417));
+    add(pause(0.1));
+    add(pruefe("rc608 Ablegen: bei 100 % genau dort", [] {
+        const auto st = me::stand();
+        const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
+        diag::info("Knopftest: bei 100 %: " + std::to_string(n.x) + ", " + std::to_string(n.y) + ", Zoom " + std::to_string(st.zoomProzent));
+        return st.zoomProzent == 100 && std::fabs(n.x - 330.0F) <= 6.0F && std::fabs(n.y - 417.0F) <= 6.0F;
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_0, "Strg+0"));
+    add(pause(0.2));
+    // Doppelklick: in die Mitte, ohne Stapel
+    auto erstes = std::make_shared<std::array<float, 2>>();
+    add(tu("rc608 Ablegen: frisches Menue", [] { (void)me::oeffneText("mitte.menu", "menuDef\n{\n  name \"mitte\"\n  rect 0 0 640 480\n  visible 1\n}\n"); }));
+    add(pause(0.3));
+    add(merke());
+    const auto doppelKachel = [](Str name) {
+        return klickAn("rc608 Ablegen: Doppelklick auf " + std::string(tr(name)), [name] {
+            const Element* e = finde(tr(name), "##links", 0, false);
+            return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+        }, 0, true);
+    };
+    add(doppelKachel(Str::MeWButton));
+    add(pause(0.2));
+    add(pruefe("rc608 Ablegen: Doppelklick setzt ein, ein Schritt", [tiefe, anzahl, erstes] {
+        const auto st = me::stand();
+        if (st.items != *anzahl + 1 || st.undoSchritte != *tiefe + 1) { return false; }
+        const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
+        *erstes = {n.x, n.y};
+        return true;
+    }));
+    add(doppelKachel(Str::MeWButton));
+    add(pause(0.2));
+    add(pruefe("rc608 Ablegen: der zweite Doppelklick stapelt nicht", [erstes] {
+        const auto st = me::stand();
+        const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
+        diag::info("Knopftest: zweiter Doppelklick " + std::to_string(n.x) + ", " + std::to_string(n.y));
+        return std::fabs(n.x - (*erstes)[0] - 20.0F) < 0.5F && std::fabs(n.y - (*erstes)[1] - 20.0F) < 0.5F;
+    }));
+    // Bibliothek: derselbe Weg
+    add(merke());
+    add(zieheAufFlaeche(tr(Str::MeBtReiter), 100, 300));
+    add(pause(0.2));
+    add(pruefe("rc608 Ablegen: Bibliothek auf dieselbe Weise, ein Schritt, drei Elemente", [tiefe, anzahl] {
+        const auto st = me::stand();
+        return st.items == *anzahl + 3 && st.undoSchritte == *tiefe + 1;
+    }));
+    add(tu("rc608 Ablegen: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

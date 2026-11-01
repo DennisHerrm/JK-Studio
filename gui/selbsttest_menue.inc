@@ -2681,6 +2681,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=ablegen: Widgets und Bibliothek per Ziehen (rc608 Punkt 11)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "ablegen") == 0) {
+        for (auto& x : schritteAblegen()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=reiter: die Reiter der rechten Spalte (rc608 Punkt 1)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "reiter") == 0) {
         for (auto& x : schritteReiter()) { add(std::move(x)); }
