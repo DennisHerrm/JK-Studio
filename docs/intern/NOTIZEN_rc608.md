@@ -212,6 +212,7 @@ Kein Unterschied, nur der Augenblick: die Griffe mit dem Ring (im Spiel dreht er
 ### Abschluss Teil 2: voller Lauf, Handbuchtexte, Reste
 - `missionsbau` einmal nach dem Umbau der Start-Bauteile: 95/95, gruen ohne Aenderung.
 - Der volle Lauf `menueeditor` enthaelt jetzt alle Schritte von rc608. Erster Lauf: 31 Fehler, alle im Test, keiner im Programm: Abschnitt Layout liegt unter den neuen Feldern und war ausserhalb des Bilds (M5, jetzt wird gerollt); das Klangfeld heisst `##klickklang`, die Beschriftung steht darueber (M5); Griffe des Modells sind eine Reihe oben links (M7); zwei Druecke an derselben Stelle waren ein Doppelklick und schrieben (`ziehFlaeche` wartet jetzt die Doppelklickzeit ab); die Zoomstufen begannen ausserhalb der Mitte, weil die rechte Spalte breiter ist und die Flaeche je Sprache anders breit (jetzt Strg+0, Strg+1, dann `frei` in die Mitte); das Referenzbild aus M6 lag unter allen spaeteren Fotos (wird entfernt).
+- Ergebnis am Ende: voller Lauf 1054/1054 mit Movie Duels (en, de, zh-Hans vor der letzten Testaenderung) und mit JKA; ja hatte vor der letzten Testaenderung 4 Fehler in der Zoomstufe 800 % (das Element ragte aus der Flaeche), danach `zoom` mit ja und en 85/85; es wurde abgebrochen, cs lief nicht (Abbruch der Bilder auf Wunsch von shank). JK2: `felder` 18/18, `modell` 9/9, `leer` 5/5, dort zuerst 5 Testfehler (JK2 hat keine Animationsliste, das Logo steht auf 90 Grad). `missionsbau` 95/95, `hierarchie` 14/14, ctest 192/192 (dabei `src/hilfe_orte.inc` neu erzeugt).
 - Handbuchtexte in 6 Sprachen stehen (Widgets und fertige Bauteile, Zoom, Mauszeiger, Schreiben an Ort und Stelle, Properties je Typ, Modell-Knoepfe und Reihenfolge von `model_g2anim`, Hierarchie, Events, leeres Menue, Alt+Z, base liest mit, Changelog nach Bereichen). `gen_handbuch.py` liest jetzt auch `i18n_rc608.py`.
 - Handbuchbilder: nach Wunsch von shank nicht aufgenommen, sie kommen einmal am Ende von Teil 3, weil dort die rechte Leiste neu gebaut wird. Bis dahin zeigen die Bilder des Menue-Editors den alten Stand (`type` als Auswahl, Reiter "Text", Griffe am Modell auf den Kanten), die Bildunterschrift von `menue_gizmo` beschreibt schon die neue Reihe. Neue Bilder fuer Teil 3 vorgemerkt, die Fotos gibt es schon im Selbsttest: `menue_schreiben_tippen`, `menue_ablegen`, `menue_properties_anim_gewaehlt`, `menue_leer_schalter`, `menue_hierarchie_seite` (ohne die Einblendungen aus dem Schreiben-Test), `menue_events_breit`.
 - Tutorials: nach Wunsch von shank in Teil 3 einmal komplett. Hier nur Schritt "Drei Knoepfe" von "Dein erstes eigenes Menue", weil Einzelklick seit Punkt 11 nichts einfuegt und der Test rot blieb.
@@ -230,7 +231,11 @@ Aus dem JK2-Vergleich, nicht behoben (Kontaktboegen in `SP/rc608/jk2/`):
 Weiter offen:
 - Die Ausgabe von `--version` und unbekannten Schaltern ist nach Auftrag nicht mit der echten exe gelaufen (Konsole, Umleitung, Meldungsfenster).
 - Liste "Zuletzt bearbeitet" fuer Menue-Projekte: gibt es nicht, waere ein eigener Wunsch.
-- Teil 2, Punkt 6 (Umbenennen) ist hier erledigt, die uebrigen Punkte von Teil 2 nicht begonnen.
+- Handbuchbilder und Tutorials des Menue-Editors: einmal am Ende von Teil 3.
+- Punkt 9 im laufenden Spiel (academy1, md_am_sith beginnen mit Zwischensequenz), MP in der Partie, Original-JKA/JK2 (Steam nicht angemeldet).
+- `gfx/menus/menu_box1` (Punkt 15) nicht im Spiel fotografiert.
+- Punkt 5: Kopieren/Einfuegen und Bild-Auf/Ab beim Schreiben nicht getestet; ein schon eigener @-Text aendert sich ohne Undo-Schritt, die Einblendung sagt das.
+- Punkt 14: selbst gebaute `animation.cfg` nicht getestet. Punkt 12: Figur auf dem Foto der Vorschau etwas dunkler als im Spiel, nicht untersucht.
 
 ## English
 - Menu editor: new start screen in the style of the Mission tab, with the format choice explained.

@@ -948,7 +948,13 @@ std::vector<Schritt> schritteModell() {
         const std::size_t p = x.text.find("model_angle");
         const std::string zeile = p == std::string::npos ? std::string() : x.text.substr(p, x.text.find('\n', p) - p);
         diag::info("Knopftest: " + zeile);
-        return x.undoSchritte == *tiefe + 1 && zeile.find("210") != std::string::npos && x.text.size() == text->size();
+        const auto winkel = [](const std::string& t) {
+            const std::size_t w = t.find("model_angle");
+            return w == std::string::npos ? -1 : std::atoi(t.c_str() + w + 11);
+        };
+        // Sonst aendert sich nichts: die Datei waechst hoechstens um die Ziffern des Winkels (JK2: 90 -> 120)
+        const std::size_t ziffernVorher = std::to_string(winkel(*text)).size(), ziffernNachher = std::to_string(winkel(x.text)).size();
+        return x.undoSchritte == *tiefe + 1 && winkel(x.text) == winkel(*text) + 30 && x.text.size() + ziffernVorher == text->size() + ziffernNachher;
     }));
     add(foto("menue_modell_gedreht"));
     add(tu("rc608 Modell: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
@@ -1043,25 +1049,32 @@ std::vector<Schritt> schritteFelderJeTyp() {
     add(pruefe("rc608 Felder: die Warnung nennt die Reihenfolge", [] { return me::stand().text.find("model_g2anim") > me::stand().text.find("asset_model"); }));
     auto tiefe = std::make_shared<int>(0);
     add(tu("rc608 Felder: Undo-Tiefe merken", [tiefe] { *tiefe = me::stand().undoSchritte; }));
-    add(klick(tr(Str::MeModellAnimWaehlen)));
+    const auto nichtJk2 = [](Schritt x) {
+        const std::function<bool(int)> f = x.tun;
+        x.tun = [f](int b) { return me::stand().spiel == 1 ? true : f(b); };
+        return x;
+    };
+    add(nichtJk2(klick(tr(Str::MeModellAnimWaehlen))));
     add(pause(0.3));
     add(foto("menue_properties_animliste"));
-    add(tippe("BOTH_STAND1"));
+    add(nichtJk2(tippe("BOTH_STAND1")));
     add(pause(0.3));
-    add(klick("BOTH_STAND1"));
+    add(nichtJk2(klick("BOTH_STAND1")));
     add(pause(1.0));
-    add(pruefe("rc608 Felder: Animation gewaehlt: Zeile vor asset_model, ein Undo-Schritt", [tiefe] {
+    add(nichtJk2(pruefe("rc608 Felder: Animation gewaehlt: Zeile vor asset_model, ein Undo-Schritt", [tiefe] {
         const auto x = me::stand();
         const std::size_t a = x.text.find("BOTH_STAND1"), m = x.text.find("asset_model");
         diag::info("Knopftest: Anim an " + std::to_string(a) + ", Modell an " + std::to_string(m) + ", Undo " + std::to_string(x.undoSchritte - *tiefe));
         return a != std::string::npos && a < m && x.text.find("BOTH_WALK1") == std::string::npos && x.undoSchritte == *tiefe + 1;
-    }));
+    })));
     add(foto("menue_properties_anim_gewaehlt"));
     add(pruefe("rc608 Felder: was die Modell-Gruppe zeigt, steht nicht doppelt unten; keine doppelten Kennungen", [] {
         const std::vector<std::string> w = me::weitereEintraege();
         for (const std::string& z : w) { diag::info("Knopftest: weiter unten: " + z); }
         for (const elemente::IdKonflikt& k : elemente::idKonflikte()) { diag::info("Knopftest: doppelte Kennung in " + k.fenster + " bei " + std::to_string(k.rect.Min.x) + ", " + std::to_string(k.rect.Min.y)); }
-        return std::none_of(w.begin(), w.end(), [](const std::string& z) { return z.rfind("model_", 0) == 0 || z.rfind("asset_", 0) == 0; }) && elemente::idKonflikte().empty();
+        // JK2: model_g2anim wertet das Spiel nicht aus, es gehoert nach unten
+        const bool doppelt = me::stand().spiel != 1 && std::any_of(w.begin(), w.end(), [](const std::string& z) { return z.rfind("model_", 0) == 0 || z.rfind("asset_", 0) == 0; });
+        return !doppelt && elemente::idKonflikte().empty();
     }));
     add(tu("rc608 Felder: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
     add(pause(0.3));
