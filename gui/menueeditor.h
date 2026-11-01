@@ -102,6 +102,13 @@ struct BildZeile {
 [[nodiscard]] std::vector<BildZeile> bildTabelle();
 // rc608 Punkt 12 (Selbsttest): die Griffe des gewaehlten Modells auf dem Bildschirm (Mitte x, y; Kantenlaenge g); false = keins gewaehlt
 [[nodiscard]] bool modellGriffe(float* xy8, float* g);
+// rc608 Punkt 2 (Selbsttest): der Text-Editor im letzten Bild
+struct TextAnsicht {
+    long long zeichen = 0;
+    float scrollX = 0, breiteste = 0, flaeche = 0;
+    float balken[4] = {0, 0, 0, 0};
+};
+[[nodiscard]] TextAnsicht textAnsicht();
 // rc608 Punkt 13 (Selbsttest): die Breiten der Spalten (Bildpunkte); was daraus wird, begrenzt das Programm
 void setzeSpalten(float links, float rechts);
 [[nodiscard]] float rechteSpalte();

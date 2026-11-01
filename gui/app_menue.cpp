@@ -326,6 +326,11 @@ struct Zustand {
     float codeHoehe = 0;
     float linksBreite = 0, rechtsBreite = 0;
     bool pannt = false;   // rc608 Punkt 4: die Ansicht wird gerade verschoben
+    bool balkenZieht = false;   // rc608 Punkt 2: der waagerechte Rollbalken des Text-Editors
+    float balkenGriff = 0;
+    ImRect balkenRect;
+    long long sichtbareZeichen = 0;
+    float textBreiteste = 0, textFlaeche = 0;
     std::vector<std::string> felderGezeigt;   // rc608 Punkt 14: die Felder der Properties im letzten Bild
     std::vector<std::string> weitereEintraege;
     std::string listenFilter;
@@ -2942,6 +2947,10 @@ void codeTasten(Dokument& d) {
         if (taste(ImGuiKey_Escape)) { z.vervollOffen = false; return; }
     }
     // rc608: erst vor dem naechsten Bild - der Editor zeichnet gerade aus dem jetzigen Text
+    if (io.KeyAlt && !strg && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {   // rc608 Punkt 2: wie in VS Code; aendert nur die Anzeige, nicht die Datei
+        g_app->settings.menueUmbruch = !g_app->settings.menueUmbruch;
+        return;
+    }
     if (strg && !um && taste(ImGuiKey_Z)) { z.undoWunsch = -1; return; }
     if (strg && (taste(ImGuiKey_Y) || (um && taste(ImGuiKey_Z)))) { z.undoWunsch = 1; return; }
     if (strg && taste(ImGuiKey_A)) { p.allesWaehlen(); return; }
@@ -4125,7 +4134,7 @@ void zeichneCode(Dokument& d) {
     ImGui::InvisibleButton("##codeflaeche", ImVec2{std::max(1.0F, bereich.x), std::max(1.0F, bereich.y)});
     const bool hover = ImGui::IsItemHovered();
     // rc608 Punkt 16: ueber dem Text der Text-Cursor, im Zeilenrand und ueber der Minimap der Pfeil
-    if (hover && io.MousePos.x >= textX && io.MousePos.x < textX + textB) { ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput); }
+    if (hover && io.MousePos.x >= textX && io.MousePos.x < textX + textB && !z.balkenRect.Contains(io.MousePos)) { ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput); }
     if (ImGui::IsItemActivated()) { z.codeFokus = true; }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !hover && !ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
         z.codeFokus = false;
@@ -4357,10 +4366,37 @@ void zeichneCode(Dokument& d) {
         }
     }
     dl->PopClipRect();
-    // ohne Umbruch: wie weit seitwaerts (duenner Balken unten)
+    // rc608 Punkt 2: ohne Umbruch ein richtiger Rollbalken unten (Umschalt+Mausrad oder daran ziehen)
     if (!umbruch && breiteste > textB) {
+        const float dicke = std::floor(fs * 0.6F);
         const float a = d.scrollX / breiteste, b = std::min(1.0F, (d.scrollX + textB) / breiteste);
-        dl->AddRectFilled(ImVec2{textX + a * textB, o.y + bereich.y - 3}, ImVec2{textX + b * textB, o.y + bereich.y}, IM_COL32(255, 255, 255, 60));
+        const float by = o.y + bereich.y - dicke;
+        const bool imBalken = maus.y >= by && maus.y <= o.y + bereich.y && maus.x >= textX && maus.x <= textX + textB;
+        if (hover && imBalken && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            z.balkenZieht = true;
+            z.balkenGriff = maus.x >= textX + a * textB && maus.x <= textX + b * textB ? maus.x - (textX + a * textB) : (b - a) * textB * 0.5F;
+        }
+        if (z.balkenZieht) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) { d.scrollX = std::max(0.0F, (maus.x - z.balkenGriff - textX) / textB * breiteste); }
+            else { z.balkenZieht = false; }
+        }
+        z.balkenRect = ImRect(ImVec2{textX, by}, ImVec2{textX + textB, by + dicke});
+        dl->AddRectFilled(ImVec2{textX, by}, ImVec2{textX + textB, by + dicke}, IM_COL32(255, 255, 255, 18));
+        dl->AddRectFilled(ImVec2{textX + a * textB, by}, ImVec2{textX + b * textB, by + dicke}, IM_COL32(255, 255, 255, z.balkenZieht || imBalken ? 150 : 90), dicke * 0.5F);
+    } else {
+        z.balkenRect = ImRect();
+    }
+    // Selbsttest: wie viele Zeichen gerade zu sehen sind (Vorgabe Umbruch an oder aus)
+    {
+        long long zeichen = 0;
+        const int spalten = static_cast<int>(textB / std::max(1.0F, leer));
+        for (int r = erste; r < reihenN && r < erste + proSeite; ++r) {
+            const Reihe& q = reihen[static_cast<std::size_t>(r)];
+            zeichen += umbruch ? q.e - q.a : std::min(q.e - q.a, spalten);
+        }
+        z.sichtbareZeichen = zeichen;
+        z.textBreiteste = breiteste;
+        z.textFlaeche = textB;
     }
     // Minimap (logische Zeilen)
     if (miniB > 0) {
@@ -6407,7 +6443,8 @@ void zeichneInnen(float hoehe) {
     Settings& st = g_app->settings;
     (void)hoehe;
     if (z.linksBreite <= 0) { z.linksBreite = fs * 13; }
-    if (z.rechtsBreite <= 0) { z.rechtsBreite = st.menueRechtsBreite > 0 ? st.menueRechtsBreite * fs : fs * (st.menueTextUnten ? 19 : 28); }
+    // rc608 Punkt 2 (shank: "das bringt fast gar nichts weil ich viel zu wenig sehe"): ab Werk so breit, dass die Werte zu lesen sind; die gezogene Breite bleibt
+    if (z.rechtsBreite <= 0) { z.rechtsBreite = st.menueRechtsBreite > 0 ? st.menueRechtsBreite * fs : (st.menueTextUnten ? fs * 19 : std::min(fs * 36.0F, rest.x * 0.42F)); }
     // rc608 Punkt 13 (shank: "ich kann auch rechts viel zu klein scalen das ich die Zahlen nicht mehr sehe"): Mindestbreiten, die Flaeche behaelt ihren Platz
     const float linksMin = fs * 11.0F, rechtsMin = fs * 16.0F, mitteMin = fs * 20.0F;
     const float linksMax = std::max(linksMin, rest.x * 0.4F);
@@ -6629,6 +6666,20 @@ bool modellGriffe(float* xy8, float* g) {
     }
     *g = gizmoGroesse();
     return true;
+}
+
+TextAnsicht textAnsicht() {
+    const Zustand& z = Z();
+    TextAnsicht t;
+    t.zeichen = z.sichtbareZeichen;
+    t.breiteste = z.textBreiteste;
+    t.flaeche = z.textFlaeche;
+    if (const Dokument* d = doc()) { t.scrollX = d->scrollX; }
+    t.balken[0] = z.balkenRect.Min.x;
+    t.balken[1] = z.balkenRect.Min.y;
+    t.balken[2] = z.balkenRect.GetWidth();
+    t.balken[3] = z.balkenRect.GetHeight();
+    return t;
 }
 
 void setzeSpalten(float links, float rechts) {

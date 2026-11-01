@@ -1170,6 +1170,115 @@ std::vector<Schritt> schritteBreiten() {
     return s;
 }
 
+// rc608 Punkt 2 (shank: "das bringt fast gar nichts weil ich viel zu wenig sehe")
+std::vector<Schritt> schritteTextBreite() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto skala = std::make_shared<float>(1.0F);
+    auto groesse = std::make_shared<std::pair<int, int>>(0, 0);
+    add(tu("rc608 Textbreite: Menue aus dem Spiel, Reiter Text-Editor", [skala, groesse] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        g_app->settings.menueRechtsBreite = 0.0F;
+        g_app->settings.menueUmbruch = false;
+        me::setzeSpalten(0.0F, 0.0F);
+        (void)me::oeffneAusSpiel("ui/ingameforceselect.menu");
+        me::setzeReiter(1);
+        *skala = g_app->uiScale;
+        *groesse = platform::hauptfensterGroesse(1920, 1080);
+    }));
+    add(pause(1.0));
+    add(foto("menue_texteditor_vorgabe"));
+    // Bei jeder Fenstergroesse und Oberflaeche: Text-Editor brauchbar, die Flaeche nicht unbenutzbar klein
+    struct Masz { int b, h; float zoom; };
+    static const Masz kMasse[] = {{1920, 1080, 1.0F}, {1920, 1080, 2.0F}, {2560, 1600, 1.0F}, {2560, 1600, 2.0F}};
+    for (const Masz& m : kMasse) {
+        const std::string was = std::to_string(m.b) + " x " + std::to_string(m.h) + ", " + std::to_string(static_cast<int>(m.zoom * 100.0F)) + " %";
+        const Masz q = m;
+        add(tu("rc608 Textbreite: " + was, [q] {
+            (void)platform::hauptfensterGroesse(q.b, q.h);
+            g_app->uiScale = q.zoom;
+            me::setzeSpalten(0.0F, 0.0F);
+            g_app->settings.menueRechtsBreite = 0.0F;
+        }));
+        add(pause(0.8));
+        add(pruefe("rc608 Textbreite: " + was + ": rechtes Feld brauchbar, Flaeche bleibt", [was] {
+            const float fs = ImGui::GetFontSize();
+            const auto x = me::stand();
+            diag::info("Knopftest: Textbreite " + was + ": rechts " + std::to_string(me::rechteSpalte() / fs) + " Schrifthoehen, Flaeche " + std::to_string(x.flaeche[2] / fs) + " Schrifthoehen, Text " + std::to_string(me::textAnsicht().flaeche / fs));
+            // In Bildpunkten: Bei 200 % auf 1920 Punkten passen nur 40 Schrifthoehen in die Breite; 320 Punkte sind die halbe Spielflaeche, Zoom und Verschieben helfen weiter
+            return me::rechteSpalte() >= fs * 16.0F - 0.5F && x.flaeche[2] >= 320.0F;
+        }));
+    }
+    add(tu("rc608 Textbreite: zurueck", [skala, groesse] {
+        g_app->uiScale = *skala;
+        if (groesse->first > 0) { (void)platform::hauptfensterGroesse(groesse->first, groesse->second); }
+        me::setzeSpalten(0.0F, 0.0F);
+        g_app->settings.menueRechtsBreite = 0.0F;
+    }));
+    add(pause(0.8));
+    // Welche Vorgabe zeigt mehr?
+    auto ohne = std::make_shared<long long>(0);
+    add(pruefe("rc608 Textbreite: Zeichen ohne Umbruch messen", [ohne] {
+        *ohne = me::textAnsicht().zeichen;
+        return *ohne > 0;
+    }));
+    // Alt+Z schaltet um, die Datei bleibt
+    auto text = std::make_shared<std::string>();
+    add(tu("rc608 Textbreite: Text merken", [text] { *text = me::stand().text; }));
+    add(klickAn("rc608 Textbreite: in den Text", [] { return fensterMitte("/##code_"); }));
+    add(pause(0.2));
+    add(tasteMit(ImGuiMod_Alt, ImGuiKey_Z, "Alt+Z"));
+    add(pause(0.3));
+    add(pruefe("rc608 Textbreite: Alt+Z schaltet den Umbruch ein, die Datei bleibt", [text, ohne] {
+        const long long mit = me::textAnsicht().zeichen;
+        diag::info("Knopftest: sichtbare Zeichen ohne Umbruch " + std::to_string(*ohne) + ", mit " + std::to_string(mit));
+        // Die Vorgabe ist, was mehr zeigt
+        return g_app->settings.menueUmbruch && me::stand().text == *text && mit > *ohne && Settings{}.menueUmbruch;
+    }));
+    add(foto("menue_texteditor_umbruch"));
+    add(tasteMit(ImGuiMod_Alt, ImGuiKey_Z, "Alt+Z"));
+    add(pause(0.3));
+    add(pruefe("rc608 Textbreite: Alt+Z schaltet zurueck", [] { return !g_app->settings.menueUmbruch; }));
+    // Waagerecht rollen: schmal, lange Zeile, Rollbalken und Umschalt+Mausrad
+    add(tu("rc608 Textbreite: schmal", [] { me::setzeSpalten(0.0F, 1.0F); }));
+    add(pause(0.3));
+    add(pruefe("rc608 Textbreite: schmal gibt es einen sichtbaren Rollbalken", [] {
+        const me::TextAnsicht t = me::textAnsicht();
+        diag::info("Knopftest: Balken " + std::to_string(t.balken[2]) + " x " + std::to_string(t.balken[3]) + ", breiteste " + std::to_string(t.breiteste) + ", Flaeche " + std::to_string(t.flaeche));
+        return t.breiteste > t.flaeche && t.balken[2] > 0.0F && t.balken[3] >= 6.0F;
+    }));
+    add(foto("menue_texteditor_rollbalken"));
+    add(Schritt{"rc608 Textbreite: Umschalt+Mausrad", [](int b) {
+                    ImGuiIO& io = ImGui::GetIO();
+                    if (b == 0) { setzeMaus(fensterMitte("/##code_")); return false; }
+                    if (b == 2) { io.AddKeyEvent(ImGuiMod_Shift, true); return false; }
+                    if (b == 3) { io.AddMouseWheelEvent(0.0F, -3.0F); return false; }
+                    if (b == 5) { io.AddKeyEvent(ImGuiMod_Shift, false); return false; }
+                    return b >= 8;
+                }});
+    add(pruefe("rc608 Textbreite: Umschalt+Mausrad rollt seitwaerts", [] {
+        diag::info("Knopftest: scrollX " + std::to_string(me::textAnsicht().scrollX));
+        return me::textAnsicht().scrollX > 0.0F;
+    }));
+    auto vorher = std::make_shared<float>(0.0F);
+    add(tu("rc608 Textbreite: scrollX merken", [vorher] { *vorher = me::textAnsicht().scrollX; }));
+    add(ziehenAn("rc608 Textbreite: am Rollbalken", [] {
+        const me::TextAnsicht t = me::textAnsicht();
+        return ImVec2{t.balken[0] + t.balken[2] * 0.2F, t.balken[1] + t.balken[3] * 0.5F};
+    }, 60.0F, 0.0F, 0));
+    add(pause(0.2));
+    add(pruefe("rc608 Textbreite: der Rollbalken rollt", [vorher] { return me::textAnsicht().scrollX > *vorher; }));
+    add(tu("rc608 Textbreite: aufraeumen", [] {
+        me::setzeSpalten(0.0F, 0.0F);
+        g_app->settings.menueRechtsBreite = 0.0F;
+        me::schliesseAlleOhneSpeichern();
+        me::setzeReiter(0);
+    }));
+    return s;
+}
+
 // rc608 Punkt 17 (Tester: "I need a replace all option when I do CTRL+F. Like how it is in the scripts section")
 std::vector<Schritt> schritteErsetzen() {
     std::vector<Schritt> s;

@@ -140,7 +140,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "menueRechtsBreite", std::string(buf));
     put(o, "menueTextUnten", s.menueTextUnten);
     put(o, "menueGanzeDatei", s.menueGanzeDatei);
-    put(o, "menueUmbruch", s.menueUmbruch);
+    put(o, "menueTextUmbruch", s.menueUmbruch);
     put(o, "menueTon", s.menueTon);
     put(o, "menueLeisteText", s.menueLeisteText);
     put(o, "showTypes", s.showTypes);
@@ -285,7 +285,7 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key == "menueTextUnten") { out.menueTextUnten = toBool(value); }
         else if (key == "menueGanzeDatei") { out.menueGanzeDatei = toBool(value); }
-        else if (key == "menueUmbruch") { out.menueUmbruch = toBool(value); }
+        else if (key == "menueTextUmbruch") { out.menueUmbruch = toBool(value); }
         else if (key == "menueTon") { out.menueTon = toBool(value); }
         else if (key == "menueLeisteText") { out.menueLeisteText = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
