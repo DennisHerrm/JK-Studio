@@ -83,9 +83,15 @@ struct MenueModellBild {
     int folge = 0;           // M3: Folgebild und dessen Anteil (G2_TimingModel)
     float anteil = 0;
 };
+// rc608 Teil 3a, im Spiel gemessen: Nur das SP-Menue setzt das Licht am Augpunkt (code/ui, ui.R_AddLightToScene), das MP nicht (codemp/ui).
+// Die Umgebung ist 150 + 32 in OpenJK; Movie Duels hat das Mindestlicht entfernt (tr_light.cpp), dort bleibt 150.
+struct ModellLicht {
+    bool augenLicht = true;
+    float umgebung = 182.0F;
+};
 // breite/hoehe: Bildpunkte des refdef (rect.w - 2 bzw. rect.h - 2 mal Massstab).
 [[nodiscard]] MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs, int animSeitMs, int breite, int hoehe,
-                                              std::vector<BoneMatrix>& weltKnochen);
+                                              std::vector<BoneMatrix>& weltKnochen, const ModellLicht& licht = {});
 
 // --- M3 Punkt 2: Haltung der Figur wie im Spiel -----------------------------------------
 //

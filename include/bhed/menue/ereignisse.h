@@ -41,6 +41,7 @@ struct Baustein {
 
 // Skript eines Ereignisses setzen: vorhandenen Block { ... } ersetzen, sonst den Schluessel mit
 // Block vor die } des itemDef (Einrueckung des Items). Leeres Skript entfernt den Schluessel.
+// item < 0: das Menue selbst (onOpen, onClose, onESC).
 [[nodiscard]] bool skriptSetzen(const Datei& d, int menu, int item, const char* schluessel, const std::string& skript,
                                 std::vector<Ersetzung>& out);
 
@@ -52,6 +53,15 @@ struct Baustein {
 //   Groesser: mouseEnter transition auf rect + 4 Punkte je Seite, mouseExit zurueck
 enum class HoverEffekt { Leuchten, Farbe, Rahmen, Groesser };
 [[nodiscard]] bool hoverEffekt(const Datei& d, int menu, int item, HoverEffekt e, const Farbe& farbe, std::vector<Ersetzung>& out);
+
+// rc608 Teil 3a: Zielt das erste Wort des Befehls auf ein Element? (Script_Show ... Script_Orbit)
+[[nodiscard]] bool befehlMitZiel(const std::string& befehl);
+// Trifft der Name ein Element des Menues? Menu_ItemsMatchingGroup: Name oder Gruppe, "abc*" = Anfang mit Gross/Klein;
+// setfocus (Menu_FindItemByName) kennt nur Namen.
+[[nodiscard]] bool zielDa(const Menu& m, const std::string& befehl, const std::string& ziel);
+// Neuer Name fuer ein Element. Die Schritte in den Skripten des Menues und seiner Elemente, die auf den alten Namen
+// zeigen, ziehen mit; dabei aendert sich nur dieses Wort. Traegt noch ein anderes Element den alten Namen, bleiben sie.
+[[nodiscard]] bool itemUmbenennen(const Datei& d, int menu, int item, const std::string& neuZitiert, std::vector<Ersetzung>& out);
 
 }  // namespace bhed::menue
 

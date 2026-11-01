@@ -68,7 +68,6 @@ void spalteInhalt(const char* panel, Dokument& d) {
     const std::string p = panel;
     if (p == "menue.bausteine") {
         panelBausteine(d);
-        if (g_app->settings.menueTextUnten) { panelHierarchie(d); }   // "Text unten": links auch die Gliederung
     } else if (p == "menue.flaeche") {
         panelFlaeche(d);
     } else if (p == "menue.reiter") {

@@ -140,6 +140,10 @@ std::string writeSettings(const Settings& s) {
     put(o, "menueRechtsBreite", std::string(buf));
     put(o, "menueTextUnten", s.menueTextUnten);
     put(o, "menueGanzeDatei", s.menueGanzeDatei);
+    put(o, "menueDateiSchluessel", s.menueDateiSchluessel);
+    put(o, "menueTeileHinweisWeg", s.menueTeileHinweisWeg);
+    put(o, "menueTextZoom", std::to_string(s.menueTextZoom));
+    put(o, "menueLetzteFarben", s.menueLetzteFarben);
     put(o, "menueTextUmbruch", s.menueUmbruch);
     put(o, "menueTon", s.menueTon);
     put(o, "menueLeisteText", s.menueLeisteText);
@@ -285,6 +289,13 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key == "menueTextUnten") { out.menueTextUnten = toBool(value); }
         else if (key == "menueGanzeDatei") { out.menueGanzeDatei = toBool(value); }
+        else if (key == "menueDateiSchluessel") { out.menueDateiSchluessel = toBool(value); }
+        else if (key == "menueTeileHinweisWeg") { out.menueTeileHinweisWeg = toBool(value); }
+        else if (key == "menueTextZoom") {
+            const int v = std::atoi(value.c_str());
+            if (v >= 50 && v <= 300) { out.menueTextZoom = v; }
+        }
+        else if (key == "menueLetzteFarben") { out.menueLetzteFarben = value; }
         else if (key == "menueTextUmbruch") { out.menueUmbruch = toBool(value); }
         else if (key == "menueTon") { out.menueTon = toBool(value); }
         else if (key == "menueLeisteText") { out.menueLeisteText = toBool(value); }

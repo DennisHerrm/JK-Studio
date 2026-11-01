@@ -166,20 +166,21 @@ void zeichneModSchluessel(Dokument& d) {
     if (liste.empty()) { return; }
     char kopf[200];
     std::snprintf(kopf, sizeof(kopf), tr(Str::MeProfilSchluessel), aktivesProfil()->name.c_str());
-    if (!ImGui::CollapsingHeader(kopf, ImGuiTreeNodeFlags_DefaultOpen)) { return; }
-    tipp(Str::MeProfilSchluesselTip);
-    const std::string& t = d.datei.text;
-    for (const Eigenschaft* e : liste) {
-        std::uint32_t ende = e->kopf.ende;
-        for (const Token& a : e->args) {
-            if (a.datei == 0 && a.ende > ende) { ende = a.ende; }
+    gruppe("modschluessel", kopf, {}, [&d, &liste] {
+        ImGui::TextDisabled("%s", tr(Str::MeProfilSchluesselTip));
+        const std::string& t = d.datei.text;
+        for (const Eigenschaft* e : liste) {
+            std::uint32_t ende = e->kopf.ende;
+            for (const Token& a : e->args) {
+                if (a.datei == 0 && a.ende > ende) { ende = a.ende; }
+            }
+            std::string wert = e->kopf.datei == 0 && ende <= t.size() ? t.substr(e->kopf.ende, ende - e->kopf.ende) : std::string();
+            for (char& c : wert) {
+                if (c == '\r' || c == '\n' || c == '\t') { c = ' '; }
+            }
+            ImGui::BulletText("%s:%s", e->schluessel.c_str(), wert.c_str());
         }
-        std::string wert = e->kopf.datei == 0 && ende <= t.size() ? t.substr(e->kopf.ende, ende - e->kopf.ende) : std::string();
-        for (char& c : wert) {
-            if (c == '\r' || c == '\n' || c == '\t') { c = ' '; }
-        }
-        ImGui::BulletText("%s:%s", e->schluessel.c_str(), wert.c_str());
-    }
+    }, false);
 }
 
 // --- Sicherung ---------------------------------------------------------------

@@ -2207,6 +2207,8 @@ from i18n_uebersetzung2 import UEBERSETZUNG2  # noqa: E402  (uebersetzung2: zwei
 S += UEBERSETZUNG2
 from i18n_rc608 import RC608  # noqa: E402  (rc608: Startbildschirm des Menue-Editors, Befehlszeile)
 S += RC608
+from i18n_rc608_3a import zeilen_vier as _rc608_3a  # noqa: E402  (rc608 Teil 3a: Seitenleisten des Menue-Editors)
+S += _rc608_3a()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

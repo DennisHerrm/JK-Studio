@@ -110,6 +110,8 @@ struct BildZeile {
 struct TextAnsicht {
     long long zeichen = 0;
     float scrollX = 0, breiteste = 0, flaeche = 0;
+    float zeilenHoehe = 0, textX = 0, textY = 0, leer = 0;   // rc608 Teil 3a: Zeile, Anfang des Textes, ein Zeichen
+    int zoom = 100;
     float balken[4] = {0, 0, 0, 0};
 };
 [[nodiscard]] TextAnsicht textAnsicht();
@@ -136,8 +138,38 @@ void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
-// Rechte Spalte: 0 Hierarchie, 1 Text, 2 Eigenschaften (gespeichert in den Einstellungen)
+// Rechte Spalte: 1 Text, 2 Eigenschaften, 3 Events (gespeichert in den Einstellungen); 0: die Hierarchie steht jetzt links, der Reiter bleibt, wie er ist
 void setzeReiter(int reiter);
+// rc608 Teil 3a (Selbsttest): was die rechte Leiste gerade zeigt
+struct LeisteStand {
+    std::string hilfe;          // Hilfezeile
+    int proben = 0;             // gelaufene "Try on canvas" und "Try this step"
+    bool probeLaeuft = false;
+    std::string ausloeser;      // gewaehlter Ausloeser in Events
+    int offenerSchritt = -1;
+    int tablett = 0;            // 1 Component, 2 Preview cvars, 3 Engine messages
+    std::string farbeOffen;     // die Farbzeile mit offenem R, G, B, A
+    int schluesselZeilen = 0;   // Zeilen, die ihren Schluessel zeigen ("File keys")
+    int gemischt = 0;           // "Change all": gezeigte "gemischt"
+    float textOben = 0, textUnten = 0;   // Schriftmass des gewaehlten Elements (textMasse)
+};
+[[nodiscard]] void vorlageWeg(const std::string& id);   // rc608 Teil 3a: Selbsttest
+void sucheZu();   // rc608 Teil 3a: Selbsttest: Die Suchzeile des Text-Editors schliessen
+std::string schriftNameMp(int nummer);   // rc608: Selbsttest, welche Schrift hinter einer MP-Nummer steckt
+LeisteStand leisteStand();
+void leisteAlleOffen();         // alle Gruppen aufklappen
+void leisteVorgabe();           // Gruppen wie ab Werk, der Fuss zu
+void leisteTablett(int nr);     // den Fuss oeffnen (LeisteStand::tablett)
+[[nodiscard]] bool bildWahlOffen();   // das Fenster "Bild waehlen" oder "Video waehlen"
+void setzeTextScroll(float zeile);    // Text-Editor: nach oben
+// rc608 Teil 3a (Selbsttest): die Kacheln links im letzten Bild
+struct KachelLage {
+    std::string name;
+    float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    float textBreite = 0, textUnten = 0;
+};
+[[nodiscard]] std::vector<KachelLage> kachelLagen();
+[[nodiscard]] float kachelnScrollMaxX();
 void schliesseTestFrage();   // M4: offene Frage von "Im Spiel testen" (Mod-Ordner) mit Nein schliessen
 // Live-Diagnose: die Schnellkorrektur der Meldung Nr. anwenden
 bool korrigiereDiagnose(int nr);
@@ -154,6 +186,8 @@ void dupliziereAuswahl();
 void loescheAuswahl();
 std::string kopiereAuswahl();
 void fuegeItemsEin(const std::string& text);
+void einfuegenOhneDeckung(const std::string& text);   // rc608 Teil 3a: Einfuegen aus der Zwischenablage, nie deckungsgleich; ein Schritt
+std::vector<int> rahmenTexte();                       // rc608 Teil 3a: Selbsttest: Rahmen, deren Platzhaltertext gerade steht
 bool speichereUnter(const std::string& pfad);
 // H2 (KI-Auftraege): die Textaenderungen seit `vorher` als EIN Rueckgaengig-Schritt.
 // false, wenn sich die Schritte nicht zusammenfassen liessen (dann bleiben sie einzeln).
@@ -222,6 +256,7 @@ void klangListeLeeren();
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
+void setzeAufloesung(int nr);    // rc608 Teil 3a: 0 = kein Spielfenster angegeben (4:3), sonst die Nummer der Liste (7 = 1920x1080)
 // M2 Punkt 2 / M4 Punkt 5: Video/GIF/RoQ als RoQ ins Paket (synchron, fuer Selbsttest),
 // dazu der Shader menu/video/<name> in shaders/<paket>.shader; Spielpfad oder "" (fehler: Meldung)
 struct VideoImport {

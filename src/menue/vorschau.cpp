@@ -1179,6 +1179,16 @@ void zeichneTeile(const std::vector<OdTeil>& teile, const Umgebung& u, std::vect
     Maler(leer, leerM, u, out).teileMalen(teile);
 }
 
+TextMass textMasse(const Item& it, const Umgebung& u) {
+    TextMass m;
+    const Schrift* f = u.schrift ? u.schrift(it.font) : nullptr;
+    if (f != nullptr) {
+        m.unten = static_cast<float>(f->height - (f->descender >> 1)) * it.textscale;   // foy in RE_Font_DrawString
+        m.oben = m.unten - static_cast<float>(f->ascender) * it.textscale;
+    }
+    return m;
+}
+
 Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {
     static const Datei leer{};
     static const Menu leerM{};
@@ -1355,6 +1365,29 @@ namespace {
 #include "cvarvorgaben.inc"
 #include "cvarvorgaben_jk2.inc"
 }  // namespace
+
+std::vector<std::string> spielCvarNamen(Dialekt d, Spiel s) {
+    std::vector<std::string> v;
+    const auto dazu = [&v](const CvarVorgabe* a, const CvarVorgabe* e) {
+        for (; a != e; ++a) { v.emplace_back(a->name); }
+    };
+    if (s == Spiel::JK2) {
+        if (d != Dialekt::SP) { dazu(std::begin(kVorgabenJk2Mp), std::end(kVorgabenJk2Mp)); }
+        else { dazu(std::begin(kVorgabenJk2Sp), std::end(kVorgabenJk2Sp)); }
+    } else if (d != Dialekt::SP) {
+        dazu(std::begin(kEngineMp), std::end(kEngineMp));
+        dazu(std::begin(kVorgabenMp), std::end(kVorgabenMp));
+    } else if (s == Spiel::MD) {
+        dazu(std::begin(kEngineMd), std::end(kEngineMd));
+        dazu(std::begin(kVorgabenMd), std::end(kVorgabenMd));
+    } else {
+        dazu(std::begin(kEngineJa), std::end(kEngineJa));
+        dazu(std::begin(kVorgabenJa), std::end(kVorgabenJa));
+    }
+    std::sort(v.begin(), v.end());
+    v.erase(std::unique(v.begin(), v.end()), v.end());
+    return v;
+}
 
 std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name) {
     // rc608: Jedi Outcast hat eigene Werte (sv_hostname noname, ui_netSource 0), aus dem laufenden Spiel

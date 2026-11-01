@@ -284,49 +284,40 @@ void tipp(Str s) {
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(s)); }
 }
 
-void zeichneLayout(Dokument& d) {
-    Zustand& z = Z();
-    if (!ImGui::CollapsingHeader(tr(Str::MeLayout), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+// rc608 Teil 3a: Anordnen erscheint nur bei zwei oder mehr gewaehlten Elementen
+void layoutKnoepfe(Dokument& d) {
+    ImGui::PushID("layoutknoepfe");
+    if (ImGui::Button(tr(Str::MeLayoutWaagrecht))) { layoutAusAuswahl(d, LayoutArt::Waagrecht); }
+    tipp(Str::MeLayoutWaagrechtTip);
+    daneben(knopfBreite(tr(Str::MeLayoutSenkrecht)));
+    if (ImGui::Button(tr(Str::MeLayoutSenkrecht))) { layoutAusAuswahl(d, LayoutArt::Senkrecht); }
+    tipp(Str::MeLayoutSenkrechtTip);
+    daneben(knopfBreite(tr(Str::MeLayoutRaster)));
+    if (ImGui::Button(tr(Str::MeLayoutRaster))) { layoutAusAuswahl(d, LayoutArt::Raster); }
+    tipp(Str::MeLayoutRasterTip);
+    daneben(knopfBreite(tr(Str::MeLayoutTeiler)));
+    if (ImGui::Button(tr(Str::MeLayoutTeiler))) { layoutAusAuswahl(d, LayoutArt::Teiler); }
+    tipp(Str::MeLayoutTeilerTip);
+    ImGui::PopID();
+}
+
+void zeichneLayoutFelder(Dokument& d, int mi, const std::vector<Layout>& ls, int li);
+
+// Das Layout, zu dem die Auswahl gehoert, als Gruppe in Properties
+void zeichneLayoutGruppe(Dokument& d) {
     const int mi = menuDerSeite(d);
     if (mi < 0) { return; }
-    ImGui::PushID("layout");
     const std::vector<Layout> ls = liesLayouts(d.datei, mi);
     const int li = layoutDerAuswahl(d, ls);
-    if (li < 0) {
-        // einfach zuerst: vier Knoepfe, die die Auswahl anordnen
-        const bool genug = d.auswahl.size() >= 2;
-        if (!genug) {
-            ImGui::TextWrapped("%s", tr(Str::MeLayoutLeer));
-            if (ImGui::Button(tr(Str::MeLayoutZeigMir))) {
-                // waehlt die ersten drei sichtbaren Elemente mit Namen - danach sind die Knoepfe frei
-                const Menu& m = d.datei.menus[static_cast<std::size_t>(mi)];
-                const std::vector<bool> s = grundSichtbar(d, mi, offeneLaufzeit(d, mi));
-                d.auswahl.clear();
-                for (std::size_t i = 0; i < m.items.size() && d.auswahl.size() < 3; ++i) {
-                    if (s[i] && !m.items[i].window.name.empty() && m.items[i].window.rectClient.w > 0) { d.auswahl.push_back(static_cast<int>(i)); }
-                }
-                z.meldung = tr(Str::MeLayoutZeigMirTip);
-            }
-            tipp(Str::MeLayoutZeigMirTip);
-        }
-        ImGui::BeginDisabled(!genug);
-        if (ImGui::Button(tr(Str::MeLayoutWaagrecht))) { layoutAusAuswahl(d, LayoutArt::Waagrecht); }
-        tipp(Str::MeLayoutWaagrechtTip);
-        daneben(knopfBreite(tr(Str::MeLayoutSenkrecht)));
-        if (ImGui::Button(tr(Str::MeLayoutSenkrecht))) { layoutAusAuswahl(d, LayoutArt::Senkrecht); }
-        tipp(Str::MeLayoutSenkrechtTip);
-        if (ImGui::Button(tr(Str::MeLayoutRaster))) { layoutAusAuswahl(d, LayoutArt::Raster); }
-        tipp(Str::MeLayoutRasterTip);
-        daneben(knopfBreite(tr(Str::MeLayoutTeiler)));
-        if (ImGui::Button(tr(Str::MeLayoutTeiler))) { layoutAusAuswahl(d, LayoutArt::Teiler); }
-        tipp(Str::MeLayoutTeilerTip);
-        ImGui::EndDisabled();
-        ImGui::PopID();
-        return;
-    }
+    if (li < 0) { return; }
+    gruppe("layout", tr(Str::MeLayout), anzeige(ls[static_cast<std::size_t>(li)].name), [&d, mi, &ls, li] { zeichneLayoutFelder(d, mi, ls, li); }, false);
+}
+
+void zeichneLayoutFelder(Dokument& d, int mi, const std::vector<Layout>& ls, int li) {
+    Zustand& z = Z();
+    ImGui::PushID("layout");
     Layout l = ls[static_cast<std::size_t>(li)];
     bool neu = false;   // nach dem Loslassen der Regler bzw. sofort bei Knoepfen
-    ImGui::TextWrapped("%s: %s", tr(Str::MeLayout), l.name.c_str());
     if (ImGui::SmallButton(tr(Str::MeLayoutAufloesen))) {   // oben: ohne Blaettern erreichbar
         layoutAendern(d, mi, l, true);
         ImGui::PopID();

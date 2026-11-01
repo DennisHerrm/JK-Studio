@@ -40,6 +40,19 @@ void itemSpanne(const Datei& d, const Item& it, std::size_t& a, std::size_t& e) 
 
 }  // namespace
 
+Rechteck ohneDeckung(Rechteck r, const std::vector<Rechteck>& andere, float schritt) {
+    const auto belegt = [&] {
+        return std::any_of(andere.begin(), andere.end(), [&](const Rechteck& o) {
+            return std::fabs(o.x - r.x) < 1.0F && std::fabs(o.y - r.y) < 1.0F && std::fabs(o.w - r.w) < 1.0F && std::fabs(o.h - r.h) < 1.0F;
+        });
+    };
+    for (int i = 0; i < 40 && belegt(); ++i) {
+        r.x += schritt;
+        r.y += schritt;
+    }
+    return r;
+}
+
 Einrasten einrasten(const Rechteck& r, const std::vector<Rechteck>& andere, float raster, float toleranz, bool anRaster,
                     bool anKanten) {
     Einrasten e;
@@ -119,6 +132,33 @@ void verteilen(std::vector<Rechteck>& r, bool waagrecht) {
     }
 }
 
+float textXFuer(int ausrichtung, float breite) {
+    if (ausrichtung == 1) { return std::round(breite * 0.5F); }
+    if (ausrichtung == 2) { return breite - kTextRand; }
+    return kTextRand;
+}
+
+float textYFuer(int senkrecht, float hoehe, float oben, float unten) {
+    if (senkrecht == 1) { return std::round((hoehe - oben - unten) * 0.5F); }
+    if (senkrecht == 2) { return std::round(hoehe - unten - 2.0F); }
+    return std::round(2.0F - oben);
+}
+
+bool textXFolgt(int ausrichtung, float x, float breite) {
+    if (ausrichtung != 1 && ausrichtung != 2) { return false; }
+    return std::fabs(x - textXFuer(ausrichtung, breite)) <= 0.5F;
+}
+
+int textSenkrecht(float y, float hoehe, float oben, float unten) {
+    // Mitte zuerst: bei niedrigen Elementen fallen die Stufen zusammen, und die Mitte ist die haeufige Wahl
+    for (const int s : {1, 2, 0}) {
+        if (std::fabs(y - textYFuer(s, hoehe, oben, unten)) <= 0.5F) { return s; }
+    }
+    return -1;
+}
+
+bool istBildRahmen(const Item& it) { return it.type == ITEM_TYPE_TEXT && it.text.empty() && it.cvar.empty() && it.window.style == WINDOW_STYLE_SHADER; }
+
 bool feldGilt(const std::string& schluessel, int typ, int style, Spiel spiel) {
     std::string k = schluessel;
     for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
@@ -152,16 +192,22 @@ std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Recht
                         const std::string& nl, Spiel spiel) {
     const std::string e = einr + "\t";
     std::string s = einr + "itemDef" + nl + einr + "{" + nl;
-    auto z = [&](const std::string& k, const std::string& v) { s += e + k + "\t\t\t" + v + nl; };
+    auto z = [&](const std::string& k, const std::string& v) {
+        // rc608 Teil 3a: Die Vorgaben rechnen mit ergoec. In Movie Duels MP heisst sie font 3; ohne Nummer stuende dort albertus_bold, fast viermal so gross (Spielfoto)
+        if (k == "textscale" && d == Dialekt::MP && spiel == Spiel::MD) { s += e + "font\t\t\t3" + nl; }
+        s += e + k + "\t\t\t" + v + nl;
+    };
     z("name", name);
     if (typ != ITEM_TYPE_TEXT || d == Dialekt::MP) { z("type", typName(typ)); }
     else { z("type", "ITEM_TYPE_TEXT"); }
     z("rect", zahlText(r.x) + " " + zahlText(r.y) + " " + zahlText(r.w) + " " + zahlText(r.h));
     switch (typ) {
         case ITEM_TYPE_BUTTON:
-            z("style", "WINDOW_STYLE_EMPTY");
+            // rc608 Teil 3a: mit sichtbarer Flaeche; Farbe wie die Knoepfe der fertigen Teile
+            z("style", "WINDOW_STYLE_FILLED");
+            z("backcolor", "0.15 0.18 0.26 0.9");
             z("text", "\"Button\"");
-            z("textscale", "1");
+            z("textscale", "0.7");
             z("textalign", "ITEM_ALIGN_CENTER");
             z("textalignx", zahlText(r.w * 0.5F));
             z("forecolor", "1 1 1 1");
@@ -239,13 +285,13 @@ std::string itemVorlage(int typ, Dialekt d, const std::string& name, const Recht
             z("forecolor", "1 1 1 1");
             break;
         default:   // Text / Bild
-            if (typ == -1) {
+            if (typ == -1 || typ == -3) {
                 s.clear();
                 s = einr + "itemDef" + nl + einr + "{" + nl;
                 z("name", name);
                 z("style", "WINDOW_STYLE_SHADER");
                 z("rect", zahlText(r.x) + " " + zahlText(r.y) + " " + zahlText(r.w) + " " + zahlText(r.h));
-                z("background", "\"gfx/menus/menu_box1\"");
+                if (typ == -3) { s += e + kVideoRahmenKennung + nl; }
                 z("forecolor", "1 1 1 1");
                 z("decoration", "");
                 break;

@@ -367,6 +367,10 @@ struct Ersetzung {
 [[nodiscard]] bool setzeEigenschaft(const Datei& d, int menu, int item, const char* schluessel,
                                     const std::vector<std::string>& werte, std::vector<Ersetzung>& out);
 
+// rc608 Teil 3a: Der Schluessel samt Werten faellt weg (alle seine Vorkommen), steht er allein auf der Zeile, die ganze
+// Zeile. Fehlt er, gilt das als erledigt. false, wenn er aus einem Makro kommt oder nicht in der Hauptdatei steht.
+[[nodiscard]] bool entferneEigenschaft(const Datei& d, int menu, int item, const char* schluessel, std::vector<Ersetzung>& out);
+
 // Wendet Ersetzungen (nicht ueberlappend) auf den Text an.
 [[nodiscard]] std::string anwenden(const std::string& text, std::vector<Ersetzung> e);
 

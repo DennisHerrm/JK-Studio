@@ -382,6 +382,16 @@ void Textpuffer::kommentar() {
     anwenden(std::move(e), false);
 }
 
+void Textpuffer::schrittOhneText() {
+    Schritt s;
+    s.cursorVor = cursor;
+    s.cursorNach = cursor;
+    s.beiwerkVor = beiwerk_;
+    undo_.push_back(std::move(s));
+    redo_.clear();
+    ++version_;
+}
+
 void Textpuffer::beiwerkFesthalten(std::vector<int> jetzt) {
     if (!undo_.empty() && undo_.back().nachOffen) {
         undo_.back().beiwerkNach = jetzt;

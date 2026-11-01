@@ -21,6 +21,7 @@
 //   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/menue/diagnose.h"
+#include "bhed/menue/ereignisse.h"
 
 #include "bhed/menue/skript.h"
 
@@ -310,20 +311,6 @@ const Eigenschaft* eigenschaft(const std::vector<Eigenschaft>& v, const char* ka
     return nullptr;
 }
 
-// Item/Gruppe wie Menu_ItemsMatchingGroup: "abc*" = Anfang mit Gross/Klein, sonst ohne
-bool passtGruppe(const Menu& m, const std::string& ziel, bool nurName) {
-    const std::size_t stern = ziel.find('*');
-    for (const Item& it : m.items) {
-        if (stern != std::string::npos && !nurName) {
-            if (it.window.name.compare(0, stern, ziel, 0, stern) == 0 && it.window.name.size() >= stern) { return true; }
-            if (it.window.group.compare(0, stern, ziel, 0, stern) == 0 && it.window.group.size() >= stern) { return true; }
-            continue;
-        }
-        if (klein(it.window.name) == klein(ziel)) { return true; }
-        if (!nurName && !it.window.group.empty() && klein(it.window.group) == klein(ziel)) { return true; }
-    }
-    return false;
-}
 }  // namespace
 
 int abstand(const std::string& a0, const std::string& b0) {
@@ -577,11 +564,8 @@ std::vector<Diagnose> diagnose(const Datei& d, const DiagKontext& k) {
                         fehlt = false;
                     } else if (cmd == "open" || cmd == "close") {
                         fehlt = menueNamen.count(klein(a.s)) == 0 && k.menueBekannt && !k.menueBekannt(a.s);
-                    } else if (cmd == "show" || cmd == "hide" || cmd == "fadein" || cmd == "fadeout" || cmd == "setitemcolor" || cmd == "transition" ||
-                               cmd == "transition2" || cmd == "orbit") {
-                        fehlt = !passtGruppe(m, a.s, false);
-                    } else if (cmd == "setfocus") {
-                        fehlt = !passtGruppe(m, a.s, true);
+                    } else if (befehlMitZiel(cmd)) {
+                        fehlt = !zielDa(m, cmd, a.s);
                     }
                     if (!fehlt) { continue; }
                     Diagnose x;

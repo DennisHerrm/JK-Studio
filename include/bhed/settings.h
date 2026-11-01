@@ -216,6 +216,10 @@ struct Settings {
     int menueReiter = 0;
     float menueRechtsBreite = 0.0F;
     bool menueTextUnten = false;
+    int menueTextZoom = 100;             // rc608 Teil 3a: Schriftgroesse des Text-Editors in Prozent (50 bis 300), nur Ansicht
+    bool menueTeileHinweisWeg = false;   // rc608 Teil 3a: der Hinweis zum Ziehen verschwindet nach dem ersten Einfuegen
+    bool menueDateiSchluessel = false;   // rc608 Teil 3a: Properties zeigt zu jedem Feld den Schluessel der Datei
+    std::string menueLetzteFarben;       // rc608 Teil 3a: zuletzt benutzte Farben, "r g b a;r g b a"
     bool menueGanzeDatei = false;   // rc608: Hierarchie zeigt alle menuDef der Datei statt nur die offene Seite
     bool menueUmbruch = true;   // rc608 Punkt 2: an, das zeigt mehr (gemessen); neuer Schluessel, damit alte Einstellungen ihn nicht abschalten
     bool menueTon = true;       // Menue-Editor M4: Klaenge der Vorschau (Fokus, Klick, Musik) an

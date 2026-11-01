@@ -196,6 +196,41 @@ bool setzeEigenschaft(const Datei& d, int menu, int item, const char* schluessel
     return true;
 }
 
+bool entferneEigenschaft(const Datei& d, int menu, int item, const char* schluessel, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    if (item >= 0 && static_cast<std::size_t>(item) >= m.items.size()) { return false; }
+    const std::vector<Eigenschaft>& eig = item >= 0 ? m.items[static_cast<std::size_t>(item)].eigenschaften : m.eigenschaften;
+    std::vector<Ersetzung> neu;
+    for (const Eigenschaft& e : eig) {
+        if (!gleichOhneFall(e.schluessel, schluessel)) { continue; }
+        if (e.kopf.datei != 0 || e.kopf.ausMakro) { return false; }
+        std::size_t a = e.kopf.anfang;
+        std::size_t z = e.kopf.ende;
+        for (const Token& t : e.args) {
+            if (t.datei != 0 || t.ausMakro) { return false; }
+            z = std::max<std::size_t>(z, t.ende);
+        }
+        const std::string& t = d.text;
+        const std::size_t za = zeilenAnfang(t, a);
+        std::size_t rest = z;
+        while (rest < t.size() && (t[rest] == ' ' || t[rest] == '\t')) { ++rest; }
+        const bool davorLeer = t.find_first_not_of(" \t", za) == a;
+        const bool dahinterLeer = rest >= t.size() || t[rest] == '\r' || t[rest] == '\n';
+        if (davorLeer && dahinterLeer) {
+            a = za;
+            z = rest;
+            if (z < t.size() && t[z] == '\r') { ++z; }
+            if (z < t.size() && t[z] == '\n') { ++z; }
+        } else {
+            z = rest;
+        }
+        neu.push_back(Ersetzung{static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(z), ""});
+    }
+    out.insert(out.end(), neu.begin(), neu.end());
+    return true;
+}
+
 bool setzeRect(const Datei& d, int menu, int item, const Rechteck& r, std::vector<Ersetzung>& out) {
     return setzeEigenschaft(d, menu, item, "rect", {zahlText(r.x), zahlText(r.y), zahlText(r.w), zahlText(r.h)}, out);
 }

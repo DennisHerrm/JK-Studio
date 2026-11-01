@@ -246,6 +246,9 @@ std::vector<Befund> pruefeFuerSpiel(const Datei& d, const PruefKontext& k) {
             const int in = static_cast<int>(ii);
             skript(in, it.eigenschaften);
             klaenge(in, it.eigenschaften);
+            if (it.window.style == WINDOW_STYLE_SHADER && it.window.background.empty() && (it.window.flags & WINDOW_VISIBLE) != 0) {
+                melde(BefundArt::KeinBild, mn, in, 0, 0, it.window.name, {}, true);
+            }
             if (static_cast<int>(it.cvarList.size()) > g.multiCvars) {
                 melde(BefundArt::ZuVieleWerte, mn, in, static_cast<int>(it.cvarList.size()), g.multiCvars, it.window.name, {}, true);
             }

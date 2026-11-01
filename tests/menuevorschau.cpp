@@ -447,6 +447,14 @@ int main() {
         Item sb = mi;
         sb.itemFlags = ITF_ISSABER;
         sb.angle = 180;
+        {   // rc608 Teil 3a: im MP kein Licht am Augpunkt, in Movie Duels kein Mindestlicht
+            const MenueModellBild lichtSp = menueModellBild(leer, mi, 0, 0, 200, 400, welt);
+            const MenueModellBild lichtMp = menueModellBild(leer, mi, 0, 0, 200, 400, welt, ModellLicht{false, 182.0F});
+            const MenueModellBild lichtMd = menueModellBild(leer, mi, 0, 0, 200, 400, welt, ModellLicht{false, 150.0F});
+            pruefe(lichtSp.gerichtet[0] > 1.0F && std::fabs(lichtSp.umgebung[0] - 182.0F / 255.0F) < 0.001F, "Modell SP: Licht am Augpunkt, Umgebung 182");
+            pruefe(std::fabs(lichtMp.gerichtet[0] - 150.0F / 255.0F) < 0.001F && lichtMp.richtung[0] == 0.0F && lichtMp.richtung[1] == 0.0F && lichtMp.richtung[2] == 0.0F, "Modell MP: kein Licht, keine Richtung");
+            pruefe(std::fabs(lichtMd.umgebung[0] - 150.0F / 255.0F) < 0.001F, "Modell Movie Duels: kein Mindestlicht");
+        }
         const MenueModellBild ms = menueModellBild(leer, sb, 0, 0, 200, 400, welt);
         pruefe(std::fabs(ms.achsen[0][0] + 1) < 1e-4F && std::fabs(ms.achsen[2][1] + 1) < 1e-4F && std::fabs(ms.achsen[1][2] + 1) < 1e-4F,
                "Saeber: AnglesToAxis(180, 0, 90) - Griff liegt auf der Seite");

@@ -20,13 +20,13 @@ ReiterLage reiterLage() {
     ReiterLage r;
     for (int i = 0; i < GImGui->TabBars.GetMapSize(); ++i) {
         ImGuiTabBar* b = GImGui->TabBars.TryGetMapData(i);
-        if (b == nullptr || b->Tabs.Size != 4 || b->CurrFrameVisible < GImGui->FrameCount - 1) { continue; }
+        if (b == nullptr || b->Tabs.Size != 3 || b->CurrFrameVisible < GImGui->FrameCount - 1) { continue; }
         const auto name = [&](ImGuiTabItem& t) {
             const char* n = ImGui::TabBarGetTabName(b, &t);
             return std::string(n, ImGui::FindRenderedTextEnd(n));
         };
         bool unsere = false;
-        for (ImGuiTabItem& t : b->Tabs) { unsere = unsere || name(t) == tr(Str::MeReiterHierarchie); }
+        for (ImGuiTabItem& t : b->Tabs) { unsere = unsere || name(t) == tr(Str::MeReiterEigenschaften); }
         if (!unsere) { continue; }
         r.rechts = b->BarRect.Max.x;
         for (ImGuiTabItem& t : b->Tabs) {
@@ -57,10 +57,10 @@ std::vector<Schritt> schritteReiter() {
         const std::string kurz = l.code;
         add(tu("rc608 Reiter: Sprache " + kurz, [sprache] { i18n::setLanguage(sprache); }));
         add(pause(0.3));
-        add(pruefe("rc608 Reiter: " + kurz + " heisst der zweite Reiter wie gewuenscht, nichts gestaucht", [kurz] {
+        add(pruefe("rc608 Reiter: " + kurz + " heisst der dritte Reiter wie gewuenscht, nichts gestaucht", [kurz] {
             const ReiterLage r = reiterLage();
             const auto soll = kSoll.find(kurz);
-            bool gut = r.reiter.size() == 4 && soll != kSoll.end() && r.reiter[1].first == soll->second && r.ganz;
+            bool gut = r.reiter.size() == 3 && soll != kSoll.end() && r.reiter[2].first == soll->second && r.ganz;
             for (const auto& [name, rect] : r.reiter) {
                 gut = gut && rect.Max.x <= r.rechts + 0.5F;
                 diag::info("Knopftest: Reiter " + kurz + " " + name + " Breite " + std::to_string(rect.GetWidth()));
@@ -571,6 +571,75 @@ std::vector<Schritt> schritteSchreiben() {
     add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
     add(pause(0.2));
     add(pruefe("rc608 Schreiben: Rueckgaengig: wieder der Text des Spiels", [] { return textVon("spieltext").rfind("@MENUS_BACK", 0) == 0; }));
+    // rc608 Teil 3a: Auch der schon eigene Text ist ein Undo-Schritt (vorher sagte es nur eine Einblendung)
+    add(tu("rc608 Schreiben: Wiederholen: der eigene Text", [] { (void)me::wiederholen(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Wiederholen stellt auch den eigenen Text im Paket her", [] { return textVon("spieltext").rfind("@MYMENU_MENUS_BACK", 0) == 0 && me::loeseText("@MYMENU_MENUS_BACK") == "Eigen"; }));
+    add(merke());
+    auto eigenVor = std::make_shared<std::string>();
+    add(tu("rc608 Schreiben: Text merken", [eigenVor] { *eigenVor = me::stand().text; }));
+    add(doppel("spieltext", 200, 170));
+    add(pause(0.3));
+    add(tippe("Zwei"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Eigener Text geaendert: die Datei bleibt, das Paket aendert sich", [eigenVor] { return me::stand().text == *eigenVor && me::loeseText("@MYMENU_MENUS_BACK") == "Zwei"; }));
+    add(schritte("nach dem geaenderten eigenen Text", 1));
+    add(tu("rc608 Schreiben: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Rueckgaengig: der eigene Text wie vorher", [] { return me::loeseText("@MYMENU_MENUS_BACK") == "Eigen"; }));
+    add(tu("rc608 Schreiben: Wiederholen", [] { (void)me::wiederholen(); }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Wiederholen: der geaenderte Text", [] { return me::loeseText("@MYMENU_MENUS_BACK") == "Zwei"; }));
+    add(tu("rc608 Schreiben: alles zurueck", [] {
+        (void)me::rueckgaengig();
+        (void)me::rueckgaengig();
+    }));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: wieder der Text des Spiels, der eigene ist weg", [] { return textVon("spieltext").rfind("@MENUS_BACK", 0) == 0 && me::loeseText("@MYMENU_MENUS_BACK") != "Eigen"; }));
+    // Kopieren und Einfuegen (die Ablage des Selbsttests, nicht die des Benutzers), Ausschneiden
+    add(doppel("lauftext", 400, 110));
+    add(pause(0.3));
+    add(tippe("Eins"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_C, "Strg+C"));
+    add(taste(ImGuiKey_End, "Ende"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_V, "Strg+V"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Kopieren und Einfuegen", [] {
+        diag::info("Knopftest: Puffer " + me::schreibStand().puffer);
+        return me::schreibStand().puffer == "EinsEins";
+    }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_X, "Strg+X"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Ausschneiden", [] { return me::schreibStand().puffer.empty(); }));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_V, "Strg+V"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Einfuegen nach dem Ausschneiden", [] { return me::schreibStand().puffer == "EinsEins"; }));
+    // Bild auf, Bild ab im Lauftext: Der Cursor geht ueber das Feld und bleibt sichtbar
+    for (int i = 0; i < 24; ++i) { add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Enter, "Strg+Enter")); }
+    add(pause(0.2));
+    auto yUnten = std::make_shared<float>(0.0F);
+    add(tu("rc608 Schreiben: unten merken", [yUnten] { *yUnten = me::schreibStand().cursorY; }));
+    add(taste(ImGuiKey_PageUp, "Bild auf"));
+    add(pause(0.2));
+    auto yOben = std::make_shared<float>(0.0F);
+    add(pruefe("rc608 Schreiben: Bild auf geht nach oben, der Cursor bleibt im Element", [yUnten, yOben] {
+        const auto x = me::schreibStand();
+        *yOben = x.cursorY;
+        diag::info("Knopftest: Cursor unten " + std::to_string(*yUnten) + ", nach Bild auf " + std::to_string(x.cursorY));
+        return x.an && x.cursorY > 0.0F && x.cursorY < 480.0F && x.puffer.size() >= 8U;
+    }));
+    add(taste(ImGuiKey_PageDown, "Bild ab"));
+    add(pause(0.2));
+    add(pruefe("rc608 Schreiben: Bild ab geht wieder nach unten, der Cursor bleibt im Element", [yOben] {
+        const auto x = me::schreibStand();
+        diag::info("Knopftest: nach Bild ab " + std::to_string(x.cursorY));
+        return x.an && x.cursorY >= *yOben && x.cursorY < 480.0F;
+    }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
     // Woher der Text sonst kommt: erklaeren statt nichts tun
     const auto erklaert = [&](const std::string& was, float vx, float vy, std::function<std::string()> soll) {
         add(tu("rc608 Schreiben: Meldung leeren", [] { (void)me::rueckgaengig(); (void)me::wiederholen(); }));
@@ -595,11 +664,16 @@ std::vector<Schritt> schritteSchreiben() {
         return std::string(b);
     });
     erklaert("liste", 200, 295, [] { return std::string(tr(Str::MeSchreibenFeeder)); });
-    erklaert("bild", 200, 335, mit(Str::MeSchreibenBild, "gfx/menus/menu_blendbox"));
+    // rc608 Teil 3a: Auf einem Bild oeffnet der Doppelklick die Auswahl
+    add(doppel("bild", 200, 335));
+    add(pause(0.3));
+    add(pruefe("rc608 Schreiben: Doppelklick auf ein Bild oeffnet die Auswahl, kein Schreiben", [] { return me::bildWahlOffen() && !me::schreibStand().an; }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
     // Hierarchie zeigt den Text in der Zeile
     add(tu("rc608 Schreiben: Reiter Hierarchie", [] { me::setzeReiter(0); }));
     add(pause(0.2));
-    add(klick("knopf  ITEM_TYPE_BUTTON  \"Back\""));
+    add(klick(std::string("knopf  ") + tr(Str::MlTypButton) + "  \"Back\""));
     add(pruefe("rc608 Schreiben: die Hierarchie zeigt den Text in der Zeile und waehlt", [] { return me::stand().auswahl == std::vector<int>{me::itemNummer("knopf")}; }));
     add(foto("menue_schreiben_hierarchie"));
     add(tu("rc608 Schreiben: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
@@ -643,7 +717,7 @@ std::vector<Schritt> schritteHierarchie() {
     add(pause(0.2));
     add(pruefe("rc608 Hierarchie: Auswahl auf der Flaeche", [] { return me::stand().auswahl == std::vector<int>{0}; }));
     add(tu("rc608 Hierarchie: Auswahl leeren", [] { me::waehle(-1, false); }));
-    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(klick(std::string("zwei_a  ") + tr(Str::MlTypButton)));
     add(pause(0.2));
     add(pruefe("rc608 Hierarchie: Auswahl aus der Liste", [] { return me::stand().auswahl == std::vector<int>{0}; }));
     // Der Umschalter
@@ -655,7 +729,7 @@ std::vector<Schritt> schritteHierarchie() {
     add(pause(0.2));
     add(pruefe("rc608 Hierarchie: und wieder nur die Seite", [gibt] { return !gibt("eins_a") && gibt("zwei_a"); }));
     // Rest aus Teil 1: Pfeiltasten und Entf wirken mit dem Fokus in der Hierarchie wie auf der Flaeche
-    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(klick(std::string("zwei_a  ") + tr(Str::MlTypButton)));
     add(pause(0.2));
     add(taste(ImGuiKey_RightArrow, "Pfeil rechts"));
     add(pause(0.2));
@@ -672,7 +746,7 @@ std::vector<Schritt> schritteHierarchie() {
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
     add(pause(0.2));
     add(pruefe("rc608 Hierarchie: Rueckgaengig nimmt beide zurueck", [] { return me::stand().text.find("rect 200 10 100 30") != std::string::npos; }));
-    add(klick("zwei_a  ITEM_TYPE_BUTTON"));
+    add(klick(std::string("zwei_a  ") + tr(Str::MlTypButton)));
     add(pause(0.2));
     add(taste(ImGuiKey_Delete, "Entf"));
     add(pause(0.3));
@@ -713,10 +787,44 @@ std::vector<Schritt> schritteHierarchie() {
 }
 
 // Ein Element (Beschriftung) auf die Flaeche ziehen und an der virtuellen Stelle (vx, vy) ablegen
+// Die linke Liste rollt: ein Teil, das noch nicht im Bild ist, hat dort keine Beschriftung (ImGui meldet sie erst beim Zeichnen)
+Schritt rolleZuKachel(const std::string& name) {
+    return Schritt{"rc608: zur Kachel rollen " + name, [=](int b) {
+                       if (b > 0) { return b >= 3; }
+                       for (ImGuiWindow* w : GImGui->Windows) {
+                           if (!w->WasActive || std::string(w->Name).find("/##teile_liste_") == std::string::npos) { continue; }
+                           for (const me::KachelLage& k : me::kachelLagen()) {
+                               if (k.name == name) { ImGui::SetScrollY(w, std::max(0.0F, w->Scroll.y + k.y0 - w->Pos.y)); }
+                           }
+                       }
+                       return false;
+                   }};
+}
+Schritt rolleTeileAnsEnde() {
+    return Schritt{"rc608: Teile ans Ende rollen", [](int b) {
+                       if (b > 0) { return b >= 3; }
+                       for (ImGuiWindow* w : GImGui->Windows) {
+                           if (w->WasActive && std::string(w->Name).find("/##teile_liste_") != std::string::npos) { ImGui::SetScrollY(w, 100000.0F); }
+                       }
+                       return false;
+                   }};
+}
+
 Schritt zieheAufFlaeche(const std::string& label, float vx, float vy, std::function<void()> kurzVorDemLoslassen = {}) {
     auto start = std::make_shared<ImVec2>();
-    return Schritt{"rc608 Ablegen: " + label, [=](int b) {
+    return Schritt{"rc608 Ablegen: " + label, [=](int roh) {
                        ImGuiIO& io = ImGui::GetIO();
+                       // zuerst zur Kachel rollen: Die Beschriftung kennt nur, was im Bild steht
+                       if (roh == 0) {
+                           for (ImGuiWindow* w : GImGui->Windows) {
+                               if (!w->WasActive || std::string(w->Name).find("/##teile_liste_") == std::string::npos) { continue; }
+                               for (const me::KachelLage& k : me::kachelLagen()) {
+                                   if (k.name == label) { ImGui::SetScrollY(w, std::max(0.0F, w->Scroll.y + k.y0 - w->Pos.y)); }
+                               }
+                           }
+                       }
+                       if (roh < 3) { return false; }
+                       const int b = roh - 3;
                        if (b == 0) {
                            const Element* e = finde(label, "##links", 0, false);
                            if (e == nullptr) {
@@ -762,15 +870,16 @@ std::vector<Schritt> schritteAblegen() {
     add(pause(0.5));
     // Ein Klick tut nichts
     add(merke());
-    add(klick(tr(Str::MeWButton)));
+    add(rolleZuKachel(tr(Str::MlTypButton)));
+    add(klick(tr(Str::MlTypButton)));
     add(pause(0.3));
     add(pruefe("rc608 Ablegen: ein einfacher Klick auf ein Widget setzt nichts ein", [anzahl] { return me::stand().items == *anzahl; }));
     // Jedes Widget auf die Flaeche
     struct W { Str name; float x, y; const char* typ; };
-    static const W kWidgets[] = {{Str::MeWText, 20, 30, "ITEM_TYPE_TEXT"},       {Str::MeWButton, 240, 30, "ITEM_TYPE_BUTTON"}, {Str::MeWBild, 450, 30, "WINDOW_STYLE_SHADER"},
-                                 {Str::MeWJaNein, 20, 110, "ITEM_TYPE_YESNO"},   {Str::MeWMulti, 240, 110, "ITEM_TYPE_MULTI"},  {Str::MeWSchieber, 450, 110, "ITEM_TYPE_SLIDER"},
-                                 {Str::MeWEingabe, 20, 190, "ITEM_TYPE_EDITFIELD"}, {Str::MeWListe, 240, 190, "ITEM_TYPE_LISTBOX"}, {Str::MeWModell, 450, 190, "ITEM_TYPE_MODEL"},
-                                 {Str::MeWTaste, 20, 270, "ITEM_TYPE_BIND"}};
+    static const W kWidgets[] = {{Str::MlTypText, 20, 30, "ITEM_TYPE_TEXT"},       {Str::MlTypButton, 240, 30, "ITEM_TYPE_BUTTON"}, {Str::MlTypBild, 450, 30, "WINDOW_STYLE_SHADER"},
+                                 {Str::MlTypJaNein, 20, 110, "ITEM_TYPE_YESNO"},   {Str::MlTypMulti, 240, 110, "ITEM_TYPE_MULTI"},  {Str::MlTypSchieber, 450, 110, "ITEM_TYPE_SLIDER"},
+                                 {Str::MlTypEingabe, 20, 190, "ITEM_TYPE_EDITFIELD"}, {Str::MlTypListe, 240, 190, "ITEM_TYPE_LISTBOX"}, {Str::MlTypModell, 450, 190, "ITEM_TYPE_MODEL"},
+                                 {Str::MlTypTaste, 20, 270, "ITEM_TYPE_BIND"},   {Str::MlTypVideo, 240, 270, "jkstudio:rahmen video"}};
     for (const W& w : kWidgets) {
         const std::string label = tr(w.name);
         const float x = w.x, y = w.y;
@@ -794,28 +903,9 @@ std::vector<Schritt> schritteAblegen() {
         }));
     }
     add(foto("menue_ablegen"));
-    // Bild hinzufuegen: der Dateidialog kommt beim Ablegen, das Bild liegt an der Stelle
-    const std::string bildPfad = (std::filesystem::path(platform::settingsDirectory()) / "probebild.tga").string();
-    add(tu("rc608 Ablegen: Dateidialog ersetzen", [bildPfad] {
-        std::ofstream f(bildPfad, std::ios::binary);
-        const unsigned char tga[] = {0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 24, 0, 255, 255, 255};
-        f.write(reinterpret_cast<const char*>(tga), sizeof(tga));
-        f.close();
-        me::setzeBildDialog([bildPfad] { return bildPfad; });
-    }));
-    add(merke());
-    add(zieheAufFlaeche(tr(Str::MeBildDazu), 240, 270));
-    add(pause(0.2));
-    add(pruefe("rc608 Ablegen: Bild hinzufuegen legt ab, ein Schritt", [tiefe, anzahl] {
-        const auto st = me::stand();
-        const std::vector<me::ItemLage> l = me::itemLagen();
-        return st.items == *anzahl + 1 && st.undoSchritte == *tiefe + 1 && !st.auswahl.empty() && std::fabs(l[static_cast<std::size_t>(st.auswahl[0])].x - 240.0F) <= 6.0F &&
-               st.text.find("gfx/menus/probebild") != std::string::npos;
-    }));
-    add(tu("rc608 Ablegen: Dateidialog zurueck", [] { me::setzeBildDialog({}); }));
     // Einrasten beim Ablegen: 2 Punkte neben der Kante des Textes rastet ein
     add(merke());
-    add(zieheAufFlaeche(tr(Str::MeWButton), 22, 350));
+    add(zieheAufFlaeche(tr(Str::MlTypButton), 22, 350));
     add(pause(0.1));
     add(pruefe("rc608 Ablegen: rastet an der Kante ein", [] {
         const auto st = me::stand();
@@ -827,7 +917,7 @@ std::vector<Schritt> schritteAblegen() {
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_1, "Strg+1"));
     add(pause(0.2));
     add(merke());
-    add(zieheAufFlaeche(tr(Str::MeWText), 330, 417));
+    add(zieheAufFlaeche(tr(Str::MlTypText), 330, 417));
     add(pause(0.1));
     add(pruefe("rc608 Ablegen: bei 100 % genau dort", [] {
         const auto st = me::stand();
@@ -848,26 +938,29 @@ std::vector<Schritt> schritteAblegen() {
             return e != nullptr ? e->rect.GetCenter() : ImVec2{};
         }, 0, true);
     };
-    add(doppelKachel(Str::MeWButton));
+    add(rolleZuKachel(tr(Str::MlTypButton)));
+    add(doppelKachel(Str::MlTypButton));
     add(pause(0.2));
     add(pruefe("rc608 Ablegen: Doppelklick setzt ein, ein Schritt", [tiefe, anzahl, erstes] {
         const auto st = me::stand();
-        if (st.items != *anzahl + 1 || st.undoSchritte != *tiefe + 1) { return false; }
+        if (st.items != *anzahl + 1 || st.undoSchritte != *tiefe + 1 || st.auswahl.empty()) { return false; }
         const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
         *erstes = {n.x, n.y};
         return true;
     }));
-    add(doppelKachel(Str::MeWButton));
+    add(doppelKachel(Str::MlTypButton));
     add(pause(0.2));
     add(pruefe("rc608 Ablegen: der zweite Doppelklick stapelt nicht", [erstes] {
         const auto st = me::stand();
+        if (st.auswahl.empty()) { return false; }
         const me::ItemLage n = me::itemLagen()[static_cast<std::size_t>(st.auswahl[0])];
         diag::info("Knopftest: zweiter Doppelklick " + std::to_string(n.x) + ", " + std::to_string(n.y));
         return std::fabs(n.x - (*erstes)[0] - 20.0F) < 0.5F && std::fabs(n.y - (*erstes)[1] - 20.0F) < 0.5F;
     }));
     // Bibliothek: derselbe Weg
     add(merke());
-    add(zieheAufFlaeche(tr(Str::MeBtReiter), 100, 300));
+    add(rolleZuKachel(tr(Str::MlBtReiter)));
+    add(zieheAufFlaeche(tr(Str::MlBtReiter), 100, 300));
     add(pause(0.2));
     add(pruefe("rc608 Ablegen: Bibliothek auf dieselbe Weise, ein Schritt, drei Elemente", [tiefe, anzahl] {
         const auto st = me::stand();
@@ -1088,11 +1181,20 @@ std::vector<Schritt> schritteFelderJeTyp() {
 
 // Liegt alles im Inhalt der rechten Spalte? Waagerechtes Rollen waere der letzte Ausweg: ScrollMax.x bleibt 0,
 // jedes Element liegt ganz im Fenster. fehler: was hinausragt.
-bool rechtsGanz(std::string& fehler) {
-    ImGuiWindow* w = nullptr;
+ImGuiWindow* inhaltFenster() {
     for (ImGuiWindow* x : GImGui->Windows) {
         const std::string n = x->Name;
-        if (x->WasActive && n.find("/##inhalt_") != std::string::npos && n.find("##rechts") != std::string::npos) { w = x; }
+        if (x->WasActive && n.find("/##inhalt_") != std::string::npos && n.find("##rechts") != std::string::npos) { return x; }
+    }
+    return nullptr;
+}
+
+bool rechtsGanz(std::string& fehler, const char* teil = "##inhalt") {
+    ImGuiWindow* w = nullptr;
+    const std::string kennung = std::string("/") + teil + "_";
+    for (ImGuiWindow* x : GImGui->Windows) {
+        const std::string n = x->Name;
+        if (x->WasActive && n.find(kennung) != std::string::npos && n.find("##rechts") != std::string::npos) { w = x; }
     }
     if (w == nullptr) {
         fehler = "kein Inhalt";
@@ -1104,8 +1206,14 @@ bool rechtsGanz(std::string& fehler) {
         gut = false;
     }
     for (const Element& e : elemente::alle()) {
-        if (e.innen.find("##inhalt") == std::string::npos) { continue; }
-        if (e.rect.Min.x >= w->InnerRect.Max.x - 1.0F || e.label.find("##inhalt_") != std::string::npos) { continue; }   // der Rollbalken und das Fenster selbst
+        // die Karte oben liegt im selben Feld
+        if (e.innen.find("##karte") != std::string::npos && e.innen.find("##rechts") != std::string::npos && e.label.find("##karte_") == std::string::npos &&
+            (e.rect.Min.x < w->Pos.x - 0.5F || e.rect.Max.x > w->Pos.x + w->Size.x + 0.5F)) {
+            fehler += " [Karte " + e.label + "]";
+            gut = false;
+        }
+        if (e.innen.find(teil) == std::string::npos) { continue; }
+        if (e.rect.Min.x >= w->InnerRect.Max.x - 1.0F || e.label.find(std::string(teil) + "_") != std::string::npos) { continue; }   // der Rollbalken und das Fenster selbst
         if (e.rect.Min.x < w->Pos.x - 0.5F || e.rect.Max.x > w->InnerRect.Max.x + 0.5F) {
             fehler += " [" + e.label + " bis " + std::to_string(e.rect.Max.x - w->InnerRect.Max.x) + " bei y " + std::to_string(e.rect.Min.y - w->Pos.y + w->Scroll.y) + "]";
             gut = false;
@@ -1198,7 +1306,7 @@ std::vector<Schritt> schritteBreiten() {
         add(pause(0.15));
         add(pruefe("rc608 Breiten: die Spalten zeigen ihren Inhalt ganz, alle Reiter im Feld, " + kurz, [] {
             const ReiterLage r = reiterLage();
-            bool reiterGut = r.reiter.size() == 4;
+            bool reiterGut = r.reiter.size() == 3;
             for (const auto& [name, rect] : r.reiter) { reiterGut = reiterGut && rect.Max.x <= r.rechts + 0.5F && rect.GetWidth() >= 30.0F; }
             return spaltenGanz() && reiterGut;
         }));
@@ -1217,6 +1325,7 @@ std::vector<Schritt> schritteBreiten() {
         me::setzeSpalten(0.0F, 0.0F);
         me::setzeReiter(2);
         me::waehle(0, false);
+        me::leisteTablett(3);
     }));
     add(pause(0.4));
     add(pruefe("rc608 Meldungen: bei leerer Liste steht es da", [] {
@@ -1237,7 +1346,7 @@ std::vector<Schritt> schritteBreiten() {
         const Element* e = finde("##meldung", "", 0, false);
         if (e == nullptr) { return false; }
         std::string fehler;
-        const bool gut = rechtsGanz(fehler);
+        const bool gut = rechtsGanz(fehler, "##tablett");
         diag::info("Knopftest: Meldung " + std::to_string(e->rect.GetHeight()) + " hoch" + (gut ? "" : ", ragt hinaus: " + fehler));
         return me::stand().meldungen >= 1 && e->rect.GetHeight() > ImGui::GetFontSize() * 1.5F && gut;
     }));
@@ -1250,6 +1359,7 @@ std::vector<Schritt> schritteBreiten() {
     }));
     add(foto("menue_meldungen"));
     add(tu("rc608 Meldungen: schliessen", [] {
+        me::leisteVorgabe();
         me::schliesseAlleOhneSpeichern();
         (void)me::oeffneText("ui/breit.menu", kBreitenText);
         me::setzeInteraktion(false);
@@ -1301,7 +1411,8 @@ std::vector<Schritt> schritteTextBreite() {
             const auto x = me::stand();
             diag::info("Knopftest: Textbreite " + was + ": rechts " + std::to_string(me::rechteSpalte() / fs) + " Schrifthoehen, Flaeche " + std::to_string(x.flaeche[2] / fs) + " Schrifthoehen, Text " + std::to_string(me::textAnsicht().flaeche / fs));
             // In Bildpunkten: Bei 200 % auf 1920 Punkten passen nur 40 Schrifthoehen in die Breite; 320 Punkte sind die halbe Spielflaeche, Zoom und Verschieben helfen weiter
-            return me::rechteSpalte() >= fs * 16.0F - 0.5F && x.flaeche[2] >= 320.0F;
+            // rc608 Teil 3a: Die Flaeche bleibt 4:3, darum begrenzt bei 1080 Punkten und 200 % die Hoehe sie: 297 x 223, Breite 12 Schrifthoehen
+            return me::rechteSpalte() >= fs * 16.0F - 0.5F && x.flaeche[2] >= 290.0F && std::fabs(x.flaeche[2] / x.flaeche[3] - 4.0F / 3.0F) < 0.01F;
         }));
     }
     add(tu("rc608 Textbreite: zurueck", [skala, groesse] {
@@ -1394,16 +1505,37 @@ std::vector<Schritt> schritteEreignisseBloecke() {
         int weg = 0;
         for (const Element& e : elemente::alle()) {
             if (e.innen.find("##inhalt") == std::string::npos) { continue; }
-            hoch += e.label == "^" ? 1 : 0;
-            weg += e.label == "x" ? 1 : 0;
+            hoch += e.label.rfind("##st_h", 0) == 0 ? 1 : 0;
+            weg += e.label.rfind("##st_x", 0) == 0 ? 1 : 0;
         }
-        if (hoch == 0 || hoch != weg) {
+        // rc608 Teil 3a: Bei grosser Oberflaeche stehen erst die Ausloeser im Bild: Die Knoepfe liegen dann weiter unten; unten geprueft
+        const ImGuiWindow* inhalt = inhaltFenster();
+        const bool weiterUnten = inhalt != nullptr && inhalt->ScrollMax.y > inhalt->Scroll.y;
+        if ((hoch == 0 && !weiterUnten) || hoch != weg) {
             f += " Knoepfe ^ " + std::to_string(hoch) + ", x " + std::to_string(weg);
             return false;
         }
         return true;
     };
     for (auto& x : breitenTabelle("Events", 3, {0}, knoepfeDa)) { add(std::move(x)); }
+    add(tu("rc608 Events: 200 %, ans Ende gerollt", [] {
+        g_app->uiScale = 2.0F;
+        me::setzeSpalten(0.0F, 500.0F);
+        me::waehle(0, false);
+    }));
+    add(pause(0.3));
+    add(tu("rc608 Events: rollen", [] {
+        if (ImGuiWindow* inhalt = inhaltFenster()) { inhalt->Scroll.y = inhalt->ScrollMax.y; }
+    }));
+    add(pause(0.2));
+    add(pruefe("rc608 Events: 200 %, unten stehen die Knoepfe", [knoepfeDa] {
+        std::string f;
+        int hoch = 0;
+        for (const Element& e : elemente::alle()) { hoch += e.innen.find("##inhalt") != std::string::npos && e.label.rfind("##st_h", 0) == 0 ? 1 : 0; }
+        return hoch > 0 && knoepfeDa(f);
+    }));
+    add(tu("rc608 Events: 100 %", [] { g_app->uiScale = 1.0F; }));
+    add(pause(0.2));
     add(tu("rc608 Events: Mindestbreite", [] {
         me::setzeSpalten(0.0F, 1.0F);
         me::waehle(0, false);
@@ -1417,8 +1549,10 @@ std::vector<Schritt> schritteEreignisseBloecke() {
     add(pause(0.3));
     add(foto("menue_events_schmal"));
     // transition: das Feld w von "nach" aendert genau das achte Wort, Folge und Datei wie im Spiel
+    add(klick("##st2"));   // der Schritt transition, immer nur einer ist offen
+    add(pause(0.2));
     add(klickAn("rc608 Events: nach w doppelklicken", [] {
-        const Element* e = finde("##Z", "##inhalt", 3, false);   // B der beiden Farben, w von "Von", w von "Nach"
+        const Element* e = finde("##Z", "##inhalt", 1, false);   // w von "Von", w von "Nach"
         return e != nullptr ? e->rect.GetCenter() : ImVec2{};
     }, 0, true));
     add(pause(0.2));
@@ -1633,6 +1767,7 @@ std::vector<Schritt> schritteErsetzen() {
         return zaehle(me::stand().text, "\"Neu\"") == 2 && me::letzteMeldung() == m;
     }));
     add(tu("rc608 Ersetzen: aufraeumen", [] {
+        me::sucheZu();
         me::schliesseAlleOhneSpeichern();
         me::setzeReiter(0);
     }));

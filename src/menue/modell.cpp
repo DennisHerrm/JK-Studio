@@ -150,7 +150,7 @@ bool ladeMenueModell(const Spieldaten& d, const Item& it, const CvarLeser& cvar,
     return true;
 }
 
-MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs, int animSeitMs, int breite, int hoehe, std::vector<BoneMatrix>& weltKnochen) {
+MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs, int animSeitMs, int breite, int hoehe, std::vector<BoneMatrix>& weltKnochen, const ModellLicht& licht) {
     MenueModellBild b;
     // Grenzen (ghoul2 hat keine: g2mins/g2maxs oder die Vorgabe)
     float mins[3] = {it.g2mins[0], it.g2mins[1], it.g2mins[2]};
@@ -213,10 +213,10 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
         }
     }
     // R_SetupEntityLighting ohne Weltmodell, ein Licht 500 (1 1 1) am Augpunkt
-    float amb = 150.0F + 32.0F;
+    float amb = licht.umgebung;
     float dirLicht = 150.0F;
     float ld[3] = {0, 0, 0};   // tr.sunDirection * |directedLight|: ohne Karte ist die Sonne null
-    {
+    if (licht.augenLicht) {
         float dir[3] = {-origin[0], -origin[1], -origin[2]};   // dl->origin (0) - lightOrigin
         float d = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
         if (d > 0) {

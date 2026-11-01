@@ -267,7 +267,11 @@ def menueEditor():
     wie in leisten()). Die Leiste zuerst: heisst ein Knopf eines Fensters gleich (Pruefen, Schrift
     bauen), gilt der Leistenknopf mit seinem Hinweis."""
     leiste, knoepfe = [], []
-    for z in lies("gui/app_menue.cpp"):
+    # rc608 Teil 3a: Die neuen Leisten liegen in eigenen Dateien
+    zeilen = []
+    for datei in ("gui/app_menue.cpp", "gui/app_menue_leiste.inc", "gui/app_menue_links.inc", "gui/app_menue_bildwahl.inc"):
+        zeilen += lies(datei)
+    for z in zeilen:
         # M4: leistenKnopf (Symbol oder Symbol + Text); Hinweis auch als "tr(a ? Str::X : Str::Y)" (X gilt)
         m = re.search(r"(?:icon(?:Text)?|leisten)Knopf\(tr\(Str::(Me\w+)\), *UiIcon::\w+, *"
                       r"tr\((?:[^()?]*(?:\([^()]*\))?[^()?]*\? *)?Str::(\w+)", z)

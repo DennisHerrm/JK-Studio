@@ -179,7 +179,9 @@ std::vector<Schritt> schritteM2() {
         me::waehle(0, false);
         if (!me::speichereAuswahlAlsVorlage("probe_vorlage")) { return false; }
         const auto ids = me::vorlagenIds();
-        return std::find(ids.begin(), ids.end(), "probe_vorlage") != ids.end();
+        const bool da = std::find(ids.begin(), ids.end(), "probe_vorlage") != ids.end();
+        me::vorlageWeg("probe_vorlage");   // rc608 Teil 3a: spaetere Schritte zaehlen die eigenen Vorlagen
+        return da;
     }));
     // Ebenenliste: drei uebereinanderliegende Items (eigene Namen, eine Gruppe), Kommentar dazwischen
     const std::string ebenen = "{\n\tmenuDef\n\t{\n\t\tname stapel\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
@@ -244,11 +246,12 @@ std::vector<Schritt> schritteM2() {
     add(pruefe("M2 Layout: Reiter Text gewaehlt und gemerkt", [] { return me::reiter() == 1; }));
     add(foto("menue_reiter_text"));
     add(pruefe("M2 Layout: Reiter Text mit Suchzeile - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
-    add(tu("M2 Layout: Reiter Hierarchie", [] { me::setzeReiter(0); }));
+    // rc608 Teil 3a: Die Hierarchie steht jetzt immer links
+    add(tu("M2 Layout: Reiter Properties", [] { me::setzeReiter(2); }));
     add(pause(0.3));
-    add(pruefe("M2 Layout: Reiter Hierarchie gewaehlt", [] { return me::reiter() == 0; }));
-    add(foto("menue_reiter_hierarchie"));
-    add(pruefe("M2 Layout: Reiter Hierarchie - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
+    add(pruefe("M2 Layout: Reiter Properties gewaehlt", [] { return me::reiter() == 2; }));
+    add(foto("menue_reiter_properties"));
+    add(pruefe("M2 Layout: Reiter Properties - keine Spalte abgeschnitten", [] { return spaltenGanz(); }));
     // Live-Diagnose: ein absichtlich kaputtes Menue (fehlende }, Tippfehler im Schluesselwort,
     // show auf ein Item, das es nicht gibt)
     add(tu("M2 Diagnose: kaputtes Menue oeffnen", [] {
@@ -736,7 +739,7 @@ std::vector<Schritt> schritteM5() {
         me::setzeReiter(2);
     }));
     add(pause(0.3));
-    add(pruefe("M5 Layout: ohne Auswahl der leere Zustand mit Zeig mir wie", [] { return finde(tr(Str::MeLayoutZeigMir), "", 0, false, "") != nullptr; }));
+    add(pruefe("M5 Layout: ohne Auswahl kein Anordnen, die Leiste zeigt das Menue", [] { return finde(tr(Str::MeLayoutWaagrecht), "##inhalt", 0, false, "") == nullptr && finde("##mname", "##inhalt", 0, false) != nullptr; }));
     // Aufgabe: Rahmen und drei Knoepfe waehlen (4 Klicks wie Strg+Klick), dann ein Klick auf Nebeneinander
     add(tu("M5 Layout Aufgabe: panel, knopf1..3 waehlen (Strg+Klick)", [schritte] {
         for (const char* n : {"panel", "knopf1", "knopf2", "knopf3"}) {
@@ -812,9 +815,11 @@ std::vector<Schritt> schritteM5() {
     add(tu("M5 Ereignisse Aufgabe: knopf1 waehlen, Reiter Ereignisse", [ev] {
         me::waehle(me::itemNummer("knopf1"), false);
         me::setzeReiter(3);
-        *ev = 2;   // Auswahl und Reiter
+        *ev = 3;   // Auswahl, Reiter und Ausloeser Hover
     }));
     add(pause(0.3));
+    add(klick("##tr_mouseEnter"));
+    add(pause(0.2));
     add(klick(tr(Str::MeEvLeuchten)));
     add(pause(0.3));
     add(klick("##klickklang"));
@@ -822,7 +827,7 @@ std::vector<Schritt> schritteM5() {
     add(taste(ImGuiKey_Enter, "Enter"));
     add(tu("M5 Ereignisse Aufgabe: Schritte zaehlen (Leuchten, Feld, Tippen, Enter)", [ev] { *ev += 4; }));
     add(pause(0.3));
-    add(pruefe("M5 Ereignisse Aufgabe: Glow-Element, Hover show/hide, Klick spielt - in 6 Schritten; das Spiel liest es ohne Meldung", [st, ev] {
+    add(pruefe("M5 Ereignisse Aufgabe: Glow-Element, Hover show/hide, Klick spielt - in 7 Schritten; das Spiel liest es ohne Meldung", [st, ev] {
         const auto x = st();
         bhed::menue::LeseOptionen o;
         o.dialekt = bhed::menue::Dialekt::SP;
@@ -848,7 +853,7 @@ std::vector<Schritt> schritteM5() {
         std::snprintf(b, sizeof(b), "Menue-Editor M5 Aufgabe Ereignisse: %d Schritte, Glow vorher %d, beim Hover %d, Klick-Klang %d", *ev, vorher, hover,
                       klang);
         diag::info(b);
-        return !vorher && hover && klang && *ev <= 6;
+        return !vorher && hover && klang && *ev <= 7;
     }));
     add(foto("menue_ereignisse"));
     add(tu("M5 Ereignisse: zurueck zum Reiter Eigenschaften", [] { me::setzeReiter(2); }));
@@ -1006,9 +1011,7 @@ std::vector<Schritt> schritteM5bProjekt() {
     }));
     add(pause(0.3));
     add(pruefe("M5b Profil: mit Profil keine Meldung, Mod-Schluessel beschriftet in den Eigenschaften", [st] {
-        char kopf[200];
-        std::snprintf(kopf, sizeof(kopf), tr(Str::MeProfilSchluessel), "Selbsttest Mod");
-        return me::modProfil() == "Selbsttest Mod" && st().meldungen == 0 && finde(kopf, "", 0, false, "") != nullptr;
+        return me::modProfil() == "Selbsttest Mod" && st().meldungen == 0 && finde("##gr_modschluessel", "", 0, false, "") != nullptr;
     }));
     add(foto("menue_profil"));
     add(tu("M5b Profil: Vorlage fuer Galactic Legacy anlegen", [profilOrdner] {
@@ -1029,6 +1032,7 @@ std::vector<Schritt> schritteM5bProjekt() {
 // M5b Punkt 6: Tour "Dein erstes eigenes Menue" (tut-menue-eigen) mit ECHTEN Aktionen; vor jeder Aktion
 // die Gegenprobe (der Schritt ist noch nicht erledigt, auch nicht durch eine andere Aktion), danach
 // muss die Tour selbst weiterschalten. Die Bilder h_tut_menue_1..6 sind die des Tutorials.
+Schritt rolleZuKachel(const std::string& name);   // selbsttest_menue_rc608.inc
 std::vector<Schritt> schritteTourMenue() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1078,10 +1082,11 @@ std::vector<Schritt> schritteTourMenue() {
     // rc608 Punkt 11: ein einfacher Klick setzt nicht mehr ein, die Tour sagt Doppelklick oder Ziehen
     const auto doppelKnopf = [] {
         return klickAn("M5b Tour: Doppelklick auf den Knopf-Baustein", [] {
-            const Element* e = finde(tr(Str::MeWButton), "##links", 0, false);
+            const Element* e = finde(tr(Str::MlTypButton), "##links", 0, false);
             return e != nullptr ? e->rect.GetCenter() : ImVec2{};
         }, 0, true);
     };
+    add(rolleZuKachel(tr(Str::MlTypButton)));
     add(doppelKnopf());
     erledigt(3);
     add(doppelKnopf());
@@ -1121,6 +1126,8 @@ std::vector<Schritt> schritteTourMenue() {
     }));
     add(pause(0.3));
     offen(4, "Reiter Ereignisse offen, noch kein Effekt");
+    add(klick("##tr_mouseEnter"));
+    add(pause(0.2));
     add(klick(tr(Str::MeEvLeuchten)));
     erledigt(5);
     add(foto("h_tut_menue_5"));
@@ -1876,12 +1883,16 @@ std::vector<Schritt> schritteBleiben() {
     return s;
 }
 
-// Lage des rect-Feldes in Properties: die Zeile ueber "text"
-ImVec2 rectFeldStelle(float anteil) {
-    (void)anteil;
-    const Element* e = finde("##X", "##inhalt", 0, false);   // rc608: Das erste Zahlenfeld in Properties ist x von rect
-    if (e == nullptr) { return ImVec2{-1.0F, -1.0F}; }
-    return e->rect.GetCenter();
+// Lage des rect-Feldes in Properties (rc608 Teil 3a: x in der Gruppe "Lage und Groesse"); griff: die Beschriftung, an der man zieht
+ImVec2 rectFeldStelle(const char* feld = "##X") {
+    const Element* g = finde("##gr_lage", "##inhalt", 0, false);
+    if (g == nullptr) { return ImVec2{-1.0F, -1.0F}; }
+    for (int k = 0;; ++k) {
+        const Element* e = finde(feld, "##inhalt", k, false);
+        if (e == nullptr) { break; }
+        if (e->rect.Min.y > g->rect.Min.y) { return e->rect.GetCenter(); }
+    }
+    return ImVec2{-1.0F, -1.0F};
 }
 
 // rc608 (Tester): Felder in Properties: Tippen und daneben klicken, rect mit der Maus ziehen
@@ -1902,7 +1913,7 @@ std::vector<Schritt> schritteFelder() {
     // rect mit der Maus: das Feld zieht um mehr als ein Bild
     add(Schritt{"rc608 Felder: rect mit der Maus ziehen", [](int b) {
                     ImGuiIO& io = ImGui::GetIO();
-                    const ImVec2 start = rectFeldStelle(0.08F);
+                    const ImVec2 start = rectFeldStelle("##ziehX");   // rc608 Teil 3a: Ziehen an der Beschriftung, das Feld tippt
                     if (b == 0) { setzeMaus(start); return false; }
                     if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
                     if (b >= 3 && b <= 13) { setzeMaus(ImVec2{start.x + static_cast<float>(b - 2) * 4.0F, start.y}); return false; }
@@ -1920,7 +1931,7 @@ std::vector<Schritt> schritteFelder() {
     add(pause(0.2));
     add(pruefe("rc608 Felder: Rueckgaengig nimmt das Ziehen in einem Schritt zurueck", [] { return rectVon("frei") == "400 300 100 50"; }));
     // rect tippen (Doppelklick auf das Feld), daneben klicken
-    add(klickAn("rc608 Felder: Doppelklick auf das erste rect-Feld", [] { return rectFeldStelle(0.08F); }, 0, true));
+    add(klickAn("rc608 Felder: Doppelklick auf das erste rect-Feld", [] { return rectFeldStelle(); }, 0, true));
     add(pause(0.2));
     add(pruefe("rc608 Felder: der Doppelklick oeffnet das Feld zum Tippen", [] { return ImGui::GetIO().WantTextInput; }));
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
@@ -1939,14 +1950,16 @@ std::vector<Schritt> schritteFelder() {
         const char* neu;
         bool anfuehrung;
     };
+    add(tu("rc608 Felder: alle Gruppen offen", [] { me::leisteAlleOffen(); }));
     static const Feld felder[] = {{"name", "name", "anders", true}, {"group", "group", "gruppe2", true}, {"text", "text", "Hallo", true}, {"background", "background", "gfx/neu", true}};
     for (const Feld& f : felder) {
         const std::string l = f.label;
         const std::string n = f.neu;
         const std::string k = f.schluessel;
-        add(tu("rc608 Felder " + l + ": hinten waehlen", [] {
+        add(tu("rc608 Felder " + l + ": hinten waehlen", [l] {
             me::waehle(0, false);
             me::setzeReiter(2);
+            if (l == "background") { me::setzeEigenschaftAuswahl("style", {"WINDOW_STYLE_SHADER"}); }   // das Feld steht nur da, wo es wirkt
         }));
         add(pause(0.3));
         add(klick("##" + l));
@@ -1977,11 +1990,18 @@ std::vector<Schritt> schritteFelder() {
         return me::stand().text.find("rect LAGE") != std::string::npos && me::letzteMeldung() == tr(Str::MeAusMakro) && !g_app->einblendungen.empty();
     }));
     add(foto("menue_makro_meldung"));
-    add(tu("rc608 Felder: Aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    add(tu("rc608 Felder: Aufraeumen", [] {
+        me::schliesseAlleOhneSpeichern();
+        me::leisteVorgabe();
+    }));
     return s;
 }
 
-// Die Zeile eines Items in der Hierarchie ("name  ITEM_TYPE_...")
+// Die Probe der Undo-Tabelle: wie kZugText, dazu ein Knopf mit Skript und einer Zahl, die von der Vorgabe abweicht (rc608 Teil 3a)
+const std::string kUndoText = std::string(kZugText).insert(std::string(kZugText).rfind('}'),
+    "  itemDef\n  {\n    name \"skript\"\n    type ITEM_TYPE_BUTTON\n    rect 20 400 100 30\n    text \"S\"\n    textscale 0.7\n    action { show frei ; hide vorn }\n    visible 1\n  }\n");
+
+// Die Zeile eines Items in der Hierarchie ("name  Art")
 ImVec2 zeileVon(const std::string& name) {
     for (const Element& e : elemente::alle()) {
         if (e.label.rfind(name + "  ", 0) == 0) { return e.rect.GetCenter(); }
@@ -1989,15 +2009,15 @@ ImVec2 zeileVon(const std::string& name) {
     return ImVec2{-1.0F, -1.0F};
 }
 
-// Eine leere Stelle im rechten Panel, zum Fokussieren wie ein Klick dorthin
-ImVec2 leerImPanel() {
-    const auto x = me::stand();
-    // rc608: In Properties steht unten jetzt ein Knopf (das Feld ist voller); die Beschriftung "name" ist immer frei
-    if (me::reiter() == 2) {
-        if (const Element* n = finde("##name", "##inhalt", 0, false)) { return ImVec2{n->rect.Min.x - ImGui::GetFontSize() * 2.0F, n->rect.GetCenter().y}; }
+// Eine leere Stelle zum Fokussieren wie ein Klick dorthin: rechts die Hilfezeile (nimmt keine Eingaben), links unten die Hierarchie (rc608 Teil 3a)
+ImVec2 leerImPanel(int reiter) {
+    for (ImGuiWindow* w : GImGui->Windows) {
+        const std::string n = w->Name;
+        if (!w->WasActive) { continue; }
+        if (reiter != 0 && n.find("/##hilfe_") != std::string::npos) { return ImVec2{w->Pos.x + w->Size.x * 0.5F, w->Pos.y + w->Size.y * 0.5F}; }
+        if (reiter == 0 && n.find("/##ebenen_liste_") != std::string::npos) { return ImVec2{w->Pos.x + w->Size.x * 0.5F, w->Pos.y + w->Size.y - 6.0F}; }
     }
-    const Element* e = finde(tr(Str::MeReiterHierarchie), "", 0, false);
-    return e != nullptr ? ImVec2{e->rect.Min.x + ImGui::GetFontSize(), x.flaeche[1] + x.flaeche[3] - ImGui::GetFontSize()} : ImVec2{-1.0F, -1.0F};
+    return ImVec2{-1.0F, -1.0F};
 }
 
 // rc608 Punkt 0 (shank: "warum auch immer geht so gut wie kein undo in dem Menu tab"): die Tabelle Aktion gegen
@@ -2025,8 +2045,9 @@ std::vector<Schritt> schritteUndo() {
              l.push_back(taste(ImGuiKey_RightArrow, std::string("Pfeil rechts")));
          }},
         {"Widget einfuegen", [](Liste& l) {
+             l.push_back(rolleZuKachel(tr(Str::MlTypButton)));
              l.push_back(klickAn("Doppelklick auf das Widget", [] {   // rc608 Punkt 11: ein einfacher Klick setzt nichts mehr ein
-                 const Element* e = finde(tr(Str::MeWButton), "##links", 0, false);
+                 const Element* e = finde(tr(Str::MlTypButton), "##links", 0, false);
                  return e != nullptr ? e->rect.GetCenter() : ImVec2{};
              }, 0, true));
          }},
@@ -2040,7 +2061,7 @@ std::vector<Schritt> schritteUndo() {
              l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_D, "Strg+D"));
          }},
         {"Properties rect", [](Liste& l) {
-             l.push_back(klickAn("rect-Feld", [] { return rectFeldStelle(0.08F); }, 0, true));
+             l.push_back(klickAn("rect-Feld", [] { return rectFeldStelle(); }, 0, true));
              l.push_back(pause(0.1));
              l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
              l.push_back(tippe("123"));
@@ -2052,10 +2073,12 @@ std::vector<Schritt> schritteUndo() {
              l.push_back(tippe("umbenannt"));
              l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
          }},
-        {"Properties visible", [](Liste& l) { l.push_back(klick("visible")); }},
+        {"Properties visible", [](Liste& l) { l.push_back(klick("##k_sichtbar")); }},
         {"Properties style", [](Liste& l) { l.push_back(tu("style setzen", [] { me::setzeEigenschaftAuswahl("style", {"WINDOW_STYLE_SHADER"}); })); }},
         {"Events", [](Liste& l) {
              l.push_back(tu("Reiter Events", [] { me::setzeReiter(3); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick("##tr_mouseEnter"));
              l.push_back(pause(0.1));
              l.push_back(klick(tr(Str::MeEvLeuchten)));
          }},
@@ -2068,7 +2091,53 @@ std::vector<Schritt> schritteUndo() {
              l.push_back(tippe("umbenannt"));
              l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
          }},
-        {"Ebene nach vorn", [](Liste& l) { l.push_back(klick(tr(Str::MeNachVorn))); }, 0},
+        {"Ebene nach vorn", [](Liste& l) { l.push_back(klick("##k_vor")); }, 0},
+        // rc608 Teil 3a: die neuen Aktionen der Leisten
+        {"Ausrichtung", [](Liste& l) { l.push_back(klick("##a_mitte")); }},
+        {"Fuellung", [](Liste& l) { l.push_back(klick(tr(Str::MlFuellBild), "##rechts")); }},
+        {"Reihenfolge eines Schritts", [](Liste& l) {
+             l.push_back(tu("Reiter Events", [] { me::setzeReiter(3); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick("##st_r0"));
+         }, 3},
+        {"Schritt hinzufuegen", [](Liste& l) {
+             l.push_back(tu("Reiter Events", [] { me::setzeReiter(3); }));
+             l.push_back(pause(0.1));
+             l.push_back(klick(tr(Str::MlAddStep)));
+             l.push_back(pause(0.1));
+             l.push_back(klick("##neu_oftplay"));
+         }},
+        {"Umbenennen in der Karte", [](Liste& l) {
+             l.push_back(klick("##name", "##karte"));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("umbenannt"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }},
+        {"Zuruecksetzen", [](Liste& l) { l.push_back(klick("##zurueck", "##inhalt")); }},
+        {"Change all", [](Liste& l) {
+             l.push_back(klickAn("Feld", [] {
+                 const Element* e = finde("##alle_scale", "##inhalt", 0, false);
+                 return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+             }));
+             l.push_back(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
+             l.push_back(tippe("0.9"));
+             l.push_back(taste(ImGuiKey_Enter, std::string("Enter")));
+         }, 4},
+        {"Anordnen", [](Liste& l) { l.push_back(klick(tr(Str::MeLinks), "##inhalt")); }, 4},
+        {"Rahmen einfuegen", [](Liste& l) {
+             l.push_back(rolleZuKachel(tr(Str::MlTypBild)));
+             l.push_back(klickAn("Doppelklick auf die Kachel", [] {
+                 const Element* e = finde(tr(Str::MlTypBild), "##links", 0, false);
+                 return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+             }, 0, true));
+         }},
+        {"Fertiges Teil einfuegen", [](Liste& l) {
+             l.push_back(rolleZuKachel(tr(Str::MlBtReiter)));
+             l.push_back(klickAn("Doppelklick auf die Kachel", [] {
+                 const Element* e = finde(tr(Str::MlBtReiter), "##links", 0, false);
+                 return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+             }, 0, true));
+         }},
         {"Text-Editor", [](Liste& l) { l.push_back(tu("Zeichen tippen", [] { ImGui::GetIO().AddInputCharactersUTF8("// x"); })); }, 2, [](Liste& l) {
              l.push_back(tu("Reiter Text", [] { me::setzeReiter(1); }));
              l.push_back(pause(0.1));
@@ -2085,7 +2154,7 @@ std::vector<Schritt> schritteUndo() {
         return [reiter](Liste& l) {
             l.push_back(tu("Reiter", [reiter] { me::setzeReiter(reiter); }));
             l.push_back(pause(0.1));
-            l.push_back(klickAn("in das Panel", [] { return leerImPanel(); }));
+            l.push_back(klickAn("in das Panel", [reiter] { return leerImPanel(reiter); }));
         };
     };
     const std::vector<Weg> wege = {
@@ -2131,9 +2200,14 @@ std::vector<Schritt> schritteUndo() {
             add(tu("rc608 Undo " + fall + ": Probe oeffnen, frei gewaehlt", [gewaehlt] {
                 me::schliesseAlleOhneSpeichern();
                 g_app->leftMode = 4;
-                (void)me::oeffneText("undo.menu", kZugText);
+                (void)me::oeffneText("undo.menu", kUndoText);
                 me::setzeInteraktion(false);
-                me::waehle(gewaehlt, false);
+                if (gewaehlt == 4) {
+                    me::waehle(2, false);
+                    me::waehle(0, true);
+                } else {
+                    me::waehle(gewaehlt, false);
+                }
                 me::setzeReiter(2);
             }));
             add(pause(0.1));
@@ -2230,10 +2304,14 @@ std::vector<Schritt> schritteUndo() {
     add(pause(0.3));
     add(pruefe("rc608 Umbenennen: danach geht Strg+Z", [] { return rectVon("frei") == "400 300 100 50"; }));
     umbenennen("vorn");
-    add(tu("rc608 Umbenennen: Reiter wechseln", [] { me::setzeReiter(2); }));
+    // rc608 Teil 3a: Die Hierarchie steht jetzt immer links; der echte Klick auf den Reiter beendet es
+    add(klickAn("rc608 Umbenennen: Reiter wechseln", [] {
+        const Element* e = finde(tr(Str::MeEreignisse), "##rechts", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+    }));
     add(pause(0.3));
     add(pruefe("rc608 Umbenennen: der Reiterwechsel beendet es", [] { return !ImGui::GetIO().WantTextInput; }));
-    add(tu("rc608 Umbenennen: zurueck zur Hierarchie", [] { me::setzeReiter(0); }));
+    add(tu("rc608 Umbenennen: zurueck", [] { me::setzeReiter(2); }));
     add(pause(0.3));
     add(pruefe("rc608 Umbenennen: das Feld kommt nicht wieder", [] { return !ImGui::GetIO().WantTextInput && zeileVon("vorn").x >= 0.0F; }));
     umbenennen("hinten");
@@ -2275,11 +2353,11 @@ std::vector<Schritt> schritteTyp() {
         add(foto("menue_typ_" + dialekt));
         add(pruefe("rc608 Typ " + dialekt + ": die Probe liest sich ohne Abbruch", [] { return me::stand().abbruchZeile == 0 && me::itemLagen().size() == 3U; }));
         add(pruefe("rc608 Typ " + dialekt + ": type ist nur Anzeige, keine Auswahl", [] {
-            const Element* e = finde("##type", "", 0, false);
+            const Element* e = finde("##badge", "##karte", 0, false);
             return e != nullptr && (e->flags & ImGuiItemStatusFlags_Openable) == 0;
         }));
         add(klickAn("rc608 Typ " + dialekt + ": auf das Feld type", [] {
-            const Element* e = finde("##type", "", 0, false);
+            const Element* e = finde("##badge", "##karte", 0, false);
             return e != nullptr ? e->rect.GetCenter() : ImVec2{-1.0F, -1.0F};
         }));
         add(pause(0.2));
@@ -2368,6 +2446,8 @@ std::vector<Schritt> schritteM7() {
         me::waehle(0, false);
     }));
     add(pause(0.3));
+    add(klick(tr(Str::MeKomp), "##rechts"));
+    add(pause(0.2));
     add(klick(tr(Str::MeKompAnlegen)));
     add(pause(0.2));
     add(klick(tr(Str::MeKompKopie)));
@@ -2638,6 +2718,8 @@ std::vector<Schritt> schritteM6() {
         return u == std::vector<std::string>{"rect"};
     }));
     add(foto("menue_vergleich"));
+    add(klick("##gr_original"));
+    add(pause(0.2));
     add(klick(tr(Str::MeOriginalZuruecksetzen)));
     add(pause(0.3));
     add(pruefe("M6 Original: zurueckgesetzt, Text wieder wie im Spiel", [st, original] { return st().text == *original && me::originalUnterschiede().empty(); }));
@@ -2646,8 +2728,22 @@ std::vector<Schritt> schritteM6() {
 }
 
 #include "selbsttest_menue_rc608.inc"   // rc608 Teil 2
+#include "selbsttest_menue_leiste.inc"  // rc608 Teil 3a
 
 std::vector<Schritt> schritte() {
+    // Mehrere Teile hintereinander: BHED_MENUE_NUR=a+b
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strchr(nur, '+') != nullptr) {
+        std::vector<Schritt> alle;
+        std::string rest = nur;
+        while (!rest.empty()) {
+            const std::size_t p = rest.find('+');
+            const std::string teil = rest.substr(0, p);
+            rest = p == std::string::npos ? std::string() : rest.substr(p + 1);
+            (void)_putenv_s("BHED_MENUE_NUR", teil.c_str());
+            for (auto& x : schritte()) { alle.push_back(std::move(x)); }
+        }
+        return alle;
+    }
     if (std::getenv("BHED_MENUE_VERGLEICH") != nullptr) { return vergleichSchritte(); }
     // Sprache fuer die Handbuchbilder (wie handbuchSchritte): BHED_SPRACHE = Kurzname aus tools/sprachen.py
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
@@ -2694,6 +2790,47 @@ std::vector<Schritt> schritte() {
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "m5b") == 0) {
         for (auto& x : schritteM5b()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=leiste, leistebreit, verzerrt, textzoom: die Seitenleisten, die Flaeche, der Text-Editor (rc608 Teil 3a)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "stapel") == 0) {
+        for (auto& x : schritteStapel()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "mpschrift") == 0) {
+        for (auto& x : schritteMpSchrift()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "eigeneanim") == 0) {
+        for (auto& x : schritteEigeneAnimation()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "spielprobe") == 0) {
+        for (auto& x : schritteSpielprobe()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "rahmen") == 0) {
+        for (auto& x : schritteRahmen()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "links") == 0) {
+        for (auto& x : schritteLinks()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "verzerrt") == 0) {
+        for (auto& x : schritteVerzerrt()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "textzoom") == 0) {
+        for (auto& x : schritteTextZoom()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "leiste") == 0) {
+        for (auto& x : schritteLeiste()) { add(std::move(x)); }
+        return s;
+    }
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "leistebreit") == 0) {
+        for (auto& x : schritteLeisteBreit()) { add(std::move(x)); }
         return s;
     }
     // BHED_MENUE_NUR=zeiger: der Mauszeiger im Text-Editor und auf der Flaeche (rc608 Punkte 16 und 8)
@@ -3046,6 +3183,14 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteTextBreite()) { add(std::move(x)); }
     for (auto& x : schritteEreignisseBloecke()) { add(std::move(x)); }
     for (auto& x : schritteLeeresMenue()) { add(std::move(x)); }
+    for (auto& x : schritteLeiste()) { add(std::move(x)); }
+    for (auto& x : schritteLeisteBreit()) { add(std::move(x)); }
+    for (auto& x : schritteVerzerrt()) { add(std::move(x)); }
+    for (auto& x : schritteTextZoom()) { add(std::move(x)); }
+    for (auto& x : schritteRahmen()) { add(std::move(x)); }
+    for (auto& x : schritteLinks()) { add(std::move(x)); }
+    for (auto& x : schritteStapel()) { add(std::move(x)); }
+    for (auto& x : schritteMpSchrift()) { add(std::move(x)); }
     for (auto& x : schritteChangelog()) { add(std::move(x)); }
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;

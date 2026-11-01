@@ -175,11 +175,11 @@ std::string zusammensetzen(const std::vector<Baustein>& b) {
 bool skriptSetzen(const Datei& d, int menu, int item, const char* schluessel, const std::string& skript, std::vector<Ersetzung>& out) {
     if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
     const Menu& m = d.menus[static_cast<std::size_t>(menu)];
-    if (item < 0 || static_cast<std::size_t>(item) >= m.items.size()) { return false; }
-    const Item& it = m.items[static_cast<std::size_t>(item)];
+    if (item >= 0 && static_cast<std::size_t>(item) >= m.items.size()) { return false; }
+    const std::vector<Eigenschaft>& eig = item >= 0 ? m.items[static_cast<std::size_t>(item)].eigenschaften : m.eigenschaften;
     const std::string& t = d.text;
     const std::string nl = zeilenende(t);
-    for (const Eigenschaft& e : it.eigenschaften) {
+    for (const Eigenschaft& e : eig) {
         if (klein(e.schluessel) != klein(schluessel)) { continue; }
         if (e.kopf.datei != 0 || e.kopf.ausMakro) { return false; }
         const Token* auf = klammer(e, "{", false);
@@ -197,13 +197,94 @@ bool skriptSetzen(const Datei& d, int menu, int item, const char* schluessel, co
         return true;
     }
     if (skript.empty()) { return true; }
-    // neu: vor die schliessende } des itemDef, eigene Zeile
+    // neu: vor die schliessende } des itemDef bzw. menuDef, eigene Zeile. Beim Menue vor seine Items: dort stehen seine Skripte auch in den Originalen.
+    if (item < 0) {
+        if (m.ende == 0 || m.ende > t.size()) { return false; }
+        const std::size_t ziel = m.items.empty() ? zeilenAnfang(t, m.ende - 1) : zeilenAnfang(t, m.items.front().anfang);
+        std::string einr;
+        for (const Eigenschaft& e : m.eigenschaften) {
+            if (e.kopf.datei != 0) { continue; }
+            const std::size_t za = zeilenAnfang(t, e.kopf.anfang);
+            einr = t.substr(za, e.kopf.anfang - za);
+            break;
+        }
+        if (einr.empty()) { einr = "\t"; }
+        out.push_back(Ersetzung{static_cast<std::uint32_t>(ziel), static_cast<std::uint32_t>(ziel), einr + schluessel + " { " + skript + " }" + nl});
+        return true;
+    }
+    const Item& it = m.items[static_cast<std::size_t>(item)];
     if (it.ende == 0 || it.ende > t.size()) { return false; }
     const std::size_t klZu = it.ende - 1;
     const std::size_t za = zeilenAnfang(t, klZu);
     const std::string einr = einrueckung(d, it);
     out.push_back(Ersetzung{static_cast<std::uint32_t>(za), static_cast<std::uint32_t>(za),
                             einr + schluessel + " { " + skript + " }" + nl});
+    return true;
+}
+
+bool befehlMitZiel(const std::string& befehl) {
+    static const char* const mitZiel[] = {"show", "hide", "fadein", "fadeout", "setfocus", "setitemcolor", "setitemrect", "setitemtext",
+                                          "setitembackground", "transition", "transition2", "orbit"};
+    const std::string c = klein(befehl);
+    return std::any_of(std::begin(mitZiel), std::end(mitZiel), [&c](const char* m) { return c == m; });
+}
+
+bool zielDa(const Menu& m, const std::string& befehl, const std::string& ziel) {
+    const bool nurName = klein(befehl) == "setfocus";
+    const std::size_t stern = ziel.find('*');
+    const std::string kz = klein(ziel);
+    for (const Item& it : m.items) {
+        if (stern != std::string::npos && !nurName) {
+            if (it.window.name.compare(0, stern, ziel, 0, stern) == 0 && it.window.name.size() >= stern) { return true; }
+            if (it.window.group.compare(0, stern, ziel, 0, stern) == 0 && it.window.group.size() >= stern) { return true; }
+            continue;
+        }
+        if (klein(it.window.name) == kz) { return true; }
+        if (!nurName && !it.window.group.empty() && klein(it.window.group) == kz) { return true; }
+    }
+    return false;
+}
+
+bool itemUmbenennen(const Datei& d, int menu, int item, const std::string& neuZitiert, std::vector<Ersetzung>& out) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.menus.size()) { return false; }
+    const Menu& m = d.menus[static_cast<std::size_t>(menu)];
+    if (item < 0 || static_cast<std::size_t>(item) >= m.items.size()) { return false; }
+    const std::string alt = m.items[static_cast<std::size_t>(item)].window.name;
+    if (!setzeEigenschaft(d, menu, item, "name", {neuZitiert}, out)) { return false; }
+    if (alt.empty()) { return true; }
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        if (static_cast<int>(i) != item && klein(m.items[i].window.name) == klein(alt)) { return true; }
+    }
+    std::string neu = neuZitiert;
+    if (neu.size() >= 2 && neu.front() == '"' && neu.back() == '"') { neu = neu.substr(1, neu.size() - 2); }
+    const auto skripte = [&](const std::vector<Eigenschaft>& eig) {
+        for (const Eigenschaft& e : eig) {
+            static const char* const kSkripte[] = {"action", "mouseenter", "mouseexit", "mouseentertext", "mouseexittext", "onfocus", "leavefocus", "accept",
+                                                   "selectnext", "selectprev", "doubleclick", "onopen", "onclose", "onaccept", "onesc"};
+            const std::string k = klein(e.schluessel);
+            if (std::none_of(std::begin(kSkripte), std::end(kSkripte), [&k](const char* s) { return k == s; })) { continue; }
+            bool amAnfang = true;
+            for (std::size_t a = 0; a + 1 < e.args.size(); ++a) {
+                const Token& t = e.args[a];
+                if (t.s == "{" || t.s == ";") {
+                    amAnfang = true;
+                    continue;
+                }
+                if (!amAnfang) { continue; }
+                amAnfang = false;
+                if (!befehlMitZiel(t.s)) { continue; }
+                const Token& ziel = e.args[a + 1];
+                std::string s = ziel.s;
+                if (s.size() > 1 && s.back() == ';') { s.pop_back(); }   // "show x;": das Semikolon haengt am Wort
+                if (klein(s) != klein(alt) || ziel.datei != 0 || ziel.ausMakro) { continue; }
+                const std::size_t p = d.text.find(s, ziel.anfang);
+                if (p == std::string::npos || p + s.size() > ziel.ende) { continue; }
+                out.push_back(Ersetzung{static_cast<std::uint32_t>(p), static_cast<std::uint32_t>(p + s.size()), neu});
+            }
+        }
+    };
+    skripte(m.eigenschaften);
+    for (const Item& it : m.items) { skripte(it.eigenschaften); }
     return true;
 }
 

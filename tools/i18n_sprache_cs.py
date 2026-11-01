@@ -3026,5 +3026,9 @@ TEXTE = {
     "MeMeldungenKeine": "Žádné zprávy.",
 }
 
+from i18n_rc608_3a import texte as _rc608_3a  # noqa: E402
+
+TEXTE.update(_rc608_3a("cs"))
+
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

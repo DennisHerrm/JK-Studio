@@ -208,6 +208,12 @@ struct UmbruchZeile {
 // Ist das Item gerade sichtbar (Item_Paint: ownerDrawFlags, cvarTest, WINDOW_VISIBLE)?
 [[nodiscard]] bool itemSichtbar(const Item& it, int flags, const Umgebung& u);
 
+// rc608 Teil 3a: RE_Font_DrawString: um so viel unter textaligny liegen die Oberkante der grossen Buchstaben und die Grundlinie
+struct TextMass {
+    float oben = 0, unten = 0;
+};
+[[nodiscard]] TextMass textMasse(const Item& it, const Umgebung& u);
+
 // Item_SetTextExtents: textRect (x, y, w, h) im Bildschirm fuer text.
 [[nodiscard]] Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u);
 
@@ -233,6 +239,8 @@ using GibtSchrift = std::function<bool(const std::string& name)>;
 // Was die Engine beim Start selbst an Cvars anlegt, die Menues lesen (SP: ui_char_*
 // aus g_char_* von UI_Init) - fuer die Vorschau, solange niemand sie setzt. "" = keine.
 [[nodiscard]] std::string spielCvarVorgabe(Dialekt d, Spiel s, const std::string& name);
+// rc608 Teil 3a: die Namen dieser Tabellen, fuer die Vorschlaege in Events
+[[nodiscard]] std::vector<std::string> spielCvarNamen(Dialekt d, Spiel s);
 
 // Abbildung des virtuellen Bildschirms auf ein Fenster.
 enum class Seitenverhaeltnis {

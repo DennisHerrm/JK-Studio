@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace bhed::menue;
 
@@ -134,6 +136,43 @@ int main() {
         pruefe(unbekannt >= 3, "Jedi Outcast SP: accept, xoffset und ignoreescape unbekannt wie im Spiel");
         oj.spiel = Spiel::JA;
         pruefe(lies("ui/j.menu", "{ menuDef { name m rect 0 0 640 480 ignoreescape 1 visible 1 } }\n", oj).meldungen.empty(), "Jedi Academy SP kennt ignoreescape");
+    }
+    // rc608 Teil 3a: Umbenennen zieht die Schritte mit, aendert nur diese Woerter; Ziel wie Menu_ItemsMatchingGroup; Skripte des Menues
+    {
+        LeseOptionen o2;
+        o2.dialekt = Dialekt::SP;
+        const std::string text =
+            "{\n\tmenuDef\n\t{\n\t\tname m\n\t\trect 0 0 640 480\n\t\tonOpen { show  alt; hide andere ; setcvar alt 1 }\n"
+            "\t\titemDef\n\t\t{\n\t\t\tname alt\n\t\t\tgroup gr\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\trect 0 0 10 10 // bleibt\n\t\t\taction { transition \"alt\" 0 0 1 1 2 2 3 3 10 1 ; play \"alt\" }\n\t\t}\n"
+            "\t\titemDef\n\t\t{\n\t\t\tname andere\n\t\t\trect 0 0 10 10\n\t\t\taction { setfocus alt ; show gr* }\n\t\t}\n\t}\n}\n";
+        const Datei u = lies("ui/u.menu", text, o2);
+        std::vector<Ersetzung> e;
+        pruefe(itemUmbenennen(u, 0, 0, "\"neu\"", e), "Umbenennen: geht");
+        const std::string nach = anwenden(text, e);
+        std::string soll = text;
+        for (const auto& [alt1, neu1] : std::vector<std::pair<std::string, std::string>>{{"name alt", "name \"neu\""}, {"show  alt;", "show  neu;"}, {"transition \"alt\"", "transition \"neu\""}, {"setfocus alt", "setfocus neu"}}) {
+            const std::size_t p = soll.find(alt1);
+            pruefe(p != std::string::npos, "Umbenennen: Probe enthaelt " + alt1);
+            if (p != std::string::npos) { soll.replace(p, alt1.size(), neu1); }
+        }
+        if (nach != soll) { std::printf("%s\n---\n%s\n", nach.c_str(), soll.c_str()); }
+        pruefe(nach == soll, "Umbenennen: nur der Name und die Ziele aendern sich (setcvar und play bleiben)");
+        // Traegt noch ein anderes Element den Namen, bleiben die Schritte
+        const std::string zwei = "{ menuDef { name m rect 0 0 640 480 itemDef { name a rect 0 0 1 1 action { show a } } itemDef { name a rect 0 0 1 1 } } }\n";
+        const Datei zd = lies("ui/z.menu", zwei, o2);
+        std::vector<Ersetzung> ze;
+        pruefe(itemUmbenennen(zd, 0, 0, "b", ze) && anwenden(zwei, ze).find("show a") != std::string::npos, "Umbenennen: der Name lebt weiter, die Schritte bleiben");
+        const Menu& zm = u.menus[0];
+        pruefe(zielDa(zm, "show", "alt") && zielDa(zm, "show", "ALT") && zielDa(zm, "show", "gr") && zielDa(zm, "show", "and*") && !zielDa(zm, "show", "AND*") && !zielDa(zm, "show", "weg"), "Ziel: Name, Gruppe, Stern wie Menu_ItemsMatchingGroup");
+        pruefe(!zielDa(zm, "setfocus", "gr"), "Ziel: setfocus kennt nur Namen");
+        pruefe(befehlMitZiel("setItemRect") && !befehlMitZiel("open") && !befehlMitZiel("setcolor"), "Befehle mit Ziel");
+        // Skript des Menues: neu vor die Elemente, vorhandenes an Ort und Stelle, leer entfernt die Zeile
+        std::vector<Ersetzung> me;
+        pruefe(skriptSetzen(u, 0, -1, "onESC", "close m", me), "Menue-Skript neu");
+        const std::string t1 = anwenden(text, me);
+        pruefe(t1.find("onESC { close m }") < t1.find("itemDef") && lies("ui/u.menu", t1, o2).menus[0].onESC.find("close") != std::string::npos, "Menue-Skript: steht vor den Elementen und wird gelesen");
+        std::vector<Ersetzung> mw;
+        pruefe(skriptSetzen(u, 0, -1, "onOpen", "", mw) && anwenden(text, mw).find("onOpen") == std::string::npos, "Menue-Skript: leer entfernt die Zeile");
     }
     std::printf("menueereignisse: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

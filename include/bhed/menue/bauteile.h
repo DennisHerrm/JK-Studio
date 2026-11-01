@@ -47,8 +47,14 @@ struct Vorlage {
     bool eigen = false;
 };
 [[nodiscard]] std::vector<Vorlage> standardVorlagen(Dialekt d);
+// Die fertigen Teile rechnen mit ergoec. In Movie Duels MP heisst sie font 3; ohne Nummer stuende dort albertus_bold, fast viermal so gross.
+[[nodiscard]] std::string vorlageMitSpielSchrift(const std::string& text, Dialekt d, Spiel spiel);
 // Eigene Vorlagen: <ordner>/<name>.vorlage (Text der itemDefs)
 [[nodiscard]] std::vector<Vorlage> ladeEigeneVorlagen(const std::string& ordner);
+// rc608 Teil 3a: eigene Vorlagen umbenennen und loeschen; der Name wie bei speichereVorlage
+[[nodiscard]] bool vorlageGibtEs(const std::string& ordner, const std::string& name);
+[[nodiscard]] bool loescheVorlage(const std::string& ordner, const std::string& name);
+[[nodiscard]] bool benenneVorlageUm(const std::string& ordner, const std::string& alt, const std::string& neu);
 bool speichereVorlage(const std::string& ordner, const std::string& name, const std::string& text);
 // Ein Name, der als Dateiname taugt (Buchstaben, Ziffern, _ -)
 [[nodiscard]] std::string vorlagenDateiname(const std::string& name);

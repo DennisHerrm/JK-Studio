@@ -96,6 +96,12 @@ int main() {
                was + ": nach dem Blaettern ist Reiter 5 sichtbar");
         // Vorlagen
         for (const Vorlage& v : standardVorlagen(dl)) {
+            // rc608 Teil 3a: in Movie Duels MP steht vor jeder Textgroesse die Schrift, sonst bleibt der Text unberuehrt
+            const std::string md = vorlageMitSpielSchrift(v.text, Dialekt::MP, Spiel::MD);
+            std::size_t grossen = 0, schriften = 0;
+            for (std::size_t p = md.find("textscale"); p != std::string::npos; p = md.find("textscale", p + 1)) { ++grossen; }
+            for (std::size_t p = md.find("font\t\t3"); p != std::string::npos; p = md.find("font\t\t3", p + 1)) { ++schriften; }
+            pruefe(grossen == schriften && vorlageMitSpielSchrift(v.text, Dialekt::MP, Spiel::JA) == v.text && vorlageMitSpielSchrift(v.text, Dialekt::SP, Spiel::MD) == v.text, "Spielschrift: " + v.id);
             const Datei vd = lies(sp ? "ui/v.menu" : "ui/jamp/v.menu", "{ menuDef { name v rect 0 0 640 480\n" + v.text + " } }\n", lo);
             pruefe(vd.menus.size() == 1 && !vd.menus[0].items.empty() && vd.meldungen.empty(), was + ": Vorlage " + v.id + " ohne Meldung");
         }
@@ -107,6 +113,12 @@ int main() {
     pruefe(speichereVorlage(ordner, "Mein Knopf!", "itemDef { name x rect 0 0 10 10 }\n"), "eigene Vorlage gespeichert");
     const std::vector<Vorlage> ev = ladeEigeneVorlagen(ordner);
     pruefe(ev.size() == 1 && ev[0].eigen && ev[0].id == "Mein_Knopf_", "eigene Vorlage geladen (Dateiname bereinigt)");
+    // rc608 Teil 3a: umbenennen, loeschen
+    pruefe(vorlageGibtEs(ordner, "Mein Knopf!"), "Vorlage gibt es");
+    pruefe(speichereVorlage(ordner, "Zweite", "itemDef { name y rect 0 0 10 10 }\n"), "zweite Vorlage");
+    pruefe(!benenneVorlageUm(ordner, "Mein Knopf!", "Zweite"), "umbenennen auf einen vergebenen Namen geht nicht");
+    pruefe(benenneVorlageUm(ordner, "Mein Knopf!", "Neu") && vorlageGibtEs(ordner, "Neu") && !vorlageGibtEs(ordner, "Mein Knopf!"), "umbenennen");
+    pruefe(loescheVorlage(ordner, "Neu") && !vorlageGibtEs(ordner, "Neu") && ladeEigeneVorlagen(ordner).size() == 1, "loeschen");
     std::filesystem::remove_all(ordner, ec);
 
     std::printf("menuebauteile: %s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);

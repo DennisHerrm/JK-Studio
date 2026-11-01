@@ -3024,6 +3024,10 @@ TEXTE = {
     "MeMeldungenKeine": "No hay mensajes.",
 }
 
+from i18n_rc608_3a import texte as _rc608_3a  # noqa: E402
+
+TEXTE.update(_rc608_3a("es"))
+
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf
 # Spanisch Wort fuer Wort.

@@ -96,6 +96,8 @@ public:
     // festhalten: in jedem Bild; es gilt als Stand vor dem naechsten Schritt und als Stand nach dem letzten.
     // Nach rueckgaengig/wiederholen steht in beiwerk() der Stand, der wieder gilt.
     void beiwerkFesthalten(std::vector<int> jetzt);
+    // rc608 Teil 3a: ein Schritt ohne Aenderung im Text: Was sich aendert, steht im Beiwerk (der Stand des Pakets)
+    void schrittOhneText();
     [[nodiscard]] const std::vector<int>& beiwerk() const noexcept { return beiwerk_; }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !redo_.empty(); }
 

@@ -147,14 +147,29 @@ std::string erzeugeDetailbereich(const DetailOptionen& o, Dialekt d) {
     return s;
 }
 
+std::string vorlageMitSpielSchrift(const std::string& text, Dialekt d, Spiel spiel) {
+    if (d != Dialekt::MP || spiel != Spiel::MD) { return text; }
+    std::string s;
+    s.reserve(text.size() + 64);
+    std::size_t von = 0;
+    while (von < text.size()) {
+        std::size_t bis = text.find('\n', von);
+        bis = bis == std::string::npos ? text.size() : bis + 1;
+        const std::string zeile = text.substr(von, bis - von);
+        const std::size_t a = zeile.find_first_not_of(" \t");
+        if (a != std::string::npos && zeile.compare(a, 9, "textscale") == 0) {
+            const bool cr = zeile.size() >= 2 && zeile[zeile.size() - 2] == '\r';
+            s += zeile.substr(0, a) + "font\t\t3" + (cr ? "\r\n" : "\n");
+        }
+        s += zeile;
+        von = bis;
+    }
+    return s;
+}
+
 std::vector<Vorlage> standardVorlagen(Dialekt d) {
     std::vector<Vorlage> v;
-    v.push_back({"knopf", "Button",
-                 item({{"name", "knopf"}, {"type", "ITEM_TYPE_BUTTON"}, {"rect", "260 200 120 28"}, {"style", "WINDOW_STYLE_FILLED"},
-                       {"backcolor", "0.15 0.18 0.26 0.9"}, {"text", anf("Button")}, {"textalign", "ITEM_ALIGN_CENTER"}, {"textalignx", "60"},
-                       {"textaligny", "3"}, {"textscale", "0.7"}, {"forecolor", "1 1 1 1"}, {"visible", "1"},
-                       {"action", "{ play \"sound/interface/button1.wav\" }"}}),
-                 false});
+    // rc608 Teil 3a: Der Knopf steht nur noch einmal: das einzelne Element hat jetzt selbst eine sichtbare Flaeche
     v.push_back({"schieber", "Slider with cvar",
                  item({{"name", "schieber"}, {"type", "ITEM_TYPE_SLIDER"}, {"rect", "200 240 240 24"}, {"text", anf("Volume:")},
                        {"cvarfloat", "\"s_volume\" 0.8 0 1"}, {"textalign", "ITEM_ALIGN_RIGHT"}, {"textalignx", "90"}, {"textaligny", "2"},
@@ -211,6 +226,23 @@ std::vector<Vorlage> ladeEigeneVorlagen(const std::string& ordner) {
     }
     std::sort(v.begin(), v.end(), [](const Vorlage& a, const Vorlage& b) { return a.name < b.name; });
     return v;
+}
+
+bool vorlageGibtEs(const std::string& ordner, const std::string& name) {
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::path(ordner) / (vorlagenDateiname(name) + ".vorlage"), ec);
+}
+
+bool loescheVorlage(const std::string& ordner, const std::string& name) {
+    std::error_code ec;
+    return std::filesystem::remove(std::filesystem::path(ordner) / (vorlagenDateiname(name) + ".vorlage"), ec);
+}
+
+bool benenneVorlageUm(const std::string& ordner, const std::string& alt, const std::string& neu) {
+    if (neu.empty() || vorlageGibtEs(ordner, neu)) { return false; }
+    std::error_code ec;
+    std::filesystem::rename(std::filesystem::path(ordner) / (vorlagenDateiname(alt) + ".vorlage"), std::filesystem::path(ordner) / (vorlagenDateiname(neu) + ".vorlage"), ec);
+    return !ec;
 }
 
 bool speichereVorlage(const std::string& ordner, const std::string& name, const std::string& text) {

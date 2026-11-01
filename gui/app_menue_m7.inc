@@ -78,7 +78,8 @@ bool datapadZeichnen(int art, std::vector<OdTeil>& out, const DatapadUmgebung& d
 // M7 Punkt 14: Beispielwerte fuer ownerdraws, die im Spiel Werte des laufenden Spiels zeigen
 void zeichneBeispielWerte(const Dokument& d) {
     Zustand& z = Z();
-    if (z.beispielPrims == 0 || !ImGui::CollapsingHeader(tr(Str::MeOdBeispiel), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    if (z.beispielPrims == 0) { return; }
+    ImGui::SeparatorText(tr(Str::MeOdBeispiel));
     ImGui::TextWrapped("%s", tr(Str::MeOdBeispielTip));
     const float breit = ImGui::GetFontSize() * 9;
     if (istLadebild(d.datei) || istVerbindung(d.datei)) { ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie); }
@@ -199,7 +200,7 @@ std::vector<Ersetzung> mitKopienAbgleich(const Dokument& d, std::vector<Ersetzun
 void zeichneKomponente(Dokument& d) {
     Zustand& z = Z();
     const int mi = menuDerSeite(d);
-    if (mi < 0 || d.auswahl.size() != 1 || !ImGui::CollapsingHeader(tr(Str::MeKomp), ImGuiTreeNodeFlags_DefaultOpen)) { return; }
+    if (mi < 0 || d.auswahl.size() != 1) { return; }
     const int item = d.auswahl[0];
     const std::string text = d.puffer.text();
     const Item& it = d.datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(item)];

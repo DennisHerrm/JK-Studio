@@ -62,6 +62,7 @@ enum class BefundArt {
     DateiFehlt,        // name = Datei, wert = wofuer
     UnbekanntIn,       // name = Schluessel oder Typ, wert = Fassung ("JA SP", "JA MP", "JK2", "MD")
     VollbildOhneBild,  // rc608: MP, fullScreen ohne background und ohne deckendes Element: das Spiel zeigt den grauen Kasten
+    KeinBild,          // rc608 Teil 3a: Rahmen, in dem noch kein Bild gewaehlt ist (WINDOW_STYLE_SHADER ohne background): das Spiel zeigt den grauen Kasten; name = Element
     CinematicSp,       // M4: WINDOW_STYLE_CINEMATIC im Einzelspieler (Window_Paint zeichnet es nicht)
 };
 struct Befund {

@@ -782,26 +782,29 @@ void zeichneOriginal(Dokument& d) {
         }
     }
     if (omi < 0) { return; }
-    ImGui::SeparatorText(tr(Str::MeOriginal));
     if (oii < 0) {
-        ImGui::TextWrapped("%s", tr(Str::MeOriginalNeu));
+        gruppe("original", tr(Str::MeOriginal), tr(Str::MlOrigNeu), [] { ImGui::TextWrapped("%s", tr(Str::MeOriginalNeu)); }, false);
         return;
     }
     const std::vector<std::string> u = itemUnterschiede(d.datei, it, *o, o->menus[static_cast<std::size_t>(omi)].items[static_cast<std::size_t>(oii)]);
     if (u.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::MeOriginalGleich));
+        gruppe("original", tr(Str::MeOriginal), tr(Str::MlOrigGleich), [] { ImGui::TextDisabled("%s", tr(Str::MeOriginalGleich)); }, false);
         return;
     }
-    std::string liste;
-    for (const std::string& k : u) { liste += (liste.empty() ? "" : ", ") + k; }
-    std::vector<char> b(1024);
-    std::snprintf(b.data(), b.size(), tr(Str::MeOriginalAnders), liste.c_str());
-    ImGui::TextWrapped("%s", b.data());
-    if (ImGui::Button(tr(Str::MeOriginalZuruecksetzen))) {
-        std::vector<Ersetzung> e;
-        if (itemErsetzen(d.datei, mi, ii, itemText(*o, omi, oii), e)) { aendere(std::move(e)); }
-    }
-    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeOriginalZuruecksetzenTip)); }
+    char zus[80];
+    std::snprintf(zus, sizeof(zus), tr(Str::MlOrigAnders), static_cast<int>(u.size()));
+    gruppe("original", tr(Str::MeOriginal), zus, [&d, mi, ii, o, omi, oii, &u] {
+        std::string liste;
+        for (const std::string& k : u) { liste += (liste.empty() ? "" : ", ") + k; }
+        std::vector<char> b(1024);
+        std::snprintf(b.data(), b.size(), tr(Str::MeOriginalAnders), liste.c_str());
+        ImGui::TextWrapped("%s", b.data());
+        if (ImGui::Button(tr(Str::MeOriginalZuruecksetzen))) {
+            std::vector<Ersetzung> e;
+            if (itemErsetzen(d.datei, mi, ii, itemText(*o, omi, oii), e)) { aendere(std::move(e)); }
+        }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeOriginalZuruecksetzenTip)); }
+    }, false);
 }
 
 }  // namespace
