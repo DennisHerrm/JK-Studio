@@ -2217,6 +2217,8 @@ from i18n_rc608_7 import zeilen_vier as _rc608_7  # noqa: E402  (rc608 Teil 7: B
 S += _rc608_7()
 from i18n_rc608_9 import zeilen_vier as _rc608_9  # noqa: E402  (rc608 Teil 9: Spieler in Cutscenes)
 S += _rc608_9()
+from i18n_rc608_10b import zeilen_vier as _rc608_10b  # noqa: E402  (rc608 Teil 10b: Schwertlicht)
+S += _rc608_10b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

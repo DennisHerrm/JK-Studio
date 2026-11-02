@@ -395,6 +395,22 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
     if (const char* gl = std::getenv("BHED_GV_GLUEHEN"); gl != nullptr && gl[0] == '0') {
         add(tu("Geschuetze Vergleich: ohne Gluehen", [] { g_app->showGlow = false; }));
     }
+    // rc608 Teil 10b: BHED_GV_SCHWERTLICHT="<cg_saberLightIntensity> <cg_saberLightRadius>" wie in der Konfiguration
+    // des verglichenen Spiels (die Aufnahme-Konfiguration im SP hat 1.2 1.5 aus dem Einstellungsmenue von Movie Duels).
+    if (const char* sl = std::getenv("BHED_GV_SCHWERTLICHT")) {
+        float i = 0.0F;
+        float r = 0.0F;
+        if (std::sscanf(sl, "%f %f", &i, &r) == 2) {
+            add(tu("Geschuetze Vergleich: Schwertlicht", [i, r] {
+                g_app->settings.cgSaberLightIntensity = i;
+                g_app->settings.cgSaberLightRadius = r;
+            }));
+        }
+    }
+    // rc608 Teil 10b: BHED_GV_DREHANIM=1 wie cg_turnAnims 1 im Spiel.
+    if (const char* da = std::getenv("BHED_GV_DREHANIM"); da != nullptr && da[0] == '1') {
+        add(tu("Geschuetze Vergleich: cg_turnAnims 1", [] { g_app->settings.cgTurnAnims = true; }));
+    }
     if (const char* f = std::getenv("BHED_GV_ANSICHT")) {
         int b = 0;
         int h = 0;

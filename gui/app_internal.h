@@ -3345,6 +3345,8 @@ const std::vector<std::int16_t>* klangFuerWiedergabe(const std::string& name);
 // Alle Klaenge der Zeitleiste vorladen - vor dem Start der Uhr.
 void klaengeVorladen();
 ModelTextures texturesFor(const GlmModel& model);
+// Das Bild einer Figurstufe, nur als Datei gesucht wie R_FindImageFile (app_view3d.cpp).
+std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildName);
 // Pruefung 4b: dasselbe Modell ganz mit EINEM Shader (refEntity.customShader,
 // R_AddGhoulSurfaces) und der Farbe `farbe` fuer alle Stufen (RF_RGB_TINT:
 // FigurFarbe::Entity). Leer, wenn der Shader fehlt.

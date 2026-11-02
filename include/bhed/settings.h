@@ -177,6 +177,12 @@ struct Settings {
     int cgMotionBoneComp = 2;
     bool cgTurnAnims = false;
     bool gActivateAnimationStyle = false;
+    // rc608 Teil 10b: nur Movie Duels (Update 9), nicht in SP/mdgit: Licht und Reichweite des Schwertlichts.
+    // Vorgaben wie bei einer frischen Installation (cvarTable der MovieDuels-gamex86_64.dll, im Spiel mit leerem
+    // fs_homepath gelesen: "1.070312" und "0.703125"); das Einstellungsmenue des Spiels bietet 0,5 bis 1,5 und
+    // 0,5 bis 2,5 an (ui/setup.menu, z_zzzz_MD_Jace-Update-9.pk3).
+    float cgSaberLightIntensity = 1.070312F;
+    float cgSaberLightRadius = 0.703125F;
     // Zielspiel: true = Multiplayer. Dann prueft der Pruefer zusaetzlich die
     // MP-Regeln (validate(..., mp), Codes M001...).
     bool mpZiel = false;

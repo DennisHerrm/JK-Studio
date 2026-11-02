@@ -761,6 +761,60 @@ Alle Paare in `SP/g10/erg/` (Movie Duels). OpenJK-Regeln nur gegen die Quelle.
 - Karten-Editor: `_noshadersun`, `_minVertexlight` (Teil 11).
 - Punkte 2, 3 (Messung), 4, 5.
 
+## Teil 10b: Rest von Teil 10
+
+Auftrag `auftrag_rc608_10b.md`. Skripte und Spielbilder in `SP/g10b` (`md10b.py` mit `HOMEDIR`, `sl.cfg`/`sl2.cfg`, `mess_sl.py`, `dreh*.cfg`, `npc.cfg`, `jtb*.cfg`, `dis1.py` bis `dis6.py`, `glas.py`, `skinsuch.py`, `vor10b.sh`), Paare in `SP/g10b/erg/`. Spielbilder nur Movie Duels mit fs_homepath im SP (`g5/home_md`; frische Installation in `g10b/home_frisch`). Steam lief nicht (keine steam.exe), Original und Jedi Outcast darum nicht.
+
+### 2: Schwertlicht (gefunden, allgemein)
+- **Woher die Cvars kommen:** Die installierte `MovieDuels-gamex86_64.dll` (Update 9) traegt `cg_saberLightIntensity` und `cg_saberLightRadius` in ihrer cvarTable mit den Vorgaben "1.070312" und "0.703125" (CVAR_ARCHIVE). Im Spiel mit leerem fs_homepath gelesen: genau diese Werte. Die 1.2 und 1.5 der Aufnahme-Konfiguration stammen aus dem Einstellungsmenue des Spiels (`ui/setup.menu` in `z_zzzz_MD_Jace-Update-9.pk3`: Schieber 0,5 bis 1,5 und 0,5 bis 2,5, Vorschlag 1.2 und 1.5).
+- **Regel, benannter Messgrund** (SP/mdgit kennt die Cvars nicht): Disassembliert (capstone) in CG_DoSaberLight (0x2fc6db ff.) und den 14 Klingenfunktionen (z. B. CG_DoSaber/CG_DoSFXSaber 0x2fcfa5 ff.): `R = cg_saberLightRadius > 0 ? Wert : 1`, `I = cg_saberLightIntensity > 0 ? Wert : 1`, Radius mal R, Farbe mal I, dann cgi_R_AddLightToScene. Im Spiel gemessen (`mess_sl.py`, timescale 0, je 5 Bilder gemittelt, Boden links neben dem Spieler): I 0 / 1 / 1,2 / 2 bei R 1,5: 39,1 / 37,1 / 38,7 / 24,7 (bei 2 laeuft die Farbe ueber, der Boden wird violett); R 0 / 1 / 1,5 / 2 bei I 1,2: 21,0 / 21,1 / 39,9 / 61,4. 0 wirkt wie 1.
+- **Dabei gefunden, allgemein (die eigentliche Abweichung):** Ein Schwert mit einer oder zwei Klingen gibt JEDER Klinge ihr eigenes Licht ueber CG_DoSaber(..., doLight = !noDlight) (cg_players.cpp:5791-5796 und 6711-6758 OpenJK, 11953-11958 und 14535-14800 MD); CG_DoSaberLight (gemischtes Licht) nimmt das Spiel erst ab drei Klingen (CG_AddSaberBlade "add blended light") oder fuer Griffe ohne Klinge. Die Vorschau nahm das gemischte Licht fuer jedes Schwert: Radius Durchmesser + Zufall*8 und volle Farbe. Jetzt je Klinge: Movie Duels Laenge*2 + Zufall*10 mit Farbe*0,66 (CG_DoSaber und alle Stile von cg_SFXSabers), die instabilen Typen (SABER_UNSTABLE, SABER_STAFF_UNSTABLE, SABER_STAFF_ELECTROSTAFF, SABER_SINGLE_KYLO_REN, SABER_ELECTROSTAFF: CG_DoSaberUnstable) Laenge*1,4 + Zufall*3 mit voller Farbe; OpenJK Laenge*1,4 + Zufall*3; Jedi Outcast Laenge*2 + Zufall*8 (wie bisher). noDlight/noDlight2 der .sab werden gelesen (Saber_ParseNoDLight).
+- **Byte der Lichtfarbe:** ProjectDlightTexture2 schreibt die Farbe als `byte colorTemp[4] = Q_ftol(...)` (tr_shade.cpp:684/842 OpenJK, 670/824 MD; in der installierten MovieDuels-rdsp_x86_64.dll ebenso, 0x719a6 ff.: cvttss2si und movzx al). Ueber 255 laeuft sie modulo 256 ueber. Der Lichtshader der Vorschau rechnet jetzt genauso.
+- **Einstellungen:** `cgSaberLightIntensity`/`cgSaberLightRadius` (Vorgaben der frischen Installation), Schieber in den Figuren-Einstellungen, nur unter Movie Duels. Der Vergleich nimmt `BHED_GV_SCHWERTLICHT="1.2 1.5"` wie die Aufnahme-Konfiguration.
+- **Gegen das Spiel (Paare `paar_sl_i12/i1/i2/r1/r2.png`, Spieler allein, Spiel bei timescale 0):** Boden neben dem Spieler (650,1150-820,1300) Faktor Vorschau/Spiel bei 1,2/1,5: 1,08 1,11 1,04; bei 1/1,5: 1,02 1,03 1,01; bei 2/1,5 (Ueberlauf): 0,96 0,94 0,94; bei 1,2/1: 1,01 1,02 1,00; bei 1,2/2: 0,98 0,98 0,99. Boden rechts (1350,1150-1550,1300) 0,98 bis 1,10. Figur (880,1150-1000,1280) 0,82 0,79 0,82 bei 1,2/1,5, 0,94 bei R 1, 0,99 bei I 2. Vor der Aenderung: violetter Boden bei 1,2/1,5 (Ueberlauf der vollen Farbe), mit dem alten Bild `paar_figur.png` Ruecken 1,21 1,14 1,41.
+- Das alte Paar `paar_figur.png` gegen `g9/fotos/f9b_g0.png` (mit `give all` und NPC) taugt fuer das Licht nicht mehr: dort steht der NPC im Spiel anders (siehe 3).
+
+### 9: Figurtexturen ueber ein Shaderskript (Teil 10, jetzt rot gesehen)
+In den Spieldaten gesucht (`skinsuch.py`): 21764 Hautzeilen zeigen auf einen Namen, den es nur als Shader gibt. Fall fuer den Test: `md_10thbrother`, `models/players/10thbrother/extras_shiny` (Bild `extras`). Rot mit dem alten Schluessel: "Zwischenspeicher unter Shadername 1, Bildstufe mit Shadername findet 1"; gruen: 0 / 0, unter der Datei 1, alle 5 Flaechen mit Bild.
+
+### 1: cg_turnAnims gegen das Spiel (gefunden, allgemein); Reiten nicht
+- **Im Spiel (ohne Fokus, NPC per Skript):** `SET_ANGLES` und danach `SET_DYAW` an einem `npc spawn jedi`, je 30 Bilder mit cg_turnAnims 1 und 0 (`tga8`). Die Huefte unterscheidet sich nicht nur waehrend der Drehung: nach dem SET_ANGLES noch neun Bilder lang (mittlere Abweichung 0,16 bis 0,28), nach dem Ende der SET_DYAW-Drehung bis zum letzten Bild (0,54 bis 0,66), bei unbewegter Gier.
+- **Regel:** Der Vergleich `angles[YAW] == cent->pe.legs.yawAngle` (cg_players.cpp:3104 MD) steht hinter CG_PlayerLegsYawFromMovement: die Beine holen den Blick je Clientbild um frameInterpolation des Rests ein (hoechstens 10 Grad, nie mehr als 60 daneben). Die Drehanimation laeuft, solange sich die Beine noch drehen, nicht nur, solange sich die Gier aendert. `figurDrehAnim` rechnet jetzt die Beingier je Clientbild (com_maxfps 125) mit `pmBeinGier`. Rot: Drehanimation 1052-1140 ms bei einer Drehung bis 1100 ms (0 Bilder 64 bis 150 ms danach); gruen: 1060-1252 ms, 10 Bilder.
+- **Nicht deckungsgleich gemessen:** Die Dauer im Spiel haengt an den Clientbildern; die Bildfolge im Spiel lief mit 60 Bildern je Sekunde und Haengern beim Schreiben der Bilder. Einzelbilder ohne Haenger (je ein Lauf, `tga9`) trafen die Zeit nicht (der NPC stand noch vor dem SET_ANGLES). Die Laenge des Nachlaufs ist darum nur der Art nach bestaetigt.
+- `SET_DYAW` allein drehte den NPC im Spiel bei timescale 0,25 nicht (`tga6`); nach einem SET_ANGLES drehte es ihn zurueck. Nicht weiter verfolgt.
+- Reiten: nicht angegangen (Zeit), Fokus nicht gebraucht.
+
+### 3: Klinge des NPC in BOTH_STAND2 (Messwerte, nicht behoben)
+- Im Spiel (`npc.cfg`, `tga4`): Der NPC wird von `npc spawn jedi jr` vor dem Spieler gesetzt (442,1 6800,4 24,1, Blick 146) - der NPC_Jedi der Karte g9_figur (460,4 6788,1) erscheint im Spiel nicht. Bei 0,67 s zuendet die Klinge (links unten), ab 1,0 s zeigt sie nach vorn zur Kamera (stark verkuerzt) und bleibt so bis 3,5 s; der NPC bewegt sich nicht zum Wegpunkt.
+- Die Klinge des Spielers (von hinten) liegt in Spiel und Vorschau deckungsgleich: Kern y 888-1118 / 892-1121, x 1011-1039 / 1011-1038 (`paar_figur.png`). Die Tagflaechen von saber_1 und saber_2 (MD_Hilts.pk3) sind gleich geformt. Die Abweichung betrifft also die Haltung des NPC, nicht Griff oder Klingenrichtung; Ursache nicht gefunden.
+
+### 4: g9_jtb (Messwerte, nicht behoben)
+Im Spiel per `where player`: Ursprung -1250,00 60,00 -1165,89 (Vorschau -1250 60 -1166,01); Kamera per viewpos (-1250 -20 -1113), cg_thirdPersonRange 80, VertOffset 16, cg_fov 80. Hintergrund und naher Boden liegen im Paar auf 1 Bildpunkt deckungsgleich (Kreuzkorrelation 0,98 bis 0,999). Die Figur ist im Spiel gleich breit (Schultern 270 / 275 Bildpunkte), steht aber rund 95 Bildpunkte tiefer: etwa 6 Einheiten. Bodenspur, Ursprung und Kamera sind es nicht; vermutet die Stufe der Hangbeine (PM_FootSlopeTrace waehlt LEGS_LEFTUP1, ein hoeherer Schritt beugt die Knie staerker). Im Spiel nicht pruefbar: cg_debugAnim gibt die Release-Fassung nicht aus (#ifndef FINAL_BUILD).
+
+### 5: Byss-Leiste hinter Glas (nicht behoben)
+Das Glas ist Weltgeometrie (134 Flaechen `textures/common/env_glass` in Modell 0), `{ map etest4 blendFunc GL_ONE GL_ONE tcGen environment }` ohne rgbGen (identityLighting), die Vorschau rechnet tcGen environment je Ecke wie RB_CalcEnvironmentTexCoords. Der Unterschied mit Glas ohne Gluehen ist 0 / 6,1 / 15,2 (aus Teil 10). Ursache nicht gefunden.
+
+### 6: Saeulen duel_jeditemple hinten (Messwerte, nicht behoben)
+Im Paar `g9/erg/paar_jt9b_b.png`: Saeulen 0,96 bis 0,97, ferne Wand 0,91 0,89 0,87, Fenster 0,88 und 0,53 0,48 0,45, naher Fels 1,00. Die Karte hat keinen Nebel (0 Fogs). Je weiter weg, desto dunkler in der Vorschau: Verdacht auf Mipmaps/Filterung (Spiel r_textureMode GL_LINEAR_MIPMAP_LINEAR, Anisotropie 16 wie die Vorschau, r_simpleMipMaps 1). Die Fenster zeigen in der Vorschau teils schwarze Felder - eigener Fehler, nicht untersucht.
+
+### 7: Decal-Sonderfaelle
+Nicht angegangen (Zeit). Offen wie im Kopf von `src/karte/metaflaechen.inc`.
+
+### 8: JK2-Datapad-Foto
+Nicht moeglich: steam.exe lief nicht.
+
+### Tests
+Selbsttest `teil10b` (neu): 4 OK, 0 FEHLER. Rot je einmal: Schwertlicht-Cvars und Zwischenspeicher in einem Lauf (2 FEHLER, `t10brot`), eigenes Licht je Klinge (1 FEHLER, `t10brot2`), Drehanimation (1 FEHLER, `t10brot4`; die Zeile zaehlt seitdem Bilder 64 bis 150 ms nach dem Ende statt eines Zeitpunkts, der auf ein Bild mit frameInterpolation 0 fiel - dieselbe Messung, rot 0 Bilder). Der Vergleich (`geschuetze`) nimmt `BHED_GV_SCHWERTLICHT` und `BHED_GV_DREHANIM` neu an. ctest einmal am Ende: 196 von 196. lint_sources und lint_fassung ok; lint_settings meldet wie zuvor nur `bildPicmip`, `menueUmbruch`, `rExtMultisample`, `schwierigkeit`. Bau 0 Warnungen des Uebersetzers.
+
+### Nur per Foto gegen das Spiel
+Alle Paare in `SP/g10b/erg/` (Movie Duels). OpenJK-Regeln nur gegen die Quelle.
+
+### Offen aus Teil 10b
+- Figur im Schwertlicht 0,82 bei 1,2/1,5 (Boden stimmt).
+- Licht eines Griffs ohne Klinge (noBlade: CG_DoSaberLight auch fuer die nicht gezeichneten Klingen) und getarnte Schwerter (PW_CLOAKED, CG_DoCloakedSaber) nicht nachgebaut; gemischtes Licht ab drei Klingen ohne noDlight.
+- Dauer des Nachlaufs der Drehanimation im Spiel nicht deckungsgleich gemessen; Reiten.
+- Klinge des NPC, g9_jtb, Byss-Glas, ferne Flaechen auf duel_jeditemple (und schwarze Fenster), Decal-Sonderfaelle, JK2-Datapad.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -851,6 +905,9 @@ Weiter offen:
 - Preview: the player's lightsaber comes from g_saber and g_saber_color as in the game (yellow by default) instead of a random colour.
 - Preview: the player also puts his feet on slopes like the game (slope leg animations, third person).
 - Preview: a lightmap stage with GL_ONE GL_ZERO after an image stage replaces the colour as in the game; the spectators on duel_geonosis_arena, the icicles on Hoth and 83 other alpha-tested shaders are no longer almost black.
+- Preview: lightsaber light as in the game: every blade of a saber with one or two blades casts its own light (Movie Duels: twice the blade length plus flicker, colour times 0.66; OpenJK: 1.4 times the blade length); only sabers with three or more blades share one mixed light.
+- Preview: new settings Saber light and Saber light reach (Movie Duels cg_saberLightIntensity and cg_saberLightRadius) with the values of a fresh installation; a light stronger than 1 turns darker on floors and walls close to the blade, as in the game.
+- Preview: the turn animation (cg_turnAnims) plays as long as the legs still turn towards the view, also after the figure itself stopped turning, as in the game.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -926,6 +983,9 @@ Weiter offen:
 - Vorschau: Das Lichtschwert des Spielers kommt wie im Spiel aus g_saber und g_saber_color (Vorgabe gelb) statt in einer zufaelligen Farbe.
 - Vorschau: Auch der Spieler stellt am Hang die Fuesse wie im Spiel (Hang-Beinanimationen, dritte Person).
 - Vorschau: Eine Lightmap-Stufe mit GL_ONE GL_ZERO hinter einer Bildstufe ersetzt die Farbe wie im Spiel; die Zuschauer auf duel_geonosis_arena, die Eiszapfen auf Hoth und 83 weitere Shader mit Alphatest sind nicht mehr fast schwarz.
+- Vorschau: Schwertlicht wie im Spiel: Jede Klinge eines Schwerts mit einer oder zwei Klingen wirft ihr eigenes Licht (Movie Duels: doppelte Klingenlänge plus Flackern, Farbe mal 0,66; OpenJK: 1,4-fache Klingenlänge); nur Schwerter mit drei oder mehr Klingen teilen sich ein gemischtes Licht.
+- Vorschau: neue Einstellungen Schwertlicht und Reichweite Schwertlicht (Movie Duels cg_saberLightIntensity und cg_saberLightRadius) mit den Werten einer frischen Installation; ein Licht über 1 wird auf Boden und Wänden nahe der Klinge dunkler, wie im Spiel.
+- Vorschau: Die Drehanimation (cg_turnAnims) läuft, solange sich die Beine noch zum Blick drehen, auch wenn die Figur selbst schon stillsteht, wie im Spiel.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1001,6 +1061,9 @@ Weiter offen:
 - 预览:玩家的光剑与游戏一样取自 g_saber 和 g_saber_color(默认黄色),不再是随机颜色。
 - 预览:玩家在斜坡上也像游戏中一样放脚(斜坡腿部动画,第三人称)。
 - 预览:位于图像阶段之后、使用 GL_ONE GL_ZERO 的光照贴图阶段与游戏一样替换颜色;duel_geonosis_arena 的观众、Hoth 的冰柱以及另外 83 个带 Alpha 测试的着色器不再几乎全黑。
+- 预览:光剑光照与游戏相同:一把或两把剑刃的光剑每个剑刃都投射自己的光(Movie Duels:剑刃长度的两倍加闪烁,颜色乘以 0.66;OpenJK:剑刃长度的 1.4 倍);只有三把或更多剑刃的光剑共用一个混合光。
+- 预览:新增设置“光剑光照”和“光剑光照范围”(Movie Duels 的 cg_saberLightIntensity 和 cg_saberLightRadius),初始为全新安装的值;大于 1 的光在靠近剑刃的地面和墙壁上会变暗,与游戏相同。
+- 预览:转身动画(cg_turnAnims)在双腿仍朝视线方向转动时一直播放,即使角色本身已停止转动,与游戏相同。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1076,6 +1139,9 @@ Weiter offen:
 - プレビュー:プレイヤーのライトセーバーはゲームと同じく g_saber と g_saber_color(既定は黄色)から決まり、ランダムな色ではなくなりました。
 - プレビュー:プレイヤーも坂ではゲームと同じように足を置きます(坂用の脚アニメーション、三人称)。
 - プレビュー:画像ステージの後にある GL_ONE GL_ZERO のライトマップステージはゲームと同じく色を置き換えます。duel_geonosis_arena の観客、Hoth のつらら、ほか 83 のアルファテスト付きシェーダーがほぼ真っ黒ではなくなりました。
+- プレビュー:ライトセーバーの光をゲームと同じにしました。刃が 1 本または 2 本のセイバーは刃ごとに光を落とします(Movie Duels:刃の長さの 2 倍とちらつき、色は 0.66 倍。OpenJK:刃の長さの 1.4 倍)。刃が 3 本以上のセイバーだけが混ざった光を 1 つ共有します。
+- プレビュー:新しい設定「セイバーの光」と「セイバーの光の範囲」(Movie Duels の cg_saberLightIntensity と cg_saberLightRadius)を追加しました。初期値は新規インストールの値です。1 を超える光は、ゲームと同じく刃の近くの床や壁で暗くなります。
+- プレビュー:旋回アニメーション(cg_turnAnims)は、キャラクター自身が回り終えた後も、脚が視線の方向へ回っている間は再生されます。ゲームと同じです。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1151,6 +1217,9 @@ Weiter offen:
 - Vista previa: el sable de luz del jugador sale de g_saber y g_saber_color como en el juego (amarillo por defecto) en lugar de un color aleatorio.
 - Vista previa: el jugador también apoya los pies en las pendientes como en el juego (animaciones de piernas en pendiente, tercera persona).
 - Vista previa: una etapa de lightmap con GL_ONE GL_ZERO tras una etapa de imagen sustituye el color como en el juego; los espectadores de duel_geonosis_arena, los carámbanos de Hoth y otros 83 shaders con prueba alfa ya no salen casi negros.
+- Vista previa: la luz de los sables como en el juego: cada hoja de un sable con una o dos hojas proyecta su propia luz (Movie Duels: el doble de la longitud de la hoja más parpadeo, color por 0,66; OpenJK: 1,4 veces la longitud de la hoja); solo los sables con tres o más hojas comparten una luz mezclada.
+- Vista previa: nuevos ajustes Luz del sable y Alcance de la luz del sable (cg_saberLightIntensity y cg_saberLightRadius de Movie Duels) con los valores de una instalación nueva; una luz mayor que 1 se oscurece en suelos y paredes cerca de la hoja, como en el juego.
+- Vista previa: la animación de giro (cg_turnAnims) se reproduce mientras las piernas siguen girando hacia la mirada, también cuando la figura ya dejó de girar, como en el juego.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1226,3 +1295,6 @@ Weiter offen:
 - Náhled: světelný meč hráče se jako ve hře řídí g_saber a g_saber_color (výchozí žlutá), už ne náhodnou barvou.
 - Náhled: i hráč staví nohy na svahu jako ve hře (animace nohou na svahu, třetí osoba).
 - Náhled: stupeň světelné mapy s GL_ONE GL_ZERO za obrazovým stupněm nahrazuje barvu jako ve hře; diváci na duel_geonosis_arena, rampouchy na Hothu a dalších 83 shaderů s alfa testem už nejsou téměř černé.
+- Náhled: světlo světelných mečů jako ve hře: každá čepel meče s jednou nebo dvěma čepelemi vrhá vlastní světlo (Movie Duels: dvojnásobek délky čepele plus mihotání, barva krát 0,66; OpenJK: 1,4násobek délky čepele); jen meče se třemi nebo více čepelemi sdílejí jedno smíšené světlo.
+- Náhled: nová nastavení Světlo meče a Dosah světla meče (cg_saberLightIntensity a cg_saberLightRadius z Movie Duels) s hodnotami čerstvé instalace; světlo silnější než 1 na podlaze a stěnách u čepele ztmavne, jako ve hře.
+- Náhled: animace otáčení (cg_turnAnims) běží, dokud se nohy ještě natáčejí k pohledu, i když se postava sama už přestala otáčet, jako ve hře.

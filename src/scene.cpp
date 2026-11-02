@@ -2429,6 +2429,10 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
             def.noBlade = std::strtol(val.c_str(), nullptr, 10) != 0;
         } else if (key == "noblade2") {
             def.noBlade2 = std::strtol(val.c_str(), nullptr, 10) != 0;
+        } else if (key == "nodlight") {   // rc608 Teil 10b: Saber_ParseNoDLight (wp_saberLoad.cpp:2828 MD)
+            def.noDlight = std::strtol(val.c_str(), nullptr, 10) != 0;
+        } else if (key == "nodlight2") {
+            def.noDlight2 = std::strtol(val.c_str(), nullptr, 10) != 0;
         }
     }
 }

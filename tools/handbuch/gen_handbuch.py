@@ -146,6 +146,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc608_3b()})
             from i18n_rc608_9 import zeilen_vier as _rc608_9   # rc608 Teil 9: Spieler in Cutscenes, Figuren, MSAA
             texte.update({e[0]: e[1:] for e in _rc608_9()})
+            from i18n_rc608_10b import zeilen_vier as _rc608_10b   # rc608 Teil 10b: Schwertlicht von Movie Duels
+            texte.update({e[0]: e[1:] for e in _rc608_10b()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

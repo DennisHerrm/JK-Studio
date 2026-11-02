@@ -678,6 +678,8 @@ struct SaberArt {
     bool handgelenk = false;     // boltToWrist -> SFL_BOLT_TO_WRIST
     bool ohneKlinge = false;     // noBlade     -> SFL2_NO_BLADE
     bool ohneKlinge2 = false;    // noBlade2    -> SFL2_NO_BLADE2
+    bool ohneLicht = false;      // noDlight    -> SFL2_NO_DLIGHT (rc608 Teil 10b)
+    bool ohneLicht2 = false;     // noDlight2   -> SFL2_NO_DLIGHT2
     // Kampfstile als Bitmasken (1 << SS_*), siehe SaberDef.
     int stilGelernt = 0;
     int stilVerboten = 0;
@@ -1369,6 +1371,8 @@ struct SaberDef {
     bool boltToWrist = false;
     bool noBlade = false;
     bool noBlade2 = false;
+    bool noDlight = false;    // rc608 Teil 10b: noDlight  -> SFL2_NO_DLIGHT (Saber_ParseNoDLight)
+    bool noDlight2 = false;   // rc608 Teil 10b: noDlight2 -> SFL2_NO_DLIGHT2
     // Kampfstile, Bitmasken aus 1 << SS_* (wp_saberLoad.cpp:1320 ff.):
     // saberStyle lernt EINEN Stil und verbietet alle anderen,
     // saberStyleLearned/-Forbidden fuegen einen hinzu. singleBladeStyle

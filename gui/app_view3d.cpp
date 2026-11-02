@@ -13,6 +13,7 @@
 
 #include "gpumap.h"
 
+#include "bhed/saberkontakt.h"   // rc608 Teil 10b: kSaberClientTaktMs (figurDrehAnim)
 #include "bhed/holster.h"
 #include "bhed/messpunkt.h"
 #include "bhed/kartenpruefung.h"   // rc604 fix604b (B3): imSpiel
@@ -4687,24 +4688,48 @@ void figurDrehAnim(const Actor& a, const App::ActorAssets& assets, const ActorSt
     if (!g_app->settings.cgTurnAnims || assets.skeleton == nullptr || st.moving) { return; }
     if (g_app->camTrackValid && g_app->camTrack.at(ms).enabled) { return; }
     if (a.getoetetMs >= 0.0 && ms >= a.getoetetMs) { return; }   // cent->gent->health > 0
+    // rc608 Teil 10b, nach der Quelle und im Spiel gesehen: Die Drehanimation laeuft, solange sich die BEINE noch
+    // drehen - "if (angles[YAW] == cent->pe.legs.yawAngle) StopBoneAnimIndex" (cg_players.cpp:3104 MD, 2465 OpenJK)
+    // vergleicht die Beingier dieses Clientbilds (CG_PlayerLegsYawFromMovement: um frameInterpolation des Rests,
+    // hoechstens 10 Grad je Bild, nie mehr als 60 Grad neben dem Blick, ebenda:2173-2192 MD) mit der des vorigen.
+    // Die Beine holen den Blick nur Schritt fuer Schritt ein; die Animation laeuft darum ueber das Ende der Drehung
+    // hinaus (Movie Duels, SP/g10b/tga8: nach SET_ANGLES und nach SET_DYAW noch rund eine halbe Sekunde). Bis Teil 10
+    // lief sie nur, solange sich die Gier im letzten Serverbild aenderte. Gerechnet je Clientbild (kSaberClientTaktMs,
+    // com_maxfps 125) mit dem Anteil zwischen zwei Serverbildern, von einem ruhigen Stand an (kRuheMs ohne Drehen).
     constexpr double kServerMs = 50.0;
-    const auto dreht = [&a](double t, float gier) {
-        const ActorState v = a.at(std::max(t - kServerMs, 0.0));
-        return !v.moving && std::fabs(shortestAngleDelta(v.angles[1], gier)) > 0.0001F;
-    };
-    if (!dreht(ms, st.angles[1])) { return; }
+    constexpr double kRuheMs = 1500.0;
+    constexpr double kTakt = static_cast<double>(kSaberClientTaktMs);
+    const auto gierBei = [&a](double t) { return a.at(std::max(t, 0.0)).angles[1]; };
+    // Erst der grobe Blick: hat sich die Gier in kRuheMs vor ms ueberhaupt bewegt?
+    double ab = std::floor(std::max(ms - kRuheMs, 0.0) / kTakt) * kTakt;
+    bool bewegt = false;
+    const float gier0 = gierBei(ab);
+    for (double t = ab + kServerMs; t <= ms + kServerMs * 0.5 && !bewegt; t += kServerMs) {
+        bewegt = std::fabs(shortestAngleDelta(gier0, gierBei(std::min(t, ms)))) > 0.0F;
+    }
+    if (!bewegt) { return; }
+    float beine = gier0;
+    double laeuftAb = -1.0;
+    for (double t = ab + kTakt; t <= ms; t += kTakt) {
+        const ActorState v = a.at(t);
+        const float vorher = beine;
+        beine = pmBeinGier(beine, v.angles[1], 0.0F, 0.0F, false, std::fmod(t, kServerMs) / kServerMs);
+        // VectorCompare(vec3_origin, ps.velocity): nur im Stand
+        const bool dreht = !v.moving && beine != vorher;
+        if (!dreht) {
+            laeuftAb = -1.0;
+        } else if (laeuftAb < 0.0) {
+            laeuftAb = t;
+        }
+    }
+    if (laeuftAb < 0.0) { return; }
     const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
                       : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
     const std::string anim = pmDrehAnim(st.animation, spiel);
     if (anim.empty()) { return; }
-    // Wann die Schleife begann: das erste Bild dieser Drehung.
-    double ab = ms;
-    while (ab > 0.0) {
-        const double vorher = ab - kServerMs;
-        if (!dreht(vorher, a.at(std::max(vorher, 0.0)).angles[1])) { break; }
-        ab = vorher;
-    }
-    d.hipsFrame = frameForAnimationIn(assets.skeleton->sections, anim, ms - ab, false, 1.0F, &d.hipsFraction, &d.hipsNext);
+    // G2API_SetBoneAnimIndex(..., BONE_ANIM_OVERRIDE_LOOP, ..., cg.time): die Schleife beginnt mit dem ersten Bild
+    // dieser Drehung.
+    d.hipsFrame = frameForAnimationIn(assets.skeleton->sections, anim, ms - laeuftAb, false, 1.0F, &d.hipsFraction, &d.hipsNext);
 }
 
 void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d) {
@@ -5393,6 +5418,14 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
             }
             an->lage = klingenLageFuer(art != nullptr ? art->typ : std::string());
             an->saberFach = static_cast<int>(n);   // rc601 saber
+            // rc608 Teil 10b: fuer das Licht der Klingen. Movie Duels zeichnet diese Typen mit CG_DoSaberUnstable
+            // (cg_players.cpp:14761-14765 und je cg_SFXSabers-Fall MD).
+            an->saberKlingenZahl = s.numBlades;
+            if (art != nullptr) {
+                static const char* const kInstabil[] = {"SABER_UNSTABLE", "SABER_STAFF_UNSTABLE", "SABER_STAFF_ELECTROSTAFF",
+                                                        "SABER_SINGLE_KYLO_REN", "SABER_ELECTROSTAFF"};
+                for (const char* t : kInstabil) { an->saberInstabil = an->saberInstabil || art->typ == t; }
+            }
             for (int b = 0; b < s.numBlades && b < kMaxKlingen; ++b) {
                 // noBlade / noBlade2, je nach bladeStyle2Start
                 // (ebenda:14562 ff.) - der Griff eines Elektrostabs hat
@@ -5426,6 +5459,10 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
                 saberLichtFarbe(kz.farbe, kd.licht);
                 kd.glowTex = bladeTexture(kz.farbe, true);
                 kd.coreTex = bladeTexture(kz.farbe, false);
+                // noDlight (CG_AddSaberBladeGo, cg_players.cpp:6711-6717 OpenJK, 14535-14543 MD): ab drei Klingen
+                // oder mit noDlight/noDlight2 fuer den Klingenstil dieser Klinge kein eigenes Licht.
+                const bool zweiterStil = art != nullptr && art->bladeStyle2Start > 0 && b >= art->bladeStyle2Start;
+                kd.eigenesLicht = s.numBlades < 3 && !(art != nullptr && (zweiterStil ? art->ohneLicht2 : art->ohneLicht));
             }
         }
     }
@@ -8230,6 +8267,17 @@ void ansichtEinstellungen() {
     ImGui::BeginDisabled(!regelwerkMovieDuels());
     if (ImGui::Checkbox(tr(Str::MapAnimStyle), &g_app->settings.gActivateAnimationStyle)) { animStilWechseln(); }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MapAnimStyleHint)); }
+    // rc608 Teil 10b: das Schwertlicht von Movie Duels (Spannen wie im Einstellungsmenue des Spiels).
+    ImGui::SetNextItemWidth(feld);
+    if (ImGui::SliderFloat(tr(Str::MapSaberLightIntensity), &g_app->settings.cgSaberLightIntensity, 0.5F, 1.5F, "%.2f")) {
+        g_app->mapDirty = true;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MapSaberLightIntensityHint)); }
+    ImGui::SetNextItemWidth(feld);
+    if (ImGui::SliderFloat(tr(Str::MapSaberLightRadius), &g_app->settings.cgSaberLightRadius, 0.5F, 2.5F, "%.2f")) {
+        g_app->mapDirty = true;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MapSaberLightRadiusHint)); }
     ImGui::EndDisabled();
     if (g_app->showActors) {
         // Figuren um 90 Grad drehen - fuer Modelle, die anders herum stehen.

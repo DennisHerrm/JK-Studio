@@ -3910,11 +3910,38 @@ void drawMapView() {
                                                gw2[r * 4 + 2] * in[2] + gw2[r * 4 + 3];
                                     }
                                 };
-                                // CG_DoSaberLight: je Schwert EIN Licht.
-                                // Bei einer Klinge in ihrer Mitte, Radius
-                                // doppelte Laenge; bei mehreren im Mittel
-                                // der Spitzen, nach Laenge gewichtete Farbe,
-                                // Radius der groesste Spitzenabstand.
+                                // Das Licht der Klingen (rc608 Teil 10b nach der Quelle neu geordnet):
+                                // Ein Schwert mit einer oder zwei Klingen gibt JEDER Klinge ihr eigenes Licht
+                                // in ihrer Mitte - CG_DoSaber(..., doLight = !noDlight) aus CG_AddSaberBladeGo
+                                // (cg_players.cpp:5791-5796 und 6711-6758 OpenJK, 11953-11958 und 14535-14800
+                                // MD, Jedi Outcast codeJK2 cg_players.cpp:4241). Erst ab drei Klingen mischt
+                                // CG_AddSaberBlade sie zu EINEM Licht (CG_DoSaberLight, "add blended light"):
+                                // im Mittel der Spitzen, nach Laenge gewichtete Farbe, Radius der groesste
+                                // Spitzenabstand. Bis Teil 10 galt das gemischte Licht fuer jedes Schwert.
+                                const auto wuerfel = [&schwertLichter]() {
+                                    // Q_flrand(0,1): aus Takt und Lichtnummer, damit ein angehaltenes Bild stillsteht.
+                                    std::uint32_t wurf = static_cast<std::uint32_t>(static_cast<std::int64_t>(g_app->playMs / 50.0));
+                                    wurf = wurf * 2654435761U ^ static_cast<std::uint32_t>(schwertLichter.size() * 40503U + 17U);
+                                    wurf ^= wurf >> 15;
+                                    wurf *= 2246822519U;
+                                    wurf ^= wurf >> 13;
+                                    return static_cast<float>(wurf & 0xFFFFU) / 65536.0F;
+                                };
+                                // Movie Duels (Update 9): Radius mal cg_saberLightRadius, Farbe mal
+                                // cg_saberLightIntensity, ein Wert <= 0 gilt als 1. SP/mdgit kennt die Cvars
+                                // nicht. Benannter Messgrund: die installierte MovieDuels-gamex86_64.dll
+                                // (CG_DoSaberLight 0x2fc6db ff., CG_DoSaber/CG_DoSFXSaber 0x2fcfa5 ff.: "comiss
+                                // wert, 0; ja; sonst 1.0", Radius * R, rgb * I) und im Spiel gemessen
+                                // (SP/g10b/mess_sl.py: 0 wie 1, R vergroessert den Lichthof am Boden, I hellt
+                                // die Figur auf, bei 2 laeuft die Farbe am Boden ueber).
+                                const auto mdSkala = [](gpu::WeltLicht& wl) {
+                                    if (!regelwerkMovieDuels() || regelwerkJediOutcast()) { return; }
+                                    const float r = g_app->settings.cgSaberLightRadius;
+                                    const float i = g_app->settings.cgSaberLightIntensity;
+                                    wl.radius *= r > 0.0F ? r : 1.0F;
+                                    for (float& kanal : wl.farbe) { kanal *= i > 0.0F ? i : 1.0F; }
+                                };
+                                const bool gemischt = an.saberKlingenZahl >= 3 && !regelwerkJediOutcast();
                                 float lMitte[3] = {0.0F, 0.0F, 0.0F};
                                 float lFarbe[3] = {0.0F, 0.0F, 0.0F};
                                 float lErsteFarbe[3] = {0.0F, 0.0F, 0.0F};
@@ -3941,7 +3968,30 @@ void drawMapView() {
                                     if (!saberKlingeZeichnen(a.figur, an.saberFach, kd.nummer, wA, wB, kd.laenge)) {
                                         continue;
                                     }
-                                    if (lSpitzen.empty()) {
+                                    if (!gemischt && kd.eigenesLicht) {
+                                        // Jedi Outcast: (length*2) + flrand*8, rgb. OpenJK: (length*1.4) +
+                                        // flrand*3, rgb. Movie Duels: CG_DoSaber und die Stile von
+                                        // cg_SFXSabers (CG_DoEp1Saber ... CG_DoMaulSaber) length*2 + flrand*10
+                                        // mit rgb*0.66; die instabilen Typen (CG_DoSaberUnstable,
+                                        // cg_players.cpp:12807-12811 MD) length*1.4 + flrand*3 mit rgb.
+                                        gpu::WeltLicht kl;
+                                        float faktor = 1.0F;
+                                        if (regelwerkJediOutcast()) {
+                                            kl.radius = kd.laenge * 2.0F + wuerfel() * 8.0F;
+                                        } else if (regelwerkMovieDuels() && !an.saberInstabil) {
+                                            kl.radius = kd.laenge * 2.0F + wuerfel() * 10.0F;
+                                            faktor = 0.66F;
+                                        } else {
+                                            kl.radius = kd.laenge * 1.4F + wuerfel() * 3.0F;
+                                        }
+                                        for (int k = 0; k < 3; ++k) {
+                                            kl.ort[k] = 0.5F * (wA[k] + wB[k]);
+                                            kl.farbe[k] = kd.licht[k] * faktor;
+                                        }
+                                        mdSkala(kl);
+                                        schwertLichter.push_back(kl);
+                                    }
+                                    if (gemischt && lSpitzen.empty()) {
                                         for (int k = 0; k < 3; ++k) {
                                             lMitte[k] = 0.5F * (wA[k] + wB[k]);
                                             lErsteFarbe[k] = kd.licht[k];
@@ -4000,7 +4050,7 @@ void drawMapView() {
                                         klingen.push_back(q);
                                     }
                                 }
-                                if (lGesamt > 0.0F && !lSpitzen.empty()) {
+                                if (gemischt && lGesamt > 0.0F && !lSpitzen.empty()) {
                                     gpu::WeltLicht wl;
                                     if (lSpitzen.size() == 1U) {
                                         for (int k = 0; k < 3; ++k) {
@@ -4024,18 +4074,9 @@ void drawMapView() {
                                             }
                                         }
                                     }
-                                    // + Q_flrand(0,1) * 8: das Flackern. Aus
-                                    // Takt, Figur und Griff gewuerfelt, damit
-                                    // ein angehaltenes Bild stillsteht.
-                                    std::uint32_t wurf = static_cast<std::uint32_t>(
-                                        static_cast<std::int64_t>(g_app->playMs / 50.0));
-                                    wurf = wurf * 2654435761U ^
-                                           static_cast<std::uint32_t>(schwertLichter.size() * 40503U + 17U);
-                                    wurf ^= wurf >> 15;
-                                    wurf *= 2246822519U;
-                                    wurf ^= wurf >> 13;
-                                    const float zufall = static_cast<float>(wurf & 0xFFFFU) / 65536.0F;
-                                    wl.radius = lDurchmesser + zufall * 8.0F;
+                                    // + Q_flrand(0,1) * 8: das Flackern.
+                                    wl.radius = lDurchmesser + wuerfel() * 8.0F;
+                                    mdSkala(wl);
                                     schwertLichter.push_back(wl);
                                 }
                             }

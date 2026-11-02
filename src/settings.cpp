@@ -130,6 +130,10 @@ std::string writeSettings(const Settings& s) {
     put(o, "cgMotionBoneComp", std::to_string(s.cgMotionBoneComp));
     put(o, "cgTurnAnims", s.cgTurnAnims);
     put(o, "gActivateAnimationStyle", s.gActivateAnimationStyle);
+    std::snprintf(buf, sizeof(buf), "%.6f", static_cast<double>(s.cgSaberLightIntensity));
+    put(o, "cgSaberLightIntensity", std::string(buf));
+    std::snprintf(buf, sizeof(buf), "%.6f", static_cast<double>(s.cgSaberLightRadius));
+    put(o, "cgSaberLightRadius", std::string(buf));
     put(o, "mpZiel", s.mpZiel);
     // Paket kamera, rc601: das Spielfenster.
     std::snprintf(buf, sizeof(buf), "%.4f", static_cast<double>(s.spielSeiten));
@@ -408,6 +412,12 @@ bool readSettings(const std::string& text, Settings& out) {
         // Paket kamera, rc601: das Spielfenster. 0 = wie der Bildschirm;
         // sonst ein Seitenverhaeltnis, wie es Bildschirme haben (9:16 hochkant
         // bis 32:9) - eine von Hand verdorbene Zahl bleibt auf der Vorgabe.
+        else if (key == "cgSaberLightIntensity" || key == "cgSaberLightRadius") {
+            float v = 0.0F;
+            if (parseFloat(value, v) && v >= 0.0F && v <= 8.0F) {
+                (key == "cgSaberLightIntensity" ? out.cgSaberLightIntensity : out.cgSaberLightRadius) = v;
+            }
+        }
         else if (key == "spielSeiten") {
             float v = 0.0F;
             if (parseFloat(value, v) && (v == 0.0F || (v >= 0.25F && v <= 8.0F))) { out.spielSeiten = v; }

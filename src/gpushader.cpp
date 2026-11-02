@@ -267,6 +267,11 @@ VSLicht main(VSIn ein) {
 //                Massstab 0.5 / sqrt(radius^2 - fac^2)
 //     Farbe    = dl->color * modulate
 //
+// Die Farbe geht als Byte an die Ecken: colorTemp[k] = Q_ftol(floatColor[k] * modulate) mit `byte colorTemp[4]`
+// (tr_shade.cpp:684/842 OpenJK, :670/824 MD) - abgeschnitten und modulo 256. Bei dl->color bis 1 aendert das nur
+// die Nachkommastellen; ein staerkeres Licht (cg_saberLightIntensity ueber 1 in Movie Duels) laeuft nahe der Mitte
+// ueber und wird dort DUNKLER, wie im Spiel gemessen (rc608 Teil 10b, Boden neben dem Spieler bei 2).
+//
 // und das MAL dem ersten deckenden Nicht-Lightmap-Bild der Flaeche,
 // GL_ONE GL_ONE. Hat die Flaeche kein solches Bild (tcMod, tcGen
 // environment), wird statt dessen GL_DST_COLOR GL_ONE gemischt - dann
@@ -309,7 +314,9 @@ float4 main(VSLicht ein) : SV_TARGET {
             continue;
         }
         float b = gDlicht.Sample(gRand, float2(0.5 + u, 0.5)).r;
-        summe += gLichtFarbe[i].rgb * (modulate * b);
+        float3 ecke = floor(gLichtFarbe[i].rgb * (255.0 * modulate));
+        ecke -= 256.0 * floor(ecke / 256.0);
+        summe += ecke * (b / 255.0);
     }
     if (gLichtInfo.w > 0.5) {
         return float4(t.rgb * summe, 1);

@@ -612,6 +612,9 @@ struct KlingeDraw {
     // (cg_players.cpp), NICHT die Klingenfarbe oben: blau leuchtet dort
     // 0.2/0.4/1.0, weiss und schwarz beide 1/1/1.
     float licht[3] = {0.2F, 0.4F, 1.0F};
+    // rc608 Teil 10b: ob CG_AddSaberBladeGo dieser Klinge ein eigenes Licht gibt (!noDlight: weniger als drei
+    // Klingen und kein noDlight/noDlight2 der .sab fuer ihren Klingenstil).
+    bool eigenesLicht = true;
 };
 
 // Ein Modell an einem Bolzen der Figur: Waffe, Schwertgriff oder
@@ -628,6 +631,10 @@ struct AnbauDraw {
     // -1: kein Lichtschwert (Waffe, Kinomodell, Griff ohne Klingen).
     int saberFach = -1;
     std::array<KlingeDraw, kAnbauKlingen> klinge{};
+    // rc608 Teil 10b: numBlades des Schwerts (ab drei das gemischte Licht, CG_AddSaberBlade) und ob es ein instabiler
+    // Typ ist (Movie Duels: CG_DoSaberUnstable mit eigenem Licht).
+    int saberKlingenZahl = 0;
+    bool saberInstabil = false;
     // Pruefung 4b: nicht angehaengt (KinoModell::anWurzel) - steht mit den
     // Achsen der Figur an ihrem Ursprung, nicht am Bolzen.
     bool anWurzel = false;

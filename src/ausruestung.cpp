@@ -512,6 +512,8 @@ int saberArtIndex(Actor& a, const std::string& name, int fach,
             art.holsterPlatz = d.holsterPlatz;
             art.ohneKlinge = d.noBlade;
             art.ohneKlinge2 = d.noBlade2;
+            art.ohneLicht = d.noDlight;
+            art.ohneLicht2 = d.noDlight2;
             art.kontakt = d.kontakt;   // rc601 saber
             art.stilGelernt = d.stylesLearned;
             art.stilVerboten = d.stylesForbidden;

@@ -3632,6 +3632,10 @@ enum class Str {
     MapMsaaHint,
     MapMsaaGame,
     MapMsaaOff,
+    MapSaberLightIntensity,
+    MapSaberLightIntensityHint,
+    MapSaberLightRadius,
+    MapSaberLightRadiusHint,
     Count,
 };
 
