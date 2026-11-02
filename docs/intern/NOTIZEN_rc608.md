@@ -418,15 +418,96 @@ Figur und Karte auf md_am_sith, duel_kamino, duel_deathstar, duel_mustafar, acad
 Griff im Holster an der Huefte und Brust: Die Quelle ergibt eine Drehung um X, damit stuende er nach oben. Im Spielfoto haengt er nach unten, darum die Drehung um die Laengsachse; die Basispose von "ModView internal default" war nicht lesbar. Nur fuer HOLSTER_LHIPF per Foto bestaetigt, andere Plaetze und HOLSTER_BACK nicht.
 
 ### Offen aus Teil 5
-- Figur im Mittel 0,78 bis 1,06 je Karte, nicht fest: Ursache nicht gefunden (Pose oder Mip-Stufe, die Lichtwerte selbst stimmen).
-- r_DynamicGlow: Movie Duels 1, Original 0 ("Dynamic Glow: disabled"). Die Vorschau hat den Schalter unabhaengig vom Regelwerk an.
-- Schmerzanimation und Rueckstoss (siehe Funkenfaecher).
-- Der Spieler mit Gewehr haelt es in der Vorschau seitlich, im Spiel im Anschlag (die Torso-Haltung gilt nur fuer NPCs). Gefunden am Holsterfoto.
-- Kasten der Leiche aus DeadThink (maxs[2] aus eyePoint), pitch_roll_for_slope (geneigte Leiche), die Wurf-Zweige ausser dem Kantenwurf setzen ps.friction nicht.
-- Waffen im Holster (cg_holster.cpp) und WP_SaberHolsterAvoidGuns; `*holsterorigin`; STUN_BATON am Spielerstart.
-- tr.sunDirection ohne Gitter ist die Vorgabe, q3map_sun nicht gelesen.
-- Testkarten ohne Entities: Die Vorschau zeichnet Untermodelle ohne Entity, das Spiel nicht (Tueren auf t3_byss, die Nebelwand auf duel_hoth). Auf den echten Karten gibt es den Fall nicht; duel_hoth echt: gleich.
+- Figur im Mittel 0,78 bis 1,06 je Karte: geklaert in Teil 6 (Skalierung des Vergleichsbilds, Figurentexturen auf 256 begrenzt).
+- r_DynamicGlow: erledigt in Teil 6.
+- Schmerzanimation und Rueckstoss: Teil 6.
+- Der Spieler mit Gewehr: erledigt in Teil 6.
+- Kasten der Leiche, pitch_roll_for_slope, ps.friction: erledigt in Teil 6.
+- Waffen im Holster, AvoidGuns, `*holsterorigin`, STUN_BATON: Teil 6.
+- tr.sunDirection: erledigt in Teil 6.
+- Untermodelle ohne Entity: erledigt in Teil 6.
 - Die Karte ist jetzt in allen Selbsttests dunkler. Der Gesamtlauf steht aus: Prueffotos und Schwellen koennen dort auffallen. Handbuchbilder der Karte zeigen noch die alte Helligkeit, `h_ansicht_einst` noch 2,0x: mit dem Bilderlauf der Endrunde erneuern.
+
+## Teil 6: Restfehler Vorschau gegen Spiel
+
+Alle Vergleichsbilder jetzt ohne Skalierung: Kartenansicht genau 1440 hoch (`BHED_GV_ANSICHT=1920x1440`, das Fenster darf groesser als der Schirm werden), davon die Mitte 1920 breit, Wiedergabe mit Tempo 0, also keine Bedienhilfen. Die Kamera von `viewpos` war abgeschnitten: Nick 0 statt 1 ("-359" ist abgeschnitten), Hoehe + 0,5. Vorher kamen 1,4x hochskalierte Bilder mit Lanczos und 20 Bildpunkte Versatz in den Vergleich: Ein grosser Teil der Abweichungen bei dunklen Werten war das.
+
+### 1 und 4: Mustafar, rotes Feld und Untermodelle
+Zwei Ursachen, beide aus der Engine:
+- Die grauen Formen waren die Tueren `*91` und `*88` (`textures/plasma_Mustafar/door_1`, func_door): Auf der Testkarte haben sie keine Entity. Nur CG_Mover bringt ein Untermodell ins Bild: `kartenpruefung::brushModellImBild`, dazu trigger_* (SVF_NOCLIENT), rail_track, rail_lane, rail_mover, misc_weather_zone, fx_wind_zone.
+- Dahinter stand der Rest des Raums (`basic_white`, Gebiet 9): Die Vorschau kannte keine Gebiete. Neu `bhed/areaportal.h`: CM_AdjustAreaPortalState, CM_FloodAreaConnections, CM_AreasConnected, SV_LinkEntity (areanum, areanum2), R_RecursiveWorldNode mit Gebietsmaske, SV_AddEntitiesToSnapshot. Schalten: Use_BinaryMover (teammaster, solange nicht in MOVER_POS1), func_wall und func_usable (nicht START_OFF), func_breakable, misc_model_breakable; CONTENTS_OPAQUE wie SV_AdjustAreaPortalState (nicht in Jedi Outcast). Die verdeckten Flaechen werden im Indexpuffer der Karte leer gesetzt, nur wenn sich die Maske aendert.
+- Das rote Feld selbst ist der Himmel durch das Loch. Der Himmel wird nie verdeckt (RB_StageIteratorSky zeichnet ein Rechteck der Box), die Szene des Himmelsportals hat keine Maske (CG_DrawSkyBoxPortal; auf duel_mustafar steht dort der ganze Himmel).
+Pixel 1405,723: Spiel 92,2/22,1/13,8, vorher 11,9/8,0/6,2, jetzt 92,1/22,0/13,8. Saeulenkante 1340,700: Spiel 27,1/24,2/20,6, vorher 7,6/3,9/2,6, jetzt 26,8/24,0/20,4.
+Weitere Karten: alle mit Portalen. duel_mustafar hat 13 Gebiete und 15 Portal-Entities, vom Start aus sind 11355 von 12531 Flaechen hinter geschlossenen Tueren. Die echte Karte `duel_mustafar` nachgemessen: Boden 1,00/1,00/1,00, Himmel 1,00/0,99/0,99. Hier fehlen im Bild nur Glut (Wetter) und Figur, die im Spielerstart der Vorschau anderswo steht.
+Das Auge ist die Kamera der Ansicht, nicht der Spieler: Sonst blieben die Raeume beim freien Flug dunkel. Abweichung mit Absicht.
+
+### 2: Figur und dunkle Werte
+- Figurentexturen waren auf 256 und Kartentexturen auf 512 verkleinert (Editoransicht von frueher): `kBildGrenze` 4096, im Spiel r_picmip 0. Der Stoff ist jetzt so scharf wie im Spiel. Spitze 830 -> 1250 MB auf den Testkarten.
+- r_gammaShaders: Die Tabelle steht in der DLL (R_SetColorMappings, 0x180053FF0, disassembliert): `(int)(pow(i/63, 1/r_gamma)*255 + 0.5)` mal 2^overbright, 64 Stufen, GL_LINEAR, CLAMP_TO_EDGE; das Fragmentprogramm ist "TEX r0, ..., RECT; TEX result.color, r0, texture[1], 3D" ohne Halbtexel-Ausgleich. Teil 5 hatte abgerundet.
+- **Gefunden: tcGen environment der Karte war die Formel von Quake 3.** JKA rechnet `st = normal.xy*d - 0.5*viewer.xy` (RB_CalcEnvironmentTexCoords). Figuren hatten es richtig, die Karte nicht. Daher die zu hellen Boeden auf Todesstern, Byss und Kamino.
+- **Gefunden: Der Weichzeichner des Gluehens rundete die Abstaende**, das Spiel nimmt 0,1 + 0,8 je Durchgang mit GL_LINEAR. Daher die Streifen im Schein.
+- r_dynamicGlowBloom ist 0,0 ("the default", im Spiel abgefragt): Der Bloom-Shader der DLL laeuft nicht.
+
+Messung Vorschau gegen Spiel, je Mittel R/G/B, Faktor, Boden links + rechts + Himmel:
+| Karte | Boden links | Boden rechts | oben | Figur (Faktor R) |
+|---|---|---|---|---|
+| Turm | 1,01 1,01 1,01 | 1,00 1,00 1,00 | 1,00 1,01 - | 1,04 (vorher 0,79) |
+| Mustafar | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,05 (vorher 1,15) |
+| Akademie | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,02 |
+| Todesstern | 1,00 1,00 1,00 (vorher 2,04) | 0,99 0,99 0,99 (vorher 1,41) | 1,00 1,00 1,00 | 1,07 |
+| Byss | 1,02 1,02 1,02 (vorher 1,16) | 1,02 1,02 1,02 (vorher 1,29) | 1,01 1,01 1,01 | 1,08 |
+| Kamino | 1,05 1,05 1,06 | 1,05 1,05 1,06 | 1,06 1,04 1,06 | 1,09 |
+| Hoth | 1,06 1,06 1,06 | 1,06 1,05 1,06 | 1,01 1,01 1,01 | 1,26 |
+Dunkle Werte Mustafar, Perzentile 5/25/50/75/95/99 Spiel gegen Vorschau, alle Kanaele hoechstens 1 Byte auseinander (R 5/6, 10/11, 13/13, 21/20, 25/25, 28/27). Die Figur bleibt 2 bis 9 Prozent heller und steht 4 Bildpunkte tiefer; die Felder enthalten darum etwas Boden, auf Hoth liegt der Ausschnitt nicht deckungsgleich (Kamera: dy 22). Offen: Kamino und Hoth 5 Prozent auf den Boeden, nicht geklaert.
+
+### 3: Schaden an Figuren
+`bhed/schmerz.h`, hurtTodeBerechnen, SzenenHilfe und AblaufWelt:
+- G_ApplyKnockback vor dem Gottmodus, knockback = damage (hoechstens 200, EXTRA doppelt, CRUSH und NO_KNOCKBACK 0, 2x hoechstens 120, g_knockback 1000, Masse 200, z = dir*... + 20, pm_time 50..200). **Die Bolzen der Geschuetze schieben nicht** (DAMAGE_NO_KNOCKBACK in turret_fire und pas_fire), Teil 5 hat das falsch vermutet. Es stossen G_RadiusDamage und was noch dir hat. `planeStosslauf` (Pmove mit leerem ucmd, PMF_TIME_KNOCKBACK) geht als Weg `stossWege` wie schubWege in Ablauf und Szene; der naechste Plan beginnt dort. Auf einem laufenden Weg wirkt er nicht (der Plan steht vorab).
+- **Movie Duels: "Universal directional pain animation" in G_MissileImpacted.** Auch im Gottmodus, 75 %, 2 s Pause, Animation nach Trefferort, Oberkoerper nur 400 ms. Das ist das Zucken auf den 20 Spielbildern. OpenJK kennt das nicht.
+- NPC_Pain mit NPC_ChoosePainAnimation (painDebounceTime = PM_AnimLength, ohne Feind immer, Desann halb, in MD auch Vader und CLASS_SITHLORD), PlayerPain (Animation nur bei MOD_CRUSH; Schwert und Faust gibt es hier nicht; sonst nur EV_PAIN). EV_PAIN als Klang nach CG_PainEvent.
+Selbsttest `teil6`: Mission mit Wachgeschuetz: Movie Duels 7 Zuckungen, 0 Stoesse; OpenJK 15 Schmerzanimationen. Explosion: Stoss -384/0/260, 266 Einheiten Weg.
+Funkenfaecher erneut gegen die 20 Spielbilder (`g6/erg/paar_fan.png`): gleiche Mechanik, aber die Streuung bleibt kleiner. Im Spiel zeigt der Faecher in etwa 7 von 20 Bildern nach oben oder links, in der Vorschau fast immer nach rechts. Grund nicht abschliessend geklaert: Die Bewegung ist jetzt da, sie liefert aber nur in den Zeitfenstern der Animationen andere Dreiecke, und die Zufallsfolge ist nicht die des Spiels. Das bleibt offen.
+Nicht nachgebildet: G_CheckKnockdown und G_Knockdown (auch der Knockdown geduckter Figuren in G_MissileImpacted), BSET_PAIN, FL_NO_KNOCKBACK (SET_NO_KNOCKBACK), die Stoesse auf einem laufenden Weg, NPC_GetPainChance mit Feind.
+
+### 5: r_DynamicGlow
+Vorgabe des Schalters beim Wechsel des Regelwerks: Movie Duels an, OpenJK und Jedi Outcast aus. Handbuch und Hinweis in 6 Sprachen.
+
+### 6: Spieler mit Gewehr
+G_SetWeapon fuehrt beim Spieler ueber CG_ChangeWeapon: nach WEAPON_RAISING ist er in WEAPON_IDLE wie ein NPC (nur der NPC bekommt WEAPON_READY). `npcWaffenTorso` jetzt auch fuer ihn, mit den Laufregeln des Spielers. Foto mit WP_DISRUPTOR (`weapon 4` im Spiel): Haltung deckungsgleich (`g6/erg/paar_holster_waffen.png`).
+
+### 7: Holster
+- Basispose von "ModView internal default": FakeGLAFile in tr_model.cpp, Einheit. Der Griff liegt laengs Z, der Bolzen `*blade1` bei +z.
+- **Die Drehung der Quelle stimmt (diag 1 -1 -1), es fehlte der Versatz:** G2_Generate_Matrix schreibt `offset` in die vierte Spalte (0 -1 -10 an der Huefte). Der Kommentar in der Quelle von MD ("not used by the renderer") stimmt nicht. Alle Plaetze nach der Quelle, die gemessene Drehung aus Teil 5 ist weg. Foto ohne Waffe in der Hand (`g6/erg/paar_holster_frei.png`): deckungsgleich fuer HOLSTER_LHIPF. Nur LHIPF per Foto, die anderen nach Quelle.
+- Die .sab von Movie Duels schreiben "back", "rhip": Der Leser kannte nur HOLSTER_*; "lhipl" ist in der Engine unbekannt (Vorgabe). HOLSTER_BACK war so nie aktiv.
+- `*holsterorigin`: Kein Griff hat diesen Bolzen (alle 264 .glm durchsucht).
+- STUN_BATON (32) und NOWEAPON (64) am Spielerstart.
+- cg_holster.cpp: Plaetze, holster.cfg (eigene oder kyle), Hls_Render, Knochen als Bolzen, WP_SaberHolsterAvoidGuns. **Foto nicht deckungsgleich:** Im Spiel haengen zwei Waffen sichtbar an den Seiten (`paar_holster_waffen.png`, `paar_holster_hinten.png`), in der Vorschau sieht man sie kaum; der Versuch mit vierfachem Versatz zeigte eine Waffe, der Ort stimmt also ungefaehr, die zweite (WP_BATTLEDROID) war nicht zu sehen. Nicht fertig, bleibt offen. cg_holsterHide und die Gegenstandsliste von NPC mit mehreren Waffen fehlen.
+
+### 8: Lunge
+in_camera kommt in den Plan: `Ablauf::kameraZeiten`, Stand zu Beginn des Plans, in Ablauf und Szene gleich. Probe und Foto im Spiel nicht nachgeholt: Dazu braucht das Spiel ein kompiliertes Skript (SET_CROUCHED mit Laufziel), die Spielprobe ist offen.
+
+### 9: Leiche
+Reibung aus `tod.reibung` in allen Zweigen. pitch_roll_for_slope (`leichenNeigung`, Nick und Roll an der Figur). Kasten aus DeadThink in den Zielen der Geschuetze (eyePoint + 4, mindestens -8). Nicht per Foto (Testkarte eben), nur gegen die Formel; der Kasten gilt nur fuer die Spuren der Geschuetze, nicht fuer die Spur der Leiche selbst; `mins[2]` aus pitch_roll_for_slope fehlt.
+
+### 10: q3map_sun
+ParseShader: sun, q3map_sun, q3map_sunExt: `tr.sunDirection` aus Grad und Hoehe, der zuletzt gelesene Shader in der Reihenfolge der Flaechen gilt.
+
+### Tests
+- Ctest `schmerz` (neu), `kartenpruefung` ergaenzt. Selbsttest `teil6` (neu).
+- Rot: Bild `paar_mustafar_nach.png` aus Teil 5. Selbsttest teil6 erster Lauf 4 OK, 2 FEHLER (0 Zuckungen: die Dauer kam aus Actor::animDauerMs, der nur benutzte Animationen kennt), danach 6 OK, 0 FEHLER. Ctest schmerz erster Lauf rot in zwei eigenen Testzeilen (Eingabewert, Doppelschwert ohne Platz), danach 0 Fehler.
+- Gelockert: nichts. `gpushader` prueft weiter die Stufe aus der Tabelle.
+
+### Nur per Foto gegen das Spiel
+Alle Karten oben, Griff frei, Waffe in der Hand, Faecher. Movie Duels. Original-JKA: Steam war angemeldet, aber kein neuer Start; das Foto `g5/fotos/o_byss_0.png` aus Teil 5 (1280 x 960) gegen die Vorschau unter OpenJK auf 1280 x 960 verkleinert (`g6/erg/paar_original_byss.png`): Boden 0,64 bis 0,68, oben 0,81, Figur 0,87. Die Vorschau ist also unter OpenJK dunkler als das Original; Ursache nicht geklaert (das Original meldet GAMMA: hardware, r_overBrightBits 0, amb und dir stimmen). OpenJK-Regeln sonst nur gegen die Quelle.
+
+### Offen aus Teil 6
+- Waffen im Holster nicht deckungsgleich (siehe 7), zweite Waffe.
+- Funkenfaecher: Streuung (siehe 3).
+- Kamino und Hoth: Boeden 5 Prozent heller. Figur 2 bis 9 Prozent heller (Hoth nicht deckungsgleich).
+- Lunge: Spielprobe und Foto. Knockdown.
+- Original-JKA: Vorschau unter OpenJK 0,64 bis 0,81 des Originals, Ursache offen; nur ein Foto.
+- duel_mustafar echt: Glut in der Luft (Wetter/Effekt) im Vergleichsbild nicht geprueft.
+- Eine Tuer ohne Entity zeigt in der Vorschau den Himmel, im Spiel ein Rechteck der Himmelsbox um die sichtbaren Himmelsflaechen; beides nur auf Testkarten.
 
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
@@ -497,6 +578,10 @@ Weiter offen:
 - Preview: light as in the game. Map and characters were far too bright: defaults are now brightness 1.0x and ambient 0, light grid, minimum light per rule set and dynamic lights follow the engine, under Movie Duels also its gamma step.
 - Preview: the player has the game's character and saber (model and three skins from the defaults of OpenJK and Movie Duels).
 - Preview: corpses slide and fall on, characters fall to their death, corpses disappear by the game's rules; under Movie Duels a saber that is put away hangs in its holster.
+- Preview: what lies behind a closed door is not drawn, as in the game (area portals); neither are submodels without an entity.
+- Preview: reflective floors (tcGen environment) and the glow halo as in the game, textures at full size, gamma table from Movie Duels.
+- Preview: figures flinch when hit and blasts push them away, per rule set. Corpses lie along the slope.
+- Preview: the player holds rifles as in the game; glow starts on under Movie Duels and off otherwise; saber hilts in the holster by the engine; guns in holsters under Movie Duels (first version); STUN_BATON at the player start.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -551,6 +636,10 @@ Weiter offen:
 - Vorschau: Licht wie im Spiel. Karte und Figuren waren viel zu hell: Vorgabe jetzt Helligkeit 1,0x und Grundlicht 0, Lichtgitter, Mindestlicht je Regelwerk und dynamische Lichter nach der Engine, unter Movie Duels auch dessen Gamma-Stufe.
 - Vorschau: Der Spieler trägt die Figur und das Schwert des Spiels (Modell und drei Häute aus den Vorgaben von OpenJK und Movie Duels).
 - Vorschau: Leichen gleiten und fallen weiter, Figuren stürzen in den Tod, Leichen verschwinden nach den Regeln des Spiels; unter Movie Duels hängt das weggesteckte Schwert am Holster.
+- Vorschau: Was hinter einer geschlossenen Tür liegt, wird wie im Spiel nicht gezeichnet (Area-Portale), Untermodelle ohne Entity ebenfalls nicht.
+- Vorschau: Spiegelnde Böden (tcGen environment) und der Schein des Glühens wie im Spiel, Texturen in voller Größe, Gamma-Tabelle aus Movie Duels.
+- Vorschau: Figuren zucken bei Treffern und Explosionen stoßen sie weg, je Regelwerk. Leichen liegen am Hang.
+- Vorschau: Der Spieler hält Gewehre wie im Spiel; das Glühen beginnt unter Movie Duels an, sonst aus; Griffe im Holster nach der Engine; Waffen im Holster unter Movie Duels (erste Fassung); STUN_BATON am Spielerstart.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -605,6 +694,10 @@ Weiter offen:
 - 预览:光照与游戏一致。地图和角色此前过亮:默认亮度现为 1.0x、环境光为 0,光照网格、各规则集的最低光照和动态光按引擎计算,在 Movie Duels 下还包括其伽马步骤。
 - 预览:玩家使用游戏中的角色和光剑(模型和三个皮肤来自 OpenJK 与 Movie Duels 的默认值)。
 - 预览:尸体会继续滑动和坠落,角色会坠落而死,尸体按游戏规则消失;在 Movie Duels 下收起的光剑挂在剑套上。
+- 预览:与游戏一样不绘制关闭的门后面的内容(区域门户),也不绘制没有实体的子模型。
+- 预览:反光地面(tcGen environment)和辉光晕与游戏一致,纹理使用完整尺寸,伽马表来自 Movie Duels。
+- 预览:角色被击中时会抽搐,爆炸会把他们推开,按规则集。尸体顺着斜坡躺下。
+- 预览:玩家持枪姿势与游戏一致;辉光在 Movie Duels 下默认开启,其他默认关闭;剑套中的剑柄按引擎放置;Movie Duels 下枪挂在身上(第一版);玩家起点的 STUN_BATON。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -659,6 +752,10 @@ Weiter offen:
 - プレビュー: ライティングをゲームと同じに。マップとキャラクターは明るすぎました。既定は明るさ 1.0x、環境光 0 になり、ライトグリッド、ルールセットごとの最低光量、動的ライトはエンジンどおりで、Movie Duels ではそのガンマ処理も行います。
 - プレビュー: プレイヤーはゲームのキャラクターとセーバーを使います(モデルと 3 つのスキンは OpenJK と Movie Duels の既定値)。
 - プレビュー: 死体は滑り続け落下し、キャラクターは転落死し、死体はゲームのルールで消えます。Movie Duels ではしまったセーバーがホルスターに下がります。
+- プレビュー: 閉じたドアの向こうはゲームと同じく描画しません(エリアポータル)。エンティティのないサブモデルも描画しません。
+- プレビュー: 反射する床(tcGen environment)とグローのにじみをゲームと同じに。テクスチャは原寸、ガンマ表は Movie Duels のものです。
+- プレビュー: キャラクターは被弾でびくっとし、爆発で押しのけられます(ルールセットごと)。死体は斜面に沿って横たわります。
+- プレビュー: プレイヤーのライフルの構えをゲームと同じに。グローは Movie Duels では最初からオン、それ以外はオフ。ホルスターのセーバーはエンジンどおり、Movie Duels ではホルスターの武器(初版)、プレイヤー開始時の STUN_BATON。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -713,6 +810,10 @@ Weiter offen:
 - Vista previa: luz como en el juego. El mapa y los personajes eran demasiado claros: ahora por defecto brillo 1,0x y ambiente 0; la rejilla de luz, la luz mínima según el conjunto de reglas y las luces dinámicas siguen al motor, y en Movie Duels también su paso de gamma.
 - Vista previa: el jugador lleva el personaje y el sable del juego (modelo y tres pieles según los valores por defecto de OpenJK y Movie Duels).
 - Vista previa: los cadáveres siguen deslizándose y cayendo, los personajes caen hasta morir y los cadáveres desaparecen según las reglas del juego; en Movie Duels el sable guardado cuelga de la funda.
+- Vista previa: lo que hay detrás de una puerta cerrada no se dibuja, como en el juego (portales de área); tampoco los submodelos sin entidad.
+- Vista previa: suelos reflectantes (tcGen environment) y halo del brillo como en el juego, texturas a tamaño completo, tabla de gamma de Movie Duels.
+- Vista previa: las figuras se estremecen al recibir impactos y las explosiones las empujan, según el conjunto de reglas. Los cadáveres quedan a lo largo de la pendiente.
+- Vista previa: el jugador sostiene los rifles como en el juego; el brillo empieza activado en Movie Duels y desactivado en los demás; empuñaduras en la funda según el motor; armas en la funda en Movie Duels (primera versión); STUN_BATON al inicio del jugador.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -767,3 +868,7 @@ Weiter offen:
 - Náhled: světlo jako ve hře. Mapa a postavy byly příliš světlé: výchozí je nyní jas 1,0x a okolní světlo 0, světelná mřížka, minimální světlo podle sady pravidel a dynamická světla se řídí enginem, v Movie Duels také jeho krok gamma.
 - Náhled: hráč má postavu a meč ze hry (model a tři skiny z výchozích hodnot OpenJK a Movie Duels).
 - Náhled: mrtvá těla dál kloužou a padají, postavy se zřítí k smrti a těla mizí podle pravidel hry; v Movie Duels visí odložený meč v pouzdře.
+- Náhled: to, co je za zavřenými dveřmi, se jako ve hře nekreslí (portály oblastí); ani podmodely bez entity.
+- Náhled: lesklé podlahy (tcGen environment) a záře jako ve hře, textury v plné velikosti, tabulka gamma z Movie Duels.
+- Náhled: postavy sebou při zásahu škubnou a výbuchy je odhazují, podle sady pravidel. Mrtvá těla leží podél svahu.
+- Náhled: hráč drží pušky jako ve hře; záře začíná v Movie Duels zapnutá, jinak vypnutá; jílce v pouzdře podle enginu; zbraně v pouzdře v Movie Duels (první verze); STUN_BATON na startu hráče.

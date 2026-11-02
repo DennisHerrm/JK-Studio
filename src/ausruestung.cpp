@@ -722,7 +722,10 @@ void ausstattungBeimSpawnen(Actor& a, const NpcDef* def, const SzenenHilfe* hilf
         waffe = npcTeamWaffe(def->team, a.npcType, spawnflags);
     }
     // ClientSpawn (g_client.cpp:2275 OJ): der Spieler selbst bekommt das Schwert in die Hand.
-    if (a.echterSpieler && waffe == "WP_NONE") { waffe = "WP_SABER"; }
+    // spawnflags des Starts: STUN_BATON (32, "give EITHER the saber or the stun baton"), NOWEAPON (64).
+    if (a.echterSpieler && waffe == "WP_NONE") {
+        waffe = (spawnflags & 64) != 0 ? "WP_NONE" : (spawnflags & 32) != 0 ? "WP_STUN_BATON" : "WP_SABER";
+    }
     if (regelwerkJediOutcast()) {
         // rc604 fix604 (JK2 Stufe 3): NPC_ParseParms von Jedi Outcast kennt kein
         // "weapon" - NPC_Begin ruft immer NPC_SetWeapons (NPC_spawn.cpp:947).

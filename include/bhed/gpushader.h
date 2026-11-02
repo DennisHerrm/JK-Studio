@@ -89,8 +89,10 @@ namespace bhed::gpu {
 [[nodiscard]] std::string glowCompositePixelShaderHlsl();
 // Movie Duels, r_gammaShaders 1 (Vorgabe, im Protokoll "GAMMA: shader"): am Ende jedes Bilds
 // "TEX r0, texcoord, texture[0], RECT; TEX result.color, r0, texture[1], 3D" mit einer 3D-Tabelle
-// aus 64 Stufen, GL_LINEAR, ohne Halbtexel-Ausgleich. Bei r_gamma 1 ist das fast die Einheit, zieht
-// aber die dunklen Werte herunter: 3 -> 1, 5 -> 3, 13 -> 11 (im Spielfoto nachgemessen).
+// aus 64 Stufen, GL_LINEAR, GL_CLAMP_TO_EDGE, ohne Halbtexel-Ausgleich. Die Tabelle steht in der DLL
+// (MovieDuels-rdsp_x86_64.dll, R_SetColorMappings bei 0x180053FF0): (int)(pow(i/63, 1/r_gamma)*255 + 0.5)
+// mal 2^overbright, auf 0..255 geklemmt. Bei r_gamma 1 fast die Einheit, zieht aber die dunklen Werte
+// herunter: 3 -> 1, 5 -> 3, 13 -> 11.
 [[nodiscard]] float spielGammaWert(float wert);
 [[nodiscard]] std::string spielGammaPixelShaderHlsl();
 

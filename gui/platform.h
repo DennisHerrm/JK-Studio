@@ -74,7 +74,8 @@ void zweiteInstanzSchliessen(std::uintptr_t griff, bool beenden);
 
 // Fuer den Selbsttest: das Hauptfenster auf eine Groesse (aussen, Pixel)
 // setzen - ohne es nach vorn zu holen. Ein maximiertes Fenster wird dafuer
-// wiederhergestellt. Rueckgabe: die Groesse vorher (Breite, Hoehe).
+// wiederhergestellt. Rueckgabe: die Groesse vorher (Breite, Hoehe). Mit 0, 0
+// nur die Groesse lesen.
 std::pair<int, int> hauptfensterGroesse(int breite, int hoehe);
 
 // Die Dateinamen eines Ordners, ohne Pfad und ohne Unterordner.

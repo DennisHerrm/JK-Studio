@@ -193,6 +193,9 @@ struct ActorStep;   // weiter unten - ActorState zeigt auf ein Blickziel mit Spu
 struct ActorState {
     float pos[3]{};
     float angles[3]{};
+    // pitch_roll_for_slope: die Leiche liegt am Hang (ps.viewangles, CG_G2PlayerAngles "Dead entity").
+    float leicheNick = 0.0F;
+    float leicheRoll = 0.0F;
     std::string animation;   // leer heisst: keine bekannt
 
     // --- Der OBERKOERPER hat seine eigene Animation ----------------------
@@ -610,7 +613,7 @@ void szeneEndetBei(struct Scene& s, double ms);
 // rc605 (Ende): der Oberkoerper eines NPC mit Waffe in WEAPON_IDLE (PM_TorsoAnimation)
 // - leer: er folgt den Beinen. Siehe scene.cpp.
 [[nodiscard]] std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, const std::string& klasse,
-                                         bool zweiPistolen, bool gehTaste, bool geduckt);
+                                         bool zweiPistolen, bool gehTaste, bool geduckt, bool spieler = false);
 // ... und bewegt sie sich dann (ucmd.forwardmove/rightmove, also die
 // Laufanimation)? Ohne Bahn: zwischen startMs und endMs.
 [[nodiscard]] bool wegBewegtBei(const ActorStep& st, double t);
@@ -793,6 +796,9 @@ struct Actor {    std::string name;        // der Name aus dem affect
     int ruestungStart = 0;
     std::vector<std::pair<double, int>> ruestungGesetzt;
     std::vector<std::pair<double, bool>> gottmodus;
+    double leicheAbMs = -1.0;   // liegt auf dem Boden (CorpsePhysics)
+    float leicheNick = 0.0F;
+    float leicheRoll = 0.0F;
     std::vector<std::pair<double, bool>> unsterblich;
     // Rc608: SET_NOTARGET (FL_NOTARGET, Q3_SetNoTarget) und SET_PLAYER_TEAM (team_t,
     // teamAusSkript in bhed/geschuetz.h) - was ein Geschuetz von der Figur liest.
@@ -1040,6 +1046,18 @@ struct Scene {
 // 0 Padawan, 1 Jedi, 2 Jedi Knight, 3 Jedi Master. Movie Duels setzt sie vor
 // auf "2" (g_main.cpp:752 MD; OpenJK g_main.cpp:631: "0").
 inline constexpr int kSchwierigkeitVorgabe = 2;
+// Der Zustand des Plans, der zur Zeit t laeuft (ps.velocity, groundEntityNum, pm_time).
+[[nodiscard]] LaufZustand laufZustandBei(const Actor& a, double t);
+// Rc608 Teil 6: eine Schmerzanimation. Die Beine halten sie ganz, der Oberkoerper torsoMs (0: ganz).
+struct SchmerzAufruf {
+    double ms = 0.0;
+    std::string figur;
+    std::string anim;
+    double torsoMs = 0.0;
+    bool nurTorso = false;     // SETANIM_TORSO (PlayerPain: im Lauf)
+    std::string klang;         // EV_PAIN, leer: keiner
+    bool operator==(const SchmerzAufruf&) const = default;
+};
 struct SzenenHilfe {
     const std::map<std::string, struct NpcDef>* npcs = nullptr;
     // rc601 (bewegung, Durchsicht 2): g_spskill fuer die Werte, die NPC_Begin
@@ -1065,6 +1083,11 @@ struct SzenenHilfe {
     std::shared_ptr<const std::map<std::uint64_t, std::shared_ptr<const LaufPlan>>> koerperPlaene;
     // rc605 (Ende, Jedi Outcast): geschobene Figuren ohne Plan (AblaufWelt::schubWege).
     std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> schubWege;
+    // Rc608 Teil 6: G_ApplyKnockback und Schmerzanimationen (bhed/schmerz.h), aus hurtTodeBerechnen.
+    std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> stossWege;
+    std::vector<SchmerzAufruf> schmerzen;
+    // in_camera (Ablauf::kameraZeiten), je Zeit an oder aus.
+    const std::vector<std::pair<double, bool>>* kameraZeiten = nullptr;
     // rc602: die Figuren, die beim Laden der Karte spawnen (NPC_* ohne
     // targetname, npcSpawntBeimKartenstart), auch wenn kein affect sie nennt
     // - im Spiel stehen sie da (md_am_sith: NPC_Droid_R2D2 neben ani1).

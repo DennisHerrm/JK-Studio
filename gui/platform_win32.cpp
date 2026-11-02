@@ -343,6 +343,9 @@ std::pair<int, int> hauptfensterGroesse(int breite, int hoehe) {
     RECT r{};
     GetWindowRect(fenster, &r);
     const std::pair<int, int> vorher{r.right - r.left, r.bottom - r.top};
+    if (breite <= 0 || hoehe <= 0) {
+        return vorher;
+    }
     if (IsZoomed(fenster) != 0) {
         ShowWindow(fenster, SW_SHOWNOACTIVATE);
     }

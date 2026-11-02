@@ -6061,6 +6061,42 @@ LaufPlan planeTotenlauf(const NavWelt& welt, const LaufZustand& start, const Lau
     return plan;
 }
 
+LaufPlan planeStosslauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, const std::vector<LaufStoss>& stoesse, double grenzeMs) {
+    LaufPlan plan;
+    plan.anfang = start;
+    plan.hoeheGilt = welt.boden && (welt.spur || welt.spurZeit);
+    if (!plan.hoeheGilt || stoesse.empty()) { return plan; }
+    plan.abMs = stoesse.front().ms;
+    LaufWerte w = werte;
+    w.fallen = true;
+    LaufZustand z = start;
+    double t = std::floor(plan.abMs / 50.0) * 50.0 + 50.0;
+    int ruhig = 0;
+    std::size_t naechster = 0;
+    while (t <= grenzeMs && (ruhig < 3 || naechster < stoesse.size())) {
+        while (naechster < stoesse.size() && stoesse[naechster].ms <= t) {
+            const LaufStoss& s = stoesse[naechster++];
+            for (std::size_t k = 0; k < 3; ++k) { z.tempoVek[k] += s.tempo[k]; }
+            if (z.pmZeit == 0) {   // "if ( targ->client && !targ->client->ps.pm_time )"
+                z.pmZeit = s.pmZeit;
+                z.rueckstoss = true;
+            }
+        }
+        Lauf l(welt, w, z);
+        l.akt.t = t;
+        l.pmove();
+        LaufTakt takt;
+        takt.t = t;
+        takt.msec = 50;
+        takt.ort = z.ort;
+        plan.takte.push_back(takt);
+        plan.zustaende.push_back(z);
+        ruhig = (z.amBoden && z.tempoVek[0] == 0.0F && z.tempoVek[1] == 0.0F && z.tempoVek[2] == 0.0F) ? ruhig + 1 : 0;
+        t += 50.0;
+    }
+    return plan;
+}
+
 LaufZustand zustandBei(const LaufPlan& p, double t) {
     LaufZustand z = p.anfang;
     for (std::size_t i = 0; i < p.takte.size(); ++i) {

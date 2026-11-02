@@ -2094,7 +2094,7 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
     // Bildpunkt angesprochen, und was nicht in den Zwischenspeicher des
     // Rechners passt, kostet mehr als es bringt. 512 ist der Punkt, an dem
     // eine Wand aus normalem Abstand nicht mehr auffaellt.
-    constexpr int kMaxSize = 512;
+    constexpr int kMaxSize = kBildGrenze;
     ShaderMap& shaderMap = g_app->shaderMap;
         // --- Das Skript geht vor der Datei ----------------------------
         //
@@ -2751,7 +2751,7 @@ void loadMapTextures() {
                     // hinterher von einem Faden. Damit bleibt es
                     // ungefaehrlich.
                     if (g_app->texCache.count(
-                            image::mappingName(name) + "@512") != 0U) {
+                            image::mappingName(name) + "@" + std::to_string(kBildGrenze)) != 0U) {
                         break;
                     }
                     std::string data;
@@ -2765,9 +2765,9 @@ void loadMapTextures() {
                         continue;
                     }
                     TextureSet::Tex t;
-                    image::shrinkTo(im, 512, t.width, t.height, t.rgba);
+                    image::shrinkTo(im, kBildGrenze, t.width, t.height, t.rgba);
                     faecher[fach].emplace_back(
-                        image::mappingName(name) + "@512", std::move(t));
+                        image::mappingName(name) + "@" + std::to_string(kBildGrenze), std::move(t));
                     break;
                 }
             }

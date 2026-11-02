@@ -182,7 +182,7 @@ TEXTE = {
     "DebugNoRenderDoc": "Inicia JK Studio DESDE RenderDoc: no puede conectarse después.",
     "MapNeedsD3d": "La vista 3D necesita Direct3D 11. Aquí no está disponible (OpenGL de reserva o una compilación sin D3D) - el renderizador por software se eliminó.",
     "MapGlow": "Resplandor",
-    "MapGlowHint": "Segunda pasada sobre las etapas marcadas con `glow` en el shader, difuminadas y superpuestas a la imagen. Es lo que hace JKA con r_DynamicGlow; sin ello, sables láser, consolas, lava y hologramas tienen bordes duros en vez de resplandecer.",
+    "MapGlowHint": "Segunda pasada sobre las etapas marcadas con `glow` en el shader, difuminadas y superpuestas a la imagen. Es lo que hace JKA con r_DynamicGlow; sin ello, sables láser, consolas, lava y hologramas tienen bordes duros en vez de resplandecer. Empieza activado en Movie Duels y desactivado en OpenJK y Jedi Outcast, como r_DynamicGlow allí.",
     "MapShadows": "Sombras",
     "MapShadowsHint": "Sombras de los personajes como cg_shadows del juego: Blob (1) es la mancha redonda bajo cada personaje, la opción por defecto del juego. Stencil (2) proyecta el contorno real del personaje como volumen de sombra y oscurece todo lo que hay dentro, también al personaje. Planar (3) aplana al personaje en negro sobre el suelo.",
     "MapScriptFocus": "Resaltar las entidades de este script",

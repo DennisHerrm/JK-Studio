@@ -376,36 +376,7 @@ private:
 };
 
 // G_GetHitLocation (g_combat.cpp:1319 OJ, :1678 MD, JK2 :1232 - gleich)
-int Kette::trefferOrt() const {
-    const NavVec& p = l_.treffpunkt;
-    if (p[0] == 0.0F && p[1] == 0.0F && p[2] == 0.0F) { return HL_NONE; }
-    const NavVec fwd = vorwaerts(l_.gier);
-    const NavVec rechts{fwd[1], -fwd[0], 0.0F};
-    const NavVec oben{0.0F, 0.0F, 1.0F};
-    NavVec dir{};
-    for (std::size_t k = 0; k < 3; ++k) {
-        // absmin/absmax: SV_LinkEntity zieht je 1 ab bzw. zu
-        const float absmin = l_.ort[k] + l_.mins[k] - 1.0F;
-        const float absmax = l_.ort[k] + l_.maxs[k] + 1.0F;
-        dir[k] = p[k] - (absmin + absmax) * 0.5F;
-    }
-    (void)normiere(dir);
-    const float udot = punkt(oben, dir);
-    const int vertikal = udot > .800F ? 4 : udot > .400F ? 3 : udot > -.333F ? 2 : udot > -.666F ? 1 : 0;
-    const float fdot = punkt(fwd, dir);
-    const int vorn = fdot > .666F ? 4 : fdot > .333F ? 3 : fdot > -.333F ? 2 : fdot > -.666F ? 1 : 0;
-    const float rdot = punkt(rechts, dir);
-    const int seite = rdot > .666F ? 4 : rdot > .333F ? 3 : rdot > -.333F ? 2 : rdot > -.666F ? 1 : 0;
-    const int ort = vertikal * 25 + vorn * 5 + seite;
-    if (ort <= 10) { return rdot > 0 ? HL_FOOT_RT : HL_FOOT_LT; }
-    if (ort <= 50) { return rdot > 0 ? HL_LEG_RT : HL_LEG_LT; }
-    if (ort == 56 || ort == 60 || ort == 61 || ort == 65 || ort == 66 || ort == 70) { return rdot > 0 ? HL_HAND_RT : HL_HAND_LT; }
-    if (ort == 83 || ort == 87 || ort == 88 || ort == 92 || ort == 93 || ort == 97) { return rdot > 0 ? HL_ARM_RT : HL_ARM_LT; }
-    if ((ort >= 107 && ort <= 109) || (ort >= 112 && ort <= 114) || (ort >= 117 && ort <= 119)) { return HL_HEAD; }
-    if (udot < 0.3F) { return HL_WAIST; }
-    if (fdot < 0) { return rdot > 0.4F ? HL_BACK_RT : rdot < -0.4F ? HL_BACK_LT : HL_BACK; }
-    return rdot > 0.3F ? HL_CHEST_RT : rdot < -0.3F ? HL_CHEST_LT : HL_CHEST;
-}
+int Kette::trefferOrt() const { return trefferOrtAusPunkt(l_.treffpunkt, l_.ort, l_.mins, l_.maxs, l_.gier); }
 
 // G_CheckSpecialDeathAnim (g_combat.cpp:2514 OJ, :3246 MD, JK2 :2327). MD wie
 // OpenJK mit BOTH_SLAPDOWNRIGHT/LEFT; JK2 ohne die Rollen am Anfang, ohne
@@ -1111,6 +1082,37 @@ void rumpfWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept {
     // NEGATIVE_Z: vec[i] = -boltMatrix.matrix[i][2] (G2_API.cpp, G2API_GiveMeVectorFromMatrix)
     const float achse[3] = {-bolzen[0][2], -bolzen[1][2], -bolzen[2][2]};
     engineVectoangles(achse, winkel);
+}
+
+// G_GetHitLocation (g_combat.cpp:1319 OJ, :1678 MD, JK2 :1232 - gleich)
+int trefferOrtAusPunkt(const NavVec& p, const NavVec& figurOrt, const NavVec& mins, const NavVec& maxs, float gier) {
+    if (p[0] == 0.0F && p[1] == 0.0F && p[2] == 0.0F) { return HL_NONE; }
+    const NavVec fwd = vorwaerts(gier);
+    const NavVec rechts{fwd[1], -fwd[0], 0.0F};
+    const NavVec oben{0.0F, 0.0F, 1.0F};
+    NavVec dir{};
+    for (std::size_t k = 0; k < 3; ++k) {
+        // absmin/absmax: SV_LinkEntity zieht je 1 ab bzw. zu
+        const float absmin = figurOrt[k] + mins[k] - 1.0F;
+        const float absmax = figurOrt[k] + maxs[k] + 1.0F;
+        dir[k] = p[k] - (absmin + absmax) * 0.5F;
+    }
+    (void)normiere(dir);
+    const float udot = punkt(oben, dir);
+    const int vertikal = udot > .800F ? 4 : udot > .400F ? 3 : udot > -.333F ? 2 : udot > -.666F ? 1 : 0;
+    const float fdot = punkt(fwd, dir);
+    const int vorn = fdot > .666F ? 4 : fdot > .333F ? 3 : fdot > -.333F ? 2 : fdot > -.666F ? 1 : 0;
+    const float rdot = punkt(rechts, dir);
+    const int seite = rdot > .666F ? 4 : rdot > .333F ? 3 : rdot > -.333F ? 2 : rdot > -.666F ? 1 : 0;
+    const int ort = vertikal * 25 + vorn * 5 + seite;
+    if (ort <= 10) { return rdot > 0 ? HL_FOOT_RT : HL_FOOT_LT; }
+    if (ort <= 50) { return rdot > 0 ? HL_LEG_RT : HL_LEG_LT; }
+    if (ort == 56 || ort == 60 || ort == 61 || ort == 65 || ort == 66 || ort == 70) { return rdot > 0 ? HL_HAND_RT : HL_HAND_LT; }
+    if (ort == 83 || ort == 87 || ort == 88 || ort == 92 || ort == 93 || ort == 97) { return rdot > 0 ? HL_ARM_RT : HL_ARM_LT; }
+    if ((ort >= 107 && ort <= 109) || (ort >= 112 && ort <= 114) || (ort >= 117 && ort <= 119)) { return HL_HEAD; }
+    if (udot < 0.3F) { return HL_WAIST; }
+    if (fdot < 0) { return rdot > 0.4F ? HL_BACK_RT : rdot < -0.4F ? HL_BACK_LT : HL_BACK; }
+    return rdot > 0.3F ? HL_CHEST_RT : rdot < -0.3F ? HL_CHEST_LT : HL_CHEST;
 }
 
 }  // namespace bhed

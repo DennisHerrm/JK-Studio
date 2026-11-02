@@ -231,7 +231,7 @@ bool tonKastenSichtbar(const float auge[3], const float ort[3], const float mins
         mn[k] = ort[k] + mins[k] - 1.0F;
         mx[k] = ort[k] + maxs[k] + 1.0F;
     }
-    return kastenImSnapshot(g_app->geo, auge, mn, mx);
+    return kastenImSnapshot(g_app->geo, auge, mn, mx, &g_app->areaPortale);
 }
 
 // Ein Brush-Modell im Snapshot? Mit seinem Kasten am aktuellen Ort; ein

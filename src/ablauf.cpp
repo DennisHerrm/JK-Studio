@@ -1116,6 +1116,7 @@ private:
         werte.keineAkrobatik = w.keineAkrobatik;   // rc605: SET_NO_ACROBATICS
         werte.darfRollen = welt_.darfRollen && welt_.darfRollen(w.name, w.waffe);   // Pruefung 4a: PM_TryRoll
         if (welt_.fallTodWerte) { welt_.fallTodWerte(w.name, werte); }   // rc608 Teil 5
+        if (kameraAn_) { werte.lungeBeimRollen = false; }   // PM_SaberLungeAttackMove: "don't do this in camera mode"
         werte.geduckt = w.geduckt;                 // Pruefung 3: SCF_CROUCHED
         werte.hockHoehe = welt_.hockHoehe ? welt_.hockHoehe(w.name) : 16.0F;
         werte.ohneKoerper = w.verhaltenZustand == "BS_NOCLIP";   // NPC_BSNoClip + PM_NoclipMove
@@ -1184,9 +1185,13 @@ private:
     // (navKoerperLauf, AblaufWelt::schubWege), beginnt der naechste Plan dort, wo
     // der Schub sie zur Zeit t hat - wie navKoerperLauf, das sie weiterrechnet.
     void schubNehmen(Wesen& w, double t) const {
-        if (!welt_.schubWege) { return; }
-        const auto it = welt_.schubWege->find(klein(w.name));
-        if (it == welt_.schubWege->end()) { return; }
+        schubNehmenAus(welt_.schubWege, w, t);
+        schubNehmenAus(welt_.stossWege, w, t);   // Rc608 Teil 6: G_ApplyKnockback
+    }
+    void schubNehmenAus(const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>& wege, Wesen& w, double t) const {
+        if (!wege) { return; }
+        const auto it = wege->find(klein(w.name));
+        if (it == wege->end()) { return; }
         for (const std::shared_ptr<const LaufPlan>& p : it->second) {
             if (!p || p->takte.empty() || !(p->abMs < t - kGleichzeitig) || w.schubGenommen.count(p.get()) != 0U) { continue; }
             w.schubGenommen.insert(p.get());
@@ -2003,8 +2008,14 @@ private:
 
         // rc605 (Ende, SET_MISSIONFAILED): in_camera fuer stop_icarus.
         if (c == "camera" && !n.args.empty()) {
-            if (gleich(n.args[0].text, "ENABLE")) { kameraAn_ = true; }
-            if (gleich(n.args[0].text, "DISABLE")) { kameraAn_ = false; }
+            if (gleich(n.args[0].text, "ENABLE")) {
+                kameraAn_ = true;
+                aus_.kameraZeiten.emplace_back(t, true);
+            }
+            if (gleich(n.args[0].text, "DISABLE")) {
+                kameraAn_ = false;
+                aus_.kameraZeiten.emplace_back(t, false);
+            }
         }
         if (c == "wait" || c == "waitsignal") {
             const int e = zeichne(wi, &n, h, true);

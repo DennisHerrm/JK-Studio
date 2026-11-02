@@ -111,6 +111,7 @@ struct Netzpuffer {
     // nachbauen - zwei Fassungen derselben Zahl, und die eine laeuft
     // irgendwann von der anderen weg. Der Puffer weiss es selbst.
     UINT schrittweite = 0;
+    std::uint64_t verdecktStand = 0;   // setzeVerdeckteFlaechen: Stand im Indexpuffer der Karte
     // --- Woher der Puffer stammt ------------------------------------------
     //
     // Die Groesse allein reicht NICHT als Kennzeichen. Das Netz wird neu
@@ -3370,8 +3371,8 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     float abstand = 0.1F;
     int quelle = 0;
     for (int p = 0; p < 5; ++p) {
-        const auto d2 = static_cast<float>(std::lround(abstand));
-        setzeGlowKonstanten(d2, 1.13F * 0.25F, weich);
+        // RB_BlurGlowTexture: fTexelOffset 0.1, je Durchgang + r_DynamicGlowDelta, ungerundet mit GL_LINEAR.
+        setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich);
         blitte(g_glowSrv[quelle], g_glowRtv[1 - quelle], breite, hoehe,
                g_glowBlurPs);
         quelle = 1 - quelle;
@@ -6533,6 +6534,18 @@ bool verfuegbar() {
     return dev() != nullptr && ctx() != nullptr;
 }
 
+namespace {
+const BspGeometry* g_verdecktGeo = nullptr;
+std::vector<char> g_verdeckt;
+std::uint64_t g_verdecktStand = 1U;
+}  // namespace
+
+void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* verdeckt) {
+    g_verdecktGeo = verdeckt != nullptr ? geo : nullptr;
+    g_verdeckt = verdeckt != nullptr ? *verdeckt : std::vector<char>{};
+    ++g_verdecktStand;
+}
+
 int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
                  const float* kameraPos, float zeitSekunden,
@@ -6835,7 +6848,8 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         if (np.ib != nullptr) { np.ib->Release(); np.ib = nullptr; }
         D3D11_BUFFER_DESC bd{};
         bd.ByteWidth = static_cast<UINT>(dyn ? ibPlatz : ibBytes);
-        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_IMMUTABLE;
+        // Die Karte: UpdateSubresource, wenn sich hinter Portalen etwas aendert.
+        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : (netzId == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE);
         bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
         // Nicht `: 0U` - der eine Zweig waere ein Aufzaehlungswert, der
         // andere eine Zahl. GCC beanstandet das unter -Wextra, MSVC bei /W4.
@@ -6852,6 +6866,19 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                        : netzId == 1 ? "Indizes: Effekte"
                        : netzId == 3 ? "Indizes: Gras"
                                      : "Indizes: Mover");
+    }
+    // Hinter Portalen: die Dreiecke dieser Flaechen werden leer (alle Indizes gleich).
+    if (netzId == 0 && (ibNeu || np.verdecktStand != g_verdecktStand)) {
+        np.verdecktStand = g_verdecktStand;
+        std::vector<std::uint32_t> neu(idxDaten, idxDaten + nIdx);
+        if (geo == g_verdecktGeo && geo != nullptr && g_verdeckt.size() == geo->surfaces.size()) {
+            for (const BspMesh::Run& r : mesh.runs) {
+                if (r.surface < g_verdeckt.size() && g_verdeckt[r.surface] != 0 && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx) {
+                    std::fill_n(neu.begin() + static_cast<std::ptrdiff_t>(r.firstIndex), r.numIndexes, 0U);
+                }
+            }
+        }
+        c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
     }
     np.quelleVerts = mesh.verts.data();
     np.quelleIdx = mesh.indexes.data();
@@ -7438,6 +7465,7 @@ std::vector<std::string> debugMeldungen() { return {}; }
 std::string geraetInfo() { return "ohne Direct3D gebaut"; }
 std::string berichtText() { return "ohne Direct3D gebaut\n"; }
 std::vector<StapelNotiz> auffaelligeStapel() { return {}; }
+void setzeVerdeckteFlaechen(const BspGeometry*, const std::vector<char>*) {}
 int zeichneKarte(const BspMesh&, const TextureSet*, const BspGeometry*,
                  const float*, const float*, float, float, float, int,
                  const float*, const float*, const float*, float,

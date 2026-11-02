@@ -534,9 +534,9 @@ struct ModelTextures {
 // So viele Klingen kann ein Griff tragen - MAX_BLADES, dieselbe Zahl wie
 // kMaxKlingen in scene.h (dort geprueft: app_view3d.cpp, static_assert).
 inline constexpr int kAnbauKlingen = 8;
-// Anbauten je Figur: zwei Hand-Faecher (ent->weaponModel[2]) und die
-// Kinomodelle (kMaxKinoModelle in scene.h).
-inline constexpr int kAnbauMax = 6;
+// Anbauten je Figur: zwei Hand-Faecher (ent->weaponModel[2]), die
+// Kinomodelle (kMaxKinoModelle in scene.h), zwei Griffe und zwei Waffen im Holster.
+inline constexpr int kAnbauMax = 10;
 
 // Wie die Klingen liegen, wenn der Griff keine "*bladeN"-Bolzen hat
 // (tag_hack in CG_AddSaberBladeGo, cg_players.cpp:13818 ff.). Nur die
@@ -626,6 +626,8 @@ struct AnbauDraw {
     // rc608 Teil 5: Griff im Holster (Movie Duels): die Drehung des Griffs am Bolzen (saberHolsterLage).
     bool holster = false;
     BoneMatrix holsterDrehung{};
+    // CG_HolsteredWeapons: eine Waffe als eigenes Modell (RootMatrix), der Bolzen kann ein Knochen sein.
+    bool waffenHolster = false;
 };
 
 // Eine Figur, wie sie in diesem Bild gezeichnet wird.
@@ -661,6 +663,8 @@ struct ActorDraw {
     // Dieses Feld bleibt als DIAGNOSE bestehen und kommt ZUSAETZLICH dazu.
     // Es steht auf 0, solange nichts Neues zu klaeren ist.
     float yawOffset = 0.0F;
+    float leicheNick = 0.0F;   // pitch_roll_for_slope (ActorState)
+    float leicheRoll = 0.0F;
 
     const GlmModel* model = nullptr;
     const GlaAnimation* anim = nullptr;

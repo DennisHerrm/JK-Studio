@@ -179,6 +179,9 @@ struct AblaufWelt {
     // geschoben hat (navKoerperLauf, NavSchub) - nach Figur (klein); der naechste
     // Plan der Figur beginnt dort, wo der Schub sie hat.
     std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> schubWege;
+    // Rc608 Teil 6: G_ApplyKnockback - der Rueckstoss ab dem Treffer bis die Figur wieder steht (planeStosslauf),
+    // wie schubWege: der naechste Plan beginnt dort. simuliereAblaufMitKoerpern setzt sie nicht zurueck.
+    std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> stossWege;
     // Spaetestens hier ist Schluss - loop ( -1 ) laeuft sonst ewig.
     double grenzeMs = 600000.0;
     // Nach dem Ende des Startskripts noch so lange weiterlaufen lassen
@@ -197,6 +200,8 @@ struct AblaufHerkunft {
 };
 
 struct Ablauf {
+    // in_camera: camera ( ENABLE ) und camera ( DISABLE ) mit ihrer Zeit (Punkt 8 Teil 6, die Lunge).
+    std::vector<std::pair<double, bool>> kameraZeiten;
     // [0] ist das Startskript, danach alles, was per run, use oder
     // spawnscript dazukam - als Pfad wie "md_ga/kill_fett2".
     std::vector<std::string> skripte;

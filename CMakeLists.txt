@@ -134,6 +134,8 @@ add_library(bhed_core STATIC
   src/abwurf.cpp
   src/gesicht.cpp
   src/holster.cpp
+  src/areaportal.cpp
+  src/schmerz.cpp
   src/geschuetz.cpp
   # rc601 bewegung: Laufziele ohne Weg im Wegnetz (STEER::SafeToGoTo /
   # NAV::GoTo). Siehe bhed/scene.h, navZieleOhneWeg.
@@ -681,7 +683,7 @@ if(BEHAVED_TESTS)
   # Die Proben des GPU-Wegs und des Gluehens. Sie lagen in tests/, wurden
   # aber nicht gebaut - Aenderungen an Konstantenlagen, Shadertext und
   # Zeichenliste liefen damit ungeprueft durch (rc568, gDeformSpread).
-  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin efxtest ersetzen mover leiche arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster)
+  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin efxtest ersetzen mover leiche schmerz arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster)
     add_executable(${t}_probe tests/${t}.cpp)
     target_link_libraries(${t}_probe PRIVATE bhed_core)
     add_test(NAME ${t} COMMAND ${t}_probe)

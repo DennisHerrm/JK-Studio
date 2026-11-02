@@ -170,6 +170,9 @@ void regelwerkAnwendenJetzt() {
     g_app->regelwerkMdStand = spiel == kRegelwerkMovieDuels ? 1 : 0;
     g_app->regelwerkSpielStand = spiel;
     g_app->regelwerkSchwierigkeitStand = einstellung;
+    // Die Vorgabe des Gluehens wie r_DynamicGlow: Movie Duels 1 (tr_init.cpp:1593), OpenJK und das
+    // Original 0, Jedi Outcast kennt es nicht. Der Schalter bleibt, bis das Regelwerk wechselt.
+    if (ersterStand || spielVorher != spiel) { g_app->showGlow = spiel == kRegelwerkMovieDuels; }
     if (ersterStand || spielVorher != spiel || stufeVorher != regelwerkSpielstufe()) {
         const char* name = spiel == kRegelwerkMovieDuels    ? "Movie Duels"
                            : spiel == kRegelwerkJediOutcast ? "Jedi Outcast"

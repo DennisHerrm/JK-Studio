@@ -129,6 +129,10 @@ int main() {
     pruefe(!imSpiel("FX_RUNNER", true), "strcmp: Gross-/Kleinschreibung zaehlt");
     pruefe(imSpiel("weapon_blaster", true) && imSpiel("item_medpak_instant", true), "Gegenstaende (itemlist)");
     pruefe(!imSpiel("misc_siege_item", true), "Mehrspieler-Klasse nicht im Einzelspieler");
+    pruefe(brushModellImBild("func_door", true) && brushModellImBild("func_door", false), "Tuer im Bild");
+    pruefe(!brushModellImBild("trigger_multiple", true) && !brushModellImBild("trigger_push", false), "Ausloeser: SVF_NOCLIENT");
+    pruefe(!brushModellImBild("rail_track", true) && !brushModellImBild("misc_weather_zone", true), "Nur Masse, G_FreeEntity");
+    pruefe(!brushModellImBild("func_gibtsnicht", true), "Keine Spawnfunktion: frei");
     pruefe(sichtbarImSpiel("weapon_blaster") == "Gegenstand", "Waffe liegt sichtbar");
     pruefe(sichtbarImSpiel("misc_model").empty(), "misc_model gibt das Spiel frei (in der Karte gebacken)");
     pruefe(sichtbarImSpiel("target_relay").empty() && sichtbarImSpiel("light").empty(), "Logik/Licht unsichtbar");

@@ -350,6 +350,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     bool polygonOffset = false;
     std::string skyBox;
     float wolkenHoehe = 0.0F;
+    bool hatSonne = false;
+    float sonne[3]{};
     // `glow` dieser Stufe, und ob irgendeine Stufe des Shaders es traegt.
     bool stageGlow = false;
     bool glow = false;
@@ -579,6 +581,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.animOneShot = animOneShot;
                     info.skyBox = skyBox;
                     info.wolkenHoehe = wolkenHoehe;
+                    info.hatSonne = hatSonne;
+                    for (int k = 0; k < 3; ++k) { info.sonne[k] = sonne[k]; }
                     info.blend = blend;
                 info.imageStages = stufen;
                 info.alphaConst = alphaConst;
@@ -622,6 +626,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 animFreq = 0.0F;
                 animOneShot = false;
                 skyBox.clear();
+                hatSonne = false;
                 wolkenHoehe = 0.0F;
                 // Auch die Stufenzahl - sonst zaehlt sie ueber alle Shader
                 // der Datei hinweg weiter, und die Zahl im Protokoll waere
@@ -843,6 +848,18 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                         wolkenHoehe = 512.0F;
                     }
                 }
+                continue;
+            }
+            if (key == "sun" || key == "q3map_sun" || key == "q3map_sunext") {
+                // <r> <g> <b> <staerke> <grad> <hoehe>: tr.sunDirection aus den letzten beiden.
+                std::string rest = secondWord(line);
+                for (int k = 0; k < 4; ++k) { rest = secondWord(rest); }
+                const float a = readNum(firstWord(rest)) / 180.0F * 3.14159265358979F;
+                const float b = readNum(firstWord(secondWord(rest))) / 180.0F * 3.14159265358979F;
+                sonne[0] = std::cos(a) * std::cos(b);
+                sonne[1] = std::sin(a) * std::cos(b);
+                sonne[2] = std::sin(b);
+                hatSonne = true;
                 continue;
             }
             if (key == "polygonoffset") {

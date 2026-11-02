@@ -302,6 +302,10 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             const float k = static_cast<float>(windowDpi(hwnd)) / 96.0F;
             mm->ptMinTrackSize.x = static_cast<LONG>(900.0F * k);
             mm->ptMinTrackSize.y = static_cast<LONG>(600.0F * k);
+            // Groesser als der Schirm erlaubt: die Vergleichsbilder brauchen eine Kartenansicht von
+            // 1920 x 1440 neben den Seitenleisten (hauptfensterGroesse im Selbsttest).
+            mm->ptMaxTrackSize.x = 8192;
+            mm->ptMaxTrackSize.y = 8192;
             return 0;
         }
         case WM_SYSCOMMAND:

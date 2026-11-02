@@ -583,7 +583,7 @@ void clientSchritt(SaberSpeicher& sp, long long t) {
                 mn[k] = p.f.ort[k] + p.f.mins[k] - 1.0F;
                 mx[k] = p.f.ort[k] + p.f.maxs[k] + 1.0F;
             }
-            if (!kastenImSnapshot(g_app->geo, auge, mn, mx)) {
+            if (!kastenImSnapshot(g_app->geo, auge, mn, mx, &g_app->areaPortale)) {
                 // Nicht im Snapshot: der Client zeichnet die Figur nicht, ihre
                 // Klingen behalten Laenge und Lage des letzten gezeichneten
                 // Bildes (nie gezeichnet: Laenge 0) - der Server liest sie

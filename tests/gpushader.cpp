@@ -67,7 +67,7 @@ int main() {
     // Wie AutospriteDeform: entlang der Kameraachsen, Richtung und Radius
     // aus der Normalen (baueAutosprites beim Hochladen).
     beideRichtungen("autosprite", kAutosprite, "links * ein.normal.x + gHoch * ein.normal.y", true);
-    beideRichtungen("tcGen environment", kTexGenEnv, "reflect", true);
+    beideRichtungen("tcGen environment", kTexGenEnv, "nrm.x * d - 0.5 * v.x", true);
     // rc592: die uebrigen deformVertexes-Formen (RB_DeformTessGeometry).
     beideRichtungen("autosprite2", kAutosprite2, "cross(ein.normal, gVorn)", true);
     beideRichtungen("deformVertexes bulge", kBulge, "sin(ein.uv.x * gBulge.x", true);

@@ -5586,6 +5586,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_pruefung3.inc"   // pruefung3: der Rest gegen das Spiel (Rumpfwinkel, Tod, Marken, Hocke, Hang)
 #include "selbsttest_geschuetze.inc"   // geschuetze: Sentry und Turm mit Feind und Schaden (rc608)
 #include "selbsttest_figurlicht.inc"   // figurlicht: Lichtgitter gegen r_debuglight im Spiel (rc608)
+#include "selbsttest_teil6.inc"       // teil6: Portale und Schmerz (rc608)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -5928,6 +5929,7 @@ void selbsttest() {
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
     static const bool nurGeschuetze = std::strcmp(modus, "geschuetze") == 0;
     static const bool nurFigurlicht = std::strcmp(modus, "figurlicht") == 0;
+    static const bool nurTeil6 = std::strcmp(modus, "teil6") == 0;
     // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
     static const bool nurZeitleiste0 = std::strcmp(modus, "zeitleiste0") == 0;
     // zeitleiste1: die neue Zeitleiste (Mini-Szene, academy1, md_am_sith).
@@ -6050,6 +6052,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurFigurlicht) {
                 a.schritte = figurLichtSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurTeil6) {
+                a.schritte = teil6Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurGeschuetze) {

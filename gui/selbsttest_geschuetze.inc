@@ -368,7 +368,9 @@ std::vector<Schritt> geschuetzSimSchritte() {
 }
 
 // Vergleich mit dem Spiel: dieselbe Testkarte wie dort (BHED_GV_KARTE), der Spieler ist das Ziel, die
-// Kamera wie im Spiel (BHED_GV_KAMERA "x y z nick gier", cg_fov 80 bei 4:3).
+// Kamera wie im Spiel (BHED_GV_KAMERA "x y z nick gier", cg_fov 80 bei 4:3). BHED_GV_ANSICHT "1920x1440":
+// das Fenster so gross, dass die Kartenansicht mindestens so gross ist und nichts skaliert werden muss.
+// Mit Wiedergabe bei Tempo 0, damit das Bild wie beim Abspielen keine Bearbeitungshilfen zeigt.
 std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -389,6 +391,27 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         missionenAusArchiv(archiv, karte);
     }));
     add(warteBis("Geschuetze Vergleich: Karte geladen", [=] { return g_app->map.path == "maps/" + karte + ".bsp"; }, 4000));
+    if (const char* f = std::getenv("BHED_GV_ANSICHT")) {
+        int b = 0;
+        int h = 0;
+        if (std::sscanf(f, "%dx%d", &b, &h) == 2) {
+            // Die Seitenleisten wachsen mit dem Fenster: in Schritten nachfuehren.
+            for (int runde = 0; runde < 8; ++runde) {
+                add(tu("Geschuetze Vergleich: Ansicht " + std::to_string(runde), [=] {
+                    const std::pair<int, int> jetzt = platform::hauptfensterGroesse(0, 0);
+                    const int vw = std::max(1, g_app->mapViewW);
+                    const int vh = std::max(1, g_app->mapViewH);
+                    const int db = std::max(0, b - vw);
+                    const int dh = h - vh;
+                    // Grosse Luecke: im Verhaeltnis, die Leisten wachsen mit; kleine genau.
+                    const int nb = jetzt.first + (db > 16 ? db * jetzt.first / vw : db);
+                    const int nh = jetzt.second + (std::abs(dh) > 16 ? dh * jetzt.second / vh : dh);
+                    (void)platform::hauptfensterGroesse(nb, nh);
+                }));
+                add(pause(0.5));
+            }
+        }
+    }
     add(tu("Geschuetze Vergleich: der Spieler ist unsterblich", [=] {
         Script neu;
         std::vector<Diag> d;
@@ -405,6 +428,7 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         g_app->mapDirty = true;
     }));
     add(warteBis("Geschuetze Vergleich: Szene", [] { return g_app->camTrackValid && jk2probe::figurenGeladen(); }, 3000));
+    const bool sauber = std::getenv("BHED_GV_ANSICHT") != nullptr;
     std::vector<int> zeiten = {4000, 4040, 6000, 6040};
     if (const char* z = std::getenv("BHED_GV_ZEITEN")) {
         zeiten.clear();
@@ -422,7 +446,8 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             g_app->cam.angles[2] = 0.0F;
             g_app->cam.fovY = 64.4F;
             g_app->playMs = ms;
-            g_app->playing = false;
+            g_app->playing = sauber;
+            g_app->abspielTempo = sauber ? 0.0F : 1.0F;
             g_app->mapDirty = true;
         }));
         add(pause(0.5));
@@ -434,6 +459,9 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                               l.ambient[2], l.directed[0], l.directed[1], l.directed[2], g_app->mapViewW, g_app->mapViewH);
                 diag::detail(z);
             }
+            std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Ansicht von %.0f %.0f bis %.0f %.0f", static_cast<double>(g_app->kartenAnsicht[0]), static_cast<double>(g_app->kartenAnsicht[1]),
+                          static_cast<double>(g_app->kartenAnsicht[2]), static_cast<double>(g_app->kartenAnsicht[3]));
+            diag::detail(z);
         }));
         add(foto(karte + "_" + std::to_string(ms)));
     }

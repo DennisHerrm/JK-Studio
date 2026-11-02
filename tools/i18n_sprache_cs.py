@@ -184,7 +184,7 @@ TEXTE = {
     "DebugNoRenderDoc": "Spusťte JK Studio Z RenderDocu - dodatečně se připojit nedokáže.",
     "MapNeedsD3d": "3D pohled potřebuje Direct3D 11. Zde není k dispozici (náhradní OpenGL nebo sestavení bez D3D) - softwarový renderer byl odstraněn.",
     "MapGlow": "Záře",
-    "MapGlowHint": "Druhý průchod přes vrstvy shaderu označené `glow`, rozmazaný a položený přes obraz. Totéž dělá JKA s r_DynamicGlow; bez toho mají světelné meče, konzole, láva a hologramy ostré hrany místo zářivého rozmazání.",
+    "MapGlowHint": "Druhý průchod přes vrstvy shaderu označené `glow`, rozmazaný a položený přes obraz. Totéž dělá JKA s r_DynamicGlow; bez toho mají světelné meče, konzole, láva a hologramy ostré hrany místo zářivého rozmazání. Pod Movie Duels začíná zapnuté, pod OpenJK a Jedi Outcast vypnuté, jako tam r_DynamicGlow.",
     "MapShadows": "Stíny",
     "MapShadowsHint": "Stíny postav jako cg_shadows ve hře: Blob (1) je kulatá skvrna pod každou postavou, výchozí nastavení hry. Stencil (2) vrhá skutečný obrys postavy jako stínový objem a ztmaví vše uvnitř, i samotnou postavu. Planar (3) přitiskne postavu plochou a černou na podlahu.",
     "MapScriptFocus": "Zvýraznit entity tohoto skriptu",

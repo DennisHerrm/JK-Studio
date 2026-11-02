@@ -356,6 +356,12 @@ bool imSpiel(const std::string& klasse, bool movieDuels, const Gegenstandsliste*
     return movieDuels ? drin(kNurMD, klasse) : drin(kNurOpenJK, klasse);
 }
 
+bool brushModellImBild(const std::string& klasse, bool movieDuels) {
+    if (!imSpiel(klasse, movieDuels)) { return false; }
+    return klasse.rfind("trigger_", 0) != 0 && klasse != "rail_track" && klasse != "rail_lane" && klasse != "rail_mover" &&
+           klasse != "misc_weather_zone" && klasse != "fx_wind_zone";
+}
+
 std::string sichtbarImSpiel(const std::string& klasse, const Gegenstandsliste* gegenstaende) {
     // Je Spawnfunktion nachgesehen (MD code/game): setzt sie ein Modell
     // (G_ModelIndex, G2API_InitGhoul2Model, s.modelindex), einen Effekt oder

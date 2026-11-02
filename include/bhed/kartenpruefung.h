@@ -59,4 +59,11 @@ bool imSpiel(const std::string& klasse, bool movieDuels, const Gegenstandsliste*
 // Sonst eine kurze Art ("Modell", "Gegenstand", "Effekt", "Figur", "Geschuetz").
 std::string sichtbarImSpiel(const std::string& klasse, const Gegenstandsliste* gegenstaende = nullptr);
 
+// Zeichnet das Spiel das Brush-Modell ("*N") einer Entity dieser Klasse? Die Welt (R_RecursiveWorldNode)
+// enthaelt die Untermodelle nicht, sie kommen nur ueber eine Entity (CG_Mover) ins Bild. Keine Spawnfunktion:
+// G_CallSpawn gibt die Entity frei. InitTrigger und trigger_push/teleport: SVF_NOCLIENT oder ein Typ ohne
+// Bild. rail_track, rail_lane, misc_weather_zone, fx_wind_zone: G_FreeEntity nach dem Lesen der Masse.
+// rail_mover: EF_NODRAW, bis das Schienensystem ihn setzt (g_rail.cpp).
+bool brushModellImBild(const std::string& klasse, bool movieDuels);
+
 }  // namespace bhed::kartenpruefung

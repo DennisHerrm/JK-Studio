@@ -1,4 +1,7 @@
 #include "bhed/bspgeo.h"
+
+#include "bhed/areaportal.h"
+#include "bhed/shaderscript.h"
 #include "bhed/bsp.h"
 #include "bhed/image.h"
 #include "bhed/diag.h"
@@ -233,6 +236,18 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
             }
             m.firstSurface = i32(b, at + 24);
             m.numSurfaces = i32(b, at + 28);
+            // CM_ModelContents_Actual: alle Brushes (dbrush_t: firstSide, numSides, shaderNum)
+            const std::int32_t ersterBrush = i32(b, at + 32);
+            const std::int32_t brushZahl = i32(b, at + 36);
+            const Lump brs = lumpAt(b, 8);
+            if (brs.fits(b.size()) && ersterBrush >= 0 && brushZahl > 0) {
+                const auto alle = static_cast<std::int64_t>(brs.length / 12U);
+                const std::int64_t bis = std::min<std::int64_t>(alle, std::int64_t{ersterBrush} + brushZahl);
+                for (std::int64_t k = ersterBrush; k < bis; ++k) {
+                    const std::int32_t sn = i32(b, brs.offset + static_cast<std::size_t>(k) * 12U + 8U);
+                    if (sn >= 0 && static_cast<std::size_t>(sn) < out.shaders.size()) { m.inhalt |= out.shaders[static_cast<std::size_t>(sn)].contentFlags; }
+                }
+            }
             out.models.push_back(m);
         }
     }
@@ -1474,13 +1489,11 @@ GridLight sampleLightGrid(const BspGeometry& geo, const float origin[3], bool me
         for (int i = 0; i < 3; ++i) { gitter = gitter && gb[i] >= 1 && gs[i] > 0.0F; }
     }
     if (!gitter) {
-        // R_SetupEntityLighting ohne lightGridData; tr.sunDirection aus R_LoadWorld.
-        const float sonne[3] = {0.45F, 0.3F, 0.9F};
-        const float sl = std::sqrt(sonne[0] * sonne[0] + sonne[1] * sonne[1] + sonne[2] * sonne[2]);
+        // R_SetupEntityLighting ohne lightGridData; tr.sunDirection.
         for (int c = 0; c < 3; ++c) {
             out.ambient[c] = 150.0F + zuschlag;
             out.directed[c] = 150.0F;
-            out.dir[c] = sonne[c] / sl;
+            out.dir[c] = geo.sonne[c];
         }
         out.ok = true;
         return out;
@@ -2702,14 +2715,14 @@ TraceTreffer traceRay(const BspGeometry& geo, const float start[3],
 
 // --- rc601 ton: wer in den Snapshot kommt, ist zu hoeren ---------------------
 
-void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs[3], std::vector<int>& aus) {
+void blaetterImKasten(const BspGeometry& g, const float mins[3], const float maxs[3], std::vector<int>& aus) {
     aus.clear();
     if (g.nodes.empty() || g.leafs.empty() || g.planes.empty()) {
         return;
     }
     // CM_BoxLeafnums_r (cm_test.cpp:211 ff. MD) mit eigenem Stapel statt
     // Rekursion; die Seite der Ebene wie BoxOnPlaneSide: ganz vorn (>= dist)
-    // -> Kind 0, ganz hinten (< dist) -> Kind 1, sonst beide.
+    // -> Kind 0, ganz hinten (< dist) -> Kind 1, sonst beide, Kind 0 zuerst.
     std::vector<int> stapel{0};
     int schutz = 0;
     while (!stapel.empty() && ++schutz < 1 << 20) {
@@ -2718,12 +2731,7 @@ void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs
         while (true) {
             if (at < 0) {
                 const int blatt = -(at + 1);
-                if (blatt >= 0 && static_cast<std::size_t>(blatt) < g.leafs.size()) {
-                    const int c = g.leafs[static_cast<std::size_t>(blatt)].cluster;
-                    if (c != -1 && std::find(aus.begin(), aus.end(), c) == aus.end()) {
-                        aus.push_back(c);
-                    }
-                }
+                if (blatt >= 0 && static_cast<std::size_t>(blatt) < g.leafs.size()) { aus.push_back(blatt); }
                 break;
             }
             if (static_cast<std::size_t>(at) >= g.nodes.size()) {
@@ -2753,14 +2761,35 @@ void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs
             } else if (hinten && !vorn) {
                 at = n.children[1];
             } else {
-                stapel.push_back(n.children[0]);
-                at = n.children[1];
+                stapel.push_back(n.children[1]);
+                at = n.children[0];
             }
         }
     }
 }
 
-bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float mins[3], const float maxs[3]) {
+void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs[3], std::vector<int>& aus) {
+    aus.clear();
+    std::vector<int> blaetter;
+    blaetterImKasten(g, mins, maxs, blaetter);
+    for (const int b : blaetter) {
+        const int c = g.leafs[static_cast<std::size_t>(b)].cluster;
+        if (c != -1 && std::find(aus.begin(), aus.end(), c) == aus.end()) { aus.push_back(c); }
+    }
+}
+
+void sonneAusShadern(BspGeometry& geo, const ShaderMap& shader) {
+    for (const BspSurface& fl : geo.surfaces) {
+        if (fl.shader < 0 || static_cast<std::size_t>(fl.shader) >= geo.shaders.size()) { continue; }
+        std::string name = geo.shaders[static_cast<std::size_t>(fl.shader)].name;
+        for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = shader.find(name);
+        if (it == shader.end() || !it->second.hatSonne) { continue; }
+        for (int k = 0; k < 3; ++k) { geo.sonne[k] = it->second.sonne[k]; }
+    }
+}
+
+bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float mins[3], const float maxs[3], const AreaPortale* portale) {
     if (g.vis.empty() || g.clusterBytes <= 0 || g.nodes.empty() || g.leafs.empty()) {
         return true;
     }
@@ -2771,6 +2800,14 @@ bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float min
     }
     std::vector<int> cl;
     clusterImKasten(g, mins, maxs, cl);
+    // "if ( !CM_AreasConnected( clientarea, svEnt->areanum ) ) ... areanum2": hinter geschlossenen Tueren.
+    if (portale != nullptr) {
+        const int a = g.leafs[static_cast<std::size_t>(blatt)].area;
+        const AreaPaar k = kastenGebiete(g, mins, maxs);
+        if (!portale->verbunden(a, k.a) && !portale->verbunden(a, k.b)) {
+            return false;
+        }
+    }
     // "if (!svEnt->numClusters) continue;" - eine Entity ganz im Fels oder
     // ausserhalb der Karte geht nie hinaus.
     for (const int c : cl) {

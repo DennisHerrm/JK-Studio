@@ -2295,7 +2295,7 @@ void loadModelTextures() {
 // rc603: die Bildpunkte einmal je Bild (App::figurStufenBilder), nicht je
 // Figur und Stufe kopiert - siehe ModelTextures::FigurStufe::pixel.
 std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildName) {
-    constexpr int kMaxSize = 256;
+    constexpr int kMaxSize = kBildGrenze;
     // rc603 Durchsicht: tr.whiteImage - R_CreateBuiltinImages legt "*white"
     // als 8x8 Bild mit allen Bytes 255 an (tr_image.cpp:1273-1276 MD,
     // 1328 OJ). ParseStage bindet es fuer "map $whiteimage" und, an Figuren
@@ -2458,7 +2458,7 @@ ModelTextures texturesFor(const GlmModel& model) {
         }
         diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
     };
-    constexpr int kMaxSize = 256;
+    constexpr int kMaxSize = kBildGrenze;
     out.bySurface.resize(model.surfaces.size());
     // Gezaehlt statt je Flaeche gemeldet. Bei einem Sturmtruppler stand
     // sechzehnmal dieselbe Zeile im Protokoll - jede kostet einen Schreib-
@@ -2543,10 +2543,8 @@ ModelTextures texturesFor(const GlmModel& model) {
         // Schon einmal geladen? Dann NICHT noch einmal entpacken und
         // entziffern. Der Schluessel wird wie in der Engine gebildet:
         // klein, ohne Endung, nur Schraegstriche.
-        // Die GROESSE gehoert in den Schluessel: die Karte verkleinert auf
-        // 512, die Figuren auf 256. Ohne sie bekaeme, wer zuerst kommt,
-        // recht - und die Lava saehe kloetzchenhaft aus oder eine
-        // Figurentextur waere unnoetig gross.
+        // Die GROESSE gehoert in den Schluessel, damit eine andere Grenze
+        // nie ein Bild aus dem Zwischenspeicher der ersten bekommt.
         const std::string schluessel =
             image::mappingName(name) + "@" + std::to_string(kMaxSize);
         const auto imCache = g_app->texCache.find(schluessel);
@@ -4794,6 +4792,24 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
 // und Schwertproben).
 void figurWeltMatrix(const ActorDraw& a, float fw[16]) {
     gpu::baueFigurWelt(a.yaw + a.yawOffset, a.pos, fw);
+    if (a.leicheNick != 0.0F || a.leicheRoll != 0.0F) {
+        // AnglesToAxis(legsAngles) statt nur der Gier; die 90 Grad des Skeletts wie baueFigurWelt.
+        constexpr float kGrad = 3.14159265358979F / 180.0F;
+        const float sy = std::sin((a.yaw + a.yawOffset) * kGrad);
+        const float cy = std::cos((a.yaw + a.yawOffset) * kGrad);
+        const float sp = std::sin(a.leicheNick * kGrad);
+        const float cp = std::cos(a.leicheNick * kGrad);
+        const float sr = std::sin(a.leicheRoll * kGrad);
+        const float cr = std::cos(a.leicheRoll * kGrad);
+        const float vorn[3] = {cp * cy, cp * sy, -sp};
+        const float links[3] = {sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, sr * cp};
+        const float oben[3] = {cr * sp * cy + sr * sy, cr * sp * sy - sr * cy, cr * cp};
+        for (int r = 0; r < 3; ++r) {
+            fw[r * 4 + 0] = links[r];
+            fw[r * 4 + 1] = -vorn[r];
+            fw[r * 4 + 2] = oben[r];
+        }
+    }
     if (a.skala[0] != 1.0F || a.skala[1] != 1.0F || a.skala[2] != 1.0F) {
         const float spalte[3] = {a.skala[1], a.skala[0], a.skala[2]};
         for (int r = 0; r < 3; ++r) {
@@ -5061,6 +5077,66 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
     d.ohneKoerper = st.koerperEntfernt;
     // rc608 Teil 5, Movie Duels: WP_SaberAddHolsteredG2SaberModels - hat die Figur ein Schwert und
     // eine andere Waffe in der Hand (oder keine), haengt der Griff am Holsterbolzen.
+    // rc608 Teil 6, Movie Duels: CG_HolsteredWeapons (cg_holsteredweapons 2) - nicht bei in_camera, nicht als Leiche.
+    bool huefteL = false;
+    bool huefteR = false;
+    if (regelwerkMovieDuels() && !regelwerkJediOutcast() && !st.koerperEntfernt && d.model != nullptr && (a.getoetetMs < 0.0 || ms < a.getoetetMs)) {
+        bool imKino = false;
+        for (const auto& [ab, an] : g_app->ablauf.kameraZeiten) {
+            if (ab <= ms) { imKino = an; }
+        }
+        // Der Rucken: Jetpack-Klassen und ein Schwert, das dort haengt.
+        bool ruecken = a.klasse == "CLASS_BOBAFETT" || a.klasse == "CLASS_MANDALORIAN" || a.klasse == "CLASS_JANGO" || a.klasse == "CLASS_JANGODUAL" || a.klasse == "CLASS_ROCKETTROOPER";
+        const SaberArt* ersteArt = (st.saber[0].art >= 0 && static_cast<std::size_t>(st.saber[0].art) < a.saberArten.size()) ? &a.saberArten[static_cast<std::size_t>(st.saber[0].art)] : nullptr;
+        if (ersteArt != nullptr && st.hatSaber && st.waffe != "WP_SABER") {
+            const std::string pl = ersteArt->holsterPlatz.empty() ? holsterPlatzVorgabe(ersteArt->typ) : ersteArt->holsterPlatz;
+            ruecken = ruecken || pl == "HOLSTER_BACK" || pl == "HOLSTER_BACKU" || pl == "HOLSTER_BACKL";
+        }
+        // models/players/<modell>/holster.cfg, sonst die von kyle
+        std::string modell = d.model->name;
+        for (char& c : modell) { c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const std::size_t ab = modell.find("models/players/");
+        if (ab != std::string::npos) {
+            modell = modell.substr(ab + 15, modell.find('/', ab + 15) - ab - 15);
+            auto it = g_app->holsterCfgs.find(modell);
+            if (it == g_app->holsterCfgs.end()) {
+                HolsterCfg cfg;
+                std::string text;
+                if (readFromArchives("models/players/" + modell + "/holster.cfg", text) || readFromArchives("models/players/kyle/holster.cfg", text)) { leseHolsterCfg(text, cfg); }
+                it = g_app->holsterCfgs.emplace(modell, std::move(cfg)).first;
+            }
+            // ps.weapons nach der Zeit: Der Spieler sammelt, ein NPC hat nur die eine (G_SetWeapon).
+            std::vector<std::string> hat;
+            std::map<std::string, int> modelle;
+            WaffenPlaetze plaetze;
+            std::string inHand = a.startWaffe;
+            if (!inHand.empty()) { hat.push_back(inHand); }
+            for (const ActorStep& w : a.steps) {
+                if (w.kind != ActorStep::Kind::Waffe || w.startMs > ms) { continue; }
+                if (w.text == "drop") {
+                    hat.erase(std::remove(hat.begin(), hat.end(), inHand), hat.end());
+                } else if (w.text != "WP_NONE") {
+                    if (!a.echterSpieler) { hat.clear(); }
+                    if (std::find(hat.begin(), hat.end(), w.text) == hat.end()) { hat.push_back(w.text); }
+                    modelle[w.text] = w.index;
+                }
+                inHand = w.text == "drop" ? std::string("WP_NONE") : w.text;
+                waffenPlaetzeAendern(plaetze, it->second, hat, inHand, ruecken);
+            }
+            huefteR = !imKino && !plaetze[0].empty() && plaetze[0] != inHand;
+            huefteL = !imKino && !plaetze[1].empty() && plaetze[1] != inHand;
+            for (const WaffeImHolster& wh : waffenImHolster(plaetze, it->second, inHand, ruecken)) {
+                const auto mi = modelle.find(wh.waffe);
+                const std::string* pf = mi != modelle.end() ? pfad(mi->second) : nullptr;
+                if (imKino || pf == nullptr) { continue; }
+                if (AnbauDraw* an = neu(hiltFor(*pf), wh.bolzen)) {
+                    an->holster = true;
+                    an->waffenHolster = true;
+                    an->holsterDrehung = wh.lage;
+                }
+            }
+        }
+    }
     if (regelwerkMovieDuels() && !regelwerkJediOutcast() && !st.koerperEntfernt && st.hatSaber && !st.waffe.empty() && st.waffe != "WP_SABER" && st.waffe != "WP_NONE") {
         const auto artVon = [&a, &st](std::size_t n) -> const SaberArt* {
             const int nr = st.saber[n].art;
@@ -5072,7 +5148,7 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
             const SaberArt* art = artVon(n);
             const std::string* griff = art != nullptr ? pfad(art->modell) : nullptr;
             HolsterLage lage;
-            if (griff == nullptr || !saberHolsterLage(a.npcType, a.klasse, erste->typ, erste->holsterPlatz, art->holsterPlatz, static_cast<int>(n), lage)) { continue; }
+            if (griff == nullptr || !saberHolsterLage(a.npcType, a.klasse, erste->typ, erste->holsterPlatz, art->holsterPlatz, static_cast<int>(n), lage, huefteL, huefteR)) { continue; }
             if (AnbauDraw* an = neu(hiltFor(*griff), lage.bolzen)) {
                 an->holster = true;
                 an->holsterDrehung = lage.drehung;
@@ -5240,6 +5316,50 @@ bool miscModelStaticImFesten(const MapEntity& e) {
 
 bool gespawntImSpiel(const MapEntity& e) {
     return e.classname == "worldspawn" || spawntBeiSchwierigkeit(e, regelwerkSpielstufe());
+}
+
+// Die Portale zur Zeit der Ansicht und was das Auge davon sieht (bhed/areaportal.h). Das Auge ist
+// die Kamera der Ansicht: Im Spiel ist es der Spieler (SV_BuildClientSnapshot), die Vorschau hat eine
+// freie Kamera, die ueberall hinfliegt. Nur bei einer Aenderung geht eine neue Maske an die Grafik.
+void areaPortaleJetzt(const float auge[3]) {
+    App& app = *g_app;
+    const std::string schluessel = app.map.path + "|" + std::to_string(app.map.entities.size()) + "|" + std::to_string(app.geo.leafs.size()) + "|" +
+                                   std::to_string(regelwerkSpielstufe()) + (regelwerkJediOutcast() ? "j" : "a");
+    bool anders = false;
+    if (app.portalEntsKarte != schluessel) {
+        app.portalEntsKarte = schluessel;
+        int gebiete = 0;
+        for (const BspGeometry::Leaf& lf : app.geo.leafs) { gebiete = std::max(gebiete, lf.area + 1); }
+        app.areaPortale.anlegen(gebiete);
+        app.portalEnts = portalEntities(app.map, app.geo, !regelwerkJediOutcast(), [](const MapEntity& e) { return gespawntImSpiel(e); });
+        app.portalOffen.assign(app.portalEnts.size(), 0);
+        anders = true;
+    }
+    for (std::size_t i = 0; i < app.portalEnts.size(); ++i) {
+        const PortalEntity& p = app.portalEnts[i];
+        const MoverSim::Stand st = app.moverSim.at(p.modell, app.playMs);
+        bool offen = false;
+        if (st.bekannt) {
+            if (p.art == PortalEntity::Art::Mover) {
+                // Use_BinaryMover oeffnet es, Reached_BinaryMover schliesst es wieder in MOVER_POS1.
+                const MoverSim::Stand anfang = app.moverSim.at(p.modell, 0.0);
+                for (int k = 0; k < 3; ++k) { offen = offen || st.origin[k] != anfang.origin[k] || st.angles[k] != anfang.angles[k]; }
+            } else {
+                offen = !st.sichtbar;
+            }
+        }
+        if (offen != (app.portalOffen[i] != 0)) {
+            app.portalOffen[i] = offen ? 1 : 0;
+            app.areaPortale.setze(p.gebiete.a, p.gebiete.b, offen);
+            anders = true;
+        }
+    }
+    const int gebiet = punktGebiet(app.geo, auge);
+    if (anders || gebiet != app.areaAuge) {
+        app.areaAuge = gebiet;
+        app.areaMaske = flaechenHinterPortalen(app.geo, app.areaPortale, gebiet);
+        gpu::setzeVerdeckteFlaechen(&app.geo, &app.areaMaske);
+    }
 }
 void loadMapEffects();
 void fallenEffekteSetzen();   // rc604: misc_trip_mine (laserfalleLauf)
@@ -5464,11 +5584,51 @@ namespace {
 bool fallenKannTreffenBei(double ms, const float von[3], const float mitte[3]);
 }  // namespace
 
+// Rc608 Teil 6: aus den Stoessen (hurtTodeBerechnen) die Wege der stehenden Figuren. Wer zu der Zeit auf
+// einem Weg ist, behaelt ihn: Das Spiel rechnet den Stoss in denselben Pmove, die Vorschau hat den Plan
+// vorab; vermerkt in den Notizen.
+std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> stossWegeBauen(
+    const std::map<std::string, std::vector<LaufStoss>>& stoesse) {
+    if (stoesse.empty()) { return nullptr; }
+    const AblaufWelt welt = ablaufWelt();
+    if (!welt.nav) { return nullptr; }
+    auto aus = std::make_shared<std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>();
+    for (const auto& [figur, liste] : stoesse) {
+        for (const Actor& a : g_app->scene.actors) {
+            if (a.name != figur || liste.empty() || a.halbBreite <= 0.0F) { continue; }
+            std::vector<LaufStoss> frei;
+            for (const LaufStoss& ls : liste) {
+                if (!a.at(ls.ms).moving) { frei.push_back(ls); }
+            }
+            if (frei.empty()) { continue; }
+            const ActorState st = a.at(frei.front().ms);
+            LaufZustand start = laufZustandBei(a, frei.front().ms);
+            for (int k = 0; k < 3; ++k) { start.ort[static_cast<std::size_t>(k)] = st.pos[k]; }
+            LaufWerte w;
+            w.halbBreite = a.halbBreite;
+            w.hoeheOben = a.hoeheOben;
+            w.hockHoehe = a.hockHoehe;
+            w.stufe = a.stufe;
+            w.schwerkraft = g_app->scene.schwerkraft;
+            w.weltSchwerkraft = g_app->scene.schwerkraft;
+            auto plan = std::make_shared<const LaufPlan>(planeStosslauf(*welt.nav, start, w, frei, frei.back().ms + 60000.0));
+            if (!plan->takte.empty()) {
+                std::string kl = a.name;
+                for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                (*aus)[kl].push_back(plan);
+            }
+        }
+    }
+    return aus->empty() ? nullptr : aus;
+}
+
 std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     std::vector<AblaufWelt::HurtTod> aus;
     const MapData& karte = g_app->map;
     g_app->geschuetzUsesNeu.clear();
     g_app->schadenBruecheNeu.clear();
+    g_app->stoesseNeu.clear();
+    g_app->schmerzenNeu.clear();
     g_app->fallenFremdNeu.clear();
     g_app->schadenZiele.clear();
     if (karte.empty() || g_app->scene.actors.empty()) { return aus; }
@@ -5578,6 +5738,9 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         bool hatLetzten = false;
         float letzt[3]{};
         std::vector<std::pair<double, bool>> noclip;
+        double schmerzBis = 0.0;      // self->painDebounceTime
+        double schmerzPause = 0.0;    // other->client->painCooldownTime (G_MissileImpacted, MD)
+        double klangAb = -1.0e300;    // cent->pe.painTime (CG_PainEvent: 1500 ms)
     };
     std::vector<Figur> figuren;
     for (const Actor& a : g_app->scene.actors) {
@@ -5662,8 +5825,84 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         fi.ruestung -= save;
         return save;
     };
-    const auto gDamage = [&](Figur& fi, int damage, int dflags, Art art, double t, int entity, int trefferOrt = kOrtKeiner) {
+    EngineZufall schmerzZufall(0x5C4D3B2AU);
+    const auto schmerzRegel = [&] { return jk2 ? TodRegelwerk::JediOutcast : md ? TodRegelwerk::MovieDuels : TodRegelwerk::OpenJK; };
+    const auto hatAnim = [](const Actor& a) { return [&a](const std::string& n) { return g_app->animDauerFn && g_app->animDauerFn(a.name, n) > 0.0; }; };
+    const auto gibSchmerz = [&](Figur& fi, const std::string& anim, double t, double torsoMs, bool nurTorso, bool klang) {
         const Actor& a = *fi.a;
+        SchmerzAufruf sch;
+        sch.ms = t;
+        sch.figur = a.name;
+        sch.anim = anim;
+        sch.torsoMs = torsoMs;
+        sch.nurTorso = nurTorso;
+        if (klang && t - fi.klangAb >= 1500.0) {
+            // G_AddEvent(self, EV_PAIN, health) beim Spieler, NPC_SetPainEvent in Prozent
+            const int wert = a.echterSpieler ? fi.gesundheit : (a.gesundheitStart > 0 ? fi.gesundheit * 100 / a.gesundheitStart : 0);
+            sch.klang = schmerzKlang(wert);
+            fi.klangAb = t;
+        }
+        g_app->schmerzenNeu.push_back(std::move(sch));
+    };
+    // GEntity_PainFunc nach G_Damage: PlayerPain oder NPC_Pain mit NPC_ChoosePainAnimation.
+    const auto schmerzFunktion = [&](Figur& fi, int take, Art art, int trefferOrt, const float punkt[3], double t) {
+        const Actor& a = *fi.a;
+        const auto dauer = [&a](const std::string& n) { return g_app->animDauerFn ? g_app->animDauerFn(a.name, n) : 0.0; };
+        const ActorState st = a.at(t);
+        const bool schwert = gleichName(st.waffe.empty() ? a.startWaffe : st.waffe, "WP_SABER");
+        if (a.echterSpieler) {
+            // Eine Animation nur bei Schwert, Faust und MOD_CRUSH; die Ansicht ist die dritte Person.
+            if (art == Art::Crush && schmerzZufall.irand(0, 10) <= take && fi.schmerzBis < t) {
+                const std::string anim = schmerzAnimZufall(2, 3, schmerzZufall, hatAnim(a));
+                if (!anim.empty()) {
+                    gibSchmerz(fi, anim, t, 0.0, st.moving || st.crouched, true);
+                    fi.schmerzBis = t + dauer(anim);
+                    return;
+                }
+            }
+            if (t > fi.schmerzBis && fi.klangAb < t) { gibSchmerz(fi, std::string{}, t, 0.0, false, true); }
+            if (fi.schmerzBis <= t) { fi.schmerzBis = t + 700.0; }
+            return;
+        }
+        if (t < fi.schmerzBis) { return; }   // "If we've already taken pain, then don't take it again"
+        const float chance = (!jk2 && gleichName(a.klasse, "CLASS_GALAKMECH")) ? 0.05F : npcSchmerzChance(a.klasse, md);
+        if (schmerzZufall.flrand(0.0F, 1.0F) >= chance) { return; }
+        std::string anim;
+        if (schwert) {
+            anim = schmerzAnimZufall(2, 3, schmerzZufall, hatAnim(a));   // "the only 2 pain anims that look good"
+        } else {
+            int ort = trefferOrt;
+            if (ort == kOrtKeiner && punkt != nullptr) {
+                const float hb = a.halbBreite;
+                ort = trefferOrtAusPunkt(NavVec{punkt[0], punkt[1], punkt[2]}, NavVec{st.pos[0], st.pos[1], st.pos[2]}, NavVec{-hb, -hb, -24.0F}, NavVec{hb, hb, a.hoeheOben}, st.angles[1]);
+            }
+            anim = schmerzAnimNachOrt(ort, schmerzZufall);
+            if (anim.empty() || !hatAnim(a)(anim)) { anim = schmerzAnimZufall(1, md ? 19 : 18, schmerzZufall, hatAnim(a)); }
+        }
+        if (anim.empty()) { return; }
+        gibSchmerz(fi, anim, t, 0.0, false, true);
+        fi.schmerzBis = t + dauer(anim);
+    };
+    const auto gDamage = [&](Figur& fi, int damage, int dflags, Art art, double t, int entity, int trefferOrt = kOrtKeiner,
+                             const float* richtung = nullptr, const float* punkt = nullptr) {
+        const Actor& a = *fi.a;
+        // G_ApplyKnockback vor dem Gottmodus (g_combat.cpp:8539-8635 MD, :5986-6060 OJ). DAMAGE_DEATH_KNOCKBACK:
+        // erst beim Tod, den Wurf rechnet todesAnimation.
+        if (richtung != nullptr && (dflags & kSchadenTodesRueckstoss) == 0) {
+            float n[3] = {richtung[0], richtung[1], richtung[2]};
+            const float l = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+            if (l > 0.0F) {
+                for (float& v : n) { v /= l; }
+                StossErgebnis st;
+                if (stossTempo(knockbackWert(damage, dflags, art == Art::Crush), n, a.klasse, schmerzRegel(), 0.0F, g_app->scene.schwerkraft, st)) {
+                    LaufStoss ls;
+                    ls.ms = t;
+                    for (std::size_t k = 0; k < 3; ++k) { ls.tempo[k] = st.tempo[k]; }
+                    ls.pmZeit = st.pmZeit;
+                    g_app->stoesseNeu[a.name].push_back(ls);
+                }
+            }
+        }
         // Rancor: von einem Nicht-Rancor unter 10 nichts, sonst 10 (OpenJK :5560-5572, MD).
         if (!jk2 && gleichName(a.klasse, "CLASS_RANCOR")) { damage = damage < 10 ? 0 : 10; }
         // Galak: Schild an - DAMAGE_NO_ARMOR gilt nicht; aus - Explosionen ein Viertel
@@ -5699,6 +5938,8 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         if (fi.gesundheit <= 0) {
             aus.push_back(AblaufWelt::HurtTod{t, a.name, entity, false});
             fi.tot = true;
+        } else {
+            schmerzFunktion(fi, take, art, trefferOrt, punkt, t);
         }
     };
     std::vector<BruchZiel> bruchziele = bruchZieleDerKarte();
@@ -5761,7 +6002,9 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             const float mitte[3] = {(lo[0] + hi[0]) * 0.5F, (lo[1] + hi[1]) * 0.5F, (lo[2] + hi[2]) * 0.5F};
             if (!fallenKannTreffenBei(t, ort, mitte)) { continue; }
             const int vorher = fi.gesundheit;
-            gDamage(fi, static_cast<int>(points), dflags, art, t, entity);
+            // G_RadiusDamage: "push the center of mass higher than the origin"
+            const float stossRichtung[3] = {st.pos[0] - ort[0], st.pos[1] - ort[1], st.pos[2] - ort[2] + 24.0F};
+            gDamage(fi, static_cast<int>(points), dflags, art, t, entity, kOrtKeiner, stossRichtung, ort);
             diag::detail("Explosion von #" + std::to_string(entity) + " bei " + std::to_string(static_cast<long>(t)) + " ms: " + a.name +
                          " Abstand " + std::to_string(static_cast<int>(dist)) + ", Schaden " + std::to_string(static_cast<int>(points)) +
                          ", Lebenspunkte " + std::to_string(vorher) + " -> " + std::to_string(fi.gesundheit) + (fi.tot ? " (tot)" : ""));
@@ -5823,6 +6066,10 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             }
             if (nah && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
                 (void)figurAugenPunkt(a, *g_app->actorAssets[ai], t, z.auge);
+                // DeadThink: maxs[2] aus renderInfo.eyePoint + 4, mindestens -8 (der Kasten folgt der Leiche).
+                if (fi.tot || (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6)) {
+                    z.hi[2] = st.pos[2] + std::max(z.auge[2] - st.pos[2] + 4.0F, -8.0F) + 1.0F;
+                }
             }
             z.fahrzeug = a.fahrzeug.da;
             int team = npcTeam(a);
@@ -5942,7 +6189,16 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                     for (Figur& fi : figuren) {
                         if (fi.a != wen || fi.tot || fi.gesundheit <= 0) { continue; }
                         const int vorher = fi.gesundheit;
-                        gDamage(fi, a.schaden, a.dflags, Art::Geschuetz, t, a.angreifer, a.trefferOrt);
+                        gDamage(fi, a.schaden, a.dflags, Art::Geschuetz, t, a.angreifer, a.trefferOrt, a.richtung, a.punkt);
+                        // G_MissileImpacted (MD): "Universal directional pain animation", auch im Gottmodus.
+                        // Hinkt die Figur (PM_CrouchAnim), wirft G_Knockdown sie um: nicht nachgebildet.
+                        if (md && !fi.tot && fi.gesundheit > 0 && t >= fi.schmerzPause && !wen->at(t).crouched && schmerzZufall.irand(0, 3) != 0) {
+                            const std::string anim = schmerzAnimNachOrt(a.trefferOrt, schmerzZufall);
+                            if (!anim.empty() && hatAnim(*wen)(anim)) {
+                                gibSchmerz(fi, anim, t, 400.0, false, false);
+                                fi.schmerzPause = t + 2000.0;
+                            }
+                        }
                         diag::detail("Geschuetz #" + std::to_string(a.angreifer) + " trifft " + wen->name + " bei " +
                                      std::to_string(static_cast<long>(t)) + " ms: Schaden " + std::to_string(a.schaden) + ", Ort " +
                                      std::to_string(a.trefferOrt) + ", Lebenspunkte " + std::to_string(vorher) + " -> " +
@@ -6310,6 +6566,7 @@ bool kameraMarkeOrt(const std::string& name, float* o, float* a) {
 void prepareScene() {
     BHED_MESS("Szene vorbereiten");
     diag::Step step("Ansicht vorbereiten");
+    sonneAusShadern(g_app->geo, g_app->shaderMap);
     // rc601 (bewegung, Durchsicht 2): was ein Neuaufbau kostet und wie viele
     // Wege dabei neu gerechnet werden (navPlanZaehler) - die Zeile am Ende.
     const auto uhrAb = std::chrono::steady_clock::now();
@@ -6421,6 +6678,9 @@ void prepareScene() {
         hilfe.waffen = &g_app->weaponMap;
         hilfe.roff = [](const std::string& n) { return roffFuer(n); };
         hilfe.nav = welt.nav;   // rc601 (bewegung, Wege)
+        hilfe.stossWege = g_app->stossWege;   // Rc608 Teil 6
+        welt.stossWege = g_app->stossWege;
+        hilfe.schmerzen = g_app->schmerzen;
         hilfe.erscheint = &g_app->ablauf.erscheint;   // rc601 (bewegung, teil 3)
         // rc601 (bewegung, Durchsicht 2): g_spskill aus den Einstellungen.
         hilfe.schwierigkeit = schwierigkeitJetzt();   // rc601 integ: -1 nach Regelwerk
@@ -6430,6 +6690,7 @@ void prepareScene() {
             const AnimEntry* e = eintrag(f, a);
             return (e == nullptr) ? -1.0 : std::max(0, e->numFrames - 1) * animBildMs(*e);
         };
+        g_app->animDauerFn = hilfe.animDauer;   // Rc608 Teil 6: hurtTodeBerechnen (PM_AnimLength, PM_HasAnimation)
         hilfe.bildDauer = [eintrag](const std::string& f, const std::string& a) {
             const AnimEntry* e = eintrag(f, a);
             return (e == nullptr) ? -1.0 : animBildMs(*e);
@@ -6585,6 +6846,7 @@ void prepareScene() {
         }
         g_app->camTrack = buildCameraTrack(g_app->ablauf.flach, kameraMarkeOrt, kameraRoffs);
         g_app->timeline = buildTimeline(g_app->ablauf.flach, g_app->db);
+        hilfe.kameraZeiten = &g_app->ablauf.kameraZeiten;
         g_app->scene = buildScene(g_app->ablauf.flach, g_app->map, &hilfe);
         ++g_app->szeneBauten;
     }
@@ -7252,7 +7514,19 @@ void prepareScene() {
             diag::detail("trigger_hurt: " + h.figur + (h.unsterblich ? " (SET_UNDYING) faellt auf 1 bei " : " stirbt bei ") +
                          std::to_string(static_cast<long>(h.ms)) + " ms (Entity " + std::to_string(h.entity) + ")");
         }
-        const bool schadenAnders = g_app->schadenKarte != g_app->map.path || g_app->schadenBruecheNeu != g_app->schadenBrueche ||
+        // Rc608 Teil 6: was sich aus G_Damage bewegt und zuckt, gilt im naechsten Durchgang.
+        std::string stossNeu;
+        for (const auto& [figur, liste] : g_app->stoesseNeu) {
+            stossNeu += figur;
+            for (const LaufStoss& ls : liste) { stossNeu += "|" + std::to_string(static_cast<long>(ls.ms)); }
+        }
+        const bool stossAnders = stossNeu != g_app->stossSchluessel || g_app->schmerzenNeu != g_app->schmerzen;
+        if (stossAnders) {
+            g_app->stossSchluessel = stossNeu;
+            g_app->schmerzen = g_app->schmerzenNeu;
+            g_app->stossWege = stossWegeBauen(g_app->stoesseNeu);
+        }
+        const bool schadenAnders = stossAnders || g_app->schadenKarte != g_app->map.path || g_app->schadenBruecheNeu != g_app->schadenBrueche ||
                                    g_app->geschuetzUsesNeu != g_app->geschuetzUses || g_app->fallenFremdKarte != g_app->map.path ||
                                    g_app->fallenFremdNeu != g_app->fallenFremd;
         if (g_app->hurtTodeSchluessel != hurtSchluessel || neu != g_app->hurtTode || schadenAnders) {

@@ -36,6 +36,9 @@
 #include "bhed/regelwerk.h"
 #include "bhed/ablauf.h"
 #include "bhed/bsp.h"
+#include "bhed/areaportal.h"
+#include "bhed/holster.h"
+#include "bhed/schmerz.h"
 #include "bhed/camtrack.h"
 #include "bhed/wegpunkte.h"
 #include "bhed/moveranim.h"
@@ -628,14 +631,24 @@ struct App {
     bool showEffects = true;
     // Das Gluehen zeigen - der zweite Durchgang ueber die Stufen mit `glow`.
     //
-    // An, wie r_DynamicGlow es in Movie Duels ist. Ohne das Gluehen sieht
-    // eine Karte flacher aus als im Spiel: 1026 der 4107 Shader tragen
+    // Vorgabe wie r_DynamicGlow im Regelwerk (regelwerkAnwendenJetzt): Movie
+    // Duels an, OpenJK und Original aus. Ohne das Gluehen sieht eine Karte
+    // unter Movie Duels flacher aus als dort: 1026 der 4107 Shader tragen
     // `glow`, bei MD_Maps_Ep3 sind es 342 von 736 - Lichtsaeber, Konsolen,
     // Lava, Triebwerke, der Holotisch in md_am_sith.
     //
     // Abschaltbar, weil es einen zweiten Zeichendurchgang kostet und weil
     // man beim Suchen eines Fehlers das rohe Bild sehen will.
     bool showGlow = true;
+    // Die Gebiete der Karte (bhed/areaportal.h), Stand fuer die Zeit der Ansicht und das Gebiet des
+    // Auges (areaPortaleJetzt).
+    AreaPortale areaPortale;
+    std::vector<PortalEntity> portalEnts;
+    std::string portalEntsKarte;
+    std::map<std::string, HolsterCfg> holsterCfgs;   // cg_holster.cpp: je Spielermodell
+    std::vector<char> portalOffen;
+    std::vector<char> areaMaske;
+    int areaAuge = -2;
     // Die Schattenart wie cg_shadows: 0 aus, 1 der runde Fleck (markShadow,
     // ab Werk), 2 Schattenvolumen im Stencil-Puffer, 3 die Figur schwarz auf
     // den Boden gedrueckt - siehe gpu::zeichneLichtUndSchatten und
@@ -981,6 +994,13 @@ struct App {
     std::vector<AblaufWelt::FallenUse> geschuetzUsesNeu;
     std::vector<AblaufWelt::SchadenBruch> schadenBrueche;
     std::vector<AblaufWelt::SchadenBruch> schadenBruecheNeu;
+    // Rc608 Teil 6: G_ApplyKnockback und Schmerz aus hurtTodeBerechnen, gelten im naechsten Durchgang.
+    std::map<std::string, std::vector<LaufStoss>> stoesseNeu;
+    std::function<double(const std::string& figur, const std::string& anim)> animDauerFn;
+    std::vector<SchmerzAufruf> schmerzenNeu;
+    std::vector<SchmerzAufruf> schmerzen;
+    std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>> stossWege;
+    std::string stossSchluessel;
     std::string schadenKarte;
     std::set<int> schadenZiele;       // takedamage: func_breakable, misc_model_breakable, misc_trip_mine
     std::map<int, double> fallenFremd;
@@ -3183,7 +3203,11 @@ bool regelwerkPruefen();
 [[nodiscard]] int regelwerkSpielErmitteln();
 [[nodiscard]] bool jediOutcastOrdner(const std::string& verzeichnis);
 [[nodiscard]] const std::vector<std::string>& eingerichteteSpielordner();
+// Die Bilder der Vorschau wie die Engine mit r_picmip 0: keine Verkleinerung, nur die Grenze der Grafikkarte
+// (glConfig.maxTextureSize). Bis rc608 Teil 5 waren Karte auf 512 und Figuren auf 256 begrenzt: Stoffe unscharf.
+inline constexpr int kBildGrenze = 4096;
 void regelwerkAnwendenJetzt();
+void areaPortaleJetzt(const float auge[3]);
 void befehlssatzFuerRegelwerk();
 [[nodiscard]] int schwierigkeitJetzt();
 [[nodiscard]] std::string regelwerkStatusZeile();

@@ -171,5 +171,8 @@ void engineVectoangles(const float v[3], float winkel[3]) noexcept;
 // Bolzenmatrix in der Welt (3x4, Spalten = Achsen, vierte = Ort).
 void rumpfWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept;
 
+// G_GetHitLocation: der Trefferort aus dem Treffpunkt und dem Kasten der Figur (auch fuer den Schmerz).
+[[nodiscard]] int trefferOrtAusPunkt(const NavVec& p, const NavVec& ort, const NavVec& mins, const NavVec& maxs, float gier);
+
 }  // namespace bhed
 #endif

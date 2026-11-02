@@ -679,7 +679,7 @@ struct LaufWerte {
     bool darfRollen = false;
     // rc608 Teil 5, Movie Duels: PM_TryRoll ruft fuer CLASS_VADER und CLASS_DESANN
     // PM_SaberLungeAttackMove(qtrue) (bg_pmove.cpp:5443 MD): ausser in SS_DUAL und SS_STAFF und ohne
-    // lungeAtkMove des Schwerts velocity 150 vorwaerts, 50 hoch. in_camera kennt der Plan nicht.
+    // lungeAtkMove des Schwerts velocity 150 vorwaerts, 50 hoch. Nicht bei in_camera (zu Beginn des Plans).
     bool lungeBeimRollen = false;
     float weltSchwerkraft = 800.0F;
     // rc605: Verhaltenszustand BS_JUMP (NPC_BSJump statt NPC_MoveToGoal) und
@@ -914,6 +914,14 @@ struct LaufPlan {
 // level.time - 1000), danach 50.
 [[nodiscard]] LaufPlan planeTotenlauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, double abMs,
                                       double grenzeMs);
+// Rc608 Teil 6: G_ApplyKnockback auf eine stehende Figur: ps.velocity += kvel, pm_time und
+// PMF_TIME_KNOCKBACK, dann Pmove mit leerem ucmd bis sie wieder steht und kein Stoss mehr kommt.
+struct LaufStoss {
+    double ms = 0.0;
+    NavVec tempo{};
+    int pmZeit = 0;
+};
+[[nodiscard]] LaufPlan planeStosslauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, const std::vector<LaufStoss>& stoesse, double grenzeMs);
 // Der Zustand nach dem letzten Denkbild bis t (sonst der Anfang).
 [[nodiscard]] LaufZustand zustandBei(const LaufPlan& p, double t);
 // Der Ort zur Zeit t: zwischen zwei Denkbildern linear (wie cgame mittelt).

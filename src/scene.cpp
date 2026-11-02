@@ -1,4 +1,5 @@
 #include "bhed/scene.h"
+#include "bhed/schmerz.h"
 #include "bhed/npcklasse.h"
 #include "bhed/gegenstaende.h"   // rc604: spawntBeiSchwierigkeit
 #include "bhed/regelwerk.h"
@@ -382,7 +383,7 @@ bool torsoSprungAnim(const std::string& a, bool md) {
 }  // namespace
 
 std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, const std::string& klasse, bool zweiPistolen,
-                           bool gehTaste, bool geduckt) {
+                           bool gehTaste, bool geduckt, bool spieler) {
     const bool md = navMovieDuelsRegeln();
     const bool jk2 = regelwerkJediOutcast();
     if (waffe.empty() || torsoIn(waffe, {"WP_NONE", "WP_SABER"})) { return {}; }
@@ -412,7 +413,7 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
     }
     if (md) {
         // !weaponBusy && (PM_RunningAnim && Spieler) || PM_JumpingAnim || PM_SwimmingAnim
-        if (torsoSprungAnim(beine, true)) { return {}; }
+        if (torsoSprungAnim(beine, true) || (spieler && torsoLaufAnim(beine, true))) { return {}; }
         if (ist({"WP_BRYAR_PISTOL", "WP_SBD_BLASTER", "WP_JAWA", "WP_BLASTER_PISTOL", "WP_REY", "WP_JANGO", "WP_CLONEPISTOL",
                  "WP_DUAL_PISTOL", "WP_DUAL_CLONEPISTOL", "WP_REBELBLASTER"})) {
             if (zweiPistolen) { return gehTaste ? "TORSO_WEAPONIDLE2P" : "TORSO_WEAPONIDLE2"; }
@@ -448,7 +449,7 @@ std::string npcWaffenTorso(const std::string& waffe, const std::string& beine, c
     // der Spieler), ausser mit den schweren Waffen.
     const bool schwer = jk2 ? ist({"WP_BOWCASTER", "WP_REPEATER", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER"})
                             : ist({"WP_BOWCASTER", "WP_REPEATER", "WP_FLECHETTE", "WP_ROCKET_LAUNCHER", "WP_CONCUSSION"});
-    if (!schwer && (torsoLaufAnim(beine, false) || torsoSprungAnim(beine, false))) { return {}; }
+    if (!schwer && (torsoLaufAnim(beine, false) || torsoSprungAnim(beine, false) || (spieler && torsoGehAnim(beine, false)))) { return {}; }
     if (ist({"WP_BRYAR_PISTOL"})) { return bewegt ? std::string{} : std::string("TORSO_WEAPONIDLE2"); }
     if (ist({"WP_BLASTER_PISTOL"})) {
         if (bewegt) { return {}; }
@@ -1560,13 +1561,19 @@ ActorState Actor::at(double ms) const {
         }
     }
     ausruestungAbschluss(*this, st);
-    // rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - ein NPC mit Waffe (nicht
-    // Schwert) haelt sie mit dem Oberkoerper, wo die Engine es tut; nur ohne
+    if (leicheAbMs >= 0.0 && ms >= leicheAbMs) {
+        st.leicheNick = leicheNick;
+        st.leicheRoll = leicheRoll;
+    }
+    // rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - eine Figur mit Waffe (nicht
+    // Schwert) haelt sie mit dem Oberkoerper, wo die Engine es tut. Auch der Spieler:
+    // G_SetWeapon wechselt bei ihm ueber CG_ChangeWeapon, nach WEAPON_RAISING ist er in
+    // WEAPON_IDLE (bg_pmove.cpp, Q3_Interface.cpp; nur ein NPC bekommt WEAPON_READY). Nur ohne
     // Skriptanimation (ein HOLD-Timer laesst SETANIM_FLAG_NORMAL nicht durch),
     // nicht beim Schiessen (WEAPON_FIRING: weaponBusy). BUTTON_WALKING: beim
     // Gehen aus dem Weg (STEER setzt es unter walkSpeed + 5), sonst aus
     // SET_WALKING/SET_RUNNING. Der Takt der Schleife beginnt mit der Waffe.
-    if (npcFigur && !echterSpieler && brushModel <= 0 && st.torsoAnimation.empty() && !st.firing &&
+    if ((npcFigur || echterSpieler) && brushModel <= 0 && st.torsoAnimation.empty() && !st.firing &&
         (beineBis < 0.0 || (beineBis < kNie && ms > beineBis))) {
         bool gehTaste = false;
         if (st.moving) {
@@ -1578,7 +1585,7 @@ ActorState Actor::at(double ms) const {
             }
         }
         const bool zwei = st.hand[1].modell >= 0 && !st.hand[1].istSaber;
-        std::string torso = npcWaffenTorso(st.waffe, st.animation, klasse, zwei, gehTaste, st.crouched);
+        std::string torso = npcWaffenTorso(st.waffe, st.animation, klasse, zwei, gehTaste, st.crouched, echterSpieler);
         if (!torso.empty()) {
             st.torsoAnimation = std::move(torso);
             st.torsoStartMs = waffeSeit;
@@ -2293,9 +2300,16 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
         } else if (key == "twohanded") {
             def.twoHanded = std::strtol(val.c_str(), nullptr, 10) != 0;
         } else if (key == "holsterplace") {
-            def.holsterPlatz = val;
-            for (char& c : def.holsterPlatz) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
-            if (def.holsterPlatz == "NONE") { def.holsterPlatz = "HOLSTER_NONE"; }
+            // GetIDForString(HolsterTable): "HOLSTER_BACK" und "back" ohne Gross-/Kleinschreibung; Unbekanntes
+            // (die .sab von Movie Duels hat "lhipl") bleibt HOLSTER_INVALID, also die Vorgabe nach dem Typ.
+            std::string platz = val;
+            for (char& c : platz) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            if (platz.rfind("HOLSTER_", 0) != 0) { platz = "HOLSTER_" + platz; }
+            static const char* const kPlaetze[] = {"HOLSTER_NONE", "HOLSTER_RHIP", "HOLSTER_RHIPF", "HOLSTER_RHIPB", "HOLSTER_LHIP", "HOLSTER_LHIPF", "HOLSTER_LHIPB",
+                                                   "HOLSTER_BACKU", "HOLSTER_BACKL", "HOLSTER_LCHESTL", "HOLSTER_RCHESTL", "HOLSTER_LCHESTU", "HOLSTER_RCHESTU", "HOLSTER_BACK"};
+            for (const char* const bekannt : kPlaetze) {
+                if (platz == bekannt) { def.holsterPlatz = platz; }
+            }
         } else if (key == "bolttowrist") {
             def.boltToWrist = std::strtol(val.c_str(), nullptr, 10) != 0;
         } else if (key == "noblade") {
@@ -2454,6 +2468,8 @@ namespace {
 // (Fallen ab dem Spawn), der bis t reicht - sein Zustand nach dem letzten
 // Takt bis t (zustandBei). Ohne Plan steht die Figur: Geschwindigkeit 0, am
 // Boden.
+}  // namespace
+
 LaufZustand laufZustandBei(const Actor& a, double t) {
     const LaufPlan* plan = nullptr;
     double ab = -1.0e300;
@@ -2476,6 +2492,8 @@ LaufZustand laufZustandBei(const Actor& a, double t) {
     }
     return zustandBei(*plan, t);
 }
+
+namespace {
 
 // Pruefung 3: die Familie einer Beinanimation fuer PM_AdjustStandAnimForSlope
 // ("adjust for current legs anim", bg_pmove.cpp:7509-7612 OJ): S1, "" (die
@@ -3841,21 +3859,27 @@ Scene buildOnce(const Script& s, const MapData& map,
         // (SzenenHilfe::schubWege), zeigt ein WalkTo-Stueck den Schub, und der
         // naechste Plan beginnt dort, wo der Schub sie zur Zeit tt hat (wie der Ablauf).
         const auto schubNehmen = [&](double tt, float o[3]) {
-            if (hilfe == nullptr || !hilfe->schubWege) { return; }
+            if (hilfe == nullptr) { return; }
             std::string kl = actor->name;
             for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-            const auto it = hilfe->schubWege->find(kl);
-            if (it == hilfe->schubWege->end()) { return; }
-            for (const std::shared_ptr<const LaufPlan>& p : it->second) {
-                if (!p || p->takte.empty() || !(p->abMs < tt - kGleichzeitig)) { continue; }
-                bool schon = false;
-                for (const ActorStep& st : actor->steps) { schon = schon || (st.kind == ActorStep::Kind::WalkTo && st.lauf == p); }
-                if (schon) { continue; }
-                schubSchrittDazu(*actor, p, tt);
-                const LaufZustand z = tt >= p->takte.back().t - kGleichzeitig ? p->zustaende.back() : zustandBei(*p, tt);
-                actor->laufZustand = z;
-                for (int k = 0; k < 3; ++k) { o[k] = z.ort[static_cast<std::size_t>(k)]; }
-            }
+            const auto nimm = [&](const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>& wege, bool nurOrt) {
+                if (!wege) { return; }
+                const auto it = wege->find(kl);
+                if (it == wege->end()) { return; }
+                for (const std::shared_ptr<const LaufPlan>& p : it->second) {
+                    if (!p || p->takte.empty() || !(p->abMs < tt - kGleichzeitig)) { continue; }
+                    bool schon = false;
+                    for (const ActorStep& st : actor->steps) { schon = schon || (st.kind == ActorStep::Kind::WalkTo && st.lauf == p); }
+                    if (schon) { continue; }
+                    schubSchrittDazu(*actor, p, tt);
+                    if (nurOrt) { actor->steps.back().nurOrt = true; }
+                    const LaufZustand z = tt >= p->takte.back().t - kGleichzeitig ? p->zustaende.back() : zustandBei(*p, tt);
+                    actor->laufZustand = z;
+                    for (int k = 0; k < 3; ++k) { o[k] = z.ort[static_cast<std::size_t>(k)]; }
+                }
+            };
+            nimm(hilfe->schubWege, false);
+            nimm(hilfe->stossWege, true);   // Rc608 Teil 6: PM_Footsteps steht dabei, kein Gehen
         };
         const auto wegPlanen = [&](double ttBefehl, const float vonArg[3], bool fahrt, int neu, bool merken) {
             // rc601 (bewegung, Durchsicht 2): der Plan beginnt im Denkbild des
@@ -3911,6 +3935,14 @@ Scene buildOnce(const Script& s, const MapData& map,
             // rc608 Teil 5: PM_GroundTraceMissed -> PM_FallToDeath, die Lunge; dazu was das Skript sagt
             if (hilfe != nullptr && hilfe->fallTodWerte) {
                 hilfe->fallTodWerte(actor->name, werte);
+                // PM_SaberLungeAttackMove: "don't do this in camera mode" (in_camera, wie der Ablauf)
+                if (hilfe->kameraZeiten != nullptr) {
+                    bool imKino = false;
+                    for (const auto& [ab, an] : *hilfe->kameraZeiten) {
+                        if (ab <= tt + kGleichzeitig) { imKino = an; }
+                    }
+                    if (imKino) { werte.lungeBeimRollen = false; }
+                }
                 const auto giltBei = [tt](const std::vector<std::pair<double, bool>>& liste) {
                     bool an = false;
                     for (const auto& [ab, wert] : liste) {
@@ -5537,6 +5569,59 @@ Scene buildOnce(const Script& s, const MapData& map,
             for (const std::shared_ptr<const LaufPlan>& p : it->second) { schubSchrittDazu(a, p, 1.0e300); }
         }
     }
+    // Rc608 Teil 6: der Rueckstoss, den kein spaeterer Plan genommen hat (nur der Ort), und der Schmerz.
+    if (hilfe != nullptr) {
+        for (Actor& a : out.actors) {
+            std::string kl = a.name;
+            for (char& c : kl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            if (hilfe->stossWege) {
+                const auto it = hilfe->stossWege->find(kl);
+                if (it != hilfe->stossWege->end()) {
+                    for (const std::shared_ptr<const LaufPlan>& p : it->second) {
+                        bool schon = false;
+                        for (const ActorStep& st : a.steps) { schon = schon || (st.kind == ActorStep::Kind::WalkTo && st.lauf == p); }
+                        if (schon || !p || p->takte.empty()) { continue; }
+                        schubSchrittDazu(a, p, 1.0e300);
+                        a.steps.back().nurOrt = true;
+                    }
+                }
+            }
+            for (const SchmerzAufruf& sch : hilfe->schmerzen) {
+                if (!sameName(a.name, sch.figur)) { continue; }
+                double d = 0.0;
+                if (hilfe->animDauer && !sch.anim.empty()) { d = hilfe->animDauer(a.name, sch.anim); }
+                if (d > 0.0 && !sch.nurTorso) {
+                    ActorStep beine;
+                    beine.kind = ActorStep::Kind::Anim;
+                    beine.startMs = sch.ms;
+                    beine.endMs = sch.ms + d;
+                    beine.text = sch.anim;
+                    beine.part = sch.torsoMs > 0.0 ? AnimPart::Lower : AnimPart::Both;
+                    a.steps.push_back(std::move(beine));
+                }
+                if (d > 0.0 && (sch.torsoMs > 0.0 || sch.nurTorso)) {
+                    ActorStep torso;
+                    torso.kind = ActorStep::Kind::Anim;
+                    torso.startMs = sch.ms;
+                    torso.endMs = sch.ms + (sch.torsoMs > 0.0 ? sch.torsoMs : d);
+                    torso.text = sch.anim;
+                    torso.part = AnimPart::Upper;
+                    a.steps.push_back(std::move(torso));
+                }
+                if (!sch.klang.empty()) {
+                    TodesFolge f;
+                    f.ms = sch.ms;
+                    f.figur = a.name;
+                    TodKlang klang;
+                    klang.datei = sch.klang;
+                    klang.kanal = TodKlang::Kanal::Voice;
+                    f.klaenge.push_back(std::move(klang));
+                    f.rohZ = a.at(sch.ms).pos[2];
+                    out.todesFolgen.push_back(std::move(f));
+                }
+            }
+        }
+    }
     for (Actor& a : out.actors) {
         std::stable_sort(a.steps.begin(), a.steps.end(),
                          [](const ActorStep& x, const ActorStep& y) { return x.startMs < y.startMs; });
@@ -5659,7 +5744,7 @@ Scene buildOnce(const Script& s, const MapData& map,
                 start.tempoVek = tod.tempo;
                 start.pmZeit = tod.pmZeit;
                 start.rueckstoss = tod.rueckstoss && tod.pmZeit > 0;
-                start.reibung = tod.kante != 0 ? 0.0F : 6.0F;
+                start.reibung = tod.reibung >= 0.0F ? tod.reibung : (tod.kante != 0 ? 0.0F : 6.0F);   // ps.friction
                 LaufWerte w;
                 w.halbBreite = a.halbBreite;
                 w.hoeheOben = a.hoeheOben;
@@ -5674,6 +5759,19 @@ Scene buildOnce(const Script& s, const MapData& map,
                 if (!plan->takte.empty()) {
                     schubSchrittDazu(a, plan, 1.0e300);
                     a.steps.back().nurOrt = true;
+                    // CorpsePhysics -> pitch_roll_for_slope, sobald sie auf dem Boden liegt.
+                    for (std::size_t k = 0; k < plan->takte.size(); ++k) {
+                        if (plan->zustaende[k].amBoden) {
+                            a.leicheAbMs = plan->takte[k].t;
+                            break;
+                        }
+                    }
+                    if (hilfe->nav->spur && a.leicheAbMs >= 0.0) {
+                        const NavVec ende = plan->zustaende.back().ort;
+                        const NavVec unten{ende[0], ende[1], ende[2] - 24.0F + 4.0F - 300.0F};
+                        const NavSpur sp = hilfe->nav->spur(ende, NavVec{}, NavVec{}, unten, kNavKeineEntity, kNavSolid);
+                        if (sp.fraction < 1.0F) { leichenNeigung(sp.normal, st.angles[1], a.leicheNick, a.leicheRoll); }
+                    }
                     EngineZufall landeZufall(todesSaat(a.kartenEntity, wann) + 1U);
                     for (const LaufTakt& k : plan->takte) {
                         if (k.landung < 0.0F) { continue; }

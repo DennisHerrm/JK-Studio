@@ -198,8 +198,12 @@ struct BspGeometry {
         float maxs[3]{};
         int firstSurface = 0;
         int numSurfaces = 0;
+        // CM_ModelContents: die Inhalte aller Brushes (SV_AdjustAreaPortalState); Patches fehlen.
+        std::uint32_t inhalt = 0;
     };
     std::vector<SubModel> models;
+    // tr.sunDirection: die Vorgabe aus R_LoadWorld, normiert; sonneAusShadern setzt sie aus q3map_sun.
+    float sonne[3] = {0.45F / 1.05F, 0.3F / 1.05F, 0.9F / 1.05F};
 
     // --- Das Lichtgitter --------------------------------------------------
     //
@@ -584,10 +588,12 @@ void setzeSpurVorlage(bool an) noexcept;
 // Dazu aus R_SetupEntityLighting (tr_light.cpp): r_ambientScale 0,5 und r_directedScale 1 (beide
 // Renderer), der Mindestzuschlag (OpenJK 32, mit RF_MORELIGHT 96; Movie Duels 8, mit RF_MINLIGHT 76)
 // und das Klemmen des Umgebungslichts auf 255. Ohne Gitter: 150 und 150, Richtung tr.sunDirection
-// (hier die Vorgabe aus R_LoadWorld, q3map_sun wird dafuer nicht gelesen).
+// (BspGeometry::sonne).
 //
 // `mehrLicht`: SCF_MORELIGHT bzw. FL_MORELIGHPLAYER. `helligkeit` ist der Regler der Ansicht und steht
 // fuer R_ColorShiftLightingBytes (normalisiert nach Farbe statt zu saettigen); 1 ist das Spiel.
+// Die Flaechen in der Reihenfolge von R_LoadSurfaces: der zuletzt gelesene Shader mit q3map_sun gilt.
+void sonneAusShadern(BspGeometry& geo, const std::map<std::string, struct ShaderInfo>& shader);
 [[nodiscard]] GridLight sampleLightGrid(const BspGeometry& geo,
                                         const float origin[3], bool mehrLicht = false,
                                         float helligkeit = 1.0F);
@@ -702,6 +708,8 @@ int ladeExterneLightmaps(BspGeometry& geo, const std::string& kartenOrdner,
 // Ebene, geht es in beide Kinder). Cluster -1 (fester Raum) zaehlt nicht -
 // genau so speichert SV_LinkEntity sie (sv_world.cpp:346 ff.).
 void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs[3], std::vector<int>& aus);
+// Die Blaetter im Kasten in der Reihenfolge von CM_BoxLeafnums_r (SV_LinkEntity: areanum, areanum2).
+void blaetterImKasten(const BspGeometry& g, const float mins[3], const float maxs[3], std::vector<int>& aus);
 
 // Kaeme eine Entity mit diesem Kasten (absmin/absmax, also SCHON um eine
 // Einheit erweitert wie in SV_LinkEntity, sv_world.cpp:296 ff.) in den
@@ -714,11 +722,11 @@ void clusterImKasten(const BspGeometry& g, const float mins[3], const float maxs
 // Abweichungen, mit Absicht: steht das Auge im Fels (Cluster -1), gilt alles
 // als sichtbar - die Engine nimmt dann die Zeile von Cluster 0
 // (CM_ClusterPVS, cm_test.cpp:480 ff.), was im Editor (freie Kamera ausserhalb
-// der Karte) beliebig wirkt; so haelt es auch clusterVisible. Und Bereiche
-// mit Areaportalen (CM_AreasConnected, geschlossene Tueren) kennt behaved
-// nicht - die Blaetter tragen hier keine Area.
+// der Karte) beliebig wirkt; so haelt es auch clusterVisible.
+//   - portale: geschlossene Tueren (CM_AreasConnected zu areanum und areanum2).
+class AreaPortale;
 [[nodiscard]] bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float mins[3],
-                                    const float maxs[3]);
+                                    const float maxs[3], const AreaPortale* portale = nullptr);
 
 }  // namespace bhed
 #endif

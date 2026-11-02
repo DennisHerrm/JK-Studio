@@ -732,15 +732,12 @@ std::string glowBlurPixelShaderHlsl() {
     // Woertlich wie glowBlur (src/glow.cpp:109): ein Vier-Punkt-Kern in den
     // Ecken, Gewicht intensity*0.25 je Punkt.
     //
-    // Der Abstand waechst je Durchgang um `delta` und wird GERUNDET
-    // (std::lround). Das Runden gehoert dazu: der Rasterer arbeitet auf
-    // ganzen Bildpunkten, und ein Shader, der mit Zwischenwerten abtastet,
-    // ergibt ein weicheres Bild als der Rasterer - sichtbar anders, obwohl
-    // beide "richtig" aussehen.
+    // Der Abstand waechst je Durchgang um `delta` (0.1, 0.9, 1.7, 2.5, 3.3, RB_BlurGlowTexture) und bleibt
+    // ungerundet, mit GL_LINEAR. Gerundet (bis rc608 Teil 5) gab es Streifen, die das Spiel nicht hat.
     return R"(
 cbuffer JeDurchgang : register(b3) {
     float2 gSchritt;      // 1/Breite, 1/Hoehe des kleinen Puffers
-    float  gAbstand;      // in BILDPUNKTEN, schon gerundet
+    float  gAbstand;      // in BILDPUNKTEN
     float  gGewicht;      // intensity * 0.25
 };
 Texture2D    gQuelle  : register(t0);
@@ -765,8 +762,8 @@ float4 main(VSOut ein) : SV_TARGET {
 float spielGammaWert(float wert) {
     const float u = std::clamp(wert * 64.0F - 0.5F, 0.0F, 63.0F);
     const float i = std::floor(u);
-    const float tief = std::floor(i * 255.0F / 63.0F) / 255.0F;
-    const float hoch = std::floor(std::min(i + 1.0F, 63.0F) * 255.0F / 63.0F) / 255.0F;
+    const float tief = std::floor(i * 255.0F / 63.0F + 0.5F) / 255.0F;
+    const float hoch = std::floor(std::min(i + 1.0F, 63.0F) * 255.0F / 63.0F + 0.5F) / 255.0F;
     return tief + (hoch - tief) * (u - i);
 }
 
@@ -779,8 +776,8 @@ float4 main(Ein ein) : SV_TARGET {
     float4 c = gBild.Sample(gAbtaster, ein.uv);
     float3 u = clamp(c.rgb * 64.0 - 0.5, 0.0, 63.0);
     float3 i = floor(u);
-    float3 tief = floor(i * 255.0 / 63.0 + 0.001) / 255.0;
-    float3 hoch = floor(min(i + 1.0, 63.0) * 255.0 / 63.0 + 0.001) / 255.0;
+    float3 tief = floor(i * 255.0 / 63.0 + 0.5) / 255.0;
+    float3 hoch = floor(min(i + 1.0, 63.0) * 255.0 / 63.0 + 0.5) / 255.0;
     return float4(lerp(tief, hoch, u - i), c.a);
 }
 )";
@@ -1229,13 +1226,17 @@ float rausch4(float4 q) {
     // Stapelpuffer bleibt bei den 60 float, die seit rc392 stimmen.
     s += "    aus.pos = mul(gViewProj, float4(welt, 1.0));\n";
 
-    // tcGen environment - die Texturkoordinate kommt aus der Spiegelung,
-    // nicht aus der Datei.
+    // tcGen environment - RB_CalcEnvironmentTexCoords (tr_shade_calc.cpp:868 MD, OpenJK gleich): nicht die
+    // Spiegelung von Quake 3, sondern st = normal.xy * d - 0.5 * viewer.xy, viewer aus VectorNormalizeFast
+    // (Q_rsqrt). Ein gedrehter Mover rechnet in der Engine in seinen Achsen, hier in der Welt.
     if ((features & kTexGenEnv) != 0U) {
         s += R"(    {
-        float3 zur = normalize(gKamera - welt);
-        float3 sp = reflect(-zur, normalize(nrm));
-        aus.uv = sp.yz * 0.5 + 0.5;
+        float3 zur = gKamera - welt;
+        float zahl = dot(zur, zur);
+        float y = asfloat(0x5f3759df - (asint(zahl) >> 1));
+        float3 v = zur * (y * (1.5 - (zahl * 0.5 * y * y)));
+        float d = dot(nrm, v);
+        aus.uv = float2(nrm.x * d - 0.5 * v.x, nrm.y * d - 0.5 * v.y);
     }
 )";
     } else if ((features & kTexGenVec) != 0U) {

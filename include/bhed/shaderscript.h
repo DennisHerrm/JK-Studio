@@ -692,6 +692,9 @@ struct ShaderInfo {
     // Gemessen: 130 skyParms-Zeilen in den neun pk3, davon 23 mit `-`;
     // 56 verschiedene Boxen.
     std::string skyBox;
+    // "sun", q3map_sun, q3map_sunExt (ParseShader, tr_shader.cpp:2217 MD): tr.sunDirection.
+    bool hatSonne = false;
+    float sonne[3]{};
     // Die Wolkenhoehe aus skyParms (rc592). Die Bildstufen eines
     // Himmelsshaders sind Wolkenschichten auf einer Kuppel dieser Hoehe
     // (R_InitSkyTexCoords, tr_sky.cpp). 0 nimmt die Engine als 512 - hier

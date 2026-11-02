@@ -116,6 +116,10 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                  int* uebersprungenAus = nullptr,
                  Lage lage = Lage::Alles);
 
+// Die Flaechen der Karte hinter geschlossenen Portalen (bhed/areaportal.h): sie bleiben im Indexpuffer
+// stehen, aber ohne Dreiecke. nullptr: alle zeichnen. Nur bei Aenderung rufen.
+void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* verdeckt);
+
 // Eine Figur zeichnen.
 //
 // Muss NACH zeichneKarte kommen: das Renderziel wird nur dort geloescht, und

@@ -285,8 +285,16 @@ bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMa
         return true;
     }
     BoneMatrix hand{};
+    if (d.anim == nullptr) { return false; }
     const int hs = surfaceIndex(*d.model, an.bolzen);
-    if (hs < 0 || d.anim == nullptr || !boltMatrix(*d.model, hs, welt, *d.anim, hand)) { return false; }
+    if (hs >= 0) {
+        if (!boltMatrix(*d.model, hs, welt, *d.anim, hand)) { return false; }
+    } else {
+        // Ein Knochen als Bolzen (G2_GetBoltMatrixLow: boneMatrix * BasePoseMat): `welt` hat die Grundstellung schon.
+        const int kn = an.waffenHolster ? boneIndex(*d.anim, an.bolzen) : -1;
+        if (kn < 0 || static_cast<std::size_t>(kn) >= welt.size()) { return false; }
+        hand = welt[static_cast<std::size_t>(kn)];
+    }
     gpu::baueGriffWelt(fw, hand, gw);
     if (an.holster) {
         // BONE_ANGLES_PREMULT auf der Wurzel des Griffs: Griffwelt * Drehung.
@@ -300,6 +308,11 @@ bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMa
             }
         }
         for (int i = 0; i < 12; ++i) { gw[i] = neu[i]; }
+        if (an.waffenHolster) {
+            float ein[16];
+            for (int i = 0; i < 16; ++i) { ein[i] = gw[i]; }
+            g2WurzelWelt(ein, gw);
+        }
     }
     return true;
 }
@@ -3765,7 +3778,7 @@ void loadActorModels() {
         const std::size_t texFaeden =
             trupp(texNamen.size(), [&](std::size_t k, std::size_t) {
                 const std::string key =
-                    image::mappingName(texNamen[k]) + "@256";
+                    image::mappingName(texNamen[k]) + "@" + std::to_string(kBildGrenze);
                 // Schon da? Dann nicht noch einmal entziffern - derselbe
                 // Fehler wie bei den Kartentexturen, nur hier.
                 if (g_app->texCache.count(key) != 0U) {
@@ -3783,7 +3796,7 @@ void loadActorModels() {
                         continue;
                     }
                     TextureSet::Tex t;
-                    image::shrinkTo(im, 256, t.width, t.height, t.rgba);
+                    image::shrinkTo(im, kBildGrenze, t.width, t.height, t.rgba);
                     texErgebnis[k] = {key, std::move(t)};
                     texOk[k] = 1;
                     return;

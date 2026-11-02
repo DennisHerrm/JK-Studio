@@ -2653,10 +2653,11 @@ void drawMapView() {
         }
 
         {
-            // JEDES Untermodell wird gezeichnet, nicht nur die bewegten:
-            // die Welt (Modell 0) enthaelt sie ja nicht mehr. Wer kein
-            // Skript hat, steht mit Verschiebung null an seinem Platz -
-            // also genau dort, wo er vorher auch stand.
+            // Jedes Untermodell MIT Entity wird gezeichnet, nicht nur die
+            // bewegten: die Welt (Modell 0) enthaelt sie nicht. Wer kein
+            // Skript hat, steht mit Verschiebung null an seinem Platz. Ohne
+            // Entity zeichnet das Spiel es nicht (nur CG_Mover bringt es ins
+            // Bild): die Tueren auf einer Karte ohne Entity-Eintrag.
             // Wo steht welches Brush-Modell?
             //
             // Ein Brush-Modell mit einem "origin"-Schluessel hat seine
@@ -2690,15 +2691,19 @@ void drawMapView() {
                 }
                 modellOrt[nummer] = o;
             }
-            std::vector<bool> schonDa(g_app->geo.models.size(), false);
-            // rc604: Brush-Modelle entfernter Entities (notsingle/Schwierigkeit,
-            // G_SpawnGEntityFromSpawnVars) gibt es im Spiel nicht.
+            // schonDa: nicht hier zu zeichnen. Zuerst alle, dann die Entities,
+            // die das Spiel zeigt. rc604: Brush-Modelle entfernter Entities
+            // (notsingle/Schwierigkeit, G_SpawnGEntityFromSpawnVars) gibt es
+            // im Spiel nicht.
+            areaPortaleJetzt(useCam.pos);
+            std::vector<bool> schonDa(g_app->geo.models.size(), true);
             for (const MapEntity& e : g_app->map.entities) {
                 const std::string* mdl = e.find("model");
                 int nummer = 0;
                 if (mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*' || !parseInt(mdl->substr(1), nummer)) { continue; }
-                if (nummer > 0 && static_cast<std::size_t>(nummer) < schonDa.size() && !gespawntImSpiel(e)) {
-                    schonDa[static_cast<std::size_t>(nummer)] = true;
+                if (nummer > 0 && static_cast<std::size_t>(nummer) < schonDa.size() && gespawntImSpiel(e) &&
+                    kartenpruefung::brushModellImBild(e.classname, regelwerkMovieDuels())) {
+                    schonDa[static_cast<std::size_t>(nummer)] = false;
                 }
             }
             brushStand.clear();
@@ -3036,7 +3041,7 @@ void drawMapView() {
                     }
                     mn[2] = st.pos[2] - 24.0F - 1.0F;   // DEFAULT_MINS_2
                     mx[2] = st.pos[2] + std::max(a.hoeheOben, 8.0F) + 1.0F;
-                    if (!kastenImSnapshot(g_app->geo, useCam.pos, mn, mx)) {
+                    if (!kastenImSnapshot(g_app->geo, useCam.pos, mn, mx, &g_app->areaPortale)) {
                         continue;
                     }
                 }
@@ -3059,6 +3064,8 @@ void drawMapView() {
                     d.pos[k] = st.pos[k];
                 }
                 d.yaw = st.angles[1];
+                d.leicheNick = st.leicheNick;
+                d.leicheRoll = st.leicheRoll;
                 // Zieht man gerade ihren Spawner, geht sie mit (rc597) - "wenn
                 // ich den character bewege, shaked der gizmo, statt den
                 // character in real time zu bewegen". Die Szene baut erst beim
@@ -4409,8 +4416,11 @@ void drawMapView() {
                 Camera pk = kam;
                 for (int k = 0; k < 3; ++k) { pk.pos[k] = portalOrt[k]; }
                 g_app->imPortalDurchgang = true;
+                // CG_DrawSkyBoxPortal: die Portalszene hat keine Gebietsmaske, ihr Raum liegt in keinem Gebiet der Ansicht.
+                gpu::setzeVerdeckteFlaechen(&g_app->geo, nullptr);
                 const bool ok = nebenBild(pk, nw, nh, 2, "Himmelsportal");
                 g_app->imPortalDurchgang = false;
+                gpu::setzeVerdeckteFlaechen(&g_app->geo, &g_app->areaMaske);
                 return ok;
             };
             g_app->himmelPortalGezeichnet = false;
