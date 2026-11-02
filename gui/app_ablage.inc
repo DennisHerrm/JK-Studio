@@ -2290,17 +2290,11 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                 break;
             }
 
-            if (!readFromArchives(name, data)) {
+            // Lesen, am INHALT entziffern (in JKA-Mods liegen regelmaessig JPEG-Dateien mit der Endung .tga),
+            // verkleinern - rc608 Teil 12: aus dem Vorrat, wenn es schon nebenlaeufig geschehen ist (bildLesen).
+            if (!bildLesen(name, t)) {
                 continue;
             }
-            // Format am INHALT erkennen, nicht an der Endung: in JKA-Mods
-            // liegen regelmaessig JPEG-Dateien mit der Endung .tga.
-            const image::Image im = image::decode(
-                reinterpret_cast<const unsigned char*>(data.data()), data.size());
-            if (!im.ok || im.width <= 0 || im.height <= 0) {
-                continue;
-            }
-            image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
             // In die Tabelle kommen die BILDPUNKTE - vor den Shaderwerten,
             // damit der naechste Shader mit demselben Bild seine eigenen
             // bekommt.
@@ -2807,97 +2801,50 @@ void loadMapTextures() {
     // seine Ergebnisse in ein eigenes Fach, und das Zusammenfuehren laeuft
     // der Reihe nach. Damit bleibt das Ergebnis unabhaengig von der Zahl
     // der Faeden - dieselbe Regel, die den Zeichner bytegleich haelt.
+    //
+    // rc608 Teil 12: Vorgewaermt wird jetzt in einen Vorrat (bildVorratFuellen), nicht in die Tabelle, und zwar alles, was
+    // die Schleife unten der Reihe nach laedt - die Grundbilder in der Reihenfolge von texturLaden (erst das Bild des
+    // Skripts, dann die Datei des Shadernamens; vorher umgekehrt, so wurde bei den Zwittern aus rc348 ein Bild
+    // entziffert, das niemand brauchte, und das richtige danach noch einmal auf dem Hauptfaden), dazu die Seiten der
+    // Himmelsbox, die Bilder der weiteren Stufen und der animMap-Folgen. Was texturLaden nicht abholt, wird am Ende
+    // verworfen; in die Tabelle kommt nur, was texturLaden selbst eintraegt.
     {
-        std::vector<std::string> namen;
-        namen.reserve(ladeGeo().shaders.size());
+        std::vector<std::vector<std::string>> auftraege;
+        const auto auftrag = [&](std::vector<std::string> tries) { auftraege.push_back(std::move(tries)); };
         for (const BspShader& sh : ladeGeo().shaders) {
-            if (sh.isDrawn()) {
-                namen.push_back(sh.name);
+            if (!sh.isDrawn()) {
+                continue;
+            }
+            std::string lowered = sh.name;
+            for (char& c : lowered) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            const auto it2 = shaderMap.find(lowered);
+            const ShaderInfo* info = it2 != shaderMap.end() ? &it2->second : nullptr;
+            // Grundbild: dieselben Kandidaten in derselben Reihenfolge wie texturLaden(sh.name, out, false)
+            std::vector<std::string> tries;
+            if (info != nullptr && !info->image.empty()) { tries = textureCandidates(info->image); }
+            for (const std::string& c : textureCandidates(sh.name)) { tries.push_back(c); }
+            auftrag(std::move(tries));
+            if (info == nullptr) {
+                continue;
+            }
+            // Bilder (loadImageFile): Himmelsseiten, animMap der Grundstufe, weitere Stufen samt ihren animMap
+            if (!info->skyBox.empty()) {
+                for (const char* suf : {"rt", "lf", "bk", "ft", "up", "dn"}) { auftrag(textureCandidates(info->skyBox + "_" + suf)); }
+            }
+            for (std::size_t b = 1; b < info->animImages.size(); ++b) { auftrag(textureCandidates(info->animImages[b])); }
+            for (const ShaderInfo::Stage& st : info->stages) {
+                if (st.lightmap || st.image.empty()) {
+                    continue;
+                }
+                auftrag(textureCandidates(st.image));
+                for (std::size_t b = 1; b < st.animImages.size(); ++b) { auftrag(textureCandidates(st.animImages[b])); }
             }
         }
-        const unsigned kerne = std::max(1U, std::thread::hardware_concurrency());
-        const std::size_t faeden =
-            std::min<std::size_t>(kerne, std::max<std::size_t>(1, namen.size()));
-        std::vector<std::vector<std::pair<std::string, TextureSet::Tex>>> faecher(
-            faeden);
-        std::atomic<std::size_t> naechste{0};
-        const auto arbeit = [&](std::size_t fach) {
-            for (;;) {
-                const std::size_t k = naechste.fetch_add(1);
-                if (k >= namen.size()) {
-                    return;
-                }
-                // Dieselben Kandidaten wie in loadTextureFor, damit der
-                // Treffer dort auch wirklich passt.
-                std::vector<std::string> tries = textureCandidates(namen[k]);
-                std::string lowered = image::mappingName(namen[k]);
-                const auto it2 = shaderMap.find(lowered);
-                if (it2 != shaderMap.end()) {
-                    for (const std::string& c :
-                         textureCandidates(it2->second.image)) {
-                        tries.push_back(c);
-                    }
-                }
-                for (const std::string& name : tries) {
-                    // Liegt das Bild SCHON in der Tabelle? Dann gar nicht
-                    // erst lesen.
-                    //
-                    // Genau hier steckten die 440 ms, die das Protokoll des
-                    // Anwenders zeigte: beim Reiterwechsel stand
-                    // "Bilder vorgewaermt: 0 neu" - und trotzdem dauerte
-                    // "Texturen suchen" jedes Mal so lange wie beim ersten
-                    // Mal. Der Grund: geprueft wurde erst beim EINSORTIEREN.
-                    // Bis dahin waren alle 101 Texturen entpackt und
-                    // entziffert - und wurden dann weggeworfen.
-                    //
-                    // Nur LESEN aus der Tabelle, und geschrieben wird erst
-                    // hinterher von einem Faden. Damit bleibt es
-                    // ungefaehrlich.
-                    if (g_app->texCache.count(
-                            image::mappingName(name) + "@" + bildStufeText()) != 0U) {
-                        break;
-                    }
-                    std::string data;
-                    if (!readFromArchives(name, data)) {
-                        continue;
-                    }
-                    const image::Image im = image::decode(
-                        reinterpret_cast<const unsigned char*>(data.data()),
-                        data.size());
-                    if (!im.ok || im.width <= 0 || im.height <= 0) {
-                        continue;
-                    }
-                    TextureSet::Tex t;
-                    image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
-                    faecher[fach].emplace_back(
-                        image::mappingName(name) + "@" + bildStufeText(), std::move(t));
-                    break;
-                }
-            }
-        };
-        std::vector<std::thread> mannschaft;
-        mannschaft.reserve(faeden);
-        for (std::size_t f = 1; f < faeden; ++f) {
-            mannschaft.emplace_back(arbeit, f);
-        }
-        arbeit(0);
-        for (std::thread& th : mannschaft) {
-            th.join();
-        }
-        std::size_t neu = 0;
-        for (const auto& fach : faecher) {
-            for (const auto& eintrag : fach) {
-                // Auch vorgewaermte Bilder gehoeren zur Karte - sonst blieben
-                // die, die loadTextureFor nie nachfragt, fuer immer liegen.
-                ladeBilder().insert(eintrag.first);
-                if (g_app->texCache.emplace(eintrag.first, eintrag.second)
-                        .second) {
-                    ++neu;
-                }
-            }
-        }
-        diag::info("Bilder vorgewaermt: " + std::to_string(neu) + " neu, " +
-                   std::to_string(faeden) + " Faeden");
+        const BildVorratStand st = bildVorratFuellen(auftraege);
+        diag::info("Bilder vorgewaermt: " + std::to_string(st.neu) + " neu, " +
+                   std::to_string(st.faeden) + " Faeden");
     }
 
     for (std::size_t i = 0; i < ladeGeo().shaders.size(); ++i) {
@@ -3162,6 +3109,8 @@ void loadMapTextures() {
     }
     diag::info(std::to_string(ladeSatz().found) + " gefunden, " +
                std::to_string(ladeSatz().missing) + " nicht gefunden");
+    // rc608 Teil 12: was niemand abgeholt hat, war nicht gebraucht
+    bildVorratLeeren();
     // Bilder der vorigen Karte, die diese nicht wieder benutzt, freigeben.
     // Alle Nutzer von loadTextureFor bekommen KOPIEN - es zeigt nichts
     // hinein.

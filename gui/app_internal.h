@@ -3106,6 +3106,19 @@ void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordere
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
 // rc608 Teil 9b: ein Bild ohne Shadersuche (map, animMap, Himmelsbox: R_FindImageFile).
 bool loadImageFile(const std::string& bild, TextureSet::Tex& out);
+// rc608 Teil 12: Bilder im Voraus nebenlaeufig lesen, entziffern und verkleinern (gui/app_view3d.cpp).
+// bildVorratFuellen nimmt Auftraege (je eine Kandidatenliste; die erste lesbare Datei zaehlt, Dateien mit Eintrag in
+// texCache gelten als erledigt) und legt die Ergebnisse nach DATEINAMEN in einen Vorrat. bildLesen(datei) ist genau
+// readFromArchives + image::decode + Verkleinern auf bildGrenzeFuer - aus dem Vorrat, wenn die Datei dort liegt.
+// bildVorratLeeren verwirft, was niemand abgeholt hat. Das Ergebnis haengt nie am Vorrat, nur die Zeit.
+struct BildVorratStand {
+    std::size_t neu = 0;
+    std::size_t faeden = 0;
+};
+BildVorratStand bildVorratFuellen(const std::vector<std::vector<std::string>>& auftraege);
+[[nodiscard]] bool bildLesen(const std::string& datei, TextureSet::Tex& t);
+void bildVorratLeeren();
+void bildVorratAbschalten(bool aus);   // Selbsttest leistung: dieselben Bilder ohne Vorrat (Gegenprobe)
 // rc608 Teil 10: Nummer der Bildstufe hinter einer ersetzenden Lichtstufe (GL_ONE GL_ZERO), sonst -1 (gui/app_ablage.inc).
 int lichtErsetztBildstufen(const ShaderInfo& info);
 // rc604 fix604b (B1): eine Zusatzstufe laden (gui/app.cpp, aus loadMapTextures).

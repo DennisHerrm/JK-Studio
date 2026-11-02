@@ -11,7 +11,8 @@
 // Bilder fuer den Vergleich vorher/nachher (BHED_FOTOS): feste Lage, feste Zeit, die 3D-Bilder direkt aus ihren
 // Zielen (Vorschau, Kamera des Karten-Editors), Model-Tab und Menue-Editor als ganzes Fenster.
 // BHED_LEISTUNG_MAP: eine .map fuer den Karten-Editor mit Echtzeit-Licht (ohne: dieser Teil faellt weg).
-// BHED_LEISTUNG_NUR: nur diese Abschnitte (Buchstaben: w Wechsel, k Karten, s Szene, e Editor, m Model, n Menue).
+// BHED_LEISTUNG_NUR: nur diese Abschnitte (Buchstaben: w Wechsel, k Karten, s Szene, e Editor, m Model, n Menue, g die
+// Gegenproben zum Bildvorrat - sie kopieren texCache und treiben die Speicherspitze, fuer Speichervergleiche weglassen).
 namespace leistung {
 namespace ke = karteneditor;
 
@@ -227,6 +228,81 @@ inline void vorschauKamera(const std::array<float, 6>& k) {
     g_app->mapDirty = true;
 }
 
+// Bildpunkte zweier Texturen gleich (Bild, Pyramide, Verweise auf Stufen, Folgen, Himmelsseiten)?
+inline bool gleicheBilder(const TextureSet::Tex& a, const TextureSet::Tex& b) {
+    if (a.width != b.width || a.height != b.height || a.rgba != b.rgba || a.mips.size() != b.mips.size() || a.extraStages != b.extraStages ||
+        a.animFrames != b.animFrames || a.skyFaces != b.skyFaces) {
+        return false;
+    }
+    for (std::size_t m = 0; m < a.mips.size(); ++m) {
+        if (a.mips[m].width != b.mips[m].width || a.mips[m].height != b.mips[m].height || a.mips[m].rgba != b.mips[m].rgba) { return false; }
+    }
+    return true;
+}
+
+// rc608 Teil 12, Gegenprobe zum Bildvorrat (bildVorratFuellen): dieselben Texturen einmal mit, einmal ohne Vorrat, jeweils
+// mit leerem texCache - die Bildpunkte muessen gleich sein. Die Karte: loadMapTexturesFuer mit der Geometrie der Vorschau;
+// die Figuren: texturesFor fuer jedes geladene Modell der Szene. texCache und die Stufenbilder werden danach zurueckgelegt.
+inline Schritt vorratGegenprobe(const std::string& was, bool figuren) {
+    if (!abschnitt('g')) { return tu("Leistung: ohne Gegenprobe " + was, [] {}); }
+    return pruefe("Leistung: Bildvorrat " + was + " - mit und ohne Vorrat dieselben Bildpunkte", [figuren] {
+        const auto merkCache = g_app->texCache;
+        const auto merkStufen = g_app->figurStufenBilder;
+        std::size_t texturen = 0;
+        std::size_t anders = 0;
+        if (!figuren) {
+            TextureSet mit;
+            TextureSet ohne;
+            std::unordered_set<std::string> bilderMit;
+            std::unordered_set<std::string> bilderOhne;
+            g_app->texCache.clear();
+            loadMapTexturesFuer(g_app->geo, mit, bilderMit);
+            g_app->texCache.clear();
+            bildVorratAbschalten(true);
+            loadMapTexturesFuer(g_app->geo, ohne, bilderOhne);
+            bildVorratAbschalten(false);
+            anders += mit.byShader.size() != ohne.byShader.size() || mit.found != ohne.found || bilderMit != bilderOhne ? 1U : 0U;
+            for (std::size_t i = 0; i < std::min(mit.byShader.size(), ohne.byShader.size()); ++i) {
+                ++texturen;
+                anders += gleicheBilder(mit.byShader[i], ohne.byShader[i]) ? 0U : 1U;
+            }
+        } else {
+            std::set<const GlmModel*> gesehen;
+            for (const auto& assets : g_app->actorAssets) {
+                if (!assets || assets->model.empty() || !gesehen.insert(&assets->model).second) { continue; }
+                g_app->texCache.clear();
+                g_app->figurStufenBilder.clear();
+                const ModelTextures mit = texturesFor(assets->model);
+                g_app->texCache.clear();
+                g_app->figurStufenBilder.clear();
+                bildVorratAbschalten(true);
+                const ModelTextures ohne = texturesFor(assets->model);
+                bildVorratAbschalten(false);
+                ++texturen;
+                bool gleich = mit.bySurface.size() == ohne.bySurface.size() && mit.gluehStufen.size() == ohne.gluehStufen.size() &&
+                              mit.stufen.size() == ohne.stufen.size() && mit.found == ohne.found && mit.missing == ohne.missing;
+                for (std::size_t i = 0; gleich && i < mit.bySurface.size(); ++i) {
+                    gleich = gleicheBilder(mit.bySurface[i], ohne.bySurface[i]) && mit.gluehStufen[i].size() == ohne.gluehStufen[i].size() &&
+                             mit.stufen[i].size() == ohne.stufen[i].size();
+                    for (std::size_t k = 0; gleich && k < mit.gluehStufen[i].size(); ++k) { gleich = gleicheBilder(mit.gluehStufen[i][k], ohne.gluehStufen[i][k]); }
+                    for (std::size_t k = 0; gleich && k < mit.stufen[i].size(); ++k) {
+                        const auto& a = mit.stufen[i][k].pixel;
+                        const auto& b = ohne.stufen[i][k].pixel;
+                        gleich = a.size() == b.size();
+                        for (std::size_t j = 0; gleich && j < a.size(); ++j) { gleich = a[j] && b[j] && gleicheBilder(*a[j], *b[j]); }
+                    }
+                }
+                anders += gleich ? 0U : 1U;
+            }
+        }
+        g_app->texCache = merkCache;
+        g_app->figurStufenBilder = merkStufen;
+        diag::detail("Knopftest: Leistung Bildvorrat - " + std::to_string(texturen) + (figuren ? " Modelle" : " Texturen") + ", davon anders " +
+                     std::to_string(anders));
+        return texturen > 0U && anders == 0U;
+    });
+}
+
 inline std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
@@ -302,6 +378,7 @@ inline std::vector<Schritt> schritte() {
         add(pause(0.3));
         add(vorschauBild("toaj"));
         add(leerlauf("Mission md_toaj_jedi"));
+        add(vorratGegenprobe("md_toaj_jedi", false));   // nach den Bildern: sie aendert texCache und die Bilder der Szene auf der Grafikkarte
         add(tu("Leistung: Karten fertig", [] { speicher("nach md_toaj_jedi"); }));
     }
     if (abschnitt('s')) {
@@ -362,6 +439,7 @@ inline std::vector<Schritt> schritte() {
             [](int) { g_app->playing = true; }));
         add(tu("Leistung: Szene anhalten", [] { g_app->playing = false; }));
         add(leerlauf("Mission Szene angehalten"));
+        add(vorratGegenprobe("Figuren md_am/intro2_sith", true));   // nach den Bildern der Szene
         // Wetter und Nebel: duel_mustafar (Weather/duel_mustafar.cfg), feste Kamera
         karteLaden(s, "maps/duel_mustafar.bsp");
         add(tu("Leistung: duel_mustafar feste Kamera", [] { vorschauKamera({-1080.57F, 7376.57F, 76.25F, 0.0F, 315.0F, 0.0F}); }));

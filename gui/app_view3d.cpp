@@ -2283,6 +2283,120 @@ TextureSet::Tex shrink(const image::Image& im, int maxSize) {
     return t;
 }
 
+// --- rc608 Teil 12: Bilder im Voraus nebenlaeufig lesen -----------------------
+//
+// Gemessen (Selbsttest leistung): beim Laden einer Karte und beim Aufbau einer
+// Szene stand der Hauptfaden die meiste Zeit in image::decode - Karte md_am_sith
+// rund 1,7 s, die 37 Figuren von md_am/intro2_sith rund 2 s. Lesen, Entziffern und
+// Verkleinern sind reine Rechenarbeit ohne gemeinsamen Zustand (readFromArchives
+// oeffnet je Aufruf einen eigenen Dateizeiger, src/pk3.cpp); sie laufen hier
+// verteilt, und die Aufrufer nehmen das Ergebnis mit bildLesen ab. Nach DATEINAMEN,
+// nicht nach dem Schluessel von texCache: x.tga und x.jpg teilen sich den
+// Schluessel, gelesen wird aber jede Datei fuer sich. Breite 0 heisst: nicht lesbar
+// oder nicht zu entziffern.
+namespace {
+std::unordered_map<std::string, TextureSet::Tex> g_bildVorrat;
+bool g_bildVorratAus = false;   // Selbsttest leistung: Gegenprobe ohne Vorrat
+}  // namespace
+
+void bildVorratAbschalten(bool aus) { g_bildVorratAus = aus; }
+
+BildVorratStand bildVorratFuellen(const std::vector<std::vector<std::string>>& auftraege) {
+    BildVorratStand stand;
+    if (g_bildVorratAus) {
+        return stand;
+    }
+    const unsigned kerne = std::max(1U, std::thread::hardware_concurrency());
+    stand.faeden = std::min<std::size_t>(kerne, std::max<std::size_t>(1, auftraege.size()));
+    std::vector<std::vector<std::pair<std::string, TextureSet::Tex>>> faecher(stand.faeden);
+    // Gleiche Auftraege nur einmal (sonst entzifferten zwei Faeden dieselbe Datei)
+    std::vector<std::size_t> liste;
+    {
+        std::set<std::vector<std::string>> gesehen;
+        for (std::size_t k = 0; k < auftraege.size(); ++k) {
+            if (!auftraege[k].empty() && gesehen.insert(auftraege[k]).second) { liste.push_back(k); }
+        }
+    }
+    std::atomic<std::size_t> naechste{0};
+    const std::string stufe = bildStufeText();
+    const auto arbeit = [&](std::size_t fach) {
+        for (;;) {
+            const std::size_t n = naechste.fetch_add(1);
+            if (n >= liste.size()) {
+                return;
+            }
+            for (const std::string& name : auftraege[liste[n]]) {
+                // Liegt das Bild SCHON in der Tabelle? Dann gar nicht erst lesen (die Aufrufer fragen dort zuerst).
+                // Nur LESEN aus der Tabelle; geschrieben wird erst hinterher von einem Faden.
+                if (g_app->texCache.count(image::mappingName(name) + "@" + stufe) != 0U) {
+                    break;
+                }
+                // Schon im Vorrat (nur gelesen, geschrieben wird erst nach dem Zusammenfuehren)?
+                if (const auto v = g_bildVorrat.find(name); v != g_bildVorrat.end()) {
+                    if (v->second.width > 0) {
+                        break;
+                    }
+                    continue;
+                }
+                TextureSet::Tex t;
+                std::string data;
+                if (!readFromArchives(name, data)) {
+                    faecher[fach].emplace_back(name, std::move(t));
+                    continue;
+                }
+                const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
+                if (!im.ok || im.width <= 0 || im.height <= 0) {
+                    faecher[fach].emplace_back(name, std::move(t));
+                    continue;
+                }
+                faecher[fach].emplace_back(name, shrink(im, bildGrenzeFuer(im)));
+                break;
+            }
+        }
+    };
+    std::vector<std::thread> mannschaft;
+    mannschaft.reserve(stand.faeden);
+    for (std::size_t f = 1; f < stand.faeden; ++f) {
+        mannschaft.emplace_back(arbeit, f);
+    }
+    arbeit(0);
+    for (std::thread& th : mannschaft) {
+        th.join();
+    }
+    for (auto& fach : faecher) {
+        for (auto& eintrag : fach) {
+            const bool bild = eintrag.second.width > 0;
+            if (g_bildVorrat.emplace(std::move(eintrag.first), std::move(eintrag.second)).second && bild) {
+                ++stand.neu;
+            }
+        }
+    }
+    return stand;
+}
+
+bool bildLesen(const std::string& datei, TextureSet::Tex& t) {
+    if (const auto v = g_bildVorrat.find(datei); v != g_bildVorrat.end()) {
+        if (v->second.width <= 0) {
+            return false;
+        }
+        t = std::move(v->second);
+        g_bildVorrat.erase(v);
+        return true;
+    }
+    std::string data;
+    if (!readFromArchives(datei, data)) {
+        return false;
+    }
+    const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
+    if (!im.ok || im.width <= 0 || im.height <= 0) {
+        return false;
+    }
+    t = shrink(im, bildGrenzeFuer(im));
+    return true;
+}
+
+void bildVorratLeeren() { g_bildVorrat.clear(); }
+
 // Die Texturen des Modells aus den .pk3 holen.
 //
 // Die .skin nennt je Flaeche eine Datei. Der Weg ist derselbe wie bei der
@@ -2332,13 +2446,9 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
         neu->height = hit->second.height;
         neu->rgba = hit->second.rgba;
     } else {
-        std::string data;
         for (const std::string& kandidat : textureCandidates(bildName)) {
-            if (!readFromArchives(kandidat, data)) { continue; }
-            const image::Image im =
-                image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
-            if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
-            TextureSet::Tex t = shrink(im, bildGrenzeFuer(im));
+            TextureSet::Tex t;
+            if (!bildLesen(kandidat, t)) { continue; }   // rc608 Teil 12: lesen, entziffern, verkleinern
             g_app->texCache[sk] = t;
             neu = std::make_shared<TextureSet::Tex>(std::move(t));
             break;
@@ -2466,6 +2576,51 @@ ModelTextures texturesFor(const GlmModel& model) {
         diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
     };
     out.bySurface.resize(model.surfaces.size());
+    // rc608 Teil 12: alle Bilder dieses Modells vorab nebenlaeufig (bildVorratFuellen) - die Hautbilder samt dem
+    // Rueckfall ueber das Shaderskript und die Bilder seiner Stufen. Die Schleifen unten nehmen sie mit bildLesen ab;
+    // was keine braucht, wird am Ende verworfen.
+    struct VorratWeg {
+        ~VorratWeg() { bildVorratLeeren(); }
+    } vorratWeg;
+    {
+        std::vector<std::vector<std::string>> auftraege;
+        for (const GlmSurface& s : model.surfaces) {
+            std::string name = s.texture.empty() ? s.shader : s.texture;
+            std::replace(name.begin(), name.end(), '\\', '/');
+            if (s.isTag() || name.empty() || (s.texture.empty() && name.find('/') == std::string::npos)) {
+                continue;
+            }
+            std::string klein = name;
+            for (char& c : klein) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            if (klein == "[nomaterial]") {
+                continue;
+            }
+            std::vector<std::string> tries = textureCandidates(name);
+            const std::size_t dot = klein.find_last_of('.');
+            const std::size_t slash = klein.find_last_of('/');
+            const std::string ohneEndung = (dot != std::string::npos && (slash == std::string::npos || dot > slash)) ? klein.substr(0, dot) : klein;
+            const ShaderInfo* info = nullptr;
+            if (g_app->shaderMapRead) {
+                for (const std::string& k : {klein, ohneEndung}) {
+                    const auto it = shaderMap.find(k);
+                    if (it == shaderMap.end()) { continue; }
+                    if (info == nullptr) { info = &it->second; }
+                    for (const std::string& c : textureCandidates(it->second.image)) { tries.push_back(c); }
+                }
+                if (const auto it = shaderMap.find(ohneEndung); it != shaderMap.end()) { info = &it->second; }
+            }
+            auftraege.push_back(std::move(tries));
+            if (info == nullptr) {
+                continue;
+            }
+            for (const ShaderInfo::Stage& st : info->stages) {
+                if (st.lightmap || st.image.empty()) { continue; }
+                auftraege.push_back(textureCandidates(st.image));
+                for (const std::string& b : st.animImages) { auftraege.push_back(textureCandidates(b)); }
+            }
+        }
+        (void)bildVorratFuellen(auftraege);
+    }
     // Gezaehlt statt je Flaeche gemeldet. Bei einem Sturmtruppler stand
     // sechzehnmal dieselbe Zeile im Protokoll - jede kostet einen Schreib-
     // vorgang, und zusammen machten sie das Protokoll unlesbar.
@@ -2542,7 +2697,6 @@ ModelTextures texturesFor(const GlmModel& model) {
                 continue;
             }
         }
-        std::string data;
         bool got = false;
         std::vector<std::string> tries = textureCandidates(name);
 
@@ -2561,15 +2715,10 @@ ModelTextures texturesFor(const GlmModel& model) {
         }
 
         for (const std::string& kandidat : tries) {
-            if (!readFromArchives(kandidat, data)) {
+            TextureSet::Tex t;
+            if (!bildLesen(kandidat, t)) {   // rc608 Teil 12: lesen, entziffern, verkleinern
                 continue;
             }
-            const image::Image im = image::decode(
-                reinterpret_cast<const unsigned char*>(data.data()), data.size());
-            if (!im.ok || im.width <= 0 || im.height <= 0) {
-                continue;
-            }
-            TextureSet::Tex t = shrink(im, bildGrenzeFuer(im));
             g_app->texCache[schluessel] = t;
             out.bySurface[i] = std::move(t);
             ++out.found;
@@ -2609,16 +2758,9 @@ ModelTextures texturesFor(const GlmModel& model) {
                     if (const auto da = g_app->texCache.find(dateiSchluessel); da != g_app->texCache.end()) {
                         t2 = da->second;
                     } else {
-                        if (!readFromArchives(kandidat, data)) {
+                        if (!bildLesen(kandidat, t2)) {   // rc608 Teil 12
                             continue;
                         }
-                        const image::Image im = image::decode(
-                            reinterpret_cast<const unsigned char*>(data.data()),
-                            data.size());
-                        if (!im.ok || im.width <= 0 || im.height <= 0) {
-                            continue;
-                        }
-                        t2 = shrink(im, bildGrenzeFuer(im));
                         g_app->texCache[dateiSchluessel] = t2;
                     }
                     // --- alphaFunc gehoert mit -------------------------
@@ -2702,17 +2844,10 @@ ModelTextures texturesFor(const GlmModel& model) {
             if (hit != g_app->texCache.end()) {
                 z = hit->second;
             } else {
-                std::string data;
                 for (const std::string& kandidat : textureCandidates(st.image)) {
-                    if (!readFromArchives(kandidat, data)) {
+                    if (!bildLesen(kandidat, z)) {   // rc608 Teil 12
                         continue;
                     }
-                    const image::Image im = image::decode(
-                        reinterpret_cast<const unsigned char*>(data.data()), data.size());
-                    if (!im.ok || im.width <= 0 || im.height <= 0) {
-                        continue;
-                    }
-                    z = shrink(im, bildGrenzeFuer(im));
                     g_app->texCache[sk] = z;
                     break;
                 }
