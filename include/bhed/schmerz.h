@@ -45,6 +45,8 @@ template <class Hat>
 
 // pitch_roll_for_slope (NPC.cpp:527 MD): Nick und Roll der Leiche aus der Normale unter ihr.
 void leichenNeigung(const NavVec& normale, float gier, float& nick, float& roll);
+// pitch_roll_for_slope (NPC.cpp): mins[2] = -24 + 12 * |nick| / 180. Der Boden des Kastens steigt, die Leiche sinkt um so viel.
+[[nodiscard]] float leichenSenkung(float nick);
 
 // CG_PainEvent: der Klang zu Lebenspunkten (Spieler) oder Prozent (NPC_SetPainEvent).
 [[nodiscard]] std::string schmerzKlang(int wert);

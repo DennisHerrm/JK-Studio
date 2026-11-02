@@ -134,6 +134,8 @@ void schmerz() {
 void leiche() {
     float nick = 1.0F;
     float roll = 1.0F;
+    // pitch_roll_for_slope: mins[2] = -24 + 12 * |pitch| / 180
+    erwarte("pitch_roll_for_slope: Kastenboden aus der Neigung", leichenSenkung(0.0F) == 0.0F && nah(leichenSenkung(-45.0F), 3.0F));
     leichenNeigung(NavVec{0.0F, 0.0F, 1.0F}, 45.0F, nick, roll);
     erwarte("pitch_roll_for_slope: flacher Boden", nah(nick, 0.0F) && nah(roll, 0.0F));
     // Hang nach +x um 30 Grad: Normale (sin30, 0, cos30), vectoangles Nick = -60, pitch = 30.

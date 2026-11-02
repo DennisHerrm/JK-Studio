@@ -3618,6 +3618,8 @@ enum class Str {
     MsNameBelegt,
     MsZustandTip,
     MapBrightnessHint,
+    MapPicmip,
+    MapPicmipHint,
     Count,
 };
 

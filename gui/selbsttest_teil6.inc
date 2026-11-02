@@ -41,6 +41,21 @@ std::vector<Schritt> teil6Schritte() {
     }));
     add(warteBis("Teil 6: duel_mustafar geladen", [] { return g_app->map.path == "maps/duel_mustafar.bsp" && g_app->camTrackValid; }, 4000));
     add(pause(0.5));
+    add(pruefe("Teil 7: Weather/duel_mustafar.cfg gilt unter Movie Duels (r_weather 3: eine Wolke snowflake2)", [] {
+        return regelwerkMovieDuels() && wetterWolkenMitBild("gfx/effects/snowflake2") == 1;
+    }));
+    add(pruefe("Teil 7: r_picmip halbiert je Stufe, Grenze der Grafikkarte bleibt", [] {
+        image::Image im;
+        im.width = 512;
+        im.height = 256;
+        const int merk = g_app->settings.bildPicmip;
+        g_app->settings.bildPicmip = 0;
+        const int s0 = bildGrenzeFuer(im);
+        g_app->settings.bildPicmip = 2;
+        const int s2 = bildGrenzeFuer(im);
+        g_app->settings.bildPicmip = merk;
+        return s0 == 512 && s2 == 128;
+    }));
     add(pruefe("Teil 6: die Tueren schalten Portale, Gebiet 9 ist vom Start aus nicht zu zeichnen", [] {
         const float start[3] = {-1024.0F, 7320.0F, 24.0F};
         areaPortaleJetzt(start);
@@ -49,13 +64,7 @@ std::vector<Schritt> teil6Schritte() {
         for (const char c : m) { verdeckt += c != 0 ? 1U : 0U; }
         diag::detail("Knopftest: Teil 6 - " + std::to_string(g_app->portalEnts.size()) + " Portal-Entities, Gebiete " + std::to_string(g_app->areaPortale.gebiete()) +
                      ", vom Start verdeckt " + std::to_string(verdeckt) + " von " + std::to_string(m.size()));
-        // Der Himmel wird nie verdeckt (RB_StageIteratorSky), auch nicht in einem fremden Gebiet.
-        bool himmelFrei = true;
-        for (std::size_t i = 0; i < m.size(); ++i) {
-            const int sh = g_app->geo.surfaces[i].shader;
-            if (sh >= 0 && static_cast<std::size_t>(sh) < g_app->geo.shaders.size() && g_app->geo.shaders[static_cast<std::size_t>(sh)].isSky()) { himmelFrei = himmelFrei && m[i] == 0; }
-        }
-        return !g_app->portalEnts.empty() && g_app->areaPortale.gebiete() > 1 && verdeckt > 0U && m.size() > 1193U && m[1193] != 0 && himmelFrei;
+        return !g_app->portalEnts.empty() && g_app->areaPortale.gebiete() > 1 && verdeckt > 0U && m.size() > 1193U && m[1193] != 0;
     }));
 
     add(tu("Teil 6: Grundkarte md_am_sith", [=] {

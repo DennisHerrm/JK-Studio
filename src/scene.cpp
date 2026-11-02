@@ -1564,6 +1564,7 @@ ActorState Actor::at(double ms) const {
     if (leicheAbMs >= 0.0 && ms >= leicheAbMs) {
         st.leicheNick = leicheNick;
         st.leicheRoll = leicheRoll;
+        st.pos[2] -= leichenSenkung(leicheNick);
     }
     // rc605 (Ende): PM_TorsoAnimation in WEAPON_IDLE - eine Figur mit Waffe (nicht
     // Schwert) haelt sie mit dem Oberkoerper, wo die Engine es tut. Auch der Spieler:
@@ -5737,8 +5738,20 @@ Scene buildOnce(const Script& s, const MapData& map,
             // rc608 Teil 5: der Totenlauf. ps.velocity bleibt beim Tod (der Wurf ueber die Kante setzt
             // sie neu, G_CheckLedgeDive: ps.friction 0); PM_CrashLand einer Leiche: fallsplat ab
             // delta 75, sonst bodyfall_human; BOTH_FALLDEATH1 wird BOTH_FALLDEATH1LAND.
-            if (!schonTot && hilfe != nullptr && hilfe->nav && a.halbBreite > 0.0F &&
-                (!lauf.amBoden || tod.tempo[0] != 0.0F || tod.tempo[1] != 0.0F || tod.tempo[2] != 0.0F)) {
+            // pitch_roll_for_slope aus dem Ort der Leiche, trace von currentOrigin bis mins[2] + 4 - 300.
+            const auto leicheNeigen = [&](const NavVec& ende) {
+                if (hilfe == nullptr || !hilfe->nav || !hilfe->nav->spur) { return; }
+                const NavVec unten{ende[0], ende[1], ende[2] - 24.0F + 4.0F - 300.0F};
+                const NavSpur sp = hilfe->nav->spur(ende, NavVec{}, NavVec{}, unten, kNavKeineEntity, kNavSolid);
+                if (sp.fraction < 1.0F) { leichenNeigung(sp.normal, st.angles[1], a.leicheNick, a.leicheRoll); }
+            };
+            const bool leicheLiegtSchon = lauf.amBoden && tod.tempo[0] == 0.0F && tod.tempo[1] == 0.0F && tod.tempo[2] == 0.0F;
+            // Stand sie schon auf dem Boden, gibt es keinen Totenlauf, CorpsePhysics neigt sie trotzdem.
+            if (!schonTot && hilfe != nullptr && hilfe->nav && a.halbBreite > 0.0F && leicheLiegtSchon && a.leicheAbMs < 0.0) {
+                a.leicheAbMs = wann;
+                leicheNeigen(NavVec{st.pos[0], st.pos[1], st.pos[2]});
+            }
+            if (!schonTot && hilfe != nullptr && hilfe->nav && a.halbBreite > 0.0F && !leicheLiegtSchon) {
                 LaufZustand start = lauf;
                 for (int k = 0; k < 3; ++k) { start.ort[static_cast<std::size_t>(k)] = st.pos[k]; }
                 start.tempoVek = tod.tempo;
@@ -5766,12 +5779,7 @@ Scene buildOnce(const Script& s, const MapData& map,
                             break;
                         }
                     }
-                    if (hilfe->nav->spur && a.leicheAbMs >= 0.0) {
-                        const NavVec ende = plan->zustaende.back().ort;
-                        const NavVec unten{ende[0], ende[1], ende[2] - 24.0F + 4.0F - 300.0F};
-                        const NavSpur sp = hilfe->nav->spur(ende, NavVec{}, NavVec{}, unten, kNavKeineEntity, kNavSolid);
-                        if (sp.fraction < 1.0F) { leichenNeigung(sp.normal, st.angles[1], a.leicheNick, a.leicheRoll); }
-                    }
+                    if (a.leicheAbMs >= 0.0) { leicheNeigen(plan->zustaende.back().ort); }
                     EngineZufall landeZufall(todesSaat(a.kartenEntity, wann) + 1U);
                     for (const LaufTakt& k : plan->takte) {
                         if (k.landung < 0.0F) { continue; }

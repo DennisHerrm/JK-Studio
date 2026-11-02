@@ -2213,6 +2213,8 @@ from i18n_rc608_3b import zeilen_vier as _rc608_3b  # noqa: E402  (rc608 Teil 3b
 S += _rc608_3b()
 from i18n_rc608_5 import zeilen_vier as _rc608_5  # noqa: E402  (rc608 Teil 5: Figurenlicht)
 S += _rc608_5()
+from i18n_rc608_7 import zeilen_vier as _rc608_7  # noqa: E402  (rc608 Teil 7: Bildstufe wie r_picmip)
+S += _rc608_7()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

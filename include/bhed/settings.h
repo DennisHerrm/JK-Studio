@@ -193,6 +193,8 @@ struct Settings {
     // Vorgabe des Regelwerks (schwierigkeitWirksam: Movie Duels 2, g_main.cpp:752;
     // OpenJK 0, g_main.cpp:631). Eine Wahl im Einstellungsfenster bleibt.
     int schwierigkeit = -1;
+    // rc608 Teil 7: r_picmip der Vorschau, 0 wie OpenJK und Movie Duels (tr_init.cpp). Jede Stufe halbiert die Bilder.
+    int bildPicmip = 0;
     // rc601 integ: das Regelwerk der Vorschau (bhed/regelwerk.h) -
     // kRegelwerkAuto (0, nach den Spielordnern), kRegelwerkOpenJK (1),
     // kRegelwerkMovieDuels (2). Schluessel "regelwerk": auto/openjk/movieduels.

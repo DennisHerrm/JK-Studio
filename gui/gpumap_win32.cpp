@@ -7057,6 +7057,12 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         // Mit der Farbe des globalen Nebels (setzeHintergrund), wie das Spiel;
         // die Maske des Umrisses bleibt leer.
         c->ClearRenderTargetView(g_zielRtv, g_umriss ? leer : g_hintergrund);
+        // CG_DrawSkyBoxPortal: Die Portalszene steht zuerst im Bild, die Hauptszene loescht die Farbe nicht
+        // (RB_BeginDrawingView). Durch ein Loch in der Karte sieht man also den Himmel des Portals.
+        if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz) {
+            const ZielFelder& pz = g_geparkt[g_himmelPortalSatz];
+            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH) { c->CopyResource(g_zielTex, pz.tex); }
+        }
         c->ClearDepthStencilView(g_tiefeDsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
     }
     D3D11_VIEWPORT vp{};

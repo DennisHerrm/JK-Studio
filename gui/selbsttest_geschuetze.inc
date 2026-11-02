@@ -444,7 +444,7 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             g_app->cam.angles[0] = kam[3];
             g_app->cam.angles[1] = kam[4];
             g_app->cam.angles[2] = 0.0F;
-            g_app->cam.fovY = 64.4F;
+            g_app->cam.fovY = 64.3727F;   // CalcFov: 2 * atan(tan(40 Grad) * 3 / 4)
             g_app->playMs = ms;
             g_app->playing = sauber;
             g_app->abspielTempo = sauber ? 0.0F : 1.0F;
@@ -459,6 +459,8 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                               l.ambient[2], l.directed[0], l.directed[1], l.directed[2], g_app->mapViewW, g_app->mapViewH);
                 diag::detail(z);
             }
+            std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Bildzeit %.1f ms", static_cast<double>(1000.0F / std::max(ImGui::GetIO().Framerate, 0.1F)));
+            diag::detail(z);
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Ansicht von %.0f %.0f bis %.0f %.0f", static_cast<double>(g_app->kartenAnsicht[0]), static_cast<double>(g_app->kartenAnsicht[1]),
                           static_cast<double>(g_app->kartenAnsicht[2]), static_cast<double>(g_app->kartenAnsicht[3]));
             diag::detail(z);

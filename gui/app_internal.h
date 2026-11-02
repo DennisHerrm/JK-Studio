@@ -3203,9 +3203,13 @@ bool regelwerkPruefen();
 [[nodiscard]] int regelwerkSpielErmitteln();
 [[nodiscard]] bool jediOutcastOrdner(const std::string& verzeichnis);
 [[nodiscard]] const std::vector<std::string>& eingerichteteSpielordner();
-// Die Bilder der Vorschau wie die Engine mit r_picmip 0: keine Verkleinerung, nur die Grenze der Grafikkarte
-// (glConfig.maxTextureSize). Bis rc608 Teil 5 waren Karte auf 512 und Figuren auf 256 begrenzt: Stoffe unscharf.
+// Die Bilder der Vorschau wie die Engine: r_picmip halbiert jedes Bild n-mal (Upload32, Vorgabe 0 in OpenJK und
+// Movie Duels, Einstellung bildPicmip), darueber nur die Grenze der Grafikkarte (glConfig.maxTextureSize).
 inline constexpr int kBildGrenze = 4096;
+// Fuer image::shrinkTo: die Kantenlaenge, die genau um 2^bildPicmip verkleinert.
+[[nodiscard]] int bildGrenzeFuer(const image::Image& im);
+// Fuer die Schluessel in texCache: dasselbe Bild in einer anderen Stufe ist ein anderes.
+[[nodiscard]] std::string bildStufeText();
 void regelwerkAnwendenJetzt();
 void areaPortaleJetzt(const float auge[3]);
 void befehlssatzFuerRegelwerk();

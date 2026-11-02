@@ -133,6 +133,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "fovAspectAdjust", std::to_string(s.fovAspectAdjust));
     put(o, "spielRahmenFrei", s.spielRahmenFrei);
     put(o, "difficulty", std::to_string(s.schwierigkeit));   // rc601 (bewegung, Durchsicht 2): g_spskill
+    put(o, "r_picmip", std::to_string(s.bildPicmip));
     put(o, "regelwerk", std::string(regelwerkSchluessel(s.regelwerk)));   // rc601 integ
     put(o, "flussAnsicht", std::to_string(s.flussAnsicht));
     put(o, "menueReiter", std::to_string(s.menueReiter));
@@ -412,6 +413,7 @@ bool readSettings(const std::string& text, Settings& out) {
             const int n = std::atoi(value.c_str());
             out.schwierigkeit = (n >= -1 && n <= 3) ? n : -1;
         }
+        else if (key == "r_picmip") { out.bildPicmip = std::clamp(std::atoi(value.c_str()), 0, 3); }
         else if (key == "regelwerk") {
             // rc601 integ: auto/openjk/movieduels, sonst automatisch.
             int w = kRegelwerkAuto;

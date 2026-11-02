@@ -509,6 +509,86 @@ Alle Karten oben, Griff frei, Waffe in der Hand, Faecher. Movie Duels. Original-
 - duel_mustafar echt: Glut in der Luft (Wetter/Effekt) im Vergleichsbild nicht geprueft.
 - Eine Tuer ohne Entity zeigt in der Vorschau den Himmel, im Spiel ein Rechteck der Himmelsbox um die sichtbaren Himmelsflaechen; beides nur auf Testkarten.
 
+## Teil 7: Original-JKA und letzte Abweichungen der Vorschau
+
+Aufnahmen: ungeskaliert 1920 x 1440, Vorschau mit `BHED_GV_ANSICHT`, Skripte in `SP/g7`. Das Original-Foto war bisher falsch: Die Steam-exe laeuft (`__COMPAT_LAYER HighDpiAware`) echt 1920 x 1440, `fenster.ps1` ist nicht DPI-bewusst und bekam 1284 x 987. Neu `g7/foto7.py`: nur der Client-Bereich, 1920 x 1440 auch im Original. Kamera: `viewpos` schneidet zur Null ab, also 76.25 statt 76.5, auf Hoth -161.4 statt -160.5; fovY 64.3727 statt 64.4. Rest-Versatz 0 bis 1 Bildpunkt am Boden, Hoth 4.
+
+### 1: Original-JKA (Steam angemeldet, GameData danach gleich, je Lauf geprueft)
+Im Spiel abgefragt: r_gamma 1, r_intensity 1, r_overBrightBits 0, r_DynamicGlow 0, r_picmip Vorgabe 1 (fuer das Foto auf 0 gesetzt), r_ambientScale 0,5, r_directedScale 1, cg_fov 80. `r_mapOverBrightBits` gibt es in der Original-exe nicht (keine Antwort). "GAMMA: hardware w/ 0 overbright bits", "Dynamic Glow: disabled". r_debuglight: t3_byss amb 115 dir 384, Richtung -0,05 0,01 1,00; academy1 amb 94 dir 96, Richtung 0,02 -0,64 0,77.
+Vorschau unter OpenJK mit dem Original-`base` gegen Original, Faktor R/G/B:
+| Karte | Boden links | Boden rechts | oben | Figur |
+|---|---|---|---|---|
+| t3_byss | 1,00 1,03 1,01 | 0,99 1,04 1,00 | 0,99 1,00 0,95 | 0,99 1,00 0,98 |
+| academy1 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 |
+Die Faktoren 0,64 bis 0,87 aus Teil 6 waren Fehler des Fotos. Kein Helligkeitsunterschied, nichts angeglichen. t3_byss G 1,03: vermutlich Texturkompression im Original (R gleich, nur Gruen), nicht geprueft. Das Spiel wechselt beim Stehen zeitweise in eine Pose mit gedrehtem Kopf, das Vergleichsbild zeigt die gerade Haltung (`g7/fotos/o_byss_3.png`).
+
+### 2: Fenster auf t3_byss
+Die Fenster sind die Tueren `*70` und `*74` (`byss_gatedoor_onoff`), die Testkarte hat keine Entities dafuer. Probe mit `r_clear 1` im Original: Beide Fenster werden rot, also zeichnet das Spiel dort nichts, die violette und die blaue Flaeche sind alter Inhalt des Bildpuffers. Movie Duels: schwarz. Nur auf der Testkarte.
+Vorschau rechts zeigte Sterne: Der Himmel war von der Gebietsmaske ausgenommen, das war falsch (R_RecursiveWorldNode gibt ihn hinter geschlossenen Portalen gar nicht weiter). Jetzt beide Fenster schwarz wie in Movie Duels. Damit das rote Feld auf Mustafar bleibt: Die Portalszene steht wie im Spiel vor der Hauptszene im Bild (`CopyResource` statt Loeschen, nur mit Himmelsportal).
+
+### 3: Haarlinie im Himmel
+Abtaster anisotrop und umlaufend, an der Kante zweier Seiten springen die Ableitungen: Das ganze Bild kam in eine Pixelspalte. Jetzt `SampleLevel` Stufe 0 und halber Texel am Rand wie GL_CLAMP_TO_EDGE. Abweichung der Spalte gegen die Nachbarn: Mustafar rot 19,8 -> gruen 0,4 (Spiel 0,33), Turm rot 25,8 -> gruen 0,7.
+
+### 4: Glut
+`Weather/duel_mustafar.cfg` (IT_LoadWeatherParms, execq, nur Movie Duels): `r_weather 3`. Probe im Spiel: `g_AllowWeather 0` keine Glut, 1 Glut. In der Quelle wuerde der Befehl mit der Cvar 0 alles loeschen, die exe tut das nicht (Cvar bleibt 0, Glut ist da); das Verhalten ist also gemessen, die Saetze sind aus RE_WorldEffectCommand. Neu: Saetze 0, 1, 2, 3, 4, 7, 8, 9, Zeilen nacheinander, 0 raeumt auch das Wetter der Entities. 5 und 6 haben keinen Zweig. Die Teilchenwolke selbst nach CParticleCloud: Masse je Teilchen, v = Kraft * 0,7 / 0,3 / Masse statt der alten Werte, Ebene +-500 und bis 625 unter der Kamera, Alpha mColor[3], kein erfundenes Taumeln, Sand mit Alpha; ContentsOutside mit den Brushes statt Strahl nach oben.
+Zaehlung Glut, ein Bild: Himmel Spiel 9, Vorschau 9; Boden 158/158 (Schwelle 15), 74/59 (Schwelle 25). Eine Wolke reicht also, obwohl IT_LoadWeatherParms zweimal laeuft. Nur ein Bild, Positionen zufaellig. Betrifft auch duel_hoth (1), duel_kamino (2), duel_deathstar (9).
+
+### 5: Waffen im Holster
+**Gefunden:** G2API_GetBoltMatrix normiert die drei Zeilen. Die Knochen tragen die 0,64 der .gla: Waffe zu klein, Versatz zu kurz, sie steckte in der Figur. Foto `paar_holster.png`: beide Waffen sichtbar, deckungsgleich mit dem Spiel. Griffe im Holster haengen an Bolzenflaechen und waren nicht betroffen.
+
+### 6: Restliche Faktoren
+**Gefunden, zwei Ursachen:**
+- Nebel: tr.fogImage ist ein Bild 256 x 32 mit GL_LINEAR, nahe am Auge ist die Wurzel steil, die Rechnung ohne Bild war dort zu stark. Kamino und Hoth haben globalen Nebel. Jetzt je Texel R_FogFactor, abgeschnitten und linear gefiltert.
+- Figur: RB_SurfaceGhoul legt die gewichtete Normale ungekuerzt in tess.normal, die Vorschau normierte sie. Bei viel gerichtetem Licht 2 bis 9 Prozent zu hell.
+Messung Movie Duels, Faktor Vorschau/Spiel, R G B (vorher aus Teil 6):
+| Karte | Boden links | Boden rechts | oben | Figur |
+|---|---|---|---|---|
+| Turm | 1,00 1,01 1,01 | 1,00 1,00 1,00 | 1,00 1,00 - | 1,00 1,00 1,00 (1,04) |
+| Mustafar | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,04 1,04 1,04 (1,05) |
+| Akademie | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,01 1,01 1,02 (1,02) |
+| Todesstern | 1,00 1,00 1,00 | 0,99 0,99 0,99 | 1,00 1,00 1,00 | 1,03 1,03 1,03 (1,07) |
+| Byss | 1,02 1,02 1,02 | 1,02 1,02 1,02 | 1,01 1,01 1,01 | 1,03 1,04 1,04 (1,08) |
+| Kamino | 1,03 1,03 1,02 (1,05) | 1,03 1,03 1,03 (1,05) | 1,05 1,02 1,04 | 1,01 1,00 1,00 (1,09) |
+| Hoth | 1,00 1,00 1,00 (1,06) | 1,00 1,00 1,00 (1,06) | 1,00 1,00 1,00 | 1,03 1,03 1,02 (1,26) |
+Der Rest ist unter einem Byte (Byss Boden 17,8 gegen 18,1, Kamino 20,8 gegen 21,4). Im Original ist Byss 1,00, also eher die 64 Stufen von r_gammaShaders; Ursache nicht weiter gesucht. Figur auf Mustafar 1,04 ungeklaert.
+
+### 7: Funkenfaecher
+Gleicher Versuch, 20 Bilder `gv_turm`, `paar_fan.png`: Spiel etwa 7 von 20 nach oben oder links, Vorschau 0 von 20. Nicht behoben. Messwerte: In der Vorschau trafen 128 Protokollzeilen genau zwei Punkte und Normalen (misc_turret Kopf 353,6 6859,3 54,1, Normale -0,96 -0,29 0,03; misc_sentry_turret Rumpf 353,0 6854,9 22,5, Normale -0,87 0,45 -0,20). Der Faecher liegt laut .efx laengs der Normalen, die Mechanik stimmt also, im Spiel treffen die Schuesse verschiedene Dreiecke. Turret_aim, Muendungen, random und die Normale aus G2_RadiusTracePolys stichprobenartig gegen die Quelle gelesen, keine Abweichung gefunden, kein vollstaendiger Zeilenvergleich. Es fehlt ein Vergleich der Trefferorte im Spiel, dafuer braeuchte man ein Protokoll im Spiel. Bilder am Rande: Beim nahen Bolzen wird die Figur in der Vorschau stark gruen, im Spiel schwaecher (nicht gemessen).
+
+### 8: Lunge von Vader und Desann
+Der Weg ohne Spielordner geht: `bhed compile` nach `fs_homepath/MD/scripts/`, `npc spawn desann des`, `runscript des lunge`; mit g_ICARUSDebug 4 laeuft das Skript nachweislich (SET_FORWARDMOVE, SET_CROUCHED). Der Nachweis der Lunge nicht: Sie hat keine Animation (PM_SaberLungeAttackMove(qtrue): nur 150 vor und 50 hoch), Desann bewegt sich auf den Bildern (`g7/fotos/lunge_*.png`, Zeitlupe 0,1) kaum und ist zu dunkel. Spiel-Beleg bleibt offen, nur gegen die Quelle gelesen.
+
+### 9: Leiche
+- **Gefunden:** Die Neigung kam nur mit Totenlauf. Wer auf dem Boden stirbt, hat keinen Lauf und blieb flach (rot: `leicheNick` 0 auf dem Hang, Foto), jetzt immer.
+- `mins[2]` aus pitch_roll_for_slope: `leichenSenkung` (12 * |Nick| / 180). Ctest `schmerz`.
+- Foto `paar_hang.png` (Testkarte `g7_hang`, duel_hoth-Gelaende, Hang 33 Grad): Die Leiche liegt am Hang. Stelle und Todesanimation sind im Spiel andere (`npc spawn`, zufaellig), also kein Deckungsvergleich. Die fallengelassene Waffe steht in der Vorschau zu hoch ueber dem Hang, nicht untersucht.
+- Reibung und Kasten aus DeadThink weiter nur gegen die Quelle.
+
+### 10: Speicher und Ladezeit
+Groesste Karte `md_toaj_jedi` (74 MB), ruhig, je Lauf: Spitze / Grafikspeicher (GPU Process Memory) / Lauf gesamt / Bildzeit
+| Stufe | Spitze | Grafik | gesamt | Bild |
+|---|---|---|---|---|
+| vorher Grenze 512 (Probe, Figuren hier auch 512) | 1116 MB | 401 MB | 21 s | 4,9 bis 6,3 ms |
+| r_picmip 0 (Vorgabe) | 2541 MB | 807 MB | 22 s | 4,7 bis 6,3 ms |
+| r_picmip 1 | 1186 MB | 405 MB | - | 4,8 bis 6,2 ms |
+| r_picmip 2 | 863 MB | 304 MB | - | 5,4 bis 6,3 ms |
+Neu: Regler "Bildstufe (r_picmip)" im Klappfenster der Ansicht, Upload32: halbiert je Stufe; Vorgabe 0 wie OpenJK und Movie Duels (tr_init.cpp), die Original-exe hat Vorgabe 1 (abgefragt). `nopicmip` der Shader wird nicht beachtet. Wenig Grafikspeicher: nicht nachstellbar auf diesem Rechner (RTX 4070), Windows lagert aus. Aus dem Code: Fehlschlag beim Anlegen einer Textur laesst die Flaeche aus, Geraeteverlust ist behandelt. Nicht im Lauf geprueft.
+
+### Tests
+Ctest `gpushader` (Himmel, Nebel, Normale) und `schmerz` ergaenzt, Selbsttest `teil6` 8/0 mit Wetter und Stufe, `figurlicht` 8/0. Rot nur per Foto und Messwert wie oben, die neuen Zeilen in `teil6` und `gpushader` wurden nicht rot gesehen. Ctest einmal: 194 von 195, `gpushader` rot in einer eigenen alten Textzeile (Normale der Laenge null, der geaenderte Ausdruck), angepasst, nur dieser Test wiederholt gruen. Gelockert: In `teil6` fiel "Himmel wird nie verdeckt" weg, das beschrieb den Fehler.
+
+### Nur per Foto gegen das Spiel
+Alles in 1, 2, 3, 4, 5, 6, 7, 9. Originalfotos 1920 x 1440, also nicht kleiner.
+
+### Offen aus Teil 7
+- Funkenfaecher: siehe 7.
+- Lunge: Beleg im Spiel, siehe 8.
+- **Neu:** Glas `textures/common/glass_security_chain` auf t3_byss (oben links): Die Vorschau zeigt die Streifen von `etest4` scharf, Original und Movie Duels glatt, Mittel 67,7 gegen 56,9 (Grauwert). Formel RB_CalcEnvironmentTexCoords gleich, Ursache nicht gefunden.
+- Kamino 3 Prozent, Figur Mustafar 4 Prozent, unter einem Byte bzw. ungeklaert.
+- Fallengelassene Waffe am Hang; Figur stark gruen am nahen Bolzen.
+- Himmelsbox: Rechteck um die sichtbaren Himmelsflaechen (RB_ClipSkyPolygons) nicht nachgebildet. Nur bei Loechern in der Karte sichtbar, also auf den Testkarten.
+- r_mapOverBrightBits: nicht abfragbar im Original.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -582,6 +662,10 @@ Weiter offen:
 - Preview: reflective floors (tcGen environment) and the glow halo as in the game, textures at full size, gamma table from Movie Duels.
 - Preview: figures flinch when hit and blasts push them away, per rule set. Corpses lie along the slope.
 - Preview: the player holds rifles as in the game; glow starts on under Movie Duels and off otherwise; saber hilts in the holster by the engine; guns in holsters under Movie Duels (first version); STUN_BATON at the player start.
+- Preview: under Movie Duels the map's weather file applies as in the game (embers on duel_mustafar, snow on duel_hoth, rain on duel_kamino); particles fall at the game's speed.
+- Preview: guns in holsters hang at the right place and size; corpses lie along the slope even without falling.
+- Preview: fog near the eye and light on figures as in the game; no more hairline in the sky; no sky behind closed doors.
+- Preview: new setting Texture detail (r_picmip), each step halves the textures and saves video memory.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -640,6 +724,10 @@ Weiter offen:
 - Vorschau: Spiegelnde Böden (tcGen environment) und der Schein des Glühens wie im Spiel, Texturen in voller Größe, Gamma-Tabelle aus Movie Duels.
 - Vorschau: Figuren zucken bei Treffern und Explosionen stoßen sie weg, je Regelwerk. Leichen liegen am Hang.
 - Vorschau: Der Spieler hält Gewehre wie im Spiel; das Glühen beginnt unter Movie Duels an, sonst aus; Griffe im Holster nach der Engine; Waffen im Holster unter Movie Duels (erste Fassung); STUN_BATON am Spielerstart.
+- Vorschau: Unter Movie Duels gilt die Wetterdatei der Karte wie im Spiel (Glut auf duel_mustafar, Schnee auf duel_hoth, Regen auf duel_kamino), Teilchen fallen so schnell wie im Spiel.
+- Vorschau: Waffen im Holster hängen an der richtigen Stelle und in der richtigen Größe, Leichen liegen auch ohne Sturz am Hang.
+- Vorschau: Nebel nahe am Auge und Licht auf Figuren wie im Spiel, keine Haarlinie mehr im Himmel, kein Himmel hinter geschlossenen Türen.
+- Vorschau: Neue Einstellung Bildstufe (r_picmip), jede Stufe halbiert die Bilder und spart Grafikspeicher.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -698,6 +786,10 @@ Weiter offen:
 - 预览:反光地面(tcGen environment)和辉光晕与游戏一致,纹理使用完整尺寸,伽马表来自 Movie Duels。
 - 预览:角色被击中时会抽搐,爆炸会把他们推开,按规则集。尸体顺着斜坡躺下。
 - 预览:玩家持枪姿势与游戏一致;辉光在 Movie Duels 下默认开启,其他默认关闭;剑套中的剑柄按引擎放置;Movie Duels 下枪挂在身上(第一版);玩家起点的 STUN_BATON。
+- 预览:在 Movie Duels 下,地图的天气文件与游戏中一样生效(duel_mustafar 的余烬、duel_hoth 的雪、duel_kamino 的雨),粒子以游戏中的速度下落。
+- 预览:枪套中的武器位置和大小正确;尸体即使没有坠落也顺着斜坡躺下。
+- 预览:靠近视点的雾和角色上的光照与游戏一致;天空中不再有细线;关闭的门后没有天空。
+- 预览:新设置“纹理细节 (r_picmip)”,每级将纹理减半并节省显存。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -756,6 +848,10 @@ Weiter offen:
 - プレビュー: 反射する床(tcGen environment)とグローのにじみをゲームと同じに。テクスチャは原寸、ガンマ表は Movie Duels のものです。
 - プレビュー: キャラクターは被弾でびくっとし、爆発で押しのけられます(ルールセットごと)。死体は斜面に沿って横たわります。
 - プレビュー: プレイヤーのライフルの構えをゲームと同じに。グローは Movie Duels では最初からオン、それ以外はオフ。ホルスターのセーバーはエンジンどおり、Movie Duels ではホルスターの武器(初版)、プレイヤー開始時の STUN_BATON。
+- プレビュー: Movie Duels ではマップの天候ファイルがゲームと同じように適用されます(duel_mustafar の火の粉、duel_hoth の雪、duel_kamino の雨)。粒子はゲームと同じ速さで落ちます。
+- プレビュー: ホルスターの武器が正しい位置と大きさになり、死体は落下しなくても斜面に沿って横たわります。
+- プレビュー: 視点近くの霧とキャラクターの光をゲームと同じに。空の細い線がなくなり、閉じたドアの向こうに空が見えなくなりました。
+- プレビュー: 新しい設定「テクスチャ詳細 (r_picmip)」。1 段階ごとにテクスチャを半分にし、ビデオメモリを節約します。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -814,6 +910,10 @@ Weiter offen:
 - Vista previa: suelos reflectantes (tcGen environment) y halo del brillo como en el juego, texturas a tamaño completo, tabla de gamma de Movie Duels.
 - Vista previa: las figuras se estremecen al recibir impactos y las explosiones las empujan, según el conjunto de reglas. Los cadáveres quedan a lo largo de la pendiente.
 - Vista previa: el jugador sostiene los rifles como en el juego; el brillo empieza activado en Movie Duels y desactivado en los demás; empuñaduras en la funda según el motor; armas en la funda en Movie Duels (primera versión); STUN_BATON al inicio del jugador.
+- Vista previa: en Movie Duels se aplica el archivo de clima del mapa como en el juego (brasas en duel_mustafar, nieve en duel_hoth, lluvia en duel_kamino); las partículas caen a la velocidad del juego.
+- Vista previa: las armas en la funda cuelgan en el lugar y tamaño correctos; los cadáveres quedan en la pendiente aunque no caigan.
+- Vista previa: niebla cerca del ojo y luz en las figuras como en el juego; sin línea fina en el cielo; sin cielo tras puertas cerradas.
+- Vista previa: nuevo ajuste Detalle de texturas (r_picmip), cada nivel reduce las texturas a la mitad y ahorra memoria de vídeo.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -872,3 +972,7 @@ Weiter offen:
 - Náhled: lesklé podlahy (tcGen environment) a záře jako ve hře, textury v plné velikosti, tabulka gamma z Movie Duels.
 - Náhled: postavy sebou při zásahu škubnou a výbuchy je odhazují, podle sady pravidel. Mrtvá těla leží podél svahu.
 - Náhled: hráč drží pušky jako ve hře; záře začíná v Movie Duels zapnutá, jinak vypnutá; jílce v pouzdře podle enginu; zbraně v pouzdře v Movie Duels (první verze); STUN_BATON na startu hráče.
+- Náhled: v Movie Duels platí soubor počasí mapy jako ve hře (žhavé jiskry na duel_mustafar, sníh na duel_hoth, déšť na duel_kamino); částice padají rychlostí jako ve hře.
+- Náhled: zbraně v pouzdře visí na správném místě a ve správné velikosti; mrtvá těla leží na svahu i bez pádu.
+- Náhled: mlha blízko oka a světlo na postavách jako ve hře; žádná tenká čára na obloze; žádná obloha za zavřenými dveřmi.
+- Náhled: nové nastavení Detail textur (r_picmip), každý stupeň zmenší textury na polovinu a šetří grafickou paměť.

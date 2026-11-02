@@ -88,11 +88,8 @@ std::vector<char> flaechenHinterPortalen(const BspGeometry& g, const AreaPortale
         }
     }
     for (std::size_t s = 0; s < verdeckt.size(); ++s) {
-        // Der Himmel bleibt: RB_StageIteratorSky zeichnet ein Rechteck der Himmelsbox um die sichtbaren Himmelsflaechen,
-        // nicht die Flaechen selbst. Durch ein Loch hinter einer fehlenden Tuer sieht man ihn also trotzdem.
-        const int sh = g.surfaces[s].shader;
-        const bool himmel = sh >= 0 && static_cast<std::size_t>(sh) < g.shaders.size() && g.shaders[static_cast<std::size_t>(sh)].isSky();
-        verdeckt[s] = (inBlatt[s] != 0 && gesehen[s] == 0 && !himmel) ? 1 : 0;
+        // Auch der Himmel: R_RecursiveWorldNode gibt seine Flaechen hinter einem geschlossenen Portal gar nicht erst weiter.
+        verdeckt[s] = (inBlatt[s] != 0 && gesehen[s] == 0) ? 1 : 0;
     }
     return verdeckt;
 }

@@ -2267,6 +2267,13 @@ void openSkeletonFile() {
 // Eine Editoransicht braucht keine 1024er-Textur; bei siebzig Shadern spart
 // das ein Vielfaches an Speicher. Der Code stand dreimal woertlich da -
 // einmal fuer die Karte, zweimal fuer das Modell.
+int bildGrenzeFuer(const image::Image& im) {
+    const int stufe = std::clamp(g_app->settings.bildPicmip, 0, 8);
+    return std::clamp(std::max(im.width, im.height) >> stufe, 1, kBildGrenze);
+}
+
+std::string bildStufeText() { return std::to_string(g_app->settings.bildPicmip); }
+
 TextureSet::Tex shrink(const image::Image& im, int maxSize) {
     // Die Rechnung selbst steht im Bildmodul - sie wird an drei Stellen
     // gebraucht und muss ueberall dieselbe sein.
@@ -2295,7 +2302,6 @@ void loadModelTextures() {
 // rc603: die Bildpunkte einmal je Bild (App::figurStufenBilder), nicht je
 // Figur und Stufe kopiert - siehe ModelTextures::FigurStufe::pixel.
 std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildName) {
-    constexpr int kMaxSize = kBildGrenze;
     // rc603 Durchsicht: tr.whiteImage - R_CreateBuiltinImages legt "*white"
     // als 8x8 Bild mit allen Bytes 255 an (tr_image.cpp:1273-1276 MD,
     // 1328 OJ). ParseStage bindet es fuer "map $whiteimage" und, an Figuren
@@ -2312,7 +2318,7 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
         }();
         return kWeiss;
     }
-    const std::string sk = image::mappingName(bildName) + "@" + std::to_string(kMaxSize);
+    const std::string sk = image::mappingName(bildName) + "@" + bildStufeText();
     if (const auto da = g_app->figurStufenBilder.find(sk); da != g_app->figurStufenBilder.end()) {
         if (auto lebt = da->second.lock()) { return lebt; }
     }
@@ -2331,7 +2337,7 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
             const image::Image im =
                 image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
             if (!im.ok || im.width <= 0 || im.height <= 0) { continue; }
-            TextureSet::Tex t = shrink(im, kMaxSize);
+            TextureSet::Tex t = shrink(im, bildGrenzeFuer(im));
             g_app->texCache[sk] = t;
             neu = std::make_shared<TextureSet::Tex>(std::move(t));
             break;
@@ -2458,7 +2464,6 @@ ModelTextures texturesFor(const GlmModel& model) {
         }
         diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
     };
-    constexpr int kMaxSize = kBildGrenze;
     out.bySurface.resize(model.surfaces.size());
     // Gezaehlt statt je Flaeche gemeldet. Bei einem Sturmtruppler stand
     // sechzehnmal dieselbe Zeile im Protokoll - jede kostet einen Schreib-
@@ -2546,7 +2551,7 @@ ModelTextures texturesFor(const GlmModel& model) {
         // Die GROESSE gehoert in den Schluessel, damit eine andere Grenze
         // nie ein Bild aus dem Zwischenspeicher der ersten bekommt.
         const std::string schluessel =
-            image::mappingName(name) + "@" + std::to_string(kMaxSize);
+            image::mappingName(name) + "@" + bildStufeText();
         const auto imCache = g_app->texCache.find(schluessel);
         if (imCache != g_app->texCache.end()) {
             out.bySurface[i] = imCache->second;
@@ -2563,7 +2568,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             if (!im.ok || im.width <= 0 || im.height <= 0) {
                 continue;
             }
-            TextureSet::Tex t = shrink(im, kMaxSize);
+            TextureSet::Tex t = shrink(im, bildGrenzeFuer(im));
             g_app->texCache[schluessel] = t;
             out.bySurface[i] = std::move(t);
             ++out.found;
@@ -2608,7 +2613,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                     // finden ist, jedes Mal neu durch die Suche; im
                     // Protokoll sind das die "ueber Shaderskripte"
                     // gezaehlten, und davon gibt es reichlich.
-                    TextureSet::Tex t2 = shrink(im, kMaxSize);
+                    TextureSet::Tex t2 = shrink(im, bildGrenzeFuer(im));
                     g_app->texCache[schluessel] = t2;
                     // --- alphaFunc gehoert mit -------------------------
                     //
@@ -2685,7 +2690,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             if (!st.glow || st.lightmap || st.image.empty()) {
                 continue;
             }
-            const std::string sk = image::mappingName(st.image) + "@" + std::to_string(kMaxSize);
+            const std::string sk = image::mappingName(st.image) + "@" + bildStufeText();
             TextureSet::Tex z;
             const auto hit = g_app->texCache.find(sk);
             if (hit != g_app->texCache.end()) {
@@ -2701,7 +2706,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                     if (!im.ok || im.width <= 0 || im.height <= 0) {
                         continue;
                     }
-                    z = shrink(im, kMaxSize);
+                    z = shrink(im, bildGrenzeFuer(im));
                     g_app->texCache[sk] = z;
                     break;
                 }
@@ -7889,6 +7894,21 @@ void ansichtEinstellungen() {
     }
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("%s", tr(Str::MapBrightnessHint));
+    }
+    // r_picmip: Die Bilder werden neu gelesen, erst beim Loslassen.
+    {
+        static int ziehen = -1;
+        int stufe = ziehen >= 0 ? ziehen : g_app->settings.bildPicmip;
+        ImGui::SetNextItemWidth(feld);
+        if (ImGui::SliderInt(tr(Str::MapPicmip), &stufe, 0, 3)) { ziehen = stufe; }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapPicmipHint)); }
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            if (ziehen >= 0 && ziehen != g_app->settings.bildPicmip) {
+                g_app->settings.bildPicmip = ziehen;
+                rescanGamePaths();
+            }
+            ziehen = -1;
+        }
     }
     ImGui::SetNextItemWidth(feld);
     if (ImGui::SliderFloat(tr(Str::MapMinLight), &g_app->mapMinLight, 0.0F, 0.5F, "%.2f")) {

@@ -62,6 +62,11 @@ void beideRichtungen(const char* name, std::uint32_t bit, const char* kennung,
 int main() {
     std::printf("gpushader\n");
 
+    // rc608 Teil 7: RB_SurfaceGhoul normiert die gewichtete Normale nicht, der Nebel ist das Bild *fog.
+    erwarte("Figur: Normale behaelt die Laenge der gewichteten Summe", figurVertexShaderHlsl(kNichts).find("nw / nl * length(nrm)") != std::string::npos);
+    erwarte("Nebel: 256 x 32 linear gefiltert, je Texel R_FogFactor", nebelPixelShaderHlsl().find("ein.st * float2(256.0, 32.0) - 0.5") != std::string::npos &&
+                                                                         nebelPixelShaderHlsl().find("floor(255.0 * sqrt(floor(s * 255.0) / 255.0)) / 255.0") != std::string::npos);
+
     // --- Jedes Merkmal, in beide Richtungen ------------------------------
     beideRichtungen("deformVertexes", kDeform, "ein.normal * w", true);
     // Wie AutospriteDeform: entlang der Kameraachsen, Richtung und Radius
@@ -76,6 +81,8 @@ int main() {
     // Wolkenschicht (R_InitSkyTexCoords): Kuppel mit Radius 4096.
     beideRichtungen("Wolkenschicht", kWolke, "float h = gWolkenHoehe;", false);
     beideRichtungen("Himmelsportal", kSkyPortal, "gPortal.Load(", false);
+    // rc608 Teil 7: Stufe 0 und halber Texel am Rand, sonst eine Haarlinie an der Kante zweier Himmelsseiten.
+    beideRichtungen("Himmelswuerfel", kSky, "gHimmel.SampleLevel(gSampler, float3(huv, face), 0.0)", false);
     beideRichtungen("alphaGen portal", kAlphaPortal, "/ max(gPortalWeite", true);
     beideRichtungen("Spiegelbild", kSpiegelBild, "float4 c = float4(gPortal.Load(", false);
     // NICHT auf "gTexMatrix" pruefen: der Name steht ohnehin in der
@@ -419,7 +426,7 @@ int main() {
         erwarte("die gedrehte Normale wird benutzt - in die Welt gedreht",
                 f.find("float3 nw = mul((float3x3)gFigurWelt, nrm);") != std::string::npos);
         erwarte("eine Normale der Laenge null gibt kein NaN",
-                f.find("float3 n = (nl > 1e-6) ? nw / nl : float3(0, 0, 0);") != std::string::npos);
+                f.find("float3 n = (nl > 1e-6) ? nw / nl * length(nrm) : float3(0, 0, 0);") != std::string::npos);
         erwarte("mit Lichtgitter: Umgebung + max(0, n.l) * gerichtet",
                 f.find("gLichtUmgebung.rgb + ein * gLichtGerichtet.rgb") != std::string::npos &&
                     f.find("float ein = max(0.0, dot(n, gLichtRichtung.xyz));") != std::string::npos);

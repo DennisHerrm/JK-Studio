@@ -566,7 +566,7 @@ float4 main(VSOut ein) : SV_TARGET {
 //         Nebel steht, auf 1/32 .. 31/32 abgebildet
 //
 // und das Bild selbst ist R_FogFactor (tr_image.cpp) mit der Tabelle aus
-// R_InitFogTable (Wurzel) - hier ausgerechnet statt nachgeschlagen.
+// R_InitFogTable (Wurzel) - hier je Texel gerechnet und linear gefiltert wie das Bild.
 //
 // JeNebel (b6):
 //     gNebelFarbe   rgb, w = tcScale
@@ -648,20 +648,35 @@ std::string nebelPixelShaderHlsl() {
     s += R"(
 Texture2D    gBild    : register(t0);
 SamplerState gSampler : register(s0);
+// Ein Texel von tr.fogImage (R_CreateFogImage): 256 x 32, R_FogFactor an seiner Mitte mit tr.fogTable
+// (256 Stufen, Wurzel, abgeschnitten), mal 255 in ein Byte.
+float nebelTexel(float x, float y) {
+    float s = clamp(x, 0.0, 255.0);
+    float t = (clamp(y, 0.0, 31.0) + 0.5) / 32.0;
+    s = (s + 0.5) / 256.0 - 1.0 / 512.0;
+    if (s < 0.0 || t < 1.0 / 32.0) {
+        return 0.0;
+    }
+    if (t < 31.0 / 32.0) {
+        s *= (t - 1.0 / 32.0) / (30.0 / 32.0);
+    }
+    s = min(s * 8.0, 1.0);
+    return floor(255.0 * sqrt(floor(s * 255.0) / 255.0)) / 255.0;
+}
 float4 main(VSNebel ein) : SV_TARGET {
     if (gNebelInfo.z > 0.0) {
         clip(gBild.Sample(gSampler, ein.uv).a - gNebelInfo.z);
     }
-    float sv = ein.st.x - 1.0 / 512.0;
-    float t = ein.st.y;
-    if (sv < 0.0 || t < 1.0 / 32.0) {
+    // GL_LINEAR, GL_CLAMP: nahe am Auge ist die Wurzel steil, die Rechnung ohne das Bild war dort zu stark.
+    float2 stelle = ein.st * float2(256.0, 32.0) - 0.5;
+    float2 g = floor(stelle);
+    float2 f = stelle - g;
+    float a = lerp(lerp(nebelTexel(g.x, g.y), nebelTexel(g.x + 1.0, g.y), f.x),
+                   lerp(nebelTexel(g.x, g.y + 1.0), nebelTexel(g.x + 1.0, g.y + 1.0), f.x), f.y);
+    if (a <= 0.0) {
         discard;
     }
-    if (t < 31.0 / 32.0) {
-        sv *= (t - 1.0 / 32.0) / (30.0 / 32.0);
-    }
-    sv = min(sv * 8.0, 1.0);
-    return float4(gNebelFarbe.rgb, sqrt(sv));
+    return float4(gNebelFarbe.rgb, a);
 }
 )";
     return s;
@@ -986,7 +1001,9 @@ VSOut main(VSIn ein) {
         // ihr einfach dot = 0, also nur Umgebungslicht - so auch hier.
         float3 nw = mul((float3x3)gFigurWelt, nrm);
         float nl = length(nw);
-        float3 n = (nl > 1e-6) ? nw / nl : float3(0, 0, 0);
+        // RB_SurfaceGhoul legt die gewichtete Summe ungekuerzt in tess.normal: Zwischen zwei Knochen ist sie kuerzer als 1,
+        // und RB_CalcDiffuseColor nimmt das Punktprodukt damit. Mit der Laenge 1 waren die Figuren 2 bis 9 Prozent zu hell.
+        float3 n = (nl > 1e-6) ? nw / nl * length(nrm) : float3(0, 0, 0);
         if (gLichtRichtung.w > 1.5) {
             // rc602: eine Leuchtstufe ohne rgbGen - identityLighting, am
             // Schirm die Bildfarbe selbst (siehe lichtFuer, gpustate.h).
@@ -1426,9 +1443,14 @@ float4 main(VSOut ein) : SV_TARGET {
             if (d.z > 0) { face = 4; sN = -d.y/az; tN = -d.x/az; }
             else         { face = 5; sN = -d.y/az; tN =  d.x/az; }
         }
-        float2 huv = float2(saturate((sN + 1.0) * 0.5),
-                            saturate(1.0 - (tN + 1.0) * 0.5));
-        c = gHimmel.Sample(gSampler, float3(huv, face));
+        // Die Seiten sind im Spiel GL_CLAMP und MakeSkyVec rechnet je Ecke, ohne Sprung in den Ableitungen.
+        // Sample mit dem umlaufenden, anisotropen Abtaster holte an der Kante zweier Seiten das ganze Bild in
+        // einen Bildpunkt: eine Haarlinie im Himmel. Darum Stufe 0 und am Rand der halbe Texel wie CLAMP_TO_EDGE.
+        float hb, hh, hn;
+        gHimmel.GetDimensions(hb, hh, hn);
+        float2 hrand = float2(0.5 / hb, 0.5 / hh);
+        float2 huv = clamp(float2((sN + 1.0) * 0.5, 1.0 - (tN + 1.0) * 0.5), hrand, 1.0 - hrand);
+        c = gHimmel.SampleLevel(gSampler, float3(huv, face), 0.0);
         return c;
     }
 )";

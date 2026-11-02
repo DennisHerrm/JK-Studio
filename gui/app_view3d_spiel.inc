@@ -294,6 +294,14 @@ bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMa
         const int kn = an.waffenHolster ? boneIndex(*d.anim, an.bolzen) : -1;
         if (kn < 0 || static_cast<std::size_t>(kn) >= welt.size()) { return false; }
         hand = welt[static_cast<std::size_t>(kn)];
+        // G2API_GetBoltMatrix: VectorNormalize auf die drei Zeilen. Die Knochen tragen die Skalierung der .gla (0,64),
+        // ohne das war die Waffe zu klein und der Versatz aus holster.cfg zu kurz: Sie steckte in der Figur.
+        for (auto& zeile : hand.m) {
+            const float laenge = std::sqrt(zeile[0] * zeile[0] + zeile[1] * zeile[1] + zeile[2] * zeile[2]);
+            if (laenge > 0.0F) {
+                for (int k = 0; k < 3; ++k) { zeile[k] /= laenge; }
+            }
+        }
     }
     gpu::baueGriffWelt(fw, hand, gw);
     if (an.holster) {
@@ -3778,7 +3786,7 @@ void loadActorModels() {
         const std::size_t texFaeden =
             trupp(texNamen.size(), [&](std::size_t k, std::size_t) {
                 const std::string key =
-                    image::mappingName(texNamen[k]) + "@" + std::to_string(kBildGrenze);
+                    image::mappingName(texNamen[k]) + "@" + bildStufeText();
                 // Schon da? Dann nicht noch einmal entziffern - derselbe
                 // Fehler wie bei den Kartentexturen, nur hier.
                 if (g_app->texCache.count(key) != 0U) {
@@ -3796,7 +3804,7 @@ void loadActorModels() {
                         continue;
                     }
                     TextureSet::Tex t;
-                    image::shrinkTo(im, kBildGrenze, t.width, t.height, t.rgba);
+                    image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
                     texErgebnis[k] = {key, std::move(t)};
                     texOk[k] = 1;
                     return;

@@ -2094,7 +2094,6 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
     // Bildpunkt angesprochen, und was nicht in den Zwischenspeicher des
     // Rechners passt, kostet mehr als es bringt. 512 ist der Punkt, an dem
     // eine Wand aus normalem Abstand nicht mehr auffaellt.
-    constexpr int kMaxSize = kBildGrenze;
     ShaderMap& shaderMap = g_app->shaderMap;
         // --- Das Skript geht vor der Datei ----------------------------
         //
@@ -2159,7 +2158,7 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
             //    bewegen. Gemerkt werden darum nur die Bildpunkte; die
             //    Werte kommen danach jedes Mal frisch dazu.
             const std::string key =
-                image::mappingName(name) + "@" + std::to_string(kMaxSize);
+                image::mappingName(name) + "@" + bildStufeText();
             g_app->kartenBilder.insert(key);
             TextureSet::Tex t;
             const auto hit = g_app->texCache.find(key);
@@ -2274,7 +2273,7 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
             if (!im.ok || im.width <= 0 || im.height <= 0) {
                 continue;
             }
-            image::shrinkTo(im, kMaxSize, t.width, t.height, t.rgba);
+            image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
             // In die Tabelle kommen die BILDPUNKTE - vor den Shaderwerten,
             // damit der naechste Shader mit demselben Bild seine eigenen
             // bekommt.
@@ -2751,7 +2750,7 @@ void loadMapTextures() {
                     // hinterher von einem Faden. Damit bleibt es
                     // ungefaehrlich.
                     if (g_app->texCache.count(
-                            image::mappingName(name) + "@" + std::to_string(kBildGrenze)) != 0U) {
+                            image::mappingName(name) + "@" + bildStufeText()) != 0U) {
                         break;
                     }
                     std::string data;
@@ -2765,9 +2764,9 @@ void loadMapTextures() {
                         continue;
                     }
                     TextureSet::Tex t;
-                    image::shrinkTo(im, kBildGrenze, t.width, t.height, t.rgba);
+                    image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
                     faecher[fach].emplace_back(
-                        image::mappingName(name) + "@" + std::to_string(kBildGrenze), std::move(t));
+                        image::mappingName(name) + "@" + bildStufeText(), std::move(t));
                     break;
                 }
             }
