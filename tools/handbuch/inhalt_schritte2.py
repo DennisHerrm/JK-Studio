@@ -248,7 +248,7 @@ SCHRITTE = {
           "e_oben_auswahl", "A selected figure in the top view."),
     ],
     "k-hell": [
-        S("**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game.",
+        S("**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas.",
           "h_ansicht_einst", "The view settings."),
         S("**Switch things off.** **{{MapEffects}}**, **{{MapGlow}}**, **{{MapDynLights}}**, **{{MapFog}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside.",
           "e_schalter", "The switches on the map toolbar."),

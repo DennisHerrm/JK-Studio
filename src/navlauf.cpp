@@ -3012,7 +3012,9 @@ struct Lauf {
         LaufZustand::Sprung& s = z.sprung;
         const bool flip = s.beinAnim == kSaSprung && w.sprungAnimArt == 1;
         const bool schweben = s.laeuft;   // forcePowersActive & (1 << FP_LEVITATION)
-        if (!flip) {
+        // Pruefung 4a: eine Leiche setzt keine Animation (PM_SetAnim kehrt bei
+        // PM_DEAD zurueck) - jumpZStart aber schon (PM_CrashLand liest es)
+        if (!flip && !w.tot) {
             NavVec tief = z.ort;
             tief[2] -= 64.0F;
             const NavSpur tr = kastenSpur(z.ort, tief, pmMaske());
@@ -3425,6 +3427,7 @@ struct Lauf {
     signed char ucmdVor = 0;      // ucmd.forwardmove aus STEER::DeActivate
     signed char ucmdSeit = 0;     // ucmd.rightmove
     bool jk2Pm = false;           // rc604 fix604: PM_WalkMove von JK2 (ohne moveDir aus ucmd)
+    float landeDelta = -1.0F;     // rc608 Teil 5: in diesem Pmove aufgesetzt (PM_CrashLandDelta), sonst -1
     // Stufe 8b Punkt 3: ein Spieler statt eines NPC (navSpielerPmove)
     bool spieler = false;
     bool spielerGeduckt = false;  // PMF_DUCKED
@@ -3545,7 +3548,10 @@ struct Lauf {
     }
     [[nodiscard]] std::uint32_t pmMaske() const {
         if (spieler) { return kNavMaskPlayerSolid; }   // Stufe 8b Punkt 3: pm->tracemask des Spielers
-        return welt.pmOhneKoerper ? (kNavMaskNpcSolid & ~kNavBody) : kNavMaskNpcSolid;
+        const std::uint32_t m = welt.pmOhneKoerper ? (kNavMaskNpcSolid & ~kNavBody) : kNavMaskNpcSolid;
+        // Pruefung 4a: player_die - "clipmask &= ~(CONTENTS_MONSTERCLIP|CONTENTS_BOTCLIP);
+        // //so dead NPC can fly off ledges" (g_combat.cpp:4120 OJ)
+        return w.tot ? (m & ~(kNavMonsterClip | kNavBotClip)) : m;
     }
     // PM_GroundTrace (bg_pmove.cpp:7385-7560 MD) fuer einen NPC zu Fuss (kein
     // Fahrzeug, kein Wandlauf, kein Halten durch Rancor/Wampa).
@@ -3564,15 +3570,27 @@ struct Lauf {
         if (tr.fraction == 1.0F || schwer <= 0.0F) {
             // "if the trace didn't hit anything, we are in free fall" -
             // PM_GroundTraceMissed setzt groundEntityNum = ENTITYNUM_NONE.
-            if (z.amBoden) { inDenFall(); }   // rc605 (Rest): der Uebergang
+            // Pruefung 4a: schon in der Luft - PM_FallToDeath pruefen
+            if (z.amBoden) {
+                inDenFall();   // rc605 (Rest): der Uebergang
+            } else {
+                fallTodPruefen();
+            }
             z.amBoden = false;
             bodenFlaeche = false;
             gehend = false;
             return;
         }
         bodenNormale = tr.normal;
-        // "check if getting thrown off the ground" (ohne PMF_TIME_KNOCKBACK)
-        if (z.tempoVek[2] > 100.0F && punkt(z.tempoVek, tr.normal) > 10.0F) {
+        // "check if getting thrown off the ground" - Pruefung 4a: auch mit
+        // PMF_TIME_KNOCKBACK schon ab velocity[2] > 0 (der Kantenwurf)
+        if (((z.tempoVek[2] > 0.0F && z.rueckstoss) || z.tempoVek[2] > 100.0F) && punkt(z.tempoVek, tr.normal) > 10.0F) {
+            if (w.tot) {   // PM_JumpForDir -> PM_SetAnim: nichts fuer PM_DEAD
+                z.amBoden = false;
+                bodenFlaeche = false;
+                gehend = false;
+                return;
+            }
             // rc605 FU4: "go into jump animation" (bg_pmove.cpp:7487-7513 MD,
             // 5216-5246 OpenJK): ausser bei PM_FlippingAnim(legsAnim) (und
             // Spezialspruengen, Knockdown, Rolle, Tritt, Rancor/Wampa - nicht in
@@ -3609,7 +3627,8 @@ struct Lauf {
             // ucmd "velocity[2] = 0".
             if (vorherTempo[2] < -200.0F) { z.pmZeit = 250; }   // PMF_TIME_LAND
             if (ucmdVor == 0 && ucmdSeit == 0) { z.tempoVek[2] = 0.0F; }
-            landeAnim();   // rc605 FU4: PM_CrashLand
+            landeDelta = std::fabs(vorherTempo[2]) / 10.0F;   // PM_CrashLandDelta, waterlevel 0
+            if (!w.tot && !z.aufprallTod) { landeAnim(); }   // rc605 FU4: PM_CrashLand
         }
         z.amBoden = true;
     }
@@ -3785,9 +3804,10 @@ struct Lauf {
             vel[1] = 0.0F;
             return;
         }
-        if (!amBodenReiben) { return; }
+        // "if getting knocked back, no friction"; ps.friction der Leiche
+        if (!amBodenReiben || z.rueckstoss) { return; }
         const float control = speed < kPmStopSpeed ? kPmStopSpeed : speed;
-        const float drop = control * kNpcFriction * frameZeit;
+        const float drop = control * (w.tot ? z.reibung : kNpcFriction) * frameZeit;
         float neu = speed - drop;
         if (neu < 0.0F) { neu = 0.0F; }
         neu /= speed;
@@ -3909,6 +3929,61 @@ struct Lauf {
 
     // Pmove: PmoveSingle (mit Spuren: Boden, Luft, Schwerkraft - siehe oben;
     // ohne Spuren der Boden aus welt.boden wie bis teil 2).
+    // PM_DeadMove (bg_pmove.cpp OJ): "extra friction" am Boden.
+    void totBewegung() {
+        if (!gehend) { return; }
+        NavVec& vel = z.tempoVek;
+        const float l = laenge(vel);
+        const float neu = l - 20.0F;
+        if (neu <= 0.0F) {
+            vel = NavVec{0.0F, 0.0F, 0.0F};
+        } else {
+            vel = mal(vel, neu / l);
+        }
+    }
+    // PM_GroundTraceMissed (bg_pmove.cpp:4785-4935 OJ, 6818-7006 MD, codeJK2 2860-3000): ein lebender
+    // NPC in der Luft sagt seinen Aufprall 400 voraus. PM_FallToDeath, wenn es unten nichts gibt (mehr
+    // als 256 tief) oder der Aufprall auf Architektur toedlich waere.
+    void fallTodPruefen() {
+        const LaufWerte::FallTod& f = w.fallTod;
+        if (!f.pruefen || w.tot || spieler || z.aufprallTod || z.sprung.laeuft || z.sprung.springt || !(schwer > 0.0F)) { return; }
+        if (!(akt.t - (z.gesetztSpawn ? z.gesetztMs : 0.0) > 2000.0)) { return; }
+        if (z.sprung.zStart != 0.0F && !(z.sprung.zStart > z.ort[2])) { return; }
+        NavVec vel = z.tempoVek;
+        float speed = laenge(vel);
+        if (speed == 0.0F) { speed = 1.0F; }
+        vel[2] -= 0.5F * (400.0F / speed) * schwer;
+        speed = laenge(vel);
+        if (speed == 0.0F) { speed = 1.0F; }
+        const NavVec punktVor = plus(z.ort, mal(vel, 400.0F / speed));
+        const NavSpur tr = kastenSpur(z.ort, punktVor, pmMaske());
+        if (tr.allsolid || tr.startsolid || z.ort[2] - tr.endpos[2] < 128.0F) { return; }
+        bool stirbt = false;
+        if (tr.fraction == 1.0F) {
+            stirbt = z.tempoVek[2] < 0.0F && z.ort[2] - punktVor[2] > 256.0F;
+        } else if (!w.schwert && !f.jediSchutz) {
+            // "hit architecture, find impact force"
+            NavVec v2 = z.tempoVek;
+            const float zeit = laenge(minus(tr.endpos, z.ort)) / std::max(laenge(v2), 1.0e-3F);
+            v2[2] -= 0.5F * zeit * schwer;
+            float dmg = 0.0F;
+            if (tr.normal[2] > 0.5F) {
+                // PM_CrashLandDelta (waterlevel 0), ab 30; PM_DamageForDelta: bei NPCs delta selbst
+                const float delta = std::fabs(v2[2]) / 10.0F;
+                dmg = delta >= 30.0F ? delta : 0.0F;
+            } else {
+                dmg = 10.0F * laenge(z.tempoVek) * 0.01875F;
+            }
+            stirbt = dmg >= static_cast<float>(f.gesundheit);
+        }
+        if (!stirbt || f.raketen) { return; }   // PM_RocketeersAvoidDangerousFalls: Jetpack statt Fall
+        z.aufprallTod = true;
+        LaufZustand::Sprung& s = z.sprung;
+        const int nun = static_cast<int>(std::lround(akt.t));
+        s.beinAnim = f.hatFallDeath1 ? kSaFallDeath1 : kSaDeath1;
+        s.beinAnimAb = nun;
+        s.beinTimer = f.animMs;
+    }
     void pmove(float dt = 0.05F, int ms = 50) {
         frameZeit = dt;
         frameMs = ms;
@@ -3917,16 +3992,20 @@ struct Lauf {
         const bool amBoden = static_cast<bool>(welt.boden);
         const bool mitWaenden = amBoden && (static_cast<bool>(welt.spur) || static_cast<bool>(welt.spurZeit)) && w.fallen;
         if (mitWaenden) {
-            if (!spieler) { npcDucken(); }   // Pruefung 3: PM_CheckDuck vor PM_GroundTrace (bg_pmove.cpp:14873-14879 OJ)
+            if (!spieler && !w.tot) { npcDucken(); }   // Pruefung 3: PM_CheckDuck vor PM_GroundTrace (bg_pmove.cpp:14873-14879 OJ)
             const NavVec vorher = z.ort;
             vorherTempo = vel;               // pml.previous_velocity
             bodenSpur();                     // PM_GroundTrace
             // PM_DropTimers (bg_pmove.cpp:33160-33175 MD)
-            if (z.pmZeit != 0) { z.pmZeit = frameMs >= z.pmZeit ? 0 : z.pmZeit - frameMs; }
+            if (z.pmZeit != 0) {
+                z.pmZeit = frameMs >= z.pmZeit ? 0 : z.pmZeit - frameMs;
+                if (z.pmZeit == 0) { z.rueckstoss = false; }   // pm_flags &= ~PMF_ALL_TIMES
+            }
             // rc605: "drop legs animation counter" (bg_pmove.cpp:33203-33214 MD)
             if (z.sprung.beinTimer > 0) { z.sprung.beinTimer = std::max(0, z.sprung.beinTimer - frameMs); }
             // rc605 FU4: "drop torso animation counter" (bg_pmove.cpp:33190-33201 MD)
             if (z.sprung.torsoTimer > 0) { z.sprung.torsoTimer = std::max(0, z.sprung.torsoTimer - frameMs); }
+            if (w.tot) { totBewegung(); }
             if (gehend) {
                 gehBewegung();
             } else {
@@ -5134,6 +5213,12 @@ std::uint64_t planSchluessel(const NavWelt& welt, const LaufZustand& z, const La
         }
         // rc605 (Rest): was PM_CrashLand bei jeder Landung liest.
         for (const int i : {0x4c4e44, w.levitation, w.landKlasse}) { h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i))); }
+        // rc608 Teil 5: PM_FallToDeath, die Lunge
+        for (const int i : {0x4c5453, static_cast<int>(w.fallTod.pruefen), w.fallTod.gesundheit,
+                            static_cast<int>(w.fallTod.jediSchutz), static_cast<int>(w.fallTod.raketen), static_cast<int>(w.fallTod.hatFallDeath1),
+                            w.fallTod.animMs, static_cast<int>(w.lungeBeimRollen)}) {
+            h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i)));
+        }
         for (const int i : w.landeMs) { h = mische(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(i))); }
     }
     // rc605: Spruenge und der Merker "blockiert" (nur mit SCF_NAV_CAN_JUMP).
@@ -5539,6 +5624,12 @@ struct LaufRechner {
     // PM_TryRoll (bg_pmove.cpp:3782-3929 OJ) fuer einen NPC
     void rolleVersuchenJetzt(Lauf& l, double jetztMs) {
         const bool md = navMovieDuelsRegeln();
+        if (md && w.lungeBeimRollen) {
+            NavVec lungeVorn{};
+            NavVec lungeRechts{};
+            qAchsen(z.gier, lungeVorn, lungeRechts);
+            z.tempoVek = NavVec{lungeVorn[0] * 150.0F, lungeVorn[1] * 150.0F, 50.0F};
+        }
         if (!w.darfRollen) { return; }
         if (!md && w.keineAkrobatik) { return; }   // SCF_NO_ACROBATICS (Movie Duels fragt nicht)
         int code = kSaKeine;
@@ -5820,6 +5911,15 @@ struct LaufRechner {
         takt.weg = wegArt;
         takt.geduckt = z.geduckt;   // Pruefung 3
         takt.sprungTempo = l.sprungTempo;
+        takt.landung = l.landeDelta;
+        takt.aufprall = z.aufprallTod && z.amBoden;
+        if (z.aufprallTod && plan.fallTodMs < 0.0) { plan.fallTodMs = t; }
+        if (takt.aufprall) {
+            // PM_CrashLandDamage(1000): die Figur stirbt, hier endet der Plan.
+            plan.aufprallMs = t;
+            plan.aufprallTempo = l.vorherTempo;
+            fertig = true;
+        }
         plan.takte.push_back(takt);
         plan.zustaende.push_back(z);
         // Ende? (In BS_NOCLIP gibt es keinen Boden - alle drei Achsen.)
@@ -5922,6 +6022,41 @@ LaufPlan planeLauf(const NavWelt& welt, const LaufZustand& start, const LaufWert
                 ps.lru.pop_back();
             }
         }
+    }
+    return plan;
+}
+
+LaufPlan planeTotenlauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, double abMs, double grenzeMs) {
+    LaufPlan plan;
+    plan.abMs = abMs;
+    plan.anfang = start;
+    LaufWerte w = werte;
+    w.tot = true;
+    w.fallen = true;
+    plan.hoeheGilt = welt.boden && (welt.spur || welt.spurZeit);
+    if (!plan.hoeheGilt) { return plan; }
+    LaufZustand z = start;
+    double t = std::floor(abMs / 50.0) * 50.0 + 50.0;
+    int ruhig = 0;
+    bool erstes = true;
+    while (t <= grenzeMs && ruhig < 3) {
+        Lauf l(welt, w, z);
+        l.akt.t = t;
+        if (erstes) {
+            l.pmove(0.001F, 1);
+            erstes = false;
+        } else {
+            l.pmove();
+        }
+        LaufTakt takt;
+        takt.t = t;
+        takt.msec = 50;
+        takt.ort = z.ort;
+        takt.landung = l.landeDelta;
+        plan.takte.push_back(takt);
+        plan.zustaende.push_back(z);
+        ruhig = (z.amBoden && z.tempoVek[0] == 0.0F && z.tempoVek[1] == 0.0F && z.tempoVek[2] == 0.0F) ? ruhig + 1 : 0;
+        t += 50.0;
     }
     return plan;
 }
@@ -6072,6 +6207,8 @@ const char* sprungAnimName(int code) {
         case kSaRollB: return "BOTH_ROLL_B";
         case kSaRollR: return "BOTH_ROLL_R";
         case kSaRollL: return "BOTH_ROLL_L";
+        case kSaFallDeath1: return "BOTH_FALLDEATH1";
+        case kSaDeath1: return "BOTH_DEATH1";
         default: return nullptr;
     }
 }
@@ -6090,6 +6227,21 @@ bool npcDarfRollen(bool movieDuels, bool jk2, const std::string& waffe, const st
     if (leer) { return true; }
     const std::string k = klein(klasse);
     return k == "class_bobafett" || k == "class_reborn";
+}
+
+void npcFallTodKlasse(bool movieDuels, bool jk2, const std::string& klasse, LaufWerte::FallTod& f) {
+    const std::string k = klein(klasse);
+    // "desann never falls to his death" (OJ/JK2); Movie Duels auch CLASS_SITHLORD und CLASS_VADER
+    f.pruefen = k != "class_desann" && !(movieDuels && (k == "class_sithlord" || k == "class_vader"));
+    if (jk2) {
+        // codeJK2: nur "pm->ps->weapon != WP_SABER" (LaufWerte::schwert), kein Jetpack
+        f.jediSchutz = false;
+        f.raketen = false;
+        return;
+    }
+    const bool mando = movieDuels && (k == "class_mandalorian" || k == "class_jango" || k == "class_jangodual");
+    f.raketen = k == "class_bobafett" || k == "class_rockettrooper" || mando;
+    f.jediSchutz = f.raketen || k == "class_reborn";
 }
 
 int npcLandKlasse(bool movieDuels, bool jk2, const std::string& klasse, const std::string& rang) {
@@ -6440,6 +6592,9 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
             s.bau->abMs = allein.abMs;
             s.bau->anfang = allein.anfang;
             s.bau->hoeheGilt = allein.hoeheGilt;
+            s.bau->fallTodMs = allein.fallTodMs;
+            s.bau->aufprallMs = allein.aufprallMs;
+            s.bau->aufprallTempo = allein.aufprallTempo;
             s.abgewichen = true;
             s.rechner = std::make_unique<LaufRechner>(kw, allein.anfang, a.werte, a.abMs, a.grenzeMs);
             s.rDazu = 0;
@@ -6462,6 +6617,9 @@ NavKoerperErgebnis navKoerperLauf(const NavWelt& welt, const std::vector<NavFigu
             s.bau->abMs = al.abMs;
             s.bau->anfang = al.anfang;
             s.bau->hoeheGilt = al.hoeheGilt;
+            s.bau->fallTodMs = al.fallTodMs;
+            s.bau->aufprallMs = al.aufprallMs;
+            s.bau->aufprallTempo = al.aufprallTempo;
             for (std::size_t i = 0; i < s.k && i < al.takte.size(); ++i) {
                 s.bau->takte.push_back(al.takte[i]);
                 s.bau->zustaende.push_back(al.zustaende[i]);

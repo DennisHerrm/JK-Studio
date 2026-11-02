@@ -369,12 +369,64 @@ Spielvergleich (eigene Testkarten nur im eigenen Ordner: Geometrie der Vorlage, 
 
 Offen:
 - Bilder der Geschosse und Schadenszahlen sind im laufenden Spiel nicht gemessen, nur per Foto angesehen. Ein Treffer an einer bestimmten Stelle des Koerpers (Trefferort aus dem Netz) ist nur gegen die Formel geprueft.
-- Figuren und Geschuetz sind in der Vorschau heller als im Spiel (`paar_md_turm.png`). Nicht in diesem Teil untersucht.
-- Der Feuerfaecher der Treffer steht im Foto des Spiels am Kopf nach oben, in der Vorschau liegt er flacher zum Boden. Normale aus G2_RadiusTracePolys ist portiert; nicht geklaert, ob es Zeitpunkt oder Normale ist.
+- Figuren und Geschuetz waren in der Vorschau heller als im Spiel: behoben in Teil 5.
+- Der Feuerfaecher der Treffer: geklaert in Teil 5.
 - Der Spieler ist nur Ziel, wenn die Szene ihn enthaelt (`affect player`); das Spiel hat ihn immer.
 - SET_INVISIBLE gilt hier als abwesend; im Spiel bleibt die Figur fuer G_RadiusList da und nur contents 0.
 - Nicht nachgebildet: G_StartFlee (KI-Flucht vor dem Wachgeschuetz), Areaportale in gi.inPVS (Tueren), Schwertabwehr von Geschossen (CONTENTS_LIGHTSABER), CG_AddGhoul2Mark (Brandmal auf der Figur), Rueckstoss und Schmerzanimation, paintarget von func_breakable, func_glass als Ziel, DoImpact geworfener misc_model_breakable gegen Figuren (5c-Rest).
 - Die 90 Grad gelten jetzt auch fuer alle anderen GLM-Gegenstaende: per Quelle begruendet, per Foto nur fuer die Geschuetze bestaetigt.
+
+## Teil 5: Figurenlicht und Rest aus Pruefung 4a
+
+### Figurenlicht
+Ursachen, alle gegen die Quelle und das laufende Spiel:
+- `mapBrightness` stand auf 2,0 und `mapMinLight` auf 0,10. Das Spiel hat r_mapOverBrightBits 0 und kein Grundlicht (Cvars im Spiel abgefragt: r_gamma 1, r_intensity 1, r_overBrightBits 0, r_mapOverBrightBits 0, r_ambientScale 0,5, r_directedScale 1). Vorgabe jetzt 1,0 und 0, die Regler bleiben als Hilfe, der Regler hat einen Hinweis.
+- `sampleLightGrid` ohne r_ambientScale 0,5. Der Mindestzuschlag war fest 32, Movie Duels nimmt 8 (RF_MINLIGHT 76), OpenJK 32 (RF_MORELIGHT 96). Umgebungslicht jetzt auf 255 geklemmt, totalFactor nur unter 0,99, ein leerer Stil beendet die Stufen, alle Punkte in Waenden geben nur den Zuschlag statt der alten Schattierung, ohne Gitter 150/150 mit der Vorgaberichtung der Sonne. Gittergroesse falsch: OpenJK kein Gitter, Movie Duels R_FindCompilerGridSize.
+- `addDynamicLights` rechnete `dl->color * 255`: Das Spiel nimmt `VectorMA(directedLight, d, dl->color)` mit Farbe 0..1. Daher die gelben Baender auf der Figur.
+- Die Figur war eine andere: Spieler jetzt nach G_InitPlayerFromCvars, Movie Duels `jedi_hm`, OpenJK `jedi_tf`, beide `|head_a1|torso_a1|lower_a1` (RE_SplitSkins, neu `hautAusDreiTeilen`), g_saber `single_1`, und er haelt das Schwert (ClientSpawn).
+- RB_CalcDiffuseColor rechnet in ganzen Bytes: im Shader jetzt auch.
+- r_gammaShaders 1 in Movie Duels ("GAMMA: shader" im Protokoll, die 3D-Tabelle steht in der DLL, nicht in unserer Quelle): 64 Stufen ohne Halbtexel-Ausgleich, dunkle Werte fallen um rund 2 Bytes. Formel aus dem Fragmentprogramm der DLL und den Fotos, `spielGammaWert`, nur unter Movie Duels. Die Original-exe meldet "GAMMA: hardware", OpenJK hat es in unserer Quelle nicht.
+- Anisotrop 16 im Abtaster ("16 of 16" in Movie Duels und Original).
+- SET_MORELIGHT und SET_MORELIGHT_PLAYER wirken jetzt.
+
+Messung `r_debuglight` (LogLight) gegen die Vorschau, je Karte der Spielerstart, Vorschau vorher/nachher/Spiel, amb:
+md_am_sith 107,3/40,4/40, duel_kamino 98,7/35,5/35, duel_deathstar 124,8/48,6/48, duel_mustafar 123,5/48,1/48, academy1 132,8/52,6/52, duel_hoth 192,2/82,3/81, t3_byss 176,0/74,2/74. dir und Richtung stimmen auf allen sieben (dir bis 1 Byte, Richtung bis 0,01). Im Original-JKA auf t3_byss: amb 115, dir 384, Formel mit +32: 115,7 und 385,7.
+
+Bildvergleich gv_turm-Geometrie, gleiche Kamera, gleiche Figur, Faktor Vorschau/Spiel (R):
+Figur 4,24 -> 0,78; Boden 2,19 -> 1,02; hinterer Boden 2,18 -> 0,99; Boden vorn 2,48 -> 1,11; Wand unten 1,99 -> 0,92; Wand 2,68 -> 1,13; dunkle Wand 3,37 -> 1,05.
+
+Tests: Selbsttest `figurlicht` (neu; Rot 1+7 FEHLER = alle 8, gruen 8/0). Ctest `kartengeometrie`/bspgeotest und `efxtest` mit den neuen Zahlen (efxtest rot 2, gruen). `gpushader` prueft `spielGammaWert`.
+
+Geaenderte Teststellen, keine Lockerung: bspgeotest erwartet jetzt die Engine-Zahlen (207 -> 95,5, 232 -> 108, 32 -> 8), efxtest 417,8 -> 1,6384 und 16320 -> 64. Die alten Sollwerte beschrieben den Fehler.
+
+### Funkenfaecher
+Geklaert: weder Zeitpunkt noch Normale. Die Normale ist die des Dreiecks wie im Spiel (TransformPoint dreht in MD nur), der Faecher ist die Line von `turret/flesh_impact`. 20 Bilder im Spiel (`fan_spiel.png`) zeigen den Faecher meist nach rechts wie die Vorschau, aber auch nach oben und links, dazu Funken vom Rumpf: Dort zuckt die Figur (Schmerzanimation, Rueckstoss) und die Geschosse treffen andere Dreiecke. In der Vorschau steht sie still und jeder Schuss trifft dasselbe Dreieck. Grund der Streuung ist also die fehlende Schmerzanimation, die bleibt offen (siehe Teil 4). Gruene und rote Lichter auf dem Boden sind in beiden gleich.
+
+### Totenlauf, PM_FallToDeath, NPC_RemoveBody
+- `planeTotenlauf`: PM_DEAD ab dem Tod als `nurOrt`-Weg, PM_DeadMove, ps.friction, PMF_TIME_KNOCKBACK, clipmask ohne MONSTERCLIP/BOTCLIP, erstes Pmove 1 ms. PM_CrashLand einer Leiche: fallsplat ab delta 75, sonst bodyfall_human, FALLDEATH1LAND.
+- PM_GroundTraceMissed -> PM_FallToDeath im Wegplaner; der Aufprall ist ein Tod mit TodMittel::Fallen. `*falling1.wav`. Eingaben ueber `fallTodWerte`, gleich fuer Ablauf und Szene.
+- `leichenEntfernen` nach der Schwerkraft: BodyRemovalPadTime je Regelwerk, Droiden EF_NODRAW, message, Skript laeuft, 128 am Spieler, InFOVFromPlayerView 110/90, NPC_ClearLOS, nur mit self->enemy.
+- Lunge von Vader und Desann in PM_TryRoll (Movie Duels), nur gegen die Quelle gelesen: keine eigene Probe, kein Foto, in_camera kennt der Plan nicht.
+- Holster in Movie Duels: `saberHolsterLage` mit allen Plaetzen, Griff nur bei anderer Waffe in der Hand. SET_WEAPON: nur ein NPC verliert dabei das Schwert, der Spieler nicht.
+
+Tests: Ctest `leiche` (neu). Rot: Simulation abgeschaltet, Abbruch beim ersten leeren Plan. Gruen alle. Selbsttests pruefung3 9/0, geschuetze 10/0, figurlicht 8/0. Beim ersten ctest war `bewegung` mit 7 Fehlern rot, weil die Plaene von Ablauf und Szene verschieden waren; behoben, dann gruen.
+
+### Nur per Foto gegen das Spiel
+Figur und Karte auf md_am_sith, duel_kamino, duel_deathstar, duel_mustafar, academy1, duel_hoth, t3_byss. Leiche nach `kill` auf der md_am_sith-Geometrie: gleiche Lage, nach 28 s noch da (bestaetigt: kill laesst sie liegen). Griff an der Huefte von vorn.
+
+### Abweichung, gemessen statt gelesen
+Griff im Holster an der Huefte und Brust: Die Quelle ergibt eine Drehung um X, damit stuende er nach oben. Im Spielfoto haengt er nach unten, darum die Drehung um die Laengsachse; die Basispose von "ModView internal default" war nicht lesbar. Nur fuer HOLSTER_LHIPF per Foto bestaetigt, andere Plaetze und HOLSTER_BACK nicht.
+
+### Offen aus Teil 5
+- Figur im Mittel 0,78 bis 1,06 je Karte, nicht fest: Ursache nicht gefunden (Pose oder Mip-Stufe, die Lichtwerte selbst stimmen).
+- r_DynamicGlow: Movie Duels 1, Original 0 ("Dynamic Glow: disabled"). Die Vorschau hat den Schalter unabhaengig vom Regelwerk an.
+- Schmerzanimation und Rueckstoss (siehe Funkenfaecher).
+- Der Spieler mit Gewehr haelt es in der Vorschau seitlich, im Spiel im Anschlag (die Torso-Haltung gilt nur fuer NPCs). Gefunden am Holsterfoto.
+- Kasten der Leiche aus DeadThink (maxs[2] aus eyePoint), pitch_roll_for_slope (geneigte Leiche), die Wurf-Zweige ausser dem Kantenwurf setzen ps.friction nicht.
+- Waffen im Holster (cg_holster.cpp) und WP_SaberHolsterAvoidGuns; `*holsterorigin`; STUN_BATON am Spielerstart.
+- tr.sunDirection ohne Gitter ist die Vorgabe, q3map_sun nicht gelesen.
+- Testkarten ohne Entities: Die Vorschau zeichnet Untermodelle ohne Entity, das Spiel nicht (Tueren auf t3_byss, die Nebelwand auf duel_hoth). Auf den echten Karten gibt es den Fall nicht; duel_hoth echt: gleich.
+- Die Karte ist jetzt in allen Selbsttests dunkler. Der Gesamtlauf steht aus: Prueffotos und Schwellen koennen dort auffallen. Handbuchbilder der Karte zeigen noch die alte Helligkeit, `h_ansicht_einst` noch 2,0x: mit dem Bilderlauf der Endrunde erneuern.
 
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
@@ -442,6 +494,9 @@ Weiter offen:
 - Manual: images up to 2560 wide, animated images 1920; the pages show them much larger, a click shows them in full size
 - Preview: sentry guns, turrets and (under Movie Duels) misc_turretG2 now find figures, aim, fire and do damage by the rules of the chosen game: figures die, turrets, breakables and laser trip mines can be destroyed, and their targets fire. All Ghoul2 items stand the right way round (they were a quarter turn off).
 - Preview: from the same check: ZOOM during a camera accel, func_breakable timing, particle traces, floor sabers, thrown breakables, falling vehicles, trigger_hurt and fx_target_beam damage like in the game.
+- Preview: light as in the game. Map and characters were far too bright: defaults are now brightness 1.0x and ambient 0, light grid, minimum light per rule set and dynamic lights follow the engine, under Movie Duels also its gamma step.
+- Preview: the player has the game's character and saber (model and three skins from the defaults of OpenJK and Movie Duels).
+- Preview: corpses slide and fall on, characters fall to their death, corpses disappear by the game's rules; under Movie Duels a saber that is put away hangs in its holster.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -493,6 +548,9 @@ Weiter offen:
 - Handbuch: Bilder bis 2560 breit, bewegte Bilder 1920; die Seiten zeigen sie viel größer, ein Klick zeigt die volle Größe
 - Vorschau: Wachgeschuetze, Geschuetze und (unter Movie Duels) misc_turretG2 finden jetzt Figuren, zielen, feuern und machen Schaden nach den Regeln des gewaehlten Spiels: Figuren sterben, Geschuetze, Zerbrechliches und Laserfallen lassen sich zerstoeren, und ihre Ziele werden ausgeloest. Alle Ghoul2-Gegenstaende stehen richtig herum (sie waren eine Vierteldrehung verdreht).
 - Vorschau: aus derselben Pruefung: ZOOM waehrend einer Kamerabeschleunigung, Zeitablauf von func_breakable, Teilchenspuren, liegende Schwerter, geworfene Zerbrechliche, fallende Fahrzeuge, Schaden von trigger_hurt und fx_target_beam wie im Spiel.
+- Vorschau: Licht wie im Spiel. Karte und Figuren waren viel zu hell: Vorgabe jetzt Helligkeit 1,0x und Grundlicht 0, Lichtgitter, Mindestlicht je Regelwerk und dynamische Lichter nach der Engine, unter Movie Duels auch dessen Gamma-Stufe.
+- Vorschau: Der Spieler trägt die Figur und das Schwert des Spiels (Modell und drei Häute aus den Vorgaben von OpenJK und Movie Duels).
+- Vorschau: Leichen gleiten und fallen weiter, Figuren stürzen in den Tod, Leichen verschwinden nach den Regeln des Spiels; unter Movie Duels hängt das weggesteckte Schwert am Holster.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -544,6 +602,9 @@ Weiter offen:
 - 手册:图片宽度最大 2560,动画图片 1920;页面上显示得更大,单击可查看完整尺寸
 - 预览:哨戒炮、炮塔以及(Movie Duels 下的)misc_turretG2 现在会按所选游戏的规则寻找角色、瞄准、开火并造成伤害:角色会死亡,炮塔、可破坏物体和激光绊雷可被摧毁,并触发它们的目标。所有 Ghoul2 物品的朝向都已修正(之前偏了四分之一圈)。
 - 预览:同一轮检查还修正了:摄像机加速期间的 ZOOM、func_breakable 的时序、粒子轨迹、地上的光剑、被抛出的可破坏物体、下落的载具,以及 trigger_hurt 和 fx_target_beam 的伤害,均与游戏一致。
+- 预览:光照与游戏一致。地图和角色此前过亮:默认亮度现为 1.0x、环境光为 0,光照网格、各规则集的最低光照和动态光按引擎计算,在 Movie Duels 下还包括其伽马步骤。
+- 预览:玩家使用游戏中的角色和光剑(模型和三个皮肤来自 OpenJK 与 Movie Duels 的默认值)。
+- 预览:尸体会继续滑动和坠落,角色会坠落而死,尸体按游戏规则消失;在 Movie Duels 下收起的光剑挂在剑套上。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -595,6 +656,9 @@ Weiter offen:
 - マニュアル: 画像は幅 2560 まで、アニメーション画像は 1920。ページではより大きく表示され、クリックで実寸を表示します
 - プレビュー:セントリーガン、タレット、(Movie Duels の)misc_turretG2 が、選んだゲームの規則どおりにキャラクターを探し、狙い、撃ち、ダメージを与えるようになりました。キャラクターは死に、タレット、破壊可能物、レーザートリップマインは破壊でき、そのターゲットが発動します。Ghoul2 のアイテムはすべて正しい向きになりました(4 分の 1 回転ずれていました)。
 - プレビュー:同じ検証から、カメラ加速中の ZOOM、func_breakable のタイミング、パーティクルのトレース、床のセーバー、投げられる破壊可能物、落下する乗り物、trigger_hurt と fx_target_beam のダメージがゲームと同じになりました。
+- プレビュー: ライティングをゲームと同じに。マップとキャラクターは明るすぎました。既定は明るさ 1.0x、環境光 0 になり、ライトグリッド、ルールセットごとの最低光量、動的ライトはエンジンどおりで、Movie Duels ではそのガンマ処理も行います。
+- プレビュー: プレイヤーはゲームのキャラクターとセーバーを使います(モデルと 3 つのスキンは OpenJK と Movie Duels の既定値)。
+- プレビュー: 死体は滑り続け落下し、キャラクターは転落死し、死体はゲームのルールで消えます。Movie Duels ではしまったセーバーがホルスターに下がります。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -646,6 +710,9 @@ Weiter offen:
 - Manual: imágenes de hasta 2560 de ancho, imágenes animadas de 1920; las páginas las muestran mucho más grandes y un clic las muestra a tamaño completo
 - Vista previa: las torretas centinela, las torretas y (con Movie Duels) misc_turretG2 ahora buscan figuras, apuntan, disparan y hacen daño según las reglas del juego elegido: las figuras mueren; las torretas, lo rompible y las minas láser se pueden destruir, y se activan sus objetivos. Todos los objetos Ghoul2 están bien orientados (estaban girados un cuarto de vuelta).
 - Vista previa: de la misma revisión: ZOOM durante una aceleración de cámara, tiempos de func_breakable, trazas de partículas, sables en el suelo, rompibles lanzados, vehículos que caen y daño de trigger_hurt y fx_target_beam como en el juego.
+- Vista previa: luz como en el juego. El mapa y los personajes eran demasiado claros: ahora por defecto brillo 1,0x y ambiente 0; la rejilla de luz, la luz mínima según el conjunto de reglas y las luces dinámicas siguen al motor, y en Movie Duels también su paso de gamma.
+- Vista previa: el jugador lleva el personaje y el sable del juego (modelo y tres pieles según los valores por defecto de OpenJK y Movie Duels).
+- Vista previa: los cadáveres siguen deslizándose y cayendo, los personajes caen hasta morir y los cadáveres desaparecen según las reglas del juego; en Movie Duels el sable guardado cuelga de la funda.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -697,3 +764,6 @@ Weiter offen:
 - Příručka: obrázky do šířky 2560, animované 1920; stránky je ukazují mnohem větší, kliknutí v plné velikosti
 - Náhled: strážní děla, věže a (v Movie Duels) misc_turretG2 teď hledají postavy, míří, střílejí a zraňují podle pravidel zvolené hry: postavy umírají; věže, rozbitné věci a laserové miny lze zničit a spustí se jejich cíle. Všechny předměty Ghoul2 stojí správně (byly otočené o čtvrt otáčky).
 - Náhled: ze stejné kontroly: ZOOM během zrychlení kamery, časování func_breakable, stopy částic, šavle na zemi, házené rozbitné věci, padající vozidla a poškození od trigger_hurt a fx_target_beam jako ve hře.
+- Náhled: světlo jako ve hře. Mapa a postavy byly příliš světlé: výchozí je nyní jas 1,0x a okolní světlo 0, světelná mřížka, minimální světlo podle sady pravidel a dynamická světla se řídí enginem, v Movie Duels také jeho krok gamma.
+- Náhled: hráč má postavu a meč ze hry (model a tři skiny z výchozích hodnot OpenJK a Movie Duels).
+- Náhled: mrtvá těla dál kloužou a padají, postavy se zřítí k smrti a těla mizí podle pravidel hry; v Movie Duels visí odložený meč v pouzdře.

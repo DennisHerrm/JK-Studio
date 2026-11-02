@@ -239,6 +239,14 @@ struct BspGeometry {
     float lightGridSize[3] = {64.0F, 64.0F, 128.0F};
     float lightGridOrigin[3]{};
     int lightGridBounds[3]{};
+    // Movie Duels, R_FindCompilerGridSize (tr_bsp.cpp): q3map2 vergroebert das Gitter grosser Karten
+    // und aeltere Fassungen schreiben die Groesse nicht in die worldspawn. Passt lightArray nicht zu
+    // lightGridBounds, steht hier die aus der Zahl der Zellen wiedergefundene Groesse. OpenJK hat
+    // in diesem Fall kein Gitter (R_LoadLightGridArray: lightGridData = NULL).
+    bool gitterKompilerGefunden = false;
+    float gitterKompilerGroesse[3]{};
+    float gitterKompilerUrsprung[3]{};
+    int gitterKompilerZellen[3]{};
 
     // --- Sichtbarkeit -----------------------------------------------------
     //
@@ -506,12 +514,11 @@ struct BspMesh {
 // Alle Werte 0..255, wie die Engine sie fuehrt. `dir` zeigt ZUR
 // Lichtquelle und ist auf Laenge eins gebracht.
 struct GridLight {
+    // ent->ambientLight, ent->directedLight (0..255) und ent->lightDir in Weltrichtung.
     float ambient[3] = {0, 0, 0};
     float directed[3] = {0, 0, 0};
     float dir[3] = {0, 0, 1};
-    // Ob ueberhaupt ein brauchbarer Gitterpunkt gefunden wurde. Sonst
-    // stehen oben die Vorgaben, und der Aufrufer soll bei seiner alten
-    // Schattierung bleiben statt alles schwarz zu zeichnen.
+    // Nur false, wenn gar keine Karte geladen ist: dann bleibt der Aufrufer bei seiner Schattierung.
     bool ok = false;
 };
 
@@ -573,8 +580,17 @@ struct TraceTreffer {
 // ueber die Vorlage bauen und Byte fuer Byte vergleichen (efxtest).
 void setzeSpurVorlage(bool an) noexcept;
 
+//
+// Dazu aus R_SetupEntityLighting (tr_light.cpp): r_ambientScale 0,5 und r_directedScale 1 (beide
+// Renderer), der Mindestzuschlag (OpenJK 32, mit RF_MORELIGHT 96; Movie Duels 8, mit RF_MINLIGHT 76)
+// und das Klemmen des Umgebungslichts auf 255. Ohne Gitter: 150 und 150, Richtung tr.sunDirection
+// (hier die Vorgabe aus R_LoadWorld, q3map_sun wird dafuer nicht gelesen).
+//
+// `mehrLicht`: SCF_MORELIGHT bzw. FL_MORELIGHPLAYER. `helligkeit` ist der Regler der Ansicht und steht
+// fuer R_ColorShiftLightingBytes (normalisiert nach Farbe statt zu saettigen); 1 ist das Spiel.
 [[nodiscard]] GridLight sampleLightGrid(const BspGeometry& geo,
-                                        const float origin[3]);
+                                        const float origin[3], bool mehrLicht = false,
+                                        float helligkeit = 1.0F);
 
 [[nodiscard]] BspMesh buildModelMesh(const BspGeometry& geo, int index,
                                      int level = 4, bool skipSky = true);

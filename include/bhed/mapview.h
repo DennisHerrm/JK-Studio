@@ -623,6 +623,9 @@ struct AnbauDraw {
     // Pruefung 4b: nicht angehaengt (KinoModell::anWurzel) - steht mit den
     // Achsen der Figur an ihrem Ursprung, nicht am Bolzen.
     bool anWurzel = false;
+    // rc608 Teil 5: Griff im Holster (Movie Duels): die Drehung des Griffs am Bolzen (saberHolsterLage).
+    bool holster = false;
+    BoneMatrix holsterDrehung{};
 };
 
 // Eine Figur, wie sie in diesem Bild gezeichnet wird.

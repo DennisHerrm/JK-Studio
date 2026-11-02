@@ -234,7 +234,7 @@
  "**Work as usual.** Selecting, dragging and placing work in the top view too - handy for paths and waypoints.": "**照常工作。** 选择、拖动和放置在俯视图中同样可用——方便处理路径和路径点。",
  "See better in dark maps": "在昏暗的地图中看得更清楚",
  "Brightness, ambient light and switching effects, fog or sky off while you work.": "亮度、环境光,以及工作时关闭特效、雾或天空。",
- "**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game.": "**打开 {{MapViewSettings}}**(地图工具栏上的齿轮)。**{{MapBrightness}}** 提亮一切,**{{MapMinLight}}** 只提亮最暗的区域——0 与游戏完全一致。",
+ "**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas.": "**打开 {{MapViewSettings}}**(地图工具栏上的齿轮)。视图开始时与游戏完全相同:1.0x 和 0。**{{MapBrightness}}** 提亮地图及其上的角色,**{{MapMinLight}}** 只提升最暗的区域。",
  "The view settings.": "视图设置。",
  "**Switch things off.** **{{MapFog}}**, **{{MapEffects}}**, **{{MapGlow}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside.": "**关闭部分内容。** 工具栏上的 **{{MapFog}}**、**{{MapEffects}}**、**{{MapGlow}}** 和 **{{MapSky}}** 可关闭相应部分。没有天空时,你可以从外部看进地图内部。",
  "**Only this script.** **{{MapScriptFocus}}** in the view settings dims every entity the active script does not use.": "**只看此脚本。** 视图设置中的 **{{MapScriptFocus}}** 会把当前脚本未使用的实体都调暗。",

@@ -221,6 +221,8 @@ struct ActorState {
     double torsoStartMs = 0.0;
     bool torsoHold = false;
     bool visible = true;
+    // SET_MORELIGHT: der groessere Mindestzuschlag in R_SetupEntityLighting.
+    bool mehrLicht = false;
     // Endgueltig fort (remove / kill), nicht nur unsichtbar. Ein
     // spaeteres SET_INVISIBLE "false" holt sie nicht zurueck.
     bool removed = false;
@@ -427,6 +429,8 @@ enum class AnimPart : std::uint8_t { Both, Upper, Lower };
 struct ActorStep {
     enum class Kind : std::uint8_t {
         Teleport, WalkTo, Face, Anim, Show, Hide, Hold, Look, Crouch,
+        // SET_MORELIGHT (value 1/0): RF_MORELIGHT in OpenJK, RF_MINLIGHT in Movie Duels.
+        MehrLicht,
         // SET_WATCHTARGET - die Figur DREHT SICH zu einer Entity.
         //
         // Gemeldet: "die Rotationen fehlen von den Charakteren, wenn
@@ -561,6 +565,9 @@ struct ActorStep {
     // Bei Roff: laeuft sie auf einer Figur (NPC, client) oder einem Mover?
     // Die Engine hat dafuer zwei Wege, siehe roffStand().
     bool roffFigur = false;
+    // rc608 Teil 5: der Totenlauf (planeTotenlauf): nur der Ort, die Figur bleibt in ihrer Todesanimation.
+    bool nurOrt = false;
+    bool leicheWeg = false;   // das Gone von NPC_RemoveBody (leichenEntfernen rechnet es neu)
     Path path;               // welche Zeile im Skript
     // SET_WATCHTARGET auf eine andere FIGUR (rc597): ihre Bahn ab startMs,
     // alle spurSchrittMs abgetastet - der Blick folgt ihr wie in der Engine,
@@ -658,6 +665,7 @@ struct SaberArt {
     bool gefunden = false;       // stand in den .sab-Dateien
     int modell = -1;             // der Griff, Index in Actor::modelle
     std::string typ;             // saberType, gross: SABER_STAFF ...
+    std::string holsterPlatz;    // rc608 Teil 5: holsterPlace der .sab, leer: Vorgabe nach dem Typ
     std::string soundOn;
     std::string soundLoop;
     std::string soundOff;
@@ -764,6 +772,12 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // Animation von NPC_JumpAnimation (npcSprungAnim) - fuer NPC-Spruenge im Weg.
     bool kannSpringen = false;
     bool keineAkrobatik = false;   // rc605: SET_NO_ACROBATICS (zur Zeit des Plans)
+    bool keinFallTod = false;      // rc608 Teil 5: SET_NO_FALLTODEATH, SCF_NO_FALLTODEATH (zur Zeit des Plans)
+    // rc608 Teil 5: PM_CrashLandDamage(1000) nach PM_FallToDeath (< 0: nie) und self->enemy beim Tod
+    // (kill aus ICARUS: leer, NPC_RemoveBody laesst die Leiche dann liegen).
+    double aufprallTodMs = -1.0;
+    NavVec aufprallTempo{};
+    bool feindBeimTod = false;
     std::string sprungAnim;
     int levitation = 0;   // rc605 (Rest): FP_LEVITATION der .npc (PM_CrashLand)
     // rc605 (Ende, trigger_hurt): Lebenspunkte beim Spawnen wie NPC_Begin
@@ -974,6 +988,20 @@ struct TodesAbwurf {
 // augenPunkt, npcs) und den Scheiben (func_glass) aus karte.
 void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, const struct SzenenHilfe& hilfe,
                       const MapData* karte);
+// rc608 Teil 5: DeadThink und NPC_RemoveBody (NPC.cpp OJ/MD, JK2) nach der Schwerkraft: wann eine Leiche
+// verschwindet. `blick` liefert cg.refdef zur Zeit ms (Kamera der Szene, sonst der Spieler), false:
+// unbekannt, dann gilt kein Blick. BodyRemovalPadTime: Droiden 0, sonst g_corpseRemovalTime 10 s, MD
+// SBD/BATTLEDROID/DROIDEKA auf md_ga_* und md_gb_* 3 s, JK2 10 s. Droiden sind ab dann EF_NODRAW. Sonst:
+// nicht mit Schluessel (message) und nicht, solange ihr Skript laeuft; TEAM_ENEMY und CLASS_PROTOCOL
+// nicht naeher als 128 am Spieler und nicht im Blick (InFOVFromPlayerView 110/90, NPC_ClearLOS); nur
+// mit self->enemy (kill aus ICARUS hat keinen). Immer weg: REMOTE, SENTRY, PROBE, INTERROGATOR, MARK2.
+struct LeichenHilfe {
+    std::string karte;
+    std::function<bool(double ms, float ort[3], float winkel[3])> blick;
+    NavSpurFn spur;
+    std::function<std::string(const Actor&)> team;
+};
+void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, double endeMs);
 
 struct Scene {
     std::vector<Actor> actors;
@@ -1066,6 +1094,7 @@ struct SzenenHilfe {
     // Pruefung 4a: PM_TryRoll je Figur und Waffe (npcDarfRollen) - wie
     // AblaufWelt::darfRollen, damit Ablauf und Szene dieselben Plaene rechnen.
     std::function<bool(const std::string& figur, const std::string& waffe)> darfRollen;
+    std::function<void(const std::string& figur, LaufWerte& werte)> fallTodWerte;   // AblaufWelt::fallTodWerte
     // Pruefung 3: der Gegenstand einer Waffe aus items.dat (FindItemForWeapon):
     // mins/maxs fuer G_RunItem. false: die Waffe hat keinen (dann faellt nichts).
     std::function<bool(const std::string& waffe, NavVec& mins, NavVec& maxs)> waffenGegenstand;
@@ -1295,6 +1324,7 @@ struct SaberDef {
     // Gaffi-Stock). Ueber die .sab-Dateien der Mod gezaehlt: 94 mal
     // numBlades 2, 85 mal twoHanded 1, 71 mal noBlade 1.
     std::string type;          // saberType, gross geschrieben
+    std::string holsterPlatz;  // holsterPlace, gross; leer: Vorgabe nach dem Typ (holsterPlatzVorgabe)
     int numBlades = 1;         // numBlades, 1..8 (Saber_ParseNumBlades)
     int bladeStyle2Start = 0;  // ab dieser Klinge gelten die *2-Schalter
     bool twoHanded = false;

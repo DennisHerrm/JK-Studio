@@ -5644,7 +5644,9 @@ bool figurGrundausstattung(ID3D11Device* d, std::string* fehler) {
     }
     if (g_sampler == nullptr) {
         D3D11_SAMPLER_DESC sd{};
-        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        // r_ext_texture_filter_anisotropic 16 (Vorgabe in OpenJK und Movie Duels, "16 of 16" im Protokoll).
+        sd.Filter = D3D11_FILTER_ANISOTROPIC;
+        sd.MaxAnisotropy = 16;
         sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
         sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -6432,6 +6434,57 @@ void bildBeginnt() {
     m.offen = true;
 }
 
+namespace {
+ID3D11Texture2D* g_gammaTex = nullptr;
+ID3D11ShaderResourceView* g_gammaSrv = nullptr;
+ID3D11PixelShader* g_gammaPs = nullptr;
+bool g_gammaVersucht = false;
+int g_gammaW = 0;
+int g_gammaH = 0;
+}   // namespace
+
+void spielGammaAnwenden() {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || g_zielTex == nullptr || g_zielRtv == nullptr || !wechsleAufVollbild()) { return; }
+    if (g_gammaPs == nullptr && !g_gammaVersucht) {
+        g_gammaVersucht = true;
+        std::string fehler;
+        if (ID3DBlob* blob = uebersetze(spielGammaPixelShaderHlsl(), "ps_4_0", "spielgamma", &fehler)) {
+            d->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &g_gammaPs);
+            blob->Release();
+        }
+    }
+    if (g_gammaPs == nullptr) { return; }
+    if (g_gammaTex == nullptr || g_gammaW != g_zielW || g_gammaH != g_zielH) {
+        if (g_gammaSrv != nullptr) { g_gammaSrv->Release(); g_gammaSrv = nullptr; }
+        if (g_gammaTex != nullptr) { g_gammaTex->Release(); g_gammaTex = nullptr; }
+        D3D11_TEXTURE2D_DESC td{};
+        g_zielTex->GetDesc(&td);
+        td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        if (FAILED(d->CreateTexture2D(&td, nullptr, &g_gammaTex)) ||
+            FAILED(d->CreateShaderResourceView(g_gammaTex, nullptr, &g_gammaSrv))) {
+            return;
+        }
+        g_gammaW = g_zielW;
+        g_gammaH = g_zielH;
+    }
+    setzeSchritt("Spielgamma");
+    c->OMSetRenderTargets(0, nullptr, nullptr);
+    c->CopyResource(g_gammaTex, g_zielTex);
+    c->OMSetRenderTargets(1, &g_zielRtv, nullptr);
+    c->PSSetShader(g_gammaPs, nullptr, 0);
+    c->PSSetShaderResources(0, 1, &g_gammaSrv);
+    D3D11_VIEWPORT vp{};
+    vp.Width = static_cast<float>(g_zielW);
+    vp.Height = static_cast<float>(g_zielH);
+    vp.MaxDepth = 1.0F;
+    c->RSSetViewports(1, &vp);
+    c->Draw(3, 0);
+    ID3D11ShaderResourceView* nichts = nullptr;
+    c->PSSetShaderResources(0, 1, &nichts);
+}
+
 void bildFertig() {
     if (!g_messGeht) { return; }
     ID3D11DeviceContext* c = ctx();
@@ -6840,7 +6893,9 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     }
     if (g_sampler == nullptr) {
         D3D11_SAMPLER_DESC sd{};
-        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        // r_ext_texture_filter_anisotropic 16 (Vorgabe in OpenJK und Movie Duels, "16 of 16" im Protokoll).
+        sd.Filter = D3D11_FILTER_ANISOTROPIC;
+        sd.MaxAnisotropy = 16;
         sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
         sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -7371,6 +7426,7 @@ void tiefeFreigeben() {}
 bool leseFarbe(std::vector<std::uint8_t>&, int&, int&) { return false; }
 const char* abschnittName(Abschnitt) { return "?"; }
 void bildBeginnt() {}
+void spielGammaAnwenden() {}
 void bildFertig() {}
 void beginneMessung(Abschnitt) {}
 void beendeMessung(Abschnitt) {}

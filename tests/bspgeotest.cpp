@@ -5,6 +5,7 @@
 // deshalb beides - dass eine echte Karte richtig gelesen wird, und dass eine
 // kaputte weder stuerzt noch Unsinn liefert.
 #include "bhed/bspgeo.h"
+#include "bhed/regelwerk.h"
 #include "bhed/bsp.h"
 #include "bhed/gpuskin.h"
 #include "bhed/mapview.h"
@@ -906,36 +907,83 @@ int main(int argc, char** argv) {
         g.lightArray.assign(8, 1);
         g.lightArray[0] = 0;   // die Ecke bei (0,0,0) ist der dunkle Punkt
 
-        // Genau AUF dem dunklen Punkt: sein Gewicht ist eins, die anderen
-        // sieben null. Dazu der Mindestzuschlag von 32
-        // (tr_light.cpp:424, "give everything a minimum light add").
+        // Die Unit-Tests rechnen als Movie Duels (ohne regelwerkAnwenden): dessen
+        // tr_light.cpp nimmt 8 als Mindestzuschlag und 76 fuer RF_MINLIGHT, OpenJK 32 und 96.
+        // r_ambientScale ist bei beiden 0,5, r_directedScale 1.
         const float ecke[3] = {0.0F, 0.0F, 0.0F};
         const bhed::GridLight a = bhed::sampleLightGrid(g, ecke);
-        expect("auf dem dunklen Punkt greift der Mindestzuschlag",
-               a.ok && near(a.ambient[0], 32.0F, 0.01F));
+        expect("auf dem dunklen Punkt greift der Mindestzuschlag (Movie Duels: 8)",
+               a.ok && near(a.ambient[0], 8.0F, 0.01F));
 
         // In der Mitte: der dunkle Punkt traegt ein Achtel, die sieben
-        // hellen sieben Achtel. 200 * 7/8 = 175, plus 32 = 207.
+        // hellen sieben Achtel. 200 * 7/8 = 175, mal 0,5, plus 8 = 95,5.
         const float mitte[3] = {32.0F, 32.0F, 32.0F};
         const bhed::GridLight m = bhed::sampleLightGrid(g, mitte);
-        expect("in der Mitte wird ueber acht Punkte gemittelt",
-               m.ok && near(m.ambient[0], 207.0F, 0.5F));
+        expect("in der Mitte wird ueber acht Punkte gemittelt, r_ambientScale 0,5",
+               m.ok && near(m.ambient[0], 95.5F, 0.01F));
 
-        // Ein Punkt IN EINER WAND (styles[0] == LS_NONE, 0xff) wird
-        // uebersprungen - "ignore samples in walls", tr_light.cpp:229.
-        // Dann traegt nur noch der helle Punkt, und es kommen volle 200+32
-        // heraus statt 207.
+        // Ein Punkt IN EINER WAND (styles[0] == LS_NONE, 0xff) wird uebersprungen, die uebrigen
+        // Anteile werden hochgerechnet: 200 * 0,5 + 8 = 108.
         bhed::BspGeometry w = g;
         w.lightGrid[0].styles[0] = 0xFF;
         const bhed::GridLight n = bhed::sampleLightGrid(w, mitte);
         expect("ein Punkt in der Wand zaehlt nicht mit",
-               n.ok && near(n.ambient[0], 232.0F, 0.5F));
+               n.ok && near(n.ambient[0], 108.0F, 0.01F));
 
-        // Und ohne Gitter meldet es sich ehrlich als leer, statt alles
-        // schwarz zu faerben. Alte Karten haben keins.
+        // Alle acht in Waenden: das Spiel bleibt beim Mindestzuschlag, nichts gerichtet, keine Richtung.
+        bhed::BspGeometry alleWand = g;
+        alleWand.lightGrid[0].styles[0] = 0xFF;
+        alleWand.lightGrid[1].styles[0] = 0xFF;
+        const bhed::GridLight aw = bhed::sampleLightGrid(alleWand, mitte);
+        expect("alle Punkte in Waenden: nur der Mindestzuschlag, kein Rueckfall",
+               aw.ok && near(aw.ambient[0], 8.0F, 0.01F) && near(aw.directed[0], 0.0F, 0.01F) &&
+                   near(aw.dir[2], 0.0F, 0.01F));
+
+        // Ein leerer Stil beendet die Stufen eines Punkts (break in R_SetupEntityLightingGrid).
+        bhed::BspGeometry stil = g;
+        stil.lightGrid[0].styles[0] = 0;
+        stil.lightGrid[0].styles[1] = 0xFF;
+        stil.lightGrid[0].styles[2] = 0;
+        stil.lightGrid[0].ambient[2][0] = 200;
+        const bhed::GridLight si = bhed::sampleLightGrid(stil, ecke);
+        expect("ein leerer Stil beendet die Stufen des Punkts", si.ok && near(si.ambient[0], 8.0F, 0.01F));
+
+        // Das Umgebungslicht wird auf 255 geklemmt (R_SetupEntityLighting: clamp ambient).
+        bhed::BspGeometry hell = g;
+        for (int st = 0; st < 3; ++st) {
+            hell.lightGrid[1].styles[st] = 0;
+            hell.lightGrid[1].ambient[st][0] = 255;
+        }
+        const float hellOrt[3] = {63.9F, 63.9F, 127.9F};
+        expect("das Umgebungslicht bleibt bei 255", near(bhed::sampleLightGrid(hell, hellOrt).ambient[0], 255.0F, 0.01F));
+
+        // SET_MORELIGHT: RF_MINLIGHT statt des Mindestzuschlags.
+        expect("mehr Licht: 76 unter Movie Duels", near(bhed::sampleLightGrid(g, ecke, true).ambient[0], 76.0F, 0.01F));
+        bhed::regelwerkAnwenden(false, 1);
+        expect("OpenJK: Mindestzuschlag 32", near(bhed::sampleLightGrid(g, ecke).ambient[0], 32.0F, 0.01F));
+        expect("OpenJK: RF_MORELIGHT 96", near(bhed::sampleLightGrid(g, ecke, true).ambient[0], 96.0F, 0.01F));
+        bhed::regelwerkAnwenden(true, 1);
+
+        // Ohne Karte kein Licht: die Modellansicht bleibt bei ihrer Schattierung.
         bhed::BspGeometry leer;
-        expect("ohne Gitter kein Licht, aber auch kein Schwarz",
+        expect("ohne Karte kein Licht",
                !bhed::sampleLightGrid(leer, mitte).ok);
+
+        // Eine Karte ohne Gitter: 150 und 150 aus R_SetupEntityLighting, dazu der Mindestzuschlag.
+        bhed::BspGeometry ohneGitter;
+        ohneGitter.models.emplace_back();
+        const bhed::GridLight og = bhed::sampleLightGrid(ohneGitter, mitte);
+        expect("Karte ohne Gitter: 150 plus Mindestzuschlag, gerichtet 150",
+               og.ok && near(og.ambient[0], 158.0F, 0.01F) && near(og.directed[0], 150.0F, 0.01F));
+
+        // Passt die Groesse des Gitters nicht zur Zahl der Zellen, hat OpenJK kein Gitter mehr
+        // (R_LoadLightGridArray: lightGridData = NULL).
+        bhed::BspGeometry falsch = g;
+        falsch.lightArray.resize(4);
+        bhed::regelwerkAnwenden(false, 1);
+        const bhed::GridLight fo = bhed::sampleLightGrid(falsch, mitte);
+        expect("OpenJK: falsche Gittergroesse bedeutet kein Gitter", fo.ok && near(fo.directed[0], 150.0F, 0.01F));
+        bhed::regelwerkAnwenden(true, 1);
     }
 
     std::printf("\n%s (%d Fehlschlaege)\n",

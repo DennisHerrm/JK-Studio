@@ -3443,7 +3443,7 @@ void addDynamicLights(GridLight& licht, const float origin[3],
         }
         const float staerke = power / (d * d);
         for (int k = 0; k < 3; ++k) {
-            licht.directed[k] += staerke * l.color[k] * 255.0F;
+            licht.directed[k] += staerke * l.color[k];
             richtung[k] += staerke * dir[k];
         }
         licht.ok = true;

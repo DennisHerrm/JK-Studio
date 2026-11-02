@@ -491,6 +491,12 @@ struct LaufZustand {
     // Denkbild zu Denkbild, bis die Figur aufstehen kann.
     bool geduckt = false;
     int pmZeit = 0;               // ps.pm_time (PMF_TIME_LAND nach hartem Aufsetzen)
+    // Pruefung 4a: PMF_TIME_KNOCKBACK (G_Throw des Kantenwurfs) - ohne Reibung,
+    // bis PM_DropTimers pm_time abgezaehlt hat; ps.friction (NPC_Begin 6, der
+    // Kantenwurf 0, PM_FallToDeath 1) und NPCAI_DIE_ON_IMPACT.
+    bool rueckstoss = false;
+    float reibung = 6.0F;
+    bool aufprallTod = false;
     // rc605 (Ende): ps.groundEntityNum als Index in MapData::entities (sonst
     // kNavWeltEntity / kNavKeineEntity) und bis wann ein Mover darunter die
     // Figur schon mitgenommen hat (G_MoverPush, navMoverTraegt).
@@ -671,6 +677,10 @@ struct LaufWerte {
     // Pruefung 4a: PM_TryRoll erlaubt es nach Regelwerk, Waffe, Klasse und Rang
     // (npcDarfRollen; SCF_NO_ACROBATICS steht in keineAkrobatik).
     bool darfRollen = false;
+    // rc608 Teil 5, Movie Duels: PM_TryRoll ruft fuer CLASS_VADER und CLASS_DESANN
+    // PM_SaberLungeAttackMove(qtrue) (bg_pmove.cpp:5443 MD): ausser in SS_DUAL und SS_STAFF und ohne
+    // lungeAtkMove des Schwerts velocity 150 vorwaerts, 50 hoch. in_camera kennt der Plan nicht.
+    bool lungeBeimRollen = false;
     float weltSchwerkraft = 800.0F;
     // rc605: Verhaltenszustand BS_JUMP (NPC_BSJump statt NPC_MoveToGoal) und
     // die Laengen von BOTH_CROUCH1 und BOTH_LAND1 dieser Figur in ms
@@ -692,6 +702,30 @@ struct LaufWerte {
     int levitation = 0;
     int landKlasse = 0;
     std::array<int, 32> landeMs{};
+    // Pruefung 4a: PM_GroundTraceMissed -> PM_FallToDeath fuer einen lebenden NPC
+    // in der Luft (bg_pmove.cpp:4785-4935, 4428-4463 OJ; 6818-7006, 6378-6415 MD;
+    // codeJK2 2860-3000, 2787-2805). pruefen: kein Spieler, Klasse (nicht
+    // CLASS_DESANN, MD auch nicht CLASS_SITHLORD/CLASS_VADER), kein
+    // SCF_NO_FALLTODEATH, kein Flieger, g_gravity > 0, weder FL_UNDYING noch
+    // FL_GODMODE. client->respawnTime (NPC_Begin) ist gesetztMs bei gesetztSpawn, sonst 0;
+    // gesundheit ps.stats[STAT_HEALTH]. jediSchutz:
+    // CLASS_BOBAFETT/REBORN/ROCKETTROOPER schreien nicht vor einem harten
+    // Aufprall (OJ/MD), raketen: PM_RocketeersAvoidDangerousFalls
+    // (CLASS_BOBAFETT/ROCKETTROOPER, OJ/MD) - sie fliegen mit dem Jetpack los.
+    // animMs: BOTH_FALLDEATH1 (sonst BOTH_DEATH1) mit SETANIM_FLAG_HOLD.
+    struct FallTod {
+        bool pruefen = false;
+        int gesundheit = 100;
+        bool jediSchutz = false;
+        bool raketen = false;
+        bool hatFallDeath1 = true;
+        int animMs = 0;
+        bool operator==(const FallTod&) const = default;
+    };
+    FallTod fallTod;
+    // Pruefung 4a: der Totenlauf - ps.pm_type == PM_DEAD ab dem Tod: NPC_Think
+    // ruft CorpsePhysics -> ClientThink mit leerem ucmd (planeTotenlauf).
+    bool tot = false;
 };
 
 // rc601 integ: der Takt des Verhaltens eines NPC in ms (LaufWerte::
@@ -747,7 +781,11 @@ enum SprungAnim : int {
     kSaRollB = 23,
     kSaRollR = 24,
     kSaRollL = 25,
-    kSaAnzahl = 26,
+    // Pruefung 4a: PM_FallToDeath - BOTH_FALLDEATH1 (ohne sie BOTH_DEATH1) auf
+    // den Beinen, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD.
+    kSaFallDeath1 = 26,
+    kSaDeath1 = 27,
+    kSaAnzahl = 28,
 };
 static_assert(kSaAnzahl <= 32, "LaufWerte::landeMs");
 // Pruefung 4a: PM_TryRoll fuer einen NPC nach Regelwerk, Waffe ("WP_..."),
@@ -758,6 +796,10 @@ static_assert(kSaAnzahl <= 32, "LaufWerte::landeMs");
 //   Movie Duels bg_pmove.cpp:5414 ff.: keine dieser Pruefungen
 [[nodiscard]] bool npcDarfRollen(bool movieDuels, bool jk2, const std::string& waffe, const std::string& klasse,
                                  const std::string& rang);
+// Pruefung 4a: der Teil von LaufWerte::FallTod, der an Regelwerk und Klasse
+// ("CLASS_...") haengt - pruefen (ohne Skript- und Spielerbedingungen),
+// jediSchutz und raketen (siehe dort).
+void npcFallTodKlasse(bool movieDuels, bool jk2, const std::string& klasse, LaufWerte::FallTod& f);
 // Pruefung 4a: der Timer einer Animation mit SETANIM_FLAG_HOLDLESS (PM_SetAnimFinal,
 // bg_panimate.cpp:4721-4722 OJ): (numFrames - 1) * frameLerp - 1 (dauer, < 0: fehlt).
 [[nodiscard]] inline int navHoldlessMs(double dauer) noexcept {
@@ -828,6 +870,11 @@ struct LaufTakt {
     // Pruefung 3: PMF_DUCKED nach dem Pmove dieses Denkbilds (PM_Footsteps:
     // BOTH_CROUCH1WALK/-BACK statt Gehen oder Laufen).
     bool geduckt = false;
+    // Pruefung 4a, Totenlauf: in diesem Denkbild setzte die Leiche auf
+    // (PM_CrashLand) - delta = |pml.previous_velocity[2]| / 10, sonst -1; mit
+    // NPCAI_DIE_ON_IMPACT (PM_CrashLandDamage(1000) gleich am Anfang).
+    float landung = -1.0F;
+    bool aufprall = false;
 };
 
 struct LaufPlan {
@@ -845,6 +892,14 @@ struct LaufPlan {
     // rc605 (Ende, Jedi Outcast): die Kanten, die diese Figur zur Laufzeit als
     // gescheitert markierte (AddFailedEdge) - der gemeinsame Takt traegt sie nach.
     std::vector<NavJk2FehlWelt::Dazu> jk2Dazu;
+    // Pruefung 4a: PM_FallToDeath in diesem Plan (sonst -1) und der Aufprall
+    // danach - PM_CrashLand mit NPCAI_DIE_ON_IMPACT: PM_CrashLandDamage(1000)
+    // toetet die Figur (G_Damage, MOD_FALLING, attacker der Spieler); dort endet
+    // der Plan. aufprallTempo ist ps.velocity in diesem Augenblick (nach
+    // PM_SlideMove, vor "velocity[2] = 0").
+    double fallTodMs = -1.0;
+    double aufprallMs = -1.0;
+    NavVec aufprallTempo{};
 };
 
 // Ein Plan ab abMs: das erste Denkbild ist das naechste 50-ms-Bild NACH abMs
@@ -853,6 +908,12 @@ struct LaufPlan {
 // stehen bleibt (nie), oder bis grenzeMs.
 [[nodiscard]] LaufPlan planeLauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, double abMs,
                                  double grenzeMs);
+// rc608 Teil 5: die Leiche ab dem Tod (ps.pm_type PM_DEAD, leerer ucmd), bis sie liegt oder bis
+// grenzeMs: PM_DeadMove, PM_Friction mit ps.friction, PMF_TIME_KNOCKBACK, clipmask ohne
+// MONSTERCLIP/BOTCLIP. Das erste Pmove nach dem Tod dauert 1 ms (CorpsePhysics: serverTime aus
+// level.time - 1000), danach 50.
+[[nodiscard]] LaufPlan planeTotenlauf(const NavWelt& welt, const LaufZustand& start, const LaufWerte& werte, double abMs,
+                                      double grenzeMs);
 // Der Zustand nach dem letzten Denkbild bis t (sonst der Anfang).
 [[nodiscard]] LaufZustand zustandBei(const LaufPlan& p, double t);
 // Der Ort zur Zeit t: zwischen zwei Denkbildern linear (wie cgame mittelt).

@@ -1867,13 +1867,13 @@ int main(int argc, char** argv) {
         // Abstand 100, Radius 32:
         //   power = 16 * 32 * 32 = 16384
         //   d     = 16384 / (100*100) = 1.6384
-        //   Zuwachs = 1.6384 * 1.0 * 255 = 417.8
+        //   Zuwachs = 1.6384 * 1.0: VectorMA( directedLight, d, dl->color ), dl->color 0..1
         bhed::GridLight g;
         g.ok = true;
         const float hier[3] = {0.0F, 0.0F, 0.0F};
         bhed::addDynamicLights(g, hier, lichter);
         expect("die Staerke folgt der Formel der Engine",
-               near(g.directed[0], 417.8F, 1.0F));
+               near(g.directed[0], 1.6384F, 0.001F));
 
         // Und die Richtung zeigt ZUM Licht, also nach +x.
         expect("die Richtung zeigt zum Licht",
@@ -1884,13 +1884,13 @@ int main(int argc, char** argv) {
         // eine Figur, die durch eine Flamme laeuft, wuerde rein weiss.
         //
         //   d     = 16384 / (16*16) = 64
-        //   Zuwachs = 64 * 255 = 16320
+        //   Zuwachs = 64 * 1.0 = 64
         bhed::GridLight nah;
         nah.ok = true;
         const float dicht[3] = {99.0F, 0.0F, 0.0F};   // ein Einheit entfernt
         bhed::addDynamicLights(nah, dicht, lichter);
         expect("naeher als der Mindestabstand wird geklemmt",
-               near(nah.directed[0], 16320.0F, 5.0F));
+               near(nah.directed[0], 64.0F, 0.01F));
 
         // Ohne Lichter bleibt alles, wie es war - auch das `ok`. Sonst
         // meldete eine Karte ohne Gitter ploetzlich Licht, nur weil die

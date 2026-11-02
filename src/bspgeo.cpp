@@ -2,6 +2,7 @@
 #include "bhed/bsp.h"
 #include "bhed/image.h"
 #include "bhed/diag.h"
+#include "bhed/regelwerk.h"
 
 #include <algorithm>
 #include <array>
@@ -730,6 +731,36 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
             out.lightGridBounds[i] = (zellen >= 0.0 && zellen < 65536.0) ? static_cast<int>(zellen) : 0;
         }
     }
+    // R_FindCompilerGridSize (Movie Duels): die Groesse, mit der q3map2 tatsaechlich gebaut hat.
+    if (!out.models.empty() && !out.lightArray.empty() &&
+        out.lightArray.size() != static_cast<std::size_t>(static_cast<long long>(out.lightGridBounds[0]) * out.lightGridBounds[1] * out.lightGridBounds[2])) {
+        const BspGeometry::SubModel& welt = out.models[0];
+        float groesse[3] = {out.lightGridSize[0], out.lightGridSize[1], out.lightGridSize[2]};
+        for (int schritt = 0; schritt < 4096; ++schritt) {
+            float ursprung[3];
+            int zellen[3];
+            long long anzahl = 1;
+            for (int i = 0; i < 3; ++i) {
+                ursprung[i] = groesse[i] * std::ceil(welt.mins[i] / groesse[i]);
+                const float mx = groesse[i] * std::floor(welt.maxs[i] / groesse[i]);
+                zellen[i] = static_cast<int>((mx - ursprung[i]) / groesse[i] + 1.0F);
+                anzahl *= zellen[i];
+            }
+            if (anzahl == static_cast<long long>(out.lightArray.size())) {
+                out.gitterKompilerGefunden = true;
+                for (int i = 0; i < 3; ++i) {
+                    out.gitterKompilerGroesse[i] = groesse[i];
+                    out.gitterKompilerUrsprung[i] = ursprung[i];
+                    out.gitterKompilerZellen[i] = zellen[i];
+                }
+                break;
+            }
+            if (anzahl < static_cast<long long>(out.lightArray.size())) {
+                break;
+            }
+            groesse[schritt % 3] += 16.0F;
+        }
+    }
     // Die Kartengeometrie in Zahlen. Ohne diese Zeile stand im Protokoll
     // nur, dass das Lesen 40 ms gedauert hat - nicht, was dabei herauskam.
     diag::detail("Kartengeometrie: " + std::to_string(b.size()) + " Bytes, " +
@@ -1420,36 +1451,70 @@ BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
 }
 
 
-GridLight sampleLightGrid(const BspGeometry& geo, const float origin[3]) {
+GridLight sampleLightGrid(const BspGeometry& geo, const float origin[3], bool mehrLicht, float helligkeit) {
     GridLight out;
-    if (geo.lightGrid.empty() || geo.lightArray.empty()) {
-        return out;
+    if (geo.models.empty() && geo.lightGrid.empty()) {
+        return out;   // keine Karte
     }
-    for (int i = 0; i < 3; ++i) {
-        if (geo.lightGridBounds[i] < 2 || geo.lightGridSize[i] <= 0.0F) {
-            return out;
+    // R_SetupEntityLighting: "give everything a minimum light add" und RF_MORELIGHT/RF_MINLIGHT.
+    const bool md = regelwerkMovieDuels();
+    const float zuschlag = md ? (mehrLicht ? 76.0F : 8.0F) : (mehrLicht ? 96.0F : 32.0F);
+
+    const float* gs = geo.lightGridSize;
+    const float* go = geo.lightGridOrigin;
+    const int* gb = geo.lightGridBounds;
+    bool gitter = !geo.lightGrid.empty() && !geo.lightArray.empty();
+    if (gitter && geo.lightArray.size() != static_cast<std::size_t>(static_cast<long long>(gb[0]) * gb[1] * gb[2])) {
+        gitter = md && geo.gitterKompilerGefunden;
+        gs = geo.gitterKompilerGroesse;
+        go = geo.gitterKompilerUrsprung;
+        gb = geo.gitterKompilerZellen;
+    }
+    if (gitter) {
+        for (int i = 0; i < 3; ++i) { gitter = gitter && gb[i] >= 1 && gs[i] > 0.0F; }
+    }
+    if (!gitter) {
+        // R_SetupEntityLighting ohne lightGridData; tr.sunDirection aus R_LoadWorld.
+        const float sonne[3] = {0.45F, 0.3F, 0.9F};
+        const float sl = std::sqrt(sonne[0] * sonne[0] + sonne[1] * sonne[1] + sonne[2] * sonne[2]);
+        for (int c = 0; c < 3; ++c) {
+            out.ambient[c] = 150.0F + zuschlag;
+            out.directed[c] = 150.0F;
+            out.dir[c] = sonne[c] / sl;
         }
+        out.ok = true;
+        return out;
     }
 
     int pos[3] = {};
     float frac[3] = {};
     for (int i = 0; i < 3; ++i) {
-        float v = (origin[i] - geo.lightGridOrigin[i]) / geo.lightGridSize[i];
+        float v = (origin[i] - go[i]) / gs[i];
         if (!std::isfinite(v)) { v = 0.0F; }
         v = std::clamp(v, -1.0e6F, 1.0e6F);   // nur NaN/Riesenwerte - normale bleiben bitgleich
         pos[i] = static_cast<int>(std::floor(v));
         frac[i] = v - static_cast<float>(pos[i]);
         // Die Engine KLEMMT hier, sie verwirft nicht: eine Figur ausserhalb
-        // des Gitters bekommt das Licht des Randes. Das ist besser als
-        // Schwarz, und es ist, was das Spiel zeigt.
-        pos[i] = std::clamp(pos[i], 0, geo.lightGridBounds[i] - 1);
+        // des Gitters bekommt das Licht des Randes.
+        pos[i] = std::clamp(pos[i], 0, gb[i] - 1);
     }
 
-    const long long schritt[3] = {1, geo.lightGridBounds[0],
-                                  static_cast<long long>(geo.lightGridBounds[0]) * geo.lightGridBounds[1]};
+    const long long schritt[3] = {1, gb[0], static_cast<long long>(gb[0]) * gb[1]};
     const long long start = static_cast<long long>(pos[0]) * schritt[0] +
                             static_cast<long long>(pos[1]) * schritt[1] +
                             static_cast<long long>(pos[2]) * schritt[2];
+
+    // R_ColorShiftLightingBytes: "normalize by color instead of saturating to white".
+    const auto verschoben = [helligkeit](const std::uint8_t ein[3], float aus[3]) {
+        float grenze = 0.0F;
+        for (int c = 0; c < 3; ++c) {
+            aus[c] = static_cast<float>(ein[c]) * helligkeit;
+            grenze = std::max(grenze, aus[c]);
+        }
+        if (grenze > 255.0F) {
+            for (int c = 0; c < 3; ++c) { aus[c] = aus[c] * 255.0F / grenze; }
+        }
+    };
 
     float summe = 0.0F;
     float richtung[3] = {0, 0, 0};
@@ -1464,66 +1529,53 @@ GridLight sampleLightGrid(const BspGeometry& geo, const float origin[3]) {
                 anteil *= (1.0F - frac[j]);
             }
         }
-        if (at < 0 ||
-            static_cast<std::size_t>(at) >= geo.lightArray.size()) {
-            continue;
+        if (at < 0 || static_cast<std::size_t>(at) >= geo.lightArray.size()) {
+            continue;   // "we've gone off the array somehow"
         }
         const std::size_t idx = geo.lightArray[static_cast<std::size_t>(at)];
         if (idx >= geo.lightGrid.size()) {
             continue;
         }
         const BspGeometry::LightGridPoint& p = geo.lightGrid[idx];
-        // 0xff ist LS_NONE (qfiles.h:344) - ein Punkt, der in einer Wand
-        // steckt. Ihn mitzumitteln zoege jede Figur an einer Wand ins
-        // Dunkle.
+        // 0xff ist LS_NONE (qfiles.h:344) - "ignore samples in walls".
         if (p.styles[0] == 0xFF) {
             continue;
         }
         summe += anteil;
-        // Jede Stufe mit der Helligkeit ihres Stils (R_SetupEntityLighting:
-        // styleColors) - ein Licht mit START_OFF beleuchtet auch keine
-        // Figur. LS_NONE ueberspringt nur diese Stufe (Code-Pruefung rc592).
-        for (int st = 0; st < 4; ++st) {
-            if (p.styles[st] == 0xFF) {
-                continue;
-            }
+        // Jede Stufe mit der Helligkeit ihres Stils (styleColors); LS_NONE beendet die Stufen.
+        for (int st = 0; st < 4 && p.styles[st] != 0xFF; ++st) {
             const auto& w = geo.stilGewicht[p.styles[st]];
+            float amb[3];
+            float ger[3];
+            verschoben(p.ambient[st], amb);
+            verschoben(p.direct[st], ger);
             for (int c = 0; c < 3; ++c) {
-                out.ambient[c] += anteil * w[static_cast<std::size_t>(c)] * static_cast<float>(p.ambient[st][c]);
-                out.directed[c] += anteil * w[static_cast<std::size_t>(c)] * static_cast<float>(p.direct[st][c]);
+                out.ambient[c] += anteil * w[static_cast<std::size_t>(c)] * amb[c];
+                out.directed[c] += anteil * w[static_cast<std::size_t>(c)] * ger[c];
             }
         }
         // latLong: zwei Bytes, die den ganzen Kreis in 256 Schritte teilen.
         constexpr float kZuRad = 2.0F * 3.14159265358979F / 256.0F;
         const float lat = static_cast<float>(p.latLong[1]) * kZuRad;
         const float lng = static_cast<float>(p.latLong[0]) * kZuRad;
-        const float n[3] = {std::cos(lat) * std::sin(lng),
-                            std::sin(lat) * std::sin(lng), std::cos(lng)};
+        const float n[3] = {std::cos(lat) * std::sin(lng), std::sin(lat) * std::sin(lng), std::cos(lng)};
         for (int c = 0; c < 3; ++c) {
             richtung[c] += anteil * n[c];
         }
     }
 
-    if (summe <= 0.0F) {
-        return out;   // alle acht Punkte steckten in Waenden
-    }
-    const float inv = 1.0F / summe;
-    for (int c = 0; c < 3; ++c) {
-        out.ambient[c] *= inv;
-        out.directed[c] *= inv;
-    }
-    const float len = std::sqrt(richtung[0] * richtung[0] +
-                                richtung[1] * richtung[1] +
-                                richtung[2] * richtung[2]);
-    if (len > 1e-6F) {
+    if (summe > 0.0F && summe < 0.99F) {
+        const float inv = 1.0F / summe;
         for (int c = 0; c < 3; ++c) {
-            out.dir[c] = richtung[c] / len;
+            out.ambient[c] *= inv;
+            out.directed[c] *= inv;
         }
     }
-    // "give everything a minimum light add" - tr_light.cpp:424. Ohne diesen
-    // Zuschlag steht eine Figur im Schatten voellig schwarz da.
+    const float len = std::sqrt(richtung[0] * richtung[0] + richtung[1] * richtung[1] + richtung[2] * richtung[2]);
     for (int c = 0; c < 3; ++c) {
-        out.ambient[c] += 32.0F;
+        out.ambient[c] *= 0.5F;   // r_ambientScale; r_directedScale ist 1
+        out.dir[c] = len > 0.0F ? richtung[c] / len : 0.0F;   // VectorNormalize2
+        out.ambient[c] = std::min(out.ambient[c] + zuschlag, 255.0F);   // clamp ambient
     }
     out.ok = true;
     return out;

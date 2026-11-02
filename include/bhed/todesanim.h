@@ -137,6 +137,8 @@ struct TodErgebnis {
     bool verschwindet = false; // Mark1 als Leiche: EF_NODRAW, G_FreeEntity
     int kante = 0;             // cliff_fall aus G_CheckLedgeDive
     NavVec tempo{};            // ps.velocity danach (Wurf ueber die Kante)
+    int pmZeit = 0;            // ps.pm_time danach (G_Throw: PMF_TIME_KNOCKBACK)
+    bool rueckstoss = false;   // PMF_TIME_KNOCKBACK
     // Pruefung 3:
     std::vector<TodKlang> klaenge;     // in der Reihenfolge des Spiels
     std::vector<TodEffekt> effekte;    // DeathFX

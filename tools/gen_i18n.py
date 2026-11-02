@@ -2211,6 +2211,8 @@ from i18n_rc608_3a import zeilen_vier as _rc608_3a  # noqa: E402  (rc608 Teil 3a
 S += _rc608_3a()
 from i18n_rc608_3b import zeilen_vier as _rc608_3b  # noqa: E402  (rc608 Teil 3b: Gesamtpruefung des Menue-Editors)
 S += _rc608_3b()
+from i18n_rc608_5 import zeilen_vier as _rc608_5  # noqa: E402  (rc608 Teil 5: Figurenlicht)
+S += _rc608_5()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

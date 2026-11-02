@@ -592,6 +592,8 @@ struct StapelNotiz {
 // `bildFertig` NACH dem letzten `beendeMessung`. Ohne diese Klammer wird
 // gar nicht gemessen - es entsteht kein halber Messwert.
 void bildBeginnt();
+// Movie Duels: r_gammaShaders am Ende des Bilds (spielGammaWert, bhed/gpushader.h).
+void spielGammaAnwenden();
 void bildFertig();
 
 // Ein Abschnitt, paarweise zu rufen. Ein Abschnitt, der in diesem Bild

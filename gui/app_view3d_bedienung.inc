@@ -2982,23 +2982,11 @@ void drawMapView() {
                                                      : alleEffekte,
                                  g_app->playMs)
                 : std::vector<EffectLight>{};
-        // Dieselben Lichter fuer die FIGUREN - dazu die Schwerter des
-        // letzten Bildes, und alles OHNE den Helligkeitsfaktor. Der steht
-        // fuer R_ColorShiftLightingBytes und hebt nur das Lichtgitter; die
-        // dynamischen Lichter rechnet R_SetupEntityLighting erst danach
-        // obendrauf (tr_light.cpp:435 ff.). Weil behaved das Gitterlicht
-        // erst beim Zeichnen mit mapBrightness malnimmt, werden sie hier
-        // vorab durch denselben Faktor geteilt.
+        // Dieselben Lichter fuer die FIGUREN - dazu die Schwerter des letzten Bildes.
         std::vector<EffectLight> figurLichter = fxLichter;
         if (g_app->showDynLights) {
             figurLichter.insert(figurLichter.end(), g_app->schwertLichter.begin(),
                                 g_app->schwertLichter.end());
-        }
-        {
-            const float durch = 1.0F / std::max(g_app->mapBrightness, 0.01F);
-            for (EffectLight& l : figurLichter) {
-                for (float& c : l.color) { c *= durch; }
-            }
         }
         if (g_app->showActors && !g_app->scene.actors.empty()) {
             if (g_app->actorAssets.size() != g_app->scene.actors.size()) {
@@ -3094,7 +3082,7 @@ void drawMapView() {
                 // Mitte des Modells - eine Figur wird also nach dem Licht
                 // an ihren Fuessen beleuchtet. Das ist grob, aber es ist,
                 // was das Spiel zeigt.
-                d.light = sampleLightGrid(g_app->geo, d.pos);
+                d.light = sampleLightGrid(g_app->geo, d.pos, st.mehrLicht, g_app->mapBrightness);
                 // Dazu die Lichter, die Effekte gerade werfen. Die Engine
                 // rechnet sie an derselben Stelle drauf
                 // (R_SetupEntityLighting, tr_light.cpp:435 ff.).
@@ -3699,10 +3687,8 @@ void drawMapView() {
                         if (a.light.ok) {
                             licht.gitter = true;
                             for (int k = 0; k < 3; ++k) {
-                                licht.umgebung[k] =
-                                    a.light.ambient[k] * g_app->mapBrightness / 255.0F;
-                                licht.gerichtet[k] =
-                                    a.light.directed[k] * g_app->mapBrightness / 255.0F;
+                                licht.umgebung[k] = a.light.ambient[k] / 255.0F;
+                                licht.gerichtet[k] = a.light.directed[k] / 255.0F;
                                 licht.richtung[k] = a.light.dir[k];
                             }
                         }
@@ -4020,12 +4006,12 @@ void drawMapView() {
                             gpu::FigurLicht gl;
                             for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
                             gl.zeit = zeit;
-                            const auto lg = sampleLightGrid(g_app->geo, gg.ort);
+                            const auto lg = sampleLightGrid(g_app->geo, gg.ort, false, g_app->mapBrightness);
                             if (lg.ok) {
                                 gl.gitter = true;
                                 for (int k = 0; k < 3; ++k) {
-                                    gl.umgebung[k] = lg.ambient[k] * g_app->mapBrightness / 255.0F;
-                                    gl.gerichtet[k] = lg.directed[k] * g_app->mapBrightness / 255.0F;
+                                    gl.umgebung[k] = lg.ambient[k] / 255.0F;
+                                    gl.gerichtet[k] = lg.directed[k] / 255.0F;
                                     gl.richtung[k] = lg.dir[k];
                                 }
                             }
@@ -4083,12 +4069,12 @@ void drawMapView() {
                             for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
                             gl.zeit = zeit;
                             const float of[3] = {o[0], o[1], o[2]};
-                            const auto lg = sampleLightGrid(g_app->geo, of);
+                            const auto lg = sampleLightGrid(g_app->geo, of, false, g_app->mapBrightness);
                             if (lg.ok) {
                                 gl.gitter = true;
                                 for (int k = 0; k < 3; ++k) {
-                                    gl.umgebung[k] = lg.ambient[k] * g_app->mapBrightness / 255.0F;
-                                    gl.gerichtet[k] = lg.directed[k] * g_app->mapBrightness / 255.0F;
+                                    gl.umgebung[k] = lg.ambient[k] / 255.0F;
+                                    gl.gerichtet[k] = lg.directed[k] / 255.0F;
                                     gl.richtung[k] = lg.dir[k];
                                 }
                             }
@@ -4327,6 +4313,10 @@ void drawMapView() {
                         gpu::umrissBeenden(orange, std::max(1.0F, std::round(1.6F * ImGui::GetFontSize() / 13.0F)));
                         ++g_app->umrissBilder;
                     }
+                }
+                // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht).
+                if (!nebenbild && regelwerkMovieDuels()) {
+                    gpu::spielGammaAnwenden();
                 }
                 // Schliesst das Bild. Danach darf keine Marke mehr kommen.
                 if (!nebenbild) {

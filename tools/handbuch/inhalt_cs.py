@@ -546,8 +546,7 @@ TEXTE = {
         "Lépe vidět v tmavých mapách",
     "Brightness, ambient light and switching effects, fog or sky off while you work.":
         "Jas, okolní světlo a vypnutí efektů, mlhy nebo oblohy během práce.",
-    "**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game.":
-        "**Otevřete {{MapViewSettings}}** (ozubené kolo na liště mapy). **{{MapBrightness}}** zesvětlí vše, **{{MapMinLight}}** zvedne jen nejtmavší místa - 0 je přesně jako ve hře.",
+    "**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas.": "**Otevřete {{MapViewSettings}}** (ozubené kolo na liště mapy). Pohled začíná přesně jako ve hře, 1,0x a 0. **{{MapBrightness}}** zesvětlí mapu a postavy na ní, **{{MapMinLight}}** zvedne jen nejtmavší místa.",
     "The view settings.":
         "Nastavení zobrazení.",
     "**Switch things off.** **{{MapFog}}**, **{{MapEffects}}**, **{{MapGlow}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside.":

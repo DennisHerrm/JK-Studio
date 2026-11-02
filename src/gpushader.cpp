@@ -5,6 +5,9 @@
 
 #include "bhed/gpushader.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <string>
 
 #include "bhed/gpustate.h"
@@ -759,6 +762,30 @@ float4 main(VSOut ein) : SV_TARGET {
 )";
 }
 
+float spielGammaWert(float wert) {
+    const float u = std::clamp(wert * 64.0F - 0.5F, 0.0F, 63.0F);
+    const float i = std::floor(u);
+    const float tief = std::floor(i * 255.0F / 63.0F) / 255.0F;
+    const float hoch = std::floor(std::min(i + 1.0F, 63.0F) * 255.0F / 63.0F) / 255.0F;
+    return tief + (hoch - tief) * (u - i);
+}
+
+std::string spielGammaPixelShaderHlsl() {
+    return R"(
+Texture2D gBild : register(t0);
+SamplerState gAbtaster : register(s0);
+struct Ein { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
+float4 main(Ein ein) : SV_TARGET {
+    float4 c = gBild.Sample(gAbtaster, ein.uv);
+    float3 u = clamp(c.rgb * 64.0 - 0.5, 0.0, 63.0);
+    float3 i = floor(u);
+    float3 tief = floor(i * 255.0 / 63.0 + 0.001) / 255.0;
+    float3 hoch = floor(min(i + 1.0, 63.0) * 255.0 / 63.0 + 0.001) / 255.0;
+    return float4(lerp(tief, hoch, u - i), c.a);
+}
+)";
+}
+
 std::string glowCompositePixelShaderHlsl() {
     // Woertlich wie glowComposite (src/glow.cpp:255):
     //
@@ -969,8 +996,10 @@ VSOut main(VSIn ein) {
             aus.farbe = float4(1.0, 1.0, 1.0, 1.0);
         } else if (gLichtRichtung.w > 0.5) {
             float ein = max(0.0, dot(n, gLichtRichtung.xyz));
+            // RB_CalcDiffuseColor: Q_ftol, dann auf 255 geklemmt. Das 0.001 faengt die Rundung
+            // ab, weil die Werte hier durch 255 geteilt ankommen.
             float3 lit = min(float3(1, 1, 1),
-                             gLichtUmgebung.rgb + ein * gLichtGerichtet.rgb);
+                             floor((gLichtUmgebung.rgb + ein * gLichtGerichtet.rgb) * 255.0 + 0.001) / 255.0);
             aus.farbe = float4(lit, 1);
         } else {
             float3 licht = normalize(float3(0.4, 0.55, 0.72));

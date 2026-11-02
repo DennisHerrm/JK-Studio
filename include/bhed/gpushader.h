@@ -87,6 +87,12 @@ namespace bhed::gpu {
 [[nodiscard]] std::string glowShrinkPixelShaderHlsl();
 [[nodiscard]] std::string glowBlurPixelShaderHlsl();
 [[nodiscard]] std::string glowCompositePixelShaderHlsl();
+// Movie Duels, r_gammaShaders 1 (Vorgabe, im Protokoll "GAMMA: shader"): am Ende jedes Bilds
+// "TEX r0, texcoord, texture[0], RECT; TEX result.color, r0, texture[1], 3D" mit einer 3D-Tabelle
+// aus 64 Stufen, GL_LINEAR, ohne Halbtexel-Ausgleich. Bei r_gamma 1 ist das fast die Einheit, zieht
+// aber die dunklen Werte herunter: 3 -> 1, 5 -> 3, 13 -> 11 (im Spielfoto nachgemessen).
+[[nodiscard]] float spielGammaWert(float wert);
+[[nodiscard]] std::string spielGammaPixelShaderHlsl();
 
 // Ein kurzer Name fuer diese Kombination - fuer Protokolle und um erzeugte
 // Shader wiederzuerkennen.

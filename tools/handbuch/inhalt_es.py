@@ -549,8 +549,7 @@ TEXTE = {
         "Ver mejor en mapas oscuros",
     "Brightness, ambient light and switching effects, fog or sky off while you work.":
         "Brillo, luz ambiental, y desactivar efectos, niebla o cielo mientras trabajas.",
-    "**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game.":
-        "**Abre {{MapViewSettings}}** (el engranaje de la barra del mapa). **{{MapBrightness}}** aclara todo, **{{MapMinLight}}** levanta solo las zonas más oscuras; 0 es exactamente como el juego.",
+    "**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas.": "**Abre {{MapViewSettings}}** (el engranaje de la barra del mapa). La vista empieza exactamente como el juego, 1,0x y 0. **{{MapBrightness}}** aclara el mapa y los personajes, **{{MapMinLight}}** levanta solo las zonas más oscuras.",
     "The view settings.":
         "Los ajustes de la vista.",
     "**Switch things off.** **{{MapFog}}**, **{{MapEffects}}**, **{{MapGlow}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside.":

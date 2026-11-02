@@ -13,6 +13,7 @@
 
 #include "gpumap.h"
 
+#include "bhed/holster.h"
 #include "bhed/messpunkt.h"
 #include "bhed/kartenpruefung.h"   // rc604 fix604b (B3): imSpiel
 #include "bhed/regelwerk.h"        // rc604 (A2 Rest): roffNotizenOpenJk
@@ -5058,6 +5059,26 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
     // Pruefung 4b: Remove vor dem ersten Add hat Ghoul2-Modell 0 entfernt -
     // Waffe und Griffe hingen an seinen Bolzen und fallen aus G2_Sort_Models.
     d.ohneKoerper = st.koerperEntfernt;
+    // rc608 Teil 5, Movie Duels: WP_SaberAddHolsteredG2SaberModels - hat die Figur ein Schwert und
+    // eine andere Waffe in der Hand (oder keine), haengt der Griff am Holsterbolzen.
+    if (regelwerkMovieDuels() && !regelwerkJediOutcast() && !st.koerperEntfernt && st.hatSaber && !st.waffe.empty() && st.waffe != "WP_SABER" && st.waffe != "WP_NONE") {
+        const auto artVon = [&a, &st](std::size_t n) -> const SaberArt* {
+            const int nr = st.saber[n].art;
+            return (nr >= 0 && static_cast<std::size_t>(nr) < a.saberArten.size()) ? &a.saberArten[static_cast<std::size_t>(nr)] : nullptr;
+        };
+        const SaberArt* erste = artVon(0);
+        for (std::size_t n = 0; n < 2 && erste != nullptr; ++n) {
+            if (n == 1 && !st.dualSabers) { break; }
+            const SaberArt* art = artVon(n);
+            const std::string* griff = art != nullptr ? pfad(art->modell) : nullptr;
+            HolsterLage lage;
+            if (griff == nullptr || !saberHolsterLage(a.npcType, a.klasse, erste->typ, erste->holsterPlatz, art->holsterPlatz, static_cast<int>(n), lage)) { continue; }
+            if (AnbauDraw* an = neu(hiltFor(*griff), lage.bolzen)) {
+                an->holster = true;
+                an->holsterDrehung = lage.drehung;
+            }
+        }
+    }
     if (!st.waffe.empty() && !st.koerperEntfernt) {
         for (std::size_t n = 0; n < 2; ++n) {
             const HandBelegung& h = st.hand[n];
@@ -6510,6 +6531,29 @@ void prepareScene() {
                        npcDarfRollen(navMovieDuelsRegeln(), navJk2Regeln(), waffe, it->second.first, it->second.second);
             };
             hilfe.darfRollen = welt.darfRollen;
+            // rc608 Teil 5: PM_FallToDeath (npcFallTodKlasse) und die Lunge von Vader und Desann
+            struct FallInfo {
+                std::string klasse;
+                int gesundheit = 100;
+                int stil = 0;
+                bool fallen = true;
+            };
+            auto fallInfos = std::make_shared<std::map<std::string, FallInfo>>();
+            for (const Actor& a : ersteSzene.actors) {
+                (*fallInfos)[a.name] = {a.klasse, a.gesundheitStart, a.startStil, !a.echterSpieler && !a.ohneSchwerkraft};
+            }
+            welt.fallTodWerte = [fallInfos, animDauerFn = hilfe.animDauer](const std::string& f, LaufWerte& w) {
+                const auto it = fallInfos->find(f);
+                if (it == fallInfos->end() || !it->second.fallen) { return; }
+                npcFallTodKlasse(navMovieDuelsRegeln(), navJk2Regeln(), it->second.klasse, w.fallTod);
+                w.fallTod.gesundheit = it->second.gesundheit;
+                const double fallAnim = animDauerFn ? animDauerFn(f, "BOTH_FALLDEATH1") : 0.0;
+                w.fallTod.hatFallDeath1 = fallAnim > 0.0;
+                w.fallTod.animMs = static_cast<int>(fallAnim > 0.0 ? fallAnim : (animDauerFn ? animDauerFn(f, "BOTH_DEATH1") : 0.0));
+                w.lungeBeimRollen = navMovieDuelsRegeln() && (it->second.klasse == "CLASS_VADER" || it->second.klasse == "CLASS_DESANN") &&
+                                    it->second.stil != 6 && it->second.stil != 7;   // SS_DUAL, SS_STAFF
+            };
+            hilfe.fallTodWerte = welt.fallTodWerte;
             welt.halbBreite = [kaesten](const std::string& f) {
                 const auto it = kaesten->find(f);
                 return it == kaesten->end() ? 16.0F : it->second.first;
@@ -7568,6 +7612,9 @@ void ansichtEinstellungen() {
     ImGui::SetNextItemWidth(feld);
     if (ImGui::SliderFloat(tr(Str::MapBrightness), &g_app->mapBrightness, 0.5F, 6.0F, "%.1fx")) {
         g_app->mapDirty = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", tr(Str::MapBrightnessHint));
     }
     ImGui::SetNextItemWidth(feld);
     if (ImGui::SliderFloat(tr(Str::MapMinLight), &g_app->mapMinLight, 0.0F, 0.5F, "%.2f")) {

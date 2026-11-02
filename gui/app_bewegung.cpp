@@ -462,6 +462,45 @@ void schwerkraftVorschau(bool mitMovern) {
     for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) { index[g_app->scene.actors[i].name] = i; }
     figurHakenSetzen(hilfe, index);
     todesFolgenHoehe(g_app->scene, navWeltVorschau(), hilfe, &g_app->map);
+    // rc608 Teil 5: NPC_RemoveBody. cg.refdef: die Kamera der Szene, wenn sie an ist, sonst der Spieler.
+    {
+        LeichenHilfe lh;
+        {
+            const std::string& pfad = g_app->map.path;
+            const std::size_t strich = pfad.find_last_of('/');
+            lh.karte = pfad.substr(strich == std::string::npos ? 0 : strich + 1);
+            if (lh.karte.size() > 4) { lh.karte.resize(lh.karte.size() - 4); }
+        }
+        lh.team = [](const Actor& a) {
+            const auto it = g_app->npcMap.find(a.npcType);
+            return it != g_app->npcMap.end() ? it->second.team : std::string();
+        };
+        lh.spur = navWeltVorschau() ? navWeltVorschau()->spur : NavSpurFn{};
+        lh.blick = [](double ms, float ort[3], float winkel[3]) {
+            if (g_app->camTrackValid) {
+                const CameraState cs = g_app->camTrack.at(ms);
+                if (cs.enabled) {
+                    for (int k = 0; k < 3; ++k) {
+                        ort[k] = cs.pos[k];
+                        winkel[k] = cs.angles[k];
+                    }
+                    return true;
+                }
+            }
+            for (const Actor& a : g_app->scene.actors) {
+                if (!a.echterSpieler) { continue; }
+                const ActorState st = a.at(ms);
+                for (int k = 0; k < 3; ++k) {
+                    ort[k] = st.pos[k];
+                    winkel[k] = st.angles[k];
+                }
+                ort[2] += 36.0F;   // viewheight
+                return true;
+            }
+            return false;
+        };
+        leichenEntfernen(g_app->scene, g_app->map, lh, g_app->scene.durationMs);
+    }
     std::size_t figuren = 0;
     for (const Actor& a : g_app->scene.actors) {
         if (!a.hoehe.empty()) { ++figuren; }

@@ -1527,8 +1527,10 @@ struct App {
     bool gizmoZeigen = false;   // im letzten Bild ueber das GPU-Bild gelegt?   // Selbsttest: Klaenge verarbeiten, aber nicht ausgeben
     double audioUpTo = -1.0;
     float lastCam[7]{};
-    float mapBrightness = 2.0F;
-    float mapMinLight = 0.10F;
+    // Vorgaben wie das Spiel: r_mapOverBrightBits 0 (Lightmaps, Eckenfarben und Gitter unveraendert)
+    // und kein Grundlicht. Beide Regler sind Hilfen fuer dunkle Karten.
+    float mapBrightness = 1.0F;
+    float mapMinLight = 0.0F;
     // Zeit fuers letzte Bild, geglaettet - eine ungeglaettete Anzeige
     // springt so, dass man sie nicht lesen kann.
     float mapFrameMs = 0.0F;

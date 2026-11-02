@@ -938,6 +938,8 @@ TodErgebnis Kette::lauf() {
             }
         }
         e.tempo = tempo_;
+        e.pmZeit = pmZeit_;
+        e.rueckstoss = rueckstoss_;
         return e;
     }
     // Pruefung 3: Schwert (Q_irand(0, 1)), Kristall, TossClientItems, Klinge aus
@@ -1071,6 +1073,8 @@ TodErgebnis Kette::lauf() {
     if (gesetzt(anim)) { e.anim = anim; }
     deathFx(e);   // "Start any necessary death fx for this entity" (g_combat.cpp:4694 OJ)
     e.tempo = tempo_;
+        e.pmZeit = pmZeit_;
+        e.rueckstoss = rueckstoss_;
     return e;
 }
 

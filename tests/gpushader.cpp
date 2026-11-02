@@ -20,6 +20,7 @@
 #include "bhed/gpustate.h"
 
 #include <cstddef>
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -459,6 +460,15 @@ int main() {
         erwarte("verschiedene Bits, verschiedene Namen",
                 shaderName(kDeform, 0) != shaderName(kAutosprite, 0));
     }
+
+    // r_gammaShaders von Movie Duels: 64 Stufen, GL_LINEAR, ohne Halbtexel-Ausgleich.
+    const auto bytes = [](float b) { return bhed::gpu::spielGammaWert(b / 255.0F) * 255.0F; };
+    erwarte("spielGammaWert 0", bytes(0.0F) == 0.0F);
+    erwarte("spielGammaWert 255", bytes(255.0F) == 255.0F);
+    erwarte("spielGammaWert 3 wird 1", std::fabs(bytes(3.0F) - 1.0F) < 0.5F);
+    erwarte("spielGammaWert 5 wird 3", std::fabs(bytes(5.0F) - 3.0F) < 0.5F);
+    erwarte("spielGammaWert 13 wird 11", std::fabs(bytes(13.0F) - 11.0F) < 0.5F);
+    erwarte("spielGammaWert 128 bleibt", std::fabs(bytes(128.0F) - 128.0F) < 1.0F);
 
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);

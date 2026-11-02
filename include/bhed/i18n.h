@@ -3617,6 +3617,7 @@ enum class Str {
     MsNachRechts,
     MsNameBelegt,
     MsZustandTip,
+    MapBrightnessHint,
     Count,
 };
 

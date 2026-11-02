@@ -1115,6 +1115,7 @@ private:
         werte.landKlasse = welt_.landKlasse ? welt_.landKlasse(w.name) : 0;
         werte.keineAkrobatik = w.keineAkrobatik;   // rc605: SET_NO_ACROBATICS
         werte.darfRollen = welt_.darfRollen && welt_.darfRollen(w.name, w.waffe);   // Pruefung 4a: PM_TryRoll
+        if (welt_.fallTodWerte) { welt_.fallTodWerte(w.name, werte); }   // rc608 Teil 5
         werte.geduckt = w.geduckt;                 // Pruefung 3: SCF_CROUCHED
         werte.hockHoehe = welt_.hockHoehe ? welt_.hockHoehe(w.name) : 16.0F;
         werte.ohneKoerper = w.verhaltenZustand == "BS_NOCLIP";   // NPC_BSNoClip + PM_NoclipMove
@@ -3910,7 +3911,7 @@ bool gleicherZustand(const LaufZustand& a, const LaufZustand& b) {
            a.zielLetzterWegpunkt == b.zielLetzterWegpunkt && a.zielWegpunktBis == b.zielWegpunktBis &&
            a.pfadDa == b.pfadDa && a.pfadEnde == b.pfadEnde && a.pfadErfolg == b.pfadErfolg &&
            a.pfadAStarBis == b.pfadAStarBis && gleicherPfad(a.pfad, b.pfad) && a.pfadGroesse == b.pfadGroesse &&
-           a.amBoden == b.amBoden && a.geduckt == b.geduckt && a.pmZeit == b.pmZeit && gleichBits(a.gesetztMs, b.gesetztMs) &&
+           a.amBoden == b.amBoden && a.geduckt == b.geduckt && a.pmZeit == b.pmZeit && a.rueckstoss == b.rueckstoss && gleichBits(a.reibung, b.reibung) && a.aufprallTod == b.aufprallTod && gleichBits(a.gesetztMs, b.gesetztMs) &&
            a.bodenEnt == b.bodenEnt && gleichBits(a.bodenAbMs, b.bodenAbMs) &&   // rc605 (Ende)
            a.gesetztSpawn == b.gesetztSpawn && a.gesetztImFesten == b.gesetztImFesten &&
            gleichBits(a.denkNullMs, b.denkNullMs) && gleichBits(a.letzteBewegung, b.letzteBewegung) &&   // rc601 integ
@@ -3937,15 +3938,16 @@ bool gleicheWerte(const LaufWerte& a, const LaufWerte& b) {
            a.sprungAnimArt == b.sprungAnimArt && a.sprungAnimMs == b.sprungAnimMs && a.forceLandMs == b.forceLandMs &&   // rc605 FU4
            a.levitation == b.levitation && a.landKlasse == b.landKlasse && a.landeMs == b.landeMs &&   // rc605 (Rest)
            a.geduckt == b.geduckt && gleichBits(a.hockHoehe, b.hockHoehe) &&   // Pruefung 3
-           a.darfRollen == b.darfRollen;   // Pruefung 4a
+           a.darfRollen == b.darfRollen &&   // Pruefung 4a
+           a.fallTod == b.fallTod && a.tot == b.tot && a.lungeBeimRollen == b.lungeBeimRollen;   // rc608 Teil 5
 }
 #if defined(_MSC_VER) && defined(_M_X64)
 // Waechst eine dieser Strukturen, fehlt das neue Feld oben im Vergleich.
 static_assert(sizeof(NavPfadPunkt) == 9U * 4U, "NavPfadPunkt mit Luecken oder neuem Feld: gleicherPfad pruefen");
-static_assert(sizeof(LaufZustand) == 336U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
-static_assert(sizeof(LaufWerte) == 320U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
-static_assert(sizeof(NavAbschnitt) == 712U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
-static_assert(sizeof(NavFigurKoerper) == 424U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
+static_assert(sizeof(LaufZustand) == 352U, "neues Feld in LaufZustand: gleicherZustand ergaenzen");
+static_assert(sizeof(LaufWerte) == 336U, "neues Feld in LaufWerte: gleicheWerte ergaenzen");
+static_assert(sizeof(NavAbschnitt) == 744U, "neues Feld in NavAbschnitt: gleicheEingaben ergaenzen");
+static_assert(sizeof(NavFigurKoerper) == 440U, "neues Feld in NavFigurKoerper: gleicheEingaben ergaenzen");
 #endif
 // rc605 (Ende, Jedi Outcast): dieselben Schuebe ohne Plan (Takt fuer Takt dieselben Orte)?
 bool gleicheSchuebe(const std::shared_ptr<const std::map<std::string, std::vector<std::shared_ptr<const LaufPlan>>>>& x,

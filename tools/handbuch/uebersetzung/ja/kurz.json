@@ -234,7 +234,7 @@
  "**Work as usual.** Selecting, dragging and placing work in the top view too - handy for paths and waypoints.": "**いつも通り作業する。** 選択・ドラッグ・配置はトップビューでも使えます。パスやウェイポイントに便利です。",
  "See better in dark maps": "暗いマップを見やすくする",
  "Brightness, ambient light and switching effects, fog or sky off while you work.": "明るさ、環境光、作業中にエフェクト・霧・空をオフにする方法。",
- "**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game.": "**{{MapViewSettings}} を開きます**(マップのツールバーの歯車)。**{{MapBrightness}}** は全体を明るくし、**{{MapMinLight}}** は最も暗い部分だけを持ち上げます。0 はゲームとまったく同じです。",
+ "**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas.": "**{{MapViewSettings}} を開く**(マップツールバーの歯車)。ビューはゲームとまったく同じ 1.0x と 0 で始まります。**{{MapBrightness}}** はマップとその上のキャラクターを明るくし、**{{MapMinLight}}** は最も暗い部分だけを持ち上げます。",
  "The view settings.": "表示設定。",
  "**Switch things off.** **{{MapFog}}**, **{{MapEffects}}**, **{{MapGlow}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside.": "**一部をオフにする。** ツールバーの **{{MapFog}}**・**{{MapEffects}}**・**{{MapGlow}}**・**{{MapSky}}** で、それぞれをオフにします。空がなければ、マップの外から中をのぞけます。",
  "**Only this script.** **{{MapScriptFocus}}** in the view settings dims every entity the active script does not use.": "**このスクリプトだけ。** 表示設定の **{{MapScriptFocus}}** で、アクティブなスクリプトが使わないエンティティをすべて暗くします。",

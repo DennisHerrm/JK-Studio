@@ -508,6 +508,7 @@ int saberArtIndex(Actor& a, const std::string& name, int fach,
             art.bladeStyle2Start = d.bladeStyle2Start;
             art.zweihaendig = d.twoHanded;
             art.handgelenk = d.boltToWrist;
+            art.holsterPlatz = d.holsterPlatz;
             art.ohneKlinge = d.noBlade;
             art.ohneKlinge2 = d.noBlade2;
             art.kontakt = d.kontakt;   // rc601 saber
@@ -720,6 +721,8 @@ void ausstattungBeimSpawnen(Actor& a, const NpcDef* def, const SzenenHilfe* hilf
     if (waffe.empty() || waffe == "WP_NONE") {
         waffe = npcTeamWaffe(def->team, a.npcType, spawnflags);
     }
+    // ClientSpawn (g_client.cpp:2275 OJ): der Spieler selbst bekommt das Schwert in die Hand.
+    if (a.echterSpieler && waffe == "WP_NONE") { waffe = "WP_SABER"; }
     if (regelwerkJediOutcast()) {
         // rc604 fix604 (JK2 Stufe 3): NPC_ParseParms von Jedi Outcast kennt kein
         // "weapon" - NPC_Begin ruft immer NPC_SetWeapons (NPC_spawn.cpp:947).
@@ -858,7 +861,8 @@ void ausruestungSchritt(const Actor& a, ActorState& st, const ActorStep& step) {
             // "Should NPCs have only 1 weapon at a time?" - ja: die Liste
             // wird geleert und nur die neue eingetragen (ebenda:3447 ff.).
             const bool hatteSchwert = st.hatSaber;
-            st.hatSaber = (w == "WP_SABER");
+            // Nur ein NPC behaelt eine einzige Waffe; der Spieler nimmt die neue dazu (ebenda:3463 MD).
+            st.hatSaber = (w == "WP_SABER") || (a.echterSpieler && hatteSchwert);
             st.waffe = w;
             if (w == "WP_SABER") {
                 // "if (!hadWeapon) WP_SaberInitBladeData" (ebenda:3476).

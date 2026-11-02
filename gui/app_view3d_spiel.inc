@@ -288,6 +288,19 @@ bool anbauWelt(const ActorDraw& d, const AnbauDraw& an, const std::vector<BoneMa
     const int hs = surfaceIndex(*d.model, an.bolzen);
     if (hs < 0 || d.anim == nullptr || !boltMatrix(*d.model, hs, welt, *d.anim, hand)) { return false; }
     gpu::baueGriffWelt(fw, hand, gw);
+    if (an.holster) {
+        // BONE_ANGLES_PREMULT auf der Wurzel des Griffs: Griffwelt * Drehung.
+        float neu[16];
+        const BoneMatrix& d2 = an.holsterDrehung;
+        for (int r = 0; r < 3; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                float v = c == 3 ? gw[r * 4 + 3] : 0.0F;
+                for (int k = 0; k < 3; ++k) { v += gw[r * 4 + k] * d2.m[k][c]; }
+                neu[r * 4 + c] = v;
+            }
+        }
+        for (int i = 0; i < 12; ++i) { gw[i] = neu[i]; }
+    }
     return true;
 }
 
@@ -3333,6 +3346,23 @@ int npcDateienLesen(NpcMap& m) {
     return dateien;
 }
 
+// RE_SplitSkins + RE_RegisterSkin (tr_skin.cpp): "|kopf|rumpf|beine" sind drei .skin-Dateien im Ordner
+// des Modells. Bei doppelten Flaechen gilt in der Engine der erste Eintrag, hier der zuletzt
+// angewandte: darum Beine, Rumpf, Kopf. false: kein solcher Name oder eine Datei fehlt.
+bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel& gm) {
+    if (name.empty() || name[0] != '|') { return false; }
+    const std::size_t a = name.find('|', 1);
+    const std::size_t b = a == std::string::npos ? a : name.find('|', a + 1);
+    if (b == std::string::npos) { return false; }
+    const std::string teile[3] = {name.substr(b + 1), name.substr(a + 1, b - a - 1), name.substr(1, a - 1)};
+    std::string text[3];
+    for (int i = 0; i < 3; ++i) {
+        if (!readFromArchives(dir + "/" + teile[i] + ".skin", text[i])) { return false; }
+    }
+    for (const std::string& t : text) { applySkin(t, gm); }
+    return true;
+}
+
 void loadActorModels() {
     diag::Step step("Figurenmodelle suchen");
     static const std::shared_ptr<const App::ActorAssets> kOhneModell = std::make_shared<const App::ActorAssets>();
@@ -3393,13 +3423,20 @@ void loadActorModels() {
         // rc604 jk2: in Jedi Outcast ist der Spieler immer "kyle"
         // (G_SetG2PlayerModel(ent, "kyle", ...), codeJK2/game/g_client.cpp:1414,
         // 1727) - es gibt kein g_char_model.
-        const char* const spielerModell = regelwerkJediOutcast() ? "kyle" : "jedi_hm";
+        //
+        // G_InitPlayerFromCvars: Modell und drei Haeute aus den Cvars, Vorgaben g_main.cpp: OpenJK
+        // "jedi_tf" (:686), Movie Duels "jedi_hm" (:822), beide head_a1, torso_a1, lower_a1.
+        const char* const spielerModell = regelwerkJediOutcast() ? "kyle" : (regelwerkMovieDuels() ? "jedi_hm" : "jedi_tf");
+        const char* const spielerHaut = regelwerkJediOutcast() ? "default" : "|head_a1|torso_a1|lower_a1";
         for (auto& [typ, def] : g_app->npcMap) {
             (void)typ;
             std::string pm = def.playerModel;
             for (char& c : pm) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
             if (pm == "player") {
                 def.playerModel = spielerModell;
+                def.customSkin = spielerHaut;
+                // G_SetSabersFromCVars: g_saber "single_1" (g_main.cpp), die .npc nennt nichts.
+                if (def.saber.empty() && !regelwerkJediOutcast()) { def.saber = "single_1"; }
             }
         }
         // --- Fahrzeuge: das Modell aus ext_data/vehicles/*.veh -------------
@@ -3487,7 +3524,8 @@ void loadActorModels() {
         }
         if (g_app->npcMap.find("player") == g_app->npcMap.end()) {
             NpcDef spieler;
-            spieler.playerModel = "jedi_hm";
+            spieler.playerModel = spielerModell;
+            spieler.customSkin = spielerHaut;
             spieler.saber = "single_1";
             spieler.weapon = "WP_SABER";
             g_app->npcMap["player"] = spieler;
@@ -3672,14 +3710,16 @@ void loadActorModels() {
             // die Vorgabe "default" zurueck, wenn keiner genannt ist
             // (ebenda:1597). Der dritte Schritt ist unserer - alte Modelle
             // haben nur model.skin.
-            for (const std::string& which :
-                 {"model_" + skinName + ".skin",
-                  std::string("model_default.skin"),
-                  std::string("model.skin")}) {
-                std::string skin;
-                if (readFromArchives(pfad + "/" + which, skin)) {
-                    applySkin(skin, modelle[k]);
-                    break;
+            if (!hautAusDreiTeilen(pfad, skinName, modelle[k])) {
+                for (const std::string& which :
+                     {"model_" + skinName + ".skin",
+                      std::string("model_default.skin"),
+                      std::string("model.skin")}) {
+                    std::string skin;
+                    if (readFromArchives(pfad + "/" + which, skin)) {
+                        applySkin(skin, modelle[k]);
+                        break;
+                    }
                 }
             }
             heil[k] = 1;
@@ -3875,8 +3915,8 @@ void loadActorModels() {
         // Reihenfolge wie im Vorwaermen weiter oben. Zwei Stellen, die
         // dasselbe tun, muessen es GLEICH tun; laufen sie auseinander,
         // haengt das Aussehen davon ab, welcher Weg zuerst drankam.
-        bool skinGefunden = false;
-        for (const std::string& which :
+        bool skinGefunden = hautAusDreiTeilen(dir, it->second.customSkin, gm);
+        if (!skinGefunden) for (const std::string& which :
              {"model_" + it->second.customSkin + ".skin",
               std::string("model_default.skin"), std::string("model.skin")}) {
             std::string skin;

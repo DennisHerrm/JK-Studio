@@ -410,7 +410,7 @@ KARTE = [
         T("Brightness, ambient light and switching effects, fog or sky off while you work."),
         T("Map · three steps"), "h_ansicht_einst",
         [
-            (T("**Open {{MapViewSettings}}** (the gear on the map toolbar). **{{MapBrightness}}** lightens everything, **{{MapMinLight}}** lifts only the darkest areas - 0 is exactly like the game."),
+            (T("**Open {{MapViewSettings}}** (the gear on the map toolbar). The view starts exactly like the game, 1.0x and 0. **{{MapBrightness}}** lightens the map and the characters on it, **{{MapMinLight}}** lifts only the darkest areas."),
              "h_ansicht_einst", T("The view settings.")),
             T("**Switch things off.** **{{MapFog}}**, **{{MapEffects}}**, **{{MapGlow}}** and **{{MapSky}}** on the toolbar switch those parts off. Without the sky you can look into the map from outside."),
             T("**Only this script.** **{{MapScriptFocus}}** in the view settings dims every entity the active script does not use."),

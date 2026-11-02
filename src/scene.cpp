@@ -603,6 +603,7 @@ ActorState Actor::at(double ms) const {
             case ActorStep::Kind::WalkTo: {
                 // rc601 (bewegung, Wege): aus der Bahn je Denkbild, sonst linear.
                 wegOrtBei(step, ms, st.pos);
+                if (step.nurOrt) { break; }   // rc608 Teil 5: die Leiche
                 // Beim Gehen schaut die Figur in Laufrichtung - so macht es
                 // die Engine auch, solange kein SET_LOOK_TARGET gesetzt ist.
                 gehEnde = step.endMs;
@@ -894,6 +895,9 @@ ActorState Actor::at(double ms) const {
                         gierEreignisse.push_back({step.startMs, GierArt::WatchAus, 0.0F, &step});
                     }
                 }
+                break;
+            case ActorStep::Kind::MehrLicht:
+                st.mehrLicht = step.value > 0.5F;
                 break;
             case ActorStep::Kind::Crouch:
                 if (step.value > 0.5F && !st.crouched) { hockAb = step.startMs; }
@@ -2288,6 +2292,10 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
             def.bladeStyle2Start = static_cast<int>(std::strtol(val.c_str(), nullptr, 10));
         } else if (key == "twohanded") {
             def.twoHanded = std::strtol(val.c_str(), nullptr, 10) != 0;
+        } else if (key == "holsterplace") {
+            def.holsterPlatz = val;
+            for (char& c : def.holsterPlatz) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            if (def.holsterPlatz == "NONE") { def.holsterPlatz = "HOLSTER_NONE"; }
         } else if (key == "bolttowrist") {
             def.boltToWrist = std::strtol(val.c_str(), nullptr, 10) != 0;
         } else if (key == "noblade") {
@@ -2306,6 +2314,112 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
 // rc605 (Ende, Jedi Outcast): der Weg eines Schubs ohne Plan (navKoerperLauf,
 // NavSchub; NAVNEW_PushBlocker + BG_AddPushVecToUcmd) als WalkTo-Stueck bis `bis`.
 // Einmal je Schub (dieselbe Bahn steht schon da: nichts).
+void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, double endeMs) {
+    const bool md = regelwerkMovieDuels();
+    const Actor* spieler = nullptr;
+    for (const Actor& a : s.actors) {
+        if (a.echterSpieler) { spieler = &a; }
+    }
+    for (Actor& a : s.actors) {
+        a.steps.erase(std::remove_if(a.steps.begin(), a.steps.end(), [](const ActorStep& w) { return w.leicheWeg; }), a.steps.end());
+        if (a.getoetetMs < 0.0 || a.echterSpieler || a.brushModel > 0 || a.npcType.empty()) { continue; }
+        std::string k = a.klasse;
+        for (char& c : k) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+        const auto ist = [&k](std::initializer_list<const char*> l) {
+            for (const char* n : l) {
+                if (k == n) { return true; }
+            }
+            return false;
+        };
+        const bool padNull = ist({"CLASS_MOUSE", "CLASS_GONK", "CLASS_R2D2", "CLASS_R5D2", "CLASS_MARK1", "CLASS_MARK2", "CLASS_PROBE", "CLASS_SEEKER", "CLASS_REMOTE",
+                                  "CLASS_SENTRY", "CLASS_INTERROGATOR"});
+        double pad = 10000.0;
+        if (padNull) {
+            pad = 0.0;
+        } else if (md && ist({"CLASS_SBD", "CLASS_BATTLEDROID", "CLASS_DROIDEKA"}) &&
+                   (h.karte == "md_gb_jedi" || h.karte == "md_gb_sith" || h.karte == "md_ga_jedi" || h.karte == "md_ga_sith")) {
+            pad = 3000.0;
+        }
+        const double frei = a.getoetetMs + pad;
+        // DeadThink: EF_NODRAW fuer Droiden (MD: groessere Liste, OpenJK/JK2 wie padNull ohne MOUSE, CLASS_INTERROGATOR).
+        const bool droide = md ? ist({"CLASS_ATST", "CLASS_GONK", "CLASS_INTERROGATOR", "CLASS_MARK1", "CLASS_MARK2", "CLASS_MOUSE", "CLASS_PROBE", "CLASS_PROTOCOL", "CLASS_R2D2",
+                                      "CLASS_R5D2", "CLASS_SEEKER", "CLASS_SENTRY", "CLASS_SBD", "CLASS_BATTLEDROID", "CLASS_DROIDEKA", "CLASS_OBJECT", "CLASS_ASSASSIN_DROID",
+                                      "CLASS_SABER_DROID"})
+                               : ist({"CLASS_SEEKER", "CLASS_REMOTE", "CLASS_PROBE", "CLASS_MOUSE", "CLASS_GONK", "CLASS_R2D2", "CLASS_R5D2", "CLASS_MARK2", "CLASS_SENTRY"});
+        double weg = -1.0;
+        if (droide && frei <= endeMs) {
+            weg = frei;
+        } else {
+            bool schluessel = false;
+            if (a.kartenEntity >= 0 && static_cast<std::size_t>(a.kartenEntity) < karte.entities.size()) {
+                const std::string* m = karte.entities[static_cast<std::size_t>(a.kartenEntity)].find("message");
+                schluessel = m != nullptr && !m->empty();
+            }
+            double skriptEnde = 0.0;
+            for (const ActorStep& w : a.steps) {
+                if (!w.path.empty()) { skriptEnde = std::max(skriptEnde, w.endMs); }
+            }
+            const bool immerWeg = ist({"CLASS_REMOTE", "CLASS_SENTRY", "CLASS_PROBE", "CLASS_INTERROGATOR", "CLASS_MARK2"});
+            const bool mitPruefung = (h.team && h.team(a) == "TEAM_ENEMY") || k == "CLASS_PROTOCOL";
+            double naechste = frei + 200.0;   // NPCInfo->timeOfDeath = level.time + FRAMETIME * 4
+            for (double t = frei + 100.0; t <= endeMs && !schluessel && k != "CLASS_GALAKMECH"; t += 100.0) {
+                if (t < skriptEnde) { continue; }
+                if (immerWeg) {
+                    weg = t;
+                    break;
+                }
+                if (t < naechste) { continue; }
+                naechste = t + 1000.0;
+                if (mitPruefung && spieler != nullptr) {
+                    const ActorState l = a.at(t);
+                    const ActorState sp = spieler->at(t);
+                    float d2 = 0.0F;
+                    for (int q = 0; q < 3; ++q) { d2 += (l.pos[q] - sp.pos[q]) * (l.pos[q] - sp.pos[q]); }
+                    if (d2 <= 128.0F * 128.0F) { continue; }   // REMOVE_DISTANCE_SQR
+                    float auge[3];
+                    float blick[3];
+                    if (h.blick && h.blick(t, auge, blick)) {
+                        const float dx = l.pos[0] - auge[0];
+                        const float dy = l.pos[1] - auge[1];
+                        const float dz = l.pos[2] - auge[2];
+                        const float gier = std::atan2(dy, dx) * 180.0F / 3.14159265F;
+                        const float nick = -std::atan2(dz, std::sqrt(dx * dx + dy * dy)) * 180.0F / 3.14159265F;
+                        const auto delta = [](float x, float y) {
+                            float v = std::fmod(x - y, 360.0F);
+                            if (v > 180.0F) { v -= 360.0F; }
+                            if (v < -180.0F) { v += 360.0F; }
+                            return std::fabs(v);
+                        };
+                        if (delta(blick[1], gier) <= 110.0F && delta(blick[0], nick) <= 90.0F) {
+                            bool frei2 = true;
+                            if (h.spur) {
+                                const NavVec von{sp.pos[0], sp.pos[1], sp.pos[2] + 32.0F};
+                                const NavVec bis{l.pos[0], l.pos[1], l.pos[2]};
+                                const NavVec nichts{0.0F, 0.0F, 0.0F};
+                                frei2 = h.spur(von, nichts, nichts, bis, kNavKeineEntity, kNavSolid).fraction >= 1.0F;
+                            }
+                            if (frei2) { continue; }
+                        }
+                    }
+                }
+                if (a.feindBeimTod) {
+                    weg = t;
+                    break;
+                }
+            }
+        }
+        if (weg >= 0.0) {
+            ActorStep gone;
+            gone.kind = ActorStep::Kind::Gone;
+            gone.startMs = weg;
+            gone.endMs = weg;
+            gone.leicheWeg = true;
+            a.steps.push_back(std::move(gone));
+            std::stable_sort(a.steps.begin(), a.steps.end(), [](const ActorStep& x, const ActorStep& y) { return x.startMs < y.startMs; });
+        }
+    }
+}
+
 void schubSchrittDazu(Actor& a, const std::shared_ptr<const LaufPlan>& p, double bis) {
     if (!p || p->takte.empty() || !(bis > p->abMs)) { return; }
     for (const ActorStep& st : a.steps) {
@@ -2970,6 +3084,12 @@ TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf,
     // trigger_hurt: hurt_touch -> G_Damage mit MOD_TRIGGER_HURT, bei FALLING
     // (spawnflags 32) MOD_FALLING; SHOCK (64) setzt PW_SHOCKED; pos1 =
     // currentOrigin (g_trigger.cpp:1126-1230, g_combat.cpp:6739-6746 OJ).
+    if (a.aufprallTodMs >= 0.0 && std::fabs(wann - a.aufprallTodMs) < 0.5) {
+        l.mittel = TodMittel::Fallen;
+        l.tempo = a.aufprallTempo;
+        l.schaden = 1000;
+        return l;
+    }
     const int ausloeser = hilfe->hurtAusloeser ? hilfe->hurtAusloeser(a.name, wann) : -1;
     if (ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < map.entities.size()) {
         const MapEntity& e = map.entities[static_cast<std::size_t>(ausloeser)];
@@ -3788,6 +3908,18 @@ Scene buildOnce(const Script& s, const MapData& map,
             werte.levitation = actor->levitation;   // rc605 (Rest): PM_CrashLand
             werte.landKlasse = npcLandKlasse(navMovieDuelsRegeln(), navJk2Regeln(), actor->klasse, actor->rang);
             werte.keineAkrobatik = actor->keineAkrobatik;   // rc605: SET_NO_ACROBATICS
+            // rc608 Teil 5: PM_GroundTraceMissed -> PM_FallToDeath, die Lunge; dazu was das Skript sagt
+            if (hilfe != nullptr && hilfe->fallTodWerte) {
+                hilfe->fallTodWerte(actor->name, werte);
+                const auto giltBei = [tt](const std::vector<std::pair<double, bool>>& liste) {
+                    bool an = false;
+                    for (const auto& [ab, wert] : liste) {
+                        if (ab <= tt) { an = wert; }
+                    }
+                    return an;
+                };
+                if (actor->keinFallTod || giltBei(actor->gottmodus) || giltBei(actor->unsterblich)) { werte.fallTod.pruefen = false; }
+            }
             werte.fremdGier = watchGierFn(tt);
             // rc601 integ: Takt des Verhaltens (OpenJK 100 ms, Movie Duels jedes
             // Denkbild) mit der Waffe in der Hand zu Beginn des Plans.
@@ -3856,6 +3988,22 @@ Scene buildOnce(const Script& s, const MapData& map,
                 if (it != hilfe->koerperPlaene->end()) { voll = it->second; }
             }
             if (!voll) { voll = std::make_shared<const LaufPlan>(planeLauf(*navWelt, z, werte, planAb, tt + 120000.0)); }
+            // rc608 Teil 5: PM_FallToDeath ("*falling1.wav") und der Aufprall: G_Damage 1000, MOD_FALLING,
+            // attacker der Spieler.
+            if (voll->aufprallMs >= 0.0 && actor->aufprallTodMs < 0.0) {
+                actor->aufprallTodMs = voll->aufprallMs;
+                actor->aufprallTempo = voll->aufprallTempo;
+                getoetet.emplace_back(actor->name, voll->aufprallMs);
+                TodesFolge schrei;
+                schrei.ms = voll->fallTodMs;
+                schrei.figur = actor->name;
+                TodKlang klang;
+                klang.datei = "*falling1.wav";
+                klang.kanal = TodKlang::Kanal::Voice;
+                schrei.klaenge.push_back(std::move(klang));
+                schrei.rohZ = z.ort[2];
+                out.todesFolgen.push_back(std::move(schrei));
+            }
             std::shared_ptr<const LaufPlan> planGeteilt = voll;
             if (vorlauf) {
                 // Die Stuecke beginnen beim Befehl: der Plan ab tt; der
@@ -4475,6 +4623,13 @@ Scene buildOnce(const Script& s, const MapData& map,
             // rc605: SET_NO_ACROBATICS - NPC_CanTryJump (NPC_move.cpp:330 MD)
             // verweigert danach jeden NPC-Sprung (Q3_SetNoAcrobatics,
             // Q3_Interface.cpp:5623-5647 MD).
+            if (const std::string* v = setValue(child, "SET_NO_FALLTODEATH")) {
+                if (npc) {
+                    actor->keinFallTod = sameName(*v, "true");
+                    neuPlanen(t);
+                }
+                continue;
+            }
             if (const std::string* v = setValue(child, "SET_NO_ACROBATICS")) {
                 if (npc) {
                     actor->keineAkrobatik = sameName(*v, "true");
@@ -5227,6 +5382,20 @@ Scene buildOnce(const Script& s, const MapData& map,
                 }
             }
 
+            // Q3_SetMorelight: nur mit ent->NPC; SET_MORELIGHT_PLAYER gibt es nur in Movie Duels
+            // (Q3_SetMoreLightnpc, FL_MORELIGHPLAYER) und gilt fuer jede Figur.
+            const std::string* mehrLichtWert = sameName(actor->name, "player") ? nullptr : setValue(child, "SET_MORELIGHT");
+            if (mehrLichtWert == nullptr && regelwerkMovieDuels()) { mehrLichtWert = setValue(child, "SET_MORELIGHT_PLAYER"); }
+            if (mehrLichtWert != nullptr) {
+                ActorStep step;
+                step.kind = ActorStep::Kind::MehrLicht;
+                step.startMs = t;
+                step.endMs = t;
+                step.value = gleichOhneFallNpc(*mehrLichtWert, "true") ? 1.0F : 0.0F;
+                step.path = p;
+                actor->steps.push_back(std::move(step));
+                continue;
+            }
             if (const std::string* v = setValue(child, "SET_INVISIBLE")) {
                 ActorStep step;
                 step.kind = (*v == "true") ? ActorStep::Kind::Hide
@@ -5425,6 +5594,9 @@ Scene buildOnce(const Script& s, const MapData& map,
             EngineZufall zufall(todesSaat(a.kartenEntity, wann));
             const TodErgebnis tod = todesAnimation(lage, zufall);
             if (!schonTot) {
+                // player_die: self->enemy = attacker; kill aus ICARUS hat keinen.
+                a.feindBeimTod = std::fabs(wann - a.aufprallTodMs) < 0.5 ||
+                                 (hilfe != nullptr && hilfe->hurtAusloeser && hilfe->hurtAusloeser(a.name, wann) >= 0);
                 ActorStep halt;
                 halt.kind = ActorStep::Kind::Teleport;
                 halt.startMs = wann;
@@ -5477,6 +5649,65 @@ Scene buildOnce(const Script& s, const MapData& map,
             liegen.value = -1.0F;   // einfrieren: HOLD am letzten Bild
             liegen.part = AnimPart::Both;
             a.steps.push_back(liegen);
+            // rc608 Teil 5: der Totenlauf. ps.velocity bleibt beim Tod (der Wurf ueber die Kante setzt
+            // sie neu, G_CheckLedgeDive: ps.friction 0); PM_CrashLand einer Leiche: fallsplat ab
+            // delta 75, sonst bodyfall_human; BOTH_FALLDEATH1 wird BOTH_FALLDEATH1LAND.
+            if (!schonTot && hilfe != nullptr && hilfe->nav && a.halbBreite > 0.0F &&
+                (!lauf.amBoden || tod.tempo[0] != 0.0F || tod.tempo[1] != 0.0F || tod.tempo[2] != 0.0F)) {
+                LaufZustand start = lauf;
+                for (int k = 0; k < 3; ++k) { start.ort[static_cast<std::size_t>(k)] = st.pos[k]; }
+                start.tempoVek = tod.tempo;
+                start.pmZeit = tod.pmZeit;
+                start.rueckstoss = tod.rueckstoss && tod.pmZeit > 0;
+                start.reibung = tod.kante != 0 ? 0.0F : 6.0F;
+                LaufWerte w;
+                w.halbBreite = a.halbBreite;
+                w.hoeheOben = a.hoeheOben;
+                w.hockHoehe = a.hockHoehe;
+                w.stufe = a.stufe;
+                w.schwerkraft = out.schwerkraft;
+                w.weltSchwerkraft = out.schwerkraft;
+                for (const auto& [gms, g] : a.eigeneSchwerkraft) {
+                    if (gms <= wann) { w.schwerkraft = g; }
+                }
+                auto plan = std::make_shared<const LaufPlan>(planeTotenlauf(*hilfe->nav, start, w, wann, wann + 60000.0));
+                if (!plan->takte.empty()) {
+                    schubSchrittDazu(a, plan, 1.0e300);
+                    a.steps.back().nurOrt = true;
+                    EngineZufall landeZufall(todesSaat(a.kartenEntity, wann) + 1U);
+                    for (const LaufTakt& k : plan->takte) {
+                        if (k.landung < 0.0F) { continue; }
+                        TodesFolge f;
+                        f.ms = k.t;
+                        f.figur = a.name;
+                        TodKlang klang;
+                        klang.kanal = TodKlang::Kanal::Body;
+                        klang.datei = k.landung >= 75.0F ? std::string("sound/player/fallsplat.wav")
+                                                         : "sound/player/bodyfall_human" + std::to_string(landeZufall.irand(1, 3)) + ".wav";
+                        f.klaenge.push_back(std::move(klang));
+                        f.rohZ = st.pos[2];
+                        out.todesFolgen.push_back(std::move(f));
+                        if (tod.anim == "BOTH_FALLDEATH1" || tod.anim == "BOTH_FALLDEATH1INAIR") {
+                            ActorStep landen;
+                            landen.kind = ActorStep::Kind::Anim;
+                            landen.startMs = k.t;
+                            landen.endMs = k.t;
+                            landen.text = "BOTH_FALLDEATH1LAND";
+                            landen.part = AnimPart::Both;
+                            if (hilfe->animDauer) {
+                                const double d = hilfe->animDauer(a.name, landen.text);
+                                if (d > 0.0) { landen.endMs = k.t + d; }
+                            }
+                            a.steps.push_back(std::move(landen));
+                            ActorStep halten = liegen;
+                            halten.startMs = k.t;
+                            halten.endMs = k.t;
+                            a.steps.push_back(std::move(halten));
+                        }
+                        break;
+                    }
+                }
+            }
         }
     }
 
