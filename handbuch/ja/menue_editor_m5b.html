@@ -43,6 +43,7 @@
 <figure class="bild"><a href="../bilder/ja/menue_zustaende.webp" class="zoom"><img src="../bilder/ja/menue_zustaende.webp" alt="ボタン 2 は開いた直後は非表示です。表示と非表示でボタン 3 がレイアウトどおりに動きます。" loading="lazy"></a><figcaption>ボタン 2 は開いた直後は非表示です。表示と非表示でボタン 3 がレイアウトどおりに動きます。</figcaption></figure>
 <h2 id="jk2">Jedi Outcast<a class="anker" href="#jk2">#</a></h2>
 <p>Jedi Outcast のメニューを実際のゲーム(Steam 版)と比較しました。エディターはそのエンジンに従います: <code>setitemrect</code>、<code>setitemtext</code>、<code>transition2</code>、<code>delay</code> はなく、<code>accept</code> イベントもなく、ロゴのモデル(<code>.md3</code>)はゲームのカメラで描きます。<strong><span class="ui">ゲームでテスト</span></strong> は自分のフォルダーを <code>fs_basepath</code>、ゲームデータを <code>fs_cdpath</code> にして <code>jk2sp.exe</code> を起動します。ゲームフォルダーには何も書き込みません。</p>
+<p>Jedi Outcast のシングルプレイヤーの文字は <code>jk2sp.exe</code> と同じように測ります。各文字の送り幅は整数ピクセルに丸められ、行の高さも丸められます。そのため、データパッドの武器説明のような長い文章も、ゲームと同じ単語で折り返されます。</p>
     <nav class="blaettern"><a class="vor" href="menue_editor_m5.html"><span>前へ</span>メニューエディター: レイアウトとイベント</a><a class="nach" href="tut-menue-eigen.html"><span>次へ</span>はじめての自作メニュー</a></nav>
   </article>
   <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>
