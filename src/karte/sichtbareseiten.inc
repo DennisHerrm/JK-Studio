@@ -505,6 +505,11 @@ struct ShaderDaten {   // shaderInfo_t (der Teil, den der Ablauf braucht)
     bool bewegt = false;   // minmax.valid() (deformVertexes move)
     std::array<float, 3> bewegtMin{};
     std::array<float, 3> bewegtMax{};
+    bool nebelParms = false;              // fogparms
+    bool keinNebel = false;               // q3map_noFog
+    const ShaderDaten* klon = nullptr;    // q3map_cloneShader
+    const ShaderDaten* rueck = nullptr;   // q3map_backShader
+    bool skript = false;                  // shaderText (ProjectDecalOntoTriangles: Dreiecke ohne Skript bekommen keine Decals)
 };
 
 struct SichtSeite : Seite {   // side_t; Seite::shader: Index in die Shaderliste, -1 ohne shaderInfo
@@ -522,6 +527,7 @@ struct SichtPinsel {   // brush_t
     bool detail = false;
     bool opaque = true;
     std::uint32_t compile = 0;
+    int inhaltShader = -1;        // contentShader (SetBrushContents)
     const SichtPinsel* original = nullptr;
 };
 
@@ -1369,6 +1375,11 @@ struct PatchRoh {   // parseMesh_t (der Teil fuer die Marken)
     int hoehe = 0;
     std::vector<std::array<float, 3>> punkte;
     int shader = -1;
+    // rc608 Teil 13 (Nebel, -patchmeta): die Ecken von DrawSurfaceForMesh und was ParseMapEntity anhaengt
+    std::vector<std::array<float, 2>> st;
+    std::vector<V3f> normalen;
+    MarkenEingabe::Werte werte;
+    float kurve = 0;   // longestCurve
 };
 
 struct EntBau {   // entity_t beim Lesen
@@ -1472,9 +1483,30 @@ void pinselLesen(const std::vector<MarkenEingabe::Seite>& seiten, bool ganz, boo
         }
     }
     if (b.seiten.empty()) { return; }
-    // SetBrushContents (nur compileFlags, detail und opaque)
+    // SetBrushContents (compileFlags, detail, opaque und contentShader)
     std::uint32_t compile = b.seiten[0].flags.compile;
-    for (std::size_t i = 1; i < b.seiten.size(); ++i) { compile |= b.seiten[i].flags.compile; }
+    b.inhaltShader = b.seiten[0].shader;
+    for (std::size_t i = 1; i < b.seiten.size(); ++i) {
+        const SichtSeite& s = b.seiten[i];
+        compile |= s.flags.compile;
+        const Q3ShaderFlags& cs = shader[static_cast<std::size_t>(b.inhaltShader)].flags;
+        if ((cs.compile & C_LIQUID) != 0U) { continue; }
+        if ((s.flags.compile & C_LIQUID) != 0U) {
+            b.inhaltShader = s.shader;
+        } else if ((cs.compile & C_FOG) != 0U) {
+            continue;
+        } else if ((s.flags.compile & C_FOG) != 0U) {
+            b.inhaltShader = s.shader;
+        } else if ((cs.inhalt & S_CONT_PLAYERCLIP) != 0U) {
+            continue;
+        } else if ((s.flags.inhalt & S_CONT_PLAYERCLIP) != 0U) {
+            b.inhaltShader = s.shader;
+        } else if ((cs.compile & C_SOLID) == 0U) {
+            continue;
+        } else if ((s.flags.compile & C_SOLID) == 0U) {
+            b.inhaltShader = s.shader;
+        }
+    }
     if ((compile & C_DETAIL) != 0U && (compile & C_STRUCTURAL) != 0U) { compile &= ~C_DETAIL; }
     if ((compile & C_TRANSLUCENT) != 0U && (compile & C_STRUCTURAL) == 0U) { compile |= C_DETAIL; }
     b.detail = (compile & C_DETAIL) != 0U;
@@ -1709,6 +1741,10 @@ struct Zeichenflaeche {   // mapDrawSurface_t (der Teil fuer die Marken)
     const MarkenEingabe::Werte* werte = nullptr;
     const MarkenEingabe::Modell* modell = nullptr;
     bool meta = false;                 // aus der Meta-Stufe: Dreiecke mit eigener Ebene, zaehlen als Seiten
+    // rc608 Teil 13
+    int nummer = -1;                   // surfaceNum (AllocDrawSurface: die Stelle in mapDrawSurfs)
+    int nebel = -1;                    // fogNum (FogDrawSurfaces), FOG_INVALID -1
+    std::function<SpurFlaeche()> spaeter;   // EmitFaceSurface erst nach FilterFaceIntoTree (-maxarea zieht Zufall)
 };
 
 #include "metaflaechen.inc"
@@ -1733,6 +1769,16 @@ MarkenEingabe::Werte werteAus(const Entitaet& e, int nummer, bool weltGruppe) {
     const V3f farbe = vektorAus(e.wert("_color"));
     if (farbe != V3f{0, 0, 0}) { w.ambient = farbe; }
     return w;
+}
+
+// entity_t::read_keyvalue: der erste nicht leere Wert der Schluessel, ohne Gross- und Kleinschreibung (CASE_INSENSITIVE_EPAIRS)
+std::string wertOhneFall(const Entitaet& e, std::initializer_list<const char*> namen) {
+    for (const char* n : namen) {
+        for (const auto& [k, w] : e.schluessel()) {
+            if (!w.empty() && klein(k) == klein(n)) { return w; }
+        }
+    }
+    return {};
 }
 
 // Die Abschrift der Karte (Hauptfaden): was der Editor in die .map schreiben wuerde
@@ -1771,6 +1817,8 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
         ent.ursprung = e.wert("origin");
         ent.welt = ep == weltE;
         ent.werte = werteAus(e, static_cast<int>(ein.entitaeten.size()), ent.welt || klasse == "func_group");
+        ent.zielname = wertOhneFall(e, {"targetname"});
+        ent.ziel = wertOhneFall(e, {"target"});
         for (const char* key : {"_blocksize", "blocksize", "chopsize"}) {
             ent.blockGroesse = e.wert(key);
             if (!ent.blockGroesse.empty()) { break; }
@@ -1809,10 +1857,22 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
                 MarkenEingabe::Patch r;
                 r.breite = static_cast<int>(pa.breite());
                 r.hoehe = static_cast<int>(pa.hoehe());
-                for (const PatchPunkt& pp : pa.punkte()) { r.punkte.push_back({pp.vertex[0], pp.vertex[1], pp.vertex[2]}); }
+                for (const PatchPunkt& pp : pa.punkte()) {
+                    r.punkte.push_back({pp.vertex[0], pp.vertex[1], pp.vertex[2]});
+                    r.st.push_back({pp.texcoord[0], pp.texcoord[1]});
+                }
                 r.shader = shaderNr(pa.shader());
                 ent.patches.push_back(std::move(r));
             }
+        }
+        if (ent.welt) {   // TriangulatePatchSurface( e = worldspawn )
+            const auto wert = [&e](std::initializer_list<const char*> namen) { return wertOhneFall(e, namen); };
+            const std::string pm = wert({"_patchMeta", "patchMeta"});
+            ein.weltPatchMeta = !pm.empty() && pm[0] == '1';
+            ein.weltPatchQualitaet = std::atoi(wert({"_patchQuality", "patchQuality"}).c_str());
+            const std::string teilung = wert({"_patchSubdivide", "patchSubdivide"});
+            ein.weltPatchTeilungDa = !teilung.empty();
+            ein.weltPatchTeilung = std::atoi(teilung.c_str());
         }
         ein.entitaeten.push_back(std::move(ent));
     }
@@ -1831,6 +1891,19 @@ MarkenEingabe eingabeAusKarte(const Karte& k, const Q3ShaderInfoFn& info, bool j
         m.erzwungen = m.erzwungen || ein.shader[static_cast<std::size_t>(m.shader)].forceMeta;
         ein.modelle.push_back(std::move(m));
     });
+    // FinishSurface: ShaderInfoForShader( cloneShader ), ( backShader ) - die Liste waechst dabei
+    for (std::size_t i = 0; i < ein.shader.size(); ++i) {
+        const std::string klon = ein.shader[i].klon;
+        const std::string rueck = ein.shader[i].rueck;
+        if (!klon.empty()) {
+            const int n = shaderNr(klon);
+            ein.shader[i].klonNr = n;
+        }
+        if (!rueck.empty()) {
+            const int n = shaderNr(rueck);
+            ein.shader[i].rueckNr = n;
+        }
+    }
     return ein;
 }
 
@@ -1869,12 +1942,22 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         d.bewegt = qi.bewegt;
         d.bewegtMin = qi.bewegtMin;
         d.bewegtMax = qi.bewegtMax;
+        d.nebelParms = qi.nebelParms;
+        d.keinNebel = qi.keinNebel;
+        d.skript = qi.skript;
         shader.push_back(d);
+    }
+    for (std::size_t i = 0; i < shader.size(); ++i) {   // FinishSurface: ShaderInfoForShader( cloneShader / backShader )
+        const Q3ShaderInfo& qi = ein.shader[i];
+        if (qi.klonNr >= 0 && static_cast<std::size_t>(qi.klonNr) < shader.size()) { shader[i].klon = &shader[static_cast<std::size_t>(qi.klonNr)]; }
+        if (qi.rueckNr >= 0 && static_cast<std::size_t>(qi.rueckNr) < shader.size()) { shader[i].rueck = &shader[static_cast<std::size_t>(qi.rueckNr)]; }
     }
     Ebenen ebenen;
     EntBau welt;
     std::vector<V3f> bewohner;
     int blockGroesse[3] = {kBlockGroesse, kBlockGroesse, kBlockGroesse};
+    std::list<SichtPinsel> nebelAndere;   // Nebel-Pinsel der uebrigen Entitaeten (CreateMapFogs)
+    std::vector<DecalQuelle> decals;      // ProcessDecals
     for (const MarkenEingabe::Ent& e : ein.entitaeten) {
         const bool funcGroup = e.klasse == "func_group";
         EntBau ent;
@@ -1886,7 +1969,10 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
             r.breite = pa.breite;
             r.hoehe = pa.hoehe;
             r.punkte = pa.punkte;
+            r.st = pa.st;
             r.shader = pa.shader;
+            r.werte = e.werte;      // ParseMapEntity: Nummer, Schatten, Abtastung, Farbe der Entitaet ...
+            r.werte.shadeAngle = 0;   // ... aber kein shadeAngle fuer Patches
             ent.patches.insert(ent.patches.begin(), std::move(r));   // ParsePatch: mapEnt.patches.emplace_front()
         }
         // ParseMapEntity: die Pinsel um den Ursprungs-Pinsel zurueck
@@ -1912,6 +1998,27 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
             welt.patches.insert(welt.patches.begin(), ent.patches.begin(), ent.patches.end());
             continue;
         }
+        if (e.klasse == "_decal") {   // ProcessDecals: Patches ohne Entartung (ParsePatch), Ziel ueber FindTargetEntity
+            DecalQuelle q;
+            q.ursprung = vektorAus(e.ursprung);
+            for (PatchRoh& p : ent.patches) {
+                std::vector<EchtNetzPunkt> netz(p.punkte.size());
+                for (std::size_t i = 0; i < p.punkte.size(); ++i) { netz[i].ort = Vektor3f(p.punkte[i][0], p.punkte[i][1], p.punkte[i][2]); }
+                if (echtPatchSteuernetz(netz, p.breite, p.hoehe, p.kurve)) { q.patches.push_back(p); }
+            }
+            for (const MarkenEingabe::Ent& e2 : ein.entitaeten) {   // strEqual( targetname, target ): ohne target die erste ohne targetname
+                if (e2.zielname == e.ziel) {
+                    q.zielDa = true;
+                    q.ziel = vektorAus(e2.ursprung);
+                    break;
+                }
+            }
+            decals.push_back(std::move(q));
+        }
+        // CreateMapFogs geht alle Entitaeten durch: auch Nebel in Pinsel-Entitaeten schneiden die Welt
+        for (const SichtPinsel& b : ent.pinsel) {
+            if (b.inhaltShader >= 0 && shader[static_cast<std::size_t>(b.inhaltShader)].nebelParms) { nebelAndere.push_back(b); }
+        }
         // FloodEntities: Punkt-Entitaeten (Pinsel- und Patch-Entitaeten duerfen draussen sein)
         if (ent.pinsel.empty() && ent.patches.empty() && e.klasse != "_decal") { bewohner.push_back(vektorAus(e.ursprung)); }
     }
@@ -1922,14 +2029,28 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
     const Flut ersteFlut = flut;
     int verdeckt = 0;
     std::vector<Zeichenflaeche> zf;
-    // PatchMapDrawSurfs: die Patches kommen zuerst (ParseMesh: NODRAW wird SF_SKIP)
-    for (const PatchRoh& p : welt.patches) {
+    // PatchMapDrawSurfs: die Patches kommen zuerst. ParsePatch verwirft entartete; DrawSurfaceForMesh gibt den Ecken
+    // Normalen. Auch nodraw-Patches stehen in der .bsp (erst das Spiel ueberspringt sie: ParseMesh, SF_SKIP).
+    for (PatchRoh& p : welt.patches) {
         const ShaderDaten& si = shader[static_cast<std::size_t>(p.shader)];
-        if ((si.flags.flaeche & S_SURF_NODRAW) != 0U) { continue; }
+        std::vector<EchtNetzPunkt> netz(p.punkte.size());
+        for (std::size_t i = 0; i < p.punkte.size(); ++i) {
+            netz[i].ort = Vektor3f(p.punkte[i][0], p.punkte[i][1], p.punkte[i][2]);
+            if (i < p.st.size()) { netz[i].st = p.st[i]; }
+        }
+        if (!echtPatchSteuernetz(netz, p.breite, p.hoehe, p.kurve)) { continue; }
+        p.normalen.clear();
+        for (const EchtNetzPunkt& n : netz) { p.normalen.push_back({n.normale[0], n.normale[1], n.normale[2]}); }
         Zeichenflaeche z;
-        z.spur = spurPatch(p.breite, p.hoehe, p.punkte, ausgenommen(si.flags));
+        if ((si.flags.flaeche & S_SURF_NODRAW) == 0U) {
+            z.spur = spurPatch(p.breite, p.hoehe, p.punkte, ausgenommen(si.flags));
+        } else {
+            z.spur.ausgenommen = ausgenommen(si.flags);
+        }
         z.patch = &p;
         z.si = &si;
+        z.werte = &p.werte;
+        z.nummer = static_cast<int>(zf.size());
         zf.push_back(std::move(z));
     }
     if (flut != Flut::Leer) {
@@ -1959,6 +2080,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
                 z.si = &si;
                 z.seite = &s;
                 z.werte = &b.werte;
+                z.nummer = static_cast<int>(zf.size());
                 zf.push_back(std::move(z));
                 if ((si.flags.compile & C_FOG) != 0U) {   // "make a back side for fog"
                     Zeichenflaeche r;
@@ -1968,6 +2090,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
                     r.seite = &s;
                     r.werte = &b.werte;
                     r.spur = spurPolygon(r.w, ebenen.ebene(r.planeNum).n, ausgenommen(si.flags));
+                    r.nummer = static_cast<int>(zf.size());
                     zf.push_back(std::move(r));
                 }
             }
@@ -1989,9 +2112,20 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
         z.modell = &m;
         z.werte = &m.werte;
         z.spur = spurDreiecke(m.dreiecke, indizes, ausgenommen(si.flags));
+        z.nummer = static_cast<int>(zf.size());
         zf.push_back(std::move(z));
     }
-    if (!baum.abgebrochen()) { zf = metaFlaechen(std::move(zf), ebenen, ein.format, ein.meta, ausgenommen, abbrechen); }
+    // FogDrawSurfaces (ohne -nofog): die Nebel in der Reihenfolge von CreateMapFogs - die Welt, dann die anderen Entitaeten
+    std::deque<PatchRoh> patchStuecke;
+    if (ein.nebel && !baum.abgebrochen()) {
+        std::vector<const SichtPinsel*> nebel;
+        for (const SichtPinsel& b : welt.pinsel) {
+            if (b.inhaltShader >= 0 && shader[static_cast<std::size_t>(b.inhaltShader)].nebelParms) { nebel.push_back(&b); }
+        }
+        for (const SichtPinsel& b : nebelAndere) { nebel.push_back(&b); }
+        nebelSchneiden(zf, nebel, ebenen, patchStuecke, ausgenommen);
+    }
+    if (!baum.abgebrochen()) { zf = metaFlaechen(std::move(zf), ebenen, ein, decalWerferAus(decals, shader), ausgenommen, abbrechen); }
     if (abbrechen != nullptr && abbrechen->load()) { return SpurWelt{}; }
     if (baum.abgebrochen()) { return SpurWelt{}; }
     // FilterDrawsurfsIntoTree: nur, was ein offenes Blatt beruehrt, kommt in die .bsp
@@ -2000,7 +2134,9 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
     SpurWelt aus;
     MarkenWeltBericht b;
     for (Zeichenflaeche& z : zf) {
-        if (z.spur.art == SpurFlaeche::Art::Keine) { continue; }
+        if (z.spur.art == SpurFlaeche::Art::Keine && z.patch == nullptr && !z.spaeter) { continue; }   // Patches: auch nodraw
+        // "don't emit nodraw surfaces (like nodraw fog)" - ausser Patches (die Meta-Dreiecke eines nodraw-Patches mit -patchmeta)
+        if (z.patch == nullptr && z.si != nullptr && (z.si->flags.compile & C_NODRAW) != 0U) { continue; }
         v.flaeche = static_cast<int>(aus.flaechen.size());
         int refs = 0;
         if (z.patch != nullptr) {
@@ -2015,6 +2151,7 @@ SpurWelt weltBauen(const MarkenEingabe& ein, MarkenWeltBericht* bericht, const s
             refs = wicklungInBaum_r(z.si != nullptr ? verdickt(z.w, *z.si) : z.w, z.planeNum, baum, baum.kopf, ebenen, v);
         }
         if (refs == 0) { continue; }
+        if (z.spaeter) { z.spur = z.spaeter(); }   // EmitFaceSurface
         if (z.patch != nullptr) {
             ++b.patches;
         } else if (!z.dreiecke.empty() && !z.meta) {

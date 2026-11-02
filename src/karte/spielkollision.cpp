@@ -40,11 +40,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <execution>
 #include <forward_list>
 #include <functional>
@@ -631,7 +633,41 @@ Q3ShaderInfo q3ShaderInfoAus(const ShaderEintrag* se) {
     i.bewegt = se->bewegt;
     i.bewegtMin = se->bewegtMin;
     i.bewegtMax = se->bewegtMax;
+    i.nebelParms = se->q3NebelParms;
+    i.keinNebel = se->q3KeinNebel;
+    i.klon = se->q3Klon;
+    i.rueck = se->q3Rueck;
+    i.skript = !se->datei.empty();
     return i;
+}
+
+void markenSchalterAusBefehl(const std::string& bspBefehl, MarkenEingabe& e) {
+    std::vector<std::string> args;
+    for (std::size_t i = 0; i < bspBefehl.size();) {   // durch Leerraum getrennt
+        while (i < bspBefehl.size() && std::isspace(static_cast<unsigned char>(bspBefehl[i])) != 0) { ++i; }
+        const std::size_t anfang = i;
+        while (i < bspBefehl.size() && std::isspace(static_cast<unsigned char>(bspBefehl[i])) == 0) { ++i; }
+        if (i > anfang) { args.push_back(bspBefehl.substr(anfang, i - anfang)); }
+    }
+    e.meta = false;
+    e.np = 0;
+    e.maxArea = false;
+    e.patchMeta = false;
+    e.nebel = true;
+    for (std::size_t i = 0; i < args.size(); ++i) {   // BSPMain (bsp.cpp)
+        const std::string& a = args[i];
+        if (a == "-meta") {
+            e.meta = true;
+        } else if (a == "-np" && i + 1 < args.size()) {
+            e.np = std::max(0.0F, static_cast<float>(std::atof(args[++i].c_str())));
+        } else if (a == "-maxarea") {
+            e.maxArea = true;
+        } else if (a == "-patchmeta") {
+            e.patchMeta = true;
+        } else if (a == "-nofog") {
+            e.nebel = false;
+        }
+    }
 }
 
 MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja, bool meta) {

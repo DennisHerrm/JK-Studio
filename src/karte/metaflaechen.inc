@@ -16,9 +16,11 @@
 //                     MetaTrianglesToSurface, AddMetaTriangleToSurface, AddMetaVertToSurface
 // mit denselben Zahlentypen und Epsilons. FixMetaTJunctions ist in q3map2 abgeschaltet (#if 0).
 //
-// Nicht nachgebaut, weil der Editor die Eingabe dafuer nicht hat oder es nur Schalter von q3map2 betrifft:
-// FogDrawSurfaces (zerschneidet Flaechen an Nebel-Brushes), Index-Karten (GetIndexedShader, _indexmap), -patchmeta,
-// -maxarea, -np, Klon- und Rueckseiten-Shader (FinishSurface), _decal-Entitaeten (MakeEntityDecals).
+// rc608 Teil 13 dazu: fog.cpp FogDrawSurfaces (ChopFaceSurfaceByBrush, ChopPatchSurfaceByBrush, SplitMeshByPlane),
+// FinishSurface/CloneSurface (q3map_cloneShader, q3map_backShader), MaxAreaFaceSurface (-maxarea), TriangulatePatchSurface
+// (-patchmeta, _patchMeta), npDegrees (-np). Die Schalter kommen aus dem -bsp-Befehl des Build-Eintrags.
+// Nicht nachgebaut: Index-Karten (GetIndexedShader, _indexmap), _decal-Entitaeten (MakeEntityDecals), globaler Nebel
+// (_fog des worldspawn).
 //
 //   Copyright (C) 1999-2007 id Software, Inc. and contributors. GPL v2 (LICENSE).
 
@@ -50,10 +52,11 @@ struct MetaEcke {   // bspDrawVert_t: was der Ablauf davon liest (die Farbe ist 
     std::array<float, 2> st{0, 0};
     int kante = -1;       // bspDrawVert_edge_index
     bool tjunc = false;   // bspDrawVert_mark_tjunc
+    std::uint8_t alpha = 255;   // color[ 0 ].alpha() (Decals blenden zum Rand aus, ProjectDecalOntoWinding)
 };
 
 struct MetaDs {   // mapDrawSurface_t
-    enum class Typ { Schlecht, Seite, Patch, Dreiecke, Erzwungen, Meta };
+    enum class Typ { Schlecht, Seite, Patch, Dreiecke, Erzwungen, Meta, Decal };
     Typ typ = Typ::Schlecht;
     const ShaderDaten* si = nullptr;
     const Zeichenflaeche* quelle = nullptr;
@@ -74,6 +77,9 @@ struct MetaDs {   // mapDrawSurface_t
     std::vector<int> indizes;
     int patchBreite = 0;
     int patchHoehe = 0;
+    int nebel = -1;            // fogNum
+    bool rueckseite = false;   // backSide (q3map_backShader)
+    bool seitenRef = false;    // sideRefs nicht leer (aus einer Pinselseite; CloneSurface leert sie)
     [[nodiscard]] int zahl() const { return static_cast<int>(ecken.size()); }
 };
 
@@ -141,6 +147,12 @@ TexVecs quakeVecs(const Ebene& ebene, const MarkenEingabe::Textur& t, const Shad
     return aus;
 }
 
+// g_brushSnap (an): die Ecken von DrawSurfaceForSide auf 1/8 Einheit
+V3f eingerastet(V3f p) {
+    for (std::size_t i = 0; i < 3; ++i) { p[i] = static_cast<float>(0.125 * std::floor(static_cast<double>(p[i]) * 8.0 + 0.5)); }
+    return p;
+}
+
 // DrawSurfaceForSide: die Ecken einer Seite (ohne Index-Karte)
 std::vector<MetaEcke> eckenDerSeite(const Wk& w, const SichtSeite& s, int planeNum, const Ebenen& ebenen, PinselFormat format, const ShaderDaten& si) {
     std::vector<MetaEcke> aus(w.size());
@@ -156,8 +168,7 @@ std::vector<MetaEcke> eckenDerSeite(const Wk& w, const SichtSeite& s, int planeN
     for (std::size_t j = 0; j < w.size(); ++j) {
         MetaEcke& dv = aus[j];
         dv.xyz = w[j];
-        // g_brushSnap (an): die Ecken auf 1/8 Einheit
-        for (std::size_t i = 0; i < 3; ++i) { dv.xyz[i] = static_cast<float>(0.125 * std::floor(static_cast<double>(dv.xyz[i]) * 8.0 + 0.5)); }
+        dv.xyz = eingerastet(dv.xyz);
         if (si.tcGen) {
             dv.st[0] = static_cast<float>(skalar({si.tcVecs[0][0], si.tcVecs[0][1], si.tcVecs[0][2]}, dv.xyz));
             dv.st[1] = static_cast<float>(skalar({si.tcVecs[1][0], si.tcVecs[1][1], si.tcVecs[1][2]}, dv.xyz));
@@ -582,6 +593,7 @@ void tJunktionen(std::vector<MetaDs>& alle, const std::atomic<bool>* abbrechen) 
 void faecher(MetaDs& ds, Ebenen& ebenen) {   // FanFaceSurface
     MetaEcke mitte;
     std::array<double, 3> summe{0, 0, 0};
+    float alpha = 0;   // Color4f
     for (const MetaEcke& dv : ds.ecken) {
         for (std::size_t k = 0; k < 3; ++k) {
             summe[k] += static_cast<double>(dv.xyz[k]);
@@ -589,7 +601,9 @@ void faecher(MetaDs& ds, Ebenen& ebenen) {   // FanFaceSurface
         }
         mitte.st[0] += dv.st[0];
         mitte.st[1] += dv.st[1];
+        alpha += static_cast<float>(dv.alpha);
     }
+    mitte.alpha = static_cast<std::uint8_t>(std::clamp(alpha / static_cast<float>(ds.ecken.size()), 0.0F, 255.0F));   // color_to_byte
     const double iv = 1.0 / static_cast<double>(ds.ecken.size());
     for (std::size_t k = 0; k < 3; ++k) { mitte.xyz[k] = static_cast<float>(summe[k] * iv); }
     float t[3] = {mitte.normal[0], mitte.normal[1], mitte.normal[2]};
@@ -622,7 +636,7 @@ double kleinsterWinkel(const V3f& a, const V3f& b, const V3f& c) {
 }
 
 void streifen(MetaDs& ds, Ebenen& ebenen) {   // StripFaceSurface
-    if (ds.ecken.empty() || ds.typ != MetaDs::Typ::Seite) { return; }
+    if (ds.ecken.empty() || (ds.typ != MetaDs::Typ::Seite && ds.typ != MetaDs::Typ::Decal)) { return; }
     std::vector<int> indizes;
     if (ds.zahl() == 3) {
         indizes = {0, 1, 2};
@@ -693,6 +707,7 @@ struct MetaDreieck {   // metaTriangle_t
     const ShaderDaten* si = nullptr;   // nullptr: schon verbraucht
     int entityNum = 0;
     int nummer = 0;       // surfaceNum
+    int nebel = -1;       // fogNum
     int planeNum = -1;
     int sampleSize = 0;
     int cast = 0;
@@ -706,11 +721,11 @@ struct MetaDreieck {   // metaTriangle_t
 };
 
 bool eckenGleich(const MetaEcke& a, const MetaEcke& b) {   // bspDrawVert_equal
-    return fastGleich(a.xyz, b.xyz) && fastGleich(a.normal, b.normal) && stFastGleich(a.st, b.st);
+    return fastGleich(a.xyz, b.xyz) && fastGleich(a.normal, b.normal) && stFastGleich(a.st, b.st) && a.alpha == b.alpha;
 }
 
 bool mischbar(const MetaDreieck& a, const MetaDreieck& b) {   // CompareMetaTriangles::equal
-    return a.si == b.si && a.entityNum == b.entityNum && a.cast == b.cast && a.recv == b.recv && a.sampleSize == b.sampleSize && a.ambient == b.ambient;
+    return a.si == b.si && a.nebel == b.nebel && a.entityNum == b.entityNum && a.cast == b.cast && a.recv == b.recv && a.sampleSize == b.sampleSize && a.ambient == b.ambient;
 }
 
 bool shaderKleiner(const ShaderDaten* a, const ShaderDaten* b) {   // shaderInfo_less: Q_stricmp
@@ -721,8 +736,9 @@ struct MetaStufe {
     MetaGruppen gruppen;            // metaVerts
     std::list<MetaDreieck> dreiecke;   // metaTriangles
     Ebenen& ebenen;
+    float np = 0;                      // npDegrees (-np)
 
-    explicit MetaStufe(Ebenen& e) : ebenen(e) {}
+    MetaStufe(Ebenen& e, float npGrad) : ebenen(e), np(npGrad) {}
 
     MetaVert* eckeFinden(const MetaEcke& src) {   // metaVertex_findOrInsert
         const float d = raumAbstand(src.xyz);
@@ -787,6 +803,7 @@ struct MetaStufe {
             src.si = ds.si;
             src.entityNum = ds.entityNum;
             src.nummer = ds.nummer;
+            src.nebel = ds.nebel;
             src.cast = ds.cast;
             src.recv = ds.recv;
             src.sampleSize = ds.sampleSize;
@@ -798,6 +815,8 @@ struct MetaStufe {
     }
 
     void glaetten() {   // SmoothMetaTriangles (npDegrees 0: ohne Winkel aus Shader oder Entitaet geschieht nichts)
+        const auto bogen = [](float grad) { return static_cast<float>(static_cast<double>(grad) * 3.14159265358979323846 / 180.0); };   // degrees_to_radians
+        const float vorgabe = bogen(np);   // defaultShadeAngle
         const double kThetaEpsilon = 0.000001;
         for (auto& [abstandSchluessel, liste] : gruppen) {
             (void)abstandSchluessel;
@@ -821,13 +840,12 @@ struct MetaStufe {
             }
             float groesster = 0;
             for (VT& v : verts) {
-                float w = 0;
+                float rad = vorgabe;
                 if (v.dreieck->si->shadeAngle > 0) {
-                    w = v.dreieck->si->shadeAngle;
+                    rad = bogen(v.dreieck->si->shadeAngle);
                 } else if (v.dreieck->shadeAngle > 0) {
-                    w = v.dreieck->shadeAngle;
+                    rad = bogen(v.dreieck->shadeAngle);
                 }
-                const float rad = static_cast<float>(static_cast<double>(w) * 3.14159265358979323846 / 180.0);
                 v.winkel = rad;
                 v.skipped = rad <= 0;
                 groesster = std::max(groesster, rad);
@@ -892,7 +910,7 @@ struct MetaStufe {
             const MetaEcke& dv2 = verts[static_cast<std::size_t>(it->second)];
             if (!fastGleich(dv1.xyz, dv2.xyz) || !fastGleich(dv1.normal, dv2.normal)) { continue; }
             ++deckungsgleich;
-            if (!stFastGleich(dv1.st, dv2.st)) { continue; }
+            if (!stFastGleich(dv1.st, dv2.st) || dv1.alpha != dv2.alpha) { continue; }   // "compare texture coordinates and color"
             return it->second;
         }
         if (static_cast<int>(verts.size()) >= ((ds.si->flags.compile & C_VERTEXLIT) != 0U ? kMaxEcken : kMaxLmEcken)) { return -1000; }   // VERTS_EXCEEDED
@@ -907,7 +925,7 @@ struct MetaStufe {
         constexpr int kEcke = 10000;     // VERT_SCORE
         constexpr int kFlaeche = 1000;   // SURFACE_SCORE
         constexpr int kSt = 50;          // ST_SCORE
-        if (!ds.si->nonplanar && ds.planeNum >= 0) {
+        if (np == 0 && !ds.si->nonplanar && ds.planeNum >= 0) {   // "planar surfaces will only merge with triangles in the same plane"
             if (tri.planeNum >= 0 && tri.planeNum != ds.planeNum) { return 0; }
             const Ebene e = ebenen.ebene(ds.planeNum);
             if (!fastGleich({e.n[0], e.n[1], e.n[2]}, {tri.ebene.n[0], tri.ebene.n[1], tri.ebene.n[2]}) || e.d != tri.ebene.d) { return 0; }
@@ -993,6 +1011,7 @@ struct MetaStufe {
         }
         dreiecke.sort([](const MetaDreieck& a, const MetaDreieck& b) {
             if (a.si != b.si) { return shaderKleiner(a.si, b.si); }
+            if (a.nebel != b.nebel) { return a.nebel < b.nebel; }
             if (a.entityNum != b.entityNum) { return a.entityNum < b.entityNum; }
             if (a.cast != b.cast) { return a.cast < b.cast; }
             if (a.recv != b.recv) { return a.recv < b.recv; }
@@ -1012,6 +1031,7 @@ struct MetaStufe {
             ds.si = saat.si;
             ds.entityNum = saat.entityNum;
             ds.nummer = saat.nummer;
+            ds.nebel = saat.nebel;
             ds.cast = saat.cast;
             ds.recv = saat.recv;
             ds.planeNum = saat.planeNum;
@@ -1122,7 +1142,7 @@ void dreieckeOrdnen(std::vector<int>& ziel) {
 SpurFlaeche spurAus(const MetaDs& ds, const std::function<bool(const Q3ShaderFlags&)>& ausgenommen) {
     V3f normale = ds.lmNormale;
     std::vector<int> indizes = ds.indizes;
-    if (ds.si->invert) {
+    if (ds.si->invert || ds.rueckseite) {   // "invert the surface if necessary": backSide oder q3map_invert
         for (std::size_t i = 0; i + 2 < indizes.size(); i += 3) { std::swap(indizes[i], indizes[i + 1]); }
         normale = {-normale[0], -normale[1], -normale[2]};
     }
@@ -1136,20 +1156,613 @@ SpurFlaeche spurAus(const MetaDs& ds, const std::function<bool(const Q3ShaderFla
     return suppe ? spurDreiecke(punkte, indizes, aus) : spurFlaecheIndiziert(punkte, indizes, normale.data(), aus);
 }
 
-// Die Flaechen, wie q3map2 sie aus `zf` macht. Mit -meta (sonst nur q3map_forceMeta) gehen die Seiten in die Meta-Stufe
-// und kommen zusammengesetzt hinten dazu (AllocDrawSurface); was nicht hineingeht, behaelt seinen Platz (Patches,
-// autosprite, Modelle ohne forceMeta). Patches und Modelle bleiben, wie sie sind; hier entsteht nur ihre Ebene und ihr
-// Beitrag zu den T-Kreuzungen. Die Reihenfolge der Dreiecke eines Modells bleibt die der Datei: die Nummern seiner Ecken
-// kommen aus dem Modell-Lader von q3map2 (OptimizeTriangleSurface haengt daran).
-std::vector<Zeichenflaeche> metaFlaechen(std::vector<Zeichenflaeche> zf, Ebenen& ebenen, PinselFormat format, bool meta, const std::function<bool(const Q3ShaderFlags&)>& ausgenommen, const std::atomic<bool>* abbrechen) {
+// --- fog.cpp: FogDrawSurfaces ----------------------------------------------------------------
+// Ein Patch mit seinen Ecken (mesh_t aus bspDrawVert_t: xyz, normal, st)
+struct NebelNetz {
+    int breite = 0;
+    int hoehe = 0;
+    std::vector<MetaEcke> v;
+    MetaEcke& at(int h, int w) { return v[static_cast<std::size_t>(h * breite + w)]; }
+    [[nodiscard]] const MetaEcke& at(int h, int w) const { return v[static_cast<std::size_t>(h * breite + w)]; }
+};
+
+NebelNetz netzGedreht(const NebelNetz& m) {   // RotateMesh
+    NebelNetz o;
+    o.breite = m.hoehe;
+    o.hoehe = m.breite;
+    o.v.resize(m.v.size());
+    for (int h = 0; h < m.hoehe; ++h) {
+        for (int w = 0; w < m.breite; ++w) { o.at(w, m.hoehe - 1 - h) = m.at(h, w); }
+    }
+    return o;
+}
+
+MetaEcke eckeZwischen(const MetaEcke& a, const MetaEcke& b, float t) {   // LerpDrawVertAmount
+    MetaEcke o;
+    for (std::size_t k = 0; k < 3; ++k) { o.xyz[k] = a.xyz[k] + (b.xyz[k] - a.xyz[k]) * t; }
+    o.st = {a.st[0] + (b.st[0] - a.st[0]) * t, a.st[1] + (b.st[1] - a.st[1]) * t};
+    float n[3] = {a.normal[0] + (b.normal[0] - a.normal[0]) * t, a.normal[1] + (b.normal[1] - a.normal[1]) * t, a.normal[2] + (b.normal[2] - a.normal[2]) * t};
+    o.normal = normieren(n) == 0 ? a.normal : V3f{n[0], n[1], n[2]};
+    return o;
+}
+
+// SplitMeshByPlane: {vorn, hinten}, die leere Seite ohne Ecken. Laesst sich das Netz nicht schneiden, kommt es ganz
+// (womoeglich gedreht) als vorn zurueck.
+std::pair<NebelNetz, NebelNetz> netzTeilen(NebelNetz in, const Ebene& e) {
+    std::vector<float> d;
+    const auto D = [&d, &in](int h, int w) { return d[static_cast<std::size_t>(h * in.breite + w)]; };
+    int split = -1;
+    for (int runde = 0; runde < 2; ++runde) {
+        d.assign(in.v.size(), 0);
+        int vorn = 0;
+        int hinten = 0;
+        for (std::size_t k = 0; k < in.v.size(); ++k) {
+            d[k] = static_cast<float>(abstand(e, in.v[k].xyz));
+            if (d[k] > kOnEpsilon) {
+                ++vorn;
+            } else if (d[k] < -kOnEpsilon) {
+                ++hinten;
+            }
+        }
+        if (vorn == 0) { return {NebelNetz{}, std::move(in)}; }
+        if (hinten == 0) { return {std::move(in), NebelNetz{}}; }
+        split = -1;
+        for (int w = 0; w < in.breite - 1; ++w) {
+            if ((D(0, w) < 0) != (D(0, w + 1) < 0)) {
+                split = w;
+                break;
+            }
+        }
+        if (split == -1) {
+            if (runde == 1) { return {std::move(in), NebelNetz{}}; }   // "No crossing points in patch"
+            in = netzGedreht(in);
+            continue;
+        }
+        for (int h = 1; h < in.hoehe; ++h) {   // "multiple crossing points", "differing crossing points"
+            for (int w = 0; w < in.breite - 1; ++w) {
+                if ((D(h, w) < 0) != (D(h, w + 1) < 0) && w != split) { return {std::move(in), NebelNetz{}}; }
+            }
+            if ((D(h, split) < 0) == (D(h, split + 1) < 0)) { return {std::move(in), NebelNetz{}}; }
+        }
+        break;
+    }
+    int fBreite = split + 2;
+    const bool fNaeherung = (fBreite & 1) == 0;
+    if (fNaeherung) { ++fBreite; }
+    int bBreite = in.breite - split;
+    const bool bNaeherung = (bBreite & 1) == 0;
+    if (bNaeherung) { ++bBreite; }
+    NebelNetz f;
+    f.breite = fBreite;
+    f.hoehe = in.hoehe;
+    f.v.resize(static_cast<std::size_t>(fBreite * in.hoehe));
+    NebelNetz b;
+    b.breite = bBreite;
+    b.hoehe = in.hoehe;
+    b.v.resize(static_cast<std::size_t>(bBreite * in.hoehe));
+    for (int w = 0; w < in.breite; ++w) {
+        for (int h = 0; h < in.hoehe; ++h) {
+            if (w <= split) {
+                f.at(h, w) = in.at(h, w);
+            } else {
+                b.at(h, w - split + (bNaeherung ? 1 : 0)) = in.at(h, w);
+            }
+        }
+    }
+    for (int h = 0; h < in.hoehe; ++h) {
+        const float frac = D(h, split) / (D(h, split) - D(h, split + 1));
+        const MetaEcke dv = eckeZwischen(in.at(h, split), in.at(h, split + 1), frac);
+        f.at(h, split + 1) = dv;
+        if (fNaeherung) { f.at(h, split + 2) = dv; }
+        b.at(h, 0) = dv;
+        if (bNaeherung) { b.at(h, 1) = dv; }
+    }
+    if (D(0, 0) > 0) { return {std::move(f), std::move(b)}; }
+    return {std::move(b), std::move(f)};
+}
+
+NebelNetz netzAus(const PatchRoh& p) {
+    NebelNetz m;
+    m.breite = p.breite;
+    m.hoehe = p.hoehe;
+    m.v.resize(p.punkte.size());
+    for (std::size_t i = 0; i < p.punkte.size(); ++i) {
+        m.v[i].xyz = p.punkte[i];
+        if (i < p.st.size()) { m.v[i].st = p.st[i]; }
+        if (i < p.normalen.size()) { m.v[i].normal = p.normalen[i]; }
+    }
+    return m;
+}
+
+PatchRoh patchAus(const PatchRoh& vorlage, const NebelNetz& m) {
+    PatchRoh p = vorlage;
+    p.breite = m.breite;
+    p.hoehe = m.hoehe;
+    p.punkte.clear();
+    p.st.clear();
+    p.normalen.clear();
+    for (const MetaEcke& e : m.v) {
+        p.punkte.push_back(e.xyz);
+        p.st.push_back(e.st);
+        p.normalen.push_back(e.normal);
+    }
+    return p;
+}
+
+// ChopPatchSurfaceByBrush: nur an der oberen und unteren Ebene des Nebels ("to avoid some messy patch clipping issues").
+// Die Stuecke draussen kommen hinten dazu (AllocDrawSurface( ds ): dieselben Werte), das Stueck drinnen ersetzt den Patch.
+bool patchImNebel(std::vector<Zeichenflaeche>& zf, std::size_t i, const SichtPinsel& b, const Ebenen& ebenen, std::deque<PatchRoh>& stuecke,
+                  const std::function<bool(const Q3ShaderFlags&)>& ausgenommen) {
+    if (b.seiten.size() < 6) { return false; }
+    NebelNetz m = netzAus(*zf[i].patch);
+    std::vector<NebelNetz> aussen;
+    for (std::size_t s = 4; s <= 5; ++s) {
+        auto [vorn, hinten] = netzTeilen(std::move(m), ebenen.ebene(b.seiten[s].planenum));
+        if (hinten.v.empty()) { return false; }   // "nothing actually contained inside"
+        m = std::move(hinten);
+        if (!vorn.v.empty()) { aussen.push_back(std::move(vorn)); }
+    }
+    const Zeichenflaeche vorlage = zf[i];
+    const auto mitPatch = [&](Zeichenflaeche z, const NebelNetz& netz) {
+        stuecke.push_back(patchAus(*vorlage.patch, netz));
+        z.patch = &stuecke.back();
+        z.spur = spurPatch(z.patch->breite, z.patch->hoehe, z.patch->punkte, ausgenommen(z.si->flags));
+        return z;
+    };
+    for (const NebelNetz& a : aussen) { zf.push_back(mitPatch(vorlage, a)); }
+    if (!aussen.empty()) { zf[i] = mitPatch(vorlage, m); }
+    return true;
+}
+
+// ChopFaceSurfaceByBrush: die Wicklung aus den Ecken der Flaeche (WindingFromDrawSurf, auf 1/8 eingerastet) an jeder Seite
+// des Nebels (auch den Fasen) teilen. Die Stuecke draussen werden neue Flaechen (DrawSurfaceForSide, hinten), das Stueck
+// drinnen ersetzt die Flaeche - mit der Nummer, die es beim Anlegen hatte (die Stelle wird gleich wieder frei).
+bool seiteImNebel(std::vector<Zeichenflaeche>& zf, std::size_t i, const SichtPinsel& b, const Ebenen& ebenen,
+                  const std::function<bool(const Q3ShaderFlags&)>& ausgenommen) {
+    const int seitenEbene = zf[i].planeNum;   // sideRef.planenum (die Rueckseite eines Nebels: die umgedrehte)
+    Wk w;
+    for (const V3f& p : zf[i].w) { w.push_back(eingerastet(p)); }
+    std::vector<Wk> aussen;
+    for (const SichtSeite& s : b.seiten) {
+        if (seitenEbene == s.planenum) { return false; }        // "coplanar outfacing (don't fog)"
+        if ((seitenEbene ^ 1) == s.planenum) { continue; }      // "coplanar infacing (keep inside)"
+        auto [vorn, hinten] = teileStreng(w, ebenen.ebene(s.planenum), static_cast<float>(kOnEpsilon));
+        if (hinten.empty()) { return false; }
+        if (!vorn.empty()) { aussen.push_back(std::move(vorn)); }
+        w.swap(hinten);
+    }
+    const Zeichenflaeche vorlage = zf[i];
+    const auto stueck = [&](const Wk& wi) {
+        Zeichenflaeche z = vorlage;
+        z.w = wi;
+        z.nummer = static_cast<int>(zf.size());
+        z.spur = spurPolygon(wi, ebenen.ebene(z.planeNum).n, ausgenommen(z.si->flags));
+        return z;
+    };
+    for (const Wk& a : aussen) { zf.push_back(stueck(a)); }   // newds->fogNum = ds.fogNum
+    zf[i] = stueck(w);
+    return true;
+}
+
+// FogDrawSurfaces: je Nebel (Pinsel mit fogparms, CreateMapFogs) die Flaechen, die es vor ihm gab
+void nebelSchneiden(std::vector<Zeichenflaeche>& zf, const std::vector<const SichtPinsel*>& nebel, const Ebenen& ebenen, std::deque<PatchRoh>& stuecke,
+                    const std::function<bool(const Q3ShaderFlags&)>& ausgenommen) {
+    for (std::size_t n = 0; n < nebel.size(); ++n) {
+        const SichtPinsel& b = *nebel[n];
+        const std::size_t basis = zf.size();
+        for (std::size_t i = 0; i < basis; ++i) {
+            if (zf[i].si == nullptr || zf[i].si->keinNebel) { continue; }
+            MinMax k;
+            if (zf[i].patch != nullptr) {
+                for (const auto& p : zf[i].patch->punkte) { k.dazu(p); }
+            } else if (!zf[i].dreiecke.empty()) {
+                for (const V3f& p : zf[i].dreiecke) { k.dazu(p); }
+            } else {
+                for (const V3f& p : zf[i].w) { k.dazu(eingerastet(p)); }
+            }
+            bool schneidet = true;   // MinMax::test
+            for (std::size_t a = 0; a < 3; ++a) { schneidet = schneidet && b.kasten.maxs[a] >= k.mins[a] && b.kasten.mins[a] <= k.maxs[a]; }
+            if (!schneidet) { continue; }
+            bool drin = false;
+            if (zf[i].patch != nullptr) {
+                drin = patchImNebel(zf, i, b, ebenen, stuecke, ausgenommen);
+            } else if (!zf[i].dreiecke.empty()) {
+                drin = true;   // "fixme: split triangle surfaces"
+            } else if (zf[i].seite != nullptr) {
+                drin = seiteImNebel(zf, i, b, ebenen, ausgenommen);
+            }
+            if (drin) { zf[i].nebel = static_cast<int>(n); }
+        }
+    }
+}
+
+// --- surface_meta.cpp: MaxAreaFaceSurface (-maxarea) ----------------------------------------------
+// rand() der C-Laufzeit (UCRT: je Faden; q3map2 ruft srand( 0 ) in main)
+struct CZufall {
+    std::uint32_t zustand = 0;
+    int naechste() {
+        zustand = zustand * 214013U + 2531011U;
+        return static_cast<int>((zustand >> 16) & 0x7FFFU);
+    }
+};
+
+// MaxAreaIndexes; < 0: alles entartet
+int maxFlaecheIndizes(const MetaEcke* v, int cnt, int* idx, CZufall& zufall) {
+    constexpr double kWinzig = 1.0;   // TINY_AREA
+    constexpr int kVersuche = 8;      // MAXAREA_MAXTRIES
+    if (cnt < 3) { return 0; }
+    const auto flaeche2 = [](const V3f& a, const V3f& b, const V3f& c) { return laenge(kreuz(minus(b, a), minus(c, a))); };   // triangle_area2x
+    double A = 0;
+    for (int i = 1; i + 1 < cnt; ++i) { A += flaeche2(v[0].xyz, v[i].xyz, v[i + 1].xyz); }
+    double V = 0;
+    for (int i = 0; i < cnt; ++i) { V += laenge(minus(v[(i + 1) % cnt].xyz, v[i].xyz)); }
+    double breite = std::sqrt(A) * 0.0125;   // shiftWidth
+    const double stufen = std::ceil(std::log(cnt / 1.5) / std::log(2));
+    if (A - stufen * V * breite * 2 < 0) { breite = A / (stufen * V * 2); }
+    int bestR = 0;
+    int bestS = 1;
+    int bestT = 2;
+    double bestA = -1;
+    double bestV = -1;
+    for (int r = 0; r + 2 < cnt; ++r) {
+        for (int s = r + 1; s + 1 < cnt; ++s) {
+            for (int t = s + 1; t < cnt; ++t) {
+                const V3f ab = minus(v[s].xyz, v[r].xyz);
+                const V3f ac = minus(v[t].xyz, v[r].xyz);
+                const V3f bc = minus(v[t].xyz, v[s].xyz);
+                const double a = laenge(kreuz(ab, ac));
+                const double wert = a - (laenge(ab) - laenge(ac) - laenge(bc)) * breite;
+                if (bestA < 0 || wert > bestV) {
+                    bestA = a;
+                    bestV = wert;
+                    bestR = r;
+                    bestS = s;
+                    bestT = t;
+                }
+            }
+        }
+    }
+    for (int versuch = 0; versuch < kVersuche; ++versuch) {
+        if (versuch != 0) {
+            bestR = zufall.naechste() % cnt;
+            bestS = zufall.naechste() % cnt;
+            bestT = zufall.naechste() % cnt;
+            if (bestR == bestS || bestR == bestT || bestS == bestT) { continue; }
+            if (bestR > bestS) { std::swap(bestR, bestS); }
+            if (bestS > bestT) { std::swap(bestS, bestT); }
+            if (bestR > bestS) { std::swap(bestR, bestS); }
+            bestA = flaeche2(v[bestR].xyz, v[bestS].xyz, v[bestT].xyz);
+        }
+        if (bestA < kWinzig) { continue; }
+        int i = 0;
+        idx[i++] = bestR;
+        idx[i++] = bestS;
+        idx[i++] = bestT;
+        int j = maxFlaecheIndizes(v + bestR, bestS - bestR + 1, idx + i, zufall);
+        if (j < 0) { continue; }
+        for (j += i; i < j; ++i) { idx[i] += bestR; }
+        j = maxFlaecheIndizes(v + bestS, bestT - bestS + 1, idx + i, zufall);
+        if (j < 0) { continue; }
+        for (j += i; i < j; ++i) { idx[i] += bestS; }
+        if (cnt + bestR - bestT + 1 >= 3) {
+            std::vector<MetaEcke> puffer(v + bestT, v + cnt);
+            puffer.insert(puffer.end(), v, v + bestR + 1);
+            j = maxFlaecheIndizes(puffer.data(), cnt + bestR - bestT + 1, idx + i, zufall);
+            if (j < 0) { continue; }
+            for (j += i; i < j; ++i) { idx[i] = (idx[i] + bestT) % cnt; }
+        }
+        return i;
+    }
+    return -1;
+}
+
+void maxFlaeche(MetaDs& ds, Ebenen& ebenen, CZufall& zufall) {   // MaxAreaFaceSurface
+    if (ds.ecken.empty() || (ds.typ != MetaDs::Typ::Seite && ds.typ != MetaDs::Typ::Decal)) { return; }
+    if (ds.zahl() == 3) {
+        ds.indizes = {0, 1, 2};
+        return;
+    }
+    ds.indizes.assign(static_cast<std::size_t>(3 * ds.zahl() - 6), 0);
+    const int n = maxFlaecheIndizes(ds.ecken.data(), ds.zahl(), ds.indizes.data(), zufall);
+    if (n < 0) {   // "whatever we do, it's degenerate"
+        ds.indizes.clear();
+        streifen(ds, ebenen);
+        return;
+    }
+    ds.indizes.resize(static_cast<std::size_t>(n));
+    einordnen(ds, ebenen);
+}
+
+// --- surface_meta.cpp: TriangulatePatchSurface (-patchmeta, _patchMeta des worldspawn) ------------------
+MetaDs patchDreiecke(const MetaDs& ds, const MarkenEingabe& ein, Ebenen& ebenen) {
+    constexpr int kTeilung = 8;   // game_ja (game_sof2): "default patchMeta subdivisions tolerance"
+    const float kurve = ds.quelle->patch->kurve;
+    const int iterationen = ein.weltPatchTeilungDa ? echtIterationenFuerKurve(kurve, ein.weltPatchTeilung)
+                                                   : echtIterationenFuerKurve(kurve, kTeilung / (ein.weltPatchQualitaet == 0 ? 1 : ein.weltPatchQualitaet));
+    std::vector<EchtNetzPunkt> netz;
+    for (const MetaEcke& e : ds.ecken) {
+        netz.push_back(EchtNetzPunkt{Vektor3f(e.xyz[0], e.xyz[1], e.xyz[2]), Vektor3f(e.normal[0], e.normal[1], e.normal[2]), e.st});
+    }
+    int breite = ds.patchBreite;
+    int hoehe = ds.patchHoehe;
+    echtNetzTesselieren(netz, breite, hoehe, iterationen);   // TessellatedMesh
+    MetaDs neu = ds;   // AllocDrawSurface( ds )
+    neu.typ = MetaDs::Typ::Meta;
+    neu.patchBreite = 0;
+    neu.patchHoehe = 0;
+    neu.ecken.clear();
+    for (const EchtNetzPunkt& p : netz) {
+        MetaEcke e;
+        e.xyz = {p.ort[0], p.ort[1], p.ort[2]};
+        e.normal = {p.normale[0], p.normale[1], p.normale[2]};
+        e.st = p.st;
+        neu.ecken.push_back(e);
+    }
+    neu.indizes.clear();
+    for (int y = 0; y + 1 < hoehe; ++y) {   // MeshQuadIterator
+        for (int x = 0; x + 1 < breite; ++x) {
+            const int pw[5] = {x + (y * breite), x + ((y + 1) * breite), x + 1 + ((y + 1) * breite), x + 1 + (y * breite), x + (y * breite)};
+            const int r = (x + y) & 1;
+            neu.indizes.insert(neu.indizes.end(), {pw[r], pw[r + 1], pw[r + 2], pw[r], pw[r + 2], pw[r + 3]});
+        }
+    }
+    einordnen(neu, ebenen);
+    return neu;
+}
+
+// --- decals.cpp: _decal-Entitaeten (ProcessDecals, MakeEntityDecals) -------------------------------------
+constexpr int kTeilungPatch = 8;   // game_ja (game_sof2): "default patchMeta subdivisions tolerance" (patchSubdivisions)
+
+bool ebeneAus(const V3f& p0, const V3f& p1, const V3f& p2, Ebene& e) {   // PlaneFromPoints
+    const V3f n = kreuz(minus(p2, p0), minus(p1, p0));
+    float t[3] = {n[0], n[1], n[2]};
+    if (normieren(t) == 0) {
+        e.d = 0;
+        return false;
+    }
+    for (int k = 0; k < 3; ++k) { e.n[k] = t[k]; }
+    e.d = static_cast<float>(skalar(p0, {t[0], t[1], t[2]}));
+    return true;
+}
+
+struct DecalWerfer {   // decalProjector_t
+    const ShaderDaten* si = nullptr;
+    V3f mitte{0, 0, 0};
+    float radius = 0;
+    int ebenenZahl = 0;
+    std::array<Ebene, 6> ebenen{};
+    std::array<std::array<float, 4>, 2> texMat{};
+};
+
+struct DecalQuelle {   // eine _decal-Entitaet nach ParseMapEntity
+    std::vector<PatchRoh> patches;   // in der Reihenfolge von mapEnt.patches (emplace_front)
+    V3f ursprung{0, 0, 0};           // e.origin
+    bool zielDa = false;             // FindTargetEntity fand etwas
+    V3f ziel{0, 0, 0};               // e2->origin
+};
+
+// MakeTextureMatrix ("old code", der Zweig mit #if 1)
+bool texturMatrix(DecalWerfer& dp, const Ebene& projektion, const MetaEcke& a, const MetaEcke& b, const MetaEcke& c) {
+    const auto projiziert = [&projektion](const V3f& p) {   // plane3_project_point (float)
+        const double d = abstand(projektion, p);
+        V3d r{};
+        for (std::size_t k = 0; k < 3; ++k) { r[k] = static_cast<double>(p[k] - static_cast<float>(projektion.n[k] * d)); }
+        return r;
+    };
+    const V3d pa = projiziert(a.xyz);
+    const V3d pb = projiziert(b.xyz);
+    const V3d pc = projiziert(c.xyz);
+    const double bb = static_cast<double>((b.st[0] - a.st[0]) * (c.st[1] - a.st[1]) - (c.st[0] - a.st[0]) * (b.st[1] - a.st[1]));
+    if (std::fabs(bb) < 0.00000001) { return false; }
+    std::array<V3d, 3> vecs{};
+    for (int achse = 0; achse < 2; ++achse) {   // s, dann t
+        const double s = static_cast<double>(a.st[0]) + (achse == 0 ? 1.0 : 0.0);
+        const double t = static_cast<double>(a.st[1]) + (achse == 0 ? 0.0 : 1.0);
+        const double bary0 = ((b.st[0] - s) * (c.st[1] - t) - (c.st[0] - s) * (b.st[1] - t)) / bb;
+        const double bary1 = ((c.st[0] - s) * (a.st[1] - t) - (a.st[0] - s) * (c.st[1] - t)) / bb;
+        const double bary2 = ((a.st[0] - s) * (b.st[1] - t) - (b.st[0] - s) * (a.st[1] - t)) / bb;
+        for (std::size_t k = 0; k < 3; ++k) { vecs[static_cast<std::size_t>(achse)][k] = bary0 * pa[k] + bary1 * pb[k] + bary2 * pc[k] - pa[k]; }
+    }
+    for (std::size_t i = 0; i < 2; ++i) {
+        V3d achse = vecs[i];
+        const double laenge = std::sqrt(achse[0] * achse[0] + achse[1] * achse[1] + achse[2] * achse[2]);   // VectorNormalize( DoubleVector3 )
+        if (laenge != 0) {
+            for (double& v : achse) { v /= laenge; }
+        }
+        for (std::size_t j = 0; j < 3; ++j) { dp.texMat[i][j] = laenge != 0 ? static_cast<float>(achse[j] / laenge) : 0.0F; }
+    }
+    for (std::size_t i = 0; i < 2; ++i) {
+        dp.texMat[i][3] = static_cast<float>(static_cast<double>(a.st[i]) - skalar(a.xyz, {dp.texMat[i][0], dp.texMat[i][1], dp.texMat[i][2]}));
+    }
+    return true;
+}
+
+// MakeDecalProjector (ein Dreieck)
+bool decalWerfer(std::vector<DecalWerfer>& alle, const ShaderDaten& si, const Ebene& projektion, float weite, const std::array<const MetaEcke*, 3>& tri) {
+    constexpr std::size_t kMaxWerfer = 1024;   // MAX_PROJECTORS
+    if (alle.size() >= kMaxWerfer) { return false; }
+    DecalWerfer dp;
+    dp.si = &si;
+    dp.ebenenZahl = 5;
+    if (!texturMatrix(dp, projektion, *tri[0], *tri[1], *tri[2])) { return false; }
+    const V3f weg{projektion.n[0] * weite, projektion.n[1] * weite, projektion.n[2] * weite};
+    MinMax kasten;
+    for (const MetaEcke* v : tri) {
+        kasten.dazu(v->xyz);
+        kasten.dazu(plus(v->xyz, weg));
+    }
+    for (std::size_t k = 0; k < 3; ++k) { dp.mitte[k] = (kasten.mins[k] + kasten.maxs[k]) * 0.5F; }   // minmax.origin()
+    dp.radius = static_cast<float>(laenge(minus(kasten.maxs, dp.mitte)));
+    if (!ebeneAus(tri[0]->xyz, tri[1]->xyz, tri[2]->xyz, dp.ebenen[0])) { return false; }
+    for (int k = 0; k < 3; ++k) { dp.ebenen[1].n[k] = -dp.ebenen[0].n[k]; }
+    dp.ebenen[1].d = static_cast<float>(skalar(plus(tri[0]->xyz, weg), {dp.ebenen[1].n[0], dp.ebenen[1].n[1], dp.ebenen[1].n[2]}));
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (!ebeneAus(tri[(i + 1) % 3]->xyz, tri[i]->xyz, plus(tri[i]->xyz, weg), dp.ebenen[i + 2])) { return false; }
+    }
+    alle.push_back(dp);
+    return true;
+}
+
+// Die Dreiecke eines tesselierten Netzes je Viereck (MeshQuadIterator::tris)
+template <class F>
+void netzDreiecke(const std::vector<MetaEcke>& v, int breite, int hoehe, F&& je) {
+    for (int y = 0; y + 1 < hoehe; ++y) {
+        for (int x = 0; x + 1 < breite; ++x) {
+            const int pw[5] = {x + (y * breite), x + ((y + 1) * breite), x + 1 + ((y + 1) * breite), x + 1 + (y * breite), x + (y * breite)};
+            const int r = (x + y) & 1;
+            const auto e = [&v](int i) { return &v[static_cast<std::size_t>(i)]; };
+            je(std::array<const MetaEcke*, 3>{e(pw[r]), e(pw[r + 1]), e(pw[r + 2])});
+            je(std::array<const MetaEcke*, 3>{e(pw[r]), e(pw[r + 2]), e(pw[r + 3])});
+        }
+    }
+}
+
+std::vector<MetaEcke> netzTesseliert(const std::vector<MetaEcke>& ecken, int& breite, int& hoehe, float kurve) {   // TessellatedMesh
+    std::vector<EchtNetzPunkt> netz;
+    for (const MetaEcke& e : ecken) { netz.push_back(EchtNetzPunkt{Vektor3f(e.xyz[0], e.xyz[1], e.xyz[2]), Vektor3f(e.normal[0], e.normal[1], e.normal[2]), e.st}); }
+    echtNetzTesselieren(netz, breite, hoehe, echtIterationenFuerKurve(kurve, kTeilungPatch));
+    std::vector<MetaEcke> aus;
+    for (const EchtNetzPunkt& p : netz) {
+        MetaEcke e;
+        e.xyz = {p.ort[0], p.ort[1], p.ort[2]};
+        e.normal = {p.normale[0], p.normale[1], p.normale[2]};
+        e.st = p.st;
+        aus.push_back(e);
+    }
+    return aus;
+}
+
+// ProcessDecals: je Patch einer _decal-Entitaet die Werfer, Richtung zum Ziel
+std::vector<DecalWerfer> decalWerferAus(const std::vector<DecalQuelle>& quellen, const std::vector<ShaderDaten>& shader) {
+    std::vector<DecalWerfer> werfer;
+    for (const DecalQuelle& q : quellen) {
+        if (q.patches.empty() || !q.zielDa) { continue; }   // "without any patch meshes", "without a valid target"
+        MinMax eKasten;   // SetEntityBounds
+        for (const PatchRoh& p : q.patches) {
+            for (const auto& v : p.punkte) { eKasten.dazu(v); }
+        }
+        for (const PatchRoh& p : q.patches) {
+            V3f ursprung = q.ursprung;
+            if (fastGleich(q.ursprung, kNullV3)) {
+                for (std::size_t k = 0; k < 3; ++k) { ursprung[k] = (eKasten.mins[k] + eKasten.maxs[k]) * 0.5F; }
+            }
+            float n[3] = {q.ziel[0] - ursprung[0], q.ziel[1] - ursprung[1], q.ziel[2] - ursprung[2]};
+            const float weite = static_cast<float>(normieren(n));
+            Ebene projektion;
+            for (int k = 0; k < 3; ++k) { projektion.n[k] = n[k]; }
+            projektion.d = static_cast<float>(skalar(ursprung, {n[0], n[1], n[2]}));
+            if (weite <= 0.125F) { continue; }
+            std::vector<MetaEcke> roh(p.punkte.size());   // p.mesh: xyz und st, keine Normalen
+            for (std::size_t i = 0; i < roh.size(); ++i) {
+                roh[i].xyz = p.punkte[i];
+                if (i < p.st.size()) { roh[i].st = p.st[i]; }
+            }
+            int breite = p.breite;
+            int hoehe = p.hoehe;
+            std::vector<MetaEcke> netz = netzTesseliert(roh, breite, hoehe, p.kurve);
+            for (MetaEcke& e : netz) { e.xyz = plus(e.xyz, q.ursprung); }
+            const ShaderDaten& si = shader[static_cast<std::size_t>(p.shader)];
+            netzDreiecke(netz, breite, hoehe, [&](const std::array<const MetaEcke*, 3>& tri) { (void)decalWerfer(werfer, si, projektion, weite, tri); });
+        }
+    }
+    return werfer;
+}
+
+// ProjectDecalOntoWinding: das Stueck der Wicklung im Werfer wird eine neue Flaeche (ESurfaceType::Decal) hinten
+void decalAufWicklung(const DecalWerfer& dp, const MetaDs& ds, Wk w, std::vector<MetaDs>& alle) {
+    if (w.size() < 3) { return; }
+    Ebene ebene;
+    if (!ebeneAus(w[0], w[1], w[2], ebene)) { return; }
+    if (skalar({dp.ebenen[0].n[0], dp.ebenen[0].n[1], dp.ebenen[0].n[2]}, {ebene.n[0], ebene.n[1], ebene.n[2]}) < -0.0001F) { return; }
+    for (int i = 0; i < dp.ebenenZahl; ++i) {
+        auto [vorn, hinten] = teileStreng(w, dp.ebenen[static_cast<std::size_t>(i)], 0.0625F);
+        if (hinten.empty()) { return; }
+        w.swap(hinten);
+    }
+    if (w.size() < 3) { return; }
+    MetaDs d;
+    d.typ = MetaDs::Typ::Decal;
+    d.si = dp.si;
+    d.nummer = static_cast<int>(alle.size());
+    d.entityNum = ds.entityNum;
+    d.cast = ds.cast;
+    d.recv = ds.recv;
+    d.nebel = ds.nebel;
+    d.lmScale = ds.lmScale;
+    d.shadeAngle = ds.shadeAngle;
+    d.ambient = ds.ambient;
+    for (const V3f& p : w) {
+        MetaEcke e;
+        e.xyz = p;
+        e.normal = {ebene.n[0], ebene.n[1], ebene.n[2]};
+        e.st[0] = static_cast<float>(skalar(p, {dp.texMat[0][0], dp.texMat[0][1], dp.texMat[0][2]}) + static_cast<double>(dp.texMat[0][3]));
+        e.st[1] = static_cast<float>(skalar(p, {dp.texMat[1][0], dp.texMat[1][1], dp.texMat[1][2]}) + static_cast<double>(dp.texMat[1][3]));
+        const auto d0 = static_cast<float>(abstand(dp.ebenen[0], p));
+        const auto d1 = static_cast<float>(abstand(dp.ebenen[1], p));
+        e.alpha = static_cast<std::uint8_t>(std::clamp(255.0F * d1 / (d0 + d1), 0.0F, 255.0F));   // color_to_byte( alpha )
+        d.ecken.push_back(e);
+    }
+    alle.push_back(std::move(d));
+}
+
+// MakeEntityDecals: je Werfer alle Flaechen, die es da schon gibt (auch die Decals der Werfer davor)
+void decalsWerfen(const std::vector<DecalWerfer>& werfer, std::vector<MetaDs>& alle, Ebenen& ebenen) {
+    const auto rueckseite = [&ebenen](const DecalWerfer& dp, const MetaDs& ds) {   // "backface check"
+        if (!ds.planar) { return false; }
+        const Ebene e = ebenen.ebene(ds.planeNum);
+        return skalar({dp.ebenen[0].n[0], dp.ebenen[0].n[1], dp.ebenen[0].n[2]}, {e.n[0], e.n[1], e.n[2]}) < -0.0001F;
+    };
+    for (const DecalWerfer& dp : werfer) {
+        const std::size_t zahl = alle.size();
+        for (std::size_t i = 0; i < zahl; ++i) {
+            const MetaDs ds = alle[i];
+            if (ds.typ == MetaDs::Typ::Schlecht || ds.ecken.empty() || ds.si->autosprite || (ds.si->flags.compile & C_NOMARKS) != 0U) { continue; }
+            bool imKasten = true;   // ds.minmax.test( dp.center, dp.radius )
+            for (std::size_t k = 0; k < 3; ++k) {
+                imKasten = imKasten && dp.mitte[k] >= ds.kasten.mins[k] - dp.radius && dp.mitte[k] <= ds.kasten.maxs[k] + dp.radius;
+            }
+            if (!imKasten) { continue; }
+            if (ds.typ == MetaDs::Typ::Seite) {   // ProjectDecalOntoFace
+                if (!ds.seitenRef || rueckseite(dp, ds)) { continue; }
+                Wk w;
+                for (const MetaEcke& e : ds.ecken) { w.push_back(e.xyz); }
+                decalAufWicklung(dp, ds, std::move(w), alle);
+            } else if (ds.typ == MetaDs::Typ::Patch) {   // ProjectDecalOntoPatch
+                if (rueckseite(dp, ds)) { continue; }
+                int breite = ds.patchBreite;
+                int hoehe = ds.patchHoehe;
+                const std::vector<MetaEcke> netz = netzTesseliert(ds.ecken, breite, hoehe, ds.quelle->patch->kurve);
+                netzDreiecke(netz, breite, hoehe, [&](const std::array<const MetaEcke*, 3>& tri) { decalAufWicklung(dp, ds, Wk{tri[0]->xyz, tri[1]->xyz, tri[2]->xyz}, alle); });
+            } else if (ds.typ == MetaDs::Typ::Dreiecke || ds.typ == MetaDs::Typ::Erzwungen || ds.typ == MetaDs::Typ::Meta) {   // ProjectDecalOntoTriangles
+                if ((ds.typ == MetaDs::Typ::Dreiecke && !ds.si->skript) || rueckseite(dp, ds)) { continue; }
+                for (std::size_t t = 0; t + 2 < ds.indizes.size(); t += 3) {
+                    const auto e = [&ds](std::size_t k) { return ds.ecken[static_cast<std::size_t>(ds.indizes[k])].xyz; };
+                    decalAufWicklung(dp, ds, Wk{e(t), e(t + 1), e(t + 2)}, alle);
+                }
+            }
+        }
+    }
+}
+
+constexpr std::size_t kMaxZeichenflaechen = 0x20000;   // max_map_draw_surfs (q3map2.h): darueber bricht q3map2 den Bau ab
+
+// Die Flaechen, wie q3map2 sie aus `zf` macht (zf in der Reihenfolge von mapDrawSurfs nach FogDrawSurfaces). Mit -meta
+// (sonst nur q3map_forceMeta) gehen die Seiten in die Meta-Stufe und kommen zusammengesetzt hinten dazu
+// (AllocDrawSurface); was nicht hineingeht, behaelt seinen Platz (Patches, autosprite, Modelle ohne forceMeta). Hier
+// entstehen ausserdem die Kopien von FinishSurface und die Dreiecke von -patchmeta. Die Reihenfolge der Dreiecke eines
+// Modells bleibt die der Datei: die Nummern seiner Ecken kommen aus dem Modell-Lader von q3map2 (OptimizeTriangleSurface
+// haengt daran).
+std::vector<Zeichenflaeche> metaFlaechen(std::vector<Zeichenflaeche> zf, Ebenen& ebenen, const MarkenEingabe& ein, const std::vector<DecalWerfer>& werfer,
+                                         const std::function<bool(const Q3ShaderFlags&)>& ausgenommen, const std::atomic<bool>* abbrechen) {
     std::vector<MetaDs> alle;
-    int nummer = 0;
-    const auto wie = [&nummer](const Zeichenflaeche& z, MetaDs::Typ typ) {
+    const auto wie = [](const Zeichenflaeche& z, MetaDs::Typ typ, int nummer) {
         MetaDs ds;
         ds.typ = typ;
         ds.si = z.si;
         ds.quelle = &z;
-        ds.nummer = nummer++;
+        ds.nummer = nummer;
+        ds.nebel = z.nebel;
+        ds.seitenRef = typ == MetaDs::Typ::Seite && z.seite != nullptr;
         if (z.werte != nullptr) {
             ds.entityNum = z.werte->entityNum;
             ds.cast = z.werte->cast;
@@ -1162,16 +1775,22 @@ std::vector<Zeichenflaeche> metaFlaechen(std::vector<Zeichenflaeche> zf, Ebenen&
         return ds;
     };
     std::vector<MetaDs> geteilt;   // SubdivideFaceSurfaces: die Stuecke kommen hinter alle anderen
+    int naechste = static_cast<int>(zf.size());
     for (const Zeichenflaeche& z : zf) {
         if (z.patch != nullptr) {
-            MetaDs ds = wie(z, MetaDs::Typ::Patch);
+            MetaDs ds = wie(z, MetaDs::Typ::Patch, z.nummer);
             ds.patchBreite = z.patch->breite;
             ds.patchHoehe = z.patch->hoehe;
-            ds.ecken.resize(z.patch->punkte.size());
-            for (std::size_t i = 0; i < ds.ecken.size(); ++i) { ds.ecken[i].xyz = z.patch->punkte[i]; }
+            ds.ecken = netzAus(*z.patch).v;
+            if (z.si->tcGen) {   // DrawSurfaceForMesh: "explicit shader texcoord generation" (Ursprung der Welt 0 0 0)
+                for (MetaEcke& e : ds.ecken) {
+                    e.st[0] = static_cast<float>(skalar({z.si->tcVecs[0][0], z.si->tcVecs[0][1], z.si->tcVecs[0][2]}, e.xyz));
+                    e.st[1] = static_cast<float>(skalar({z.si->tcVecs[1][0], z.si->tcVecs[1][1], z.si->tcVecs[1][2]}, e.xyz));
+                }
+            }
             alle.push_back(std::move(ds));
         } else if (!z.dreiecke.empty()) {
-            MetaDs ds = wie(z, z.modell != nullptr && z.modell->erzwungen ? MetaDs::Typ::Erzwungen : MetaDs::Typ::Dreiecke);
+            MetaDs ds = wie(z, z.modell != nullptr && z.modell->erzwungen ? MetaDs::Typ::Erzwungen : MetaDs::Typ::Dreiecke, z.nummer);
             ds.ecken.resize(z.dreiecke.size());
             for (std::size_t i = 0; i < ds.ecken.size(); ++i) {
                 ds.ecken[i].xyz = z.dreiecke[i];
@@ -1184,55 +1803,151 @@ std::vector<Zeichenflaeche> metaFlaechen(std::vector<Zeichenflaeche> zf, Ebenen&
         } else if (z.seite != nullptr) {
             const ShaderDaten& si = *z.si;
             if (si.tessSize >= 1.0F && (si.flags.compile & C_SKY) == 0U) {
+                Wk w;   // WindingFromDrawSurf: die eingerasteten Ecken
+                for (const V3f& p : z.w) { w.push_back(eingerastet(p)); }
                 std::vector<Wk> stuecke;
-                seiteUnterteilen_r(z.w, si.tessSize, stuecke, abbrechen);
-                for (const Wk& w : stuecke) {
-                    MetaDs ds = wie(z, MetaDs::Typ::Seite);
+                seiteUnterteilen_r(std::move(w), si.tessSize, stuecke, abbrechen);
+                for (const Wk& s : stuecke) {
+                    MetaDs ds = wie(z, MetaDs::Typ::Seite, naechste++);
                     ds.planeNum = z.planeNum;
-                    ds.ecken = eckenDerSeite(w, *z.seite, z.planeNum, ebenen, format, si);
+                    ds.ecken = eckenDerSeite(s, *z.seite, z.planeNum, ebenen, ein.format, si);
                     geteilt.push_back(std::move(ds));
                 }
                 continue;
             }
-            MetaDs ds = wie(z, MetaDs::Typ::Seite);
+            MetaDs ds = wie(z, MetaDs::Typ::Seite, z.nummer);
             ds.planeNum = z.planeNum;
-            ds.ecken = eckenDerSeite(z.w, *z.seite, z.planeNum, ebenen, format, si);
+            ds.ecken = eckenDerSeite(z.w, *z.seite, z.planeNum, ebenen, ein.format, si);
             alle.push_back(std::move(ds));
         }
     }
     for (MetaDs& ds : geteilt) { alle.push_back(std::move(ds)); }
     tJunktionen(alle, abbrechen);
     if (abbrechen != nullptr && abbrechen->load()) { return {}; }
-    for (MetaDs& ds : alle) { einordnen(ds, ebenen); }
-    // MakeEntityMetaTriangles
-    MetaStufe stufe(ebenen);
-    for (MetaDs& ds : alle) {
-        if (ds.ecken.empty() || ds.si->autosprite || (!meta && !ds.si->forceMeta)) { continue; }
-        if (ds.typ == MetaDs::Typ::Seite) {
-            streifen(ds, ebenen);
-            stufe.ausFlaeche(ds);
-            ds.typ = MetaDs::Typ::Schlecht;
-        } else if (ds.typ == MetaDs::Typ::Erzwungen) {
-            stufe.ausFlaeche(ds);
-            ds.typ = MetaDs::Typ::Schlecht;
+    // ClassifyEntitySurfaces: FinishSurface (q3map_cloneShader, q3map_backShader - CloneSurface haengt hinten an, die Kopie
+    // wird selbst wieder abgearbeitet; Rueckseiten hoeren dort auf), dann ClassifySurface
+    for (std::size_t i = 0; i < alle.size(); ++i) {
+        if (alle.size() >= kMaxZeichenflaechen) { return {}; }
+        if (alle[i].typ != MetaDs::Typ::Schlecht && !alle[i].ecken.empty() && !alle[i].rueckseite) {
+            if (alle[i].si->klon != nullptr) {
+                MetaDs k = alle[i];
+                k.si = alle[i].si->klon;
+                k.seitenRef = false;
+                alle.push_back(std::move(k));
+            }
+            if (alle[i].si->rueck != nullptr) {
+                MetaDs r = alle[i];
+                r.si = alle[i].si->rueck;
+                r.rueckseite = true;
+                r.seitenRef = false;
+                alle.push_back(std::move(r));
+            }
+        }
+        einordnen(alle[i], ebenen);
+    }
+    decalsWerfen(werfer, alle, ebenen);   // MakeEntityDecals
+    // MakeEntityMetaTriangles (die Liste waechst mit -patchmeta), SmoothMetaTriangles, MergeMetaTriangles
+    MetaStufe stufe(ebenen, ein.np);
+    auto zufall = std::make_shared<CZufall>();
+    const bool patchMeta = ein.patchMeta || ein.weltPatchMeta;
+    for (std::size_t i = 0; i < alle.size(); ++i) {
+        if (alle[i].ecken.empty() || alle[i].si->autosprite || (!ein.meta && !alle[i].si->forceMeta)) { continue; }
+        switch (alle[i].typ) {
+        case MetaDs::Typ::Seite:
+        case MetaDs::Typ::Decal:
+            if (ein.maxArea) {
+                maxFlaeche(alle[i], ebenen, *zufall);
+            } else {
+                streifen(alle[i], ebenen);
+            }
+            stufe.ausFlaeche(alle[i]);
+            alle[i].typ = MetaDs::Typ::Schlecht;
+            break;
+        case MetaDs::Typ::Patch:
+            if (patchMeta) {
+                MetaDs neu = patchDreiecke(alle[i], ein, ebenen);
+                // "if the patch is nonsolid, then discard it"
+                if ((alle[i].si->flags.compile & C_SOLID) == 0U && (alle[i].si->flags.inhalt & S_CONT_PLAYERCLIP) == 0U) { alle[i].typ = MetaDs::Typ::Schlecht; }
+                alle.push_back(std::move(neu));
+            }
+            break;
+        case MetaDs::Typ::Erzwungen:
+        case MetaDs::Typ::Meta:
+            stufe.ausFlaeche(alle[i]);
+            alle[i].typ = MetaDs::Typ::Schlecht;
+            break;
+        default:
+            break;
         }
     }
     stufe.glaetten();
     std::vector<MetaDs> neu;
+    int nummer = naechste;
     stufe.zusammensetzen(neu, nummer, abbrechen);
     if (abbrechen != nullptr && abbrechen->load()) { return {}; }
     // die Flaechen in der Reihenfolge, in der FilterDrawsurfsIntoTree sie sieht (TidyEntitySurfaces)
     std::vector<Zeichenflaeche> aus;
+    const auto flaechenSpur = [&](Zeichenflaeche& z, MetaDs ds) {   // EmitFaceSurface: erst nach FilterFaceIntoTree (-maxarea zieht Zufall)
+        if (ein.maxArea) {
+            z.spaeter = [ds, zufall, &ebenen, ausgenommen]() mutable {
+                maxFlaeche(ds, ebenen, *zufall);
+                return spurAus(ds, ausgenommen);
+            };
+        } else {
+            streifen(ds, ebenen);
+            z.spur = spurAus(ds, ausgenommen);
+        }
+    };
     for (MetaDs& ds : alle) {
-        if (ds.typ == MetaDs::Typ::Schlecht || ds.quelle == nullptr) { continue; }
+        if (ds.typ == MetaDs::Typ::Decal && !ds.ecken.empty()) {   // ohne Meta-Stufe: FilterFaceIntoTree mit planeNum -1
+            Zeichenflaeche z;
+            z.si = ds.si;
+            z.planeNum = ds.planeNum;
+            z.nummer = ds.nummer;
+            z.nebel = ds.nebel;
+            for (const MetaEcke& v : ds.ecken) { z.w.push_back(v.xyz); }
+            flaechenSpur(z, ds);
+            aus.push_back(std::move(z));
+            continue;
+        }
+        if (ds.typ == MetaDs::Typ::Schlecht || ds.quelle == nullptr || ds.ecken.empty()) { continue; }
         Zeichenflaeche z = *ds.quelle;
-        if (ds.typ == MetaDs::Typ::Dreiecke) { z.planeNum = ds.planeNum; }
+        z.si = ds.si;   // FinishSurface: die Kopien mit ihrem Shader
+        z.nummer = ds.nummer;
+        z.nebel = ds.nebel;
+        const bool aussen = ausgenommen(ds.si->flags);
+        if (ds.typ == MetaDs::Typ::Dreiecke) {
+            z.planeNum = ds.planeNum;
+            if (ds.si != ds.quelle->si || ds.rueckseite) {   // EmitTriangleSurface: backSide dreht die Dreiecke
+                std::vector<int> indizes = ds.indizes;
+                if (ds.rueckseite || ds.si->invert) {
+                    for (std::size_t i = 0; i + 2 < indizes.size(); i += 3) { std::swap(indizes[i], indizes[i + 1]); }
+                }
+                z.spur = spurDreiecke(z.dreiecke, indizes, aussen);
+            }
+        }
+        if (ds.typ == MetaDs::Typ::Patch) {
+            // EmitPatchSurface: mit -patchmeta "nodraw patches for collision", nodraw-Shader ebenso (SF_SKIP im Spiel);
+            // eine Rueckseite dreht jede Zeile um
+            if (patchMeta || (ds.si->flags.flaeche & S_SURF_NODRAW) != 0U) {
+                z.spur = SpurFlaeche{};
+                z.spur.ausgenommen = aussen;
+            } else {
+                std::vector<std::array<float, 3>> punkte = z.patch->punkte;
+                if (ds.rueckseite || ds.si->invert) {
+                    for (int j = 0; j < z.patch->hoehe; ++j) {
+                        const auto zeile = punkte.begin() + static_cast<std::ptrdiff_t>(j) * z.patch->breite;
+                        std::reverse(zeile, zeile + z.patch->breite);
+                    }
+                }
+                z.spur = spurPatch(z.patch->breite, z.patch->hoehe, punkte, aussen);
+            }
+        }
         if (ds.typ == MetaDs::Typ::Seite) {   // EmitFaceSurface; FilterFaceIntoTree nimmt die Ecken davor
             z.planeNum = ds.planeNum;
             z.w.clear();
             for (const MetaEcke& v : ds.ecken) { z.w.push_back(v.xyz); }
-            streifen(ds, ebenen);
-            z.spur = spurAus(ds, ausgenommen);
+            flaechenSpur(z, ds);
         }
         aus.push_back(std::move(z));
     }

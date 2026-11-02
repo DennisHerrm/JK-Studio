@@ -159,10 +159,20 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
             s.q3ForceMeta = true;
         } else if (k == "q3map_notjunc") {
             s.q3NoTjunc = true;
-        } else if (k == "q3map_terrain") {
+        } else if (k == "q3map_terrain") {   // ParseShaderFile: legacyTerrain, noClip, notjunc, indexed, nonplanar, forceMeta, 179 Grad
             s.q3NoTjunc = true;
             s.q3Nonplanar = true;
             s.q3ForceMeta = true;
+            s.noClip = true;
+            s.indexed = true;
+            s.q3ShadeAngle = 179.0F;
+        } else if (k == "fogparms") {
+            s.q3NebelParms = true;
+        } else if (k == "q3map_nofog") {
+            s.q3KeinNebel = true;
+        } else if (k == "q3map_cloneshader" || k == "q3map_backshader") {   // "if ( GetTokenAppend( shaderText, false ) )"
+            const char* n = t.getToken();
+            if (n != nullptr) { (k == "q3map_cloneshader" ? s.q3Klon : s.q3Rueck) = n; }
         } else if (k == "q3map_globaltexture") {
             s.q3GlobalTexture = true;
         } else if (k == "q3map_invert") {
@@ -240,9 +250,6 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
         } else if (k == "q3map_noclip") {
             s.noClip = true;
         } else if (k == "q3map_indexed") {
-            s.indexed = true;
-        } else if (k == "q3map_terrain") {
-            s.noClip = true;
             s.indexed = true;
         } else if (k == "skyparms") {
             const char* h = t.getToken();

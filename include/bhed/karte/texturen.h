@@ -135,6 +135,11 @@ struct ShaderEintrag {
     float q3TessSize = 0;          // tessSize, q3map_tessSize
     int q3TexturBreite = 0;        // q3map_textureSize
     int q3TexturHoehe = 0;
+    // rc608 Teil 13 (Decal-Sonderfaelle, metaflaechen.inc): ParseShaderFile
+    bool q3NebelParms = false;     // fogparms: der Pinsel ist ein Nebel (CreateMapFogs)
+    bool q3KeinNebel = false;      // q3map_noFog
+    std::string q3Klon;            // q3map_cloneShader
+    std::string q3Rueck;           // q3map_backShader
     // reste2 Punkt 4: was q3map2 fuer die Zeichenflaechen der Welt fragt (ParseShaderFile)
     bool autosprite = false;      // deformVertexes autosprite[2]
     bool polygonOffset = false;   // polygonOffset

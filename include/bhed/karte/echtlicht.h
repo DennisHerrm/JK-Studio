@@ -32,6 +32,7 @@
 
 #include "bhed/karte/mathe.h"
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -150,6 +151,19 @@ struct EchtNetz {
 // lightmaps_ydnar.cpp). kontrolle: Zeile r, Spalte c an r * breite + c (wie mesh_t). Leer, wenn
 // die Groesse nicht passt.
 [[nodiscard]] EchtNetz echtPatchNetz(const std::vector<Vektor3f>& kontrolle, int breite, int hoehe, int unterteilungen = 8);
+// rc608 Teil 13 (-patchmeta, Nebel): ein Punkt eines Patch-Netzes mit st (bspDrawVert_t)
+struct EchtNetzPunkt {
+    Vektor3f ort;
+    Vektor3f normale;
+    std::array<float, 2> st{};
+};
+// DrawSurfaceForMesh (ohne Index-Karte): die Normalen der Kontrollpunkte (MakeMeshNormals vor und
+// nach PutMeshOnCurve; ist das Netz eben, ueberall die Normale der Ebene), dazu longestCurve
+// (ParsePatch). false: entartet (ParsePatch verwirft den Patch) oder die Groesse passt nicht.
+[[nodiscard]] bool echtPatchSteuernetz(std::vector<EchtNetzPunkt>& netz, int breite, int hoehe, float& kurve);
+// IterationsForCurve, TessellatedMesh (SubdivideMesh2, PutMeshOnCurve, RemoveLinearMeshColumnsRows), mit st
+[[nodiscard]] int echtIterationenFuerKurve(float laenge, int unterteilungen);
+void echtNetzTesselieren(std::vector<EchtNetzPunkt>& netz, int& breite, int& hoehe, int iterationen);
 // RadLightForPatch (light_bounce.cpp): je Viereck des Netzes ein Flaechenlicht, wenn es eben ist
 // (PLANAR_EPSILON 0.1), sonst seine zwei Dreiecke (MeshQuadIterator).
 void echtPatchFlaechenLichter(const EchtNetz& netz, const EchtFlaechenShader& s, std::vector<EchtLicht>& aus);

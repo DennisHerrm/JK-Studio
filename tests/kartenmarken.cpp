@@ -500,6 +500,63 @@ int main(int argc, char** argv) {
         }
         std::filesystem::remove_all(tmp, ec);
     }
+    // rc608 Teil 13: Nebel (FogDrawSurfaces), q3map_cloneShader/q3map_backShader, nodraw-Patch, q3map_terrain und die
+    // Schalter -np, -maxarea, -patchmeta, -nofog, _patchMeta des worldspawn (tools/karte/gen_markensonder.py)
+    {
+        const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "jkstudio_kartenmarken_sonder";
+        std::error_code ec;
+        std::filesystem::remove_all(tmp, ec);
+        std::filesystem::create_directories(tmp / "base" / "shaders", ec);
+        {
+            std::ofstream o(tmp / "base" / "shaders" / "markensonder.shader", std::ios::binary);
+            o << lies(ordner + "/markensonder.shader");
+        }
+        Dateisystem fs;
+        fs.ordnerHinzufuegen((tmp / "base").string(), "sp");
+        Texturinventar inv;
+        inv.laden(fs);
+        const Q3ShaderInfoFn infoSonder = [&inv](const std::string& sh) {
+            return q3ShaderInfoAus(inv.shaderFinden(sh.rfind("textures/", 0) == 0 ? sh : "textures/" + sh));
+        };
+        const ShaderEintrag* nebel = inv.shaderFinden("textures/sonder/nebel");
+        const ShaderEintrag* klon = inv.shaderFinden("textures/sonder/klon");
+        const ShaderEintrag* rueck = inv.shaderFinden("textures/sonder/rueck");
+        const ShaderEintrag* gelaende = inv.shaderFinden("textures/sonder/gelaende");
+        pruefe(nebel != nullptr && nebel->q3NebelParms && klon != nullptr && klon->q3Klon == "textures/sonder/kopie" && rueck != nullptr &&
+                   rueck->q3Rueck == "textures/sonder/hinten" && inv.shaderFinden("textures/sonder/ohnenebel")->q3KeinNebel,
+               "fogparms, q3map_cloneShader, q3map_backShader, q3map_noFog gelesen");
+        pruefe(gelaende != nullptr && gelaende->noClip && gelaende->indexed && gelaende->q3ShadeAngle == 179.0F && gelaende->q3ForceMeta,
+               "q3map_terrain: noClip, indexed, 179 Grad, forceMeta (ParseShaderFile)");
+        struct Bau {
+            const char* bsp;
+            const char* karte;
+            const char* befehl;   // der -bsp-Befehl des Build-Eintrags
+        };
+        for (const Bau& bau : {Bau{"markensonder", "markensonder", "\"[q3map2]\" -meta \"[MapFile]\""},
+                               Bau{"markensonder_np", "markensonder", "\"[q3map2]\" -meta -np 60 \"[MapFile]\""},
+                               Bau{"markensonder_max", "markensonder", "\"[q3map2]\" -meta -maxarea \"[MapFile]\""},
+                               Bau{"markensonder_maxo", "markensonder", "\"[q3map2]\" -maxarea \"[MapFile]\""},
+                               Bau{"markensonder_pm", "markensonder", "\"[q3map2]\" -meta -patchmeta \"[MapFile]\""},
+                               Bau{"markensonder_nofog", "markensonder", "\"[q3map2]\" -meta -nofog \"[MapFile]\""},
+                               Bau{"markensonder_wpm", "markensonder_wpm", "\"[q3map2]\" -meta \"[MapFile]\""},
+                               Bau{"markendecal", "markendecal", "\"[q3map2]\" -meta \"[MapFile]\""},
+                               Bau{"markendecal_ohne", "markendecal", "\"[q3map2]\" \"[MapFile]\""},
+                               Bau{"markendecal_max", "markendecal", "\"[q3map2]\" -meta -maxarea \"[MapFile]\""}}) {
+            Karte k;
+            (void)karteLesen(lies(ordner + "/" + bau.karte + ".map"), k);
+            k.anmelden();
+            MarkenEingabe ein = markenEingabe(k, infoSonder, true);
+            markenSchalterAusBefehl(bau.befehl, ein);
+            const SpurWelt e = markenWeltBauen(ein);
+            BspGeometry g;
+            pruefe(readBspGeometry(lies(ordner + "/" + bau.bsp + ".bsp"), g), std::string(bau.bsp) + ".bsp geladen");
+            SpurWelt b = spurWeltAus(g);
+            // nur die Welt (Modell 0): die func_static ist ein eigenes Modell, ihre Flaechen stehen dahinter
+            if (!g.models.empty() && g.models[0].firstSurface == 0) { b.flaechen.resize(std::min(b.flaechen.size(), static_cast<std::size_t>(g.models[0].numSurfaces))); }
+            pruefe(weltGleich(e, b, bau.bsp), std::string(bau.bsp) + " (" + bau.befehl + "): jede Flaeche und jedes Blatt wie in der .bsp");
+        }
+        std::filesystem::remove_all(tmp, ec);
+    }
     // Leere Karte: keine Welt, keine Marke (und kein Absturz)
     {
         Karte leer;

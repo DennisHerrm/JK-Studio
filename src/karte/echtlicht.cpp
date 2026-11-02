@@ -329,10 +329,11 @@ float normierenF(Vektor3f& v) {
     return static_cast<float>(l);
 }
 
-// bspDrawVert_t mit dem, was die Flaechenlichter brauchen (xyz, normal)
+// bspDrawVert_t mit dem, was die Flaechenlichter und die Meta-Dreiecke brauchen (xyz, normal, st)
 struct NPunkt {
     Vektor3f ort;
     Vektor3f normale;
+    std::array<float, 2> st{};
 };
 // MAX_EXPANDED_AXIS (q3map2.h)
 constexpr int kAchseMax = 128;
@@ -348,6 +349,7 @@ struct NetzF {
 NPunkt mitteNP(const NPunkt& a, const NPunkt& b) {
     NPunkt o;
     o.ort = Vektor3f((a.ort[0] + b.ort[0]) * 0.5F, (a.ort[1] + b.ort[1]) * 0.5F, (a.ort[2] + b.ort[2]) * 0.5F);
+    o.st = {(a.st[0] + b.st[0]) * 0.5F, (a.st[1] + b.st[1]) * 0.5F};   // vector2_mid
     o.normale = a.normale + b.normale;
     if (normierenF(o.normale) == 0) { o.normale = a.normale; }
     return o;
@@ -459,7 +461,10 @@ void netzNormalen(NetzF& in) {
 
 // PutMeshOnCurve (mesh.cpp)
 void aufKurve(NetzF& in) {
-    const auto lerp3 = [](const NPunkt& vor, NPunkt& mitte, const NPunkt& nach) { mitte.ort = (vor.ort + mitte.ort * 2.0F + nach.ort) * 0.25F; };
+    const auto lerp3 = [](const NPunkt& vor, NPunkt& mitte, const NPunkt& nach) {
+        mitte.ort = (vor.ort + mitte.ort * 2.0F + nach.ort) * 0.25F;
+        for (std::size_t k = 0; k < 2; ++k) { mitte.st[k] = (vor.st[k] + mitte.st[k] * 2.0F + nach.st[k]) * 0.25F; }   // "interpolating st coords"
+    };
     for (int i = 0; i < in.breite; ++i) {
         for (int j = 1; j < in.hoehe; j += 2) { lerp3(in.at(j - 1, i), in.at(j, i), in.at(j + 1, i)); }
     }
@@ -622,6 +627,63 @@ EchtNetz echtPatchNetz(const std::vector<Vektor3f>& kontrolle, int breite, int h
         aus.normale.push_back(p.normale);
     }
     return aus;
+}
+
+bool echtPatchSteuernetz(std::vector<EchtNetzPunkt>& netz, int breite, int hoehe, float& kurve) {
+    kurve = 0;
+    if (breite < 3 || hoehe < 3 || breite > 32 || hoehe > 32 || netz.size() != static_cast<std::size_t>(breite * hoehe)) { return false; }
+    std::vector<Vektor3f> orte;
+    for (const EchtNetzPunkt& p : netz) { orte.push_back(p.ort); }
+    if (patchEntartet(orte)) { return false; }
+    NetzF m;
+    m.breite = breite;
+    m.hoehe = hoehe;
+    m.v.resize(netz.size());
+    for (std::size_t i = 0; i < netz.size(); ++i) {
+        m.v[i].ort = netz[i].ort;
+        m.v[i].st = netz[i].st;
+    }
+    for (int j = 0; j + 2 < breite; j += 2) {   // ParsePatch
+        for (int i = 0; i + 2 < hoehe; i += 2) {
+            laengsteKurve(kurve, m.at(i, j).ort, m.at(i, j + 1).ort, m.at(i, j + 2).ort);
+            laengsteKurve(kurve, m.at(i, j).ort, m.at(i + 1, j).ort, m.at(i + 2, j).ort);
+        }
+    }
+    NetzF kopie = m;   // DrawSurfaceForMesh
+    netzNormalen(kopie);
+    for (std::size_t i = 0; i < m.v.size(); ++i) { m.v[i].normale = kopie.v[i].normale; }
+    aufKurve(kopie);
+    netzNormalen(kopie);
+    for (std::size_t i = 0; i < m.v.size(); ++i) {
+        if (punkt3(kopie.v[i].normale, m.v[i].normale) < 0.75F) { m.v[i].normale = kopie.v[i].normale; }
+    }
+    // "construct a plane from the first vert": eben, wenn alle Normalen gleich (VectorCompare) und alle Punkte auf
+    // der Ebene liegen (EQUAL_EPSILON); dann bekommt jeder Punkt die Normale der Ebene
+    const Vektor3f n = m.v[0].normale;
+    const float dist = punkt3(m.v[0].ort, n);
+    const bool eben = std::none_of(m.v.begin(), m.v.end(), [&n, dist](const NPunkt& p) {
+        const bool gleich = std::fabs(n[0] - p.normale[0]) < 0.001F && std::fabs(n[1] - p.normale[1]) < 0.001F && std::fabs(n[2] - p.normale[2]) < 0.001F;
+        return !gleich || std::fabs(static_cast<double>(punkt3(n, p.ort)) - static_cast<double>(dist)) > 0.001;
+    });
+    for (std::size_t i = 0; i < netz.size(); ++i) { netz[i].normale = eben ? n : m.v[i].normale; }
+    return true;
+}
+
+int echtIterationenFuerKurve(float laenge, int unterteilungen) { return iterationenFuerKurve(laenge, unterteilungen); }
+
+void echtNetzTesselieren(std::vector<EchtNetzPunkt>& netz, int& breite, int& hoehe, int iterationen) {
+    NetzF m;
+    m.breite = breite;
+    m.hoehe = hoehe;
+    m.v.resize(netz.size());
+    for (std::size_t i = 0; i < netz.size(); ++i) { m.v[i] = NPunkt{netz[i].ort, netz[i].normale, netz[i].st}; }
+    NetzF t = unterteileNetz(m, iterationen);   // TessellatedMesh
+    aufKurve(t);
+    t = ohneGeradeZeilen(t);
+    breite = t.breite;
+    hoehe = t.hoehe;
+    netz.clear();
+    for (const NPunkt& p : t.v) { netz.push_back(EchtNetzPunkt{p.ort, p.normale, p.st}); }
 }
 
 void echtPatchFlaechenLichter(const EchtNetz& netz, const EchtFlaechenShader& s, std::vector<EchtLicht>& aus) {

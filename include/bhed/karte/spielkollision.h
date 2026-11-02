@@ -108,6 +108,14 @@ struct Q3ShaderInfo {
     bool bewegt = false;          // deformVertexes move: shaderInfo minmax gueltig (ShaderEintrag)
     std::array<float, 3> bewegtMin{};
     std::array<float, 3> bewegtMax{};
+    // rc608 Teil 13 (Decal-Sonderfaelle): Nebel (FogDrawSurfaces) und FinishSurface
+    bool nebelParms = false;      // fogparms
+    bool keinNebel = false;       // q3map_noFog
+    std::string klon;             // q3map_cloneShader
+    std::string rueck;            // q3map_backShader
+    bool skript = false;          // shaderText: der Shader steht in einem Skript (nicht nur ein Bild)
+    int klonNr = -1;              // ShaderInfoForShader( klon ): Index in MarkenEingabe::shader (eingabeAusKarte)
+    int rueckNr = -1;
 };
 using Q3ShaderInfoFn = std::function<Q3ShaderInfo(const std::string& shader)>;
 struct ShaderEintrag;
@@ -169,12 +177,15 @@ struct MarkenEingabe {
         int breite = 0;
         int hoehe = 0;
         std::vector<std::array<float, 3>> punkte;
+        std::vector<std::array<float, 2>> st;   // je Kontrollpunkt (rc608 Teil 13: -patchmeta, Nebel)
         int shader = 0;
     };
     struct Ent {
         std::string klasse;         // klein
         std::string ursprung;       // "origin"
         std::string blockGroesse;   // "_blocksize", "blocksize" oder "chopsize"
+        std::string zielname;       // "targetname" (FindTargetEntity)
+        std::string ziel;           // "target" (ProcessDecals)
         Werte werte;
         bool welt = false;
         std::vector<std::vector<Seite>> pinsel;
@@ -194,8 +205,21 @@ struct MarkenEingabe {
     bool ja = true;
     bool ganzzahlig = false;   // ebenenPunkteGanzzahlig()
     bool meta = true;          // gebaut mit -meta (die Vorgabe von NRC): metaflaechen.inc
+    // rc608 Teil 13: die uebrigen Schalter von -bsp, die die Zeichenflaechen aendern (bsp.cpp BSPMain)
+    float np = 0;              // -np <Grad>: npDegrees
+    bool maxArea = false;      // -maxarea: MaxAreaFaceSurface statt StripFaceSurface
+    bool patchMeta = false;    // -patchmeta: TriangulatePatchSurface
+    bool nebel = true;         // ohne -nofog: FogDrawSurfaces
+    // die Schluessel des worldspawn, die TriangulatePatchSurface liest (die Entitaet der Welt, auch fuer
+    // die Patches der func_group)
+    bool weltPatchMeta = false;     // "_patchMeta", "patchMeta"
+    int weltPatchQualitaet = 0;     // "_patchQuality", "patchQuality"
+    int weltPatchTeilung = 0;       // "_patchSubdivide", "patchSubdivide"
+    bool weltPatchTeilungDa = false;
     PinselFormat format = PinselFormat::Quake3;
 };
+// Die Schalter aus dem -bsp-Befehl eines Build-Eintrags (-meta, -np, -maxarea, -patchmeta, -nofog)
+void markenSchalterAusBefehl(const std::string& bspBefehl, MarkenEingabe& e);
 [[nodiscard]] MarkenEingabe markenEingabe(const Karte& k, const Q3ShaderInfoFn& info, bool ja, bool meta = true);
 [[nodiscard]] SpurWelt markenWeltBauen(const MarkenEingabe& e, MarkenWeltBericht* bericht = nullptr, const std::atomic<bool>* abbrechen = nullptr);
 
