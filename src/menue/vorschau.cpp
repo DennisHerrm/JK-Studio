@@ -52,6 +52,8 @@ const Farbe kFarbtabelle[10] = {{0, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 0, 1}, {1, 1,
                                 {0, 1, 1, 1}, {1, 0, 1, 1}, {1, 1, 1, 1}, {1, 0.5F, 0, 1}, {0.5F, 0.5F, 0.5F, 1}};
 
 int runden(float v) { return static_cast<int>(std::lround(v)); }
+// Round (tr_font.cpp): (int)( value + 0.5f )
+int rundeFont(float v) { return static_cast<int>(v + 0.5F); }
 
 template <typename T>
 T lese(const std::string& d, std::size_t& p) {
@@ -129,7 +131,7 @@ public:
     }
     int textHoehe(float scale, int font) const {
         const Schrift* f = schrift(font);
-        return f != nullptr ? schriftHoehe(*f, scale) : 0;
+        return f != nullptr ? schriftHoehe(*f, scale, u_.jk2) : 0;
     }
 
     std::string cvar(const std::string& n) const { return u_.cvar ? u_.cvar(n) : std::string(); }
@@ -408,7 +410,7 @@ private:
     void zeichenkette(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale,
                       bool imSchatten) {
         std::vector<Prim> glyphen;
-        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen, u_.kodierung, u_.asienGlyphen, u_.jk2 != Jk2Schrift::Nein);
+        schriftZeichnen(f, ox, oy, t, c, maxPixel, scale, imSchatten, glyphen, u_.kodierung, u_.asienGlyphen, u_.jk2);
         for (const Prim& g : glyphen) { bild(g.x, g.y, g.w, g.h, g.shader, g.farbe, item_, g.s0, g.t0, g.s1, g.t1); }
     }
 
@@ -878,7 +880,10 @@ private:
 }  // namespace
 
 void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Farbe c, int maxPixel, float scale, bool imSchatten,
-                     std::vector<Prim>& out, Kodierung k, bool asienGlyphen, bool jk2Modus) {
+                     std::vector<Prim>& out, Kodierung k, bool asienGlyphen, Jk2Schrift jk2) {
+    const bool jk2Modus = jk2 != Jk2Schrift::Nein;
+    const bool rund = jk2 == Jk2Schrift::Sp;   // mbRoundCalcs (siehe schriftHoehe)
+    const auto vorschub = [rund](float v) { return rund ? static_cast<float>(rundeFont(v)) : v; };
     // fScaleAsian / fAsianYAdjust (Language_IsAsian)
     const bool asien = asiatisch(k);
     const float scaleAsien = (asien && scale > 0.7F) ? scale * 0.75F : scale;
@@ -886,7 +891,7 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
                              ? ((static_cast<float>(f.pointSize) * scale) - (static_cast<float>(f.pointSize) * scaleAsien)) / 2.0F
                              : 0.0F;
     const float fox = static_cast<float>(ox);
-    float foy = static_cast<float>(oy) + static_cast<float>(f.height - (f.descender >> 1)) * scale;
+    float foy = static_cast<float>(oy) + vorschub(static_cast<float>(f.height - (f.descender >> 1)) * scale);
     float fx = fox;
     bool ueberlauf = false;
     const auto* p = reinterpret_cast<const unsigned char*>(t.data());
@@ -896,11 +901,11 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
         i += static_cast<std::size_t>(n);
         if (ch == 10) {
             fx = fox;
-            foy += static_cast<float>(f.pointSize) * scale;
+            foy += vorschub(static_cast<float>(f.pointSize) * scale);
             if (asien) { foy += 4.0F; }
         } else if (ch == 13) {
         } else if (ch == 32) {
-            fx += static_cast<float>(f.glyph[' '].horizAdvance) * scale;
+            fx += vorschub(static_cast<float>(f.glyph[' '].horizAdvance) * scale);
             ueberlauf = maxPixel != -1 && (fx - fox) > static_cast<float>(maxPixel);
         } else if (ch == '^' && jk2Modus) {
             // Jedi Outcast (jk2sp.exe und jk2mp.exe im Spiel fotografiert): case '^' nimmt jedes folgende
@@ -933,7 +938,7 @@ void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& t, Far
                 shader = f.shader;
             }
             const float sc = ch > 255U ? scaleAsien : scale;   // g_iNonScaledCharRange = 255
-            const float adv = static_cast<float>(g->horizAdvance) * sc;
+            const float adv = vorschub(static_cast<float>(g->horizAdvance) * sc);
             ueberlauf = maxPixel != -1 && ((fx + adv) - fox) > static_cast<float>(maxPixel);
             if (!ueberlauf) {
                 const float fy = foy - static_cast<float>(g->baseline) * sc;
@@ -1012,15 +1017,17 @@ int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodier
             const Glyph* g = &f.glyph[ch & 0xFFU];
             if (asienGlyphen && asienGlyph(k, ch, f, asienG, shader)) { g = &asienG; }
             const short adv = g->horizAdvance != 0 ? g->horizAdvance : f.glyph['.'].horizAdvance;
-            diese += static_cast<float>(adv) * (ch > 255U ? scaleAsien : scale);
+            const float v = static_cast<float>(adv) * (ch > 255U ? scaleAsien : scale);
+            diese += jk2 == Jk2Schrift::Sp ? static_cast<float>(rundeFont(v)) : v;   // mbRoundCalcs
         }
         maxW = std::max(maxW, diese);
     }
     return static_cast<int>(std::ceil(maxW));
 }
 
-int schriftHoehe(const Schrift& f, float scale) {
-    return static_cast<int>(static_cast<float>(f.pointSize) * scale);
+int schriftHoehe(const Schrift& f, float scale, Jk2Schrift jk2) {
+    const float v = static_cast<float>(f.pointSize) * scale;
+    return jk2 == Jk2Schrift::Sp ? rundeFont(v) : static_cast<int>(v);
 }
 
 bool itemZeigtUeberCvar(const Item& it, int flag, const Umgebung& u) {

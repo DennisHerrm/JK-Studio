@@ -1589,9 +1589,9 @@ Umgebung umgebung(const Dokument& d) {
         const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
         return f != nullptr ? schriftBreite(*f, t, sc, ko, ag, j) : 0;
     };
-    k.hoehe = [sf = u.schrift](float sc, int font, const std::string& name) {
+    k.hoehe = [sf = u.schrift, j = u.jk2](float sc, int font, const std::string& name) {
         const Schrift* f = name.empty() ? sf(font) : schriftNamens(name);
-        return f != nullptr ? schriftHoehe(*f, sc) : 0;
+        return f != nullptr ? schriftHoehe(*f, sc, j) : 0;
     };
     k.bildDa = u.bildDa;   // R_RegisterShaderNoMip: Bild oder Shaderskript
     k.zeitMs = u.zeitMs;
@@ -2930,7 +2930,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             const TextLauf& r = s.laeufe[l.lauf];
             if (r.schrift == nullptr) { return r.x; }
             const std::size_t n = byte > l.anfang ? std::min(byte - l.anfang, r.text.size()) : 0;
-            return r.x + static_cast<float>(schriftBreite(*r.schrift, r.text.substr(0, n), r.scale, u.kodierung, u.asienGlyphen));
+            return r.x + static_cast<float>(schriftBreite(*r.schrift, r.text.substr(0, n), r.scale, u.kodierung, u.asienGlyphen, u.jk2));
         };
         // Mausstelle: die naechste Zeile, darin das naechste Zeichen, als Stelle im Feld
         const auto feldBei = [&](float mx, float my) {
@@ -2939,7 +2939,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             float abstand = 1e9F;
             for (std::size_t k = 0; k < stellen.size(); ++k) {
                 const TextLauf& r = s.laeufe[stellen[k].lauf];
-                const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale)) : 16.0F;
+                const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale, u.jk2)) : 16.0F;
                 const float w = my < r.y ? r.y - my : (my > r.y + hoehe ? my - r.y - hoehe : 0.0F);
                 if (w < abstand) {
                     abstand = w;
@@ -2987,7 +2987,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         bool cursorGezeichnet = false;
         for (const LaufStelle& l : stellen) {
             const TextLauf& r = s.laeufe[l.lauf];
-            const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale)) : 16.0F;
+            const float hoehe = r.schrift != nullptr ? static_cast<float>(schriftHoehe(*r.schrift, r.scale, u.jk2)) : 16.0F;
             const std::size_t ende = l.anfang + r.text.size();
             if (sab < seb && seb > l.anfang && sab < ende) {
                 dl->AddRectFilled(ImVec2{o.x + ab.x(xVon(l, std::max(sab, l.anfang))), o.y + ab.y(r.y)}, ImVec2{o.x + ab.x(xVon(l, std::min(seb, ende))), o.y + ab.y(r.y + hoehe)}, IM_COL32(60, 130, 255, 110));

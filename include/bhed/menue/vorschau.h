@@ -80,8 +80,11 @@ enum class Jk2Schrift { Nein, Sp, Mp };
 // die Ziffer, ^ mit anderem Zeichen zaehlt beide.
 [[nodiscard]] int schriftBreite(const Schrift& f, const std::string& text, float scale, Kodierung k = Kodierung::Latin1,
                                 bool asienGlyphen = false, Jk2Schrift jk2 = Jk2Schrift::Nein);
-// RE_Font_HeightPixels: mPointSize * scale
-[[nodiscard]] int schriftHoehe(const Schrift& f, float scale);
+// RE_Font_HeightPixels: mPointSize * scale.
+// rc608 Teil 13: jk2sp.exe rechnet mit mbRoundCalcs (Round je Zeichen in StrLenPixels und DrawString, Round in
+// HeightPixels) - OpenJK hat es abgeschaltet ("false /*!!strstr(fontName,"ergo")*/"). Messgrund: Datapad im Spiel
+// fotografiert (ocr_a 0.7): Zeilenabstand 19 statt 18 virtuelle Punkte, Zeilenbreite 491 statt 496.
+[[nodiscard]] int schriftHoehe(const Schrift& f, float scale, Jk2Schrift jk2 = Jk2Schrift::Nein);
 
 enum class PrimArt {
     Fuellen,      // DC->fillRect
@@ -114,7 +117,7 @@ struct Prim {
 // Vorschau (bhed/untertitel.h).
 void schriftZeichnen(const Schrift& f, int ox, int oy, const std::string& text, Farbe farbe, int maxPixel, float scale,
                      bool imSchatten, std::vector<Prim>& out, Kodierung k = Kodierung::Latin1, bool asienGlyphen = false,
-                     bool jk2Modus = false);
+                     Jk2Schrift jk2 = Jk2Schrift::Nein);
 
 struct FeederEintrag {
     std::vector<std::string> spalten;

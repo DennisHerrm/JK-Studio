@@ -59,9 +59,9 @@ bool datapadZeichnen(int art, std::vector<OdTeil>& out, const DatapadUmgebung& d
         const Schrift* f = schriftNamens(name);
         return f != nullptr ? schriftBreite(*f, t, sc, du.kodierung, du.asienGlyphen, du.jk2) : 0;
     };
-    k.hoehe = [](float sc, const std::string& name) {
+    k.hoehe = [du](float sc, const std::string& name) {
         const Schrift* f = schriftNamens(name);
-        return f != nullptr ? schriftHoehe(*f, sc) : 0;
+        return f != nullptr ? schriftHoehe(*f, sc, du.jk2) : 0;
     };
     k.kodierung = du.kodierung;
     k.waffenIcon = z.waffenIcon;

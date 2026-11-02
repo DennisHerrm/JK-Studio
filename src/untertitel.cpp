@@ -183,7 +183,7 @@ Untertitel setzen(const std::string& text, int klangMs, double startMs, bool imK
     u.startMs = startMs;
     const bool md = spiel == Spiel::MovieDuels;
     u.schriftGroesse = md ? mdGroesse(mdGroesseJetzt) : 1.0F;
-    const int fontHeight = menue::schriftHoehe(schrift, u.schriftGroesse);   // westlich: nicht * 1.4
+    const int fontHeight = menue::schriftHoehe(schrift, u.schriftGroesse, spiel == Spiel::JediOutcast ? menue::Jk2Schrift::Sp : menue::Jk2Schrift::Nein);   // westlich: nicht * 1.4
     if (imKino) {
         u.textY = static_cast<int>(static_cast<float>(kSchirmHoehe) - balkenZiel / 2.0F);
     } else {
@@ -256,7 +256,7 @@ std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& 
     }
     const bool md = spiel == Spiel::MovieDuels;
     const float groesse = u.schriftGroesse;
-    const int fontHeight = menue::schriftHoehe(schrift, groesse);
+    const int fontHeight = menue::schriftHoehe(schrift, groesse, spiel == Spiel::JediOutcast ? menue::Jk2Schrift::Sp : menue::Jk2Schrift::Nein);
     const bool zweiZeilen = !zeile(aktuell + 1).empty();
     int y = static_cast<int>(static_cast<float>(u.textY) - static_cast<float>(fontHeight) * (zweiZeilen ? 1.0F : 0.5F));
     y -= md ? static_cast<int>(4.0F * groesse) : 4;
@@ -282,7 +282,8 @@ std::vector<Zeile> zeigen(const Untertitel& u, double ms, const menue::Schrift& 
 }
 
 void zeichnen(const menue::Schrift& f, const Zeile& z, menue::Farbe farbe, float scale, Spiel spiel, std::vector<menue::Prim>& out) {
-    menue::schriftZeichnen(f, z.x, z.y, z.text, farbe, -1, scale, false, out, menue::Kodierung::Latin1, false, spiel == Spiel::JediOutcast);
+    menue::schriftZeichnen(f, z.x, z.y, z.text, farbe, -1, scale, false, out, menue::Kodierung::Latin1, false,
+                           spiel == Spiel::JediOutcast ? menue::Jk2Schrift::Sp : menue::Jk2Schrift::Nein);
 }
 
 }  // namespace bhed::untertitel

@@ -69,7 +69,7 @@ int main() {
     {
         auto farben = [&](bool jk2) {
             std::vector<Prim> g;
-            schriftZeichnen(f, 0, 0, "A^Bx^Cy^0z", Farbe{1, 1, 1, 1}, -1, 1.0F, false, g, Kodierung::Latin1, false, jk2);
+            schriftZeichnen(f, 0, 0, "A^Bx^Cy^0z", Farbe{1, 1, 1, 1}, -1, 1.0F, false, g, Kodierung::Latin1, false, jk2 ? Jk2Schrift::Sp : Jk2Schrift::Nein);
             std::string s;
             for (const Prim& q : g) { s += q.farbe.r > 0.5F ? (q.farbe.g > 0.5F ? (q.farbe.b > 0.5F ? 'w' : 'y') : 'r') : (q.farbe.g > 0.5F ? 'g' : 's'); }
             return s;
@@ -78,6 +78,16 @@ int main() {
         pruefe(farben(false) == "wwwwwwws", "JA: A ^ B x ^ C y weiss, z schwarz (" + farben(false) + ")");
         // JK2: jedes Zeichen nach ^ ist eine Farbe, ColorIndex(c) = (c - '0') & 7 - B gruen, C gelb
         pruefe(farben(true) == "wgys", "JK2: A weiss, x gruen, y gelb, z schwarz (" + farben(true) + ")");
+    }
+    // rc608 Teil 13: jk2sp.exe rechnet mit mbRoundCalcs (Round je Zeichen, Round der Hoehe; Datapad im Spiel fotografiert)
+    pruefe(schriftHoehe(f, 0.63F) == 12 && schriftHoehe(f, 0.63F, Jk2Schrift::Sp) == 13, "HeightPixels 20 * 0.63: JA (int) 12, jk2sp.exe Round 13");
+    pruefe(schriftBreite(f, "abc", 0.63F) == 19 && schriftBreite(f, "abc", 0.63F, Kodierung::Latin1, false, Jk2Schrift::Sp) == 18,
+           "StrLenPixels abc * 0.63: JA ceil(18.9) 19, jk2sp.exe 3 * Round(6.3) 18");
+    pruefe(schriftBreite(f, "abc", 0.63F, Kodierung::Latin1, false, Jk2Schrift::Mp) == 19, "jk2mp.exe: ohne Rundung je Zeichen (nicht gemessen, wie OpenJK)");
+    {
+        std::vector<Prim> g;
+        schriftZeichnen(f, 0, 0, "ab", Farbe{1, 1, 1, 1}, -1, 0.63F, false, g, Kodierung::Latin1, false, Jk2Schrift::Sp);
+        pruefe(g.size() == 2 && nah(g[1].x - g[0].x, 6.0F), "DrawString jk2sp.exe: Vorschub Round(10 * 0.63) = 6");
     }
 
     Umgebung u;
