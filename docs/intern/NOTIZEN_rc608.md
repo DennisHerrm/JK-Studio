@@ -878,6 +878,81 @@ Alle Paare in `SP/g10b/erg/` (Movie Duels). OpenJK-Regeln nur gegen die Quelle.
 - Dauer des Nachlaufs der Drehanimation im Spiel nicht deckungsgleich gemessen; Reiten.
 - Klinge des NPC, g9_jtb, Byss-Glas, ferne Flaechen auf duel_jeditemple (und schwarze Fenster), Decal-Sonderfaelle, JK2-Datapad.
 
+## Teil 12: Engpaesse, schneller ohne Verlust
+
+Auftrag `auftrag_rc608_12.md`. Skripte in `SP/p12` (`lauf12.py` mit Profiler und gewaermtem Shaderspeicher, `mess.sh`, `sampler.py`, `bildgleich.py`, `dumpstapel.py`), Laeufe `Y:\karte\laeufe\l12*`.
+
+### Messweg
+- Neuer Selbsttest `leistung` (`gui/selbsttest_leistung.inc`): Tab-Wechsel, Karten laden (mp/duel1, md_toaj_jedi, md_am_sith, duel_mustafar), Szene mit 37 Figuren (md_am/intro2_sith), Bildzeit je Tab ruhend und in Bewegung (240 Bilder nach 12 Anlauf), Leerlauf (8 s, darfRuhen), Speicher (Spitze, Arbeitssatz, privat, Grafikkarte), Karten-Editor (Vorlage duel_jeditemple wie im Spiel, `BHED_LEISTUNG_MAP` mit Echtzeit-Licht), Model-Tab, Menue-Editor. `BHED_LEISTUNG_NUR` waehlt Abschnitte.
+- Bildzeit: `render::bildMessung` (neu, `gui/backend_win32.cpp`): Prozessor von newFrame bis vor Present, Grafikkarte per D3D11-Zeitmarken ueber dieselbe Strecke (Ring ueber 4 Bilder, DO_NOT_FLUSH). Nur waehrend der Messung aktiv. `platform::prozessStand` fuer Prozessorzeit und Speicher.
+- Bilder fuer den Vergleich: Vorschau direkt aus dem Ziel (`gpu::leseFarbe`), Kamera des Karten-Editors (`kameraBild`), Model und Menue als ganzes Fenster; feste Zeit (`playMs` 0 bzw. Szene bei 40 %, `spielbildZeitFest` 10 s fuer das Spielbild des Editors). Vergleich byte-genau mit `bildgleich.py`.
+- Profiler: eigener Stichproben-Profiler `sampler.py` (haelt den Hauptfaden etwa 550 mal je Sekunde an, StackWalk64 mit der PDB, selbst/inklusive/Aufrufer). Tracy braucht Netz, VSDiagnostics/WPR Adminrechte.
+- **Wichtig:** Im Selbsttest ist die D3D-Debugschicht ab Werk an. Erste Messungen mit ihr: Szene spielt 16 ms, Karten-Editor 14 ms je Bild - alles Debugschicht. Gemessen wird darum mit `BHED_D3D_DEBUG=0` und gewaermtem Shaderspeicher (wie beim Anwender ab dem zweiten Start). Ruhig, ein Prozess, nichts parallel.
+
+### Gefunden und behoben: Absturz im Karten-Editor (rot l12v1, gruen ab l12v2)
+Der erste Lauf stuerzte ab (0xC0000005 in `gpu::zeichneGluehen`, gpumap_win32.cpp:3402, Abbild per `dumpstapel.py`): `gluehenKlingen(&klingen)` merkte sich einen Zeiger auf einen Vektor vom Stapel des Vorschaubilds, `gluehenEffekte` das Effektnetz der Mission. Das Spielbild des Karten-Editors (Teil 11) ruft `zeichneGluehen` ohne sie und las die alten Zeiger - nach einer Szene mit Schwertern in der Vorschau, dann "Built map as in the game". Ausserdem lagen so die leuchtenden Effektteilchen der Mission im Gluehen der Editor-Karte. Jetzt gelten beide nur fuer den naechsten Aufruf (`std::exchange`).
+
+### Grundstand (l12w0, alter Stand, ohne Debugschicht, Shader gewaermt) und nachher (l12w6/l12w7)
+| Messpunkt | vorher | nachher | Gewinn |
+|---|---|---|---|
+| Programmstart bis erstes Bild | 1970 ms | 1946 ms | - |
+| Wechsel Events -> Mission (erstes Mal) | 433 ms | 436 ms | - (Schwertgriffe und Klingenbilder, siehe Offen) |
+| Wechsel uebrige Tabs (erstes / zweites Mal) | 0,2 bis 13 ms / unter 1 ms | gleich | - |
+| mp/duel1 geladen / erstes Bild | 433 / 791 ms | 274 / 650 ms | -37 % / -18 % |
+| md_toaj_jedi geladen / erstes Bild | 1857 / 2438 ms | 1407 bis 1496 / 1975 bis 2058 ms | -22 % / -17 % |
+| md_am_sith geladen / erstes Bild | 2957 / 4811 ms | 1174 bis 1264 / 2574 bis 2637 ms | -59 % / -46 % |
+| Szene md_am/intro2_sith (37 Figuren) aufbauen | 2502 ms | 1704 bis 1769 ms | -30 % |
+| duel_mustafar geladen / erstes Bild | 286 / 2027 ms | 288 bis 294 / 1598 bis 1699 ms | - / -18 % |
+| Karten-Editor duel_jeditemple.map oeffnen | 5471 ms | 3026 ms | -45 % |
+| Mission Szene spielt CPU / GPU / Bildabstand | 5,80 / 3,49 / 6,00 ms | 3,52 / 2,49 / 4,22 ms | -39 % CPU, Bildschirmtakt (240 Hz) erreicht |
+| Mission md_toaj_jedi Flug CPU / GPU p99 | 2,90 / 11,4 ms | 3,00 / 2,5 ms | GPU-Spitzen weg |
+| Mission ruhend (duel1, toaj, Szene, mustafar) CPU | 0,4 bis 1,0 ms | 0,4 bis 0,9 ms | - |
+| Karten-Editor Spielbild ruhend / dreht CPU, GPU | 1,68 / 1,65 ms, 2,85 / 2,44 ms | 1,69 / 1,68 ms, 2,85 / 2,48 ms | - |
+| Karten-Editor Echtzeit-Licht ruhend / dreht CPU, GPU | 1,81 / 2,02 ms, 2,68 / 5,77 ms | 1,84 / 2,32 ms, 2,67 / 5,72 ms | - |
+| Model ruhend / Animation CPU | 0,57 / 0,59 ms | 0,49 / 0,54 ms | - |
+| Menue-Editor ruhend / Maus CPU | 0,55 / 0,65 ms | 0,41 / 0,49 ms | - |
+| Leerlauf (alle Tabs) | 0,8 bis 2,7 % eines Kerns, 3,8 Bilder/s | 0,8 bis 3,8 %, 3,8 Bilder/s | - (Ruhe greift schon) |
+| Speicher nach md_am_sith privat / Grafik | 2958 / 1014 MB | 2820 / 931 MB | -138 / -83 MB |
+| Speicher Spitze am Ende | 3629 MB | 3616 MB | - |
+| Selbsttest `leistung` (Nebenwert) | - | 1 min 48 s | - |
+
+Mit Debugschicht (wie im Selbsttest ab Werk) war derselbe Grundstand: Szene spielt 16,1 ms, Karten-Editor Spielbild 14,1 ms.
+
+### Massnahmen (je ein Commit)
+1. **Bildvorrat fuer die Karte** (`bildVorratFuellen`, `bildLesen`, gui/app_view3d.cpp; `loadMapTextures`): alle Bilder, die die Schleife laedt - Grundbilder in der Reihenfolge von `texturLaden`, Himmelsseiten, weitere Stufen, animMap-Folgen - werden vorab verteilt gelesen, entziffert und verkleinert, nach DATEINAMEN abgelegt; `texturLaden` nimmt sie mit `bildLesen` ab, am Ende wird der Rest verworfen. texCache und ladeBilder entstehen wie zuvor. Dabei gefunden: das alte Vorwaermen nahm die Kandidaten in der falschen Reihenfolge (Datei des Shadernamens vor dem Bild des Skripts) und entzifferte bei den Zwittern aus rc348 ein ungenutztes Bild, das danach als Karte im Speicher lag (darum privat -138 MB, Grafik -83 MB auf md_am_sith).
+   - Erster Versuch nach dem texCache-Schluessel: falsch, x.tga und x.jpg teilen den Schluessel (Himmel von md_toaj_jedi schwarz, Dampf in md_am_sith fehlte, l12w1). Im Bildvergleich rot gesehen, nach Dateinamen gruen.
+2. **Bildvorrat fuer Figuren** (`texturesFor`, `ladeStufenBild`): je Modell alle Haut- und Stufenbilder vorab, dieselben `bildLesen`-Aufrufe.
+3. **Karten-Editor**: die Bildgroessen der Shader (`Texturinventar::bildMass` entziffert dafuer das ganze Bild, QERApp_LoadImage) vor `AktiveShader::holen` verteilt (`arbeiter::verteilt`); die neun Einstiege des Echtzeit-Licht-Shaders verteilt uebersetzen.
+4. **Zweiter Indexpuffer der Karte** (gpumap_win32.cpp): Hauptbild und Himmelsportal (misc_skyportal) haben je ihr PVS und wechselten sich je Bild ab - zweimal je Bild wurde der ganze Indexpuffer kopiert, genullt und hochgeladen (Profiler: memcpy, memset und Treiber zusammen rund ein Viertel der Bildzeit). Jetzt merkt sich die Karte den Puffer der vorigen Maske; steht dieselbe Maske schon in einem der beiden, wird nur gebunden. Kostet einen weiteren Indexpuffer der Karte auf der Grafikkarte (nur nach einem Sichtwechsel angelegt).
+
+### Beweis: nichts verloren
+- **Bild:** 10 feste Bilder je Lauf (Mission toaj, Szene bei 40 % direkt und als Fenster, mustafar mit Wetter und Nebel, Editor-Spielbild, Editor-Zeichner mit Vorlage, Echtzeit-Licht, Editor-Fenster, Model, Menue). Vorher gegen nachher byte-gleich. Zwei begruendete Ausnahmen: die fps-Zahl in der Statusleiste des Fensterbilds (Messwert, "5 fps"/"7 fps"), und `editor_vorlage` (Zeichner des Editors mit Vorlage) ist schon zwischen zwei Laeufen desselben alten Stands nicht gleich (l12v3/l12v4: 156801 Bildpunkte, Zeitbezug im Zeichner); nachher 0 bis 5 Bildpunkte mit Abweichung 1, l12w6 ganz gleich.
+- **Gegenprobe im Selbsttest** (`leistung`, Abschnitt g): md_toaj_jedi (loadMapTexturesFuer) und alle Figurenmodelle der Szene (texturesFor) je einmal mit und ohne Vorrat bei leerem texCache: alle Bildpunkte, Pyramiden, Stufen-, Folgen- und Himmelsverweise gleich, 2 OK 0 FEHLER (l12g1, l12w6).
+- **Dateien:** keine Aenderung an Bau, Export oder q3map2.
+- Lints: lint_sources, lint_fassung, lint_cbuffer, lint_gapp, lint_i18n, lint_imgui_context, lint_feldinit, lint_headers ok; lint_d3dbesitz 15, lint_portability 117 und lint_settings 4 wie vorher. Bau 0 Warnungen.
+
+### Verworfen oder nicht eingebaut (mit Zahl)
+- Leerlauf: Die Ruhe aus rc596 greift (3,8 Bilder/s, 0,8 bis 3,8 % eines Kerns); Bild und Present ganz auslassen bringt hoechstens diese Prozente und kann Veraltetes stehen lassen. Nicht eingebaut.
+- Spielbild des Karten-Editors je Bild neu: noetig, es laeuft mit der Shaderzeit (tcMod, Bildfolgen); 1,7 ms CPU, 2,8 ms GPU.
+- Konstantenpuffer/Ring, Zustandswechsel: schon da (Ring mit NO_OVERWRITE, VSSetConstantBuffers1, Zustand nur bei Wechsel). Ohne Debugschicht ist der Zeichenweg der Szene nach Massnahme 4 bei 3,5 ms CPU, darin kein Einzelposten ueber 5 %.
+- Strahltests der Entity-Marken beim Fliegen (drawCameraGizmos/traceRay, 35 % der Arbeit im Flug, laeuft schon verteilt): Flug p50 1,3 ms; die p99-Spitzen 13 ms nicht weiter aufgeklaert.
+- Klingenbilder beim ersten Wechsel in den Mission-Tab (bladeTexture, 18 Bilder auf 256 verkleinert, rund 0,15 s einmalig): unter der Schwelle fuer den Aufwand.
+- `/GL` und `/LTCG`: nicht gebaut. Der Profiler zeigt die heissen Stellen im Treiber (Zeichenaufrufe) und in Entzifferern, die je in einer Datei stehen; ein Gewinn durch Einbetten ueber Dateien hinweg ist dort nicht zu erwarten, der Bau wuerde deutlich laenger und hat die bekannte ICE-Vorgeschichte. Vorschlag rc609 mit eigenem Release-Bau.
+- PGO: aus demselben Grund nicht geprueft.
+- GPU-Skinning per Compute: Figuren haeuten schon auf der Grafikkarte (Teil 7); im Profil kein Posten.
+- ImGuiListClipper: in den gemessenen Tabs keine Liste im Profil.
+
+### Vorschlaege rc609
+- `/GL` + `/LTCG` mit eigenem Release-Bau und dieser Messung (Szene spielt, Laden), dazu PGO mit dem Lauf `leistung` als Profil.
+- Effektshader-Bilder in `prepareScene` (ladeEffektShader, im Profil rund 0,1 bis 0,3 s je Karte) und die Klingenbilder ebenfalls in den Bildvorrat.
+- Flug: p99-Spitzen (13 ms) mit dem Profiler je Spitze aufschluesseln.
+- Grosse Dateien (gui/app_view3d.cpp, gui/app_menue.cpp, gui/gpumap_win32.cpp) teilen; der zweite Zeichner (karte_gpu_win32.cpp) und gpumap teilen sich keine Shader-Uebersetzung (der Editor hat keinen Shaderspeicher auf der Platte; die Uebersetzung laeuft jetzt verteilt, mit Speicher waere sie ab dem zweiten Start ganz weg).
+
+### Offen aus Teil 12
+- Erster Wechsel in den Mission-Tab 0,43 s (Schwertgriffe und Klingenbilder einmalig).
+- Selbsttest mit Debugschicht ab Werk: Bildzeiten in Selbsttests sind darum nicht die des Anwenders (Hinweis fuer kuenftige Messungen).
+- Nicht gegen ein Vorbild geprueft: es gibt keins, der Beweis ist der Bildvergleich vorher/nachher und die Gegenprobe.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -976,6 +1051,10 @@ Weiter offen:
 - Map editor: new Build > Built map as in the game (on by default): after the quick bake, or with a template .bsp, the camera shows the built map through the Mission tab renderer - all shader stages, sky box, glow, fog, PVS and the game's gamma; selection, handles and lines stay on top.
 - Map editor: lightmaps and the real-time light are no longer doubled; floors and walls of the built map now match the game (measured 1.00 to 1.02 on twelve maps).
 - Map editor: the real-time light follows _noshadersun and _minvertexlight like q3map2 and reads entity keys regardless of case; its tooltip names what the preview cannot show.
+- Faster loading: all images of a map (sky, extra stages, animMap frames included) and the textures of every figure are decoded in parallel; md_am_sith loads in 1.2 s instead of 3.0 s, the 37-figure scene md_am/intro2_sith builds in 1.7 s instead of 2.5 s. Pictures are byte-identical.
+- Map editor: opening a map is about 45 % faster (duel_jeditemple.map 3.0 s instead of 5.5 s): texture sizes and the real-time light shaders are prepared in parallel.
+- Preview: on maps with a sky portal the map index buffer is no longer rebuilt twice per frame; playing the md_am_sith scene needs 3.5 ms instead of 5.8 ms CPU per frame. Same picture.
+- Fixed: the map editor crashed with "Built map as in the game" after a scene with lightsabers had played in the preview; the glow of the editor map no longer picks up effect particles of the mission.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1059,6 +1138,10 @@ Weiter offen:
 - Karten-Editor: neu Build > Gebaute Karte wie im Spiel (ab Werk an): nach dem Schnell-Backen oder mit einer Vorlage-.bsp zeigt die Kamera die gebaute Karte mit dem Zeichner des Mission-Tabs - alle Shader-Stufen, Himmelsbox, Glühen, Nebel, PVS und das Gamma des Spiels; Auswahl, Griffe und Linien bleiben darüber.
 - Karten-Editor: Lightmaps und Echtzeit-Licht werden nicht mehr verdoppelt; Böden und Wände der gebauten Karte stimmen jetzt mit dem Spiel überein (gemessen 1,00 bis 1,02 auf zwölf Karten).
 - Karten-Editor: das Echtzeit-Licht beachtet _noshadersun und _minvertexlight wie q3map2 und liest Entity-Schlüssel unabhängig von Groß- und Kleinschreibung; sein Tooltip nennt, was die Vorschau nicht zeigen kann.
+- Schneller laden: alle Bilder einer Karte (auch Himmel, weitere Stufen, animMap-Folgen) und die Texturen jeder Figur werden parallel entpackt; md_am_sith lädt in 1,2 statt 3,0 s, die Szene md_am/intro2_sith mit 37 Figuren steht in 1,7 statt 2,5 s. Die Bilder sind bytegleich.
+- Karten-Editor: eine Karte öffnet rund 45 % schneller (duel_jeditemple.map 3,0 statt 5,5 s): Texturgrößen und die Shader des Echtzeit-Lichts werden parallel vorbereitet.
+- Vorschau: auf Karten mit Himmelsportal wird der Indexpuffer der Karte nicht mehr zweimal je Bild neu gebaut; die Szene auf md_am_sith braucht beim Abspielen 3,5 statt 5,8 ms Prozessorzeit je Bild. Gleiches Bild.
+- Behoben: Der Karten-Editor stürzte mit „Gebaute Karte wie im Spiel“ ab, wenn vorher in der Vorschau eine Szene mit Lichtschwertern lief; das Glühen der Editor-Karte nimmt keine Effektteilchen der Mission mehr mit.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1142,6 +1225,10 @@ Weiter offen:
 - 地图编辑器:新增 Build > 已构建的地图如游戏中显示(默认开启):快速烘焙之后或使用模板 .bsp 时,摄像机用任务选项卡的渲染器显示已构建的地图——所有着色器阶段、天空盒、辉光、雾、PVS 和游戏伽马;选择、手柄和线条保持在上方。
 - 地图编辑器:光照贴图和实时光照不再加倍;已构建地图的地面和墙壁现在与游戏一致(在十二张地图上测得 1.00 到 1.02)。
 - 地图编辑器:实时光照像 q3map2 一样遵循 _noshadersun 和 _minvertexlight,并且不区分大小写地读取实体键;其提示说明预览无法显示的内容。
+- 加载更快：地图的所有图像（包括天空、附加阶段、animMap 序列）以及每个角色的纹理现在并行解码；md_am_sith 加载只需 1.2 秒而不是 3.0 秒，含 37 个角色的场景 md_am/intro2_sith 只需 1.7 秒而不是 2.5 秒。画面逐字节相同。
+- 地图编辑器：打开地图快约 45%（duel_jeditemple.map 3.0 秒而不是 5.5 秒）：纹理尺寸和实时光照着色器并行准备。
+- 预览：在带天空传送门的地图上，地图索引缓冲区不再每帧重建两次；播放 md_am_sith 场景每帧只需 3.5 毫秒而不是 5.8 毫秒 CPU 时间。画面相同。
+- 修复：在预览中播放过带光剑的场景后，地图编辑器使用“已构建的地图如游戏中显示”时会崩溃；编辑器地图的辉光不再带入任务中的特效粒子。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1225,6 +1312,10 @@ Weiter offen:
 - マップエディター:新しく Build > ビルドしたマップをゲームと同じ表示に(初期設定でオン):クイックベイクの後、またはテンプレート .bsp があるとき、カメラはミッションタブのレンダラーでビルド済みマップを表示します。シェーダーの全ステージ、スカイボックス、グロー、フォグ、PVS、ゲームのガンマ。選択、ハンドル、線は上に残ります。
 - マップエディター:ライトマップとリアルタイムライトが 2 倍にならなくなりました。ビルドしたマップの床と壁がゲームと一致します(12 個のマップで 1.00 から 1.02 を測定)。
 - マップエディター:リアルタイムライトは q3map2 と同じく _noshadersun と _minvertexlight に従い、エンティティのキーを大文字小文字に関係なく読みます。ツールチップにプレビューで表示できないものが書かれています。
+- 読み込みの高速化：マップのすべての画像（空、追加ステージ、animMap の連番を含む）と各フィギュアのテクスチャを並列でデコードします。md_am_sith は 3.0 秒ではなく 1.2 秒で読み込まれ、37 体のフィギュアがいるシーン md_am/intro2_sith は 2.5 秒ではなく 1.7 秒で構築されます。画像はバイト単位で同一です。
+- マップエディター：マップを開く時間が約 45% 短縮（duel_jeditemple.map は 5.5 秒ではなく 3.0 秒）。テクスチャサイズとリアルタイムライトのシェーダーを並列で準備します。
+- プレビュー：スカイポータルのあるマップで、マップのインデックスバッファを 1 フレームに 2 回作り直さなくなりました。md_am_sith のシーン再生は 1 フレームあたり CPU 5.8 ms ではなく 3.5 ms です。画像は同じです。
+- 修正：プレビューでライトセーバーのあるシーンを再生した後、「ビルドしたマップをゲームと同じ表示に」でマップエディターがクラッシュしていました。エディターのマップのグローにミッションのエフェクト粒子が混ざらなくなりました。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1308,6 +1399,10 @@ Weiter offen:
 - Editor de mapas: nuevo Build > Mapa compilado como en el juego (activado por defecto): tras el horneado rápido, o con un .bsp de plantilla, la cámara muestra el mapa compilado con el renderizador de la pestaña Misión: todas las etapas de los shaders, caja de cielo, brillo, niebla, PVS y la gamma del juego; la selección, los tiradores y las líneas quedan encima.
 - Editor de mapas: los lightmaps y la luz en tiempo real ya no se duplican; suelos y paredes del mapa compilado coinciden ahora con el juego (medido 1,00 a 1,02 en doce mapas).
 - Editor de mapas: la luz en tiempo real respeta _noshadersun y _minvertexlight como q3map2 y lee las claves de entidad sin distinguir mayúsculas; su información indica lo que la vista previa no puede mostrar.
+- Carga más rápida: todas las imágenes de un mapa (también cielo, etapas adicionales y secuencias animMap) y las texturas de cada figura se decodifican en paralelo; md_am_sith carga en 1,2 s en lugar de 3,0 s, la escena md_am/intro2_sith con 37 figuras se monta en 1,7 s en lugar de 2,5 s. Las imágenes son idénticas byte a byte.
+- Editor de mapas: abrir un mapa es un 45 % más rápido (duel_jeditemple.map 3,0 s en lugar de 5,5 s): los tamaños de textura y los shaders de la luz en tiempo real se preparan en paralelo.
+- Vista previa: en mapas con portal de cielo el búfer de índices del mapa ya no se reconstruye dos veces por fotograma; reproducir la escena de md_am_sith necesita 3,5 ms de CPU por fotograma en lugar de 5,8 ms. La imagen es la misma.
+- Corregido: el editor de mapas se cerraba con "Mapa compilado como en el juego" después de reproducir en la vista previa una escena con sables de luz; el resplandor del mapa del editor ya no recoge partículas de efectos de la misión.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1391,3 +1486,7 @@ Weiter offen:
 - Editor map: nově Build > Sestavená mapa jako ve hře (ve výchozím stavu zapnuto): po rychlém zapečení nebo se šablonou .bsp ukazuje kamera sestavenou mapu vykreslovačem karty Mise – všechny fáze shaderů, skybox, záři, mlhu, PVS a gamu hry; výběr, úchyty a čáry zůstávají nahoře.
 - Editor map: lightmapy a světlo v reálném čase se už nezdvojnásobují; podlahy a stěny sestavené mapy teď odpovídají hře (změřeno 1,00 až 1,02 na dvanácti mapách).
 - Editor map: světlo v reálném čase respektuje _noshadersun a _minvertexlight jako q3map2 a čte klíče entit bez ohledu na velikost písmen; jeho nápověda říká, co náhled nedokáže ukázat.
+- Rychlejší načítání: všechny obrázky mapy (i obloha, další fáze a sekvence animMap) a textury každé postavy se dekódují paralelně; md_am_sith se načte za 1,2 s místo 3,0 s, scéna md_am/intro2_sith se 37 postavami je hotová za 1,7 s místo 2,5 s. Obraz je bajtově shodný.
+- Editor map: otevření mapy je asi o 45 % rychlejší (duel_jeditemple.map 3,0 s místo 5,5 s): velikosti textur a shadery světla v reálném čase se připravují paralelně.
+- Náhled: na mapách s portálem oblohy se indexový buffer mapy už nepřestavuje dvakrát za snímek; přehrávání scény na md_am_sith potřebuje 3,5 ms procesoru na snímek místo 5,8 ms. Stejný obraz.
+- Opraveno: editor map spadl s volbou „Sestavená mapa jako ve hře“, když předtím v náhledu běžela scéna se světelnými meči; záře mapy v editoru už nebere částice efektů z mise.
