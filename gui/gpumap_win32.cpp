@@ -112,6 +112,15 @@ struct Netzpuffer {
     // irgendwann von der anderen weg. Der Puffer weiss es selbst.
     UINT schrittweite = 0;
     std::uint64_t verdecktStand = 0;   // setzeVerdeckteFlaechen: Stand im Indexpuffer der Karte
+    // rc608 Teil 12: der Indexpuffer der Karte fuer die vorige Sichtmaske (setzeVerdeckteFlaechen) und welche Maske in
+    // `ib` und `ibAlt` steht. Hauptbild und Himmelsportal (misc_skyportal) wechseln sich je Bild ab und haben je ihr
+    // eigenes PVS; vorher wurde dabei zweimal je Bild der ganze Indexpuffer neu gefuellt und hochgeladen (Selbsttest
+    // leistung, md_am_sith: rund ein Viertel der Prozessorzeit beim Abspielen). Leer und ...Da = true: alles sichtbar.
+    ID3D11Buffer* ibAlt = nullptr;
+    std::vector<char> ibMaske;
+    std::vector<char> ibAltMaske;
+    bool ibMaskeDa = false;
+    bool ibAltDa = false;
     // --- Woher der Puffer stammt ------------------------------------------
     //
     // Die Groesse allein reicht NICHT als Kennzeichen. Das Netz wird neu
@@ -6869,6 +6878,9 @@ void gibNetzpufferFrei() {
     for (Netzpuffer& n : g_netz) {
         if (n.vb != nullptr) { n.vb->Release(); n.vb = nullptr; }
         if (n.ib != nullptr) { n.ib->Release(); n.ib = nullptr; }
+        if (n.ibAlt != nullptr) { n.ibAlt->Release(); n.ibAlt = nullptr; }   // rc608 Teil 12
+        n.ibMaskeDa = false;
+        n.ibAltDa = false;
         n.vbGroesse = 0;
         n.ibGroesse = 0;
     }
@@ -7327,6 +7339,9 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         // Eine Zeile, nicht zwei: hier standen zwei Freigaben desselben
         // Zeigers hintereinander, von denen die erste wirkungslos war.
         if (np.ib != nullptr) { np.ib->Release(); np.ib = nullptr; }
+        if (np.ibAlt != nullptr) { np.ibAlt->Release(); np.ibAlt = nullptr; }   // rc608 Teil 12: gehoerte zum alten Netz
+        np.ibMaskeDa = false;
+        np.ibAltDa = false;
         D3D11_BUFFER_DESC bd{};
         bd.ByteWidth = static_cast<UINT>(dyn ? ibPlatz : ibBytes);
         // Die Karte: UpdateSubresource, wenn sich hinter Portalen etwas aendert.
@@ -7351,15 +7366,47 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     // Hinter Portalen: die Dreiecke dieser Flaechen werden leer (alle Indizes gleich).
     if (netzId == 0 && (ibNeu || np.verdecktStand != g_verdecktStand)) {
         np.verdecktStand = g_verdecktStand;
-        std::vector<std::uint32_t> neu(idxDaten, idxDaten + nIdx);
-        if (geo == g_verdecktGeo && geo != nullptr && g_verdeckt.size() == geo->surfaces.size()) {
-            for (const BspMesh::Run& r : mesh.runs) {
-                if (r.surface < g_verdeckt.size() && g_verdeckt[r.surface] != 0 && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx) {
-                    std::fill_n(neu.begin() + static_cast<std::ptrdiff_t>(r.firstIndex), r.numIndexes, 0U);
+        static const std::vector<char> kAllesSichtbar;
+        const bool mitMaske = geo == g_verdecktGeo && geo != nullptr && g_verdeckt.size() == geo->surfaces.size();
+        const std::vector<char>& maske = mitMaske ? g_verdeckt : kAllesSichtbar;
+        const auto tauscheFaecher = [&np] {
+            std::swap(np.ib, np.ibAlt);
+            std::swap(np.ibMaske, np.ibAltMaske);
+            std::swap(np.ibMaskeDa, np.ibAltDa);
+        };
+        // rc608 Teil 12: Steht diese Maske schon in einem der beiden Puffer, ist ihr Inhalt fertig - nur binden.
+        if (np.ibMaskeDa && np.ibMaske == maske) {
+            // unveraendert
+        } else if (np.ibAltDa && np.ibAlt != nullptr && np.ibAltMaske == maske) {
+            tauscheFaecher();
+        } else {
+            if (np.ibMaskeDa) {
+                // Das jetzige wird das vorige; gefuellt wird das andere (beim ersten Mal neu angelegt, gleich gross).
+                tauscheFaecher();
+                if (np.ib == nullptr) {
+                    D3D11_BUFFER_DESC bd{};
+                    bd.ByteWidth = static_cast<UINT>(np.ibGroesse);
+                    bd.Usage = D3D11_USAGE_DEFAULT;
+                    bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+                    if (FAILED(d->CreateBuffer(&bd, nullptr, &np.ib))) {
+                        tauscheFaecher();   // kein zweiter Puffer: wie bisher den einen neu fuellen
+                    } else {
+                        benenne(np.ib, "Indizes: Karte (zweite Sicht)");
+                    }
                 }
             }
+            std::vector<std::uint32_t> neu(idxDaten, idxDaten + nIdx);
+            if (mitMaske) {
+                for (const BspMesh::Run& r : mesh.runs) {
+                    if (r.surface < g_verdeckt.size() && g_verdeckt[r.surface] != 0 && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx) {
+                        std::fill_n(neu.begin() + static_cast<std::ptrdiff_t>(r.firstIndex), r.numIndexes, 0U);
+                    }
+                }
+            }
+            c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
+            np.ibMaske = maske;
+            np.ibMaskeDa = true;
         }
-        c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
     }
     np.quelleVerts = mesh.verts.data();
     np.quelleIdx = mesh.indexes.data();
