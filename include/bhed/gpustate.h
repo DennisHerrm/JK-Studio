@@ -128,9 +128,6 @@ enum Feature : std::uint32_t {
     kDeformNormal  = 1U << 20,  //   11 - die Normalen wackeln
     // Wolkenschicht des Himmels (rc592): st aus der Blickrichtung.
     kWolke         = 1U << 21,
-    // Himmel durch ein misc_skyportal (rc593): das Portalbild Pixel fuer
-    // Pixel statt der Himmelsbox. Gesetzt beim Zeichnen, nicht von pipelineFor.
-    kSkyPortal     = 1U << 22,
     // alphaGen portal (rc593): Alpha aus dem Abstand zum Auge, im Vertexshader.
     kAlphaPortal   = 1U << 23,
     // Spiegelbild (rc593): statt der Textur das Bild des Spiegeldurchgangs

@@ -275,9 +275,21 @@ ZielFelder g_geparkt[kZielSaetze];
 int g_zielSatz = 0;
 // Zaehlt die Bilder der Ansicht (neuesBild) - siehe Netzpuffer::dynBild.
 std::uint64_t g_bildNummer = 1;
-// Himmelsportal (rc593): >= 0 heisst, Himmelsflaechen zeigen das Bild dieses
-// Satzes statt der Himmelsbox, und die Wolkenschichten fallen weg.
+// Himmelsportal (rc593): >= 0 heisst, das Bild dieses Satzes steht zu Beginn im
+// Ziel und die Karte zeichnet keinen Himmel.
 int g_himmelPortalSatz = -1;
+// GL_State(0) und die Rechtecke innen an der Box: ohne Keule, auch im gespiegelten Bild.
+std::uint32_t himmelMerkmale(std::uint32_t f) { return (f & ~static_cast<std::uint32_t>(kCullBack)) | kCullNone; }
+// Die Himmelsbox: bhed/himmelbox.h. Eine Liste je Netz der Karte.
+HimmelVorgabe g_himmelVorgabe;
+HimmelBox g_himmelBox;
+const void* g_himmelBoxNetz = nullptr;
+std::size_t g_himmelBoxStand = 0U;
+const TextureSet* g_himmelBoxBilder = nullptr;
+std::vector<HimmelRechteck> g_himmelRechtecke;
+ID3D11Buffer* g_himmelVb = nullptr;
+ID3D11Buffer* g_himmelIb = nullptr;
+std::size_t g_himmelPlaetze = 0U;
 // Spiegel (rc593): >= 0 heisst, Portalflaechen bekommen das Bild dieses
 // Satzes unter ihre Stufen gelegt.
 int g_spiegelSatz = -1;
@@ -1649,7 +1661,6 @@ ID3D11RenderTargetView* g_glowRtv[2] = {nullptr, nullptr};
 ID3D11ShaderResourceView* g_glowSrv[2] = {nullptr, nullptr};
 ID3D11Buffer* g_cbGlow = nullptr;
 ID3D11VertexShader* g_vollbildVs = nullptr;
-ID3D11PixelShader* g_glowShrinkPs = nullptr;
 ID3D11PixelShader* g_glowBlurPs = nullptr;
 ID3D11PixelShader* g_glowCompPs = nullptr;
 bool g_glowShaderVersucht = false;
@@ -2336,14 +2347,9 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
                 continue;
             }
         }
-        // Himmelsportal (rc593): der Himmel kommt aus dem Portalbild, die
-        // Wolkenschichten gehoeren dort hinein und fallen hier weg - wie
-        // RDF_SKYBOXPORTAL im Spiel, wo die Hauptszene keinen Himmel zeichnet.
-        std::uint32_t merkmale = call.state.features;
-        if (g_himmelPortalSatz >= 0) {
-            if ((merkmale & kWolke) != 0U) { continue; }
-            if ((merkmale & kSky) != 0U) { merkmale = (merkmale & ~kSky) | kSkyPortal; }
-        }
+        // Himmelsportal (rc593): RDF_SKYBOXPORTAL im Spiel, die Hauptszene zeichnet keinen Himmel und keine Wolken.
+        const std::uint32_t merkmale = call.state.features;
+        if (g_himmelPortalSatz >= 0 && (merkmale & (kSky | kWolke)) != 0U) { continue; }
         std::string sfehler;
         ShaderPaar* sp = holeShader(merkmale, call.state.numTexMods,
                                     &sfehler);
@@ -2427,10 +2433,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
         ID3D11ShaderResourceView* lm =
             (call.lightmap >= 0) ? holeLightmap(geo, call.lightmap) : nullptr;
         ID3D11ShaderResourceView* himmel = nullptr;
-        ID3D11ShaderResourceView* portal = nullptr;
-        if ((merkmale & kSkyPortal) != 0U) {
-            portal = static_cast<ID3D11ShaderResourceView*>(zielTexturSatz(g_himmelPortalSatz));
-        } else if ((call.state.features & kSky) != 0U) {
+        if ((call.state.features & kSky) != 0U) {
             himmel = holeHimmel(textures, bs2.skyFaces);
         }
         // --- Spiegel (rc593): erst das Spiegelbild, Pixel fuer Pixel ------
@@ -2490,8 +2493,8 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
                 }
             }
         }
-        ID3D11ShaderResourceView* srvs[4] = {bild, lm, himmel, portal};
-        const UINT zahl = (portal != nullptr) ? 4U : 3U;
+        ID3D11ShaderResourceView* srvs[4] = {bild, lm, himmel, nullptr};
+        const UINT zahl = 3U;
         if (zahl != srvZahl || srvs[0] != srvDa[0] || srvs[1] != srvDa[1] || srvs[2] != srvDa[2] ||
             srvs[3] != srvDa[3]) {
             c->PSSetShaderResources(0, zahl, srvs);
@@ -2531,10 +2534,6 @@ bool wechsleAufVollbild() {
         // Lauf gemeldet.
         //
         // Zwei Zeilen, und die Aussage gilt hier statt anderswo.
-        if (g_glowShrinkPs != nullptr) {
-            g_glowShrinkPs->Release();
-            g_glowShrinkPs = nullptr;
-        }
         if (g_glowBlurPs != nullptr) {
             g_glowBlurPs->Release();
             g_glowBlurPs = nullptr;
@@ -2544,7 +2543,6 @@ bool wechsleAufVollbild() {
             g_glowCompPs = nullptr;
         }
         const std::string vs = vollbildVertexShaderHlsl();
-        const std::string v = glowShrinkPixelShaderHlsl();
         const std::string b = glowBlurPixelShaderHlsl();
         const std::string k = glowCompositePixelShaderHlsl();
         ID3DBlob* blob = nullptr;
@@ -2555,14 +2553,6 @@ bool wechsleAufVollbild() {
             d->CreateVertexShader(blob->GetBufferPointer(),
                                   blob->GetBufferSize(), nullptr,
                                   &g_vollbildVs);
-            blob->Release();
-        }
-        if (SUCCEEDED(d3dUebersetzen(v.data(), v.size(), "glowshrink", nullptr,
-                                 nullptr, "main", "ps_4_0", uebersetzFahnen(), 0, &blob,
-                                 &err))) {
-            d->CreatePixelShader(blob->GetBufferPointer(),
-                                 blob->GetBufferSize(), nullptr,
-                                 &g_glowShrinkPs);
             blob->Release();
         }
         if (SUCCEEDED(d3dUebersetzen(b.data(), b.size(), "glowblur", nullptr,
@@ -2583,8 +2573,7 @@ bool wechsleAufVollbild() {
         }
         if (err != nullptr) { err->Release(); }
     }
-    if (g_vollbildVs == nullptr || g_glowShrinkPs == nullptr ||
-        g_glowBlurPs == nullptr || g_glowCompPs == nullptr) {
+    if (g_vollbildVs == nullptr || g_glowBlurPs == nullptr || g_glowCompPs == nullptr) {
         return false;
     }
     // Kein Vertexpuffer und kein Eingabelayout - die Ecken kommen aus
@@ -2625,7 +2614,7 @@ bool wechsleAufVollbild() {
     return true;
 }
 
-void setzeGlowKonstanten(float abstand, float gewicht, bool weich) {
+void setzeGlowKonstanten(float abstand, float gewicht, bool weich, bool vollerPuffer = false) {
     ID3D11DeviceContext* c = ctx();
     if (c == nullptr || g_cbGlow == nullptr) {
         return;
@@ -2633,15 +2622,16 @@ void setzeGlowKonstanten(float abstand, float gewicht, bool weich) {
     D3D11_MAPPED_SUBRESOURCE m{};
     if (SUCCEEDED(c->Map(g_cbGlow, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
         auto* f = static_cast<float*>(m.pData);
-        f[0] = (g_glowW > 0) ? 1.0F / static_cast<float>(g_glowW) : 0.0F;
-        f[1] = (g_glowH > 0) ? 1.0F / static_cast<float>(g_glowH) : 0.0F;
+        // Der Abstand zaehlt in Bildpunkten der Quelle: im ersten Durchgang des vollen Puffers.
+        const int qb = vollerPuffer ? g_glowVollW : g_glowW;
+        const int qh = vollerPuffer ? g_glowVollH : g_glowH;
+        f[0] = (qb > 0) ? 1.0F / static_cast<float>(qb) : 0.0F;
+        f[1] = (qh > 0) ? 1.0F / static_cast<float>(qh) : 0.0F;
         f[2] = abstand;
         f[3] = gewicht;
         f[4] = weich ? 1.0F : 0.0F;
-        // Die Groesse des vollen Puffers - fuer das Kastenmittel beim
-        // Verkleinern (glowShrinkPixelShaderHlsl).
-        f[5] = static_cast<float>(g_glowVollW);
-        f[6] = static_cast<float>(g_glowVollH);
+        f[5] = 0.0F;
+        f[6] = 0.0F;
         f[7] = 0.0F;
         c->Unmap(g_cbGlow, 0);
     }
@@ -2787,6 +2777,10 @@ void setzeSpiegelung(bool an, const float ebene[4], bool umkehren) {
         g_clip[k] = (an && ebene != nullptr) ? ebene[k] : ((k == 3) ? 1.0F : 0.0F);
     }
 }
+
+void setzeHimmelSicht(const HimmelVorgabe& v) { g_himmelVorgabe = v; }
+
+const std::vector<HimmelRechteck>& himmelRechteckeZuletzt() { return g_himmelRechtecke; }
 
 void setzeHimmelPortal(int satz) {
     g_himmelPortalSatz = (satz >= 0 && satz < kZielSaetze) ? satz : -1;
@@ -3354,29 +3348,26 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     if (n == 0) {
         return 0;
     }
-    // --- Durchgang 2: verkleinern und fuenfmal weichzeichnen --------------
+    // --- Durchgang 2: fuenfmal weichzeichnen, der erste verkleinert --------
     //
-    // Fuenf Durchgaenge, Abstand waechst um 0,8 und wird gerundet,
-    // Gewicht 1,13/4 - alles aus mapview.h:578. Andere Werte ergaeben ein
-    // anderes Gluehen, und der Vergleich mit dem Rasterer waere wertlos.
+    // RB_BlurGlowTexture: r_DynamicGlowPasses 5, Abstand 0,1 und je Durchgang + r_DynamicGlowDelta 0,8, ungerundet
+    // mit GL_LINEAR, Gewicht r_DynamicGlowIntensity 1,13 / 4 (im Spiel abgefragt: alles Vorgabe). Der erste Durchgang
+    // zeichnet in r_DynamicGlowWidth x Height und liest den vollen Puffer je Zielpunkt an vier Stellen, 0,1 Bildpunkte
+    // der Quelle um die Mitte. Es gibt kein Kastenmittel: Das Gluehen ist so schmal und so hell wie im Spiel.
     setzeSchritt("Gluehen: weichzeichnen");
     if (!wechsleAufVollbild()) {
         if (fehler != nullptr) { *fehler = "Vollbild-Shader fehlt"; }
         return 0;
     }
-    // Erst verkleinern - mit dem Kastenmittel wie shrink() im Rasterer.
-    setzeGlowKonstanten(0.0F, 1.0F, weich);
-    blitte(g_glowVollSrv, g_glowRtv[0], breite, hoehe, g_glowShrinkPs);
-
     float abstand = 0.1F;
+    setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, true);
+    blitte(g_glowVollSrv, g_glowRtv[0], breite, hoehe, g_glowBlurPs);
     int quelle = 0;
-    for (int p = 0; p < 5; ++p) {
-        // RB_BlurGlowTexture: fTexelOffset 0.1, je Durchgang + r_DynamicGlowDelta, ungerundet mit GL_LINEAR.
-        setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich);
-        blitte(g_glowSrv[quelle], g_glowRtv[1 - quelle], breite, hoehe,
-               g_glowBlurPs);
-        quelle = 1 - quelle;
+    for (int p = 1; p < 5; ++p) {
         abstand += 0.8F;
+        setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich);
+        blitte(g_glowSrv[quelle], g_glowRtv[1 - quelle], breite, hoehe, g_glowBlurPs);
+        quelle = 1 - quelle;
     }
 
     // --- Durchgang 3: auflegen -------------------------------------------
@@ -6103,7 +6094,6 @@ void shutdown() {
     }
     if (g_cbGlow != nullptr) { g_cbGlow->Release(); g_cbGlow = nullptr; }
     if (g_vollbildVs != nullptr) { g_vollbildVs->Release(); g_vollbildVs = nullptr; }
-    if (g_glowShrinkPs != nullptr) { g_glowShrinkPs->Release(); g_glowShrinkPs = nullptr; }
     if (g_glowBlurPs != nullptr) { g_glowBlurPs->Release(); g_glowBlurPs = nullptr; }
     if (g_glowCompPs != nullptr) { g_glowCompPs->Release(); g_glowCompPs = nullptr; }
     g_glowShaderVersucht = false;
@@ -6141,6 +6131,16 @@ void shutdown() {
     g_spiegelSatz = -1;
     g_spiegelnd = false;
     g_nebenSicht = false;
+    if (g_himmelVb != nullptr) {
+        g_himmelVb->Release();
+        g_himmelVb = nullptr;
+    }
+    if (g_himmelIb != nullptr) {
+        g_himmelIb->Release();
+        g_himmelIb = nullptr;
+    }
+    g_himmelPlaetze = 0U;
+    g_himmelBoxNetz = nullptr;
     for (Netzpuffer& n : g_netz) {
         if (n.vb != nullptr) { n.vb->Release(); n.vb = nullptr; }
         if (n.ib != nullptr) { n.ib->Release(); n.ib = nullptr; }
@@ -6545,6 +6545,138 @@ void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* ver
     g_verdeckt = verdeckt != nullptr ? *verdeckt : std::vector<char>{};
     ++g_verdecktStand;
 }
+
+namespace {
+// RB_StageIteratorSky fuer ein Netz der Karte: qglDepthRange(1, 1), GL_State(0), die Rechtecke der Box. Die Stufen
+// rechnen ihre Farbe aus der Richtung des Bildpunkts, die Ecken bestimmen nur, welche Bildpunkte es sind.
+struct HimmelBoxEcke {
+    float pos[3];
+    float normal[3];
+    float uv[2];
+    float uvLm[2];
+    std::uint8_t farbe[4];
+};
+static_assert(sizeof(HimmelBoxEcke) == 44, "Eingabelayout erwartet 44 Byte je Ecke");
+
+bool himmelPuffer(ID3D11Device* d, std::size_t plaetze) {
+    if (plaetze <= g_himmelPlaetze && g_himmelVb != nullptr && g_himmelIb != nullptr) { return true; }
+    if (g_himmelVb != nullptr) {
+        g_himmelVb->Release();
+        g_himmelVb = nullptr;
+    }
+    if (g_himmelIb != nullptr) {
+        g_himmelIb->Release();
+        g_himmelIb = nullptr;
+    }
+    g_himmelPlaetze = 0U;
+    const std::size_t neu = std::max<std::size_t>(plaetze * 2U, 64U);
+    D3D11_BUFFER_DESC vd{};
+    vd.ByteWidth = static_cast<UINT>(neu * 4U * sizeof(HimmelBoxEcke));
+    vd.Usage = D3D11_USAGE_DYNAMIC;
+    vd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    vd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(d->CreateBuffer(&vd, nullptr, &g_himmelVb))) { return false; }
+    std::vector<std::uint32_t> idx;
+    idx.reserve(neu * 6U);
+    for (std::size_t i = 0; i < neu; ++i) {
+        const auto e = static_cast<std::uint32_t>(i * 4U);
+        for (const std::uint32_t k : {e, e + 1U, e + 2U, e, e + 2U, e + 3U}) { idx.push_back(k); }
+    }
+    D3D11_BUFFER_DESC id{};
+    id.ByteWidth = static_cast<UINT>(idx.size() * sizeof(std::uint32_t));
+    id.Usage = D3D11_USAGE_IMMUTABLE;
+    id.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA init{};
+    init.pSysMem = idx.data();
+    if (FAILED(d->CreateBuffer(&id, &init, &g_himmelIb))) { return false; }
+    g_himmelPlaetze = neu;
+    return true;
+}
+
+// Liefert die Zahl der abgesetzten Zeichenaufrufe. Die Puffer des Netzes muss der Aufrufer danach wieder binden.
+int zeichneHimmelBox(const std::vector<DrawCall>& alleCalls, const BspMesh& mesh, const TextureSet* textures, const BspGeometry* geo,
+                     const float* vorn, const float* rechts, const float* hoch, float fokus, float zeitSekunden, std::string* fehler) {
+    g_himmelRechtecke.clear();
+    if (geo == nullptr || g_himmelPortalSatz >= 0) { return 0; }
+    if (g_himmelBoxNetz != mesh.indexes.data() || g_himmelBoxStand != alleCalls.size() || g_himmelBoxBilder != textures) {
+        std::vector<HimmelKeule> keulen(geo->shaders.size(), kKeinHimmel);
+        for (const DrawCall& a : alleCalls) {
+            if ((a.state.features & (kSky | kWolke)) == 0U || a.batch >= mesh.batches.size()) { continue; }
+            const int si = mesh.batches[a.batch].shader;
+            if (si < 0 || static_cast<std::size_t>(si) >= keulen.size()) { continue; }
+            keulen[static_cast<std::size_t>(si)] = (a.state.features & kCullNone) != 0U   ? kHimmelBeide
+                                                   : (a.state.features & kCullBack) != 0U ? kHimmelHinten
+                                                                                          : kHimmelVorn;
+        }
+        g_himmelBox.anlegen(*geo, mesh, keulen);
+        g_himmelBoxNetz = mesh.indexes.data();
+        g_himmelBoxStand = alleCalls.size();
+        g_himmelBoxBilder = textures;
+    }
+    if (g_himmelBox.leer() || vorn == nullptr || rechts == nullptr || hoch == nullptr || fokus <= 0.0F) { return 0; }
+    HimmelSicht sicht;
+    for (int k = 0; k < 3; ++k) {
+        sicht.auge[k] = g_himmelVorgabe.augeOrt[k];
+        sicht.pvsOrt[k] = g_himmelVorgabe.pvsOrt[k];
+        sicht.vorn[k] = vorn[k];
+        sicht.links[k] = -rechts[k];
+        sicht.hoch[k] = hoch[k];
+    }
+    // CalcFov: gleiche Brennweite, das Seitenverhaeltnis des Ziels.
+    const float grad = 360.0F / 3.14159265358979323846F;
+    sicht.fovY = std::atan(1.0F / fokus) * grad;
+    sicht.fovX = std::atan(static_cast<float>(g_zielW) / static_cast<float>(std::max(g_zielH, 1)) / fokus) * grad;
+    sicht.distanceCull = g_himmelVorgabe.distanceCull;
+    sicht.portale = g_himmelVorgabe.portale;
+    sicht.gebiet = g_himmelVorgabe.gebiet;
+    g_himmelBox.rechne(sicht, g_himmelRechtecke);
+    if (g_himmelRechtecke.empty()) { return 0; }
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (!himmelPuffer(d, g_himmelRechtecke.size())) { return 0; }
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g_himmelVb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return 0; }
+    auto* ziel = static_cast<HimmelBoxEcke*>(m.pData);
+    // MakeSkyVec: zFar / 1.75, die Ecken liegen noch vor der fernen Ebene.
+    const float box = g_himmelVorgabe.fern / 1.75F;
+    for (const HimmelRechteck& r : g_himmelRechtecke) {
+        const float st[4][2] = {{r.s0, r.t0}, {r.s1, r.t0}, {r.s1, r.t1}, {r.s0, r.t1}};
+        for (const auto& e : st) {
+            HimmelBoxEcke x{};
+            himmelEcke(r.seite, e[0], e[1], box, x.pos);
+            for (int k = 0; k < 3; ++k) { x.pos[k] += sicht.auge[k]; }
+            x.normal[2] = 1.0F;
+            x.farbe[0] = x.farbe[1] = x.farbe[2] = x.farbe[3] = 255U;
+            *ziel++ = x;
+        }
+    }
+    c->Unmap(g_himmelVb, 0);
+    std::vector<DrawCall> aufrufe;
+    for (std::size_t i = 0; i < g_himmelRechtecke.size(); ++i) {
+        for (const DrawCall& a : alleCalls) {
+            if ((a.state.features & (kSky | kWolke)) == 0U || a.batch >= mesh.batches.size() || mesh.batches[a.batch].shader != g_himmelRechtecke[i].shader) { continue; }
+            DrawCall z = a;
+            z.firstIndex = static_cast<std::uint32_t>(i * 6U);
+            z.numIndexes = 6U;
+            z.state.features = himmelMerkmale(a.state.features);
+            z.state.depthWrite = false;
+            z.state.depthTestOff = true;
+            aufrufe.push_back(z);
+        }
+    }
+    const UINT schritt = sizeof(HimmelBoxEcke);
+    const UINT versatz = 0;
+    c->IASetVertexBuffers(0, 1, &g_himmelVb, &schritt, &versatz);
+    c->IASetIndexBuffer(g_himmelIb, DXGI_FORMAT_R32_UINT, 0);
+    D3D11_VIEWPORT vp{};
+    vp.Width = static_cast<float>(g_zielW);
+    vp.Height = static_cast<float>(g_zielH);
+    vp.MinDepth = 1.0F;
+    vp.MaxDepth = 1.0F;
+    c->RSSetViewports(1, &vp);
+    return zeichneAufrufe(aufrufe, mesh, textures, geo, zeitSekunden, fehler);
+}
+}  // namespace
 
 int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
@@ -7016,7 +7148,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     // --- Die geprüfte Liste abarbeiten ------------------------------------
     setzeSchritt("Karte: Zeichenliste bauen");
     const std::vector<DrawCall>& alleCalls = zeichenliste(mesh, textures, zeitSekunden);
-    const std::vector<DrawCall> calls = nurLage(alleCalls, lage);
+    std::vector<DrawCall> calls = nurLage(alleCalls, lage);
     if (calls.empty()) {
         // Eine LEERE LAGE ist kein Fehler.
         //
@@ -7058,8 +7190,9 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         // die Maske des Umrisses bleibt leer.
         c->ClearRenderTargetView(g_zielRtv, g_umriss ? leer : g_hintergrund);
         // CG_DrawSkyBoxPortal: Die Portalszene steht zuerst im Bild, die Hauptszene loescht die Farbe nicht
-        // (RB_BeginDrawingView). Durch ein Loch in der Karte sieht man also den Himmel des Portals.
-        if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz) {
+        // (RB_BeginDrawingView), ausser mit r_DynamicGlow und globalem Nebel. Dort, wo die Karte nichts zeichnet, bleibt
+        // sie stehen; das ist alles, was die Hauptszene vom Himmel zeigt.
+        if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz && !g_himmelVorgabe.szeneLoescht) {
             const ZielFelder& pz = g_geparkt[g_himmelPortalSatz];
             if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH) { c->CopyResource(g_zielTex, pz.tex); }
         }
@@ -7080,6 +7213,18 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     c->VSSetConstantBuffers(0, 1, &g_cbBild);
     c->PSSetConstantBuffers(0, 1, &g_cbBild);
     c->PSSetSamplers(0, 1, &g_sampler);
+
+    // --- Der Himmel (RB_StageIteratorSky): nie ueber die Flaechen ------------
+    if (netzId == 0 && !g_umriss) {
+        calls.erase(std::remove_if(calls.begin(), calls.end(), [](const DrawCall& a) { return (a.state.features & (kSky | kWolke)) != 0U; }), calls.end());
+        if (lage != Lage::Gemischt) {
+            setzeSchritt("Karte: Himmelsbox");
+            (void)zeichneHimmelBox(alleCalls, mesh, textures, geo, vorn, rechts, hoch, fokus, zeitSekunden, fehler);
+            c->IASetVertexBuffers(0, 1, &np.vb, &schritt, &versatz);
+            c->IASetIndexBuffer(np.ib, DXGI_FORMAT_R32_UINT, 0);
+            c->RSSetViewports(1, &vp);
+        }
+    }
 
     setzeSchritt("Karte: zeichnen");
     // --- Dieselbe Schleife wie der Gluehdurchgang -------------------------
@@ -7126,6 +7271,7 @@ int vorwaermen(const BspMesh& karte, const TextureSet* textures, const std::vect
     const auto stapel = [&](const BspMesh& netz) {
         for (const DrawCall& c : buildDrawCalls(netz, textures, 0.0F)) {
             (void)holeShader(c.state.features, c.state.numTexMods, &f);
+            if ((c.state.features & (kSky | kWolke)) != 0U) { (void)holeShader(himmelMerkmale(c.state.features), c.state.numTexMods, &f); }
         }
     };
     stapel(karte);
@@ -7447,6 +7593,11 @@ void waehleZiel(int) {}
 void neuesBild() {}
 void setzeHintergrund(float, float, float) {}
 void setzeHimmelPortal(int) {}
+void setzeHimmelSicht(const HimmelVorgabe&) {}
+const std::vector<HimmelRechteck>& himmelRechteckeZuletzt() {
+    static const std::vector<HimmelRechteck> kLeer;
+    return kLeer;
+}
 void setzeSpiegelBild(int) {}
 void setzeSpiegelung(bool, const float*, bool) {}
 void* zielTexturSatz(int) { return nullptr; }

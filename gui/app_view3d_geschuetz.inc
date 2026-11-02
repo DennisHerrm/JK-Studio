@@ -565,11 +565,19 @@ void geschuetzeOhneZieleRechnen() {
 // Die Geschosse in der Luft: FX_BlasterProjectileThink und FX_TurretProjectileThink
 // spielen ihren Effekt in JEDEM Bild an lerpOrigin, die Richtung in den ersten
 // 75 ms ab trTime verkuerzt (FX_Blaster.cpp:57-69, FX_Emplaced.cpp:150-163 OpenJK).
+//
+// Im Einzelspieler liest CG_CalcEntityLerpPositions den lebenden Zustand der Entity, und cg.time laeuft dem neuesten
+// Schnappschuss nach (CL_SetCGameTime: "cl.serverTime = ... - 5"). Das Serverbild T mit dem Einschlag ist also schon
+// gelaufen, waehrend cg.time noch zwischen T - 50 und T liegt: G_MissileImpact hat G_SetOrigin gerufen, TR_STATIONARY,
+// also steht der Bolzen am Einschlag und fliegt nicht durch die Figur. G_FreeEntity ohne Einschlag: CG_Missile "if
+// (!cent->gent->inuse) return".
 void geschuetzGeschosseZeichnen(double jetzt, std::vector<EffectInstance>& aus) {
     unsigned n = 1U;
     for (const Geschoss& g : g_app->geschuetzSim.geschosse()) {
         ++n;
         if (jetzt < g.abMs || (g.endeMs >= 0.0 && jetzt >= g.endeMs) || g.bahnen.empty()) { continue; }
+        const bool letztesBild = g.endeMs >= 0.0 && jetzt >= g.endeMs - 50.0;
+        if (letztesBild && !g.einschlag) { continue; }
         const GeschossBahn* b = &g.bahnen.front();
         for (const GeschossBahn& x : g.bahnen) {
             if (x.abMs > jetzt) { break; }
@@ -585,7 +593,7 @@ void geschuetzGeschosseZeichnen(double jetzt, std::vector<EffectInstance>& aus) 
         const auto d = static_cast<float>((jetzt - b->zeit) * 0.001);
         float laenge = 0.0F;
         for (int q = 0; q < 3; ++q) {
-            x.origin[q] = b->basis[q] + d * b->delta[q];
+            x.origin[q] = letztesBild ? g.ende[q] : b->basis[q] + d * b->delta[q];
             x.normal[q] = b->delta[q];
             laenge += b->delta[q] * b->delta[q];
         }

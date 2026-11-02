@@ -274,6 +274,8 @@ struct BspGeometry {
     struct Node {
         int plane = 0;
         int children[2]{};
+        float mins[3]{};   // R_RecursiveWorldNode: BoxOnPlaneSide
+        float maxs[3]{};
     };
     struct Leaf {
         int cluster = -1;

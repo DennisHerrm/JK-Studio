@@ -357,6 +357,10 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
                 n.plane = i32(b, at);
                 n.children[0] = i32(b, at + 4);
                 n.children[1] = i32(b, at + 8);
+                for (int k = 0; k < 3; ++k) {
+                    n.mins[k] = static_cast<float>(i32(b, at + 12 + static_cast<std::size_t>(k) * 4));
+                    n.maxs[k] = static_cast<float>(i32(b, at + 24 + static_cast<std::size_t>(k) * 4));
+                }
                 out.nodes.push_back(n);
             }
         }

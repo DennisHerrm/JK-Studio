@@ -3010,6 +3010,19 @@ void drawMapView() {
             }
             std::vector<ActorDraw> draws;
             draws.reserve(g_app->scene.actors.size());
+            // Das Auge fuer den Snapshot, siehe unten: nicht in einer Kamerafahrt und nicht beim Blick durch eine Kamera.
+            float spielerAuge[3] = {0.0F, 0.0F, 0.0F};
+            bool spielerAugeDa = false;
+            if (!g_app->throughCamera && !(g_app->camTrackValid && g_app->camTrack.at(g_app->playMs).enabled)) {
+                for (const Actor& a : g_app->scene.actors) {
+                    if (!a.echterSpieler) { continue; }
+                    const ActorState st = a.at(g_app->playMs);
+                    for (int k = 0; k < 3; ++k) { spielerAuge[k] = st.pos[k]; }
+                    spielerAuge[2] += 36.0F;   // DEFAULT_VIEWHEIGHT
+                    spielerAugeDa = true;
+                    break;
+                }
+            }
             for (std::size_t ai = 0; ai < g_app->scene.actors.size(); ++ai) {
                 const Actor& a = g_app->scene.actors[ai];
                 if (ai >= g_app->actorAssets.size()) {
@@ -3041,7 +3054,11 @@ void drawMapView() {
                     }
                     mn[2] = st.pos[2] - 24.0F - 1.0F;   // DEFAULT_MINS_2
                     mx[2] = st.pos[2] + std::max(a.hoeheOben, 8.0F) + 1.0F;
-                    if (!kastenImSnapshot(g_app->geo, useCam.pos, mn, mx, &g_app->areaPortale)) {
+                    // SV_BuildClientSnapshot: Die Entities kommen vom Auge des Spielers (origin + viewheight), in einer
+                    // Kamerafahrt von der Kamera (CG_CAMERA_POS). Die Kamera dahinter kann in einem anderen Gebiet stehen,
+                    // die Figur bleibt im Bild. Beim freien Flug zeigt die Ansicht dazu, was sie selbst sehen kann.
+                    const bool vomAuge = spielerAugeDa && kastenImSnapshot(g_app->geo, spielerAuge, mn, mx, &g_app->areaPortale);
+                    if (!vomAuge && !kastenImSnapshot(g_app->geo, useCam.pos, mn, mx, &g_app->areaPortale)) {
                         continue;
                     }
                 }
@@ -3352,6 +3369,32 @@ void drawMapView() {
                                       ? std::max(4.0F, bildCam.pos[2] - g_app->draufSchnitt)
                                       : 4.0F;
                 gpu::baueViewProj(bildCam, bildW, bildH, nah, kartenFern() + (nah > 4.0F ? nah : 0.0F), vp);
+                // CM_SnapPVS je Sicht: die Gebietsmaske des eigenen Orts (CG_DrawSkyBoxPortal, cg_view.cpp).
+                areaSichtSetzen(bildCam.pos);
+                {
+                    gpu::HimmelVorgabe hv;
+                    for (int k = 0; k < 3; ++k) {
+                        hv.augeOrt[k] = bildCam.pos[k];
+                        hv.pvsOrt[k] = bildCam.pos[k];
+                    }
+                    if (nebenbild && g_app->imSpiegelDurchgang) {
+                        // R_MirrorPoint: der Ort, von dem die Engine im Spiegel blickt. Die Karte wird hier mit
+                        // nebenSicht.welt gespiegelt, also die Umkehrung davon auf das Auge.
+                        const App::NebenSicht& w = g_app->nebenSicht;
+                        const float d[3] = {bildCam.pos[0] - w.welt[3], bildCam.pos[1] - w.welt[7], bildCam.pos[2] - w.welt[11]};
+                        for (int k = 0; k < 3; ++k) { hv.augeOrt[k] = w.welt[k] * d[0] + w.welt[4 + k] * d[1] + w.welt[8 + k] * d[2]; }
+                        // R_GetPortalOrientations: Eine Portalkamera bringt ihr pvsOrigin mit, ein Spiegel behaelt das alte.
+                        if (w.portal) {
+                            for (int k = 0; k < 3; ++k) { hv.pvsOrt[k] = hv.augeOrt[k]; }
+                        }
+                    }
+                    hv.fern = kartenFern() + (nah > 4.0F ? nah : 0.0F);
+                    hv.distanceCull = kartenDistanceCull();
+                    hv.portale = &g_app->areaPortale;
+                    hv.gebiet = g_app->areaAuge;
+                    hv.szeneLoescht = g_app->showGlow && std::any_of(g_app->geo.nebel.begin(), g_app->geo.nebel.end(), [](const BspGeometry::Nebel& n) { return n.global && n.gueltig; });
+                    gpu::setzeHimmelSicht(hv);
+                }
                 // --- Spiegeldurchgang (rc593) ---------------------------------
                 //
                 // Statt der gespiegelten Kamera (die sich mit Winkeln nicht
@@ -4416,11 +4459,8 @@ void drawMapView() {
                 Camera pk = kam;
                 for (int k = 0; k < 3; ++k) { pk.pos[k] = portalOrt[k]; }
                 g_app->imPortalDurchgang = true;
-                // CG_DrawSkyBoxPortal: die Portalszene hat keine Gebietsmaske, ihr Raum liegt in keinem Gebiet der Ansicht.
-                gpu::setzeVerdeckteFlaechen(&g_app->geo, nullptr);
                 const bool ok = nebenBild(pk, nw, nh, 2, "Himmelsportal");
                 g_app->imPortalDurchgang = false;
-                gpu::setzeVerdeckteFlaechen(&g_app->geo, &g_app->areaMaske);
                 return ok;
             };
             g_app->himmelPortalGezeichnet = false;

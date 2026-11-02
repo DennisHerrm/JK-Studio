@@ -589,6 +589,65 @@ Alles in 1, 2, 3, 4, 5, 6, 7, 9. Originalfotos 1920 x 1440, also nicht kleiner.
 - Himmelsbox: Rechteck um die sichtbaren Himmelsflaechen (RB_ClipSkyPolygons) nicht nachgebildet. Nur bei Loechern in der Karte sichtbar, also auf den Testkarten.
 - r_mapOverBrightBits: nicht abfragbar im Original.
 
+## Teil 8: Himmelsbox, Gluehen, Bolzen, Glas
+
+Aufnahmen jetzt wirklich 1920 x 1440: `BHED_GV_ANSICHT` kam auf 2032 bis 2198 Breite (der Schritt im Verhaeltnis schwang ueber), die Mitte hatte zwar die richtige Hoehe, das Gluehen wurde aber breiter gezogen. Jede Runde um die Luecke, Start `BHED_GV_FENSTER=2930x1530`: `Ansicht 623 144 2543 1584`. Skripte und Fotos in `SP/g8`.
+
+### 1: Himmel (Rueckschritt aus Teil 7)
+Die Testkarten haben kein `misc_skyportal`, die Copy-Regel aus Teil 7 griff dort nie. **Gefunden:** Das Spiel zeichnet die Himmelsflaechen gar nicht. RB_StageIteratorSky wirft sie mit RB_ClipSkyPolygons auf die Box und zeichnet je Seite das aufgerundete Rechteck (DrawSkyBox, Achtelraster, untere Seite nie) bei qglDepthRange(1, 1). Das rote Feld ist dieses Rechteck durch das Loch, die Byss-Fenster liegen ausserhalb. Neu `bhed/himmelbox.h`: R_MarkLeaves, R_RecursiveWorldNode (5 Ebenen, distanceCull), R_CullSurface, RB_CHECKOVERFLOW, ClipSkyPolygon, AddSkyPolygon, DrawSkyBox. Keine Tiefe, keine Keule, Stufen weiter per Bildpunkt. Hauptszene mit Portal zeichnet keinen Himmel; die Portalszene hat die Gebietsmaske ihres Orts (CM_SnapPVS, Teil 6 hatte keine); RB_BeginDrawingView loescht je Szene mit r_DynamicGlow und globalem Nebel. kSkyPortal ist weg. RB_DrawSun: r_drawSun 0, nichts zu tun. r_clear 0: Wo nichts gezeichnet wird, steht in Movie Duels schwarz (Clear im Gluehdurchgang), im Original alter Bildpuffer (Vorschau schwarz, nicht nachgebildet).
+| Stelle | Spiel | Teil 7 | jetzt |
+|---|---|---|---|
+| Mustafar Feld 1405,723 (21 x 21) | 92,2 22,1 13,8 | 0 0 0 | 92,1 22,0 13,8 |
+| Mustafar Saeule 1340,700 | 27,1 24,2 20,6 | - | 26,8 24,0 20,4 |
+| Byss Fenster links 810,300 | 0 0 0 | 0 0 0 | 0 0 0 |
+| Byss Fenster rechts 1670,380 | 0 0 0 | 0 0 0 | 0 0 0 |
+Bildzeit Mustafar 4,3 ms (Teil 6: 4,7 bis 6,3 auf der groessten Karte).
+
+### 2: Figur auf echten Karten
+Nur die Aufnahme: SelectSpawnPoint ohne spawntarget nimmt einen zufaelligen info_player_deathmatch (31 auf duel_mustafar, das Spiel stand bei 688 2176, die Vorschau am info_player_start). Mit genau einem Start in beiden (`g8/g8.pk3`: g8_must, g8_stern, g8_lb) steht die Figur deckungsgleich da: Figur 1,08 1,02 1,03 / 1,03 1,03 1,03 / 1,03 1,02 1,03, Boden 1,00. Dabei gefunden: SV_BuildClientSnapshot nimmt das Auge des Spielers, in einer Kamerafahrt die Kamera (CG_CAMERA_POS). Die Vorschau fragte nur die Kamera, der Spieler fiel weg, sobald sie in einem anderen Gebiet stand. Jetzt zaehlt das Auge; beim freien Flug zeigt sich zusaetzlich, was die Kamera sieht (Abweichung mit Absicht, im Spiel gibt es den Flug nicht). Unter OpenJK kommt die Maske der Karte aus dem Schnappschuss, unter Movie Duels aus vieworg (cg_view.cpp): die Vorschau nimmt immer die Kamera.
+
+### 3: Gluehen
+Im Spiel abgefragt: r_DynamicGlow 1, Passes 5, Delta 0,8f, Intensity 1,13f, Soft 1, Width 320, Height 240, Bloom 0,0, alles Vorgabe, wie im Code. **Gefunden:** Der erste Durchgang verkleinert nicht per Kastenmittel, er liest den vollen Puffer je Zielpunkt an vier Stellen um 0,1 Bildpunkte (RB_BlurGlowTexture). Eigenes Verkleinern und `glowShrinkPixelShaderHlsl` sind weg. Profil Zeile 560 auf g8_lb, R (G, B gleich gut), Spiel / Teil 7 / jetzt: x 920: 14/24/13, 930: 35/41/35, 950: 70/68/70, 970: 102/93/102, 1000: 100/94/100, 1020: 69/70/69, 1040: 30/41/30, 1050: 12/24/12, 1060: 6/10/6. Der Eindruck "breiter" stimmte nicht: Das Spiel ist nah am Balken heller und aussen schmaler.
+
+### 4: Figur am Bolzen
+Lichter gleich (`turret/shot`: Light 80..100, 0 0,502 0). **Gefunden:** Im Einzelspieler liest CG_CalcEntityLerpPositions den lebenden Zustand, cg.time laeuft dem Schnappschuss nach: Ist das Serverbild mit dem Einschlag gelaufen, steht der Bolzen am Einschlag (G_SetOrigin, TR_STATIONARY). Die Vorschau liess ihn bis zum Ende des Bilds weiterfliegen, durch die Figur, 13 Einheiten hinter ihr: von hinten beleuchtet, 250 Gruen. Messung Oberkoerper 880,900-1040,1100, je 70 Bilder im Abstand 15 ms Spielzeit: Spiel G-R hoechstens 0, G hoechstens 88. Vorschau vorher bei 4036 ms 57 59 16 (G-R +2, Faecher-Paar Neon), jetzt G-R hoechstens -6, G hoechstens 68. Foto `g8/erg/paar_bolzen.png`.
+
+### 5: Waffe am Hang
+Keine Abweichung. Im Spiel aus zwei Kameras eingemessen (`g8/hang_tri.py`, Ort auf 1 bis 2 Einheiten): Mitte der Waffe 10,7 ueber dem Boden, Vorschau 6,4, je an anderer Stelle (Zufall). Kasten -15..15 aus LaunchItem, G_SetOrigin(endpos) wie in der Quelle. Nichts geaendert.
+
+### 6: Glas
+**Gefunden, allgemein:** Der Grundstufe fehlte `tcGen` (`t.texGen` wurde beim Laden nie gesetzt, nur fuer Zusatzstufen). Jede Stufe 0 mit tcGen environment oder vector lag mit den st der Flaeche im Bild. Korrelation Glas mit etest4 unter st: Vorschau 0,49, jetzt -0,08 (Spiel -0,08). Feld 300,20-500,90: Spiel 53,0 55,4 58,9, Teil 7 Grauwert 67,7 gegen 56,9, jetzt 53,1 55,6 59,4.
+
+### 7: Leiche
+`leichenKastenOben` und `leichenReibung` aus dem Code gezogen, Ctest `schmerz`: DeadThink, ps.friction, PM_Friction von Hand. Die Rueckname des Kastens bei allsolid fehlt weiter.
+
+### Alle Paare nach den Eingriffen (Faktor R G B)
+| Karte | Boden links | Boden rechts | oben | Figur |
+|---|---|---|---|---|
+| Turm | 1,00 1,01 1,01 | 1,00 1,00 1,00 | 1,00 1,00 - | 1,00 1,00 1,00 |
+| Kamino | 1,03 1,03 1,02 | 1,03 1,03 1,03 | 1,05 1,02 1,04 | 1,01 1,00 1,00 |
+| Todesstern | 1,00 1,00 1,00 | 0,99 0,99 0,99 | 1,00 1,00 1,00 | 1,03 1,03 1,03 |
+| Mustafar | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,04 1,04 1,04 |
+| Akademie | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,01 1,01 1,02 |
+| Hoth | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,03 1,03 1,02 |
+| Byss | 1,02 1,02 1,02 | 1,02 1,02 1,02 | 1,00 1,00 1,00 (vorher 1,01) | 1,03 1,04 1,04 |
+| g8_must | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 0,99 0,99 0,98 | 1,08 1,02 1,03 |
+| g8_lb | 1,00 1,00 1,00 | 1,00 1,00 1,00 | 1,00 0,97 0,90 | 1,03 1,02 1,03 |
+| g8_stern | 1,00 1,00 1,00 | 0,99 0,99 0,99 | 2,52 2,52 2,48 (siehe Offen) | 1,03 1,03 1,03 |
+
+### Tests
+Ctest `himmelbox` (neu, 29 Zeilen), `schmerz` (8 neue). Selbsttest `teil6` 11/0 mit drei neuen Zeilen. Rot gesehen mit voruebergehend abgeschalteten Regeln: `himmelbox` 11 FEHL, `schmerz` 8 FEHL, `teil6` 3 FEHLER (Mustafar-Feld, Spieler im anderen Gebiet, Byss-Fenster). Die Spielerzeile war zuerst aus falschem Grund rot (Szene ohne Spieler), danach mit Mission und abgeschaltetem Auge noch einmal rot gesehen. Gelockert: `gpushader`: "das Verkleinern mittelt", "Himmelsportal" entfallen mit dem Code; das Kastenmittel beschrieb den Fehler. Das Gluehen kleiner, heller Flaechen kann dadurch wie im Spiel flimmern (rc597 wollte das vermeiden).
+
+### Nur per Foto gegen das Spiel
+Alle Paare oben, Movie Duels, `g8/erg/`. Original-JKA nicht neu aufgenommen. OpenJK-Regeln nur gegen die Quelle.
+
+### Offen aus Teil 8
+- **Neu:** duel_deathstar, Falcon (`misc_model_static`, md3 ohne Skript): Unterseite 1400,100 Spiel 20,0 21,5 22,0, Vorschau 112,1 118,7 121,7. Linke Seite gleich (160). Nicht durch Teil 8, nur auf der echten Karte sichtbar. Nicht untersucht.
+- Bolzen im Original nicht gemessen. Wolken: FillCloudBox zeichnet laut Quelle auch unter dem Horizont, der Shader verwirft dort (`clip(d.z)`), nicht geaendert.
+- Himmel an Brush-Modellen (R_AddBrushModelSurfaces) und dlightMap im Sortierschluessel fehlen in himmelbox (kein Fall auf den Karten gesehen). Karten-Editor (`karte_gpu_win32.cpp`) zeichnet weiter eigene Himmelsflaechen.
+- Glas auf Byss: Unterkante hat in der Vorschau kleine Stufen, im Spiel glatt (Foto, nicht gemessen).
+- Bildpuffer im Original (alter Inhalt hinter Loechern) nicht nachgebildet.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -666,6 +725,10 @@ Weiter offen:
 - Preview: guns in holsters hang at the right place and size; corpses lie along the slope even without falling.
 - Preview: fog near the eye and light on figures as in the game; no more hairline in the sky; no sky behind closed doors.
 - Preview: new setting Texture detail (r_picmip), each step halves the textures and saves video memory.
+- Preview: the sky is drawn as in the game: only the rectangle of the sky box around the visible sky surfaces, far behind everything. Holes in test maps now show exactly what the game shows.
+- Preview: dynamic glow as in the game (first blur pass without averaging); the halo around lights matches within 1 to 2 of 255.
+- Preview: shaders with tcGen on their first stage now use it (glass on t3_byss).
+- Preview: bolts stop at their impact and no longer light a figure green from behind; the player stays visible when the camera is in another area.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -728,6 +791,10 @@ Weiter offen:
 - Vorschau: Waffen im Holster hängen an der richtigen Stelle und in der richtigen Größe, Leichen liegen auch ohne Sturz am Hang.
 - Vorschau: Nebel nahe am Auge und Licht auf Figuren wie im Spiel, keine Haarlinie mehr im Himmel, kein Himmel hinter geschlossenen Türen.
 - Vorschau: Neue Einstellung Bildstufe (r_picmip), jede Stufe halbiert die Bilder und spart Grafikspeicher.
+- Vorschau: Der Himmel entsteht wie im Spiel: nur das Rechteck der Himmelsbox um die sichtbaren Himmelsflaechen, ganz hinten. Loecher in Testkarten zeigen genau, was das Spiel zeigt.
+- Vorschau: Gluehen wie im Spiel (erster Durchgang ohne Mittelwert), der Schein um Lichter stimmt auf 1 bis 2 von 255.
+- Vorschau: Shader mit tcGen in der ersten Stufe beachten es jetzt (Glas auf t3_byss).
+- Vorschau: Bolzen bleiben am Einschlag stehen und faerben die Figur nicht mehr von hinten gruen; der Spieler bleibt sichtbar, wenn die Kamera in einem anderen Gebiet steht.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -790,6 +857,10 @@ Weiter offen:
 - 预览:枪套中的武器位置和大小正确;尸体即使没有坠落也顺着斜坡躺下。
 - 预览:靠近视点的雾和角色上的光照与游戏一致;天空中不再有细线;关闭的门后没有天空。
 - 预览:新设置“纹理细节 (r_picmip)”,每级将纹理减半并节省显存。
+- 预览:天空的绘制方式与游戏相同:只在最后方绘制可见天空面周围的天空盒矩形。测试地图上的洞现在显示的内容与游戏完全一致。
+- 预览:动态辉光与游戏相同(第一遍不取平均),灯光周围的光晕误差在 255 中的 1 到 2 以内。
+- 预览:第一层带 tcGen 的着色器现在会应用它(t3_byss 上的玻璃)。
+- 预览:弹体停在命中点,不再从背后把人物照绿;摄像机位于其他区域时玩家仍然可见。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -852,6 +923,10 @@ Weiter offen:
 - プレビュー: ホルスターの武器が正しい位置と大きさになり、死体は落下しなくても斜面に沿って横たわります。
 - プレビュー: 視点近くの霧とキャラクターの光をゲームと同じに。空の細い線がなくなり、閉じたドアの向こうに空が見えなくなりました。
 - プレビュー: 新しい設定「テクスチャ詳細 (r_picmip)」。1 段階ごとにテクスチャを半分にし、ビデオメモリを節約します。
+- プレビュー: 空はゲームと同じように描かれます。見えている空のサーフェスを囲むスカイボックスの長方形だけを一番奥に描きます。テストマップの穴はゲームとまったく同じに見えます。
+- プレビュー: ダイナミックグローがゲームと同じになりました(最初のパスは平均なし)。光の周りのハローは 255 中 1 から 2 以内で一致します。
+- プレビュー: 最初のステージに tcGen を持つシェーダーがそれを使うようになりました(t3_byss のガラス)。
+- プレビュー: ボルトは着弾点で止まり、キャラクターを背後から緑に照らさなくなりました。カメラが別のエリアにあってもプレイヤーは表示されます。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -914,6 +989,10 @@ Weiter offen:
 - Vista previa: las armas en la funda cuelgan en el lugar y tamaño correctos; los cadáveres quedan en la pendiente aunque no caigan.
 - Vista previa: niebla cerca del ojo y luz en las figuras como en el juego; sin línea fina en el cielo; sin cielo tras puertas cerradas.
 - Vista previa: nuevo ajuste Detalle de texturas (r_picmip), cada nivel reduce las texturas a la mitad y ahorra memoria de vídeo.
+- Vista previa: el cielo se dibuja como en el juego: solo el rectángulo de la caja de cielo alrededor de las superficies de cielo visibles, al fondo. Los agujeros de los mapas de prueba muestran exactamente lo que muestra el juego.
+- Vista previa: resplandor dinámico como en el juego (primera pasada sin promedio); el halo de las luces coincide con 1 a 2 de 255.
+- Vista previa: los shaders con tcGen en su primera etapa ahora lo usan (cristal en t3_byss).
+- Vista previa: los proyectiles se detienen en el impacto y ya no iluminan de verde a la figura por detrás; el jugador sigue visible cuando la cámara está en otra zona.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -976,3 +1055,7 @@ Weiter offen:
 - Náhled: zbraně v pouzdře visí na správném místě a ve správné velikosti; mrtvá těla leží na svahu i bez pádu.
 - Náhled: mlha blízko oka a světlo na postavách jako ve hře; žádná tenká čára na obloze; žádná obloha za zavřenými dveřmi.
 - Náhled: nové nastavení Detail textur (r_picmip), každý stupeň zmenší textury na polovinu a šetří grafickou paměť.
+- Náhled: obloha se kreslí jako ve hře: jen obdélník skyboxu kolem viditelných ploch oblohy, úplně vzadu. Díry v testovacích mapách ukazují přesně to, co hra.
+- Náhled: dynamická záře jako ve hře (první průchod bez průměrování); záře kolem světel souhlasí na 1 až 2 z 255.
+- Náhled: shadery s tcGen v první vrstvě jej nyní používají (sklo na t3_byss).
+- Náhled: střely se zastaví v místě zásahu a už nebarví postavu zezadu zeleně; hráč zůstává viditelný, i když je kamera v jiné oblasti.

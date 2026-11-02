@@ -5757,7 +5757,7 @@ Scene buildOnce(const Script& s, const MapData& map,
                 start.tempoVek = tod.tempo;
                 start.pmZeit = tod.pmZeit;
                 start.rueckstoss = tod.rueckstoss && tod.pmZeit > 0;
-                start.reibung = tod.reibung >= 0.0F ? tod.reibung : (tod.kante != 0 ? 0.0F : 6.0F);   // ps.friction
+                start.reibung = leichenReibung(tod.reibung, tod.kante);   // ps.friction
                 LaufWerte w;
                 w.halbBreite = a.halbBreite;
                 w.hoeheOben = a.hoeheOben;

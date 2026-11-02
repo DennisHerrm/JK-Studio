@@ -401,11 +401,11 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                     const std::pair<int, int> jetzt = platform::hauptfensterGroesse(0, 0);
                     const int vw = std::max(1, g_app->mapViewW);
                     const int vh = std::max(1, g_app->mapViewH);
-                    const int db = std::max(0, b - vw);
+                    const int db = b - vw;
                     const int dh = h - vh;
-                    // Grosse Luecke: im Verhaeltnis, die Leisten wachsen mit; kleine genau.
-                    const int nb = jetzt.first + (db > 16 ? db * jetzt.first / vw : db);
-                    const int nh = jetzt.second + (std::abs(dh) > 16 ? dh * jetzt.second / vh : dh);
+                    // Die Leisten wachsen mit, also jede Runde um die Luecke: Das konvergiert ohne Ueberschwingen.
+                    const int nb = jetzt.first + db;
+                    const int nh = jetzt.second + dh;
                     (void)platform::hauptfensterGroesse(nb, nh);
                 }));
                 add(pause(0.5));

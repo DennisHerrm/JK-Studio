@@ -2211,6 +2211,8 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
                     t.depthWrite = it->second.depthWrite;
                     t.depthFunc = it->second.depthFunc;
                     t.alphaGen = it->second.alphaGen;
+                    t.texGen = it->second.texGen;
+                    for (int k = 0; k < 6; ++k) { t.tcGenVec[k] = it->second.tcGenVec[k]; }
                     for (int k = 0; k < 3; ++k) {
                         t.rgbConst[k] = it->second.rgbConst[k];
                     }
@@ -2336,6 +2338,8 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
                 t.depthWrite = it->second.depthWrite;
                 t.depthFunc = it->second.depthFunc;
                 t.alphaGen = it->second.alphaGen;
+                t.texGen = it->second.texGen;
+                for (int k = 0; k < 6; ++k) { t.tcGenVec[k] = it->second.tcGenVec[k]; }
                 for (int k = 0; k < 3; ++k) {
                     t.rgbConst[k] = it->second.rgbConst[k];
                 }
@@ -2602,6 +2606,8 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
         bild.glow = t.glow;
         bild.clamp = t.clamp;
         bild.alphaGen = t.alphaGen;
+        bild.texGen = t.texGen;
+        for (int k = 0; k < 6; ++k) { bild.tcGenVec[k] = t.tcGenVec[k]; }
         bild.numTexMods = t.numTexMods;
         for (int k = 0; k < t.numTexMods; ++k) {
             bild.texMods[k] = t.texMods[k];

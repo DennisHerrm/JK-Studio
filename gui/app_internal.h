@@ -647,7 +647,7 @@ struct App {
     std::string portalEntsKarte;
     std::map<std::string, HolsterCfg> holsterCfgs;   // cg_holster.cpp: je Spielermodell
     std::vector<char> portalOffen;
-    std::vector<char> areaMaske;
+    std::map<int, std::vector<char>> areaMasken;
     int areaAuge = -2;
     // Die Schattenart wie cg_shadows: 0 aus, 1 der runde Fleck (markShadow,
     // ab Werk), 2 Schattenvolumen im Stencil-Puffer, 3 die Figur schwarz auf
@@ -3212,6 +3212,10 @@ inline constexpr int kBildGrenze = 4096;
 [[nodiscard]] std::string bildStufeText();
 void regelwerkAnwendenJetzt();
 void areaPortaleJetzt(const float auge[3]);
+// CM_SnapPVS(ort): die Gebietsmaske dieser Sicht in den Indexpuffer der Karte (nur wenn sie sich aendert).
+void areaSichtSetzen(const float ort[3]);
+// tr.distanceCull: R_LoadEntities, worldspawn "distanceCull", Vorgabe 12000.
+[[nodiscard]] float kartenDistanceCull();
 void befehlssatzFuerRegelwerk();
 [[nodiscard]] int schwierigkeitJetzt();
 [[nodiscard]] std::string regelwerkStatusZeile();

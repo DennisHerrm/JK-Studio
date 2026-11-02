@@ -47,6 +47,10 @@ template <class Hat>
 void leichenNeigung(const NavVec& normale, float gier, float& nick, float& roll);
 // pitch_roll_for_slope (NPC.cpp): mins[2] = -24 + 12 * |nick| / 180. Der Boden des Kastens steigt, die Leiche sinkt um so viel.
 [[nodiscard]] float leichenSenkung(float nick);
+// DeadThink (NPC.cpp MD, OpenJK gleich): maxs[2] der Leiche aus renderInfo.eyePoint + 4, mindestens -8.
+[[nodiscard]] float leichenKastenOben(float augeZ, float ursprungZ);
+// ps.friction der Leiche: was player_die gesetzt hat (Absturz 1, Kantenwurf 0), sonst die 6 aus ClientThink.
+[[nodiscard]] float leichenReibung(float todReibung, int kante);
 
 // CG_PainEvent: der Klang zu Lebenspunkten (Spieler) oder Prozent (NPC_SetPainEvent).
 [[nodiscard]] std::string schmerzKlang(int wert);

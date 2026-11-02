@@ -10,6 +10,7 @@
 #include "bhed/schmerz.h"
 #include "bhed/shaderscript.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -135,6 +136,27 @@ void leiche() {
     float nick = 1.0F;
     float roll = 1.0F;
     // pitch_roll_for_slope: mins[2] = -24 + 12 * |pitch| / 180
+    // DeadThink: NPC->maxs[2] = eyePoint[2] - currentOrigin[2] + 4, "if (maxs[2] < -8) maxs[2] = -8"
+    erwarte("DeadThink: Kasten bis 4 ueber dem Auge", nah(leichenKastenOben(60.0F, 24.0F), 40.0F));
+    erwarte("DeadThink: die Leiche am Boden, Auge unter dem Ursprung", nah(leichenKastenOben(14.0F, 24.0F), -6.0F));
+    erwarte("DeadThink: hoechstens bis -8", nah(leichenKastenOben(5.0F, 24.0F), -8.0F));
+    // player_die: FallToDeath ps.friction = 1, Kante 0; PM_Friction sonst pm_friction 6 (ClientThink_real).
+    erwarte("ps.friction: Absturz 1", nah(leichenReibung(1.0F, 0), 1.0F));
+    erwarte("ps.friction: Absturz mit Kantenwurf 0", nah(leichenReibung(0.0F, 0), 0.0F));
+    erwarte("ps.friction: am Boden 6", nah(leichenReibung(-1.0F, 0), 6.0F));
+    erwarte("ps.friction: ueber die Kante 0", nah(leichenReibung(-1.0F, 1), 0.0F));
+    {
+        // PM_Friction, von Hand: v -= max(v, pm_stopspeed 100) * friction * 0,05 je 50 ms, gegen planeTotenlauf in tests/leiche.cpp.
+        float v = 300.0F;
+        float weg = 0.0F;
+        const float reibung = leichenReibung(1.0F, 0);
+        for (int i = 0; i < 20; ++i) {
+            const float drop = std::max(v, 100.0F) * reibung * 0.05F;
+            v = std::max(v - drop, 0.0F);
+            weg += v * 0.05F;
+        }
+        erwarte("PM_Friction: Reibung 1 bremst in 20 Bildern auf 107,5", nah(v, 300.0F * std::pow(0.95F, 20.0F), 0.1F) && weg > 100.0F);
+    }
     erwarte("pitch_roll_for_slope: Kastenboden aus der Neigung", leichenSenkung(0.0F) == 0.0F && nah(leichenSenkung(-45.0F), 3.0F));
     leichenNeigung(NavVec{0.0F, 0.0F, 1.0F}, 45.0F, nick, roll);
     erwarte("pitch_roll_for_slope: flacher Boden", nah(nick, 0.0F) && nah(roll, 0.0F));

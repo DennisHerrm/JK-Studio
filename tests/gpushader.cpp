@@ -80,7 +80,6 @@ int main() {
     beideRichtungen("deformVertexes normal", kDeformNormal, "rausch4(", true);
     // Wolkenschicht (R_InitSkyTexCoords): Kuppel mit Radius 4096.
     beideRichtungen("Wolkenschicht", kWolke, "float h = gWolkenHoehe;", false);
-    beideRichtungen("Himmelsportal", kSkyPortal, "gPortal.Load(", false);
     // rc608 Teil 7: Stufe 0 und halber Texel am Rand, sonst eine Haarlinie an der Kante zweier Himmelsseiten.
     beideRichtungen("Himmelswuerfel", kSky, "gHimmel.SampleLevel(gSampler, float3(huv, face), 0.0)", false);
     beideRichtungen("alphaGen portal", kAlphaPortal, "/ max(gPortalWeite", true);
@@ -163,13 +162,6 @@ int main() {
         // einzeln abschneiden (sonst wird Orange bei 2,0x zu Gelb).
         erwarte("der Pixelshader rechnet Ueberlauf proportional herunter",
                 enthaelt(pixelShaderHlsl(kNichts), "c.rgb /= spitze"));
-
-        const std::string sh = glowShrinkPixelShaderHlsl();
-        // Kastenmittel wie shrink() in glow.cpp - nicht ein Abgriff je
-        // Zielpunkt, sonst wird das Gluehen kantig und flimmert.
-        erwarte("das Verkleinern mittelt ueber den ganzen Quellbereich",
-                enthaelt(sh, "gVoll.Load") && enthaelt(sh, "for (int xx") &&
-                    enthaelt(sh, "gQuelle"));
 
         const std::string b = glowBlurPixelShaderHlsl();
         erwarte("der Weichzeichner hat den Vier-Punkt-Kern",

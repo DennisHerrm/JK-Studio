@@ -80,7 +80,6 @@ int main() {
     uebersetze("nebelfigur vs", nebelFigurVertexShaderHlsl(), "vs_4_0");
     uebersetze("nebel ps", nebelPixelShaderHlsl(), "ps_4_0");
     uebersetze("modellhintergrund ps", modellHintergrundPixelShaderHlsl(), "ps_4_0");
-    uebersetze("glow shrink ps", glowShrinkPixelShaderHlsl(), "ps_4_0");
     uebersetze("glow blur ps", glowBlurPixelShaderHlsl(), "ps_4_0");
     uebersetze("glow composite ps", glowCompositePixelShaderHlsl(), "ps_4_0");
     if (fehler != 0) {

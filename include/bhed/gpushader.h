@@ -84,7 +84,6 @@ namespace bhed::gpu {
 [[nodiscard]] std::string nebelPixelShaderHlsl();
 // Der Verlauf hinter dem Modellfenster (zu vollbildVertexShaderHlsl).
 [[nodiscard]] std::string modellHintergrundPixelShaderHlsl();
-[[nodiscard]] std::string glowShrinkPixelShaderHlsl();
 [[nodiscard]] std::string glowBlurPixelShaderHlsl();
 [[nodiscard]] std::string glowCompositePixelShaderHlsl();
 // Movie Duels, r_gammaShaders 1 (Vorgabe, im Protokoll "GAMMA: shader"): am Ende jedes Bilds

@@ -17,7 +17,9 @@
 #include <cstring>
 #include <vector>
 
+#include "bhed/areaportal.h"
 #include "bhed/bspgeo.h"
+#include "bhed/himmelbox.h"
 #include "bhed/gla.h"
 #include "bhed/glm.h"
 #include "bhed/gpudraw.h"
@@ -419,10 +421,26 @@ void neuesBild();
 void setzeHintergrund(float r, float g, float b);
 // Die Textur eines Satzes, unabhaengig davon, welcher gerade gewaehlt ist.
 [[nodiscard]] void* zielTexturSatz(int satz);
-// Himmelsportal (rc593, misc_skyportal): ab jetzt zeigen Himmelsflaechen das
-// Bild von Satz `satz` (gleiche Groesse wie das Ziel, Pixel fuer Pixel), die
-// Wolkenschichten fallen weg. -1 schaltet zurueck auf die Himmelsbox.
+// Himmelsportal (rc593, misc_skyportal): ab jetzt steht das Bild von Satz `satz` (gleiche Groesse wie das Ziel)
+// zu Beginn im Bild und die Karte zeichnet keinen Himmel, wie die Hauptszene mit skyboxportal (RB_StageIteratorSky,
+// RB_BeginDrawingView). -1 schaltet zurueck auf die Himmelsbox.
 void setzeHimmelPortal(int satz);
+// Die Sicht fuer die Himmelsbox (bhed/himmelbox.h) der folgenden zeichneKarte. augeOrt ist tr.ori.viewOrigin (im
+// Spiegel der gespiegelte Ort), pvsOrt viewParms.pvsOrigin, fern die ferne Ebene der Projektion. gebiet: CM_SnapPVS.
+// szeneLoescht: RB_BeginDrawingView loescht je Szene die Farbe (r_DynamicGlow und globaler Nebel), also bleibt nichts
+// von einer Portalszene im Bild.
+struct HimmelVorgabe {
+    float augeOrt[3]{};
+    float pvsOrt[3]{};
+    float fern = 8000.0F;
+    float distanceCull = 12000.0F;
+    const AreaPortale* portale = nullptr;
+    int gebiet = -1;
+    bool szeneLoescht = false;
+};
+void setzeHimmelSicht(const HimmelVorgabe& v);
+// Die Rechtecke der zuletzt gezeichneten Karte (Selbsttest).
+[[nodiscard]] const std::vector<HimmelRechteck>& himmelRechteckeZuletzt();
 // Spiegel (rc593): Portalflaechen bekommen das Bild von Satz `satz` unter
 // ihre Stufen gelegt; -1 schaltet ab.
 void setzeSpiegelBild(int satz);

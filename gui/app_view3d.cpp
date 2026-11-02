@@ -5359,12 +5359,35 @@ void areaPortaleJetzt(const float auge[3]) {
             anders = true;
         }
     }
-    const int gebiet = punktGebiet(app.geo, auge);
-    if (anders || gebiet != app.areaAuge) {
-        app.areaAuge = gebiet;
-        app.areaMaske = flaechenHinterPortalen(app.geo, app.areaPortale, gebiet);
-        gpu::setzeVerdeckteFlaechen(&app.geo, &app.areaMaske);
+    if (anders) {
+        app.areaMasken.clear();
+        app.areaAuge = -2;
     }
+    areaSichtSetzen(auge);
+}
+
+void areaSichtSetzen(const float ort[3]) {
+    App& app = *g_app;
+    const int gebiet = punktGebiet(app.geo, ort);
+    if (gebiet == app.areaAuge) { return; }
+    app.areaAuge = gebiet;
+    auto it = app.areaMasken.find(gebiet);
+    if (it == app.areaMasken.end()) { it = app.areaMasken.emplace(gebiet, flaechenHinterPortalen(app.geo, app.areaPortale, gebiet)).first; }
+    gpu::setzeVerdeckteFlaechen(&app.geo, &it->second);
+}
+
+float kartenDistanceCull() {
+    for (const MapEntity& e : g_app->map.entities) {
+        if (e.classname != "worldspawn") { continue; }
+        for (const auto& [k, v] : e.keys) {
+            if (k.size() == 12U && std::equal(k.begin(), k.end(), "distancecull", [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; })) {
+                float wert = 0.0F;
+                if (std::sscanf(v.c_str(), "%f", &wert) == 1) { return wert; }
+            }
+        }
+        break;
+    }
+    return 12000.0F;
 }
 void loadMapEffects();
 void fallenEffekteSetzen();   // rc604: misc_trip_mine (laserfalleLauf)
@@ -6073,7 +6096,7 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                 (void)figurAugenPunkt(a, *g_app->actorAssets[ai], t, z.auge);
                 // DeadThink: maxs[2] aus renderInfo.eyePoint + 4, mindestens -8 (der Kasten folgt der Leiche).
                 if (fi.tot || (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6)) {
-                    z.hi[2] = st.pos[2] + std::max(z.auge[2] - st.pos[2] + 4.0F, -8.0F) + 1.0F;
+                    z.hi[2] = st.pos[2] + leichenKastenOben(z.auge[2], st.pos[2]) + 1.0F;
                 }
             }
             z.fahrzeug = a.fahrzeug.da;

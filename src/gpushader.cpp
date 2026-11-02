@@ -52,9 +52,8 @@ cbuffer JeBild : register(b0) {
     //
     // Der Rasterer nimmt die Farbe NICHT aus den Koordinaten der Flaeche,
     // sondern aus der Blickrichtung des Bildpunktes (mapview.cpp:2860). Das
-    // ist gleichwertig dazu, die Box in unendlicher Entfernung zu zeichnen -
-    // und die Verdeckung kommt geschenkt mit, weil die Himmelsflaechen
-    // echte Geometrie bleiben.
+    // ist gleichwertig dazu, die Box in unendlicher Entfernung zu zeichnen.
+    // Gezeichnet werden nur die Rechtecke aus bhed/himmelbox.h.
     //
     // Dafuer braucht der Shader dieselben Groessen wie die Handrechnung:
     // die drei Kameraachsen, die Brennweite und die halbe Bildgroesse.
@@ -698,51 +697,6 @@ float4 main(VSOut ein) : SV_TARGET {
 )";
 }
 
-std::string glowShrinkPixelShaderHlsl() {
-    // Woertlich wie shrink (src/glow.cpp:53): Kastenmittel ueber alle
-    // Quellpunkte, die auf einen Zielpunkt fallen.
-    //
-    // Vorher verkleinerte der Weichzeichner mit Abstand 0 - vier Abgriffe
-    // an derselben Stelle, bilinear also hoechstens 2x2 Quellpunkte. Von
-    // 2500 auf 320 Punkte fallen so sieben von acht Zeilen unter den Tisch:
-    // das Gluehen wurde kantig ("rastermaessig") und flimmerte, und je
-    // weiter weg eine leuchtende Flaeche, desto mehr davon fiel durch.
-    return R"(
-cbuffer JeDurchgang : register(b3) {
-    float2 gSchritt;
-    float  gAbstand;
-    float  gGewicht;
-    float  gWeich;
-    float2 gQuelle;       // Breite, Hoehe des vollen Puffers
-    float  gFrei;
-};
-Texture2D    gVoll    : register(t0);
-struct VSOut {
-    float4 pos : SV_POSITION;
-    float2 uv  : TEXCOORD0;
-};
-float4 main(VSOut ein) : SV_TARGET {
-    const int sw = (int)gQuelle.x;
-    const int sh = (int)gQuelle.y;
-    const int dw = (int)round(1.0 / gSchritt.x);
-    const int dh = (int)round(1.0 / gSchritt.y);
-    const int x = (int)ein.pos.x;
-    const int y = (int)ein.pos.y;
-    const int x0 = x * sw / dw;
-    const int x1 = min(max(x0 + 1, (x + 1) * sw / dw), x0 + 64);
-    const int y0 = y * sh / dh;
-    const int y1 = min(max(y0 + 1, (y + 1) * sh / dh), y0 + 64);
-    float3 sum = float3(0, 0, 0);
-    for (int yy = y0; yy < y1; ++yy) {
-        for (int xx = x0; xx < x1; ++xx) {
-            sum += gVoll.Load(int3(xx, yy, 0)).rgb;
-        }
-    }
-    return float4(sum / (float)max(1, (x1 - x0) * (y1 - y0)), 1);
-}
-)";
-}
-
 std::string glowBlurPixelShaderHlsl() {
     // Woertlich wie glowBlur (src/glow.cpp:109): ein Vier-Punkt-Kern in den
     // Ecken, Gewicht intensity*0.25 je Punkt.
@@ -1362,7 +1316,7 @@ Texture2D    gLightmap : register(t1);
 // Die sechs Himmelsseiten als Feld - die Seitennummern sind die aus
 // skyFace(), damit die Zuordnung nicht zweimal erfunden wird.
 Texture2DArray gHimmel : register(t2);
-// Das Bild eines misc_skyportal, so gross wie das Ziel (rc593).
+// Das Spiegelbild, so gross wie das Ziel (rc593).
 Texture2D    gPortal   : register(t3);
 SamplerState gSampler  : register(s0);
 struct VSOut {
@@ -1420,11 +1374,6 @@ float4 main(VSOut ein) : SV_TARGET {
     // fuer Zeile aus mapview.cpp:55 uebernommen. Wer hier eine Achse
     // vertauscht, bekommt einen Himmel, der beim Drehen springt - und das
     // faellt erst auf, wenn man sich umsieht.
-    // Himmel durch ein misc_skyportal: Pixel fuer Pixel aus dem Portalbild
-    // (gleich gross wie das Ziel), ohne Abtaster.
-    if ((features & kSkyPortal) != 0U) {
-        s += "    { return float4(gPortal.Load(int3(int2(ein.pos.xy), 0)).rgb, 1.0); }\n";
-    }
     if ((features & kSky) != 0U) {
         s += R"(    {
         float2 sp = ein.pos.xy;
@@ -1594,7 +1543,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kSky, "_sky"},
         {kAutosprite2, "_a2"},   {kBulge, "_bu"},
         {kDeformMove, "_mv"},    {kDeformNormal, "_dn"},
-        {kWolke, "_wk"},         {kSkyPortal, "_sp2"},
+        {kWolke, "_wk"},
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},
         {kTexGenVec, "_tcv"},   // rc605
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten

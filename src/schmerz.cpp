@@ -95,6 +95,13 @@ void leichenNeigung(const NavVec& normale, float gier, float& nick, float& roll)
 
 float leichenSenkung(float nick) { return 12.0F * std::fabs(nick) / 180.0F; }
 
+float leichenKastenOben(float augeZ, float ursprungZ) { return std::max(augeZ - ursprungZ + 4.0F, -8.0F); }
+
+float leichenReibung(float todReibung, int kante) {
+    if (todReibung >= 0.0F) { return todReibung; }
+    return kante != 0 ? 0.0F : 6.0F;
+}
+
 float npcSchmerzChance(const std::string& klasse, bool movieDuels) {
     float chance = 1.0F;   // NPC_GetPainChance ohne Feind; CLASS_PROTOCOL ebenso
     if (gleich(klasse, "CLASS_DESANN") || (movieDuels && (gleich(klasse, "CLASS_SITHLORD") || gleich(klasse, "CLASS_VADER")))) { chance *= 0.5F; }
