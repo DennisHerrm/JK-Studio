@@ -2219,6 +2219,8 @@ from i18n_rc608_9 import zeilen_vier as _rc608_9  # noqa: E402  (rc608 Teil 9: S
 S += _rc608_9()
 from i18n_rc608_10b import zeilen_vier as _rc608_10b  # noqa: E402  (rc608 Teil 10b: Schwertlicht)
 S += _rc608_10b()
+from i18n_rc608_11 import zeilen_vier as _rc608_11  # noqa: E402  (rc608 Teil 11: Karten-Editor wie im Spiel)
+S += _rc608_11()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

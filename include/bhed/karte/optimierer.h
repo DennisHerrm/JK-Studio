@@ -287,6 +287,7 @@ struct ShaderSkript {
     bool alphaSchatten = false;     // C_ALPHASHADOW
     bool lichtFilter = false;       // C_LIGHTFILTER
     bool nichtZeichnen = false;     // C_NODRAW (surfaceparm nodraw)
+    bool eckLicht = false;          // rc608 Teil 11: C_VERTEXLIT (surfaceparm nolightmap / pointlight, games.cpp game_sof2)
     bool nebel = false;             // C_FOG
     bool zweiseitig = false;        // cull none / twosided / disable (si.twoSided)
     bool autosprite = false;        // deformVertexes autosprite / autosprite2

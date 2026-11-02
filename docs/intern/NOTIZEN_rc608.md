@@ -665,7 +665,70 @@ Abgebrochen am 02.11. auf Anweisung (shank musste gehen). Die WIP-Commits sind n
 - 2 `cg_motionBoneComp`: Selbsttest war rot, aber aus falschem Grund (bei 600 ms kein eigener Oberkoerper). Gruen fehlt, Wirkung von 0 bis 3 im Bild nicht belegt. Nur die Rechnung per ctest.
 - 7 Foto: `g9/erg/paar_figur_steht.png`, `paar_figur_blick.png`, nur angesehen. Spieler passt dem Eindruck nach. **Der NPC haelt das Schwert anders als im Spiel, offen.** Klingenfarben weichen ab, daher keine Helligkeitswerte. Gehen mit Schwert nicht aufgenommen.
 
-### Offen
+### Teil 11: Karten-Editor wie im Spiel, Punkt 0 (Mission-Vorschau)
+
+Auftrag `auftrag_rc608_11.md`. Skripte und Bilder in `SP/g11` (`strahl.py`, `pvs.py`, `shtext.py`, `bloecke.py`, `md11.py`, `vor11.sh`, `alle11.sh`, `mess11.sh`, `paar11.py`, `tabelle11.py`, `jk2dp.py`), Paare in `SP/g11/erg/`. Spielbilder Movie Duels mit fs_homepath im SP (`g5/home_md`); Original-JKA nicht verglichen (Steam lief erst gegen Ende, dann nur das JK2-Foto).
+
+### 0: duel_jeditemple, Fenster und ferne Waende (Mission-Vorschau, zwei Ursachen, beide allgemein)
+- **PVS:** Die Vorschau zeichnete jede Weltflaeche, das Spiel nur die Blaetter, deren Cluster im PVS des Auges liegt (R_MarkLeaves, tr_world.cpp:678 MD). Durch das mittlere Fenster sah man so den Raum hinter dem Himmel (impdetention/metal, Cluster 1254..1285, nicht im PVS von Cluster 2313). `flaechenHinterPortalen` heisst jetzt `flaechenAusserSicht` und prueft PVS und Gebiet zusammen (je Gebiet und Cluster des Auges zwischengespeichert, hoechstens 64). Mitte des Fensters: Spiel 24,7 28,1 37,1 / vorher 42,6 45,2 48,2 / jetzt 24,4 28,4 36,5.
+- **Reihenfolge der Stufen:** Die Zusatzstufen deckender Shader liefen in der Gruppe der gemischten Flaechen in Kartenreihenfolge. u_metalorange02 (env, dann GL_SRC_ALPHA GL_SRC_ALPHA, dann $lightmap) lag so um env_glass herum, und das Glas wurde mit Alpha und Lightmap des Metalls malgenommen. Im Spiel ist ein SS_OPAQUE-Shader mit allen Stufen fertig, bevor SS_BLEND0 kommt (R_RadixSort, RB_IterateStagesGeneric). Neu `DrawCall::grundDeckend`: Zusatzstufen deckender Shader bilden eine eigene Gruppe nach den deckenden Grundstufen und vor allem Durchscheinenden, auch in `nurLage`. Fenster rechts Spiel 102,9 97,3 93,6 / vorher 44,0 37,6 33,7 / jetzt 102,9 97,3 93,6; Bogen links 69,5 63,8 59,4 / 29,9 24,2 19,9 / 69,5 63,8 59,4. Ohne Glas (alle env_glass-Flaechen auf einen Punkt gelegt, Spiel und Vorschau) waren beide Bilder schon vorher gleich: Das Glas war die Ursache. 6322 von 9777 Shadern der Spieldaten haben eine deckende erste Stufe und weitere Stufen; betroffen ist jede durchscheinende Flaeche, die in der Karte vor ihnen steht.
+- **Ferne Waende:** Mipmaps, Filter und Anisotropie sind es nicht: Im Spiel aendert `r_textureMode GL_LINEAR` (ohne Mipmaps) die fernen Flaechen um hoechstens 1 % (Saeule 30,0 24,6 20,6 / 30,2 24,8 20,7). Was bleibt (Saeule 0,86 bis 0,96, von oben nach unten), sind Patches mit `tcGen environment`: Das Spiel unterteilt Patches mit R_SubdividePatchToGrid und laesst je Bild nach Abstand Zeilen und Spalten weg (RB_SurfaceGrid, r_lodCurveError 250), die Vorschau unterteilt gleichmaessig (`buildMesh`, meshDetail); die Umgebungskoordinaten je Ecke liegen damit anders. Nicht behoben (offen).
+- Andere Karten: Alle Paare aus Teil 8 und ga1 neu aufgenommen, Boden und oben 0,99 bis 1,02 wie vorher, Figur 1,00 bis 1,08 wie vorher; Bildzeit 4,2 bis 4,3 ms (Teil 8: 4,2 bis 5,4).
+
+### 1 bis 4: Karten-Editor
+**Messweg:** Selbsttest `teil11` mit `BHED_K11_PAARE` (Kamerabild 1920 x 1440 ueber `KameraFenster::messBreite`, Sichtfeld 80 auf der Breite wie cg_fov 80 bei 4:3, Editorhilfen ausgefiltert). Je Paar: `_echt` dekompilierte Karte (Open .bsp mit geschaetzten Lichtern) mit Echtzeit-Licht, `_gebaut` dieselbe nach dem Schnell-Backen im Zeichner des Editors, `_spiel` dasselbe mit dem neuen Schalter, `_vorlage`/`_vorlagespiel` die Original-.bsp als Vorlage (ihre eigenen Lightmaps, wie im Spiel) ohne und mit Schalter. Felder wie in Teil 8: Boden links (0,1000)-(800,1440), Boden rechts (1250,1000)-(1920,1440), oben (0,0)-(1920,400), Mitte (0,400)-(1920,1000), Faktor Editor/Spiel je Kanal.
+
+**Vorher (gemessen):** Der Zeichner des Editors nahm Lightmap und Echtzeit-Licht mal 2 ("wie r_mapOverBrightBits"). duel_jeditemple mit der Kamera von g9_jtb (Rotlauf `k11rot`): Boden rechts 53,7 41,3 17,5 gegen das Spiel 32,1 25,8 13,9 (1,67 1,60 1,26). Stand vor Teil 11 (`k11m1`, nur turm und jtb, Vorlage mit noch mitgezeichneten Pinseln): Vorlage turm Boden 2,26 2,38 2,52 / 2,14 2,24 2,30, jtb 2,98 2,83 2,66 / 2,03 1,91 1,55.
+
+**Weg (gemeinsamer Code):** Keine zweite Formel. "Built map as in the game" (Build-Menue, ab Werk an, gespeichert als BhedBuiltAsInGame) zeichnet die gebaute Karte - das Schnell-Backen, sonst die Vorlage - mit dem Zeichner der Vorschau (`gpu::zeichneKarte`, `zeichneNebel`, `zeichneGluehen`, `spielGammaAnwenden`, Himmelsbox, PVS) in eine eigene Szene (`gpu::szeneWaehlen(1)`: Netzpuffer, Bilder, Lightmaps, Himmel und verdeckte Flaechen werden getauscht wie die Zielsaetze) und einen eigenen Zielsatz (`kZielKarteneditor`). Die Texturen laedt `loadMapTexturesFuer` nach den Regeln der Vorschau (dieselbe Funktion mit umgelenktem Ziel, ohne Gras und Fehlermeldungen). Das Bild kommt mit `kartegpu::bildUnterlegen` unter die Kamera, die gebauten Flaechen schreiben danach nur die Tiefe (`Mischen::NurTiefe`): Auswahl, Griffe, Linien, Filter und Fenster bleiben wie bisher. Lichtstile und `distanceCull` wie loadMapFromBytes. Der Zeichner des Editors selbst (Schalter aus, Echtzeit-Licht) nimmt jetzt `gpu::kSpielLightmapFaktor` (1), dieselbe Zahl wie die Vorgabe der Vorschau (`App::mapBrightness`).
+
+**Nachher, alle Paare (`k11m5`, Faktor Editor/Spiel R G B):**
+
+| Karte | Echtzeit Boden l / r | Schnell-Backen Editor-Zeichner Boden l / r | Schnell-Backen wie im Spiel Boden l / r | Vorlage wie im Spiel Boden l / r / oben / Mitte |
+|---|---|---|---|---|
+| turm | 2,18 2,08 1,96 / 1,59 1,76 1,76 | 2,18 2,21 2,12 / 1,54 1,74 1,74 | 1,84 1,90 1,81 / 1,50 1,62 1,59 | 1,00 1,01 1,01 / 1,00 1,00 1,00 / 1,00 1,00 - / 1,01 1,02 1,03 |
+| kamino | 1,25 1,14 1,04 / 1,29 1,20 1,09 | 1,21 1,11 0,99 / 1,25 1,15 1,03 | 1,40 1,40 1,36 / 1,40 1,40 1,36 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,02 1,00 1,00 / 1,04 1,03 1,02 |
+| todesstern | 0,89 0,89 0,89 / 0,58 0,58 0,59 | 0,89 0,89 0,89 / 0,58 0,58 0,59 | 1,11 1,11 1,11 / 1,09 1,09 1,09 | 1,00 1,00 1,00 / 0,99 0,99 0,99 / 1,00 1,00 1,00 / 1,05 1,05 1,04 |
+| mustafar | 3,41 2,57 2,20 / 3,25 2,14 1,57 | 3,38 2,61 2,23 / 3,24 2,17 1,58 | 3,29 2,42 1,98 / 3,12 1,94 1,29 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,03 1,09 1,11 |
+| akademie | 2,74 2,97 2,72 / 2,84 3,09 2,78 | 2,73 2,97 2,71 / 2,84 3,09 2,77 | 3,10 3,14 2,67 / 3,22 3,26 2,72 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,01 1,01 1,01 |
+| hoth | 1,07 1,07 1,05 / 0,94 0,95 0,92 | 0,45 0,46 0,44 / 0,41 0,42 0,40 | 0,78 0,78 0,78 / 0,71 0,71 0,70 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,00 1,00 1,00 |
+| byss | 1,08 1,08 1,06 / 1,18 1,18 1,17 | 1,08 1,08 1,06 / 1,18 1,18 1,17 | 1,36 1,36 1,36 / 1,36 1,36 1,36 | 1,02 1,02 1,02 / 1,02 1,02 1,02 / 1,03 1,03 1,03 / 1,01 1,02 1,02 |
+| e_must | 2,30 1,75 1,63 / 1,81 1,28 1,16 | 2,01 1,61 1,50 / 1,13 0,97 0,93 | 1,53 1,31 1,23 / 0,95 0,75 0,66 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 0,99 0,98 0,98 / 0,90 0,86 0,75 |
+| e_stern | 0,89 0,89 0,89 / 0,58 0,58 0,59 | 0,89 0,89 0,89 / 0,58 0,58 0,59 | 1,11 1,11 1,11 / 1,09 1,09 1,09 | 1,00 1,00 1,00 / 0,99 0,99 0,99 / 0,54 0,61 0,72 / 0,80 0,83 0,87 |
+| e_lb | 1,96 1,89 1,93 / 1,91 1,84 1,87 | 1,97 1,88 1,92 / 1,93 1,84 1,87 | 1,89 1,72 1,72 / 1,86 1,70 1,70 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 1,00 0,97 0,90 / 0,90 0,91 0,96 |
+| jtb | 4,81 5,13 3,88 / 4,07 3,88 3,07 | 4,81 5,12 3,88 / 4,07 3,88 3,07 | 5,89 6,53 6,50 / 5,16 5,23 5,48 | 1,10 1,20 1,15 / 1,00 1,00 1,00 / 0,91 0,99 1,19 / 0,91 0,98 1,18 |
+| ga1 | 0,49 0,52 0,80 / 0,49 0,52 0,80 | 0,49 0,52 0,80 / 0,49 0,52 0,80 | 0,48 0,49 0,73 / 0,48 0,49 0,73 | 1,00 1,00 1,00 / 1,00 1,00 1,00 / 0,99 0,98 0,96 / 1,01 1,01 1,01 |
+
+Vollstaendig (auch Vorlage im Editor-Zeichner, oben und Mitte je Zustand): `SP/g11/tab_nachher.md`. Lesart:
+- **Gebaut zu Spiel (Darstellung):** Vorlage wie im Spiel: Boden 1,00 bis 1,02 auf allen zwoelf Karten (jtb Boden links 1,10 bis 1,20: dort steht im Spiel der Spieler im Feld). "oben"/"Mitte" weichen ab, wo das Spiel Figur, Effekte oder misc_model_static zeigt (e_stern oben 0,54: der Falke, e_must Mitte 0,75 bis 0,90). Im Zeichner des Editors (Schalter aus) dieselben Vorlagen 0,49 bis 1,49.
+- **Gebaut zu Spiel (Bau):** Das Schnell-Backen der dekompilierten Karte mit geschaetzten Lichtern liegt 0,5 bis 6,5 daneben: Es ist nicht der Bau des Kartenautors (andere Lichter, -fast, kein Bounce). Das ist der Bau, nicht die Darstellung.
+- **Echtzeit zu gebaut:** auf den meisten Karten gleich (Boden 0,00 bis 0,14 Unterschied im Faktor, wie 9c), groesser auf hoth (1,07 gegen 0,45 im Editor-Zeichner) und kamino oben (1,27 gegen 0,71). Die Echtzeit-Ansicht zeigt nur die erste Stufe je Shader; das Schnell-Backen wie im Spiel weicht darum vom Editor-Zeichner ab (hoth 0,45 -> 0,78, byss 1,08 -> 1,36).
+
+**Bildzeit** (mustafar, Kamera dreht 240 Bilder, ganze Anwendung): Zeichner des Editors mit dem Schnell-Backen 6,94 ms (p99 9,13), "Built map as in the game" 4,84 ms (p99 7,69), davon Spielbild auf dem Prozessor 1,10 ms je Bild. Erstes Spielbild einer neuen .bsp: Aufbau mit Texturen 1,0 bis 3,0 s.
+
+**_noshadersun, _minVertexlight (Befund Teil 10):** Das Echtzeit-Licht laesst mit `_noshadersun` die Sonnen der Shader weg (q3map_skyLight bleibt, light.cpp:593) und gibt Flaechen ohne Lightmap (C_VERTEXLIT: surfaceparm nolightmap/pointlight) `_minvertexlight` als Mindestlicht (light.cpp:2333-2349, lightmaps_ydnar.cpp:3143), sonst `_minlight`. Dabei gefunden, allgemein: q3map2 liest Entity-Schluessel ohne Gross- und Kleinschreibung (CASE_INSENSITIVE_EPAIRS, q3map2.h:109), das Echtzeit-Licht las sie genau; duel_geonosis_arena schreibt `_minVertexlight`. Alle Schluessel des Echtzeit-Lichts jetzt wie q3map2 (`wertQ3`). Gegenprobe ga1 (Geonosis-Arena, `_noshadersun 1`): Echtzeit und Schnell-Backen derselben Karte gleich (Boden 0,49 0,52 0,80 beide); mit der Himmelssonne 170 waere die Echtzeit-Ansicht heller als der Bau.
+
+### Tests
+- ctest `schmerz` (PVS, 3 Zeilen), `gpudraw` (Stufenfolge, 2), `karteechtlicht` (_noshadersun, _minvertexlight, Gross-/Kleinschreibung, 3): je einmal rot (Regel zurueckgenommen bzw. genau verglichen), dann gruen. ctest einmal am Ende: 195 von 196, `handbuch_sprachen` fehlte die Anmeldung von `i18n_rc608_11` in gen_handbuch.py, danach gruen.
+- Selbsttest `teil11` (neu, ohne Umgebungsvariable): duel_jeditemple aus den Spieldaten als Vorlage, Kamera wie das Spielbild. 3 OK, 0 FEHLER (`k11gruen`): Boden 32,0 25,8 13,9 (Spiel 32,1 25,8 13,9); Fenster rechts 102,9 97,3 93,6, Bogen 69,5 63,8 59,4, Mitte 24,4 28,3 36,5, 30959 Flaechen ausserhalb des PVS; Editor-Zeichner Boden 26,8 20,6 8,7. Rotlauf `k11rot` mit Stufenfolge, PVS und Faktor 2 zurueckgenommen: Fenster und Editor-Zeichner rot (44,0 37,6 33,7 / 53,7 41,3 17,5); die Boden-Zeile des Spielbilds war dort gruen, ihr Rot ist der Editor-Zeichner (ohne Spielbild gab es kein anderes Bild).
+- Selbsttest karteneditor: nur die Groesse des Build-Menues angepasst (+24 fuer den neuen Eintrag), der Lauf gehoert in die Endrunde.
+- Lints: lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_cbuffer, lint_gapp ok; lint_d3dbesitz 15 wie vorher; lint_settings wie vorher; lint_portability 117 (eine weniger, areaportal.cpp). Bau 0 Warnungen.
+
+### Nur per Foto gegen das Spiel
+Mission-Vorschau: `SP/g11/erg/paar_jtb.png`, `paar_m_*.png`. Karten-Editor: `SP/g11/erg/k11_<karte>_<zustand>.png` (oben Spiel, unten Editor).
+
+### JK2-Datapad (Zusatz waehrend Teil 11, Steam angemeldet, vor dem Start geprueft)
+bespin_platform statt kejim_base, `give all`, Datapad Waffen, `dpweapnext` (`SP/g11/jk2dp.py`, eigener Ordner, GameData danach gleich, Dateiliste verglichen). Gegen die Vorschau mit derselben Waffe (`BHED_MENUE_VERGLEICH_WAFFE`, neu): `SP/g11/erg/jk2_datapad_w1_spiel_vorschau.png` (Lichtschwert), `_w2` (Bryar), `_w3` (E-11). Gefunden (nicht behoben): Die Vorschau setzt die Zeilen enger und die Schrift breiter als das Spiel. Zeilenabstand bei 1280 x 960: Spiel 38, Vorschau 36 Bildpunkte (19 gegen 18 virtuelle Punkte); Textbreite: "Primary Fire - Slow, single shot with moderate accuracy and great damage." Spiel 977, Vorschau 987 Bildpunkte (+1,0 %), Bryar "hand-held ... accuracy." 973 gegen 986 (+1,3 %). Darum bricht die Vorschau frueher um: E-11 "despite its / small size" statt "despite its small / size", Lichtschwert "energy blade / of great" wie in Teil 10b. Ursache vermutlich RE_Font_HeightPixels/RE_Font_StrLenPixels der Original-exe (Rundung je Zeichen); die OpenJK-Fassung ist 1:1 uebernommen und trifft das Original nicht.
+
+### Offen aus Teil 11
+- Patches wie im Spiel unterteilen (R_SubdividePatchToGrid, LOD je Bild nach r_lodCurveError): ferne env-Patches auf duel_jeditemple 0,86 bis 0,96.
+- Spielbild des Editors ohne Figuren, Effekte, misc_model_static (Licht ueber das Gitter), Wetter, Surface-Sprites, misc_skyportal, Mover-Stellungen (Brush-Modelle stehen, wo q3map2 sie abgelegt hat).
+- Echtzeit-Ansicht: nur erste Stufe je Shader (der Tooltip sagt es), kein Bounce/Filter/Supersampling.
+- JK2-Datapad: Zeilenabstand und Textbreite (siehe oben).
+- Original-JKA fuer Teil 11 nicht aufgenommen.
+- Messung "vorher" ueber alle Karten nur fuer den Editor-Zeichner mit Faktor 2 auf jtb; die anderen Karten haben im alten Stand dieselbe Formel (Faktor 2).
+
+## Offen
 - 3 Reiten: ctest und Selbsttest gruen (Abstand zum Fahrzeug 2,8), nicht gegen das Spiel. Nur im Bild; Ziele und Ton rechnen mit dem Stand aus dem Skript. Fehlen: Absteigeort, Neigung des Fahrzeugs, Fahrzeug unter NPC-Steuerung, Angriffe und Lehnen beim Reiten. In den installierten Skripten kommt SET_VEHICLE nicht vor.
 - 4 `cg_turnAnims`: rot 0, gruen 2 Bilder, nicht gegen das Spiel. Drehen wird im Servertakt (50 ms) erkannt.
 - 5 Blick: rot 0, gruen 8,3 frueh, 72,2 spaet. Nur per Foto, Richtung passt, nicht gemessen. Bildtakt com_maxfps 125 aus OpenJK sys_main.cpp:162; in Movie Duels nicht belegt. Skip: Nick im Kampf (Gegner). Figur wird je Schritt neu berechnet, Leistung nicht gemessen.
@@ -908,6 +971,11 @@ Weiter offen:
 - Preview: lightsaber light as in the game: every blade of a saber with one or two blades casts its own light (Movie Duels: twice the blade length plus flicker, colour times 0.66; OpenJK: 1.4 times the blade length); only sabers with three or more blades share one mixed light.
 - Preview: new settings Saber light and Saber light reach (Movie Duels cg_saberLightIntensity and cg_saberLightRadius) with the values of a fresh installation; a light stronger than 1 turns darker on floors and walls close to the blade, as in the game.
 - Preview: the turn animation (cg_turnAnims) plays as long as the legs still turn towards the view, also after the figure itself stopped turning, as in the game.
+- Preview: surfaces outside the camera's PVS are no longer drawn, as in the game; on duel_jeditemple the rooms behind the windows no longer show through the sky.
+- Preview: all stages of an opaque shader are drawn before transparent surfaces, as in the game; glass in front of multi-stage walls (duel_jeditemple windows) is no longer darkened.
+- Map editor: new Build > Built map as in the game (on by default): after the quick bake, or with a template .bsp, the camera shows the built map through the Mission tab renderer - all shader stages, sky box, glow, fog, PVS and the game's gamma; selection, handles and lines stay on top.
+- Map editor: lightmaps and the real-time light are no longer doubled; floors and walls of the built map now match the game (measured 1.00 to 1.02 on twelve maps).
+- Map editor: the real-time light follows _noshadersun and _minvertexlight like q3map2 and reads entity keys regardless of case; its tooltip names what the preview cannot show.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -986,6 +1054,11 @@ Weiter offen:
 - Vorschau: Schwertlicht wie im Spiel: Jede Klinge eines Schwerts mit einer oder zwei Klingen wirft ihr eigenes Licht (Movie Duels: doppelte Klingenlänge plus Flackern, Farbe mal 0,66; OpenJK: 1,4-fache Klingenlänge); nur Schwerter mit drei oder mehr Klingen teilen sich ein gemischtes Licht.
 - Vorschau: neue Einstellungen Schwertlicht und Reichweite Schwertlicht (Movie Duels cg_saberLightIntensity und cg_saberLightRadius) mit den Werten einer frischen Installation; ein Licht über 1 wird auf Boden und Wänden nahe der Klinge dunkler, wie im Spiel.
 - Vorschau: Die Drehanimation (cg_turnAnims) läuft, solange sich die Beine noch zum Blick drehen, auch wenn die Figur selbst schon stillsteht, wie im Spiel.
+- Vorschau: Flächen außerhalb des PVS der Kamera werden nicht mehr gezeichnet, wie im Spiel; auf duel_jeditemple scheinen die Räume hinter den Fenstern nicht mehr durch den Himmel.
+- Vorschau: alle Stufen eines deckenden Shaders kommen vor den durchscheinenden Flächen, wie im Spiel; Glas vor mehrstufigen Wänden (Fenster auf duel_jeditemple) wird nicht mehr abgedunkelt.
+- Karten-Editor: neu Build > Gebaute Karte wie im Spiel (ab Werk an): nach dem Schnell-Backen oder mit einer Vorlage-.bsp zeigt die Kamera die gebaute Karte mit dem Zeichner des Mission-Tabs - alle Shader-Stufen, Himmelsbox, Glühen, Nebel, PVS und das Gamma des Spiels; Auswahl, Griffe und Linien bleiben darüber.
+- Karten-Editor: Lightmaps und Echtzeit-Licht werden nicht mehr verdoppelt; Böden und Wände der gebauten Karte stimmen jetzt mit dem Spiel überein (gemessen 1,00 bis 1,02 auf zwölf Karten).
+- Karten-Editor: das Echtzeit-Licht beachtet _noshadersun und _minvertexlight wie q3map2 und liest Entity-Schlüssel unabhängig von Groß- und Kleinschreibung; sein Tooltip nennt, was die Vorschau nicht zeigen kann.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1064,6 +1137,11 @@ Weiter offen:
 - 预览:光剑光照与游戏相同:一把或两把剑刃的光剑每个剑刃都投射自己的光(Movie Duels:剑刃长度的两倍加闪烁,颜色乘以 0.66;OpenJK:剑刃长度的 1.4 倍);只有三把或更多剑刃的光剑共用一个混合光。
 - 预览:新增设置“光剑光照”和“光剑光照范围”(Movie Duels 的 cg_saberLightIntensity 和 cg_saberLightRadius),初始为全新安装的值;大于 1 的光在靠近剑刃的地面和墙壁上会变暗,与游戏相同。
 - 预览:转身动画(cg_turnAnims)在双腿仍朝视线方向转动时一直播放,即使角色本身已停止转动,与游戏相同。
+- 预览:与游戏一致,不再绘制摄像机 PVS 之外的表面;在 duel_jeditemple 上,窗户后面的房间不再透过天空显示出来。
+- 预览:与游戏一致,不透明着色器的所有阶段都在透明表面之前绘制;多阶段墙面前的玻璃(duel_jeditemple 的窗户)不再变暗。
+- 地图编辑器:新增 Build > 已构建的地图如游戏中显示(默认开启):快速烘焙之后或使用模板 .bsp 时,摄像机用任务选项卡的渲染器显示已构建的地图——所有着色器阶段、天空盒、辉光、雾、PVS 和游戏伽马;选择、手柄和线条保持在上方。
+- 地图编辑器:光照贴图和实时光照不再加倍;已构建地图的地面和墙壁现在与游戏一致(在十二张地图上测得 1.00 到 1.02)。
+- 地图编辑器:实时光照像 q3map2 一样遵循 _noshadersun 和 _minvertexlight,并且不区分大小写地读取实体键;其提示说明预览无法显示的内容。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1142,6 +1220,11 @@ Weiter offen:
 - プレビュー:ライトセーバーの光をゲームと同じにしました。刃が 1 本または 2 本のセイバーは刃ごとに光を落とします(Movie Duels:刃の長さの 2 倍とちらつき、色は 0.66 倍。OpenJK:刃の長さの 1.4 倍)。刃が 3 本以上のセイバーだけが混ざった光を 1 つ共有します。
 - プレビュー:新しい設定「セイバーの光」と「セイバーの光の範囲」(Movie Duels の cg_saberLightIntensity と cg_saberLightRadius)を追加しました。初期値は新規インストールの値です。1 を超える光は、ゲームと同じく刃の近くの床や壁で暗くなります。
 - プレビュー:旋回アニメーション(cg_turnAnims)は、キャラクター自身が回り終えた後も、脚が視線の方向へ回っている間は再生されます。ゲームと同じです。
+- プレビュー:ゲームと同じく、カメラの PVS の外にある面は描かれなくなりました。duel_jeditemple では窓の奥の部屋が空越しに透けて見えなくなりました。
+- プレビュー:ゲームと同じく、不透明シェーダーの全ステージが透明な面より先に描かれます。複数ステージの壁の前のガラス(duel_jeditemple の窓)が暗くなりません。
+- マップエディター:新しく Build > ビルドしたマップをゲームと同じ表示に(初期設定でオン):クイックベイクの後、またはテンプレート .bsp があるとき、カメラはミッションタブのレンダラーでビルド済みマップを表示します。シェーダーの全ステージ、スカイボックス、グロー、フォグ、PVS、ゲームのガンマ。選択、ハンドル、線は上に残ります。
+- マップエディター:ライトマップとリアルタイムライトが 2 倍にならなくなりました。ビルドしたマップの床と壁がゲームと一致します(12 個のマップで 1.00 から 1.02 を測定)。
+- マップエディター:リアルタイムライトは q3map2 と同じく _noshadersun と _minvertexlight に従い、エンティティのキーを大文字小文字に関係なく読みます。ツールチップにプレビューで表示できないものが書かれています。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1220,6 +1303,11 @@ Weiter offen:
 - Vista previa: la luz de los sables como en el juego: cada hoja de un sable con una o dos hojas proyecta su propia luz (Movie Duels: el doble de la longitud de la hoja más parpadeo, color por 0,66; OpenJK: 1,4 veces la longitud de la hoja); solo los sables con tres o más hojas comparten una luz mezclada.
 - Vista previa: nuevos ajustes Luz del sable y Alcance de la luz del sable (cg_saberLightIntensity y cg_saberLightRadius de Movie Duels) con los valores de una instalación nueva; una luz mayor que 1 se oscurece en suelos y paredes cerca de la hoja, como en el juego.
 - Vista previa: la animación de giro (cg_turnAnims) se reproduce mientras las piernas siguen girando hacia la mirada, también cuando la figura ya dejó de girar, como en el juego.
+- Vista previa: las superficies fuera del PVS de la cámara ya no se dibujan, como en el juego; en duel_jeditemple las salas detrás de las ventanas ya no se ven a través del cielo.
+- Vista previa: todas las etapas de un shader opaco se dibujan antes que las superficies transparentes, como en el juego; el cristal delante de paredes de varias etapas (ventanas de duel_jeditemple) ya no se oscurece.
+- Editor de mapas: nuevo Build > Mapa compilado como en el juego (activado por defecto): tras el horneado rápido, o con un .bsp de plantilla, la cámara muestra el mapa compilado con el renderizador de la pestaña Misión: todas las etapas de los shaders, caja de cielo, brillo, niebla, PVS y la gamma del juego; la selección, los tiradores y las líneas quedan encima.
+- Editor de mapas: los lightmaps y la luz en tiempo real ya no se duplican; suelos y paredes del mapa compilado coinciden ahora con el juego (medido 1,00 a 1,02 en doce mapas).
+- Editor de mapas: la luz en tiempo real respeta _noshadersun y _minvertexlight como q3map2 y lee las claves de entidad sin distinguir mayúsculas; su información indica lo que la vista previa no puede mostrar.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1298,3 +1386,8 @@ Weiter offen:
 - Náhled: světlo světelných mečů jako ve hře: každá čepel meče s jednou nebo dvěma čepelemi vrhá vlastní světlo (Movie Duels: dvojnásobek délky čepele plus mihotání, barva krát 0,66; OpenJK: 1,4násobek délky čepele); jen meče se třemi nebo více čepelemi sdílejí jedno smíšené světlo.
 - Náhled: nová nastavení Světlo meče a Dosah světla meče (cg_saberLightIntensity a cg_saberLightRadius z Movie Duels) s hodnotami čerstvé instalace; světlo silnější než 1 na podlaze a stěnách u čepele ztmavne, jako ve hře.
 - Náhled: animace otáčení (cg_turnAnims) běží, dokud se nohy ještě natáčejí k pohledu, i když se postava sama už přestala otáčet, jako ve hře.
+- Náhled: plochy mimo PVS kamery se už nekreslí, jako ve hře; na duel_jeditemple už místnosti za okny neprosvítají oblohou.
+- Náhled: všechny fáze neprůhledného shaderu se kreslí před průhlednými plochami, jako ve hře; sklo před vícefázovými stěnami (okna na duel_jeditemple) už neztmavne.
+- Editor map: nově Build > Sestavená mapa jako ve hře (ve výchozím stavu zapnuto): po rychlém zapečení nebo se šablonou .bsp ukazuje kamera sestavenou mapu vykreslovačem karty Mise – všechny fáze shaderů, skybox, záři, mlhu, PVS a gamu hry; výběr, úchyty a čáry zůstávají nahoře.
+- Editor map: lightmapy a světlo v reálném čase se už nezdvojnásobují; podlahy a stěny sestavené mapy teď odpovídají hře (změřeno 1,00 až 1,02 na dvanácti mapách).
+- Editor map: světlo v reálném čase respektuje _noshadersun a _minvertexlight jako q3map2 a čte klíče entit bez ohledu na velikost písmen; jeho nápověda říká, co náhled nedokáže ukázat.

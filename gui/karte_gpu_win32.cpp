@@ -5,6 +5,7 @@
 #include "karte_gpu.h"
 
 #include "bhed/diag.h"
+#include "bhed/gpushader.h"
 #include "bhed/karte/texturen.h"
 
 #include "backend.h"
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <string>
@@ -26,6 +28,13 @@
 namespace bhed::gui::kartegpu {
 
 namespace {
+
+// rc608 Teil 11: der Lightmap-Faktor des Spiels (gpu::kSpielLightmapFaktor) als HLSL-Makro LM_FAKTOR.
+std::string lightmapFaktorText() {
+    char z[32];
+    std::snprintf(z, sizeof(z), "%.6f", static_cast<double>(bhed::gpu::kSpielLightmapFaktor));
+    return z;
+}
 
 std::vector<std::pair<ID3D11ShaderResourceView*, int>> g_spaeter;   // bildFreigeben: Bild, ImGui-Bild der Freigabe
 
@@ -202,6 +211,11 @@ struct Zustand {
     ID3D11VertexShader* vsG = nullptr;
     ID3D11PixelShader* psG = nullptr;
     ID3D11InputLayout* layoutG = nullptr;
+    // rc608 Teil 11: das Spielbild unterlegen, nur Tiefe schreiben
+    bool gescheitertU = false;
+    ID3D11VertexShader* vsU = nullptr;
+    ID3D11PixelShader* psU = nullptr;
+    ID3D11BlendState* blendNurTiefe = nullptr;
     // waehrend beginnen/beenden
     int aktiv = -1;
     ID3D11RenderTargetView* altRtv = nullptr;
@@ -273,6 +287,10 @@ void echtLichtLoesen() {
     los(g.psG);
     los(g.layoutG);
     g.gescheitertG = false;
+    los(g.vsU);
+    los(g.psU);
+    los(g.blendNurTiefe);
+    g.gescheitertU = false;
     g.gescheitert4 = false;
     g.kaskadeAn[0] = g.kaskadeAn[1] = false;
 }
@@ -998,6 +1016,17 @@ ID3D11DepthStencilState* tiefenZustand(TiefenTest t, bool schreiben) {
 
 bool bereit4();
 
+// rc608 Teil 11: Mischen::NurTiefe - keine Farbe, nur die Tiefe (unter dem Spielbild)
+ID3D11BlendState* nurTiefeMischung() {
+    if (g.blendNurTiefe == nullptr) {
+        D3D11_BLEND_DESC bd{};
+        bd.RenderTarget[0].BlendEnable = FALSE;
+        bd.RenderTarget[0].RenderTargetWriteMask = 0;
+        geraet()->CreateBlendState(&bd, &g.blendNurTiefe);
+    }
+    return g.blendNurTiefe;
+}
+
 // Zustand und Konstanten setzen; false: nichts zu zeichnen.
 bool zustandSetzen(const Zustand3& z, bool linie) {
     if (g.aktiv < 0 || !bereit3() || z.matrix == nullptr) { return false; }
@@ -1034,13 +1063,14 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->linie[3] = 0;
     std::memcpy(k->nebel, z.nebel, sizeof(k->nebel));
     k->extra[0] = z.nebelNur ? 1.0F : 0.0F;
-    k->extra[1] = 0;
+    k->extra[1] = z.eckLicht ? 1.0F : 0.0F;
     k->extra[2] = 0;
     k->extra[3] = 0;
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
-    c->OMSetBlendState(z.mischen == Mischen::Spiel ? spielMischung(z.mischQuelle, z.mischZiel)
-                       : z.mischen == Mischen::Aus  ? g.blendAus
+    c->OMSetBlendState(z.mischen == Mischen::Spiel      ? spielMischung(z.mischQuelle, z.mischZiel)
+                       : z.mischen == Mischen::NurTiefe ? nurTiefeMischung()
+                       : z.mischen == Mischen::Aus      ? g.blendAus
                        : z.mischen == Mischen::Alpha ? g.blend
                                                      : g.blendAdd,
                        faktor, 0xFFFFFFFFU);
@@ -1203,7 +1233,8 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z) {
 // siehe bhed/karte/echtlicht.cpp echtLichtBeitrag - der Unit-Test karte_echtlicht
 // prueft dieselben Werte auf dem Prozessor). Der Luxel wie StoreSurfaceLightmaps/
 // ColorToBytes: Umgebung + Summe, mindestens _minlight, ueber 255 auf 255
-// normiert; im Spiel mit der Textur * 2 (r_mapOverBrightBits). Vorschau: kein
+// normiert; im Spielbild Textur mal Luxel mal gpu::kSpielLightmapFaktor (rc608 Teil 11:
+// bisher mal 2 "wie r_mapOverBrightBits", im Spiel gemessen 1). Vorschau: kein
 // Bounce, kein Filter, kein Supersampling, Schatten aus Karten statt Strahlen.
 //
 // Stufe 9c: Lichter in einem Puffer (bis kLichtMax), je Kachel eine Bitmaske;
@@ -1220,6 +1251,7 @@ namespace {
 struct Konstanten4 {
     float umgebung[4];
     float minimum[4];
+    float minimumEcken[4];   // rc608 Teil 11: _minvertexlight (Flaechen ohne Lightmap, extra.y)
     float sonne[4];        // x Kaskade 0 an, y Kaskade 1 an, z Texel 0 (Einheiten), w Texel 1
     float himmelInfo[4];   // x Texel der Himmelskarten
     int anzahl[4];         // x Lichter, y Kacheln x, z Kacheln y, w Worte je Kachel
@@ -1250,7 +1282,7 @@ cbuffer B5 : register(b3) {
     int4 nebelZahl; float4 nebelVorn; float4 nebelFarbe[16]; float4 nebelFlaeche[16]; float4 nebelInfo[16]; float4 nebelEbene[128];
 };
 cbuffer B4 : register(b1) {
-    float4 umgebung; float4 minimum; float4 sonne; float4 himmelInfo; int4 anzahl; float4 kaskadeRichtung;
+    float4 umgebung; float4 minimum; float4 minimumEcken; float4 sonne; float4 himmelInfo; int4 anzahl; float4 kaskadeRichtung;
     row_major float4x4 kaskadeVp[2];
     row_major float4x4 himmelVp[16];
 };
@@ -1536,12 +1568,12 @@ float4 ps4(VO4 i) : SV_Target {
         }
 #endif
     }
-    lm = max(lm, minimum.rgb);
+    lm = max(lm, extra.y > 0.5 ? minimumEcken.rgb : minimum.rgb);
     float mx = max(lm.r, max(lm.g, lm.b));
     if (mx > 255.0) { lm *= 255.0 / mx; }
     float4 c = i.farbe;
     if (alpha.z > 0.5) { c *= bild.Sample(abtaster, i.st); }
-    c.rgb = saturate(c.rgb * (lm / 255.0) * 2.0);
+    c.rgb = saturate(c.rgb * (lm / 255.0) * LM_FAKTOR);   // gpu::kSpielLightmapFaktor
     c.rgb = genebelt(c.rgb, i.tiefe);
     if (!alphaGut(c.a)) { discard; }
     // Stufe 9d: RB_FogPass (GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA mit der Nebelfarbe)
@@ -1714,10 +1746,12 @@ bool bereit4() {
     ID3D11Device* d = geraet();
     if (d->GetFeatureLevel() < D3D_FEATURE_LEVEL_10_1) { return false; }   // TextureCubeArray
     const bool sm5 = d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0;      // firstbitlow
-    const D3D_SHADER_MACRO ohne[] = {{"OHNE_FBL", "1"}, {nullptr, nullptr}};
+    const std::string faktor = lightmapFaktorText();
+    const D3D_SHADER_MACRO ohne[] = {{"OHNE_FBL", "1"}, {"LM_FAKTOR", faktor.c_str()}, {nullptr, nullptr}};
+    const D3D_SHADER_MACRO mit[] = {{"LM_FAKTOR", faktor.c_str()}, {nullptr, nullptr}};
     const auto uebersetzen = [&](const char* einstieg, const char* ziel, ID3DBlob** code) {
         ID3DBlob* fehler = nullptr;
-        const HRESULT hr = D3DCompile(kShader4, std::strlen(kShader4), "karte4", sm5 ? nullptr : ohne, nullptr, einstieg, ziel,
+        const HRESULT hr = D3DCompile(kShader4, std::strlen(kShader4), "karte4", sm5 ? mit : ohne, nullptr, einstieg, ziel,
                                       D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, code, &fehler);
         if (fehler != nullptr && FAILED(hr)) {
             diag::detail(std::string("Karten-Editor: Echtzeit-Licht-Shader: ") + static_cast<const char*>(fehler->GetBufferPointer()));
@@ -1975,7 +2009,7 @@ void nebelSetzen(const std::vector<NebelEcht>& nebel, const std::vector<float>& 
 }
 
 void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
-                 int kachelnY, int worte, const float* umgebung, const float* minimum) {
+                 int kachelnY, int worte, const float* umgebung, const float* minimum, const float* minimumEcken) {
     if (!bereit4()) { return; }
     ID3D11DeviceContext* c = kontext();
     D3D11_MAPPED_SUBRESOURCE m{};
@@ -1985,6 +2019,7 @@ void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>&
     for (int i = 0; i < 3; ++i) {
         k->umgebung[i] = umgebung[i];
         k->minimum[i] = minimum[i];
+        k->minimumEcken[i] = minimumEcken[i];
     }
     k->sonne[0] = g.kaskadeAn[0] ? 1.0F : 0.0F;
     k->sonne[1] = g.kaskadeAn[0] && g.kaskadeAn[1] ? 1.0F : 0.0F;
@@ -2151,7 +2186,7 @@ float4 psg(VOG i) : SV_Target {
     float4 c = farbe;
     if (alpha.z > 0.5) { c *= bild.Sample(abtaster, i.st); }
     float3 licht = versatz.w > 0.5 ? lightmap.Sample(lmAbtaster, i.lm).rgb : i.farbe.rgb;
-    c.rgb = saturate(c.rgb * licht * 2.0);
+    c.rgb = saturate(c.rgb * licht * LM_FAKTOR);   // gpu::kSpielLightmapFaktor
     int f = (int)alpha.x;
     if (f == 3 && !(c.a > alpha.y)) { discard; }
     if (f == 2 && !(c.a < alpha.y)) { discard; }
@@ -2168,8 +2203,10 @@ bool bereitG() {
     ID3D11Device* d = geraet();
     ID3DBlob* b[2] = {nullptr, nullptr};
     ID3DBlob* fehler = nullptr;
-    if (FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", nullptr, nullptr, "vsg", "vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[0], &fehler)) ||
-        FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", nullptr, nullptr, "psg", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[1], &fehler))) {
+    const std::string faktor = lightmapFaktorText();
+    const D3D_SHADER_MACRO mit[] = {{"LM_FAKTOR", faktor.c_str()}, {nullptr, nullptr}};
+    if (FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", mit, nullptr, "vsg", "vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[0], &fehler)) ||
+        FAILED(D3DCompile(kShaderG, std::strlen(kShaderG), "karteG", mit, nullptr, "psg", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[1], &fehler))) {
         los(fehler);
         for (auto*& x : b) { los(x); }
         return false;
@@ -2305,6 +2342,56 @@ void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint3
     c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
     c->IASetIndexBuffer(ib, DXGI_FORMAT_R32_UINT, 0);
     c->DrawIndexed(anzahl, erster, 0);
+}
+
+// rc608 Teil 11: das Spielbild (gleich gross wie das Ziel) Bildpunkt fuer Bildpunkt ins Ziel, ohne Tiefe und Mischen.
+namespace {
+const char* const kShaderU = R"(
+Texture2D bild : register(t0);
+float4 vsu(uint i : SV_VertexID) : SV_Position {
+    float2 p = float2((i << 1) & 2, i & 2);
+    return float4(p * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);
+}
+float4 psu(float4 pos : SV_Position) : SV_Target { return float4(bild.Load(int3(pos.xy, 0)).rgb, 1.0); }
+)";
+bool bereitU() {
+    if (g.vsU != nullptr) { return true; }
+    if (g.gescheitertU || !bereit3()) { return false; }
+    g.gescheitertU = true;
+    ID3DBlob* b[2] = {nullptr, nullptr};
+    ID3DBlob* fehler = nullptr;
+    if (FAILED(D3DCompile(kShaderU, std::strlen(kShaderU), "karteU", nullptr, nullptr, "vsu", "vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[0], &fehler)) ||
+        FAILED(D3DCompile(kShaderU, std::strlen(kShaderU), "karteU", nullptr, nullptr, "psu", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[1], &fehler))) {
+        los(fehler);
+        for (auto*& x : b) { los(x); }
+        return false;
+    }
+    los(fehler);
+    geraet()->CreateVertexShader(b[0]->GetBufferPointer(), b[0]->GetBufferSize(), nullptr, &g.vsU);
+    geraet()->CreatePixelShader(b[1]->GetBufferPointer(), b[1]->GetBufferSize(), nullptr, &g.psU);
+    for (auto*& x : b) { los(x); }
+    g.gescheitertU = g.vsU == nullptr || g.psU == nullptr;
+    return !g.gescheitertU;
+}
+}  // namespace
+
+void bildUnterlegen(void* srv) {
+    if (g.aktiv < 0 || srv == nullptr || !bereitU()) { return; }
+    ID3D11DeviceContext* c = kontext();
+    const float faktor[4] = {0, 0, 0, 0};
+    c->OMSetBlendState(g.blendAus, faktor, 0xFFFFFFFFU);
+    c->OMSetDepthStencilState(tiefenZustand(TiefenTest::Aus, false), 0);
+    c->RSSetState(g.rs3[0]);
+    c->IASetInputLayout(nullptr);
+    c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    c->VSSetShader(g.vsU, nullptr, 0);
+    c->GSSetShader(nullptr, nullptr, 0);
+    c->PSSetShader(g.psU, nullptr, 0);
+    ID3D11ShaderResourceView* s = static_cast<ID3D11ShaderResourceView*>(srv);
+    c->PSSetShaderResources(0, 1, &s);
+    c->Draw(3, 0);
+    ID3D11ShaderResourceView* nichts = nullptr;
+    c->PSSetShaderResources(0, 1, &nichts);
 }
 
 void ohneMischen(void* dl) {

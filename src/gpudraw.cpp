@@ -26,15 +26,23 @@ namespace {
 // wie der vorhandene Rasterer es macht. Ein Umsortieren dort waere eine
 // Aenderung des Bildes, keine Beschleunigung.
 int gruppe(const DrawCall& c) {
-    // Eine ZUSATZSTUFE zaehlt immer zur zweiten Gruppe, auch wenn sie
+    // Eine ZUSATZSTUFE kommt nie in die erste Gruppe, auch wenn sie
     // deckend ist.
     //
     // Sie liegt auf derselben Flaeche wie ihre Grundstufe und muss NACH ihr
     // gezeichnet werden. Die erste Gruppe wird aber nach Zustand
     // umgruppiert, damit gleiche beieinanderliegen - dort koennte eine
-    // Zusatzstufe vor ihrer eigenen Grundstufe landen. In der zweiten Gruppe
-    // bleibt die Reihenfolge der Karte, und die ist Grundstufe zuerst.
-    return (c.state.blend == Blend::Opaque && !c.zusatzstufe) ? 0 : 1;
+    // Zusatzstufe vor ihrer eigenen Grundstufe landen.
+    //
+    // rc608 Teil 11: Die Zusatzstufen DECKENDER Shader bilden eine eigene zweite Gruppe vor allem
+    // Durchscheinenden. Im Spiel kommen alle Stufen eines Shaders mit seiner Sortierstufe (R_RadixSort,
+    // tr_main.cpp; RB_IterateStagesGeneric, tr_shade.cpp): u_metalorange02 auf duel_jeditemple (env,
+    // dann GL_SRC_ALPHA GL_SRC_ALPHA, dann $lightmap) ist SS_OPAQUE und ganz fertig, bevor env_glass
+    // (SS_BLEND0) addiert. Mit der Karte als Reihenfolge lag das Glas zwischen den Stufen und wurde
+    // mit Alpha und Lightmap des Metalls malgenommen. Die Tiefe der deckenden Grundstufen steht dann
+    // schon fest; eine Zusatzstufe trifft mit GL_LEQUAL nur, wo ihre Flaeche vorn liegt.
+    if (c.state.blend == Blend::Opaque && !c.zusatzstufe) { return 0; }
+    return (c.zusatzstufe && c.grundDeckend) ? 1 : 2;
 }
 
 }  // namespace
@@ -81,6 +89,7 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
         c.bild = b.shader;
         c.lightmap = b.lightmap;
         c.batch = i;
+        c.grundDeckend = c.state.blend == Blend::Opaque;
         calls.push_back(c);
 
         // --- Und die Stufen darueber -----------------------------------
@@ -116,6 +125,7 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
             z.lightmap = b.lightmap;
             z.batch = i;
             z.zusatzstufe = true;
+            z.grundDeckend = c.grundDeckend;
             calls.push_back(z);
         }
     }
@@ -157,7 +167,8 @@ std::vector<DrawCall> nurLage(const std::vector<DrawCall>& calls, Lage lage) {
     std::vector<DrawCall> raus;
     raus.reserve(calls.size());
     for (const DrawCall& c : calls) {
-        const bool deckend = (c.state.blend == Blend::Opaque);
+        // Eine Zusatzstufe zeichnet mit ihrer Grundstufe (siehe gruppe).
+        const bool deckend = c.zusatzstufe ? c.grundDeckend : (c.state.blend == Blend::Opaque);
         if ((lage == Lage::Deckend) == deckend) {
             raus.push_back(c);
         }

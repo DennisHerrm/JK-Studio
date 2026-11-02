@@ -55,6 +55,7 @@
 #include "bhed/image.h"
 #include "bhed/gla.h"
 #include "bhed/glm.h"
+#include "bhed/gpushader.h"   // rc608 Teil 11: kSpielLightmapFaktor
 #include "bhed/mapview.h"
 #include "bhed/efxdraw.h"
 #include "bhed/geschuetz.h"
@@ -655,8 +656,9 @@ struct App {
     std::string portalEntsKarte;
     std::map<std::string, HolsterCfg> holsterCfgs;   // cg_holster.cpp: je Spielermodell
     std::vector<char> portalOffen;
-    std::map<int, std::vector<char>> areaMasken;
+    std::map<std::pair<int, int>, std::vector<char>> areaMasken;   // je Gebiet und Cluster des Auges (R_MarkLeaves)
     int areaAuge = -2;
+    int areaCluster = -2;
     // Die Schattenart wie cg_shadows: 0 aus, 1 der runde Fleck (markShadow,
     // ab Werk), 2 Schattenvolumen im Stencil-Puffer, 3 die Figur schwarz auf
     // den Boden gedrueckt - siehe gpu::zeichneLichtUndSchatten und
@@ -1561,7 +1563,7 @@ struct App {
     float lastCam[7]{};
     // Vorgaben wie das Spiel: r_mapOverBrightBits 0 (Lightmaps, Eckenfarben und Gitter unveraendert)
     // und kein Grundlicht. Beide Regler sind Hilfen fuer dunkle Karten.
-    float mapBrightness = 1.0F;
+    float mapBrightness = bhed::gpu::kSpielLightmapFaktor;
     float mapMinLight = 0.0F;
     // Zeit fuers letzte Bild, geglaettet - eine ungeglaettete Anzeige
     // springt so, dass man sie nicht lesen kann.
@@ -3097,6 +3099,8 @@ void withUnsaved(std::function<void()> then,
                  std::function<void()> onCancel = nullptr);
 void drawAskSave();
 void loadMapTextures();
+// rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors), ohne Gras.
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder);
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
@@ -3239,6 +3243,9 @@ void areaPortaleJetzt(const float auge[3]);
 void areaSichtSetzen(const float ort[3]);
 // tr.distanceCull: R_LoadEntities, worldspawn "distanceCull", Vorgabe 12000.
 [[nodiscard]] float kartenDistanceCull();
+// rc608 Teil 11: fuer eine andere Karte (das Spielbild des Karten-Editors) - die Vorschau ruft sie mit g_app->geo
+// (dazu nebelListeFuer in app_view3d.cpp).
+[[nodiscard]] float kartenFernFuer(const BspGeometry& geo);
 void befehlssatzFuerRegelwerk();
 [[nodiscard]] int schwierigkeitJetzt();
 [[nodiscard]] std::string regelwerkStatusZeile();

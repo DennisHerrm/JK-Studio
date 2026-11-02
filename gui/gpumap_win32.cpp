@@ -286,7 +286,8 @@ struct ZielFelder {
 };
 // Satz 3 (rc593): das Spiegelbild einer Portalflaeche.
 // Satz 4 (zeitleiste1): ein Bild des Filmstreifens der Zeitleiste.
-constexpr int kZielSaetze = 5;
+// Satz 5 (rc608 Teil 11): das Spielbild des Karten-Editors (kZielKarteneditor).
+constexpr int kZielSaetze = 6;
 ZielFelder g_geparkt[kZielSaetze];
 int g_zielSatz = 0;
 // Zaehlt die Bilder der Ansicht (neuesBild) - siehe Netzpuffer::dynBild.
@@ -6243,6 +6244,8 @@ void vergissKarte() {
     vergissMoverNetze();
 }
 
+void gibAlleSzenenFrei();   // rc608 Teil 11, bei szeneWaehlen
+
 void shutdown() {
     gibKlingenFrei();
     gibModellFrei();
@@ -6408,18 +6411,7 @@ void shutdown() {
         g_himmelIb = nullptr;
     }
     g_himmelPlaetze = 0U;
-    g_himmelBoxNetz = nullptr;
-    for (Netzpuffer& n : g_netz) {
-        if (n.vb != nullptr) { n.vb->Release(); n.vb = nullptr; }
-        if (n.ib != nullptr) { n.ib->Release(); n.ib = nullptr; }
-        n.vbGroesse = 0;
-        n.ibGroesse = 0;
-    }
-    for (auto& [k, n] : g_moverNetze) {
-        if (n.vb != nullptr) { n.vb->Release(); }
-        if (n.ib != nullptr) { n.ib->Release(); }
-    }
-    g_moverNetze.clear();
+    gibAlleSzenenFrei();
 }
 
 const char* abschnittName(Abschnitt a) {
@@ -6821,6 +6813,80 @@ void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* ver
     g_verdeckt = verdeckt != nullptr ? *verdeckt : std::vector<char>{};
     ++g_verdecktStand;
 }
+
+namespace {
+// rc608 Teil 11: Was an EINER Karte haengt (Netzpuffer, Bilder und Lightmaps nach Platz, Himmel, verdeckte Flaechen),
+// je Szene. Die gewaehlte steht in den gewohnten g_-Feldern, die andere liegt hier geparkt - umgeschaltet wird wie
+// beim Zielsatz (waehleZiel) durch Tauschen. So behalten Vorschau und Karten-Editor ihre Bilder auf der Grafikkarte,
+// statt sie bei jedem Reiterwechsel neu hochzuladen.
+struct SzenenSpeicher {
+    Netzpuffer netz[3];
+    std::map<const BspMesh*, Netzpuffer> moverNetze;
+    std::map<int, ID3D11ShaderResourceView*> bilder;
+    std::map<int, BildQuelle> bildQuelle;
+    std::map<int, BildQuelle> lightmapQuelle;
+    std::map<int, ID3D11ShaderResourceView*> lightmaps;
+    std::map<int, std::uint32_t> lightmapStandGpu;
+    std::vector<HimmelEintrag> himmelListe;
+    HimmelBox himmelBox;
+    const void* himmelBoxNetz = nullptr;
+    std::size_t himmelBoxStand = 0U;
+    const TextureSet* himmelBoxBilder = nullptr;
+    const BspGeometry* verdecktGeo = nullptr;
+    std::vector<char> verdeckt;
+    std::uint64_t verdecktStand = 1U;
+};
+constexpr int kSzenen = 2;
+SzenenSpeicher g_szenenGeparkt[kSzenen];
+int g_szene = 0;
+
+void tauscheSzene(SzenenSpeicher& s) {
+    for (int i = 0; i < 3; ++i) { std::swap(g_netz[i], s.netz[i]); }
+    std::swap(g_moverNetze, s.moverNetze);
+    std::swap(g_bilder, s.bilder);
+    std::swap(g_bildQuelle, s.bildQuelle);
+    std::swap(g_lightmapQuelle, s.lightmapQuelle);
+    std::swap(g_lightmaps, s.lightmaps);
+    std::swap(g_lightmapStandGpu, s.lightmapStandGpu);
+    std::swap(g_himmelListe, s.himmelListe);
+    std::swap(g_himmelBox, s.himmelBox);
+    std::swap(g_himmelBoxNetz, s.himmelBoxNetz);
+    std::swap(g_himmelBoxStand, s.himmelBoxStand);
+    std::swap(g_himmelBoxBilder, s.himmelBoxBilder);
+    std::swap(g_verdecktGeo, s.verdecktGeo);
+    std::swap(g_verdeckt, s.verdeckt);
+    std::swap(g_verdecktStand, s.verdecktStand);
+}
+
+void gibNetzpufferFrei() {
+    for (Netzpuffer& n : g_netz) {
+        if (n.vb != nullptr) { n.vb->Release(); n.vb = nullptr; }
+        if (n.ib != nullptr) { n.ib->Release(); n.ib = nullptr; }
+        n.vbGroesse = 0;
+        n.ibGroesse = 0;
+    }
+}
+}  // namespace
+
+// rc608 Teil 11: jede Szene (die geparkte ueber Tauschen) gibt ihre Karte frei.
+void gibAlleSzenenFrei() {
+    for (int s = 0; s < kSzenen; ++s) {
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+        vergissKarte();
+        g_himmelBoxNetz = nullptr;
+        gibNetzpufferFrei();
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+    }
+}
+
+void szeneWaehlen(int nr) {
+    if (nr == g_szene || nr < 0 || nr >= kSzenen) { return; }
+    tauscheSzene(g_szenenGeparkt[g_szene]);   // die alte parken
+    tauscheSzene(g_szenenGeparkt[nr]);        // die neue holen, ihr Fach ist danach leer
+    g_szene = nr;
+}
+
+int szeneJetzt() { return g_szene; }
 
 namespace {
 // RB_StageIteratorSky fuer ein Netz der Karte: qglDepthRange(1, 1), GL_State(0), die Rechtecke der Box. Die Stufen
@@ -7923,6 +7989,8 @@ std::string geraetInfo() { return "ohne Direct3D gebaut"; }
 std::string berichtText() { return "ohne Direct3D gebaut\n"; }
 std::vector<StapelNotiz> auffaelligeStapel() { return {}; }
 void setzeVerdeckteFlaechen(const BspGeometry*, const std::vector<char>*) {}
+void szeneWaehlen(int) {}
+int szeneJetzt() { return 0; }
 int zeichneKarte(const BspMesh&, const TextureSet*, const BspGeometry*,
                  const float*, const float*, float, float, float, int,
                  const float*, const float*, const float*, float,

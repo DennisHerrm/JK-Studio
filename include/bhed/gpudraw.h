@@ -67,6 +67,11 @@ struct DrawCall {
     // Stapels - genau wie `texId = jobs[jobIdx].stage` im Rasterer
     // (mapview.cpp:1396).
     bool zusatzstufe = false;
+    // Ist die GRUNDSTUFE des Shaders deckend? Die Engine zeichnet alle Stufen eines Shaders
+    // nacheinander (RB_IterateStagesGeneric) an der Stelle, die die Sortierstufe des Shaders
+    // vorgibt (R_RadixSort, SS_OPAQUE vor SS_BLEND0) - eine gemischte Zusatzstufe eines deckenden
+    // Shaders gehoert also zu den deckenden, vor jede durchscheinende Flaeche davor.
+    bool grundDeckend = false;
 };
 
 // Baut die Liste fuer ein Bild.

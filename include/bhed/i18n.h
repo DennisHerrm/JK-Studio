@@ -3636,6 +3636,11 @@ enum class Str {
     MapSaberLightIntensityHint,
     MapSaberLightRadius,
     MapSaberLightRadiusHint,
+    KeSpielbildMenue,
+    KeSpielbildMenueTip,
+    KeLichtGrenzenTip,
+    KeLichtSpielbild,
+    KeLichtSpielbildVorlage,
     Count,
 };
 

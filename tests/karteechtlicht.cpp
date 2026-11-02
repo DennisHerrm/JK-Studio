@@ -120,6 +120,12 @@ void welt() {
     const EchtLichtWelt w = sammeln(k);
     const Vektor3f x = echtLuxel(w, Vektor3f(0, 0, 0), Vektor3f(0, 0, 1));
     pruefe(nah(x[0], 10.0F, 1e-4F) && nah(x[2], 20.0F, 1e-4F), "Umgebung _color * _ambient, mindestens _color * _minlight");
+    // rc608 Teil 11: _minvertexlight fuer die Eckfarben, ohne den Schluessel gilt _minlight (light.cpp:2333-2349)
+    pruefe(nah(w.minimumEcken[0], 10.0F, 1e-4F) && nah(w.minimumEcken[2], 20.0F, 1e-4F), "ohne _minvertexlight: Ecken wie _minlight");
+    ws->setzen("_minVertexlight", "6");   // q3map2 liest Schluessel ohne Gross- und Kleinschreibung (wie auf duel_geonosis_arena)
+    const EchtLichtWelt w2 = sammeln(k);
+    pruefe(nah(w2.minimumEcken[0], 3.0F, 1e-4F) && nah(w2.minimumEcken[2], 6.0F, 1e-4F) && nah(w2.minimum[2], 20.0F, 1e-4F),
+           "_minvertexlight 6: Ecken _color * 6, Lightmap weiter _color * _minlight");
 }
 
 // Stufe 9c: Flaechenlicht wie q3map2 -fast (PointToPolygonFormFactor, Unterteilung, Rueckschein)
@@ -293,6 +299,10 @@ void proben() {
         const float d = std::clamp(l.sonnenRichtung[0] * r0[0] + l.sonnenRichtung[1] * r0[1] + l.sonnenRichtung[2] * r0[2], -1.0F, 1.0F);
         maxWinkel = std::max(maxWinkel, std::acos(d) * 180.0F / 3.14159265F);
     }
+    // rc608 Teil 11: _noshadersun laesst die Sonnen der Shader weg (CreateSurfaceLights, light.cpp:593)
+    welt->setzen("_noshadersun", "1");
+    pruefe(echtLichterSammeln(k2, nullptr, [&s](const std::string&) { return s; }).lichter.empty(), "_noshadersun 1: keine Sonne aus dem Shader");
+    welt->setzen("_noshadersun", "0");
     pruefe(ws.lichter.size() == 8 && nah(sumS, 100.0F, 1e-3F) && nah(r0[2], std::sin(45.0F * 3.14159265F / 180.0F), 1e-5F) && maxWinkel > 0.1F &&
                maxWinkel <= 5.0F * 1.4143F + 0.01F,
            "q3map_sunExt 8 Proben: acht Sonnen, Summe 100, die erste genau, die anderen innerhalb der Abweichung (" + std::to_string(ws.lichter.size()) +

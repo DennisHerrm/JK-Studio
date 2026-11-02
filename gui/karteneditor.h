@@ -463,6 +463,8 @@ struct KameraFenster {
     float restY = 0;
     std::vector<int> tasten;        // PressedKeys::keys (ImGuiKey)
     bool kontextmenue = false;      // context_menu_show (Doppel-M2) - fuer den Selbsttest
+    int messBreite = 0;             // rc608 Teil 11, Selbsttest: das Kamerabild in dieser Groesse rendern (Vergleich mit dem Spiel)
+    int messHoehe = 0;
     double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
     double letzteStatistik = -1.0;  // m_render_time (f2f)
     std::size_t bilder = 0;         // fuer den Selbsttest: gezeichnete Bilder der Kamera
@@ -1101,6 +1103,8 @@ struct Editor {
         std::size_t baueAbgebrochen = 0;   // abgebrochene Baue (neue Aenderung)
         std::string bauOrdner;             // der temporaere Ordner des letzten Baus
         bool gebackenZeigen = false;       // die echten Lightmaps statt der Vorschau
+        bool spielbild = true;             // rc608 Teil 11: "Built map as in the game" - die gebaute Karte durch den Zeichner der Vorschau
+        bool spielbildGezeigt = false;     // rc608 Teil 11: die Kamera zeigte im letzten Bild das Spielbild
     } echtLicht;
     std::array<FensterBeobachter, 4> beobachter;
     std::array<karte::Blick, 4> blicke{karte::Blick(false), karte::Blick(false), karte::Blick(false), karte::Blick(true)};   // m_view

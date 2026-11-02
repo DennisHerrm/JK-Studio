@@ -206,6 +206,10 @@ struct EchtLichtWelt {
     std::vector<EchtLicht> lichter;
     Vektor3f umgebung{0, 0, 0};   // worldspawn _color * _ambient
     Vektor3f minimum{0, 0, 0};    // worldspawn _color * _minlight
+    // rc608 Teil 11: _color * _minvertexlight, ohne den Schluessel wie _minlight (LightWorld, light.cpp:2333-2349) -
+    // das Mindestlicht der Eckfarben, also der Flaechen ohne Lightmap (C_VERTEXLIT; StoreSurfaceLightmaps,
+    // lightmaps_ydnar.cpp:3143)
+    Vektor3f minimumEcken{0, 0, 0};
 };
 
 // Die Lichter der Karte. shaderVon: q3map_surfacelight der Flaechen und

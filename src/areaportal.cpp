@@ -2,6 +2,7 @@
 #include "bhed/areaportal.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <map>
 #include <sstream>
@@ -71,14 +72,19 @@ AreaPaar kastenGebiete(const BspGeometry& g, const float mins[3], const float ma
     return aus;
 }
 
-std::vector<char> flaechenHinterPortalen(const BspGeometry& g, const AreaPortale& p, int auge) {
+std::vector<char> flaechenAusserSicht(const BspGeometry& g, const AreaPortale& p, int auge, int cluster) {
     std::vector<char> verdeckt(g.surfaces.size(), 0);
-    if (auge < 0 || p.gebiete() == 0) { return verdeckt; }
+    const bool mitGebiet = auge >= 0 && p.gebiete() > 0;
+    // R_ClusterPVS: ausserhalb der Tabelle novis (alle Bits gesetzt)
+    const std::size_t pvsAb = static_cast<std::size_t>(std::max(cluster, 0)) * static_cast<std::size_t>(std::max(g.clusterBytes, 0));
+    const bool mitPvs = cluster >= 0 && cluster < g.numClusters && g.clusterBytes > 0 && pvsAb + static_cast<std::size_t>(g.clusterBytes) <= g.vis.size();
+    if (!mitGebiet && !mitPvs) { return verdeckt; }
     std::vector<char> gesehen(g.surfaces.size(), 0);
     std::vector<char> inBlatt(g.surfaces.size(), 0);
     for (const BspGeometry::Leaf& lf : g.leafs) {
-        if (lf.cluster < 0 || lf.firstSurface < 0 || lf.numSurfaces <= 0) { continue; }
-        const bool frei = lf.area == -1 || p.verbunden(auge, lf.area);
+        if (lf.cluster < 0 || lf.cluster >= g.numClusters || lf.firstSurface < 0 || lf.numSurfaces <= 0) { continue; }
+        const bool imPvs = !mitPvs || (g.vis[pvsAb + static_cast<std::size_t>(lf.cluster >> 3)] & (1U << (lf.cluster & 7))) != 0U;
+        const bool frei = imPvs && (!mitGebiet || lf.area == -1 || p.verbunden(auge, lf.area));
         const long long bis = std::min<long long>(static_cast<long long>(lf.firstSurface) + lf.numSurfaces, static_cast<long long>(g.leafSurfaces.size()));
         for (long long i = lf.firstSurface; i < bis; ++i) {
             const int s = g.leafSurfaces[static_cast<std::size_t>(i)];
@@ -88,7 +94,7 @@ std::vector<char> flaechenHinterPortalen(const BspGeometry& g, const AreaPortale
         }
     }
     for (std::size_t s = 0; s < verdeckt.size(); ++s) {
-        // Auch der Himmel: R_RecursiveWorldNode gibt seine Flaechen hinter einem geschlossenen Portal gar nicht erst weiter.
+        // R_RecursiveWorldNode gibt die Flaechen der nicht markierten Blaetter gar nicht erst weiter.
         verdeckt[s] = (inBlatt[s] != 0 && gesehen[s] == 0) ? 1 : 0;
     }
     return verdeckt;

@@ -372,6 +372,23 @@ int main() {
                 g.size() == 1 && g[0].zusatzstufe);
     }
     {
+        // rc608 Teil 11: Ein deckender Shader mit einer gemischten Zusatzstufe (wie u_metalorange02:
+        // env, dann GL_SRC_ALPHA GL_SRC_ALPHA) und davor in der Karte eine additive Flaeche (env_glass).
+        // Im Spiel ist der deckende Shader mit allen Stufen fertig, bevor das Glas addiert
+        // (R_RadixSort nach Sortierstufe, RB_IterateStagesGeneric je Shader).
+        TextureSet ts2 = baueTexturen();
+        ts2.byShader[0].extraStages.push_back(2);
+        const BspMesh m = baueNetz({1, 0});
+        const std::vector<DrawCall> calls = buildDrawCalls(m, &ts2, 0.0F);
+        erwarte("Glas vor Metall in der Karte: Grundstufe, Zusatzstufe, dann das Glas",
+                calls.size() == 3 && !calls[0].zusatzstufe && calls[0].bild == 0 && calls[1].zusatzstufe && calls[1].bild == 2 &&
+                    calls[2].bild == 1);
+        const std::vector<DrawCall> d = nurLage(calls, Lage::Deckend);
+        const std::vector<DrawCall> g = nurLage(calls, Lage::Gemischt);
+        erwarte("die gemischte Zusatzstufe des deckenden Shaders zeichnet in der deckenden Lage",
+                d.size() == 2 && d[1].zusatzstufe && g.size() == 1 && g[0].bild == 1);
+    }
+    {
         // Ohne Zusatzstufen aendert sich nichts - der alte Weg bleibt.
         const BspMesh m = baueNetz({0, 2, 1});
         erwarte("ohne Zusatzstufen bleibt die Liste wie bisher",

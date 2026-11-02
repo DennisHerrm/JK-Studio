@@ -107,7 +107,8 @@ private:
 };
 
 enum class TiefenTest { Aus, Kleiner, KleinerGleich, Groesser };   // GL_LESS, GL_LEQUAL, GL_GREATER
-enum class Mischen { Aus, Alpha, Additiv, Spiel };   // SRC_ALPHA/ONE_MINUS_SRC_ALPHA, ONE/ONE; Spiel: mischQuelle/mischZiel (Stufe 9c)
+// SRC_ALPHA/ONE_MINUS_SRC_ALPHA, ONE/ONE; Spiel: mischQuelle/mischZiel (Stufe 9c); NurTiefe: keine Farbe (rc608 Teil 11)
+enum class Mischen { Aus, Alpha, Additiv, Spiel, NurTiefe };
 struct Zustand3 {
     const float* matrix = nullptr;      // projection * modelview (spaltenweise)
     float farbe[4]{1, 1, 1, 1};         // glColor (mal Eckenfarbe)
@@ -143,6 +144,8 @@ struct Zustand3 {
     bool nebelNur = false;
     // Stufe 9d: misc_skyportal - eine Himmelsflaeche zeigt dieses Bild an derselben Bildstelle
     void* himmelPortal = nullptr;
+    // rc608 Teil 11: Flaeche ohne Lightmap (C_VERTEXLIT) - das Mindestlicht ist minimumEcken (_minvertexlight)
+    bool eckLicht = false;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).
@@ -215,7 +218,7 @@ struct SchattenTeil {
 // Lichter, Ecken der Flaechenlichter (xyz je Ecke), die Kachelmasken (worte je
 // Kachel, kachelnX * kachelnY Kacheln), Umgebung und Minimum (rgb).
 void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
-                 int kachelnY, int worte, const float* umgebung, const float* minimum);
+                 int kachelnY, int worte, const float* umgebung, const float* minimum, const float* minimumEcken);
 // Den Schattenwuerfel slot (< kSchattenGross: 512, sonst 256) fuer ein Licht an
 // pos (Weite = Huelle) aus den Teilen der Arten 0, 1, 3 rendern. Vor beginnen().
 bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile);
@@ -269,9 +272,12 @@ private:
 // Eine 128x128-Lightmap (RGB) als Bild ohne Mipmaps; mit bildFreigeben freigeben.
 [[nodiscard]] void* lightmapAnlegen(const std::uint8_t* rgb, int breite, int hoehe);
 // Einen Bereich zeichnen: Textur (z.bild) mal Lightmap (nullptr: die Eckfarbe,
-// LIGHTMAP_BY_VERTEX) mal 2 (r_mapOverBrightBits), Zustand wie dreiecke().
+// LIGHTMAP_BY_VERTEX) mal gpu::kSpielLightmapFaktor, Zustand wie dreiecke().
 void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint32_t anzahl, void* lightmap, const Zustand3& z);
 
+// rc608 Teil 11: ein fertiges Bild gleicher Groesse (das Spielbild aus gpu::, eine ID3D11ShaderResourceView*)
+// ins laufende Ziel legen - ohne Tiefe; die Tiefe kommt danach mit Mischen::NurTiefe.
+void bildUnterlegen(void* srv);
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
 // Stufe 9c: das ganze Bild (RGBA, Zeilen von oben) fuer die Lichtmessung.

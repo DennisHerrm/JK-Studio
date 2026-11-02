@@ -1453,6 +1453,7 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             if (parm == "alphashadow") { r.alphaSchatten = true; }
             if (parm == "lightfilter") { r.lichtFilter = true; }
             if (parm == "nodraw") { r.nichtZeichnen = true; }
+            if (parm == "nolightmap" || parm == "pointlight") { r.eckLicht = true; }
             if (parm == "fog") { r.nebel = true; }
         }
     }

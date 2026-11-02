@@ -3588,14 +3588,15 @@ void meldeNachladen(const char* was, const std::string& name, double ms);
 // 20000 war zu knapp: duel_kamino_lp misst 34816 Einheiten in der Breite und
 // hat eine Diagonale von 48229. Wer von einer Ecke zur anderen schaut,
 // verliert alles dahinter. Der GPU-Weg hatte die feste Zahl noch.
-float kartenFern() {
+float kartenFernFuer(const BspGeometry& geo) {
     float diag = 0.0F;
     for (int k = 0; k < 3; ++k) {
-        const float d = g_app->geo.maxs[k] - g_app->geo.mins[k];
+        const float d = geo.maxs[k] - geo.mins[k];
         diag += d * d;
     }
     return std::max(std::sqrt(diag) * 1.2F, 8000.0F);
 }
+float kartenFern() { return kartenFernFuer(g_app->geo); }
 
 const TextureSet::Tex* bladeTexture(const std::string& farbe, bool glow) {
     static const char* const kBekannt[] = {"red",  "orange", "yellow",
@@ -3961,9 +3962,9 @@ int nebelFuer(const float ort[3]) {
 // Die Nebel der Karte mit Farbe und Dichte aus `fogparms` (R_LoadFogs).
 // Fehlt der Shader, nimmt die Engine Rot und 250 ("bad shader!!") - so auch
 // hier, damit ein fehlender Shader auffaellt statt still zu fehlen.
-std::vector<gpu::NebelGpu> nebelListe() {
+std::vector<gpu::NebelGpu> nebelListeFuer(const BspGeometry& geo) {
     std::vector<gpu::NebelGpu> aus;
-    for (const BspGeometry::Nebel& n : g_app->geo.nebel) {
+    for (const BspGeometry::Nebel& n : geo.nebel) {
         gpu::NebelGpu g;
         g.gueltig = n.gueltig;
         std::string k = n.shader;
@@ -3981,6 +3982,7 @@ std::vector<gpu::NebelGpu> nebelListe() {
     }
     return aus;
 }
+std::vector<gpu::NebelGpu> nebelListe() { return nebelListeFuer(g_app->geo); }
 
 // Der Radius des Blobschattens nach der Klasse aus der .npc
 // (CG_PlayerShadow): Rancor 64, AT-ST 64 (dazu zwei kleine unter den
@@ -5609,17 +5611,26 @@ void areaPortaleJetzt(const float auge[3]) {
     if (anders) {
         app.areaMasken.clear();
         app.areaAuge = -2;
+        app.areaCluster = -2;
     }
     areaSichtSetzen(auge);
 }
 
+// R_MarkLeaves: das Blatt von tr.viewParms.pvsOrigin gibt Cluster (PVS) und Gebiet (areamask).
 void areaSichtSetzen(const float ort[3]) {
     App& app = *g_app;
-    const int gebiet = punktGebiet(app.geo, ort);
-    if (gebiet == app.areaAuge) { return; }
+    const int blatt = app.geo.leafAt(ort);
+    const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < app.geo.leafs.size();
+    const int gebiet = imBaum ? app.geo.leafs[static_cast<std::size_t>(blatt)].area : -1;
+    const int cluster = imBaum ? app.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
+    if (gebiet == app.areaAuge && cluster == app.areaCluster) { return; }
     app.areaAuge = gebiet;
-    auto it = app.areaMasken.find(gebiet);
-    if (it == app.areaMasken.end()) { it = app.areaMasken.emplace(gebiet, flaechenHinterPortalen(app.geo, app.areaPortale, gebiet)).first; }
+    app.areaCluster = cluster;
+    // Je Eintrag eine Zahl je Flaeche: beim Flug durch viele Cluster nicht ohne Grenze wachsen lassen.
+    constexpr std::size_t kMaskenGrenze = 64U;
+    if (app.areaMasken.size() >= kMaskenGrenze) { app.areaMasken.clear(); }
+    auto it = app.areaMasken.find({gebiet, cluster});
+    if (it == app.areaMasken.end()) { it = app.areaMasken.emplace(std::make_pair(gebiet, cluster), flaechenAusserSicht(app.geo, app.areaPortale, gebiet, cluster)).first; }
     gpu::setzeVerdeckteFlaechen(&app.geo, &it->second);
 }
 

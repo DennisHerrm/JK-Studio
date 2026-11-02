@@ -2028,6 +2028,18 @@ void playSoundSchleife(const std::string& name, double dauerMs, float lautstaerk
 // "lava" irgendwo, ist es Fall 2 und man sieht sofort wo. Findet sich gar
 // nichts, ist es Fall 1 oder 3 - und die Zahl der durchsuchten Archive
 // beantwortet nebenbei die Frage, ob ueberhaupt ueberall gesucht wurde.
+// rc608 Teil 11: Wohin loadMapTextures laedt. Leer: die Karte der Vorschau (g_app). Der Karten-Editor laedt so die
+// Bilder seiner gebauten Karte nach denselben Regeln (loadMapTexturesFuer) - ohne Gras und ohne Fehlermeldungen.
+struct TexturLadeZiel {
+    const BspGeometry* geo = nullptr;
+    TextureSet* textures = nullptr;
+    std::unordered_set<std::string>* kartenBilder = nullptr;
+};
+TexturLadeZiel g_ladeZiel;
+TextureSet& ladeSatz() { return g_ladeZiel.textures != nullptr ? *g_ladeZiel.textures : g_app->textures; }
+const BspGeometry& ladeGeo() { return g_ladeZiel.geo != nullptr ? *g_ladeZiel.geo : g_app->geo; }
+std::unordered_set<std::string>& ladeBilder() { return g_ladeZiel.kartenBilder != nullptr ? *g_ladeZiel.kartenBilder : g_app->kartenBilder; }
+
 void reportMissingTexture(const std::string& shaderName) {
     if (!diag::detailOn()) {
         return;
@@ -2172,7 +2184,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
             //    Werte kommen danach jedes Mal frisch dazu.
             const std::string key =
                 image::mappingName(name) + "@" + bildStufeText();
-            g_app->kartenBilder.insert(key);
+            ladeBilder().insert(key);
             TextureSet::Tex t;
             const auto hit = g_app->texCache.find(key);
             if (hit != g_app->texCache.end()) {
@@ -2413,8 +2425,8 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
         wolke.ausSkript = true;
         wolke.lightmapStufe = false;
         wolke.wolkenHoehe = info.wolkenHoehe;
-        himmel.extraStages.push_back(static_cast<int>(g_app->textures.byShader.size()));
-        g_app->textures.byShader.push_back(std::move(wolke));
+        himmel.extraStages.push_back(static_cast<int>(ladeSatz().byShader.size()));
+        ladeSatz().byShader.push_back(std::move(wolke));
         ++zahl;
     }
     if (zahl > 0) {
@@ -2488,8 +2500,8 @@ void lightmapFilterLaden(TextureSet::Tex& t) {
     filter.lightmapFilter = true;
     filter.srcFactor = BlendFactor::DstColor;
     filter.dstFactor = BlendFactor::Zero;
-    t.extraStages.push_back(static_cast<int>(g_app->textures.byShader.size()));
-    g_app->textures.byShader.push_back(std::move(filter));
+    t.extraStages.push_back(static_cast<int>(ladeSatz().byShader.size()));
+    ladeSatz().byShader.push_back(std::move(filter));
 }
 
 // rc604 fix604b (B1): EINE Zusatzstufe eines Shaders laden und an `t` haengen
@@ -2599,19 +2611,19 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     // sein eigener Index als erster in animFrames, und
     // deshalb wird er VOR den uebrigen abgelegt.
     const int eigenerIndex =
-        static_cast<int>(g_app->textures.byShader.size());
+        static_cast<int>(ladeSatz().byShader.size());
     zusatz.animFreq = st.animFreq;
     zusatz.animOneShot = st.animOneShot;
     if (st.animImages.size() > 1) {
         zusatz.animFrames.push_back(eigenerIndex);
     }
     t.extraStages.push_back(eigenerIndex);
-    g_app->textures.byShader.push_back(std::move(zusatz));
+    ladeSatz().byShader.push_back(std::move(zusatz));
     if (st.animImages.size() > 1) {
         for (std::size_t bi = 1; bi < st.animImages.size();
              ++bi) {
             TextureSet::Tex bild =
-                g_app->textures.byShader[
+                ladeSatz().byShader[
                     static_cast<std::size_t>(eigenerIndex)];
             bild.rgba.clear();
             bild.mips.clear();
@@ -2621,7 +2633,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             // Die Eigenschaften der Stufe uebernehmen, das
             // Bild ist das einzig Neue.
             TextureSet::Tex& erst =
-                g_app->textures.byShader[
+                ladeSatz().byShader[
                     static_cast<std::size_t>(eigenerIndex)];
             bild.blend = erst.blend;
             bild.alphaTest = erst.alphaTest;
@@ -2649,8 +2661,8 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             bild.animFrames.clear();
             bild.animFreq = 0.0F;
             erst.animFrames.push_back(static_cast<int>(
-                g_app->textures.byShader.size()));
-            g_app->textures.byShader.push_back(
+                ladeSatz().byShader.size()));
+            ladeSatz().byShader.push_back(
                 std::move(bild));
         }
     }
@@ -2707,8 +2719,8 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
         // jedes Bild der Folge - sonst wuerden sie mehrfach
         // gezeichnet.
         t.animFrames.push_back(static_cast<int>(
-            g_app->textures.byShader.size()));
-        g_app->textures.byShader.push_back(std::move(bild));
+            ladeSatz().byShader.size()));
+        ladeSatz().byShader.push_back(std::move(bild));
     }
     diag::detail("Shader \"" + shaderName + "\": Bildfolge mit " +
                  std::to_string(t.animFrames.size()) +
@@ -2722,23 +2734,26 @@ void loadMapTextures() {
     diag::Step step("Texturen suchen");
     // Was die vorige Karte benutzt hat - aufgeraeumt wird am Ende, wenn
     // feststeht, was die neue davon wieder braucht.
-    const std::unordered_set<std::string> alteKartenBilder = std::move(g_app->kartenBilder);
-    g_app->kartenBilder.clear();
-    g_app->textures = TextureSet{};
-    // rc604 surfaceSprites: die Stufen haengen an den Textureintraegen.
-    g_app->grasStufen.clear();
-    g_app->grasNetz = BspMesh{};
-    g_app->grasFlachSchichten = 0;
-    g_app->grasPlatzNull = 0;
-    ++g_app->grasStand;
-    // Die hochgeladenen Bilder hingen an den alten Nummern.
+    const std::unordered_set<std::string> alteKartenBilder = std::move(ladeBilder());
+    ladeBilder().clear();
+    ladeSatz() = TextureSet{};
+    const bool vorschau = g_ladeZiel.textures == nullptr;
+    if (vorschau) {
+        // rc604 surfaceSprites: die Stufen haengen an den Textureintraegen.
+        g_app->grasStufen.clear();
+        g_app->grasNetz = BspMesh{};
+        g_app->grasFlachSchichten = 0;
+        g_app->grasPlatzNull = 0;
+        ++g_app->grasStand;
+        g_app->fehlendeTexturen.clear();
+        // Die Zuordnungen zeigen in textures.byShader - wird die Liste neu
+        // gebaut, sind die Nummern wertlos. Sie muessen MIT weg, sonst zeigt
+        // ein Partikel die Textur einer Wand.
+        g_app->effectShaders.clear();
+    }
+    // Die hochgeladenen Bilder hingen an den alten Nummern (nur die der gewaehlten Szene, gpu::szeneWaehlen).
     gpu::vergissKarte();
-    g_app->fehlendeTexturen.clear();
-    // Die Zuordnungen zeigen in textures.byShader - wird die Liste neu
-    // gebaut, sind die Nummern wertlos. Sie muessen MIT weg, sonst zeigt
-    // ein Partikel die Textur einer Wand.
-    g_app->effectShaders.clear();
-    if (g_app->geo.shaders.empty() || g_app->gamePaths.empty()) {
+    if (ladeGeo().shaders.empty() || g_app->gamePaths.empty()) {
         return;
     }
 
@@ -2772,7 +2787,7 @@ void loadMapTextures() {
         diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
     }
 
-    g_app->textures.byShader.resize(g_app->geo.shaders.size());
+    ladeSatz().byShader.resize(ladeGeo().shaders.size());
 
     // --- Die Bilder NEBENLAEUFIG vorwaermen -----------------------------
     //
@@ -2794,8 +2809,8 @@ void loadMapTextures() {
     // der Faeden - dieselbe Regel, die den Zeichner bytegleich haelt.
     {
         std::vector<std::string> namen;
-        namen.reserve(g_app->geo.shaders.size());
-        for (const BspShader& sh : g_app->geo.shaders) {
+        namen.reserve(ladeGeo().shaders.size());
+        for (const BspShader& sh : ladeGeo().shaders) {
             if (sh.isDrawn()) {
                 namen.push_back(sh.name);
             }
@@ -2874,7 +2889,7 @@ void loadMapTextures() {
             for (const auto& eintrag : fach) {
                 // Auch vorgewaermte Bilder gehoeren zur Karte - sonst blieben
                 // die, die loadTextureFor nie nachfragt, fuer immer liegen.
-                g_app->kartenBilder.insert(eintrag.first);
+                ladeBilder().insert(eintrag.first);
                 if (g_app->texCache.emplace(eintrag.first, eintrag.second)
                         .second) {
                     ++neu;
@@ -2885,8 +2900,8 @@ void loadMapTextures() {
                    std::to_string(faeden) + " Faeden");
     }
 
-    for (std::size_t i = 0; i < g_app->geo.shaders.size(); ++i) {
-        const BspShader& sh = g_app->geo.shaders[i];
+    for (std::size_t i = 0; i < ladeGeo().shaders.size(); ++i) {
+        const BspShader& sh = ladeGeo().shaders[i];
         if (!sh.isDrawn()) {
             continue;
         }
@@ -2921,8 +2936,8 @@ void loadMapTextures() {
                     if (loadImageFile(sk->second.skyBox + "_" + suf,
                                        seite)) {
                         letzte = static_cast<int>(
-                            g_app->textures.byShader.size());
-                        g_app->textures.byShader.push_back(std::move(seite));
+                            ladeSatz().byShader.size());
+                        ladeSatz().byShader.push_back(std::move(seite));
                         ++geladen;
                     }
                     t.skyFaces.push_back(letzte);
@@ -2936,7 +2951,7 @@ void loadMapTextures() {
                     // Seite tut es - gezeichnet wird sie nie, die Farbe
                     // kommt aus skyFaces.
                     const TextureSet::Tex& ersteSeite =
-                        g_app->textures.byShader[
+                        ladeSatz().byShader[
                             static_cast<std::size_t>(t.skyFaces[0] >= 0
                                                          ? t.skyFaces[0]
                                                          : letzte)];
@@ -2945,8 +2960,8 @@ void loadMapTextures() {
                     t.rgba = ersteSeite.rgba;
                     t.mips = ersteSeite.mips;
                     wolkenLaden(sk->second, sh.name, t);
-                    g_app->textures.byShader[i] = std::move(t);
-                    ++g_app->textures.found;
+                    ladeSatz().byShader[i] = std::move(t);
+                    ++ladeSatz().found;
                     continue;
                 }
                 t.skyFaces.clear();
@@ -3010,7 +3025,7 @@ void loadMapTextures() {
                             for (float& c : t.rgbConst) { c = 0.0F; }
                             t.depthWrite = false;
                             t.glow = false;
-                            ++g_app->grasPlatzNull;
+                            if (vorschau) { ++g_app->grasPlatzNull; }
                         }
                         continue;   // die steckt schon in `t`
                     }
@@ -3024,8 +3039,10 @@ void loadMapTextures() {
                     // danach als Halme (RB_DrawSurfaceSprites). Bis rc604
                     // lag hier das Bild der Halme flach auf dem Boden.
                     if (st.ss.aktiv()) {
-                        grasStufeLaden(si->second, st,
-                                       static_cast<std::size_t>(&st - si->second.stages.data()), sh.name, i);
+                        if (vorschau) {
+                            grasStufeLaden(si->second, st,
+                                           static_cast<std::size_t>(&st - si->second.stages.data()), sh.name, i);
+                        }
                         continue;
                     }
                     // --- NUR ADDITIVE Stufen -------------------------
@@ -3132,30 +3149,40 @@ void loadMapTextures() {
                     basisBildfolgeLaden(si->second, static_cast<int>(i), sh.name, t);   // rc604 fix604b (B1)
                 }
             }
-            g_app->textures.byShader[i] = std::move(t);
-            ++g_app->textures.found;
+            ladeSatz().byShader[i] = std::move(t);
+            ++ladeSatz().found;
         } else {
-            ++g_app->textures.missing;
-            g_app->fehlendeTexturen.push_back(sh.name);
+            ++ladeSatz().missing;
             diag::info("keine Textur fuer " + sh.name);
-            reportMissingTexture(sh.name);
+            if (vorschau) {
+                g_app->fehlendeTexturen.push_back(sh.name);
+                reportMissingTexture(sh.name);
+            }
         }
     }
-    diag::info(std::to_string(g_app->textures.found) + " gefunden, " +
-               std::to_string(g_app->textures.missing) + " nicht gefunden");
+    diag::info(std::to_string(ladeSatz().found) + " gefunden, " +
+               std::to_string(ladeSatz().missing) + " nicht gefunden");
     // Bilder der vorigen Karte, die diese nicht wieder benutzt, freigeben.
     // Alle Nutzer von loadTextureFor bekommen KOPIEN - es zeigt nichts
     // hinein.
     std::size_t weg = 0;
     for (const std::string& k : alteKartenBilder) {
-        if (g_app->kartenBilder.count(k) == 0U) {
+        if (ladeBilder().count(k) == 0U) {
             weg += g_app->texCache.erase(k);
         }
     }
     if (weg != 0U) {
         diag::detail("Bilder der vorigen Karte freigegeben: " + std::to_string(weg));
     }
-    g_app->mapDirty = true;
+    if (vorschau) { g_app->mapDirty = true; }
+}
+
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder) {
+    g_ladeZiel.geo = &geo;
+    g_ladeZiel.textures = &ziel;
+    g_ladeZiel.kartenBilder = &bilder;
+    loadMapTextures();
+    g_ladeZiel = TexturLadeZiel{};
 }
 
 void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {

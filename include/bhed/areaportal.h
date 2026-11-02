@@ -43,9 +43,11 @@ struct AreaPaar {
 [[nodiscard]] AreaPaar kastenGebiete(const BspGeometry& g, const float mins[3], const float maxs[3]);
 [[nodiscard]] int punktGebiet(const BspGeometry& g, const float p[3]);
 
-// Je Flaeche: 1, wenn kein Blatt mit ihr im Gebiet des Auges liegt oder damit verbunden ist (nie der Himmel).
-// Das Auge im Festen (Gebiet -1): nichts verdeckt (CM_WriteAreaBits).
-[[nodiscard]] std::vector<char> flaechenHinterPortalen(const BspGeometry& g, const AreaPortale& p, int auge);
+// R_MarkLeaves (tr_world.cpp): Je Flaeche 1, wenn kein Blatt mit ihr zu zeichnen ist - sein Cluster liegt nicht im
+// PVS des Auges (R_ClusterPVS) oder sein Gebiet ist nicht mit dem des Auges verbunden (areamask). Das gilt auch fuer
+// den Himmel. Das Auge im Festen (Gebiet -1): kein Gebiet verdeckt (CM_WriteAreaBits); Cluster -1 oder eine Karte
+// ohne Sichttabelle: kein Cluster verdeckt (tr.viewCluster == -1, novis).
+[[nodiscard]] std::vector<char> flaechenAusserSicht(const BspGeometry& g, const AreaPortale& p, int auge, int cluster);
 
 // Die Entities, die ein Portal schalten koennen. Art: wie sie es tun.
 struct PortalEntity {

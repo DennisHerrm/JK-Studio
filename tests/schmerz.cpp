@@ -207,11 +207,16 @@ void portale() {
     a.numSurfaces = 2;
     BspGeometry::Leaf b = a;
     b.area = 1;
+    b.cluster = 1;
     b.firstSurface = 1;
     b.numSurfaces = 2;
     g.leafs = {a, b};
     g.leafSurfaces = {0, 1, 2};
     g.surfaces.resize(3);
+    // Sichttabelle: Cluster 0 sieht nur sich, Cluster 1 beide.
+    g.numClusters = 2;
+    g.clusterBytes = 1;
+    g.vis = {0x01U, 0x03U};
     const float punkt[3] = {5.0F, 0.0F, 0.0F};
     erwarte("Gebiet des Punkts", punktGebiet(g, punkt) == 0);
     const float mn[3] = {-1.0F, -1.0F, -1.0F};
@@ -220,14 +225,23 @@ void portale() {
     erwarte("SV_LinkEntity: der Kasten auf der Grenze: areanum 0, areanum2 1", paar.a == 0 && paar.b == 1);
     AreaPortale q;
     q.anlegen(2);
-    std::vector<char> v = flaechenHinterPortalen(g, q, 0);
+    std::vector<char> v = flaechenAusserSicht(g, q, 0, -1);
     erwarte("Zu: Flaeche 2 nur im anderen Gebiet ist verdeckt, Flaeche 1 in beiden nicht", v[0] == 0 && v[1] == 0 && v[2] == 1);
     q.setze(0, 1, true);
-    v = flaechenHinterPortalen(g, q, 0);
+    v = flaechenAusserSicht(g, q, 0, -1);
     erwarte("Auf: nichts verdeckt", v[2] == 0);
     q.setze(0, 1, false);
-    v = flaechenHinterPortalen(g, q, -1);
+    v = flaechenAusserSicht(g, q, -1, -1);
     erwarte("Auge im Festen: nichts verdeckt (CM_WriteAreaBits)", v[2] == 0);
+    // R_MarkLeaves: Cluster ausserhalb des PVS fallen weg, auch wenn die Gebiete verbunden sind.
+    q.setze(0, 1, true);
+    v = flaechenAusserSicht(g, q, 0, 0);
+    erwarte("PVS von Cluster 0: Flaeche 2 nur in Cluster 1 ist verdeckt, Flaeche 1 nicht", v[0] == 0 && v[1] == 0 && v[2] == 1);
+    v = flaechenAusserSicht(g, q, 1, 1);
+    erwarte("PVS von Cluster 1: nichts verdeckt", v[0] == 0 && v[1] == 0 && v[2] == 0);
+    v = flaechenAusserSicht(g, q, -1, -1);
+    erwarte("Auge im Festen, Cluster -1: nichts verdeckt (tr.viewCluster == -1)", v[2] == 0);
+    q.setze(0, 1, false);
     // portalEntities: Regeln je Klasse.
     MapData karte;
     BspGeometry::SubModel welt;

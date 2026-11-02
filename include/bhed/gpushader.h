@@ -35,6 +35,12 @@
 
 namespace bhed::gpu {
 
+// rc608 Teil 11: Das Licht im Spielbild ist Bild mal Lightmap mal diesem Faktor. Im Spiel gemessen (Teil 5 bis 8,
+// Movie Duels, screenshot_tga gegen die Vorschau: Boden und Waende 1,00) - r_mapOverBrightBits verschiebt die
+// Lightmap beim Laden (R_ColorShiftLightingBytes), das Bild am Schirm traegt danach keinen weiteren Faktor 2. Die
+// Vorschau (App::mapBrightness als Vorgabe) und der Karten-Editor (Echtzeit-Licht, gebaute Lightmaps) rechnen damit.
+inline constexpr float kSpielLightmapFaktor = 1.0F;
+
 // Der Vertex-Shader fuer diese Merkmalskombination.
 //
 // `features` ist das Bitfeld aus PipelineState (siehe gpustate.h).

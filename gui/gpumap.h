@@ -123,6 +123,13 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
 // stehen, aber ohne Dreiecke. nullptr: alle zeichnen. Nur bei Aenderung rufen.
 void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* verdeckt);
 
+// rc608 Teil 11: Zwei Szenen mit eigenen Netzpuffern, Bildern, Lightmaps, Himmel und verdeckten Flaechen - 0 die
+// Vorschau, 1 die gebaute Karte des Karten-Editors (karteneditor::spielbild). vergissKarte gilt der gewaehlten.
+void szeneWaehlen(int nr);
+[[nodiscard]] int szeneJetzt();
+// Der Zielsatz (waehleZiel) des Karten-Editors.
+inline constexpr int kZielKarteneditor = 5;
+
 // Eine Figur zeichnen.
 //
 // Muss NACH zeichneKarte kommen: das Renderziel wird nur dort geloescht, und

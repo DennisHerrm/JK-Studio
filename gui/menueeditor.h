@@ -139,6 +139,8 @@ void verschiebeAuswahl(float dx, float dy);
 void setzeInteraktion(bool an);
 void klickVorschau(float x, float y);   // im virtuellen Bildschirm
 void setzeCvar(const std::string& name, const std::string& wert);
+// rc608 Teil 11 (Selbsttest): die gewaehlte Waffe im Datapad-Beispiel (wie die Auswahl in den Beispielwerten)
+void setzeDatapadWaffe(int waffe);
 // Rechte Spalte: 1 Text, 2 Eigenschaften, 3 Events (gespeichert in den Einstellungen); 0: die Hierarchie steht jetzt links, der Reiter bleibt, wie er ist
 void setzeReiter(int reiter);
 // rc608 Teil 3a (Selbsttest): was die rechte Leiste gerade zeigt

@@ -7604,6 +7604,13 @@ void setzeCvar(const std::string& name, const std::string& wert) {
     else { z.vorschauCvars[kleinPfad(name)] = wert; }
 }
 
+void setzeDatapadWaffe(int waffe) {
+    datapadDatenLaden();
+    DatapadWerte& w = Z().datapadWerte;
+    w.waffe = std::clamp(waffe, 1, 13);
+    w.waffen |= 1U << w.waffe;
+}
+
 std::string cvarWert(const std::string& name) {
     Zustand& z = Z();
     if (z.interaktion) { return z.lauf.cvar(name); }

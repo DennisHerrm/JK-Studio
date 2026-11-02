@@ -497,6 +497,7 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
 struct Ergebnis {
     BspGeometry geo;
     BspMesh netz;
+    std::string daten;   // rc608 Teil 11: die .bsp selbst (Spielbild: Entities, Lichtstile, eigenes Netz mit Himmel)
 };
 
 struct Backen {
@@ -528,8 +529,11 @@ struct Gebacken {
     };
     std::vector<Teil> teile;
     unsigned geraet = ~0U;
+    std::shared_ptr<const std::string> daten;   // rc608 Teil 11: fuer das Spielbild
+    std::uint64_t nummer = 0;                   // je uebernommenem Ergebnis neu
     void leeren() {
         netz.leeren();
+        daten.reset();
         for (void* l : lightmaps) {
             if (l != nullptr) { kartegpu::bildFreigeben(l); }
         }
@@ -678,6 +682,7 @@ void schnellBauStarten(std::size_t kartenStand) {
             return;
         }
         r->netz = buildMesh(r->geo, 4, true);
+        r->daten = std::move(bytes);
         std::lock_guard<std::mutex> l(g_backen.mutex);
         g_backen.ergebnis = std::move(r);
         g_backen.sekunden = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
@@ -702,6 +707,9 @@ void netzUebernehmen(Gebacken& ziel, std::unique_ptr<Ergebnis> r) {
         punkte.push_back(p);
     }
     if (!ziel.netz.setzen(punkte, r->netz.indexes)) { return; }
+    static std::uint64_t nummern = 0;
+    ziel.daten = std::make_shared<const std::string>(std::move(r->daten));
+    ziel.nummer = ++nummern;
     for (std::size_t i = 0; i < r->geo.lightmaps.size(); ++i) {
         ziel.lightmaps.push_back(kartegpu::lightmapAnlegen(r->geo.lightmaps[i].data(), r->geo.lightmapW(i), r->geo.lightmapH(i)));
     }
@@ -742,6 +750,7 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     SpielDarstellung d;
     const karte::ShaderSkript& s = skript(shader);
     d.unsichtbar = s.nichtZeichnen;   // C_NODRAW: q3map2 laesst die Flaeche weg
+    d.eckLicht = s.eckLicht;          // rc608 Teil 11: C_VERTEXLIT
     // tr_shader.cpp NameToAFunc: GT0 (> 0), LT128 (< 0.5), GE128 (>= 0.5)
     if (s.stufeAlpha == 1) {
         d.alphaFunktion = 3;
@@ -1106,7 +1115,8 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     }
     const float umgebung[3] = {w.umgebung[0], w.umgebung[1], w.umgebung[2]};
     const float minimum[3] = {w.minimum[0], w.minimum[1], w.minimum[2]};
-    kartegpu::lichtSetzen(gpu, ecken, kacheln, kachelnX, kachelnY, worte, umgebung, minimum);
+    const float minimumEcken[3] = {w.minimumEcken[0], w.minimumEcken[1], w.minimumEcken[2]};
+    kartegpu::lichtSetzen(gpu, ecken, kacheln, kachelnX, kachelnY, worte, umgebung, minimum, minimumEcken);
     nebelBildSetzen(auge, vp, geoStand);   // Stufe 9d
     e.echtLicht.gezeichnet = gpu.size();
     e.echtLicht.lichtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -1115,6 +1125,10 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
 std::string echtLichtHinweis() {
     const Editor& e = ed();
     char z[256];
+    if (e.echtLicht.spielbildGezeigt) {   // rc608 Teil 11
+        std::snprintf(z, sizeof(z), trK(Str::KeLichtSpielbild), e.echtLicht.gebackenZeigen ? e.echtLicht.bauSekunden : 0.0);
+        return e.echtLicht.gebackenZeigen ? std::string(z) : std::string(trK(Str::KeLichtSpielbildVorlage));
+    }
     if (e.echtLicht.gebackenZeigen) {
         std::snprintf(z, sizeof(z), trK(Str::KeLichtGebacken), e.echtLicht.bauSekunden);
         return z;
@@ -1190,6 +1204,7 @@ bool vorlageLaden(const std::string& bytes, const std::string& pfad, std::string
         return false;
     }
     r->netz = buildMesh(r->geo, 4, true);
+    r->daten = bytes;
     // Kanten (je Dreieck drei, doppelte einmal) fuer die 2D-Ansichten
     g_vorlageLinien.clear();
     std::set<std::pair<std::uint32_t, std::uint32_t>> schon;
@@ -1244,6 +1259,35 @@ bool vorlageZeichnen(const float* matrix) {
         kartegpu::gebackenZeichnen(g_vorlage.netz, t.erster, t.anzahl, lm, z);
     }
     return true;
+}
+
+// rc608 Teil 11: Die gebaute Karte im Spielbild - Schnell-Backen, sonst die Vorlage.
+namespace {
+const Gebacken* spielQuelle() {
+    if (g_vorlageWartet) { netzUebernehmen(g_vorlage, std::move(g_vorlageWartet)); }
+    if (ed().echtLicht.gebackenZeigen && g_gebacken.netz.gueltig() && g_gebacken.daten) { return &g_gebacken; }
+    if (vorlageAktiv() && g_vorlage.netz.gueltig() && g_vorlage.daten) { return &g_vorlage; }
+    return nullptr;
+}
+}  // namespace
+
+void* spielbildFuerKamera(const karte::Kamera& k, int breite, int hoehe) {
+    if (!ed().echtLicht.spielbild) { return nullptr; }
+    const Gebacken* q = spielQuelle();
+    if (q == nullptr) { return nullptr; }
+    return spielbildZeichnen(q->daten, q->nummer, k, breite, hoehe);
+}
+
+void spielbildTiefe(const float* matrix) {
+    const Gebacken* q = spielQuelle();
+    if (q == nullptr) { return; }
+    for (const Gebacken::Teil& t : q->teile) {
+        kartegpu::Zustand3 z;
+        z.matrix = matrix;
+        z.wegschneiden = true;
+        z.mischen = kartegpu::Mischen::NurTiefe;
+        kartegpu::gebackenZeichnen(q->netz, t.erster, t.anzahl, nullptr, z);
+    }
 }
 
 bool gebackenZeichnen(const float* matrix) {

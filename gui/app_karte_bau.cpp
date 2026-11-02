@@ -294,7 +294,9 @@ void bauMenueEintraegeZeichnen() {
     l.id = licht.c_str();
     l.art = QtArt::Pruefbar;
     l.haken = ed.echtLicht.an;
-    l.tooltip = trK(Str::KeLichtMenueTip);
+    // rc608 Teil 11: was die Echtzeit-Ansicht nicht wie im Spiel kann, steht dazu
+    const std::string lichtTip = std::string(trK(Str::KeLichtMenueTip)) + "\n\n" + trK(Str::KeLichtGrenzenTip);
+    l.tooltip = lichtTip.c_str();
     if (qtPunkt(l)) { ed.echtLicht.an = !ed.echtLicht.an; }
     const std::string backen = std::string(trK(Str::KeBackenMenue)) + "##bauschnellbacken";
     QtPunkt b;
@@ -303,6 +305,17 @@ void bauMenueEintraegeZeichnen() {
     b.haken = ed.echtLicht.backen;
     b.tooltip = trK(Str::KeBackenMenueTip);
     if (qtPunkt(b)) { ed.echtLicht.backen = !ed.echtLicht.backen; }
+    // rc608 Teil 11: die gebaute Karte (Schnell-Backen oder Vorlage) durch den Zeichner der Vorschau
+    const std::string sb = std::string(trK(Str::KeSpielbildMenue)) + "##bauspielbild";
+    QtPunkt sbp;
+    sbp.id = sb.c_str();
+    sbp.art = QtArt::Pruefbar;
+    sbp.haken = ed.echtLicht.spielbild;
+    sbp.tooltip = trK(Str::KeSpielbildMenueTip);
+    if (qtPunkt(sbp)) {
+        ed.echtLicht.spielbild = !ed.echtLicht.spielbild;
+        einstellungenSpeichern();
+    }
     // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows) - Vorschau und Schnell-Backen
     const std::string ps = std::string(trK(Str::KePatchSchatten)) + "##baupatchschatten";
     QtPunkt psp;

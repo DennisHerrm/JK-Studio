@@ -1628,6 +1628,8 @@ std::vector<Schritt> vergleichSchritte() {
                 const std::size_t gl = nw.find('=');
                 if (gl != std::string::npos) { me::setzeCvar(nw.substr(0, gl), nw.substr(gl + 1)); }
             }
+            // rc608 Teil 11: BHED_MENUE_VERGLEICH_WAFFE=n wie "weapon n" im Spiel (Datapad, Seite Waffen)
+            if (const char* w = std::getenv("BHED_MENUE_VERGLEICH_WAFFE")) { me::setzeDatapadWaffe(std::atoi(w)); }
             // M4 Punkt 2: "ui/x.menu|<datei>" = das Menue mit dem Text aus der Datei (Bedienzustand:
             // onOpen fuehrt die Aktionen aus, das Spiel bekommt denselben Text als Testpaket)
             if (const std::size_t st = pfad.find('|'); st != std::string::npos) {

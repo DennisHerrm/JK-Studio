@@ -110,7 +110,7 @@ std::vector<Schritt> teil6Schritte() {
     add(pruefe("Teil 6: die Tueren schalten Portale, Gebiet 9 ist vom Start aus nicht zu zeichnen", [] {
         const float start[3] = {-1024.0F, 7320.0F, 24.0F};
         areaPortaleJetzt(start);
-        const std::vector<char> m = flaechenHinterPortalen(g_app->geo, g_app->areaPortale, punktGebiet(g_app->geo, start));
+        const std::vector<char> m = flaechenAusserSicht(g_app->geo, g_app->areaPortale, punktGebiet(g_app->geo, start), -1);
         std::size_t verdeckt = 0;
         for (const char c : m) { verdeckt += c != 0 ? 1U : 0U; }
         diag::detail("Knopftest: Teil 6 - " + std::to_string(g_app->portalEnts.size()) + " Portal-Entities, Gebiete " + std::to_string(g_app->areaPortale.gebiete()) +

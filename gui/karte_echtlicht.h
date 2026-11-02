@@ -7,9 +7,12 @@
 
 #include "karte_gpu.h"
 
+#include "bhed/karte/kamera.h"
 #include "bhed/karte/mathe.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -34,6 +37,7 @@ struct SpielDarstellung {
     std::string bild;        // mit alphaFunc/blendFunc: das Bild der ersten Stufe ("?" + Pfad fuer kameraTexturBild)
     bool nebelFlaeche = false;   // Stufe 9d: fogParms ohne Stufe: nur der Nebel (RB_FogPass)
     bool himmel = false;         // Stufe 9d: C_SKY (surfaceparm sky, Sonne) - mit misc_skyportal zeigt sie das Portalbild
+    bool eckLicht = false;       // rc608 Teil 11: C_VERTEXLIT - q3map2 gibt ihr Eckfarben mit _minvertexlight statt einer Lightmap
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.
@@ -46,6 +50,28 @@ void echtLichtBeenden();   // beim Beenden: einen laufenden Bau abbrechen
 [[nodiscard]] std::string schnellBspFuer(std::size_t kartenStand);
 // Die gebackenen Flaechen zeichnen (statt der Pinsel und Patches); false: nichts gebacken/aktuell.
 bool gebackenZeichnen(const float* matrix);
+
+// --- rc608 Teil 11: "Gebaute Karte wie im Spiel" ---------------------------------------
+//
+// Die gebaute Karte (das Schnell-Backen, sonst die Vorlage) laeuft durch denselben Zeichner wie die Vorschau im
+// Mission-Tab (gpumap: alle Shader-Stufen, tcGen, rgbGen, Blend, Himmelsbox, Gluehen, Nebel, PVS, Spielgamma, die
+// Lightmap mal gpu::kSpielLightmapFaktor). Vor beginnen() der Kamera: das fertige Bild in Kameragroesse
+// (ID3D11ShaderResourceView*) oder nullptr (Schalter aus, nichts gebaut, kein Direct3D).
+[[nodiscard]] void* spielbildFuerKamera(const karte::Kamera& k, int breite, int hoehe);
+// Nach kartegpu::bildUnterlegen: die Tiefe der gebauten Flaechen, damit Auswahl, Griffe und Linien davor und
+// dahinter liegen wie bisher.
+void spielbildTiefe(const float* matrix);
+// app_karte_spielbild.cpp: die Szene aus der .bsp (bei neuer Nummer neu) und ihr Bild.
+[[nodiscard]] void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::uint64_t nummer, const karte::Kamera& k, int breite,
+                                      int hoehe);
+// Fuer den Selbsttest: Kennzahlen des letzten Spielbilds (Zeichenaufrufe, ms auf dem Prozessor).
+struct SpielbildStand {
+    int aufrufe = 0;
+    double ms = 0.0;
+    std::uint64_t nummer = 0;
+    std::size_t flaechenVerdeckt = 0;
+};
+[[nodiscard]] SpielbildStand spielbildStand();
 
 }  // namespace bhed::gui::karteneditor
 

@@ -1076,8 +1076,8 @@ void kameraZeichnen() {
     const ImVec2 groesse = ImGui::GetWindowSize();
     f.bildX = o.x;
     f.bildY = o.y;
-    f.breite = std::max(1, static_cast<int>(groesse.x));
-    f.hoehe = std::max(1, static_cast<int>(groesse.y));
+    f.breite = std::max(1, static_cast<int>(f.messBreite > 0 ? static_cast<float>(f.messBreite) : groesse.x));
+    f.hoehe = std::max(1, static_cast<int>(f.messHoehe > 0 ? static_cast<float>(f.messHoehe) : groesse.y));
     k.breite = f.breite;
     k.hoehe = f.hoehe;
     k.projektionAktualisieren(c);
@@ -1146,8 +1146,16 @@ void kameraZeichnen() {
     // Stufe 7 Punkt 5: Echtzeit-Licht (eigene Funktion) - Lichter und Schatten vor dem Bild.
     // Erst, wenn die Geometrie auf der Grafikkarte liegt (sonst merkte sich ein
     // Schattenwuerfel den alten Stand).
+    // rc608 Teil 11: "Built map as in the game" - die gebaute Karte durch den Zeichner der Vorschau, vor beginnen()
+    // (er braucht das Geraet fuer sich). Mit dem Schnell-Backen ersetzt es die Pinsel ganz, das Echtzeit-Licht ruht.
+    void* spielbildSrv = nullptr;
+    if (kartegpu::verfuegbar() && (c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht)) {
+        spielbildSrv = spielbildFuerKamera(k, f.breite, f.hoehe);
+    }
+    const bool spielGebacken = spielbildSrv != nullptr && ed.echtLicht.gebackenZeigen;
+    ed.echtLicht.spielbildGezeigt = spielbildSrv != nullptr;
     bool echtJetzt = false;
-    if (echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
+    if (!spielGebacken && echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
         // Stufe 9c: die Schattengeometrie nach den Regeln von q3map2 baut echtlicht selbst
         echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
         echtJetzt = true;
@@ -1236,6 +1244,7 @@ void kameraZeichnen() {
                 if (spielBild) {
                     z.alphaFunktion = sd.alphaFunktion;
                     z.alphaRef = sd.alphaRef;
+                    z.eckLicht = sd.eckLicht;   // rc608 Teil 11: Mindestlicht _minvertexlight
                 } else if ((flags & karte::QER_ALPHATEST) != 0U) {
                     z.alphaFunktion = se->alphaFunc;
                     z.alphaRef = se->alphaRef;
@@ -1342,6 +1351,11 @@ void kameraZeichnen() {
                 (void)kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true);
             }
         }
+        // rc608 Teil 11: das Spielbild unter allem, dazu die Tiefe der gebauten Flaechen
+        if (spielbildSrv != nullptr) {
+            kartegpu::bildUnterlegen(spielbildSrv);
+            spielbildTiefe(&vp[0]);
+        }
         // eSortFullbright: deckende Shader, Himmel, Fuellungen
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
@@ -1349,7 +1363,7 @@ void kameraZeichnen() {
                     // Stufe 7 Punkt 5b: gebacken - die gebauten Flaechen statt der Pinsel und Patches
                     if (!(gebacken && fuellen && q == &g_geo)) {
                         shaderZiehen(*q, st, false);
-                    } else if (const Bild* hb = lager().holen(st.shader); hb != nullptr && hb->himmel != nullptr) {
+                    } else if (const Bild* hb = lager().holen(st.shader); !spielGebacken && hb != nullptr && hb->himmel != nullptr) {
                         shaderZiehen(*q, st, false);   // Stufe 9c: der Himmel auch gebacken (wie im Spiel)
                     }
                 } else if (st.art == karte::StapelArt::Fuellung) {
@@ -1357,8 +1371,9 @@ void kameraZeichnen() {
                 }
             }
         }
-        if (gebacken && fuellen) { (void)gebackenZeichnen(&vp[0]); }
-        if (fuellen) { (void)vorlageZeichnen(&vp[0]); }   // Stufe 8a Punkt 5c: die fertige Karte als Vorlage
+        if (gebacken && fuellen && !spielGebacken) { (void)gebackenZeichnen(&vp[0]); }
+        // Stufe 8a Punkt 5c: die fertige Karte als Vorlage (rc608 Teil 11: ohne Schnell-Backen steckt sie im Spielbild)
+        if (fuellen && (spielbildSrv == nullptr || gebacken)) { (void)vorlageZeichnen(&vp[0]); }
         // Stufe 3 Punkt 5: CPointfile ($POINTFILE, eSortFullbright: Tiefe testen und schreiben)
         punktdateiKameraZeichnen(&vp[0]);
         pluginKameraVoll(&vp[0], fuellen);   // Stufe 4 Punkt 3: DBobView (eSortFullbright)

@@ -21,6 +21,7 @@
 #include "bhed/karte/pinsel.h"
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <cmath>
 #include <cstdlib>
@@ -29,6 +30,20 @@
 namespace bhed::karte {
 
 namespace {
+
+// rc608 Teil 11: q3map2 liest Schluessel ohne Gross- und Kleinschreibung (CASE_INSENSITIVE_EPAIRS, EPAIR_EQUAL =
+// striEqual, q3map2.h:109-112; entity_t::valueForKey, bspfile_abstract.cpp:535) - "_minVertexlight" auf
+// duel_geonosis_arena gilt so wie "_minvertexlight". Der erste passende Schluessel zaehlt.
+std::string wertQ3(const Entitaet& e, const std::string& k) {
+    for (const auto& [s, w] : e.schluessel()) {
+        if (s.size() == k.size() && std::equal(s.begin(), s.end(), k.begin(), [](char a, char b) {
+                return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+            })) {
+            return w;
+        }
+    }
+    return {};
+}
 
 bool zahlen(const std::string& s, float* v, int n) {
     std::istringstream in(s);
@@ -41,7 +56,7 @@ bool zahlen(const std::string& s, float* v, int n) {
 float zahl(const Entitaet& e, const char* a, const char* b = nullptr, float vorgabe = 0) {
     for (const char* k : {a, b}) {
         if (k == nullptr) { continue; }
-        const std::string w = e.wert(k);
+        const std::string w = wertQ3(e, k);
         if (!w.empty()) { return static_cast<float>(std::atof(w.c_str())); }
     }
     return vorgabe;
@@ -889,7 +904,7 @@ void autospriteLicht(const EchtFlaechenShader& s, const std::vector<Vektor3f>& p
 // GetEntityShadowFlags: "_castShadows", "_cs" (atoi); nicht da: vorgabe
 int wirftSchatten(const Entitaet& e, int vorgabe) {
     for (const char* k : {"_castShadows", "_cs"}) {
-        const std::string v = e.wert(k);
+        const std::string v = wertQ3(e, k);
         if (!v.empty()) { return std::atoi(v.c_str()); }
     }
     return vorgabe;
@@ -902,17 +917,17 @@ void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModel
     const auto welt = k.welt();
     for (const auto& ep : k.entitaeten()) {
         const Entitaet& e = *ep;
-        if (e.wert("classname") != "misc_model") { continue; }
+        if (wertQ3(e, "classname") != "misc_model") { continue; }
         // AddTriangleModels: ohne "_target"/"target" in der Welt, sonst in der Pinsel-Entitaet mit diesem
         // "_targetname"/"targetname" (gibt es keine, kommt das Modell nirgends hin)
-        std::string ziel = e.wert("_target");
-        if (ziel.empty()) { ziel = e.wert("target"); }
+        std::string ziel = wertQ3(e, "_target");
+        if (ziel.empty()) { ziel = wertQ3(e, "target"); }
         const Entitaet* eltern = nullptr;
         if (!ziel.empty()) {
             for (const auto& b : k.entitaeten()) {
                 if (b == welt || b.get() == &e || b->kinder().empty()) { continue; }
-                std::string tn = b->wert("_targetname");
-                if (tn.empty()) { tn = b->wert("targetname"); }
+                std::string tn = wertQ3(*b, "_targetname");
+                if (tn.empty()) { tn = wertQ3(*b, "targetname"); }
                 if (tn == ziel) {
                     eltern = b.get();
                     break;
@@ -920,7 +935,7 @@ void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModel
             }
             if (eltern == nullptr) { continue; }
         }
-        if (e.wert("model").empty()) { continue; }
+        if (wertQ3(e, "model").empty()) { continue; }
         const ModellAnsicht a = k.kontext.modelle->ansicht(e);
         if (!a.modell || a.modell->null || a.modell->flaechen.empty()) { continue; }
         // ParseEntityCompileParams: in der Welt castShadows 1 (WORLDSPAWN_CAST_SHADOWS), sonst 0; die Schluessel
@@ -1094,8 +1109,8 @@ std::vector<EchtNebel> echtNebelSammeln(const Karte& k, const std::function<Echt
     }
     // ydnar: global fog (worldspawn "_fog" / "fog")
     if (const auto welt = k.welt()) {
-        std::string g = welt->wert("_fog");
-        if (g.empty()) { g = welt->wert("fog"); }
+        std::string g = wertQ3(*welt, "_fog");
+        if (g.empty()) { g = wertQ3(*welt, "fog"); }
         if (!g.empty()) {
             const EchtNebelShader s = shader(g);
             EchtNebel n;
@@ -1146,20 +1161,25 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         // LightWorld (light.cpp): _color, _ambient, _minlight
         float c[3] = {1, 1, 1};
         Vektor3f farbe(1, 1, 1);
-        if (zahlen(welt->wert("_color"), c, 3) && (c[0] != 0 || c[1] != 0 || c[2] != 0)) { farbe = Vektor3f(c[0], c[1], c[2]); }
+        if (zahlen(wertQ3(*welt, "_color"), c, 3) && (c[0] != 0 || c[1] != 0 || c[2] != 0)) { farbe = Vektor3f(c[0], c[1], c[2]); }
         w.umgebung = farbe * zahl(*welt, "_ambient", "ambient");
         w.minimum = farbe * zahl(*welt, "_minlight");
+        // rc608 Teil 11: _minvertexlight (light.cpp:2333), sonst gilt _minlight auch fuer die Ecken (:2347)
+        w.minimumEcken = wertQ3(*welt, "_minvertexlight").empty() ? w.minimum : farbe * zahl(*welt, "_minvertexlight");
     }
+    // rc608 Teil 11: _noshadersun laesst die Sonnen aller Shader weg, q3map_skyLight bleibt (CreateSurfaceLights,
+    // light.cpp:593; boolForKey: der Wert beginnt mit '1', bspfile_abstract.cpp:570)
+    const bool keineShaderSonne = welt && !wertQ3(*welt, "_noshadersun").empty() && wertQ3(*welt, "_noshadersun")[0] == '1';
     // targetname -> Entitaet (FindTargetEntity)
     const auto ziel = [&k](const std::string& name) -> const Entitaet* {
         for (const auto& e : k.entitaeten()) {
-            if (e->wert("targetname") == name) { return e.get(); }
+            if (wertQ3(*e, "targetname") == name) { return e.get(); }
         }
         return nullptr;
     };
     for (const auto& ep : k.entitaeten()) {
         const Entitaet& e = *ep;
-        const std::string klasse = e.wert("classname");
+        const std::string klasse = wertQ3(e, "classname");
         // CreateEntityLights: "lightJunior" nur fuer das Gitter, sonst Praefix "light"
         if (!klassePraefix(klasse, "light") || klassePraefix(klasse, "lightjunior")) { continue; }
         EchtLicht l;
@@ -1172,7 +1192,7 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         l.winkelSkala = zahl(e, "_anglescale");
         if (l.winkelSkala != 0) { l.winkel = true; }
         float o[3] = {0, 0, 0};
-        (void)zahlen(e.wert("origin"), o, 3);
+        (void)zahlen(wertQ3(e, "origin"), o, 3);
         l.ursprung = Vektor3f(o[0], o[1], o[2]);
         l.stil = static_cast<int>(zahl(e, "_style", "style"));
         float staerke = zahl(e, "_light", "light", 300.0F);
@@ -1180,12 +1200,12 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         if (const float s = zahl(e, "scale"); s != 0) { staerke *= s; }
         // ydnar: get deviance and samples (Stufe 9d: mit den Jitter-Kopien wie q3map2)
         float abweichung = zahl(e, "_deviance", "_deviation");
-        if (e.wert("_deviance").empty() && e.wert("_deviation").empty()) { abweichung = zahl(e, "_jitter"); }
+        if (wertQ3(e, "_deviance").empty() && wertQ3(e, "_deviation").empty()) { abweichung = zahl(e, "_jitter"); }
         abweichung = std::max(0.0F, abweichung);
-        const int proben = std::max(1, std::atoi(e.wert("_samples").c_str()));
+        const int proben = std::max(1, std::atoi(wertQ3(e, "_samples").c_str()));
         staerke /= static_cast<float>(proben);
         float f[3];
-        if (zahlen(e.wert("_color"), f, 3)) {
+        if (zahlen(wertQ3(e, "_color"), f, 3)) {
             l.farbe = (flags & 32) != 0 ? Vektor3f(f[0], f[1], f[2]) : normiert(Vektor3f(f[0], f[1], f[2]));
         }
         l.extraAbstand = zahl(e, "_extradist");
@@ -1194,11 +1214,11 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
             l.negativ = true;   // SetupEnvelopes: negative Lichter
             l.photonen = -l.photonen;
         }
-        const std::string zielName = e.wert("target");
+        const std::string zielName = wertQ3(e, "target");
         const Entitaet* z = zielName.empty() ? nullptr : ziel(zielName);
         if (z != nullptr) {
             float zo[3] = {0, 0, 0};
-            (void)zahlen(z->wert("origin"), zo, 3);
+            (void)zahlen(wertQ3(*z, "origin"), zo, 3);
             Vektor3f n = Vektor3f(zo[0], zo[1], zo[2]) - l.ursprung;
             float abstand = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
             if (abstand > 0) { n = n / abstand; }
@@ -1241,6 +1261,7 @@ EchtLichtWelt echtLichterSammeln(const Karte& k, const std::function<EchtFlaeche
         if (s.da || !s.himmel.empty()) { sonnen.push_back(sh); }
         std::vector<EchtSonne::Sonne> liste = s.sonnen;
         if (s.da && liste.empty()) { liste.push_back({s.farbe, s.staerke, s.grad, s.hoehe, 0.0F, 1}); }
+        if (keineShaderSonne) { liste.clear(); }
         for (const EchtSonne::Sonne& so : liste) {
             // CreateSunLight mit q3map_sunExt <deviance> <samples> (Stufe 9d)
             EchtLicht l;

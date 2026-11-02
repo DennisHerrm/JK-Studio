@@ -1701,6 +1701,7 @@ void einstellungenLaden() {
         for (std::size_t i = 0; i < 3; ++i) { ed.leistenPlaetze[i] = l[i].second; }
         ed.echtLicht.patchSchatten = zahl("BhedPatchShadows", 0) != 0.0F;
         ed.echtLicht.effekte = zahl("BhedRealtimeEffects", 1) != 0.0F;   // Stufe 9d
+        ed.echtLicht.spielbild = zahl("BhedBuiltAsInGame", 1) != 0.0F;   // rc608 Teil 11
     }
     // ToolbarHiddenButtons: "%Name%%Name%..." (gtkmisc.cpp:147)
     ed.versteckteKnoepfe.clear();
@@ -1916,6 +1917,7 @@ void einstellungenSpeichern() {
     k["BhedToolbarDock"] = karte::leistenText({{"haupt", ed.leistenPlaetze[0]}, {"filter", ed.leistenPlaetze[1]}, {"plugin", ed.leistenPlaetze[2]}});
     k["BhedPatchShadows"] = ed.echtLicht.patchSchatten ? "1" : "0";
     k["BhedRealtimeEffects"] = ed.echtLicht.effekte ? "1" : "0";   // Stufe 9d
+    k["BhedBuiltAsInGame"] = ed.echtLicht.spielbild ? "1" : "0";   // rc608 Teil 11
     g_app->settings.karteTasten.clear();
     for (const auto& [name, taste] : ed.belegung.abweichende()) { g_app->settings.karteTasten[name] = taste; }
 }
