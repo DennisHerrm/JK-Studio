@@ -2598,23 +2598,28 @@ ModelTextures texturesFor(const GlmModel& model) {
                     continue;
                 }
                 for (const std::string& kandidat : textureCandidates(it->second.image)) {
-                    if (!readFromArchives(kandidat, data)) {
-                        continue;
+                    // Auch dieser Weg endet in der Tabelle, damit eine Flaeche, deren Bild nur ueber ein
+                    // Shaderskript zu finden ist, nicht jedes Mal neu entziffert wird ("ueber Shaderskripte"
+                    // im Protokoll). rc608 Teil 10: unter dem Namen der gelesenen DATEI, nicht unter dem
+                    // Shadernamen - sonst faende eine Bildstufe "map <Shadername>" (ladeStufenBild, wie
+                    // R_FindImageFile nur Dateien) das Bild des Skripts, das es als Datei gar nicht gibt.
+                    const std::string dateiSchluessel = image::mappingName(kandidat) + "@" + bildStufeText();
+                    TextureSet::Tex t2;
+                    if (const auto da = g_app->texCache.find(dateiSchluessel); da != g_app->texCache.end()) {
+                        t2 = da->second;
+                    } else {
+                        if (!readFromArchives(kandidat, data)) {
+                            continue;
+                        }
+                        const image::Image im = image::decode(
+                            reinterpret_cast<const unsigned char*>(data.data()),
+                            data.size());
+                        if (!im.ok || im.width <= 0 || im.height <= 0) {
+                            continue;
+                        }
+                        t2 = shrink(im, bildGrenzeFuer(im));
+                        g_app->texCache[dateiSchluessel] = t2;
                     }
-                    const image::Image im = image::decode(
-                        reinterpret_cast<const unsigned char*>(data.data()),
-                        data.size());
-                    if (!im.ok || im.width <= 0 || im.height <= 0) {
-                        continue;
-                    }
-                    // Auch dieser Weg endet in der Tabelle - unter DEM
-                    // Namen, mit dem gesucht wurde. Sonst laeuft jede
-                    // Flaeche, deren Bild nur ueber ein Shaderskript zu
-                    // finden ist, jedes Mal neu durch die Suche; im
-                    // Protokoll sind das die "ueber Shaderskripte"
-                    // gezaehlten, und davon gibt es reichlich.
-                    TextureSet::Tex t2 = shrink(im, bildGrenzeFuer(im));
-                    g_app->texCache[schluessel] = t2;
                     // --- alphaFunc gehoert mit -------------------------
                     //
                     // Der Figurenzeichner prueft den Alphakanal nur noch,

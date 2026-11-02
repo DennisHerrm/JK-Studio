@@ -3102,6 +3102,8 @@ void loadMapTextures();
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
 // rc608 Teil 9b: ein Bild ohne Shadersuche (map, animMap, Himmelsbox: R_FindImageFile).
 bool loadImageFile(const std::string& bild, TextureSet::Tex& out);
+// rc608 Teil 10: Nummer der Bildstufe hinter einer ersetzenden Lichtstufe (GL_ONE GL_ZERO), sonst -1 (gui/app_ablage.inc).
+int lichtErsetztBildstufen(const ShaderInfo& info);
 // rc604 fix604b (B1): eine Zusatzstufe laden (gui/app.cpp, aus loadMapTextures).
 void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const std::string& shaderName,
                       TextureSet::Tex& t);

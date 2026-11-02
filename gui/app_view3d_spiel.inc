@@ -3476,8 +3476,7 @@ void loadActorModels() {
             if (pm == "player") {
                 def.playerModel = spielerModell;
                 def.customSkin = spielerHaut;
-                // G_SetSabersFromCVars: g_saber "single_1" (g_main.cpp), die .npc nennt nichts.
-                if (def.saber.empty() && !regelwerkJediOutcast()) { def.saber = "single_1"; }
+                if (!regelwerkJediOutcast()) { spielerSchwertAusCvars(def); }
             }
         }
         // --- Fahrzeuge: das Modell aus ext_data/vehicles/*.veh -------------
@@ -3569,7 +3568,7 @@ void loadActorModels() {
             NpcDef spieler;
             spieler.playerModel = spielerModell;
             spieler.customSkin = spielerHaut;
-            spieler.saber = "single_1";
+            spielerSchwertAusCvars(spieler);
             spieler.weapon = "WP_SABER";
             g_app->npcMap["player"] = spieler;
         }

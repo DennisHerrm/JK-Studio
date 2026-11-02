@@ -2439,6 +2439,43 @@ bool lightmapNachBildstufen(const ShaderInfo& info) {
     return false;
 }
 
+// rc608 Teil 10: { Bild alphaFunc depthWrite } { $lightmap blendFunc GL_ONE GL_ZERO depthFunc equal }
+// { Bild blendFunc GL_DST_COLOR GL_ZERO depthFunc equal } (86 Shader der Spieldaten, darunter die Zuschauer auf
+// duel_geonosis_arena und die Eiszapfen auf Hoth). GL_ONE GL_ZERO mischt nicht, die Stufe ERSETZT die Farbe
+// ("implicitly assume that a GL_ONE GL_ZERO blend mask disables blending", ParseStage; RB_IterateStagesGeneric
+// zeichnet die Stufen der Reihe nach, tr_shade.cpp): Was die Stufen davor gemalt haben, bleibt nur als Abdeckung
+// (Alphatest, Tiefe) - die Farbe ist Licht mal das Bild der Stufe danach. Rueckgabe: deren Nummer, sonst -1.
+// behaved rechnet Bild mal Licht in die Grundstufe; die Stufe danach multiplizierte das Bild darum ein zweites Mal.
+int lichtErsetztBildstufen(const ShaderInfo& info) {
+    bool bild = false;
+    for (std::size_t i = 0; i < info.stages.size(); ++i) {
+        const ShaderInfo::Stage& st = info.stages[i];
+        if (st.lightmap) {
+            if (!bild || st.srcFactor != BlendFactor::One || st.dstFactor != BlendFactor::Zero || i + 1 >= info.stages.size()) { return -1; }
+            const ShaderInfo::Stage& n = info.stages[i + 1];
+            const bool filter = !n.lightmap && !n.image.empty() && n.srcFactor == BlendFactor::DstColor && n.dstFactor == BlendFactor::Zero;
+            return filter ? static_cast<int>(i + 1) : -1;
+        }
+        if (!st.image.empty()) { bild = true; }
+    }
+    return -1;
+}
+
+// Zu lichtErsetztBildstufen: die Farbe aus dem Bild jener Stufe, der Alphakanal (Alphatest der ersten) bleibt.
+// Meist ist es dasselbe Bild (85 von 86); sonst nur bei gleicher Groesse, false: nicht uebernommen.
+bool farbeAusStufe(const ShaderInfo::Stage& st, const std::string& grundBild, TextureSet::Tex& t) {
+    if (image::mappingName(st.image) == image::mappingName(grundBild)) { return true; }
+    TextureSet::Tex farbe;
+    if (!loadImageFile(st.image, farbe) || farbe.width != t.width || farbe.height != t.height || farbe.rgba.size() != t.rgba.size()) {
+        return false;
+    }
+    for (std::size_t k = 0; k + 3 < t.rgba.size(); k += 4) {
+        for (std::size_t c = 0; c < 3; ++c) { t.rgba[k + c] = farbe.rgba[k + c]; }
+    }
+    t.buildMips();
+    return true;
+}
+
 // Die Stufe selbst: weiss mal Licht, multipliziert (tr.whiteImage bei -1, Eckenfarbe bei -3).
 void lightmapFilterLaden(TextureSet::Tex& t) {
     TextureSet::Tex filter;
@@ -2937,6 +2974,14 @@ void loadMapTextures() {
                 bool ersteEchte = true;
                 const bool lichtZuletzt = lightmapNachBildstufen(si->second);
                 if (lichtZuletzt) { t.lightmapStufe = false; }
+                const int ersetzt = lichtErsetztBildstufen(si->second);
+                bool absorbiert = false;
+                if (ersetzt >= 0) {
+                    absorbiert = farbeAusStufe(si->second.stages[static_cast<std::size_t>(ersetzt)], si->second.image, t);
+                    if (!absorbiert) {
+                        diag::detail("Shader \"" + sh.name + "\": Bild der Lichtstufe anders gross als die Abdeckung - Stufen wie bisher");
+                    }
+                }
                 for (const ShaderInfo::Stage& st : si->second.stages) {
                     if (st.lightmap && lichtZuletzt) {
                         lightmapFilterLaden(t);
@@ -2969,6 +3014,8 @@ void loadMapTextures() {
                         }
                         continue;   // die steckt schon in `t`
                     }
+                    // rc608 Teil 10: bis zur Bildstufe hinter der ersetzenden Lichtstufe steckt alles in `t`
+                    if (absorbiert && &st - si->second.stages.data() <= ersetzt) { continue; }
                     // --- rc604: surfaceSprites NIE als Schicht -------
                     //
                     // RB_StageIteratorGeneric ueberspringt die Stufe

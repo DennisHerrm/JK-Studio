@@ -41,6 +41,7 @@
 //   (Die Muendung eines Schusses: Bolzen "*flash" des Waffenmodells,
 //   gui/app_view3d.cpp figurMuendung - Pruefung 4a.)
 #include "bhed/regelwerk.h"
+#include "bhed/gegenstaende.h"
 #include "bhed/pmanim.h"
 #include "bhed/scene.h"
 
@@ -595,6 +596,15 @@ int saberArtJk2(Actor& a, const NpcDef* def) {
     art.modell = modellIndex(a, griff);
     a.saberArten.push_back(std::move(art));
     return static_cast<int>(a.saberArten.size() - 1);
+}
+
+void spielerSchwertAusCvars(NpcDef& def) {
+    def.saber = kSpielerSchwert;
+    for (std::size_t b = 0; b < static_cast<std::size_t>(kMaxKlingen); ++b) {
+        def.saberFarbe[0][b] = kSpielerSchwertFarbe;
+        def.saberLaenge[0][b] = 0.0F;
+        def.saberRadius[0][b] = 0.0F;
+    }
 }
 
 void munroWaffenAbgleich(Scene& s, const SzenenHilfe* hilfe) {

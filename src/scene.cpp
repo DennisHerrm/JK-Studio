@@ -2660,7 +2660,7 @@ float fussHangDiff(const NavSpurFn& spur, const float l[3], const float r[3], co
     return h[0] - h[1];
 }
 
-// buildOnce: je Figur (NPC, G_StandardHumanoid oder ATST - fussPunkte liefert nur
+// buildOnce: je Figur (NPC und Spieler, G_StandardHumanoid oder ATST - fussPunkte liefert nur
 // mit den Bolzen) und Denkbild PM_AdjustStandAnimForSlope, wo PM_Footsteps die
 // Standanimation setzt. Steht die Figur still auf einer Stelle, deren Boden unter
 // dem Kasten eben ist, aendert sich nichts: diff ist dort 0 - das prueft eine
@@ -2669,7 +2669,13 @@ void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
     if (hilfe == nullptr || !hilfe->fussPunkte || !hilfe->nav) { return; }
     const std::shared_ptr<const NavWelt> welt = hilfe->nav;
     for (Actor& a : out.actors) {
-        if (a.npcType.empty() || a.echterSpieler || a.brushModel > 0) { continue; }
+        // rc608 Teil 10: auch der Spieler. Die Engine laesst ihn nur in der ersten Person aus
+        // ("first person doesn't do this": !cg.renderingThirdPerson || cg.zoomMode, bg_pmove.cpp:7454
+        // OpenJK, :11497 MD mit BG_AllowThirdPersonSpecialMove, codeJK2 bg_pmove.cpp:4523); cg_thirdPerson
+        // steht in JKA auf "1" (cg_main.cpp:414 OpenJK, :623 MD), gezoomt wird in der Vorschau nie. Jedi Outcast:
+        // "0" (codeJK2 cg_main.cpp:396), der Waffenwechsel schaltet mit cg_saberAutoThird/cg_gunAutoFirst (beide "1",
+        // :409-410) beim Schwert auf die dritte, bei einer Schusswaffe auf die erste Person (g_active.cpp:1708-1714).
+        if (a.npcType.empty() || a.brushModel > 0) { continue; }
         const bool atst = sameName(a.klasse, "CLASS_ATST");
         double neuRechnen = -1.0e300;   // client->slopeRecalcTime
         double ende = out.durationMs;
@@ -2683,7 +2689,8 @@ void hangBeineRechnen(Scene& out, const SzenenHilfe* hilfe) {
         for (double t = navDenkbildAb(std::max(0.0, a.erscheintMs)); t <= grenze; t += kNavDenkMs) {
             const ActorState st = a.at(t);   // legsAnim mit den Hangbeinen bis hierher
             std::string ziel;
-            if (hangStandErlaubt(st, st.beineTimerBisMs, t)) {
+            const bool erstePerson = a.echterSpieler && regelwerkJediOutcast() && !haeltSaber(st);
+            if (!erstePerson && hangStandErlaubt(st, st.beineTimerBisMs, t)) {
                 NavSpurFn spur = welt->spur;
                 if (welt->spurZeit) {
                     spur = [welt, t](const NavVec& s0, const NavVec& mi, const NavVec& ma, const NavVec& e0, int ign, std::uint32_t m) {

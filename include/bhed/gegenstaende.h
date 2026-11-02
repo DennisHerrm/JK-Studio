@@ -98,6 +98,8 @@ using GegenstandSpur = std::function<void(const std::array<float, 3>& start, con
 // Pruefung 4b: g_saber, mit dem "player" als NPC_type eines weapon_saber
 // aufgeloest wird (gi.cvar("g_saber", "single_1"), g_main.cpp:693 OpenJK).
 inline constexpr const char* kSpielerSchwert = "single_1";
+// g_saber_color, Vorgabe beider Regelwerke (g_main.cpp:831 MD, :695 OpenJK).
+inline constexpr const char* kSpielerSchwertFarbe = "yellow";
 
 // SpawnForCurrentDifficultySetting (g_spawn.cpp:1222 MD) und "notsingle"
 // (:1259): gilt fuer JEDE Entity, bevor ihre Spawnfunktion laeuft.

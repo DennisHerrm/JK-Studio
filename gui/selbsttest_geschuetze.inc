@@ -391,6 +391,10 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         missionenAusArchiv(archiv, karte);
     }));
     add(warteBis("Geschuetze Vergleich: Karte geladen", [=] { return g_app->map.path == "maps/" + karte + ".bsp"; }, 4000));
+    // rc608 Teil 10: BHED_GV_GLUEHEN=0 wie r_DynamicGlow 0 im Spiel (Byss-Lichtleiste ohne Gluehen vergleichen).
+    if (const char* gl = std::getenv("BHED_GV_GLUEHEN"); gl != nullptr && gl[0] == '0') {
+        add(tu("Geschuetze Vergleich: ohne Gluehen", [] { g_app->showGlow = false; }));
+    }
     if (const char* f = std::getenv("BHED_GV_ANSICHT")) {
         int b = 0;
         int h = 0;

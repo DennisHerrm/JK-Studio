@@ -1508,6 +1508,12 @@ int saberArtIndex(Actor& a, const std::string& name, int fach,
 // Laenge, Farbe und Klaenge nach Klasse und NPCs.cfg (codeJK2 WP_SetSaberModel,
 // WP_SaberInitBladeData). def darf nullptr sein.
 int saberArtJk2(Actor& a, const NpcDef* def);
+// rc608 Teil 10: G_SetSabersFromCVars (g_client.cpp:2488 MD, :1850 OpenJK) fuer den Spieler und jede Figur
+// mit "playerModel player" (G_InitPlayerFromCvars nach NPC_ParseParms, NPC_stats.cpp:4646 MD): das erste
+// Schwert neu aus g_saber (WP_SaberParseParms setzt vorher die Vorgaben, Laenge und Radius der .npc
+// sind fort), alle seine Klingen in g_saber_color. g_saber2 "" laesst das zweite, wie es ist. Vorgaben
+// beider Regelwerke (g_main.cpp:829-831 MD, :693-695 OpenJK): "single_1", "", "yellow".
+void spielerSchwertAusCvars(NpcDef& def);
 // Das Weltmodell einer Waffe als Index in Actor::modelle; -1, wenn weapons.dat
 // fehlt oder die Waffe dort nicht steht.
 int waffenModellIndex(Actor& a, const std::string& waffe, bool kotor,

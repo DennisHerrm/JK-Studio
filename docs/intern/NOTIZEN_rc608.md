@@ -717,6 +717,50 @@ Paare in `SP/g9/erg/`, Movie Duels. OpenJK-Regeln nur gegen die Quelle.
 - Byss-Lichtleiste 55 220 226 gegen 56 247 255 weiter offen.
 - Figurstufen (Ghoul2) laden ihre Bilder auf eigenem Weg, dort nicht auf dieselbe Verwechslung geprueft.
 
+## Teil 10: Geonosis, Reste aus 9b, Decals, VIS-Rest, JK2-Datapad
+
+Auftrag `auftrag_rc608_10.md`. Skripte und Fotos in `SP/g10` (`karten10.py`, `karten10b.py`, `geo.cfg`, `lauf2.cfg`, `vor10.sh`, `vor_geo.sh`, `vor_rest.sh`, `grid.py`, `ersetz.py`), Paare in `SP/g10/erg/`. Spielbilder nur Movie Duels mit fs_homepath im SP (`g5/home_md`), Steam lief nicht (keine steam.exe). Aufnahme per `screenshot_tga`.
+
+### 0: Reste aus Teil 9b
+- **Schwertfarbe des Spielers, gefunden, allgemein:** Der Spieler (und jede Figur mit `playerModel player`) bekommt sein Schwert aus den Cvars: G_InitPlayerFromCvars ruft G_SetSabersFromCVars (g_client.cpp:2488 MD, :1850 OpenJK; fuer NPCs nach NPC_ParseParms, NPC_stats.cpp:4646 MD): saber[0] neu aus g_saber ("single_1"), alle Klingen in g_saber_color ("yellow", g_main.cpp:829-831 MD, :693-695 OpenJK). Die Vorschau nahm single_1 mit dessen `saberColor random` und wuerfelte (violett). Neu `spielerSchwertAusCvars` (src/ausruestung.cpp), Laenge und Radius der .npc fallen wie in WP_SaberParseParms weg. Rot: `Spieler Schwert single_1, Klingen 1: purple`, gruen: `yellow`. Paar `paar_figur.png` (gegen `g9/fotos/f9b_g0.png`): beide Klingen gelb. Licht gemessen: Boden neben dem Spieler Spiel 26,5 22,5 9,2 / Vorschau 19,7 15,3 8,1 (Faktor 0,74 0,68 0,88), Ruecken 58,0 39,8 12,9 / 70,2 45,3 18,2 (1,21 1,14 1,41) - siehe Offen (Schwertlicht).
+- **Gegenstand an der Huefte:** kommt von `give all` in `figur9b.cfg` - Movie Duels haengt die Waffen des Inventars ins Holster. Gegenprobe ohne `give all` (`lauf2.cfg`, Bild `f10_g0.png`): beide Hueften leer. Keine Abweichung der Vorschau; ihr Spieler hat ausser dem Schwert kein Inventar.
+- **Klinge des NPC in BOTH_STAND2:** nicht gefunden. Gegen die Quelle geprueft: Bolzen der Tagflaeche (G2_ProcessSurfaceBolt2, tr_ghoul2.cpp:2260 ff. MD: Ecken in Dateireihenfolge, Seite 0 laengste, 2 kuerzeste, Ursprung Ecke 2), Klingenrichtung NEGATIVE_X von `*blade1` (cg_players.cpp:13983 MD), Anheften an `*r_hand`, BOTH_STAND2 in beiden animation.cfg gleich (Frame 14917). Griff single_2 aus MD_Hilts.pk3. Offen.
+- **g9_jtb (Spieler tiefer):** Der Spieler bekam PM_AdjustStandAnimForSlope nicht - die Vorschau rechnete die Hangbeine nur fuer NPCs. Die Engine laesst den Spieler nur in der ersten Person aus (bg_pmove.cpp:7454 OpenJK, :11497 MD mit BG_AllowThirdPersonSpecialMove; cg_thirdPerson "1" in JKA, cg_main.cpp:414 OpenJK, :623 MD; Jedi Outcast "0" mit cg_saberAutoThird/cg_gunAutoFirst, g_active.cpp:1708-1714). Rot: Beine BOTH_STAND2, gruen: LEGS_LEFTUP1 ab 50 ms. **Der Hoehenunterschied bleibt:** Kopfoberkante Spiel Zeile 981, Vorschau 905 (76 Bildpunkte, vorher gleich) - die Hangbeine sind nicht die Ursache. Offen.
+- **Byss-Lichtleiste:** neu aufgenommen mit und ohne r_DynamicGlow (Spiel `byss_g1/g0`, Vorschau mit `BHED_GV_GLUEHEN=0`). Leiste oben (205,0-320,15), Spiel / Vorschau: mit Gluehen 63,7 118,7 147,4 / 63,8 124,2 158,3, ohne 63,2 103,3 118,0 / 63,2 109,4 133,2. Das Gluehen ist nicht die Ursache; die Leiste selbst (Lightmap mal `lights`, `lights_glw` additiv, `env_glass` davor) ist in der Vorschau G 6 %, B 13 % heller und saettigt (hellste 20 Bildpunkte 76 255 255 gegen 71 220 220). Nicht gefunden. Die linke Leiste ohne Glas stimmt (147 164 177 / 145 164 175). Nebenbei: Das PrintWindow-Bild aus Teil 8 war dort rund 4 % dunkler als `screenshot_tga` (141 156 170).
+- **Saeulen duel_jeditemple 0,95 0,94 0,92:** nicht neu angegangen.
+- **Figurstufen (Ghoul2):** Ihre Bilder laden ueber `ladeStufenBild` nur als Datei (wie R_FindImageFile) - die Verwechslung aus 9b gibt es dort nicht. Verwandt gefunden: Fand eine Figurflaeche ihr Bild nur ueber das Shaderskript, legte die Vorschau es im Zwischenspeicher unter dem SHADERnamen ab; eine Stufe `map <Shadername>` haette dann das Bild des Skripts bekommen, das es als Datei nicht gibt (und eine zweite Figur mit derselben Haut verlor den Alphatest). Jetzt unter dem Namen der gelesenen Datei (gui/app_view3d.cpp). Nicht rot gesehen: In keinem Lauf dieses Teils kam der Weg "ueber Shaderskripte" vor.
+
+### 1: "Schatten von oben" auf Geonosis
+Sechs Stellen (`g10_ga1..3` Arena, `g10_gb1..3` Schlacht, je genau ein Spielerstart), je vier Spielbilder im Abstand von 1 s: nichts wandert (mittlere Aenderung 0,00 bis 0,23 von 255; gb2 45,9, weil der Spieler am Hang 1 Einheit rutscht und die Kamera mitnimmt).
+- **Was der Schatten ist:** gebackenes Licht der Karte. Der Himmelsshader `textures/md_gd/geonosis` traegt `sun 1 0.584 0.169 170 45 75` (q3map_sun) und `q3map_surfacelight 10`; q3map2 rechnet daraus Lightmap und Lichtgitter (CreateSurfaceLights, light.cpp:590 ff.). Auf der Arena ist das der harte Schattenstreifen der Ringmauer quer ueber den Sand und der helle Keil an der Wand (`paar_ga1.png`), auf der Schlacht das Licht von oben auf Figur und Modellen (Schultern hell, Koerper dunkel, `paar_gb2.png`). Die Vorschau zeigt beides aus denselben Lumps: Boden links und rechts auf allen sechs Stellen Faktor 1,00 1,00 1,00, oben 0,96 bis 1,01, Figur 0,96 bis 1,09 (gb3 1,04 1,07 1,09). Kein cg_shadows-Fleck, keine wandernden Wolken: cg_shadows 1 (Rundschatten) hat die Vorschau schon.
+- **Dabei gefunden, allgemein:** Die Zuschauer der Arena sind Brushflaechen mit `textures/md_ga/geonosian1` (ebenso `galler1`): { Bild alphaFunc GE128 } { $lightmap blendFunc GL_ONE GL_ZERO } { Bild blendFunc GL_DST_COLOR GL_ZERO }. GL_ONE GL_ZERO mischt nicht, die Lichtstufe ersetzt die Farbe ("implicitly assume that a GL_ONE GL_ZERO blend mask disables blending", ParseStage; RB_IterateStagesGeneric, tr_shade.cpp); die erste Stufe bleibt nur Abdeckung. Die Vorschau rechnete Bild mal Licht in die Grundstufe und multiplizierte mit der dritten Stufe noch einmal: Bild mal Bild mal Licht, fast schwarz. 86 Shader der Spieldaten haben diese Form (Hoth-Eiszapfen, Kejim, Yavin-Ranken, Gitter, Fenster), bei einem ist das Bild der dritten Stufe ein anderes (`textures/wedge/w_catwalk_r`: Abdeckung aus w_catwalk_r, Farbe aus w_catwalk). Neu `lichtErsetztBildstufen`/`farbeAusStufe` (gui/app_ablage.inc). Rot: `galler1 Zusatz 1 soll 0`, `geonosian1 Zusatz 1 soll 0`; gruen: 0 / 0. Zuschauer im Paar `paar_ga1.png`: Spiel 26,4 13,4 7,7 / vorher 23,8 11,1 5,7 / jetzt 26,4 13,4 7,7; drei Felder unten 1,00 1,00 1,00.
+- **Gegenprobe q3map_skyLight** (nicht zum Finden benutzt): mp/siege_hoth (`textures/siege/hoth_sky`, `q3map_skylight 350 6`), zwei Stellen im Freien (`g10_sh1`, `g10_sh2`): Boden 1,00 1,00 1,00, oben 0,99 bis 1,00, Figur 0,98 bis 1,00.
+- **Karten-Editor (nur Befund, das Aussehen gehoert in Teil 11):** Das Echtzeit-Licht (src/karte/echtlicht.cpp) wertet `sun`/`q3map_sun`/`q3map_sunExt` (shaderscript.cpp:853), `q3map_surfacelight`, `q3map_skyLight` und `_color`/`ambient`/`_minlight` wie q3map2 aus, **aber nicht `_noshadersun`**: q3map2 laesst damit die Sonnen aller Shader weg (CreateSurfaceLights, light.cpp:593). duel_geonosis_arena als .map bekaeme im Editor die Himmelssonne 170 bei 45/75 Grad, die q3map2 nicht rechnet. `_minVertexlight` liest der Editor ebenfalls nicht.
+
+### 2: Decal-Sonderfaelle
+Nicht angegangen (Zeit). Offen wie im Kopf von `src/karte/metaflaechen.inc`: FogDrawSurfaces, Index-Karten, -patchmeta, -maxarea, -np, Klon- und Rueckseiten-Shader, _decal.
+
+### 3: VIS-/Licht-Rest
+Stand (aus `NOTIZEN_vis1.md`, vis4, in karte1 seit c809c2f1): Auto mit drittem Kandidaten (GPU plus Nachproben, dd8737f7) ist drin und getestet (ctest karte_gpuwahl, q3map2_gpubake, Selbsttest stufe8g). IlluminateRawLightmap: GPU-Sammelpuffer (642dd15a, 4083fce7). RandomSubsampleRawLuxel: auf dem Prozessor der groesste Abschnitt von "[Final] Extreme Quality", kein bitgleicher schnellerer Weg gefunden. LoadSurfaceExtraFile/SetupSurfaceLightmaps: Laden duel_mos_espa 23,7 bis 25,8 s, kejim_post 1,8 s (unter Last). PointInLeafNum je Nachprobe: nicht angegangen. Die ruhige Endmessung (`SP/vis4/messung.sh`, rund 1 h) und der Bytevergleich mit dem Endstand stehen aus. Nichts geaendert, nichts neu gemessen - fuer rc609.
+
+### 4: JK2-Datapad-Foto
+Nicht moeglich: Das Foto braucht das Original-Jedi-Outcast (Steam), steam.exe lief nicht. Offen.
+
+### 5: Reiten und cg_turnAnims gegen das Spiel
+Nicht angegangen (Zeit). Fuer den naechsten Teil: cg_turnAnims laesst sich ohne Tasten vergleichen - ein NPC dreht sich per Skript (`SET_ANGLES`), cg_players.cpp:3095 MD spielt die Drehanimation dann ebenso.
+
+### Tests
+Selbsttest `teil10` (neu): 3 OK, 0 FEHLER. Rot je einmal: Schwert und Hang in einem Lauf (2 FEHLER, `t10rot`), Lichtstufe im eigenen Lauf (1 FEHLER, `t10rot2`). Paare aus dem Stand vor der Aenderung an den Figurtexturen (die aendert bei 0 Faellen nichts). Der Vergleich (`geschuetze` mit `BHED_GV_*`) nimmt `BHED_GV_GLUEHEN=0` neu an.
+
+### Nur per Foto gegen das Spiel
+Alle Paare in `SP/g10/erg/` (Movie Duels). OpenJK-Regeln nur gegen die Quelle.
+
+### Offen aus Teil 10
+- Schwertlicht: Das installierte Movie Duels (Update 9) hat `cg_saberLightIntensity 1.2` und `cg_saberLightRadius 1.5` in der Konfiguration, die Quelle unter `SP/mdgit` kennt beide nicht. Boden neben dem Schwert in der Vorschau 0,68 bis 0,88, Figur 1,14 bis 1,41; der Lichthof um die Klinge ist im Spiel breiter. Ohne Quelle nicht nachgebaut.
+- Klinge des NPC in BOTH_STAND2, g9_jtb (76 Bildpunkte), Byss-Leiste hinter Glas (siehe 0).
+- Karten-Editor: `_noshadersun`, `_minVertexlight` (Teil 11).
+- Punkte 2, 3 (Messung), 4, 5.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -804,6 +848,9 @@ Weiter offen:
 - Preview: new setting Edge smoothing (r_ext_multisample) as in the game: 8 samples under Movie Duels, off under OpenJK, the original Jedi Academy and Jedi Outcast.
 - Preview: NPCs read their entries only from ext_data/npcs, in the game's order; an NPC_Jedi under Movie Duels has its yellow blade and medium stance again.
 - Preview: the game's figure settings cg_motionBoneComp, cg_turnAnims and (Movie Duels) g_ActivateAnimationStyle; the head follows a look target gradually; riders sit on their vehicle; under Jedi Outcast kyle is the player.
+- Preview: the player's lightsaber comes from g_saber and g_saber_color as in the game (yellow by default) instead of a random colour.
+- Preview: the player also puts his feet on slopes like the game (slope leg animations, third person).
+- Preview: a lightmap stage with GL_ONE GL_ZERO after an image stage replaces the colour as in the game; the spectators on duel_geonosis_arena, the icicles on Hoth and 83 other alpha-tested shaders are no longer almost black.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -876,6 +923,9 @@ Weiter offen:
 - Vorschau: neue Einstellung Kantenglättung (r_ext_multisample) wie im Spiel: 8 Proben unter Movie Duels, aus unter OpenJK, dem Original-Jedi-Academy und Jedi Outcast.
 - Vorschau: NPCs lesen ihre Einträge nur aus ext_data/npcs, in der Reihenfolge des Spiels; ein NPC_Jedi hat unter Movie Duels wieder seine gelbe Klinge und mittlere Haltung.
 - Vorschau: die Figuren-Einstellungen des Spiels cg_motionBoneComp, cg_turnAnims und (Movie Duels) g_ActivateAnimationStyle; der Kopf zieht einem Blickziel nach; Reiter sitzen auf ihrem Fahrzeug; unter Jedi Outcast ist kyle der Spieler.
+- Vorschau: Das Lichtschwert des Spielers kommt wie im Spiel aus g_saber und g_saber_color (Vorgabe gelb) statt in einer zufaelligen Farbe.
+- Vorschau: Auch der Spieler stellt am Hang die Fuesse wie im Spiel (Hang-Beinanimationen, dritte Person).
+- Vorschau: Eine Lightmap-Stufe mit GL_ONE GL_ZERO hinter einer Bildstufe ersetzt die Farbe wie im Spiel; die Zuschauer auf duel_geonosis_arena, die Eiszapfen auf Hoth und 83 weitere Shader mit Alphatest sind nicht mehr fast schwarz.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -948,6 +998,9 @@ Weiter offen:
 - 预览:新设置“边缘平滑”(r_ext_multisample),与游戏相同:Movie Duels 下 8 个采样,OpenJK、原版 Jedi Academy 和 Jedi Outcast 下关闭。
 - 预览:NPC 只从 ext_data/npcs 读取条目,顺序与游戏相同;Movie Duels 下的 NPC_Jedi 重新拥有黄色光剑和中等架势。
 - 预览:游戏的角色设置 cg_motionBoneComp、cg_turnAnims 以及(Movie Duels)g_ActivateAnimationStyle;头部逐渐跟随注视目标;骑手坐在载具上;Jedi Outcast 下 kyle 是玩家。
+- 预览:玩家的光剑与游戏一样取自 g_saber 和 g_saber_color(默认黄色),不再是随机颜色。
+- 预览:玩家在斜坡上也像游戏中一样放脚(斜坡腿部动画,第三人称)。
+- 预览:位于图像阶段之后、使用 GL_ONE GL_ZERO 的光照贴图阶段与游戏一样替换颜色;duel_geonosis_arena 的观众、Hoth 的冰柱以及另外 83 个带 Alpha 测试的着色器不再几乎全黑。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1020,6 +1073,9 @@ Weiter offen:
 - プレビュー:新しい設定「エッジの平滑化」(r_ext_multisample)。ゲームと同じく Movie Duels は 8 サンプル、OpenJK、オリジナルの Jedi Academy、Jedi Outcast はオフです。
 - プレビュー:NPC は ext_data/npcs からだけ、ゲームと同じ順序で項目を読みます。Movie Duels の NPC_Jedi が再び黄色のブレードと中位の構えになりました。
 - プレビュー:ゲームのキャラクター設定 cg_motionBoneComp、cg_turnAnims、(Movie Duels)g_ActivateAnimationStyle。頭が注視先へ徐々に向き、乗り手は乗り物に座り、Jedi Outcast では kyle がプレイヤーです。
+- プレビュー:プレイヤーのライトセーバーはゲームと同じく g_saber と g_saber_color(既定は黄色)から決まり、ランダムな色ではなくなりました。
+- プレビュー:プレイヤーも坂ではゲームと同じように足を置きます(坂用の脚アニメーション、三人称)。
+- プレビュー:画像ステージの後にある GL_ONE GL_ZERO のライトマップステージはゲームと同じく色を置き換えます。duel_geonosis_arena の観客、Hoth のつらら、ほか 83 のアルファテスト付きシェーダーがほぼ真っ黒ではなくなりました。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1092,6 +1148,9 @@ Weiter offen:
 - Vista previa: nuevo ajuste Suavizado de bordes (r_ext_multisample) como en el juego: 8 muestras en Movie Duels, desactivado en OpenJK, el Jedi Academy original y Jedi Outcast.
 - Vista previa: los NPC leen sus entradas solo de ext_data/npcs, en el orden del juego; un NPC_Jedi en Movie Duels vuelve a tener su hoja amarilla y su postura media.
 - Vista previa: los ajustes de figuras del juego cg_motionBoneComp, cg_turnAnims y (Movie Duels) g_ActivateAnimationStyle; la cabeza sigue poco a poco un objetivo de mirada; los jinetes van sentados en su vehículo; en Jedi Outcast kyle es el jugador.
+- Vista previa: el sable de luz del jugador sale de g_saber y g_saber_color como en el juego (amarillo por defecto) en lugar de un color aleatorio.
+- Vista previa: el jugador también apoya los pies en las pendientes como en el juego (animaciones de piernas en pendiente, tercera persona).
+- Vista previa: una etapa de lightmap con GL_ONE GL_ZERO tras una etapa de imagen sustituye el color como en el juego; los espectadores de duel_geonosis_arena, los carámbanos de Hoth y otros 83 shaders con prueba alfa ya no salen casi negros.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1164,3 +1223,6 @@ Weiter offen:
 - Náhled: nové nastavení Vyhlazování hran (r_ext_multisample) jako ve hře: 8 vzorků v Movie Duels, vypnuto v OpenJK, původní Jedi Academy a Jedi Outcast.
 - Náhled: NPC čtou své položky jen z ext_data/npcs, v pořadí hry; NPC_Jedi v Movie Duels má opět žlutou čepel a střední postoj.
 - Náhled: nastavení postav ze hry cg_motionBoneComp, cg_turnAnims a (Movie Duels) g_ActivateAnimationStyle; hlava postupně sleduje cíl pohledu; jezdci sedí na svém vozidle; v Jedi Outcast je hráčem kyle.
+- Náhled: světelný meč hráče se jako ve hře řídí g_saber a g_saber_color (výchozí žlutá), už ne náhodnou barvou.
+- Náhled: i hráč staví nohy na svahu jako ve hře (animace nohou na svahu, třetí osoba).
+- Náhled: stupeň světelné mapy s GL_ONE GL_ZERO za obrazovým stupněm nahrazuje barvu jako ve hře; diváci na duel_geonosis_arena, rampouchy na Hothu a dalších 83 shaderů s alfa testem už nejsou téměř černé.
