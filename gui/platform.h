@@ -221,6 +221,17 @@ struct QtTextMass {
 // dem Grafiktreiber. -1, wenn es nicht geht.
 [[nodiscard]] long long heapBelegt();
 
+// rc608 Teil 12 (Selbsttest "leistung"): Prozessorzeit des ganzen Prozesses
+// (Kern und Nutzer, alle Faeden, Sekunden), groesster und jetziger Arbeitssatz
+// und privater Speicher in Bytes. -1, wo es nicht geht.
+struct ProzessStand {
+    double cpuSekunden = -1.0;
+    long long spitzeBytes = -1;
+    long long arbeitBytes = -1;
+    long long privatBytes = -1;
+};
+[[nodiscard]] ProzessStand prozessStand();
+
 // --- Karten-Editor, Stufe 2 Punkt 11 -------------------------------------
 //
 // MainFrame_toggleFullscreen (NRC mainframe.cpp:1542-1548): das Hauptfenster

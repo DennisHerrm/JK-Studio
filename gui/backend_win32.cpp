@@ -76,6 +76,36 @@ bool g_geraetVerloren = false;
 bool g_verlustSpielen = false;
 ID3D11RenderTargetView* g_rtv = nullptr;
 
+// rc608 Teil 12: Zeitmarken um das ganze Bild (newFrame bis vor Present), nur
+// waehrend einer Leistungsmessung. Ring ueber vier Bilder, abgeholt wird nur,
+// was fertig ist (GetData mit DO_NOT_FLUSH) - wie die Abschnitte in gpumap.
+struct BildMarken {
+    ID3D11Query* takt = nullptr;
+    ID3D11Query* anfang = nullptr;
+    ID3D11Query* ende = nullptr;
+    bool offen = false;
+};
+BildMarken g_bildMarken[4];
+unsigned g_bildMarkeJetzt = 0;
+bool g_bildMarkeLaeuft = false;
+
+void bildMarkenFrei() {
+    for (BildMarken& m : g_bildMarken) {
+        if (m.takt != nullptr) { m.takt->Release(); m.takt = nullptr; }
+        if (m.anfang != nullptr) { m.anfang->Release(); m.anfang = nullptr; }
+        if (m.ende != nullptr) { m.ende->Release(); m.ende = nullptr; }
+        m.offen = false;
+    }
+    g_bildMarkeLaeuft = false;
+}
+#endif
+
+// rc608 Teil 12: Bildzeiten der Leistungsmessung (render::bildMessung)
+bool g_bildMessung = false;
+std::chrono::steady_clock::time_point g_bildAnfang{};
+BildZeiten g_bildZeiten{};
+#ifdef BHED_WITH_D3D11
+
 void createRtv() {
     if (g_swap == nullptr) {
         return;
@@ -244,6 +274,7 @@ bool initD3D11(HWND hwnd) {
 
 void shutdownD3D11() {
     if (g_bildFrei != nullptr) { CloseHandle(g_bildFrei); g_bildFrei = nullptr; }
+    bildMarkenFrei();
     g_geraetVerloren = false;
     // rc601 saber review: die additive Mischung gehoert zum alten Geraet.
     if (g_additivMischung != nullptr) { g_additivMischung->Release(); g_additivMischung = nullptr; }
@@ -868,12 +899,65 @@ void shutdown() {
     g_ready = false;
 }
 
+#ifdef BHED_WITH_D3D11
+// rc608 Teil 12: fertige Zeitmarken abholen, dann die naechste beginnen.
+void bildMarkenAnfang() {
+    for (BildMarken& m : g_bildMarken) {
+        if (!m.offen) { continue; }
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj{};
+        UINT64 a = 0;
+        UINT64 e = 0;
+        if (g_context->GetData(m.takt, &dj, sizeof(dj), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            g_context->GetData(m.anfang, &a, sizeof(a), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            g_context->GetData(m.ende, &e, sizeof(e), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) {
+            continue;
+        }
+        m.offen = false;
+        if (dj.Disjoint == FALSE && dj.Frequency > 0 && e >= a) {
+            g_bildZeiten.gpuMs = static_cast<double>(e - a) * 1000.0 / static_cast<double>(dj.Frequency);
+            ++g_bildZeiten.gpuBilder;
+        }
+    }
+    BildMarken& m = g_bildMarken[g_bildMarkeJetzt];
+    if (m.offen) { return; }
+    if (m.takt == nullptr) {
+        D3D11_QUERY_DESC qd{};
+        qd.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+        if (FAILED(g_device->CreateQuery(&qd, &m.takt))) { return; }
+        qd.Query = D3D11_QUERY_TIMESTAMP;
+        if (FAILED(g_device->CreateQuery(&qd, &m.anfang)) || FAILED(g_device->CreateQuery(&qd, &m.ende))) { return; }
+    }
+    g_context->Begin(m.takt);
+    g_context->End(m.anfang);
+    g_bildMarkeLaeuft = true;
+}
+
+void bildMarkenEnde() {
+    if (!g_bildMarkeLaeuft) { return; }
+    BildMarken& m = g_bildMarken[g_bildMarkeJetzt];
+    g_context->End(m.ende);
+    g_context->End(m.takt);
+    m.offen = true;
+    g_bildMarkeLaeuft = false;
+    g_bildMarkeJetzt = (g_bildMarkeJetzt + 1U) % 4U;
+}
+#endif
+
+void bildMessung(bool an) {
+    g_bildMessung = an;
+    g_bildZeiten = BildZeiten{};
+}
+
+BildZeiten bildZeiten() { return g_bildZeiten; }
+
 void newFrame() {
     if (!g_ready) {
         return;
     }
+    if (g_bildMessung) { g_bildAnfang = std::chrono::steady_clock::now(); }
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D11) {
+        if (g_bildMessung) { bildMarkenAnfang(); }
         ImGui_ImplDX11_NewFrame();
         return;
     }
@@ -1091,6 +1175,12 @@ void present(float r, float g, float bl) {
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         if (!g_fotoPfad.empty()) { fotoSchreiben(); }
         plattformFenster();
+        if (g_bildMessung) {
+            bildMarkenEnde();
+            const auto vor = std::chrono::steady_clock::now();
+            g_bildZeiten.cpuMs = std::chrono::duration<double, std::milli>(vor - g_bildAnfang).count();
+            ++g_bildZeiten.cpuBilder;
+        }
         const HRESULT hr = g_swap->Present(1, 0);
         if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || g_verlustSpielen) {
             // Den Grund VOR dem Freigeben fragen - danach gibt es ihn nicht mehr.

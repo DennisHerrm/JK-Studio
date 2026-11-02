@@ -72,6 +72,8 @@ struct SpielbildStand {
     std::size_t flaechenVerdeckt = 0;
 };
 [[nodiscard]] SpielbildStand spielbildStand();
+// rc608 Teil 12, fuer den Bildvergleich im Selbsttest: feste Shaderzeit des Spielbilds in Sekunden (< 0: die Uhr).
+void spielbildZeitFest(double sekunden);
 
 }  // namespace bhed::gui::karteneditor
 

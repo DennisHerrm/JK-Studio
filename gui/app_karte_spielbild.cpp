@@ -52,6 +52,7 @@ struct Szene {
 // nie zerstoert: beim Beenden ist das Grafikgeraet schon weg
 Szene& g_szene = *new Szene;
 SpielbildStand g_stand;
+double g_zeitFest = -1.0;   // rc608 Teil 12: spielbildZeitFest
 const AreaPortale g_keinePortale;   // ohne Mission sind alle Portale zu, gezaehlt wird nur das PVS
 
 // Die Szene aus der .bsp, wie loadMapFromBytes sie fuer die Vorschau anlegt.
@@ -172,7 +173,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
         cam.right(rechts);
         cam.up(hoch);
         const float fokus = 1.0F / std::tan(cam.fovY * 3.14159265F / 180.0F * 0.5F);
-        const float zeit = static_cast<float>(ImGui::GetTime());
+        const float zeit = static_cast<float>(g_zeitFest >= 0.0 ? g_zeitFest : ImGui::GetTime());
         std::string f;
         // Erst alles Deckende, dann der Nebel dazu (RB_FogPass nach den Stufen), dann alles Gemischte - wie die
         // Vorschau (app_view3d_bedienung.inc, die beiden Durchgaenge).
@@ -207,5 +208,6 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
 }
 
 SpielbildStand spielbildStand() { return g_stand; }
+void spielbildZeitFest(double sekunden) { g_zeitFest = sekunden; }
 
 }  // namespace bhed::gui::karteneditor

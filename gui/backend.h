@@ -34,6 +34,20 @@ void shutdown();
 void newFrame();
 // Zeichnet die Daten von ImGui::GetDrawData() und tauscht die Puffer.
 void present(float r, float g, float bl);
+
+// rc608 Teil 12: Bildzeiten fuer die Leistungsmessung (Selbsttest "leistung").
+// cpuMs: newFrame bis vor Present (Oberflaeche, Szene, Zeichenbefehle; ohne das
+// Warten auf den Bildschirm). gpuMs: Zeitmarken der Grafikkarte ueber dieselbe
+// Strecke, zwei bis drei Bilder spaeter. -1, solange kein Wert da ist. Ausser
+// waehrend einer Messung kostet es nichts.
+struct BildZeiten {
+    double cpuMs = -1.0;
+    double gpuMs = -1.0;
+    int cpuBilder = 0;
+    int gpuBilder = 0;
+};
+void bildMessung(bool an);
+[[nodiscard]] BildZeiten bildZeiten();
 void resize(int width, int height);
 
 // --- Zugang zum Direct3D-Geraet ----------------------------------------

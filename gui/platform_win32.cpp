@@ -10,6 +10,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <psapi.h>
 
 #include <commdlg.h>
 #include <shlobj.h>
@@ -831,6 +832,25 @@ long long heapBelegt() {
     s.cb = sizeof(s);
     if (HeapSummary(GetProcessHeap(), 0, &s) == 0) { return -1; }
     return static_cast<long long>(s.cbAllocated);
+}
+
+ProzessStand prozessStand() {
+    ProzessStand st;
+    FILETIME entstanden{};
+    FILETIME beendet{};
+    FILETIME kern{};
+    FILETIME nutzer{};
+    if (GetProcessTimes(GetCurrentProcess(), &entstanden, &beendet, &kern, &nutzer) != 0) {
+        const auto zahl = [](const FILETIME& f) { return (static_cast<unsigned long long>(f.dwHighDateTime) << 32U) | f.dwLowDateTime; };
+        st.cpuSekunden = static_cast<double>(zahl(kern) + zahl(nutzer)) / 1.0e7;
+    }
+    PROCESS_MEMORY_COUNTERS_EX pm{};
+    if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pm), sizeof(pm)) != 0) {
+        st.spitzeBytes = static_cast<long long>(pm.PeakWorkingSetSize);
+        st.arbeitBytes = static_cast<long long>(pm.WorkingSetSize);
+        st.privatBytes = static_cast<long long>(pm.PrivateUsage);
+    }
+    return st;
 }
 
 bool bildschirmFarbe(int x, int y, unsigned char rgb[3]) {
