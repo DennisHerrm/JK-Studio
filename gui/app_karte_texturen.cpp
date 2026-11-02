@@ -33,6 +33,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/arbeiter.h"
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
@@ -850,6 +851,17 @@ void texturenAktualisieren() {
         }
     }
     const karte::Texturinventar* inv = inventar();
+    // rc608 Teil 12: die Bildgroessen neuer Shader vorab nebenlaeufig. bildMass entziffert dafuer das ganze Editorbild
+    // (QERApp_LoadImage) - beim Oeffnen von duel_jeditemple.map gut 4 s nacheinander auf dem Hauptfaden. bildMass ist
+    // gesperrt und merkt sich das Ergebnis je Shader; holen findet es danach dort, in derselben Reihenfolge wie zuvor.
+    if (inv != nullptr) {
+        std::vector<std::string> neu;
+        if (pinsel && ed.aktiveShader.finden(karte::kTexturPraefix) == nullptr) { neu.emplace_back(karte::kTexturPraefix); }
+        for (const std::string& n : namen) {
+            if (ed.aktiveShader.finden(n) == nullptr) { neu.push_back(n); }
+        }
+        arbeiter::verteilt(neu.size(), [&neu, inv](std::size_t i) { (void)inv->bildMass(neu[i]); }, 2);
+    }
     if (pinsel) { (void)ed.aktiveShader.holen(karte::kTexturPraefix, inv); }   // Face( FaceObserver* ): texdef_name_default
     for (const std::string& n : namen) { (void)ed.aktiveShader.holen(n, inv); }
     (void)ed.aktiveShader.gebrauchSetzen(namen);

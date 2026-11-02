@@ -4,6 +4,7 @@
 // Linienliste, breite Linien (glLineWidth 2) ueber einen Geometrie-Shader.
 #include "karte_gpu.h"
 
+#include "bhed/arbeiter.h"
 #include "bhed/diag.h"
 #include "bhed/gpushader.h"
 #include "bhed/karte/texturen.h"
@@ -1749,24 +1750,29 @@ bool bereit4() {
     const std::string faktor = lightmapFaktorText();
     const D3D_SHADER_MACRO ohne[] = {{"OHNE_FBL", "1"}, {"LM_FAKTOR", faktor.c_str()}, {nullptr, nullptr}};
     const D3D_SHADER_MACRO mit[] = {{"LM_FAKTOR", faktor.c_str()}, {nullptr, nullptr}};
-    const auto uebersetzen = [&](const char* einstieg, const char* ziel, ID3DBlob** code) {
-        ID3DBlob* fehler = nullptr;
-        const HRESULT hr = D3DCompile(kShader4, std::strlen(kShader4), "karte4", sm5 ? mit : ohne, nullptr, einstieg, ziel,
-                                      D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, code, &fehler);
-        if (fehler != nullptr && FAILED(hr)) {
-            diag::detail(std::string("Karten-Editor: Echtzeit-Licht-Shader: ") + static_cast<const char*>(fehler->GetBufferPointer()));
-        }
-        los(fehler);
-        return SUCCEEDED(hr);
-    };
     const char* const psZiel = sm5 ? "ps_5_0" : "ps_4_1";
     const char* const vsZiel = sm5 ? "vs_5_0" : "vs_4_1";
+    // rc608 Teil 12: die neun Einstiege nebenlaeufig uebersetzen (D3DCompile ist dafuer gebaut; jeder Faden schreibt
+    // nur seinen Platz). Nacheinander kostete das beim ersten Echtzeit-Licht rund 1 s auf dem Hauptfaden. Dieselben
+    // Aufrufe, dieselben Ergebnisse; Meldungen erst danach in der alten Reihenfolge.
+    const char* const einstiege[9][2] = {{"vs4", vsZiel},  {"ps4", psZiel},     {"vss", vsZiel},      {"pss", psZiel},     {"pssA", psZiel},
+                                         {"psHimmel", psZiel}, {"psUnter", psZiel}, {"psUnterA", psZiel}, {"ps4Nebel", psZiel}};
     ID3DBlob* b[9] = {};
-    if (!uebersetzen("vs4", vsZiel, &b[0]) || !uebersetzen("ps4", psZiel, &b[1]) || !uebersetzen("vss", vsZiel, &b[2]) ||
-        !uebersetzen("pss", psZiel, &b[3]) || !uebersetzen("pssA", psZiel, &b[4]) || !uebersetzen("psHimmel", psZiel, &b[5]) ||
-        !uebersetzen("psUnter", psZiel, &b[6]) || !uebersetzen("psUnterA", psZiel, &b[7]) || !uebersetzen("ps4Nebel", psZiel, &b[8])) {
-        for (auto*& x : b) { los(x); }
-        return false;
+    HRESULT ergebnis[9] = {};
+    std::string meldung[9];
+    arbeiter::verteilt(9, [&](std::size_t i) {
+        ID3DBlob* fehler = nullptr;
+        ergebnis[i] = D3DCompile(kShader4, std::strlen(kShader4), "karte4", sm5 ? mit : ohne, nullptr, einstiege[i][0], einstiege[i][1],
+                                 D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[i], &fehler);
+        if (fehler != nullptr && FAILED(ergebnis[i])) { meldung[i] = static_cast<const char*>(fehler->GetBufferPointer()); }
+        los(fehler);
+    }, 2);
+    for (std::size_t i = 0; i < 9; ++i) {
+        if (FAILED(ergebnis[i])) {
+            if (!meldung[i].empty()) { diag::detail("Karten-Editor: Echtzeit-Licht-Shader: " + meldung[i]); }
+            for (auto*& x : b) { los(x); }
+            return false;
+        }
     }
     d->CreateVertexShader(b[0]->GetBufferPointer(), b[0]->GetBufferSize(), nullptr, &g.vs4);
     d->CreatePixelShader(b[1]->GetBufferPointer(), b[1]->GetBufferSize(), nullptr, &g.ps4);
