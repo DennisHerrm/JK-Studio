@@ -7,6 +7,9 @@
 #include "bhed/saberkontakt.h"
 
 #include <atomic>
+#include <cctype>
+#include <string>
+#include <string_view>
 
 namespace bhed {
 
@@ -15,6 +18,7 @@ namespace {
 // bisher, und ihre Unit-Tests setzen das voraus.
 std::atomic<bool> gMd{true};
 std::atomic<int> gStufe{2};
+std::atomic<bool> gAnimStil{false};   // g_ActivateAnimationStyle
 std::atomic<bool> gJk2{false};
 }  // namespace
 
@@ -90,7 +94,43 @@ void regelwerkAnwenden(bool movieDuels, int schwierigkeitEinstellung) noexcept {
     navJk2Regeln(false);
 }
 
+void animStilSetzen(bool an) noexcept { gAnimStil.store(an, std::memory_order_relaxed); }
+bool animStilAktiv() noexcept { return gAnimStil.load(std::memory_order_relaxed) && regelwerkMovieDuels() && !regelwerkJediOutcast(); }
+
+bool animStilMeistersatz(const std::string& gla) {
+    // md_masterHumanoidSets (qcommon/md_animsets.h)
+    static const char* const kSaetze[] = {
+        "models/players/JK2anims",        "models/players/_humanoid_ani",   "models/players/_humanoid_bdroid",
+        "models/players/_humanoid_ben",   "models/players/_humanoid_cal",   "models/players/_humanoid_clo",
+        "models/players/_humanoid_df2",   "models/players/_humanoid_dooku", "models/players/_humanoid_galen",
+        "models/players/_humanoid_gon",   "models/players/_humanoid_grievous", "models/players/_humanoid_jabba",
+        "models/players/_humanoid_jango", "models/players/_humanoid_kotor", "models/players/_humanoid_luke",
+        "models/players/_humanoid_mace",  "models/players/_humanoid_maul",  "models/players/_humanoid_md",
+        "models/players/_humanoid_melee", "models/players/_humanoid_obi",   "models/players/_humanoid_obi3",
+        "models/players/_humanoid_pal",   "models/players/_humanoid_reb",   "models/players/_humanoid_ren",
+        "models/players/_humanoid_rey",   "models/players/_humanoid_vader", "models/players/_humanoid_yoda",
+    };
+    const auto klein = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
+    for (const char* satz : kSaetze) {
+        const std::string_view sv(satz);
+        if (gla.size() <= sv.size()) { continue; }
+        bool gleich = gla[sv.size()] == '/' || gla[sv.size()] == '\\';
+        for (std::size_t i = 0; gleich && i < sv.size(); ++i) { gleich = klein(gla[i]) == klein(sv[i]); }
+        if (gleich) { return true; }
+    }
+    return false;
+}
+
+bool animStilSkelettPasst(int netzKnochen, int meisterKnochen, const std::string& eigenerSatz) {
+    return netzKnochen == meisterKnochen || (netzKnochen == 72 && eigenerSatz.find("_humanoid") != std::string::npos);
+}
+
 int regelwerkSpielstufe() noexcept { return gStufe.load(std::memory_order_relaxed); }
+
+int multisampleWirksam(int einstellung, bool movieDuels) noexcept {
+    if (einstellung == 0 || einstellung == 2 || einstellung == 4 || einstellung == 8) { return einstellung; }
+    return movieDuels ? 8 : 0;
+}
 
 int schwierigkeitWirksam(int einstellung, bool movieDuels) noexcept {
     if (einstellung >= 0 && einstellung <= 3) { return einstellung; }

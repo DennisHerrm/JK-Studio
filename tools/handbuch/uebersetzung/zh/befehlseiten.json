@@ -188,6 +188,7 @@
  "Make and change ROFF files: [[k-roff-bearbeiten]].": "制作和修改 ROFF 文件:[[k-roff-bearbeiten]]。",
  "play - play a ROFF file": "play——播放 ROFF 文件",
  "Plays a recorded movement (ROFF) on the entity of the current `affect` block.": "在当前 `affect` 块的实体上播放录制的运动(ROFF)。",
+ "In the preview the player figure is hidden in the whole scene, not only here (an intended difference from the game, **{{MapShowPlayer}}** in the view settings).": "在预览中,玩家角色在整个场景中都被隐藏,而不只是这里(有意与游戏不同,见视图设置中的 **{{MapShowPlayer}}**)。",
  "From here on the player's view is replaced by the script's camera, the HUD disappears and the player cannot move. Every cutscene starts with it.": "从这里开始,玩家的视角被脚本的摄像机取代,HUD 消失,玩家无法移动。每个过场动画都以它开始。",
  "The event editor for `camera ( ENABLE )`.": "`camera ( ENABLE )` 的事件编辑器。",
  "Camera command": "摄像机命令",

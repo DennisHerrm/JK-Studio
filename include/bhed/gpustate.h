@@ -136,6 +136,10 @@ enum Feature : std::uint32_t {
     kSpiegelBild   = 1U << 24,
     // rc605: tcGen vector - st = (welt . gTcGenS, welt . gTcGenT).
     kTexGenVec     = 1U << 25,
+    // rc608: rgbGen lightingDiffuse an einem .md3 (CGEN_LIGHTING_DIFFUSE, auch
+    // jedes Modellbild ohne Skript): die Eckenfarbe rechnet der Vertexshader aus
+    // dem Licht der Entity (RB_CalcDiffuseColor), Konstanten JeModell (b7).
+    kModellLicht   = 1U << 26,
 
     // Alles, was Ecken woanders hinlegt als die Datei - Licht- und
     // Nebeldurchgang zeichnen die Flaeche ohne diese Rechnung und lassen

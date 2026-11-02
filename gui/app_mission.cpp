@@ -5373,6 +5373,13 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
 // (aufnahmeAnimSchritt), mit Uebergang; die Beine schauen zur Laufrichtung,
 // der Rumpf zum Blick (rumpfGier). ms ist die Zeit, zu der gezeichnet wird -
 // sie steht waehrend der Aufnahme still, die Uhr der Aufnahme laeuft.
+bool spielerNichtZeichnen(const Actor& a, double ms) {
+    if (g_app->spielerInCutscene || !a.inVorschauVerborgen(ms)) { return false; }
+    const Aufnahme& r = aufnahme();
+    return !(r.aktiv && r.figur >= 0 && static_cast<std::size_t>(r.figur) < g_app->scene.actors.size() &&
+             &g_app->scene.actors[static_cast<std::size_t>(r.figur)] == &a);
+}
+
 void aufnahmeFigurZustand(int figur, double ms, ActorState& st) {
     const Aufnahme& r = aufnahme();
     if (!r.aktiv || figur != r.figur || figur < 0 || static_cast<std::size_t>(figur) >= g_app->scene.actors.size()) { return; }

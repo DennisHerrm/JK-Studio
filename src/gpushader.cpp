@@ -752,6 +752,16 @@ float4 main(Ein ein) : SV_TARGET {
 )";
 }
 
+std::string tiefeProbePixelShaderHlsl() {
+    return R"(
+Texture2DMS<float> gTiefe : register(t0);
+struct Ein { float4 pos : SV_POSITION; };
+float main(Ein ein) : SV_TARGET {
+    return gTiefe.Load(int2(ein.pos.xy), 0);
+}
+)";
+}
+
 std::string glowCompositePixelShaderHlsl() {
     // Woertlich wie glowComposite (src/glow.cpp:255):
     //
@@ -1084,6 +1094,15 @@ float rausch4(float4 q) {
     return lerp(wert[0], wert[1], t.w);
 }
 )");
+    // rc608: R_SetupEntityLighting legt ambientLight, directedLight und lightDir an die
+    // Entity. lightDir ist im Raum des Modells: das Punktprodukt mit e.axis, und die Achsen
+    // tragen den Massstab (ScaleModelAxis), die Normalen nicht.
+    wenn(s, features, kModellLicht, R"(cbuffer JeModell : register(b7) {
+    float4 gModellUmgebung;    // 0..255
+    float4 gModellGerichtet;   // 0..255
+    float4 gModellRichtung;
+};
+)");
     s += R"(VSOut main(VSIn ein) {
     VSOut aus;
     float3 welt = ein.pos;
@@ -1262,6 +1281,10 @@ float rausch4(float4 q) {
     }
 
     s += "    aus.farbe = ein.farbe;\n";
+    // RB_CalcDiffuseColor: je Ecke, incoming <= 0 nur die Umgebung, Q_ftol, dann auf 255 geklemmt.
+    wenn(s, features, kModellLicht,
+         "    aus.farbe.rgb = min(255.0, floor(gModellUmgebung.rgb + max(0.0, dot(nrm, gModellRichtung.xyz)) * "
+         "gModellGerichtet.rgb)) / 255.0;\n");
     // rgbGen const UND rgbGen wave ersetzen die Eckenfarbe - keins von
     // beiden multipliziert sie. Hier stand `*=` fuer die Welle; das machte
     // die Lava um den Faktor der Eckenhelligkeit zu dunkel (gemessen: 0,40).
@@ -1546,6 +1569,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kWolke, "_wk"},
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},
         {kTexGenVec, "_tcv"},   // rc605
+        {kModellLicht, "_ml"},  // rc608
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten
         // Quelltext (kein Helligkeitsfaktor auf der Eckenfarbe). Ohne
         // Kuerzel bekaemen zwei verschiedene Shader denselben Namen und

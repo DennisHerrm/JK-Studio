@@ -39,6 +39,18 @@ int gruppe(const DrawCall& c) {
 
 }  // namespace
 
+namespace {
+// rc608: Die Eckenfarbe eines .md3 ist das Licht der Entity (CGEN_LIGHTING_DIFFUSE),
+// schon fertig und ohne Helligkeitsfaktor. rgbGen vertex liest im Spiel Reste aus
+// tess.vertexColors (RB_SurfaceMesh schreibt keine Farben); das bildet nichts nach, es
+// gilt dasselbe Licht. identity, const und wave bleiben (l.fest).
+void modellLichtSetzen(PipelineState& state, const BspMesh::Batch& b, const Licht& l) {
+    if (b.modellLicht && !l.fest && !l.lightmap && !l.roh) {
+        state.features |= kModellLicht | kRohEcke;
+    }
+}
+}  // namespace
+
 std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
                                      const TextureSet* textures,
                                      float zeitSekunden) {
@@ -63,6 +75,7 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
         DrawCall c;
         const Licht l = lichtFuer(bs, b.lightmap, b.vertexColour, false);
         c.state = pipelineFor(bs, l.lightmap, l.roh, false, l.fest);
+        modellLichtSetzen(c.state, b, l);
         c.firstIndex = b.firstIndex;
         c.numIndexes = b.numIndexes;
         c.bild = b.shader;
@@ -96,6 +109,7 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
             DrawCall z;
             const Licht lz = lichtFuer(es, b.lightmap, b.vertexColour, true);
             z.state = pipelineFor(es, lz.lightmap, lz.roh, true, lz.fest);
+            modellLichtSetzen(z.state, b, lz);
             z.firstIndex = b.firstIndex;
             z.numIndexes = b.numIndexes;
             z.bild = extra;

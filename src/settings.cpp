@@ -126,6 +126,10 @@ std::string writeSettings(const Settings& s) {
     put(o, "schattenArt", std::to_string(s.schattenArt));
     put(o, "nebel", s.nebel);
     put(o, "dynLicht", s.dynLicht);
+    put(o, "spielerInCutscene", s.spielerInCutscene);
+    put(o, "cgMotionBoneComp", std::to_string(s.cgMotionBoneComp));
+    put(o, "cgTurnAnims", s.cgTurnAnims);
+    put(o, "gActivateAnimationStyle", s.gActivateAnimationStyle);
     put(o, "mpZiel", s.mpZiel);
     // Paket kamera, rc601: das Spielfenster.
     std::snprintf(buf, sizeof(buf), "%.4f", static_cast<double>(s.spielSeiten));
@@ -134,6 +138,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "spielRahmenFrei", s.spielRahmenFrei);
     put(o, "difficulty", std::to_string(s.schwierigkeit));   // rc601 (bewegung, Durchsicht 2): g_spskill
     put(o, "r_picmip", std::to_string(s.bildPicmip));
+    put(o, "r_ext_multisample", std::to_string(s.rExtMultisample));
     put(o, "regelwerk", std::string(regelwerkSchluessel(s.regelwerk)));   // rc601 integ
     put(o, "flussAnsicht", std::to_string(s.flussAnsicht));
     put(o, "menueReiter", std::to_string(s.menueReiter));
@@ -395,6 +400,10 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key == "nebel") { out.nebel = toBool(value); }
         else if (key == "dynLicht") { out.dynLicht = toBool(value); }
+        else if (key == "spielerInCutscene") { out.spielerInCutscene = toBool(value); }
+        else if (key == "cgMotionBoneComp") { out.cgMotionBoneComp = std::clamp(std::atoi(value.c_str()), 0, 3); }
+        else if (key == "cgTurnAnims") { out.cgTurnAnims = toBool(value); }
+        else if (key == "gActivateAnimationStyle") { out.gActivateAnimationStyle = toBool(value); }
         else if (key == "mpZiel") { out.mpZiel = toBool(value); }
         // Paket kamera, rc601: das Spielfenster. 0 = wie der Bildschirm;
         // sonst ein Seitenverhaeltnis, wie es Bildschirme haben (9:16 hochkant
@@ -414,6 +423,10 @@ bool readSettings(const std::string& text, Settings& out) {
             out.schwierigkeit = (n >= -1 && n <= 3) ? n : -1;
         }
         else if (key == "r_picmip") { out.bildPicmip = std::clamp(std::atoi(value.c_str()), 0, 3); }
+        else if (key == "r_ext_multisample") {
+            const int n = std::atoi(value.c_str());
+            out.rExtMultisample = (n == 0 || n == 2 || n == 4 || n == 8) ? n : -1;
+        }
         else if (key == "regelwerk") {
             // rc601 integ: auto/openjk/movieduels, sonst automatisch.
             int w = kRegelwerkAuto;

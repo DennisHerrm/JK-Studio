@@ -425,6 +425,8 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         }
         g_app->followCam = false;
         g_app->camTrackValid = false;
+        // rc608: Der Vergleich mit dem Spiel zeigt den Spieler wie im Spiel ("Show player" an), auch in Skripten mit Kamera.
+        g_app->spielerInCutscene = true;
         g_app->mapDirty = true;
     }));
     add(warteBis("Geschuetze Vergleich: Szene", [] { return g_app->camTrackValid && jk2probe::figurenGeladen(); }, 3000));
@@ -435,14 +437,21 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         std::istringstream liste(z);
         for (int ms = 0; liste >> ms;) { zeiten.push_back(ms); }
     }
+    // BHED_GV_FAHRT "dx dy dz dnick dgier": die Kamera wandert je Bild um diese Werte (Bildfolgen gegen das Spiel).
+    float fahrt[5] = {0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
+    if (const char* f = std::getenv("BHED_GV_FAHRT")) {
+        (void)std::sscanf(f, "%f %f %f %f %f", &fahrt[0], &fahrt[1], &fahrt[2], &fahrt[3], &fahrt[4]);
+    }
+    int bildNr = 0;
     for (const int ms : zeiten) {
+        const float nr = static_cast<float>(bildNr++);
         add(tu("Geschuetze Vergleich: Bild bei " + std::to_string(ms), [=] {
             entityAuswahlSetzen(-1);
-            g_app->cam.pos[0] = kam[0];
-            g_app->cam.pos[1] = kam[1];
-            g_app->cam.pos[2] = kam[2];
-            g_app->cam.angles[0] = kam[3];
-            g_app->cam.angles[1] = kam[4];
+            g_app->cam.pos[0] = kam[0] + nr * fahrt[0];
+            g_app->cam.pos[1] = kam[1] + nr * fahrt[1];
+            g_app->cam.pos[2] = kam[2] + nr * fahrt[2];
+            g_app->cam.angles[0] = kam[3] + nr * fahrt[3];
+            g_app->cam.angles[1] = kam[4] + nr * fahrt[4];
             g_app->cam.angles[2] = 0.0F;
             g_app->cam.fovY = 64.3727F;   // CalcFov: 2 * atan(tan(40 Grad) * 3 / 4)
             g_app->playMs = ms;

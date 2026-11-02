@@ -349,7 +349,10 @@ BspMesh md3ToMesh(const Md3Model& m, int frame, int shaderBase) {
         }
         b.numIndexes = static_cast<std::uint32_t>(out.indexes.size()) -
                        b.firstIndex;
-        b.lightmap = -3;   // Vertexfarben: ein .md3 hat keine Lightmap
+        // RE_RegisterModel nimmt R_FindShader(..., lightmapsNone, ...): -1. Ein $lightmap im
+        // Skript ist damit tr.whiteImage, nicht die Eckenfarbe wie bei -3.
+        b.lightmap = -1;
+        b.modellLicht = true;
         b.shader = slot;
         out.batches.push_back(b);
         ++slot;

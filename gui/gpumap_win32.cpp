@@ -165,6 +165,7 @@ Netzpuffer g_netz[3];   // Karte, Effekte, Gras (rc604)
 // Das ist nebenbei schneller: kein Neuanlegen je Bild.
 std::map<const BspMesh*, Netzpuffer> g_moverNetze;
 ID3D11Buffer* g_cbBild = nullptr;
+ID3D11Buffer* g_cbModell = nullptr;   // rc608: JeModell, siehe setzeModellLicht
 ID3D11Buffer* g_cbStapel = nullptr;
 // --- Umriss der Auswahl (rc597) ------------------------------------------
 //
@@ -179,6 +180,9 @@ ID3D11RenderTargetView* g_maskeRtv = nullptr;
 ID3D11ShaderResourceView* g_maskeSrv = nullptr;
 int g_maskeW = 0;
 int g_maskeH = 0;
+// rc608 Teil 9b: Die Maske teilt die Tiefe der Ansicht, hat also deren Proben; die Linie liest die aufgeloeste.
+int g_maskeProben = 1;
+ID3D11Texture2D* g_maskeAufTex = nullptr;
 ID3D11PixelShader* g_umrissPs = nullptr;     // weiss
 ID3D11PixelShader* g_umrissRandPs = nullptr; // die Linie
 ID3D11DepthStencilState* g_dsUmriss = nullptr;
@@ -251,6 +255,14 @@ bool g_tiefeVorigDa = false;
 ID3D11DepthStencilView* g_tiefeDsv = nullptr;
 int g_zielW = 0;
 int g_zielH = 0;
+// rc608 Teil 9b: r_ext_multisample. Mit mehr als einer Probe ist g_zielTex das Bild mit Proben (nur Renderziel) und
+// g_zielSrv zeigt auf das aufgeloeste g_zielAufTex, wie glCopyTexSubImage aus dem Bildpuffer des Spiels.
+// g_zielVeraendert: seit dem letzten Aufloesen bemalt. g_tiefeMsSrv liest die Tiefe mit Proben (tiefeEinzeln).
+int g_msaaWunsch = 1;
+int g_zielProben = 1;
+ID3D11Texture2D* g_zielAufTex = nullptr;
+bool g_zielVeraendert = false;
+ID3D11ShaderResourceView* g_tiefeMsSrv = nullptr;
 // Der ANDERE Zielsatz (rc592, siehe waehleZiel): solange Satz 0 gewaehlt
 // ist, liegt hier die Vorschau, sonst die Kartenansicht. Umgeschaltet wird
 // durch Tauschen - alle Stellen, die g_ziel*/g_tiefe* benutzen, zeichnen
@@ -265,8 +277,12 @@ struct ZielFelder {
     ID3D11Texture2D* tiefeTex = nullptr;
     ID3D11Texture2D* tiefeLesen = nullptr;
     ID3D11DepthStencilView* dsv = nullptr;
+    ID3D11Texture2D* aufTex = nullptr;
+    ID3D11ShaderResourceView* tiefeMsSrv = nullptr;
     int w = 0;
     int h = 0;
+    int proben = 1;
+    bool veraendert = false;
 };
 // Satz 3 (rc593): das Spiegelbild einer Portalflaeche.
 // Satz 4 (zeitleiste1): ein Bild des Filmstreifens der Zeitleiste.
@@ -1671,6 +1687,10 @@ int g_glowH = 0;
 // unabhaengig voneinander.
 int g_glowVollW = 0;
 int g_glowVollH = 0;
+// rc608 Teil 9b: Mit den Proben des Ziels (er teilt dessen Tiefe) ist der volle Puffer nur Renderziel; das
+// Weichzeichnen liest seine aufgeloeste Kopie g_glowVollAufTex (g_glowVollSrv).
+int g_glowVollProben = 1;
+ID3D11Texture2D* g_glowVollAufTex = nullptr;
 
 // Je Himmel die sechs Plaetze, aus denen er gebaut wurde - als INHALT, nicht
 // als Zeiger auf den Vektor: nach einem Kartenwechsel kann der neue Vektor
@@ -2092,13 +2112,14 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
     // ich wieder stehe".
     const bool passt = (g_glowVollRtv != nullptr && g_glowW == breite &&
                         g_glowH == hoehe && g_glowVollW == g_zielW &&
-                        g_glowVollH == g_zielH);
+                        g_glowVollH == g_zielH && g_glowVollProben == g_zielProben);
     if (passt) {
         return true;
     }
     if (g_glowVollSrv != nullptr) { g_glowVollSrv->Release(); g_glowVollSrv = nullptr; }
     if (g_glowVollRtv != nullptr) { g_glowVollRtv->Release(); g_glowVollRtv = nullptr; }
     if (g_glowVollTex != nullptr) { g_glowVollTex->Release(); g_glowVollTex = nullptr; }
+    if (g_glowVollAufTex != nullptr) { g_glowVollAufTex->Release(); g_glowVollAufTex = nullptr; }
     for (int i = 0; i < 2; ++i) {
         if (g_glowSrv[i] != nullptr) { g_glowSrv[i]->Release(); g_glowSrv[i] = nullptr; }
         if (g_glowRtv[i] != nullptr) { g_glowRtv[i]->Release(); g_glowRtv[i] = nullptr; }
@@ -2122,8 +2143,26 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
         return SUCCEEDED(d->CreateRenderTargetView(*tex, nullptr, rtv)) &&
                SUCCEEDED(d->CreateShaderResourceView(*tex, nullptr, srv));
     };
-    if (!lege(g_zielW, g_zielH, &g_glowVollTex, &g_glowVollRtv,
-              &g_glowVollSrv)) {
+    if (g_zielProben > 1) {
+        D3D11_TEXTURE2D_DESC td{};
+        td.Width = static_cast<UINT>(g_zielW);
+        td.Height = static_cast<UINT>(g_zielH);
+        td.MipLevels = 1;
+        td.ArraySize = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = static_cast<UINT>(g_zielProben);
+        td.Usage = D3D11_USAGE_DEFAULT;
+        td.BindFlags = D3D11_BIND_RENDER_TARGET;
+        D3D11_TEXTURE2D_DESC ad = td;
+        ad.SampleDesc.Count = 1;
+        ad.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        if (FAILED(d->CreateTexture2D(&td, nullptr, &g_glowVollTex)) ||
+            FAILED(d->CreateRenderTargetView(g_glowVollTex, nullptr, &g_glowVollRtv)) ||
+            FAILED(d->CreateTexture2D(&ad, nullptr, &g_glowVollAufTex)) ||
+            FAILED(d->CreateShaderResourceView(g_glowVollAufTex, nullptr, &g_glowVollSrv))) {
+            return false;
+        }
+    } else if (!lege(g_zielW, g_zielH, &g_glowVollTex, &g_glowVollRtv, &g_glowVollSrv)) {
         return false;
     }
     for (int i = 0; i < 2; ++i) {
@@ -2146,6 +2185,7 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
     g_glowH = hoehe;
     g_glowVollW = g_zielW;
     g_glowVollH = g_zielH;
+    g_glowVollProben = g_zielProben;
     return true;
 }
 
@@ -2667,12 +2707,111 @@ void blitte(ID3D11ShaderResourceView* quelle, ID3D11RenderTargetView* ziel,
 
 }  // namespace
 
+namespace {
+// Die groesste Probenzahl bis `n`, die Bild, Tiefe samt Stencil und die Maske des Umrisses koennen (8, 4, 2, 1).
+int moeglicheProben(ID3D11Device* d, int n) {
+    for (; n > 1; n /= 2) {
+        UINT bild = 0;
+        UINT tiefe = 0;
+        UINT maske = 0;
+        const UINT p = static_cast<UINT>(n);
+        if (SUCCEEDED(d->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM, p, &bild)) && bild > 0 &&
+            SUCCEEDED(d->CheckMultisampleQualityLevels(DXGI_FORMAT_D32_FLOAT_S8X24_UINT, p, &tiefe)) && tiefe > 0 &&
+            SUCCEEDED(d->CheckMultisampleQualityLevels(DXGI_FORMAT_R8_UNORM, p, &maske)) && maske > 0) {
+            return n;
+        }
+    }
+    return 1;
+}
+
+// Das Bild mit Proben in das aufgeloeste (nur mit MSAA, nur wenn seitdem bemalt).
+void loeseAuf(ID3D11Texture2D* auf, ID3D11Texture2D* mitProben, bool& veraendert) {
+    ID3D11DeviceContext* c = ctx();
+    if (!veraendert || auf == nullptr || mitProben == nullptr || c == nullptr) { return; }
+    c->ResolveSubresource(auf, 0, mitProben, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    veraendert = false;
+}
+void zielAufloesen() { loeseAuf(g_zielAufTex, g_zielTex, g_zielVeraendert); }
+
+// --- Die Tiefe mit Proben lesbar machen (tiefeProbePixelShaderHlsl) ------
+ID3D11PixelShader* g_tiefeEinzelPs = nullptr;
+bool g_tiefeEinzelVersucht = false;
+ID3D11Texture2D* g_tiefeEinzelTex = nullptr;
+ID3D11RenderTargetView* g_tiefeEinzelRtv = nullptr;
+bool g_tiefeEinzelFrisch = false;   // in diesem Bild schon geschrieben (tiefeAbbilden -> tiefeFreigeben)
+
+ID3DBlob* uebersetze(const std::string& src, const char* profil, const char* name, std::string* fehler);
+
+// Probe 0 jedes Bildpunkts in g_tiefeEinzelTex (R32_FLOAT). Danach ist wieder das Ziel gebunden.
+bool tiefeEinzeln() {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || g_tiefeMsSrv == nullptr) { return false; }
+    if (g_tiefeEinzelPs == nullptr && !g_tiefeEinzelVersucht) {
+        g_tiefeEinzelVersucht = true;
+        std::string fehler;
+        if (ID3DBlob* blob = uebersetze(tiefeProbePixelShaderHlsl(), "ps_4_1", "tiefeprobe", &fehler)) {
+            if (FAILED(d->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &g_tiefeEinzelPs))) {
+                g_tiefeEinzelPs = nullptr;
+            }
+            blob->Release();
+        }
+    }
+    if (g_tiefeEinzelPs == nullptr) { return false; }
+    D3D11_TEXTURE2D_DESC ed{};
+    if (g_tiefeEinzelTex != nullptr) { g_tiefeEinzelTex->GetDesc(&ed); }
+    if (g_tiefeEinzelTex == nullptr || static_cast<int>(ed.Width) != g_zielW || static_cast<int>(ed.Height) != g_zielH) {
+        if (g_tiefeEinzelRtv != nullptr) { g_tiefeEinzelRtv->Release(); g_tiefeEinzelRtv = nullptr; }
+        if (g_tiefeEinzelTex != nullptr) { g_tiefeEinzelTex->Release(); g_tiefeEinzelTex = nullptr; }
+        ed = D3D11_TEXTURE2D_DESC{};
+        ed.Width = static_cast<UINT>(g_zielW);
+        ed.Height = static_cast<UINT>(g_zielH);
+        ed.MipLevels = 1;
+        ed.ArraySize = 1;
+        ed.Format = DXGI_FORMAT_R32_FLOAT;
+        ed.SampleDesc.Count = 1;
+        ed.Usage = D3D11_USAGE_DEFAULT;
+        ed.BindFlags = D3D11_BIND_RENDER_TARGET;
+        if (FAILED(d->CreateTexture2D(&ed, nullptr, &g_tiefeEinzelTex)) ||
+            FAILED(d->CreateRenderTargetView(g_tiefeEinzelTex, nullptr, &g_tiefeEinzelRtv))) {
+            return false;
+        }
+    }
+    if (!wechsleAufVollbild()) { return false; }
+    c->OMSetRenderTargets(1, &g_tiefeEinzelRtv, nullptr);
+    D3D11_VIEWPORT vp{};
+    vp.Width = static_cast<float>(g_zielW);
+    vp.Height = static_cast<float>(g_zielH);
+    vp.MaxDepth = 1.0F;
+    c->RSSetViewports(1, &vp);
+    c->PSSetShader(g_tiefeEinzelPs, nullptr, 0);
+    c->PSSetShaderResources(0, 1, &g_tiefeMsSrv);
+    c->Draw(3, 0);
+    ID3D11ShaderResourceView* nichts = nullptr;
+    c->PSSetShaderResources(0, 1, &nichts);
+    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    return true;
+}
+
+// Die Tiefe, die sich in einen Lesepuffer kopieren laesst: ohne Proben der Tiefenpuffer selbst.
+ID3D11Texture2D* lesbareTiefe() {
+    if (g_zielProben <= 1) { return g_tiefeTex; }
+    if (!g_tiefeEinzelFrisch && !tiefeEinzeln()) { return nullptr; }
+    g_tiefeEinzelFrisch = true;
+    return g_tiefeEinzelTex;
+}
+}  // namespace
+
+void setzeMultisample(int proben) { g_msaaWunsch = std::clamp(proben, 1, 8); }
+int zielProben() { return g_zielProben; }
+
 bool bereiteZiel(int breite, int hoehe) {
     ID3D11Device* d = dev();
     if (d == nullptr || breite <= 0 || hoehe <= 0) {
         return false;
     }
-    if (g_zielRtv != nullptr && g_zielW == breite && g_zielH == hoehe) {
+    const int proben = moeglicheProben(d, g_msaaWunsch);
+    if (g_zielRtv != nullptr && g_zielW == breite && g_zielH == hoehe && g_zielProben == proben) {
         return true;
     }
     // Nur die Groesse hat sich geaendert - die Mover-Netze bleiben gueltig.
@@ -2681,9 +2820,15 @@ bool bereiteZiel(int breite, int hoehe) {
     if (g_zielSrv != nullptr) { g_zielSrv->Release(); g_zielSrv = nullptr; }
     if (g_zielRtv != nullptr) { g_zielRtv->Release(); g_zielRtv = nullptr; }
     if (g_zielTex != nullptr) { g_zielTex->Release(); g_zielTex = nullptr; }
+    if (g_zielAufTex != nullptr) { g_zielAufTex->Release(); g_zielAufTex = nullptr; }
+    if (g_tiefeMsSrv != nullptr) { g_tiefeMsSrv->Release(); g_tiefeMsSrv = nullptr; }
     if (g_tiefeDsv != nullptr) { g_tiefeDsv->Release(); g_tiefeDsv = nullptr; }
     if (g_tiefeTex != nullptr) { g_tiefeTex->Release(); g_tiefeTex = nullptr; }
     if (g_tiefeLesen != nullptr) { g_tiefeLesen->Release(); g_tiefeLesen = nullptr; }
+    g_zielW = 0;
+    g_zielH = 0;
+    g_zielProben = 1;
+    g_zielVeraendert = false;
 
     D3D11_TEXTURE2D_DESC td{};
     td.Width = static_cast<UINT>(breite);
@@ -2691,34 +2836,59 @@ bool bereiteZiel(int breite, int hoehe) {
     td.MipLevels = 1;
     td.ArraySize = 1;
     td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    td.SampleDesc.Count = 1;
+    td.SampleDesc.Count = static_cast<UINT>(proben);
     td.Usage = D3D11_USAGE_DEFAULT;
-    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    if (FAILED(d->CreateTexture2D(&td, nullptr, &g_zielTex))) {
+    // Mit Proben ist das Bild nur Ziel; gelesen wird das aufgeloeste.
+    td.BindFlags = proben > 1 ? D3D11_BIND_RENDER_TARGET : (D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+    if (FAILED(d->CreateTexture2D(&td, nullptr, &g_zielTex)) || FAILED(d->CreateRenderTargetView(g_zielTex, nullptr, &g_zielRtv))) {
         return false;
     }
-    if (FAILED(d->CreateRenderTargetView(g_zielTex, nullptr, &g_zielRtv)) ||
-        FAILED(d->CreateShaderResourceView(g_zielTex, nullptr, &g_zielSrv))) {
+    ID3D11Texture2D* lesbar = g_zielTex;
+    if (proben > 1) {
+        D3D11_TEXTURE2D_DESC ad = td;
+        ad.SampleDesc.Count = 1;
+        ad.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        if (FAILED(d->CreateTexture2D(&ad, nullptr, &g_zielAufTex))) {
+            return false;
+        }
+        lesbar = g_zielAufTex;
+    }
+    if (FAILED(d->CreateShaderResourceView(lesbar, nullptr, &g_zielSrv))) {
         return false;
     }
     D3D11_TEXTURE2D_DESC dd = td;
     // Tiefe weiter als 32-Bit-Fliesskomma, dazu acht Bit Stencil fuer die
     // Schattenvolumen (cg_shadows 2, tr_shadows.cpp). D24S8 haette die
     // Tiefe auf 24 Bit gekuerzt - in grossen Karten flimmert das.
-    dd.Format = DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
-    dd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    // Mit Proben typlos, damit tiefeEinzeln sie lesen kann.
+    dd.Format = proben > 1 ? DXGI_FORMAT_R32G8X24_TYPELESS : DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+    dd.BindFlags = proben > 1 ? (D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE) : D3D11_BIND_DEPTH_STENCIL;
     if (FAILED(d->CreateTexture2D(&dd, nullptr, &g_tiefeTex))) {
         return false;
     }
-    if (FAILED(d->CreateDepthStencilView(g_tiefeTex, nullptr, &g_tiefeDsv))) {
+    D3D11_DEPTH_STENCIL_VIEW_DESC dsv{};
+    dsv.Format = DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+    dsv.ViewDimension = proben > 1 ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D;
+    if (FAILED(d->CreateDepthStencilView(g_tiefeTex, &dsv, &g_tiefeDsv))) {
         return false;
+    }
+    if (proben > 1) {
+        D3D11_SHADER_RESOURCE_VIEW_DESC sv{};
+        sv.Format = DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
+        sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+        // Ohne (Featurestufe 10.0) bleiben die Gizmos ohne Tiefe, das Bild ist dasselbe.
+        if (FAILED(d->CreateShaderResourceView(g_tiefeTex, &sv, &g_tiefeMsSrv))) { g_tiefeMsSrv = nullptr; }
     }
     g_zielW = breite;
     g_zielH = hoehe;
+    g_zielProben = proben;
     return true;
 }
 
-void* zielTextur() { return g_zielSrv; }
+void* zielTextur() {
+    zielAufloesen();
+    return g_zielSrv;
+}
 
 void neuesBild() { ++g_bildNummer; }
 
@@ -2740,8 +2910,12 @@ void waehleZiel(int satz) {
     alt.tiefeTex = g_tiefeTex;
     alt.tiefeLesen = g_tiefeLesen;
     alt.dsv = g_tiefeDsv;
+    alt.aufTex = g_zielAufTex;
+    alt.tiefeMsSrv = g_tiefeMsSrv;
     alt.w = g_zielW;
     alt.h = g_zielH;
+    alt.proben = g_zielProben;
+    alt.veraendert = g_zielVeraendert;
     ZielFelder& neu = g_geparkt[satz];
     g_zielTex = neu.tex;
     g_zielRtv = neu.rtv;
@@ -2749,15 +2923,22 @@ void waehleZiel(int satz) {
     g_tiefeTex = neu.tiefeTex;
     g_tiefeLesen = neu.tiefeLesen;
     g_tiefeDsv = neu.dsv;
+    g_zielAufTex = neu.aufTex;
+    g_tiefeMsSrv = neu.tiefeMsSrv;
     g_zielW = neu.w;
     g_zielH = neu.h;
+    g_zielProben = neu.proben;
+    g_zielVeraendert = neu.veraendert;
     neu = ZielFelder{};
     g_zielSatz = satz;
 }
 
 void* zielTexturSatz(int satz) {
-    if (satz == g_zielSatz) { return g_zielSrv; }
-    return (satz >= 0 && satz < kZielSaetze) ? g_geparkt[satz].srv : nullptr;
+    if (satz == g_zielSatz) { return zielTextur(); }
+    if (satz < 0 || satz >= kZielSaetze) { return nullptr; }
+    ZielFelder& z = g_geparkt[satz];
+    loeseAuf(z.aufTex, z.tex, z.veraendert);
+    return z.srv;
 }
 
 void setzeSpiegelBild(int satz) {
@@ -2815,19 +2996,25 @@ bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) 
     if (static_cast<int>(td.Width) != breite || static_cast<int>(td.Height) != hoehe) {
         return false;
     }
-    if (g_tiefeLesen != nullptr) {
-        D3D11_TEXTURE2D_DESC ld{};
-        g_tiefeLesen->GetDesc(&ld);
-        if (ld.Width != td.Width || ld.Height != td.Height) {
-            g_tiefeLesen->Release();
-            g_tiefeLesen = nullptr;
-        }
-    }
+    // Lesbar ohne Proben: der Tiefenpuffer selbst, mit Proben die Probe 0 als R32_FLOAT (lesbareTiefe).
     D3D11_TEXTURE2D_DESC ld = td;
+    if (g_zielProben > 1) {
+        ld.Format = DXGI_FORMAT_R32_FLOAT;
+        ld.SampleDesc.Count = 1;
+        ld.SampleDesc.Quality = 0;
+    }
     ld.Usage = D3D11_USAGE_STAGING;
     ld.BindFlags = 0;
     ld.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     ld.MiscFlags = 0;
+    if (g_tiefeLesen != nullptr) {
+        D3D11_TEXTURE2D_DESC alt{};
+        g_tiefeLesen->GetDesc(&alt);
+        if (alt.Width != ld.Width || alt.Height != ld.Height || alt.Format != ld.Format) {
+            g_tiefeLesen->Release();
+            g_tiefeLesen = nullptr;
+        }
+    }
     if (g_tiefeLesen == nullptr) {
         if (FAILED(d->CreateTexture2D(&ld, nullptr, &g_tiefeLesen))) {
             g_tiefeLesen = nullptr;
@@ -2838,7 +3025,7 @@ bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) 
     if (g_tiefeVorig != nullptr) {
         D3D11_TEXTURE2D_DESC vd{};
         g_tiefeVorig->GetDesc(&vd);
-        if (vd.Width != td.Width || vd.Height != td.Height) {
+        if (vd.Width != ld.Width || vd.Height != ld.Height || vd.Format != ld.Format) {
             g_tiefeVorig->Release();
             g_tiefeVorig = nullptr;
             g_tiefeVorigDa = false;
@@ -2861,7 +3048,9 @@ bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) 
     if (vorig) {
         quelle = g_tiefeVorig;
     } else {
-        c->CopyResource(g_tiefeLesen, g_tiefeTex);
+        ID3D11Texture2D* tiefe = lesbareTiefe();
+        if (tiefe == nullptr) { return false; }
+        c->CopyResource(g_tiefeLesen, tiefe);
     }
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(quelle, 0, D3D11_MAP_READ, 0, &m))) {
@@ -2876,7 +3065,7 @@ bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) 
     // mit dem Stencil - also jeder zweite float.
     sicht.daten = static_cast<const unsigned char*>(m.pData);
     sicht.zeile = m.RowPitch;
-    sicht.punkt = (td.Format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT) ? 8U : 4U;
+    sicht.punkt = (ld.Format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT) ? 8U : 4U;
     sicht.breite = breite;
     sicht.hoehe = hoehe;
     g_tiefeOffen = quelle;
@@ -2897,11 +3086,15 @@ void tiefeFreigeben() {
         D3D11_TEXTURE2D_DESC td{};
         g_tiefeVorig->GetDesc(&vd);
         g_tiefeTex->GetDesc(&td);
-        if (vd.Width == td.Width && vd.Height == td.Height) {
-            c->CopyResource(g_tiefeVorig, g_tiefeTex);
-            g_tiefeVorigDa = true;
+        const DXGI_FORMAT lesbar = g_zielProben > 1 ? DXGI_FORMAT_R32_FLOAT : DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+        if (vd.Width == td.Width && vd.Height == td.Height && vd.Format == lesbar) {
+            if (ID3D11Texture2D* tiefe = lesbareTiefe()) {
+                c->CopyResource(g_tiefeVorig, tiefe);
+                g_tiefeVorigDa = true;
+            }
         }
     }
+    g_tiefeEinzelFrisch = false;
 }
 
 bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
@@ -2910,8 +3103,12 @@ bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     if (d == nullptr || c == nullptr || g_zielTex == nullptr) {
         return false;
     }
+    // Mit Proben das aufgeloeste Bild, wie es die Ansicht zeigt.
+    zielAufloesen();
+    ID3D11Texture2D* bild = g_zielProben > 1 ? g_zielAufTex : g_zielTex;
+    if (bild == nullptr) { return false; }
     D3D11_TEXTURE2D_DESC td{};
-    g_zielTex->GetDesc(&td);
+    bild->GetDesc(&td);
     D3D11_TEXTURE2D_DESC ld = td;
     ld.Usage = D3D11_USAGE_STAGING;
     ld.BindFlags = 0;
@@ -2921,7 +3118,7 @@ bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     if (FAILED(d->CreateTexture2D(&ld, nullptr, &lesen)) || lesen == nullptr) {
         return false;
     }
-    c->CopyResource(lesen, g_zielTex);
+    c->CopyResource(lesen, bild);
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(lesen, 0, D3D11_MAP_READ, 0, &m))) {
         lesen->Release();
@@ -2944,13 +3141,53 @@ int g_moverSpriteAufrufe = 0;   // rc605: autosprite an Movern/Modellen
 int moverSpriteAufrufe() { return g_moverSpriteAufrufe; }
 bool g_moverSpriteAchsenAus = false;
 void moverSpriteAchsenAus(bool aus) { g_moverSpriteAchsenAus = aus; }
+// --- rc608: Licht der Entity fuer ein .md3 ------------------------------------
+//
+// R_SetupEntityLighting: ent->lightDir[i] = DotProduct(lightDir, ent->e.axis[i]). Die Achsen
+// tragen den Massstab (ScaleModelAxis), die Normalen nicht: modelscale 1.85 macht das gerichtete
+// Licht 1,85 mal so stark. Die Spalten von `welt` sind genau diese Achsen.
+// Ohne Licht (der Umriss, ohne Karte): weiss, wie vorher die Ecken.
+bool netzHatModellLicht(const BspMesh& mesh) {
+    return !mesh.batches.empty() && mesh.batches.front().modellLicht;
+}
+
+void setzeModellLicht(const GridLight* licht, const float* welt) {
+    ID3D11DeviceContext* c = ctx();
+    if (c == nullptr) { return; }
+    if (g_cbModell == nullptr) {
+        D3D11_BUFFER_DESC bd{};
+        bd.ByteWidth = 12U * sizeof(float);
+        bd.Usage = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        if (FAILED(dev()->CreateBuffer(&bd, nullptr, &g_cbModell))) { return; }
+    }
+    float d[12] = {255.0F, 255.0F, 255.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
+    if (licht != nullptr && licht->ok) {
+        for (int k = 0; k < 3; ++k) {
+            d[k] = licht->ambient[k];
+            d[4 + k] = licht->directed[k];
+            d[8 + k] = licht->dir[0] * welt[k] + licht->dir[1] * welt[4 + k] + licht->dir[2] * welt[8 + k];
+        }
+    }
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (SUCCEEDED(c->Map(g_cbModell, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
+        std::memcpy(m.pData, d, sizeof(d));
+        c->Unmap(g_cbModell, 0);
+    }
+    c->VSSetConstantBuffers(7, 1, &g_cbModell);
+}
+
 int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
                  const float* welt, const float* kameraPos,
                  const float* vorn, const float* rechts, const float* hoch,
                  float fokus, float zeitSekunden, float helligkeit,
                  float grundlicht, std::string* fehler,
-                 int* uebersprungenAus, Lage lage) {
+                 int* uebersprungenAus, Lage lage, const GridLight* modellLicht) {
+    if (netzHatModellLicht(mesh)) {
+        setzeModellLicht(modellLicht, welt);
+    }
     // Netzplatz 2: Mover teilen ihn sich. Sie werden nacheinander
     // gezeichnet, und ihre Netze aendern sich nicht - nur die Stellung, und
     // die steht in der Matrix.
@@ -3252,6 +3489,9 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                     c->Unmap(g_cbBild, 0);
                 }
             }
+            if (netzHatModellLicht(*wg.quelle->mesh)) {
+                setzeModellLicht(&wg.quelle->modellLicht, wg.quelle->welt);
+            }
             const UINT schritt = wg.np->schrittweite;
             const UINT versatz = 0;
             c->IASetVertexBuffers(0, 1, &wg.np->vb, &schritt, &versatz);
@@ -3361,6 +3601,11 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     }
     float abstand = 0.1F;
     setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, true);
+    // Mit r_ext_multisample liest glCopyTexSubImage den aufgeloesten Bildpuffer (RB_BlurGlowTexture).
+    if (g_glowVollAufTex != nullptr) {
+        c->OMSetRenderTargets(0, nullptr, nullptr);
+        c->ResolveSubresource(g_glowVollAufTex, 0, g_glowVollTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    }
     blitte(g_glowVollSrv, g_glowRtv[0], breite, hoehe, g_glowBlurPs);
     int quelle = 0;
     for (int p = 1; p < 5; ++p) {
@@ -3388,6 +3633,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // Hier war es zufaellig unkritisch (Ziel und Eingang sind verschiedene
     // Texturen), aber die Reihenfolge Ziel-vor-Eingang ist die richtige und
     // haelt auch, wenn sich das einmal aendert.
+    zielAufloesen();
     c->OMSetRenderTargets(1, &g_glowVollRtv, nullptr);
     ID3D11ShaderResourceView* zwei[2] = {g_glowSrv[quelle], g_zielSrv};
     c->PSSetShaderResources(0, 2, zwei);
@@ -3407,6 +3653,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     c->PSSetShaderResources(0, 3, nichts);
     c->OMSetRenderTargets(0, nullptr, nullptr);
     c->CopyResource(g_zielTex, g_glowVollTex);
+    g_zielVeraendert = true;
     return n;
 }
 
@@ -3725,6 +3972,7 @@ int zeichneLichtUndSchatten(const BspMesh& mesh, const TextureSet* textures,
     }
     setzeSchritt("Licht: binden");
     c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
     vp.Height = static_cast<float>(g_zielH);
@@ -4378,6 +4626,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                                 ++abgesetzt;
                                 ++g_figurGluehen;
                                 c->OMSetRenderTargets(1, &glowRtv, glowDsv);
+                                g_zielVeraendert = true;
                             }
                         }
                     }
@@ -4442,6 +4691,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         ++abgesetzt;
                         ++g_figurGluehen;
                         c->OMSetRenderTargets(1, &rtv, dsv);
+                        g_zielVeraendert = true;
                     }
                     if (rtv != nullptr) { rtv->Release(); }
                     if (dsv != nullptr) { dsv->Release(); }
@@ -4587,6 +4837,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 zeichne(liste);
                 g_figurGluehen += abgesetzt - vorher;
                 c->OMSetRenderTargets(1, &rtv, dsv);
+                g_zielVeraendert = true;
             }
             if (rtv != nullptr) { rtv->Release(); }
             if (dsv != nullptr) { dsv->Release(); }
@@ -4785,6 +5036,7 @@ int zeichneFigurSchatten(const std::vector<FigurSchatten>& figuren, int art,
     }
     setzeSchritt("Schatten: binden");
     c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
     vp.Height = static_cast<float>(g_zielH);
@@ -5088,6 +5340,7 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
     }
     setzeSchritt("Nebel: binden");
     c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
     vp.Height = static_cast<float>(g_zielH);
@@ -5452,6 +5705,7 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
         }
     }
     c->OMSetRenderTargets(1, &ziel, tiefe);
+    g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_menueZielAktiv ? g_menueW : g_zielW);
     vp.Height = static_cast<float>(g_menueZielAktiv ? g_menueH : g_zielH);
@@ -6052,6 +6306,7 @@ void shutdown() {
     for (auto& [k, s] : g_raster) { if (s != nullptr) { s->Release(); } }
     g_raster.clear();
     if (g_cbBild != nullptr) { g_cbBild->Release(); g_cbBild = nullptr; }
+    if (g_cbModell != nullptr) { g_cbModell->Release(); g_cbModell = nullptr; }
     if (g_cbStapel != nullptr) { g_cbStapel->Release(); g_cbStapel = nullptr; }
     if (g_cbRing != nullptr) { g_cbRing->Release(); g_cbRing = nullptr; }
     gibUmrissFrei();
@@ -6087,6 +6342,8 @@ void shutdown() {
     if (g_glowVollSrv != nullptr) { g_glowVollSrv->Release(); g_glowVollSrv = nullptr; }
     if (g_glowVollRtv != nullptr) { g_glowVollRtv->Release(); g_glowVollRtv = nullptr; }
     if (g_glowVollTex != nullptr) { g_glowVollTex->Release(); g_glowVollTex = nullptr; }
+    if (g_glowVollAufTex != nullptr) { g_glowVollAufTex->Release(); g_glowVollAufTex = nullptr; }
+    g_glowVollProben = 1;
     for (int i = 0; i < 2; ++i) {
         if (g_glowSrv[i] != nullptr) { g_glowSrv[i]->Release(); g_glowSrv[i] = nullptr; }
         if (g_glowRtv[i] != nullptr) { g_glowRtv[i]->Release(); g_glowRtv[i] = nullptr; }
@@ -6114,9 +6371,18 @@ void shutdown() {
     if (g_tiefeTex != nullptr) { g_tiefeTex->Release(); g_tiefeTex = nullptr; }
     if (g_tiefeLesen != nullptr) { g_tiefeLesen->Release(); g_tiefeLesen = nullptr; }
     if (g_tiefeVorig != nullptr) { g_tiefeVorig->Release(); g_tiefeVorig = nullptr; }
+    if (g_zielAufTex != nullptr) { g_zielAufTex->Release(); g_zielAufTex = nullptr; }
+    if (g_tiefeMsSrv != nullptr) { g_tiefeMsSrv->Release(); g_tiefeMsSrv = nullptr; }
+    if (g_tiefeEinzelRtv != nullptr) { g_tiefeEinzelRtv->Release(); g_tiefeEinzelRtv = nullptr; }
+    if (g_tiefeEinzelTex != nullptr) { g_tiefeEinzelTex->Release(); g_tiefeEinzelTex = nullptr; }
+    if (g_tiefeEinzelPs != nullptr) { g_tiefeEinzelPs->Release(); g_tiefeEinzelPs = nullptr; }
+    g_tiefeEinzelVersucht = false;
+    g_tiefeEinzelFrisch = false;
     g_tiefeVorigDa = false;
     g_zielW = 0;
     g_zielH = 0;
+    g_zielProben = 1;
+    g_zielVeraendert = false;
     for (ZielFelder& z : g_geparkt) {
         if (z.srv != nullptr) { z.srv->Release(); }
         if (z.rtv != nullptr) { z.rtv->Release(); }
@@ -6124,6 +6390,8 @@ void shutdown() {
         if (z.dsv != nullptr) { z.dsv->Release(); }
         if (z.tiefeTex != nullptr) { z.tiefeTex->Release(); }
         if (z.tiefeLesen != nullptr) { z.tiefeLesen->Release(); }
+        if (z.aufTex != nullptr) { z.aufTex->Release(); }
+        if (z.tiefeMsSrv != nullptr) { z.tiefeMsSrv->Release(); }
         z = ZielFelder{};
     }
     g_zielSatz = 0;
@@ -6462,6 +6730,8 @@ void spielGammaAnwenden() {
         if (g_gammaTex != nullptr) { g_gammaTex->Release(); g_gammaTex = nullptr; }
         D3D11_TEXTURE2D_DESC td{};
         g_zielTex->GetDesc(&td);
+        td.SampleDesc.Count = 1;
+        td.SampleDesc.Quality = 0;
         td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         if (FAILED(d->CreateTexture2D(&td, nullptr, &g_gammaTex)) ||
             FAILED(d->CreateShaderResourceView(g_gammaTex, nullptr, &g_gammaSrv))) {
@@ -6472,8 +6742,14 @@ void spielGammaAnwenden() {
     }
     setzeSchritt("Spielgamma");
     c->OMSetRenderTargets(0, nullptr, nullptr);
-    c->CopyResource(g_gammaTex, g_zielTex);
+    // Die Tabelle gilt fuer den aufgeloesten Bildpuffer (R_SetColorMappings am Bildschirm).
+    if (g_zielProben > 1) {
+        c->ResolveSubresource(g_gammaTex, 0, g_zielTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    } else {
+        c->CopyResource(g_gammaTex, g_zielTex);
+    }
     c->OMSetRenderTargets(1, &g_zielRtv, nullptr);
+    g_zielVeraendert = true;
     c->PSSetShader(g_gammaPs, nullptr, 0);
     c->PSSetShaderResources(0, 1, &g_gammaSrv);
     D3D11_VIEWPORT vp{};
@@ -7179,6 +7455,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     const float leer[4] = {0.0F, 0.0F, 0.0F, 1.0F};
     // Im Maskendurchgang des Umrisses (rc597) in die Maske, nicht ins Bild.
     c->OMSetRenderTargets(1, (g_umriss && g_maskeRtv != nullptr) ? &g_maskeRtv : &g_zielRtv, g_tiefeDsv);
+    g_zielVeraendert = true;
     // Nur das ERSTE Netz loescht. Das Effektnetz kommt danach und muss auf
     // die Tiefe der Karte treffen - sonst schweben die Teilchen vor allem,
     // genau der Fehler, der im Rasterer rc377 gekostet hat.
@@ -7189,12 +7466,13 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         // Mit der Farbe des globalen Nebels (setzeHintergrund), wie das Spiel;
         // die Maske des Umrisses bleibt leer.
         c->ClearRenderTargetView(g_zielRtv, g_umriss ? leer : g_hintergrund);
+        g_tiefeEinzelFrisch = false;
         // CG_DrawSkyBoxPortal: Die Portalszene steht zuerst im Bild, die Hauptszene loescht die Farbe nicht
         // (RB_BeginDrawingView), ausser mit r_DynamicGlow und globalem Nebel. Dort, wo die Karte nichts zeichnet, bleibt
         // sie stehen; das ist alles, was die Hauptszene vom Himmel zeigt.
         if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz && !g_himmelVorgabe.szeneLoescht) {
             const ZielFelder& pz = g_geparkt[g_himmelPortalSatz];
-            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH) { c->CopyResource(g_zielTex, pz.tex); }
+            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH && pz.proben == g_zielProben) { c->CopyResource(g_zielTex, pz.tex); }
         }
         c->ClearDepthStencilView(g_tiefeDsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
     }
@@ -7396,7 +7674,8 @@ float4 main(VSOut ein) : SV_TARGET {
 
 void gibUmrissFrei() {
     for (IUnknown** p : {reinterpret_cast<IUnknown**>(&g_maskeTex), reinterpret_cast<IUnknown**>(&g_maskeRtv),
-                         reinterpret_cast<IUnknown**>(&g_maskeSrv), reinterpret_cast<IUnknown**>(&g_umrissPs),
+                         reinterpret_cast<IUnknown**>(&g_maskeSrv), reinterpret_cast<IUnknown**>(&g_maskeAufTex),
+                         reinterpret_cast<IUnknown**>(&g_umrissPs),
                          reinterpret_cast<IUnknown**>(&g_umrissRandPs), reinterpret_cast<IUnknown**>(&g_dsUmriss),
                          reinterpret_cast<IUnknown**>(&g_cbUmriss), reinterpret_cast<IUnknown**>(&g_verdunkelnPs)}) {
         if (*p != nullptr) {
@@ -7406,6 +7685,7 @@ void gibUmrissFrei() {
     }
     g_maskeW = 0;
     g_maskeH = 0;
+    g_maskeProben = 1;
     g_umrissVersucht = false;
     g_umriss = false;
     g_verdunkeln = false;
@@ -7418,26 +7698,39 @@ bool umrissBeginnen() {
     if (d == nullptr || c == nullptr || g_tiefeDsv == nullptr || g_zielW <= 0 || g_zielH <= 0 || !umrissAnlegen()) {
         return false;
     }
-    if (g_maskeTex == nullptr || g_maskeW != g_zielW || g_maskeH != g_zielH) {
+    if (g_maskeTex == nullptr || g_maskeW != g_zielW || g_maskeH != g_zielH || g_maskeProben != g_zielProben) {
         if (g_maskeSrv != nullptr) { g_maskeSrv->Release(); g_maskeSrv = nullptr; }
         if (g_maskeRtv != nullptr) { g_maskeRtv->Release(); g_maskeRtv = nullptr; }
         if (g_maskeTex != nullptr) { g_maskeTex->Release(); g_maskeTex = nullptr; }
+        if (g_maskeAufTex != nullptr) { g_maskeAufTex->Release(); g_maskeAufTex = nullptr; }
         D3D11_TEXTURE2D_DESC td{};
         td.Width = static_cast<UINT>(g_zielW);
         td.Height = static_cast<UINT>(g_zielH);
         td.MipLevels = 1;
         td.ArraySize = 1;
         td.Format = DXGI_FORMAT_R8_UNORM;
-        td.SampleDesc.Count = 1;
+        td.SampleDesc.Count = static_cast<UINT>(g_zielProben);
         td.Usage = D3D11_USAGE_DEFAULT;
-        td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        if (FAILED(d->CreateTexture2D(&td, nullptr, &g_maskeTex)) ||
-            FAILED(d->CreateRenderTargetView(g_maskeTex, nullptr, &g_maskeRtv)) ||
-            FAILED(d->CreateShaderResourceView(g_maskeTex, nullptr, &g_maskeSrv))) {
+        td.BindFlags = g_zielProben > 1 ? D3D11_BIND_RENDER_TARGET : (D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+        if (FAILED(d->CreateTexture2D(&td, nullptr, &g_maskeTex)) || FAILED(d->CreateRenderTargetView(g_maskeTex, nullptr, &g_maskeRtv))) {
+            return false;
+        }
+        ID3D11Texture2D* lesbar = g_maskeTex;
+        if (g_zielProben > 1) {
+            D3D11_TEXTURE2D_DESC ad = td;
+            ad.SampleDesc.Count = 1;
+            ad.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            if (FAILED(d->CreateTexture2D(&ad, nullptr, &g_maskeAufTex))) {
+                return false;
+            }
+            lesbar = g_maskeAufTex;
+        }
+        if (FAILED(d->CreateShaderResourceView(lesbar, nullptr, &g_maskeSrv))) {
             return false;
         }
         g_maskeW = g_zielW;
         g_maskeH = g_zielH;
+        g_maskeProben = g_zielProben;
     }
     ID3D11ShaderResourceView* nichts[4] = {nullptr, nullptr, nullptr, nullptr};
     c->PSSetShaderResources(0, 4, nichts);
@@ -7460,7 +7753,12 @@ void umrissBeenden(const float farbe[4], float dicke) {
     if (c == nullptr || g_zielRtv == nullptr || g_maskeSrv == nullptr || g_umrissRandPs == nullptr) {
         return;
     }
+    if (g_maskeAufTex != nullptr) {
+        c->OMSetRenderTargets(0, nullptr, nullptr);
+        c->ResolveSubresource(g_maskeAufTex, 0, g_maskeTex, 0, DXGI_FORMAT_R8_UNORM);
+    }
     c->OMSetRenderTargets(1, &g_zielRtv, nullptr);
+    g_zielVeraendert = true;
     if (!wechsleAufVollbild()) {
         c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
         return;
@@ -7501,7 +7799,7 @@ bool verfuegbar() { return false; }
 int zeichneMover(const BspMesh&, const TextureSet*, const BspGeometry*,
                  const float*, const float*, const float*, const float*,
                  const float*, const float*, float, float, float, float,
-                 std::string* fehler, int*, Lage) {
+                 std::string* fehler, int*, Lage, const GridLight*) {
     if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
     return 0;
 }
@@ -7588,6 +7886,8 @@ int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vecto
 }
 float modellGpuMs() { return -1.0F; }
 bool bereiteZiel(int, int) { return false; }
+void setzeMultisample(int) {}
+int zielProben() { return 1; }
 void* zielTextur() { return nullptr; }
 void waehleZiel(int) {}
 void neuesBild() {}

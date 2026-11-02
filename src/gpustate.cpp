@@ -97,7 +97,7 @@ Licht lichtFuer(const BatchState& bs, int lightmap, bool vertexColour,
         l.lightmap = (lightmap >= 0);
         return l;
     }
-    if (!zusatzstufe && bs.lightmapStufe) {
+    if ((!zusatzstufe || bs.lightmapFilter) && bs.lightmapStufe) {
         if (lightmap >= 0) {
             l.lightmap = true;
             return l;

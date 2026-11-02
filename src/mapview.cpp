@@ -491,6 +491,7 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
     bs.haveSpecular = (t.alphaGen == AlphaGen::LightingSpecular);
     bs.ausSkript = t.ausSkript;
     bs.lightmapStufe = t.lightmapStufe;
+    bs.lightmapFilter = t.lightmapFilter;
     bs.rgbVertex = t.rgbVertex;
     if (t.rgbConst[0] >= 0.0F) {
         for (int k = 0; k < 3; ++k) {
@@ -655,6 +656,32 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
         // den Beinen. Gemeldet als "manche Charaktere benutzen die
         // falschen Animationen".
         std::vector<BoneFrameOverride> vorrang;
+        // rc608: cg_turnAnims: "override the hips bone with a turn anim when turning"
+        // (CG_G2PlayerAngles, cg_players.cpp OJ 2672-2708). Der Oberkoerper laeuft auf lower_lumbar und
+        // "Motion" weiter (PM_SetAnimFinal), auch wenn er dasselbe Bild hat wie die Beine.
+        if (act.hipsFrame >= 0) {
+            const int becken = boneIndex(*act.anim, "pelvis");
+            if (becken >= 0) {
+                BoneFrameOverride o{becken, std::clamp(act.hipsFrame, 0, act.anim->bildZahl() - 1)};
+                if (act.hipsNext >= 0 && act.hipsFraction > 0.001F) {
+                    o.next = std::clamp(act.hipsNext, 0, act.anim->bildZahl() - 1);
+                    o.fraction = act.hipsFraction;
+                }
+                vorrang.push_back(o);
+                if (act.torsoFrame < 0) {
+                    for (const char* n : {"lower_lumbar", "Motion"}) {
+                        const int b = boneIndex(*act.anim, n);
+                        if (b < 0) { continue; }
+                        BoneFrameOverride t{b, std::clamp(act.frame, 0, act.anim->bildZahl() - 1)};
+                        if (act.frameNext >= 0 && act.frameFraction > 0.001F) {
+                            t.next = std::clamp(act.frameNext, 0, act.anim->bildZahl() - 1);
+                            t.fraction = act.frameFraction;
+                        }
+                        vorrang.push_back(t);
+                    }
+                }
+            }
+        }
         if (act.torsoFrame >= 0) {
             const int taille = boneIndex(*act.anim, "lower_lumbar");
             if (taille >= 0) {
@@ -840,30 +867,72 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
     if (skinned) {
         RumpfEingabe e;
         e.klasse = act.rumpfKlasse;
+        e.blick[0] = act.rumpfNick;
         e.blick[1] = act.rumpfGier;
+        e.kopf[0] = act.kopfNick;
         e.kopf[1] = act.headYaw;
+        e.kopf[2] = act.kopfRoll;
         e.kante = act.rumpfKante;
-        const int motion = act.rumpfMotion ? boneIndex(*act.anim, "Motion") : -1;
-        if (motion >= 0 && static_cast<std::size_t>(motion) < world.size()) {
-            // G2API_GetBoltMatrix(motionBolt, Winkel 0): die Wurzel der Engine
-            // ist um 90 Grad gedreht (tr_ghoul2.cpp RootMatrix, identityMatrix
-            // {0,-1,0},{1,0,0},{0,0,1}) - dieselbe Drehung wie gpu::baueFigurWelt.
-            // Die Zeilen werden normiert (G2API_GetBoltMatrix).
-            float bolzen[3][4];
-            const BoneMatrix& m = world[static_cast<std::size_t>(motion)];
+        e.reitet = act.reitet;
+        e.reitetOhneWaffe = act.reitetOhneWaffe;
+        // G2API_GetBoltMatrix(Bolzen, Winkel 0): die Wurzel der Engine ist um 90 Grad gedreht
+        // (tr_ghoul2.cpp RootMatrix, identityMatrix {0,-1,0},{1,0,0},{0,0,1}) - dieselbe Drehung wie
+        // gpu::baueFigurWelt. Die Zeilen werden normiert (G2API_GetBoltMatrix).
+        const auto bolzenVon = [](const BoneMatrix& m, float bolzen[3][4]) {
             for (int c = 0; c < 4; ++c) {
                 bolzen[0][c] = -m.m[1][c];
                 bolzen[1][c] = m.m[0][c];
                 bolzen[2][c] = m.m[2][c];
             }
-            for (auto& z : bolzen) {
-                const float l = std::sqrt(z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
+            for (int z = 0; z < 3; ++z) {
+                const float l = std::sqrt(bolzen[z][0] * bolzen[z][0] + bolzen[z][1] * bolzen[z][1] + bolzen[z][2] * bolzen[z][2]);
                 if (l > 0.0F) {
-                    for (int c = 0; c < 3; ++c) { z[c] /= l; }
+                    for (int c = 0; c < 3; ++c) { bolzen[z][c] /= l; }
                 }
             }
+        };
+        bool teuer = false;
+        if (act.rumpfMotion && act.motionBoneComp > 2 && act.dummyAnim != nullptr && !act.dummyAnim->bones.empty()) {
+            // "expensive version": rootBone und lowerLumbarBone muessen da sein, sonst der Zweig unten.
+            const int ist = boneIndex(*act.anim, "pelvis");
+            const int soll = boneIndex(*act.dummyAnim, "pelvis");
+            const int wurzel = boneIndex(*act.dummyAnim, "model_root");
+            if (ist >= 0 && soll >= 0 && wurzel >= 0 && boneIndex(*act.anim, "model_root") >= 0 &&
+                boneIndex(*act.anim, "lower_lumbar") >= 0 && static_cast<std::size_t>(ist) < world.size()) {
+                // G2API_GetBoneAnimIndex(lowerLumbarBone, ..., &upperFrame): das Bild des Oberkoerpers, ohne
+                // eigenes dasselbe wie die Beine. Dummy mit BONE_ANIM_OVERRIDE_FREEZE auf model_root.
+                const int bild = act.torsoFrame >= 0 ? act.torsoFrame : act.frame;
+                const int nach = act.torsoFrame >= 0 ? act.torsoNext : act.frameNext;
+                const float anteil = act.torsoFrame >= 0 ? act.torsoFraction : act.frameFraction;
+                const int letztes = act.dummyAnim->bildZahl() - 1;
+                std::vector<BoneFrameOverride> dummy;
+                BoneFrameOverride o{wurzel, std::clamp(bild, 0, letztes)};
+                if (nach >= 0 && anteil > 0.001F) {
+                    o.next = std::clamp(nach, 0, letztes);
+                    o.fraction = anteil;
+                }
+                dummy.push_back(o);
+                act.dummyAnim->worldMatrices(std::clamp(bild, 0, letztes), dummy, hilf);
+                if (static_cast<std::size_t>(soll) < hilf.size()) {
+                    float a[3][4];
+                    float b[3][4];
+                    bolzenVon(hilf[static_cast<std::size_t>(soll)], a);
+                    bolzenVon(world[static_cast<std::size_t>(ist)], b);
+                    motionKorrekturAusBecken(a, b, e.korrektur);
+                    teuer = true;
+                }
+            }
+        }
+        const int motion = (act.rumpfMotion && act.motionBoneComp > 0 && !teuer) ? boneIndex(*act.anim, "Motion") : -1;
+        if (motion >= 0 && static_cast<std::size_t>(motion) < world.size()) {
+            float bolzen[3][4];
+            bolzenVon(world[static_cast<std::size_t>(motion)], bolzen);
             e.motion = true;
-            motionWinkelAusBolzen(bolzen, e.motionWinkel);
+            if (act.motionBoneComp > 1) {
+                motionWinkelAusBolzen(bolzen, e.motionWinkel);
+            } else {
+                motionWinkelOhneRoll(bolzen, e.motionWinkel);
+            }
         }
         rumpfWinkelAnlegen(*act.anim, world, act.rumpfKlasse, rumpfWinkel(e));
     }

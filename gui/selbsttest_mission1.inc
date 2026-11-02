@@ -55,7 +55,7 @@ bool figurWelt(std::size_t ai, double ms, bool mitMund, std::vector<BoneMatrix>&
     d.model = &assets.model;
     figurBilderSetzen(a, assets, st, ms, d);
     if (d.anim == nullptr) { return false; }
-    figurKopfGier(st, d);
+    figurKopfGier(a, st, d);
     ActorDraw r = d;
     if (!mitMund) { r.faceFrame = -1; }
     std::vector<BoneMatrix> hilf;

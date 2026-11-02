@@ -749,12 +749,15 @@ private:
             return -1;
         }
         bool spawner = false;
-        const MapEntity* e = findeKarte(name, &spawner);
+        // rc608: In Jedi Outcast heisst der Spieler "kyle" (Entity 0, script_targetname, codeJK2/game/g_client.cpp:1620):
+        // ICARUS findet ihn vor jedem gleichnamigen Spawner, wie figurAnlegen in scene.cpp.
+        const bool jk2Spieler = regelwerkJediOutcast() && k == "kyle";
+        const MapEntity* e = jk2Spieler ? nullptr : findeKarte(name, &spawner);
         auto w = std::make_unique<Wesen>();
         w->name = name;
         w->ent = e;
         w->reihe = reiheVon(e);
-        if (k == "player") {
+        if (k == "player" || jk2Spieler) {
             w->figur = true;
             w->reihe = 0;
             w->gibt = true;

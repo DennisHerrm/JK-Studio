@@ -188,6 +188,7 @@
  "Make and change ROFF files: [[k-roff-bearbeiten]].": "ROFF ファイルの作成と変更: [[k-roff-bearbeiten]]。",
  "play - play a ROFF file": "play - ROFF ファイルを再生",
  "Plays a recorded movement (ROFF) on the entity of the current `affect` block.": "記録された動き(ROFF)を、現在の `affect` ブロックのエンティティで再生します。",
+ "In the preview the player figure is hidden in the whole scene, not only here (an intended difference from the game, **{{MapShowPlayer}}** in the view settings).": "プレビューでは、ここだけでなくシーン全体でプレイヤーが非表示になります(意図的なゲームとの違い。表示設定の **{{MapShowPlayer}}**)。",
  "From here on the player's view is replaced by the script's camera, the HUD disappears and the player cannot move. Every cutscene starts with it.": "ここからプレイヤーの視点がスクリプトのカメラに置き換わり、HUD が消え、プレイヤーは動けなくなります。カットシーンはすべてこれで始まります。",
  "The event editor for `camera ( ENABLE )`.": "`camera ( ENABLE )` のイベントエディター。",
  "Camera command": "カメラコマンド",

@@ -648,6 +648,75 @@ Alle Paare oben, Movie Duels, `g8/erg/`. Original-JKA nicht neu aufgenommen. Ope
 - Glas auf Byss: Unterkante hat in der Vorschau kleine Stufen, im Spiel glatt (Foto, nicht gemessen).
 - Bildpuffer im Original (alter Inhalt hinter Loechern) nicht nachgebildet.
 
+## Teil 9: Spieler in Cutscenes und Rest der Zeitleiste (abgebrochen, WIP)
+
+Abgebrochen am 02.11. auf Anweisung (shank musste gehen). Die WIP-Commits sind nicht zusammengefasst. Der letzte Stand ist **nicht gebaut**: Die letzte Testaenderung (Motion-Zeile, Zeit 150 statt 600 ms) lief nie. Kein ctest gesamt, keine Lints, kein Neubau. Skripte und Fotos in `SP/g9`.
+
+### Gemessen
+- **A Falcon, Ursache:** Jedes .md3 lief mit Eckenfarbe 255 mal Helligkeit, also ohne Licht. Neu: R_SetupEntityLighting und RB_CalcDiffuseColor im Vertexshader (`kModellLicht`, JeModell b7) fuer alle .md3, `lightmap` -1 wie lightmapsNone, misc_model_static mit lightingOrigin origin + zoffset + 1, Achsen samt Massstab. Keine Karten- oder Modellnamen im Code. duel_deathstar 1400,100: Spiel 20,0 21,5 22,0, vorher 112,0 118,6 121,5, jetzt 20,0 21,4 22,0. Feld oben Faktor 2,52 auf 1,00.
+- **A Gegenprobe** (nicht zum Finden benutzt): duel_tradefed, mittlere Abweichung ueber das Bild 1,43 1,46 1,46. duel_jeditemple, Spiel / Vorschau: crate_01 7,4 8,3 9,5 / 6,3 7,2 8,3 und 8,8 9,4 11,4 / 9,2 10,1 12,6; statue_guard 37,0 26,6 14,7 / 35,5 25,5 13,9 und 38,8 27,3 12,5 / 39,6 28,2 13,7. Die Kamera dort ist nur auf ganze Einheiten und Grad bekannt und lag nicht deckungsgleich, die Felder sind darum grob.
+- **A Stufen am Byss-Glas:** andere Ursache. Spiel: Kanten gemischt, `r_ext_multisample` 8 ist dort Vorgabe (im Spiel abgefragt). Vorschau hat kein MSAA. Nicht gebaut.
+- **Neu gefunden:** $lightmap hinter zwei Bildstufen war in die Grundstufe gerechnet (duel_jeditemple: Boden und Saeulen grau statt braun). Neu als eigene letzte Filterstufe, 41 Stufen auf der Karte. **Nach dem Eingriff nicht per Foto geprueft.**
+- **B Gluehen:** Vorschau flimmert nicht staerker. Mittlerer Schritt je Bild ueber 32 Bilder, Spiel / Vorschau: Leiste 0,152 / 0,143, Halo ueber der Leiste 0,219 / 0,130, kleines Fenster 2,106 / 0,307, Halo daran 0,950 / 0,137. Die Spielkamera ruckt bei setviewpos, die Spielwerte sind dadurch eher zu hoch. Kein Code geaendert.
+- **1 Spieler:** Rot 11 FEHLER, gruen alle Zeilen mit und ohne Schalter, affect davor und danach, ohne Kamera, Export und Undo. Dabei echter Fehler: Der Ablauf kannte `kyle` unter Jedi Outcast nicht als Spieler, `affect` fiel weg; behoben. Selbsttests setzen den Schalter global an, nur `teil9` prueft beide Stellungen.
+- **Teil 9 Selbsttest zuletzt 21 OK, 1 FEHLER** (Motion-Zeile, siehe unten). ctest `schmerz` 0 Fehler, `gpudraw` und `gpushader` gruen, je vorher rot.
+
+### Noch nicht rot/gruen gesehen
+- 2 `cg_motionBoneComp`: Selbsttest war rot, aber aus falschem Grund (bei 600 ms kein eigener Oberkoerper). Gruen fehlt, Wirkung von 0 bis 3 im Bild nicht belegt. Nur die Rechnung per ctest.
+- 7 Foto: `g9/erg/paar_figur_steht.png`, `paar_figur_blick.png`, nur angesehen. Spieler passt dem Eindruck nach. **Der NPC haelt das Schwert anders als im Spiel, offen.** Klingenfarben weichen ab, daher keine Helligkeitswerte. Gehen mit Schwert nicht aufgenommen.
+
+### Offen
+- 3 Reiten: ctest und Selbsttest gruen (Abstand zum Fahrzeug 2,8), nicht gegen das Spiel. Nur im Bild; Ziele und Ton rechnen mit dem Stand aus dem Skript. Fehlen: Absteigeort, Neigung des Fahrzeugs, Fahrzeug unter NPC-Steuerung, Angriffe und Lehnen beim Reiten. In den installierten Skripten kommt SET_VEHICLE nicht vor.
+- 4 `cg_turnAnims`: rot 0, gruen 2 Bilder, nicht gegen das Spiel. Drehen wird im Servertakt (50 ms) erkannt.
+- 5 Blick: rot 0, gruen 8,3 frueh, 72,2 spaet. Nur per Foto, Richtung passt, nicht gemessen. Bildtakt com_maxfps 125 aus OpenJK sys_main.cpp:162; in Movie Duels nicht belegt. Skip: Nick im Kampf (Gegner). Figur wird je Schritt neu berechnet, Leistung nicht gemessen.
+- 6 `g_ActivateAnimationStyle`: Schalter, Meistersatz, Skelettpruefung, Varianten in pmanim. Rest der 662 Stellen in bg_pmove, wp_saber, bg_panimate nicht nachgebildet. `npcSprungAnim` nicht angeschlossen. Nicht gegen das Spiel.
+- Handbuchtexte in 6 Sprachen geschrieben, **`gen_handbuch.py` lief nicht**, Seiten nicht erzeugt. Changelog-Zeilen fehlen noch.
+- Byss-Lichtleiste im Spiel 55 220 226, Vorschau 56 247 255, nicht untersucht.
+
+## Teil 9b: Rest von Teil 9 (nach dem Neustart)
+
+Auftrag `auftrag_rc608_9b.md`. Skripte und Fotos in `SP/g9` (`karten9b.py`, `jt9c.cfg`, `figur9b.*`), Paare in `SP/g9/erg/`. Spielbilder nur Movie Duels mit fs_homepath im SP (Steam lief nicht).
+
+### 1: Bau, cg_motionBoneComp
+Gebaut, `teil9` 22 OK. `cg_motionBoneComp` rot mit abgeschalteter Regel (mapview.cpp, alle Werte gleich behandelt): Kopfort 94,874 bei allen vier Stufen. Gruen: 102,020 / 95,573 / 94,874 / 92,740 (0, 1, 2, 3); die Zeile prueft bei 150 ms mit eigenem Oberkoerper (BOTH_ATTACK2 auf BOTH_STAND1).
+
+### 2: $lightmap hinter zwei Bildstufen
+Paar `paar_jt9b_b.png` (g9_jtb, deckungsgleiche Kamera -1250 -20 -1113,75, Blick 90) war nach Teil 9 noch **rot**: Boden 15,6 grau gegen 32,1 25,8 13,9. **Gefunden, allgemein:** Bilder einer Stufe (`map`, `clampMap`, `animMap`) und die Seiten einer Himmelsbox wurden wie Shadernamen gesucht. `textures/jeditemple/u_metalorange02` ist zugleich ein Shader, dessen erste Stufe env_shiny_floor zeigt - die zweite Stufe bekam das Spiegelbild (256x256, Mittel 51) statt des Metalls (512x512, 96 68 48). Die Engine nimmt R_FindImageFile (tr_shader.cpp:1221, 1245, 1295, 1929 MD): neu `loadImageFile`. Boden jetzt 32,0 25,8 13,9 (Selbsttest `teil9`, gegen das Spielbild), im Paar Faktor 1,00 1,00 1,00, Statue 1,00, Saeulen hinten 0,95 0,94 0,92.
+
+### 3: Reiten, cg_turnAnims, CG_UpdateLookAngles, g_ActivateAnimationStyle
+Nicht gegen das Spiel geprueft. Reiten und cg_turnAnims brauchen Eingaben im Spielfenster bzw. ein Fahrzeug unter Skriptsteuerung; ohne Fokus laeuft dort keine Taste, und die Testkarte hat kein Wegnetz (siehe 4). Blick und Stil nur gegen die Quelle (ctest, Selbsttest). Punkt 6, Rest der 662 Stellen: Sie waehlen Hiebe, Paraden, Bloecke und Kampfhaltungen gegen einen Gegner (bg_pmove, wp_saber, bg_panimate); die Vorschau rechnet keinen Schwertkampf. Nachgebildet ist, was Haltung und Gang ohne Kampf waehlt (pmanim.cpp).
+
+### 4: Schwert-Oberkoerper
+**Gefunden, allgemein:** Die Vorschau las alle .npc-Dateien, auch `ext_data/MD_MP_NPC/jedi.npc` (Mehrspieler: saberColor random, saberStyle zuletzt 1). Das Spiel liest nur `ext_data/npcs` (NPC_LoadParms, NPC_stats.cpp:4733 MD; FS_ListFilteredFiles, files.cpp:2094-2096), in der Reihenfolge der Suchpfade. Rot: NPC_Jedi Typ Jedi, Farbe green, Stil 1, BOTH_SABERFAST_STANCE_JKA. Gruen: yellow, Stil 2, BOTH_STAND2 (PM_ReadyPoseForSaberAnimLevelNPC, bg_pmove.cpp:18781 MD bei g_SerenityJediEngineMode 0, so in der Spiel-Config). Paar `paar_figur9b_steht.png`: Farbe und Hand stimmen, **die Klinge zeigt in der Vorschau senkrecht, im Spiel nach vorn (stark verkuerzt) - offen, Ursache nicht gefunden.** Gehen nicht aufgenommen: Der NPC bewegt sich im Spiel auf der Testkarte g9_figur nicht (kein Wegnetz, f9b_g0..g7 alle im Stand).
+
+### 5: JK2 und Show player
+`teil9` laedt kejim_post aus assets0.pk3 (Regelwerk automatisch): kyle ist Spieler mit Modell, Skelett 72 Knochen, verborgen vor und nach der Kamera, mit Schalter vor der Kamera sichtbar. Rot mit abgeschalteter kyle-Regel (Kamera 0, vier Zeilen rot), gruen. Die Selbsttests setzen den Schalter nicht mehr global: nur `teil9` (beide Stellungen) und der Spielvergleich (geschuetze, BHED_GV_*) schalten ihn an. In allen Selbsttests nach Skripten mit Kamera und Spieler gesucht: keiner prueft den Spieler ausserhalb einer Kameraspanne; ob ein voller Lauf trotzdem etwas findet, zeigt erst die Endrunde.
+
+### 6: MSAA
+Neu `r_ext_multisample` in den Ansichtseinstellungen, Vorgabe wie das Spiel: Movie Duels 8 (im Spiel abgefragt, rd-rend2/tr_init.cpp:1522 MD), OpenJK 0 (sdl_window.cpp:755), Original-JKA und Jedi Outcast 0. Alle Zielsaetze zeichnen mit Proben; Gluehen, Spielgamma, Umriss, Spiegel und Anzeige lesen das aufgeloeste Bild, die Tiefe fuer die Gizmos kommt ueber `tiefeProbePixelShaderHlsl` (Probe 0). Selbsttest auf duel_mustafar 1350 x 931: 8 Proben, 10471 von 1256850 Bildpunkten anders (0,8 %), mittlere Abweichung 0,06; Bildzeit 7,67 ohne, 8,03 ms mit. Rot mit erzwungener Probe 1. Byss-Glas (`paar_byss_msaa.png`, `paar_byss_ohne.png`, Ausschnitt 4fach `glas_kante_byss.png`): groesster Einzelschritt am Kantensprung im Mittel Spiel 0,52, Vorschau mit 0,60, ohne 0,68; die Stufen an der Unterkante sind weg (angesehen).
+
+### 7: Falcon-Gegenprobe duel_jeditemple
+Deckungsgleich ueber Karten mit genau einem Start (g9_jta, g9_jtb; viewpos -250 3750 590 / -1250 -20 -1113). crate_01 15,1 17,4 21,4 / 15,1 17,4 21,5 und 5,6 6,0 7,7 / 5,6 6,1 7,8 (Faktor 1,00); statue_guard 32,8 23,3 12,3 / 32,9 23,4 12,3 (1,00). Ganzes Bild 0,99 1,00 1,00 bzw. 0,98 0,97 0,97.
+
+### Tests
+`teil9` 29 OK, 0 FEHLER (neu: MSAA, JK2 mit Spieldaten, NPC_Jedi-Haltung, Boden u_metalorange02). Rot je einmal: MSAA, JK2, NPC_Jedi und cg_motionBoneComp in einem Lauf (7 FEHLER), Boden im eigenen Lauf. ctest `gegenproben`: neue Zeilen r_ext_multisample und Rundlauf der Zahlen; ctest einmal am Ende: 196 von 196.
+
+### Nebenbei gefunden
+`cg_motionBoneComp` (Teil 9) wurde ueber die bool-Fassung von `put` gespeichert: 2 und 3 kamen als 1 zurueck. Rot in ctest `gegenproben` (neue Zeile mit 3 und r_ext_multisample 4), gruen mit std::to_string.
+
+### Lints
+lint_sources und lint_fassung ok. lint_d3dbesitz 15 statt 14: `g_maskeAufTex` wird wie seine Geschwister in gibUmrissFrei freigegeben, das die Pruefung nicht verfolgt. lint_settings meldet `rExtMultisample` wie schon `bildPicmip` und `schwierigkeit` (std::to_string erkennt sie nicht).
+
+### Nur per Foto gegen das Spiel
+Paare in `SP/g9/erg/`, Movie Duels. OpenJK-Regeln nur gegen die Quelle.
+
+### Offen aus Teil 9b
+- Klinge des NPC in BOTH_STAND2 (siehe 4).
+- g9_jtb: Der Spieler steht im Spiel rund 95 Bildpunkte tiefer im Bild als in der Vorschau, die Kamera ist deckungsgleich (Hang am Statuensockel; PM_AdjustStandAnimForSlope nicht geprueft).
+- Saeulen auf duel_jeditemple hinten 0,95 0,94 0,92.
+- Byss-Lichtleiste 55 220 226 gegen 56 247 255 weiter offen.
+- Figurstufen (Ghoul2) laden ihre Bilder auf eigenem Weg, dort nicht auf dieselbe Verwechslung geprueft.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -729,6 +798,12 @@ Weiter offen:
 - Preview: dynamic glow as in the game (first blur pass without averaging); the halo around lights matches within 1 to 2 of 255.
 - Preview: shaders with tcGen on their first stage now use it (glass on t3_byss).
 - Preview: bolts stop at their impact and no longer light a figure green from behind; the player stays visible when the camera is in another area.
+- Preview: in a scene with a camera track the player figure is hidden over the whole timeline, except where the script itself moves him outside the camera; Show player in the view settings shows him exactly as in the game.
+- Preview: .md3 models are lit by the light grid as in the game; the Falcon on duel_deathstar is no longer far too bright.
+- Preview: a lightmap stage after two image stages is drawn last as in the game, and stage images are read as images, never as a shader of the same name: floors and pillars on duel_jeditemple show their own texture instead of the reflection.
+- Preview: new setting Edge smoothing (r_ext_multisample) as in the game: 8 samples under Movie Duels, off under OpenJK, the original Jedi Academy and Jedi Outcast.
+- Preview: NPCs read their entries only from ext_data/npcs, in the game's order; an NPC_Jedi under Movie Duels has its yellow blade and medium stance again.
+- Preview: the game's figure settings cg_motionBoneComp, cg_turnAnims and (Movie Duels) g_ActivateAnimationStyle; the head follows a look target gradually; riders sit on their vehicle; under Jedi Outcast kyle is the player.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -795,6 +870,12 @@ Weiter offen:
 - Vorschau: Gluehen wie im Spiel (erster Durchgang ohne Mittelwert), der Schein um Lichter stimmt auf 1 bis 2 von 255.
 - Vorschau: Shader mit tcGen in der ersten Stufe beachten es jetzt (Glas auf t3_byss).
 - Vorschau: Bolzen bleiben am Einschlag stehen und faerben die Figur nicht mehr von hinten gruen; der Spieler bleibt sichtbar, wenn die Kamera in einem anderen Gebiet steht.
+- Vorschau: In einer Szene mit Kameraspur ist die Spielerfigur über die ganze Zeitleiste verborgen, außer wo das Skript sie außerhalb der Kamera selbst bewegt; Spieler zeigen in den Ansichtseinstellungen zeigt sie genau wie im Spiel.
+- Vorschau: .md3-Modelle bekommen das Licht des Lichtgitters wie im Spiel; der Falke auf duel_deathstar ist nicht mehr viel zu hell.
+- Vorschau: Eine Lightmap-Stufe nach zwei Bildstufen kommt wie im Spiel zuletzt, und Bilder einer Stufe werden als Bild gelesen, nie als gleichnamiger Shader: Böden und Säulen auf duel_jeditemple zeigen ihre eigene Textur statt der Spiegelung.
+- Vorschau: neue Einstellung Kantenglättung (r_ext_multisample) wie im Spiel: 8 Proben unter Movie Duels, aus unter OpenJK, dem Original-Jedi-Academy und Jedi Outcast.
+- Vorschau: NPCs lesen ihre Einträge nur aus ext_data/npcs, in der Reihenfolge des Spiels; ein NPC_Jedi hat unter Movie Duels wieder seine gelbe Klinge und mittlere Haltung.
+- Vorschau: die Figuren-Einstellungen des Spiels cg_motionBoneComp, cg_turnAnims und (Movie Duels) g_ActivateAnimationStyle; der Kopf zieht einem Blickziel nach; Reiter sitzen auf ihrem Fahrzeug; unter Jedi Outcast ist kyle der Spieler.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -861,6 +942,12 @@ Weiter offen:
 - 预览:动态辉光与游戏相同(第一遍不取平均),灯光周围的光晕误差在 255 中的 1 到 2 以内。
 - 预览:第一层带 tcGen 的着色器现在会应用它(t3_byss 上的玻璃)。
 - 预览:弹体停在命中点,不再从背后把人物照绿;摄像机位于其他区域时玩家仍然可见。
+- 预览:在带有摄像机轨道的场景中,玩家角色在整个时间轴上隐藏,除非脚本在摄像机之外亲自移动他;视图设置中的“显示玩家”会完全按游戏方式显示他。
+- 预览:.md3 模型像游戏中一样受光照网格照明;duel_deathstar 上的猎鹰号不再过亮。
+- 预览:位于两个图像阶段之后的光照贴图阶段像游戏中一样最后绘制,阶段的图像按图像读取,绝不当作同名着色器:duel_jeditemple 的地板和柱子显示自己的纹理而不是反射。
+- 预览:新设置“边缘平滑”(r_ext_multisample),与游戏相同:Movie Duels 下 8 个采样,OpenJK、原版 Jedi Academy 和 Jedi Outcast 下关闭。
+- 预览:NPC 只从 ext_data/npcs 读取条目,顺序与游戏相同;Movie Duels 下的 NPC_Jedi 重新拥有黄色光剑和中等架势。
+- 预览:游戏的角色设置 cg_motionBoneComp、cg_turnAnims 以及(Movie Duels)g_ActivateAnimationStyle;头部逐渐跟随注视目标;骑手坐在载具上;Jedi Outcast 下 kyle 是玩家。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -927,6 +1014,12 @@ Weiter offen:
 - プレビュー: ダイナミックグローがゲームと同じになりました(最初のパスは平均なし)。光の周りのハローは 255 中 1 から 2 以内で一致します。
 - プレビュー: 最初のステージに tcGen を持つシェーダーがそれを使うようになりました(t3_byss のガラス)。
 - プレビュー: ボルトは着弾点で止まり、キャラクターを背後から緑に照らさなくなりました。カメラが別のエリアにあってもプレイヤーは表示されます。
+- プレビュー:カメラトラックのあるシーンでは、スクリプトがカメラの外で自らプレイヤーを動かす部分を除き、タイムライン全体でプレイヤーを表示しません。表示設定の「プレイヤーを表示」でゲームとまったく同じに表示します。
+- プレビュー:.md3 モデルがゲームと同じくライトグリッドで照らされます。duel_deathstar のファルコンが明るすぎなくなりました。
+- プレビュー:2 つの画像ステージの後のライトマップステージをゲームと同じく最後に描き、ステージの画像は同名のシェーダーではなく画像として読みます。duel_jeditemple の床と柱が反射ではなく自分のテクスチャを表示します。
+- プレビュー:新しい設定「エッジの平滑化」(r_ext_multisample)。ゲームと同じく Movie Duels は 8 サンプル、OpenJK、オリジナルの Jedi Academy、Jedi Outcast はオフです。
+- プレビュー:NPC は ext_data/npcs からだけ、ゲームと同じ順序で項目を読みます。Movie Duels の NPC_Jedi が再び黄色のブレードと中位の構えになりました。
+- プレビュー:ゲームのキャラクター設定 cg_motionBoneComp、cg_turnAnims、(Movie Duels)g_ActivateAnimationStyle。頭が注視先へ徐々に向き、乗り手は乗り物に座り、Jedi Outcast では kyle がプレイヤーです。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -993,6 +1086,12 @@ Weiter offen:
 - Vista previa: resplandor dinámico como en el juego (primera pasada sin promedio); el halo de las luces coincide con 1 a 2 de 255.
 - Vista previa: los shaders con tcGen en su primera etapa ahora lo usan (cristal en t3_byss).
 - Vista previa: los proyectiles se detienen en el impacto y ya no iluminan de verde a la figura por detrás; el jugador sigue visible cuando la cámara está en otra zona.
+- Vista previa: en una escena con pista de cámara la figura del jugador queda oculta en toda la línea de tiempo, salvo donde el script la mueve fuera de la cámara; Mostrar jugador en los ajustes de la vista la muestra exactamente como en el juego.
+- Vista previa: los modelos .md3 reciben la luz de la rejilla de luz como en el juego; el Halcón de duel_deathstar ya no está demasiado claro.
+- Vista previa: una capa de lightmap tras dos capas de imagen se dibuja al final como en el juego, y las imágenes de una capa se leen como imagen, nunca como un shader del mismo nombre: suelos y columnas de duel_jeditemple muestran su propia textura en lugar del reflejo.
+- Vista previa: nuevo ajuste Suavizado de bordes (r_ext_multisample) como en el juego: 8 muestras en Movie Duels, desactivado en OpenJK, el Jedi Academy original y Jedi Outcast.
+- Vista previa: los NPC leen sus entradas solo de ext_data/npcs, en el orden del juego; un NPC_Jedi en Movie Duels vuelve a tener su hoja amarilla y su postura media.
+- Vista previa: los ajustes de figuras del juego cg_motionBoneComp, cg_turnAnims y (Movie Duels) g_ActivateAnimationStyle; la cabeza sigue poco a poco un objetivo de mirada; los jinetes van sentados en su vehículo; en Jedi Outcast kyle es el jugador.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1059,3 +1158,9 @@ Weiter offen:
 - Náhled: dynamická záře jako ve hře (první průchod bez průměrování); záře kolem světel souhlasí na 1 až 2 z 255.
 - Náhled: shadery s tcGen v první vrstvě jej nyní používají (sklo na t3_byss).
 - Náhled: střely se zastaví v místě zásahu a už nebarví postavu zezadu zeleně; hráč zůstává viditelný, i když je kamera v jiné oblasti.
+- Náhled: ve scéně se stopou kamery je postava hráče skrytá po celé časové ose, kromě míst, kde ji skript mimo kameru sám pohybuje; Zobrazit hráče v nastavení zobrazení ji ukáže přesně jako ve hře.
+- Náhled: modely .md3 dostávají světlo ze světelné mřížky jako ve hře; Falcon na duel_deathstar už není příliš světlý.
+- Náhled: vrstva lightmapy po dvou obrazových vrstvách se kreslí jako ve hře poslední a obrázky vrstvy se čtou jako obrázek, nikdy jako stejnojmenný shader: podlahy a sloupy na duel_jeditemple ukazují svou vlastní texturu místo odrazu.
+- Náhled: nové nastavení Vyhlazování hran (r_ext_multisample) jako ve hře: 8 vzorků v Movie Duels, vypnuto v OpenJK, původní Jedi Academy a Jedi Outcast.
+- Náhled: NPC čtou své položky jen z ext_data/npcs, v pořadí hry; NPC_Jedi v Movie Duels má opět žlutou čepel a střední postoj.
+- Náhled: nastavení postav ze hry cg_motionBoneComp, cg_turnAnims a (Movie Duels) g_ActivateAnimationStyle; hlava postupně sleduje cíl pohledu; jezdci sedí na svém vozidle; v Jedi Outcast je hráčem kyle.

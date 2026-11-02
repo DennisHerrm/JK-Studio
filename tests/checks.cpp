@@ -901,6 +901,16 @@ int main(int argc, char** argv) {
                bhed::writeSettings(b) == bhed::writeSettings(a), true);
         expect("Einstellungen: neueste Datei zuerst",
                !b.recent.empty() && b.recent[0] == "c.icarus", true);
+        {
+            // rc608 Teil 9b: Zahlen der Figuren- und Bildeinstellungen bleiben Zahlen (nicht 0/1).
+            bhed::Settings z;
+            z.cgMotionBoneComp = 3;
+            z.rExtMultisample = 4;
+            bhed::Settings zz;
+            (void)bhed::readSettings(bhed::writeSettings(z), zz);
+            expect("Einstellungen: cg_motionBoneComp 3 und r_ext_multisample 4 bleiben", zz.cgMotionBoneComp == 3 && zz.rExtMultisample == 4,
+                   true);
+        }
 
         // Dublette wandert nach vorn, statt sich zu verdoppeln
         a.noteRecent("a.icarus");
@@ -1058,6 +1068,9 @@ int main(int argc, char** argv) {
             expect("Regelwerk: g_spskill gewaehlt bleibt (1 unter beiden)",
                    bhed::schwierigkeitWirksam(1, true) == 1 && bhed::schwierigkeitWirksam(1, false) == 1 &&
                        bhed::schwierigkeitWirksam(3, false) == 3, true);
+            expect("Regelwerk: r_ext_multisample wie das Spiel -> MD 8, sonst 0; gewaehlt bleibt",
+                   bhed::multisampleWirksam(-1, true) == 8 && bhed::multisampleWirksam(-1, false) == 0 &&
+                       bhed::multisampleWirksam(0, true) == 0 && bhed::multisampleWirksam(4, false) == 4, true);
             expect("Regelwerk: cg_fovAspectAdjust automatisch -> MD 1, OpenJK 0; 0/1 bleiben",
                    bhed::fovAspectAdjustWirksam(-1, true) && !bhed::fovAspectAdjustWirksam(-1, false) &&
                        bhed::fovAspectAdjustWirksam(1, false) && !bhed::fovAspectAdjustWirksam(0, true), true);

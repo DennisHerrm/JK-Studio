@@ -170,6 +170,13 @@ struct Settings {
     int schattenArt = 1;
     bool nebel = true;
     bool dynLicht = true;
+    // rc608: In Szenen mit Kameraspur die Spielerfigur zeichnen wie im Spiel (Vorgabe aus).
+    bool spielerInCutscene = false;
+    // rc608: die Figuren-Einstellungen des Spiels, Vorgaben wie dort (cg_main.cpp:445-446 OJ,
+    // :654-655 MD; g_main.cpp:990 MD). Sie aendern nur das Bild der Vorschau.
+    int cgMotionBoneComp = 2;
+    bool cgTurnAnims = false;
+    bool gActivateAnimationStyle = false;
     // Zielspiel: true = Multiplayer. Dann prueft der Pruefer zusaetzlich die
     // MP-Regeln (validate(..., mp), Codes M001...).
     bool mpZiel = false;
@@ -195,6 +202,8 @@ struct Settings {
     int schwierigkeit = -1;
     // rc608 Teil 7: r_picmip der Vorschau, 0 wie OpenJK und Movie Duels (tr_init.cpp). Jede Stufe halbiert die Bilder.
     int bildPicmip = 0;
+    // rc608 Teil 9b: r_ext_multisample der Vorschau (MSAA). -1 wie das Spiel (rExtMultisampleVorgabe), sonst 0, 2, 4, 8.
+    int rExtMultisample = -1;
     // rc601 integ: das Regelwerk der Vorschau (bhed/regelwerk.h) -
     // kRegelwerkAuto (0, nach den Spielordnern), kRegelwerkOpenJK (1),
     // kRegelwerkMovieDuels (2). Schluessel "regelwerk": auto/openjk/movieduels.

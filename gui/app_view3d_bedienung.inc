@@ -2558,6 +2558,8 @@ void drawMapView() {
             d.yaw = drehung[1];
             d.roll = drehung[2];
             d.entity = static_cast<int>(mm.entity);
+            d.modellLicht = true;
+            d.lichtHoehe = mm.lichtHoehe;
             movers.push_back(d);
         }
 
@@ -2597,6 +2599,7 @@ void drawMapView() {
                 d.pivot[k] = 0.0F;
                 d.scale[k] = st.radius;   // le->radius auf allen drei Achsen
             }
+            d.modellLicht = true;
             d.pitch = st.winkel[0];
             d.yaw = st.winkel[1];
             d.roll = st.winkel[2];
@@ -2649,6 +2652,7 @@ void drawMapView() {
             for (int k = 0; k < 3; ++k) {
                 d.scale[k] = em.scale;
             }
+            d.modellLicht = true;
             movers.push_back(d);
         }
 
@@ -2838,6 +2842,7 @@ void drawMapView() {
                 d.pivot[k] = 0.0F;
                 d.scale[k] = 1.0F;
             }
+            d.modellLicht = true;
             movers.push_back(d);
         }
         // --- Wo die Entities gerade stehen (rc597) -------------------------
@@ -2993,6 +2998,14 @@ void drawMapView() {
             figurLichter.insert(figurLichter.end(), g_app->schwertLichter.begin(),
                                 g_app->schwertLichter.end());
         }
+        // rc608: Die Modelle bekommen ihr Licht auf dieselbe Weise wie die Figuren.
+        for (MoverDraw& mv : movers) {
+            if (mv.modellLicht) {
+                const float o[3] = {mv.offset[0], mv.offset[1], mv.offset[2] + mv.lichtHoehe};
+                mv.licht = sampleLightGrid(g_app->geo, o, false, g_app->mapBrightness);
+                addDynamicLights(mv.licht, o, figurLichter);
+            }
+        }
         if (g_app->showActors && !g_app->scene.actors.empty()) {
             if (g_app->actorAssets.size() != g_app->scene.actors.size()) {
                 loadActorModels();
@@ -3034,7 +3047,9 @@ void drawMapView() {
                 }
                 ActorState st = a.at(g_app->playMs);
                 aufnahmeFigurZustand(static_cast<int>(ai), g_app->playMs, st);
-                if (!st.visible) {
+                ActorDraw reitStand;
+                reitenAnwenden(a, g_app->playMs, st, reitStand);
+                if (!st.visible || spielerNichtZeichnen(a, g_app->playMs)) {
                     continue;
                 }
                 // rc602: eine Figur ausserhalb des PVS der Ansicht zeichnet auch
@@ -3063,6 +3078,8 @@ void drawMapView() {
                     }
                 }
                 ActorDraw d;
+                d.reitet = reitStand.reitet;
+                d.reitetOhneWaffe = reitStand.reitetOhneWaffe;
                 d.figur = static_cast<int>(ai);
                 d.model = &assets.model;
                 d.textures = (assets.textures.found != 0) ? &assets.textures
@@ -3128,7 +3145,8 @@ void drawMapView() {
                 // Koerper, nicht gegen die Welt. Beschnitten auf die 64
                 // Grad, die die Engine zulaesst; wer weiter schauen soll,
                 // braucht ein SET_WATCHTARGET.
-                figurKopfGier(st, d);   // rc601 saber: herausgezogen
+                blickFolgeRechnen(a, ai, assets, g_app->playMs);
+                figurKopfGier(a, st, d);   // rc601 saber: herausgezogen
                 d.yawOffset = static_cast<float>(g_app->actorYaw);
                 draws.push_back(d);
             }
@@ -3293,6 +3311,8 @@ void drawMapView() {
                 }
             }
             gpu::neuesBild();
+            // rc608 Teil 9b: r_ext_multisample wie das Spiel des Regelwerks (multisampleWirksam) oder wie gewaehlt.
+            gpu::setzeMultisample(multisampleWirksam(g_app->settings.rExtMultisample, regelwerkMovieDuels() && !regelwerkJediOutcast()));
             {
                 // Hintergrund: die Farbe des globalen Nebels, wie RB_DrawBuffer -
                 // unabhaengig vom Nebelschalter (r_drawfog), wie im Spiel.
@@ -3595,7 +3615,7 @@ void drawMapView() {
                             *mv.mesh, &g_app->textures, &g_app->geo, vp, mw,
                             bildCam.pos, gvorn, grechts, ghoch, gfokus, zeit,
                             g_app->mapBrightness, g_app->mapMinLight, &fm,
-                            &g_app->gpuUebersprungen, lage);
+                            &g_app->gpuUebersprungen, lage, mv.modellLicht ? &mv.licht : nullptr);
                         g_app->gpuAufrufe += nm;
                         g_app->gpuMover += nm;
                         if (f.empty()) { f = fm; }
@@ -4316,6 +4336,7 @@ void drawMapView() {
                         q.mesh = mv.mesh;
                         gpu::baueMoverWelt(mv.pivot, mv.offset, mv.yaw, mv.pitch, mv.roll,
                                            mv.pitch != 0.0F || mv.roll != 0.0F, q.welt, mv.scale);
+                        q.modellLicht = mv.licht;
                         gluehMover.push_back(q);
                     }
                     // rc602 kartenpruefung: die Effektteilchen mit glow-Stufe dazu.
@@ -4612,6 +4633,14 @@ void drawMapView() {
                 dazu(d.pos, sizeof(d.pos));
                 dazu(&d.yaw, sizeof(d.yaw));
                 dazu(&d.headYaw, sizeof(d.headYaw));
+                dazu(&d.kopfNick, sizeof(d.kopfNick));
+                dazu(&d.kopfRoll, sizeof(d.kopfRoll));
+                dazu(&d.rumpfNick, sizeof(d.rumpfNick));
+                dazu(&d.hipsFrame, sizeof(d.hipsFrame));
+                dazu(&d.hipsNext, sizeof(d.hipsNext));
+                dazu(&d.hipsFraction, sizeof(d.hipsFraction));
+                dazu(&d.motionBoneComp, sizeof(d.motionBoneComp));
+                dazu(&d.reitet, sizeof(d.reitet));
                 dazu(&d.rumpfGier, sizeof(d.rumpfGier));
                 dazu(&d.torsoFrame, sizeof(d.torsoFrame));
                 dazu(&d.torsoNext, sizeof(d.torsoNext));

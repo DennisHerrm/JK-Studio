@@ -3620,6 +3620,18 @@ enum class Str {
     MapBrightnessHint,
     MapPicmip,
     MapPicmipHint,
+    MapShowPlayer,
+    MapShowPlayerHint,
+    MapMotionBone,
+    MapMotionBoneHint,
+    MapTurnAnims,
+    MapTurnAnimsHint,
+    MapAnimStyle,
+    MapAnimStyleHint,
+    MapMsaa,
+    MapMsaaHint,
+    MapMsaaGame,
+    MapMsaaOff,
     Count,
 };
 

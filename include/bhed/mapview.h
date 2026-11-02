@@ -290,6 +290,8 @@ struct TextureSet {
         // Mit Skript gilt nur, was dort steht.
         bool ausSkript = false;
         bool lightmapStufe = false;
+        // rc608: Die Stufe ist `map $lightmap` nach mehreren Bildstufen: zeichnet nur das Licht.
+        bool lightmapFilter = false;
         bool rgbVertex = false;
         // clampmap statt map: die Koordinaten werden geklemmt, nicht
         // gekachelt. Siehe tapLevel in src/mapview.cpp.
@@ -461,6 +463,12 @@ struct MoverDraw {
     // Die Skalierung je Achse - Kartenmodelle mit "modelscale" oder
     // "modelscale_vec". Tueren und Plattformen haben 1 1 1.
     float scale[3]{1.0F, 1.0F, 1.0F};
+    // rc608: ein .md3 wird beleuchtet wie im Spiel (R_SetupEntityLighting): Gitter und Lichter
+    // am Ursprung, misc_model_static an origin + zoffset + 1 (CG_DrawMiscEnts: lightingOrigin
+    // = cullOrigin), das ist lichtHoehe.
+    bool modellLicht = false;
+    float lichtHoehe = 0.0F;
+    GridLight licht;
 };
 
 // Die schwarzen Blenden oben und unten, wie im Spiel.
@@ -709,6 +717,21 @@ struct ActorDraw {
     // [YAW] von CG_G2ClientSpineAngles; wie er sich verteilt, steht in
     // rumpfwinkel.h.
     float rumpfGier = 0.0F;
+    // rc608: Nick und Roll des Blicks (CG_UpdateLookAngles) und viewAngles[PITCH] (lerpAngles * 0,5).
+    float kopfNick = 0.0F;
+    float kopfRoll = 0.0F;
+    float rumpfNick = 0.0F;
+    // rc608: cg_motionBoneComp (0 aus, 1 ohne Roll, 2 Vorgabe, 3 teure Fassung) und das Skelett des
+    // Dummy-_humanoid dazu. Jedi Outcast kennt 3 nicht: dort wie 2 (codeJK2/cgame/cg_players.cpp).
+    int motionBoneComp = 2;
+    const GlaAnimation* dummyAnim = nullptr;
+    // rc608: cg_turnAnims: die Drehanimation auf dem Knochen "pelvis" (hipsBone), -1: keine.
+    int hipsFrame = -1;
+    int hipsNext = -1;
+    float hipsFraction = 0.0F;
+    // rc608: G_IsRidingVehicle, siehe RumpfEingabe.
+    bool reitet = false;
+    bool reitetOhneWaffe = false;
     // Zeitleiste 6: die NPC_class fuer Rumpf und Hals, ob die Motion-Bone-
     // Korrektur wirkt (rumpfMotionAusgleich: Beine und Oberkoerper spielen
     // verschiedene Animationen) und ob die Beine an der Kante haengen (MD).
@@ -826,6 +849,7 @@ struct BatchState {
     // Woher das Licht kommt - siehe TextureSet::Tex::ausSkript.
     bool ausSkript = false;
     bool lightmapStufe = false;
+    bool lightmapFilter = false;   // rc608, siehe TextureSet::Tex
     bool rgbVertex = false;
 
     // alphaGen lightingSpecular braucht einen eigenen Weg.

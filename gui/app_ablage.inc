@@ -2081,7 +2081,20 @@ void reportMissingTexture(const std::string& shaderName) {
     }
 }
 
-bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
+namespace {
+bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBild);
+}  // namespace
+
+bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) { return texturLaden(shaderName, out, false); }
+
+// rc608 Teil 9b: Was eine Stufe mit map, clampMap oder animMap nennt und die Seiten einer Himmelsbox sind BILDER, kein
+// Shadername: R_FindImageFile (tr_shader.cpp:1221, 1245, 1295, 1929 MD). textures/jeditemple/u_metalorange02 ist zugleich
+// ein Shader, dessen erste Stufe env_shiny_floor zeigt - als Shader gesucht, bekam die zweite Stufe das Spiegelbild
+// statt des orangen Metalls.
+bool loadImageFile(const std::string& bild, TextureSet::Tex& out) { return texturLaden(bild, out, true); }
+
+namespace {
+bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBild) {
     // Wie gross duerfen Texturen sein?
     //
     // 256 war zu klein. Die Lava von Mustafar ist 1024x1024; auf 256
@@ -2127,7 +2140,7 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
         for (char& c : lowered) {
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         }
-        const auto it = shaderMap.find(lowered);
+        const auto it = nurBild ? shaderMap.end() : shaderMap.find(lowered);
         if (it != shaderMap.end() && !it->second.image.empty()) {
             tries = textureCandidates(it->second.image);
         }
@@ -2356,6 +2369,7 @@ bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out) {
         }
         return got;
 }
+}  // namespace
 
 // --- Die Wolkenschichten eines Himmelsshaders (rc592) -------------------
 //
@@ -2371,7 +2385,7 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
             continue;
         }
         TextureSet::Tex wolke;
-        if (!loadTextureFor(st.image, wolke)) {
+        if (!loadImageFile(st.image, wolke)) {
             diag::detail("Wolkenschicht \"" + st.image + "\" von " + name + " nicht ladbar");
             continue;
         }
@@ -2409,6 +2423,38 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
     }
 }
 
+// rc608: { env tcGen environment } { Bild blendFunc GL_SRC_ALPHA GL_SRC_ALPHA } { $lightmap
+// blendFunc GL_DST_COLOR GL_ZERO }, allgemein: $lightmap als Filter hinter zwei oder mehr Bildstufen.
+// behaved rechnet die Lightmap sonst in die Grundstufe. Das stimmt nur, wenn hoechstens eine Bildstufe
+// davorsteht: Hier mischt sich die zweite zur unbeleuchteten ersten, und erst die letzte
+// multipliziert alles mit dem Licht (RB_IterateStagesGeneric, tr_shade.cpp, zeichnet sie der Reihe nach).
+bool lightmapNachBildstufen(const ShaderInfo& info) {
+    int bilder = 0;
+    for (const ShaderInfo::Stage& st : info.stages) {
+        if (st.lightmap) {
+            return bilder >= 2 && st.srcFactor == BlendFactor::DstColor && st.dstFactor == BlendFactor::Zero;
+        }
+        if (!st.image.empty()) { ++bilder; }
+    }
+    return false;
+}
+
+// Die Stufe selbst: weiss mal Licht, multipliziert (tr.whiteImage bei -1, Eckenfarbe bei -3).
+void lightmapFilterLaden(TextureSet::Tex& t) {
+    TextureSet::Tex filter;
+    filter.width = 8;
+    filter.height = 8;
+    filter.rgba.assign(8U * 8U * 4U, 255U);
+    filter.buildMips();
+    filter.ausSkript = true;
+    filter.lightmapStufe = true;
+    filter.lightmapFilter = true;
+    filter.srcFactor = BlendFactor::DstColor;
+    filter.dstFactor = BlendFactor::Zero;
+    t.extraStages.push_back(static_cast<int>(g_app->textures.byShader.size()));
+    g_app->textures.byShader.push_back(std::move(filter));
+}
+
 // rc604 fix604b (B1): EINE Zusatzstufe eines Shaders laden und an `t` haengen
 // (Rumpf aus loadMapTextures herausgezogen, damit die Effektshader dieselben
 // Stufen bekommen - RB_IterateStagesGeneric zeichnet jede Stufe, tr_shade.cpp).
@@ -2422,7 +2468,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
         return;
     }
     TextureSet::Tex zusatz;
-    if (!loadTextureFor(st.image, zusatz)) {
+    if (!loadImageFile(st.image, zusatz)) {
         diag::detail("Stufe \"" + st.image +
                      "\" von " + shaderName +
                      " nicht ladbar - wird uebersprungen");
@@ -2532,7 +2578,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
                     static_cast<std::size_t>(eigenerIndex)];
             bild.rgba.clear();
             bild.mips.clear();
-            if (!loadTextureFor(st.animImages[bi], bild)) {
+            if (!loadImageFile(st.animImages[bi], bild)) {
                 continue;
             }
             // Die Eigenschaften der Stufe uebernehmen, das
@@ -2587,7 +2633,7 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
     for (std::size_t bi = 1;
          bi < info.animImages.size(); ++bi) {
         TextureSet::Tex bild;
-        if (!loadTextureFor(info.animImages[bi],
+        if (!loadImageFile(info.animImages[bi],
                             bild)) {
             continue;
         }
@@ -2835,7 +2881,7 @@ void loadMapTextures() {
                 int geladen = 0;
                 for (const char* suf : kSuf) {
                     TextureSet::Tex seite;
-                    if (loadTextureFor(sk->second.skyBox + "_" + suf,
+                    if (loadImageFile(sk->second.skyBox + "_" + suf,
                                        seite)) {
                         letzte = static_cast<int>(
                             g_app->textures.byShader.size());
@@ -2889,7 +2935,13 @@ void loadMapTextures() {
             const auto si = g_app->shaderMap.find(low);
             if (si != g_app->shaderMap.end()) {
                 bool ersteEchte = true;
+                const bool lichtZuletzt = lightmapNachBildstufen(si->second);
+                if (lichtZuletzt) { t.lightmapStufe = false; }
                 for (const ShaderInfo::Stage& st : si->second.stages) {
+                    if (st.lightmap && lichtZuletzt) {
+                        lightmapFilterLaden(t);
+                        continue;
+                    }
                     if (st.lightmap || st.image.empty()) {
                         continue;   // $lightmap belegt keine eigene Textur
                     }
@@ -3491,6 +3543,8 @@ void loadSettings(App* a) {
     a->schattenArt = a->settings.schattenArt;
     a->showFog = a->settings.nebel;
     a->showDynLights = a->settings.dynLicht;
+    a->spielerInCutscene = a->settings.spielerInCutscene;
+    animStilSetzen(a->settings.gActivateAnimationStyle);
     a->splitFracX = a->settings.splitFracX;
     a->splitFracY = a->settings.splitFracY;
     // --- Protokoll: was aus der Datei kam --------------------------------
@@ -3566,6 +3620,7 @@ void saveSettings(App* a) {
     a->settings.schattenArt = a->schattenArt;
     a->settings.nebel = a->showFog;
     a->settings.dynLicht = a->showDynLights;
+    a->settings.spielerInCutscene = a->spielerInCutscene;
     a->settings.splitFracX = a->splitFracX;
     a->settings.splitFracY = a->splitFracY;
     // Das Gegenstueck zum Ladeprotokoll.

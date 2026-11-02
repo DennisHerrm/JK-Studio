@@ -72,6 +72,10 @@ struct PmFigur {
 // Auslauf von ATST und Droideka: BOTH_RUN1START, BOTH_RUN1STOP). Leer: es
 // setzt nichts (die Wachhaltung eines NPC mit Waffe bleibt stehen, der Anlauf
 // laeuft noch).
+// rc608: PM_TurnAnimForLegsAnim fuer cg_turnAnims: die Drehanimation zur Beinanimation, leer: keine (-1).
+// `spiel` wie regelwerkSpiel (kRegelwerkOpenJK, kRegelwerkMovieDuels, kRegelwerkJediOutcast).
+[[nodiscard]] std::string pmDrehAnim(const std::string& beine, int spiel);
+
 struct PmBeinWahl {
     std::string anim;
     bool beide = false;

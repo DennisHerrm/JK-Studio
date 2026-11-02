@@ -69,7 +69,25 @@ void regelwerkAnwendenSpiel(int spiel, int schwierigkeitEinstellung) noexcept;
 // g_spskill, wie es gerade gilt (0..3).
 [[nodiscard]] int regelwerkSpielstufe() noexcept;
 
+// rc608: g_ActivateAnimationStyle (Movie Duels, g_main.cpp:990; qcommon/md_animsets.h). Nur unter Movie Duels
+// wirksam. 1: Die _humanoid-Saetze der Liste nehmen den Meistersatz samt animation.cfg, die Figuren spielen die
+// Varianten ihres animationstyle (pmanim). Die 662 Stellen in bg_pmove, wp_saber und bg_panimate kennt die
+// Vorschau nur, soweit sie Haltung und Gang der Figuren waehlen (pmanim.cpp).
+void animStilSetzen(bool an) noexcept;
+[[nodiscard]] bool animStilAktiv() noexcept;
+inline constexpr const char* kAnimStilMeisterGla = "models/players/_humanoid/_humanoid";   // MD_MASTER_HUMANOID_GLA
+// MD_IsMasterHumanoidSet: ganze Ordnernamen, "_humanoid_obi" trifft nicht "_humanoid_obi3".
+[[nodiscard]] bool animStilMeistersatz(const std::string& gla);
+// MD_SkeletonFitsMaster: dieselbe Knochenzahl oder ein altes JK2-Netz (72 Knochen) auf einem _humanoid-Satz.
+[[nodiscard]] bool animStilSkelettPasst(int netzKnochen, int meisterKnochen, const std::string& eigenerSatz);
+
 // --- Was je Regelwerk anders vorgegeben ist -------------------------------
+
+// r_ext_multisample (MSAA des Bildpuffers): OpenJK "0" (shared/sdl/sdl_window.cpp:755, SDL_GL_MULTISAMPLESAMPLES
+// :522-523), Movie Duels 8 (im Spiel abgefragt, rc608 Teil 9; der Quelltext des Fensters fehlt, rd-rend2/tr_init.cpp:1522
+// MD gibt ebenso "8" vor). Das Original-JKA und Jedi Outcast kennen den Wert nicht: 0. einstellung -1 = wie das Spiel,
+// sonst die gewaehlte Probenzahl (0, 2, 4, 8). Ergebnis 0 heisst ohne MSAA.
+[[nodiscard]] int multisampleWirksam(int einstellung, bool movieDuels) noexcept;
 
 // g_spskill: Movie Duels "2" (g_main.cpp:752), OpenJK "0" (g_main.cpp:631).
 // Die Einstellung -1 heisst "nie gewaehlt" - dann gilt die Vorgabe des

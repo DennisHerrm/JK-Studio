@@ -480,6 +480,9 @@ struct BspMesh {
         //
         // Gemeldet als "die Spritzer sind weiss".
         bool vertexColour = false;
+        // rc608: Stapel eines .md3. Was im Spiel rgbGen lightingDiffuse ist (Bild ohne Skript,
+        // R_FindShader mit lightmapsNone), bekommt das Licht der Entity: kModellLicht.
+        bool modellLicht = false;
     };
 
     // Ein Abschnitt: die Dreiecke EINER Flaeche der Karte.

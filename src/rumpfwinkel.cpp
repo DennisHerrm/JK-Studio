@@ -135,6 +135,28 @@ void motionWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept {
     winkel[2] = -hilf[0];
 }
 
+void motionWinkelOhneRoll(const float bolzen[3][4], float winkel[3]) noexcept {
+    const float vorn[3] = {-bolzen[0][1], -bolzen[1][1], -bolzen[2][1]};
+    engineVectoangles(vorn, winkel);
+    winkel[2] = 0.0F;
+}
+
+void motionKorrekturAusBecken(const float soll[3][4], const float ist[3][4], float korrektur[3]) noexcept {
+    const auto winkelVon = [](const float m[3][4], float w[3]) {
+        const float vorn[3] = {-m[0][2], -m[1][2], -m[2][2]};
+        const float rechts[3] = {-m[0][1], -m[1][1], -m[2][1]};
+        engineVectoangles(vorn, w);
+        float h[3];
+        engineVectoangles(rechts, h);
+        w[2] = -h[0];
+    };
+    float a[3];
+    float b[3];
+    winkelVon(soll, a);
+    winkelVon(ist, b);
+    for (int k = 0; k < 3; ++k) { korrektur[k] = normal180(normal180(a[k]) - normal180(b[k])); }
+}
+
 RumpfWinkel rumpfWinkel(const RumpfEingabe& e) noexcept {
     RumpfWinkel w;
     const RumpfKlasse k = e.klasse;
@@ -152,43 +174,47 @@ RumpfWinkel rumpfWinkel(const RumpfEingabe& e) noexcept {
         if (e.motion) {
             for (int a = 0; a < 3; ++a) { v[a] = normal180(v[a] - normal180(e.motionWinkel[a])); }
         }
-        // motionBoneCorrectAngles bleibt 0 (nur cg_motionBoneComp > 2 rechnet es)
+        const float* kor = e.korrektur;   // motionBoneCorrectAngles
         if (k == RumpfKlasse::HazardTrooper) {
             th[P] = th[Y] = th[R] = 0.0F;
             ul[P] = v[P] * 0.50F;
-            ll[P] = v[P] * 0.50F;
+            ll[P] = v[P] * 0.50F + kor[P];
             ul[Y] = v[Y] * 0.45F;
-            ll[Y] = v[Y] * 0.55F;
+            ll[Y] = v[Y] * 0.55F + kor[Y];
             ul[R] = v[R] * 0.45F;
-            ll[R] = v[R] * 0.55F;
+            ll[R] = v[R] * 0.55F + kor[R];
         } else if (k == RumpfKlasse::AssassinDroid || k == RumpfKlasse::Droideka) {
             th[P] = v[P] * 0.40F;
             ul[P] = 0.0F;
-            ll[P] = v[P] * 0.60F;
+            ll[P] = v[P] * 0.60F + kor[P];
             th[Y] = 0.0F;
             ul[Y] = v[Y];
-            ll[Y] = 0.0F;
+            ll[Y] = kor[Y];
             th[R] = 0.0F;
             ul[R] = 0.0F;
-            ll[R] = 0.0F;
+            ll[R] = kor[R];
         } else {
             if (e.kante) {   // Movie Duels
                 th[P] = ll[P] = ul[P] = 0.0F;
             } else {
                 th[P] = v[P] * 0.20F;
                 ul[P] = v[P] * 0.40F;
-                ll[P] = v[P] * 0.40F;
+                ll[P] = v[P] * 0.40F + kor[P];
             }
             th[Y] = v[Y] * 0.20F;
             ul[Y] = v[Y] * 0.35F;
-            ll[Y] = v[Y] * 0.45F;
+            ll[Y] = v[Y] * 0.45F + kor[Y];
             th[R] = v[R] * 0.20F;
             ul[R] = v[R] * 0.35F;
-            ll[R] = v[R] * 0.45F;
+            ll[R] = v[R] * 0.45F + kor[R];
         }
         if (k == RumpfKlasse::Rancor) {
             ll[Y] = ll[R] = 0.0F;
             ul[Y] = ul[R] = 0.0F;
+        }
+        if (e.reitet) {   // "aim torso forward too" (cg_players.cpp OJ 2173)
+            ul[Y] = ll[Y] = 0.0F;
+            if (e.reitetOhneWaffe) { ul[P] = ll[P] = 0.0F; }
         }
         w.lumbarSetzen = true;
     }
@@ -243,6 +269,10 @@ RumpfWinkel rumpfWinkel(const RumpfEingabe& e) noexcept {
             kopf[Y] = la[Y] * 0.6F;
             kopf[R] = la[R] * 0.6F;
         }
+    }
+    if (e.reitet) {   // "aim torso forward too" (cg_players.cpp OJ 2325)
+        kopf[Y] = hals[Y] = th[Y] = 0.0F;
+        if (e.reitetOhneWaffe) { th[P] = 0.0F; }
     }
     if (k == RumpfKlasse::Rancor) {
         th[Y] = th[R] = 0.0F;   // Rancor: ohne cranium und cervical

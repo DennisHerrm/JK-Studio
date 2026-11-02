@@ -510,6 +510,118 @@ bool wegBewegtBei(const ActorStep& st, double t) {
     return false;
 }
 
+void rittePlanen(std::vector<Actor>& figuren, std::vector<RittBenutzung> benutzt) {
+    for (Actor& f : figuren) { f.ritte.clear(); }
+    std::stable_sort(benutzt.begin(), benutzt.end(), [](const RittBenutzung& x, const RittBenutzung& y) { return x.ms < y.ms; });
+    const auto suche = [&figuren](const std::string& n) {
+        for (std::size_t i = 0; i < figuren.size(); ++i) {
+            if (sameName(figuren[i].name, n)) { return i; }
+        }
+        return figuren.size();
+    };
+    const auto offen = [&figuren](std::size_t reiter) -> Actor::Ritt* {
+        Actor& r = figuren[reiter];
+        return !r.ritte.empty() && r.ritte.back().bisMs < 0.0 ? &r.ritte.back() : nullptr;
+    };
+    for (const RittBenutzung& b : benutzt) {
+        const std::size_t v = suche(b.ziel);
+        if (v >= figuren.size() || !figuren[v].fahrzeug.da) { continue; }
+        const std::size_t r = suche(b.wer);
+        if (r >= figuren.size()) { continue; }
+        if (r == v) {   // "if I used myself, eject everyone on me"
+            for (std::size_t i = 0; i < figuren.size(); ++i) {
+                Actor::Ritt* o = offen(i);
+                if (o != nullptr && o->fahrzeug == v) { o->bisMs = b.ms; }
+            }
+            continue;
+        }
+        if (Actor::Ritt* o = offen(r); o != nullptr) {
+            if (o->fahrzeug == v) { o->bisMs = b.ms; }   // "already riding this vehicle, eject him"
+            continue;                                    // "already in a vehicle": Board lehnt ab
+        }
+        if (figuren[v].getoetetMs >= 0.0 && b.ms >= figuren[v].getoetetMs) { continue; }   // parent->health <= 0
+        std::size_t fahrer = figuren.size();
+        for (std::size_t i = 0; i < figuren.size(); ++i) {
+            const Actor::Ritt* o = offen(i);
+            if (o != nullptr && o->fahrzeug == v) { fahrer = i; }
+        }
+        if (fahrer < figuren.size()) {
+            if (!figuren[r].echterSpieler) { continue; }    // "We're full, sorry..."
+            offen(fahrer)->bisMs = b.ms;
+        }
+        Actor::Ritt neu;
+        neu.fahrzeug = v;
+        neu.abMs = b.ms;
+        const ActorState sv = figuren[v].at(b.ms);
+        const ActorState sr = figuren[r].at(b.ms);
+        neu.boarding = boardingSeite(sv.angles[1], sv.pos, sr.pos);
+        figuren[r].ritte.push_back(neu);
+    }
+}
+
+int boardingSeite(float fahrzeugGier, const float fahrzeugOrt[3], const float figurOrt[3]) noexcept {
+    float d[2] = {figurOrt[0] - fahrzeugOrt[0], figurOrt[1] - fahrzeugOrt[1]};
+    const float l = std::sqrt(d[0] * d[0] + d[1] * d[1]);
+    if (l > 0.0F) {
+        d[0] /= l;
+        d[1] /= l;
+    }
+    // AngleVectors(0 gier 0, NULL, right, NULL): right = (sin gier, -cos gier, 0)
+    const float w = fahrzeugGier * 3.14159265F / 180.0F;
+    const float punkt = d[0] * std::sin(w) - d[1] * std::cos(w);
+    if (punkt >= 0.5F) { return -2; }
+    if (punkt <= -0.5F) { return -1; }
+    return -3;
+}
+
+std::string reiterAufsteigen(const std::string& fahrzeugTyp, int boarding) {
+    if (fahrzeugTyp == "VH_SPEEDER") {
+        return boarding == -1 ? "BOTH_VS_MOUNT_L" : boarding == -2 ? "BOTH_VS_MOUNT_R" : "BOTH_VS_MOUNTJUMP_L";
+    }
+    if (fahrzeugTyp == "VH_ANIMAL") {
+        return boarding == -1 ? "BOTH_VT_MOUNT_L" : boarding == -2 ? "BOTH_VT_MOUNT_R" : "BOTH_VT_MOUNT_B";
+    }
+    return {};
+}
+
+std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe) {
+    const std::string w = fahrzeugTyp == "VH_SPEEDER" ? "BOTH_VS_IDLE" : fahrzeugTyp == "VH_ANIMAL" ? "BOTH_VT_IDLE" : "";
+    if (w.empty()) { return w; }
+    if (waffe == "WP_BLASTER") { return w + "_G"; }      // WPOSE_BLASTER
+    if (waffe == "WP_SABER") { return w + "_SR"; }       // WPOSE_SABERRIGHT: VEH_SABERINLEFTHAND ist aus
+    return w;
+}
+
+bool Actor::inVorschauVerborgen(double ms) const {
+    for (const auto& [von, bis] : vorschauVerborgen) {
+        if (ms >= von && (bis < 0.0 || ms < bis)) { return true; }
+    }
+    return false;
+}
+
+std::vector<std::pair<double, double>> spielerVorschauSpannen(const std::vector<std::pair<double, double>>& kamera,
+                                                              const std::vector<ActorStep>& schritte) {
+    std::vector<std::pair<double, double>> aus;
+    const auto abschnitt = [&](double von, double bis) {
+        if (bis >= 0.0 && bis <= von) { return; }
+        for (const ActorStep& st : schritte) {
+            if (st.path.empty() && st.fremd.empty()) { continue; }   // nicht aus dem Skript
+            const bool beginntDavor = bis >= 0.0 && st.startMs >= bis;
+            const bool endetDavor = st.startMs < von && std::max(st.endMs, st.startMs) <= von;
+            if (!beginntDavor && !endetDavor) { return; }
+        }
+        aus.emplace_back(von, bis);
+    };
+    double ab = 0.0;
+    for (const auto& [von, bis] : kamera) {
+        abschnitt(ab, von);
+        if (bis < 0.0) { return aus; }
+        ab = bis;
+    }
+    abschnitt(ab, -1.0);
+    return aus;
+}
+
 ActorState Actor::at(double ms) const {
     ActorState st;
     for (int k = 0; k < 3; ++k) {

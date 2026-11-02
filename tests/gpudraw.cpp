@@ -496,6 +496,55 @@ int main() {
         erwarte("autosprite2: von vorn gesehen liegen die Ecken wie gebaut", lage);
     }
 
+    // rc608: Stapel eines .md3: rgbGen lightingDiffuse rechnet das Licht der Entity
+    {
+        BspMesh m;
+        BspMesh::Batch b;
+        b.numIndexes = 3U;
+        b.shader = 0;
+        b.lightmap = -1;
+        b.modellLicht = true;
+        m.batches.push_back(b);
+        const auto merkmale = [&m](const TextureSet& satz) {
+            const std::vector<DrawCall> c = buildDrawCalls(m, &satz, 0.0F);
+            return c.empty() ? 0U : c[0].state.features;
+        };
+        TextureSet tx = baueTexturen();
+        erwarte("md3 ohne Skript: kModellLicht, ohne Helligkeitsfaktor",
+                (merkmale(tx) & kModellLicht) != 0U && (merkmale(tx) & kRohEcke) != 0U);
+        tx.byShader[0].ausSkript = true;
+        erwarte("md3 mit Skript ohne rgbGen: identityLighting, kein Licht der Entity", (merkmale(tx) & kModellLicht) == 0U);
+        tx.byShader[0].rgbVertex = true;
+        erwarte("md3 mit rgbGen lightingDiffuse: kModellLicht", (merkmale(tx) & kModellLicht) != 0U);
+        tx.byShader[0].rgbVertex = false;
+        tx.byShader[0].lightmapStufe = true;
+        erwarte("md3 mit $lightmap: tr.whiteImage (lightmapsNone), kein Licht der Entity und keine Lightmap",
+                (merkmale(tx) & (kModellLicht | kLightmap)) == 0U);
+    }
+    // rc608: $lightmap nach mehreren Bildstufen ist eine eigene letzte Stufe
+    {
+        BspMesh m;
+        BspMesh::Batch b;
+        b.numIndexes = 3U;
+        b.shader = 0;
+        b.lightmap = 0;
+        m.batches.push_back(b);
+        TextureSet tx = baueTexturen();
+        tx.byShader[0].ausSkript = true;
+        tx.byShader[1].ausSkript = true;
+        tx.byShader[1].lightmapStufe = true;
+        tx.byShader[1].lightmapFilter = true;
+        tx.byShader[1].srcFactor = BlendFactor::DstColor;
+        tx.byShader[1].dstFactor = BlendFactor::Zero;
+        tx.byShader[0].extraStages.push_back(1);
+        const std::vector<DrawCall> c = buildDrawCalls(m, &tx, 0.0F);
+        erwarte("Lightmap als Filter: Grundstufe ohne, letzte Stufe mit Lightmap",
+                c.size() == 2U && (c[0].state.features & kLightmap) == 0U && (c[1].state.features & kLightmap) != 0U);
+        tx.byShader[1].lightmapFilter = false;
+        const std::vector<DrawCall> z = buildDrawCalls(m, &tx, 0.0F);
+        erwarte("eine gewoehnliche Zusatzstufe bleibt ohne Lightmap", z.size() == 2U && (z[1].state.features & kLightmap) == 0U);
+    }
+
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
         return 1;

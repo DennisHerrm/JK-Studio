@@ -2936,6 +2936,8 @@ void loadMapModels() {
         // "angle" setzt die Gier, "angles" alle drei; "modelscale_vec" je
         // Achse, "modelscale" (ungleich null) ueberschreibt alle drei.
         float einheitlich = 0.0F;
+        const bool statisch = e.classname == "misc_model_static";
+        if (statisch) { item.lichtHoehe = 1.0F; }
         for (const auto& [k, v] : e.keys) {
             std::string lk = k;
             for (char& c : lk) {
@@ -2955,6 +2957,8 @@ void loadMapModels() {
                 for (int q = 0; q < 3; ++q) { item.scale[q] = s[q]; }
             } else if (lk == "modelscale") {
                 einheitlich = static_cast<float>(std::atof(v.c_str()));
+            } else if (lk == "zoffset" && statisch) {
+                item.lichtHoehe += static_cast<float>(std::atof(v.c_str()));
             }
         }
         if (einheitlich != 0.0F) {
@@ -3325,8 +3329,24 @@ NpcLeseAuftrag npcLeseAuftrag() {
         }
         return auftrag;
     }
-    for (const GamePath& gp : g_app->gamePaths) {
-        for (const FoundFile& f : findByExtension(gp, {".npc"})) { auftrag.dateien.push_back({f.name, false, npcArchive(f.name)}); }
+    // Jedi Academy: gi.FS_GetFileList("ext_data/npcs", ".npc") (NPC_LoadParms, NPC_stats.cpp:4733 MD, OpenJK ebenso). Im
+    // Archiv zaehlt nur, was mit ext_data/npcs beginnt und hoechstens zwei Ebenen tiefer liegt (FS_ListFilteredFiles,
+    // files.cpp:2094-2096); ext_data/MD_MP_NPC liest das Einzelspieler-Spiel nicht. Die Reihenfolge ist die der
+    // Suchpfade - der zuletzt eingerichtete Spielordner zuerst, darin das spaetere Archiv zuerst, im Archiv die Reihenfolge
+    // der Eintraege -, jeder Name einmal (FS_AddFileToList). Die Dateien haengen hintereinander, der erste Eintrag gewinnt.
+    std::set<std::string> gesehen;
+    for (auto gp = g_app->gamePaths.rbegin(); gp != g_app->gamePaths.rend(); ++gp) {
+        for (auto a = gp->archives.rbegin(); a != gp->archives.rend(); ++a) {
+            for (const Pk3Entry& e : a->entries) {
+                std::string n = e.name;
+                for (char& c : n) { c = static_cast<char>(c == '\\' ? '/' : std::tolower(static_cast<unsigned char>(c))); }
+                if (n.size() <= 18U || n.rfind("ext_data/npcs/", 0) != 0 || n.compare(n.size() - 4U, 4U, ".npc") != 0 ||
+                    std::count(n.begin() + 14, n.end(), '/') > 1 || !gesehen.insert(n).second) {
+                    continue;
+                }
+                auftrag.dateien.push_back({e.name, false, npcArchive(e.name)});
+            }
+        }
     }
     return auftrag;
 }
@@ -3499,6 +3519,8 @@ void loadActorModels() {
                         if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
                         if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
                         if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "hiderider") { fd.reiterVerbergen = std::atoi(v.c_str()) != 0; }
+                        if (k == "numhands") { fd.haende = std::atoi(v.c_str()); }
                     }
                     for (char& c : vname) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
                     if (!vname.empty() && !vmodel.empty()) {

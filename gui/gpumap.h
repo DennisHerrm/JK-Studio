@@ -107,7 +107,8 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
                  float fokus, float zeitSekunden, float helligkeit,
                  float grundlicht, std::string* fehler,
                  int* uebersprungenAus = nullptr,
-                 Lage lage = Lage::Alles);
+                 Lage lage = Lage::Alles,
+                 const GridLight* modellLicht = nullptr);
 
 int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
@@ -241,6 +242,7 @@ int gluehenRauchAufrufe();
 struct GluehQuelle {
     const BspMesh* mesh = nullptr;
     float welt[16]{};
+    GridLight modellLicht;   // rc608: Licht der Entity, wenn das Netz ein .md3 ist
 };
 int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const BspGeometry* geo, const float* viewProj,
@@ -402,6 +404,12 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
 // nicht am Bild: waehrend der Bewegung wird groeber gerastert
 // (App::mapScale), und dann aendert sich die Groesse mehrfach je Sekunde.
 [[nodiscard]] bool bereiteZiel(int breite, int hoehe);
+// rc608 Teil 9b: r_ext_multisample. Die Zielsaetze zeichnen mit `proben` Proben je Bildpunkt (0 oder 1: ohne), wie
+// der Bildpuffer des Spiels (SDL_GL_MULTISAMPLESAMPLES); was nur einmal je Bildpunkt rechnet, liest das aufgeloeste
+// Bild. Wirkt beim naechsten bereiteZiel. Kann die Grafikkarte die Zahl nicht, gilt die naechstkleinere.
+void setzeMultisample(int proben);
+// Die Proben des gewaehlten Satzes (1 ohne MSAA).
+[[nodiscard]] int zielProben();
 
 // --- Zwei Zielsaetze (rc592) --------------------------------------------
 //

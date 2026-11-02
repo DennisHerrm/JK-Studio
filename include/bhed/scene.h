@@ -706,6 +706,8 @@ struct FahrzeugDaten {
     float schwebeKraft = 0.0F;
     float hang = 0.65F;           // VEH_DEFAULT_MAX_SLOPE
     float reibung = 0.0F;
+    bool reiterVerbergen = false;   // hideRider
+    int haende = 0;                 // numHands: "if 2 hands, no weapons"
 };
 
 struct Actor {    std::string name;        // der Name aus dem affect
@@ -823,6 +825,19 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // (CG_Player, cg_players.cpp:15602: "if (in_camera && clientNum == 0)
     // return;"). [von, bis), bis < 0 heisst: bis zum Ende.
     std::vector<std::pair<double, double>> kameraVerborgen;
+    // rc608 (shank 02.11.): Wo die Vorschau den Spieler ausserhalb der Kamera nicht zeichnet
+    // (spielerVorschauSpannen). Nur fuers Zeichnen: Actor::at, Ziele, Ton und Export sehen das nicht.
+    std::vector<std::pair<double, double>> vorschauVerborgen;
+    // rc608: G_IsRidingVehicle: Wann die Figur auf welchem Fahrzeug sitzt (Index in scene.actors). boarding: wie
+    // im Spiel m_iBoarding beim Aufsteigen (-1 links, -2 rechts, -3 mit Sprung, ValidateBoard).
+    struct Ritt {
+        std::size_t fahrzeug = 0;
+        double abMs = 0.0;
+        double bisMs = -1.0;
+        int boarding = -3;
+    };
+    std::vector<Ritt> ritte;
+    [[nodiscard]] bool inVorschauVerborgen(double ms) const;
 
     // --- Paket bewegung (rc601): das Laufziel, nur fuer den Aufbau --------
     //
@@ -1506,6 +1521,30 @@ int waffenModellIndex(Actor& a, const std::string& waffe, bool kotor,
 // 3311-3398). Fuegt die Waffenschritte ein; der Spieler ist "kyle" ohne
 // kartenFigur (bzw. "player"), seine Kamerazeiten stehen in kameraVerborgen.
 void munroWaffenAbgleich(Scene& s, const SzenenHilfe* hilfe);
+// rc608: Bewusste Abweichung vom Spiel (shank 02.11.: "ich mag es nicht das man den spieler in
+// der Vorschau sieht. Bei den Cutscenes"). Das Spiel verbirgt den Spieler nur in den Kameraspannen
+// (kameraVerborgen). In einer Szene mit Kameraspur fehlt er in der Vorschau auch in den Abschnitten
+// davor, dazwischen und danach, ausser das Skript spricht ihn dort mit einem eigenen Schritt an:
+// Dieser ganze Abschnitt bleibt sichtbar. Gibt die verborgenen Abschnitte zurueck ([von, bis), bis < 0
+// heisst bis zum Ende).
+// rc608: NPC_Use auf ein CLASS_VEHICLE (NPC_reactions.cpp OJ 1075-1096): use durch sich selbst wirft alle ab, der
+// eigene Reiter steigt ab, sonst Board (g_vehicles.cpp OJ 629): nicht auf einem toten Fahrzeug, nicht wer schon
+// reitet, ein NPC nur ohne Fahrer. Der Spieler wird immer Fahrer ("ALWAYS let the player be the pilot"), ein alter
+// Fahrer faellt ab. Liest die Benutzungen des Ablaufs der Zeit nach und fuellt Actor::ritte.
+struct RittBenutzung {
+    double ms = 0.0;
+    std::string ziel;
+    std::string wer;
+};
+void rittePlanen(std::vector<Actor>& figuren, std::vector<RittBenutzung> benutzt);
+// ValidateBoard: rechter Vektor des Fahrzeugs gegen die Richtung zur Figur, bei 0,5 links oder rechts, sonst von hinten.
+[[nodiscard]] int boardingSeite(float fahrzeugGier, const float fahrzeugOrt[3], const float figurOrt[3]) noexcept;
+// AnimateRiders je Fahrzeugart: Aufsteigen (VS_MOUNT/VT_MOUNT, 40 Prozent der Laenge bei den Speedern), danach
+// der Leerlauf mit der Waffenhaltung (WeaponPose). Name der Animation, leer: Fahrzeugart ohne Reiteranimation.
+[[nodiscard]] std::string reiterAufsteigen(const std::string& fahrzeugTyp, int boarding);
+[[nodiscard]] std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe);
+[[nodiscard]] std::vector<std::pair<double, double>> spielerVorschauSpannen(
+    const std::vector<std::pair<double, double>>& kamera, const std::vector<ActorStep>& schritte);
 // Die Ausstattung beim Spawnen. def ist die .npc der Figur oder nullptr.
 void ausstattungBeimSpawnen(Actor& a, const NpcDef* def, const SzenenHilfe* hilfe,
                             int spawnflags);

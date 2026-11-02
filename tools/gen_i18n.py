@@ -2215,6 +2215,8 @@ from i18n_rc608_5 import zeilen_vier as _rc608_5  # noqa: E402  (rc608 Teil 5: F
 S += _rc608_5()
 from i18n_rc608_7 import zeilen_vier as _rc608_7  # noqa: E402  (rc608 Teil 7: Bildstufe wie r_picmip)
 S += _rc608_7()
+from i18n_rc608_9 import zeilen_vier as _rc608_9  # noqa: E402  (rc608 Teil 9: Spieler in Cutscenes)
+S += _rc608_9()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -56,12 +56,21 @@ void rumpfKnochenAchsen(RumpfKlasse k, const std::string& knochen, G2Achse& oben
 // motionAngles aus dem Motion-Bolzen ohne Drehung (cg_motionBoneComp 2):
 // vectoangles(NEGATIVE_Y), Roll = -Nick von vectoangles(NEGATIVE_X).
 void motionWinkelAusBolzen(const float bolzen[3][4], float winkel[3]) noexcept;
+// cg_motionBoneComp 1: ohne Roll ("if ( cg_motionBoneComp.integer > 1 ) do roll, too").
+void motionWinkelOhneRoll(const float bolzen[3][4], float winkel[3]) noexcept;
+// cg_motionBoneComp 3, "expensive version" (CG_G2ClientSpineAngles, cg_players.cpp OJ 2058-2098, MD 2395 ff.):
+// das Becken des Dummy-_humanoid im Bild des Oberkoerpers gegen das eigene Becken. Vorn = NEGATIVE_Z,
+// rechts = NEGATIVE_Y, Roll = -Nick von rechts; motionBoneCorrectAngles = Soll - Ist, je auf 180 normiert.
+void motionKorrekturAusBecken(const float soll[3][4], const float ist[3][4], float korrektur[3]) noexcept;
 
 struct RumpfEingabe {
     RumpfKlasse klasse = RumpfKlasse::Mensch;
     float blick[3]{};          // viewAngles: Nick (lerpAngles * 0,5), Gier = Rumpf gegen Beine, Roll 0
     bool motion = false;       // rumpfMotionAusgleich
     float motionWinkel[3]{};   // motionWinkelAusBolzen
+    float korrektur[3]{};      // motionBoneCorrectAngles, nur lower_lumbar (motionKorrekturAusBecken)
+    bool reitet = false;       // G_IsRidingVehicle
+    bool reitetOhneWaffe = false;   // ps.weapon WP_NONE oder WP_SABER: kein Nicken
     bool kante = false;        // rumpfAnDerKante
     float kopf[3]{};           // lookAngles (Blick des Kopfs gegen den Rumpf)
 };

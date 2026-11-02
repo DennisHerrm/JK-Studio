@@ -1212,8 +1212,7 @@ PmFigur pmFigurVon(const Actor& a, const ActorState& st, double ms) {
     f.stab = (s0 != nullptr && s0->typ == "SABER_STAFF") || (st.dualSabers && s1 != nullptr && s1->typ == "SABER_STAFF");
     f.klinge2An = st.saber[0].klinge[1].an;
     f.animStil = a.animStil;
-    // animStilAn bleibt aus: g_activateanimationstyle steht im Spiel auf "0" (installierte
-    // MovieDuels-gamex86_64.dll, g_main.cpp:990 mdgit), und nur die MP-Einstellungen bieten sie an.
+    f.animStilAn = animStilAktiv();
     return f;
 }
 

@@ -513,6 +513,14 @@ struct App {
     // mission1: die Hinweise "kein Weg" an der Bahn der gewaehlten Figur (letztes Bild).
     std::vector<std::string> bahnKeinWeg;
     std::vector<std::array<float, 3>> figurGezeichnet;
+    // rc608: renderInfo.lastHeadAngles und lookingDebounceTime je Figur, Bildnummer -1: noch nichts.
+    struct BlickFolge {
+        long long bild = -1;
+        float winkel[3]{};
+        double entprelltBis = -1.0;
+        float gier = 0.0F;
+    };
+    std::vector<BlickFolge> blickFolgen;
     std::string tlAuswahlZeile;
     int tlBewegungsBalken = 0;
     // --- Griffe auf der Bahn (rc597) ------------------------------------------
@@ -656,6 +664,8 @@ struct App {
     // (r_dynamiclight), ebenfalls ab Werk an.
     int schattenArt = 1;
     bool showDynLights = true;
+    // rc608: "Show player" - an: Spielerfigur in Szenen mit Kameraspur wie im Spiel.
+    bool spielerInCutscene = false;
     // Nebel aus der Karte (r_drawfog 1, RB_FogPass) - siehe gpu::zeichneNebel.
     bool showFog = true;
     int nebelAufrufe = 0;
@@ -1294,6 +1304,8 @@ struct App {
         // zeichnet es an lerpOrigin mit lerpAngles). 0 = ein normales
         // Kartenmodell.
         int anBrush = 0;
+        // misc_model_static: zoffset + 1 ueber origin steht das Licht (CG_DrawMiscEnts).
+        float lichtHoehe = 0.0F;
     };
     std::map<std::string, Md3Model> md3Files;          // Pfad -> Modell
     std::map<std::string, BspMesh> md3Meshes;          // "Pfad#Bild" -> Netz
@@ -2675,6 +2687,13 @@ void aufnahmeKnopf();                                    // in der Transportleis
 void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern, Spur, Hinweis
 [[nodiscard]] int aufnahmeProben();                      // Selbsttest
 [[nodiscard]] int aufnahmePunkte();                      // Selbsttest: Laufziele mit der Toleranz
+// rc608: Die Spielerfigur fehlt in dieser Szene zu dieser Zeit nur im Bild (Actor::vorschauVerborgen).
+// Wer sie gerade selbst steuert, sieht sie immer; "Show player" zeigt sie wie im Spiel.
+[[nodiscard]] bool spielerNichtZeichnen(const Actor& a, double ms);
+// rc608: Sitzt die Figur gerade auf einem Fahrzeug? Dann Ort, Blick und Animation vom Fahrzeug (AttachRiders,
+// AnimateRiders); reitet in `d`. Nur im Bild: Ziele und Ton rechnen weiter mit dem Stand aus dem Skript.
+void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d);
+const App::Skeleton* skeletonFor(const GlmModel& model);
 void aufnahmeFigurZustand(int figur, double ms, ActorState& st);   // das Modell am gesteuerten Ort
 // Zeitleiste 4 Punkt 3: was PM_Footsteps von der Figur weiss, und ob ihr Modell
 // eine Animation kennt (PM_SetAnimFinal setzt sonst nichts).
@@ -3081,6 +3100,8 @@ void loadMapTextures();
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
+// rc608 Teil 9b: ein Bild ohne Shadersuche (map, animMap, Himmelsbox: R_FindImageFile).
+bool loadImageFile(const std::string& bild, TextureSet::Tex& out);
 // rc604 fix604b (B1): eine Zusatzstufe laden (gui/app.cpp, aus loadMapTextures).
 void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const std::string& shaderName,
                       TextureSet::Tex& t);
@@ -3492,7 +3513,9 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
 // reste2 Punkt 6: die GPU-Tabelle des Statistikfensters der Karte, Zeile fuer Zeile (true = eingerueckt)
 [[nodiscard]] std::vector<std::pair<std::string, bool>> gpuTabellenZeilen();
 void figurWeltMatrix(const ActorDraw& a, float fw[16]);
-void figurKopfGier(const ActorState& st, ActorDraw& d);
+// rc608: CG_UpdateLookAngles je Bild (siehe blickFolgeRechnen); figurKopfGier nimmt den letzten Stand.
+void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& assets, double ms);
+void figurKopfGier(const Actor& a, const ActorState& st, ActorDraw& d);
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d);
 void npcSkalaFuer(const std::string& npcType, float aus[3]);
 // Pruefung 3: die Knochen (welt) und die Weltmatrix (fw) einer Figur im

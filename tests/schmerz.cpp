@@ -2,9 +2,12 @@
 #include "bhed/areaportal.h"
 #include "bhed/bsp.h"
 #include "bhed/gpushader.h"
+#include "bhed/gpustate.h"
 #include "bhed/holster.h"
 #include "bhed/kartenpruefung.h"
 #include "bhed/navlauf.h"
+#include "bhed/pmanim.h"
+#include "bhed/rumpfwinkel.h"
 #include "bhed/regelwerk.h"
 #include "bhed/scene.h"
 #include "bhed/schmerz.h"
@@ -332,9 +335,134 @@ void sonne() {
 
 }  // namespace
 
+// rc608: spielerVorschauSpannen. Abschnitte ausserhalb der Kamera ohne eigenen Schritt fehlen im Bild.
+void spielerSpannen() {
+    using Spannen = std::vector<std::pair<double, double>>;
+    const Spannen kamera = {{2000.0, 4000.0}};
+    const auto schritt = [](double von, double bis, bool ausSkript) {
+        bhed::ActorStep st;
+        st.startMs = von;
+        st.endMs = bis;
+        if (ausSkript) { st.path = {0U}; }
+        return st;
+    };
+    erwarte("Spieler: ohne Schritt vor und nach der Kamera verborgen",
+            bhed::spielerVorschauSpannen(kamera, {}) == Spannen({{0.0, 2000.0}, {4000.0, -1.0}}));
+    erwarte("Spieler: Schritt nach der Kamera: dieser Abschnitt bleibt",
+            bhed::spielerVorschauSpannen(kamera, {schritt(5000.0, 5000.0, true)}) == Spannen({{0.0, 2000.0}}));
+    erwarte("Spieler: Schritt vor der Kamera: dieser Abschnitt bleibt",
+            bhed::spielerVorschauSpannen(kamera, {schritt(500.0, 800.0, true)}) == Spannen({{4000.0, -1.0}}));
+    erwarte("Spieler: Schritt in der Kamera zaehlt nicht",
+            bhed::spielerVorschauSpannen(kamera, {schritt(2500.0, 3000.0, true)}) == Spannen({{0.0, 2000.0}, {4000.0, -1.0}}));
+    erwarte("Spieler: Schritt ueber das Ende der Kamera hinaus: dieser Abschnitt bleibt",
+            bhed::spielerVorschauSpannen(kamera, {schritt(3000.0, 4500.0, true)}) == Spannen({{0.0, 2000.0}}));
+    erwarte("Spieler: Schritt endet genau mit der Kamera: Abschnitt danach bleibt verborgen",
+            bhed::spielerVorschauSpannen(kamera, {schritt(3000.0, 4000.0, true)}) == Spannen({{0.0, 2000.0}, {4000.0, -1.0}}));
+    erwarte("Spieler: Schritt, der nicht aus dem Skript kommt, zaehlt nicht",
+            bhed::spielerVorschauSpannen(kamera, {schritt(5000.0, 5000.0, false)}) == Spannen({{0.0, 2000.0}, {4000.0, -1.0}}));
+    erwarte("Spieler: Kamera bis zum Ende", bhed::spielerVorschauSpannen({{2000.0, -1.0}}, {}) == Spannen({{0.0, 2000.0}}));
+    erwarte("Spieler: Kamera ab 0", bhed::spielerVorschauSpannen({{0.0, 1000.0}}, {}) == Spannen({{1000.0, -1.0}}));
+    erwarte("Spieler: Kameraspur ohne Einschalten: ganz verborgen", bhed::spielerVorschauSpannen({}, {}) == Spannen({{0.0, -1.0}}));
+    bhed::Actor a;
+    a.vorschauVerborgen = {{0.0, 2000.0}, {4000.0, -1.0}};
+    erwarte("Spieler: inVorschauVerborgen", a.inVorschauVerborgen(0.0) && !a.inVorschauVerborgen(2000.0) && !a.inVorschauVerborgen(3999.0) &&
+                                                a.inVorschauVerborgen(4000.0) && a.inVorschauVerborgen(99000.0));
+}
+
+// rc608: cg_motionBoneComp 3, Reiten, cg_turnAnims, g_ActivateAnimationStyle
+void figurEinstellungen() {
+    const float eins[3][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}};
+    float k[3] = {9.0F, 9.0F, 9.0F};
+    bhed::motionKorrekturAusBecken(eins, eins, k);
+    erwarte("Becken gleich: keine Korrektur", k[0] == 0.0F && k[1] == 0.0F && k[2] == 0.0F);
+    // Das Soll um die Hochachse gedreht: NEGATIVE_Z bleibt, NEGATIVE_Y dreht, die Gier von vorn aendert sich nicht.
+    const float w = 10.0F * 3.14159265F / 180.0F;
+    const float gedreht[3][4] = {{std::cos(w), -std::sin(w), 0, 0}, {std::sin(w), std::cos(w), 0, 0}, {0, 0, 1, 0}};
+    bhed::motionKorrekturAusBecken(gedreht, eins, k);
+    erwarte("Becken um z gedreht: Vorn (-Z) bleibt gleich", std::fabs(k[0]) < 0.01F);
+    float ein[3];
+    bhed::motionWinkelOhneRoll(gedreht, ein);
+    erwarte("cg_motionBoneComp 1: kein Roll", ein[2] == 0.0F);
+    bhed::RumpfEingabe e;
+    e.blick[1] = 40.0F;
+    e.korrektur[1] = 5.0F;
+    bhed::RumpfWinkel r = bhed::rumpfWinkel(e);
+    erwarte("motionBoneCorrectAngles nur auf lower_lumbar", std::fabs(r.lower[1] - (40.0F * 0.45F + 5.0F)) < 0.01F &&
+                                                                std::fabs(r.upper[1] - 40.0F * 0.35F) < 0.01F);
+    e.reitet = true;
+    e.reitetOhneWaffe = true;
+    e.blick[0] = 20.0F;
+    e.kopf[1] = 30.0F;
+    r = bhed::rumpfWinkel(e);
+    erwarte("Reiten: Rumpf und Kopf schauen geradeaus, ohne Waffe kein Nicken",
+            r.lower[1] == 0.0F && r.upper[1] == 0.0F && r.thoracic[1] == 0.0F && r.cervical[1] == 0.0F && r.cranium[1] == 0.0F &&
+                r.lower[0] == 0.0F && r.upper[0] == 0.0F && r.thoracic[0] == 0.0F);
+    e.reitetOhneWaffe = false;
+    r = bhed::rumpfWinkel(e);
+    erwarte("Reiten mit Waffe: Nicken bleibt", r.lower[0] != 0.0F && r.upper[0] != 0.0F);
+    {
+        const float vo[3] = {0.0F, 0.0F, 0.0F};
+        const float rechts[3] = {0.0F, -50.0F, 0.0F};
+        const float links[3] = {0.0F, 50.0F, 0.0F};
+        const float hinten[3] = {-50.0F, 0.0F, 0.0F};
+        erwarte("ValidateBoard: rechts, links, von hinten mit Sprung",
+                bhed::boardingSeite(0.0F, vo, rechts) == -2 && bhed::boardingSeite(0.0F, vo, links) == -1 &&
+                    bhed::boardingSeite(0.0F, vo, hinten) == -3);
+        erwarte("AnimateRiders: Speeder und Tier", bhed::reiterAufsteigen("VH_SPEEDER", -1) == "BOTH_VS_MOUNT_L" &&
+                                                        bhed::reiterAufsteigen("VH_ANIMAL", -3) == "BOTH_VT_MOUNT_B" &&
+                                                        bhed::reiterLeerlauf("VH_SPEEDER", "WP_BLASTER") == "BOTH_VS_IDLE_G" &&
+                                                        bhed::reiterLeerlauf("VH_ANIMAL", "WP_NONE") == "BOTH_VT_IDLE" &&
+                                                        bhed::reiterLeerlauf("VH_FIGHTER", "WP_NONE").empty());
+        std::vector<bhed::Actor> f(3);
+        f[0].name = "bike";
+        f[0].fahrzeug.da = true;
+        f[1].name = "kerl";
+        f[2].name = "player";
+        f[2].echterSpieler = true;
+        bhed::rittePlanen(f, {{100.0, "bike", "kerl"}, {200.0, "bike", "player"}, {300.0, "bike", "player"}, {400.0, "bike", "bike"}});
+        erwarte("Board: NPC faehrt, der Spieler wirft ihn ab, zweites use steigt ab",
+                f[1].ritte.size() == 1U && f[1].ritte[0].abMs == 100.0 && f[1].ritte[0].bisMs == 200.0 && f[2].ritte.size() == 1U &&
+                    f[2].ritte[0].abMs == 200.0 && f[2].ritte[0].bisMs == 300.0);
+        f[2].echterSpieler = false;
+        bhed::rittePlanen(f, {{100.0, "bike", "kerl"}, {200.0, "bike", "player"}, {400.0, "bike", "bike"}});
+        erwarte("Board: Ein zweiter NPC kommt nicht drauf, use auf sich selbst wirft alle ab",
+                f[2].ritte.empty() && f[1].ritte.size() == 1U && f[1].ritte[0].bisMs == 400.0);
+    }
+    using bhed::pmDrehAnim;
+    erwarte("cg_turnAnims: BOTH_STAND1", pmDrehAnim("BOTH_STAND1", bhed::kRegelwerkOpenJK) == "BOTH_TURNSTAND1" &&
+                                             pmDrehAnim("BOTH_STAND1", bhed::kRegelwerkMovieDuels) == "BOTH_TURNSTAND1" &&
+                                             pmDrehAnim("BOTH_STAND1", bhed::kRegelwerkJediOutcast) == "BOTH_TURNSTAND1");
+    erwarte("cg_turnAnims: Movie Duels kennt mehr", pmDrehAnim("BOTH_STAND1IDLE1_VADER", bhed::kRegelwerkMovieDuels) == "BOTH_TURNSTAND1" &&
+                                                        pmDrehAnim("BOTH_STAND1IDLE1_VADER", bhed::kRegelwerkOpenJK).empty());
+    erwarte("cg_turnAnims: Gehen hat keine", pmDrehAnim("BOTH_WALK1", bhed::kRegelwerkOpenJK).empty());
+    erwarte("Stil: ganze Ordnernamen", bhed::animStilMeistersatz("models/players/_humanoid_vader/_humanoid") &&
+                                           bhed::animStilMeistersatz("models/players/_humanoid_obi3/_humanoid") &&
+                                           !bhed::animStilMeistersatz("models/players/_humanoid_obi33/_humanoid") &&
+                                           !bhed::animStilMeistersatz("models/players/_humanoid/_humanoid") &&
+                                           !bhed::animStilMeistersatz("models/players/rancor/rancor"));
+    erwarte("Stil: Skelett passt", bhed::animStilSkelettPasst(53, 53, "x") && bhed::animStilSkelettPasst(72, 53, "models/players/_humanoid_md/_humanoid") &&
+                                       !bhed::animStilSkelettPasst(72, 53, "models/players/JK2anims/anim") &&
+                                       !bhed::animStilSkelettPasst(30, 53, "models/players/_humanoid_md/_humanoid"));
+}
+
+// rc608: RB_CalcDiffuseColor je Ecke, nur mit dem Bit und ohne Hintertuer in andere Varianten.
+void modellLichtShader() {
+    const std::string mit = bhed::gpu::vertexShaderHlsl(bhed::gpu::kModellLicht | bhed::gpu::kRohEcke, 0);
+    const std::string ohne = bhed::gpu::vertexShaderHlsl(bhed::gpu::kRohEcke, 0);
+    erwarte("Modelllicht: floor und Klemmung wie Q_ftol, Normale im Modellraum",
+            mit.find("floor(gModellUmgebung.rgb + max(0.0, dot(nrm, gModellRichtung.xyz)) * gModellGerichtet.rgb)") != std::string::npos &&
+                mit.find("min(255.0,") != std::string::npos);
+    erwarte("Modelllicht: andere Varianten kennen es nicht", ohne.find("gModell") == std::string::npos);
+    erwarte("Modelllicht: eigener Shadername",
+            bhed::gpu::shaderName(bhed::gpu::kModellLicht, 0) != bhed::gpu::shaderName(bhed::gpu::kNichts, 0));
+}
+
 int main() {
     rueckstoss();
     schmerz();
+    spielerSpannen();
+    figurEinstellungen();
+    modellLichtShader();
     leiche();
     portale();
     waffenhaltung();

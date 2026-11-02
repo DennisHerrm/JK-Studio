@@ -94,6 +94,9 @@ namespace bhed::gpu {
 // herunter: 3 -> 1, 5 -> 3, 13 -> 11.
 [[nodiscard]] float spielGammaWert(float wert);
 [[nodiscard]] std::string spielGammaPixelShaderHlsl();
+// rc608 Teil 9b: Mit r_ext_multisample hat der Tiefenpuffer Proben, und Direct3D kopiert ihn nicht in einen
+// Lesepuffer. Dieser Durchgang schreibt die Tiefe der Probe 0 je Bildpunkt in ein R32_FLOAT-Ziel (fuer die Gizmos).
+[[nodiscard]] std::string tiefeProbePixelShaderHlsl();
 
 // Ein kurzer Name fuer diese Kombination - fuer Protokolle und um erzeugte
 // Shader wiederzuerkennen.

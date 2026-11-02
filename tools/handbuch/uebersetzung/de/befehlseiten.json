@@ -188,6 +188,7 @@
  "Make and change ROFF files: [[k-roff-bearbeiten]].": "ROFF-Dateien erstellen und ändern: [[k-roff-bearbeiten]].",
  "play - play a ROFF file": "play - eine ROFF-Datei abspielen",
  "Plays a recorded movement (ROFF) on the entity of the current `affect` block.": "Spielt eine aufgezeichnete Bewegung (ROFF) auf der Entity des aktuellen `affect`-Blocks ab.",
+ "In the preview the player figure is hidden in the whole scene, not only here (an intended difference from the game, **{{MapShowPlayer}}** in the view settings).": "In der Vorschau fehlt die Spielerfigur in der ganzen Szene, nicht nur hier (bewusste Abweichung vom Spiel, **{{MapShowPlayer}}** in den Ansichtseinstellungen).",
  "From here on the player's view is replaced by the script's camera, the HUD disappears and the player cannot move. Every cutscene starts with it.": "Ab hier ersetzt die Kamera des Skripts die Sicht des Spielers, das HUD verschwindet, und der Spieler kann sich nicht bewegen. Jede Zwischensequenz beginnt damit.",
  "The event editor for `camera ( ENABLE )`.": "Der Ereignis-Editor für `camera ( ENABLE )`.",
  "Camera command": "Kamerabefehl",

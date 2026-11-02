@@ -711,7 +711,7 @@ void drawCameraGizmos(MapImage& img) {
                 continue;
             }
             const ActorState st = a.at(g_app->playMs);
-            if (!st.visible) {
+            if (!st.visible || spielerNichtZeichnen(a, g_app->playMs)) {
                 continue;
             }
             float kopf[3] = {st.pos[0], st.pos[1], st.pos[2] + 48.0F};
@@ -751,7 +751,7 @@ void drawCameraGizmos(MapImage& img) {
             continue;
         }
         const ActorState fs = fa.at(g_app->playMs);
-        if (!fs.visible) {
+        if (!fs.visible || spielerNichtZeichnen(fa, g_app->playMs)) {
             continue;
         }
         float brust[3] = {fs.pos[0], fs.pos[1], fs.pos[2] + 40.0F};
@@ -4620,6 +4620,88 @@ namespace {
 const std::string kSchussAnim = "BOTH_ATTACK3";
 }  // namespace
 
+// rc608: cg_turnAnims (Vorgabe 0, cg_main.cpp OJ 445, MD 654): CG_G2PlayerAngles, cg_players.cpp OJ 2672-2708.
+// Dreht die Figur die Beine im Stand, nicht in der Kamera und lebend, laeuft auf "pelvis" die Drehanimation zur
+// Beinanimation in Schleife (BONE_ANIM_OVERRIDE_LOOP, ohne Uebergang), sonst G2API_StopBoneAnimIndex.
+// Die Gier aendert sich im Takt des Servers (sv_fps 20): Ob sie sich dreht, sieht man ueber dieses Bild hinweg.
+void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d) {
+    const Actor::Ritt* ritt = nullptr;
+    for (const Actor::Ritt& r : a.ritte) {
+        if (ms >= r.abMs && (r.bisMs < 0.0 || ms < r.bisMs)) { ritt = &r; }
+    }
+    if (ritt == nullptr || ritt->fahrzeug >= g_app->scene.actors.size() || ritt->fahrzeug >= g_app->actorAssets.size() ||
+        !g_app->actorAssets[ritt->fahrzeug]) {
+        return;
+    }
+    const Actor& v = g_app->scene.actors[ritt->fahrzeug];
+    const App::ActorAssets& va = *g_app->actorAssets[ritt->fahrzeug];
+    const ActorState sv = v.at(ms);
+    // Board: "if ( pVeh->m_pVehicleInfo->hideRider ) Ghost": EF_NODRAW (g_vehicles.cpp OJ 2627).
+    if (v.fahrzeug.reiterVerbergen) { st.visible = false; }
+    st.angles[1] = sv.angles[1];   // cg_players.cpp OJ 2751: Beine in die Richtung des Fahrzeugs
+    st.moving = false;
+    // AttachRiders (g_vehicles.cpp OJ 2580): G2API_GetBoltMatrix(crotchBolt "*driver"), Ort
+    for (int k = 0; k < 3; ++k) { st.pos[k] = sv.pos[k]; }
+    ActorDraw vd;
+    std::vector<BoneMatrix> welt;
+    float fw[16];
+    if (figurPose(v, va, sv, ms, vd, welt, fw)) {
+        BoneMatrix bm{};
+        if (boltMatrix(*vd.model, surfaceIndex(*vd.model, "*driver"), welt, *vd.anim, bm)) {
+            for (int r = 0; r < 3; ++r) {
+                st.pos[r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+            }
+        }
+    }
+    // numHands 2: "switch to vehicle weapon", die Hand bleibt leer (Board, g_vehicles.cpp OJ 800-815).
+    const std::string waffe = v.fahrzeug.haende == 2 && st.waffe != "WP_SABER" && st.waffe != "WP_BLASTER" ? "WP_NONE" : st.waffe;
+    d.reitet = true;
+    d.reitetOhneWaffe = waffe == "WP_NONE" || waffe == "WP_SABER";
+    // AnimateRiders: Aufsteigen mit SETANIM_FLAG_HOLD, "the delay is actually 40%" der Laenge, dann der Leerlauf.
+    const std::string auf = reiterAufsteigen(v.fahrzeug.typ, ritt->boarding);
+    const std::string leer = reiterLeerlauf(v.fahrzeug.typ, waffe);
+    if (leer.empty()) { return; }
+    double dauer = 0.0;
+    if (const std::size_t ai = static_cast<std::size_t>(&a - g_app->scene.actors.data());
+        ai < g_app->actorAssets.size() && g_app->actorAssets[ai] && g_app->actorAssets[ai]->skeleton != nullptr) {
+        for (const AnimEntry& e : g_app->actorAssets[ai]->skeleton->sections) {
+            // PM_AnimLength: numFrames * fabs(frameLerp), frameLerp = 1000 / fps (G_ParseAnimationFile)
+            if (e.name == auf && e.fps != 0) { dauer = static_cast<double>(e.numFrames) * 1000.0 / std::abs(e.fps) * 0.4; }
+        }
+    }
+    const bool steigtAuf = !auf.empty() && ms < ritt->abMs + dauer;
+    st.animation = steigtAuf ? auf : leer;
+    st.animStartMs = steigtAuf ? ritt->abMs : ritt->abMs + dauer;
+    st.holdAnim = steigtAuf;
+    st.animSpeed = 1.0F;
+    st.torsoAnimation.clear();
+}
+
+void figurDrehAnim(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d) {
+    d.hipsFrame = -1;
+    if (!g_app->settings.cgTurnAnims || assets.skeleton == nullptr || st.moving) { return; }
+    if (g_app->camTrackValid && g_app->camTrack.at(ms).enabled) { return; }
+    if (a.getoetetMs >= 0.0 && ms >= a.getoetetMs) { return; }   // cent->gent->health > 0
+    constexpr double kServerMs = 50.0;
+    const auto dreht = [&a](double t, float gier) {
+        const ActorState v = a.at(std::max(t - kServerMs, 0.0));
+        return !v.moving && std::fabs(shortestAngleDelta(v.angles[1], gier)) > 0.0001F;
+    };
+    if (!dreht(ms, st.angles[1])) { return; }
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast
+                      : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    const std::string anim = pmDrehAnim(st.animation, spiel);
+    if (anim.empty()) { return; }
+    // Wann die Schleife begann: das erste Bild dieser Drehung.
+    double ab = ms;
+    while (ab > 0.0) {
+        const double vorher = ab - kServerMs;
+        if (!dreht(vorher, a.at(std::max(vorher, 0.0)).angles[1])) { break; }
+        ab = vorher;
+    }
+    d.hipsFrame = frameForAnimationIn(assets.skeleton->sections, anim, ms - ab, false, 1.0F, &d.hipsFraction, &d.hipsNext);
+}
+
 void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d) {
     // Welche NPC-Typen schon gemeldet wurden, dass ihnen die
     // Schussanimation fehlt. Ohne das kaeme die Zeile in jedem Bild.
@@ -4789,6 +4871,18 @@ void figurBilderSetzen(const Actor& a, const App::ActorAssets& assets, const Act
         const std::string& torso = d.torsoFrame < 0 ? st.animation : schussBild ? kSchussAnim : st.torsoAnimation;
         d.rumpfMotion = rumpfMotionAusgleich(d.rumpfKlasse, st.animation, torso, md);
         d.rumpfKante = rumpfAnDerKante(st.animation, md);
+        // rc608: cg_motionBoneComp. Jedi Outcast kennt die teure Fassung nicht (codeJK2/cgame/cg_players.cpp
+        // CG_G2ClientSpineAngles: nur > 1), dort gilt 3 wie 2.
+        d.motionBoneComp = g_app->settings.cgMotionBoneComp;
+        if (regelwerkJediOutcast()) { d.motionBoneComp = std::min(d.motionBoneComp, 2); }
+        if (d.motionBoneComp > 2) {
+            // dummyGhoul2: "models/players/_humanoid/_humanoid.glm", dessen .gla
+            GlmModel dummy;
+            dummy.animFile = "models/players/_humanoid/_humanoid";
+            const App::Skeleton* sk = skeletonFor(dummy);
+            d.dummyAnim = sk != nullptr ? &sk->anim : nullptr;
+        }
+        figurDrehAnim(a, assets, st, ms, d);
     }
 }
 
@@ -4835,7 +4929,7 @@ bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState&
     for (int q = 0; q < 3; ++q) { d.pos[q] = st.pos[q]; }
     d.yaw = st.angles[1];
     npcSkalaFuer(a.npcType, d.skala);
-    figurKopfGier(st, d);
+    figurKopfGier(a, st, d);
     d.yawOffset = static_cast<float>(g_app->actorYaw);
     std::vector<BoneMatrix> hilf;
     if (!figurKnochen(d, welt, hilf) || welt.empty()) { return false; }
@@ -4941,7 +5035,22 @@ bool figurMuendung(const Actor& a, const App::ActorAssets& assets, double ms, fl
     return false;
 }
 
-bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]) {
+namespace {
+// Waehrend blickFolgeRechnen die Pose des letzten Bilds braucht: der Blick dieses Bilds.
+const float* g_blickFest = nullptr;
+
+// viewAngles[PITCH] = lerpAngles * 0,5, Rancor voll (CG_G2PlayerAngles, cg_players.cpp OJ 2590-2600, 2682).
+float rumpfNickVon(const ActorState& st) { return shortestAngleDelta(0.0F, st.angles[0]) * 0.5F; }
+
+// stats.yawSpeed aus der Drehrate (turnRateFor), ohne Angabe die Vorgabe 90.
+float npcGierTempo(float gradJeSekunde) {
+    return gradJeSekunde > 0.0F ? (gradJeSekunde - 60.0F) / 3.0F : (kNpcTurnDegPerSec - 60.0F) / 3.0F;
+}
+
+// renderInfo.eyePoint und eyeAngles der Figur (CG_Player, cg_players.cpp OJ 7477-7507): der Bolzen des Kopfs,
+// Ort und NEGATIVE_Y (Rancor POSITIVE_X).
+bool figurKopfBolzen(const Actor& a, const App::ActorAssets& assets, const ActorState& st, double ms, float auge[3],
+                     float augenWinkel[3]) {
     std::string modell;
     std::string typ = a.npcType;
     for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
@@ -4955,7 +5064,7 @@ bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, 
     ActorDraw d;
     std::vector<BoneMatrix> welt;
     float fw[16];
-    if (!figurPose(a, assets, a.at(ms), ms, d, welt, fw)) { return false; }
+    if (!figurPose(a, assets, st, ms, d, welt, fw)) { return false; }
     // G2API_AddBolt: erst eine Flaeche ("*head_eyes"), dann ein Knochen ("cranium")
     BoneMatrix bm{};
     if (!boltMatrix(*d.model, surfaceIndex(*d.model, bolzen), welt, *d.anim, bm)) {
@@ -4963,11 +5072,116 @@ bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, 
         if (b < 0 || static_cast<std::size_t>(b) >= welt.size()) { return false; }
         bm = welt[static_cast<std::size_t>(b)];
     }
-    // G2API_GiveMeVectorFromMatrix(boltMatrix, ORIGIN, eyePoint)
+    const bool rancor = klasse == "CLASS_RANCOR";
+    float achse[3];
     for (int r = 0; r < 3; ++r) {
         auge[r] = fw[r * 4 + 0] * bm.m[0][3] + fw[r * 4 + 1] * bm.m[1][3] + fw[r * 4 + 2] * bm.m[2][3] + fw[r * 4 + 3];
+        const int s = rancor ? 0 : 1;
+        const float v = fw[r * 4 + 0] * bm.m[0][s] + fw[r * 4 + 1] * bm.m[1][s] + fw[r * 4 + 2] * bm.m[2][s];
+        achse[r] = rancor ? v : -v;
     }
+    engineVectoangles(achse, augenWinkel);
     return true;
+}
+}  // namespace
+
+// rc608: CG_G2PlayerAngles, CG_CheckLookTarget und CG_UpdateLookAngles (cg_players.cpp OJ 1711-1803, 2405-2457,
+// 2821-2866, in Movie Duels und Jedi Outcast gleich). Je gezeichnetem Bild des Spiels ein Schritt: Die Vorschau
+// zieht den Blick nach wie dort. Das Ziel ist relativ zu eyeAngles, und die enthalten den Blick des letzten Bilds.
+void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& assets, double ms) {
+    if (g_app->blickFolgen.size() != g_app->scene.actors.size()) {
+        g_app->blickFolgen.assign(g_app->scene.actors.size(), App::BlickFolge{});
+    }
+    if (ai >= g_app->blickFolgen.size() || assets.model.empty()) { return; }
+    App::BlickFolge& f = g_app->blickFolgen[ai];
+    // cg.frameInterpolation haengt am Serverbild (sv_fps 20) und an com_maxfps ("125", Vorgabe in
+    // shared/sys/sys_main.cpp:162): die Zeit zwischen zwei Bildern des Spiels.
+    constexpr double kBildMs = 1000.0 / 125.0;
+    constexpr double kServerMs = 50.0;
+    // LOOK_DEFAULT_SPEED (cg_players.cpp OJ 1708), CG_SWINGSPEED (:36), LOOK_TALKING_SPEED (:1709)
+    constexpr float kBlickTempo = 0.15F;
+    constexpr float kSchwungTempo = 0.3F;
+    constexpr float kRedeTempo = 0.15F;
+    // Nach einem Sprung in der Zeit: von hier an nachrechnen. Bei LOOK_DEFAULT_SPEED und im Mittel
+    // frameInterpolation 0,5 bleibt vom Anfangswert 0,925 hoch 100, unter 0,1 %.
+    constexpr long long kVorlauf = 100;
+    const long long bild = static_cast<long long>(std::floor(std::max(ms, 0.0) / kBildMs));
+    if (f.bild == bild) { return; }
+    long long von = f.bild + 1;
+    if (f.bild < 0 || bild < f.bild || bild - f.bild > kVorlauf) {
+        von = std::max(0LL, bild - kVorlauf);
+        for (float& w : f.winkel) { w = 0.0F; }
+        f.entprelltBis = -1.0;
+        f.gier = a.at(static_cast<double>(von) * kBildMs).angles[1];
+    }
+    std::string klasse = a.klasse;
+    for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+    const bool raketen = klasse == "CLASS_ROCKETTROOPER";
+    for (long long k = von; k <= bild; ++k) {
+        const double t = static_cast<double>(k) * kBildMs;
+        const ActorState st = a.at(t);
+        float ziel[3] = {rumpfNickVon(st), 0.0F, 0.0F};   // VectorCopy( viewAngles, lookAngles )
+        bool schaut = false;
+        if (st.hasLookTarget && g_app->lookRotation) {
+            float auge[3];
+            float augenWinkel[3];
+            g_blickFest = f.winkel;
+            const bool da = figurKopfBolzen(a, assets, st, t, auge, augenWinkel);
+            g_blickFest = nullptr;
+            if (da) {
+                const float dir[3] = {st.lookAt[0] - auge[0], st.lookAt[1] - auge[1], st.lookAt[2] - auge[2]};
+                float w[3];
+                engineVectoangles(dir, w);
+                for (int q = 0; q < 3; ++q) {
+                    // AnglesSubtract, je auf 180 normiert
+                    ziel[q] = shortestAngleDelta(augenWinkel[q], w[q]);
+                }
+                schaut = true;
+            }
+        }
+        const bool dreht = std::fabs(shortestAngleDelta(f.gier, st.angles[1])) > 0.0001F;
+        f.gier = st.angles[1];
+        // Wie schnell: Dreht sich der Rumpf, so schnell wie er (NPC: stats.yawSpeed / 150, Spieler CG_SWINGSPEED).
+        float tempo = kRedeTempo;
+        if (dreht) {
+            tempo = a.echterSpieler ? kSchwungTempo : npcGierTempo(st.turnDegPerSec) / 150.0F;
+        } else if (schaut) {
+            tempo = raketen ? kBlickTempo * 0.25F : kBlickTempo;
+        }
+        if (schaut) { f.entprelltBis = t + 1000.0; }
+        if (f.entprelltBis > t) {
+            ziel[0] = std::clamp(ziel[0], -50.0F, 50.0F);
+            ziel[1] = std::clamp(ziel[1], -70.0F, 70.0F);
+            ziel[2] = std::clamp(ziel[2], -30.0F, 30.0F);
+            const double rest = std::fmod(t, kServerMs);
+            const float zwischen = static_cast<float>(rest / kServerMs);   // cg.frameInterpolation
+            for (int q = 0; q < 3; ++q) {
+                ziel[q] = shortestAngleDelta(0.0F, f.winkel[q] + shortestAngleDelta(f.winkel[q], ziel[q]) * zwischen * tempo);
+            }
+        }
+        for (int q = 0; q < 3; ++q) { f.winkel[q] = ziel[q]; }
+    }
+    f.bild = bild;
+}
+
+void figurKopfGier(const Actor& a, const ActorState& st, ActorDraw& d) {
+    d.rumpfGier = st.rumpfGier;   // Zeitleiste 4: Rumpf gegen die Beine (Aufnahme)
+    d.rumpfNick = rumpfNickVon(st);
+    const float* w = g_blickFest;
+    if (w == nullptr) {
+        const std::size_t ai = static_cast<std::size_t>(&a - g_app->scene.actors.data());
+        if (ai < g_app->blickFolgen.size() && g_app->blickFolgen[ai].bild >= 0) { w = g_app->blickFolgen[ai].winkel; }
+    }
+    if (w != nullptr) {
+        d.kopfNick = w[0];
+        d.headYaw = w[1];
+        d.kopfRoll = w[2];
+    }
+}
+
+bool figurAugenPunkt(const Actor& a, const App::ActorAssets& assets, double ms, float auge[3]) {
+    float w[3];
+    return figurKopfBolzen(a, assets, a.at(ms), ms, auge, w);
 }
 
 void figurHakenSetzen(SzenenHilfe& h, const std::map<std::string, std::size_t>& index) {
@@ -5034,25 +5248,6 @@ bool figurFussPunkte(const Actor& a, const App::ActorAssets& assets, const Actor
 
 // rc601 saber: der Kopfausschlag zum Blickziel - aus der Figurenschleife
 // herausgezogen (er dreht drei Knochen und damit auch die Arme mit).
-void figurKopfGier(const ActorState& st, ActorDraw& d) {
-    d.rumpfGier = st.rumpfGier;   // Zeitleiste 4: Rumpf gegen die Beine (Aufnahme)
-    if (st.hasLookTarget && g_app->lookRotation) {
-        const float dx = st.lookAt[0] - st.pos[0];
-        const float dy = st.lookAt[1] - st.pos[1];
-        if (dx * dx + dy * dy > 1.0F) {
-            const float ziel =
-                std::atan2(dy, dx) * 180.0F / 3.14159265F;
-            // Der Ghoul2-Weg der Engine dreht den Oberkoerper
-            // NICHT dem Blick nach - siehe kHeadYawClampMin in
-            // scene.h. Es gibt nur den Kopfausschlag, und der
-            // verteilt sich im Zeichner auf drei Knochen.
-            d.headYaw = std::clamp(
-                shortestAngleDelta(st.angles[1], ziel),
-                kHeadYawClampMin, kHeadYawClampMax);
-        }
-    }
-}
-
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d) {
     static_assert(kAnbauKlingen == kMaxKlingen,
                   "mapview.h und scene.h muessen dieselbe Klingenzahl haben");
@@ -5249,6 +5444,16 @@ const App::Skeleton* skeletonFor(const GlmModel& model) {
     std::string animFile = model.animFile;
     if (animFile.empty()) {
         animFile = "models/players/_humanoid/_humanoid";
+    }
+    // rc608: g_ActivateAnimationStyle 1: der Meistersatz (bhed/regelwerk.h, md_animsets.h), wenn das Skelett passt.
+    if (animStilAktiv() && animStilMeistersatz(animFile)) {
+        std::string data;
+        GlaAnimation meister;
+        std::string err;
+        if (readFromArchives(std::string(kAnimStilMeisterGla) + ".gla", data) && readGla(data, meister, &err) &&
+            animStilSkelettPasst(model.numBones, static_cast<int>(meister.bones.size()), animFile)) {
+            animFile = kAnimStilMeisterGla;
+        }
     }
     const auto have = g_app->skeletons.find(animFile);
     if (have != g_app->skeletons.end()) {
@@ -6988,7 +7193,19 @@ void prepareScene() {
         if (an >= 0.0) {
             ac.kameraVerborgen.emplace_back(an, -1.0);
         }
+        ac.vorschauVerborgen.clear();
+        if (!g_app->camTrack.segments.empty()) {
+            ac.vorschauVerborgen = spielerVorschauSpannen(ac.kameraVerborgen, ac.steps);
+        }
     }
+    {
+        std::vector<RittBenutzung> benutzt;
+        for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
+            benutzt.push_back(RittBenutzung{b.ms, b.name, b.ausloeser});
+        }
+        rittePlanen(g_app->scene.actors, std::move(benutzt));
+    }
+    g_app->blickFolgen.clear();
     // rc605 (Rest): Jedi Outcast - der Kyle-NPC gleicht ausserhalb der Kamera
     // die Waffe des Spielers ab (munroWaffenAbgleich, src/ausruestung.cpp).
     if (regelwerkJediOutcast()) {
@@ -7907,6 +8124,15 @@ void kartenNetzNeu() {
     g_app->mapDirty = true;
 }
 
+// rc608: g_ActivateAnimationStyle. Im Spiel gilt es ab dem naechsten Laden der Karte (G_LatchAnimationStyle), und
+// die Modelle laden dann ihre .gla neu (tr_ghoul2.cpp, MD_AnimSetGLA). Hier: Figuren und Szene neu.
+void animStilWechseln() {
+    animStilSetzen(g_app->settings.gActivateAnimationStyle);
+    g_app->actorAssets.clear();
+    g_app->camTrackValid = false;
+    g_app->mapDirty = true;
+}
+
 // Im Klappfenster der Ansicht: Licht, Detail, Schatten, Figuren.
 void ansichtEinstellungen() {
     ImGui::BeginDisabled(g_app->geo.empty());
@@ -7932,6 +8158,29 @@ void ansichtEinstellungen() {
             }
             ziehen = -1;
         }
+    }
+    // r_ext_multisample: Kanten mit Proben wie der Bildpuffer des Spiels (multisampleWirksam).
+    {
+        const int spiel = multisampleWirksam(-1, regelwerkMovieDuels() && !regelwerkJediOutcast());
+        char wie[96];
+        std::snprintf(wie, sizeof(wie), tr(Str::MapMsaaGame), spiel);
+        const int werte[5] = {-1, 0, 2, 4, 8};
+        const char* namen[5] = {wie, tr(Str::MapMsaaOff), "2x", "4x", "8x"};
+        int wahl = 0;
+        for (int i = 0; i < 5; ++i) {
+            if (werte[i] == g_app->settings.rExtMultisample) { wahl = i; }
+        }
+        ImGui::SetNextItemWidth(feld);
+        if (ImGui::BeginCombo(tr(Str::MapMsaa), namen[wahl])) {
+            for (int i = 0; i < 5; ++i) {
+                if (ImGui::Selectable(namen[i], i == wahl)) {
+                    g_app->settings.rExtMultisample = werte[i];
+                    g_app->mapDirty = true;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapMsaaHint)); }
     }
     ImGui::SetNextItemWidth(feld);
     if (ImGui::SliderFloat(tr(Str::MapMinLight), &g_app->mapMinLight, 0.0F, 0.5F, "%.2f")) {
@@ -7966,6 +8215,17 @@ void ansichtEinstellungen() {
     }
     if (ImGui::Checkbox(tr(Str::MapScriptFocus), &g_app->skriptFokus)) { g_app->mapDirty = true; }
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapScriptFocusHint)); }
+    if (ImGui::Checkbox(tr(Str::MapShowPlayer), &g_app->spielerInCutscene)) { g_app->mapDirty = true; }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapShowPlayerHint)); }
+    ImGui::SetNextItemWidth(feld);
+    if (ImGui::SliderInt(tr(Str::MapMotionBone), &g_app->settings.cgMotionBoneComp, 0, 3)) { g_app->mapDirty = true; }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapMotionBoneHint)); }
+    if (ImGui::Checkbox(tr(Str::MapTurnAnims), &g_app->settings.cgTurnAnims)) { g_app->mapDirty = true; }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapTurnAnimsHint)); }
+    ImGui::BeginDisabled(!regelwerkMovieDuels());
+    if (ImGui::Checkbox(tr(Str::MapAnimStyle), &g_app->settings.gActivateAnimationStyle)) { animStilWechseln(); }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MapAnimStyleHint)); }
+    ImGui::EndDisabled();
     if (g_app->showActors) {
         // Figuren um 90 Grad drehen - fuer Modelle, die anders herum stehen.
         char lbl[64];
