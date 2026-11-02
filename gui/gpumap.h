@@ -261,6 +261,7 @@ int gluehenMoverAufrufe();
 // rc602 kartenpruefung: Effektteilchen mit glow-Stufe gehen ins Gluehen.
 // Vor zeichneGluehen das Effektnetz dieses Bildes nennen (nullptr = keins);
 // gluehenEffektAufrufe zaehlt, was davon gezeichnet wurde (Selbsttest).
+// Gilt nur fuer den naechsten zeichneGluehen (der setzt es zurueck), ebenso gluehenKlingen.
 void gluehenEffekte(const BspMesh* effekte);
 int gluehenEffektAufrufe();
 // rc602 kartenpruefung: die Leuchtklingen (KlingenQuad::gluehen) gehen ins

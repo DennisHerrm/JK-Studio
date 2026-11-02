@@ -3336,6 +3336,13 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    float zeitSekunden, int breite, int hoehe, bool weich,
                    std::string* fehler, const BspMesh* rauch,
                    const std::vector<GluehQuelle>& weitere) {
+    // rc608 Teil 12: Effekte und Klingen gelten nur fuer DIESEN Aufruf. Die Vorschau setzt sie je Bild davor;
+    // `klingen` liegt dort auf dem Stapel. Das Spielbild des Karten-Editors (app_karte_spielbild.cpp, Teil 11)
+    // ruft ohne sie - und las die Zeiger des letzten Vorschaubilds: Absturz (Selbsttest leistung, erst eine Szene
+    // mit Klingen in der Vorschau, dann "Built map as in the game"), und die Effektteilchen der Mission lagen im
+    // Gluehen der Editor-Karte.
+    const BspMesh* const gluehEffekte = std::exchange(g_gluehEffekte, nullptr);
+    const std::vector<KlingenQuad>* const gluehKlingen = std::exchange(g_gluehKlingen, nullptr);
     g_gluehenRauch = 0;
     g_gluehenMover = 0;
     ID3D11Device* d = dev();
@@ -3389,16 +3396,16 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     g_figurGluehenAn = false;
     // rc602 kartenpruefung: die leuchtenden Effektteilchen (Durchgang 1c).
     std::vector<DrawCall> effektGlueh;
-    if (g_gluehEffekte != nullptr && !g_gluehEffekte->indexes.empty()) {
-        for (const DrawCall& call : zeichenliste(*g_gluehEffekte, textures, zeitSekunden)) {
+    if (gluehEffekte != nullptr && !gluehEffekte->indexes.empty()) {
+        for (const DrawCall& call : zeichenliste(*gluehEffekte, textures, zeitSekunden)) {
             if ((call.state.features & kGlow) != 0U) { effektGlueh.push_back(call); }
         }
     }
     g_gluehenEffekte = 0;
     // rc602 kartenpruefung: die Leuchtklingen (Durchgang 1d).
     std::vector<KlingenQuad> klingenGlueh;
-    if (g_gluehKlingen != nullptr) {
-        for (const KlingenQuad& q : *g_gluehKlingen) {
+    if (gluehKlingen != nullptr) {
+        for (const KlingenQuad& q : *gluehKlingen) {
             if (q.gluehen) { klingenGlueh.push_back(q); }
         }
     }
@@ -3533,7 +3540,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                 c->IASetIndexBuffer(np.ib, DXGI_FORMAT_R32_UINT, 0);
                 c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 std::string ef;
-                g_gluehenEffekte = zeichneAufrufe(glueh, *g_gluehEffekte, textures, geo, zeitSekunden, &ef);
+                g_gluehenEffekte = zeichneAufrufe(glueh, *gluehEffekte, textures, geo, zeitSekunden, &ef);
                 n += g_gluehenEffekte;
                 if (fehler != nullptr && fehler->empty()) { *fehler = ef; }
             }
