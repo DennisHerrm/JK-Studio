@@ -6850,6 +6850,8 @@ TEXTE = {
         "El botón 2 está oculto tras abrir; Mostrar y Ocultar mueven el botón 3 como la disposición.",
     "Jedi Outcast":
         "Jedi Outcast",
+    "Text in Jedi Outcast single player is measured like `jk2sp.exe`: every letter advances by a rounded number of pixels and the line height is rounded too. Long texts such as the weapon descriptions of the datapad therefore break at the same words as in the game.":
+        "El texto del modo de un jugador de Jedi Outcast se mide como en `jk2sp.exe`: cada letra avanza un número redondeado de píxeles y la altura de línea también se redondea. Por eso los textos largos, como las descripciones de armas del datapad, cortan la línea en las mismas palabras que en el juego.",
     "The Jedi Outcast menus were compared with the real game (Steam version). The editor now follows its engine: no `setitemrect`, `setitemtext`, `transition2` or `delay`, no `accept` event, the logo models (`.md3`) with the game's camera. **{{MeImSpielTesten}}** starts `jk2sp.exe` with your own folder as `fs_basepath` and the game data via `fs_cdpath` - nothing is written into the game folder.":
         "Los menús de Jedi Outcast se compararon con el juego real (versión de Steam). El editor sigue ahora su motor: sin `setitemrect`, `setitemtext`, `transition2` ni `delay`, sin el evento `accept`, los modelos del logotipo (`.md3`) con la cámara del juego. **{{MeImSpielTesten}}** inicia `jk2sp.exe` con tu propia carpeta como `fs_basepath` y los datos del juego mediante `fs_cdpath`: no se escribe nada en la carpeta del juego.",
     "Your first own menu":

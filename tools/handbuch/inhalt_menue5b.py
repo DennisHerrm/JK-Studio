@@ -52,6 +52,11 @@ MENUE_EDITOR_M5B = {
             "Die Menüs von Jedi Outcast wurden mit dem echten Spiel (Steam-Fassung) verglichen. Der Editor folgt jetzt dessen Engine: kein `setitemrect`, `setitemtext`, `transition2` oder `delay`, kein Ereignis `accept`, die Logo-Modelle (`.md3`) mit der Kamera des Spiels. **{{MeImSpielTesten}}** startet `jk2sp.exe` mit deinem eigenen Ordner als `fs_basepath` und den Spieldaten über `fs_cdpath` - in den Spielordner wird nichts geschrieben.",
             "Jedi Outcast 的菜单已与真实游戏(Steam 版)对照。编辑器现在遵循其引擎:没有 `setitemrect`、`setitemtext`、`transition2` 或 `delay`,没有 `accept` 事件,标志模型(`.md3`)使用游戏的相机。**{{MeImSpielTesten}}** 会以你自己的文件夹作为 `fs_basepath`、通过 `fs_cdpath` 读取游戏数据来启动 `jk2sp.exe`——不会向游戏文件夹写入任何内容。",
             "Jedi Outcast のメニューを実際のゲーム(Steam 版)と比較しました。エディターはそのエンジンに従います: `setitemrect`、`setitemtext`、`transition2`、`delay` はなく、`accept` イベントもなく、ロゴのモデル(`.md3`)はゲームのカメラで描きます。**{{MeImSpielTesten}}** は自分のフォルダーを `fs_basepath`、ゲームデータを `fs_cdpath` にして `jk2sp.exe` を起動します。ゲームフォルダーには何も書き込みません。")),
+        ("p", T(
+            "Text in Jedi Outcast single player is measured like `jk2sp.exe`: every letter advances by a rounded number of pixels and the line height is rounded too. Long texts such as the weapon descriptions of the datapad therefore break at the same words as in the game.",
+            "Text im Einzelspieler von Jedi Outcast wird wie in `jk2sp.exe` gemessen: jeder Buchstabe rückt um eine gerundete Zahl von Bildpunkten vor, und auch die Zeilenhöhe ist gerundet. Lange Texte wie die Waffenbeschreibungen im Datapad brechen darum an denselben Wörtern um wie im Spiel.",
+            "Jedi Outcast 单人模式中的文字按 `jk2sp.exe` 的方式测量:每个字母前进的像素数都会取整,行高也会取整。因此,数据板中的武器说明等长文本会在与游戏中相同的单词处换行。",
+            "Jedi Outcast のシングルプレイヤーの文字は `jk2sp.exe` と同じように測ります。各文字の送り幅は整数ピクセルに丸められ、行の高さも丸められます。そのため、データパッドの武器説明のような長い文章も、ゲームと同じ単語で折り返されます。")),
     ],
 }
 

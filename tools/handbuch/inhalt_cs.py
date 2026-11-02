@@ -6847,6 +6847,8 @@ TEXTE = {
         "Tlačítko 2 je po otevření skryté; Zobrazit a Skrýt posouvají tlačítko 3 jako rozvržení.",
     "Jedi Outcast":
         "Jedi Outcast",
+    "Text in Jedi Outcast single player is measured like `jk2sp.exe`: every letter advances by a rounded number of pixels and the line height is rounded too. Long texts such as the weapon descriptions of the datapad therefore break at the same words as in the game.":
+        "Text v režimu pro jednoho hráče Jedi Outcast se měří jako v `jk2sp.exe`: každé písmeno posune o zaokrouhlený počet pixelů a zaokrouhlená je i výška řádku. Dlouhé texty, jako popisy zbraní v datapadu, se proto zalamují u stejných slov jako ve hře.",
     "The Jedi Outcast menus were compared with the real game (Steam version). The editor now follows its engine: no `setitemrect`, `setitemtext`, `transition2` or `delay`, no `accept` event, the logo models (`.md3`) with the game's camera. **{{MeImSpielTesten}}** starts `jk2sp.exe` with your own folder as `fs_basepath` and the game data via `fs_cdpath` - nothing is written into the game folder.":
         "Menu Jedi Outcast byla porovnána se skutečnou hrou (verze ze Steamu). Editor se nyní řídí jejím enginem: žádné `setitemrect`, `setitemtext`, `transition2` ani `delay`, žádná událost `accept`, modely loga (`.md3`) s kamerou hry. **{{MeImSpielTesten}}** spustí `jk2sp.exe` s vaší vlastní složkou jako `fs_basepath` a herními daty přes `fs_cdpath` - do složky hry se nic nezapíše.",
     "Your first own menu":
