@@ -5563,17 +5563,25 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
                                                         "SABER_SINGLE_KYLO_REN", "SABER_ELECTROSTAFF"};
                 for (const char* t : kInstabil) { an->saberInstabil = an->saberInstabil || art->typ == t; }
             }
+            // CG_DoSaberLight: welche Klingen das gemischte Licht nimmt (firstBlade..lastBlade; mit noDlight2 ist lastBlade
+            // bladeStyle2Start selbst, nicht die Klinge davor - so steht es in cg_players.cpp:5664-5667)
+            int mischErste = 0;
+            int mischLetzte = s.numBlades - 1;
+            if (art != nullptr && art->ohneLicht) {
+                if (art->bladeStyle2Start > 0 && !art->ohneLicht2) {
+                    mischErste = art->bladeStyle2Start;
+                } else {
+                    mischLetzte = -1;
+                }
+            } else if (art != nullptr && art->bladeStyle2Start > 0 && art->ohneLicht2) {
+                mischLetzte = art->bladeStyle2Start;
+            }
             for (int b = 0; b < s.numBlades && b < kMaxKlingen; ++b) {
                 // noBlade / noBlade2, je nach bladeStyle2Start
                 // (ebenda:14562 ff.) - der Griff eines Elektrostabs hat
                 // keine Klinge, nur das Licht.
-                if (art != nullptr) {
-                    const bool zweiter =
-                        art->bladeStyle2Start > 0 && b >= art->bladeStyle2Start;
-                    if (zweiter ? art->ohneKlinge2 : art->ohneKlinge) {
-                        continue;
-                    }
-                }
+                const bool zweiterStil = art != nullptr && art->bladeStyle2Start > 0 && b >= art->bladeStyle2Start;
+                const bool ohneKlinge = art != nullptr && (zweiterStil ? art->ohneKlinge2 : art->ohneKlinge);
                 // rc601 saber review: die Laenge, mit der CG_DoSaber zeichnet
                 // (L+8 beim Wachsen, Zuenden nach Kampfstil, an Waenden
                 // gekuerzt) - vorher galt hier die Szenenlaenge, und eine Klinge
@@ -5598,8 +5606,11 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
                 kd.coreTex = bladeTexture(kz.farbe, false);
                 // noDlight (CG_AddSaberBladeGo, cg_players.cpp:6711-6717 OpenJK, 14535-14543 MD): ab drei Klingen
                 // oder mit noDlight/noDlight2 fuer den Klingenstil dieser Klinge kein eigenes Licht.
-                const bool zweiterStil = art != nullptr && art->bladeStyle2Start > 0 && b >= art->bladeStyle2Start;
-                kd.eigenesLicht = s.numBlades < 3 && !(art != nullptr && (zweiterStil ? art->ohneLicht2 : art->ohneLicht));
+                const bool keinLicht = s.numBlades >= 3 || (art != nullptr && (zweiterStil ? art->ohneLicht2 : art->ohneLicht));
+                kd.ohneKlinge = ohneKlinge;
+                kd.eigenesLicht = !keinLicht && !ohneKlinge;
+                kd.mischLichtFuerSie = ohneKlinge && !keinLicht;
+                kd.imMischLicht = b >= mischErste && b <= mischLetzte;
             }
         }
     }

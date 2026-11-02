@@ -615,6 +615,12 @@ struct KlingeDraw {
     // rc608 Teil 10b: ob CG_AddSaberBladeGo dieser Klinge ein eigenes Licht gibt (!noDlight: weniger als drei
     // Klingen und kein noDlight/noDlight2 der .sab fuer ihren Klingenstil).
     bool eigenesLicht = true;
+    // rc608 Teil 13: noBlade/noBlade2 - die Klinge wird nicht gezeichnet; ohne noDlight ruft CG_AddSaberBladeGo fuer sie
+    // CG_DoSaberLight (das gemischte Licht des ganzen Schwerts, cg_players.cpp:6720-6727 OpenJK, MD ebenso).
+    bool ohneKlinge = false;
+    bool mischLichtFuerSie = false;
+    // CG_DoSaberLight nimmt die Klingen firstBlade..lastBlade (noDlight/noDlight2 des Schwerts, cg_players.cpp:5644-5668)
+    bool imMischLicht = true;
 };
 
 // Ein Modell an einem Bolzen der Figur: Waffe, Schwertgriff oder

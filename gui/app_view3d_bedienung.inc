@@ -3942,6 +3942,8 @@ void drawMapView() {
                                     for (float& kanal : wl.farbe) { kanal *= i > 0.0F ? i : 1.0F; }
                                 };
                                 const bool gemischt = an.saberKlingenZahl >= 3 && !regelwerkJediOutcast();
+                                // rc608 Teil 13: dazu je Klinge ohne Klinge (noBlade) ohne noDlight ein Aufruf von CG_DoSaberLight
+                                int mischAufrufe = gemischt ? 1 : 0;
                                 float lMitte[3] = {0.0F, 0.0F, 0.0F};
                                 float lFarbe[3] = {0.0F, 0.0F, 0.0F};
                                 float lErsteFarbe[3] = {0.0F, 0.0F, 0.0F};
@@ -3968,6 +3970,7 @@ void drawMapView() {
                                     if (!saberKlingeZeichnen(a.figur, an.saberFach, kd.nummer, wA, wB, kd.laenge)) {
                                         continue;
                                     }
+                                    if (kd.mischLichtFuerSie && !regelwerkJediOutcast()) { ++mischAufrufe; }
                                     if (!gemischt && kd.eigenesLicht) {
                                         // Jedi Outcast: (length*2) + flrand*8, rgb. OpenJK: (length*1.4) +
                                         // flrand*3, rgb. Movie Duels: CG_DoSaber und die Stile von
@@ -3991,19 +3994,22 @@ void drawMapView() {
                                         mdSkala(kl);
                                         schwertLichter.push_back(kl);
                                     }
-                                    if (gemischt && lSpitzen.empty()) {
-                                        for (int k = 0; k < 3; ++k) {
-                                            lMitte[k] = 0.5F * (wA[k] + wB[k]);
-                                            lErsteFarbe[k] = kd.licht[k];
+                                    if (kd.imMischLicht) {   // CG_DoSaberLight: firstBlade..lastBlade
+                                        if (lSpitzen.empty()) {
+                                            for (int k = 0; k < 3; ++k) {
+                                                lMitte[k] = 0.5F * (wA[k] + wB[k]);
+                                                lErsteFarbe[k] = kd.licht[k];
+                                            }
                                         }
+                                        lSpitzen.push_back({wB[0], wB[1], wB[2]});
+                                        for (int k = 0; k < 3; ++k) {
+                                            lFarbe[k] += kd.laenge * kd.licht[k];
+                                            lSpitzenSumme[k] += wB[k];
+                                        }
+                                        lGesamt += kd.laenge;
+                                        lDurchmesser = std::max(lDurchmesser, kd.laenge * 2.0F);
                                     }
-                                    lSpitzen.push_back({wB[0], wB[1], wB[2]});
-                                    for (int k = 0; k < 3; ++k) {
-                                        lFarbe[k] += kd.laenge * kd.licht[k];
-                                        lSpitzenSumme[k] += wB[k];
-                                    }
-                                    lGesamt += kd.laenge;
-                                    lDurchmesser = std::max(lDurchmesser, kd.laenge * 2.0F);
+                                    if (kd.ohneKlinge) { continue; }   // noBlade: nur das Licht, keine Klinge, keine Spur
                                     // Erst der breite Glanz in der Klingen-
                                     // farbe, dann der schmale, fast weisse
                                     // Kern (Radius / 3) - CG_DoSaber.
@@ -4050,7 +4056,7 @@ void drawMapView() {
                                         klingen.push_back(q);
                                     }
                                 }
-                                if (gemischt && lGesamt > 0.0F && !lSpitzen.empty()) {
+                                for (int aufruf = 0; aufruf < mischAufrufe && lGesamt > 0.0F && !lSpitzen.empty(); ++aufruf) {
                                     gpu::WeltLicht wl;
                                     if (lSpitzen.size() == 1U) {
                                         for (int k = 0; k < 3; ++k) {
