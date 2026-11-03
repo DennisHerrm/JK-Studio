@@ -6,6 +6,260 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ", gegliedert mit "### Bereich", in jeder Sprache gleich viele)
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc608 2026-11-03
+[en]
+- Mission preview and the map editor's game picture now follow the game's renderer much more closely (light, sky, fog, patches, area portals, glow), turrets fight, riding works; the menu editor got a new right panel, in-place text, drag and drop and undo everywhere; faster loading.
+### Mission preview
+- Light as in the game: map and characters were far too bright; brightness 1.0x and ambient 0 by default, light grid, minimum light, dynamic lights and (Movie Duels) the gamma step follow the engine; .md3 models are lit by the light grid.
+- Sky as in the game: only the rectangle of the sky box around the visible sky surfaces, including its underside; nothing behind closed doors (area portals) or outside the camera's PVS, and the far plane (distanceCull) hides what lies completely behind it.
+- Curved surfaces are divided as in the game and drop detail with distance (r_subdivisions 4, r_lodCurveError 250), also on doors; reflective floors, glow halo, multi-stage and alpha-tested shaders, glass and lamp glows are drawn in the game's order and blend.
+- Sentry guns, turrets and misc_turretG2 find, aim, fire and do damage by the rules of the chosen game; figures flinch, are pushed away, die, fall to their death; corpses slide, lie along the slope and disappear by the game's rules; Ghoul2 items stand the right way round.
+- Riding as measured in Movie Duels: SET_VEHICLE, vehicles spawned by use, climbing on and off, swoops hover and turn where the rider looks, a tauntaun stands in its idle animation.
+- The player has the game's character and saber (g_saber, g_saber_color); saber light per blade as in the game, with the settings Saber light and Saber light reach; the game's figure settings cg_motionBoneComp, cg_turnAnims, g_ActivateAnimationStyle; feet on slopes.
+- Weather files of Movie Duels apply (embers, snow, rain); new settings Texture detail (r_picmip) and Edge smoothing (r_ext_multisample).
+- In a scene with a camera track the player is hidden as before; Show player shows him exactly as in the game.
+- Heads that follow a look target, and the sabers in their hands, show exactly the same picture when the timeline is dragged backwards as forwards.
+- Movie Duels 9 weather files: r_weather 6 (fog) and 5 (heavy rain fog) draw their fog as in the game; heavy rain fog has its own size and brightness.
+- Jedi Outcast: the player holds the Bryar pistol as in the game.
+### Map editor
+- New Build > Built map as in the game (on by default): the camera shows the built map through the Mission renderer - all shader stages, sky box, sky portal, glow, fog, PVS, weather, map models, effects, surface sprites and the game's gamma; doors and other brush entities stand where the game puts them.
+- Lightmaps and the real-time light are no longer doubled; floors and walls of the built map match the game (1.00 to 1.02 on twelve maps).
+- Effect decals use the same faces as q3map2 in every case (fog brushes, cloned and back shaders, _decal, nodraw patches, terrain, the BSP switches of the Build entry).
+- Opening a map is about 45 % faster.
+### Menu editor
+- New start screen; new right panel with Properties, Events and Text editor: a card per element, field search, labelled groups, values you type or drag, changed values marked; Properties shows only what the game reads for the element.
+- Events in plain words: triggers and steps, Add step with search and the most used commands, Try on canvas; targets follow a rename, a missing target is named.
+- Undo and redo everywhere, also for the selection; a first click only selects, Alt+click goes through overlapping elements; drag a frame to select several, right-click menus on canvas, hierarchy and tabs.
+- Write text in place on the canvas with the game's font; drag every element onto the canvas; Image, Video and Model elements start ready to use; Ctrl+wheel zooms the canvas and the text editor.
+- Preview as in the game: empty menus, wrapping, fonts of Movie Duels multiplayer, the text of Jedi Outcast single player measured like jk2sp.exe, limits per game; nothing typed can destroy a menu, unknown lines are refused with a message.
+- All Jedi Outcast multiplayer menus compared with the running game; a new menu file enters the menu list by itself, Test in game opens the open page at once.
+- The Movie Duels 9 shop (sje_shop.menu) shows tabs, rows, prices and credits as in the game, with the items of md_shop.dat.
+- The right column keeps the width you dragged; a narrow window (200 %) no longer makes it narrow for good.
+### Interface
+- The Changelog window is divided by area with headings you can fold.
+- Tutorials keep clear of open lists, of the panel the step points to and of the canvas; at 200 % they take less room.
+- Command line: unknown switches are no longer opened as files; --version names the version.
+- Preferences: Ok and Cancel stay on screen when the main window is taller than the monitor.
+### Speed
+- All images of a map and the textures of every figure are decoded in parallel: md_am_sith loads in 1.2 s instead of 3.0 s, a 37-figure scene builds in 1.7 s instead of 2.5 s; pictures are byte-identical.
+- Maps with a sky portal no longer rebuild the index buffer twice per frame: playing md_am_sith needs 3.7 ms instead of 5.8 ms CPU per frame.
+### Guide
+- Images up to 2560 wide (animated 1920), shown much larger; all pictures with a map retaken in six languages.
+### Fixed
+- The map editor crashed with "Built map as in the game" after a scene with lightsabers; the map editor's glow no longer picks up effect particles of the mission.
+- After a lost graphics device the Movie Duels gamma is created again on the new device.
+- Preview: a droid killed by a laser trip mine's explosion no longer vanishes from the beam in the same instant (it only stops being drawn, as in the game); the mine explodes and chained mines follow.
+[de]
+- Missions-Vorschau und das Spielbild des Karten-Editors folgen dem Renderer des Spiels viel genauer (Licht, Himmel, Nebel, Patches, Gebietsportale, Glühen), Geschütze kämpfen, Reiten geht; der Menü-Editor hat eine neue rechte Leiste, Text direkt auf der Fläche, Ziehen und Ablegen und überall Rückgängig; schnelleres Laden.
+### Missions-Vorschau
+- Licht wie im Spiel: Karte und Figuren waren viel zu hell; Vorgabe Helligkeit 1,0x und Grundlicht 0, Lichtgitter, Mindestlicht, dynamische Lichter und (Movie Duels) die Gammastufe folgen der Engine; .md3-Modelle bekommen das Licht aus dem Lichtgitter.
+- Himmel wie im Spiel: nur das Rechteck der Himmelsbox um die sichtbaren Himmelsflächen, samt Unterseite; nichts hinter geschlossenen Türen (Gebietsportale) oder außerhalb des PVS der Kamera, und die ferne Ebene (distanceCull) blendet aus, was ganz dahinter liegt.
+- Gekrümmte Flächen werden wie im Spiel unterteilt und verlieren mit dem Abstand Details (r_subdivisions 4, r_lodCurveError 250), auch an Türen; spiegelnde Böden, Glühhof, mehrstufige und alphageprüfte Shader, Glas und Lampenschein in der Reihenfolge und Mischung des Spiels.
+- Sentry-Geschütze, Geschütztürme und misc_turretG2 finden, zielen, feuern und richten Schaden nach den Regeln des gewählten Spiels an; Figuren zucken, werden weggestoßen, sterben, stürzen zu Tode; Leichen rutschen, liegen am Hang und verschwinden nach den Regeln des Spiels; Ghoul2-Gegenstände stehen richtig herum.
+- Reiten wie in Movie Duels gemessen: SET_VEHICLE, per use gespawnte Fahrzeuge, Auf- und Absteigen, Gleiter schweben und drehen dorthin, wohin der Reiter schaut, ein Tauntaun steht in seiner Ruheanimation.
+- Der Spieler hat Figur und Schwert des Spiels (g_saber, g_saber_color); Schwertlicht je Klinge wie im Spiel, mit den Einstellungen Schwertlicht und Reichweite; die Figur-Einstellungen cg_motionBoneComp, cg_turnAnims, g_ActivateAnimationStyle; Füße am Hang.
+- Wetterdateien von Movie Duels gelten (Glut, Schnee, Regen); neue Einstellungen Texturdetail (r_picmip) und Kantenglättung (r_ext_multisample).
+- In einer Szene mit Kamerafahrt bleibt der Spieler wie bisher verborgen; Spieler zeigen zeigt ihn genau wie im Spiel.
+- Köpfe, die einem Blickziel folgen, und die Schwerter in ihren Händen zeigen beim Zurückziehen der Zeitleiste genau dasselbe Bild wie vorwärts.
+- Wetterdateien von Movie Duels 9: r_weather 6 (Nebel) und 5 (Nebel bei Starkregen) zeichnen ihren Nebel wie im Spiel; der Starkregen-Nebel hat seine eigene Größe und Helligkeit.
+- Jedi Outcast: Der Spieler hält die Bryar-Pistole wie im Spiel.
+### Karten-Editor
+- Neu Build > Gebaute Karte wie im Spiel (Vorgabe an): Die Kamera zeigt die gebaute Karte mit dem Renderer des Mission-Tabs - alle Shaderstufen, Himmelsbox, Himmelsportal, Glühen, Nebel, PVS, Wetter, Kartenmodelle, Effekte, Surface-Sprites und das Gamma des Spiels; Türen und andere Brush-Entities stehen, wo das Spiel sie hinstellt.
+- Lightmaps und Echtzeit-Licht werden nicht mehr doppelt genommen; Böden und Wände der gebauten Karte stimmen mit dem Spiel überein (1,00 bis 1,02 auf zwölf Karten).
+- Decals der Effekte treffen in jedem Fall dieselben Flächen wie q3map2 (Nebelpinsel, Klon- und Rückseiten-Shader, _decal, nodraw-Patches, Terrain, die BSP-Schalter des Build-Eintrags).
+- Eine Karte öffnet rund 45 % schneller.
+### Menü-Editor
+- Neuer Startbildschirm; neue rechte Leiste mit Eigenschaften, Ereignissen und Text-Editor: eine Karte je Element, Feldsuche, beschriftete Gruppen, Werte zum Tippen oder Ziehen, geänderte Werte markiert; Eigenschaften zeigt nur, was das Spiel für das Element liest.
+- Ereignisse in Klartext: Auslöser und Schritte, Schritt hinzufügen mit Suche und den häufigsten Befehlen, Auf der Fläche ausprobieren; Ziele folgen einer Umbenennung, ein fehlendes Ziel wird genannt.
+- Rückgängig und Wiederholen überall, auch für die Auswahl; ein erster Klick wählt nur, Alt+Klick geht durch übereinanderliegende Elemente; Rahmen ziehen wählt mehrere, Rechtsklick-Menüs auf Fläche, Hierarchie und Reitern.
+- Text direkt auf der Fläche mit der Schrift des Spiels schreiben; jedes Element auf die Fläche ziehen; Bild-, Video- und Modell-Elemente starten gebrauchsfertig; Strg+Mausrad zoomt Fläche und Text-Editor.
+- Vorschau wie im Spiel: leere Menüs, Umbruch, die Schriften von Movie Duels im Mehrspieler, Text von Jedi Outcast im Einzelspieler gemessen wie jk2sp.exe, Grenzen je Spiel; keine Eingabe kann ein Menü zerstören, unbekannte Zeilen werden mit Meldung abgewiesen.
+- Alle Mehrspieler-Menüs von Jedi Outcast mit dem laufenden Spiel verglichen; eine neue Menüdatei trägt sich selbst in die Menüliste ein, Im Spiel testen öffnet sofort die offene Seite.
+- Der Laden von Movie Duels 9 (sje_shop.menu) zeigt Reiter, Zeilen, Preise und Credits wie im Spiel, mit den Gegenständen aus md_shop.dat.
+- Die rechte Spalte behält die gezogene Breite; ein schmales Fenster (200 %) macht sie nicht mehr dauerhaft schmal.
+### Oberfläche
+- Das Changelog-Fenster ist nach Bereichen gegliedert, mit Überschriften zum Zuklappen.
+- Tutorials halten offene Listen, die Leiste, auf die der Schritt zeigt, und die Fläche frei; bei 200 % brauchen sie weniger Platz.
+- Befehlszeile: unbekannte Schalter werden nicht mehr als Dateien geöffnet; --version nennt die Fassung.
+- Einstellungen: Ok und Abbrechen bleiben im Bild, wenn das Hauptfenster höher ist als der Monitor.
+### Tempo
+- Alle Bilder einer Karte und die Texturen jeder Figur werden parallel entpackt: md_am_sith lädt in 1,2 s statt 3,0 s, eine Szene mit 37 Figuren baut in 1,7 s statt 2,5 s; die Bilder sind bytegleich.
+- Karten mit Himmelsportal bauen den Indexpuffer nicht mehr zweimal je Bild: Das Abspielen von md_am_sith braucht 3,7 ms statt 5,8 ms Prozessorzeit je Bild.
+### Handbuch
+- Bilder bis 2560 breit (bewegte 1920), deutlich größer gezeigt; alle Bilder mit Karte in sechs Sprachen neu aufgenommen.
+### Behoben
+- Der Karten-Editor stürzte mit „Gebaute Karte wie im Spiel“ nach einer Szene mit Lichtschwertern ab; das Glühen der Editor-Karte nimmt keine Effektteilchen der Mission mehr mit.
+- Nach einem Verlust des Grafikgeräts legt das neue Gerät das Gamma von Movie Duels wieder an.
+- Vorschau: Ein Droide, den die Explosion einer Laserfalle tötet, verschwindet nicht mehr im selben Augenblick aus dem Strahl (er wird wie im Spiel nur nicht mehr gezeichnet); die Falle explodiert, verkettete Fallen folgen.
+[zh]
+- 任务预览和地图编辑器的游戏画面现在更贴近游戏渲染器（光照、天空、雾、曲面片、区域入口、辉光），炮塔会战斗，可以骑乘；菜单编辑器有新的右侧面板、画布上直接编辑文字、拖放以及处处可撤销；加载更快。
+### 任务预览
+- 光照与游戏一致：地图和角色以前太亮；默认亮度 1.0x、环境光 0，光照网格、最低光照、动态光以及（Movie Duels）伽马级别都遵循引擎；.md3 模型使用光照网格的光。
+- 天空与游戏一致：只绘制可见天空面周围的天空盒矩形，包括底面；关闭的门后（区域入口）或摄像机 PVS 之外的内容不再绘制，远裁剪面（distanceCull）隐藏完全位于其后的部分。
+- 曲面按游戏方式细分，并随距离减少细节（r_subdivisions 4、r_lodCurveError 250），门上也是如此；反光地面、辉光光晕、多阶段和 alpha 测试着色器、玻璃和灯光按游戏的顺序与混合方式绘制。
+- 哨兵炮、炮塔和 misc_turretG2 按所选游戏的规则寻找目标、瞄准、开火并造成伤害；角色会受击退缩、被推开、死亡、坠落致死；尸体会滑动、顺坡躺下并按游戏规则消失；Ghoul2 物品方向正确。
+- 骑乘按 Movie Duels 实测：SET_VEHICLE、通过 use 生成的载具、上下载具，飞行摩托悬浮并转向骑手所看的方向，tauntaun 站在其待机动画中。
+- 玩家使用游戏中的角色和光剑（g_saber、g_saber_color）；每把剑刃的光照与游戏一致，并有“光剑光照”和“光照范围”设置；游戏的角色设置 cg_motionBoneComp、cg_turnAnims、g_ActivateAnimationStyle；脚贴合斜坡。
+- Movie Duels 的天气文件生效（余烬、雪、雨）；新设置“纹理细节”（r_picmip）和“边缘平滑”（r_ext_multisample）。
+- 带摄像机轨迹的场景中玩家照旧隐藏；“显示玩家”会完全按游戏方式显示他。
+- 跟随注视目标的头部以及手中的光剑,向后拖动时间轴时显示的画面与向前时完全相同。
+- Movie Duels 9 的天气文件:r_weather 6(雾)和 5(暴雨雾)像游戏中一样绘制雾;暴雨雾有自己的大小和亮度。
+- Jedi Outcast:玩家像游戏中一样手持 Bryar 手枪。
+### 地图编辑器
+- 新增 构建 > 像游戏中一样的已构建地图（默认开启）：摄像机通过任务页的渲染器显示已构建地图——所有着色器阶段、天空盒、天空入口、辉光、雾、PVS、天气、地图模型、特效、表面精灵和游戏伽马；门和其他画刷实体位于游戏放置的位置。
+- 光照贴图和实时光照不再翻倍；已构建地图的地面和墙壁与游戏一致（十二张地图上为 1.00 至 1.02）。
+- 特效贴花在所有情况下都与 q3map2 使用相同的面（雾画刷、克隆和背面着色器、_decal、nodraw 曲面片、地形、构建条目的 BSP 开关）。
+- 打开地图快约 45 %。
+### 菜单编辑器
+- 新的开始界面；新的右侧面板，包含属性、事件和文本编辑器：每个元素一张卡片、字段搜索、带标签的分组、可输入或拖动的数值、标记已更改的值；属性只显示游戏为该元素读取的内容。
+- 用自然语言表示事件：触发器和步骤，“添加步骤”带搜索和最常用命令，“在画布上试用”；重命名时目标随之更新，缺失的目标会被指出。
+- 处处可撤销和重做，选择也包括在内；第一次点击只选择，Alt+点击可穿过重叠元素；拖框可多选，画布、层级和标签页上都有右键菜单。
+- 在画布上直接用游戏字体写文字；每个元素都可拖到画布上；图像、视频和模型元素一开始就可用；Ctrl+滚轮缩放画布和文本编辑器。
+- 预览与游戏一致：空菜单、换行、Movie Duels 多人游戏的字体、按 jk2sp.exe 方式测量的 Jedi Outcast 单人文本、各游戏的上限；任何输入都不会破坏菜单，未知行会被拒绝并给出提示。
+- 所有 Jedi Outcast 多人菜单都已与运行中的游戏对比；新菜单文件会自动加入菜单列表，“在游戏中测试”会立即打开当前页面。
+- Movie Duels 9 的商店(sje_shop.menu)像游戏中一样显示标签、行、价格和点数,物品来自 md_shop.dat。
+- 右侧栏保留你拖动的宽度;窄窗口(200 %)不再让它永久变窄。
+### 界面
+- 更新日志窗口按区域划分，标题可折叠。
+- 教程窗口会避开打开的列表、步骤所指的面板和画布；200 % 时占用空间更少。
+- 命令行：未知开关不再被当作文件打开；--version 显示版本。
+- 设置：主窗口比显示器高时，确定和取消仍留在屏幕内。
+### 速度
+- 地图的所有图像和每个角色的纹理并行解码：md_am_sith 加载 1.2 秒而不是 3.0 秒，37 个角色的场景构建 1.7 秒而不是 2.5 秒；图像逐字节相同。
+- 带天空入口的地图不再每帧重建两次索引缓冲：播放 md_am_sith 每帧 CPU 时间 3.7 毫秒而不是 5.8 毫秒。
+### 手册
+- 图片最宽 2560（动图 1920），显示更大；所有带地图的图片已用六种语言重新拍摄。
+### 修复
+- 在预览中播放过带光剑的场景后，使用“像游戏中一样的已构建地图”时地图编辑器会崩溃；编辑器地图的辉光不再带上任务的特效粒子。
+- 图形设备丢失后，新设备会重新创建 Movie Duels 的伽马。
+- 预览：被激光绊雷爆炸炸死的机器人不再在同一瞬间从光束中消失（与游戏一样只是不再绘制）；绊雷会爆炸，连锁的绊雷随之爆炸。
+[ja]
+- ミッションプレビューとマップエディターのゲーム画面がゲームのレンダラーにずっと近くなりました（光、空、霧、パッチ、エリアポータル、グロー）。砲台が戦い、騎乗ができます。メニューエディターは新しい右パネル、キャンバス上での直接テキスト編集、ドラッグ＆ドロップ、どこでも元に戻すに対応。読み込みも高速化。
+### ミッションプレビュー
+- ゲームと同じ光：マップとキャラクターが明るすぎました。既定は明るさ 1.0x、環境光 0。ライトグリッド、最低光量、動的ライト、（Movie Duels）ガンマ段階はエンジンに従い、.md3 モデルはライトグリッドで照らされます。
+- ゲームと同じ空：見えている空の面を囲むスカイボックスの矩形だけを、底面も含めて描画。閉じた扉の向こう（エリアポータル）やカメラの PVS の外は描かず、遠クリップ面（distanceCull）の完全に奥にあるものも隠します。
+- 曲面はゲームと同じく分割され、距離に応じて細部を減らします（r_subdivisions 4、r_lodCurveError 250）。扉でも同様です。反射する床、グローの光輪、多段とアルファテストのシェーダー、ガラスとランプの光はゲームの順序と合成で描かれます。
+- センチネル砲、砲台、misc_turretG2 は選んだゲームのルールで目標を探し、狙い、撃ち、ダメージを与えます。キャラクターはひるみ、押し飛ばされ、死に、転落死します。死体は滑り、斜面に沿って横たわり、ゲームのルールで消えます。Ghoul2 アイテムは正しい向きで立ちます。
+- Movie Duels で計測した騎乗：SET_VEHICLE、use で出現する乗り物、乗り降り。スウープは浮遊し、乗り手の視線の方へ向きを変え、トーントーンは待機アニメーションで立ちます。
+- プレイヤーはゲームのキャラクターとセーバー（g_saber、g_saber_color）を使います。刃ごとのセーバーライトはゲームと同じで、「セーバーライト」「ライトの届く範囲」の設定があります。ゲームのキャラクター設定 cg_motionBoneComp、cg_turnAnims、g_ActivateAnimationStyle、斜面での足の接地。
+- Movie Duels の天候ファイルが有効です（火の粉、雪、雨）。新しい設定「テクスチャ詳細」（r_picmip）と「エッジのスムージング」（r_ext_multisample）。
+- カメラトラックのあるシーンではプレイヤーはこれまで通り隠れます。「プレイヤーを表示」でゲームとまったく同じに表示します。
+- 注視先を追う頭と手にしたセーバーは、タイムラインを逆にドラッグしても順方向とまったく同じ画面になります。
+- Movie Duels 9 の天候ファイル: r_weather 6(霧)と 5(豪雨の霧)がゲームと同じように霧を描きます。豪雨の霧は独自の大きさと明るさです。
+- Jedi Outcast: プレイヤーはゲームと同じように Bryar ピストルを持ちます。
+### マップエディター
+- 新機能 ビルド > ゲームと同じビルド済みマップ（既定でオン）：カメラはミッションタブのレンダラーでビルド済みマップを表示します。すべてのシェーダーステージ、スカイボックス、スカイポータル、グロー、霧、PVS、天候、マップモデル、エフェクト、サーフェススプライト、ゲームのガンマ。扉などのブラシエンティティはゲームが置く位置に立ちます。
+- ライトマップとリアルタイムライトが二重にならなくなりました。ビルド済みマップの床と壁はゲームと一致します（12 マップで 1.00〜1.02）。
+- エフェクトのデカールはどの場合も q3map2 と同じ面を使います（霧ブラシ、クローン／裏面シェーダー、_decal、nodraw パッチ、地形、ビルド項目の BSP スイッチ）。
+- マップを開くのが約 45 % 速くなりました。
+### メニューエディター
+- 新しいスタート画面。プロパティ、イベント、テキストエディターを備えた新しい右パネル：要素ごとのカード、フィールド検索、ラベル付きグループ、入力やドラッグで変えられる値、変更した値の表示。プロパティにはゲームがその要素で読む項目だけを表示します。
+- わかりやすい言葉のイベント：トリガーとステップ、検索とよく使うコマンド付きの「ステップを追加」、「キャンバスで試す」。名前を変えるとターゲットも追従し、見つからないターゲットは指摘されます。
+- どこでも元に戻す／やり直しができ、選択も戻ります。最初のクリックは選択だけ、Alt+クリックで重なった要素をたどれます。枠をドラッグして複数選択、キャンバス・階層・タブに右クリックメニュー。
+- キャンバス上でゲームのフォントのまま直接テキストを書けます。すべての要素をキャンバスにドラッグでき、画像・動画・モデル要素はすぐ使える状態で始まります。Ctrl+ホイールでキャンバスとテキストエディターを拡大縮小。
+- ゲームと同じプレビュー：空のメニュー、折り返し、Movie Duels マルチプレイのフォント、jk2sp.exe と同じ方法で測る Jedi Outcast シングルのテキスト、ゲームごとの上限。どんな入力でもメニューは壊れず、読めない行はメッセージ付きで拒否されます。
+- Jedi Outcast のマルチプレイメニューをすべて実行中のゲームと比較しました。新しいメニューファイルは自動でメニュー一覧に入り、「ゲームでテスト」は開いているページをすぐに開きます。
+- Movie Duels 9 のショップ(sje_shop.menu)がタブ、行、価格、クレジットをゲームと同じように、md_shop.dat のアイテムで表示します。
+- 右の列はドラッグした幅を保ちます。狭いウィンドウ(200 %)でずっと狭くなることはもうありません。
+### インターフェース
+- 更新履歴ウィンドウは分野ごとに分かれ、見出しを折りたためます。
+- チュートリアルは開いたリスト、ステップが指すパネル、キャンバスを避けます。200 % では場所を取りません。
+- コマンドライン：未知のスイッチをファイルとして開かなくなりました。--version でバージョンを表示します。
+- 設定：メインウィンドウがモニターより高いときも、OK とキャンセルが画面内に残ります。
+### 速度
+- マップのすべての画像と各キャラクターのテクスチャを並列にデコード：md_am_sith の読み込みは 3.0 秒から 1.2 秒に、37 体のシーンの構築は 2.5 秒から 1.7 秒に。画像はバイト単位で同一です。
+- スカイポータルのあるマップでインデックスバッファを 1 フレームに 2 回作り直さなくなりました：md_am_sith の再生は 1 フレームあたり CPU 5.8 ms から 3.7 ms に。
+### マニュアル
+- 画像は最大 2560 幅（アニメーション 1920）で、ずっと大きく表示されます。マップを含むすべての画像を 6 言語で撮り直しました。
+### 修正
+- ライトセーバーのあるシーンの後、「ゲームと同じビルド済みマップ」でマップエディターがクラッシュしていました。エディターのマップのグローがミッションのエフェクト粒子を拾わなくなりました。
+- グラフィックデバイスを失った後、新しいデバイスで Movie Duels のガンマを作り直します。
+- プレビュー：レーザートリップマインの爆発で倒れたドロイドが同じ瞬間にビームから消えなくなりました（ゲームと同じく描画されなくなるだけ）。マインは爆発し、連鎖するマインも続きます。
+[es]
+- La vista previa de misiones y la imagen de juego del editor de mapas siguen mucho más de cerca el renderizador del juego (luz, cielo, niebla, parches, portales de área, brillo), las torretas combaten y se puede montar; el editor de menús tiene un nuevo panel derecho, texto directamente en el lienzo, arrastrar y soltar y deshacer en todas partes; carga más rápida.
+### Vista previa de misiones
+- Luz como en el juego: mapa y personajes eran demasiado claros; por defecto brillo 1,0x y luz ambiental 0; la rejilla de luz, la luz mínima, las luces dinámicas y (Movie Duels) el paso de gamma siguen al motor; los modelos .md3 se iluminan con la rejilla de luz.
+- Cielo como en el juego: solo el rectángulo de la caja del cielo alrededor de las superficies de cielo visibles, también su cara inferior; nada detrás de puertas cerradas (portales de área) ni fuera del PVS de la cámara, y el plano lejano (distanceCull) oculta lo que queda por completo detrás.
+- Las superficies curvas se subdividen como en el juego y pierden detalle con la distancia (r_subdivisions 4, r_lodCurveError 250), también en puertas; suelos reflectantes, halo de brillo, shaders de varias etapas y con prueba alfa, cristal y resplandor de lámparas se dibujan en el orden y la mezcla del juego.
+- Torretas centinela, torretas y misc_turretG2 buscan, apuntan, disparan y hacen daño según las reglas del juego elegido; las figuras se estremecen, salen despedidas, mueren y caen al vacío; los cadáveres resbalan, quedan a lo largo de la pendiente y desaparecen según las reglas del juego; los objetos Ghoul2 están bien orientados.
+- Montar como se midió en Movie Duels: SET_VEHICLE, vehículos creados con use, subir y bajar; los deslizadores flotan y giran hacia donde mira el jinete, un tauntaun queda en su animación de reposo.
+- El jugador tiene el personaje y el sable del juego (g_saber, g_saber_color); luz del sable por hoja como en el juego, con los ajustes Luz del sable y Alcance de la luz; los ajustes de figura del juego cg_motionBoneComp, cg_turnAnims, g_ActivateAnimationStyle; pies en las pendientes.
+- Se aplican los archivos de clima de Movie Duels (ascuas, nieve, lluvia); nuevos ajustes Detalle de texturas (r_picmip) y Suavizado de bordes (r_ext_multisample).
+- En una escena con recorrido de cámara el jugador sigue oculto; Mostrar jugador lo muestra exactamente como en el juego.
+- Las cabezas que siguen un objetivo de mirada y los sables en sus manos muestran exactamente la misma imagen al arrastrar la línea de tiempo hacia atrás que hacia delante.
+- Archivos de clima de Movie Duels 9: r_weather 6 (niebla) y 5 (niebla de lluvia intensa) dibujan su niebla como en el juego; la niebla de lluvia intensa tiene su propio tamaño y brillo.
+- Jedi Outcast: el jugador sostiene la pistola Bryar como en el juego.
+### Editor de mapas
+- Nuevo Build > Mapa construido como en el juego (activado por defecto): la cámara muestra el mapa construido con el renderizador de la pestaña Misión: todas las etapas de shader, caja del cielo, portal del cielo, brillo, niebla, PVS, clima, modelos del mapa, efectos, surface sprites y la gamma del juego; las puertas y demás entidades de pincel están donde el juego las coloca.
+- Los lightmaps y la luz en tiempo real ya no se duplican; suelos y paredes del mapa construido coinciden con el juego (1,00 a 1,02 en doce mapas).
+- Las calcomanías de los efectos usan en todos los casos las mismas caras que q3map2 (pinceles de niebla, shaders clonados y de cara trasera, _decal, parches nodraw, terreno, los interruptores BSP de la entrada de Build).
+- Abrir un mapa es un 45 % más rápido.
+### Editor de menús
+- Nueva pantalla de inicio; nuevo panel derecho con Propiedades, Eventos y Editor de texto: una tarjeta por elemento, búsqueda de campos, grupos con etiquetas, valores para escribir o arrastrar, valores cambiados marcados; Propiedades muestra solo lo que el juego lee para el elemento.
+- Eventos en lenguaje claro: disparadores y pasos, Añadir paso con búsqueda y los comandos más usados, Probar en el lienzo; los destinos siguen a un cambio de nombre y se nombra un destino que falta.
+- Deshacer y rehacer en todas partes, también la selección; el primer clic solo selecciona, Alt+clic atraviesa elementos superpuestos; arrastrar un marco selecciona varios, menús contextuales en lienzo, jerarquía y pestañas.
+- Escribir texto directamente en el lienzo con la fuente del juego; cada elemento se puede arrastrar al lienzo; los elementos Imagen, Vídeo y Modelo empiezan listos para usar; Ctrl+rueda amplía el lienzo y el editor de texto.
+- Vista previa como en el juego: menús vacíos, saltos de línea, fuentes del multijugador de Movie Duels, texto del modo individual de Jedi Outcast medido como jk2sp.exe, límites por juego; nada de lo que se escriba puede destruir un menú, las líneas desconocidas se rechazan con un mensaje.
+- Todos los menús multijugador de Jedi Outcast comparados con el juego en marcha; un archivo de menú nuevo entra solo en la lista de menús y Probar en el juego abre enseguida la página abierta.
+- La tienda de Movie Duels 9 (sje_shop.menu) muestra pestañas, filas, precios y créditos como en el juego, con los objetos de md_shop.dat.
+- La columna derecha conserva el ancho que arrastraste; una ventana estrecha (200 %) ya no la deja estrecha para siempre.
+### Interfaz
+- La ventana del registro de cambios está dividida por áreas con títulos plegables.
+- Los tutoriales dejan libres las listas abiertas, el panel al que apunta el paso y el lienzo; al 200 % ocupan menos espacio.
+- Línea de órdenes: los interruptores desconocidos ya no se abren como archivos; --version indica la versión.
+- Preferencias: Aceptar y Cancelar quedan en pantalla cuando la ventana principal es más alta que el monitor.
+### Velocidad
+- Todas las imágenes de un mapa y las texturas de cada figura se decodifican en paralelo: md_am_sith carga en 1,2 s en lugar de 3,0 s, una escena de 37 figuras se construye en 1,7 s en lugar de 2,5 s; las imágenes son idénticas byte a byte.
+- Los mapas con portal del cielo ya no reconstruyen dos veces por fotograma el búfer de índices: reproducir md_am_sith necesita 3,7 ms en lugar de 5,8 ms de CPU por fotograma.
+### Manual
+- Imágenes de hasta 2560 de ancho (animadas 1920), mostradas mucho más grandes; todas las imágenes con mapa se han vuelto a tomar en seis idiomas.
+### Corregido
+- El editor de mapas se cerraba con «Mapa construido como en el juego» tras una escena con sables de luz; el brillo del mapa del editor ya no recoge partículas de efectos de la misión.
+- Tras perder el dispositivo gráfico, el nuevo dispositivo vuelve a crear la gamma de Movie Duels.
+- Vista previa: un droide muerto por la explosión de una mina láser ya no desaparece del haz en el mismo instante (como en el juego, solo deja de dibujarse); la mina explota y las minas encadenadas la siguen.
+[cs]
+- Náhled misí a herní obraz editoru map nyní mnohem věrněji sledují renderer hry (světlo, obloha, mlha, patche, portály oblastí, záře), věže bojují a jde jezdit; editor menu má nový pravý panel, psaní textu přímo na plátně, přetahování a všude zpět; rychlejší načítání.
+### Náhled misí
+- Světlo jako ve hře: mapa a postavy byly příliš světlé; výchozí jas 1,0x a okolní světlo 0; světelná mřížka, minimální světlo, dynamická světla a (Movie Duels) stupeň gamy se řídí enginem; modely .md3 osvětluje světelná mřížka.
+- Obloha jako ve hře: jen obdélník skyboxu kolem viditelných ploch oblohy, včetně spodní strany; nic za zavřenými dveřmi (portály oblastí) ani mimo PVS kamery a vzdálená rovina (distanceCull) skryje, co leží celé za ní.
+- Zakřivené plochy se dělí jako ve hře a se vzdáleností ztrácejí detail (r_subdivisions 4, r_lodCurveError 250), i na dveřích; lesklé podlahy, svatozář záře, vícestupňové shadery a shadery s alfa testem, sklo a záře lamp se kreslí v pořadí a míchání hry.
+- Strážní děla, věže a misc_turretG2 hledají, míří, střílejí a zraňují podle pravidel zvolené hry; postavy sebou trhnou, odletí, umírají a padají k smrti; mrtvoly kloužou, leží podél svahu a mizí podle pravidel hry; předměty Ghoul2 stojí správně.
+- Jízda podle měření v Movie Duels: SET_VEHICLE, vozidla vytvořená přes use, nasedání a sesedání; swoopy se vznášejí a otáčejí se tam, kam se jezdec dívá, tauntaun stojí ve své klidové animaci.
+- Hráč má postavu a meč ze hry (g_saber, g_saber_color); světlo meče pro každou čepel jako ve hře, s nastaveními Světlo meče a Dosah světla; nastavení postav cg_motionBoneComp, cg_turnAnims, g_ActivateAnimationStyle; nohy na svahu.
+- Platí soubory počasí z Movie Duels (žhavé uhlíky, sníh, déšť); nová nastavení Detail textur (r_picmip) a Vyhlazování hran (r_ext_multisample).
+- Ve scéně s jízdou kamery zůstává hráč jako dosud skrytý; Zobrazit hráče ho ukáže přesně jako ve hře.
+- Hlavy, které sledují cíl pohledu, a meče v jejich rukou ukazují při tažení časové osy zpět přesně stejný obraz jako vpřed.
+- Soubory počasí Movie Duels 9: r_weather 6 (mlha) a 5 (mlha při silném dešti) kreslí mlhu jako ve hře; mlha při silném dešti má vlastní velikost a jas.
+- Jedi Outcast: hráč drží pistoli Bryar jako ve hře.
+### Editor map
+- Nové Build > Postavená mapa jako ve hře (výchozí zapnuto): kamera ukazuje postavenou mapu rendererem karty Mise – všechny stupně shaderů, skybox, portál oblohy, záře, mlha, PVS, počasí, modely mapy, efekty, surface sprity a gama hry; dveře a další brush entity stojí tam, kam je hra postaví.
+- Lightmapy a světlo v reálném čase se už nezdvojují; podlahy a stěny postavené mapy odpovídají hře (1,00 až 1,02 na dvanácti mapách).
+- Obtisky efektů zasahují ve všech případech stejné plochy jako q3map2 (mlhové štětce, klonované a zadní shadery, _decal, patche nodraw, terén, přepínače BSP položky Build).
+- Otevření mapy je zhruba o 45 % rychlejší.
+### Editor menu
+- Nová úvodní obrazovka; nový pravý panel s Vlastnostmi, Událostmi a Textovým editorem: karta pro každý prvek, hledání polí, popsané skupiny, hodnoty k psaní nebo tažení, změněné hodnoty označené; Vlastnosti ukazují jen to, co hra pro prvek čte.
+- Události srozumitelně: spouštěče a kroky, Přidat krok s hledáním a nejčastějšími příkazy, Vyzkoušet na plátně; cíle sledují přejmenování, chybějící cíl je uveden.
+- Zpět a znovu všude, i pro výběr; první klik jen vybírá, Alt+klik prochází překrývajícími se prvky; tažením rámečku vyberete víc, kontextové nabídky na plátně, v hierarchii a na kartách.
+- Psaní textu přímo na plátně písmem hry; každý prvek lze přetáhnout na plátno; prvky Obrázek, Video a Model začínají připravené k použití; Ctrl+kolečko zvětšuje plátno i textový editor.
+- Náhled jako ve hře: prázdná menu, zalamování, písma multiplayeru Movie Duels, text singleplayeru Jedi Outcast měřený jako jk2sp.exe, limity podle hry; žádný vstup nemůže menu zničit, neznámé řádky se odmítnou se zprávou.
+- Všechna multiplayerová menu Jedi Outcast porovnána s běžící hrou; nový soubor menu se sám zapíše do seznamu menu a Testovat ve hře hned otevře otevřenou stránku.
+- Obchod Movie Duels 9 (sje_shop.menu) ukazuje karty, řádky, ceny a kredity jako ve hře, s předměty z md_shop.dat.
+- Pravý sloupec si drží šířku, kterou jsi nastavil tažením; úzké okno (200 %) ho už natrvalo nezúží.
+### Rozhraní
+- Okno se seznamem změn je rozdělené podle oblastí se sklápěcími nadpisy.
+- Tutoriály uvolňují otevřené seznamy, panel, na který krok ukazuje, i plátno; při 200 % zabírají méně místa.
+- Příkazová řádka: neznámé přepínače se už neotvírají jako soubory; --version uvede verzi.
+- Nastavení: OK a Zrušit zůstanou na obrazovce, i když je hlavní okno vyšší než monitor.
+### Rychlost
+- Všechny obrázky mapy a textury každé postavy se dekódují paralelně: md_am_sith se načte za 1,2 s místo 3,0 s, scéna s 37 postavami se sestaví za 1,7 s místo 2,5 s; obrázky jsou bajtově shodné.
+- Mapy s portálem oblohy už nestavějí indexový buffer dvakrát za snímek: přehrávání md_am_sith potřebuje 3,7 ms místo 5,8 ms CPU na snímek.
+### Příručka
+- Obrázky až 2560 široké (animované 1920), zobrazené mnohem větší; všechny obrázky s mapou znovu pořízeny v šesti jazycích.
+### Opraveno
+- Editor map spadl s „Postavená mapa jako ve hře“ po scéně se světelnými meči; záře mapy v editoru už nebere částice efektů z mise.
+- Po ztrátě grafického zařízení nové zařízení znovu vytvoří gamu Movie Duels.
+- Náhled: droid zabitý výbuchem laserové miny už v tutéž chvíli nezmizí z paprsku (jako ve hře se jen přestane kreslit); mina vybuchne a řetězené miny následují.
+
 ## rc607 2026-10-31
 [en]
 - Map editor with decals and a real-time view like the game, much faster light and VIS with the same result, a large menu editor update, a new timeline, dockable windows, Spanish and Czech.

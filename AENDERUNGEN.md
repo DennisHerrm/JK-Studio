@@ -1,5 +1,44 @@
 # Änderungen seit rc94
 
+## rc608 — Vorschau und Karten-Editor wie der Renderer des Spiels, Geschütze und Reiten, neuer Menü-Editor
+
+Gewünscht: praktisch alles bis auf das Whiteout-Zeug (Modelle kommen danach); Licht, Himmel und Nebel wie im Spiel, Geschütze, Reiten, Menü-Editor einfacher.
+
+- Missions-Vorschau und das Spielbild des Karten-Editors folgen dem Renderer des Spiels viel genauer (Licht, Himmel, Nebel, Patches, Gebietsportale, Glühen), Geschütze kämpfen, Reiten geht; der Menü-Editor hat eine neue rechte Leiste, Text direkt auf der Fläche, Ziehen und Ablegen und überall Rückgängig; schnelleres Laden.
+- Missions-Vorschau: Licht wie im Spiel: Karte und Figuren waren viel zu hell; Vorgabe Helligkeit 1,0x und Grundlicht 0, Lichtgitter, Mindestlicht, dynamische Lichter und (Movie Duels) die Gammastufe folgen der Engine; .md3-Modelle bekommen das Licht aus dem Lichtgitter.
+- Missions-Vorschau: Himmel wie im Spiel: nur das Rechteck der Himmelsbox um die sichtbaren Himmelsflächen, samt Unterseite; nichts hinter geschlossenen Türen (Gebietsportale) oder außerhalb des PVS der Kamera, und die ferne Ebene (distanceCull) blendet aus, was ganz dahinter liegt.
+- Missions-Vorschau: Gekrümmte Flächen werden wie im Spiel unterteilt und verlieren mit dem Abstand Details (r_subdivisions 4, r_lodCurveError 250), auch an Türen; spiegelnde Böden, Glühhof, mehrstufige und alphageprüfte Shader, Glas und Lampenschein in der Reihenfolge und Mischung des Spiels.
+- Missions-Vorschau: Sentry-Geschütze, Geschütztürme und misc_turretG2 finden, zielen, feuern und richten Schaden nach den Regeln des gewählten Spiels an; Figuren zucken, werden weggestoßen, sterben, stürzen zu Tode; Leichen rutschen, liegen am Hang und verschwinden nach den Regeln des Spiels; Ghoul2-Gegenstände stehen richtig herum.
+- Missions-Vorschau: Reiten wie in Movie Duels gemessen: SET_VEHICLE, per use gespawnte Fahrzeuge, Auf- und Absteigen, Gleiter schweben und drehen dorthin, wohin der Reiter schaut, ein Tauntaun steht in seiner Ruheanimation.
+- Missions-Vorschau: Der Spieler hat Figur und Schwert des Spiels (g_saber, g_saber_color); Schwertlicht je Klinge wie im Spiel, mit den Einstellungen Schwertlicht und Reichweite; die Figur-Einstellungen cg_motionBoneComp, cg_turnAnims, g_ActivateAnimationStyle; Füße am Hang.
+- Missions-Vorschau: Wetterdateien von Movie Duels gelten (Glut, Schnee, Regen); neue Einstellungen Texturdetail (r_picmip) und Kantenglättung (r_ext_multisample).
+- Missions-Vorschau: In einer Szene mit Kamerafahrt bleibt der Spieler wie bisher verborgen; Spieler zeigen zeigt ihn genau wie im Spiel.
+- Missions-Vorschau: Köpfe, die einem Blickziel folgen, und die Schwerter in ihren Händen zeigen beim Zurückziehen der Zeitleiste genau dasselbe Bild wie vorwärts.
+- Missions-Vorschau: Wetterdateien von Movie Duels 9: r_weather 6 (Nebel) und 5 (Nebel bei Starkregen) zeichnen ihren Nebel wie im Spiel; der Starkregen-Nebel hat seine eigene Größe und Helligkeit.
+- Missions-Vorschau: Jedi Outcast: Der Spieler hält die Bryar-Pistole wie im Spiel.
+- Karten-Editor: Neu Build > Gebaute Karte wie im Spiel (Vorgabe an): Die Kamera zeigt die gebaute Karte mit dem Renderer des Mission-Tabs - alle Shaderstufen, Himmelsbox, Himmelsportal, Glühen, Nebel, PVS, Wetter, Kartenmodelle, Effekte, Surface-Sprites und das Gamma des Spiels; Türen und andere Brush-Entities stehen, wo das Spiel sie hinstellt.
+- Karten-Editor: Lightmaps und Echtzeit-Licht werden nicht mehr doppelt genommen; Böden und Wände der gebauten Karte stimmen mit dem Spiel überein (1,00 bis 1,02 auf zwölf Karten).
+- Karten-Editor: Decals der Effekte treffen in jedem Fall dieselben Flächen wie q3map2 (Nebelpinsel, Klon- und Rückseiten-Shader, _decal, nodraw-Patches, Terrain, die BSP-Schalter des Build-Eintrags).
+- Karten-Editor: Eine Karte öffnet rund 45 % schneller.
+- Menü-Editor: Neuer Startbildschirm; neue rechte Leiste mit Eigenschaften, Ereignissen und Text-Editor: eine Karte je Element, Feldsuche, beschriftete Gruppen, Werte zum Tippen oder Ziehen, geänderte Werte markiert; Eigenschaften zeigt nur, was das Spiel für das Element liest.
+- Menü-Editor: Ereignisse in Klartext: Auslöser und Schritte, Schritt hinzufügen mit Suche und den häufigsten Befehlen, Auf der Fläche ausprobieren; Ziele folgen einer Umbenennung, ein fehlendes Ziel wird genannt.
+- Menü-Editor: Rückgängig und Wiederholen überall, auch für die Auswahl; ein erster Klick wählt nur, Alt+Klick geht durch übereinanderliegende Elemente; Rahmen ziehen wählt mehrere, Rechtsklick-Menüs auf Fläche, Hierarchie und Reitern.
+- Menü-Editor: Text direkt auf der Fläche mit der Schrift des Spiels schreiben; jedes Element auf die Fläche ziehen; Bild-, Video- und Modell-Elemente starten gebrauchsfertig; Strg+Mausrad zoomt Fläche und Text-Editor.
+- Menü-Editor: Vorschau wie im Spiel: leere Menüs, Umbruch, die Schriften von Movie Duels im Mehrspieler, Text von Jedi Outcast im Einzelspieler gemessen wie jk2sp.exe, Grenzen je Spiel; keine Eingabe kann ein Menü zerstören, unbekannte Zeilen werden mit Meldung abgewiesen.
+- Menü-Editor: Alle Mehrspieler-Menüs von Jedi Outcast mit dem laufenden Spiel verglichen; eine neue Menüdatei trägt sich selbst in die Menüliste ein, Im Spiel testen öffnet sofort die offene Seite.
+- Menü-Editor: Der Laden von Movie Duels 9 (sje_shop.menu) zeigt Reiter, Zeilen, Preise und Credits wie im Spiel, mit den Gegenständen aus md_shop.dat.
+- Menü-Editor: Die rechte Spalte behält die gezogene Breite; ein schmales Fenster (200 %) macht sie nicht mehr dauerhaft schmal.
+- Oberfläche: Das Changelog-Fenster ist nach Bereichen gegliedert, mit Überschriften zum Zuklappen.
+- Oberfläche: Tutorials halten offene Listen, die Leiste, auf die der Schritt zeigt, und die Fläche frei; bei 200 % brauchen sie weniger Platz.
+- Oberfläche: Befehlszeile: unbekannte Schalter werden nicht mehr als Dateien geöffnet; --version nennt die Fassung.
+- Oberfläche: Einstellungen: Ok und Abbrechen bleiben im Bild, wenn das Hauptfenster höher ist als der Monitor.
+- Tempo: Alle Bilder einer Karte und die Texturen jeder Figur werden parallel entpackt: md_am_sith lädt in 1,2 s statt 3,0 s, eine Szene mit 37 Figuren baut in 1,7 s statt 2,5 s; die Bilder sind bytegleich.
+- Tempo: Karten mit Himmelsportal bauen den Indexpuffer nicht mehr zweimal je Bild: Das Abspielen von md_am_sith braucht 3,7 ms statt 5,8 ms Prozessorzeit je Bild.
+- Handbuch: Bilder bis 2560 breit (bewegte 1920), deutlich größer gezeigt; alle Bilder mit Karte in sechs Sprachen neu aufgenommen.
+- Behoben: Der Karten-Editor stürzte mit „Gebaute Karte wie im Spiel“ nach einer Szene mit Lichtschwertern ab; das Glühen der Editor-Karte nimmt keine Effektteilchen der Mission mehr mit.
+- Behoben: Nach einem Verlust des Grafikgeräts legt das neue Gerät das Gamma von Movie Duels wieder an.
+- Behoben: Vorschau: Ein Droide, den die Explosion einer Laserfalle tötet, verschwindet nicht mehr im selben Augenblick aus dem Strahl (er wird wie im Spiel nur nicht mehr gezeichnet); die Falle explodiert, verkettete Fallen folgen.
+
 ## rc607 — Karten-Editor wie im Spiel, schnelleres Licht, Menü-Editor, neue Zeitleiste, Docking
 
 Gewünscht: Mapping und Menü richtig fertig machen, das schnellere Licht und die Zeitleiste noch vor der Veröffentlichung, Testfenster nicht mehr im Vordergrund.
