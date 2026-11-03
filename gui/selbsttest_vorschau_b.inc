@@ -875,6 +875,22 @@ std::vector<Schritt> gluehenFigurSchritte() {
     return s;
 }
 
+// Endrunde 5: die Helligkeit des Gegenstands im Spiel gemessen (Movie Duels 9, eigener fs_homepath, Kamera per ICARUS-Skript
+// an derselben Stelle und in derselben Blickrichtung wie die Probe, Ansicht 1350 x 931 mit fov_x 94,76 = fovY 73,7 der
+// Vorschau; Bilder mit und ohne die Entity, die zweite .bsp nur ohne sie): Mittel rgb ueber den Punkten des mittleren
+// Fuenftels, die sich um mehr als 6 aendern. Die Spanne aus der Messung: Abweichung Vorschau/Spiel an denselben Punkten
+// (1920 x 1440, fov 80: blaster 0,94 gegen 0,89, Geschuetz 0,26 gegen 0,34) plus die Aenderung des Spielwerts mit der
+// Ansicht (blaster 0,89 bis 1,68, Geschuetz 0,34 bis 0,13). Vor rc608 Teil 5 war die Vorschau hier um ein Vielfaches heller.
+struct SpielHelligkeit {
+    double wert;
+    double spanne;
+};
+std::optional<SpielHelligkeit> spielHelligkeit(const std::string& klasse) {
+    if (klasse == "weapon_blaster") { return SpielHelligkeit{1.68, 0.85}; }      // md_agditf_sith, Hintergrund 21,7
+    if (klasse == "misc_panel_turret") { return SpielHelligkeit{0.13, 0.30}; }   // t3_byss, Hintergrund 1,9
+    return std::nullopt;
+}
+
 // --- rc602 kartenpruefung: Gegenstaende der Karte (item_*, weapon_*) --------
 //
 // Die Kartenpruefung fand auf 87 von 278 Karten Medipacks, Waffen und
@@ -961,6 +977,7 @@ std::vector<Schritt> gegenstandSchritte(const std::string& klasse, const std::st
         double summe = 0.0;
         double hell = 0.0;
         long long anders = 0;
+        double gegenstand = 0.0;   // Endrunde 5: Helligkeit der veraenderten Punkte (Bild mit)
         long long n = 0;
         for (int y = h * 2 / 5; y < h * 3 / 5; ++y) {
             for (int x = w * 2 / 5; x < w * 3 / 5; ++x) {
@@ -971,7 +988,10 @@ std::vector<Schritt> gegenstandSchritte(const std::string& klasse, const std::st
                     hell += ohne[i + k];
                 }
                 summe += d;
-                anders += d > 6 ? 1 : 0;
+                if (d > 6) {
+                    ++anders;
+                    gegenstand += ((*mit)[i] + (*mit)[i + 1] + (*mit)[i + 2]) / 3.0;
+                }
                 ++n;
             }
         }
@@ -984,7 +1004,13 @@ std::vector<Schritt> gegenstandSchritte(const std::string& klasse, const std::st
         // sind Gegenstaende in dunklen Ecken dunkel wie im Spiel (Bisect: rc607 gruen, Teil 10b rot; md_agditf_sith
         // Hintergrund 22, t3_byss 2). Der mittlere Unterschied mass dann die Helligkeit statt des Zeichnens. Geprueft
         // wird, dass der Gegenstand die Bildmitte veraendert: mindestens 3 % der Punkte um mehr als 6 Stufen.
-        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0;
+        if (anders > 0) { gegenstand /= static_cast<double>(anders); }
+        const std::optional<SpielHelligkeit> spiel = spielHelligkeit(klasse);
+        if (spiel) {
+            std::snprintf(z, sizeof(z), "Knopftest: %s - Helligkeit des Gegenstands %.2f, im Spiel %.2f +- %.2f", klasse.c_str(), gegenstand, spiel->wert, spiel->spanne);
+            diag::detail(z);
+        }
+        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0 && (!spiel || std::fabs(gegenstand - spiel->wert) <= spiel->spanne);
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     return s;
@@ -3064,6 +3090,7 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
         double summe = 0.0;
         double hell = 0.0;
         long long anders = 0;
+        double gegenstand = 0.0;   // Endrunde 5: Helligkeit der veraenderten Punkte (Bild mit)
         long long n = 0;
         for (int y = h * 2 / 5; y < h * 3 / 5; ++y) {
             for (int x = w * 2 / 5; x < w * 3 / 5; ++x) {
@@ -3074,7 +3101,10 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
                     hell += ohne[i + c];
                 }
                 summe += d;
-                anders += d > 6 ? 1 : 0;
+                if (d > 6) {
+                    ++anders;
+                    gegenstand += ((*mit)[i] + (*mit)[i + 1] + (*mit)[i + 2]) / 3.0;
+                }
                 ++n;
             }
         }
@@ -3087,7 +3117,13 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
         // sind Gegenstaende in dunklen Ecken dunkel wie im Spiel (Bisect: rc607 gruen, Teil 10b rot; md_agditf_sith
         // Hintergrund 22, t3_byss 2). Der mittlere Unterschied mass dann die Helligkeit statt des Zeichnens. Geprueft
         // wird, dass der Gegenstand die Bildmitte veraendert: mindestens 3 % der Punkte um mehr als 6 Stufen.
-        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0;
+        if (anders > 0) { gegenstand /= static_cast<double>(anders); }
+        const std::optional<SpielHelligkeit> spiel = spielHelligkeit(klasse);
+        if (spiel) {
+            std::snprintf(z, sizeof(z), "Knopftest: %s - Helligkeit des Gegenstands %.2f, im Spiel %.2f +- %.2f", klasse.c_str(), gegenstand, spiel->wert, spiel->spanne);
+            diag::detail(z);
+        }
+        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0 && (!spiel || std::fabs(gegenstand - spiel->wert) <= spiel->spanne);
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     return s;

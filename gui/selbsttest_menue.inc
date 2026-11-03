@@ -1067,8 +1067,14 @@ Schritt zieheFlaecheVon(const std::string& was, float x0, float y0, float x1, fl
                        }
                        const int k = b - *druck;
                        if (k >= 1 && k <= 5) {
+                           // Endrunde 5: ImGui legt die Maus auf ganze Bildpunkte (AddMousePosEvent: ImFloor), der Druck
+                           // stand also abgerundet. Die Hand wandert darum um den naechsten ganzen Bildpunkt-Abstand
+                           // von dort - sonst kam zum Weg die Rundung des Starts dazu (es, 161 %: 10 virtuell =
+                           // 16,1 Punkte, Start 730,9 -> 730, Ziel 747,0 -> 747: 10,54 statt 10, gerundet 11).
                            const float t = static_cast<float>(k) / 5.0F;
-                           setzeMaus(bei(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t));
+                           const ImVec2 a = bei(x0, y0);
+                           const ImVec2 z = bei(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+                           setzeMaus(ImVec2{std::floor(a.x) + std::round(z.x - a.x), std::floor(a.y) + std::round(z.y - a.y)});
                            return false;
                        }
                        if (k == 6) {

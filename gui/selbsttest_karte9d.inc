@@ -449,20 +449,30 @@ std::vector<Schritt> modellSchatten() {
         });
     };
     add(oeffnen(true));
-    add(tu("Stufe 9d/2: Messpunkt im Schatten des Modells suchen (Strecke Licht - Boden trifft ein Dreieck)", [punkt, gefunden] {
+    // Endrunde 5: Der Boden muss von der Kamera (z 120) aus frei zu sehen sein. Das Modell (light_base mal 3, z -466 bis
+    // 1066) hat den Lichtkegel "beam" mit models/map_objects/imp_mine/minelamp_on (blendFunc GL_ONE GL_ONE): q3map2 leitet
+    // aus blendFunc keine Durchsichtigkeit ab (shaders.cpp, nur surfaceparm trans), er wirft also Schatten; die Kamera
+    // zeichnet ihn aber additiv ueber den Boden. Am alten Messpunkt (-24 -24) lag seine Kante in der Bildmitte und legte
+    // gut 9 Stufen auf den Schatten (mit = Schatten 14 + Kegel 9,4 gegen ohne 22,5) - seit Teil 11 (Lightmap mal 1) mehr
+    // als der halbierte Schattenabstand.
+    add(tu("Stufe 9d/2: Messpunkt im Schatten des Modells suchen (Strecke Licht - Boden trifft ein Dreieck, Kamera - Boden frei)", [punkt, gefunden] {
         std::vector<karte::Vektor3f> d;
-        karte::echtModellFlaechen(ke::editor().karte, [&d](const karte::EchtModellFlaeche& x) {
+        std::vector<karte::Vektor3f> alleFlaechen;
+        karte::echtModellFlaechen(ke::editor().karte, [&d, &alleFlaechen](const karte::EchtModellFlaeche& x) {
             if (x.wirft > 0) { d.insert(d.end(), x.ort.begin(), x.ort.end()); }
+            alleFlaechen.insert(alleFlaechen.end(), x.ort.begin(), x.ort.end());
         });
         const karte::Vektor3f licht(0, 0, 400);
-        for (int r = 0; r <= 160 && !*gefunden; r += 8) {
+        for (int r = 0; r <= 400 && !*gefunden; r += 8) {
             for (int y = -r; y <= r && !*gefunden; y += 8) {
                 for (int x = -r; x <= r && !*gefunden; x += 8) {
                     if (std::max(std::abs(x), std::abs(y)) != r) { continue; }
                     bool alle = true;
                     for (int dy = -8; dy <= 8 && alle; dy += 8) {
                         for (int dx = -8; dx <= 8 && alle; dx += 8) {
-                            alle = streckeTrifft(licht, karte::Vektor3f(static_cast<float>(x + dx), static_cast<float>(y + dy), 0.0F), d);
+                            const karte::Vektor3f boden(static_cast<float>(x + dx), static_cast<float>(y + dy), 0.0F);
+                            alle = streckeTrifft(licht, boden, d) &&
+                                   !streckeTrifft(karte::Vektor3f(boden[0], boden[1], 120.0F), boden, alleFlaechen);
                         }
                     }
                     if (alle) {

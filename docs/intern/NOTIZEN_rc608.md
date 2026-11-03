@@ -1404,6 +1404,44 @@ Auftrag `auftrag_rc608_endrunde4.md`, Stand 38deb556. Skripte in `SP/er4` (`l.sh
 - Bildlauf mbilder: die Proben scheitern mit den schmalen Spalten des Bildlaufs (Layout, Leiste "Diesen Schritt probieren", Eng, Felder); die betroffenen Bilder im Handbuch sind richtig.
 - blaster/misc_panel_turret nicht gegen ein Spielfoto an derselben Stelle geprueft.
 
+## Endrunde 5: die letzten zwei roten Stellen
+
+Auftrag `auftrag_rc608_endrunde5.md`, Stand 9bb4f588. Skripte in `SP/er5` (`l.sh` gleichzeitige Laeufe, `md5.py` Movie-Duels-Spielfoto mit eigenem fs_homepath und Kamera per ICARUS-Skript, `ohne.py` dieselbe .bsp ohne eine Entity, `mass.py`/`vergleich.py` Helligkeit des Gegenstands), Laeufe `Y:\karte\laeufe\<a-z>*`, Bilder `SP/er5/erg`.
+
+### 1: karteneditor 9d/2, Schatten der misc_model
+- Bisect: Teil 11 ist ein einziger Commit (8b51bde6); 5a96aaa2 (Teil 10b) gruen, 8b51bde6 rot - mit den exe aus Endrunde 4 nachgestellt (`c10enstufe9d` 28/0, `c11enstufe9d` 27/1, beide mit Fotos).
+- Das Programm ist richtig, der Test war veraltet. Das Probenmodell (`models/map_objects/bounty/light_base.md3`, mal 3) reicht von z -466 bis 1066 und hat den Lichtkegel "beam" mit `models/map_objects/imp_mine/minelamp_on` (`blendFunc GL_ONE GL_ONE`, `cull twosided`). q3map2 leitet aus blendFunc keine Durchsichtigkeit ab (shaders.cpp kennt dafuer nur `surfaceparm trans`), der Kegel wirft also Schatten - die Kamera auf z 120 zeichnet ihn aber additiv ueber den Boden. Am alten Messpunkt (-24 -24) lag seine Kante in der Bildmitte (im Foto eine waagrechte Naht). Zerlegt: Boden im Schatten genau Umgebung (60 von 97,5 Luxeln: 28 bei mal 2, 14 bei mal 1), Kegel +9,4. rc607: mit = 28 + 9,4 = 37,4 gegen ohne 45 (Abstand 7,6 > 5); seit Teil 11 (Lightmap mal 1, kSpielLightmapFaktor): mit = 14 + 9,4 = 23,4 gegen ohne 22,5. Der Schattenwuerfel enthielt die 220 Modelldreiecke (Diagnose: Wuerfel mit 40 Teilen, 292 Dreiecken, 220 vom Modell).
+- Test: der Messpunkt braucht jetzt zusaetzlich freie Sicht von der Kamera (z 120) auf den Boden - keine Modellflaeche, auch keine ohne Schatten, auf der senkrechten Strecke; Suche bis 400 statt 160. Neuer Punkt -64 -64: ohne 10,0, mit 6,3 (6,3/10 = 0,63, Umgebung allein 60/97,5 = 0,62: voller Schatten wie in q3map2). Rot `aenstufe9d` 27/1 (22,5 / 23,4), gruen `eenstufe9d` 28/0.
+
+### 2: es, Widgets, Modell landet auf y + 11
+- Nachgestellt: `aesm_widgets` 244/2 (SP und MP modell: 240 211 statt 240 210), cs und ja gruen (246/0).
+- Ursache im Test: Die Zeichenflaeche verschiebt sich nicht (Diagnose je Bild: Flaeche 604 227 1032 774 in jedem Schritt). Die Mitte des Modells liegt bei y 312,5 (Hoehe 225); bei 161 % sind das 730,9 Punkte, ImGui legt die Maus auf ganze Punkte (AddMousePosEvent: ImFloor) - der Druck stand auf 730. Das Ziel 322,5 ergab 747,0 -> 747. Der Weg war damit 17 Punkte = 10,54 virtuell, gerundet 11. Das Programm rundet richtig den Weg der Maus (wie bei einer echten Maus). Nur das Modell hat eine halbe Mitte, darum nur dort; nur es hat 161 %.
+- Test: zieheFlaecheVon bewegt die Maus vom abgerundeten Startpunkt um den naechsten ganzen Punktabstand (Fehler hoechstens 0,5 Punkte = 0,31 virtuell bei 161 %). Gilt fuer alle Ziehproben des Menue-Editors, darum alle menueeditor-Laeufe wiederholt. Gruen `eesm_widgets`, `ecsm_widgets`, `ejam_widgets` je 246/0.
+
+### 3: Gegenstaende in dunklen Ecken (blaster, misc_panel_turret)
+- Movie Duels 9, eigener fs_homepath (`SP/er5/home_*`), Fenster ausserhalb, Kamera per ICARUS-Skript (`camera` ENABLE/MOVE/PAN/ZOOM in einer Schleife alle 50 ms, sonst uebernimmt die introcutscene von md_agditf_sith die Kamera) an derselben Stelle und Blickrichtung wie die Probe: blaster 12 380 114,125 (gefallener Ort + 48), t3_byss misc_panel_turret 896 1584 2561 (origin + 64), Nick 89, Gier 90. Vorschau dazu im Modus geschuetze (BHED_GV_KAMERA, 1920 x 1440, fov 80).
+- Ergebnis: stimmt. Bilder (oben Spiel, unten Vorschau, 1920 x 2880): `SP/er5/erg/dunkle_ecke_blaster.png`, `dunkle_ecke_turret.png`, aufgehellt `dunkle_ecke_blaster_hell4.png`, `dunkle_ecke_turret_hell12.png`. Ueber denselben Punkten (Maske aus Spiel mit/ohne Entity, dieselbe .bsp nur ohne sie): blaster Spiel 0,89, Vorschau 0,94, mittleres Fuenftel 18,01 / 18,01; Geschuetz Spiel 0,34, Vorschau 0,26, Fuenftel 1,73 / 1,94 (die Wand ist in der Vorschau 0,2 Stufen heller - unter einer Stufe).
+- Neue Pruefung in den Proben (kartenfunde, fix604b, gegenstaende): Helligkeit des Gegenstands (Mittel rgb der Punkte, die sich mit/ohne um mehr als 6 aendern) gegen den im Spiel in der Ansicht der Probe gemessenen Wert (1350 x 931, fov_x 94,76 = fovY 73,7): blaster 1,68, Geschuetz 0,13. Spanne aus der Messung: Abweichung Vorschau/Spiel an denselben Punkten plus die Aenderung des Spielwerts mit der Ansicht (blaster 0,89 bis 1,68, Geschuetz 0,34 bis 0,13): 0,85 bzw. 0,30. Vorschau 1,50 bzw. 0,16. Gruen `genkartenfunde` 53/0, `genfix604b` 32/0. Vor Teil 5 war die Vorschau hier um ein Vielfaches heller (mittlerer Unterschied 8,3 / 14,8).
+- Hinweis: Im Spiel aendern sich beim Geschuetz in dieser Ansicht nur 1,7 % der Punkte um mehr als 6 (Vorschau 6,7 %, die Wand 0,2 Stufen heller); die Bedingung "mindestens 3 %" aus Endrunde 4 ist also eine Eigenschaft der Vorschau, nicht des Spiels. Unveraendert gelassen.
+
+### 4: mbilder-Marken
+- Offen. Der Bildlauf stellt die Spalten absichtlich schmal (links 11, rechts 17 Schrifthoehen, rc608 Teil 3b), damit das Menue gross im Bild steht; die Proben erwarten die normalen Breiten. Die Marken haben keine gemeinsame Ursache, sondern sind sechs einzelne Faelle (Textseite in es 48 Punkte zu schmal, "Layout aufloesen"/"Diesen Schritt probieren"/"Verbergen, wenn" unter dem Rand, Eng, Ownerdraw-Feld halb draussen). Die Bilder im Handbuch sind richtig (Endrunde 4 angesehen).
+- Dabei gesehen: Die Textseite der rechten Spalte braucht in es bei 17 Schrifthoehen 48 Punkte mehr; die Mindestbreite rechts ist 16 Schrifthoehen, ein Anwender kann sie also so schmal ziehen (Suchzeile rollt waagrecht).
+
+### Dabei: menueeditor ja, 3b Satz
+- Erstmals voll in ja gelaufen: 2773/2 ("Die Pruefung sagt, dass niemand das Menue oeffnet", SP und MP). Test sprachabhaengig: er suchte `'eigen'`, ja/zh/de setzen den Namen in andere Anfuehrungszeichen (「eigen」, “eigen”, „eigen“). Jetzt die Meldung MeFlussUnerreichbar in der Sprache des Laufs. Rot `zjamenueeditor` 2773/2, gruen `m_satz` ja/en/de/zh-Hans je 8/0.
+
+### Schlusslauf
+- Neubau `--clean-first` 0 Fehler, 0 Warnungen (559 s); ctest 196 von 196; Lints wie Endrunde 4 (lint_portability 106, lint_pruefcodes 11, lint_endtable 2 und die bekannten Basiswerte, lint_sources und lint_fassung ok).
+- Gleichzeitig (`SP/er5/ende5.sh`): menueeditor en 2775/0, es 2775/0, cs 2775/0, ja 2773/2 (3b Satz, danach behoben, s. o.), Original-JKA 2775/0; m_widgets es/cs/ja je 246/0; stufe9d en 28/0; Modus 1 2651/0; mbilder de 8 Marken (dieselben wie Endrunde 4); karteneditor en 3297/0, es 3297/0.
+- Auf Hinweis des Hauptchats (Testregel) karteneditor cs nicht voll, sondern nur stufe9d es und cs (je 28/0); in Endrunde 4 war dort ausser 9d/2 alles gruen. Der laufende karteneditor es lief zu Ende.
+- Vorher gezielt: kartenfunde 53/0, fix604b 32/0 (neue Helligkeitspruefung).
+
+### Offen nach Endrunde 5
+- Bildlauf mbilder: Marken aus den absichtlich schmalen Spalten (siehe 4); Bilder richtig.
+- Textseite der rechten Spalte in es bei 16 bis 17 Schrifthoehen 48 Punkte zu schmal (Suchzeile rollt waagrecht).
+- Wand am Geschuetz (t3_byss) in der Vorschau 0,2 Stufen heller als im Spiel (unter einer Stufe, nicht verfolgt).
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.

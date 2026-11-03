@@ -583,7 +583,12 @@ std::vector<Schritt> schritteSatz() {
         add(klick(tr(Str::MePruefen)));
         add(pause(0.3));
         add(foto("menue_pruefung_niemand_" + was));
-        add(pruefe("3b Satz: " + was + ": Die Pruefung sagt, dass niemand das Menue oeffnet", [zeileMit] { return zeileMit("'eigen'"); }));
+        add(pruefe("3b Satz: " + was + ": Die Pruefung sagt, dass niemand das Menue oeffnet", [zeileMit] {
+            // Endrunde 5: die Meldung in der Sprache des Laufs (ja/zh/de setzen den Namen in andere Anfuehrungszeichen als '...')
+            std::vector<char> b(1024);
+            std::snprintf(b.data(), b.size(), tr(Str::MeFlussUnerreichbar), "eigen", "eigen");
+            return zeileMit(b.data());
+        }));
         add(tu("3b Satz: Pruefung zu, ein Menue oeffnet es", [mp] {
             (void)me::oeffneText(mp ? "ui/jamp/main.menu" : "ui/main.menu", std::string("{\n  menuDef\n  {\n    name \"") + (mp ? "main" : "mainMenu") + "\"\n    rect 0 0 640 480\n    visible 1\n    onOpen { open eigen }\n  }\n}\n");
         }));
