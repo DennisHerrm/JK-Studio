@@ -1355,6 +1355,55 @@ Mehr als nach Teil 12: Spielbild des Karten-Editors +0,7 ms CPU, Szene spielt +0
 - Testfenster: lauf.py startet mit Idle-Prioritaet; das Programm legt sein Fenster im Selbsttest auf die Arbeitsflaeche, ganz nach hinten und nicht aktiviert (main_win32.cpp, "Selbsttest im HINTERGRUND"). Es liegt also nicht ausserhalb des Bildschirms: Ist nichts darueber, ist es sichtbar (so sah shank `er3ke`). Ausserhalb des Sichtbaren waere eine Aenderung am Programm; die Selbsttests rechnen in Bildschirmpunkten (dock1 mit eigenen Fenstern) - nicht in dieser Runde geaendert, offen fuer den Hauptstrang.
 - Seit der neuen Regel laufende Tests etwa alle 5 Minuten angesehen (FEHLER, Fortschritt, haengende Warteschritte); `er3ke` haengender Warteschritt mit eigener PID beendet (taskkill /T, nachgeprueft), behoben, nur der Teil wiederholt.
 
+## Endrunde 4: die letzten roten Laeufe
+
+Auftrag `auftrag_rc608_endrunde4.md`, Stand 38deb556. Skripte in `SP/er4` (`l.sh` gleichzeitige Laeufe, `lava/md_lava.py` Spielfotos Movie Duels mit eigenem fs_homepath), Laeufe `Y:\karte\laeufe\r4*`, Bisect-Bau in `Y:\kb` (eigener Worktree, nur gelesen/gebaut).
+
+### 1: menueeditor
+- **M7 Punkt 14 (55 Platzhalter):** Movie Duels Update 9 (exe und `z_zzzz_MD_Jace-Update-9.pk3` vom 01.11.2026) bringt den Laden `ui/pazaak/sje_shop.menu` / `sje_shop_mp.menu` mit den Ownerdraws 3000 + Art * 100 + Platz. Die Quelle stand nicht in `SP/mdgit` (Stand 18.10.), sondern in MovieDuels-SJE-SP-MP-master (Jace Solaris) dfce7ac7 vom 01.11. 12:22, dem Stand der exe (12:26); gelesen nach `SP/mdj9`. 1:1 portiert in `src/menue/pazaak.cpp`: UI_Shop_OwnerDraw, Shop_DrawRow, Shop_Text, Shop_Fill, Shop_ParseFile/Shop_Token (ext_data/md_shop.dat, einmal in FeederDaten::baue gelesen), Shop_RowItem, Shop_NumPages, Shop_ItemPrice, Shop_Bit; Schrift PZK_DefaultFont (SP qhMediumFont, MP MenuFontToHandle(1)). Beispielzustand wie ein neues Spiel mit dem Laden ueber die Taste: 1000 Credits (g_shopStartCredits), Munition 150, Bacta 200, nichts gekauft (g_pazaak.cpp). ctest `menue_ownerdraw` 15 neue Zeilen (Sollwerte von Hand nach der Quelle). Rot: 55 Platzhalter (davon 17 MD-MP 340-350 ohne Quelle, wie bisher), gruen: 17.
+- **Rahmen (Doppelklick, Cancel, Ganzer Schirm):** Test veraltet. Seit 433cd7dc (rc608 Teil 3b, `freierName`: "Ist der Name hier frei, bleibt er") heisst der eingefuegte Rahmen `image`, nicht `image_2`; der Test suchte `image_2`, doppelklickte damit auf 0,0 und fand den Rahmen nicht. `rectVon` las zudem nur `name "x"` / `rect ` mit einem Leerzeichen, eingefuegte Elemente stehen mit Tabulatoren ohne Anfuehrungszeichen - der Lagevergleich war damit immer "" == "". Jetzt: Name `image` geprueft (schaerfer: der Name bleibt), Lage aus dem gelesenen Menue (`lageVon`, nicht leer). Rot `r4benm_rahmen` 36/6, gruen `r4genm_rahmen` 40/0.
+- **Links bei 200 % (18):** Test veraltet. Seit 433cd7dc geht die linke Spalte zu, wenn es eng wird (1920 x 1080 bei 200 %); der Test las danach die Kachel-Lagen und die Rollweite des letzten gezeichneten Bildes (waagerecht 459, 46 Kacheln, unabhaengig von der Breite). Jetzt oeffnet der Test die Spalte wie der Pfeil (`oeffneLinkeSpalte`), und `kachelLagen` liefert nichts, wenn die Kacheln im letzten Bild nicht gezeichnet wurden (vorher alte Werte). Rot `r4cenm_links` 32/18, gruen `r4fenm_links` 50/0.
+- **Voller Lauf (nur dort rot):** Die rechte Spalte merkte sich jedes Bild ihre Breite in `menueRechtsBreite` - auch die Klemme bei wenig Platz. Nach den 200-%-Proben von Links blieb sie danach bei 100 % schmal, und in Teil 3b lag die Auswahl "Bedingung" ausserhalb (Klick "Hide if" nicht gefunden). Programmfehler: Jetzt wird nur gemerkt, was der Anwender zieht (rc608 Punkt 2: "die gezogene Breite bleibt"). Rot `r4kenm_links+feldneu` 56/4, gruen `r4lenm_links+feldneu` 58/0. Dazu in den Tests: vor den Klicks auf Fuellung Farbe/Bild, den Knopf "Entfernen" eines Schritts, "Option dazu" und die Auswahl "Bedingung" erst hinrollen (`rolleRechtsZu`/`insBild`, in es/cs liegen sie mit den laengeren Texten unter dem Rand); 3b Eng klickt den Knopf "Ansicht" ueber den letzten Treffer (in es heisst das Menue der Hauptleiste "Ver", der Knopf "Vista").
+- **menueeditorja, 3b Kontext:** Der Test oeffnete ein MP-Menue mit `#include "ui/menudef.h"`; das gibt es nur in Movie Duels, mit den Daten des Original-JKA meldet der Parser "file ui/menudef.h not found". Jetzt wie die MP-Menues des Spiels `ui/jamp/menudef.h` (in beiden). Rot `r4njaenm_kontext` 50/1.
+- **es, 3b Widgets "modell gezogen um 20, 10" (211 statt 210):** Das Einrasten an Kanten hat 5 Bildpunkte Toleranz und greift darum je nach Zoom (die rechte Spalte ist seit der Behebung oben nicht mehr auf 0,01 Schrifthoehen gerundet). Die Ziehproben schalten das Einrasten fuer ihre Dauer aus (`setzeEinrasten`), es hat eigene Proben. Rot `r4nesm_widgets` 244/2.
+- **es/cs Leiste "Add step":** Test sprachabhaengig: die Suche tippte "menu", das steht nur im englischen Namen ("Abrir menú", "Otevřít nabídku"). Jetzt der Name in der Sprache des Laufs (tr(MlSOeffnen)). Rot `r4fesm_leiste`/`r4fcsm_leiste` je 97/10, gruen `r4g*` je 103/0.
+
+### 2: karteneditor
+- **Stufe 7 "gebacken", 9c/2, Licht 9c:** Test veraltet seit rc608 Teil 11 (8b51bde6). "Built map as in the game" ist ab Werk an und zeigt das Schnell-Backen mit dem Zeichner der Vorschau; die Proben vergleichen aber Echtzeit-Licht und Lightmaps im Zeichner des Editors. Dazu rechnet der Editor die Lightmap seit Teil 11 mal 1 statt mal 2 (im Spiel gemessen). Jetzt schalten diese Proben das Spielbild fuer ihre Dauer aus (`mitEditorZeichner`) und die absoluten Schwellen sind halbiert (30 -> 15, 90 -> 45, Schattenabstand 5 -> 2,5). Werte: rc607 50 / 103,101 / P1 0,16, jetzt 25 / 51,50 / P1 0,08 - genau die Haelfte. Rot `r4censtufe7` 76/1, `r4censtufe9c` 21/2, gruen `r4ienstufe7` 77/0, `r4ienstufe9c` 23/0.
+- **Stufe 9d/2 misc_model-Schatten: offen.** Bisect mit Bau (Worktree `Y:\kb`, inzwischen entfernt): rc607 gruen (Boden ohne 45,0, mit 37,4), 5a96aaa2 (Teil 10b) gruen, 8b51bde6 (Teil 11) rot (ohne 22,5, mit 23,4 - kein Schatten), c14964e6 rot. Das Spielbild ist es nicht (die Probe zeichnet ohne Schnell-Backen und ohne Vorlage, und mit `mitEditorZeichner` bleibt sie rot); die Schattengeometrie enthaelt die 220 Dreiecke des Modells. Ursache in Teil 11 nicht gefunden (in Frage: Mindestlicht `minimumEcken`/`extra.y`, `wertQ3`).
+- Die drei vollen karteneditor-Laeufe (en/es/cs) nacheinander: Die Proben belegen die festen Ports 39000-39063 des Build-Monitors (NRC, `kBauMonitorPort`), einen Schalter fuer andere Ports gibt es nicht.
+
+### 3: spulen
+- Vermutung bestaetigt: die Kopfnachfuehrung (rc608 Teil 9, `blickFolgeRechnen`) rechnete nach einem Sprung 100 Bilder ab dem Ziel mit Anfangswert 0 nach, vorwaerts aber vom laufenden Stand weiter; zurueck stimmte sie nur bis auf Rundung (Figuren in 343/33/1167 Bildern anders). Ein erster Weg (Schnappschuesse alle 125 Bilder, vom Szenenanfang an genau wie die Schwerter) war bitgleich, kostete aber bei jedem Sprung nach vorn alle Bilder bis dorthin: Filmstreifen in zeitleiste1 16,8 statt 9,5 ms je Bild (rot `r4zenzeitleiste1`). Jetzt beginnt der Vorlauf an einem festen Raster (Anfang des vorletzten 125er-Blocks, 125 bis 249 Bilder vor dem Bild, Anfangswert 0): das Ergebnis haengt nur am Bild, vom Anfangswert bleibt 0,925^125 < 0,01 % (vorher ^100). Zwischenstaende je 8 Bilder im selben Vorlauf machen das Zurueckspulen billig. Danach blieb end_jedi mit Obergrenze 2500 rot (Effektnetz 114, Klingen 23): figurProbe der Schwerter nahm den Blick des zuletzt gezeichneten Bildes (Hals und Rumpf ziehen die Hand mit); jetzt eigener Blickstand zur Zeit des Clientbilds (`figurKopfGierBei`). Rot `r4aenspulen` 9/5, gruen `r4tenspulen` 14/0 (zurueck so schnell wie vor: intro2_sith 16,8 / 17,0 ms), zeitleiste1 allein `r4uenzeitleiste1` 100/0 (Filmstreifen 9,5 ms wie mit 38deb556, `r4zaltenzeitleiste1`).
+
+### 4: fix604b, kartenfunde, rest605
+- **Lavawetter (fix604b, kartenfunde) und Brush-Gras (rest605):** Im Spiel gemessen (Punkt 7). md_acc_jedi hat fx_snow und `Weather/md_acc_jedi.cfg` mit `r_weather 0`; Movie Duels mit `g_AllowWeather 0` (IT_LoadWeatherParms fuehrt die Datei nicht aus) zeigt Nebel und Schnee, mit 1 nichts (`SP/er4/erg/schnee_vergleich.png`, oben 0, unten 1). Die Datei raeumt also das Wetter der Entities, wie seit Teil 7 nachgebildet (Quelle MD 9: R_WeatherEffect_f -> RE_WorldEffectCommand, Preset 0 = clear). Alle drei Karten mit fx_lava und duel_tower (einzige Karte mit customrainsurf an einem Brush-Modell) haben diese Datei: Im Spiel gibt es dort weder Lava noch Regen. Die Tests stammen aus rc604/rc605, vor den Wetterdateien. Lavawetter erwartet jetzt nach der Regel des Spiels 0 Wolken; Brush-Gras prueft unter Movie Duels "der Regen ist geraeumt" und die Spritzer unter OpenJK (kennt keine Wetterdateien). Rot 1/1 bzw. rest605 5/1, gruen `r4genrest605` 8/0, Lavawetter gruen in `r4genfix604b`.
+- Dabei: Movie Duels 9 kennt `r_weather 5`/`6` als die Nebel "heavyrainfog"/"fog" (vorher kein Zweig); 125 Wetterdateien setzen 6. Nachgebildet (`wetterSatz`), dazu "heavyrainfog" mit seinen eigenen Werten (70 Wolken, 100 gross, 0,3) statt des Nebels und die Masse 10..30 des Nebels. Teil 6 prueft duel_carbon (nur `r_weather 6`): eine Nebelwolke, gruen `r4genteil6` 15/0.
+
+- **blaster, misc_panel_turret (kartenfunde, fix604b):** Bisect: rc607 gruen (8,32 / 14,77), Teil 10b schon rot (2,95 / 0,33). In diesem Bereich aendert Teil 5 das Figurenlicht (Helligkeit 1,0 statt 2,0, Umgebung 0, im Spiel gemessen) und Teil 9 das Licht der .md3 (Lichtgitter). Der Gegenstand steht in einer dunklen Ecke (Hintergrund 22 bzw. 2,4) und ist dunkel wie im Spiel, aber gezeichnet: 14,3 % bzw. 6,7 % der Bildmitte aendern sich um mehr als 6 Stufen. Der mittlere Unterschied mass die Helligkeit; jetzt prueft der Test das Zeichnen (mindestens 3 % der Punkte). Medpak 42,6 %, misc_turret 59,7 %. Gruen `r4menkartenfunde` 53/0, `r4menfix604b` 32/0. Nicht gegen ein Spielfoto an derselben Stelle geprueft.
+
+### 5: JK2 Spielerwaffe
+- ClientSpawn von Jedi Outcast (codeJK2 g_client.cpp:1646-1694, 1766-1786): der Spieler haelt die Bryar-Pistole ("force the base weapon up"), dazu Schwert oder (32) Stock; 64 nichts. Die Vorschau gab dem Spieler unter JK2 die Waffe aus NPC_WeaponsForTeam. Jetzt nach der Quelle. JKA (Schwert in der Hand, OJ g_client.cpp:2267-2277) und MD (gleich) waren richtig. ctest `npcklasse` neue Zeile. jk2-Modus gruen `r4cenjk2` 15/0.
+
+### 6: Testfenster ausser Sicht
+- Rechts neben den Bildschirmen geht nicht ohne andere Ergebnisse: Mit eigenen Fenstern (ImGuiConfigFlags_ViewportsEnable) rechnet ImGui in Bildschirmpunkten; die Fotos stellen Fenster auf 0,0 (die waeren als eigene Fenster sichtbar geworden) und die Klickstellen verschoeben sich. Stattdessen verbirgt DWM die Fenster (DWMWA_CLOAK): Hauptfenster in main_win32.cpp, die eigenen Fenster der Panels vor dem ersten Zeigen (Platform_ShowWindow). Lage, Groesse, DPI (ein Bildschirm 2560 x 1600, 144 dpi) bleiben. Vergleich mit derselben exe ohne Verbergen: m_rahmen (Fotos und Klicks) 40/0 gegen 40/0, 9 von 10 Fotos bytegleich, das zehnte ist das laufende Video (nur die Videoflaeche anders); dock1 (eigene Fenster) 97/0 gegen 97/0; m_links (Klicks) 50/0.
+
+### 7: Lavawetter bei r_weather 0
+- Mit Movie Duels gemessen (eigener fs_homepath `SP/er4/lava/home_0|1`, Fenster ausserhalb, `SP/er4/lava/md_lava.py`): Auf md_afif2_sith zeigt fx_lava auch ohne die Wetterdatei keine sichtbare Glut am Himmel (die Lava-Wolke hat `mWaterParticles`), dort nicht messbar. Gemessen an md_acc_jedi (fx_snow + `r_weather 0`): siehe Punkt 4 - die Datei raeumt das Wetter der Entities. Bilder `SP/er4/erg/schnee_vergleich.png` (oben g_AllowWeather 0, unten 1), `schnee_w0_*.png`, `schnee_w1_*.png`, `lava_w0_*.png`, `lava_w1_*.png` (je 1920 x 1440).
+
+### Endlauf
+- Neubau `--clean-first` 0 Fehler, 0 Warnungen (572 s); ctest 196 von 196 (zweimal, auch nach den letzten Aenderungen); Lints wie Endrunde 3 (lint_portability 106, lint_pruefcodes 11, lint_endtable 2 und die bekannten Basiswerte, alle uebrigen ok, Handbuch-Sprachpruefung ok).
+- Gleichzeitig (`SP/er4/ende4.sh`, hoechstens 8, die drei karteneditor-Laeufe nacheinander, leistung allein): menueeditor en 2775/0, cs 2775/0, es 2773/2, Original-JKA 2774/1; Modus 1 2651/0; karte 233/0; fix604b 32/0; kartenfunde 53/0; rest605 8/0; laserfalle 8/0; teil6 15/0; teil9 29/0; teil13b 5/0; jk2 15/0; dock1 97/0; szenen 26/0; spulen 14/0; stufe9d 27/1; karteneditor en/es/cs je 3295/2 (9d/2 und Menue Build); zeitleiste1 99/1 (meldet selbst "unter Last"); Bildlauf mbilder de 8, zh 7, ja 6, es 7, cs 7 Bildmarken.
+- Danach behoben und nur das Betroffene wiederholt: Original-JKA `m_kontext` 51/0; Menue Build (QMenu bricht auf diesem Bildschirm - 1600 Punkte, Massstab 2 - in eine zweite Spalte um, `updateActionRects`, wie im Programm seit reste2; der Test kennt das jetzt) `fotos` 78/0; Blickvorlauf (Punkt 3) spulen 14/0, zeitleiste1 allein 100/0, teil9 29/0, karte 233/0, szenen 26/0, teil13d 5/0, kamera 96/0, mission1 98/0.
+- leistung allein (BHED_D3D_DEBUG=0): Szene spielt CPU 3,66 ms (p99 5,10), Szene angehalten 0,82, md_toaj_jedi Flug CPU 2,86 (p99 13,6 - mit der exe von 38deb556 ebenso 14,6, nicht von dieser Runde), Karten-Editor Spielbild ruhend 2,31 / dreht 2,23, Model 0,42, Menue-Editor 0,43.
+- Bildlauf: Markiert werden Bilder nach einem Fehlschlag im selben Teil (mit den schmalen Spalten des Bildlaufs). Im Handbuch stehen davon `menue_felder_mehrfach`, `menue_ereignisse`, `menue_reiter_properties`: angesehen, richtig, nicht neu aufgenommen. `menue_leiste_probe`, `menue_eng_auf`, `menue_eng_beide` zeigen den falschen Zustand, stehen aber auf keiner Seite (wie `menue_leiste_transition`, `menue_felder_ownerdraw`).
+
+### Offen nach Endrunde 4
+- Stufe 9d/2 misc_model-Schatten im Echtzeit-Licht (erster roter Stand 8b51bde6, Teil 11; Ursache nicht gefunden).
+- es, 3b Widgets: das Modell landet nach dem Ziehen um 20, 10 auf y + 11 (nur in es, je nach Zoom; Einrasten ausgeschlossen, Ursache nicht gefunden). Seit der Behebung der Spaltenbreite sichtbar.
+- Bildlauf mbilder: die Proben scheitern mit den schmalen Spalten des Bildlaufs (Layout, Leiste "Diesen Schritt probieren", Eng, Felder); die betroffenen Bilder im Handbuch sind richtig.
+- blaster/misc_panel_turret nicht gegen ein Spielfoto an derselben Stelle geprueft.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1485,6 +1534,11 @@ Weiter offen:
 - Preview: a droid killed by a laser trip mine's explosion no longer vanishes from the beam in the same instant (it only stops being drawn, as in the game); the mine explodes and chained mines follow.
 
 
+- Heads that follow a look target, and the sabers in their hands, show exactly the same picture when the timeline is dragged backwards as forwards.
+- Movie Duels 9 weather files: r_weather 6 (fog) and 5 (heavy rain fog) draw their fog as in the game; heavy rain fog has its own size and brightness.
+- Jedi Outcast: the player holds the Bryar pistol as in the game.
+- The Movie Duels 9 shop (sje_shop.menu) shows tabs, rows, prices and credits as in the game, with the items of md_shop.dat.
+- The right column keeps the width you dragged; a narrow window (200 %) no longer makes it narrow for good.
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
 - Menü-Editor: Der erste Klick wählt ein Element nur aus, erst ein neuer Druck zieht es; ein Klick versetzt nichts mehr. Alt+Klick geht durch überlappende Elemente, Alt+Ziehen bewegt das gewählte auch verdeckt.
@@ -1598,6 +1652,11 @@ Weiter offen:
 - Vorschau: Ein Droide, den die Explosion einer Laserfalle tötet, verschwindet nicht mehr im selben Augenblick aus dem Strahl (er wird wie im Spiel nur nicht mehr gezeichnet); die Falle explodiert, verkettete Fallen folgen.
 
 
+- Köpfe, die einem Blickziel folgen, und die Schwerter in ihren Händen zeigen beim Zurückziehen der Zeitleiste genau dasselbe Bild wie vorwärts.
+- Wetterdateien von Movie Duels 9: r_weather 6 (Nebel) und 5 (Nebel bei Starkregen) zeichnen ihren Nebel wie im Spiel; der Starkregen-Nebel hat seine eigene Größe und Helligkeit.
+- Jedi Outcast: Der Spieler hält die Bryar-Pistole wie im Spiel.
+- Der Laden von Movie Duels 9 (sje_shop.menu) zeigt Reiter, Zeilen, Preise und Credits wie im Spiel, mit den Gegenständen aus md_shop.dat.
+- Die rechte Spalte behält die gezogene Breite; ein schmales Fenster (200 %) macht sie nicht mehr dauerhaft schmal.
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
 - 菜单编辑器:第一次单击只选中元素,再次按住才会拖动,单击不再造成移动。Alt+单击可在重叠元素间切换,Alt+拖动可移动被遮挡的已选元素。
@@ -1711,6 +1770,11 @@ Weiter offen:
 - 预览：被激光绊雷爆炸炸死的机器人不再在同一瞬间从光束中消失（与游戏一样只是不再绘制）；绊雷会爆炸，连锁的绊雷随之爆炸。
 
 
+- 跟随注视目标的头部以及手中的光剑,向后拖动时间轴时显示的画面与向前时完全相同。
+- Movie Duels 9 的天气文件:r_weather 6(雾)和 5(暴雨雾)像游戏中一样绘制雾;暴雨雾有自己的大小和亮度。
+- Jedi Outcast:玩家像游戏中一样手持 Bryar 手枪。
+- Movie Duels 9 的商店(sje_shop.menu)像游戏中一样显示标签、行、价格和点数,物品来自 md_shop.dat。
+- 右侧栏保留你拖动的宽度;窄窗口(200 %)不再让它永久变窄。
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
 - メニューエディター: 最初のクリックは選択だけで、もう一度押すとドラッグします。クリックで動くことはなくなりました。Alt+クリックで重なった要素を順に選び、Alt+ドラッグで隠れた選択済み要素も動かせます。
@@ -1824,6 +1888,11 @@ Weiter offen:
 - プレビュー：レーザートリップマインの爆発で倒れたドロイドが同じ瞬間にビームから消えなくなりました（ゲームと同じく描画されなくなるだけ）。マインは爆発し、連鎖するマインも続きます。
 
 
+- 注視先を追う頭と手にしたセーバーは、タイムラインを逆にドラッグしても順方向とまったく同じ画面になります。
+- Movie Duels 9 の天候ファイル: r_weather 6(霧)と 5(豪雨の霧)がゲームと同じように霧を描きます。豪雨の霧は独自の大きさと明るさです。
+- Jedi Outcast: プレイヤーはゲームと同じように Bryar ピストルを持ちます。
+- Movie Duels 9 のショップ(sje_shop.menu)がタブ、行、価格、クレジットをゲームと同じように、md_shop.dat のアイテムで表示します。
+- 右の列はドラッグした幅を保ちます。狭いウィンドウ(200 %)でずっと狭くなることはもうありません。
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
 - Editor de menús: el primer clic solo selecciona; otra pulsación arrastra, así que un clic ya no mueve nada. Alt+clic recorre los elementos superpuestos y Alt+arrastrar mueve el seleccionado aunque esté tapado.
@@ -1937,6 +2006,11 @@ Weiter offen:
 - Vista previa: un droide muerto por la explosión de una mina láser ya no desaparece del haz en el mismo instante (como en el juego, solo deja de dibujarse); la mina explota y las minas encadenadas la siguen.
 
 
+- Las cabezas que siguen un objetivo de mirada y los sables en sus manos muestran exactamente la misma imagen al arrastrar la línea de tiempo hacia atrás que hacia delante.
+- Archivos de clima de Movie Duels 9: r_weather 6 (niebla) y 5 (niebla de lluvia intensa) dibujan su niebla como en el juego; la niebla de lluvia intensa tiene su propio tamaño y brillo.
+- Jedi Outcast: el jugador sostiene la pistola Bryar como en el juego.
+- La tienda de Movie Duels 9 (sje_shop.menu) muestra pestañas, filas, precios y créditos como en el juego, con los objetos de md_shop.dat.
+- La columna derecha conserva el ancho que arrastraste; una ventana estrecha (200 %) ya no la deja estrecha para siempre.
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
 - Editor menu: první kliknutí prvek jen vybere, teprve nový stisk ho táhne, takže kliknutí už nic neposune. Alt+kliknutí prochází překrývajícími se prvky, Alt+tažení posune vybraný prvek, i když je zakrytý.
@@ -2048,3 +2122,8 @@ Weiter offen:
 - Opraveno: po ztrátě grafického zařízení nové zařízení znovu vytvoří gamu Movie Duels.
 - Příručka: obrázky editoru menu k profilům modů a k rozvržením, která sledují zobrazení a skrytí, znovu pořízeny v šesti jazycích.
 - Náhled: droid zabitý výbuchem laserové miny už v tutéž chvíli nezmizí z paprsku (jako ve hře se jen přestane kreslit); mina vybuchne a řetězené miny následují.
+- Hlavy, které sledují cíl pohledu, a meče v jejich rukou ukazují při tažení časové osy zpět přesně stejný obraz jako vpřed.
+- Soubory počasí Movie Duels 9: r_weather 6 (mlha) a 5 (mlha při silném dešti) kreslí mlhu jako ve hře; mlha při silném dešti má vlastní velikost a jas.
+- Jedi Outcast: hráč drží pistoli Bryar jako ve hře.
+- Obchod Movie Duels 9 (sje_shop.menu) ukazuje karty, řádky, ceny a kredity jako ve hře, s předměty z md_shop.dat.
+- Pravý sloupec si drží šířku, kterou jsi nastavil tažením; úzké okno (200 %) ho už natrvalo nezúží.

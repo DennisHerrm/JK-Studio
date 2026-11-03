@@ -1,6 +1,8 @@
 // pazaak.h - Menue-Editor M7 Punkt 14: die Pazaak-Ownerdraws von Movie Duels (2000 + Art * 100 +
 // Platz, ui/pazaak/sje_pazaak.menu) - Spielfeld, Hand, Namen, Punkte, Dialog, Kartenwahl, Anleitung.
 // Ohne laufende Partie: ein beschrifteter Beispielzustand (Spielmitte, Kartenwahl befuellt).
+// Dazu der Laden von Movie Duels 9 (3000 + Art * 100 + Platz, ui/pazaak/sje_shop.menu): Kopf, Reiter, Zeilen
+// mit der Liste aus ext_data/md_shop.dat; Beispiel: ein neues Spiel mit dem Laden ueber die Taste geoeffnet.
 //
 // Portiert aus OpenJK-Ableger Movie Duels: code/ui/ui_pazaak.cpp (UI_Pazaak_OwnerDraw, SJE_Pazaak_DrawCardSlot,
 // SJE_Pazaak_DrawSelCardSlot, SJE_Pazaak_DrawSideDeckSlot, SJE_Pazaak_DrawHandSlot,
@@ -8,6 +10,10 @@
 // SJE_Pazaak_DrawWaiting, SJE_Pazaak_HowToWords, SJE_Pazaak_DrawHowTo, Pazaak_GetCardShader,
 // Pazaak_GetNeutralCardValue, Pazaak_GetCardValue, Pazaak_DrawCardText, Pazaak_CacheShaders) und
 // code/ui/pazaak_core.h (Kartennummern); dort aus Jedi Knight Galaxies.
+// Der Laden aus Movie Duels 9 (Jace Solaris, MovieDuels-SJE-SP-MP-master dfce7ac7 vom 01.11.2026, der Stand der
+// exes von Update 9): code/ui/ui_pazaak.cpp (UI_Shop_OwnerDraw, Shop_DrawRow, Shop_Text, Shop_Fill, Shop_ParseFile,
+// Shop_Token, Shop_LoadItems, Shop_RowItem, Shop_NumPages, Shop_ItemPrice, Shop_Bit) und code/game/g_pazaak.cpp
+// (die Vorgaben g_shopStartCredits, g_shopAmmoPrice, g_shopBactaPrice).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
@@ -34,6 +40,18 @@ struct PazaakKarte {
     int param = 0;
 };
 
+// MD 9: was "uishop open/state" dem Laden schickt und was die Oberflaeche selbst haelt; Beispiel = ein neues Spiel,
+// der Laden mit der Taste geoeffnet (Shop_Open(ent, "")): nichts gekauft, keine Meldung
+struct ShopZustand {
+    int kategorie = 0, seite = 0;     // shopCat, shopPage
+    int zeileMaus = -1, reiterMaus = -1;   // shopHover, shopTabHover
+    int credits = 1000;               // PERS_CREDITS = g_shopStartCredits "1000" (g_pazaak.cpp)
+    int munitionPreis = 150;          // g_shopAmmoPrice "150"
+    int bactaPreis = 200;             // g_shopBactaPrice "200"
+    std::array<unsigned, 8> besitz{}, inHand{};   // shopOwnedBits, shopHandBits (Bit n = Eintrag n der Datei)
+    std::string meldung;              // shopMessage
+};
+
 // PzkState / PDlgData, Beispiel einer laufenden Partie
 struct PazaakZustand {
     std::array<PazaakKarte, 18> feld{{{4, 0}, {7, 0}, {12, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0},
@@ -47,15 +65,22 @@ struct PazaakZustand {
     std::string dialog1, dialog2;                    // PDlgData.line1/2 (leer = kein Dialog)
     int restZeit = 0;                                // Sekunden bis timeout (0 = keiner)
     bool wartet = false;                             // waitingStartTime
+    ShopZustand shop;                                // MD 9: der Laden
 };
 
 struct PazaakKontext {
     std::function<int(const std::string& text, float scale)> breite;   // R_Font_StrLenPixels mit "ergoec"
     int zeitMs = 0;                                                      // PZK_Millis
     PazaakZustand zustand;
+    // Laden: PZK_DefaultFont - SP uiInfo.uiDC.Assets.qhMediumFont, MP MenuFontToHandle(1) (qhSmallFont)
+    bool mp = false;                                                         // PZK_SP nicht gesetzt (codemp)
+    std::function<int(const std::string& text, float scale)> breiteMenue;   // R_Font_StrLenPixels(PZK_DefaultFont)
+    std::function<bool(const std::string& bild)> bildDa;                     // PZK_RegisterShader != 0
+    const std::string* shopDatei = nullptr;                                  // ext_data/md_shop.dat (nullptr = fehlt)
 };
 
-// UI_Pazaak_OwnerDraw(ownerDraw, x, y, w, h, shader); false = keine Pazaak-Nummer (2000..2999)
+// UI_Pazaak_OwnerDraw(ownerDraw, x, y, w, h, shader); false = keine Pazaak-Nummer (2000..2999) und keine des
+// Ladens (3000..3999, UI_Shop_OwnerDraw wird zuerst gefragt)
 bool pazaakOwnerDraw(int id, float x, float y, float w, float h, const std::string& shader, const PazaakKontext& k, std::vector<OdTeil>& out);
 
 }  // namespace bhed::menue

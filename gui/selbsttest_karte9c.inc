@@ -661,7 +661,8 @@ std::vector<Schritt> himmel() {
         const int echt = (*werte)[0];
         const int geb = (*werte)[1];
         diag::detail("Knopftest: Stufe 9c/2 - Boden echt " + std::to_string(echt) + ", gebacken " + std::to_string(geb));
-        return geb > 90 && echt > 0 && std::abs(echt - geb) * 100 <= geb * 20;
+        // Lightmap mal gpu::kSpielLightmapFaktor (1 seit Teil 11, vorher 2): die halbe Schwelle von 90
+        return geb > 45 && echt > 0 && std::abs(echt - geb) * 100 <= geb * 20;
     }));
     add(tu("Stufe 9c/2: Echtzeit-Licht und Backen aus", [] {
         ke::Editor& e = ke::editor();
@@ -742,11 +743,11 @@ std::vector<Schritt> durchsichtig() {
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : leisten()) { s.push_back(std::move(x)); }
-    for (Schritt& x : himmel()) { s.push_back(std::move(x)); }
+    for (Schritt& x : mitEditorZeichner("Stufe 9c/2", himmel())) { s.push_back(std::move(x)); }
     for (Schritt& x : durchsichtig()) { s.push_back(std::move(x)); }
     // Lichtmessung auf Karten nur mit BHED_LICHT_KARTEN (lang)
     if (const char* k = std::getenv("BHED_LICHT_KARTEN"); k != nullptr && k[0] != '\0') {
-        for (Schritt& x : messung()) { s.push_back(std::move(x)); }
+        for (Schritt& x : mitEditorZeichner("Licht 9c", messung())) { s.push_back(std::move(x)); }
     }
     return s;
 }

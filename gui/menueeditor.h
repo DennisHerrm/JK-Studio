@@ -246,6 +246,7 @@ bool exportierePk3(const std::string& pfad);
 void testPaketAblegen(const std::string& ordner);
 [[nodiscard]] std::vector<std::string> pruefZeilen();   // die Zeilen im Fenster der Pruefung, letztes Bild
 [[nodiscard]] bool linkeSpalteZu();   // die linke Spalte ist zugeklappt
+void oeffneLinkeSpalte();              // Endrunde 4: der Pfeil ueber der Flaeche oeffnet sie
 [[nodiscard]] bool zweiVideosGemeldet();
 [[nodiscard]] std::array<float, 2> leisteFeldStelle(const char* id);   // die Mitte eines Felds der rechten Leiste, das gerade gezeichnet wurde (auch Auswahlfelder ohne Beschriftung)   // die Zeile ueber der Flaeche steht
 // M2 Punkt 7: nur geaenderte Menues (und das Paket); Pruefung fuer die Fassungen

@@ -298,7 +298,9 @@ std::vector<Schritt> schritteKontext() {
     add(pause(0.2));
     add(pruefe("3b Kontext: Strg+X nimmt es wieder heraus", [] { return folgeText() == "x,y"; }));
     add(tu("3b Kontext: andere Datei, Mehrspieler", [] {
-        (void)me::oeffneText("ui/jamp/andere.menu", "#include \"ui/menudef.h\"\n{\n  menuDef\n  {\n    name \"andere\"\n    rect 0 0 640 480\n    visible 1\n  }\n}\n");
+        // Endrunde 4: wie die MP-Menues des Spiels "ui/jamp/menudef.h" - "ui/menudef.h" gibt es nur in Movie Duels; mit den
+        // Daten des Original-JKA (menueeditorja) meldete der Parser "file ui/menudef.h not found"
+        (void)me::oeffneText("ui/jamp/andere.menu", "#include \"ui/jamp/menudef.h\"\n{\n  menuDef\n  {\n    name \"andere\"\n    rect 0 0 640 480\n    visible 1\n  }\n}\n");
     }));
     add(pause(0.2));
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_V, "Strg+V"));
@@ -742,7 +744,7 @@ std::vector<Schritt> schritteWidgets() {
                 add(pause(0.2));
                 add(pruefe("3b Widgets " + name + ": gezogen um 20, 10", [=] {
                     const auto r = rectDerAuswahl();
-                    if (r[0] != (*r0)[0] + 20.0F || r[1] != (*r0)[1] + 10.0F) { diag::info("Knopftest: " + name + " liegt auf " + std::to_string(r[0]) + " " + std::to_string(r[1]) + " statt " + std::to_string((*r0)[0] + 20.0F)); }
+                    if (r[0] != (*r0)[0] + 20.0F || r[1] != (*r0)[1] + 10.0F) { diag::info("Knopftest: " + name + " liegt auf " + std::to_string(r[0]) + " " + std::to_string(r[1]) + " statt " + std::to_string((*r0)[0] + 20.0F) + " " + std::to_string((*r0)[1] + 10.0F)); }
                     return r[0] == (*r0)[0] + 20.0F && r[1] == (*r0)[1] + 10.0F && r[2] == (*r0)[2] && me::stand().undoSchritte == 2;
                 }));
                 add(Schritt{"3b Widgets " + name + ": skalieren", [=](int b) {
@@ -1055,6 +1057,9 @@ std::vector<Schritt> schritteFelderNeu() {
     add(insBild("##showcvar"));
     add(foto("menue_felder_bedingung"));
     add(merken);
+    // Ist die Spalte niedrig (voller Lauf), rollt "##showcvar" die Auswahl darueber aus dem Bild: erst zu ihr rollen
+    add(insBild("##bedingung"));
+    add(pause(0.1));
     add(klickAn("3b Felder: Auswahl Bedingung", [] {
         const auto x = me::leisteFeldStelle("##bedingung");
         return ImVec2{x[0], x[1]};
@@ -1085,6 +1090,7 @@ std::vector<Schritt> schritteFelderNeu() {
         diag::info("Knopftest: " + t.substr(t.find("cvarStrList"), 50));
         return zeileDa(t, "cvarStrList { \"Eins\" \"a\" \"Two\" \"b\" }") && me::stand().undoSchritte == *tiefe + 1;
     }));
+    add(rolleRechtsZu(tr(Str::MlWerteNeu)));   // es: der Knopf liegt mit dem laengeren Text am unteren Rand
     add(klick(tr(Str::MlWerteNeu)));
     add(pause(0.2));
     add(pruefe("3b Felder: Ein Eintrag mehr", [] { return zeileDa(me::stand().text, "\"2\" }"); }));
@@ -1255,7 +1261,12 @@ std::vector<Schritt> schritteEng() {
     add(klick("##rechts_zu"));
     add(pause(0.3));
     add(pruefe("3b Eng: Rechts wieder da", [] { return finde("##k_weg", "##karte", 0, false) != nullptr; }));
-    add(klick(tr(Str::MeAnsichtKnopf), "", 1));   // 0 ist das Menue "View" der Hauptleiste
+    // In en heisst auch das Menue der Hauptleiste "View" (Treffer 0), in es nicht ("Ver" gegen "Vista"): der letzte Treffer
+    add(klickAn("3b Eng: Knopf " + std::string(tr(Str::MeAnsichtKnopf)), [] {
+        const Element* e = finde(tr(Str::MeAnsichtKnopf), "", 1, false);
+        if (e == nullptr) { e = finde(tr(Str::MeAnsichtKnopf), "", 0, false); }
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{};
+    }));
     add(pause(0.3));
     add(foto("menue_eng_ansicht"));
     add(pruefe("3b Eng: Hinter dem Knopf stehen alle Ansicht-Schalter", [] {

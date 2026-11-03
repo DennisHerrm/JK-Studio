@@ -269,6 +269,21 @@ int main() {
                    waffe("elder", "TEAM_PLAYER") + ")");
         pruefe(waffe("kyle", "TEAM_PLAYER") == "WP_SABER",
                "JK2 Waffe: NPC kyle nimmt die des Spielers (NPCAI_MATCHPLAYERWEAPON) (" + waffe("kyle", "TEAM_PLAYER") + ")");
+        // Endrunde 4: der Spieler selbst (ClientSpawn, codeJK2 g_client.cpp:1646-1694, 1766-1771): Bryar in der
+        // Hand, das Schwert dazu; STUN_BATON (32) statt des Schwerts, NOWEAPON (64) nichts
+        const auto spieler = [](int sf) {
+            Actor a;
+            a.name = "player";
+            a.npcType = "player";
+            a.echterSpieler = true;
+            NpcDef d;
+            d.team = "TEAM_PLAYER";
+            ausstattungBeimSpawnen(a, &d, nullptr, sf);
+            return a.startWaffe + (a.startHatSaber ? "+saber" : "");
+        };
+        pruefe(spieler(0) == "WP_BRYAR_PISTOL+saber" && spieler(32) == "WP_BRYAR_PISTOL" && spieler(64) == "WP_NONE",
+               "JK2 Spieler: Bryar in der Hand, Schwert dazu, STUN_BATON ohne Schwert, NOWEAPON nichts (" + spieler(0) + ", " +
+                   spieler(32) + ", " + spieler(64) + ")");
         regelwerkAnwenden(false, -1);
         // rc604 fix604 (JK2 Stufe 3): SET_SABERACTIVE wechselt in JK2 nicht zum
         // Schwert (Q3_SetSaberActive, codeJK2/game/Q3_Interface.cpp:6258-6278);

@@ -384,6 +384,88 @@ int main() {
         Welt ja(Dialekt::SP);
         pruefe(!ja.od(257).bekannt, "257 nur in Movie Duels");
     }
+    // --- Movie Duels 9: der Laden (ui_pazaak.cpp UI_Shop_OwnerDraw, Sollwerte von Hand nach der Quelle) -----
+    {
+        const std::string datei =
+            "// Kommentar\nitem // 1\n{\n\tname \"Blaster Pistol\"\n\tcat pistols\n\ticon \"gfx/hud/w_icon_blaster_pistol\"\n\tprice 200\n}\n"
+            "item // 2\n{\n\tname \"Bryar Pistol\"\n\tcat pistols\n\tprice 1200\n\tonly sp\n}\n"
+            "item /* 3 */\n{\n\tname \"Thermal\"\n\tcat explosives\n\tprice 90\n}\n"
+            "item // 4\n{\n\tcat unbekannt\n}\n";
+        PazaakKontext pk;
+        pk.breiteMenue = [](const std::string& t, float sc) { return static_cast<int>(static_cast<float>(t.size()) * 10.0F * sc); };
+        pk.bildDa = [](const std::string& b) { return b == "gfx/hud/w_icon_blaster_pistol" || b == "gfx/hud/i_icon_bacta"; };
+        pk.shopDatei = &datei;
+        std::vector<OdTeil> f;
+        // Zeile 0 (Pistols): Fuellen, Bild (x+4, y+2, (h-4)*2, h-4), Name bei x+12+(h-4)*2, y+h/2-8, Preis rechts gold
+        pruefe(pazaakOwnerDraw(3200, 100, 50, 400, 24, "", pk, f) && f.size() == 4 && f[0].art == OdTeil::Art::Fuellen &&
+                   nah(f[0].farbe.a, 0.85F) && f[1].art == OdTeil::Art::Bild && nah(f[1].x, 104) && nah(f[1].y, 52) && nah(f[1].w, 40) &&
+                   nah(f[1].h, 20) && f[2].inhalt == "Blaster Pistol" && nah(f[2].x, 152) && nah(f[2].y, 54) && nah(f[2].scale, 0.55F) &&
+                   f[2].font == 0 && f[3].inhalt == "200 cr" && nah(f[3].x, 100 + 400 - 8 - 33) && nah(f[3].farbe.g, 0.8F),
+               "Laden: Zeile mit Bild, Name und Preis (Shop_DrawRow)");
+        f.clear();
+        // SP: Bryar (1200 cr) ist teurer als die 1000 Credits - rot, ohne Bild (kein Shader)
+        (void)pazaakOwnerDraw(3201, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 3 && f[1].inhalt == "Bryar Pistol" && f[2].inhalt == "1200 cr" && nah(f[2].farbe.r, 1.0F) && nah(f[2].farbe.g, 0.4F),
+               "Laden: zu teuer rot, ohne Bild");
+        f.clear();
+        pk.zustand.shop.besitz[0] = 1U << 1;
+        pk.zustand.shop.inHand[0] = 1U << 1;
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 4 && f[3].inhalt == "In hand" && nah(f[3].farbe.g, 1.0F), "Laden: Bit 1 = Eintrag 1 in der Hand");
+        f.clear();
+        pk.zustand.shop.inHand[0] = 0;
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 4 && f[3].inhalt == "Owned", "Laden: Eintrag 1 im Besitz");
+        f.clear();
+        pk.zustand.shop.besitz[0] = 0;
+        // MP: "only sp" faellt weg, Zeile 1 leer; Schrift MenuFontToHandle(1)
+        pk.mp = true;
+        (void)pazaakOwnerDraw(3201, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.empty(), "Laden MP: only sp nicht verkauft");
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 4 && f[2].font == 1, "Laden MP: Schrift 1");
+        f.clear();
+        // Explosives: Nummer 3 behaelt ihren Platz, Packung zu drei
+        pk.mp = false;
+        pk.zustand.shop.kategorie = 3;
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 3 && f[1].inhalt == "Thermal" && f[2].inhalt == "90 cr (x3)", "Laden: Explosives mit (x3)");
+        f.clear();
+        // Supplies: Munition 150, Bacta 200 (SP) bzw. Medpac (MP), Preise aus dem Zustand; Bild des Bacta-Kanisters
+        pk.zustand.shop.kategorie = 5;
+        (void)pazaakOwnerDraw(3201, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 4 && f[2].inhalt == "Bacta canister" && f[3].inhalt == "200 cr" && f[1].inhalt == "gfx/hud/i_icon_bacta", "Laden: Bacta 200");
+        f.clear();
+        pk.mp = true;
+        (void)pazaakOwnerDraw(3201, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 3 && f[1].inhalt == "Medpac", "Laden MP: Medpac");
+        f.clear();
+        pk.mp = false;
+        // unbekannte Kategorie = Rifles (Shop_CatByName), Name "?"
+        pk.zustand.shop.kategorie = 1;
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.size() == 3 && f[1].inhalt == "?" && f[2].inhalt == "300 cr", "Laden: Vorgaben Rifles, ?, 300");
+        f.clear();
+        // Kopf: Credits rechtsbuendig (0,7), Seite mittig; Reiter gewaehlt gold auf tabOn
+        pk.zustand.shop.kategorie = 0;
+        (void)pazaakOwnerDraw(3001, 300, 30, 244, 30, "", pk, f);
+        pruefe(f.size() == 1 && f[0].inhalt == "Credits: 1000" && nah(f[0].x, static_cast<float>(static_cast<int>(544.0F - 13 * 7.0F))) &&
+                   nah(f[0].scale, 0.7F),
+               "Laden: Credits rechts");
+        f.clear();
+        (void)pazaakOwnerDraw(3003, 100, 400, 200, 20, "", pk, f);
+        pruefe(f.size() == 1 && f[0].inhalt == "Page 1 / 1", "Laden: Seite 1 / 1");
+        f.clear();
+        (void)pazaakOwnerDraw(3100, 56, 66, 86, 26, "", pk, f);
+        pruefe(f.size() == 2 && f[0].art == OdTeil::Art::Fuellen && nah(f[0].farbe.b, 0.65F) && f[1].inhalt == "Pistols" && nah(f[1].farbe.g, 0.8F) &&
+                   nah(f[1].y, 71),
+               "Laden: gewaehlter Reiter");
+        f.clear();
+        pruefe(pazaakOwnerDraw(3999, 0, 0, 1, 1, "", pk, f) && f.empty() && !pazaakOwnerDraw(4000, 0, 0, 1, 1, "", pk, f), "Laden: 3000 bis 3999");
+        pk.shopDatei = nullptr;
+        (void)pazaakOwnerDraw(3200, 0, 0, 400, 24, "", pk, f);
+        pruefe(f.empty(), "Laden ohne md_shop.dat: nur die Vorraete");
+    }
     // M7: Renderer-Cvars der Setup-Menues (R_Register vor der Oberflaeche; SP und MP verschieden)
     pruefe(spielCvarVorgabe(Dialekt::SP, Spiel::JA, "r_texturemode") == "GL_LINEAR_MIPMAP_LINEAR" &&
                spielCvarVorgabe(Dialekt::MP, Spiel::JA, "r_textureMode") == "GL_LINEAR_MIPMAP_NEAREST" &&

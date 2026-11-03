@@ -489,7 +489,8 @@ std::vector<Schritt> modellSchatten() {
     add(pruefe("Stufe 9d/2: misc_model wirft Schatten wie in q3map2 (castShadows in der Welt 1)", [modell, punkt, gefunden, f, schatten] {
         diag::detail("Knopftest: Stufe 9d/2 - Modell " + *modell + ", Dreiecke in der Schattengeometrie " + std::to_string(*schatten) + ", Messpunkt " + (*gefunden ? "" : "(keiner) ") + std::to_string((*punkt)[0]) + " " +
                      std::to_string((*punkt)[1]) + ", Boden ohne " + std::to_string((*f)[0]) + ", mit " + std::to_string((*f)[1]));
-        return !modell->empty() && *gefunden && *schatten > 0 && (*f)[1] < (*f)[0] - 5.0;
+        // Echtzeit-Licht mal gpu::kSpielLightmapFaktor (1 seit Teil 11, vorher 2): der halbe Abstand von 5
+        return !modell->empty() && *gefunden && *schatten > 0 && (*f)[1] < (*f)[0] - 2.5;
     }));
     return s;
 }
@@ -667,7 +668,7 @@ std::vector<Schritt> visHinweis() {
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : visHinweis()) { s.push_back(std::move(x)); }
-    for (Schritt& x : modellSchatten()) { s.push_back(std::move(x)); }
+    for (Schritt& x : mitEditorZeichner("Stufe 9d/2", modellSchatten())) { s.push_back(std::move(x)); }
     for (Schritt& x : nebel()) { s.push_back(std::move(x)); }
     for (Schritt& x : effekte()) { s.push_back(std::move(x)); }
     for (Schritt& x : portal()) { s.push_back(std::move(x)); }

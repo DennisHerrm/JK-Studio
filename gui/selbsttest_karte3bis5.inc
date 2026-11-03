@@ -5771,6 +5771,12 @@ std::vector<Schritt> karteneditorFotoSchritte() {
             const int uh = static_cast<int>(std::lround(r.GetHeight() / sk));
             diag::detail("Knopftest: Menue " + name + " - NRC " + std::to_string(b) + " x " + std::to_string(h) + ", hier " +
                          std::to_string(ub) + " x " + std::to_string(uh));
+            // Endrunde 4: Ist der Bildschirm niedriger als das Menue (Build seit rc608 Teil 11 820 hoch, hier 1600 Punkte
+            // bei Massstab 2), bricht QMenu in eine zweite Spalte um (updateActionRects, column_max_y = Bildschirmhoehe;
+            // app_karte_qtmenue.cpp, reste2 Punkt 1). Dann: zwei Spalten der NRC-Breite, niedriger als das Foto.
+            const ImGuiPlatformMonitor* mon = ImGui::GetViewportPlatformMonitor(ImGui::GetMainViewport());
+            const float spaltenMax = mon != nullptr ? mon->MainSize.y - ImGui::GetStyle().DisplaySafeAreaPadding.y * 2.0F : 1e9F;
+            if (static_cast<float>(h) * sk > spaltenMax) { return uh < h && std::abs(ub - 2 * b) <= 2; }
             return uh == h && std::abs(ub - b) <= 1;
         }));
     }

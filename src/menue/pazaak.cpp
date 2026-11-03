@@ -1,7 +1,8 @@
 // pazaak.cpp - Menue-Editor M7 Punkt 14: Pazaak-Ownerdraws von Movie Duels (Herkunft und Lizenz im
 // Kopf von include/bhed/menue/pazaak.h).
 //
-// Portiert aus OpenJK-Ableger Movie Duels (code/ui/ui_pazaak.cpp, dort aus Jedi Knight Galaxies).
+// Portiert aus OpenJK-Ableger Movie Duels (code/ui/ui_pazaak.cpp, dort aus Jedi Knight Galaxies; der Laden aus
+// Movie Duels 9, MovieDuels-SJE-SP-MP-master dfce7ac7).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
@@ -11,7 +12,9 @@
 //   Movie Duels / OpenJK: GNU General Public License version 2 (LICENSE).
 #include "bhed/menue/pazaak.h"
 
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 namespace bhed::menue {
@@ -258,9 +261,245 @@ struct Maler {
     }
 };
 
+// --- Movie Duels 9: der Laden (ui_pazaak.cpp, "The shop and the talk question") -----------------------------
+
+constexpr int SHOP_OD_BASE = 3000, SHOP_OD_HEADER = 0, SHOP_OD_TAB = 1, SHOP_OD_ROW = 2, SHOP_ROWS = 9, SHOP_NUM_CATS = 6,
+              SHOP_CAT_EXPLOSIVES = 3, SHOP_CAT_SUPPLIES = 5, SHOP_MAX_ITEMS = 256, SHOP_ITEM_AMMO_ID = 1000,
+              SHOP_ITEM_BACTA_ID = 1001;
+constexpr const char* kShopReiter[SHOP_NUM_CATS] = {"Pistols", "Rifles", "Heavy", "Explosives", "Melee", "Supplies"};   // shopCatNames
+
+struct ShopEintrag {   // shopItem_t (Vorgaben aus Shop_ParseFile)
+    int id = 0, cat = 1, price = 300;
+    std::string name, icon;
+};
+
+bool gleichOhneFall(const std::string& a, const char* b) {   // Q_stricmp(a, b) == 0
+    const std::size_t n = std::strlen(b);
+    if (a.size() != n) { return false; }
+    for (std::size_t i = 0; i < n; ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+    }
+    return true;
+}
+
+int shopKategorie(const std::string& name) {   // Shop_CatByName: unbekannt = 1
+    static constexpr const char* kKat[] = {"pistols", "rifles", "heavy", "explosives", "melee"};
+    for (int i = 0; i < 5; ++i) {
+        if (gleichOhneFall(name, kKat[i])) { return i; }
+    }
+    return 1;
+}
+
+// Shop_Token: Woerter, "Zeichenketten", // und /* */ Kommentare; false am Ende
+bool shopWort(const std::string& t, std::size_t& p, std::string& out, std::size_t groesse) {
+    out.clear();
+    for (;;) {
+        while (p < t.size() && static_cast<unsigned char>(t[p]) <= ' ') { ++p; }
+        if (p + 1 < t.size() && t[p] == '/' && t[p + 1] == '/') {
+            while (p < t.size() && t[p] != '\n') { ++p; }
+            continue;
+        }
+        if (p + 1 < t.size() && t[p] == '/' && t[p + 1] == '*') {
+            p += 2;
+            while (p < t.size() && !(t[p] == '*' && p + 1 < t.size() && t[p + 1] == '/')) { ++p; }
+            if (p < t.size()) { p += 2; }
+            continue;
+        }
+        break;
+    }
+    if (p >= t.size()) { return false; }
+    if (t[p] == '"') {
+        ++p;
+        while (p < t.size() && t[p] != '"') {
+            if (out.size() < groesse - 1) { out += t[p]; }
+            ++p;
+        }
+        if (p < t.size()) { ++p; }
+    } else {
+        while (p < t.size() && static_cast<unsigned char>(t[p]) > ' ') {
+            if (out.size() < groesse - 1) { out += t[p]; }
+            ++p;
+        }
+    }
+    return true;
+}
+
+// Shop_LoadItems / Shop_ParseFile: jeder Block ein Eintrag, von 1 an in der Reihenfolge der Datei gezaehlt
+std::vector<ShopEintrag> shopEintraege(const std::string* datei, bool mp) {
+    constexpr std::size_t kMaxQPath = 64;   // MAX_QPATH (tok), key[64]
+    std::vector<ShopEintrag> r;
+    if (datei != nullptr) {
+        const std::string& t = *datei;
+        std::size_t p = 0;
+        std::string tok, key;
+        int number = 0;
+        while (shopWort(t, p, tok, kMaxQPath)) {
+            if (!shopWort(t, p, tok, kMaxQPath) || !gleichOhneFall(tok, "{")) { break; }
+            ++number;
+            ShopEintrag e;
+            e.id = number;
+            bool andererTeil = false;
+            while (shopWort(t, p, key, 64) && !gleichOhneFall(key, "}")) {
+                if (!shopWort(t, p, tok, kMaxQPath)) { break; }
+                if (gleichOhneFall(key, "name")) {
+                    e.name = tok.substr(0, 63);   // name[64]
+                } else if (gleichOhneFall(key, "cat")) {
+                    e.cat = shopKategorie(tok);
+                } else if (gleichOhneFall(key, "icon")) {
+                    e.icon = tok;
+                } else if (gleichOhneFall(key, "price")) {
+                    const int v = std::atoi(tok.c_str());
+                    e.price = v < 0 ? 0 : v > 100000 ? 100000 : v;
+                } else if (gleichOhneFall(key, "only")) {
+                    andererTeil = gleichOhneFall(tok, mp ? "sp" : "mp");
+                }
+            }
+            if (andererTeil || number >= 256 || static_cast<int>(r.size()) >= SHOP_MAX_ITEMS - 2) { continue; }   // behaelt die Nummer
+            if (e.name.empty()) { e.name = "?"; }
+            r.push_back(std::move(e));
+        }
+    }
+    ShopEintrag m;   // die Vorraete (memset 0: Preis aus dem Zustand)
+    m.id = SHOP_ITEM_AMMO_ID;
+    m.cat = SHOP_CAT_SUPPLIES;
+    m.price = 0;
+    m.name = "Ammo refill (all your guns)";
+    m.icon = "gfx/hud/i_icon_ammo";
+    r.push_back(m);
+    m.id = SHOP_ITEM_BACTA_ID;
+    m.name = mp ? "Medpac" : "Bacta canister";
+    m.icon = mp ? "gfx/hud/i_icon_medkit" : "gfx/hud/i_icon_bacta";
+    r.push_back(m);
+    return r;
+}
+
+struct Laden {
+    const PazaakKontext& k;
+    std::vector<OdTeil>& out;
+    std::vector<ShopEintrag> eintraege;
+
+    [[nodiscard]] const ShopZustand& z() const { return k.zustand.shop; }
+    void fuellen(float x, float y, float w, float h, const Farbe& c) {   // Shop_Fill: "white" mit R_SetColor
+        OdTeil p;
+        p.art = OdTeil::Art::Fuellen;
+        p.x = x;
+        p.y = y;
+        p.w = w;
+        p.h = h;
+        p.farbe = c;
+        out.push_back(std::move(p));
+    }
+    // Shop_Text: Breite mit Massstab 1 mal scale; align 1 Mitte, 2 rechts; R_Font_DrawString mit (int)x, (int)y
+    void text(float x, float y, const std::string& t, const Farbe& c, float sc, int align) {
+        float tx = x;
+        if (align != 0) {
+            const float w = (k.breiteMenue ? static_cast<float>(k.breiteMenue(t, 1.0F)) : 0.0F) * sc;
+            tx = align == 1 ? x - w * 0.5F : x - w;
+        }
+        OdTeil p;
+        p.x = static_cast<float>(static_cast<int>(tx));
+        p.y = static_cast<float>(static_cast<int>(y));
+        p.inhalt = t;
+        p.farbe = c;
+        p.scale = sc;
+        p.font = k.mp ? 1 : 0;   // PZK_DefaultFont
+        out.push_back(std::move(p));
+    }
+    [[nodiscard]] int anzahl(int cat) const {   // Shop_CatCount
+        int n = 0;
+        for (const ShopEintrag& e : eintraege) { n += e.cat == cat ? 1 : 0; }
+        return n;
+    }
+    [[nodiscard]] int seiten() const {   // Shop_NumPages
+        const int n = anzahl(z().kategorie);
+        return n > 0 ? (n + SHOP_ROWS - 1) / SHOP_ROWS : 1;
+    }
+    [[nodiscard]] const ShopEintrag* zeileEintrag(int row) const {   // Shop_RowItem
+        const int want = z().seite * SHOP_ROWS + row;
+        int n = 0;
+        for (const ShopEintrag& e : eintraege) {
+            if (e.cat != z().kategorie) { continue; }
+            if (n++ == want) { return &e; }
+        }
+        return nullptr;
+    }
+    static bool bit(const std::array<unsigned, 8>& bits, int v) {   // Shop_Bit
+        return v > 0 && v < 256 && (bits[static_cast<std::size_t>(v >> 5)] & (1U << (v & 31))) != 0;
+    }
+    [[nodiscard]] int preis(const ShopEintrag& e) const {   // Shop_ItemPrice
+        if (e.id == SHOP_ITEM_AMMO_ID) { return z().munitionPreis; }
+        if (e.id == SHOP_ITEM_BACTA_ID) { return z().bactaPreis; }
+        return e.price;
+    }
+    void zeile(int row, float x, float y, float w, float h) {   // Shop_DrawRow
+        constexpr Farbe bg{0.10F, 0.14F, 0.20F, 0.85F}, bgHover{0.25F, 0.35F, 0.50F, 0.95F}, white{1, 1, 1, 1}, gold{1.0F, 0.8F, 0.2F, 1},
+                        green{0.4F, 1.0F, 0.4F, 1}, grey{0.6F, 0.6F, 0.6F, 1}, red{1.0F, 0.4F, 0.35F, 1};
+        const ShopEintrag* it = zeileEintrag(row);
+        if (it == nullptr) { return; }
+        fuellen(x, y, w, h, row == z().zeileMaus ? bgHover : bg);
+        if (!it->icon.empty() && k.bildDa && k.bildDa(it->icon)) {
+            OdTeil p;   // PZK_DrawPic(x + 4, y + 2, (h - 4) * 2, h - 4, iconShader)
+            p.art = OdTeil::Art::Bild;
+            p.x = x + 4;
+            p.y = y + 2;
+            p.w = (h - 4) * 2.0F;
+            p.h = h - 4;
+            p.inhalt = it->icon;
+            out.push_back(std::move(p));
+        }
+        text(x + 12 + (h - 4) * 2.0F, y + h * 0.5F - 8, it->name, white, 0.55F, 0);
+        const int pr = preis(*it);
+        const bool waffe = it->id < SHOP_ITEM_AMMO_ID && it->cat != SHOP_CAT_EXPLOSIVES;
+        if (waffe && bit(z().inHand, it->id)) {
+            text(x + w - 8, y + h * 0.5F - 8, "In hand", green, 0.55F, 2);
+        } else if (waffe && bit(z().besitz, it->id)) {
+            text(x + w - 8, y + h * 0.5F - 8, "Owned", grey, 0.55F, 2);
+        } else {
+            const std::string st = zahl("%i cr", pr) + (it->cat == SHOP_CAT_EXPLOSIVES ? " (x3)" : "");
+            text(x + w - 8, y + h * 0.5F - 8, st, z().credits >= pr ? gold : red, 0.55F, 2);
+        }
+    }
+};
+
+// UI_Shop_OwnerDraw; false = keine Nummer des Ladens
+bool shopOwnerDraw(int ownerDraw, float x, float y, float w, float h, const PazaakKontext& k, std::vector<OdTeil>& out) {
+    constexpr Farbe white{1, 1, 1, 1}, gold{1.0F, 0.8F, 0.2F, 1}, tabBg{0.10F, 0.14F, 0.20F, 0.85F}, tabOn{0.30F, 0.45F, 0.65F, 1.0F},
+                    tabHover{0.20F, 0.30F, 0.45F, 0.95F};
+    if (ownerDraw < SHOP_OD_BASE || ownerDraw >= SHOP_OD_BASE + 1000) { return false; }
+    const int type = (ownerDraw - SHOP_OD_BASE) / 100;
+    const int id = (ownerDraw - SHOP_OD_BASE) % 100;
+    Laden l{k, out, shopEintraege(k.shopDatei, k.mp)};
+    const ShopZustand& z = k.zustand.shop;
+    switch (type) {
+        case SHOP_OD_HEADER:
+            if (id == 0) {
+                l.text(x, y, "Shop", gold, 0.8F, 0);
+            } else if (id == 1) {
+                l.text(x + w, y, zahl("Credits: %i", z.credits), gold, 0.7F, 2);
+            } else if (id == 2) {
+                l.text(x, y, z.meldung, white, 0.55F, 0);
+            } else if (id == 3) {
+                l.text(x + w * 0.5F, y, zahl("Page %i / ", z.seite + 1) + zahl("%i", l.seiten()), white, 0.55F, 1);
+            }
+            break;
+        case SHOP_OD_TAB:
+            if (id >= 0 && id < SHOP_NUM_CATS) {
+                l.fuellen(x, y, w, h, id == z.kategorie ? tabOn : id == z.reiterMaus ? tabHover : tabBg);
+                l.text(x + w * 0.5F, y + h * 0.5F - 8, kShopReiter[id], id == z.kategorie ? gold : white, 0.6F, 1);
+            }
+            break;
+        case SHOP_OD_ROW:
+            if (id >= 0 && id < SHOP_ROWS) { l.zeile(id, x, y, w, h); }
+            break;
+        default: break;
+    }
+    return true;
+}
+
 }  // namespace
 
 bool pazaakOwnerDraw(int id, float x, float y, float w, float h, const std::string& shader, const PazaakKontext& k, std::vector<OdTeil>& out) {
+    if (shopOwnerDraw(id, x, y, w, h, k, out)) { return true; }   // der Laden (3000+) zuerst
     if (id < 2000 || id >= 3000) { return false; }   // PZK_OD_BASE .. + 1000
     const int art = (id - 2000) / 100;
     const int nr = (id - 2000) % 100;

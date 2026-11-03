@@ -5352,12 +5352,8 @@ bool figurKopfBolzen(const Actor& a, const App::ActorAssets& assets, const Actor
 // rc608: CG_G2PlayerAngles, CG_CheckLookTarget und CG_UpdateLookAngles (cg_players.cpp OJ 1711-1803, 2405-2457,
 // 2821-2866, in Movie Duels und Jedi Outcast gleich). Je gezeichnetem Bild des Spiels ein Schritt: Die Vorschau
 // zieht den Blick nach wie dort. Das Ziel ist relativ zu eyeAngles, und die enthalten den Blick des letzten Bilds.
-void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& assets, double ms) {
-    if (g_app->blickFolgen.size() != g_app->scene.actors.size()) {
-        g_app->blickFolgen.assign(g_app->scene.actors.size(), App::BlickFolge{});
-    }
-    if (ai >= g_app->blickFolgen.size() || assets.model.empty()) { return; }
-    App::BlickFolge& f = g_app->blickFolgen[ai];
+namespace {
+void blickFolgeSchritt(App::BlickFolge& f, const Actor& a, const App::ActorAssets& assets, double ms) {
     // cg.frameInterpolation haengt am Serverbild (sv_fps 20) und an com_maxfps ("125", Vorgabe in
     // shared/sys/sys_main.cpp:162): die Zeit zwischen zwei Bildern des Spiels.
     constexpr double kBildMs = 1000.0 / 125.0;
@@ -5366,17 +5362,41 @@ void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& a
     constexpr float kBlickTempo = 0.15F;
     constexpr float kSchwungTempo = 0.3F;
     constexpr float kRedeTempo = 0.15F;
-    // Nach einem Sprung in der Zeit: von hier an nachrechnen. Bei LOOK_DEFAULT_SPEED und im Mittel
-    // frameInterpolation 0,5 bleibt vom Anfangswert 0,925 hoch 100, unter 0,1 %.
-    constexpr long long kVorlauf = 100;
+    // Endrunde 4: Zurueckgespult zeigte die Figur nicht Bit fuer Bit dasselbe wie vorwaerts (Selbsttest spulen): Der
+    // Vorlauf von 100 Bildern begann am Ziel, vorwaerts lief die Rechnung dagegen vom laufenden Stand weiter. Jetzt
+    // beginnt der Vorlauf an einem festen Raster - am Anfang des vorletzten 125er-Blocks vor dem Bild, also 125 bis 249
+    // Bilder vorher, mit dem Anfangswert 0 -, und das Ergebnis haengt nur am Bild, nicht am Weg dorthin. Vom Anfangswert
+    // bleibt 0,925 hoch 125, unter 0,01 % (vorher hoch 100). Eine Rechnung vom Szenenanfang an (wie die Schwerter) war
+    // genau, kostete aber bei jedem Sprung nach vorn alle Bilder bis dorthin (Filmstreifen academy1_intro 16,8 statt
+    // 9,5 ms je Bild, Selbsttest zeitleiste1).
+    constexpr long long kBlock = 125;
     const long long bild = static_cast<long long>(std::floor(std::max(ms, 0.0) / kBildMs));
+    const long long start = std::max(0LL, (bild / kBlock - 1) * kBlock);
+    if (f.mitBlick != g_app->lookRotation) {
+        f.bild = -1;
+        f.start = -1;
+        f.zwischen.clear();
+        f.mitBlick = g_app->lookRotation;
+    }
     if (f.bild == bild) { return; }
     long long von = f.bild + 1;
-    if (f.bild < 0 || bild < f.bild || bild - f.bild > kVorlauf) {
-        von = std::max(0LL, bild - kVorlauf);
-        for (float& w : f.winkel) { w = 0.0F; }
-        f.entprelltBis = -1.0;
-        f.gier = a.at(static_cast<double>(von) * kBildMs).angles[1];
+    if (f.bild < 0 || bild < f.bild || f.start != start) {
+        // Zurueck im selben Vorlauf: vom Zwischenstand davor (je 8 Bilder gemerkt, genau derselbe Weg)
+        const auto it = f.start == start ? f.zwischen.upper_bound(bild) : f.zwischen.end();
+        if (f.start == start && it != f.zwischen.begin()) {
+            const auto& [k, z] = *std::prev(it);
+            std::copy(std::begin(z.winkel), std::end(z.winkel), std::begin(f.winkel));
+            f.entprelltBis = z.entprelltBis;
+            f.gier = z.gier;
+            von = k + 1;
+        } else {
+            f.zwischen.clear();
+            for (float& w : f.winkel) { w = 0.0F; }
+            f.entprelltBis = -1.0;
+            f.gier = a.at(static_cast<double>(start) * kBildMs).angles[1];
+            f.start = start;
+            von = start;
+        }
     }
     std::string klasse = a.klasse;
     for (char& c : klasse) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
@@ -5424,8 +5444,41 @@ void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& a
             }
         }
         for (int q = 0; q < 3; ++q) { f.winkel[q] = ziel[q]; }
+        if (k % 8 == 0) {
+            App::BlickStand& z = f.zwischen[k];
+            std::copy(std::begin(f.winkel), std::end(f.winkel), std::begin(z.winkel));
+            z.entprelltBis = f.entprelltBis;
+            z.gier = f.gier;
+        }
     }
     f.bild = bild;
+}
+}  // namespace
+
+void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& assets, double ms) {
+    if (g_app->blickFolgen.size() != g_app->scene.actors.size()) {
+        g_app->blickFolgen.assign(g_app->scene.actors.size(), App::BlickFolge{});
+    }
+    if (ai >= g_app->blickFolgen.size() || assets.model.empty()) { return; }
+    blickFolgeSchritt(g_app->blickFolgen[ai], a, assets, ms);
+}
+
+// Endrunde 4: Die Schwerter (figurProbe) rechnen ihre Clientbilder der Reihe nach, unabhaengig vom gezeichneten Bild.
+// Der Blick zieht Hals und Rumpf mit und damit die Hand; er kommt aus einem eigenen Stand zur Zeit des Clientbilds,
+// nicht aus dem zuletzt gezeichneten (sonst hinge die Klinge davon ab, wohin die Zeitleiste zuletzt sprang).
+void figurKopfGierBei(const Actor& a, std::size_t ai, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d) {
+    if (g_app->blickFolgenSaber.size() != g_app->scene.actors.size()) {
+        g_app->blickFolgenSaber.assign(g_app->scene.actors.size(), App::BlickFolge{});
+    }
+    if (ai >= g_app->blickFolgenSaber.size() || assets.model.empty()) {
+        figurKopfGier(a, st, d);
+        return;
+    }
+    App::BlickFolge& f = g_app->blickFolgenSaber[ai];
+    blickFolgeSchritt(f, a, assets, ms);
+    g_blickFest = f.winkel;
+    figurKopfGier(a, st, d);
+    g_blickFest = nullptr;
 }
 
 void figurKopfGier(const Actor& a, const ActorState& st, ActorDraw& d) {
@@ -7579,6 +7632,7 @@ void prepareScene() {
         }
     }
     g_app->blickFolgen.clear();
+    g_app->blickFolgenSaber.clear();
     // rc605 (Rest): Jedi Outcast - der Kyle-NPC gleicht ausserhalb der Kamera
     // die Waffe des Spielers ab (munroWaffenAbgleich, src/ausruestung.cpp).
     if (regelwerkJediOutcast()) {

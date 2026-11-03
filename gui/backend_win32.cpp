@@ -21,6 +21,7 @@
 #include "imgui_impl_win32.h"
 
 #include <windows.h>
+#include <dwmapi.h>
 
 #include <GL/gl.h>
 
@@ -1113,11 +1114,27 @@ void viewportBildLesenGl(const ImGuiViewport* v) {
 
 double g_plattformMs = 0.0;
 
+void (*g_zeigenVorher)(ImGuiViewport*) = nullptr;
+void verborgenZeigen(ImGuiViewport* v) {
+    if (const HWND h = static_cast<HWND>(v->PlatformHandleRaw); h != nullptr) {
+        const BOOL an = TRUE;
+        (void)DwmSetWindowAttribute(h, DWMWA_CLOAK, &an, sizeof(an));
+    }
+    if (g_zeigenVorher != nullptr) { g_zeigenVorher(v); }
+}
+
 void plattformFenster() {
     if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0) { return; }
     const auto anfang = std::chrono::steady_clock::now();
-    ImGui::UpdatePlatformWindows();
     ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    // Endrunde 4: im Selbsttest auch die eigenen Fenster der Panels verborgen (wie das Hauptfenster, main_win32.cpp),
+    // vor dem ersten Zeigen - sonst blitzte ein neues Fenster ein Bild lang auf
+    static const bool verbergen = std::getenv("BHED_EDITORTEST") != nullptr || std::getenv("BHED_EINZEL") != nullptr;
+    if (verbergen && pio.Platform_ShowWindow != &verborgenZeigen) {
+        g_zeigenVorher = pio.Platform_ShowWindow;
+        pio.Platform_ShowWindow = &verborgenZeigen;
+    }
+    ImGui::UpdatePlatformWindows();
     for (int i = 1; i < pio.Viewports.Size; ++i) {
         ImGuiViewport* v = pio.Viewports[i];
         if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) { continue; }

@@ -520,13 +520,22 @@ struct App {
     std::vector<std::array<float, 3>> figurGezeichnet;
     std::vector<int> figurBildGezeichnet;   // Endrunde rc608: das gezeichnete Bild der .gla je Figur (Selbsttest)
     // rc608: renderInfo.lastHeadAngles und lookingDebounceTime je Figur, Bildnummer -1: noch nichts.
+    struct BlickStand {
+        float winkel[3]{};
+        double entprelltBis = -1.0;
+        float gier = 0.0F;
+    };
     struct BlickFolge {
         long long bild = -1;
         float winkel[3]{};
         double entprelltBis = -1.0;
         float gier = 0.0F;
+        long long start = -1;    // Endrunde 4: Beginn des Vorlaufs (festes 125er-Raster, blickFolgeRechnen)
+        bool mitBlick = false;   // lookRotation, mit dem gerechnet wurde
+        std::map<long long, BlickStand> zwischen;   // Zwischenstaende dieses Vorlaufs (je 8 Bilder) fuer das Zurueckspulen
     };
     std::vector<BlickFolge> blickFolgen;
+    std::vector<BlickFolge> blickFolgenSaber;   // Endrunde 4: derselbe Blick fuer die Clientbilder der Schwerter
     std::string tlAuswahlZeile;
     int tlBewegungsBalken = 0;
     // --- Griffe auf der Bahn (rc597) ------------------------------------------
@@ -3626,6 +3635,8 @@ void figurWeltMatrix(const ActorDraw& a, float fw[16]);
 // rc608: CG_UpdateLookAngles je Bild (siehe blickFolgeRechnen); figurKopfGier nimmt den letzten Stand.
 void blickFolgeRechnen(const Actor& a, std::size_t ai, const App::ActorAssets& assets, double ms);
 void figurKopfGier(const Actor& a, const ActorState& st, ActorDraw& d);
+// Endrunde 4: dasselbe zur Zeit ms aus einem eigenen Stand (figurProbe der Schwerter)
+void figurKopfGierBei(const Actor& a, std::size_t ai, const App::ActorAssets& assets, const ActorState& st, double ms, ActorDraw& d);
 void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d);
 void npcSkalaFuer(const std::string& npcType, float aus[3]);
 // Pruefung 3: die Knochen (welt) und die Weltmatrix (fw) einer Figur im

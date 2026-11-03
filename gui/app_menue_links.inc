@@ -405,6 +405,7 @@ void zeichnePalette(Dokument& d) {
     kachelnEigene(d, f);
     ImGui::Dummy(ImVec2{1.0F, fs * 0.2F});
     z.kachelnScrollMaxX = ImGui::GetScrollMaxX();
+    z.kachelnBild = ImGui::GetFrameCount();
     ImGui::EndChild();
 }
 

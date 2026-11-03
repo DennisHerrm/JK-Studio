@@ -228,7 +228,11 @@ std::vector<Schritt> schritteLeiste() {
         {"rect", tippeIn("lage", "##X", "123"), {{"rect", {"123", "100", "200", "40"}}}},
         {"text", tippeIn("inhalt", "##text", "Neu"), {{"text", {"\"Neu\""}}}},
         {"textscale", tippeIn("inhalt", "##textscale", "0.9"), {{"textscale", {"0.9"}}}},
-        {"style", [](std::vector<Schritt>& l) { l.push_back(klick(tr(Str::MlFuellFarbe), "##rechts")); }, {{"style", {"WINDOW_STYLE_FILLED"}}}},
+        // es/cs: mit den laengeren Texten liegt die Fuellung unter dem Rand der Spalte - erst hinrollen wie ein Anwender
+        {"style", [](std::vector<Schritt>& l) {
+             l.push_back(rolleRechtsZu(tr(Str::MlFuellFarbe)));
+             l.push_back(klick(tr(Str::MlFuellFarbe), "##rechts"));
+         }, {{"style", {"WINDOW_STYLE_FILLED"}}}},
     };
     for (const Fall& f : faelle) {
         auto neuWeg = std::make_shared<std::string>();
@@ -363,12 +367,14 @@ std::vector<Schritt> schritteLeiste() {
         const std::vector<std::string> f = me::eigenschaftsFelder();
         return std::find(f.begin(), f.end(), "backcolor") == f.end() && std::find(f.begin(), f.end(), "background") == f.end() && std::find(f.begin(), f.end(), "bordercolor") == f.end();
     }));
+    add(rolleRechtsZu(tr(Str::MlFuellFarbe)));
     add(klick(tr(Str::MlFuellFarbe), "##rechts"));
     add(pause(0.2));
     add(pruefe("rc608 Leiste: Farbe: die Fuellfarbe erscheint", [] {
         const std::vector<std::string> f = me::eigenschaftsFelder();
         return std::find(f.begin(), f.end(), "backcolor") != f.end() && zeileDa(me::stand().text, "WINDOW_STYLE_FILLED");
     }));
+    add(rolleRechtsZu(tr(Str::MlFuellBild)));
     add(klick(tr(Str::MlFuellBild), "##rechts"));
     add(pause(0.2));
     add(pruefe("rc608 Leiste: Bild: das Bildfeld erscheint, die Fuellfarbe faellt weg", [] {
@@ -503,6 +509,7 @@ std::vector<Schritt> schritteLeiste() {
     add(einSchritt("Runter"));
     zurueckAdd("Runter");
     add(merken());
+    add(rolleRechtsZu("##st_x4"));   // es: die Schrittliste ist laenger als die Spalte
     add(klick("##st_x4"));
     add(pause(0.2));
     add(pruefe("rc608 Leiste: Entfernen nimmt den Schritt", [] {
@@ -518,7 +525,8 @@ std::vector<Schritt> schritteLeiste() {
     add(pause(0.2));
     add(foto("menue_leiste_addstep"));
     add(pruefe("rc608 Leiste: Add step: am haeufigsten oben, im SP-Menue kein playlooped", [] { return finde("##neu_oftopen", "##add_liste", 0, false) != nullptr && finde("##neu_alleplaylooped", "##add_liste", 0, false) == nullptr; }));
-    add(tippe("menu"));
+    // Der Name in der Sprache des Laufs ("menu" stand nur im englischen Namen; es "Abrir menú", cs "Otevřít nabídku")
+    add(tippe(tr(Str::MlSOeffnen)));
     add(pause(0.2));
     add(pruefe("rc608 Leiste: die Suche findet Namen und Befehl", [] { return finde("##neu_alleopen", "##add_liste", 0, false) != nullptr && finde("##neu_alleplay", "##add_liste", 0, false) == nullptr; }));
     add(klick("##neu_alleopen"));
@@ -995,7 +1003,10 @@ std::vector<Schritt> schritteRahmen() {
             const auto x = me::stand();
             const std::string neu = x.text.substr(x.text.rfind("itemDef"));
             diag::info("Knopftest: Rahmen: " + neu);
-            return x.items == *anzahl + 1 && x.undoSchritte == *tiefe + 1 && x.auswahl.size() == 1 && *dialoge == 0 && !me::bildWahlOffen() && zeileDa(neu, "WINDOW_STYLE_SHADER") && !zeileDa(neu, "background") && !zeileDa(neu, "menu_box1");
+            // Der Name bleibt, wenn er im Menue frei ist (freierName, seit 433cd7dc): "image", nicht "image_2"
+            const std::vector<me::ItemLage> l = me::itemLagen();
+            const bool name = x.auswahl.size() == 1 && static_cast<std::size_t>(x.auswahl[0]) < l.size() && l[static_cast<std::size_t>(x.auswahl[0])].name == "image";
+            return name && x.items == *anzahl + 1 && x.undoSchritte == *tiefe + 1 && *dialoge == 0 && !me::bildWahlOffen() && zeileDa(neu, "WINDOW_STYLE_SHADER") && !zeileDa(neu, "background") && !zeileDa(neu, "menu_box1");
         }));
         add(foto("menue_rahmen_bild_" + std::string(mp ? "mp" : "sp")));
         rueckUndVor(d + "Bild einfuegen");
@@ -1009,17 +1020,18 @@ std::vector<Schritt> schritteRahmen() {
         // Doppelklick auf den Rahmen oeffnet die Auswahl und zieht nie; Abbrechen laesst alles stehen
         auto lage = std::make_shared<std::string>();
         add(merke());
-        add(tu("rc608 Rahmen: Lage merken", [lage] { *lage = rectVon("image_2"); }));
+        add(tu("rc608 Rahmen: Lage merken", [lage] { *lage = lageVon("image"); }));
         add(klickAn("rc608 Rahmen: " + d + "Doppelklick auf den Rahmen", [] {
             for (const me::ItemLage& l : me::itemLagen()) {
-                if (l.name == "image_2") { return aufFlaeche(l.x + l.b * 0.5F, l.y + l.h * 0.5F); }
+                if (l.name == "image") { return aufFlaeche(l.x + l.b * 0.5F, l.y + l.h * 0.5F); }
             }
             return ImVec2{};
         }, 0, true));
         add(pause(0.3));
         add(pruefe("rc608 Rahmen: " + d + "der Doppelklick oeffnet die Auswahl und zieht nicht", [=] {
-            diag::info("Knopftest: Meldungen " + std::to_string(me::stand().meldungen) + ": " + me::stand().text.substr(0, 40));
-            return me::bildWahlOffen() && rectVon("image_2") == *lage && me::stand().undoSchritte == *tiefe;
+            diag::info("Knopftest: Meldungen " + std::to_string(me::stand().meldungen) + ", Auswahl offen " + std::to_string(me::bildWahlOffen() ? 1 : 0) + ", Lage " + *lage + " -> " +
+                       lageVon("image") + ", Schritte " + std::to_string(me::stand().undoSchritte) + " (vorher " + std::to_string(*tiefe) + ")");
+            return me::bildWahlOffen() && !lage->empty() && lageVon("image") == *lage && me::stand().undoSchritte == *tiefe;
         }));
         add(foto("menue_rahmen_wahl_" + std::string(mp ? "mp" : "sp")));
         add(klick(tr(Str::EditorCancel), "###bildwahl"));
@@ -1048,7 +1060,7 @@ std::vector<Schritt> schritteRahmen() {
         add(pruefe("rc608 Rahmen: " + d + "Das Bild steht im Rahmen, ein Schritt, nur eine Zeile dazu", [=] {
             const auto x = me::stand();
             diag::info("Knopftest: gewaehlt " + *gewaehlt);
-            return !gewaehlt->empty() && !me::bildWahlOffen() && x.undoSchritte == *tiefe + 1 && zeileDa(x.text, "background") && zeileDa(x.text, *gewaehlt) && rectVon("image_2") == *lage;
+            return !gewaehlt->empty() && !me::bildWahlOffen() && x.undoSchritte == *tiefe + 1 && zeileDa(x.text, "background") && zeileDa(x.text, *gewaehlt) && lageVon("image") == *lage;
         }));
         rueckUndVor(d + "Bild waehlen");
         add(tu("rc608 Rahmen: wieder ohne", [] { (void)me::rueckgaengig(); }));
@@ -1071,7 +1083,7 @@ std::vector<Schritt> schritteRahmen() {
         add(pruefe("rc608 Rahmen: " + d + "Ganzer Schirm, ganz hinten, ein Schritt", [=] {
             const auto x = me::stand();
             const std::vector<me::ItemLage> l = me::itemLagen();
-            return x.undoSchritte == *tiefe + 1 && !l.empty() && l[0].name == "image_2" && l[0].b == 640.0F && l[0].h == 480.0F && x.auswahl == std::vector<int>{0};
+            return x.undoSchritte == *tiefe + 1 && !l.empty() && l[0].name == "image" && l[0].b == 640.0F && l[0].h == 480.0F && x.auswahl == std::vector<int>{0};
         }));
         rueckUndVor(d + "Ganzer Schirm");
         // Video: ein Rahmen mit Kennung, die Auswahl nennt die Videos des Spiels, nur der Shader kommt ins Paket
@@ -1302,6 +1314,12 @@ std::vector<Schritt> schritteLinks() {
                     me::setzeSpalten(breite, 0.0F);
                 }));
                 add(pause(0.12));
+                // Seit 433cd7dc (rc608 Teil 3b) geht die linke Spalte zu, wenn es eng wird (200 %); wer sie braucht, oeffnet
+                // sie mit dem Pfeil. Geprueft wird die offene Spalte.
+                add(tu(was + ": linke Spalte offen", [] {
+                    if (me::linkeSpalteZu()) { me::oeffneLinkeSpalte(); }
+                }));
+                add(pause(0.12));
                 add(pruefe(was + ": nichts abgeschnitten, kein waagerechtes Rollen", [was] {
                     bool gut = me::kachelnScrollMaxX() < 0.5F;
                     const auto x = me::kachelLagen();
@@ -1311,6 +1329,7 @@ std::vector<Schritt> schritteLinks() {
                             gut = false;
                         }
                     }
+                    if (!gut || x.size() < 15U) { diag::info("Knopftest: " + was + ": waagerecht " + std::to_string(me::kachelnScrollMaxX()) + ", Kacheln " + std::to_string(x.size())); }
                     return gut && x.size() >= 15U;
                 }));
             }

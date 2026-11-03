@@ -314,6 +314,7 @@ struct Zustand {
     std::string teileSuche, hierarchieSuche;
     std::vector<KachelMass> kacheln;
     float kachelnScrollMaxX = 0;
+    int kachelnBild = -1;   // Endrunde 4: das Bild, in dem die Kacheln zuletzt gezeichnet wurden (zu = keine)
     std::vector<int> hierarchieReihe, hierarchieReiheAlt;   // die Zeilen der offenen Seite, wie gezeigt
     int modellAufrufe = 0;                           // Selbsttest: Zeichenaufrufe der Menue-Figuren
     double modellMs = 0;                             // reste2 Punkt 7: Prozessorzeit der Figuren (Summe, ms)
@@ -7135,7 +7136,9 @@ void zeichneInnen(float hoehe) {
         if (rechts) {
             ImGui::SameLine(0, 0);
             spaltenTeiler("##spl2", z.rechtsBreite, true, rechtsMin, rechtsMax, h, true);
-            if (!unten) { st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F; }
+            // Endrunde 4: Gemerkt wird nur, was der Anwender zieht. Vorher schrieb jedes Bild die Breite zurueck - auch die
+            // Klemme bei wenig Platz (200 %, rechtsMax), und danach blieb die Spalte bei 100 % so schmal.
+            if (!unten && ImGui::IsItemActive()) { st.menueRechtsBreite = std::floor(z.rechtsBreite / fs * 100.0F) / 100.0F; }
             ImGui::SameLine(0, 0);
         }
     }
@@ -7584,6 +7587,7 @@ void setzeTextScroll(float zeile) {
 }
 std::vector<KachelLage> kachelLagen() {
     std::vector<KachelLage> v;
+    if (Z().kachelnBild + 2 < ImGui::GetFrameCount()) { return v; }   // die Spalte ist zu: nichts gezeichnet
     for (const KachelMass& k : Z().kacheln) { v.push_back(KachelLage{k.name, k.rect.Min.x, k.rect.Min.y, k.rect.Max.x, k.rect.Max.y, k.textBreite, k.textUnten}); }
     return v;
 }
@@ -8020,6 +8024,7 @@ std::array<float, 2> leisteFeldStelle(const char* id) {
     return {p.x, p.y};
 }
 bool linkeSpalteZu() { return Z().linksZu; }
+void oeffneLinkeSpalte() { Z().linksZu = false; }   // wie der Pfeil ueber der Flaeche
 bool zweiVideosGemeldet() { return Z().kinoZweiBild + 2 >= ImGui::GetFrameCount(); }
 
 void testPaketAblegen(const std::string& ordner) {

@@ -746,9 +746,14 @@ void ausstattungBeimSpawnen(Actor& a, const NpcDef* def, const SzenenHilfe* hilf
         // G_MatchPlayerWeapon in NPC_Begin (:1052-1055, g_active.cpp:1078-1117)
         // nimmt die Waffe des Spielers - in der Vorschau haelt er das Schwert.
         if (klein(a.npcType) == "kyle" && !a.echterSpieler) { waffe = "WP_SABER"; }
+        // Endrunde 4: ClientSpawn von Jedi Outcast (codeJK2 g_client.cpp:1646-1694, 1766-1771) gibt dem Spieler
+        // die Bryar-Pistole in die Hand ("force the base weapon up") und dazu das Schwert oder (STUN_BATON, 32) den
+        // Stock; NOWEAPON (64) nimmt alles. G_CreateG2AttachedWeaponModel haengt die Pistole an (:1783-1786).
+        if (a.echterSpieler) { waffe = (spawnflags & 64) != 0 ? "WP_NONE" : "WP_BRYAR_PISTOL"; }
     }
     a.startWaffe = waffe;
     a.startHatSaber = (waffe == "WP_SABER") || def->saberImInventar;
+    if (regelwerkJediOutcast() && a.echterSpieler) { a.startHatSaber = (spawnflags & (32 | 64)) == 0; }
 
     // --- Die Schwerter (NPC_stats.cpp:4073 ff.) --------------------------
     const auto uebersteuern = [&a, def](SaberZustand& s, int fach) {

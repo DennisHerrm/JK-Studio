@@ -290,8 +290,11 @@ void FeederDaten::baue() {
     joinSpieltypen.clear();
     bots.clear();
     kartenDatei.clear();
+    mdShop.clear();
+    mdShopDa = false;
     if (daten == nullptr) { return; }
     const Spieldaten& d = *daten;
+    if (spiel == Spiel::MD) { mdShopDa = d.lies("ext_data/md_shop.dat", mdShop); }   // Shop_LoadItems (MD 9)
     // UI_BuildPlayerModel_List (SP und MP gleich aufgebaut)
     for (const std::string& dir : dateiListe(d, "models/players", "/")) {
         if (dir == "." || dir == "..") { continue; }

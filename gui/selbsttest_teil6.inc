@@ -333,6 +333,20 @@ std::vector<Schritt> teil6Schritte() {
                      std::to_string(it->second.front().tempo[2]) + ", Weg " + std::to_string(dx) + " " + std::to_string(dy));
         return std::sqrt(dx * dx + dy * dy) > 1.0F && dx < 0.0F;   // die Kiste steht bei +x
     }));
+    // Endrunde 4: Movie Duels 9 (exe vom 01.11.2026, tr_WorldEffects.cpp dfce7ac7): "r_weather 6" ist der Nebel "fog"
+    // (60 Wolken alpha_smoke2b), vorher ohne Zweig. duel_carbon hat nur diese Zeile (Update 9) und kein Wetter-Entity.
+    add(tu("Endrunde 4: duel_carbon laden (Weather/duel_carbon.cfg: r_weather 6)", [] {
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/duel_carbon.bsp");
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Endrunde 4: duel_carbon bereit", [] { return g_app->mapBereit && g_app->camTrackValid; }, 4000));
+    add(gezeichnet("duel_carbon"));
+    add(pruefe("Endrunde 4: r_weather 6 unter Movie Duels 9 - der Nebel \"fog\" (eine Wolke alpha_smoke2b)", [] {
+        const int n = wetterWolkenMitBild("gfx/effects/alpha_smoke2b");
+        diag::detail("Knopftest: Endrunde 4 - duel_carbon Nebelwolken " + std::to_string(n));
+        return regelwerkMovieDuels() && n == 1;
+    }));
     add(tu("Teil 6: Regelwerk zurueck", [=] {
         g_app->settings.regelwerk = *regelVorher;
         regelwerkAnwendenJetzt();

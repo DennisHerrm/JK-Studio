@@ -264,7 +264,7 @@ bool figurProbe(std::size_t ai, double ms, FigurProbe& out) {
     d.yaw = st.angles[1];
     npcSkalaFuer(a.npcType, d.skala);
     anbautenFuer(a, st, ms, d);
-    figurKopfGier(a, st, d);
+    figurKopfGierBei(a, ai, assets, st, ms, d);
     d.yawOffset = static_cast<float>(g_app->actorYaw);
     std::vector<BoneMatrix> welt;
     std::vector<BoneMatrix> hilf;

@@ -525,11 +525,16 @@ MpKraft mpKraft(const std::string& forcePowers, bool freeSaber, const Spielbeisp
 
 OdErgebnis ownerDraw(const OdAufruf& a, const OdKontext& k) {
     OdErgebnis r;
-    if (k.spiel == Spiel::MD && a.id >= 2000 && a.id < 3000) {   // Movie Duels: erst UI_Pazaak_OwnerDraw
+    if (k.spiel == Spiel::MD && a.id >= 2000 && a.id < 4000) {   // Movie Duels: erst UI_Pazaak_OwnerDraw (mit dem Laden, MD 9)
         PazaakKontext pk;
         pk.breite = [&k](const std::string& t, float sc) { return k.breite ? k.breite(t, sc, 0, "ergoec") : 0; };
         pk.zeitMs = k.zeitMs;
         if (k.pazaak != nullptr) { pk.zustand = *k.pazaak; }
+        pk.mp = k.dialekt == Dialekt::MP;
+        const int font = pk.mp ? 1 : 0;   // PZK_DefaultFont: MP MenuFontToHandle(1), SP qhMediumFont (Nummer 0)
+        pk.breiteMenue = [&k, font](const std::string& t, float sc) { return k.breite ? k.breite(t, sc, font, "") : 0; };
+        pk.bildDa = k.bildDa;
+        pk.shopDatei = k.daten != nullptr && k.daten->mdShopDa ? &k.daten->mdShop : nullptr;
         r.bekannt = pazaakOwnerDraw(a.id, a.x, a.y, a.w, a.h, a.shader, pk, r.teile);
         r.beispiel = true;
         return r;

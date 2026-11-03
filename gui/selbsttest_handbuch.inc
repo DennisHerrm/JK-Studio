@@ -583,7 +583,7 @@ std::vector<Schritt> karteneditorSchritte() {
     }
     // =licht9c: die Lichtmessung der Stufe 9c (BHED_LICHT_KARTEN, BHED_LICHT_BILDZEIT)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "licht9c") == 0) {
-        for (Schritt& x : stufe9c::messung()) { add(std::move(x)); }
+        for (Schritt& x : mitEditorZeichner("Licht 9c", stufe9c::messung())) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }

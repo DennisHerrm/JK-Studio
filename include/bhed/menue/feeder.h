@@ -90,6 +90,8 @@ struct FeederDaten {
     std::function<std::string(const std::string&)> se;   // M7: SE_GetStringTextString (ohne "@"); die Oberflaeche setzt es
     std::vector<std::string> saberEinhand, saberStab;   // M7: WP_SaberGetHiltInfo (MP), Name wie UI_SaberProperNameForSaber
     std::vector<std::pair<std::string, std::string>> spielstaende;   // Name, Datum
+    std::string mdShop;      // Movie Duels 9: ext_data/md_shop.dat (Shop_LoadItems liest sie einmal)
+    bool mdShopDa = false;
     bool gebaut = false;
 };
 

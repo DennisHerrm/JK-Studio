@@ -31,6 +31,7 @@
 #include "imgui_impl_win32.h"
 
 #include <windows.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 
 #include "platform.h"
@@ -1569,7 +1570,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
             SetWindowPos(hwnd, HWND_BOTTOM, wa.left - ecke.x, wa.top - ecke.y, wa.right - wa.left, wa.bottom - wa.top,
                          SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
-        bhed::diag::detail("Selbsttest: Fenster im Hintergrund, nicht aktiviert");
+        // Endrunde 4 (shank sah das Testfenster auf seinem Schirm): DWM verbirgt es (DWMWA_CLOAK). Lage, Groesse und
+        // DPI bleiben dieselben - Klickstellen in Bildschirmpunkten, Fotoausschnitte und der Farbpuffer aendern sich
+        // nicht. Ein Fenster rechts neben den Bildschirmen haette alle Bildschirmpunkte verschoben (Fenster der Fotos
+        // stehen bei 0,0 und waeren als eigene Fenster sichtbar geworden).
+        const BOOL verbergen = TRUE;
+        const HRESULT dwm = DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, &verbergen, sizeof(verbergen));
+        bhed::diag::detail(std::string("Selbsttest: Fenster im Hintergrund, nicht aktiviert, verborgen ") + (SUCCEEDED(dwm) ? "ja" : "NEIN"));
     } else if (wiederhergestellt) {
         // SetWindowPlacement hat es schon gezeigt.
     } else {

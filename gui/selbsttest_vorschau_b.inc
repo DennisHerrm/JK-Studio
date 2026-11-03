@@ -959,20 +959,32 @@ std::vector<Schritt> gegenstandSchritte(const std::string& klasse, const std::st
         if (!gelesen || w != *bw || h != *bh || mit->size() != ohne.size() || w <= 0) { return false; }
         // Mittleres Fuenftel des Bildes: mittlerer Farbunterschied je Punkt.
         double summe = 0.0;
+        double hell = 0.0;
+        long long anders = 0;
         long long n = 0;
         for (int y = h * 2 / 5; y < h * 3 / 5; ++y) {
             for (int x = w * 2 / 5; x < w * 3 / 5; ++x) {
                 const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)) * 4U;
-                for (int k = 0; k < 3; ++k) { summe += std::abs(static_cast<int>((*mit)[i + k]) - static_cast<int>(ohne[i + k])); }
+                int d = 0;
+                for (int k = 0; k < 3; ++k) {
+                    d += std::abs(static_cast<int>((*mit)[i + k]) - static_cast<int>(ohne[i + k]));
+                    hell += ohne[i + k];
+                }
+                summe += d;
+                anders += d > 6 ? 1 : 0;
                 ++n;
             }
         }
         const double mittel = n > 0 ? summe / static_cast<double>(n * 3) : 0.0;
-        char z[160];
-        std::snprintf(z, sizeof(z), "Knopftest: Gegenstand %s - Bildmitte mit/ohne: mittlerer Unterschied %.2f",
-                      name.c_str(), mittel);
+        char z[220];
+        std::snprintf(z, sizeof(z), "Knopftest: Gegenstand %s - Bildmitte mit/ohne: mittlerer Unterschied %.2f, Hintergrund %.1f, Punkte anders %.1f %%",
+                      name.c_str(), mittel, n > 0 ? hell / static_cast<double>(n * 3) : 0.0, n > 0 ? 100.0 * static_cast<double>(anders) / static_cast<double>(n) : 0.0);
         diag::detail(z);
-        return mittel > 4.0;
+        // Endrunde 4: Seit rc608 Teil 5 (Licht wie im Spiel: Helligkeit 1,0, Umgebung 0) und Teil 9 (.md3 im Lichtgitter)
+        // sind Gegenstaende in dunklen Ecken dunkel wie im Spiel (Bisect: rc607 gruen, Teil 10b rot; md_agditf_sith
+        // Hintergrund 22, t3_byss 2). Der mittlere Unterschied mass dann die Helligkeit statt des Zeichnens. Geprueft
+        // wird, dass der Gegenstand die Bildmitte veraendert: mindestens 3 % der Punkte um mehr als 6 Stufen.
+        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0;
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     return s;
@@ -1871,7 +1883,7 @@ std::vector<Schritt> lavaWetterSchritte() {
     s.push_back(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
     s.push_back(warteBis("Szene aufgebaut", [] { return g_app->camTrackValid; }, 900));
     s.push_back(gezeichnet("md_afif2_sith"));
-    s.push_back(pruefe("Lavawetter: fx_lava meldet \"lava\" (Wolke mit gfx/effects/snowflake2)", [] {
+    s.push_back(pruefe("Lavawetter: fx_lava meldet \"lava\" (snowflake2), Weather/md_afif2_sith.cfg raeumt sie wie im Spiel", [] {
         int lava = 0;
         int flaggen = -1;
         for (const MapEntity& e : g_app->map.entities) {
@@ -1885,7 +1897,14 @@ std::vector<Schritt> lavaWetterSchritte() {
         std::snprintf(z, sizeof(z), "Knopftest: Lavawetter - fx_lava %d (spawnflags %d), Lavawolken %d, Teilchen im Bild %d",
                       lava, flaggen, wolken, g_app->wetterTeilchenZahl);
         diag::detail(z);
-        const bool erwartet = (flaggen & 1) == 0 && (flaggen & 4) == 0;
+        // Endrunde 4: Movie Duels fuehrt danach Weather/<karte>.cfg aus; "r_weather 0" raeumt alle Teilchenwolken, auch die
+        // der Entities (RE_WorldEffectCommand Preset 0, MD 9 tr_WorldEffects.cpp; im Spiel gemessen: md_acc_jedi mit
+        // fx_snow, g_AllowWeather 0 Nebel und Schnee, 1 nichts). md_afif2_sith hat diese Datei: im Spiel keine Lava
+        // (alle drei Karten mit fx_lava - md_afif2_jedi/_sith, md_extra - haben sie).
+        std::string cfg;
+        const bool geraeumt = regelwerkMovieDuels() && readFromArchives("Weather/md_afif2_sith.cfg", cfg) && cfg.find("r_weather 0") != std::string::npos;
+        const bool erwartet = (flaggen & 1) == 0 && (flaggen & 4) == 0 && !geraeumt;
+        diag::detail(std::string("Knopftest: Lavawetter - Weather/md_afif2_sith.cfg raeumt ") + (geraeumt ? "ja" : "nein"));
         return lava == 1 && wolken == (erwartet ? 1 : 0);
     }));
     return s;
@@ -2402,6 +2421,26 @@ std::vector<Schritt> brushGrasSchritte() {
         g_app->mapDirty = true;
     }));
     add(warteBis("Karte bereit", [] { return g_app->mapBereit; }, 900));
+    // Endrunde 4: Movie Duels fuehrt nach dem Spawnen Weather/duel_tower.cfg aus ("r_weather 0", IT_LoadWeatherParms,
+    // RE_WorldEffectCommand Preset 0 = alles raeumen) - im Spiel gemessen (md_acc_jedi: fx_snow mit g_AllowWeather 0
+    // Nebel und Schnee, mit 1 nichts). Dort regnet es also nie; die Spritzer prueft der Test unter OpenJK, das keine
+    // Wetterdateien kennt.
+    add(gezeichnet("duel_tower"));
+    auto regelVorher = std::make_shared<int>(0);
+    add(pruefe("Brush-Gras: Movie Duels - Weather/duel_tower.cfg (r_weather 0) raeumt den Regen von fx_rain wie im Spiel", [regelVorher] {
+        *regelVorher = g_app->settings.regelwerk;
+        const int wolken = wetterWolkenMitBild("gfx/world/rain");
+        diag::detail("Knopftest: Brush-Gras - Movie Duels, Regenwolken " + std::to_string(wolken));
+        return regelwerkMovieDuels() && wolken == 0;
+    }));
+    add(tu("Brush-Gras: Regelwerk OpenJK (ohne Wetterdatei)", [] {
+        g_app->settings.regelwerk = kRegelwerkOpenJK;
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("Brush-Gras: Szene unter OpenJK", [] { return g_app->camTrackValid; }, 900));
+    add(gezeichnet("duel_tower (OpenJK)"));
+    add(pruefe("Brush-Gras: OpenJK - fx_rain regnet (Regenwolke da)", [] { return wetterWolkenMitBild("gfx/world/rain") >= 1; }));
     add(tu("Brush-Gras: Skript benutzt octelevator bei 2000 ms, Kamera ueber *13", [=] {
         openScriptFromMemory("//Generated by BehavEd\n"
                              "wait ( 2000.000 );\n"
@@ -2474,6 +2513,11 @@ std::vector<Schritt> brushGrasSchritte() {
                       m->vorher, m->nachher, m->ausserhalb, m->mitteZ, m->verschoben, m->mitteZVerschoben, m->platzNull);
         diag::detail(z);
         return brushOk && m->verschoben > 0 && m->platzNull > 0;
+    }));
+    add(tu("Brush-Gras: Regelwerk zurueck", [regelVorher] {
+        g_app->settings.regelwerk = *regelVorher;
+        g_app->camTrackValid = false;
+        g_app->mapDirty = true;
     }));
     return s;
 }
@@ -2968,6 +3012,7 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.3));
+    add(foto("kartenmodell_" + klasse + "_mit"));
     add(pruefe("Kartenmodell " + klasse + ": steht (feste Modelle der Spawnfunktion)", [=] {
         int n = 0;
         std::string pfade;
@@ -3017,20 +3062,32 @@ std::vector<Schritt> kartenmodellSchritte(const std::string& karte, const std::s
         g_app->mapDirty = true;
         if (!gelesen || w != *bw || h != *bh || mit->size() != ohne.size() || w <= 0) { return false; }
         double summe = 0.0;
+        double hell = 0.0;
+        long long anders = 0;
         long long n = 0;
         for (int y = h * 2 / 5; y < h * 3 / 5; ++y) {
             for (int x = w * 2 / 5; x < w * 3 / 5; ++x) {
                 const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)) * 4U;
-                for (int c = 0; c < 3; ++c) { summe += std::abs(static_cast<int>((*mit)[i + c]) - static_cast<int>(ohne[i + c])); }
+                int d = 0;
+                for (int c = 0; c < 3; ++c) {
+                    d += std::abs(static_cast<int>((*mit)[i + c]) - static_cast<int>(ohne[i + c]));
+                    hell += ohne[i + c];
+                }
+                summe += d;
+                anders += d > 6 ? 1 : 0;
                 ++n;
             }
         }
         const double mittel = n > 0 ? summe / static_cast<double>(n * 3) : 0.0;
-        char z[160];
-        std::snprintf(z, sizeof(z), "Knopftest: Kartenmodell %s - Bildmitte mit/ohne: mittlerer Unterschied %.2f",
-                      klasse.c_str(), mittel);
+        char z[220];
+        std::snprintf(z, sizeof(z), "Knopftest: Kartenmodell %s - Bildmitte mit/ohne: mittlerer Unterschied %.2f, Hintergrund %.1f, Punkte anders %.1f %%",
+                      klasse.c_str(), mittel, n > 0 ? hell / static_cast<double>(n * 3) : 0.0, n > 0 ? 100.0 * static_cast<double>(anders) / static_cast<double>(n) : 0.0);
         diag::detail(z);
-        return mittel > 4.0;
+        // Endrunde 4: Seit rc608 Teil 5 (Licht wie im Spiel: Helligkeit 1,0, Umgebung 0) und Teil 9 (.md3 im Lichtgitter)
+        // sind Gegenstaende in dunklen Ecken dunkel wie im Spiel (Bisect: rc607 gruen, Teil 10b rot; md_agditf_sith
+        // Hintergrund 22, t3_byss 2). Der mittlere Unterschied mass dann die Helligkeit statt des Zeichnens. Geprueft
+        // wird, dass der Gegenstand die Bildmitte veraendert: mindestens 3 % der Punkte um mehr als 6 Stufen.
+        return n > 0 && 100.0 * static_cast<double>(anders) / static_cast<double>(n) >= 3.0;
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     return s;

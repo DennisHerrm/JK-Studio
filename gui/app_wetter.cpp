@@ -147,7 +147,20 @@ Wolke nebel(float hell) {
     w.fall = 0.0F;
     w.farbe[0] = w.farbe[1] = w.farbe[2] = hell;
     w.alpha = hell;
+    w.masseMin = 10.0F;   // "fog": mMass 10..30 (tr_WorldEffects.cpp MD 9, wie OpenJK)
+    w.masseMax = 30.0F;
     bereichSetzen(w, 625.0F, 150.0F);
+    return w;
+}
+
+// "heavyrainfog" (tr_WorldEffects.cpp MD 9): 70 Wolken, 100 gross, mColor 0.3, mMass 5..10, Spawn +-625 / +-150
+Wolke regenNebel() {
+    Wolke w = nebel(0.3F);
+    w.anzahl = 70;
+    w.hoehe = 100.0F;
+    w.breite = 100.0F;
+    w.masseMin = 5.0F;
+    w.masseMax = 10.0F;
     return w;
 }
 
@@ -166,7 +179,8 @@ Wolke raumstaub(int anzahl, float kante) {
     return w;
 }
 
-// RE_WorldEffectCommand mit einer Zahl (tr_WorldEffects.cpp:2118-2283 MD). 0 raeumt auch das Wetter der Entities.
+// RE_WorldEffectCommand mit einer Zahl (tr_WorldEffects.cpp:1705-1722, 2172-2340 MD 9). 0 raeumt auch das Wetter der Entities
+// (im Spiel gemessen, Endrunde 4: md_acc_jedi, fx_snow mit g_AllowWeather 0 Nebel und Schnee, mit 1 nichts).
 void wetterSatz(int nummer) {
     switch (nummer) {
         case 0:
@@ -216,8 +230,16 @@ void wetterSatz(int nummer) {
             g_satz->wetter.wolken.push_back(w);
             break;
         }
+        // Movie Duels 9 (dfce7ac7, die exe vom 01.11.2026): 5 und 6 sind die benannten Nebel ("heavyrainfog", "fog");
+        // vorher hatten sie keinen Zweig. 125 Wetterdateien setzen "r_weather 6".
+        case 5:
+            g_satz->wetter.wolken.push_back(regenNebel());
+            break;
+        case 6:
+            g_satz->wetter.wolken.push_back(nebel(0.2F));
+            break;
         default:
-            break;   // 5 und 6: kein Zweig, die Engine gibt nur die Hilfe aus
+            break;
     }
 }
 
@@ -279,7 +301,7 @@ void wetterBauen() {
                 g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
             } else if ((f & 4) != 0) {
                 g_satz->wetter.wolken.push_back(regen(1000, 2800.0F));
-                g_satz->wetter.wolken.push_back(nebel(0.2F));   // heavyrainfog
+                g_satz->wetter.wolken.push_back(regenNebel());
             } else if ((f & 8) != 0) {
                 Wolke w = regen(1000, 2000.0F);
                 w.breite = 2.0F;

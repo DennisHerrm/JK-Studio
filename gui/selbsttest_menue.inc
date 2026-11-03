@@ -1797,6 +1797,15 @@ std::string rectVon(const std::string& name) {
     return r == std::string::npos ? std::string() : t.substr(r + 5, t.find('\n', r) - r - 5);
 }
 
+// Endrunde 4: die Lage eines Elements aus dem gelesenen Menue ("x y b h"; leer = nicht da) - unabhaengig davon,
+// wie die Datei Namen und rect schreibt (eingefuegte Elemente: Tabulatoren, Name ohne Anfuehrungszeichen)
+std::string lageVon(const std::string& name) {
+    for (const me::ItemLage& l : me::itemLagen()) {
+        if (l.name == name) { return std::to_string(l.x) + " " + std::to_string(l.y) + " " + std::to_string(l.b) + " " + std::to_string(l.h); }
+    }
+    return "";
+}
+
 // Die Auswahl als Text, zum Vergleichen und Melden: "0,2"
 std::string auswahlText() {
     std::string a;

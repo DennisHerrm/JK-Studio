@@ -384,6 +384,22 @@ std::vector<Schritt> schritte() {
 // die Kamera zeigt die echten Lightmaps; dieselben Lightmaps wie ein Lauf auf
 // der Kommandozeile mit denselben Schaltern; eine Aenderung waehrend des Baus
 // bricht ihn ab. Bildzeiten mit Licht auf der grossen Karte (BHED_KARTE_GROSS).
+// Endrunde 4: Seit rc608 Teil 11 (8b51bde6) zeigt die Kamera ab Werk "Built map as in the game" (BhedBuiltAsInGame):
+// das Schnell-Backen, sonst die .bsp neben der Karte, mit dem Zeichner der Vorschau - auch statt des Echtzeit-Lichts,
+// wenn eine solche .bsp da ist. Die Proben fuer Echtzeit-Licht und Lightmaps messen den Zeichner des Editors; sie
+// schalten das Spielbild fuer ihre Dauer aus und danach wie vorher.
+std::vector<Schritt> mitEditorZeichner(const std::string& was, std::vector<Schritt> innen) {
+    auto vorher = std::make_shared<bool>(true);
+    std::vector<Schritt> s;
+    s.push_back(tu(was + ": Zeichner des Editors (Built map as in the game aus)", [vorher] {
+        *vorher = karteneditor::editor().echtLicht.spielbild;
+        karteneditor::editor().echtLicht.spielbild = false;
+    }));
+    for (Schritt& x : innen) { s.push_back(std::move(x)); }
+    s.push_back(tu(was + ": Built map as in the game wie vorher", [vorher] { karteneditor::editor().echtLicht.spielbild = *vorher; }));
+    return s;
+}
+
 namespace stufe7 {
 
 namespace ke = karteneditor;
@@ -555,7 +571,8 @@ std::vector<Schritt> backen() {
     add(pruefe("Stufe 7: gebacken - der Boden neben dem Licht ist hell (echte Lightmap)", [] {
         const int h = helligkeit();
         diag::detail("Knopftest: Stufe 7 - gebacken, Boden bei x -128: " + std::to_string(h));
-        return h > 30;
+        // Lightmap mal gpu::kSpielLightmapFaktor (1, Teil 11 im Spiel gemessen; vorher 2): die halbe Schwelle von 30
+        return h > 15;
     }));
     add(pruefe("Stufe 7: gebacken - die Kamera zeigt die echten Lightmaps, die Karte des Anwenders und eine .bsp neben ihr bleiben unberuehrt", [] {
         const ke::Editor& e = ke::editor();
@@ -1610,7 +1627,7 @@ std::vector<Schritt> schritte() {
         for (Schritt& y : x) { s.push_back(std::move(y)); }
     };
     if (teil("licht")) { dazu(licht()); }
-    if (teil("backen")) { dazu(backen()); }
+    if (teil("backen")) { dazu(mitEditorZeichner("Stufe 7", backen())); }
     if (teil("gross")) { dazu(gross()); }
     if (teil("menue")) { dazu(menue()); }
     if (teil("maus")) { dazu(maus()); }
