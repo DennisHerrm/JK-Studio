@@ -1062,6 +1062,64 @@ Drei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, �
 - hoth: Rest Echtzeit gegen gebaut (Sonne auf den Traegern, roter Himmel in der Echtzeit-Ansicht).
 - Punkte 4 und 5.
 
+## Teil 13c: Rest von Teil 13b
+
+Auftrag `auftrag_rc608_13c.md`. Skripte und Bilder in `SP/g13c` (`submod.py`, `flaechen.py`, `blatt.py`, `vgl12.py`, `feld.py`, `karten13c.py`, `md13c.py`, `ih13c.cfg`, `vor13c.sh`, Paare in `SP/g13c/erg/`), Laeufe `Y:\karte\laeufe\c13*`. Spielbild Movie Duels per Popen mit fs_homepath im SP (`g5/home_md`), Fenster ausserhalb des Sichtbaren; Original-JKA nicht gestartet (keine steam.exe). Spielordner nicht beschrieben.
+
+### 1: Mover und Untermodelle (gefunden, allgemein)
+Ursache: Das Spielbild des Karten-Editors baute die Welt aus ALLEN Flaechen der .bsp (buildMesh) statt aus Modell 0. q3map2 schreibt die Flaechen jedes Untermodells in ein eigenes Blatt ausserhalb des Baums der Welt (duel_deathstar: Blatt 2194, Cluster 0, Kasten 0); `flaechenAusserSicht` sah dieses Blatt als "nicht im PVS" und verdeckte die Tueren - ein offener heller Durchgang. Im Spiel kommt die Welt aus R_AddWorldSurfaces (nur der Baum von Knoten 0), jedes andere Modell nur ueber seine Entity (CG_AddCEntity mit s.modelindex an currentOrigin/currentAngles).
+- Eine Regel fuer Vorschau und Editor: `brushModelleImSpiel` (gui/app_view3d.cpp) - Modell nur mit einer Entity, die das Spiel spawnt (G_SpawnGEntityFromSpawnVars) und zeichnet (kein trigger_*), Stellung aus der Mover-Simulation (InitMover: pos1, START_OPEN pos2; func_wall/func_usable START_OFF unsichtbar; func_rotating/func_bobbing), sonst der Ursprung der Entity. Die Vorschau nimmt dieselbe Funktion (vorher eigene Schleife, gleiches Ergebnis: Bilder der Vorschau byte-gleich, `c13ln3`/`c13lend` gegen `c13lv`). Das Spielbild baut die Welt aus Modell 0, die Brush-Modelle je Bild mit `zeichneMover` (Lightmaps, Nebel des Ursprungs, Gluehen) und ihr model2 in derselben Stellung; die Mover-Simulation laeuft ohne Mission (keine Benutzungen) - der Stand beim Laden.
+- Gebietsportale (cm_test.cpp): Das Spielbild rechnete nur das PVS (`g_keinePortale`, Gebiet -1). Jetzt wie die Vorschau: am Anfang alle zu, offen nach `portalOffenImSpiel` (aus `areaPortaleJetzt` herausgezogen, eine Regel), Maske je Gebiet und Cluster des Auges.
+- Messung (Selbsttest `teil13c`, Vorlage aus den Spieldaten, Kamera wie die Spielbilder aus Teil 8): duel_deathstar Schotten (900,680)-(1015,765) vorher 138,3 141,1 145,2, nachher 16,5 18,3 21,0, Spiel 16,5 18,3 21,0; duel_mustafar Tuer (520,450)-(780,900) vorher 34,4 21,9 9,2, nachher 53,9 39,6 30,7, Spiel 53,8 39,5 30,7.
+- Gegenprobe (nicht zum Finden benutzt), alle zwoelf Vorlagen aus Teil 11 (`vgl12.py`, abweichende 96er-Bloecke, vorher `k13bv3` -> nachher `c13v2`): e_must 47 -> 24, e_stern 32 -> 26, e_lb 33 -> 31, mustafar (g5, Entities entfernt) 25 -> 22, byss (g5) 42 -> 33, todesstern (g5) 25 -> 20, die anderen gleich (+-1). Auf den g5-Karten ohne Entities zeichnet das Spiel die Tueren nicht und die Gebiete dahinter bleiben schwarz (Portal zu): g5_todesstern Durchgang 0,0 0,0 0,0 wie im Spiel (vorher 138,6 141,4 145,4); mustafar und byss zeigen jetzt die offenen Rahmen und schwarzen Oeffnungen des Spiels (`SP/g13c/tri_mustafar.png`, `SP/g13c/tri_byss.png`).
+- Nicht weiter verfolgt: `flaechenAusserSicht` zaehlt Blaetter ausserhalb des Baums der Welt mit; fuer die Welt (Modell 0) ist das ohne Wirkung, die Brush-Modelle gehen ohne Maske.
+
+### 2: p99-Spitze beim Drehen (Rueckschritt aus 13b)
+- Gemessen statt vermutet (Zeitmarken um den Patch-Block, `c13l0`/`c13la4`/`c13ln4`): der Block aus 13b kostete beim Drehen im Mittel 0,06 ms, hoechstens 0,2 bis 0,66 ms (einmal 2,0 ms beim ersten Bild) - er war nicht die Ursache der 5,65 ms. Die p99-Werte schwanken zwischen Laeufen desselben Stands stark (2,99 / 4,61 / 5,51 ms mit dem alten Block; der Absturztest laeuft im Hintergrund).
+- Umgebaut ohne Bildverlust: die Wahl eines Patches ist eine Zahl (`patchLodWahl`: Zahl der inneren Spalten und Zeilen mit Fehler <= lodError, ueber vorab sortierte Fehler, die Mengen wachsen mit lodError ineinander), nur die Abschnitte der Patches statt aller 12000 Abschnitte, keine Vektoren je Patch; beim Maskenwechsel (neuer Cluster) wird die Wahl gleich in den einen Upload geschrieben statt danach 492 einzelne UpdateSubresource. Neu: Mittel 0,027 bis 0,04 ms, hoechstens 0,22 ms.
+- Speicher: die sortierten Fehler kosten auf duel_jeditemple (6460 Patches) 176 KB; alle Detailstufen vorab als Indizes waeren 18,3 MB gewesen (bei 2,8 MB Indizes der vollen Gitter) - darum nicht.
+- Pixelvergleich (Selbsttest `leistung`, `bildgleich.py`): mit abgeschaltetem Mover-LOD alle Bilder gleich (`c13ln3` gegen `c13lv`: szene40, toaj, mustafar, Editor-Spielbild byte-gleich; mission nur die fps-Zahl, wie in Teil 12 benannt). Mit Mover-LOD aendert sich szene40 nur am Dampf vor dem Schiff von md_am_sith (die Tiefe des Rohrs mit Patches, durch die die Teilchen schneiden) - gewollt.
+- Patches an Movern bekommen jetzt die Detailstufe je Bild (LodErrorForVolume mit lodOrigin durch die Stellung der Entity, `MoverLod`); ihre Indexpuffer sind dafuer DEFAULT statt IMMUTABLE. duel_jeditemple: 166 Mover-Abschnitte nach Abstand neu (Zeile im Selbsttest).
+- Endstand (`c13lend`, BHED_D3D_DEBUG=0): Karten-Editor Vorlage dreht CPU Mittel 2,21 p50 2,18 p99 2,60 ms (alt 13b 1,92 / 2,54, nach 13b 1,97 / 5,65); ruhend 2,16 / p99 2,61. Der Mittelwert liegt 0,3 ms ueber 13b: duel_jeditemple hat 151 Brush-Modelle, die jetzt einzeln gezeichnet werden (Punkt 1, wie in der Vorschau).
+
+### 3: Effekte und Surface-Sprites im Spielbild
+Ueber denselben Code wie die Vorschau, keine zweite Fassung:
+- Surface-Sprites: `GrasQuelle` (app_gras.cpp) - Welt, Geometrie, Halm-Stufen, Brush-Modelle dieses Bildes, Zeit, Regen und Wind (`wetterFuerGrasIn`), je Quelle ein eigener Zwischenspeicher; die Vorschau baut ihre Quelle aus g_app (`vorschauGrasQuelle`). `loadMapTexturesFuer` legt die Halm-Stufen jetzt auch ins Ziel des Editors (`GrasStufenZiel`). Das Spielbild baut je Sicht ein Netz (Hauptbild, Himmelsportal) und zeichnet es wie die Vorschau (deckend nach der Karte, gemischt vor ihr, mit Nebel).
+- fx_runner: `fxRunnerAus` (aus loadMapEffects herausgezogen), `EffektZiel` fuer Effektdateien und Shaderplaetze (das Spielbild hat eigene; die Vorschau leert ihre bei jedem Kartenwechsel), `ladeFolgeeffekte` mit Ziel; je Bild `effectFollowUpsAt` + `buildEffectMesh` + Vollbildblitze, gezeichnet als zweites Netz nach der Karte, mit ins Gluehen. Ohne Mission laeuft nur, wer nicht auf ein use wartet (fx_runner_link: STARTOFF/ONESHOT nextthink -1).
+- Portal-Entities (G_PortalifyEntities, g_misc.cpp:675-701): ein fx_runner im PVS des misc_skyportal mit freier Punktspur (Welt und Brush-Modelle) spielt nur in der Szene des Himmelsportals (AddScheduledEffects(true), cg_view.cpp:1927), die anderen nur in der Hauptszene. Die Vorschau kennt das nicht (sie zeichnet im Portaldurchgang das Effektnetz der Hauptsicht) - offen.
+- Pruefung (Selbsttest `teil13c`): duel_yavin ueber der groessten Grasflaeche - 868 Halme im Spielbild wie 868 der Vorschau fuer dieselbe Kamera, 35 % der Bildpunkte anders als ohne Halme (`SP/g13c/erg/yavin_halme_ohne_mit.png`); md_am_sith neben einem Dampfstrahl - 26 Laeufer, Effektnetz 6576 Ecken wie die Rechnung der Vorschau, 178535 Bildpunkte anders (`SP/g13c/erg/amsith_effekte_ohne_mit.png`). Rot: 0 Halme, 0 Ecken.
+- Bildzeit (`c13lend`, BHED_D3D_DEBUG=0): duel_yavin ohne/mit Halmen CPU 1,87 / 1,97 ms, GPU 3,13 / 3,41 ms; md_am_sith ohne/mit Effekten CPU 1,85 / 2,75 ms, GPU 3,07 / 3,21 ms (in `c13lf` 1,78 / 3,71 ms). Die Effekte kosten, was sie in der Vorschau kosten (dieselbe Simulation je Bild).
+- Grenzen (wie die Vorschau ohne Mission oder offen): kein dynamisches Licht der Effekte auf Welt und Modellen, keine Emittermodelle.
+
+### 4: Himmelsportal-Beweis
+duel_invisible_hand vom Duell-Startpunkt (Spiel `SP/g13c/erg/spiel_ih_1.png`, viewpos 8620 560 -6899, Blick 0): hinter den Scheiben die Schiffe der Portalszene. Spiel / Vorschau / Editor:
+- Schiff links (120,560)-(600,800): 65,7 69,9 70,7 / 66,0 70,2 71,1 / 66,0 70,2 71,1; Sternzerstoerer (1060,620)-(1500,780): 51,2 46,9 53,5 / 50,5 45,9 52,3 / 50,5 45,9 52,3; Streifen oben rechts: 60,6 47,4 33,9 / 60,7 47,5 33,8 / 60,7 47,5 33,8.
+- Rot ueber das Bild (Portaldurchgang abgeschaltet, `c13rot`): Schiff 34,7 33,3 40,7, Sternzerstoerer 66,7 50,6 64,8 - dort steht dann die Himmelsbox (`SP/g13c/erg/portal_ih_spiel_editor_ohneportal.png`: Spiel, Editor, Editor ohne Portal). Vorschau: `SP/g13c/erg/paar_m_ih.png`.
+
+### 5: Reiten gegen das Spiel
+Nicht angegangen (Zeit; die Punkte 1 bis 4 und die Pruefungen gingen vor). Offen wie in Teil 10b.
+
+### 6
+Nicht angegangen: Echtzeit gegen gebaut auf hoth, Decal-Welt `_indexmap`/`_fog`, Figur im Schwertlicht 0,82, JK2-Datapad Zeilen 1-2 Bildpunkte, Bildvorrat fuer Modellbilder.
+
+### Tests
+- Selbsttest `teil13c` (neu, 6 Zeilen): rot (`c13rot`, die Regeln dieses Teils zurueckgenommen, Portaldurchgang aus) 0 OK 6 FEHLER, gruen (`c13g7`) 6 OK 0 FEHLER.
+- Wiederholt, weil im Spielbild geaendert: `teil13b` 5 OK 0 FEHLER (`c13t13b`), `gras` 14 OK 0 FEHLER (`c13gras`), `leistung` 2 OK 0 FEHLER (`c13lend`, Bilder gegen `c13ln` gleich bis auf die fps-Zahl der Fensterbilder).
+- Selbsttest `leistung`: neue Bildzeiten fuer duel_yavin ohne/mit Halmen und md_am_sith ohne/mit Effekten (dieselben Szenen wie `teil13c`, `teil13c::yavinSzene`/`amSithSzene`).
+- ctest einmal am Ende: 196 von 196. Bau aller Ziele: 0 Warnungen.
+- Lints: lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_cbuffer, lint_gapp, lint_feldinit, lint_headers, lint_imgui_context ok; lint_d3dbesitz 15, lint_portability 117, lint_settings 4 wie vorher.
+- Texte: Tooltip "Gebaute Karte wie im Spiel" und die Notiz im Handbuch (Seite Karten-Editor Tempo) in 6 Sprachen; i18n und Handbuch mit den Generatoren erzeugt (es/cs: 0 Texte englisch).
+- Gelockert: keine Teststelle. `gpu::patchLodAenderungen` zaehlt jetzt auch die Patches, deren Wahl beim Maskenwechsel gleich im Upload steht (Teil 13b prueft "> 0", 492 wie vorher).
+
+### Nur per Foto gegen das Spiel
+`SP/g13c/erg/schotten_stern_spiel_neu_alt.png` (Spiel, neu, alt), `SP/g13c/erg/portal_ih_spiel_editor_ohneportal.png`, `SP/g13c/erg/paar_m_ih.png`, `SP/g13c/erg/p_ih_c13ih2.png`. Halme und Effekte nur gegen die Vorschau (keine Spielbilder dafuer).
+
+### Offen aus Teil 13c
+- Reiten gegen das Spiel; Punkt 6.
+- Vorschau: Portal-Entities (G_PortalifyEntities) - ihre Effekte gehoeren nur ins Himmelsportal; die Vorschau zeichnet dort das Effektnetz der Hauptsicht.
+- Spielbild: dynamisches Licht der Effekte, Emittermodelle; Mover ohne Mission stehen (keine Benutzungen, func_train am ersten Wegpunkt).
+- Karten-Editor Vorlage ruhend/dreht CPU +0,3 ms durch die 151 einzeln gezeichneten Brush-Modelle von duel_jeditemple (wie die Vorschau); ein Zusammenlegen ruhender Modelle mit der Welt waere moeglich, aendert aber Reihenfolge und Nebel (Spiel: Nebel der Flaeche) - nicht eingebaut.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1171,6 +1229,9 @@ Weiter offen:
 - Map editor, "Built map as in the game": map models (misc_model_static), the sky portal (misc_skyportal) and weather are added through the same code as in the preview; the ship on duel_deathstar now matches the game.
 - Preview and map editor: curved surfaces (patches) are divided as in the game (R_SubdividePatchToGrid, r_subdivisions 4) and drop rows and columns with distance (r_lodCurveError 250); far reflective pillars are as bright as in the game. The "Detail" slider starts at "as in the game".
 - Preview and map editor: shaders without a $lightmap stage blend their first stage as in the game - lamp glows without a black square, glass shows the stars behind it.
+- Map editor, "Built map as in the game": doors and other brush entities come only through their entity and stand where the game puts them when the map loads (closed doors no longer missing, START_OPEN open, START_OFF hidden); areas behind closed doors stay dark as in the game - one rule with the preview.
+- Map editor, "Built map as in the game": surface sprites and effects (fx_runner) through the same code as in the preview; effects of entities in the sky portal area play only in the sky portal.
+- Preview and map editor: patches on doors and other movers also drop rows and columns with distance, and choosing the patch detail costs less per frame.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1265,6 +1326,9 @@ Weiter offen:
 - Karten-Editor, "Gebaute Karte wie im Spiel": Kartenmodelle (misc_model_static), das Himmelsportal (misc_skyportal) und Wetter kommen über denselben Code wie in der Vorschau dazu; das Schiff auf duel_deathstar stimmt jetzt mit dem Spiel überein.
 - Vorschau und Karten-Editor: gekrümmte Flächen (Patches) werden wie im Spiel unterteilt (R_SubdividePatchToGrid, r_subdivisions 4) und lassen mit dem Abstand Zeilen und Spalten weg (r_lodCurveError 250); spiegelnde ferne Säulen sind so hell wie im Spiel. Der Regler "Detail" steht ab Werk auf "wie im Spiel".
 - Vorschau und Karten-Editor: Shader ohne $lightmap-Stufe mischen ihre erste Stufe wie im Spiel - Lampenscheine ohne schwarzes Viereck, Glas zeigt die Sterne dahinter.
+- Karten-Editor, „Gebaute Karte wie im Spiel“: Türen und andere Brush-Entities kommen nur über ihre Entity ins Bild und stehen, wo das Spiel sie beim Laden der Karte hinstellt (geschlossene Türen fehlen nicht mehr, START_OPEN offen, START_OFF unsichtbar); Gebiete hinter geschlossenen Türen bleiben dunkel wie im Spiel - eine Regel mit der Vorschau.
+- Karten-Editor, „Gebaute Karte wie im Spiel“: Surface-Sprites und Effekte (fx_runner) über denselben Code wie in der Vorschau; Effekte von Entities im Bereich des Himmelsportals spielen nur im Himmelsportal.
+- Vorschau und Karten-Editor: Patches an Türen und anderen Movern lassen ebenfalls mit dem Abstand Zeilen und Spalten weg, und die Wahl der Patch-Stufe kostet je Bild weniger.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1359,6 +1423,9 @@ Weiter offen:
 - 地图编辑器“已构建的地图如游戏中显示”:地图模型(misc_model_static)、天空传送门(misc_skyportal)和天气通过与预览相同的代码加入;duel_deathstar 上的飞船现在与游戏一致。
 - 预览和地图编辑器:曲面(补丁)按游戏的方式细分(R_SubdividePatchToGrid,r_subdivisions 4),并随距离省略行和列(r_lodCurveError 250);远处反光的柱子与游戏一样亮。“细节”滑块默认处于“与游戏相同”。
 - 预览和地图编辑器:没有 $lightmap 阶段的着色器像游戏中一样混合其第一阶段——灯光不再带黑色方块,玻璃显示其后的星空。
+- 地图编辑器“已构建的地图如游戏中显示”:门和其他画刷实体只通过其实体显示,并位于游戏加载地图时放置的位置(关闭的门不再缺失,START_OPEN 为打开,START_OFF 为隐藏);关闭的门后面的区域与游戏中一样保持黑暗——与预览使用同一规则。
+- 地图编辑器“已构建的地图如游戏中显示”:表面精灵和特效(fx_runner)通过与预览相同的代码显示;天空传送门区域内实体的特效只在天空传送门中播放。
+- 预览和地图编辑器:门和其他移动体上的补丁也会随距离省略行和列,选择补丁细节的每帧开销更低。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1453,6 +1520,9 @@ Weiter offen:
 - マップエディター「ビルドしたマップをゲームと同じ表示に」:マップモデル(misc_model_static)、スカイポータル(misc_skyportal)、天候がプレビューと同じコードで加わりました。duel_deathstar の船がゲームと一致します。
 - プレビューとマップエディター:曲面(パッチ)をゲームと同じように分割し(R_SubdividePatchToGrid、r_subdivisions 4)、距離に応じて行と列を省きます(r_lodCurveError 250)。遠くの反射する柱がゲームと同じ明るさになりました。「詳細」スライダーの既定は「ゲームと同じ」です。
 - プレビューとマップエディター:$lightmap ステージのないシェーダーは最初のステージをゲームと同じように合成します。ランプの光に黒い四角が出ず、ガラスの向こうに星が見えます。
+- マップエディター「ビルドしたマップをゲームと同じ表示に」:ドアなどのブラシエンティティはエンティティを通してのみ表示され、マップ読み込み時にゲームが置く位置に立ちます(閉じたドアが欠けなくなり、START_OPEN は開、START_OFF は非表示)。閉じたドアの向こうのエリアはゲームと同じく暗いままです。プレビューと同じ規則です。
+- マップエディター「ビルドしたマップをゲームと同じ表示に」:サーフェススプライトとエフェクト(fx_runner)をプレビューと同じコードで描きます。スカイポータル領域のエンティティのエフェクトはスカイポータル内でだけ再生されます。
+- プレビューとマップエディター:ドアなどの移動体のパッチも距離に応じて行と列を省き、パッチの詳細の選択はフレームごとの負荷が下がりました。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1547,6 +1617,9 @@ Weiter offen:
 - Editor de mapas, «Mapa compilado como en el juego»: los modelos del mapa (misc_model_static), el portal de cielo (misc_skyportal) y el clima se añaden con el mismo código que la vista previa; la nave de duel_deathstar coincide ahora con el juego.
 - Vista previa y editor de mapas: las superficies curvas (patches) se dividen como en el juego (R_SubdividePatchToGrid, r_subdivisions 4) y omiten filas y columnas con la distancia (r_lodCurveError 250); las columnas reflectantes lejanas tienen el brillo del juego. El control «Detalle» empieza en «como en el juego».
 - Vista previa y editor de mapas: los shaders sin etapa $lightmap mezclan su primera etapa como en el juego: brillos de lámparas sin cuadrado negro, el cristal muestra las estrellas de detrás.
+- Editor de mapas, «Mapa compilado como en el juego»: las puertas y demás entidades de brush solo aparecen a través de su entidad y están donde el juego las pone al cargar el mapa (ya no faltan las puertas cerradas, START_OPEN abiertas, START_OFF ocultas); las zonas detrás de puertas cerradas quedan oscuras como en el juego - una regla común con la vista previa.
+- Editor de mapas, «Mapa compilado como en el juego»: surface sprites y efectos (fx_runner) con el mismo código que en la vista previa; los efectos de entidades en la zona del portal de cielo solo se reproducen en el portal de cielo.
+- Vista previa y editor de mapas: los patches de puertas y otros elementos móviles también omiten filas y columnas con la distancia, y elegir el detalle de los patches cuesta menos por fotograma.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1641,3 +1714,6 @@ Weiter offen:
 - Editor map, „Sestavená mapa jako ve hře“: modely mapy (misc_model_static), portál oblohy (misc_skyportal) a počasí přibyly stejným kódem jako v náhledu; loď na duel_deathstar nyní odpovídá hře.
 - Náhled a editor map: zakřivené plochy (patche) se dělí jako ve hře (R_SubdividePatchToGrid, r_subdivisions 4) a se vzdáleností vynechávají řádky a sloupce (r_lodCurveError 250); vzdálené lesklé sloupy jsou jasné jako ve hře. Posuvník „Detail“ začíná na „jako ve hře“.
 - Náhled a editor map: shadery bez fáze $lightmap míchají svou první fázi jako ve hře – záře lamp bez černého čtverce, sklo ukazuje hvězdy za ním.
+- Editor map, „Sestavená mapa jako ve hře“: dveře a další brush entity se zobrazují jen přes svou entitu a stojí tam, kam je hra postaví při načtení mapy (zavřené dveře už nechybí, START_OPEN otevřené, START_OFF skryté); oblasti za zavřenými dveřmi zůstávají tmavé jako ve hře - jedno pravidlo s náhledem.
+- Editor map, „Sestavená mapa jako ve hře“: surface sprity a efekty (fx_runner) stejným kódem jako v náhledu; efekty entit v oblasti portálu oblohy se přehrávají jen v portálu oblohy.
+- Náhled a editor map: patche na dveřích a dalších pohyblivých objektech také se vzdáleností vynechávají řádky a sloupce a volba detailu patchů stojí na snímek méně.
