@@ -1005,6 +1005,63 @@ Vier Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, �
 - Punkte 2, 6, 7, 8; Figur im Schwertlicht 0,82.
 - jk2mp.exe: Rundung der Schrift nicht gemessen; Original-JKA (jasp.exe) rundet laut Quelle vermutlich "ergo"-Schriften - nicht geprueft, die Vorschau rechnet fuer JKA/MD wie OpenJK.
 
+## Teil 13b: Rest von Teil 13
+
+Auftrag `auftrag_rc608_13b.md`. Skripte und Bilder in `SP/g13b` (`karten13b.py`, `must13b.cfg`, `exec13b.cfg`, `vor13b.sh`, `ents.py`, Paare in `SP/g13b/erg/`), Laeufe `Y:\karte\laeufe\k13b*`, `g13b_m_*`. Spielbilder Movie Duels per Popen mit fs_homepath im SP (`g5/home_md`), Fenster ausserhalb des Sichtbaren. Original-JKA nicht gestartet (keine steam.exe).
+
+### 1: Karten-Editor, "Gebaute Karte wie im Spiel" (Kartenmodelle, Himmelsportal, Wetter)
+Derselbe Code wie die Mission-Vorschau, keine zweite Fassung:
+- **Kartenmodelle:** `loadMapModels` ist geteilt; `kartenModelleAufstellen(KartenModellZiel)` stellt die Modelle einer Entity-Liste auf (G_SpawnGEntityFromSpawnVars, SP_misc_model_static mit zoffset, die festen Modelle, misc_camera mit Fuss, OpenJK#1358 im Festen) und legt die Bilder in einen beliebigen TextureSet (`modellBlockIn`). Das Spielbild ruft sie mit seinen Entities, seiner Geometrie und seinem TextureSet, solange das Ladeziel noch die Szene des Editors ist (`loadMapTexturesFuer(..., danach)`). Gezeichnet wie die Vorschau: md3ToMesh je Bild der Animation (20 je Sekunde), `baueMoverWelt`, Licht aus dem Lichtgitter bei origin + zoffset + 1 (CG_DrawMiscEnts), beide Durchgaenge, Nebel des Ursprungs (`nebelFuerIn`), Gluehen. misc_model braucht nichts: q3map2 baut es in die Welt und laesst die Entity weg (UnparseEntities). model2 an Brush-Movern faehrt mit dem Mover und bleibt weg (Mover-Stellungen offen).
+- **misc_skyportal:** CG_DrawSkyBoxPortal wie die Vorschau: erst die Szene vom Ort des Portals in einen eigenen Zielsatz (`kZielKarteneditorPortal`, Satz 6), dann die Hauptszene ohne Himmel ueber diesem Bild.
+- **Wetter:** `app_wetter.cpp` rechnet je Satz (Vorschau, Editor) mit einer Quelle (`WetterQuelle`: Entities, Geometrie, Kartenname fuer Weather/<name>.cfg, Kollisionskarte fuer ContentsOutside, Zeit); `wetterTeilchenFuer` fuer das Spielbild.
+- **Messung** (Selbsttest `teil13b`, Vorlage aus den Spieldaten, Kameras wie die Spielbilder, Faktor Editor/Spiel):
+  - duel_deathstar (e_stern, Falke oben links): vorher (k11m5) oben 0,54 0,61 0,72, Mitte 0,80 0,83 0,87, Falke 0,23 0,25 0,28; nachher oben 1,00 1,00 1,00, Mitte 1,03 1,03 1,03, Falke 88,0 85,6 81,6 gegen 88,2 85,8 81,8.
+  - Gegenprobe (nicht zum Finden benutzt), alle zwoelf Vorlagen aus Teil 11 (`k13bv1`): e_lb Mitte 0,90 0,91 0,96 -> 0,96 0,94 0,97 (Modelle auf duel_mustafar), die anderen unveraendert (keine Modelle im Bild). jtb: der Fels links (misc_model_static) ist jetzt da, abweichende Bloecke 154 -> 35.
+  - Wetter duel_kamino_lp (fx_rain): 1879 Teilchen, 8753 Bildpunkte anders als ohne Wetter.
+  - Himmelsportal duel_executor_bridge (Spiel `SP/g13b/erg/spiel_exec.png`): Scheiben 17,6 19,1 18,3 / 18,1 20,8 19,5 wie im Spiel. **Ehrlich:** Mit abgeschaltetem Portalbild sind diese Bildpunkte gleich (nur 101 Bildpunkte anders, `k13brot2`); auch auf duel_mustafar (eigenes Spielbild `spiel_g13b_must.png`, oben 49,2 6,4 1,8 gleich) zeigt das Portal hier dasselbe wie die Himmelsbox. Der Weg ist derselbe wie in der Vorschau (rc593, Teil 6), ein Blick, in dem das Portal ein anderes Bild ergibt, ist nicht gemessen; die Pruefzeile war nur ueber "Himmelsportal gezeichnet" rot.
+- **Bildzeit** (Selbsttest `leistung` Abschnitt e, duel_jeditemple mit 16 misc_model_static, BHED_D3D_DEBUG=0, alter Stand `laeufe/alt13b` gegen neu): ruhend CPU 1,86 -> 1,91 ms, GPU 2,82 -> 2,72 ms; Kamera dreht CPU 1,92 -> 1,97 ms (p99 2,54 -> 5,65: die Patch-Abschnitte wechseln beim Drehen, siehe 2), GPU 2,45 -> 2,36 ms; Bildabstand 4,25/4,17 -> 4,23/4,25 ms (240 Hz).
+- Teil 12: keine Zeiger ueber Bilder hinweg (gluehenKlingen/gluehenEffekte gelten nur fuer den naechsten Aufruf, das Spielbild setzt keine). **Bildvorrat fuer die Modellbilder nicht eingebaut:** die Pfade der Modelle entstehen erst in der Schleife (feste Modelle, model2); ein Vorlauf waere doppelte Logik. Offen.
+- Nicht dabei (offen): Effekte (fx_runner), Surface-Sprites, Mover-Stellungen. Dazu gefunden: das Spielbild zeichnet Untermodelle ohne Entity (die Vorschau ebenso, Teil 8), und auf e_must fehlt im Editor eine geschlossene Tuer, die das Spiel zeigt (Mitte 0,90 0,86 0,75 unveraendert) - beides gehoert zu den Mover-Stellungen.
+
+### 2: Patches wie im Spiel (gefunden, allgemein)
+`R_SubdividePatchToGrid` (tr_curve.cpp, OpenJK = Movie Duels) 1:1 in `src/bspgeo.cpp`: Unterteilung je Spalte/Zeile bis r_subdivisions 4 (tr_init.cpp:1543 OpenJK, :1612 MD), gerade Spalten/Zeilen weg, Kippen fuer lange Streifen, Normalen aus dem Gitter (MakeMeshNormals), Fehlertabellen, lodOrigin/lodRadius aus lightmapVecs (ParseMesh). Je Bild waehlt der Zeichner Spalten und Zeilen nach `LodErrorForVolume`/`RB_SurfaceGrid` mit r_lodCurveError 250 (tr_init.cpp:1556 / :1625) und schreibt nur die Abschnitte der Patches neu, deren Wahl sich geaendert hat (je Indexpuffer ein Stand, verdeckte bleiben leer). Gilt fuer Vorschau und Editor-Spielbild. Der Regler "Detail" der Ansicht steht ab Werk ganz rechts auf "wie im Spiel" (`kPatchWieImSpiel`), 1 bis 10 sind die alten gleichmaessigen Netze.
+- duel_jeditemple, Saeule mit tcGen environment (Kamera g9_jtb, Spiel `SP/g10/fotos/jtb10.png`): vorher 0,88 0,86 0,84 / 0,91 0,89 0,88 / 0,95 0,94 0,92 (oben/Mitte/unten), nachher 32,0 26,6 22,6 / 33,3 27,6 23,5 / 32,6 26,9 22,9 gegen 32,0 26,6 22,6 / 33,4 27,6 23,5 / 32,6 26,9 22,9. 500 Patch-Abschnitte beim ersten Bild nach Abstand neu geschrieben.
+- Gegenprobe duel_hoth (g5_hoth, Spiel `SP/g5/fotos/hoth_1.png`): der Lampenschein im Tor ist ein 3x3-Patch mit autoSprite; das Gitter des Spiels hat vier Ecken, er dreht sich zur Kamera wie im Spiel. Dabei ein zweiter Fehler sichtbar (siehe 2b). Nachher 180,3 180,3 206,3 gegen 179,8 179,8 205,9. Ueber alle zwoelf Vorlagen: abweichende Bloecke jtb 35 -> 23, kamino 72 -> 68, die anderen gleich (+-1). Zwei Bloecke wurden mit dem Gitter allein schlechter (hoth Schein 0,99 -> 0,93, todesstern 1824,768 1,00 -> 0,97, `k13bv3`); mit 2b beide 1,00 (`k13bv5`).
+- Mission-Vorschau vorher/nachher (`g11_m_*` gegen `g13b_m_*`): Mittelwerte gleich auf 0,02, e_must/e_stern/e_lb/ga1 gegen das Spiel 0,97 bis 1,03 wie in Teil 11.
+- Offen: Patches an Movern (zeichneMover) nehmen das volle Gitter (kein LOD je Bild).
+
+### 2b: Grundstufe ohne $lightmap-Stufe mischt (gefunden, allgemein)
+`pipelineFor` (src/gpustate.cpp) machte jede Grundstufe deckend, die nicht add/alpha/add-alpha mischt - gedacht fuer die Zusammenfassung "$lightmap, dann Textur filter" (rc437). Ohne $lightmap-Stufe im Skript ist die Grundstufe aber die erste Stufe des Skripts und mischt im Spiel mit ihrem eigenen GL_State (RB_IterateStagesGeneric): hothflare_blue_pulse (GL_ONE GL_ONE_MINUS_SRC_COLOR) zeichnete ein schwarzes Viereck um den Schein, glass_reflective (GL_ZERO GL_ONE_MINUS_SRC_COLOR) graue Scheiben statt der Sterne dahinter. Jetzt bleibt sie nur mit $lightmap-Stufe (lightmapStufe) deckend.
+- ctest gpustate: 4 neue Zeilen, rot 2 FEHL, gruen. Bild: hoth Schein (Block 960,576) rot 0,93 (`k13bv3`), gruen 1,00; duel_executor_bridge Scheiben (vorher grau, Faktor 1,44 bis 1,54, `k13bv4` und Vorschau `g13b_m_exec`) jetzt 1,00.
+
+### 3: Echtzeit-Licht gegen gebaut (hoth, kamino)
+Ursache des groessten Teils: **der globale Nebel** (worldspawn `_fog`/`fog`: hoth boh_foghaze, kamino bluesky_fog). Das Echtzeit-Licht zeichnet ihn (Stufe 9d), der Zeichner des Editors mit Lightmaps nicht - kein Unterschied im Licht und nicht in der q3map2-Portierung. Messung mit `BHED_K11_OHNE_NEBEL` (Selbsttest teil11, Nebel aus dem worldspawn entfernt, `k13bnebel`, Faktor zum Spielbild):
+- kamino oben: Echtzeit 1,27 -> 0,76, gebaut 0,71 (vorher 1,27 gegen 0,71); Boden 1,23/1,28 gegen 1,21/1,25.
+- hoth oben: Echtzeit 1,01 -> 0,31, gebaut 0,31; Boden 1,07/0,94 -> 0,69/0,60 gegen gebaut 0,45/0,41.
+- Rest auf hoth (Boden 0,69 gegen 0,45): das Echtzeit-Licht beleuchtet die Traeger und Seitenfenster mit der Sonne, das Schnell-Backen (-light -fast) nicht; der Himmel ist in der Echtzeit-Ansicht rot (Bild fehlt dort). Ursache nicht gefunden, in der q3map2-Portierung nicht nachgewiesen (kein unabhaengiges q3map2 zum Vergleich). Offen. Benannt bleibt: keine Bounce, nur erste Stufe, kein Nebel im gebackenen Editor-Zeichner (dafuer gibt es "Gebaute Karte wie im Spiel").
+
+### 4, 5
+Nicht angegangen (Zeit, Punkte 1 bis 3 gingen vor): Reiten gegen das Spiel, Decal-Welt `_indexmap`/`_fog`, Figur im Schwertlicht, JK2-Datapad.
+
+### Tests
+- Selbsttest `teil13b` (neu, 5 Zeilen): rot (`k13brot`, alles zurueckgenommen) 0 OK 5 FEHLER, gruen (`k13bgruen`) 5 OK 0 FEHLER. Die Himmelsportal-Zeile war nur ueber die Kennzahl rot (siehe 1).
+- ctest gpustate: rot 2 FEHL, gruen.
+- Selbsttest teil11: neue Schalter `BHED_K11_NUR_VORLAGE` (nur die Vorlage, ohne Rueckgewinnung und Backen) und `BHED_K11_OHNE_NEBEL`.
+- Lints: lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_cbuffer, lint_gapp, lint_feldinit, lint_headers, lint_imgui_context ok; lint_d3dbesitz 15, lint_portability 117, lint_settings 4 wie vorher.
+- Handbuch mit gen_handbuch.py erzeugt (es/cs: 0 Texte englisch). Texte: Tooltip "Gebaute Karte wie im Spiel" und die Notiz im Handbuch (6 Sprachen), neuer Regler-Text "wie im Spiel" mit Tooltip (`tools/i18n_rc608_13b.py`).
+- Gelockert: keine Teststelle. Der Selbsttest `leistung` vergleicht seine Bilder byte-genau nur gegen sich selbst; `editor_vorlage_spiel` sieht jetzt anders aus (Modelle, Patches) - erwartet.
+
+### Changelog
+Drei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten (Spielbild mit Modellen/Himmelsportal/Wetter, Patches wie im Spiel, Grundstufe ohne $lightmap-Stufe).
+
+### Nur per Foto gegen das Spiel
+`SP/g13b/erg/p_e_stern_k13bv3.png` (Falke), `SP/g13b/erg/paar_exec.png` (vor der Mischregel), `SP/g13b/erg/paar_must_portal.png`, `SP/g13b/erg/hoth_lod.png`, `SP/g13b/erg/hoth_vorschau_lod.png`, `SP/g13b/erg/stern_lod.png`, `SP/g13b/erg/hoth_ohnenebel_echt_gebaut.png`.
+
+### Offen aus Teil 13b
+- Effekte, Surface-Sprites, Mover-Stellungen und Untermodelle ohne Entity im Spielbild; Bildvorrat fuer Modellbilder; Patch-LOD an Movern.
+- hoth: Rest Echtzeit gegen gebaut (Sonne auf den Traegern, roter Himmel in der Echtzeit-Ansicht).
+- Punkte 4 und 5.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1111,6 +1168,9 @@ Weiter offen:
 - Map editor: nodraw patches count for the decal world like in the .bsp, and q3map_terrain shaders behave as in q3map2 (whole faces, 179 degree smoothing).
 - Menu editor and preview: text in Jedi Outcast single player is measured like jk2sp.exe (rounded per letter and line); the weapon descriptions of the datapad break at the same words as in the game.
 - Preview: a saber hilt without blade (noBlade, such as riot_baton) lights its surroundings as in the game; with three or more blades noDlight limits the blended light.
+- Map editor, "Built map as in the game": map models (misc_model_static), the sky portal (misc_skyportal) and weather are added through the same code as in the preview; the ship on duel_deathstar now matches the game.
+- Preview and map editor: curved surfaces (patches) are divided as in the game (R_SubdividePatchToGrid, r_subdivisions 4) and drop rows and columns with distance (r_lodCurveError 250); far reflective pillars are as bright as in the game. The "Detail" slider starts at "as in the game".
+- Preview and map editor: shaders without a $lightmap stage blend their first stage as in the game - lamp glows without a black square, glass shows the stars behind it.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1202,6 +1262,9 @@ Weiter offen:
 - Karten-Editor: nodraw-Patches zählen für die Decal-Welt wie in der .bsp, und Shader mit q3map_terrain verhalten sich wie in q3map2 (ganze Flächen, Glättung 179 Grad).
 - Menü-Editor und Vorschau: Text im Einzelspieler von Jedi Outcast wird wie in jk2sp.exe gemessen (je Buchstabe und Zeile gerundet); die Waffenbeschreibungen im Datapad brechen an denselben Wörtern um wie im Spiel.
 - Vorschau: Ein Schwertgriff ohne Klinge (noBlade, etwa riot_baton) leuchtet wie im Spiel; ab drei Klingen begrenzt noDlight das gemischte Licht.
+- Karten-Editor, "Gebaute Karte wie im Spiel": Kartenmodelle (misc_model_static), das Himmelsportal (misc_skyportal) und Wetter kommen über denselben Code wie in der Vorschau dazu; das Schiff auf duel_deathstar stimmt jetzt mit dem Spiel überein.
+- Vorschau und Karten-Editor: gekrümmte Flächen (Patches) werden wie im Spiel unterteilt (R_SubdividePatchToGrid, r_subdivisions 4) und lassen mit dem Abstand Zeilen und Spalten weg (r_lodCurveError 250); spiegelnde ferne Säulen sind so hell wie im Spiel. Der Regler "Detail" steht ab Werk auf "wie im Spiel".
+- Vorschau und Karten-Editor: Shader ohne $lightmap-Stufe mischen ihre erste Stufe wie im Spiel - Lampenscheine ohne schwarzes Viereck, Glas zeigt die Sterne dahinter.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1293,6 +1356,9 @@ Weiter offen:
 - 地图编辑器:nodraw 曲面片在贴花世界中与 .bsp 中一样计入,带 q3map_terrain 的着色器与 q3map2 中行为相同(整个面,179 度平滑)。
 - 菜单编辑器和预览:Jedi Outcast 单人模式中的文字按 jk2sp.exe 的方式测量(每个字母和每行取整);数据板中的武器说明在与游戏中相同的单词处换行。
 - 预览:没有剑刃的光剑剑柄(noBlade,例如 riot_baton)会像游戏中一样照亮周围;三把及以上剑刃时,noDlight 会限制混合光。
+- 地图编辑器“已构建的地图如游戏中显示”:地图模型(misc_model_static)、天空传送门(misc_skyportal)和天气通过与预览相同的代码加入;duel_deathstar 上的飞船现在与游戏一致。
+- 预览和地图编辑器:曲面(补丁)按游戏的方式细分(R_SubdividePatchToGrid,r_subdivisions 4),并随距离省略行和列(r_lodCurveError 250);远处反光的柱子与游戏一样亮。“细节”滑块默认处于“与游戏相同”。
+- 预览和地图编辑器:没有 $lightmap 阶段的着色器像游戏中一样混合其第一阶段——灯光不再带黑色方块,玻璃显示其后的星空。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1384,6 +1450,9 @@ Weiter offen:
 - マップエディター:nodraw パッチは .bsp と同じようにデカールのワールドに含まれ、q3map_terrain のシェーダーは q3map2 と同じように動作します(面全体、179 度のスムージング)。
 - メニューエディターとプレビュー:Jedi Outcast シングルプレイヤーの文字を jk2sp.exe と同じように測ります(文字ごと・行ごとに丸め)。データパッドの武器説明はゲームと同じ単語で折り返されます。
 - プレビュー:刃のないセーバーの柄(noBlade、たとえば riot_baton)がゲームと同じように周囲を照らします。刃が 3 本以上のときは noDlight が混合ライトを制限します。
+- マップエディター「ビルドしたマップをゲームと同じ表示に」:マップモデル(misc_model_static)、スカイポータル(misc_skyportal)、天候がプレビューと同じコードで加わりました。duel_deathstar の船がゲームと一致します。
+- プレビューとマップエディター:曲面(パッチ)をゲームと同じように分割し(R_SubdividePatchToGrid、r_subdivisions 4)、距離に応じて行と列を省きます(r_lodCurveError 250)。遠くの反射する柱がゲームと同じ明るさになりました。「詳細」スライダーの既定は「ゲームと同じ」です。
+- プレビューとマップエディター:$lightmap ステージのないシェーダーは最初のステージをゲームと同じように合成します。ランプの光に黒い四角が出ず、ガラスの向こうに星が見えます。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1475,6 +1544,9 @@ Weiter offen:
 - Editor de mapas: los parches nodraw cuentan para el mundo de calcomanías como en el .bsp, y los shaders con q3map_terrain se comportan como en q3map2 (caras enteras, suavizado de 179 grados).
 - Editor de menús y vista previa: el texto del modo de un jugador de Jedi Outcast se mide como en jk2sp.exe (redondeado por letra y por línea); las descripciones de armas del datapad cortan la línea en las mismas palabras que en el juego.
 - Vista previa: una empuñadura de sable sin hoja (noBlade, como riot_baton) ilumina su entorno como en el juego; con tres hojas o más, noDlight limita la luz mezclada.
+- Editor de mapas, «Mapa compilado como en el juego»: los modelos del mapa (misc_model_static), el portal de cielo (misc_skyportal) y el clima se añaden con el mismo código que la vista previa; la nave de duel_deathstar coincide ahora con el juego.
+- Vista previa y editor de mapas: las superficies curvas (patches) se dividen como en el juego (R_SubdividePatchToGrid, r_subdivisions 4) y omiten filas y columnas con la distancia (r_lodCurveError 250); las columnas reflectantes lejanas tienen el brillo del juego. El control «Detalle» empieza en «como en el juego».
+- Vista previa y editor de mapas: los shaders sin etapa $lightmap mezclan su primera etapa como en el juego: brillos de lámparas sin cuadrado negro, el cristal muestra las estrellas de detrás.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1566,3 +1638,6 @@ Weiter offen:
 - Editor map: patche nodraw se do světa obtisků počítají jako v .bsp a shadery s q3map_terrain se chovají jako v q3map2 (celé plochy, vyhlazení 179 stupňů).
 - Editor nabídek a náhled: text v režimu pro jednoho hráče Jedi Outcast se měří jako v jk2sp.exe (zaokrouhleně po písmenech i řádcích); popisy zbraní v datapadu se zalamují u stejných slov jako ve hře.
 - Náhled: jílec meče bez čepele (noBlade, například riot_baton) osvětluje okolí jako ve hře; od tří čepelí omezuje noDlight smíšené světlo.
+- Editor map, „Sestavená mapa jako ve hře“: modely mapy (misc_model_static), portál oblohy (misc_skyportal) a počasí přibyly stejným kódem jako v náhledu; loď na duel_deathstar nyní odpovídá hře.
+- Náhled a editor map: zakřivené plochy (patche) se dělí jako ve hře (R_SubdividePatchToGrid, r_subdivisions 4) a se vzdáleností vynechávají řádky a sloupce (r_lodCurveError 250); vzdálené lesklé sloupy jsou jasné jako ve hře. Posuvník „Detail“ začíná na „jako ve hře“.
+- Náhled a editor map: shadery bez fáze $lightmap míchají svou první fázi jako ve hře – záře lamp bez černého čtverce, sklo ukazuje hvězdy za ním.
