@@ -50,7 +50,8 @@ std::vector<Schritt> schritte() {
             }
         }
         g_app->map.entities.push_back(reiter);
-        // Der Reiter schaut 90 Grad neben das Fahrzeug, steigt bei 1000 auf und schaut bei 4000 noch einmal 90 weiter.
+        // Der Reiter schaut 90 Grad neben das Fahrzeug, steigt bei 1000 auf, schaut bei 4000 noch einmal 90 weiter und
+        // steigt bei 6000 wieder ab (rc608 Teil 13e).
         const int g0 = static_cast<int>(*gier);
         teil9::laden(teil9::kKopf + "affect ( \"t13d_jr\", /*@AFFECT_TYPE*/ FLUSH )\r\n{\r\n"
                      "\tuse ( \"t13d_sp\" );\r\n"
@@ -60,7 +61,9 @@ std::vector<Schritt> schritte() {
                      "\tset ( /*@SET_TYPES*/ \"SET_VEHICLE\", \"t13d_bike\" );\r\n"
                      "\twait ( 3000.000 );\r\n"
                      "\tset ( /*@SET_TYPES*/ \"SET_ANGLES\", \"0 " + std::to_string(g0 + 180) + " 0\" );\r\n"
-                     "\twait ( 2000.000 );\r\n}\r\n", "Teil 13d");
+                     "\twait ( 2000.000 );\r\n"
+                     "\tset ( /*@SET_TYPES*/ \"SET_VEHICLE\", \"t13d_bike\" );\r\n"
+                     "\twait ( 1000.000 );\r\n}\r\n", "Teil 13d");
     }));
     add(warteBis("Teil 13d: Szene", [] { return g_app->camTrackValid && jk2probe::figurenGeladen(); }, 4000));
     add(pruefe("Teil 13d: use auf einen Fahrzeug-Spawner spawnt das Fahrzeug, SET_VEHICLE laesst den Reiter aufsteigen", [] {
@@ -115,6 +118,21 @@ std::vector<Schritt> schritte() {
                      "), Gleiter " + std::to_string(bWaehrend) + " / " + std::to_string(bDanach) + " / " + std::to_string(bSpaet));
         return std::fabs(r0) < 0.01F && std::fabs(r1 - std::min(90.0F, rate * 0.05F)) < 0.01F && std::fabs(bWaehrend) < 0.01F &&
                std::fabs(bDanach - 90.0F) < 0.01F && std::fabs(std::fabs(bSpaet) - 180.0F) < 0.01F;
+    }));
+    add(pruefe("Teil 13e: Nach dem Absteigen bleibt die Waffe WP_NONE (Eject gibt keine zurueck)", [] {
+        const std::size_t r = figur("t13d_jr");
+        if (r >= g_app->scene.actors.size() || g_app->scene.actors[r].ritte.empty()) { return false; }
+        const Actor& a = g_app->scene.actors[r];
+        const double bis = a.ritte[0].bisMs;
+        if (bis < 0.0) {
+            diag::detail("Knopftest: Teil 13e - kein Absteigen");
+            return false;
+        }
+        ActorState st = a.at(bis + 500.0);
+        ActorDraw d;
+        reitenAnwenden(a, bis + 500.0, st, d);
+        diag::detail("Knopftest: Teil 13e - abgestiegen bei " + std::to_string(bis) + ", danach " + st.waffe);
+        return st.waffe == "WP_NONE";
     }));
     add(pruefe("Teil 13d: Ein Tauntaun steht in BOTH_VT_IDLE1 (AnimateVehicle)", [] {
         for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {

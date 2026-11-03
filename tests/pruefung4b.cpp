@@ -864,56 +864,29 @@ void objektWurf() {
            "Aufprall: kick_impact_silent und objectHit je Treffer (" + std::to_string(b.effekte.size()) + ")");
 }
 
-// 4. Fahrzeuge: Laeufer/Tiere/Jaeger fallen mit der Schwerkraft, ein Gleiter
-// (hoverHeight > 0) nach PM_HoverTrace + PM_AirMove/PM_WalkMove (Abschrift,
-// nur Z, ebener Boden bei z 0, Kasten -24 unter dem Ursprung); die Takte wie
-// beim Kartenstart: 200 ms (NPC_Begin), 200 ms (erstes NPC_Think), dann 50.
-float engineGleiter(float z, int takte, float h, float kraft, float reibung) {
-    float vz = 0.0F;
-    bool fliegt = false;
-    const auto bodenNah = [](float zz) { return zz - 24.0F <= 0.25F; };
-    const auto spur = [&](float zz, float dt, bool& ebene) {
-        const float f = std::max(0.0F, (zz - 24.0F - 0.125F) / (3.0F * h));
-        ebene = f < 0.3F;
-        if (ebene) { vz += (0.3F - f) * kraft * dt * 60.0F; }
-        fliegt = !ebene;
-    };
-    for (int k = 0; k < takte; ++k) {
-        const float dt = k < 2 ? 0.2F : 0.05F;
-        bool ebene = false;
-        spur(z, dt, ebene);
-        const float vorher = z;
-        if (bodenNah(z)) {
-            vz = std::fabs(vz);
-        } else {
-            const float sp = std::fabs(vz);
-            if (sp >= 1.0F) {
-                const float drop = std::max(sp, 100.0F) * (fliegt ? 0.1F : reibung) * dt;
-                vz *= std::max(sp - drop, 0.0F) / sp;
-            }
-            if (ebene) { vz -= vz < 0.0F ? vz * 1.001F : vz / 1.001F; }
-            const float vn = vz - 800.0F * dt;
-            const float zn = z + 0.5F * (vz + vn) * dt;
-            if (zn - 24.0F <= 0.0F) {
-                z = 24.0F;
-                vz = 0.0F;
-            } else {
-                z = zn;
-                vz = vn;
-            }
-        }
-        if (z != vorher) {
-            bool e2 = false;
-            spur(z, dt, e2);
-        }
-    }
-    return z;
-}
+// 4. Fahrzeuge: Laeufer/Tiere/Jaeger fallen mit der Schwerkraft, ein Gleiter (hoverHeight > 0) schwebt wie im
+// Spiel. rc608 Teil 13e: Die Hoehen kommen aus dem Spiel selbst (Movie Duels, Karte g13d_reit in SP/g13d, swoop
+// mit hoverHeight 30, hoverStrength 35, friction 1.5; Ort je Serverbild per ICARUS-print, g_ICARUSDebug 4):
+// Spawn 61 ueber dem Boden, NPC_Begin und erstes NPC_Think je 200 ms, dann 50. Index k gilt fuer level.time
+// 3900 + 50 k, der Wert ist die Hoehe ueber der Ruhelage (Boden + 24,125 im Spiel, Boden + 24 in der Vorschau).
+// kSchwebenLeer: niemand steigt auf (log_c); kSchwebenRitt: ein Reiter steigt im Bild 4650 (k 15) auf, 550 ms
+// (log_d).
+struct SchwebeWert {
+    std::size_t k;
+    float h;
+};
+constexpr SchwebeWert kSchwebenLeer[] = {
+    {0, 6.2844F}, {1, 12.4080F}, {2, 17.7220F}, {4, 23.9473F}, {5, 24.1619F}, {6, 23.0826F}, {8, 17.6824F},
+    {10, 10.1931F}, {13, 2.3425F}, {15, 0.9609F}, {16, 1.2422F}, {17, 2.1535F}, {20, 7.3188F}, {25, 12.1289F},
+    {26, 11.3085F}, {30, 7.2996F}, {35, 3.7203F}, {40, 6.8332F}, {50, 5.6213F}, {60, 8.4097F}, {70, 4.2792F}};
+constexpr SchwebeWert kSchwebenRitt[] = {
+    {13, 2.3425F}, {15, 0.2814F}, {16, 0.0000F}, {17, 1.0955F}, {20, 3.7104F}, {25, 1.7994F}, {26, 1.3898F},
+    {30, 5.3098F}, {35, 11.8727F}, {40, 8.0331F}, {50, 6.1011F}, {60, 6.3361F}, {70, 7.7724F}};
 
 void fahrzeuge() {
     std::printf("--- 4. Fahrzeuge: Schwerkraft nach der .veh ---\n");
     SchwerkraftHilfe h;
-    h.endeMs = 3000.0;
+    h.endeMs = 3600.0;
     h.strahl = [](const std::array<float, 3>& von, const std::array<float, 3>& bis, double, std::array<float, 3>& treffer) {
         if (von[2] >= 0.0F && bis[2] <= 0.0F) {
             treffer = {von[0], von[1], 0.0F};
@@ -936,12 +909,18 @@ void fahrzeuge() {
         a.fahrzeug.schwebeKraft = kraft;
         a.fahrzeug.hang = 0.75F;
         a.fahrzeug.reibung = 1.5F;
+        a.fahrzeug.beschleunigung = 20.0F;
         return a;
     };
     Scene sc;
     sc.actors.push_back(fahrzeug("atst_vehicle", "VH_WALKER", 0.0F, 0.0F));
     sc.actors.push_back(fahrzeug("swoop", "VH_SPEEDER", 30.0F, 35.0F));
     sc.actors.push_back(fahrzeug("x-wing", "VH_FIGHTER", 80.0F, 10.0F));
+    sc.actors.push_back(fahrzeug("swoop", "VH_SPEEDER", 30.0F, 35.0F));
+    // Gleich hoch ueber der Ruhelage wie im Spiel (61 - 0,125).
+    sc.actors[1].start[2] = 60.875F;
+    sc.actors[3].start[2] = 60.875F;
+    sc.actors[3].aufsteigFenster.emplace_back(750.0, 1300.0);
     schwerkraftEinrechnen(sc, h);
     const auto hoeheBei = [](const Actor& a, std::size_t k) {
         return k < a.hoehe.size() ? a.hoehe[k] : a.start[2];
@@ -950,15 +929,20 @@ void fahrzeuge() {
     pruefe(std::fabs(hoeheBei(sc.actors[0], 40U) - 24.0F) < 0.01F && std::fabs(hoeheBei(sc.actors[2], 40U) - 24.0F) < 0.01F,
            "Laeufer und Jaeger fallen auf den Boden (z " + std::to_string(hoeheBei(sc.actors[0], 40U)) + ", " +
                std::to_string(hoeheBei(sc.actors[2], 40U)) + ")");
-    bool gleich = true;
-    std::string text;
-    for (const std::size_t k : {0U, 4U, 10U, 20U, 40U}) {
-        const float e = engineGleiter(100.0F, static_cast<int>(k) + 3, 30.0F, 35.0F, 1.5F);
-        const float v = hoeheBei(sc.actors[1], k);
-        gleich = gleich && std::fabs(e - v) < 0.01F;
-        text += " " + std::to_string(k * 50U) + ":" + std::to_string(v) + "/" + std::to_string(e);
-    }
-    pruefe(gleich, "Gleiter: PM_HoverTrace, Reibung, Schnitt an der Schwebespur (ms:Vorschau/Engine z)" + text);
+    const auto vergleich = [&](const Actor& a, const auto& werte, const char* was) {
+        bool gleich = true;
+        std::string text;
+        for (const SchwebeWert& w : werte) {
+            const float v = hoeheBei(a, w.k) - 24.0F;
+            gleich = gleich && std::fabs(v - w.h) < 0.01F;
+            char z[64];
+            std::snprintf(z, sizeof(z), " %zu:%.3f/%.3f", w.k, static_cast<double>(v), static_cast<double>(w.h));
+            text += z;
+        }
+        pruefe(gleich, std::string(was) + " (k:Vorschau/Spiel ueber der Ruhelage)" + text);
+    };
+    vergleich(sc.actors[1], kSchwebenLeer, "Gleiter schwebt wie im Spiel");
+    vergleich(sc.actors[3], kSchwebenRitt, "Gleiter beim Aufsteigen wie im Spiel");
 }
 
 // 2. trigger_hurt gegen den Spieler: stirbt er (player_die), steht

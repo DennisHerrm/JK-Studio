@@ -699,7 +699,7 @@ inline constexpr const char* kStandardGriff = "models/weapons2/saber_1/saber_1.g
 // Pruefung 4b: was die Schwerkraft eines Fahrzeugs (CLASS_VEHICLE) aus seiner
 // .veh braucht (BG_VehicleSetDefaults/vehicleFields, bg_vehicleLoad.cpp:
 // 500-830 OpenJK): type, gravity (Vorgabe 800), hoverHeight, hoverStrength,
-// maxSlope (Vorgabe 0.65), friction.
+// maxSlope (Vorgabe 0.65), friction, acceleration (Vorgabe 10, rc608 Teil 13e).
 struct FahrzeugDaten {
     bool da = false;
     std::string typ;              // "VH_SPEEDER" ...
@@ -708,6 +708,7 @@ struct FahrzeugDaten {
     float schwebeKraft = 0.0F;
     float hang = 0.65F;           // VEH_DEFAULT_MAX_SLOPE
     float reibung = 0.0F;
+    float beschleunigung = 10.0F;   // VEH_DEFAULT_ACCEL (g_vehicles.h:454 MD)
     bool reiterVerbergen = false;   // hideRider
     int haende = 0;                 // numHands: "if 2 hands, no weapons"
 };
@@ -839,6 +840,9 @@ struct Actor {    std::string name;        // der Name aus dem affect
         int boarding = -3;
     };
     std::vector<Ritt> ritte;
+    // rc608 Teil 13e: Bei einem Fahrzeug die Serverbilder, in denen jemand aufsteigt ([ab, bis) in ms, m_iBoarding
+    // != 0 in Update). Ein Gleiter nimmt dann m_vBoardingVelocity als Wunsch in PM_AirMove (schwerkraft.cpp).
+    std::vector<std::pair<double, double>> aufsteigFenster;
     [[nodiscard]] bool inVorschauVerborgen(double ms) const;
 
     // --- Paket bewegung (rc601): das Laufziel, nur fuer den Aufbau --------

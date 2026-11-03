@@ -4838,9 +4838,36 @@ void fahrzeugLenken(std::size_t fahrzeug, double ms, ActorState& sv) {
     }
 }
 
+namespace {
+// rc608 Teil 13e: Nach dem Absteigen. Eject gibt keine Waffe zurueck (g_vehicles.cpp MD 942-1228, OJ 1037-1330: kein
+// ps.weapon, kein ChangeWeapon); was Board und AnimateRiders genommen haben (G_RemoveWeaponModels, WP_NONE), bleibt,
+// bis das Skript eine Waffe setzt (SET_WEAPON).
+void nachDemRitt(const Actor& a, double ms, ActorState& st) {
+    const Actor::Ritt* letzter = nullptr;
+    for (const Actor::Ritt& r : a.ritte) {
+        if (r.bisMs >= 0.0 && ms >= r.bisMs && (letzter == nullptr || r.bisMs > letzter->bisMs)) { letzter = &r; }
+    }
+    if (letzter == nullptr || letzter->fahrzeug >= g_app->scene.actors.size() || letzter->fahrzeug >= g_app->actorAssets.size() ||
+        !g_app->actorAssets[letzter->fahrzeug]) {
+        return;
+    }
+    for (const ActorStep& s : a.steps) {
+        if (s.kind == ActorStep::Kind::Waffe && s.startMs >= letzter->bisMs && s.startMs <= ms) { return; }
+    }
+    const Actor& v = g_app->scene.actors[letzter->fahrzeug];
+    const ActorState vorher = a.at(letzter->bisMs - 1.0);
+    const bool aufgestiegen = letzter->bisMs >= letzter->abMs + aufsteigDauer(a, *letzter);
+    st.waffe = reiterWaffe(v.fahrzeug.typ, v.fahrzeug.haende, vorher.waffe, vorher.saberActive, a.echterSpieler, aufgestiegen,
+                           regelwerkMovieDuels());
+}
+}  // namespace
+
 void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d) {
     const Actor::Ritt* ritt = rittBei(a, ms);
-    if (ritt == nullptr) { return; }
+    if (ritt == nullptr) {
+        nachDemRitt(a, ms, st);
+        return;
+    }
     const Actor& v = g_app->scene.actors[ritt->fahrzeug];
     const App::ActorAssets& va = *g_app->actorAssets[ritt->fahrzeug];
     ActorState sv = v.at(ms);
@@ -7519,6 +7546,18 @@ void prepareScene() {
             benutzt.push_back(RittBenutzung{b.ms, b.name, b.ausloeser});
         }
         rittePlanen(g_app->scene.actors, std::move(benutzt));
+        // rc608 Teil 13e: Wann auf jedes Fahrzeug aufgestiegen wird (m_iBoarding, bis die Aufsteigdauer um ist) - ein
+        // Gleiter schwebt dabei anders (schwerkraft.cpp, schwebeSchritt).
+        for (Actor& v : g_app->scene.actors) { v.aufsteigFenster.clear(); }
+        for (const Actor& r : g_app->scene.actors) {
+            for (const Actor::Ritt& ritt : r.ritte) {
+                if (ritt.fahrzeug >= g_app->scene.actors.size() || ritt.fahrzeug >= g_app->actorAssets.size() ||
+                    !g_app->actorAssets[ritt.fahrzeug]) {
+                    continue;
+                }
+                g_app->scene.actors[ritt.fahrzeug].aufsteigFenster.emplace_back(ritt.abMs, ritt.abMs + aufsteigDauer(r, ritt));
+            }
+        }
     }
     g_app->blickFolgen.clear();
     // rc605 (Rest): Jedi Outcast - der Kyle-NPC gleicht ausserhalb der Kamera

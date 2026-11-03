@@ -3540,6 +3540,7 @@ void loadActorModels() {
                         if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
                         if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
                         if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
+                        if (k == "acceleration") { fd.beschleunigung = static_cast<float>(std::atof(v.c_str())); }
                         if (k == "hiderider") { fd.reiterVerbergen = std::atoi(v.c_str()) != 0; }
                         if (k == "numhands") { fd.haende = std::atoi(v.c_str()); }
                     }

@@ -98,6 +98,12 @@ struct Pmove {
     float hang = 0.7F;          // minNormal = maxSlope des Fahrzeugs
     float reibung = 0.0F;       // friction des Fahrzeugs
     bool fliegt = false;        // VEH_FLYING
+    // rc608 Teil 13e: Aufsteigen auf einen Gleiter (Actor::aufsteigFenster, m_vBoardingVelocity).
+    bool speeder = false;
+    float beschleunigung = 4.0F;   // acceleration (Speeder), sonst pm_airaccelerate
+    std::vector<std::pair<double, double>> aufsteigen;
+    bool aufsteigMerk = false;     // m_bWasBoarding
+    float aufsteigV = 0.0F;
 };
 
 // rc605 (Rest): der Uebergang in den freien Fall fuer eine Figur, die stand
@@ -160,67 +166,73 @@ bool bodenFragen(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb
     return p.da;
 }
 
-// Pruefung 4b: PM_HoverTrace (bg_pmove.cpp:5328-5450 OpenJK, 7620-7700 MD)
-// ohne Wasser: Spur von origin bis origin - 3 * hoverHeight; bei
-// normal[2] >= maxSlope und fraction < 0.3 Schub (0.3 - fraction) *
-// hoverStrength * m_fTimeModifier (frametime * 60, :14782) und groundPlane,
-// sonst VEH_FLYING. Ebener Boden (das Raster kennt keine Normale): 1.
-void schwebeSpur(Pmove& p, float boden, bool da, float dt, bool& ebene) {
-    ebene = false;
-    const float abstand = (p.z - kFussTiefe) - boden;
-    // CM_TraceThroughBrush: fraction = (d1 - SURFACE_CLIP_EPSILON) / (d1 - d2)
-    const float f = da ? std::max(0.0F, (abstand - 0.125F) / (3.0F * p.schwebeHoehe)) : 1.0F;
-    if (da && f < 0.3F && 1.0F >= p.hang) {
-        p.vz += (0.3F - f) * p.schwebeKraft * (dt * 60.0F);
-        ebene = true;
-    }
+// Pruefung 4b: PM_HoverTrace (bg_pmove.cpp:5328-5515 OpenJK, 7573-7767 MD) ohne Wasser: Spur des Kastens von
+// origin bis origin - 3 * hoverHeight; bei normal[2] >= maxSlope und fraction < 0.3 Schub (0.3 - fraction) *
+// hoverStrength * m_fTimeModifier (frametime * 60, bg_pmove.cpp:33815 MD) und VEH_FLYING aus, sonst VEH_FLYING an.
+// Ebener Boden (das Raster kennt keine Normale): 1. fraction = (d1 - SURFACE_CLIP_EPSILON) / (d1 - d2) mit d1 =
+// Kastenboden ueber dem Boden: Die Ruhelage der Engine steht SURFACE_CLIP_EPSILON ueber dem Boden, die der Vorschau
+// auf ihm (Boden + kFussTiefe), fraction ist also der Abstand ueber der Ruhelage durch 3 * hoverHeight.
+void schwebeSpur(Pmove& p, float boden, bool da, float dt) {
+    const float f = da ? std::max(0.0F, (p.z - kFussTiefe - boden) / (3.0F * p.schwebeHoehe)) : 1.0F;
+    const bool ebene = da && f < 0.3F && 1.0F >= p.hang;
+    if (ebene) { p.vz += (0.3F - f) * p.schwebeKraft * (dt * 60.0F); }
     p.fliegt = !ebene;
 }
 
-// Pruefung 4b: ein Pmove-Takt eines Gleiters (FLY_HOVER) ohne Pilot, nur Z:
-// PM_GroundTrace (minNormal maxSlope; beim Aufsetzen behaelt FLY_HOVER
-// velocity[2]), PM_HoverTrace, dann PM_WalkMove (am Boden: |v| bleibt, nach
-// oben gerichtet, ohne x/y keine Bewegung) bzw. PM_AirMove (PM_Friction mit
-// der Fahrzeugreibung, 0.1 bei VEH_FLYING, auf |v|; an der Ebene der
-// Schwebespur PM_ClipVelocity mit OVERCLIP 1.001; PM_StepSlideMove(1) mit
-// der Schwerkraft); bewegt: PM_GroundTrace und PM_HoverTrace noch einmal.
+// Pruefung 4b, rc608 Teil 13e: ein Pmove-Takt eines Gleiters (FLY_HOVER), nur Z. PM_HoverTrace endet immer mit
+// PM_GroundTraceMissed (bg_pmove.cpp:7766 MD, 5514 OpenJK: "never stick to the ground"): groundEntityNum NONE,
+// groundPlane und walking aus. Darum geht ein Gleiter nie durch PM_WalkMove, sondern immer durch PM_AirMove, und
+// weder PM_AirMove noch PM_SlideMove schneiden die Geschwindigkeit an der Schwebespur ab (beide nur bei groundPlane);
+// ein Speeder hat dort die volle acceleration (das "* 0.5f" gilt nur bei groundPlane). Der Schub kommt zweimal je
+// Takt: PM_HoverTrace vor der Bewegung (bg_pmove.cpp:33955-33959 MD) und nach ihr, wenn sich der Ort aenderte
+// (34104-34113) - beide an derselben Stelle wie der des naechsten Takts davor. PM_Friction ausserhalb von walking
+// auf |v| mit der Reibung des Fahrzeugs, 0.1 bei VEH_FLYING (bg_pmove.cpp:790-830 MD; unter 1 nur x/y auf 0).
+// PM_SlideMove: Schwerkraft als Trapez; trifft der senkrechte Weg den Boden, schneidet der Stoss velocity und
+// end_velocity an Boden und Bewegungsebene ab - beide 0 (bg_slidemove.cpp:44-360 MD, das Kreuzprodukt zweier
+// Gegenebenen). Im Spiel gemessen (SP/g13d, swoop): Die Folge stimmt Bild fuer Bild auf 0,0001 (pruefung4b).
+// Aufsteigen (Actor::aufsteigFenster): Update merkt sich die Geschwindigkeit im ersten Bild (m_vBoardingVelocity,
+// g_vehicles.cpp:1834-1838 MD), PM_AirMove nimmt sie als Wunsch (bg_pmove.cpp:4133-4137): Gegen die Bewegung mal
+// pm_airDecelRate 1.35, PM_Accelerate mit acceleration (Speeder) bzw. pm_airaccelerate 4.
 void schwebeSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb, double t, float dt, float g) {
     float boden = 0.0F;
     bool beweglich = false;
     bool da = bodenFragen(h, p, x, y, hb, t, boden, beweglich);
-    const auto bodenSpur = [&]() { p.amBoden = da && (p.z - kFussTiefe) - boden <= kBodenSpalt; };
-    bodenSpur();
-    bool ebene = false;
-    schwebeSpur(p, boden, da, dt, ebene);
-    const float vorher = p.z;
-    if (p.amBoden) {
-        p.vz = std::fabs(p.vz);   // PM_WalkMove: ClipVelocity, Normalize, Scale(vel)
-    } else {
-        const float speed = std::fabs(p.vz);
-        if (speed >= 1.0F) {
-            const float reibung = p.fliegt ? 0.10F : p.reibung;
-            const float drop = std::max(speed, 100.0F) * reibung * dt;   // pm_stopspeed 100
-            const float neu = std::max(speed - drop, 0.0F);
-            p.vz *= neu / speed;
-        }
-        if (ebene) {
-            p.vz -= p.vz < 0.0F ? p.vz * 1.001F : p.vz / 1.001F;   // PM_ClipVelocity, OVERCLIP
-        }
-        const float vNeu = p.vz - g * dt;
-        const float zNeu = p.z + 0.5F * (p.vz + vNeu) * dt;
-        if (da && zNeu - kFussTiefe <= boden) {
-            p.z = boden + kFussTiefe;
-            p.vz = 0.0F;
-        } else {
-            p.z = zNeu;
-            p.vz = vNeu;
-        }
-        p.gefragt = false;
+    bool steigtAuf = false;
+    for (const auto& [ab, bis] : p.aufsteigen) {
+        steigtAuf = steigtAuf || (t + 0.5 >= ab && t + 0.5 < bis);
     }
+    if (steigtAuf && !p.aufsteigMerk) { p.aufsteigV = p.vz; }
+    p.aufsteigMerk = steigtAuf;
+    schwebeSpur(p, boden, da, dt);
+    p.amBoden = false;
+    const float vorher = p.z;
+    const float speed = std::fabs(p.vz);
+    if (speed >= 1.0F) {
+        const float reibung = p.fliegt ? 0.10F : p.reibung;
+        const float drop = std::max(speed, 100.0F) * reibung * dt;   // pm_stopspeed 100
+        p.vz *= std::max(speed - drop, 0.0F) / speed;
+    }
+    if (p.vz > 1000.0F && p.speeder) { p.vz = 1000.0F; }   // PM_AirMove, VH_SPEEDER
+    if (steigtAuf && p.aufsteigV != 0.0F) {
+        const float richtung = p.aufsteigV < 0.0F ? -1.0F : 1.0F;
+        float wunsch = std::fabs(p.aufsteigV);
+        if (p.vz * richtung < 0.0F) { wunsch *= 1.35F; }   // pm_airDecelRate
+        const float dazu = wunsch - p.vz * richtung;
+        if (dazu > 0.0F) { p.vz += std::min(p.beschleunigung * dt * wunsch, dazu) * richtung; }
+    }
+    const float vNeu = p.vz - g * dt;
+    const float zNeu = p.z + 0.5F * (p.vz + vNeu) * dt;
+    if (da && zNeu - kFussTiefe <= boden) {
+        p.z = boden + kFussTiefe;
+        p.vz = 0.0F;
+    } else {
+        p.z = zNeu;
+        p.vz = vNeu;
+    }
+    p.gefragt = false;
     if (p.z != vorher) {
         da = bodenFragen(h, p, x, y, hb, t, boden, beweglich);
-        bodenSpur();
-        schwebeSpur(p, boden, da, dt, ebene);
+        schwebeSpur(p, boden, da, dt);
     }
 }
 
@@ -541,6 +553,9 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
                 p.schwebeKraft = a.fahrzeug.schwebeKraft;
                 p.hang = a.fahrzeug.hang;
                 p.reibung = a.fahrzeug.reibung;
+                p.speeder = a.fahrzeug.typ == "VH_SPEEDER";
+                p.beschleunigung = p.speeder ? a.fahrzeug.beschleunigung : 4.0F;   // pm_airaccelerate
+                p.aufsteigen = a.aufsteigFenster;
             }
             if (!imAblauf) {
                 // rc601 (bewegung, Kartenstart): beim Laden der Karte gespawnt
