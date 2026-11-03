@@ -1475,9 +1475,22 @@ std::vector<Schritt> modellindex() {
         karteDialogeZu();
         q3map2Bereitstellen();
         std::filesystem::create_directories(std::filesystem::path(miKarte()).parent_path());
+        // Endrunde rc608: aus den Spielarchiven (t2_trip gehoert zu Jedi Academy), nicht aus dem Laufordner eines alten Laufs.
+        // Fehlt sie oder laesst sie sich nicht schreiben, gleich FEHLER statt 900 s auf eine Rueckgewinnung zu warten.
+        std::string bsp;
+        if (!readFromArchives("maps/t2_trip.bsp", bsp) || bsp.size() < 8U) {
+            meldeFehler("Stufe 8b/8: maps/t2_trip.bsp nicht in den Spielarchiven");
+            return;
+        }
+        {
+            std::ofstream aus(std::filesystem::path(miKarte()), std::ios::binary | std::ios::trunc);
+            aus.write(bsp.data(), static_cast<std::streamsize>(bsp.size()));
+            if (!aus) {
+                meldeFehler("Stufe 8b/8: " + miKarte() + " nicht geschrieben");
+                return;
+            }
+        }
         std::error_code ec;
-        std::filesystem::copy_file(std::filesystem::path("Y:/karte/laeufe/s8garden/robust/t2_trip.bsp"), std::filesystem::path(miKarte()),
-                                   std::filesystem::copy_options::overwrite_existing, ec);
         std::filesystem::remove(std::filesystem::path(ke::modellIndexPfad()), ec);
         ke::Editor& e = ke::editor();
         e.bspRueck = ke::Editor::BspRueckEinstellungen{};
@@ -1485,7 +1498,10 @@ std::vector<Schritt> modellindex() {
         e.bspRueckLetzt = ke::Editor::BspRueckLetzt{};
         (void)ke::bspOeffnenDatei(miKarte());
     }));
-    add(stufe8::warteSek("Rueckgewinnung mit Index-Aufbau fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 900));
+    // Ohne Karte kommt keine Rueckgewinnung: dann nicht warten (der Schritt davor hat den FEHLER gemeldet).
+    add(stufe8::warteSek("Rueckgewinnung mit Index-Aufbau fertig", [] {
+        return !std::filesystem::exists(std::filesystem::path(miKarte())) || (ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0);
+    }, 900));
     add(pruefe("misc_model aus allen Modellordnern: t2_trip ohne Index - Index ueber alle Modelle gebaut und gespeichert, Ordnerregel 0 Kandidaten, mit Index Treffer", [erster] {
         const ke::Editor& e = ke::editor();
         const auto& l = e.bspRueckLetzt;
@@ -1502,7 +1518,9 @@ std::vector<Schritt> modellindex() {
         e.bspRueckLetzt = ke::Editor::BspRueckLetzt{};
         (void)ke::bspOeffnenDatei(miKarte());
     }));
-    add(stufe8::warteSek("Rueckgewinnung fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 600));
+    add(stufe8::warteSek("Rueckgewinnung fertig", [] {
+        return !std::filesystem::exists(std::filesystem::path(miKarte())) || (ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0);
+    }, 600));
     add(pruefe("misc_model aus allen Modellordnern: zweites Oeffnen - Index aus dem Zwischenspeicher (nichts neu), dasselbe Ergebnis, schneller", [erster] {
         const auto& l = ke::editor().bspRueckLetzt;
         diag::detail("Knopftest: Stufe 8b/8 zweiter Lauf: neu " + std::to_string(l.indexNeu) + ", Kandidaten " + std::to_string(l.kandidaten) + ", Treffer " +

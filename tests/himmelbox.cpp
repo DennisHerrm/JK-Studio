@@ -126,7 +126,7 @@ void rechteck() {
     erwarte("Rechteck: neben der Flaeche, in der Rundung, zeigt Himmel", himmelDeckt(r, drin));
     erwarte("Rechteck: ausserhalb bleibt der Bildpuffer", !himmelDeckt(r, draussen) && !himmelDeckt(r, links));
     // Die Ecken liegen auf der Box und zeigen wieder in das Rechteck (MakeSkyVec gegen AddSkyPolygon).
-    for (int seite = 0; seite < 5; ++seite) {
+    for (int seite = 0; seite < 6; ++seite) {
         float e[3];
         himmelEcke(seite, 0.5F, -0.25F, 1000.0F, e);
         HimmelRechteck q;
@@ -310,7 +310,9 @@ void unten() {
     s.hoch[0] = 1.0F;
     s.hoch[2] = 0.0F;
     b.rechne(s, r);
-    erwarte("DrawSkyBox: \"still don't want to draw the bottom\"", r.empty() && b.flaechenImBild() == 1U);
+    // Endrunde rc608: DrawSkyBox zeichnet alle sechs Seiten (tr_sky.cpp:401 OpenJK); den Boden lassen nur die Wolken weg
+    // (FillCloudBox, tr_sky.cpp:526-528), das macht der Zeichner.
+    erwarte("DrawSkyBox: die Unterseite (Seite 5) wird gezeichnet", r.size() == 1U && r[0].seite == 5 && b.flaechenImBild() == 1U);
 }
 
 void ueberlauf() {
@@ -331,6 +333,45 @@ void ueberlauf() {
 
 }  // namespace
 
+// Endrunde rc608: R_CullLocalBox prueft alle fuenf Ebenen (tr_main.cpp:86 OpenJK), R_CullPointAndRadius unter JKA ebenso,
+// unter JK2 nur vier (tr_main.cpp:142-174). Das Blatt (x 0 .. 60000) reicht ueber die ferne Ebene, die Flaeche bei x 1000
+// liegt ganz dahinter.
+void fernKeulen() {
+    for (const BspSurface::Type art : {BspSurface::Type::TriangleSoup, BspSurface::Type::Patch}) {
+        BspGeometry g = grundWelt();
+        BspMesh m;
+        vorDemAuge(g, m, 0, -99.0F, 99.0F, -99.0F, 99.0F);
+        BspSurface& s = g.surfaces.back();
+        s.type = art;
+        const float mn[3] = {1000.0F, -99.0F, -99.0F};
+        const float mx[3] = {1000.0F, 99.0F, 99.0F};
+        for (int k = 0; k < 3; ++k) {
+            s.mins[k] = mn[k];
+            s.maxs[k] = mx[k];
+        }
+        HimmelBox b;
+        b.anlegen(g, m, {kHimmelVorn});
+        std::vector<HimmelRechteck> r;
+        HimmelSicht sicht = blickNachX();
+        sicht.distanceCull = 950.0F / 1.02F;   // ferne Ebene bei x 951
+        b.rechne(sicht, r);
+        const bool dreieck = art == BspSurface::Type::TriangleSoup;
+        erwarte(dreieck ? "R_CullTriSurf/R_CullLocalBox: jenseits der fernen Ebene zaehlt das Dreiecksnetz nicht"
+                        : "R_CullGrid: jenseits der fernen Ebene zaehlt der Patch nicht (JKA)",
+                r.empty());
+        if (!dreieck) {
+            // JK2: die Kugel liegt ganz innerhalb der vier Seiten - R_CullGrid behaelt den Patch, ohne den Kasten zu fragen.
+            sicht.kugelEbenen = 4;
+            b.rechne(sicht, r);
+            erwarte("R_CullGrid (JK2): Kugel innerhalb der vier Seiten, jenseits der fernen Ebene - der Patch bleibt", r.size() == 1U);
+            sicht.kugelEbenen = 5;
+        }
+        sicht.distanceCull = 1100.0F / 1.02F;
+        b.rechne(sicht, r);
+        erwarte("R_CullLocalBox: diesseits der fernen Ebene zaehlt die Flaeche", r.size() == 1U);
+    }
+}
+
 int main() {
     rechteck();
     gebiete();
@@ -338,6 +379,7 @@ int main() {
     frustum();
     fernebeneWelt();
     unten();
+    fernKeulen();
     ueberlauf();
     if (g_fehler != 0) {
         std::printf("himmelbox: %d Fehler\n", g_fehler);

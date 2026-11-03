@@ -3192,12 +3192,14 @@ void sonneAusShadern(BspGeometry& geo, const ShaderMap& shader) {
 }
 
 bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float mins[3], const float maxs[3], const AreaPortale* portale) {
-    if (g.vis.empty() || g.clusterBytes <= 0 || g.nodes.empty() || g.leafs.empty()) {
+    if (g.nodes.empty() || g.leafs.empty()) {
         return true;
     }
     const int blatt = g.leafAt(auge);
     const int von = (blatt >= 0) ? g.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
-    if (von < 0 || von >= g.numClusters) {
+    // Ohne Tabelle gibt CM_ClusterPVS lauter Einsen (cm_load.cpp:504-508 OpenJK); Gebiete und "kein Cluster" gelten weiter.
+    const bool mitTabelle = !g.vis.empty() && g.clusterBytes > 0;
+    if (von < 0 || (mitTabelle && von >= g.numClusters)) {
         return true;   // Auge im Fels: siehe Kopf
     }
     std::vector<int> cl;
@@ -3212,6 +3214,12 @@ bool kastenImSnapshot(const BspGeometry& g, const float auge[3], const float min
     }
     // "if (!svEnt->numClusters) continue;" - eine Entity ganz im Fels oder
     // ausserhalb der Karte geht nie hinaus.
+    if (cl.empty()) {
+        return false;
+    }
+    if (!mitTabelle) {
+        return true;
+    }
     for (const int c : cl) {
         if (g.clusterVisible(von, c)) {
             return true;

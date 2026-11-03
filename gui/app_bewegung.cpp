@@ -476,6 +476,7 @@ void schwerkraftVorschau(bool mitMovern) {
             return it != g_app->npcMap.end() ? it->second.team : std::string();
         };
         lh.spur = navWeltVorschau() ? navWeltVorschau()->spur : NavSpurFn{};
+        lh.augenPunkt = hilfe.augenPunkt;
         lh.blick = [](double ms, float ort[3], float winkel[3]) {
             if (g_app->camTrackValid) {
                 const CameraState cs = g_app->camTrack.at(ms);
@@ -494,7 +495,7 @@ void schwerkraftVorschau(bool mitMovern) {
                     ort[k] = st.pos[k];
                     winkel[k] = st.angles[k];
                 }
-                ort[2] += 36.0F;   // viewheight
+                ort[2] += kStandAugenhoehe;   // viewheight
                 return true;
             }
             return false;

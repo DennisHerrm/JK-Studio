@@ -1288,6 +1288,73 @@ GLM-Waffen (Lage/Richtung), Gegenprobe-Bilder (Faktoren gemessen, Formen nur ang
 ### Reihenfolge und Parallelitaet
 Bis zur neuen Regel (03.11.) lief alles nacheinander. Danach gleichzeitig: Handbuchbilder zh/ja/es/cs, ctest mit dem Bildlauf des Menue-Editors. Nacheinander mit Grund: der Bau (nie neben Tests), Spielstarts (Original-JKA und JK2 je eine Instanz; die MD-Spielbilder und die Gegenprobe-Aufnahmen waren vor der Regel schon fertig).
 
+## Endrunde 3: Prueferfunde, offene Punkte, voller Lauf
+
+Auftrag `auftrag_rc608_endrunde3.md`. Skripte in `SP/er3` (`rot.py`/`rot2.py` roter Stand, `lauf_satz.sh` gleichzeitige Selbsttests, `ende.sh` voller Lauf, `blaetter.py` Blaetter echter Karten), Laeufe `Y:\karte\laeufe\er3*` und `g*`. Jeder Fund zuerst gegen die Quelle (OpenJK `SP/m3/ojq/src`, Movie Duels `SP/mdgit/code`), dann rot (Behebung zurueckgenommen bzw. Sabotage fuer verschaerfte Pruefzeilen, `er3r*`, `er3s*`, `er3x*`), dann gruen (`er3g*`, `er3h*`). Beim Start lief noch der sequentielle Bildlauf der Endrunde 1 (`SP/er1/bilder_er1b.sh`, nicht von mir gestartet, nicht beendet); er schrieb nach dem Commit 25d2ed9f die Handbuchbilder ja/es/cs neu (487 Dateien). Diese Aenderungen sind zurueckgenommen (Stand 25d2ed9f), gesichert in `SP/er3/stale_bilder/stale.tar`.
+
+### A: Prueferfunde "sicher"
+- **A1 Spielgamma nach Geraeteverlust:** `gpu::shutdown` gab `g_gammaTex/Srv/Ps` nicht frei und setzte `g_gammaVersucht/W/H` nicht zurueck; nach dem Neuaufbau zeichnete das neue Geraet mit dem Shader des alten. Jetzt `gibSpielGammaFrei()` in `shutdown()`. Selbsttest (Modus karte, Geraeteverlust): "Spielgamma haengt am neuen Geraet" rot `er3rkarte` (Stand 2 = altes Geraet), gruen `er3gkarte` (Stand 1); dazu "Lightmaps wie das Spiel" (B-F). `lint_d3dbesitz` erweitert: folgt den Hilfsfunktionen, die `shutdown()` ruft (vorher 11 Falschmeldungen, z. B. `gibUmrissFrei`), verlangt das Zuruecksetzen jedes `bool g_...Versucht`, kennt `// geliehen` (g_tiefeOffen) und Merker-geschuetztes Anlegen. Gegen 25d2ed9f meldet er die vier Gamma-Stellen (3 Felder, 1 Merker), jetzt **0** (Basis vorher 15).
+- **A2 areaPortaleJetzt:** Schluessel mit `entStand`. Teil 6: eine Portal-Tuer im Entity-Editor zu info_null - rot `er3rteil6` (15 -> 15), gruen (15 -> 14).
+- **A3 teil11:** Pruefung des Editor-Zeichners beidseitig (0,5 .. 1,1 mal das Spielbild; gemessen 26,8 20,6 8,7 gegen 32,1 25,8 13,9). Rot mit geschwaerztem Bild (`er3rteil11`), gruen.
+- **A4 schwache Selbsttests:** 13b Wetter mindestens 939 Teilchen / 4376 Bildpunkte (gemessen 1879/8753, fuenf Laeufe gleich), 13b Patch-LOD mindestens 246 (gemessen 492..500), 13c Mover-Patch-LOD mindestens 83 (gemessen 166), die Wahl selbst neu in ctest `kartengeometrie` (bekannter Patch, Sollwerte von Hand nach RB_SurfaceGrid/LodErrorForVolume: d 900, 250, hinter dem Auge, im Radius). 13d Tauntaun: geprueft wird jetzt das gezeichnete Bild der .gla (`figurBildGezeichnet`), nicht der Zustand aus `fahrzeugLenken`. Rot: 13d ohne `fahrzeugLenken` in der Ansicht (Bild 104 statt 124..153), 13c mit LOD fuer jeden zehnten Patch (18 neu, die alte Zeile `> 0` haette bestanden, die neue nicht), 13b Wetter auf 100 Teilchen begrenzt und LOD gekappt (beide Zeilen rot; dort waren die Werte 0 bzw. 100/0, also auch fuer die alten Zeilen rot). Gruen `er3gteil13b/c/d`.
+- **A5 Kartennamen md_gb_*/md_ga_*:** Regel des Spiels selbst: `BodyRemovalPadTime` (NPC.cpp:438-448 MD) vergleicht den mapname mit genau diesen vier Namen. Quelle im Kommentar, nichts geaendert. Verwaiste Kommentare an `schubSchrittDazu` bzw. `buildOnce` gesetzt.
+- **A6 Augenpunkt fuer NPC_ClearLOS:** NPC_RemoveBody ruft `NPC_ClearLOS(&g_entities[0], ent->currentOrigin)` (NPC.cpp:375 MD) -> `G_ClearLOS` mit `CalcEntitySpot(Spieler, SPOT_HEAD_LEAN)` (NPC_senses.cpp:1033-1040, NPC_utils.cpp:135-167 MD): eyePoint des Modells, sonst Ursprung + ps.viewheight; ps.viewheight im Stand = DEFAULT_MAXS_2 40 + STANDARD_VIEWHEIGHT_OFFSET -4 = 36 (bg_pmove.cpp:5717-5728 OpenJK). Jetzt `LeichenHilfe::augenPunkt` (eyePoint der Szene) und sonst `kStandAugenhoehe` 36 (scene.h, eine Zahl mit Quelle; auch fuer die 36 in Vorschau/Snapshot/Schwertproben und die 26 in `sieht`, die aus einem auskommentierten DEFAULT_VIEWHEIGHT stammte). ctest `leiche`: Mauer unter 34 - rot mit +32, gruen.
+- **A7 320 x 240:** `gpu::kGluehBreite/kGluehHoehe` mit Quelle r_DynamicGlowWidth/Height (tr_init.cpp:1530-1531 OpenJK, :1598-1599 MD).
+
+### B: Prueferfunde "Verdacht"
+- **B-A Unterseite der Himmelsbox:** bestaetigt. DrawSkyBox zeichnet alle sechs Seiten (tr_sky.cpp:401 OpenJK, :390 MD); "still don't want to draw the bottom" steht nur in FillCloudBox (tr_sky.cpp:526-528). Jetzt sechs Seiten, die Wolken (kWolke) ohne Seite 5. ctest `himmelbox` (vorher pruefte er das Falsche) rot/gruen.
+- **B-C 4 gegen 5 Ebenen:** bestaetigt. R_CullLocalBox nimmt fuenf Ebenen (tr_main.cpp:86), R_CullPointAndRadius unter JKA fuenf, unter JK2 vier (tr_main.cpp:142-174, MD com_outcast); R_CullGrid fragt erst die Kugel (aussen weg, innen bleibt, sonst Kasten). Jetzt so, `HimmelSicht::kugelEbenen` (JK2 4). ctest `himmelbox` drei neue Zeilen rot/gruen.
+- **B-D viewCluster -1:** laut Quelle weicht `flaechenAusserSicht` ab (R_MarkLeaves markiert bei viewCluster -1 alles ohne Gebietsmaske), aber nicht nachstellbar: in 383 Karten (122 JKA/MD-base, 216 MD, 45 JK2; `blaetter.py`) gibt es kein Blatt mit Cluster -1 und Gebiet >= 0, das Auge im Fels hat also nie ein Gebiet. Nicht geaendert.
+- **B-E Zwischenspeicher der Himmelsbox:** bestaetigt (vergissKarte setzte `g_himmelBoxNetz` nicht zurueck). Jetzt dort geleert; Pruefzeile in Teil 6 im selben Schritt (sonst fuellt das naechste Bild den Speicher wieder) - rot `er3xteil6`, gruen `er3hteil6`.
+- **B-F Anisotropie fuer Lightmaps:** bestaetigt: R_LoadLightmaps legt sie ohne Mipmaps mit GL_CLAMP an (tr_bsp.cpp:250-254), Upload32 gibt Bildern ohne Mipmaps GL_LINEAR ohne Anisotropie (tr_image.cpp:739-753). Die Vorschau nahm den anisotropen, umlaufenden Abtaster der Texturen. Jetzt eigener Abtaster `g_samplerLm` (s2) fuer die Lightmap; der Karten-Editor (gebacken) hatte schon einen linearen, geklemmten. Selbsttest karte rot/gruen. Bilder mit `nomipmaps` (Spiel ohne Mipmaps) baut das Programm weiter mit Mipmaps: `nomipmaps` ist nicht nachgebildet (offen).
+- **B-G `at()` vor dem Sortieren:** laut Code unschaedlich: die angehaengten Schritte sind reine Animationen hinter dem sortierten Block, `at()` liest den Ort aus dem sortierten Teil. Nicht geaendert.
+- **B-H kastenImSnapshot:** +-1 machen alle Aufrufer (Vertrag im Kopf). Ohne Sichttabelle wich er ab: SV_AddEntitiesVisibleFromPoint prueft auch dann Gebiete und "kein Cluster", nur das PVS ist voll (cm_load.cpp:504-508). Jetzt so (Karten aus dem Karten-Editor ohne -vis). ctest `kartengeometrie` drei Zeilen rot/gruen. Das Auge im Fels bleibt die bewusste Abweichung (freie Kamera).
+
+### C: Offen aus Endrunde 1
+- **C1 r_drawfog 2 (OpenJK):** nicht gebaut, zu gross fuer diese Runde. Nach der Quelle (tr_shade.cpp:1805-1865, tr_shader.cpp:3184-3228 OpenJK) braucht es je Stufe GL-Nebel EXP2 (Dichte 2,3539 / depthForOpaque, Faktor exp(-(d*z)^2)) mit der Farbe je Mischart (BLACK fuer ONE/ONE, WHITE fuer Lightmap-Filter usw.), das Weglassen des Nebeldurchgangs fuer den globalen Nebel, schwarze Farbe im Gluehdurchgang, und das in allen Zeichnern: Kartenstufen (die Vorschau fasst Grundstufe und Lightmap in einen Zug - beide Faktoren muessen darin getrennt gerechnet werden), Figuren, Effekte, Surface-Sprites, Wetter, Spielbild des Editors. Stand: t2_trip Faktor 1,05 .. 1,31 (Endrunde 1), Movie Duels und JK2 nicht betroffen (r_drawfog 1).
+- **C2 duel_theed, heller Schleier am Becken:** Ursache nicht gefunden. Die Flaeche ist der Patch mit `textures/cot1/nab2_arch` (kein Shaderskript, also Bild mal Lightmap). Nachgemessen mit dem neuen Stand (`er3theed`, Kamera -288 576 72 0 0): Vorschau 21,2 19,6 17,5 gegen Spiel 11,7 9,3 6,8; der Lightmap-Abtaster (B-F) aendert daran nichts. Sonst 10 von 12 Bloecken in 5 % (0,98 .. 1,17; die beiden anderen sind Wasserfall und Schleier).
+- **C3 JK2-Karten im Vorschau-Vergleichsweg:** geht ohne Programmaenderung, nur der Aufbau war falsch: Der Weg nimmt die Spielordner aus dem Ordner des Archivs (spielordnerFuerArchiv, jediOutcastOrdner). Testkarte in `SP/er3/jk2vg/vg/er3_yavin.pk3`, darueber eine leere Markierung `jk2sp.exe` (nur der Name zaehlt, sie wird nie gestartet), Einstellungen mit `gamePathJk2=...\Jedi Outcast\GameData\base` (`SP/er3/jk2vg.cfg`). Dann laedt der Lauf mit den Ordnern und Regeln von Jedi Outcast. yavin_temple gegen jk2sp.exe (Foto aus Endrunde 1), Kamera aus viewpos mit Nick 0: **12 von 12 Bloecken in 5 %, 1,00 .. 1,04** (`er3yavin0`, Bild `SP/er3/erg/yavin_n0.png`; mit Nick 8 lag die Kamera daneben, Nick 4: 7 von 12).
+- **C4 16 Menue-Editor-Bilder:** angesehen. Falsch waren `menue_zustaende` (der Haken "Hidden elements give up their space" lag unter dem Rand der schmalen Spalte, das Bild zeigte den Zustand vorher) und `menue_profil` (die Gruppe Mod keywords unter dem Rand). Ursache behoben: `rolleRechtsZu` rollt die rechte Spalte, bis das Element zu sehen ist; beide Bilder in sechs Sprachen neu. Der Bildlauf meldet jetzt 14 statt 16; davon sind richtig: `menue_ereignisse`, `menue_komponente`, `menue_felder_mehrfach`, `menue_reiter_properties` (die Fehlschlaege betreffen andere Teile des Bildes nicht), `menue_leiste_addstep` und `menue_rahmen_wahl_sp` kommen aus `bildnach`; die uebrigen acht stehen auf keiner Seite.
+
+### Nebenbei
+- **Gluehen Figur (sbd1), Modi karte und gluehen:** rot schon mit der exe von 25d2ed9f (`er3basisgl`). Ursache im Test: `figurGezeichnet` behielt die Orte einer frueheren Szene mit gleich vielen Figuren, die Kamera stand vor einem anderen Droiden (264 2168). Jetzt erst leeren (0 0 0 wie beim Anlegen; ein erster Versuch mit -99999 stoerte die spaetere Probe Figurstufen, die 0 0 0 als "nie gezeichnet" liest), dann vor den gezeichneten Ort: 101 rote Bildpunkte; gruen `vkgluehen`, `vk2karte` 233 OK, 0 FEHLER.
+
+### D: voller Lauf (einmal, gleichzeitig)
+`SP/er3/ende.sh`: Neubau `--clean-first` allein (0 Fehler, 0 Warnungen, 553 s), Lints, dann ctest und 93 Laeufe zu je hoechstens 8 gleichzeitig (eigene Laufordner `g<sprache><modus>`), `leistung` am Ende. Summe `SP/er3/ende_summe.txt`.
+- ctest 196 von 196 (66 s, `-j 16`).
+- Lints: lint_d3dbesitz **0** (vorher 15), lint_settings ok, lint_portability 106 (Basis), lint_pruefcodes 11, lint_endtable 2, lint_efxflags/lint_fremdprogramm/lint_link/lint_tidy/lint_mapstate wie rc607 (Basis); alle uebrigen ok; Handbuch-Sprachpruefung ok.
+- 0 FEHLER: Modus 1 (en 2651, es 2651, cs 2651), alle teil*-Modi, geschuetze, figurlicht, fenster, eigenstaendig, dock1/4/5/2mass, kamera, missionsbau, szenen, ton, npcklasse, gluehen, gras, figurstufen, missionsliste, modellimfesten, zeitleiste, modellleistung, pruefung3, original, jk2, tuerlauf, kuerzel (en/es/cs), hilfe1/hilfe2 (en/es/cs), stufe8/8g, optsicher, mission1, die Menue-Teile kontext, datei, seiten, widgets (246), unsinn (330), kodierung, feldneu, undomehr, touralle (132), bildnach, Tutorials tourmenue und tourspiel in de/zh/es (33 bzw. 21 OK).
+- Mit FEHLER, Ursache:
+  - **karte** 3 (Figurstufen): von dieser Runde (siehe Gluehen Figur, -99999), behoben; danach einmal "Ruhe: hoechstens wenige Bilder je Sekunde" (246 Bilder in 3,3 s, waehrend ein zweiter Lauf lief), wiederholt `vk2karte` 233 OK, 0 FEHLER.
+  - **zeitleiste1** en/es je 1 ("Filmdurchgang ohne laengere Bilder", meldet selbst "unter Last"): allein `vnzeitleiste1` 100 OK, 0 FEHLER.
+  - **karteneditor** en/es/cs 12/13/13: die drei liefen gleichzeitig und belegten dieselben Ports 39000-39002 (die Port-Proben setzen freie Ports voraus), dazu Zeitgrenzen und p99 unter Last. Allein wiederholt (`er3ke`, bis zum Modell-Index; der Rest in Teilen): Ports, p99, Rahmen/Menue Build gruen; rot bleiben Stufe 7 "gebacken - Boden hell" (18 statt > 30), Stufe 9c/2 Himmelspinsel, Licht 9c s9c_punkt und Stufe 9d/2 misc_model-Schatten - alle vier mit der exe von 25d2ed9f gleich rot (`vkb*`, `vbkarteneditor...stufe9d`), nicht untersucht; der Modell-Index war ein Fehler des Tests (behoben, unten).
+  - **Schon auf 25d2ed9f rot** (gleiche Zeilen mit der exe der Endrunde 1, `vb*`, `er3mebasis*`, `er3fixbasis`), nicht von dieser Runde: laserfalle 3 (auch in fix604b, kartenfunde; behoben, siehe unten), fix604b 5 (jetzt 2), kartenfunde 6 (jetzt 3: blaster, misc_panel_turret, Lavawetter), rest605 1, spulen 4, stufe9d 1, menueeditor en 27 / ja-Original 27 / es 50 (gleich der Basis) / cs 40, Bildlauf je Sprache 15 bis 17.
+    - **laserfalle (behoben):** Der Gonk stirbt bei 600 ms durch die Explosion; als Droide (BodyRemovalPadTime 0) bekam er im selben Augenblick sein Gone (leichenEntfernen) und war damit fuer Spur und G_RadiusDamage zur selben Zeit fort - die Rechnung "bis die Lebenszeiten stehen" sprang zwischen Explosion und keiner, der letzte Durchgang hatte keine. Im Spiel setzt DeadThink bei Droiden nur EF_NODRAW (NPC.cpp:653-690 MD), die Entity bleibt, bis NPC_RemoveBody sie freigibt. Jetzt: `ActorStep::nurUnsichtbar`/`ActorState::nurUnsichtbar` (unsichtbar, nicht entfernt), die Freigabe rechnet die Schleife von NPC_RemoveBody wie fuer alle Leichen; Spur der Falle und G_RadiusDamage zaehlen eine solche Leiche mit. ctest `leiche` zwei neue Zeilen. laserfalle rot 5/3 (Basis und D), gruen `vglaserfalle` 8 OK, 0 FEHLER; fix604b 27/5 -> 30/2, kartenfunde 47/6 -> 50/3, geschuetze, teil6, karte gruen.
+    - **karteneditor Modell-Index (behoben, Hinweis von shank):** `modellindex` kopierte t2_trip.bsp aus dem Laufordner eines alten Laufs (`Y:/karte/laeufe/s8garden/robust/`), den es nicht mehr gibt; der Kopierfehler ging in `ec` unter, danach wartete der Schritt 900 s und der naechste 600 s. Jetzt aus den Spielarchiven (`readFromArchives("maps/t2_trip.bsp")`), fehlt sie oder laesst sie sich nicht schreiben: sofort FEHLER, und die Warteschritte enden ohne Karte. Rot im Lauf `er3ke` (Open file ... failure), gruen `vfkarteneditor...modellindex` 14 OK, 0 FEHLER (Index 1547, 95 Kandidaten, 13 Treffer; zweites Oeffnen 4 s statt 52 s).
+    - fix604b Lavawetter: md_afif2_sith hat `Weather/md_afif2_sith.cfg` mit `r_weather 0`; seit Teil 7 raeumt Satz 0 auch das Wetter der Entities (execq laeuft nach dem Spawnen), die Probe aus rc604 erwartet die Lava von fx_lava. Was das Spiel bei `r_weather 0` tut, ist nicht gemessen (Teil 7 mass nur Satz 3 auf duel_mustafar) - offen, braucht ein Spielfoto.
+    - menueeditor (voller Modus, nicht der Bildlauf): Links bei 200 % (15), Rahmen/Doppelklick, Cancel, Hide if, M7 Punkt 14, 3b Felder; in es/cs dazu Leiste/Add step mit laengeren Texten. Ursache nicht untersucht.
+- **leistung** allein wiederholt (`er3leistung`, BHED_D3D_DEBUG=0, kein anderer Lauf): 2 OK, 0 FEHLER; Werte unten.
+
+| Messpunkt (`er3leistung`, allein, ohne Debugschicht) | Teil 12 nachher | jetzt |
+|---|---|---|
+| mp/duel1 geladen | 274 ms | 270 ms |
+| md_toaj_jedi geladen / erstes Bild | 1407 bis 1496 / 1975 bis 2058 ms | 1430 / 2029 ms |
+| md_am_sith geladen / erstes Bild | 1174 bis 1264 / 2574 bis 2637 ms | 1371 / 2774 ms |
+| Szene md_am/intro2_sith (37 Figuren) aufbauen | 1704 bis 1769 ms | 1819 ms |
+| duel_mustafar geladen / erstes Bild | 288 bis 294 / 1598 bis 1699 ms | 283 / 1637 ms |
+| Mission Szene spielt CPU / GPU / Bildabstand | 3,52 / 2,49 / 4,22 ms | 3,94 / 2,66 / 4,36 ms |
+| Mission md_toaj_jedi Flug CPU / GPU p99 | 3,00 / 2,5 ms | 3,02 / 2,53 ms |
+| Mission ruhend CPU (duel1, toaj, Szene, mustafar) | 0,4 bis 0,9 ms | 0,41 / 0,49 / 0,90 / 1,10 ms |
+| Karten-Editor Spielbild ruhend / dreht CPU, GPU | 1,69 / 1,68 ms, 2,85 / 2,48 ms | 2,42 / 2,35 ms, 2,82 / 2,38 ms |
+| Model ruhend / Animation CPU | 0,49 / 0,54 ms | 0,44 / 0,52 ms |
+| Menue-Editor ruhend / Maus CPU | 0,41 / 0,49 ms | 0,49 / 0,51 ms |
+
+Mehr als nach Teil 12: Spielbild des Karten-Editors +0,7 ms CPU, Szene spielt +0,4 ms CPU, md_am_sith laden +0,1 s. Nicht einzeln zugeordnet; seit Teil 12 kamen Kartenmodelle, Effekte, Surface-Sprites und einzelne Brush-Modelle ins Spielbild (Teil 13c nennt allein dafuer +0,3 ms) und Reiten in die Szene. Diese Runde aendert am Zeichnen nur den Lightmap-Abtaster, die sechste Himmelsseite und die Kugelpruefung der Himmels-Patches.
+
+### Arbeitsweise (Regeln vom 03.11.)
+- Testfenster: lauf.py startet mit Idle-Prioritaet; das Programm legt sein Fenster im Selbsttest auf die Arbeitsflaeche, ganz nach hinten und nicht aktiviert (main_win32.cpp, "Selbsttest im HINTERGRUND"). Es liegt also nicht ausserhalb des Bildschirms: Ist nichts darueber, ist es sichtbar (so sah shank `er3ke`). Ausserhalb des Sichtbaren waere eine Aenderung am Programm; die Selbsttests rechnen in Bildschirmpunkten (dock1 mit eigenen Fenstern) - nicht in dieser Runde geaendert, offen fuer den Hauptstrang.
+- Seit der neuen Regel laufende Tests etwa alle 5 Minuten angesehen (FEHLER, Fortschritt, haengende Warteschritte); `er3ke` haengender Warteschritt mit eigener PID beendet (taskkill /T, nachgeprueft), behoben, nur der Teil wiederholt.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1409,6 +1476,14 @@ Weiter offen:
 - Menu editor: "+ Add step" scrolls the column so the button, the search field and the list are visible; with little height (200 % on a screen below 4K) step 7 of the tutorial "Your first own menu" no longer loses the list behind the tutorial window.
 - Preferences: Ok and Cancel stay inside the screen when the main window is taller than the monitor.
 - Guide: all pictures with a map retaken (current brightness, game picture of the map editor) in six languages; pictures no page used are removed.
+- Preview and map editor (game picture): the sky box also has its underside, as in the game (only the cloud layers leave it out); sky patches and triangle meshes are culled against all five frustum planes like R_CullGrid/R_CullLocalBox (Jedi Outcast: the sphere test uses four).
+- Preview and map editor (game picture): lightmaps are filtered as in the game (bilinear, clamped, without anisotropy).
+- Preview: on maps built without VIS, figures and sounds behind a closed door stay hidden as in the game; changing a door or func_wall in the entity editor applies to the area portals at once.
+- Preview: whether a corpse may vanish is checked from the player's eye point, as in the game.
+- Fixed: after a lost graphics device the Movie Duels gamma is created again on the new device.
+- Guide: the menu editor pictures for mod profiles and for layouts that follow show and hide retaken in six languages.
+- Preview: a droid killed by a laser trip mine's explosion no longer vanishes from the beam in the same instant (it only stops being drawn, as in the game); the mine explodes and chained mines follow.
+
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1514,6 +1589,14 @@ Weiter offen:
 - Menü-Editor: "+ Schritt hinzufügen" rollt die Spalte so, dass Knopf, Suchfeld und Liste zu sehen sind; bei wenig Höhe (200 % auf einem Schirm unter 4K) verliert Schritt 7 des Tutorials "Dein erstes eigenes Menü" die Liste nicht mehr hinter dem Tutorial-Fenster.
 - Einstellungen: Ok und Abbrechen bleiben im Bild, wenn das Hauptfenster höher ist als der Monitor.
 - Handbuch: alle Bilder mit Karte neu aufgenommen (heutige Helligkeit, Spielbild des Karten-Editors) in sechs Sprachen; Bilder, die keine Seite zeigte, sind entfernt.
+- Vorschau und Karten-Editor (Spielbild): Die Himmelsbox hat auch ihre Unterseite wie im Spiel (nur die Wolkenschichten lassen sie weg); Himmels-Patches und Dreiecksnetze werden wie R_CullGrid/R_CullLocalBox gegen alle fünf Ebenen des Sichtfelds geprüft (Jedi Outcast: die Kugel gegen vier).
+- Vorschau und Karten-Editor (Spielbild): Lightmaps werden wie im Spiel gefiltert (bilinear, geklemmt, ohne Anisotropie).
+- Vorschau: Auf Karten ohne VIS bleiben Figuren und Klänge hinter einer geschlossenen Tür wie im Spiel verborgen; eine Änderung an Tür oder func_wall im Entity-Editor gilt sofort für die Gebietsportale.
+- Vorschau: Ob eine Leiche verschwinden darf, wird wie im Spiel vom Augenpunkt des Spielers aus geprüft.
+- Behoben: Nach einem Verlust des Grafikgeräts legt das neue Gerät das Gamma von Movie Duels wieder an.
+- Handbuch: Die Bilder des Menü-Editors zu Mod-Profilen und zu Layouts, die Zeigen und Verbergen folgen, in sechs Sprachen neu aufgenommen.
+- Vorschau: Ein Droide, den die Explosion einer Laserfalle tötet, verschwindet nicht mehr im selben Augenblick aus dem Strahl (er wird wie im Spiel nur nicht mehr gezeichnet); die Falle explodiert, verkettete Fallen folgen.
+
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1619,6 +1702,14 @@ Weiter offen:
 - 菜单编辑器："+ 添加步骤" 会滚动该栏，使按钮、搜索框和列表都可见；高度较小时（低于 4K 的屏幕上 200 %），教程"你的第一个自定义菜单"第 7 步不再把列表丢在教程窗口后面。
 - 设置：主窗口比显示器高时，确定和取消仍留在屏幕内。
 - 手册：所有带地图的图片已用六种语言重新拍摄（当前亮度、地图编辑器的游戏画面）；删除了没有页面使用的图片。
+- 预览和地图编辑器（游戏画面）：天空盒也绘制底面，与游戏一致（只有云层省略底面）；天空曲面片和三角网格像 R_CullGrid/R_CullLocalBox 一样对视锥的全部五个平面进行裁剪（Jedi Outcast：球体测试用四个）。
+- 预览和地图编辑器（游戏画面）：光照贴图按游戏方式过滤（双线性、钳制、无各向异性）。
+- 预览：在未运行 VIS 的地图上，关闭的门后的角色和声音与游戏一样保持隐藏；在实体编辑器中修改门或 func_wall 会立即作用于区域入口。
+- 预览：尸体能否消失，与游戏一样从玩家的眼睛位置检查。
+- 修复：图形设备丢失后，新设备会重新创建 Movie Duels 的伽马。
+- 手册：菜单编辑器中关于模组配置文件和跟随显示/隐藏的布局的图片已用六种语言重新拍摄。
+- 预览：被激光绊雷爆炸炸死的机器人不再在同一瞬间从光束中消失（与游戏一样只是不再绘制）；绊雷会爆炸，连锁的绊雷随之爆炸。
+
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1724,6 +1815,14 @@ Weiter offen:
 - メニューエディター：「+ ステップを追加」で列がスクロールし、ボタン・検索欄・リストが見えるようになります。高さが足りないとき（4K 未満の画面で 200 %）、チュートリアル「はじめての自作メニュー」のステップ 7 でリストがチュートリアルウィンドウの後ろに隠れなくなりました。
 - 設定：メインウィンドウがモニターより高いときも、OK とキャンセルが画面内に残ります。
 - マニュアル：マップを含むすべての画像を 6 言語で撮り直しました（現在の明るさ、マップエディターのゲーム画面）。どのページでも使われていない画像は削除しました。
+- プレビューとマップエディター（ゲーム画面）：スカイボックスはゲームと同じく底面も描きます（底面を省くのは雲のレイヤーだけ）。空のパッチと三角形メッシュは R_CullGrid/R_CullLocalBox と同じく視錐台の 5 平面すべてで判定します（Jedi Outcast では球の判定は 4 平面）。
+- プレビューとマップエディター（ゲーム画面）：ライトマップはゲームと同じくフィルタリングされます（バイリニア、クランプ、異方性なし）。
+- プレビュー：VIS なしでビルドしたマップでも、閉じた扉の向こうのキャラクターと音はゲームと同じく隠れたままです。エンティティエディターで扉や func_wall を変えると、すぐにエリアポータルに反映されます。
+- プレビュー：死体が消えてよいかを、ゲームと同じくプレイヤーの目の位置から判定します。
+- 修正：グラフィックデバイスを失った後、新しいデバイスで Movie Duels のガンマを作り直します。
+- マニュアル：MOD プロファイルと、表示・非表示に追従するレイアウトについてのメニューエディターの画像を 6 言語で撮り直しました。
+- プレビュー：レーザートリップマインの爆発で倒れたドロイドが同じ瞬間にビームから消えなくなりました（ゲームと同じく描画されなくなるだけ）。マインは爆発し、連鎖するマインも続きます。
+
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1829,6 +1928,14 @@ Weiter offen:
 - Editor de menús: "+ Añadir paso" desplaza la columna para que se vean el botón, el campo de búsqueda y la lista; con poca altura (200 % en una pantalla menor que 4K) el paso 7 del tutorial "Tu primer menú propio" ya no pierde la lista detrás de la ventana del tutorial.
 - Preferencias: Aceptar y Cancelar se quedan en pantalla cuando la ventana principal es más alta que el monitor.
 - Manual: todas las imágenes con mapa, tomadas de nuevo (brillo actual, imagen de juego del editor de mapas) en seis idiomas; se quitaron las imágenes que ninguna página usaba.
+- Vista previa y editor de mapas (imagen de juego): la caja del cielo también tiene su cara inferior, como en el juego (solo las capas de nubes la omiten); los parches de cielo y las mallas de triángulos se recortan contra los cinco planos del campo de visión como R_CullGrid/R_CullLocalBox (Jedi Outcast: la prueba de esfera usa cuatro).
+- Vista previa y editor de mapas (imagen de juego): los lightmaps se filtran como en el juego (bilineal, con recorte en los bordes, sin anisotropía).
+- Vista previa: en mapas construidos sin VIS, las figuras y los sonidos detrás de una puerta cerrada siguen ocultos como en el juego; cambiar una puerta o un func_wall en el editor de entidades afecta enseguida a los portales de área.
+- Vista previa: si un cadáver puede desaparecer se comprueba desde el punto de los ojos del jugador, como en el juego.
+- Corregido: tras perder el dispositivo gráfico, el nuevo dispositivo vuelve a crear la gamma de Movie Duels.
+- Manual: las imágenes del editor de menús sobre perfiles de mod y sobre diseños que siguen a mostrar y ocultar se han vuelto a tomar en seis idiomas.
+- Vista previa: un droide muerto por la explosión de una mina láser ya no desaparece del haz en el mismo instante (como en el juego, solo deja de dibujarse); la mina explota y las minas encadenadas la siguen.
+
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1934,3 +2041,10 @@ Weiter offen:
 - Editor menu: "+ Přidat krok" posune sloupec tak, aby bylo vidět tlačítko, vyhledávací pole i seznam; při malé výšce (200 % na obrazovce menší než 4K) už krok 7 tutoriálu "Vaše první vlastní menu" neztrácí seznam za oknem tutoriálu.
 - Nastavení: OK a Zrušit zůstanou na obrazovce, i když je hlavní okno vyšší než monitor.
 - Příručka: všechny obrázky s mapou znovu pořízeny (současný jas, herní obraz editoru map) v šesti jazycích; obrázky, které žádná stránka nepoužívala, jsou odstraněny.
+- Náhled a editor map (herní obraz): skybox má jako ve hře i spodní stranu (vynechávají ji jen vrstvy mraků); patche a trojúhelníkové sítě oblohy se ořezávají proti všem pěti rovinám zorného pole jako R_CullGrid/R_CullLocalBox (Jedi Outcast: test koule používá čtyři).
+- Náhled a editor map (herní obraz): lightmapy se filtrují jako ve hře (bilineárně, se sevřením na okraji, bez anizotropie).
+- Náhled: na mapách postavených bez VIS zůstávají postavy a zvuky za zavřenými dveřmi skryté jako ve hře; změna dveří nebo func_wall v editoru entit hned platí pro portály oblastí.
+- Náhled: zda smí mrtvola zmizet, se jako ve hře posuzuje z místa očí hráče.
+- Opraveno: po ztrátě grafického zařízení nové zařízení znovu vytvoří gamu Movie Duels.
+- Příručka: obrázky editoru menu k profilům modů a k rozvržením, která sledují zobrazení a skrytí, znovu pořízeny v šesti jazycích.
+- Náhled: droid zabitý výbuchem laserové miny už v tutéž chvíli nezmizí z paprsku (jako ve hře se jen přestane kreslit); mina vybuchne a řetězené miny následují.

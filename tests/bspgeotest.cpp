@@ -4,6 +4,7 @@
 // darin wird spaeter zum Speicherzugriff beim Zeichnen. Die Proben pruefen
 // deshalb beides - dass eine echte Karte richtig gelesen wird, und dass eine
 // kaputte weder stuerzt noch Unsinn liefert.
+#include "bhed/areaportal.h"
 #include "bhed/bspgeo.h"
 #include "bhed/regelwerk.h"
 #include "bhed/bsp.h"
@@ -248,8 +249,56 @@ int main(int argc, char** argv) {
         ohneTabelle.vis.clear();
         expect("Snapshot: ohne Sichtbarkeitstabelle ist alles sichtbar",
                bhed::kastenImSnapshot(ohneTabelle, auge, hinterMn, hinterMx));
+        // Endrunde rc608: Ohne Tabelle gibt CM_ClusterPVS lauter Einsen (cm_load.cpp:504-508 OpenJK), die anderen Schritte von
+        // SV_AddEntitiesVisibleFromPoint bleiben: ohne Cluster nie (sv_snapshot.cpp:452), hinter einer geschlossenen Tuer nicht
+        // (CM_AreasConnected, sv_snapshot.cpp:442-447).
+        expect("Snapshot: ohne Tabelle wird ganz im Fels (kein Cluster) trotzdem nie geschickt",
+               !bhed::kastenImSnapshot(ohneTabelle, auge, felsMn, felsMx));
+        bhed::BspGeometry mitGebieten = ohneTabelle;
+        mitGebieten.leafs[0].area = 0;
+        mitGebieten.leafs[1].area = 1;
+        bhed::AreaPortale tuer;
+        tuer.anlegen(2);
+        expect("Snapshot: ohne Tabelle, hinter einer geschlossenen Tuer: nicht", !bhed::kastenImSnapshot(mitGebieten, auge, hinterMn, hinterMx, &tuer));
+        tuer.setze(0, 1, true);
+        expect("Snapshot: ohne Tabelle, Tuer offen: ja", bhed::kastenImSnapshot(mitGebieten, auge, hinterMn, hinterMx, &tuer));
         bhed::BspGeometry leer;
         expect("Snapshot: ohne Karte ist alles sichtbar", bhed::kastenImSnapshot(leer, auge, hinterMn, hinterMx));
+    }
+
+    // --- Endrunde rc608: Patch-LOD, die Wahl eines bekannten Patches -------
+    //
+    // RB_SurfaceGrid mit LodErrorForVolume (tr_surface.cpp:1391-1418 OpenJK): lodError = r_lodCurveError / d, d = |(lodOrigin -
+    // Auge) . Blick| - lodRadius, mindestens 1. Genommen werden die erste und letzte Spalte und jede innere mit
+    // widthLodError[i] <= lodError, ebenso die Zeilen. Die Sollwerte hier sind von Hand gerechnet.
+    {
+        bhed::BspMesh::PatchGitter g;
+        g.breite = 5;
+        g.hoehe = 3;
+        g.breiteFehler = {0.0F, 2.0F, 0.5F, 1.0F, 0.0F};
+        g.hoeheFehler = {0.0F, 4.0F, 0.0F};
+        g.breiteStufen = {0.5F, 1.0F, 2.0F};
+        g.hoeheStufen = {4.0F};
+        g.lodOrt[0] = 1000.0F;
+        g.lodRadius = 100.0F;
+        const float vorn[3] = {1.0F, 0.0F, 0.0F};
+        std::vector<int> sp;
+        std::vector<int> ze;
+        const float fern[3] = {0.0F, 0.0F, 0.0F};   // d = 900, lodError 0,278: keine innere Spalte, keine innere Zeile
+        bhed::patchLodTabellen(g, g.lodOrt, fern, vorn, bhed::kRLodCurveError, sp, ze);
+        expect("Patch-LOD: fern (d 900) nur die Raender", sp == std::vector<int>({0, 4}) && ze == std::vector<int>({0, 2}) &&
+                                                              bhed::patchLodWahl(g, g.lodOrt, fern, vorn, bhed::kRLodCurveError) == 0U);
+        const float mitte[3] = {650.0F, 0.0F, 0.0F};   // d = 250, lodError 1: die Spalten mit 0,5 und 1
+        bhed::patchLodTabellen(g, g.lodOrt, mitte, vorn, bhed::kRLodCurveError, sp, ze);
+        expect("Patch-LOD: d 250 nimmt die Spalten mit Fehler 0,5 und 1 (<= lodError)",
+               sp == std::vector<int>({0, 2, 3, 4}) && ze == std::vector<int>({0, 2}) &&
+                   bhed::patchLodWahl(g, g.lodOrt, mitte, vorn, bhed::kRLodCurveError) == (2U << 16U));
+        const float hinten[3] = {2400.0F, 0.0F, 0.0F};   // hinter dem Patch: |d| = 1400 - 100, lodError 0,192
+        expect("Patch-LOD: hinter dem Auge zaehlt der Betrag", bhed::patchLodWahl(g, g.lodOrt, hinten, vorn, bhed::kRLodCurveError) == 0U);
+        const float nah[3] = {950.0F, 0.0F, 0.0F};   // d = 50 - 100 < 1: lodError 250, alles
+        bhed::patchLodTabellen(g, g.lodOrt, nah, vorn, bhed::kRLodCurveError, sp, ze);
+        expect("Patch-LOD: im Radius (d < 1) das volle Gitter", sp == std::vector<int>({0, 1, 2, 3, 4}) && ze == std::vector<int>({0, 1, 2}) &&
+                                                                    bhed::patchLodWahl(g, g.lodOrt, nah, vorn, bhed::kRLodCurveError) == bhed::patchLodVoll(g));
     }
 
     if (argc < 2) {

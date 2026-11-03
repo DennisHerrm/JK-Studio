@@ -554,7 +554,7 @@ bool snapshotAuge(double ms, float auge[3]) {
         if (a.haveStart && gross(a.name) == "PLAYER") {
             const ActorState st = a.at(ms);
             for (int k = 0; k < 3; ++k) { auge[k] = st.pos[k]; }
-            auge[2] += 36.0F;
+            auge[2] += kStandAugenhoehe;   // ps.viewheight
             return true;
         }
     }

@@ -229,6 +229,8 @@ struct ActorState {
     // Endgueltig fort (remove / kill), nicht nur unsichtbar. Ein
     // spaeteres SET_INVISIBLE "false" holt sie nicht zurueck.
     bool removed = false;
+    // Endrunde rc608: EF_NODRAW einer Droiden-Leiche (DeadThink) - nicht gezeichnet, fuer Spuren noch da.
+    bool nurUnsichtbar = false;
     // Die Klinge brennt.
     //
     // Aus SET_SABERACTIVE. Der KLANG dazu haengt an der Zeitleiste (siehe
@@ -571,6 +573,8 @@ struct ActorStep {
     // rc608 Teil 5: der Totenlauf (planeTotenlauf): nur der Ort, die Figur bleibt in ihrer Todesanimation.
     bool nurOrt = false;
     bool leicheWeg = false;   // das Gone von NPC_RemoveBody (leichenEntfernen rechnet es neu)
+    // Endrunde rc608: DeadThink setzt bei Droiden nur EF_NODRAW (NPC.cpp MD/OJ); die Entity und ihr Inhalt bleiben.
+    bool nurUnsichtbar = false;
     Path path;               // welche Zeile im Skript
     // SET_WATCHTARGET auf eine andere FIGUR (rc597): ihre Bahn ab startMs,
     // alle spurSchrittMs abgetastet - der Blick folgt ihr wie in der Engine,
@@ -1015,6 +1019,10 @@ struct TodesAbwurf {
 // augenPunkt, npcs) und den Scheiben (func_glass) aus karte.
 void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, const struct SzenenHilfe& hilfe,
                       const MapData* karte);
+// ps.viewheight im Stand: standheight DEFAULT_MAXS_2 40 + STANDARD_VIEWHEIGHT_OFFSET -4 (bg_pmove.cpp:5717-5728,
+// bg_public.h:52/62 OpenJK; JK2 und Movie Duels ebenso). CalcEntitySpot nimmt es, wenn es kein eyePoint gibt.
+inline constexpr float kStandAugenhoehe = 36.0F;
+
 // rc608 Teil 5: DeadThink und NPC_RemoveBody (NPC.cpp OJ/MD, JK2) nach der Schwerkraft: wann eine Leiche
 // verschwindet. `blick` liefert cg.refdef zur Zeit ms (Kamera der Szene, sonst der Spieler), false:
 // unbekannt, dann gilt kein Blick. BodyRemovalPadTime: Droiden 0, sonst g_corpseRemovalTime 10 s, MD
@@ -1027,6 +1035,8 @@ struct LeichenHilfe {
     std::function<bool(double ms, float ort[3], float winkel[3])> blick;
     NavSpurFn spur;
     std::function<std::string(const Actor&)> team;
+    // renderInfo.eyePoint einer Figur (wie SzenenHilfe::augenPunkt); ohne: Ursprung + kStandAugenhoehe.
+    std::function<bool(const struct Actor& figur, double ms, float auge[3])> augenPunkt;
 };
 void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, double endeMs);
 

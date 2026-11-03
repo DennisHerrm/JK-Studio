@@ -254,6 +254,10 @@ ID3D11SamplerState* g_sampler = nullptr;
 // CLAMP holt stattdessen den Randbildpunkt selbst - genau das, was ein
 // Weichzeichner am Rand tun soll.
 ID3D11SamplerState* g_samplerRand = nullptr;
+// Endrunde rc608: die Lightmaps. R_LoadLightmaps legt sie ohne Mipmaps und mit GL_CLAMP an (tr_bsp.cpp:250-254 OpenJK),
+// Upload32 gibt Bildern ohne Mipmaps GL_LINEAR und keine Anisotropie (tr_image.cpp:739-753) - nicht den Abtaster der
+// Texturen (r_ext_texture_filter_anisotropic 16).
+ID3D11SamplerState* g_samplerLm = nullptr;
 std::map<std::uint32_t, ID3D11BlendState*> g_blend;
 std::map<std::uint32_t, ID3D11DepthStencilState*> g_depth;
 std::map<std::uint32_t, ID3D11RasterizerState*> g_raster;
@@ -2370,6 +2374,18 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
     if (c == nullptr) {
         return 0;
     }
+    if (g_samplerLm == nullptr && dev() != nullptr) {
+        D3D11_SAMPLER_DESC sd{};
+        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;   // eine Stufe: bilinear wie GL_LINEAR
+        sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;      // GL_CLAMP, mit clampToEdge GL_CLAMP_TO_EDGE (R_CreateImage)
+        sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.MaxAnisotropy = 1;
+        sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        sd.MaxLOD = D3D11_FLOAT32_MAX;
+        dev()->CreateSamplerState(&sd, &g_samplerLm);
+    }
+    c->PSSetSamplers(2, 1, &g_samplerLm);
     int abgesetzt = 0;
     const PipelineState* letzter = nullptr;
     // Was zuletzt im Stapelpuffer und an den Bildplaetzen stand (rc594).
@@ -3006,7 +3022,7 @@ void setzeHimmelPortal(int satz) {
 int shaderAngelegt() { return g_shaderAngelegt; }
 
 // Der gerade abgebildete Lesepuffer (tiefeAbbilden bis tiefeFreigeben).
-ID3D11Texture2D* g_tiefeOffen = nullptr;
+ID3D11Texture2D* g_tiefeOffen = nullptr;   // geliehen: zeigt auf g_tiefeLesen oder g_tiefeVorig
 
 bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) {
     sicht = TiefenSicht{};
@@ -6282,12 +6298,28 @@ void vergissKarte() {
     g_lightmapQuelle.clear();
     vergissHimmel();
     vergissMoverNetze();
+    // Endrunde rc608: der Zwischenspeicher der Himmelsbox haengt an Netz, Zahl der Aufrufe und Bildersatz. Eine neue Karte
+    // kann dieselbe Adresse und Zahl haben - dann rechnete er mit den Flaechen der alten Karte.
+    g_himmelBox = HimmelBox{};
+    g_himmelBoxNetz = nullptr;
+}
+
+bool himmelBoxGemerkt() { return g_himmelBoxNetz != nullptr; }
+
+bool lightmapAbtasterWieImSpiel() {
+    if (g_samplerLm == nullptr) { return false; }
+    D3D11_SAMPLER_DESC sd{};
+    g_samplerLm->GetDesc(&sd);
+    return sd.Filter == D3D11_FILTER_MIN_MAG_MIP_LINEAR && sd.MaxAnisotropy <= 1U && sd.AddressU == D3D11_TEXTURE_ADDRESS_CLAMP &&
+           sd.AddressV == D3D11_TEXTURE_ADDRESS_CLAMP;
 }
 
 void gibAlleSzenenFrei();   // rc608 Teil 11, bei szeneWaehlen
+void gibSpielGammaFrei();   // Endrunde rc608, weiter unten bei spielGammaAnwenden
 
 void shutdown() {
     gibKlingenFrei();
+    gibSpielGammaFrei();
     gibModellFrei();
     gibMenueZieleFrei();
     gibLichtFrei();
@@ -6361,6 +6393,7 @@ void shutdown() {
         g_samplerRand->Release();
         g_samplerRand = nullptr;
     }
+    if (g_samplerLm != nullptr) { g_samplerLm->Release(); g_samplerLm = nullptr; }
     vergissKarte();
     for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
     g_bilder.clear();
@@ -6744,6 +6777,26 @@ int g_gammaW = 0;
 int g_gammaH = 0;
 }   // namespace
 
+// Shader und Kopie haengen am Geraet: beim Beenden und nach einem Geraeteverlust (main_win32.cpp, Neuaufbau) frei,
+// damit das neue Geraet sie neu anlegt. Vorher blieben sie stehen, und das neue Geraet zeichnete mit dem Shader des alten.
+void gibSpielGammaFrei() {
+    if (g_gammaSrv != nullptr) { g_gammaSrv->Release(); g_gammaSrv = nullptr; }
+    if (g_gammaTex != nullptr) { g_gammaTex->Release(); g_gammaTex = nullptr; }
+    if (g_gammaPs != nullptr) { g_gammaPs->Release(); g_gammaPs = nullptr; }
+    g_gammaVersucht = false;
+    g_gammaW = 0;
+    g_gammaH = 0;
+}
+
+int spielGammaStand() {
+    if (g_gammaPs == nullptr) { return 0; }
+    ID3D11Device* von = nullptr;
+    g_gammaPs->GetDevice(&von);
+    const bool hier = von != nullptr && von == dev();
+    if (von != nullptr) { von->Release(); }
+    return hier ? 1 : 2;
+}
+
 void spielGammaAnwenden() {
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
@@ -6916,7 +6969,6 @@ void gibAlleSzenenFrei() {
     for (int s = 0; s < kSzenen; ++s) {
         if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
         vergissKarte();
-        g_himmelBoxNetz = nullptr;
         gibNetzpufferFrei();
         if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
     }
@@ -7015,6 +7067,7 @@ int zeichneHimmelBox(const std::vector<DrawCall>& alleCalls, const BspMesh& mesh
     sicht.fovY = std::atan(1.0F / fokus) * grad;
     sicht.fovX = std::atan(static_cast<float>(g_zielW) / static_cast<float>(std::max(g_zielH, 1)) / fokus) * grad;
     sicht.distanceCull = g_himmelVorgabe.distanceCull;
+    sicht.kugelEbenen = g_himmelVorgabe.kugelEbenen;
     sicht.portale = g_himmelVorgabe.portale;
     sicht.gebiet = g_himmelVorgabe.gebiet;
     g_himmelBox.rechne(sicht, g_himmelRechtecke);
@@ -7043,6 +7096,8 @@ int zeichneHimmelBox(const std::vector<DrawCall>& alleCalls, const BspMesh& mesh
     for (std::size_t i = 0; i < g_himmelRechtecke.size(); ++i) {
         for (const DrawCall& a : alleCalls) {
             if ((a.state.features & (kSky | kWolke)) == 0U || a.batch >= mesh.batches.size() || mesh.batches[a.batch].shader != g_himmelRechtecke[i].shader) { continue; }
+            // FillCloudBox: "still don't want to draw the bottom" (tr_sky.cpp:526-528 OpenJK) - die Wolken ohne Unterseite.
+            if ((a.state.features & kWolke) != 0U && g_himmelRechtecke[i].seite == 5) { continue; }
             DrawCall z = a;
             z.firstIndex = static_cast<std::uint32_t>(i * 6U);
             z.numIndexes = 6U;
@@ -8128,6 +8183,9 @@ bool leseFarbe(std::vector<std::uint8_t>&, int&, int&) { return false; }
 const char* abschnittName(Abschnitt) { return "?"; }
 void bildBeginnt() {}
 void spielGammaAnwenden() {}
+int spielGammaStand() { return 0; }
+bool himmelBoxGemerkt() { return false; }
+bool lightmapAbtasterWieImSpiel() { return false; }
 void bildFertig() {}
 void beginneMessung(Abschnitt) {}
 void beendeMessung(Abschnitt) {}

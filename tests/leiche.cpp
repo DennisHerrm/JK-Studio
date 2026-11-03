@@ -232,6 +232,14 @@ void leichen() {
         Scene s = szene("CLASS_R2D2", 1000.0, false);
         leichenEntfernen(s, karte, h, 60000.0);
         erwarte("Droide: Pad 0 und EF_NODRAW, auch ohne Feind", weg(s) == 1000.0);
+        // Endrunde rc608: DeadThink setzt nur EF_NODRAW (NPC.cpp:653-690 MD) - unsichtbar, aber nicht entfernt (fuer Spuren da).
+        const ActorState st = s.actors[0].at(1000.0);
+        erwarte("Droide: bei EF_NODRAW unsichtbar, die Entity bleibt", !st.visible && st.nurUnsichtbar && !st.removed);
+    }
+    {
+        Scene s = szene("CLASS_PROBE", 1000.0, false);
+        leichenEntfernen(s, karte, h, 60000.0);
+        erwarte("CLASS_PROBE: EF_NODRAW, beim naechsten NPC_RemoveBody G_FreeEntity", s.actors[0].at(1050.0).nurUnsichtbar && s.actors[0].at(1100.0).removed);
     }
     {
         Scene s = szene("CLASS_SBD", 1000.0, true);
@@ -278,6 +286,38 @@ void leichen() {
         };
         leichenEntfernen(s2, karte, h2, 60000.0);
         erwarte("hinter dem Spieler: weg", weg(s2) > 0.0);
+    }
+    {
+        // Endrunde rc608: NPC_ClearLOS vom Auge des Spielers (CalcEntitySpot SPOT_HEAD_LEAN): eyePoint, sonst Ursprung +
+        // ps.viewheight 36. Eine Mauer verdeckt nur, was unter 34 ueber dem Ursprung des Spielers losgeht.
+        LeichenHilfe h2 = h;
+        h2.blick = [](double, float ort[3], float winkel[3]) {
+            ort[0] = 2000.0F;
+            ort[1] = 0.0F;
+            ort[2] = 36.0F;
+            winkel[0] = 0.0F;
+            winkel[1] = 180.0F;
+            winkel[2] = 0.0F;
+            return true;
+        };
+        h2.spur = [](const NavVec& a, const NavVec&, const NavVec&, const NavVec& e, int, std::uint32_t) {
+            NavSpur sp;
+            sp.endpos = e;
+            sp.fraction = a[2] < 34.0F ? 0.5F : 1.0F;
+            return sp;
+        };
+        Scene s = szene("CLASS_REBORN", 1000.0, true);
+        leichenEntfernen(s, karte, h2, 60000.0);
+        erwarte("ohne eyePoint: Auge auf ps.viewheight 36, die niedrige Mauer verdeckt nicht, die Leiche bleibt", weg(s) < 0.0);
+        h2.augenPunkt = [](const Actor& f, double, float auge[3]) {
+            auge[0] = f.start[0];
+            auge[1] = f.start[1];
+            auge[2] = 30.0F;
+            return true;
+        };
+        Scene s2 = szene("CLASS_REBORN", 1000.0, true);
+        leichenEntfernen(s2, karte, h2, 60000.0);
+        erwarte("mit eyePoint unter der Mauer: verdeckt, die Leiche geht", weg(s2) > 0.0);
     }
     {
         Scene s = szene("CLASS_REBORN", 1000.0, true);

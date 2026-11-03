@@ -117,6 +117,37 @@ std::vector<Schritt> teil6Schritte() {
                      ", vom Start verdeckt " + std::to_string(verdeckt) + " von " + std::to_string(m.size()));
         return !g_app->portalEnts.empty() && g_app->areaPortale.gebiete() > 1 && verdeckt > 0U && m.size() > 1193U && m[1193] != 0;
     }));
+    // Endrunde rc608: Eine Aenderung im Entity-Editor (hier: die Tuer wird zu info_null) gilt sofort, auch wenn die Zahl
+    // der Entities gleich bleibt. Vorher hing die Liste nur an Karte und Zahl.
+    auto portaleVorher = std::make_shared<std::size_t>(0);
+    auto tuer = std::make_shared<std::pair<std::size_t, std::string>>(0, "");
+    add(tu("Teil 6: eine Portal-Tuer im Entity-Editor zu info_null", [=] {
+        const float start[3] = {-1024.0F, 7320.0F, 24.0F};
+        areaPortaleJetzt(start);
+        *portaleVorher = g_app->portalEnts.size();
+        const std::string modell = g_app->portalEnts.empty() ? std::string() : "*" + std::to_string(g_app->portalEnts[0].modell);
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            const std::string* m = g_app->map.entities[i].find("model");
+            if (m != nullptr && *m == modell) {
+                *tuer = {i, g_app->map.entities[i].classname};
+                g_app->map.entities[i].classname = "info_null";
+                ++g_app->entStand;   // wie nachAenderung (app_mission.cpp) nach jeder Aenderung im Entity-Editor
+                break;
+            }
+        }
+        areaPortaleJetzt(start);
+    }));
+    add(pruefe("Teil 6: nach der Aenderung im Entity-Editor ein Portal weniger (Schluessel mit entStand)", [=] {
+        diag::detail("Knopftest: Teil 6 - Portal-Entities vorher " + std::to_string(*portaleVorher) + ", nachher " + std::to_string(g_app->portalEnts.size()) +
+                     ", Tuer " + tuer->second);
+        return !tuer->second.empty() && *portaleVorher > 0U && g_app->portalEnts.size() + 1U == *portaleVorher;
+    }));
+    add(tu("Teil 6: die Tuer zurueck", [=] {
+        if (!tuer->second.empty() && tuer->first < g_app->map.entities.size()) {
+            g_app->map.entities[tuer->first].classname = tuer->second;
+            ++g_app->entStand;
+        }
+    }));
 
     // rc608 Teil 8: Der Himmel: nur die Rechtecke aus RB_StageIteratorSky. Dieselbe Kamera wie die Fotos der Testkarten
     // (ohne Entities, alle Portale zu). Im Spiel gemessen: das Feld rot, beide Fenster auf t3_byss schwarz.
@@ -127,6 +158,15 @@ std::vector<Schritt> teil6Schritte() {
         diag::detail("Knopftest: Teil 8 Himmel duel_mustafar - Rechtecke " + std::to_string(zu.rechtecke.size()) + ", Flaechen zu " + std::to_string(zu.flaechen) +
                      ", offen " + std::to_string(auf.flaechen));
         return teil8::deckt(zu, kam, 1405, 723) && zu.flaechen < auf.flaechen;
+    }));
+    // Endrunde rc608: vergissKarte (jeder Kartenwechsel) leert den Zwischenspeicher der Himmelsbox. Vorher hing er nur an
+    // Netzadresse, Zahl der Aufrufe und Bildersatz; eine neue Karte mit derselben Adresse und Zahl rechnete mit den alten Flaechen.
+    add(pruefe("Teil 8: duel_mustafar gezeichnet - der Zwischenspeicher der Himmelsbox haelt ein Netz", [] { return gpu::himmelBoxGemerkt(); }));
+    // Im selben Schritt: das naechste Bild fuellt den Speicher fuer die Karte gleich wieder.
+    add(pruefe("Teil 8: nach vergissKarte (wie beim Kartenwechsel) haelt der Zwischenspeicher der Himmelsbox kein Netz mehr", [] {
+        gpu::vergissKarte();
+        g_app->mapDirty = true;
+        return !gpu::himmelBoxGemerkt();
     }));
     add(tu("Teil 8: eine Mission mit dem Spieler", [] {
         Script neu;

@@ -134,16 +134,46 @@ std::vector<Schritt> schritte() {
         diag::detail("Knopftest: Teil 13e - abgestiegen bei " + std::to_string(bis) + ", danach " + st.waffe);
         return st.waffe == "WP_NONE";
     }));
-    add(pruefe("Teil 13d: Ein Tauntaun steht in BOTH_VT_IDLE1 (AnimateVehicle)", [] {
+    // Im Spiel gesehen (SP/g13d): das Tier steht ab dem ersten Bild nach dem Spawn in BOTH_VT_IDLE1. Geprueft wird das
+    // Bild der .gla, das die Ansicht fuer das Tier wirklich zeichnet (nicht der Zustand, den fahrzeugLenken setzt).
+    auto tier = std::make_shared<std::size_t>(0);
+    add(tu("Teil 13d: Ansicht auf das Tier bei 2000 ms", [tier] {
+        *tier = g_app->scene.actors.size();
         for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
             const Actor& v = g_app->scene.actors[i];
-            if (!v.fahrzeug.da || v.fahrzeug.typ != "VH_ANIMAL") { continue; }
-            ActorState sv = v.at(2000.0);
-            fahrzeugLenken(i, 2000.0, sv);
-            diag::detail("Knopftest: Teil 13d - " + v.name + ": " + sv.animation);
-            return sv.animation == "BOTH_VT_IDLE1";
+            if (v.fahrzeug.da && v.fahrzeug.typ == "VH_ANIMAL") { *tier = i; }
         }
-        diag::detail("Knopftest: Teil 13d - kein Tier in der Szene");
+        g_app->playMs = 2000.0;
+        g_app->playing = false;
+        g_app->followCam = false;
+        g_app->throughCamera = false;
+        if (*tier < g_app->scene.actors.size()) {
+            const ActorState st = g_app->scene.actors[*tier].at(2000.0);
+            g_app->cam.pos[0] = st.pos[0] + 160.0F;
+            g_app->cam.pos[1] = st.pos[1];
+            g_app->cam.pos[2] = st.pos[2] + 40.0F;
+            g_app->cam.angles[0] = 8.0F;
+            g_app->cam.angles[1] = 180.0F;
+            g_app->cam.angles[2] = 0.0F;
+        }
+        g_app->figurBildGezeichnet.assign(g_app->scene.actors.size(), -1);
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("Teil 13d: Ein Tauntaun steht in BOTH_VT_IDLE1 (AnimateVehicle): das gezeichnete Bild liegt in diesem Abschnitt", [tier] {
+        const std::size_t i = *tier;
+        if (i >= g_app->scene.actors.size() || i >= g_app->actorAssets.size() || !g_app->actorAssets[i] || g_app->actorAssets[i]->skeleton == nullptr) {
+            diag::detail("Knopftest: Teil 13d - kein Tier mit Skelett in der Szene");
+            return false;
+        }
+        const int bild = i < g_app->figurBildGezeichnet.size() ? g_app->figurBildGezeichnet[i] : -1;
+        for (const AnimEntry& e : g_app->actorAssets[i]->skeleton->sections) {
+            if (e.name != "BOTH_VT_IDLE1") { continue; }
+            diag::detail("Knopftest: Teil 13d - " + g_app->scene.actors[i].name + ": Bild " + std::to_string(bild) + ", BOTH_VT_IDLE1 " +
+                         std::to_string(e.firstFrame) + " .. " + std::to_string(e.firstFrame + e.numFrames - 1));
+            return e.numFrames > 0 && bild >= e.firstFrame && bild < e.firstFrame + e.numFrames;
+        }
+        diag::detail("Knopftest: Teil 13d - BOTH_VT_IDLE1 fehlt im Skelett des Tiers");
         return false;
     }));
     return s;

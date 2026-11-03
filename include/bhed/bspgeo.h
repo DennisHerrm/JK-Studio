@@ -766,8 +766,10 @@ void blaetterImKasten(const BspGeometry& g, const float mins[3], const float max
 // Kaeme eine Entity mit diesem Kasten (absmin/absmax, also SCHON um eine
 // Einheit erweitert wie in SV_LinkEntity, sv_world.cpp:296 ff.) in den
 // Snapshot eines Betrachters bei `auge`?
-//   - ohne Karte oder Sichtbarkeitstabelle: ja (CM_ClusterPVS gibt dann
-//     lauter Einsen, cm_load.cpp:525 f.)
+//   - ohne Karte: ja
+//   - ohne Sichtbarkeitstabelle sieht jeder Cluster jeden (CM_ClusterPVS gibt
+//     dann lauter Einsen, cm_load.cpp:504-508 OpenJK); Gebiete und "kein
+//     Cluster" gelten weiter
 //   - beruehrt der Kasten keinen Cluster: nein ("if (!svEnt->numClusters)
 //     continue;", sv_snapshot.cpp:501 ff. MD)
 //   - sonst: sieht der Cluster des Auges einen davon

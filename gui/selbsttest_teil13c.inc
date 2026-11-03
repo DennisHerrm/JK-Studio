@@ -155,7 +155,8 @@ inline std::vector<Schritt> schritte() {
         const std::uint64_t lod = gpu::moverPatchLodAenderungen() - *lodVorher;
         diag::detail("Knopftest: Teil 13c Mover-Patches nach Abstand neu " + std::to_string(lod) + ", Modelle im Bild " +
                      std::to_string(ke::spielbildStand().modelle));
-        return lod > 0U;
+        // Endrunde rc608: gemessen 166 (sieben Laeufe gleich); verlangt die Haelfte.
+        return lod >= 166U / 2U;
     }));
 
     // 4. surfaceSprites im Spielbild ueber denselben Code wie die Vorschau (grasNetzFuer, RB_DrawSurfaceSprites):

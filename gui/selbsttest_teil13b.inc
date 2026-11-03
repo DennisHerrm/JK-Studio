@@ -97,7 +97,8 @@ inline std::vector<Schritt> schritte() {
             if (bild->rgba[i] != ohne->rgba[i] || bild->rgba[i + 1] != ohne->rgba[i + 1] || bild->rgba[i + 2] != ohne->rgba[i + 2]) { ++anders; }
         }
         diag::detail("Knopftest: Teil 13b Wetter - Teilchen " + std::to_string(*teilchen) + ", Bildpunkte anders " + std::to_string(anders));
-        return *teilchen > 0 && anders > 0;
+        // Endrunde rc608: gemessen 1879 Teilchen und 8753 Bildpunkte (fuenf Laeufe gleich); verlangt die Haelfte.
+        return *teilchen >= 1879 / 2 && anders >= 8753 / 2;
     }));
 
     // 4. Patches wie im Spiel (R_SubdividePatchToGrid, RB_SurfaceGrid mit r_lodCurveError 250): duel_jeditemple mit der
@@ -115,7 +116,8 @@ inline std::vector<Schritt> schritte() {
         const std::uint64_t lod = gpu::patchLodAenderungen() - *lodVorher;
         diag::detail("Knopftest: Teil 13b Saeule oben " + teil11::text3(oben) + ", Mitte " + teil11::text3(mitte) + ", unten " + teil11::text3(unten) +
                      ", Patch-Abschnitte nach Abstand neu " + std::to_string(lod));
-        return lod > 0U && teil11::nahAm(oben, {32.0, 26.6, 22.6}, 0.03) && teil11::nahAm(mitte, {33.4, 27.6, 23.5}, 0.03) &&
+        // Endrunde rc608: gemessen 492 bis 500 neu gewaehlte Patches; verlangt die Haelfte (die Wahl selbst prueft ctest bspgeotest).
+        return lod >= 492U / 2U && teil11::nahAm(oben, {32.0, 26.6, 22.6}, 0.03) && teil11::nahAm(mitte, {33.4, 27.6, 23.5}, 0.03) &&
                teil11::nahAm(unten, {32.6, 26.9, 22.9}, 0.03);
     }));
 

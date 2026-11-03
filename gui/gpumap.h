@@ -39,6 +39,10 @@ void shutdown();
 // Nummer ein anderes Bild), den Himmel und die Puffer der Mover-Netze. Zu
 // rufen, wann immer textures oder geo neu gebaut werden.
 void vergissKarte();
+// Selbsttest: haelt der Zwischenspeicher der Himmelsbox noch ein Netz (vergissKarte leert ihn)?
+[[nodiscard]] bool himmelBoxGemerkt();
+// Selbsttest: tastet die Karte ihre Lightmaps wie R_LoadLightmaps ab (bilinear ohne Anisotropie, geklemmt)?
+[[nodiscard]] bool lightmapAbtasterWieImSpiel();
 
 // Nur die Puffer der Mover-Netze freigeben (Schluessel ist die Adresse des
 // Netzes). Zu rufen, wann immer brushMeshes geleert wird - sonst bleiben
@@ -224,6 +228,11 @@ int zeichneMenueFigur(int nr, const GlmModel& model, const ModelTextures* textur
 // tiefeVon: das Ziel des Griffs (zeichneMenueFigur, gleiche Groesse) - dessen Tiefe verdeckt
 // die Klingen wie im selben Szenenaufruf der Engine; -1: eigene, leere Tiefe.
 int zeichneMenueKlingen(int nr, const std::vector<KlingenQuad>& quads, const float* viewProj, std::string* fehler, int tiefeVon = -1);
+
+// Groesse des Gluehpuffers: r_DynamicGlowWidth 320 und r_DynamicGlowHeight 240 (tr_init.cpp:1530-1531 OpenJK,
+// :1598-1599 Movie Duels).
+inline constexpr int kGluehBreite = 320;
+inline constexpr int kGluehHoehe = 240;
 
 // Das Gluehen auflegen.
 //
@@ -459,6 +468,7 @@ struct HimmelVorgabe {
     const AreaPortale* portale = nullptr;
     int gebiet = -1;
     bool szeneLoescht = false;
+    int kugelEbenen = 5;   // HimmelSicht::kugelEbenen: JK2 4
 };
 void setzeHimmelSicht(const HimmelVorgabe& v);
 // Die Rechtecke der zuletzt gezeichneten Karte (Selbsttest).
@@ -638,6 +648,8 @@ struct StapelNotiz {
 void bildBeginnt();
 // Movie Duels: r_gammaShaders am Ende des Bilds (spielGammaWert, bhed/gpushader.h).
 void spielGammaAnwenden();
+// Selbsttest: 0 kein Shader fuer das Spielgamma, 1 angelegt am aktuellen Geraet, 2 an einem anderen (altes Geraet).
+[[nodiscard]] int spielGammaStand();
 void bildFertig();
 
 // Ein Abschnitt, paarweise zu rufen. Ein Abschnitt, der in diesem Bild

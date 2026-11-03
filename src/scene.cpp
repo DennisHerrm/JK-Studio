@@ -1097,7 +1097,11 @@ ActorState Actor::at(double ms) const {
                 break;
             case ActorStep::Kind::Gone:
                 st.visible = false;
-                st.removed = true;
+                if (step.nurUnsichtbar) {
+                    st.nurUnsichtbar = true;
+                } else {
+                    st.removed = true;
+                }
                 break;
             case ActorStep::Kind::Hide:
                 st.visible = false;
@@ -2472,14 +2476,6 @@ void parseSaberFile(const std::string& text, SaberMap& out) {
     }
 }
 
-// Der eigentliche Aufbau.
-//
-// signals kommt fertig von aussen (clock.cpp, collectSignals) - frueher gab
-// es dafuer einen zweiten Durchgang durch DIESE Funktion, den aber nur die
-// Szene kannte. Jetzt teilen sich alle drei Auswerter dieselbe Sammlung.
-// rc605 (Ende, Jedi Outcast): der Weg eines Schubs ohne Plan (navKoerperLauf,
-// NavSchub; NAVNEW_PushBlocker + BG_AddPushVecToUcmd) als WalkTo-Stueck bis `bis`.
-// Einmal je Schub (dieselbe Bahn steht schon da: nichts).
 void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, double endeMs) {
     const bool md = regelwerkMovieDuels();
     const Actor* spieler = nullptr;
@@ -2504,6 +2500,8 @@ void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, dou
             pad = 0.0;
         } else if (md && ist({"CLASS_SBD", "CLASS_BATTLEDROID", "CLASS_DROIDEKA"}) &&
                    (h.karte == "md_gb_jedi" || h.karte == "md_gb_sith" || h.karte == "md_ga_jedi" || h.karte == "md_ga_sith")) {
+            // Die Regel des Spiels selbst: BodyRemovalPadTime (NPC.cpp:438-448 MD) vergleicht den Kartennamen
+            // (mapname aus CS_SERVERINFO) mit diesen vier Namen.
             pad = 3000.0;
         }
         const double frei = a.getoetetMs + pad;
@@ -2513,9 +2511,11 @@ void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, dou
                                       "CLASS_SABER_DROID"})
                                : ist({"CLASS_SEEKER", "CLASS_REMOTE", "CLASS_PROBE", "CLASS_MOUSE", "CLASS_GONK", "CLASS_R2D2", "CLASS_R5D2", "CLASS_MARK2", "CLASS_SENTRY"});
         double weg = -1.0;
-        if (droide && frei <= endeMs) {
-            weg = frei;
-        } else {
+        // DeadThink (NPC.cpp:653-690 MD): bei Droiden nur EF_NODRAW; die Entity bleibt, NPC_RemoveBody (die Schleife unten)
+        // gibt sie frei. Vorher fiel sie hier sofort weg - eine Falle, deren Explosion den Droiden toetet, verlor ihn
+        // dadurch im selben Augenblick aus ihrer Spur.
+        const double nodraw = (droide && frei <= endeMs) ? frei : -1.0;
+        {
             bool schluessel = false;
             if (a.kartenEntity >= 0 && static_cast<std::size_t>(a.kartenEntity) < karte.entities.size()) {
                 const std::string* m = karte.entities[static_cast<std::size_t>(a.kartenEntity)].find("message");
@@ -2559,7 +2559,12 @@ void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, dou
                         if (delta(blick[1], gier) <= 110.0F && delta(blick[0], nick) <= 90.0F) {
                             bool frei2 = true;
                             if (h.spur) {
-                                const NavVec von{sp.pos[0], sp.pos[1], sp.pos[2] + 32.0F};
+                                // NPC_ClearLOS(&g_entities[0], ent->currentOrigin) (NPC.cpp:375 MD) -> G_ClearLOS mit
+                                // CalcEntitySpot(Spieler, SPOT_HEAD_LEAN) (NPC_senses.cpp:1033-1040, NPC_utils.cpp:135-167 MD):
+                                // renderInfo.eyePoint, sonst Ursprung + ps.viewheight.
+                                float spAuge[3] = {sp.pos[0], sp.pos[1], sp.pos[2] + kStandAugenhoehe};
+                                if (h.augenPunkt && spieler != nullptr) { (void)h.augenPunkt(*spieler, t, spAuge); }
+                                const NavVec von{spAuge[0], spAuge[1], spAuge[2]};
                                 const NavVec bis{l.pos[0], l.pos[1], l.pos[2]};
                                 const NavVec nichts{0.0F, 0.0F, 0.0F};
                                 frei2 = h.spur(von, nichts, nichts, bis, kNavKeineEntity, kNavSolid).fraction >= 1.0F;
@@ -2574,6 +2579,16 @@ void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, dou
                 }
             }
         }
+        if (nodraw >= 0.0) {
+            ActorStep unsichtbar;
+            unsichtbar.kind = ActorStep::Kind::Gone;
+            unsichtbar.startMs = nodraw;
+            unsichtbar.endMs = nodraw;
+            unsichtbar.leicheWeg = true;
+            unsichtbar.nurUnsichtbar = true;
+            a.steps.push_back(std::move(unsichtbar));
+            std::stable_sort(a.steps.begin(), a.steps.end(), [](const ActorStep& x, const ActorStep& y) { return x.startMs < y.startMs; });
+        }
         if (weg >= 0.0) {
             ActorStep gone;
             gone.kind = ActorStep::Kind::Gone;
@@ -2586,6 +2601,9 @@ void leichenEntfernen(Scene& s, const MapData& karte, const LeichenHilfe& h, dou
     }
 }
 
+// rc605 (Ende, Jedi Outcast): der Weg eines Schubs ohne Plan (navKoerperLauf,
+// NavSchub; NAVNEW_PushBlocker + BG_AddPushVecToUcmd) als WalkTo-Stueck bis `bis`.
+// Einmal je Schub (dieselbe Bahn steht schon da: nichts).
 void schubSchrittDazu(Actor& a, const std::shared_ptr<const LaufPlan>& p, double bis) {
     if (!p || p->takte.empty() || !(bis > p->abMs)) { return; }
     for (const ActorStep& st : a.steps) {
@@ -2992,7 +3010,7 @@ struct SchwertFeindSuche {
     // G_ClearLOS(self, eyePoint, enemy): SPOT_ORIGIN, dann SPOT_HEAD_LEAN
     [[nodiscard]] bool sieht(const NavVec& auge, const Actor& b, const NavVec& bo, double t) const {
         if (sichtFrei(spur, karte, auge, bo)) { return true; }
-        NavVec kopf{bo[0], bo[1], bo[2] + 26.0F};   // ohne eyePoint: ps.viewheight (DEFAULT_VIEWHEIGHT)
+        NavVec kopf{bo[0], bo[1], bo[2] + kStandAugenhoehe};   // ohne eyePoint: ps.viewheight
         float e[3];
         if (augeFn && augeFn(b, t, e)) {
             kopf = {e[0], e[1], e[2]};
@@ -3366,6 +3384,11 @@ TodLage todesLage(const Actor& a, const ActorState& st, const LaufZustand& lauf,
 
 }  // namespace
 
+// Der eigentliche Aufbau.
+//
+// signals kommt fertig von aussen (clock.cpp, collectSignals) - frueher gab
+// es dafuer einen zweiten Durchgang durch DIESE Funktion, den aber nur die
+// Szene kannte. Jetzt teilen sich alle drei Auswerter dieselbe Sammlung.
 Scene buildOnce(const Script& s, const MapData& map,
                 const std::map<std::string, double>& signals,
                 const SzenenHilfe* hilfe) {

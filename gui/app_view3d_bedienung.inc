@@ -2949,7 +2949,7 @@ void drawMapView() {
                     if (!a.echterSpieler) { continue; }
                     const ActorState st = a.at(g_app->playMs);
                     for (int k = 0; k < 3; ++k) { spielerAuge[k] = st.pos[k]; }
-                    spielerAuge[2] += 36.0F;   // DEFAULT_VIEWHEIGHT
+                    spielerAuge[2] += kStandAugenhoehe;   // ps.viewheight
                     spielerAugeDa = true;
                     break;
                 }
@@ -3035,6 +3035,8 @@ void drawMapView() {
                     g_app->figurGezeichnet.assign(g_app->scene.actors.size(), {0.0F, 0.0F, 0.0F});
                 }
                 g_app->figurGezeichnet[ai] = {d.pos[0], d.pos[1], d.pos[2]};
+                g_app->figurBildGezeichnet.resize(g_app->scene.actors.size(), -1);
+                g_app->figurBildGezeichnet[ai] = d.frame;
                 // Das Licht an ihrem Standort, aus dem Gitter der Karte.
                 //
                 // Die Engine nimmt dafuer den URSPRUNG der Entity
@@ -3331,6 +3333,7 @@ void drawMapView() {
                     }
                     hv.fern = kartenFern() + (nah > 4.0F ? nah : 0.0F);
                     hv.distanceCull = kartenDistanceCull();
+                    hv.kugelEbenen = regelwerkJediOutcast() ? 4 : 5;
                     hv.portale = &g_app->areaPortale;
                     hv.gebiet = g_app->areaAuge;
                     hv.szeneLoescht = g_app->showGlow && std::any_of(g_app->geo.nebel.begin(), g_app->geo.nebel.end(), [](const BspGeometry::Nebel& n) { return n.global && n.gueltig; });
@@ -3557,7 +3560,7 @@ void drawMapView() {
                     // (dieselbe Bedingung wie beim Gluehen unten).
                     gpu::gluehenFigurenBeginnen(!nebenbild && g_app->showGlow && g_app->textures.found > 0 &&
                                                     !g_app->imSpiegelDurchgang && !g_app->imPortalDurchgang,
-                                                320, 240);
+                                                gpu::kGluehBreite, gpu::kGluehHoehe);
                     std::vector<BoneMatrix> welt;
                     std::vector<BoneMatrix> hilf;
                     std::vector<BoneMatrix> skin;
@@ -4313,7 +4316,7 @@ void drawMapView() {
                     g_app->gpuGluehen = gpu::zeichneGluehen(
                                         g_app->mesh, &g_app->textures,
                                         &g_app->geo, vp, zeit,
-                                        320, 240,
+                                        gpu::kGluehBreite, gpu::kGluehHoehe,
                                         true, &fg,
                                         (g_app->showEffects && g_app->rauchImGluehen) ? &g_app->effectMesh : nullptr,
                                         gluehMover);

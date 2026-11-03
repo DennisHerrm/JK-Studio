@@ -518,6 +518,7 @@ struct App {
     // mission1: die Hinweise "kein Weg" an der Bahn der gewaehlten Figur (letztes Bild).
     std::vector<std::string> bahnKeinWeg;
     std::vector<std::array<float, 3>> figurGezeichnet;
+    std::vector<int> figurBildGezeichnet;   // Endrunde rc608: das gezeichnete Bild der .gla je Figur (Selbsttest)
     // rc608: renderInfo.lastHeadAngles und lookingDebounceTime je Figur, Bildnummer -1: noch nichts.
     struct BlickFolge {
         long long bild = -1;

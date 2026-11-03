@@ -273,16 +273,9 @@ bool HimmelBox::flaecheKeulen(const Flaeche& f) const {
         return f.keule == kHimmelVorn ? d < f.abstand - 8.0F : d > f.abstand + 8.0F;
     }
     if (f.art == BspSurface::Type::Patch || f.art == BspSurface::Type::TriangleSoup) {
-        // R_CullLocalBox gegen die vier Seitenebenen; R_CullGrid fragt erst die Kugel um den Kasten, dann den Kasten.
-        for (int e = 0; e < 4; ++e) {
-            bool vorn = false;
-            for (int k = 0; k < 8 && !vorn; ++k) {
-                const float p[3] = {(k & 1) != 0 ? f.maxs[0] : f.mins[0], (k & 2) != 0 ? f.maxs[1] : f.mins[1], (k & 4) != 0 ? f.maxs[2] : f.mins[2]};
-                vorn = punkt(p, frustum_[e].normale) > frustum_[e].abstand;
-            }
-            if (!vorn) { return true; }
-        }
         if (f.art == BspSurface::Type::Patch) {
+            // R_CullGrid (tr_world.cpp OpenJK): erst die Kugel um den Kasten (localOrigin, meshRadius bis zur Ecke,
+            // R_SubdividePatchToGrid) mit R_CullPointAndRadius - aussen: weg, ganz innen: bleibt, sonst der Kasten.
             float mitte[3];
             float tmp[3];
             for (int k = 0; k < 3; ++k) {
@@ -290,9 +283,22 @@ bool HimmelBox::flaecheKeulen(const Flaeche& f) const {
                 tmp[k] = f.mins[k] - mitte[k];
             }
             const float radius = std::sqrt(punkt(tmp, tmp));
-            for (int e = 0; e < 4; ++e) {
-                if (punkt(mitte, frustum_[e].normale) - frustum_[e].abstand < -radius) { return true; }
+            bool schneidet = false;
+            for (int e = 0; e < kugelEbenen_; ++e) {
+                const float d = punkt(mitte, frustum_[e].normale) - frustum_[e].abstand;
+                if (d < -radius) { return true; }
+                schneidet = schneidet || d <= radius;
             }
+            if (!schneidet) { return false; }
+        }
+        // R_CullLocalBox gegen alle fuenf Ebenen samt der fernen (tr_main.cpp:86 OpenJK, :84 MD).
+        for (int e = 0; e < 5; ++e) {
+            bool vorn = false;
+            for (int k = 0; k < 8 && !vorn; ++k) {
+                const float p[3] = {(k & 1) != 0 ? f.maxs[0] : f.mins[0], (k & 2) != 0 ? f.maxs[1] : f.mins[1], (k & 4) != 0 ? f.maxs[2] : f.mins[2]};
+                vorn = punkt(p, frustum_[e].normale) > frustum_[e].abstand;
+            }
+            if (!vorn) { return true; }
         }
     }
     return false;
@@ -350,6 +356,7 @@ void HimmelBox::rechne(const HimmelSicht& sicht, std::vector<HimmelRechteck>& au
     ebene(frustum_[3], sicht.hoch, sicht.fovY, -1.0F);
     for (int k = 0; k < 3; ++k) { frustum_[4].normale[k] = -sicht.vorn[k]; }
     frustum_[4].abstand = punkt(sicht.auge, frustum_[4].normale) - sicht.distanceCull * 1.02F;
+    kugelEbenen_ = sicht.kugelEbenen == 4 ? 4 : 5;
 
     // R_MarkLeaves
     const int blattAuge = g_->leafAt(sicht.pvsOrt);
@@ -385,7 +392,9 @@ void HimmelBox::rechne(const HimmelSicht& sicht, std::vector<HimmelRechteck>& au
     }
     Kasten k;
     const auto fertig = [&](int shader) {
-        for (int seite = 0; seite < 5; ++seite) {   // i == 5: "still don't want to draw the bottom"
+        // DrawSkyBox zeichnet alle sechs Seiten (tr_sky.cpp:401 OpenJK, :390 MD); "still don't want to draw the bottom"
+        // gilt nur fuer die Wolken (FillCloudBox, tr_sky.cpp:526-528) - das laesst der Zeichner bei kWolke weg.
+        for (int seite = 0; seite < 6; ++seite) {
             HimmelRechteck r;
             r.shader = shader;
             r.seite = seite;

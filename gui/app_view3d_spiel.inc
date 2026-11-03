@@ -635,7 +635,8 @@ SchussSpur schussSpurBei(double ms, const float start[3], const float mins[3], c
         if (static_cast<int>(ai) == art.selbstFigur) { continue; }
         const Actor& a = g_app->scene.actors[ai];
         const ActorState st = a.at(ms);
-        if (!st.visible || st.removed) { continue; }
+        // Eine Droiden-Leiche mit EF_NODRAW bleibt fuer die Spur da (Inhalt CONTENTS_CORPSE bis G_FreeEntity).
+        if (st.removed || (!st.visible && !st.nurUnsichtbar)) { continue; }
         const float hb = a.halbBreite;
         const float kmin[3] = {st.pos[0] - hb, st.pos[1] - hb, st.pos[2] - 24.0F};
         const float kmax[3] = {st.pos[0] + hb, st.pos[1] + hb, st.pos[2] + (st.crouched ? 16.0F : a.hoeheOben)};

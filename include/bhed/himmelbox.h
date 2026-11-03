@@ -30,6 +30,9 @@ struct HimmelSicht {
     float fovX = 90.0F;
     float fovY = 90.0F;
     float distanceCull = 12000.0F;   // tr.distanceCull, worldspawn "distanceCull"
+    // R_CullPointAndRadius (die Kugel um einen Patch): JKA alle fuenf Ebenen, JK2 nur die vier Seiten (JK2_MODE,
+    // tr_main.cpp:142-174 OpenJK; Movie Duels com_outcast, tr_main.cpp:142-170 MD). R_CullLocalBox nimmt immer fuenf.
+    int kugelEbenen = 5;
     const AreaPortale* portale = nullptr;   // nullptr: die Karte hat keine Gebiete
     int gebiet = -1;     // CM_SnapPVS(vieworg): -1 sieht alle
 };
@@ -37,7 +40,7 @@ struct HimmelSicht {
 // Ein gezeichnetes Rechteck auf einer Seite, s und t in -1..1 wie in MakeSkyVec.
 struct HimmelRechteck {
     int shader = 0;   // Nummer in BspGeometry::shaders
-    int seite = 0;    // 0 +x, 1 -x, 2 +y, 3 -y, 4 +z
+    int seite = 0;    // 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z (nur die aeussere Box, nicht die Wolken)
     float s0 = 0.0F;
     float t0 = 0.0F;
     float s1 = 0.0F;
@@ -96,6 +99,7 @@ private:
     std::uint32_t marke_ = 0;
     bool alleSichtbar_ = false;
     Ebene frustum_[5];
+    int kugelEbenen_ = 5;
     float auge_[3]{};
     std::vector<int> imBild_;                    // in der Reihenfolge von R_AddWorldSurface
 };

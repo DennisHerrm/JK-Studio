@@ -800,6 +800,33 @@ Schritt rolleZuKachel(const std::string& name) {
                        return false;
                    }};
 }
+// Endrunde rc608: die rechte Spalte (Fenster "/##inhalt_") rollen, bis `label` ganz zu sehen ist, und es dann nach oben
+// holen. Im Bildlauf (BHED_MENUE_BILDER, schmale Spalten) liegt manches unter dem Rand; ImGui meldet ein Element erst,
+// wenn es gezeichnet wird. Im breiten Fenster ist es meist schon zu sehen, dann rollt nur das Hochholen.
+Schritt rolleRechtsZu(const std::string& label) {
+    return Schritt{"Endrunde: rechte Spalte zu " + label, [=](int b) {
+                       if (const Element* e = finde(label, "", 0, false, ""); e != nullptr && ganzSichtbar(*e)) {
+                           if (ImGuiWindow* w = ImGui::FindWindowByName(e->innen.c_str()); w != nullptr) {
+                               ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y - ImGui::GetFontSize(), 0.0F, w->ScrollMax.y));
+                           }
+                           return true;
+                       }
+                       if (b > 120) {
+                           meldeFehler("Endrunde: " + label + " in der rechten Spalte nicht zu sehen");
+                           return true;
+                       }
+                       if (b % 3 == 0) {
+                           for (ImGuiWindow* w : GImGui->Windows) {
+                               if (!w->WasActive || std::string(w->Name).find("/##inhalt_") == std::string::npos ||
+                                   std::string(w->Name).find("##add_liste") != std::string::npos) {
+                                   continue;
+                               }
+                               ImGui::SetScrollY(w, std::min(w->ScrollMax.y, w->Scroll.y + w->InnerRect.GetHeight() * 0.5F));
+                           }
+                       }
+                       return false;
+                   }};
+}
 Schritt rolleTeileAnsEnde() {
     return Schritt{"rc608: Teile ans Ende rollen", [](int b) {
                        if (b > 0) { return b >= 3; }

@@ -305,10 +305,16 @@ inline std::vector<Schritt> pruefungen() {
                    return nahAm(rechts, {102.9, 97.3, 93.6}, 0.05) && nahAm(bogen, {69.5, 63.8, 59.4}, 0.05) && nahAm(mitte, {24.7, 28.1, 37.1}, 0.05);
                }));
     // Der Zeichner des Editors (Schalter aus) nimmt die Lightmap jetzt einfach (gpu::kSpielLightmapFaktor), vorher doppelt
-    add(pruefe("Teil 11: Zeichner des Editors - Lightmap mal 1: Boden hoechstens 1,1 mal das Spielbild", [eigen] {
+    // (gemessen 53,7 41,3 17,5, also 1,67 1,60 1,26 mal das Spielbild). Mal 1 gemessen: 26,8 20,6 8,7 (0,83 0,80 0,63 mal das
+    // Spielbild - ohne Gamma und Overbright des Spiels). Beidseitig: hoechstens 1,1 mal, mindestens die Haelfte; ein
+    // schwarzes oder halb so helles Bild besteht nicht.
+    add(pruefe("Teil 11: Zeichner des Editors - Lightmap mal 1: Boden zwischen 0,5 und 1,1 mal dem Spielbild", [eigen] {
         const auto b = mittel(*eigen, 1250, 1000, 1920, 1440);
         diag::detail("Knopftest: Teil 11 Editor-Zeichner Boden rechts " + text3(b));
-        return eigen->breite == 1920 && b[0] <= 32.1 * 1.1 && b[1] <= 25.8 * 1.1 && b[2] <= 13.9 * 1.1;
+        const std::array<double, 3> spiel = {32.1, 25.8, 13.9};
+        bool ok = eigen->breite == 1920;
+        for (std::size_t k = 0; k < 3; ++k) { ok = ok && b[k] <= spiel[k] * 1.1 && b[k] >= spiel[k] * 0.5; }
+        return ok;
     }));
     add(tu("Teil 11: aufraeumen", [] {
         ke::vorlageEntfernen();

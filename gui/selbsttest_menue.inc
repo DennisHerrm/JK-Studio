@@ -889,6 +889,7 @@ std::string pfadText(const std::filesystem::path& p) {
     return std::string(t.begin(), t.end());
 }
 
+Schritt rolleRechtsZu(const std::string& label);   // selbsttest_menue_rc608.inc
 std::vector<Schritt> schritteM5bProjekt() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1010,6 +1011,8 @@ std::vector<Schritt> schritteM5bProjekt() {
         me::setzeModProfil("Selbsttest Mod");
         me::waehle(me::itemNummer("a"), false);
     }));
+    add(pause(0.3));
+    add(rolleRechtsZu("##gr_modschluessel"));
     add(pause(0.3));
     add(pruefe("M5b Profil: mit Profil keine Meldung, Mod-Schluessel beschriftet in den Eigenschaften", [st] {
         return me::modProfil() == "Selbsttest Mod" && st().meldungen == 0 && finde("##gr_modschluessel", "", 0, false, "") != nullptr;
@@ -1547,8 +1550,12 @@ std::vector<Schritt> schritteM5b() {
         for (const char* n : {"panel", "knopf1", "knopf2", "knopf3"}) { me::waehle(me::itemNummer(n), true); }
     }));
     add(pause(0.2));
+    add(rolleRechtsZu(tr(Str::MeLayoutWaagrecht)));
+    add(pause(0.2));
     add(klick(tr(Str::MeLayoutWaagrecht)));
     add(pause(0.3));
+    add(rolleRechtsZu(tr(Str::MeLayoutVersteckt)));
+    add(pause(0.2));
     add(klick(tr(Str::MeLayoutVersteckt)));
     add(pause(0.3));
     add(pruefe("M5b Zustaende: zeig, weg und onOpen bekommen setitemrect; nach jedem Klick liegen die Knoepfe wie im Layout", [st] {

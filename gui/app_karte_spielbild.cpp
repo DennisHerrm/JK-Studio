@@ -427,6 +427,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     }
     hv.fern = fern;
     hv.distanceCull = s.distanceCull;
+    hv.kugelEbenen = regelwerkJediOutcast() ? 4 : 5;
     hv.szeneLoescht = g_app->showGlow && s.globalerNebel;
     gpu::setzeHimmelSicht(hv);
     float vorn[3];
@@ -543,7 +544,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
             }
             // Die Effektteilchen mit glow-Stufe gehen mit ins Gluehen, der Rauch nach dem Schalter der Vorschau.
             gpu::gluehenEffekte(g_app->showEffects ? &effekte : nullptr);
-            aufrufe += gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, 320, 240, true, &f,
+            aufrufe += gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, gpu::kGluehBreite, gpu::kGluehHoehe, true, &f,
                                            (g_app->showEffects && g_app->rauchImGluehen) ? &effekte : nullptr, gluehModelle);
         }
         // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht) - wie die Vorschau.

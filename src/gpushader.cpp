@@ -1349,6 +1349,8 @@ Texture2DArray gHimmel : register(t2);
 // Das Spiegelbild, so gross wie das Ziel (rc593).
 Texture2D    gPortal   : register(t3);
 SamplerState gSampler  : register(s0);
+// Lightmaps: bilinear, geklemmt, ohne Anisotropie (R_LoadLightmaps ohne Mipmaps, GL_CLAMP; gpumap_win32.cpp g_samplerLm).
+SamplerState gLmAbtaster : register(s2);
 struct VSOut {
     float4 pos    : SV_POSITION;
     float2 uv     : TEXCOORD0;
@@ -1470,7 +1472,7 @@ float4 main(VSOut ein) : SV_TARGET {
         // Eckenfarbe gar nicht erst ansieht.
         s += alphaZeile(features);
         s += R"(    {
-        float3 lm = gLightmap.Sample(gSampler, ein.uvLm).rgb * gHelligkeit;
+        float3 lm = gLightmap.Sample(gLmAbtaster, ein.uvLm).rgb * gHelligkeit;
         lm = max(lm, gGrundlicht.xxx);
         c.rgb *= lm;
     }

@@ -817,7 +817,7 @@ std::vector<Schritt> gluehenFigurSchritte() {
             const ActorState st = g_app->scene.actors[static_cast<std::size_t>(*fi)].at(kMs);
             float p[3] = {st.pos[0], st.pos[1], st.pos[2]};
             if (static_cast<std::size_t>(*fi) < g_app->figurGezeichnet.size() &&
-                g_app->figurGezeichnet[static_cast<std::size_t>(*fi)][2] > -90000.0F) {
+                g_app->figurGezeichnet[static_cast<std::size_t>(*fi)] != std::array<float, 3>{0.0F, 0.0F, 0.0F}) {
                 for (int k = 0; k < 3; ++k) { p[k] = g_app->figurGezeichnet[static_cast<std::size_t>(*fi)][static_cast<std::size_t>(k)]; }
             }
             diag::detail("Knopftest: Gluehen Figur - Ort " + std::to_string(p[0]) + " " + std::to_string(p[1]) + " " +
@@ -832,13 +832,18 @@ std::vector<Schritt> gluehenFigurSchritte() {
         }
         g_app->mapDirty = true;
     };
+    // Endrunde rc608: figurGezeichnet behaelt die Orte einer frueheren Szene mit gleich vielen Figuren (die Kamera stand
+    // vor einem anderen Droiden bei 264 2168). Erst leeren, beim Skriptort zeichnen, dann vor den gezeichneten Ort.
     add(tu("Gluehen Figur: vor sbd1, Gluehen aus", [=] {
         *fi = -1;
         for (std::size_t i = 0; i < g_app->scene.actors.size(); ++i) {
             if (g_app->scene.actors[i].name == "sbd1") { *fi = static_cast<int>(i); }
         }
+        for (auto& f : g_app->figurGezeichnet) { f = {0.0F, 0.0F, 0.0F}; }   // 0 0 0: noch nicht gezeichnet (wie assign)
         stelle(false);
     }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(tu("Gluehen Figur: vor den gezeichneten Ort", [=] { stelle(false); }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.3));
     add(foto("gluehen_figur_ohne"));
@@ -6295,6 +6300,20 @@ std::vector<Schritt> karteSchritte() {
     // Geraeteverlust: so tun, als meldete Present DXGI_ERROR_DEVICE_REMOVED.
     auto aufbauVorher = std::make_shared<int>(0);
     auto flipVorher = std::make_shared<bool>(false);
+    auto regelVorher = std::make_shared<int>(0);
+    // Endrunde rc608: Lightmaps ohne Mipmaps, GL_LINEAR, GL_CLAMP (tr_bsp.cpp:250-254, tr_image.cpp:739-753 OpenJK) - nicht
+    // der anisotrope, umlaufende Abtaster der Texturen.
+    add(pruefe("Die Karte tastet ihre Lightmaps ab wie das Spiel (bilinear, ohne Anisotropie, geklemmt)", [] { return gpu::lightmapAbtasterWieImSpiel(); }));
+    add(tu("Movie Duels: das Spielgamma zeichnen", [=] {
+        *regelVorher = g_app->settings.regelwerk;
+        if (!regelwerkMovieDuels()) {
+            g_app->settings.regelwerk = kRegelwerkMovieDuels;
+            regelwerkAnwendenJetzt();
+        }
+        g_app->mapDirty = true;
+    }));
+    add(neuZeichnen());
+    add(pruefe("Vor dem Geraeteverlust: das Spielgamma ist am Geraet angelegt", [] { return gpu::spielGammaStand() == 1; }));
     add(tu("Grafikgeraet verlieren (gespielt)", [=] {
         *aufbauVorher = g_app->grafikNeuAufbauten;
         *flipVorher = render::flipModell();
@@ -6310,6 +6329,19 @@ std::vector<Schritt> karteSchritte() {
     }));
     add(pruefe("Nach dem Geraeteverlust wieder im Flip-Modell (wenn vorher)", [=] {
         return !*flipVorher || render::flipModell();
+    }));
+    // Endrunde rc608: r_gammaShaders (Movie Duels) legt Shader und Kopie neu am neuen Geraet an; vorher blieb der
+    // Shader des alten Geraets stehen (gpu::shutdown gab ihn nicht frei).
+    add(pruefe("Nach dem Geraeteverlust: das Spielgamma (Movie Duels) haengt am neuen Geraet", [] {
+        const int stand = gpu::spielGammaStand();
+        diag::detail("Knopftest: Spielgamma nach dem Neuaufbau - Stand " + std::to_string(stand) + (regelwerkMovieDuels() ? " (Movie Duels)" : ""));
+        return regelwerkMovieDuels() && stand == 1;
+    }));
+    add(tu("Regelwerk wie vorher", [=] {
+        if (g_app->settings.regelwerk != *regelVorher) {
+            g_app->settings.regelwerk = *regelVorher;
+            regelwerkAnwendenJetzt();
+        }
     }));
     add(tu("Absturzabbild: Probe starten (der Wachfaden schreibt es)", [] { wache::probeStarten(); }));
     add(warteBis("Absturzabbild: der Wachfaden ist fertig", [] { return wache::probeStand() != 0; }, 100000));

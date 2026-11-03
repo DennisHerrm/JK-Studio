@@ -3100,7 +3100,7 @@ bool followCentre(const std::string& gruppe, double ms, float out[3]) {
                 // Figuren zielt die Engine auf die AUGEN: + ps.viewheight
                 // ("Track to their eyes"). Stehend standheight + offset =
                 // DEFAULT_MAXS_2 40 + STANDARD_VIEWHEIGHT_OFFSET -4 = 36.
-                o[2] += 36.0F;
+                o[2] += kStandAugenhoehe;
                 break;
             }
         }
@@ -5861,8 +5861,10 @@ std::vector<BrushStellung> brushModelleImSpiel(const std::vector<MapEntity>& ent
 // freie Kamera, die ueberall hinfliegt. Nur bei einer Aenderung geht eine neue Maske an die Grafik.
 void areaPortaleJetzt(const float auge[3], const float* vorn) {
     App& app = *g_app;
-    const std::string schluessel = app.map.path + "|" + std::to_string(app.map.entities.size()) + "|" + std::to_string(app.geo.leafs.size()) + "|" +
-                                   std::to_string(regelwerkSpielstufe()) + (regelwerkJediOutcast() ? "j" : "a");
+    // entStand: jede Aenderung im Entity-Editor (func_wall START_OFF, Tuer-team, classname) baut die Liste neu.
+    const std::string schluessel = app.map.path + "|" + std::to_string(app.map.entities.size()) + "|" + std::to_string(app.entStand) + "|" +
+                                   std::to_string(app.geo.leafs.size()) + "|" + std::to_string(regelwerkSpielstufe()) +
+                                   (regelwerkJediOutcast() ? "j" : "a");
     bool anders = false;
     if (app.portalEntsKarte != schluessel) {
         app.portalEntsKarte = schluessel;
@@ -6582,7 +6584,8 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
             if (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) { continue; }
             if (kSchussFigur + static_cast<int>(&a - g_app->scene.actors.data()) == ignoriere) { continue; }
             const ActorState st = a.at(t);
-            if (!st.visible || st.removed) { continue; }   // contents 0 / G_FreeEntity
+            // contents 0 / G_FreeEntity; EF_NODRAW einer Droiden-Leiche (DeadThink) laesst die Entity stehen
+            if (st.removed || (!st.visible && !st.nurUnsichtbar)) { continue; }
             const float hb = a.halbBreite;
             // absmin/absmax: SV_LinkEntity, je 1 weiter
             const float lo[3] = {st.pos[0] - hb - 1.0F, st.pos[1] - hb - 1.0F, st.pos[2] - 24.0F - 1.0F};
