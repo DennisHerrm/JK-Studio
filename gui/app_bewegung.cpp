@@ -715,29 +715,21 @@ std::shared_ptr<const KollisionsKarte> geladeneKollision(const std::string& kart
 }
 
 namespace {
-// Die Welt fuer die Wege ohne Mover-Plan (alles am Spawn-Platz).
-std::shared_ptr<const NavWelt> navWeltBasis() {
-    NavWeltSpeicher& sp = navWeltSpeicher();
-    const std::uint64_t schluessel = navWeltSchluessel();
-    if (sp.basis && schluessel == sp.schluessel) {
-        return sp.basis;
-    }
-    sp.plan.reset();
-    sp.mitPlan.reset();
-    sp.karte.reset();
-    sp.brushes.reset();
-    const auto t0 = std::chrono::steady_clock::now();
+// rc609 W1: die Spuren fuer den Netzbau der geladenen Karte (PHASE 0, mit
+// einzelnen Entities versetzt) - fuer die Simulation und fuer die
+// Kantenpruefung im Editor (NavKantenPruefer). nullptr: ohne Geometrie.
+struct NavBauTeile {
+    std::shared_ptr<const KollisionsKarte> k;
+    std::shared_ptr<std::vector<NavBrush>> brushes;
+    NavBauHilfe bau;
+};
+std::shared_ptr<NavBauTeile> navBauTeile() {
     kollisionRegelwerkPruefen();   // rc604 fix604
     const KollisionsSpeicher& ks = kollisionsSpeicher();
     // Entities ohne worldspawn vorn gehoeren nicht zu dieser .bsp (erfundene
     // Karten der Selbsttests) - dann keine Spuren gegen ihre Brushes.
     const bool zurKarte = !g_app->map.entities.empty() && g_app->map.entities.front().classname == "worldspawn";
-    if (g_app->geo.empty() || !ks.k || ks.karte != g_app->map.path || !zurKarte) {
-        // Ohne Geometrie: das Netz aus den Entities, ohne Spuren.
-        sp.basis = navWeltAusEntities(g_app->map.entities);
-        sp.schluessel = schluessel;
-        return sp.basis;
-    }
+    if (g_app->geo.empty() || !ks.k || ks.karte != g_app->map.path || !zurKarte) { return nullptr; }
     const std::shared_ptr<const KollisionsKarte> k = ks.k;
     // Die Brush-Entities (func_*): wie in bodenWelt. rc601 (bewegung, teil 3):
     // func_wall/func_usable mit START_OFF jetzt auch (ohne contents bis zum
@@ -806,20 +798,11 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
         b.radius = std::sqrt(r2);
         brushes->push_back(b);
     }
-    auto welt = std::make_shared<NavWelt>();
-    const NavStellung laufzeit = [](const NavBrush& b, float ort[3], float winkel[3]) {
-        for (int a = 0; a < 3; ++a) {
-            ort[a] = b.ort[a];
-            winkel[a] = b.winkel[a];
-        }
-        return b.festLaufzeit;
-    };
-    welt->spur = [k, brushes, laufzeit](const NavVec& start, const NavVec& mins, const NavVec& maxs, const NavVec& ende,
-                                        int ignoriere, std::uint32_t maske) {
-        return navSpurMit(*k, *brushes, start, mins, maxs, ende, ignoriere, maske, laufzeit);
-    };
     // Fuer den Netzbau: PHASE 0, und mit einzelnen Entities anders.
-    NavBauHilfe bau;
+    auto teile = std::make_shared<NavBauTeile>();
+    teile->k = k;
+    teile->brushes = brushes;
+    NavBauHilfe& bau = teile->bau;
     const NavStellung phase0 = [](const NavBrush& b, float ort[3], float winkel[3]) {
         for (int a = 0; a < 3; ++a) {
             ort[a] = b.ortPhase0[a];
@@ -864,6 +847,43 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
         if (la < 0 || lb < 0) { return true; }
         return geo->clusterVisible(geo->leafs[static_cast<std::size_t>(la)].cluster,
                                    geo->leafs[static_cast<std::size_t>(lb)].cluster);
+    };
+    return teile;
+}
+
+// Die Welt fuer die Wege ohne Mover-Plan (alles am Spawn-Platz).
+std::shared_ptr<const NavWelt> navWeltBasis() {
+    NavWeltSpeicher& sp = navWeltSpeicher();
+    const std::uint64_t schluessel = navWeltSchluessel();
+    if (sp.basis && schluessel == sp.schluessel) {
+        return sp.basis;
+    }
+    sp.plan.reset();
+    sp.mitPlan.reset();
+    sp.karte.reset();
+    sp.brushes.reset();
+    const auto t0 = std::chrono::steady_clock::now();
+    const std::shared_ptr<NavBauTeile> teile = navBauTeile();
+    if (!teile) {
+        // Ohne Geometrie: das Netz aus den Entities, ohne Spuren.
+        sp.basis = navWeltAusEntities(g_app->map.entities);
+        sp.schluessel = schluessel;
+        return sp.basis;
+    }
+    const std::shared_ptr<const KollisionsKarte> k = teile->k;
+    const std::shared_ptr<std::vector<NavBrush>> brushes = teile->brushes;
+    NavBauHilfe bau = teile->bau;
+    auto welt = std::make_shared<NavWelt>();
+    const NavStellung laufzeit = [](const NavBrush& b, float ort[3], float winkel[3]) {
+        for (int a = 0; a < 3; ++a) {
+            ort[a] = b.ort[a];
+            winkel[a] = b.winkel[a];
+        }
+        return b.festLaufzeit;
+    };
+    welt->spur = [k, brushes, laufzeit](const NavVec& start, const NavVec& mins, const NavVec& maxs, const NavVec& ende,
+                                        int ignoriere, std::uint32_t maske) {
+        return navSpurMit(*k, *brushes, start, mins, maxs, ende, ignoriere, maske, laufzeit);
     };
     // Der Boden fuer die Hoehe waehrend des Laufens: das Raster der Schwerkraft
     // (die Patches so, wie man sie sieht).
@@ -918,6 +938,11 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
     return sp.basis;
 }
 }  // namespace
+
+NavBauHilfe navBauHilfeKarte() {
+    const std::shared_ptr<NavBauTeile> t = navBauTeile();
+    return t ? t->bau : NavBauHilfe{};
+}
 
 std::shared_ptr<const NavWelt> navWeltVorschau() {
     const std::shared_ptr<const NavWelt> basis = navWeltBasis();

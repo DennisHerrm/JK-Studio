@@ -301,6 +301,40 @@ struct NavBauHilfe {
 // NAV::LoadFromEntitiesAndSaveToFile (g_navigator.cpp:1469-2080).
 [[nodiscard]] std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const NavBauHilfe& h);
 
+// --- rc609 W1: die Kantenpruefung des Spiels fuer den Editor ------------------
+//
+// Mike (03.11.): neue Wegpunkte sollen sich mit den Nachbarn verbinden, die das
+// Spiel auch verbindet. Dieselben Teile wie baueNavNetz: die Knoten gespawnt wie
+// dort (SP_waypoint ... mit G_CheckInSolid, waypoint_getRadius, "Nav in solid",
+// Drop To Floor), dann NAV::TestEdge (code/game/g_navigator.cpp:1211 OpenJK,
+// :1197 Movie Duels - beide gleich, ebenso MoveTrace :861/:853) erst gross,
+// dann mittel. Mit den Regeln von Jedi Outcast (navJk2Regeln) HardConnect
+// (codeJK2/game/g_navigator.cpp:1083-1114): begehbar ist eine Kante ohne
+// EFLAG_BLOCKED, oder eine, die nur eine Tuer oder etwas Zerbrechliches sperrt
+// (das prueft das Spiel erst zur Laufzeit, NAV_TestBestNode).
+struct NavKantenErgebnis {
+    bool begehbar = false;
+    bool gross = false;               // WE_SIZE_LARGE (sonst WE_SIZE_MEDIUM)
+    int entity = kNavKeineEntity;     // Tuer/Wand/Zerbrechliches an der Kante (mEntityNum)
+};
+class NavKantenPruefer {
+public:
+    // `ents` und `h` muessen leben, solange der Pruefer lebt.
+    NavKantenPruefer(const std::vector<MapEntity>& ents, const NavBauHilfe& h);
+    ~NavKantenPruefer();
+    NavKantenPruefer(const NavKantenPruefer&) = delete;
+    NavKantenPruefer& operator=(const NavKantenPruefer&) = delete;
+    // Die Kante von Entity `von` (die das target-Feld traegt) zu `nach`.
+    // Sprungkanten (targetJump) prueft das Spiel nicht (WE_JUMPING).
+    [[nodiscard]] NavKantenErgebnis pruefe(int von, int nach, bool sprung = false);
+    // Legt das Spiel fuer die Entity einen Knoten an (nicht im Festen)?
+    [[nodiscard]] bool hatKnoten(int entity);
+
+private:
+    struct Innen;
+    std::unique_ptr<Innen> d_;
+};
+
 // --- rc601 (bewegung, teil 3): Tueren und Mover zur Zeit ----------------------
 //
 // Auftrag: "Doors and movers at their state at that time". Die Engine spurt

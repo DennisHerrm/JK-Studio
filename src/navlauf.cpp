@@ -15,6 +15,7 @@
 #include <list>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
@@ -631,108 +632,110 @@ bool gleicheRegionKante(const NavNetz& n, int a, int b, const Akteur& akt) {
 namespace {
 std::array<std::uint32_t, 4> md4(const std::string& daten);
 std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, const NavBauHilfe& h);
-}  // namespace
 
-std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const NavBauHilfe& h) {
-    auto netz = std::make_shared<NavNetz>();
-    NavNetz& n = *netz;
-    // rc604 fix604 (JK2 Stufe 3): mit den Regeln von Jedi Outcast auch dessen Netz.
-    if (gJk2Nav.load(std::memory_order_relaxed)) { n.jk2 = baueNavNetzJk2(ents, h); }
-    n.knoten.resize(1);
-    n.kanten.resize(1);
-    n.kanteBenutzt.assign(1, false);
-    n.links.resize(1);
-    n.zellen.assign(static_cast<std::size_t>(kNumCells * kNumCells), {});
-    const bool mitSpur = static_cast<bool>(h.spur);
-    // rc601 (bewegung, teil 3): die Brush-Entities so, wie die Engine sie zur
-    // Zeit jeder Spur hat. Beim Spawnen eines Wegpunkts (SP_waypoint ->
-    // G_CheckInSolid, waypoint_getRadius, NAV::SpawnedPoint; g_nav.cpp:162-195
-    // MD) gibt es nur die Entities VOR ihm (G_SpawnEntitiesFromString spawnt in
-    // Kartenfolge); eine Tuer mit START_OPEN steht dann auf pos1 (InitMover,
-    // g_mover.cpp:1171-1172 MD), func_wall/func_usable mit START_OFF haben
-    // keine contents. Den Stand beim Netzbau (PHASE 0) hat h.spur.
-    const bool zeitgenau = mitSpur && static_cast<bool>(h.spurVersetzt) && static_cast<bool>(h.tuerStellungen);
-    std::vector<int> pinselEnts;
-    NavVersetzt startOffen;
-    std::vector<int> startAus;
-    if (zeitgenau) {
-        for (std::size_t i = 0; i < ents.size(); ++i) {
-            const std::string mdl = text(ents[i], "model");
-            if (mdl.size() < 2 || mdl[0] != '*') { continue; }
-            pinselEnts.push_back(static_cast<int>(i));
-            const std::string kl = klein(ents[i].classname);
-            const int sf = ganz(ents[i], "spawnflags");
-            if ((sf & 1) == 0) { continue; }
-            NavVec p1{};
-            NavVec p2{};
-            if (kl == "func_door" && h.tuerStellungen(static_cast<int>(i), p1, p2)) {
-                startOffen.push_back(NavVersetztEintrag{static_cast<int>(i), p1, true});
-            } else if (kl == "func_wall" || kl == "func_usable") {
-                startAus.push_back(static_cast<int>(i));
-            }
-        }
-    }
-    const auto spawnSpur = [&](int ich) -> NavSpurFn {
-        if (!zeitgenau) { return h.spur; }
-        NavVersetzt v;
-        for (const int b : pinselEnts) {
-            if (b > ich) { v.push_back(NavVersetztEintrag{b, {}, false}); }   // noch nicht gespawnt
-        }
-        for (const NavVersetztEintrag& o : startOffen) {
-            if (o.entity < ich) { v.push_back(o); }
-        }
-        for (const int w : startAus) {
-            if (w < ich) { v.push_back(NavVersetztEintrag{w, {}, false}); }
-        }
-        return [&h, v](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ign, std::uint32_t m) {
-            return h.spurVersetzt(a, mi, ma, b, ign, m, v);
-        };
-    };
-
+// rc609 W1: was baueNavNetz beim Spawnen der Knoten und beim Pruefen der
+// Kanten tut, als eigene Teile. Die Simulation (baueNavNetz, baueNavNetzJk2)
+// und der Editor (NavKantenPruefer) benutzen genau diese.
+//
+// rc601 (bewegung, teil 3): die Brush-Entities so, wie die Engine sie zur
+// Zeit jeder Spur hat. Beim Spawnen eines Wegpunkts (SP_waypoint ->
+// G_CheckInSolid, waypoint_getRadius, NAV::SpawnedPoint; g_nav.cpp:162-195
+// MD) gibt es nur die Entities VOR ihm (G_SpawnEntitiesFromString spawnt in
+// Kartenfolge); eine Tuer mit START_OPEN steht dann auf pos1 (InitMover,
+// g_mover.cpp:1171-1172 MD), func_wall/func_usable mit START_OFF haben
+// keine contents. Den Stand beim Netzbau (PHASE 0) hat h.spur.
+struct NavSpawnSicht {
+    NavSpawnSicht(const std::vector<MapEntity>& ents, const NavBauHilfe& hilfe);
+    [[nodiscard]] NavSpurFn spawnSpur(int ich) const;
     // G_CheckInSolid (g_utils.cpp:1641-1674): Kasten ab dem Ursprung um
     // mins[2] hinab (mins[2] dabei 0); mit fix auf das Ende gesetzt und noch
     // einmal ohne fix.
-    const auto imFesten = [&](NavVec& ort, const NavVec& mins, const NavVec& maxs, bool fix, int ich,
-                              std::uint32_t maske) {
-        if (!mitSpur) { return false; }
-        NavVec m0 = mins;
-        m0[2] = 0.0F;
-        NavVec ende = ort;
-        ende[2] += mins[2];
-        const NavSpurFn spur = spawnSpur(ich);   // rc601 (bewegung, teil 3)
-        NavSpur s = spur(ort, m0, maxs, ende, ich, maske);
-        if (s.allsolid || s.startsolid) { return true; }
-        if (s.fraction < 1.0F) {
-            if (fix) {
-                ort = s.endpos;
-                ort[2] -= mins[2];
-                ende = ort;
-                ende[2] += mins[2];
-                s = spur(ort, m0, maxs, ende, ich, maske);
-                return s.allsolid || s.startsolid || s.fraction < 1.0F;
-            }
-            return true;
-        }
-        return false;
-    };
+    [[nodiscard]] bool imFesten(NavVec& ort, const NavVec& mins, const NavVec& maxs, bool fix, int ich,
+                                std::uint32_t maske) const;
+    const NavBauHilfe& h;
+    bool mitSpur = false;
+    bool zeitgenau = false;
+    std::vector<int> pinselEnts;
+    NavVersetzt startOffen;
+    std::vector<int> startAus;
+};
 
+NavSpawnSicht::NavSpawnSicht(const std::vector<MapEntity>& ents, const NavBauHilfe& hilfe)
+    : h(hilfe), mitSpur(static_cast<bool>(hilfe.spur)) {
+    zeitgenau = mitSpur && static_cast<bool>(h.spurVersetzt) && static_cast<bool>(h.tuerStellungen);
+    if (!zeitgenau) { return; }
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const std::string mdl = text(ents[i], "model");
+        if (mdl.size() < 2 || mdl[0] != '*') { continue; }
+        pinselEnts.push_back(static_cast<int>(i));
+        const std::string kl = klein(ents[i].classname);
+        const int sf = ganz(ents[i], "spawnflags");
+        if ((sf & 1) == 0) { continue; }
+        NavVec p1{};
+        NavVec p2{};
+        if (kl == "func_door" && h.tuerStellungen(static_cast<int>(i), p1, p2)) {
+            startOffen.push_back(NavVersetztEintrag{static_cast<int>(i), p1, true});
+        } else if (kl == "func_wall" || kl == "func_usable") {
+            startAus.push_back(static_cast<int>(i));
+        }
+    }
+}
+
+NavSpurFn NavSpawnSicht::spawnSpur(int ich) const {
+    if (!zeitgenau) { return h.spur; }
+    NavVersetzt v;
+    for (const int b : pinselEnts) {
+        if (b > ich) { v.push_back(NavVersetztEintrag{b, {}, false}); }   // noch nicht gespawnt
+    }
+    for (const NavVersetztEintrag& o : startOffen) {
+        if (o.entity < ich) { v.push_back(o); }
+    }
+    for (const int w : startAus) {
+        if (w < ich) { v.push_back(NavVersetztEintrag{w, {}, false}); }
+    }
+    return [hp = &h, v](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ign, std::uint32_t m) {
+        return hp->spurVersetzt(a, mi, ma, b, ign, m, v);
+    };
+}
+
+bool NavSpawnSicht::imFesten(NavVec& ort, const NavVec& mins, const NavVec& maxs, bool fix, int ich,
+                             std::uint32_t maske) const {
+    if (!mitSpur) { return false; }
+    NavVec m0 = mins;
+    m0[2] = 0.0F;
+    NavVec ende = ort;
+    ende[2] += mins[2];
+    const NavSpurFn spur = spawnSpur(ich);   // rc601 (bewegung, teil 3)
+    NavSpur s = spur(ort, m0, maxs, ende, ich, maske);
+    if (s.allsolid || s.startsolid) { return true; }
+    if (s.fraction < 1.0F) {
+        if (fix) {
+            ort = s.endpos;
+            ort[2] -= mins[2];
+            ende = ort;
+            ende[2] += mins[2];
+            s = spur(ort, m0, maxs, ende, ich, maske);
+            return s.allsolid || s.startsolid || s.fraction < 1.0F;
+        }
+        return true;
+    }
+    return false;
+}
+
+// SP_waypoint, SP_waypoint_small, SP_waypoint_navgoal, SP_point_combat
+// (g_nav.cpp:121-279, NPC_combat.cpp:3347) bis in NAV::SpawnedPoint: der Knoten
+// der Entity i, false, wenn die Engine keinen anlegt (keine Klasse des Netzes,
+// "in solid"). Einhaengen und NUM_NODES macht der Aufrufer.
+bool navKnotenSpawnen(const std::vector<MapEntity>& ents, const NavSpawnSicht& sicht, int idx, NavKnoten& aus) {
+    const MapEntity& e = ents[static_cast<std::size_t>(idx)];
     // NAV::SpawnedPoint (g_navigator.cpp:2218)
-    const auto gesetzt = [&](const MapEntity& e, int idx, const NavVec& ort, float radius, int typ) {
-        // "Max Nav points reached" (g_navigator.cpp:2220 MD: size_nodes() >=
-        // NUM_NODES). rc602 kartenpruefung: size_nodes() ist mNodes.size()-1
-        // (graph_vs.h:572), und der Pool fasst NUM_NODES Plaetze EINSCHLIESSLICH
-        // des Platzhalters [0] (pool_vs<TNODE, MAXNODES>, graph_vs.h:211/540) -
-        // er ist schon bei 1023 echten Punkten voll; der 1024. liefe im Spiel
-        // in ein volles mNodes.alloc() (assert). Vorher nahm behaved 1024 echte
-        // Knoten und schrieb hinter n.region (NUM_NODES Plaetze) - Absturz beim
-        // Wechsel auf duel_jt_outside (1100 Wegpunkte).
-        if (static_cast<int>(n.knoten.size()) >= kNumNodes) { return; }
-        if (mitSpur) {
+    const auto gesetzt = [&](const NavVec& ort, float radius, int typ) {
+        if (sicht.mitSpur) {
             NavVec stop = ort;
             stop[2] += 5.0F;
-            if (!gehFrei(spawnSpur(idx), ort, stop, {-kScMediumRadius, -kScMediumRadius, 0.0F},
+            if (!gehFrei(sicht.spawnSpur(idx), ort, stop, {-kScMediumRadius, -kScMediumRadius, 0.0F},
                          {kScMediumRadius, kScMediumRadius, kScMediumHeight}, kNavKeineEntity, true, false, false)) {
-                return;   // "ERROR: Nav(%d) in solid"
+                return false;   // "ERROR: Nav(%d) in solid"
             }
         }
         NavKnoten k;
@@ -746,67 +749,317 @@ std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const N
         for (int z = 0; z < kNumTargets; ++z) { k.ziele[static_cast<std::size_t>(z)] = text(e, kZiele[z]); }
         k.name = e.targetname;
         k.entity = idx;
-        n.knoten.push_back(std::move(k));
-        n.links.emplace_back();
-        gitterErweitern(n, ort[0], ort[1]);
+        aus = std::move(k);
+        return true;
     };
+    const std::string k = klein(e.classname);
+    if (e.origin.empty()) { return false; }
+    NavVec ort{};
+    {
+        std::istringstream is(e.origin);
+        is >> ort[0] >> ort[1] >> ort[2];
+    }
+    const int sf = ganz(e, "spawnflags");
+    const int ich = idx;
+    if (k == "waypoint") {
+        // SP_waypoint (g_nav.cpp:169-200)
+        NavVec mins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2};
+        NavVec maxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
+        if ((sf & 2) != 0) { ort[2] += 128.0F; }
+        if ((sf & 1) == 0 && sicht.imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) {
+            maxs[2] = kCrouchMaxs2;
+            if (sicht.imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) { return false; }   // "Waypoint in solid!"
+        }
+        // waypoint_getRadius (g_nav.cpp:139-151)
+        float minDist = kMaxRadiusCheck + 1.0F;
+        if (sicht.mitSpur) {
+            const NavSpurFn spur = sicht.spawnSpur(ich);   // rc601 (bewegung, teil 3)
+            const NavVec tmins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
+            const NavVec tmaxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
+            for (int y = 0; y < kYawIterations; ++y) {
+                const float yaw = 360.0F / static_cast<float>(kYawIterations) * static_cast<float>(y);
+                const float w = yaw / kGrad;
+                const NavVec ziel{ort[0] + std::cos(w) * minDist, ort[1] + std::sin(w) * minDist, ort[2]};
+                const NavSpur s = spur(ort, tmins, tmaxs, ziel, kNavKeineEntity,
+                                         kNavSolid | kNavMonsterClip | kNavBotClip);
+                const float d = minDist * s.fraction;
+                if (d < minDist) { minDist = d; }
+            }
+        }
+        return gesetzt(ort, minDist + kDefaultMaxs0, NavKnoten::Wegpunkt);
+    } else if (k == "waypoint_small") {
+        // SP_waypoint_small (g_nav.cpp:206-238)
+        NavVec mins{-2.0F, -2.0F, kDefaultMins2};
+        NavVec maxs{2.0F, 2.0F, kDefaultMaxs2};
+        if ((sf & 1) == 0 && sicht.imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) {
+            maxs[2] = kCrouchMaxs2;
+            if (sicht.imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) { return false; }
+        }
+        return gesetzt(ort, 2.0F, NavKnoten::Wegpunkt);
+    } else if (k == "waypoint_navgoal") {
+        // SP_waypoint_navgoal (g_nav.cpp:253-279): der Knoten am
+        // currentOrigin (ohne die +0.125, die nur s.origin und der TAG
+        // bekommen), Radius ent->radius (Schluessel "radius", sonst 0).
+        return gesetzt(ort, zahl(e, "radius"), NavKnoten::Ziel);
+    } else if (k == "point_combat") {
+        // SP_point_combat (NPC_combat.cpp:3347-3379): +0.125, mins/maxs 0
+        ort[2] += 0.125F;
+        return gesetzt(ort, zahl(e, "radius"), NavKnoten::Kampf);
+    }
+    return false;
+}
+
+// Drop To Floor And Mark Floating (g_navigator.cpp:1573-1595 MD, :1626 OpenJK): nur mit Spur.
+void navKnotenAbsetzen(const NavBauHilfe& h, NavKnoten& at) {
+    const NavVec dach = at.punkt;
+    NavVec boden = at.punkt;
+    if (at.zumBoden) { boden[2] -= kMaxEdgeFloorDist; }
+    boden[2] -= kMaxEdgeFloorDist * 1.5F;
+    NavSpur s;
+    const bool amBoden = !sichtFrei(h.spur, dach, boden, false, &s);
+    if (at.zumBoden) {
+        at.punkt = s.endpos;
+        at.punkt[2] += 5.0F;
+    } else if (!amBoden && (at.typ == NavKnoten::Wegpunkt || at.typ == NavKnoten::Ziel)) {
+        at.schwebend = true;
+    }
+}
+
+// rc601 (bewegung, teil 3, B6): Ketten wie G_FindTeams (g_main.cpp:674-722
+// MD): der erste mit einem "team" ist Meister, jeder spaetere mit demselben
+// (strcmp) wird Sklave und vorn in die Kette gehaengt; sein targetname geht
+// an den Meister ("make sure that targets only point at the master").
+struct NavTeams {
+    std::vector<int> meisterVon;
+    std::vector<std::vector<int>> kette;
+    std::vector<std::string> teamZiel;
+};
+NavTeams navTeams(const std::vector<MapEntity>& ents) {
+    NavTeams tm;
+    tm.meisterVon.assign(ents.size(), -1);
+    tm.kette.assign(ents.size(), {});
+    tm.teamZiel.assign(ents.size(), {});
+    for (std::size_t i = 0; i < ents.size(); ++i) { tm.teamZiel[i] = ents[i].targetname; }
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const std::string team = text(ents[i], "team");
+        if (team.empty() || tm.meisterVon[i] >= 0) { continue; }
+        tm.meisterVon[i] = static_cast<int>(i);
+        tm.kette[i].push_back(static_cast<int>(i));
+        for (std::size_t j = i + 1; j < ents.size(); ++j) {
+            if (tm.meisterVon[j] >= 0 || text(ents[j], "team") != team) { continue; }
+            tm.kette[i].insert(tm.kette[i].begin() + 1, static_cast<int>(j));
+            tm.meisterVon[j] = static_cast<int>(i);
+            if (!tm.teamZiel[j].empty()) {
+                tm.teamZiel[i] = tm.teamZiel[j];
+                tm.teamZiel[j].clear();
+            }
+        }
+    }
+    return tm;
+}
+
+// PHASE III: Kanten pruefen (TestEdge, g_navigator.cpp:1197-1466)
+// `kante` traegt die Groesse (WE_SIZE_LARGE/MEDIUM) und bekommt die Flags.
+bool navTestEdge(const std::vector<MapEntity>& ents, const NavBauHilfe& h, const NavTeams& tm, NavKante& kante,
+                 const NavKnoten& a, const NavKnoten& b) {
+    const bool gross = kante.groesse() == 2;
+    const float radius = gross ? kScLargeRadius : kScMediumRadius;
+    const float hoehe = gross ? kScLargeHeight : kScMediumHeight;
+    const NavVec mins{-radius, -radius, 0.0F};
+    const NavVec maxs{radius, radius, hoehe};
+    if ((a.typ == NavKnoten::Wegpunkt && a.radius < radius) || (b.typ == NavKnoten::Wegpunkt && b.radius < radius)) {
+        return false;   // "Size Too Big"
+    }
+    if (!h.spur) { return true; }
+    NavSpur s;
+    bool kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, kNavKeineEntity, true, false, false, &s);
+    int getroffen = s.entity;
+    if (a.schwebend || b.schwebend) {
+        kante.flags |= NavKante::Fliegen;
+        if (!a.schwebend || !b.schwebend) { kante.flags |= NavKante::KannUngueltig; }
+    }
+    if (!kannGehen && !s.startsolid && getroffen >= 0 && getroffen < static_cast<int>(ents.size())) {
+        const MapEntity& ent = ents[static_cast<std::size_t>(getroffen)];
+        const std::string kl = klein(ent.classname);
+        if (kl == "func_door") {
+            kante.flags |= NavKante::TuerSperrt;
+        } else if (kl == "func_wall" || kl == "func_static" || kl == "func_usable") {
+            kante.flags |= NavKante::WandSperrt;
+        } else if (kl == "func_glass" || kl == "func_breakable" || kl == "misc_model_breakable") {
+            kante.flags |= NavKante::ZerbrechlichSperrt;
+        } else {
+            return kannGehen;   // "Unable To Ignore Ent, Going A Size Down"
+        }
+        int besitzEnt = getroffen;   // "ent" der Engine, nach einer Tuer der Meister
+        if (kante.hat(NavKante::TuerSperrt)) {
+            // rc601 (bewegung, teil 3, B6): wie g_navigator.cpp:1313-1352 MD -
+            // den Meister der Kette suchen, die ganze Kette oeffnen ("door_is_
+            // start_open ? slave->pos1 : slave->pos2"), MIT allen Entities
+            // noch einmal spuren, dann die Kette "schliessen" (pos1 bzw.
+            // pos2). Bis teil 3 wurde hier nur die getroffene Tuer
+            // uebergangen - eine Kette aus zwei Fluegeln oder eine Tuer,
+            // die auch offen im Weg steht, kam anders heraus.
+            const int meister = tm.meisterVon[static_cast<std::size_t>(getroffen)] >= 0
+                                    ? tm.meisterVon[static_cast<std::size_t>(getroffen)]
+                                    : getroffen;
+            const bool startOffen = (ganz(ents[static_cast<std::size_t>(meister)], "spawnflags") & 1) != 0;
+            NavVersetzt offen;
+            bool alle = static_cast<bool>(h.tuerStellungen) && static_cast<bool>(h.spurVersetzt);
+            const std::vector<int> glieder =
+                tm.kette[static_cast<std::size_t>(meister)].empty() ? std::vector<int>{meister}
+                                                                  : tm.kette[static_cast<std::size_t>(meister)];
+            for (const int glied : glieder) {
+                NavVec p1{};
+                NavVec p2{};
+                if (!alle || !h.tuerStellungen(glied, p1, p2)) {
+                    alle = false;
+                    break;
+                }
+                offen.push_back(NavVersetztEintrag{glied, startOffen ? p1 : p2, true});
+            }
+            if (alle) {
+                // MoveTrace(a.mPoint, b.mPoint, mins, maxs, 0, true, false)
+                const NavSpurFn versetzt = [&h, &offen](const NavVec& s0, const NavVec& mi, const NavVec& ma,
+                                                        const NavVec& e0, int ign, std::uint32_t m) {
+                    return h.spurVersetzt(s0, mi, ma, e0, ign, m, offen);
+                };
+                // Danach "Close the door again" (pos2 bzw. pos1) - das
+                // ist wieder der Stand von PHASE 0, mit dem `spur` spurt.
+                kannGehen = gehFrei(versetzt, a.punkt, b.punkt, mins, maxs, kNavKeineEntity, true, false, false);
+            } else {
+                kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, getroffen, true, false, false);
+            }
+            if (kannGehen) {
+                getroffen = meister;   // "ent = master; ent_hit = master->s.number;"
+                besitzEnt = meister;
+            }
+        } else if (kante.hat(NavKante::ZerbrechlichSperrt)) {
+            kannGehen = true;
+        } else {
+            kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, getroffen, true, false, false);
+        }
+        if (kannGehen) {
+            kante.entity = getroffen;
+            kante.flags |= NavKante::KannUngueltig;
+            if (kante.hat(NavKante::TuerSperrt)) {
+                // rc601 (bewegung, teil 3, B6): der Besitzer wie
+                // g_navigator.cpp:1406-1444 MD. "ent" ist jetzt der Meister
+                // mit dem targetname nach G_FindTeams.
+                const MapEntity& tuer = ents[static_cast<std::size_t>(besitzEnt)];
+                const std::string& tn = tm.teamZiel[static_cast<std::size_t>(besitzEnt)];
+                const int tsf = ganz(tuer, "spawnflags");
+                int besitzer = besitzEnt;      // "at.mOwnerNum = ent->s.number;"
+                bool ausloeserTuer = false;    // trigger_door (G_FindDoorTrigger)
+                const auto istAusloeser = [&](int j) {
+                    const std::string kj = klein(ents[static_cast<std::size_t>(j)].classname);
+                    return kj == "trigger_multiple" || kj == "trigger_once";
+                };
+                // G_Find(from, fieldofs, match): ab der Entity nach `from`,
+                // Q_stricmp.
+                const auto finde = [&](int ab, const char* feld) {
+                    for (std::size_t j = static_cast<std::size_t>(ab + 1); j < ents.size(); ++j) {
+                        if (klein(text(ents[j], feld)) == klein(tn)) { return static_cast<int>(j); }
+                    }
+                    return -1;
+                };
+                if (!tn.empty()) {
+                    int o = finde(-1, "target");
+                    if (o >= 0 && istAusloeser(o)) {
+                        besitzer = o;
+                    } else {
+                        o = finde(o, "target2");   // G_Find(owner, FOFS(target2), ...) - nach dem ersten Fund
+                        if (o >= 0 && istAusloeser(o)) { besitzer = o; }
+                    }
+                } else {
+                    // G_FindDoorTrigger (g_mover.cpp:1373-1416 MD): der
+                    // trigger_door des Meisters. Den spawnt SP_func_door
+                    // (g_mover.cpp:1599-1611 MD) fuer einen verriegelten
+                    // Meister oder einen ohne targetname/health/PLAYER_USE/
+                    // FORCE_ACTIVATE.
+                    const bool gesundheit = ganz(tuer, "health") != 0;
+                    ausloeserTuer = (tsf & 16) != 0 || !(gesundheit || (tsf & 64) != 0 || (tsf & 2) != 0);
+                }
+                kante.besitzer = ausloeserTuer ? kNavKeineEntity : besitzer;
+                kante.tuerStartOffen = (tsf & 1) != 0;
+                // is_valid (g_navigator.cpp:596-622 MD) fuer eine
+                // GESCHLOSSENE Tuer: der Teil, der sich nicht aendert.
+                if (ausloeserTuer) {
+                    // trigger_door: spawnflags und svFlags 0.
+                    kante.gesperrt = false;
+                } else if (besitzer == besitzEnt) {
+                    // SVF_INACTIVE (InitMover: MOVER_INACTIVE 128),
+                    // MOVER_PLAYER_USE 64, MOVER_FORCE_ACTIVATE 2; MOVER_LOCKED
+                    // 16 zur Zeit (verriegelt), MOVER_GOODIE 32 nur mit Akteur.
+                    kante.gesperrt = (tsf & (128 | 64 | 2)) != 0;
+                    kante.besitzerIstTuer = true;
+                    kante.verriegeltAnfang = (tsf & 16) != 0;
+                    kante.goodie = (tsf & 32) != 0;
+                } else {
+                    // trigger_multiple/_once: SVF_INACTIVE (InitTrigger,
+                    // g_trigger.cpp:50-53 MD: spawnflags 128), PLAYERONLY 1,
+                    // USE_BUTTON 4; MOVER_GOODIE 32.
+                    const int osf = ganz(ents[static_cast<std::size_t>(besitzer)], "spawnflags");
+                    kante.gesperrt = (osf & (128 | 1 | 4)) != 0;
+                    kante.goodie = (osf & 32) != 0;
+                }
+            } else if (kante.hat(NavKante::ZerbrechlichSperrt)) {
+                kante.flags &= ~NavKante::Gueltig;   // "not valid until broken"
+            } else {
+                // Wand: gueltig, solange sie nicht fest ist
+                // (!(ent->contents & CONTENTS_SOLID)): func_wall und
+                // func_usable mit START_OFF sind es nicht.
+                const bool aus = (kl == "func_wall" || kl == "func_usable") && (ganz(ent, "spawnflags") & 1) != 0;
+                kante.gesperrt = !aus;
+            }
+        }
+    }
+    return kannGehen;
+}
+
+// Die Schleife um TestEdge (g_navigator.cpp:1843-1862 MD, :1914-1923 OpenJK):
+// erst gross, dann eine Groesse kleiner. Sprungkanten prueft das Spiel nicht
+// (WE_JUMPING, :1819-1825 MD) - das entscheidet der Aufrufer.
+bool navTestEdgeGroessen(const std::vector<MapEntity>& ents, const NavBauHilfe& h, const NavTeams& tm, NavKante& kante,
+                         const NavKnoten& a, const NavKnoten& b) {
+    kante.flags |= NavKante::GroesseGross;
+    bool kann = navTestEdge(ents, h, tm, kante, a, b);
+    if (!kann) {
+        kante.flags &= ~NavKante::GroesseGross;
+        kante.flags |= NavKante::GroesseMittel;
+        kann = navTestEdge(ents, h, tm, kante, a, b);
+    }
+    return kann;
+}
+}  // namespace
+
+std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const NavBauHilfe& h) {
+    auto netz = std::make_shared<NavNetz>();
+    NavNetz& n = *netz;
+    // rc604 fix604 (JK2 Stufe 3): mit den Regeln von Jedi Outcast auch dessen Netz.
+    if (gJk2Nav.load(std::memory_order_relaxed)) { n.jk2 = baueNavNetzJk2(ents, h); }
+    n.knoten.resize(1);
+    n.kanten.resize(1);
+    n.kanteBenutzt.assign(1, false);
+    n.links.resize(1);
+    n.zellen.assign(static_cast<std::size_t>(kNumCells * kNumCells), {});
+    const bool mitSpur = static_cast<bool>(h.spur);
+    const NavSpawnSicht sicht(ents, h);
 
     for (std::size_t i = 0; i < ents.size(); ++i) {
-        const MapEntity& e = ents[i];
-        const std::string k = klein(e.classname);
-        if (e.origin.empty()) { continue; }
-        NavVec ort{};
-        {
-            std::istringstream is(e.origin);
-            is >> ort[0] >> ort[1] >> ort[2];
-        }
-        const int sf = ganz(e, "spawnflags");
-        const int ich = static_cast<int>(i);
-        if (k == "waypoint") {
-            // SP_waypoint (g_nav.cpp:169-200)
-            NavVec mins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2};
-            NavVec maxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
-            if ((sf & 2) != 0) { ort[2] += 128.0F; }
-            if ((sf & 1) == 0 && imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) {
-                maxs[2] = kCrouchMaxs2;
-                if (imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) { continue; }   // "Waypoint in solid!"
-            }
-            // waypoint_getRadius (g_nav.cpp:139-151)
-            float minDist = kMaxRadiusCheck + 1.0F;
-            if (mitSpur) {
-                const NavSpurFn spur = spawnSpur(ich);   // rc601 (bewegung, teil 3)
-                const NavVec tmins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
-                const NavVec tmaxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
-                for (int y = 0; y < kYawIterations; ++y) {
-                    const float yaw = 360.0F / static_cast<float>(kYawIterations) * static_cast<float>(y);
-                    const float w = yaw / kGrad;
-                    const NavVec ziel{ort[0] + std::cos(w) * minDist, ort[1] + std::sin(w) * minDist, ort[2]};
-                    const NavSpur s = spur(ort, tmins, tmaxs, ziel, kNavKeineEntity,
-                                             kNavSolid | kNavMonsterClip | kNavBotClip);
-                    const float d = minDist * s.fraction;
-                    if (d < minDist) { minDist = d; }
-                }
-            }
-            gesetzt(e, ich, ort, minDist + kDefaultMaxs0, NavKnoten::Wegpunkt);
-        } else if (k == "waypoint_small") {
-            // SP_waypoint_small (g_nav.cpp:206-238)
-            NavVec mins{-2.0F, -2.0F, kDefaultMins2};
-            NavVec maxs{2.0F, 2.0F, kDefaultMaxs2};
-            if ((sf & 1) == 0 && imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) {
-                maxs[2] = kCrouchMaxs2;
-                if (imFesten(ort, mins, maxs, true, ich, kNavMaskDeadSolid)) { continue; }
-            }
-            gesetzt(e, ich, ort, 2.0F, NavKnoten::Wegpunkt);
-        } else if (k == "waypoint_navgoal") {
-            // SP_waypoint_navgoal (g_nav.cpp:253-279): der Knoten am
-            // currentOrigin (ohne die +0.125, die nur s.origin und der TAG
-            // bekommen), Radius ent->radius (Schluessel "radius", sonst 0).
-            gesetzt(e, ich, ort, zahl(e, "radius"), NavKnoten::Ziel);
-        } else if (k == "point_combat") {
-            // SP_point_combat (NPC_combat.cpp:3347-3379): +0.125, mins/maxs 0
-            ort[2] += 0.125F;
-            gesetzt(e, ich, ort, zahl(e, "radius"), NavKnoten::Kampf);
-        }
+        // "Max Nav points reached" (g_navigator.cpp:2220 MD: size_nodes() >=
+        // NUM_NODES). rc602 kartenpruefung: size_nodes() ist mNodes.size()-1
+        // (graph_vs.h:572), und der Pool fasst NUM_NODES Plaetze EINSCHLIESSLICH
+        // des Platzhalters [0] (pool_vs<TNODE, MAXNODES>, graph_vs.h:211/540) -
+        // er ist schon bei 1023 echten Punkten voll; der 1024. liefe im Spiel
+        // in ein volles mNodes.alloc() (assert). Vorher nahm behaved 1024 echte
+        // Knoten und schrieb hinter n.region (NUM_NODES Plaetze) - Absturz beim
+        // Wechsel auf duel_jt_outside (1100 Wegpunkte).
+        if (static_cast<int>(n.knoten.size()) >= kNumNodes) { break; }
+        NavKnoten k;
+        if (!navKnotenSpawnen(ents, sicht, static_cast<int>(i), k)) { continue; }
+        gitterErweitern(n, k.punkt[0], k.punkt[1]);
+        n.knoten.push_back(std::move(k));
+        n.links.emplace_back();
     }
 
     // --- NAV::LoadFromEntitiesAndSaveToFile (g_navigator.cpp:1469) ------------
@@ -823,21 +1076,7 @@ std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const N
 
     // Drop To Floor And Mark Floating
     if (mitSpur) {
-        for (std::size_t i = 1; i < n.knoten.size(); ++i) {
-            NavKnoten& at = n.knoten[i];
-            const NavVec dach = at.punkt;
-            NavVec boden = at.punkt;
-            if (at.zumBoden) { boden[2] -= kMaxEdgeFloorDist; }
-            boden[2] -= kMaxEdgeFloorDist * 1.5F;
-            NavSpur s;
-            const bool amBoden = !sichtFrei(h.spur, dach, boden, false, &s);
-            if (at.zumBoden) {
-                at.punkt = s.endpos;
-                at.punkt[2] += 5.0F;
-            } else if (!amBoden && (at.typ == NavKnoten::Wegpunkt || at.typ == NavKnoten::Ziel)) {
-                at.schwebend = true;
-            }
-        }
+        for (std::size_t i = 1; i < n.knoten.size(); ++i) { navKnotenAbsetzen(h, n.knoten[i]); }
     }
 
     std::map<std::string, std::vector<int>> namen;   // TNameToNodeMap (hstring: mit Gross/klein)
@@ -915,188 +1154,8 @@ std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const N
         }
     }
 
-    // rc601 (bewegung, teil 3, B6): Ketten wie G_FindTeams (g_main.cpp:674-722
-    // MD): der erste mit einem "team" ist Meister, jeder spaetere mit demselben
-    // (strcmp) wird Sklave und vorn in die Kette gehaengt; sein targetname geht
-    // an den Meister ("make sure that targets only point at the master").
-    std::vector<int> meisterVon(ents.size(), -1);
-    std::vector<std::vector<int>> kette(ents.size());
-    std::vector<std::string> teamZiel(ents.size());
-    for (std::size_t i = 0; i < ents.size(); ++i) { teamZiel[i] = ents[i].targetname; }
-    for (std::size_t i = 0; i < ents.size(); ++i) {
-        const std::string team = text(ents[i], "team");
-        if (team.empty() || meisterVon[i] >= 0) { continue; }
-        meisterVon[i] = static_cast<int>(i);
-        kette[i].push_back(static_cast<int>(i));
-        for (std::size_t j = i + 1; j < ents.size(); ++j) {
-            if (meisterVon[j] >= 0 || text(ents[j], "team") != team) { continue; }
-            kette[i].insert(kette[i].begin() + 1, static_cast<int>(j));
-            meisterVon[j] = static_cast<int>(i);
-            if (!teamZiel[j].empty()) {
-                teamZiel[i] = teamZiel[j];
-                teamZiel[j].clear();
-            }
-        }
-    }
-
     // PHASE III: Kanten pruefen (TestEdge, g_navigator.cpp:1197-1466)
-    const auto pruefe = [&](int e) -> bool {
-        NavKante& kante = n.kanten[static_cast<std::size_t>(e)];
-        const NavKnoten& a = n.knoten[static_cast<std::size_t>(kante.a)];
-        const NavKnoten& b = n.knoten[static_cast<std::size_t>(kante.b)];
-        const bool gross = kante.groesse() == 2;
-        const float radius = gross ? kScLargeRadius : kScMediumRadius;
-        const float hoehe = gross ? kScLargeHeight : kScMediumHeight;
-        const NavVec mins{-radius, -radius, 0.0F};
-        const NavVec maxs{radius, radius, hoehe};
-        if ((a.typ == NavKnoten::Wegpunkt && a.radius < radius) || (b.typ == NavKnoten::Wegpunkt && b.radius < radius)) {
-            return false;   // "Size Too Big"
-        }
-        if (!mitSpur) { return true; }
-        NavSpur s;
-        bool kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, kNavKeineEntity, true, false, false, &s);
-        int getroffen = s.entity;
-        if (a.schwebend || b.schwebend) {
-            kante.flags |= NavKante::Fliegen;
-            if (!a.schwebend || !b.schwebend) { kante.flags |= NavKante::KannUngueltig; }
-        }
-        if (!kannGehen && !s.startsolid && getroffen >= 0 && getroffen < static_cast<int>(ents.size())) {
-            const MapEntity& ent = ents[static_cast<std::size_t>(getroffen)];
-            const std::string kl = klein(ent.classname);
-            if (kl == "func_door") {
-                kante.flags |= NavKante::TuerSperrt;
-            } else if (kl == "func_wall" || kl == "func_static" || kl == "func_usable") {
-                kante.flags |= NavKante::WandSperrt;
-            } else if (kl == "func_glass" || kl == "func_breakable" || kl == "misc_model_breakable") {
-                kante.flags |= NavKante::ZerbrechlichSperrt;
-            } else {
-                return kannGehen;   // "Unable To Ignore Ent, Going A Size Down"
-            }
-            int besitzEnt = getroffen;   // "ent" der Engine, nach einer Tuer der Meister
-            if (kante.hat(NavKante::TuerSperrt)) {
-                // rc601 (bewegung, teil 3, B6): wie g_navigator.cpp:1313-1352 MD -
-                // den Meister der Kette suchen, die ganze Kette oeffnen ("door_is_
-                // start_open ? slave->pos1 : slave->pos2"), MIT allen Entities
-                // noch einmal spuren, dann die Kette "schliessen" (pos1 bzw.
-                // pos2). Bis teil 3 wurde hier nur die getroffene Tuer
-                // uebergangen - eine Kette aus zwei Fluegeln oder eine Tuer,
-                // die auch offen im Weg steht, kam anders heraus.
-                const int meister = meisterVon[static_cast<std::size_t>(getroffen)] >= 0
-                                        ? meisterVon[static_cast<std::size_t>(getroffen)]
-                                        : getroffen;
-                const bool startOffen = (ganz(ents[static_cast<std::size_t>(meister)], "spawnflags") & 1) != 0;
-                NavVersetzt offen;
-                bool alle = static_cast<bool>(h.tuerStellungen) && static_cast<bool>(h.spurVersetzt);
-                const std::vector<int> glieder =
-                    kette[static_cast<std::size_t>(meister)].empty() ? std::vector<int>{meister}
-                                                                      : kette[static_cast<std::size_t>(meister)];
-                for (const int glied : glieder) {
-                    NavVec p1{};
-                    NavVec p2{};
-                    if (!alle || !h.tuerStellungen(glied, p1, p2)) {
-                        alle = false;
-                        break;
-                    }
-                    offen.push_back(NavVersetztEintrag{glied, startOffen ? p1 : p2, true});
-                }
-                if (alle) {
-                    // MoveTrace(a.mPoint, b.mPoint, mins, maxs, 0, true, false)
-                    const NavSpurFn versetzt = [&h, &offen](const NavVec& s0, const NavVec& mi, const NavVec& ma,
-                                                            const NavVec& e0, int ign, std::uint32_t m) {
-                        return h.spurVersetzt(s0, mi, ma, e0, ign, m, offen);
-                    };
-                    // Danach "Close the door again" (pos2 bzw. pos1) - das
-                    // ist wieder der Stand von PHASE 0, mit dem `spur` spurt.
-                    kannGehen = gehFrei(versetzt, a.punkt, b.punkt, mins, maxs, kNavKeineEntity, true, false, false);
-                } else {
-                    kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, getroffen, true, false, false);
-                }
-                if (kannGehen) {
-                    getroffen = meister;   // "ent = master; ent_hit = master->s.number;"
-                    besitzEnt = meister;
-                }
-            } else if (kante.hat(NavKante::ZerbrechlichSperrt)) {
-                kannGehen = true;
-            } else {
-                kannGehen = gehFrei(h.spur, a.punkt, b.punkt, mins, maxs, getroffen, true, false, false);
-            }
-            if (kannGehen) {
-                kante.entity = getroffen;
-                kante.flags |= NavKante::KannUngueltig;
-                if (kante.hat(NavKante::TuerSperrt)) {
-                    // rc601 (bewegung, teil 3, B6): der Besitzer wie
-                    // g_navigator.cpp:1406-1444 MD. "ent" ist jetzt der Meister
-                    // mit dem targetname nach G_FindTeams.
-                    const MapEntity& tuer = ents[static_cast<std::size_t>(besitzEnt)];
-                    const std::string& tn = teamZiel[static_cast<std::size_t>(besitzEnt)];
-                    const int tsf = ganz(tuer, "spawnflags");
-                    int besitzer = besitzEnt;      // "at.mOwnerNum = ent->s.number;"
-                    bool ausloeserTuer = false;    // trigger_door (G_FindDoorTrigger)
-                    const auto istAusloeser = [&](int j) {
-                        const std::string kj = klein(ents[static_cast<std::size_t>(j)].classname);
-                        return kj == "trigger_multiple" || kj == "trigger_once";
-                    };
-                    // G_Find(from, fieldofs, match): ab der Entity nach `from`,
-                    // Q_stricmp.
-                    const auto finde = [&](int ab, const char* feld) {
-                        for (std::size_t j = static_cast<std::size_t>(ab + 1); j < ents.size(); ++j) {
-                            if (klein(text(ents[j], feld)) == klein(tn)) { return static_cast<int>(j); }
-                        }
-                        return -1;
-                    };
-                    if (!tn.empty()) {
-                        int o = finde(-1, "target");
-                        if (o >= 0 && istAusloeser(o)) {
-                            besitzer = o;
-                        } else {
-                            o = finde(o, "target2");   // G_Find(owner, FOFS(target2), ...) - nach dem ersten Fund
-                            if (o >= 0 && istAusloeser(o)) { besitzer = o; }
-                        }
-                    } else {
-                        // G_FindDoorTrigger (g_mover.cpp:1373-1416 MD): der
-                        // trigger_door des Meisters. Den spawnt SP_func_door
-                        // (g_mover.cpp:1599-1611 MD) fuer einen verriegelten
-                        // Meister oder einen ohne targetname/health/PLAYER_USE/
-                        // FORCE_ACTIVATE.
-                        const bool gesundheit = ganz(tuer, "health") != 0;
-                        ausloeserTuer = (tsf & 16) != 0 || !(gesundheit || (tsf & 64) != 0 || (tsf & 2) != 0);
-                    }
-                    kante.besitzer = ausloeserTuer ? kNavKeineEntity : besitzer;
-                    kante.tuerStartOffen = (tsf & 1) != 0;
-                    // is_valid (g_navigator.cpp:596-622 MD) fuer eine
-                    // GESCHLOSSENE Tuer: der Teil, der sich nicht aendert.
-                    if (ausloeserTuer) {
-                        // trigger_door: spawnflags und svFlags 0.
-                        kante.gesperrt = false;
-                    } else if (besitzer == besitzEnt) {
-                        // SVF_INACTIVE (InitMover: MOVER_INACTIVE 128),
-                        // MOVER_PLAYER_USE 64, MOVER_FORCE_ACTIVATE 2; MOVER_LOCKED
-                        // 16 zur Zeit (verriegelt), MOVER_GOODIE 32 nur mit Akteur.
-                        kante.gesperrt = (tsf & (128 | 64 | 2)) != 0;
-                        kante.besitzerIstTuer = true;
-                        kante.verriegeltAnfang = (tsf & 16) != 0;
-                        kante.goodie = (tsf & 32) != 0;
-                    } else {
-                        // trigger_multiple/_once: SVF_INACTIVE (InitTrigger,
-                        // g_trigger.cpp:50-53 MD: spawnflags 128), PLAYERONLY 1,
-                        // USE_BUTTON 4; MOVER_GOODIE 32.
-                        const int osf = ganz(ents[static_cast<std::size_t>(besitzer)], "spawnflags");
-                        kante.gesperrt = (osf & (128 | 1 | 4)) != 0;
-                        kante.goodie = (osf & 32) != 0;
-                    }
-                } else if (kante.hat(NavKante::ZerbrechlichSperrt)) {
-                    kante.flags &= ~NavKante::Gueltig;   // "not valid until broken"
-                } else {
-                    // Wand: gueltig, solange sie nicht fest ist
-                    // (!(ent->contents & CONTENTS_SOLID)): func_wall und
-                    // func_usable mit START_OFF sind es nicht.
-                    const bool aus = (kl == "func_wall" || kl == "func_usable") && (ganz(ent, "spawnflags") & 1) != 0;
-                    kante.gesperrt = !aus;
-                }
-            }
-        }
-        return kannGehen;
-    };
+    const NavTeams teams = navTeams(ents);
     std::vector<int> streichen;
     for (std::size_t e = 1; e < n.kanten.size(); ++e) {
         if (!n.kanteBenutzt[e]) { continue; }
@@ -1105,13 +1164,8 @@ std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const N
             kante.flags |= NavKante::GroesseGross | NavKante::KannUngueltig | NavKante::VomDesigner;
             continue;
         }
-        kante.flags |= NavKante::GroesseGross;
-        bool kann = pruefe(static_cast<int>(e));
-        if (!kann) {
-            kante.flags &= ~NavKante::GroesseGross;
-            kante.flags |= NavKante::GroesseMittel;
-            kann = pruefe(static_cast<int>(e));
-        }
+        const bool kann = navTestEdgeGroessen(ents, h, teams, kante, n.knoten[static_cast<std::size_t>(kante.a)],
+                                              n.knoten[static_cast<std::size_t>(kante.b)]);
         if (!kann) { streichen.push_back(static_cast<int>(e)); }
     }
     for (const int e : streichen) {
@@ -1408,15 +1462,20 @@ std::array<std::uint32_t, 4> md4(const std::string& daten) {
 // offen ist), G_EntIsBreakable (g_breakable.cpp:1107-1133), G_EntIsRemovableUsable
 // (g_usable.cpp:83-94): 1. Ein Brush mit targetname, dessen contents CONTENTS_
 // MONSTERCLIP oder CONTENTS_BOTCLIP haben: 2 (die contents liefert die Spur).
+// rc609 W1: die Blocker einzeln - 1 eine Tuer (G_EntIsDoor), 2 zerbrechlich
+// oder entfernbar (G_EntIsBreakable, G_EntIsRemovableUsable), 0 sonst.
+int jk2Blocker(const MapEntity& x) {
+    const std::string kl = klein(x.classname);
+    if (kl == "func_door") { return 1; }
+    if (kl == "func_breakable" || kl == "func_glass" || kl == "misc_model_breakable" || kl == "misc_maglock") { return 2; }
+    if (kl == "func_usable" && (ganz(x, "spawnflags") & 8) == 0 && !x.targetname.empty()) { return 2; }
+    return 0;
+}
 std::vector<unsigned char> jk2KanteSperrt(const std::vector<MapEntity>& ents) {
     std::vector<unsigned char> v(ents.size(), 0);
     for (std::size_t i = 0; i < ents.size(); ++i) {
         const MapEntity& x = ents[i];
-        const std::string kl = klein(x.classname);
-        if (kl == "func_door" || kl == "func_breakable" || kl == "func_glass" || kl == "misc_model_breakable" ||
-            kl == "misc_maglock") {
-            v[i] = 1;
-        } else if (kl == "func_usable" && (ganz(x, "spawnflags") & 8) == 0 && !x.targetname.empty()) {
+        if (jk2Blocker(x) != 0) {
             v[i] = 1;
         } else {
             const std::string mdl = text(x, "model");
@@ -1424,6 +1483,64 @@ std::vector<unsigned char> jk2KanteSperrt(const std::vector<MapEntity>& ents) {
         }
     }
     return v;
+}
+
+// rc609 W1: SP_waypoint / SP_waypoint_small in Jedi Outcast (codeJK2/game/
+// g_nav.cpp:1251-1340) mit G_CheckInSolid (g_utils.cpp:1075-1111, MASK_DEADSOLID,
+// wie G_CheckInSolid von JKA mit fix) - der Knoten der Entity idx, false: keiner.
+bool jk2KnotenSpawnen(const std::vector<MapEntity>& ents, const NavSpawnSicht& sicht, int idx, NavNetzJk2::Knoten& kn) {
+    const MapEntity& e = ents[static_cast<std::size_t>(idx)];
+    const std::string k = klein(e.classname);
+    const bool klein2 = k == "waypoint_small";
+    if ((k != "waypoint" && !klein2) || e.origin.empty()) { return false; }
+    NavVec ort{};
+    {
+        std::istringstream is(e.origin);
+        is >> ort[0] >> ort[1] >> ort[2];
+    }
+    const int sf = ganz(e, "spawnflags");
+    const int ich = idx;
+    const float b = klein2 ? 2.0F : kDefaultMaxs0;
+    const NavVec mins{-b, -b, kDefaultMins2};
+    NavVec maxs{b, b, kDefaultMaxs2};
+    if ((sf & 1) == 0 && sicht.imFesten(ort, mins, maxs, true, ich, kJk2MaskDeadSolid)) {
+        maxs[2] = kCrouchMaxs2;
+        if (sicht.imFesten(ort, mins, maxs, true, ich, kJk2MaskDeadSolid)) { return false; }   // "Waypoint ... in solid!", G_FreeEntity
+    }
+    int radius = 2;
+    if (!klein2) {
+        // waypoint_getRadius / waypoint_testDirection (g_nav.cpp:1198-1240)
+        unsigned int minDist = static_cast<unsigned int>(kMaxRadiusCheck) + 1U;
+        if (sicht.mitSpur) {
+            const NavSpurFn spur = sicht.spawnSpur(ich);
+            const NavVec tmins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
+            const NavVec tmaxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
+            for (int y = 0; y < kYawIterations; ++y) {
+                NavVec vorn{};
+                NavVec rechts{};
+                qAchsen((360.0F / static_cast<float>(kYawIterations)) * static_cast<float>(y), vorn, rechts);
+                const auto md = static_cast<float>(minDist);
+                const NavVec ziel{ort[0] + vorn[0] * md, ort[1] + vorn[1] * md, ort[2] + vorn[2] * md};
+                const NavSpur s = spur(ort, tmins, tmaxs, ziel, kNavKeineEntity, kNavSolid | kNavMonsterClip | kNavBotClip);
+                const auto dist = static_cast<unsigned int>(md * s.fraction);
+                if (dist < minDist) { minDist = dist; }
+            }
+        }
+        radius = static_cast<int>(minDist);
+    }
+    kn = NavNetzJk2::Knoten{};
+    kn.punkt = ort;
+    kn.flags = sf;
+    kn.radius = radius;
+    return true;
+}
+
+// CNavigator::HardConnect (codeJK2/game/g_navigator.cpp:1083-1114): die Spur,
+// nach der die Kante EFLAG_BLOCKED bekommt.
+NavSpur jk2HardConnectSpur(const NavSpurFn& spaet, const NavVec& p1, const NavVec& p2) {
+    const NavVec wpMins{-16.0F, -16.0F, -24.0F + kStepSize};   // g_navigator.cpp:41-42
+    const NavVec wpMaxs{16.0F, 16.0F, 32.0F};
+    return spurDurch(spaet, p1, wpMins, wpMaxs, p2, kNavKeineEntity, kNavSolid | kNavBotClip | kNavMonsterClip);
 }
 
 std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, const NavBauHilfe& h) {
@@ -1446,63 +1563,7 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     NavNetzJk2& n = *netz;
     n.tuerFrei = std::move(tuerFrei);
     n.kanteSperrt = jk2KanteSperrt(ents);   // rc605 (Ende)
-    const bool mitSpur = static_cast<bool>(h.spur);
-    const bool zeitgenau = mitSpur && static_cast<bool>(h.spurVersetzt) && static_cast<bool>(h.tuerStellungen);
-    std::vector<int> pinselEnts;
-    NavVersetzt startOffen;
-    std::vector<int> startAus;
-    if (zeitgenau) {
-        for (std::size_t i = 0; i < ents.size(); ++i) {
-            const std::string mdl = text(ents[i], "model");
-            if (mdl.size() < 2 || mdl[0] != '*') { continue; }
-            pinselEnts.push_back(static_cast<int>(i));
-            const std::string kl = klein(ents[i].classname);
-            if ((ganz(ents[i], "spawnflags") & 1) == 0) { continue; }
-            NavVec p1{};
-            NavVec p2{};
-            if (kl == "func_door" && h.tuerStellungen(static_cast<int>(i), p1, p2)) {
-                startOffen.push_back(NavVersetztEintrag{static_cast<int>(i), p1, true});
-            } else if (kl == "func_wall" || kl == "func_usable") {
-                startAus.push_back(static_cast<int>(i));
-            }
-        }
-    }
-    const auto spurBis = [&](int ich) -> NavSpurFn {
-        if (!zeitgenau) { return h.spur; }
-        NavVersetzt v;
-        for (const int b : pinselEnts) {
-            if (b > ich) { v.push_back(NavVersetztEintrag{b, {}, false}); }
-        }
-        for (const NavVersetztEintrag& o : startOffen) {
-            if (o.entity < ich) { v.push_back(o); }
-        }
-        for (const int w : startAus) {
-            if (w < ich) { v.push_back(NavVersetztEintrag{w, {}, false}); }
-        }
-        return [&h, v](const NavVec& a, const NavVec& mi, const NavVec& ma, const NavVec& b, int ign, std::uint32_t m) {
-            return h.spurVersetzt(a, mi, ma, b, ign, m, v);
-        };
-    };
-    // G_CheckInSolid (codeJK2/game/g_utils.cpp:1075-1111), clipmask MASK_DEADSOLID
-    const auto imFesten = [&](NavVec& ort, const NavVec& mins, const NavVec& maxs, int ich) {
-        if (!mitSpur) { return false; }
-        NavVec m0 = mins;
-        m0[2] = 0.0F;
-        NavVec ende = ort;
-        ende[2] += mins[2];
-        const NavSpurFn spur = spurBis(ich);
-        NavSpur s = spur(ort, m0, maxs, ende, ich, kJk2MaskDeadSolid);
-        if (s.allsolid || s.startsolid) { return true; }
-        if (s.fraction < 1.0F) {
-            ort = s.endpos;
-            ort[2] -= mins[2];
-            ende = ort;
-            ende[2] += mins[2];
-            s = spur(ort, m0, maxs, ende, ich, kJk2MaskDeadSolid);
-            return s.allsolid || s.startsolid || s.fraction < 1.0F;
-        }
-        return false;
-    };
+    const NavSpawnSicht sicht(ents, h);
     struct Gespeichert {
         std::string name;
         std::array<std::string, 4> ziele;
@@ -1510,60 +1571,17 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     };
     std::vector<Gespeichert> liste;
     for (std::size_t i = 0; i < ents.size(); ++i) {
-        const MapEntity& e = ents[i];
-        const std::string k = klein(e.classname);
-        const bool klein2 = k == "waypoint_small";
-        if ((k != "waypoint" && !klein2) || e.origin.empty()) { continue; }
-        NavVec ort{};
-        {
-            std::istringstream is(e.origin);
-            is >> ort[0] >> ort[1] >> ort[2];
-        }
-        const int sf = ganz(e, "spawnflags");
-        const int ich = static_cast<int>(i);
-        const float b = klein2 ? 2.0F : kDefaultMaxs0;
-        const NavVec mins{-b, -b, kDefaultMins2};
-        NavVec maxs{b, b, kDefaultMaxs2};
-        if ((sf & 1) == 0 && imFesten(ort, mins, maxs, ich)) {
-            maxs[2] = kCrouchMaxs2;
-            if (imFesten(ort, mins, maxs, ich)) { continue; }   // "Waypoint ... in solid!", G_FreeEntity
-        }
-        int radius = 2;
-        if (!klein2) {
-            // waypoint_getRadius / waypoint_testDirection (g_nav.cpp:1198-1240)
-            unsigned int minDist = static_cast<unsigned int>(kMaxRadiusCheck) + 1U;
-            if (mitSpur) {
-                const NavSpurFn spur = spurBis(ich);
-                const NavVec tmins{-kDefaultMaxs0, -kDefaultMaxs0, kDefaultMins2 + kStepSize};
-                const NavVec tmaxs{kDefaultMaxs0, kDefaultMaxs0, kDefaultMaxs2};
-                for (int y = 0; y < kYawIterations; ++y) {
-                    NavVec vorn{};
-                    NavVec rechts{};
-                    qAchsen((360.0F / static_cast<float>(kYawIterations)) * static_cast<float>(y), vorn, rechts);
-                    const auto md = static_cast<float>(minDist);
-                    const NavVec ziel{ort[0] + vorn[0] * md, ort[1] + vorn[1] * md, ort[2] + vorn[2] * md};
-                    const NavSpur s = spur(ort, tmins, tmaxs, ziel, kNavKeineEntity, kNavSolid | kNavMonsterClip | kNavBotClip);
-                    const auto dist = static_cast<unsigned int>(md * s.fraction);
-                    if (dist < minDist) { minDist = dist; }
-                }
-            }
-            radius = static_cast<int>(minDist);
-        }
         NavNetzJk2::Knoten kn;
-        kn.punkt = ort;
-        kn.flags = sf;
-        kn.radius = radius;
+        if (!jk2KnotenSpawnen(ents, sicht, static_cast<int>(i), kn)) { continue; }
         n.knoten.push_back(std::move(kn));
+        const MapEntity& e = ents[i];
         Gespeichert g;
         g.name = e.targetname;
         g.ziele = {text(e, "target"), text(e, "target2"), text(e, "target3"), text(e, "target4")};
         g.id = static_cast<int>(n.knoten.size()) - 1;
         liste.push_back(std::move(g));
     }
-    const NavSpurFn spaet = spurBis(static_cast<int>(ents.size()));
-    const NavVec wpMins{-16.0F, -16.0F, -24.0F + kStepSize};   // g_navigator.cpp:41-42
-    const NavVec wpMaxs{16.0F, 16.0F, 32.0F};
-    const std::uint32_t wpMaske = kNavSolid | kNavBotClip | kNavMonsterClip;
+    const NavSpurFn spaet = sicht.spawnSpur(static_cast<int>(ents.size()));
     // NAV_GetStoredWaypoint (g_nav.cpp:1706-1723): der erste mit dem Namen
     const auto gespeichert = [&liste](const std::string& name) {
         if (name.empty()) { return -1; }
@@ -1580,7 +1598,7 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
             const int b2 = liste[static_cast<std::size_t>(t)].id;
             const NavVec p1 = n.knoten[static_cast<std::size_t>(g.id)].punkt;
             const NavVec p2 = n.knoten[static_cast<std::size_t>(b2)].punkt;
-            const NavSpur s = spurDurch(spaet, p1, wpMins, wpMaxs, p2, kNavKeineEntity, wpMaske);
+            const NavSpur s = jk2HardConnectSpur(spaet, p1, p2);
             const int kosten = static_cast<int>(abstand(p1, p2));
             const unsigned char flags = (s.fraction != 1.0F || s.startsolid || s.allsolid) ? 1U : 0U;
             jk2KanteDazu(n.knoten[static_cast<std::size_t>(g.id)], b2, kosten, flags);
@@ -1592,21 +1610,14 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     for (std::size_t a = 0; a < n.knoten.size(); ++a) {
         for (const NavNetzJk2::Kante& e : n.knoten[a].kanten) {
             if ((e.flags & 1U) == 0U) { continue; }
-            const NavSpur s = spurDurch(spaet, n.knoten[a].punkt, wpMins, wpMaxs, n.knoten[static_cast<std::size_t>(e.id)].punkt,
-                                        kNavKeineEntity, wpMaske);
+            const NavSpur s = jk2HardConnectSpur(spaet, n.knoten[a].punkt, n.knoten[static_cast<std::size_t>(e.id)].punkt);
             if (s.entity < 0 || s.entity >= static_cast<int>(ents.size()) || !(s.fraction < 1.0F || s.startsolid || s.allsolid)) {
                 continue;
             }
-            const MapEntity& x = ents[static_cast<std::size_t>(s.entity)];
-            const std::string kl = klein(x.classname);
-            bool fehl = false;
-            if (kl == "func_door") {
-                fehl = n.tuerFrei[static_cast<std::size_t>(s.entity)] == 0;
-            } else if (kl == "func_breakable" || kl == "func_glass" || kl == "misc_model_breakable" || kl == "misc_maglock") {
-                fehl = true;   // G_EntIsBreakable (g_breakable.cpp:1107-1133)
-            } else if (kl == "func_usable" && (ganz(x, "spawnflags") & 8) == 0 && !x.targetname.empty()) {
-                fehl = true;   // G_EntIsRemovableUsable (g_usable.cpp:83-94)
-            }
+            // G_EntIsDoor: nur eine Tuer, die nicht von selbst aufgeht; G_EntIsBreakable
+            // (g_breakable.cpp:1107-1133), G_EntIsRemovableUsable (g_usable.cpp:83-94).
+            const int blocker = jk2Blocker(ents[static_cast<std::size_t>(s.entity)]);
+            const bool fehl = blocker == 1 ? n.tuerFrei[static_cast<std::size_t>(s.entity)] == 0 : blocker == 2;
             if (!fehl) { continue; }
             const int ia = static_cast<int>(a);
             if (n.kanteFehl(ia, e.id) >= 0) { continue; }
@@ -1618,6 +1629,95 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     return netz;
 }
 }  // namespace
+
+// --- rc609 W1: NavKantenPruefer ---------------------------------------------------
+struct NavKantenPruefer::Innen {
+    Innen(const std::vector<MapEntity>& e, const NavBauHilfe& hilfe)
+        : ents(e), h(hilfe), sicht(e, hilfe), jk2(gJk2Nav.load(std::memory_order_relaxed)) {}
+    const std::vector<MapEntity>& ents;
+    const NavBauHilfe& h;
+    NavSpawnSicht sicht;
+    bool jk2 = false;
+    bool teamsDa = false;
+    NavTeams teams;
+    // Je Entity der Knoten wie im Spiel (nach Drop To Floor); nullopt: keiner.
+    std::unordered_map<int, std::optional<NavKnoten>> knoten;
+    std::unordered_map<int, std::optional<NavNetzJk2::Knoten>> knotenJk2;
+
+    const NavKnoten* knotenVon(int i) {
+        auto it = knoten.find(i);
+        if (it == knoten.end()) {
+            NavKnoten k;
+            std::optional<NavKnoten> o;
+            if (navKnotenSpawnen(ents, sicht, i, k)) {
+                if (sicht.mitSpur) { navKnotenAbsetzen(h, k); }
+                o = std::move(k);
+            }
+            it = knoten.emplace(i, std::move(o)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+    const NavNetzJk2::Knoten* knotenJk2Von(int i) {
+        auto it = knotenJk2.find(i);
+        if (it == knotenJk2.end()) {
+            NavNetzJk2::Knoten k;
+            std::optional<NavNetzJk2::Knoten> o;
+            if (jk2KnotenSpawnen(ents, sicht, i, k)) { o = std::move(k); }
+            it = knotenJk2.emplace(i, std::move(o)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+};
+
+NavKantenPruefer::NavKantenPruefer(const std::vector<MapEntity>& ents, const NavBauHilfe& h)
+    : d_(std::make_unique<Innen>(ents, h)) {}
+NavKantenPruefer::~NavKantenPruefer() = default;
+
+bool NavKantenPruefer::hatKnoten(int entity) {
+    if (entity < 0 || static_cast<std::size_t>(entity) >= d_->ents.size()) { return false; }
+    return d_->jk2 ? d_->knotenJk2Von(entity) != nullptr : d_->knotenVon(entity) != nullptr;
+}
+
+NavKantenErgebnis NavKantenPruefer::pruefe(int von, int nach, bool sprung) {
+    NavKantenErgebnis r;
+    const int zahl = static_cast<int>(d_->ents.size());
+    if (von == nach || von < 0 || nach < 0 || von >= zahl || nach >= zahl) { return r; }
+    if (d_->jk2) {
+        // HardConnect verbindet immer; EFLAG_BLOCKED nach der Spur (Stand von
+        // NAV_CheckCalcPaths, wie baueNavNetzJk2). targetJump kennt JK2 nicht.
+        const NavNetzJk2::Knoten* a = d_->knotenJk2Von(von);
+        const NavNetzJk2::Knoten* b = d_->knotenJk2Von(nach);
+        if (a == nullptr || b == nullptr || sprung) { return r; }
+        const NavSpur s = jk2HardConnectSpur(d_->sicht.spawnSpur(zahl), a->punkt, b->punkt);
+        if (!(s.fraction != 1.0F || s.startsolid || s.allsolid)) {
+            r.begehbar = true;
+        } else if (s.entity >= 0 && s.entity < zahl && jk2Blocker(d_->ents[static_cast<std::size_t>(s.entity)]) != 0) {
+            r.begehbar = true;
+            r.entity = s.entity;
+        }
+        r.gross = r.begehbar;
+        return r;
+    }
+    const NavKnoten* a = d_->knotenVon(von);
+    const NavKnoten* b = d_->knotenVon(nach);
+    if (a == nullptr || b == nullptr) { return r; }
+    if (sprung) {
+        r.begehbar = true;   // WE_JUMPING: WE_SIZE_LARGE, ohne TestEdge
+        r.gross = true;
+        return r;
+    }
+    if (!d_->teamsDa) {
+        d_->teams = navTeams(d_->ents);
+        d_->teamsDa = true;
+    }
+    NavKante k;
+    k.flags = NavKante::Gueltig;
+    k.laenge = abstand(a->punkt, b->punkt);
+    r.begehbar = navTestEdgeGroessen(d_->ents, d_->h, d_->teams, k, *a, *b);
+    r.gross = r.begehbar && k.groesse() == 2;
+    r.entity = r.begehbar ? k.entity : kNavKeineEntity;
+    return r;
+}
 
 // --- rc604 fix604 (JK2 Stufe 3) ------------------------------------------------
 // CNavigator::EdgeFailed (codeJK2/game/g_navigator.cpp:1837-1884): erst die
