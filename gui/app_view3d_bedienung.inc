@@ -2963,6 +2963,7 @@ void drawMapView() {
                 }
                 ActorState st = a.at(g_app->playMs);
                 aufnahmeFigurZustand(static_cast<int>(ai), g_app->playMs, st);
+                fahrzeugLenken(ai, g_app->playMs, st);
                 ActorDraw reitStand;
                 reitenAnwenden(a, g_app->playMs, st, reitStand);
                 if (!st.visible || spielerNichtZeichnen(a, g_app->playMs)) {

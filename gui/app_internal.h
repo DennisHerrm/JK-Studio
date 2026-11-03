@@ -2699,6 +2699,10 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b);   // jedes Bild: Steuern,
 // rc608: Sitzt die Figur gerade auf einem Fahrzeug? Dann Ort, Blick und Animation vom Fahrzeug (AttachRiders,
 // AnimateRiders); reitet in `d`. Nur im Bild: Ziele und Ton rechnen weiter mit dem Stand aus dem Skript.
 void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d);
+// rc608 Teil 13d: Ein gerittener Speeder oder ein Tier schaut nach dem Aufsteigen dorthin, wohin sein Reiter schaut
+// (ProcessOrientCommands); ein Tier steht in BOTH_VT_IDLE1 (AnimateVehicle). `fahrzeug` ist der Index in
+// scene.actors, `sv` sein Stand zu `ms`.
+void fahrzeugLenken(std::size_t fahrzeug, double ms, ActorState& sv);
 const App::Skeleton* skeletonFor(const GlmModel& model);
 void aufnahmeFigurZustand(int figur, double ms, ActorState& st);   // das Modell am gesteuerten Ort
 // Zeitleiste 4 Punkt 3: was PM_Footsteps von der Figur weiss, und ob ihr Modell

@@ -4768,21 +4768,100 @@ const std::string kSchussAnim = "BOTH_ATTACK3";
 // Dreht die Figur die Beine im Stand, nicht in der Kamera und lebend, laeuft auf "pelvis" die Drehanimation zur
 // Beinanimation in Schleife (BONE_ANIM_OVERRIDE_LOOP, ohne Uebergang), sonst G2API_StopBoneAnimIndex.
 // Die Gier aendert sich im Takt des Servers (sv_fps 20): Ob sie sich dreht, sieht man ueber dieses Bild hinweg.
-void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d) {
+namespace {
+// Welcher Ritt der Figur gilt zu `ms` (G_IsRidingVehicle)? nullptr: keiner, oder das Fahrzeug fehlt im Bild.
+const Actor::Ritt* rittBei(const Actor& a, double ms) {
     const Actor::Ritt* ritt = nullptr;
     for (const Actor::Ritt& r : a.ritte) {
         if (ms >= r.abMs && (r.bisMs < 0.0 || ms < r.bisMs)) { ritt = &r; }
     }
     if (ritt == nullptr || ritt->fahrzeug >= g_app->scene.actors.size() || ritt->fahrzeug >= g_app->actorAssets.size() ||
         !g_app->actorAssets[ritt->fahrzeug]) {
+        return nullptr;
+    }
+    return ritt;
+}
+
+// AnimateRiders: Aufsteigen mit SETANIM_FLAG_HOLD bis m_iBoarding, dann der Leerlauf. Der Speeder wartet "40%" der
+// Laenge der Reiteranimation (SpeederNPC.cpp OJ 790-807, MD 818-838), das Tier 70 % derselben Animation im
+// Animationssatz des TIERS (AnimateVehicle, AnimalNPC.cpp OJ 679-685, MD 575-583). PM_AnimLength = numFrames *
+// |frameLerp| als int (bg_panimate.cpp MD 6255), das Produkt mit 0.4f/0.7f auf int abgeschnitten. Das Ende pruefen
+// Update ("m_iBoarding <= level.time", g_vehicles.cpp MD 1842) und danach Animate im Pmove des Fahrzeugs je
+// Serverbild (sv_fps 20): Der Leerlauf beginnt im ersten Bild ab dem Ende. Im Spiel gemessen (SP/g13d):
+// BOTH_VS_MOUNT_R 26 Bilder zu 50 ms, 520 ms, Leerlauf 550 ms nach dem Aufsteigen. Bis dahin kehrt Update frueh
+// zurueck, das Fahrzeug lenkt nicht.
+double aufsteigDauer(const Actor& reiter, const Actor::Ritt& ritt) {
+    const Actor& v = g_app->scene.actors[ritt.fahrzeug];
+    const std::string auf = reiterAufsteigen(v.fahrzeug.typ, ritt.boarding);
+    const bool tier = v.fahrzeug.typ == "VH_ANIMAL";
+    const App::Skeleton* satz = tier ? g_app->actorAssets[ritt.fahrzeug]->skeleton : nullptr;
+    if (const std::size_t ai = static_cast<std::size_t>(&reiter - g_app->scene.actors.data());
+        !tier && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
+        satz = g_app->actorAssets[ai]->skeleton;
+    }
+    double dauer = 0.0;
+    if (satz != nullptr) {
+        for (const AnimEntry& e : satz->sections) {
+            if (e.name == auf) {
+                const int laenge = e.numFrames * static_cast<int>(std::fabs(animBildMs(e)));
+                dauer = std::floor(static_cast<double>(static_cast<float>(laenge) * (tier ? 0.7F : 0.4F)));
+            }
+        }
+    }
+    return std::ceil(dauer / 50.0) * 50.0;
+}
+}  // namespace
+
+void fahrzeugLenken(std::size_t fahrzeug, double ms, ActorState& sv) {
+    if (fahrzeug >= g_app->scene.actors.size()) { return; }
+    const Actor& v = g_app->scene.actors[fahrzeug];
+    if (!v.fahrzeug.da || (v.fahrzeug.typ != "VH_SPEEDER" && v.fahrzeug.typ != "VH_ANIMAL")) { return; }
+    // Das Tier selbst: Pmove ruft fuer jedes Fahrzeug Animate (bg_pmove.cpp MD 34328-34332), AnimateVehicle setzt
+    // im Stand BOTH_VT_IDLE1 mit SETANIM_FLAG_OVERRIDE auf die Beine, auch ohne Reiter und ueber das VT_MOUNT des
+    // Aufsteigens hinweg (AnimalNPC.cpp MD 600-640, OJ 700-740). Im Spiel gesehen (SP/g13d, Tauntaun): BOTH_VT_IDLE1
+    // ab dem ersten Bild nach dem Spawn, das VT_MOUNT_R nur fuer ein Bild. Der Speeder hat keine (AnimateVehicle leer).
+    if (v.fahrzeug.typ == "VH_ANIMAL" && !sv.moving) {
+        sv.animation = "BOTH_VT_IDLE1";
+        sv.torsoAnimation.clear();
+        sv.animStartMs = std::max(v.erscheintMs, 0.0);
+        sv.holdAnim = false;
+        sv.animSpeed = 1.0F;
+    }
+    for (const Actor& r : g_app->scene.actors) {
+        const Actor::Ritt* ritt = rittBei(r, ms);
+        if (ritt == nullptr || ritt->fahrzeug != fahrzeug || ms < ritt->abMs + aufsteigDauer(r, *ritt)) { continue; }
+        // ProcessOrientCommands (SP): "m_vOrientation[YAW] = rider_ps->viewangles[YAW]" (SpeederNPC.cpp MD 744,
+        // AnimalNPC.cpp MD 433; OpenJK ebenso). Im Spiel gesehen (SP/g13d): SET_ANGLES am Reiter dreht den Gleiter im
+        // selben Bild, SET_DYAW mit der Drehrate des Reiters (24 Grad je Bild).
+        sv.angles[1] = r.at(ms).angles[1];
         return;
     }
+}
+
+void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d) {
+    const Actor::Ritt* ritt = rittBei(a, ms);
+    if (ritt == nullptr) { return; }
     const Actor& v = g_app->scene.actors[ritt->fahrzeug];
     const App::ActorAssets& va = *g_app->actorAssets[ritt->fahrzeug];
-    const ActorState sv = v.at(ms);
+    ActorState sv = v.at(ms);
+    fahrzeugLenken(ritt->fahrzeug, ms, sv);
     // Board: "if ( pVeh->m_pVehicleInfo->hideRider ) Ghost": EF_NODRAW (g_vehicles.cpp OJ 2627).
     if (v.fahrzeug.reiterVerbergen) { st.visible = false; }
-    st.angles[1] = sv.angles[1];   // cg_players.cpp OJ 2751: Beine in die Richtung des Fahrzeugs
+    const std::string auf = reiterAufsteigen(v.fahrzeug.typ, ritt->boarding);
+    const double dauer = aufsteigDauer(a, *ritt);
+    const bool steigtAuf = !auf.empty() && ms < ritt->abMs + dauer;
+    // cg_players.cpp OJ 2751: Beine in die Richtung des Fahrzeugs. Board setzt den Blick des Reiters auf das Fahrzeug
+    // (SetClientViewAngle, g_vehicles.cpp MD 805-807); waehrend des Aufsteigens dreht NPC_UpdateAngles ihn je
+    // Serverbild um seine Drehrate zurueck zu seinem desiredYaw, das Fahrzeug folgt erst danach (fahrzeugLenken).
+    // Im Spiel gemessen (SP/g13d, Reiter mit Blick 90 auf einem Gleiter mit 0): 0, 24, 48, 72, 90 je Bild.
+    if (steigtAuf && !a.echterSpieler) {
+        const float rest = shortestAngleDelta(sv.angles[1], st.angles[1]);
+        const float rate = a.festeDrehrate >= 0.0F ? a.festeDrehrate : a.startDrehrate;
+        const float weg = static_cast<float>(std::floor((ms - ritt->abMs) / 50.0)) * rate * 0.05F;
+        st.angles[1] = sv.angles[1] + std::copysign(std::min(std::fabs(rest), weg), rest);
+    } else {
+        st.angles[1] = sv.angles[1];
+    }
     st.moving = false;
     // AttachRiders (g_vehicles.cpp OJ 2580): G2API_GetBoltMatrix(crotchBolt "*driver"), Ort
     for (int k = 0; k < 3; ++k) { st.pos[k] = sv.pos[k]; }
@@ -4797,23 +4876,13 @@ void reitenAnwenden(const Actor& a, double ms, ActorState& st, ActorDraw& d) {
             }
         }
     }
-    // numHands 2: "switch to vehicle weapon", die Hand bleibt leer (Board, g_vehicles.cpp OJ 800-815).
-    const std::string waffe = v.fahrzeug.haende == 2 && st.waffe != "WP_SABER" && st.waffe != "WP_BLASTER" ? "WP_NONE" : st.waffe;
     d.reitet = true;
+    const bool md = regelwerkMovieDuels();
+    const std::string waffe = reiterWaffe(v.fahrzeug.typ, v.fahrzeug.haende, st.waffe, st.saberActive, a.echterSpieler, !steigtAuf, md);
+    st.waffe = waffe;   // G_RemoveWeaponModels
     d.reitetOhneWaffe = waffe == "WP_NONE" || waffe == "WP_SABER";
-    // AnimateRiders: Aufsteigen mit SETANIM_FLAG_HOLD, "the delay is actually 40%" der Laenge, dann der Leerlauf.
-    const std::string auf = reiterAufsteigen(v.fahrzeug.typ, ritt->boarding);
-    const std::string leer = reiterLeerlauf(v.fahrzeug.typ, waffe);
+    const std::string leer = reiterLeerlauf(v.fahrzeug.typ, waffe, md);
     if (leer.empty()) { return; }
-    double dauer = 0.0;
-    if (const std::size_t ai = static_cast<std::size_t>(&a - g_app->scene.actors.data());
-        ai < g_app->actorAssets.size() && g_app->actorAssets[ai] && g_app->actorAssets[ai]->skeleton != nullptr) {
-        for (const AnimEntry& e : g_app->actorAssets[ai]->skeleton->sections) {
-            // PM_AnimLength: numFrames * fabs(frameLerp), frameLerp = 1000 / fps (G_ParseAnimationFile)
-            if (e.name == auf && e.fps != 0) { dauer = static_cast<double>(e.numFrames) * 1000.0 / std::abs(e.fps) * 0.4; }
-        }
-    }
-    const bool steigtAuf = !auf.empty() && ms < ritt->abMs + dauer;
     st.animation = steigtAuf ? auf : leer;
     st.animStartMs = steigtAuf ? ritt->abMs : ritt->abMs + dauer;
     st.holdAnim = steigtAuf;

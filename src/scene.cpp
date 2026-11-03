@@ -584,11 +584,46 @@ std::string reiterAufsteigen(const std::string& fahrzeugTyp, int boarding) {
     return {};
 }
 
-std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe) {
-    const std::string w = fahrzeugTyp == "VH_SPEEDER" ? "BOTH_VS_IDLE" : fahrzeugTyp == "VH_ANIMAL" ? "BOTH_VT_IDLE" : "";
+namespace {
+// "Compute The Weapon Pose": OpenJK nur WP_BLASTER (SpeederNPC.cpp OJ 900, AnimalNPC.cpp OJ 853), Movie Duels die
+// Liste von PM_WeaponOkOnVehicle mit seinen eigenen Gewehren (SpeederNPC.cpp MD 976-998, AnimalNPC.cpp MD 750-774).
+bool reiterGewehr(const std::string& waffe, bool movieDuels) {
+    if (!movieDuels) { return waffe == "WP_BLASTER"; }
+    static const char* const kListe[] = {"WP_BLASTER_PISTOL", "WP_BLASTER",       "WP_BRYAR_PISTOL", "WP_BOWCASTER",
+                                         "WP_REPEATER",       "WP_DEMP2",         "WP_FLECHETTE",    "WP_BATTLEDROID",
+                                         "WP_THEFIRSTORDER",  "WP_CLONECARBINE",  "WP_REBELBLASTER", "WP_CLONERIFLE",
+                                         "WP_CLONECOMMANDO",  "WP_Z6_ROTARY_CANNON", "WP_REBELRIFLE", "WP_REY",
+                                         "WP_JANGO",          "WP_BOBA",          "WP_CLONEPISTOL",  "WP_DUAL_CLONEPISTOL",
+                                         "WP_DUAL_PISTOL"};
+    for (const char* w : kListe) {
+        if (waffe == w) { return true; }
+    }
+    return false;
+}
+}  // namespace
+
+std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe, bool movieDuels) {
+    const bool tier = fahrzeugTyp == "VH_ANIMAL";
+    const std::string w = fahrzeugTyp == "VH_SPEEDER" ? "BOTH_VS_IDLE" : tier ? "BOTH_VT_IDLE" : "";
     if (w.empty()) { return w; }
-    if (waffe == "WP_BLASTER") { return w + "_G"; }      // WPOSE_BLASTER
-    if (waffe == "WP_SABER") { return w + "_SR"; }       // WPOSE_SABERRIGHT: VEH_SABERINLEFTHAND ist aus
+    if (reiterGewehr(waffe, movieDuels)) { return w + "_G"; }   // WPOSE_BLASTER
+    if (waffe == "WP_SABER") { return w + "_SR"; }              // WPOSE_SABERRIGHT: VEH_SABERINLEFTHAND ist aus
+    // WPOSE_NONE: das Tier im Stand BOTH_VT_IDLE1 (AnimalNPC.cpp OJ 972, MD 903), der Speeder BOTH_VS_IDLE.
+    return tier ? w + "1" : w;
+}
+
+std::string reiterWaffe(const std::string& fahrzeugTyp, int haende, const std::string& waffe, bool saberAn, bool spieler,
+                        bool aufgestiegen, bool movieDuels) {
+    const bool reittier = fahrzeugTyp == "VH_ANIMAL" || fahrzeugTyp == "VH_SPEEDER";
+    std::string w = waffe;
+    if (haende == 2) {
+        if (movieDuels && spieler) { w = "WP_NONE"; }   // "Riding means you get WP_NONE"
+        const bool erlaubt = w == "WP_SABER" || w == "WP_BLASTER" ||
+                             (movieDuels && (w == "WP_BLASTER_PISTOL" || w == "WP_BRYAR_PISTOL" || w == "WP_BOWCASTER" ||
+                                             w == "WP_REPEATER" || w == "WP_DEMP2" || w == "WP_FLECHETTE"));
+        if (!erlaubt || !reittier) { w = "WP_NONE"; }
+    }
+    if (aufgestiegen && reittier && w == "WP_SABER" && !saberAn) { w = "WP_NONE"; }
     return w;
 }
 
@@ -5606,6 +5641,19 @@ Scene buildOnce(const Script& s, const MapData& map,
             figurAnlegen(name.empty() ? e.classname + "#" + std::to_string(ei) : name, &e);
             out.actors.back().kartenEntity = static_cast<int>(ei);
             out.actors.back().kartenFigur = true;
+        }
+    }
+    // rc608 Teil 13d: wen ein use ( "<spawner>" ) spawnt, den gibt es im Spiel, auch wenn kein affect ihn nennt
+    // (G_UseTargets2 -> NPC_Spawn bzw. NPC_VehicleSpawnUse -> G_VehicleSpawn, NPC_spawn.cpp:3142 MD; der Name ist
+    // NPC_targetname, NPC_Spawn_Do :2703). Im Spiel gesehen: ein per use gespawnter Gleiter, den ein Reiter per
+    // SET_VEHICLE besteigt (SP/g13d, g13d_reit). Bis hierher fehlte er der Vorschau samt Ritt.
+    if (hilfe != nullptr && hilfe->erscheint != nullptr) {
+        for (const auto& [name, ab] : *hilfe->erscheint) {
+            (void)ab;
+            if (out.find(name) != nullptr) { continue; }
+            const MapEntity* sp = findSpawner(map, name);
+            if (sp == nullptr || !isNpcSpawner(*sp)) { continue; }
+            figurAnlegen(name, sp);
         }
     }
     // rc604: misc_atst_drivable - der AT-ST zum Einsteigen steht ab dem Laden

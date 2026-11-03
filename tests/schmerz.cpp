@@ -424,9 +424,22 @@ void figurEinstellungen() {
                     bhed::boardingSeite(0.0F, vo, hinten) == -3);
         erwarte("AnimateRiders: Speeder und Tier", bhed::reiterAufsteigen("VH_SPEEDER", -1) == "BOTH_VS_MOUNT_L" &&
                                                         bhed::reiterAufsteigen("VH_ANIMAL", -3) == "BOTH_VT_MOUNT_B" &&
-                                                        bhed::reiterLeerlauf("VH_SPEEDER", "WP_BLASTER") == "BOTH_VS_IDLE_G" &&
-                                                        bhed::reiterLeerlauf("VH_ANIMAL", "WP_NONE") == "BOTH_VT_IDLE" &&
-                                                        bhed::reiterLeerlauf("VH_FIGHTER", "WP_NONE").empty());
+                                                        bhed::reiterLeerlauf("VH_SPEEDER", "WP_BLASTER", false) == "BOTH_VS_IDLE_G" &&
+                                                        bhed::reiterLeerlauf("VH_FIGHTER", "WP_NONE", false).empty());
+        // rc608 Teil 13d: das Tier ohne Waffe BOTH_VT_IDLE1 (AnimalNPC.cpp MD 903), Movie Duels mit seiner Gewehrliste.
+        erwarte("AnimateRiders: Tier ohne Waffe, Gewehre von Movie Duels",
+                bhed::reiterLeerlauf("VH_ANIMAL", "WP_NONE", false) == "BOTH_VT_IDLE1" &&
+                    bhed::reiterLeerlauf("VH_SPEEDER", "WP_CLONERIFLE", true) == "BOTH_VS_IDLE_G" &&
+                    bhed::reiterLeerlauf("VH_SPEEDER", "WP_CLONERIFLE", false) == "BOTH_VS_IDLE");
+        // Im Spiel (SP/g13d): ein Jedi mit ausgeschaltetem Schwert sitzt nach dem Aufsteigen in BOTH_VS_IDLE.
+        erwarte("AnimateRiders: Schwert ohne Klinge wird weggesteckt, Board laesst nur erlaubte Waffen",
+                bhed::reiterWaffe("VH_SPEEDER", 2, "WP_SABER", false, false, false, true) == "WP_SABER" &&
+                    bhed::reiterWaffe("VH_SPEEDER", 2, "WP_SABER", false, false, true, true) == "WP_NONE" &&
+                    bhed::reiterWaffe("VH_SPEEDER", 2, "WP_SABER", true, false, true, true) == "WP_SABER" &&
+                    bhed::reiterWaffe("VH_SPEEDER", 2, "WP_REPEATER", false, false, true, true) == "WP_REPEATER" &&
+                    bhed::reiterWaffe("VH_SPEEDER", 2, "WP_REPEATER", false, false, true, false) == "WP_NONE" &&
+                    bhed::reiterWaffe("VH_SPEEDER", 2, "WP_BLASTER", false, true, true, true) == "WP_NONE" &&
+                    bhed::reiterWaffe("VH_WALKER", 2, "WP_BLASTER", false, false, true, false) == "WP_NONE");
         std::vector<bhed::Actor> f(3);
         f[0].name = "bike";
         f[0].fahrzeug.da = true;

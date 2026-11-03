@@ -488,6 +488,20 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                               l.ambient[2], l.directed[0], l.directed[1], l.directed[2], g_app->mapViewW, g_app->mapViewH);
                 diag::detail(z);
             }
+            // rc608 Teil 13d: Lage, Winkel und Haltung je Figur wie gezeichnet (Reiten gegen das Spiel, dort per
+            // print(get(...)) im Skript gemessen).
+            for (const Actor& a : g_app->scene.actors) {
+                if (!a.haveStart) { continue; }
+                ActorState st = a.at(g_app->playMs);
+                fahrzeugLenken(static_cast<std::size_t>(&a - g_app->scene.actors.data()), g_app->playMs, st);
+                ActorDraw rd;
+                reitenAnwenden(a, g_app->playMs, st, rd);
+                std::snprintf(z, sizeof(z), "Geschuetze Vergleich: %s bei %.1f %.1f %.1f, Winkel %.1f %.1f %.1f, %s%s%s", a.name.c_str(),
+                              static_cast<double>(st.pos[0]), static_cast<double>(st.pos[1]), static_cast<double>(st.pos[2]),
+                              static_cast<double>(st.angles[0]), static_cast<double>(st.angles[1]), static_cast<double>(st.angles[2]),
+                              st.animation.c_str(), st.visible ? "" : " (verborgen)", a.fahrzeug.da ? (" " + a.fahrzeug.typ).c_str() : "");
+                diag::detail(z);
+            }
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Bildzeit %.1f ms", static_cast<double>(1000.0F / std::max(ImGui::GetIO().Framerate, 0.1F)));
             diag::detail(z);
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Ansicht von %.0f %.0f bis %.0f %.0f", static_cast<double>(g_app->kartenAnsicht[0]), static_cast<double>(g_app->kartenAnsicht[1]),

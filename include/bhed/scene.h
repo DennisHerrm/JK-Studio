@@ -1552,7 +1552,14 @@ void rittePlanen(std::vector<Actor>& figuren, std::vector<RittBenutzung> benutzt
 // AnimateRiders je Fahrzeugart: Aufsteigen (VS_MOUNT/VT_MOUNT, 40 Prozent der Laenge bei den Speedern), danach
 // der Leerlauf mit der Waffenhaltung (WeaponPose). Name der Animation, leer: Fahrzeugart ohne Reiteranimation.
 [[nodiscard]] std::string reiterAufsteigen(const std::string& fahrzeugTyp, int boarding);
-[[nodiscard]] std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe);
+[[nodiscard]] std::string reiterLeerlauf(const std::string& fahrzeugTyp, const std::string& waffe, bool movieDuels);
+// rc608 Teil 13d: Die Waffe des Reiters. Board (g_vehicles.cpp OJ 804-822, MD 766-792): bei numHands 2 nur die
+// Waffen, die auf Speeder und Tier erlaubt sind (OpenJK Schwert und E-11, Movie Duels dazu Pistolen, Bowcaster,
+// Repeater, DEMP2, Flechette; der Spieler in Movie Duels immer WP_NONE), sonst WP_NONE. Nach dem Aufsteigen
+// (`aufgestiegen`) AnimateRiders "Put Away Saber When It Is Not Active" (SpeederNPC.cpp OJ 858-873, MD 960-975;
+// AnimalNPC.cpp MD 709-723): ein Schwert ohne aktive Klinge wird WP_NONE.
+[[nodiscard]] std::string reiterWaffe(const std::string& fahrzeugTyp, int haende, const std::string& waffe, bool saberAn, bool spieler,
+                                      bool aufgestiegen, bool movieDuels);
 [[nodiscard]] std::vector<std::pair<double, double>> spielerVorschauSpannen(
     const std::vector<std::pair<double, double>>& kamera, const std::vector<ActorStep>& schritte);
 // Die Ausstattung beim Spawnen. def ist die .npc der Figur oder nullptr.

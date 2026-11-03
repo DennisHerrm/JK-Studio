@@ -2163,7 +2163,6 @@ private:
     }
 
     bool fuehreSetAus(Wesen& w, int wi, const Node& n, int id) {
-        (void)wi;
         const std::string typ = n.args[0].text;
         const std::string wert = wertArg(w, n.args[1]);
         const std::string k = klein(typ);
@@ -2174,6 +2173,13 @@ private:
         }
         if (k.rfind("set_parm", 0) == 0) {
             w.parm[k] = wert;
+            return true;
+        }
+        // rc608 Teil 13d: "case SET_VEHICLE: Use(entID, data)" (Q3_Interface.cpp:10076 MD, OpenJK ebenso) - dasselbe
+        // wie use ( wert ) dieser Figur; ein Fahrzeug laesst sie damit aufsteigen (NPC_Use -> Board). Im Spiel gesehen
+        // (SP/g13d): der Reiter steigt im Bild des Befehls auf.
+        if (k == "set_vehicle") {
+            benutze(wert, wi, 0);
             return true;
         }
         // rc605 (Ende): Q3_SetMissionFailed (Q3_Interface.cpp:811-832 OpenJK,
