@@ -501,6 +501,21 @@ inline std::vector<Schritt> schritte() {
             ed.kamFenster.messHoehe = 0;
             ed.filterMaske = 0;
         }));
+        // rc608 Teil 13c: Halme und Effekte im Spielbild - dieselben Szenen wie der Selbsttest teil13c, je ohne und mit; die
+        // Shaderzeit laeuft (Halme im Wind, Teilchen).
+        for (Schritt& x : teil13c::yavinSzene(std::make_shared<int>(0))) { s.push_back(std::move(x)); }
+        add(bildzeit("Map Editor duel_yavin ohne Halme", [] { g_app->zeigeGras = false; }, nullptr));
+        add(bildzeit("Map Editor duel_yavin mit Halmen", [] { g_app->zeigeGras = true; }, nullptr));
+        for (Schritt& x : teil13c::amSithSzene(std::make_shared<std::size_t>(0))) { s.push_back(std::move(x)); }
+        add(bildzeit("Map Editor md_am_sith ohne Effekte", [] { g_app->showEffects = false; }, nullptr));
+        add(bildzeit("Map Editor md_am_sith mit Effekten", [] { g_app->showEffects = true; }, nullptr));
+        add(tu("Leistung: Vorlage md_am_sith weg", [] {
+            ke::vorlageEntfernen();
+            ke::Editor& ed = ke::editor();
+            ed.kamFenster.messBreite = 0;
+            ed.kamFenster.messHoehe = 0;
+            ed.filterMaske = 0;
+        }));
         if (const char* m = std::getenv("BHED_LEISTUNG_MAP"); m != nullptr && m[0] != '\0') {
             const std::string karte = m;
             auto t0 = std::make_shared<std::chrono::steady_clock::time_point>();

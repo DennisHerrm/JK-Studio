@@ -4424,7 +4424,6 @@ struct WeaponFx {
     const efx::Effect* impact = nullptr;
 };
 
-void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus, int* ohneDateiAus);
 
 const efx::Effect* effectByName(const std::string& name) {
     if (name.empty()) {
@@ -5695,11 +5694,6 @@ const App::Skeleton* skeletonFor(const GlmModel& model) {
 // Also Endung abschneiden, dann "effects/" davor und ".efx" dahinter. Der
 // Schluessel "fxfile" steht in der Karte oft schon mit Endung, oft ohne -
 // beides muss zum selben Ergebnis fuehren.
-// rc604: G_SpawnGEntityFromSpawnVars entfernt jede Entity mit "notsingle"
-// oder dem Bit der Schwierigkeit (spawnflags & (1 << (8 + g_spskill)),
-// code/game/g_spawn.cpp:1064-1075, 1096-1101 OpenJK, :1260-1265 MD) - vor
-// ihrer Spawnfunktion. Die Vorschau zeigt sie dann nicht.
-bool gespawntImSpiel(const MapEntity& e);
 
 // Stufe 6 (OpenJK#1358): CG_DrawMiscEnts (OpenJK code/cgame/cg_main.cpp, MD
 // cg_main.cpp:3224-3227) zeichnet ein misc_model_static nur bei gi.inPVS(vieworg,
@@ -5721,6 +5715,51 @@ bool gespawntImSpiel(const MapEntity& e) {
     return e.classname == "worldspawn" || spawntBeiSchwierigkeit(e, regelwerkSpielstufe());
 }
 
+std::vector<BrushStellung> brushModelleImSpiel(const std::vector<MapEntity>& entities, const BspGeometry& geo, const MoverSim& sim, double ms,
+                                               const std::vector<bool>& anderswo) {
+    // Ein Brush-Modell mit "origin" hat seine Geometrie RELATIV dazu (q3map2 zieht den Ursprung ab, sobald ein
+    // origin-Brush im Gebilde steckt); die Engine addiert ihn beim Zeichnen wieder (md_am_sith: sta2 lag sonst 7000
+    // Einheiten daneben).
+    std::unordered_map<int, std::array<float, 3>> modellOrt;
+    std::vector<bool> zeigen(geo.models.size(), false);
+    for (const MapEntity& e : entities) {
+        const std::string* mdl = e.find("model");
+        int nummer = 0;
+        if (mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*' || !parseInt(mdl->substr(1), nummer)) { continue; }
+        std::array<float, 3> o{0.0F, 0.0F, 0.0F};
+        if (!e.origin.empty()) {
+            std::istringstream is(e.origin);
+            is >> o[0] >> o[1] >> o[2];
+        }
+        modellOrt[nummer] = o;
+        if (nummer > 0 && static_cast<std::size_t>(nummer) < zeigen.size() && gespawntImSpiel(e) &&
+            kartenpruefung::brushModellImBild(e.classname, regelwerkMovieDuels())) {
+            zeigen[static_cast<std::size_t>(nummer)] = true;
+        }
+    }
+    std::vector<BrushStellung> aus;
+    for (std::size_t k = 1; k < geo.models.size(); ++k) {
+        if (!zeigen[k] || (k < anderswo.size() && anderswo[k])) { continue; }
+        BrushStellung b;
+        b.modell = static_cast<int>(k);
+        const MoverSim::Stand st = sim.at(b.modell, ms);
+        if (st.bekannt) {
+            if (!st.sichtbar) { continue; }   // func_wall/func_usable START_OFF
+            for (int q = 0; q < 3; ++q) {
+                b.ort[q] = st.origin[q];
+                b.winkel[q] = st.angles[q];
+            }
+        } else {
+            const auto ort = modellOrt.find(b.modell);
+            if (ort != modellOrt.end()) {
+                for (int q = 0; q < 3; ++q) { b.ort[q] = ort->second[static_cast<std::size_t>(q)]; }
+            }
+        }
+        aus.push_back(b);
+    }
+    return aus;
+}
+
 // Die Portale zur Zeit der Ansicht und was das Auge davon sieht (bhed/areaportal.h). Das Auge ist
 // die Kamera der Ansicht: Im Spiel ist es der Spieler (SV_BuildClientSnapshot), die Vorschau hat eine
 // freie Kamera, die ueberall hinfliegt. Nur bei einer Aenderung geht eine neue Maske an die Grafik.
@@ -5740,17 +5779,7 @@ void areaPortaleJetzt(const float auge[3]) {
     }
     for (std::size_t i = 0; i < app.portalEnts.size(); ++i) {
         const PortalEntity& p = app.portalEnts[i];
-        const MoverSim::Stand st = app.moverSim.at(p.modell, app.playMs);
-        bool offen = false;
-        if (st.bekannt) {
-            if (p.art == PortalEntity::Art::Mover) {
-                // Use_BinaryMover oeffnet es, Reached_BinaryMover schliesst es wieder in MOVER_POS1.
-                const MoverSim::Stand anfang = app.moverSim.at(p.modell, 0.0);
-                for (int k = 0; k < 3; ++k) { offen = offen || st.origin[k] != anfang.origin[k] || st.angles[k] != anfang.angles[k]; }
-            } else {
-                offen = !st.sichtbar;
-            }
-        }
+        const bool offen = portalOffenImSpiel(p, app.moverSim, app.playMs);
         if (offen != (app.portalOffen[i] != 0)) {
             app.portalOffen[i] = offen ? 1 : 0;
             app.areaPortale.setze(p.gebiete.a, p.gebiete.b, offen);
@@ -5763,6 +5792,17 @@ void areaPortaleJetzt(const float auge[3]) {
         app.areaCluster = -2;
     }
     areaSichtSetzen(auge);
+}
+
+bool portalOffenImSpiel(const PortalEntity& p, const MoverSim& sim, double ms) {
+    const MoverSim::Stand st = sim.at(p.modell, ms);
+    if (!st.bekannt) { return false; }
+    if (p.art != PortalEntity::Art::Mover) { return !st.sichtbar; }
+    // Use_BinaryMover oeffnet es, Reached_BinaryMover schliesst es wieder in MOVER_POS1.
+    const MoverSim::Stand anfang = sim.at(p.modell, 0.0);
+    bool offen = false;
+    for (int k = 0; k < 3; ++k) { offen = offen || st.origin[k] != anfang.origin[k] || st.angles[k] != anfang.angles[k]; }
+    return offen;
 }
 
 // R_MarkLeaves: das Blatt von tr.viewParms.pvsOrigin gibt Cluster (PVS) und Gebiet (areamask).
@@ -8025,7 +8065,9 @@ void prepareScene() {
 // (Aufprall, Tod, Fahne, playfx) kamen spaeter ueber effectByName und
 // bekamen nie ein Bild - Slot 0, die erste Textur der Karte. Seit rc569 gehen sie denselben Weg (siehe die
 // Vorabladung in loadMapEffects).
-void ladeEffektShader(const efx::Effect& ef) {
+void ladeEffektShader(const efx::Effect& ef, const EffektZiel& ziel) {
+    EffectShaderSlots& plaetze = ziel.plaetze != nullptr ? *ziel.plaetze : g_app->effectShaders;
+    TextureSet& satz = ziel.satz != nullptr ? *ziel.satz : g_app->textures;
     for (const efx::Primitive& pr : ef.primitives) {
         if (pr.shaders.empty()) {
             continue;
@@ -8052,14 +8094,14 @@ void ladeEffektShader(const efx::Effect& ef) {
             ch = static_cast<char>(
                 std::tolower(static_cast<unsigned char>(ch)));
         }
-        if (g_app->effectShaders.count(low) != 0U) {
+        if (plaetze.count(low) != 0U) {
             continue;
         }
         TextureSet::Tex t;
         if (!loadTextureFor(shName, t)) {
             // Kein Bild: Nummer 0 heisst "ohne", dann bleibt es
             // beim farbigen Viereck wie bisher.
-            g_app->effectShaders[low] = 0;
+            plaetze[low] = 0;
             diag::detail("  kein Bild fuer Effektshader " + shName);
             continue;
         }
@@ -8157,8 +8199,8 @@ void ladeEffektShader(const efx::Effect& ef) {
         // oneshotanimmap-Stufen (rgbGen wave inversesawtooth/sawtooth), gezeigt
         // wurde das erste Bild der ersten. Das Effektnetz geht durch dieselbe
         // zeichenliste wie die Karte - die Zusatzstufen zeichnet sie schon.
-        const int basisPlatz = static_cast<int>(g_app->textures.byShader.size());
-        g_app->textures.byShader.emplace_back();   // Platz der Grundstufe
+        const int basisPlatz = static_cast<int>(satz.byShader.size());
+        satz.byShader.emplace_back();   // Platz der Grundstufe
         if (const auto si = g_app->shaderMap.find(low); si != g_app->shaderMap.end()) {
             basisBildfolgeLaden(si->second, basisPlatz, shName, t);
             bool ersteEchte = true;
@@ -8172,15 +8214,15 @@ void ladeEffektShader(const efx::Effect& ef) {
                 // Teilchen (tr_shade.cpp:1888 MD) - Halme darauf zeichnet die
                 // Vorschau nicht (kartenpruefung: "effekt: surfacesprites").
                 if (st.ss.aktiv()) { continue; }
-                const std::size_t platzVorher = g_app->textures.byShader.size();
+                const std::size_t platzVorher = satz.byShader.size();
                 zusatzstufeLaden(si->second, st, shName, t);
-                for (std::size_t k = platzVorher; k < g_app->textures.byShader.size(); ++k) {
-                    effektStufeFarbe(st, g_app->textures.byShader[k]);
+                for (std::size_t k = platzVorher; k < satz.byShader.size(); ++k) {
+                    effektStufeFarbe(st, satz.byShader[k]);
                 }
             }
         }
-        g_app->effectShaders[low] = basisPlatz;
-        g_app->textures.byShader[static_cast<std::size_t>(basisPlatz)] = std::move(t);
+        plaetze[low] = basisPlatz;
+        satz.byShader[static_cast<std::size_t>(basisPlatz)] = std::move(t);
         }   // Ende: alle Texturen dieses Bausteins
     }
 }
@@ -8232,8 +8274,9 @@ void effektStufeFarbe(const ShaderInfo::Stage& st, TextureSet::Tex& z) {
 //
 // `herkunft` steht nur im Protokoll (was in der Karte stand). false: die
 // Datei fehlt oder ist nicht lesbar - schon gemeldet.
-bool ladeEffektDatei(const std::string& path, const std::string& herkunft) {
-    if (g_app->effects.find(path) != g_app->effects.end()) {
+bool ladeEffektDatei(const std::string& path, const std::string& herkunft, const EffektZiel& ziel) {
+    std::map<std::string, efx::Effect>& effekte = ziel.effekte != nullptr ? *ziel.effekte : g_app->effects;
+    if (effekte.find(path) != effekte.end()) {
         return true;
     }
     {
@@ -8255,7 +8298,7 @@ bool ladeEffektDatei(const std::string& path, const std::string& herkunft) {
         // (loadTextureFor), also auch mit blendFunc: fast alle
         // Effektshader sind additiv, und erst dadurch werden aus
         // schwarzen Kaesten weiche Wolken.
-        ladeEffektShader(r.effect);
+        ladeEffektShader(r.effect, ziel);
         if (diag::detailOn()) {
             diag::detail("Effekt " + path);
             for (const efx::Diagnostic& d : r.diagnostics) {
@@ -8301,7 +8344,7 @@ bool ladeEffektDatei(const std::string& path, const std::string& herkunft) {
             diag::info("Effekt nicht lesbar: " + path + " - " + why);
             return false;
         }
-        g_app->effects[path] = r.effect;
+        effekte[path] = r.effect;
     }
     return true;
 }

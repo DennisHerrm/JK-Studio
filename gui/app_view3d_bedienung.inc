@@ -2657,118 +2657,34 @@ void drawMapView() {
         }
 
         {
-            // Jedes Untermodell MIT Entity wird gezeichnet, nicht nur die
-            // bewegten: die Welt (Modell 0) enthaelt sie nicht. Wer kein
-            // Skript hat, steht mit Verschiebung null an seinem Platz. Ohne
-            // Entity zeichnet das Spiel es nicht (nur CG_Mover bringt es ins
-            // Bild): die Tueren auf einer Karte ohne Entity-Eintrag.
-            // Wo steht welches Brush-Modell?
-            //
-            // Ein Brush-Modell mit einem "origin"-Schluessel hat seine
-            // Geometrie RELATIV dazu gespeichert - q3map2 zieht den
-            // Ursprung ab, sobald ein origin-Brush im Gebilde steckt. Die
-            // Engine addiert ihn beim Zeichnen wieder.
-            //
-            // Genau das fehlte: md_am_sith hat vier solche Gebilde
-            // (armpiece1/2, plat1 und das Raumschiff sta2), und alle vier
-            // wurden am NULLPUNKT der Karte gezeichnet statt an ihrem
-            // Platz. Bei sta2 fiel es auf, weil es sich auch noch bewegen
-            // sollte - "die raumschiff animation fehlt".
-            //
-            // Modell 125 hat Ausmasse von -118 bis 84 um die Null, der
-            // Eintrag dazu "origin" "-1514 7376 645". Ohne die Addition
-            // liegt das Schiff 7000 Einheiten daneben.
-            std::unordered_map<int, std::array<float, 3>> modellOrt;
-            for (const MapEntity& e : g_app->map.entities) {
-                const std::string* mdl = e.find("model");
-                if (mdl == nullptr || mdl->empty() || (*mdl)[0] != '*') {
-                    continue;
-                }
-                int nummer = 0;
-                if (!parseInt(mdl->substr(1), nummer)) {
-                    continue;
-                }
-                std::array<float, 3> o{0.0F, 0.0F, 0.0F};
-                if (!e.origin.empty()) {
-                    std::istringstream is(e.origin);
-                    is >> o[0] >> o[1] >> o[2];
-                }
-                modellOrt[nummer] = o;
-            }
-            // schonDa: nicht hier zu zeichnen. Zuerst alle, dann die Entities,
-            // die das Spiel zeigt. rc604: Brush-Modelle entfernter Entities
-            // (notsingle/Schwierigkeit, G_SpawnGEntityFromSpawnVars) gibt es
-            // im Spiel nicht.
+            // Die Brush-Modelle, die das Spiel an ihrer Entity zeichnet, in ihrer Stellung (brushModelleImSpiel, dieselbe
+            // Regel wie das Spielbild des Karten-Editors). Modelle mit Figur (Skript) kommen gleich mit ihrer Bewegung.
             areaPortaleJetzt(useCam.pos);
-            std::vector<bool> schonDa(g_app->geo.models.size(), true);
-            for (const MapEntity& e : g_app->map.entities) {
-                const std::string* mdl = e.find("model");
-                int nummer = 0;
-                if (mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*' || !parseInt(mdl->substr(1), nummer)) { continue; }
-                if (nummer > 0 && static_cast<std::size_t>(nummer) < schonDa.size() && gespawntImSpiel(e) &&
-                    kartenpruefung::brushModellImBild(e.classname, regelwerkMovieDuels())) {
-                    schonDa[static_cast<std::size_t>(nummer)] = false;
-                }
-            }
+            std::vector<bool> anderswo(g_app->geo.models.size(), false);
             brushStand.clear();
             for (const Actor& a : g_app->scene.actors) {
-                if (a.brushModel <= 0 || !a.haveStart ||
-                    static_cast<std::size_t>(a.brushModel) >=
-                        schonDa.size()) {
+                if (a.brushModel <= 0 || !a.haveStart || static_cast<std::size_t>(a.brushModel) >= anderswo.size()) {
                     continue;   // 0 waere die Welt selbst
                 }
-                schonDa[static_cast<std::size_t>(a.brushModel)] = true;
+                anderswo[static_cast<std::size_t>(a.brushModel)] = true;
             }
-            for (std::size_t k = 1; k < g_app->geo.models.size(); ++k) {
-                if (schonDa[k]) {
-                    continue;   // kommt gleich mit seiner Bewegung
-                }
-                const auto have = g_app->brushMeshes.find(static_cast<int>(k));
+            for (const BrushStellung& b : brushModelleImSpiel(g_app->map.entities, g_app->geo, g_app->moverSim, g_app->playMs, anderswo)) {
+                const auto have = g_app->brushMeshes.find(b.modell);
                 if (have == g_app->brushMeshes.end()) {
-                    g_app->brushMeshes.emplace(
-                        static_cast<int>(k),
-                        // Der Himmelsschalter gilt auch fuer bewegliche
-                        // Teile - siehe die Vorgabe in bspgeo.h.
-                        buildModelMesh(g_app->geo, static_cast<int>(k),
-                                       g_app->meshDetail,
-                                       !g_app->showSky));
+                    // Der Himmelsschalter gilt auch fuer bewegliche Teile - siehe die Vorgabe in bspgeo.h.
+                    g_app->brushMeshes.emplace(b.modell, buildModelMesh(g_app->geo, b.modell, g_app->meshDetail, !g_app->showSky));
                 }
-                const BspMesh& bm = g_app->brushMeshes[static_cast<int>(k)];
-                if (bm.indexes.empty()) {
-                    continue;
-                }
+                const BspMesh& bm = g_app->brushMeshes[b.modell];
+                if (bm.indexes.empty()) { continue; }
                 MoverDraw m;
                 m.mesh = &bm;
-                m.brush = static_cast<int>(k);
-                // Tueren, func_wall & Co.: der Stand aus der Mover-
-                // Simulation (bhed/mover.h) - Ort, Winkel, sichtbar.
-                const MoverSim::Stand ms =
-                    g_app->moverSim.at(static_cast<int>(k), g_app->playMs);
-                if (ms.bekannt) {
-                    if (!ms.sichtbar) {
-                        continue;   // func_wall/func_usable START_OFF
-                    }
-                    for (int q = 0; q < 3; ++q) {
-                        m.offset[q] = ms.origin[q];
-                    }
-                    m.pitch = ms.angles[0];
-                    m.yaw = ms.angles[1];
-                    m.roll = ms.angles[2];
-                    movers.push_back(m);
-                    brushStand[static_cast<int>(k)] = m;
-                    continue;
-                }
-                // Der Ursprung der Entity ist die Verschiebung. Fuer die
-                // allermeisten Modelle ist er null - dann steht es, wo es
-                // steht, wie bisher.
-                const auto ort = modellOrt.find(static_cast<int>(k));
-                if (ort != modellOrt.end()) {
-                    for (int q = 0; q < 3; ++q) {
-                        m.offset[q] = ort->second[static_cast<std::size_t>(q)];
-                    }
-                }
+                m.brush = b.modell;
+                for (int q = 0; q < 3; ++q) { m.offset[q] = b.ort[q]; }
+                m.pitch = b.winkel[0];
+                m.yaw = b.winkel[1];
+                m.roll = b.winkel[2];
                 movers.push_back(m);
-                brushStand[static_cast<int>(k)] = m;
+                brushStand[b.modell] = m;
             }
         }
         if (g_app->showActors && !g_app->scene.actors.empty()) {

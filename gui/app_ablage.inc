@@ -2029,11 +2029,13 @@ void playSoundSchleife(const std::string& name, double dauerMs, float lautstaerk
 // nichts, ist es Fall 1 oder 3 - und die Zahl der durchsuchten Archive
 // beantwortet nebenbei die Frage, ob ueberhaupt ueberall gesucht wurde.
 // rc608 Teil 11: Wohin loadMapTextures laedt. Leer: die Karte der Vorschau (g_app). Der Karten-Editor laedt so die
-// Bilder seiner gebauten Karte nach denselben Regeln (loadMapTexturesFuer) - ohne Gras und ohne Fehlermeldungen.
+// Bilder seiner gebauten Karte nach denselben Regeln (loadMapTexturesFuer) - ohne Fehlermeldungen; die Halm-Stufen
+// (surfaceSprites) in `gras` (rc608 Teil 13c).
 struct TexturLadeZiel {
     const BspGeometry* geo = nullptr;
     TextureSet* textures = nullptr;
     std::unordered_set<std::string>* kartenBilder = nullptr;
+    GrasStufenZiel gras;
 };
 TexturLadeZiel g_ladeZiel;
 TextureSet& ladeSatz() { return g_ladeZiel.textures != nullptr ? *g_ladeZiel.textures : g_app->textures; }
@@ -2986,9 +2988,9 @@ void loadMapTextures() {
                     // danach als Halme (RB_DrawSurfaceSprites). Bis rc604
                     // lag hier das Bild der Halme flach auf dem Boden.
                     if (st.ss.aktiv()) {
-                        if (vorschau) {
+                        if (vorschau || g_ladeZiel.gras.stufen != nullptr) {
                             grasStufeLaden(si->second, st,
-                                           static_cast<std::size_t>(&st - si->second.stages.data()), sh.name, i);
+                                           static_cast<std::size_t>(&st - si->second.stages.data()), sh.name, i, g_ladeZiel.gras);
                         }
                         continue;
                     }
@@ -3126,10 +3128,12 @@ void loadMapTextures() {
     if (vorschau) { g_app->mapDirty = true; }
 }
 
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, const std::function<void()>& danach) {
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, const std::function<void()>& danach,
+                         const GrasStufenZiel& gras) {
     g_ladeZiel.geo = &geo;
     g_ladeZiel.textures = &ziel;
     g_ladeZiel.kartenBilder = &bilder;
+    g_ladeZiel.gras = gras;
     loadMapTextures();
     if (danach) { danach(); }
     g_ladeZiel = TexturLadeZiel{};

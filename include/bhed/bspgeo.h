@@ -515,6 +515,9 @@ struct BspMesh {
         int hoehe = 0;
         std::vector<float> breiteFehler;   // widthLodError
         std::vector<float> hoeheFehler;    // heightLodError
+        // rc608 Teil 13c: die inneren Fehler (ohne erste und letzte Spalte/Zeile) aufsteigend sortiert, fuer patchLodWahl
+        std::vector<float> breiteStufen;
+        std::vector<float> hoeheStufen;
         float lodOrt[3]{};                 // lodOrigin: Mitte von lightmapVecs[0..1] (ParseMesh)
         float lodRadius = 0.0F;
     };
@@ -527,10 +530,17 @@ struct BspMesh {
 inline constexpr int kPatchWieImSpiel = 0;
 inline constexpr float kRSubdivisions = 4.0F;
 inline constexpr float kRLodCurveError = 250.0F;
-// RB_SurfaceGrid: welche Spalten (spalten) und Zeilen (zeilen) des Gitters dieses Bild nimmt - Auge `auge`, Blickrichtung
-// `vorn` (viewParms.ori.axis[0]), Fehlergrenze r_lodCurveError.
-void patchLodTabellen(const BspMesh::PatchGitter& g, const float auge[3], const float vorn[3], float lodCurveError, std::vector<int>& spalten,
-                      std::vector<int>& zeilen);
+// RB_SurfaceGrid: welche Spalten (spalten) und Zeilen (zeilen) des Gitters dieses Bild nimmt - lodOrigin in der Welt
+// `lodOrt` (bei der Welt g.lodOrt, bei einer Entity mit ihrer Stellung gerechnet), Auge `auge`, Blickrichtung `vorn`
+// (viewParms.ori.axis[0]), Fehlergrenze r_lodCurveError.
+void patchLodTabellen(const BspMesh::PatchGitter& g, const float lodOrt[3], const float auge[3], const float vorn[3], float lodCurveError,
+                      std::vector<int>& spalten, std::vector<int>& zeilen);
+// rc608 Teil 13c: dieselbe Wahl ohne die Tabellen - die Zahl der inneren Spalten (obere 16 Bit) und Zeilen (untere 16 Bit),
+// die RB_SurfaceGrid nimmt. Gleiche Zahl heisst gleiche Spalten und Zeilen (die Mengen wachsen mit lodError ineinander).
+// patchLodVoll: die Wahl des vollen Gitters.
+[[nodiscard]] std::uint32_t patchLodWahl(const BspMesh::PatchGitter& g, const float lodOrt[3], const float auge[3], const float vorn[3],
+                                         float lodCurveError);
+[[nodiscard]] std::uint32_t patchLodVoll(const BspMesh::PatchGitter& g);
 // Die Indizes des Gitters mit diesen Spalten und Zeilen (RB_SurfaceGrid), ab ersteEcke gezaehlt.
 void patchLodIndizes(const BspMesh::PatchGitter& g, const std::vector<int>& spalten, const std::vector<int>& zeilen, std::vector<std::uint32_t>& aus);
 

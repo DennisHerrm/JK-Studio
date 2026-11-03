@@ -1090,6 +1090,12 @@ BspMesh::PatchGitter unterteilePatch(const BspGeometry& geo, const BspSurface& s
     g.hoehe = hoehe;
     g.breiteFehler.assign(fehler[0], fehler[0] + breite);
     g.hoeheFehler.assign(fehler[1], fehler[1] + hoehe);
+    // rc608 Teil 13c: die inneren Fehler sortiert - RB_SurfaceGrid nimmt jede innere Spalte mit Fehler <= lodError, die
+    // Mengen wachsen also mit lodError ineinander; ihre Groesse bestimmt die Wahl (patchLodWahl).
+    if (breite > 2) { g.breiteStufen.assign(g.breiteFehler.begin() + 1, g.breiteFehler.end() - 1); }
+    if (hoehe > 2) { g.hoeheStufen.assign(g.hoeheFehler.begin() + 1, g.hoeheFehler.end() - 1); }
+    std::sort(g.breiteStufen.begin(), g.breiteStufen.end());
+    std::sort(g.hoeheStufen.begin(), g.hoeheStufen.end());
     for (int j = 0; j < hoehe; ++j) {
         for (int i = 0; i < breite; ++i) { ecken.push_back(c.at(j, i)); }
     }
@@ -1196,18 +1202,34 @@ BspMesh buildModelMesh(const BspGeometry& geo, int index, int level,
                       static_cast<std::size_t>(m.numSurfaces));
 }
 
-// RB_SurfaceGrid und LodErrorForVolume (tr_surface.cpp:1391-1418 OpenJK, :1486-1513 Movie Duels); die Welt hat die
-// Einheitsstellung (backEnd.ori), lodOrigin steht also schon in Weltkoordinaten.
-void patchLodTabellen(const BspMesh::PatchGitter& g, const float auge[3], const float vorn[3], float lodCurveError, std::vector<int>& spalten,
-                      std::vector<int>& zeilen) {
-    float lodError = 0.0F;
-    if (lodCurveError >= 0.0F) {
-        float d = (g.lodOrt[0] - auge[0]) * vorn[0] + (g.lodOrt[1] - auge[1]) * vorn[1] + (g.lodOrt[2] - auge[2]) * vorn[2];
-        if (d < 0.0F) { d = -d; }
-        d -= g.lodRadius;
-        if (d < 1.0F) { d = 1.0F; }
-        lodError = lodCurveError / d;
-    }
+namespace {
+// LodErrorForVolume (tr_surface.cpp:1391-1418 OpenJK, :1486-1513 Movie Duels): `lodOrt` in Weltkoordinaten (die Engine
+// rechnet lodOrigin mit backEnd.ori in die Welt; fuer die Welt ist das die Einheitsstellung).
+float lodFehlerFuer(const float lodOrt[3], float lodRadius, const float auge[3], const float vorn[3], float lodCurveError) {
+    if (lodCurveError < 0.0F) { return 0.0F; }
+    float d = (lodOrt[0] - auge[0]) * vorn[0] + (lodOrt[1] - auge[1]) * vorn[1] + (lodOrt[2] - auge[2]) * vorn[2];
+    if (d < 0.0F) { d = -d; }
+    d -= lodRadius;
+    if (d < 1.0F) { d = 1.0F; }
+    return lodCurveError / d;
+}
+}  // namespace
+
+std::uint32_t patchLodWahl(const BspMesh::PatchGitter& g, const float lodOrt[3], const float auge[3], const float vorn[3], float lodCurveError) {
+    const float lodError = lodFehlerFuer(lodOrt, g.lodRadius, auge, vorn, lodCurveError);
+    const auto spalten = static_cast<std::uint32_t>(std::upper_bound(g.breiteStufen.begin(), g.breiteStufen.end(), lodError) - g.breiteStufen.begin());
+    const auto zeilen = static_cast<std::uint32_t>(std::upper_bound(g.hoeheStufen.begin(), g.hoeheStufen.end(), lodError) - g.hoeheStufen.begin());
+    return (spalten << 16U) | zeilen;
+}
+
+std::uint32_t patchLodVoll(const BspMesh::PatchGitter& g) {
+    return (static_cast<std::uint32_t>(g.breiteStufen.size()) << 16U) | static_cast<std::uint32_t>(g.hoeheStufen.size());
+}
+
+// RB_SurfaceGrid und LodErrorForVolume (tr_surface.cpp:1391-1418 OpenJK, :1486-1513 Movie Duels).
+void patchLodTabellen(const BspMesh::PatchGitter& g, const float lodOrt[3], const float auge[3], const float vorn[3], float lodCurveError,
+                      std::vector<int>& spalten, std::vector<int>& zeilen) {
+    const float lodError = lodFehlerFuer(lodOrt, g.lodRadius, auge, vorn, lodCurveError);
     spalten.clear();
     zeilen.clear();
     spalten.push_back(0);

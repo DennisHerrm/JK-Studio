@@ -1252,7 +1252,8 @@ void fallenEffekteSetzen() {
 // damit auch ein mitten im Bild nachgeladener Effekt (effectByName, etwa ein
 // Schusseffekt) seine Shader und Folgeeffekte gleich bekommt - sonst holte
 // erst das naechste prepareScene sie nach (md_ga_jedi: 5-8 Bilder).
-void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus, int* ohneDateiAus) {
+void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus, int* ohneDateiAus, const EffektZiel& ziel) {
+    std::map<std::string, efx::Effect>& effekte = ziel.effekte != nullptr ? *ziel.effekte : g_app->effects;
     std::set<std::string> gesehen;
     int nachgeladen = 0;
     int ohneDatei = 0;
@@ -1267,7 +1268,7 @@ void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus
                         continue;
                     }
                     const std::string pfad = "effects/" + name + ".efx";
-                    if (g_app->effects.count(pfad) != 0U) {
+                    if (effekte.count(pfad) != 0U) {
                         continue;   // schon da (Runner oder Waffe)
                     }
                     std::string text;
@@ -1281,14 +1282,14 @@ void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus
                     // Auch den Fehlschlag merken - effectByName fragt
                     // sonst je Bild erneut im Archiv nach.
                     const auto put =
-                        g_app->effects.emplace(pfad, std::move(gelesen));
+                        effekte.emplace(pfad, std::move(gelesen));
                     if (put.first->second.primitives.empty()) {
                         ++ohneDatei;
                         diag::detail("Folgeeffekt " + pfad +
                                      " nicht gefunden oder leer");
                         continue;
                     }
-                    ladeEffektShader(put.first->second);
+                    ladeEffektShader(put.first->second, ziel);
                     offen.push_back(&put.first->second);
                     ++nachgeladen;
                 }
@@ -1297,6 +1298,143 @@ void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus
     }
     if (nachgeladenAus != nullptr) { *nachgeladenAus = nachgeladen; }
     if (ohneDateiAus != nullptr) { *ohneDateiAus = ohneDatei; }
+}
+
+// rc608 Teil 13c: aus loadMapEffects herausgezogen - Vorschau und Spielbild des Karten-Editors.
+bool fxRunnerAus(const MapEntity& e, const std::vector<MapEntity>& alle, const EffektZiel& ziel, EffectInstance& inst) {
+    const std::string* file = e.find("fxFile");
+    if (file == nullptr || file->empty() || e.origin.empty()) {
+        return false;
+    }
+    std::string name = *file;
+    const std::size_t dot = name.find_last_of('.');
+    const std::size_t slash = name.find_last_of('/');
+    if (dot != std::string::npos &&
+        (slash == std::string::npos || dot > slash)) {
+        name = name.substr(0, dot);
+    }
+    const std::string path = "effects/" + name + ".efx";
+
+    if (!ladeEffektDatei(path, *file, ziel)) {
+        return false;
+    }
+
+    inst = EffectInstance{};
+    inst.effect = &(ziel.effekte != nullptr ? *ziel.effekte : g_app->effects)[path];
+    float o[3] = {0, 0, 0};
+    (void)std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+    for (int k = 0; k < 3; ++k) {
+        inst.origin[k] = o[k];
+    }
+    // --- Die Richtung des Runners --------------------------------
+    //
+    // Sie war nie gesetzt und stand damit auf der Vorgabe (0,0,1) -
+    // zufaellig richtig, aber aus dem falschen Grund.
+    //
+    // SP_fx_runner (g_fx.cpp:242) sagt es ausdruecklich:
+    //
+    //     if ( !G_SpawnAngleHack( "angle", "0", ent->s.angles ))
+    //     {
+    //         // didn't have angles, so give us the default of up
+    //         VectorSet( ent->s.angles, -90, 0, 0 );
+    //     }
+    //
+    // Ohne `angle` zeigt ein fx_runner also NACH OBEN, nicht nach +x.
+    // Das ist keine Kleinigkeit: in md_am_sith hat KEIN EINZIGER der
+    // 41 Runner ein `angles`. Neun davon haben ein `target`, die
+    // uebrigen gar nichts.
+    //
+    // Und es zaehlt erst, seit die oertliche Geschwindigkeit in diese
+    // Achse gedreht wird (siehe inAchse in efxdraw.cpp). Vorher war
+    // die Richtung ohne Wirkung - deshalb ist sie nie aufgefallen.
+    inst.normal[0] = 0.0F;
+    inst.normal[1] = 0.0F;
+    inst.normal[2] = 1.0F;
+    if (const std::string* t = e.find("target")) {
+        // `target` zeigt auf einen Punkt; die Richtung ist der Weg
+        // dorthin. Das ist die uebliche Art, einen Dampfstrahl zu
+        // richten - neun der Runner in md_am_sith machen es so.
+        for (const MapEntity& z : alle) {
+            const std::string* tn = z.find("targetname");
+            if (tn == nullptr || *tn != *t) {
+                continue;
+            }
+            float p2[3] = {0, 0, 0};
+            (void)std::sscanf(z.origin.c_str(), "%f %f %f", &p2[0],
+                              &p2[1], &p2[2]);
+            float d[3] = {p2[0] - o[0], p2[1] - o[1], p2[2] - o[2]};
+            const float l = std::sqrt(d[0] * d[0] + d[1] * d[1] +
+                                      d[2] * d[2]);
+            if (l > 0.0001F) {
+                for (int k = 0; k < 3; ++k) {
+                    inst.normal[k] = d[k] / l;
+                }
+            }
+            break;
+        }
+    } else if (const std::string* a = e.find("angle")) {
+        const float gier = static_cast<float>(std::atof(a->c_str())) *
+                           3.14159265F / 180.0F;
+        inst.normal[0] = std::cos(gier);
+        inst.normal[1] = std::sin(gier);
+        inst.normal[2] = 0.0F;
+    }
+    // Die Regeln stehen in code/game/g_fx.cpp, und ich hatte sie mir
+    // vorher AUSGEDACHT. Was wirklich gilt:
+    //
+    //   SP_fx_runner():
+    //     G_SpawnInt( "delay", "200", &ent->delay );
+    //     G_SpawnFloat( "random", "0", &ent->random );
+    //
+    //   fx_runner_think(), Zeile 70:
+    //     ent->nextthink = level.time + ent->delay
+    //                      + Q_flrand(0,1) * ent->random;
+    //
+    //   fx_runner_link():
+    //     if ( spawnflags & 1 || spawnflags & 2 )  // STARTOFF || ONESHOT
+    //         ent->nextthink = -1;                 // wartet auf use
+    //     else
+    //         ent->nextthink = level.time + 200;   // laeuft sofort los
+    //
+    // Also: delay ist der WIEDERHOLABSTAND in Millisekunden, Vorgabe
+    // 200 - keine einmalige Verzoegerung. random streut ihn. Ein "wait"
+    // gibt es gar nicht; das hatte ich erfunden. Und ein Runner mit
+    // STARTOFF oder ONESHOT laeuft erst, wenn ihn etwas benutzt.
+    constexpr int kStartOff = 1;
+    constexpr int kOneShot = 2;
+    int flags = 0;
+    if (const std::string* sf = e.find("spawnflags")) {
+        flags = std::atoi(sf->c_str());
+    }
+    const bool wartet = (flags & (kStartOff | kOneShot)) != 0;
+    inst.loops = !wartet;
+    inst.intervalMs = 200.0F;
+    if (const std::string* d = e.find("delay")) {
+        const float v = static_cast<float>(std::atof(d->c_str()));
+        if (v > 0.0F) {
+            inst.intervalMs = v;
+        }
+    }
+    // random streut den Abstand. Fuer eine wiederholbare Vorschau die
+    // MITTE nehmen - dieselbe Wahl wie bei $random$ in der Zeitleiste.
+    if (const std::string* rnd = e.find("random")) {
+        inst.intervalMs += static_cast<float>(std::atof(rnd->c_str())) * 0.5F;
+    }
+    // Der erste Durchgang kommt 600 ms nach dem Start: SP_fx_runner
+    // setzt `nextthink = level.time + 400` (fx_runner_link, "Give us a
+    // bit of time to spawn in the other entities"), fx_runner_link dann
+    // `nextthink = level.time + 200` (g_fx.cpp, MD wie OpenJK). Bis rc601
+    // stand hier nur die 200 aus fx_runner_link.
+    // Wer auf ein use wartet, faengt hier nicht an - die Starts rechnet
+    // die Mover-Simulation (fxStarts, unten).
+    inst.startMs = wartet ? -1.0 : 600.0;
+    // Der Ausgangswert haengt am Ort: zwei Runner nebeneinander sollen
+    // nicht Partikel fuer Partikel gleich aussehen.
+    inst.seed = static_cast<unsigned>(
+        std::abs(static_cast<int>(o[0]) * 73856093 ^
+                 static_cast<int>(o[1]) * 19349663 ^
+                 static_cast<int>(o[2]) * 83492791));
+    return true;
 }
 
 void loadMapEffects() {
@@ -1311,137 +1449,13 @@ void loadMapEffects() {
         }
         const std::string* file = e.find("fxFile");
         if (file == nullptr || file->empty() || e.origin.empty()) {
-            continue;
+            continue;   // kein Effekt, also auch keiner ohne Datei
         }
-        std::string name = *file;
-        const std::size_t dot = name.find_last_of('.');
-        const std::size_t slash = name.find_last_of('/');
-        if (dot != std::string::npos &&
-            (slash == std::string::npos || dot > slash)) {
-            name = name.substr(0, dot);
-        }
-        const std::string path = "effects/" + name + ".efx";
-
-        if (!ladeEffektDatei(path, *file)) {
+        EffectInstance inst;
+        if (!fxRunnerAus(e, g_app->map.entities, {}, inst)) {
             ++fehlt;
             continue;
         }
-
-        EffectInstance inst;
-        inst.effect = &g_app->effects[path];
-        float o[3] = {0, 0, 0};
-        (void)std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
-        for (int k = 0; k < 3; ++k) {
-            inst.origin[k] = o[k];
-        }
-        // --- Die Richtung des Runners --------------------------------
-        //
-        // Sie war nie gesetzt und stand damit auf der Vorgabe (0,0,1) -
-        // zufaellig richtig, aber aus dem falschen Grund.
-        //
-        // SP_fx_runner (g_fx.cpp:242) sagt es ausdruecklich:
-        //
-        //     if ( !G_SpawnAngleHack( "angle", "0", ent->s.angles ))
-        //     {
-        //         // didn't have angles, so give us the default of up
-        //         VectorSet( ent->s.angles, -90, 0, 0 );
-        //     }
-        //
-        // Ohne `angle` zeigt ein fx_runner also NACH OBEN, nicht nach +x.
-        // Das ist keine Kleinigkeit: in md_am_sith hat KEIN EINZIGER der
-        // 41 Runner ein `angles`. Neun davon haben ein `target`, die
-        // uebrigen gar nichts.
-        //
-        // Und es zaehlt erst, seit die oertliche Geschwindigkeit in diese
-        // Achse gedreht wird (siehe inAchse in efxdraw.cpp). Vorher war
-        // die Richtung ohne Wirkung - deshalb ist sie nie aufgefallen.
-        inst.normal[0] = 0.0F;
-        inst.normal[1] = 0.0F;
-        inst.normal[2] = 1.0F;
-        if (const std::string* t = e.find("target")) {
-            // `target` zeigt auf einen Punkt; die Richtung ist der Weg
-            // dorthin. Das ist die uebliche Art, einen Dampfstrahl zu
-            // richten - neun der Runner in md_am_sith machen es so.
-            for (const MapEntity& z : g_app->map.entities) {
-                const std::string* tn = z.find("targetname");
-                if (tn == nullptr || *tn != *t) {
-                    continue;
-                }
-                float p2[3] = {0, 0, 0};
-                (void)std::sscanf(z.origin.c_str(), "%f %f %f", &p2[0],
-                                  &p2[1], &p2[2]);
-                float d[3] = {p2[0] - o[0], p2[1] - o[1], p2[2] - o[2]};
-                const float l = std::sqrt(d[0] * d[0] + d[1] * d[1] +
-                                          d[2] * d[2]);
-                if (l > 0.0001F) {
-                    for (int k = 0; k < 3; ++k) {
-                        inst.normal[k] = d[k] / l;
-                    }
-                }
-                break;
-            }
-        } else if (const std::string* a = e.find("angle")) {
-            const float gier = static_cast<float>(std::atof(a->c_str())) *
-                               3.14159265F / 180.0F;
-            inst.normal[0] = std::cos(gier);
-            inst.normal[1] = std::sin(gier);
-            inst.normal[2] = 0.0F;
-        }
-        // Die Regeln stehen in code/game/g_fx.cpp, und ich hatte sie mir
-        // vorher AUSGEDACHT. Was wirklich gilt:
-        //
-        //   SP_fx_runner():
-        //     G_SpawnInt( "delay", "200", &ent->delay );
-        //     G_SpawnFloat( "random", "0", &ent->random );
-        //
-        //   fx_runner_think(), Zeile 70:
-        //     ent->nextthink = level.time + ent->delay
-        //                      + Q_flrand(0,1) * ent->random;
-        //
-        //   fx_runner_link():
-        //     if ( spawnflags & 1 || spawnflags & 2 )  // STARTOFF || ONESHOT
-        //         ent->nextthink = -1;                 // wartet auf use
-        //     else
-        //         ent->nextthink = level.time + 200;   // laeuft sofort los
-        //
-        // Also: delay ist der WIEDERHOLABSTAND in Millisekunden, Vorgabe
-        // 200 - keine einmalige Verzoegerung. random streut ihn. Ein "wait"
-        // gibt es gar nicht; das hatte ich erfunden. Und ein Runner mit
-        // STARTOFF oder ONESHOT laeuft erst, wenn ihn etwas benutzt.
-        constexpr int kStartOff = 1;
-        constexpr int kOneShot = 2;
-        int flags = 0;
-        if (const std::string* sf = e.find("spawnflags")) {
-            flags = std::atoi(sf->c_str());
-        }
-        const bool wartet = (flags & (kStartOff | kOneShot)) != 0;
-        inst.loops = !wartet;
-        inst.intervalMs = 200.0F;
-        if (const std::string* d = e.find("delay")) {
-            const float v = static_cast<float>(std::atof(d->c_str()));
-            if (v > 0.0F) {
-                inst.intervalMs = v;
-            }
-        }
-        // random streut den Abstand. Fuer eine wiederholbare Vorschau die
-        // MITTE nehmen - dieselbe Wahl wie bei $random$ in der Zeitleiste.
-        if (const std::string* rnd = e.find("random")) {
-            inst.intervalMs += static_cast<float>(std::atof(rnd->c_str())) * 0.5F;
-        }
-        // Der erste Durchgang kommt 600 ms nach dem Start: SP_fx_runner
-        // setzt `nextthink = level.time + 400` (fx_runner_link, "Give us a
-        // bit of time to spawn in the other entities"), fx_runner_link dann
-        // `nextthink = level.time + 200` (g_fx.cpp, MD wie OpenJK). Bis rc601
-        // stand hier nur die 200 aus fx_runner_link.
-        // Wer auf ein use wartet, faengt hier nicht an - die Starts rechnet
-        // die Mover-Simulation (fxStarts, unten).
-        inst.startMs = wartet ? -1.0 : 600.0;
-        // Der Ausgangswert haengt am Ort: zwei Runner nebeneinander sollen
-        // nicht Partikel fuer Partikel gleich aussehen.
-        inst.seed = static_cast<unsigned>(
-            std::abs(static_cast<int>(o[0]) * 73856093 ^
-                     static_cast<int>(o[1]) * 19349663 ^
-                     static_cast<int>(o[2]) * 83492791));
         if (inst.startMs < 0.0) {
             // STARTOFF oder ONESHOT: laeuft erst auf ein use. Wann das
             // kommt, rechnet die Mover-Simulation aus der Zeitleiste

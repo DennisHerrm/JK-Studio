@@ -389,15 +389,20 @@ float zufall(std::uint32_t& s) {
 
 // rc604 fix604b (B6): wie viele Wolken dieses Bild tragen (Selbsttest).
 bool wetterFuerGras(float wind[3]) {
+    wind[0] = wind[1] = wind[2] = 0.0F;
+    if (!g_app->zeigeWetter || g_app->geo.empty()) { return false; }
+    return wetterFuerGrasIn(vorschauQuelle(), false, wind);
+}
+
+bool wetterFuerGrasIn(const WetterQuelle& quelle, bool editor, float wind[3]) {
     // R_IsRaining (tr_WorldEffects.cpp:2360): irgendeine Teilchenwolke. Die
     // Windzonen laufen nur, solange es Wolken gibt (RB_RenderWorldEffects
     // kehrt ohne sie vorher um, :1527) - ohne Wolken bleibt
     // mGlobalWindSpeed 0 (:1506).
     wind[0] = wind[1] = wind[2] = 0.0F;
-    if (!g_app->zeigeWetter || g_app->geo.empty()) { return false; }
-    const WetterQuelle q = vorschauQuelle();
-    g_satz = &g_satzVorschau;
-    g_quelle = &q;
+    if (!g_app->zeigeWetter || quelle.entities == nullptr || quelle.geo == nullptr || quelle.geo->empty()) { return false; }
+    g_satz = editor ? &g_satzEditor : &g_satzVorschau;
+    g_quelle = &quelle;
     wetterBauen();
     if (g_satz->wetter.wolken.empty()) { return false; }
     for (int k = 0; k < 3; ++k) { wind[k] = g_satz->wetter.wind[k]; }

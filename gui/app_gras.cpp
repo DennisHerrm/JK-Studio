@@ -44,7 +44,7 @@ struct GrasFlaeche {
     int shader = 0;                 // Platz in geo.shaders / textures.byShader
     std::uint32_t surface = 0;      // Nummer in geo.surfaces (fuer den Nebel)
     int nebel = -1;                 // dsurface_t.fogNum - tess.fogNum der Halme
-    std::uint32_t firstIndex = 0;   // Abschnitt in g_app->mesh (BspMesh::Run)
+    std::uint32_t firstIndex = 0;   // Abschnitt im Netz der Welt (BspMesh::Run)
     std::uint32_t numIndexes = 0;
     float mins[3]{};
     float maxs[3]{};
@@ -67,7 +67,6 @@ struct GrasStand {
     int stand = -1;
     std::vector<GrasFlaeche> flaechen;
 };
-GrasStand g_gras;
 std::string g_grasZielShader;   // Selbsttest: Shader der gefundenen Flaeche
 int g_grasPatchZahl = 0;        // Patches mit Halmen beim letzten Bau
 
@@ -81,15 +80,17 @@ gras::Ecke ecke(const BspVertex& v) {
     return e;
 }
 
-// Die Flaechen eines Netzes mit surfaceSprites-Stufen - die Welt (g_app->mesh)
-// oder ein Brush-Modell (rc605, brushMeshes: Ecken im Raum des Modells).
-void flaechenAus(const BspMesh& m, std::vector<GrasFlaeche>& aus) {
+// Die Flaechen eines Netzes mit surfaceSprites-Stufen - die Welt oder ein
+// Brush-Modell (rc605, brushMeshes: Ecken im Raum des Modells).
+void flaechenAus(const GrasQuelle& gq, const BspMesh& m, std::vector<GrasFlaeche>& aus) {
+    const std::vector<std::vector<App::GrasStufe>>& grasStufen = *gq.stufen;
+    const BspGeometry& geo = *gq.geo;
     for (const BspMesh::Batch& b : m.batches) {
-        if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= g_app->grasStufen.size() ||
-            g_app->grasStufen[static_cast<std::size_t>(b.shader)].empty()) {
+        if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= grasStufen.size() ||
+            grasStufen[static_cast<std::size_t>(b.shader)].empty()) {
             continue;
         }
-        const std::size_t stufen = g_app->grasStufen[static_cast<std::size_t>(b.shader)].size();
+        const std::size_t stufen = grasStufen[static_cast<std::size_t>(b.shader)].size();
         const std::uint32_t ende = std::min<std::uint32_t>(b.firstRun + b.numRuns, static_cast<std::uint32_t>(m.runs.size()));
         for (std::uint32_t r = b.firstRun; r < ende; ++r) {
             const BspMesh::Run& run = m.runs[r];
@@ -99,7 +100,7 @@ void flaechenAus(const BspMesh& m, std::vector<GrasFlaeche>& aus) {
             GrasFlaeche f;
             f.shader = b.shader;
             f.surface = run.surface;
-            if (run.surface < g_app->geo.surfaces.size()) { f.nebel = g_app->geo.surfaces[run.surface].fog; }
+            if (run.surface < geo.surfaces.size()) { f.nebel = geo.surfaces[run.surface].fog; }
             f.firstIndex = run.firstIndex;
             f.numIndexes = run.numIndexes;
             for (int k = 0; k < 3; ++k) {
@@ -116,18 +117,18 @@ void flaechenAus(const BspMesh& m, std::vector<GrasFlaeche>& aus) {
             }
             f.kandidaten.resize(stufen);
             f.gebaut.assign(stufen, 0);
-            if (run.surface < g_app->geo.surfaces.size()) {
-                const BspSurface& bs = g_app->geo.surfaces[run.surface];
+            if (run.surface < geo.surfaces.size()) {
+                const BspSurface& bs = geo.surfaces[run.surface];
                 if (bs.type == BspSurface::Type::Patch && bs.firstVert >= 0 &&
                     static_cast<std::size_t>(bs.firstVert) + static_cast<std::size_t>(bs.numVerts) <=
-                        g_app->geo.verts.size() &&
+                        geo.verts.size() &&
                     bs.patchWidth * bs.patchHeight == bs.numVerts) {
                     // ParseMesh (tr_bsp.cpp MD): die Kontrollpunkte, dann
                     // R_SubdividePatchToGrid; lodOrigin/lodRadius aus
                     // lightmapVecs[0..1].
                     std::vector<gras::PatchPunkt> pp(static_cast<std::size_t>(bs.numVerts));
                     for (int k = 0; k < bs.numVerts; ++k) {
-                        const BspVertex& v = g_app->geo.verts[static_cast<std::size_t>(bs.firstVert + k)];
+                        const BspVertex& v = geo.verts[static_cast<std::size_t>(bs.firstVert + k)];
                         gras::PatchPunkt& q = pp[static_cast<std::size_t>(k)];
                         for (int c = 0; c < 3; ++c) {
                             q.xyz[c] = v.xyz[c];
@@ -157,16 +158,16 @@ void flaechenAus(const BspMesh& m, std::vector<GrasFlaeche>& aus) {
     }
 }
 
-void flaechenBauen() {
-    const BspMesh& m = g_app->mesh;
-    if (g_gras.idx == m.indexes.data() && g_gras.nIdx == m.indexes.size() && g_gras.stand == g_app->grasStand) {
+void flaechenBauen(const GrasQuelle& gq, GrasStand& gras) {
+    const BspMesh& m = *gq.welt;
+    if (gras.idx == m.indexes.data() && gras.nIdx == m.indexes.size() && gras.stand == gq.stand) {
         return;
     }
-    g_gras = GrasStand{};
-    g_gras.idx = m.indexes.data();
-    g_gras.nIdx = m.indexes.size();
-    g_gras.stand = g_app->grasStand;
-    flaechenAus(m, g_gras.flaechen);
+    gras = GrasStand{};
+    gras.idx = m.indexes.data();
+    gras.nIdx = m.indexes.size();
+    gras.stand = gq.stand;
+    flaechenAus(gq, m, gras.flaechen);
 }
 
 // --- rc605: surfaceSprites auf Brush-Modellen -------------------------------
@@ -187,20 +188,26 @@ struct BrushGras {
     int stand = -1;
     std::vector<GrasFlaeche> flaechen;
 };
-std::unordered_map<int, BrushGras> g_brushGras;
-std::vector<MoverDraw> g_grasBrushStand;   // die Brush-Modelle dieses Bildes (baueGrasNetz)
+// rc608 Teil 13c: je Quelle (Vorschau, Spielbild des Karten-Editors) ein eigener Zwischenspeicher der Flaechen.
+struct GrasSatz {
+    GrasStand welt;
+    std::unordered_map<int, BrushGras> brush;
+};
+GrasSatz g_grasVorschau;
+GrasSatz g_grasEditor;
+std::vector<MoverDraw> g_grasBrushStand;   // die Brush-Modelle dieses Bildes der Vorschau (baueGrasNetz)
 
-BrushGras* brushFlaechen(int nr) {
-    const auto netz = g_app->brushMeshes.find(nr);
-    if (netz == g_app->brushMeshes.end()) { return nullptr; }
+BrushGras* brushFlaechen(const GrasQuelle& gq, GrasSatz& satz, int nr) {
+    const auto netz = gq.brushNetze->find(nr);
+    if (netz == gq.brushNetze->end()) { return nullptr; }
     const BspMesh& m = netz->second;
-    BrushGras& bg = g_brushGras[nr];
-    if (bg.idx != m.indexes.data() || bg.nIdx != m.indexes.size() || bg.stand != g_app->grasStand) {
+    BrushGras& bg = satz.brush[nr];
+    if (bg.idx != m.indexes.data() || bg.nIdx != m.indexes.size() || bg.stand != gq.stand) {
         bg = BrushGras{};
         bg.idx = m.indexes.data();
         bg.nIdx = m.indexes.size();
-        bg.stand = g_app->grasStand;
-        flaechenAus(m, bg.flaechen);
+        bg.stand = gq.stand;
+        flaechenAus(gq, m, bg.flaechen);
     }
     return &bg;
 }
@@ -224,22 +231,38 @@ float halmUeberstand(const SurfaceSprite& ss) {
     return h * (1.0F + ss.wind + ss.windIdle) + w + 2.0F;
 }
 
+// Die Quelle der Vorschau: Welt, Bilder und Brush-Modelle von g_app, die Zeit der Zeitleiste, Regen und Wind ihres Wetters.
+GrasQuelle vorschauGrasQuelle() {
+    GrasQuelle gq;
+    gq.welt = &g_app->mesh;
+    gq.geo = &g_app->geo;
+    gq.stufen = &g_app->grasStufen;
+    gq.stand = g_app->grasStand;
+    gq.brushNetze = &g_app->brushMeshes;
+    gq.brushStand = &g_grasBrushStand;
+    gq.ms = g_app->playMs;
+    gq.regnet = wetterFuerGras(gq.wind);
+    return gq;
+}
+
 }  // namespace
 
 void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::size_t stufenNr, const std::string& name,
-                    std::size_t shaderNr) {
+                    std::size_t shaderNr, const GrasStufenZiel& ziel) {
     // tr_shade.cpp:2149 MD - nur Stufe 1 .. numUnfoggedPasses-1 wird als
     // Bilder gezeichnet; an Platz 0 gar nicht (auch nicht als Schicht).
     if (stufenNr < 1U) { return; }
     TextureSet::Tex huelle;
-    const std::size_t vorher = g_app->textures.byShader.size();
+    // rc608 Teil 13c: in den Satz, in den loadMapTextures gerade laedt (ladeSatz).
+    TextureSet& satz = ladeSatz();
+    const std::size_t vorher = satz.byShader.size();
     zusatzstufeLaden(info, st, name, huelle);
     if (huelle.extraStages.empty()) { return; }
     // SQuickSprite: Eckenfarbe (licht, licht, licht, alpha), kein rgbGen,
     // alphaGen oder tcMod der Stufe, beide Seiten (qglDisable(GL_CULL_FACE),
     // tr_quicksprite.cpp StartGroup). Fuer alle Bilder einer animMap.
-    for (std::size_t k = vorher; k < g_app->textures.byShader.size(); ++k) {
-        TextureSet::Tex& z = g_app->textures.byShader[k];
+    for (std::size_t k = vorher; k < satz.byShader.size(); ++k) {
+        TextureSet::Tex& z = satz.byShader[k];
         z.rgbVertex = true;
         for (float& c : z.rgbConst) { c = -1.0F; }
         z.rgbWave = Wave{};
@@ -257,15 +280,16 @@ void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::si
         z.lightmapStufe = false;
         z.portalWeite = 0.0F;
     }
-    if (shaderNr >= g_app->grasStufen.size()) { g_app->grasStufen.resize(shaderNr + 1U); }
+    std::vector<std::vector<App::GrasStufe>>& stufen = ziel.stufen != nullptr ? *ziel.stufen : g_app->grasStufen;
+    if (shaderNr >= stufen.size()) { stufen.resize(shaderNr + 1U); }
     App::GrasStufe gs;
     gs.platz = huelle.extraStages[0];
     gs.ss = st.ss;
     gs.stufenNr = stufenNr;
     // :1461 - GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE: additiv, Licht statt Alpha
     gs.additiv = (st.srcFactor == BlendFactor::One && st.dstFactor == BlendFactor::One);
-    g_app->grasStufen[shaderNr].push_back(gs);
-    ++g_app->grasStand;
+    stufen[shaderNr].push_back(gs);
+    ++(ziel.stand != nullptr ? *ziel.stand : g_app->grasStand);
 }
 
 namespace {
@@ -273,7 +297,7 @@ namespace {
 // Die Halme fuer EINE Sicht - RB_DrawSurfaceSprites rechnet mit den
 // viewParms des Bildes, das gerade entsteht (auch Kameravorschau und
 // Himmelsportal sind eigene Sichten).
-void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke, int& flaechenZahl) {
+void baueGras(const GrasQuelle& gq, const Camera& cam, float reichweite, BspMesh& netz, int& vierecke, int& flaechenZahl) {
     BHED_MESS("Gras");
     netz.verts.clear();
     netz.indexes.clear();
@@ -282,9 +306,10 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
     vierecke = 0;
     flaechenZahl = 0;
     g_grasPatchZahl = 0;
-    if (!g_app->zeigeGras || g_app->grasStufen.empty() || g_app->mesh.indexes.empty()) { return; }
-    flaechenBauen();
-    if (g_gras.flaechen.empty()) { return; }
+    if (!g_app->zeigeGras || gq.stufen == nullptr || gq.stufen->empty() || gq.welt == nullptr || gq.welt->indexes.empty()) { return; }
+    GrasSatz& satz = gq.editor ? g_grasEditor : g_grasVorschau;
+    flaechenBauen(gq, satz.welt);
+    if (satz.welt.flaechen.empty()) { return; }
 
     // R_SurfaceSpriteFrameUpdate (:106) und RB_DrawSurfaceSprites (:1471)
     gras::Rahmen r;
@@ -298,10 +323,9 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
         r.links[k] = -rechts[k];   // ori.axis[1] zeigt nach links
     }
     r.reichweite = reichweite;
-    r.zeitMs = static_cast<int>(std::max(0.0, g_app->playMs));
-    float wind[3];
-    const bool regnet = wetterFuerGras(wind);   // R_IsRaining, Wetterzonen
-    r.wetter = regnet ? 1.0F : 0.0F;            // :188-195 (r_surfaceWeather 0)
+    r.zeitMs = static_cast<int>(std::max(0.0, gq.ms));
+    const float* wind = gq.wind;          // R_IsRaining, Wetterzonen
+    r.wetter = gq.regnet ? 1.0F : 0.0F;   // :188-195 (r_surfaceWeather 0)
     {
         const float tempo = std::sqrt(wind[0] * wind[0] + wind[1] * wind[1] + wind[2] * wind[2]);
         const float x[3] = {1.0F, 0.0F, 0.0F};   // mGlobalWindDirection ohne Wind
@@ -332,7 +356,7 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
     // die Matrix Modell -> Welt (nullptr: die Welt selbst).
     const auto flaeche = [&](GrasFlaeche& f, const BspMesh& m, const gras::Rahmen& rr, const float* vornL,
                              const float* welt) {
-        const std::vector<App::GrasStufe>& stufen = g_app->grasStufen[static_cast<std::size_t>(f.shader)];
+        const std::vector<App::GrasStufe>& stufen = (*gq.stufen)[static_cast<std::size_t>(f.shader)];
         bool etwas = false;
         for (std::size_t si = 0; si < stufen.size() && si < f.kandidaten.size(); ++si) {
             const App::GrasStufe& gs = stufen[si];
@@ -424,12 +448,12 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
             if (f.patch) { ++g_grasPatchZahl; }
         }
     };
-    for (GrasFlaeche& f : g_gras.flaechen) {
-        flaeche(f, g_app->mesh, r, vorn, nullptr);
+    for (GrasFlaeche& f : satz.welt.flaechen) {
+        flaeche(f, *gq.welt, r, vorn, nullptr);
     }
     // rc605: die Brush-Modelle dieses Bildes (siehe BrushGras).
-    for (const MoverDraw& mv : g_grasBrushStand) {
-        BrushGras* bg = brushFlaechen(mv.brush);
+    for (const MoverDraw& mv : *gq.brushStand) {
+        BrushGras* bg = brushFlaechen(gq, satz, mv.brush);
         if (bg == nullptr || bg->flaechen.empty()) { continue; }
         float welt[16];
         gpu::baueMoverWelt(mv.pivot, mv.offset, mv.yaw, mv.pitch, mv.roll, mv.pitch != 0.0F || mv.roll != 0.0F,
@@ -445,12 +469,12 @@ void baueGras(const Camera& cam, float reichweite, BspMesh& netz, int& vierecke,
             rb.oben[c] = welt[c] * r.oben[0] + welt[4 + c] * r.oben[1] + welt[8 + c] * r.oben[2];
             vornB[c] = welt[c] * vorn[0] + welt[4 + c] * vorn[1] + welt[8 + c] * vorn[2];
         }
-        const BspMesh& bm = g_app->brushMeshes[mv.brush];
+        const BspMesh& bm = gq.brushNetze->at(mv.brush);
         for (GrasFlaeche& f : bg->flaechen) {
             flaeche(f, bm, rb, vornB, welt);
         }
     }
-    if (&netz == &g_app->grasNetz) {
+    if (!gq.editor && &netz == &g_app->grasNetz) {
         g_app->grasBrushVierecke = brushQuads;
         g_app->grasBrushMitteZ = brushQuads > 0 ? brushZ / brushQuads : 0.0;
     }
@@ -513,13 +537,20 @@ void baueGrasNetz(const Camera& cam, float reichweite, const std::vector<MoverDr
             if (mv.brush > 0 && mv.entity < 0) { g_grasBrushStand.push_back(mv); }
         }
     }
-    baueGras(cam, reichweite, g_app->grasNetz, g_app->grasVierecke, g_app->grasFlaechen);
+    baueGras(vorschauGrasQuelle(), cam, reichweite, g_app->grasNetz, g_app->grasVierecke, g_app->grasFlaechen);
     g_app->grasPatches = g_grasPatchZahl;
 }
 
 void baueGrasNetzNeben(const Camera& cam, float reichweite) {
     int flaechen = 0;
-    baueGras(cam, reichweite, g_app->grasNetzNeben, g_app->grasViereckeNeben, flaechen);
+    baueGras(vorschauGrasQuelle(), cam, reichweite, g_app->grasNetzNeben, g_app->grasViereckeNeben, flaechen);
+}
+
+int grasNetzFuer(const GrasQuelle& gq, const Camera& cam, float reichweite, BspMesh& netz) {
+    int vierecke = 0;
+    int flaechen = 0;
+    baueGras(gq, cam, reichweite, netz, vierecke, flaechen);
+    return vierecke;
 }
 
 bool grasTestZiel(float mitte[3], bool alleArten, bool nurPatch) {

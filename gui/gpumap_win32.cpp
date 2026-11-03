@@ -121,10 +121,12 @@ struct Netzpuffer {
     std::vector<char> ibAltMaske;
     bool ibMaskeDa = false;
     bool ibAltDa = false;
-    // rc608 Teil 13b: je Patch (BspMesh::patches) die Spalten und Zeilen, die gerade in `ib` bzw. `ibAlt` stehen
-    // (RB_SurfaceGrid); leer: das volle Gitter wie in mesh.indexes.
-    std::vector<std::vector<std::uint16_t>> patchStand;
-    std::vector<std::vector<std::uint16_t>> patchStandAlt;
+    // rc608 Teil 13b: je Patch (BspMesh::patches) die Wahl, die gerade in `ib` bzw. `ibAlt` steht (patchLodWahl,
+    // RB_SurfaceGrid); leer: die vollen Gitter wie in mesh.indexes.
+    std::vector<std::uint32_t> patchStand;
+    std::vector<std::uint32_t> patchStandAlt;
+    // rc608 Teil 13c: die Abschnitte (mesh.runs) der Patches, einmal je Netz gesammelt
+    std::vector<std::uint32_t> patchRuns;
     // --- Woher der Puffer stammt ------------------------------------------
     //
     // Die Groesse allein reicht NICHT als Kennzeichen. Das Netz wird neu
@@ -177,6 +179,13 @@ Netzpuffer g_netz[3];   // Karte, Effekte, Gras (rc604)
 //
 // Das ist nebenbei schneller: kein Neuanlegen je Bild.
 std::map<const BspMesh*, Netzpuffer> g_moverNetze;
+// rc608 Teil 13c: Stellung und Blickrichtung (Welt) des Movers, den zeichneMover gerade an zeichneKarte gibt - fuer das
+// Patch-LOD (LodErrorForVolume rechnet lodOrigin mit backEnd.ori in die Welt). Nur waehrend dieses Aufrufs gesetzt.
+struct MoverLod {
+    const float* welt = nullptr;
+    const float* vorn = nullptr;
+};
+const MoverLod* g_moverLod = nullptr;
 ID3D11Buffer* g_cbBild = nullptr;
 ID3D11Buffer* g_cbModell = nullptr;   // rc608: JeModell, siehe setzeModellLicht
 ID3D11Buffer* g_cbStapel = nullptr;
@@ -299,6 +308,7 @@ struct ZielFelder {
 };
 // rc608 Teil 13b: wie oft ein Patch seine Spalten und Zeilen gewechselt hat (Selbsttest).
 std::uint64_t g_patchLodAenderungen = 0;
+std::uint64_t g_patchLodMover = 0;   // rc608 Teil 13c
 // Satz 3 (rc593): das Spiegelbild einer Portalflaeche.
 // Satz 4 (zeitleiste1): ein Bild des Filmstreifens der Zeitleiste.
 // Satz 5 (rc608 Teil 11): das Spielbild des Karten-Editors (kZielKarteneditor).
@@ -3226,6 +3236,13 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
     // float - siehe die Notiz in gpucam.h.
     float mvp[16];
     multipliziere(viewProj, welt, mvp);
+    // rc608 Teil 13c: fuer das Patch-LOD die Stellung und die Blickrichtung in der Welt (vorn kann unten in den Raum des
+    // Modells gedreht werden); gilt nur fuer diesen Aufruf.
+    const MoverLod lod{welt, vorn};
+    g_moverLod = &lod;
+    struct LodWeg {
+        ~LodWeg() { g_moverLod = nullptr; }
+    } lodWeg;
     // --- rc605: autosprite/autosprite2 an einer Entity --------------------
     //
     // AutospriteDeform / Autosprite2Deform (code/rd-vanilla/tr_shade_calc.cpp:
@@ -6906,6 +6923,7 @@ void gibAlleSzenenFrei() {
 }
 
 std::uint64_t patchLodAenderungen() { return g_patchLodAenderungen; }
+std::uint64_t moverPatchLodAenderungen() { return g_patchLodMover; }
 
 void szeneWaehlen(int nr) {
     if (nr == g_szene || nr < 0 || nr >= kSzenen) { return; }
@@ -7047,6 +7065,58 @@ int zeichneHimmelBox(const std::vector<DrawCall>& alleCalls, const BspMesh& mesh
     return zeichneAufrufe(aufrufe, mesh, textures, geo, zeitSekunden, fehler);
 }
 }  // namespace
+
+// rc608 Teil 13b/13c: Patch-LOD wie im Spiel. RB_SurfaceGrid nimmt je Bild nur die Spalten und Zeilen, deren Fehler
+// hoechstens r_lodCurveError / Abstand ist (LodErrorForVolume: Abstand von lodOrigin entlang der Blickrichtung, minus
+// lodRadius; lodOrigin mit der Stellung der Entity in die Welt, backEnd.ori). Die Wahl ist eine Zahl je Patch
+// (patchLodWahl); geschrieben wird nur ein Patch, dessen Wahl sich geaendert hat. Die Dreiecke, die wegfallen, werden
+// leer (alle Indizes 0) wie die verdeckten; verdeckte Patches bleiben leer. `ziel`: alle sichtbaren Patches in diese
+// Indizes schreiben (danach laedt der Aufrufer sie ganz hoch), sonst je geaendertem Patch ein UpdateSubresource.
+// `mover`: Stellung (welt) und Blickrichtung in der Welt eines Movers, sonst die Welt.
+void patchLodSchreiben(const BspMesh& mesh, Netzpuffer& np, std::size_t nIdx, const float* kameraPos, const float* vorn, const MoverLod* mover,
+                       std::uint32_t* ziel, ID3D11DeviceContext* c) {
+    if (np.patchStand.size() != mesh.patches.size()) {
+        np.patchStand.resize(mesh.patches.size());
+        for (std::size_t i = 0; i < mesh.patches.size(); ++i) { np.patchStand[i] = patchLodVoll(mesh.patches[i]); }
+    }
+    const float* blick = mover != nullptr ? mover->vorn : vorn;
+    if (kameraPos == nullptr || blick == nullptr) { return; }   // ohne Kamera bleibt, was im Puffer steht
+    std::vector<int> spalten;
+    std::vector<int> zeilen;
+    std::vector<std::uint32_t> neu;
+    for (const std::uint32_t ri : np.patchRuns) {
+        const BspMesh::Run& r = mesh.runs[ri];
+        if (static_cast<std::size_t>(r.firstIndex) + r.numIndexes > nIdx) { continue; }
+        if (r.surface < np.ibMaske.size() && np.ibMaske[r.surface] != 0) { continue; }
+        const BspMesh::PatchGitter& g = mesh.patches[static_cast<std::size_t>(r.patch)];
+        float lodOrt[3] = {g.lodOrt[0], g.lodOrt[1], g.lodOrt[2]};
+        if (mover != nullptr) {
+            const float* w = mover->welt;   // zeilenweise wie baueMoverWelt
+            for (int k = 0; k < 3; ++k) { lodOrt[k] = w[k * 4] * g.lodOrt[0] + w[k * 4 + 1] * g.lodOrt[1] + w[k * 4 + 2] * g.lodOrt[2] + w[k * 4 + 3]; }
+        }
+        const std::uint32_t wahl = patchLodWahl(g, lodOrt, kameraPos, blick, kRLodCurveError);
+        std::uint32_t& stand = np.patchStand[static_cast<std::size_t>(r.patch)];
+        if (wahl == stand && (ziel == nullptr || wahl == patchLodVoll(g))) { continue; }
+        neu.clear();
+        patchLodTabellen(g, lodOrt, kameraPos, blick, kRLodCurveError, spalten, zeilen);
+        patchLodIndizes(g, spalten, zeilen, neu);
+        neu.resize(r.numIndexes, 0U);
+        if (ziel != nullptr) {
+            std::copy(neu.begin(), neu.end(), ziel + r.firstIndex);
+        } else {
+            D3D11_BOX box{};
+            box.left = r.firstIndex * 4U;
+            box.right = (r.firstIndex + r.numIndexes) * 4U;
+            box.top = 0;
+            box.bottom = 1;
+            box.front = 0;
+            box.back = 1;
+            c->UpdateSubresource(np.ib, 0, &box, neu.data(), 0, 0);
+        }
+        ++(mover != nullptr ? g_patchLodMover : g_patchLodAenderungen);
+        stand = wahl;
+    }
+}
 
 int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                  const BspGeometry* geo, const float* viewProj,
@@ -7353,10 +7423,18 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         np.ibAltDa = false;
         np.patchStand.clear();
         np.patchStandAlt.clear();
+        np.patchRuns.clear();
+        for (std::size_t i = 0; i < mesh.runs.size(); ++i) {
+            const BspMesh::Run& r = mesh.runs[i];
+            if (r.patch >= 0 && static_cast<std::size_t>(r.patch) < mesh.patches.size() && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx) {
+                np.patchRuns.push_back(static_cast<std::uint32_t>(i));
+            }
+        }
         D3D11_BUFFER_DESC bd{};
         bd.ByteWidth = static_cast<UINT>(dyn ? ibPlatz : ibBytes);
-        // Die Karte: UpdateSubresource, wenn sich hinter Portalen etwas aendert.
-        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : (netzId == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE);
+        // Die Karte: UpdateSubresource, wenn sich hinter Portalen etwas aendert; Karte und Mover mit Patches auch fuer die
+        // Wahl der Patch-Gitter je Bild (rc608 Teil 13c).
+        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : ((netzId == 0 || (netzId == 2 && !mesh.patches.empty())) ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE);
         bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
         // Nicht `: 0U` - der eine Zweig waere ein Aufzaehlungswert, der
         // andere eine Zahl. GCC beanstandet das unter -Wextra, MSVC bei /W4.
@@ -7415,49 +7493,17 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                     }
                 }
             }
-            c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
             np.ibMaske = maske;
             np.ibMaskeDa = true;
-            np.patchStand.clear();   // wieder die vollen Gitter
+            // rc608 Teil 13c: die Patch-Gitter dieses Bildes gleich mit hinein - ein Hochladen statt eines je Patch danach.
+            np.patchStand.clear();
+            patchLodSchreiben(mesh, np, nIdx, kameraPos, vorn, nullptr, neu.data(), c);
+            c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
         }
     }
-    // rc608 Teil 13b: Patch-LOD wie im Spiel. RB_SurfaceGrid nimmt je Bild nur die Spalten und Zeilen, deren Fehler
-    // hoechstens r_lodCurveError / Abstand ist (LodErrorForVolume: Abstand von lodOrigin entlang der Blickrichtung,
-    // minus lodRadius). Geaendert wird nur der Abschnitt eines Patches, dessen Wahl sich geaendert hat; die Dreiecke,
-    // die wegfallen, werden leer (alle Indizes 0) wie die verdeckten. Verdeckte Patches bleiben leer.
-    if (netzId == 0 && !mesh.patches.empty() && kameraPos != nullptr && vorn != nullptr) {
-        np.patchStand.resize(mesh.patches.size());
-        std::vector<int> spalten;
-        std::vector<int> zeilen;
-        std::vector<std::uint16_t> wahl;
-        std::vector<std::uint32_t> neu;
-        for (const BspMesh::Run& r : mesh.runs) {
-            if (r.patch < 0 || static_cast<std::size_t>(r.patch) >= mesh.patches.size() || static_cast<std::size_t>(r.firstIndex) + r.numIndexes > nIdx) { continue; }
-            if (r.surface < np.ibMaske.size() && np.ibMaske[r.surface] != 0) { continue; }
-            const BspMesh::PatchGitter& g = mesh.patches[static_cast<std::size_t>(r.patch)];
-            patchLodTabellen(g, kameraPos, vorn, kRLodCurveError, spalten, zeilen);
-            wahl.clear();
-            if (static_cast<int>(spalten.size()) != g.breite || static_cast<int>(zeilen.size()) != g.hoehe) {
-                for (const int x : spalten) { wahl.push_back(static_cast<std::uint16_t>(x)); }
-                wahl.push_back(0xFFFFU);
-                for (const int y : zeilen) { wahl.push_back(static_cast<std::uint16_t>(y)); }
-            }
-            std::vector<std::uint16_t>& stand = np.patchStand[static_cast<std::size_t>(r.patch)];
-            if (stand == wahl) { continue; }
-            neu.clear();
-            patchLodIndizes(g, spalten, zeilen, neu);
-            neu.resize(r.numIndexes, 0U);
-            D3D11_BOX box{};
-            box.left = r.firstIndex * 4U;
-            box.right = (r.firstIndex + r.numIndexes) * 4U;
-            box.top = 0;
-            box.bottom = 1;
-            box.front = 0;
-            box.back = 1;
-            c->UpdateSubresource(np.ib, 0, &box, neu.data(), 0, 0);
-            stand = wahl;
-            ++g_patchLodAenderungen;
-        }
+    // rc608 Teil 13b: Patch-LOD wie im Spiel (patchLodSchreiben), fuer die Welt und fuer Mover (rc608 Teil 13c).
+    if ((netzId == 0 || netzId == 2) && !np.patchRuns.empty()) {
+        patchLodSchreiben(mesh, np, nIdx, kameraPos, vorn, netzId == 2 ? g_moverLod : nullptr, nullptr, c);
     }
     np.quelleVerts = mesh.verts.data();
     np.quelleIdx = mesh.indexes.data();
@@ -8096,6 +8142,7 @@ std::vector<StapelNotiz> auffaelligeStapel() { return {}; }
 void setzeVerdeckteFlaechen(const BspGeometry*, const std::vector<char>*) {}
 void szeneWaehlen(int) {}
 std::uint64_t patchLodAenderungen() { return 0; }
+std::uint64_t moverPatchLodAenderungen() { return 0; }
 int szeneJetzt() { return 0; }
 int zeichneKarte(const BspMesh&, const TextureSet*, const BspGeometry*,
                  const float*, const float*, float, float, float, int,

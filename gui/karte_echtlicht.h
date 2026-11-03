@@ -75,6 +75,10 @@ struct SpielbildStand {
     int modellAufrufe = 0;
     bool himmelPortal = false; // das Bild des misc_skyportal stand unter der Hauptszene
     int wetterTeilchen = 0;
+    int grasVierecke = 0;      // rc608 Teil 13c: Halme (surfaceSprites) des Hauptbilds
+    int effektLaeufer = 0;     // rc608 Teil 13c: laufende fx_runner und die Ecken ihres Netzes im Hauptbild
+    int effektEcken = 0;
+    int portalEffektEcken = 0; // die Effekte der Portal-Entities in der Szene des Himmelsportals
 };
 [[nodiscard]] SpielbildStand spielbildStand();
 // rc608 Teil 12, fuer den Bildvergleich im Selbsttest: feste Shaderzeit des Spielbilds in Sekunden (< 0: die Uhr).

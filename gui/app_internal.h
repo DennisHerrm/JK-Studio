@@ -2787,6 +2787,28 @@ struct KartenModellZiel {
     std::vector<std::string>* fehlend = nullptr;
 };
 void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehlt);
+// rc604: G_SpawnGEntityFromSpawnVars entfernt jede Entity mit "notsingle" oder dem Bit der Schwierigkeit
+// (spawnflags & (1 << (8 + g_spskill)), code/game/g_spawn.cpp:1064-1075, 1096-1101 OpenJK, :1260-1265 MD) - vor ihrer
+// Spawnfunktion. Vorschau und Spielbild des Karten-Editors zeigen sie dann nicht.
+bool gespawntImSpiel(const MapEntity& e);
+// rc608 Teil 13c: Die Brush-Modelle ("*N"), die das Spiel zeichnet, und ihre Stellung - eine Regel fuer die Vorschau und
+// das Spielbild des Karten-Editors. Die Welt ist Modell 0 (R_AddWorldSurfaces); jedes andere Modell kommt nur ueber seine
+// Entity ins Bild (CG_AddCEntity: s.modelindex, an currentOrigin/currentAngles), also nur mit einer Entity, die das Spiel
+// spawnt (G_SpawnGEntityFromSpawnVars) und die es zeichnet (kein trigger_*, SVF_NOCLIENT). Die Stellung kommt aus der
+// Mover-Simulation (InitMover: pos1, bei START_OPEN pos2; func_wall/func_usable START_OFF unsichtbar; func_rotating,
+// func_bobbing), sonst der Ursprung der Entity (q3map2 zieht ihn bei einem origin-Brush von der Geometrie ab).
+// `anderswo[k]`: Modell k zeichnet der Aufrufer selbst (Figuren mit Brush-Modell).
+struct BrushStellung {
+    int modell = 0;
+    float ort[3]{};
+    float winkel[3]{};
+};
+std::vector<BrushStellung> brushModelleImSpiel(const std::vector<MapEntity>& entities, const BspGeometry& geo, const MoverSim& sim, double ms,
+                                               const std::vector<bool>& anderswo);
+// rc608 Teil 13c: Ist das Gebietsportal einer Entity zur Zeit ms offen (SV_AdjustAreaPortalState)? Eine Tuer, sobald sie
+// ihre Anfangsstellung verlassen hat (Use_BinaryMover; zu wieder in MOVER_POS1), func_wall/func_usable/func_breakable,
+// solange sie nicht zu sehen sind. Vorschau (areaPortaleJetzt) und Spielbild des Karten-Editors.
+bool portalOffenImSpiel(const PortalEntity& p, const MoverSim& sim, double ms);
 // Selbsttest: einen Gegenstand verstecken (Vergleich mit/ohne).
 void gegenstandVerstecken(std::size_t entity, bool aus);
 // Die Bytes einer Karte ueber ihre Kennung: aus den Archiven, sonst ueber
@@ -2951,9 +2973,35 @@ int flareSchilde(std::vector<bhed::gpu::KlingenQuad>& aus, const Camera& cam, fl
 // rc604 surfaceSprites: regnet es (R_IsRaining, tr_WorldEffects.cpp:2360 -
 // irgendeine Teilchenwolke) und der Wind der Wetterzonen.
 bool wetterFuerGras(float wind[3]);
+// rc608 Teil 13c: dasselbe fuer eine Quelle (editor: der Satz des Karten-Editors).
+bool wetterFuerGrasIn(const WetterQuelle& q, bool editor, float wind[3]);
 // --- surfaceSprites (gui/app_gras.cpp, rc604) ----------------------------------
+// rc608 Teil 13c: wohin grasStufeLaden die Halm-Stufen legt - leer: die Vorschau (g_app->grasStufen/grasStand). Die
+// Bilder gehen in den Satz, in den loadMapTextures gerade laedt.
+struct GrasStufenZiel {
+    std::vector<std::vector<App::GrasStufe>>* stufen = nullptr;
+    int* stand = nullptr;
+};
 void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::size_t stufenNr, const std::string& name,
-                    std::size_t shaderNr);
+                    std::size_t shaderNr, const GrasStufenZiel& ziel);
+// Der Satz, in den loadMapTextures gerade laedt (die Vorschau oder das Ziel von loadMapTexturesFuer).
+TextureSet& ladeSatz();
+// rc608 Teil 13c: woraus die Halme eines Bildes entstehen - dieselbe Rechnung (RB_DrawSurfaceSprites) fuer die Vorschau
+// und das Spielbild des Karten-Editors (editor: eigener Zwischenspeicher der Flaechen).
+struct GrasQuelle {
+    const BspMesh* welt = nullptr;
+    const BspGeometry* geo = nullptr;
+    const std::vector<std::vector<App::GrasStufe>>* stufen = nullptr;
+    int stand = 0;
+    const std::map<int, BspMesh>* brushNetze = nullptr;
+    const std::vector<MoverDraw>* brushStand = nullptr;   // die Brush-Modelle dieses Bildes (brush > 0, entity < 0)
+    double ms = 0.0;
+    bool regnet = false;
+    float wind[3]{};
+    bool editor = false;
+};
+// Die Halme eines Bildes in `netz` (netzId 3); Rueckgabe: Zahl der Vierecke.
+int grasNetzFuer(const GrasQuelle& q, const Camera& cam, float reichweite, BspMesh& netz);
 // rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
 // rc605: movers - die Stellungen dieses Bildes (Brush-Modelle tragen auch Halme).
 void baueGrasNetz(const Camera& cam, float reichweite, const std::vector<MoverDraw>* movers = nullptr);
@@ -3125,9 +3173,11 @@ void withUnsaved(std::function<void()> then,
                  std::function<void()> onCancel = nullptr);
 void drawAskSave();
 void loadMapTextures();
-// rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors), ohne Gras.
+// rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors).
+// rc608 Teil 13c: mit `gras` auch die Halm-Stufen (surfaceSprites) in dieses Ziel.
 void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder,
-                         const std::function<void()>& danach = {});   // rc608 Teil 13b: danach, solange das Ziel gilt
+                         const std::function<void()>& danach = {},   // rc608 Teil 13b: danach, solange das Ziel gilt
+                         const GrasStufenZiel& gras = {});
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
@@ -3634,8 +3684,21 @@ std::string abwurfModell(const TodesAbwurf& ab);
 // Datei - leer, wenn die Figur keinen hat.
 std::string eigenerKlangDatei(const std::string& figur, const std::string& name);
 const efx::Effect* effectByName(const std::string& name);
+// rc608 Teil 13c: wohin Effektdateien und ihre Shader geladen werden - leer: die Vorschau (g_app->effects, g_app->textures,
+// g_app->effectShaders). Das Spielbild des Karten-Editors hat eigene (die Vorschau leert ihre bei jedem Kartenwechsel).
+// Die Bilder der Shader gehen in den Satz, in den loadMapTextures gerade laedt (ladeSatz) - `satz` muss dieser sein.
+struct EffektZiel {
+    std::map<std::string, efx::Effect>* effekte = nullptr;
+    TextureSet* satz = nullptr;
+    EffectShaderSlots* plaetze = nullptr;
+};
 // rc604: eine Effektdatei samt Shadern laden (app_view3d.cpp) - auch fuer den Selbsttest.
-bool ladeEffektDatei(const std::string& path, const std::string& herkunft);
+bool ladeEffektDatei(const std::string& path, const std::string& herkunft, const EffektZiel& ziel = {});
+// rc604 Endrunde: die Folgeeffekte (impactfx, deathfx, emitfx, playfx) Stufe fuer Stufe vorab, samt Shadern.
+void ladeFolgeeffekte(std::vector<const efx::Effect*> offen, int* nachgeladenAus, int* ohneDateiAus, const EffektZiel& ziel = {});
+// rc608 Teil 13c: ein fx_runner als Effekt nach SP_fx_runner/fx_runner_link (g_fx.cpp) - Datei, Richtung, Abstand, erster
+// Durchgang; startMs < 0, wenn er auf ein use wartet (STARTOFF, ONESHOT). false: keine Effektdatei.
+bool fxRunnerAus(const MapEntity& e, const std::vector<MapEntity>& alle, const EffektZiel& ziel, EffectInstance& inst);
 // Nach dem Laden einer .bsp (kollisionLaden): die Schwertspuren der alten Karte
 // vergessen. rc601 integ: die Brushes kommen aus geladeneKollision().
 void saberKarteGeladen();
@@ -3677,7 +3740,7 @@ struct SaberZaehlung {
 // Die ganze Szene von 0 bis bisMs der Reihe nach (Szenenlauf im Selbsttest).
 SaberZaehlung saberZaehlen(double bisMs);
 std::string saberLeistung();
-void ladeEffektShader(const efx::Effect& ef);
+void ladeEffektShader(const efx::Effect& ef, const EffektZiel& ziel = {});
 // CG_SaberClashFlare (rc601 saber review 2c: als 2D-Bild nach den Kinobalken).
 // saberBlitzAnsicht merkt beim Rendern die Kamera einer Ansicht (0 Hauptansicht,
 // 1 Kameravorschau; kam nullptr: keine), saberBlitzZeichnen2D zeichnet den

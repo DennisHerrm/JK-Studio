@@ -14,8 +14,12 @@
 // (wetterTeilchenFuer: fx_rain, fx_snow, fx_spacedust, fx_wind, Weather/<karte>.cfg). misc_model braucht nichts:
 // q3map2 baut es in die Welt ein und laesst die Entity weg (UnparseEntities).
 //
-// Nicht dabei (anders als die Vorschau mit ihrer Mission): Figuren, Mover in Bewegung (Brush-Modelle stehen,
-// wo q3map2 sie abgelegt hat, und mit ihnen ein model2), Effekte, Gras (surfaceSprites).
+// rc608 Teil 13c: die Welt ist Modell 0; die Brush-Modelle kommen nur ueber ihre Entity und in ihrer Stellung beim Laden
+// ins Bild (brushModelleImSpiel, mit ihnen ein model2), die Gebietsportale gelten (portalOffenImSpiel), die Halme
+// (grasNetzFuer) und die fx_runner (fxRunnerAus, buildEffectMesh; Portal-Entities nur im Himmelsportal) wie die Vorschau.
+//
+// Nicht dabei (anders als die Vorschau mit ihrer Mission): Figuren, Mover in Bewegung (ohne Mission benutzt sie nichts),
+// das dynamische Licht der Effekte, Emittermodelle.
 #include "karte_echtlicht.h"
 #include "karteneditor.h"
 
@@ -31,6 +35,7 @@
 #include "bhed/md3.h"
 #include "bhed/mover.h"
 #include "bhed/regelwerk.h"
+#include "bhed/saberkontakt.h"   // kInhaltFest
 
 #include <chrono>
 #include <cmath>
@@ -53,7 +58,8 @@ struct Szene {
     BspMesh netz;
     TextureSet bilder;
     std::unordered_set<std::string> bildNamen;
-    std::map<int, std::vector<char>> pvs;   // je Cluster des Auges
+    std::map<std::pair<int, int>, std::vector<char>> pvs;   // je Gebiet und Cluster des Auges
+    int pvsGebiet = -3;
     int pvsCluster = -3;
     float distanceCull = 12000.0F;          // tr.distanceCull (worldspawn "distanceCull", R_LoadWorld)
     float hintergrund[3] = {0.0F, 0.0F, 0.0F};
@@ -65,24 +71,119 @@ struct Szene {
     std::vector<App::MapModel> modelle;
     std::vector<std::string> fehlendeModelle;
     std::map<std::string, BspMesh> modellNetze;   // "Pfad#Bild" wie md3Meshes der Vorschau
+    // rc608 Teil 13c: die Brush-Modelle ("*N") nach Nummer wie brushMeshes der Vorschau, und ihre Stellungen
+    std::map<int, BspMesh> brushNetze;
+    MoverSim moverSim;
+    // rc608 Teil 13c: surfaceSprites wie die Vorschau (grasNetzFuer): die Halm-Stufen der Shader, je Sicht ein Netz
+    // (RB_DrawSurfaceSprites rechnet je Sicht), die Brush-Modelle dieses Bildes
+    std::vector<std::vector<App::GrasStufe>> grasStufen;
+    int grasStand = 0;
+    BspMesh grasNetz;
+    BspMesh grasNetzPortal;
+    std::vector<MoverDraw> grasBrush;
+    // rc608 Teil 13c: fx_runner wie die Vorschau (fxRunnerAus, effectFollowUpsAt, buildEffectMesh) mit eigenen Dateien und
+    // Shaderplaetzen (die Vorschau leert ihre bei jedem Kartenwechsel); je Sicht ein Netz
+    std::map<std::string, efx::Effect> effekte;
+    EffectShaderSlots effektPlaetze;
+    std::vector<EffectInstance> effektLaeufer;
+    std::vector<EffectInstance> effektLaeuferPortal;   // Portal-Entities (G_PortalifyEntities): nur im Himmelsportal
+    BspMesh effektNetz;
+    BspMesh effektNetzPortal;
+    AreaPortale portale;   // Stand beim Laden: welche Gebietsportale offen sind (portalOffenImSpiel)
     bool portal = false;
     float portalOrt[3] = {0.0F, 0.0F, 0.0F};
     std::uint64_t nummerZaehler = 0;
     std::shared_ptr<const KollisionsKarte> kollision;
 };
 
-// Ein Kartenmodell in diesem Bild - wie MoverDraw der Vorschau (offset, Drehung, Groesse, Licht).
+// Ein Kartenmodell oder Brush-Modell in diesem Bild - wie MoverDraw der Vorschau (offset, Drehung, Groesse, Licht).
+// Ein Brush-Modell traegt seine Lightmaps (modellLicht false), ein .md3 das Licht aus dem Lichtgitter.
 struct ModellBild {
     const BspMesh* netz = nullptr;
     float welt[16]{};
     float ort[3]{};
+    bool modellLicht = true;
     GridLight licht;
 };
 // nie zerstoert: beim Beenden ist das Grafikgeraet schon weg
 Szene& g_szene = *new Szene;
 SpielbildStand g_stand;
 double g_zeitFest = -1.0;   // rc608 Teil 12: spielbildZeitFest
-const AreaPortale g_keinePortale;   // ohne Mission sind alle Portale zu, gezaehlt wird nur das PVS
+
+// Die fx_runner der Karte wie loadMapEffects der Vorschau (fxRunnerAus): ohne Mission laeuft nur, wer nicht auf ein use
+// wartet (STARTOFF, ONESHOT: fx_runner_link setzt nextthink -1). Dazu die Folgeeffekte aller Stufen samt Shadern
+// (ladeFolgeeffekte), damit kein Bild nachladen muss. Laeuft, solange das Ladeziel die Szene des Editors ist.
+void effekteAufstellen(Szene& s) {
+    s.effektLaeufer.clear();
+    s.effekte.clear();
+    s.effektPlaetze.clear();
+    const EffektZiel ziel{&s.effekte, &s.bilder, &s.effektPlaetze};
+    std::vector<const efx::Effect*> offen;
+    for (const MapEntity& e : s.entities) {
+        if (e.classname != "fx_runner" || !gespawntImSpiel(e)) { continue; }
+        EffectInstance inst;
+        if (!fxRunnerAus(e, s.entities, ziel, inst) || inst.startMs < 0.0) { continue; }
+        s.effektLaeufer.push_back(inst);
+        offen.push_back(inst.effect);
+    }
+    ladeFolgeeffekte(std::move(offen), nullptr, nullptr, ziel);
+}
+
+// G_PortalifyEntities (g_misc.cpp:675-701 OpenJK, Movie Duels ebenso): eine Entity im PVS des misc_skyportal (SV_inPVS:
+// Cluster und verbundene Gebiete) mit freier Punktspur CONTENTS_SOLID von dort ist eine Portal-Entity. Ihre Effekte spielt
+// CFxScheduler nur in der Szene des Himmelsportals (AddScheduledEffects(true), cg_view.cpp:1927), die anderen nur in der
+// Hauptszene (:2205). Die Spur trifft auch Brush-Modelle (gi.trace mit Entities) - in ihrer Stellung beim Laden.
+bool portalEntitaet(const Szene& s, const float ort[3]) {
+    if (!s.portal || !s.kollision) { return false; }
+    const int a = s.geo.leafAt(s.portalOrt);
+    const int b = s.geo.leafAt(ort);
+    if (a < 0 || b < 0 || static_cast<std::size_t>(a) >= s.geo.leafs.size() || static_cast<std::size_t>(b) >= s.geo.leafs.size()) { return false; }
+    const BspGeometry::Leaf& la = s.geo.leafs[static_cast<std::size_t>(a)];
+    const BspGeometry::Leaf& lb = s.geo.leafs[static_cast<std::size_t>(b)];
+    if (!s.geo.clusterVisible(la.cluster, lb.cluster) || !s.portale.verbunden(la.area, lb.area)) { return false; }
+    const float null3[3] = {0.0F, 0.0F, 0.0F};
+    if (kollisionsSpur(*s.kollision, s.portalOrt, null3, null3, ort, kInhaltFest).fraction < 1.0F) { return false; }
+    for (const BrushStellung& m : brushModelleImSpiel(s.entities, s.geo, s.moverSim, 0.0, {})) {
+        if (kollisionsSpur(*s.kollision, s.portalOrt, null3, null3, ort, kInhaltFest, m.modell, m.ort, m.winkel).fraction < 1.0F) { return false; }
+    }
+    return true;
+}
+
+void effektePortalTeilen(Szene& s) {
+    s.effektLaeuferPortal.clear();
+    std::vector<EffectInstance> haupt;
+    for (const EffectInstance& l : s.effektLaeufer) { (portalEntitaet(s, l.origin) ? s.effektLaeuferPortal : haupt).push_back(l); }
+    s.effektLaeufer = std::move(haupt);
+}
+
+// Das Effektnetz einer Sicht wie baueEffektNetz der Vorschau: Laeufer und Folgeeffekte, Vierecke quer zum Blick dieser
+// Kamera (CParticle::Cull mit ihrem Auge), die Vollbildblitze (CFlash) dazu.
+void effektNetzBauen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit, bool portal, BspMesh& netz) {
+    netz = BspMesh{};
+    const std::vector<EffectInstance>& laeufer = portal ? s.effektLaeuferPortal : s.effektLaeufer;
+    if (!g_app->showEffects || laeufer.empty()) { return; }
+    const double ms = static_cast<double>(zeit) * 1000.0;
+    std::vector<EffectInstance> alle = laeufer;
+    const std::vector<EffectInstance> folgen = effectFollowUpsAt(alle, ms, &s.geo, [&s](const std::string& name) -> const efx::Effect* {
+        const auto it = s.effekte.find("effects/" + name + ".efx");
+        return it == s.effekte.end() || it->second.primitives.empty() ? nullptr : &it->second;
+    });
+    alle.insert(alle.end(), folgen.begin(), folgen.end());
+    float vorn[3];
+    float rechts[3];
+    float hoch[3];
+    cam.forward(vorn);
+    cam.right(rechts);
+    cam.up(hoch);
+    EffectCull auge;
+    for (int k = 0; k < 3; ++k) { auge.viewer[k] = cam.pos[k]; }
+    auge.haveViewer = true;
+    auge.sichtTabelle = false;
+    netz = buildEffectMesh(alle, ms, rechts, hoch, &s.effektPlaetze, &s.geo, &auge);
+    const float seiten = static_cast<float>(breite) / static_cast<float>(std::max(hoehe, 1));
+    const float fovX = 2.0F * std::atan(std::tan(cam.fovY * 3.14159265F / 360.0F) * seiten) * 180.0F / 3.14159265F;
+    appendScreenFlashes(netz, effectScreenFlashesAt(alle, ms, cam.pos, vorn), cam.pos, vorn, rechts, hoch, fovX, &s.effektPlaetze);
+}
 
 // Die Szene aus der .bsp, wie loadMapFromBytes sie fuer die Vorschau anlegt.
 bool aufbauen(const std::string& daten, std::uint64_t nummer) {
@@ -92,8 +193,10 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
     // Die Grafikpuffer der alten Modellnetze (Schluessel: Adresse) in der Szene des Editors freigeben.
     gpu::szeneWaehlen(1);
     for (const auto& [name, netz] : s.modellNetze) { gpu::vergissNetz(&netz); }
+    for (const auto& [modell, netz] : s.brushNetze) { gpu::vergissNetz(&netz); }
     gpu::szeneWaehlen(0);
     s.modellNetze.clear();
+    s.brushNetze.clear();
     BspGeometry geo;
     MapData m;
     std::string fehlerText;
@@ -105,10 +208,28 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
     (void)stileEinrechnen(geo, lichtStilGewichte(m.entities), &dyn);
     (void)stileAnwenden(geo, lichtStilGewichteZuZeit(m.entities, {}, 0.0));
     s.geo = std::move(geo);
+    // rc608 Teil 13c: die Stellungen der Brush-Modelle wie in der Vorschau (InitMover, START_OPEN, START_OFF), ohne
+    // Mission: keine Benutzungen, keine Figuren in den Ausloesefeldern - der Stand beim Laden der Karte.
+    s.moverSim = MoverSim{};
+    s.moverSim.spielstufe = regelwerkSpielstufe();
+    s.moverSim.baue(m, s.geo, {}, {}, 0.0);
+    // Die Gebietsportale (cm_test.cpp): am Anfang alle zu; offen, wo eine Entity es beim Laden schon ist (eine Tuer
+    // steht in ihrer Anfangsstellung, also zu; func_wall/func_usable START_OFF offen). Dieselbe Regel wie die Vorschau.
+    {
+        int gebiete = 0;
+        for (const BspGeometry::Leaf& lf : s.geo.leafs) { gebiete = std::max(gebiete, lf.area + 1); }
+        s.portale = AreaPortale{};
+        s.portale.anlegen(gebiete);
+        for (const PortalEntity& p : portalEntities(m, s.geo, !regelwerkJediOutcast(), [](const MapEntity& e) { return gespawntImSpiel(e); })) {
+            if (portalOffenImSpiel(p, s.moverSim, 0.0)) { s.portale.setze(p.gebiete.a, p.gebiete.b, true); }
+        }
+    }
     s.entities = std::move(m.entities);
-    // Mit Himmel: die Himmelsbox braucht die Himmelsflaechen (RB_ClipSkyPolygons).
-    s.netz = buildMesh(s.geo, g_app->meshDetail, false);
+    // Die Welt ist Modell 0 (R_AddWorldSurfaces); die anderen Modelle zeichnet das Spiel nur an ihrer Entity
+    // (brushModelleImSpiel). Mit Himmel: die Himmelsbox braucht die Himmelsflaechen (RB_ClipSkyPolygons).
+    s.netz = s.geo.models.empty() ? buildMesh(s.geo, g_app->meshDetail, false) : buildModelMesh(s.geo, 0, g_app->meshDetail, false);
     s.bilder = TextureSet{};
+    s.grasStufen.clear();
     s.md3.clear();
     s.modelle.clear();
     s.fehlendeModelle.clear();
@@ -116,9 +237,13 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
     int modelleFehlen = 0;
     gpu::szeneWaehlen(1);
     // Die Modelle haengen ihre Bilder hinten an, solange das Ladeziel noch die Szene des Editors ist.
-    loadMapTexturesFuer(s.geo, s.bilder, s.bildNamen, [&s, &modelleDa, &modelleFehlen] {
-        kartenModelleAufstellen({&s.entities, &s.geo, &s.bilder, &s.md3, &s.modelle, &s.fehlendeModelle}, modelleDa, modelleFehlen);
-    });
+    loadMapTexturesFuer(
+        s.geo, s.bilder, s.bildNamen,
+        [&s, &modelleDa, &modelleFehlen] {
+            kartenModelleAufstellen({&s.entities, &s.geo, &s.bilder, &s.md3, &s.modelle, &s.fehlendeModelle}, modelleDa, modelleFehlen);
+            effekteAufstellen(s);
+        },
+        GrasStufenZiel{&s.grasStufen, &s.grasStand});
     gpu::szeneWaehlen(0);
     // CG_DrawSkyBoxPortal: der Ort des misc_skyportal (himmelPortalOrt der Vorschau).
     s.portal = false;
@@ -133,6 +258,7 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
         auto k = std::make_shared<KollisionsKarte>();
         if (leseKollision(daten, *k)) { s.kollision = std::move(k); }
     }
+    effektePortalTeilen(s);
 
     s.distanceCull = 12000.0F;
     for (const MapEntity& e : s.entities) {
@@ -160,11 +286,14 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
         break;
     }
     s.pvs.clear();
+    s.pvsGebiet = -3;
     s.pvsCluster = -3;
     s.gueltig = !s.netz.batches.empty();
+    std::size_t halmStufen = 0;
+    for (const auto& v : s.grasStufen) { halmStufen += v.size(); }
     diag::detail("Karten-Editor: Spielbild - " + std::to_string(s.netz.batches.size()) + " Stapel, " + std::to_string(s.bilder.found) + " Texturen, " +
                  std::to_string(s.bilder.missing) + " fehlen, " + std::to_string(modelleDa) + " Modelle, " + std::to_string(modelleFehlen) +
-                 " fehlen" + (s.portal ? ", Himmelsportal" : ""));
+                 " fehlen, " + std::to_string(halmStufen) + " Halm-Stufen" + (s.portal ? ", Himmelsportal" : ""));
     return s.gueltig;
 }
 
@@ -182,13 +311,50 @@ Camera alsSpielKamera(const karte::Kamera& k, int breite, int hoehe, float sicht
     return c;
 }
 
-// Die Kartenmodelle in diesem Bild - wie die Schleife ueber mapModels der Vorschau (app_view3d_bedienung.inc): Bild der
-// Animation nach der Zeit (20 je Sekunde), Stellung mit baueMoverWelt, Licht aus dem Lichtgitter am Ort plus lichtHoehe
-// (CG_DrawMiscEnts: origin + zoffset + 1). Ein model2 faehrt mit seinem Brush-Modell und bleibt hier weg.
+// Die Brush-Modelle und Kartenmodelle in diesem Bild - wie die Vorschau (app_view3d_bedienung.inc): die Brush-Modelle aus
+// brushModelleImSpiel (dieselbe Regel) mit ihren Lightmaps, ein model2 in der Stellung seines Brush-Modells (CG_Mover:
+// lerpOrigin/lerpAngles), die Kartenmodelle mit dem Bild der Animation nach der Zeit (20 je Sekunde); Stellung mit
+// baueMoverWelt, Licht der Modelle aus dem Lichtgitter am Ort plus lichtHoehe (CG_DrawMiscEnts: origin + zoffset + 1).
 std::vector<ModellBild> modelleImBild(Szene& s, float zeit) {
     std::vector<ModellBild> aus;
+    std::map<int, BrushStellung> brushStand;
+    s.grasBrush.clear();
+    for (const BrushStellung& b : brushModelleImSpiel(s.entities, s.geo, s.moverSim, static_cast<double>(zeit) * 1000.0, {})) {
+        auto netz = s.brushNetze.find(b.modell);
+        if (netz == s.brushNetze.end()) { netz = s.brushNetze.emplace(b.modell, buildModelMesh(s.geo, b.modell, g_app->meshDetail, false)).first; }
+        if (netz->second.indexes.empty()) { continue; }
+        brushStand[b.modell] = b;
+        MoverDraw mv;   // fuer die Halme auf Brush-Modellen (baueGras)
+        mv.brush = b.modell;
+        for (int k = 0; k < 3; ++k) { mv.offset[k] = b.ort[k]; }
+        mv.pitch = b.winkel[0];
+        mv.yaw = b.winkel[1];
+        mv.roll = b.winkel[2];
+        s.grasBrush.push_back(mv);
+        ModellBild m;
+        m.netz = &netz->second;
+        m.modellLicht = false;
+        gpu::baueMoverWelt(nullptr, b.ort, b.winkel[1], b.winkel[0], b.winkel[2], b.winkel[0] != 0.0F || b.winkel[2] != 0.0F, m.welt);
+        for (int k = 0; k < 3; ++k) { m.ort[k] = b.ort[k]; }
+        aus.push_back(m);
+    }
     for (const App::MapModel& mm : s.modelle) {
-        if (mm.anBrush > 0) { continue; }
+        if (mm.anBrush > 0) {
+            const auto st = brushStand.find(mm.anBrush);
+            const auto datei = s.md3.find(mm.path);
+            if (st == brushStand.end() || datei == s.md3.end()) { continue; }
+            auto netz = s.modellNetze.find(mm.path + "#0");
+            if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(mm.path + "#0", md3ToMesh(datei->second, 0, mm.shaderBase)).first; }
+            if (netz->second.indexes.empty()) { continue; }
+            const BrushStellung& b = st->second;
+            ModellBild m;
+            m.netz = &netz->second;
+            gpu::baueMoverWelt(nullptr, b.ort, b.winkel[1], b.winkel[0], b.winkel[2], b.winkel[0] != 0.0F || b.winkel[2] != 0.0F, m.welt);
+            for (int k = 0; k < 3; ++k) { m.ort[k] = b.ort[k]; }
+            m.licht = sampleLightGrid(s.geo, b.ort, false, gpu::kSpielLightmapFaktor);
+            aus.push_back(m);
+            continue;
+        }
         const auto datei = s.md3.find(mm.path);
         if (datei == s.md3.end()) { continue; }
         int bild = 0;
@@ -219,14 +385,17 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     const float fern = kartenFernFuer(s.geo);
     float vp[16];
     gpu::baueViewProj(cam, breite, hoehe, 4.0F, fern, vp);   // r_znear 4
-    // R_MarkLeaves: das PVS des Clusters, in dem die Kamera steht.
+    // R_MarkLeaves: das PVS des Clusters, in dem die Kamera steht, und die Gebiete, die mit ihrem verbunden sind (areamask).
     const int blatt = s.geo.leafAt(cam.pos);
-    const int cluster = blatt >= 0 && static_cast<std::size_t>(blatt) < s.geo.leafs.size() ? s.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
-    if (cluster != s.pvsCluster) {
+    const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < s.geo.leafs.size();
+    const int cluster = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
+    const int gebiet = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].area : -1;
+    if (cluster != s.pvsCluster || gebiet != s.pvsGebiet) {
         s.pvsCluster = cluster;
+        s.pvsGebiet = gebiet;
         if (s.pvs.size() >= 64U) { s.pvs.clear(); }   // je Eintrag eine Zahl je Flaeche: nicht ohne Grenze wachsen
-        auto it = s.pvs.find(cluster);
-        if (it == s.pvs.end()) { it = s.pvs.emplace(cluster, flaechenAusserSicht(s.geo, g_keinePortale, -1, cluster)).first; }
+        auto it = s.pvs.find({gebiet, cluster});
+        if (it == s.pvs.end()) { it = s.pvs.emplace(std::make_pair(gebiet, cluster), flaechenAusserSicht(s.geo, s.portale, gebiet, cluster)).first; }
         gpu::setzeVerdeckteFlaechen(&s.geo, &it->second);
         if (!portal) {
             g_stand.flaechenVerdeckt = 0;
@@ -251,18 +420,74 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     const float fokus = 1.0F / std::tan(cam.fovY * 3.14159265F / 180.0F * 0.5F);
     const std::vector<ModellBild> modelle = modelleImBild(s, zeit);
     if (!portal) { g_stand.modelle = static_cast<int>(modelle.size()); }
+    WetterQuelle wq;
+    wq.entities = &s.entities;
+    wq.geo = &s.geo;
+    wq.karte = s.kartenName;
+    wq.stand = s.nummer;
+    wq.kollision = s.kollision;
+    wq.ms = static_cast<double>(zeit) * 1000.0;
+    // RB_DrawSurfaceSprites je Sicht mit ihren viewParms (Hauptbild und Himmelsportal); rangescalefactor 1: die Kamera ist
+    // die erste Sicht (R_SurfaceSpriteFrameUpdate nimmt deren Bildwinkel als Standard).
+    BspMesh& gras = portal ? s.grasNetzPortal : s.grasNetz;
+    {
+        GrasQuelle q;
+        q.welt = &s.netz;
+        q.geo = &s.geo;
+        q.stufen = &s.grasStufen;
+        q.stand = s.grasStand;
+        q.brushNetze = &s.brushNetze;
+        q.brushStand = &s.grasBrush;
+        q.ms = static_cast<double>(zeit) * 1000.0;
+        q.regnet = wetterFuerGrasIn(wq, true, q.wind);
+        q.editor = true;
+        const int vierecke = grasNetzFuer(q, cam, 1.0F, gras);
+        if (!portal) { g_stand.grasVierecke = vierecke; }
+    }
+    BspMesh& effekte = portal ? s.effektNetzPortal : s.effektNetz;
+    effektNetzBauen(s, cam, breite, hoehe, zeit, portal, effekte);
+    if (!portal) {
+        g_stand.effektLaeufer = static_cast<int>(s.effektLaeufer.size());
+        g_stand.effektEcken = static_cast<int>(effekte.verts.size());
+    } else {
+        g_stand.portalEffektEcken = static_cast<int>(effekte.verts.size());
+    }
     int aufrufe = 0;
     int modellAufrufe = 0;
+    // Die Halme (netzId 3) wie zeichneGras der Vorschau: deckend nach der Karte, gemischt vor ihr; ihr Nebel gleich danach
+    // (SQuickSprite::Flush mit tr.fogImage und GLS_DEPTHFUNC_EQUAL).
+    const auto halme = [&](gpu::Lage lage, bool erst) {
+        if (gras.indexes.empty()) { return; }
+        std::string fg;
+        aufrufe += gpu::zeichneKarte(gras, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 3, vorn, rechts, hoch, fokus, &fg,
+                                     nullptr, lage);
+        if (f.empty()) { f = fg; }
+        if (g_app->showFog && !s.geo.nebel.empty()) {
+            static const std::vector<gpu::FigurSchatten> kKeineFiguren;
+            std::string fn;
+            aufrufe += gpu::zeichneNebel(gras, &s.bilder, &s.geo, vp, zeit, cam.pos, nebelListeFuer(s.geo), kKeineFiguren, &fn, nullptr, -1,
+                                         erst ? 1 : 2);
+        }
+    };
     // Erst alles Deckende ueber alle Quellen, dann der Nebel dazu (RB_FogPass nach den Stufen), dann alles Gemischte -
     // wie die Vorschau (app_view3d_bedienung.inc, die beiden Durchgaenge).
     for (int durchgang = 0; durchgang < 2; ++durchgang) {
         const gpu::Lage lage = durchgang == 0 ? gpu::Lage::Deckend : gpu::Lage::Gemischt;
+        if (durchgang == 1) { halme(lage, false); }
         aufrufe += gpu::zeichneKarte(s.netz, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 0, vorn, rechts, hoch, fokus, &f,
                                      nullptr, lage);
+        // Das Effektnetz als zweites Netz nach der Karte (netzId 1), wie die Vorschau.
+        if (!effekte.indexes.empty()) {
+            std::string fe;
+            aufrufe += gpu::zeichneKarte(effekte, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 1, vorn, rechts, hoch, fokus,
+                                         &fe, nullptr, lage);
+            if (f.empty()) { f = fe; }
+        }
+        if (durchgang == 0) { halme(lage, true); }
         for (const ModellBild& m : modelle) {
             std::string fm;
             modellAufrufe += gpu::zeichneMover(*m.netz, &s.bilder, &s.geo, vp, m.welt, cam.pos, vorn, rechts, hoch, fokus, zeit,
-                                               gpu::kSpielLightmapFaktor, 0.0F, &fm, nullptr, lage, &m.licht);
+                                               gpu::kSpielLightmapFaktor, 0.0F, &fm, nullptr, lage, m.modellLicht ? &m.licht : nullptr);
             if (f.empty()) { f = fm; }
         }
         if (durchgang == 0 && g_app->showFog && !s.geo.nebel.empty()) {
@@ -282,15 +507,8 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
         // Das Wetter nach allem anderen: additiv, tiefengetestet (wie die Klingen der Vorschau).
         g_stand.wetterTeilchen = 0;
         if (g_app->zeigeWetter) {
-            WetterQuelle q;
-            q.entities = &s.entities;
-            q.geo = &s.geo;
-            q.karte = s.kartenName;
-            q.stand = s.nummer;
-            q.kollision = s.kollision;
-            q.ms = static_cast<double>(zeit) * 1000.0;
             std::vector<gpu::KlingenQuad> teilchen;
-            g_stand.wetterTeilchen = wetterTeilchenFuer(q, true, teilchen, cam);
+            g_stand.wetterTeilchen = wetterTeilchenFuer(wq, true, teilchen, cam);
             if (!teilchen.empty()) {
                 std::string fk;
                 aufrufe += gpu::zeichneKlingen(teilchen, vp, &fk);
@@ -305,7 +523,10 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
                 q.modellLicht = m.licht;
                 gluehModelle.push_back(q);
             }
-            aufrufe += gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, 320, 240, true, &f, nullptr, gluehModelle);
+            // Die Effektteilchen mit glow-Stufe gehen mit ins Gluehen, der Rauch nach dem Schalter der Vorschau.
+            gpu::gluehenEffekte(g_app->showEffects ? &effekte : nullptr);
+            aufrufe += gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, 320, 240, true, &f,
+                                           (g_app->showEffects && g_app->rauchImGluehen) ? &effekte : nullptr, gluehModelle);
         }
         // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht) - wie die Vorschau.
         if (regelwerkMovieDuels()) { gpu::spielGammaAnwenden(); }
@@ -337,6 +558,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
     // Himmelsbox; die Hauptszene zeichnet dann keinen Himmel (RDF_SKYBOXPORTAL) - dort steht das Portalbild. Ohne
     // Himmel (Schalter der Vorschau) nicht.
     g_stand.himmelPortal = false;
+    g_stand.portalEffektEcken = 0;
     if (s.portal && g_app->showSky) {
         gpu::waehleZiel(gpu::kZielKarteneditorPortal);
         if (gpu::bereiteZiel(breite, hoehe)) {

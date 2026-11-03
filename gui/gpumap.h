@@ -128,6 +128,8 @@ void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* ver
 void szeneWaehlen(int nr);
 // rc608 Teil 13b: Zahl der Patch-Abschnitte, die der Zeichner nach RB_SurfaceGrid neu geschrieben hat (Selbsttest).
 [[nodiscard]] std::uint64_t patchLodAenderungen();
+// rc608 Teil 13c: dasselbe fuer die Patches an Movern (zeichneMover, lodOrigin mit der Stellung in die Welt).
+[[nodiscard]] std::uint64_t moverPatchLodAenderungen();
 [[nodiscard]] int szeneJetzt();
 // Der Zielsatz (waehleZiel) des Karten-Editors.
 inline constexpr int kZielKarteneditor = 5;
