@@ -1225,6 +1225,69 @@ Nicht angegangen (Punkte 1 bis 3 gingen vor): Echtzeit gegen gebaut auf hoth, De
 ### Changelog
 Zwei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten.
 
+## Endrunde 1: Reste, Gegenprobe, Handbuchbilder
+
+Auftrag `auftrag_rc608_endrunde1.md`. Skripte und Bilder in `SP/er1` (`karten_er1.py` Testkarten, `eigen_er1.py` selbst gebaute Karte, `spiel_er1.py` Spielstart md/ja/jo, `vor.sh` Vorschau, `faktor.py` Bloecke, `strahl.py` Flaeche je Bildpunkt, `bilder_er1.sh` Handbuchbilder), Paare in `SP/er1/erg/`, Spielbilder in `SP/er1/fotos/`, Laeufe `Y:\karte\laeufe\er1*`. Steam lief und war angemeldet (vor jedem Start geprueft); Original-JKA aus "GameData original" in das leere GameData kopiert und danach entfernt (je Lauf "GameData nachher gleich: True"), Configs vorher gesichert und bytegleich (je Lauf geprueft), Spielordner vorher/nachher per `ab/spielordner.py` gleich.
+
+### 1: Vor dem vollen Lauf
+- **lint_settings 4 -> 0:** Der Pruefer verglich Feldnamen mit Schluesselnamen; `bildPicmip` ("r_picmip"), `menueUmbruch` ("menueTextUmbruch"), `rExtMultisample` ("r_ext_multisample"), `schwierigkeit` ("difficulty") werden geschrieben und gelesen, nur unter anderem Namen. Jetzt prueft er, dass der Schreiber das Feld liest (`s.feld`) und der Leser es setzt (`out.feld`), und meldet beide Richtungen. Rot einmal gesehen (Lesen von `menueUmbruch` entfernt: "wird geschrieben, aber nie gelesen"), gruen.
+- **lint_portability 117 -> 106 (Basis):** 11 neue Stellen seit rc607 (std::size_t ohne <cstddef> in himmelbox, utf8pfad, geschuetz, holster, regelwerk, schmerz, pruefung4b; std::to_string ohne <string> in schmerz; std::max ohne <algorithm> in tests/leiche): Header ergaenzt. Die 106 der Basis sind unveraendert (rc607).
+- **Tutorial bei 200 %, Schritt 7:** Nachgestellt mit 2564 x 1570 bei 200 % (cs, `er1t200klein`: 23 OK, 15 FEHLER, "##neu_alleexec nicht gefunden"). Ursache: Die Hilfe fuer das Tutorial rollte die Spalte auf den Knopf "+ Add step" (SetScrollHereY 0,9), solange er nicht ganz zu sehen war - auch bei offener Liste; die Liste lag dadurch unter dem Rand, und das Tutorial-Fenster wich dem verdeckten Knopf aus und deckte die Treffer zu. Jetzt: die Hilfe nur bei geschlossener Liste; beim Oeffnen und beim Suchen zeigt die Spalte Knopf, Suche und Liste (ScrollToRect; passt es nicht, oben anfangen - die ersten Treffer zaehlen). Neue Pruefzeile "Die Liste von Add step ist ohne Rollen zu sehen" (rot `er1t200g1`, gruen), der Rollschritt des Tests ist weg. `BHED_TOUR_200` entfaellt, die Runde 200 % gehoert wieder zu `touralle`: 132 OK, 0 FEHLER (`er1touralle`, en/cs/ja 100 %, cs 200 %; 2564 x 1570 eigens: 33 OK, 0 FEHLER, `er1t200g3`). Der Schirm liess diesmal 3770 x 1912 zu (vorher 2564 x 1570).
+- **"Cancel" bei 3840@2:** Die Einstellungen schnitten Ok/Cancel ab (`er1cancel`, Foto). Ursache: ImGui begrenzt ein Popup auf die Arbeitsflaeche des Monitors (CalcWindowAutoFitSize, Monitors[].WorkSize), der Dialog rechnete mit der des Hauptfensters; das Fenster war hoeher als der Monitor. Jetzt dieselbe Grenze. Rot `er1cancel` (1 FEHLER), gruen `er1cancelg` (6 OK, 0 FEHLER).
+- **BHED_MENUE_BILDER=1:** Im Bildlauf zaehlen Fehlschlaege nicht mehr als FEHLER ("Knopftest Bildlauf, nicht gewertet"), ausser im selben Teil entsteht danach ein Bild: dann "FEHLER: Bild <name> nach einem Fehlschlag im selben Teil". Die Teile sind abgegrenzt (`bildlaufTeil`). Damit bedeutet jede rote Zeile ein moeglicherweise falsches Bild. Lauf `er1mbilder` (en): 533 OK, 16 FEHLER statt rund 55 - jede der 16 Zeilen nennt ein Bild nach einem Fehlschlag im selben Teil (menue_reiter_properties, menue_ereignisse, menue_zustaende, menue_profil, menue_komponente, menue_leiste_farbe, menue_leiste_marke, menue_leiste_addstep, menue_leiste_vorschlag, menue_leiste_ziel_fehlt, menue_rahmen_wahl_sp/_mp, menue_rahmen_video_sp/_mp, menue_links_viele, menue_felder_mehrfach). Ob das Bild davon betroffen ist, ist je Bild zu sehen; die Handbuchbilder des Menue-Editors wurden in dieser Runde nicht neu aufgenommen. Offen: diese 16 Teile auf die schmalen Spalten des Bildlaufs einrichten oder die Bilder in `bildnach` aufnehmen.
+- **Handbuchbilder ohne Seite entfernt (6 Sprachen):** menue_uebersicht, menue_reiter_hierarchie, e_namen_knopf, e_npc_namen, h_karte_gpubacken_fortschritt, h_tut_karte_buildmenue, h_tut_karte_gebaut, k_dialog, k_neu_1, k_neu_2, k_saber_baum, p6_schnitt_baum, r_kacheln, t2_ergebnis, t3_ergebnis, t4_ergebnis (96 Dateien). Geprueft: kein HTML/JSON nennt sie, gen_handbuch meldet danach kein fehlendes Bild und erzeugt dieselben Seiten. Behalten: `*_stand` (von bilder.py erzeugt, data-stand) und die Symbole `i_*` (aus dem Text erzeugt).
+- **Selbsttest fuer func_breakable als Ziel und Turbolaser** (`geschuetze` 4d und 5): 4d nimmt den naechsten func_breakable der Karte (md_am_sith, Entity 280, `*106`), health 50, Strahl 30 alle 500 ms quer durch: Bruch bei 500 ms (zweiter Treffer), Modell davor sichtbar, danach weg. 5: misc_turretG2 spawnflags 8 unter Movie Duels: 3 Schuesse, turb_muzzle_flash, Abstand >= 500 (gemessen 1100), Knochen 4/5 2/3 0/1 2/3 4/5 (wechseln), Figur tot bei 1850. Rot (`er1geschrot`, func_breakable nicht als Ziel, Turbo-Flag abgeschaltet): 10 OK, 2 FEHLER; gruen `er1gesch` 12 OK, 0 FEHLER.
+- **Weiteres GLM-Gegenstaende im Spielvergleich (Wurzeldrehung):** Testkarte `er1_glm` (md_am_sith, Waffen am Boden: weapon_blaster Gier 0, weapon_repeater 90, weapon_bowcaster 45, weapon_disruptor 0; Weltmodelle .glm), Kamera wie g7_lunge. Zwei liegen frei im Bild, Lage und Richtung wie im Spiel: Abweichung je Bildpunkt 1,11 und 0,77 (von 255), Mittel 15,2 7,9 6,3 gegen 15,2 8,0 6,3 und 18,7 9,6 7,5 gegen 18,7 9,6 7,5; die anderen zwei verdeckt Spieler und Schiff. Paar `SP/er1/erg/glm.png`, Ausschnitt `SP/er1/erg/glm_unten.png`.
+
+### 2: Gegenprobe "allgemein wie im Spiel"
+Karten, die fuer keinen Abgleich dienten (in den Notizen nachgesehen): duel_theed, duel_utapau (Movie Duels), t1_sour, t2_trip (Original-JKA, jasp.exe), yavin_temple (Jedi Outcast, jk2sp.exe), dazu `er1_eigen` (selbst gebaut mit bhed_q3map2: misc_model_static, func_door START_OPEN mit Gebietsportal, fx_rain mit Aussenbereich, misc_skyportal, Lichter). Je Karte alle Entities ausser Figuren/Ausloesern/Skriptlaeufern, ein Spielerstart; Kamera aus `viewpos` (dritte Person, auf 0,25 bzw. 0,5 genau, die Nachkommastellen schneidet viewpos ab). Faktor Vorschau/Spiel bzw. Editor-Spielbild/Spiel je Kanal in 12 Bloecken zu 480 x 480 (Zeile, Spalte). Der Editor zeichnet keinen Spieler, darum sind dort die Bloecke 2,1 und 2,2 (Spieler) ausgenommen.
+
+| Karte | Spiel | Vorschau: Bloecke in 5 %, Spanne | Editor: Bloecke in 5 %, Spanne (ohne Spieler) | Abweichung |
+|---|---|---|---|---|
+| duel_theed | MD | 10 von 12, 0,99 .. 1,17 | 8 von 10, 0,99 .. 1,20 | Bloecke 0,0 und 1,0: Wasserfall `h_evil/wfall` (tcMod scroll, je Zeit 0,96 .. 1,10) und ein heller Schleier auf dem Becken (Patch nab2_arch/decay2) |
+| duel_utapau | MD | 12 von 12, 1,00 .. 1,00 | 10 von 10, 0,89 .. 1,08 (Spieler-Rand) | - |
+| er1_eigen | MD | 12 von 12, 0,99 .. 1,01 | 10 von 10, 0,97 .. 1,02 | - (Regen zufaellig) |
+| t1_sour | jasp | 12 von 12, 1,00 .. 1,03 | 10 von 10, 1,00 .. 1,03 | - |
+| t2_trip | jasp | 4 von 12, 0,98 .. 1,31 | 4 von 10, 0,98 .. 1,31 | globaler Nebel `t2_wedgefog`: im Spiel dichter (siehe unten) |
+| yavin_temple | jk2sp | nicht gemessen | 9 von 9 (+ Spieler 2,1), 1,00 .. 1,01 | Vorschau: Vergleichsweg zeigt die JK2-Karte aus dem fremden pk3 nicht (Szene nicht bereit, keine JK2-Texturen gesucht) |
+
+Gefunden, Ursache nach Quelle:
+- **Ferne Ebene (distanceCull), gebaut:** R_SetupFrustum (tr_main.cpp:600-613 OpenJK) legt frustum[4] auf Abstand distanceCull * 1,02 (worldspawn "distanceCull", Vorgabe 12000); R_RecursiveWorldNode verwirft Blaetter ganz dahinter, R_CullSurface Dreiecksnetze und Patches, deren Kasten ganz dahinter liegt. Die Vorschau und das Spielbild des Editors kannten das nur fuer den Himmel. Jetzt `fernStand`/`flaechenAusserSicht` (src/areaportal.cpp) mit `flaechenKaesten` (srfTriangles_t::bounds, meshBounds des Spielgitters), je Bild nur gerechnet, wenn die Welt hinter die Ebene reicht. ctest `himmelbox` vier neue Zeilen, rot 2 FEHL (Ebene abgeschaltet), gruen. Im Bild von t2_trip (distancecull 7000) aendert sich nichts: der Berg liegt diesseits.
+- **Nebel unter OpenJK (nicht gebaut):** OpenJK SP setzt `r_drawfog` ab Werk auf 2 (tr_init.cpp:1606, JK2: 1), Movie Duels auf 1 (tr_init.cpp:1673 MD). Mit 2 zeichnet das Spiel den globalen Nebel als GL-Nebel EXP2 je Stufe (RB_IterateStagesGeneric, tr_shade.cpp:1805-1865, Dichte 2,354 / depthForOpaque, Farbe je Mischart) statt mit dem Nebeldurchgang; die Vorschau rechnet immer wie r_drawfog 1. Auf t2_trip (Original-JKA) ist der Berg darum im Spiel staerker im Nebel: Bloecke 1,0 .. 1,2 Faktor 1,05 .. 1,07, Block 1,3 1,24 .. 1,31 (Spiel 99,7 93,1 85,4). Movie Duels ist nicht betroffen (dort 1, gemessen in Teil 6/7). Offen: ein eigener Punkt (Nebel je Stufe in allen Shadern).
+- **theed, Wasserfall:** zeitabhaengig (vier Stufen mit tcMod scroll, das Spielbild hat eine unbekannte Shaderzeit); Faktor des Blocks 0,0 je Vorschauzeit 4000/4500/5000/6000 ms: 1,10 / 1,03 / 0,99 / 0,96. Der helle Schleier auf dem Becken (Bildpunkte 200..320 x 578..632) ist in der Vorschau zu jeder Zeit heller als im Spiel (16,0 .. 31,3 gegen 11,7); die Flaeche dort ist der Patch nab2_arch (Kontrollnetz-Strahl). Ursache nicht gefunden.
+
+Bilder (oben Spiel, darunter Vorschau, darunter Editor, 1:1): `SP/er1/erg/theed.png`, `utapau.png`, `eigen.png`, `sour.png`, `trip.png`, `yavin.png` (dort ohne Vorschau), Ausschnitte `theed_links.png`, `theed_band.png`, `trip_berg.png`.
+
+### 3: Handbuchbilder
+Je Sprache (`SP/er1/bilder_er1.sh`, ab de mit `nur_benutzt.py`, zh/ja/es/cs gleichzeitig mit eigenem Laufwerk fuer die Missionen, `bilder_er1c.sh`): grosser Bildlauf `handbuch` (alle Bilder ausser den bewegten), bewegte Bilder `a_*` mit `BHED_HB_FENSTER=3840x2160@2`, die Karten-Editor-Saetze (karteneditor, kartebauen, karte4, karte5, karte7, karte8, karte8b, karte9c, gpubacken), `dock1` (Fotos) und aus `hilfe2` nur `h_tour_menue`. Alle Laeufe 0 FEHLER. Uebernommen wird nur, was eine Seite zeigt (sonst kaemen die entfernten Bilder wieder); in en wurden 14 so wieder angelegte Dateien von Hand entfernt. Ergebnis: en 546 + 14 entfernt, de 546, zh 546, es 546, cs 546, ja 518 Bilder (5 bewegte je Sprache; ja hat weniger Einzelbilder in den Bildfolgen, die Namen sind dieselben); geaendert je Sprache 495 bis 534 Dateien. Damit sind alle Bilder mit Karte (neue Helligkeit, Spielbild des Editors), `h_ansicht_einst` und `h_tour_menue` (neue Oberflaeche) neu; Bilder mit GLM-Gegenstaenden sind darin (Waffen und Geschuetze stimmen laut Spielvergleich).
+- Groesse: 223 Bilder in en sind groesser als vorher (das Fenster darf jetzt groesser sein: 2526 statt 2200 Breite), keines ist unter 1920 gefallen. `a_k_pilot` und `a_kamera` jetzt 1920 (vorher 1191). **Unter 1920 bleibt `a_einmal` (1467 x 444):** der Ausschnitt ist ein kleines Bedienelement (Liste und Knopf); groesser hiesse hochrechnen.
+- Angesehen: Stichproben `c_tl_klick`, `a_k_pilot_stand`, `h_karte4_geladen` (en). Die uebrigen nur auf Fehlschlaege der Laeufe geprueft.
+- Tempo: en allein 20 min; zh/ja/es/cs gleichzeitig 28 min (nach der neuen Regel; de lief noch allein).
+
+### 4: teil9
+Wiederholt (cg_turnAnims-Regel geaendert): 29 OK, 0 FEHLER (`er1teil9`).
+
+### Tests
+- ctest einmal am Ende: 196 von 196 (`ctest -j 16`, 97 s, gleichzeitig mit dem Bildlauf des Menue-Editors). Bau aller Ziele 0 Warnungen.
+- Lints: lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_cbuffer, lint_gapp, lint_feldinit, lint_headers, lint_imgui_context, lint_settings ok; lint_d3dbesitz 15 (wie vorher), lint_portability 106 (Basis).
+- Gelockert: keine Teststelle. Entfernt: der Rollschritt im Tutorial-Test (die Spalte zeigt die Liste jetzt selbst; er rollte sie danach wieder weg). Neu: Pruefzeilen Tutorial (Liste ohne Rollen), geschuetze 4d/5, himmelbox Fernebene.
+
+### Nur per Foto gegen das Spiel
+GLM-Waffen (Lage/Richtung), Gegenprobe-Bilder (Faktoren gemessen, Formen nur angesehen), Einstellungsdialog bei 3840@2.
+
+### Bewusste Abweichungen vom Spiel
+- Spieler in Cutscenes (Schalter stellt das Spiel her).
+- Verdeckung beim freien Flug.
+
+### Offen aus Endrunde 1
+- r_drawfog 2 (OpenJK/Original-JKA): globaler Nebel als GL-Nebel je Stufe.
+- theed: heller Schleier am Becken; Wasserfall nur ohne gleiche Shaderzeit vergleichbar.
+- Vorschau-Vergleichsweg (geschuetze, BHED_GV_*) fuer JK2-Karten aus einem fremden pk3; die ferne Ebene fuer Modelle (R_CullModel) und zFar (Com_Clamp(2048, distanceCull * 1,732, ...)) nicht nachgebildet.
+- Bildlauf `BHED_MENUE_BILDER`: 16 Bilder nach Fehlschlaegen im selben Teil (Liste oben).
+
+### Reihenfolge und Parallelitaet
+Bis zur neuen Regel (03.11.) lief alles nacheinander. Danach gleichzeitig: Handbuchbilder zh/ja/es/cs, ctest mit dem Bildlauf des Menue-Editors. Nacheinander mit Grund: der Bau (nie neben Tests), Spielstarts (Original-JKA und JK2 je eine Instanz; die MD-Spielbilder und die Gegenprobe-Aufnahmen waren vor der Regel schon fertig).
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1342,6 +1405,10 @@ Weiter offen:
 - Preview: a ridden swoop or tauntaun turns where its rider looks (`SET_ANGLES`, `SET_DYAW` on the rider); a tauntaun stands in its idle animation, and climbing onto it takes 70 % of its own mount animation.
 - Preview: a swoop hovers as in the game, measured frame by frame in Movie Duels: after spawning it falls, bounces up and then swings above the floor; a rider climbing on pushes it down.
 - Preview: a figure that climbs off a vehicle keeps no weapon, as in the game, until the script gives it one (`SET_WEAPON`).
+- Preview and map editor (game picture): the far plane of the game (worldspawn `distanceCull`, default 12000) now hides map leaves, triangle meshes and patches that lie completely behind it, as `R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface` do.
+- Menu editor: "+ Add step" scrolls the column so the button, the search field and the list are visible; with little height (200 % on a screen below 4K) step 7 of the tutorial "Your first own menu" no longer loses the list behind the tutorial window.
+- Preferences: Ok and Cancel stay inside the screen when the main window is taller than the monitor.
+- Guide: all pictures with a map retaken (current brightness, game picture of the map editor) in six languages; pictures no page used are removed.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1443,6 +1510,10 @@ Weiter offen:
 - Vorschau: Ein gerittener Gleiter oder Tauntaun dreht sich dorthin, wohin sein Reiter schaut (`SET_ANGLES`, `SET_DYAW` am Reiter); ein Tauntaun steht in seiner Leerlauf-Animation, und das Aufsteigen dauert 70 % seiner eigenen Aufsteig-Animation.
 - Vorschau: Ein Gleiter schwebt wie im Spiel, Bild für Bild gegen Movie Duels gemessen: Nach dem Spawnen fällt er, federt hoch und schwingt danach über dem Boden; ein aufsteigender Reiter drückt ihn hinunter.
 - Vorschau: Wer von einem Fahrzeug absteigt, hat wie im Spiel keine Waffe mehr, bis das Skript ihm eine gibt (`SET_WEAPON`).
+- Vorschau und Karten-Editor (Spielbild): die ferne Ebene des Spiels (worldspawn `distanceCull`, Vorgabe 12000) blendet jetzt Blaetter, Dreiecksnetze und Patches aus, die ganz dahinter liegen, wie `R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface`.
+- Menü-Editor: "+ Schritt hinzufügen" rollt die Spalte so, dass Knopf, Suchfeld und Liste zu sehen sind; bei wenig Höhe (200 % auf einem Schirm unter 4K) verliert Schritt 7 des Tutorials "Dein erstes eigenes Menü" die Liste nicht mehr hinter dem Tutorial-Fenster.
+- Einstellungen: Ok und Abbrechen bleiben im Bild, wenn das Hauptfenster höher ist als der Monitor.
+- Handbuch: alle Bilder mit Karte neu aufgenommen (heutige Helligkeit, Spielbild des Karten-Editors) in sechs Sprachen; Bilder, die keine Seite zeigte, sind entfernt.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1544,6 +1615,10 @@ Weiter offen:
 - 预览:被骑乘的飞行摩托或陶恩陶恩兽会转向骑手注视的方向(对骑手使用 `SET_ANGLES`、`SET_DYAW`);陶恩陶恩兽站立时播放待机动画,骑上它所需时间为其自身上车动画的 70%。
 - 预览:飞行摩托像游戏中一样悬浮,已逐帧对照 Movie Duels 测量:生成后下落、弹起,然后在地面上方摆动;骑手上车时会把它压低。
 - 预览:从载具上下来的角色像游戏中一样不再持有武器,直到脚本给他一把(`SET_WEAPON`)。
+- 预览和地图编辑器（游戏画面）：现在遵循游戏的远裁剪面（worldspawn `distanceCull`，默认 12000），完全位于其后的叶节点、三角网格和曲面片不再绘制，与 `R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface` 一致。
+- 菜单编辑器："+ 添加步骤" 会滚动该栏，使按钮、搜索框和列表都可见；高度较小时（低于 4K 的屏幕上 200 %），教程"你的第一个自定义菜单"第 7 步不再把列表丢在教程窗口后面。
+- 设置：主窗口比显示器高时，确定和取消仍留在屏幕内。
+- 手册：所有带地图的图片已用六种语言重新拍摄（当前亮度、地图编辑器的游戏画面）；删除了没有页面使用的图片。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1645,6 +1720,10 @@ Weiter offen:
 - プレビュー:乗られているスウープやトーントーンは乗り手が見ている方向へ向きます(乗り手への `SET_ANGLES`、`SET_DYAW`)。トーントーンは待機アニメーションで立ち、乗り込みには自身の乗り込みアニメーションの 70% かかります。
 - プレビュー:スウープがゲームと同じように浮かびます(Movie Duels でフレームごとに測定)。スポーン後に落ちて跳ね上がり、その後は床の上で揺れます。乗り手が乗り込むと押し下げられます。
 - プレビュー:乗り物から降りたキャラクターは、ゲームと同じく、スクリプトが武器を与えるまで(`SET_WEAPON`)武器を持ちません。
+- プレビューとマップエディター（ゲーム画面）：ゲームの遠クリップ面（worldspawn `distanceCull`、既定 12000）に従い、その完全に奥にあるリーフ、三角形メッシュ、パッチを描かなくなりました（`R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface` と同じ）。
+- メニューエディター：「+ ステップを追加」で列がスクロールし、ボタン・検索欄・リストが見えるようになります。高さが足りないとき（4K 未満の画面で 200 %）、チュートリアル「はじめての自作メニュー」のステップ 7 でリストがチュートリアルウィンドウの後ろに隠れなくなりました。
+- 設定：メインウィンドウがモニターより高いときも、OK とキャンセルが画面内に残ります。
+- マニュアル：マップを含むすべての画像を 6 言語で撮り直しました（現在の明るさ、マップエディターのゲーム画面）。どのページでも使われていない画像は削除しました。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1746,6 +1825,10 @@ Weiter offen:
 - Vista previa: un deslizador o un tauntaun montado gira hacia donde mira su jinete (`SET_ANGLES`, `SET_DYAW` en el jinete); un tauntaun está en su animación de reposo, y subir a él dura el 70 % de su propia animación de subida.
 - Vista previa: un deslizador flota como en el juego, medido fotograma a fotograma en Movie Duels: tras aparecer cae, rebota y luego oscila sobre el suelo; un jinete que sube lo empuja hacia abajo.
 - Vista previa: quien se baja de un vehículo ya no tiene arma, como en el juego, hasta que el script le da una (`SET_WEAPON`).
+- Vista previa y editor de mapas (imagen de juego): el plano lejano del juego (worldspawn `distanceCull`, por defecto 12000) oculta ahora las hojas, mallas de triángulos y patches que quedan completamente detrás, como `R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface`.
+- Editor de menús: "+ Añadir paso" desplaza la columna para que se vean el botón, el campo de búsqueda y la lista; con poca altura (200 % en una pantalla menor que 4K) el paso 7 del tutorial "Tu primer menú propio" ya no pierde la lista detrás de la ventana del tutorial.
+- Preferencias: Aceptar y Cancelar se quedan en pantalla cuando la ventana principal es más alta que el monitor.
+- Manual: todas las imágenes con mapa, tomadas de nuevo (brillo actual, imagen de juego del editor de mapas) en seis idiomas; se quitaron las imágenes que ninguna página usaba.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1847,3 +1930,7 @@ Weiter offen:
 - Náhled: speeder nebo tauntaun s jezdcem se otočí tam, kam se jezdec dívá (`SET_ANGLES`, `SET_DYAW` na jezdci); tauntaun stojí ve své klidové animaci a nasednutí trvá 70 % jeho vlastní animace nasedání.
 - Náhled: speeder se vznáší jako ve hře, změřeno snímek po snímku v Movie Duels: po objevení spadne, odrazí se a pak se pohupuje nad zemí; nasedající jezdec ho stlačí dolů.
 - Náhled: kdo sesedne z vozidla, nemá jako ve hře žádnou zbraň, dokud mu ji skript nedá (`SET_WEAPON`).
+- Náhled a editor map (herní obraz): vzdálená rovina hry (worldspawn `distanceCull`, výchozí 12000) nyní skryje listy, trojúhelníkové sítě a patche, které leží celé za ní, jako `R_SetupFrustum`/`R_RecursiveWorldNode`/`R_CullSurface`.
+- Editor menu: "+ Přidat krok" posune sloupec tak, aby bylo vidět tlačítko, vyhledávací pole i seznam; při malé výšce (200 % na obrazovce menší než 4K) už krok 7 tutoriálu "Vaše první vlastní menu" neztrácí seznam za oknem tutoriálu.
+- Nastavení: OK a Zrušit zůstanou na obrazovce, i když je hlavní okno vyšší než monitor.
+- Příručka: všechny obrázky s mapou znovu pořízeny (současný jas, herní obraz editoru map) v šesti jazycích; obrázky, které žádná stránka nepoužívala, jsou odstraněny.
