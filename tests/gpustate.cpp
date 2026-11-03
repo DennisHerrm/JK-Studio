@@ -80,6 +80,25 @@ int main() {
         erwarte("SRC_ALPHA/ONE ist additiv-alpha",
                 pipelineFor(bs, false).blend == Blend::AddAlpha);
     }
+    // rc608 Teil 13b: Eine Grundstufe aus einem Skript ohne $lightmap-Stufe mischt im Spiel mit ihrem eigenen GL_State
+    // (hothflare_blue_pulse: GL_ONE GL_ONE_MINUS_SRC_COLOR; glass_reflective: GL_ZERO GL_ONE_MINUS_SRC_COLOR) - sie
+    // wurde deckend (schwarzes Viereck um den Schein, graue Scheiben). Mit $lightmap-Stufe bleibt die Regel von rc437.
+    {
+        BatchState bs = leer();
+        bs.ausSkript = true;
+        bs.srcFactor = BlendFactor::One;
+        bs.dstFactor = BlendFactor::OneMinusSrcColor;
+        const PipelineState p = pipelineFor(bs, false);
+        erwarte("Grundstufe ONE/ONE_MINUS_SRC_COLOR ohne $lightmap mischt",
+                p.blend == Blend::Unbekannt && p.srcFactor == BlendFactor::One && p.dstFactor == BlendFactor::OneMinusSrcColor);
+        bs.srcFactor = BlendFactor::Zero;
+        erwarte("Grundstufe ZERO/ONE_MINUS_SRC_COLOR ohne $lightmap mischt", pipelineFor(bs, false).blend == Blend::InvSrcColor);
+        bs.lightmapStufe = true;
+        erwarte("dieselbe mit $lightmap-Stufe bleibt deckend", pipelineFor(bs, true).blend == Blend::Opaque);
+        bs.srcFactor = BlendFactor::DstColor;
+        bs.dstFactor = BlendFactor::Zero;
+        erwarte("Filter nach $lightmap bleibt deckend (screen_5)", pipelineFor(bs, true).blend == Blend::Opaque);
+    }
 
     // Ein Paar, das nirgends abgebildet ist, darf NICHT stillschweigend als
     // deckend durchgehen. Ein falsch gemischter Stapel faellt im Bild auf;

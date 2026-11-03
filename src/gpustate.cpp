@@ -140,7 +140,13 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
     // Mission sind so gebaut.
     //
     // Der Rasterer trifft dieselbe Unterscheidung (mapview.cpp:1472).
-    if (!zusatzstufe && p.blend != Blend::Add && p.blend != Blend::AlphaBlend &&
+    //
+    // rc608 Teil 13b: Zusammengefasst ist nur, wo das Skript eine $lightmap-Stufe hat (lightmapStufe). Ohne sie ist die
+    // Grundstufe die erste Stufe des Skripts und mischt wie im Spiel mit ihrem eigenen GL_State (RB_IterateStagesGeneric):
+    // hothflare_blue_pulse (GL_ONE GL_ONE_MINUS_SRC_COLOR) zeichnete ein schwarzes Viereck um den Schein,
+    // glass_reflective (GL_ZERO GL_ONE_MINUS_SRC_COLOR) graue Scheiben statt der Sterne dahinter.
+    const bool eigeneMischung = bs.ausSkript && !bs.lightmapStufe && !hatLightmap;
+    if (!zusatzstufe && !eigeneMischung && p.blend != Blend::Add && p.blend != Blend::AlphaBlend &&
         p.blend != Blend::AddAlpha) {
         p.blend = Blend::Opaque;
     }

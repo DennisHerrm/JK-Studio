@@ -501,10 +501,38 @@ struct BspMesh {
         std::uint32_t firstIndex = 0;
         std::uint32_t numIndexes = 0;
         std::uint32_t surface = 0;   // Nummer in BspGeometry::surfaces
+        std::int32_t patch = -1;     // rc608 Teil 13b: Nummer in patches (ein Gitter wie im Spiel), sonst -1
     };
     std::vector<Run> runs;
     std::vector<Batch> batches;
+    // rc608 Teil 13b: ein Patch wie im Spiel (R_SubdividePatchToGrid, tr_curve.cpp): das Gitter steht ab ersteEcke in
+    // verts (breite x hoehe, Zeile fuer Zeile), sein Abschnitt in runs ist das volle Gitter in der Reihenfolge von
+    // RB_SurfaceGrid. Je Bild laesst der Zeichner Spalten und Zeilen weg, deren Fehler ueber
+    // r_lodCurveError / Abstand liegt (LodErrorForVolume) - siehe patchLodTabellen.
+    struct PatchGitter {
+        std::uint32_t ersteEcke = 0;
+        int breite = 0;
+        int hoehe = 0;
+        std::vector<float> breiteFehler;   // widthLodError
+        std::vector<float> hoeheFehler;    // heightLodError
+        float lodOrt[3]{};                 // lodOrigin: Mitte von lightmapVecs[0..1] (ParseMesh)
+        float lodRadius = 0.0F;
+    };
+    std::vector<PatchGitter> patches;
 };
+
+// rc608 Teil 13b: Patches wie im Spiel unterteilen. kPatchWieImSpiel als `level` von buildMesh/buildModelMesh nimmt
+// R_SubdividePatchToGrid mit r_subdivisions 4 (tr_init.cpp:1543 OpenJK, :1612 Movie Duels) statt des gleichmaessigen
+// Netzes; die Vorgabe des Spiels fuer r_lodCurveError ist 250 (tr_init.cpp:1556 OpenJK, :1625 Movie Duels).
+inline constexpr int kPatchWieImSpiel = 0;
+inline constexpr float kRSubdivisions = 4.0F;
+inline constexpr float kRLodCurveError = 250.0F;
+// RB_SurfaceGrid: welche Spalten (spalten) und Zeilen (zeilen) des Gitters dieses Bild nimmt - Auge `auge`, Blickrichtung
+// `vorn` (viewParms.ori.axis[0]), Fehlergrenze r_lodCurveError.
+void patchLodTabellen(const BspMesh::PatchGitter& g, const float auge[3], const float vorn[3], float lodCurveError, std::vector<int>& spalten,
+                      std::vector<int>& zeilen);
+// Die Indizes des Gitters mit diesen Spalten und Zeilen (RB_SurfaceGrid), ab ersteEcke gezaehlt.
+void patchLodIndizes(const BspMesh::PatchGitter& g, const std::vector<int>& spalten, const std::vector<int>& zeilen, std::vector<std::uint32_t>& aus);
 
 // Nur die Flaechen EINES Untermodells zu Dreiecken machen.
 //

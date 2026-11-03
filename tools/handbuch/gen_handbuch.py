@@ -150,6 +150,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc608_10b()})
             from i18n_rc608_11 import zeilen_vier as _rc608_11   # rc608 Teil 11: Karten-Editor wie im Spiel
             texte.update({e[0]: e[1:] for e in _rc608_11()})
+            from i18n_rc608_13b import zeilen_vier as _rc608_13b   # rc608 Teil 13b: Patches wie im Spiel
+            texte.update({e[0]: e[1:] for e in _rc608_13b()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

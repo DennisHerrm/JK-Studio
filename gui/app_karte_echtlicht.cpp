@@ -1275,7 +1275,7 @@ void* spielbildFuerKamera(const karte::Kamera& k, int breite, int hoehe) {
     if (!ed().echtLicht.spielbild) { return nullptr; }
     const Gebacken* q = spielQuelle();
     if (q == nullptr) { return nullptr; }
-    return spielbildZeichnen(q->daten, q->nummer, k, breite, hoehe);
+    return spielbildZeichnen(q->daten, q->nummer, q == &g_vorlage ? g_vorlagePfad : ed().letzteKarte, k, breite, hoehe);
 }
 
 void spielbildTiefe(const float* matrix) {

@@ -62,14 +62,19 @@ bool gebackenZeichnen(const float* matrix);
 // dahinter liegen wie bisher.
 void spielbildTiefe(const float* matrix);
 // app_karte_spielbild.cpp: die Szene aus der .bsp (bei neuer Nummer neu) und ihr Bild.
-[[nodiscard]] void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::uint64_t nummer, const karte::Kamera& k, int breite,
-                                      int hoehe);
+// `kartenName`: die Datei der Karte (Movie Duels liest Weather/<name>.cfg).
+[[nodiscard]] void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::uint64_t nummer, const std::string& kartenName,
+                                      const karte::Kamera& k, int breite, int hoehe);
 // Fuer den Selbsttest: Kennzahlen des letzten Spielbilds (Zeichenaufrufe, ms auf dem Prozessor).
 struct SpielbildStand {
     int aufrufe = 0;
     double ms = 0.0;
     std::uint64_t nummer = 0;
     std::size_t flaechenVerdeckt = 0;
+    int modelle = 0;           // rc608 Teil 13b: Kartenmodelle im Bild (aufgestellt) und ihre Zeichenaufrufe
+    int modellAufrufe = 0;
+    bool himmelPortal = false; // das Bild des misc_skyportal stand unter der Hauptszene
+    int wetterTeilchen = 0;
 };
 [[nodiscard]] SpielbildStand spielbildStand();
 // rc608 Teil 12, fuer den Bildvergleich im Selbsttest: feste Shaderzeit des Spielbilds in Sekunden (< 0: die Uhr).

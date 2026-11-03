@@ -126,9 +126,13 @@ void setzeVerdeckteFlaechen(const BspGeometry* geo, const std::vector<char>* ver
 // rc608 Teil 11: Zwei Szenen mit eigenen Netzpuffern, Bildern, Lightmaps, Himmel und verdeckten Flaechen - 0 die
 // Vorschau, 1 die gebaute Karte des Karten-Editors (karteneditor::spielbild). vergissKarte gilt der gewaehlten.
 void szeneWaehlen(int nr);
+// rc608 Teil 13b: Zahl der Patch-Abschnitte, die der Zeichner nach RB_SurfaceGrid neu geschrieben hat (Selbsttest).
+[[nodiscard]] std::uint64_t patchLodAenderungen();
 [[nodiscard]] int szeneJetzt();
 // Der Zielsatz (waehleZiel) des Karten-Editors.
 inline constexpr int kZielKarteneditor = 5;
+// rc608 Teil 13b: das Himmelsportal (misc_skyportal) des Spielbilds im Karten-Editor.
+inline constexpr int kZielKarteneditorPortal = 6;
 
 // Eine Figur zeichnen.
 //

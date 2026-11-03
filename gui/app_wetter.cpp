@@ -75,8 +75,30 @@ struct Wetter {
     std::vector<Wolke> wolken;
     float wind[3] = {0.0F, 0.0F, 0.0F};
 };
-Wetter g_wetter;
-std::unordered_map<std::int64_t, bool> g_draussen;
+// rc608 Teil 13b: je Bild ein Satz - die Vorschau und das Spielbild des Karten-Editors haben je ihre Karte, ihr Wetter
+// und ihren Draussen-Speicher. Die oeffentlichen Aufrufe waehlen Satz und Quelle (WetterQuelle).
+struct WetterSatz {
+    Wetter wetter;
+    std::unordered_map<std::int64_t, bool> draussen;
+    const void* geoStand = nullptr;
+    std::size_t geoFlaechen = 0;
+};
+WetterSatz g_satzVorschau;
+WetterSatz g_satzEditor;
+WetterSatz* g_satz = &g_satzVorschau;
+const WetterQuelle* g_quelle = nullptr;
+
+// Die Quelle der Vorschau: Karte, Entities und Abspielzeit des Mission-Tabs.
+WetterQuelle vorschauQuelle() {
+    WetterQuelle q;
+    q.entities = &g_app->map.entities;
+    q.geo = &g_app->geo;
+    q.karte = g_app->map.path;
+    q.stand = g_app->entStand;
+    q.kollision = geladeneKollision(g_app->map.path);
+    q.ms = g_app->playMs;
+    return q;
+}
 
 int flags(const MapEntity& e) {
     const std::string* f = e.find("spawnflags");
@@ -148,14 +170,14 @@ Wolke raumstaub(int anzahl, float kante) {
 void wetterSatz(int nummer) {
     switch (nummer) {
         case 0:
-            g_wetter.wolken.clear();
-            for (float& k : g_wetter.wind) { k = 0.0F; }
+            g_satz->wetter.wolken.clear();
+            for (float& k : g_satz->wetter.wind) { k = 0.0F; }
             break;
         case 8:
-            g_wetter.wind[0] += 120.0F;   // "wind" wie oben
+            g_satz->wetter.wind[0] += 120.0F;   // "wind" wie oben
             break;
         case 2:
-            g_wetter.wolken.push_back(regen(1000, 2000.0F));
+            g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
             break;
         case 7: {
             Wolke w = regen(1000, 2000.0F);
@@ -164,17 +186,17 @@ void wetterSatz(int nummer) {
             w.farbe[1] = 0.70F;
             w.farbe[2] = 0.34F;
             w.alpha = 0.70F;
-            g_wetter.wolken.push_back(w);
+            g_satz->wetter.wolken.push_back(w);
             break;
         }
         case 1:
-            g_wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
+            g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
             break;
         case 3:
-            g_wetter.wolken.push_back(flocken("gfx/effects/snowflake2"));
+            g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake2"));
             break;
         case 9:
-            g_wetter.wolken.push_back(raumstaub(1000, 2.4F));
+            g_satz->wetter.wolken.push_back(raumstaub(1000, 2.4F));
             break;
         case 4: {
             Wolke w;
@@ -191,7 +213,7 @@ void wetterSatz(int nummer) {
             w.masseMin = 10.0F;
             w.masseMax = 30.0F;
             bereichSetzen(w, 625.0F, 150.0F);
-            g_wetter.wolken.push_back(w);
+            g_satz->wetter.wolken.push_back(w);
             break;
         }
         default:
@@ -201,7 +223,7 @@ void wetterSatz(int nummer) {
 
 // IT_LoadWeatherParms: execq Weather/<mapname>
 void wetterDerKarte() {
-    std::string name = g_app->map.path;
+    std::string name = g_quelle->karte;
     const std::size_t st = name.find_last_of('/');
     if (st != std::string::npos) { name.erase(0, st + 1); }
     if (name.size() > 4 && name.compare(name.size() - 4, 4, ".bsp") == 0) { name.resize(name.size() - 4); }
@@ -212,7 +234,7 @@ void wetterDerKarte() {
         int nummer = 0;
         if (wort == "r_weather" && zeilen >> nummer) { wetterSatz(nummer); }
     }
-    diag::detail("Wetter: Weather/" + name + ".cfg, " + std::to_string(g_wetter.wolken.size()) + " Teilchenwolken");
+    diag::detail("Wetter: Weather/" + name + ".cfg, " + std::to_string(g_satz->wetter.wolken.size()) + " Teilchenwolken");
 }
 
 void wetterBauen() {
@@ -221,19 +243,17 @@ void wetterBauen() {
     // GEOMETRIE - er bleibt beim Bearbeiten und geht erst mit einer neu
     // gelesenen Karte (Code-Pruefung rc592: vorher wirkte eine geaenderte
     // Flagge gar nicht, und eine neu kompilierte Karte behielt ihn).
-    const std::string schl = g_app->map.path + "|" + std::to_string(g_app->map.entities.size()) + "|" +
-                             std::to_string(g_app->entStand) + (regelwerkJediOutcast() ? "|jk2" : regelwerkMovieDuels() ? "|md" : "");
-    if (schl == g_wetter.schluessel) { return; }
-    static const void* geoStand = nullptr;
-    static std::size_t geoFlaechen = 0;
-    if (geoStand != g_app->geo.surfaces.data() || geoFlaechen != g_app->geo.surfaces.size()) {
-        geoStand = g_app->geo.surfaces.data();
-        geoFlaechen = g_app->geo.surfaces.size();
-        g_draussen.clear();
+    const std::string schl = g_quelle->karte + "|" + std::to_string(g_quelle->entities->size()) + "|" +
+                             std::to_string(g_quelle->stand) + (regelwerkJediOutcast() ? "|jk2" : regelwerkMovieDuels() ? "|md" : "");
+    if (schl == g_satz->wetter.schluessel) { return; }
+    if (g_satz->geoStand != g_quelle->geo->surfaces.data() || g_satz->geoFlaechen != g_quelle->geo->surfaces.size()) {
+        g_satz->geoStand = g_quelle->geo->surfaces.data();
+        g_satz->geoFlaechen = g_quelle->geo->surfaces.size();
+        g_satz->draussen.clear();
     }
-    g_wetter = Wetter{};
-    g_wetter.schluessel = schl;
-    for (const MapEntity& e : g_app->map.entities) {
+    g_satz->wetter = Wetter{};
+    g_satz->wetter.schluessel = schl;
+    for (const MapEntity& e : *g_quelle->entities) {
         const int f = flags(e);
         if (regelwerkJediOutcast()) {
             // rc604 fix604 (JK2 Stufe 3): Jedi Outcast kennt nur fx_rain und
@@ -244,22 +264,22 @@ void wetterBauen() {
             // (code/rd-vanilla/tr_WorldEffects.cpp:1767, 1891, 1964); count
             // bleibt ungelesen. fx_wind und fx_spacedust spawnen nicht.
             if (e.classname == "fx_rain") {
-                g_wetter.wolken.push_back(regen(1000, 2000.0F));
-                g_wetter.wind[0] += 120.0F;   // "wind" wie oben
+                g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
+                g_satz->wetter.wind[0] += 120.0F;   // "wind" wie oben
             } else if (e.classname == "fx_snow") {
-                g_wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
-                g_wetter.wind[0] += 120.0F;
+                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
+                g_satz->wetter.wind[0] += 120.0F;
             }
             continue;
         }
         if (e.classname == "fx_rain") {
             if ((f & 1) != 0) {
-                g_wetter.wolken.push_back(regen(500, 2000.0F));
+                g_satz->wetter.wolken.push_back(regen(500, 2000.0F));
             } else if ((f & 2) != 0) {
-                g_wetter.wolken.push_back(regen(1000, 2000.0F));
+                g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
             } else if ((f & 4) != 0) {
-                g_wetter.wolken.push_back(regen(1000, 2800.0F));
-                g_wetter.wolken.push_back(nebel(0.2F));   // heavyrainfog
+                g_satz->wetter.wolken.push_back(regen(1000, 2800.0F));
+                g_satz->wetter.wolken.push_back(nebel(0.2F));   // heavyrainfog
             } else if ((f & 8) != 0) {
                 Wolke w = regen(1000, 2000.0F);
                 w.breite = 2.0F;
@@ -267,19 +287,19 @@ void wetterBauen() {
                 w.farbe[1] = 0.70F;
                 w.farbe[2] = 0.34F;
                 w.alpha = 0.70F;
-                g_wetter.wolken.push_back(w);
+                g_satz->wetter.wolken.push_back(w);
             } else {
-                g_wetter.wolken.push_back(regen(500, 2000.0F));   // lightrain + wind
-                g_wetter.wind[0] += 120.0F;
+                g_satz->wetter.wolken.push_back(regen(500, 2000.0F));   // lightrain + wind
+                g_satz->wetter.wind[0] += 120.0F;
             }
-            if ((f & 32) != 0) { g_wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 32) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_snow") {
             // lightsnow (1) und heavysnow (4) kennt der Renderer nicht.
             if ((f & 1) == 0 && (f & 4) == 0) {
-                g_wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
-                if ((f & 2) == 0) { g_wetter.wolken.push_back(nebel(0.2F)); }   // snow + fog
+                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
+                if ((f & 2) == 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // snow + fog
             }
-            if ((f & 8) != 0) { g_wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 8) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_lava" && regelwerkMovieDuels()) {
             // rc604 fix604b (B6): SP_CreateLava (md_g_fx.cpp:318-350 MD, nur Movie
             // Duels): 1 "lightlava", 2 "lava", 4 "heavylava", sonst "lava" + "fog";
@@ -288,15 +308,15 @@ void wetterBauen() {
             // code/rd-vanilla/tr_WorldEffects.cpp:1909-1924 MD); "lightlava" und
             // "heavylava" uebergeht er (:2105-2112).
             if ((f & 1) == 0 && (f & 4) == 0) {
-                g_wetter.wolken.push_back(flocken("gfx/effects/snowflake2"));
-                if ((f & 2) == 0) { g_wetter.wolken.push_back(nebel(0.2F)); }   // lava + fog
+                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake2"));
+                if ((f & 2) == 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // lava + fog
             }
-            if ((f & 8) != 0) { g_wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 8) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_spacedust") {
             const std::string* c = e.find("count");
-            g_wetter.wolken.push_back(raumstaub(std::clamp(c != nullptr ? std::atoi(c->c_str()) : 1000, 0, 8000), 2.4F));
+            g_satz->wetter.wolken.push_back(raumstaub(std::clamp(c != nullptr ? std::atoi(c->c_str()) : 1000, 0, 8000), 2.4F));
         } else if (e.classname == "fx_wind") {
-            if ((f & 1) != 0) { g_wetter.wind[0] += 100.0F; }   // leichter Wind
+            if ((f & 1) != 0) { g_satz->wetter.wind[0] += 100.0F; }   // leichter Wind
             if ((f & 2) != 0) {
                 // constantwind ( AngleVectors(angles) * speed )
                 float ang[3] = {0.0F, 0.0F, 0.0F};
@@ -309,16 +329,16 @@ void wetterBauen() {
                 const float tempo = sp != nullptr ? static_cast<float>(std::atof(sp->c_str())) : 500.0F;
                 const float p = ang[0] * 3.14159265F / 180.0F;
                 const float y = ang[1] * 3.14159265F / 180.0F;
-                g_wetter.wind[0] += std::cos(p) * std::cos(y) * tempo;
-                g_wetter.wind[1] += std::cos(p) * std::sin(y) * tempo;
-                g_wetter.wind[2] += -std::sin(p) * tempo;
+                g_satz->wetter.wind[0] += std::cos(p) * std::cos(y) * tempo;
+                g_satz->wetter.wind[1] += std::cos(p) * std::sin(y) * tempo;
+                g_satz->wetter.wind[2] += -std::sin(p) * tempo;
             }
-            if ((f & 32) != 0) { g_wetter.wolken.push_back(nebel(0.2F)); }
-            if ((f & 64) != 0) { g_wetter.wolken.push_back(nebel(0.1F)); }
+            if ((f & 32) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 64) != 0) { g_satz->wetter.wolken.push_back(nebel(0.1F)); }
         }
     }
-    if (!g_wetter.wolken.empty()) {
-        diag::detail("Wetter: " + std::to_string(g_wetter.wolken.size()) + " Teilchenwolken aus der Karte");
+    if (!g_satz->wetter.wolken.empty()) {
+        diag::detail("Wetter: " + std::to_string(g_satz->wetter.wolken.size()) + " Teilchenwolken aus der Karte");
     }
     if (regelwerkMovieDuels() && !regelwerkJediOutcast()) { wetterDerKarte(); }
 }
@@ -347,14 +367,14 @@ bool draussen(const KollisionsKarte* k, bool nurAussenBrushes, const float p[3])
     if (k == nullptr) { return true; }
     const auto zelle = [](float v) { return static_cast<std::int64_t>(std::floor(v / 32.0F)); };
     const std::int64_t schl = (zelle(p[0]) & 0xFFFFF) | ((zelle(p[1]) & 0xFFFFF) << 20) | ((zelle(p[2]) & 0xFFFFF) << 40);
-    const auto it = g_draussen.find(schl);
-    if (it != g_draussen.end()) { return it->second; }
+    const auto it = g_satz->draussen.find(schl);
+    if (it != g_satz->draussen.end()) { return it->second; }
     const float a[3] = {std::floor(p[0] / 32.0F) * 32.0F, std::floor(p[1] / 32.0F) * 32.0F, std::floor(p[2] / 32.0F) * 32.0F};
     const std::uint32_t c = kollisionsInhalt(*k, a);
     bool aus = (c & (kInhaltWasser | kInhaltFest)) == 0U;
     if (aus) { aus = nurAussenBrushes ? (c & kInhaltDraussen) != 0U : (c & kInhaltDrinnen) == 0U; }
-    if (g_draussen.size() > 200000U) { g_draussen.clear(); }
-    g_draussen.emplace(schl, aus);
+    if (g_satz->draussen.size() > 200000U) { g_satz->draussen.clear(); }
+    g_satz->draussen.emplace(schl, aus);
     return aus;
 }
 
@@ -375,16 +395,22 @@ bool wetterFuerGras(float wind[3]) {
     // mGlobalWindSpeed 0 (:1506).
     wind[0] = wind[1] = wind[2] = 0.0F;
     if (!g_app->zeigeWetter || g_app->geo.empty()) { return false; }
+    const WetterQuelle q = vorschauQuelle();
+    g_satz = &g_satzVorschau;
+    g_quelle = &q;
     wetterBauen();
-    if (g_wetter.wolken.empty()) { return false; }
-    for (int k = 0; k < 3; ++k) { wind[k] = g_wetter.wind[k]; }
+    if (g_satz->wetter.wolken.empty()) { return false; }
+    for (int k = 0; k < 3; ++k) { wind[k] = g_satz->wetter.wind[k]; }
     return true;
 }
 
 int wetterWolkenMitBild(const std::string& bild) {
+    const WetterQuelle q = vorschauQuelle();
+    g_satz = &g_satzVorschau;
+    g_quelle = &q;
     wetterBauen();
     int n = 0;
-    for (const Wolke& w : g_wetter.wolken) {
+    for (const Wolke& w : g_satz->wetter.wolken) {
         if (w.bild == bild) { ++n; }
     }
     return n;
@@ -393,14 +419,23 @@ int wetterWolkenMitBild(const std::string& bild) {
 int wetterTeilchen(std::vector<gpu::KlingenQuad>& aus, const Camera& cam) {
     g_app->wetterTeilchenZahl = 0;   // auch, wenn gleich nichts kommt
     if (!g_app->zeigeWetter || g_app->geo.empty()) { return 0; }
+    const WetterQuelle q = vorschauQuelle();
+    g_app->wetterTeilchenZahl = wetterTeilchenFuer(q, false, aus, cam);
+    return g_app->wetterTeilchenZahl;
+}
+
+int wetterTeilchenFuer(const WetterQuelle& quelle, bool editor, std::vector<gpu::KlingenQuad>& aus, const Camera& cam) {
+    if (quelle.entities == nullptr || quelle.geo == nullptr || quelle.geo->empty()) { return 0; }
+    g_satz = editor ? &g_satzEditor : &g_satzVorschau;
+    g_quelle = &quelle;
     wetterBauen();
-    if (g_wetter.wolken.empty()) { return 0; }
+    if (g_satz->wetter.wolken.empty()) { return 0; }
     float rechts[3];
     float hoch[3];
     cam.right(rechts);
     cam.up(hoch);
-    const double t = std::max(0.0, g_app->playMs) / 1000.0;
-    const std::shared_ptr<const KollisionsKarte> kk = geladeneKollision(g_app->map.path);
+    const double t = std::max(0.0, quelle.ms) / 1000.0;
+    const std::shared_ptr<const KollisionsKarte>& kk = quelle.kollision;
     bool nurAussen = false;
     if (kk != nullptr) {
         for (const KollisionsKarte::Pinsel& b : kk->pinsel) {
@@ -408,12 +443,12 @@ int wetterTeilchen(std::vector<gpu::KlingenQuad>& aus, const Camera& cam) {
         }
     }
     int n = 0;
-    for (std::size_t wi = 0; wi < g_wetter.wolken.size(); ++wi) {
-        const Wolke& w = g_wetter.wolken[wi];
+    for (std::size_t wi = 0; wi < g_satz->wetter.wolken.size(); ++wi) {
+        const Wolke& w = g_satz->wetter.wolken[wi];
         const TextureSet::Tex* tex = bild(w.bild);
         const float B = w.bereich * 2.0F;
         const float BZ = w.unten + w.oben;
-        const float kraft[3] = {g_wetter.wind[0], g_wetter.wind[1], g_wetter.wind[2] - w.fall};
+        const float kraft[3] = {g_satz->wetter.wind[0], g_satz->wetter.wind[1], g_satz->wetter.wind[2] - w.fall};
         std::uint32_t saat = 0x9E3779B9U ^ static_cast<std::uint32_t>(wi * 7919U + 1U);
         for (int i = 0; i < w.anzahl; ++i) {
             // Ort im Weltraster (die Wolke bleibt in der Welt stehen, wenn die
@@ -461,9 +496,9 @@ int wetterTeilchen(std::vector<gpu::KlingenQuad>& aus, const Camera& cam) {
             ++n;
         }
     }
-    g_app->wetterTeilchenZahl = n;
     return n;
 }
+
 
 // --- Lens-Flares (rc592) -------------------------------------------------------------
 //

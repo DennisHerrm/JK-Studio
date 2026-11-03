@@ -3126,11 +3126,12 @@ void loadMapTextures() {
     if (vorschau) { g_app->mapDirty = true; }
 }
 
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder) {
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, const std::function<void()>& danach) {
     g_ladeZiel.geo = &geo;
     g_ladeZiel.textures = &ziel;
     g_ladeZiel.kartenBilder = &bilder;
     loadMapTextures();
+    if (danach) { danach(); }
     g_ladeZiel = TexturLadeZiel{};
 }
 

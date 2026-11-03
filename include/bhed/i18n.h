@@ -3641,6 +3641,8 @@ enum class Str {
     KeLichtGrenzenTip,
     KeLichtSpielbild,
     KeLichtSpielbildVorlage,
+    MapDetailSpiel,
+    MapDetailTip,
     Count,
 };
 

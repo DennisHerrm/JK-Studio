@@ -826,6 +826,283 @@ BspVertex bezier(const BspVertex* c[9], float u, float v) {
     return out;
 }
 
+// --- rc608 Teil 13b: Patches wie im Spiel (code/rd-vanilla/tr_curve.cpp OpenJK, Movie Duels gleich) -----------------
+//
+// R_SubdividePatchToGrid unterteilt einen Patch nicht gleichmaessig, sondern je Spalte und Zeile so lange, bis der
+// Abstand der Kurve von der Sehne hoechstens r_subdivisions ist; gerade Spalten und Zeilen fallen weg; die Normalen
+// kommen danach aus den Nachbarn im Gitter (MakeMeshNormals), nicht aus den Kontrollpunkten. Je Spalte und Zeile
+// merkt es sich den Fehler (errorTable), nach dem RB_SurfaceGrid je Bild Spalten und Zeilen weglaesst.
+constexpr int kMaxGitter = 65;   // MAX_GRID_SIZE, tr_local.h:593 OpenJK, :577 Movie Duels
+
+struct PatchFeld {
+    std::vector<BspVertex> v = std::vector<BspVertex>(static_cast<std::size_t>(kMaxGitter) * kMaxGitter);
+    BspVertex& at(int zeile, int spalte) { return v[static_cast<std::size_t>(zeile) * kMaxGitter + static_cast<std::size_t>(spalte)]; }
+};
+
+// LerpDrawVert (die erste Lightmap-Koordinate und Farbstufe, mehr traegt BspVertex nicht)
+void lerpEcke(const BspVertex& a, const BspVertex& b, BspVertex& out) {
+    for (int k = 0; k < 3; ++k) {
+        out.xyz[k] = 0.5F * (a.xyz[k] + b.xyz[k]);
+        out.normal[k] = 0.5F * (a.normal[k] + b.normal[k]);
+    }
+    for (int k = 0; k < 2; ++k) {
+        out.st[k] = 0.5F * (a.st[k] + b.st[k]);
+        out.lightmap[k] = 0.5F * (a.lightmap[k] + b.lightmap[k]);
+    }
+    for (int k = 0; k < 4; ++k) { out.colour[k] = static_cast<std::uint8_t>((a.colour[k] + b.colour[k]) >> 1); }
+}
+
+// Transpose
+void transponiere(int breite, int hoehe, PatchFeld& c) {
+    if (breite > hoehe) {
+        for (int i = 0; i < hoehe; ++i) {
+            for (int j = i + 1; j < breite; ++j) {
+                if (j < hoehe) {
+                    std::swap(c.at(j, i), c.at(i, j));
+                } else {
+                    c.at(j, i) = c.at(i, j);
+                }
+            }
+        }
+    } else {
+        for (int i = 0; i < breite; ++i) {
+            for (int j = i + 1; j < hoehe; ++j) {
+                if (j < breite) {
+                    std::swap(c.at(i, j), c.at(j, i));
+                } else {
+                    c.at(i, j) = c.at(j, i);
+                }
+            }
+        }
+    }
+}
+
+float laenge3(const float v[3]) { return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); }
+
+// VectorNormalize2: die Laenge zurueck, bei null bleibt das Ergebnis null
+float normiere2(const float v[3], float out[3]) {
+    const float l = laenge3(v);
+    if (l != 0.0F) {
+        const float il = 1.0F / l;
+        for (int k = 0; k < 3; ++k) { out[k] = v[k] * il; }
+    } else {
+        for (int k = 0; k < 3; ++k) { out[k] = 0.0F; }
+    }
+    return l;
+}
+
+// MakeMeshNormals
+void gitterNormalen(int breite, int hoehe, PatchFeld& c) {
+    static constexpr int kNachbarn[8][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
+    bool umBreite = true;
+    for (int i = 0; i < hoehe; ++i) {
+        float d[3];
+        for (int k = 0; k < 3; ++k) { d[k] = c.at(i, 0).xyz[k] - c.at(i, breite - 1).xyz[k]; }
+        if (laenge3(d) > 1.0F) {
+            umBreite = false;
+            break;
+        }
+    }
+    bool umHoehe = true;
+    for (int i = 0; i < breite; ++i) {
+        float d[3];
+        for (int k = 0; k < 3; ++k) { d[k] = c.at(0, i).xyz[k] - c.at(hoehe - 1, i).xyz[k]; }
+        if (laenge3(d) > 1.0F) {
+            umHoehe = false;
+            break;
+        }
+    }
+    for (int i = 0; i < breite; ++i) {
+        for (int j = 0; j < hoehe; ++j) {
+            BspVertex& dv = c.at(j, i);
+            float basis[3] = {dv.xyz[0], dv.xyz[1], dv.xyz[2]};
+            float rund[8][3]{};
+            bool gut[8]{};
+            for (int k = 0; k < 8; ++k) {
+                for (int dist = 1; dist <= 3; ++dist) {
+                    int x = i + kNachbarn[k][0] * dist;
+                    int y = j + kNachbarn[k][1] * dist;
+                    if (umBreite) {
+                        if (x < 0) {
+                            x = breite - 1 + x;
+                        } else if (x >= breite) {
+                            x = 1 + x - breite;
+                        }
+                    }
+                    if (umHoehe) {
+                        if (y < 0) {
+                            y = hoehe - 1 + y;
+                        } else if (y >= hoehe) {
+                            y = 1 + y - hoehe;
+                        }
+                    }
+                    if (x < 0 || x >= breite || y < 0 || y >= hoehe) { break; }   // Rand des Patches
+                    float t[3];
+                    for (int m = 0; m < 3; ++m) { t[m] = c.at(y, x).xyz[m] - basis[m]; }
+                    if (normiere2(t, t) == 0.0F) { continue; }   // entartete Kante, weiter weg suchen
+                    gut[k] = true;
+                    for (int m = 0; m < 3; ++m) { rund[k][m] = t[m]; }
+                    break;
+                }
+            }
+            float summe[3] = {0.0F, 0.0F, 0.0F};
+            for (int k = 0; k < 8; ++k) {
+                if (!gut[k] || !gut[(k + 1) & 7]) { continue; }
+                const float* a = rund[(k + 1) & 7];
+                const float* b = rund[k];
+                float n[3] = {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+                if (normiere2(n, n) == 0.0F) { continue; }
+                for (int m = 0; m < 3; ++m) { summe[m] += n[m]; }
+            }
+            (void)normiere2(summe, dv.normal);
+        }
+    }
+}
+
+// InvertCtrl
+void spiegleZeilen(int breite, int hoehe, PatchFeld& c) {
+    for (int i = 0; i < hoehe; ++i) {
+        for (int j = 0; j < breite / 2; ++j) { std::swap(c.at(i, j), c.at(i, breite - 1 - j)); }
+    }
+}
+
+// InvertErrorTable
+void tauscheFehler(float fehler[2][kMaxGitter], int breite, int hoehe) {
+    float kopie[2][kMaxGitter];
+    std::memcpy(kopie, fehler, sizeof(kopie));
+    for (int i = 0; i < breite; ++i) { fehler[1][i] = kopie[0][i]; }
+    for (int i = 0; i < hoehe; ++i) { fehler[0][i] = kopie[1][hoehe - 1 - i]; }
+}
+
+// PutPointsOnCurve
+void punkteAufKurve(PatchFeld& c, int breite, int hoehe) {
+    BspVertex vor;
+    BspVertex nach;
+    for (int i = 0; i < breite; ++i) {
+        for (int j = 1; j < hoehe; j += 2) {
+            lerpEcke(c.at(j, i), c.at(j + 1, i), vor);
+            lerpEcke(c.at(j, i), c.at(j - 1, i), nach);
+            lerpEcke(vor, nach, c.at(j, i));
+        }
+    }
+    for (int j = 0; j < hoehe; ++j) {
+        for (int i = 1; i < breite; i += 2) {
+            lerpEcke(c.at(j, i), c.at(j, i + 1), vor);
+            lerpEcke(c.at(j, i), c.at(j, i - 1), nach);
+            lerpEcke(vor, nach, c.at(j, i));
+        }
+    }
+}
+
+// R_SubdividePatchToGrid; das Gitter kommt hinten an `ecken`, lodOrigin/lodRadius wie ParseMesh (tr_bsp.cpp:513-526).
+BspMesh::PatchGitter unterteilePatch(const BspGeometry& geo, const BspSurface& s, std::vector<BspVertex>& ecken) {
+    PatchFeld c;
+    int breite = s.patchWidth;
+    int hoehe = s.patchHeight;
+    for (int i = 0; i < breite; ++i) {
+        for (int j = 0; j < hoehe; ++j) {
+            c.at(j, i) = geo.verts[static_cast<std::size_t>(s.firstVert) + static_cast<std::size_t>(j * breite + i)];
+        }
+    }
+    float fehler[2][kMaxGitter];
+    for (int richtung = 0; richtung < 2; ++richtung) {
+        for (int j = 0; j < kMaxGitter; ++j) { fehler[richtung][j] = 0.0F; }
+        // waagerechte Unterteilungen
+        for (int j = 0; j + 2 < breite; j += 2) {
+            // die unterteilten Mittelpunkte gegen die Kontrollpunkte
+            float maxLen = 0.0F;
+            for (int i = 0; i < hoehe; ++i) {
+                float mitte[3];
+                float dir[3];
+                for (int l = 0; l < 3; ++l) {
+                    mitte[l] = (c.at(i, j).xyz[l] + c.at(i, j + 1).xyz[l] * 2.0F + c.at(i, j + 2).xyz[l]) * 0.25F;
+                    mitte[l] -= c.at(i, j).xyz[l];
+                    dir[l] = c.at(i, j + 2).xyz[l] - c.at(i, j).xyz[l];
+                }
+                (void)normiere2(dir, dir);   // VectorNormalize
+                const float d = mitte[0] * dir[0] + mitte[1] * dir[1] + mitte[2] * dir[2];
+                for (int l = 0; l < 3; ++l) { mitte[l] -= dir[l] * d; }
+                const float len = laenge3(mitte);
+                if (len > maxLen) { maxLen = len; }
+            }
+            // liegen alle Punkte auf den Sehnen, fallen die Spalten ganz weg
+            if (maxLen < 0.1F) {
+                fehler[richtung][j + 1] = 999.0F;
+                continue;
+            }
+            if (breite + 2 > kMaxGitter) {
+                fehler[richtung][j + 1] = static_cast<float>(1.0 / maxLen);
+                continue;   // mehr geht nicht
+            }
+            if (maxLen <= kRSubdivisions) {
+                fehler[richtung][j + 1] = static_cast<float>(1.0 / maxLen);
+                continue;   // braucht keine Unterteilung
+            }
+            fehler[richtung][j + 2] = static_cast<float>(1.0 / maxLen);
+            // zwei Spalten einfuegen und die Spitze ersetzen
+            breite += 2;
+            for (int i = 0; i < hoehe; ++i) {
+                BspVertex vor;
+                BspVertex nach;
+                BspVertex mid;
+                lerpEcke(c.at(i, j), c.at(i, j + 1), vor);
+                lerpEcke(c.at(i, j + 1), c.at(i, j + 2), nach);
+                lerpEcke(vor, nach, mid);
+                for (int k = breite - 1; k > j + 3; --k) { c.at(i, k) = c.at(i, k - 2); }
+                c.at(i, j + 1) = vor;
+                c.at(i, j + 2) = mid;
+                c.at(i, j + 3) = nach;
+            }
+            j -= 2;   // dieselbe Stelle noch einmal pruefen
+        }
+        transponiere(breite, hoehe, c);
+        std::swap(breite, hoehe);
+    }
+    punkteAufKurve(c, breite, hoehe);
+    // gerade Spalten und Zeilen weglassen
+    for (int i = 1; i < breite - 1; ++i) {
+        if (fehler[0][i] != 999.0F) { continue; }
+        for (int j = i + 1; j < breite; ++j) {
+            for (int k = 0; k < hoehe; ++k) { c.at(k, j - 1) = c.at(k, j); }
+            fehler[0][j - 1] = fehler[0][j];
+        }
+        --breite;
+    }
+    for (int i = 1; i < hoehe - 1; ++i) {
+        if (fehler[1][i] != 999.0F) { continue; }
+        for (int j = i + 1; j < hoehe; ++j) {
+            for (int k = 0; k < breite; ++k) { c.at(j - 1, k) = c.at(j, k); }
+            fehler[1][j - 1] = fehler[1][j];
+        }
+        --hoehe;
+    }
+    // fuer lange Streifen kippen (das Bild bleibt gleich, die Reihenfolge der Dreiecke nicht)
+    if (hoehe > breite) {
+        transponiere(breite, hoehe, c);
+        tauscheFehler(fehler, breite, hoehe);
+        std::swap(breite, hoehe);
+        spiegleZeilen(breite, hoehe, c);
+    }
+    gitterNormalen(breite, hoehe, c);
+    BspMesh::PatchGitter g;
+    g.ersteEcke = static_cast<std::uint32_t>(ecken.size());
+    g.breite = breite;
+    g.hoehe = hoehe;
+    g.breiteFehler.assign(fehler[0], fehler[0] + breite);
+    g.hoeheFehler.assign(fehler[1], fehler[1] + hoehe);
+    for (int j = 0; j < hoehe; ++j) {
+        for (int i = 0; i < breite; ++i) { ecken.push_back(c.at(j, i)); }
+    }
+    float b1[3];
+    for (int k = 0; k < 3; ++k) {
+        b1[k] = s.patchLod[0][k] + s.patchLod[1][k];
+        g.lodOrt[k] = b1[k] * 0.5F;
+    }
+    const float d[3] = {s.patchLod[0][0] - g.lodOrt[0], s.patchLod[0][1] - g.lodOrt[1], s.patchLod[0][2] - g.lodOrt[2]};
+    g.lodRadius = laenge3(d);
+    return g;
+}
+
 }  // namespace
 
 // Gemeinsamer Kern von buildMesh und buildModelMesh.
@@ -917,6 +1194,53 @@ BspMesh buildModelMesh(const BspGeometry& geo, int index, int level,
     return buildRange(geo, level, skipSky,
                       static_cast<std::size_t>(m.firstSurface),
                       static_cast<std::size_t>(m.numSurfaces));
+}
+
+// RB_SurfaceGrid und LodErrorForVolume (tr_surface.cpp:1391-1418 OpenJK, :1486-1513 Movie Duels); die Welt hat die
+// Einheitsstellung (backEnd.ori), lodOrigin steht also schon in Weltkoordinaten.
+void patchLodTabellen(const BspMesh::PatchGitter& g, const float auge[3], const float vorn[3], float lodCurveError, std::vector<int>& spalten,
+                      std::vector<int>& zeilen) {
+    float lodError = 0.0F;
+    if (lodCurveError >= 0.0F) {
+        float d = (g.lodOrt[0] - auge[0]) * vorn[0] + (g.lodOrt[1] - auge[1]) * vorn[1] + (g.lodOrt[2] - auge[2]) * vorn[2];
+        if (d < 0.0F) { d = -d; }
+        d -= g.lodRadius;
+        if (d < 1.0F) { d = 1.0F; }
+        lodError = lodCurveError / d;
+    }
+    spalten.clear();
+    zeilen.clear();
+    spalten.push_back(0);
+    for (int i = 1; i < g.breite - 1; ++i) {
+        if (g.breiteFehler[static_cast<std::size_t>(i)] <= lodError) { spalten.push_back(i); }
+    }
+    spalten.push_back(g.breite - 1);
+    zeilen.push_back(0);
+    for (int i = 1; i < g.hoehe - 1; ++i) {
+        if (g.hoeheFehler[static_cast<std::size_t>(i)] <= lodError) { zeilen.push_back(i); }
+    }
+    zeilen.push_back(g.hoehe - 1);
+}
+
+void patchLodIndizes(const BspMesh::PatchGitter& g, const std::vector<int>& spalten, const std::vector<int>& zeilen, std::vector<std::uint32_t>& aus) {
+    const auto ecke = [&g](int zeile, int spalte) {
+        return g.ersteEcke + static_cast<std::uint32_t>(zeile) * static_cast<std::uint32_t>(g.breite) + static_cast<std::uint32_t>(spalte);
+    };
+    for (std::size_t i = 0; i + 1 < zeilen.size(); ++i) {
+        for (std::size_t j = 0; j + 1 < spalten.size(); ++j) {
+            // "vertex order to be reckognized as tristrips"
+            const std::uint32_t v1 = ecke(zeilen[i], spalten[j + 1]);
+            const std::uint32_t v2 = ecke(zeilen[i], spalten[j]);
+            const std::uint32_t v3 = ecke(zeilen[i + 1], spalten[j]);
+            const std::uint32_t v4 = ecke(zeilen[i + 1], spalten[j + 1]);
+            aus.push_back(v2);
+            aus.push_back(v3);
+            aus.push_back(v1);
+            aus.push_back(v1);
+            aus.push_back(v3);
+            aus.push_back(v4);
+        }
+    }
 }
 
 BspMesh buildMesh(const BspGeometry& geo, int level, bool skipSky) {
@@ -1301,6 +1625,7 @@ int ladeExterneLightmaps(BspGeometry& geo, const std::string& kartenOrdner,
 BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
                    std::size_t first, std::size_t count) {
     BspMesh mesh;
+    const bool wieImSpiel = level == kPatchWieImSpiel;   // rc608 Teil 13b: R_SubdividePatchToGrid
     level = std::clamp(level, 1, 16);
 
     // Nach Lightmap sortiert zusammenfassen: so entsteht je Lightmap ein
@@ -1312,6 +1637,7 @@ BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
     struct RunNote {
         std::uint32_t surface;
         std::uint32_t count;
+        std::int32_t patch;
     };
     std::map<std::pair<int, int>, std::vector<RunNote>> runsByBatch;
 
@@ -1345,11 +1671,12 @@ BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
         // Probe "decken die Abschnitte den Aufruf lueckenlos ab" hat es
         // sofort gezeigt: 146016 von 303744 Indizes erfasst.
         const std::size_t vorher = out.size();
+        std::int32_t patchNr = -1;
         auto merkeAbschnitt = [&] {
             if (out.size() > vorher) {
                 runsByBatch[key].push_back(
                     {static_cast<std::uint32_t>(si),
-                     static_cast<std::uint32_t>(out.size() - vorher)});
+                     static_cast<std::uint32_t>(out.size() - vorher), patchNr});
             }
         };
 
@@ -1385,6 +1712,19 @@ BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
 
         // Ein Patch ist ein Gitter aus 3x3-Feldern, die sich Randpunkte
         // teilen: Breite und Hoehe sind deshalb immer ungerade.
+        if (wieImSpiel) {
+            // rc608 Teil 13b: das Gitter des Spiels, voll (RB_SurfaceGrid ohne weggelassene Spalten und Zeilen)
+            BspMesh::PatchGitter g = unterteilePatch(geo, s, mesh.verts);
+            std::vector<int> spalten(static_cast<std::size_t>(g.breite));
+            std::vector<int> zeilen(static_cast<std::size_t>(g.hoehe));
+            for (int i = 0; i < g.breite; ++i) { spalten[static_cast<std::size_t>(i)] = i; }
+            for (int i = 0; i < g.hoehe; ++i) { zeilen[static_cast<std::size_t>(i)] = i; }
+            patchLodIndizes(g, spalten, zeilen, out);
+            patchNr = static_cast<std::int32_t>(mesh.patches.size());
+            mesh.patches.push_back(std::move(g));
+            merkeAbschnitt();
+            continue;
+        }
         const int pw = s.patchWidth;
         const int ph = s.patchHeight;
         for (int py = 0; py + 2 < ph; py += 2) {
@@ -1441,6 +1781,7 @@ BspMesh buildRange(const BspGeometry& geo, int level, bool skipSky,
                 run.firstIndex = offset;
                 run.numIndexes = rn.count;
                 run.surface = rn.surface;
+                run.patch = rn.patch;
                 mesh.runs.push_back(run);
                 offset += rn.count;
             }

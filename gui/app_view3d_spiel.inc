@@ -2793,31 +2793,13 @@ void objektWuerfeSetzen() {
     }
 }
 
-void loadMapModels() {
-    diag::Step step("Modelle der Karte suchen");
-    g_app->mapModels.clear();
-    g_app->fehlendeModelle.clear();
-    // rc605: die Modelle der Emitter (useModel) laedt loadMapEffects DAVOR in
-    // dieselbe Liste - sie bleiben. Vorher fiel hier jedes Effektmodell weg
-    // (emitterModels kannte es noch, md3Files nicht mehr), und kein Emitter-
-    // modell wurde gezeichnet (etwa die Nebelvierecke von duel_exegol).
-    std::map<std::string, Md3Model> emitterDateien;
-    for (const auto& [pfad, em] : g_app->emitterModels) {
-        const auto it = g_app->md3Files.find(pfad);
-        if (it != g_app->md3Files.end()) { emitterDateien.emplace(pfad, std::move(it->second)); }
-    }
-    g_app->md3Files = std::move(emitterDateien);
-    // Die Grafikpuffer hingen an diesen Netzen (Schluessel: Adresse).
-    for (const auto& [name, netz] : g_app->md3Meshes) {
-        gpu::vergissNetz(&netz);
-    }
-    g_app->md3Meshes.clear();
-
-    int gefunden = 0;
-    int fehlt = 0;
-    for (const MapEntity& e : g_app->map.entities) {
+// rc608 Teil 13b: die Kartenmodelle einer Entity-Liste aufstellen (misc_model_static, _breakable, die festen Modelle,
+// model2 an Brush-Movern) - fuer die Vorschau und fuer das Spielbild des Karten-Editors mit demselben Code. Die
+// Bilder kommen hinten an z.textures (modellBlockIn), die Dateien nach z.dateien.
+void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehlt) {
+    for (const MapEntity& e : *z.entities) {
         if (!gespawntImSpiel(e)) { continue; }   // rc604
-        if (miscModelStaticImFesten(e)) {   // Stufe 6 (OpenJK#1358)
+        if (miscModelStaticImFesten(e, *z.geo)) {   // Stufe 6 (OpenJK#1358)
             diag::info("misc_model_static bei " + e.origin + ": Pruefpunkt im Festen, das Spiel zeichnet es nie (OpenJK#1358)");
             continue;
         }
@@ -2901,11 +2883,11 @@ void loadMapModels() {
             continue;   // "*12" ist ein Brush-Modell, das laeuft anderswo
         }
 
-        if (g_app->md3Files.find(low) == g_app->md3Files.end()) {
+        if (z.dateien->find(low) == z.dateien->end()) {
             std::string data;
             if (!readFromArchives(*mp, data)) {
                 diag::info("kein Modell: " + *mp);
-                g_app->fehlendeModelle.push_back(*mp);
+                z.fehlend->push_back(*mp);
                 ++fehlt;
                 continue;
             }
@@ -2916,9 +2898,9 @@ void loadMapModels() {
                 ++fehlt;
                 continue;
             }
-            g_app->md3Files[low] = std::move(mm);
+            (*z.dateien)[low] = std::move(mm);
         }
-        const Md3Model& mm = g_app->md3Files[low];
+        const Md3Model& mm = (*z.dateien)[low];
         if (mm.empty()) {
             continue;   // gueltig, aber ohne Flaechen (reines Tag-Modell)
         }
@@ -2926,7 +2908,7 @@ void loadMapModels() {
         App::MapModel item;
         item.path = low;
         item.frames = mm.numFrames;
-        item.entity = static_cast<std::size_t>(&e - g_app->map.entities.data());
+        item.entity = static_cast<std::size_t>(&e - z.entities->data());
         item.anBrush = anBrush;
         (void)std::sscanf(e.origin.c_str(), "%f %f %f", &item.origin[0],
                           &item.origin[1], &item.origin[2]);
@@ -2976,7 +2958,7 @@ void loadMapModels() {
         // SP_misc_shield_floor_unit / SP_misc_ammo_floor_unit: nur das erste
         // animMap-Bild (siehe unten) - ein eigener Block.
         const bool ladestation = e.classname == "misc_shield_floor_unit" || e.classname == "misc_ammo_floor_unit";
-        item.shaderBase = modellBlock("m|" + low + (ladestation ? "|bild0" : ""), [&] {
+        item.shaderBase = modellBlockIn(*z.textures, "m|" + low + (ladestation ? "|bild0" : ""), [&] {
             for (const Md3Surface& sf : mm.surfaces) {
                 TextureSet::Tex t;
                 loadTextureFor(sf.shader, t);
@@ -3003,42 +2985,68 @@ void loadMapModels() {
                     t.animFrames.resize(1);
                     t.animFreq = 0.0F;
                 }
-                g_app->textures.byShader.push_back(std::move(t));
+                z.textures->byShader.push_back(std::move(t));
             }
         });
         // SP_misc_camera: der Fuss impcam_base.md3 ist eine eigene Entity,
         // 16 hoeher, mit denselben Winkeln (G_SetAngles(base, self->s.angles)).
         if (e.classname == "misc_camera") {
             static const std::string kFuss = "models/map_objects/kejim/impcam_base.md3";
-            if (g_app->md3Files.find(kFuss) == g_app->md3Files.end()) {
+            if (z.dateien->find(kFuss) == z.dateien->end()) {
                 std::string data;
                 Md3Model fm;
                 std::string err;
                 if (readFromArchives(kFuss, data) && readMd3(data, fm, &err)) {
-                    g_app->md3Files[kFuss] = std::move(fm);
+                    (*z.dateien)[kFuss] = std::move(fm);
                 } else {
-                    g_app->fehlendeModelle.push_back(kFuss);
+                    z.fehlend->push_back(kFuss);
                 }
             }
-            const auto fuss = g_app->md3Files.find(kFuss);
-            if (fuss != g_app->md3Files.end() && !fuss->second.empty()) {
+            const auto fuss = z.dateien->find(kFuss);
+            if (fuss != z.dateien->end() && !fuss->second.empty()) {
                 App::MapModel b = item;
                 b.path = kFuss;
                 b.frames = fuss->second.numFrames;
                 b.origin[2] += 16.0F;
-                b.shaderBase = modellBlock("m|" + kFuss, [&fuss] {
+                b.shaderBase = modellBlockIn(*z.textures, "m|" + kFuss, [&fuss, &z] {
                     for (const Md3Surface& sf : fuss->second.surfaces) {
                         TextureSet::Tex t;
                         loadTextureFor(sf.shader, t);
-                        g_app->textures.byShader.push_back(std::move(t));
+                        z.textures->byShader.push_back(std::move(t));
                     }
                 });
-                g_app->mapModels.push_back(std::move(b));
+                z.modelle->push_back(std::move(b));
             }
         }
-        g_app->mapModels.push_back(std::move(item));
+        z.modelle->push_back(std::move(item));
         ++gefunden;
     }
+}
+
+void loadMapModels() {
+    diag::Step step("Modelle der Karte suchen");
+    g_app->mapModels.clear();
+    g_app->fehlendeModelle.clear();
+    // rc605: die Modelle der Emitter (useModel) laedt loadMapEffects DAVOR in
+    // dieselbe Liste - sie bleiben. Vorher fiel hier jedes Effektmodell weg
+    // (emitterModels kannte es noch, md3Files nicht mehr), und kein Emitter-
+    // modell wurde gezeichnet (etwa die Nebelvierecke von duel_exegol).
+    std::map<std::string, Md3Model> emitterDateien;
+    for (const auto& [pfad, em] : g_app->emitterModels) {
+        const auto it = g_app->md3Files.find(pfad);
+        if (it != g_app->md3Files.end()) { emitterDateien.emplace(pfad, std::move(it->second)); }
+    }
+    g_app->md3Files = std::move(emitterDateien);
+    // Die Grafikpuffer hingen an diesen Netzen (Schluessel: Adresse).
+    for (const auto& [name, netz] : g_app->md3Meshes) {
+        gpu::vergissNetz(&netz);
+    }
+    g_app->md3Meshes.clear();
+
+    int gefunden = 0;
+    int fehlt = 0;
+    kartenModelleAufstellen({&g_app->map.entities, &g_app->geo, &g_app->textures, &g_app->md3Files, &g_app->mapModels, &g_app->fehlendeModelle},
+                            gefunden, fehlt);
     gegenstaendeAufstellen(gefunden, fehlt);   // rc602 kartenpruefung
     geschuetzeAufstellen(gefunden, fehlt);     // rc604 fix604b (B3)
     diag::info(std::to_string(gefunden) + " Modelle aufgestellt, " +

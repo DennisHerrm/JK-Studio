@@ -447,7 +447,11 @@ struct App {
     //
     // Wer den Rasterer bei einer grossen Karte benutzt, stellt es herunter;
     // die Vorgabe soll das zeigen, was da ist.
-    int meshDetail = 10;
+    //
+    // rc608 Teil 13b: Vorgabe ist das Gitter des Spiels (bhed::kPatchWieImSpiel: R_SubdividePatchToGrid mit
+    // r_subdivisions 4, je Bild Spalten und Zeilen nach r_lodCurveError 250). 1 bis 10 sind die gleichmaessigen Netze
+    // von frueher, je Feld so viele Teile.
+    int meshDetail = bhed::kPatchWieImSpiel;
     // Nur neu zeichnen, wenn sich etwas geaendert hat. Ein Editor steht die
     // meiste Zeit still; jedes Bild neu zu rechnen kostet Strom und macht
     // den Luefter laut, ohne dass sich etwas bewegt.
@@ -2771,6 +2775,18 @@ bool gegenstandNichtImSpiel(std::size_t entity, std::string* grund);
 // Stufe 6 (OpenJK#1358): ein misc_model_static, dessen Pruefpunkt origin + (0 0 zoffset+1)
 // im Festen liegt - das Spiel zeichnet es nie (Vorschau und Kartenpruefung).
 bool miscModelStaticImFesten(const MapEntity& e);
+bool miscModelStaticImFesten(const MapEntity& e, const BspGeometry& geo);
+// rc608 Teil 13b: Wohin kartenModelleAufstellen die Kartenmodelle stellt - die Vorschau (g_app) oder das Spielbild des
+// Karten-Editors. Dieselben Regeln (G_SpawnGEntityFromSpawnVars, SP_misc_model_static, die festen Modelle, model2).
+struct KartenModellZiel {
+    const std::vector<MapEntity>* entities = nullptr;
+    const BspGeometry* geo = nullptr;
+    TextureSet* textures = nullptr;
+    std::map<std::string, Md3Model>* dateien = nullptr;
+    std::vector<App::MapModel>* modelle = nullptr;
+    std::vector<std::string>* fehlend = nullptr;
+};
+void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehlt);
 // Selbsttest: einen Gegenstand verstecken (Vergleich mit/ohne).
 void gegenstandVerstecken(std::size_t entity, bool aus);
 // Die Bytes einer Karte ueber ihre Kennung: aus den Archiven, sonst ueber
@@ -2920,6 +2936,16 @@ bool roffBearbeiten(const std::string& datei);
 // --- Wetter (gui/app_wetter.cpp, rc592) ----------------------------------------
 // (gpu::KlingenQuad steht in gpumap.h; hier nur der Name.)
 int wetterTeilchen(std::vector<bhed::gpu::KlingenQuad>& aus, const Camera& cam);
+// rc608 Teil 13b: dasselbe fuer eine andere Karte (das Spielbild des Karten-Editors, editor = true: eigener Satz).
+struct WetterQuelle {
+    const std::vector<MapEntity>* entities = nullptr;
+    const BspGeometry* geo = nullptr;
+    std::string karte;          // Pfad oder Name der .bsp (Weather/<name>.cfg)
+    std::uint64_t stand = 0;    // aendert sich mit den Entities
+    std::shared_ptr<const KollisionsKarte> kollision;   // ContentsOutside; ohne gilt alles als draussen
+    double ms = 0.0;            // Zeit der Teilchen
+};
+int wetterTeilchenFuer(const WetterQuelle& q, bool editor, std::vector<bhed::gpu::KlingenQuad>& aus, const Camera& cam);
 int wetterWolkenMitBild(const std::string& bild);   // rc604 fix604b (B6), Selbsttest
 int flareSchilde(std::vector<bhed::gpu::KlingenQuad>& aus, const Camera& cam, float aspekt);
 // rc604 surfaceSprites: regnet es (R_IsRaining, tr_WorldEffects.cpp:2360 -
@@ -3100,7 +3126,8 @@ void withUnsaved(std::function<void()> then,
 void drawAskSave();
 void loadMapTextures();
 // rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors), ohne Gras.
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder);
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder,
+                         const std::function<void()>& danach = {});   // rc608 Teil 13b: danach, solange das Ziel gilt
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);

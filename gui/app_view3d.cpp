@@ -4083,8 +4083,10 @@ void npcSkalaFuer(const std::string& npcType, float aus[3]) {
 // der erste, dessen Kasten die Figur ganz enthaelt - der globale Nebel hat
 // einen Kasten ueber die ganze Welt. Ohne Radius (refEntity_t.radius setzt
 // cgame fuer Figuren nicht) bleibt davon der Ursprung.
-int nebelFuer(const float ort[3]) {
-    const std::vector<BspGeometry::Nebel>& n = g_app->geo.nebel;
+int nebelFuerIn(const BspGeometry& geo, const float ort[3]);
+int nebelFuer(const float ort[3]) { return nebelFuerIn(g_app->geo, ort); }
+int nebelFuerIn(const BspGeometry& geo, const float ort[3]) {   // rc608 Teil 13b: auch fuer das Spielbild des Karten-Editors
+    const std::vector<BspGeometry::Nebel>& n = geo.nebel;
     for (std::size_t i = 0; i < n.size(); ++i) {
         if (n[i].gueltig && ort[0] >= n[i].mins[0] && ort[0] <= n[i].maxs[0] && ort[1] >= n[i].mins[1] &&
             ort[1] <= n[i].maxs[1] && ort[2] >= n[i].mins[2] && ort[2] <= n[i].maxs[2]) {
@@ -5704,14 +5706,15 @@ bool gespawntImSpiel(const MapEntity& e);
 // origin + (0 0 zoffset+1)) - zoffset aus SP_misc_model_static (g_misc.cpp:417).
 // Liegt der Punkt im Festen (Blatt mit Cluster -1, Area -1), sagt SV_inPVS ueber
 // CM_AreasConnected (cm_test.cpp:607) immer nein: das Spiel zeigt es nie.
-bool miscModelStaticImFesten(const MapEntity& e) {
-    if (e.classname != "misc_model_static" || g_app->geo.empty()) { return false; }
+bool miscModelStaticImFesten(const MapEntity& e) { return miscModelStaticImFesten(e, g_app->geo); }
+bool miscModelStaticImFesten(const MapEntity& e, const BspGeometry& geo) {
+    if (e.classname != "misc_model_static" || geo.empty()) { return false; }
     float pruef[3] = {0.0F, 0.0F, 0.0F};
     (void)std::sscanf(e.origin.c_str(), "%f %f %f", &pruef[0], &pruef[1], &pruef[2]);
     const std::string* zo = e.find("zoffset");
     pruef[2] += (zo != nullptr ? static_cast<float>(std::atof(zo->c_str())) : 0.0F) + 1.0F;
-    const int blatt = g_app->geo.leafAt(pruef);
-    return blatt >= 0 && static_cast<std::size_t>(blatt) < g_app->geo.leafs.size() && g_app->geo.leafs[static_cast<std::size_t>(blatt)].cluster == -1;
+    const int blatt = geo.leafAt(pruef);
+    return blatt >= 0 && static_cast<std::size_t>(blatt) < geo.leafs.size() && geo.leafs[static_cast<std::size_t>(blatt)].cluster == -1;
 }
 
 bool gespawntImSpiel(const MapEntity& e) {
@@ -5805,10 +5808,10 @@ void loadMapModels();
 // Nur fuer Vorher-Proben (Selbsttest "Bugs erst nachstellen"):
 // BHED_MODELLE_JE_AUFRUF=1 legt die Bilder wie bis rc603 bei jedem Aufruf neu
 // an (Modus tuerlauf: "ein zweites prepareScene legt keine Bilder an").
+// rc608 Teil 13b: modellBlockIn legt in einen anderen Satz an (Spielbild des Karten-Editors).
 template <class F>
-int modellBlock(const std::string& schluessel, F&& anlegen) {
+int modellBlockIn(TextureSet& ts, const std::string& schluessel, F&& anlegen) {
     static const bool jeAufruf = std::getenv("BHED_MODELLE_JE_AUFRUF") != nullptr;
-    TextureSet& ts = g_app->textures;
     const std::string k = std::to_string(g_app->texCacheStand) + "|" + schluessel;
     const auto it = ts.modellBloecke.find(k);
     if (it != ts.modellBloecke.end() && !jeAufruf) { return it->second; }
@@ -5816,6 +5819,10 @@ int modellBlock(const std::string& schluessel, F&& anlegen) {
     anlegen();
     ts.modellBloecke.emplace(k, basis);
     return basis;
+}
+template <class F>
+int modellBlock(const std::string& schluessel, F&& anlegen) {
+    return modellBlockIn(g_app->textures, schluessel, std::forward<F>(anlegen));
 }
 
 // --- Fuer den ICARUS-Nachbau ------------------------------------------------
@@ -8389,11 +8396,15 @@ void ansichtEinstellungen() {
         ImGui::SetTooltip("%s", tr(Str::MapMinLightHint));
     }
     ImGui::SetNextItemWidth(feld);
-    if (ImGui::SliderInt(tr(Str::MapDetail), &g_app->meshDetail, 1, 10)) {
+    // rc608 Teil 13b: ganz rechts (11) steht das Gitter des Spiels (kPatchWieImSpiel), die Vorgabe.
+    int stufe = g_app->meshDetail == kPatchWieImSpiel ? 11 : g_app->meshDetail;
+    if (ImGui::SliderInt(tr(Str::MapDetail), &stufe, 1, 11, stufe == 11 ? tr(Str::MapDetailSpiel) : "%d")) {
+        g_app->meshDetail = stufe == 11 ? kPatchWieImSpiel : stufe;
         // Die Welt ist Untermodell 0 - OHNE die beweglichen Teile (die zeichnet
         // die Engine an ihrer Entity, R_LoadSubmodels).
         kartenNetzNeu();
     }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MapDetailTip)); }
     {
         const char* arten[4] = {tr(Str::MapShadowOff), tr(Str::MapShadowBlob), tr(Str::MapShadowStencil),
                                 tr(Str::MapShadowPlanar)};

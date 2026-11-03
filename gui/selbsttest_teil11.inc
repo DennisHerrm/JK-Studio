@@ -81,84 +81,105 @@ inline void bildSichern(const std::string& name) {
 inline std::vector<Schritt> messung() {
     std::vector<Schritt> s = stufe9c::einrichten();
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    // rc608 Teil 13b: BHED_K11_NUR_VORLAGE - nur die Original-.bsp als Vorlage (ohne Rueckgewinnung und Schnell-Backen)
+    const bool nurVorlage = std::getenv("BHED_K11_NUR_VORLAGE") != nullptr;
     for (const Paar& vorgabe : paare()) {
         auto p = std::make_shared<Paar>(vorgabe);
-        add(tu("Teil 11: " + p->name + " oeffnen", [p] {
-            karteDialogeZu();
-            ke::Editor& ed = ke::editor();
-            ed.echtLicht.an = false;
-            ed.echtLicht.backen = false;
-            if (!ausArchiv(p->archiv, p->bsp, p->daten)) {
-                meldeFehler("Teil 11: " + p->bsp + " nicht in " + p->archiv);
-                return;
-            }
-            p->datei = (std::filesystem::current_path() / (p->name + ".bsp")).string();
-            std::ofstream(p->datei, std::ios::binary).write(p->daten.data(), static_cast<std::streamsize>(p->daten.size()));
-            // q3map2 -convert laesst die Lichter weg: geschaetzt wie in Stufe 9c (Rueckgewinnung, experimentell)
-            ed.bspRueck.lichter = true;
-            (void)ke::bspOeffnenDatei(p->datei);
-            kameraWieImSpiel(*p);
-            ed.echtLicht.an = true;
-        }));
-        add(stufe9c::langeWarten("Teil 11: Rueckgewinnung " + p->name, [] { return !ke::bspRueckLaeuft(); }, 400000));
-        add(warteBis("Teil 11: Texturen " + p->name, [] { return ke::kameraBilderFertig(); }, 20000));
-        add(pause(2.0));
-        add(tu("Teil 11: Echtzeit " + p->name, [p] { bildSichern(p->name + "_echt"); }));
-        add(tu("Teil 11: Schnell-Backen " + p->name, [] {
-            ke::Editor& ed = ke::editor();
-            ed.echtLicht.pauseSekunden = 0.2;
-            ed.echtLicht.backen = true;
-        }));
-        add(stufe9c::langeWarten("Teil 11: gebacken " + p->name, [p] {
-            const ke::Editor& ed = ke::editor();
-            if (ed.echtLicht.bauStand == 5) {
-                meldeFehler("Teil 11: Schnell-Backen gescheitert (" + p->name + ")");
-                return true;
-            }
-            return ed.echtLicht.gebackenZeigen;
-        }, 400000));
-        add(warteBis("Teil 11: Texturen gebacken " + p->name, [] { return ke::kameraBilderFertig(); }, 20000));
-        add(pause(1.0));
-        add(tu("Teil 11: gebaut " + p->name, [] {
-            ke::editor().echtLicht.spielbild = false;
-        }));
-        add(pause(0.5));
-        add(stufe9c::langeWarten("Teil 11: gebacken (noch) " + p->name, [] { return ke::editor().echtLicht.gebackenZeigen; }, 400000));
-        add(tu("Teil 11: gebaut, eigener Zeichner " + p->name, [p] {
-            bildSichern(p->name + "_gebaut");
-            ke::editor().echtLicht.spielbild = true;
-        }));
-        add(pause(1.0));
-        add(stufe9c::langeWarten("Teil 11: gebacken (Spielbild) " + p->name, [] { return ke::editor().echtLicht.spielbildGezeigt; }, 400000));
-        add(tu("Teil 11: gebaut wie im Spiel " + p->name, [p] { bildSichern(p->name + "_spiel"); }));
-        if (std::getenv("BHED_K11_BILDZEIT") != nullptr) {
-            // Bildzeit der Anwendung, Kamera dreht 240 Bilder: erst der Zeichner des Editors, dann das Spielbild
-            for (const bool spiel : {false, true}) {
-                auto bilder = std::make_shared<std::vector<double>>();
-                auto spielMs = std::make_shared<double>(0.0);
-                add(tu("Teil 11: Bildzeit vorbereiten " + p->name, [spiel] { ke::editor().echtLicht.spielbild = spiel; }));
-                add(pause(1.0));
-                add({"Teil 11: 240 Bilder " + p->name, [bilder, spielMs, spiel](int b) {
-                         ke::Editor& ed = ke::editor();
-                         if (b > 2) {
-                             bilder->push_back(static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0);
-                             if (spiel) { *spielMs += ke::spielbildStand().ms; }
-                         }
-                         ed.kamera.freiBewegen(6, (b / 60) % 2 == 0 ? 1 : -1, ed.kameraE);
-                         return b >= 242;
-                     }});
-                add(tu("Teil 11: Bildzeit " + p->name, [bilder, spielMs, spiel, p] {
-                    std::vector<double> v = *bilder;
-                    std::sort(v.begin(), v.end());
-                    double summe = 0;
-                    for (const double x : v) { summe += x; }
-                    const double mittel = v.empty() ? 0 : summe / static_cast<double>(v.size());
-                    const double p99 = v.empty() ? 0 : v[std::min(v.size() - 1, v.size() * 99 / 100)];
-                    char z[300];
-                    std::snprintf(z, sizeof(z), "Teil 11 Bildzeit: %s %s Mittel %.2f ms, p99 %.2f ms, Spielbild auf dem Prozessor %.2f ms je Bild",
-                                  p->name.c_str(), spiel ? "Spielbild" : "Editor", mittel, p99, v.empty() ? 0.0 : *spielMs / static_cast<double>(v.size()));
-                    diag::detail(z);
+        if (nurVorlage) {
+            add(tu("Teil 11: " + p->name + " lesen", [p] {
+                karteDialogeZu();
+                if (!ausArchiv(p->archiv, p->bsp, p->daten)) { meldeFehler("Teil 11: " + p->bsp + " nicht in " + p->archiv); }
+                p->datei = p->name + ".bsp";
+            }));
+        }
+        if (!nurVorlage) {
+            add(tu("Teil 11: " + p->name + " oeffnen", [p] {
+                karteDialogeZu();
+                ke::Editor& ed = ke::editor();
+                ed.echtLicht.an = false;
+                ed.echtLicht.backen = false;
+                if (!ausArchiv(p->archiv, p->bsp, p->daten)) {
+                    meldeFehler("Teil 11: " + p->bsp + " nicht in " + p->archiv);
+                    return;
+                }
+                p->datei = (std::filesystem::current_path() / (p->name + ".bsp")).string();
+                std::ofstream(p->datei, std::ios::binary).write(p->daten.data(), static_cast<std::streamsize>(p->daten.size()));
+                // q3map2 -convert laesst die Lichter weg: geschaetzt wie in Stufe 9c (Rueckgewinnung, experimentell)
+                ed.bspRueck.lichter = true;
+                (void)ke::bspOeffnenDatei(p->datei);
+                kameraWieImSpiel(*p);
+                ed.echtLicht.an = true;
+            }));
+            add(stufe9c::langeWarten("Teil 11: Rueckgewinnung " + p->name, [] { return !ke::bspRueckLaeuft(); }, 400000));
+            if (std::getenv("BHED_K11_OHNE_NEBEL") != nullptr) {
+                // rc608 Teil 13b: den globalen Nebel (worldspawn _fog/fog) weglassen - das Echtzeit-Licht zeichnet ihn, der
+                // Zeichner des Editors mit Lightmaps nicht; so bleibt im Vergleich Echtzeit/gebaut nur das Licht.
+                add(tu("Teil 11: ohne globalen Nebel " + p->name, [] {
+                    if (const auto welt = ke::editor().karte.welt()) {
+                        welt->setzen("_fog", "");
+                        welt->setzen("fog", "");
+                    }
                 }));
+            }
+            add(warteBis("Teil 11: Texturen " + p->name, [] { return ke::kameraBilderFertig(); }, 20000));
+            add(pause(2.0));
+            add(tu("Teil 11: Echtzeit " + p->name, [p] { bildSichern(p->name + "_echt"); }));
+            add(tu("Teil 11: Schnell-Backen " + p->name, [] {
+                ke::Editor& ed = ke::editor();
+                ed.echtLicht.pauseSekunden = 0.2;
+                ed.echtLicht.backen = true;
+            }));
+            add(stufe9c::langeWarten("Teil 11: gebacken " + p->name, [p] {
+                const ke::Editor& ed = ke::editor();
+                if (ed.echtLicht.bauStand == 5) {
+                    meldeFehler("Teil 11: Schnell-Backen gescheitert (" + p->name + ")");
+                    return true;
+                }
+                return ed.echtLicht.gebackenZeigen;
+            }, 400000));
+            add(warteBis("Teil 11: Texturen gebacken " + p->name, [] { return ke::kameraBilderFertig(); }, 20000));
+            add(pause(1.0));
+            add(tu("Teil 11: gebaut " + p->name, [] {
+                ke::editor().echtLicht.spielbild = false;
+            }));
+            add(pause(0.5));
+            add(stufe9c::langeWarten("Teil 11: gebacken (noch) " + p->name, [] { return ke::editor().echtLicht.gebackenZeigen; }, 400000));
+            add(tu("Teil 11: gebaut, eigener Zeichner " + p->name, [p] {
+                bildSichern(p->name + "_gebaut");
+                ke::editor().echtLicht.spielbild = true;
+            }));
+            add(pause(1.0));
+            add(stufe9c::langeWarten("Teil 11: gebacken (Spielbild) " + p->name, [] { return ke::editor().echtLicht.spielbildGezeigt; }, 400000));
+            add(tu("Teil 11: gebaut wie im Spiel " + p->name, [p] { bildSichern(p->name + "_spiel"); }));
+            if (std::getenv("BHED_K11_BILDZEIT") != nullptr) {
+                // Bildzeit der Anwendung, Kamera dreht 240 Bilder: erst der Zeichner des Editors, dann das Spielbild
+                for (const bool spiel : {false, true}) {
+                    auto bilder = std::make_shared<std::vector<double>>();
+                    auto spielMs = std::make_shared<double>(0.0);
+                    add(tu("Teil 11: Bildzeit vorbereiten " + p->name, [spiel] { ke::editor().echtLicht.spielbild = spiel; }));
+                    add(pause(1.0));
+                    add({"Teil 11: 240 Bilder " + p->name, [bilder, spielMs, spiel](int b) {
+                             ke::Editor& ed = ke::editor();
+                             if (b > 2) {
+                                 bilder->push_back(static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0);
+                                 if (spiel) { *spielMs += ke::spielbildStand().ms; }
+                             }
+                             ed.kamera.freiBewegen(6, (b / 60) % 2 == 0 ? 1 : -1, ed.kameraE);
+                             return b >= 242;
+                         }});
+                    add(tu("Teil 11: Bildzeit " + p->name, [bilder, spielMs, spiel, p] {
+                        std::vector<double> v = *bilder;
+                        std::sort(v.begin(), v.end());
+                        double summe = 0;
+                        for (const double x : v) { summe += x; }
+                        const double mittel = v.empty() ? 0 : summe / static_cast<double>(v.size());
+                        const double p99 = v.empty() ? 0 : v[std::min(v.size() - 1, v.size() * 99 / 100)];
+                        char z[300];
+                        std::snprintf(z, sizeof(z), "Teil 11 Bildzeit: %s %s Mittel %.2f ms, p99 %.2f ms, Spielbild auf dem Prozessor %.2f ms je Bild",
+                                      p->name.c_str(), spiel ? "Spielbild" : "Editor", mittel, p99, v.empty() ? 0.0 : *spielMs / static_cast<double>(v.size()));
+                        diag::detail(z);
+                    }));
+                }
             }
         }
         add(tu("Teil 11: Vorlage " + p->name, [p] {

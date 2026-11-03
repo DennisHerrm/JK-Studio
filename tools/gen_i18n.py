@@ -2221,6 +2221,8 @@ from i18n_rc608_10b import zeilen_vier as _rc608_10b  # noqa: E402  (rc608 Teil 
 S += _rc608_10b()
 from i18n_rc608_11 import zeilen_vier as _rc608_11  # noqa: E402  (rc608 Teil 11: Karten-Editor wie im Spiel)
 S += _rc608_11()
+from i18n_rc608_13b import zeilen_vier as _rc608_13b  # noqa: E402  (rc608 Teil 13b: Patches wie im Spiel)
+S += _rc608_13b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
