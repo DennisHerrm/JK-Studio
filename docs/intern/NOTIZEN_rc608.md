@@ -1120,6 +1120,69 @@ Nicht angegangen: Echtzeit gegen gebaut auf hoth, Decal-Welt `_indexmap`/`_fog`,
 - Spielbild: dynamisches Licht der Effekte, Emittermodelle; Mover ohne Mission stehen (keine Benutzungen, func_train am ersten Wegpunkt).
 - Karten-Editor Vorlage ruhend/dreht CPU +0,3 ms durch die 151 einzeln gezeichneten Brush-Modelle von duel_jeditemple (wie die Vorschau); ein Zusammenlegen ruhender Modelle mit der Welt waere moeglich, aendert aber Reihenfolge und Nebel (Spiel: Nebel der Flaeche) - nicht eingebaut.
 
+## Teil 13d: Reiten gegen das Spiel
+
+Auftrag `auftrag_rc608_13d.md`. Skripte und Bilder in `SP/g13d` (`karten13d.py` erzeugt Karte `g13d_reit` aus der Geometrie von g5_hoth, Skripte und cfg je Variante; `lauf.sh`, `md13d.py`, `tab.py`, `vor13d.sh`, `paar.py`), Paare in `SP/g13d/erg/`, Laeufe `Y:\karte\laeufe\v13d_*`, `t13d*`. Nur Movie Duels, per Popen mit fs_homepath im SP (`g5/home_md`), Fenster ausserhalb des Sichtbaren, ohne Fokus und ohne Tasten. Spielordner vorher/nachher per `ab/spielordner.py` verglichen. Original-JKA nicht gestartet.
+
+### Messweg im Spiel (neu)
+Werte kommen aus dem Spiel selbst: `print ( $get( VECTOR, "SET_ORIGIN" )$ )`, ebenso `SET_ANGLES` und `$get( STRING, "SET_ANIM_BOTH" )$` (Q3_GetAnimBoth: legsAnim), je Serverbild (`wait ( 1 )`, 50 ms), mit `g_ICARUSDebug 4` steht jede Zeile mit level.time im Protokoll. Der Reiter druckt am Ende seines NPC_Think, also den Stand nach dem Bild davor (ein Bild alt); das Fahrzeug denkt danach und druckt den Stand dieses Bilds. Dabei gefunden: Im Format von bhed muss der Ausdruck in `$...$` stehen, sonst uebersetzt `bhed compile` ihn als Text. In den Skripten von Teil 9b und 10b stand `SET_BEHAVIORSTATE`; der Name ist `SET_BEHAVIOR_STATE` (Q3_Interface.cpp:415 MD), das Spiel meldete "variable or field not found".
+
+### Was das Spiel tut (gemessen, Quelle)
+- **Fahren per Skript gibt es nicht.** `SET_NAVGOAL` am Reiter: Reiter und Gleiter bleiben 12 s stehen (Variante a). Am Fahrzeug, waehrend es geritten wird: nichts, das Fahrzeug nimmt das usercmd seines Besitzers (g_active.cpp:9794-9800 MD). Am leeren Fahrzeug: auch nichts (Variante c). Ein NPC faehrt nur als Pilot mit Feind (SCF_PILOT, Pilot_Steer_Vehicle, AI_Vehicle.cpp:483), sonst der Spieler mit Tasten. `SET_FORWARDMOVE` wirkt nur beim Spieler (ClientAlterSpeed nur fuer s.number 0) und erreicht das Fahrzeug nicht (UpdateRider stellt das usercmd zurueck). Die Vorschau bewegt ein Fahrzeug ebenso nicht per Laufziel (sie fand keinen Weg, Statuszeile); das stimmt, mit anderem Grund.
+- **SET_VEHICLE** ist `Use(entID, data)` (Q3_Interface.cpp:10076 MD) - gleich `use`.
+- **Ein per `use` gespawntes Fahrzeug** (NPC_Vehicle mit targetname, NPC_VehicleSpawnUse -> G_VehicleSpawn) gibt es danach. Ohne targetname spawnte der Gleiter beim Kartenstart im Spiel nicht (erster Versuch, kein Fahrzeug im Bild, "invalid affect() target").
+- **Aufsteigen** (Gleiter von rechts, Reiter mit Blick 90 auf einem Gleiter mit 0, Variante f): Board im Bild 4650, BOTH_VS_MOUNT_R sofort, Ort am Bolzen `*driver` (202,8 -348,0); Blick des Reiters 0, dann 24, 48, 72, 90 je Bild (SetClientViewAngle beim Board, dann NPC_UpdateAngles mit 480 Grad/s); der Gleiter bleibt bei 0 und springt erst im Bild nach dem Aufsteigen auf 90. Leerlauf ab +550 ms (BOTH_VS_MOUNT_R 26 Bilder zu 50 ms = 1300 ms, 40 % = 520, geprueft in Update "m_iBoarding <= level.time", danach Animate im Pmove).
+- **Leerlauf:** BOTH_VS_IDLE, nicht _SR: AnimateRiders "Put Away Saber When It Is Not Active" (SpeederNPC.cpp MD 960-975) macht aus einem Schwert ohne Klinge WP_NONE.
+- **Drehen im Stand** (Variante d): SET_ANGLES "0 90 0" am Reiter dreht den Gleiter im selben Bild auf 90; SET_DYAW -120 dreht ihn mit 24 Grad je Bild (90, 114, 138, 162, -174, -150, -126, -120), der Reiter kreist mit dem Bolzen (199,1 -345,3 ...). ProcessOrientCommands (SP): Gier des Fahrzeugs = Blick des Reiters. Kein Rollen, kein Nicken im Stand.
+- **Tauntaun** (FAHRZEUG=tauntaun): Reiter BOTH_VT_MOUNT_R 1400 ms (70 % von 40 Bildern des TIERS, AnimateVehicle), dann BOTH_VT_IDLE1; das Tier selbst BOTH_VT_IDLE1 ab dem ersten Bild nach dem Spawn, VT_MOUNT_R nur ein Bild. Reiter am Bolzen (200,7 -348,3 -176,5).
+- **Schweben:** Der Gleiter faellt vom Spawn (z -177) bis -213,9 (Boden + 24), springt bis -189,7 (nach 500 ms) und pendelt dann um rund -207 (-202 bis -210,2, Periode rund 1 s, kaum gedaempft), mit Reiter ebenso.
+
+### Vorher / nachher (Vorschau gegen Spiel, gleiche Zeiten, `vlog_*` gegen `log_*`)
+| | Spiel | Vorschau vorher | Vorschau nachher |
+|---|---|---|---|
+| Gleiter per use | da ab use | fehlt (Figur nur aus affect) | da ab use, verborgen davor |
+| SET_VEHICLE | steigt auf | keine Wirkung | steigt auf (Ritt ab 1000/1050) |
+| Leerlauf, Schwert aus | BOTH_VS_IDLE | BOTH_VS_IDLE_SR | BOTH_VS_IDLE |
+| Ende Aufsteigen | +550 ms | +520 ms | +550 ms |
+| Reiter-Blick beim Aufsteigen (f) | 0, 24, 48, 72, 90 | 0 bis zum Ende (t13drot) | 0, 24, 48, 72, 90 |
+| Gleiter nach dem Aufsteigen (f) | 90 | 0 (t13drot) | 90 |
+| SET_DYAW -120 (d), je Bild | 114, 138, 162, -174, -150, -126, -120 | Gleiter und Reiter bleiben 0 (aus dem alten Code, nicht laufen lassen) | 114, 138, 162, -174, -150, -126, -120 |
+| Reiter-Ort im Drehen (d) | 199,1 -345,3 / 198,1 -345,9 / 197,3 -347,1 | 202,8 -348,0 | 198,9 -345,4 / 197,9 -346,1 / 197,3 -347,1 |
+| Tauntaun: Aufsteigen / Tier | 1400 ms / BOTH_VT_IDLE1 | 800 ms gerechnet (40 % der Reiteranimation) / BOTH_LAND1 | 1400 ms / BOTH_VT_IDLE1 |
+| Gleiter z im Stand | -202 bis -210 (pendelt) | -214 | -214 (offen) |
+
+### Gebaut (allgemein, je Quellenstelle im Kommentar)
+- `ablauf.cpp`: SET_VEHICLE = use der Figur.
+- `scene.cpp`: wen ein use spawnt, der wird Figur der Szene, auch ohne affect (Ablauf::erscheint).
+- `scene.cpp`: `reiterWaffe` (Board: erlaubte Waffen bei numHands 2, OpenJK Schwert und E-11, Movie Duels dazu Pistolen, Bowcaster, Repeater, DEMP2, Flechette, Spieler in MD immer WP_NONE; nach dem Aufsteigen Schwert ohne Klinge weg), `reiterLeerlauf` mit der Gewehrliste von Movie Duels und BOTH_VT_IDLE1 fuer das Tier ohne Waffe.
+- `app_view3d.cpp`: Aufsteigdauer je Art (Speeder 40 % der Reiteranimation, Tier 70 % der Tieranimation, PM_AnimLength ganzzahlig, Ende im Serverbild), Blick des Reiters beim Aufsteigen (vom Fahrzeug mit seiner Drehrate zurueck), `fahrzeugLenken` (Gier des gerittenen Speeders/Tiers = Blick des Reiters nach dem Aufsteigen; Tier im Stand BOTH_VT_IDLE1), an Zeichnung, Bolzen und Vergleich angeschlossen.
+- Vergleich `geschuetze` schreibt je Figur Ort, Winkel, Animation (Messweg der Vorschau).
+
+### Tests
+- Selbsttest `teil13d` (neu, duel_tatooine_outpost mit seinen zwei NPC_Vehicle im Speicher umgebaut): 4 Pruefzeilen. Rot `t13drot` (Aufsteigdauer ohne Serverbild, ohne Wegstecken, ohne Zurueckdrehen, ohne Lenken, ohne Tier-Leerlauf): 1 OK, 3 FEHLER (BOTH_VS_IDLE_SR bei +540 und +560; Reiter 0/0, Gleiter 0/0/0; Tauntaun BOTH_STAND1). Rot `t13drot2` (SET_VEHICLE abgeschaltet): "Ritte 0". Gruen `t13dgruen`: 4 OK (Ritt ab 1050, +540 BOTH_VS_MOUNT_R/WP_SABER, +560 BOTH_VS_IDLE/WP_NONE, Reiter 0/24 bei Drehrate 480, Gleiter 0/90/180, Tauntaun BOTH_VT_IDLE1). Dass ein use den Gleiter spawnt, war nur im Vergleich rot (vlog_a vor der Aenderung: nur jr), nicht in teil13d.
+- ctest schmerz_probe: zwei neue Zeilen (Tier ohne Waffe und Gewehre von Movie Duels; Wegstecken und Board-Waffen), rot 2 FEHLER mit abgeschalteter Regel, gruen. Alte Zeile geaendert, weil sich das Verhalten geaendert hat: Tier ohne Waffe BOTH_VT_IDLE1 statt BOTH_VT_IDLE (AnimalNPC.cpp MD 903, OJ 972).
+- ctest einmal am Ende: 196 von 196. Bau aller Ziele: 0 Warnungen. lint_sources, lint_fassung, lint_i18n, lint_gapp, lint_feldinit, lint_headers ok; lint_d3dbesitz 15, lint_portability 117, lint_settings 4 wie vorher.
+
+### Nur per Foto gegen das Spiel
+Bildfolge Variante d mit Fotokamera (`FOTO=1`, Kamera aus `viewpos` -66 -827 -161, Gier 61): `SP/g13d/erg/paar_d_stand.png`, `paar_d_auf.png`, `paar_d_leer.png`, `paar_d_winkel.png`, `paar_d_ende.png` (oben Spiel, unten Vorschau, Zeiten aus dem Protokoll: 475, 1125, 1825, 3175, 7225 ms). Hintergrund deckungsgleich. Haltung beim Aufsteigen und im Leerlauf, Richtung des Gleiters nach dem Aufsteigen und im Drehen gleich. Abweichungen: Im Spiel steht der Spieler im Bild (Movie Duels erzwingt die dritte Person mit Schwert, die Vorschau zeichnet ohne Skript keinen Spieler); beim Stand-Foto schwebt der Gleiter im Spiel 40 Bildpunkte hoeher (Sprung nach dem Spawn, siehe Schweben), im Leerlauf 3 bis 8 Bildpunkte.
+
+### cg_turnAnims: Dauer des Nachlaufs
+Nicht deckungsgleich gemessen. Versuch mit `fixedtime 8` und `screenshot_tga` je Bild (Variante t, 640 x 480, stehender NPC ohne Fahrzeug): 860 Wartebilder ergaben 3440 ms Spielzeit statt 6880 (zwei Aufnahmen je gezeichnetem Bild, 4 ms je Aufnahme), und die Figur zeigte 440 ms nach dem SET_ANGLES noch den Ruecken, obwohl das Protokoll Gier 90 meldete. Die Zuordnung Aufnahme - Spielzeit ist damit nicht belastbar; Bilder geloescht. Offen wie in Teil 10b (dort nur der Art nach bestaetigt).
+
+### Abweichung nebenbei
+- NPC_Jedi ohne `spawnflags 32`: Im Spiel dreht der Jedi vor dem Skript zum Spieler (169) und dann auf 0, obwohl "angle" 90 ist; mit spawnflags 32 (BS_CINEMATIC ab Spawn) bleibt er bei 90 wie in der Vorschau. Die Vorschau bildet das Verhalten vor dem ersten BS_CINEMATIC nicht nach (KI des Jedi). Nicht verfolgt.
+
+### Offen aus Teil 13d
+- Schweben des Gleiters: Spiel pendelt um 7 Einheiten ueber der Vorschau (z -202 bis -210 gegen -214) und springt nach dem Spawn 24 Einheiten hoch. Nach der Lesart der Quelle (PM_GroundTrace ohne Abheben fuer Fahrzeuge, PM_WalkMove ohne Bewegung bei x/y = 0, PM_HoverTrace mit 0,3 * 35 * 3 je Bild gegen 40 Schwerkraft) duerfte er nicht steigen; die Ursache ist nicht gefunden. Die Vorschau rechnet nach dieser Lesart (Pruefung 4b).
+- Fahrt geradeaus und Kurve mit Rollen und Nicken (ProcessMoveCommands, bankingSpeed, rollLimit): im Spiel nur mit Tasten des Spielers oder einem Piloten mit Feind; per Skript gibt es keine Fahrt, darum in der Vorschau nicht gebraucht. Mit Tasten nicht aufgenommen (Fokus-Ausnahme nicht genutzt).
+- Absteigen (`use` erneut, BOTH_VS_DISMOUNT, Eject-Ort), der Spieler als Reiter, Angriffe und Lehnen beim Reiten, Ritt auf anderen Fahrzeugarten (Laeufer, Jaeger) nicht gegen das Spiel geprueft. Die Waffe bleibt nach dem Absteigen im Spiel WP_NONE (G_RemoveWeaponModels), die Vorschau zeigt nach dem Ritt wieder das Schwert.
+- Blick des Spielers als Reiter beim Aufsteigen (die Regel gilt fuer NPC; der Spieler dreht nicht per NPC_UpdateAngles).
+- cg_turnAnims-Nachlauf (siehe oben).
+- Punkt 2 (Echtzeit hoth, Decal-Welt `_indexmap`/`_fog`, Schwertlicht 0,82, JK2-Datapad, Portal-Entities fuer Effekte): nicht angegangen, Reiten ging vor.
+
+### Changelog
+Zwei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1232,6 +1295,8 @@ Weiter offen:
 - Map editor, "Built map as in the game": doors and other brush entities come only through their entity and stand where the game puts them when the map loads (closed doors no longer missing, START_OPEN open, START_OFF hidden); areas behind closed doors stay dark as in the game - one rule with the preview.
 - Map editor, "Built map as in the game": surface sprites and effects (fx_runner) through the same code as in the preview; effects of entities in the sky portal area play only in the sky portal.
 - Preview and map editor: patches on doors and other movers also drop rows and columns with distance, and choosing the patch detail costs less per frame.
+- Preview: riding as in the game, measured in Movie Duels: `SET_VEHICLE` boards like `use`, a vehicle spawned by `use` appears and can be ridden, climbing on ends in the game's server frame, a saber without an active blade is put away (idle pose instead of the saber pose), and the rider turns back from the vehicle's direction while climbing on.
+- Preview: a ridden swoop or tauntaun turns where its rider looks (`SET_ANGLES`, `SET_DYAW` on the rider); a tauntaun stands in its idle animation, and climbing onto it takes 70 % of its own mount animation.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1329,6 +1394,8 @@ Weiter offen:
 - Karten-Editor, „Gebaute Karte wie im Spiel“: Türen und andere Brush-Entities kommen nur über ihre Entity ins Bild und stehen, wo das Spiel sie beim Laden der Karte hinstellt (geschlossene Türen fehlen nicht mehr, START_OPEN offen, START_OFF unsichtbar); Gebiete hinter geschlossenen Türen bleiben dunkel wie im Spiel - eine Regel mit der Vorschau.
 - Karten-Editor, „Gebaute Karte wie im Spiel“: Surface-Sprites und Effekte (fx_runner) über denselben Code wie in der Vorschau; Effekte von Entities im Bereich des Himmelsportals spielen nur im Himmelsportal.
 - Vorschau und Karten-Editor: Patches an Türen und anderen Movern lassen ebenfalls mit dem Abstand Zeilen und Spalten weg, und die Wahl der Patch-Stufe kostet je Bild weniger.
+- Vorschau: Reiten wie im Spiel, in Movie Duels gemessen: `SET_VEHICLE` steigt auf wie `use`, ein per `use` gespawntes Fahrzeug erscheint und lässt sich reiten, das Aufsteigen endet im Serverbild des Spiels, ein Schwert ohne aktive Klinge wird weggesteckt (Leerlauf statt Schwerthaltung), und der Reiter dreht sich beim Aufsteigen von der Richtung des Fahrzeugs zurück.
+- Vorschau: Ein gerittener Gleiter oder Tauntaun dreht sich dorthin, wohin sein Reiter schaut (`SET_ANGLES`, `SET_DYAW` am Reiter); ein Tauntaun steht in seiner Leerlauf-Animation, und das Aufsteigen dauert 70 % seiner eigenen Aufsteig-Animation.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1426,6 +1493,8 @@ Weiter offen:
 - 地图编辑器“已构建的地图如游戏中显示”:门和其他画刷实体只通过其实体显示,并位于游戏加载地图时放置的位置(关闭的门不再缺失,START_OPEN 为打开,START_OFF 为隐藏);关闭的门后面的区域与游戏中一样保持黑暗——与预览使用同一规则。
 - 地图编辑器“已构建的地图如游戏中显示”:表面精灵和特效(fx_runner)通过与预览相同的代码显示;天空传送门区域内实体的特效只在天空传送门中播放。
 - 预览和地图编辑器:门和其他移动体上的补丁也会随距离省略行和列,选择补丁细节的每帧开销更低。
+- 预览:骑乘与游戏一致(在 Movie Duels 中测量):`SET_VEHICLE` 像 `use` 一样上车,由 `use` 生成的载具会出现并可骑乘,上车在游戏的服务器帧结束,没有激活光刃的光剑会被收起(待机姿势而非持剑姿势),骑手在上车时会从载具的方向转回。
+- 预览:被骑乘的飞行摩托或陶恩陶恩兽会转向骑手注视的方向(对骑手使用 `SET_ANGLES`、`SET_DYAW`);陶恩陶恩兽站立时播放待机动画,骑上它所需时间为其自身上车动画的 70%。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1523,6 +1592,8 @@ Weiter offen:
 - マップエディター「ビルドしたマップをゲームと同じ表示に」:ドアなどのブラシエンティティはエンティティを通してのみ表示され、マップ読み込み時にゲームが置く位置に立ちます(閉じたドアが欠けなくなり、START_OPEN は開、START_OFF は非表示)。閉じたドアの向こうのエリアはゲームと同じく暗いままです。プレビューと同じ規則です。
 - マップエディター「ビルドしたマップをゲームと同じ表示に」:サーフェススプライトとエフェクト(fx_runner)をプレビューと同じコードで描きます。スカイポータル領域のエンティティのエフェクトはスカイポータル内でだけ再生されます。
 - プレビューとマップエディター:ドアなどの移動体のパッチも距離に応じて行と列を省き、パッチの詳細の選択はフレームごとの負荷が下がりました。
+- プレビュー:騎乗がゲームと同じになりました(Movie Duels で測定):`SET_VEHICLE` は `use` と同じように乗り込み、`use` でスポーンした乗り物が現れて乗れます。乗り込みはゲームのサーバーフレームで終わり、刃の出ていないセーバーはしまわれ(セーバーの構えではなく待機姿勢)、乗り手は乗り込み中に乗り物の向きから元の向きへ戻ります。
+- プレビュー:乗られているスウープやトーントーンは乗り手が見ている方向へ向きます(乗り手への `SET_ANGLES`、`SET_DYAW`)。トーントーンは待機アニメーションで立ち、乗り込みには自身の乗り込みアニメーションの 70% かかります。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1620,6 +1691,8 @@ Weiter offen:
 - Editor de mapas, «Mapa compilado como en el juego»: las puertas y demás entidades de brush solo aparecen a través de su entidad y están donde el juego las pone al cargar el mapa (ya no faltan las puertas cerradas, START_OPEN abiertas, START_OFF ocultas); las zonas detrás de puertas cerradas quedan oscuras como en el juego - una regla común con la vista previa.
 - Editor de mapas, «Mapa compilado como en el juego»: surface sprites y efectos (fx_runner) con el mismo código que en la vista previa; los efectos de entidades en la zona del portal de cielo solo se reproducen en el portal de cielo.
 - Vista previa y editor de mapas: los patches de puertas y otros elementos móviles también omiten filas y columnas con la distancia, y elegir el detalle de los patches cuesta menos por fotograma.
+- Vista previa: montar como en el juego, medido en Movie Duels: `SET_VEHICLE` sube como `use`, un vehículo generado por `use` aparece y se puede montar, la subida termina en el fotograma del servidor del juego, un sable sin hoja activa se guarda (postura de reposo en lugar de la del sable) y el jinete gira de vuelta desde la dirección del vehículo mientras sube.
+- Vista previa: un deslizador o un tauntaun montado gira hacia donde mira su jinete (`SET_ANGLES`, `SET_DYAW` en el jinete); un tauntaun está en su animación de reposo, y subir a él dura el 70 % de su propia animación de subida.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1717,3 +1790,5 @@ Weiter offen:
 - Editor map, „Sestavená mapa jako ve hře“: dveře a další brush entity se zobrazují jen přes svou entitu a stojí tam, kam je hra postaví při načtení mapy (zavřené dveře už nechybí, START_OPEN otevřené, START_OFF skryté); oblasti za zavřenými dveřmi zůstávají tmavé jako ve hře - jedno pravidlo s náhledem.
 - Editor map, „Sestavená mapa jako ve hře“: surface sprity a efekty (fx_runner) stejným kódem jako v náhledu; efekty entit v oblasti portálu oblohy se přehrávají jen v portálu oblohy.
 - Náhled a editor map: patche na dveřích a dalších pohyblivých objektech také se vzdáleností vynechávají řádky a sloupce a volba detailu patchů stojí na snímek méně.
+- Náhled: jízda jako ve hře, změřeno v Movie Duels: `SET_VEHICLE` nasedá jako `use`, vozidlo vytvořené příkazem `use` se objeví a dá se na něm jezdit, nasedání končí v serverovém snímku hry, meč bez aktivní čepele se schová (klidová póza místo postoje s mečem) a jezdec se při nasedání otáčí ze směru vozidla zpět.
+- Náhled: speeder nebo tauntaun s jezdcem se otočí tam, kam se jezdec dívá (`SET_ANGLES`, `SET_DYAW` na jezdci); tauntaun stojí ve své klidové animaci a nasednutí trvá 70 % jeho vlastní animace nasedání.
