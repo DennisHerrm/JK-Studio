@@ -1183,6 +1183,48 @@ Nicht deckungsgleich gemessen. Versuch mit `fixedtime 8` und `screenshot_tga` je
 ### Changelog
 Zwei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten.
 
+## Teil 13e: Reste von 13d (Schweben, Absteigen, Gier vor dem Skript)
+
+Auftrag `auftrag_rc608_13e.md`. Auswertung der Messreihen aus Teil 13d (`SP/g13d/log_b|c|d|f.txt`, ICARUS-`print` je Serverbild), Skripte in `SP/g13e` (`zreihe.py` liest die Reihen, `sim*.py` Modellvarianten, `paar13e.py` und `versatz.py` fuer die Fotos), Fotos `SP/g13e/erg/`. Kein neuer Spielstart: die Reihen aus 13d reichten (Spielordner unberuehrt, keine Configs angefasst). Vorschaufotos mit der Karte aus `karten13d.py` (FOTO=1, VARIANTE=d), Lauf `Y:\karte\laeufe\v13d_e13e`, Kamera `-66 -827 -161 0 61`.
+
+### 1: Schweben des Gleiters (gefunden, allgemein)
+- **Ursache:** `PM_HoverTrace` endet IMMER mit `PM_GroundTraceMissed()` (bg_pmove.cpp:7766 MD, 5514 OpenJK, "never stick to the ground"): groundEntityNum NONE, `pml.groundPlane` und `pml.walking` aus. Ein Gleiter geht darum nie durch `PM_WalkMove` (die Lesart von 13d: am Boden ohne x/y keine Bewegung), sondern immer durch `PM_AirMove`, und weder `PM_AirMove` noch `PM_SlideMove` schneiden die Geschwindigkeit an der Schwebespur ab (beide nur bei groundPlane). Der Schub kommt zweimal je Takt (Spur vor der Bewegung, 33955-33959, und nach ihr, 34104-34113), `PM_Friction` wirkt ausserhalb von walking auf |v| mit der Reibung der .veh (1,5; 0,1 nur bei VEH_FLYING). Ein senkrechter Aufprall auf den Boden nimmt in `PM_SlideMove` velocity und end_velocity ganz (Boden- und Bewegungsebene, Kreuzprodukt 0).
+- **Beim Aufsteigen:** `Update` merkt sich im ersten Bild die Geschwindigkeit (`m_vBoardingVelocity`, g_vehicles.cpp:1834-1838 MD), `PM_AirMove` nimmt sie bis zum Ende des Aufsteigens als Wunsch (4133-4137): gegen die Bewegung mal `pm_airDecelRate` 1,35, `PM_Accelerate` mit `acceleration` der .veh (Speeder; nicht halbiert, weil groundPlane aus ist). Gemessen: konstant -13,59 je Bild = 1,35 * 10,07 (die Fallgeschwindigkeit im Bild 4650).
+- **Gegen die Messung:** Mit diesen Regeln stimmt die Reihe des leeren Gleiters (log_c, 77 Bilder ab dem Spawn) auf 0,000025, die mit Aufsteigen (log_d, log_b, log_f) auf 0,00005 - einschliesslich Fall vom Spawn (z -177), Aufsetzen bei 3850, Sprung bis -189,7 und Pendeln. Die Rechnung in `schwerkraft.cpp` (`schwebeSchritt`, `schwebeSpur`) folgt der Quelle Zeile fuer Zeile; neu sind `FahrzeugDaten::beschleunigung` (acceleration, Vorgabe 10) und `Actor::aufsteigFenster` (aus den Ritten und der Aufsteigdauer, app_view3d.cpp).
+- **Ruhelage:** Die Vorschau stellt jede Figur auf Boden + 24, das Spiel auf Boden + 24,125 (SURFACE_CLIP_EPSILON). Die Spur misst darum vom Ruhepunkt aus (fraction = Abstand ueber der Ruhelage / 3 hoverHeight) - in der Engine ist das dieselbe Zahl.
+
+| Gleiter, Hoehe ueber der Ruhelage | Spiel | Vorschau vorher | Vorschau nachher |
+|---|---|---|---|
+| 3900 (erstes 50-ms-Bild) | 6,284 | 3,890 (fiel noch) | 6,284 |
+| 4150 (Gipfel) | 24,162 | 0 | 24,162 |
+| 4650 (leer / beim Aufsteigen) | 0,961 / 0,281 | 0 / 0 | 0,961 / 0,281 |
+| 5150 (leer / Aufsteigen) | 12,129 / 1,799 | 0 / 0 | 12,129 / 1,799 |
+| 7400 (leer / Aufsteigen) | 4,279 / 7,772 | 0 / 0 | 4,279 / 7,772 |
+| Foto "stand" (475 ms), Gleiter gegen Hintergrund | - | 44 Bildpunkte tiefer | 1 Bildpunkt |
+
+### 2: Nach dem Absteigen (Quelle)
+`Eject` gibt keine Waffe zurueck (g_vehicles.cpp MD 942-1228, OJ 1037-1330): Was `Board` und `AnimateRiders` genommen haben, bleibt bis zu einem `SET_WEAPON`. Die Vorschau (`nachDemRitt` in app_view3d.cpp) rechnet die Waffe am Ende des Ritts mit `reiterWaffe` und haelt sie danach, bis ein Waffenschritt kommt. Im Spiel nicht eigens gemessen (Auftrag: "Im Spiel bleibt WP_NONE").
+
+### 3: NPC ohne spawnflags 32 dreht vor dem Skript (Ursache gefunden, nicht gebaut)
+- Quelle: `NPC_SetMiscDefaultData` (NPC_spawn.cpp:876-895 MD): TEAM_PLAYER, nicht CLASS_PLAYER/CLASS_VEHICLE und ohne SFB_CINEMATIC (32) bekommt `defaultBehavior BS_FOLLOW_LEADER` und `leader = player` (ausser `g_noAutoFollow`). `NPC_BSFollowLeader` (NPC_behavior.cpp:634 MD; Jedi ueber `npc_bs_jedi_follow_leader`, AI_Jedi.cpp:10314) dreht je Bild mit `NPC_BSFollowLeader_LookAtLeader` zum Kopf des Spielers (desiredYaw, NPC_UpdateAngles) und laeuft dann mit STEER zum Spieler (Abstand 110, unter 65 weicht er aus); `STEER::DeActivate` (g_navigator.cpp:4150-4160) setzt danach desiredYaw = lastPathAngles[YAW] - 0, solange die Figur nie lief - und desiredPitch 0.
+- Das passt zur Messung: Gier 169,19 ist genau die Richtung zum Spieler (-281 -348 von 200 -440), nach BS_CINEMATIC dreht NPC_UpdateAngles mit 24 Grad je Bild auf 0 (169, 145, 121, 97, 73, 49, 25, 1, 0), Nicken -0,011 (0 nach ANGLE2SHORT). Auf g13d_reit lief der Jedi nicht zum Spieler, weil die Karte keine Wegpunkte hat (STEER::GoTo -> SafeToGoTo mit NAV::GetNearestNode und NAV::GoTo scheitern -> STEER::Stop).
+- Nicht gebaut: Wie im Spiel hiesse das, dass jeder solche NPC vor seinem ersten BS_CINEMATIC dem Spieler folgt (auf Karten mit Wegnetz laeuft er zu ihm). Das ist die Folge-KI (STEER, SafeToGoTo, NAV), ein eigener grosser Punkt. Eine Teilregel nur fuer die Gier waere auf Karten mit Wegnetz falsch.
+
+### 4: cg_turnAnims-Nachlauf
+Stand wie in 13d. Ein verlaessliches Verfahren gibt es nicht: Die Drehanimation ist reine cgame-Sache (Knochen-Override auf "pelvis" in CG_G2PlayerAngles), ICARUS-`print` kommt nur an den Server-Zustand (legsAnim/torsoAnim, Winkel), und Aufnahmen je Bild ordneten in 13d die Spielzeit nicht belastbar zu (fixedtime: zwei Aufnahmen je Bild). Ohne Wiedergabe mit Zeitstempel je Bild (cl_avidemo ist ausgeschlossen) nicht messbar.
+
+### 5
+Nicht angegangen (Punkte 1 bis 3 gingen vor): Echtzeit gegen gebaut auf hoth, Decal-Welt `_indexmap`/Nebel, Figur im Schwertlicht 0,82, JK2-Datapad, Portal-Entities fuer Effekte.
+
+### Tests
+- ctest `pruefung4b`, Abschnitt Fahrzeuge: Die alte Abschrift (`engineGleiter`, die Lesart mit PM_WalkMove) ist durch die Messwerte des Spiels ersetzt (21 Bilder leer, 13 mit Aufsteigen, Hoehe ueber der Ruhelage). Rot mit dem alten Code: 2 FEHLER (Vorschau 3,89 / 2,89 / 1,89 / 0 ... gegen 6,28 / 12,41 / 17,72 / 23,95 ...), gruen nachher (alle auf 0,001). Nicht gelockert; die alte Pruefzeile "Gleiter: PM_HoverTrace, Reibung, Schnitt an der Schwebespur" verglich mit einer falschen Abschrift und ist ersetzt.
+- Selbsttest `teil13d`: Skript steigt bei 6000 wieder ab, neue Zeile "Teil 13e: Nach dem Absteigen bleibt die Waffe WP_NONE". Rot `t13erot` (abgestiegen bei 6150, danach WP_SABER), gruen `t13egruen` (5 OK).
+- Fotos (nur per Foto gegen das Spiel): `SP/g13e/erg/paar_stand.png`, `paar_auf.png`, `paar_leer.png`, `paar_winkel.png`, `paar_ende.png` (oben Spiel aus 13d, unten Vorschau jetzt). Senkrechter Versatz des Gleiters gegen den Hintergrund (`versatz.py`, Kreuzkorrelation) im Foto "stand", dem einzigen, in dem der Spieler des Spiels den Gleiter nicht verdeckt: 1 Bildpunkt (dieselbe Messung am Paar von 13d: 44). In den anderen vier steht im Spiel der Spieler vor dem Gleiter; dort nur Haltung und Richtung angesehen, kein Messwert. Die Kamera liegt rund 1 Bildpunkt anders als im Spiel (Hintergrund dy 1).
+- Bau aller Ziele: 0 Warnungen. ctest einmal am Ende: 196 von 196. lint_sources, lint_fassung, lint_feldinit, lint_headers, lint_i18n ok. Handbuch mit gen_handbuch.py erzeugt (es/cs: 0 Texte englisch).
+
+### Changelog
+Zwei Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
 - (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
@@ -1192,6 +1234,7 @@ Aus dem JK2-Vergleich, nicht behoben:
 - jk2mp ingame: Join Game und Force Mastery haengen am Spielzustand, sonst gleich.
 
 Weiter offen:
+- (Teil 13e) NPC auf der Seite des Spielers ohne spawnflags 32 folgt vor seinem ersten BS_CINEMATIC dem Spieler (BS_FOLLOW_LEADER: Blick zum Spieler, STEER/NAV zu ihm, danach desiredYaw = lastPathAngles); die Vorschau bildet die Folge-KI nicht nach. Ursache und Quelle im Abschnitt Teil 13e.
 - Modell im MP ohne `model_g2skin`: Spiel dunkel (jamp, MD MP), Vorschau zeigt die Standardhaut. Pruefung nennt es.
 - Transition und Fade im Spiel nicht pruefbar (ohne Fokus laeuft kein Tastendruck); Code portiert in `skript.cpp`.
 - MP-Licht OpenJK (182) nur gegen das Original verglichen, nicht gegen eine OpenJK-exe.
@@ -1297,6 +1340,8 @@ Weiter offen:
 - Preview and map editor: patches on doors and other movers also drop rows and columns with distance, and choosing the patch detail costs less per frame.
 - Preview: riding as in the game, measured in Movie Duels: `SET_VEHICLE` boards like `use`, a vehicle spawned by `use` appears and can be ridden, climbing on ends in the game's server frame, a saber without an active blade is put away (idle pose instead of the saber pose), and the rider turns back from the vehicle's direction while climbing on.
 - Preview: a ridden swoop or tauntaun turns where its rider looks (`SET_ANGLES`, `SET_DYAW` on the rider); a tauntaun stands in its idle animation, and climbing onto it takes 70 % of its own mount animation.
+- Preview: a swoop hovers as in the game, measured frame by frame in Movie Duels: after spawning it falls, bounces up and then swings above the floor; a rider climbing on pushes it down.
+- Preview: a figure that climbs off a vehicle keeps no weapon, as in the game, until the script gives it one (`SET_WEAPON`).
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1396,6 +1441,8 @@ Weiter offen:
 - Vorschau und Karten-Editor: Patches an Türen und anderen Movern lassen ebenfalls mit dem Abstand Zeilen und Spalten weg, und die Wahl der Patch-Stufe kostet je Bild weniger.
 - Vorschau: Reiten wie im Spiel, in Movie Duels gemessen: `SET_VEHICLE` steigt auf wie `use`, ein per `use` gespawntes Fahrzeug erscheint und lässt sich reiten, das Aufsteigen endet im Serverbild des Spiels, ein Schwert ohne aktive Klinge wird weggesteckt (Leerlauf statt Schwerthaltung), und der Reiter dreht sich beim Aufsteigen von der Richtung des Fahrzeugs zurück.
 - Vorschau: Ein gerittener Gleiter oder Tauntaun dreht sich dorthin, wohin sein Reiter schaut (`SET_ANGLES`, `SET_DYAW` am Reiter); ein Tauntaun steht in seiner Leerlauf-Animation, und das Aufsteigen dauert 70 % seiner eigenen Aufsteig-Animation.
+- Vorschau: Ein Gleiter schwebt wie im Spiel, Bild für Bild gegen Movie Duels gemessen: Nach dem Spawnen fällt er, federt hoch und schwingt danach über dem Boden; ein aufsteigender Reiter drückt ihn hinunter.
+- Vorschau: Wer von einem Fahrzeug absteigt, hat wie im Spiel keine Waffe mehr, bis das Skript ihm eine gibt (`SET_WEAPON`).
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1495,6 +1542,8 @@ Weiter offen:
 - 预览和地图编辑器:门和其他移动体上的补丁也会随距离省略行和列,选择补丁细节的每帧开销更低。
 - 预览:骑乘与游戏一致(在 Movie Duels 中测量):`SET_VEHICLE` 像 `use` 一样上车,由 `use` 生成的载具会出现并可骑乘,上车在游戏的服务器帧结束,没有激活光刃的光剑会被收起(待机姿势而非持剑姿势),骑手在上车时会从载具的方向转回。
 - 预览:被骑乘的飞行摩托或陶恩陶恩兽会转向骑手注视的方向(对骑手使用 `SET_ANGLES`、`SET_DYAW`);陶恩陶恩兽站立时播放待机动画,骑上它所需时间为其自身上车动画的 70%。
+- 预览:飞行摩托像游戏中一样悬浮,已逐帧对照 Movie Duels 测量:生成后下落、弹起,然后在地面上方摆动;骑手上车时会把它压低。
+- 预览:从载具上下来的角色像游戏中一样不再持有武器,直到脚本给他一把(`SET_WEAPON`)。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1594,6 +1643,8 @@ Weiter offen:
 - プレビューとマップエディター:ドアなどの移動体のパッチも距離に応じて行と列を省き、パッチの詳細の選択はフレームごとの負荷が下がりました。
 - プレビュー:騎乗がゲームと同じになりました(Movie Duels で測定):`SET_VEHICLE` は `use` と同じように乗り込み、`use` でスポーンした乗り物が現れて乗れます。乗り込みはゲームのサーバーフレームで終わり、刃の出ていないセーバーはしまわれ(セーバーの構えではなく待機姿勢)、乗り手は乗り込み中に乗り物の向きから元の向きへ戻ります。
 - プレビュー:乗られているスウープやトーントーンは乗り手が見ている方向へ向きます(乗り手への `SET_ANGLES`、`SET_DYAW`)。トーントーンは待機アニメーションで立ち、乗り込みには自身の乗り込みアニメーションの 70% かかります。
+- プレビュー:スウープがゲームと同じように浮かびます(Movie Duels でフレームごとに測定)。スポーン後に落ちて跳ね上がり、その後は床の上で揺れます。乗り手が乗り込むと押し下げられます。
+- プレビュー:乗り物から降りたキャラクターは、ゲームと同じく、スクリプトが武器を与えるまで(`SET_WEAPON`)武器を持ちません。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1693,6 +1744,8 @@ Weiter offen:
 - Vista previa y editor de mapas: los patches de puertas y otros elementos móviles también omiten filas y columnas con la distancia, y elegir el detalle de los patches cuesta menos por fotograma.
 - Vista previa: montar como en el juego, medido en Movie Duels: `SET_VEHICLE` sube como `use`, un vehículo generado por `use` aparece y se puede montar, la subida termina en el fotograma del servidor del juego, un sable sin hoja activa se guarda (postura de reposo en lugar de la del sable) y el jinete gira de vuelta desde la dirección del vehículo mientras sube.
 - Vista previa: un deslizador o un tauntaun montado gira hacia donde mira su jinete (`SET_ANGLES`, `SET_DYAW` en el jinete); un tauntaun está en su animación de reposo, y subir a él dura el 70 % de su propia animación de subida.
+- Vista previa: un deslizador flota como en el juego, medido fotograma a fotograma en Movie Duels: tras aparecer cae, rebota y luego oscila sobre el suelo; un jinete que sube lo empuja hacia abajo.
+- Vista previa: quien se baja de un vehículo ya no tiene arma, como en el juego, hasta que el script le da una (`SET_WEAPON`).
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1792,3 +1845,5 @@ Weiter offen:
 - Náhled a editor map: patche na dveřích a dalších pohyblivých objektech také se vzdáleností vynechávají řádky a sloupce a volba detailu patchů stojí na snímek méně.
 - Náhled: jízda jako ve hře, změřeno v Movie Duels: `SET_VEHICLE` nasedá jako `use`, vozidlo vytvořené příkazem `use` se objeví a dá se na něm jezdit, nasedání končí v serverovém snímku hry, meč bez aktivní čepele se schová (klidová póza místo postoje s mečem) a jezdec se při nasedání otáčí ze směru vozidla zpět.
 - Náhled: speeder nebo tauntaun s jezdcem se otočí tam, kam se jezdec dívá (`SET_ANGLES`, `SET_DYAW` na jezdci); tauntaun stojí ve své klidové animaci a nasednutí trvá 70 % jeho vlastní animace nasedání.
+- Náhled: speeder se vznáší jako ve hře, změřeno snímek po snímku v Movie Duels: po objevení spadne, odrazí se a pak se pohupuje nad zemí; nasedající jezdec ho stlačí dolů.
+- Náhled: kdo sesedne z vozidla, nemá jako ve hře žádnou zbraň, dokud mu ji skript nedá (`SET_WEAPON`).
