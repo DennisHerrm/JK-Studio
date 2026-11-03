@@ -135,6 +135,20 @@ constexpr float kEdOkW = 67;
 constexpr float kEdOkPitch = 77;
 
 
+// rc609 W2a Punkt 1: woher eine geoeffnete Datei kommt (.bsp, .ent, Skript).
+// Mike (03.11.): "When I make changes, I expect the files I opened to be
+// affected. Not be copied to the documents folder and a .pk3 file." Lose
+// geoeffnete Dateien speichern ohne Rueckfrage an ihren Pfad; eine Datei aus
+// einer .pk3 bietet die Wege an (speicherWegAnbieten, gui/app_dateiort.cpp).
+struct DateiHerkunft {
+    enum class Art : std::uint8_t { Keine, Lose, Pk3 };
+    Art art = Art::Keine;
+    std::string pfad;      // Lose: Plattenpfad; Pk3: Pfad der .pk3
+    std::string eintrag;   // Pk3: Name im Archiv ("maps/x.bsp")
+    [[nodiscard]] static DateiHerkunft lose(const std::string& p) { return {Art::Lose, p, {}}; }
+    [[nodiscard]] static DateiHerkunft ausPk3(const std::string& a, const std::string& e) { return {Art::Pk3, a, e}; }
+};
+
 // Zustand der Oberflaeche. Bewusst ein einfacher Verbund - das Programm hat
 // genau ein Dokument, wie das Original.
 struct App {
@@ -145,6 +159,9 @@ struct App {
     // einem Archiv kam. Sonst wird er aus `path` abgeleitet
     // (aktiverSkriptPfad). Damit findet der Nachbau den Traeger in der Karte.
     std::string skriptPfad;
+    // rc609 W2a: Herkunft des offenen Skripts, wenn es aus einer .pk3 kam (path
+    // ist dann leer). Mit Pfad gilt immer: lose Datei an `path`.
+    DateiHerkunft skriptHerkunft;
     // Der ICARUS-Nachbau des offenen Skripts (bhed/ablauf.h): daraus
     // entstehen Kamerabahn, Zeitleiste und Szene.
     Ablauf ablauf;
@@ -177,6 +194,23 @@ struct App {
     // setzt sie von hier wieder ein; wer eine Karte ausdruecklich oeffnet,
     // bekommt sie frisch (vergissEntities).
     std::map<std::string, std::vector<MapEntity>> entitiesJeKarte;
+    // rc609 W2a Punkt 1: Herkunft der geladenen .bsp (Lose: settings.mapPath,
+    // Pk3: Archiv + Eintrag; Keine: neue Mission auf einer Grundkarte) und der
+    // .ent, wenn sie eigens geoeffnet wurde (gilt fuer die Karte entHerkunftKarte,
+    // sonst gehoert die .ent neben die .bsp).
+    DateiHerkunft kartenHerkunft;
+    DateiHerkunft entHerkunft;
+    std::string entHerkunftKarte;
+    // Punkt 3: offene Fragen "wohin speichern?" (eine je Datei aus einer .pk3),
+    // die vorderste zeigt drawSpeicherWeg.
+    struct SpeicherAuftrag {
+        std::string anzeige;        // "maps/x.ent (zz_mod.pk3)"
+        DateiHerkunft herkunft;     // Art::Pk3
+        bool missionsWeg = true;    // Weg 4 moeglich (Skripte, Entities)
+        std::function<void(int weg)> ausfuehren;   // 1..4
+    };
+    std::vector<SpeicherAuftrag> speicherFragen;
+    bool speicherWegMerken = false;
     // --- Missionsbau (gui/app_mission.cpp) ---------------------------------
     struct MissionsProjekt {
         std::string name;           // "md_tpa_jedi" -> maps/md_tpa_jedi.bsp/.ent
@@ -1773,6 +1807,7 @@ struct App {
         Expanded expanded;
         std::string shownName;
         std::string skriptPfad;
+        DateiHerkunft skriptHerkunft;   // rc609 W2a
 
         // Die Feldaufteilung DIESES Reiters: wie viele Felder, welcher
         // Reiter in welchem steht, wo der Fokus lag. Jeder Reiter hat sein
@@ -1821,6 +1856,9 @@ struct App {
         // die gerade geladene Karte zu, und aus dem Mitbenutzen wird wieder
         // ein Besitz.
         bool ownMap = false;
+        // rc609 W2a: woher seine Karte kam - eine .pk3 ausserhalb der Spielordner
+        // findet loadMapFromArchive(mapId) nicht wieder.
+        DateiHerkunft kartenHerkunft;
         // rc604: die Spielordner, zu denen seine Karte gehoert (die der
         // Sitzung beim Laden, leer = die eingerichteten) - gemerkt wie die
         // Karte (mit eigener oder geerbter Karte). Beim Hinwechseln gelten
@@ -3278,7 +3316,33 @@ ComboEditResult comboEdit(const char* id, std::string& value,
 void loadModelTextures();
 void applySkinByIndex(int index);
 void loadActorModels();
-void openScriptFromMemory(const std::string& data, const std::string& shownName);
+void openScriptFromMemory(const std::string& data, const std::string& shownName, const DateiHerkunft& herkunft = {});
+// --- rc609 W2a: Dateien an Ort und Stelle (gui/app_dateiort.cpp) ---------------
+// Eine Karte bzw. ein Skript aus einer bestimmten .pk3 oeffnen (pk3-Browser,
+// Selbsttest) - die Herkunft merkt sich Archiv und Eintrag.
+bool karteAusArchivOeffnen(const std::string& pk3, const std::string& eintrag);
+// Beim Reiterwechsel: dieselbe Karte aus ihrer .pk3, ohne die gemerkten Entities zu verwerfen.
+bool karteAusPk3Nachladen(const std::string& pk3, const std::string& eintrag);
+bool skriptAusArchivOeffnen(const std::string& pk3, const std::string& eintrag);
+// Punkt 2: getrennte Befehle. Ergebnis: true, wenn geschrieben (oder eine Frage
+// nach dem Weg gestellt wurde - dann false und speicherFragen nicht leer).
+bool entitiesSpeichern();
+bool entitiesInBspUebernehmen();
+// Strg+S fuer ein Skript ohne Pfad, das aus einer .pk3 kam.
+bool skriptAusPk3Speichern();
+// "Save mission" im neuen Ablauf: jede Datei der Mission an ihren Ort, ohne .pk3.
+bool missionAnOrtSpeichern();
+// Punkt 3: Weg fuer eine Datei aus einer .pk3 - gemerkt/Einstellung oder Frage.
+void speicherWegAnbieten(App::SpeicherAuftrag auftrag);
+void drawSpeicherWeg();
+// Schreibt Bytes auf einem der Wege (1 in die .pk3, 2 lose in den Mod-Ordner,
+// 3 Speichern unter). Sicherung .bak fuer .bsp und .pk3. neu: die Herkunft danach.
+bool aufWegSchreiben(int weg, const DateiHerkunft& h, const std::string& bytes, DateiHerkunft* neu);
+// Datei sicher ersetzen (F5) mit Meldung im Programm bei Fehler.
+bool dateiSicherSchreiben(const std::string& pfad, const std::string& bytes);
+// F3/F4 ohne Dialog (Selbsttest, doLoadMap, openEntFile).
+void karteDateiLaden(const std::string& p);
+bool entDateiLaden(const std::string& p);
 // Ein Modell aus den Archiven ins Modellfenster laden (pk3-Browser, Selbsttest).
 bool oeffneModellAusArchiv(const std::string& name, std::string* fehler);
 // Selbsttest (BHED_EDITORTEST): Ruhe des Ereigniseditors und Klickpruefung

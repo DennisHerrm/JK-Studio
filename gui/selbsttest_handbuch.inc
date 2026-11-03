@@ -2440,6 +2440,71 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         t.push_back(pause(0.3));
         return t;
     }
+    // rc609 W2a: nur die Bilder des Abschnitts "Dateien dort speichern, wo sie
+    // geoeffnet wurden" (Seite Missionen): das Menue "Karten und Dateien" mit den
+    // neuen Befehlen und die Frage nach dem Weg fuer eine Datei aus einer .pk3 -
+    // md_am_sith aus dem eingerichteten Movie-Duels-Ordner. Abbrechen: nichts wird
+    // in den Spielordner geschrieben.
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "speichern") == 0) {
+        std::vector<Schritt> t;
+        auto md = std::make_shared<std::string>();
+        t.push_back(tu("Handbuch Speichern: Archiv mit maps/md_am_sith.bsp laden", [=] {
+            for (const GamePath& gp : g_app->gamePaths) {
+                for (const Pk3& arc : gp.archives) {
+                    if (arc.find("maps/md_am_sith.bsp") != nullptr) { *md = arc.path; }
+                }
+            }
+            g_app->settings.pk3SpeicherWeg = 0;
+            g_app->settings.missionsordnerAblauf = false;
+            g_app->leftMode = 1;
+            if (!md->empty()) { missionenAusArchiv(*md); }
+        }));
+        t.push_back(warteBis("Handbuch Speichern: Missionsauswahl offen", [] { return g_app->missionPickOpen; }, 600));
+        t.push_back(waehleInListe("md_am_sith", false, 0, "##missionpick"));
+        t.push_back(warteBis("Handbuch Speichern: geladen", [] { return g_app->map.path == "maps/md_am_sith.bsp" && !g_app->geo.empty(); }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Speichern: eine Aenderung, Menue Karten und Dateien auf", [] {
+            g_app->playing = false;
+            g_app->throughCamera = false;
+            g_app->cameraSelected = false;
+            g_app->selectedActor = -1;
+            entityAuswahlSetzen(-1);
+            (void)entityKeySetzen(0, "message", "JK Studio");
+            g_app->mapDirty = true;
+        }));
+        t.push_back(pause(0.4));
+        t.push_back(klick(tr(Str::MapMore)));   // das Menue oeffnet unter seinem Knopf
+        t.push_back(pause(0.6));
+        hb::markiere("h_speichern_menue", [] {
+            return std::vector<hb::Marke>{hb::Marke(hb::gruppe({tr(Str::DoEntSpeichern), tr(Str::DoBspUebernehmen), tr(Str::DoPk3Packen)}, "##Popup"))};
+        });
+        t.push_back(hb::fotoTeil("h_speichern_menue", [] {   // mit der Spalte links: mindestens 1920 breit
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Min.y = 0.0F;
+            r.Add(hb::fensterRect("##Popup"));
+            return r;
+        }));
+        t.push_back(taste(ImGuiKey_Escape, "Esc"));
+        t.push_back(pause(0.3));
+        t.push_back(tu("Handbuch Speichern: Entities speichern - die Frage nach dem Weg", [] { (void)entitiesSpeichern(); }));
+        t.push_back(pause(0.6));
+        hb::markiere("h_speicherweg", [] {
+            return std::vector<hb::Marke>{
+                hb::Marke(hb::gruppe({tr(Str::DoWegPk3), tr(Str::DoWegLose), tr(Str::DoWegUnter), tr(Str::DoWegMission)}, "###speicherweg"), 1),
+                hb::Marke(hb::gruppe({tr(Str::DoWegMerken)}, "###speicherweg"), 2)};
+        });
+        t.push_back(hb::fotoTeil("h_speicherweg", [] {
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Add(hb::fensterRect("###speicherweg"));   // die ganze Frage samt Merken und Abbrechen
+            return r;
+        }));
+        t.push_back(klick(tr(Str::MissionCancel), "###speicherweg"));
+        t.push_back(pause(0.3));
+        t.push_back(tu("Handbuch Speichern: nichts geschrieben, zurueck", [] { g_app->entitiesUngespeichert.clear(); }));
+        return t;
+    }
     // zeitleiste1: nur die Bilder der Seite "Zeitleiste" (h_zeitleiste, h_zl_*) -
     // md_am_sith aus dem eingerichteten Movie-Duels-Ordner, der Reiter mit dem Schiff.
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "zeitleiste1") == 0) {

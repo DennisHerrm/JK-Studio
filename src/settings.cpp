@@ -157,6 +157,9 @@ std::string writeSettings(const Settings& s) {
     put(o, "menueTextUmbruch", s.menueUmbruch);
     put(o, "menueTon", s.menueTon);
     put(o, "menueLeisteText", s.menueLeisteText);
+    put(o, "pk3SpeicherWeg", std::to_string(s.pk3SpeicherWeg));
+    put(o, "missionsordnerAblauf", s.missionsordnerAblauf);
+    put(o, "skriptVorlage", s.skriptVorlage);
     put(o, "showTypes", s.showTypes);
     put(o, "gFloats", s.gFloats);
     put(o, "foldMacros", s.foldMacros);
@@ -309,6 +312,12 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "menueTextUmbruch") { out.menueUmbruch = toBool(value); }
         else if (key == "menueTon") { out.menueTon = toBool(value); }
         else if (key == "menueLeisteText") { out.menueLeisteText = toBool(value); }
+        else if (key == "pk3SpeicherWeg") {
+            const int v = std::atoi(value.c_str());
+            if (v >= 0 && v <= 4) { out.pk3SpeicherWeg = v; }
+        }
+        else if (key == "missionsordnerAblauf") { out.missionsordnerAblauf = toBool(value); }
+        else if (key == "skriptVorlage") { out.skriptVorlage = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
         else if (key == "foldMacros") { out.foldMacros = toBool(value); }
         else if (key == "uiScale") {

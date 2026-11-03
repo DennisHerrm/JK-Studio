@@ -1185,7 +1185,7 @@ void drawAskSave() {
 // Skriptliste der Karte. Erkannt wird am INHALT, ob es eine kompilierte .ibi
 // ist - die Endung sagt es nicht zuverlaessig, in Movie Duels heissen sie
 // mal .IBI und mal .ibi.
-void openScriptFromMemory(const std::string& data, const std::string& shownName) {
+void openScriptFromMemory(const std::string& data, const std::string& shownName, const DateiHerkunft& herkunft) {
     // Auch von hier in einen eigenen Reiter - dieselbe Regel wie beim
     // Oeffnen aus einer Datei. Gerade beim Laden einer Mission mit zehn
     // Skripten ist das der Sinn der Sache.
@@ -1213,8 +1213,10 @@ void openScriptFromMemory(const std::string& data, const std::string& shownName)
         (void)readScript(data, sc, d);
     }
     g_app->doc = Document{sc};
-    // Aus einem Archiv gibt es keinen Pfad zum Zurueckspeichern.
+    // Aus einem Archiv gibt es keinen Pfad - aber seit rc609 W2a eine Herkunft
+    // (.pk3 + Eintrag): Strg+S bietet dann die Wege an (skriptAusPk3Speichern).
     g_app->path.clear();
+    g_app->skriptHerkunft = herkunft;
     g_app->shownName = fileName(shownName);
     // "md_ga/intro_jedi.txt" -> "md_ga/intro_jedi": so heisst es fuer ICARUS.
     {
@@ -3147,6 +3149,9 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
         return;
     }
     m.path = shownPath;
+    // rc609 W2a: die Herkunft setzt, wer laedt (loadMap, loadMapFromArchive,
+    // karteAusArchivOeffnen, loadMission); ohne Angabe gibt es keine eigene Datei.
+    g_app->kartenHerkunft = DateiHerkunft{};
 
     // Wer eine Karte ausdruecklich laedt, bekommt sie als EIGENE.
     //
@@ -3347,6 +3352,10 @@ void merkeEntities() {
 
 void vergissEntities(const std::string& kennung) {
     g_app->entitiesJeKarte.erase(kennung);
+    if (g_app->entHerkunftKarte == kennung) {   // rc609 W2a: frisch geladen - die .ent kommt wieder von der Karte
+        g_app->entHerkunft = DateiHerkunft{};
+        g_app->entHerkunftKarte.clear();
+    }
 }
 
 bool kartenBytes(const std::string& id, std::string& out) {
@@ -3369,11 +3378,16 @@ bool kartenBytes(const std::string& id, std::string& out) {
 
 bool loadMapFromArchive(const std::string& id) {
     std::string data;
-    if (id.empty() || !kartenBytes(id, data)) {
+    std::string archiv;
+    // rc609 W2a: aus welchem Archiv (das gewinnende, wie die Engine sucht). Eine neue
+    // Mission ("maps/<name>.bsp" aus kartenQuelle) hat keine eigene Datei.
+    const bool direkt = !id.empty() && readFromArchives(id, data, &archiv);
+    if (!direkt && (id.empty() || !kartenBytes(id, data))) {
         return false;
     }
     loadMapFromBytes(data, id);
     g_app->settings.mapPath.clear();
+    if (direkt) { g_app->kartenHerkunft = DateiHerkunft::ausPk3(archiv, id); }
     return true;
 }
 
@@ -3387,6 +3401,7 @@ void loadMap(const std::string& p) {
     }
     loadMapFromBytes(bytes, p);
     g_app->settings.mapPath = p;
+    g_app->kartenHerkunft = DateiHerkunft::lose(p);   // rc609 W2a
 }
 
 void doLoadMap() {
@@ -3396,8 +3411,7 @@ void doLoadMap() {
     const std::string p = platform::openFileDialog(
         tr(Str::MapLoad), "JKA maps (*.bsp)|*.bsp|All files (*.*)|*.*", start);
     if (!p.empty()) {
-        vergissEntities(p);
-        loadMap(p);
+        karteDateiLaden(p);   // rc609 W2a F3: fragt bei ungespeicherten Entities, leert den Verlauf
     }
 }
 
@@ -3405,55 +3419,9 @@ void openEntFile() {
     const std::string p = platform::openFileDialog(
         tr(Str::OpenEnt), "Entity files (*.ent)|*.ent|All files (*.*)|*.*",
         g_app->settings.lastDir);
-    if (p.empty()) {
-        return;
+    if (!p.empty()) {
+        (void)entDateiLaden(p);   // rc609 W2a F4 (gui/app_dateiort.cpp)
     }
-    diag::Step step("Entities laden: " + p);
-    const std::string text = slurp(p);
-    if (text.empty()) {
-        step.fail("nicht lesbar");
-        platform::showError(p, tr(Str::AppTitle));
-        return;
-    }
-    std::vector<MapEntity> ents;
-    parseEntities(text, ents);
-    if (ents.empty()) {
-        step.fail("keine Entities gefunden");
-        return;
-    }
-    g_app->map.entities = std::move(ents);
-    merkeEntities();
-    // Die Namenslisten neu aufbauen - der Editor bietet sie an.
-    g_app->map.targetNames.clear();
-    g_app->map.cameraGroups.clear();
-    for (const MapEntity& e : g_app->map.entities) {
-        for (auto* list : {&g_app->map.targetNames, &g_app->map.cameraGroups}) {
-            const std::string& v = (list == &g_app->map.targetNames)
-                                       ? e.targetname
-                                       : e.cameraGroup;
-            if (v.empty()) {
-                continue;
-            }
-            if (std::find(list->begin(), list->end(), v) == list->end()) {
-                list->push_back(v);
-            }
-        }
-    }
-    std::sort(g_app->map.targetNames.begin(), g_app->map.targetNames.end());
-    std::sort(g_app->map.cameraGroups.begin(), g_app->map.cameraGroups.end());
-    g_app->settings.lastDir = directoryOf(p);
-    g_app->mapDirty = true;
-    // Alles, was an den ALTEN Entities hing, gilt nicht mehr: die gewaehlte
-    // und die ausgeblendeten Entities stehen als Index da, und die
-    // Kamerabahn loest ref_tags ueber die Entities auf - neu aufbauen
-    // (Kartentest 27.09.; vorher blieb alles auf dem alten Stand).
-    g_app->pickedEntity = -1;
-    g_app->hiddenEntities.clear();
-    g_app->camTrackValid = false;
-    char msg[200];
-    std::snprintf(msg, sizeof(msg), trN(Str::EntLoaded, g_app->map.entities.size()),
-                  static_cast<int>(g_app->map.entities.size()));
-    addStatus(msg);
 }
 
 void selectRow(std::size_t rowIndex, bool ctrl, bool shift) {

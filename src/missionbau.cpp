@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -133,6 +134,55 @@ NeueMission neueMission(const std::vector<MapEntity>& karte, const std::string& 
     return n;
 }
 
+namespace {
+void folgeSammeln(const std::vector<Node>& nodes, std::vector<std::string>& aus) {
+    for (const Node& n : nodes) {
+        if (n.kind == Node::Kind::Command) {
+            const std::string b = klein(n.name);
+            // run ( "pfad" ): Sequencer::ParseRun (OJK code/icarus/Sequencer.cpp:433)
+            if (b == "run" && !n.args.empty() && !n.args[0].text.empty()) { aus.push_back(n.args[0].text); }
+            // set ( "SET_DEATHSCRIPT", "pfad" ) usw.: Q3_SetBehaviorSet (Q3_Interface.cpp)
+            if (b == "set" && n.args.size() >= 2) {
+                const std::string k = klein(n.args[0].text);
+                if (k.rfind("set_", 0) == 0 && k.size() > 10 && k.compare(k.size() - 6, 6, "script") == 0 && !n.args[1].text.empty()) {
+                    aus.push_back(n.args[1].text);
+                }
+            }
+        }
+        folgeSammeln(n.children, aus);
+    }
+}
+}  // namespace
+
+std::vector<std::string> skriptFolgeVerweise(const Script& sc) {
+    std::vector<std::string> roh;
+    folgeSammeln(sc.nodes, roh);
+    // Dieselben Ausnahmen wie bei den Entities (Verhaltensnamen, NULL).
+    std::vector<MapEntity> e(roh.size());
+    for (std::size_t i = 0; i < roh.size(); ++i) { e[i].keys.push_back({"usescript", roh[i]}); }
+    return skriptVerweise(e);
+}
+
+bool sichererSpielPfad(const std::string& pfad) {
+    if (pfad.empty() || pfad[0] == '/' || pfad[0] == '\\') { return false; }
+    return pfad.find("..") == std::string::npos && pfad.find(':') == std::string::npos;
+}
+
+void entityGrenzenPruefen(const std::vector<MapEntity>& ents, std::vector<MissionBefund>& befunde) {
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const MapEntity& e = ents[i];
+        const std::string wer = (e.targetname.empty() ? e.classname : e.targetname) + " (#" + std::to_string(i) + ")";
+        if (static_cast<int>(e.keys.size()) > kMaxSpawnVars) {
+            befunde.push_back({true, "S008", wer + ": " + std::to_string(e.keys.size())});
+        }
+        std::size_t zeichen = 0;
+        for (const auto& [k, v] : e.keys) { zeichen += k.size() + 1 + v.size() + 1; }
+        if (zeichen > static_cast<std::size_t>(kMaxSpawnVarsChars)) {
+            befunde.push_back({true, "S009", wer + ": " + std::to_string(zeichen)});
+        }
+    }
+}
+
 std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db,
                                      std::vector<MissionBefund>& befunde) {
     std::vector<Pk3Datei> out;
@@ -144,10 +194,15 @@ std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db
         out.push_back({"maps/" + m.name + ".bsp", m.bsp});
     }
     out.push_back({"maps/" + m.name + ".ent", writeEntities(m.entities)});
+    entityGrenzenPruefen(m.entities, befunde);
 
     std::set<std::string> vorhanden;
     for (const MissionInhalt::Skript& s : m.skripte) {
         vorhanden.insert(klein(s.ref));
+        if (!sichererSpielPfad(s.ref)) {
+            befunde.push_back({true, "S007", "scripts/" + s.ref});
+            continue;
+        }
         out.push_back({"scripts/" + s.ref + ".txt", s.text});
         Script sc;
         std::vector<Diag> d;
@@ -167,6 +222,10 @@ std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db
         }
     }
     for (const std::string& r : skriptVerweise(m.entities)) {
+        if (!sichererSpielPfad(r)) {
+            if (vorhanden.count(klein(r)) == 0) { befunde.push_back({true, "S007", "scripts/" + r}); }
+            continue;
+        }
         if (vorhanden.count(klein(r)) == 0) {
             befunde.push_back({false, "S001", r});
         }
@@ -193,6 +252,10 @@ std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db
         }
     }
     for (Pk3Datei f : m.weitere) {
+        if (!sichererSpielPfad(f.name)) {
+            befunde.push_back({true, "S007", f.name});
+            continue;
+        }
         const std::string n = klein(f.name);
         if (n.size() > 4 && n.compare(n.size() - 4, 4, ".str") == 0 && f.inhalt.find("ENDMARKER") == std::string::npos) {
             if (!f.inhalt.empty() && f.inhalt.back() != '\n') { f.inhalt += '\n'; }

@@ -24,6 +24,7 @@
 #include "bhed/image.h"   // Stufe 8c: das Logo von JK Studio (PNG-Ressource)
 #include "update.h"
 #include "app_internal.h"
+#include "bhed/sicherschreiben.h"
 #include "gpumap.h"
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)
 #include "tour.h"       // rc601 tour: Tutorials im Programm
@@ -198,7 +199,7 @@ namespace {
 std::string pfadSchluessel(const std::string& p);   // steht weiter unten, ebenso verschachtelt
 }  // namespace
 bool speichereReiterI(int tab);
-void oeffneSkriptAusSpeicherI(const std::string& data, const std::string& name);
+void oeffneSkriptAusSpeicherI(const std::string& data, const std::string& name, const DateiHerkunft& herkunft = {});
 std::string descFor(const Command& c);
 void doSaveAll();
 ImGuiKeyChord chordFor(keys::Action a);
@@ -3150,6 +3151,20 @@ void drawPrefs() {
     erklaerung(Str::MeEinstUmbruchHint);
     ImGui::Checkbox(tr(Str::MeEinstLeisteText), &st.menueLeisteText);   // M4: Leistenknoepfe mit Beschriftung
     erklaerung(Str::MeEinstLeisteTextHint);
+    // rc609 W2a Punkt 3: Speichern - Weg fuer Dateien aus einer .pk3, bisheriger
+    // Missionsordner-Ablauf, Skriptvorlage.
+    ImGui::SeparatorText(tr(Str::DoEinstGruppe));
+    {
+        const char* wege[5] = {tr(Str::DoEinstFragen), tr(Str::DoWegPk3), tr(Str::DoWegLose), tr(Str::DoWegUnter), tr(Str::DoWegMission)};
+        int wahl = std::clamp(st.pk3SpeicherWeg, 0, 4);
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 18.0F);
+        if (ImGui::Combo(tr(Str::DoEinstWeg), &wahl, wege, 5)) { st.pk3SpeicherWeg = wahl; }
+        erklaerung(Str::DoEinstWegHint);
+    }
+    ImGui::Checkbox(tr(Str::DoEinstMissionsordner), &st.missionsordnerAblauf);
+    erklaerung(Str::DoEinstMissionsordnerHint);
+    ImGui::Checkbox(tr(Str::DoEinstVorlage), &st.skriptVorlage);
+    erklaerung(Str::DoEinstVorlageHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //
@@ -3863,7 +3878,8 @@ void drawPk3Browser() {
                               ImGuiSelectableFlags_AllowDoubleClick) &&
             ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
             std::string data;
-            if (readFromArchives(f.name, data)) {
+            std::string archivDerDatei;
+            if (readFromArchives(f.name, data, &archivDerDatei)) {
                 if (g_app->pk3Kind == 2) {
                     // Ein Modell. Die .skin dazu suchen wir gleich mit: sie
                     // liegt neben dem Modell und heisst model_<name>.skin.
@@ -3881,12 +3897,19 @@ void drawPk3Browser() {
                     // beim naechsten Start liesse sie sich so nicht wieder
                     // finden. Deshalb nicht merken.
                     g_app->settings.mapPath.clear();
+                    // rc609 W2a: aber ihre Herkunft (das Archiv, aus dem sie kam)
+                    g_app->kartenHerkunft = DateiHerkunft::ausPk3(archivDerDatei, f.name);
+                    g_app->entUndo.clear();
+                    g_app->entRedo.clear();
+                    g_app->entUndoStempel.clear();
+                    g_app->entRedoStempel.clear();
                 } else {
                     const std::string dat = data;
                     const std::string nm = f.name;
-                    withUnsaved([dat, nm] {
+                    const DateiHerkunft h = DateiHerkunft::ausPk3(archivDerDatei, f.name);
+                    withUnsaved([dat, nm, h] {
                         // .ibi kommt als Binaerdatei - erst zurueckuebersetzen.
-                        oeffneSkriptAusSpeicherI(dat, nm);
+                        oeffneSkriptAusSpeicherI(dat, nm, h);
                     });
                 }
                 g_app->pk3Open = false;
@@ -4120,14 +4143,10 @@ std::string descFor(const Command& c) {
     return std::string();
 }
 
-bool spew(const std::string& path, const std::string& text) {
-    std::ofstream f(path, std::ios::binary);
-    if (!f) {
-        return false;
-    }
-    f.write(text.data(), static_cast<std::streamsize>(text.size()));
-    return static_cast<bool>(f);
-}
+// rc609 W2a F5: erst "<path>.tmp", Schreiben und Schliessen geprueft, dann
+// atomar umbenennen - bis rc608 schnitt ein Fehler die alte Datei ab, und der
+// Fehler beim Schliessen blieb unbemerkt (Rueckgabe vor dem Leeren des Puffers).
+bool spew(const std::string& path, const std::string& text) { return sicherSchreiben(path, text); }
 
 // Eine Zeile in die Statusliste, mit laufender Nummer wie im Original.
 
@@ -4236,6 +4255,8 @@ void sicherungsOrdnerOeffnen() {
 
 bool doSave() {
     if (g_app->path.empty()) {
+        // rc609 W2a: aus einer .pk3 - die Wege anbieten statt "Speichern unter".
+        if (g_app->skriptHerkunft.art == DateiHerkunft::Art::Pk3) { return skriptAusPk3Speichern(); }
         return doSaveAs();
     }
     // IMMER als .txt. Auch wenn eine .ibi geoeffnet war - dann entsteht die
@@ -4279,10 +4300,12 @@ bool doSave() {
         }
     }
     const std::string inhalt = writeScript(g_app->doc.script());
-    if (!spew(quelle, inhalt)) {
-        platform::showError(quelle, tr(Str::AppTitle));
+    // rc609 W2a F5: gescheitert -> Meldung im Programm, kein "gespeichert", die alte
+    // Datei bleibt (vorher ein Windows-Dialog).
+    if (!dateiSicherSchreiben(quelle, inhalt)) {
         return false;
     }
+    g_app->skriptHerkunft = DateiHerkunft{};
     sicherungAnlegen(quelle, inhalt);
     // Eigene ROFF-Bahnen (rc599): die .rof-Dateien entstehen mit dem Skript.
     (void)roffDateienSchreiben(quelle, g_app->doc.script());
@@ -4360,6 +4383,7 @@ bool doSaveAs() {
 void clearMap() {
     vergissEffektBahnen();
     g_app->map = MapData{};
+    g_app->kartenHerkunft = DateiHerkunft{};   // rc609 W2a
     g_app->geo = BspGeometry{};
     g_app->mesh = BspMesh{};
     g_app->textures = TextureSet{};
@@ -4418,10 +4442,12 @@ void parkActive(bool layoutMerken = true) {
     t.expanded = g_app->expanded;
     t.shownName = g_app->shownName;
     t.skriptPfad = g_app->skriptPfad;
+    t.skriptHerkunft = g_app->skriptHerkunft;
     // Die Karte nur merken, wenn sie IHM gehoert - siehe ownMap.
     if (t.ownMap) {
         t.mapPath = g_app->settings.mapPath;
         t.mapId = g_app->map.path;
+        t.kartenHerkunft = g_app->kartenHerkunft;
         t.spielordner = g_app->sitzungsSpielordner;   // rc604
         t.spielordnerGemerkt = true;
     }
@@ -4472,6 +4498,7 @@ void takeTab(int index, bool rollen = true, bool layout = true) {
     g_app->expanded = t.expanded;
     g_app->shownName = t.shownName;
     g_app->skriptPfad = t.skriptPfad;
+    g_app->skriptHerkunft = t.skriptHerkunft;
 
     // Die Aufteilung DIESES Reiters uebernehmen. Ein Reiter, der nie
     // geteilt war, bringt EIN Feld mit - genau das Gewuenschte beim
@@ -4532,6 +4559,9 @@ void takeTab(int index, bool rollen = true, bool layout = true) {
         diag::detail(zeile);
         if (!t.mapPath.empty()) {
             loadMap(t.mapPath);
+        } else if (t.kartenHerkunft.art == DateiHerkunft::Art::Pk3 && t.kartenHerkunft.eintrag == t.mapId &&
+                   karteAusPk3Nachladen(t.kartenHerkunft.pfad, t.mapId)) {
+            // rc609 W2a: aus seiner .pk3 (auch ausserhalb der Spielordner)
         } else if (!loadMapFromArchive(t.mapId)) {
             // Aus dem Archiv nicht mehr lesbar - dann lieber gar keine als
             // die falsche.
@@ -4939,13 +4969,13 @@ void zumOffenenReiter(int index, const std::string& name) {
 // Ein Skript aus dem Speicher - aber nur, wenn es nicht schon offen ist.
 // Fuer die Wege, auf denen der BENUTZER oeffnet (Archiv, Mission); der
 // Selbsttest ruft openScriptFromMemory weiter direkt.
-void oeffneSkriptAusSpeicherI(const std::string& data, const std::string& name) {
+void oeffneSkriptAusSpeicherI(const std::string& data, const std::string& name, const DateiHerkunft& herkunft) {
     const int offen = reiterMitSkriptI(name);
     if (offen >= 0) {
         zumOffenenReiter(offen, name);
         return;
     }
-    openScriptFromMemory(data, name);
+    openScriptFromMemory(data, name, herkunft);
 }
 
 // Was der Leser beim Oeffnen nicht verstanden hat, in die Statusliste - in
@@ -6832,6 +6862,7 @@ void draw() {
         drawMissionPicker();
         drawNeueMission();
         drawMissionSpeichern();
+        drawSpeicherWeg();   // rc609 W2a Punkt 3
         drawKartenStatistik();
         drawWegFenster();
         drawNpcBrowser();

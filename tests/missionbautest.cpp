@@ -275,6 +275,61 @@ int main(int argc, char** argv) {
         expect("nicht uebersetzbares Skript: Fehler S002, keine .IBI",
                hatBefund(bef, "S002", true) && datei(f2, "scripts/md_test/kaputt.IBI") == nullptr);
 
+        // rc609 W2a F6: ".." in Pfaden (fremdes Missions-pk3, usescript "../x").
+        // Die Engine weist ".." und "::" ab (OJK code/qcommon/files.cpp:1283),
+        // auf die Platte geschrieben laege die Datei ausserhalb des Missionsordners.
+        {
+            bhed::MissionInhalt m6 = m;
+            m6.skripte.pop_back();
+            m6.skripte.push_back({"../../x", "rem ( \"zip slip\" );\n"});
+            m6.weitere.push_back({"sound/../../y.wav", "RIFF"});
+            m6.weitere.push_back({"C:/Users/x/z.txt", "z"});
+            bef.clear();
+            const std::vector<bhed::Pk3Datei> f6 = bhed::missionDateien(m6, db, bef);
+            bool punktPunkt = false;
+            for (const bhed::Pk3Datei& d : f6) { punktPunkt = punktPunkt || d.name.find("..") != std::string::npos || d.name.find(':') != std::string::npos; }
+            int s007 = 0;
+            for (const auto& b : bef) { s007 += b.code == "S007" && b.fehler ? 1 : 0; }
+            std::printf("  F6: %d Befunde S007, Eintrag mit .. oder Laufwerk: %s\n", s007, punktPunkt ? "ja" : "nein");
+            expect("F6: \"..\" und Laufwerk im Pfad: Fehler S007, kein solcher Eintrag", s007 >= 3 && !punktPunkt);
+        }
+        // rc609 W2a F8: Engine-Grenzen je Entity. G_ParseSpawnVars bricht bei mehr
+        // als MAX_SPAWN_VARS (64) Paaren ab, G_AddSpawnVarToken bei mehr als
+        // MAX_SPAWN_VARS_CHARS (2048) Zeichen (Summe von Laenge + 1 je Schluessel und
+        // Wert); OJK code/game/g_spawn.cpp:1188, 1255, g_local.h:221-222, MD9 gleich
+        // (g_local.h:246-247), JK2 gleich (codeJK2/game/g_local.h:176-177).
+        {
+            bhed::MissionInhalt m8 = m;
+            m8.skripte.pop_back();
+            bhed::MapEntity viele;
+            viele.classname = "NPC_spawner";
+            viele.keys.push_back({"classname", "NPC_spawner"});
+            for (int i = 1; i < 65; ++i) { viele.keys.push_back({"parm" + std::to_string(i), "1"}); }
+            m8.entities.push_back(viele);
+            bef.clear();
+            (void)bhed::missionDateien(m8, db, bef);
+            expect("F8: 65 Schluessel an einer Entity: Fehler S008", hatBefund(bef, "S008", true));
+            viele.keys.resize(64);
+            m8.entities.back() = viele;
+            bef.clear();
+            (void)bhed::missionDateien(m8, db, bef);
+            expect("F8: 64 Schluessel: kein S008", !hatBefund(bef, "S008", true));
+            bhed::MapEntity lang;
+            lang.classname = "target_print";
+            lang.keys.push_back({"classname", "target_print"});
+            // (9 + 1) + (12 + 1) + (7 + 1) + (x + 1) = 2048 -> genau an der Grenze erlaubt
+            lang.keys.push_back({"message", std::string(2048 - 10 - 13 - 8 - 1, 'a')});
+            m8.entities.back() = lang;
+            bef.clear();
+            (void)bhed::missionDateien(m8, db, bef);
+            expect("F8: genau 2048 Zeichen: kein S009", !hatBefund(bef, "S009", true));
+            lang.keys.back().second += 'a';
+            m8.entities.back() = lang;
+            bef.clear();
+            (void)bhed::missionDateien(m8, db, bef);
+            expect("F8: 2049 Zeichen: Fehler S009", hatBefund(bef, "S009", true));
+        }
+
         m.name = "md test";
         bef.clear();
         (void)bhed::missionDateien(m, db, bef);

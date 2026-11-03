@@ -4975,6 +4975,9 @@ void drawMenu() {
         if (ImGui::MenuItem(tr(Str::LoadMission))) { loadMissionArchive(); }
         if (ImGui::MenuItem(tr(Str::MapLoad))) { doLoadMap(); }
         if (ImGui::MenuItem(tr(Str::OpenEnt))) { openEntFile(); }
+        // rc609 W2a Punkt 2
+        if (ImGui::MenuItem(tr(Str::DoEntSpeichern), nullptr, false, !g_app->map.empty())) { (void)entitiesSpeichern(); }
+        if (ImGui::MenuItem(tr(Str::DoBspUebernehmen), nullptr, false, !g_app->map.empty())) { (void)entitiesInBspUebernehmen(); }
         if (ImGui::MenuItem(tr(Str::MapClose), nullptr, false, !g_app->map.empty())) {
             clearMap();
         }

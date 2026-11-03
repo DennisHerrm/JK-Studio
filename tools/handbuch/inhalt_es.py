@@ -3556,8 +3556,8 @@ TEXTE = {
         "Una misión que nunca se empaquetó vive en su carpeta; **{{MissionOpenFolder}}** la continúa tras reiniciar.",
     "Saving a mission":
         "Guardar una misión",
-    "**{{MissionSave}}** shows what will go into the archive - every file with its size - and checks the mission first: a script that an entity uses but that does not exist, a script that does not compile, no player start, a target that points nowhere, a `.str` without `ENDMARKER`. Errors (red) must be fixed, warnings (orange) may stay. **{{MissionSaveNow}}** saves all scripts, writes the `.ent`, compiles the scripts, adds your own ROFF files and packs the `.pk3` into the game folder.":
-        "**{{MissionSave}}** muestra lo que irá en el archivo (cada archivo con su tamaño) y comprueba antes la misión: un script que usa una entidad pero no existe, un script que no compila, falta de inicio del jugador, un target que no apunta a nada, un `.str` sin `ENDMARKER`. Los errores (rojo) hay que corregirlos, los avisos (naranja) pueden quedarse. **{{MissionSaveNow}}** guarda todos los scripts, escribe el `.ent`, compila los scripts, añade tus propios archivos ROFF y empaqueta el `.pk3` en la carpeta del juego.",
+    '**{{DoPk3Packen}}** shows what will go into the archive - every file with its size - and checks the mission first: a script that an entity uses but that does not exist, a script that does not compile, no player start, a target that points nowhere, a `.str` without `ENDMARKER`, a path that leaves the game folder, an entity with more keys or characters than the game allows. Errors (red) must be fixed, warnings (orange) may stay. **{{MissionSaveNow}}** compiles the scripts, adds your own ROFF files and packs the `.pk3` into the game folder; a new mission also gets its scripts, `.ent` and `.IBI` in its mission folder.':
+        '**{{DoPk3Packen}}** muestra lo que irá en el archivo (cada archivo con su tamaño) y antes comprueba la misión: un script que usa una entidad pero no existe, un script que no compila, falta el inicio del jugador, un target que no apunta a nada, un `.str` sin `ENDMARKER`, una ruta que sale de la carpeta del juego, una entidad con más claves o caracteres de los que permite el juego. Los errores (rojo) deben corregirse; las advertencias (naranja) pueden quedarse. **{{MissionSaveNow}}** compila los scripts, añade tus propios archivos ROFF y empaqueta el `.pk3` en la carpeta del juego; una misión nueva recibe además sus scripts, `.ent` e `.IBI` en su carpeta de misión.',
     "How a mission starts in the game":
         "Cómo empieza una misión en el juego",
     "The player spawns":
@@ -7204,4 +7204,34 @@ TEXTE.update({
         '**{{WegErzeugen}}** también empieza en los puntos de ruta que ya están en el mapa: coloca uno en una sala que la generación omitió y genera de nuevo; la sala recibe su red, conectada con tu punto.',
     'The right-click menu of the view with a waypoint selected: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.':
         'El menú del botón derecho de la vista con un punto de ruta seleccionado: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+    'Saving files where they were opened':
+        'Guardar los archivos donde se abrieron',
+    'Every opened file remembers where it came from: a loose file on disk, or a `.pk3` and the entry in it. A loose `.bsp`, `.ent` or script is saved back to its path without a question - no copy under Documents, no new `.pk3`.':
+        'Cada archivo abierto recuerda de dónde viene: un archivo suelto en el disco, o un `.pk3` y la entrada dentro de él. Un `.bsp`, `.ent` o script suelto se guarda en su ruta sin preguntar: sin copia en Documentos, sin `.pk3` nuevo.',
+    '**Save** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) saves the script of the tab, each tab on its own.':
+        '**Guardar** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) guarda el script de la pestaña, cada pestaña por separado.',
+    '**{{DoEntSpeichern}}** writes the entities as `.ent` where it was opened, otherwise next to the `.bsp`. The game prefers a `.ent` next to the map over the entities inside the `.bsp`.':
+        '**{{DoEntSpeichern}}** escribe las entidades como `.ent` donde se abrió; si no, junto al `.bsp`. El juego prefiere un `.ent` junto al mapa a las entidades dentro del `.bsp`.',
+    "**{{DoBspUebernehmen}}** writes the entities into the `.bsp` itself - byte for byte what the map editor's `-onlyents` produces: geometry, lightmaps and light grid stay untouched. Before overwriting, the old file is kept as `<map>.bsp.bak`.":
+        '**{{DoBspUebernehmen}}** escribe las entidades en el propio `.bsp`: byte a byte lo que produce `-onlyents` del editor de mapas; geometría, lightmaps y rejilla de luz quedan intactos. Antes de sobrescribir, el archivo anterior queda como `<mapa>.bsp.bak`.',
+    '**{{MissionSave}}** saves every file of the mission at its place. **{{DoPk3Packen}}** (menu {{MapMore}}) packs the mission into a `.pk3` only when you want it.':
+        '**{{MissionSave}}** guarda cada archivo de la misión en su sitio. **{{DoPk3Packen}}** (menú {{MapMore}}) empaqueta la misión en un `.pk3` solo cuando lo quieres.',
+    'The new commands in the menu {{MapMore}}.':
+        'Los comandos nuevos del menú {{MapMore}}.',
+    '**From a `.pk3`.** A file that came from an archive asks where the change should go. Tick **{{DoWegMerken}}** to keep the choice; **Preferences → {{DoEinstGruppe}}** changes it later.':
+        '**Desde un `.pk3`.** Un archivo que vino de un `.pk3` pregunta adónde debe ir el cambio. Marca **{{DoWegMerken}}** para conservar la elección; **Preferencias → {{DoEinstGruppe}}** la cambia después.',
+    'The question for a file from a `.pk3` (here the entities of md_am_sith).':
+        'La pregunta para un archivo de un `.pk3` (aquí las entidades de md_am_sith).',
+    'Replaces only this entry; every other entry is copied byte for byte, not repacked. Backup `<archive>.pk3.bak`. If the game has the archive open, a message says so and nothing changes.':
+        'Sustituye solo esta entrada; todas las demás se copian byte a byte, sin volver a comprimir. Copia `<archivo>.pk3.bak`. Si el juego tiene el archivo abierto, un mensaje lo dice y no cambia nada.',
+    'Writes the file into `maps/` or `scripts/` of the mod folder; the `.pk3` stays byte for byte.':
+        'Escribe el archivo en `maps/` o `scripts/` de la carpeta del mod; el `.pk3` queda byte a byte.',
+    'Any place you choose.':
+        'El lugar que elijas.',
+    'The previous way: copy into the mission folder, then pack a new `.pk3`.':
+        'La forma anterior: copiar en la carpeta de la misión y luego empaquetar un `.pk3` nuevo.',
+    'The game reads the archives of a folder before its loose files (`fs_dirbeforepak 0`). A loose file in the same mod folder counts only when no archive contains it, when it lies in `fs_homepath`, or with `+set fs_dirbeforepak 1`. Every save goes through a temporary file next to the target and is renamed only when everything was written - if anything fails, the old file stays unchanged and no saved message appears.':
+        'El juego lee los `.pk3` de una carpeta antes que sus archivos sueltos (`fs_dirbeforepak 0`). Un archivo suelto en la misma carpeta del mod solo vale si ningún `.pk3` lo contiene, si está en `fs_homepath` o con `+set fs_dirbeforepak 1`. Cada guardado pasa por un archivo temporal junto al destino y solo se renombra cuando todo está escrito: si algo falla, el archivo anterior no cambia y no aparece el mensaje de guardado.',
+    '**Preferences → {{DoEinstGruppe}}**: the way for files from a `.pk3`, **{{DoEinstMissionsordner}}** (copies in the mission folder and a new `.pk3`, as before) and **{{DoEinstVorlage}}** (off: a new script starts empty).':
+        '**Preferencias → {{DoEinstGruppe}}**: la forma para archivos de un `.pk3`, **{{DoEinstMissionsordner}}** (copias en la carpeta de la misión y un `.pk3` nuevo, como antes) y **{{DoEinstVorlage}}** (desactivado: un script nuevo empieza vacío).',
 })

@@ -4718,7 +4718,8 @@ void loadMission(const Mission& m) {
     missionsSucheBeenden();
 
     std::string data;
-    if (!readFromArchives(m.mapFile, data)) {
+    std::string archiv;
+    if (!readFromArchives(m.mapFile, data, &archiv)) {
         step.fail("Karte nicht lesbar: " + m.mapFile);
         return;
     }
@@ -4726,19 +4727,26 @@ void loadMission(const Mission& m) {
     // frueher gemerkt ist.
     vergissEntities(m.mapFile);
     loadMapFromBytes(data, m.mapFile);
-    // Aus einem Archiv gibt es keinen Pfad auf der Platte.
+    // Aus einem Archiv gibt es keinen Pfad auf der Platte - aber eine Herkunft (rc609 W2a).
     g_app->settings.mapPath.clear();
+    g_app->kartenHerkunft = DateiHerkunft::ausPk3(archiv, m.mapFile);
+    g_app->entUndo.clear();
+    g_app->entRedo.clear();
+    g_app->entUndoStempel.clear();
+    g_app->entRedoStempel.clear();
 
     // Die .ent hat Vorrang: Movie Duels laesst die .bsp unveraendert und
     // legt die Entities daneben. Ohne sie bekaeme man die Entities der
     // Originalkarte - ohne die Figuren der Mission.
-    if (!m.entFile.empty() && readFromArchives(m.entFile, data)) {
+    if (!m.entFile.empty() && readFromArchives(m.entFile, data, &archiv)) {
         std::vector<MapEntity> ents;
         parseEntities(data, ents);
         if (!ents.empty()) {
             g_app->map.entities = std::move(ents);
             collectNames(g_app->map);
             merkeEntities();
+            g_app->entHerkunft = DateiHerkunft::ausPk3(archiv, m.entFile);
+            g_app->entHerkunftKarte = g_app->map.path;
             diag::info(std::to_string(g_app->map.entities.size()) +
                        " Entities aus " + m.entFile);
         }
@@ -4852,7 +4860,7 @@ void loadMission(const Mission& m) {
             ++uebersprungen;
             continue;
         }
-        if (readFromArchives(sc2.file, data)) {
+        if (readFromArchives(sc2.file, data, &archiv)) {
             // Schon offen (die Mission zum zweiten Mal geladen)? Dann bleibt
             // der Reiter samt Aenderungen und Verlauf - siehe
             // oeffneSkriptAusSpeicher.
@@ -4877,7 +4885,7 @@ void loadMission(const Mission& m) {
                 if (erstesReiter < 0) { erstesReiter = offen; }
                 continue;
             }
-            openScriptFromMemory(data, sc2.file);
+            openScriptFromMemory(data, sc2.file, DateiHerkunft::ausPk3(archiv, sc2.file));
             if (erstesReiter < 0) { erstesReiter = g_app->activeTab; }
             ++geladen;
         }

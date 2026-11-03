@@ -24,8 +24,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace bhed::karte {
 
@@ -262,6 +267,158 @@ std::string bspEntitaetenEinsetzen(const std::string& original, const std::strin
     return out;
 }
 
+
+// --- rc609 W2a: OnlyEnts ohne q3map2 (siehe bspoeffnen.h) ---------------------------------
+namespace {
+
+// StripTrailing (bspfile_abstract.cpp:343): end[-1] <= 32 mit char (vorzeichenbehaftet unter
+// MSVC und clang-cl) - auch Bytes ab 0x80 fallen am Ende weg.
+std::string ohneEnde(const std::string& s) {
+    std::size_t e = s.size();
+    while (e > 0 && static_cast<signed char>(s[e - 1]) <= 32) { --e; }
+    return s.substr(0, e);
+}
+bool gleichOhneGross(const std::string& a, const std::string& b) { return klein(a) == klein(b); }   // EPAIR_EQUAL = striEqual
+const std::string* wertVon(const EntitaetPaare& e, const std::string& k) {   // entity_t::valueForKey
+    for (const auto& p : e) {
+        if (gleichOhneGross(p.first, k)) { return &p.second; }
+    }
+    return nullptr;
+}
+void wertSetzen(EntitaetPaare& e, const std::string& k, const std::string& v) {   // entity_t::setKeyValue
+    for (auto& p : e) {
+        if (gleichOhneGross(p.first, k)) {
+            p.second = v;
+            return;
+        }
+    }
+    e.emplace_back(k, v);
+}
+bool nichtLeer(const std::string* w) { return w != nullptr && !w->empty(); }
+
+// Die erste Entity (worldspawn) eines Entity-Lumps wie ParseEntities/ParseEPair.
+EntitaetPaare ersteEntitaet(const std::string& text) {
+    EntitaetPaare aus;
+    std::size_t i = text.find('{');
+    const std::size_t ende = i == std::string::npos ? std::string::npos : text.find('}', i);
+    while (i != std::string::npos && ende != std::string::npos && i < ende) {
+        const std::size_t a = text.find('"', i);
+        const std::size_t b = a == std::string::npos ? a : text.find('"', a + 1);
+        const std::size_t c = b == std::string::npos ? b : text.find('"', b + 1);
+        const std::size_t d = c == std::string::npos ? c : text.find('"', c + 1);
+        if (d == std::string::npos || d > ende) { break; }
+        std::string k = ohneEnde(text.substr(a + 1, b - a - 1));
+        std::string v = ohneEnde(text.substr(c + 1, d - c - 1));
+        if (!k.empty() && !v.empty()) { aus.emplace_back(std::move(k), std::move(v)); }
+        i = d + 1;
+    }
+    return aus;
+}
+
+}  // namespace
+
+std::string nurEntitaetenKarte(const std::vector<EntitaetPaare>& entitaeten) {
+    std::string s;
+    for (std::size_t i = 0; i < entitaeten.size(); ++i) {
+        s += "// entity " + std::to_string(i) + "\n{\n";
+        for (const auto& [k, v] : entitaeten[i]) { s += "\"" + k + "\" \"" + v + "\"\n"; }
+        s += "}\n";
+    }
+    return s;
+}
+
+std::string bspNurEntitaetenLump(const std::string& original, const std::vector<EntitaetPaare>& entitaeten, std::string* fehler) {
+    const auto nein = [fehler](const std::string& t) {
+        if (fehler != nullptr) { *fehler = t; }
+        return std::string();
+    };
+    BspDatei alt;
+    if (!bspLesen(original, alt)) { return nein("not a BSP file"); }
+    if (entitaeten.empty()) { return nein("No entity (worldspawn missing)"); }   // LoadMapFile, map.cpp:1716
+    const std::string altText = bspEntitaetenText(alt);
+    // OnlyEnts: _q3map2_cmdline, _q3map2_version, gridsize der alten worldspawn
+    const EntitaetPaare altWelt = ersteEntitaet(altText);
+    // LoadMapFile -> ParseMapEntity -> ParseEPair: StripTrailing, leere fallen weg
+    std::vector<EntitaetPaare> ents;
+    ents.reserve(entitaeten.size());
+    for (const EntitaetPaare& e : entitaeten) {
+        EntitaetPaare n;
+        for (const auto& [k, v] : e) {
+            std::string kk = ohneEnde(k);
+            std::string vv = ohneEnde(v);
+            if (!kk.empty() && !vv.empty()) { n.emplace_back(std::move(kk), std::move(vv)); }
+        }
+        ents.push_back(std::move(n));
+    }
+    // SetLightStyles (writebsp.cpp:232-300), keepLights wie der Karten-Editor (-keeplights, wenn
+    // die Original-.bsp Lichter hat: bspNurEntitaeten, gui/app_karte_bsp.cpp)
+    constexpr int kMaxSwitchedLights = 32;   // q3map2.h:193 MAX_SWITCHED_LIGHTS
+    constexpr int kLsNone = 0xFF;            // q3map2.h:196 LS_NONE
+    if (bspHatLichter(altText)) { wertSetzen(ents[0], "_keepLights", "1"); }
+    bool keepLights = false;
+    if (const std::string* w = wertVon(ents[0], "_keepLights"); nichtLeer(w)) { keepLights = (*w)[0] == '1'; }
+    const bool rbsp = alt.ident == "RBSP";   // g_game->load == LoadRBSPFile
+    std::vector<std::pair<std::string, int>> stile;
+    for (std::size_t i = 1; i < ents.size(); ++i) {
+        EntitaetPaare& e = ents[i];
+        const std::string* kl = wertVon(e, "classname");
+        if (kl == nullptr || klein(*kl).rfind("light", 0) != 0) { continue; }   // classname_prefixed( "light" )
+        const std::string* t = wertVon(e, "targetname");
+        if (!(nichtLeer(t) && rbsp)) {
+            if (!keepLights) { e.clear(); }
+            continue;
+        }
+        const std::string ziel = *t;
+        const std::string* sw = wertVon(e, "style");
+        const int stil = nichtLeer(sw) ? std::atoi(sw->c_str()) : 0;   // intForKey
+        if (stil < 0 || stil >= kLsNone) { return nein("Invalid lightstyle (" + std::to_string(stil) + ") on entity " + std::to_string(i)); }
+        std::size_t j = 0;
+        while (j < stile.size() && !(stile[j].second == stil && stile[j].first == ziel)) { ++j; }
+        if (j >= stile.size()) {
+            if (static_cast<int>(stile.size()) == kMaxSwitchedLights) {
+                return nein("MAX_SWITCHED_LIGHTS (32) exceeded, reduce the number of lights with targetnames");
+            }
+            stile.emplace_back(ziel, stil);
+        }
+        wertSetzen(e, "style", std::to_string(kMaxSwitchedLights + static_cast<int>(j)));
+        if (stil != 0) { wertSetzen(e, "switch_style", std::to_string(stil)); }   // LS_NORMAL
+    }
+    for (const char* k : {"_q3map2_cmdline", "_q3map2_version", "gridsize"}) {
+        if (const std::string* w = wertVon(altWelt, k); nichtLeer(w)) { wertSetzen(ents[0], k, *w); }
+    }
+    // UnparseEntities (bspfile_abstract.cpp:451-493)
+    bool keepModels = false;
+    if (const std::string* w = wertVon(ents[0], "_keepModels"); nichtLeer(w)) { keepModels = (*w)[0] == '1'; }
+    std::string lump;
+    for (const EntitaetPaare& e : ents) {
+        if (e.empty()) { continue; }
+        const std::string* kl = wertVon(e, "classname");
+        const std::string k = kl != nullptr ? klein(*kl) : std::string();
+        if ((k == "misc_model" && !keepModels) || k == "_decal" || k == "_skybox") { continue; }
+        lump += "{\n";
+        for (const auto& [kk, vv] : e) { lump += "\"" + ohneEnde(kk) + "\" \"" + ohneEnde(vv) + "\"\n"; }
+        lump += "}\n";
+    }
+    lump += '\0';
+    return lump;
+}
+
+std::string bspNurEntitaetenEinsetzen(const std::string& original, const std::vector<EntitaetPaare>& entitaeten, std::string* fehler) {
+    const std::string lump = bspNurEntitaetenLump(original, entitaeten, fehler);
+    BspDatei b;
+    if (lump.empty() || !bspLesen(original, b)) { return {}; }
+    // Eine BSP derselben Art, die nur den neuen Entity-Lump traegt - dann wie der Karten-Editor einsetzen.
+    const std::size_t anzahl = b.lumps.size();
+    std::string kopf(anzahl * 8, '\0');
+    const auto schreibeInt = [&kopf](std::size_t o, std::uint32_t v) {
+        for (std::size_t i = 0; i < 4; ++i) { kopf[o + i] = static_cast<char>((v >> (8 * i)) & 0xFFU); }
+    };
+    const auto anfang = static_cast<std::uint32_t>(8 + anzahl * 8);
+    schreibeInt(0, anfang);
+    schreibeInt(4, static_cast<std::uint32_t>(lump.size()));
+    for (std::size_t i = 1; i < anzahl; ++i) { schreibeInt(i * 8, anfang + static_cast<std::uint32_t>(lump.size())); }
+    return bspEntitaetenEinsetzen(original, original.substr(0, 8) + kopf + lump);
+}
 
 std::string q3map2TypFuerBsp(const std::string& daten, const std::string& eigenerTyp) {
     if (daten.size() < 8) { return eigenerTyp; }

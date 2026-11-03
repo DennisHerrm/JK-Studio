@@ -27,6 +27,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace bhed::karte {
@@ -109,6 +110,26 @@ struct BspDatei {
 // (AddLightGridLumps: Naeherungs-Zwillinge, LG_EPSILON 4) - bei Ravens
 // Jedi-Outcast-Karten aendert das lightgrid und lightarray. "" bei Fehler.
 [[nodiscard]] std::string bspEntitaetenEinsetzen(const std::string& original, const std::string& neu);
+
+// rc609 W2a Punkt 2: "Entities in die BSP uebernehmen" im Mission-Tab, ohne
+// q3map2 und Byte-gleich zu dem, was der Karten-Editor mit -onlyents erzeugt
+// (bspNurEntitaeten: onlyentsBefehl, -keeplights wenn die Original-.bsp Lichter
+// hat, dann bspEntitaetenEinsetzen). 1:1 aus q3map2 (third_party/q3map2/tools/
+// quake3/q3map2): OnlyEnts (bsp.cpp:570-603) fuer eine Liste ohne Pinsel -
+// ParseEPair (bspfile_abstract.cpp:358-370: StripTrailing, leere Schluessel und
+// Werte fallen weg), SetModelNumbers (writebsp.cpp:215, ohne Pinsel nichts),
+// SetLightStyles (writebsp.cpp:232-300, schaltbare Stile nur bei RBSP),
+// _q3map2_cmdline/_q3map2_version/gridsize aus dem Original, UnparseEntities
+// (bspfile_abstract.cpp:451-493, mit der abschliessenden NUL). "" bei Fehler
+// (keine BSP, kein worldspawn, MAX_SWITCHED_LIGHTS, ungueltiger Stil).
+using EntitaetPaare = std::vector<std::pair<std::string, std::string>>;
+[[nodiscard]] std::string bspNurEntitaetenLump(const std::string& original, const std::vector<EntitaetPaare>& entitaeten,
+                                               std::string* fehler = nullptr);
+[[nodiscard]] std::string bspNurEntitaetenEinsetzen(const std::string& original, const std::vector<EntitaetPaare>& entitaeten,
+                                                    std::string* fehler = nullptr);
+// Dieselben Entities als .map ohne Pinsel - die Eingabe fuer q3map2 -onlyents
+// (Gegenprobe im Selbsttest).
+[[nodiscard]] std::string nurEntitaetenKarte(const std::vector<EntitaetPaare>& entitaeten);
 
 // Stufe 9 Punkt 2 (eigene Funktion): BSPs anderer id-Tech-3-Spiele. Der -game-Typ fuer
 // q3map2 -convert aus Kennung und Fassung (q3map2 games.cpp: die Leser je Spiel):

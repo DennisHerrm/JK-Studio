@@ -15,6 +15,7 @@
 #include "bhed/bsp.h"
 #include "bhed/commands.h"
 #include "bhed/pk3.h"
+#include "bhed/script.h"
 
 #include <string>
 #include <vector>
@@ -68,6 +69,9 @@ struct MissionInhalt {
 //   S004  .str ohne ENDMARKER - ergaenzt          arg: Dateiname
 //   S005  target ohne Ziel          arg: "<Entity>: <Name>"
 //   S006  Name ungueltig            arg: Name
+//   S007  Pfad verlaesst das Spiel  arg: Pfad (rc609 W2a F6: "..", "::", Laufwerk, fuehrender Strich)
+//   S008  zu viele Schluessel       arg: "<Entity>: <Anzahl>" (rc609 W2a F8: MAX_SPAWN_VARS 64)
+//   S009  Entity zu lang            arg: "<Entity>: <Zeichen>" (rc609 W2a F8: MAX_SPAWN_VARS_CHARS 2048)
 struct MissionBefund {
     bool fehler = false;   // true: das Archiv wird so nicht geschrieben
     std::string code;
@@ -85,6 +89,28 @@ struct MissionBefund {
 // .IBI - der Aufrufer entscheidet.
 [[nodiscard]] std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db,
                                                    std::vector<MissionBefund>& befunde);
+
+// rc609 W2a F6: ein Pfad, den die Engine liest und den das Programm in den
+// Missionsordner schreiben darf - kein "..", kein "::" (FS_FOpenFileRead weist
+// beides ab, OJK code/qcommon/files.cpp:1283), kein Laufwerk (":"), kein
+// fuehrender Strich.
+[[nodiscard]] bool sichererSpielPfad(const std::string& pfad);
+
+// rc609 W2a F8: die Grenzen je Entity, die das Spiel beim Laden prueft - fuer
+// .ent, "In die BSP uebernehmen" und Missionen (S008, S009 als Fehler).
+// G_ParseSpawnVars: hoechstens MAX_SPAWN_VARS (64) Paare, G_AddSpawnVarToken:
+// hoechstens MAX_SPAWN_VARS_CHARS (2048) Zeichen (Summe von Laenge + 1 je
+// Schluessel und Wert). OJK code/game/g_local.h:221-222, g_spawn.cpp:1188, 1255;
+// Movie Duels 9 gleich (code/game/g_local.h:246-247, g_spawn.cpp:1353, 1427);
+// JK2 gleich (codeJK2/game/g_local.h:176-177).
+constexpr int kMaxSpawnVars = 64;
+constexpr int kMaxSpawnVarsChars = 2048;
+void entityGrenzenPruefen(const std::vector<MapEntity>& ents, std::vector<MissionBefund>& befunde);
+
+// rc609 W2a F1: die Skripte, die ein Skript selbst startet - run ( "x" ) und
+// set ( "SET_*SCRIPT", "x" ) (SET_SPAWNSCRIPT, SET_DEATHSCRIPT ...), auch in
+// Bloecken; ohne die Verhaltensnamen wie bei skriptVerweise.
+[[nodiscard]] std::vector<std::string> skriptFolgeVerweise(const Script& sc);
 
 // Die ICARUS-Pfade, auf die die Entities zeigen (usescript, deathscript ...),
 // ohne die Verhaltensnamen ("idle", "default" ...), die die Engine statt

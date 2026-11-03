@@ -2225,6 +2225,8 @@ from i18n_rc608_13b import zeilen_vier as _rc608_13b  # noqa: E402  (rc608 Teil 
 S += _rc608_13b()
 from i18n_rc609_w1 import zeilen_vier as _rc609_w1  # noqa: E402  (rc609 W1: Wegpunkte loeschen, verbinden, duplizieren)
 S += _rc609_w1()
+from i18n_rc609_w2a import zeilen_vier as _rc609_w2a  # noqa: E402  (rc609 W2a: Dateien an Ort und Stelle speichern)
+S += _rc609_w2a()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

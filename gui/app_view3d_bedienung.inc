@@ -530,9 +530,13 @@ void drawMapToolbar() {
         loadMissionArchive();
     }
     ImGui::SameLine();
+    // rc609 W2a: jede Datei der Mission an ihren Ort (Einstellung: bisheriger Ablauf
+    // mit Missionsordner und neuer .pk3); "Als .pk3 packen" steht im Menue daneben.
     if (iconKnopf(tr(Str::MissionSave), UiIcon::Speichern,
-                  tr(g_app->missionAktiv ? Str::MissionSaveHint : Str::MissionKeine), false, g_app->missionAktiv)) {
-        g_app->missionSpeichernOffen = true;
+                  tr(g_app->missionAktiv ? (g_app->settings.missionsordnerAblauf ? Str::MissionSaveHint : Str::DoMissionSpeichernHint)
+                                         : Str::MissionKeine),
+                  false, g_app->missionAktiv)) {
+        (void)missionAnOrtSpeichern();
     }
     ImGui::PopStyleVar();
 
@@ -603,6 +607,16 @@ void drawMapToolbar() {
         if (ImGui::MenuItem(tr(Str::OpenEnt))) { openEntFile(); }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("%s", tr(Str::OpenEntHint));
+        }
+        // rc609 W2a Punkt 2: getrennte Befehle zum Speichern der Entities, Packen auf Wunsch.
+        ImGui::Separator();
+        if (ImGui::MenuItem(tr(Str::DoEntSpeichern), nullptr, false, !g_app->map.empty())) { (void)entitiesSpeichern(); }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::DoEntSpeichernHint)); }
+        if (ImGui::MenuItem(tr(Str::DoBspUebernehmen), nullptr, false, !g_app->map.empty())) { (void)entitiesInBspUebernehmen(); }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::DoBspUebernehmenHint)); }
+        if (ImGui::MenuItem(tr(Str::DoPk3Packen), nullptr, false, g_app->missionAktiv)) { g_app->missionSpeichernOffen = true; }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("%s", tr(g_app->missionAktiv ? Str::DoPk3PackenHint : Str::MissionKeine));
         }
         ImGui::EndPopup();
     }

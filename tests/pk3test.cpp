@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -44,6 +45,22 @@ int main(int argc, char** argv) {
                    n[2].find("assets_[x]") != std::string::npos && n[3].find("b.pk3") != std::string::npos);
         expect("FS_PathCmp: Backslash und : wie /, a-z wie A-Z",
                bhed::fsPathCmp("a\\b", "A/B") == 0 && bhed::fsPathCmp("x:y", "X/Y") == 0 && bhed::fsPathCmp("a", "ab") < 0);
+    }
+    // rc609 W2a F18: Namen IM Archiv vergleicht die Engine unveraendert
+    // (FS_FilenameCompare: nur Gross/klein und Trenner), den fuehrenden Strich
+    // nimmt sie nur vom GESUCHTEN Namen (OJK code/qcommon/files.cpp:1276). Ein
+    // Eintrag "/a/b.txt" ist im Spiel unter "a/b.txt" nicht zu finden.
+    {
+        std::error_code ec;
+        const std::filesystem::path p = std::filesystem::temp_directory_path(ec) / "jks_pk3test_f18.pk3";
+        const bool ok = bhed::writePk3(p.string(), {{"/a/b.txt", "x"}, {"c/d.txt", "y"}});
+        bhed::Pk3 f18;
+        const bool gelesen = ok && bhed::readPk3Directory(p.string(), f18);
+        expect("F18: Archivname \"/a/b.txt\" wird unter \"a/b.txt\" nicht gefunden (wie die Engine)",
+               gelesen && f18.find("a/b.txt") == nullptr);
+        expect("F18: gesuchter Name \"/c/d.txt\" findet \"c/d.txt\" (fuehrender Strich nur beim Suchen)",
+               gelesen && f18.find("/c/d.txt") != nullptr && f18.find("C\\D.TXT") != nullptr);
+        std::filesystem::remove(p, ec);
     }
     if (argc < 2) {
         std::printf("  (kein Archiv angegeben - Test uebersprungen)\n");

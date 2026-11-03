@@ -3553,8 +3553,8 @@ TEXTE = {
         "Mise, která nikdy nebyla zabalena, žije ve své složce; **{{MissionOpenFolder}}** v ní po restartu pokračuje.",
     "Saving a mission":
         "Uložení mise",
-    "**{{MissionSave}}** shows what will go into the archive - every file with its size - and checks the mission first: a script that an entity uses but that does not exist, a script that does not compile, no player start, a target that points nowhere, a `.str` without `ENDMARKER`. Errors (red) must be fixed, warnings (orange) may stay. **{{MissionSaveNow}}** saves all scripts, writes the `.ent`, compiles the scripts, adds your own ROFF files and packs the `.pk3` into the game folder.":
-        "**{{MissionSave}}** ukáže, co půjde do archivu - každý soubor s velikostí - a nejdřív misi zkontroluje: skript, který entita používá, ale který neexistuje, skript, který nelze zkompilovat, chybějící start hráče, cíl, který nikam neukazuje, `.str` bez `ENDMARKER`. Chyby (červeně) se musí opravit, varování (oranžově) mohou zůstat. **{{MissionSaveNow}}** uloží všechny skripty, zapíše `.ent`, zkompiluje skripty, přidá vaše vlastní soubory ROFF a zabalí `.pk3` do složky hry.",
+    '**{{DoPk3Packen}}** shows what will go into the archive - every file with its size - and checks the mission first: a script that an entity uses but that does not exist, a script that does not compile, no player start, a target that points nowhere, a `.str` without `ENDMARKER`, a path that leaves the game folder, an entity with more keys or characters than the game allows. Errors (red) must be fixed, warnings (orange) may stay. **{{MissionSaveNow}}** compiles the scripts, adds your own ROFF files and packs the `.pk3` into the game folder; a new mission also gets its scripts, `.ent` and `.IBI` in its mission folder.':
+        '**{{DoPk3Packen}}** ukáže, co půjde do archivu - každý soubor s velikostí - a misi předem zkontroluje: skript, který entita používá, ale neexistuje, skript, který nejde zkompilovat, chybějící start hráče, cíl, který nikam neukazuje, `.str` bez `ENDMARKER`, cestu mimo složku hry, entitu s více klíči nebo znaky, než hra dovolí. Chyby (červeně) se musí opravit, varování (oranžově) mohou zůstat. **{{MissionSaveNow}}** zkompiluje skripty, přidá tvé vlastní soubory ROFF a zabalí `.pk3` do složky hry; nová mise navíc dostane skripty, `.ent` a `.IBI` do své složky mise.',
     "How a mission starts in the game":
         "Jak mise ve hře začíná",
     "The player spawns":
@@ -7201,4 +7201,34 @@ TEXTE.update({
         '**{{WegErzeugen}}** začíná i u bodů trasy, které už na mapě jsou: polož jeden do místnosti, kterou generování vynechalo, a generuj znovu - místnost dostane svou síť, spojenou s tvým bodem.',
     'The right-click menu of the view with a waypoint selected: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.':
         'Nabídka pravého tlačítka v pohledu s vybraným bodem trasy: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+    'Saving files where they were opened':
+        'Ukládání souborů tam, odkud byly otevřeny',
+    'Every opened file remembers where it came from: a loose file on disk, or a `.pk3` and the entry in it. A loose `.bsp`, `.ent` or script is saved back to its path without a question - no copy under Documents, no new `.pk3`.':
+        'Každý otevřený soubor si pamatuje, odkud pochází: volný soubor na disku, nebo `.pk3` a položka v něm. Volný `.bsp`, `.ent` nebo skript se bez dotazu uloží zpět na svou cestu - žádná kopie v Dokumentech, žádný nový `.pk3`.',
+    '**Save** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) saves the script of the tab, each tab on its own.':
+        '**Uložit** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) uloží skript karty, každou kartu zvlášť.',
+    '**{{DoEntSpeichern}}** writes the entities as `.ent` where it was opened, otherwise next to the `.bsp`. The game prefers a `.ent` next to the map over the entities inside the `.bsp`.':
+        '**{{DoEntSpeichern}}** zapíše entity jako `.ent` tam, odkud byl otevřen, jinak vedle `.bsp`. Hra dá přednost `.ent` vedle mapy před entitami uvnitř `.bsp`.',
+    "**{{DoBspUebernehmen}}** writes the entities into the `.bsp` itself - byte for byte what the map editor's `-onlyents` produces: geometry, lightmaps and light grid stay untouched. Before overwriting, the old file is kept as `<map>.bsp.bak`.":
+        '**{{DoBspUebernehmen}}** zapíše entity přímo do `.bsp` - bajt po bajtu to, co vytvoří `-onlyents` editoru map: geometrie, lightmapy a mřížka světla zůstanou nedotčené. Před přepsáním zůstane starý soubor jako `<mapa>.bsp.bak`.',
+    '**{{MissionSave}}** saves every file of the mission at its place. **{{DoPk3Packen}}** (menu {{MapMore}}) packs the mission into a `.pk3` only when you want it.':
+        '**{{MissionSave}}** uloží každý soubor mise na jeho místo. **{{DoPk3Packen}}** (nabídka {{MapMore}}) zabalí misi do `.pk3`, jen když to chceš.',
+    'The new commands in the menu {{MapMore}}.':
+        'Nové příkazy v nabídce {{MapMore}}.',
+    '**From a `.pk3`.** A file that came from an archive asks where the change should go. Tick **{{DoWegMerken}}** to keep the choice; **Preferences → {{DoEinstGruppe}}** changes it later.':
+        '**Z `.pk3`.** Soubor z archivu se zeptá, kam má změna jít. Zaškrtni **{{DoWegMerken}}** a volba zůstane; **Předvolby → {{DoEinstGruppe}}** ji později změní.',
+    'The question for a file from a `.pk3` (here the entities of md_am_sith).':
+        'Dotaz u souboru z `.pk3` (zde entity md_am_sith).',
+    'Replaces only this entry; every other entry is copied byte for byte, not repacked. Backup `<archive>.pk3.bak`. If the game has the archive open, a message says so and nothing changes.':
+        'Nahradí jen tuto položku, každá jiná se zkopíruje bajt po bajtu, nepřebaluje se. Záloha `<archiv>.pk3.bak`. Má-li hra archiv otevřený, řekne to zpráva a nic se nezmění.',
+    'Writes the file into `maps/` or `scripts/` of the mod folder; the `.pk3` stays byte for byte.':
+        'Zapíše soubor do `maps/` nebo `scripts/` složky modu, `.pk3` zůstane bajt po bajtu.',
+    'Any place you choose.':
+        'Libovolné místo.',
+    'The previous way: copy into the mission folder, then pack a new `.pk3`.':
+        'Dosavadní způsob: zkopírovat do složky mise, pak zabalit nový `.pk3`.',
+    'The game reads the archives of a folder before its loose files (`fs_dirbeforepak 0`). A loose file in the same mod folder counts only when no archive contains it, when it lies in `fs_homepath`, or with `+set fs_dirbeforepak 1`. Every save goes through a temporary file next to the target and is renamed only when everything was written - if anything fails, the old file stays unchanged and no saved message appears.':
+        'Hra čte archivy složky před jejími volnými soubory (`fs_dirbeforepak 0`). Volný soubor ve stejné složce modu platí, jen když ho neobsahuje žádný archiv, když leží ve `fs_homepath` nebo s `+set fs_dirbeforepak 1`. Každé uložení jde přes dočasný soubor vedle cíle a přejmenuje se, až je vše zapsáno - když něco selže, starý soubor zůstane beze změny a zpráva o uložení se neobjeví.',
+    '**Preferences → {{DoEinstGruppe}}**: the way for files from a `.pk3`, **{{DoEinstMissionsordner}}** (copies in the mission folder and a new `.pk3`, as before) and **{{DoEinstVorlage}}** (off: a new script starts empty).':
+        '**Předvolby → {{DoEinstGruppe}}**: způsob pro soubory z `.pk3`, **{{DoEinstMissionsordner}}** (kopie ve složce mise a nový `.pk3`, jako dosud) a **{{DoEinstVorlage}}** (vypnuto: nový skript začne prázdný).',
 })

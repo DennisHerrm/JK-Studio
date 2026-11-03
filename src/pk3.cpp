@@ -64,6 +64,18 @@ std::string normaliseName(std::string s) {
 
 std::string lower(std::string s) { return normaliseName(std::move(s)); }
 
+// rc609 W2a F18: Namen IM Archiv vergleicht die Engine unveraendert (FS_FilenameCompare:
+// nur Gross/klein und Trenner); den fuehrenden Strich nimmt sie nur vom GESUCHTEN Namen
+// (OJK code/qcommon/files.cpp:1276). Ein Eintrag "/maps/x.bsp" ist im Spiel unter
+// "maps/x.bsp" nicht zu finden - hier also auch nicht.
+std::string archivSchluessel(std::string s) {
+    for (char& c : s) {
+        if (c == '\\') { c = '/'; }
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return s;
+}
+
 
 }  // namespace
 
@@ -153,7 +165,7 @@ bool readPk3Directory(const std::string& path, Pk3& out, std::string* error) {
         }
         // Ordnereintraege haben keine Daten.
         if (!e.name.empty() && e.name.back() != '/') {
-            const std::string key = lower(e.name);
+            const std::string key = archivSchluessel(e.name);
             out.index[key] = out.entries.size();
             out.entries.push_back(std::move(e));
         } else if (!e.name.empty()) {

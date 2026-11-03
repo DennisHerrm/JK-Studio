@@ -64,6 +64,8 @@ add_library(bhed_core STATIC
   src/inflate.cpp
   src/pk3.cpp
   src/pk3write.cpp
+  # rc609 W2a Punkt 5 (F5): Temp-Datei, Schliessen pruefen, atomar umbenennen
+  src/sicherschreiben.cpp
   src/entdefs.cpp
   src/missionbau.cpp
   src/wegpunkte.cpp
@@ -413,6 +415,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app.cpp
     gui/app_view3d.cpp
     gui/app_mission.cpp
+    gui/app_dateiort.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
     gui/app_zeitleiste.cpp
@@ -768,6 +771,13 @@ if(BEHAVED_TESTS)
   add_test(NAME moveranim COMMAND moveranimtest)
 
   # Eine Mission anlegen und packen (missionbau.h, entdefs.h, writePk3).
+  # rc609 W2a: einen Eintrag einer .pk3 ersetzen (Punkt 4), sicher schreiben (Punkt 5, F5)
+  add_executable(pk3ersetzentest tests/pk3ersetzentest.cpp)
+  target_link_libraries(pk3ersetzentest PRIVATE bhed_core bhed_zlib)
+  add_test(NAME pk3ersetzen COMMAND pk3ersetzentest ${CMAKE_CURRENT_BINARY_DIR})
+  add_executable(sicherschreibentest tests/sicherschreibentest.cpp)
+  target_link_libraries(sicherschreibentest PRIVATE bhed_core)
+  add_test(NAME sicherschreiben COMMAND sicherschreibentest ${CMAKE_CURRENT_BINARY_DIR})
   add_executable(missionbautest tests/missionbautest.cpp)
   target_link_libraries(missionbautest PRIVATE bhed_core)
   add_test(NAME missionbau COMMAND missionbautest ${BEHAVED_BHC} ${BEHAVED_DATA} ${BEHAVED_SUPP}

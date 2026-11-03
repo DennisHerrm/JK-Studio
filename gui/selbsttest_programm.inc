@@ -4339,8 +4339,10 @@ std::vector<Schritt> missionsbauSchritte() {
                                                "scripts\\" + g_app->mission.ordner + "\\runner1.txt");
         diag::detail("Knopftest: Missionsbau - Reiter " + std::to_string(z->vorher) + " -> " +
                      std::to_string(g_app->tabs.size()) + ", aktiv " + mb::reiterName(static_cast<std::size_t>(g_app->activeTab)));
+        // rc609 W2a: ohne Skriptvorlage (Einstellung, Vorgabe aus) entsteht die Datei erst beim
+        // ersten Speichern - der Reiter steht schon auf ihr.
         return static_cast<int>(g_app->tabs.size()) == z->vorher + 1 && mb::reiterName(static_cast<std::size_t>(g_app->activeTab)) == "runner1.txt" &&
-               std::filesystem::exists(::bhed::utf8Pfad(datei), ec);
+               g_app->path == datei && std::filesystem::exists(::bhed::utf8Pfad(datei), ec) == g_app->settings.skriptVorlage;
     }));
     add(tu("zurueck in den Intro-Reiter", [] { mb::zumReiter("intro.txt"); }));
     add(pause(0.3));
@@ -4931,7 +4933,11 @@ std::vector<Schritt> missionsbauSchritte() {
         add(pause(0.3));
     }
     // ---------------- Save mission ----------------
-    add(klick(tr(Str::MissionSave)));
+    // rc609 W2a: "Save mission" speichert jede Datei an ihren Ort; das Packen steht als
+    // "Als .pk3 packen" im Menue "Karten und Dateien".
+    add(tu("Menue Karten und Dateien oeffnen", [] { g_app->kartenMehrOeffnen = true; }));
+    add(pause(0.4));
+    add(klick(tr(Str::DoPk3Packen)));
     add(pause(0.4));
     add(pruefe("Save mission: Fenster mit Dateiliste", [] {
         return g_app->missionSpeichernOffen && finde(tr(Str::MissionSaveNow), "##missionspeichern", 0, false) != nullptr;

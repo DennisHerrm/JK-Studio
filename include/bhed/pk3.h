@@ -21,6 +21,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "bhed/sicherschreiben.h"
 
 namespace bhed {
 
@@ -99,6 +100,21 @@ struct Pk3Datei {
 // bleibt es unberuehrt und die Meldung sagt es.
 [[nodiscard]] bool writePk3(const std::string& path, const std::vector<Pk3Datei>& files,
                             std::string* error = nullptr);
+
+// rc609 W2a Punkt 4: EINEN Eintrag einer vorhandenen .pk3 ersetzen (fehlt er,
+// wird er hinten angehaengt). Alle anderen Eintraege bleiben Byte fuer Byte:
+// lokaler Kopf, komprimierte Daten und Datenbeschreibung roh kopiert (nicht neu
+// gepackt), ihr Zentralverzeichnis-Eintrag roh mit dem neuen Versatz. Der neue
+// Eintrag ohne Packung (Methode 0) mit CRC-32. Vorher "<pk3>.bak" (der Stand vor
+// diesem Speichern), geschrieben ueber "<pk3>.tmp" und atomares Umbenennen. Ist
+// das Archiv gesperrt (das Spiel hat es offen), bleibt alles unveraendert und
+// art sagt Gesperrt. Zip64 und verschluesselte Archive lehnt es ab.
+[[nodiscard]] bool pk3EintragErsetzen(const std::string& pk3, const std::string& eintrag, const std::string& inhalt,
+                                      std::string* fehler = nullptr, SchreibFehler* art = nullptr);
+// Mehrere Eintraege in einem Durchgang (eine Sicherung, ein Umbenennen) - ein
+// Skript, dessen .txt und .IBI beide in der .pk3 stehen.
+[[nodiscard]] bool pk3EintraegeErsetzen(const std::string& pk3, const std::vector<Pk3Datei>& neu, std::string* fehler = nullptr,
+                                        SchreibFehler* art = nullptr);
 
 }  // namespace bhed
 #endif

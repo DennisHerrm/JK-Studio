@@ -18,12 +18,15 @@
 //     -onlyents ohne Aenderung laesst jeden Lump ausser den Entities gleich.
 //
 // Aufruf: kartebspoeffnen <bhed_q3map2.exe|-> <tests/karte/q3map2> [<dekomp> <JA GameData> <JK2 GameData> <MD GameData>]
+#include "bhed/bsp.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/pinsel.h"
+#include "bhed/pk3.h"
 
 #include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -127,6 +130,68 @@ bool nurEntitaeten(const Q3map2Aufruf& a, const fs::path& ordner, const std::str
 }
 
 // Der Spielordner aus der CMake-Variable: "<GameData>/base" (bei Movie Duels
+// rc609 W2a Punkt 2: "Entities in die BSP uebernehmen" des Mission-Tabs (ohne q3map2)
+// gegen q3map2 -onlyents auf dieselben Entities (.map ohne Pinsel, -keeplights wie
+// der Karten-Editor, dann bspEntitaetenEinsetzen). Geaendert wird: worldspawn
+// message, eine Punkt-Entity verschoben, ein neues info_null, ein schaltbares Licht
+// (targetname, style 5), ein Licht ohne targetname, ein misc_model, ein Schluessel
+// mit Leerzeichen am Ende, ein leerer Wert.
+bool onlyentsGleich(const Q3map2Aufruf& a, const fs::path& ordner, const std::string& stamm, const std::string& original,
+                    std::string& bericht) {
+    bericht.clear();
+    BspDatei b;
+    if (!bspLesen(original, b)) {
+        bericht = "Original unlesbar";
+        return false;
+    }
+    std::vector<bhed::MapEntity> ents;
+    bhed::parseEntities(bspEntitaetenText(b), ents);
+    std::vector<EntitaetPaare> liste;
+    for (const bhed::MapEntity& e : ents) { liste.push_back(e.keys); }
+    if (liste.size() < 2) {
+        bericht = "zu wenige Entities";
+        return false;
+    }
+    liste[0].emplace_back("message", "rc609 W2a bhed_test ");
+    for (EntitaetPaare& e : liste) {
+        bool start = false;
+        for (const auto& [k, v] : e) { start = start || (k == "classname" && v.rfind("info_player", 0) == 0); }
+        if (!start) { continue; }
+        for (auto& [k, v] : e) {
+            if (k == "origin") { v = "-100 0 100"; }
+        }
+        break;
+    }
+    liste.push_back({{"classname", "info_null"}, {"targetname", "w2a_neu"}, {"origin", "1 2 3"}, {"leer", ""}});
+    liste.push_back({{"classname", "light"}, {"targetname", "w2a_schalter"}, {"style", "5"}, {"origin", "0 0 64"}});
+    liste.push_back({{"classname", "light"}, {"light", "300"}, {"origin", "0 0 32"}});
+    liste.push_back({{"classname", "misc_model"}, {"model", "models/map_objects/x.md3"}, {"origin", "0 0 0"}});
+    liste.push_back({{"classname", "target_print"}, {"message  ", "Leerzeichen am Ende   "}});
+    const std::string ich = bspNurEntitaetenEinsetzen(original, liste, &bericht);
+    {
+        std::ofstream f(ordner / (stamm + ".map"), std::ios::binary | std::ios::trunc);
+        const std::string k = nurEntitaetenKarte(liste);
+        f.write(k.data(), static_cast<std::streamsize>(k.size()));
+        std::ofstream g(ordner / (stamm + ".bsp"), std::ios::binary | std::ios::trunc);
+        g.write(original.data(), static_cast<std::streamsize>(original.size()));
+    }
+    const int rc = ausfuehren(onlyentsBefehl(a, mitSchraeg((ordner / (stamm + ".map")).string()), bspHatLichter(bspEntitaetenText(b))),
+                              ordner / (stamm + "_onlyents.log"));
+    const std::string q3 = rc == 0 ? bspEntitaetenEinsetzen(original, lies(ordner / (stamm + ".bsp"))) : std::string();
+    BspDatei x;
+    BspDatei y;
+    const bool beide = bspLesen(ich, x) && bspLesen(q3, y);
+    bericht = "rc " + std::to_string(rc) + ", " + std::to_string(ich.size()) + " / " + std::to_string(q3.size()) + " Bytes" +
+              (beide && x.lumps[0] != y.lumps[0] ? ", Entity-Lump anders" : "") + (bericht.empty() ? "" : ", " + bericht);
+    if (beide && x.lumps[0] != y.lumps[0]) {
+        std::ofstream f(ordner / (stamm + "_ich.txt"), std::ios::binary | std::ios::trunc);
+        f << bspEntitaetenText(x);
+        std::ofstream g(ordner / (stamm + "_q3map2.txt"), std::ios::binary | std::ios::trunc);
+        g << bspEntitaetenText(y);
+    }
+    return !ich.empty() && ich == q3;
+}
+
 // "<base>;<MD>") -> "<GameData>/" fuer -fs_basepath.
 std::string spielBasis(std::string arg) {
     const std::size_t semi = arg.find(';');
@@ -299,6 +364,28 @@ int main(int argc, char** argv) {
         pruefe(nurEntitaeten(a, ordner, "raum", original, ent, bericht), "raum: -onlyents - jeder Lump ausser den Entities Byte-gleich " + bericht);
         pruefe(ent.find("\"message\" \"Stufe 4 bhed_test\"") != std::string::npos && ent.find("\"origin\" \"-100 0 100\"") != std::string::npos,
                "raum: der Entity-Lump traegt die Aenderung");
+        std::string w2a;
+        pruefe(onlyentsGleich(a, ordner, "raum_w2a", original, w2a), "raum: In die BSP uebernehmen Byte-gleich zu q3map2 -onlyents (" + w2a + ")");
+        std::printf("raum: In die BSP uebernehmen gegen q3map2 -onlyents: %s\n", w2a.c_str());
+        // Eine Movie-Duels-Karte aus den Archiven (nur lesen), falls eingerichtet
+        if (argc > 6 && std::string(argv[6]).size() > 0) {
+            std::string md = argv[6];
+            if (md.find(';') != std::string::npos) { md = md.substr(md.find(';') + 1); }
+            bhed::GamePath gp;
+            std::string karte;
+            if (bhed::scanGamePath(md, gp)) {
+                for (auto arc = gp.archives.rbegin(); arc != gp.archives.rend() && karte.empty(); ++arc) {
+                    if (const bhed::Pk3Entry* e = arc->find("maps/md_am_sith.bsp")) { (void)bhed::readPk3File(*arc, *e, karte); }
+                }
+            }
+            if (!karte.empty()) {
+                pruefe(onlyentsGleich(a, ordner, "md_am_sith_w2a", karte, w2a),
+                       "md_am_sith (Movie Duels): In die BSP uebernehmen Byte-gleich zu q3map2 -onlyents (" + w2a + ")");
+                std::printf("md_am_sith: In die BSP uebernehmen gegen q3map2 -onlyents: %s\n", w2a.c_str());
+            } else {
+                std::printf("(maps/md_am_sith.bsp nicht in %s)\n", md.c_str());
+            }
+        }
     } else {
         std::printf("(ohne bhed_q3map2.exe: nur die Teile ohne q3map2)\n");
     }
