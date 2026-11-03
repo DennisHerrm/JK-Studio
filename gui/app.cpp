@@ -2817,6 +2817,12 @@ void handleShortcuts() {
         return;
     }
 
+    // rc609 W1 (Mike): Strg+D dupliziert die gewaehlten Entities ueber der Karte
+    // oder der Entity-Liste (in der Belegung von BehavEd ist Strg+D frei).
+    if (entityFokus() && !nurRueckgaengig && g_app->pickedEntity >= 0 && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_D)) {
+        (void)entityAuswahlDuplizieren();
+        return;
+    }
     const Path& sel = g_app->selectedPath;
     // Ueber die BELEGUNG laufen, nicht ueber eine feste Tastenliste. Damit
     // wirkt jede Aenderung aus dem Einstellungsfenster sofort, und eine

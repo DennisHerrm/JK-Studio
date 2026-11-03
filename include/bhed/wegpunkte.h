@@ -88,6 +88,7 @@ struct NeuerWegpunkt {
     std::array<float, 3> boden{};      // Bodenpunkt
     std::array<float, 3> ort{};        // origin (Boden + 25: der Kasten beginnt 1 ueber dem Boden)
     std::vector<int> nachbarn;         // Indizes in der Ergebnisliste
+    int start = -1;                    // rc609 W1: aus diesem Startpunkt (Index), sonst -1
 };
 
 // Flutet von den Startpunkten aus ueber den begehbaren Boden: je Schritt acht

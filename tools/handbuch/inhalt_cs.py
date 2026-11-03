@@ -7180,3 +7180,25 @@ TEXTE = {
     'Built map as in the game':
         'Sestavená mapa jako ve hře',
 }
+
+# rc609 W1: NPC-Wegpunkte - loeschen, automatisch verbinden, duplizieren
+TEXTE.update({
+    'Delete, connect automatically, duplicate':
+        'Mazání, automatické spojování, duplikování',
+    'A waypoint placed by hand has connected itself to its neighbours (generated network on md_am_sith).':
+        'Ručně položený bod trasy se sám spojil se svými sousedy (vygenerovaná síť na md_am_sith).',
+    'Connect like the game - automatically, when deleting, or for the selection.':
+        'Spojovat jako hra - automaticky, při mazání nebo pro výběr.',
+    'Rename the selected waypoints by a pattern.':
+        'Přejmenovat vybrané body trasy podle vzoru.',
+    "**Delete** (<kbd>Delete</kbd>, the button in the inspector or **{{EntDelete}}** in the right-click menu) also removes every `target` to `targetJump` that named the deleted waypoint - in the same undo step. If other entities are named, the program asks first. With **{{WegLuecke}}** the neighbours of a deleted waypoint connect to each other where the game's edge test allows it.":
+        '**Mazání** (<kbd>Delete</kbd>, tlačítko v inspektoru nebo **{{EntDelete}}** v nabídce pravého tlačítka) odebere i každé `target` až `targetJump`, které mazaný bod trasy jmenovalo - v tomtéž kroku zpět. Jmenují-li jiné entity, program se nejdřív zeptá. S **{{WegLuecke}}** se sousedé smazaného bodu navzájem spojí tam, kde to test hran hry dovolí.',
+    "**{{WegAutoVerbinden}}** (on by default): a waypoint you place, move or duplicate connects to the waypoints within **{{WegAbstand}}** that the game connects too - with the game's own edge test (NAV::TestEdge, in Jedi Outcast HardConnect), nearest first, at most four `target` fields per point. After moving, connections the game would drop are removed; all in one undo step. **{{WegNachbarn}}** does the same for the selection. Nav goals and combat points are left out: the game connects them itself.":
+        '**{{WegAutoVerbinden}}** (výchozí zapnuto): bod trasy, který položíš, přesuneš nebo zduplikuješ, se spojí s body v okruhu **{{WegAbstand}}**, které spojuje i hra - vlastním testem hran hry (NAV::TestEdge, v Jedi Outcast HardConnect), nejbližší první, nejvýš čtyři pole `target` na bod. Po přesunu zmizí spojení, která by hra zahodila; vše v jednom kroku zpět. **{{WegNachbarn}}** udělá totéž pro výběr. Navgoaly a bojové body zůstávají stranou: ty spojuje hra sama.',
+    '**{{EntDuplicate}}** (<kbd>Ctrl</kbd>+<kbd>D</kbd> or the right-click menu) on several waypoints: the copies get free names and stay connected among themselves, connections to outside stay as they were; then they connect to their new neighbours. The field next to **{{WegUmbenennen}}** renames the selected waypoints by a pattern (`#` becomes a number); every `target` that named them follows.':
+        '**{{EntDuplicate}}** (<kbd>Ctrl</kbd>+<kbd>D</kbd> nebo nabídka pravého tlačítka) na více bodech trasy: kopie dostanou volná jména a zůstanou navzájem spojené, spojení ven zůstanou, jak byla; pak se spojí se svými novými sousedy. Pole vedle **{{WegUmbenennen}}** přejmenuje vybrané body trasy podle vzoru (`#` se změní na číslo); každý `target`, který je jmenoval, se změní s nimi.',
+    '**{{WegErzeugen}}** also starts from the waypoints already on the map: place one in a room the generation missed and generate again - the room gets its network, connected to your waypoint.':
+        '**{{WegErzeugen}}** začíná i u bodů trasy, které už na mapě jsou: polož jeden do místnosti, kterou generování vynechalo, a generuj znovu - místnost dostane svou síť, spojenou s tvým bodem.',
+    'The right-click menu of the view with a waypoint selected: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.':
+        'Nabídka pravého tlačítka v pohledu s vybraným bodem trasy: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+})

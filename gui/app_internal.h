@@ -1652,6 +1652,12 @@ struct App {
     std::vector<WegBefund> wegBefunde;
     bool wegGeprueft = false;
     std::string wegMeldung;           // Ergebnis des letzten Erzeugens
+    // rc609 W1 (Mike): neue und verschobene Wegpunkte mit den Nachbarn im
+    // Umkreis (= wegAbstand) verbinden, die die Kantenpruefung des Spiels
+    // bestehen; beim Loeschen die Nachbarn verbinden (Luecke schliessen).
+    bool wegAutoVerbinden = true;
+    bool wegLueckeSchliessen = false;
+    std::string wegMuster = "wp_#";  // Umbenennen nach Muster (# = Nummer)
     int entStand = 0;                 // zaehlt jede Entity-Aenderung (nachAenderung)
     // --- Draufsicht (rc589) ----------------------------------------------
     // Senkrecht nach unten; was hoeher liegt als draufSchnitt, schneidet die
@@ -2934,6 +2940,29 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* meldung);
 int wegGenerierteEntfernen();
 bool wegVerbinden(int vonEntity, int nachEntity, bool sprung);
 int wegSetzen(const float boden[3], int verbindeMit);
+// rc609 W1: Verweise (target..target4, targetJump) auf diese Namen (klein
+// geschrieben) zaehlen bzw. entfernen - ohne Rueckgaengig-Schritt.
+int verweiseZaehlen(const std::set<std::string>& namenKlein);
+int verweiseEntfernen(const std::set<std::string>& namenKlein);
+// Die Wegpunkte, mit denen Entity i ueber target..target4 verbunden ist (in
+// beiden Richtungen, ohne targetJump) - ihre Namen; ohne Namen bekommen sie einen.
+std::vector<std::string> wegNachbarNamen(int i);
+// Kanten wie im Spiel abgleichen (ohne Rueckgaengig-Schritt): bei `trennen`
+// die Kanten der Punkte, die die Pruefung nicht mehr bestehen, weg; dann mit
+// den Wegpunkten im Umkreis verbinden (ohne die in `ohne`). Meldet in der
+// Statuszeile. Rueckgabe: ob sich etwas geaendert hat.
+bool wegKantenAbgleichen(const std::vector<int>& punkte, bool trennen, const std::vector<int>& ohne = {});
+// Nach dem Loeschen: je Gruppe (Nachbarn eines geloeschten Punkts) die
+// Nachbarn untereinander verbinden, wo die Pruefung es erlaubt.
+int wegLueckenSchliessen(const std::vector<std::vector<std::string>>& gruppen);
+// In Kopien von Wegpunkten zeigen die Verweise untereinander auf die neuen Namen.
+void wegKopienUmschreiben(const std::vector<int>& quellen, const std::vector<int>& kopien);
+// Die gewaehlten Wegpunkte nach Muster umbenennen, Verweise ziehen mit (ein Schritt).
+int wegUmbenennen(const std::string& muster);
+// Die gewaehlten Wegpunkte mit ihren Nachbarn verbinden (ein Schritt).
+bool wegAuswahlVerbinden();
+// Die Spuren fuer den Netzbau der geladenen Karte (gui/app_bewegung.cpp).
+[[nodiscard]] NavBauHilfe navBauHilfeKarte();
 // --- Draufsicht ---
 void draufsichtSchalten(bool an);
 // Fuer beide aus app_mission.cpp:
@@ -3046,7 +3075,9 @@ void skriptSchild();
 bool entityGizmoPunkt(int griff, ImVec2& out);
 int neueEntityAn(const std::string& klasse, const float ort[3]);
 int neueEntityHier(const std::string& klasse, bool amMauspunkt);
-bool entityLoeschen(int i);
+bool entityLoeschen(int i);   // ohne Frage: Verweise auf Wegpunkte gehen mit (rc609 W1)
+// rc609 W1: loeschen samt Verweisen; verweise -1 fragen, 0 nur Wegpunkte, 1 alle.
+bool entitiesLoeschen(std::vector<int> a, int verweise);
 int entityDuplizieren(int i);
 bool entityAufBoden(int i);
 bool entityKeySetzen(int i, const std::string& key, const std::string& wert);

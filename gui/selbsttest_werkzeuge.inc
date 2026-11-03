@@ -32,6 +32,9 @@ std::vector<Schritt> wegSchritte() {
     add(tu("Wegnetz: Ausgangslage", [=] {
         *wp0 = zaehleKlasse("waypoint");
         *tiefe0 = g_app->entUndo.size();
+        // rc609 W1: hier das Setzen und Verbinden von Hand (Kette, Umschalten);
+        // automatisch verbinden prueft der Modus wegpunkte2.
+        g_app->wegAutoVerbinden = false;
         g_app->throughCamera = false;
         g_app->playing = false;
         diag::detail("Knopftest: Wegnetz - Karte " + g_app->map.path + ", " + std::to_string(*wp0) + " Wegpunkte");
@@ -57,9 +60,21 @@ std::vector<Schritt> wegSchritte() {
     }));
     add(foto("weg_netz"));
     add(pruefe("Wie das Spiel es liest: alle erzeugten erreichbar, kein target fehlt, nichts im Festen oder schwebend", [=] {
+        // rc609 W1: dazu die vorhandenen Wegpunkte, aus denen die Erzeugung
+        // geflutet hat - die erzeugten Nachbarn nennen sie.
+        std::set<std::string> genannt;
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.targetname.rfind("wpauto_", 0) != 0) { continue; }
+            for (const char* f : {"target", "target2", "target3", "target4"}) {
+                if (const std::string* t = e.find(f)) { genannt.insert(*t); }
+            }
+        }
         std::vector<MapEntity> nur;
         for (const MapEntity& e : g_app->map.entities) {
-            if (e.targetname.rfind("wpauto_", 0) == 0) { nur.push_back(e); }
+            if (e.targetname.rfind("wpauto_", 0) == 0 ||
+                (istWegKlasse(e.classname) && !e.targetname.empty() && genannt.count(e.targetname) != 0U)) {
+                nur.push_back(e);
+            }
         }
         const WegNetz n = baueWegNetz(nur);
         std::vector<std::vector<int>> adj(n.knoten.size());
@@ -262,7 +277,11 @@ std::vector<Schritt> wegSchritte() {
     }));
     add(pause(0.3));
     add(pruefe("Rueckgaengig bis zum Anfang: so viele Wegpunkte wie vorher", [=] { return zaehleKlasse("waypoint") == *wp0; }));
-    add(tu("Fenster zu", [] { g_app->wegFensterOffen = false; g_app->zeigeWegnetz = false; }));
+    add(tu("Fenster zu", [] {
+        g_app->wegFensterOffen = false;
+        g_app->zeigeWegnetz = false;
+        g_app->wegAutoVerbinden = true;
+    }));
     add(pause(0.2));
     return s;
 }

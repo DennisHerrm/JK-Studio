@@ -5604,6 +5604,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_vorschau_a.inc"   // Stufe 8d: Vorschau I - Sicherung, Teiler, Kamera, Kartenpruefung, Fotos
 #include "selbsttest_vorschau_b.inc"   // Stufe 8d: Vorschau II - Bewegung, OpenJK/Movie Duels, Gras, Funde rc604/rc605, Tueren, Spulen
 #include "selbsttest_werkzeuge.inc"   // Stufe 8d: Werkzeuge - Wegnetz, Drehen, Kopieren, Model-Tab, Indizes
+#include "selbsttest_wegpunkte2.inc"   // rc609 W1: Wegpunkte loeschen, verbinden, duplizieren
 #include "selbsttest_karte1bis2.inc"   // Stufe 8d: Karten-Editor Stufe 1b und 2
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
@@ -5908,6 +5909,7 @@ void selbsttest() {
     // Nur der Umriss der Auswahl (rc597).
     static const bool nurUmriss = std::strcmp(modus, "umriss") == 0;
     static const bool nurWeg = std::strcmp(modus, "wegpunkte") == 0;
+    static const bool nurWeg2 = std::strcmp(modus, "wegpunkte2") == 0;   // rc609 W1
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
     static const bool nurModellLeistung = std::strcmp(modus, "modellleistung") == 0;   // modell1
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
@@ -6352,7 +6354,7 @@ void selbsttest() {
                 a.schritte = vergleichSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
-            } else if (nurKarte || nurLava || nurHolo || nurOrt || nurKamera || nurWeg || nurUmriss || nurRoff || nurNpcKlasse || nurGluehen || nurTuerLauf || nurSpulen || nurGras) {
+            } else if (nurKarte || nurLava || nurHolo || nurOrt || nurKamera || nurWeg || nurWeg2 || nurUmriss || nurRoff || nurNpcKlasse || nurGluehen || nurTuerLauf || nurSpulen || nurGras) {
                 a.schritte = karteSchritte();
                 if (nurSpulen) {
                     // rc603 fix603: nur laden, dann vor- und zurueckspulen
@@ -6414,12 +6416,12 @@ void selbsttest() {
                 } else if (nurRoff) {
                     a.schritte.resize(std::min<std::size_t>(a.schritte.size(), 8));
                     for (Schritt& x : roffSchritte()) { a.schritte.push_back(std::move(x)); }
-                } else if (nurLava || nurHolo || nurOrt || nurKamera || nurWeg || nurUmriss) {
+                } else if (nurLava || nurHolo || nurOrt || nurKamera || nurWeg || nurWeg2 || nurUmriss) {
                     // Nur laden (die ersten Schritte von karteSchritte bis
                     // "Kartenansicht gezeichnet"), dann Lava oder Holotisch.
                     a.schritte.resize(std::min<std::size_t>(a.schritte.size(), 8));
                     for (Schritt& x : (nurLava ? lavaSchritte() : nurHolo ? holoSchritte()
-                                       : nurKamera ? kameraSchritte() : nurWeg ? wegSchritte()
+                                       : nurKamera ? kameraSchritte() : nurWeg ? wegSchritte() : nurWeg2 ? wegpunkte2Schritte()
                                        : nurUmriss ? umrissSchritte() : ortSchritte())) {
                         a.schritte.push_back(std::move(x));
                     }

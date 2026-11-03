@@ -12,6 +12,10 @@
 //     einem freien Feld (Strg: targetJump); schon verbunden = trennen
 //   - Erzeugen: vom Spielerstart, den Figuren und Zielen aus ueber den Boden
 //   - Pruefen: im Festen, schwebend, allein, target fehlt
+//   - rc609 W1 (Mike): Loeschen raeumt die Verweise ab, neue und verschobene
+//     Wegpunkte verbinden sich mit den Nachbarn, die die Kantenpruefung des
+//     Spiels bestehen (NavKantenPruefer), Kopien zeigen untereinander auf die
+//     neuen Namen, Umbenennen nach Muster
 #include "app_internal.h"
 
 #include <algorithm>
@@ -20,6 +24,9 @@
 #include <cstdio>
 #include <functional>
 #include <set>
+#include <cctype>
+#include <tuple>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -101,6 +108,65 @@ std::string nameVon(int i) {
     MapEntity& e = g_app->map.entities[static_cast<std::size_t>(i)];
     if (e.targetname.empty()) { setKey(e, "targetname", freierEntityName("wp")); }
     return e.targetname;
+}
+
+// rc609 W1: die Felder, ueber die das Spiel Kanten bildet (NUM_TARGETS,
+// g_navigator.cpp:1607-1686 MD: target..target4, targetJump als Sprung).
+const char* const kVerweisFelder[5] = {"target", "target2", "target3", "target4", "targetJump"};
+
+std::string kleinW(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+
+// Wegpunkte im engeren Sinn: die das Spiel NICHT selbst verbindet (nur Kampf-
+// und Zielpunkte bekommen Auto-Connect, g_navigator.cpp:1688-1800 MD).
+bool gehWegpunkt(const MapEntity& e) { return e.classname == "waypoint" || e.classname == "waypoint_small"; }
+
+int freiesFeld(const MapEntity& e) {
+    for (int z = 0; z < 4; ++z) {
+        const std::string* t = e.find(kZielFelder[z]);
+        if (t == nullptr || t->empty()) { return z; }
+    }
+    return -1;
+}
+
+bool verbunden(int a, int b) {
+    const MapEntity& ea = g_app->map.entities[static_cast<std::size_t>(a)];
+    const MapEntity& eb = g_app->map.entities[static_cast<std::size_t>(b)];
+    return (!eb.targetname.empty() && zielFeld(ea, eb.targetname) >= 0) ||
+           (!ea.targetname.empty() && zielFeld(eb, ea.targetname) >= 0);
+}
+
+float abstandZwischen(int a, int b) {
+    float oa[3];
+    float ob[3];
+    if (!entityOrt(g_app->map.entities[static_cast<std::size_t>(a)], oa) ||
+        !entityOrt(g_app->map.entities[static_cast<std::size_t>(b)], ob)) {
+        return 1.0e9F;
+    }
+    return std::sqrt((oa[0] - ob[0]) * (oa[0] - ob[0]) + (oa[1] - ob[1]) * (oa[1] - ob[1]) + (oa[2] - ob[2]) * (oa[2] - ob[2]));
+}
+
+// Eine Kante a <-> b schreiben, wenn sie fehlt und das Spiel sie behaelt: in ein
+// freies Feld von a, sonst von b (das Spiel verbindet in beide Richtungen,
+// connect_node, g_navigator.cpp:1652-1684 MD - eine Kante genuegt). 1 neu, 0 nicht begehbar
+// oder schon da, -1 beide voll.
+int kanteSchreiben(int a, int b, NavKantenPruefer& p) {
+    if (verbunden(a, b)) { return 0; }
+    int halter = a;
+    int ziel = b;
+    if (freiesFeld(g_app->map.entities[static_cast<std::size_t>(a)]) < 0) {
+        halter = b;
+        ziel = a;
+    }
+    const int feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(halter)]);
+    if (feld < 0) { return -1; }
+    // Die Spur geht vom Punkt mit dem Feld zum Ziel (CWayEdge mNodeA -> mNodeB).
+    if (!p.pruefe(halter, ziel).begehbar) { return 0; }
+    const std::string name = nameVon(ziel);
+    setKey(g_app->map.entities[static_cast<std::size_t>(halter)], kZielFelder[feld], name);
+    return 1;
 }
 
 }  // namespace
@@ -187,6 +253,7 @@ int wegSetzen(const float boden[3], int verbindeMit) {
         }
         if (!gesetzt) { setKey(g_app->map.entities[static_cast<std::size_t>(neu)], "target", v.targetname); }
     }
+    if (g_app->wegAutoVerbinden) { (void)wegKantenAbgleichen({neu}, false); }   // rc609 W1
     entitiesGeaendert(std::move(vorher));
     g_app->hiddenClasses.erase("waypoint");
     return neu;
@@ -202,13 +269,10 @@ int wegGenerierteEntfernen() {
     auto& v = g_app->map.entities;
     v.erase(std::remove_if(v.begin(), v.end(), [&](const MapEntity& e) { return weg.count(e.targetname) != 0U; }),
             v.end());
-    // Verweise anderer Wegpunkte auf die erzeugten gehen mit.
-    for (MapEntity& e : v) {
-        if (!wegKlasse(e)) { continue; }
-        for (const char* f : {"target", "target2", "target3", "target4", "targetJump"}) {
-            if (const std::string* t = e.find(f); t != nullptr && weg.count(*t) != 0U) { keyWeg(e, f); }
-        }
-    }
+    // Verweise auf die erzeugten gehen mit (rc609 W1: dieselbe Funktion wie beim Loeschen).
+    std::set<std::string> wegKlein;
+    for (const std::string& n : weg) { wegKlein.insert(kleinW(n)); }
+    (void)verweiseEntfernen(wegKlein);
     g_app->pickedEntity = -1;
     g_app->hiddenEntities.clear();
     g_app->entAuswahl.clear();
@@ -230,30 +294,52 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
     }
     // Startpunkte: Spielerstart, Figuren, Ziele, vorhandene Wegpunkte, die Kamera.
     std::vector<std::array<float, 3>> starts;
-    for (const MapEntity& e : g_app->map.entities) {
+    std::vector<int> startEntity;   // rc609 W1: der vorhandene Wegpunkt des Starts, sonst -1
+    for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+        const MapEntity& e = g_app->map.entities[i];
         const std::string& c = e.classname;
+        // rc609 W1: auch waypoint/waypoint_small (vorher nur die Ziele - ein von
+        // Hand gesetzter Wegpunkt in einem Raum ohne Figur blieb ohne Netz).
         const bool start = c.rfind("info_player", 0) == 0 || c.rfind("NPC_", 0) == 0 || c.rfind("npc_", 0) == 0 ||
-                           c.rfind("waypoint_navgoal", 0) == 0;
+                           c.rfind("waypoint_navgoal", 0) == 0 || gehWegpunkt(e);
         float o[3];
-        if (start && entityOrt(e, o)) { starts.push_back({o[0], o[1], o[2]}); }
+        if (start && entityOrt(e, o)) {
+            starts.push_back({o[0], o[1], o[2]});
+            startEntity.push_back(gehWegpunkt(e) ? static_cast<int>(i) : -1);
+        }
     }
     starts.push_back({g_app->cam.pos[0], g_app->cam.pos[1], g_app->cam.pos[2]});
+    startEntity.push_back(-1);
     WegErzeugung p;
     p.abstand = abstand;
     const std::vector<NeuerWegpunkt> wp = erzeugeWegpunkte(starts, kartenStrahl(), p);
     const std::vector<std::vector<int>> ziele = verteileZiele(wp, 4);
+    // Ein Knoten aus einem vorhandenen Wegpunkt ist dieser Wegpunkt (keine
+    // Kopie an derselben Stelle): die erzeugten Nachbarn nennen ihn.
+    std::vector<int> vorhanden(wp.size(), -1);
+    std::vector<std::string> namen(wp.size());
+    for (std::size_t i = 0; i < wp.size(); ++i) {
+        if (wp[i].start >= 0) { vorhanden[i] = startEntity[static_cast<std::size_t>(wp[i].start)]; }
+        if (vorhanden[i] >= 0) { namen[i] = nameVon(vorhanden[i]); }
+    }
     // Namen: wpauto_1 ... (frei, falls die Karte schon solche hat)
     int nr = 1;
     std::set<std::string> belegt;
     for (const MapEntity& e : g_app->map.entities) { belegt.insert(e.targetname); }
-    std::vector<std::string> namen(wp.size());
     for (std::size_t i = 0; i < wp.size(); ++i) {
+        if (vorhanden[i] >= 0) { continue; }
         std::string n;
         do { n = std::string(kErzeugtPrefix) + std::to_string(nr++); } while (belegt.count(n) != 0U);
         namen[i] = n;
     }
     int kanten = 0;
+    int neuZahl = 0;
+    std::vector<int> index(wp.size(), -1);   // Entity je Knoten
     for (std::size_t i = 0; i < wp.size(); ++i) {
+        if (vorhanden[i] >= 0) {
+            index[i] = vorhanden[i];
+            continue;
+        }
         MapEntity e;
         setKey(e, "classname", "waypoint");
         char o[96];
@@ -266,6 +352,28 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
             ++kanten;
         }
         g_app->map.entities.push_back(e);
+        index[i] = static_cast<int>(g_app->map.entities.size()) - 1;
+        ++neuZahl;
+    }
+    // Die Kanten, die ein vorhandener Wegpunkt tragen soll: in seine freien
+    // Felder, sonst in ein freies des Nachbarn.
+    for (std::size_t i = 0; i < wp.size(); ++i) {
+        if (vorhanden[i] < 0) { continue; }
+        for (const int j : ziele[i]) {
+            const int a = index[i];
+            const int b = index[static_cast<std::size_t>(j)];
+            if (verbunden(a, b)) { continue; }
+            int halter = a;
+            int feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(a)]);
+            if (feld < 0) {
+                halter = b;
+                feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(b)]);
+            }
+            if (feld < 0) { continue; }
+            setKey(g_app->map.entities[static_cast<std::size_t>(halter)], kZielFelder[feld],
+                   namen[halter == a ? static_cast<std::size_t>(j) : i]);
+            ++kanten;
+        }
     }
     entitiesGeaendert(std::move(vorher));
     g_app->hiddenClasses.erase("waypoint");
@@ -273,10 +381,221 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
     const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     if (bericht != nullptr) {
         char z[200];
-        std::snprintf(z, sizeof(z), trN(Str::WegErzeugt, wp.size(), kanten), static_cast<int>(wp.size()), kanten, s);
+        std::snprintf(z, sizeof(z), trN(Str::WegErzeugt, neuZahl, kanten), neuZahl, kanten, s);
         *bericht = z;
     }
-    return static_cast<int>(wp.size());
+    return neuZahl;
+}
+
+// --- rc609 W1: Verweise, Kanten wie im Spiel, Kopien, Umbenennen -------------------
+
+int verweiseZaehlen(const std::set<std::string>& namenKlein) {
+    int n = 0;
+    for (const MapEntity& e : g_app->map.entities) {
+        for (const char* f : kVerweisFelder) {
+            if (const std::string* t = e.find(f); t != nullptr && !t->empty() && namenKlein.count(kleinW(*t)) != 0U) { ++n; }
+        }
+    }
+    return n;
+}
+
+int verweiseEntfernen(const std::set<std::string>& namenKlein) {
+    int n = 0;
+    for (MapEntity& e : g_app->map.entities) {
+        for (const char* f : kVerweisFelder) {
+            if (const std::string* t = e.find(f); t != nullptr && !t->empty() && namenKlein.count(kleinW(*t)) != 0U) {
+                keyWeg(e, f);
+                ++n;
+            }
+        }
+    }
+    return n;
+}
+
+std::vector<std::string> wegNachbarNamen(int i) {
+    std::vector<std::string> aus;
+    const int zahl = static_cast<int>(g_app->map.entities.size());
+    if (i < 0 || i >= zahl || !gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(i)])) { return aus; }
+    for (int j = 0; j < zahl; ++j) {
+        if (j == i || !gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(j)])) { continue; }
+        const MapEntity& ei = g_app->map.entities[static_cast<std::size_t>(i)];
+        const MapEntity& ej = g_app->map.entities[static_cast<std::size_t>(j)];
+        const int fi = ej.targetname.empty() ? -1 : zielFeld(ei, ej.targetname);
+        const int fj = ei.targetname.empty() ? -1 : zielFeld(ej, ei.targetname);
+        if ((fi >= 0 && fi < 4) || (fj >= 0 && fj < 4)) {
+            const std::string n = nameVon(j);
+            if (std::find(aus.begin(), aus.end(), n) == aus.end()) { aus.push_back(n); }
+        }
+    }
+    return aus;
+}
+
+bool wegKantenAbgleichen(const std::vector<int>& punkte, bool trennen, const std::vector<int>& ohne) {
+    const int zahl = static_cast<int>(g_app->map.entities.size());
+    std::vector<int> liste;
+    for (const int i : punkte) {
+        if (i >= 0 && i < zahl && gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(i)])) { liste.push_back(i); }
+    }
+    if (liste.empty()) { return false; }
+    // Die Spuren und Entities von jetzt (nach dem Setzen/Verschieben).
+    const NavBauHilfe hilfe = navBauHilfeKarte();
+    NavKantenPruefer pruefer(g_app->map.entities, hilfe);
+    int getrennt = 0;
+    int neu = 0;
+    int voll = 0;
+    int imFesten = 0;
+    if (trennen) {
+        // Kanten, die TestEdge nicht mehr besteht (Sprungkanten prueft das Spiel nicht).
+        for (const int i : liste) {
+            for (int j = 0; j < zahl; ++j) {
+                if (j == i || !istWegKlasse(g_app->map.entities[static_cast<std::size_t>(j)].classname)) { continue; }
+                const std::string ni = g_app->map.entities[static_cast<std::size_t>(i)].targetname;
+                const std::string nj = g_app->map.entities[static_cast<std::size_t>(j)].targetname;
+                const int fi = nj.empty() ? -1 : zielFeld(g_app->map.entities[static_cast<std::size_t>(i)], nj);
+                if (fi >= 0 && fi < 4 && !pruefer.pruefe(i, j).begehbar) {
+                    keyWeg(g_app->map.entities[static_cast<std::size_t>(i)], kZielFelder[fi]);
+                    ++getrennt;
+                }
+                const int fj = ni.empty() ? -1 : zielFeld(g_app->map.entities[static_cast<std::size_t>(j)], ni);
+                if (fj >= 0 && fj < 4 && !pruefer.pruefe(j, i).begehbar) {
+                    keyWeg(g_app->map.entities[static_cast<std::size_t>(j)], kZielFelder[fj]);
+                    ++getrennt;
+                }
+            }
+        }
+    }
+    // Verbinden: die Wegpunkte im Umkreis (Rasterweite der Erzeugung), die naechsten zuerst.
+    const float umkreis = g_app->wegAbstand;
+    for (const int i : liste) {
+        if (!pruefer.hatKnoten(i)) {   // im Festen: das Spiel verwirft den Punkt ("Waypoint in solid!")
+            ++imFesten;
+            continue;
+        }
+        std::vector<std::pair<float, int>> nachbarn;
+        for (int j = 0; j < zahl; ++j) {
+            if (j == i || !gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(j)]) ||
+                std::find(ohne.begin(), ohne.end(), j) != ohne.end()) {
+                continue;
+            }
+            const float d = abstandZwischen(i, j);
+            if (d <= umkreis) { nachbarn.emplace_back(d, j); }
+        }
+        std::sort(nachbarn.begin(), nachbarn.end());
+        for (const auto& [d, j] : nachbarn) {
+            const int r = kanteSchreiben(i, j, pruefer);
+            if (r > 0) { neu += r; }
+            if (r < 0) { ++voll; }
+        }
+    }
+    char z[200];
+    if (imFesten > 0) {
+        std::snprintf(z, sizeof(z), trN(Str::WegImFesten, imFesten), imFesten);
+        addStatus(z);
+    }
+    if (voll > 0) {
+        std::snprintf(z, sizeof(z), trN(Str::WegAutoVoll, voll), voll);
+        addStatus(z);
+    }
+    if (neu > 0 || getrennt > 0) {
+        std::snprintf(z, sizeof(z), trN(Str::WegAutoErgebnis, neu, getrennt), neu, getrennt);
+        addStatus(z);
+    }
+    return neu > 0 || getrennt > 0;
+}
+
+int wegLueckenSchliessen(const std::vector<std::vector<std::string>>& gruppen) {
+    const NavBauHilfe hilfe = navBauHilfeKarte();
+    NavKantenPruefer pruefer(g_app->map.entities, hilfe);
+    int neu = 0;
+    for (const std::vector<std::string>& g : gruppen) {
+        std::vector<int> punkte;
+        for (const std::string& n : g) {
+            const int i = entityMitName(n);
+            if (i >= 0 && gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(i)])) { punkte.push_back(i); }
+        }
+        // Je Paar, das kuerzeste zuerst (die Felder reichen nicht immer fuer alle).
+        std::vector<std::tuple<float, int, int>> paare;
+        for (std::size_t a = 0; a < punkte.size(); ++a) {
+            for (std::size_t b = a + 1; b < punkte.size(); ++b) {
+                paare.emplace_back(abstandZwischen(punkte[a], punkte[b]), punkte[a], punkte[b]);
+            }
+        }
+        std::sort(paare.begin(), paare.end());
+        for (const auto& [d, a, b] : paare) {
+            if (kanteSchreiben(a, b, pruefer) > 0) { ++neu; }
+        }
+    }
+    return neu;
+}
+
+void wegKopienUmschreiben(const std::vector<int>& quellen, const std::vector<int>& kopien) {
+    std::map<std::string, std::string> neuName;   // alter Name (klein) -> Name der Kopie
+    for (std::size_t k = 0; k < quellen.size() && k < kopien.size(); ++k) {
+        const MapEntity& q = g_app->map.entities[static_cast<std::size_t>(quellen[k])];
+        const MapEntity& c = g_app->map.entities[static_cast<std::size_t>(kopien[k])];
+        if (istWegKlasse(q.classname) && !q.targetname.empty() && c.targetname != q.targetname) {
+            neuName[kleinW(q.targetname)] = c.targetname;
+        }
+    }
+    for (const int k : kopien) {
+        MapEntity& c = g_app->map.entities[static_cast<std::size_t>(k)];
+        if (!istWegKlasse(c.classname)) { continue; }
+        for (const char* f : kVerweisFelder) {
+            const std::string* t = c.find(f);
+            if (t == nullptr) { continue; }
+            const auto it = neuName.find(kleinW(*t));
+            if (it != neuName.end()) { setKey(c, f, it->second); }
+        }
+    }
+}
+
+int wegUmbenennen(const std::string& muster) {
+    std::vector<int> liste;
+    for (const int i : entityAuswahl()) {
+        if (gehWegpunkt(g_app->map.entities[static_cast<std::size_t>(i)])) { liste.push_back(i); }
+    }
+    if (liste.empty() || muster.empty()) { return 0; }
+    std::vector<MapEntity> vorher = g_app->map.entities;
+    std::set<std::string> belegt;   // Namen der anderen (klein)
+    for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+        if (std::find(liste.begin(), liste.end(), static_cast<int>(i)) != liste.end()) { continue; }
+        belegt.insert(kleinW(g_app->map.entities[i].targetname));
+        belegt.insert(kleinW(entitySkriptName(g_app->map.entities[i])));
+    }
+    const std::size_t raute = muster.find('#');
+    std::map<std::string, std::string> neuName;   // alt (klein) -> neu
+    int nr = 1;
+    for (const int i : liste) {
+        std::string n;
+        do {
+            const std::string zahlText = std::to_string(nr++);
+            n = raute == std::string::npos ? muster + zahlText : muster.substr(0, raute) + zahlText + muster.substr(raute + 1);
+        } while (belegt.count(kleinW(n)) != 0U);
+        belegt.insert(kleinW(n));
+        MapEntity& e = g_app->map.entities[static_cast<std::size_t>(i)];
+        if (!e.targetname.empty()) { neuName[kleinW(e.targetname)] = n; }
+        setKey(e, "targetname", n);
+    }
+    for (MapEntity& e : g_app->map.entities) {
+        for (const char* f : kVerweisFelder) {
+            const std::string* t = e.find(f);
+            if (t == nullptr) { continue; }
+            const auto it = neuName.find(kleinW(*t));
+            if (it != neuName.end()) { setKey(e, f, it->second); }
+        }
+    }
+    entitiesGeaendert(std::move(vorher));
+    return static_cast<int>(liste.size());
+}
+
+bool wegAuswahlVerbinden() {
+    std::vector<MapEntity> vorher = g_app->map.entities;
+    if (!wegKantenAbgleichen(entityAuswahl(), false)) {
+        g_app->map.entities = std::move(vorher);   // nichts geaendert (auch keine neuen Namen)
+        return false;
+    }
+    entitiesGeaendert(std::move(vorher));
+    return true;
 }
 
 // --- In der Ansicht ----------------------------------------------------------------
@@ -464,6 +783,32 @@ void drawWegFenster() {
                               : g_app->wegWerkzeug == 2 ? tr(Str::WegVerbindenHint)
                                                         : tr(Str::WegWerkzeugHint));
     ImGui::PopTextWrapPos();
+    // rc609 W1 (Mike): Verbindungen wie im Spiel
+    ImGui::SeparatorText(tr(Str::WegKantenTitel));
+    ImGui::Checkbox(tr(Str::WegAutoVerbinden), &g_app->wegAutoVerbinden);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegAutoVerbindenHint)); }
+    ImGui::Checkbox(tr(Str::WegLuecke), &g_app->wegLueckeSchliessen);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegLueckeHint)); }
+    bool wegGewaehlt = false;
+    for (const int i : entityAuswahl()) {
+        const std::string& c = g_app->map.entities[static_cast<std::size_t>(i)].classname;
+        wegGewaehlt = wegGewaehlt || c == "waypoint" || c == "waypoint_small";
+    }
+    if (iconTextKnopf(tr(Str::WegNachbarn), UiIcon::Pfad, tr(Str::WegNachbarnHint), wegGewaehlt)) {
+        (void)wegAuswahlVerbinden();
+    }
+    char muster[64];
+    std::snprintf(muster, sizeof(muster), "%s", g_app->wegMuster.c_str());
+    ImGui::SetNextItemWidth(fs * 9.0F);
+    if (ImGui::InputText("##wegmuster", muster, sizeof(muster))) { g_app->wegMuster = muster; }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegMusterHint)); }
+    ImGui::SameLine();
+    if (iconTextKnopf(tr(Str::WegUmbenennen), UiIcon::Namen, tr(Str::WegMusterHint), wegGewaehlt && !g_app->wegMuster.empty())) {
+        const int n = wegUmbenennen(g_app->wegMuster);
+        char z[120];
+        std::snprintf(z, sizeof(z), trN(Str::WegUmbenannt, n), n);
+        addStatus(z);
+    }
     ImGui::SeparatorText(tr(Str::WegErzeugenTitel));
     if (g_app->geo.empty()) {   // H2: warum "Erzeugen" grau ist
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 23.0F);

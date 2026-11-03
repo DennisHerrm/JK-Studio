@@ -101,6 +101,8 @@
 {"vorschau", "knopf:WegZeigen@###wegpunkte", "ViewMap>WegTitel>WegZeigen", "WegZeigenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegSetzen@###wegpunkte", "ViewMap>WegTitel>WegSetzen", "WegSetzenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegVerbinden@###wegpunkte", "ViewMap>WegTitel>WegVerbinden", "WegVerbindenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
+{"vorschau", "knopf:WegNachbarn@###wegpunkte", "ViewMap>WegTitel>WegNachbarn", "WegNachbarnHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
+{"vorschau", "knopf:WegUmbenennen@###wegpunkte", "ViewMap>WegTitel>WegUmbenennen", "WegMusterHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegErzeugen@###wegpunkte", "ViewMap>WegTitel>WegErzeugen", "WegErzeugenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegEntfernen@###wegpunkte", "ViewMap>WegTitel>WegEntfernen", "WegEntfernenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegPruefen@###wegpunkte", "ViewMap>WegTitel>WegPruefen", "WegPruefenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},

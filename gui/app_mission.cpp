@@ -627,16 +627,63 @@ void entityNeuMenue(bool amMauspunkt) {
     }
 }
 
-bool entityLoeschen(int i) {
-    if (i < 0 || static_cast<std::size_t>(i) >= g_app->map.entities.size()) { return false; }
+// rc609 W1 (Mike: "if I delete a waypoint, it would be nice if everything that
+// referenced it were also removed from its target"): Loeschen nimmt die
+// target..target4/targetJump, die auf einen geloeschten Namen zeigen, im
+// selben Rueckgaengig-Schritt mit. Bei Wegpunkten immer; nennen Verweise eine
+// andere Entity, entscheidet `verweise`: -1 fragen (frage(), im Programm),
+// 0 stehen lassen, 1 mit entfernen. Ein Name, den eine bleibende Entity noch
+// traegt, bleibt gueltig. Mit "Luecke schliessen" verbinden sich die Nachbarn
+// eines geloeschten Wegpunkts, wo die Kantenpruefung des Spiels es erlaubt.
+bool entitiesLoeschen(std::vector<int> a, int verweise) {
+    const int zahl = static_cast<int>(g_app->map.entities.size());
+    a.erase(std::remove_if(a.begin(), a.end(), [zahl](int i) { return i < 0 || i >= zahl; }), a.end());
+    if (a.empty()) { return false; }
+    std::sort(a.begin(), a.end(), std::greater<int>());
+    a.erase(std::unique(a.begin(), a.end()), a.end());
+    std::set<std::string> wegNamen;
+    std::set<std::string> andereNamen;
+    for (const int i : a) {
+        const MapEntity& e = g_app->map.entities[static_cast<std::size_t>(i)];
+        if (e.targetname.empty()) { continue; }
+        (istWegKlasse(e.classname) ? wegNamen : andereNamen).insert(klein(e.targetname));
+    }
+    for (int i = 0; i < zahl; ++i) {
+        if (std::find(a.begin(), a.end(), i) != a.end()) { continue; }
+        const std::string n = klein(g_app->map.entities[static_cast<std::size_t>(i)].targetname);
+        wegNamen.erase(n);
+        andereNamen.erase(n);
+    }
+    const int andereVerweise = andereNamen.empty() ? 0 : verweiseZaehlen(andereNamen);
+    if (verweise < 0 && andereVerweise > 0) {
+        char z[400];
+        std::snprintf(z, sizeof(z), trN(Str::EntVerweiseFrage, andereVerweise), andereVerweise);
+        frage(z, [a] { (void)entitiesLoeschen(a, 1); }, [a] { (void)entitiesLoeschen(a, 0); });
+        return true;
+    }
     std::vector<MapEntity> vorher = g_app->map.entities;
-    g_app->map.entities.erase(g_app->map.entities.begin() + i);
+    std::vector<std::vector<std::string>> luecken;
+    if (g_app->wegLueckeSchliessen) {
+        for (const int i : a) { luecken.push_back(wegNachbarNamen(i)); }
+    }
+    for (const int i : a) {   // absteigend: die Nummern davor bleiben
+        g_app->map.entities.erase(g_app->map.entities.begin() + i);
+        entityNummernNachLoeschen(i);
+    }
+    if (verweise == 1) { wegNamen.insert(andereNamen.begin(), andereNamen.end()); }
+    if (!wegNamen.empty()) { (void)verweiseEntfernen(wegNamen); }
+    if (!luecken.empty()) { (void)wegLueckenSchliessen(luecken); }
     g_app->hiddenEntities.clear();   // Indizes verschoben
     g_app->pickedEntity = -1;
+    g_app->entAuswahl.clear();
     g_app->selectedActor = -1;
-    entityNummernNachLoeschen(i);
     aenderung(std::move(vorher));
     return true;
+}
+
+bool entityLoeschen(int i) {
+    if (i < 0 || static_cast<std::size_t>(i) >= g_app->map.entities.size()) { return false; }
+    return entitiesLoeschen({i}, 0);
 }
 
 void entityNummernVergessen() {
@@ -713,8 +760,10 @@ int entityDuplizieren(int i) {
         setKey(e, nameKey, freierName(stamm.empty() ? std::string("ent") : stamm));
     }
     g_app->map.entities.push_back(e);
+    const int kopie = static_cast<int>(g_app->map.entities.size()) - 1;
+    if (g_app->wegAutoVerbinden) { (void)wegKantenAbgleichen({kopie}, false, {i}); }   // rc609 W1
     aenderung(std::move(vorher));
-    g_app->pickedEntity = static_cast<int>(g_app->map.entities.size()) - 1;
+    g_app->pickedEntity = kopie;
     return g_app->pickedEntity;
 }
 
@@ -762,18 +811,8 @@ void entityAuswahlUmschalten(int i) {
 }
 
 bool entityAuswahlLoeschen() {
-    std::vector<int> a = entityAuswahl();
-    if (a.empty()) { return false; }
-    if (a.size() == 1U) { return entityLoeschen(a.front()); }
-    std::vector<MapEntity> vorher = g_app->map.entities;
-    std::sort(a.begin(), a.end(), std::greater<int>());
-    for (const int i : a) { g_app->map.entities.erase(g_app->map.entities.begin() + i); }
-    g_app->hiddenEntities.clear();
-    g_app->pickedEntity = -1;
-    g_app->entAuswahl.clear();
-    g_app->selectedActor = -1;
-    aenderung(std::move(vorher));
-    return true;
+    // Entf, Knopf im Inspektor, Kontextmenue: bei Verweisen auf andere Entities fragen.
+    return entitiesLoeschen(entityAuswahl(), -1);
 }
 
 namespace {
@@ -806,6 +845,10 @@ int entityAuswahlDuplizieren() {
     std::vector<MapEntity> vorher = g_app->map.entities;
     std::vector<int> neu;
     for (const int i : a) { neu.push_back(kopieAnhaengen(i, 32.0F, 32.0F)); }
+    // rc609 W1 (Mike: "duplicate and rename everything"): die Kopie bleibt in
+    // sich verbunden, dann an die Nachbarn (nicht an die Quelle).
+    wegKopienUmschreiben(a, neu);
+    if (g_app->wegAutoVerbinden) { (void)wegKantenAbgleichen(neu, false, a); }
     g_app->pickedEntity = neu.front();
     g_app->entAuswahl.assign(neu.begin() + 1, neu.end());
     aenderung(std::move(vorher));
@@ -1347,7 +1390,9 @@ void entityZiehen(float rasterSkal) {
             // Alt+Ziehen kopiert erst (wie in Unreal) - im selben Schritt.
             if (io.KeyAlt && modus <= 3) {
                 std::vector<int> neu;
-                for (const int i : entityAuswahl()) { neu.push_back(kopieAnhaengen(i, 0.0F, 0.0F)); }
+                const std::vector<int> quellen = entityAuswahl();
+                for (const int i : quellen) { neu.push_back(kopieAnhaengen(i, 0.0F, 0.0F)); }
+                wegKopienUmschreiben(quellen, neu);   // rc609 W1
                 if (!neu.empty()) {
                     g_app->pickedEntity = neu.front();
                     g_app->entAuswahl.assign(neu.begin() + 1, neu.end());
@@ -1758,6 +1803,13 @@ void entityZiehen(float rasterSkal) {
                                (z.index < static_cast<int>(z.vorher.size()) &&
                                 z.vorher[static_cast<std::size_t>(z.index)].keys != e.keys);
         if (z.aktiv && geaendert) {
+            // rc609 W1: gezogene Wegpunkte - ungueltig gewordene Kanten trennen,
+            // mit den Nachbarn verbinden, im selben Rueckgaengig-Schritt.
+            if (g_app->wegAutoVerbinden) {
+                std::vector<int> gezogen{z.index};
+                for (const auto& g : z.gruppe) { gezogen.push_back(g.first); }
+                (void)wegKantenAbgleichen(gezogen, true);
+            }
             aenderung(std::move(z.vorher));
             addStatus(tr(Str::EntMoved));
         } else if (!z.aktiv && z.vorher.size() != g_app->map.entities.size()) {

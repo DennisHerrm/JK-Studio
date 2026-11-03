@@ -2338,6 +2338,108 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         t.push_back(tu("Handbuch GPU-Backen: zurueck", [] { g_app->leftMode = 0; }));
         return t;
     }
+    // rc609 W1: nur die Bilder der neuen Abschnitte der Seite "NPC-Wegpunkte"
+    // (h_weg_netz, h_weg_kontext) - md_am_sith aus dem eingerichteten
+    // Movie-Duels-Ordner, ein erzeugtes Netz, ein von Hand gesetzter Punkt, der
+    // sich selbst verbindet, und das Kontextmenue der Ansicht.
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegpunkte") == 0) {
+        std::vector<Schritt> t;
+        auto md = std::make_shared<std::string>();
+        t.push_back(tu("Handbuch Wege: Archiv mit maps/md_am_sith.bsp laden", [=] {
+            for (const GamePath& gp : g_app->gamePaths) {
+                for (const Pk3& arc : gp.archives) {
+                    if (arc.find("maps/md_am_sith.bsp") != nullptr) { *md = arc.path; }
+                }
+            }
+            g_app->leftMode = 1;
+            if (!md->empty()) { missionenAusArchiv(*md); }
+        }));
+        t.push_back(warteBis("Handbuch Wege: Missionsauswahl offen", [] { return g_app->missionPickOpen; }, 600));
+        t.push_back(waehleInListe("md_am_sith", false, 0, "##missionpick"));
+        t.push_back(warteBis("Handbuch Wege: geladen", [] { return g_app->map.path == "maps/md_am_sith.bsp" && !g_app->geo.empty(); }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Wege: Fenster auf, nichts gewaehlt", [] {
+            g_app->playing = false;
+            g_app->throughCamera = false;
+            g_app->cameraSelected = false;
+            g_app->selectedActor = -1;
+            entityAuswahlSetzen(-1);
+            g_app->wegFensterOffen = true;
+            g_app->wegAutoVerbinden = true;
+            g_app->mapDirty = true;
+        }));
+        t.push_back(pause(0.6));
+        t.push_back(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+        t.push_back(pause(0.6));
+        auto ort = std::make_shared<ImVec2>(-1.0F, -1.0F);
+        t.push_back(tu("Handbuch Wege: eine Bodenstelle zwischen erzeugten Punkten mitten im Bild", [=] {
+            const ImRect fenster = hb::fensterRect("###wegpunkte");
+            const ImVec2 mitte = hb::karte().GetCenter();
+            float best = 1.0e9F;
+            for (const MapEntity& e : g_app->map.entities) {
+                float o[3];
+                if (e.targetname.rfind("wpauto_", 0) != 0 || !entityOrt(e, o)) { continue; }
+                const float b[3] = {o[0] + g_app->wegAbstand * 0.4F, o[1] + g_app->wegAbstand * 0.3F, o[2] - 25.0F};
+                ImVec2 sp;
+                if (!kartenPunktAufSchirm(b, sp) || fenster.Contains(sp) || !hb::karte().Contains(sp)) { continue; }
+                TraceTreffer tr0;
+                if (!kartenStrahlUnterMaus(sp.x, sp.y, tr0) || tr0.normal[2] < 0.7F || std::fabs(tr0.point[2] - b[2]) > 8.0F) { continue; }
+                const float d = std::fabs(sp.x - mitte.x) + std::fabs(sp.y - mitte.y);
+                if (d >= best) { continue; }
+                // Nur wo das Spiel den Wegpunkt behaelt (G_CheckInSolid).
+                std::vector<MapEntity> v = g_app->map.entities;
+                MapEntity probe;
+                char ot[96];
+                std::snprintf(ot, sizeof(ot), "%d %d %d", static_cast<int>(std::lround(tr0.point[0])), static_cast<int>(std::lround(tr0.point[1])),
+                              static_cast<int>(std::lround(tr0.point[2] + 25.0F)));
+                setKey(probe, "classname", "waypoint");
+                setKey(probe, "origin", ot);
+                v.push_back(probe);
+                const NavBauHilfe hilfe = navBauHilfeKarte();
+                NavKantenPruefer pruefer(v, hilfe);
+                if (!pruefer.hatKnoten(static_cast<int>(v.size()) - 1)) { continue; }
+                if (d < best) {
+                    best = d;
+                    *ort = sp;
+                }
+            }
+        }));
+        t.push_back(klick(tr(Str::WegSetzen), "###wegpunkte"));
+        t.push_back(pause(0.2));
+        t.push_back(klickAn("Handbuch Wege: einen Punkt setzen", [=] { return *ort; }));
+        t.push_back(pause(0.3));
+        t.push_back(taste(ImGuiKey_Escape, "Esc"));
+        t.push_back(tu("Handbuch Wege: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.5));
+        hb::markiere("h_weg_netz", [] {
+            return std::vector<hb::Marke>{
+                hb::Marke(hb::gruppe({tr(Str::WegAutoVerbinden), tr(Str::WegLuecke), tr(Str::WegNachbarn)}, "###wegpunkte"), 1),
+                hb::Marke(hb::gruppe({"##wegmuster", tr(Str::WegUmbenennen)}, "###wegpunkte"), 2)};
+        });
+        t.push_back(hb::fotoTeil("h_weg_netz", [] {
+            ImRect r = hb::karte();
+            r.Add(hb::fensterRect("###wegpunkte"));
+            return r;
+        }));
+        t.push_back(tu("Handbuch Wege: Fenster zu, den gesetzten Punkt waehlen", [] {
+            g_app->wegFensterOffen = false;
+            entityAuswahlSetzen(static_cast<int>(g_app->map.entities.size()) - 1);
+        }));
+        t.push_back(pause(0.4));
+        t.push_back(klickAn("Handbuch Wege: Rechtsklick neben den Punkt", [=] { return ImVec2{ort->x + ImGui::GetFontSize() * 3.0F, ort->y}; }, 1));
+        t.push_back(pause(0.5));
+        hb::markiere("h_weg_kontext", [] {
+            return std::vector<hb::Marke>{hb::Marke(hb::gruppe({tr(Str::EntDuplicate), tr(Str::EntDelete), tr(Str::WegNachbarn)}, "##Popup"))};
+        });
+        t.push_back(hb::fotoTeil("h_weg_kontext", [] {   // mit der Spalte links: mindestens 1920 breit
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            return r;
+        }));
+        t.push_back(taste(ImGuiKey_Escape, "Esc"));
+        t.push_back(pause(0.3));
+        return t;
+    }
     // zeitleiste1: nur die Bilder der Seite "Zeitleiste" (h_zeitleiste, h_zl_*) -
     // md_am_sith aus dem eingerichteten Movie-Duels-Ordner, der Reiter mit dem Schiff.
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "zeitleiste1") == 0) {

@@ -7183,3 +7183,25 @@ TEXTE = {
     'Built map as in the game':
         'Mapa compilado como en el juego',
 }
+
+# rc609 W1: NPC-Wegpunkte - loeschen, automatisch verbinden, duplizieren
+TEXTE.update({
+    'Delete, connect automatically, duplicate':
+        'Borrar, conectar automáticamente, duplicar',
+    'A waypoint placed by hand has connected itself to its neighbours (generated network on md_am_sith).':
+        'Un punto de ruta colocado a mano se ha conectado solo con sus vecinos (red generada en md_am_sith).',
+    'Connect like the game - automatically, when deleting, or for the selection.':
+        'Conectar como el juego: automáticamente, al borrar o para la selección.',
+    'Rename the selected waypoints by a pattern.':
+        'Renombrar los puntos de ruta seleccionados con un patrón.',
+    "**Delete** (<kbd>Delete</kbd>, the button in the inspector or **{{EntDelete}}** in the right-click menu) also removes every `target` to `targetJump` that named the deleted waypoint - in the same undo step. If other entities are named, the program asks first. With **{{WegLuecke}}** the neighbours of a deleted waypoint connect to each other where the game's edge test allows it.":
+        '**Borrar** (<kbd>Delete</kbd>, el botón del inspector o **{{EntDelete}}** en el menú del botón derecho) quita también cada `target` a `targetJump` que nombraba el punto de ruta borrado, en el mismo paso de deshacer. Si nombran otras entidades, el programa pregunta antes. Con **{{WegLuecke}}** los vecinos de un punto borrado se conectan entre sí donde la prueba de aristas del juego lo permite.',
+    "**{{WegAutoVerbinden}}** (on by default): a waypoint you place, move or duplicate connects to the waypoints within **{{WegAbstand}}** that the game connects too - with the game's own edge test (NAV::TestEdge, in Jedi Outcast HardConnect), nearest first, at most four `target` fields per point. After moving, connections the game would drop are removed; all in one undo step. **{{WegNachbarn}}** does the same for the selection. Nav goals and combat points are left out: the game connects them itself.":
+        '**{{WegAutoVerbinden}}** (activado por defecto): un punto de ruta que colocas, mueves o duplicas se conecta con los puntos dentro de **{{WegAbstand}}** que el juego también conecta, con la propia prueba de aristas del juego (NAV::TestEdge, en Jedi Outcast HardConnect), los más cercanos primero, como máximo cuatro campos `target` por punto. Tras moverlo se quitan las conexiones que el juego descartaría; todo en un paso de deshacer. **{{WegNachbarn}}** hace lo mismo para la selección. Los navgoals y los puntos de combate quedan fuera: el juego los conecta solo.',
+    '**{{EntDuplicate}}** (<kbd>Ctrl</kbd>+<kbd>D</kbd> or the right-click menu) on several waypoints: the copies get free names and stay connected among themselves, connections to outside stay as they were; then they connect to their new neighbours. The field next to **{{WegUmbenennen}}** renames the selected waypoints by a pattern (`#` becomes a number); every `target` that named them follows.':
+        '**{{EntDuplicate}}** (<kbd>Ctrl</kbd>+<kbd>D</kbd> o el menú del botón derecho) sobre varios puntos de ruta: las copias reciben nombres libres y siguen conectadas entre sí, las conexiones hacia fuera quedan como estaban; después se conectan con sus nuevos vecinos. El campo junto a **{{WegUmbenennen}}** renombra los puntos seleccionados con un patrón (`#` se convierte en un número); cada `target` que los nombraba se actualiza.',
+    '**{{WegErzeugen}}** also starts from the waypoints already on the map: place one in a room the generation missed and generate again - the room gets its network, connected to your waypoint.':
+        '**{{WegErzeugen}}** también empieza en los puntos de ruta que ya están en el mapa: coloca uno en una sala que la generación omitió y genera de nuevo; la sala recibe su red, conectada con tu punto.',
+    'The right-click menu of the view with a waypoint selected: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.':
+        'El menú del botón derecho de la vista con un punto de ruta seleccionado: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+})

@@ -174,6 +174,55 @@ WEGPUNKTE = {
               "**{{WegPruefen}}** 找出游戏会拒绝或 NPC 无法使用的部分;单击某个问题即可飞过去。",
               "**{{WegPruefen}}** はゲームが拒否するものや NPC が使えないものを見つけます。問題をクリックするとそこへ移動します。"),
         ]),
+        ("h2", "verbinden", T(
+            'Delete, connect automatically, duplicate',
+            'Löschen, automatisch verbinden, duplizieren',
+            '删除、自动连接、复制',
+            '削除・自動接続・複製')),
+        ("img", "h_weg_netz", T(
+            'A waypoint placed by hand has connected itself to its neighbours (generated network on md_am_sith).',
+            'Ein von Hand gesetzter Wegpunkt hat sich mit seinen Nachbarn verbunden (erzeugtes Netz auf md_am_sith).',
+            '手动放置的路径点已自动与相邻点相连(md_am_sith 上生成的路网)。',
+            '手で置いたウェイポイントが近くの点と自動で接続されました(md_am_sith で生成したネットワーク)。'), "breit"),
+        ("legende", [
+            (T("**{{WegAutoVerbinden}}** / **{{WegLuecke}}** / **{{WegNachbarn}}**"), T(
+                'Connect like the game - automatically, when deleting, or for the selection.',
+                'Verbinden wie im Spiel - automatisch, beim Löschen oder für die Auswahl.',
+                '像游戏一样连接——自动、删除时或针对所选内容。',
+                'ゲームと同じように接続します。自動で、削除時に、または選択に対して。')),
+            (T("**{{WegUmbenennen}}**"), T(
+                'Rename the selected waypoints by a pattern.',
+                'Die gewählten Wegpunkte nach Muster umbenennen.',
+                '按模式重命名选中的路径点。',
+                '選択したウェイポイントをパターンで名前変更します。')),
+        ]),
+        ("list", [
+            T(
+                "**Delete** (<kbd>Delete</kbd>, the button in the inspector or **{{EntDelete}}** in the right-click menu) also removes every `target` to `targetJump` that named the deleted waypoint - in the same undo step. If other entities are named, the program asks first. With **{{WegLuecke}}** the neighbours of a deleted waypoint connect to each other where the game's edge test allows it.",
+                '**Löschen** (<kbd>Delete</kbd>, der Knopf im Inspektor oder **{{EntDelete}}** im Rechtsklickmenü) nimmt auch jedes `target` bis `targetJump` mit, das den gelöschten Wegpunkt nannte - im selben Rückgängig-Schritt. Nennen sie andere Entities, fragt das Programm erst. Mit **{{WegLuecke}}** verbinden sich die Nachbarn eines gelöschten Wegpunkts untereinander, wo die Kantenprüfung des Spiels es erlaubt.',
+                '**删除**(<kbd>Delete</kbd>、检查器中的按钮或右键菜单中的 **{{EntDelete}}**)会同时移除所有指向被删路径点的 `target` 到 `targetJump`——在同一个撤销步骤中。如果指向的是其他实体,程序会先询问。启用 **{{WegLuecke}}** 后,被删路径点的相邻点会在游戏连线检查允许的地方彼此相连。',
+                '**削除**(<kbd>Delete</kbd>、インスペクターのボタン、右クリックメニューの **{{EntDelete}}**)では、削除したウェイポイントを指していた `target` から `targetJump` もすべて同じ元に戻す 1 回で消えます。ほかのエンティティを指している場合は、先に確認します。**{{WegLuecke}}** をオンにすると、削除したウェイポイントの隣どうしが、ゲームの辺チェックが許す範囲で接続されます。'),
+            T(
+                "**{{WegAutoVerbinden}}** (on by default): a waypoint you place, move or duplicate connects to the waypoints within **{{WegAbstand}}** that the game connects too - with the game's own edge test (NAV::TestEdge, in Jedi Outcast HardConnect), nearest first, at most four `target` fields per point. After moving, connections the game would drop are removed; all in one undo step. **{{WegNachbarn}}** does the same for the selection. Nav goals and combat points are left out: the game connects them itself.",
+                '**{{WegAutoVerbinden}}** (Vorgabe an): Ein Wegpunkt, den du setzt, verschiebst oder duplizierst, verbindet sich mit den Wegpunkten im Umkreis von **{{WegAbstand}}**, die auch das Spiel verbindet - mit der Kantenprüfung des Spiels selbst (NAV::TestEdge, in Jedi Outcast HardConnect), die nächsten zuerst, höchstens vier `target`-Felder je Punkt. Nach dem Verschieben fallen Verbindungen weg, die das Spiel verwerfen würde; alles in einem Rückgängig-Schritt. **{{WegNachbarn}}** tut dasselbe für die Auswahl. Navgoals und Kampfpunkte bleiben außen vor: Die verbindet das Spiel selbst.',
+                '**{{WegAutoVerbinden}}**(默认开启):你放置、移动或复制的路径点会与 **{{WegAbstand}}** 范围内游戏同样会连接的路径点相连——使用游戏自身的连线检查(NAV::TestEdge,Jedi Outcast 中为 HardConnect),最近的优先,每个点最多四个 `target` 字段。移动后,游戏会丢弃的连接将被移除;全部在一个撤销步骤中。**{{WegNachbarn}}** 对所选内容执行相同操作。导航点和战斗点不参与:游戏会自行连接它们。',
+                '**{{WegAutoVerbinden}}**(既定でオン): 置いた・移動した・複製したウェイポイントは、**{{WegAbstand}}** の範囲内でゲームも接続するウェイポイントと接続します。ゲーム自身の辺チェック(NAV::TestEdge、Jedi Outcast では HardConnect)を使い、近いものから、1 点あたり `target` 欄は最大 4 つです。移動後は、ゲームが捨てる接続を削除します。すべて元に戻す 1 回です。**{{WegNachbarn}}** は選択に対して同じことをします。ナビゴールと戦闘ポイントは対象外です。ゲームが自分で接続します。'),
+            T(
+                '**{{EntDuplicate}}** (<kbd>Ctrl</kbd>+<kbd>D</kbd> or the right-click menu) on several waypoints: the copies get free names and stay connected among themselves, connections to outside stay as they were; then they connect to their new neighbours. The field next to **{{WegUmbenennen}}** renames the selected waypoints by a pattern (`#` becomes a number); every `target` that named them follows.',
+                '**{{EntDuplicate}}** (<kbd>Strg</kbd>+<kbd>D</kbd> oder das Rechtsklickmenü) auf mehreren Wegpunkten: Die Kopien bekommen freie Namen und bleiben untereinander verbunden, Verbindungen nach außen bleiben, wie sie waren; dann verbinden sie sich mit ihren neuen Nachbarn. Das Feld neben **{{WegUmbenennen}}** benennt die gewählten Wegpunkte nach Muster um (`#` wird eine Nummer); jedes `target`, das sie nannte, zieht mit.',
+                '对多个路径点执行 **{{EntDuplicate}}**(<kbd>Ctrl</kbd>+<kbd>D</kbd> 或右键菜单):副本获得空闲名称并保持彼此相连,与外部的连接保持不变;随后它们会与新的相邻点相连。**{{WegUmbenennen}}** 旁边的输入框按模式重命名选中的路径点(`#` 变为数字);所有指向它们的 `target` 会一起更新。',
+                '複数のウェイポイントに **{{EntDuplicate}}**(<kbd>Ctrl</kbd>+<kbd>D</kbd> または右クリックメニュー): コピーは空いている名前を受け取り、コピーどうしの接続は保たれ、外への接続はそのままです。そのあと新しい近くの点と接続します。**{{WegUmbenennen}}** の横の欄で、選択したウェイポイントをパターンで名前変更します(`#` は番号になります)。それらを指していた `target` もすべて追従します。'),
+            T(
+                '**{{WegErzeugen}}** also starts from the waypoints already on the map: place one in a room the generation missed and generate again - the room gets its network, connected to your waypoint.',
+                '**{{WegErzeugen}}** beginnt auch an den Wegpunkten, die schon auf der Karte stehen: Setz einen in einen Raum, den die Erzeugung ausgelassen hat, und erzeuge noch einmal - der Raum bekommt sein Netz, verbunden mit deinem Wegpunkt.',
+                '**{{WegErzeugen}}** 也会从地图上已有的路径点开始:在生成时遗漏的房间里放一个路径点,再生成一次——该房间就会得到自己的路网,并与你的路径点相连。',
+                '**{{WegErzeugen}}** はマップにすでにあるウェイポイントからも始まります。生成で抜けた部屋に 1 つ置いてもう一度生成すると、その部屋にもネットワークができ、置いたウェイポイントにつながります。'),
+        ]),
+        ("img", "h_weg_kontext", T(
+            'The right-click menu of the view with a waypoint selected: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+            'Das Rechtsklickmenü der Ansicht mit einem gewählten Wegpunkt: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
+            '选中路径点时视图的右键菜单:{{EntDuplicate}}、{{EntDelete}}、{{WegNachbarn}}。',
+            'ウェイポイントを選択したときのビューの右クリックメニュー: {{EntDuplicate}}、{{EntDelete}}、{{WegNachbarn}}。')),
         ("note", T(
             "The cutscene preview uses this network for walks exactly like the game: far targets need a path here, otherwise the figure stands still ([[figuren#wieimspiel]]). A network needs at least four waypoints. Doors on the network count while they are open; a closed door counts only if it opens by itself for NPCs.",
             "Die Szenenvorschau nutzt dieses Netz für Läufe genau wie das Spiel: ferne Ziele brauchen hier einen Weg, sonst bleibt die Figur stehen ([[figuren#wieimspiel]]). Für ein Netz braucht es mindestens vier Wegpunkte. Türen im Netz zählen, solange sie offen sind; eine geschlossene nur, wenn sie für NPCs von selbst aufgeht.",

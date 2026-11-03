@@ -194,12 +194,13 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         na.push_back(b);
         aus[static_cast<std::size_t>(b)].nachbarn.push_back(a);
     };
-    for (const auto& s : starts) {
+    for (std::size_t si = 0; si < starts.size(); ++si) {
+        const auto& s = starts[si];
         std::array<float, 3> b{};
         if (!boden({s[0], s[1], s[2] + 16.0F}, 512.0F, b) || !kopf(b) || !platz(b)) { continue; }
         if (zellen.count(zelle(b)) != 0U) { continue; }
         // Auf das Raster: so liegen Netze verschiedener Startpunkte deckungsgleich.
-        neu(b);
+        aus[static_cast<std::size_t>(neu(b))].start = static_cast<int>(si);
         if (static_cast<int>(aus.size()) >= p.maxKnoten) { break; }
     }
     static const int kRichtung[8][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, 1}, {-1, -1}, {1, -1}};

@@ -5407,6 +5407,23 @@ g_app->gizmoAxis = g_app->gizmoHover;
             ImGui::BeginDisabled(g_app->geo.empty() || g_app->camViewActive);
             if (ImGui::MenuItem(tr(Str::CamNewShot))) { kameraNeueEinstellung(); }
             ImGui::EndDisabled();
+            // rc609 W1: die gewaehlten Entities duplizieren, loeschen (samt
+            // Verweisen) und Wegpunkte mit den Nachbarn verbinden.
+            {
+                const std::vector<int> wahl = entityAuswahl();
+                bool wege = false;
+                for (const int i : wahl) {
+                    const std::string& c = g_app->map.entities[static_cast<std::size_t>(i)].classname;
+                    wege = wege || c == "waypoint" || c == "waypoint_small";
+                }
+                if (!wahl.empty()) {
+                    ImGui::Separator();
+                    const std::string strgD = std::string(tr(Str::MkStrg)) + "D";
+                    if (ImGui::MenuItem(tr(Str::EntDuplicate), strgD.c_str())) { (void)entityAuswahlDuplizieren(); }
+                    if (ImGui::MenuItem(tr(Str::EntDelete), tr(Str::MkEntf))) { (void)entityAuswahlLoeschen(); }
+                    if (wege && ImGui::MenuItem(tr(Str::WegNachbarn))) { (void)wegAuswahlVerbinden(); }
+                }
+            }
             ImGui::Separator();
             if (ImGui::MenuItem(tr(Str::GizmoSelect), nullptr,
                                 g_app->gizmoMode == App::GizmoMode::Select)) {
