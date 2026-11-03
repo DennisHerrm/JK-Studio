@@ -953,9 +953,61 @@ Mit Debugschicht (wie im Selbsttest ab Werk) war derselbe Grundstand: Szene spie
 - Selbsttest mit Debugschicht ab Werk: Bildzeiten in Selbsttests sind darum nicht die des Anwenders (Hinweis fuer kuenftige Messungen).
 - Nicht gegen ein Vorbild geprueft: es gibt keins, der Beweis ist der Bildvergleich vorher/nachher und die Gegenprobe.
 
+## Teil 13: letzte Reste vor der Endrunde
+
+Auftrag `auftrag_rc608_13.md`. Skripte und Bilder in `SP/t13` (`zeilen.py`, `jk2dp.py`, `p_*.py`), Laeufe `Y:\karte\laeufe\t13*`. Steam lief und war angemeldet (steam.exe, ActiveUser != 0, vor jedem Start geprueft); Spielordner vorher/nachher per `ab/spielordner.py` verglichen: gleich.
+
+### 1: Decal-Sonderfaelle (fertig bis auf Index-Karten und globalen Nebel)
+Die Welt fuer die Decals des Karten-Editors (`src/karte/metaflaechen.inc`, `sichtbareseiten.inc`) rechnet jetzt nach q3map2 1:1 dazu:
+- **Nebel-Brushes** (fog.cpp FogDrawSurfaces, ChopFaceSurfaceByBrush, ChopPatchSurfaceByBrush, SplitMeshByPlane, RotateMesh, LerpDrawVertAmount): Flaechen und Patches werden am Nebel zerschnitten, fogNum trennt die Meta-Dreiecke (CompareMetaTriangles). Nebel aus allen Entitaeten (CreateMapFogs), contentShader wie SetBrushContents.
+- **q3map_cloneShader, q3map_backShader** (FinishSurface/CloneSurface nach FixTJunctions; Rueckseiten drehen erst in EmitTriangleSurface/EmitPatchSurface, in der Meta-Stufe nicht - wie q3map2).
+- **_decal-Entitaeten** (ProcessDecals, MakeDecalProjector, MakeTextureMatrix, ProjectDecalOntoFace/Patch/Triangles, MakeEntityDecals). Dabei gefunden: die Meta-Stufe vergleicht auch das Alpha der Ecke (bspDrawVert_equal, AddMetaVertToSurface); Decals blenden zum Rand aus, sonst teilen sich Ecken, die q3map2 trennt (markendecal: 18 statt 19 Ecken in Flaeche 31, rot, dann gruen).
+- **-np** (npDegrees: Vorgabewinkel beim Glaetten, keine Ebenen-Sperre beim Zusammensetzen), **-maxarea** (MaxAreaFaceSurface mit dem rand() der C-Laufzeit nach srand(0), auch in EmitFaceSurface erst nach FilterFaceIntoTree), **-patchmeta** und `_patchMeta`/`_patchQuality`/`_patchSubdivide` des worldspawn (TriangulatePatchSurface; der Patch bleibt nodraw stehen), **-nofog**. Die Schalter kommen aus dem -bsp-Befehl des zuletzt gebauten Build-Eintrags (`markenSchalterAusBefehl`).
+- surfaceNum je Flaeche wie AllocDrawSurface (auch fuer die Stuecke von SubdivideFaceSurfaces, die die eingerasteten Ecken teilen).
+- Nebenbei gefunden (allgemein): nodraw-Patches stehen in der .bsp (erst das Spiel ueberspringt sie) - der Editor liess sie aus, die Nummern aller folgenden Flaechen verschoben sich; Meta-Flaechen mit nodraw-Shader schreibt q3map2 nicht; `q3map_terrain` setzte im Inventar noClip, indexed und 179 Grad nicht (toter Zweig); entartete Patches verwirft ParsePatch.
+- **Bytevergleich** (ctest karte_marken, neue Karten von `tools/karte/gen_markensonder.py`, gebaut mit bhed_q3map2): jede Flaeche (Art, Punkte, Dreiecke in Reihenfolge, Ebene) und jedes Blatt gleich: markensonder 75 Flaechen (-meta), _np 75, _max 75, _maxo 86 (-maxarea ohne -meta), _pm 81, _nofog 70, _wpm 81, markendecal 44, _ohne 96, _max 67; alle 50 bzw. 65 Blaetter. 74 Pruefungen, 0 Fehler.
+- **Rot je Regel** (Regel einzeln abgeschaltet, gleicher Test): Nebel 6 Karten rot, Kopien 7, -maxarea 2, rand-Startwert 1 statt 0: 2 (der Zufall wird wirklich gezogen), -patchmeta 2, nodraw-Patches 5, q3map_terrain 8, Decals 3 (Editor 34/52/34 gegen .bsp 44/96/67 Flaechen), Alpha 1.
+- **-np nicht rot gesehen:** In der Testkarte (Dach aus zwei 20-Grad-Keilen) aendert -np in der .bsp nur die Normalen (Lump 10), nicht Flaechen oder Dreiecke; die Decal-Welt speichert keine Normalen. Portiert ist es, gegen eine Abweichung geprueft nicht.
+- Nicht nachgebaut: Index-Karten (`_indexmap`, GetIndexedShader: braucht das Bild der Karte und erzeugte Shadernamen; in den Karten von JKA nicht gefunden), globaler Nebel (`_fog` des worldspawn), Celshading (`_celshader`), Oberflaechenmodelle.
+
+### 2: Reiten gegen das Spiel
+Nicht angegangen (Zeit). Offen wie in Teil 10b.
+
+### 3: JK2-Datapad-Foto mit einer anderen Karte
+artus_mine (Teil 11: bespin_platform), `give all`, Datapad Waffen, Original-Jedi-Outcast per Popen mit eigenem fs_basepath/fs_homepath (`SP/t13/jk2dp.py`). Erster Versuch zeigte die Anfangssequenz (mit Untertiteln), zweiter mit laengerer Wartezeit das Datapad: Lichtschwert und Bryar. Paare: `SP/t13/jk2_datapad_w1_artus_spiel_vorschau.png`, `SP/t13/jk2_datapad_w2_artus_spiel_vorschau.png` (oben Spiel, unten Vorschau). GameData danach gleich.
+
+### 5: JK2-Datapad Zeilenabstand und Textbreite (gefunden, allgemein fuer jk2sp.exe)
+OpenJK hat `mbRoundCalcs` abgeschaltet ("false /*!!strstr(fontName,"ergo")*/", tr_font.cpp:1051); jk2sp.exe rundet: HeightPixels Round(pointSize * scale), StrLenPixels und DrawString Round je Zeichen. Benannter Messgrund (keine Quelle der Original-exe): ocr_a (pointSize 18) bei 0.7 - Hoehe Round(12.6) = 13, Zeilenvorschub 19 (Spiel 38 Bildpunkte bei 1280 x 960); "Primary Fire - Slow, single shot with moderate accuracy and great damage." gerundet 491 statt 495,6 virtuelle Punkte, das sind mit dem Tintenrand genau die 977 Bildpunkte des Spielfotos. Gilt nur fuer Jedi Outcast SP (`Jk2Schrift::Sp`): Menues, Datapad, Untertitel; jk2mp.exe nicht gemessen, unveraendert.
+- Rot (Vorschau Teil 11, `k11dp1`/`k11dp3`): Zeilenabstand 35 bis 37, Lichtschwert "energy blade / of great", E-11 "despite its / small size".
+- Gruen (`t13dp1..3` gegen bespin_platform und artus_mine): Zeilenabstand wie im Spiel (36/38/39/37/39 gegen 36/38/40/36/40), Umbrueche an denselben Woertern, Zeilenbreiten auf 2 Bildpunkte gleich (Lichtschwert 860/981/962/586 gegen 860/981/960/587, Bryar 910/970/849/887 gegen 911/968/848/887). Die Zeilen stehen 1 bis 2 Bildpunkte tiefer als im Spiel (Zuschnitt des Fensterbilds auf 1280 x 960 oder foy; nicht weiter verfolgt).
+- ctest menue_vorschau: neue Zeilen (Hoehe 13 statt 12, Breite 18 statt 19, Vorschub 6), untertiteltest gruen.
+
+### 4: Schwertlicht-Reste
+- **Griff ohne Klinge (noBlade), gefunden, allgemein:** CG_AddSaberBladeGo zeichnet die Klinge nicht, ruft ohne noDlight aber CG_DoSaberLight (cg_players.cpp:6720-6727 OpenJK, MD ebenso) - je solcher Klinge ein gemischtes Licht. Die Vorschau liess die Klinge ganz aus, also kein Licht. Selbsttest `teil13` (neu): riot_baton (MD_Hilts.pk3, noBlade 1, kein noDlight; einziger Fall in den SP-Daten von Movie Duels). Rot: 0 Lichter; gruen: 1 Licht, Radius 20,4 bei Laenge 8 (2L + Zufall*8), Farbe 0,2 0,4 1,0.
+- **noDlight im gemischten Licht ab drei Klingen:** CG_DoSaberLight nimmt nur firstBlade..lastBlade (noDlight/noDlight2; mit noDlight2 ist lastBlade bladeStyle2Start selbst). Portiert; in den SP-Daten von Movie Duels gibt es kein Schwert mit drei Klingen und noDlight - nicht rot gesehen.
+- **Getarnte Schwerter (PW_CLOAKED):** die Vorschau kennt keine Tarnung (SET_CLOAK nur in der MP-Liste) - nicht anwendbar.
+- **Figur 0,82 bei 1,2/1,5:** nicht geloest. Die Lichtformel fuer Modelle (R_SetupEntityLighting: DLIGHT_AT_RADIUS * r^2 / d^2, efxdraw.cpp addDynamicLights) ist die der Quelle; der Rest braucht Messreihen im Spiel.
+
+### 6, 7, 8
+Nicht angegangen (Zeit, Punkt 1 ging vor): Spielbild des Karten-Editors mit misc_model_static/Skyportal/Wetter, Patch-LOD (R_SubdividePatchToGrid, RB_SurfaceGrid mit r_lodCurveError - die Vorschau baut die Netze fest, das Spiel waehlt Zeilen je Bild nach Abstand), Echtzeit-Licht hoth/kamino.
+
+### Tests
+ctest karte_marken 74/0, menue_vorschau gruen, untertitel gruen; Selbsttest teil13 1 OK (rot 1 FEHLER), Datapad-Vergleich per Foto (menueeditor mit BHED_MENUE_VERGLEICH_*). ctest einmal am Ende: 196 von 196. Sauberer Bau aller Ziele: 0 Warnungen. Lints: lint_sources, lint_fassung, lint_i18n ok; lint_settings 4, lint_portability 117, lint_d3dbesitz 15 wie vorher. Handbuch mit gen_handbuch.py erzeugt (es/cs: 0 Texte englisch).
+
+### Nur per Foto gegen das Spiel
+JK2-Datapad: `SP/t13/dp_w3_vergleich.png`, `SP/t13/dp_n_vergleich.png`, die Paare oben. Decals: nur gegen bhed_q3map2 (Byte fuer Byte), nicht im Spiel.
+
+### Changelog
+Vier Zeilen je Sprache, angehaengt an die Abschnitte English, Deutsch, 中文, 日本語, Español, Čeština unten (Karten-Editor Decal-Welt, nodraw-Patches/q3map_terrain, Schrift von jk2sp.exe, Licht eines Griffs ohne Klinge).
+
+### Offen aus Teil 13
+- Index-Karten, globaler Nebel (`_fog`) in der Decal-Welt; -np und noDlight ab drei Klingen nicht rot gesehen (keine Daten mit Wirkung).
+- Punkte 2, 6, 7, 8; Figur im Schwertlicht 0,82.
+- jk2mp.exe: Rundung der Schrift nicht gemessen; Original-JKA (jasp.exe) rundet laut Quelle vermutlich "ergo"-Schriften - nicht geprueft, die Vorschau rechnet fuer JKA/MD wie OpenJK.
+
 ## Offen
 Aus dem JK2-Vergleich, nicht behoben:
-- Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
+- (erledigt in Teil 13, Rundung von jk2sp.exe) Datapad: Der Text bricht eine Spur frueher um als im Spiel ("... energy blade / of great" statt "... energy blade of / great"). `CG_DisplayBoxedText` und `RE_Font_StrLenPixels` aus OpenJK sind 1:1 uebernommen und zeigen das Spiel nicht; die Original-exe rechnet demnach anders. Nicht geraten.
 - Datapad Force- und Inventar-Seite: Die Vorschau hat im JK2-Format keine Beispiele fuer das Inventar (zeigt EMPTY INVENTORY), die Kraefte haben andere Beispielwerte. Die Eintraege selbst sind darum nicht Stueck fuer Stueck verglichen.
 - Datapad: Die rechte Anzeige (Munition und Kraft) sieht in der Vorschau anders aus als im Spiel.
 - jk2mp Listen: Die Zeilen stehen im Spiel rund 1,7 virtuelle Punkte hoeher (gemessen; Teil 1 schaetzte 2,7). Ursache nicht gefunden, darum nicht geschoben.
@@ -1055,6 +1107,10 @@ Weiter offen:
 - Map editor: opening a map is about 45 % faster (duel_jeditemple.map 3.0 s instead of 5.5 s): texture sizes and the real-time light shaders are prepared in parallel.
 - Preview: on maps with a sky portal the map index buffer is no longer rebuilt twice per frame; playing the md_am_sith scene needs 3.5 ms instead of 5.8 ms CPU per frame. Same picture.
 - Fixed: the map editor crashed with "Built map as in the game" after a scene with lightsabers had played in the preview; the glow of the editor map no longer picks up effect particles of the mission.
+- Map editor: the faces for effect decals follow q3map2 in every case now: fog brushes cut the faces, q3map_cloneShader and q3map_backShader add their copies, _decal entities are projected onto the world, and the BSP switches -np, -maxarea, -patchmeta and -nofog of the Build entry count (compared face by face with bhed_q3map2).
+- Map editor: nodraw patches count for the decal world like in the .bsp, and q3map_terrain shaders behave as in q3map2 (whole faces, 179 degree smoothing).
+- Menu editor and preview: text in Jedi Outcast single player is measured like jk2sp.exe (rounded per letter and line); the weapon descriptions of the datapad break at the same words as in the game.
+- Preview: a saber hilt without blade (noBlade, such as riot_baton) lights its surroundings as in the game; with three or more blades noDlight limits the blended light.
 
 ## Deutsch
 - Menü-Editor: neuer Startbildschirm im Stil des Mission-Tabs, die Formatwahl ist erklärt.
@@ -1142,6 +1198,10 @@ Weiter offen:
 - Karten-Editor: eine Karte öffnet rund 45 % schneller (duel_jeditemple.map 3,0 statt 5,5 s): Texturgrößen und die Shader des Echtzeit-Lichts werden parallel vorbereitet.
 - Vorschau: auf Karten mit Himmelsportal wird der Indexpuffer der Karte nicht mehr zweimal je Bild neu gebaut; die Szene auf md_am_sith braucht beim Abspielen 3,5 statt 5,8 ms Prozessorzeit je Bild. Gleiches Bild.
 - Behoben: Der Karten-Editor stürzte mit „Gebaute Karte wie im Spiel“ ab, wenn vorher in der Vorschau eine Szene mit Lichtschwertern lief; das Glühen der Editor-Karte nimmt keine Effektteilchen der Mission mehr mit.
+- Karten-Editor: Die Flächen für die Decals der Effekte folgen jetzt in jedem Fall q3map2: Nebel-Brushes zerschneiden die Flächen, q3map_cloneShader und q3map_backShader legen ihre Kopien an, _decal-Entities werden auf die Welt projiziert, und die BSP-Schalter -np, -maxarea, -patchmeta und -nofog des Build-Eintrags zählen (Fläche für Fläche mit bhed_q3map2 verglichen).
+- Karten-Editor: nodraw-Patches zählen für die Decal-Welt wie in der .bsp, und Shader mit q3map_terrain verhalten sich wie in q3map2 (ganze Flächen, Glättung 179 Grad).
+- Menü-Editor und Vorschau: Text im Einzelspieler von Jedi Outcast wird wie in jk2sp.exe gemessen (je Buchstabe und Zeile gerundet); die Waffenbeschreibungen im Datapad brechen an denselben Wörtern um wie im Spiel.
+- Vorschau: Ein Schwertgriff ohne Klinge (noBlade, etwa riot_baton) leuchtet wie im Spiel; ab drei Klingen begrenzt noDlight das gemischte Licht.
 
 ## 中文
 - 菜单编辑器:新的起始界面,风格与任务标签页一致,并说明了格式选择。
@@ -1229,6 +1289,10 @@ Weiter offen:
 - 地图编辑器：打开地图快约 45%（duel_jeditemple.map 3.0 秒而不是 5.5 秒）：纹理尺寸和实时光照着色器并行准备。
 - 预览：在带天空传送门的地图上，地图索引缓冲区不再每帧重建两次；播放 md_am_sith 场景每帧只需 3.5 毫秒而不是 5.8 毫秒 CPU 时间。画面相同。
 - 修复：在预览中播放过带光剑的场景后，地图编辑器使用“已构建的地图如游戏中显示”时会崩溃；编辑器地图的辉光不再带入任务中的特效粒子。
+- 地图编辑器:特效贴花所用的表面现在在所有情况下都与 q3map2 一致:雾画刷会切分表面,q3map_cloneShader 和 q3map_backShader 会添加副本,_decal 实体会投射到世界上,Build 条目中的 BSP 开关 -np、-maxarea、-patchmeta 和 -nofog 也会生效(已与 bhed_q3map2 逐面对照)。
+- 地图编辑器:nodraw 曲面片在贴花世界中与 .bsp 中一样计入,带 q3map_terrain 的着色器与 q3map2 中行为相同(整个面,179 度平滑)。
+- 菜单编辑器和预览:Jedi Outcast 单人模式中的文字按 jk2sp.exe 的方式测量(每个字母和每行取整);数据板中的武器说明在与游戏中相同的单词处换行。
+- 预览:没有剑刃的光剑剑柄(noBlade,例如 riot_baton)会像游戏中一样照亮周围;三把及以上剑刃时,noDlight 会限制混合光。
 
 ## 日本語
 - メニューエディター: ミッションタブと同じスタイルの新しいスタート画面。形式の選択に説明を付けました。
@@ -1316,6 +1380,10 @@ Weiter offen:
 - マップエディター：マップを開く時間が約 45% 短縮（duel_jeditemple.map は 5.5 秒ではなく 3.0 秒）。テクスチャサイズとリアルタイムライトのシェーダーを並列で準備します。
 - プレビュー：スカイポータルのあるマップで、マップのインデックスバッファを 1 フレームに 2 回作り直さなくなりました。md_am_sith のシーン再生は 1 フレームあたり CPU 5.8 ms ではなく 3.5 ms です。画像は同じです。
 - 修正：プレビューでライトセーバーのあるシーンを再生した後、「ビルドしたマップをゲームと同じ表示に」でマップエディターがクラッシュしていました。エディターのマップのグローにミッションのエフェクト粒子が混ざらなくなりました。
+- マップエディター:エフェクトのデカールに使う面が、あらゆる場合で q3map2 と同じになりました。フォグブラシは面を切り分け、q3map_cloneShader と q3map_backShader はコピーを作り、_decal エンティティはワールドに投影され、Build 項目の BSP スイッチ -np、-maxarea、-patchmeta、-nofog も反映されます(bhed_q3map2 と面ごとに比較済み)。
+- マップエディター:nodraw パッチは .bsp と同じようにデカールのワールドに含まれ、q3map_terrain のシェーダーは q3map2 と同じように動作します(面全体、179 度のスムージング)。
+- メニューエディターとプレビュー:Jedi Outcast シングルプレイヤーの文字を jk2sp.exe と同じように測ります(文字ごと・行ごとに丸め)。データパッドの武器説明はゲームと同じ単語で折り返されます。
+- プレビュー:刃のないセーバーの柄(noBlade、たとえば riot_baton)がゲームと同じように周囲を照らします。刃が 3 本以上のときは noDlight が混合ライトを制限します。
 
 ## Español
 - Editor de menús: nueva pantalla de inicio al estilo de la pestaña Misión, con la elección de formato explicada.
@@ -1403,6 +1471,10 @@ Weiter offen:
 - Editor de mapas: abrir un mapa es un 45 % más rápido (duel_jeditemple.map 3,0 s en lugar de 5,5 s): los tamaños de textura y los shaders de la luz en tiempo real se preparan en paralelo.
 - Vista previa: en mapas con portal de cielo el búfer de índices del mapa ya no se reconstruye dos veces por fotograma; reproducir la escena de md_am_sith necesita 3,5 ms de CPU por fotograma en lugar de 5,8 ms. La imagen es la misma.
 - Corregido: el editor de mapas se cerraba con "Mapa compilado como en el juego" después de reproducir en la vista previa una escena con sables de luz; el resplandor del mapa del editor ya no recoge partículas de efectos de la misión.
+- Editor de mapas: las caras para las calcomanías de los efectos siguen ahora a q3map2 en todos los casos: los brushes de niebla cortan las caras, q3map_cloneShader y q3map_backShader añaden sus copias, las entidades _decal se proyectan sobre el mundo y cuentan los interruptores BSP -np, -maxarea, -patchmeta y -nofog de la entrada de Build (comparado cara por cara con bhed_q3map2).
+- Editor de mapas: los parches nodraw cuentan para el mundo de calcomanías como en el .bsp, y los shaders con q3map_terrain se comportan como en q3map2 (caras enteras, suavizado de 179 grados).
+- Editor de menús y vista previa: el texto del modo de un jugador de Jedi Outcast se mide como en jk2sp.exe (redondeado por letra y por línea); las descripciones de armas del datapad cortan la línea en las mismas palabras que en el juego.
+- Vista previa: una empuñadura de sable sin hoja (noBlade, como riot_baton) ilumina su entorno como en el juego; con tres hojas o más, noDlight limita la luz mezclada.
 
 ## Čeština
 - Editor menu: nová úvodní obrazovka ve stylu karty Mise, volba formátu je vysvětlena.
@@ -1490,3 +1562,7 @@ Weiter offen:
 - Editor map: otevření mapy je asi o 45 % rychlejší (duel_jeditemple.map 3,0 s místo 5,5 s): velikosti textur a shadery světla v reálném čase se připravují paralelně.
 - Náhled: na mapách s portálem oblohy se indexový buffer mapy už nepřestavuje dvakrát za snímek; přehrávání scény na md_am_sith potřebuje 3,5 ms procesoru na snímek místo 5,8 ms. Stejný obraz.
 - Opraveno: editor map spadl s volbou „Sestavená mapa jako ve hře“, když předtím v náhledu běžela scéna se světelnými meči; záře mapy v editoru už nebere částice efektů z mise.
+- Editor map: plochy pro obtisky efektů nyní ve všech případech odpovídají q3map2: brushe mlhy plochy dělí, q3map_cloneShader a q3map_backShader přidávají své kopie, entity _decal se promítají na svět a platí přepínače BSP -np, -maxarea, -patchmeta a -nofog položky Build (porovnáno plochu po ploše s bhed_q3map2).
+- Editor map: patche nodraw se do světa obtisků počítají jako v .bsp a shadery s q3map_terrain se chovají jako v q3map2 (celé plochy, vyhlazení 179 stupňů).
+- Editor nabídek a náhled: text v režimu pro jednoho hráče Jedi Outcast se měří jako v jk2sp.exe (zaokrouhleně po písmenech i řádcích); popisy zbraní v datapadu se zalamují u stejných slov jako ve hře.
+- Náhled: jílec meče bez čepele (noBlade, například riot_baton) osvětluje okolí jako ve hře; od tří čepelí omezuje noDlight smíšené světlo.
