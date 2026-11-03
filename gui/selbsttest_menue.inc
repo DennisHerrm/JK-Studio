@@ -1255,14 +1255,7 @@ std::vector<Schritt> schritteTourMenue() {
     add(klick("##add_q"));
     add(tippe("exec"));
     add(pause(0.3));
-    // Das Rad: Bei wenig Hoehe liegt die Liste unter dem Rand der Spalte
-    add(Schritt{"Tour Menue: Spalte bis zur Liste rollen", [](int b) {
-                    if (b > 0) { return b >= 3; }
-                    for (ImGuiWindow* w : GImGui->Windows) {
-                        if (w->WasActive && std::string(w->Name).find("/##inhalt_") != std::string::npos && std::string(w->Name).find("##add_liste") == std::string::npos) { ImGui::SetScrollY(w, w->ScrollMax.y); }
-                    }
-                    return false;
-                }});
+    add(pruefe("Tour Menue: Die Liste von Add step ist ohne Rollen zu sehen", [] { return finde("##neu_alleexec", "", 0, false) != nullptr; }));
     add(klick("##neu_alleexec"));
     erledigt(7);
     add(klick("##a0"));
@@ -2987,7 +2980,13 @@ std::vector<Schritt> schritte() {
     auto st = [] { return me::stand(); };
     auto orig = std::make_shared<std::string>(kSp);
     // rc608 Teil 3b: Handbuchbilder in einem grossen Fenster
-    if (std::getenv("BHED_MENUE_BILDER") != nullptr) { add(tu("Handbuchbilder: Fenster 2560 x 1500", [] { (void)platform::hauptfensterGroesse(2560, 1500); })); }
+    // Endrunde rc608: Im Bildlauf zaehlen nur Fehlschlaege, nach denen im selben Teil ein Bild entsteht (meldeFehler, foto)
+    if (std::getenv("BHED_MENUE_BILDER") != nullptr) {
+        add(tu("Handbuchbilder: Fenster 2560 x 1500", [] {
+            g_bildlauf = true;
+            (void)platform::hauptfensterGroesse(2560, 1500);
+        }));
+    }
     add(pause(1.0));   // erst das Fenster in Ruhe (ja: der Knopf lag beim ersten Bild noch halb draussen)
     add(klick(tr(Str::ViewMenuEditor), "###main"));
     add(pause(0.2));
@@ -3453,28 +3452,49 @@ std::vector<Schritt> schritte() {
         if (g_app->settings.gamePaths.empty()) { return true; }
         return !me::exportierePk3((std::filesystem::path(g_app->settings.gamePaths.front()) / "zz_menue_probe.pk3").string());
     }));
+    add(bildlaufTeil("M2"));
     for (auto& x : schritteM2()) { add(std::move(x)); }
+    add(bildlaufTeil("M3"));
     for (auto& x : schritteM3()) { add(std::move(x)); }
+    add(bildlaufTeil("M4"));
     for (auto& x : schritteM4()) { add(std::move(x)); }
+    add(bildlaufTeil("M5"));
     for (auto& x : schritteM5()) { add(std::move(x)); }
+    add(bildlaufTeil("M5b"));
     for (auto& x : schritteM5b()) { add(std::move(x)); }
+    add(bildlaufTeil("M6"));
     for (auto& x : schritteM6()) { add(std::move(x)); }
+    add(bildlaufTeil("M7"));
     for (auto& x : schritteM7()) { add(std::move(x)); }
     // rc608 Teil 3b: Handbuchbilder: nur die Teile mit Bildern
     if (std::getenv("BHED_MENUE_BILDER") != nullptr) {
+        add(bildlaufTeil("Schreiben"));
         for (auto& x : schritteSchreiben()) { add(std::move(x)); }
+        add(bildlaufTeil("Hierarchie"));
         for (auto& x : schritteHierarchie()) { add(std::move(x)); }
+        add(bildlaufTeil("Ablegen"));
         for (auto& x : schritteAblegen()) { add(std::move(x)); }
+        add(bildlaufTeil("FelderJeTyp"));
         for (auto& x : schritteFelderJeTyp()) { add(std::move(x)); }
+        add(bildlaufTeil("EreignisseBloecke"));
         for (auto& x : schritteEreignisseBloecke()) { add(std::move(x)); }
+        add(bildlaufTeil("Datei"));
         for (auto& x : schritteDatei()) { add(std::move(x)); }
+        add(bildlaufTeil("LeeresMenue"));
         for (auto& x : schritteLeeresMenue()) { add(std::move(x)); }
+        add(bildlaufTeil("Leiste"));
         for (auto& x : schritteLeiste()) { add(std::move(x)); }
+        add(bildlaufTeil("Rahmen"));
         for (auto& x : schritteRahmen()) { add(std::move(x)); }
+        add(bildlaufTeil("Links"));
         for (auto& x : schritteLinks()) { add(std::move(x)); }
+        add(bildlaufTeil("Eng"));
         for (auto& x : schritteEng()) { add(std::move(x)); }   // vor den Unsinn-Proben: Deren Meldung stuende sonst im Bild
+        add(bildlaufTeil("Kontext"));
         for (auto& x : schritteKontext()) { add(std::move(x)); }
+        add(bildlaufTeil("Seiten"));
         for (auto& x : schritteSeiten()) { add(std::move(x)); }
+        add(bildlaufTeil("FelderNeu"));
         for (auto& x : schritteFelderNeu()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;

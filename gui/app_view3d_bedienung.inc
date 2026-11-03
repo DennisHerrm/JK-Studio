@@ -2659,7 +2659,9 @@ void drawMapView() {
         {
             // Die Brush-Modelle, die das Spiel an ihrer Entity zeichnet, in ihrer Stellung (brushModelleImSpiel, dieselbe
             // Regel wie das Spielbild des Karten-Editors). Modelle mit Figur (Skript) kommen gleich mit ihrer Bewegung.
-            areaPortaleJetzt(useCam.pos);
+            float useVorn[3];
+            winkelVektoren(useCam.angles, useVorn, nullptr, nullptr);   // AngleVectors: viewParms.ori.axis[0]
+            areaPortaleJetzt(useCam.pos, useVorn);
             std::vector<bool> anderswo(g_app->geo.models.size(), false);
             brushStand.clear();
             for (const Actor& a : g_app->scene.actors) {
@@ -3307,7 +3309,9 @@ void drawMapView() {
                                       : 4.0F;
                 gpu::baueViewProj(bildCam, bildW, bildH, nah, kartenFern() + (nah > 4.0F ? nah : 0.0F), vp);
                 // CM_SnapPVS je Sicht: die Gebietsmaske des eigenen Orts (CG_DrawSkyBoxPortal, cg_view.cpp).
-                areaSichtSetzen(bildCam.pos);
+                float bildVorn[3];
+                winkelVektoren(bildCam.angles, bildVorn, nullptr, nullptr);   // AngleVectors: viewParms.ori.axis[0]
+                areaSichtSetzen(bildCam.pos, bildVorn);
                 {
                     gpu::HimmelVorgabe hv;
                     for (int k = 0; k < 3; ++k) {

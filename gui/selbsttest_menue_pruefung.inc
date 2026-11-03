@@ -1438,8 +1438,6 @@ std::vector<Schritt> schritteTourAlle() {
     for (const auto& [code, zoom] : runden) {
         const i18n::LanguageInfo* l = i18n::findLanguage(code);
         if (l == nullptr) { continue; }
-        // Die Runde bei 200 % nur auf Wunsch: Unter 4K kommt der Test bis Schritt 7, siehe Notizen (der Schirm hier hat 2564 x 1570)
-        if ((std::getenv("BHED_TOUR_200") != nullptr) != (zoom > 1.5F)) { continue; }
         const i18n::Language lang = l->language;
         const float z = zoom;
         i18n::setLanguage(lang);

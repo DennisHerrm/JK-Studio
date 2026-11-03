@@ -3,6 +3,7 @@
 
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <initializer_list>
 #include <sstream>

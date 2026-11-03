@@ -2073,12 +2073,17 @@ void zeichneEreignisse(Dokument& d) {
             l.addq.clear();
         }
         ImGui::PopStyleColor(3);
-        // rc608 Teil 3b: Bei wenig Hoehe lag der Knopf oder die aufgeklappte Liste unter dem Rand der Spalte
-        if (!ImGui::IsItemVisible() && tourSicht().aktiv && tourSicht().id == "tut-menue-eigen" && tourSicht().schritt == 6 && schluessel == "action") { ImGui::SetScrollHereY(0.9F); }
+        const ImVec2 knopfOben = ImGui::GetItemRectMin();
+        // rc608 Teil 3b: Bei wenig Hoehe lag der Knopf oder die aufgeklappte Liste unter dem Rand der Spalte. Nur solange die
+        // Liste zu ist: Offen zeigt die Spalte Knopf und Liste selbst (unten)
+        if (!l.add && !ImGui::IsItemVisible() && tourSicht().aktiv && tourSicht().id == "tut-menue-eigen" && tourSicht().schritt == 6 && schluessel == "action") { ImGui::SetScrollHereY(0.9F); }
         const bool listeNeu = l.add && l.addNeu;
         const std::string suchVorher = l.addq;
         if (l.add) { zeichneSchrittWahl(d, b, it, m, geaendert); }
-        if (listeNeu || suchVorher != l.addq) { ImGui::SetScrollHereY(1.0F); }
+        // Knopf, Suche und Liste ganz zeigen; passt das nicht in die Spalte, oben anfangen: die ersten Eintraege zaehlen. Endrunde 1:
+        // Vorher rollte die Spalte ans Ende der Liste - bei 200 % auf 2564 x 1570 lagen der Knopf ueber dem Rand und die Treffer
+        // oben in der Liste unter dem Fenster des Tutorials, das dem verdeckten Knopf auswich.
+        if (l.add && (listeNeu || suchVorher != l.addq)) { ImGui::ScrollToRect(ImGui::GetCurrentWindow(), ImRect(knopfOben, ImGui::GetItemRectMax())); }
     }
     if (geaendert) { ereignisSchreiben(d, i, schluessel.c_str(), b); }
     lsZeilenEnde();

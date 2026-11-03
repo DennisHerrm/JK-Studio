@@ -1111,6 +1111,41 @@ BspMesh::PatchGitter unterteilePatch(const BspGeometry& geo, const BspSurface& s
 
 }  // namespace
 
+std::vector<FlaechenKasten> flaechenKaesten(const BspGeometry& geo) {
+    std::vector<FlaechenKasten> aus(geo.surfaces.size());
+    std::vector<BspVertex> gitter;
+    for (std::size_t i = 0; i < geo.surfaces.size(); ++i) {
+        const BspSurface& s = geo.surfaces[i];
+        std::size_t von = 0;
+        std::size_t bis = 0;
+        const std::vector<BspVertex>* ecken = &geo.verts;
+        if (s.type == BspSurface::Type::TriangleSoup) {
+            von = static_cast<std::size_t>(std::max(s.firstVert, 0));
+            bis = std::min(von + static_cast<std::size_t>(std::max(s.numVerts, 0)), geo.verts.size());
+        } else if (s.type == BspSurface::Type::Patch && s.patchWidth > 0 && s.patchHeight > 0) {
+            gitter.clear();
+            const BspMesh::PatchGitter g = unterteilePatch(geo, s, gitter);
+            ecken = &gitter;
+            von = g.ersteEcke;
+            bis = std::min(von + static_cast<std::size_t>(g.breite) * static_cast<std::size_t>(g.hoehe), gitter.size());
+        }
+        if (bis <= von) { continue; }
+        FlaechenKasten& k = aus[i];
+        k.hat = true;
+        for (int a = 0; a < 3; ++a) {
+            k.mins[a] = (*ecken)[von].xyz[a];
+            k.maxs[a] = (*ecken)[von].xyz[a];
+        }
+        for (std::size_t v = von + 1; v < bis; ++v) {
+            for (int a = 0; a < 3; ++a) {
+                k.mins[a] = std::min(k.mins[a], (*ecken)[v].xyz[a]);
+                k.maxs[a] = std::max(k.maxs[a], (*ecken)[v].xyz[a]);
+            }
+        }
+    }
+    return aus;
+}
+
 // Gemeinsamer Kern von buildMesh und buildModelMesh.
 //
 // first/count schneiden aus geo.surfaces heraus, was gezeichnet werden

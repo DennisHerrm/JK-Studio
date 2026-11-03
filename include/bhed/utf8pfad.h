@@ -6,6 +6,7 @@
 #ifndef BHED_UTF8PFAD_H
 #define BHED_UTF8PFAD_H
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <string_view>

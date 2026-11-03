@@ -14,6 +14,7 @@
 #include "bhed/areaportal.h"
 #include "bhed/bspgeo.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 

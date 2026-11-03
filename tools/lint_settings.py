@@ -95,10 +95,39 @@ def main():
     # stillgelegte Pruefung.
     ausgenommen = set()
 
-    fehlt_ganz = sorted(felder - schreibt - liest - ausgenommen)
+    # Ein Feld darf unter anderem Namen in der Datei stehen (Feld
+    # `schwierigkeit`, Schluessel "difficulty" wie g_spskill). Massgeblich
+    # ist darum, dass der Schreiber das Feld liest (`s.feld`) und der Leser
+    # es setzt (`out.feld`) - nicht, dass Feld und Schluessel gleich heissen.
+    # Bis rc608 verglich dieser Teil nur die Namen und meldete vier
+    # umbenannte Schluessel als "nie gespeichert".
+    def rumpf_von(kopf):
+        a = s.find(kopf)
+        if a < 0:
+            return ""
+        e = s.find("\n}\n", a)
+        return s[a:e if e > 0 else len(s)]
+    schreiber = rumpf_von("std::string writeSettings(")
+    leser = rumpf_von("bool readSettings(")
+    if not schreiber or not leser:
+        print("Einstellungen: writeSettings/readSettings nicht gefunden - "
+              "hat sich die Schreibweise geaendert?")
+        return 1
+    im_schreiber = set(re.findall(r'\bs\.([A-Za-z_][A-Za-z0-9_]*)', schreiber))
+    im_leser = set(re.findall(r'\bout\.([A-Za-z_][A-Za-z0-9_]*)', leser))
+    pruefen = felder - ausgenommen
+    fehlt_ganz = sorted(pruefen - im_schreiber - im_leser)
     for k in fehlt_ganz:
         print("  \"%s\" steht in settings.h, aber weder im Schreiben noch "
               "im Lesen (wird nie gespeichert)" % k)
+    fehlt_schreiben = sorted((pruefen & im_leser) - im_schreiber)
+    for k in fehlt_schreiben:
+        print("  Feld \"%s\" wird gelesen, aber nie geschrieben "
+              "(wird nie gespeichert)" % k)
+    fehlt_lesen = sorted((pruefen & im_schreiber) - im_leser)
+    for k in fehlt_lesen:
+        print("  Feld \"%s\" wird geschrieben, aber nie gelesen "
+              "(geht bei jedem Start verloren)" % k)
 
     for k in nur_geschrieben:
         print("  \"%s\" wird geschrieben, aber nie gelesen "
@@ -107,7 +136,8 @@ def main():
         print("  \"%s\" wird gelesen, aber nie geschrieben "
               "(wird nie gespeichert)" % k)
 
-    fehler = len(nur_geschrieben) + len(nur_gelesen) + len(fehlt_ganz)
+    fehler = (len(nur_geschrieben) + len(nur_gelesen) + len(fehlt_ganz)
+              + len(fehlt_schreiben) + len(fehlt_lesen))
     if fehler:
         print("Einstellungen: %d Beanstandung(en)" % fehler)
         return 1

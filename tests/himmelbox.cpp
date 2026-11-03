@@ -4,6 +4,7 @@
 #include "bhed/himmelbox.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <vector>
 
@@ -247,6 +248,53 @@ void frustum() {
     erwarte("R_SetupFrustum: knapp innerhalb zaehlt", r.size() == 1U);
 }
 
+// Endrunde rc608: die ferne Ebene fuer die Welt (fernStand, flaechenAusserSicht): Blatt 0 reicht von x 900 bis 1100, Blatt 1
+// (x < 0) bleibt am Auge. Ein Dreiecksnetz im nahen Blatt 1, dessen Kasten ganz bei x -6000 liegt, faellt allein weg
+// (R_CullSurface: R_CullTriSurf mit R_CullLocalBox); die ebene Flaeche daneben nur mit ihrem Blatt.
+void fernebeneWelt() {
+    BspGeometry g = grundWelt();
+    BspMesh m;
+    vorDemAuge(g, m, 0, -99.0F, 99.0F, -99.0F, 99.0F);
+    vorDemAuge(g, m, 1, -99.0F, 99.0F, -99.0F, 99.0F, -500.0F);
+    vorDemAuge(g, m, 1, -99.0F, 99.0F, -99.0F, 99.0F, -6000.0F);
+    g.surfaces[2].type = BspSurface::Type::TriangleSoup;
+    g.leafs[0].mins[0] = 900.0F;
+    g.leafs[0].maxs[0] = 1100.0F;
+    g.leafs[1].mins[0] = -6100.0F;
+    g.leafs[1].maxs[0] = 0.0F;
+    for (std::size_t b = 0; b < 2; ++b) {
+        for (int k = 1; k < 3; ++k) {
+            g.leafs[b].mins[k] = -200.0F;
+            g.leafs[b].maxs[k] = 200.0F;
+        }
+    }
+    BspGeometry::SubModel welt;
+    for (int k = 0; k < 3; ++k) {
+        welt.mins[k] = -200.0F;
+        welt.maxs[k] = 200.0F;
+    }
+    welt.mins[0] = -6100.0F;
+    welt.maxs[0] = 1100.0F;
+    g.models.push_back(welt);
+    const std::vector<FlaechenKasten> k = flaechenKaesten(g);
+    erwarte("R_CullSurface: Kasten nur fuer Dreiecksnetz und Patch", !k[0].hat && !k[1].hat && k[2].hat && nah(k[2].mins[0], -6000.0F));
+    const float auge[3] = {1.0F, 0.0F, 0.0F};
+    const float vornX[3] = {1.0F, 0.0F, 0.0F};
+    const float vornMinusX[3] = {-1.0F, 0.0F, 0.0F};
+    AreaPortale p;
+    FernStand f = fernStand(g, k, fernebeneFuer(auge, vornX, 12000.0F));
+    erwarte("R_SetupFrustum: die Welt liegt ganz vor der fernen Ebene, nichts faellt weg", f.blaetter.empty() && f.flaechen.empty());
+    f = fernStand(g, k, fernebeneFuer(auge, vornX, 500.0F));
+    std::vector<char> v = flaechenAusserSicht(g, p, -1, -1, &f);
+    erwarte("R_RecursiveWorldNode: Blatt jenseits von distanceCull * 1,02 faellt weg, das Blatt am Auge nicht", v.size() == 3U && v[0] == 1 && v[1] == 0 && v[2] == 0);
+    f = fernStand(g, k, fernebeneFuer(auge, vornX, 900.0F / 1.02F + 1.0F));
+    v = flaechenAusserSicht(g, p, -1, -1, &f);
+    erwarte("R_SetupFrustum: knapp innerhalb bleibt das Blatt", v.size() == 3U && v[0] == 0);
+    f = fernStand(g, k, fernebeneFuer(auge, vornMinusX, 3000.0F));
+    v = flaechenAusserSicht(g, p, -1, -1, &f);
+    erwarte("R_CullTriSurf: das Dreiecksnetz faellt allein weg, die ebene Flaeche im selben Blatt bleibt", v.size() == 3U && v[1] == 0 && v[2] == 1);
+}
+
 void unten() {
     BspGeometry g = grundWelt();
     BspMesh m;
@@ -288,6 +336,7 @@ int main() {
     gebiete();
     keulen();
     frustum();
+    fernebeneWelt();
     unten();
     ueberlauf();
     if (g_fehler != 0) {

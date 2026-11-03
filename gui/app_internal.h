@@ -663,6 +663,10 @@ struct App {
     std::map<std::pair<int, int>, std::vector<char>> areaMasken;   // je Gebiet und Cluster des Auges (R_MarkLeaves)
     int areaAuge = -2;
     int areaCluster = -2;
+    // Endrunde rc608: die Kaesten der Flaechen (R_CullSurface) und was zuletzt hinter der fernen Ebene lag (areaSichtSetzen)
+    std::vector<FlaechenKasten> fernKaesten;
+    std::string fernKaestenKarte;
+    FernStand fernZuletzt;
     // Die Schattenart wie cg_shadows: 0 aus, 1 der runde Fleck (markShadow,
     // ab Werk), 2 Schattenvolumen im Stencil-Puffer, 3 die Figur schwarz auf
     // den Boden gedrueckt - siehe gpu::zeichneLichtUndSchatten und
@@ -3332,9 +3336,9 @@ inline constexpr int kBildGrenze = 4096;
 // Fuer die Schluessel in texCache: dasselbe Bild in einer anderen Stufe ist ein anderes.
 [[nodiscard]] std::string bildStufeText();
 void regelwerkAnwendenJetzt();
-void areaPortaleJetzt(const float auge[3]);
+void areaPortaleJetzt(const float auge[3], const float* vorn = nullptr);
 // CM_SnapPVS(ort): die Gebietsmaske dieser Sicht in den Indexpuffer der Karte (nur wenn sie sich aendert).
-void areaSichtSetzen(const float ort[3]);
+void areaSichtSetzen(const float ort[3], const float* vorn = nullptr);
 // tr.distanceCull: R_LoadEntities, worldspawn "distanceCull", Vorgabe 12000.
 [[nodiscard]] float kartenDistanceCull();
 // rc608 Teil 11: fuer eine andere Karte (das Spielbild des Karten-Editors) - die Vorschau ruft sie mit g_app->geo

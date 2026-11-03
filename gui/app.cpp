@@ -3050,7 +3050,15 @@ void drawPrefs() {
         const ImGuiStyle& sty = ImGui::GetStyle();
         const float knopfZeile = sty.ItemSpacing.y * 4.0F + 1.0F + ImGui::GetFrameHeight();   // Abstaende, Dummy, Linie, Knoepfe
         const float rahmen = ImGui::GetFrameHeight() + sty.WindowPadding.y * 2.0F + sty.DisplaySafeAreaPadding.y * 2.0F;
-        const float hoechstens = ImGui::GetMainViewport()->WorkSize.y - rahmen - knopfZeile;
+        // Endrunde rc608: ImGui begrenzt ein Popup auf die Arbeitsflaeche des Monitors (CalcWindowAutoFitSize, Monitors[...].WorkSize),
+        // nicht des Hauptfensters. Ist das Fenster hoeher als der Monitor (3840 x 2160 bei 200 % auf 2560 x 1600), schnitt das die
+        // Knoepfe ab; darum hier dieselbe Grenze.
+        float flaeche = ImGui::GetMainViewport()->WorkSize.y;
+        const auto* vp = static_cast<const ImGuiViewportP*>(ImGui::GetMainViewport());
+        if (vp->PlatformMonitor >= 0 && vp->PlatformMonitor < GImGui->PlatformIO.Monitors.Size) {
+            flaeche = std::min(flaeche, GImGui->PlatformIO.Monitors[vp->PlatformMonitor].WorkSize.y);
+        }
+        const float hoechstens = flaeche - rahmen - knopfZeile;
         ImGui::SetNextWindowSizeConstraints(ImVec2{0.0F, 0.0F}, ImVec2{FLT_MAX, std::max(hoechstens, ImGui::GetFontSize() * 6.0F)});
     }
     ImGui::BeginChild("##prefsinhalt", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY);

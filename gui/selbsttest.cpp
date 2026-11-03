@@ -203,7 +203,18 @@ void meldeOk(const std::string& text) {
     diag::detail("Knopftest OK: " + text);
 }
 
+// Endrunde rc608: Im Bildlauf des Menue-Editors (BHED_MENUE_BILDER) stehen Fenster und Spalten anders, als die Pruefungen es
+// erwarten; ihre Fehlschlaege bedeuten dort nichts und zaehlen nicht. Zaehlt nur, wenn danach ein Bild entsteht: Dann zeigt das
+// Bild vielleicht nicht, was es soll (siehe foto). bildlaufTeil() beginnt einen neuen Teil.
+bool g_bildlauf = false;
+std::string g_bildlaufLetzter;   // erster nicht gewerteter Fehlschlag seit dem letzten Bild oder Teil
+
 void meldeFehler(const std::string& text) {
+    if (g_bildlauf) {
+        diag::detail("Knopftest Bildlauf, nicht gewertet: " + text);
+        if (g_bildlaufLetzter.empty()) { g_bildlaufLetzter = text; }
+        return;
+    }
     ++g_fehler;
     diag::detail("Knopftest FEHLER: " + text);
 }
@@ -3238,8 +3249,22 @@ Schritt foto(const std::string& name) {
     return {"Foto " + name, [=](int b) {
                 const char* ordner = std::getenv("BHED_FOTOS");
                 if (ordner == nullptr) { return true; }
-                if (b == 2) { render::fotoAnfordern(std::string(ordner) + "\\" + name + ".bmp"); }
+                if (b == 2) {
+                    render::fotoAnfordern(std::string(ordner) + "\\" + name + ".bmp");
+                    if (g_bildlauf && !g_bildlaufLetzter.empty()) {
+                        ++g_fehler;
+                        diag::detail("Knopftest FEHLER: Bild " + name + " nach einem Fehlschlag im selben Teil: " + g_bildlaufLetzter);
+                    }
+                    g_bildlaufLetzter.clear();
+                }
                 return b >= 5;
+            }};
+}
+
+Schritt bildlaufTeil(const std::string& name) {
+    return {"Bildlauf: Teil " + name, [](int) {
+                g_bildlaufLetzter.clear();
+                return true;
             }};
 }
 

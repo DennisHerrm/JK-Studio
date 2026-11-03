@@ -541,6 +541,15 @@ void patchLodTabellen(const BspMesh::PatchGitter& g, const float lodOrt[3], cons
 [[nodiscard]] std::uint32_t patchLodWahl(const BspMesh::PatchGitter& g, const float lodOrt[3], const float auge[3], const float vorn[3],
                                          float lodCurveError);
 [[nodiscard]] std::uint32_t patchLodVoll(const BspMesh::PatchGitter& g);
+// Endrunde rc608: der Kasten, mit dem R_CullSurface (tr_world.cpp:116-130 OpenJK) eine Flaeche gegen das Frustum
+// prueft - Dreiecksnetz srfTriangles_t::bounds (alle Ecken, R_LoadTriSurf), Patch srfGridMesh_t::meshBounds (das
+// Gitter aus R_SubdividePatchToGrid, R_CreateSurfaceGridMesh). Ebene Flaechen prueft es nicht so (hat = false).
+struct FlaechenKasten {
+    bool hat = false;
+    float mins[3]{};
+    float maxs[3]{};
+};
+[[nodiscard]] std::vector<FlaechenKasten> flaechenKaesten(const BspGeometry& geo);
 // Die Indizes des Gitters mit diesen Spalten und Zeilen (RB_SurfaceGrid), ab ersteEcke gezaehlt.
 void patchLodIndizes(const BspMesh::PatchGitter& g, const std::vector<int>& spalten, const std::vector<int>& zeilen, std::vector<std::uint32_t>& aus);
 

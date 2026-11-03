@@ -61,6 +61,8 @@ struct Szene {
     std::map<std::pair<int, int>, std::vector<char>> pvs;   // je Gebiet und Cluster des Auges
     int pvsGebiet = -3;
     int pvsCluster = -3;
+    std::vector<FlaechenKasten> fernKaesten;   // Endrunde rc608: R_CullSurface gegen die ferne Ebene (fernStand)
+    FernStand fernZuletzt;
     float distanceCull = 12000.0F;          // tr.distanceCull (worldspawn "distanceCull", R_LoadWorld)
     float hintergrund[3] = {0.0F, 0.0F, 0.0F};
     bool globalerNebel = false;
@@ -288,6 +290,8 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
     s.pvs.clear();
     s.pvsGebiet = -3;
     s.pvsCluster = -3;
+    s.fernKaesten.clear();
+    s.fernZuletzt = FernStand{};
     s.gueltig = !s.netz.batches.empty();
     std::size_t halmStufen = 0;
     for (const auto& v : s.grasStufen) { halmStufen += v.size(); }
@@ -390,16 +394,30 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < s.geo.leafs.size();
     const int cluster = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
     const int gebiet = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].area : -1;
-    if (cluster != s.pvsCluster || gebiet != s.pvsGebiet) {
+    // Endrunde rc608: dazu die ferne Ebene (R_SetupFrustum, distanceCull) wie die Vorschau (areaSichtSetzen)
+    if (s.fernKaesten.size() != s.geo.surfaces.size()) { s.fernKaesten = flaechenKaesten(s.geo); }
+    float blick[3];
+    winkelVektoren(cam.angles, blick, nullptr, nullptr);   // AngleVectors: viewParms.ori.axis[0]
+    FernStand fernJetzt = fernStand(s.geo, s.fernKaesten, fernebeneFuer(cam.pos, blick, s.distanceCull));
+    if (cluster != s.pvsCluster || gebiet != s.pvsGebiet || !(fernJetzt == s.fernZuletzt)) {
         s.pvsCluster = cluster;
         s.pvsGebiet = gebiet;
-        if (s.pvs.size() >= 64U) { s.pvs.clear(); }   // je Eintrag eine Zahl je Flaeche: nicht ohne Grenze wachsen
-        auto it = s.pvs.find({gebiet, cluster});
-        if (it == s.pvs.end()) { it = s.pvs.emplace(std::make_pair(gebiet, cluster), flaechenAusserSicht(s.geo, s.portale, gebiet, cluster)).first; }
-        gpu::setzeVerdeckteFlaechen(&s.geo, &it->second);
+        s.fernZuletzt = std::move(fernJetzt);
+        std::vector<char> mitFern;
+        const std::vector<char>* maske = nullptr;
+        if (!s.fernZuletzt.blaetter.empty()) {
+            mitFern = flaechenAusserSicht(s.geo, s.portale, gebiet, cluster, &s.fernZuletzt);
+            maske = &mitFern;
+        } else {
+            if (s.pvs.size() >= 64U) { s.pvs.clear(); }   // je Eintrag eine Zahl je Flaeche: nicht ohne Grenze wachsen
+            auto it = s.pvs.find({gebiet, cluster});
+            if (it == s.pvs.end()) { it = s.pvs.emplace(std::make_pair(gebiet, cluster), flaechenAusserSicht(s.geo, s.portale, gebiet, cluster)).first; }
+            maske = &it->second;
+        }
+        gpu::setzeVerdeckteFlaechen(&s.geo, maske);
         if (!portal) {
             g_stand.flaechenVerdeckt = 0;
-            for (const char v : it->second) { g_stand.flaechenVerdeckt += v != 0 ? 1U : 0U; }
+            for (const char v : *maske) { g_stand.flaechenVerdeckt += v != 0 ? 1U : 0U; }
         }
     }
     gpu::HimmelVorgabe hv;

@@ -47,7 +47,27 @@ struct AreaPaar {
 // PVS des Auges (R_ClusterPVS) oder sein Gebiet ist nicht mit dem des Auges verbunden (areamask). Das gilt auch fuer
 // den Himmel. Das Auge im Festen (Gebiet -1): kein Gebiet verdeckt (CM_WriteAreaBits); Cluster -1 oder eine Karte
 // ohne Sichttabelle: kein Cluster verdeckt (tr.viewCluster == -1, novis).
-[[nodiscard]] std::vector<char> flaechenAusserSicht(const BspGeometry& g, const AreaPortale& p, int auge, int cluster);
+// Endrunde rc608: die ferne Ebene des Frustums (R_SetupFrustum, tr_main.cpp:600-613 OpenJK): Normale -Blick, Abstand
+// DotProduct(Auge, Normale) - distanceCull * 1.02 (worldspawn "distanceCull", Vorgabe 12000, R_LoadEntities). Was ganz
+// dahinter liegt (BoxOnPlaneSide == 2), gibt R_RecursiveWorldNode nicht weiter (Blaetter, tr_world.cpp:539-546), und
+// R_CullSurface verwirft Dreiecksnetze und Patches, deren Kasten ganz dahinter liegt (R_CullLocalBox mit allen fuenf
+// Ebenen, tr_main.cpp:86). Die vier Seitenebenen schneidet die Grafikkarte, sie aendern das Bild nicht.
+struct Fernebene {
+    float normale[3]{};
+    float abstand = 0.0F;
+};
+[[nodiscard]] Fernebene fernebeneFuer(const float auge[3], const float vorn[3], float distanceCull);
+[[nodiscard]] bool ganzDahinter(const Fernebene& f, const float mins[3], const float maxs[3]);
+// Je Blatt und je Flaeche 1, wenn sie hinter der fernen Ebene wegfallen. Beide leer: der Kasten der Welt (Modell 0) liegt
+// ganz davor, es faellt nichts weg.
+struct FernStand {
+    std::vector<char> blaetter;
+    std::vector<char> flaechen;
+    bool operator==(const FernStand&) const = default;
+};
+[[nodiscard]] FernStand fernStand(const BspGeometry& g, const std::vector<FlaechenKasten>& kaesten, const Fernebene& f);
+
+[[nodiscard]] std::vector<char> flaechenAusserSicht(const BspGeometry& g, const AreaPortale& p, int auge, int cluster, const FernStand* fern = nullptr);
 
 // Die Entities, die ein Portal schalten koennen. Art: wie sie es tun.
 struct PortalEntity {

@@ -5859,7 +5859,7 @@ std::vector<BrushStellung> brushModelleImSpiel(const std::vector<MapEntity>& ent
 // Die Portale zur Zeit der Ansicht und was das Auge davon sieht (bhed/areaportal.h). Das Auge ist
 // die Kamera der Ansicht: Im Spiel ist es der Spieler (SV_BuildClientSnapshot), die Vorschau hat eine
 // freie Kamera, die ueberall hinfliegt. Nur bei einer Aenderung geht eine neue Maske an die Grafik.
-void areaPortaleJetzt(const float auge[3]) {
+void areaPortaleJetzt(const float auge[3], const float* vorn) {
     App& app = *g_app;
     const std::string schluessel = app.map.path + "|" + std::to_string(app.map.entities.size()) + "|" + std::to_string(app.geo.leafs.size()) + "|" +
                                    std::to_string(regelwerkSpielstufe()) + (regelwerkJediOutcast() ? "j" : "a");
@@ -5887,7 +5887,7 @@ void areaPortaleJetzt(const float auge[3]) {
         app.areaAuge = -2;
         app.areaCluster = -2;
     }
-    areaSichtSetzen(auge);
+    areaSichtSetzen(auge, vorn);
 }
 
 bool portalOffenImSpiel(const PortalEntity& p, const MoverSim& sim, double ms) {
@@ -5901,16 +5901,32 @@ bool portalOffenImSpiel(const PortalEntity& p, const MoverSim& sim, double ms) {
     return offen;
 }
 
-// R_MarkLeaves: das Blatt von tr.viewParms.pvsOrigin gibt Cluster (PVS) und Gebiet (areamask).
-void areaSichtSetzen(const float ort[3]) {
+// R_MarkLeaves: das Blatt von tr.viewParms.pvsOrigin gibt Cluster (PVS) und Gebiet (areamask). Mit Blickrichtung `vorn`
+// dazu die ferne Ebene des Frustums (Endrunde rc608, fernStand: R_SetupFrustum mit distanceCull, R_RecursiveWorldNode,
+// R_CullSurface); ohne sie (nullptr) nur PVS und Gebiete.
+void areaSichtSetzen(const float ort[3], const float* vorn) {
     App& app = *g_app;
     const int blatt = app.geo.leafAt(ort);
     const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < app.geo.leafs.size();
     const int gebiet = imBaum ? app.geo.leafs[static_cast<std::size_t>(blatt)].area : -1;
     const int cluster = imBaum ? app.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
-    if (gebiet == app.areaAuge && cluster == app.areaCluster) { return; }
+    FernStand fern;
+    if (vorn != nullptr) {
+        if (app.fernKaesten.size() != app.geo.surfaces.size() || app.fernKaestenKarte != app.map.path) {
+            app.fernKaesten = flaechenKaesten(app.geo);
+            app.fernKaestenKarte = app.map.path;
+        }
+        fern = fernStand(app.geo, app.fernKaesten, fernebeneFuer(ort, vorn, kartenDistanceCull()));
+    }
+    if (gebiet == app.areaAuge && cluster == app.areaCluster && fern == app.fernZuletzt) { return; }
     app.areaAuge = gebiet;
     app.areaCluster = cluster;
+    app.fernZuletzt = std::move(fern);
+    if (!app.fernZuletzt.blaetter.empty()) {
+        const std::vector<char> maske = flaechenAusserSicht(app.geo, app.areaPortale, gebiet, cluster, &app.fernZuletzt);
+        gpu::setzeVerdeckteFlaechen(&app.geo, &maske);
+        return;
+    }
     // Je Eintrag eine Zahl je Flaeche: beim Flug durch viele Cluster nicht ohne Grenze wachsen lassen.
     constexpr std::size_t kMaskenGrenze = 64U;
     if (app.areaMasken.size() >= kMaskenGrenze) { app.areaMasken.clear(); }

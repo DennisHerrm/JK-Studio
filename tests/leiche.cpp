@@ -8,6 +8,7 @@
 #include "bhed/regelwerk.h"
 #include "bhed/scene.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
