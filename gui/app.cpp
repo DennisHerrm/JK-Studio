@@ -4420,13 +4420,7 @@ void clearMap() {
     vergissEffektBahnen();
     g_app->map = MapData{};
     g_app->kartenHerkunft = DateiHerkunft{};   // rc609 W2a
-    g_app->geo = BspGeometry{};
-    g_app->mesh = BspMesh{};
-    g_app->textures = TextureSet{};
-    g_app->grasStufen.clear();   // rc604 surfaceSprites
-    g_app->grasNetz = BspMesh{};
-    ++g_app->grasStand;
-    gpu::vergissKarte();
+    kartenGeometrieVergessen();
     g_app->effectShaders.clear();
     g_app->effectRunners.clear();
     g_app->moverSim = MoverSim{};
@@ -4445,14 +4439,10 @@ void clearMap() {
     g_app->markers.clear();
     g_app->keyMarks.clear();
     g_app->actorMarks.clear();
-    g_app->cameraSx = -1.0F;
-    g_app->cameraSy = -1.0F;
     g_app->pickedEntity = -1;
     g_app->hiddenEntities.clear();
     g_app->cameraSelected = false;
     g_app->selectedKey = -1;
-    g_app->mapBereit = false;
-    g_app->gizmoZeigen = false;
     g_app->camTrackValid = false;
     g_app->mapDirty = true;
 }
@@ -5027,6 +5017,7 @@ void leseMeldungenZeigen(const std::vector<Diag>& d, const std::string& name) {
         else if (x.code == "L004") { muster = tr(Str::LmsgL004); }
         else if (x.code == "L005") { muster = tr(Str::LmsgL005); }
         else if (x.code == "L006") { muster = tr(Str::LmsgL006); }
+        else if (x.code == "L007") { muster = tr(Str::LmsgL007); }   // rc609 F16
         if (muster == nullptr) { continue; }
         char text[300];
         std::snprintf(text, sizeof(text), muster, x.arg.c_str());

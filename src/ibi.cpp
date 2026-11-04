@@ -586,6 +586,14 @@ bool readIbi(const std::string& bytes, std::vector<IbiBlock>& out,
         diag.push_back({0, "keine IBI-Datei"});
         return false;
     }
+    // rc609 F19: die Engine vergleicht vier Bytes mit strcmp(id_header, "IBI") - das
+    // Nullbyte an Stelle 4 gehoert dazu (OpenJK code/icarus/BlockStream.cpp:562-580,
+    // IBI_HEADER_ID_LENGTH 4). "IBIX" laedt das Spiel nicht. Eine im Text-Modus
+    // uebertragene Datei ("IBI ") bekommt weiter ihre eigene Meldung (unten).
+    if (bytes[3] != '\0' && !looksTextMangled(bytes)) {
+        diag.push_back({0, "keine IBI-Datei (Kennung ohne Nullbyte, wie BlockStream::Open)"});
+        return false;
+    }
     float ver = 0;
     std::memcpy(&ver, bytes.data() + 4, 4);
     if (ver != kVersion) {
@@ -893,6 +901,13 @@ bool decompile(const std::vector<IbiBlock>& blocks, const CommandDb& db,
         n.hasBlock = opensBlock;
         stack.back()->push_back(std::move(n));
         if (opensBlock) {
+            // rc609 F16: dieselbe Grenze wie beim Textleser (kSkriptTiefeMax) - danach
+            // liefen Schreiben, Uebersetzen und der Abbau des Baums in den Stapelueberlauf.
+            if (static_cast<int>(stack.size()) >= kSkriptTiefeMax) {
+                diag.push_back({0, "Bloecke tiefer als " + std::to_string(kSkriptTiefeMax) + " Ebenen verschachtelt"});
+                out = Script{};
+                return false;
+            }
             stack.push_back(&stack.back()->back().children);
         }
     }

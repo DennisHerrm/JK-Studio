@@ -291,6 +291,13 @@ void parseEntities(const std::string& text, std::vector<MapEntity>& out) {
     (void)parseEntitiesGenau(text, out);
 }
 
+std::string bspFassungFalsch(const std::string& kennung, std::int32_t fassung) {
+    std::string m = kennung + " has wrong version number (" + std::to_string(fassung) + " should be " +
+                    std::to_string(kBspFassung) + ")";
+    if (kennung == "IBSP" && fassung == 46) { m += " - Quake 3, not Jedi Academy / Jedi Outcast"; }
+    return m;
+}
+
 bool readBspEntityLump(const std::string& bytes, std::string& text, std::string* error) {
     text.clear();
     // Kopf: Kennung (4) + Fassung (4) + Lumpverzeichnis. Lump 0 ist das
@@ -302,6 +309,13 @@ bool readBspEntityLump(const std::string& bytes, std::string& text, std::string*
     const std::string magic = bytes.substr(0, 4);
     if (magic != "RBSP" && magic != "IBSP" && magic != "FBSP") {
         if (error != nullptr) { *error = "unbekannte Kennung: " + magic; }
+        return false;
+    }
+    // rc609 F: nur Fassung 1 wie die Engine (BSP_VERSION; OpenJK code/qcommon/cm_load.cpp:764,
+    // code/rd-vanilla/tr_bsp.cpp:1409 "has wrong version number"). Eine IBSP 46 (Quake 3)
+    // hat andere Satzgroessen und laedt in JKA, JK2 und Movie Duels nicht.
+    if (const std::int32_t fassung = readInt(bytes, 4); fassung != kBspFassung) {
+        if (error != nullptr) { *error = bspFassungFalsch(magic, fassung); }
         return false;
     }
     const std::int32_t offset = readInt(bytes, 8);

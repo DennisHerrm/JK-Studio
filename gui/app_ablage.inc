@@ -3142,6 +3142,23 @@ void kartenSzeneVergessen() {
     g_app->brushMeshes.clear();     // Netze der Brush-Modelle
 }
 
+// Geometrie, Netz, Texturen, Gras und GPU-Daten der Karte, dazu was nur das Kartenbild auffrischt
+// (Kamera-Klickziel, Gizmo-Ueberlagerung). clearMap und - rc609 F10 - ein Wechsel auf eine Karte,
+// deren Geometrie sich nicht lesen laesst: in beiden Faellen zeichnet die Ansicht nur den Platzhalter.
+void kartenGeometrieVergessen() {
+    g_app->geo = BspGeometry{};
+    g_app->mesh = BspMesh{};
+    g_app->textures = TextureSet{};
+    g_app->grasStufen.clear();   // rc604 surfaceSprites
+    g_app->grasNetz = BspMesh{};
+    ++g_app->grasStand;
+    gpu::vergissKarte();
+    g_app->mapBereit = false;
+    g_app->cameraSx = -1.0F;
+    g_app->cameraSy = -1.0F;
+    g_app->gizmoZeigen = false;
+}
+
 // Die Geometrie der Karte aus den Bytes: Kollision, Flaechen, externe Lightmaps, Lichtstile, Netz
 // und Texturen. loadMapFromBytes und - mit den bearbeiteten Lumps - rc609 J (karteGeometrieNeu).
 bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath) {
@@ -3209,8 +3226,9 @@ bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath)
         loadMapTextures();
     } else {
         geoStep.fail(gerr);
-        g_app->geo = BspGeometry{};
-        g_app->mesh = BspMesh{};
+        // rc609 F10: ohne lesbare Geometrie ist keine Karte zu zeigen - Gras, Texturen und
+        // GPU-Daten der vorigen Karte mit weg (vorher blieben sie stehen, mapBereit blieb an).
+        kartenGeometrieVergessen();
     }
     return ok;
 }

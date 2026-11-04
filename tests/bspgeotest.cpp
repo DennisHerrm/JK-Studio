@@ -301,6 +301,44 @@ int main(int argc, char** argv) {
                                                                     bhed::patchLodWahl(g, g.lodOrt, nah, vorn, bhed::kRLodCurveError) == bhed::patchLodVoll(g));
     }
 
+    // --- rc609 F/8: IBSP (Quake 3, Fassung 46) -----------------------------
+    //
+    // Die Spiele des Programms (JKA, JK2, Movie Duels) lesen nur Fassung 1
+    // (BSP_VERSION, OpenJK code/rd-vanilla/tr_bsp.cpp:1409 und
+    // code/qcommon/cm_load.cpp:764: "has wrong version number"). Eine IBSP hat
+    // andere Satzgroessen (Ecke 44 statt 80 Byte) - mit RBSP-Groessen gelesen
+    // wird daraus falsche Geometrie. Erwartet: klare Abweisung.
+    {
+        std::string q(152, '\0');
+        q.replace(0, 4, "IBSP");
+        auto setze = [&q](std::size_t at, std::int32_t v) {
+            for (std::size_t k = 0; k < 4; ++k) { q[at + k] = static_cast<char>((static_cast<std::uint32_t>(v) >> (8 * k)) & 0xFFU); }
+        };
+        setze(4, 46);
+        auto lump = [&](int nr, const std::string& daten) {
+            setze(8 + static_cast<std::size_t>(nr) * 8, static_cast<std::int32_t>(q.size()));
+            setze(12 + static_cast<std::size_t>(nr) * 8, static_cast<std::int32_t>(daten.size()));
+            q += daten;
+            while (q.size() % 4 != 0) { q += '\0'; }
+        };
+        lump(0, "{\n\"classname\" \"worldspawn\"\n}\n");
+        std::string shader(72, '\0');
+        shader.replace(0, 12, "textures/a/b");
+        lump(1, shader);
+        lump(10, std::string(3 * 44, '\x01'));   // drei Q3-Ecken
+        bhed::BspGeometry g;
+        std::string err;
+        const bool geoOk = bhed::readBspGeometry(q, g, &err);
+        std::printf("  IBSP 46: Geometrie gelesen %d, %zu Ecken (%s)\n", geoOk ? 1 : 0, g.verts.size(), err.c_str());
+        expect("IBSP 46: Geometrie abgewiesen, Meldung nennt die Fassung",
+               !geoOk && err.find("46") != std::string::npos);
+        bhed::MapData m;
+        std::string err2;
+        const bool entOk = bhed::readBsp(q, m, &err2);
+        std::printf("  IBSP 46: Karte gelesen %d (%s)\n", entOk ? 1 : 0, err2.c_str());
+        expect("IBSP 46: Karte abgewiesen, Meldung nennt die Fassung", !entOk && err2.find("46") != std::string::npos);
+    }
+
     if (argc < 2) {
         std::printf("  (keine .bsp angegeben - Test uebersprungen)\n");
         return fails != 0 ? 1 : 0;

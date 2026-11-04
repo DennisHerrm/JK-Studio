@@ -3309,6 +3309,7 @@ bool bspLumpsSpeichern(const karte::BspLumps& lumps, const std::function<void()>
 // app_ablage.inc: Geometrie aus Bytes (wie beim Laden) und die daraus aufgestellte Szene vergessen
 bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath);
 void kartenSzeneVergessen();
+void kartenGeometrieVergessen();
 // fuer den Selbsttest
 int lumpEditFlaeche();
 void lumpEditFlaecheSetzen(int i);

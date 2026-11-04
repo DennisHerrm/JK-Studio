@@ -3833,6 +3833,7 @@ enum class Str {
     WegSprungkantenHint,
     KePatchSchattenKarteTip,
     KePatchSchattenHinweis,
+    LmsgL007,
     Count,
 };
 

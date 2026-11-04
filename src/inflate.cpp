@@ -173,7 +173,10 @@ Result raw(const unsigned char* data, size_t size, size_t expectedSize) {
         result.error = "declared size is implausible";
         return result;
     }
-    result.data.reserve(limit);
+    // rc609 F20: vorab nur so viel, wie aus diesen Bytes werden KANN - Deflate packt
+    // hoechstens 1032:1 (zlib technical details, "maximum compression factor"). Vorher
+    // reservierte jeder Eintrag die behauptete Groesse (bis 256 MB) schon vor dem Lesen.
+    result.data.reserve(size > limit / 1032U ? limit : size * 1032U);
 
     BitReader reader(data, size);
     Huffman fixedLiterals;

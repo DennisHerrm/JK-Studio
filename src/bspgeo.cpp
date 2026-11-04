@@ -146,6 +146,12 @@ bool readBspGeometry(const std::string& b, BspGeometry& out, std::string* error)
         if (error != nullptr) { *error = "unbekannte Kennung: " + magic; }
         return false;
     }
+    // rc609 F: die Satzgroessen unten sind die von RBSP 1 - eine andere Fassung (IBSP 46)
+    // gaebe falsche Geometrie. Die Engine weist sie ab wie readBspEntityLump.
+    if (const std::int32_t fassung = i32(b, 4); fassung != kBspFassung) {
+        if (error != nullptr) { *error = bspFassungFalsch(magic, fassung); }
+        return false;
+    }
 
     // --- Shader ---
     const Lump sh = lumpAt(b, kLumpShaders);
