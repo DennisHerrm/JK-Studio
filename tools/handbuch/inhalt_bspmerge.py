@@ -1,4 +1,4 @@
-"""Karte und Szene: Brush-Entities in fertige Karten einfuegen (rc609 B1, Teil-Compile und BSP-Merge, Stufe 1)."""
+"""Karte und Szene: Brush-Entities in fertige Karten einfuegen (rc609 B1, Teil-Compile und BSP-Merge, Stufe 1; B13 Stufe 2 Clips, Stufe 3 sichtbare Mover)."""
 from inhalt_basis import T
 
 BSPMERGE = {
@@ -7,10 +7,10 @@ BSPMERGE = {
     "titel": T("Map editor: inserting brush entities into compiled maps", "Karten-Editor: Brush-Entities in fertige Karten einfügen",
                "地图编辑器:向已编译地图插入画刷实体", "マップエディター:コンパイル済みマップにブラシエンティティを挿入する"),
     "kurz": T(
-        "Add triggers, a func_usable with nodraw brushes and other invisible brush entities to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new entities and appends them to the .bsp as new models `*N`. The world stays byte for byte.",
-        "Füge einer fertigen Karte ohne Quelle Trigger, einen func_usable mit nodraw-Brushes und andere unsichtbare Brush-Entities hinzu: {{KeLBuild}} > {{KeBmEinfuegen}} baut nur die neuen Entities und hängt sie als neue Modelle `*N` an die .bsp. Die Welt bleibt Byte für Byte.",
-        "向没有源文件的已编译地图添加触发器、带 nodraw 画刷的 func_usable 以及其他不可见的画刷实体:{{KeLBuild}} > {{KeBmEinfuegen}} 只编译新实体,并把它们作为新模型 `*N` 追加到 .bsp。世界逐字节保持不变。",
-        "ソースのないコンパイル済みマップに、トリガー、nodraw ブラシの func_usable などの見えないブラシエンティティを追加します。{{KeLBuild}} > {{KeBmEinfuegen}} は新しいエンティティだけをビルドし、新しいモデル `*N` として .bsp に追加します。ワールドはバイト単位でそのままです。"),
+        "Add triggers, a func_usable, clip brushes and visible movers such as func_door to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new parts and appends them to the .bsp - entities as new models `*N`, visible ones with lightmaps that fit the map, clips into the world. BSP tree, VIS and lightmaps of the world stay byte for byte.",
+        "Füge einer fertigen Karte ohne Quelle Trigger, einen func_usable, Clip-Brushes und sichtbare Mover wie func_door hinzu: {{KeLBuild}} > {{KeBmEinfuegen}} baut nur das Neue und hängt es an die .bsp - Entities als neue Modelle `*N`, sichtbare mit Lightmaps passend zur Karte, Clips in die Welt. BSP-Baum, VIS und Lightmaps der Welt bleiben Byte für Byte.",
+        "向没有源文件的已编译地图添加触发器、func_usable、裁剪画刷以及 func_door 等可见移动体:{{KeLBuild}} > {{KeBmEinfuegen}} 只编译新内容并追加到 .bsp——实体作为新模型 `*N`,可见实体带有与地图相符的光照贴图,裁剪画刷进入世界。世界的 BSP 树、VIS 和光照贴图逐字节保持不变。",
+        "ソースのないコンパイル済みマップに、トリガー、func_usable、クリップブラシ、func_door などの見える可動物を追加します。{{KeLBuild}} > {{KeBmEinfuegen}} は新しい部分だけをビルドして .bsp に追加します。エンティティは新しいモデル `*N` として、見えるものはマップに合ったライトマップ付きで、クリップはワールドへ。ワールドの BSP ツリー、VIS、ライトマップはバイト単位でそのままです。"),
     "bloecke": [
         ("h2", "ablauf", T("How it works", "So geht es", "使用方法", "使い方")),
         ("steps", [
@@ -49,10 +49,14 @@ BSPMERGE = {
         ]),
         ("h2", "pruefungen", T("Checks", "Prüfungen", "检查", "チェック")),
         ("list", [
-            T("**Not inserted:** visible surfaces (brush entities with lightmaps), brushes in the worldspawn (clips), changed world brushes or existing brush entities (they need a full build), a different BSP format.",
-              "**Nicht eingefügt:** sichtbare Flächen (Brush-Entities mit Lightmaps), Brushes in der worldspawn (Clips), geänderte Welt-Brushes oder vorhandene Brush-Entities (sie brauchen einen vollen Bau), ein anderes BSP-Format.",
-              "**不会插入:**可见表面(带光照贴图的画刷实体)、worldspawn 中的画刷(clip)、修改过的世界画刷或已有画刷实体(它们需要完整编译)、不同的 BSP 格式。",
-              "**挿入されないもの:**見えるサーフェス(ライトマップ付きのブラシエンティティ)、worldspawn 内のブラシ(クリップ)、変更したワールドブラシや既存のブラシエンティティ(フルビルドが必要)、異なる BSP 形式。"),
+            T("**Not inserted:** new world brushes that are not clips (solid, water, fog or visible ones would change BSP tree and VIS), changed or removed world brushes and existing brush entities (they need a full build), a different BSP format, a compiled map with external lightmaps (`lm_####.tga`).",
+              "**Nicht eingefügt:** neue Welt-Brushes, die keine Clips sind (solide, Wasser, Nebel oder sichtbare würden BSP-Baum und VIS ändern), geänderte oder entfernte Welt-Brushes und vorhandene Brush-Entities (sie brauchen einen vollen Bau), ein anderes BSP-Format, eine fertige Karte mit externen Lightmaps (`lm_####.tga`).",
+              "**不会插入:**不是裁剪画刷的新世界画刷(实心、水、雾或可见的画刷会改变 BSP 树和 VIS)、修改或删除的世界画刷以及已有画刷实体(它们需要完整编译)、不同的 BSP 格式、使用外部光照贴图(`lm_####.tga`)的已编译地图。",
+              "**挿入されないもの:**クリップではない新しいワールドブラシ(実体、水、フォグ、見えるものは BSP ツリーと VIS を変えてしまいます)、変更または削除したワールドブラシや既存のブラシエンティティ(フルビルドが必要)、異なる BSP 形式、外部ライトマップ(`lm_####.tga`)を使うコンパイル済みマップ。"),
+            T("**Limits of the renderer:** at most 256 lightmap pages (`MAX_LIGHTMAPS`) and the draw surface, vertex and index limits of `qfiles.h`; over them the command refuses and reports the numbers.",
+              "**Grenzen des Renderers:** höchstens 256 Lightmap-Seiten (`MAX_LIGHTMAPS`) und die Grenzen für Flächen, Ecken und Indizes aus `qfiles.h`; darüber lehnt der Befehl ab und meldet die Zahlen.",
+              "**渲染器的限制:**最多 256 页光照贴图(`MAX_LIGHTMAPS`),以及 `qfiles.h` 中表面、顶点和索引的限制;超出时命令会拒绝并报告数字。",
+              "**レンダラーの上限:**ライトマップは最大 256 ページ(`MAX_LIGHTMAPS`)、サーフェス・頂点・インデックスは `qfiles.h` の上限まで。超えるとコマンドは拒否し、数値を報告します。"),
             T("**Number of models** as the game loads them: at most 511 in single player (the next number is the game's own box model, `BOX_MODEL_HANDLE`) and 510 in multiplayer (`CAPSULE_MODEL_HANDLE`); from 513 on the game refuses the map (`MAX_SUBMODELS`).",
               "**Zahl der Modelle**, wie das Spiel sie lädt: höchstens 511 im Einzelspieler (die nächste Nummer ist das eigene Kastenmodell des Spiels, `BOX_MODEL_HANDLE`) und 510 im Mehrspieler (`CAPSULE_MODEL_HANDLE`); ab 513 lehnt das Spiel die Karte ab (`MAX_SUBMODELS`).",
               "**模型数量**按游戏加载的方式计算:单人模式最多 511 个(下一个编号是游戏自己的盒子模型 `BOX_MODEL_HANDLE`),多人模式 510 个(`CAPSULE_MODEL_HANDLE`);从 513 个起游戏会拒绝加载地图(`MAX_SUBMODELS`)。",
@@ -66,10 +70,35 @@ BSPMERGE = {
               "修改过的已有点实体保持已编译地图中的样子;请用 **{{KeLBuild}} > {{KeBmNurEntities}}** 写入它们。",
               "変更した既存のポイントエンティティは、コンパイル済みマップのままです。**{{KeLBuild}} > {{KeBmNurEntities}}** で書き込んでください。"),
         ]),
-        ("note", T("Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.",
-                   "Clips in der Welt und sichtbare Mover mit Lightmaps (func_door, func_train ...) gehören noch nicht zu diesem Befehl.",
-                   "世界中的 clip 以及带光照贴图的可见移动体(func_door、func_train ……)尚不属于此命令。",
-                   "ワールド内のクリップと、ライトマップ付きの見える可動物(func_door、func_train など)は、まだこのコマンドの対象外です。")),
+        ("h2", "clips_mover", T("Clips and visible movers", "Clips und sichtbare Mover", "裁剪画刷和可见移动体", "クリップと見える可動物")),
+        ("steps", [
+            (T("**Clips:** a new brush in the worldspawn with `textures/system/clip` (or another shader with `playerclip`, `monsterclip`, `botclip`, `shotclip`) goes into the world. It is entered into every leaf of the BSP tree it reaches into, as q3map2 does it for a full build - that is how the game finds world brushes. Only the leaf brush lists and the brushes grow; BSP tree, VIS, surfaces, lightmaps and light grid stay byte for byte.",
+               "**Clips:** Ein neuer Brush in der worldspawn mit `textures/system/clip` (oder einem anderen Shader mit `playerclip`, `monsterclip`, `botclip`, `shotclip`) kommt in die Welt. Er wird in jedes Blatt des BSP-Baums eingetragen, in das er hineinreicht, wie q3map2 es beim vollen Bau tut - so findet das Spiel Welt-Brushes. Nur die Brush-Listen der Blätter und die Brushes wachsen; BSP-Baum, VIS, Flächen, Lightmaps und Lichtgitter bleiben Byte für Byte.",
+               "**裁剪画刷:**worldspawn 中使用 `textures/system/clip`(或其他带 `playerclip`、`monsterclip`、`botclip`、`shotclip` 的着色器)的新画刷会进入世界。它会像 q3map2 完整编译时那样,被登记到它伸入的每一个 BSP 树叶节点中——游戏正是这样找到世界画刷的。只有叶节点的画刷列表和画刷增加;BSP 树、VIS、表面、光照贴图和光照网格逐字节保持不变。",
+               "**クリップ:**worldspawn 内の `textures/system/clip`(または `playerclip`、`monsterclip`、`botclip`、`shotclip` を持つほかのシェーダー)の新しいブラシはワールドに入ります。q3map2 のフルビルドと同じく、ブラシが入り込む BSP ツリーのすべてのリーフに登録されます。ゲームはこうしてワールドブラシを見つけます。増えるのはリーフのブラシリストとブラシだけで、BSP ツリー、VIS、サーフェス、ライトマップ、ライトグリッドはバイト単位でそのままです。"),
+             "h_bspmerge_tuer",
+             T("A clip brush behind the trigger and a new `func_door` in front of the player start of mp/duel1.",
+               "Ein Clip-Brush hinter dem Trigger und ein neuer `func_door` vor dem Spielerstart von mp/duel1.",
+               "mp/duel1 玩家出生点前:触发器后方的裁剪画刷和新的 `func_door`。",
+               "mp/duel1 のプレイヤースタートの前:トリガーの後ろのクリップブラシと新しい `func_door`。")),
+            T("**Visible movers** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` with visible brushes) need light. After the first build the command builds the part a second time, now with the converted world as shadow caster, its baked models and the lights of the map (`<name>_teillicht.map`), and lights it: q3map2 `-bsp` and `-light` with the switches stored in the map (`_q3map2_cmdline`), otherwise with the q3map2 defaults.",
+              "**Sichtbare Mover** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` mit sichtbaren Brushes) brauchen Licht. Nach dem ersten Bau baut der Befehl den Teil ein zweites Mal, jetzt mit der zurückgewandelten Welt als Schattenwerfer, ihren eingebackenen Modellen und den Lichtern der Karte (`<Name>_teillicht.map`), und beleuchtet ihn: q3map2 `-bsp` und `-light` mit den Schaltern, die in der Karte stehen (`_q3map2_cmdline`), sonst mit den Vorgaben von q3map2.",
+              "**可见移动体**(带可见画刷的 `func_door`、`func_train`、`func_rotating`、`func_static`、`func_plat`)需要光照。第一次编译之后,命令会再编译一次该部分,这次以转换回来的世界作为投影体,加上它烘焙的模型和地图的灯光(`<名称>_teillicht.map`),并进行光照:q3map2 `-bsp` 和 `-light` 使用地图中保存的开关(`_q3map2_cmdline`),没有时使用 q3map2 的默认值。",
+              "**見える可動物**(見えるブラシの `func_door`、`func_train`、`func_rotating`、`func_static`、`func_plat`)にはライトが必要です。最初のビルドの後、コマンドは部分をもう一度ビルドします。今度は変換したワールドを影の投影元に、その焼き込みモデルとマップのライト(`<名前>_teillicht.map`)を加えてライティングします。q3map2 `-bsp` と `-light` は、マップに保存されたスイッチ(`_q3map2_cmdline`)を使い、なければ q3map2 の既定値です。"),
+            (T("Only the new models are taken over: their surfaces, vertexes, indexes and shaders, and only the lightmap pages they use, appended behind the lightmaps of the map. The brush sides point to their new surfaces, fogs are matched with the fogs of the map. The lightmaps of the world stay byte for byte.",
+               "Übernommen werden nur die neuen Modelle: ihre Flächen, Ecken, Indizes und Shader und nur die Lightmap-Seiten, die sie benutzen, angehängt hinter die Lightmaps der Karte. Die Brush-Seiten zeigen auf ihre neuen Flächen, Nebel werden den Nebeln der Karte zugeordnet. Die Lightmaps der Welt bleiben Byte für Byte.",
+               "只接管新模型:它们的表面、顶点、索引和着色器,以及它们使用的光照贴图页,追加在地图光照贴图之后。画刷面指向它们的新表面,雾与地图中的雾对应。世界的光照贴图逐字节保持不变。",
+               "取り込むのは新しいモデルだけです。そのサーフェス、頂点、インデックス、シェーダー、そして使うライトマップページだけを、マップのライトマップの後ろに追加します。ブラシ面は新しいサーフェスを指し、フォグはマップのフォグに対応づけます。ワールドのライトマップはバイト単位でそのままです。"),
+             "h_bspmerge_vorschau",
+             T("The saved map in the preview of the mission tab: the new door with its lightmap, seen from the eye of the player at the start.",
+               "Die gespeicherte Karte in der Vorschau des Mission-Tabs: die neue Tür mit ihrer Lightmap, gesehen aus dem Auge des Spielers am Start.",
+               "任务选项卡预览中的已保存地图:从出生点玩家视角看到的带光照贴图的新门。",
+               "ミッションタブのプレビューで見た保存済みマップ:スタート地点のプレイヤーの目から見た、ライトマップ付きの新しいドア。")),
+        ]),
+        ("note", T("Only lights that are in the map light the new movers. Compiled maps usually keep no light entities (q3map2 removes them), so then the light comes from the sky, from light-emitting shaders and from the worldspawn; light entities placed in the map editor are used as well.",
+                   "Die neuen Mover beleuchten nur Lichter, die in der Karte stehen. Fertige Karten haben meist keine Licht-Entities mehr (q3map2 entfernt sie); dann kommt das Licht vom Himmel, von leuchtenden Shadern und aus der worldspawn; im Karten-Editor gesetzte Licht-Entities zählen mit.",
+                   "只有地图中存在的灯光才会照亮新的移动体。已编译地图通常不再保留灯光实体(q3map2 会移除它们),此时光照来自天空、发光着色器和 worldspawn;在地图编辑器中放置的灯光实体也会计入。",
+                   "新しい可動物を照らすのは、マップ内にあるライトだけです。コンパイル済みマップには通常ライトエンティティが残っていません(q3map2 が削除します)。その場合、ライトは空、発光シェーダー、worldspawn から来ます。マップエディターで置いたライトエンティティも使われます。")),
     ],
 }
 

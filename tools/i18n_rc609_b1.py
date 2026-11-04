@@ -8,32 +8,38 @@ ZEILEN = [
     ("KeBmEinfuegen", "Insert into compiled map", "In fertige Karte einfügen", "插入到已编译地图", "コンパイル済みマップに挿入",
      "Insertar en el mapa compilado", "Vložit do hotové mapy"),
     ("KeBmEinfuegenTip",
-     "Builds only the new brush entities (triggers, func_usable with nodraw, origin brushes) with q3map2 and appends them to the open .bsp as new models *N. "
-     "The world stays byte for byte: BSP tree, VIS, lightmaps and surfaces.",
-     "Baut nur die neuen Brush-Entities (Trigger, func_usable mit nodraw, origin-Brushes) mit q3map2 und hängt sie als neue Modelle *N an die offene .bsp. "
-     "Die Welt bleibt Byte für Byte: BSP-Baum, VIS, Lightmaps und Flächen.",
-     "只用 q3map2 编译新的画刷实体(触发器、带 nodraw 的 func_usable、origin 画刷),并把它们作为新模型 *N 追加到打开的 .bsp。"
-     "世界逐字节保持不变:BSP 树、VIS、光照贴图和表面。",
-     "新しいブラシエンティティ (トリガー、nodraw の func_usable、origin ブラシ) だけを q3map2 でビルドし、開いている .bsp に新しいモデル *N として追加します。"
-     "ワールドはバイト単位でそのままです: BSP ツリー、VIS、ライトマップ、サーフェス。",
-     "Compila con q3map2 solo las entidades de brush nuevas (triggers, func_usable con nodraw, brushes origin) y las añade al .bsp abierto como modelos nuevos *N. "
-     "El mundo queda byte a byte: árbol BSP, VIS, lightmaps y superficies.",
-     "Sestaví q3map2 jen nové brush entity (triggery, func_usable s nodraw, origin brushe) a připojí je k otevřenému .bsp jako nové modely *N. "
-     "Svět zůstane bajt po bajtu: strom BSP, VIS, lightmapy a plochy."),
+     "Builds only the new brush entities (triggers, func_usable, doors, trains, func_static) and new clip brushes with q3map2 and appends them to the open .bsp: "
+     "entities as new models *N, visible ones lit with the world as shadow caster, clips into the leaves of the world. "
+     "BSP tree, VIS, lightmaps and surfaces of the world stay byte for byte.",
+     "Baut nur die neuen Brush-Entities (Trigger, func_usable, Türen, Züge, func_static) und neue Clip-Brushes mit q3map2 und hängt sie an die offene .bsp: "
+     "Entities als neue Modelle *N, sichtbare mit der Welt als Schattenwerfer beleuchtet, Clips in die Blätter der Welt. "
+     "BSP-Baum, VIS, Lightmaps und Flächen der Welt bleiben Byte für Byte.",
+     "只用 q3map2 编译新的画刷实体(触发器、func_usable、门、列车、func_static)和新的裁剪画刷,并追加到打开的 .bsp:"
+     "实体作为新模型 *N,可见实体以世界作为投影体进行光照,裁剪画刷进入世界的叶节点。"
+     "世界的 BSP 树、VIS、光照贴图和表面逐字节保持不变。",
+     "新しいブラシエンティティ (トリガー、func_usable、ドア、トレイン、func_static) と新しいクリップブラシだけを q3map2 でビルドし、開いている .bsp に追加します: "
+     "エンティティは新しいモデル *N として、見えるものはワールドを影の投影元にしてライティングし、クリップはワールドのリーフに入れます。"
+     "ワールドの BSP ツリー、VIS、ライトマップ、サーフェスはバイト単位でそのままです。",
+     "Compila con q3map2 solo las entidades de brush nuevas (triggers, func_usable, puertas, trenes, func_static) y los brushes clip nuevos y los añade al .bsp abierto: "
+     "las entidades como modelos nuevos *N, las visibles iluminadas con el mundo como proyector de sombras, los clips en las hojas del mundo. "
+     "El árbol BSP, VIS, lightmaps y superficies del mundo quedan byte a byte.",
+     "Sestaví q3map2 jen nové brush entity (triggery, func_usable, dveře, vlaky, func_static) a nové clip brushe a připojí je k otevřenému .bsp: "
+     "entity jako nové modely *N, viditelné osvětlené se světem jako vrhačem stínů, clipy do listů světa. "
+     "Strom BSP, VIS, lightmapy a plochy světa zůstanou bajt po bajtu."),
     ("KeBmEinfuegenKeine",
-     "There are no new brush entities. Build triggers or a func_usable with nodraw brushes first.",
-     "Es gibt keine neuen Brush-Entities. Zuerst Trigger oder einen func_usable mit nodraw-Brushes bauen.",
-     "没有新的画刷实体。请先建立触发器或带 nodraw 画刷的 func_usable。",
-     "新しいブラシエンティティがありません。先にトリガーか nodraw ブラシの func_usable を作ってください。",
-     "No hay entidades de brush nuevas. Crea primero triggers o un func_usable con brushes nodraw.",
-     "Nejsou žádné nové brush entity. Nejprve vytvořte triggery nebo func_usable s nodraw brushi."),
+     "There are no new brush entities or clip brushes. Build triggers, a door or clip brushes first.",
+     "Es gibt keine neuen Brush-Entities oder Clip-Brushes. Zuerst Trigger, eine Tür oder Clip-Brushes bauen.",
+     "没有新的画刷实体或裁剪画刷。请先建立触发器、门或裁剪画刷。",
+     "新しいブラシエンティティもクリップブラシもありません。先にトリガー、ドア、クリップブラシを作ってください。",
+     "No hay entidades de brush ni brushes clip nuevos. Crea primero triggers, una puerta o brushes clip.",
+     "Nejsou žádné nové brush entity ani clip brushe. Nejprve vytvořte triggery, dveře nebo clip brushe."),
     ("KeBmEinfuegenGeaendert",
-     "World brushes or existing brush entities were changed. Only new brush entities can be inserted into a compiled map; everything else needs a full build.",
-     "Welt-Brushes oder vorhandene Brush-Entities wurden geändert. In eine fertige Karte lassen sich nur neue Brush-Entities einfügen; alles andere braucht einen vollen Bau.",
-     "世界画刷或已有的画刷实体已被修改。只能向已编译地图插入新的画刷实体;其他修改需要完整编译。",
-     "ワールドブラシか既存のブラシエンティティが変更されています。コンパイル済みマップに挿入できるのは新しいブラシエンティティだけです。それ以外はフルビルドが必要です。",
-     "Se cambiaron brushes del mundo o entidades de brush existentes. En un mapa compilado solo se pueden insertar entidades de brush nuevas; lo demás necesita una compilación completa.",
-     "Byly změněny brushe světa nebo existující brush entity. Do hotové mapy lze vložit jen nové brush entity; vše ostatní potřebuje úplné sestavení."),
+     "World brushes or existing brush entities were changed or removed. Only new brush entities and new clip brushes can be inserted into a compiled map; everything else needs a full build.",
+     "Welt-Brushes oder vorhandene Brush-Entities wurden geändert oder entfernt. In eine fertige Karte lassen sich nur neue Brush-Entities und neue Clip-Brushes einfügen; alles andere braucht einen vollen Bau.",
+     "世界画刷或已有的画刷实体已被修改或删除。只能向已编译地图插入新的画刷实体和新的裁剪画刷;其他修改需要完整编译。",
+     "ワールドブラシか既存のブラシエンティティが変更または削除されています。コンパイル済みマップに挿入できるのは新しいブラシエンティティと新しいクリップブラシだけです。それ以外はフルビルドが必要です。",
+     "Se cambiaron o eliminaron brushes del mundo o entidades de brush existentes. En un mapa compilado solo se pueden insertar entidades de brush nuevas y brushes clip nuevos; lo demás necesita una compilación completa.",
+     "Byly změněny nebo odstraněny brushe světa nebo existující brush entity. Do hotové mapy lze vložit jen nové brush entity a nové clip brushe; vše ostatní potřebuje úplné sestavení."),
     ("KeBmEinfuegenFertig", "Inserted %d brush entities as *%d to *%d into %s.", "%d Brush-Entities als *%d bis *%d in %s eingefügt.",
      "已将 %d 个画刷实体作为 *%d 到 *%d 插入 %s。", "%d 個のブラシエンティティを *%d から *%d として %s に挿入しました。",
      "Se insertaron %d entidades de brush como *%d a *%d en %s.", "Vloženo %d brush entit jako *%d až *%d do %s."),

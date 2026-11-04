@@ -3969,6 +3969,8 @@ enum class Str {
     KeM0KollisionHint,
     KeM0NurMd3,
     KeM0Gesetzt,
+    KeBmEinfuegenLicht,
+    KeBmEinfuegenClips,
     Count,
 };
 

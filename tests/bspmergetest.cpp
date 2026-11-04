@@ -9,12 +9,17 @@
 //       letzte Vektor ist der Ursprung des func_usable. Prueft: Welt-Lumps Byte-gleich, an die
 //       uebrigen nur angehaengt, Indizes der neuen Modelle, ein Blatt je Modell, der CM-Port
 //       (leseKollision) laedt sie und die Punkte liegen in ihren Brushes; die Grenzen.
+//   bspmergetest welt <original.bsp> <teil.bsp> <aus.bsp> <x0 y0 z0 x1 y1 z1>        (rc609 B13 Stufe 2: Clip in der Welt)
+//   bspmergetest licht <original.bsp> <teillicht.bsp> <aus.bsp>                   (rc609 B13 Stufe 3: sichtbarer Mover mit Lightmaps)
+//   bspmergetest befehle <q3map2.exe> <basispfad> <original.bsp> <teillicht.map>  (die Befehle des Licht-Teils)
 //   bspmergetest befunde <original.bsp> <teil.bsp> [jka|jk2|md]
 //       nur die Meldungen ("befund fehler|warnung <pruefung> <text>")
+#include "bhed/bsp.h"
 #include "bhed/karte/bspmerge.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/kollision.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -265,11 +270,298 @@ int pruefen(int argc, char** argv) {
     return g_fehler == 0 ? 0 : 1;
 }
 
+// --- Stufe 2: Clips in der Welt ---------------------------------------------------------------------
+// bspmergetest welt <original.bsp> <teil.bsp> <aus.bsp> <x0 y0 z0 x1 y1 z1>: der Teil hat einen playerclip-Brush (Kasten x0..x1)
+// als func_static mit der Marke _bhed_welt; er kommt in die Welt (Modell 0, leafbrushes der Blaetter, die er schneidet).
+int welt(int argc, char** argv) {
+    if (argc < 11) {
+        std::fprintf(stderr, "welt: zu wenig Argumente\n");
+        return 2;
+    }
+    const std::string orig = lies(argv[2]);
+    const std::string teil = lies(argv[3]);
+    float lo[3];
+    float hi[3];
+    for (int k = 0; k < 3; ++k) {
+        lo[k] = static_cast<float>(std::atof(argv[5 + k]));
+        hi[k] = static_cast<float>(std::atof(argv[8 + k]));
+    }
+    const MergeErgebnis r = bhed::karte::bspModelleAnhaengen(orig, teil, MergeSpiel::Jka);
+    befunde(r);
+    pruefe(r.ok() && !r.hatFehler() && r.weltPinsel == 1 && r.neueModelle == 0,
+           "zusammengefuehrt: 1 Clip in die Welt, keine neuen Modelle (" + std::to_string(r.weltPinsel) + " Clips, " + std::to_string(r.neueModelle) + " Modelle)");
+    if (!r.ok()) { return 1; }
+    {
+        std::ofstream f(argv[4], std::ios::binary);
+        f << r.bsp;
+    }
+    BspDatei a;
+    BspDatei b;
+    if (!bhed::karte::bspLesen(orig, a) || !bhed::karte::bspLesen(r.bsp, b)) { return 1; }
+    // Byte-gleich: Baum 3, Blattflaechen 5, Ecken 10, Indizes 11, Nebel 12, Flaechen 13, Lightmaps 14, Lichtgitter 15, VIS 16, Lichtfeld 17
+    int gleich = 0;
+    for (std::size_t i : {3U, 5U, 10U, 11U, 12U, 13U, 14U, 15U, 16U, 17U}) { gleich += a.lumps[i] == b.lumps[i] ? 1 : 0; }
+    pruefe(gleich == 10, "Baum, VIS, Flaechen, Ecken, Indizes, Nebel, Lightmaps, Lichtgitter Byte-gleich: " + std::to_string(gleich) + " von 10");
+    // Modell 0 hat einen Brush mehr, die Untermodelle ruecken nach, der neue Brush steht am Ende der Welt-Brushes
+    const int w0 = i32(a.lumps[7], 36);
+    const std::size_t mA = a.lumps[7].size() / 40;
+    bool modelle = b.lumps[7].size() == a.lumps[7].size() && i32(b.lumps[7], 36) == w0 + 1 && i32(b.lumps[7], 32) == i32(a.lumps[7], 32);
+    for (std::size_t m = 1; m < mA; ++m) { modelle = modelle && i32(b.lumps[7], m * 40 + 32) == i32(a.lumps[7], m * 40 + 32) + 1; }
+    const int neu = i32(a.lumps[7], 32) + w0;
+    pruefe(modelle && b.lumps[8].size() == a.lumps[8].size() + 12, "Modell 0: " + std::to_string(w0) + " -> " + std::to_string(i32(b.lumps[7], 36)) +
+                                                                      " Brushes, Untermodelle um 1 verschoben, neuer Brush " + std::to_string(neu));
+    // Blaetter: gleich viele, der Clip in r.weltBlaetter Blaettern; der Kastentest von MergeBSPMain -world haette mehr
+    const std::size_t lf = a.lumps[4].size() / 48;
+    int mitClip = 0;
+    int kasten = 0;
+    bool sonstGleich = b.lumps[4].size() == a.lumps[4].size();
+    for (std::size_t l = 0; sonstGleich && l < lf; ++l) {
+        const int fb = i32(b.lumps[4], l * 48 + 40);
+        const int nb = i32(b.lumps[4], l * 48 + 44);
+        bool hat = false;
+        std::vector<int> ohne;
+        for (int i = 0; i < nb; ++i) {
+            const int v = i32(b.lumps[6], static_cast<std::size_t>(fb + i) * 4);
+            if (v == neu) {
+                hat = true;
+            } else {
+                ohne.push_back(v > neu ? v - 1 : v);
+            }
+        }
+        std::vector<int> vorher;
+        for (int i = 0; i < i32(a.lumps[4], l * 48 + 44); ++i) { vorher.push_back(i32(a.lumps[6], static_cast<std::size_t>(i32(a.lumps[4], l * 48 + 40) + i) * 4)); }
+        sonstGleich = ohne == vorher && b.lumps[4].compare(l * 48, 32, a.lumps[4], l * 48, 32) == 0;
+        mitClip += hat ? 1 : 0;
+        bool beruehrt = true;
+        for (int k = 0; k < 3; ++k) {
+            const auto mn = static_cast<float>(i32(a.lumps[4], l * 48 + 8 + static_cast<std::size_t>(k) * 4));
+            const auto mx = static_cast<float>(i32(a.lumps[4], l * 48 + 20 + static_cast<std::size_t>(k) * 4));
+            beruehrt = beruehrt && mn <= hi[k] && mx >= lo[k];
+        }
+        kasten += beruehrt ? 1 : 0;
+    }
+    char z[320];
+    std::snprintf(z, sizeof z, "Blaetter: der Clip in %d Blaettern (r.weltBlaetter %d), Kastentest (MergeBSPMain -world) %d; sonst jede Blattliste wie vorher",
+                  mitClip, r.weltBlaetter, kasten);
+    pruefe(sonstGleich && mitClip == r.weltBlaetter && mitClip > 0 && mitClip <= kasten, z);
+    // CM-Port: Punkt-im-Brush und Strahl
+    bhed::KollisionsKarte k;
+    bhed::KollisionsKarte k0;
+    if (!bhed::leseKollision(r.bsp, k) || !bhed::leseKollision(orig, k0)) {
+        pruefe(false, "CM-Port laedt beide Karten");
+        return 1;
+    }
+    const float mitte[3] = {(lo[0] + hi[0]) * 0.5F, (lo[1] + hi[1]) * 0.5F, (lo[2] + hi[2]) * 0.5F};
+    const std::uint32_t c = bhed::kollisionsInhalt(k, mitte);
+    const std::uint32_t c0 = bhed::kollisionsInhalt(k0, mitte);
+    // Ein Spieler-Kasten (bg_public.h -15 -15 -24 .. 15 15 40) quer durch den Clip, MASK_PLAYERSOLID (SOLID | PLAYERCLIP | BODY ...)
+    const float pmin[3] = {-15.0F, -15.0F, -24.0F};
+    const float pmax[3] = {15.0F, 15.0F, 40.0F};
+    const float start[3] = {lo[0] - 100.0F, mitte[1], lo[2] + 40.0F};
+    const float ende[3] = {hi[0] + 100.0F, mitte[1], lo[2] + 40.0F};
+    const bhed::KollisionsSpur s = bhed::kollisionsSpur(k, start, pmin, pmax, ende, 0x00000111U);
+    const bhed::KollisionsSpur s0 = bhed::kollisionsSpur(k0, start, pmin, pmax, ende, 0x00000111U);
+    const bhed::KollisionsSpur schuss = bhed::kollisionsSpur(k, start, pmin, pmax, ende, 0x00000001U);
+    std::snprintf(z, sizeof z, "CM-Port: Mitte des Clips 0x%x (vorher 0x%x); Spieler-Strahl endet bei x %.2f (vorher Bruchteil %.3f, erwartet %.2f); "
+                               "nur SOLID geht durch (%.3f)",
+                  c, c0, static_cast<double>(s.endpos[0]), static_cast<double>(s0.fraction), static_cast<double>(lo[0] - 15.0F),
+                  static_cast<double>(schuss.fraction));
+    pruefe((c & 0x10U) != 0U && (c0 & 0x10U) == 0U && s0.fraction == 1.0F && std::fabs(s.endpos[0] - (lo[0] - 15.0F)) < 0.2F && schuss.fraction == 1.0F, z);
+    // Die Welt an vielen Punkten unveraendert (ausser im Clip)
+    // Innen muss der Clip dazukommen, aussen bleibt alles; ein Punkt genau auf einer Seite des Clips liegt in einem der Blaetter
+    // beiderseits (CM_PointLeafnum_r: d >= 0 vorn) - an einer Wand im Blatt der Wand, das ihn nicht fuehrt wie nach einem vollen
+    // Bau (FilterBrushIntoTree_r legt einen Brush nur in Blaetter, in die er mehr als 0.1 hineinreicht).
+    int anders = 0;
+    int punkte = 0;
+    std::string erster;
+    for (float x = -512; x <= 512; x += 16) {
+        for (float y = -256; y <= 256; y += 16) {
+            for (float zz = -32; zz <= 288; zz += 16) {
+                const float q[3] = {x, y, zz};
+                const bool drin = x > lo[0] && x < hi[0] && y > lo[1] && y < hi[1] && zz > lo[2] && zz < hi[2];
+                const bool rand = !drin && x >= lo[0] && x <= hi[0] && y >= lo[1] && y <= hi[1] && zz >= lo[2] && zz <= hi[2];
+                const std::uint32_t v = bhed::kollisionsInhalt(k, q);
+                const std::uint32_t v0 = bhed::kollisionsInhalt(k0, q);
+                const bool clipDa = (v & ~0x80000030U) == v0 && (v & 0x10U) != 0U;
+                const bool falsch = drin ? !clipDa : (rand ? !clipDa && v != v0 : v != v0);
+                anders += falsch ? 1 : 0;
+                if (falsch && erster.empty()) {
+                    std::snprintf(z, sizeof z, "; zuerst (%g %g %g) 0x%x statt 0x%x", static_cast<double>(x), static_cast<double>(y), static_cast<double>(zz), v, v0);
+                    erster = z;
+                }
+                ++punkte;
+            }
+        }
+    }
+    pruefe(anders == 0, "Welt im CM-Port: " + std::to_string(punkte) + " Punkte, " + std::to_string(anders) +
+                            " anders (im Clip nur PLAYERCLIP | MONSTERCLIP | TRANSLUCENT des Shaders dazu)" + erster);
+    return g_fehler == 0 ? 0 : 1;
+}
+
+// --- Stufe 3: sichtbarer Mover mit Lightmaps -----------------------------------------------------------
+// bspmergetest licht <original.bsp> <teillicht.bsp> <aus.bsp>: der Teil (Welt als Schattenwerfer, die Lichter, ein neuer func_door
+// mit sichtbaren Flaechen, -bsp -meta und -light) beleuchtet; uebernommen wird nur das neue Modell mit seinen Lightmaps.
+int licht(int argc, char** argv) {
+    if (argc < 5) {
+        std::fprintf(stderr, "licht: zu wenig Argumente\n");
+        return 2;
+    }
+    const std::string orig = lies(argv[2]);
+    const std::string teil = lies(argv[3]);
+    const MergeErgebnis unbel = bhed::karte::bspModelleAnhaengen(orig, teil, MergeSpiel::Jka, false);
+    pruefe(!unbel.ok() && hat(unbel, true, "sichtbar"), "unbeleuchtet: Fehler \"sichtbar\" (der Karten-Editor baut dann den Licht-Teil)");
+    const MergeErgebnis r = bhed::karte::bspModelleAnhaengen(orig, teil, MergeSpiel::Jka, true);
+    befunde(r);
+    pruefe(r.ok() && !r.hatFehler() && r.neueModelle == 1 && r.neueFlaechen > 0 && r.neueLightmapSeiten > 0,
+           "beleuchtet: 1 neues Modell *" + std::to_string(r.ersteNummer) + ", " + std::to_string(r.neueFlaechen) + " Flaechen, " +
+               std::to_string(r.neueLightmapSeiten) + " Lightmap-Seiten");
+    if (!r.ok()) { return 1; }
+    {
+        std::ofstream f(argv[4], std::ios::binary);
+        f << r.bsp;
+    }
+    BspDatei a;
+    BspDatei b;
+    BspDatei t;
+    if (!bhed::karte::bspLesen(orig, a) || !bhed::karte::bspLesen(r.bsp, b) || !bhed::karte::bspLesen(teil, t)) { return 1; }
+    int gleich = 0;
+    for (std::size_t i : {3U, 12U, 15U, 16U, 17U}) { gleich += a.lumps[i] == b.lumps[i] ? 1 : 0; }
+    int vorn = 0;
+    for (std::size_t i : {5U, 10U, 11U, 13U, 14U}) { vorn += b.lumps[i].size() > a.lumps[i].size() && b.lumps[i].compare(0, a.lumps[i].size(), a.lumps[i]) == 0 ? 1 : 0; }
+    pruefe(gleich == 5 && vorn == 5, "Baum, Nebel, Lichtgitter, VIS Byte-gleich (" + std::to_string(gleich) + " von 5); Welt-Lightmaps, -Flaechen, Ecken, "
+                                     "Indizes, Blattflaechen Byte-gleich vorn, nur angehaengt (" + std::to_string(vorn) + " von 5)");
+    const std::size_t seitenA = a.lumps[14].size() / 49152;
+    const std::size_t seitenB = b.lumps[14].size() / 49152;
+    const std::size_t m = static_cast<std::size_t>(r.ersteNummer);
+    const int ersteFl = i32(b.lumps[7], m * 40 + 24);
+    const int fl = i32(b.lumps[7], m * 40 + 28);
+    const std::size_t flA = a.lumps[13].size() / 148;
+    const std::size_t vA = a.lumps[10].size() / 80;
+    const std::size_t iA = a.lumps[11].size() / 4;
+    bool ok = ersteFl == static_cast<int>(flA) && fl == r.neueFlaechen && b.lumps[13].size() / 148 == flA + static_cast<std::size_t>(fl);
+    std::size_t naechsteEcke = vA;
+    std::size_t naechsterIndex = iA;
+    int lmMin = 1 << 30;
+    int lmMax = -1;
+    double hell = 0.0;
+    int luxel = 0;
+    for (int s = ersteFl; ok && s < ersteFl + fl; ++s) {
+        const std::size_t q = static_cast<std::size_t>(s) * 148;
+        const int sh = i32(b.lumps[13], q);
+        const int fv = i32(b.lumps[13], q + 12);
+        const int nv = i32(b.lumps[13], q + 16);
+        const int fi = i32(b.lumps[13], q + 20);
+        const int ni = i32(b.lumps[13], q + 24);
+        ok = sh >= 0 && static_cast<std::size_t>(sh) < b.lumps[1].size() / 72 && fv == static_cast<int>(naechsteEcke) && fi == static_cast<int>(naechsterIndex) &&
+             i32(b.lumps[13], q + 4) == -1;
+        for (int i = 0; ok && i < ni; ++i) {
+            const int v = i32(b.lumps[11], (static_cast<std::size_t>(fi) + static_cast<std::size_t>(i)) * 4);
+            ok = v >= 0 && v < nv;
+        }
+        naechsteEcke += static_cast<std::size_t>(nv);
+        naechsterIndex += static_cast<std::size_t>(ni);
+        for (std::size_t k = 0; ok && k < 4; ++k) {
+            const int lm = i32(b.lumps[13], q + 36 + k * 4);
+            if (lm < 0) { continue; }
+            ok = static_cast<std::size_t>(lm) >= seitenA && static_cast<std::size_t>(lm) < seitenB;
+            lmMin = std::min(lmMin, lm);
+            lmMax = std::max(lmMax, lm);
+            if (k != 0) { continue; }
+            // die Luxel an den Lightmap-Koordinaten der Ecken (drawVert_t.lightmap[0], RBSP ab Byte 20; q3map2 schreibt lightmapX/Y 0)
+            for (int i = 0; i < nv; ++i) {
+                const std::size_t e = (static_cast<std::size_t>(fv) + static_cast<std::size_t>(i)) * 80;
+                float uv[2];
+                std::memcpy(uv, b.lumps[10].data() + e + 20, sizeof uv);
+                const int x = std::clamp(static_cast<int>(uv[0] * 128.0F), 0, 127);
+                const int y = std::clamp(static_cast<int>(uv[1] * 128.0F), 0, 127);
+                const std::size_t p = static_cast<std::size_t>(lm) * 49152 + (static_cast<std::size_t>(y) * 128 + static_cast<std::size_t>(x)) * 3;
+                hell += (static_cast<unsigned char>(b.lumps[14][p]) + static_cast<unsigned char>(b.lumps[14][p + 1]) + static_cast<unsigned char>(b.lumps[14][p + 2])) / 3.0;
+                ++luxel;
+            }
+        }
+    }
+    ok = ok && naechsteEcke == b.lumps[10].size() / 80 && naechsterIndex == b.lumps[11].size() / 4;
+    char z[400];
+    std::snprintf(z, sizeof z, "Flaechen *%d: %d ab %d, Ecken und Indizes lueckenlos umgerechnet, Indizes < numVerts, Shader im Bereich, kein Nebel; "
+                               "Lightmaps %d..%d im Bereich %zu..%zu (Welt 0..%zu)",
+                  r.ersteNummer, fl, ersteFl, lmMin, lmMax, seitenA, seitenB - 1, seitenA - 1);
+    pruefe(ok && lmMax >= 0, z);
+    // raum.map: "ambient" "8" allein gaebe 8; die Tuer steht 70 neben dem Licht 400 bei -256 -160 192
+    std::snprintf(z, sizeof z, "Licht: mittlere Helligkeit der Tuer-Luxel an den Ecken %.1f von 255 (%d Ecken; ambient allein 8)", luxel > 0 ? hell / luxel : 0.0, luxel);
+    pruefe(luxel > 0 && hell / luxel > 16.0, z);
+    // Die angehaengten Seiten sind die des Teils (nur die benutzten)
+    bool seitenGleich = seitenB == seitenA + static_cast<std::size_t>(r.neueLightmapSeiten);
+    for (std::size_t s = seitenA; seitenGleich && s < seitenB; ++s) {
+        bool gefunden = false;
+        for (std::size_t u = 0; !gefunden && u < t.lumps[14].size() / 49152; ++u) { gefunden = b.lumps[14].compare(s * 49152, 49152, t.lumps[14], u * 49152, 49152) == 0; }
+        seitenGleich = gefunden;
+    }
+    pruefe(seitenGleich, "angehaengte Lightmap-Seiten = Seiten des Teils (" + std::to_string(r.neueLightmapSeiten) + " von " +
+                             std::to_string(t.lumps[14].size() / 49152) + " des Teils)");
+    // FixBrushSides: Seiten der Tuer mit Flaeche zeigen auf die neuen Flaechen
+    const int fb = i32(b.lumps[7], m * 40 + 32);
+    const int nb = i32(b.lumps[7], m * 40 + 36);
+    int aufNeu = 0;
+    int seiten = 0;
+    for (int br = fb; br < fb + nb; ++br) {
+        const int fs = i32(b.lumps[8], static_cast<std::size_t>(br) * 12);
+        const int ns = i32(b.lumps[8], static_cast<std::size_t>(br) * 12 + 4);
+        for (int s = fs; s < fs + ns; ++s) {
+            const int d = i32(b.lumps[9], static_cast<std::size_t>(s) * 12 + 8);
+            aufNeu += d >= ersteFl && d < ersteFl + fl ? 1 : 0;
+            ++seiten;
+        }
+    }
+    pruefe(aufNeu > 0, "Brush-Seiten der Tuer: " + std::to_string(aufNeu) + " von " + std::to_string(seiten) + " zeigen auf ihre neuen Flaechen (FixBrushSides)");
+    // Blatt des Modells mit seinen Flaechen
+    const std::size_t l = a.lumps[4].size() / 48;
+    const int fls = i32(b.lumps[4], l * 48 + 32);
+    const int nls = i32(b.lumps[4], l * 48 + 36);
+    bool blatt = nls == fl && fls == static_cast<int>(a.lumps[5].size() / 4);
+    for (int i = 0; blatt && i < nls; ++i) {
+        const int v = i32(b.lumps[5], static_cast<std::size_t>(fls + i) * 4);
+        blatt = v >= ersteFl && v < ersteFl + fl;
+    }
+    pruefe(blatt, "Blatt des Modells (EmitLeaf): " + std::to_string(nls) + " Blattflaechen auf die neuen Flaechen");
+    // CM-Port laedt; Grenzen und externe Lightmaps
+    bhed::KollisionsKarte k;
+    pruefe(bhed::leseKollision(r.bsp, k) && k.modelle.size() == b.lumps[7].size() / 40, "der CM-Port laedt die gemischte Karte");
+    std::string voll = a.lumps[14];
+    voll.resize(256 * 49152, '\0');
+    const MergeErgebnis g = bhed::karte::bspModelleAnhaengen(bhed::karte::bspMitLumps(orig, {{14, voll}}), teil, MergeSpiel::Jka, true);
+    pruefe(!g.ok() && hat(g, true, "grenze", "MAX_LIGHTMAPS"), "Grenze: 256 Lightmap-Seiten in der Karte + neue -> Fehler MAX_LIGHTMAPS");
+    const MergeErgebnis x = bhed::karte::bspModelleAnhaengen(bhed::karte::bspMitLumps(orig, {{14, std::string()}}), teil, MergeSpiel::Jka, true);
+    pruefe(!x.ok() && hat(x, true, "lightmap", "external"), "Karte mit externen Lightmaps (Lump leer, Flaechen mit Nummern): Fehler \"lightmap\"");
+    return g_fehler == 0 ? 0 : 1;
+}
+
+// bspmergetest befehle <q3map2.exe> <basispfad> <original.bsp> <teillicht.map>: die Befehle des Licht-Teils (teilLichtBefehle mit
+// "_q3map2_cmdline" der Karte), je Zeile einer
+int befehle(int argc, char** argv) {
+    if (argc < 6) { return 2; }
+    BspDatei d;
+    if (!bhed::karte::bspLesen(lies(argv[4]), d)) { return 1; }
+    std::vector<bhed::MapEntity> ents;
+    bhed::parseEntities(bhed::karte::bspEntitaetenText(d), ents);
+    const std::string* cmd = ents.empty() ? nullptr : ents[0].find("_q3map2_cmdline");
+    bhed::karte::Q3map2Aufruf q;
+    q.programm = argv[2];
+    q.spielTyp = "ja";
+    q.enginePfad = argv[3];
+    q.fsGame = "base";
+    std::printf("cmdline %s\n", cmd != nullptr ? cmd->c_str() : "");
+    for (const std::string& b : bhed::karte::teilLichtBefehle(q, argv[5], cmd != nullptr ? *cmd : std::string())) { std::printf("befehl %s\n", b.c_str()); }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc >= 2 && std::strcmp(argv[1], "einheit") == 0) { return einheit(); }
     if (argc >= 2 && std::strcmp(argv[1], "pruefen") == 0) { return pruefen(argc, argv); }
+    if (argc >= 2 && std::strcmp(argv[1], "welt") == 0) { return welt(argc, argv); }
+    if (argc >= 2 && std::strcmp(argv[1], "licht") == 0) { return licht(argc, argv); }
+    if (argc >= 2 && std::strcmp(argv[1], "befehle") == 0) { return befehle(argc, argv); }
     if (argc >= 4 && std::strcmp(argv[1], "befunde") == 0) {
         const std::string s = argc >= 5 ? argv[4] : "jka";
         const MergeSpiel spiel = s == "jk2" ? MergeSpiel::Jk2 : (s == "md" ? MergeSpiel::MovieDuels : MergeSpiel::Jka);

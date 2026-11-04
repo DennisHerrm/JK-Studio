@@ -423,7 +423,7 @@ void ergebnisAnwenden() {
     ed.bspRueckLetzt.lichter = lichtZahl;
     // die zurueckgewonnenen Modelle und Flaechen stecken schon in der .bsp: "Update entities
     // only" bleibt moeglich
-    if (ed.bspHerkunft.aktiv) { ed.bspHerkunft.fingerabdruck = karte::geometrieFingerabdruck(k); }
+    if (ed.bspHerkunft.aktiv) { bspGeometrieMerken(); }
     ed.bspRueckLetzt.treffer = erg.treffer.size();
     ed.bspRueckLetzt.forceMeta = forceMeta;
     ed.bspRueckLetzt.pinsel = pinsel;

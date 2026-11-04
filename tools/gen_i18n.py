@@ -2250,6 +2250,8 @@ from i18n_rc609_b2 import zeilen_vier as _rc609_b2  # noqa: E402  (rc609 B2: Mis
 S += _rc609_b2()
 from i18n_rc609_m0 import zeilen_vier as _rc609_m0  # noqa: E402  (rc609 M0: vorhandene Modelle mit einem Klick in die Karte)
 S += _rc609_m0()
+from i18n_rc609_b13 import zeilen_vier as _rc609_b13  # noqa: E402  (rc609 B13: Clips in die Welt, sichtbare Mover)
+S += _rc609_b13()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

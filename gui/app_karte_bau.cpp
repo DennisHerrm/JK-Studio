@@ -2374,6 +2374,14 @@ void bauStarten(std::size_t index) {
     g_lauf.editorDatenBsp = edBsp;
 }
 
+// rc609 B13: die erste Rueckgabe != 0 des letzten Laufs (q3map2 abgestuerzt oder mit Fehler beendet), sonst 0
+int bauRueckgabe() {
+    for (const auto& [schritt, code] : g_lauf.rueckgaben) {
+        if (code != 0) { return code; }
+    }
+    return 0;
+}
+
 void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach) {
     if (bauLaeuft()) { bauAusfuehren(std::vector<std::string>{}); }
     g_lauf.eintrag = eintrag;
