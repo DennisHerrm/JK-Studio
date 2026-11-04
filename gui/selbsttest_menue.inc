@@ -3288,6 +3288,11 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=spielbeleg: ein loses Menue des eigenen fs_homepath zurueckspeichern (rc609 Endrunde 1, Spielvergleich)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "spielbeleg") == 0) {
+        for (auto& x : schritteSpielbeleg()) { add(std::move(x)); }
+        return s;
+    }
     // BHED_MENUE_NUR=start: nur der Startbildschirm ohne offenes Menue (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "start") == 0) {
         for (auto& x : schritteStart()) { add(std::move(x)); }

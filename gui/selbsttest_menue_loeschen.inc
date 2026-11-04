@@ -110,6 +110,7 @@ std::vector<Schritt> schritteStartMenue() {
 }
 
 std::vector<Schritt> schritteSpeichernOrt();   // rc609 ME2 (selbsttest_menue_speichern.inc)
+std::vector<Schritt> schritteSpielbeleg();     // rc609 Endrunde 1 (selbsttest_menue_speichern.inc)
 
 // Druck auf die Flaeche bei (vx, vy) im virtuellen Schirm, ziehen, mitten im Zug Entf, weiter ziehen, loslassen
 Schritt zugMitEntf(const std::string& was, float vx, float vy, float dx, float dy) {

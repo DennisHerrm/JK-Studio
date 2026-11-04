@@ -187,3 +187,53 @@ std::vector<Schritt> schritteSpeichernOrt() {
     add(pause(0.3));
     return s;
 }
+
+// rc609 Endrunde 1 (BHED_MENUE_NUR=spielbeleg, BHED_ME2_MOD=<fs_homepath>\MD mit einer losen Kopie des Menues
+// BHED_ME2_MENUE, z. B. ui/quit.menu): das Menue aus dem Spiel oeffnen, BHED_ME2_ALT durch BHED_ME2_NEU ersetzen, Strg+S an
+// seinen Ort. Danach startet das Skript des Spielvergleichs Movie Duels mit diesem fs_homepath und fotografiert das Menue.
+std::vector<Schritt> schritteSpielbeleg() {
+    namespace fs = std::filesystem;
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto umgebung = [](const char* n) {
+        const char* w = std::getenv(n);
+        return std::string(w != nullptr ? w : "");
+    };
+    const fs::path mod = bhed::utf8Pfad(umgebung("BHED_ME2_MOD"));
+    const std::string menue = umgebung("BHED_ME2_MENUE");
+    const std::string alt = umgebung("BHED_ME2_ALT");
+    const std::string neu = umgebung("BHED_ME2_NEU");
+    const fs::path datei = mod / bhed::utf8Pfad(menue);
+    const auto liesDatei = [](const fs::path& p) {
+        std::ifstream f(p, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    };
+    const auto vorher = std::make_shared<std::string>();
+    const auto ersetzt = std::make_shared<int>(0);
+    add(tu("ME2 Spielbeleg: der Mod-Ordner des eigenen fs_homepath als letzter Spielordner, das Menue aus dem Spiel", [=] {
+        *vorher = liesDatei(datei);
+        g_app->settings.gamePaths.push_back(pfadText(mod));
+        GamePath g;
+        (void)scanGamePath(pfadText(mod), g);
+        g.directory = pfadText(mod);
+        g_app->gamePaths.push_back(std::move(g));
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneAusSpiel(menue);
+    }));
+    add(pause(0.5));
+    add(tu("ME2 Spielbeleg: Text ersetzen", [=] { *ersetzt = me::ersetzeAlle(alt, neu, false); }));
+    add(pause(0.2));
+    add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_S, "Strg+S"));
+    add(pause(0.5));
+    add(pruefe("ME2 Spielbeleg: an seinen Ort gespeichert, die alte Datei als .bak", [=] {
+        const std::string t = liesDatei(datei);
+        fs::path b = datei;
+        b += ".bak";
+        diag::detail("ME2 Spielbeleg: " + std::to_string(*ersetzt) + " ersetzt, " + std::to_string(vorher->size()) + " -> " + std::to_string(t.size()) +
+                     " Bytes, Meldung: " + me::letzteMeldung());
+        return !vorher->empty() && *ersetzt >= 1 && t.find(neu) != std::string::npos && liesDatei(b) == *vorher;
+    }));
+    return s;
+}

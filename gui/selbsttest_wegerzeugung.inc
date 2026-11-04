@@ -709,6 +709,14 @@ std::vector<Schritt> wegerzeugungSchritte() {
         diag::detail("Knopftest: WE - erzeugte Kanten " + std::to_string(kanten) + ", nicht begehbar " + std::to_string(schlecht));
         return kanten > 0 && schlecht == 0;
     }));
+    // Fuer den Spielvergleich (BHED_WE_ENT=<Datei>): die Entities mit dem erzeugten Netz als .ent
+    if (const char* ent = std::getenv("BHED_WE_ENT"); ent != nullptr && *ent != 0) {
+        const std::string pfad = ent;
+        add(tu("WE Spielvergleich: Entities mit dem erzeugten Netz schreiben", [pfad] {
+            std::ofstream f(::bhed::utf8Pfad(pfad), std::ios::binary | std::ios::trunc);
+            f << writeEntities(g_app->map.entities);
+        }));
+    }
     // --- rc609 W3b ---------------------------------------------------------------------------------
     add(tu("WE W3b: Rueckgaengig, dieselbe Erzeugung ohne Hintergrund", [=] {
         (void)entityRueckgaengig();
@@ -812,5 +820,13 @@ std::vector<Schritt> wegerzeugungSchritte() {
         return ja;
     }));
     add(foto("we_dach"));
+    // Fuer den Spielvergleich der Sprungkanten (BHED_WE_ENT_DACH=<Datei>): die Entities mit dem Netz samt Dach
+    if (const char* ent = std::getenv("BHED_WE_ENT_DACH"); ent != nullptr && *ent != 0) {
+        const std::string pfad = ent;
+        add(tu("WE Spielvergleich: Entities mit Dach und Sprungkanten schreiben", [pfad] {
+            std::ofstream f(::bhed::utf8Pfad(pfad), std::ios::binary | std::ios::trunc);
+            f << writeEntities(g_app->map.entities);
+        }));
+    }
     return s;
 }
