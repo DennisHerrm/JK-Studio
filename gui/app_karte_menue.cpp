@@ -691,6 +691,14 @@ void listeZeichnen(const std::string& name) {
         QtPunkt p;
         p.id = id.c_str();
         if (qtPunkt(p)) { bspOeffnenDialog(); }
+        // rc609 B2 (eigene Funktion): die Karte der offenen Mission - der Bau schreibt in ihre Datei,
+        // der Mission-Tab laedt danach nach
+        const std::string km = std::string(trK(Str::KmMenue)) + "###progkartemission";
+        QtPunkt m;
+        m.id = km.c_str();
+        m.aktiv = karteDerMissionMoeglich();
+        m.tooltip = m.aktiv ? std::string(trK(Str::KmMenueTip)) + "\n" + karteDerMissionName() : std::string(trK(Str::KmKeineMission));
+        if (qtPunkt(m)) { (void)karteDerMissionBearbeiten(); }
         // Stufe 9 Punkt 2 (eigene Funktion): Geometrie als Brushes importieren
         const std::string gi = std::string(trK(Str::KeGiMenue)) + "###proggeoimport";
         QtPunkt g;

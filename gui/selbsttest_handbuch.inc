@@ -2236,6 +2236,7 @@ std::vector<Schritt> handbuchSchritte() {
 }
 
 std::vector<Schritt> wegmalenHandbuchSchritte();
+std::vector<Schritt> kartemissionSchritte(bool handbuch);   // selbsttest_kartemission.inc: rc609 B2, BHED_HB_NUR=kartemission
 void wegTreppeBlick();   // selbsttest_wegerzeugung.inc: rc609 W3b, die Kamera fuer h_weg_treppe   // selbsttest_wegmalen.inc: rc609 W3b, BHED_HB_NUR=wegmalen
 
 std::vector<Schritt> handbuchSchritteInhalt() {
@@ -2246,6 +2247,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
+        return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "helfer") == 0) {
         return hilfe1::handbuchFotos();   // Stufe H1: die Bilder der Seite "Der Helfer und die Touren"

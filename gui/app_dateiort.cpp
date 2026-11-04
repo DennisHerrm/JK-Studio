@@ -105,13 +105,6 @@ std::vector<karte::EntitaetPaare> paareVon(const std::vector<MapEntity>& ents) {
     return v;
 }
 
-void entVerlaufLeeren() {
-    g_app->entUndo.clear();
-    g_app->entRedo.clear();
-    g_app->entUndoStempel.clear();
-    g_app->entRedoStempel.clear();
-}
-
 // Die Datei, in die "Entities speichern" schreibt (Art::Keine: Speichern unter).
 DateiHerkunft entZiel() {
     if (g_app->entHerkunftKarte == g_app->map.path && g_app->entHerkunft.art != DateiHerkunft::Art::Keine) { return g_app->entHerkunft; }
@@ -136,6 +129,8 @@ void entGeschrieben(const std::string& karte, const DateiHerkunft& h) {
     g_app->entitiesUngespeichert.erase(karte);
 }
 
+}  // namespace
+
 // Bytes eines Eintrags aus einer bestimmten .pk3.
 bool ausPk3Lesen(const std::string& pk3, const std::string& eintrag, std::string& out) {
     Pk3 a;
@@ -144,7 +139,12 @@ bool ausPk3Lesen(const std::string& pk3, const std::string& eintrag, std::string
     return e != nullptr && readPk3File(a, *e, out);
 }
 
-}  // namespace
+void entVerlaufLeeren() {
+    g_app->entUndo.clear();
+    g_app->entRedo.clear();
+    g_app->entUndoStempel.clear();
+    g_app->entRedoStempel.clear();
+}
 
 bool dateiSicherSchreiben(const std::string& pfad, const std::string& bytes) {
     std::string fehler;

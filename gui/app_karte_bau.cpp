@@ -1466,6 +1466,11 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
             gpuZeitMerken(l.kartenPfad, sch, gpuWegDesLaufs(l.gpu, l.gpuModus), st.dauer);
         }
         bauFertigMelden();
+        // rc609 B2: Bau der Karte einer Mission - in ihre Datei schreiben, der Mission-Tab laedt nach
+        if (!danach.f) {
+            const bool alleNull = std::all_of(l.rueckgaben.begin(), l.rueckgaben.end(), [](const auto& r) { return r.second == 0; });
+            karteMissionBauFertig(l.kartenPfad, alleNull);
+        }
         // Stufe 5: nach einem Bau des Build-Menues (nicht nach eigenen
         // Auftraegen wie AutoCaulk) auf Wunsch der Optimierer im Hintergrund
         if (!danach.f && e().optimierer.nachBau) { optimiererStarten(true); }
@@ -2225,6 +2230,7 @@ void bauStarten(std::size_t index) {
     // nach SaveMap ist die Karte nicht mehr geaendert: der Zweig wirkt nur, wenn
     // das Speichern scheiterte - dann baut auch q3map2 nicht die Aenderung.
     if (!bauOrtBestimmen()) { return; }
+    karteMissionBauBeginnt(ed.name, bauVariablen().at("BspFile"));   // rc609 B2: "Karte der Mission bearbeiten"
     // Pointfile_Delete: die alte Leck-Linie (.lin) der gebauten Datei weg
     {
         const std::string karte = bauKartenPfad();

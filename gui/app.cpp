@@ -6902,6 +6902,7 @@ void draw() {
         drawNeueMission();
         drawMissionSpeichern();
         drawSpeicherWeg();   // rc609 W2a Punkt 3
+        drawKarteMission();  // rc609 B2: Bezuege nach dem Nachladen
         drawKartenStatistik();
         drawWegFenster();
         drawNpcBrowser();

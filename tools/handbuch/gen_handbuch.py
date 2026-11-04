@@ -162,6 +162,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_j()})
             from i18n_rc609_w3b import zeilen_vier as _rc609_w3b   # rc609 W3b: Bereich und Pfad malen, Startpunkt, Sprungkanten
             texte.update({e[0]: e[1:] for e in _rc609_w3b()})
+            from i18n_rc609_b2 import zeilen_vier as _rc609_b2   # rc609 B2: Mission <-> Map ohne Verlust
+            texte.update({e[0]: e[1:] for e in _rc609_b2()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

@@ -553,6 +553,7 @@ struct KollisionsSpeicher {
     std::string karte;
     std::shared_ptr<const KollisionsKarte> k;
     bool jk2 = false;   // rc604 fix604: mit den Regeln von Jedi Outcast gelesen (SURF_SLICK)
+    std::uint64_t stand = 0;   // rc609 B2: je Laden eins weiter - eine neu gebaute Karte kann gleich viele Flaechen haben
 };
 KollisionsSpeicher& kollisionsSpeicher() {
     static KollisionsSpeicher s;
@@ -668,6 +669,8 @@ std::uint64_t navWeltSchluessel() {
     h ^= static_cast<std::uint64_t>(g_app->geo.surfaces.size()) * 0x9e3779b97f4a7c15ULL;
     // rc604 fix604 (JK2 Stufe 3): mit den Regeln von Jedi Outcast ein anderes Netz.
     if (navJk2Regeln()) { dazu("jk2"); }
+    // rc609 B2: nach einem neuen Bau derselbe Pfad, dieselben Entities, oft dieselbe Flaechenzahl - aber andere Brushes
+    dazu(std::to_string(kollisionsSpeicher().stand));
     return h | 1ULL;
 }
 
@@ -679,6 +682,7 @@ void kollisionLaden(const std::string& bsp, const std::string& karte) {
     KollisionsSpeicher& s = kollisionsSpeicher();
     s.karte = karte;
     s.jk2 = regelwerkJediOutcast();
+    ++s.stand;
     if (leseKollision(bsp, *k)) {
         s.k = std::move(k);
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
