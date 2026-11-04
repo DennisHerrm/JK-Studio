@@ -2536,11 +2536,6 @@ std::vector<Schritt> handbuchSchritteInhalt() {
             g_app->cameraSelected = false;
             g_app->selectedActor = -1;
             dock::ausblenden("mission.enttext", false);
-            const ImGuiViewport* vp = ImGui::GetMainViewport();
-            const std::string name = dock::fensterName("mission.enttext");
-            const ImRect k = hb::karte();
-            ImGui::SetWindowPos(name.c_str(), ImVec2{k.Min.x + k.GetWidth() * 0.52F, k.Min.y + 8.0F});
-            ImGui::SetWindowSize(name.c_str(), ImVec2{k.GetWidth() * 0.47F, std::min(k.GetHeight() - 16.0F, vp->WorkSize.y * 0.8F)});
             for (std::size_t i = 0; i < g_app->map.entities.size() && *ent < 0; ++i) {
                 const MapEntity& e = g_app->map.entities[i];
                 if (e.classname == "NPC_spawner" && !e.origin.empty() && e.find("npc_targetname") != nullptr) { *ent = static_cast<int>(i); }
@@ -2558,7 +2553,30 @@ std::vector<Schritt> handbuchSchritteInhalt() {
             g_app->mapDirty = true;
         }));
         t.push_back(gezeichnet("Handbuch Entity-Text"));
+        // Endrunde 1: Lage und Groesse erst, wenn das Fenster da ist (im Bild, in dem es aufgeht, wirkt SetWindowPos nicht)
+        t.push_back(tu("Handbuch Entity-Text: Panel rechts oben in die Kartenansicht", [] {
+            const ImGuiViewport* vp = ImGui::GetMainViewport();
+            const std::string name = dock::fensterName("mission.enttext");
+            const ImRect k = hb::karte();
+            // so breit, dass die Knoepfe der Kopfzeile in allen Sprachen ganz zu sehen sind (darf rechts ueber die Kartenansicht)
+            ImGui::SetWindowPos(name.c_str(), ImVec2{k.Min.x + k.GetWidth() * 0.45F, k.Min.y + 8.0F});
+            ImGui::SetWindowSize(name.c_str(), ImVec2{std::max(k.GetWidth() * 0.54F, ImGui::GetFontSize() * 50.0F),
+                                                      std::min(k.GetHeight() - 16.0F, vp->WorkSize.y * 0.8F)});
+        }));
         t.push_back(pause(0.8));
+        t.push_back(pruefe("Handbuch Entity-Text: die gewaehlte Entity ist in 3D zu sehen (nicht unter dem Panel)", [=] {
+            float p[3]{};
+            ImVec2 s;
+            if (*ent < 0 || !entityOrt(g_app->map.entities[static_cast<std::size_t>(*ent)], p) || !kartenPunktAufSchirm(p, s)) { return false; }
+            const ImRect f = hb::fensterRect("###dock.mission.enttext");
+            const ImRect k = hb::karte();
+            const float rand = ImGui::GetFontSize() * 2.0F;   // die Marke um den Ursprung
+            const ImRect m{s.x - rand, s.y - rand, s.x + rand, s.y + rand};
+            diag::detail("Knopftest: Handbuch Entity-Text - Entity bei " + std::to_string(static_cast<int>(s.x)) + "," + std::to_string(static_cast<int>(s.y)) +
+                         ", Panel " + std::to_string(static_cast<int>(f.Min.x)) + "," + std::to_string(static_cast<int>(f.Min.y)) + " bis " +
+                         std::to_string(static_cast<int>(f.Max.x)) + "," + std::to_string(static_cast<int>(f.Max.y)));
+            return k.Contains(m) && !f.Overlaps(m);
+        }));
         hb::markiere("h_enttext", [=] {
             int von = -1;
             int bis = -1;
@@ -4128,14 +4146,23 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     add(pause(0.3));
 
     // --- 10. Wegpunkte ---------------------------------------------------------------------
-    add(tu("Handbuch: Wegpunkte", [] { g_app->wegFensterOffen = true; g_app->mapDirty = true; }));
+    // Endrunde 1: das Netz sichtbar (das Bild zeigt sonst nur das Fenster) und ab dem linken Rand (mindestens 1920 breit)
+    add(tu("Handbuch: Wegpunkte", [] {
+        g_app->wegFensterOffen = true;
+        g_app->zeigeWegnetz = true;
+        g_app->mapDirty = true;
+    }));
     add(pause(0.8));
     add(hb::fotoTeil("h_wegpunkte", [=] {
         ImRect r = kartePlusLeiste();
         r.Add(hb::fensterRect(tr(Str::WegTitel)));
+        r.Min.x = 0.0F;
         return r;
     }));
-    add(tu("Handbuch: Wegpunkte zu", [] { g_app->wegFensterOffen = false; }));
+    add(tu("Handbuch: Wegpunkte zu", [] {
+        g_app->wegFensterOffen = false;
+        g_app->zeigeWegnetz = false;
+    }));
 
     // --- 10b. Bilder fuer die zweite Runde der Kurz-Tutorials (rc600) --------------
     // shank: "mach eigene Bilder fuer die". Alles in der Taspir-Mission, nur fuer
