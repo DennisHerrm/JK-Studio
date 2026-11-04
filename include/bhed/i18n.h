@@ -3975,6 +3975,7 @@ enum class Str {
     MeStartMenueOeffnenSub,
     MeStartAusSpielTip,
     MeStartDateiTip,
+    KeAbSammelt,
     Count,
 };
 

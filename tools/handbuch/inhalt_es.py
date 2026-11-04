@@ -7504,4 +7504,6 @@ TEXTE.update({
         "**Sin proyecto:** cuando no hay ningún menú abierto, la pantalla de inicio muestra **{{MeStartMenueOeffnen}}** junto a **{{MePrjNeu}}** y **{{MePrjOeffnen}}**. Ofrece **{{MeAusSpiel}}**, **{{MeDateiOeffnen}}** y **{{MeMenuesatzOeffnen}}**. Edita el menú y pulsa <kbd>Ctrl</kbd>+<kbd>S</kbd>: un archivo fuera de las carpetas del juego se escribe de nuevo en el mismo sitio; un menú del juego o de sus carpetas pregunta una vez dónde va tu copia, porque el editor nunca cambia las carpetas del juego. Los mismos botones siguen arriba en la barra.",
     "The start screen of the menu editor: open an existing menu without a project.":
         "La pantalla de inicio del editor de menús: abre un menú existente sin proyecto.",
+    "With large game data (Movie Duels) the list is collected in the background: a bar with **{{KeAbSammelt}}** shows the progress and the editor stays usable. Models in .obj, .fbx, .gltf and .glb show the surfaces and shaders that q3map2 bakes in.":
+        "Con datos de juego grandes (Movie Duels) la lista se reúne en segundo plano: una barra con **{{KeAbSammelt}}** muestra el progreso y el editor sigue usable. Los modelos .obj, .fbx, .gltf y .glb muestran las superficies y los shaders que q3map2 hornea.",
 })

@@ -25,8 +25,11 @@
 #include <cctype>
 #include <cstring>
 #include <cstdio>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iterator>
 #include <map>
 
@@ -46,6 +49,10 @@ struct AssetZustand {
     std::vector<karte::Asset> liste;
     const void* spiel = nullptr;   // fuer welches Spiel gesammelt
     bool neu = true;
+    // rc609 KEMD: Sammeln im eigenen Faden (mit den Movie-Duels-Daten hielt es das Programm an); die alte Liste
+    // bleibt, bis die neue fertig ist. Der Faden haelt das Spiel (sein Dateisystem) selbst fest.
+    std::future<std::vector<karte::Asset>> sammler;
+    std::shared_ptr<std::atomic<int>> schritt;
     std::map<std::string, std::string> shader;
     std::map<std::string, std::array<float, 64>> wellen;
     std::map<std::string, karte::PrefabUmriss> umrisse;
@@ -57,14 +64,30 @@ AssetZustand& g_a = *new AssetZustand;
 
 std::string prefabOrdner() { return platform::settingsDirectory() + "\\import\\prefabs"; }
 
+const void* aktuellesSpiel() { return e().karteSpiel ? e().karteSpiel.get() : e().spiel.get(); }
+
+bool sammeltNoch() { return g_a.sammler.valid() && g_a.sammler.wait_for(std::chrono::seconds(0)) != std::future_status::ready; }
+
+// Eine fertige Sammlung uebernehmen; eine neue anstossen, wenn die Liste veraltet ist (neues Spiel, "Refresh").
+// Waehrend ein Faden laeuft, startet kein zweiter - danach entscheidet dieselbe Pruefung erneut.
 void sammeln() {
+    if (g_a.sammler.valid()) {
+        if (sammeltNoch()) { return; }
+        g_a.liste = g_a.sammler.get();
+        g_a.zellen.clear();
+    }
+    if (!g_a.neu && g_a.spiel == aktuellesSpiel()) { return; }
     Editor& ed = e();
-    const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
+    std::shared_ptr<Spielkontext> sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
     std::error_code ec;
     const std::string imp = platform::settingsDirectory() + "\\import";
-    g_a.liste = karte::assetsSammeln(sp ? &sp->fs : nullptr, std::filesystem::is_directory(std::filesystem::path(imp), ec) ? imp : std::string());
+    const std::string importOrdner = std::filesystem::is_directory(std::filesystem::path(imp), ec) ? imp : std::string();
     g_a.spiel = sp.get();
     g_a.neu = false;
+    g_a.schritt = std::make_shared<std::atomic<int>>(0);
+    g_a.sammler = std::async(std::launch::async, [sp, importOrdner, schritt = g_a.schritt] {
+        return karte::assetsSammeln(sp ? &sp->fs : nullptr, importOrdner, schritt.get());
+    });
 }
 
 std::string lesen(const std::string& spielPfad) {
@@ -164,11 +187,19 @@ bool assetAbgelegt(std::size_t index, ImVec2 punkt) {
 }
 
 std::vector<karte::Asset> assetListe(int art) {
-    if (g_a.neu || g_a.spiel != (e().karteSpiel ? e().karteSpiel.get() : e().spiel.get())) { sammeln(); }
+    sammeln();
+    if (g_a.sammler.valid()) {   // Selbsttest: auf die fertige Liste warten
+        g_a.sammler.wait();
+        sammeln();
+    }
     std::vector<karte::Asset> r;
     for (const std::size_t i : karte::assetsFiltern(g_a.liste, static_cast<karte::AssetArt>(art), g_a.suche)) { r.push_back(g_a.liste[i]); }
     return r;
 }
+
+bool assetSammelnLaeuft() { return sammeltNoch(); }
+
+const std::vector<karte::Asset>& assetListeAlle() { return g_a.liste; }
 
 void assetSucheSetzen(const std::string& suche, int art) {
     std::snprintf(g_a.suche, sizeof(g_a.suche), "%s", suche.c_str());
@@ -226,7 +257,7 @@ void assetAblageZiel() {
 void assetBrowserZeichnen() {
     modellLiveWacheKarte();   // rc609 M0: auch bei geschlossenem Browser
     if (!g_a.offen) { return; }
-    if (g_a.neu || g_a.spiel != (e().karteSpiel ? e().karteSpiel.get() : e().spiel.get())) { sammeln(); }
+    sammeln();
     const std::string titel = std::string(trK(Str::KeAbMenue)) + "###assetbrowser";
     ImGui::SetNextWindowSize(ImVec2(560, 480), ImGuiCond_FirstUseEver);
     if (g_a.posSetzen) {
@@ -247,6 +278,14 @@ void assetBrowserZeichnen() {
         const std::vector<std::size_t> treffer = karte::assetsFiltern(g_a.liste, static_cast<karte::AssetArt>(g_a.art), g_a.suche);
         ImGui::SameLine();
         ImGui::Text(trK(Str::KeAbAnzahl), static_cast<int>(treffer.size()));
+        if (sammeltNoch()) {   // rc609 KEMD: Fortschritt des Sammelns, das Fenster bleibt bedienbar
+            const int fertig = g_a.schritt ? g_a.schritt->load() : 0;
+            char t[32];
+            std::snprintf(t, sizeof(t), "%d / %d", fertig, karte::kAssetSchritte);
+            ImGui::ProgressBar(static_cast<float>(fertig) / static_cast<float>(karte::kAssetSchritte), ImVec2(260, 0), t);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(trK(Str::KeAbSammelt));
+        }
         if (g_a.art == 0) { modellSetzOptionen(); }   // rc609 M0: Klasse und Kollision
         if (g_a.art == 1) {
             ImGui::SetNextItemWidth(160);

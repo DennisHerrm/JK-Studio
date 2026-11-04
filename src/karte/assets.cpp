@@ -36,16 +36,23 @@ std::string dateiname(const std::string& p) {
 }
 }  // namespace
 
-std::vector<Asset> assetsSammeln(const Dateisystem* fs, const std::string& importOrdner) {
+std::vector<Asset> assetsSammeln(const Dateisystem* fs, const std::string& importOrdner, std::atomic<int>* schritt) {
     std::vector<Asset> v;
     const auto dazu = [&](AssetArt art, const std::string& pfad) { v.push_back({art, pfad, dateiname(pfad)}); };
-    if (fs != nullptr) {
-        for (const char* e : {"md3", "glm", "ase", "obj"}) {
+    const auto weiter = [schritt]() {
+        if (schritt != nullptr) { ++*schritt; }
+    };
+    for (const char* e : {"md3", "glm", "ase", "obj"}) {
+        if (fs != nullptr) {
             for (const std::string& d : fs->dateien("models/", e, 99)) { dazu(AssetArt::Modell, "models/" + d); }
         }
-        for (const char* e : {"wav", "mp3"}) {
+        weiter();
+    }
+    for (const char* e : {"wav", "mp3"}) {
+        if (fs != nullptr) {
             for (const std::string& d : fs->dateien("sound/", e, 99)) { dazu(AssetArt::Klang, "sound/" + d); }
         }
+        weiter();
     }
     if (!importOrdner.empty()) {
         std::error_code ec;
@@ -56,6 +63,7 @@ std::vector<Asset> assetsSammeln(const Dateisystem* fs, const std::string& impor
             dazu(AssetArt::Prefab, std::string(u.begin(), u.end()));
         }
     }
+    weiter();
     std::stable_sort(v.begin(), v.end(), [](const Asset& a, const Asset& b) { return klein(a.pfad) < klein(b.pfad); });
     return v;
 }
