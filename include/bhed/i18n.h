@@ -3796,6 +3796,8 @@ enum class Str {
     WegErzeugenTipp,
     WegRasterWeiter,
     WegNichtAngebunden,
+    KePatchSchattenKarteTip,
+    KePatchSchattenHinweis,
     Count,
 };
 

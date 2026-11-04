@@ -2232,6 +2232,8 @@ from i18n_rc609_j import zeilen_vier as _rc609_j  # noqa: E402  (rc609 J: Shader
 S += _rc609_j()
 from i18n_rc609_w3a import zeilen_vier as _rc609_w3a  # noqa: E402  (rc609 W3a: Wegpunkt-Erzeugung in Innenraeumen und auf Treppen)
 S += _rc609_w3a()
+from i18n_rc609_l import zeilen_vier as _rc609_l  # noqa: E402  (rc609 L: Licht geht durch Patches, -patchshadows der Karte)
+S += _rc609_l()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

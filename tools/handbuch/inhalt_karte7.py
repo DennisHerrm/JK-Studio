@@ -89,6 +89,20 @@ KARTE_TEMPO = {
               "**与游戏一致:**开启实时光照(以及显示快速烘焙结果)时,caulk 等 nodraw 表面会消失,透明着色器按其第一层的 alphaFunc 和 blendFunc 绘制。",
               "**ゲームと同じ:**リアルタイムライト(とクイックベイクの表示)では caulk などの nodraw 面が消え、透明なシェーダーは最初のステージの alphaFunc と blendFunc で描かれます。"),
         ]),
+        ("p", T("**Light through patches:** patches cast shadows only with **{{KeLBuild}} > {{KePatchSchatten}}** - as in q3map2, where they cast shadows only with `-patchshadows`. The switch is saved in the map (worldspawn `_bhed_patchshadows`) and applies to the real-time light, the quick bake and every full build: the light stage of any Build menu entry gets `-patchshadows`. Off, the default entries behave as in NetRadiant: only [Final] has `-patchshadows`, the others let the light through patches, and the build window says so. The light grid ignores patches in any case (q3map2), so models under a patch stay lit in the game.",
+                "**Licht durch Patches:** Patches werfen nur mit **{{KeLBuild}} > {{KePatchSchatten}}** Schatten - wie in q3map2, wo sie nur mit `-patchshadows` Schatten werfen. Der Schalter wird in der Karte gespeichert (worldspawn `_bhed_patchshadows`) und gilt für Echtzeit-Licht, Schnell-Backen und jeden vollen Bau: der Licht-Schritt jedes Eintrags im Build-Menü bekommt `-patchshadows`. Aus verhalten sich die Vorgabe-Einträge wie in NetRadiant: nur [Final] hat `-patchshadows`, die anderen lassen das Licht durch Patches, und das Bau-Fenster sagt es. Das Lichtgitter übergeht Patches immer (q3map2), Modelle unter einem Patch bleiben im Spiel also hell.",
+                "**光线穿过面片:**面片只有开启 **{{KeLBuild}} > {{KePatchSchatten}}** 时才投射阴影——与 q3map2 相同,那里面片只有加 `-patchshadows` 才投射阴影。此开关保存在地图中(worldspawn `_bhed_patchshadows`),适用于实时光照、快速烘焙和每次完整编译:Build 菜单中任何条目的光照步骤都会加上 `-patchshadows`。关闭时,默认条目与 NetRadiant 相同:只有 [Final] 带 `-patchshadows`,其他条目让光线穿过面片,编译窗口会给出提示。光照网格始终忽略面片(q3map2),因此游戏中面片下的模型仍然是亮的。",
+                "**パッチを通る光:**パッチは **{{KeLBuild}} > {{KePatchSchatten}}** がオンのときだけ影を落とします。q3map2 でも `-patchshadows` があるときだけ影を落とすのと同じです。このスイッチはマップに保存され (worldspawn `_bhed_patchshadows`)、リアルタイムライト、クイックベイク、すべてのフルビルドに使われます: Build メニューのどの項目でもライトの段階に `-patchshadows` が付きます。オフのとき既定の項目は NetRadiant と同じで、`-patchshadows` があるのは [Final] だけです。ほかの項目では光がパッチを通り抜け、ビルドウィンドウがそれを知らせます。ライトグリッドは常にパッチを無視するため (q3map2)、ゲーム内でパッチの下のモデルは明るいままです。")),
+        ("img", "h_patchlicht_aus", T(
+            "Built with [Test] Quick and Crude, {{KePatchSchatten}} off: the light goes through the curved patch, as in q3map2.",
+            "Gebaut mit [Test] Quick and Crude, {{KePatchSchatten}} aus: das Licht geht durch den gebogenen Patch, wie in q3map2.",
+            "用 [Test] Quick and Crude 编译,{{KePatchSchatten}} 关闭:光线穿过弯曲的面片,与 q3map2 相同。",
+            "[Test] Quick and Crude でビルド、{{KePatchSchatten}} はオフ: q3map2 と同じく光が曲面パッチを通り抜けます。")),
+        ("img", "h_patchlicht_an", T(
+            "The same with {{KePatchSchatten}} on: the light stage gets -patchshadows, and the patch casts its shadow.",
+            "Dasselbe mit {{KePatchSchatten}} an: der Licht-Schritt bekommt -patchshadows, und der Patch wirft seinen Schatten.",
+            "同样的场景,{{KePatchSchatten}} 开启:光照步骤加上 -patchshadows,面片投下阴影。",
+            "同じ場面で {{KePatchSchatten}} をオン: ライトの段階に -patchshadows が付き、パッチが影を落とします。")),
         ("img", "h_karte9c_himmel", T(
             "A room whose ceiling is a sky brush (caulk on all other sides, a caulk lid above): the sun of the sky shader shines through the sky into the room, as after the bake.",
             "Ein Raum, dessen Decke ein Himmels-Brush ist (caulk auf allen anderen Seiten, ein caulk-Deckel darüber): die Sonne des Himmels-Shaders scheint durch den Himmel in den Raum, wie nach dem Backen.",

@@ -140,6 +140,12 @@ std::string befehlMitLichtWiederverwendung(const std::string& befehl) { return m
 
 std::string befehlMitVisExakt(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Vis, "-bhedvisexact"); }
 
+std::string befehlMitPatchSchatten(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-patchshadows"); }
+
+bool lichtOhnePatchSchatten(const std::string& befehl) {
+    return bauStufeAusBefehl(befehl) == BauStufe::Licht && befehlMitPatchSchatten(befehl) != befehl;
+}
+
 std::string befehlMitGpuBacken(const std::string& befehl) { return mitSchalter(befehl, BauStufe::Licht, "-bhedgpubake"); }
 
 // --- Stufe 8d Punkt 1b: GPU bake Auto ----------------------------------------
