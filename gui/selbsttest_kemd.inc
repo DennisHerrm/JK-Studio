@@ -173,8 +173,60 @@ std::vector<Schritt> shaderTeil(int regelwerk, const std::string& name) {
     add(pause(2.0));
     add(foto("kemd_k2_" + name + "_echtzeit"));
     bodenProben(s, name, "Echtzeit");
-    add(tu("K2 " + name + ": Echtzeit-Licht aus, Spielordner zurueck", [ordnerVorher] {
-        ke::editor().echtLicht.an = false;
+    // Endrunde 1 Punkt 2: ist der dunkle Boden richtig? Dieselbe Stelle mit den Lightmaps von q3map2 (Schnell-Backen) und
+    // durch den Zeichner der Vorschau (Spielbild). Die zurueckgewandelte Karte hat keine light-Entities (q3map2 nimmt sie
+    // nicht in die .bsp, -keeplights), also Licht nur aus _ambient, _minlight und den Flaechenlichtern.
+    auto werte = std::make_shared<std::array<std::array<float, 3>, 3>>();
+    auto messe = [name, werte](int k, const char* wie) {
+        return tu("K2 " + name + ": Boden " + wie + " ohne Entities messen", [name, werte, k, wie] {
+            float c[3] = {0, 0, 0};
+            (void)bodenFarbe(c);
+            for (int i = 0; i < 3; ++i) { (*werte)[static_cast<std::size_t>(k)][static_cast<std::size_t>(i)] = c[i]; }
+            char t[200];
+            std::snprintf(t, sizeof t, "Knopftest: K2 %s - Boden %s ohne Entities %.0f %.0f %.0f", name.c_str(), wie, static_cast<double>(c[0]),
+                          static_cast<double>(c[1]), static_cast<double>(c[2]));
+            diag::detail(t);
+        });
+    };
+    add(tu("K2 " + name + ": Filter > Entities an (Vergleich)", [] { ke::filterBefehl("FilterEntities"); }));
+    add(pause(1.0));
+    add(messe(0, "Echtzeit"));
+    add(tu("K2 " + name + ": Schnell-Backen", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.pauseSekunden = 0.2;
+        e.echtLicht.backen = true;
+    }));
+    add(stufe9c::langeWarten("K2 " + name + ": gebacken", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.echtLicht.bauStand == 5) {
+            meldeFehler("K2: Schnell-Backen gescheitert");
+            return true;
+        }
+        return e.echtLicht.gebackenZeigen;
+    }, 60000));
+    add(pause(1.0));
+    add(foto("kemd_k2_" + name + "_gebacken"));
+    add(messe(1, "Schnell-Backen"));
+    add(tu("K2 " + name + ": wie im Spiel", [] { ke::editor().echtLicht.spielbild = true; }));
+    add(stufe9c::langeWarten("K2 " + name + ": Spielbild", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
+    add(pause(1.0));
+    add(foto("kemd_k2_" + name + "_spielbild"));
+    add(messe(2, "Spielbild"));
+    // Grenze 4 von 255: die Vorschau ohne Filter und Supersampling (Kopf von karte_gpu_win32.cpp "Stufe 7/9c")
+    add(pruefe("K2 " + name + ": Boden Echtzeit wie Schnell-Backen und Spielbild (q3map2)", [werte] {
+        for (std::size_t k = 1; k < 3; ++k) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                if (std::fabs((*werte)[0][i] - (*werte)[k][i]) > 4.0F) { return false; }
+            }
+        }
+        return true;
+    }));
+    add(tu("K2 " + name + ": Echtzeit-Licht aus, Filter > Entities aus, Spielordner zurueck", [ordnerVorher] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        e.echtLicht.an = false;
+        ke::filterBefehl("FilterEntities");
         g_app->settings.gamePaths = *ordnerVorher;
     }));
     return s;
