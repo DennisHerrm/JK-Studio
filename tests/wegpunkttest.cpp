@@ -385,6 +385,103 @@ int main() {
         pruefe(b2.size() == 1U && b2[0].art == WegBefund::Art::Allein, "ein einzelner Wegpunkt ist allein");
     }
 
+    // --- rc609 W3b: Bereiche, Sperre, Startpunkt, Abbrechen, Pfad, Sprungkanten (Welt wie oben) ---------------------
+    {
+        WegBereich pin;
+        pin.raster = 96.0F;
+        pin.pinsel = 100.0F;
+        pin.punkte = {{0.0F, 0.0F, 0.0F}, {200.0F, 0.0F, 0.0F}};
+        pruefe(imWegBereich(pin, {100.0F, 90.0F, 0.0F}) && !imWegBereich(pin, {100.0F, 110.0F, 0.0F}), "Pinsel: im Halbmesser um die Linie");
+        pruefe(imWegBereich(pin, {100.0F, 0.0F, 60.0F}) && !imWegBereich(pin, {100.0F, 0.0F, 70.0F}), "Pinsel: eine Kastenhoehe (64) darueber noch, darueber nicht");
+        WegBereich las;
+        las.art = WegBereich::Art::Sperre;
+        las.lasso = true;
+        las.punkte = {{-200.0F, -200.0F, 0.0F}, {200.0F, -200.0F, 0.0F}, {0.0F, 200.0F, 0.0F}};
+        pruefe(imWegBereich(las, {0.0F, 0.0F, 0.0F}) && !imWegBereich(las, {150.0F, 100.0F, 0.0F}), "Lasso: im Dreieck ja, daneben nein");
+        const std::vector<WegBereich> zurueck = wegBereicheLesen(wegBereicheText({pin, las}));
+        pruefe(zurueck.size() == 2U && zurueck[1].lasso && zurueck[1].art == WegBereich::Art::Sperre && zurueck[0].punkte.size() == 2U &&
+                   zurueck[0].pinsel == 100.0F && zurueck[0].raster == 96.0F,
+               "Bereiche: Text und zurueck");
+
+        WegErzeugung p0;
+        p0.abstand = 96.0F;
+        const auto voll = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, p0);
+        // Fortschritt melden aendert nichts, Abbrechen liefert nichts
+        WegErzeugung pf = p0;
+        int meldungen = 0;
+        pf.fortschritt = [&](float, int) {
+            ++meldungen;
+            return true;
+        };
+        const auto mitMeldung = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, pf);
+        bool gleich = mitMeldung.size() == voll.size();
+        for (std::size_t i = 0; gleich && i < voll.size(); ++i) { gleich = voll[i].ort == mitMeldung[i].ort && voll[i].nachbarn == mitMeldung[i].nachbarn; }
+        pruefe(gleich && meldungen > 3, "Fortschritt: dasselbe Ergebnis (" + std::to_string(meldungen) + " Meldungen)");
+        pf.fortschritt = [](float, int schritt) { return schritt < 3; };
+        WegErzeugungInfo ia;
+        pruefe(erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, pf, &ia).empty() && ia.abgebrochen, "Abbrechen: leer, abgebrochen gemeldet");
+
+        // Bereich: das Laufgitter nur im Pinselstrich
+        WegErzeugung pb = p0;
+        pb.laufErlaubt = [&](const std::array<float, 3>& b) { return imWegBereich(pin, b); };
+        const auto imBereich = erzeugeWegpunkte({{0.0F, 0.0F, 0.0F}}, welt, pb);
+        bool alleDrin = !imBereich.empty();
+        for (const auto& w : imBereich) { alleDrin = alleDrin && std::hypot(w.boden[1], 0.0F) <= 100.0F + 16.0F && w.boden[0] >= -116.0F && w.boden[0] <= 316.0F; }
+        pruefe(alleDrin && imBereich.size() < voll.size() / 4U, "Bereich: " + std::to_string(imBereich.size()) + " Punkte, alle im Pinselstrich");
+        // Sperre: dort kein Punkt
+        WegErzeugung ps = p0;
+        ps.punktErlaubt = [&](const std::array<float, 3>& b) { return !imWegBereich(las, b); };
+        const auto gesperrt = erzeugeWegpunkte({{0.0F, -500.0F, 50.0F}}, welt, ps);
+        int drin = 0;
+        for (const auto& w : gesperrt) { drin += imWegBereich(las, w.boden) ? 1 : 0; }
+        pruefe(!gesperrt.empty() && drin == 0, "Sperre: kein Punkt im Sperrbereich (" + std::to_string(gesperrt.size()) + " Punkte)");
+        // Startpunkt: ein vorhandener Wegpunkt (fest) wird erreicht, nichts Neues in seiner Rasterweite
+        WegErzeugung pst = p0;
+        pst.saat = 1;
+        pst.nurUnbedeckt = true;
+        pst.startIstWegpunkt = {0, 1, 1};
+        WegErzeugungInfo ist;
+        const auto vomStart = erzeugeWegpunkte({{0.0F, 0.0F, 0.0F}, {200.0F, 200.0F, 25.0F}, {-800.0F, 0.0F, 25.0F}}, welt, pst, &ist);
+        bool festDa = false;
+        bool lochFehlt = true;
+        int nahFest = 0;
+        for (const auto& w : vomStart) {
+            festDa = festDa || (w.start == 1 && w.ort == std::array<float, 3>{200.0F, 200.0F, 25.0F});
+            lochFehlt = lochFehlt && w.start != 2;
+            nahFest += (w.start < 0 && std::hypot(w.boden[0] - 200.0F, w.boden[1] - 200.0F) < 48.0F) ? 1 : 0;
+        }
+        pruefe(festDa && lochFehlt && nahFest == 0, "Startpunkt: der erreichte Wegpunkt ist dabei, der nicht erreichte (im Loch) nicht, keine Kopie daneben");
+
+        // Pfad: entlang einer Linie ueber den Boden, durch den Turm hindurch keine Punkte
+        const WegPfad pf1 = erzeugePfad({{-250.0F, -500.0F, 0.0F}, {134.0F, -500.0F, 0.0F}}, welt, 96.0F);
+        bool aufLinie = pf1.punkte.size() == 5U;
+        for (std::size_t i = 0; aufLinie && i < pf1.punkte.size(); ++i) {
+            aufLinie = std::fabs(pf1.punkte[i].boden[1] + 500.0F) < 0.5F && std::fabs(pf1.punkte[i].boden[0] + 250.0F - 96.0F * static_cast<float>(i)) < 0.5F &&
+                       std::fabs(pf1.punkte[i].boden[2]) < 0.5F;
+        }
+        bool kette = true;
+        for (std::size_t i = 0; i + 1 < pf1.punkte.size(); ++i) {
+            kette = kette && std::find(pf1.punkte[i].nachbarn.begin(), pf1.punkte[i].nachbarn.end(), static_cast<int>(i + 1)) != pf1.punkte[i].nachbarn.end();
+        }
+        pruefe(aufLinie && kette && pf1.brueche.empty(), "Pfad: 5 Punkte im Abstand 96 auf dem Boden, verbunden (" + std::to_string(pf1.punkte.size()) + " Punkte, " + std::to_string(pf1.brueche.size()) + " Brueche, " + std::to_string(pf1.ohnePunkt.size()) + " ohne Punkt" + (pf1.punkte.empty() ? std::string() : ", erster " + std::to_string(pf1.punkte[0].boden[0]) + " " + std::to_string(pf1.punkte[0].boden[1]) + " " + std::to_string(pf1.punkte[0].boden[2])) + ")");
+        const WegPfad pf2 = erzeugePfad({{400.0F, -500.0F, 0.0F}, {800.0F, -500.0F, 0.0F}}, welt, 96.0F);
+        bool turmLeer = true;
+        for (const auto& w : pf2.punkte) { turmLeer = turmLeer && !(w.boden[0] > 484.0F && w.boden[0] < 716.0F && w.boden[2] < 1.0F); }
+        pruefe(turmLeer && !pf2.ohnePunkt.empty(), "Pfad: im Turm kein Punkt auf dem Boden darunter (" + std::to_string(pf2.ohnePunkt.size()) + " Stellen gemeldet)");
+
+        // Sprungkanten: zwei Teile, gesprungen wird nur, wo welt.sprung in beide Richtungen ja sagt
+        WegWelt sw = welt;
+        sw.sprung = [](const std::array<float, 3>& a, const std::array<float, 3>& b) { return std::hypot(a[0] - b[0], a[1] - b[1]) <= 300.0F && b[2] >= a[2] - 1000.0F; };
+        const std::vector<std::array<float, 3>> orte{{0, 0, 25}, {100, 0, 25}, {600, 0, 225}, {700, 0, 225}, {2000, 0, 25}};
+        const std::vector<std::vector<int>> nb{{1}, {0}, {3}, {2}, {}};
+        const std::vector<WegSprung> sp = sprungKanten(orte, nb, {0, 0, 0, 0, 0}, sw);
+        pruefe(sp.empty(), "Sprungkanten: zu weit (500) - keine");
+        sw.sprung = [](const std::array<float, 3>& a, const std::array<float, 3>& b) { return std::hypot(a[0] - b[0], a[1] - b[1]) <= 520.0F; };
+        const std::vector<WegSprung> sp2 = sprungKanten(orte, nb, {0, 1, 0, 0, 0}, sw);
+        const bool richtig = sp2.size() == 1U && ((sp2[0].von == 1 && sp2[0].nach == 2) || (sp2[0].von == 2 && sp2[0].nach == 1));
+        pruefe(richtig && sp2[0].von == 2, "Sprungkanten: eine zwischen den Teilen (1 <-> 2), getragen vom Punkt mit freiem targetJump; der ferne Punkt bleibt allein");
+    }
+
     std::printf("\n%s: %d Fehler\n", g_fehler == 0 ? "wegpunkte OK" : "wegpunkte FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

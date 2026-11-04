@@ -160,6 +160,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_w2b()})
             from i18n_rc609_j import zeilen_vier as _rc609_j   # rc609 J: Shader, Nebel und Flaechen fertiger Karten
             texte.update({e[0]: e[1:] for e in _rc609_j()})
+            from i18n_rc609_w3b import zeilen_vier as _rc609_w3b   # rc609 W3b: Bereich und Pfad malen, Startpunkt, Sprungkanten
+            texte.update({e[0]: e[1:] for e in _rc609_w3b()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

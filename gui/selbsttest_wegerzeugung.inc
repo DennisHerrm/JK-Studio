@@ -320,10 +320,94 @@ int schritte(const std::map<int, std::vector<int>>& n, int a, int b) {
     return -1;
 }
 
+// Die Wegpunkte als Text (Klasse, Schluessel, Werte) - fuer "genau dasselbe".
+std::string entText(const std::vector<MapEntity>& v) {
+    std::string t;
+    for (const MapEntity& e : v) {
+        for (const auto& [k, w] : e.keys) { t += k + "=" + w + ";"; }
+        t += "\n";
+    }
+    return t;
+}
+
 std::string zahl(float v) { return std::to_string(static_cast<int>(std::lround(v))); }
 std::string ortText(const std::array<float, 3>& a) { return zahl(a[0]) + " " + zahl(a[1]) + " " + zahl(a[2]); }
 
+// rc609 W3b: das groesste zusammenhaengende Stueck Dach (Proben ueber Innenraeumen, zu Fuss untereinander verbunden).
+std::vector<int> groesstesDach(const Messung& m) {
+    std::vector<int> dach;
+    const Welt h = welt();
+    std::map<std::pair<int, int>, std::vector<int>> spalten;
+    for (std::size_t i = 0; i < m.proben.size(); ++i) {
+        if (m.proben[i].dach) { spalten[{m.proben[i].ix, m.proben[i].iy}].push_back(static_cast<int>(i)); }
+    }
+    std::set<int> gesehen;
+    for (const auto& [sp, liste] : spalten) {
+        for (const int i0 : liste) {
+            if (!gesehen.insert(i0).second) { continue; }
+            std::vector<int> teil{i0};
+            for (std::size_t k = 0; k < teil.size(); ++k) {
+                const Probe a = m.proben[static_cast<std::size_t>(teil[k])];
+                static const int kN[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (const auto& r : kN) {
+                    const auto it = spalten.find({a.ix + r[0], a.iy + r[1]});
+                    if (it == spalten.end()) { continue; }
+                    for (const int j : it->second) {
+                        if (gesehen.count(j) == 0U && std::fabs(m.proben[static_cast<std::size_t>(j)].boden[2] - a.boden[2]) <= kProbe &&
+                            gehbar(h, a, m.proben[static_cast<std::size_t>(j)])) {
+                            gesehen.insert(j);
+                            teil.push_back(j);
+                        }
+                    }
+                }
+            }
+            if (teil.size() > dach.size()) { dach = teil; }
+        }
+    }
+    return dach;
+}
+// Die Probe des Stuecks, die seiner Mitte am naechsten liegt.
+std::array<float, 3> dachMitte(const Messung& m, const std::vector<int>& dach) {
+    std::array<float, 3> mitte{0, 0, 0};
+    for (const int i : dach) {
+        for (std::size_t k = 0; k < 3; ++k) { mitte[k] += m.proben[static_cast<std::size_t>(i)].boden[k]; }
+    }
+    for (float& v : mitte) { v /= static_cast<float>(std::max<std::size_t>(1, dach.size())); }
+    int best = dach.empty() ? -1 : dach.front();
+    for (const int i : dach) {
+        const auto& b = m.proben[static_cast<std::size_t>(i)].boden;
+        const auto& c = m.proben[static_cast<std::size_t>(best)].boden;
+        if (std::hypot(b[0] - mitte[0], b[1] - mitte[1]) < std::hypot(c[0] - mitte[0], c[1] - mitte[1])) { best = i; }
+    }
+    return best < 0 ? mitte : m.proben[static_cast<std::size_t>(best)].boden;
+}
+
 }  // namespace we
+
+// rc609 W3b: die Kamera fuer das Handbuchbild h_weg_treppe - hinter dem Fuss der hoechsten gemessenen Treppe, etwas
+// erhoben, die Treppe hinauf zu ihrem Kopf.
+void wegTreppeBlick() {
+    const we::Messung m = we::messen();
+    const we::Treppe* best = nullptr;
+    for (const we::Treppe& t : m.treppen) {
+        if (best == nullptr || t.oben[2] - t.unten[2] > best->oben[2] - best->unten[2]) { best = &t; }
+    }
+    if (best == nullptr) {
+        meldeFehler("Handbuch Erzeugung: keine Treppe gemessen");
+        return;
+    }
+    float rx = best->oben[0] - best->unten[0];
+    float ry = best->oben[1] - best->unten[1];
+    const float rl = std::max(1.0F, std::hypot(rx, ry));
+    rx /= rl;
+    ry /= rl;
+    const float ziel[3] = {best->oben[0], best->oben[1], best->oben[2] + 10.0F};
+    g_app->cam.pos[0] = best->unten[0] - rx * 180.0F;
+    g_app->cam.pos[1] = best->unten[1] - ry * 180.0F;
+    g_app->cam.pos[2] = best->unten[2] + 120.0F;
+    aimAngles(g_app->cam.pos, ziel, g_app->cam.angles);
+    g_app->mapDirty = true;
+}
 
 std::vector<Schritt> wegerzeugungSchritte() {
     std::vector<Schritt> s;
@@ -381,9 +465,28 @@ std::vector<Schritt> wegerzeugungSchritte() {
         }
     }));
     add(pause(0.3));
+    // rc609 W3b: Stand vor dem Erzeugen (fuer "Hintergrund = vorher" und "Abbrechen aendert nichts")
+    auto vorText = std::make_shared<std::string>();
+    auto nachText = std::make_shared<std::string>();
+    auto tiefeVor = std::make_shared<std::size_t>(0);
+    auto laufZeit = std::make_shared<double>(0.0);
+    add(tu("WE: Stand vor dem Erzeugen", [=] {
+        *vorText = we::entText(g_app->map.entities);
+        *tiefeVor = g_app->entUndo.size();
+        *laufZeit = ImGui::GetTime();
+    }));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    add(pruefe("WE: die Erzeugung rechnet im Hintergrund (Fortschritt im Fenster, die Oberflaeche zeichnet weiter)", [] {
+        diag::detail("Knopftest: WE - im Hintergrund: laeuft " + std::string(wegAuftragLaeuft() ? "ja" : "nein") + ", Anteil " +
+                     std::to_string(wegAuftragAnteil()) + ", Schritt " + std::to_string(wegAuftragSchritt()));
+        return wegAuftragLaeuft();
+    }));
+    add(wegFertig());
     add(pause(0.5));
-    add(tu("WE: Ergebnis", [=] { diag::detail("Knopftest: WE - " + g_app->wegMeldung); }));
+    add(tu("WE: Ergebnis", [=] {
+        diag::detail("Knopftest: WE - " + g_app->wegMeldung + " (bis zur Uebernahme " + std::to_string(ImGui::GetTime() - *laufZeit) + " s)");
+        *nachText = we::entText(g_app->map.entities);
+    }));
     add(tu("WE: Abdeckung melden", [=] {
         // Abgedeckt: ein Wegpunkt hoechstens eine Rasterweite entfernt. Nur gemeldet, keine Schwelle (der Abstand
         // waechst mit der Punktgrenze des Spiels, die Messung des Bodens ist eine eigene).
@@ -570,5 +673,108 @@ std::vector<Schritt> wegerzeugungSchritte() {
         diag::detail("Knopftest: WE - erzeugte Kanten " + std::to_string(kanten) + ", nicht begehbar " + std::to_string(schlecht));
         return kanten > 0 && schlecht == 0;
     }));
+    // --- rc609 W3b ---------------------------------------------------------------------------------
+    add(tu("WE W3b: Rueckgaengig, dieselbe Erzeugung ohne Hintergrund", [=] {
+        (void)entityRueckgaengig();
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)wegAuftragStarten(WegAuftragArt::Voll, {}, -1, false);
+        diag::detail("Knopftest: WE - ohne Hintergrund " + std::to_string(std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()) + " s");
+    }));
+    add(pruefe("WE W3b: Hintergrund-Erzeugung ergibt dasselbe Netz (Entity-Liste bytegleich), je ein Rueckgaengig-Schritt", [=] {
+        const std::string jetzt = we::entText(g_app->map.entities);
+        diag::detail("Knopftest: WE - Vergleich: " + std::to_string(nachText->size()) + " / " + std::to_string(jetzt.size()) + " Zeichen, gleich " +
+                     (jetzt == *nachText ? "ja" : "nein"));
+        return jetzt == *nachText && g_app->entUndo.size() == *tiefeVor + 1;
+    }));
+    // Starten und gleich abbrechen (was der Knopf "Abbrechen" ruft): auf kleinen Karten ist die Erzeugung sonst fertig, bevor
+    // ein Klick ankommt (mp/duel4 in 0,1 s).
+    add(tu("WE W3b: Rueckgaengig, im Hintergrund starten und abbrechen", [=] {
+        (void)entityRueckgaengig();
+        (void)wegAuftragStarten(WegAuftragArt::Voll);
+        wegAuftragAbbrechen();
+    }));
+    add(wegFertig());
+    add(pause(0.2));
+    add(pruefe("WE W3b: Abbrechen aendert nichts (Entities bytegleich, kein Rueckgaengig-Schritt)", [=] {
+        diag::detail("Knopftest: WE - nach Abbrechen: " + g_app->wegMeldung);
+        return we::entText(g_app->map.entities) == *vorText && g_app->entUndo.size() == *tiefeVor;
+    }));
+    // Dach (nur mit BHED_WE_DACH=1 - nicht jede Karte hat ein Dach, auf das ein NPC springen kann): das groesste
+    // zusammenhaengende Stueck Dach (Proben ueber Innenraeumen, zu Fuss untereinander verbunden).
+    if (std::getenv("BHED_WE_DACH") == nullptr) { return s; }
+    auto dach = std::make_shared<std::vector<int>>();
+    add(tu("WE W3b: Netz wieder erzeugen, das groesste Stueck Dach suchen", [=] {
+        (void)wegAuftragStarten(WegAuftragArt::Voll, {}, -1, false);
+        *dach = we::groesstesDach(*m);
+        diag::detail("Knopftest: WE - Dach: groesstes Stueck " + std::to_string(dach->size()) + " Proben" +
+                     (dach->empty() ? std::string() : ", erste " + we::ortText(m->proben[static_cast<std::size_t>(dach->front())].boden)));
+    }));
+    // Erreicht die Wegfindung des Spiels (baueNavNetz, NAV::FindPath fuer eine Figur mit SCF_NAV_CAN_JUMP) vom Spielerstart
+    // einen Knoten in einer halben Rasterweite des Dachs?
+    const auto dachErreicht = [=](int& knotenAmDach, int& spruenge) {
+        const std::shared_ptr<NavNetz> netz = baueNavNetz(g_app->map.entities, navBauHilfeKarte());
+        float st[3] = {0, 0, 0};
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.classname == "info_player_start" && entityOrt(e, st)) { break; }
+        }
+        int von = -1;
+        float bestD = 1.0e9F;
+        std::set<int> amDach;
+        const float S = g_app->wegAbstandGenutzt;
+        for (std::size_t k = 1; k < netz->knoten.size(); ++k) {
+            const NavVec& q = netz->knoten[k].punkt;
+            const float d = std::hypot(std::hypot(q[0] - st[0], q[1] - st[1]), q[2] - st[2]);
+            if (d < bestD) {
+                bestD = d;
+                von = static_cast<int>(k);
+            }
+            for (const int i : *dach) {
+                const auto& b = m->proben[static_cast<std::size_t>(i)].boden;
+                if (std::hypot(std::hypot(q[0] - b[0], q[1] - b[1]), q[2] - 25.0F - b[2]) <= S * 0.5F) { amDach.insert(static_cast<int>(k)); }
+            }
+        }
+        spruenge = 0;
+        for (const MapEntity& e : g_app->map.entities) {
+            const std::string* j = e.find("targetJump");
+            spruenge += (j != nullptr && !j->empty()) ? 1 : 0;
+        }
+        knotenAmDach = static_cast<int>(amDach.size());
+        for (const int k : amDach) {
+            std::vector<int> pfad;
+            if (von > 0 && navAStar(*netz, von, k, &pfad, true)) {
+                std::string text;
+                for (const int x : pfad) { text += " " + we::ortText(netz->knoten[static_cast<std::size_t>(x)].punkt); }
+                diag::detail("Knopftest: WE - Weg zum Dach:" + text);
+                return true;
+            }
+        }
+        return false;
+    };
+    add(pruefe("WE W3b: nachgestellt - ein Stueck Dach gefunden, ob die Wegfindung des Spiels es ohne Startpunkt erreicht (gemeldet)", [=] {
+        int k = 0;
+        int sp = 0;
+        const bool ja = dachErreicht(k, sp);
+        // Nur gemeldet: auf mancher Karte ist das Stueck Dach schon zu Fuss erreichbar (mp/ffa5).
+        diag::detail("Knopftest: WE - Dach vorher: Knoten am Dach " + std::to_string(k) + ", Sprungkanten " + std::to_string(sp) + ", erreicht " +
+                     (ja ? "ja" : "nein"));
+        return !dach->empty();
+    }));
+    add(tu("WE W3b: Startpunkt auf dem Dach (Mitte des Stuecks)", [=] {
+        if (dach->empty()) { return; }
+        const std::array<float, 3> b = we::dachMitte(*m, *dach);
+        diag::detail("Knopftest: WE - Startpunkt auf dem Dach " + we::ortText(b));
+        (void)wegAuftragStarten(WegAuftragArt::Start, {b});
+    }));
+    add(wegFertig());
+    add(pause(0.3));
+    add(pruefe("WE W3b: Dach mit Startpunkt und Sprungkanten - die Wegfindung des Spiels (springende Figur) erreicht es vom Spielerstart", [=] {
+        int k = 0;
+        int sp = 0;
+        const bool ja = dachErreicht(k, sp);
+        diag::detail("Knopftest: WE - Dach: " + g_app->wegMeldung + "; Knoten am Dach " + std::to_string(k) + ", Sprungkanten " + std::to_string(sp) +
+                     ", erreicht " + (ja ? "ja" : "nein"));
+        return ja;
+    }));
+    add(foto("we_dach"));
     return s;
 }

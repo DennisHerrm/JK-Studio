@@ -2235,6 +2235,9 @@ std::vector<Schritt> handbuchSchritte() {
     return s;
 }
 
+std::vector<Schritt> wegmalenHandbuchSchritte();
+void wegTreppeBlick();   // selbsttest_wegerzeugung.inc: rc609 W3b, die Kamera fuer h_weg_treppe   // selbsttest_wegmalen.inc: rc609 W3b, BHED_HB_NUR=wegmalen
+
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -2370,6 +2373,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         }));
         t.push_back(pause(0.6));
         t.push_back(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+        t.push_back(wegFertig());
         t.push_back(pause(0.6));
         auto ort = std::make_shared<ImVec2>(-1.0F, -1.0F);
         t.push_back(tu("Handbuch Wege: eine Bodenstelle zwischen erzeugten Punkten mitten im Bild", [=] {
@@ -2440,6 +2444,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         t.push_back(pause(0.3));
         return t;
     }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegmalen") == 0) { return wegmalenHandbuchSchritte(); }
     // rc609 W3a: das Bild des Abschnitts "Erzeugung: Innenraeume, Treppen, Tueren" (h_weg_treppe) - mp/duel8 aus
     // den .pk3 des Spiels, ein erzeugtes Netz, der Blick auf die Treppe mit dem Punkt unten und oben.
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegerzeugung") == 0) {
@@ -2463,47 +2468,11 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         }));
         t.push_back(pause(0.6));
         t.push_back(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+        t.push_back(wegFertig());
         t.push_back(pause(0.6));
-        t.push_back(tu("Handbuch Erzeugung: Blick auf die hoechste Treppenkante des Netzes", [] {
-            // Die Kante mit dem groessten Hoehenunterschied: unten und oben an einer Treppe.
-            std::map<std::string, std::array<float, 3>> ort;
-            for (const MapEntity& e : g_app->map.entities) {
-                float o[3];
-                if (e.targetname.rfind("wpauto_", 0) == 0 && entityOrt(e, o)) { ort[e.targetname] = {o[0], o[1], o[2]}; }
-            }
-            static const char* const kF[4] = {"target", "target2", "target3", "target4"};
-            float best = 0.0F;
-            std::array<float, 3> a{};
-            std::array<float, 3> b{};
-            for (const MapEntity& e : g_app->map.entities) {
-                const auto ia = ort.find(e.targetname);
-                if (ia == ort.end()) { continue; }
-                for (const char* f : kF) {
-                    const std::string* tz = e.find(f);
-                    const auto ib = tz != nullptr ? ort.find(*tz) : ort.end();
-                    if (ib == ort.end()) { continue; }
-                    const float dz = std::fabs(ib->second[2] - ia->second[2]);
-                    if (dz > best) {
-                        best = dz;
-                        a = ia->second;
-                        b = ib->second;
-                    }
-                }
-            }
-            if (best <= 0.0F) { return; }
-            const float ziel[3] = {(a[0] + b[0]) * 0.5F, (a[1] + b[1]) * 0.5F, (a[2] + b[2]) * 0.5F};
-            // Von der Seite auf die Kante: quer zu ihr, etwas hoeher.
-            float qx = -(b[1] - a[1]);
-            float qy = b[0] - a[0];
-            const float ql = std::max(1.0F, std::hypot(qx, qy));
-            qx /= ql;
-            qy /= ql;
-            g_app->cam.pos[0] = ziel[0] + qx * 420.0F;
-            g_app->cam.pos[1] = ziel[1] + qy * 420.0F;
-            g_app->cam.pos[2] = ziel[2] + 220.0F;
-            aimAngles(g_app->cam.pos, ziel, g_app->cam.angles);
-            g_app->mapDirty = true;
-        }));
+        // rc609 W3b: der Blick auf eine gemessene Treppe (vorher die steilste Kante des Netzes von der Seite aus 420: die
+        // Treppe war zwischen den Kanten kaum zu sehen).
+        t.push_back(tu("Handbuch Erzeugung: Blick die hoechste gemessene Treppe hinauf", [] { wegTreppeBlick(); }));
         t.push_back(tu("Handbuch Erzeugung: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
         t.push_back(pause(0.8));
         hb::markiere("h_weg_treppe", [] {

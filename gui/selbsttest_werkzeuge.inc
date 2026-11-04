@@ -56,6 +56,7 @@ std::vector<Schritt> wegSchritte() {
     auto dauer = std::make_shared<double>(0.0);
     add(tu("Uhr", [=] { *dauer = ImGui::GetTime(); }));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    add(wegFertig());
     add(pause(0.5));
     auto erzeugt = std::make_shared<std::vector<std::string>>();
     add(pruefe("Netz erzeugen: Wegpunkte mit targets, ein Rueckgaengig-Schritt", [=] {

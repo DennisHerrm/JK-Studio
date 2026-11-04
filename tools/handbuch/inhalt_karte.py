@@ -257,10 +257,95 @@ WEGPUNKTE = {
             '只有当角色能沿直线走过、并且游戏自身的连线检查(NAV::TestEdge,Jedi Outcast 中为 HardConnect)在两个方向上都保留时,连接才会保留。门视为打开,就像游戏构建路网时会打开挡路的门;NPC 能否通过在游戏进行时决定,与游戏一致。',
             '接続が残るのは、キャラクターがその直線を歩けて、ゲーム自身の辺チェック(NAV::TestEdge、Jedi Outcast では HardConnect)が両方向で残す場合だけです。ドアは開いているものとして扱います。ゲームのネットワーク構築も、道をふさぐドアを開けて調べます。NPC が通れるかどうかは、ゲームと同じくプレイ中に決まります。'),
             T(
-            'The game takes at most 1023 waypoints. If the grid needs more, the spacing grows (up to three times **{{WegAbstand}}**) and the message says so. Roofs and ledges that can only be reached by jumping get no points; place a waypoint there and generate again.',
-            'Das Spiel nimmt höchstens 1023 Wegpunkte. Braucht das Raster mehr, wird der Abstand größer (bis zum Dreifachen von **{{WegAbstand}}**), und die Meldung sagt es. Dächer und Vorsprünge, die man nur springend erreicht, bekommen keine Punkte; setz dort einen Wegpunkt und erzeuge noch einmal.',
-            '游戏最多接受 1023 个路径点。如果网格需要更多,间距会增大(最多为 **{{WegAbstand}}** 的三倍),并在消息中说明。只能跳上去的屋顶和平台不会得到路径点;在那里放一个路径点再生成一次即可。',
-            'ゲームが受け付けるウェイポイントは最大 1023 個です。グリッドがそれより多く必要なら、間隔が広がり(最大で **{{WegAbstand}}** の 3 倍)、メッセージで知らせます。ジャンプでしか届かない屋根や出っ張りには点が置かれません。そこにウェイポイントを 1 つ置いて、もう一度生成してください。'),
+            'The game takes at most 1023 waypoints. If the grid needs more, the spacing grows (up to three times **{{WegAbstand}}**) and the message says so. Roofs and ledges that can only be reached by jumping get no points from walking; click there with **{{WegStartpunkt}}** (below).',
+            'Das Spiel nimmt höchstens 1023 Wegpunkte. Braucht das Raster mehr, wird der Abstand größer (bis zum Dreifachen von **{{WegAbstand}}**), und die Meldung sagt es. Dächer und Vorsprünge, die man nur springend erreicht, bekommen beim Laufen keine Punkte; klick dort mit **{{WegStartpunkt}}** (unten).',
+            '游戏最多接受 1023 个路径点。如果网格需要更多,间距会增大(最多为 **{{WegAbstand}}** 的三倍),并在消息中说明。只能跳上去的屋顶和平台在行走时不会得到路径点;用 **{{WegStartpunkt}}** 在那里点击(见下文)。',
+            'ゲームが受け付けるウェイポイントは最大 1023 個です。グリッドがそれより多く必要なら、間隔が広がり(最大で **{{WegAbstand}}** の 3 倍)、メッセージで知らせます。ジャンプでしか届かない屋根や出っ張りには歩きでは点が置かれません。そこを **{{WegStartpunkt}}** でクリックしてください(下記)。'),
+        ]),
+        ("h2", "malen", T(
+            'Areas, path, start point, jump edges',
+            'Bereiche, Pfad, Startpunkt, Sprungkanten',
+            '区域、路径、起点、跳跃连线',
+            'エリア・パス・開始点・ジャンプ辺')),
+        ("img", "h_weg_bereich", T(
+            'Top view: a painted area (blue) and the waypoints "Generate here" placed inside it.',
+            'Draufsicht: ein gemalter Bereich (blau) und die Wegpunkte, die "Hier erzeugen" darin gesetzt hat.',
+            '俯视图:绘制的区域(蓝色)以及“在此生成”在其中放置的路径点。',
+            '上面図: 描いたエリア(青)と、「ここに生成」がその中に置いたウェイポイント。'), "breit"),
+        ("legende", [
+            (T("**{{WegPinsel}}** **{{WegLasso}}** **{{WegPfad}}** **{{WegStartpunkt}}**"), T(
+            'Paint an area (brush, lasso), draw a path, click a start point.',
+            'Bereich malen (Pinsel, Lasso), Pfad ziehen, Startpunkt klicken.',
+            '绘制区域(画笔、套索)、画路径、点击起点。',
+            'エリアを描く(ブラシ、投げ縄)、パスを引く、開始点をクリック。')),
+            (T("**{{WegSperre}}**"), T(
+            'The next painted area is a no-go area.',
+            'Der nächste gemalte Bereich ist ein Sperrbereich.',
+            '下一个绘制的区域是禁止区域。',
+            '次に描くエリアは禁止エリアになります。')),
+            (T("**{{WegHierErzeugen}}**"), T(
+            'Generate only in this area, with its own spacing.',
+            'Nur in diesem Bereich erzeugen, mit eigenem Abstand.',
+            '只在此区域内生成,使用其自己的间距。',
+            'このエリアだけに、エリア独自の間隔で生成します。')),
+        ]),
+        ("list", [
+            T(
+            "**{{WegPinsel}}** and **{{WegLasso}}** paint on the floor with the left mouse button held - in the 3D view or in the top view. **{{WegHierErzeugen}}** walks like an NPC only inside the area and places waypoints at the area's spacing where none are yet; they connect to the waypoints around with the game's edge test, as when placing by hand. One undo step. Areas are kept for the map (in the settings folder, not in the .bsp) and come back when you open it again.",
+            '**{{WegPinsel}}** und **{{WegLasso}}** malen mit gedrückter linker Maustaste auf den Boden - in der 3D-Ansicht oder in der Draufsicht. **{{WegHierErzeugen}}** läuft wie ein NPC nur im Bereich und setzt Wegpunkte im Abstand des Bereichs, wo noch keine sind; sie verbinden sich mit den Wegpunkten ringsum über die Kantenprüfung des Spiels, wie beim Setzen von Hand. Ein Rückgängig-Schritt. Bereiche bleiben für die Karte gespeichert (im Ordner der Einstellungen, nicht in der .bsp) und kommen beim nächsten Öffnen wieder.',
+            '**{{WegPinsel}}** 和 **{{WegLasso}}** 按住鼠标左键在地面上绘制——在 3D 视图或俯视图中。**{{WegHierErzeugen}}** 像 NPC 一样只在区域内行走,在还没有路径点的地方按该区域的间距放置路径点;它们通过游戏的连线检查与周围的路径点相连,与手动放置时相同。一步撤销。区域会为该地图保存(在设置文件夹中,而不是在 .bsp 中),下次打开时会恢复。',
+            '**{{WegPinsel}}** と **{{WegLasso}}** は、左ボタンを押したまま床に描きます(3D ビューでも上面図でも)。**{{WegHierErzeugen}}** は NPC のようにエリアの中だけを歩き、まだない所にエリアの間隔でウェイポイントを置きます。それらは手で置いたときと同じく、ゲームの辺チェックで周囲のウェイポイントと接続します。元に戻すは 1 回です。エリアはマップごとに保存され(設定フォルダー内、.bsp には入りません)、次に開いたときに戻ります。'),
+            T(
+            "With **{{WegSperre}}** ticked, the next area is a no-go area (red): the generation, a path and a start point never place a waypoint there. Points around it still connect across it where the game's edge test passes.",
+            'Mit **{{WegSperre}}** ist der nächste Bereich ein Sperrbereich (rot): Erzeugung, Pfad und Startpunkt setzen dort nie einen Wegpunkt. Punkte ringsum verbinden sich trotzdem darüber hinweg, wo die Kantenprüfung des Spiels besteht.',
+            '勾选 **{{WegSperre}}** 后,下一个区域是禁止区域(红色):生成、路径和起点永远不会在那里放置路径点。周围的点仍会在游戏连线检查通过的地方跨过它相连。',
+            '**{{WegSperre}}** をオンにすると、次のエリアは禁止エリア(赤)になります。生成、パス、開始点はそこに決してウェイポイントを置きません。周りの点は、ゲームの辺チェックに通る所ではその上をまたいで接続します。'),
+        ]),
+        ("img", "h_weg_pfad", T(
+            'A painted path: waypoints along the line at the spacing, set on the floor and connected.',
+            'Ein gemalter Pfad: Wegpunkte entlang der Linie im Abstand, auf den Boden gesetzt und verbunden.',
+            '绘制的路径:沿线按间距放置在地面上并相连的路径点。',
+            '描いたパス: 線に沿って間隔ごとに床へ置かれ、接続されたウェイポイント。'), "breit"),
+        ("list", [
+            T(
+            "**{{WegPfad}}**: draw a line over the floor. Waypoints appear along it every **{{WegAbstand}}**, set on the floor like the generation does, and neighbours are connected where the game's edge test keeps the edge in both directions. Where it does not, or where the game would not keep a waypoint, a red cross marks the place and the message names the first one. The path connects to the waypoints around. One undo step.",
+            '**{{WegPfad}}**: eine Linie über den Boden ziehen. Entlang der Linie entstehen Wegpunkte alle **{{WegAbstand}}**, auf den Boden gesetzt wie bei der Erzeugung, und Nachbarn werden verbunden, wo die Kantenprüfung des Spiels die Kante in beide Richtungen behält. Wo nicht oder wo das Spiel keinen Wegpunkt behielte, markiert ein rotes Kreuz die Stelle, und die Meldung nennt die erste. Der Pfad schließt an die Wegpunkte ringsum an. Ein Rückgängig-Schritt.',
+            '**{{WegPfad}}**:在地面上画一条线。沿线每隔 **{{WegAbstand}}** 生成路径点,像生成时一样放在地面上;在游戏连线检查双向保留连线的地方连接相邻点。未通过或游戏不会保留路径点的地方会用红色叉号标出,消息会给出第一处的位置。路径会与周围的路径点相连。一步撤销。',
+            '**{{WegPfad}}**: 床に線を引きます。線に沿って **{{WegAbstand}}** ごとにウェイポイントが生成と同じように床に置かれ、ゲームの辺チェックが両方向で辺を残す所で隣どうしが接続されます。通らない所、またはゲームがウェイポイントを残さない所には赤い×が付き、メッセージが最初の場所を示します。パスは周囲のウェイポイントと接続します。元に戻すは 1 回です。'),
+            T(
+            '**{{WegStartpunkt}}**: click on floor the generation did not reach - a roof, a ledge, a room behind a drop. From there it walks on like an NPC, places waypoints where the network does not cover the floor yet and connects them: on foot if a figure can walk there, otherwise with jump edges (below). One undo step.',
+            '**{{WegStartpunkt}}**: auf Boden klicken, den die Erzeugung nicht erreicht hat - ein Dach, ein Sims, einen Raum hinter einer Kante. Von dort läuft sie wie ein NPC weiter, setzt Wegpunkte, wo das Netz den Boden noch nicht abdeckt, und schließt sie an: zu Fuß, wenn eine Figur dorthin gehen kann, sonst mit Sprungkanten (unten). Ein Rückgängig-Schritt.',
+            '**{{WegStartpunkt}}**:点击生成未到达的地面——屋顶、壁架、落差后面的房间。从那里它像 NPC 一样继续行走,在路网尚未覆盖的地面上放置路径点并连接它们:如果角色能走过去就步行连接,否则使用跳跃连线(见下文)。一步撤销。',
+            '**{{WegStartpunkt}}**: 生成が届かなかった床(屋根、張り出し、段差の先の部屋)をクリックします。そこから NPC のように歩き、ネットワークがまだ覆っていない床にウェイポイントを置いて接続します。キャラクターが歩いて行けるなら徒歩で、そうでなければジャンプ辺で(下記)。元に戻すは 1 回です。'),
+        ]),
+        ("img", "h_weg_dach", T(
+            'Jedi Temple Garden: waypoints on the roof from a start point and the jump edge (orange, dashed) from the floor below up to the roof.',
+            'Jedi Temple Garden: Wegpunkte auf dem Dach von einem Startpunkt aus und die Sprungkante (orange gestrichelt) vom Boden darunter aufs Dach.',
+            'Jedi Temple Garden:从起点生成的屋顶路径点,以及从下方地面到屋顶的跳跃连线(橙色虚线)。',
+            'Jedi Temple Garden: 開始点から置いた屋根の上のウェイポイントと、下の床から屋根へのジャンプ辺(オレンジの破線)。'), "breit"),
+        ("list", [
+            T(
+            "Jump edges are `targetJump`. The game only jumps on such an edge, does not test it when it loads the map, and only lets NPCs that can jump use it (force jump, or a class that jumps by itself). **{{WegSprungkanten}}** (also after a start point and **{{WegAnschliessen}}**) writes one only between parts of the network that are not connected otherwise, and only where an NPC really makes the jump in the game, in both directions - the same test the game runs before jumping (NPC_TryJump, NPC_Jump): at most 750 apart, at most 450 down, floor under the target, and an arc the NPC's box gets through. Each waypoint has one `targetJump` field. Jedi Outcast has no jump edges.",
+            'Sprungkanten sind `targetJump`. Das Spiel springt nur auf einer solchen Kante, prüft sie beim Laden der Karte nicht und lässt nur NPCs darauf, die springen können (Machtsprung oder eine Klasse, die von selbst springt). **{{WegSprungkanten}}** (auch nach einem Startpunkt und **{{WegAnschliessen}}**) schreibt eine nur zwischen Teile des Netzes, die sonst nicht verbunden sind, und nur, wo ein NPC den Sprung im Spiel wirklich schafft, in beide Richtungen - mit derselben Prüfung, die das Spiel vor dem Sprung macht (NPC_TryJump, NPC_Jump): höchstens 750 weit, höchstens 450 hinab, Boden unter dem Ziel und ein Bogen, durch den der Kasten des NPCs passt. Jeder Wegpunkt hat ein `targetJump`-Feld. Jedi Outcast kennt keine Sprungkanten.',
+            '跳跃连线就是 `targetJump`。游戏只会在这种连线上跳跃,载入地图时不检查它,并且只让会跳跃的 NPC 使用(原力跳跃,或本身会跳的职业)。**{{WegSprungkanten}}**(在起点和 **{{WegAnschliessen}}** 之后也会执行)只在路网中彼此不相连的部分之间写入,并且只在 NPC 在游戏中确实能双向完成跳跃的地方——使用游戏跳跃前的同一检查(NPC_TryJump、NPC_Jump):距离最多 750,向下最多 450,目标下方有地面,且 NPC 的碰撞盒能通过弧线。每个路径点有一个 `targetJump` 字段。Jedi Outcast 没有跳跃连线。',
+            'ジャンプ辺は `targetJump` です。ゲームはこの辺でだけジャンプし、マップ読み込み時には調べず、跳べる NPC(フォースジャンプを持つか、自分で跳ぶクラス)だけに使わせます。**{{WegSprungkanten}}**(開始点や **{{WegAnschliessen}}** の後にも行われます)は、ほかではつながっていないネットワークの部分の間にだけ、しかも NPC がゲームで実際に両方向へ跳べる所にだけ書きます。ゲームがジャンプ前に行うのと同じチェック(NPC_TryJump、NPC_Jump)です: 距離 750 まで、下へ 450 まで、目標の下に床があり、NPC の箱が通れる弧があること。各ウェイポイントには `targetJump` 欄が 1 つあります。Jedi Outcast にはジャンプ辺がありません。'),
+            T(
+            'Waypoints the player start cannot reach over the network are drawn violet, and the window counts the parts. **{{WegAnschliessen}}** walks from each such part towards the network (as with a start point there, within two spacings around it) and connects it - on foot, otherwise with jump edges.',
+            'Wegpunkte, die der Spielerstart über das Netz nicht erreicht, sind violett gezeichnet, und das Fenster zählt die Teile. **{{WegAnschliessen}}** läuft von jedem solchen Teil zum Netz (wie mit einem Startpunkt dort, in zwei Abständen um ihn) und schließt ihn an - zu Fuß, sonst mit Sprungkanten.',
+            '从玩家出生点经路网无法到达的路径点以紫色绘制,窗口会统计这些部分的数量。**{{WegAnschliessen}}** 从每个这样的部分走向路网(如同在那里设起点,范围为其周围两个间距)并连接它——步行,否则用跳跃连线。',
+            'プレイヤー開始位置からネットワークでたどり着けないウェイポイントは紫で描かれ、ウィンドウがその部分の数を数えます。**{{WegAnschliessen}}** はそうした各部分からネットワークへ歩き(そこに開始点を置いたように、周囲 2 間隔の範囲で)、接続します。徒歩で、無理ならジャンプ辺で。'),
+        ]),
+        ("img", "h_weg_fortschritt", T(
+            'While the generation runs in the background, the window shows its progress and step; Cancel changes nothing.',
+            'Während die Erzeugung im Hintergrund läuft, zeigt das Fenster Fortschritt und Schritt; Abbrechen ändert nichts.',
+            '生成在后台运行时,窗口显示进度和当前步骤;取消不会更改任何内容。',
+            '生成がバックグラウンドで動いている間、ウィンドウに進行状況と段階が表示されます。中止しても何も変わりません。'), "breit"),
+        ("list", [
+            T(
+            'Generating takes a few seconds on big maps. It runs in the background: the window shows progress and step, and you can keep looking around or work in other windows. The result comes in one undo step at the end - the same network as computed directly. If the entities change in the meantime, the result is discarded with a message; **{{WegAbbrechen}}** stops it and changes nothing.',
+            'Die Erzeugung dauert auf großen Karten einige Sekunden. Sie läuft im Hintergrund: Das Fenster zeigt Fortschritt und Schritt, und du kannst dich weiter umsehen oder in anderen Fenstern arbeiten. Das Ergebnis kommt am Ende in einem Rückgängig-Schritt - dasselbe Netz wie direkt gerechnet. Ändern sich die Entities inzwischen, wird es mit einer Meldung verworfen; **{{WegAbbrechen}}** hält sie an und ändert nichts.',
+            '在大地图上生成需要几秒钟。它在后台运行:窗口显示进度和步骤,你可以继续环顾四周或在其他窗口中工作。结果在最后以一个撤销步骤出现——与直接计算得到的路网相同。如果期间实体发生变化,结果会被丢弃并给出消息;**{{WegAbbrechen}}** 会停止它且不做任何更改。',
+            '大きなマップでは生成に数秒かかります。生成はバックグラウンドで動きます。ウィンドウに進行状況と段階が表示され、その間も見回したりほかのウィンドウで作業したりできます。結果は最後に元に戻す 1 回分として入り、直接計算した場合と同じネットワークです。その間にエンティティが変わると、メッセージとともに結果を破棄します。**{{WegAbbrechen}}** は止めて、何も変更しません。'),
         ]),
         ("note", T(
             "The cutscene preview uses this network for walks exactly like the game: far targets need a path here, otherwise the figure stands still ([[figuren#wieimspiel]]). A network needs at least four waypoints. Doors on the network count while they are open; a closed door counts only if it opens by itself for NPCs.",

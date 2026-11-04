@@ -144,6 +144,7 @@ std::vector<Schritt> wegpunkte2Schritte() {
     }));
     add(pause(0.4));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    add(wegFertig());
     add(pause(0.5));
     add(pruefe("W2: Netz erzeugt (mindestens 20 Wegpunkte)", [] {
         diag::detail("Knopftest: W2 - " + g_app->wegMeldung);
@@ -216,6 +217,7 @@ std::vector<Schritt> wegpunkte2Schritte() {
         (void)wegSetzen(boden, -1);
     }));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    add(wegFertig());
     add(pause(0.5));
     add(pruefe("W2 Start: die Erzeugung flutet auch vom gesetzten Wegpunkt aus und verbindet ihn", [=] {
         int dort = 0;
@@ -246,6 +248,7 @@ std::vector<Schritt> wegpunkte2Schritte() {
         while (g_app->entUndo.size() > *tiefe0) { (void)entityRueckgaengig(); }
     }));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    add(wegFertig());
     add(pause(0.5));
     auto tiefeNetz = std::make_shared<std::size_t>(0);
     add(tu("W2: Stand mit Netz", [=] { *tiefeNetz = g_app->entUndo.size(); }));

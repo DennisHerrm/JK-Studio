@@ -240,12 +240,16 @@ long long spalteSchluessel(int ix, int iy) {
 
 float waagerecht(const V& a, const V& b) { return std::hypot(a[0] - b[0], a[1] - b[1]); }
 
+// rc609 W3b: "Abbrechen" waehrend der Erzeugung (WegErzeugung::fortschritt sagte false).
+struct Abbruch {};
+
 }  // namespace
 
-std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 3>>& starts, const WegWelt& welt,
-                                            const WegErzeugung& p, WegErzeugungInfo* info) {
+namespace {
+
+std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>& starts, const WegWelt& welt, const WegErzeugung& p,
+                                        WegErzeugungInfo* info) {
     std::vector<NeuerWegpunkt> aus;
-    if (!welt.spur) { return aus; }
     const Laeufer lauf{welt};
     const float S0 = std::max(kGitter * 2.0F, p.abstand);
     constexpr float kNie = std::numeric_limits<float>::max();
@@ -253,6 +257,13 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
     // Gitter nicht (weiter wird das Raster nicht, siehe unten).
     const long long k2 = 3LL * std::max(1L, std::lround(S0 / kGitter));
     const long long maxZellen = static_cast<long long>(std::max(1, p.maxKnoten)) * k2 * k2;
+    // rc609 W3b: Fortschritt melden, bei false abbrechen.
+    float anteilBasis = 0.0F;    // je Durchgang (das Raster kann weiter werden) ein Stueck der Gesamtzeit
+    float anteilBreite = 1.0F;
+    const auto melde = [&](float a, int schritt) {
+        if (p.fortschritt && !p.fortschritt(anteilBasis + anteilBreite * std::clamp(a, 0.0F, 1.0F), schritt)) { throw Abbruch{}; }
+    };
+    const std::size_t saatZahl = p.saat < 0 ? starts.size() : std::min(starts.size(), static_cast<std::size_t>(p.saat));
 
     // --- 1. Laufgitter ---------------------------------------------------------------
     std::vector<Zelle> z;
@@ -272,6 +283,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
             if (std::fabs(z[static_cast<std::size_t>(i)].o[2] - o[2]) < kStufe) { return i; }
         }
         if (static_cast<long long>(z.size()) >= maxZellen) { return -1; }
+        if (p.laufErlaubt && !p.laufErlaubt(V{o[0], o[1], o[2] + kKastenUnten})) { return -1; }   // rc609 W3b: Bereich
         Zelle c;
         c.o = o;
         c.ix = ix;
@@ -283,7 +295,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         return i;
     };
     std::vector<int> startZelle(starts.size(), -1);
-    for (std::size_t si = 0; si < starts.size(); ++si) {
+    for (std::size_t si = 0; si < saatZahl; ++si) {
         V o{};
         if (!lauf.boden(starts[si], o)) { continue; }
         Zelle c;
@@ -305,7 +317,9 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         }
     }
     static const int kVier[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+    std::size_t gelaufen = 0;
     while (!offen.empty()) {
+        if ((++gelaufen & 1023U) == 0U) { melde(0.3F * static_cast<float>(gelaufen) / static_cast<float>(z.size()), 1); }
         const int i = offen.front();
         offen.pop_front();
         for (const auto& r : kVier) {
@@ -317,11 +331,44 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
             if (j >= 0) { verknuepfe(i, j); }
         }
     }
+    // rc609 W3b: die uebrigen Startpunkte (vorhandene Wegpunkte) nur, wenn das Gitter sie erreicht hat - an eine der vier
+    // umliegenden Zellen, die schon da ist.
+    int unerreicht = 0;   // vorhandene Wegpunkte, die das Gitter nicht erreicht (zaehlen fuer die Punktgrenze des Spiels)
+    for (std::size_t si = saatZahl; si < starts.size(); ++si) {
+        V o{};
+        std::vector<int> an;
+        if (lauf.boden(starts[si], o)) {
+            const int x0 = static_cast<int>(std::floor(o[0] / kGitter));
+            const int y0 = static_cast<int>(std::floor(o[1] / kGitter));
+            for (int dx = 0; dx <= 1; ++dx) {
+                for (int dy = 0; dy <= 1; ++dy) {
+                    const auto sp = spalten.find(spalteSchluessel(x0 + dx, y0 + dy));
+                    if (sp == spalten.end()) { continue; }
+                    V q = o;
+                    if (!lauf.gehen(q, static_cast<float>(x0 + dx) * kGitter, static_cast<float>(y0 + dy) * kGitter)) { continue; }
+                    for (const int j : sp->second) {
+                        if (std::fabs(z[static_cast<std::size_t>(j)].o[2] - q[2]) < kStufe) { an.push_back(j); }
+                    }
+                }
+            }
+        }
+        if (an.empty()) {
+            unerreicht += (si < p.startIstWegpunkt.size() && p.startIstWegpunkt[si] != 0) ? 1 : 0;
+            continue;
+        }
+        Zelle c;
+        c.o = o;
+        c.gitter = false;
+        z.push_back(std::move(c));
+        const int i = static_cast<int>(z.size()) - 1;
+        startZelle[si] = i;
+        for (const int j : an) { verknuepfe(i, j); }
+    }
 
     // --- 2. Punkte ---------------------------------------------------------------------
     std::vector<int> knotenZelle;
     std::vector<int> knotenVon(z.size(), -1);
-    const int maxK = std::max(0, p.maxKnoten);
+    const int maxK = std::max(0, p.maxKnoten - unerreicht);
     int grenze = std::numeric_limits<int>::max();
     // Der origin eines Punkts in Zelle c (Start: der Startpunkt selbst, wenn er ein Wegpunkt ist), wenn das Spiel ihn dort
     // behaelt.
@@ -331,6 +378,8 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         ort = {std::round(o[0]), std::round(o[1]), std::round(o[2] + kKastenUnten + 25.0F)};
         if (start >= 0 && static_cast<std::size_t>(start) < p.startIstWegpunkt.size() && p.startIstWegpunkt[static_cast<std::size_t>(start)] != 0) {
             ort = starts[static_cast<std::size_t>(start)];
+        } else if (p.punktErlaubt && !p.punktErlaubt(V{ort[0], ort[1], ort[2] - 25.0F})) {
+            return false;   // rc609 W3b: Sperrbereich
         }
         // Boden unter der Mitte: sonst markiert ihn das Spiel als schwebend ("Drop To Floor And Mark Floating",
         // 1,5 x MAX_EDGE_FLOOR_DIST tief, g_navigator.cpp:1573-1595 MD) und seine Kanten gelten nur fuer Flieger.
@@ -471,12 +520,22 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         for (std::size_t si = 0; si < starts.size(); ++si) {
             if (startZelle[si] >= 0) { (void)setze(startZelle[si], static_cast<int>(si)); }
         }
+        // rc609 W3b: was ein vorhandener Wegpunkt zu Fuss in einer Rasterweite erreicht, ist schon abgedeckt.
+        if (p.nurUnbedeckt) {
+            for (std::size_t n = 0; n < aus.size(); ++n) {
+                const int st = aus[n].start;
+                if (st >= 0 && static_cast<std::size_t>(st) < p.startIstWegpunkt.size() && p.startIstWegpunkt[static_cast<std::size_t>(st)] != 0) {
+                    ausbreiten(knotenZelle[n], raster);
+                }
+            }
+        }
         // b) die Rasterpunkte, in der Reihenfolge des Flutens (nahe den Startpunkten zuerst)
         const int kr = std::max(1, static_cast<int>(std::lround(raster / kGitter)));
         const std::size_t vorRaster = knotenZelle.size();
         for (std::size_t i = 0; i < z.size(); ++i) {
             const Zelle& c = z[i];
             if (!c.gitter || ((c.ix % kr) + kr) % kr != 0 || ((c.iy % kr) + kr) % kr != 0) { continue; }
+            if (p.nurUnbedeckt && weit[i] <= raster) { continue; }
             bool nah = false;   // schon ein Startpunkt dicht daneben
             for (std::size_t n = 0; n < vorRaster && !nah; ++n) {
                 const V& o = z[static_cast<std::size_t>(knotenZelle[n])].o;
@@ -549,6 +608,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         };
         std::vector<Kandidat> kand;
         for (std::size_t a = 0; a < aus.size(); ++a) {
+            if ((a & 63U) == 0U) { melde(0.4F + 0.1F * static_cast<float>(a) / static_cast<float>(aus.size()), 3); }
             (void)umkreis(knotenZelle[a], 2.0F * raster, [&](int i, float) {
                 const int b = knotenVon[static_cast<std::size_t>(i)];
                 if (b > static_cast<int>(a)) { kand.push_back(Kandidat{laenge(static_cast<int>(a), b), static_cast<int>(a), b}); }
@@ -558,7 +618,9 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         std::sort(kand.begin(), kand.end(), [](const Kandidat& x, const Kandidat& y) {
             return x.d != y.d ? x.d < y.d : (x.a != y.a ? x.a < y.a : x.b < y.b);
         });
+        std::size_t kn = 0;
         for (const Kandidat& kd : kand) {
+            if ((++kn & 255U) == 0U) { melde(0.5F + 0.3F * static_cast<float>(kn) / static_cast<float>(kand.size()), 3); }
             const auto& na = aus[static_cast<std::size_t>(kd.a)].nachbarn;
             const auto& nbB = aus[static_cast<std::size_t>(kd.b)].nachbarn;
             // Fast genau ueber einen gemeinsamen Nachbarn (Umweg hoechstens ein Fuenftel laenger): entfaellt.
@@ -669,6 +731,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
     const auto ketten = [&](float raster) {
         // a) Treppen: oben und unten ein Punkt, die beiden ueber das Netz in so vielen Kanten verbunden, wie die
         //    Rasterweite auf dem Weg zwischen ihnen verlangt. Sonst eine Kette ueber die Treppe.
+        melde(0.8F, 4);
         for (const Treppe& t : treppen) {
             // Nur Anschluesse, zwischen denen Kanten in Frage kommen (zwei Rasterweiten, wie in 3).
             const float lauf = waagerecht(z[static_cast<std::size_t>(t.unten)].o, z[static_cast<std::size_t>(t.oben)].o);
@@ -714,6 +777,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         // b) Teile des Netzes ohne Verbindung zum Teil des ersten Startpunkts (ein Raum hinter einer Tuer, durch die keine
         //    Rasterkante gerade hindurchgeht): der kuerzeste Weg auf dem Laufgitter zum Hauptteil, darauf eine Kette.
         for (int runde = 0; runde < static_cast<int>(aus.size()); ++runde) {
+            melde(0.9F, 4);
             const std::vector<int> t = teile();
             if (aus.empty()) { return; }
             abgehaengt.resize(aus.size(), 0);
@@ -747,6 +811,7 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
     const auto alles = [&](float raster) {
         abgehaengt.clear();
         luecken.clear();
+        melde(0.3F, 2);
         punkte(raster);
         kanten(raster);
         ketten(raster);
@@ -757,10 +822,15 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
     float S = S0;
     alles(S);
     for (int runde = 0; runde < 8 && static_cast<int>(aus.size()) > maxK && S < 3.0F * S0; ++runde) {
+        // rc609 W3b: jeder weitere Durchgang nimmt die Haelfte des restlichen Fortschritts (die Zahl ist vorher offen)
+        anteilBasis += anteilBreite * 0.5F;
+        anteilBreite *= 0.5F;
         S = std::min(3.0F * S0, S * std::sqrt(static_cast<float>(aus.size()) / static_cast<float>(std::max(1, maxK))));
         alles(S);
     }
     if (static_cast<int>(aus.size()) > maxK) {
+        anteilBasis += anteilBreite * 0.5F;
+        anteilBreite *= 0.5F;
         grenze = maxK;
         alles(S);
     }
@@ -769,6 +839,19 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         info->luecken = luecken;
     }
     return aus;
+}
+
+}  // namespace
+
+std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 3>>& starts, const WegWelt& welt,
+                                            const WegErzeugung& p, WegErzeugungInfo* info) {
+    if (!welt.spur) { return {}; }
+    try {
+        return erzeugeInnen(starts, welt, p, info);
+    } catch (const Abbruch&) {
+        if (info != nullptr) { info->abgebrochen = true; }   // rc609 W3b: "Abbrechen" - nichts uebernehmen
+        return {};
+    }
 }
 
 // rc609 W3a: Jede Kante braucht ein target-Feld an einem ihrer Enden (das Spiel verbindet in beide Richtungen,
@@ -864,9 +947,214 @@ std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp
     return ziele;
 }
 
+// --- rc609 W3b: Bereiche, Pfade, Sprungkanten ---------------------------------------
+
+namespace {
+constexpr float kEtagenHoehe = kKastenOben - kKastenUnten;   // 64: eine Figur passt nicht zwischen zwei so nahe Boeden
+
+// Abstand des Punkts (x, y) zur Strecke a-b in der Ebene; `t` der Anteil auf der Strecke.
+float zurStrecke(float x, float y, const V& a, const V& b, float& t) {
+    const float dx = b[0] - a[0];
+    const float dy = b[1] - a[1];
+    const float l2 = dx * dx + dy * dy;
+    t = l2 > 0.0F ? std::clamp(((x - a[0]) * dx + (y - a[1]) * dy) / l2, 0.0F, 1.0F) : 0.0F;
+    return std::hypot(x - (a[0] + dx * t), y - (a[1] + dy * t));
+}
+}  // namespace
+
+bool imWegBereich(const WegBereich& b, const std::array<float, 3>& boden) {
+    if (b.punkte.empty()) { return false; }
+    if (!b.lasso) {
+        // Pinselstrich: im Halbmesser um die Linie, Hoehe entlang der Linie
+        if (b.punkte.size() == 1) {
+            return waagerecht(b.punkte.front(), boden) <= b.pinsel && std::fabs(boden[2] - b.punkte.front()[2]) <= kEtagenHoehe;
+        }
+        for (std::size_t i = 0; i + 1 < b.punkte.size(); ++i) {
+            float t = 0.0F;
+            const V& a = b.punkte[i];
+            const V& c = b.punkte[i + 1];
+            if (zurStrecke(boden[0], boden[1], a, c, t) <= b.pinsel && std::fabs(boden[2] - (a[2] + (c[2] - a[2]) * t)) <= kEtagenHoehe) { return true; }
+        }
+        return false;
+    }
+    // Umriss: Punkt im Vieleck (gerade Zahl Kreuzungen), Hoehe zwischen den Ecken
+    float lo = b.punkte.front()[2];
+    float hi = lo;
+    bool innen = false;
+    for (std::size_t i = 0, j = b.punkte.size() - 1; i < b.punkte.size(); j = i++) {
+        const V& a = b.punkte[i];
+        const V& c = b.punkte[j];
+        lo = std::min(lo, a[2]);
+        hi = std::max(hi, a[2]);
+        if ((a[1] > boden[1]) != (c[1] > boden[1]) && boden[0] < (c[0] - a[0]) * (boden[1] - a[1]) / (c[1] - a[1]) + a[0]) { innen = !innen; }
+    }
+    return innen && boden[2] >= lo - kEtagenHoehe && boden[2] <= hi + kEtagenHoehe;
+}
+
+std::string wegBereicheText(const std::vector<WegBereich>& b) {
+    std::ostringstream os;
+    for (const WegBereich& x : b) {
+        os << (x.art == WegBereich::Art::Sperre ? "sperre" : "erzeugen") << ' ' << (x.lasso ? "lasso" : "pinsel") << ' '
+           << std::lround(x.raster) << ' ' << std::lround(x.pinsel) << ' ' << x.punkte.size();
+        for (const V& q : x.punkte) { os << ' ' << std::lround(q[0]) << ' ' << std::lround(q[1]) << ' ' << std::lround(q[2]); }
+        os << '\n';
+    }
+    return os.str();
+}
+
+std::vector<WegBereich> wegBereicheLesen(const std::string& text) {
+    std::vector<WegBereich> aus;
+    std::istringstream is(text);
+    std::string zeile;
+    while (std::getline(is, zeile)) {
+        std::istringstream z(zeile);
+        std::string art;
+        std::string form;
+        WegBereich b;
+        std::size_t n = 0;
+        if (!(z >> art >> form >> b.raster >> b.pinsel >> n) || (art != "erzeugen" && art != "sperre") || (form != "lasso" && form != "pinsel") ||
+            n > 100000U) {
+            continue;
+        }
+        b.art = art == "sperre" ? WegBereich::Art::Sperre : WegBereich::Art::Erzeugen;
+        b.lasso = form == "lasso";
+        for (std::size_t i = 0; i < n; ++i) {
+            V q{};
+            if (!(z >> q[0] >> q[1] >> q[2])) { break; }
+            b.punkte.push_back(q);
+        }
+        if (b.punkte.size() == n && n > 0) { aus.push_back(std::move(b)); }
+    }
+    return aus;
+}
+
+WegPfad erzeugePfad(const std::vector<std::array<float, 3>>& linie, const WegWelt& welt, float abstand) {
+    WegPfad aus;
+    if (!welt.spur || linie.empty() || abstand <= 0.0F) { return aus; }
+    const Laeufer lauf{welt};
+    // Stellen auf der Linie je `abstand` (waagerecht gemessen), Anfang und Ende dabei.
+    std::vector<V> stellen{linie.front()};
+    float rest = abstand;
+    for (std::size_t i = 0; i + 1 < linie.size(); ++i) {
+        const V& a = linie[i];
+        const V& b = linie[i + 1];
+        const float l = waagerecht(a, b);
+        float s = 0.0F;
+        while (l - s >= rest) {
+            s += rest;
+            const float t = s / l;
+            stellen.push_back({a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t});
+            rest = abstand;
+        }
+        rest -= l - s;
+    }
+    if (waagerecht(stellen.back(), linie.back()) > abstand * 0.25F) { stellen.push_back(linie.back()); }
+    // Je Stelle der Boden (der Kasten der Figur wie bei der Erzeugung) und der origin, wenn das Spiel ihn behaelt.
+    for (const V& st : stellen) {
+        V o{};
+        bool gut = lauf.boden(st, o);
+        V ort{std::round(o[0]), std::round(o[1]), std::round(o[2] + kKastenUnten + 25.0F)};
+        // Boden unter der Mitte (Drop To Floor And Mark Floating, 1,5 x MAX_EDGE_FLOOR_DIST, wie ortFuer)
+        gut = gut && welt.spur(ort, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {ort[0], ort[1], ort[2] - 90.0F}).anteil < 1.0F;
+        gut = gut && (!welt.knoten || welt.knoten(ort));
+        if (!gut) {
+            aus.ohnePunkt.push_back(st);
+            continue;
+        }
+        NeuerWegpunkt w;
+        w.ort = ort;
+        w.boden = {ort[0], ort[1], ort[2] - 25.0F};
+        aus.punkte.push_back(std::move(w));
+    }
+    // Nachbarn auf der Linie: die Kantenpruefung des Spiels in beide Richtungen (das target-Feld kommt an einen der beiden).
+    for (std::size_t i = 0; i + 1 < aus.punkte.size(); ++i) {
+        const V& a = aus.punkte[i].ort;
+        const V& b = aus.punkte[i + 1].ort;
+        if (!welt.kante || (welt.kante(a, b) && welt.kante(b, a))) {
+            aus.punkte[i].nachbarn.push_back(static_cast<int>(i + 1));
+            aus.punkte[i + 1].nachbarn.push_back(static_cast<int>(i));
+        } else {
+            aus.brueche.push_back({(a[0] + b[0]) * 0.5F, (a[1] + b[1]) * 0.5F, (a[2] + b[2]) * 0.5F - 25.0F});
+        }
+    }
+    return aus;
+}
+
+std::vector<WegSprung> sprungKanten(const std::vector<std::array<float, 3>>& orte, const std::vector<std::vector<int>>& nachbarn,
+                                    std::vector<char> hatSprung, const WegWelt& welt, const std::function<bool()>& weiter) {
+    std::vector<WegSprung> aus;
+    const std::size_t n = orte.size();
+    if (!welt.sprung || n < 2) { return aus; }
+    hatSprung.resize(n, 0);
+    // Teile des Netzes (Vereinigung ueber die Kanten)
+    std::vector<int> teil(n);
+    for (std::size_t i = 0; i < n; ++i) { teil[i] = static_cast<int>(i); }
+    const auto wurzel = [&](int i) {
+        while (teil[static_cast<std::size_t>(i)] != i) {
+            teil[static_cast<std::size_t>(i)] = teil[static_cast<std::size_t>(teil[static_cast<std::size_t>(i)])];
+            i = teil[static_cast<std::size_t>(i)];
+        }
+        return i;
+    };
+    for (std::size_t i = 0; i < n && i < nachbarn.size(); ++i) {
+        for (const int j : nachbarn[i]) {
+            if (j >= 0 && static_cast<std::size_t>(j) < n) { teil[static_cast<std::size_t>(wurzel(static_cast<int>(i)))] = wurzel(j); }
+        }
+    }
+    // Die Grenzen des Sprungs (NPC_TryJump: jumpMaxXYDist 750, jumpMazZDist -450 - in beide Richtungen, also |dz| <= 450).
+    constexpr float kMaxXY = 750.0F;
+    constexpr float kMaxZ = 450.0F;
+    // Je Teil (ausser dem groessten) die naechsten Paare zu anderen Teilen, bis ein Sprung in beide Richtungen geht.
+    // Hoechstens 64 Versuche je Teil und Runde (die Bahn des Spiels ist teuer); dann der naechste Teil.
+    constexpr int kVersuche = 64;
+    for (bool weiterSuchen = true; weiterSuchen;) {
+        weiterSuchen = false;
+        std::map<int, std::vector<int>> teile;
+        for (std::size_t i = 0; i < n; ++i) { teile[wurzel(static_cast<int>(i))].push_back(static_cast<int>(i)); }
+        if (teile.size() < 2) { break; }
+        int groesster = teile.begin()->first;
+        for (const auto& [w, glieder] : teile) {
+            if (glieder.size() > teile[groesster].size()) { groesster = w; }
+        }
+        for (const auto& [w, glieder] : teile) {
+            if (w == groesster || wurzel(glieder.front()) != w) { continue; }   // schon in dieser Runde verbunden
+            std::vector<std::tuple<float, int, int>> paare;
+            for (const int a : glieder) {
+                for (std::size_t b = 0; b < n; ++b) {
+                    if (wurzel(static_cast<int>(b)) == w) { continue; }
+                    const V& oa = orte[static_cast<std::size_t>(a)];
+                    const V& ob = orte[b];
+                    if (waagerecht(oa, ob) > kMaxXY || std::fabs(oa[2] - ob[2]) > kMaxZ) { continue; }
+                    if (hatSprung[static_cast<std::size_t>(a)] != 0 && hatSprung[b] != 0) { continue; }
+                    paare.emplace_back(abstand(oa, ob), a, static_cast<int>(b));
+                }
+            }
+            std::sort(paare.begin(), paare.end());
+            int versuche = 0;
+            for (const auto& [d, a, b] : paare) {
+                (void)d;
+                if (versuche++ >= kVersuche) { break; }
+                if (weiter && !weiter()) { return aus; }
+                if (wurzel(b) == wurzel(a)) { continue; }
+                const V& oa = orte[static_cast<std::size_t>(a)];
+                const V& ob = orte[static_cast<std::size_t>(b)];
+                if (!welt.sprung(oa, ob) || !welt.sprung(ob, oa)) { continue; }
+                const bool aTraegt = hatSprung[static_cast<std::size_t>(a)] == 0;
+                aus.push_back(WegSprung{aTraegt ? a : b, aTraegt ? b : a});
+                hatSprung[static_cast<std::size_t>(aTraegt ? a : b)] = 1;
+                teil[static_cast<std::size_t>(wurzel(a))] = wurzel(b);
+                weiterSuchen = true;
+                break;
+            }
+        }
+    }
+    return aus;
+}
+
 // --- Pruefen -------------------------------------------------------------------
 
-std::vector<WegBefund> pruefeWegNetz(const WegNetz& netz, const std::vector<MapEntity>& ents, const WegStrahl& strahl) {
+std::vector<WegBefund> pruefeWegNetz(const WegNetz& netz, const std::vector<MapEntity>& ents, const WegStrahl& strahl,
+                                     const WegStrahl& boden) {
     std::vector<WegBefund> aus;
     std::vector<int> grad(netz.knoten.size(), 0);
     for (const WegKante& k : netz.kanten) {
@@ -914,7 +1202,7 @@ std::vector<WegBefund> pruefeWegNetz(const WegNetz& netz, const std::vector<MapE
             // Schwebend? Die Engine sucht den Boden bis 90 darunter (1,5 x 60).
             if ((f & 2) == 0) {
                 const std::array<float, 3> tief{n.ort[0], n.ort[1], n.ort[2] - kMaxEtage * 1.5F};
-                if (!strahl(n.ort, tief, t, nn)) {
+                if (!(boden ? boden : strahl)(n.ort, tief, t, nn)) {
                     std::snprintf(z, sizeof(z), "%s: floating - no floor within 90 units below", nm.c_str());
                     aus.push_back(WegBefund{WegBefund::Art::Schwebend, static_cast<int>(i), z});
                 }

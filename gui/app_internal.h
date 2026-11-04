@@ -158,6 +158,8 @@ struct DateiHerkunft {
     }
 };
 
+struct WegAuftrag;   // rc609 W3b: die Erzeugung im Hintergrund (gui/app_wegpunkte.cpp)
+
 // Zustand der Oberflaeche. Bewusst ein einfacher Verbund - das Programm hat
 // genau ein Dokument, wie das Original.
 struct App {
@@ -1684,7 +1686,7 @@ struct App {
     // --- Wegnetz der NPCs (gui/app_wegpunkte.cpp, rc589) ------------------
     bool zeigeWegnetz = false;        // Netz in der Ansicht
     bool wegFensterOffen = false;     // Fenster "Waypoints"
-    int wegWerkzeug = 0;              // 0 keins, 1 setzen (Kette), 2 verbinden
+    int wegWerkzeug = 0;              // 0 keins, 1 setzen (Kette), 2 verbinden; rc609 W3b: 3 Pinsel, 4 Lasso, 5 Pfad, 6 Startpunkt
     int wegVon = -1;                  // verbinden: Entity des ersten Klicks
     int wegLetzter = -1;              // setzen: zuletzt gesetzter (Kette)
     float wegAbstand = 192.0F;        // Rasterweite beim Erzeugen
@@ -1703,6 +1705,17 @@ struct App {
     bool wegAutoVerbinden = true;
     bool wegLueckeSchliessen = false;
     std::string wegMuster = "wp_#";  // Umbenennen nach Muster (# = Nummer)
+    // rc609 W3b (Mike: "highlight/draw an area and then click generate. Like paint a path around the map."):
+    std::shared_ptr<WegAuftrag> wegAuftrag;           // die Erzeugung, die gerade im Hintergrund rechnet
+    std::vector<WegBereich> wegBereiche;              // gemalte Bereiche der geladenen Karte (gespeichert je Karte)
+    std::string wegBereicheKarte;                     // fuer welche Karte wegBereiche gilt
+    bool wegNeuSperre = false;                        // der naechste gemalte Bereich ist ein Sperrbereich
+    float wegPinsel = 96.0F;                          // Halbmesser des Pinsels
+    std::vector<std::array<float, 3>> wegStrich;      // der Strich, der gerade gemalt wird (Boden)
+    bool wegStrichAktiv = false;
+    std::vector<std::array<float, 3>> wegMarken;      // Stellen des letzten Pfads ohne Kante oder Punkt
+    std::vector<char> wegAbseits;                     // je Entity: Wegpunkt ausserhalb des Hauptteils des Netzes
+    int wegTeileZahl = 0;                             // Teile des Netzes ausser dem Hauptteil
     int entStand = 0;                 // zaehlt jede Entity-Aenderung (nachAenderung)
     // --- Draufsicht (rc589) ----------------------------------------------
     // Senkrecht nach unten; was hoeher liegt als draufSchnitt, schneidet die
@@ -2989,7 +3002,20 @@ void wegNetzAktuell();                       // neu bauen, wenn sich etwas geaen
 void wegUeberlagerung();                     // Netz in der Ansicht
 void wegWerkzeugMaus(float rasterSkal);      // Setzen/Verbinden; setzt wegKlickVerbraucht
 void drawWegFenster();                       // Fenster "Waypoints"
-int wegErzeugen(float abstand, bool alteWeg, std::string* meldung);
+// rc609 W3b: Erzeugung im Hintergrund. Voll: alles neu (wie bisher "Erzeugen"); Bereich: im gemalten Bereich `bereich`;
+// Start: vom angeklickten Boden `saat` aus; Anschluss: die Teile ausser dem Hauptteil; Sprung: nur Sprungkanten. Das
+// Ergebnis kommt in EINEM Rueckgaengig-Schritt (wegAuftragPruefen, jedes Bild); `hintergrund` false rechnet sofort.
+enum class WegAuftragArt { Voll, Bereich, Start, Anschluss, Sprung };
+bool wegAuftragStarten(WegAuftragArt art, const std::vector<std::array<float, 3>>& saat = {}, int bereich = -1, bool hintergrund = true);
+[[nodiscard]] bool wegAuftragLaeuft();
+void wegAuftragAbbrechen();
+void wegAuftragPruefen();
+[[nodiscard]] float wegAuftragAnteil();
+[[nodiscard]] int wegAuftragSchritt();
+// Pfad: Punkte entlang der Linie (Boden), verbunden, wo das Spiel die Kante behaelt (ein Schritt). Zahl der Punkte.
+int wegPfadSetzen(const std::vector<std::array<float, 3>>& linie);
+void wegBereicheSpeichern();
+void wegBereicheAktuell();
 int wegGenerierteEntfernen();
 bool wegVerbinden(int vonEntity, int nachEntity, bool sprung);
 int wegSetzen(const float boden[3], int verbindeMit);
@@ -3004,7 +3030,8 @@ std::vector<std::string> wegNachbarNamen(int i);
 // die Kanten der Punkte, die die Pruefung nicht mehr bestehen, weg; dann mit
 // den Wegpunkten im Umkreis verbinden (ohne die in `ohne`). Meldet in der
 // Statuszeile. Rueckgabe: ob sich etwas geaendert hat.
-bool wegKantenAbgleichen(const std::vector<int>& punkte, bool trennen, const std::vector<int>& ohne = {});
+// rc609 W3b: `umkreis` > 0 statt wegAbstand (ein Bereich schliesst in zwei seiner Rasterweiten an).
+bool wegKantenAbgleichen(const std::vector<int>& punkte, bool trennen, const std::vector<int>& ohne = {}, float umkreis = -1.0F);
 // Nach dem Loeschen: je Gruppe (Nachbarn eines geloeschten Punkts) die
 // Nachbarn untereinander verbinden, wo die Pruefung es erlaubt.
 int wegLueckenSchliessen(const std::vector<std::vector<std::string>>& gruppen);
@@ -3014,17 +3041,21 @@ void wegKopienUmschreiben(const std::vector<int>& quellen, const std::vector<int
 int wegUmbenennen(const std::string& muster);
 // Die gewaehlten Wegpunkte mit ihren Nachbarn verbinden (ein Schritt).
 bool wegAuswahlVerbinden();
-// Die Spuren fuer den Netzbau der geladenen Karte (gui/app_bewegung.cpp).
+// Die Spuren fuer den Netzbau der geladenen Karte (gui/app_bewegung.cpp); rc609 W3b: mit einer Kopie der Entities.
 [[nodiscard]] NavBauHilfe navBauHilfeKarte();
+[[nodiscard]] NavBauHilfe navBauHilfeKarte(const std::vector<MapEntity>& ents);
 // rc609 W3a: die Welt der Erzeugung fuer die geladene Karte - Kollision des Spiels mit offenen Tueren, Knoten und
-// Kanten wie im Spiel (NavKantenPruefer). Lebt, solange der Zeiger lebt; die Entities duerfen sich so lange nicht aendern.
+// Kanten wie im Spiel (NavKantenPruefer). rc609 W3b: rechnet auf einer eigenen Kopie der Entities und braucht die
+// geladene Karte danach nicht mehr (auch in einem anderen Faden).
 struct WegWeltKarte {
+    std::vector<MapEntity> ents;
     NavBauHilfe hilfe;
     NavVersetzt tueren;
     std::unique_ptr<NavKantenPruefer> pruefer;
     WegWelt welt;
 };
 [[nodiscard]] std::unique_ptr<WegWeltKarte> wegWeltKarte();
+[[nodiscard]] std::unique_ptr<WegWeltKarte> wegWeltKarte(std::vector<MapEntity> ents);
 // --- Draufsicht ---
 void draufsichtSchalten(bool an);
 // Fuer beide aus app_mission.cpp:

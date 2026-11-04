@@ -787,6 +787,14 @@ struct LaufWerte {
 // hier die Mitte der Konvention: BOTH_ALORA_FLIP_2 (Q_irand(0,3) != 0 in drei
 // von vier Faellen).
 [[nodiscard]] std::string npcSprungAnim(bool movieDuels, const std::string& klasse, const std::string& waffe, const std::string& rang);
+// rc609 W3b: NPC_Jump (NPC_move.cpp:59-260 OpenJK) - findet eine Bahn von `ort` nach `ziel`, die die Spur mit dem
+// Kasten besteht; `tempo` bekommt das shotVel. pmMaske: pm->tracemask der Figur (die Bahn spurt zusaetzlich BOTCLIP).
+[[nodiscard]] bool navNpcSprungBahn(const NavSpurFn& spur, const NavVec& ort, const NavVec& mins, const NavVec& maxs,
+                                    const NavVec& ziel, float schwerkraft, float weltSchwerkraft, std::uint32_t pmMaske,
+                                    NavVec* tempo);
+// rc609 W3b: springt eine Figur, die springen darf, vom Boden bei `ort` (origin) nach `ziel` (NPC_TryJump(pos) mit
+// NPC_Jump)? So nimmt STEER::Path eine Sprungkante (targetJump).
+[[nodiscard]] bool navNpcSprungMoeglich(const NavSpurFn& spur, const NavVec& ort, const NavVec& ziel, std::uint32_t pmMaske);
 // rc605: SCF_NAV_CAN_JUMP beim Spawnen (NPC_spawn.cpp:588-602 MD).
 [[nodiscard]] bool npcKannSpringen(const std::string& klasse, int levitation);
 // rc605 FU4: LaufWerte::sprungAnimArt zum Namen aus npcSprungAnim.

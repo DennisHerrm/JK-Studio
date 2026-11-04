@@ -3011,88 +3011,12 @@ struct Lauf {
         }
         return false;
     }
-    // NPC_Jump (NPC_move.cpp:109-322): bis zu 10 Bahnen, jede in Stuecken von
-    // 250 ms mit dem Kasten der Figur gespurt (clipmask | CONTENTS_BOTCLIP).
+    // NPC_Jump (NPC_move.cpp:109-322): rc609 W3b als navNpcSprungBahn herausgeloest (die Sprungkanten des Editors
+    // rechnen damit).
     bool sprungBahn(const NavVec& ziel) {
-        constexpr float kMinShot = 30.0F;
-        constexpr float kMaxShot = 500.0F;
-        constexpr int kMaxHits = 10;
-        constexpr int kSchritt = 250;
-        float besterTreffer = 16777216.0F;   // Q3_INFINITE
-        bool untenZu = false;
-        bool obenZu = false;
-        int treffer = 0;
-        int obenVersuche = 0;
-        int untenVersuche = 0;
-        NavVec ri = minus(ziel, z.ort);
-        const float abstandZiel = vektorNorm(ri);
-        const float ersteGeschw = std::clamp(abstandZiel, kMinShot, kMaxShot);
-        float geschw = ersteGeschw;
-        NavVec schuss{};
-        const std::uint32_t maske = pmMaske() | kNavBotClip;
-        while (treffer < kMaxHits) {
-            schuss = mal(ri, geschw);
-            float flugZeit = abstandZiel / geschw;
-            // "shotVel[2] += travelTime * 0.5 * NPC->client->ps.gravity" (double)
-            schuss[2] = static_cast<float>(static_cast<double>(schuss[2]) +
-                                           static_cast<double>(flugZeit) * 0.5 * static_cast<double>(w.schwerkraft));
-            NavVec letzter = z.ort;
-            bool blockiert = false;
-            flugZeit *= 1000.0F;
-            const float ende = std::floor(flugZeit);
-            for (int t = kSchritt; static_cast<float>(t) < ende + static_cast<float>(kSchritt); t += kSchritt) {
-                if (static_cast<float>(t) > flugZeit) { t = static_cast<int>(ende); }
-                // EvaluateTrajectory TR_GRAVITY mit g_gravity (bg_misc.cpp:323-327)
-                const float dt = static_cast<float>(t) * 0.001F;
-                NavVec test{z.ort[0] + dt * schuss[0], z.ort[1] + dt * schuss[1], z.ort[2] + dt * schuss[2]};
-                test[2] -= 0.5F * w.weltSchwerkraft * dt * dt;
-                NavSpur tr = spurDurch(spurF, letzter, mins, maxs, test, kNavKeineEntity, maske);
-                if (tr.allsolid || tr.startsolid) { return false; }   // "you're hosed, dude"
-                if (tr.fraction < 1.0F) {
-                    // trace.entityNum == goalEntNum: das tempGoal (ohne
-                    // contents) oder die Figur selbst - trifft die Spur nie.
-                    if ((tr.contents & kNavBotClip) != 0U) {
-                        blockiert = true;
-                        break;
-                    }
-                    if (tr.normal[2] > 0.7F && abstand2(tr.endpos, ziel) < 4096.0F) { break; }   // "close enough!"
-                    const float d = abstand2(tr.endpos, ziel);
-                    if (d < besterTreffer) { besterTreffer = d; }
-                    blockiert = true;
-                    break;
-                }
-                if (static_cast<float>(t) == ende) {
-                    // "hmm, make sure we'll land on the ground..."
-                    NavVec unten = tr.endpos;
-                    unten[2] -= 128.0F;
-                    tr = spurDurch(spurF, tr.endpos, mins, maxs, unten, kNavKeineEntity, pmMaske());
-                    if (tr.fraction >= 1.0F) { blockiert = true; }   // "would fall too far"
-                    break;
-                }
-                letzter = test;
-            }
-            if (!blockiert) { break; }   // "made it!"
-            ++treffer;
-            if ((treffer % 2) != 0 && !untenZu) {
-                ++untenVersuche;
-                geschw = ersteGeschw - static_cast<float>(untenVersuche) * 50.0F;
-            } else if (!obenZu) {
-                ++obenVersuche;
-                geschw = ersteGeschw + static_cast<float>(obenVersuche) * 50.0F;
-            } else {
-                treffer = kMaxHits;
-                break;
-            }
-            if (geschw > kMaxShot) {
-                geschw = kMaxShot;
-                obenZu = true;
-            } else if (geschw < kMinShot) {
-                geschw = kMinShot;
-                untenZu = true;
-            }
-        }
-        if (treffer >= kMaxHits) { return false; }
-        z.tempoVek = schuss;
+        NavVec tempo{};
+        if (!navNpcSprungBahn(spurF, z.ort, mins, maxs, ziel, w.schwerkraft, w.weltSchwerkraft, pmMaske(), &tempo)) { return false; }
+        z.tempoVek = tempo;
         return true;
     }
     // --- rc605: NPC_BSJump (NPC_behavior.cpp:717-962 MD; OpenJK gleich ohne
@@ -6454,6 +6378,122 @@ int npcLandKlasse(bool movieDuels, bool jk2, const std::string& klasse, const st
     if (k == "class_bobafett") { return 1; }
     if (movieDuels && (k == "class_mandalorian" || k == "class_jango" || k == "class_jangodual")) { return 1; }
     return 0;
+}
+
+// rc609 W3b: NPC_Jump (NPC_move.cpp:59-260 OpenJK, :108-320 Movie Duels 9, gleich) als eigene Funktion - bis zu 10
+// Bahnen, jede in Stuecken von 250 ms mit dem Kasten der Figur gespurt (clipmask | CONTENTS_BOTCLIP). Die Simulation
+// (sprungBahn) und die Sprungkanten des Editors (navNpcSprungMoeglich) rechnen damit.
+bool navNpcSprungBahn(const NavSpurFn& spur, const NavVec& ort, const NavVec& mins, const NavVec& maxs, const NavVec& ziel,
+                      float schwerkraft, float weltSchwerkraft, std::uint32_t pmMaske, NavVec* tempo) {
+    constexpr float kMinShot = 30.0F;
+    constexpr float kMaxShot = 500.0F;
+    constexpr int kMaxHits = 10;
+    constexpr int kSchritt = 250;
+    float besterTreffer = 16777216.0F;   // Q3_INFINITE
+    bool untenZu = false;
+    bool obenZu = false;
+    int treffer = 0;
+    int obenVersuche = 0;
+    int untenVersuche = 0;
+    NavVec ri = minus(ziel, ort);
+    // VectorNormalize (q_math): mit dem Kehrwert malnehmen, Null bleibt Null
+    const float abstandZiel = std::sqrt(ri[0] * ri[0] + ri[1] * ri[1] + ri[2] * ri[2]);
+    if (abstandZiel != 0.0F) { ri = mal(ri, 1.0F / abstandZiel); }
+    const float ersteGeschw = std::clamp(abstandZiel, kMinShot, kMaxShot);
+    float geschw = ersteGeschw;
+    NavVec schuss{};
+    const std::uint32_t maske = pmMaske | kNavBotClip;
+    while (treffer < kMaxHits) {
+        schuss = mal(ri, geschw);
+        float flugZeit = abstandZiel / geschw;
+        // "shotVel[2] += travelTime * 0.5 * NPC->client->ps.gravity" (double)
+        schuss[2] = static_cast<float>(static_cast<double>(schuss[2]) +
+                                       static_cast<double>(flugZeit) * 0.5 * static_cast<double>(schwerkraft));
+        NavVec letzter = ort;
+        bool blockiert = false;
+        flugZeit *= 1000.0F;
+        const float ende = std::floor(flugZeit);
+        for (int t = kSchritt; static_cast<float>(t) < ende + static_cast<float>(kSchritt); t += kSchritt) {
+            if (static_cast<float>(t) > flugZeit) { t = static_cast<int>(ende); }
+            // EvaluateTrajectory TR_GRAVITY mit g_gravity (bg_misc.cpp:323-327)
+            const float dt = static_cast<float>(t) * 0.001F;
+            NavVec test{ort[0] + dt * schuss[0], ort[1] + dt * schuss[1], ort[2] + dt * schuss[2]};
+            test[2] -= 0.5F * weltSchwerkraft * dt * dt;
+            NavSpur tr = spurDurch(spur, letzter, mins, maxs, test, kNavKeineEntity, maske);
+            if (tr.allsolid || tr.startsolid) { return false; }   // "you're hosed, dude"
+            if (tr.fraction < 1.0F) {
+                // trace.entityNum == goalEntNum: das tempGoal (ohne
+                // contents) oder die Figur selbst - trifft die Spur nie.
+                if ((tr.contents & kNavBotClip) != 0U) {
+                    blockiert = true;
+                    break;
+                }
+                if (tr.normal[2] > 0.7F && abstand2(tr.endpos, ziel) < 4096.0F) { break; }   // "close enough!"
+                const float d = abstand2(tr.endpos, ziel);
+                if (d < besterTreffer) { besterTreffer = d; }
+                blockiert = true;
+                break;
+            }
+            if (static_cast<float>(t) == ende) {
+                // "hmm, make sure we'll land on the ground..."
+                NavVec unten = tr.endpos;
+                unten[2] -= 128.0F;
+                tr = spurDurch(spur, tr.endpos, mins, maxs, unten, kNavKeineEntity, pmMaske);
+                if (tr.fraction >= 1.0F) { blockiert = true; }   // "would fall too far"
+                break;
+            }
+            letzter = test;
+        }
+        if (!blockiert) { break; }   // "made it!"
+        ++treffer;
+        if ((treffer % 2) != 0 && !untenZu) {
+            ++untenVersuche;
+            geschw = ersteGeschw - static_cast<float>(untenVersuche) * 50.0F;
+        } else if (!obenZu) {
+            ++obenVersuche;
+            geschw = ersteGeschw + static_cast<float>(obenVersuche) * 50.0F;
+        } else {
+            treffer = kMaxHits;
+            break;
+        }
+        if (geschw > kMaxShot) {
+            geschw = kMaxShot;
+            obenZu = true;
+        } else if (geschw < kMinShot) {
+            geschw = kMinShot;
+            untenZu = true;
+        }
+    }
+    if (treffer >= kMaxHits) { return false; }
+    if (tempo != nullptr) { *tempo = schuss; }
+    return true;
+}
+
+// rc609 W3b: NPC_TryJump(pos, 0, 0) (NPC_move.cpp:290-318 OpenJK, :343-380 MD9) und NPC_TryJump() (:388-571 OpenJK,
+// :535-716 MD9) bis NPC_Jump, fuer eine Figur auf dem Boden, die springen darf (SCF_NAV_CAN_JUMP), mit dem Kasten
+// DEFAULT_MINS/MAXS und ps.gravity = g_gravity 800 (g_main.cpp:628 OpenJK). STEER::Path springt so zum naechsten Punkt einer
+// Sprungkante (g_navigator.cpp:5027-5034 OpenJK).
+bool navNpcSprungMoeglich(const NavSpurFn& spur, const NavVec& ort, const NavVec& ziel, std::uint32_t pmMaske) {
+    const NavVec mins{-16.0F, -16.0F, -24.0F};
+    const NavVec maxs{16.0F, 16.0F, 40.0F};
+    // "Can't Try To Jump At A Point In The Air": groundTest[2] += NPC->mins[2] * 3
+    NavVec unten = ziel;
+    unten[2] += mins[2] * 3.0F;
+    if (spurDurch(spur, ziel, NavVec{0, 0, 0}, NavVec{0, 0, 0}, unten, kNavKeineEntity, pmMaske).fraction >= 1.0F) { return false; }
+    // jumpMaxXYDist 750, jumpMazZDist -450 (ohne CLASS_ROCKETTROOPER)
+    NavVec ri = minus(ziel, ort);
+    ri[2] = 0.0F;
+    const float abstandXY = std::sqrt(ri[0] * ri[0] + ri[1] * ri[1]);
+    if (abstandXY != 0.0F) { ri = mal(ri, 1.0F / abstandXY); }
+    const float abstandZ = ziel[2] - ort[2];
+    if (abstandXY > 750.0F || abstandZ < -450.0F) { return false; }
+    // "Test To See If There Is A Wall Directly In Front Of Actor, If So, Backup Some" (NPC_JUMP_PREP_BACKUP_DIST 34):
+    // die Figur weicht zurueck und springt von dort - die Kante zaehlt nur, wenn sie von ihrem Punkt aus springt.
+    const NavSpur vor = spurDurch(spur, ort, NavVec{0, 0, 0}, NavVec{0, 0, 0}, plus(ort, mal(ri, 34.0F)), kNavKeineEntity, pmMaske);
+    if (vor.fraction < 1.0F || vor.allsolid || vor.startsolid) { return false; }
+    // WithinForceJumpRange
+    if (!(std::fabs(abstandZ) > 0.0F || abstandXY > 128.0F)) { return false; }
+    return navNpcSprungBahn(spur, ort, mins, maxs, ziel, 800.0F, 800.0F, pmMaske, nullptr);
 }
 
 // rc605: "anyone who has any force jump can jump" / "These jokers can jump"

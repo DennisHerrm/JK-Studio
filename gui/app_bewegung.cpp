@@ -723,20 +723,21 @@ struct NavBauTeile {
     std::shared_ptr<std::vector<NavBrush>> brushes;
     NavBauHilfe bau;
 };
-std::shared_ptr<NavBauTeile> navBauTeile() {
+// rc609 W3b: `ents` statt der geladenen Entities (die Erzeugung rechnet im Hintergrund auf einer Kopie).
+std::shared_ptr<NavBauTeile> navBauTeile(const std::vector<MapEntity>& ents) {
     kollisionRegelwerkPruefen();   // rc604 fix604
     const KollisionsSpeicher& ks = kollisionsSpeicher();
     // Entities ohne worldspawn vorn gehoeren nicht zu dieser .bsp (erfundene
     // Karten der Selbsttests) - dann keine Spuren gegen ihre Brushes.
-    const bool zurKarte = !g_app->map.entities.empty() && g_app->map.entities.front().classname == "worldspawn";
+    const bool zurKarte = !ents.empty() && ents.front().classname == "worldspawn";
     if (g_app->geo.empty() || !ks.k || ks.karte != g_app->map.path || !zurKarte) { return nullptr; }
     const std::shared_ptr<const KollisionsKarte> k = ks.k;
     // Die Brush-Entities (func_*): wie in bodenWelt. rc601 (bewegung, teil 3):
     // func_wall/func_usable mit START_OFF jetzt auch (ohne contents bis zum
     // use, in PHASE 0 an), eine func_door mit ihren Stellungen pos1/pos2.
     auto brushes = std::make_shared<std::vector<NavBrush>>();
-    for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
-        const MapEntity& e = g_app->map.entities[i];
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const MapEntity& e = ents[i];
         const std::string* mdl = e.find("model");
         if (mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*') { continue; }
         const std::string& kl = e.classname;
@@ -829,13 +830,18 @@ std::shared_ptr<NavBauTeile> navBauTeile() {
         };
         return navSpurMit(*k, *brushes, start, mins, maxs, ende, ignoriere, maske, anders);
     };
-    bau.tuerStellungen = [](int e, NavVec& p1, NavVec& p2) {
-        if (e < 0 || static_cast<std::size_t>(e) >= g_app->map.entities.size()) { return false; }
+    // rc609 W3b: pos1/pos2 jeder func_door jetzt ausgerechnet - die Spuren duerfen auch in einem anderen Faden laufen.
+    auto tueren = std::make_shared<std::map<int, std::pair<NavVec, NavVec>>>();
+    for (std::size_t i = 0; i < ents.size(); ++i) {
         float a[3];
         float b[3];
-        if (!tuerStellungen(g_app->map.entities[static_cast<std::size_t>(e)], g_app->geo, a, b)) { return false; }
-        p1 = {a[0], a[1], a[2]};
-        p2 = {b[0], b[1], b[2]};
+        if (tuerStellungen(ents[i], g_app->geo, a, b)) { (*tueren)[static_cast<int>(i)] = {NavVec{a[0], a[1], a[2]}, NavVec{b[0], b[1], b[2]}}; }
+    }
+    bau.tuerStellungen = [tueren](int e, NavVec& p1, NavVec& p2) {
+        const auto it = tueren->find(e);
+        if (it == tueren->end()) { return false; }
+        p1 = it->second.first;
+        p2 = it->second.second;
         return true;
     };
     const BspGeometry* geo = &g_app->geo;
@@ -863,7 +869,7 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
     sp.karte.reset();
     sp.brushes.reset();
     const auto t0 = std::chrono::steady_clock::now();
-    const std::shared_ptr<NavBauTeile> teile = navBauTeile();
+    const std::shared_ptr<NavBauTeile> teile = navBauTeile(g_app->map.entities);
     if (!teile) {
         // Ohne Geometrie: das Netz aus den Entities, ohne Spuren.
         sp.basis = navWeltAusEntities(g_app->map.entities);
@@ -939,8 +945,10 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
 }
 }  // namespace
 
-NavBauHilfe navBauHilfeKarte() {
-    const std::shared_ptr<NavBauTeile> t = navBauTeile();
+NavBauHilfe navBauHilfeKarte() { return navBauHilfeKarte(g_app->map.entities); }
+
+NavBauHilfe navBauHilfeKarte(const std::vector<MapEntity>& ents) {
+    const std::shared_ptr<NavBauTeile> t = navBauTeile(ents);
     return t ? t->bau : NavBauHilfe{};
 }
 

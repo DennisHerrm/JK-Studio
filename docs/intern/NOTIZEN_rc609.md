@@ -248,6 +248,73 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - Kein Spielvergleich mit Movie Duels gestartet: die Wegfindung ist die simulierte des Spiels (`baueNavNetz`/`navAStar`, wie bisher gegen das Spiel geprüft).
 - Die Erzeugung dauert jetzt Sekunden (jeditemple_garden 5,4 s, t1_danger 12,8 s) statt einem Bruchteil.
 
+## W3b: Wegpunkte - Bereich und Pfad malen, Startpunkt per Klick, Sprungkanten, Erzeugung im Hintergrund
+
+Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.md`, Mike: "highlight/draw an area and then click generate. Like paint a path around the map.", das Dach von Jedi Temple Garden). Skripte in `<SP neu>/w3b` (`lauf.py` wie W3a, Patchskripte).
+
+### Quellen (OpenJK `code/game`, Movie Duels 9 gleich)
+- Sprungkanten: `targetJump` ist `mTargets[4]` (g_navigator.cpp:2381 OJK). Beim Laden bekommt eine solche Kante WE_JUMPING (:1715/:1730 OJK, :1662/:1678 MD9) und wird **nicht** mit TestEdge geprüft, nur WE_SIZE_LARGE | WE_CANBEINVAL gesetzt (:1878-1884 OJK, :1819 MD9). `is_valid` lässt sie nur Figuren mit SCF_NAV_CAN_JUMP (:556 OJK, :552 MD9); SCF_NAV_CAN_JUMP haben Figuren mit FP_LEVITATION > 0 und CLASS_HOWLER (NPC_spawn.cpp:386-400 OJK).
+- Genommen wird die Kante in STEER::Path (g_navigator.cpp:5027-5034 OJK): NAV::NextPosition meldet "Jump", dann NPC_TryJump(NextPosition); scheitert er, hält die Figur an (:5054-5058).
+- NPC_TryJump(pos, 0, 0) (NPC_move.cpp:290-326 OJK, :343-381 MD9): Boden unter dem Ziel bis 3 x mins[2] (Punktspur), jumpMaxXYDist 750, jumpMazZDist -450; NPC_TryJump() (:399-616 / :535-718): Wand 34 voraus -> zurückweichen, WithinForceJumpRange; NPC_Jump (:59-250 OJK, :108-320 MD9): Bahn mit shotSpeed = Abstand (30..500), Flugzeit Abstand/Tempo, gespurt in 250-ms-Stücken mit dem Kasten und CONTENTS_BOTCLIP, bis 10 Versuche, Landung bis 128 tiefer.
+- Der Flug: Die Kappe der Machtsprunghöhe gilt nur für Spieler (PM_AirMove, bg_pmove.cpp:2996-3007 OJK: `clientNum < MAX_CLIENTS || PM_ControlledByPlayer()`), PM_CheckJump nur mit PMF_JUMP_HELD (ucmd.upmove; der NPC springt ohne) - der NPC fliegt die Bahn von NPC_Jump.
+
+### 1: Erzeugung im Hintergrund
+- `gui/app_wegpunkte.cpp`: `WegAuftrag` (Kopie der Entities, `WegWeltKarte` mit eigener Kopie, Ergebnis) rechnet in einem `std::thread`; `wegAuftragPruefen` (jedes Bild) übernimmt in EINEM Rückgängig-Schritt - nur, wenn sich die Entities inzwischen nicht geändert haben (sonst Meldung, verworfen). Fortschritt (Anteil, Schritt 1 Laufgitter, 2 Punkte, 3 Kanten, 4 Treppen/Türen, 5 Sprünge) und "Abbrechen" im Fenster; `erzeugeWegpunkte` meldet über `WegErzeugung::fortschritt` und bricht über eine Ausnahme ab (`erzeugeInnen`), das Ergebnis ändert sich nicht.
+- Damit die Welt in einem anderen Faden rechnen darf: `navBauTeile(ents)` nimmt die Entity-Liste, pos1/pos2 der Türen werden beim Bau ausgerechnet (vorher las die Spur der Kantenprüfung die geladene Karte), die Welt der Erzeugung ohne gi.inPVS (braucht der Wegpunkt-Netzbau nicht).
+- `navNpcSprungBahn` (NPC_Jump) aus der Simulation herausgelöst, die Simulation ruft sie (ctest bewegung, siehe unten); `navNpcSprungMoeglich` (NPC_TryJump + NPC_Jump) für die Sprungkanten.
+- Kein Tempo-Umbau: dasselbe Netz, nur im Hintergrund.
+
+### 2-4: Bereich, Pfad, Startpunkt (E)
+- Werkzeuge im Fenster: Pinsel, Lasso (Bereich), Pfad, Startpunkt; Schalter Sperrbereich; Liste der Bereiche mit Rasterweite je Bereich, "Hier erzeugen", Entfernen. Malen in 3D und Draufsicht (`kartenStrahlUnterMaus`, in der Draufsicht unter der Schnitthöhe).
+- `WegBereich` (`include/bhed/wegpunkte.h`): Pinselstrich (Halbmesser um die Linie) oder Umriss; gilt bis eine Kastenhöhe (64) über/unter den gemalten Böden. Gespeichert je Karte in `<Einstellungen>/wegbereiche/<karte>_<hash>.txt` (Schlüssel: Kartenpfad + Name der .pk3), nicht in der .bsp.
+- "Hier erzeugen" (`WegAuftragArt::Bereich`): Saat = gemalte Punkte (eine Rasterweite auseinander), das Laufgitter wächst nur im Bereich (`laufErlaubt`), vorhandene Wegpunkte kommen dazu, wenn es sie erreicht (`saat`), keine Rasterpunkte, wo ein vorhandener Wegpunkt zu Fuß eine Rasterweite nah ist (`nurUnbedeckt`); danach Auto-Verbinden aus W1 in zwei Rasterweiten des Bereichs.
+- Sperrbereich (`punktErlaubt`): bei jeder Art (auch der vollen Erzeugung und dem Pfad) kein neuer Punkt darin; das Laufgitter geht hindurch.
+- Pfad (`erzeugePfad`): je Rasterweite entlang der Linie ein Punkt auf dem Boden wie in W3a (Kasten, Drop To Floor, waypoint_getRadius), Nachbarn verbunden, wo TestEdge in beide Richtungen besteht; sonst rotes Kreuz und Meldung mit Ort; danach Auto-Verbinden zum Netz. Ein Schritt.
+- Startpunkt (`WegAuftragArt::Start`): flutet nur vom angeklickten Boden, vorhandene Wegpunkte kommen dazu, wenn erreicht, die Türkette aus W3a bindet an, dann Sprungkanten. Neue Kanten zwischen zwei vorhandenen Wegpunkten desselben Teils schreibt nur die volle Erzeugung.
+
+### 5: Sprungkanten (G)
+- `sprungKanten` (`src/wegpunkte.cpp`): nur zwischen Teilen, die sonst nicht verbunden sind; Paare bis 750 waagerecht und 450 Höhe, nächste zuerst, höchstens 64 Versuche je Teil und Runde; eine Kante nur, wenn `WegWelt::sprung` in beide Richtungen ja sagt (das Spiel geht jede Kante in beide Richtungen). Die Figur steht auf dem Boden unter dem Wegpunkt (Drop To Floor 90), springt zum origin des anderen. Ein targetJump-Feld je Punkt. Jedi Outcast: keine.
+- Knopf "Sprungkanten vorschlagen"; auch nach Startpunkt und Anschließen.
+
+### 6: Netz prüfen
+- "schwebend" sucht den Boden mit der Spur der Engine (alle Entities, `kartenBodenStrahl`, MASK wie Drop To Floor) statt nur mit den Flächen der Welt.
+
+### 7: Nicht angebundene Teile
+- Wegpunkte außerhalb des Hauptteils (Teil mit dem Wegpunkt am nächsten zum info_player_start) violett, Zahl im Fenster, Knopf "Teile anschließen" (`WegAuftragArt::Anschluss`: je Teil Saat am ersten Wegpunkt, Laufgitter in zwei Rasterweiten um die Teile, dann Sprungkanten).
+
+### Tests
+- Neuer Selbsttest `wegmalen` (`gui/selbsttest_wegmalen.inc`, Karte aus `BHED_WE_PK3`/`BHED_WE_KARTE`): alles mit der Maus in der Draufsicht über einer gemessenen geraden Strecke. jeditemple_garden (`endwmjtg`) **17/0**, Gegenprobe mp/ffa5 (nicht zum Entwickeln benutzt, `endwmffa5`) **17/0**:
+  - Bereich A (Pinsel, Raster 128): jtg 5 Punkte, 0 außerhalb, 1 Teil, 1 Schritt; Bereich B daneben: Punkte nur in B, mit A ein Teil, 0 Kanten nicht begehbar, 1 Schritt; zweimal Rückgängig = wie vorher; nach dem Neuladen 2 Bereiche aus der Datei.
+  - Sperrbereich (Lasso) + volle Erzeugung: 0 Punkte darin, Punkte ringsum, 1 Schritt.
+  - Pfad 768 lang: 7 Punkte, 0 abseits, 0 falsch verbundene Nachbarn (verbunden genau dann, wenn TestEdge in beide Richtungen besteht), 1 Schritt.
+  - Startpunkt: an der Stelle vorher kein Wegpunkt in einer Rasterweite; nach dem Klick einer, die Wegfindung des Spiels (baueNavNetz + navAStar) kommt von Bereich A hin, 1 Schritt.
+  - Teile: ein einzelner Wegpunkt neben dem Netz ist violett/abseits; nach "Teile anschließen" am Hauptteil, ein Teil weniger, 1 Schritt.
+  - Netz prüfen: **rot nachgestellt** - auf jtg ein Wegpunkt auf `func_breakable *25` (-4095 3526 182): mit den Flächen der Welt allein (wie bis W3a) "schwebend" 1; der Knopf "Netz prüfen" jetzt 0.
+  - Erster Lauf `wm1jtg` 13/4: der zweite Klick auf "Pinsel" schaltete ihn aus (Test: das Werkzeug bleibt gewählt), "Anschließen" hieß englisch wie "Connect" (Verbinden) - ID-Konflikt, jetzt "Connect parts"; `wm2jtg` 16/1: Bereich B hing nicht an A (Auto-Verbinden im Umkreis 128, der nächste Punkt von A lag weiter) - jetzt in zwei Rasterweiten des Bereichs.
+- `wegerzeugung` erweitert (W3b-Teil; Dach nur mit `BHED_WE_DACH=1`):
+  - Hintergrund = vorher: Entity-Liste bytegleich mit derselben Erzeugung im Hauptfaden auf allen Karten (jtg 111525, duel4 7947, duel8 17104, md_am_sith 80647, duel_theed 108878, t1_danger 152939, duel6 76141 Zeichen); Zahlen wie W3a: jtg 788/1621, duel4 64/114, duel8 88/177, t1_danger 1018/2661, md_am_sith 476/959, duel_theed 957/1497.
+  - Abbrechen: Entities bytegleich, kein Rückgängig-Schritt ("Generation cancelled - nothing changed").
+  - **Dach jtg, rot -> grün im selben Lauf:** größtes Stück Dach 1297 Proben; vorher 0 Knoten am Dach, Wegfindung (springende Figur) nein. Startpunkt auf dem Dach (2304 936 812): 234 Punkte, 745 Verbindungen, **4 Sprungkanten**; danach 120 Knoten am Dach, **Wegfindung des Spiels vom Spielerstart erreicht das Dach: ja**. Weg: ... 2240 2560 403 -> (Sprung) 2400 2720 766 -> 2432 2816 837 ... (eine Sprungkante 363 hoch, 226 waagerecht). 
+  - Gegenprobe Dach mp/duel6 (nicht zum Entwickeln benutzt): vorher 32 Knoten am Dach, nicht erreicht; nach dem Startpunkt 10 Sprungkanten, erreicht ja. mp/ffa5: das "Dach" (Boden über einem Innenraum) ist dort zu Fuß erreichbar - darum ist "vorher nicht erreicht" nur gemeldet.
+  - t1_danger im vollen Parallel-Lauf (`endsp`, 12 Selbsttests + ctest -j 12): "Warte ... haengt" nach 30000 Bildern. Unterschieden: der Faden lief weiter und übergab - das Ergebnis kam 594 Bilder nach dem nächsten Warteschritt und wurde verworfen, weil der Test inzwischen Rückgängig gemacht hatte (Fall a, kein Hängen). Einzeln wiederholt (`endsp2`): 7/0, im Protokoll (neu, alle 5 s) "seit 5 s - 90 %", "seit 10 s - 99 %", fertig nach 12,3 s. Das Warten richtet sich jetzt nach der Zeit (600 s) statt nach Bildern: im Leerlauf zeichnet das Programm über 200 Bilder je Sekunde, 30000 Bilder waren unter Volllast zu wenig.
+  - duel4 (`endd4`): der Klick auf "Abbrechen" kam erst nach dem Ende (0,1 s) - der Test bricht jetzt gleich nach dem Start ab (was der Knopf ruft); `endd4b` 7/0, `endjtgb` 9/0.
+- ctest `wegpunkte`: Bereiche (Pinsel, Lasso, Höhe, Text und zurück), Fortschritt ändert nichts (18 Meldungen, gleiche Punkte), Abbrechen leer, Bereich (10 Punkte, alle im Strich), Sperre (0 im Sperrbereich von 332), Startpunkt (der erreichte vorhandene Wegpunkt dabei, der im Loch nicht, keine Kopie daneben), Pfad (5 Punkte im Abstand 96, verbunden; im Turm keiner), Sprungkanten (zu weit: keine; sonst genau eine zwischen den Teilen am Punkt mit freiem targetJump).
+- Erzeugungszeiten (Hintergrund, Rechenzeit des Fadens): jtg 5,0-5,4 s allein (15,6 s im vollen Parallel-Lauf), t1_danger 12,3 s, duel_theed 23,7 s (parallel), md_am_sith 2,9 s, duel8 1,3 s, duel4 0,1 s. Dach-Startpunkt jtg 0,5-0,9 s.
+- Handbuch: Seite NPC-Wegpunkte, Abschnitt "Bereiche, Pfad, Startpunkt, Sprungkanten" (6 Sprachen) mit `h_weg_bereich`, `h_weg_pfad`, `h_weg_dach`, `h_weg_fortschritt` aus `BHED_HB_NUR=wegmalen` (jtg, 3840x2160@2, Bild = Ansicht + Fenster, 2560 breit); `h_weg_treppe` neu: die Kamera steht hinter dem Fuß der höchsten gemessenen Treppe und blickt sie hinauf (vorher von der Seite aus 420 Abstand). Je Sprache parallel; `gen_handbuch.py` es/cs 0 Texte englisch.
+- Schluss (einmal, parallel): Bau aller Ziele 0 Warnungen; ctest 202/202; `wegmalen` jtg 17/0, ffa5 17/0; `wegerzeugung` jtg (Dach) 9/0, duel6 (Dach) 9/0, duel4 7/0, duel8 7/0, t1_danger 7/0, md_am_sith 7/0, duel_theed 7/0; `wegpunkte2` 29/0; `wegpunkte` 48/5 (die bekannten Gruppen-Fehler); `mission1` 98/0; Lints lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_headers, lint_feldinit, lint_gapp, lint_settings ok, lint_portability 106 (Basis); `hilfe_orte.inc` neu.
+
+### Eigene Annahmen (keine Engine-Quelle)
+- Bereich: Höhe bis eine Kastenhöhe (64 = DEFAULT_MAXS_2 - DEFAULT_MINS_2) über/unter den gemalten Böden; Saatpunkte eine Rasterweite auseinander; Anschluss in zwei Rasterweiten (die Kantenreichweite aus W3a); "abgedeckt" = ein vorhandener Wegpunkt zu Fuß in einer Rasterweite (der Maßstab der W3a-Abdeckung).
+- Sprungkanten: nur zwischen sonst getrennten Teilen; höchstens 64 Versuche je Teil und Runde; die Figur springt vom Boden unter dem Wegpunkt zum origin des anderen; eine Wand 34 voraus zählt als "nicht von hier" (das Spiel weicht zurück und springt von dort); die Welt am Spawn (PHASE 0).
+- Anschließen: Laufgitter in zwei Rasterweiten um die Teile. Hauptteil = Teil mit dem Wegpunkt nächst dem Spielerstart.
+- Pinsel/Pfad: ein Punkt je 24 Einheiten Mausweg.
+
+### Offen
+- Kein Spielvergleich mit Movie Duels für eine Sprungkante gestartet (dafür bräuchte es eine Karte mit den erzeugten Entities im eigenen fs_homepath, eine springende Figur und ein Skript zum Dach). Geprüft ist die Sprungprüfung des Spiels (NPC_TryJump/NPC_Jump, aus der Simulation, die seit rc605 gegen das Spiel geprüft ist) und die Wegfindung (baueNavNetz/navAStar mit SCF_NAV_CAN_JUMP); der Flug selbst (Pmove) nicht eigens.
+- Nicht anzubindende Nischen aus W3a bleiben (jtg 10, Meldung mit Ort); Sprungkanten verbinden nur, wo das Spiel springt.
+- Bereiche liegen im Einstellungsordner je Karte; mit einer Mission werden sie nicht in den Missionsordner gelegt.
+- Das Fenster ist bei 200 % Oberfläche höher als der Bildschirm und rollt (alle Teile erreichbar).
+
 ## English
 - NPC waypoints: deleting an entity also removes every target to targetJump that named it, in the same undo step; for entities other than waypoints the program asks first. "Close the gap when deleting" connects the neighbours of a deleted waypoint.
 - NPC waypoints: a waypoint you place, move or duplicate connects to its neighbours with the game's own edge test (NAV::TestEdge, HardConnect in Jedi Outcast); connections the game would drop after a move are removed. Switch "Connect automatically" and button "Connect to neighbours".
@@ -264,6 +331,12 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - Compiled maps: checked as the game loads the map (at most 1024 shaders, names up to 63 characters, valid shader and fog numbers, fog brush and side); a warning when the new shader does not fit the baked lighting, and the window shows how many brushes, brush sides and patches use the shader - only there does a content flag change collision.
 - NPC waypoints: the generation walks like an NPC in the game (steps up to 18, slopes up to the game's limit, doors open as the game's network build opens them) and reaches every room a figure can walk into - also behind narrow doors the grid missed; points go on the grid, along stairs and through doorways, every connection passes the game's edge test in both directions. On Jedi Temple Garden the rooms behind the doors now get waypoints the game's pathfinding reaches.
 - NPC waypoints: when the grid would need more than the game's 1023 waypoints, the spacing grows and the message says so; parts that cannot be connected are reported with their position; the target fields are spread so the network stays connected.
+- NPC waypoints: the generation runs in the background with progress and Cancel; the result comes in one undo step and is the same network as before.
+- NPC waypoints: paint areas with brush or lasso (3D view or top view); "Generate here" fills only the area, at its own spacing, and connects it to the network. No-go areas never get waypoints. Areas are kept for each map.
+- NPC waypoints: draw a path over the floor - waypoints along it, connected where the game's edge test passes, red crosses where it does not.
+- NPC waypoints: "Start point" - click on floor the generation did not reach (a roof) and it walks on from there and connects it, on foot or with jump edges.
+- NPC waypoints: jump edges (targetJump) are suggested only between parts not connected otherwise and only where an NPC really makes the jump in the game (NPC_TryJump/NPC_Jump, both directions); on Jedi Temple Garden the roof becomes reachable for NPCs that can jump.
+- NPC waypoints: parts the player start cannot reach are drawn violet, with "Connect parts"; "Check network" no longer reports waypoints on floors of brush entities (func_static) as floating.
 
 
 ## Deutsch
@@ -282,6 +355,12 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - Fertige Karten: geprüft wird wie beim Laden im Spiel (höchstens 1024 Shader, Namen bis 63 Zeichen, gültige Shader- und Nebelnummern, Nebel-Brush und Seite); eine Warnung, wenn der neue Shader nicht zum gebackenen Licht passt, und das Fenster zeigt, wie viele Brushes, Brush-Seiten und Patches den Shader benutzen - nur dort ändert ein Inhalts-Flag die Kollision.
 - NPC-Wegpunkte: Die Erzeugung läuft wie ein NPC im Spiel (Stufen bis 18, Schrägen bis zur Grenze des Spiels, Türen offen, wie der Netzbau des Spiels sie öffnet) und erreicht jeden Raum, in den eine Figur gehen kann - auch hinter schmalen Türen, die das Raster verfehlte; Punkte kommen ins Raster, über Treppen und durch Türen, jede Verbindung besteht die Kantenprüfung des Spiels in beide Richtungen. Auf Jedi Temple Garden bekommen die Räume hinter den Türen jetzt Wegpunkte, die die Wegfindung des Spiels erreicht.
 - NPC-Wegpunkte: Bräuchte das Raster mehr als die 1023 Wegpunkte des Spiels, wird der Abstand größer, und die Meldung sagt es; Teile, die sich nicht anbinden lassen, werden mit Ort gemeldet; die target-Felder werden so verteilt, dass das Netz verbunden bleibt.
+- NPC-Wegpunkte: Die Erzeugung läuft im Hintergrund mit Fortschritt und Abbrechen; das Ergebnis kommt in einem Rückgängig-Schritt und ist dasselbe Netz wie vorher.
+- NPC-Wegpunkte: Bereiche mit Pinsel oder Lasso malen (3D oder Draufsicht); "Hier erzeugen" füllt nur den Bereich, in seinem eigenen Abstand, und schließt ihn an das Netz an. Sperrbereiche bekommen nie Wegpunkte. Bereiche bleiben je Karte gespeichert.
+- NPC-Wegpunkte: einen Pfad über den Boden ziehen - Wegpunkte entlang der Linie, verbunden, wo die Kantenprüfung des Spiels besteht, rote Kreuze, wo nicht.
+- NPC-Wegpunkte: "Startpunkt" - auf Boden klicken, den die Erzeugung nicht erreicht hat (ein Dach), und sie läuft von dort weiter und schließt ihn an, zu Fuß oder mit Sprungkanten.
+- NPC-Wegpunkte: Sprungkanten (targetJump) werden nur zwischen sonst nicht verbundenen Teilen vorgeschlagen und nur, wo ein NPC den Sprung im Spiel wirklich schafft (NPC_TryJump/NPC_Jump, beide Richtungen); auf Jedi Temple Garden wird das Dach für NPCs erreichbar, die springen können.
+- NPC-Wegpunkte: Teile, die der Spielerstart nicht erreicht, sind violett, mit "Anschließen"; "Netz prüfen" meldet Wegpunkte auf Böden aus Brush-Entities (func_static) nicht mehr als schwebend.
 
 
 ## 中文
@@ -300,6 +379,12 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - 已编译地图:按游戏加载地图的方式检查(最多 1024 个着色器、名称最多 63 个字符、有效的着色器和雾编号、雾画刷及其面);新着色器与烘焙光照不匹配时给出警告,窗口显示有多少画刷、画刷面和面片使用该着色器——内容标志只在那里改变碰撞。
 - NPC 路径点:生成时会像游戏中的 NPC 一样行走(台阶最高 18,坡度不超过游戏的上限,门像游戏构建路网时那样视为打开),能到达角色可以走进的每个房间——包括网格错过的窄门后面;路径点放在网格上、楼梯上和门口,每条连接都在两个方向上通过游戏的连线检查。在 Jedi Temple Garden 上,门后的房间现在会得到游戏寻路能到达的路径点。
 - NPC 路径点:如果网格需要超过游戏的 1023 个路径点,间距会增大并在消息中说明;无法连接的部分会连同位置一起报告;target 字段的分配会保证路网保持连通。
+- NPC 路径点:生成在后台运行,带进度和取消;结果以一个撤销步骤出现,与之前的路网相同。
+- NPC 路径点:用画笔或套索绘制区域(3D 或俯视图);“在此生成”只填充该区域,使用其自己的间距,并连接到路网。禁止区域永远不会有路径点。区域按地图保存。
+- NPC 路径点:在地面上画一条路径——沿线生成路径点,在游戏连线检查通过处相连,未通过处显示红色叉号。
+- NPC 路径点:“起点”——点击生成未到达的地面(屋顶),它会从那里继续行走并连接,步行或通过跳跃连线。
+- NPC 路径点:只在彼此不相连的部分之间、并且只在 NPC 在游戏中确实能完成跳跃的地方(NPC_TryJump/NPC_Jump,双向)建议跳跃连线(targetJump);在 Jedi Temple Garden 上,会跳跃的 NPC 可以到达屋顶。
+- NPC 路径点:玩家出生点无法到达的部分以紫色显示,并有“连接各部分”;“检查路网”不再把位于画刷实体(func_static)地面上的路径点报告为悬空。
 
 
 ## 日本語
@@ -318,6 +403,12 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - コンパイル済みマップ: ゲームがマップを読み込むのと同じ方法でチェックします (シェーダー最大 1024 個、名前 63 文字まで、有効なシェーダー番号とフォグ番号、フォグのブラシと面)。新しいシェーダーが焼き込みの照明と合わないと警告し、そのシェーダーを使うブラシ、ブラシ面、パッチの数を表示します。内容フラグが衝突を変えるのはそこだけです。
 - NPC ウェイポイント: 生成はゲームの NPC と同じように歩きます(段差 18 まで、傾斜はゲームの上限まで、ドアはゲームのネットワーク構築と同じく開いた状態)。キャラクターが歩いて入れる部屋にはすべて届き、グリッドが外した狭いドアの奥にも届きます。点はグリッド上、階段、ドアの通り道に置かれ、すべての接続はゲームの辺チェックに両方向で通ります。Jedi Temple Garden では、ドアの奥の部屋にゲームの経路探索が届くウェイポイントが置かれるようになりました。
 - NPC ウェイポイント: グリッドがゲームの上限 1023 個を超えそうなときは間隔が広がり、メッセージで知らせます。接続できない部分は場所付きで報告されます。target 欄はネットワークがつながったままになるように割り振られます。
+- NPC ウェイポイント: 生成は進行状況と中止付きでバックグラウンドで動きます。結果は元に戻す 1 回分として入り、以前と同じネットワークです。
+- NPC ウェイポイント: ブラシや投げ縄でエリアを描きます(3D または上面図)。「ここに生成」はエリアだけをその間隔で埋め、ネットワークに接続します。禁止エリアにはウェイポイントを置きません。エリアはマップごとに保存されます。
+- NPC ウェイポイント: 床にパスを引くと、線に沿ってウェイポイントが置かれ、ゲームの辺チェックに通る所で接続され、通らない所には赤い×が付きます。
+- NPC ウェイポイント: 「開始点」- 生成が届かなかった床(屋根)をクリックすると、そこから歩いて接続します。徒歩で、またはジャンプ辺で。
+- NPC ウェイポイント: ジャンプ辺(targetJump)は、ほかでつながっていない部分の間で、NPC がゲームで実際に跳べる所(NPC_TryJump/NPC_Jump、両方向)だけに提案されます。Jedi Temple Garden では跳べる NPC が屋根に届くようになります。
+- NPC ウェイポイント: プレイヤー開始位置から届かない部分は紫で描かれ、「部分を接続」が使えます。「ネットワークをチェック」はブラシエンティティ(func_static)の床の上のウェイポイントを浮いていると報告しなくなりました。
 
 
 ## Español
@@ -336,6 +427,12 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - Mapas compilados: se comprueba como el juego carga el mapa (como máximo 1024 shaders, nombres de hasta 63 caracteres, números de shader y niebla válidos, brush y cara de la niebla); un aviso cuando el shader nuevo no encaja con la iluminación horneada, y la ventana muestra cuántos brushes, caras de brush y parches usan el shader: solo ahí un flag de contenido cambia la colisión.
 - Puntos de ruta de PNJ: la generación camina como un PNJ del juego (escalones de hasta 18, pendientes hasta el límite del juego, puertas abiertas como las abre la construcción de la red del juego) y llega a cada sala en la que puede entrar una figura, también tras puertas estrechas que la cuadrícula no alcanzaba; los puntos van en la cuadrícula, por las escaleras y a través de las puertas, y cada conexión supera la prueba de aristas del juego en ambas direcciones. En Jedi Temple Garden las salas tras las puertas reciben ahora puntos de ruta a los que llega la búsqueda de rutas del juego.
 - Puntos de ruta de PNJ: si la cuadrícula necesitara más de los 1023 puntos de ruta del juego, el espaciado crece y el mensaje lo indica; las partes que no se pueden conectar se indican con su posición; los campos target se reparten de modo que la red siga conectada.
+- Puntos de ruta de PNJ: la generación se ejecuta en segundo plano con progreso y Cancelar; el resultado llega en un paso de deshacer y es la misma red que antes.
+- Puntos de ruta de PNJ: pinta áreas con pincel o lazo (vista 3D o cenital); "Generar aquí" rellena solo el área, con su propio espaciado, y la conecta a la red. Las zonas prohibidas nunca reciben puntos. Las áreas se guardan por mapa.
+- Puntos de ruta de PNJ: traza una ruta sobre el suelo: puntos a lo largo de ella, conectados donde pasa la prueba de aristas del juego, cruces rojas donde no.
+- Puntos de ruta de PNJ: "Punto de inicio": haz clic en un suelo al que no llegó la generación (un tejado) y sigue desde allí y lo conecta, a pie o con aristas de salto.
+- Puntos de ruta de PNJ: las aristas de salto (targetJump) se proponen solo entre partes no conectadas de otro modo y solo donde un PNJ hace de verdad el salto en el juego (NPC_TryJump/NPC_Jump, ambas direcciones); en Jedi Temple Garden el tejado queda al alcance de los PNJ que saltan.
+- Puntos de ruta de PNJ: las partes a las que no llega el inicio del jugador se dibujan en violeta, con "Conectar partes"; "Comprobar red" ya no indica como flotantes los puntos sobre suelos de entidades brush (func_static).
 
 
 ## Čeština
@@ -354,3 +451,9 @@ Auftrag `auftrag_rc609_w3a.md` (Plan B aus `plaene/wegpunkte_und_enttext.md`, Mi
 - Hotové mapy: kontroluje se tak, jak hra mapu načítá (nejvýše 1024 shaderů, názvy do 63 znaků, platná čísla shaderů a mlh, brush mlhy a jeho strana); varování, když nový shader neodpovídá zapečenému světlu, a okno ukazuje, kolik brushů, stran brushů a patchů shader používá - jen tam příznak obsahu mění kolizi.
 - Body trasy NPC: generování prochází jako NPC ve hře (schody do 18, svahy do limitu hry, dveře otevřené tak, jak je otevírá stavba sítě ve hře) a dojde do každé místnosti, kam postava může vejít - i za úzké dveře, které mřížka minula; body přijdou do mřížky, na schodiště a do dveří, každé spojení projde testem hran hry v obou směrech. Na Jedi Temple Garden teď místnosti za dveřmi dostanou body trasy, kam dojde hledání cest hry.
 - Body trasy NPC: potřebovala-li by mřížka víc než 1023 bodů trasy hry, rozteč se zvětší a zpráva to oznámí; části, které nejde připojit, se nahlásí s místem; pole target se rozdělí tak, aby síť zůstala spojená.
+- Body trasy NPC: vytváření běží na pozadí s průběhem a Zrušit; výsledek přijde v jednom kroku zpět a je to stejná síť jako dřív.
+- Body trasy NPC: oblasti se malují štětcem nebo lasem (3D nebo pohled shora); "Vytvořit zde" vyplní jen oblast, v její vlastní rozteči, a připojí ji k síti. Zakázané oblasti body nikdy nedostanou. Oblasti se ukládají pro každou mapu.
+- Body trasy NPC: nakreslete cestu po podlaze - body podél ní, spojené tam, kde projde test hran hry, červené křížky tam, kde ne.
+- Body trasy NPC: "Počáteční bod" - klikněte na podlahu, kam vytváření nedošlo (střecha), a odtud pokračuje a připojí ji, pěšky nebo skokovými hranami.
+- Body trasy NPC: skokové hrany (targetJump) se navrhují jen mezi jinak nespojenými částmi a jen tam, kde NPC skok ve hře opravdu zvládne (NPC_TryJump/NPC_Jump, oba směry); na Jedi Temple Garden se střecha stane dosažitelnou pro NPC, která umí skákat.
+- Body trasy NPC: části, kam se ze startu hráče nedojde, jsou fialové, s "Připojit části"; "Zkontrolovat síť" už nehlásí body na podlahách brush entit (func_static) jako vznášející se.
