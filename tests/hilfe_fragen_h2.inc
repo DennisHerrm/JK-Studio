@@ -17,7 +17,9 @@
 #define G_SKIN "seite:k-skins|tour:k-skins@|tour:k-modell@3|ort:menue:MenuFile>OpenSkin|ort:knopf:ModelSkin"
 #define G_SPIELORDNER "ort:menue:MenuEdit>PathsTitle|ort:menue:KeLEdit>KeLPreferences|seite:einstellungen|seite:erste-schritte.html#spielordner|tour:tut-karte@0"
 #define G_UPDATE "ort:menue:MenuHelp>UpdMenu|ort:menue:MenuHelp>UpdAutoCheck|seite:einstellungen.html#updates"
-#define G_TUER "seite:k-tuer|seite:k-tuer-use|seite:karteneditor.html#entities|seite:entities|tour:k-tuer@"
+// rc609 KEMD: dazu die Tour "Tuer mit Trigger im Karten-Editor" (tut-karte-tuer) - sie zeigt genau das; vorher lag
+// k-tuer mit k-tod gleichauf (21.710), und jeder neue Absatz im Handbuch kippte die Reihenfolge.
+#define G_TUER "seite:k-tuer|seite:k-tuer-use|seite:karteneditor.html#entities|seite:entities|tour:k-tuer@|tour:tut-karte-tuer"
 #define G_TRIGGER "seite:k-trigger|seite:k-tuer-use|tour:k-trigger@"
 #define G_MENUE "seite:menue_editor|ort:knopf:ViewMenuEditor@modebar|ort:knopf:Me"
 #define G_BEDIENEN "seite:menue_editor.html#bedienen|ort:knopf:MeBedienen"
