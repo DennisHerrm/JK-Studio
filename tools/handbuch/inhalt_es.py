@@ -7432,6 +7432,8 @@ TEXTE.update({
         'Las entidades de punto existentes cambiadas quedan como en el mapa compilado; escríbelas con **{{KeLBuild}} > {{KeBmNurEntities}}**.',
     'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
         'Los clips en el mundo y los móviles visibles con lightmaps (func_door, func_train ...) todavía no forman parte de este comando.',
+})
+
 # rc609 H2: Vorschlaege hinter Deckung
 TEXTE.update({
     'Suggestions behind cover: ghost points (dashed) with an arrow towards the enemy spots they hide from; the list in the window gives the reason.':

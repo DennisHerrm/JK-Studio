@@ -7429,6 +7429,8 @@ TEXTE.update({
         'Změněné existující bodové entity zůstanou jako v hotové mapě; zapište je přes **{{KeLBuild}} > {{KeBmNurEntities}}**.',
     'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
         'Clipy ve světě a viditelné pohyblivé objekty s lightmapami (func_door, func_train ...) zatím nejsou součástí tohoto příkazu.',
+})
+
 # rc609 H2: Vorschlaege hinter Deckung
 TEXTE.update({
     'Suggestions behind cover: ghost points (dashed) with an arrow towards the enemy spots they hide from; the list in the window gives the reason.':
