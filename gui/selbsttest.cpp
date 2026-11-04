@@ -6157,12 +6157,20 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurPatchlicht) {
                 a.schritte = patchlicht::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurFundef) {
                 a.schritte = fundefSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurTexturliste) {
                 a.schritte = texturlisteSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurBspmerge) {
                 a.schritte = bspmergeSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurKartemission) {
                 a.schritte = kartemissionSchritte(false);
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
