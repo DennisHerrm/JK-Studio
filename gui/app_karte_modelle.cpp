@@ -113,6 +113,10 @@ private:
                     bool ok = false;
                     if (ende == ".md3") {
                         ok = karte::md3Lesen(bytes, neu);
+                    } else if (karte::modellArtAssimp(pfad)) {   // rc609 KEMD: NRC assmodel, q3map2 LoadModel
+                        std::string fehlerText;
+                        ok = karte::assimpLesen(pfad, [&spiel](const std::string& p, std::string& b) { return spiel->fs.dateiLesen(p, b); }, neu, &fehlerText);
+                        if (!ok && !fehlerText.empty()) { fehler(fehlerText); }
                     } else if (ende == ".ase") {
                         std::string fehlerText;
                         ok = karte::aseLesen(bytes, pfad, neu, &fehlerText);

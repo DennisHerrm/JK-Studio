@@ -276,8 +276,10 @@ std::string texturName(const std::string& name) { return bereinigt(ohneEndung(na
 
 bool modellArtBekannt(const std::string& pfad) {
     const std::string e = endung(pfad);
-    return e == "md3" || e == "ase" || e == "glm";
+    return e == "md3" || e == "ase" || e == "glm" || modellArtAssimp(pfad);
 }
+
+void modellGrenzenRechnen(Modell& m) { grenzenRechnen(m); }
 
 bool md3Lesen(const std::string& bytes, Modell& m, std::string* fehler) {   // MD3Model_read
     Md3Model md3;

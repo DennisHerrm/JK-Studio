@@ -186,7 +186,10 @@ void lader() {
     pruefe(md3Lesen(md3Datei("models\\x\\y.tga"), m) && m.flaechen.size() == 1 && m.flaechen[0].shader == "models/x/y", "md3: Shader ohne Endung, '/'");
     pruefe(m.flaechen[0].punkte.size() == 3 && nah(m.flaechen[0].punkte[2].ort[0], 3) && nah(m.grenzen.origin[0], 2) && nah(m.grenzen.extents[0], 1),
            "md3: Bild 0 (1, 2, 3), Grenzen 1..3");
-    pruefe(modellArtBekannt("models/a.MD3") && modellArtBekannt("b.ase") && modellArtBekannt("c.glm") && !modellArtBekannt("d.obj"), "Endungen md3/ase/glm");
+    // rc609 KEMD: dazu .obj/.fbx/.gltf/.glb ueber assimp (NRC assmodel); andere Endungen nicht
+    pruefe(modellArtBekannt("models/a.MD3") && modellArtBekannt("b.ase") && modellArtBekannt("c.glm") && modellArtBekannt("d.obj") &&
+               modellArtBekannt("e.GLB") && !modellArtBekannt("f.3ds") && !modellArtBekannt("g.md2"),
+           "Endungen md3/ase/glm, obj/fbx/gltf/glb");
     // ASE
     Modell a;
     std::string fehler;

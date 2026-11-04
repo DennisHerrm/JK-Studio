@@ -45,6 +45,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "GenFaceNormalsProcess.h"
+#include <algorithm>
+#include <type_traits>
 #include <assimp/Exceptional.h>
 #include <assimp/postprocess.h>
 #include <assimp/qnan.h>
@@ -113,6 +115,7 @@ bool GenFaceNormalsProcess::GenMeshFaceNormals(aiMesh *pMesh) {
     std::vector<bool> alreadyReferenced;
     alreadyReferenced.resize(pMesh->mNumVertices, false);
     std::vector<aiVector3D> duplicatedVertices;
+    std::vector<unsigned int> duplicatedFrom; // BehavEd rc609 KEMD: the source vertex of each duplicate
 
     auto storeNormalSplitVertex = [&](unsigned int index, const aiVector3D& normal) {
         if (!alreadyReferenced[index]) {
@@ -120,6 +123,7 @@ bool GenFaceNormalsProcess::GenMeshFaceNormals(aiMesh *pMesh) {
             alreadyReferenced[index] = true;
         } else {
             duplicatedVertices.push_back(pMesh->mVertices[index]);
+            duplicatedFrom.push_back(index);
             normals.push_back(normal);
             index = pMesh->mNumVertices + static_cast<unsigned int>(duplicatedVertices.size() - 1);
         }
@@ -162,6 +166,30 @@ bool GenFaceNormalsProcess::GenMeshFaceNormals(aiMesh *pMesh) {
         memcpy(pMesh->mVertices, oldVertices, oldNumVertices * sizeof(aiVector3D));
         memcpy(pMesh->mVertices + oldNumVertices, duplicatedVertices.data(), duplicatedVertices.size() * sizeof(aiVector3D));
         delete[] oldVertices;
+        // BehavEd rc609 KEMD: the other per-vertex arrays get the duplicates too. Before, only the positions
+        // grew, and texture coordinates, colours, tangents and bitangents of the new vertices were read past the
+        // end of their arrays (garbage UVs, different from run to run - q3map2 misc_model .obj without normals).
+        const auto grow = [&](auto *&arr) {
+            using T = std::remove_reference_t<decltype(*arr)>;
+            if (arr == nullptr) {
+                return;
+            }
+            T *grown = new T[pMesh->mNumVertices];
+            std::copy(arr, arr + oldNumVertices, grown);
+            for (size_t d = 0; d < duplicatedFrom.size(); ++d) {
+                grown[oldNumVertices + d] = arr[duplicatedFrom[d]];
+            }
+            delete[] arr;
+            arr = grown;
+        };
+        for (unsigned int c = 0; c < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++c) {
+            grow(pMesh->mTextureCoords[c]);
+        }
+        for (unsigned int c = 0; c < AI_MAX_NUMBER_OF_COLOR_SETS; ++c) {
+            grow(pMesh->mColors[c]);
+        }
+        grow(pMesh->mTangents);
+        grow(pMesh->mBitangents);
     }
     pMesh->mNormals = new aiVector3D[pMesh->mNumVertices];
     memcpy(pMesh->mNormals, normals.data(), normals.size() * sizeof(aiVector3D));
