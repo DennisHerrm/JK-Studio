@@ -94,6 +94,14 @@ struct Diag {
 
 // Liest den Text eines .icarus-Skripts. Gibt false zurueck, wenn ein
 // harter Strukturfehler auftrat; erkannte Auffaelligkeiten stehen in diag.
+// rc609 F16: hoechste Schachtelung der Bloecke beim Lesen (.txt und .IBI). Die Engine
+// hat keine Grenze - ihr Sequencer steigt rekursiv ab (OpenJK code/icarus/Sequencer.cpp,
+// Route -> ParseIf -> Route) und stuerzt bei tausenden Ebenen selbst ab. Gemessen: die
+// tiefste der 1510 Raven-Skripte hat 12 Ebenen (t1_inter/intermission). Bei 256 bleiben
+// alle rekursiven Wege (Lesen, Schreiben, Uebersetzen, Baumansicht, Abbau) weit unter
+// dem 1-MB-Stapel; dieselbe Grenze wie fuer die GLM-Flaechenhierarchie.
+inline constexpr int kSkriptTiefeMax = 256;
+
 [[nodiscard]] bool readScript(const std::string& text, Script& out, std::vector<Diag>& diag);
 
 // Fuer den Knopf "Export" des Originals.

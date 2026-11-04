@@ -3796,6 +3796,7 @@ enum class Str {
     WegErzeugenTipp,
     WegRasterWeiter,
     WegNichtAngebunden,
+    LmsgL007,
     Count,
 };
 

@@ -11,13 +11,15 @@
 //   classname    - zum Sortieren und Anzeigen
 //   origin       - fuer spaetere Kamerapfade
 //
-// Unterstuetzt werden RBSP (Jedi Academy, Jedi Outcast) und IBSP (Quake 3).
+// Gelesen wird RBSP Fassung 1 (Jedi Academy, Jedi Outcast, Movie Duels). Eine andere
+// Fassung (IBSP 46, Quake 3) weisen die Leser wie die Engine mit Meldung ab (rc609 F).
 // Die Kennung wird geprueft, aber nicht die Fassungsnummer: das Entity-Lump
 // liegt bei allen an derselben Stelle.
 #ifndef BHED_BSP_H
 #define BHED_BSP_H
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -141,8 +143,14 @@ void collectNames(MapData& out);
 [[nodiscard]] bool readBsp(const std::string& bytes, MapData& out,
                            std::string* error = nullptr);
 
+// BSP_VERSION der Spiele (OpenJK code/qcommon/qfiles.h): nur diese Fassung laedt.
+inline constexpr std::int32_t kBspFassung = 1;
+// Die Meldung fuer eine andere Fassung, im Wortlaut der Engine ("has wrong version
+// number (%i should be %i)"), bei IBSP 46 mit dem Hinweis auf Quake 3.
+[[nodiscard]] std::string bspFassungFalsch(const std::string& kennung, std::int32_t fassung);
+
 // Nur das Entity-Lump (Lump 0) einer .bsp als Text, mit denselben Pruefungen
-// wie readBsp (Kennung RBSP/IBSP/FBSP, Lump innerhalb der Datei). Ohne
+// wie readBsp (Kennung RBSP/IBSP/FBSP, Fassung 1, Lump innerhalb der Datei). Ohne
 // Protokoll - darf in Arbeitsfaeden laufen (rc603, Missionssuche).
 [[nodiscard]] bool readBspEntityLump(const std::string& bytes, std::string& text,
                                      std::string* error = nullptr);

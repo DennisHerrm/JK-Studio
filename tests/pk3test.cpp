@@ -3,6 +3,7 @@
 // Ein .pk3 aus dem Spielordner ist keine vertrauenswuerdige Eingabe. Die
 // Proben pruefen deshalb beides: dass ein gutes Archiv richtig gelesen wird,
 // und dass ein kaputtes weder stuerzt noch Unsinn liefert.
+#include "bhed/inflate.h"
 #include "bhed/pk3.h"
 
 #include <cctype>
@@ -61,6 +62,16 @@ int main(int argc, char** argv) {
         expect("F18: gesuchter Name \"/c/d.txt\" findet \"c/d.txt\" (fuehrender Strich nur beim Suchen)",
                gelesen && f18.find("/c/d.txt") != nullptr && f18.find("C\\D.TXT") != nullptr);
         std::filesystem::remove(p, ec);
+    }
+    // rc609 F20: ein Eintrag behauptet 250 MB, hat aber 10 Byte Deflate. Vorher
+    // wurde die behauptete Groesse vorab reserviert - je Lesevorgang.
+    {
+        const unsigned char zehn[10] = {0x63, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x00, 0x00, 0x00};
+        const bhed::inflate::Result r = bhed::inflate::raw(zehn, sizeof(zehn), 250U << 20);
+        std::printf("  F20: 10 Byte Deflate, behauptet 250 MB: reserviert %zu Byte (%s)\n", r.data.capacity(),
+                    r.error.c_str());
+        expect("F20: nicht mehr als 1032:1 der Eingabe reserviert (Deflate-Hoechstverhaeltnis)",
+               r.data.capacity() <= sizeof(zehn) * 1032U);
     }
     if (argc < 2) {
         std::printf("  (kein Archiv angegeben - Test uebersprungen)\n");

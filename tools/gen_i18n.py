@@ -2232,6 +2232,8 @@ from i18n_rc609_j import zeilen_vier as _rc609_j  # noqa: E402  (rc609 J: Shader
 S += _rc609_j()
 from i18n_rc609_w3a import zeilen_vier as _rc609_w3a  # noqa: E402  (rc609 W3a: Wegpunkt-Erzeugung in Innenraeumen und auf Treppen)
 S += _rc609_w3a()
+from i18n_rc609_f import zeilen_vier as _rc609_f  # noqa: E402  (rc609 F: Funde der Codepruefung)
+S += _rc609_f()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

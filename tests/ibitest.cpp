@@ -190,6 +190,39 @@ int main(int argc,char**argv){
         expect("1.993 wie IBIze", bytes2.find(std::string("\xa0\x1a\xff\x3f", 4)) != std::string::npos);
         expect("-675.587 wie IBIze", bytes2.find(std::string("\x92\xe5\x28\xc4", 4)) != std::string::npos);
     }
+  // --- rc609 F19: Kennung wie CBlockStream::Open - strcmp(id_header, "IBI") auf vier
+  // Bytes, also mit Nullbyte an Stelle 4 (OpenJK code/icarus/BlockStream.cpp:562-580).
+  {
+    std::string x(reinterpret_cast<const char*>(kStartCin2),sizeof(kStartCin2));
+    x[3]='X';
+    std::vector<bhed::IbiBlock> xb; std::vector<bhed::Diag> xd;
+    const bool gelesen=bhed::readIbi(x,xb,xd);
+    std::printf("  F19: \"IBIX\" gelesen %d (%s)\n",gelesen?1:0,xd.empty()?"-":xd[0].message.c_str());
+    expect("F19: \"IBIX\" + 1.57f abgewiesen wie die Engine", !gelesen);
+  }
+  // --- rc609 F16: tiefe Schachtelung - Abweisung mit Meldung statt Stapelueberlauf.
+  {
+    const int tiefe=20000;
+    std::string txt;
+    for(int i=0;i<tiefe;++i){ txt+="if ( $1 = 1$ )\n{\n"; }
+    for(int i=0;i<tiefe;++i){ txt+="}\n"; }
+    std::printf("  F16: Text mit Tiefe %d lesen ...\n",tiefe); std::fflush(stdout);
+    bool ok=true; std::vector<bhed::Diag> td;
+    { bhed::Script s; ok=bhed::readScript(txt,s,td);
+      if(!ok){ std::printf("  F16: zurueckgeschrieben %zu Byte\n",bhed::writeScript(s).size()); } }
+    std::printf("  F16: Text gelesen %d, %zu Meldungen\n",ok?1:0,td.size());
+    expect("F16: Text mit Tiefe 20000 abgewiesen, kein Absturz", !ok && !td.empty());
+    std::vector<bhed::IbiBlock> tb(static_cast<std::size_t>(tiefe));
+    for(bhed::IbiBlock& b:tb){ b.id=bhed::ID_IF; }
+    std::vector<bhed::IbiBlock> rb; std::vector<bhed::Diag> rd;
+    const bool roh=bhed::readIbi(bhed::writeIbi(tb),rb,rd);
+    std::printf("  F16: .IBI mit %d ID_IF ohne BLOCK_END: gelesen %d, dekompilieren ...\n",tiefe,roh?1:0); std::fflush(stdout);
+    bool dek=true;
+    { bhed::Script s; dek=bhed::decompile(rb,db,s,rd);
+      if(dek){ (void)bhed::writeScript(s); std::vector<bhed::IbiBlock> cb; (void)bhed::compile(s,db,cb,rd); } }
+    std::printf("  F16: dekompiliert %d, %zu Meldungen\n",dek?1:0,rd.size());
+    expect("F16: .IBI mit Tiefe 20000 abgewiesen, kein Absturz", roh && !dek && !rd.empty());
+  }
   expect("jeder Rohstrom ist Festpunkt", stable==compiled);
   std::printf("\n%s (%d Fehlschlaege)\n",fails?"FEHLGESCHLAGEN":"bestanden",fails);
   return fails?1:0;
