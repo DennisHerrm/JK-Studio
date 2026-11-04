@@ -174,6 +174,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_b1()})
             from i18n_rc609_b2 import zeilen_vier as _rc609_b2   # rc609 B2: Mission <-> Map ohne Verlust
             texte.update({e[0]: e[1:] for e in _rc609_b2()})
+            from i18n_rc609_me1 import zeilen_vier as _rc609_me1   # rc609 ME1: Menue oeffnen auf dem Startbildschirm
+            texte.update({e[0]: e[1:] for e in _rc609_me1()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

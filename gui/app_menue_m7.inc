@@ -202,6 +202,7 @@ void zeichneKomponente(Dokument& d) {
     const int mi = menuDerSeite(d);
     if (mi < 0 || d.auswahl.size() != 1) { return; }
     const int item = d.auswahl[0];
+    if (item < 0 || static_cast<std::size_t>(item) >= d.datei.menus[static_cast<std::size_t>(mi)].items.size()) { return; }
     const std::string text = d.puffer.text();
     const Item& it = d.datei.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(item)];
     std::string name;
@@ -282,7 +283,10 @@ GizmoWerte gizmoAus(const Item& it) {
 // Waehrend des Ziehens: die Werte im gezeichneten Menue (eine Kopie der Datei)
 bool gizmoVorschau(const Dokument& d, int mi, Datei& kopie) {
     Zustand& z = Z();
-    if (z.gizmoArt == 0 || z.gizmoItem < 0 || mi < 0) { return false; }
+    if (z.gizmoArt == 0 || z.gizmoItem < 0 || mi < 0 || static_cast<std::size_t>(mi) >= kopie.menus.size() ||
+        static_cast<std::size_t>(z.gizmoItem) >= kopie.menus[static_cast<std::size_t>(mi)].items.size()) {
+        return false;
+    }
     Item& it = kopie.menus[static_cast<std::size_t>(mi)].items[static_cast<std::size_t>(z.gizmoItem)];
     it.angle = z.gizmoJetzt.angle;
     for (int k = 0; k < 3; ++k) {

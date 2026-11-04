@@ -2252,6 +2252,8 @@ from i18n_rc609_m0 import zeilen_vier as _rc609_m0  # noqa: E402  (rc609 M0: vor
 S += _rc609_m0()
 from i18n_rc609_b13 import zeilen_vier as _rc609_b13  # noqa: E402  (rc609 B13: Clips in die Welt, sichtbare Mover)
 S += _rc609_b13()
+from i18n_rc609_me1 import zeilen_vier as _rc609_me1  # noqa: E402  (rc609 ME1: Menue oeffnen auf dem Startbildschirm)
+S += _rc609_me1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

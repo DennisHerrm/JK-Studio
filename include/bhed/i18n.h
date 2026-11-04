@@ -3971,6 +3971,10 @@ enum class Str {
     KeM0Gesetzt,
     KeBmEinfuegenLicht,
     KeBmEinfuegenClips,
+    MeStartMenueOeffnen,
+    MeStartMenueOeffnenSub,
+    MeStartAusSpielTip,
+    MeStartDateiTip,
     Count,
 };
 

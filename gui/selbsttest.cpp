@@ -5955,6 +5955,7 @@ void selbsttest() {
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
     static const bool nurKarteneditor = std::strcmp(modus, "karteneditor") == 0;
     static const bool nurMenueeditor = std::strcmp(modus, "menueeditor") == 0;   // Menue-Editor M1
+    static const bool nurMenueLoeschen = std::strcmp(modus, "menueloeschen") == 0;   // rc609 ME1
     static const bool nurAlleKarten = std::strcmp(modus, "allekarten") == 0;
     static const bool nurKartenpruefung = std::strcmp(modus, "kartenpruefung") == 0;   // rc602
     // rc602: die Funde der Kartenpruefung (Gegenstaende, Effektgluehen) - "kartenfunde".
@@ -6595,6 +6596,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurMenueeditor) {
                 a.schritte = menuetest::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurMenueLoeschen) {
+                a.schritte = menuetest::schritteLoeschen();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurKarteneditor) {

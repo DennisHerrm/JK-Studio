@@ -94,6 +94,12 @@ struct ItemLage {
     bool sichtbar = false;
 };
 [[nodiscard]] std::vector<ItemLage> itemLagen();
+// rc609 ME1 (Selbsttest): Schloss und Auge der Items im Menue der Seite, in der Reihenfolge der Datei
+struct ItemMerker {
+    std::string name, gruppe, text;
+    bool gesperrt = false, verborgen = false;
+};
+[[nodiscard]] std::vector<ItemMerker> itemMerker();
 // rc608 Punkt 15: jedes Bild und Video der Originalmenues, aufgeloest auf dem Weg, den auch die Vorschau geht
 struct BildZeile {
     std::string datei, art, name;
@@ -125,6 +131,7 @@ void setzeSpalten(float links, float rechts);
 [[nodiscard]] std::vector<std::string> weitereEintraege();
 // rc608 Punkt 11 (Selbsttest): Pfad statt des Dateidialogs von "Bild hinzufuegen"; Rahmen beim Ziehen
 void setzeBildDialog(std::function<std::string()> antwort);
+void setzeMenueDialog(std::function<std::string()> antwort);   // rc609 ME1: Pfad statt des Dialogs "Datei oeffnen"
 [[nodiscard]] bool ablageRahmen(float* xywh);
 // rc608 Punkt 5: Text an Ort und Stelle (Selbsttest)
 struct SchreibStand {
