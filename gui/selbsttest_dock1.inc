@@ -858,6 +858,13 @@ std::vector<Schritt> dock1Schritte() {
             return elemente > 0 || ecken > 200;
         }));
         add(tu("dock1: " + id + " zurueck", [id] { dock::andocken(id.c_str()); }));
+        // rc609 W2b/J: Panels ohne Platz im Hauptfenster (Entity-Text, Shader und Flaechen)
+        // schliesst "Andocken" - zurueck heisst dort: zu, nicht mehr draussen.
+        if (dock::zusatzOffen(id.c_str()) != nullptr) {
+            add(warteBis("dock1: " + id + " zu (kein Platz im Hauptfenster)",
+                         [id] { return dock::versteckt(id.c_str()) && !dock::draussen(id.c_str()) && !dock1::aktiv(id.c_str()); }, 60));
+            continue;
+        }
         add(warteBis("dock1: " + id + " wieder im Hauptfenster", [id] { return dock::zuhause(id.c_str()) && !dock1::aktiv(id.c_str()); }, 60));
     }
     add(tu("dock1: Map Editor, Anordnung Split", [] {
