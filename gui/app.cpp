@@ -2814,7 +2814,7 @@ void handleShortcuts() {
         }
     }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
-        doRedo();
+        if (!lumpEditHatFokus() || !lumpEditWiederholen()) { doRedo(); }   // rc609 J: die Lumps im Fenster Shader und Flaechen
         return;
     }
 
@@ -2854,7 +2854,8 @@ void handleShortcuts() {
         // rc609 W2b: Hat der Entity-Text den Fokus, gehoeren F3, Strg+F, Enter, Entf
         // usw. ihm, nicht dem Skriptbaum. Es bleiben Rueckgaengig/Wiederholen (dann
         // fuer die Entities) und Speichern.
-        if (entTextHatFokus() && bind.action != keys::Action::Undo && bind.action != keys::Action::Redo &&
+        // rc609 J: ebenso das Fenster "Shader und Flaechen" (Rueckgaengig/Wiederholen dann fuer die Lumps).
+        if ((entTextHatFokus() || lumpEditHatFokus()) && bind.action != keys::Action::Undo && bind.action != keys::Action::Redo &&
             bind.action != keys::Action::Save && bind.action != keys::Action::SaveAll) {
             continue;
         }
@@ -2878,6 +2879,10 @@ void handleShortcuts() {
             case keys::Action::Undo: {
                 // Ueber der Karte oder der Entity-Liste: die letzte
                 // Entity-Aenderung (eigener Verlauf, gui/app_mission.cpp).
+                if (lumpEditHatFokus()) {   // rc609 J
+                    (void)lumpEditRueckgaengig();
+                    break;
+                }
                 if ((entityFokus() || entTextHatFokus()) && missionRueckgaengig()) {   // mission1: die juengste Aenderung
                     break;
                 }
@@ -2914,6 +2919,10 @@ void handleShortcuts() {
                 break;
             }
             case keys::Action::Redo:
+                if (lumpEditHatFokus()) {   // rc609 J
+                    (void)lumpEditWiederholen();
+                    break;
+                }
                 if ((entityFokus() || entTextHatFokus()) && missionWiederholen()) {   // mission1
                     break;
                 }
@@ -6760,6 +6769,7 @@ void draw() {
     if (!dockraum::an()) { drawDockFenster(l); }
     // rc609 W2b: der Entity-Text hat keinen Platz im Hauptfenster - sein eigenes, andockbares Fenster
     drawEntTextFenster();
+    drawLumpEditFenster();   // rc609 J
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

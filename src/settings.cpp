@@ -162,6 +162,8 @@ std::string writeSettings(const Settings& s) {
     put(o, "skriptVorlage", s.skriptVorlage);
     put(o, "fs_dirbeforepak", s.fsDirBeforePak);
     put(o, "entTextOffen", s.entTextOffen);
+    put(o, "lumpEditOffen", s.lumpEditOffen);
+    put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
     put(o, "showTypes", s.showTypes);
     put(o, "gFloats", s.gFloats);
     put(o, "foldMacros", s.foldMacros);
@@ -322,6 +324,8 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "skriptVorlage") { out.skriptVorlage = toBool(value); }
         else if (key == "fs_dirbeforepak") { out.fsDirBeforePak = toBool(value); }
         else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
+        else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
+        else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
         else if (key == "foldMacros") { out.foldMacros = toBool(value); }
         else if (key == "uiScale") {

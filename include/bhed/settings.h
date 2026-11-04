@@ -249,6 +249,9 @@ struct Settings {
     // rc609 W2b: fs_dirbeforepak wie im Spiel (files.cpp:2895, Vorgabe 0) und das Panel "Entity-Text"
     bool fsDirBeforePak = false;
     bool entTextOffen = false;
+    // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
+    bool lumpEditOffen = false;
+    bool lumpEditKarteOffen = false;
     bool showTypes = false;
     bool gFloats = false;
     bool foldMacros = true;

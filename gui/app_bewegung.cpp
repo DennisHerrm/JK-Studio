@@ -699,7 +699,7 @@ void kollisionRegelwerkPruefen() {
     KollisionsSpeicher& s = kollisionsSpeicher();
     if (!s.k || s.jk2 == regelwerkJediOutcast() || s.karte != g_app->map.path) { return; }
     std::string bsp;
-    if (!kartenBytes(s.karte, bsp)) { bsp = slurp(s.karte); }
+    if (!lumpEditBytes(s.karte, bsp) && !kartenBytes(s.karte, bsp)) { bsp = slurp(s.karte); }   // rc609 J: bearbeitete Lumps
     if (bsp.empty()) {
         s.jk2 = regelwerkJediOutcast();
         return;

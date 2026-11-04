@@ -244,6 +244,12 @@ std::string bspEntitaetenEinsetzen(const std::string& original, const std::strin
     BspDatei a;
     BspDatei b;
     if (!bspLesen(original, a) || !bspLesen(neu, b) || a.ident != b.ident || a.version != b.version) { return {}; }
+    return bspMitLumps(original, {{0, b.lumps[0]}});
+}
+
+std::string bspMitLumps(const std::string& original, const std::map<std::size_t, std::string>& ersatz) {
+    BspDatei a;
+    if (!bspLesen(original, a)) { return {}; }
     const std::size_t anzahl = a.lumps.size();
     // Reihenfolge der Lumps im Original (nach Versatz)
     std::vector<std::size_t> reihe(anzahl);
@@ -258,7 +264,8 @@ std::string bspEntitaetenEinsetzen(const std::string& original, const std::strin
         for (std::size_t i = 0; i < 4; ++i) { out[o + i] = static_cast<char>((v >> (8 * i)) & 0xFFU); }
     };
     for (const std::size_t i : reihe) {
-        const std::string& daten = i == 0 ? b.lumps[0] : a.lumps[i];
+        const auto e = ersatz.find(i);
+        const std::string& daten = e != ersatz.end() ? e->second : a.lumps[i];
         schreibeInt(8 + i * 8, static_cast<std::uint32_t>(out.size()));
         schreibeInt(12 + i * 8, static_cast<std::uint32_t>(daten.size()));
         out += daten;

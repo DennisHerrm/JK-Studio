@@ -13,5 +13,6 @@ third_party/assimp/** -text
 # Testkarten und NRC-Ergebnisse fuer ctest q3map2_vergleich: Bytes wie geschrieben
 tests/karte/q3map2/* -text
 tests/karte/q3map2/*.bsp binary
+tests/karte/lumps/*.bsp binary
 # NRC setup/data/tools/plugins/bt (bobToolz): Bytes wie im Original
 data/karte/bt/* -text

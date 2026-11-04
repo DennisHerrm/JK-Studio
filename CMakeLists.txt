@@ -418,6 +418,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_mission.cpp
     gui/app_dateiort.cpp
     gui/app_enttext.cpp
+    gui/app_lumpedit.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
     gui/app_zeitleiste.cpp
@@ -1165,6 +1166,8 @@ target_sources(bhed_core PRIVATE
   src/karte/portale.cpp
   # Stufe 4 Punkte 1/2: fertige Karten oeffnen, Originallicht (-onlyents)
   src/karte/bspoeffnen.cpp
+  # rc609 J: Shader-, Fog- und Flaechen-Lump fertiger Karten
+  src/karte/bsplumps.cpp
   # Stufe 4 Punkt 3: das Plugin bobToolz (contrib/bobtoolz) ohne Oberflaeche
   src/karte/bobtoolz_d.cpp
   src/karte/bobtoolz.cpp
@@ -1605,6 +1608,11 @@ if(BEHAVED_TESTS)
   else()
     add_test(NAME karte_bspoeffnen COMMAND kartebspoeffnen - ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   endif()
+  # rc609 J: Shader, Nebel und Flaechen fertiger Karten (IBSP 46 und RBSP 1, Gegenprobe an Spielkarten)
+  add_executable(bsplumpstest tests/bsplumpstest.cpp)
+  target_link_libraries(bsplumpstest PRIVATE bhed_core bhed_zlib)
+  add_test(NAME bsplumps COMMAND bsplumpstest ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/lumps
+           "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}")
   # Stufe 4 Punkt 3: bobToolz - die Wirkung jedes Befehls (funchandlers-GTK.cpp)
   add_executable(kartebobtoolz tests/kartebobtoolz.cpp)
   target_link_libraries(kartebobtoolz PRIVATE bhed_core)

@@ -48,6 +48,8 @@ struct Panel {
 // Steht das Panel an seinem Platz im Hauptfenster (Vorgabe)?
 [[nodiscard]] bool zuhause(const char* id);
 [[nodiscard]] bool draussen(const char* id);
+// rc609 W2b/J: Panels ohne Platz im Hauptfenster (Entity-Text, Shader und Flaechen) - ihr Schalter.
+[[nodiscard]] bool* zusatzOffen(const char* id);
 [[nodiscard]] bool versteckt(const char* id);
 void herausnehmen(const char* id);
 void andocken(const char* id);

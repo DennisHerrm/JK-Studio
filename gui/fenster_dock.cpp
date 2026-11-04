@@ -212,6 +212,8 @@ const std::vector<Panel>& panels() {
         // rc609 W2b: ohne Platz im Hauptfenster - offen heisst: in seinem eigenen
         // (andockbaren) Fenster; ab Werk zu (Einstellung entTextOffen).
         {"mission.enttext", 1, Str::EtPanel},
+        // rc609 J: ebenso das Fenster "Shader und Flaechen" (Mission-Tab und Karten-Editor)
+        {"mission.lumps", 1, Str::LePanel},
         {"modell.ansicht", 2, Str::DockPanelModelView},
         {"modell.animationen", 2, Str::ModelAnimations},
         {"modell.fluss", 2, Str::GroupScriptFlow},
@@ -224,6 +226,7 @@ const std::vector<Panel>& panels() {
         {"karte.konsole", 3, Str::KePageConsole},
         {"karte.texturen", 3, Str::KePageTextures},
         {"karte.gruppe", 3, Str::KePageEntities},
+        {"karte.lumps", 3, Str::LePanel},
         {"menue.bausteine", 4, Str::MePalette},
         {"menue.flaeche", 4, Str::DockPanelCanvas},
         {"menue.reiter", 4, Str::DockPanelMenuSide},
@@ -275,7 +278,10 @@ int bereichVon(const char* id) {
 
 // rc609 W2b: Panels ohne Platz im Hauptfenster (der Entity-Text). Offen = eigenes Fenster.
 bool* zusatzOffen(const char* id) {
-    return std::strcmp(id, "mission.enttext") == 0 ? &g_app->settings.entTextOffen : nullptr;
+    if (std::strcmp(id, "mission.enttext") == 0) { return &g_app->settings.entTextOffen; }
+    if (std::strcmp(id, "mission.lumps") == 0) { return &g_app->settings.lumpEditOffen; }
+    if (std::strcmp(id, "karte.lumps") == 0) { return &g_app->settings.lumpEditKarteOffen; }
+    return nullptr;
 }
 
 bool draussen(const char* id) {

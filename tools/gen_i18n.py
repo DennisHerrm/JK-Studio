@@ -2229,6 +2229,8 @@ from i18n_rc609_w2a import zeilen_vier as _rc609_w2a  # noqa: E402  (rc609 W2a: 
 S += _rc609_w2a()
 from i18n_rc609_w2b import zeilen_vier as _rc609_w2b  # noqa: E402  (rc609 W2b: Entity-Texteditor, Leser wie das Spiel)
 S += _rc609_w2b()
+from i18n_rc609_j import zeilen_vier as _rc609_j  # noqa: E402  (rc609 J: Shader, Nebel und Flaechen fertiger Karten)
+S += _rc609_j()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

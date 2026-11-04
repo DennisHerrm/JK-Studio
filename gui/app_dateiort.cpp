@@ -21,6 +21,7 @@
 #include "app_internal.h"
 
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/bsplumps.h"
 #include "bhed/missionbau.h"
 #include "bhed/pk3.h"
 #include "bhed/sicherschreiben.h"
@@ -28,6 +29,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -154,6 +156,10 @@ bool dateiSicherSchreiben(const std::string& pfad, const std::string& bytes) {
     diag::warn("Speichern gescheitert: " + fehler);
     meldung(fmt(tr(art == SchreibFehler::Gesperrt ? Str::DoGesperrt : Str::DoNichtGeschrieben), pfad), directoryOf(pfad), true);
     return false;
+}
+
+bool bspSicherungUndSchreiben(const std::string& pfad, const std::string& bytes) {
+    return sicherungAnlegenD(pfad) && dateiSicherSchreiben(pfad, bytes);
 }
 
 bool aufWegSchreiben(int weg, const DateiHerkunft& h, const std::string& bytes, DateiHerkunft* neu) {
@@ -388,11 +394,64 @@ bool entitiesInBspUebernehmen() {
     return false;
 }
 
+// rc609 J: die bearbeiteten Shader-, Fog- und Flaechen-Lumps in die .bsp, auf denselben Wegen wie
+// "Entities in die BSP uebernehmen": die Datei am Ort der Karte (darin evtl. schon neue Entities)
+// bekommt die Lumps, alle anderen bleiben Byte fuer Byte; vorher x.bsp.bak bzw. <pk3>.bak.
+bool bspLumpsSpeichern(const karte::BspLumps& lumps, const std::function<void()>& gespeichert) {
+    if (g_app->map.empty()) {
+        meldung(tr(Str::DoKeineKarte), std::string(), true);
+        return false;
+    }
+    const DateiHerkunft k = g_app->kartenHerkunft;
+    std::string original;
+    if (k.art == DateiHerkunft::Art::Lose) {
+        original = slurp(k.pfad);
+    } else if (k.art == DateiHerkunft::Art::Pk3) {
+        (void)ausPk3Lesen(k.pfad, k.eintrag, original);
+    } else {
+        (void)kartenBytes(g_app->map.path, original);
+    }
+    std::string fehler;
+    const std::string fertig = original.empty() ? std::string() : karte::bspLumpsSchreiben(original, lumps, &fehler);
+    if (fertig.empty()) {
+        meldung(fmt(tr(Str::DoBspFehler), g_app->map.path, fehler), std::string(), true);
+        return false;
+    }
+    if (k.art == DateiHerkunft::Art::Lose) {
+        if (!bspSicherungUndSchreiben(k.pfad, fertig)) { return false; }
+        diag::info("Lumps in die BSP gespeichert: " + k.pfad + " (" + std::to_string(fertig.size()) + " Bytes)");
+        meldung(fmt(tr(Str::DoBspGespeichert), k.pfad, k.pfad), directoryOf(k.pfad));
+        gespeichert();
+        return true;
+    }
+    if (k.art == DateiHerkunft::Art::Keine) {
+        DateiHerkunft h;
+        h.eintrag = g_app->map.path;
+        if (!aufWegSchreiben(3, h, fertig, nullptr)) { return false; }
+        gespeichert();
+        return true;
+    }
+    App::SpeicherAuftrag a;
+    a.anzeige = anzeigeVon(k);
+    a.herkunft = k;
+    a.missionsWeg = false;   // der Missionsordner kennt keine eigene .bsp
+    a.ausfuehren = [fertig, k, gespeichert](int weg) {
+        DateiHerkunft neu;
+        if (!aufWegSchreiben(weg, k, fertig, &neu)) { return; }
+        if (weg != 1) { g_app->kartenHerkunft = neu; }
+        diag::info("Lumps in die BSP gespeichert (Weg " + std::to_string(weg) + "): " + anzeigeVon(neu));
+        gespeichert();
+    };
+    speicherWegAnbieten(std::move(a));
+    return false;
+}
+
 // --- F3 / F4 --------------------------------------------------------------------------
 
 void karteDateiLaden(const std::string& p) {
     const auto laden = [p] {
         vergissEntities(p);
+        lumpEditVergessen(p);   // rc609 J: die bearbeiteten Lumps galten der verworfenen Fassung
         loadMap(p);
         // F3: frisch von der Platte - der Verlauf der verworfenen Fassung gilt nicht mehr
         // (Strg+Z setzte sonst ihren halben Stand wieder ein).
@@ -400,7 +459,7 @@ void karteDateiLaden(const std::string& p) {
         entityNummernVergessen();
         g_app->entitiesUngespeichert.erase(p);
     };
-    if (g_app->entitiesUngespeichert.count(p) != 0U) {
+    if (g_app->entitiesUngespeichert.count(p) != 0U || lumpEditUngespeichert(p)) {
         if (!g_app->frageOffen) { frage(fmt(tr(Str::DoKarteNeuFrage), fileName(p)), laden, [] {}); }
         return;
     }

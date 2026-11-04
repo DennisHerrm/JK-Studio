@@ -83,6 +83,7 @@
 #include <cfloat>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <future>
 #include <utility>
 #include <cmath>
@@ -101,6 +102,9 @@
 namespace bhed::gpu {
 struct KlingenQuad;
 }  // namespace bhed::gpu
+namespace bhed::karte {
+struct BspLumps;
+}  // namespace bhed::karte
 
 namespace bhed::gui {
 
@@ -3239,6 +3243,54 @@ ImVec2 entTextZeilenOrt(int zeile, int spalte);
 int entTextErsteSichtbareZeile();
 ImVec2 entTextKopfOrt();
 void entTextMeldungOrt(ImVec2& a, ImVec2& b);
+// --- rc609 J: Shader, Nebel und Flaechen fertiger Karten (gui/app_lumpedit.cpp) ---------------
+// Beim Laden (loadMapFromBytes): die Bytes, aus denen die Vorschau liest - mit den bearbeiteten
+// Lumps, wenn diese Karte welche hat (Reiterwechsel), sonst bytes.
+const std::string& lumpEditKarteGeladen(const std::string& karte, const std::string& bytes);
+void lumpEditVergessen(const std::string& karte);           // frisch von der Platte (F3)
+bool lumpEditUngespeichert(const std::string& karte);
+bool lumpEditBytes(const std::string& karte, std::string& out);   // nur mit ungespeicherten Aenderungen
+bool lumpEditHatFokus();
+bool lumpEditRueckgaengig();
+bool lumpEditWiederholen();
+void drawLumpEditFenster();
+void lumpEditMaus();             // Klick in die Vorschau
+void lumpEditUeberlagerung();    // Hervorhebung in der Vorschau
+// Karten-Editor: die geoeffnete .bsp (leer: keine), Klick in die Kamera, Spielbild, Hervorhebung
+void lumpEditKarteSetzen(const std::string& quelle, const std::string& bytes);
+bool lumpEditKarteWahl();
+bool lumpEditKarteKlick(const float start[3], const float ende[3]);
+bool lumpEditKarteSpielbild(std::shared_ptr<const std::string>& daten, std::uint64_t& nummer);
+void lumpEditKarteUeberlagerung(const std::function<bool(const float*, ImVec2&)>& abbild);
+// Speichern auf den Wegen aus W2a (app_dateiort.cpp); gespeichert() nach Erfolg.
+bool bspLumpsSpeichern(const karte::BspLumps& lumps, const std::function<void()>& gespeichert);
+// app_ablage.inc: Geometrie aus Bytes (wie beim Laden) und die daraus aufgestellte Szene vergessen
+bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath);
+void kartenSzeneVergessen();
+// fuer den Selbsttest
+int lumpEditFlaeche();
+void lumpEditFlaecheSetzen(int i);
+bool lumpEditTauschen(const std::string& name, bool alle);
+bool lumpEditFlagsSetzen(int shader, std::uint32_t surfaceFlags, std::uint32_t contentFlags);
+const karte::BspLumps* lumpEditLumps();
+const std::string& lumpEditDateiBytes();
+const std::string& lumpEditPuffer();
+void lumpEditPufferSetzen(const std::string& utf8);
+bool lumpEditTextUebernehmen();
+int lumpEditFehlerZeile();
+const std::string& lumpEditMeldung();
+const std::string& lumpEditWarnung();
+const std::string& lumpEditNutzungText();
+int lumpEditHervorShader();
+std::size_t lumpEditRueckgaengigZahl();
+bool lumpEditIstUngespeichert();
+void lumpEditSpeichern();
+void lumpEditReiter(int r);
+void lumpEditWaehlenSetzen(bool an);
+ImVec2 lumpEditZeilenOrt(int zeile);
+ImVec2 lumpEditKnopfOrt(const std::string& name);
+std::string lumpEditText();
+int lumpEditLightmapRegel(int lightmap, const std::string& shader);
 // Die ganze Entity-Liste ersetzen (app_mission.cpp): ein Rueckgaengig-Schritt;
 // neuerSchritt=false haengt an den letzten an (Live-Tippen im Entity-Text).
 bool entitiesErsetzen(std::vector<MapEntity> neu, bool neuerSchritt);
@@ -3383,6 +3435,8 @@ void drawSpeicherWeg();
 bool aufWegSchreiben(int weg, const DateiHerkunft& h, const std::string& bytes, DateiHerkunft* neu);
 // Datei sicher ersetzen (F5) mit Meldung im Programm bei Fehler.
 bool dateiSicherSchreiben(const std::string& pfad, const std::string& bytes);
+// rc609 J: vorher <pfad>.bak (wie fuer jede .bsp), dann sicher ersetzen.
+bool bspSicherungUndSchreiben(const std::string& pfad, const std::string& bytes);
 // F3/F4 ohne Dialog (Selbsttest, doLoadMap, openEntFile).
 void karteDateiLaden(const std::string& p);
 bool entDateiLaden(const std::string& p);

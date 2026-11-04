@@ -45,6 +45,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <sstream>
 
@@ -492,6 +493,65 @@ void bspNurEntitaeten() {
                          ausgabe(z);
                          ed2.bspNurEntitaetenFertig = g_nurEntitaetenBsp;
                      });
+}
+
+// --- rc609 J: Shader, Nebel und Flaechen der geoeffneten .bsp (gui/app_lumpedit.cpp) -------------
+
+void lumpDokPruefen() {
+    static std::string geladen;   // ordner/stamm der zuletzt uebergebenen .bsp
+    const BspHerkunft& h = e().bspHerkunft;
+    const std::string schluessel = h.aktiv ? h.ordner + "/" + h.stamm : std::string();
+    if (schluessel == geladen) { return; }
+    geladen = schluessel;
+    std::string daten;
+    if (!h.aktiv || !dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", daten)) {
+        lumpEditKarteSetzen(std::string(), std::string());
+        return;
+    }
+    lumpEditKarteSetzen(h.quelle, daten);
+}
+
+std::string browserShader() { return e().texBro.shader; }
+
+// Speichern: die Arbeitskopie <stamm>_original.bsp (darauf setzt "Update entities only" auf) und
+// die Datei, aus der die Karte kam - lose mit x.bsp.bak, aus dem Spiel auf den Wegen aus W2a.
+void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& gespeichert) {
+    const BspHerkunft& h = e().bspHerkunft;
+    if (!h.aktiv || !dateiSchreibenRoh(h.ordner + "/" + h.stamm + "_original.bsp", bytes)) {
+        fehler("writing " + h.ordner + "/" + h.stamm + "_original.bsp failure");
+        return;
+    }
+    DateiHerkunft ziel;
+    if (h.quelle.find(':') != std::string::npos) {
+        ziel = DateiHerkunft::lose(h.quelle);
+    } else if (e().karteSpiel) {
+        for (const karte::BspEintrag& b : karte::bspListe(e().karteSpiel->fs)) {
+            if (b.pfad != h.quelle) { continue; }
+            const bool pk3 = b.archiv.size() > 4 && kleinVon(b.archiv.substr(b.archiv.size() - 4)) == ".pk3";
+            ziel = pk3 ? DateiHerkunft::ausPk3(b.archiv, b.pfad) : DateiHerkunft::lose(b.archiv + b.pfad);
+            break;
+        }
+    }
+    if (ziel.art == DateiHerkunft::Art::Lose) {
+        if (!bspSicherungUndSchreiben(ziel.pfad, bytes)) { return; }
+        ausgabe("Saved " + ziel.pfad + " (" + std::to_string(bytes.size()) + " bytes, backup .bak)");
+        gespeichert();
+        return;
+    }
+    if (ziel.art == DateiHerkunft::Art::Keine) {
+        DateiHerkunft unter;
+        unter.eintrag = h.quelle;
+        if (aufWegSchreiben(3, unter, bytes, nullptr)) { gespeichert(); }
+        return;
+    }
+    App::SpeicherAuftrag a;
+    a.anzeige = ziel.eintrag + "  (" + fileName(ziel.pfad) + ")";
+    a.herkunft = ziel;
+    a.missionsWeg = false;
+    a.ausfuehren = [bytes, ziel, gespeichert](int weg) {
+        if (aufWegSchreiben(weg, ziel, bytes, nullptr)) { gespeichert(); }
+    };
+    speicherWegAnbieten(std::move(a));
 }
 
 }  // namespace bhed::gui::karteneditor

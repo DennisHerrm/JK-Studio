@@ -48,6 +48,10 @@
 #include <thread>
 #include <tuple>
 
+namespace bhed::gui {
+bool lumpEditKarteSpielbild(std::shared_ptr<const std::string>& daten, std::uint64_t& nummer);   // app_lumpedit.cpp
+}  // namespace bhed::gui
+
 namespace bhed::gui::karteneditor {
 
 using i18n::Str;
@@ -1271,8 +1275,33 @@ const Gebacken* spielQuelle() {
 }
 }  // namespace
 
+namespace {
+bool g_lumpSpielbild = false;       // rc609 J: die bearbeitete fertige Karte zeigen
+bool g_lumpSpielbildGezeigt = false;
+}  // namespace
+
+bool lumpSpielbildAn() { return g_lumpSpielbild && ed().echtLicht.spielbild; }
+void lumpSpielbildSetzen(bool an) {
+    g_lumpSpielbild = an;
+    if (an) { ed().echtLicht.spielbild = true; }
+    ++ed().sichtStand;
+}
+bool lumpSpielbildGezeigt() { return g_lumpSpielbildGezeigt; }
+
 void* spielbildFuerKamera(const karte::Kamera& k, int breite, int hoehe) {
+    g_lumpSpielbildGezeigt = false;
     if (!ed().echtLicht.spielbild) { return nullptr; }
+    // rc609 J: die geoeffnete .bsp mit den bearbeiteten Shadern, Nebeln und Flaechen - durch denselben
+    // Zeichner; die Pinsel treten zurueck wie beim Schnell-Backen.
+    if (g_lumpSpielbild) {
+        std::shared_ptr<const std::string> daten;
+        std::uint64_t nummer = 0;
+        if (lumpEditKarteSpielbild(daten, nummer)) {
+            void* bild = spielbildZeichnen(daten, nummer, ed().bspHerkunft.quelle, k, breite, hoehe);
+            g_lumpSpielbildGezeigt = bild != nullptr;
+            return bild;
+        }
+    }
     const Gebacken* q = spielQuelle();
     if (q == nullptr) { return nullptr; }
     return spielbildZeichnen(q->daten, q->nummer, q == &g_vorlage ? g_vorlagePfad : ed().letzteKarte, k, breite, hoehe);

@@ -3131,6 +3131,90 @@ void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordere
     g_ladeZiel = TexturLadeZiel{};
 }
 
+// Was aus der Geometrie und den Entities der Karte aufgestellt wird; prepareScene baut es neu
+// (camTrackValid). loadMapFromBytes beim Wechsel, rc609 J nach einer Lump-Aenderung.
+void kartenSzeneVergessen() {
+    g_app->mapModels.clear();       // aufgestellte .md3 (misc_model)
+    g_app->nebenModelle.clear();    // _d1/_u1 und Bruchstuecke dazu
+    g_app->effectShaders.clear();   // Zuordnung Effekt -> Shader
+    g_app->effectRunners.clear();   // laufende fx_runner
+    g_app->effects.clear();         // gelesene .efx
+    g_app->brushMeshes.clear();     // Netze der Brush-Modelle
+}
+
+// Die Geometrie der Karte aus den Bytes: Kollision, Flaechen, externe Lightmaps, Lichtstile, Netz
+// und Texturen. loadMapFromBytes und - mit den bearbeiteten Lumps - rc609 J (karteGeometrieNeu).
+bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath) {
+    diag::Step geoStep("Kartengeometrie lesen");
+    BspGeometry geo;
+    std::string gerr;
+    // rc601 (bewegung, Wege): die Brushes fuer die Spuren der NPCs. Die
+    // Lichtschwerter (Paket saber) nehmen dieselbe Kollisionskarte ueber
+    // kollisionsSpeicher() (rc601 integ: kein zweites Laden mehr).
+    kollisionLaden(bytes, shownPath);
+    saberKarteGeladen();
+    const bool ok = readBspGeometry(bytes, geo, &gerr);
+    if (ok) {
+        // Externe Lightmaps (q3map2 -external) VOR dem Netz: die Stapel
+        // haengen an der Lightmapnummer. tr.worldDir ist "maps/<karte>".
+        {
+            std::string karte = shownPath;
+            for (char& c : karte) { if (c == '\\') { c = '/'; } }
+            const std::size_t schnitt = karte.find_last_of('/');
+            if (schnitt != std::string::npos) { karte = karte.substr(schnitt + 1); }
+            const std::size_t punkt = karte.find_last_of('.');
+            if (punkt != std::string::npos) { karte = karte.substr(0, punkt); }
+            const int extern2 = ladeExterneLightmaps(
+                geo, "maps/" + karte,
+                [](const std::string& n, std::string& out) { return readFromArchives(n, out); });
+            if (extern2 > 0) {
+                diag::detail("Externe Lightmaps: " + std::to_string(extern2) + " aus maps/" + karte + "/");
+            }
+        }
+        // Die Lichtstufen 1..3 (schaltbare und flackernde Lichter) in
+        // Stufe 0 einrechnen - VOR dem Netz, das die Eckenfarben kopiert
+        // (rc592, siehe stileEinrechnen).
+        {
+            // Schaltbare und flackernde Stile bleiben Schichten und werden
+            // je Bild zur Zeit gemischt (rc593, lichtStileZuZeit).
+            const std::array<bool, 256> dyn = lichtStilDynamisch(g_app->map.entities);
+            const int stilFlaechen = stileEinrechnen(geo, lichtStilGewichte(g_app->map.entities), &dyn);
+            (void)stileAnwenden(geo, lichtStilGewichteZuZeit(g_app->map.entities, {}, 0.0));
+            if (!geo.stilSchichten.empty()) {
+                diag::detail("Lightmap-Stile: " + std::to_string(geo.stilSchichten.size()) +
+                             " Schichten schaltbarer oder flackernder Lichter");
+            }
+            if (stilFlaechen > 0) {
+                diag::detail("Lightmap-Stile: " + std::to_string(stilFlaechen) +
+                             " Flaechen mit zusaetzlichen Lichtstufen eingerechnet");
+            }
+        }
+        g_app->geo = std::move(geo);
+        // Lightmaps und Texturen der vorigen Karte auf der Grafikkarte
+        // vergessen - sie liegen dort nach Nummer.
+        gpu::vergissKarte();
+        g_app->mapBereit = false;
+        // Die Welt ist Untermodell 0 - OHNE die beweglichen Teile, genau
+        // wie beim Neubau nach einer Detailaenderung (app_view3d.cpp).
+        // Hier stand buildMesh: bis zur ersten Detailaenderung stand jedes
+        // Brush-Modell doppelt da, einmal in der Welt und einmal als
+        // Mover. Deckend deckungsgleich und unsichtbar, durchscheinend
+        // doppelt so dicht - die Hologramme in md_am_sith (alphaGen const
+        // 0.4) kamen mit 64 statt 40 Prozent.
+        g_app->mesh = g_app->geo.models.empty()
+                          ? buildMesh(g_app->geo, g_app->meshDetail, !g_app->showSky)
+                          : buildModelMesh(g_app->geo, 0, g_app->meshDetail,
+                                           !g_app->showSky);
+        g_app->mapBereit = !g_app->mesh.batches.empty();
+        loadMapTextures();
+    } else {
+        geoStep.fail(gerr);
+        g_app->geo = BspGeometry{};
+        g_app->mesh = BspMesh{};
+    }
+    return ok;
+}
+
 void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
     std::string err;
     MapData m;
@@ -3183,12 +3267,7 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
     const std::size_t vorherModelle = g_app->mapModels.size();
     const std::size_t vorherNetze = g_app->brushMeshes.size();
     // Alles, was aus DIESER Karte entsteht:
-    g_app->mapModels.clear();       // aufgestellte .md3 (misc_model)
-    g_app->nebenModelle.clear();    // _d1/_u1 und Bruchstuecke dazu
-    g_app->effectShaders.clear();   // Zuordnung Effekt -> Shader
-    g_app->effectRunners.clear();   // laufende fx_runner
-    g_app->effects.clear();         // gelesene .efx
-    g_app->brushMeshes.clear();     // Netze der Brush-Modelle
+    kartenSzeneVergessen();
     // Und was auf NUMMERN in der Karte zeigt.
     //
     // pickedEntity ist ein Index in map.entities - nach dem Wechsel meint
@@ -3233,90 +3312,26 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
     // Die Effektbahnen (samt Spurprotokoll) gehoeren zur alten Geometrie.
     vergissEffektBahnen();
 
-    {
-        diag::Step geoStep("Kartengeometrie lesen");
-        BspGeometry geo;
-        std::string gerr;
-        // rc601 (bewegung, Wege): die Brushes fuer die Spuren der NPCs. Die
-        // Lichtschwerter (Paket saber) nehmen dieselbe Kollisionskarte ueber
-        // kollisionsSpeicher() (rc601 integ: kein zweites Laden mehr).
-        kollisionLaden(bytes, shownPath);
-        saberKarteGeladen();
-        if (readBspGeometry(bytes, geo, &gerr)) {
-            // Externe Lightmaps (q3map2 -external) VOR dem Netz: die Stapel
-            // haengen an der Lightmapnummer. tr.worldDir ist "maps/<karte>".
-            {
-                std::string karte = shownPath;
-                for (char& c : karte) { if (c == '\\') { c = '/'; } }
-                const std::size_t schnitt = karte.find_last_of('/');
-                if (schnitt != std::string::npos) { karte = karte.substr(schnitt + 1); }
-                const std::size_t punkt = karte.find_last_of('.');
-                if (punkt != std::string::npos) { karte = karte.substr(0, punkt); }
-                const int extern2 = ladeExterneLightmaps(
-                    geo, "maps/" + karte,
-                    [](const std::string& n, std::string& out) { return readFromArchives(n, out); });
-                if (extern2 > 0) {
-                    diag::detail("Externe Lightmaps: " + std::to_string(extern2) + " aus maps/" + karte + "/");
-                }
+    // rc609 J: bearbeitete Lumps (Shader, Nebel, Flaechen) dieser Karte gelten auch nach einem Reiterwechsel.
+    const std::string& wirksam = lumpEditKarteGeladen(shownPath, bytes);
+    if (karteGeometrieLesen(wirksam, shownPath)) {
+        bool placed = false;
+        for (const MapEntity& e : g_app->map.entities) {
+            if (e.classname != "info_player_start" &&
+                e.classname != "info_player_deathmatch") {
+                continue;
             }
-            // Die Lichtstufen 1..3 (schaltbare und flackernde Lichter) in
-            // Stufe 0 einrechnen - VOR dem Netz, das die Eckenfarben kopiert
-            // (rc592, siehe stileEinrechnen).
-            {
-                // Schaltbare und flackernde Stile bleiben Schichten und werden
-                // je Bild zur Zeit gemischt (rc593, lichtStileZuZeit).
-                const std::array<bool, 256> dyn = lichtStilDynamisch(g_app->map.entities);
-                const int stilFlaechen = stileEinrechnen(geo, lichtStilGewichte(g_app->map.entities), &dyn);
-                (void)stileAnwenden(geo, lichtStilGewichteZuZeit(g_app->map.entities, {}, 0.0));
-                if (!geo.stilSchichten.empty()) {
-                    diag::detail("Lightmap-Stile: " + std::to_string(geo.stilSchichten.size()) +
-                                 " Schichten schaltbarer oder flackernder Lichter");
-                }
-                if (stilFlaechen > 0) {
-                    diag::detail("Lightmap-Stile: " + std::to_string(stilFlaechen) +
-                                 " Flaechen mit zusaetzlichen Lichtstufen eingerechnet");
-                }
+            if (e.origin.empty()) { continue; }
+            std::istringstream is(e.origin);
+            is >> g_app->cam.pos[0] >> g_app->cam.pos[1] >> g_app->cam.pos[2];
+            g_app->cam.pos[2] += 64.0F;
+            placed = true;
+            break;
+        }
+        if (!placed) {
+            for (int k = 0; k < 3; ++k) {
+                g_app->cam.pos[k] = (g_app->geo.mins[k] + g_app->geo.maxs[k]) * 0.5F;
             }
-            g_app->geo = std::move(geo);
-            // Lightmaps und Texturen der vorigen Karte auf der Grafikkarte
-            // vergessen - sie liegen dort nach Nummer.
-            gpu::vergissKarte();
-            g_app->mapBereit = false;
-            // Die Welt ist Untermodell 0 - OHNE die beweglichen Teile, genau
-            // wie beim Neubau nach einer Detailaenderung (app_view3d.cpp).
-            // Hier stand buildMesh: bis zur ersten Detailaenderung stand jedes
-            // Brush-Modell doppelt da, einmal in der Welt und einmal als
-            // Mover. Deckend deckungsgleich und unsichtbar, durchscheinend
-            // doppelt so dicht - die Hologramme in md_am_sith (alphaGen const
-            // 0.4) kamen mit 64 statt 40 Prozent.
-            g_app->mesh = g_app->geo.models.empty()
-                              ? buildMesh(g_app->geo, g_app->meshDetail, !g_app->showSky)
-                              : buildModelMesh(g_app->geo, 0, g_app->meshDetail,
-                                               !g_app->showSky);
-            g_app->mapBereit = !g_app->mesh.batches.empty();
-            bool placed = false;
-            for (const MapEntity& e : g_app->map.entities) {
-                if (e.classname != "info_player_start" &&
-                    e.classname != "info_player_deathmatch") {
-                    continue;
-                }
-                if (e.origin.empty()) { continue; }
-                std::istringstream is(e.origin);
-                is >> g_app->cam.pos[0] >> g_app->cam.pos[1] >> g_app->cam.pos[2];
-                g_app->cam.pos[2] += 64.0F;
-                placed = true;
-                break;
-            }
-            if (!placed) {
-                for (int k = 0; k < 3; ++k) {
-                    g_app->cam.pos[k] = (g_app->geo.mins[k] + g_app->geo.maxs[k]) * 0.5F;
-                }
-            }
-            loadMapTextures();
-        } else {
-            geoStep.fail(gerr);
-            g_app->geo = BspGeometry{};
-            g_app->mesh = BspMesh{};
         }
     }
     g_app->mapDirty = true;

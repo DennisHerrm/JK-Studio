@@ -2550,6 +2550,87 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         }));
         return t;
     }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "lumps") == 0) {   // rc609 J
+        std::vector<Schritt> t;
+        auto flaeche = std::make_shared<int>(-1);
+        auto mitte = std::make_shared<std::array<float, 3>>();
+        t.push_back(tu("Handbuch Lumps: maps/academy1.bsp laden", [] {
+            g_app->leftMode = 1;
+            (void)loadMapFromArchive("maps/academy1.bsp");
+        }));
+        t.push_back(warteBis("Handbuch Lumps: geladen", [] { return g_app->map.path == "maps/academy1.bsp" && !g_app->geo.empty(); }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Lumps: Fenster auf (Blick vom Spielerstart)", [=] {
+            g_app->playing = false;
+            g_app->throughCamera = false;
+            g_app->cameraSelected = false;
+            dock::ausblenden("mission.lumps", false);
+            lumpEditWaehlenSetzen(true);
+            lumpEditReiter(0);
+            g_app->mapDirty = true;
+        }));
+        t.push_back(gezeichnet("Handbuch Lumps"));
+        t.push_back(tu("Handbuch Lumps: Fenster rechts in die Kartenansicht (erst wenn es gezeichnet ist)", [] {
+            const ImGuiViewport* vp = ImGui::GetMainViewport();
+            const std::string name = dock::fensterName("mission.lumps");
+            const ImRect k = hb::karte();
+            ImGui::SetWindowPos(name.c_str(), ImVec2{k.Min.x + k.GetWidth() * 0.52F, k.Min.y + 8.0F});
+            ImGui::SetWindowSize(name.c_str(), ImVec2{k.GetWidth() * 0.47F, std::min(k.GetHeight() - 16.0F, vp->WorkSize.y * 0.85F)});
+        }));
+        t.push_back(pause(0.8));
+        t.push_back(tu("Handbuch Lumps: die Flaeche links im Bild waehlen (wie ein Klick: der Strahl durch den Bildpunkt)", [=] {
+            const float x = g_app->kartenAnsicht[0] + (g_app->kartenAnsicht[2] - g_app->kartenAnsicht[0]) * 0.28F;
+            const float y = g_app->kartenAnsicht[1] + (g_app->kartenAnsicht[3] - g_app->kartenAnsicht[1]) * 0.55F;
+            TraceTreffer tr2;
+            if (kartenStrahlUnterMaus(x, y, tr2)) {
+                *flaeche = tr2.surface;
+                for (int i = 0; i < 3; ++i) { (*mitte)[static_cast<std::size_t>(i)] = tr2.point[i]; }
+            }
+            lumpEditFlaecheSetzen(*flaeche);
+        }));
+        t.push_back(pause(0.6));
+        hb::markiere("h_lumps", [=] {
+            ImVec2 p;
+            std::vector<hb::Marke> m;
+            const float fs = ImGui::GetFontSize();
+            if (kartenPunktAufSchirm(mitte->data(), p)) { m.emplace_back(ImRect{p.x - fs * 3.0F, p.y - fs * 3.0F, p.x + fs * 3.0F, p.y + fs * 3.0F}, 1); }
+            const ImVec2 b = lumpEditKnopfOrt("alle");
+            if (b.x > 0.0F) { m.emplace_back(ImRect{b.x - fs * 9.0F, b.y - fs * 0.9F, b.x + fs * 9.0F, b.y + fs * 0.9F}, 2); }
+            return m;
+        });
+        t.push_back(hb::fotoTeil("h_lumps", [] {   // die ganze Kartenansicht samt Fenster: mindestens 1920 breit
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Add(hb::fensterRect("###dock.mission.lumps"));
+            return r;
+        }));
+        t.push_back(tu("Handbuch Lumps: Reiter Lumps als Text, die gewaehlte Flaeche loesen (nur der Shader leuchtet)", [] {
+            lumpEditFlaecheSetzen(-1);
+            lumpEditReiter(1);
+        }));
+        t.push_back(pause(0.5));
+        t.push_back(klickAn("Handbuch Lumps: in die Zeile des Shaders der Wand", [=] {
+            const karte::BspLumps* l = lumpEditLumps();
+            const int nr = l != nullptr && *flaeche >= 0 ? l->flaechen[static_cast<std::size_t>(*flaeche)].shaderNum : 0;
+            return lumpEditZeilenOrt(karte::lumpTextZeile(lumpEditText(), false, nr) - 1);
+        }));
+        t.push_back(pause(0.6));
+        hb::markiere("h_lumps_text", [=] {
+            const int nr = lumpEditHervorShader();
+            const ImVec2 a = lumpEditZeilenOrt(karte::lumpTextZeile(lumpEditText(), false, nr) - 1);
+            const ImRect f = hb::fensterRect("###dock.mission.lumps");
+            const float fs = ImGui::GetFontSize();
+            return std::vector<hb::Marke>{hb::Marke(ImRect{f.Min.x + 4.0F, a.y - fs * 0.8F, f.Max.x - 4.0F, a.y + fs * 0.8F}, 1)};
+        });
+        t.push_back(hb::fotoTeil("h_lumps_text", [] {
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Add(hb::fensterRect("###dock.mission.lumps"));
+            return r;
+        }));
+        t.push_back(tu("Handbuch Lumps: Fenster zu", [] { dock::ausblenden("mission.lumps", true); }));
+        return t;
+    }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "speichern") == 0) {
         std::vector<Schritt> t;
         auto md = std::make_shared<std::string>();

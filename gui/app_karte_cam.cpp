@@ -1152,7 +1152,9 @@ void kameraZeichnen() {
     if (kartegpu::verfuegbar() && (c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht)) {
         spielbildSrv = spielbildFuerKamera(k, f.breite, f.hoehe);
     }
-    const bool spielGebacken = spielbildSrv != nullptr && ed.echtLicht.gebackenZeigen;
+    // rc609 J: die bearbeitete fertige Karte im Spielbild ersetzt die Pinsel wie das Schnell-Backen
+    const bool lumpBild = lumpSpielbildGezeigt();
+    const bool spielGebacken = spielbildSrv != nullptr && (ed.echtLicht.gebackenZeigen || lumpBild);
     ed.echtLicht.spielbildGezeigt = spielbildSrv != nullptr;
     bool echtJetzt = false;
     if (!spielGebacken && echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
@@ -1160,7 +1162,7 @@ void kameraZeichnen() {
         echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
         echtJetzt = true;
     }
-    const bool gebacken = ed.echtLicht.gebackenZeigen;
+    const bool gebacken = ed.echtLicht.gebackenZeigen || lumpBild;
     if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
         for (Szene3* q : {&g_geo, &g_szene}) {
             if (q->gpuAktuell && ((!q->dreiecke.gueltig() && q->dreieckAnzahl > 0) || (!q->linien.gueltig() && q->linienPunkte > 0))) {
@@ -1777,6 +1779,14 @@ void kameraZeichnen() {
             if (aufBild(t.p, x, y)) { dl->AddText(ImVec2{x, y - schriftHoehe}, IM_COL32(t.farbe.r, t.farbe.g, t.farbe.b, t.farbe.a), t.text.c_str()); }
         }
     }
+    // rc609 J: die gewaehlte Flaeche und die Flaechen des hervorgehobenen Shaders der fertigen Karte
+    lumpEditKarteUeberlagerung([&](const float* w, ImVec2& out) {
+        float x = 0;
+        float y = 0;
+        if (!aufBild(karte::Vektor3f(w[0], w[1], w[2]), x, y)) { return false; }
+        out = ImVec2{x, y};
+        return true;
+    });
     // Namen (namedentity.h:119-160): normal bis g_showNamesDist (Vorgabe 512)
     const double weit = static_cast<double>(ed.ent.namenAbstand);
     for (const karte::KameraName& n : s.namen) {
@@ -1853,10 +1863,28 @@ void kameraZeichnen() {
     // Stufe 9 Punkt 9 (eigene Funktion): Gelaende formen - M1 formt statt zu waehlen
     const bool formen = ed.formen.an && !f.frei;
     if (formen || ed.formen.strich) { gelaendeFormenMaus(mausX, mausY, formen && ImGui::IsMouseDown(0) && (ueber || ed.formen.strich), io.DeltaTime); }
+    // rc609 J: "Flaeche waehlen" im Fenster Shader und Flaechen - M1 trifft eine Flaeche der fertigen
+    // Karte (Strahl durch den Geraetepunkt wie Scene_Intersect) statt zu waehlen.
+    static bool lumpKlick = false;
+    if (lumpEditKarteWahl() && !f.frei && ueber && keine && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        const karte::Vektor2f g = k.geraetePunkt(mausX, mausY);
+        const karte::Vektor3f p = k.strahlOhneTreffer(g[0], g[1]);
+        const karte::Vektor3f r = p - k.ursprung;
+        const float l = std::sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+        if (l > 0.0F) {
+            const float a[3] = {k.ursprung[0], k.ursprung[1], k.ursprung[2]};
+            const float b[3] = {a[0] + r[0] / l * 131072.0F, a[1] + r[1] / l * 131072.0F, a[2] + r[2] / l * 131072.0F};
+            lumpKlick = lumpEditKarteKlick(a, b);
+        }
+    }
     {
         const ImGuiMouseButton knoepfe[3] = {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle};
         for (int b = 0; b < 3; ++b) {
             if (formen && b == 0) { continue; }
+            if (lumpKlick && b == 0) {
+                if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) { lumpKlick = false; }
+                continue;
+            }
             // selection_button_press (ORBIT_EVENT: Alt+M2 nicht)
             if (ImGui::IsMouseClicked(knoepfe[b]) && (ueber || f.frei) && !(b == 1 && nurAlt)) {
                 beobachterDruck(3, mausX, mausY, b, zusatz);

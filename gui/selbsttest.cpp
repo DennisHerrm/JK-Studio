@@ -65,6 +65,7 @@
 #include "bhed/karte/optimierer.h"
 #include "bhed/missionbau.h"
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/bsplumps.h"
 #include "bhed/karte/spielkollision.h"
 #include "bhed/kollision.h"
 #include "bhed/karte/ebenen.h"
@@ -5609,6 +5610,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_wegpunkte2.inc"   // rc609 W1: Wegpunkte loeschen, verbinden, duplizieren
 #include "selbsttest_dateiort.inc"     // rc609 W2a: Dateien an Ort und Stelle speichern
 #include "selbsttest_enttext.inc"      // rc609 W2b: Entity-Texteditor
+#include "selbsttest_lumpedit.inc"     // rc609 J: Shader, Nebel und Flaechen fertiger Karten
 #include "selbsttest_karte1bis2.inc"   // Stufe 8d: Karten-Editor Stufe 1b und 2
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
@@ -5969,6 +5971,8 @@ void selbsttest() {
     static const bool nurDateiort = std::strcmp(modus, "dateiort") == 0;
     // rc609 W2b: Entity-Texteditor
     static const bool nurEnttext = std::strcmp(modus, "enttext") == 0;
+    // rc609 J: Shader, Nebel und Flaechen fertiger Karten
+    static const bool nurLumpedit = std::strcmp(modus, "lumpedit") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6102,6 +6106,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurEnttext) {
                 a.schritte = enttextSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurLumpedit) {
+                a.schritte = lumpeditSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission1) {

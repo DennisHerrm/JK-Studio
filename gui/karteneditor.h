@@ -1684,6 +1684,13 @@ bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (t
 [[nodiscard]] bool bspNurEntitaetenMoeglich();   // eine .bsp ist offen
 [[nodiscard]] bool bspGeometrieGeaendert();      // Fingerabdruck anders als beim Oeffnen
 void bspNurEntitaeten();
+// rc609 J: die geoeffnete .bsp fuer das Fenster "Shader und Flaechen" (app_lumpedit.cpp)
+void lumpDokPruefen();
+[[nodiscard]] std::string browserShader();   // TextureBrowser_GetSelectedShader
+void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& gespeichert);
+[[nodiscard]] bool lumpSpielbildAn();        // die bearbeitete Karte im Spielbild statt der Pinsel
+void lumpSpielbildSetzen(bool an);
+[[nodiscard]] bool lumpSpielbildGezeigt();   // in diesem Bild aus der bearbeiteten Karte gezeichnet
 // Stufe 8a Punkt 3: misc_model aus der Geometrie zurueckgewinnen (im Hintergrund nach Open .bsp)
 struct BspRueckStand {
     int stand = 0;          // 0 frei, 1 Modelle laden, 2 suchen, 3 fertig (wird uebernommen), 4 Fehler, 5 abgebrochen

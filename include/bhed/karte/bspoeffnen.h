@@ -25,7 +25,9 @@
 #ifndef BHED_KARTE_BSPOEFFNEN_H
 #define BHED_KARTE_BSPOEFFNEN_H
 
+#include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -110,6 +112,10 @@ struct BspDatei {
 // (AddLightGridLumps: Naeherungs-Zwillinge, LG_EPSILON 4) - bei Ravens
 // Jedi-Outcast-Karten aendert das lightgrid und lightarray. "" bei Fehler.
 [[nodiscard]] std::string bspEntitaetenEinsetzen(const std::string& original, const std::string& neu);
+// rc609 J: dasselbe fuer beliebige Lumps - die Datei original, in der die Lumps aus ersatz
+// (Nummer -> neuer Inhalt) stehen; alle anderen Byte fuer Byte in der Reihenfolge des
+// Originals, je auf 4 Bytes aufgefuellt. "" wenn original keine IBSP/RBSP ist.
+[[nodiscard]] std::string bspMitLumps(const std::string& original, const std::map<std::size_t, std::string>& ersatz);
 
 // rc609 W2a Punkt 2: "Entities in die BSP uebernehmen" im Mission-Tab, ohne
 // q3map2 und Byte-gleich zu dem, was der Karten-Editor mit -onlyents erzeugt

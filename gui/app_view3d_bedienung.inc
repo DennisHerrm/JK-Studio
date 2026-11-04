@@ -4899,6 +4899,7 @@ void drawMapView() {
         // wie vorher.
         const bool hilfen = !g_app->playing;
         if (hilfen) {
+            lumpEditMaus();   // rc609 J: "Flaeche waehlen" im Fenster Shader und Flaechen
             animMaus();
             bahnGriffeMaus();
         }
@@ -4910,6 +4911,7 @@ void drawMapView() {
         skriptFokusAuffrischen();
         if (hilfen) {
             entityUeberlagerung(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
+            lumpEditUeberlagerung();
             if (g_app->skriptFokus) { skriptSchild(); } else { g_app->skriptSchildText.clear(); }
             bahnGriffeZeichnen();
             kameraBahnZeichnen();

@@ -69,7 +69,7 @@ void drawDockFenster(const Layout& l) {
     }
     for (const dock::Panel& p : dock::panels()) {
         // rc609 W2b: der Entity-Text zeichnet sein Fenster selbst (drawEntTextFenster, auch im DockSpace)
-        if (p.bereich != bereich || !dock::draussen(p.id) || std::strcmp(p.id, "mission.enttext") == 0) { continue; }
+        if (p.bereich != bereich || !dock::draussen(p.id) || dock::zusatzOffen(p.id) != nullptr) { continue; }
         if (dock::fensterBeginnen(p.id)) {
             // Bis an den Fensterrand: negativ heisst "der Rest minus diesem
             // Betrag" - wie im Hauptfenster, dort ohne Statuszeile und Band.
