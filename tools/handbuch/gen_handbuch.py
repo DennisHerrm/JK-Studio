@@ -68,7 +68,7 @@ else:
 BILDER = os.path.join(WURZEL, "handbuch", "bilder") if PRUEFEN else os.path.join(ZIEL, "bilder")
 # Bilder ohne Text der Oberflaeche - in jeder Sprache das englische
 # (Icons i_*, Bildfolgen nur aus der Kartenansicht wie bilder.py NUR_KARTE).
-NEUTRALE_BILDER = {"a_kamera", "a_kamera_stand"}
+NEUTRALE_BILDER = {"a_kamera", "a_kamera_stand", "h_patchlicht_aus", "h_patchlicht_an"}   # rc609 L: Kamerabilder ohne Oberflaeche
 nur_englisch = set()
 englisch_neu = set()   # weitere Sprachen: Bild noch englisch (mit Hinweis)
 

@@ -89,6 +89,11 @@ enum class EditorDatenStand { Passt, AndereBsp, Kaputt };
 // vis1: ein -vis-Befehl bekommt -bhedvisexact (bhed_q3map2: mit mehreren Threads genau das VIS
 // von -threads 1 - dieselbe .bsp in jedem Bau)
 [[nodiscard]] std::string befehlMitVisExakt(const std::string& befehl);
+// rc609 L: ein -light-Befehl bekommt -patchshadows (q3map2 light.cpp: Patches werfen nur damit
+// Schatten, light_trace.cpp PopulateWithBSPModel) - der Schalter "Patch shadows" der Karte
+[[nodiscard]] std::string befehlMitPatchSchatten(const std::string& befehl);
+// rc609 L: ein -light-Befehl ohne -patchshadows (Patches lassen dort das Licht durch)
+[[nodiscard]] bool lichtOhnePatchSchatten(const std::string& befehl);
 
 // Stufe 8g: GPU-Backen. Stufe 8d (shank: "Das Backen soll automatisch die schnellere Variante
 // nehmen, CPU oder GPU"): Build > "GPU bake" hat drei Werte, Vorgabe Auto - bhed_q3map2 waehlt mit

@@ -3831,6 +3831,8 @@ enum class Str {
     WegAnschliessenHint,
     WegSprungkanten,
     WegSprungkantenHint,
+    KePatchSchattenKarteTip,
+    KePatchSchattenHinweis,
     Count,
 };
 

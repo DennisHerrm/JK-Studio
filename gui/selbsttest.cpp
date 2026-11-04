@@ -5644,6 +5644,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_teil10.inc"      // teil10: Schwert und Hang des Spielers, Geonosis (rc608)
 #include "selbsttest_teil10b.inc"     // teil10b: Schwertlicht von Movie Duels, Figurtexturen ueber Shaderskripte (rc608)
 #include "selbsttest_teil11.inc"      // teil11: der Karten-Editor gegen das Spiel (rc608)
+#include "selbsttest_patchlicht.inc"  // rc609 L: Licht geht durch Patches
 #include "selbsttest_teil13.inc"      // teil13: Schwertlicht eines Griffs ohne Klinge (rc608)
 #include "selbsttest_teil13b.inc"     // teil13b: Spielbild des Karten-Editors mit Modellen, Himmelsportal, Wetter (rc608)
 #include "selbsttest_teil13c.inc"     // teil13c: Brush-Modelle und Gebietsportale im Spielbild, Patch-LOD an Movern (rc608)
@@ -5995,6 +5996,8 @@ void selbsttest() {
     static const bool nurEnttext = std::strcmp(modus, "enttext") == 0;
     // rc609 J: Shader, Nebel und Flaechen fertiger Karten
     static const bool nurLumpedit = std::strcmp(modus, "lumpedit") == 0;
+    // rc609 L: Licht geht durch Patches (Echtzeit, Schnell-Backen, voller Bau, wie im Spiel; Schalter aus/an)
+    static const bool nurPatchlicht = std::strcmp(modus, "patchlicht") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6132,6 +6135,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurLumpedit) {
                 a.schritte = lumpeditSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurPatchlicht) {
+                a.schritte = patchlicht::schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission1) {
