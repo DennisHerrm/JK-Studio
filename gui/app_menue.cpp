@@ -998,11 +998,16 @@ bool oeffne(const std::string& name, const std::string& platte, const std::strin
     return true;
 }
 
-// Ein Spielpfad zu einer Datei auf der Platte: ab ".../ui/" (sonst ui/<name>)
+// Ein Spielpfad zu einer Datei auf der Platte: ab ".../ui/" (sonst ui/<name>);
+// mit Schraegstrichen wie die Pfade des Spiels (FS_ReplaceSeparators gilt nur fuer die Platte)
 std::string spielPfadVon(const std::string& platte) {
     const std::string k = kleinPfad(platte);
     const std::size_t p = k.rfind("/ui/");
-    if (p != std::string::npos) { return platte.substr(p + 1); }
+    if (p != std::string::npos) {
+        std::string s = platte.substr(p + 1);
+        std::replace(s.begin(), s.end(), '\\', '/');
+        return s;
+    }
     return "ui/" + u8(utf8Pfad(platte).filename());
 }
 

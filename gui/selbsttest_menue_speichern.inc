@@ -112,6 +112,10 @@ std::vector<Schritt> schritteSpeichernOrt() {
         diag::detail("ME2 datei: gefragt " + std::to_string(*gefragt) + ", Meldung: " + me::letzteMeldung());
         return *gefragt == 0 && liesDatei(datei) == me::stand().text && liesDatei(bak(datei)) == kLoeschText;
     }));
+    add(pruefe("ME2 Datei oeffnen: der Reiter heisst ui/me2_datei.menu (Spielpfad mit Schraegstrich)", [] {
+        diag::detail("ME2 datei: Reiter \"" + me::dokumentName() + "\"");
+        return me::dokumentName() == "ui/me2_datei.menu";
+    }));
 
     // 3. Lose in base, aber die .pk3 daneben hat dieselbe Datei: an den Ort, mit Hinweis (fs_dirbeforepak 0)
     add(tu("ME2: base/ui/me2_schatten.menu ueber Datei oeffnen", [=] {
