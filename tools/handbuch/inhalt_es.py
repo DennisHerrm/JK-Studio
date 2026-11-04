@@ -7348,8 +7348,6 @@ TEXTE.update({
 TEXTE.update({
     'Map editor: inserting brush entities into compiled maps':
         'Editor de mapas: insertar entidades de brush en mapas compilados',
-    'Add triggers, a func_usable with nodraw brushes and other invisible brush entities to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new entities and appends them to the .bsp as new models `*N`. The world stays byte for byte.':
-        'Añade a un mapa compilado sin su fuente triggers, un func_usable con brushes nodraw y otras entidades de brush invisibles: {{KeLBuild}} > {{KeBmEinfuegen}} compila solo las entidades nuevas y las añade al .bsp como modelos nuevos `*N`. El mundo queda byte a byte.',
     'How it works':
         'Cómo funciona',
     'Open the compiled map with **{{KeLFile}} > {{KeLOpenBsp}}** (see [[karte_oeffnen]]).':
@@ -7370,14 +7368,34 @@ TEXTE.update({
         'Después de insertar: la consola indica el .bsp guardado y su copia .bak.',
     'Checks':
         'Comprobaciones',
-    '**Not inserted:** visible surfaces (brush entities with lightmaps), brushes in the worldspawn (clips), changed world brushes or existing brush entities (they need a full build), a different BSP format.':
-        '**No se inserta:** superficies visibles (entidades de brush con lightmaps), brushes en el worldspawn (clips), brushes del mundo o entidades de brush existentes cambiados (necesitan una compilación completa), otro formato BSP.',
     "**Number of models** as the game loads them: at most 511 in single player (the next number is the game's own box model, `BOX_MODEL_HANDLE`) and 510 in multiplayer (`CAPSULE_MODEL_HANDLE`); from 513 on the game refuses the map (`MAX_SUBMODELS`).":
         '**Número de modelos** como los carga el juego: como máximo 511 en un jugador (el número siguiente es el modelo de caja propio del juego, `BOX_MODEL_HANDLE`) y 510 en multijugador (`CAPSULE_MODEL_HANDLE`); a partir de 513 el juego rechaza el mapa (`MAX_SUBMODELS`).',
     '**Warnings:** a solid new brush that overlaps solid world brushes, a `target` that matches no `targetname` of the map, the format limits of `qfiles.h`.':
         '**Avisos:** un brush sólido nuevo que se solapa con brushes sólidos del mundo, un `target` sin `targetname` en el mapa, los límites del formato de `qfiles.h`.',
     'Changed existing point entities stay as they are in the compiled map; write them with **{{KeLBuild}} > {{KeBmNurEntities}}**.':
         'Las entidades de punto existentes cambiadas quedan como en el mapa compilado; escríbelas con **{{KeLBuild}} > {{KeBmNurEntities}}**.',
-    'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
-        'Los clips en el mundo y los móviles visibles con lightmaps (func_door, func_train ...) todavía no forman parte de este comando.',
+})
+
+# rc609 B13: Clips in die Welt, sichtbare Mover mit Lightmaps (inhalt_bspmerge.py)
+TEXTE.update({
+    'Add triggers, a func_usable, clip brushes and visible movers such as func_door to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new parts and appends them to the .bsp - entities as new models `*N`, visible ones with lightmaps that fit the map, clips into the world. BSP tree, VIS and lightmaps of the world stay byte for byte.':
+        'Añade a un mapa compilado sin su fuente triggers, un func_usable, brushes clip y móviles visibles como func_door: {{KeLBuild}} > {{KeBmEinfuegen}} compila solo lo nuevo y lo añade al .bsp - las entidades como modelos nuevos `*N`, las visibles con lightmaps acordes al mapa, los clips en el mundo. El árbol BSP, VIS y los lightmaps del mundo quedan byte a byte.',
+    '**Not inserted:** new world brushes that are not clips (solid, water, fog or visible ones would change BSP tree and VIS), changed or removed world brushes and existing brush entities (they need a full build), a different BSP format, a compiled map with external lightmaps (`lm_####.tga`).':
+        '**No se inserta:** brushes del mundo nuevos que no son clips (los sólidos, de agua, de niebla o visibles cambiarían el árbol BSP y VIS), brushes del mundo y entidades de brush existentes cambiados o eliminados (necesitan una compilación completa), otro formato BSP, un mapa compilado con lightmaps externos (`lm_####.tga`).',
+    '**Limits of the renderer:** at most 256 lightmap pages (`MAX_LIGHTMAPS`) and the draw surface, vertex and index limits of `qfiles.h`; over them the command refuses and reports the numbers.':
+        '**Límites del renderizador:** como máximo 256 páginas de lightmap (`MAX_LIGHTMAPS`) y los límites de superficies, vértices e índices de `qfiles.h`; si se superan, el comando lo rechaza e indica las cifras.',
+    'Clips and visible movers':
+        'Clips y móviles visibles',
+    '**Clips:** a new brush in the worldspawn with `textures/system/clip` (or another shader with `playerclip`, `monsterclip`, `botclip`, `shotclip`) goes into the world. It is entered into every leaf of the BSP tree it reaches into, as q3map2 does it for a full build - that is how the game finds world brushes. Only the leaf brush lists and the brushes grow; BSP tree, VIS, surfaces, lightmaps and light grid stay byte for byte.':
+        '**Clips:** un brush nuevo en el worldspawn con `textures/system/clip` (u otro shader con `playerclip`, `monsterclip`, `botclip`, `shotclip`) va al mundo. Se registra en cada hoja del árbol BSP en la que entra, como hace q3map2 en una compilación completa - así encuentra el juego los brushes del mundo. Solo crecen las listas de brushes de las hojas y los brushes; el árbol BSP, VIS, superficies, lightmaps y rejilla de luz quedan byte a byte.',
+    'A clip brush behind the trigger and a new `func_door` in front of the player start of mp/duel1.':
+        'Un brush clip detrás del trigger y un `func_door` nuevo delante del inicio de jugador de mp/duel1.',
+    '**Visible movers** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` with visible brushes) need light. After the first build the command builds the part a second time, now with the converted world as shadow caster, its baked models and the lights of the map (`<name>_teillicht.map`), and lights it: q3map2 `-bsp` and `-light` with the switches stored in the map (`_q3map2_cmdline`), otherwise with the q3map2 defaults.':
+        'Los **móviles visibles** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` con brushes visibles) necesitan luz. Tras la primera compilación, el comando compila la parte otra vez, ahora con el mundo convertido como proyector de sombras, sus modelos incorporados y las luces del mapa (`<nombre>_teillicht.map`), y la ilumina: q3map2 `-bsp` y `-light` con las opciones guardadas en el mapa (`_q3map2_cmdline`), si no, con los valores por defecto de q3map2.',
+    'Only the new models are taken over: their surfaces, vertexes, indexes and shaders, and only the lightmap pages they use, appended behind the lightmaps of the map. The brush sides point to their new surfaces, fogs are matched with the fogs of the map. The lightmaps of the world stay byte for byte.':
+        'Solo se toman los modelos nuevos: sus superficies, vértices, índices y shaders, y solo las páginas de lightmap que usan, añadidas detrás de los lightmaps del mapa. Las caras de brush apuntan a sus superficies nuevas, las nieblas se asignan a las nieblas del mapa. Los lightmaps del mundo quedan byte a byte.',
+    'The saved map in the preview of the mission tab: the new door with its lightmap, seen from the eye of the player at the start.':
+        'El mapa guardado en la vista previa de la pestaña de misión: la puerta nueva con su lightmap, vista desde los ojos del jugador en el inicio.',
+    'Only lights that are in the map light the new movers. Compiled maps usually keep no light entities (q3map2 removes them), so then the light comes from the sky, from light-emitting shaders and from the worldspawn; light entities placed in the map editor are used as well.':
+        'Solo las luces que están en el mapa iluminan los móviles nuevos. Los mapas compilados no suelen conservar entidades de luz (q3map2 las quita); entonces la luz viene del cielo, de shaders que emiten luz y del worldspawn; las entidades de luz colocadas en el editor de mapas también cuentan.',
 })

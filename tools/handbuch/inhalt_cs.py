@@ -7345,8 +7345,6 @@ TEXTE.update({
 TEXTE.update({
     'Map editor: inserting brush entities into compiled maps':
         'Editor map: vkládání brush entit do hotových map',
-    'Add triggers, a func_usable with nodraw brushes and other invisible brush entities to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new entities and appends them to the .bsp as new models `*N`. The world stays byte for byte.':
-        'Přidejte do hotové mapy bez zdroje triggery, func_usable z nodraw brushů a další neviditelné brush entity: {{KeLBuild}} > {{KeBmEinfuegen}} sestaví jen nové entity a připojí je k .bsp jako nové modely `*N`. Svět zůstane bajt po bajtu.',
     'How it works':
         'Jak to funguje',
     'Open the compiled map with **{{KeLFile}} > {{KeLOpenBsp}}** (see [[karte_oeffnen]]).':
@@ -7367,14 +7365,34 @@ TEXTE.update({
         'Po vložení: konzole hlásí uložený .bsp a jeho zálohu .bak.',
     'Checks':
         'Kontroly',
-    '**Not inserted:** visible surfaces (brush entities with lightmaps), brushes in the worldspawn (clips), changed world brushes or existing brush entities (they need a full build), a different BSP format.':
-        '**Nevloží se:** viditelné plochy (brush entity s lightmapami), brushe ve worldspawn (clipy), změněné brushe světa nebo existující brush entity (potřebují úplné sestavení), jiný formát BSP.',
     "**Number of models** as the game loads them: at most 511 in single player (the next number is the game's own box model, `BOX_MODEL_HANDLE`) and 510 in multiplayer (`CAPSULE_MODEL_HANDLE`); from 513 on the game refuses the map (`MAX_SUBMODELS`).":
         '**Počet modelů** tak, jak je hra načítá: nejvýše 511 pro jednoho hráče (další číslo je vlastní krabicový model hry, `BOX_MODEL_HANDLE`) a 510 pro více hráčů (`CAPSULE_MODEL_HANDLE`); od 513 hra mapu odmítne (`MAX_SUBMODELS`).',
     '**Warnings:** a solid new brush that overlaps solid world brushes, a `target` that matches no `targetname` of the map, the format limits of `qfiles.h`.':
         '**Varování:** pevný nový brush, který se překrývá s pevnými brushi světa, `target` bez odpovídajícího `targetname` v mapě, limity formátu z `qfiles.h`.',
     'Changed existing point entities stay as they are in the compiled map; write them with **{{KeLBuild}} > {{KeBmNurEntities}}**.':
         'Změněné existující bodové entity zůstanou jako v hotové mapě; zapište je přes **{{KeLBuild}} > {{KeBmNurEntities}}**.',
-    'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
-        'Clipy ve světě a viditelné pohyblivé objekty s lightmapami (func_door, func_train ...) zatím nejsou součástí tohoto příkazu.',
+})
+
+# rc609 B13: Clips in die Welt, sichtbare Mover mit Lightmaps (inhalt_bspmerge.py)
+TEXTE.update({
+    'Add triggers, a func_usable, clip brushes and visible movers such as func_door to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new parts and appends them to the .bsp - entities as new models `*N`, visible ones with lightmaps that fit the map, clips into the world. BSP tree, VIS and lightmaps of the world stay byte for byte.':
+        'Přidej do hotové mapy bez zdroje triggery, func_usable, clip brushe a viditelné pohyblivé objekty jako func_door: {{KeLBuild}} > {{KeBmEinfuegen}} sestaví jen nové části a připojí je k .bsp - entity jako nové modely `*N`, viditelné s lightmapami odpovídajícími mapě, clipy do světa. Strom BSP, VIS a lightmapy světa zůstanou bajt po bajtu.',
+    '**Not inserted:** new world brushes that are not clips (solid, water, fog or visible ones would change BSP tree and VIS), changed or removed world brushes and existing brush entities (they need a full build), a different BSP format, a compiled map with external lightmaps (`lm_####.tga`).':
+        '**Nevloží se:** nové brushe světa, které nejsou clipy (pevné, vodní, mlžné nebo viditelné by změnily strom BSP a VIS), změněné nebo odstraněné brushe světa a existující brush entity (potřebují úplné sestavení), jiný formát BSP, hotová mapa s externími lightmapami (`lm_####.tga`).',
+    '**Limits of the renderer:** at most 256 lightmap pages (`MAX_LIGHTMAPS`) and the draw surface, vertex and index limits of `qfiles.h`; over them the command refuses and reports the numbers.':
+        '**Limity rendereru:** nejvýše 256 stránek lightmap (`MAX_LIGHTMAPS`) a limity ploch, vrcholů a indexů z `qfiles.h`; při překročení příkaz odmítne a nahlásí čísla.',
+    'Clips and visible movers':
+        'Clipy a viditelné pohyblivé objekty',
+    '**Clips:** a new brush in the worldspawn with `textures/system/clip` (or another shader with `playerclip`, `monsterclip`, `botclip`, `shotclip`) goes into the world. It is entered into every leaf of the BSP tree it reaches into, as q3map2 does it for a full build - that is how the game finds world brushes. Only the leaf brush lists and the brushes grow; BSP tree, VIS, surfaces, lightmaps and light grid stay byte for byte.':
+        '**Clipy:** nový brush ve worldspawn s `textures/system/clip` (nebo jiným shaderem s `playerclip`, `monsterclip`, `botclip`, `shotclip`) jde do světa. Zapíše se do každého listu stromu BSP, do kterého zasahuje, jako to dělá q3map2 při úplném sestavení - tak hra hledá brushe světa. Rostou jen seznamy brushů listů a brushe; strom BSP, VIS, plochy, lightmapy a mřížka světla zůstanou bajt po bajtu.',
+    'A clip brush behind the trigger and a new `func_door` in front of the player start of mp/duel1.':
+        'Clip brush za triggerem a nový `func_door` před startem hráče v mp/duel1.',
+    '**Visible movers** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` with visible brushes) need light. After the first build the command builds the part a second time, now with the converted world as shadow caster, its baked models and the lights of the map (`<name>_teillicht.map`), and lights it: q3map2 `-bsp` and `-light` with the switches stored in the map (`_q3map2_cmdline`), otherwise with the q3map2 defaults.':
+        '**Viditelné pohyblivé objekty** (`func_door`, `func_train`, `func_rotating`, `func_static`, `func_plat` s viditelnými brushi) potřebují světlo. Po prvním sestavení příkaz sestaví část podruhé, nyní se zpětně převedeným světem jako vrhačem stínů, jeho zapečenými modely a světly mapy (`<název>_teillicht.map`), a osvětlí ji: q3map2 `-bsp` a `-light` s přepínači uloženými v mapě (`_q3map2_cmdline`), jinak s výchozími hodnotami q3map2.',
+    'Only the new models are taken over: their surfaces, vertexes, indexes and shaders, and only the lightmap pages they use, appended behind the lightmaps of the map. The brush sides point to their new surfaces, fogs are matched with the fogs of the map. The lightmaps of the world stay byte for byte.':
+        'Převezmou se jen nové modely: jejich plochy, vrcholy, indexy a shadery a jen stránky lightmap, které používají, připojené za lightmapy mapy. Strany brushů ukazují na své nové plochy, mlhy se přiřadí mlhám mapy. Lightmapy světa zůstanou bajt po bajtu.',
+    'The saved map in the preview of the mission tab: the new door with its lightmap, seen from the eye of the player at the start.':
+        'Uložená mapa v náhledu karty mise: nové dveře s lightmapou, viděné očima hráče na startu.',
+    'Only lights that are in the map light the new movers. Compiled maps usually keep no light entities (q3map2 removes them), so then the light comes from the sky, from light-emitting shaders and from the worldspawn; light entities placed in the map editor are used as well.':
+        'Nové pohyblivé objekty osvětlují jen světla, která v mapě jsou. Hotové mapy obvykle nemají žádné světelné entity (q3map2 je odstraní); pak světlo přichází z oblohy, ze svítících shaderů a z worldspawn; světelné entity umístěné v editoru map se počítají také.',
 })

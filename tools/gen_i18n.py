@@ -2236,6 +2236,8 @@ from i18n_rc609_w3b import zeilen_vier as _rc609_w3b  # noqa: E402  (rc609 W3b: 
 S += _rc609_w3b()
 from i18n_rc609_b1 import zeilen_vier as _rc609_b1  # noqa: E402  (rc609 B1: Brush-Entities in fertige Karten einfuegen)
 S += _rc609_b1()
+from i18n_rc609_b13 import zeilen_vier as _rc609_b13  # noqa: E402  (rc609 B13: Clips in die Welt, sichtbare Mover)
+S += _rc609_b13()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

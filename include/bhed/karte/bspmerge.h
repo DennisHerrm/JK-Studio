@@ -1,5 +1,9 @@
 // bspmerge.h - rc609 B1: Brush-Entities in fertige Karten einfuegen (Teil-Compile und BSP-Merge),
 // Stufe 1: unsichtbare Brush-Entities (trigger_*, func_usable mit nodraw, Brushes mit origin).
+// Stufe 2 (rc609 B13): neue clip/playerclip/monsterclip-Brushes der Welt in die leafbrushes der Welt-Blaetter, die
+//   sie schneiden (MergeBSPMain -world, die Blaetter ueber den Baum wie FilterBrushIntoTree_r statt des Kastentests).
+// Stufe 3 (rc609 B13): sichtbare Mover (func_door, func_train, func_rotating, func_static, func_plat) mit Flaechen,
+//   Ecken, Indizes und Lightmaps aus einem Teil-Compile mit der Welt als Schattenwerfer (-bsp, -light).
 //
 // Ablauf (eigene Funktion, nicht in NetRadiant-Custom):
 //   1. Im Karten-Editor bei geoeffneter .bsp neue Brush-Entities bauen.
@@ -55,6 +59,13 @@ namespace bhed::karte {
 
 class Entitaet;
 class Karte;
+class Primitiv;
+
+// Eine Seite eines konvexen Brushes: n . x <= d
+struct Halbraum {
+    double n[3]{};
+    double d = 0.0;
+};
 
 // Fuer welches Spiel die Grenzen gelten.
 enum class MergeSpiel { Jka, Jk2, MovieDuels };
@@ -82,24 +93,35 @@ struct MergeErgebnis {
     std::string bsp;                   // die gemischte Datei; "" bei Fehler
     int ersteNummer = 0;               // *N des ersten neuen Modells
     int neueModelle = 0;
+    int weltPinsel = 0;                // Stufe 2: Clips in der Welt (Modell 0)
+    int weltBlaetter = 0;              // Stufe 2: Blatt-Bezuege der Clips (leafbrushes neu)
+    int neueFlaechen = 0;              // Stufe 3
+    int neueLightmapSeiten = 0;        // Stufe 3: angehaengte Seiten (128 x 128 x 3)
     std::vector<std::string> klassen;  // classname je neuer Entity (Reihenfolge wie *N)
     std::vector<MergeMeldung> meldungen;
     [[nodiscard]] bool ok() const { return !bsp.empty(); }
     [[nodiscard]] bool hatFehler() const;
 };
 
+// Die Marken der Teilkarte (teilKarte schreibt sie, bspModelleAnhaengen liest und entfernt sie): nur Entities mit
+// kTeilNeu kommen ins Entity-Lump (die Lichter und ihre Ziele des Licht-Teils nicht); die Brushes der Entity mit
+// kTeilWelt (ein func_static, das q3map2 als eigenes Untermodell baut) gehen als Clips in die Welt.
+inline constexpr const char* kTeilNeu = "_bhed_neu";
+inline constexpr const char* kTeilWelt = "_bhed_welt";
+
 // Haengt die Untermodelle von teil (eine q3map2-.bsp; ihre Welt, Modell 0, bleibt weg) an original.
 // spiel: welche Grenzen gelten. Ueberschneidungen mit soliden Welt-Brushes und Ziele (target), die
-// es nicht gibt, kommen als Warnung; Fehler (kein Ergebnis): andere Kennung/Fassung, sichtbare
-// Flaechen (Stufe 3), Grenze voll, kaputte Lumps. Clips in der Welt (Stufe 2) faengt der Karten-Editor ab.
-[[nodiscard]] MergeErgebnis bspModelleAnhaengen(const std::string& original, const std::string& teil, MergeSpiel spiel);
+// es nicht gibt, kommen als Warnung; Fehler (kein Ergebnis): andere Kennung/Fassung, Grenze voll, kaputte Lumps,
+// Welt-Brushes, die keine Clips sind ("welt"), und sichtbare Flaechen, wenn der Teil nicht beleuchtet ist
+// ("sichtbar": dann baut der Karten-Editor den Teil mit der Welt und -light noch einmal, beleuchtet = true).
+[[nodiscard]] MergeErgebnis bspModelleAnhaengen(const std::string& original, const std::string& teil, MergeSpiel spiel, bool beleuchtet = false);
+
+// Stufe 2: die Welt-Blaetter, in die q3map2 einen Brush legt (FilterBrushIntoTree_r mit SplitBrush, brush.cpp),
+// ueber den Baum (nodes, planes) der .bsp. halbraeume: die Seiten des Brushes. Ergebnis: Blatt-Nummern.
+[[nodiscard]] std::vector<int> pinselBlaetter(const std::string& bsp, const std::vector<Halbraum>& halbraeume);
 
 // Ueberschneiden sich zwei konvexe Brushes (Halbraeume n . x <= d) mit mehr als epsilon Tiefe?
 // Genau: eine Ecke des um epsilon verkleinerten Schnitts (drei Ebenen, alle anderen erfuellt).
-struct Halbraum {
-    double n[3]{};
-    double d = 0.0;
-};
 [[nodiscard]] bool pinselUeberschneiden(const std::vector<Halbraum>& a, const std::vector<Halbraum>& b, double epsilon = 0.1);
 
 // --- Karten-Editor: welche Brush-Entities sind neu? -----------------------------------------------
@@ -118,10 +140,19 @@ struct Halbraum {
 [[nodiscard]] std::uint64_t entitaetAbdruck(const Karte& k, const Entitaet& e);
 [[nodiscard]] std::vector<std::uint64_t> punktAbdruecke(const Karte& k);
 [[nodiscard]] std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const std::vector<std::uint64_t>& vorher, int* geaendert = nullptr);
-// Die Teilkarte: worldspawn (ihre Schluessel und als Platzhalter eine Kopie des ersten neuen Brushes - ohne
-// Brush in der Welt ueberspringt q3map2 die worldspawn, ProcessModels, und die *N verrutschen) und die
-// neuen Entities mit ihren Brushes.
-[[nodiscard]] std::string teilKarte(const Karte& k, const std::vector<const Entitaet*>& neu);
+// Stufe 2: die Abdruecke der Welt-Brushes (je Primitiv sein Text, primitivText) beim Oeffnen; neu sind die Welt-
+// Primitive, deren Abdruck in vorher nicht (mehr) frei ist; fehlend: wie viele von vorher es nicht mehr gibt
+// (geaenderte oder geloeschte Welt-Brushes - die kann nur ein voller Bau).
+[[nodiscard]] std::vector<std::uint64_t> weltAbdruecke(const Karte& k);
+[[nodiscard]] std::vector<const Primitiv*> neueWeltPrimitive(const Karte& k, const std::vector<std::uint64_t>& vorher, int* fehlend = nullptr);
+// Die Teilkarte: worldspawn (ihre Schluessel), die neuen Entities mit ihren Brushes (Marke kTeilNeu) und die neuen
+// Welt-Brushes in einem func_static (Marke kTeilWelt).
+//   mitWelt false (Stufe 1 und 2): als Welt nur ein Platzhalter, eine Kopie des ersten neuen Brushes mit
+//     system/caulk - ohne Brush in der Welt ueberspringt q3map2 die worldspawn (ProcessModels) und die *N verrutschen.
+//   mitWelt true (Stufe 3, Licht passend zur Karte): die zurueckgewandelte Welt (ihre Brushes ausser den neuen) als
+//     Schattenwerfer, die eingebackenen Entities (misc_model ...), die Lichter und deren Ziele (Spots).
+[[nodiscard]] std::string teilKarte(const Karte& k, const std::vector<const Entitaet*>& neu, const std::vector<const Primitiv*>& neueWelt = {},
+                                    bool mitWelt = false);
 
 }  // namespace bhed::karte
 

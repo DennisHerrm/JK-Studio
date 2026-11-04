@@ -9,6 +9,11 @@ Wand) und func_usable aus einem soliden nodraw-Brush (steckt im Boden) und einem
 gebaut mit q3map2 -bsp wie der Befehl "In fertige Karte einfuegen".
 Gegenproben: sichtbarer func_door im Teil (Fehler "sichtbar", Stufe 3), Teil als IBSP (Fehler "format").
 Die Welt des Teils ist nur ein Platzhalter und wird nicht uebernommen.
+
+rc609 B13 Stufe 2: ein playerclip-Brush in der Oeffnung der Mittelwand (func_static mit der Marke _bhed_welt wie
+karte::teilKarte) kommt in die Welt; Gegenprobe ein solider nodraw-Brush (Fehler "welt").
+Stufe 3: Licht-Teil wie der Karten-Editor ihn baut (Welt von raum.map als Schattenwerfer, ihre Lichter, ein neuer func_door
+mit test/tuer), die Befehle aus teilLichtBefehle (Schalter aus _q3map2_cmdline der Karte), uebernommen nur die Tuer.
 """
 import os
 import shutil
@@ -31,6 +36,17 @@ textures/bm/nodraw_solid
 {
 	surfaceparm nodraw
 	surfaceparm nomarks
+}
+
+textures/bm/clip
+{
+	surfaceparm nodraw
+	surfaceparm nonsolid
+	surfaceparm playerclip
+	surfaceparm monsterclip
+	surfaceparm trans
+	surfaceparm nomarks
+	surfaceparm nolightmap
 }
 
 textures/bm/origin
@@ -76,8 +92,9 @@ def welt(inhalt=quader(-8, -8, -8, 8, 8, 8, 'system/caulk')):
     return '// entity 0\n{\n"classname" "worldspawn"\n"message" "bspmerge Teil"\n' + inhalt + '}\n'
 
 
-def ent(schluessel, brushes=''):
-    return '{\n' + ''.join('"%s" "%s"\n' % kv for kv in schluessel) + brushes + '}\n'
+def ent(schluessel, brushes='', marke='_bhed_neu'):
+    """eine neue Entity mit der Marke, wie karte::teilKarte sie schreibt (nur markierte kommen ins Entity-Lump)"""
+    return '{\n' + ''.join('"%s" "%s"\n' % kv for kv in schluessel + [(marke, '1')]) + brushes + '}\n'
 
 
 def befunde(orig, teil):
@@ -132,6 +149,39 @@ if os.path.exists(orig) and os.path.exists(teil):
     lauf('-bsp', m, spiel='quake3')
     z = befunde(orig, os.path.join(ARBEIT, 'q3', 'ibsp.bsp'))
     pruefe('befund fehler format Different BSP formats: RBSP 1 and IBSP 46' in z, 'Teil als IBSP 46 (quake3) zu RBSP 1: Fehler "format"')
+
+    # --- Stufe 2: Clip in die Welt ---------------------------------------------------------------
+    CLIP = (-4, -64, 0, 4, 64, 128)   # die Oeffnung der Mittelwand (x -8..8, y -64..64, z 0..128)
+    lauf('-bsp', schreibe('teilclip', welt() + ent([('classname', 'func_static')], quader(*CLIP, 'bm/clip'), marke='_bhed_welt')))
+    clip = os.path.join(ARBEIT, 'teilclip.bsp')
+    pruefe(os.path.exists(clip), 'Teil mit Clip gebaut')
+    if os.path.exists(clip):
+        r = subprocess.run([PRUEF, 'welt', orig, clip, os.path.join(ARBEIT, 'gemischt_clip.bsp')] + [str(v) for v in CLIP], capture_output=True, text=True,
+                           errors='replace')
+        print(r.stdout.strip())
+        pruefe(r.returncode == 0, 'Stufe 2: Clip in der Welt (Blaetter ueber den Baum, CM-Port Punkt und Strahl, Welt sonst gleich, Lumps Byte-gleich)')
+    lauf('-bsp', schreibe('teilfest', welt() + ent([('classname', 'func_static')], quader(*CLIP, 'bm/nodraw_solid'), marke='_bhed_welt')))
+    z = befunde(orig, os.path.join(ARBEIT, 'teilfest.bsp'))
+    pruefe('befund fehler welt' in z and 'ergebnis nein' in z, 'solider nodraw-Brush fuer die Welt: Fehler "welt" (aendert Baum und VIS), nichts eingefuegt')
+
+    # --- Stufe 3: sichtbarer func_door mit Licht --------------------------------------------------
+    weltText = raum[:raum.index('// entity 1')]
+    lichter = raum[raum.index('// entity 2'):raum.index('// entity 4')]
+    tuer = ent([('classname', 'func_door'), ('angle', '90'), ('targetname', 'neutuer')], quader(-190, -220, 0, -174, -156, 128, 'test/tuer'))
+    lmap = schreibe('teillicht', weltText + lichter + tuer)
+    r = subprocess.run([PRUEF, 'befehle', Q3, ARBEIT, orig, lmap], capture_output=True, text=True, errors='replace')
+    befehle = [z[len('befehl '):] for z in r.stdout.splitlines() if z.startswith('befehl ')]
+    print('\n'.join(z for z in r.stdout.splitlines() if z.startswith('cmdline')))
+    pruefe(len(befehle) == 2 and ' -bsp -meta ' in befehle[0] and ' -light -fast ' in befehle[1],
+           'Befehle des Licht-Teils aus _q3map2_cmdline: ' + ' | '.join(b[b.index(' -bsp') if ' -bsp' in b else b.index(' -light'):] for b in befehle))
+    for b in befehle:
+        subprocess.run(b, capture_output=True, text=True, errors='replace', creationflags=0x08000000 if os.name == 'nt' else 0)
+    tl = os.path.join(ARBEIT, 'teillicht.bsp')
+    pruefe(os.path.exists(tl), 'Licht-Teil gebaut und beleuchtet')
+    if os.path.exists(tl):
+        r = subprocess.run([PRUEF, 'licht', orig, tl, os.path.join(ARBEIT, 'gemischt_licht.bsp')], capture_output=True, text=True, errors='replace')
+        print(r.stdout.strip())
+        pruefe(r.returncode == 0, 'Stufe 3: neues *N mit Flaechen, Indizes umgerechnet, Lightmaps im Bereich, Welt-Lightmaps Byte-gleich, Grenzen')
 
 print('bspmerge: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)

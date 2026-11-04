@@ -73,6 +73,11 @@ struct Q3map2Aufruf {
 // rc609 B1: q3map2 -bsp fuer die Teilkarte "In fertige Karte einfuegen" (BSPMain ohne -meta: Stufe 1
 // hat keine Flaechen; Untermodelle baut ProcessSubModel ohne Flood-Fill, ein Leck bricht nicht ab).
 [[nodiscard]] std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map);
+// rc609 B13 Stufe 3: q3map2 -bsp und -light fuer den Licht-Teil (die Welt als Schattenwerfer, sichtbare Mover). Die Schalter
+// kommen aus "_q3map2_cmdline" der Karte (InjectCommandLine, bspfile_abstract.cpp: "-bsp ...; -vis ...; -light ..."): -meta
+// der -bsp-Stufe und alle der letzten -light-Stufe ausser denen, die Lightmap-Format, Pfade oder Threads aendern.
+// Ohne den Schluessel (Raven, alte q3map2): -bsp und -light ohne Schalter (q3map2-Vorgaben).
+[[nodiscard]] std::vector<std::string> teilLichtBefehle(const Q3map2Aufruf& a, const std::string& map, const std::string& cmdline);
 // Stufe 8a Punkt 3: bhed_q3map2 -bhedmodels <liste> <aus> (Modelle wie InsertModel sie
 // laedt, fuer die Rueckgewinnung der misc_model); pakPfade als -fs_pakpath.
 [[nodiscard]] std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste,

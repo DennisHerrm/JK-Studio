@@ -3838,6 +3838,8 @@ enum class Str {
     KeBmEinfuegenFertig,
     KeBmEinfuegenPunkte,
     KeBmEinfuegenFehler,
+    KeBmEinfuegenLicht,
+    KeBmEinfuegenClips,
     Count,
 };
 

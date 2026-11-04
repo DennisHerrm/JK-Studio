@@ -129,6 +129,8 @@ struct BspHerkunft {
     std::uint64_t fingerabdruck = 0; // karte::geometrieFingerabdruck nach dem Laden
     std::vector<std::uint64_t> pinselAbdruecke;   // rc609 B1: karte::pinselAbdruecke der Brush-Entities der .bsp
     std::vector<std::uint64_t> punktAbdruecke;    // rc609 B1: karte::punktAbdruecke der Punkt-Entities der .bsp
+    std::uint64_t fingerabdruckOhneWelt = 0;      // rc609 B13: geometrieFingerabdruck ohne die worldspawn
+    std::vector<std::uint64_t> weltAbdruecke;     // rc609 B13: karte::weltAbdruecke der Welt-Brushes der .bsp
 };
 
 // Stufe 4 Punkt 3: bobToolz (contrib/bobtoolz). Die Dialoge (dialogs-gtk.cpp)
@@ -629,7 +631,7 @@ struct Editor {
     // Stufe 4: die offene Karte kam aus einer .bsp (File > Open .bsp...)
     BspHerkunft bspHerkunft;
     std::string bspNurEntitaetenFertig;   // Selbsttest: zuletzt mit -onlyents geschriebene .bsp
-    std::string bspEinfuegenFertig;                // rc609 B1, Selbsttest: "*N *M" nach "In fertige Karte einfuegen"
+    std::string bspEinfuegenFertig;                // rc609 B1, Selbsttest: "*N *M" (B13: "clips n") nach "In fertige Karte einfuegen", "fehler" bei Abbruch
     std::vector<std::string> bspEinfuegenMeldungen;   // rc609 B1: "fehler|warnung <pruefung> <text>" des letzten Einfuegens
     // Stufe 4 Punkt 3: die Plugins
     BobToolzZustand bob;
@@ -1692,6 +1694,11 @@ void bspNurEntitaeten();
 // geoeffnete fertige Karte (Teil-Compile mit q3map2 -bsp, karte::bspModelleAnhaengen, Speichern wie J)
 [[nodiscard]] int bspNeuePinselEntitaeten();   // wie viele Brush-Entities seit dem Oeffnen neu sind
 void bspInFertigeKarte();
+// rc609 B13: die Abdruecke der Geometrie (Fingerabdruck mit und ohne Welt, Welt-Brushes) nach Oeffnen, Rueckgewinnung, Einfuegen
+void bspGeometrieMerken();
+// rc609 B13: die erste Rueckgabe != 0 der Schritte des letzten Baus (bauEigeneBefehle), sonst 0
+[[nodiscard]] int bauRueckgabe();
+[[nodiscard]] int bspNeueWeltPinsel();   // wie viele Welt-Brushes seit dem Oeffnen neu sind
 // rc609 J: die geoeffnete .bsp fuer das Fenster "Shader und Flaechen" (app_lumpedit.cpp)
 void lumpDokPruefen();
 [[nodiscard]] std::string browserShader();   // TextureBrowser_GetSelectedShader

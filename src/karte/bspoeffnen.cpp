@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -104,6 +105,44 @@ std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool l
 }
 
 std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map) { return gemeinsamerAnfang(a) + " -bsp " + inAnfuehrung(map); }
+
+std::vector<std::string> teilLichtBefehle(const Q3map2Aufruf& a, const std::string& map, const std::string& cmdline) {
+    std::string bsp;
+    std::string licht;
+    std::size_t s = 0;
+    while (s < cmdline.size()) {
+        std::size_t e = cmdline.find(';', s);
+        if (e == std::string::npos) { e = cmdline.size(); }
+        std::vector<std::string> w;
+        std::size_t i = s;
+        while (i < e) {
+            const std::size_t j = cmdline.find_first_not_of(' ', i);
+            if (j == std::string::npos || j >= e) { break; }
+            std::size_t k = cmdline.find(' ', j);
+            if (k == std::string::npos || k > e) { k = e; }
+            w.push_back(cmdline.substr(j, k - j));
+            i = k;
+        }
+        if (!w.empty() && w[0] == "-bsp") {
+            bsp = std::find(w.begin(), w.end(), "-meta") != w.end() ? " -meta" : "";
+        } else if (!w.empty() && w[0] == "-light") {
+            // ohne Wert: Lightmap-Format; mit Wert (dahinter): Format, Pfade, Threads, Verbindung
+            static const std::set<std::string> ohne{"-external", "-deluxe", "-nodeluxe", "-v", "-srcbsp"};
+            static const std::set<std::string> mit{"-lightmapsize", "-extlmhacksize", "-lightmapdir", "-deluxemode", "-threads", "-connect",
+                                                   "-game",         "-fs_basepath",   "-fs_homepath", "-fs_game",    "-fs_pakpath", "-fs_nobasepath"};
+            licht.clear();
+            for (std::size_t n = 1; n < w.size(); ++n) {
+                if (mit.count(w[n]) != 0U) {
+                    ++n;
+                } else if (ohne.count(w[n]) == 0U) {
+                    licht += " " + w[n];
+                }
+            }
+        }
+        s = e + 1;
+    }
+    return {gemeinsamerAnfang(a) + " -bsp" + bsp + " " + inAnfuehrung(map), gemeinsamerAnfang(a) + " -light" + licht + " " + inAnfuehrung(map)};
+}
 
 std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste, const std::string& aus) {
     std::string s = gemeinsamerAnfang(a);

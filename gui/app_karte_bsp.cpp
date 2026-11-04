@@ -233,7 +233,7 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
         ed.bspHerkunft.quelle = anzeige;
         ed.bspHerkunft.ordner = ordner;
         ed.bspHerkunft.stamm = stamm;
-        ed.bspHerkunft.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+        bspGeometrieMerken();
         ed.bspHerkunft.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
         ed.bspHerkunft.punktAbdruecke = karte::punktAbdruecke(ed.karte);
     }
@@ -507,23 +507,94 @@ void bspNurEntitaeten() {
 
 namespace {
 
-std::string g_teilBsp;   // die Datei, die q3map2 gerade schreibt (fuer den Abschluss)
+std::string g_teilBsp;           // die Datei, die q3map2 gerade schreibt (fuer den Abschluss)
+bool g_teilBeleuchtet = false;   // rc609 B13 Stufe 3: der Licht-Teil (Welt als Schattenwerfer, -light)
 
 karte::MergeSpiel mergeSpiel() {
     const int s = kartenSpielNummer();
     return s == kRegelwerkJediOutcast ? karte::MergeSpiel::Jk2 : (s == kRegelwerkMovieDuels ? karte::MergeSpiel::MovieDuels : karte::MergeSpiel::Jka);
 }
 
+// Was in den Teil kommt: die neuen Brush-Entities, die neuen Punkt-Entities (das Ziel eines neuen Triggers) und die neuen
+// Welt-Brushes (Stufe 2: Clips). geaendert: vorhandene Punkt-Entities, die seit dem Oeffnen geaendert wurden.
+struct TeilInhalt {
+    std::vector<const karte::Entitaet*> pinsel;
+    std::vector<const karte::Entitaet*> entitaeten;
+    std::vector<const karte::Primitiv*> welt;
+    int geaendert = 0;
+};
+TeilInhalt teilInhalt() {
+    const Editor& ed = e();
+    const BspHerkunft& h = ed.bspHerkunft;
+    TeilInhalt t;
+    t.pinsel = karte::neuePinselEntitaeten(ed.karte, h.pinselAbdruecke);
+    t.entitaeten = t.pinsel;
+    for (const karte::Entitaet* p : karte::neuePunktEntitaeten(ed.karte, h.punktAbdruecke, &t.geaendert)) { t.entitaeten.push_back(p); }
+    t.welt = karte::neueWeltPrimitive(ed.karte, h.weltAbdruecke);
+    return t;
+}
+
+void bspEinfuegenAbschluss();
+
+// Stufe 3: der Teil hat sichtbare Flaechen. Noch einmal bauen, jetzt mit der zurueckgewandelten Welt als Schattenwerfer und den
+// Lichtern der Karte (karte::teilKarte mitWelt), q3map2 -bsp und -light mit den Schaltern der Karte; uebernommen werden danach nur
+// die neuen Modelle mit ihren Lightmaps.
+void lichtTeilStarten() {
+    Editor& ed = e();
+    const BspHerkunft& h = ed.bspHerkunft;
+    const TeilInhalt t = teilInhalt();
+    const std::string lichtMap = h.ordner + "/" + h.stamm + "_teillicht.map";
+    g_teilBsp = h.ordner + "/" + h.stamm + "_teillicht.bsp";
+    g_teilBeleuchtet = true;
+    std::error_code ec;
+    fs::remove(pfadVon(g_teilBsp), ec);
+    std::string orig;
+    karte::BspDatei d;
+    std::vector<MapEntity> ents;
+    if (dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", orig) && karte::bspLesen(orig, d)) { parseEntities(karte::bspEntitaetenText(d), ents); }
+    const std::string* cmd = ents.empty() ? nullptr : ents[0].find("_q3map2_cmdline");
+    if (!dateiSchreibenRoh(lichtMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt, true))) {
+        fehler("writing " + lichtMap + " failure");
+        return;
+    }
+    ausgabe(trK(Str::KeBmEinfuegenLicht));
+    bauEigeneBefehle(karte::ohneMnemonik(trK(Str::KeBmEinfuegen)), karte::teilLichtBefehle(q3map2Aufruf(), lichtMap, cmd != nullptr ? *cmd : std::string()),
+                     [](int art) {
+                         if (art == 0) { bspEinfuegenAbschluss(); }
+                     });
+}
+
 void bspEinfuegenAbschluss() {
     Editor& ed = e();
     BspHerkunft& h = ed.bspHerkunft;
+    // Ein Schritt mit Rueckgabe != 0 (q3map2 abgestuerzt, z. B. 0xC0000005 in -light): der Teil ist unvollstaendig (ohne Licht) und
+    // wird nicht eingefuegt
+    if (const int rc = bauRueckgabe(); rc != 0) {
+        char c[64];
+        std::snprintf(c, sizeof(c), static_cast<unsigned>(rc) > 0xFFFFU ? "q3map2 exit 0x%08X" : "q3map2 exit %u", static_cast<unsigned>(rc));
+        ed.bspEinfuegenMeldungen.assign(1, std::string("fehler bau ") + c);
+        fehler(c);
+        char z[256];
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFehler), c);
+        qtMeldung(karte::ohneMnemonik(trK(Str::KeBmEinfuegen)), z, MeldungArt::Fehler, false, nullptr);
+        ed.bspEinfuegenFertig = "fehler";
+        return;
+    }
     std::string orig;
     std::string teil;
     if (!dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", orig) || !dateiLesen(g_teilBsp, teil)) {
         fehler("reading " + g_teilBsp + " failure");
         return;
     }
-    const karte::MergeErgebnis r = karte::bspModelleAnhaengen(orig, teil, mergeSpiel());
+    const karte::MergeErgebnis r = karte::bspModelleAnhaengen(orig, teil, mergeSpiel(), g_teilBeleuchtet);
+    // Sichtbare Flaechen im ersten Teil (Platzhalter-Welt, kein Licht): der Licht-Teil (Stufe 3)
+    const bool nurSichtbar = !r.ok() && std::all_of(r.meldungen.begin(), r.meldungen.end(), [](const karte::MergeMeldung& m) {
+        return !m.fehler || m.pruefung == "sichtbar";
+    });
+    if (nurSichtbar && !g_teilBeleuchtet) {
+        lichtTeilStarten();
+        return;
+    }
     ed.bspEinfuegenMeldungen.clear();
     std::string ersterFehler;
     for (const karte::MergeMeldung& m : r.meldungen) {
@@ -540,25 +611,47 @@ void bspEinfuegenAbschluss() {
     if (!r.ok()) {
         std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFehler), ersterFehler.c_str());
         qtMeldung(titel, z, MeldungArt::Fehler, false, nullptr);
+        ed.bspEinfuegenFertig = "fehler";
         return;
     }
     // Die Arbeitskopie bekommt die neuen Modelle sofort (lumpBspSpeichern schreibt sie zuerst) - ab jetzt
-    // gehoeren die Brush-Entities zur Karte und werden nicht noch einmal eingefuegt.
-    h.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+    // gehoeren die Brush-Entities und Clips zur Karte und werden nicht noch einmal eingefuegt.
+    bspGeometrieMerken();
     h.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
     h.punktAbdruecke = karte::punktAbdruecke(ed.karte);
     lumpEditKarteSetzen(h.quelle, r.bsp);
-    std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFertig), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
-    ausgabe(z);
-    const std::string fertig = "*" + std::to_string(r.ersteNummer) + " *" + std::to_string(r.ersteNummer + r.neueModelle - 1);
+    if (r.neueModelle > 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFertig), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
+        ausgabe(z);
+    }
+    if (r.weltPinsel > 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenClips), r.weltPinsel, r.weltBlaetter, h.quelle.c_str());
+        ausgabe(z);
+    }
+    std::string fertig;
+    if (r.neueModelle > 0) { fertig = "*" + std::to_string(r.ersteNummer) + " *" + std::to_string(r.ersteNummer + r.neueModelle - 1); }
+    if (r.weltPinsel > 0) { fertig += std::string(fertig.empty() ? "" : " ") + "clips " + std::to_string(r.weltPinsel); }
     lumpBspSpeichern(r.bsp, [fertig] { e().bspEinfuegenFertig = fertig; });
 }
 
 }  // namespace
 
+void bspGeometrieMerken() {
+    Editor& ed = e();
+    BspHerkunft& h = ed.bspHerkunft;
+    h.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+    h.fingerabdruckOhneWelt = karte::geometrieFingerabdruck(ed.karte, {ed.karte.welt().get()});
+    h.weltAbdruecke = karte::weltAbdruecke(ed.karte);
+}
+
 int bspNeuePinselEntitaeten() {
     const Editor& ed = e();
     return ed.bspHerkunft.aktiv ? static_cast<int>(karte::neuePinselEntitaeten(ed.karte, ed.bspHerkunft.pinselAbdruecke).size()) : 0;
+}
+
+int bspNeueWeltPinsel() {
+    const Editor& ed = e();
+    return ed.bspHerkunft.aktiv ? static_cast<int>(karte::neueWeltPrimitive(ed.karte, ed.bspHerkunft.weltAbdruecke).size()) : 0;
 }
 
 void bspInFertigeKarte() {
@@ -570,32 +663,34 @@ void bspInFertigeKarte() {
     if (bspRueckSperre()) { return; }   // Stufe 9d: die Rueckgewinnung aendert gerade die Geometrie
     const std::string titel = karte::ohneMnemonik(trK(Str::KeBmEinfuegen));
     const BspHerkunft& h = ed.bspHerkunft;
-    const std::vector<const karte::Entitaet*> neu = karte::neuePinselEntitaeten(ed.karte, h.pinselAbdruecke);
-    if (neu.empty()) {
+    const TeilInhalt t = teilInhalt();
+    if (t.pinsel.empty() && t.welt.empty()) {
         warnung(trK(Str::KeBmEinfuegenKeine));
         qtMeldung(titel, trK(Str::KeBmEinfuegenKeine), MeldungArt::Warnung, false, nullptr);
         return;
     }
-    // Stufe 1: der Rest (Welt-Brushes, vorhandene Brush-Entities, eingebackene Modelle) wie beim Oeffnen
-    if (karte::geometrieFingerabdruck(ed.karte, neu) != h.fingerabdruck) {
+    // Der Rest wie beim Oeffnen: vorhandene Brush-Entities und eingebackene Modelle (Fingerabdruck ohne Welt und ohne die
+    // neuen Entities), jeder Welt-Brush von damals noch da (Stufe 2: neue Welt-Brushes duerfen dazukommen)
+    int fehlend = 0;
+    (void)karte::neueWeltPrimitive(ed.karte, h.weltAbdruecke, &fehlend);
+    std::vector<const karte::Entitaet*> ohne = t.pinsel;
+    ohne.push_back(ed.karte.welt().get());
+    if (fehlend > 0 || karte::geometrieFingerabdruck(ed.karte, ohne) != h.fingerabdruckOhneWelt) {
         warnung(trK(Str::KeBmEinfuegenGeaendert));
         qtMeldung(titel, trK(Str::KeBmEinfuegenGeaendert), MeldungArt::Warnung, false, nullptr);
         return;
     }
-    // Neue Punkt-Entities (das Ziel eines neuen Triggers) kommen mit; geaenderte vorhandene nicht
-    int geaendert = 0;
-    std::vector<const karte::Entitaet*> teil = neu;
-    for (const karte::Entitaet* p : karte::neuePunktEntitaeten(ed.karte, h.punktAbdruecke, &geaendert)) { teil.push_back(p); }
-    if (geaendert > 0) {
+    if (t.geaendert > 0) {
         char z[512];
-        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenPunkte), geaendert);
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenPunkte), t.geaendert);
         warnung(z);
     }
     const std::string teilMap = h.ordner + "/" + h.stamm + "_teil.map";
     g_teilBsp = h.ordner + "/" + h.stamm + "_teil.bsp";
+    g_teilBeleuchtet = false;
     std::error_code ec;
     fs::remove(pfadVon(g_teilBsp), ec);
-    if (!dateiSchreibenRoh(teilMap, karte::teilKarte(ed.karte, teil))) {
+    if (!dateiSchreibenRoh(teilMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt))) {
         fehler("writing " + teilMap + " failure");
         return;
     }
