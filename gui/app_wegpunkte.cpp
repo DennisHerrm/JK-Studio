@@ -171,6 +171,49 @@ int kanteSchreiben(int a, int b, NavKantenPruefer& p) {
 
 }  // namespace
 
+// --- rc609 W3a: die Welt der Erzeugung ------------------------------------------
+
+std::unique_ptr<WegWeltKarte> wegWeltKarte() {
+    auto k = std::make_unique<WegWeltKarte>();
+    k->hilfe = navBauHilfeKarte();
+    if (!k->hilfe.spur) { return k; }
+    // Tueren offen, wie NAV::TestEdge eine Tuerkette fuer die zweite Spur oeffnet ("door_is_start_open ?
+    // slave->pos1 : slave->pos2", g_navigator.cpp:1313-1343 MD): sie oeffnen sich vor der Figur.
+    for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+        const MapEntity& e = g_app->map.entities[i];
+        NavVec p1{};
+        NavVec p2{};
+        if (e.classname != "func_door" || !k->hilfe.tuerStellungen || !k->hilfe.tuerStellungen(static_cast<int>(i), p1, p2)) { continue; }
+        const std::string* sf = e.find("spawnflags");
+        const bool startOffen = sf != nullptr && (std::atoi(sf->c_str()) & 1) != 0;
+        k->tueren.push_back(NavVersetztEintrag{static_cast<int>(i), startOffen ? p1 : p2, true});
+    }
+    k->pruefer = std::make_unique<NavKantenPruefer>(g_app->map.entities, k->hilfe);
+    WegWeltKarte* w = k.get();
+    // Pmove der NPCs: pm->tracemask = MASK_NPCSOLID.
+    k->welt.spur = [w](const std::array<float, 3>& a, const std::array<float, 3>& mi, const std::array<float, 3>& ma,
+                       const std::array<float, 3>& b) {
+        const NavSpur s = w->hilfe.spurVersetzt ? w->hilfe.spurVersetzt(a, mi, ma, b, kNavKeineEntity, kNavMaskNpcSolid, w->tueren)
+                                                : w->hilfe.spur(a, mi, ma, b, kNavKeineEntity, kNavMaskNpcSolid);
+        WegSpurTreffer t;
+        t.anteil = s.fraction;
+        t.imFesten = s.startsolid || s.allsolid;
+        t.ende = s.endpos;
+        t.normale = s.normal;
+        return t;
+    };
+    // Ein Wegpunkt, dessen Radius (waypoint_getRadius) kleiner als SC_MEDIUM_RADIUS ist, bekommt in Jedi Academy keine
+    // Kante ("Size Too Big", NAV::TestEdge g_navigator.cpp:1211 OpenJK); HardConnect in Jedi Outcast fragt nicht danach.
+    // Einen schwebenden (Drop To Floor And Mark Floating, mit den Brush-Entities wie in PHASE 0) nimmt nur ein Flieger.
+    k->welt.knoten = [w](const std::array<float, 3>& o) {
+        float r = -1.0F;
+        bool schwebt = false;
+        return w->pruefer->knotenAn(o, &r, &schwebt) && !schwebt && (navJk2Regeln() || r >= 20.0F);
+    };
+    k->welt.kante = [w](const std::array<float, 3>& a, const std::array<float, 3>& b) { return w->pruefer->pruefeOrte(a, b).begehbar; };
+    return k;
+}
+
 // --- Netz -----------------------------------------------------------------------
 
 void wegNetzAktuell() {
@@ -294,6 +337,7 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
     }
     // Startpunkte: Spielerstart, Figuren, Ziele, vorhandene Wegpunkte, die Kamera.
     std::vector<std::array<float, 3>> starts;
+    int navPunkte = 0;   // was das Spiel schon als Knoten zaehlt (ausser den Wegpunkten, die Startpunkte werden)
     std::vector<int> startEntity;   // rc609 W1: der vorhandene Wegpunkt des Starts, sonst -1
     for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
         const MapEntity& e = g_app->map.entities[i];
@@ -307,12 +351,20 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
             starts.push_back({o[0], o[1], o[2]});
             startEntity.push_back(gehWegpunkt(e) ? static_cast<int>(i) : -1);
         }
+        if (istWegKlasse(c) && !gehWegpunkt(e)) { ++navPunkte; }
     }
     starts.push_back({g_app->cam.pos[0], g_app->cam.pos[1], g_app->cam.pos[2]});
     startEntity.push_back(-1);
     WegErzeugung p;
     p.abstand = abstand;
-    const std::vector<NeuerWegpunkt> wp = erzeugeWegpunkte(starts, kartenStrahl(), p);
+    p.maxKnoten = std::max(0, p.maxKnoten - navPunkte);   // "Max Nav points reached" (NUM_NODES)
+    for (const int se : startEntity) { p.startIstWegpunkt.push_back(se >= 0 ? 1 : 0); }
+    const std::unique_ptr<WegWeltKarte> welt = wegWeltKarte();
+    WegErzeugungInfo info;
+    const std::vector<NeuerWegpunkt> wp = erzeugeWegpunkte(starts, welt->welt, p, &info);
+    const float genutzt = info.abstand;
+    g_app->wegAbstandGenutzt = genutzt;
+    g_app->wegLuecken = info.luecken;
     const std::vector<std::vector<int>> ziele = verteileZiele(wp, 4);
     // Ein Knoten aus einem vorhandenen Wegpunkt ist dieser Wegpunkt (keine
     // Kopie an derselben Stelle): die erzeugten Nachbarn nennen ihn.
@@ -383,6 +435,17 @@ int wegErzeugen(float abstand, bool alteWeg, std::string* bericht) {
         char z[200];
         std::snprintf(z, sizeof(z), trN(Str::WegErzeugt, neuZahl, kanten), neuZahl, kanten, s);
         *bericht = z;
+        if (genutzt > abstand + 0.5F) {
+            std::snprintf(z, sizeof(z), tr(Str::WegRasterWeiter), static_cast<double>(genutzt), p.maxKnoten + navPunkte);
+            *bericht += " - " + std::string(z);
+        }
+        if (!info.luecken.empty()) {
+            const auto& a = info.luecken.front().anker;
+            const int n = static_cast<int>(info.luecken.size());
+            std::snprintf(z, sizeof(z), trN(Str::WegNichtAngebunden, n), n, static_cast<double>(a[0]), static_cast<double>(a[1]),
+                          static_cast<double>(a[2]));
+            *bericht += " - " + std::string(z);
+        }
     }
     return neuZahl;
 }
@@ -819,7 +882,7 @@ void drawWegFenster() {
     ImGui::SliderFloat("##wegabstand", &g_app->wegAbstand, 96.0F, 384.0F, tr(Str::WegAbstand));
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegAbstandHint)); }
     ImGui::SameLine();
-    if (iconTextKnopf(tr(Str::WegErzeugen), UiIcon::Erzeugen, tr(Str::WegErzeugenHint), !g_app->geo.empty())) {
+    if (iconTextKnopf(tr(Str::WegErzeugen), UiIcon::Erzeugen, tr(Str::WegErzeugenTipp), !g_app->geo.empty())) {
         wegErzeugen(g_app->wegAbstand, true, &g_app->wegMeldung);
         meldung(g_app->wegMeldung, "");
     }

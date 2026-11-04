@@ -1302,7 +1302,6 @@ S = [
     ("WegAbstand", "spacing %.0f", "Abstand %.0f", "间距 %.0f", "間隔 %.0f"),
     ("WegAbstandHint", "Distance between waypoints. The original levels use about 230.", "Abstand zwischen den Wegpunkten. Die Original-Level haben etwa 230.", "路径点之间的距离。原版关卡约为 230。", "ウェイポイントの間隔。オリジナルのレベルは約 230。"),
     ("WegErzeugen", "Create network", "Netz erzeugen", "生成路网", "ネットワーク生成"),
-    ("WegErzeugenHint", "Spreads waypoints over the walkable floor from the player start, the characters and the nav goals - not through walls, not up steps higher than 60, with room for an NPC. Connections are written as target..target4, so the game uses them. Replaces earlier created ones; one undo step.", "Verteilt Wegpunkte vom Spielerstart, den Figuren und den Laufzielen aus über den begehbaren Boden - nicht durch Wände, keine Stufen über 60, mit Platz für einen NPC. Die Verbindungen stehen als target..target4 darin, damit das Spiel sie nimmt. Ersetzt früher erzeugte; ein Rückgängig-Schritt.", "从玩家出生点、角色和导航目标开始在可行走地面上分布路径点 - 不穿墙,台阶不高于 60,留有 NPC 的空间。连接写为 target..target4,游戏才会使用。替换之前生成的;一步撤销。", "プレイヤー開始位置・キャラクター・ナビゴールから歩ける床にウェイポイントを広げます - 壁は通らず、段差 60 まで、NPC の入る空間あり。接続は target..target4 として書かれるのでゲームが使えます。以前生成したものを置き換え、元に戻すは 1 回。"),
     ("WegErzeugt", "Created %d {waypoint|waypoints} with %d {2:connection|connections} (%.1f s)", "%d {Wegpunkt|Wegpunkte} mit %d {2:Verbindung|Verbindungen} erzeugt (%.1f s)", "已生成 %d 个路径点,%d 条连接(%.1f 秒)", "ウェイポイント %d 個、接続 %d 本を生成 (%.1f 秒)"),
     ("WegEntfernen", "Remove created", "Erzeugte entfernen", "移除已生成", "生成分を削除"),
     ("WegEntfernenHint", "Removes the waypoints JK Studio created (wpauto_...). Placed by hand ones stay.", "Entfernt die von JK Studio erzeugten Wegpunkte (wpauto_...). Von Hand gesetzte bleiben.", "移除 JK Studio 生成的路径点(wpauto_...)。手动放置的保留。", "JK Studio が生成したウェイポイント (wpauto_...) を削除します。手で置いたものは残ります。"),
@@ -2231,6 +2230,8 @@ from i18n_rc609_w2b import zeilen_vier as _rc609_w2b  # noqa: E402  (rc609 W2b: 
 S += _rc609_w2b()
 from i18n_rc609_j import zeilen_vier as _rc609_j  # noqa: E402  (rc609 J: Shader, Nebel und Flaechen fertiger Karten)
 S += _rc609_j()
+from i18n_rc609_w3a import zeilen_vier as _rc609_w3a  # noqa: E402  (rc609 W3a: Wegpunkt-Erzeugung in Innenraeumen und auf Treppen)
+S += _rc609_w3a()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

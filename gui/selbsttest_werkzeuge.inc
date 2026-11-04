@@ -24,6 +24,15 @@ int entityIndex(const std::string& name) {
     return -1;
 }
 
+// rc609 W3a: das schwebende Wegpunkt-Fenster (ein Klick dorthin trifft nicht die Ansicht).
+ImRect wegFensterRect() {
+    ImRect r;
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if (w->WasActive && !w->Hidden && std::strstr(w->Name, "###wegpunkte") != nullptr) { r = w->Rect(); }
+    }
+    return r;
+}
+
 std::vector<Schritt> wegSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -116,7 +125,19 @@ std::vector<Schritt> wegSchritte() {
                  return r.hit;
              })) {
             fest += b.art == WegBefund::Art::ImFesten ? 1 : 0;
-            schwebt += b.art == WegBefund::Art::Schwebend ? 1 : 0;
+            if (b.art == WegBefund::Art::Schwebend) {
+                // rc609 W3a: Die Pruefung des Editors sieht nur die Flaechen der Welt; die Engine spurt fuer Drop To Floor
+                // mit allen Entities (ViewTrace, 1,5 x MAX_EDGE_FLOOR_DIST tief, g_navigator.cpp:1573-1595 MD). Lauf
+                // endwp3: wpauto_20..22 stehen auf func_static 293 - fuer das Spiel nicht schwebend. Gezaehlt wird, was die
+                // Engine schwebend nennt.
+                const WegKnoten& k = n.knoten[static_cast<std::size_t>(b.knoten)];
+                const NavBauHilfe h = navBauHilfeKarte();
+                const NavSpur sp = h.spur({k.ort[0], k.ort[1], k.ort[2]}, {0, 0, 0}, {0, 0, 0}, {k.ort[0], k.ort[1], k.ort[2] - 90.0F},
+                                          kNavKeineEntity, kNavSolid | kNavTerrain | kNavMonsterClip);
+                schwebt += sp.fraction >= 1.0F ? 1 : 0;
+                diag::detail("Knopftest: Wegnetz - schwebend fuer den Editor " + k.name + ": Spur der Engine " + std::to_string(sp.fraction) +
+                             (sp.entity >= 0 ? " auf " + g_app->map.entities[static_cast<std::size_t>(sp.entity)].classname : std::string()));
+            }
         }
         diag::detail("Knopftest: Wegnetz - " + std::to_string(n.knoten.size()) + " Knoten, " +
                      std::to_string(n.kanten.size()) + " Kanten, groesste Insel " + std::to_string(groesste) +
@@ -146,6 +167,7 @@ std::vector<Schritt> wegSchritte() {
                 continue;
             }
             if (n == 1 && std::fabs(sp.x - (*ziel)[0].x) + std::fabs(sp.y - (*ziel)[0].y) < 40.0F) { continue; }
+            if (wegFensterRect().Contains(sp)) { continue; }   // rc609 W3a: nicht unter dem Wegpunkt-Fenster
             TraceTreffer t;
             if (!kartenStrahlUnterMaus(sp.x, sp.y, t) || t.normal[2] < 0.5F) { continue; }
             (*ziel)[static_cast<std::size_t>(n++)] = sp;
@@ -194,13 +216,21 @@ std::vector<Schritt> wegSchritte() {
             ImVec2 sp;
             if (!kartenPunktAufSchirm(w, sp)) { continue; }
             const float d = std::fabs(sp.x - (*paarOrt)[0].x) + std::fabs(sp.y - (*paarOrt)[0].y);
+            // rc609 W3a: nicht unter dem schwebenden Wegpunkt-Fenster (Lauf endwp4: der zweite Punkt lag darunter, der
+            // Klick ging ans Fenster).
             if (d > 60.0F && d < best && sp.x > g_app->kartenAnsicht[0] + 30 && sp.x < g_app->kartenAnsicht[2] - 30 &&
-                sp.y > g_app->kartenAnsicht[1] + 80 && sp.y < g_app->kartenAnsicht[3] - 30) {
+                sp.y > g_app->kartenAnsicht[1] + 80 && sp.y < g_app->kartenAnsicht[3] - 30 && !wegFensterRect().Contains(sp)) {
                 best = d;
                 (*paar)[1] = static_cast<int>(i);
                 (*paarOrt)[1] = sp;
             }
         }
+    }));
+    add(tu("Verbinden: die zwei Punkte protokollieren", [=] {
+        diag::detail("Knopftest: Wegnetz - Verbinden " + std::to_string((*paar)[0]) + " bei " + std::to_string((*paarOrt)[0].x) + "/" +
+                     std::to_string((*paarOrt)[0].y) + " mit " +
+                     ((*paar)[1] >= 0 ? g_app->map.entities[static_cast<std::size_t>((*paar)[1])].targetname : std::string("-")) + " bei " +
+                     std::to_string((*paarOrt)[1].x) + "/" + std::to_string((*paarOrt)[1].y));
     }));
     add(klickAn("Verbinden: erster Punkt", [=] { return (*paarOrt)[0]; }));
     add(pause(0.2));

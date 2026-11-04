@@ -90,6 +90,7 @@
 #include <filesystem>
 #include <functional>
 #include <iterator>
+#include <deque>
 #include <map>
 #include <memory>
 #include <optional>
@@ -5618,6 +5619,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
 #include "selbsttest_pruefung3.inc"   // pruefung3: der Rest gegen das Spiel (Rumpfwinkel, Tod, Marken, Hocke, Hang)
 #include "selbsttest_geschuetze.inc"   // geschuetze: Sentry und Turm mit Feind und Schaden (rc608)
+#include "selbsttest_wegerzeugung.inc"   // rc609 W3a: Erzeugung in Innenraeumen und auf Treppen
 #include "selbsttest_figurlicht.inc"   // figurlicht: Lichtgitter gegen r_debuglight im Spiel (rc608)
 #include "selbsttest_teil6.inc"       // teil6: Portale und Schmerz (rc608)
 #include "selbsttest_teil9.inc"       // teil9: Spieler in Cutscenes, Licht der Modelle (rc608)
@@ -5916,6 +5918,7 @@ void selbsttest() {
     static const bool nurUmriss = std::strcmp(modus, "umriss") == 0;
     static const bool nurWeg = std::strcmp(modus, "wegpunkte") == 0;
     static const bool nurWeg2 = std::strcmp(modus, "wegpunkte2") == 0;   // rc609 W1
+    static const bool nurWegErzeugung = std::strcmp(modus, "wegerzeugung") == 0;   // rc609 W3a
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
     static const bool nurModellLeistung = std::strcmp(modus, "modellleistung") == 0;   // modell1
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
@@ -6162,6 +6165,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurLeistung) {
                 a.schritte = leistung::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurWegErzeugung) {
+                a.schritte = wegerzeugungSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurGeschuetze) {

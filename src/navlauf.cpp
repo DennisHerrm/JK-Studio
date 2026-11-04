@@ -10,6 +10,8 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <list>
@@ -17,6 +19,7 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -726,8 +729,7 @@ bool NavSpawnSicht::imFesten(NavVec& ort, const NavVec& mins, const NavVec& maxs
 // (g_nav.cpp:121-279, NPC_combat.cpp:3347) bis in NAV::SpawnedPoint: der Knoten
 // der Entity i, false, wenn die Engine keinen anlegt (keine Klasse des Netzes,
 // "in solid"). Einhaengen und NUM_NODES macht der Aufrufer.
-bool navKnotenSpawnen(const std::vector<MapEntity>& ents, const NavSpawnSicht& sicht, int idx, NavKnoten& aus) {
-    const MapEntity& e = ents[static_cast<std::size_t>(idx)];
+bool navKnotenSpawnen(const MapEntity& e, const NavSpawnSicht& sicht, int idx, NavKnoten& aus) {
     // NAV::SpawnedPoint (g_navigator.cpp:2218)
     const auto gesetzt = [&](const NavVec& ort, float radius, int typ) {
         if (sicht.mitSpur) {
@@ -1056,7 +1058,7 @@ std::shared_ptr<NavNetz> baueNavNetz(const std::vector<MapEntity>& ents, const N
         // Wechsel auf duel_jt_outside (1100 Wegpunkte).
         if (static_cast<int>(n.knoten.size()) >= kNumNodes) { break; }
         NavKnoten k;
-        if (!navKnotenSpawnen(ents, sicht, static_cast<int>(i), k)) { continue; }
+        if (!navKnotenSpawnen(ents[i], sicht, static_cast<int>(i), k)) { continue; }
         gitterErweitern(n, k.punkt[0], k.punkt[1]);
         n.knoten.push_back(std::move(k));
         n.links.emplace_back();
@@ -1488,8 +1490,7 @@ std::vector<unsigned char> jk2KanteSperrt(const std::vector<MapEntity>& ents) {
 // rc609 W1: SP_waypoint / SP_waypoint_small in Jedi Outcast (codeJK2/game/
 // g_nav.cpp:1251-1340) mit G_CheckInSolid (g_utils.cpp:1075-1111, MASK_DEADSOLID,
 // wie G_CheckInSolid von JKA mit fix) - der Knoten der Entity idx, false: keiner.
-bool jk2KnotenSpawnen(const std::vector<MapEntity>& ents, const NavSpawnSicht& sicht, int idx, NavNetzJk2::Knoten& kn) {
-    const MapEntity& e = ents[static_cast<std::size_t>(idx)];
+bool jk2KnotenSpawnen(const MapEntity& e, const NavSpawnSicht& sicht, int idx, NavNetzJk2::Knoten& kn) {
     const std::string k = klein(e.classname);
     const bool klein2 = k == "waypoint_small";
     if ((k != "waypoint" && !klein2) || e.origin.empty()) { return false; }
@@ -1572,7 +1573,7 @@ std::shared_ptr<NavNetzJk2> baueNavNetzJk2(const std::vector<MapEntity>& ents, c
     std::vector<Gespeichert> liste;
     for (std::size_t i = 0; i < ents.size(); ++i) {
         NavNetzJk2::Knoten kn;
-        if (!jk2KnotenSpawnen(ents, sicht, static_cast<int>(i), kn)) { continue; }
+        if (!jk2KnotenSpawnen(ents[i], sicht, static_cast<int>(i), kn)) { continue; }
         n.knoten.push_back(std::move(kn));
         const MapEntity& e = ents[i];
         Gespeichert g;
@@ -1643,13 +1644,89 @@ struct NavKantenPruefer::Innen {
     // Je Entity der Knoten wie im Spiel (nach Drop To Floor); nullopt: keiner.
     std::unordered_map<int, std::optional<NavKnoten>> knoten;
     std::unordered_map<int, std::optional<NavNetzJk2::Knoten>> knotenJk2;
+    // rc609 W3a: Knoten an einem Ort (ein waypoint, gespawnt nach allen Entities der Karte), je gerundetem origin.
+    std::map<std::array<int, 3>, std::optional<NavKnoten>> ortKnoten;
+    std::map<std::array<int, 3>, std::optional<NavNetzJk2::Knoten>> ortKnotenJk2;
+
+    static std::array<int, 3> ortSchluessel(const NavVec& o) {
+        return {static_cast<int>(std::lround(o[0])), static_cast<int>(std::lround(o[1])), static_cast<int>(std::lround(o[2]))};
+    }
+    static MapEntity wegpunktAn(const std::array<int, 3>& o) {
+        MapEntity e;
+        e.classname = "waypoint";
+        e.origin = std::to_string(o[0]) + " " + std::to_string(o[1]) + " " + std::to_string(o[2]);
+        e.keys = {{"classname", e.classname}, {"origin", e.origin}};
+        return e;
+    }
+    const NavKnoten* knotenAn(const NavVec& ort) {
+        const std::array<int, 3> sch = ortSchluessel(ort);
+        auto it = ortKnoten.find(sch);
+        if (it == ortKnoten.end()) {
+            NavKnoten k;
+            std::optional<NavKnoten> o;
+            if (navKnotenSpawnen(wegpunktAn(sch), sicht, static_cast<int>(ents.size()), k)) {
+                if (sicht.mitSpur) { navKnotenAbsetzen(h, k); }
+                o = std::move(k);
+            }
+            it = ortKnoten.emplace(sch, std::move(o)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+    const NavNetzJk2::Knoten* knotenJk2An(const NavVec& ort) {
+        const std::array<int, 3> sch = ortSchluessel(ort);
+        auto it = ortKnotenJk2.find(sch);
+        if (it == ortKnotenJk2.end()) {
+            NavNetzJk2::Knoten k;
+            std::optional<NavNetzJk2::Knoten> o;
+            if (jk2KnotenSpawnen(wegpunktAn(sch), sicht, static_cast<int>(ents.size()), k)) { o = std::move(k); }
+            it = ortKnotenJk2.emplace(sch, std::move(o)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+    // Die Kante zwischen zwei gespawnten Knoten (a traegt das target-Feld).
+    NavKantenErgebnis kante(const NavKnoten* a, const NavKnoten* b, bool sprung) {
+        NavKantenErgebnis r;
+        if (a == nullptr || b == nullptr) { return r; }
+        if (sprung) {
+            r.begehbar = true;   // WE_JUMPING: WE_SIZE_LARGE, ohne TestEdge
+            r.gross = true;
+            return r;
+        }
+        if (!teamsDa) {
+            teams = navTeams(ents);
+            teamsDa = true;
+        }
+        NavKante k;
+        k.flags = NavKante::Gueltig;
+        k.laenge = abstand(a->punkt, b->punkt);
+        r.begehbar = navTestEdgeGroessen(ents, h, teams, k, *a, *b);
+        r.gross = r.begehbar && k.groesse() == 2;
+        r.entity = r.begehbar ? k.entity : kNavKeineEntity;
+        return r;
+    }
+    NavKantenErgebnis kanteJk2(const NavNetzJk2::Knoten* a, const NavNetzJk2::Knoten* b, bool sprung) {
+        // HardConnect verbindet immer; EFLAG_BLOCKED nach der Spur (Stand von
+        // NAV_CheckCalcPaths, wie baueNavNetzJk2). targetJump kennt JK2 nicht.
+        NavKantenErgebnis r;
+        if (a == nullptr || b == nullptr || sprung) { return r; }
+        const int zahl = static_cast<int>(ents.size());
+        const NavSpur s = jk2HardConnectSpur(sicht.spawnSpur(zahl), a->punkt, b->punkt);
+        if (!(s.fraction != 1.0F || s.startsolid || s.allsolid)) {
+            r.begehbar = true;
+        } else if (s.entity >= 0 && s.entity < zahl && jk2Blocker(ents[static_cast<std::size_t>(s.entity)]) != 0) {
+            r.begehbar = true;
+            r.entity = s.entity;
+        }
+        r.gross = r.begehbar;
+        return r;
+    }
 
     const NavKnoten* knotenVon(int i) {
         auto it = knoten.find(i);
         if (it == knoten.end()) {
             NavKnoten k;
             std::optional<NavKnoten> o;
-            if (navKnotenSpawnen(ents, sicht, i, k)) {
+            if (navKnotenSpawnen(ents[static_cast<std::size_t>(i)], sicht, i, k)) {
                 if (sicht.mitSpur) { navKnotenAbsetzen(h, k); }
                 o = std::move(k);
             }
@@ -1662,7 +1739,7 @@ struct NavKantenPruefer::Innen {
         if (it == knotenJk2.end()) {
             NavNetzJk2::Knoten k;
             std::optional<NavNetzJk2::Knoten> o;
-            if (jk2KnotenSpawnen(ents, sicht, i, k)) { o = std::move(k); }
+            if (jk2KnotenSpawnen(ents[static_cast<std::size_t>(i)], sicht, i, k)) { o = std::move(k); }
             it = knotenJk2.emplace(i, std::move(o)).first;
         }
         return it->second ? &*it->second : nullptr;
@@ -1679,44 +1756,29 @@ bool NavKantenPruefer::hatKnoten(int entity) {
 }
 
 NavKantenErgebnis NavKantenPruefer::pruefe(int von, int nach, bool sprung) {
-    NavKantenErgebnis r;
     const int zahl = static_cast<int>(d_->ents.size());
-    if (von == nach || von < 0 || nach < 0 || von >= zahl || nach >= zahl) { return r; }
+    if (von == nach || von < 0 || nach < 0 || von >= zahl || nach >= zahl) { return {}; }
+    if (d_->jk2) { return d_->kanteJk2(d_->knotenJk2Von(von), d_->knotenJk2Von(nach), sprung); }
+    return d_->kante(d_->knotenVon(von), d_->knotenVon(nach), sprung);
+}
+
+bool NavKantenPruefer::knotenAn(const NavVec& ort, float* radius, bool* schwebend) {
+    if (schwebend != nullptr) { *schwebend = false; }
     if (d_->jk2) {
-        // HardConnect verbindet immer; EFLAG_BLOCKED nach der Spur (Stand von
-        // NAV_CheckCalcPaths, wie baueNavNetzJk2). targetJump kennt JK2 nicht.
-        const NavNetzJk2::Knoten* a = d_->knotenJk2Von(von);
-        const NavNetzJk2::Knoten* b = d_->knotenJk2Von(nach);
-        if (a == nullptr || b == nullptr || sprung) { return r; }
-        const NavSpur s = jk2HardConnectSpur(d_->sicht.spawnSpur(zahl), a->punkt, b->punkt);
-        if (!(s.fraction != 1.0F || s.startsolid || s.allsolid)) {
-            r.begehbar = true;
-        } else if (s.entity >= 0 && s.entity < zahl && jk2Blocker(d_->ents[static_cast<std::size_t>(s.entity)]) != 0) {
-            r.begehbar = true;
-            r.entity = s.entity;
-        }
-        r.gross = r.begehbar;
-        return r;
+        const NavNetzJk2::Knoten* k = d_->knotenJk2An(ort);
+        if (radius != nullptr) { *radius = k != nullptr ? static_cast<float>(k->radius) : -1.0F; }
+        return k != nullptr;
     }
-    const NavKnoten* a = d_->knotenVon(von);
-    const NavKnoten* b = d_->knotenVon(nach);
-    if (a == nullptr || b == nullptr) { return r; }
-    if (sprung) {
-        r.begehbar = true;   // WE_JUMPING: WE_SIZE_LARGE, ohne TestEdge
-        r.gross = true;
-        return r;
-    }
-    if (!d_->teamsDa) {
-        d_->teams = navTeams(d_->ents);
-        d_->teamsDa = true;
-    }
-    NavKante k;
-    k.flags = NavKante::Gueltig;
-    k.laenge = abstand(a->punkt, b->punkt);
-    r.begehbar = navTestEdgeGroessen(d_->ents, d_->h, d_->teams, k, *a, *b);
-    r.gross = r.begehbar && k.groesse() == 2;
-    r.entity = r.begehbar ? k.entity : kNavKeineEntity;
-    return r;
+    const NavKnoten* k = d_->knotenAn(ort);
+    if (radius != nullptr) { *radius = k != nullptr ? k->radius : -1.0F; }
+    if (schwebend != nullptr && k != nullptr) { *schwebend = k->schwebend; }
+    return k != nullptr;
+}
+
+NavKantenErgebnis NavKantenPruefer::pruefeOrte(const NavVec& von, const NavVec& nach) {
+    if (Innen::ortSchluessel(von) == Innen::ortSchluessel(nach)) { return {}; }
+    if (d_->jk2) { return d_->kanteJk2(d_->knotenJk2An(von), d_->knotenJk2An(nach), false); }
+    return d_->kante(d_->knotenAn(von), d_->knotenAn(nach), false);
 }
 
 // --- rc604 fix604 (JK2 Stufe 3) ------------------------------------------------

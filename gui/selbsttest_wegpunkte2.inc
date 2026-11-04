@@ -118,16 +118,6 @@ std::vector<int> erzeugte() {
     }
     return aus;
 }
-WegStrahl strahl() {
-    return [](const std::array<float, 3>& a, const std::array<float, 3>& b, std::array<float, 3>& t, std::array<float, 3>& n) {
-        const TraceTreffer r = traceRay(g_app->geo, a.data(), b.data());
-        for (int k = 0; k < 3; ++k) {
-            t[static_cast<std::size_t>(k)] = r.point[k];
-            n[static_cast<std::size_t>(k)] = r.normal[k];
-        }
-        return r.hit;
-    };
-}
 float abstand3(const std::array<float, 3>& a, const float b[3]) {
     return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
 }
@@ -175,29 +165,49 @@ std::vector<Schritt> wegpunkte2Schritte() {
         WegErzeugung p;
         p.abstand = S;
         p.maxKnoten = 200;
+        const std::unique_ptr<WegWeltKarte> welt = wegWeltKarte();
+        // rc609 W3a: Die Erzeugung kommt jetzt zu Fuss durch Tueren und ueber Treppen. Mit der Suche nur auf der obersten
+        // Flaeche jeder Spalte (bis W1) blieb nichts mehr: Lauf we7w2 fand 779 Stellen weit vom Netz, von keiner entstand
+        // ein Punkt (der Kasten steckt dort im Festen, ausserhalb der spielbaren Huelle). Gesucht wird darum auf allen
+        // Boeden jeder Spalte nach einer Stelle, die zu Fuss nicht ans Netz kommt: kein Netzpunkt auf ihrer Hoehe (eine
+        // Stufe) in einer halben Rasterweite, und bei keinem der Punkte, die von ihr aus entstehen.
+        const auto amNetz = [&](const float q[3]) {
+            for (const auto& n : netz) {
+                if (std::hypot(n[0] - q[0], n[1] - q[1]) <= S * 0.5F && std::fabs(n[2] - q[2]) <= 18.0F) { return true; }
+            }
+            return false;
+        };
+        std::array<int, 4> zahl{0, 0, 0, 0};   // Boden, fern vom Netz, Flut mit Punkten, abgetrennt
         for (float x = m.mins[0] + S * 0.5F; x < m.maxs[0] && flut->empty(); x += S) {
             for (float y = m.mins[1] + S * 0.5F; y < m.maxs[1] && flut->empty(); y += S) {
-                const float a[3] = {x, y, m.maxs[2] - 1.0F};
-                const float b[3] = {x, y, m.mins[2] + 1.0F};
-                const TraceTreffer t = traceRay(g_app->geo, a, b);
-                if (!t.hit || t.normal[2] < 0.7F) { continue; }
-                bool fern = true;
-                for (const auto& n : netz) { fern = fern && w2::abstand3(n, t.point) > 2.0F * S; }
-                if (!fern) { continue; }
-                const std::vector<NeuerWegpunkt> f = erzeugeWegpunkte({{t.point[0], t.point[1], t.point[2] + 1.0F}}, w2::strahl(), p);
-                if (f.size() < 3U) { continue; }
-                bool getrennt = true;
-                for (const NeuerWegpunkt& k : f) {
-                    const float kb[3] = {k.boden[0], k.boden[1], k.boden[2] + 25.0F};
-                    for (const auto& n : netz) { getrennt = getrennt && w2::abstand3(n, kb) > S; }
+                float zOben = m.maxs[2] - 1.0F;
+                for (int runde = 0; runde < 16 && flut->empty() && zOben > m.mins[2]; ++runde) {
+                    const float a[3] = {x, y, zOben};
+                    const float b[3] = {x, y, m.mins[2] + 1.0F};
+                    const TraceTreffer t = traceRay(g_app->geo, a, b);
+                    if (!t.hit) { break; }
+                    zOben = t.point[2] - 2.0F;
+                    if (t.normal[2] < 0.7F) { continue; }
+                    ++zahl[0];
+                    const float q[3] = {t.point[0], t.point[1], t.point[2] + 25.0F};
+                    if (amNetz(q)) { continue; }
+                    ++zahl[1];
+                    const std::vector<NeuerWegpunkt> f = erzeugeWegpunkte({{t.point[0], t.point[1], t.point[2] + 1.0F}}, welt->welt, p);
+                    if (f.size() < 3U) { continue; }
+                    ++zahl[2];
+                    bool getrennt = true;
+                    for (const NeuerWegpunkt& k : f) { getrennt = getrennt && !amNetz(k.ort.data()); }
+                    if (!getrennt) { continue; }
+                    ++zahl[3];
+                    *stelle = {t.point[0], t.point[1], t.point[2]};
+                    for (const NeuerWegpunkt& k : f) { flut->push_back(k.ort); }
                 }
-                if (!getrennt) { continue; }
-                *stelle = {t.point[0], t.point[1], t.point[2]};
-                for (const NeuerWegpunkt& k : f) { flut->push_back(k.ort); }
             }
         }
         diag::detail("Knopftest: W2 Start - Stelle " + std::to_string((*stelle)[0]) + " " + std::to_string((*stelle)[1]) + " " +
-                     std::to_string((*stelle)[2]) + ", von dort " + std::to_string(flut->size()) + " Rasterpunkte");
+                     std::to_string((*stelle)[2]) + ", von dort " + std::to_string(flut->size()) + " Rasterpunkte; gesucht: Boden " +
+                     std::to_string(zahl[0]) + ", fern vom Netz " + std::to_string(zahl[1]) + ", mit Flut " + std::to_string(zahl[2]) +
+                     ", abgetrennt " + std::to_string(zahl[3]));
     }));
     add(pruefe("W2 Start: eine abgetrennte Stelle mit Boden gefunden", [=] { return !flut->empty(); }));
     add(tu("W2 Start: Erzeugung zurueck, dort von Hand einen Wegpunkt setzen", [=] {
@@ -451,6 +461,23 @@ std::vector<Schritt> wegpunkte2Schritte() {
     auto zugVon = std::make_shared<ImVec2>();
     auto vorZug = std::make_shared<std::vector<int>>();
     auto vorOrt = std::make_shared<std::string>();
+    // rc609 W3a: Das neue Netz ist dichter; der Griff traf einen anderen Wegpunkt davor (Lauf wecw2f/wedw2: wpauto_131
+    // gewaehlt, 0 Schritte). Darum sind die anderen Wegpunkte beim Ziehen ausgeblendet (nicht greifbar; ihre Kanten
+    // prueft das Ziehen trotzdem), das schwebende Wegpunkt-Fenster zu und die Kamera auf den Punkt gerichtet.
+    add(tu("W2 Ziehen: nur den gesetzten Punkt greifbar, im Bild", [=] {
+        g_app->wegFensterOffen = false;
+        const int n = w2::indexVon(*gesetzt);
+        g_app->hiddenEntities.clear();
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            if (static_cast<int>(i) != n && istWegKlasse(g_app->map.entities[i].classname)) { g_app->hiddenEntities.insert(i); }
+        }
+        float o[3];
+        if (n >= 0 && entityOrt(g_app->map.entities[static_cast<std::size_t>(n)], o)) {
+            aimAngles(g_app->cam.pos, o, g_app->cam.angles);
+            g_app->mapDirty = true;
+        }
+    }));
+    add(pause(0.3));
     add(tu("W2 Ziehen: eine Stelle im Bild suchen, an der eine Kante des Punkts nicht mehr begehbar ist", [=] {
         *ziel = ImVec2{-1, -1};
         const int n = w2::indexVon(*gesetzt);
@@ -458,30 +485,36 @@ std::vector<Schritt> wegpunkte2Schritte() {
         entityAuswahlSetzen(n);
         *vorZug = w2::nachbarn(n);
         *vorOrt = g_app->map.entities[static_cast<std::size_t>(n)].origin;
-        // Gegriffen nahe der Unterkante (20 unter dem Ursprung), gezielt auf dieselbe
-        // Hoehe ueber dem Ziel: das Ziehen setzt den Punkt auf die Flaeche unter der
-        // Maus mit dem Griffversatz (entityZiehen, Modus 0) und auf das Raster.
-        const ImVec2 von = w2::aufSchirm(n, -20.0F);
+        // Gegriffen am Marker der Entity (entityZiehen greift nur hoechstens 1,2 Schriftgroessen vom Marker,
+        // app_mission.cpp; rc609 W3a: vorher 20 unter dem Ursprung - aus der Naehe mehr Bildpunkte als das, Laeufe
+        // wecw2..weew2: 0 Schritte), gezielt auf dieselbe Hoehe ueber dem Ziel: das Ziehen setzt den Punkt auf die
+        // Flaeche unter der Maus mit dem Griffversatz (entityZiehen, Modus 0) und auf das Raster.
+        const ImVec2 von = w2::aufSchirm(n);
+        diag::detail("Knopftest: W2 Ziehen - Griff bei " + std::to_string(von.x) + " " + std::to_string(von.y) + (w2::imBild(von) ? " im Bild" : " nicht im Bild"));
         float best = 1.0e9F;
         for (const int i : w2::erzeugte()) {
             float o[3];
             if (!entityOrt(g_app->map.entities[static_cast<std::size_t>(i)], o)) { continue; }
             const float q[3] = {o[0] + 30.0F, o[1] + 30.0F, o[2]};
-            const float qs[3] = {q[0], q[1], q[2] - 20.0F};
+            const float qs[3] = {q[0], q[1], q[2]};
             ImVec2 sp;
             if (!kartenPunktAufSchirm(qs, sp) || !w2::imBild(sp)) { continue; }
             const float d = std::fabs(sp.x - von.x) + std::fabs(sp.y - von.y);
             if (d >= best || d < 40.0F) { continue; }
-            // Der Zielpunkt und seine Umgebung (Griffversatz, Raster): ueberall bricht eine Kante.
+            // rc609 W3a: ueber die Geometrie, nicht ueber die Lage erzeugter Punkte (die die neue Erzeugung anders setzt):
+            // vom Zielpunkt und seiner Umgebung (Griffversatz, Raster) aus steht zu mindestens einem bisherigen Nachbarn
+            // eine Wand im Weg - ein Strahl auf Brusthoehe trifft sie. Dort bricht die Kante im Spiel sicher.
             bool ueberall = true;
             for (const auto& [dx, dy] : {std::pair{0.0F, 0.0F}, {24.0F, 24.0F}, {-24.0F, 24.0F}, {24.0F, -24.0F}, {-24.0F, -24.0F}}) {
-                std::vector<MapEntity> v = g_app->map.entities;
-                char t[96];
-                std::snprintf(t, sizeof(t), "%d %d %d", static_cast<int>(q[0] + dx), static_cast<int>(q[1] + dy), static_cast<int>(q[2]));
-                setKey(v[static_cast<std::size_t>(n)], "origin", t);
-                int bricht = 0;
-                for (const int j : *vorZug) { bricht += w2::begehbar(v, n, j) ? 0 : 1; }
-                ueberall = ueberall && bricht > 0;
+                int wand = 0;
+                for (const int j : *vorZug) {
+                    float oj[3];
+                    if (!entityOrt(g_app->map.entities[static_cast<std::size_t>(j)], oj)) { continue; }
+                    const float a[3] = {q[0] + dx, q[1] + dy, q[2] + 16.0F};
+                    const float b[3] = {oj[0], oj[1], oj[2] + 16.0F};
+                    wand += traceRay(g_app->geo, a, b).hit ? 1 : 0;
+                }
+                ueberall = ueberall && wand > 0;
             }
             if (!ueberall) { continue; }
             best = d;
@@ -495,11 +528,54 @@ std::vector<Schritt> wegpunkte2Schritte() {
     add({"Ziehe W2: den Wegpunkt hinter die Wand", [=](int b) {
              ImGuiIO& io = ImGui::GetIO();
              if (b == 0) {
-                 *zugVon = w2::aufSchirm(w2::indexVon(*gesetzt), -20.0F);
+                 // An der Mitte der Entity (dort greift entityZiehen sie zum Ziehen ueber den Boden), aber neben den
+                 // Pfeilen des Gizmos: die greifen ab einem Viertel ihrer Laenge 0,45 Schriftgroessen breit
+                 // (gizmoGriff, app_mission.cpp). Lauf wegw2: genau in der Mitte lag der verkuerzte x-Pfeil
+                 // (Griff 1), der Punkt ging nur entlang x. Daher der Punkt in 0,8 Schriftgroessen um die Mitte, der
+                 // von allen drei Pfeilen am weitesten weg ist (die Entity greift bis 1,2 Schriftgroessen).
+                 const int n = w2::indexVon(*gesetzt);
+                 const ImVec2 mitte = w2::aufSchirm(n);
+                 float o[3] = {0.0F, 0.0F, 0.0F};
+                 if (n >= 0) { (void)entityOrt(g_app->map.entities[static_cast<std::size_t>(n)], o); }
+                 ImVec2 pfeil[3];
+                 for (int k = 0; k < 3; ++k) {
+                     float e[3] = {o[0], o[1], o[2]};
+                     e[k] += 8.0F;
+                     ImVec2 se{mitte.x, mitte.y};
+                     (void)kartenPunktAufSchirm(e, se);
+                     const float dx = se.x - mitte.x;
+                     const float dy = se.y - mitte.y;
+                     const float l = std::max(1.0e-3F, std::hypot(dx, dy));
+                     pfeil[k] = ImVec2{dx / l, dy / l};
+                 }
+                 const float r = ImGui::GetFontSize() * 0.8F;
+                 float bestAbstand = -1.0F;
+                 *zugVon = mitte;
+                 for (int w = 0; w < 16; ++w) {
+                     const float wink = static_cast<float>(w) * 6.2831853F / 16.0F;
+                     const ImVec2 c{mitte.x + std::cos(wink) * r, mitte.y + std::sin(wink) * r};
+                     float minWinkel = 10.0F;
+                     for (const ImVec2& pf : pfeil) {
+                         const float cw = (std::cos(wink) * pf.x + std::sin(wink) * pf.y);
+                         minWinkel = std::min(minWinkel, std::acos(std::clamp(cw, -1.0F, 1.0F)));
+                     }
+                     if (minWinkel > bestAbstand) {
+                         bestAbstand = minWinkel;
+                         *zugVon = c;
+                     }
+                 }
                  setzeMaus(*zugVon);
                  return false;
              }
              if (b == 2) { io.AddMouseButtonEvent(0, true); return false; }
+             if (b == 3) {
+                 const int z = g_app->pickedEntity;
+                 diag::detail("Knopftest: W2 Ziehen - beim Druck: gewaehlt " +
+                              (z >= 0 ? g_app->map.entities[static_cast<std::size_t>(z)].targetname : std::string("-")) + ", unter der Maus " +
+                              (g_app->entHover >= 0 ? g_app->map.entities[static_cast<std::size_t>(g_app->entHover)].targetname : std::string("-")) +
+                              ", Zug " + (g_app->entZug.kandidat ? "ja" : "nein") + ", Gizmo-Achse " + std::to_string(g_app->gizmoAxis) +
+                              ", Griff " + std::to_string(g_app->entGizmoHover));
+             }
              if (b >= 3 && b <= 14) {
                  const float f = static_cast<float>(b - 2) / 12.0F;
                  setzeMaus(ImVec2{zugVon->x + (ziel->x - zugVon->x) * f, zugVon->y + (ziel->y - zugVon->y) * f});
@@ -517,6 +593,14 @@ std::vector<Schritt> wegpunkte2Schritte() {
         for (const int j : nb) { falsch += w2::begehbar(g_app->map.entities, n, j) ? 0 : 1; }
         int weg = 0;
         for (const int j : *vorZug) { weg += std::find(nb.begin(), nb.end(), j) == nb.end() ? 1 : 0; }
+        // Was das Ziehen bewegt hat (gegen den Stand vor dem letzten Rueckgaengig-Schritt).
+        std::string bewegt;
+        if (g_app->entUndo.size() > *tiefe && g_app->entUndo.back().size() == g_app->map.entities.size()) {
+            for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+                if (g_app->entUndo.back()[i].origin != g_app->map.entities[i].origin) { bewegt += " " + g_app->map.entities[i].targetname; }
+            }
+        }
+        diag::detail("Knopftest: W2 Ziehen - Schritte " + std::to_string(g_app->entUndo.size() - *tiefe) + ", bewegt:" + bewegt);
         diag::detail("Knopftest: W2 Ziehen - von " + *vorOrt + " nach " + g_app->map.entities[static_cast<std::size_t>(n)].origin + ", " +
                      std::to_string(weg) + " Kanten getrennt, jetzt " + std::to_string(nb.size()) + " Nachbarn, " + std::to_string(falsch) +
                      " nicht begehbar");
@@ -533,6 +617,10 @@ std::vector<Schritt> wegpunkte2Schritte() {
     add(pruefe("W2 Ziehen: Wiederholen verschiebt wieder", [=] {
         const int n = w2::indexVon(*gesetzt);
         return n >= 0 && g_app->map.entities[static_cast<std::size_t>(n)].origin != *vorOrt && g_app->entUndo.size() == *tiefe + 1;
+    }));
+    add(tu("W2 Ziehen: Fenster wieder auf, alle Wegpunkte sichtbar", [] {
+        g_app->wegFensterOffen = true;
+        g_app->hiddenEntities.clear();
     }));
 
     // --- 5. Duplizieren, Umbenennen, Kontextmenue -----------------------------------

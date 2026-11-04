@@ -1688,6 +1688,8 @@ struct App {
     int wegVon = -1;                  // verbinden: Entity des ersten Klicks
     int wegLetzter = -1;              // setzen: zuletzt gesetzter (Kette)
     float wegAbstand = 192.0F;        // Rasterweite beim Erzeugen
+    float wegAbstandGenutzt = 192.0F; // rc609 W3a: die Rasterweite des letzten Erzeugens (weiter bei mehr Punkten, als das Spiel nimmt)
+    std::vector<WegErzeugungInfo::Luecke> wegLuecken;   // rc609 W3a: Teile, die das letzte Erzeugen nicht anbinden konnte
     bool wegKlickVerbraucht = false;  // ein Werkzeugklick waehlt nichts aus
     WegNetz wegNetz;
     std::size_t wegNetzSchl = 0;      // Pruefsumme der Wegentities beim Bau
@@ -3014,6 +3016,15 @@ int wegUmbenennen(const std::string& muster);
 bool wegAuswahlVerbinden();
 // Die Spuren fuer den Netzbau der geladenen Karte (gui/app_bewegung.cpp).
 [[nodiscard]] NavBauHilfe navBauHilfeKarte();
+// rc609 W3a: die Welt der Erzeugung fuer die geladene Karte - Kollision des Spiels mit offenen Tueren, Knoten und
+// Kanten wie im Spiel (NavKantenPruefer). Lebt, solange der Zeiger lebt; die Entities duerfen sich so lange nicht aendern.
+struct WegWeltKarte {
+    NavBauHilfe hilfe;
+    NavVersetzt tueren;
+    std::unique_ptr<NavKantenPruefer> pruefer;
+    WegWelt welt;
+};
+[[nodiscard]] std::unique_ptr<WegWeltKarte> wegWeltKarte();
 // --- Draufsicht ---
 void draufsichtSchalten(bool an);
 // Fuer beide aus app_mission.cpp:

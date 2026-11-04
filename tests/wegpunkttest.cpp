@@ -1,9 +1,9 @@
 // wegpunkttest.cpp - Wegnetz lesen (wie die Engine), erzeugen, verteilen, pruefen
 //
 // Die Welt ist hier eine Handvoll Quader statt einer Karte: ein Boden, eine
-// Wand mit Durchgang, ein Podest eine Stufe hoch, ein zweites zu hoch, ein
-// Loch. Der Strahl trifft Quader wie traceRay die Dreiecke der Karte - auch
-// von innen (dort die Austrittsseite).
+// Wand mit schmaler Tuer, eine Treppe, ein Absatz zu hoch fuer eine Stufe, ein
+// Turm, ein Loch. Der Strahl trifft Quader wie traceRay die Dreiecke der Karte
+// - auch von innen (dort die Austrittsseite); die Spur mit Kasten wie gi.trace.
 #include "bhed/wegpunkte.h"
 
 #include <algorithm>
@@ -74,6 +74,66 @@ bool strahl(const std::array<float, 3>& a, const std::array<float, 3>& b, std::a
         if (ax >= 0) { n[static_cast<std::size_t>(ax)] = innen ? s1 : s0; }
     }
     return best <= 1.0F;
+}
+
+// rc609 W3a: gi.trace mit Kasten gegen die Quader: der Ursprung bewegt sich gegen die um den Kasten vergroesserten
+// Quader; die Spur endet wie CM_BoxTrace kurz vor der Flaeche (DIST_EPSILON 0.03125).
+WegSpurTreffer spur(const std::array<float, 3>& a, const std::array<float, 3>& mins, const std::array<float, 3>& maxs,
+                    const std::array<float, 3>& b) {
+    WegSpurTreffer r;
+    float best = 1.0F;
+    const std::array<float, 3> d{b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    for (const Quader& q : g_welt) {
+        std::array<float, 3> mn{};
+        std::array<float, 3> mx{};
+        bool innen = true;
+        for (std::size_t k = 0; k < 3; ++k) {
+            mn[k] = q.mn[k] - maxs[k];
+            mx[k] = q.mx[k] - mins[k];
+            innen = innen && a[k] > mn[k] && a[k] < mx[k];
+        }
+        if (innen) {
+            r.imFesten = true;
+            r.anteil = 0.0F;
+            r.ende = a;
+            return r;
+        }
+        float t0 = -1.0e9F;
+        float t1 = 1.0e9F;
+        int achse = -1;
+        float seite = 0.0F;
+        bool leer = false;
+        for (std::size_t k = 0; k < 3 && !leer; ++k) {
+            if (std::fabs(d[k]) < 1.0e-9F) {
+                leer = a[k] <= mn[k] || a[k] >= mx[k];
+                continue;
+            }
+            float u0 = (mn[k] - a[k]) / d[k];
+            float u1 = (mx[k] - a[k]) / d[k];
+            float s0 = -1.0F;
+            if (u0 > u1) {
+                std::swap(u0, u1);
+                s0 = 1.0F;
+            }
+            if (u0 > t0) {
+                t0 = u0;
+                achse = static_cast<int>(k);
+                seite = s0;
+            }
+            t1 = std::min(t1, u1);
+        }
+        if (leer || t0 >= t1 || t0 < 0.0F || t0 >= best || achse < 0) { continue; }
+        best = t0;
+        r.normale = {0.0F, 0.0F, 0.0F};
+        r.normale[static_cast<std::size_t>(achse)] = seite;
+    }
+    if (best < 1.0F) {
+        const float dn = std::fabs(d[0] * r.normale[0] + d[1] * r.normale[1] + d[2] * r.normale[2]);
+        best = std::max(0.0F, best - 0.03125F / std::max(1.0e-6F, dn));
+    }
+    r.anteil = best;
+    for (std::size_t k = 0; k < 3; ++k) { r.ende[k] = a[k] + d[k] * best; }
+    return r;
 }
 
 MapEntity ent(const std::string& klasse, const std::string& name, const std::string& ort,
@@ -150,36 +210,60 @@ int main() {
 
     // --- 2. Erzeugen ---------------------------------------------------------------
     //
-    // Boden 2000 x 2000 bei z=0, Wand bei x=300..340 mit Durchgang bei y in [200, 400],
-    // Podest +40 (eine Stufe), Turm +200 (zu hoch), Loch bei x in [-900, -700].
+    // rc609 W3a: Boden 2000 x 2000 bei z=0, Wand bei x=300..340 mit einer Tuer von 64 bei y in [233, 297] (zwischen den
+    // Rasterlinien bei 192 und 288), Treppe aus sechs Stufen von 16 (je 16 tief) auf ein Podest 96 hoch, ein Absatz
+    // +40 (hoeher als STEPSIZE 18: zu Fuss nicht erreichbar), Turm +200, Loch bei x in [-900, -700].
     g_welt.clear();
     g_welt.push_back({{-1000, -1000, -16}, {-900, 1000, 0}});
     g_welt.push_back({{-700, -1000, -16}, {1000, 1000, 0}});
-    g_welt.push_back({{300, -1000, 0}, {340, 200, 300}});
-    g_welt.push_back({{300, 400, 0}, {340, 1000, 300}});
-    g_welt.push_back({{-500, -500, 0}, {-300, -300, 40}});     // Podest
+    g_welt.push_back({{300, -1000, 0}, {340, 233, 300}});
+    g_welt.push_back({{300, 297, 0}, {340, 1000, 300}});
+    for (int i = 0; i < 6; ++i) {   // Treppe nach +y: Stufe i beginnt bei y = -400 + 16 i
+        g_welt.push_back({{-500, -400.0F + 16.0F * static_cast<float>(i), 0}, {-300, -100, 16.0F * static_cast<float>(i + 1)}});
+    }
+    g_welt.push_back({{-200, 600, 0}, {0, 800, 40}});         // Absatz +40
     g_welt.push_back({{500, -600, 0}, {700, -400, 200}});      // Turm
+    WegWelt welt;
+    welt.spur = spur;
+    // Wie das Spiel: waypoint_getRadius (16 Richtungen, Kasten 16 ab STEPSIZE ueber dem Boden) mindestens
+    // SC_MEDIUM_RADIUS 20, sonst bekommt der Punkt keine Kante.
+    welt.knoten = [](const std::array<float, 3>& o) {
+        for (int y = 0; y < 16; ++y) {
+            const float w = static_cast<float>(y) * 3.14159265F / 8.0F;
+            const WegSpurTreffer t = spur(o, {-16.0F, -16.0F, -6.0F}, {16.0F, 16.0F, 40.0F}, {o[0] + std::cos(w) * 4.0F, o[1] + std::sin(w) * 4.0F, o[2]});
+            if (t.imFesten || t.anteil < 1.0F) { return false; }
+        }
+        return true;
+    };
     WegErzeugung p;
     p.abstand = 96.0F;
-    const auto wp = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, strahl, p);
+    const auto wp = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, p);
     pruefe(wp.size() > 150U, "erzeugt: " + std::to_string(wp.size()) + " Wegpunkte");
     bool aufBoden = true;
     bool turmFrei = true;
     bool lochFrei = true;
-    bool podest = false;
-    for (const auto& w : wp) {
-        aufBoden = aufBoden && (std::fabs(w.boden[2]) < 0.5F || std::fabs(w.boden[2] - 40.0F) < 0.5F);
+    bool absatzFrei = true;
+    int treppeUnten = -1;
+    int treppeOben = -1;
+    for (std::size_t i = 0; i < wp.size(); ++i) {
+        const auto& w = wp[i];
+        const float bz = w.boden[2];
+        // an der Treppe: ihr Kasten, um Kastenbreite und Gitter (16 + 32) erweitert
+        const bool aufTreppe = w.boden[0] > -548 && w.boden[0] < -252 && w.boden[1] > -448 && w.boden[1] < -52;
+        aufBoden = aufBoden && (std::fabs(bz) < 0.5F || (aufTreppe && std::fabs(bz / 16.0F - std::round(bz / 16.0F)) < 0.05F));
         aufBoden = aufBoden && std::fabs(w.ort[2] - w.boden[2] - 25.0F) < 0.01F;
-        turmFrei = turmFrei && !(w.boden[0] > 500 && w.boden[0] < 700 && w.boden[1] > -600 && w.boden[1] < -400);
+        turmFrei = turmFrei && !(w.boden[0] > 484 && w.boden[0] < 716 && w.boden[1] > -616 && w.boden[1] < -384 && bz > 1.0F);
         lochFrei = lochFrei && !(w.boden[0] > -900 && w.boden[0] < -700);
-        podest = podest || std::fabs(w.boden[2] - 40.0F) < 0.5F;
+        absatzFrei = absatzFrei && std::fabs(bz - 40.0F) > 0.5F;
+        if (aufTreppe && std::fabs(bz) < 0.5F && treppeUnten < 0) { treppeUnten = static_cast<int>(i); }
+        if (aufTreppe && std::fabs(bz - 96.0F) < 0.5F && treppeOben < 0) { treppeOben = static_cast<int>(i); }
     }
-    pruefe(aufBoden, "jeder Wegpunkt steht auf einem Boden, origin = Boden + 25");
-    pruefe(podest, "das Podest (eine Stufe hoch) ist erreicht");
+    pruefe(aufBoden, "jeder Wegpunkt steht auf einem Boden oder einer Stufe, origin = Boden + 25");
+    pruefe(absatzFrei, "nicht auf dem Absatz +40 (hoeher als STEPSIZE)");
     pruefe(turmFrei, "nicht auf dem Turm (zu hoch)");
     pruefe(lochFrei, "nicht im Loch");
+    pruefe(treppeUnten >= 0 && treppeOben >= 0, "ein Punkt unten und einer oben an der Treppe");
     bool durchWand = false;
-    bool zuSteil = false;
     bool symmetrisch = true;
     bool jenseits = false;
     for (std::size_t i = 0; i < wp.size(); ++i) {
@@ -187,39 +271,49 @@ int main() {
         for (const int j : wp[i].nachbarn) {
             const auto& a = wp[i].boden;
             const auto& b = wp[static_cast<std::size_t>(j)].boden;
-            if (std::fabs(a[2] - b[2]) > 60.0F) { zuSteil = true; }
             if ((a[0] < 300.0F) != (b[0] < 300.0F)) {
                 const float t = (300.0F - a[0]) / (b[0] - a[0]);
                 const float y = a[1] + (b[1] - a[1]) * t;
-                if (y < 200.0F || y > 400.0F) { durchWand = true; }
+                if (y < 233.0F || y > 297.0F) { durchWand = true; }
             }
             const auto& nb = wp[static_cast<std::size_t>(j)].nachbarn;
             symmetrisch = symmetrisch && std::find(nb.begin(), nb.end(), static_cast<int>(i)) != nb.end();
         }
     }
     pruefe(!durchWand, "keine Verbindung durch die Wand");
-    pruefe(jenseits, "durch den Durchgang auf die andere Seite der Wand");
-    pruefe(!zuSteil, "keine Verbindung ueber mehr als 60 Hoehe");
+    pruefe(jenseits, "durch die schmale Tuer neben dem Raster auf die andere Seite der Wand");
     pruefe(symmetrisch, "Nachbarschaft in beide Richtungen");
-    // zusammenhaengend
+    // zusammenhaengend, und die Treppe: unten und oben ueber hoechstens zwei Kanten verbunden
     {
-        std::vector<int> stapel{0};
-        std::set<int> gesehen{0};
-        while (!stapel.empty()) {
-            const int i = stapel.back();
-            stapel.pop_back();
+        std::vector<int> tiefe(wp.size(), -1);
+        std::vector<int> schlange{0};
+        tiefe[0] = 0;
+        for (std::size_t q = 0; q < schlange.size(); ++q) {
+            const int i = schlange[q];
             for (const int j : wp[static_cast<std::size_t>(i)].nachbarn) {
-                if (gesehen.insert(j).second) { stapel.push_back(j); }
+                if (tiefe[static_cast<std::size_t>(j)] < 0) {
+                    tiefe[static_cast<std::size_t>(j)] = tiefe[static_cast<std::size_t>(i)] + 1;
+                    schlange.push_back(j);
+                }
             }
         }
-        pruefe(gesehen.size() == wp.size(), "ein zusammenhaengendes Netz");
+        pruefe(schlange.size() == wp.size(), "ein zusammenhaengendes Netz");
+        bool nah = false;
+        if (treppeUnten >= 0 && treppeOben >= 0) {
+            for (const int j : wp[static_cast<std::size_t>(treppeUnten)].nachbarn) {
+                nah = nah || j == treppeOben;
+                for (const int k : wp[static_cast<std::size_t>(j)].nachbarn) { nah = nah || k == treppeOben; }
+            }
+        }
+        pruefe(nah, "Treppe: unten und oben ueber hoechstens zwei Kanten verbunden");
     }
     p.maxKnoten = 50;
-    pruefe(erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, strahl, p).size() == 50U, "Obergrenze maxKnoten haelt");
+    const std::size_t begrenzt = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, p).size();
+    pruefe(begrenzt > 0U && begrenzt <= 50U, "Obergrenze maxKnoten haelt (" + std::to_string(begrenzt) + ")");
 
     // --- 3. Verteilen auf target..target4 -----------------------------------------
-    p.maxKnoten = 1500;
-    const auto wp2 = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, strahl, p);
+    p.maxKnoten = 1023;
+    const auto wp2 = erzeugeWegpunkte({{0.0F, 0.0F, 50.0F}}, welt, p);
     const auto ziele = verteileZiele(wp2, 4);
     std::size_t kanten = 0;
     std::size_t vergeben = 0;

@@ -14,6 +14,20 @@ NetRadiant-Menues, die englisch bleiben (tools/i18n_sprache_cs.py).
 TASTEN = {"Space": "Mezerník", "Up": "Nahoru", "Down": "Dolů", "Left": "Vlevo", "Right": "Vpravo"}
 
 TEXTE = {
+    'Generation: rooms, stairs, doors':
+        'Generování: místnosti, schodiště, dveře',
+    'A generated network on a stair (mp/duel8): one point at the bottom, one at the top, connected.':
+        'Vygenerovaná síť na schodišti (mp/duel8): jeden bod dole, jeden nahoře, spojené.',
+    'Spread waypoints over all floor an NPC can walk to.':
+        'Rozmístit body trasy po celé podlaze, kam NPC dojde.',
+    "**{{WegErzeugen}}** walks like an NPC in the game from the player start, the characters, the nav goals and the waypoints on the map: 15 units per step (an NPC running for one frame), up and down steps of at most 18 (`STEPSIZE`), on floor no steeper than the game allows (`MIN_WALK_NORMAL`), against the game's collision - clip brushes block, decoration without collision does not. So it reaches every room a figure can walk into, also through narrow doors.":
+        '**{{WegErzeugen}}** prochází jako NPC ve hře od startu hráče, postav, navigačních cílů a bodů trasy na mapě: 15 jednotek na krok (tolik NPC uběhne za jeden snímek), schody nahoru i dolů nejvýše 18 (`STEPSIZE`), po podlaze ne strmější, než hra dovolí (`MIN_WALK_NORMAL`), proti kolizím hry - clip brushe zastaví, dekorace bez kolize ne. Tak dojde do každé místnosti, kam postava může vejít, i úzkými dveřmi.',
+    'Points come on the grid of **{{WegAbstand}}**, at the top and bottom of every stair and ramp that climbs more than one step, and wherever the grid would leave a gap of more than one spacing - in doorways and small rooms. Ramps get points on the slope too.':
+        'Body přijdou do mřížky **{{WegAbstand}}**, nahoru a dolů ke každému schodišti a rampě, které stoupají víc než o jeden schod, a všude tam, kde by mřížka nechala mezeru větší než jedna rozteč - do dveří a malých místností. Rampy dostanou body i na svahu.',
+    "A connection is kept only if a figure can walk the straight line and the game's own edge test (NAV::TestEdge, in Jedi Outcast HardConnect) keeps it in both directions. Doors count as open, as the game's network build opens a door that is in the way; whether NPCs may pass it is decided while playing, as in the game.":
+        'Spojení zůstane, jen když postava dokáže projít rovnou čáru a vlastní test hran hry (NAV::TestEdge, v Jedi Outcast HardConnect) ho ponechá v obou směrech. Dveře se počítají jako otevřené, stejně jako stavba sítě ve hře otevře dveře, které stojí v cestě; zda NPC smí projít, se rozhoduje při hraní, jako ve hře.',
+    'The game takes at most 1023 waypoints. If the grid needs more, the spacing grows (up to three times **{{WegAbstand}}**) and the message says so. Roofs and ledges that can only be reached by jumping get no points; place a waypoint there and generate again.':
+        'Hra přijme nejvýše 1023 bodů trasy. Potřebuje-li mřížka víc, rozteč se zvětší (až na trojnásobek **{{WegAbstand}}**) a zpráva to oznámí. Střechy a římsy, kam se dá dostat jen skokem, body nedostanou; polož tam bod trasy a vygeneruj znovu.',
     "A turret and a misc_turretG2 fire at a figure: bolts, muzzle flash and impact like in the game.":
         "Věž a misc_turretG2 střílejí na postavu: střely, záblesk z hlavně a dopad jako ve hře.",
     "An element keeps its type: the card at the top of **{{MeReiterEigenschaften}}** only shows it. For another type, insert a new element. In the text editor you can still write anything; if a line makes the game drop the whole menu, the preview reads on, keeps all elements in place and says above the canvas which line it is.": "Prvek si ponechává typ: karta nahoře v **{{MeReiterEigenschaften}}** ho jen ukazuje. Pro jiný typ vložte nový prvek. V textovém editoru můžete dál psát cokoli; pokud kvůli řádku hra zahodí celou nabídku, náhled čte dál, nechá prvky na místě a nad plochou řekne, který řádek to je.",

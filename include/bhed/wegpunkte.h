@@ -73,15 +73,34 @@ using WegSicht = std::function<bool(const std::array<float, 3>& a, const std::ar
 
 // --- Erzeugen ----------------------------------------------------------------
 //
-// Ein Strahl in die Karte: true bei Treffer, dann Trefferpunkt und Normale.
+// Ein Strahl in die Karte: true bei Treffer, dann Trefferpunkt und Normale (fuer pruefeWegNetz).
 using WegStrahl = std::function<bool(const std::array<float, 3>& a, const std::array<float, 3>& b,
                                      std::array<float, 3>& treffer, std::array<float, 3>& normale)>;
 
+// rc609 W3a: die Welt, wie die Figuren sie sehen.
+struct WegSpurTreffer {
+    float anteil = 1.0F;          // trace.fraction
+    bool imFesten = false;        // startsolid oder allsolid
+    std::array<float, 3> ende{};  // trace.endpos
+    std::array<float, 3> normale{};
+};
+struct WegWelt {
+    // gi.trace mit Kasten gegen die Kollision des Spiels, Maske der NPCs (MASK_NPCSOLID); Tueren offen, wie die
+    // Kantenpruefung des Spiels sie oeffnet. Ohne: keine Erzeugung.
+    std::function<WegSpurTreffer(const std::array<float, 3>& a, const std::array<float, 3>& mins,
+                                 const std::array<float, 3>& maxs, const std::array<float, 3>& b)>
+        spur;
+    // Behaelt das Spiel einen waypoint mit diesem origin (SP_waypoint, NAV::SpawnedPoint)? Leer: ja.
+    std::function<bool(const std::array<float, 3>& ort)> knoten;
+    // Behaelt das Spiel die Kante (NAV::TestEdge, in Jedi Outcast HardConnect)? Leer: ja.
+    std::function<bool(const std::array<float, 3>& a, const std::array<float, 3>& b)> kante;
+};
+
 struct WegErzeugung {
     float abstand = 192.0F;     // Rasterweite (Originale: Median 226)
-    int maxKnoten = 1500;
-    float stufe = 60.0F;        // MAX_EDGE_FLOOR_DIST
-    float steilsterBoden = 0.7F;   // Normale z mindestens (etwa 45 Grad)
+    int maxKnoten = 1023;       // NUM_NODES 1024 mit dem Platzhalter [0] (graph_vs.h); der Aufrufer zieht vorhandene ab
+    // Je Startpunkt: != 0, wenn er selbst ein Wegpunkt ist - dann ist sein origin der Knoten (nicht der Boden + 25).
+    std::vector<char> startIstWegpunkt;
 };
 
 struct NeuerWegpunkt {
@@ -91,15 +110,32 @@ struct NeuerWegpunkt {
     int start = -1;                    // rc609 W1: aus diesem Startpunkt (Index), sonst -1
 };
 
-// Flutet von den Startpunkten aus ueber den begehbaren Boden: je Schritt acht
-// Richtungen im Abstand `abstand`, frei auf Knie- und Brusthoehe, Boden darunter
-// nicht steiler als `steilsterBoden`, Hoehenunterschied hoechstens `stufe`,
-// genug Kopffreiheit. Gleiche Rasterzelle und Etage = derselbe Knoten.
+// rc609 W3a: von den Startpunkten aus zu Fuss wie Pmove (Stufen bis STEPSIZE, Boden bis MIN_WALK_NORMAL) ueber
+// ein feines Gitter, dann Punkte im Abstand `abstand`, oben und unten an Treppen und Rampen und wo das Raster
+// eine Stelle nicht abdeckt; Kanten, die eine Figur gerade gehen kann und die das Spiel behaelt. Einzelheiten in
+// wegpunkte.cpp. Braucht das Raster mehr Punkte, als das Spiel nimmt (maxKnoten), wird es weiter (bis zur dreifachen
+// Rasterweite).
+struct WegErzeugungInfo {
+    float abstand = 0.0F;   // die Rasterweite, die es wurde
+    // Ketten, die nicht durchkamen (ein Teil des Netzes bleibt ohne Verbindung): der letzte Punkt, die Stelle des
+    // Laufgitters danach, und wie oft auf dem Stueck danach kein Punkt moeglich war, keine gerade Linie zu Fuss ging oder
+    // die Kantenpruefung des Spiels die Kante verwarf.
+    struct Luecke {
+        std::array<float, 3> anker{};
+        std::array<float, 3> weiter{};
+        int ohnePunkt = 0;
+        int ohneGehen = 0;
+        int ohneKante = 0;
+    };
+    std::vector<Luecke> luecken;
+};
 [[nodiscard]] std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 3>>& starts,
-                                                          const WegStrahl& strahl, const WegErzeugung& p = {});
+                                                          const WegWelt& welt, const WegErzeugung& p = {},
+                                                          WegErzeugungInfo* info = nullptr);
 
-// Die Kanten auf target..target4 verteilen: jede Kante bekommt der Endpunkt
-// mit weniger belegten Feldern (die Engine verbindet in beide Richtungen).
+// Die Kanten auf target..target4 verteilen (die Engine verbindet in beide
+// Richtungen): erst ein aufspannender Wald, damit das Netz zusammenhaengt, dann
+// die uebrigen, ein volles Ende gibt Kanten ueber eine Kette ab (rc609 W3a).
 // Ergebnis je Knoten: die Indizes, die er als target..target4 nennt.
 [[nodiscard]] std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder = 4);
 

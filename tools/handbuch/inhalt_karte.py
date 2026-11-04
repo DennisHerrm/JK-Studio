@@ -223,6 +223,45 @@ WEGPUNKTE = {
             'Das Rechtsklickmenü der Ansicht mit einem gewählten Wegpunkt: {{EntDuplicate}}, {{EntDelete}}, {{WegNachbarn}}.',
             '选中路径点时视图的右键菜单:{{EntDuplicate}}、{{EntDelete}}、{{WegNachbarn}}。',
             'ウェイポイントを選択したときのビューの右クリックメニュー: {{EntDuplicate}}、{{EntDelete}}、{{WegNachbarn}}。')),
+        ("h2", "erzeugung", T(
+            'Generation: rooms, stairs, doors',
+            'Erzeugung: Räume, Treppen, Türen',
+            '生成:房间、楼梯、门',
+            '生成: 部屋・階段・ドア')),
+        ("img", "h_weg_treppe", T(
+            'A generated network on a stair (mp/duel8): one point at the bottom, one at the top, connected.',
+            'Ein erzeugtes Netz an einer Treppe (mp/duel8): ein Punkt unten, einer oben, verbunden.',
+            '楼梯上生成的路网(mp/duel8):底部一个点,顶部一个点,二者相连。',
+            '階段で生成したネットワーク(mp/duel8): 下に 1 点、上に 1 点、つながっています。'), "breit"),
+        ("legende", [
+            (T("**{{WegErzeugen}}**"), T(
+            'Spread waypoints over all floor an NPC can walk to.',
+            'Wegpunkte über allen Boden verteilen, den ein NPC erreicht.',
+            '在 NPC 能走到的所有地面上分布路径点。',
+            'NPC が歩いて行けるすべての床にウェイポイントを置きます。')),
+        ]),
+        ("list", [
+            T(
+            "**{{WegErzeugen}}** walks like an NPC in the game from the player start, the characters, the nav goals and the waypoints on the map: 15 units per step (an NPC running for one frame), up and down steps of at most 18 (`STEPSIZE`), on floor no steeper than the game allows (`MIN_WALK_NORMAL`), against the game's collision - clip brushes block, decoration without collision does not. So it reaches every room a figure can walk into, also through narrow doors.",
+            '**{{WegErzeugen}}** läuft wie ein NPC im Spiel vom Spielerstart, den Figuren, den Laufzielen und den Wegpunkten auf der Karte aus: 15 Einheiten je Schritt (ein NPC rennt so weit in einem Bild), Stufen bis 18 hinauf und hinab (`STEPSIZE`), auf Boden, der nicht steiler ist, als das Spiel erlaubt (`MIN_WALK_NORMAL`), gegen die Kollision des Spiels - Clip-Brushes halten auf, Deko ohne Kollision nicht. So erreicht es jeden Raum, in den eine Figur gehen kann, auch durch schmale Türen.',
+            '**{{WegErzeugen}}** 会像游戏中的 NPC 一样,从玩家出生点、角色、导航目标和地图上的路径点出发行走:每步 15 单位(NPC 一帧奔跑的距离),上下台阶最高 18(`STEPSIZE`),地面坡度不超过游戏允许的范围(`MIN_WALK_NORMAL`),并使用游戏的碰撞——Clip 画刷会阻挡,没有碰撞的装饰不会。因此它能到达角色可以走进的每个房间,即使要穿过窄门。',
+            '**{{WegErzeugen}}** はゲームの NPC と同じように、プレイヤー開始位置・キャラクター・ナビゴール・マップ上のウェイポイントから歩きます。1 歩 15 ユニット(NPC が 1 フレームで走る距離)、上り下りの段差は最大 18(`STEPSIZE`)、床の傾きはゲームが許す範囲まで(`MIN_WALK_NORMAL`)、当たり判定はゲームと同じです。クリップブラシは通れず、当たり判定のない装飾は通れます。こうして、キャラクターが歩いて入れる部屋には、狭いドアの先でもすべて届きます。'),
+            T(
+            'Points come on the grid of **{{WegAbstand}}**, at the top and bottom of every stair and ramp that climbs more than one step, and wherever the grid would leave a gap of more than one spacing - in doorways and small rooms. Ramps get points on the slope too.',
+            'Punkte kommen ins Raster von **{{WegAbstand}}**, oben und unten an jede Treppe und Rampe, die mehr als eine Stufe steigt, und überall dorthin, wo das Raster eine Lücke von mehr als einem Abstand ließe - in Türen und kleine Räume. Rampen bekommen auch auf der Schräge Punkte.',
+            '路径点会放在 **{{WegAbstand}}** 的网格上、每段高于一级台阶的楼梯和坡道的顶部与底部,以及网格会留下超过一个间距空缺的地方——门口和小房间。坡道的斜面上也会有路径点。',
+            '点は **{{WegAbstand}}** のグリッド上、1 段より高く上る階段とスロープの上と下、そしてグリッドだと 1 間隔より大きな隙間ができる場所(ドアや小部屋)に置かれます。スロープの斜面にも点が置かれます。'),
+            T(
+            "A connection is kept only if a figure can walk the straight line and the game's own edge test (NAV::TestEdge, in Jedi Outcast HardConnect) keeps it in both directions. Doors count as open, as the game's network build opens a door that is in the way; whether NPCs may pass it is decided while playing, as in the game.",
+            'Eine Verbindung bleibt nur, wenn eine Figur die gerade Linie gehen kann und die Kantenprüfung des Spiels selbst (NAV::TestEdge, in Jedi Outcast HardConnect) sie in beide Richtungen behält. Türen zählen als offen, wie der Netzbau des Spiels eine Tür öffnet, die im Weg steht; ob NPCs durch dürfen, entscheidet sich beim Spielen, wie im Spiel.',
+            '只有当角色能沿直线走过、并且游戏自身的连线检查(NAV::TestEdge,Jedi Outcast 中为 HardConnect)在两个方向上都保留时,连接才会保留。门视为打开,就像游戏构建路网时会打开挡路的门;NPC 能否通过在游戏进行时决定,与游戏一致。',
+            '接続が残るのは、キャラクターがその直線を歩けて、ゲーム自身の辺チェック(NAV::TestEdge、Jedi Outcast では HardConnect)が両方向で残す場合だけです。ドアは開いているものとして扱います。ゲームのネットワーク構築も、道をふさぐドアを開けて調べます。NPC が通れるかどうかは、ゲームと同じくプレイ中に決まります。'),
+            T(
+            'The game takes at most 1023 waypoints. If the grid needs more, the spacing grows (up to three times **{{WegAbstand}}**) and the message says so. Roofs and ledges that can only be reached by jumping get no points; place a waypoint there and generate again.',
+            'Das Spiel nimmt höchstens 1023 Wegpunkte. Braucht das Raster mehr, wird der Abstand größer (bis zum Dreifachen von **{{WegAbstand}}**), und die Meldung sagt es. Dächer und Vorsprünge, die man nur springend erreicht, bekommen keine Punkte; setz dort einen Wegpunkt und erzeuge noch einmal.',
+            '游戏最多接受 1023 个路径点。如果网格需要更多,间距会增大(最多为 **{{WegAbstand}}** 的三倍),并在消息中说明。只能跳上去的屋顶和平台不会得到路径点;在那里放一个路径点再生成一次即可。',
+            'ゲームが受け付けるウェイポイントは最大 1023 個です。グリッドがそれより多く必要なら、間隔が広がり(最大で **{{WegAbstand}}** の 3 倍)、メッセージで知らせます。ジャンプでしか届かない屋根や出っ張りには点が置かれません。そこにウェイポイントを 1 つ置いて、もう一度生成してください。'),
+        ]),
         ("note", T(
             "The cutscene preview uses this network for walks exactly like the game: far targets need a path here, otherwise the figure stands still ([[figuren#wieimspiel]]). A network needs at least four waypoints. Doors on the network count while they are open; a closed door counts only if it opens by itself for NPCs.",
             "Die Szenenvorschau nutzt dieses Netz für Läufe genau wie das Spiel: ferne Ziele brauchen hier einen Weg, sonst bleibt die Figur stehen ([[figuren#wieimspiel]]). Für ein Netz braucht es mindestens vier Wegpunkte. Türen im Netz zählen, solange sie offen sind; eine geschlossene nur, wenn sie für NPCs von selbst aufgeht.",

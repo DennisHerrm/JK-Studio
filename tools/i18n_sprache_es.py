@@ -639,7 +639,6 @@ TEXTE = {
     "WegAbstand": "separación %.0f",
     "WegAbstandHint": "Distancia entre waypoints. Los niveles originales usan unos 230.",
     "WegErzeugen": "Crear red",
-    "WegErzeugenHint": "Reparte waypoints por el suelo transitable a partir del inicio del jugador, los personajes y los nav goals: no a través de paredes, no por escalones de más de 60, con espacio para un NPC. Las conexiones se escriben como target..target4, para que el juego las use. Sustituye a los creados antes; un solo paso de deshacer.",
     "WegErzeugt": "{Creado|Creados} %d {waypoint|waypoints} con %d {2:conexión|conexiones} (%.1f s)",
     "WegEntfernen": "Quitar los creados",
     "WegEntfernenHint": "Quita los waypoints que creó JK Studio (wpauto_...). Los colocados a mano se quedan.",
@@ -2999,6 +2998,8 @@ from i18n_rc609_w2b import texte as _rc609_w2b  # noqa: E402
 TEXTE.update(_rc609_w2b("es"))
 from i18n_rc609_j import texte as _rc609_j  # noqa: E402
 TEXTE.update(_rc609_j("es"))
+from i18n_rc609_w3a import texte as _rc609_w3a  # noqa: E402
+TEXTE.update(_rc609_w3a("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

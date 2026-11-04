@@ -663,7 +663,6 @@ enum class Str {
     WegAbstand,
     WegAbstandHint,
     WegErzeugen,
-    WegErzeugenHint,
     WegErzeugt,
     WegEntfernen,
     WegEntfernenHint,
@@ -3794,6 +3793,9 @@ enum class Str {
     LeWasNebel,
     LeWasFlNebel,
     LeWasText,
+    WegErzeugenTipp,
+    WegRasterWeiter,
+    WegNichtAngebunden,
     Count,
 };
 

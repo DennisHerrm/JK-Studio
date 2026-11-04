@@ -44,6 +44,7 @@
 #include <cctype>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -329,6 +330,13 @@ public:
     [[nodiscard]] NavKantenErgebnis pruefe(int von, int nach, bool sprung = false);
     // Legt das Spiel fuer die Entity einen Knoten an (nicht im Festen)?
     [[nodiscard]] bool hatKnoten(int entity);
+    // rc609 W3a (Erzeugung): dasselbe fuer einen waypoint mit diesem origin (gerundet wie
+    // ihn der Editor schreibt), gespawnt nach allen Entities der Karte - und die Kante
+    // zwischen zwei solchen (der erste traegt das target-Feld).
+    // `radius`: waypoint_getRadius (fuer TestEdge: kleiner als SC_MEDIUM_RADIUS 20 = keine Kante), sonst -1;
+    // `schwebend`: Drop To Floor And Mark Floating hat ihn als schwebend markiert (nur Kanten fuer Flieger).
+    [[nodiscard]] bool knotenAn(const NavVec& ort, float* radius = nullptr, bool* schwebend = nullptr);
+    [[nodiscard]] NavKantenErgebnis pruefeOrte(const NavVec& von, const NavVec& nach);
 
 private:
     struct Innen;

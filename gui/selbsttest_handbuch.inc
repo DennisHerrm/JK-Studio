@@ -2440,6 +2440,82 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         t.push_back(pause(0.3));
         return t;
     }
+    // rc609 W3a: das Bild des Abschnitts "Erzeugung: Innenraeume, Treppen, Tueren" (h_weg_treppe) - mp/duel8 aus
+    // den .pk3 des Spiels, ein erzeugtes Netz, der Blick auf die Treppe mit dem Punkt unten und oben.
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegerzeugung") == 0) {
+        std::vector<Schritt> t;
+        t.push_back(tu("Handbuch Erzeugung: mp/duel8 laden", [] {
+            g_app->leftMode = 1;
+            g_app->missionPickOpen = false;
+            if (!loadMapFromArchive("maps/mp/duel8.bsp")) { meldeFehler("Handbuch Erzeugung: mp/duel8 nicht geladen"); }
+        }));
+        t.push_back(warteBis("Handbuch Erzeugung: geladen", [] { return g_app->map.path == "maps/mp/duel8.bsp" && !g_app->geo.empty(); }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Erzeugung: Fenster auf, nichts gewaehlt", [] {
+            g_app->playing = false;
+            g_app->throughCamera = false;
+            g_app->cameraSelected = false;
+            g_app->selectedActor = -1;
+            entityAuswahlSetzen(-1);
+            g_app->wegFensterOffen = true;
+            g_app->zeigeWegnetz = true;
+            g_app->mapDirty = true;
+        }));
+        t.push_back(pause(0.6));
+        t.push_back(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+        t.push_back(pause(0.6));
+        t.push_back(tu("Handbuch Erzeugung: Blick auf die hoechste Treppenkante des Netzes", [] {
+            // Die Kante mit dem groessten Hoehenunterschied: unten und oben an einer Treppe.
+            std::map<std::string, std::array<float, 3>> ort;
+            for (const MapEntity& e : g_app->map.entities) {
+                float o[3];
+                if (e.targetname.rfind("wpauto_", 0) == 0 && entityOrt(e, o)) { ort[e.targetname] = {o[0], o[1], o[2]}; }
+            }
+            static const char* const kF[4] = {"target", "target2", "target3", "target4"};
+            float best = 0.0F;
+            std::array<float, 3> a{};
+            std::array<float, 3> b{};
+            for (const MapEntity& e : g_app->map.entities) {
+                const auto ia = ort.find(e.targetname);
+                if (ia == ort.end()) { continue; }
+                for (const char* f : kF) {
+                    const std::string* tz = e.find(f);
+                    const auto ib = tz != nullptr ? ort.find(*tz) : ort.end();
+                    if (ib == ort.end()) { continue; }
+                    const float dz = std::fabs(ib->second[2] - ia->second[2]);
+                    if (dz > best) {
+                        best = dz;
+                        a = ia->second;
+                        b = ib->second;
+                    }
+                }
+            }
+            if (best <= 0.0F) { return; }
+            const float ziel[3] = {(a[0] + b[0]) * 0.5F, (a[1] + b[1]) * 0.5F, (a[2] + b[2]) * 0.5F};
+            // Von der Seite auf die Kante: quer zu ihr, etwas hoeher.
+            float qx = -(b[1] - a[1]);
+            float qy = b[0] - a[0];
+            const float ql = std::max(1.0F, std::hypot(qx, qy));
+            qx /= ql;
+            qy /= ql;
+            g_app->cam.pos[0] = ziel[0] + qx * 420.0F;
+            g_app->cam.pos[1] = ziel[1] + qy * 420.0F;
+            g_app->cam.pos[2] = ziel[2] + 220.0F;
+            aimAngles(g_app->cam.pos, ziel, g_app->cam.angles);
+            g_app->mapDirty = true;
+        }));
+        t.push_back(tu("Handbuch Erzeugung: Maus aus dem Bild", [] { setzeMaus(ImVec2{4.0F, ImGui::GetIO().DisplaySize.y - 4.0F}); }));
+        t.push_back(pause(0.8));
+        hb::markiere("h_weg_treppe", [] {
+            return std::vector<hb::Marke>{hb::Marke(hb::gruppe({tr(Str::WegErzeugen)}, "###wegpunkte"), 1)};
+        });
+        t.push_back(hb::fotoTeil("h_weg_treppe", [] {
+            ImRect r = hb::karte();
+            r.Add(hb::fensterRect("###wegpunkte"));
+            return r;
+        }));
+        return t;
+    }
     // rc609 W2a: nur die Bilder des Abschnitts "Dateien dort speichern, wo sie
     // geoeffnet wurden" (Seite Missionen): das Menue "Karten und Dateien" mit den
     // neuen Befehlen und die Frage nach dem Weg fuer eine Datei aus einer .pk3 -
