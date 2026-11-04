@@ -139,6 +139,8 @@ void szeneWaehlen(int nr);
 inline constexpr int kZielKarteneditor = 5;
 // rc608 Teil 13b: das Himmelsportal (misc_skyportal) des Spielbilds im Karten-Editor.
 inline constexpr int kZielKarteneditorPortal = 6;
+// rc609 P: die Spiegel- bzw. Portalsicht des Spielbilds im Karten-Editor (wie Satz 3 der Vorschau).
+inline constexpr int kZielKarteneditorSpiegel = 7;
 
 // Eine Figur zeichnen.
 //

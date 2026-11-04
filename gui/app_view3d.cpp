@@ -26,6 +26,7 @@
 #include "bhed/gpustate.h"
 #include "bhed/gpuskin.h"
 #include "bhed/num.h"
+#include "bhed/portalsicht.h"   // rc609 P
 
 #include <chrono>
 
@@ -1539,307 +1540,26 @@ struct ShotView {
 
 bool shotAtSelection(ShotView& out);
 
-// --- Spiegel (rc593) -------------------------------------------------------
+// --- Spiegel und Portalkameras (rc593, rc609 P) ------------------------------
 //
-// R_GetPortalOrientations: eine Flaeche mit einem `portal`-Shader braucht
-// ein misc_portal_surface in der Naehe ihrer Ebene. Ohne target ist es ein
-// Spiegel (die Kamera wird an der Ebene gespiegelt); mit target zeigt es den
-// Blick einer misc_portal_camera - das ist hier (noch) nicht gebaut, die
-// Flaeche zeigt dann ihre Stufen wie bisher.
-namespace {
-struct SpiegelFlaeche {
-    float n[3]{};
-    float d = 0.0F;
-    float mitte[3]{};
-    float radius = 0.0F;
-    // Portal mit misc_portal_camera (rc593): Ort der Flaeche (surface->origin)
-    // und die Kamera aus CG_Portal.
-    bool portal = false;
-    float flOrt[3]{};
-    float kamOrt[3]{};
-    float kamAchse0[3]{};
-    float roll = 0.0F;
-    int drehTempo = 0;      // frame: 25 / 75 (spawnflags 1 / 2)
-    bool bewegt = false;    // oldframe / powerups: ohne spawnflags 4
-};
-
-// PerpendicularVector (q_math.cpp): auf die kleinste Achse projiziert.
-void senkrecht(const float src[3], float dst[3]) {
-    int pos = 0;
-    float minelem = 1.0F;
-    for (int i = 0; i < 3; ++i) {
-        if (std::fabs(src[i]) < minelem) {
-            pos = i;
-            minelem = std::fabs(src[i]);
-        }
-    }
-    float t[3] = {0.0F, 0.0F, 0.0F};
-    t[pos] = 1.0F;
-    const float nn = src[0] * src[0] + src[1] * src[1] + src[2] * src[2];
-    const float dd = (src[0] * t[0] + src[1] * t[1] + src[2] * t[2]) / (nn > 0.0F ? nn : 1.0F);
-    for (int i = 0; i < 3; ++i) { dst[i] = t[i] - dd * src[i]; }
-    const float l = std::sqrt(dst[0] * dst[0] + dst[1] * dst[1] + dst[2] * dst[2]);
-    if (l > 0.0F) { for (int i = 0; i < 3; ++i) { dst[i] /= l; } }
-}
-
-// RotatePointAroundVector: v um die Achse a (Einheit) um grad drehen.
-void drehe(const float a[3], float v[3], float grad) {
-    const float w = grad * 3.14159265F / 180.0F;
-    const float c = std::cos(w);
-    const float s = std::sin(w);
-    const float d = a[0] * v[0] + a[1] * v[1] + a[2] * v[2];
-    const float k[3] = {a[1] * v[2] - a[2] * v[1], a[2] * v[0] - a[0] * v[2], a[0] * v[1] - a[1] * v[0]};
-    for (int i = 0; i < 3; ++i) { v[i] = v[i] * c + k[i] * s + a[i] * d * (1.0F - c); }
-}
-const std::vector<SpiegelFlaeche>& spiegelKandidaten() {
-    static std::vector<SpiegelFlaeche> liste;
+// Die Wahl der Flaeche und die Lage der zweiten Sicht rechnet bhed/portalsicht (R_MirrorViewBySurface,
+// R_GetPortalOrientations, SurfIsOffscreen) - gemeinsam mit dem Karten-Editor (app_karte_spielbild.cpp und das
+// Echtzeit-Licht), die Flaechen und Schirme der .bsp app_portalsicht.cpp; hier nur der Stand der Vorschau.
+bool spiegelFuer(const Camera& cam, int breite, int hoehe, float ebene[4]) {
     static const void* geoStand = nullptr;
     static int entStand = -1;
     static std::size_t texStand = 0;
-    if (geoStand == g_app->geo.surfaces.data() && entStand == g_app->entStand &&
-        texStand == g_app->textures.byShader.size()) {
-        return liste;
+    static PortalKarte karte;
+    if (geoStand != g_app->geo.surfaces.data() || entStand != g_app->entStand || texStand != g_app->textures.byShader.size()) {
+        geoStand = g_app->geo.surfaces.data();
+        entStand = g_app->entStand;
+        texStand = g_app->textures.byShader.size();
+        karte = portalKarteAus(g_app->geo, g_app->textures, g_app->map.entities);
     }
-    geoStand = g_app->geo.surfaces.data();
-    entStand = g_app->entStand;
-    texStand = g_app->textures.byShader.size();
-    liste.clear();
-    // misc_portal_surface: ohne target ein Spiegel, mit target eine Portal-
-    // kamera (locateCamera, g_misc.cpp).
-    struct Ziel {
-        std::array<float, 3> ort{};
-        bool portal = false;
-        float kamOrt[3]{};
-        float achse0[3]{};
-        float roll = 0.0F;
-        int drehTempo = 0;
-        bool bewegt = false;
-    };
-    std::vector<Ziel> orte;
-    const auto ortVon = [](const MapEntity& e, float o[3]) {
-        return !e.origin.empty() && std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]) == 3;
-    };
-    const auto mitName = [](const std::string& n) -> const MapEntity* {
-        if (n.empty()) { return nullptr; }
-        for (const MapEntity& x : g_app->map.entities) {
-            if (engineNamenGleich(x.targetname, n)) { return &x; }   // locateCamera: G_Find
-        }
-        return nullptr;
-    };
-    for (const MapEntity& e : g_app->map.entities) {
-        if (e.classname != "misc_portal_surface") { continue; }
-        Ziel z;
-        if (!ortVon(e, z.ort.data())) { continue; }
-        if (const std::string* t = e.find("target"); t != nullptr) {
-            const MapEntity* kam = mitName(*t);
-            if (kam == nullptr || !ortVon(*kam, z.kamOrt)) { continue; }
-            z.portal = true;
-            const std::string* sf = kam->find("spawnflags");
-            const int flags = sf != nullptr ? std::atoi(sf->c_str()) : 0;
-            z.drehTempo = (flags & 1) != 0 ? 25 : ((flags & 2) != 0 ? 75 : 0);
-            z.bewegt = (flags & 4) == 0;
-            if (const std::string* r = kam->find("roll")) {
-                // clientNum = roll/360*256, skinNum = clientNum/256*360 (gekuerzt)
-                z.roll = static_cast<float>(static_cast<int>(std::atof(r->c_str()) / 360.0 * 256.0)) / 256.0F * 360.0F;
-            }
-            float dir[3] = {1.0F, 0.0F, 0.0F};
-            float zielOrt[3];
-            const MapEntity* ziel = kam->find("target") != nullptr ? mitName(*kam->find("target")) : nullptr;
-            if (ziel != nullptr && ortVon(*ziel, zielOrt)) {
-                for (int k = 0; k < 3; ++k) { dir[k] = zielOrt[k] - z.kamOrt[k]; }
-            } else {
-                // G_SetMovedir aus angle/angles
-                float ang[3] = {0.0F, 0.0F, 0.0F};
-                if (const std::string* a = kam->find("angles")) {
-                    (void)std::sscanf(a->c_str(), "%f %f %f", &ang[0], &ang[1], &ang[2]);
-                } else if (const std::string* a1 = kam->find("angle")) {
-                    ang[1] = static_cast<float>(std::atof(a1->c_str()));
-                }
-                const float pr = ang[0] * 3.14159265F / 180.0F;
-                const float yr = ang[1] * 3.14159265F / 180.0F;
-                dir[0] = std::cos(pr) * std::cos(yr);
-                dir[1] = std::cos(pr) * std::sin(yr);
-                dir[2] = -std::sin(pr);
-            }
-            const float l = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
-            if (l < 1e-6F) { continue; }
-            for (int k = 0; k < 3; ++k) { z.achse0[k] = dir[k] / l; }
-        }
-        orte.push_back(z);
-    }
-    if (orte.empty()) { return liste; }
-    for (const BspSurface& s : g_app->geo.surfaces) {
-        if ((s.type != BspSurface::Type::Planar && s.type != BspSurface::Type::TriangleSoup) || s.numVerts < 3 ||
-            s.shader < 0 || static_cast<std::size_t>(s.shader) >= g_app->textures.byShader.size() ||
-            !g_app->textures.byShader[static_cast<std::size_t>(s.shader)].istPortal) {
-            continue;
-        }
-        const BspVertex* v = &g_app->geo.verts[static_cast<std::size_t>(s.firstVert)];
-        float a[3];
-        float b[3];
-        for (int k = 0; k < 3; ++k) {
-            a[k] = v[1].xyz[k] - v[0].xyz[k];
-            b[k] = v[2].xyz[k] - v[0].xyz[k];
-        }
-        float n[3] = {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
-        const float l = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-        if (l < 1e-6F) { continue; }
-        for (float& q : n) { q /= l; }
-        // Zur sichtbaren Seite: wie die Normale der Ecke.
-        if (n[0] * v[0].normal[0] + n[1] * v[0].normal[1] + n[2] * v[0].normal[2] < 0.0F) {
-            for (float& q : n) { q = -q; }
-        }
-        const float d = n[0] * v[0].xyz[0] + n[1] * v[0].xyz[1] + n[2] * v[0].xyz[2];
-        const Ziel* naechstes = nullptr;
-        float besteAbst = 64.0F;
-        for (const Ziel& o : orte) {
-            const float abst = std::fabs(n[0] * o.ort[0] + n[1] * o.ort[1] + n[2] * o.ort[2] - d);
-            if (abst <= besteAbst) {
-                besteAbst = abst;
-                naechstes = &o;
-            }
-        }
-        if (naechstes == nullptr) { continue; }
-        SpiegelFlaeche f;
-        if (naechstes->portal) {
-            f.portal = true;
-            const float ad = n[0] * naechstes->ort[0] + n[1] * naechstes->ort[1] + n[2] * naechstes->ort[2] - d;
-            for (int k = 0; k < 3; ++k) {
-                f.flOrt[k] = naechstes->ort[k] - ad * n[k];
-                f.kamOrt[k] = naechstes->kamOrt[k];
-                f.kamAchse0[k] = naechstes->achse0[k];
-            }
-            f.roll = naechstes->roll;
-            f.drehTempo = naechstes->drehTempo;
-            f.bewegt = naechstes->bewegt;
-        }
-        float lo[3] = {1e30F, 1e30F, 1e30F};
-        float hi[3] = {-1e30F, -1e30F, -1e30F};
-        for (int q = 0; q < s.numVerts; ++q) {
-            for (int k = 0; k < 3; ++k) {
-                lo[k] = std::min(lo[k], v[q].xyz[k]);
-                hi[k] = std::max(hi[k], v[q].xyz[k]);
-            }
-        }
-        for (int k = 0; k < 3; ++k) {
-            f.n[k] = n[k];
-            f.mitte[k] = 0.5F * (lo[k] + hi[k]);
-        }
-        f.d = d;
-        f.radius = 0.5F * std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) +
-                                    (hi[2] - lo[2]) * (hi[2] - lo[2]));
-        liste.push_back(f);
-    }
-    return liste;
-}
-}  // namespace
-
-bool spiegelFuer(const Camera& cam, float ebene[4]) {
-    float vorn[3];
-    cam.forward(vorn);
-    float besteWeite = 1e30F;
-    const SpiegelFlaeche* beste = nullptr;
-    for (const SpiegelFlaeche& f : spiegelKandidaten()) {
-        // Die Kamera muss vor der Flaeche stehen ...
-        const float seite = f.n[0] * cam.pos[0] + f.n[1] * cam.pos[1] + f.n[2] * cam.pos[2] - f.d;
-        if (seite <= 1.0F) { continue; }
-        // ... und die Flaeche vor der Kamera liegen.
-        const float zu[3] = {f.mitte[0] - cam.pos[0], f.mitte[1] - cam.pos[1], f.mitte[2] - cam.pos[2]};
-        const float weite = std::sqrt(zu[0] * zu[0] + zu[1] * zu[1] + zu[2] * zu[2]);
-        if (zu[0] * vorn[0] + zu[1] * vorn[1] + zu[2] * vorn[2] < -f.radius) { continue; }
-        if (weite - f.radius < besteWeite) {
-            besteWeite = weite - f.radius;
-            beste = &f;
-        }
-    }
-    if (beste == nullptr) { return false; }
-    const SpiegelFlaeche& f = *beste;
-    for (int k = 0; k < 3; ++k) { ebene[k] = f.n[k]; }
-    ebene[3] = f.d;
-    App::NebenSicht& ns = g_app->nebenSicht;
-    ns = App::NebenSicht{};
-    if (!f.portal) {
-        // Spiegel: R = I - 2nn^T, Verschiebung 2dn; die Wicklung kehrt sich um.
-        for (int z = 0; z < 3; ++z) {
-            for (int sp = 0; sp < 3; ++sp) {
-                const float wert = (z == sp ? 1.0F : 0.0F) - 2.0F * f.n[z] * f.n[sp];
-                ns.welt[z * 4 + sp] = wert;
-                ns.achsen[z * 3 + sp] = wert;
-            }
-            ns.welt[z * 4 + 3] = 2.0F * f.d * f.n[z];
-        }
-        ns.welt[15] = 1.0F;
-        // Eine Einheit vor dem Spiegel schneiden: was genau auf der Ebene
-        // liegt (der Boden um den Spiegel), gehoert nicht ins Bild.
-        for (int k = 0; k < 3; ++k) { ns.schnitt[k] = f.n[k]; }
-        ns.schnitt[3] = -f.d - 1.0F;
-        ns.umkehren = true;
-        return true;
-    }
-    // --- Portalkamera (R_GetPortalOrientations, CG_Portal) -----------------
-    //
-    // Flaeche: Achse 0 die Normale, 1 senkrecht dazu, 2 das Kreuzprodukt.
-    // Kamera: Achse 0 zum Ziel, 1 die NEGIERTE Senkrechte ("negating this
-    // tends to get the directions like they want"), 2 das Kreuzprodukt; dann
-    // 0 und 1 umgedreht, und gegebenenfalls um Achse 0 gedreht. Die Ansicht
-    // ist M(x) = C_o + sum_i <x - S_o, S_i> C_i - hier wird die Welt mit der
-    // Umkehrung transformiert und von der echten Kamera aus gezeichnet.
-    float sa[3][3];
-    for (int k = 0; k < 3; ++k) { sa[0][k] = f.n[k]; }
-    senkrecht(sa[0], sa[1]);
-    sa[2][0] = sa[0][1] * sa[1][2] - sa[0][2] * sa[1][1];
-    sa[2][1] = sa[0][2] * sa[1][0] - sa[0][0] * sa[1][2];
-    sa[2][2] = sa[0][0] * sa[1][1] - sa[0][1] * sa[1][0];
-    float ea[3][3];
-    for (int k = 0; k < 3; ++k) { ea[0][k] = f.kamAchse0[k]; }
-    senkrecht(ea[0], ea[1]);
-    for (float& q : ea[1]) { q = -q; }
-    ea[2][0] = ea[0][1] * ea[1][2] - ea[0][2] * ea[1][1];
-    ea[2][1] = ea[0][2] * ea[1][0] - ea[0][0] * ea[1][2];
-    ea[2][2] = ea[0][0] * ea[1][1] - ea[0][1] * ea[1][0];
-    float ca[3][3];
-    for (int k = 0; k < 3; ++k) {
-        ca[0][k] = -ea[0][k];
-        ca[1][k] = -ea[1][k];
-        ca[2][k] = ea[2][k];
-    }
-    const auto neueAchse2 = [&]() {
-        ca[2][0] = ca[0][1] * ca[1][2] - ca[0][2] * ca[1][1];
-        ca[2][1] = ca[0][2] * ca[1][0] - ca[0][0] * ca[1][2];
-        ca[2][2] = ca[0][0] * ca[1][1] - ca[0][1] * ca[1][0];
-    };
-    const double t = g_app->playMs;
-    if (f.bewegt) {
-        if (f.drehTempo != 0) {
-            drehe(ca[0], ca[1], static_cast<float>(t / 1000.0 * f.drehTempo));
-        } else {
-            drehe(ca[0], ca[1], f.roll + static_cast<float>(std::sin(t * 0.003)) * 4.0F);
-        }
-        neueAchse2();
-    } else if (f.roll != 0.0F) {
-        drehe(ca[0], ca[1], f.roll);
-        neueAchse2();
-    }
-    // Umkehrung: L = sum_i S_i C_i^T, t = S_o - L C_o.
-    float lin[3][3];
-    for (int z = 0; z < 3; ++z) {
-        for (int sp = 0; sp < 3; ++sp) {
-            lin[z][sp] = sa[0][z] * ca[0][sp] + sa[1][z] * ca[1][sp] + sa[2][z] * ca[2][sp];
-        }
-    }
-    for (int z = 0; z < 3; ++z) {
-        for (int sp = 0; sp < 3; ++sp) { ns.welt[z * 4 + sp] = lin[z][sp]; }
-        ns.welt[z * 4 + 3] = f.flOrt[z] - (lin[z][0] * f.kamOrt[0] + lin[z][1] * f.kamOrt[1] + lin[z][2] * f.kamOrt[2]);
-        // Richtungen der Ansicht: M_lin(v) = sum_i <v, S_i> C_i = L^T v.
-        for (int sp = 0; sp < 3; ++sp) { ns.achsen[z * 3 + sp] = lin[sp][z]; }
-    }
-    ns.welt[15] = 1.0F;
-    // Schnittebene: vor der Portalkamera (portalPlane = -C_0).
-    const float pn[3] = {-ca[0][0], -ca[0][1], -ca[0][2]};
-    for (int k = 0; k < 3; ++k) { ns.schnitt[k] = pn[k]; }
-    ns.schnitt[3] = -(pn[0] * f.kamOrt[0] + pn[1] * f.kamOrt[1] + pn[2] * f.kamOrt[2]);
-    ns.umkehren = false;
-    ns.portal = true;
+    PortalSicht p;
+    if (!portalSichtFuer(karte, g_app->geo, g_app->areaPortale, cam, breite, hoehe, g_app->playMs, p)) { return false; }
+    for (int k = 0; k < 4; ++k) { ebene[k] = p.ebene[k]; }
+    nebenSichtAus(p, g_app->nebenSicht);
     return true;
 }
 
@@ -5959,7 +5679,7 @@ bool portalOffenImSpiel(const PortalEntity& p, const MoverSim& sim, double ms) {
 // R_MarkLeaves: das Blatt von tr.viewParms.pvsOrigin gibt Cluster (PVS) und Gebiet (areamask). Mit Blickrichtung `vorn`
 // dazu die ferne Ebene des Frustums (Endrunde rc608, fernStand: R_SetupFrustum mit distanceCull, R_RecursiveWorldNode,
 // R_CullSurface); ohne sie (nullptr) nur PVS und Gebiete.
-void areaSichtSetzen(const float ort[3], const float* vorn) {
+void areaSichtSetzen(const float ort[3], const float* vorn, const float* fernOrt) {
     App& app = *g_app;
     const int blatt = app.geo.leafAt(ort);
     const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < app.geo.leafs.size();
@@ -5971,7 +5691,7 @@ void areaSichtSetzen(const float ort[3], const float* vorn) {
             app.fernKaesten = flaechenKaesten(app.geo);
             app.fernKaestenKarte = app.map.path;
         }
-        fern = fernStand(app.geo, app.fernKaesten, fernebeneFuer(ort, vorn, kartenDistanceCull()));
+        fern = fernStand(app.geo, app.fernKaesten, fernebeneFuer(fernOrt != nullptr ? fernOrt : ort, vorn, kartenDistanceCull()));
     }
     if (gebiet == app.areaAuge && cluster == app.areaCluster && fern == app.fernZuletzt) { return; }
     app.areaAuge = gebiet;

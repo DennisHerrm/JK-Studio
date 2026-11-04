@@ -306,6 +306,10 @@ struct ShaderSkript {
     // Fund md_rev_TarisUpper2: Glas ohne "surfaceparm trans" (nur blendFunc) galt als deckend. Die erste
     // Stufe mischt (blendFunc ausser GL_ONE GL_ZERO) oder hat alphaFunc: man sieht hindurch.
     bool durchsichtig = false;
+    // rc609 P: `portal` oder `sort portal` (SS_PORTAL, Spiegel und Portalkamera) und portalRange aus alphaGen portal
+    // <Weite> einer Stufe (tr_shader.cpp ParseStage: ohne Zahl 256; ohne alphaGen portal 0)
+    bool portal = false;
+    double portalWeite = 0;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 // Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des

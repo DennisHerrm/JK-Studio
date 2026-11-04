@@ -1096,6 +1096,8 @@ struct Editor {
         std::size_t effektEcken = 0;       // Stufe 9d: Ecken des Effektnetzes im letzten Bild
         double effektMs = 0;               // Stufe 9d: Effekte im letzten Bild (Prozessor: Teilchen, Netz, Zeichenaufrufe)
         bool portal = false;               // Stufe 9d: der Himmel zeigte im letzten Bild ein misc_skyportal
+        bool spiegel = false;              // rc609 P: die Portalflaechen zeigten im letzten Bild eine Spiegel- oder Portalsicht
+        bool spiegelPortal = false;        // rc609 P: ... und es war eine misc_portal_camera
         std::size_t schattenModellDreiecke = 0;   // Stufe 9d: Dreiecke der misc_model in der Schattengeometrie
         std::size_t schattenPatchDreiecke = 0;    // rc609 L: Dreiecke der Patches in der Schattengeometrie (Netz von -light)
         // Schnell-Backen

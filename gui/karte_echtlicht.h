@@ -9,6 +9,7 @@
 
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/mathe.h"
+#include "bhed/portalsicht.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -38,6 +39,8 @@ struct SpielDarstellung {
     bool nebelFlaeche = false;   // Stufe 9d: fogParms ohne Stufe: nur der Nebel (RB_FogPass)
     bool himmel = false;         // Stufe 9d: C_SKY (surfaceparm sky, Sonne) - mit misc_skyportal zeigt sie das Portalbild
     bool eckLicht = false;       // rc608 Teil 11: C_VERTEXLIT - q3map2 gibt ihr Eckfarben mit _minvertexlight statt einer Lightmap
+    bool portal = false;         // rc609 P: sort portal (mit mindestens einer Stufe) - zeigt die Spiegel- bzw. Portalsicht unter ihren Stufen
+    float portalWeite = 0;       //   ... portalRange (alphaGen portal)
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.
@@ -79,8 +82,15 @@ struct SpielbildStand {
     int effektLaeufer = 0;     // rc608 Teil 13c: laufende fx_runner und die Ecken ihres Netzes im Hauptbild
     int effektEcken = 0;
     int portalEffektEcken = 0; // die Effekte der Portal-Entities in der Szene des Himmelsportals
+    bool spiegel = false;      // rc609 P: eine Spiegel- oder Portalsicht stand unter den Portalflaechen
+    bool portalKamera = false; //   ... und es war eine misc_portal_camera
+    float spiegelWelt[16]{};   //   ... ihre Abbildung (PortalSicht::welt) und Schnittebene
+    float spiegelSchnitt[4]{};
 };
 [[nodiscard]] SpielbildStand spielbildStand();
+// rc609 P: die Spiegel- bzw. Portalsicht der Echtzeit-Ansicht (Pinsel des Editors, misc_portal_surface des Editors - live)
+// ueber denselben Code wie Vorschau und Spielbild (bhed/portalsicht). false: keine.
+[[nodiscard]] bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtfeld, std::size_t geoStand, PortalSicht& aus);
 // rc608 Teil 12, fuer den Bildvergleich im Selbsttest: feste Shaderzeit des Spielbilds in Sekunden (< 0: die Uhr).
 void spielbildZeitFest(double sekunden);
 
