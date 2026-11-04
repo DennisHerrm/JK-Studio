@@ -62,6 +62,8 @@ add_library(bhed_core STATIC
   src/diag.cpp
   src/bsp.cpp
   src/enttext.cpp
+  # rc609 B2: Mission <-> Map, Abgleich der Entities nach dem Bau
+  src/kartemission.cpp
   src/inflate.cpp
   src/pk3.cpp
   src/pk3write.cpp
@@ -419,6 +421,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_portalsicht.cpp   # rc609 P: Spiegel und Portalkameras aus der .bsp (Vorschau und Karten-Editor)
     gui/app_mission.cpp
     gui/app_dateiort.cpp
+    gui/app_kartemission.cpp
     gui/app_enttext.cpp
     gui/app_lumpedit.cpp
     gui/app_karte_texturliste.cpp
@@ -801,6 +804,10 @@ if(BEHAVED_TESTS)
   add_executable(portalsichttest tests/portalsichttest.cpp)
   target_link_libraries(portalsichttest PRIVATE bhed_core)
   add_test(NAME portalsicht COMMAND portalsichttest)
+  # rc609 B2: Mission <-> Map, Abgleich der Entities nach dem Bau
+  add_executable(kartemissiontest tests/kartemissiontest.cpp)
+  target_link_libraries(kartemissiontest PRIVATE bhed_core)
+  add_test(NAME kartemission COMMAND kartemissiontest)
   add_executable(losedateientest tests/losedateientest.cpp)
   target_link_libraries(losedateientest PRIVATE bhed_core bhed_zlib)
   add_test(NAME losedateien COMMAND losedateientest ${CMAKE_CURRENT_BINARY_DIR})

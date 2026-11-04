@@ -1694,6 +1694,8 @@ void bspOeffnenDialog();                 // File > Open .bsp...
 void zeichneBspDialog();                 // der Dialog "Open compiled map" (jedes Bild)
 bool bspOeffnenSpiel(const std::string& pfad);   // maps/....bsp aus dem Dateisystem des Spiels
 bool bspOeffnenDatei(const std::string& pfad);   // eine .bsp von der Platte
+// rc609 B2: eine .bsp aus Bytes (Anzeige, Daten, Editor-Daten .bhed daneben oder leer) - "Karte der Mission bearbeiten"
+bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const std::string& begleitName, const std::string& begleit);
 bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (tryDecompile)
 [[nodiscard]] bool bspDialogOffen();
 [[nodiscard]] std::vector<karte::BspEintrag> bspDialogListe();

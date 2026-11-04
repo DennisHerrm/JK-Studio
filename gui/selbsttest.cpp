@@ -5634,6 +5634,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
 #include "selbsttest_texturliste.inc"   // rc609 K: Texturen der Karte - Uebersicht und Ersetzen
+#include "selbsttest_kartemission.inc"   // rc609 B2: Mission <-> Map ohne Verlust (nach handbuch: hb::fotoTeil)
 #include "selbsttest_menue.inc"      // Menue-Editor M1: jede Funktion mit Wirkungspruefung
 #include "selbsttest_mission1.inc"   // mission1: Gesicht, Gizmo beim Abspielen, Zwischenpunkt, Drehschluessel
 #include "selbsttest_pruefung3.inc"   // pruefung3: der Rest gegen das Spiel (Rumpfwinkel, Tod, Marken, Hocke, Hang)
@@ -6012,6 +6013,8 @@ void selbsttest() {
     static const bool nurTexturliste = std::strcmp(modus, "texturliste") == 0;
     // rc609 B1: Brush-Entities in fertige Karten einfuegen
     static const bool nurBspmerge = std::strcmp(modus, "bspmerge") == 0;
+    // rc609 B2: Mission <-> Map ohne Verlust
+    static const bool nurKartemission = std::strcmp(modus, "kartemission") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6160,6 +6163,8 @@ void selbsttest() {
                 a.schritte = texturlisteSchritte();
             } else if (nurBspmerge) {
                 a.schritte = bspmergeSchritte();
+            } else if (nurKartemission) {
+                a.schritte = kartemissionSchritte(false);
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission1) {

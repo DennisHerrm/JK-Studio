@@ -49,6 +49,7 @@
 #include "bhed/npcklasse.h"   // rc602
 #include "bhed/saberspuren.h"   // rc601 saber review: SpurPoly
 #include "bhed/kollision.h"     // rc601 integ: geladeneKollision
+#include "bhed/kartemission.h"  // rc609 B2: Befunde des Abgleichs
 #include "bhed/gegenstaende.h"  // rc602 kartenpruefung: Gegenstaende der Karte
 #include "bhed/timeline.h"
 #include "bhed/spuren.h"
@@ -80,6 +81,7 @@
 #include "bhed/validate.h"
 #include "imgui.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cfloat>
 #include <chrono>
@@ -3555,6 +3557,27 @@ void karteDateiLaden(const std::string& p);
 bool entDateiLaden(const std::string& p);
 // Ein Modell aus den Archiven ins Modellfenster laden (pk3-Browser, Selbsttest).
 bool oeffneModellAusArchiv(const std::string& name, std::string* fehler);
+// Bytes eines Eintrags aus einer bestimmten .pk3 (W2a; rc609 B2).
+bool ausPk3Lesen(const std::string& pk3, const std::string& eintrag, std::string& out);
+// Verlauf der Entities leeren (W2a F3: Karte frisch von der Platte; rc609 B2: nach dem Nachladen).
+void entVerlaufLeeren();
+// --- rc609 B2: Mission <-> Map ohne Verlust (gui/app_kartemission.cpp) ---------
+struct KarteMissionStand {
+    std::vector<KarteMissionBefund> befunde;      // des letzten Nachladens
+    std::array<int, 5> zusammenfassung{};         // unveraendert, geaendert, eigene angehaengt, eigene schon da, entfernt
+    bool fensterOffen = false;                    // die Liste der Bezuege
+    int nachgeladen = 0;                          // wie oft nachgeladen
+};
+[[nodiscard]] const KarteMissionStand& karteMissionStand();
+// Map-Tab, File > "Karte der Mission bearbeiten": Quelle oder .bsp der Mission oeffnen
+// und mit ihr verbinden - der Bau schreibt in ihre Datei, der Mission-Tab laedt nach.
+bool karteDerMissionBearbeiten();
+[[nodiscard]] bool karteDerMissionMoeglich();
+[[nodiscard]] std::string karteDerMissionName();
+// Aus dem Bau des Map-Tabs (app_karte_bau.cpp): Beginn (gebaute .bsp) und Ende (ok: alle Schritte 0).
+void karteMissionBauBeginnt(const std::string& karteDatei, const std::string& bsp);
+void karteMissionBauFertig(const std::string& karteDatei, bool ok);
+void drawKarteMission();
 // Selbsttest (BHED_EDITORTEST): Ruhe des Ereigniseditors und Klickpruefung
 // der Knoepfe. Einmal je Bild am Ende von draw(); ohne die Variable leer.
 void selbsttest();
