@@ -1022,6 +1022,9 @@ void todesFolgenHoehe(Scene& s, const std::shared_ptr<const NavWelt>& welt, cons
 // ps.viewheight im Stand: standheight DEFAULT_MAXS_2 40 + STANDARD_VIEWHEIGHT_OFFSET -4 (bg_pmove.cpp:5717-5728,
 // bg_public.h:52/62 OpenJK; JK2 und Movie Duels ebenso). CalcEntitySpot nimmt es, wenn es kein eyePoint gibt.
 inline constexpr float kStandAugenhoehe = 36.0F;
+// G_ClearLOS (NPC_senses.cpp:929-955 OpenJK, Movie Duels und JK2 gleich): ein Strahl mit CONTENTS_OPAQUE, durch
+// hoechstens drei Scheiben (func_glass, SVF_GLASS_BRUSH) hindurch; `ents` (Index = Entity der Spur) erkennt die Scheiben.
+[[nodiscard]] bool gClearLos(const NavSpurFn& spur, const std::vector<MapEntity>* ents, const NavVec& von, const NavVec& bis);
 
 // rc608 Teil 5: DeadThink und NPC_RemoveBody (NPC.cpp OJ/MD, JK2) nach der Schwerkraft: wann eine Leiche
 // verschwindet. `blick` liefert cg.refdef zur Zeit ms (Kamera der Szene, sonst der Spieler), false:

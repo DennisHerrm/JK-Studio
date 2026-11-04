@@ -2930,18 +2930,24 @@ void todesFolgenAnlegen(Scene& out, Actor& a, const ActorState& st, const TodLag
     }
 }
 
+// G_ClearLOS mit den Scheiben der Karte (gClearLos).
+bool sichtFrei(const NavSpurFn& spur, const MapData* karte, const NavVec& von, const NavVec& bis) {
+    return gClearLos(spur, karte != nullptr ? &karte->entities : nullptr, von, bis);
+}
+}  // namespace
+
 // G_ClearLOS (NPC_senses.cpp:929-955 OJ, MD und JK2 gleich): ein Strahl mit
 // CONTENTS_OPAQUE, durch hoechstens drei Scheiben (SVF_GLASS_BRUSH, func_glass)
 // hindurch, dann mit MASK_OPAQUE weiter.
-bool sichtFrei(const NavSpurFn& spur, const MapData* karte, const NavVec& von, const NavVec& bis) {
+bool gClearLos(const NavSpurFn& spur, const std::vector<MapEntity>* ents, const NavVec& von, const NavVec& bis) {
     if (!spur) { return true; }
     constexpr std::uint32_t kOpak = 0x00008000U;                      // CONTENTS_OPAQUE
     constexpr std::uint32_t kMaskeOpak = kOpak | 0x00020000U | 0x2U;   // MASK_OPAQUE: OPAQUE|SLIME|LAVA
     const NavVec null{0.0F, 0.0F, 0.0F};
     NavSpur tr = spur(von, null, null, bis, kNavKeineEntity, kOpak);
     for (int scheiben = 0; tr.fraction < 1.0F && scheiben < 3; ++scheiben) {
-        const MapEntity* e = karte != nullptr && tr.entity >= 0 && static_cast<std::size_t>(tr.entity) < karte->entities.size()
-                                 ? &karte->entities[static_cast<std::size_t>(tr.entity)]
+        const MapEntity* e = ents != nullptr && tr.entity >= 0 && static_cast<std::size_t>(tr.entity) < ents->size()
+                                 ? &(*ents)[static_cast<std::size_t>(tr.entity)]
                                  : nullptr;
         const std::string* kl = e != nullptr ? e->find("classname") : nullptr;
         if (kl == nullptr || !sameName(*kl, "func_glass")) { return false; }
@@ -2949,6 +2955,8 @@ bool sichtFrei(const NavSpurFn& spur, const MapData* karte, const NavVec& von, c
     }
     return tr.fraction >= 1.0F;
 }
+
+namespace {
 
 // AngleVectors, nur forward.
 NavVec vornAusWinkeln(const NavVec& w) {

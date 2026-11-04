@@ -857,25 +857,11 @@ std::shared_ptr<NavBauTeile> navBauTeile(const std::vector<MapEntity>& ents) {
     return teile;
 }
 
-// Die Welt fuer die Wege ohne Mover-Plan (alles am Spawn-Platz).
-std::shared_ptr<const NavWelt> navWeltBasis() {
-    NavWeltSpeicher& sp = navWeltSpeicher();
-    const std::uint64_t schluessel = navWeltSchluessel();
-    if (sp.basis && schluessel == sp.schluessel) {
-        return sp.basis;
-    }
-    sp.plan.reset();
-    sp.mitPlan.reset();
-    sp.karte.reset();
-    sp.brushes.reset();
-    const auto t0 = std::chrono::steady_clock::now();
-    const std::shared_ptr<NavBauTeile> teile = navBauTeile(g_app->map.entities);
-    if (!teile) {
-        // Ohne Geometrie: das Netz aus den Entities, ohne Spuren.
-        sp.basis = navWeltAusEntities(g_app->map.entities);
-        sp.schluessel = schluessel;
-        return sp.basis;
-    }
+// rc609 H2: die Welt fuer die Wege aus diesen Entities (alles am Spawn-Platz), ohne Zwischenspeicher - wie navWeltBasis
+// sie fuer die geladenen baut. nullptr ohne Geometrie; `teileAus` bekommt Kollision und Brush-Entities.
+std::shared_ptr<NavWelt> navWeltAus(const std::vector<MapEntity>& v, std::shared_ptr<NavBauTeile>* teileAus) {
+    const std::shared_ptr<NavBauTeile> teile = navBauTeile(v);
+    if (!teile) { return nullptr; }
     const std::shared_ptr<const KollisionsKarte> k = teile->k;
     const std::shared_ptr<std::vector<NavBrush>> brushes = teile->brushes;
     NavBauHilfe bau = teile->bau;
@@ -905,7 +891,7 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
         return bodenUnter(*strahl, x, y, zOben, zUnten, kNpcHalbBreite, 0.0, bodenZ);
     };
     auto ents = std::make_shared<std::vector<std::string>>();
-    for (const MapEntity& e : g_app->map.entities) { ents->push_back(e.classname); }
+    for (const MapEntity& e : v) { ents->push_back(e.classname); }
     welt->istTuer = [ents](int e) {
         return e >= 0 && e < static_cast<int>(ents->size()) && (*ents)[static_cast<std::size_t>(e)] == "func_door";
     };
@@ -926,7 +912,33 @@ std::shared_ptr<const NavWelt> navWeltBasis() {
         }
         welt->pvs = bau.pvs;
     }
-    welt->netz = baueNavNetz(g_app->map.entities, bau);
+    welt->netz = baueNavNetz(v, bau);
+    if (teileAus != nullptr) { *teileAus = teile; }
+    return welt;
+}
+
+// Die Welt fuer die Wege ohne Mover-Plan (alles am Spawn-Platz).
+std::shared_ptr<const NavWelt> navWeltBasis() {
+    NavWeltSpeicher& sp = navWeltSpeicher();
+    const std::uint64_t schluessel = navWeltSchluessel();
+    if (sp.basis && schluessel == sp.schluessel) {
+        return sp.basis;
+    }
+    sp.plan.reset();
+    sp.mitPlan.reset();
+    sp.karte.reset();
+    sp.brushes.reset();
+    const auto t0 = std::chrono::steady_clock::now();
+    std::shared_ptr<NavBauTeile> teile;
+    const std::shared_ptr<NavWelt> welt = navWeltAus(g_app->map.entities, &teile);
+    if (!welt) {
+        // Ohne Geometrie: das Netz aus den Entities, ohne Spuren.
+        sp.basis = navWeltAusEntities(g_app->map.entities);
+        sp.schluessel = schluessel;
+        return sp.basis;
+    }
+    const std::shared_ptr<const KollisionsKarte> k = teile->k;
+    const std::shared_ptr<std::vector<NavBrush>> brushes = teile->brushes;
     welt->kennung = schluessel;
     sp.basis = welt;
     sp.karte = k;
@@ -953,6 +965,8 @@ NavBauHilfe navBauHilfeKarte(const std::vector<MapEntity>& ents) {
 }
 
 std::shared_ptr<const NavWelt> navWeltSpawn() { return navWeltBasis(); }
+
+std::shared_ptr<const NavWelt> navWeltFuer(const std::vector<MapEntity>& ents) { return navWeltAus(ents, nullptr); }
 
 std::shared_ptr<const NavWelt> navWeltVorschau() {
     const std::shared_ptr<const NavWelt> basis = navWeltBasis();

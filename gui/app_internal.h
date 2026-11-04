@@ -161,6 +161,7 @@ struct DateiHerkunft {
 
 struct WegAuftrag;   // rc609 W3b: die Erzeugung im Hintergrund (gui/app_wegpunkte.cpp)
 struct WegAbdeckAuftrag;   // rc609 W4: die Abdeckung im Hintergrund (gui/app_wegpunkte.cpp)
+struct WegDeckAuftrag;   // rc609 H2: die Kampfpunkt-Vorschlaege im Hintergrund (gui/app_deckung.cpp)
 
 // Zustand der Oberflaeche. Bewusst ein einfacher Verbund - das Programm hat
 // genau ein Dokument, wie das Original.
@@ -1737,6 +1738,15 @@ struct App {
     std::shared_ptr<WegAbdeckAuftrag> wegAbdeckAuftrag;   // rechnet im Hintergrund
     WegAbdeckung wegAbdeckung;                        // das Ergebnis
     std::size_t wegAbdeckungSchl = 0;                 // fuer diese Entities und Rasterweite (0: keins)
+    // rc609 H2 (Mike: point_combat "usually behind cover"): Vorschlaege hinter Deckung (NPC_FindCombatPoint CP_CLEAR|CP_COVER).
+    std::shared_ptr<WegDeckAuftrag> wegDeckAuftrag;   // rechnet im Hintergrund
+    std::vector<WegDeckung> wegDeck;                  // die Vorschlaege (Geisterpunkte)
+    int wegDeckStand = -1;                            // entStand, fuer den sie gelten (-1: keine)
+    int wegDeckVerworfen = 0;                         // vom Spiel keinem Wegpunkt zugeordnet oder nicht erreichbar: verworfen
+    float wegDeckAbstand = 0.0F;                      // Abstand der Vorschlaege (0: Vorgabe des Regelwerks)
+    int wegDeckHoechstens = 0;                        // hoechstens so viele (0: Vorgabe aus der Zahl der Wegpunkte)
+    bool wegDeckNurBereich = false;                   // nur in den gemalten Bereichen (W3b)
+    std::string wegDeckMeldung;
     int entStand = 0;                 // zaehlt jede Entity-Aenderung (nachAenderung)
     // --- Draufsicht (rc589) ----------------------------------------------
     // Senkrecht nach unten; was hoeher liegt als draufSchnitt, schneidet die
@@ -3062,6 +3072,23 @@ bool wegRouteRechnen(const std::array<float, 3>& a, const std::array<float, 3>& 
 // rc609 W4: Abdeckung - laeuft sie gerade, und das Ergebnis passt zu den Entities?
 [[nodiscard]] bool wegAbdeckungLaeuft();
 [[nodiscard]] bool wegAbdeckungAktuell();
+// rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung (gui/app_deckung.cpp). Starten rechnet im Hintergrund (`hintergrund`
+// false: sofort); Pruefen (jedes Bild) uebernimmt das Ergebnis, wenn die Entities noch dieselben sind, und verwirft
+// Punkte, denen das Spiel keinen Wegpunkt zuordnet. Annehmen: ein Vorschlag (Index) oder alle (-1), EIN Schritt.
+bool wegDeckungStarten(bool hintergrund = true);
+void wegDeckungAbbrechen();
+[[nodiscard]] bool wegDeckungLaeuft();
+[[nodiscard]] float wegDeckungAnteil();
+void wegDeckungPruefen();
+int wegDeckungAnnehmen(int index);
+void wegDeckungVerwerfen();
+// Die Vorgaben: Abstand und Kampfpunkte je Wegpunkt, gemessen an den Originalkarten des Regelwerks.
+[[nodiscard]] float wegDeckungAbstandVorgabe();
+[[nodiscard]] int wegDeckungHoechstensVorgabe();
+void wegDeckungFenster();
+void wegDeckungZeichnen(ImDrawList* dl, float px);
+// Startpunkte der vollen Erzeugung (gui/app_wegpunkte.cpp).
+void wegStartsVoll(const std::vector<MapEntity>& v, std::vector<std::array<float, 3>>& starts, std::vector<int>& startEntity);
 // rc609 W1: Verweise (target..target4, targetJump) auf diese Namen (klein
 // geschrieben) zaehlen bzw. entfernen - ohne Rueckgaengig-Schritt.
 int verweiseZaehlen(const std::set<std::string>& namenKlein);
@@ -3585,6 +3612,8 @@ void kollisionLaden(const std::string& bsp, const std::string& karte);
 [[nodiscard]] std::shared_ptr<const NavWelt> navWeltVorschau();
 // rc609 W4: dieselbe Welt ohne Mover-Plan - die Karte, wie sie nach dem Netzbau beim Laden steht (Kampfpunkte, Testroute).
 [[nodiscard]] std::shared_ptr<const NavWelt> navWeltSpawn();
+// rc609 H2: dieselbe Welt fuer andere Entities der geladenen Karte (ohne Zwischenspeicher); nullptr ohne Geometrie.
+[[nodiscard]] std::shared_ptr<const NavWelt> navWeltFuer(const std::vector<MapEntity>& ents);
 // rc601 (bewegung, teil 3): den Stand der Mover aus der Mover-Simulation
 // (g_app->moverSim, bis endeMs) fuer die Wege uebernehmen (NavWelt::mover,
 // spurZeit). true: er hat sich geaendert - Ablauf und Szene noch einmal.

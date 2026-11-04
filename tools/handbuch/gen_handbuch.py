@@ -164,6 +164,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_w3b()})
             from i18n_rc609_w4 import zeilen_vier as _rc609_w4   # rc609 W4: Kampfpunkte, Testroute, Abdeckung
             texte.update({e[0]: e[1:] for e in _rc609_w4()})
+            from i18n_rc609_h2 import zeilen_vier as _rc609_h2   # rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung
+            texte.update({e[0]: e[1:] for e in _rc609_h2()})
             from i18n_rc609_k import zeilen_vier as _rc609_k   # rc609 K: Texturen der Karte
             texte.update({e[0]: e[1:] for e in _rc609_k()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
