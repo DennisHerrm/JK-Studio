@@ -3976,6 +3976,9 @@ enum class Str {
     MeStartAusSpielTip,
     MeStartDateiTip,
     KeAbSammelt,
+    MeOrtGespeichert,
+    MeOrtVerdeckt,
+    MeInPk3Kopie,
     Count,
 };
 

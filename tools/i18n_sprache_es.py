@@ -2723,7 +2723,7 @@ TEXTE = {
     "MePrjExport": "Exportar proyecto como pk3",
     "MePrjExportZiel": "Cambiar destino del pk3...",
     "MePrjOrdnerZeigen": "Mostrar carpeta del proyecto",
-    "MePrjLeer": "Empieza con un proyecto: lo guarda todo en una carpeta y hace una copia de tu trabajo automáticamente cada 30 segundos. O abre un menú del juego con el segundo botón de arriba.",
+    "MePrjLeer": "Empieza con un proyecto: lo guarda todo en una carpeta y hace una copia de tu trabajo automáticamente cada 30 segundos. O edita un solo menú sin proyecto con la tarjeta «Abrir menú» de abajo.",
     "MePrjGespeichert": "Proyecto guardado: %s",
     "MePrjGeoeffnet": "Proyecto %s abierto (%d {menú|menús}).",
     "MePrjFehltDatei": "El archivo de proyecto %s no existe (ya): ¿se ha movido o renombrado?",
@@ -3024,6 +3024,8 @@ from i18n_rc609_me1 import texte as _rc609_me1  # noqa: E402
 TEXTE.update(_rc609_me1("es"))
 from i18n_rc609_kemd import texte as _rc609_kemd  # noqa: E402
 TEXTE.update(_rc609_kemd("es"))
+from i18n_rc609_me2 import texte as _rc609_me2  # noqa: E402
+TEXTE.update(_rc609_me2("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf
