@@ -127,6 +127,7 @@ struct Dokument {
     int umbenennenBild = 0;
     std::string neuerName;
     int hierarchieAnker = -1;  // rc608 Teil 3a: von hier aus waehlt Umschalt+Klick einen Bereich
+    std::set<std::pair<int, int>> abgebildet;   // rc609 ME1: (Menue, Item), die bei der letzten Lesung einen Vorgaenger hatten
     int seite = 0;
     int seiteGezeigt = -1;     // welcher Reiter zuletzt offen war
     std::vector<int> auswahl;  // Items im Menue der Seite
@@ -402,6 +403,7 @@ struct Zustand {
     bool ablageAn = false, ablageWar = false;   // rc608 Punkt 11: gerade wird etwas ueber die Flaeche gezogen
     Rechteck ablageRect;
     std::function<std::string()> bildDialog;    // Selbsttest statt des Dateidialogs
+    std::function<std::string()> menueDialog;   // rc609 ME1: Selbsttest statt des Dialogs "Datei oeffnen"
     bool hierarchieRollen = false;      // rc608 Punkt 10: die Auswahl hat sich geaendert, die Liste rollt hin
     std::vector<int> hierarchieAuswahl;
     std::vector<std::string> hierarchieZeilen;   // Selbsttest: die Zeilen im letzten Bild
@@ -864,25 +866,75 @@ std::pair<int, int> elementImNeuen(const Datei& alt, const Datei& neu, int mi, i
     return ma.items.size() == mb.items.size() ? std::pair<int, int>{mn, i} : std::pair<int, int>{-1, -1};
 }
 
-void merkerNachziehen(Dokument& d, const Datei& alt) {
-    if (d.gesperrt.empty() && d.gesperrtAndere.empty() && d.verborgen.empty()) { return; }
+// rc609 ME1 (Tester: "it crashed when I deleted a button"): Was ein Element im neuen Text ist, sagt zuerst die Stelle seines
+// "itemDef": Sie wandert mit jeder Aenderung genau mit (Textpuffer::stelleSeit), auch beim Loeschen davor und bei Rueckgaengig.
+// Nur ein ersetztes oder eingebundenes Element sucht Name und Vorkommen, und nie eines, das schon seinen Vorgaenger hat.
+std::map<std::pair<int, int>, std::pair<int, int>> nachfolger(const Dokument& d, const Datei& alt, int altVersion) {
+    std::map<std::pair<int, int>, std::pair<int, int>> neu;
+    std::map<std::uint32_t, std::pair<int, int>> anStelle;
+    for (std::size_t m = 0; m < d.datei.menus.size(); ++m) {
+        const std::vector<Item>& items = d.datei.menus[m].items;
+        for (std::size_t k = 0; k < items.size(); ++k) {
+            if (items[k].kopf.datei == 0) { anStelle.emplace(items[k].anfang, std::pair<int, int>{static_cast<int>(m), static_cast<int>(k)}); }
+        }
+    }
+    std::set<std::pair<int, int>> belegt;
+    std::vector<std::pair<int, int>> offen;
+    for (std::size_t m = 0; m < alt.menus.size(); ++m) {
+        const std::vector<Item>& items = alt.menus[m].items;
+        for (std::size_t k = 0; k < items.size(); ++k) {
+            const std::pair<int, int> a{static_cast<int>(m), static_cast<int>(k)};
+            std::uint32_t off = items[k].anfang;
+            if (items[k].kopf.datei == 0 && d.puffer.stelleSeit(altVersion, off) == Textpuffer::Stelle::Da) {
+                const auto f = anStelle.find(off);
+                if (f != anStelle.end()) {
+                    neu[a] = f->second;
+                    belegt.insert(f->second);
+                    continue;
+                }
+            }
+            offen.push_back(a);
+        }
+    }
+    for (const std::pair<int, int>& a : offen) {
+        const std::pair<int, int> n = elementImNeuen(alt, d.datei, a.first, a.second);
+        if (n.first >= 0 && belegt.insert(n).second) { neu[a] = n; }
+    }
+    return neu;
+}
+
+// Schloss, Auge, Anker und Umbenennen ziehen mit ihren Elementen; was geloescht ist, verliert sie. mi: das Menue der Seite jetzt.
+void merkerNachziehen(Dokument& d, const Datei& alt, int altVersion, int altSeitenMenue, int mi) {
+    const std::map<std::pair<int, int>, std::pair<int, int>> neu = nachfolger(d, alt, altVersion);
+    d.abgebildet.clear();
+    for (const auto& [a, n] : neu) { d.abgebildet.insert(n); }
+    const auto ziel = [&neu](int m, int i) {
+        const auto f = neu.find({m, i});
+        return f != neu.end() ? f->second : std::pair<int, int>{-1, -1};
+    };
     std::map<int, std::set<int>> zu = d.gesperrtAndere;
     if (!d.gesperrt.empty()) { zu[d.gesperrtMenue] = d.gesperrt; }
     d.gesperrt.clear();
     d.gesperrtAndere.clear();
-    for (const auto& [mi, menge] : zu) {
+    for (const auto& [m, menge] : zu) {
         for (const int i : menge) {
-            const auto [mn, neu] = elementImNeuen(alt, d.datei, mi, i);
+            const auto [mn, k] = ziel(m, i);
             if (mn < 0) { continue; }
-            if (mn == d.gesperrtMenue) { d.gesperrt.insert(neu); } else { d.gesperrtAndere[mn].insert(neu); }
+            if (mn == mi) { d.gesperrt.insert(k); } else { d.gesperrtAndere[mn].insert(k); }
         }
     }
+    d.gesperrtMenue = mi;
     std::set<std::pair<int, int>> versteckt;
-    for (const auto& [mi, i] : d.verborgen) {
-        const std::pair<int, int> n = elementImNeuen(alt, d.datei, mi, i);
+    for (const auto& [m, i] : d.verborgen) {
+        const std::pair<int, int> n = ziel(m, i);
         if (n.first >= 0) { versteckt.insert(n); }
     }
     d.verborgen = std::move(versteckt);
+    const std::pair<int, int> anker = ziel(altSeitenMenue, d.hierarchieAnker);
+    d.hierarchieAnker = anker.first == mi ? anker.second : -1;
+    const std::pair<int, int> name = ziel(d.umbenennenMenu, d.umbenennen);
+    d.umbenennenMenu = name.first;
+    d.umbenennen = name.second;
 }
 
 // Die Seite zeigt ein anderes Menue: dessen Schloesser gelten
@@ -898,21 +950,24 @@ void schlossAnSeite(Dokument& d, int mi) {
     d.gesperrtMenue = mi;
 }
 
+int menuDerSeite(const Dokument& d);
+
 void neuParsen(Dokument& d) {
     if (d.geparst == d.puffer.version()) { return; }
     LeseOptionen o = leseOptionen(d.name);
+    const int altSeitenMenue = menuDerSeite(d);
+    const int altVersion = d.geparst;
     d.altStaende.push_back(std::move(d.datei));
     d.datei = lies(d.name, d.puffer.text(), o);
     d.geparst = d.puffer.version();
-    merkerNachziehen(d, d.altStaende.back());
     if (d.datei.menus.empty()) { d.seite = 0; }
     const std::vector<Seite> s = seitenImMenue(d.datei);
     d.seite = std::clamp(d.seite, 0, std::max(0, static_cast<int>(s.size()) - 1));
     // rc608: Rueckgaengig nach dem Einfuegen oder Tippen im Text-Editor kann das gewaehlte Item nehmen (war ein Absturz)
     const int mi = s.empty() ? -1 : s[static_cast<std::size_t>(d.seite)].menu;
+    merkerNachziehen(d, d.altStaende.back(), altVersion, altSeitenMenue, mi);
     const int anzahl = mi < 0 ? 0 : static_cast<int>(d.datei.menus[static_cast<std::size_t>(mi)].items.size());
     d.auswahl.erase(std::remove_if(d.auswahl.begin(), d.auswahl.end(), [anzahl](int i) { return i < 0 || i >= anzahl; }), d.auswahl.end());
-    if (d.umbenennen >= anzahl) { d.umbenennen = -1; }
 }
 
 int menuDerSeite(const Dokument& d) {
@@ -1340,12 +1395,20 @@ void paketSchrittSeit(Dokument& d, const std::map<std::string, std::string>& vor
 }
 
 // Was zu einem Rueckgaengig-Schritt gehoert: die Seite, das Paket und die Auswahl
+// Seite, Paket, Auswahl; rc609 ME1: dazu Schloss (0) und Auge (1) je (Menue, Item), damit ein geloeschtes Element sie mit Rueckgaengig wiederbekommt
 std::vector<int> anzeigeStand(const Dokument& d) {
     std::vector<int> v;
-    v.reserve(d.auswahl.size() + 2);
+    v.reserve(d.auswahl.size() + 3 + (d.gesperrt.size() + d.verborgen.size()) * 3);
     v.push_back(d.seite);
     v.push_back(d.paketStand);
+    v.push_back(static_cast<int>(d.auswahl.size()));
     v.insert(v.end(), d.auswahl.begin(), d.auswahl.end());
+    const auto merker = [&v](int art, int m, int i) { v.insert(v.end(), {art, m, i}); };
+    for (const int i : d.gesperrt) { merker(0, d.gesperrtMenue, i); }
+    for (const auto& [m, menge] : d.gesperrtAndere) {
+        for (const int i : menge) { merker(0, m, i); }
+    }
+    for (const auto& [m, i] : d.verborgen) { merker(1, m, i); }
     return v;
 }
 
@@ -3170,18 +3233,19 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         }
     }
     if (z.ziehen != Ziehen::Nichts && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-        if (z.ziehen == Ziehen::Verschieben && !z.ziehLaeuft && z.klickWahl >= 0) {
+        if (z.ziehen == Ziehen::Verschieben && !z.ziehLaeuft && z.klickWahl >= 0 && static_cast<std::size_t>(z.klickWahl) < m.items.size()) {
             d.auswahl.assign(1, z.klickWahl);
         } else if (z.ziehen == Ziehen::Verschieben && (z.zdx != 0 || z.zdy != 0)) {
             std::vector<std::pair<int, Rechteck>> neu;
             for (const int i : d.auswahl) {
+                if (static_cast<std::size_t>(i) >= m.items.size()) { continue; }
                 Rechteck r = clientRect(m, m.items[static_cast<std::size_t>(i)]);
                 r.x += z.zdx;
                 r.y += z.zdy;
                 neu.emplace_back(i, r);
             }
             setzeRects(neu);
-        } else if (z.ziehen == Ziehen::Groesse && z.ziehLaeuft) {
+        } else if (z.ziehen == Ziehen::Groesse && z.ziehLaeuft && d.auswahl.size() == 1 && static_cast<std::size_t>(d.auswahl[0]) < m.items.size()) {
             const Rechteck alt = einzel;
             Rechteck r = clientRect(m, m.items[static_cast<std::size_t>(d.auswahl[0])]);
             r.x += z.groesseNeu.x - alt.x;
@@ -5876,7 +5940,9 @@ bool ebenenSymbol(const char* id, UiIcon icon, bool an, const char* hinweis) {
 // Eine Zeile der Ebenenliste: Auge (nur Vorschau), Schloss, Name (Doppelklick =
 // umbenennen), Ziehen auf eine andere Zeile = an deren Stelle in der Reihenfolge.
 void zeichneEbene(Dokument& d, int menu, int i) {
+    if (menu < 0 || static_cast<std::size_t>(menu) >= d.datei.menus.size()) { return; }
     const Menu& me = d.datei.menus[static_cast<std::size_t>(menu)];
+    if (i < 0 || static_cast<std::size_t>(i) >= me.items.size()) { return; }   // rc609 ME1: eine Aenderung mitten in der Liste
     const Item& it = me.items[static_cast<std::size_t>(i)];
     ImGui::PushID(i);
     const bool aufSeite = menuDerSeite(d) == menu;
@@ -6514,6 +6580,13 @@ void zeichneFremdZeile(Dokument& d) {
     }
 }
 
+// "Datei oeffnen" der Leiste und des Startbildschirms
+void dateiOeffnenWaehlen() {
+    Zustand& z = Z();
+    const std::string pfad = z.menueDialog ? z.menueDialog() : platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt;*.jksmenu)|*.menu;*.txt;*.jksmenu|", "");
+    if (!pfad.empty()) { (void)oeffneDatei(pfad); }
+}
+
 void zeichneLeiste(Dokument* d) {
     Zustand& z = Z();
     zeichneProjektKnopf();   // M5b Punkt 3
@@ -6523,10 +6596,7 @@ void zeichneLeiste(Dokument* d) {
     ImGui::SameLine();
     if (leistenKnopf(tr(Str::MeMenuesatzOeffnen), UiIcon::Explorer, tr(Str::MeTipMenuesatz))) { (void)oeffneMenuesatzFuer(d); }   // M2 Punkt 3
     ImGui::SameLine();
-    if (leistenKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeDateiOeffnenHint))) {
-        const std::string pfad = platform::openFileDialog(tr(Str::MeDateiOeffnen), "Menu (*.menu;*.txt;*.jksmenu)|*.menu;*.txt;*.jksmenu|", "");
-        if (!pfad.empty()) { (void)oeffneDatei(pfad); }
-    }
+    if (leistenKnopf(tr(Str::MeDateiOeffnen), UiIcon::Oeffnen, tr(Str::MeDateiOeffnenHint))) { dateiOeffnenWaehlen(); }
     if (d != nullptr) {
         ImGui::SameLine();
         if (leistenKnopf(tr(Str::MeSpeichern), UiIcon::Speichern, tr(z.projektDatei.empty() ? Str::MeSpeichernHint : Str::MePrjSpeichernTip))) { speichernWunsch(*d, false); }
@@ -7354,6 +7424,7 @@ std::vector<std::string> eigenschaftsFelder() { return Z().felderGezeigt; }
 std::vector<std::string> weitereEintraege() { return Z().weitereEintraege; }
 
 void setzeBildDialog(std::function<std::string()> antwort) { Z().bildDialog = std::move(antwort); }
+void setzeMenueDialog(std::function<std::string()> antwort) { Z().menueDialog = std::move(antwort); }
 bool ablageRahmen(float* xywh) {
     const Zustand& z = Z();
     xywh[0] = z.ablageRect.x;
@@ -7625,10 +7696,26 @@ std::string cvarWert(const std::string& name) {
 // rc608: Rueckgaengig stellt auch Seite und Auswahl wieder her (festgehalten in anzeigeFesthalten)
 void anzeigeHolen(Dokument& d) {
     const std::vector<int>& b = d.puffer.beiwerk();
-    if (b.size() < 2) { return; }
+    if (b.size() < 3 || b[2] < 0 || b.size() < 3U + static_cast<std::size_t>(b[2])) { return; }
     d.seite = b[0];
     paketAufStand(d, b[1]);
-    d.auswahl.assign(b.begin() + 2, b.end());
+    const auto da = [&d](int m, int i) {
+        return m >= 0 && static_cast<std::size_t>(m) < d.datei.menus.size() && i >= 0 && static_cast<std::size_t>(i) < d.datei.menus[static_cast<std::size_t>(m)].items.size();
+    };
+    const int mi = menuDerSeite(d);
+    const auto ab = b.begin() + 3;
+    d.auswahl.clear();
+    for (auto it = ab; it != ab + b[2]; ++it) {
+        if (da(mi, *it)) { d.auswahl.push_back(*it); }
+    }
+    // Ein Element, das eben wiederkam (Rueckgaengig nach dem Loeschen), hat keinen Vorgaenger: Es bekommt Schloss und Auge aus dem Stand
+    for (std::size_t k = 3U + static_cast<std::size_t>(b[2]); k + 2 < b.size(); k += 3) {
+        const int art = b[k], m = b[k + 1], i = b[k + 2];
+        if (!da(m, i) || d.abgebildet.count({m, i}) != 0) { continue; }
+        if (art == 1) { d.verborgen.insert({m, i}); }
+        else if (m == d.gesperrtMenue) { d.gesperrt.insert(i); }
+        else { d.gesperrtAndere[m].insert(i); }
+    }
 }
 
 bool rueckgaengig() {
@@ -7782,6 +7869,16 @@ void loescheAuswahl() {
         (void)itemLoeschen(d->datei, mi, i, e);
     }
     d->auswahl.clear();
+    // rc609 ME1: Entf, waehrend die Maus noch zieht: Der Zug gehoerte den geloeschten Elementen und endet ohne Wirkung.
+    // Sonst las das Loslassen nach dem Skalieren d.auswahl[0] der leeren Auswahl (STL-Haertung: Abbruch, exit 127).
+    Zustand& z = Z();
+    z.ziehen = Ziehen::Nichts;
+    z.ziehLaeuft = false;
+    z.klickWahl = -1;
+    z.zdx = z.zdy = 0;
+    z.linien.clear();
+    z.gizmoArt = 0;
+    z.gizmoItem = -1;
     aendere(std::move(e));
 }
 
@@ -8099,14 +8196,37 @@ std::string letzterSatzWechsel() { return Z().satzWechsel; }
 
 void sperreItem(int item, bool sperren) {
     Dokument* d = doc();
-    if (d == nullptr) { return; }
+    if (d == nullptr || menuDerSeite(*d) != d->gesperrtMenue || item < 0) { return; }
+    if (static_cast<std::size_t>(item) >= d->datei.menus[static_cast<std::size_t>(d->gesperrtMenue)].items.size()) { return; }
     if (sperren) { d->gesperrt.insert(item); } else { d->gesperrt.erase(item); }
+}
+
+std::vector<ItemMerker> itemMerker() {
+    std::vector<ItemMerker> v;
+    const Dokument* d = doc();
+    const int mi = d != nullptr ? menuDerSeite(*d) : -1;
+    if (mi < 0) { return v; }
+    const Menu& m = d->datei.menus[static_cast<std::size_t>(mi)];
+    const bool schlossHier = d->gesperrtMenue == mi;
+    const auto andere = d->gesperrtAndere.find(mi);
+    for (std::size_t i = 0; i < m.items.size(); ++i) {
+        const int n = static_cast<int>(i);
+        ItemMerker x;
+        x.name = m.items[i].window.name;
+        x.gruppe = m.items[i].window.group;
+        x.text = m.items[i].text;
+        x.gesperrt = schlossHier ? d->gesperrt.count(n) != 0 : andere != d->gesperrtAndere.end() && andere->second.count(n) != 0;
+        x.verborgen = d->verborgen.count({mi, n}) != 0;
+        v.push_back(std::move(x));
+    }
+    return v;
 }
 
 void verbergeItem(int item, bool verbergen) {
     Dokument* d = doc();
     if (d == nullptr) { return; }
     const int mi = menuDerSeite(*d);
+    if (mi < 0 || item < 0 || static_cast<std::size_t>(item) >= d->datei.menus[static_cast<std::size_t>(mi)].items.size()) { return; }
     if (verbergen) { d->verborgen.insert({mi, item}); } else { d->verborgen.erase({mi, item}); }
 }
 

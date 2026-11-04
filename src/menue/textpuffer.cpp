@@ -46,6 +46,34 @@ void Textpuffer::setzeText(std::string text) {
     cursor.assign(1, Cursor{});
     zeilenNeu();
     ++version_;
+    wege_.clear();
+    wegeAb_ = version_;
+}
+
+void Textpuffer::wegMerken(const std::vector<Ersetzung>& e) {
+    std::vector<Spanne> w;
+    w.reserve(e.size());
+    for (const Ersetzung& x : e) { w.push_back(Spanne{x.anfang, x.ende, static_cast<std::uint32_t>(x.neu.size())}); }
+    std::sort(w.begin(), w.end(), [](const Spanne& a, const Spanne& b) { return a.anfang < b.anfang; });
+    wege_.push_back(std::move(w));
+    if (wege_.size() > 1024) {
+        wege_.erase(wege_.begin());
+        ++wegeAb_;
+    }
+}
+
+Textpuffer::Stelle Textpuffer::stelleSeit(int von, std::uint32_t& off) const {
+    if (von < wegeAb_ || von > version_) { return Stelle::Unbekannt; }
+    for (std::size_t k = static_cast<std::size_t>(von - wegeAb_); k < wege_.size(); ++k) {
+        std::int64_t v = 0;
+        for (const Spanne& x : wege_[k]) {
+            if (off < x.anfang) { break; }
+            if (off < x.ende) { return Stelle::Weg; }
+            v += static_cast<std::int64_t>(x.laenge) - static_cast<std::int64_t>(x.ende - x.anfang);
+        }
+        off = static_cast<std::uint32_t>(static_cast<std::int64_t>(off) + v);
+    }
+    return Stelle::Da;
 }
 
 void Textpuffer::zeilenNeu() {
@@ -225,7 +253,8 @@ void Textpuffer::alleVorkommen() {
 
 void Textpuffer::anwenden(std::vector<Ersetzung> e, bool tippen) {
     if (e.empty()) { return; }
-    std::sort(e.begin(), e.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang < b.anfang; });
+    // stabil: Zwei Einfuegungen an derselben Stelle behalten ihre Folge
+    std::stable_sort(e.begin(), e.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang < b.anfang; });
     Schritt s;
     s.cursorVor = cursor;
     s.tippen = tippen;
@@ -256,6 +285,7 @@ void Textpuffer::anwenden(std::vector<Ersetzung> e, bool tippen) {
         c.pos = neuePos(c.pos);
         c.anker = neuePos(c.anker);
     }
+    wegMerken(e);
     for (auto it = e.rbegin(); it != e.rend(); ++it) { text_.replace(it->anfang, it->ende - it->anfang, it->neu); }
     s.hin = std::move(e);
     s.cursorNach = cursor;
@@ -389,6 +419,7 @@ void Textpuffer::schrittOhneText() {
     s.beiwerkVor = beiwerk_;
     undo_.push_back(std::move(s));
     redo_.clear();
+    wegMerken({});
     ++version_;
 }
 
@@ -404,9 +435,11 @@ bool Textpuffer::rueckgaengig() {
     if (undo_.empty()) { return false; }
     Schritt s = std::move(undo_.back());
     undo_.pop_back();
-    std::vector<Ersetzung> z = s.zurueck;
-    std::sort(z.begin(), z.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang > b.anfang; });
-    for (const Ersetzung& x : z) { text_.replace(x.anfang, x.ende - x.anfang, x.neu); }
+    // rc609 ME1: zurueck steht aufsteigend wie hin; von hinten angewandt. Zwei geloeschte Nachbarn sind im Text danach zwei
+    // Einfuegungen an derselben Stelle: Eine Sortierung nach der Stelle vertauschte sie (Rueckgaengig nach Umschalt-Auswahl + Entf).
+    const std::vector<Ersetzung>& z = s.zurueck;
+    wegMerken(z);
+    for (auto it = z.rbegin(); it != z.rend(); ++it) { text_.replace(it->anfang, it->ende - it->anfang, it->neu); }
     cursor = s.cursorVor;
     beiwerk_ = s.beiwerkVor;
     redo_.push_back(std::move(s));
@@ -419,9 +452,9 @@ bool Textpuffer::wiederholen() {
     if (redo_.empty()) { return false; }
     Schritt s = std::move(redo_.back());
     redo_.pop_back();
-    std::vector<Ersetzung> h = s.hin;
-    std::sort(h.begin(), h.end(), [](const Ersetzung& a, const Ersetzung& b) { return a.anfang > b.anfang; });
-    for (const Ersetzung& x : h) { text_.replace(x.anfang, x.ende - x.anfang, x.neu); }
+    const std::vector<Ersetzung>& h = s.hin;   // aufsteigend, von hinten wie in anwenden
+    wegMerken(h);
+    for (auto it = h.rbegin(); it != h.rend(); ++it) { text_.replace(it->anfang, it->ende - it->anfang, it->neu); }
     cursor = s.cursorNach;
     beiwerk_ = s.beiwerkNach;
     undo_.push_back(std::move(s));

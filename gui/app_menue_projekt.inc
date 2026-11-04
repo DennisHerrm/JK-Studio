@@ -542,13 +542,26 @@ void zeichneProjektLeer() {
     ImGui::PopTextWrapPos();
     ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
 
+    // rc609 ME1 (Tester: "Most of the time, I just want to edit an existing menu and then save it"): ein vorhandenes
+    // Menue ohne Projekt, gleichrangig mit den Projekten; die Knoepfe oben in der Leiste bleiben
     const StartKarte karten[] = {
         {tr(Str::MePrjNeu), tr(Str::MeStartNeuSub), UiIcon::Neu, tr(Str::MePrjNeuTip)},
         {tr(Str::MePrjOeffnen), tr(Str::MeStartOeffnenSub), UiIcon::Oeffnen, nullptr},
+        {tr(Str::MeStartMenueOeffnen), tr(Str::MeStartMenueOeffnenSub), UiIcon::Skript, nullptr},
     };
-    const int wahl = startKarten(sp, karten, 2);
+    const int wahl = startKarten(sp, karten, 3);
     if (wahl == 0) { neuesProjektWaehlen(); }
     if (wahl == 1) { projektOeffnenWaehlen(); }
+    if (wahl == 2) { ImGui::OpenPopup("##start_menue"); }
+    if (ImGui::BeginPopup("##start_menue")) {
+        if (ImGui::MenuItem(tr(Str::MeAusSpiel))) { Z().spielListeOffen = true; }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeStartAusSpielTip)); }
+        if (ImGui::MenuItem(tr(Str::MeDateiOeffnen))) { dateiOeffnenWaehlen(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeStartDateiTip)); }
+        if (ImGui::MenuItem(tr(Str::MeMenuesatzOeffnen))) { (void)oeffneMenuesatzFuer(nullptr); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeTipMenuesatz)); }
+        ImGui::EndPopup();
+    }
     ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
 
     const StartKnopf hilfe[] = {

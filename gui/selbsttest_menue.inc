@@ -1346,7 +1346,7 @@ std::vector<Schritt> schritteTourMenue() {
 // hinaus, die Karten fassen ihre Texte. Was ganz im Bild steht, kommt in `gesehen`.
 void startPruefen(std::set<std::string>& gesehen, std::string& bericht) {
     const char* const fenster = "##menuestart";
-    for (const Str k : {Str::MePrjSp, Str::MePrjMp, Str::MePrjNeu, Str::MePrjOeffnen, Str::EmptyShowHow, Str::MeStartHandbuch}) {
+    for (const Str k : {Str::MePrjSp, Str::MePrjMp, Str::MePrjNeu, Str::MePrjOeffnen, Str::MeStartMenueOeffnen, Str::EmptyShowHow, Str::MeStartHandbuch}) {
         const Element* e = finde(tr(k), fenster, 0, false);
         if (e == nullptr) { continue; }
         if (e->rect.Min.x < e->clip.Min.x - 0.5F || e->rect.Max.x > e->clip.Max.x + 0.5F) { bericht += std::string(" ragt hinaus: ") + tr(k); }
@@ -1354,7 +1354,7 @@ void startPruefen(std::set<std::string>& gesehen, std::string& bericht) {
         // in Schritten trifft dann die eine Stellung nicht, in der sie ganz zu sehen ist.
         if (ganzSichtbar(*e) || e->rect.GetHeight() + ImGui::GetFontSize() > e->clip.GetHeight()) { gesehen.insert(tr(k)); }
     }
-    const std::pair<Str, Str> karten[] = {{Str::MePrjNeu, Str::MeStartNeuSub}, {Str::MePrjOeffnen, Str::MeStartOeffnenSub}};
+    const std::pair<Str, Str> karten[] = {{Str::MePrjNeu, Str::MeStartNeuSub}, {Str::MePrjOeffnen, Str::MeStartOeffnenSub}, {Str::MeStartMenueOeffnen, Str::MeStartMenueOeffnenSub}};
     for (const auto& [titel, unter] : karten) {
         const Element* e = finde(tr(titel), fenster, 0, false);
         if (e != nullptr && e->rect.GetHeight() + 0.5F < startKarteHoehe(tr(titel), tr(unter), e->rect.GetWidth())) {
@@ -1393,8 +1393,8 @@ Schritt startAbtasten(const std::string& name) {
                     return false;
                 }
                 ImGui::SetScrollY(w, 0.0F);
-                const bool gut = gesehen->size() == 6U && bericht->empty();
-                if (!gut) { diag::detail("Knopftest: Start " + name + ": " + std::to_string(gesehen->size()) + " von 6 ganz im Bild" + *bericht); }
+                const bool gut = gesehen->size() == 7U && bericht->empty();
+                if (!gut) { diag::detail("Knopftest: Start " + name + ": " + std::to_string(gesehen->size()) + " von 7 ganz im Bild" + *bericht); }
                 pruefeWahr(gut, text);
                 return true;
             }};
@@ -2977,6 +2977,7 @@ std::vector<Schritt> schritteM6() {
 #include "selbsttest_menue_rc608.inc"   // rc608 Teil 2
 #include "selbsttest_menue_leiste.inc"  // rc608 Teil 3a
 #include "selbsttest_menue_pruefung.inc"  // rc608 Teil 3b
+#include "selbsttest_menue_loeschen.inc"  // rc609 ME1
 
 std::vector<Schritt> schritte() {
     // Mehrere Teile hintereinander: BHED_MENUE_NUR=a+b
@@ -3271,6 +3272,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=ziehen: nur Auswaehlen und Ziehen auf der Flaeche (rc608)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "ziehen") == 0) {
         for (auto& x : schritteZiehen()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=startoeffnen: Menue oeffnen auf dem Startbildschirm (rc609 ME1, auch die Handbuchbilder)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "startoeffnen") == 0) {
+        for (auto& x : schritteStartMenue()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

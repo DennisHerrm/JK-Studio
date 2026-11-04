@@ -42,6 +42,25 @@ int main() {
         pruefe(b.wiederholen() && ist({0, 5}), "Beiwerk: Wiederholen bringt den Stand nach dem Schritt");
         pruefe(b.wiederholen() && ist({1, 7}) && b.text() == "XYc", "Beiwerk: zweites Wiederholen ebenso");
     }
+    {   // rc609 ME1: zwei geloeschte Nachbarn kommen mit Rueckgaengig in ihrer Folge zurueck; Stellen wandern mit
+        Textpuffer b("A1B2C3");
+        b.ersetzeViele({Ersetzung{2, 4, ""}, Ersetzung{4, 6, ""}});
+        pruefe(b.text() == "A1", "Nachbarn: geloescht");
+        pruefe(b.rueckgaengig() && b.text() == "A1B2C3", "Nachbarn: Rueckgaengig in der alten Folge");
+        pruefe(b.wiederholen() && b.text() == "A1", "Nachbarn: Wiederholen");
+        Textpuffer c("x itemDef a itemDef b itemDef c");
+        const int w0 = c.version();
+        c.ersetze(2, 12, "");   // das erste itemDef weg
+        std::uint32_t erstes = 2, zweites = 12, drittes = 22;
+        pruefe(c.stelleSeit(w0, erstes) == Textpuffer::Stelle::Weg, "Stelle: das geloeschte ist weg");
+        pruefe(c.stelleSeit(w0, zweites) == Textpuffer::Stelle::Da && zweites == 2 && c.stelleSeit(w0, drittes) == Textpuffer::Stelle::Da && drittes == 12,
+               "Stelle: die folgenden ruecken nach vorn");
+        const int w1 = c.version();
+        std::uint32_t nachher = 2;
+        pruefe(c.rueckgaengig() && c.stelleSeit(w1, nachher) == Textpuffer::Stelle::Da && nachher == 12, "Stelle: Rueckgaengig schiebt zurueck");
+        std::uint32_t frueh = 0;
+        pruefe(c.stelleSeit(w0 - 1, frueh) == Textpuffer::Stelle::Unbekannt, "Stelle: vor setzeText unbekannt");
+    }
     // Mehrfachcursor tippen
     p.einCursor(p.off(Pos{5, 2}));
     p.cursorDazu(p.off(Pos{2, 1}));

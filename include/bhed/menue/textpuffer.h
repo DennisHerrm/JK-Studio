@@ -100,6 +100,11 @@ public:
     void schrittOhneText();
     [[nodiscard]] const std::vector<int>& beiwerk() const noexcept { return beiwerk_; }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !redo_.empty(); }
+    // rc609 ME1: Wohin ist eine Stelle aus dem Text der Version `von` seither gewandert (ueber alle Schritte,
+    // auch Rueckgaengig und Wiederholen)? Weg: sie lag in einer ersetzten Spanne. Unbekannt: der Verlauf reicht
+    // nicht so weit zurueck (setzeText, sehr viele Schritte).
+    enum class Stelle { Da, Weg, Unbekannt };
+    [[nodiscard]] Stelle stelleSeit(int von, std::uint32_t& off) const;
 
     // --- Suchen -------------------------------------------------------------
     // Treffer im ganzen Text; bei ungueltigem Regex leer und fehler gesetzt.
@@ -124,8 +129,15 @@ private:
         std::vector<int> beiwerkVor, beiwerkNach;
         bool nachOffen = true;   // beiwerkNach kommt mit dem naechsten festhalten
     };
+    // rc609 ME1: die Spannen eines Schritts im Text davor, aufsteigend: [anfang, ende) wurde zu `laenge` Zeichen
+    struct Spanne {
+        std::uint32_t anfang = 0, ende = 0, laenge = 0;
+    };
     void zeilenNeu();
     void anwenden(std::vector<Ersetzung> e, bool tippen);
+    void wegMerken(const std::vector<Ersetzung>& e);   // vor ++version_: was die naechste Version aendert
+    std::vector<std::vector<Spanne>> wege_;   // wege_[k] fuehrt von Version wegeAb_ + k zur naechsten
+    int wegeAb_ = 0;
     std::string text_;
     std::vector<std::uint32_t> anfang_;
     std::vector<int> beiwerk_;

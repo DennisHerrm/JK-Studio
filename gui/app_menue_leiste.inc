@@ -516,8 +516,9 @@ void lsKartenSymbol(Ls s) {
 // Neuer Name: die Schritte, die auf das Element zeigen, ziehen mit, und die Layouts ebenso; ein Undo-Schritt
 void nameSetzen(Dokument& d, int menu, int i, const std::string& utf8) {
     const std::string neu = utf8ZuLatin1(utf8.c_str());
-    if (neu.empty()) { return; }
+    if (neu.empty() || menu < 0 || static_cast<std::size_t>(menu) >= d.datei.menus.size()) { return; }
     const Menu& m = d.datei.menus[static_cast<std::size_t>(menu)];
+    if (i < 0 || static_cast<std::size_t>(i) >= m.items.size()) { return; }   // rc609 ME1: das Element ist inzwischen geloescht
     const std::string alt = m.items[static_cast<std::size_t>(i)].window.name;
     if (neu == alt) { return; }
     std::vector<Ersetzung> e;
