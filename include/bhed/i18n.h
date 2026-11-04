@@ -3831,6 +3831,13 @@ enum class Str {
     WegAnschliessenHint,
     WegSprungkanten,
     WegSprungkantenHint,
+    KeBmEinfuegen,
+    KeBmEinfuegenTip,
+    KeBmEinfuegenKeine,
+    KeBmEinfuegenGeaendert,
+    KeBmEinfuegenFertig,
+    KeBmEinfuegenPunkte,
+    KeBmEinfuegenFehler,
     Count,
 };
 

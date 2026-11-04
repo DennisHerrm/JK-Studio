@@ -2234,6 +2234,8 @@ from i18n_rc609_w3a import zeilen_vier as _rc609_w3a  # noqa: E402  (rc609 W3a: 
 S += _rc609_w3a()
 from i18n_rc609_w3b import zeilen_vier as _rc609_w3b  # noqa: E402  (rc609 W3b: Bereich und Pfad malen, Startpunkt, Sprungkanten)
 S += _rc609_w3b()
+from i18n_rc609_b1 import zeilen_vier as _rc609_b1  # noqa: E402  (rc609 B1: Brush-Entities in fertige Karten einfuegen)
+S += _rc609_b1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

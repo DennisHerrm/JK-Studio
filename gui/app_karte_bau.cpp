@@ -280,6 +280,13 @@ void bauMenueEintraegeZeichnen() {
     n.aktiv = bspNurEntitaetenMoeglich() && !bauLaeuft();
     n.tooltip = bspNurEntitaetenMoeglich() ? trK(Str::KeBmNurEntitiesTip) : trK(Str::KeBmNurEntitiesAus);
     if (qtPunkt(n)) { bspNurEntitaeten(); }
+    // rc609 B1 (eigene Funktion): neue unsichtbare Brush-Entities als neue *N in die geoeffnete .bsp
+    const std::string einf = std::string(trK(Str::KeBmEinfuegen)) + "##baueinfuegen";
+    QtPunkt ein;
+    ein.id = einf.c_str();
+    ein.aktiv = bspNurEntitaetenMoeglich() && !bauLaeuft();
+    ein.tooltip = bspNurEntitaetenMoeglich() ? trK(Str::KeBmEinfuegenTip) : trK(Str::KeBmNurEntitiesAus);
+    if (qtPunkt(ein)) { bspInFertigeKarte(); }
     // Stufe 5 (Abweichung, eigene Funktion - NRC hat keinen Optimierer): die
     // Grenzen von JKA / JK2 / Movie Duels zaehlen, Bauprobleme finden und beheben
     const std::string opt = std::string(trK(Str::KeOptMenue)) + "##bauoptimierer";

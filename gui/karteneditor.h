@@ -127,6 +127,8 @@ struct BspHerkunft {
     std::string ordner;              // <Einstellungen>/karte_bsp/<stamm>
     std::string stamm;
     std::uint64_t fingerabdruck = 0; // karte::geometrieFingerabdruck nach dem Laden
+    std::vector<std::uint64_t> pinselAbdruecke;   // rc609 B1: karte::pinselAbdruecke der Brush-Entities der .bsp
+    std::vector<std::uint64_t> punktAbdruecke;    // rc609 B1: karte::punktAbdruecke der Punkt-Entities der .bsp
 };
 
 // Stufe 4 Punkt 3: bobToolz (contrib/bobtoolz). Die Dialoge (dialogs-gtk.cpp)
@@ -627,6 +629,8 @@ struct Editor {
     // Stufe 4: die offene Karte kam aus einer .bsp (File > Open .bsp...)
     BspHerkunft bspHerkunft;
     std::string bspNurEntitaetenFertig;   // Selbsttest: zuletzt mit -onlyents geschriebene .bsp
+    std::string bspEinfuegenFertig;                // rc609 B1, Selbsttest: "*N *M" nach "In fertige Karte einfuegen"
+    std::vector<std::string> bspEinfuegenMeldungen;   // rc609 B1: "fehler|warnung <pruefung> <text>" des letzten Einfuegens
     // Stufe 4 Punkt 3: die Plugins
     BobToolzZustand bob;
     BrushExportZustand brushExport;
@@ -1684,6 +1688,10 @@ bool bspImportieren(const std::string& pfad);    // File > Import... mit .bsp (t
 [[nodiscard]] bool bspNurEntitaetenMoeglich();   // eine .bsp ist offen
 [[nodiscard]] bool bspGeometrieGeaendert();      // Fingerabdruck anders als beim Oeffnen
 void bspNurEntitaeten();
+// rc609 B1: neue Brush-Entities (Trigger, func_usable mit nodraw, origin-Brushes) als neue *N in die
+// geoeffnete fertige Karte (Teil-Compile mit q3map2 -bsp, karte::bspModelleAnhaengen, Speichern wie J)
+[[nodiscard]] int bspNeuePinselEntitaeten();   // wie viele Brush-Entities seit dem Oeffnen neu sind
+void bspInFertigeKarte();
 // rc609 J: die geoeffnete .bsp fuer das Fenster "Shader und Flaechen" (app_lumpedit.cpp)
 void lumpDokPruefen();
 [[nodiscard]] std::string browserShader();   // TextureBrowser_GetSelectedShader

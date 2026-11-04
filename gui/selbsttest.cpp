@@ -5638,6 +5638,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_geschuetze.inc"   // geschuetze: Sentry und Turm mit Feind und Schaden (rc608)
 #include "selbsttest_wegerzeugung.inc"   // rc609 W3a: Erzeugung in Innenraeumen und auf Treppen
 #include "selbsttest_wegmalen.inc"   // rc609 W3b: Bereich und Pfad malen, Startpunkt per Klick
+#include "selbsttest_bspmerge.inc"   // rc609 B1: Brush-Entities in fertige Karten einfuegen
 #include "selbsttest_figurlicht.inc"   // figurlicht: Lichtgitter gegen r_debuglight im Spiel (rc608)
 #include "selbsttest_teil6.inc"       // teil6: Portale und Schmerz (rc608)
 #include "selbsttest_teil9.inc"       // teil9: Spieler in Cutscenes, Licht der Modelle (rc608)
@@ -5995,6 +5996,8 @@ void selbsttest() {
     static const bool nurEnttext = std::strcmp(modus, "enttext") == 0;
     // rc609 J: Shader, Nebel und Flaechen fertiger Karten
     static const bool nurLumpedit = std::strcmp(modus, "lumpedit") == 0;
+    // rc609 B1: Brush-Entities in fertige Karten einfuegen
+    static const bool nurBspmerge = std::strcmp(modus, "bspmerge") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6132,6 +6135,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurLumpedit) {
                 a.schritte = lumpeditSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurBspmerge) {
+                a.schritte = bspmergeSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission1) {

@@ -1053,6 +1053,11 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_zusammen.py
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:kartezusammen> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
                        ${CMAKE_CURRENT_BINARY_DIR}/q3map2_zusammen)
+      # rc609 B1: Brush-Entities in fertige Karten einfuegen - Teil-Compile, Untermodelle anhaengen, Welt Byte-gleich
+      add_test(NAME bspmerge
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/bspmerge_test.py
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:bspmergetest> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
+                       ${CMAKE_CURRENT_BINARY_DIR}/bspmerge)
       add_test(NAME q3map2_vergleich
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vergleich.py pruefen
                        $<TARGET_FILE:bhed_q3map2> ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
@@ -1168,6 +1173,8 @@ target_sources(bhed_core PRIVATE
   src/karte/bspoeffnen.cpp
   # rc609 J: Shader-, Fog- und Flaechen-Lump fertiger Karten
   src/karte/bsplumps.cpp
+  # rc609 B1: Brush-Entities in fertige Karten einfuegen (Teil-Compile und BSP-Merge)
+  src/karte/bspmerge.cpp
   # Stufe 4 Punkt 3: das Plugin bobToolz (contrib/bobtoolz) ohne Oberflaeche
   src/karte/bobtoolz_d.cpp
   src/karte/bobtoolz.cpp
@@ -1580,6 +1587,9 @@ if(BEHAVED_TESTS)
   # Stufe 8a Punkt 5c: Zur fertigen Karte hinzufuegen (Pruefungen, Kollision; gerufen von tools/karte/q3map2_zusammen.py)
   add_executable(kartezusammen tests/kartezusammen.cpp)
   target_link_libraries(kartezusammen PRIVATE bhed_core)
+  # rc609 B1: Brush-Entities in fertige Karten einfuegen (gerufen von tools/karte/bspmerge_test.py)
+  add_executable(bspmergetest tests/bspmergetest.cpp)
+  target_link_libraries(bspmergetest PRIVATE bhed_core)
   # Stufe 8a Punkt 4: Lichter schaetzen (raum_licht.bsp; mit Argumenten: Messung)
   add_executable(kartelichtschaetzung tests/kartelichtschaetzung.cpp)
   target_link_libraries(kartelichtschaetzung PRIVATE bhed_core)
