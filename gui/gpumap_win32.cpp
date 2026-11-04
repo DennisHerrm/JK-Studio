@@ -59,6 +59,7 @@
 #include <vector>
 
 #include "backend.h"
+#include "bemalt.h"   // rc609 T1: was bemalt wurde (Leerlauf je Fenster)
 #include "bhed/gpuconst.h"
 #include "bhed/gpudraw.h"
 #include "bhed/gpushader.h"
@@ -1207,7 +1208,7 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
         return nullptr;
     }
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, nullptr, &srv);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
     tex->Release();
     return srv;
 }
@@ -1301,7 +1302,7 @@ ID3D11ShaderResourceView* holeLightmap(const BspGeometry* geo, int platz) {
         return nullptr;
     }
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, nullptr, &srv);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
     tex->Release();
     g_lightmaps[platz] = srv;
     g_lightmapStandGpu[platz] = stand;
@@ -1807,7 +1808,7 @@ ID3D11ShaderResourceView* holeHimmel(const TextureSet* textures,
         return nullptr;
     }
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, nullptr, &srv);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
     tex->Release();
     if (srv == nullptr) {
         return nullptr;
@@ -1940,7 +1941,7 @@ ID3D11ShaderResourceView* holeErsatzBild() {
     if (FAILED(d->CreateTexture2D(&td, &sd, &tex)) || tex == nullptr) {
         return nullptr;
     }
-    d->CreateShaderResourceView(tex, nullptr, &g_ersatzBild);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &g_ersatzBild);
     tex->Release();
     return g_ersatzBild;
 }
@@ -2173,7 +2174,7 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
             return false;
         }
         return SUCCEEDED(d->CreateRenderTargetView(*tex, nullptr, rtv)) &&
-               SUCCEEDED(d->CreateShaderResourceView(*tex, nullptr, srv));
+               SUCCEEDED(::bhed::render::sichtAnlegen(d, *tex, nullptr, srv));
     };
     if (g_zielProben > 1) {
         D3D11_TEXTURE2D_DESC td{};
@@ -2191,7 +2192,7 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
         if (FAILED(d->CreateTexture2D(&td, nullptr, &g_glowVollTex)) ||
             FAILED(d->CreateRenderTargetView(g_glowVollTex, nullptr, &g_glowVollRtv)) ||
             FAILED(d->CreateTexture2D(&ad, nullptr, &g_glowVollAufTex)) ||
-            FAILED(d->CreateShaderResourceView(g_glowVollAufTex, nullptr, &g_glowVollSrv))) {
+            FAILED(::bhed::render::sichtAnlegen(d, g_glowVollAufTex, nullptr, &g_glowVollSrv))) {
             return false;
         }
     } else if (!lege(g_zielW, g_zielH, &g_glowVollTex, &g_glowVollRtv, &g_glowVollSrv)) {
@@ -2733,7 +2734,7 @@ void blitte(ID3D11ShaderResourceView* quelle, ID3D11RenderTargetView* ziel,
     // Direct3D die Bindung fuer ungueltig und zeichnet still nichts.
     ID3D11ShaderResourceView* nichts[2] = {nullptr, nullptr};
     c->PSSetShaderResources(0, 2, nichts);
-    c->OMSetRenderTargets(1, &ziel, nullptr);
+    ::bhed::render::zielSetzen(c, 1, &ziel, nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(breite);
     vp.Height = static_cast<float>(hoehe);
@@ -2772,7 +2773,7 @@ int moeglicheProben(ID3D11Device* d, int n) {
 void loeseAuf(ID3D11Texture2D* auf, ID3D11Texture2D* mitProben, bool& veraendert) {
     ID3D11DeviceContext* c = ctx();
     if (!veraendert || auf == nullptr || mitProben == nullptr || c == nullptr) { return; }
-    c->ResolveSubresource(auf, 0, mitProben, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    ::bhed::render::aufloesen(c, auf, 0, mitProben, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     veraendert = false;
 }
 void zielAufloesen() { loeseAuf(g_zielAufTex, g_zielTex, g_zielVeraendert); }
@@ -2822,7 +2823,7 @@ bool tiefeEinzeln() {
         }
     }
     if (!wechsleAufVollbild()) { return false; }
-    c->OMSetRenderTargets(1, &g_tiefeEinzelRtv, nullptr);
+    ::bhed::render::zielSetzen(c, 1, &g_tiefeEinzelRtv, nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
     vp.Height = static_cast<float>(g_zielH);
@@ -2833,7 +2834,7 @@ bool tiefeEinzeln() {
     c->Draw(3, 0);
     ID3D11ShaderResourceView* nichts = nullptr;
     c->PSSetShaderResources(0, 1, &nichts);
-    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
     return true;
 }
 
@@ -2897,7 +2898,7 @@ bool bereiteZiel(int breite, int hoehe) {
         }
         lesbar = g_zielAufTex;
     }
-    if (FAILED(d->CreateShaderResourceView(lesbar, nullptr, &g_zielSrv))) {
+    if (FAILED(::bhed::render::sichtAnlegen(d, lesbar, nullptr, &g_zielSrv))) {
         return false;
     }
     D3D11_TEXTURE2D_DESC dd = td;
@@ -2921,7 +2922,7 @@ bool bereiteZiel(int breite, int hoehe) {
         sv.Format = DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
         sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
         // Ohne (Featurestufe 10.0) bleiben die Gizmos ohne Tiefe, das Bild ist dasselbe.
-        if (FAILED(d->CreateShaderResourceView(g_tiefeTex, &sv, &g_tiefeMsSrv))) { g_tiefeMsSrv = nullptr; }
+        if (FAILED(::bhed::render::sichtAnlegen(d, g_tiefeTex, &sv, &g_tiefeMsSrv))) { g_tiefeMsSrv = nullptr; }
     }
     g_zielW = breite;
     g_zielH = hoehe;
@@ -3094,7 +3095,7 @@ bool tiefeAbbilden(TiefenSicht& sicht, int breite, int hoehe, bool vorigesBild) 
     } else {
         ID3D11Texture2D* tiefe = lesbareTiefe();
         if (tiefe == nullptr) { return false; }
-        c->CopyResource(g_tiefeLesen, tiefe);
+        ::bhed::render::kopieren(c, g_tiefeLesen, tiefe);
     }
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(quelle, 0, D3D11_MAP_READ, 0, &m))) {
@@ -3133,7 +3134,7 @@ void tiefeFreigeben() {
         const DXGI_FORMAT lesbar = g_zielProben > 1 ? DXGI_FORMAT_R32_FLOAT : DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
         if (vd.Width == td.Width && vd.Height == td.Height && vd.Format == lesbar) {
             if (ID3D11Texture2D* tiefe = lesbareTiefe()) {
-                c->CopyResource(g_tiefeVorig, tiefe);
+                ::bhed::render::kopieren(c, g_tiefeVorig, tiefe);
                 g_tiefeVorigDa = true;
             }
         }
@@ -3162,7 +3163,7 @@ bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     if (FAILED(d->CreateTexture2D(&ld, nullptr, &lesen)) || lesen == nullptr) {
         return false;
     }
-    c->CopyResource(lesen, bild);
+    ::bhed::render::kopieren(c, lesen, bild);
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(lesen, 0, D3D11_MAP_READ, 0, &m))) {
         lesen->Release();
@@ -3374,7 +3375,7 @@ void gluehenFigurenBeginnen(bool an, int breite, int hoehe) {
         return;
     }
     const float leer[4] = {0.0F, 0.0F, 0.0F, 1.0F};
-    c->ClearRenderTargetView(g_glowVollRtv, leer);
+    ::bhed::render::leeren(c, g_glowVollRtv, leer);
     g_figurGluehenAn = true;
     g_glowVollVorbelegt = true;
 }
@@ -3493,9 +3494,9 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // kleiner - beide zusammen gehen deshalb nicht. Also wird in voller
     // Groesse gezeichnet und danach verkleinert, wie beim Rasterer.
     const float leer[4] = {0.0F, 0.0F, 0.0F, 1.0F};
-    c->OMSetRenderTargets(1, &g_glowVollRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, g_tiefeDsv);
     if (!vorbelegt) {
-        c->ClearRenderTargetView(g_glowVollRtv, leer);
+        ::bhed::render::leeren(c, g_glowVollRtv, leer);
     }
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -3661,8 +3662,8 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, true);
     // Mit r_ext_multisample liest glCopyTexSubImage den aufgeloesten Bildpuffer (RB_BlurGlowTexture).
     if (g_glowVollAufTex != nullptr) {
-        c->OMSetRenderTargets(0, nullptr, nullptr);
-        c->ResolveSubresource(g_glowVollAufTex, 0, g_glowVollTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+        ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
+        ::bhed::render::aufloesen(c, g_glowVollAufTex, 0, g_glowVollTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     }
     blitte(g_glowVollSrv, g_glowRtv[0], breite, hoehe, g_glowBlurPs);
     int quelle = 0;
@@ -3692,7 +3693,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // Texturen), aber die Reihenfolge Ziel-vor-Eingang ist die richtige und
     // haelt auch, wenn sich das einmal aendert.
     zielAufloesen();
-    c->OMSetRenderTargets(1, &g_glowVollRtv, nullptr);
+    ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, nullptr);
     ID3D11ShaderResourceView* zwei[2] = {g_glowSrv[quelle], g_zielSrv};
     c->PSSetShaderResources(0, 2, zwei);
     // Auch beim Auflegen klemmen - es liest dieselben Vollbildtexturen.
@@ -3709,8 +3710,8 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // der Direct3D-Dokumentation.
     ID3D11ShaderResourceView* nichts[3] = {nullptr, nullptr, nullptr};
     c->PSSetShaderResources(0, 3, nichts);
-    c->OMSetRenderTargets(0, nullptr, nullptr);
-    c->CopyResource(g_zielTex, g_glowVollTex);
+    ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
+    ::bhed::render::kopieren(c, g_zielTex, g_glowVollTex);
     g_zielVeraendert = true;
     return n;
 }
@@ -4029,7 +4030,7 @@ int zeichneLichtUndSchatten(const BspMesh& mesh, const TextureSet* textures,
         }
     }
     setzeSchritt("Licht: binden");
-    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
     g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -4679,11 +4680,11 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                                 c->OMGetRenderTargets(1, &glowRtv, &glowDsv);
                             }
                             if (g_figurGluehenAn && !ersatzBild && glowRtv == g_zielRtv && g_glowVollRtv != nullptr) {
-                                c->OMSetRenderTargets(1, &g_glowVollRtv, glowDsv);
+                                ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, glowDsv);
                                 c->DrawIndexed(t.numIndexes, t.firstIndex, 0);
                                 ++abgesetzt;
                                 ++g_figurGluehen;
-                                c->OMSetRenderTargets(1, &glowRtv, glowDsv);
+                                ::bhed::render::zielSetzen(c, 1, &glowRtv, glowDsv);
                                 g_zielVeraendert = true;
                             }
                         }
@@ -4744,11 +4745,11 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                     ID3D11DepthStencilView* dsv = nullptr;
                     c->OMGetRenderTargets(1, &rtv, &dsv);
                     if (g_figurGluehenAn && !ersatzBild && rtv == g_zielRtv && g_glowVollRtv != nullptr) {
-                        c->OMSetRenderTargets(1, &g_glowVollRtv, dsv);
+                        ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, dsv);
                         c->DrawIndexed(t.numIndexes, t.firstIndex, 0);
                         ++abgesetzt;
                         ++g_figurGluehen;
-                        c->OMSetRenderTargets(1, &rtv, dsv);
+                        ::bhed::render::zielSetzen(c, 1, &rtv, dsv);
                         g_zielVeraendert = true;
                     }
                     if (rtv != nullptr) { rtv->Release(); }
@@ -4890,11 +4891,11 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
             ID3D11DepthStencilView* dsv = nullptr;
             c->OMGetRenderTargets(1, &rtv, &dsv);
             if (g_figurGluehenAn && !ersatzBild && rtv == g_zielRtv && g_glowVollRtv != nullptr) {
-                c->OMSetRenderTargets(1, &g_glowVollRtv, dsv);
+                ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, dsv);
                 const int vorher = abgesetzt;
                 zeichne(liste);
                 g_figurGluehen += abgesetzt - vorher;
-                c->OMSetRenderTargets(1, &rtv, dsv);
+                ::bhed::render::zielSetzen(c, 1, &rtv, dsv);
                 g_zielVeraendert = true;
             }
             if (rtv != nullptr) { rtv->Release(); }
@@ -5093,7 +5094,7 @@ int zeichneFigurSchatten(const std::vector<FigurSchatten>& figuren, int art,
         }
     }
     setzeSchritt("Schatten: binden");
-    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
     g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -5397,7 +5398,7 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
         }
     }
     setzeSchritt("Nebel: binden");
-    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
     g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -5762,7 +5763,7 @@ int zeichneKlingenIn(const std::vector<KlingenQuad>& quads, const float* viewPro
             c->Unmap(g_cbBild, 0);
         }
     }
-    c->OMSetRenderTargets(1, &ziel, tiefe);
+    ::bhed::render::zielSetzen(c, 1, &ziel, tiefe);
     g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_menueZielAktiv ? g_menueW : g_zielW);
@@ -5909,7 +5910,7 @@ bool bereiteModellZiel(int breite, int hoehe) {
     td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     if (FAILED(d->CreateTexture2D(&td, nullptr, &g_modellTex)) ||
         FAILED(d->CreateRenderTargetView(g_modellTex, nullptr, &g_modellRtv)) ||
-        FAILED(d->CreateShaderResourceView(g_modellTex, nullptr, &g_modellSrv))) {
+        FAILED(::bhed::render::sichtAnlegen(d, g_modellTex, nullptr, &g_modellSrv))) {
         gibModellFrei();
         return false;
     }
@@ -5979,14 +5980,14 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     setzeSchritt("Modellfenster");
     if (!figurGrundausstattung(d, fehler)) { return 0; }
     ModellMessSatz* messung = beginneModellMessung();
-    c->OMSetRenderTargets(1, &g_modellRtv, g_modellDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_modellRtv, g_modellDsv);
     // Auch das Bild loeschen, mit Alpha 1: die Mischzustaende schreiben nur
     // RGB (sonst schien bei den Hologrammen der Fensterhintergrund durch),
     // und ein nie geloeschtes Ziel bliebe mit Alpha 0 unsichtbar - genau so
     // war es beim ersten Versuch, das Modellfenster blieb leer.
     {
         const float grau[4] = {45.0F / 255.0F, 45.0F / 255.0F, 45.0F / 255.0F, 1.0F};
-        c->ClearRenderTargetView(g_modellRtv, grau);
+        ::bhed::render::leeren(c, g_modellRtv, grau);
     }
     c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     D3D11_VIEWPORT vp{};
@@ -6115,7 +6116,7 @@ bool bereiteMenueZiel(int nr, int breite, int hoehe) {
     dd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
     dd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
     if (FAILED(d->CreateTexture2D(&td, nullptr, &z.tex)) || FAILED(d->CreateRenderTargetView(z.tex, nullptr, &z.rtv)) ||
-        FAILED(d->CreateShaderResourceView(z.tex, nullptr, &z.srv)) || FAILED(d->CreateTexture2D(&dd, nullptr, &z.tiefeTex)) ||
+        FAILED(::bhed::render::sichtAnlegen(d, z.tex, nullptr, &z.srv)) || FAILED(d->CreateTexture2D(&dd, nullptr, &z.tiefeTex)) ||
         FAILED(d->CreateDepthStencilView(z.tiefeTex, nullptr, &z.dsv))) {
         gibMenueZielFrei(z);
         return false;
@@ -6142,9 +6143,9 @@ int zeichneMenueFigur(int nr, const GlmModel& model, const ModelTextures* textur
     MenueZiel& z = it->second;
     setzeSchritt("Menue-Figur");
     if (!figurGrundausstattung(d, fehler)) { return 0; }
-    c->OMSetRenderTargets(1, &z.rtv, z.dsv);
+    ::bhed::render::zielSetzen(c, 1, &z.rtv, z.dsv);
     const float leer[4] = {0.0F, 0.0F, 0.0F, 0.0F};
-    c->ClearRenderTargetView(z.rtv, leer);
+    ::bhed::render::leeren(c, z.rtv, leer);
     c->ClearDepthStencilView(z.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(z.w);
@@ -6204,7 +6205,7 @@ int zeichneMenueKlingen(int nr, const std::vector<KlingenQuad>& quads, const flo
     MenueZiel& z = it->second;
     if (!figurGrundausstattung(d, fehler)) { return 0; }
     const float schwarz[4] = {0.0F, 0.0F, 0.0F, 0.0F};
-    c->ClearRenderTargetView(z.rtv, schwarz);
+    ::bhed::render::leeren(c, z.rtv, schwarz);
     const auto griff = g_menueZiele.find(tiefeVon);
     ID3D11DepthStencilView* tiefe = z.dsv;
     if (griff != g_menueZiele.end() && griff->second.dsv != nullptr && griff->second.w == z.w && griff->second.h == z.h) {
@@ -6820,21 +6821,21 @@ void spielGammaAnwenden() {
         td.SampleDesc.Quality = 0;
         td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         if (FAILED(d->CreateTexture2D(&td, nullptr, &g_gammaTex)) ||
-            FAILED(d->CreateShaderResourceView(g_gammaTex, nullptr, &g_gammaSrv))) {
+            FAILED(::bhed::render::sichtAnlegen(d, g_gammaTex, nullptr, &g_gammaSrv))) {
             return;
         }
         g_gammaW = g_zielW;
         g_gammaH = g_zielH;
     }
     setzeSchritt("Spielgamma");
-    c->OMSetRenderTargets(0, nullptr, nullptr);
+    ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
     // Die Tabelle gilt fuer den aufgeloesten Bildpuffer (R_SetColorMappings am Bildschirm).
     if (g_zielProben > 1) {
-        c->ResolveSubresource(g_gammaTex, 0, g_zielTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+        ::bhed::render::aufloesen(c, g_gammaTex, 0, g_zielTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     } else {
-        c->CopyResource(g_gammaTex, g_zielTex);
+        ::bhed::render::kopieren(c, g_gammaTex, g_zielTex);
     }
-    c->OMSetRenderTargets(1, &g_zielRtv, nullptr);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, nullptr);
     g_zielVeraendert = true;
     c->PSSetShader(g_gammaPs, nullptr, 0);
     c->PSSetShaderResources(0, 1, &g_gammaSrv);
@@ -7167,7 +7168,7 @@ void patchLodSchreiben(const BspMesh& mesh, Netzpuffer& np, std::size_t nIdx, co
             box.bottom = 1;
             box.front = 0;
             box.back = 1;
-            c->UpdateSubresource(np.ib, 0, &box, neu.data(), 0, 0);
+            ::bhed::render::hochladen(c, np.ib, 0, &box, neu.data(), 0, 0);
         }
         ++(mover != nullptr ? g_patchLodMover : g_patchLodAenderungen);
         stand = wahl;
@@ -7554,7 +7555,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
             // rc608 Teil 13c: die Patch-Gitter dieses Bildes gleich mit hinein - ein Hochladen statt eines je Patch danach.
             np.patchStand.clear();
             patchLodSchreiben(mesh, np, nIdx, kameraPos, vorn, nullptr, neu.data(), c);
-            c->UpdateSubresource(np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
+            ::bhed::render::hochladen(c, np.ib, 0, nullptr, neu.data(), static_cast<UINT>(ibBytes), 0);
         }
     }
     // rc608 Teil 13b: Patch-LOD wie im Spiel (patchLodSchreiben), fuer die Welt und fuer Mover (rc608 Teil 13c).
@@ -7727,7 +7728,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     }
     const float leer[4] = {0.0F, 0.0F, 0.0F, 1.0F};
     // Im Maskendurchgang des Umrisses (rc597) in die Maske, nicht ins Bild.
-    c->OMSetRenderTargets(1, (g_umriss && g_maskeRtv != nullptr) ? &g_maskeRtv : &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, (g_umriss && g_maskeRtv != nullptr) ? &g_maskeRtv : &g_zielRtv, g_tiefeDsv);
     g_zielVeraendert = true;
     // Nur das ERSTE Netz loescht. Das Effektnetz kommt danach und muss auf
     // die Tiefe der Karte treffen - sonst schweben die Teilchen vor allem,
@@ -7738,14 +7739,14 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     if (netzId == 0 && lage != Lage::Gemischt) {
         // Mit der Farbe des globalen Nebels (setzeHintergrund), wie das Spiel;
         // die Maske des Umrisses bleibt leer.
-        c->ClearRenderTargetView(g_zielRtv, g_umriss ? leer : g_hintergrund);
+        ::bhed::render::leeren(c, g_zielRtv, g_umriss ? leer : g_hintergrund);
         g_tiefeEinzelFrisch = false;
         // CG_DrawSkyBoxPortal: Die Portalszene steht zuerst im Bild, die Hauptszene loescht die Farbe nicht
         // (RB_BeginDrawingView), ausser mit r_DynamicGlow und globalem Nebel. Dort, wo die Karte nichts zeichnet, bleibt
         // sie stehen; das ist alles, was die Hauptszene vom Himmel zeigt.
         if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz && !g_himmelVorgabe.szeneLoescht) {
             const ZielFelder& pz = g_geparkt[g_himmelPortalSatz];
-            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH && pz.proben == g_zielProben) { c->CopyResource(g_zielTex, pz.tex); }
+            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH && pz.proben == g_zielProben) { ::bhed::render::kopieren(c, g_zielTex, pz.tex); }
         }
         c->ClearDepthStencilView(g_tiefeDsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
     }
@@ -7998,7 +7999,7 @@ bool umrissBeginnen() {
             }
             lesbar = g_maskeAufTex;
         }
-        if (FAILED(d->CreateShaderResourceView(lesbar, nullptr, &g_maskeSrv))) {
+        if (FAILED(::bhed::render::sichtAnlegen(d, lesbar, nullptr, &g_maskeSrv))) {
             return false;
         }
         g_maskeW = g_zielW;
@@ -8008,8 +8009,8 @@ bool umrissBeginnen() {
     ID3D11ShaderResourceView* nichts[4] = {nullptr, nullptr, nullptr, nullptr};
     c->PSSetShaderResources(0, 4, nichts);
     const float leer[4] = {0.0F, 0.0F, 0.0F, 0.0F};
-    c->ClearRenderTargetView(g_maskeRtv, leer);
-    c->OMSetRenderTargets(1, &g_maskeRtv, g_tiefeDsv);
+    ::bhed::render::leeren(c, g_maskeRtv, leer);
+    ::bhed::render::zielSetzen(c, 1, &g_maskeRtv, g_tiefeDsv);
     // Das Gluehen davor arbeitet klein - den ganzen Schirm zurueck.
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -8027,13 +8028,13 @@ void umrissBeenden(const float farbe[4], float dicke) {
         return;
     }
     if (g_maskeAufTex != nullptr) {
-        c->OMSetRenderTargets(0, nullptr, nullptr);
-        c->ResolveSubresource(g_maskeAufTex, 0, g_maskeTex, 0, DXGI_FORMAT_R8_UNORM);
+        ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
+        ::bhed::render::aufloesen(c, g_maskeAufTex, 0, g_maskeTex, 0, DXGI_FORMAT_R8_UNORM);
     }
-    c->OMSetRenderTargets(1, &g_zielRtv, nullptr);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, nullptr);
     g_zielVeraendert = true;
     if (!wechsleAufVollbild()) {
-        c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+        ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
         return;
     }
     D3D11_MAPPED_SUBRESOURCE m{};
@@ -8054,7 +8055,7 @@ void umrissBeenden(const float farbe[4], float dicke) {
     c->Draw(3, 0);
     ID3D11ShaderResourceView* nichts = nullptr;
     c->PSSetShaderResources(0, 1, &nichts);
-    c->OMSetRenderTargets(1, &g_zielRtv, g_tiefeDsv);
+    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
 }
 
 }  // namespace bhed::gpu

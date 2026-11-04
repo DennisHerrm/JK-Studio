@@ -7,6 +7,8 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <unordered_map>
+#include <array>
 #include <algorithm>
 #include <cstdlib>
 
@@ -45,7 +47,9 @@
 #include "imgui_impl_dx11.h"
 #include <d3d11.h>
 #include <dxgi1_6.h>
+#include "bemalt.h"   // rc609 T1: Leerlauf je Fenster
 #endif
+#include <cstring>
 
 #include <cstdio>
 #include <initializer_list>
@@ -587,6 +591,7 @@ void* createTexture(const unsigned char* rgba, int width, int height) {
         view.Texture2D.MipLevels = 1;
         ID3D11ShaderResourceView* srv = nullptr;
         const HRESULT hr = g_device->CreateShaderResourceView(texture, &view, &srv);
+        bemaltMerken(texture);   // rc609 T1: eine neue Textur kann die Adresse einer alten haben
         texture->Release();
         if (FAILED(hr) || srv == nullptr) {
             return nullptr;
@@ -629,6 +634,7 @@ void updateTexture(void* handle, const unsigned char* rgba, int width, int heigh
         if (res != nullptr) {
             g_context->UpdateSubresource(res, 0, nullptr, rgba,
                                          static_cast<UINT>(width) * 4U, 0);
+            bemaltMerken(res);   // rc609 T1
             res->Release();
         }
         return;
@@ -669,6 +675,7 @@ void updateTextureBereich(void* handle, const unsigned char* rgba, int width, in
             const unsigned char* anfang =
                 rgba + (static_cast<std::size_t>(y0) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x0)) * 4U;
             g_context->UpdateSubresource(res, 0, &box, anfang, static_cast<UINT>(width) * 4U, 0);
+            bemaltMerken(res);   // rc609 T1
             res->Release();
         }
         return;
@@ -967,57 +974,132 @@ void newFrame() {
 }
 
 std::string g_fotoPfad;   // leer = kein Foto angefordert
+bool g_fotoMitFenstern = false;   // rc609 T1: die eigenen Fenster ueber dem Hauptfenster mit ins Bild
 
 void fotoAnfordern(const std::string& pfad) { g_fotoPfad = pfad; }
 
+void fotoMitFensternAnfordern(const std::string& pfad) {
+    g_fotoPfad = pfad;
+    g_fotoMitFenstern = true;
+}
+
 #ifdef BHED_WITH_D3D11
-// Den Hintergrundpuffer auslesen und als 32-Bit-BMP schreiben.
-void fotoSchreiben() {
-    const std::string pfad = g_fotoPfad;
-    g_fotoPfad.clear();
-    ID3D11Texture2D* back = nullptr;
-    if (FAILED(g_swap->GetBuffer(0, IID_PPV_ARGS(&back))) || back == nullptr) { return; }
+// Ein Bild im Speicher (RGBA, Zeile fuer Zeile von oben).
+struct Bild {
+    std::uint32_t w = 0;
+    std::uint32_t h = 0;
+    std::vector<unsigned char> rgba;
+};
+Bild g_fotoHaupt;   // rc609 T1: das Hauptfenster, bis die eigenen Fenster dazukommen
+
+// Ein Renderziel (Hintergrundpuffer) in den Speicher lesen.
+bool zielLesen(ID3D11Texture2D* ziel, Bild& aus) {
     D3D11_TEXTURE2D_DESC d{};
-    back->GetDesc(&d);
+    ziel->GetDesc(&d);
     d.Usage = D3D11_USAGE_STAGING;
     d.BindFlags = 0;
     d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     d.MiscFlags = 0;
     ID3D11Texture2D* kopie = nullptr;
-    if (SUCCEEDED(g_device->CreateTexture2D(&d, nullptr, &kopie)) && kopie != nullptr) {
-        g_context->CopyResource(kopie, back);
-        D3D11_MAPPED_SUBRESOURCE m{};
-        if (SUCCEEDED(g_context->Map(kopie, 0, D3D11_MAP_READ, 0, &m))) {
-            std::FILE* f = std::fopen(pfad.c_str(), "wb");
-            if (f != nullptr) {
-                const std::uint32_t w = d.Width, hgt = d.Height;
-                const std::uint32_t bild = w * hgt * 4U;
-                unsigned char kopf[54] = {'B', 'M'};
-                auto u32 = [&](int at, std::uint32_t v) {
-                    for (int k = 0; k < 4; ++k) { kopf[at + k] = static_cast<unsigned char>(v >> (8 * k)); }
-                };
-                u32(2, 54U + bild); u32(10, 54U); u32(14, 40U); u32(18, w);
-                u32(22, static_cast<std::uint32_t>(-static_cast<std::int32_t>(hgt)));   // von oben
-                kopf[26] = 1; kopf[28] = 32; u32(34, bild);
-                std::fwrite(kopf, 1, sizeof(kopf), f);
-                std::vector<unsigned char> zeile(w * 4U);
-                for (std::uint32_t y = 0; y < hgt; ++y) {
-                    const unsigned char* q = static_cast<const unsigned char*>(m.pData) + y * m.RowPitch;
-                    for (std::uint32_t x = 0; x < w; ++x) {   // RGBA -> BGRA
-                        zeile[x * 4U + 0U] = q[x * 4U + 2U];
-                        zeile[x * 4U + 1U] = q[x * 4U + 1U];
-                        zeile[x * 4U + 2U] = q[x * 4U + 0U];
-                        zeile[x * 4U + 3U] = 255;
-                    }
-                    std::fwrite(zeile.data(), 1, zeile.size(), f);
-                }
-                std::fclose(f);
-            }
-            g_context->Unmap(kopie, 0);
+    if (FAILED(g_device->CreateTexture2D(&d, nullptr, &kopie)) || kopie == nullptr) { return false; }
+    g_context->CopyResource(kopie, ziel);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    const bool ok = SUCCEEDED(g_context->Map(kopie, 0, D3D11_MAP_READ, 0, &m));
+    if (ok) {
+        aus.w = d.Width;
+        aus.h = d.Height;
+        aus.rgba.resize(static_cast<std::size_t>(d.Width) * d.Height * 4U);
+        for (std::uint32_t y = 0; y < d.Height; ++y) {
+            std::memcpy(aus.rgba.data() + static_cast<std::size_t>(y) * d.Width * 4U, static_cast<const unsigned char*>(m.pData) + y * m.RowPitch,
+                        static_cast<std::size_t>(d.Width) * 4U);
         }
-        kopie->Release();
+        g_context->Unmap(kopie, 0);
     }
+    kopie->Release();
+    return ok;
+}
+
+// Als 32-Bit-BMP schreiben.
+void bmpSchreiben(const std::string& pfad, const Bild& b) {
+    std::FILE* f = std::fopen(pfad.c_str(), "wb");
+    if (f == nullptr) { return; }
+    const std::uint32_t w = b.w, hgt = b.h;
+    const std::uint32_t bild = w * hgt * 4U;
+    unsigned char kopf[54] = {'B', 'M'};
+    auto u32 = [&](int at, std::uint32_t v) {
+        for (int k = 0; k < 4; ++k) { kopf[at + k] = static_cast<unsigned char>(v >> (8 * k)); }
+    };
+    u32(2, 54U + bild); u32(10, 54U); u32(14, 40U); u32(18, w);
+    u32(22, static_cast<std::uint32_t>(-static_cast<std::int32_t>(hgt)));   // von oben
+    kopf[26] = 1; kopf[28] = 32; u32(34, bild);
+    std::fwrite(kopf, 1, sizeof(kopf), f);
+    std::vector<unsigned char> zeile(w * 4U);
+    for (std::uint32_t y = 0; y < hgt; ++y) {
+        const unsigned char* q = b.rgba.data() + static_cast<std::size_t>(y) * w * 4U;
+        for (std::uint32_t x = 0; x < w; ++x) {   // RGBA -> BGRA
+            zeile[x * 4U + 0U] = q[x * 4U + 2U];
+            zeile[x * 4U + 1U] = q[x * 4U + 1U];
+            zeile[x * 4U + 2U] = q[x * 4U + 0U];
+            zeile[x * 4U + 3U] = 255;
+        }
+        std::fwrite(zeile.data(), 1, zeile.size(), f);
+    }
+    std::fclose(f);
+}
+
+// Den Hintergrundpuffer auslesen und als 32-Bit-BMP schreiben. Mit den eigenen
+// Fenstern (rc609 T1) wartet das Bild, bis plattformFenster sie gezeichnet und
+// an ihrer Stelle eingesetzt hat - so, wie sie auf dem Bildschirm ueber dem
+// Hauptfenster liegen, aber nur aus den eigenen Grafikpuffern.
+void fotoSchreiben() {
+    ID3D11Texture2D* back = nullptr;
+    if (FAILED(g_swap->GetBuffer(0, IID_PPV_ARGS(&back))) || back == nullptr) {
+        g_fotoPfad.clear();
+        g_fotoMitFenstern = false;
+        return;
+    }
+    Bild b;
+    const bool ok = zielLesen(back, b);
     back->Release();
+    if (ok && g_fotoMitFenstern) {
+        g_fotoHaupt = std::move(b);
+        return;
+    }
+    if (ok) { bmpSchreiben(g_fotoPfad, b); }
+    g_fotoPfad.clear();
+}
+
+// Das gerade gezeichnete eigene Fenster `v` an seiner Stelle ins Bild des Hauptfensters.
+void fensterInsFoto(const ImGuiViewport* v) {
+    ID3D11RenderTargetView* rtv = nullptr;
+    g_context->OMGetRenderTargets(1, &rtv, nullptr);
+    if (rtv == nullptr) { return; }
+    ID3D11Resource* res = nullptr;
+    rtv->GetResource(&res);
+    rtv->Release();
+    ID3D11Texture2D* tex = nullptr;
+    if (res == nullptr || FAILED(res->QueryInterface(IID_PPV_ARGS(&tex))) || tex == nullptr) {
+        if (res != nullptr) { res->Release(); }
+        return;
+    }
+    res->Release();
+    Bild f;
+    const bool ok = zielLesen(tex, f);
+    tex->Release();
+    if (!ok || g_fotoHaupt.rgba.empty()) { return; }
+    const ImGuiViewport* haupt = ImGui::GetMainViewport();
+    const int x0 = static_cast<int>(std::lround(v->Pos.x - haupt->Pos.x));
+    const int y0 = static_cast<int>(std::lround(v->Pos.y - haupt->Pos.y));
+    for (int y = 0; y < static_cast<int>(f.h); ++y) {
+        const int zy = y0 + y;
+        if (zy < 0 || zy >= static_cast<int>(g_fotoHaupt.h)) { continue; }
+        for (int x = 0; x < static_cast<int>(f.w); ++x) {
+            const int zx = x0 + x;
+            if (zx < 0 || zx >= static_cast<int>(g_fotoHaupt.w)) { continue; }
+            std::memcpy(g_fotoHaupt.rgba.data() + (static_cast<std::size_t>(zy) * g_fotoHaupt.w + static_cast<std::size_t>(zx)) * 4U,
+                        f.rgba.data() + (static_cast<std::size_t>(y) * f.w + static_cast<std::size_t>(x)) * 4U, 4U);
+        }
+    }
 }
 #endif
 
@@ -1114,6 +1196,130 @@ void viewportBildLesenGl(const ImGuiViewport* v) {
 
 double g_plattformMs = 0.0;
 
+// --- rc609 T1: Leerlauf je Fenster -------------------------------------------
+//
+// "Ein ruhendes Fenster zeichnet nicht": ein eigenes Fenster (Panel aus dock1,
+// Tab aus T1) zeigt nur dann ein neues Bild, wenn es anders aussaehe als das
+// zuletzt gezeigte - seine Zeichenliste (Ecken, Indizes, Befehle, Lage, Groesse,
+// Massstab) hat eine andere Pruefsumme, eine Textur darin wurde in diesem Bild
+// bemalt (bemalt.h, Hochladen hier), ImGui hat Texturen geaendert (Schrift),
+// oder ein Befehl ruft zurueck (dessen Ergebnis kennt nur der Aufrufer). Sonst
+// bleibt das gezeigte Bild stehen - es ist dasselbe, also kein Unterschied auf
+// dem Schirm. Das Hauptfenster zeichnet weiter jedes Bild: Sein Present taktet
+// die Schleife (Present(1, 0)), und ohne Eingabe ruht ohnehin alles (rc596,
+// main_win32.cpp).
+std::unordered_map<unsigned, unsigned long long> g_vpBilder;   // gezeigte Bilder je eigenem Fenster
+std::unordered_map<unsigned, std::uint64_t> g_vpSumme;         // Pruefsumme des zuletzt gezeigten
+std::vector<const void*> g_bemalt;                             // in diesem Bild bemalt (Ressourcen)
+bool g_texturenNeu = false;
+enum Grund : std::uint8_t { kGrundErstes, kGrundSumme, kGrundBemalt, kGrundTextur, kGrundAnders, kGruende };
+std::unordered_map<unsigned, std::array<unsigned long long, kGruende>> g_vpGruende;
+std::unordered_map<unsigned, std::map<std::string, std::uint64_t>> g_vpListen;   // Pruefsumme je Zeichenliste
+std::unordered_map<unsigned, std::string> g_vpAnders;                            // zuletzt geaenderte Zeichenlisten
+
+// xxHash64-Runde je acht Bytes: jedes Bit des Eingangs wirkt auf alle der Summe.
+struct Pruefsumme {
+    std::uint64_t h = 0x27D4EB2F165667C5ULL;
+    void wort(std::uint64_t w) {
+        w *= 0xC2B2AE3D27D4EB4FULL;
+        w = (w << 31U) | (w >> 33U);
+        w *= 0x9E3779B185EBCA87ULL;
+        h ^= w;
+        h = ((h << 27U) | (h >> 37U)) * 0x9E3779B185EBCA87ULL + 0x85EBCA77C2B2AE63ULL;
+    }
+    void bytes(const void* p, std::size_t n) {
+        const auto* b = static_cast<const unsigned char*>(p);
+        std::size_t i = 0;
+        for (; i + 8U <= n; i += 8U) {
+            std::uint64_t w = 0;
+            std::memcpy(&w, b + i, 8U);
+            wort(w);
+        }
+        std::uint64_t rest = 0;
+        if (i < n) { std::memcpy(&rest, b + i, n - i); }
+        wort(rest ^ (static_cast<std::uint64_t>(n) << 56U));
+    }
+    void zahl(float f) {
+        std::uint32_t u = 0;
+        std::memcpy(&u, &f, 4U);
+        wort(u);
+    }
+};
+
+bool bemaltIst(const void* p) { return std::find(g_bemalt.begin(), g_bemalt.end(), p) != g_bemalt.end(); }
+
+// Muss das Fenster neu gezeichnet werden? `summe` ist danach die des neuen Bildes.
+bool brauchtBild(const ImGuiViewport* v, std::uint64_t& summe) {
+    const ImDrawData* d = v->DrawData;
+    auto& gruende = g_vpGruende[v->ID];
+    if (d == nullptr || !d->Valid || g_backend != Backend::Direct3D11) {
+        ++gruende[kGrundAnders];
+        return true;
+    }
+    if (g_texturenNeu) {
+        ++gruende[kGrundTextur];
+        return true;
+    }
+    Pruefsumme p;
+    p.zahl(d->DisplayPos.x);
+    p.zahl(d->DisplayPos.y);
+    p.zahl(d->DisplaySize.x);
+    p.zahl(d->DisplaySize.y);
+    p.zahl(d->FramebufferScale.x);
+    p.zahl(d->FramebufferScale.y);
+    bool bemaltDrin = false;
+    auto& listen = g_vpListen[v->ID];
+    std::string anders;
+    for (const ImDrawList* l : d->CmdLists) {
+        Pruefsumme eine;
+        eine.bytes(l->VtxBuffer.Data, static_cast<std::size_t>(l->VtxBuffer.Size) * sizeof(ImDrawVert));
+        eine.bytes(l->IdxBuffer.Data, static_cast<std::size_t>(l->IdxBuffer.Size) * sizeof(ImDrawIdx));
+        for (const ImDrawCmd& c : l->CmdBuffer) {
+            eine.bytes(&c.ClipRect, sizeof(c.ClipRect));
+            eine.wort((static_cast<std::uint64_t>(c.VtxOffset) << 32U) | c.IdxOffset);
+            eine.wort(c.ElemCount);
+            if (c.UserCallback != nullptr) {
+                // Die Rueckrufe des Programms setzen nur Zeichenzustand (zeichneAdditiv,
+                // zeichneStufe, kartegpu::ohneMischen, ImDrawCallback_ResetRenderState):
+                // gleicher Rueckruf mit gleichen Daten zeichnet gleich. Ein Rueckruf, der
+                // selbst etwas malt, muss sein Ziel ueber bemalt.h melden.
+                eine.wort(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(c.UserCallback)));
+                eine.wort(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(c.UserCallbackData)));
+                continue;
+            }
+            const ImTextureID t = c.GetTexID();
+            eine.wort(static_cast<std::uint64_t>(t));
+#ifdef BHED_WITH_D3D11
+            if (!bemaltDrin && t != ImTextureID_Invalid && !g_bemalt.empty()) {
+                auto* srv = reinterpret_cast<ID3D11ShaderResourceView*>(static_cast<std::uintptr_t>(t));
+                ID3D11Resource* r = nullptr;
+                srv->GetResource(&r);
+                bemaltDrin = bemaltIst(r);
+                if (r != nullptr) { r->Release(); }
+            }
+#endif
+        }
+        // Je Zeichenliste (ein ImGui-Fenster): welche hat sich geaendert - fuers Protokoll
+        const std::string besitzer = (l->_OwnerName != nullptr) ? l->_OwnerName : "?";
+        if (const auto alt = listen.find(besitzer); alt != listen.end() && alt->second != eine.h && anders.size() < 200U) {
+            anders += (anders.empty() ? "" : ", ") + besitzer;
+        }
+        listen[besitzer] = eine.h;
+        p.wort(eine.h);
+    }
+    summe = p.h;
+    const auto it = g_vpSumme.find(v->ID);
+    if (it == g_vpSumme.end()) {
+        ++gruende[kGrundErstes];
+    } else if (it->second != summe) {
+        ++gruende[kGrundSumme];
+        if (!anders.empty()) { g_vpAnders[v->ID] = anders; }
+    } else if (bemaltDrin) {
+        ++gruende[kGrundBemalt];
+    }
+    return bemaltDrin || it == g_vpSumme.end() || it->second != summe;
+}
+
 void (*g_zeigenVorher)(ImGuiViewport*) = nullptr;
 void verborgenZeigen(ImGuiViewport* v) {
     if (const HWND h = static_cast<HWND>(v->PlatformHandleRaw); h != nullptr) {
@@ -1135,9 +1341,27 @@ void plattformFenster() {
         pio.Platform_ShowWindow = &verborgenZeigen;
     }
     ImGui::UpdatePlatformWindows();
+    static std::vector<unsigned> zeigen;   // Fenster mit neuem Bild (rc609 T1)
+    static std::vector<unsigned> klein;    // im letzten Bild verkleinert: danach neu zeichnen
+    zeigen.clear();
+    std::vector<unsigned> jetztKlein;
     for (int i = 1; i < pio.Viewports.Size; ++i) {
         ImGuiViewport* v = pio.Viewports[i];
-        if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) { continue; }
+        if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) {
+            jetztKlein.push_back(v->ID);
+            continue;
+        }
+        std::uint64_t summe = 0;
+#ifdef BHED_WITH_D3D11
+        const bool fuerFoto = !g_fotoHaupt.rgba.empty();
+#else
+        const bool fuerFoto = false;
+#endif
+        const bool angefordert = (g_vpBildFuer != 0 && v->ID == g_vpBildFuer) || fuerFoto;
+        const bool warKlein = std::find(klein.begin(), klein.end(), v->ID) != klein.end();
+        if (!brauchtBild(v, summe) && !angefordert && !warKlein) { continue; }
+        g_vpSumme[v->ID] = summe;
+        zeigen.push_back(v->ID);
         if (pio.Platform_RenderWindow != nullptr) { pio.Platform_RenderWindow(v, nullptr); }
         if (pio.Renderer_RenderWindow != nullptr) { pio.Renderer_RenderWindow(v, nullptr); }
 #ifdef BHED_WITH_D3D11
@@ -1145,6 +1369,7 @@ void plattformFenster() {
             g_vpBildFuer = 0;
             viewportBildLesen(v->ID);
         }
+        if (g_backend == Backend::Direct3D11 && !g_fotoHaupt.rgba.empty()) { fensterInsFoto(v); }
 #endif
         if (g_backend == Backend::OpenGL3 && g_vpBildFuer != 0 && v->ID == g_vpBildFuer) {
             g_vpBildFuer = 0;
@@ -1153,10 +1378,22 @@ void plattformFenster() {
     }
     for (int i = 1; i < pio.Viewports.Size; ++i) {
         ImGuiViewport* v = pio.Viewports[i];
-        if ((v->Flags & ImGuiViewportFlags_IsMinimized) != 0) { continue; }
+        if (std::find(zeigen.begin(), zeigen.end(), v->ID) == zeigen.end()) { continue; }
         if (pio.Platform_SwapBuffers != nullptr) { pio.Platform_SwapBuffers(v, nullptr); }
         if (pio.Renderer_SwapBuffers != nullptr) { pio.Renderer_SwapBuffers(v, nullptr); }
+        ++g_vpBilder[v->ID];
     }
+    klein.swap(jetztKlein);
+    g_bemalt.clear();
+    g_texturenNeu = false;
+#ifdef BHED_WITH_D3D11
+    if (!g_fotoHaupt.rgba.empty()) {   // rc609 T1: das Bild mit den eigenen Fenstern ist fertig
+        bmpSchreiben(g_fotoPfad, g_fotoHaupt);
+        g_fotoHaupt = Bild{};
+        g_fotoPfad.clear();
+        g_fotoMitFenstern = false;
+    }
+#endif
     if (g_backend == Backend::OpenGL3) { wglMakeCurrent(g_dc, g_rc); }
     g_plattformMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - anfang).count();
 }
@@ -1170,6 +1407,26 @@ void viewportBildAnfordern(unsigned id) {
 }
 
 ViewportBild viewportBild() { return g_vpBild; }
+
+#ifdef BHED_WITH_D3D11
+void bemaltMerken(ID3D11Resource* ziel) {
+    if (ziel != nullptr && !bemaltIst(ziel)) { g_bemalt.push_back(ziel); }
+}
+#endif
+
+std::string viewportGruende(unsigned id) {
+    const auto it = g_vpGruende.find(id);
+    if (it == g_vpGruende.end()) { return "-"; }
+    const auto& z = it->second;
+    return "erstes " + std::to_string(z[kGrundErstes]) + ", Zeichenliste " + std::to_string(z[kGrundSumme]) + ", bemalt " +
+           std::to_string(z[kGrundBemalt]) + ", Texturen " + std::to_string(z[kGrundTextur]) + ", sonst " +
+           std::to_string(z[kGrundAnders]) + (g_vpAnders.count(id) != 0U ? " (zuletzt geaendert: " + g_vpAnders.at(id) + ")" : std::string());
+}
+
+unsigned long long viewportBilder(unsigned id) {
+    const auto it = g_vpBilder.find(id);
+    return it != g_vpBilder.end() ? it->second : 0ULL;
+}
 
 void plattformHakenSetzen() {
     if (g_backend != Backend::OpenGL3) { return; }
@@ -1189,6 +1446,12 @@ void present(float r, float g, float bl) {
         const float clear[4] = {r, g, bl, 1.0F};
         g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_context->ClearRenderTargetView(g_rtv, clear);
+        // rc609 T1: aendert ImGui Texturen (Schrift), sehen alle Fenster neu aus
+        if (const ImDrawData* d = ImGui::GetDrawData(); d != nullptr && d->Textures != nullptr) {
+            for (const ImTextureData* t : *d->Textures) {
+                if (t->Status != ImTextureStatus_OK) { g_texturenNeu = true; }
+            }
+        }
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         if (!g_fotoPfad.empty()) { fotoSchreiben(); }
         plattformFenster();

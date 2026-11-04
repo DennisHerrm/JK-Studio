@@ -11,6 +11,7 @@
 #include "bhed/fensteranordnung.h"
 #include "dockvorgabe.h"
 #include "hilfe.h"
+#include "tabfenster.h"   // rc609 T1: ganze Tabs in eigenen Fenstern
 #include "tour.h"
 
 #include "imgui.h"
@@ -405,6 +406,8 @@ bool speichernUnter(int bereich, const std::string& roh) {
     if (g_app == nullptr || name.empty() || bereich < 0 || bereich >= kBereiche) { return false; }
     merkenLaufend();
     g_app->settings.fenster[fenster::schluesselBenannt(bereich, name)] = fenster::kodieren(z().jetzt[static_cast<std::size_t>(bereich)]);
+    // rc609 T1: welche Tabs in eigenen Fenstern stehen, wo und auf welchem Bildschirm
+    g_app->settings.fenster[fenster::schluesselTabBenannt(bereich, name)] = tabfenster::kodiert();
     diag::detail("Fenster: Anordnung \"" + name + "\" gespeichert (Bereich " + std::to_string(bereich) + ")");
     char t[160];
     std::snprintf(t, sizeof(t), tr(Str::DockSaved), name.c_str());
@@ -422,6 +425,10 @@ bool laden(int bereich, const std::string& name) {
     z().iniLaden = fenster::iniErsetzen(fenster::iniFiltern(std::string(text, n)), neu.ini, kPraefix[bereich]);
     z().ladenBereich = bereich;
     z().ladenAnordnung = neu;
+    // rc609 T1: mit ihr gespeicherte Tabs in eigenen Fenstern (aeltere Anordnungen haben keine - dann bleibt es, wie es ist)
+    if (const auto t = g_app->settings.fenster.find(fenster::schluesselTabBenannt(bereich, name)); t != g_app->settings.fenster.end()) {
+        tabfenster::uebernehmen(t->second);
+    }
     diag::detail("Fenster: Anordnung \"" + name + "\" geladen (Bereich " + std::to_string(bereich) + ")");
     char t[160];
     std::snprintf(t, sizeof(t), tr(Str::DockLoaded), name.c_str());
@@ -432,6 +439,7 @@ bool laden(int bereich, const std::string& name) {
 bool loeschen(int bereich, const std::string& name) {
     if (g_app == nullptr) { return false; }
     const bool weg = g_app->settings.fenster.erase(fenster::schluesselBenannt(bereich, name)) != 0U;
+    g_app->settings.fenster.erase(fenster::schluesselTabBenannt(bereich, name));   // rc609 T1
     if (weg) { diag::detail("Fenster: Anordnung \"" + name + "\" geloescht"); }
     return weg;
 }
@@ -638,6 +646,20 @@ void menueInhalt(int bereich) {
             ImGui::SetTooltip("%s", tr(da ? Str::DockOwnWindowHint : Str::DockNotInLayout));
         }
     }
+    // rc609 T1: der ganze Tab in einem eigenen Fenster (tabfenster.h)
+    ImGui::Separator();
+    const bool eigen = tabfenster::eigenes(bereich);
+    if (ImGui::MenuItem(tr(Str::TfMenuEigenes), nullptr, eigen, eigen || tabfenster::loesbar(bereich))) {
+        if (eigen) {
+            tabfenster::zurueck(bereich);
+        } else {
+            (void)tabfenster::loesen(bereich);
+        }
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort | ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("%s", tr(eigen || tabfenster::loesbar(bereich) ? Str::TfMenuEigenesHint : Str::TfLetzter));
+    }
+    if (ImGui::MenuItem(tr(Str::TfMenuAlleZurueck), nullptr, false, tabfenster::anzahl() > 0)) { tabfenster::alleZurueck(); }
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::DockSaveAs))) {
         z().speichernOffen = true;

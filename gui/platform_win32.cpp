@@ -632,6 +632,11 @@ bool zeigerImFenster(void* fenster, int& x, int& y) {
 
 bool zeigerSetzen(int x, int y) { return SetCursorPos(x, y) != 0; }
 
+bool fensterSchliessenSenden(void* fenster) {
+    const auto h = static_cast<HWND>(fenster);
+    return h != nullptr && IsWindow(h) != FALSE && PostMessageW(h, WM_CLOSE, 0, 0) != FALSE;
+}
+
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y) {
     const auto h = static_cast<HWND>(fenster);
     if (h == nullptr || IsWindow(h) == FALSE) { return false; }

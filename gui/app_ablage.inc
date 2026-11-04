@@ -55,9 +55,11 @@ void abgelegteDateienVerarbeiten() {
     const std::vector<AbgelegteDatei> liste = std::move(abgelegteDateien());
     abgelegteDateien().clear();
     for (const AbgelegteDatei& a : liste) {
-        if (g_app->leftMode == 3 && karteneditor::istModellDatei(a.pfad)) {
+        // rc609 T1: der Tab des Fensters, auf dem abgelegt wurde (die Maus steht dort)
+        const int tab = tabfenster::modusUnterMaus();
+        if (tab == 3 && karteneditor::istModellDatei(a.pfad)) {
             karteneditor::modellAbgelegt(a.pfad, ImVec2(a.x, a.y));
-        } else if (g_app->leftMode == 4 && menueeditor::oeffneDatei(a.pfad)) {
+        } else if (tab == 4 && menueeditor::oeffneDatei(a.pfad)) {
             // Menue-Editor M1: .menu/.txt auf den Editor gezogen
         } else {
             dateiVonAussen(a.pfad);
@@ -4225,7 +4227,7 @@ bool darfRuhen() {
         return false;
     }
     // Karten-Editor: Kamerafahrt (IdleDraw2-Schleife), Freelook, Texturen laden.
-    if (karteneditor::aktiv() && karteneditor::kameraBrauchtBilder()) {
+    if (tabfenster::sichtbar(3) && karteneditor::kameraBrauchtBilder()) {   // rc609 T1: auch in eigenem Fenster
         return false;
     }
     // Stufe 3: waehrend q3map2 baut, Bild fuer Bild seine Ausgabe lesen

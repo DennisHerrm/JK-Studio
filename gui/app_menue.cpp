@@ -19,6 +19,7 @@
 #include "schrift_ttf.h"
 
 #include "app_internal.h"
+#include "tabfenster.h"   // rc609 T1
 #include "tour.h"   // H2: leerer Zustand mit Tutorial
 #include "fenster_dock.h"   // dock1: die Panels als eigene Fenster
 #include "dockvorgabe.h"    // dock4: die Panels im DockSpace
@@ -3375,6 +3376,7 @@ void editorTasten(Dokument& d) {
         z.undoWunsch = 0;
         (void)(wunsch < 0 ? rueckgaengig() : wiederholen());
     }
+    if (!tabfenster::fensterHatFokus()) { return; }   // rc609 T1: Tasten nur im Fenster mit dem Fokus
     // rc608 Teil 3a: Es zaehlt, was unter dem Zeiger liegt: ueber dem Text-Editor seine Schrift, sonst die Flaeche
     const bool strg = io.KeyCtrl;
     if (!io.WantTextInput && strg && !io.KeyShift && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) {

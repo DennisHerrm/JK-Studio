@@ -16,6 +16,7 @@
 // Entities der Karte, demselben Rueckgaengig-Verlauf und derselben Auswahl
 // (selectedPath). Umschalten verliert nichts.
 #include "app_internal.h"
+#include "tabfenster.h"   // rc609 T1
 
 #include "bhed/missionsgraph.h"
 
@@ -1164,7 +1165,8 @@ void drawSpurenAnsicht() {
     // Abspielen auch ohne Kartenansicht (dort laeuft die Zeit in drawTimeline).
     // Einmal je Bild, auch wenn zwei Felder die Spuren zeigen.
     static int letztesBild = -1;
-    if (g_app->playing && g_app->leftMode != 1 && letztesBild != ImGui::GetFrameCount()) {
+    // rc609 T1: nur, wenn kein Fenster Mission zeigt (dort treibt drawTimeline die Uhr).
+    if (g_app->playing && !tabfenster::sichtbar(1) && letztesBild != ImGui::GetFrameCount()) {
         letztesBild = ImGui::GetFrameCount();
         g_app->playMs += static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0;
         if (g_app->playMs >= laenge) {

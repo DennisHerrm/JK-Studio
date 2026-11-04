@@ -22,6 +22,7 @@
 #include "bhed/karte/filter.h"
 
 #include "app_internal.h"
+#include "tabfenster.h"   // rc609 T1
 #include "update.h"
 #include "platform.h"
 #include "tastatur.h"
@@ -320,7 +321,9 @@ void tastenVerarbeiten() {
     static bool wiederholungGemerkt = false;
     static float altVerzoegerung = 0.0F;
     static float altAbstand = 0.0F;
-    if (aktiv()) {
+    // rc609 T1: NRCs Tasten nur, wenn das Fenster des Map Editors den Fokus hat.
+    const bool tasten = aktiv() && tabfenster::fensterHatFokus();
+    if (tasten) {
         float v = 0.0F;
         float a = 0.0F;
         if (!wiederholungGemerkt && tastatur::wiederholung(v, a)) {
@@ -335,7 +338,7 @@ void tastenVerarbeiten() {
         io.KeyRepeatRate = altAbstand;
         wiederholungGemerkt = false;
     }
-    if (!aktiv() || !ed.belegungGeladen) {
+    if (!tasten || !ed.belegungGeladen) {
         kameraTastenLoslassen();   // GlobalPressedKeys_releaseAll (Fokuswechsel)
         return;
     }

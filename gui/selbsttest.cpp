@@ -56,6 +56,7 @@
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "fenster_dock.h"           // dock1: Panels herausnehmen, Anordnungen
 #include "dockvorgabe.h"            // dock4: Map Editor und Menu Editor im DockSpace
+#include "tabfenster.h"             // rc609 T1: ganze Tabs in eigenen Fenstern
 #include "bhed/fensteranordnung.h"
 #include "menueeditor.h"            // Menue-Editor M1
 #include "bhed/menue/menue.h"
@@ -5664,6 +5665,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
 #include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
 #include "selbsttest_dock4.inc"   // dock4: Map Editor und Menu Editor im DockSpace
+#include "selbsttest_tabfenster.inc"   // rc609 T1: ganze Tabs in eigenen Fenstern
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6046,6 +6048,9 @@ void selbsttest() {
     static const bool nurDock2Mass = std::strcmp(modus, "dock2mass") == 0;
     static const bool nurDock4 = std::strcmp(modus, "dock4") == 0;
     static const bool nurDock5 = std::strcmp(modus, "dock5") == 0;   // Abschluss rc607
+    static const bool nurTabfenster = std::strcmp(modus, "tabfenster") == 0;   // rc609 T1
+    static const bool nurTabfensterNeustart = std::strcmp(modus, "tabfensterneustart") == 0;
+    static const bool nurTabfensterLeistung = std::strcmp(modus, "tabfensterleistung") == 0;
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -6298,6 +6303,19 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurDock5) {
                 a.schritte = dock5Schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurTabfenster) {
+                const char* nurTf = std::getenv("BHED_TF_NUR");   // fotos: die Bilder der Handbuchseite
+                a.schritte = (nurTf != nullptr && std::strcmp(nurTf, "fotos") == 0) ? tabfensterFotoSchritte() : tabfensterSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurTabfensterNeustart) {
+                a.schritte = tabfensterNeustartSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurTabfensterLeistung) {
+                a.schritte = tabfensterLeistungSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

@@ -13,6 +13,7 @@
 //            behaelt Skripte, eigene Entities, Kamera, Zeitleiste und Auswahl; was an
 //            Bezuegen bricht, steht in einer Liste.
 #include "app_internal.h"
+#include "tabfenster.h"   // rc609 T1
 #include "karteneditor.h"
 
 #include "bhed/kartemission.h"
@@ -298,7 +299,7 @@ void karteMissionBauFertig(const std::string& karteDatei, bool ok) {
 }
 
 void drawKarteMission() {
-    if (!g_stand.fensterOffen || g_app->leftMode != 1) { return; }
+    if (!g_stand.fensterOffen || !tabfenster::sichtbar(1)) { return; }   // rc609 T1: auch mit Mission in eigenem Fenster
     const float fs = ImGui::GetFontSize();
     // Mitten im Hauptfenster und hoechstens halb so gross - nie ueber Modusleiste und Menue (dort lag es beim ersten Oeffnen)
     const ImGuiViewport* vp = ImGui::GetMainViewport();

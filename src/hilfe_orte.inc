@@ -195,6 +195,8 @@
 {"menue", "knopf:MeGruppieren", "ViewMenuEditor>MeGruppieren", "", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeVorlageSpeichern", "ViewMenuEditor>MeVorlageSpeichern", "", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"programm", "menue:DockMenu", "DockMenu", "", "", ""},
+{"programm", "menue:DockMenu>TfMenuEigenes", "DockMenu>TfMenuEigenes", "", "", ""},
+{"programm", "menue:DockMenu>TfMenuAlleZurueck", "DockMenu>TfMenuAlleZurueck", "", "", ""},
 {"programm", "menue:DockMenu>DockSaveAs", "DockMenu>DockSaveAs", "", "", ""},
 {"programm", "menue:DockMenu>DockLoad", "DockMenu>DockLoad", "", "", ""},
 {"programm", "menue:DockMenu>DockDelete", "DockMenu>DockDelete", "", "", ""},
