@@ -358,14 +358,14 @@ bool tauschen(LumpDok& d, const std::string& name, bool alle) {
             if (warnung.empty() || static_cast<int>(i) == d.flaeche) { warnung = lightmapWarnung(r, f.lightmap, name); }
         }
     }
-    const std::string was = alle ? textMit(tr(Str::LeWasAlle), zahl) : textMit(tr(Str::LeWasTausch), d.flaeche);
+    const std::string was = alle ? textMit(trN(Str::LeWasAlle, zahl), zahl) : textMit(tr(Str::LeWasTausch), d.flaeche);
     if (!anwenden(d, std::move(n), was)) { return false; }
     d.hervorShader = neu;
     if (unpassend > 0) {
         d.warnung = warnung;
         if (alle) {
             char b[300];
-            std::snprintf(b, sizeof(b), tr(Str::LeWarnAlle), unpassend, zahl);
+            std::snprintf(b, sizeof(b), trN(Str::LeWarnAlle, unpassend, zahl), unpassend, zahl);
             d.warnung += std::string("\n") + b;
         }
         diag::warn("Lumps: " + std::to_string(unpassend) + " von " + std::to_string(zahl) + " Flaechen passen nicht zum Licht von " + name);
@@ -513,7 +513,7 @@ void shaderEintragZeichnen(LumpDok& d, int nr) {
     if (u.brushes + u.seiten + u.patches == 0) {
         std::snprintf(b, sizeof(b), "%s", tr(Str::LeKollisionKeine));
     } else {
-        std::snprintf(b, sizeof(b), tr(Str::LeKollision), u.brushes, u.seiten, u.patches);
+        std::snprintf(b, sizeof(b), trN(Str::LeKollision, u.brushes, u.seiten, u.patches), u.brushes, u.seiten, u.patches);
     }
     d.nutzungText = b;
     ImGui::PushTextWrapPos(0.0F);

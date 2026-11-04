@@ -109,7 +109,7 @@ void meldenErsetzt(const karte::ErsetzenZahl& n) {
     if (n.seiten == 0 && n.patches == 0) {
         std::snprintf(t, sizeof(t), "%s", trK(Str::TxlNichts));
     } else {
-        std::snprintf(t, sizeof(t), trK(Str::TxlErsetzt), n.seiten, n.patches);
+        std::snprintf(t, sizeof(t), trKN(Str::TxlErsetzt, n.seiten, n.patches), n.seiten, n.patches);
     }
     s.meldung = t;
     s.meldungFehler = false;
@@ -235,7 +235,7 @@ void ersetzenZeichnen() {
         return;
     }
     char text[512];
-    std::snprintf(text, sizeof(text), trK(Str::TxlGewaehlt), t->shader.c_str(), t->seiten, t->patches);
+    std::snprintf(text, sizeof(text), trKN(Str::TxlGewaehlt, t->seiten, t->patches), t->shader.c_str(), t->seiten, t->patches);
     ImGui::TextUnformatted(text);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(trK(Str::TxlErsetzenDurch));
@@ -299,7 +299,7 @@ void ordnerZeichnen() {
     int luecken = 0;
     for (const karte::OrdnerZuordnung& o : s.zuordnung) { luecken += o.fehlt ? 1 : 0; }
     char text[256];
-    std::snprintf(text, sizeof(text), trK(Str::TxlZuordnungZahl), static_cast<int>(s.zuordnung.size()), luecken);
+    std::snprintf(text, sizeof(text), trKN(Str::TxlZuordnungZahl, s.zuordnung.size(), luecken), static_cast<int>(s.zuordnung.size()), luecken);
     ImGui::TextUnformatted(text);
     if (!s.zuordnung.empty() &&
         ImGui::BeginTable("##tlzuordnungen", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY,
@@ -324,7 +324,7 @@ void ordnerZeichnen() {
     }
     const int treffer = static_cast<int>(s.zuordnung.size()) - luecken;
     ImGui::BeginDisabled(treffer == 0);
-    std::snprintf(text, sizeof(text), trK(Str::TxlOrdnerErsetzen), treffer);
+    std::snprintf(text, sizeof(text), trKN(Str::TxlOrdnerErsetzen, treffer), treffer);
     if (ImGui::Button((std::string(text) + "###tlordnerersetzen").c_str())) { (void)texturListeOrdnerErsetzen(); }
     merkeKnopf("ordnerersetzen");
     ImGui::EndDisabled();
@@ -389,7 +389,7 @@ void texturListeKlick(const std::string& shader, bool dazu) {
     const auto [seiten, patches] = karte::texturListeWaehlen(e().karte, shader, s.umfang, dazu);
     auswahlGeaendert();
     char t[512];
-    std::snprintf(t, sizeof(t), trK(Str::TxlGewaehltN), seiten, patches);
+    std::snprintf(t, sizeof(t), trKN(Str::TxlGewaehltN, seiten, patches), seiten, patches);
     s.meldung = t;
     s.meldungFehler = false;
 }

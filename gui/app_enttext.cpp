@@ -671,7 +671,7 @@ bool entTextUebernehmen() {
     s.liveSchritt = false;
     s.zeilenAlt = true;
     char b[200];
-    std::snprintf(b, sizeof(b), tr(Str::EtUebernommen), static_cast<int>(g_app->map.entities.size()));
+    std::snprintf(b, sizeof(b), trN(Str::EtUebernommen, g_app->map.entities.size()), static_cast<int>(g_app->map.entities.size()));
     s.meldung = b;
     s.meldungFehler = false;
     diag::detail("Entity-Text: uebernommen, " + std::to_string(g_app->map.entities.size()) + " Entities");

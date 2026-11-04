@@ -13,9 +13,9 @@ ZEILEN = [
      "見えるブラシエンティティ: ワールドを影の投影元に、マップのライトで部分をもう一度ビルドします (q3map2 -bsp、-light) ...",
      "Entidades de brush visibles: la parte se compila otra vez con el mundo como proyector de sombras y las luces del mapa (q3map2 -bsp, -light) ...",
      "Viditelné brush entity: část se sestaví znovu se světem jako vrhačem stínů a se světly mapy (q3map2 -bsp, -light) ..."),
-    ("KeBmEinfuegenClips", "Inserted %d clip brushes into %d leaves of the world of %s.", "%d Clip-Brushes in %d Blätter der Welt von %s eingefügt.",
+    ("KeBmEinfuegenClips", "Inserted %d {clip brush|clip brushes} into %d {2:leaf|leaves} of the world of %s.", "%d {Clip-Brush|Clip-Brushes} in %d {2:Blatt|Blätter} der Welt von %s eingefügt.",
      "已将 %d 个裁剪画刷插入 %d 个世界叶节点(%s)。", "%d 個のクリップブラシをワールドの %d 個のリーフに挿入しました (%s)。",
-     "Se insertaron %d brushes clip en %d hojas del mundo de %s.", "Vloženo %d clip brushů do %d listů světa mapy %s."),
+     "{Se insertó|Se insertaron} %d {brush clip|brushes clip} en %d {2:hoja|hojas} del mundo de %s.", "{Vložen|Vloženy|Vloženo} %d {clip brush|clip brushe|clip brushů} do %d {2:listu|listů|listů} světa mapy %s."),
 ]
 
 

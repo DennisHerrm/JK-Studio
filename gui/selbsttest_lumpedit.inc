@@ -329,7 +329,7 @@ std::vector<Schritt> lumpeditSchritte() {
         int seiten = 0;
         rohZaehlen(lumpEditDateiBytes(), z->neuNr, brushes, seiten);
         char soll[160];
-        std::snprintf(soll, sizeof(soll), tr(Str::LeKollision), brushes, seiten, 0);
+        std::snprintf(soll, sizeof(soll), trN(Str::LeKollision, brushes, seiten, 0), brushes, seiten, 0);
         const std::string t = lumpEditNutzungText();
         const std::string b = std::to_string(brushes);
         const std::string sz = std::to_string(seiten);

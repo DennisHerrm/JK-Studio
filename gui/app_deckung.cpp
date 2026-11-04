@@ -246,7 +246,7 @@ void wegDeckungPruefen() {
     g_app->wegDeckStand = g_app->entStand;
     const double msZu = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     char z[200];
-    std::snprintf(z, sizeof(z), tr(Str::WegDeckFertig), static_cast<int>(e.kandidaten), static_cast<int>(e.mitDeckung), a->sekunden);
+    std::snprintf(z, sizeof(z), trN(Str::WegDeckFertig, e.kandidaten), static_cast<int>(e.kandidaten), static_cast<int>(e.mitDeckung), a->sekunden);
     g_app->wegDeckMeldung = g_app->wegDeck.empty() && verworfen == 0 ? std::string(tr(Str::WegDeckKeine)) + " " + z : std::string(z);
     diag::detail("Wegpunkte: Kampfpunkt-Vorschlaege - " + std::to_string(e.kandidaten) + " Kandidaten, " + std::to_string(e.feindStellen) +
                  " Feindstellen, " + std::to_string(e.mitDeckung) + " mit Deckung, " + std::to_string(e.punkte.size()) + " gewaehlt, " +
@@ -340,7 +340,7 @@ void wegDeckungFenster() {
                 if (ImGui::SmallButton(tr(Str::WegDeckAnnehmen))) { aktion = i; }
                 ImGui::SameLine();
                 char z[200];
-                std::snprintf(z, sizeof(z), tr(Str::WegDeckGrund), d.feinde, static_cast<double>(d.richtung < 0.0F ? d.richtung + 360.0F : d.richtung));
+                std::snprintf(z, sizeof(z), trN(Str::WegDeckGrund, d.feinde), d.feinde, static_cast<double>(d.richtung < 0.0F ? d.richtung + 360.0F : d.richtung));
                 if (ImGui::Selectable(z)) {
                     g_app->cam.pos[0] = d.ort[0];
                     g_app->cam.pos[1] = d.ort[1];

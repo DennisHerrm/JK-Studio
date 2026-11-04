@@ -61,11 +61,11 @@ ZEILEN = [
      "与游戏一致的连接:新增 %d,移除 %d", "ゲームと同じ接続: 新規 %d、削除 %d", "Conexiones como en el juego: %d nuevas, %d quitadas",
      "Spojení jako ve hře: %d nových, %d odebraných"),
     ("EntVerweiseFrage",
-     "%d target fields (target, target2-4, targetJump) name the deleted entities. Remove these references too? No deletes only the entities.",
-     "%d target-Felder (target, target2-4, targetJump) nennen die gelöschten Entities. Diese Verweise mit entfernen? Nein löscht nur die Entities.",
+     "%d target {field|fields} (target, target2-4, targetJump) {names|name} the deleted entities. Remove {this reference|these references} too? No deletes only the entities.",
+     "%d {target-Feld|target-Felder} (target, target2-4, targetJump) {nennt|nennen} die gelöschten Entities. {Diesen Verweis|Diese Verweise} mit entfernen? Nein löscht nur die Entities.",
      "有 %d 个 target 字段(target、target2-4、targetJump)指向被删除的实体。是否同时移除这些引用?选「否」只删除实体。",
      "%d 個の target 欄(target、target2-4、targetJump)が削除するエンティティを指しています。これらの参照も削除しますか? 「いいえ」はエンティティだけを削除します。",
-     "%d campos target (target, target2-4, targetJump) nombran las entidades borradas. ¿Quitar también estas referencias? No borra solo las entidades.",
+     "%d {campo|campos} target (target, target2-4, targetJump) {nombra|nombran} las entidades borradas. ¿Quitar también {esta referencia|estas referencias}? No borra solo las entidades.",
      "Polí target (target, target2-4, targetJump), která jmenují mazané entity: %d. Odebrat i tyto odkazy? Ne smaže jen entity."),
 ]
 

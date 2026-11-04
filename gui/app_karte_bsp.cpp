@@ -621,11 +621,11 @@ void bspEinfuegenAbschluss() {
     h.punktAbdruecke = karte::punktAbdruecke(ed.karte);
     lumpEditKarteSetzen(h.quelle, r.bsp);
     if (r.neueModelle > 0) {
-        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFertig), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
+        std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenFertig, r.neueModelle), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
         ausgabe(z);
     }
     if (r.weltPinsel > 0) {
-        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenClips), r.weltPinsel, r.weltBlaetter, h.quelle.c_str());
+        std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenClips, r.weltPinsel, r.weltBlaetter), r.weltPinsel, r.weltBlaetter, h.quelle.c_str());
         ausgabe(z);
     }
     std::string fertig;
@@ -682,7 +682,7 @@ void bspInFertigeKarte() {
     }
     if (t.geaendert > 0) {
         char z[512];
-        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenPunkte), t.geaendert);
+        std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenPunkte, t.geaendert), t.geaendert);
         warnung(z);
     }
     const std::string teilMap = h.ordner + "/" + h.stamm + "_teil.map";

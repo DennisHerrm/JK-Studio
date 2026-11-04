@@ -1675,7 +1675,7 @@ void patchHinweisMelden() {
     const std::size_t n = kartePatchAnzahl();
     if (n == 0 || !karte::lichtOhnePatchSchatten(l.befehle[l.schritt])) { return; }
     char z[1024];
-    std::snprintf(z, sizeof(z), trK(Str::KePatchSchattenHinweis), static_cast<int>(n));
+    std::snprintf(z, sizeof(z), trKN(Str::KePatchSchattenHinweis, n), static_cast<int>(n));
     konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(z) + "\n");
     l.patchWarnung = z;
 }
