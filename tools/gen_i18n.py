@@ -2242,6 +2242,8 @@ from i18n_rc609_f import zeilen_vier as _rc609_f  # noqa: E402  (rc609 F: Funde 
 S += _rc609_f()
 from i18n_rc609_k import zeilen_vier as _rc609_k  # noqa: E402  (rc609 K: Texturen der Karte - Uebersicht und Ersetzen)
 S += _rc609_k()
+from i18n_rc609_b1 import zeilen_vier as _rc609_b1  # noqa: E402  (rc609 B1: Brush-Entities in fertige Karten einfuegen)
+S += _rc609_b1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

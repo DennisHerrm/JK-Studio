@@ -3895,6 +3895,13 @@ enum class Str {
     TxlOrdnerErsetzen,
     TxlNichts,
     TxlErsetzt,
+    KeBmEinfuegen,
+    KeBmEinfuegenTip,
+    KeBmEinfuegenKeine,
+    KeBmEinfuegenGeaendert,
+    KeBmEinfuegenFertig,
+    KeBmEinfuegenPunkte,
+    KeBmEinfuegenFehler,
     Count,
 };
 

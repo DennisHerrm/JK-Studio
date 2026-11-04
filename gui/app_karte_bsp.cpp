@@ -32,6 +32,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/karte/bspmerge.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartenformat.h"
@@ -233,6 +234,8 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
         ed.bspHerkunft.ordner = ordner;
         ed.bspHerkunft.stamm = stamm;
         ed.bspHerkunft.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+        ed.bspHerkunft.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
+        ed.bspHerkunft.punktAbdruecke = karte::punktAbdruecke(ed.karte);
     }
     return ok;
 }
@@ -493,6 +496,114 @@ void bspNurEntitaeten() {
                          ausgabe(z);
                          ed2.bspNurEntitaetenFertig = g_nurEntitaetenBsp;
                      });
+}
+
+// --- rc609 B1: Brush-Entities in die fertige Karte einfuegen (Teil-Compile und BSP-Merge) ----------
+// Neu sind die Brush-Entities, deren Brushes es beim Oeffnen nicht gab (karte::neuePinselEntitaeten).
+// Sie kommen allein mit der worldspawn (ohne Brushes) in <stamm>_teil.map, q3map2 -bsp baut sie, und
+// karte::bspModelleAnhaengen haengt ihre Untermodelle als neue *N an <stamm>_original.bsp. Gespeichert
+// wird wie im Fenster "Shader und Flaechen" (lumpBspSpeichern: Arbeitskopie und die Datei, aus der die
+// Karte kam - lose mit .bak, aus dem Spiel auf den Wegen aus W2a).
+
+namespace {
+
+std::string g_teilBsp;   // die Datei, die q3map2 gerade schreibt (fuer den Abschluss)
+
+karte::MergeSpiel mergeSpiel() {
+    const int s = kartenSpielNummer();
+    return s == kRegelwerkJediOutcast ? karte::MergeSpiel::Jk2 : (s == kRegelwerkMovieDuels ? karte::MergeSpiel::MovieDuels : karte::MergeSpiel::Jka);
+}
+
+void bspEinfuegenAbschluss() {
+    Editor& ed = e();
+    BspHerkunft& h = ed.bspHerkunft;
+    std::string orig;
+    std::string teil;
+    if (!dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", orig) || !dateiLesen(g_teilBsp, teil)) {
+        fehler("reading " + g_teilBsp + " failure");
+        return;
+    }
+    const karte::MergeErgebnis r = karte::bspModelleAnhaengen(orig, teil, mergeSpiel());
+    ed.bspEinfuegenMeldungen.clear();
+    std::string ersterFehler;
+    for (const karte::MergeMeldung& m : r.meldungen) {
+        ed.bspEinfuegenMeldungen.push_back(std::string(m.fehler ? "fehler " : "warnung ") + m.pruefung + " " + m.text);
+        if (m.fehler) {
+            fehler(m.text);
+            if (ersterFehler.empty()) { ersterFehler = m.text; }
+        } else {
+            warnung(m.text);
+        }
+    }
+    const std::string titel = karte::ohneMnemonik(trK(Str::KeBmEinfuegen));
+    char z[2048];
+    if (!r.ok()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFehler), ersterFehler.c_str());
+        qtMeldung(titel, z, MeldungArt::Fehler, false, nullptr);
+        return;
+    }
+    // Die Arbeitskopie bekommt die neuen Modelle sofort (lumpBspSpeichern schreibt sie zuerst) - ab jetzt
+    // gehoeren die Brush-Entities zur Karte und werden nicht noch einmal eingefuegt.
+    h.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+    h.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
+    h.punktAbdruecke = karte::punktAbdruecke(ed.karte);
+    lumpEditKarteSetzen(h.quelle, r.bsp);
+    std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenFertig), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
+    ausgabe(z);
+    const std::string fertig = "*" + std::to_string(r.ersteNummer) + " *" + std::to_string(r.ersteNummer + r.neueModelle - 1);
+    lumpBspSpeichern(r.bsp, [fertig] { e().bspEinfuegenFertig = fertig; });
+}
+
+}  // namespace
+
+int bspNeuePinselEntitaeten() {
+    const Editor& ed = e();
+    return ed.bspHerkunft.aktiv ? static_cast<int>(karte::neuePinselEntitaeten(ed.karte, ed.bspHerkunft.pinselAbdruecke).size()) : 0;
+}
+
+void bspInFertigeKarte() {
+    Editor& ed = e();
+    if (!ed.bspHerkunft.aktiv) {
+        fehler(trK(Str::KeBmNurEntitiesAus));
+        return;
+    }
+    if (bspRueckSperre()) { return; }   // Stufe 9d: die Rueckgewinnung aendert gerade die Geometrie
+    const std::string titel = karte::ohneMnemonik(trK(Str::KeBmEinfuegen));
+    const BspHerkunft& h = ed.bspHerkunft;
+    const std::vector<const karte::Entitaet*> neu = karte::neuePinselEntitaeten(ed.karte, h.pinselAbdruecke);
+    if (neu.empty()) {
+        warnung(trK(Str::KeBmEinfuegenKeine));
+        qtMeldung(titel, trK(Str::KeBmEinfuegenKeine), MeldungArt::Warnung, false, nullptr);
+        return;
+    }
+    // Stufe 1: der Rest (Welt-Brushes, vorhandene Brush-Entities, eingebackene Modelle) wie beim Oeffnen
+    if (karte::geometrieFingerabdruck(ed.karte, neu) != h.fingerabdruck) {
+        warnung(trK(Str::KeBmEinfuegenGeaendert));
+        qtMeldung(titel, trK(Str::KeBmEinfuegenGeaendert), MeldungArt::Warnung, false, nullptr);
+        return;
+    }
+    // Neue Punkt-Entities (das Ziel eines neuen Triggers) kommen mit; geaenderte vorhandene nicht
+    int geaendert = 0;
+    std::vector<const karte::Entitaet*> teil = neu;
+    for (const karte::Entitaet* p : karte::neuePunktEntitaeten(ed.karte, h.punktAbdruecke, &geaendert)) { teil.push_back(p); }
+    if (geaendert > 0) {
+        char z[512];
+        std::snprintf(z, sizeof(z), trK(Str::KeBmEinfuegenPunkte), geaendert);
+        warnung(z);
+    }
+    const std::string teilMap = h.ordner + "/" + h.stamm + "_teil.map";
+    g_teilBsp = h.ordner + "/" + h.stamm + "_teil.bsp";
+    std::error_code ec;
+    fs::remove(pfadVon(g_teilBsp), ec);
+    if (!dateiSchreibenRoh(teilMap, karte::teilKarte(ed.karte, teil))) {
+        fehler("writing " + teilMap + " failure");
+        return;
+    }
+    ed.bspEinfuegenFertig.clear();
+    ed.bspEinfuegenMeldungen.clear();
+    bauEigeneBefehle(titel, {karte::teilBauBefehl(q3map2Aufruf(), teilMap)}, [](int art) {
+        if (art == 0) { bspEinfuegenAbschluss(); }
+    });
 }
 
 // --- rc609 J: Shader, Nebel und Flaechen der geoeffneten .bsp (gui/app_lumpedit.cpp) -------------

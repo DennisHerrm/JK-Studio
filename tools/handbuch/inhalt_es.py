@@ -7395,3 +7395,41 @@ TEXTE.update({
     'The same with {{KePatchSchatten}} on: the light stage gets -patchshadows, and the patch casts its shadow.':
         'Lo mismo con {{KePatchSchatten}} activado: el paso de luz recibe -patchshadows y el patch proyecta su sombra.',
 })
+
+# rc609 B1: Brush-Entities in fertige Karten einfuegen (inhalt_bspmerge.py)
+TEXTE.update({
+    'Map editor: inserting brush entities into compiled maps':
+        'Editor de mapas: insertar entidades de brush en mapas compilados',
+    'Add triggers, a func_usable with nodraw brushes and other invisible brush entities to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new entities and appends them to the .bsp as new models `*N`. The world stays byte for byte.':
+        'Añade a un mapa compilado sin su fuente triggers, un func_usable con brushes nodraw y otras entidades de brush invisibles: {{KeLBuild}} > {{KeBmEinfuegen}} compila solo las entidades nuevas y las añade al .bsp como modelos nuevos `*N`. El mundo queda byte a byte.',
+    'How it works':
+        'Cómo funciona',
+    'Open the compiled map with **{{KeLFile}} > {{KeLOpenBsp}}** (see [[karte_oeffnen]]).':
+        'Abre el mapa compilado con **{{KeLFile}} > {{KeLOpenBsp}}** (ver [[karte_oeffnen]]).',
+    'Build the new brush entities as usual: a brush with `textures/system/trigger` as `trigger_multiple` or `trigger_once`, a `func_usable` from `nodraw` brushes, brush entities with an `origin` brush. New point entities - for example the `target_print` or `target_relay` that a new trigger targets - come along.':
+        'Crea las entidades de brush nuevas como siempre: un brush con `textures/system/trigger` como `trigger_multiple` o `trigger_once`, un `func_usable` de brushes `nodraw`, entidades de brush con un brush `origin`. Las entidades de punto nuevas - por ejemplo el `target_print` o `target_relay` al que apunta un trigger nuevo - van con ellas.',
+    'A new `trigger_multiple` in front of a player start of mp/duel1 and its `target_print`.':
+        'Un `trigger_multiple` nuevo delante de un inicio de jugador de mp/duel1 y su `target_print`.',
+    '**{{KeLBuild}} > {{KeBmEinfuegen}}**: only the new entities go into an empty map (a worldspawn without brushes, `<name>_teil.map` in the work folder), and q3map2 `-bsp` builds them. Leaks do not matter and no light is needed: q3map2 builds the models of entities without a flood fill.':
+        '**{{KeLBuild}} > {{KeBmEinfuegen}}**: solo las entidades nuevas van a un mapa vacío (un worldspawn sin brushes, `<nombre>_teil.map` en la carpeta de trabajo), y q3map2 `-bsp` las compila. Las fugas no importan y no hace falta luz: q3map2 compila los modelos de las entidades sin relleno.',
+    'The menu {{KeLBuild}} with the entry (1).':
+        'El menú {{KeLBuild}} con la entrada (1).',
+    'Their models are appended to the .bsp as new `*N`: models, brushes, brush sides, planes and shaders (an existing shader with the same flags is used again), and for each model a leaf of its own, as q3map2 builds it. The entities get `"model" "*N"` in the entity lump. BSP tree, VIS, lightmaps, surfaces and light grid of the world stay byte for byte; the other lumps only grow at the end.':
+        'Sus modelos se añaden al .bsp como `*N` nuevos: modelos, brushes, caras de brush, planos y shaders (un shader existente con los mismos flags se reutiliza), y para cada modelo una hoja propia, como la crea q3map2. Las entidades reciben `"model" "*N"` en el lump de entidades. El árbol BSP, VIS, lightmaps, superficies y rejilla de luz del mundo quedan byte a byte; los demás lumps solo crecen al final.',
+    'Saving works as in the window **{{LePanel}}**: a loose .bsp is written with a backup `.bak` first, from a .pk3 you choose the way. Then the new entities belong to the map; inserting again only takes what is new since then.':
+        'Se guarda como en la ventana **{{LePanel}}**: un .bsp suelto se escribe con una copia `.bak` antes; desde un .pk3 eliges el modo. Después las entidades nuevas pertenecen al mapa; insertar otra vez solo toma lo que es nuevo desde entonces.',
+    'After inserting: the console reports the saved .bsp and its backup .bak.':
+        'Después de insertar: la consola indica el .bsp guardado y su copia .bak.',
+    'Checks':
+        'Comprobaciones',
+    '**Not inserted:** visible surfaces (brush entities with lightmaps), brushes in the worldspawn (clips), changed world brushes or existing brush entities (they need a full build), a different BSP format.':
+        '**No se inserta:** superficies visibles (entidades de brush con lightmaps), brushes en el worldspawn (clips), brushes del mundo o entidades de brush existentes cambiados (necesitan una compilación completa), otro formato BSP.',
+    "**Number of models** as the game loads them: at most 511 in single player (the next number is the game's own box model, `BOX_MODEL_HANDLE`) and 510 in multiplayer (`CAPSULE_MODEL_HANDLE`); from 513 on the game refuses the map (`MAX_SUBMODELS`).":
+        '**Número de modelos** como los carga el juego: como máximo 511 en un jugador (el número siguiente es el modelo de caja propio del juego, `BOX_MODEL_HANDLE`) y 510 en multijugador (`CAPSULE_MODEL_HANDLE`); a partir de 513 el juego rechaza el mapa (`MAX_SUBMODELS`).',
+    '**Warnings:** a solid new brush that overlaps solid world brushes, a `target` that matches no `targetname` of the map, the format limits of `qfiles.h`.':
+        '**Avisos:** un brush sólido nuevo que se solapa con brushes sólidos del mundo, un `target` sin `targetname` en el mapa, los límites del formato de `qfiles.h`.',
+    'Changed existing point entities stay as they are in the compiled map; write them with **{{KeLBuild}} > {{KeBmNurEntities}}**.':
+        'Las entidades de punto existentes cambiadas quedan como en el mapa compilado; escríbelas con **{{KeLBuild}} > {{KeBmNurEntities}}**.',
+    'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
+        'Los clips en el mundo y los móviles visibles con lightmaps (func_door, func_train ...) todavía no forman parte de este comando.',
+})

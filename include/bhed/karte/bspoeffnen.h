@@ -35,6 +35,7 @@
 namespace bhed::karte {
 
 class Dateisystem;
+class Entitaet;
 class Karte;
 
 // Eine fertige Karte im Spiel: maps/**.bsp in einem Archiv (.pk3) oder Ordner.
@@ -69,6 +70,9 @@ struct Q3map2Aufruf {
 // (writebsp.cpp:222-260) entfernt sonst jedes light ohne targetname - Ravens
 // Jedi-Outcast-Karten haben ihre Lichter aber im Entity-Lump.
 [[nodiscard]] std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool lichterBehalten = false);
+// rc609 B1: q3map2 -bsp fuer die Teilkarte "In fertige Karte einfuegen" (BSPMain ohne -meta: Stufe 1
+// hat keine Flaechen; Untermodelle baut ProcessSubModel ohne Flood-Fill, ein Leck bricht nicht ab).
+[[nodiscard]] std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map);
 // Stufe 8a Punkt 3: bhed_q3map2 -bhedmodels <liste> <aus> (Modelle wie InsertModel sie
 // laedt, fuer die Rueckgewinnung der misc_model); pakPfade als -fs_pakpath.
 [[nodiscard]] std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste,
@@ -85,6 +89,9 @@ struct Q3map2Aufruf {
 // nur Entities geaendert (Schluessel, Punkt-Entities verschoben, neue
 // Punkt-Entities): dann reicht -onlyents, Lightmaps und Lichtgitter bleiben.
 [[nodiscard]] std::uint64_t geometrieFingerabdruck(const Karte& k);
+// rc609 B1: dasselbe ohne die Entities in ohne (die neuen Brush-Entities beim Einfuegen in die fertige
+// Karte - der Rest muss dann gleich dem Abdruck beim Oeffnen sein).
+[[nodiscard]] std::uint64_t geometrieFingerabdruck(const Karte& k, const std::vector<const Entitaet*>& ohne);
 
 // Kopf und Lumps einer IBSP- (Quake 3, 17 Lumps) oder RBSP-Datei (Raven:
 // Jedi Academy, Jedi Outcast, 18 Lumps). Der Entity-Lump ist Lump 0.

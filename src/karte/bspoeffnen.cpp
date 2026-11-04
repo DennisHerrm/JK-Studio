@@ -103,6 +103,8 @@ std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool l
     return gemeinsamerAnfang(a) + " -bsp -onlyents " + (lichterBehalten ? "-keeplights " : "") + inAnfuehrung(map);
 }
 
+std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map) { return gemeinsamerAnfang(a) + " -bsp " + inAnfuehrung(map); }
+
 std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste, const std::string& aus) {
     std::string s = gemeinsamerAnfang(a);
     for (const std::string& p : pakPfade) {
@@ -117,12 +119,17 @@ bool eingebackeneEntitaet(const std::string& klassenname) {
     return k == "misc_model" || k == "_decal" || k == "_skybox";
 }
 
-std::uint64_t geometrieFingerabdruck(const Karte& k) {
+std::uint64_t geometrieFingerabdruck(const Karte& k) { return geometrieFingerabdruck(k, {}); }
+
+std::uint64_t geometrieFingerabdruck(const Karte& k, const std::vector<const Entitaet*>& ohne) {
     std::uint64_t h = 1469598103934665603ULL;
     // Entitaeten mit Primitiven: nur die Primitive (Schluessel und Kommentare
     // wie "// entity N" fallen weg - neue Punkt-Entities verschieben die Nummern)
     const std::string pinsel = karteSchreiben(
-        k, [](const Entitaet& e) { return !e.kinder().empty() && !eingebackeneEntitaet(e.klassenname()); },
+        k,
+        [&ohne](const Entitaet& e) {
+            return !e.kinder().empty() && !eingebackeneEntitaet(e.klassenname()) && std::find(ohne.begin(), ohne.end(), &e) == ohne.end();
+        },
         [](const Entitaet&, const Primitiv&) { return true; });
     std::size_t a = 0;
     while (a < pinsel.size()) {

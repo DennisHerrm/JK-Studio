@@ -5641,6 +5641,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_wegerzeugung.inc"   // rc609 W3a: Erzeugung in Innenraeumen und auf Treppen
 #include "selbsttest_wegmalen.inc"   // rc609 W3b: Bereich und Pfad malen, Startpunkt per Klick
 #include "selbsttest_kampfpunkte.inc"   // rc609 W4: Kampfpunkte von Hand, Testroute, Abdeckung, Versetzen
+#include "selbsttest_bspmerge.inc"   // rc609 B1: Brush-Entities in fertige Karten einfuegen
 #include "selbsttest_figurlicht.inc"   // figurlicht: Lichtgitter gegen r_debuglight im Spiel (rc608)
 #include "selbsttest_teil6.inc"       // teil6: Portale und Schmerz (rc608)
 #include "selbsttest_teil9.inc"       // teil9: Spieler in Cutscenes, Licht der Modelle (rc608)
@@ -6007,6 +6008,8 @@ void selbsttest() {
     static const bool nurFundef = std::strcmp(modus, "fundef") == 0;
     // rc609 K: Texturen der Karte
     static const bool nurTexturliste = std::strcmp(modus, "texturliste") == 0;
+    // rc609 B1: Brush-Entities in fertige Karten einfuegen
+    static const bool nurBspmerge = std::strcmp(modus, "bspmerge") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6153,6 +6156,8 @@ void selbsttest() {
                 a.schritte = fundefSchritte();
             } else if (nurTexturliste) {
                 a.schritte = texturlisteSchritte();
+            } else if (nurBspmerge) {
+                a.schritte = bspmergeSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurMission1) {

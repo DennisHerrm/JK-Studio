@@ -7392,3 +7392,41 @@ TEXTE.update({
     'The same with {{KePatchSchatten}} on: the light stage gets -patchshadows, and the patch casts its shadow.':
         'Totéž se zapnutým {{KePatchSchatten}}: krok světla dostane -patchshadows a patch vrhá stín.',
 })
+
+# rc609 B1: Brush-Entities in fertige Karten einfuegen (inhalt_bspmerge.py)
+TEXTE.update({
+    'Map editor: inserting brush entities into compiled maps':
+        'Editor map: vkládání brush entit do hotových map',
+    'Add triggers, a func_usable with nodraw brushes and other invisible brush entities to a compiled map without its source: {{KeLBuild}} > {{KeBmEinfuegen}} builds only the new entities and appends them to the .bsp as new models `*N`. The world stays byte for byte.':
+        'Přidejte do hotové mapy bez zdroje triggery, func_usable z nodraw brushů a další neviditelné brush entity: {{KeLBuild}} > {{KeBmEinfuegen}} sestaví jen nové entity a připojí je k .bsp jako nové modely `*N`. Svět zůstane bajt po bajtu.',
+    'How it works':
+        'Jak to funguje',
+    'Open the compiled map with **{{KeLFile}} > {{KeLOpenBsp}}** (see [[karte_oeffnen]]).':
+        'Otevřete hotovou mapu přes **{{KeLFile}} > {{KeLOpenBsp}}** (viz [[karte_oeffnen]]).',
+    'Build the new brush entities as usual: a brush with `textures/system/trigger` as `trigger_multiple` or `trigger_once`, a `func_usable` from `nodraw` brushes, brush entities with an `origin` brush. New point entities - for example the `target_print` or `target_relay` that a new trigger targets - come along.':
+        'Vytvořte nové brush entity jako obvykle: brush s `textures/system/trigger` jako `trigger_multiple` nebo `trigger_once`, `func_usable` z `nodraw` brushů, brush entity s `origin` brushem. Nové bodové entity - například `target_print` nebo `target_relay`, na který nový trigger ukazuje - jdou s nimi.',
+    'A new `trigger_multiple` in front of a player start of mp/duel1 and its `target_print`.':
+        'Nový `trigger_multiple` před startem hráče v mp/duel1 a jeho `target_print`.',
+    '**{{KeLBuild}} > {{KeBmEinfuegen}}**: only the new entities go into an empty map (a worldspawn without brushes, `<name>_teil.map` in the work folder), and q3map2 `-bsp` builds them. Leaks do not matter and no light is needed: q3map2 builds the models of entities without a flood fill.':
+        '**{{KeLBuild}} > {{KeBmEinfuegen}}**: jen nové entity přijdou do prázdné mapy (worldspawn bez brushů, `<název>_teil.map` v pracovní složce) a q3map2 `-bsp` je sestaví. Úniky nevadí a světlo není potřeba: modely entit sestavuje q3map2 bez vyplňování.',
+    'The menu {{KeLBuild}} with the entry (1).':
+        'Nabídka {{KeLBuild}} s položkou (1).',
+    'Their models are appended to the .bsp as new `*N`: models, brushes, brush sides, planes and shaders (an existing shader with the same flags is used again), and for each model a leaf of its own, as q3map2 builds it. The entities get `"model" "*N"` in the entity lump. BSP tree, VIS, lightmaps, surfaces and light grid of the world stay byte for byte; the other lumps only grow at the end.':
+        'Jejich modely se připojí k .bsp jako nové `*N`: modely, brushe, strany brushů, roviny a shadery (existující shader se stejnými příznaky se použije znovu) a pro každý model vlastní list, jak ho sestavuje q3map2. Entity dostanou `"model" "*N"` v lumpu entit. Strom BSP, VIS, lightmapy, plochy a světelná mřížka světa zůstanou bajt po bajtu; ostatní lumpy jen rostou na konci.',
+    'Saving works as in the window **{{LePanel}}**: a loose .bsp is written with a backup `.bak` first, from a .pk3 you choose the way. Then the new entities belong to the map; inserting again only takes what is new since then.':
+        'Ukládá se jako v okně **{{LePanel}}**: volný .bsp se zapíše se zálohou `.bak` předem, z .pk3 zvolíte způsob. Potom nové entity patří k mapě; další vložení vezme jen to, co je od té doby nové.',
+    'After inserting: the console reports the saved .bsp and its backup .bak.':
+        'Po vložení: konzole hlásí uložený .bsp a jeho zálohu .bak.',
+    'Checks':
+        'Kontroly',
+    '**Not inserted:** visible surfaces (brush entities with lightmaps), brushes in the worldspawn (clips), changed world brushes or existing brush entities (they need a full build), a different BSP format.':
+        '**Nevloží se:** viditelné plochy (brush entity s lightmapami), brushe ve worldspawn (clipy), změněné brushe světa nebo existující brush entity (potřebují úplné sestavení), jiný formát BSP.',
+    "**Number of models** as the game loads them: at most 511 in single player (the next number is the game's own box model, `BOX_MODEL_HANDLE`) and 510 in multiplayer (`CAPSULE_MODEL_HANDLE`); from 513 on the game refuses the map (`MAX_SUBMODELS`).":
+        '**Počet modelů** tak, jak je hra načítá: nejvýše 511 pro jednoho hráče (další číslo je vlastní krabicový model hry, `BOX_MODEL_HANDLE`) a 510 pro více hráčů (`CAPSULE_MODEL_HANDLE`); od 513 hra mapu odmítne (`MAX_SUBMODELS`).',
+    '**Warnings:** a solid new brush that overlaps solid world brushes, a `target` that matches no `targetname` of the map, the format limits of `qfiles.h`.':
+        '**Varování:** pevný nový brush, který se překrývá s pevnými brushi světa, `target` bez odpovídajícího `targetname` v mapě, limity formátu z `qfiles.h`.',
+    'Changed existing point entities stay as they are in the compiled map; write them with **{{KeLBuild}} > {{KeBmNurEntities}}**.':
+        'Změněné existující bodové entity zůstanou jako v hotové mapě; zapište je přes **{{KeLBuild}} > {{KeBmNurEntities}}**.',
+    'Clips in the world and visible movers with lightmaps (func_door, func_train ...) are not part of this command yet.':
+        'Clipy ve světě a viditelné pohyblivé objekty s lightmapami (func_door, func_train ...) zatím nejsou součástí tohoto příkazu.',
+})

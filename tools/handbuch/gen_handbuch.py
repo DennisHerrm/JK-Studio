@@ -166,6 +166,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_w4()})
             from i18n_rc609_k import zeilen_vier as _rc609_k   # rc609 K: Texturen der Karte
             texte.update({e[0]: e[1:] for e in _rc609_k()})
+            from i18n_rc609_b1 import zeilen_vier as _rc609_b1   # rc609 B1: Brush-Entities in fertige Karten einfuegen
+            texte.update({e[0]: e[1:] for e in _rc609_b1()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
