@@ -359,6 +359,22 @@ std::vector<Schritt> wegpunkte() {
     add(erledigt("k-wegpunkte", 1));
     add(wartetNoch("k-wegpunkte", 1));
     add(klick(tr(Str::WegErzeugen), "###wegpunkte"));
+    // Die Erzeugung laeuft seit rc609 W3a/W3b im Hintergrund und braucht auf grossen Karten Sekunden bis Minuten:
+    // nach der Uhr warten (die Grenze von 4000 Bildern je Schritt gilt hier nicht), dann erst die Tour pruefen.
+    auto wegStart = std::make_shared<std::chrono::steady_clock::time_point>();
+    add(Schritt{"H2 Wege: Erzeugung im Hintergrund fertig", [wegStart](int b) {
+                    if (b == 0) { *wegStart = std::chrono::steady_clock::now(); }
+                    const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - *wegStart).count();
+                    if (b > 2 && !wegAuftragLaeuft()) {
+                        diag::detail("Knopftest: H2 Wege: Erzeugung fertig nach " + std::to_string(sek) + " s");
+                        return true;
+                    }
+                    if (sek > 900.0) {
+                        meldeFehler("H2 Wege: Erzeugung nicht nach 900 s fertig");
+                        return true;
+                    }
+                    return false;
+                }, true});
     add(erledigt("k-wegpunkte", 2, 6000));
     add(klick(tr(Str::WegPruefen), "###wegpunkte"));
     add(erledigt("k-wegpunkte", 3, 1200));

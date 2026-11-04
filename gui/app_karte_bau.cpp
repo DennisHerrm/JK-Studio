@@ -2008,10 +2008,15 @@ void bauFortschrittZeichnen() {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x - 16.0F * s, vp->WorkPos.y + vp->WorkSize.y - 48.0F * s}, ImGuiCond_FirstUseEver,
                             ImVec2{1.0F, 1.0F});
-    ImGui::SetNextWindowSize(ImVec2{std::round(420.0F * s), 0.0F}, ImGuiCond_FirstUseEver);
+    // Endrunde 2 rc609: die Hoehe folgt dem Inhalt in jedem Bild (Breite 0 waere die des Inhalts, darum die zuletzt
+    // gezogene Breite) - die Warnungen von VIS und LIGHT kommen erst waehrend des Baus dazu und schoben "Bauen abbrechen"
+    // sonst unter den Fensterrand.
+    static float breite0 = 0.0F;
+    ImGui::SetNextWindowSize(ImVec2{breite0 > 0.0F ? breite0 : std::round(420.0F * s), 0.0F}, ImGuiCond_Always);
     const std::string titel = std::string(trK(Str::KeFsTitel)) + "###kartebaufortschritt";
     bool offen = true;
     if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        breite0 = ImGui::GetWindowWidth();
         char z[512];
         std::snprintf(z, sizeof(z), trK(Str::KeFsSchritt), g_lauf.eintrag.c_str(), static_cast<int>(st.schritt + 1), static_cast<int>(st.schritte),
                       st.stufe.c_str());
@@ -2062,6 +2067,11 @@ void bauFortschrittZeichnen() {
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("%s", trK(Str::KeFsHinweis));
         ImGui::PopStyleColor();
+        // waechst das Fenster nach unten ueber den Arbeitsbereich, rueckt es nach oben
+        const ImVec2 pos = ImGui::GetWindowPos();
+        const float unten = vp->WorkPos.y + vp->WorkSize.y;
+        const float hoehe = ImGui::GetWindowHeight();
+        if (pos.y + hoehe > unten) { ImGui::SetWindowPos(ImVec2{pos.x, std::max(vp->WorkPos.y, unten - hoehe)}); }
     }
     ImGui::End();
     if (!offen) { ed.bauFortschrittZu = true; }

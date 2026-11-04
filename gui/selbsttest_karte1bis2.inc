@@ -5060,12 +5060,13 @@ std::vector<Schritt> modelle() {
         return a.modell && !a.modell->null && !a.modell->flaechen.empty() && shader;
     }));
     add(modellDazu("misc_model ohne Datei", "models/gibtsnicht.md3", "0 200 32"));
-    add(modellDazu("misc_model mit unbekannter Endung", "models/x.obj", "0 -200 32"));
+    // .obj, .fbx, .gltf und .glb laedt der Editor seit rc609 KEMD 4 (assimp); unbekannt bleibt z. B. .txt
+    add(modellDazu("misc_model mit unbekannter Endung", "models/x.txt", "0 -200 32"));
     add(pause(0.3));
     add(pruefe("Meldungen \"Model load failed\" / \"Model type not supported\", NullModel (8)", [] {
         const auto ent = modellEntitaet("models/gibtsnicht.md3");
         const karte::ModellAnsicht a = ke::kartenModelle().ansicht(*ent);
-        return konsoleHat("Model load failed: \"models/gibtsnicht.md3\"") && konsoleHat("Model type not supported: \"models/x.obj\"") && a.modell->null &&
+        return konsoleHat("Model load failed: \"models/gibtsnicht.md3\"") && konsoleHat("Model type not supported: \"models/x.txt\"") && a.modell->null &&
                std::fabs(a.modell->grenzen.extents[0] - 8.0F) < 0.01F;
     }));
     add(tu("Misc > Refresh models", [] {

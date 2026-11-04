@@ -23,6 +23,12 @@ std::string abgelegtText() {
     return v.substr(a, v.find('%', a) - a);
 }
 
+// Modelle meldet der Asset-Browser seit rc609 M0 mit KeM0Gesetzt (Unterkante auf dem Boden): der Text nach der letzten Zahl
+std::string modellAbgelegtText() {
+    const std::string v = ke::trK(Str::KeM0Gesetzt);
+    return v.substr(v.rfind("%.1f") + 4);
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -730,7 +736,7 @@ std::vector<Schritt> schritte() {
         const karte::Vektor3f o = karte::entitaetUrsprung(*en);
         diag::detail("Knopftest: Assets - abgelegt bei " + en->wert("origin"));
         return en->wert("classname") == "misc_model" && en->wert("model") == ab->modell && std::fabs(o[0]) <= 8.0F && std::fabs(o[1]) <= 8.0F &&
-               konsoleText().find(abgelegtText()) != std::string::npos;
+               konsoleText().find(modellAbgelegtText()) != std::string::npos;
     }));
     add(tu("Assets: ein Klang (wie Doppelklick: vor die Kamera), ein Brush als Prefab st9prefab", [ab, vbQuader] {
         ke::konsoleLeeren();

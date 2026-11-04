@@ -1701,13 +1701,10 @@ std::vector<Schritt> schritteChangelog() {
         add(tu("rc608 Changelog: Sprache " + kurz, [lang] { i18n::setLanguage(lang); }));
         add(pause(0.4));
         add(pruefe("rc608 Changelog: " + kurz + ": die oberste Fassung steht nach Bereichen, jede Gruppe mit Titel im Fenster", [kurz] {
+            // die oberste Fassung (das Fenster klappt die neuesten zwei auf) - nicht eine feste Fassung, die mit jeder neuen nach unten rueckt
+            if (changelog::anzahl() == 0) { return false; }
             const changelog::Eintrag* e = changelog::eintraege();
-            int grosseFassung = -1;
-            for (std::size_t i = 0; i < changelog::anzahl(); ++i) {
-                if (std::string(e[i].fassung) == "rc607") { grosseFassung = static_cast<int>(i); }
-            }
-            if (grosseFassung < 0) { return false; }
-            const std::vector<changelog::Gruppe> g = changelog::gruppen(changelog::text(e[grosseFassung], static_cast<int>(i18n::currentLanguage())));
+            const std::vector<changelog::Gruppe> g = changelog::gruppen(changelog::text(e[0], static_cast<int>(i18n::currentLanguage())));
             int mitTitel = 0;
             bool gut = true;
             for (const changelog::Gruppe& x : g) {

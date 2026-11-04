@@ -2185,10 +2185,12 @@ std::vector<Schritt> pruefungSchritte() {
     add(pruefe("Aussen: B ist nach dem Schliessen des Editors offen", [=] { return reiterVon("pruef_b.txt") >= 0; }));
 
     // ---- 3. Save As auf einen Pfad, der nicht geht ------------------------
-    add(tu("Save As: in A wechseln, Save As in einen Ordner, den es nicht gibt", [=] {
+    // Einen fehlenden Ordner legt sicherSchreiben seit rc609 W2a an (Speichern in den Mod-Ordner);
+    // unmoeglich bleibt ein Ordner, an dessen Stelle eine Datei liegt.
+    add(tu("Save As: in A wechseln, Save As in einen Ordner, der eine Datei ist", [=] {
         nach("pruef_a.txt", pa);
         aendern("A1");
-        (void)speichernUnterPfad(ordner + "\\gibt_es_nicht\\x.txt");
+        (void)speichernUnterPfad(pa + "\\gibt_es_nicht\\x.txt");
     }));
     add(pause(0.3));
     add(pruefe("Save As: gescheitert - der Reiter behaelt seinen Pfad und bleibt ungesichert", [=] {
