@@ -127,6 +127,37 @@ ENTITIES = {
             "Die Kacheln am linken Rand der Ansicht setzen die üblichen Arten: Figur, Laufziel, Kamera-/Blickmarke, Blickziel, Skriptstarter, Effekt, Klang, NPC-Wegpunkt, Spielerstart. Kachel anklicken, dann in die Ansicht klicken - oder die Kachel in die Ansicht ziehen; <kbd>Umschalt</kbd> setzt mehrere. **{{EntNew}}** über der Liste und ein Rechtsklick in der Ansicht (**{{EntNewHere}}**) bieten jede Klasse an. Der Knopf **Raster** rastet auf 8, 16, 32 oder 64 Einheiten.",
             "视图左边缘的图块用于放置常见类型:角色、行走目标、摄像机/注视标记、注视目标、脚本启动器、特效、声音、NPC 路径点、玩家出生点。单击图块,再在视图中单击——或把图块拖进视图;按住 <kbd>Shift</kbd> 可连续放置。列表上方的 **{{EntNew}}** 和视图中的右键菜单(**{{EntNewHere}}**)提供所有类别。**网格**按钮可吸附到 8、16、32 或 64 单位。",
             "ビュー左端のタイルでよく使う種類を配置します。キャラクター、歩行目標、カメラ/視線マーク、視線目標、スクリプトランナー、エフェクト、サウンド、NPC ウェイポイント、プレイヤースタート。タイルをクリックしてからビューをクリックするか、タイルをビューへドラッグします。<kbd>Shift</kbd> で連続配置。一覧の上の **{{EntNew}}** とビューの右クリック(**{{EntNewHere}}**)ではすべてのクラスを選べます。**グリッド**ボタンで 8・16・32・64 ユニットにスナップします。")),
+        # rc609 M0: vorhandene Modelle mit einem Klick in die Karte
+        ("h2", "modelle", T(
+            'Placing models',
+            'Modelle setzen',
+            '放置模型',
+            'モデルの配置')),
+        ("img", "h_m0_modelle", T(
+            'A crate from the game standing on the floor of md_am_sith before the click - the model follows the mouse.',
+            'Eine Kiste aus dem Spiel steht vor dem Klick auf dem Boden von md_am_sith - das Modell folgt der Maus.',
+            '点击之前,游戏中的一个箱子立在 md_am_sith 的地面上——模型跟随鼠标。',
+            'クリック前、ゲームの箱が md_am_sith の床に立っています。モデルはマウスに付いてきます。'), "breit"),
+        ("p", T(
+            "The tile **{{M0Kachel}}** opens the window **{{M0Fenster}}** with every `.md3` under `models/` of the game folders - from the `.pk3` files and loose files, in the version the game reads. Type words into the search box (all of them must appear in the path), click a model and then click into the map, or drag it in. Until then it stands under the mouse, drawn like the game draws it. It becomes a `misc_model_static` whose bottom (the frame 0 bounds the game uses) stands on the floor of the game's collision; on a wall it goes in front of the wall. <kbd>Shift</kbd> keeps placing, <kbd>Esc</kbd> stops. One undo step per model.",
+            'Die Kachel **{{M0Kachel}}** öffnet das Fenster **{{M0Fenster}}** mit jedem `.md3` unter `models/` der Spielordner - aus den `.pk3`-Dateien und losen Dateien, in der Fassung, die das Spiel liest. Wörter ins Suchfeld tippen (alle müssen im Pfad stehen), ein Modell anklicken und dann in die Karte klicken oder es hineinziehen. Bis dahin steht es unter der Maus, gezeichnet wie im Spiel. Es wird ein `misc_model_static`, dessen Unterkante (die Grenzen von Bild 0, die das Spiel nimmt) auf dem Boden der Spielkollision steht; an einer Wand kommt es vor die Wand. <kbd>Umschalt</kbd> setzt weiter, <kbd>Esc</kbd> hört auf. Je Modell ein Rückgängig-Schritt.',
+            '图块 **{{M0Kachel}}** 打开窗口 **{{M0Fenster}}**,其中列出游戏文件夹 `models/` 下的每个 `.md3`——来自 `.pk3` 文件和松散文件,并采用游戏实际读取的版本。在搜索框中输入词语(所有词都必须出现在路径中),点击一个模型,然后点击地图或将其拖入。在此之前,它会以游戏的绘制方式立在鼠标下。它会成为一个 `misc_model_static`,其底部(游戏使用的第 0 帧边界)立在游戏碰撞的地面上;在墙上时会放到墙前。<kbd>Shift</kbd> 可继续放置,<kbd>Esc</kbd> 停止。每个模型一步撤销。',
+            'タイル **{{M0Kachel}}** はウィンドウ **{{M0Fenster}}** を開きます。ゲームフォルダーの `models/` 以下にあるすべての `.md3` が、`.pk3` ファイルとばらのファイルから、ゲームが読む版で並びます。検索欄に語を入力し(すべての語がパスに含まれる必要があります)、モデルをクリックしてからマップをクリックするか、ドラッグして入れます。それまではゲームと同じ描き方でマウスの下に立っています。モデルは `misc_model_static` になり、その下端(ゲームが使うフレーム 0 の境界)がゲームの衝突の床に立ちます。壁の上では壁の手前に置かれます。<kbd>Shift</kbd> で続けて置き、<kbd>Esc</kbd> で終わります。モデルごとに元に戻す 1 回です。')),
+        ("p", T(
+            "Selected, the gizmo bar has a third button **{{M0GizmoSkalieren}}**: the end squares scale along the model's own axes (`modelscale_vec`), the square in the middle scales evenly (`modelscale`); <kbd>Ctrl</kbd> snaps to 0.05. Turning writes `angle` (yaw only) or `angles`. The editor always writes exactly one angle key and one scale key - then the game (SP and MP), Movie Duels and q3map2 all read the same position.",
+            'Gewählt hat die Gizmo-Leiste einen dritten Knopf **{{M0GizmoSkalieren}}**: die Endquadrate skalieren entlang der eigenen Achsen des Modells (`modelscale_vec`), das Quadrat in der Mitte gleichmäßig (`modelscale`); <kbd>Strg</kbd> rastet auf 0,05. Drehen schreibt `angle` (nur Gier) oder `angles`. Der Editor schreibt immer genau einen Winkel- und einen Größenschlüssel - dann lesen Spiel (SP und MP), Movie Duels und q3map2 dieselbe Lage.',
+            '选中后,操纵器栏多出第三个按钮 **{{M0GizmoSkalieren}}**:末端方块沿模型自身的轴缩放(`modelscale_vec`),中间的方块等比缩放(`modelscale`);<kbd>Ctrl</kbd> 以 0.05 为步进。旋转会写入 `angle`(仅偏航)或 `angles`。编辑器总是只写一个角度键和一个缩放键——这样游戏(SP 和 MP)、Movie Duels 和 q3map2 读到的位置完全一致。',
+            '選択するとギズモバーに 3 つ目のボタン **{{M0GizmoSkalieren}}** が現れます。端の四角はモデル自身の軸に沿って拡大縮小し(`modelscale_vec`)、中央の四角は均等に拡大縮小します(`modelscale`)。<kbd>Ctrl</kbd> で 0.05 刻み。回転は `angle`(ヨーのみ)か `angles` を書きます。エディターは常に角度キーと大きさキーを 1 つずつだけ書くので、ゲーム(SP と MP)、Movie Duels、q3map2 が同じ配置を読みます。')),
+        ("p", T(
+            '**{{DoEntSpeichern}}** writes the models into the `.ent`, **{{DoBspUebernehmen}}** into the map itself (see [[missionen#anort]]). A compiled map has no source, so `misc_model` (which only q3map2 bakes in) is not offered; Jedi Outcast has no `misc_model_static` at all - the window says so and places nothing. A model without clip is not solid in the game; clips for compiled maps follow later.',
+            '**{{DoEntSpeichern}}** schreibt die Modelle in die `.ent`, **{{DoBspUebernehmen}}** in die Karte selbst (siehe [[missionen#anort]]). Eine fertige Karte hat keine Quelle, darum gibt es kein `misc_model` (das backt nur q3map2 ein); Jedi Outcast kennt `misc_model_static` gar nicht - das Fenster sagt es und setzt nichts. Ein Modell ohne Clip ist im Spiel nicht fest; Clips für fertige Karten kommen später.',
+            '**{{DoEntSpeichern}}** 把模型写入 `.ent`,**{{DoBspUebernehmen}}** 写入地图本身(见 [[missionen#anort]])。已编译的地图没有源文件,因此不提供 `misc_model`(只有 q3map2 会把它烘焙进去);Jedi Outcast 根本没有 `misc_model_static`——窗口会说明并且不放置任何东西。没有 clip 的模型在游戏中不是实体;已编译地图的 clip 之后提供。',
+            '**{{DoEntSpeichern}}** はモデルを `.ent` に、**{{DoBspUebernehmen}}** はマップそのものに書きます([[missionen#anort]] を参照)。コンパイル済みのマップにはソースがないため、`misc_model`(q3map2 だけが焼き込みます)は出てきません。Jedi Outcast には `misc_model_static` 自体がなく、ウィンドウがそう伝えて何も置きません。クリップのないモデルはゲームで固体ではありません。コンパイル済みマップのクリップは後で入ります。')),
+        ("note", T(
+            'When a newer file of a model appears (saved again, or a loose file in front of the `.pk3`), the preview loads it within a second; every copy keeps its position, rotation and scale.',
+            'Liegt eine neuere Datei eines Modells vor (neu gespeichert oder eine lose Datei vor der `.pk3`), lädt die Vorschau sie innerhalb einer Sekunde; jedes Exemplar behält Lage, Drehung und Größe.',
+            '当某个模型出现较新的文件时(重新保存,或在 `.pk3` 之前出现的松散文件),预览会在一秒内加载它;每个实例都保留位置、旋转和缩放。',
+            'モデルの新しいファイルが現れると(保存し直した、または `.pk3` より前に読まれるばらのファイル)、プレビューは 1 秒以内に読み込みます。すべての配置は位置・回転・大きさを保ちます。')),
     ],
 }
 

@@ -87,6 +87,7 @@
 {"vorschau", "gezeichnet:vorschau.wegknopf", "ViewMap>WegTitel", "WegZeigenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:MapViewSettings", "ViewMap>MapViewSettings", "MapViewSettingsHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:MapStats", "ViewMap>MapStats", "MapStatsHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
+{"vorschau", "knopf:M0Kachel", "ViewMap>M0Kachel", "M0KachelHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:MissionNew", "ViewMap>MissionNew", "MissionNewHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:LoadMission", "ViewMap>LoadMission", "LoadMissionHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},
 {"vorschau", "knopf:MapMore", "ViewMap>MapMore", "MapMoreHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar", ""},

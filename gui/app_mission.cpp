@@ -1270,7 +1270,63 @@ int gizmoGriff(const Proj& p, const float o[3], float L, ImVec2 m, bool drehen =
 
 constexpr float kGizmoPx = 70.0F;
 
+// rc609 M0: Skalier-Griffe eines Kartenmodells - je Modellachse (AnglesToAxis: vorn, links, oben) ein Griff 7..9,
+// das Quadrat im Ursprung 10 (gleichmaessig).
+bool skalierGizmo(const MapEntity& e) { return g_app->entGizmoSkalieren && istKartenModell(e); }
+
+void skalierAchsen(const MapEntity& e, float ax[3][3]) {
+    modellsetzen::Lage l = modellLageVon(e);
+    for (float& k : l.skala) { k = 1.0F; }
+    modellsetzen::achsen(l, ax);
+}
+
+int skalierGriff(const Proj& p, const float o[3], float L, ImVec2 m, const modellsetzen::Lage& lage) {
+    ImVec2 so;
+    if (!aufSchirm(p, o, so)) { return 0; }
+    const float reich = ImGui::GetFontSize() * 0.45F;
+    // Das Quadrat im Ursprung zuerst: zeigt eine Achse fast zur Kamera, laege ihr Griff sonst darueber.
+    const float dx = m.x - so.x;
+    const float dy = m.y - so.y;
+    if (dx * dx + dy * dy < reich * reich * 1.5F) { return 10; }
+    modellsetzen::Lage einheit = lage;
+    for (float& k : einheit.skala) { k = 1.0F; }
+    float ax[3][3];
+    modellsetzen::achsen(einheit, ax);
+    for (int k = 0; k < 3; ++k) {
+        const float e[3] = {o[0] + ax[k][0] * L, o[1] + ax[k][1] * L, o[2] + ax[k][2] * L};
+        ImVec2 se;
+        if (aufSchirm(p, e, se) && abstandZuStrecke(m, ImVec2{so.x + (se.x - so.x) * 0.25F, so.y + (se.y - so.y) * 0.25F}, se) < reich) {
+            return 7 + k;
+        }
+    }
+    return 0;
+}
+
 }  // namespace
+
+// rc609 M0 (Selbsttest): wo ein Griff des Gizmos der gezeigten Entity auf dem Schirm liegt - 1..3 Pfeilspitzen,
+// 4 Gierring (bei 45 Grad), 7..9 Skalier-Griffe (Ende), 10 das Quadrat im Ursprung.
+bool entityGizmoGriffOrt(int griff, ImVec2& out) {
+    const int ziel = inspektorZiel();
+    float o[3];
+    if (ziel < 0 || !entityOrtAnzeige(g_app->map.entities[static_cast<std::size_t>(ziel)], o)) { return false; }
+    const MapEntity& e = g_app->map.entities[static_cast<std::size_t>(ziel)];
+    const Proj p = projektion();
+    const float L = laengeFuerPx(p, o, kGizmoPx);
+    float w[3] = {o[0], o[1], o[2]};
+    if (griff >= 1 && griff <= 3) {
+        w[griff - 1] += L * 0.9F;
+    } else if (griff == 4) {
+        ringPunkt(o, 0, entityGierAnzeige(e), L * 0.8F, 0.7853982F, w);   // 45 Grad: dort kreuzt kein anderer Ring
+    } else if (griff >= 7 && griff <= 9) {
+        float ax[3][3];
+        skalierAchsen(e, ax);
+        for (int k = 0; k < 3; ++k) { w[k] = o[k] + ax[griff - 7][k] * L * 0.9F; }
+    } else if (griff != 10) {
+        return false;
+    }
+    return aufSchirm(p, w, out);
+}
 
 bool zugKippen(int ei, float& dNicken, float& dRollen) {
     const App::EntZug& z = g_app->entZug;
@@ -1298,16 +1354,29 @@ void entityGizmoLeiste() {
                           ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders |
                               ImGuiChildFlags_AlwaysUseWindowPadding,
                           ImGuiWindowFlags_NoScrollbar)) {
+        const bool modell = istKartenModell(g_app->map.entities[static_cast<std::size_t>(ziel)]);   // rc609 M0
+        const bool skalieren = modell && g_app->entGizmoSkalieren;
         if (iconKnopf(tr(Str::GizmoMove), UiIcon::Verschieben, tr(Str::EntGizmoAxis),
-                      g_app->gizmoMode != App::GizmoMode::Rotate, true, true)) {
+                      g_app->gizmoMode != App::GizmoMode::Rotate && !skalieren, true, true)) {
             g_app->gizmoMode = App::GizmoMode::Move;
+            g_app->entGizmoSkalieren = false;
             g_app->mapDirty = true;
         }
         ImGui::SameLine();
         if (iconKnopf(tr(Str::GizmoRotate), UiIcon::Drehen, tr(Str::EntGizmoRing),
-                      g_app->gizmoMode == App::GizmoMode::Rotate, true, true)) {
+                      g_app->gizmoMode == App::GizmoMode::Rotate && !skalieren, true, true)) {
             g_app->gizmoMode = App::GizmoMode::Rotate;
+            g_app->entGizmoSkalieren = false;
             g_app->mapDirty = true;
+        }
+        // rc609 M0: Kartenmodelle skalieren (modelscale / modelscale_vec, wie SP_misc_model_static und q3map2 sie lesen)
+        if (modell) {
+            ImGui::SameLine();
+            if (iconKnopf(tr(Str::M0GizmoSkalieren), UiIcon::ZoomPlus, tr(Str::M0GizmoSkalierenHint), skalieren, true, true)) {
+                g_app->gizmoMode = App::GizmoMode::Move;
+                g_app->entGizmoSkalieren = true;
+                g_app->mapDirty = true;
+            }
         }
     }
     ImGui::EndChild();
@@ -1355,8 +1424,9 @@ void entityZiehen(float rasterSkal) {
     if (g_app->entFokusBild && !z.kandidat && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         if (gizmoDa) {
             const MapEntity& ze = g_app->map.entities[static_cast<std::size_t>(ziel)];
-            g_app->entGizmoHover = gizmoGriff(p, zielOrt, L, io.MousePos, g_app->gizmoMode == App::GizmoMode::Rotate,
-                                              kannKippen(ze), entityGierAnzeige(ze));
+            g_app->entGizmoHover = skalierGizmo(ze) ? skalierGriff(p, zielOrt, L, io.MousePos, modellLageVon(ze))
+                                                    : gizmoGriff(p, zielOrt, L, io.MousePos, g_app->gizmoMode == App::GizmoMode::Rotate,
+                                                                 kannKippen(ze), entityGierAnzeige(ze));
         }
         if (g_app->entGizmoHover == 0) {
             const float mx = (io.MousePos.x - g_app->kartenAnsicht[0]) * rasterSkal;
@@ -1455,6 +1525,10 @@ void entityZiehen(float rasterSkal) {
             z.gierVersatz = entityGierVersatz(ziel);
             z.startWinkel = winkelVon(g_app->map.entities[static_cast<std::size_t>(ziel)]);
             winkel3Von(g_app->map.entities[static_cast<std::size_t>(ziel)], z.startWinkel3);
+            {
+                const modellsetzen::Lage l = modellLageVon(g_app->map.entities[static_cast<std::size_t>(ziel)]);   // rc609 M0
+                for (int k = 0; k < 3; ++k) { z.startSkala[k] = l.skala[k]; }
+            }
             z.startMaus[0] = io.MousePos.x;
             z.startMaus[1] = io.MousePos.y;
             z.achsLaenge = L;
@@ -1519,7 +1593,8 @@ void entityZiehen(float rasterSkal) {
         z.aktiv = true;
         // rc599: ein Schluessel zur eingestellten Zeit - zuerst der des
         // Animationsfensters, dann (Drehen) Schiff im move oder Figur.
-        if (z.gruppe.empty()) {
+        // rc609 M0: Skalieren (7..10) aendert immer die Schluessel der Entity.
+        if (z.gruppe.empty() && z.modus < 7) {
             int art = 0;
             if (animKeyMoeglich(z.index, g_app->playMs)) {
                 art = 1;
@@ -1647,6 +1722,16 @@ void entityZiehen(float rasterSkal) {
         g_app->mapDirty = true;
     };
     const auto winkelSetzen = [&](MapEntity& ent, const float w3[3]) {
+        if (z.dkArt == 0 && istKartenModell(ent)) {
+            // rc609 M0: genau einer von angle/angles - sonst lesen SP (der letzte) und q3map2 (angles) Verschiedenes
+            modellsetzen::Lage l = modellLageVon(ent);
+            for (int k = 0; k < 3; ++k) {
+                const float w = std::fmod(std::fmod(w3[k], 360.0F) + 360.0F, 360.0F);
+                l.winkel[k] = static_cast<float>(static_cast<int>(std::lround(w)) % 360);
+            }
+            modellLageSetzen(ent, l);
+            return;
+        }
         if (z.dkArt == 0) {
             setzeWinkel3(ent, w3);
             return;
@@ -1681,9 +1766,11 @@ void entityZiehen(float rasterSkal) {
             float b[3];
             strahlDurch(io.MousePos.x, io.MousePos.y, a, b);
             TraceTreffer t;
-            if (spur(a, b, t)) {
-                float o[3];
-                aufFlaeche(e.classname, t, o);
+            float o[3];
+            // rc609 M0: ein Kartenmodell mit seiner Unterkante auf den Boden (wie beim Setzen)
+            const bool modellAufBoden = istKartenModell(e) && modellOrtAn(*e.find("model"), io.MousePos.x, io.MousePos.y, modellLageVon(e), o);
+            if (modellAufBoden || spur(a, b, t)) {
+                if (!modellAufBoden) { aufFlaeche(e.classname, t, o); }
                 for (int k = 0; k < 3; ++k) { o[k] -= z.versatz[k]; }
                 if (g_app->rasterSchritt > 0 && !io.KeyCtrl) {
                     const float r = static_cast<float>(g_app->rasterSchritt);
@@ -1741,6 +1828,39 @@ void entityZiehen(float rasterSkal) {
                     }
                 }
             }
+        } else if (z.modus >= 7) {
+            // rc609 M0: Skalieren. Achse (7..9): die Mausbewegung auf die Modellachse auf dem Schirm, ein voller
+            // Griffweg verdoppelt; Quadrat (10): nach oben groesser, kGizmoPx verdoppeln. Strg rastet auf 0,05.
+            const float gezeigt[3] = {z.startOrt[0] + z.versatz[0], z.startOrt[1] + z.versatz[1], z.startOrt[2] + z.versatz[2]};
+            modellsetzen::Lage l = modellLageVon(e);
+            modellsetzen::Lage einheit = l;
+            for (float& k : einheit.skala) { k = 1.0F; }
+            float ax[3][3];
+            modellsetzen::achsen(einheit, ax);
+            float faktor[3] = {1.0F, 1.0F, 1.0F};
+            ImVec2 s0;
+            if (z.modus == 10) {
+                const float f = 1.0F + (z.startMaus[1] - io.MousePos.y) / (kGizmoPx * ImGui::GetFontSize() / 16.0F);
+                faktor[0] = faktor[1] = faktor[2] = f;
+            } else if (aufSchirm(p, gezeigt, s0)) {
+                const int k = z.modus - 7;
+                const float ende[3] = {gezeigt[0] + ax[k][0] * z.achsLaenge, gezeigt[1] + ax[k][1] * z.achsLaenge, gezeigt[2] + ax[k][2] * z.achsLaenge};
+                ImVec2 s1;
+                if (aufSchirm(p, ende, s1)) {
+                    const float dx = s1.x - s0.x;
+                    const float dy = s1.y - s0.y;
+                    const float l2 = dx * dx + dy * dy;
+                    if (l2 > 4.0F) { faktor[k] = 1.0F + ((io.MousePos.x - z.startMaus[0]) * dx + (io.MousePos.y - z.startMaus[1]) * dy) / l2; }
+                }
+            }
+            for (int k = 0; k < 3; ++k) {
+                float v = z.startSkala[k] * std::max(faktor[k], 0.01F);
+                if (io.KeyCtrl) { v = std::round(v / 0.05F) * 0.05F; }
+                l.skala[k] = std::max(v, io.KeyCtrl ? 0.05F : 0.01F);
+                l.skala[k] = std::round(l.skala[k] * 1000.0F) / 1000.0F;
+            }
+            modellLageSetzen(e, l);
+            g_app->mapDirty = true;
         } else {
             // Ring: der Winkel der Maus um den Mittelpunkt auf dem Schirm.
             ImVec2 s0;
@@ -3328,7 +3448,24 @@ void entityUeberlagerung(float rasterSkal) {
                 const ImU32 achsFarbe[3] = {IM_COL32(235, 70, 70, 255), IM_COL32(80, 210, 90, 255),
                                             IM_COL32(70, 130, 255, 255)};
                 const int aktiv = z.kandidat ? z.modus : g_app->entGizmoHover;
-                const bool drehen = g_app->gizmoMode == App::GizmoMode::Rotate;
+                const bool skal = skalierGizmo(e);   // rc609 M0
+                const bool drehen = g_app->gizmoMode == App::GizmoMode::Rotate && !skal;
+                if (skal) {
+                    float ax[3][3];
+                    skalierAchsen(e, ax);
+                    for (int k = 0; k < 3; ++k) {
+                        const float w[3] = {o[0] + ax[k][0] * L, o[1] + ax[k][1] * L, o[2] + ax[k][2] * L};
+                        ImVec2 se;
+                        if (!aufSchirm(p, w, se)) { continue; }
+                        const ImU32 c = aktiv == 7 + k ? IM_COL32(255, 245, 140, 255) : achsFarbe[k];
+                        dl->AddLine(so, se, c, (aktiv == 7 + k ? 3.5F : 2.5F) * px);
+                        const float q = 5.0F * px;
+                        dl->AddRectFilled(ImVec2{se.x - q, se.y - q}, ImVec2{se.x + q, se.y + q}, c);
+                    }
+                    const float q = 6.0F * px;
+                    dl->AddRect(ImVec2{so.x - q, so.y - q}, ImVec2{so.x + q, so.y + q},
+                                aktiv == 10 ? IM_COL32(255, 245, 140, 255) : IM_COL32(255, 255, 255, 230), 0.0F, 0, 2.0F * px);
+                }
                 // Drehen: die Ringe (Gier blau, Nicken gruen, Rollen rot) -
                 // Verschieben: die Pfeile.
                 if (drehen) {
@@ -3351,7 +3488,7 @@ void entityUeberlagerung(float rasterSkal) {
                         }
                     }
                 }
-                for (int k = 0; k < 3 && !drehen; ++k) {
+                for (int k = 0; k < 3 && !drehen && !skal; ++k) {
                     float w[3] = {o[0], o[1], o[2]};
                     w[k] += L;
                     ImVec2 se;
@@ -3375,7 +3512,8 @@ void entityUeberlagerung(float rasterSkal) {
                 dl->AddCircleFilled(so, 3.5F * px, IM_COL32(255, 255, 255, 230));
                 // Hinweis beim Ueberfahren eines Griffs.
                 if (!z.kandidat && g_app->entGizmoHover != 0) {
-                    ImGui::SetTooltip("%s", tr(g_app->entGizmoHover >= 4 ? Str::EntGizmoRing : Str::EntGizmoAxis));
+                    ImGui::SetTooltip("%s", tr(g_app->entGizmoHover >= 7 ? Str::M0GizmoSkalierenHint
+                                               : g_app->entGizmoHover >= 4 ? Str::EntGizmoRing : Str::EntGizmoAxis));
                 }
             }
         }

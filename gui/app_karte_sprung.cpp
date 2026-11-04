@@ -59,6 +59,8 @@ void fadenAbwarten() {
     g_lauf.abbrechen = false;
 }
 
+}  // namespace
+
 std::vector<std::string> parmsVon(const std::string& shader) {
     const Editor& ed = e();
     const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;
@@ -66,8 +68,6 @@ std::vector<std::string> parmsVon(const std::string& shader) {
     const karte::ShaderEintrag* s = sp->inventar.shaderFinden(shader);
     return s != nullptr ? s->surfaceparms : std::vector<std::string>{};
 }
-
-}  // namespace
 
 void sprungPruefungStarten() {
     Editor& ed = e();

@@ -371,7 +371,7 @@ void platzierLeiste() {
     if (g_app->geo.empty() || g_app->camViewActive || g_app->kameraPilot) { return; }
     const float fs = ImGui::GetFontSize();
     const float hh = ImGui::GetFrameHeight();
-    const int n = static_cast<int>(sizeof(kKacheln) / sizeof(kKacheln[0]));
+    const int n = static_cast<int>(sizeof(kKacheln) / sizeof(kKacheln[0])) + 1;   // rc609 M0: + Modell
     const float hoehe = static_cast<float>(n) * (hh + 2.0F) + fs * 0.6F;
     const float y = std::max(g_app->kartenAnsicht[1] + fs * 3.0F,
                              (g_app->kartenAnsicht[1] + g_app->kartenAnsicht[3] - hoehe) * 0.5F);
@@ -397,6 +397,11 @@ void platzierLeiste() {
                 g_app->platzierKlasse = k.klasse;
                 g_app->platzierZiehen = true;
             }
+        }
+        // rc609 M0: die Modelle der Spielordner (Fenster "Modelle"), gesetzt als misc_model_static
+        if (iconKnopf(tr(Str::M0Kachel), UiIcon::Paket, tr(Str::M0KachelHint), g_app->modellFensterOffen, true, true)) {
+            g_app->modellFensterOffen = !g_app->modellFensterOffen;
+            if (!g_app->modellFensterOffen) { g_app->modellPlatzieren.clear(); }
         }
     }
     ImGui::EndChild();
@@ -2304,6 +2309,13 @@ void drawMapView() {
             preloadSaberAssets();
             loadMapEffects();
             loadMapModels();
+            g_app->kartenModelleNeu = false;
+        }
+        // rc609 M0: eine Modelldatei der Karte ist neuer (modellLiveWache) - die Kartenmodelle hier neu, aus
+        // demselben Grund wie oben: vor dem Sammeln dieses Bildes (loadMapModels leert md3Meshes).
+        if (g_app->kartenModelleNeu) {
+            g_app->kartenModelleNeu = false;
+            loadMapModels();
         }
         // Die Blende kommt ganz zuletzt, in die Ueberlagerung - nach Figuren
         // und Effekten. Sonst uebermalen die sie wieder: "kann man durch die
@@ -2575,6 +2587,53 @@ void drawMapView() {
             d.modellLicht = true;
             d.lichtHoehe = mm.lichtHoehe;
             movers.push_back(d);
+        }
+
+        // --- rc609 M0: das Modell unter der Maus, bevor es gesetzt ist ------
+        //
+        // Derselbe Weg wie ein misc_model_static (Bild 0, Licht 1 ueber dem Ursprung wie CG_DrawMiscEnts mit
+        // zoffset 0). Datei und Bildblock wie in kartenModelleAufstellen; loadMapModels nimmt sie beim naechsten
+        // Neuaufbau wieder heraus.
+        if (g_app->modellGeist.aktiv && !g_app->modellPlatzieren.empty() && !g_app->playing) {
+            const App::ModellGeist& gst = g_app->modellGeist;
+            std::string low = gst.pfad;
+            for (char& c : low) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            auto datei = g_app->md3Files.find(low);
+            if (datei == g_app->md3Files.end()) {
+                std::string data;
+                Md3Model gm;
+                if (readFromArchives(gst.pfad, data) && readMd3(data, gm)) { datei = g_app->md3Files.emplace(low, std::move(gm)).first; }
+            }
+            if (datei != g_app->md3Files.end() && !datei->second.empty()) {
+                const Md3Model& gm = datei->second;
+                const int basis = modellBlock("m|" + low + (modellFassungVon(low) > 0 ? "|v" + std::to_string(modellFassungVon(low)) : std::string()), [&gm] {
+                    for (const Md3Surface& sf : gm.surfaces) {
+                        TextureSet::Tex t;
+                        loadTextureFor(sf.shader, t);
+                        g_app->textures.byShader.push_back(std::move(t));
+                    }
+                });
+                const std::string key = low + "#0";
+                auto netz = g_app->md3Meshes.find(key);
+                if (netz == g_app->md3Meshes.end()) { netz = g_app->md3Meshes.emplace(key, md3ToMesh(gm, 0, basis)).first; }
+                if (!netz->second.indexes.empty()) {
+                    MoverDraw d;
+                    d.mesh = &netz->second;
+                    for (int k = 0; k < 3; ++k) {
+                        d.offset[k] = gst.ort[k];
+                        d.pivot[k] = 0.0F;
+                        d.scale[k] = gst.skala[k];
+                    }
+                    d.pitch = gst.winkel[0];
+                    d.yaw = gst.winkel[1];
+                    d.roll = gst.winkel[2];
+                    d.entity = -1;
+                    d.modellLicht = true;
+                    d.lichtHoehe = 1.0F;
+                    movers.push_back(d);
+                    ++g_app->modellGeistGezeichnet;
+                }
+            }
         }
 
         // --- Die Bruchstuecke (CG_Chunks -> LE_FRAGMENT) ---------------
@@ -4907,6 +4966,7 @@ void drawMapView() {
         if (hilfen) {
             wegWerkzeugMaus(w > 0 ? static_cast<float>(g_app->mapImage.width) / static_cast<float>(w) : 1.0F);
             platzierMaus();
+            modellPlatzierMaus();   // rc609 M0
         }
         skriptFokusAuffrischen();
         if (hilfen) {

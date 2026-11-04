@@ -87,6 +87,11 @@ public:
         m_skins.clear();
     }
 
+    void vergessen(const std::string& pfad) {   // rc609 M0
+        std::lock_guard<std::mutex> l(m_sperre);
+        m_modelle.erase(bereinigt(pfad));
+    }
+
 private:
     // ModelResource_load ueber das Dateisystem des Spiels
     [[nodiscard]] std::shared_ptr<const karte::Modell> modell(const std::string& pfad) const {
@@ -156,6 +161,12 @@ karte::ModellAnsicht kartenModellPfad(const std::string& pfad) { return ablage()
 
 void modelleLeeren() {   // FlushReferences
     ablage().leeren();
+    ++editor().sichtStand;
+    ++editor().neuGeladen;
+}
+
+void modellVergessen(const std::string& pfad) {
+    ablage().vergessen(pfad);
     ++editor().sichtStand;
     ++editor().neuGeladen;
 }

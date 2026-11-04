@@ -134,6 +134,8 @@ bool assetAbgelegt(std::size_t index, ImVec2 punkt) {
     Editor& ed = e();
     if (index >= g_a.liste.size()) { return false; }
     const karte::Asset a = g_a.liste[index];
+    // rc609 M0: ein Modell mit Klasse und Kollision des Browsers, Unterkante auf dem Boden (app_karte_modellsetzen.cpp)
+    if (a.art == karte::AssetArt::Modell) { return modellEinsetzen(a.pfad, punkt); }
     const karte::Vektor3f ort = ablageOrt(punkt);
     char o[96];
     std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(ort[0]), static_cast<double>(ort[1]), static_cast<double>(ort[2]));
@@ -145,11 +147,11 @@ bool assetAbgelegt(std::size_t index, ImVec2 punkt) {
             ed.bearbeitung.verschiebeAuswahl(ort - boden);
         }
     } else {
-        karte::Befehl undo(ed.karte.undo, a.art == karte::AssetArt::Modell ? "entityCreate -class misc_model" : "entityCreate -class target_speaker");
+        karte::Befehl undo(ed.karte.undo, "entityCreate -class target_speaker");
         ed.karte.auswahl.leeren();
-        auto ent = ed.karte.neueEntitaet(a.art == karte::AssetArt::Modell ? "misc_model" : "target_speaker", false);
+        auto ent = ed.karte.neueEntitaet("target_speaker", false);
         ent->setzen("origin", o);
-        ent->setzen(a.art == karte::AssetArt::Modell ? "model" : "noise", a.pfad);
+        ent->setzen("noise", a.pfad);
         ed.karte.entitaetEinfuegen(ent);
         ed.karte.auswahl.waehlen(ent);
     }
@@ -222,6 +224,7 @@ void assetAblageZiel() {
 }
 
 void assetBrowserZeichnen() {
+    modellLiveWacheKarte();   // rc609 M0: auch bei geschlossenem Browser
     if (!g_a.offen) { return; }
     if (g_a.neu || g_a.spiel != (e().karteSpiel ? e().karteSpiel.get() : e().spiel.get())) { sammeln(); }
     const std::string titel = std::string(trK(Str::KeAbMenue)) + "###assetbrowser";
@@ -244,6 +247,7 @@ void assetBrowserZeichnen() {
         const std::vector<std::size_t> treffer = karte::assetsFiltern(g_a.liste, static_cast<karte::AssetArt>(g_a.art), g_a.suche);
         ImGui::SameLine();
         ImGui::Text(trK(Str::KeAbAnzahl), static_cast<int>(treffer.size()));
+        if (g_a.art == 0) { modellSetzOptionen(); }   // rc609 M0: Klasse und Kollision
         if (g_a.art == 1) {
             ImGui::SetNextItemWidth(160);
             ImGui::InputText("##abprefabname", g_a.prefabName, sizeof(g_a.prefabName));

@@ -6904,6 +6904,8 @@ void draw() {
         drawSpeicherWeg();   // rc609 W2a Punkt 3
         drawKartenStatistik();
         drawWegFenster();
+        modellLiveWache();     // rc609 M0: neuere Modelldateien nachladen
+        drawModellFenster();   // rc609 M0: Modell-Browser
         drawNpcBrowser();
         drawAnimFenster();
         drawEinblendungen();
