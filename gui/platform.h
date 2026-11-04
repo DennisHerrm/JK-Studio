@@ -149,6 +149,9 @@ bool bildschirmFarbe(int x, int y, unsigned char rgb[3]);
 // dock3, Selbsttest: eine Datei auf ein Windows-Fenster ablegen wie aus dem
 // Explorer gezogen (WM_DROPFILES mit DROPFILES-Block, Stelle in Fensterpunkten).
 bool dateiAblegen(void* fenster, const std::string& pfad, int x, int y);
+// rc609 T1, Selbsttest: ein Windows-Fenster schliessen wie mit Alt+F4 oder dem
+// Kreuz der Taskleiste (WM_CLOSE in seine Warteschlange).
+bool fensterSchliessenSenden(void* fenster);
 // Abschluss rc607, Selbsttest: die Windows-Zwischenablage teilen sich alle gleichzeitig laufenden
 // Selbsttests. Wer sie zwischen Schreiben und Lesen braucht, haelt diese prozessuebergreifende
 // Sperre: sperren wartet nicht (true: jetzt gehalten), freigeben gibt sie wieder ab.

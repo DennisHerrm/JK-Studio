@@ -3979,6 +3979,14 @@ enum class Str {
     MeOrtGespeichert,
     MeOrtVerdeckt,
     MeInPk3Kopie,
+    TfLoesen,
+    TfZurueck,
+    TfLetzter,
+    TfZiehHint,
+    TfEigenesHint,
+    TfMenuEigenes,
+    TfMenuEigenesHint,
+    TfMenuAlleZurueck,
     Count,
 };
 

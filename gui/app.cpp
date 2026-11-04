@@ -30,6 +30,7 @@
 #include "tour.h"       // rc601 tour: Tutorials im Programm
 #include "hilfe.h"      // H1: der Helfer (F1)
 #include "fenster_dock.h"   // dock1: Panels herausnehmen, Anordnungen
+#include "tabfenster.h"     // rc609 T1: ganze Tabs in eigenen Fenstern
 #include "dockvorgabe.h"    // dock4: Dreieck, alte Liste
 #include "karteneditor.h"   // Stufe 1b: der Arbeitsbereich Karten-Editor
 #include "menueeditor.h"    // Menue-Editor M1: der Arbeitsbereich Menu Editor
@@ -5396,602 +5397,10 @@ void reiterLeisteMausrad(ImGuiTabBar* leiste) {
     }
     ImGui::SetKeyOwner(ImGuiKey_MouseWheelY, leiste->ID);
 }
-}  // namespace
-
-void draw() {
-    BHED_MESS("Oberflaeche");
-    if (g_app == nullptr) { return; }
-    // Einmal: Reste eines Updates wegraeumen, und im Hintergrund nachsehen.
-    dateienVonAussenOeffnen();
-    abgelegteDateienVerarbeiten();   // Stufe 9 Punkt 3
-    static bool updateGestartet = false;
-    if (!updateGestartet) {
-        updateGestartet = true;
-        updater::beimStart();
-    }
-    // rc601 integ: Regelwerk (OpenJK / Movie Duels) anwenden, wenn sich
-    // Einstellung, Schwierigkeit oder Spielordner geaendert haben.
-    (void)regelwerkPruefen();
-    // Stufe 3: ein laufendes Bauen im Karten-Editor weiterfuehren (q3map2 und
-    // sein Rueckkanal) - auch, wenn gerade ein anderer Arbeitsbereich offen ist.
-    karteneditor::bauSchritt();
-
-    // --- Den Klangstrom nachfuellen ------------------------------------
-    //
-    // Gemeldet: "der Sound ging ganz kurz, und danach reisst es ab."
-    //
-    // Das war der fehlende Teil von rc335. Der Mischer schreibt zwei
-    // Bloecke im Voraus - rund 92 ms - und danach muss jemand nachlegen.
-    // `update()` wurde aber NUR aus `play()` gerufen. Solange kein neuer
-    // Klang begann, lief die Ausgabe leer, und der Rest fiel weg.
-    //
-    // Ein durchlaufender Strom braucht einen durchlaufenden Antrieb.
-    // Hier ist er: einmal je Bild, unabhaengig davon, ob gerade etwas
-    // gestartet wird.
-    //
-    // Beide Geraete, nicht nur eines - Musik laeuft ueber ein eigenes.
-    static bool tonGestartet = false;
-    if (!tonGestartet) {
-        tonGestartet = true;
-        g_app->tonVorab = std::async(std::launch::async, [] {
-            App::TonVorab t;
-            // Dasselbe feste Format wie playSound (kRate, kChannels).
-            (void)t.ton.open(44100, 2);
-            (void)t.musik.open(44100, 2);
-            return t;
-        });
-    }
-    tonUebernehmen(false);
-    g_app->audio.update();
-    g_app->musicAudio.update();
-
-    // Hier ist der erste Ort, an dem ImGui sicher einen Kontext hat.
-    // createApp() und loadSettings() laufen VOR CreateContext(); ein
-    // ImGui::GetStyle() dort loest "No current context" aus und das
-    // Programm bricht beim Start ab, bevor ein Fenster erscheint.
-    ensureIcons();
-
-    // Zustand der Dialoge festhalten, BEVOR einer davon zeichnet und sich
-    // dabei selbst schliesst. Begruendung steht bei der Feldbeschreibung
-    // in app_internal.h.
-    // Find getrennt: dort gehen Rueckgaengig/Wiederholen durch (Ersetzen).
-    g_app->findAtFrameStart = g_app->findOpen;
-    g_app->dialogAtFrameStart = g_app->editorOpen ||
-                                g_app->askSaveOpen ||
-                                g_app->prefsOpen || g_app->pk3Open ||
-                                g_app->aboutOpen || g_app->missionPickOpen;
-
-    // Strg+Mausrad vergroessert und verkleinert, wie in jedem Editor - nur
-    // nicht ueber der Zeitleiste: dort zoomt Strg+Rad die Spuren (rc599,
-    // vorher geschah beides zugleich). Im Karten-Editor auch nicht (Stufe 7
-    // Punkt 6b): dort gehoert das Rad mit und ohne Strg den Ansichten wie bei
-    // NRC (XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt).
-    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().MouseWheel != 0.0F &&
-        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && g_app->leftMode != 3 &&
-        g_app->leftMode != 4) {
-        g_app->uiScale = std::clamp(
-            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, kUiScaleMin, 3.0F);
-    }
-    g_app->tlUnterMaus = false;   // die Zeitleiste setzt es in diesem Bild neu
-
-    const float total = g_app->dpiScale * g_app->uiScale;
-    if (g_app->themePending || std::fabs(total - g_app->appliedScale) > 0.001F) {
-        applyScale(total);
-        g_app->themePending = false;
-    }
-
-    // dock1: gespeicherte Anordnung beim Start, Fensterlagen in die
-    // Einstellungen, Fenster von fehlenden Bildschirmen zurueck - vor dem
-    // ersten Fenster des Bildes.
-    dock::bildAnfang();
-
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(vp->WorkPos);
-    ImGui::SetNextWindowSize(vp->WorkSize);
-    // Titel wie im Original: "unnamed.txt *"
-    std::string title = g_app->path.empty() ? std::string("unnamed.txt")
-                                            : fileName(g_app->path);
-    if (g_app->doc.dirty()) {
-        title += " *";
-    }
-    title += "###main";   // ImGui-Kennung stabil halten
-    // Stufe 3 Punkt 0b ("Eine Leiste, die umschaltet", Entscheidung shank): im
-    // Modus Karten-Editor ist die Menueleiste dieses Fensters die von
-    // NetRadiant-Custom - 21 Qt-Punkte hoch in NRCs Schrift. ImGui legt die Hoehe
-    // beim Begin fest, darum Schrift und Polster schon hier.
-    const bool kartenLeiste = (g_app->leftMode == 3);
-    if (kartenLeiste) { karteneditor::hauptleisteStilAn(); }
-    ImGui::Begin(title.c_str(), nullptr,
-                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-                 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
-                 // dock1: kein anderes Fenster wird in das Hauptfenster
-                 // gesetzt (ImGuiConfigFlags_DockingEnable) - herausgenommene
-                 // Panels kommen ueber ihren Platz zurueck (fenster_dock.h).
-                 ImGuiWindowFlags_NoDocking |
-                 // Das Hauptfenster rollt nie. shank: "wenn ich vor und
-                 // zurueck scrolle bewegen sich die Tabs" - der Inhalt war in
-                 // der Kartenansicht 14 Punkte zu hoch (siehe computeLayout),
-                 // und das Mausrad rollte die ganze Oberflaeche.
-                 ImGuiWindowFlags_NoScrollWithMouse |
-                 // --- Nie VOR die schwebenden Fenster ------------------
-                 //
-                 // Gemeldet: "If I click outside the window, then it
-                 // closes/hides, and I am unable to open it again" - bei
-                 // Notes, Keyboard shortcuts, Find und der Rueckfrage.
-                 // Ein Klick auf das Hauptfenster holte es nach VORN; das
-                 // schwebende Fenster lag dahinter, sein Offen-Merker
-                 // stand weiter, und der Knopf setzte nur, was schon
-                 // gesetzt war. Beim Einstellungsfenster sperrte der
-                 // Merker obendrein alle Tastenkuerzel ("Reset all to
-                 // defaults breaks all keyboard shortcuts").
-                 ImGuiWindowFlags_NoBringToFrontOnFocus);
-    if (kartenLeiste) {
-        karteneditor::hauptleisteStilAus();
-        karteneditor::zeichneHauptmenue();
-    } else {
-        drawMenu();
-    }
-    // --- Die Reiterleiste, ganz oben --------------------------------------
-    //
-    // Ueber Events, Script Flow und Actions - so, wie du es beschrieben
-    // hast: "tabs sollten überhalb von Event und scripts und so
-    // untergebracht sein".
-    //
-    // ImGui bringt dafuer BeginTabBar mit. Verwendet werden drei Merkmale:
-    //   Reorderable   die Reiter lassen sich mit der Maus umsortieren
-    //   FittingPolicyScroll  bei vielen Reitern wird gerollt, nicht
-    //                        gequetscht - Namen bleiben lesbar; das Mausrad
-    //                        ueber der Leiste rollt waagerecht (rc601)
-    //   TabListPopupButton   der Pfeil links listet alle offenen Skripte
-    //
-    // Der Stern hinter dem Namen ist derselbe wie im Fenstertitel.
-    //
-    // Im Karten-Editor gibt es keine Skript-Reiter (Stufe 3 Punkt 0b): der
-    // Editor beginnt direkt unter der Menueleiste.
-    if (!g_app->tabs.empty() && !kartenLeiste && g_app->leftMode != 4) {
-        // KEIN ImGuiTabBarFlags_AutoSelectNewTabs: das Programm waehlt einen
-        // neuen Reiter selbst (addTab setzt homeTab), und die Nachfuehrung
-        // unten bringt ImGui dorthin. Mit der Fahne hielt die Leiste einen
-        // gerade angelegten Reiter fuer einen KLICK und wechselte im
-        // naechsten Bild dorthin - auch wenn das Programm inzwischen woanders
-        // stand (Selbsttest "Doppelt", 03.10.: Datei schon offen, behaved
-        // wechselt hin, die Leiste zieht zum neuen Reiter zurueck).
-        if (ImGui::BeginTabBar("##skripte",
-                               ImGuiTabBarFlags_Reorderable |
-                                   ImGuiTabBarFlags_FittingPolicyScroll |
-                                   ImGuiTabBarFlags_TabListPopupButton)) {
-            reiterLeisteMausrad(ImGui::GetCurrentTabBar());   // VOR dem ersten BeginTabItem
-            int wechselZu = -1;
-            int schliesse = -1;
-            // --- ImGuis eigene Auswahl dem Programm nachfuehren -------------
-            //
-            // ImGui merkt sich selbst, welcher Reiter gewaehlt ist, und
-            // meldet ihn jedes Bild. Wechselt das PROGRAMM den Reiter (drei
-            // Skripte auf einmal geoeffnet, ein Reiter geschlossen, Fokus
-            // aus einem Feld der Aufteilung), steht ImGui noch auf dem alten
-            // - und die Meldung unten zog das Programm dorthin zurueck:
-            // "ploetzlich in einem anderen Tab" (Selbsttest beim Nachstellen
-            // von shanks Datenverlust, 02.10.). Deshalb: weicht ImGuis Wahl
-            // vom Besitzer ab, bekommt dessen Reiter SetSelected, und in
-            // diesem Bild ist ImGuis Meldung kein Klick.
-            static int imguiWahl = -1;
-            const bool nachfuehren = (imguiWahl != g_app->homeTab);
-            int gemeldet = -1;
-            for (std::size_t i = 0; i < g_app->tabs.size(); ++i) {
-                // Fuer NAME und Zustand gilt weiter der aktive Reiter: nur
-                // er hat das lebende Dokument. Fuer die AUSWAHL im Band
-                // gilt der Besitzer - siehe unten.
-                const bool aktiv = (static_cast<int>(i) == g_app->activeTab);
-                const std::string& tp =
-                    aktiv ? g_app->path : g_app->tabs[i].path;
-                const std::string& tn =
-                    aktiv ? g_app->shownName : g_app->tabs[i].shownName;
-                const bool schmutzig =
-                    aktiv ? g_app->doc.dirty() : g_app->tabs[i].doc.dirty();
-                std::string name = !tp.empty()  ? fileName(tp)
-                                   : !tn.empty() ? tn
-                                                 : std::string("unnamed.txt");
-                if (schmutzig) {
-                    name += " *";
-                }
-                // "###" haengt die Kennung an der Nummer fest: sonst
-                // wandert sie mit dem Namen, und ImGui verliert beim
-                // Speichern die Zuordnung.
-                name += "###tab" + std::to_string(i);
-                bool offen = true;
-                const ImGuiTabItemFlags fahnenReiter =
-                    (nachfuehren && static_cast<int>(i) == g_app->homeTab) ? ImGuiTabItemFlags_SetSelected
-                                                                           : ImGuiTabItemFlags_None;
-                if (ImGui::BeginTabItem(name.c_str(), &offen, fahnenReiter)) {
-                    gemeldet = static_cast<int>(i);
-                    // Verglichen wird mit dem BESITZER, nicht mit dem
-                    // aktiven Reiter.
-                    //
-                    // ImGui meldet JEDES BILD, welcher Reiter ausgewaehlt
-                    // ist. Stand hier "aktiv", dann zog das Band den
-                    // aktiven Reiter sofort zurueck, sobald ein Klick in
-                    // ein Vergleichsfeld ihn verschoben hatte - und man
-                    // landete "ploetzlich in einem anderen Tab".
-                    //
-                    // Der Besitzer aendert sich nur, wenn man wirklich
-                    // einen Reiter anklickt. Damit bleibt das Band ruhig,
-                    // waehrend man in den Feldern arbeitet.
-                    if (static_cast<int>(i) != g_app->homeTab && !nachfuehren) {
-                        wechselZu = static_cast<int>(i);
-                    }
-                    ImGui::EndTabItem();
-                }
-                if (!offen) {
-                    schliesse = static_cast<int>(i);
-                }
-            }
-            // Ein Pluszeichen zum Anlegen - wie im Browser.
-            if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing |
-                                              ImGuiTabItemFlags_NoTooltip)) {
-                // Ohne Karte - ein neues, leeres Blatt.
-                addTab(false);
-                takeTab(g_app->activeTab);
-            }
-            ImGui::EndTabBar();
-            imguiWahl = gemeldet;
-            // ERST nach EndTabBar handeln - ein Umschalten mitten in der
-            // Leiste zieht ImGui den Boden unter den Fuessen weg.
-            if (schliesse >= 0) {
-                closeTab(schliesse);
-            } else if (wechselZu >= 0) {
-                // ERST wechseln, DANN den Besitzer setzen.
-                //
-                // Andersherum war es falsch: switchTab parkt die aktuelle
-                // Aufteilung in den Besitzer - und wenn der schon der NEUE
-                // war, bekam der frische Reiter die vier Felder
-                // angehaengt, die er nie hatte. Danach holte takeTab genau
-                // die wieder hervor. Gemeldet als "wenn ich die tabs
-                // wechsel, habe ich immer noch die 4er ansicht".
-                //
-                // In dieser Reihenfolge stimmt beides: geparkt wird in den
-                // ALTEN Besitzer, geholt wird die Aufteilung des neuen.
-                switchTab(wechselZu);
-                g_app->homeTab = wechselZu;
-            }
-        }
-    }
-
-    const Layout l = computeLayout();
-
-    // --- Was gilt gerade? -------------------------------------------------
-    //
-    // Reiter, Felder und Groessen ins Detailprotokoll, aber nur bei einer
-    // AENDERUNG. Damit laesst sich nachvollziehen, was beim Oeffnen mehrerer
-    // Skripte und beim Ziehen der Trennlinien wirklich geschieht - statt es
-    // aus Bildschirmfotos zu erschliessen.
-    {
-        App::LayoutLog jetzt;
-        jetzt.tabs = static_cast<int>(g_app->tabs.size());
-        jetzt.activeTab = g_app->activeTab;
-        jetzt.splitCount = g_app->splitCount;
-        jetzt.focusPane = g_app->focusPane;
-        for (int i = 0; i < App::kMaxSplit; ++i) {
-            jetzt.paneTabs[i] = g_app->splitPanes[i].tab;
-        }
-        jetzt.frameW = static_cast<int>(l.total);
-        jetzt.frameH = static_cast<int>(l.topH);
-        jetzt.eventsW = static_cast<int>(l.eventsW);
-        jetzt.flowW = static_cast<int>(l.flowW);
-        jetzt.toolH = static_cast<int>(l.toolH);
-        jetzt.tooSmall = l.tooSmall;
-        jetzt.fracX = static_cast<int>(g_app->splitFracX * 1000.0F);
-        jetzt.fracY = static_cast<int>(g_app->splitFracY * 1000.0F);
-        jetzt.tlFrac = static_cast<int>(g_app->timelineFrac * 1000.0F);
-
-        const App::LayoutLog& alt = g_app->lastLayoutLog;
-        bool reiterAnders =
-            jetzt.tabs != alt.tabs || jetzt.activeTab != alt.activeTab ||
-            jetzt.splitCount != alt.splitCount ||
-            jetzt.focusPane != alt.focusPane;
-        for (int i = 0; i < App::kMaxSplit; ++i) {
-            if (jetzt.paneTabs[i] != alt.paneTabs[i]) { reiterAnders = true; }
-        }
-        // Groessen erst ab EINEM Bildpunkt Unterschied - beim Ziehen aendern
-        // sie sich sonst in jedem Bild um Bruchteile, und das Protokoll
-        // liefe voll.
-        const bool groessenAnders =
-            jetzt.frameW != alt.frameW || jetzt.frameH != alt.frameH ||
-            jetzt.eventsW != alt.eventsW || jetzt.flowW != alt.flowW ||
-            jetzt.toolH != alt.toolH || jetzt.tooSmall != alt.tooSmall ||
-            jetzt.fracX != alt.fracX ||
-            jetzt.fracY != alt.fracY || jetzt.tlFrac != alt.tlFrac;
-
-        if (reiterAnders) {
-            char z[300];
-            std::snprintf(z, sizeof(z),
-                          "Reiter: %d offen, Arbeitsbereich %d, bearbeitet "
-                          "wird %d | Felder: %d, Fokus %d, belegt mit "
-                          "%d %d %d %d",
-                          jetzt.tabs, g_app->homeTab, jetzt.activeTab,
-                          jetzt.splitCount,
-                          jetzt.focusPane, jetzt.paneTabs[0], jetzt.paneTabs[1],
-                          jetzt.paneTabs[2], jetzt.paneTabs[3]);
-            diag::detail(z);
-            // Und was in den Feldern steht - der haeufigste Zweifel ist,
-            // ob zwei Felder dasselbe Skript zeigen.
-            for (int i = 0; i < jetzt.splitCount; ++i) {
-                const int nr = g_app->splitPanes[i].tab;
-                const char* name =
-                    (nr >= 0 && static_cast<std::size_t>(nr) <
-                                    g_app->tabs.size())
-                        ? (g_app->tabs[static_cast<std::size_t>(nr)]
-                                   .shownName.empty()
-                               ? "(ohne Namen)"
-                               : g_app->tabs[static_cast<std::size_t>(nr)]
-                                     .shownName.c_str())
-                        : "(kein Reiter)";
-                std::snprintf(z, sizeof(z), "   Feld %d zeigt Reiter %d: %s", i,
-                              nr, name);
-                diag::detail(z);
-            }
-        }
-        // Den Moduswechsel EINMAL je Bild feststellen - hier, weil diese
-        // Stelle in jedem Modus laeuft.
-        g_app->moduswechselBild = (g_app->letzterModus != g_app->leftMode);
-        // Die Zeitleiste laeuft nur in der Kartenansicht weiter. Wer sie
-        // beim Abspielen verlaesst, hatte eine stehende Uhr und weiter
-        // laufenden Ton - also anhalten, wie "Stop" (Kartentest 27.09.).
-        if (g_app->moduswechselBild && g_app->letzterModus == 1 && g_app->playing) {
-            g_app->playing = false;
-            g_app->audio.stopAll();
-            g_app->laufendeSchleifen.clear();
-            tonZuruecksetzen();   // rc601 ton: auch der Raumklang
-            g_app->musicAudio.stopAll();
-        }
-        if (g_app->moduswechselBild) {
-            char zm[140];
-            std::snprintf(zm, sizeof(zm),
-                          "Moduswechsel %d -> %d: dieses Bild wird "
-                          "uebersprungen (Einschwingen)",
-                          g_app->letzterModus, g_app->leftMode);
-            diag::detail(zm);
-            g_app->letzterModus = g_app->leftMode;
-        }
-        if (groessenAnders || g_app->dumpAngefordert) {
-            g_app->dumpAngefordert = false;
-            char z[300];
-            std::snprintf(z, sizeof(z),
-                          "Groessen: Fenster %dx%d | Ereignisse %d, Skripte "
-                          "%d, Band %d | Raster %d/%d, Zeitleiste %d (Promille)",
-                          jetzt.frameW, jetzt.frameH, jetzt.eventsW,
-                          jetzt.flowW, jetzt.toolH, jetzt.fracX, jetzt.fracY,
-                          jetzt.tlFrac);
-            diag::detail(z);
-
-            // --- ALLES, was wir je gemessen haben ------------------------
-            //
-            // shank: "wenn ich dir sage debuggen, dann will ich, dass er es
-            // in eines der Logs schreibt. Also adde alles, wo ich dir mal
-            // gesagt habe debugge es ins Log. Jede Position des UI,
-            // Funktionen, alles."
-            //
-            // Bis hierher landete nur die Zeile darueber im Protokoll. Alles
-            // andere, was in dieser Sitzung gemessen wurde, stand auf dem
-            // Bildschirm - den ich nicht sehe. Jede dieser Zahlen hat uns
-            // mindestens eine Runde gekostet:
-            //
-            //   splitEvents/Map/Model  drei Modi, drei Werte (rc494)
-            //   frameH negativ         "alles Uebrige minus Fuss" (rc471)
-            //   buttonsW/minButtonsW   Actions-Spalte (rc474, rc481)
-            //   headerH je Modus       Knopfhoehe gegen Textzeile (rc478)
-            //   ZelleW/restW/BildW     die Luecke neben der Karte (rc500)
-            //   modeBarW               Modusleiste in der Tabelle (rc501)
-            //
-            // Auch nur bei Aenderung - `groessenAnders` deckt das ab.
-            char z2[400];
-            std::snprintf(z2, sizeof(z2),
-                          "  Aufteilung: Modus %d | splitEvents %.4f, "
-                          "splitMap %.4f, splitModel %.4f, splitButtons %.4f",
-                          g_app->leftMode,
-                          static_cast<double>(g_app->settings.splitEvents),
-                          static_cast<double>(g_app->settings.splitMap),
-                          static_cast<double>(g_app->settings.splitModel),
-                          static_cast<double>(g_app->settings.splitButtons));
-            diag::detail(z2);
-            std::snprintf(z2, sizeof(z2),
-                          "  Hoehen: headerH %.0f, fussH %.0f, frameH %.0f "
-                          "(negativ = Rest minus Fuss), statusH %.0f, "
-                          "toolH %.0f",
-                          static_cast<double>(l.headerH),
-                          static_cast<double>(l.fussH),
-                          static_cast<double>(l.frameH),
-                          static_cast<double>(l.statusH),
-                          static_cast<double>(l.toolH));
-            diag::detail(z2);
-            std::snprintf(z2, sizeof(z2),
-                          "  Breiten: buttonsW %.0f, minButtonsW %.0f, "
-                          "modeBarW %.0f | Karte: ZelleW %.0f, restW %.0f, "
-                          "BildW %.0f, SeitenspalteW %.0f",
-                          static_cast<double>(l.buttonsW),
-                          static_cast<double>(l.minButtonsW),
-                          static_cast<double>(g_app->modeBarW),
-                          static_cast<double>(g_app->dbgZelleW),
-                          static_cast<double>(g_app->dbgRestW),
-                          static_cast<double>(g_app->dbgBildW),
-                          static_cast<double>(g_app->mapSidebarW));
-            diag::detail(z2);
-            std::snprintf(z2, sizeof(z2),
-                          "  Stil: Zeichenhoehe %.0f, FramePadding.x %.0f, "
-                          "CellPadding.x %.0f, ItemSpacing.x %.0f, "
-                          "WindowPadding.x %.0f",
-                          static_cast<double>(ImGui::GetFontSize()),
-                          static_cast<double>(ImGui::GetStyle().FramePadding.x),
-                          static_cast<double>(ImGui::GetStyle().CellPadding.x),
-                          static_cast<double>(ImGui::GetStyle().ItemSpacing.x),
-                          static_cast<double>(
-                              ImGui::GetStyle().WindowPadding.x));
-            diag::detail(z2);
-        }
-        // --- Und die REGELN nachprüfen ------------------------------------
-        //
-        // Ein Protokoll sagt, was gilt - nicht, ob es richtig ist. Diese
-        // Bedingungen muessen immer gelten; bricht eine, liegt ein Fehler
-        // vor, und er soll sich selbst melden statt beim Anwender
-        // aufzufallen.
-        //
-        // Alle vier stammen aus echten Fehlern dieser Sitzung.
-        if (reiterAnders) {
-            char z[300];
-            // rc179: neue Felder bekamen immer Reiter 0.
-            for (int i = 0; i < jetzt.splitCount; ++i) {
-                for (int j = i + 1; j < jetzt.splitCount; ++j) {
-                    if (g_app->splitPanes[i].tab == g_app->splitPanes[j].tab) {
-                        std::snprintf(z, sizeof(z),
-                                      "   FEHLER: Feld %d und %d zeigen "
-                                      "denselben Reiter %d",
-                                      i, j, g_app->splitPanes[i].tab);
-                        diag::detail(z);
-                    }
-                }
-            }
-            // rc184: nach dem Schliessen zeigte ein Feld ins Leere.
-            for (int i = 0; i < jetzt.splitCount; ++i) {
-                const int nr = g_app->splitPanes[i].tab;
-                if (nr < 0 || static_cast<std::size_t>(nr) >=
-                                  g_app->tabs.size()) {
-                    std::snprintf(z, sizeof(z),
-                                  "   FEHLER: Feld %d zeigt auf Reiter %d, es "
-                                  "gibt aber nur %d",
-                                  i, nr, jetzt.tabs);
-                    diag::detail(z);
-                }
-            }
-            if (jetzt.focusPane < 0 || jetzt.focusPane >= jetzt.splitCount) {
-                std::snprintf(z, sizeof(z),
-                              "   FEHLER: Fokus liegt auf Feld %d, es gibt "
-                              "aber nur %d",
-                              jetzt.focusPane, jetzt.splitCount);
-                diag::detail(z);
-            }
-            // rc184: mehr Felder als Skripte.
-            if (jetzt.splitCount > jetzt.tabs) {
-                std::snprintf(z, sizeof(z),
-                              "   FEHLER: %d Felder bei nur %d Reitern",
-                              jetzt.splitCount, jetzt.tabs);
-                diag::detail(z);
-            }
-        }
-        if (groessenAnders) {
-            char z[300];
-            // rc202: die Skriptspalte klemmte, bevor die Symbolansicht
-            // erreichbar war. Null waere schlimmer - dann kaeme man nicht
-            // zurueck.
-            if (jetzt.flowW <= 0 || jetzt.eventsW <= 0) {
-                std::snprintf(z, sizeof(z),
-                              "   FEHLER: eine Spalte ist auf null "
-                              "(Ereignisse %d, Skripte %d)",
-                              jetzt.eventsW, jetzt.flowW);
-                diag::detail(z);
-            }
-            // rc195: das Band darf das Fenster nicht ueberragen.
-            //
-            // Die Bedingung stand frueher als `toolH > frameH + toolH` da -
-            // algebraisch dasselbe wie `frameH < 0`, nur schwerer zu lesen.
-            // Und sie kann seit rc258 nicht mehr anschlagen, weil frameH
-            // bei null abgefangen wird. Gefragt wird deshalb den Vermerk,
-            // den die Berechnung selbst hinterlaesst.
-            if (jetzt.tooSmall) {
-                diag::detail("   Fenster zu klein: nach Statuszeile, Band, "
-                             "Reiterleiste und Kopfzeile bleibt nichts "
-                             "uebrig. Die Hoehen sind bei null abgefangen.");
-            }
-        }
-        if (reiterAnders || groessenAnders) {
-            g_app->lastLayoutLog = jetzt;
-        }
-
-        // --- Wohin ging die letzte BEARBEITUNG? ---------------------------
-        //
-        // Beim Arbeiten an vier Skripten nebeneinander ist das DIE Frage:
-        // landet die Aenderung in dem Skript, in das ich geklickt habe?
-        //
-        // Die Tiefe des Rueckgaengig-Stapels ist der verlaessliche Anzeiger:
-        // sie waechst genau dann, wenn wirklich etwas geaendert wurde - und
-        // nicht schon beim Anklicken oder Rollen.
-        //
-        // Beim REITERWECHSEL wechselt auch der Stapel; dann wird nur der
-        // neue Stand gemerkt, ohne eine Bearbeitung zu melden.
-        {
-            const std::size_t tiefe = g_app->doc.undoDepth();
-            if (g_app->activeTab != g_app->lastEditTab) {
-                g_app->lastEditTab = g_app->activeTab;
-                g_app->lastUndoDepth = tiefe;
-            } else if (tiefe != g_app->lastUndoDepth) {
-                const bool mehr = tiefe > g_app->lastUndoDepth;
-                g_app->lastUndoDepth = tiefe;
-                const std::string name =
-                    !g_app->path.empty() ? fileName(g_app->path)
-                    : !g_app->shownName.empty() ? g_app->shownName
-                                                : std::string("unnamed.txt");
-                char z[300];
-                std::snprintf(z, sizeof(z),
-                              "Bearbeitung: Feld %d, Reiter %d (%s), Stapel "
-                              "%zu (%s)",
-                              g_app->focusPane, g_app->activeTab, name.c_str(),
-                              tiefe, mehr ? "Schritt dazu"
-                                          : "rueckgaengig oder verworfen");
-                diag::detail(z);
-
-                // Die Regel, die das Ganze traegt: das FOKUSSIERTE Feld muss
-                // den aktiven Reiter zeigen. Gilt sie nicht, ginge eine
-                // Aenderung in ein anderes Skript als das angeklickte - und
-                // das waere der schlimmste Fehler, den dieses Fenster haben
-                // kann.
-                const int fp =
-                    std::clamp(g_app->focusPane, 0, App::kMaxSplit - 1);
-                if (g_app->splitCount > 1 &&
-                    g_app->splitPanes[fp].tab != g_app->activeTab) {
-                    std::snprintf(z, sizeof(z),
-                                  "   FEHLER: Feld %d zeigt Reiter %d, "
-                                  "bearbeitet wurde aber Reiter %d",
-                                  fp, g_app->splitPanes[fp].tab,
-                                  g_app->activeTab);
-                    diag::detail(z);
-                }
-            }
-        }
-    }
-    // Bei der KARTE eine eigene Aufteilung.
-    //
-    // Die Knopfspalte "Actions" gehoert zum Skript, nicht zur Karte - dort
-    // steht sie nur im Weg. Stattdessen:
-    //
-    //     Modusleiste | Ebenen | Karte | Skriptbaum
-    //
-    // Die Ebenen links, weil man sie liest wie eine Gliederung; der
-    // Skriptbaum rechts, weil er beim Anklicken einer Entity die Antwort
-    // gibt. Alles andere zur Karte steht im Band darunter.
-    // --- Die Spalten als TABELLE ----------------------------------------
-    //
-    // Vorher: `drawEventsList`, Teiler, `drawFlowArea`, Teiler,
-    // `drawButtonColumns` - aneinandergereiht mit `SameLine(0, 0)`, jede
-    // Breite von Hand gerechnet, jeder Teiler selbst gezeichnet.
-    //
-    // Drei Runden sind an der Frage gescheitert, warum die Spalten nicht
-    // gleich hoch enden (rc469, rc470, rc471). Der Grund war nie ein
-    // einzelner Zahlendreher, sondern dass ueberhaupt gerechnet wurde:
-    // sechs Werte aus einem Dutzend Summanden, und jede Aenderung muss an
-    // jeder Stelle nachgezogen werden.
-    //
-    // ImGui hat dafuer Tabellen (seit 1.80). Sie rechnen die Breiten,
-    // bringen die Trennlinien samt Ziehen mit - und eine Tabellenzeile ist
-    // EINE Zeile: alle Zellen enden dort, wo sie endet. Nicht "sollten
-    // gleich hoch sein", sondern koennen gar nicht anders.
-    //
-    // Was damit wegfaellt: `l.eventsW`, `l.flowW`, `l.buttonsW`, `l.rest`,
-    // die beiden `splitter()`-Aufrufe und die gespeicherten
-    // Aufteilungsbruechte - ImGui merkt sich die Spaltenbreiten selbst.
-    //
-    // Bei der KARTE hat die Knopfspalte nichts zu suchen: sie gehoert zum
-    // Skript. Dann sind es zwei Spalten statt drei.
-    //
-    // Stufe 1b: der Karten-Editor ist eine eigene Oberflaeche - Modusleiste
-    // links, rechts daneben das ganze NRC-Fenster (drawKartenEditorBereich).
+// Der Inhalt eines Tabs unter Menue- und Reiterleiste: Spalten, Band, Panels in
+// eigenen Fenstern - im Hauptfenster und in einem eigenen Fenster des Tabs
+// (rc609 T1) dieselbe Funktion, `leftMode` ist der Tab des zeichnenden Fensters.
+void bereichZeichnen(const Layout& l) {
     if (g_app->leftMode == 3) {
         drawKartenEditorBereich(l);
     } else if (g_app->leftMode == 4) {
@@ -6762,6 +6171,645 @@ void draw() {
     drawEntTextFenster();
     drawLumpEditFenster();   // rc609 J
     karteneditor::texturListeZeichnen();   // rc609 K
+}
+
+// Menueleiste und Reiterleiste der Skripte - im Hauptfenster und in jedem
+// eigenen Fenster eines Tabs (rc609 T1) dieselben Zeilen.
+void fensterKopf() {
+    const bool kartenLeiste = (g_app->leftMode == 3);
+    if (kartenLeiste) {
+        karteneditor::zeichneHauptmenue();
+    } else {
+        drawMenu();
+    }
+    // --- Die Reiterleiste, ganz oben --------------------------------------
+    //
+    // Ueber Events, Script Flow und Actions - so, wie du es beschrieben
+    // hast: "tabs sollten überhalb von Event und scripts und so
+    // untergebracht sein".
+    //
+    // ImGui bringt dafuer BeginTabBar mit. Verwendet werden drei Merkmale:
+    //   Reorderable   die Reiter lassen sich mit der Maus umsortieren
+    //   FittingPolicyScroll  bei vielen Reitern wird gerollt, nicht
+    //                        gequetscht - Namen bleiben lesbar; das Mausrad
+    //                        ueber der Leiste rollt waagerecht (rc601)
+    //   TabListPopupButton   der Pfeil links listet alle offenen Skripte
+    //
+    // Der Stern hinter dem Namen ist derselbe wie im Fenstertitel.
+    //
+    // Im Karten-Editor gibt es keine Skript-Reiter (Stufe 3 Punkt 0b): der
+    // Editor beginnt direkt unter der Menueleiste.
+    if (!g_app->tabs.empty() && !kartenLeiste && g_app->leftMode != 4) {
+        // KEIN ImGuiTabBarFlags_AutoSelectNewTabs: das Programm waehlt einen
+        // neuen Reiter selbst (addTab setzt homeTab), und die Nachfuehrung
+        // unten bringt ImGui dorthin. Mit der Fahne hielt die Leiste einen
+        // gerade angelegten Reiter fuer einen KLICK und wechselte im
+        // naechsten Bild dorthin - auch wenn das Programm inzwischen woanders
+        // stand (Selbsttest "Doppelt", 03.10.: Datei schon offen, behaved
+        // wechselt hin, die Leiste zieht zum neuen Reiter zurueck).
+        if (ImGui::BeginTabBar("##skripte",
+                               ImGuiTabBarFlags_Reorderable |
+                                   ImGuiTabBarFlags_FittingPolicyScroll |
+                                   ImGuiTabBarFlags_TabListPopupButton)) {
+            reiterLeisteMausrad(ImGui::GetCurrentTabBar());   // VOR dem ersten BeginTabItem
+            int wechselZu = -1;
+            int schliesse = -1;
+            // --- ImGuis eigene Auswahl dem Programm nachfuehren -------------
+            //
+            // ImGui merkt sich selbst, welcher Reiter gewaehlt ist, und
+            // meldet ihn jedes Bild. Wechselt das PROGRAMM den Reiter (drei
+            // Skripte auf einmal geoeffnet, ein Reiter geschlossen, Fokus
+            // aus einem Feld der Aufteilung), steht ImGui noch auf dem alten
+            // - und die Meldung unten zog das Programm dorthin zurueck:
+            // "ploetzlich in einem anderen Tab" (Selbsttest beim Nachstellen
+            // von shanks Datenverlust, 02.10.). Deshalb: weicht ImGuis Wahl
+            // vom Besitzer ab, bekommt dessen Reiter SetSelected, und in
+            // diesem Bild ist ImGuis Meldung kein Klick.
+            // rc609 T1: je Fenster (App::reiterWahl, beim Zeichnen eines eigenen Fensters getauscht)
+            int& imguiWahl = g_app->reiterWahl;
+            const bool nachfuehren = (imguiWahl != g_app->homeTab);
+            int gemeldet = -1;
+            for (std::size_t i = 0; i < g_app->tabs.size(); ++i) {
+                // Fuer NAME und Zustand gilt weiter der aktive Reiter: nur
+                // er hat das lebende Dokument. Fuer die AUSWAHL im Band
+                // gilt der Besitzer - siehe unten.
+                const bool aktiv = (static_cast<int>(i) == g_app->activeTab);
+                const std::string& tp =
+                    aktiv ? g_app->path : g_app->tabs[i].path;
+                const std::string& tn =
+                    aktiv ? g_app->shownName : g_app->tabs[i].shownName;
+                const bool schmutzig =
+                    aktiv ? g_app->doc.dirty() : g_app->tabs[i].doc.dirty();
+                std::string name = !tp.empty()  ? fileName(tp)
+                                   : !tn.empty() ? tn
+                                                 : std::string("unnamed.txt");
+                if (schmutzig) {
+                    name += " *";
+                }
+                // "###" haengt die Kennung an der Nummer fest: sonst
+                // wandert sie mit dem Namen, und ImGui verliert beim
+                // Speichern die Zuordnung.
+                name += "###tab" + std::to_string(i);
+                bool offen = true;
+                const ImGuiTabItemFlags fahnenReiter =
+                    (nachfuehren && static_cast<int>(i) == g_app->homeTab) ? ImGuiTabItemFlags_SetSelected
+                                                                           : ImGuiTabItemFlags_None;
+                if (ImGui::BeginTabItem(name.c_str(), &offen, fahnenReiter)) {
+                    gemeldet = static_cast<int>(i);
+                    // Verglichen wird mit dem BESITZER, nicht mit dem
+                    // aktiven Reiter.
+                    //
+                    // ImGui meldet JEDES BILD, welcher Reiter ausgewaehlt
+                    // ist. Stand hier "aktiv", dann zog das Band den
+                    // aktiven Reiter sofort zurueck, sobald ein Klick in
+                    // ein Vergleichsfeld ihn verschoben hatte - und man
+                    // landete "ploetzlich in einem anderen Tab".
+                    //
+                    // Der Besitzer aendert sich nur, wenn man wirklich
+                    // einen Reiter anklickt. Damit bleibt das Band ruhig,
+                    // waehrend man in den Feldern arbeitet.
+                    if (static_cast<int>(i) != g_app->homeTab && !nachfuehren) {
+                        wechselZu = static_cast<int>(i);
+                    }
+                    ImGui::EndTabItem();
+                }
+                if (!offen) {
+                    schliesse = static_cast<int>(i);
+                }
+            }
+            // Ein Pluszeichen zum Anlegen - wie im Browser.
+            if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing |
+                                              ImGuiTabItemFlags_NoTooltip)) {
+                // Ohne Karte - ein neues, leeres Blatt.
+                addTab(false);
+                takeTab(g_app->activeTab);
+            }
+            ImGui::EndTabBar();
+            imguiWahl = gemeldet;
+            // ERST nach EndTabBar handeln - ein Umschalten mitten in der
+            // Leiste zieht ImGui den Boden unter den Fuessen weg.
+            if (schliesse >= 0) {
+                closeTab(schliesse);
+            } else if (wechselZu >= 0) {
+                // ERST wechseln, DANN den Besitzer setzen.
+                //
+                // Andersherum war es falsch: switchTab parkt die aktuelle
+                // Aufteilung in den Besitzer - und wenn der schon der NEUE
+                // war, bekam der frische Reiter die vier Felder
+                // angehaengt, die er nie hatte. Danach holte takeTab genau
+                // die wieder hervor. Gemeldet als "wenn ich die tabs
+                // wechsel, habe ich immer noch die 4er ansicht".
+                //
+                // In dieser Reihenfolge stimmt beides: geparkt wird in den
+                // ALTEN Besitzer, geholt wird die Aufteilung des neuen.
+                switchTab(wechselZu);
+                g_app->homeTab = wechselZu;
+            }
+        }
+    }
+}
+
+// --- rc609 T1: die Tabs in eigenen Fenstern ---------------------------------
+//
+// Jedes eigene Fenster zeichnet wie das Hauptfenster: Menueleiste (die des Map
+// Editors in NRCs Schrift), Reiterleiste der Skripte, der Inhalt des Tabs und
+// die Statuszeile. Waehrend es zeichnet, stehen sein Tab und seine Felder in
+// g_app (tabfenster::vorbereiten). Ein Tabwechsel im Fenster (die Modusleiste,
+// "Mission oeffnen") holt den anderen Tab nach vorn, das Fenster bleibt bei
+// seinem (tabfenster::ende).
+void tabFensterZeichnen() {
+    for (int i = 0; i < tabfenster::fensterZahl(); ++i) {
+        tabfenster::vorbereiten(i);
+        const bool kartenLeiste = (g_app->leftMode == 3);
+        if (kartenLeiste) { karteneditor::hauptleisteStilAn(); }
+        const bool sichtbar = tabfenster::begin(i);
+        if (kartenLeiste) { karteneditor::hauptleisteStilAus(); }
+        if (sichtbar) {
+            fensterKopf();
+            const Layout l = computeLayout();
+            // Das Einschwingbild beim ersten Bild des Fensters wie beim Moduswechsel im Hauptfenster.
+            g_app->moduswechselBild = (g_app->letzterModus != g_app->leftMode);
+            g_app->letzterModus = g_app->leftMode;
+            bereichZeichnen(l);
+            drawStatus(l);
+        }
+        tabfenster::ende(i);
+    }
+}
+
+}  // namespace
+
+void draw() {
+    BHED_MESS("Oberflaeche");
+    if (g_app == nullptr) { return; }
+    // Einmal: Reste eines Updates wegraeumen, und im Hintergrund nachsehen.
+    dateienVonAussenOeffnen();
+    abgelegteDateienVerarbeiten();   // Stufe 9 Punkt 3
+    static bool updateGestartet = false;
+    if (!updateGestartet) {
+        updateGestartet = true;
+        updater::beimStart();
+    }
+    // rc601 integ: Regelwerk (OpenJK / Movie Duels) anwenden, wenn sich
+    // Einstellung, Schwierigkeit oder Spielordner geaendert haben.
+    (void)regelwerkPruefen();
+    // Stufe 3: ein laufendes Bauen im Karten-Editor weiterfuehren (q3map2 und
+    // sein Rueckkanal) - auch, wenn gerade ein anderer Arbeitsbereich offen ist.
+    karteneditor::bauSchritt();
+
+    // --- Den Klangstrom nachfuellen ------------------------------------
+    //
+    // Gemeldet: "der Sound ging ganz kurz, und danach reisst es ab."
+    //
+    // Das war der fehlende Teil von rc335. Der Mischer schreibt zwei
+    // Bloecke im Voraus - rund 92 ms - und danach muss jemand nachlegen.
+    // `update()` wurde aber NUR aus `play()` gerufen. Solange kein neuer
+    // Klang begann, lief die Ausgabe leer, und der Rest fiel weg.
+    //
+    // Ein durchlaufender Strom braucht einen durchlaufenden Antrieb.
+    // Hier ist er: einmal je Bild, unabhaengig davon, ob gerade etwas
+    // gestartet wird.
+    //
+    // Beide Geraete, nicht nur eines - Musik laeuft ueber ein eigenes.
+    static bool tonGestartet = false;
+    if (!tonGestartet) {
+        tonGestartet = true;
+        g_app->tonVorab = std::async(std::launch::async, [] {
+            App::TonVorab t;
+            // Dasselbe feste Format wie playSound (kRate, kChannels).
+            (void)t.ton.open(44100, 2);
+            (void)t.musik.open(44100, 2);
+            return t;
+        });
+    }
+    tonUebernehmen(false);
+    g_app->audio.update();
+    g_app->musicAudio.update();
+
+    // Hier ist der erste Ort, an dem ImGui sicher einen Kontext hat.
+    // createApp() und loadSettings() laufen VOR CreateContext(); ein
+    // ImGui::GetStyle() dort loest "No current context" aus und das
+    // Programm bricht beim Start ab, bevor ein Fenster erscheint.
+    ensureIcons();
+
+    // Zustand der Dialoge festhalten, BEVOR einer davon zeichnet und sich
+    // dabei selbst schliesst. Begruendung steht bei der Feldbeschreibung
+    // in app_internal.h.
+    // Find getrennt: dort gehen Rueckgaengig/Wiederholen durch (Ersetzen).
+    g_app->findAtFrameStart = g_app->findOpen;
+    g_app->dialogAtFrameStart = g_app->editorOpen ||
+                                g_app->askSaveOpen ||
+                                g_app->prefsOpen || g_app->pk3Open ||
+                                g_app->aboutOpen || g_app->missionPickOpen;
+
+    // Strg+Mausrad vergroessert und verkleinert, wie in jedem Editor - nur
+    // nicht ueber der Zeitleiste: dort zoomt Strg+Rad die Spuren (rc599,
+    // vorher geschah beides zugleich). Im Karten-Editor auch nicht (Stufe 7
+    // Punkt 6b): dort gehoert das Rad mit und ohne Strg den Ansichten wie bei
+    // NRC (XYWnd zoomt, CamWnd faehrt, der Texturbrowser rollt).
+    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().MouseWheel != 0.0F &&
+        !ImGui::GetIO().WantTextInput && !g_app->tlUnterMaus && tabfenster::modusUnterMaus() != 3 &&
+        tabfenster::modusUnterMaus() != 4) {
+        g_app->uiScale = std::clamp(
+            g_app->uiScale + ImGui::GetIO().MouseWheel * 0.1F, kUiScaleMin, 3.0F);
+    }
+    g_app->tlUnterMaus = false;   // die Zeitleiste setzt es in diesem Bild neu
+
+    const float total = g_app->dpiScale * g_app->uiScale;
+    if (g_app->themePending || std::fabs(total - g_app->appliedScale) > 0.001F) {
+        applyScale(total);
+        g_app->themePending = false;
+    }
+
+    // dock1: gespeicherte Anordnung beim Start, Fensterlagen in die
+    // Einstellungen, Fenster von fehlenden Bildschirmen zurueck - vor dem
+    // ersten Fenster des Bildes.
+    dock::bildAnfang();
+    // rc609 T1: Tabs in eigenen Fenstern - Loesen, Zurueck und Wechsel ausfuehren,
+    // den Fokus bestimmen (tabfenster.h), bevor das erste Fenster zeichnet.
+    tabfenster::bildAnfang();
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    // Titel wie im Original: "unnamed.txt *"
+    std::string title = g_app->path.empty() ? std::string("unnamed.txt")
+                                            : fileName(g_app->path);
+    if (g_app->doc.dirty()) {
+        title += " *";
+    }
+    title += "###main";   // ImGui-Kennung stabil halten
+    // Stufe 3 Punkt 0b ("Eine Leiste, die umschaltet", Entscheidung shank): im
+    // Modus Karten-Editor ist die Menueleiste dieses Fensters die von
+    // NetRadiant-Custom - 21 Qt-Punkte hoch in NRCs Schrift. ImGui legt die Hoehe
+    // beim Begin fest, darum Schrift und Polster schon hier.
+    const bool kartenLeiste = (g_app->leftMode == 3);
+    if (kartenLeiste) { karteneditor::hauptleisteStilAn(); }
+    ImGui::Begin(title.c_str(), nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
+                 // dock1: kein anderes Fenster wird in das Hauptfenster
+                 // gesetzt (ImGuiConfigFlags_DockingEnable) - herausgenommene
+                 // Panels kommen ueber ihren Platz zurueck (fenster_dock.h).
+                 ImGuiWindowFlags_NoDocking |
+                 // Das Hauptfenster rollt nie. shank: "wenn ich vor und
+                 // zurueck scrolle bewegen sich die Tabs" - der Inhalt war in
+                 // der Kartenansicht 14 Punkte zu hoch (siehe computeLayout),
+                 // und das Mausrad rollte die ganze Oberflaeche.
+                 ImGuiWindowFlags_NoScrollWithMouse |
+                 // --- Nie VOR die schwebenden Fenster ------------------
+                 //
+                 // Gemeldet: "If I click outside the window, then it
+                 // closes/hides, and I am unable to open it again" - bei
+                 // Notes, Keyboard shortcuts, Find und der Rueckfrage.
+                 // Ein Klick auf das Hauptfenster holte es nach VORN; das
+                 // schwebende Fenster lag dahinter, sein Offen-Merker
+                 // stand weiter, und der Knopf setzte nur, was schon
+                 // gesetzt war. Beim Einstellungsfenster sperrte der
+                 // Merker obendrein alle Tastenkuerzel ("Reset all to
+                 // defaults breaks all keyboard shortcuts").
+                 ImGuiWindowFlags_NoBringToFrontOnFocus);
+    if (kartenLeiste) { karteneditor::hauptleisteStilAus(); }
+    fensterKopf();
+
+    const Layout l = computeLayout();
+
+    // --- Was gilt gerade? -------------------------------------------------
+    //
+    // Reiter, Felder und Groessen ins Detailprotokoll, aber nur bei einer
+    // AENDERUNG. Damit laesst sich nachvollziehen, was beim Oeffnen mehrerer
+    // Skripte und beim Ziehen der Trennlinien wirklich geschieht - statt es
+    // aus Bildschirmfotos zu erschliessen.
+    {
+        App::LayoutLog jetzt;
+        jetzt.tabs = static_cast<int>(g_app->tabs.size());
+        jetzt.activeTab = g_app->activeTab;
+        jetzt.splitCount = g_app->splitCount;
+        jetzt.focusPane = g_app->focusPane;
+        for (int i = 0; i < App::kMaxSplit; ++i) {
+            jetzt.paneTabs[i] = g_app->splitPanes[i].tab;
+        }
+        jetzt.frameW = static_cast<int>(l.total);
+        jetzt.frameH = static_cast<int>(l.topH);
+        jetzt.eventsW = static_cast<int>(l.eventsW);
+        jetzt.flowW = static_cast<int>(l.flowW);
+        jetzt.toolH = static_cast<int>(l.toolH);
+        jetzt.tooSmall = l.tooSmall;
+        jetzt.fracX = static_cast<int>(g_app->splitFracX * 1000.0F);
+        jetzt.fracY = static_cast<int>(g_app->splitFracY * 1000.0F);
+        jetzt.tlFrac = static_cast<int>(g_app->timelineFrac * 1000.0F);
+
+        const App::LayoutLog& alt = g_app->lastLayoutLog;
+        bool reiterAnders =
+            jetzt.tabs != alt.tabs || jetzt.activeTab != alt.activeTab ||
+            jetzt.splitCount != alt.splitCount ||
+            jetzt.focusPane != alt.focusPane;
+        for (int i = 0; i < App::kMaxSplit; ++i) {
+            if (jetzt.paneTabs[i] != alt.paneTabs[i]) { reiterAnders = true; }
+        }
+        // Groessen erst ab EINEM Bildpunkt Unterschied - beim Ziehen aendern
+        // sie sich sonst in jedem Bild um Bruchteile, und das Protokoll
+        // liefe voll.
+        const bool groessenAnders =
+            jetzt.frameW != alt.frameW || jetzt.frameH != alt.frameH ||
+            jetzt.eventsW != alt.eventsW || jetzt.flowW != alt.flowW ||
+            jetzt.toolH != alt.toolH || jetzt.tooSmall != alt.tooSmall ||
+            jetzt.fracX != alt.fracX ||
+            jetzt.fracY != alt.fracY || jetzt.tlFrac != alt.tlFrac;
+
+        if (reiterAnders) {
+            char z[300];
+            std::snprintf(z, sizeof(z),
+                          "Reiter: %d offen, Arbeitsbereich %d, bearbeitet "
+                          "wird %d | Felder: %d, Fokus %d, belegt mit "
+                          "%d %d %d %d",
+                          jetzt.tabs, g_app->homeTab, jetzt.activeTab,
+                          jetzt.splitCount,
+                          jetzt.focusPane, jetzt.paneTabs[0], jetzt.paneTabs[1],
+                          jetzt.paneTabs[2], jetzt.paneTabs[3]);
+            diag::detail(z);
+            // Und was in den Feldern steht - der haeufigste Zweifel ist,
+            // ob zwei Felder dasselbe Skript zeigen.
+            for (int i = 0; i < jetzt.splitCount; ++i) {
+                const int nr = g_app->splitPanes[i].tab;
+                const char* name =
+                    (nr >= 0 && static_cast<std::size_t>(nr) <
+                                    g_app->tabs.size())
+                        ? (g_app->tabs[static_cast<std::size_t>(nr)]
+                                   .shownName.empty()
+                               ? "(ohne Namen)"
+                               : g_app->tabs[static_cast<std::size_t>(nr)]
+                                     .shownName.c_str())
+                        : "(kein Reiter)";
+                std::snprintf(z, sizeof(z), "   Feld %d zeigt Reiter %d: %s", i,
+                              nr, name);
+                diag::detail(z);
+            }
+        }
+        // Den Moduswechsel EINMAL je Bild feststellen - hier, weil diese
+        // Stelle in jedem Modus laeuft.
+        g_app->moduswechselBild = (g_app->letzterModus != g_app->leftMode);
+        // Die Zeitleiste laeuft nur in der Kartenansicht weiter. Wer sie
+        // beim Abspielen verlaesst, hatte eine stehende Uhr und weiter
+        // laufenden Ton - also anhalten, wie "Stop" (Kartentest 27.09.).
+        // rc609 T1: nicht, wenn Mission nur in ihr eigenes Fenster gezogen ist - dort laeuft sie weiter.
+        if (g_app->moduswechselBild && g_app->letzterModus == 1 && g_app->playing && !tabfenster::eigenes(1)) {
+            g_app->playing = false;
+            g_app->audio.stopAll();
+            g_app->laufendeSchleifen.clear();
+            tonZuruecksetzen();   // rc601 ton: auch der Raumklang
+            g_app->musicAudio.stopAll();
+        }
+        if (g_app->moduswechselBild) {
+            char zm[140];
+            std::snprintf(zm, sizeof(zm),
+                          "Moduswechsel %d -> %d: dieses Bild wird "
+                          "uebersprungen (Einschwingen)",
+                          g_app->letzterModus, g_app->leftMode);
+            diag::detail(zm);
+            g_app->letzterModus = g_app->leftMode;
+        }
+        if (groessenAnders || g_app->dumpAngefordert) {
+            g_app->dumpAngefordert = false;
+            char z[300];
+            std::snprintf(z, sizeof(z),
+                          "Groessen: Fenster %dx%d | Ereignisse %d, Skripte "
+                          "%d, Band %d | Raster %d/%d, Zeitleiste %d (Promille)",
+                          jetzt.frameW, jetzt.frameH, jetzt.eventsW,
+                          jetzt.flowW, jetzt.toolH, jetzt.fracX, jetzt.fracY,
+                          jetzt.tlFrac);
+            diag::detail(z);
+
+            // --- ALLES, was wir je gemessen haben ------------------------
+            //
+            // shank: "wenn ich dir sage debuggen, dann will ich, dass er es
+            // in eines der Logs schreibt. Also adde alles, wo ich dir mal
+            // gesagt habe debugge es ins Log. Jede Position des UI,
+            // Funktionen, alles."
+            //
+            // Bis hierher landete nur die Zeile darueber im Protokoll. Alles
+            // andere, was in dieser Sitzung gemessen wurde, stand auf dem
+            // Bildschirm - den ich nicht sehe. Jede dieser Zahlen hat uns
+            // mindestens eine Runde gekostet:
+            //
+            //   splitEvents/Map/Model  drei Modi, drei Werte (rc494)
+            //   frameH negativ         "alles Uebrige minus Fuss" (rc471)
+            //   buttonsW/minButtonsW   Actions-Spalte (rc474, rc481)
+            //   headerH je Modus       Knopfhoehe gegen Textzeile (rc478)
+            //   ZelleW/restW/BildW     die Luecke neben der Karte (rc500)
+            //   modeBarW               Modusleiste in der Tabelle (rc501)
+            //
+            // Auch nur bei Aenderung - `groessenAnders` deckt das ab.
+            char z2[400];
+            std::snprintf(z2, sizeof(z2),
+                          "  Aufteilung: Modus %d | splitEvents %.4f, "
+                          "splitMap %.4f, splitModel %.4f, splitButtons %.4f",
+                          g_app->leftMode,
+                          static_cast<double>(g_app->settings.splitEvents),
+                          static_cast<double>(g_app->settings.splitMap),
+                          static_cast<double>(g_app->settings.splitModel),
+                          static_cast<double>(g_app->settings.splitButtons));
+            diag::detail(z2);
+            std::snprintf(z2, sizeof(z2),
+                          "  Hoehen: headerH %.0f, fussH %.0f, frameH %.0f "
+                          "(negativ = Rest minus Fuss), statusH %.0f, "
+                          "toolH %.0f",
+                          static_cast<double>(l.headerH),
+                          static_cast<double>(l.fussH),
+                          static_cast<double>(l.frameH),
+                          static_cast<double>(l.statusH),
+                          static_cast<double>(l.toolH));
+            diag::detail(z2);
+            std::snprintf(z2, sizeof(z2),
+                          "  Breiten: buttonsW %.0f, minButtonsW %.0f, "
+                          "modeBarW %.0f | Karte: ZelleW %.0f, restW %.0f, "
+                          "BildW %.0f, SeitenspalteW %.0f",
+                          static_cast<double>(l.buttonsW),
+                          static_cast<double>(l.minButtonsW),
+                          static_cast<double>(g_app->modeBarW),
+                          static_cast<double>(g_app->dbgZelleW),
+                          static_cast<double>(g_app->dbgRestW),
+                          static_cast<double>(g_app->dbgBildW),
+                          static_cast<double>(g_app->mapSidebarW));
+            diag::detail(z2);
+            std::snprintf(z2, sizeof(z2),
+                          "  Stil: Zeichenhoehe %.0f, FramePadding.x %.0f, "
+                          "CellPadding.x %.0f, ItemSpacing.x %.0f, "
+                          "WindowPadding.x %.0f",
+                          static_cast<double>(ImGui::GetFontSize()),
+                          static_cast<double>(ImGui::GetStyle().FramePadding.x),
+                          static_cast<double>(ImGui::GetStyle().CellPadding.x),
+                          static_cast<double>(ImGui::GetStyle().ItemSpacing.x),
+                          static_cast<double>(
+                              ImGui::GetStyle().WindowPadding.x));
+            diag::detail(z2);
+        }
+        // --- Und die REGELN nachprüfen ------------------------------------
+        //
+        // Ein Protokoll sagt, was gilt - nicht, ob es richtig ist. Diese
+        // Bedingungen muessen immer gelten; bricht eine, liegt ein Fehler
+        // vor, und er soll sich selbst melden statt beim Anwender
+        // aufzufallen.
+        //
+        // Alle vier stammen aus echten Fehlern dieser Sitzung.
+        if (reiterAnders) {
+            char z[300];
+            // rc179: neue Felder bekamen immer Reiter 0.
+            for (int i = 0; i < jetzt.splitCount; ++i) {
+                for (int j = i + 1; j < jetzt.splitCount; ++j) {
+                    if (g_app->splitPanes[i].tab == g_app->splitPanes[j].tab) {
+                        std::snprintf(z, sizeof(z),
+                                      "   FEHLER: Feld %d und %d zeigen "
+                                      "denselben Reiter %d",
+                                      i, j, g_app->splitPanes[i].tab);
+                        diag::detail(z);
+                    }
+                }
+            }
+            // rc184: nach dem Schliessen zeigte ein Feld ins Leere.
+            for (int i = 0; i < jetzt.splitCount; ++i) {
+                const int nr = g_app->splitPanes[i].tab;
+                if (nr < 0 || static_cast<std::size_t>(nr) >=
+                                  g_app->tabs.size()) {
+                    std::snprintf(z, sizeof(z),
+                                  "   FEHLER: Feld %d zeigt auf Reiter %d, es "
+                                  "gibt aber nur %d",
+                                  i, nr, jetzt.tabs);
+                    diag::detail(z);
+                }
+            }
+            if (jetzt.focusPane < 0 || jetzt.focusPane >= jetzt.splitCount) {
+                std::snprintf(z, sizeof(z),
+                              "   FEHLER: Fokus liegt auf Feld %d, es gibt "
+                              "aber nur %d",
+                              jetzt.focusPane, jetzt.splitCount);
+                diag::detail(z);
+            }
+            // rc184: mehr Felder als Skripte.
+            if (jetzt.splitCount > jetzt.tabs) {
+                std::snprintf(z, sizeof(z),
+                              "   FEHLER: %d Felder bei nur %d Reitern",
+                              jetzt.splitCount, jetzt.tabs);
+                diag::detail(z);
+            }
+        }
+        if (groessenAnders) {
+            char z[300];
+            // rc202: die Skriptspalte klemmte, bevor die Symbolansicht
+            // erreichbar war. Null waere schlimmer - dann kaeme man nicht
+            // zurueck.
+            if (jetzt.flowW <= 0 || jetzt.eventsW <= 0) {
+                std::snprintf(z, sizeof(z),
+                              "   FEHLER: eine Spalte ist auf null "
+                              "(Ereignisse %d, Skripte %d)",
+                              jetzt.eventsW, jetzt.flowW);
+                diag::detail(z);
+            }
+            // rc195: das Band darf das Fenster nicht ueberragen.
+            //
+            // Die Bedingung stand frueher als `toolH > frameH + toolH` da -
+            // algebraisch dasselbe wie `frameH < 0`, nur schwerer zu lesen.
+            // Und sie kann seit rc258 nicht mehr anschlagen, weil frameH
+            // bei null abgefangen wird. Gefragt wird deshalb den Vermerk,
+            // den die Berechnung selbst hinterlaesst.
+            if (jetzt.tooSmall) {
+                diag::detail("   Fenster zu klein: nach Statuszeile, Band, "
+                             "Reiterleiste und Kopfzeile bleibt nichts "
+                             "uebrig. Die Hoehen sind bei null abgefangen.");
+            }
+        }
+        if (reiterAnders || groessenAnders) {
+            g_app->lastLayoutLog = jetzt;
+        }
+
+        // --- Wohin ging die letzte BEARBEITUNG? ---------------------------
+        //
+        // Beim Arbeiten an vier Skripten nebeneinander ist das DIE Frage:
+        // landet die Aenderung in dem Skript, in das ich geklickt habe?
+        //
+        // Die Tiefe des Rueckgaengig-Stapels ist der verlaessliche Anzeiger:
+        // sie waechst genau dann, wenn wirklich etwas geaendert wurde - und
+        // nicht schon beim Anklicken oder Rollen.
+        //
+        // Beim REITERWECHSEL wechselt auch der Stapel; dann wird nur der
+        // neue Stand gemerkt, ohne eine Bearbeitung zu melden.
+        {
+            const std::size_t tiefe = g_app->doc.undoDepth();
+            if (g_app->activeTab != g_app->lastEditTab) {
+                g_app->lastEditTab = g_app->activeTab;
+                g_app->lastUndoDepth = tiefe;
+            } else if (tiefe != g_app->lastUndoDepth) {
+                const bool mehr = tiefe > g_app->lastUndoDepth;
+                g_app->lastUndoDepth = tiefe;
+                const std::string name =
+                    !g_app->path.empty() ? fileName(g_app->path)
+                    : !g_app->shownName.empty() ? g_app->shownName
+                                                : std::string("unnamed.txt");
+                char z[300];
+                std::snprintf(z, sizeof(z),
+                              "Bearbeitung: Feld %d, Reiter %d (%s), Stapel "
+                              "%zu (%s)",
+                              g_app->focusPane, g_app->activeTab, name.c_str(),
+                              tiefe, mehr ? "Schritt dazu"
+                                          : "rueckgaengig oder verworfen");
+                diag::detail(z);
+
+                // Die Regel, die das Ganze traegt: das FOKUSSIERTE Feld muss
+                // den aktiven Reiter zeigen. Gilt sie nicht, ginge eine
+                // Aenderung in ein anderes Skript als das angeklickte - und
+                // das waere der schlimmste Fehler, den dieses Fenster haben
+                // kann.
+                const int fp =
+                    std::clamp(g_app->focusPane, 0, App::kMaxSplit - 1);
+                if (g_app->splitCount > 1 &&
+                    g_app->splitPanes[fp].tab != g_app->activeTab) {
+                    std::snprintf(z, sizeof(z),
+                                  "   FEHLER: Feld %d zeigt Reiter %d, "
+                                  "bearbeitet wurde aber Reiter %d",
+                                  fp, g_app->splitPanes[fp].tab,
+                                  g_app->activeTab);
+                    diag::detail(z);
+                }
+            }
+        }
+    }
+    // Bei der KARTE eine eigene Aufteilung.
+    //
+    // Die Knopfspalte "Actions" gehoert zum Skript, nicht zur Karte - dort
+    // steht sie nur im Weg. Stattdessen:
+    //
+    //     Modusleiste | Ebenen | Karte | Skriptbaum
+    //
+    // Die Ebenen links, weil man sie liest wie eine Gliederung; der
+    // Skriptbaum rechts, weil er beim Anklicken einer Entity die Antwort
+    // gibt. Alles andere zur Karte steht im Band darunter.
+    // --- Die Spalten als TABELLE ----------------------------------------
+    //
+    // Vorher: `drawEventsList`, Teiler, `drawFlowArea`, Teiler,
+    // `drawButtonColumns` - aneinandergereiht mit `SameLine(0, 0)`, jede
+    // Breite von Hand gerechnet, jeder Teiler selbst gezeichnet.
+    //
+    // Drei Runden sind an der Frage gescheitert, warum die Spalten nicht
+    // gleich hoch enden (rc469, rc470, rc471). Der Grund war nie ein
+    // einzelner Zahlendreher, sondern dass ueberhaupt gerechnet wurde:
+    // sechs Werte aus einem Dutzend Summanden, und jede Aenderung muss an
+    // jeder Stelle nachgezogen werden.
+    //
+    // ImGui hat dafuer Tabellen (seit 1.80). Sie rechnen die Breiten,
+    // bringen die Trennlinien samt Ziehen mit - und eine Tabellenzeile ist
+    // EINE Zeile: alle Zellen enden dort, wo sie endet. Nicht "sollten
+    // gleich hoch sein", sondern koennen gar nicht anders.
+    //
+    // Was damit wegfaellt: `l.eventsW`, `l.flowW`, `l.buttonsW`, `l.rest`,
+    // die beiden `splitter()`-Aufrufe und die gespeicherten
+    // Aufteilungsbruechte - ImGui merkt sich die Spaltenbreiten selbst.
+    //
+    // Bei der KARTE hat die Knopfspalte nichts zu suchen: sie gehoert zum
+    // Skript. Dann sind es zwei Spalten statt drei.
+    //
+    // Stufe 1b: der Karten-Editor ist eine eigene Oberflaeche - Modusleiste
+    // links, rechts daneben das ganze NRC-Fenster (drawKartenEditorBereich).
+    bereichZeichnen(l);
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //
@@ -6848,6 +6896,7 @@ void draw() {
     }
 
     drawStatus(l);
+    tabFensterZeichnen();   // rc609 T1: Tabs in eigenen Fenstern
     drawUndoListe();
     updater::zeichneFenster();
     drawChangelog();
@@ -6907,21 +6956,23 @@ void draw() {
     // rc601 tour: Tutorial-Fenster, Hervorhebung und Schrittpruefung - VOR
     // selbsttest(), damit der Test die Knoepfe des Fensters im selben Bild
     // findet (das Register wird erst danach geleert).
-    hilfeBild();   // H1: der Helfer (F1), Erste Schritte, KI-Anbindung
+    // rc609 T1: Helfer und Kuerzel gelten dem Tab des Fensters mit dem Fokus.
+    tabfenster::imFokus(&hilfeBild);   // H1: der Helfer (F1), Erste Schritte, KI-Anbindung
     tourBild();
     selbsttest();   // nur mit BHED_EDITORTEST, siehe selbsttest.cpp
     // rc601 tour: das Element-Register leeren und die Stufe fuer das naechste
     // Bild setzen (Voll im Selbsttest, Gefiltert waehrend einer Tour, sonst
     // Aus). Bis rc600 leerte selbsttest() es selbst.
     elemente::bildEnde();
-    handleShortcuts();
-    handleTreeKeys();
+    tabfenster::imFokus(&handleShortcuts);
+    tabfenster::imFokus(&handleTreeKeys);
     karteneditor::autosaveJedeSekunde();   // Karten-Editor: EverySecondTimer (QE_CheckAutoSave)
     // rc601 ton (Review): als LETZTES im Bild - nach allem, was das Abspielen
     // anhalten kann. Schleifen, die tonBild in diesem Bild nicht gemeldet
     // hat, enden (vorher summte ein Schwert nach dem Ende der Zeitleiste
     // endlos weiter).
     tonWache();
+    tabfenster::bildEnde();
     ImGui::End();
 }
 

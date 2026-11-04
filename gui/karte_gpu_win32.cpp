@@ -10,6 +10,7 @@
 #include "bhed/karte/texturen.h"
 
 #include "backend.h"
+#include "bemalt.h"   // rc609 T1: was bemalt wurde (Leerlauf je Fenster)
 
 #include "imgui.h"
 
@@ -554,7 +555,7 @@ bool beginnen(int kennung, int breite, int hoehe, int msaa, const float* hinten,
         td.SampleDesc.Count = 1;
         td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         if (FAILED(d->CreateTexture2D(&td, nullptr, &z.aufgeloest))) { return false; }
-        d->CreateShaderResourceView(z.aufgeloest, nullptr, &z.srv);
+        ::bhed::render::sichtAnlegen(d, z.aufgeloest, nullptr, &z.srv);
         if (tiefe) {
             td.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
             td.SampleDesc.Count = static_cast<UINT>(stufe);
@@ -570,13 +571,13 @@ bool beginnen(int kennung, int breite, int hoehe, int msaa, const float* hinten,
     g.altVpAnzahl = 1;
     c->RSGetViewports(&g.altVpAnzahl, &g.altVp);
     c->OMGetRenderTargets(1, &g.altRtv, &g.altDsv);
-    c->OMSetRenderTargets(1, &z.rtv, tiefe ? z.dsv : nullptr);
+    ::bhed::render::zielSetzen(c, 1, &z.rtv, tiefe ? z.dsv : nullptr);
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(breite);
     vp.Height = static_cast<float>(hoehe);
     vp.MaxDepth = 1.0F;
     c->RSSetViewports(1, &vp);
-    c->ClearRenderTargetView(z.rtv, hinten);
+    ::bhed::render::leeren(c, z.rtv, hinten);
     if (tiefe && z.dsv != nullptr) { c->ClearDepthStencilView(z.dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0); }
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(g.blend, faktor, 0xFFFFFFFFU);
@@ -726,11 +727,11 @@ void beenden() {
     ID3D11DeviceContext* c = kontext();
     Ziel& z = g.ziele[g.aktiv];
     if (z.msaa > 1) {
-        c->ResolveSubresource(z.aufgeloest, 0, z.tex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+        ::bhed::render::aufloesen(c, z.aufgeloest, 0, z.tex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     } else {
-        c->CopyResource(z.aufgeloest, z.tex);
+        ::bhed::render::kopieren(c, z.aufgeloest, z.tex);
     }
-    c->OMSetRenderTargets(1, &g.altRtv, g.altDsv);
+    ::bhed::render::zielSetzen(c, 1, &g.altRtv, g.altDsv);
     if (g.altVpAnzahl > 0) { c->RSSetViewports(1, &g.altVp); }
     los(g.altRtv);
     los(g.altDsv);
@@ -1210,7 +1211,7 @@ void Puffer3::setzen(const void* daten, std::size_t bytes) {
     }
     if (bytes > 0) {
         D3D11_BOX box{0, 0, 0, static_cast<UINT>(bytes), 1, 1};
-        kontext()->UpdateSubresource(vb, 0, &box, daten, 0, 0);
+        ::bhed::render::hochladen(kontext(), vb, 0, &box, daten, 0, 0);
     }
 }
 
@@ -1657,14 +1658,14 @@ bool poolAnlegen(Zustand::Pool& p, int groesse, int anzahl) {
         rd.Texture2DArray.ArraySize = 1;
         d->CreateRenderTargetView(p.tex, &rd, &p.rtv[static_cast<std::size_t>(i)]);
         const float eins[4] = {1, 1, 1, 1};
-        if (p.rtv[static_cast<std::size_t>(i)] != nullptr) { kontext()->ClearRenderTargetView(p.rtv[static_cast<std::size_t>(i)], eins); }
+        if (p.rtv[static_cast<std::size_t>(i)] != nullptr) { ::bhed::render::leeren(kontext(), p.rtv[static_cast<std::size_t>(i)], eins); }
     }
     D3D11_SHADER_RESOURCE_VIEW_DESC sv{};
     sv.Format = td.Format;
     sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
     sv.TextureCubeArray.MipLevels = 1;
     sv.TextureCubeArray.NumCubes = static_cast<UINT>(anzahl);
-    d->CreateShaderResourceView(p.tex, &sv, &p.srv);
+    ::bhed::render::sichtAnlegen(d, p.tex, &sv, &p.srv);
     td.ArraySize = 1;
     td.MiscFlags = 0;
     td.Format = DXGI_FORMAT_D32_FLOAT;
@@ -1699,8 +1700,8 @@ bool kartenAnlegen(Zustand::Karten& k, int groesse, int schichten) {
         d->CreateRenderTargetView(k.texO, &rd, &k.rtvO[static_cast<std::size_t>(i)]);
         d->CreateRenderTargetView(k.texS, &rd, &k.rtvS[static_cast<std::size_t>(i)]);
     }
-    d->CreateShaderResourceView(k.texO, nullptr, &k.srvO);
-    d->CreateShaderResourceView(k.texS, nullptr, &k.srvS);
+    ::bhed::render::sichtAnlegen(d, k.texO, nullptr, &k.srvO);
+    ::bhed::render::sichtAnlegen(d, k.texS, nullptr, &k.srvS);
     td.ArraySize = 1;
     td.Format = DXGI_FORMAT_D32_FLOAT;
     td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
@@ -1722,7 +1723,7 @@ ID3D11Buffer* pufferAnlegen(UINT bytes, DXGI_FORMAT format, UINT elemente, ID3D1
     sv.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
     sv.Buffer.FirstElement = 0;
     sv.Buffer.NumElements = elemente;
-    geraet()->CreateShaderResourceView(b, &sv, srv);
+    ::bhed::render::sichtAnlegen(geraet(), b, &sv, srv);
     return b;
 }
 
@@ -1876,7 +1877,7 @@ struct RtSicherung {
         kontext()->RSGetViewports(&vpAnzahl, &vp);
     }
     ~RtSicherung() {
-        kontext()->OMSetRenderTargets(1, &rtv, dsv);
+        ::bhed::render::zielSetzen(kontext(), 1, &rtv, dsv);
         if (vpAnzahl > 0) { kontext()->RSSetViewports(1, &vp); }
         los(rtv);
         los(dsv);
@@ -1982,16 +1983,16 @@ bool sonnenKarte(Zustand::Karten& k, int schicht, const float* richtung, const f
     ks.werte[2] = 2.0F * halb / static_cast<float>(k.groesse) + 1.0F;
     // S: die Himmelsflaechen, die von der Sonne wegzeigen - die groesste Tiefe (die der Stelle naechste)
     ID3D11RenderTargetView* rs = k.rtvS[static_cast<std::size_t>(schicht)];
-    c->OMSetRenderTargets(1, &rs, k.dsv);
+    ::bhed::render::zielSetzen(c, 1, &rs, k.dsv);
     const float keinHimmel[4] = {-1.0e30F, 0, 0, 0};
-    c->ClearRenderTargetView(rs, keinHimmel);
+    ::bhed::render::leeren(c, rs, keinHimmel);
     c->ClearDepthStencilView(k.dsv, D3D11_CLEAR_DEPTH, 0.0F, 0);
     schattenZiehen(ks, g.psHimmel, g.psHimmel, 1U << 2, teile, nullptr, tiefenZustand(TiefenTest::Groesser, true), nullptr);
     // O: deckende Dreiecke, Volumen und alphashadow unter dem Himmel - die kleinste Tiefe
     ID3D11RenderTargetView* ro = k.rtvO[static_cast<std::size_t>(schicht)];
-    c->OMSetRenderTargets(1, &ro, k.dsv);
+    ::bhed::render::zielSetzen(c, 1, &ro, k.dsv);
     const float nichts[4] = {1.0e30F, 0, 0, 0};
-    c->ClearRenderTargetView(ro, nichts);
+    ::bhed::render::leeren(c, ro, nichts);
     c->ClearDepthStencilView(k.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     schattenZiehen(ks, g.psUnter, g.psUnterA, (1U << 0) | (1U << 1) | (1U << 3), teile, nullptr, tiefenZustand(TiefenTest::Kleiner, true), k.srvS);
     return true;
@@ -2114,9 +2115,9 @@ bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<
     for (int s = 0; s < 6; ++s) {
         ID3D11RenderTargetView* rtv = p.rtv[static_cast<std::size_t>(platz * 6 + s)];
         if (rtv == nullptr) { continue; }
-        c->OMSetRenderTargets(1, &rtv, p.dsv);
+        ::bhed::render::zielSetzen(c, 1, &rtv, p.dsv);
         const float eins[4] = {1, 1, 1, 1};
-        c->ClearRenderTargetView(rtv, eins);
+        ::bhed::render::leeren(c, rtv, eins);
         c->ClearDepthStencilView(p.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
         float blick[16];
         blickLH(pos, vorn[s], oben[s], blick);
@@ -2314,7 +2315,7 @@ void* lightmapAnlegen(const std::uint8_t* rgb, int breite, int hoehe) {
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(geraet()->CreateTexture2D(&td, &sd, &tex))) { return nullptr; }
     ID3D11ShaderResourceView* srv = nullptr;
-    geraet()->CreateShaderResourceView(tex, nullptr, &srv);
+    ::bhed::render::sichtAnlegen(geraet(), tex, nullptr, &srv);
     tex->Release();
     return srv;
 }
@@ -2453,9 +2454,9 @@ void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe
     td.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(d->CreateTexture2D(&td, nullptr, &tex))) { return nullptr; }
-    kontext()->UpdateSubresource(tex, 0, nullptr, rgba, static_cast<UINT>(breite) * 4U, 0);
+    ::bhed::render::hochladen(kontext(), tex, 0, nullptr, rgba, static_cast<UINT>(breite) * 4U, 0);
     ID3D11ShaderResourceView* voll = nullptr;   // fuer GenerateMips alle Stufen
-    d->CreateShaderResourceView(tex, nullptr, &voll);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &voll);
     if (voll != nullptr) { kontext()->GenerateMips(voll); }
     const int basis = karte::mipBasis(mipStufe, breite, hoehe);
     if (basis <= 0 || voll == nullptr) {
@@ -2469,7 +2470,7 @@ void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe
     sv.Texture2D.MostDetailedMip = static_cast<UINT>(basis);
     sv.Texture2D.MipLevels = static_cast<UINT>(-1);
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, &sv, &srv);
+    ::bhed::render::sichtAnlegen(d, tex, &sv, &srv);
     tex->Release();
     return srv;
 }
@@ -2521,7 +2522,7 @@ void* wuerfelAnlegen(const unsigned char* const seiten[6], int groesse) {
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(d->CreateTexture2D(&td, sd, &tex))) { return nullptr; }
     ID3D11ShaderResourceView* srv = nullptr;
-    d->CreateShaderResourceView(tex, nullptr, &srv);
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
     tex->Release();
     return srv;
 }
@@ -2564,7 +2565,7 @@ bool pixel(int kennung, int x, int y, unsigned char rgba[4]) {
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(geraet()->CreateTexture2D(&td, nullptr, &tex))) { return false; }
     const D3D11_BOX box{static_cast<UINT>(x), static_cast<UINT>(y), 0, static_cast<UINT>(x) + 1, static_cast<UINT>(y) + 1, 1};
-    kontext()->CopySubresourceRegion(tex, 0, 0, 0, 0, z.aufgeloest, 0, &box);
+    ::bhed::render::kopierenBereich(kontext(), tex, 0, 0, 0, 0, z.aufgeloest, 0, &box);
     D3D11_MAPPED_SUBRESOURCE m{};
     const bool ok = SUCCEEDED(kontext()->Map(tex, 0, D3D11_MAP_READ, 0, &m));
     if (ok) {
@@ -2589,7 +2590,7 @@ bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& 
     if (td.Format != DXGI_FORMAT_R8G8B8A8_UNORM) { return false; }
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(geraet()->CreateTexture2D(&td, nullptr, &tex))) { return false; }
-    kontext()->CopyResource(tex, z.aufgeloest);
+    ::bhed::render::kopieren(kontext(), tex, z.aufgeloest);
     D3D11_MAPPED_SUBRESOURCE m{};
     const bool ok = SUCCEEDED(kontext()->Map(tex, 0, D3D11_MAP_READ, 0, &m));
     if (ok) {

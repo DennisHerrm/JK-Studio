@@ -64,6 +64,47 @@ inline constexpr const char* kIniKennung = "dock.";
 // Die Namen der gespeicherten Anordnungen eines Bereichs, sortiert.
 [[nodiscard]] std::vector<std::string> benannte(const std::map<std::string, std::string>& fenster, int bereich);
 
+// --- rc609 T1: ganze Tabs in eigenen Fenstern ---------------------------------
+//
+// Ein Tab (Bereich 0..4) kann in einem eigenen Windows-Fenster stehen; das
+// Hauptfenster behaelt immer mindestens einen. Gespeichert werden je Fenster
+// der Tab, die Lage (aeusseres Fenster in Bildschirmpunkten, wie ImGui sie
+// mit Viewports fuehrt) und der Arbeitsbereich des Bildschirms, auf dem es
+// stand. Zeilenform:  tab1|<m>,<x>,<y>,<b>,<h>,<bx>,<by>,<bb>,<bh>|...
+inline constexpr int kTabBereiche = 5;
+// Schluessel in Settings::fenster: die laufende Liste und die einer benannten
+// Anordnung ("t<bereich>/<name>", gespeichert mit der Anordnung des Bereichs).
+inline constexpr const char* kTabSchluessel = "tabfenster";
+[[nodiscard]] std::string schluesselTabBenannt(int bereich, const std::string& name);
+
+struct Rechteck {
+    int x = 0;
+    int y = 0;
+    int b = 0;
+    int h = 0;
+    bool operator==(const Rechteck&) const = default;
+};
+
+struct TabFenster {
+    int modus = 0;
+    Rechteck lage;
+    Rechteck bildschirm;
+    bool operator==(const TabFenster&) const = default;
+};
+
+[[nodiscard]] std::string tabFensterKodieren(const std::vector<TabFenster>& liste);
+// Lehnt fremde Zeilen, unbekannte oder doppelte Tabs, leere Groessen und eine
+// Liste mit allen Tabs ab (das Hauptfenster haette keinen) - `liste` ist dann leer.
+[[nodiscard]] bool tabFensterDekodieren(const std::string& zeile, std::vector<TabFenster>& liste);
+
+// Wohin ein gespeichertes Fenster beim Laden kommt. Gibt es seinen Bildschirm
+// noch (gleicher Arbeitsbereich) oder liegt seine Mitte auf einem der
+// Bildschirme, bleibt es dort; sonst kommt es mittig auf `ersatz` (der
+// Bildschirm des Hauptfensters). Auf dem Ziel wird es, wenn noetig,
+// verkleinert und hineingeschoben, damit der ganze Rand erreichbar ist.
+// `bildschirm` ist danach der Arbeitsbereich des Ziels.
+[[nodiscard]] TabFenster aufBildschirm(const TabFenster& f, const std::vector<Rechteck>& bildschirme, const Rechteck& ersatz);
+
 // Eine Kennung in eine sortierte Liste ohne Doppelte einfuegen / entfernen.
 void einfuegen(std::vector<std::string>& liste, const std::string& id);
 void entfernen(std::vector<std::string>& liste, const std::string& id);

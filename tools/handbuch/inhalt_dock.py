@@ -3,6 +3,7 @@ gui/selbsttest_dock1.inc (BHED_EDITORTEST=dock1, dock1neustart, dock2mass)
 und gui/selbsttest_dock4.inc (dock4) pruefen jede Funktion; die Bilder nimmt
 BHED_EDITORTEST=dock1 mit BHED_DOCK_NUR=fotos auf.
 """
+import inhalt_tabfenster
 from inhalt_basis import T
 
 FENSTER_ANORDNEN = {
@@ -102,6 +103,7 @@ FENSTER_ANORDNEN = {
               "窗口移到缩放比例不同的屏幕(100%、150%……)上:其大小和文字会跟随该屏幕的缩放比例。",
               "ウィンドウを拡大率の異なる画面(100%、150% など)へ移すと、大きさと文字がその画面の拡大率に合わせて変わります。"),
         ]),
+    ] + inhalt_tabfenster.bloecke() + [   # rc609 T1: ganze Tabs in eigenen Fenstern
         ("h2", "karteneditor", T("Map editor", "Karten-Editor", "地图编辑器", "マップエディター")),
         ("p", T(
             "NetRadiant's layouts stay the default (Preferences > Layout): **Regular**, **Regular Left** and **Split** (also with freely assigned places and with the built-in entity window) each have their standard layout with exactly NetRadiant's sizes and NetRadiant's dividers - dragging, collapsing and **Maximize view** work as in NetRadiant. A view taken out gives its place to its neighbours like a hidden view in NetRadiant; in its own window it draws everything it shows in the main window, a click into it makes it the active view, keyboard shortcuts and free look then work in that window - on every screen. Once a view is docked somewhere else (for example as a tab of the camera), ImGui's dividers apply; **{{DockReset}}** brings NetRadiant's layout back. In **Floating** the views float anyway.",

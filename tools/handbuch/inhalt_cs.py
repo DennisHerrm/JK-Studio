@@ -7504,3 +7504,7 @@ TEXTE.update({
     "With large game data (Movie Duels) the list is collected in the background: a bar with **{{KeAbSammelt}}** shows the progress and the editor stays usable. Models in .obj, .fbx, .gltf and .glb show the surfaces and shaders that q3map2 bakes in.":
         "S velkými herními daty (Movie Duels) vzniká seznam na pozadí: pruh s **{{KeAbSammelt}}** ukazuje průběh a editor zůstává použitelný. Modely .obj, .fbx, .gltf a .glb ukazují plochy a shadery, které q3map2 zapeče.",
 })
+
+# rc609 T1: ganze Tabs in eigenen Fenstern
+from inhalt_tabfenster import CS as _T1  # noqa: E402
+TEXTE.update(_T1)

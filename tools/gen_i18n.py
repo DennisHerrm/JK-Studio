@@ -2258,6 +2258,8 @@ from i18n_rc609_kemd import zeilen_vier as _rc609_kemd  # noqa: E402  (rc609 KEM
 S += _rc609_kemd()
 from i18n_rc609_me2 import zeilen_vier as _rc609_me2  # noqa: E402  (rc609 ME2: loses Menue im Mod-Ordner an seinen Ort)
 S += _rc609_me2()
+from i18n_rc609_t1 import zeilen_vier as _rc609_t1  # noqa: E402  (rc609 T1: ganze Tabs in eigenen Fenstern)
+S += _rc609_t1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

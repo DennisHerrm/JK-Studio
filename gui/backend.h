@@ -146,6 +146,9 @@ void warteAufBild();
 // Direct3D 11). Liest den eigenen Grafikpuffer - also genau das, was
 // behaved zeichnet, und nichts vom restlichen Bildschirm.
 void fotoAnfordern(const std::string& pfad);
+// rc609 T1, Selbsttest: wie fotoAnfordern, dazu die eigenen Fenster (Tabs,
+// Panels) an ihrer Stelle ueber dem Hauptfenster - aus ihren eigenen Puffern.
+void fotoMitFensternAnfordern(const std::string& pfad);
 
 // dock1: die Haken fuer eigene Fenster (Multi-Viewport) setzen - unter OpenGL
 // die Kontextumschaltung je Fenster; nach ImGui_ImplWin32_Init aufrufen.
@@ -165,6 +168,11 @@ void viewportBildAnfordern(unsigned id);
 // gedauert hat (Millisekunden, 0 ohne eigene Fenster).
 [[nodiscard]] double plattformMs();
 [[nodiscard]] ViewportBild viewportBild();
+// rc609 T1: wie viele Bilder das eigene Fenster `id` (ImGuiViewport::ID) bisher
+// gezeigt hat - Leerlauf je Fenster (Selbsttest tabfenster).
+[[nodiscard]] unsigned long long viewportBilder(unsigned id);
+// Warum es neu gezeichnet hat (Zaehler je Grund, fuers Protokoll des Selbsttests).
+[[nodiscard]] std::string viewportGruende(unsigned id);
 
 }  // namespace bhed::render
 #endif

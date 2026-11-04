@@ -1705,6 +1705,8 @@ float drawModeBar(float height, float headerH) {
                       ImGuiChildFlags_Borders);
     for (const auto& m : modes) {
         const bool active = (g_app->leftMode == m.mode);
+        // rc609 T1: dieser Tab steht in einem anderen, eigenen Fenster
+        const bool woanders = !active && tabfenster::eigenes(m.mode);
         // Alle drei immer erreichbar. Vorher war "Karte" ausgegraut, solange
         // nichts geladen war - dann kam man nie an die Knoepfe zum Laden.
         const bool possible = true;
@@ -1713,20 +1715,37 @@ float drawModeBar(float height, float headerH) {
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                                   ImVec4{0.24F, 0.48F, 0.76F, 1.0F});
         }
+        if (woanders) {
+            // Blass mit Rahmen: der Tab ist da, nur nicht in diesem Fenster.
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, std::max(1.0F, ImGui::GetStyle().FrameBorderSize));
+        }
         ImGui::BeginDisabled(!possible);
         if (ImGui::Button(tr(m.label), ImVec2{-1, ImGui::GetFontSize() * 2.6F})) {
-            g_app->leftMode = m.mode;
+            // In einem eigenen Fenster wechselt ein Klick nicht dessen Tab,
+            // sondern holt den anderen nach vorn (tabfenster::zeigen).
+            if (woanders || (!active && tabfenster::zeichnetEigenes())) {
+                tabfenster::zeigen(m.mode);
+            } else {
+                g_app->leftMode = m.mode;
+            }
         }
         ImGui::EndDisabled();
+        if (woanders) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+        }
         if (active) {
             ImGui::PopStyleColor(2);
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", tr(m.hint));
+            ImGui::SetTooltip("%s", tr(woanders ? Str::TfEigenesHint : m.hint));
         }
+        tabfenster::leisteKnopf(m.mode);   // rc609 T1: Rechtsklick, Herausziehen
         ImGui::Spacing();
     }
     ImGui::EndChild();
+    tabfenster::leisteGemessen(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
     ImGui::EndGroup();
     return barW;
 }
@@ -4784,7 +4803,9 @@ void drawStatus(const Layout& l) {
     if (!letzteZeit.empty()) {
         teile.push_back(letzteZeit);
     }
-    if (g_app->leftMode == 1) {
+    // rc609 T1: in einem eigenen Fenster nur mit dem Fokus - die Zahl wechselt
+    // fast jedes Bild, ein ruhendes Fenster muesste sonst immer neu zeichnen.
+    if (g_app->leftMode == 1 && tabfenster::fensterHatFokus()) {
         char fps[32];
         std::snprintf(fps, sizeof(fps), "%.0f fps", static_cast<double>(ImGui::GetIO().Framerate));
         teile.emplace_back(fps);

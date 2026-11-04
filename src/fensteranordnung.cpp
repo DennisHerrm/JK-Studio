@@ -347,6 +347,99 @@ std::string nameBereinigen(const std::string& name) {
     return s;
 }
 
+// --- rc609 T1: Tabs in eigenen Fenstern ----------------------------------------
+
+namespace {
+constexpr const char* kTabKopf = "tab1";
+
+bool zahlenLesen(const std::string& teil, int (&z)[9]) {
+    std::size_t pos = 0;
+    for (int i = 0; i < 9; ++i) {
+        const std::size_t ende = (i < 8) ? teil.find(',', pos) : teil.size();
+        if (ende == std::string::npos || ende <= pos || ende - pos > 8) { return false; }
+        int w = 0;
+        bool minus = false;
+        for (std::size_t k = pos; k < ende; ++k) {
+            const char c = teil[k];
+            if (k == pos && c == '-' && ende - pos > 1) {
+                minus = true;
+            } else if (c >= '0' && c <= '9') {
+                w = w * 10 + (c - '0');
+            } else {
+                return false;
+            }
+        }
+        if (w > 1000000) { return false; }   // weit ausserhalb jedes Bildschirms
+        z[i] = minus ? -w : w;
+        pos = ende + 1;
+    }
+    return true;
+}
+
+bool enthaeltPunkt(const Rechteck& r, int x, int y) { return x >= r.x && y >= r.y && x < r.x + r.b && y < r.y + r.h; }
+}  // namespace
+
+std::string schluesselTabBenannt(int bereich, const std::string& name) { return "t" + std::to_string(bereich) + "/" + name; }
+
+std::string tabFensterKodieren(const std::vector<TabFenster>& liste) {
+    std::string s = kTabKopf;
+    for (const TabFenster& f : liste) {
+        char z[160];
+        std::snprintf(z, sizeof(z), "|%d,%d,%d,%d,%d,%d,%d,%d,%d", f.modus, f.lage.x, f.lage.y, f.lage.b, f.lage.h, f.bildschirm.x,
+                      f.bildschirm.y, f.bildschirm.b, f.bildschirm.h);
+        s += z;
+    }
+    return s;
+}
+
+bool tabFensterDekodieren(const std::string& zeile, std::vector<TabFenster>& liste) {
+    liste.clear();
+    const std::string kopf = kTabKopf;
+    if (zeile.compare(0, kopf.size(), kopf) != 0 || (zeile.size() > kopf.size() && zeile[kopf.size()] != '|')) { return false; }
+    std::vector<TabFenster> neu;
+    std::size_t pos = kopf.size();
+    while (pos < zeile.size()) {
+        const std::size_t ende = std::min(zeile.find('|', pos + 1), zeile.size());
+        int z[9] = {};
+        if (!zahlenLesen(zeile.substr(pos + 1, ende - pos - 1), z)) { return false; }
+        TabFenster f;
+        f.modus = z[0];
+        f.lage = Rechteck{z[1], z[2], z[3], z[4]};
+        f.bildschirm = Rechteck{z[5], z[6], z[7], z[8]};
+        if (f.modus < 0 || f.modus >= kTabBereiche || f.lage.b <= 0 || f.lage.h <= 0 || f.bildschirm.b < 0 || f.bildschirm.h < 0) { return false; }
+        if (std::any_of(neu.begin(), neu.end(), [&](const TabFenster& g) { return g.modus == f.modus; })) { return false; }
+        neu.push_back(f);
+        pos = ende;
+    }
+    if (neu.size() >= static_cast<std::size_t>(kTabBereiche)) { return false; }
+    liste = std::move(neu);
+    return true;
+}
+
+TabFenster aufBildschirm(const TabFenster& f, const std::vector<Rechteck>& bildschirme, const Rechteck& ersatz) {
+    TabFenster n = f;
+    const int mx = f.lage.x + f.lage.b / 2;
+    const int my = f.lage.y + f.lage.h / 2;
+    const Rechteck* ziel = nullptr;
+    for (const Rechteck& r : bildschirme) {
+        if (ziel == nullptr && r == f.bildschirm && enthaeltPunkt(r, mx, my)) { ziel = &r; }
+    }
+    for (const Rechteck& r : bildschirme) {
+        if (ziel == nullptr && enthaeltPunkt(r, mx, my)) { ziel = &r; }
+    }
+    const Rechteck z = (ziel != nullptr) ? *ziel : ersatz;
+    n.lage.b = std::max(1, std::min(n.lage.b, z.b));
+    n.lage.h = std::max(1, std::min(n.lage.h, z.h));
+    if (ziel == nullptr) {
+        n.lage.x = z.x + (z.b - n.lage.b) / 2;
+        n.lage.y = z.y + (z.h - n.lage.h) / 2;
+    }
+    n.lage.x = std::clamp(n.lage.x, z.x, std::max(z.x, z.x + z.b - n.lage.b));
+    n.lage.y = std::clamp(n.lage.y, z.y, std::max(z.y, z.y + z.h - n.lage.h));
+    n.bildschirm = z;
+    return n;
+}
+
 std::string schluesselLaufend(int bereich) { return "b" + std::to_string(bereich); }
 
 std::string schluesselBenannt(int bereich, const std::string& name) { return schluesselLaufend(bereich) + "/" + name; }

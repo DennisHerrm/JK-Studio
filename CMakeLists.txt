@@ -524,6 +524,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/ki.cpp
     # dock1: Panels herausnehmen, andocken, Anordnungen je Bereich.
     gui/fenster_dock.cpp
+    # rc609 T1: ganze Tabs in eigenen Fenstern.
+    gui/tabfenster.cpp
     # dock4: Map Editor und Menu Editor im DockSpace (Vorgabe aus ihren Teilern).
     gui/dockvorgabe.cpp
     gui/update_win32.cpp
@@ -702,7 +704,7 @@ if(BEHAVED_TESTS)
   # Die Proben des GPU-Wegs und des Gluehens. Sie lagen in tests/, wurden
   # aber nicht gebaut - Aenderungen an Konstantenlagen, Shadertext und
   # Zeichenliste liefen damit ungeprueft durch (rc568, gDeformSpread).
-  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin efxtest ersetzen mover leiche schmerz himmelbox arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster)
+  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin efxtest ersetzen mover leiche schmerz himmelbox arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster tabfenster)
     add_executable(${t}_probe tests/${t}.cpp)
     target_link_libraries(${t}_probe PRIVATE bhed_core)
     add_test(NAME ${t} COMMAND ${t}_probe)

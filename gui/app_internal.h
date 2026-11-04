@@ -2567,6 +2567,7 @@ struct App {
     // aufschaukeln - siehe comboEdit().
     float dbgComboListenH = 0.0F;
     float modeBarW = 0.0F;     // gemessene Breite der Modusleiste
+    int reiterWahl = -1;       // rc609 T1: ImGuis Wahl in der Reiterleiste der Skripte (je Fenster, tabfenster.cpp)
     float dbgZelleW = 0.0F;    // die Tabellenzelle
     float dbgRestW = 0.0F;     // was nach der Ebenenliste uebrig ist
     float dbgBildW = 0.0F;     // die Kartenflaeche selbst

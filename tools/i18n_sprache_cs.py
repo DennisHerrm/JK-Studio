@@ -3028,6 +3028,8 @@ from i18n_rc609_kemd import texte as _rc609_kemd  # noqa: E402
 TEXTE.update(_rc609_kemd("cs"))
 from i18n_rc609_me2 import texte as _rc609_me2  # noqa: E402
 TEXTE.update(_rc609_me2("cs"))
+from i18n_rc609_t1 import texte as _rc609_t1  # noqa: E402
+TEXTE.update(_rc609_t1("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
