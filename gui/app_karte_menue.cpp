@@ -673,6 +673,14 @@ void listeZeichnen(const std::string& name) {
             }
             qtMenueEnde();
         }
+    } else if (name == "ProgrammTexturen") {
+        // rc609 K (eigene Funktion, nicht in NetRadiant-Custom): das Fenster "Texturen der Karte"
+        qtTrenner();
+        const std::string id = std::string(trK(Str::TxlMenue)) + "###progtexliste";
+        QtPunkt p;
+        p.id = id.c_str();
+        p.tooltip = trK(Str::TxlMenueTip);
+        if (qtPunkt(p)) { texturListeOeffnen(); }
     } else if (name == "ProgrammCurve") {
         // Stufe 9d (eigene Funktion, nicht in NetRadiant-Custom): Patch-Bruecke zwischen zwei Patch-Kanten
         const std::string id = std::string(trK(Str::KePbMenue)) + "###progpatchbruecke";

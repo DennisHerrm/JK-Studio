@@ -51,6 +51,7 @@
 #include "bhed/karte/grundformen.h"
 #include "bhed/karte/texturbefehle.h"
 #include "bhed/karte/texturtags.h"
+#include "bhed/karte/texturliste.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/region.h"
@@ -1691,6 +1692,18 @@ void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& ges
 [[nodiscard]] bool lumpSpielbildAn();        // die bearbeitete Karte im Spielbild statt der Pinsel
 void lumpSpielbildSetzen(bool an);
 [[nodiscard]] bool lumpSpielbildGezeigt();   // in diesem Bild aus der bearbeiteten Karte gezeichnet
+// rc609 K: das Fenster "Texturen der Karte" (app_karte_texturliste.cpp, Logik texturliste.h)
+void texturListeOeffnen();
+void texturListeZeichnen();
+void texturListeUmfang(karte::TexturUmfang u);
+[[nodiscard]] const std::vector<karte::TexturZeile>& texturListeZeilen();
+void texturListeKlick(const std::string& shader, bool dazu);   // Klick in eine Zeile (Strg: dazu)
+karte::ErsetzenZahl texturListeErsetzenDurch(const std::string& neu, bool weltGroesse);
+void texturListeOrdnerZeigen(const std::string& alt, const std::string& neu);
+[[nodiscard]] const std::vector<karte::OrdnerZuordnung>& texturListeZuordnung();
+karte::ErsetzenZahl texturListeOrdnerErsetzen();
+[[nodiscard]] const std::string& texturListeMeldung();
+[[nodiscard]] ImVec2 texturListeOrt(const std::string& was);   // Zeile (Shader) oder Knopf: Mitte, sonst (-1, -1)
 // Stufe 8a Punkt 3: misc_model aus der Geometrie zurueckgewinnen (im Hintergrund nach Open .bsp)
 struct BspRueckStand {
     int stand = 0;          // 0 frei, 1 Modelle laden, 2 suchen, 3 fertig (wird uebernommen), 4 Fehler, 5 abgebrochen

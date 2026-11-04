@@ -237,6 +237,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Ruf, "Set 2D &Background image...", "WXY_SetBackgroundImage", Str::KeLSet2DBackgroundImage, kImmer},
     {MenueArt::Punkt, "Fullscreen", "Fullscreen", Str::KeLFullscreen, kImmer},
     {MenueArt::Punkt, "Maximize view", "MaximizeView", Str::KeLMaximizeView, kImmer},
+    {MenueArt::Liste, "", "ProgrammTexturen", Str::Count, kImmer},   // rc609 K: Texturen der Karte (nicht in NRC)
     {MenueArt::Liste, "", "ProgrammMisc", Str::Count, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Entity (radiant/mainframe.cpp:1180)
@@ -360,6 +361,7 @@ const MenueEintrag kTexturMenues[] = {
     {MenueArt::Haken, "Transparency", "EnableAlpha", Str::KeLTransparency, kImmer},
     {MenueArt::Trenner, "", "", Str::Count, kImmer},
     {MenueArt::Haken, "Tags GUI", "TagsToggleGui", Str::KeLTagsGUI, kImmer},
+    {MenueArt::Liste, "", "ProgrammTexturen", Str::Count, kImmer},   // rc609 K (nicht in NRC)
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Tags (radiant/texwindow.cpp:1281)
     {MenueArt::Menue, "Tags", "", Str::KeLTags, kImmer},

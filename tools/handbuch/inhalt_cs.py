@@ -14,6 +14,24 @@ NetRadiant-Menues, die englisch bleiben (tools/i18n_sprache_cs.py).
 TASTEN = {"Space": "Mezerník", "Up": "Nahoru", "Down": "Dolů", "Left": "Vlevo", "Right": "Vpravo"}
 
 TEXTE = {
+    'Map textures: overview and replacing':
+        'Textury mapy: přehled a nahrazení',
+    '{{TxlPanel}}: every texture of the map with image and counts (1); the clicked row has selected its faces in the camera. Replace it with the texture of the texture browser (2), or a whole folder - the mapping shows one gap (3).':
+        '{{TxlPanel}}: každá textura mapy s obrázkem a počty (1); kliknutý řádek vybral své plochy v kameře. Nahraďte ji texturou z prohlížeče textur (2) nebo celou složkou - přiřazení ukazuje jednu mezeru (3).',
+    '**{{KeLMisc}} > {{TxlMenue}}** (also in the texture browser under **{{KeLView}}**) lists every shader and texture the map uses, with its image, the number of brush sides, brushes and patches, and the image size. Click a column head to sort; the field above the list filters by name.':
+        '**{{KeLMisc}} > {{TxlMenue}}** (také v prohlížeči textur pod **{{KeLView}}**) vypíše každý shader a texturu, které mapa používá, s obrázkem, počtem stran brushů, brushů a patchů a velikostí obrázku. Kliknutím na záhlaví sloupce řadíte; pole nad seznamem filtruje podle názvu.',
+    '**{{TxlUmfang}}** {{TxlAlle}} counts everything, also hidden objects; {{TxlAuswahl}} only the selected brushes, patches, entities and faces; {{TxlSichtbar}} only what is not hidden or filtered. Selecting and replacing use the same scope.':
+        '**{{TxlUmfang}}** {{TxlAlle}} počítá vše, i skryté objekty; {{TxlAuswahl}} jen vybrané brushe, patche, entity a plochy; {{TxlSichtbar}} jen to, co není skryté ani odfiltrované. Výběr i nahrazení platí ve stejném rozsahu.',
+    '**Click** a row: every brush side and patch with this texture is selected (<kbd>Ctrl</kbd>+click adds them to the selection).':
+        '**Klik** na řádek: vybere se každá strana brushe a každý patch s touto texturou (<kbd>Ctrl</kbd>+klik je přidá k výběru).',
+    '**{{TxlErsetzenDurch}}**: type a name or take the texture selected in the texture browser with **{{TxlAusBrowser}}** - from any folder - and press **{{TxlErsetzen}}**. Brushes and patches change in one undo step.':
+        '**{{TxlErsetzenDurch}}**: napište název nebo vezměte pomocí **{{TxlAusBrowser}}** texturu vybranou v prohlížeči textur - z libovolné složky - a stiskněte **{{TxlErsetzen}}**. Brushe a patche se změní v jednom kroku zpět.',
+    '**{{TxlWeltgroesse}}**: a texture with a larger or smaller image normally looks larger or smaller, because the texture definition counts in pixels (as in the game: q3map2 divides by the image size). With this switch the brush sides are rescaled so that one repeat covers the same area as before. Patches keep their texture coordinates either way.':
+        '**{{TxlWeltgroesse}}**: textura s větším nebo menším obrázkem obvykle vypadá větší nebo menší, protože definice textury počítá v pixelech (jako ve hře: q3map2 dělí velikostí obrázku). S tímto přepínačem se strany brushů přeškálují tak, aby jedno opakování pokrylo stejnou plochu jako předtím. Patche si v obou případech ponechají souřadnice textury.',
+    '**{{TxlOrdner}}**: every texture from the old folder is replaced by the one with the same name in the new folder (**{{TxlOrdnerBrowser}}** takes the folder shown in the texture browser). **{{TxlZuordnung}}** lists the pairs first; names missing in the new folder are marked as gaps and stay as they are.':
+        '**{{TxlOrdner}}**: každá textura ze staré složky se nahradí stejnojmennou texturou z nové složky (**{{TxlOrdnerBrowser}}** vezme složku zobrazenou v prohlížeči textur). **{{TxlZuordnung}}** nejprve vypíše dvojice; názvy, které v nové složce chybí, jsou označené jako mezery a zůstanou, jak jsou.',
+    '**{{KeTFindReplace}}** in the texture browser stays as in NetRadiant-Custom: it replaces on all brushes, but only on visible patches, and never rescales. The window {{TxlPanel}} treats brushes and patches alike.':
+        '**{{KeTFindReplace}}** v prohlížeči textur zůstává jako v NetRadiant-Custom: nahrazuje na všech brushích, ale jen na viditelných patchích, a nikdy neškáluje. Okno {{TxlPanel}} zachází s brushi a patchi stejně.',
     'Generation: rooms, stairs, doors':
         'Generování: místnosti, schodiště, dveře',
     'A generated network on a stair (mp/duel8): one point at the bottom, one at the top, connected.':

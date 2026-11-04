@@ -227,6 +227,7 @@ const std::vector<Panel>& panels() {
         {"karte.texturen", 3, Str::KePageTextures},
         {"karte.gruppe", 3, Str::KePageEntities},
         {"karte.lumps", 3, Str::LePanel},
+        {"karte.texliste", 3, Str::TxlPanel},   // rc609 K: Texturen der Karte (eigenes Fenster)
         {"menue.bausteine", 4, Str::MePalette},
         {"menue.flaeche", 4, Str::DockPanelCanvas},
         {"menue.reiter", 4, Str::DockPanelMenuSide},
@@ -281,6 +282,7 @@ bool* zusatzOffen(const char* id) {
     if (std::strcmp(id, "mission.enttext") == 0) { return &g_app->settings.entTextOffen; }
     if (std::strcmp(id, "mission.lumps") == 0) { return &g_app->settings.lumpEditOffen; }
     if (std::strcmp(id, "karte.lumps") == 0) { return &g_app->settings.lumpEditKarteOffen; }
+    if (std::strcmp(id, "karte.texliste") == 0) { return &g_app->settings.texListeOffen; }
     return nullptr;
 }
 

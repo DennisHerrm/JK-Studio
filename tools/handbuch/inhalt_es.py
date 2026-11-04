@@ -17,6 +17,24 @@ TASTEN = {"Shift": "Mayús", "Delete": "Supr", "Home": "Inicio", "End": "Fin", "
           "Backspace": "Retroceso", "Up": "Arriba", "Down": "Abajo", "Enter": "Intro"}
 
 TEXTE = {
+    'Map textures: overview and replacing':
+        'Texturas del mapa: resumen y sustitución',
+    '{{TxlPanel}}: every texture of the map with image and counts (1); the clicked row has selected its faces in the camera. Replace it with the texture of the texture browser (2), or a whole folder - the mapping shows one gap (3).':
+        '{{TxlPanel}}: cada textura del mapa con imagen y recuentos (1); la fila pulsada ha seleccionado sus caras en la cámara. Sustitúyela por la textura del explorador de texturas (2) o una carpeta entera; la correspondencia muestra un hueco (3).',
+    '**{{KeLMisc}} > {{TxlMenue}}** (also in the texture browser under **{{KeLView}}**) lists every shader and texture the map uses, with its image, the number of brush sides, brushes and patches, and the image size. Click a column head to sort; the field above the list filters by name.':
+        '**{{KeLMisc}} > {{TxlMenue}}** (también en el explorador de texturas, en **{{KeLView}}**) muestra cada shader y textura que usa el mapa, con su imagen, el número de caras de brush, brushes y patches, y el tamaño de la imagen. Haz clic en una cabecera de columna para ordenar; el campo sobre la lista filtra por nombre.',
+    '**{{TxlUmfang}}** {{TxlAlle}} counts everything, also hidden objects; {{TxlAuswahl}} only the selected brushes, patches, entities and faces; {{TxlSichtbar}} only what is not hidden or filtered. Selecting and replacing use the same scope.':
+        '**{{TxlUmfang}}** {{TxlAlle}} cuenta todo, también lo oculto; {{TxlAuswahl}} solo los brushes, patches, entidades y caras seleccionados; {{TxlSichtbar}} solo lo que no está oculto ni filtrado. Seleccionar y sustituir usan el mismo ámbito.',
+    '**Click** a row: every brush side and patch with this texture is selected (<kbd>Ctrl</kbd>+click adds them to the selection).':
+        '**Clic** en una fila: se seleccionan todas las caras de brush y patches con esta textura (<kbd>Ctrl</kbd>+clic los añade a la selección).',
+    '**{{TxlErsetzenDurch}}**: type a name or take the texture selected in the texture browser with **{{TxlAusBrowser}}** - from any folder - and press **{{TxlErsetzen}}**. Brushes and patches change in one undo step.':
+        '**{{TxlErsetzenDurch}}**: escribe un nombre o toma con **{{TxlAusBrowser}}** la textura elegida en el explorador de texturas, de cualquier carpeta, y pulsa **{{TxlErsetzen}}**. Brushes y patches cambian en un solo paso de deshacer.',
+    '**{{TxlWeltgroesse}}**: a texture with a larger or smaller image normally looks larger or smaller, because the texture definition counts in pixels (as in the game: q3map2 divides by the image size). With this switch the brush sides are rescaled so that one repeat covers the same area as before. Patches keep their texture coordinates either way.':
+        '**{{TxlWeltgroesse}}**: una textura con una imagen mayor o menor suele verse más grande o más pequeña, porque la definición de textura cuenta en píxeles (como en el juego: q3map2 divide por el tamaño de la imagen). Con este interruptor las caras de brush se reescalan para que una repetición cubra la misma área que antes. Los patches conservan sus coordenadas de textura en ambos casos.',
+    '**{{TxlOrdner}}**: every texture from the old folder is replaced by the one with the same name in the new folder (**{{TxlOrdnerBrowser}}** takes the folder shown in the texture browser). **{{TxlZuordnung}}** lists the pairs first; names missing in the new folder are marked as gaps and stay as they are.':
+        '**{{TxlOrdner}}**: cada textura de la carpeta antigua se sustituye por la del mismo nombre en la carpeta nueva (**{{TxlOrdnerBrowser}}** toma la carpeta que muestra el explorador de texturas). **{{TxlZuordnung}}** muestra antes las parejas; los nombres que faltan en la carpeta nueva se marcan como huecos y se quedan como están.',
+    '**{{KeTFindReplace}}** in the texture browser stays as in NetRadiant-Custom: it replaces on all brushes, but only on visible patches, and never rescales. The window {{TxlPanel}} treats brushes and patches alike.':
+        '**{{KeTFindReplace}}** del explorador de texturas sigue como en NetRadiant-Custom: sustituye en todos los brushes, pero solo en los patches visibles, y nunca reescala. La ventana {{TxlPanel}} trata igual brushes y patches.',
     'Generation: rooms, stairs, doors':
         'Generación: salas, escaleras, puertas',
     'A generated network on a stair (mp/duel8): one point at the bottom, one at the top, connected.':

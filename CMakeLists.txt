@@ -419,6 +419,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_dateiort.cpp
     gui/app_enttext.cpp
     gui/app_lumpedit.cpp
+    gui/app_karte_texturliste.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
     gui/app_zeitleiste.cpp
@@ -1168,6 +1169,8 @@ target_sources(bhed_core PRIVATE
   src/karte/bspoeffnen.cpp
   # rc609 J: Shader-, Fog- und Flaechen-Lump fertiger Karten
   src/karte/bsplumps.cpp
+  # rc609 K: Texturen der Karte - Liste, Waehlen, Ersetzen (auch Ordner)
+  src/karte/texturliste.cpp
   # Stufe 4 Punkt 3: das Plugin bobToolz (contrib/bobtoolz) ohne Oberflaeche
   src/karte/bobtoolz_d.cpp
   src/karte/bobtoolz.cpp
@@ -1451,6 +1454,10 @@ if(BEHAVED_TESTS)
   add_executable(kartetexturbrowser tests/kartetexturbrowser.cpp)
   target_link_libraries(kartetexturbrowser PRIVATE bhed_core)
   add_test(NAME karte_texturbrowser COMMAND kartetexturbrowser)
+  # rc609 K: Texturen der Karte - Liste wie die .map, Ersetzen auf Brushes und Patches, Weltgroesse, Undo Byte fuer Byte
+  add_executable(texturlistetest tests/texturlistetest.cpp)
+  target_link_libraries(texturlistetest PRIVATE bhed_core)
+  add_test(NAME texturliste COMMAND texturlistetest)
   # Punkt 9: Entitaeten (Inspector, Erzeugen, Klasse wechseln, Verbinden, Farbe, Auswahl)
   add_executable(karteentitaeten tests/karteentitaeten.cpp)
   target_link_libraries(karteentitaeten PRIVATE bhed_core)

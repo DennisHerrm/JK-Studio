@@ -164,6 +164,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "entTextOffen", s.entTextOffen);
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
+    put(o, "texListeOffen", s.texListeOffen);
     put(o, "showTypes", s.showTypes);
     put(o, "gFloats", s.gFloats);
     put(o, "foldMacros", s.foldMacros);
@@ -326,6 +327,7 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
+        else if (key == "texListeOffen") { out.texListeOffen = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
         else if (key == "foldMacros") { out.foldMacros = toBool(value); }
         else if (key == "uiScale") {
