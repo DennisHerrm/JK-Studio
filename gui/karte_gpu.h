@@ -146,6 +146,12 @@ struct Zustand3 {
     void* himmelPortal = nullptr;
     // rc608 Teil 11: Flaeche ohne Lightmap (C_VERTEXLIT) - das Mindestlicht ist minimumEcken (_minvertexlight)
     bool eckLicht = false;
+    // rc609 P: Spiegel und Portalkamera (bhed/portalsicht). schnitt: portalPlane als (n, -d), behalten wird n.p - d >= 0
+    // ((0 0 0 1): aus); wicklungUmkehren: die Spiegelsicht dreht die Wicklung um; portalWeite > 0: alphaGen portal
+    // (RB_CalcAlphaFromPortal) mit diesem portalRange.
+    float schnitt[4]{0, 0, 0, 1};
+    bool wicklungUmkehren = false;
+    float portalWeite = 0;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).

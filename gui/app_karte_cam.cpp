@@ -1201,6 +1201,8 @@ void kameraZeichnen() {
         // (statt qer_trans / qer_alphafunc des Editors).
         const bool spielBild = (echtJetzt || gebacken) && texturen && fuellen;
         void* portalBild = nullptr;   // Stufe 9d: misc_skyportal (Zielbild 201)
+        void* spiegelBild = nullptr;  // rc609 P: Spiegel- oder Portalsicht (Zielbild 202)
+        bool imSpiegel = false;       // rc609 P: gerade im Durchgang der Spiegel-/Portalsicht
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
             if (b == nullptr || !b->fertig) { return; }
@@ -1208,6 +1210,19 @@ void kameraZeichnen() {
             const unsigned flags = se != nullptr ? se->flags : 0U;
             const SpielDarstellung sd = spielBild ? spielDarstellung(st.shader) : SpielDarstellung{};
             if (sd.unsichtbar) { return; }
+            // rc609 P: wie die Vorschau - im Spiegeldurchgang die Portalflaechen selbst nicht (sie liegen auf der Ebene); sonst
+            // liegt die Sicht unter ihnen (R_MirrorViewBySurface zeichnet sie vor der Hauptszene in dasselbe Bild), ihre erste
+            // Stufe mischt sich darueber (alphaGen portal).
+            if (sd.portal && imSpiegel) { return; }
+            if (sd.portal && spiegelBild != nullptr && !durchsichtig) {
+                kartegpu::Zustand3 z = basis;
+                z.himmelPortal = spiegelBild;
+                z.wegschneiden = (flags & karte::QER_CULL) == 0U || se->cull == 1;
+                z.tiefe = kartegpu::TiefenTest::Kleiner;
+                z.tiefeSchreiben = true;
+                zaehlen(st.objekte, st.transforms);
+                kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+            }
             if (sd.nebelFlaeche) {
                 // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel (RB_FogPass, FP_LE, gemischt);
                 // gebacken (ohne Nebel) bleibt die Flaeche unsichtbar
@@ -1253,6 +1268,7 @@ void kameraZeichnen() {
                 }
                 if (trans && spielBild) {
                     // blendFunc der ersten Stufe; ohne Lightmap wie die meisten Mischstufen im Spiel
+                    if (sd.portal) { z.portalWeite = sd.portalWeite; }   // rc609 P: alphaGen portal
                     z.mischen = kartegpu::Mischen::Spiel;
                     z.mischQuelle = sd.mischQuelle;
                     z.mischZiel = sd.mischZiel;
@@ -1312,6 +1328,51 @@ void kameraZeichnen() {
         // Portals aus - derselbe Blick, derselbe Bildwinkel, samt Himmelsbox -, dann die Hauptszene, deren
         // Himmel das Portalbild zeigt (RDF_SKYBOXPORTAL). Mit Echtzeit-Licht (Licht und Schatten fuer den
         // Portalblick eigens vorbereitet).
+        // rc609 P: Spiegel und Portalkamera wie im Spiel (R_MirrorViewBySurface, bhed/portalsicht wie Vorschau und Spielbild):
+        // erst die zweite Sicht - die Welt durch ihre Abbildung, Schnitt auf portalPlane, im Spiegel die Wicklung umgekehrt, Licht
+        // und Schatten fuer diese Sicht eigens vorbereitet; dann zeigen die Portalflaechen sie an derselben Bildstelle.
+        ed.echtLicht.spiegel = false;
+        ed.echtLicht.spiegelPortal = false;
+        if (echtJetzt && texturen && fuellen) {
+            PortalSicht ps;
+            if (echtPortalSicht(k, f.breite, f.hoehe, ed.kameraE.sichtfeld, geoStand, ps)) {
+                kartegpu::beenden();
+                // spaltenweise: clip = vp * welt * p (welt zeilenweise)
+                std::array<float, 16> vpSpiegel{};
+                for (int sp = 0; sp < 4; ++sp) {
+                    for (int z = 0; z < 4; ++z) {
+                        float summe = 0;
+                        for (int i = 0; i < 4; ++i) { summe += vp[static_cast<std::size_t>(i * 4 + z)] * ps.welt[i * 4 + sp]; }
+                        vpSpiegel[static_cast<std::size_t>(sp * 4 + z)] = summe;
+                    }
+                }
+                const Vektor3f augeSpiegel(ps.auge[0], ps.auge[1], ps.auge[2]);
+                echtLichtBildVorbereiten(augeSpiegel, vpSpiegel.data(), f.breite, f.hoehe, geoStand);
+                if (kartegpu::beginnen(202, f.breite, f.hoehe, c.msaa, hinten, true)) {
+                    const kartegpu::Zustand3 merk = basis;
+                    basis.matrix = vpSpiegel.data();
+                    for (int i = 0; i < 3; ++i) { basis.auge[i] = ps.auge[i]; }
+                    for (int i = 0; i < 4; ++i) { basis.schnitt[i] = ps.schnitt[i]; }
+                    basis.wicklungUmkehren = ps.umkehren;
+                    imSpiegel = true;
+                    for (const bool durch : {false, true}) {
+                        for (const Szene3* q : teile) {
+                            for (const Stapel3& st : q->stapel) {
+                                if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, durch); }
+                            }
+                        }
+                    }
+                    imSpiegel = false;
+                    basis = merk;
+                    kartegpu::beenden();
+                    spiegelBild = kartegpu::textur(202);
+                    ed.echtLicht.spiegel = spiegelBild != nullptr;
+                    ed.echtLicht.spiegelPortal = ed.echtLicht.spiegel && ps.portal;
+                }
+                echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
+                (void)kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true);
+            }
+        }
         ed.echtLicht.portal = false;
         if (echtJetzt && texturen && fuellen) {
             Vektor3f portalOrt(0, 0, 0);

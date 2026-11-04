@@ -1307,6 +1307,12 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
             if (--t == 0) { break; }
             continue;
         }
+        // rc609 P: alphaGen portal in jeder Stufe setzt shader.portalRange (ParseStage; die Zahl steht auf derselben Zeile, ohne sie 256)
+        if (t == 2 && klein(w[j]) == "alphagen" && j + 1 < w.size() && klein(w[j + 1]) == "portal") {
+            const bool zahl = j + 2 < w.size() && !w[j + 2].empty() &&
+                              (std::isdigit(static_cast<unsigned char>(w[j + 2][0])) != 0 || w[j + 2][0] == '.' || w[j + 2][0] == '-');
+            r.portalWeite = zahl ? std::atof(w[j + 2].c_str()) : 256.0;
+        }
         if (t == 2 && stufe == 1) {
             // die erste Stufe (tr_shader.cpp ParseStage): mischt sie oder schneidet sie aus?
             // durchsichtig (Optimierer, karte1) und alphaFunc/blendFunc (Stufe 9c, wie im Spiel zeichnen)
@@ -1361,7 +1367,9 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         }
         if (t != 1) { continue; }
         const std::string k = klein(w[j]);
-        if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
+        if (k == "portal" || (k == "sort" && j + 1 < w.size() && klein(w[j + 1]) == "portal")) {   // rc609 P: SS_PORTAL
+            r.portal = true;
+        } else if (k == "q3map_surfacelight" && j + 1 < w.size()) {   // shaders.cpp: si.value = atof( token )
             r.flaechenlicht = std::atof(w[j + 1].c_str());
         } else if (k == "fogparms") {   // Stufe 9d: fogParms ( r g b ) <Tiefe> - Klammern als eigene Woerter oder angeklebt
             std::vector<double> z;

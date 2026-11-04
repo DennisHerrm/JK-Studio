@@ -143,7 +143,7 @@ struct Zustand {
     ID3D11Buffer* cb3 = nullptr;
     ID3D11BlendState* blendAus = nullptr;
     ID3D11BlendState* blendAdd = nullptr;
-    ID3D11RasterizerState* rs3[4] = {nullptr, nullptr, nullptr, nullptr};   // [msaa][wegschneiden]
+    ID3D11RasterizerState* rs3[8] = {};   // [gespiegelt][msaa][wegschneiden] (rc609 P: gespiegelt = Wicklung umgekehrt)
     std::map<int, ID3D11DepthStencilState*> tiefen;   // Test * 2 + Schreiben
     ID3D11SamplerState* abtaster = nullptr;
     ID3D11SamplerState* wuerfelAbtaster = nullptr;
@@ -763,7 +763,8 @@ struct Konstanten3 {
     float muster[4];       // x Muster, y Faktor, z/w Bildgroesse
     float linie[4];        // x Breite
     float nebel[4];        // rgb Farbe, a Dichte (GL_EXP; 0 = aus)
-    float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es)
+    float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es); y Ecklicht; z rc609 P: portalRange
+    float schnitt[4];      // rc609 P: Schnittebene der Spiegel-/Portalsicht (n, -d); (0 0 0 1) = aus
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -771,7 +772,8 @@ struct Konstanten3 {
 // (gl/skybox_vp.glsl, skybox_fp.glsl), glPolygonOffset und glLineStipple.
 const char* const kShader3 = R"(
 cbuffer B3 : register(b0) {
-    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel;
+    float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
+    float4 schnitt;
 };
 Texture2D bild : register(t0);
 TextureCube wuerfel : register(t1);
@@ -780,7 +782,8 @@ SamplerState wuerfelAbtaster : register(s1);
 float licht(float3 n) { return saturate(0.6 + 0.4 * max(0.0, dot(normalize(n), vpnLicht.xyz))); }
 float4 clip3(float3 p) { float4 c = mul(mvp, float4(p, 1.0)); c.z = (c.z + c.w) * 0.5; return c; }
 struct VI3 { float3 pos : POSITION; float3 n : NORMAL; float2 st : TEXCOORD0; float4 farbe : COLOR; };
-struct VO3 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 richtung : TEXCOORD1; float tiefe : TEXCOORD2; };
+struct VO3 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 richtung : TEXCOORD1; float tiefe : TEXCOORD2;
+             float schnitt : SV_ClipDistance0; };
 // GL_FOG_MODE GL_EXP: C = f * C + (1 - f) * Nebelfarbe, f = exp(-Dichte * Abstand)
 float3 genebelt(float3 c, float abstand) {
     if (nebel.w <= 0.0) { return c; }
@@ -792,10 +795,13 @@ VO3 vs3(VI3 i) {
     o.pos = clip3(i.pos);
     float4 c = i.farbe * farbe;
     if (vpnLicht.w > 0.5) { c.rgb *= licht(i.n); }
+    // rc609 P: alphaGen portal (RB_CalcAlphaFromPortal, je Ecke): Abstand zum Auge durch portalRange, hoechstens 1
+    if (extra.z > 0.0) { c.a = saturate(length(i.pos - augeHimmel.xyz) / extra.z); }
     o.farbe = c;
     o.st = i.st;
     o.richtung = i.pos - augeHimmel.xyz;
     o.tiefe = o.pos.w;
+    o.schnitt = dot(float4(i.pos, 1.0), schnitt);
     return o;
 }
 bool alphaGut(float a) {
@@ -972,11 +978,11 @@ bool bereit3() {
     bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
     bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
     d->CreateBlendState(&bd, &g.blendAdd);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 8; ++i) {
         D3D11_RASTERIZER_DESC rd{};
         rd.FillMode = D3D11_FILL_SOLID;
         rd.CullMode = (i & 1) != 0 ? D3D11_CULL_BACK : D3D11_CULL_NONE;
-        rd.FrontCounterClockwise = FALSE;   // glFrontFace( GL_CW )
+        rd.FrontCounterClockwise = (i & 4) != 0 ? TRUE : FALSE;   // glFrontFace( GL_CW ); im Spiegel umgekehrt (isMirror)
         rd.DepthClipEnable = TRUE;
         rd.MultisampleEnable = (i & 2) != 0 ? TRUE : FALSE;
         d->CreateRasterizerState(&rd, &g.rs3[i]);
@@ -1065,8 +1071,9 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     std::memcpy(k->nebel, z.nebel, sizeof(k->nebel));
     k->extra[0] = z.nebelNur ? 1.0F : 0.0F;
     k->extra[1] = z.eckLicht ? 1.0F : 0.0F;
-    k->extra[2] = 0;
+    k->extra[2] = linie ? 0.0F : z.portalWeite;
     k->extra[3] = 0;
+    std::memcpy(k->schnitt, z.schnitt, sizeof(k->schnitt));
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(z.mischen == Mischen::Spiel      ? spielMischung(z.mischQuelle, z.mischZiel)
@@ -1076,7 +1083,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
                                                      : g.blendAdd,
                        faktor, 0xFFFFFFFFU);
     c->OMSetDepthStencilState(tiefenZustand(z.tiefe, z.tiefeSchreiben), 0);
-    c->RSSetState(g.rs3[((ziel.msaa > 1) ? 2 : 0) + ((!linie && z.wegschneiden) ? 1 : 0)]);
+    c->RSSetState(g.rs3[(z.wicklungUmkehren ? 4 : 0) + ((ziel.msaa > 1) ? 2 : 0) + ((!linie && z.wegschneiden) ? 1 : 0)]);
     if (linie) {
         c->IASetInputLayout(g.layoutl);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
@@ -1278,6 +1285,7 @@ struct KonstantenSchatten {
 const char* const kShader4 = R"(
 cbuffer B3 : register(b0) {
     float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
+    float4 schnitt;
 };
 cbuffer B5 : register(b3) {
     int4 nebelZahl; float4 nebelVorn; float4 nebelFarbe[16]; float4 nebelFlaeche[16]; float4 nebelInfo[16]; float4 nebelEbene[128];
@@ -1301,7 +1309,8 @@ SamplerState abtaster : register(s0);
 SamplerState punktAbtaster : register(s2);
 float4 clip3(float3 p) { float4 c = mul(mvp, float4(p, 1.0)); c.z = (c.z + c.w) * 0.5; return c; }
 struct VI3 { float3 pos : POSITION; float3 n : NORMAL; float2 st : TEXCOORD0; float4 farbe : COLOR; };
-struct VO4 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 welt : TEXCOORD1; float3 n : TEXCOORD2; float tiefe : TEXCOORD3; };
+struct VO4 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 welt : TEXCOORD1; float3 n : TEXCOORD2; float tiefe : TEXCOORD3;
+             float schnitt : SV_ClipDistance0; };
 VO4 vs4(VI3 i) {
     VO4 o;
     o.pos = clip3(i.pos);
@@ -1310,6 +1319,7 @@ VO4 vs4(VI3 i) {
     o.welt = i.pos;
     o.n = i.n;
     o.tiefe = o.pos.w;
+    o.schnitt = dot(float4(i.pos, 1.0), schnitt);   // rc609 P: portalPlane der Spiegel-/Portalsicht
     return o;
 }
 bool alphaGut(float a) {
@@ -2325,6 +2335,7 @@ void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint3
     if (SUCCEEDED(c->Map(g.cb3, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
         auto* k = static_cast<Konstanten3*>(m.pData);
         std::memset(k, 0, sizeof(Konstanten3));
+        k->schnitt[3] = 1.0F;
         std::memcpy(k->mvp, zz.matrix, sizeof(k->mvp));
         std::memcpy(k->farbe, zz.farbe, sizeof(k->farbe));
         k->alpha[0] = static_cast<float>(zz.alphaFunktion);

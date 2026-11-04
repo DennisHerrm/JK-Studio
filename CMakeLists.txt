@@ -138,6 +138,7 @@ add_library(bhed_core STATIC
   src/gesicht.cpp
   src/holster.cpp
   src/areaportal.cpp
+  src/portalsicht.cpp   # rc609 P: Spiegel und Portalkameras wie die Engine
   src/himmelbox.cpp
   src/schmerz.cpp
   src/geschuetz.cpp
@@ -415,6 +416,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   add_executable(behaved WIN32
     gui/app.cpp
     gui/app_view3d.cpp
+    gui/app_portalsicht.cpp   # rc609 P: Spiegel und Portalkameras aus der .bsp (Vorschau und Karten-Editor)
     gui/app_mission.cpp
     gui/app_dateiort.cpp
     gui/app_enttext.cpp
@@ -785,6 +787,10 @@ if(BEHAVED_TESTS)
   add_executable(enttexttest tests/enttexttest.cpp)
   target_link_libraries(enttexttest PRIVATE bhed_core)
   add_test(NAME enttext COMMAND enttexttest)
+  # rc609 P: Spiegel und Portalkameras wie die Engine
+  add_executable(portalsichttest tests/portalsichttest.cpp)
+  target_link_libraries(portalsichttest PRIVATE bhed_core)
+  add_test(NAME portalsicht COMMAND portalsichttest)
   add_executable(losedateientest tests/losedateientest.cpp)
   target_link_libraries(losedateientest PRIVATE bhed_core bhed_zlib)
   add_test(NAME losedateien COMMAND losedateientest ${CMAKE_CURRENT_BINARY_DIR})

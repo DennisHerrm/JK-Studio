@@ -5630,6 +5630,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_teil13b.inc"     // teil13b: Spielbild des Karten-Editors mit Modellen, Himmelsportal, Wetter (rc608)
 #include "selbsttest_teil13c.inc"     // teil13c: Brush-Modelle und Gebietsportale im Spielbild, Patch-LOD an Movern (rc608)
 #include "selbsttest_teil13d.inc"     // teil13d: Reiten wie im Spiel (rc608)
+#include "selbsttest_editorportal.inc"   // rc609 P: Spiegel und Portalkameras im Karten-Editor
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
@@ -5989,6 +5990,7 @@ void selbsttest() {
     static const bool nurTeil13b = std::strcmp(modus, "teil13b") == 0;
     static const bool nurTeil13c = std::strcmp(modus, "teil13c") == 0;
     static const bool nurTeil13d = std::strcmp(modus, "teil13d") == 0;
+    static const bool nurEditorportal = std::strcmp(modus, "editorportal") == 0;   // rc609 P
     static const bool nurTeil11 = std::strcmp(modus, "teil11") == 0;
     static const bool nurLeistung = std::strcmp(modus, "leistung") == 0;   // rc608 Teil 12
     // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
@@ -6153,6 +6155,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurTeil13c) {
                 a.schritte = teil13c::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurEditorportal) {
+                a.schritte = editorportalSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurTeil13d) {

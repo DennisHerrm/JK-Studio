@@ -773,6 +773,9 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel darueber (RB_FogPass, FP_LE)
     d.nebelFlaeche = s.nebelParms && !s.stufeGefunden;
     d.himmel = s.himmel;
+    // rc609 P: SS_PORTAL; ohne jede Stufe setzt FinishShader (tr_shader.cpp) sort auf SS_FOG - dann ist es kein Portal
+    d.portal = s.portal && s.stufeGefunden;
+    d.portalWeite = static_cast<float>(s.portalWeite);
     return d;
 }
 
