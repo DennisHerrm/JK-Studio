@@ -15,6 +15,7 @@
 #include "bhed/karte/texturliste.h"
 
 #include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <map>
 #include <memory>

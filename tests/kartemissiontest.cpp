@@ -9,6 +9,7 @@
 #include "bhed/kartemission.h"
 #include "bhed/script.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

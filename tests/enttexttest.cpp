@@ -10,6 +10,7 @@
 #include "bhed/regelwerk.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <sstream>
 #include <string>

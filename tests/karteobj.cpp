@@ -7,6 +7,7 @@
 // (Lage, st) und Dreiecke. Aufruf: karteobj <bhed_q3map2.exe>
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>

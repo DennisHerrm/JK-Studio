@@ -24,6 +24,8 @@
 #include "bhed/utf8pfad.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
