@@ -648,6 +648,42 @@ std::vector<Schritt> wegerzeugungSchritte() {
         diag::detail("Knopftest: WE - Treppen erreicht " + std::to_string(gut) + " von " + std::to_string(m->treppen.size()));
         return gut == static_cast<int>(m->treppen.size());
     }));
+    if (const char* solid = std::getenv("BHED_WE_SOLID"); solid != nullptr && *solid != 0) {
+        // rc609 KEMD: ein Ort, an dem das Spiel einen Wegpunkt "in solid" meldet (jtg: wpauto_398 -320 1920 328, Nav(1),
+        // die START_OPEN-Tuer doorsBottom2 steht 1 Einheit im Kasten von NAV::SpawnedPoint). Ein Wegpunkt dort darf kein
+        // Knoten werden - wie im Spiel.
+        const std::string ort = solid;
+        add(pruefe("WE: ein Wegpunkt bei " + ort + " wird wie im Spiel kein Knoten (Nav in solid)", [ort] {
+            std::vector<MapEntity> ents = g_app->map.entities;
+            MapEntity w;
+            w.classname = "waypoint";
+            w.origin = ort;
+            w.targetname = "kemd_solid";
+            w.keys = {{"classname", w.classname}, {"origin", ort}, {"targetname", w.targetname}};
+            ents.push_back(w);
+            const std::shared_ptr<NavNetz> netz = baueNavNetz(ents, navBauHilfeKarte());
+            bool knoten = false;
+            for (std::size_t k = 1; k < netz->knoten.size(); ++k) { knoten = knoten || netz->knoten[k].entity == static_cast<int>(ents.size()) - 1; }
+            diag::detail("Knopftest: WE - Wegpunkt bei " + ort + ": " + (knoten ? "Knoten (Spiel: in solid)" : "kein Knoten, wie im Spiel"));
+            return !knoten;
+        }));
+    }
+    add(pruefe("WE: jeder Wegpunkt wird beim Laden ein Knoten des Spiels (SP_waypoint, NAV::SpawnedPoint: nicht \"in solid\")", [=] {
+        // rc609 KEMD: wpauto_398 auf jtg meldete im Spiel "Nav(1) in solid". Das Netz, wie das Spiel es beim Laden baut.
+        const std::shared_ptr<NavNetz> netz = baueNavNetz(g_app->map.entities, navBauHilfeKarte());
+        std::set<int> knotenEnts;
+        for (std::size_t k = 1; k < netz->knoten.size(); ++k) { knotenEnts.insert(netz->knoten[k].entity); }
+        int fehlt = 0;
+        std::string liste;
+        for (const we::Punkt& w : we::punkte()) {
+            if (knotenEnts.count(w.entity) != 0U) { continue; }
+            ++fehlt;
+            if (fehlt <= 8) { liste += " " + g_app->map.entities[static_cast<std::size_t>(w.entity)].targetname + "@" + we::ortText(w.ort); }
+        }
+        diag::detail("Knopftest: WE - Wegpunkte " + std::to_string(we::punkte().size()) + ", davon ohne Knoten (in solid) " + std::to_string(fehlt) +
+                     (liste.empty() ? std::string() : ":" + liste));
+        return fehlt == 0;
+    }));
     add(pruefe("WE: jede erzeugte Kante besteht die Kantenpruefung des Spiels", [=] {
         const NavBauHilfe h = navBauHilfeKarte();
         NavKantenPruefer p(g_app->map.entities, h);
