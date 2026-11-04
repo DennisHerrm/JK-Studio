@@ -17,6 +17,7 @@
 #include "imgui_internal.h"
 
 #include <algorithm>
+#include <cstring>
 #include <array>
 #include <cstdio>
 #include <map>
@@ -208,6 +209,9 @@ const std::vector<Panel>& panels() {
         {"mission.ebenen", 1, Str::EntityLayers},
         {"mission.fluss", 1, Str::GroupScriptFlow},
         {"mission.zeitleiste", 1, Str::DockPanelTimeline},
+        // rc609 W2b: ohne Platz im Hauptfenster - offen heisst: in seinem eigenen
+        // (andockbaren) Fenster; ab Werk zu (Einstellung entTextOffen).
+        {"mission.enttext", 1, Str::EtPanel},
         {"modell.ansicht", 2, Str::DockPanelModelView},
         {"modell.animationen", 2, Str::ModelAnimations},
         {"modell.fluss", 2, Str::GroupScriptFlow},
@@ -269,13 +273,20 @@ int bereichVon(const char* id) {
 }
 }  // namespace
 
+// rc609 W2b: Panels ohne Platz im Hauptfenster (der Entity-Text). Offen = eigenes Fenster.
+bool* zusatzOffen(const char* id) {
+    return std::strcmp(id, "mission.enttext") == 0 ? &g_app->settings.entTextOffen : nullptr;
+}
+
 bool draussen(const char* id) {
+    if (const bool* o = zusatzOffen(id)) { return *o; }
     if (imDockraum(id)) { return bereichVon(id) <= 2 ? dockraumDraussen(id) : dockvorgabe::draussen(bereichVon(id), id); }
     const fenster::Anordnung* a = anordnungVon(id);
     return a != nullptr && fenster::enthaelt(a->draussen, id);
 }
 
 bool versteckt(const char* id) {
+    if (const bool* o = zusatzOffen(id)) { return !*o; }
     const fenster::Anordnung* a = anordnungVon(id);
     return a != nullptr && fenster::enthaelt(a->versteckt, id);
 }
@@ -298,6 +309,10 @@ void listeLeeren(int bereich) {
 }
 
 void herausnehmen(const char* id) {
+    if (bool* o = zusatzOffen(id)) {
+        *o = true;
+        return;
+    }
     if (imDockraum(id)) {
         if (bereichVon(id) <= 2) {
             dockraumHerausnehmen(id);
@@ -315,6 +330,10 @@ void herausnehmen(const char* id) {
 }
 
 void andocken(const char* id) {
+    if (bool* o = zusatzOffen(id)) {   // kein Platz im Hauptfenster: zu
+        *o = false;
+        return;
+    }
     if (imDockraum(id)) {
         fenster::Anordnung* v = anordnungVon(id);
         if (v != nullptr) { fenster::entfernen(v->versteckt, id); }
@@ -335,6 +354,10 @@ void andocken(const char* id) {
 }
 
 void ausblenden(const char* id, bool aus) {
+    if (bool* o = zusatzOffen(id)) {
+        *o = !aus;
+        return;
+    }
     fenster::Anordnung* a = anordnungVon(id);
     if (a == nullptr || fenster::enthaelt(a->versteckt, id) == aus) { return; }
     if (aus) {
@@ -550,6 +573,7 @@ void fensterEnde() {
         andocken(id.c_str());
         return;
     }
+    if (zusatzOffen(id.c_str()) != nullptr) { return; }   // kein alter Platz zum Zurueckziehen
     // --- Zurueckziehen auf den alten Platz ------------------------------------
     // Waehrend das Fenster gezogen wird, zeigt das Hauptfenster seinen alten
     // Platz; wird es dort losgelassen, kommt es zurueck. Nicht, wenn darunter
@@ -592,7 +616,7 @@ void menueInhalt(int bereich) {
     ImGui::Separator();
     ImGui::TextDisabled("%s", tr(Str::DockOwnWindow));
     for (const Panel& p : panels()) {
-        if (p.bereich != bereich) { continue; }
+        if (p.bereich != bereich || zusatzOffen(p.id) != nullptr) { continue; }   // W2b: steht immer im eigenen Fenster
         const bool da = verfuegbarIst(p);
         const std::string l = std::string(tr(p.titel)) + "##dockfenster." + p.id;
         if (ImGui::MenuItem(l.c_str(), nullptr, draussen(p.id), da)) {

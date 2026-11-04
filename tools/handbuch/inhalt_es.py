@@ -7235,3 +7235,45 @@ TEXTE.update({
     '**Preferences → {{DoEinstGruppe}}**: the way for files from a `.pk3`, **{{DoEinstMissionsordner}}** (copies in the mission folder and a new `.pk3`, as before) and **{{DoEinstVorlage}}** (off: a new script starts empty).':
         '**Preferencias → {{DoEinstGruppe}}**: la forma para archivos de un `.pk3`, **{{DoEinstMissionsordner}}** (copias en la carpeta de la misión y un `.pk3` nuevo, como antes) y **{{DoEinstVorlage}}** (desactivado: un script nuevo empieza vacío).',
 })
+
+# rc609 W2b: Entities als Text bearbeiten
+TEXTE.update({
+    '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>',
+    '<kbd>Ctrl</kbd>+<kbd>F</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>F</kbd>',
+    '<kbd>Ctrl</kbd>+<kbd>H</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>H</kbd>',
+    '<kbd>H</kbd>':
+        '<kbd>H</kbd>',
+    '<kbd>Alt</kbd>+<kbd>H</kbd>':
+        '<kbd>Alt</kbd>+<kbd>H</kbd>',
+    'Editing entities as text':
+        'Editar las entidades como texto',
+    '**Window → {{EtPanel}}** shows the whole entity list as text in the `.ent` format, with line numbers and colours for keys and values. Click into a block and the entity is selected in the 3D view; select an entity in 3D and the text jumps to its block and highlights it from `{` to `}`.':
+        '**Ventana → {{EtPanel}}** muestra toda la lista de entidades como texto en formato `.ent`, con números de línea y colores para claves y valores. Un clic en un bloque selecciona la entidad en la vista 3D; si eliges una entidad en 3D, el texto salta a su bloque y lo resalta de `{` a `}`.',
+    'The entity selected in 3D, highlighted in the text from `{` to `}` (md_am_sith).':
+        'La entidad elegida en 3D, resaltada en el texto de `{` a `}` (md_am_sith).',
+    '**{{EtUebernehmen}}** reads the text exactly like the game (comments `//` and `/* */`, words without quotation marks) and replaces the entities in one undo step. If something is wrong - a missing `}` or quotation mark, more than 64 keys or 2048 characters in one entity, a first entity that is not worldspawn - a message names the line, the line turns red and nothing is applied.':
+        '**{{EtUebernehmen}}** lee el texto exactamente como el juego (comentarios `//` y `/* */`, palabras sin comillas) y sustituye las entidades en un solo paso de deshacer. Si algo falla (falta una `}` o unas comillas, más de 64 claves o 2048 caracteres en una entidad, una primera entidad que no es worldspawn), un mensaje indica la línea, la línea se pone roja y no se aplica nada.',
+    'Lines with `origin`, `angle`, `angles`, `modelscale`, `modelscale_vec`, `light` and `_color` work while you type: only that entity changes, and the whole typing is one undo step.':
+        'Las líneas con `origin`, `angle`, `angles`, `modelscale`, `modelscale_vec`, `light` y `_color` actúan mientras escribes: solo cambia esa entidad y todo lo escrito es un paso de deshacer.',
+    'The text stays as you wrote it: order, blank lines and comments are saved with **{{DoEntSpeichern}}**. If you change something in the inspector or with the gizmo, only the affected line is rewritten; a missing key gets its own line.':
+        'El texto se queda como lo escribiste: **{{DoEntSpeichern}}** guarda también el orden, las líneas en blanco y los comentarios. Si cambias algo en el inspector o con el gizmo, solo se reescribe la línea afectada; una clave que falta recibe su propia línea.',
+    'An unclosed quotation mark in the highlighted line: the message names the line, nothing was applied.':
+        'Unas comillas sin cerrar en la línea marcada: el mensaje indica la línea y no se aplicó nada.',
+    'Apply the text.':
+        'Aplicar el texto.',
+    'Find: every match is highlighted; <kbd>F3</kbd> next, <kbd>Shift</kbd>+<kbd>F3</kbd> previous, <kbd>Esc</kbd> removes the highlight.':
+        'Buscar: se resaltan todas las coincidencias; <kbd>F3</kbd> siguiente, <kbd>Mayús</kbd>+<kbd>F3</kbd> anterior, <kbd>Esc</kbd> quita el resaltado.',
+    'Find and replace.':
+        'Buscar y reemplazar.',
+    'Hide the selected entities in the 3D view - in the panel outside the text field, and over the map.':
+        'Ocultar las entidades seleccionadas en la vista 3D: en el panel fuera del campo de texto y sobre el mapa.',
+    'Show all entities again.':
+        'Volver a mostrar todas las entidades.',
+    'Like the game: if a key appears twice in one entity, the game takes the last one for its fields (origin, classname, targetname, angle and the other keys of its field table) and the first one for every other key; upper and lower case do not matter (in Jedi Outcast they do for keys outside the field table). The inspector, the gizmo and the preview read and change exactly that key. Entity text is Latin-1, one byte per character, as the game draws it: ä, ü or é stay byte for byte, and a character the game cannot show (such as €) gives a message instead of being replaced.':
+        'Como en el juego: si una clave aparece dos veces en una entidad, el juego toma la última para sus campos (origin, classname, targetname, angle y las demás claves de su tabla de campos) y la primera para todas las demás; mayúsculas y minúsculas dan igual (en Jedi Outcast no, para las claves fuera de la tabla de campos). El inspector, el gizmo y la vista previa leen y cambian exactamente esa clave. El texto de entidades es Latin-1, un byte por carácter, como lo dibuja el juego: ä, ü o é se conservan byte a byte, y un carácter que el juego no puede mostrar (como €) da un mensaje en lugar de sustituirse.',
+    'Files in the game folders are read like the game does: later folders win, and within a folder its `.pk3` files come before its loose files (`fs_dirbeforepak 0`). If you start the game with `+set fs_dirbeforepak 1`, turn on **{{EtDirVorPak}}** in the preferences under the game folders.':
+        'Los archivos de las carpetas del juego se leen como en el juego: ganan las carpetas posteriores y, dentro de una carpeta, sus `.pk3` van antes que sus archivos sueltos (`fs_dirbeforepak 0`). Si inicias el juego con `+set fs_dirbeforepak 1`, activa **{{EtDirVorPak}}** en las preferencias, bajo las carpetas del juego.',
+})

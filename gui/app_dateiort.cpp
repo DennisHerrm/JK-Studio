@@ -291,7 +291,9 @@ bool entitiesSpeichern() {
         return false;
     }
     if (!grenzenOk(g_app->map.entities)) { return false; }
-    const std::string text = writeEntities(g_app->map.entities);
+    // rc609 W2b: der Text des Entity-Texteditors - Kommentare, Leerzeilen und Reihenfolge
+    // bleiben, nur geaenderte Zeilen sind neu (ohne Quelle wie writeEntities).
+    const std::string text = entTextFuerSpeichern();
     const std::string karte = g_app->map.path;
     const DateiHerkunft h = entZiel();
     if (h.art == DateiHerkunft::Art::Lose) {
@@ -420,6 +422,7 @@ bool entDateiLaden(const std::string& p) {
         return false;
     }
     g_app->map.entities = std::move(ents);
+    entTextQuelle(g_app->map.path, text);   // rc609 W2b
     // F4: Namen, Kameragruppen UND Skriptverweise neu (collectNames); Nummern, die in
     // die alte Liste zeigten (Mehrfachauswahl, Wegpunkt-Kette, Animation), und der
     // Verlauf der alten Entities gelten nicht mehr.

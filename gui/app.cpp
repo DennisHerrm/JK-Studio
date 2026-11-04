@@ -2818,6 +2818,19 @@ void handleShortcuts() {
         return;
     }
 
+    // rc609 W2b (BSP-Entity-Edit): H blendet die gewaehlten Entities in 3D aus, Alt+H alle
+    // wieder ein - ueber der Karte und der Entity-Liste (im Entity-Text: drawEntTextInhalt).
+    // In der Belegung von BehavEd sind beide frei, die Ansicht nutzt H nicht.
+    if (entityFokus() && !nurRueckgaengig && !entTextHatFokus()) {
+        if (ImGui::IsKeyChordPressed(ImGuiKey_H) && g_app->pickedEntity >= 0) {
+            entTextAusblenden();
+            return;
+        }
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Alt | ImGuiKey_H)) {
+            entTextAlleEinblenden();
+            return;
+        }
+    }
     // rc609 W1 (Mike): Strg+D dupliziert die gewaehlten Entities ueber der Karte
     // oder der Entity-Liste (in der Belegung von BehavEd ist Strg+D frei).
     if (entityFokus() && !nurRueckgaengig && g_app->pickedEntity >= 0 && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_D)) {
@@ -2836,6 +2849,13 @@ void handleShortcuts() {
         if (nurRueckgaengig && bind.action != keys::Action::Undo &&
             bind.action != keys::Action::Redo && bind.action != keys::Action::FindRepeat &&
             bind.action != keys::Action::FindPrevious) {
+            continue;
+        }
+        // rc609 W2b: Hat der Entity-Text den Fokus, gehoeren F3, Strg+F, Enter, Entf
+        // usw. ihm, nicht dem Skriptbaum. Es bleiben Rueckgaengig/Wiederholen (dann
+        // fuer die Entities) und Speichern.
+        if (entTextHatFokus() && bind.action != keys::Action::Undo && bind.action != keys::Action::Redo &&
+            bind.action != keys::Action::Save && bind.action != keys::Action::SaveAll) {
             continue;
         }
         const ImGuiKeyChord chord = chordFor(bind.action);
@@ -2858,7 +2878,7 @@ void handleShortcuts() {
             case keys::Action::Undo: {
                 // Ueber der Karte oder der Entity-Liste: die letzte
                 // Entity-Aenderung (eigener Verlauf, gui/app_mission.cpp).
-                if (entityFokus() && missionRueckgaengig()) {   // mission1: die juengste Aenderung
+                if ((entityFokus() || entTextHatFokus()) && missionRueckgaengig()) {   // mission1: die juengste Aenderung
                     break;
                 }
                 // Erst die Gizmo-Vorschau, dann das Skript.
@@ -2894,7 +2914,7 @@ void handleShortcuts() {
                 break;
             }
             case keys::Action::Redo:
-                if (entityFokus() && missionWiederholen()) {   // mission1
+                if ((entityFokus() || entTextHatFokus()) && missionWiederholen()) {   // mission1
                     break;
                 }
                 doRedo();
@@ -3514,6 +3534,9 @@ void drawGamePaths() {
             ImGui::TextDisabled(tr(Str::PrefsBaseImmer), mitBase[i].c_str());
         }
     }
+    // rc609 W2b F17: fs_dirbeforepak wie im Spiel (Vorgabe 0: die .pk3 eines Ordners vor seinen losen Dateien)
+    ImGui::Checkbox(tr(Str::EtDirVorPak), &st.fsDirBeforePak);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::EtDirVorPakHint)); }
     ImGui::SeparatorText(tr(Str::PathsJk2));
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 38.0F);
     ImGui::TextDisabled("%s", tr(Str::PathsJk2Note));
@@ -3879,7 +3902,8 @@ void drawPk3Browser() {
             ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
             std::string data;
             std::string archivDerDatei;
-            if (readFromArchives(f.name, data, &archivDerDatei)) {
+            bool lose = false;   // W2b F17: das Spiel nimmt vielleicht eine lose Fassung
+            if (readFromArchives(f.name, data, &archivDerDatei, &lose)) {
                 if (g_app->pk3Kind == 2) {
                     // Ein Modell. Die .skin dazu suchen wir gleich mit: sie
                     // liegt neben dem Modell und heisst model_<name>.skin.
@@ -3898,11 +3922,14 @@ void drawPk3Browser() {
                     // finden. Deshalb nicht merken.
                     g_app->settings.mapPath.clear();
                     // rc609 W2a: aber ihre Herkunft (das Archiv, aus dem sie kam)
-                    g_app->kartenHerkunft = DateiHerkunft::ausPk3(archivDerDatei, f.name);
+                    g_app->kartenHerkunft = DateiHerkunft::gefunden(archivDerDatei, lose, f.name);
                     g_app->entUndo.clear();
                     g_app->entRedo.clear();
                     g_app->entUndoStempel.clear();
                     g_app->entRedoStempel.clear();
+                } else if (lose) {
+                    const std::string p = archivDerDatei;
+                    withUnsaved([p] { ladeSkriptDatei(p); });
                 } else {
                     const std::string dat = data;
                     const std::string nm = f.name;
@@ -6731,6 +6758,8 @@ void draw() {
     // dock1: die herausgenommenen Panels in ihren eigenen Fenstern (im DockSpace
     // zeichnet jeder Bereich seine Panels selbst - dockraum::zeichnen, dockvorgabe.h).
     if (!dockraum::an()) { drawDockFenster(l); }
+    // rc609 W2b: der Entity-Text hat keinen Platz im Hauptfenster - sein eigenes, andockbares Fenster
+    drawEntTextFenster();
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

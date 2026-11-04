@@ -7232,3 +7232,45 @@ TEXTE.update({
     '**Preferences → {{DoEinstGruppe}}**: the way for files from a `.pk3`, **{{DoEinstMissionsordner}}** (copies in the mission folder and a new `.pk3`, as before) and **{{DoEinstVorlage}}** (off: a new script starts empty).':
         '**Předvolby → {{DoEinstGruppe}}**: způsob pro soubory z `.pk3`, **{{DoEinstMissionsordner}}** (kopie ve složce mise a nový `.pk3`, jako dosud) a **{{DoEinstVorlage}}** (vypnuto: nový skript začne prázdný).',
 })
+
+# rc609 W2b: Entities als Text bearbeiten
+TEXTE.update({
+    '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>',
+    '<kbd>Ctrl</kbd>+<kbd>F</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>F</kbd>',
+    '<kbd>Ctrl</kbd>+<kbd>H</kbd>':
+        '<kbd>Ctrl</kbd>+<kbd>H</kbd>',
+    '<kbd>H</kbd>':
+        '<kbd>H</kbd>',
+    '<kbd>Alt</kbd>+<kbd>H</kbd>':
+        '<kbd>Alt</kbd>+<kbd>H</kbd>',
+    'Editing entities as text':
+        'Úprava entit jako textu',
+    '**Window → {{EtPanel}}** shows the whole entity list as text in the `.ent` format, with line numbers and colours for keys and values. Click into a block and the entity is selected in the 3D view; select an entity in 3D and the text jumps to its block and highlights it from `{` to `}`.':
+        '**Okno → {{EtPanel}}** ukáže celý seznam entit jako text ve formátu `.ent`, s čísly řádků a barvami pro klíče a hodnoty. Klik do bloku vybere entitu ve 3D pohledu; když vybereš entitu ve 3D, text skočí na její blok a zvýrazní ho od `{` do `}`.',
+    'The entity selected in 3D, highlighted in the text from `{` to `}` (md_am_sith).':
+        'Entita vybraná ve 3D, v textu zvýrazněná od `{` do `}` (md_am_sith).',
+    '**{{EtUebernehmen}}** reads the text exactly like the game (comments `//` and `/* */`, words without quotation marks) and replaces the entities in one undo step. If something is wrong - a missing `}` or quotation mark, more than 64 keys or 2048 characters in one entity, a first entity that is not worldspawn - a message names the line, the line turns red and nothing is applied.':
+        '**{{EtUebernehmen}}** přečte text přesně jako hra (komentáře `//` a `/* */`, slova bez uvozovek) a nahradí entity v jednom kroku zpět. Když něco nesedí - chybí `}` nebo uvozovka, víc než 64 klíčů nebo 2048 znaků v jedné entitě, první entita není worldspawn -, zpráva uvede řádek, řádek zčervená a nic se nepoužije.',
+    'Lines with `origin`, `angle`, `angles`, `modelscale`, `modelscale_vec`, `light` and `_color` work while you type: only that entity changes, and the whole typing is one undo step.':
+        'Řádky s `origin`, `angle`, `angles`, `modelscale`, `modelscale_vec`, `light` a `_color` působí už při psaní: změní se jen tato entita a celé psaní je jeden krok zpět.',
+    'The text stays as you wrote it: order, blank lines and comments are saved with **{{DoEntSpeichern}}**. If you change something in the inspector or with the gizmo, only the affected line is rewritten; a missing key gets its own line.':
+        'Text zůstane, jak jsi ho napsal: pořadí, prázdné řádky a komentáře uloží **{{DoEntSpeichern}}** také. Když něco změníš v inspektoru nebo gizmem, přepíše se jen dotčený řádek; chybějící klíč dostane vlastní řádek.',
+    'An unclosed quotation mark in the highlighted line: the message names the line, nothing was applied.':
+        'Neuzavřená uvozovka ve zvýrazněném řádku: zpráva uvádí řádek, nic nebylo použito.',
+    'Apply the text.':
+        'Použít text.',
+    'Find: every match is highlighted; <kbd>F3</kbd> next, <kbd>Shift</kbd>+<kbd>F3</kbd> previous, <kbd>Esc</kbd> removes the highlight.':
+        'Hledat: všechny shody se zvýrazní; <kbd>F3</kbd> další, <kbd>Shift</kbd>+<kbd>F3</kbd> předchozí, <kbd>Esc</kbd> zvýraznění zruší.',
+    'Find and replace.':
+        'Hledat a nahradit.',
+    'Hide the selected entities in the 3D view - in the panel outside the text field, and over the map.':
+        'Skrýt vybrané entity ve 3D pohledu - v panelu mimo textové pole a nad mapou.',
+    'Show all entities again.':
+        'Znovu zobrazit všechny entity.',
+    'Like the game: if a key appears twice in one entity, the game takes the last one for its fields (origin, classname, targetname, angle and the other keys of its field table) and the first one for every other key; upper and lower case do not matter (in Jedi Outcast they do for keys outside the field table). The inspector, the gizmo and the preview read and change exactly that key. Entity text is Latin-1, one byte per character, as the game draws it: ä, ü or é stay byte for byte, and a character the game cannot show (such as €) gives a message instead of being replaced.':
+        'Jako ve hře: je-li klíč v jedné entitě dvakrát, hra vezme pro svá pole (origin, classname, targetname, angle a další klíče své tabulky polí) poslední, pro všechny ostatní první; na velikosti písmen nezáleží (v Jedi Outcast u klíčů mimo tabulku polí ano). Inspektor, gizmo i náhled čtou a mění právě tento klíč. Text entit je Latin-1, jeden bajt na znak, jak ho hra kreslí: ä, ü nebo é zůstanou bajt po bajtu a znak, který hra neumí zobrazit (třeba €), dá zprávu místo nahrazení.',
+    'Files in the game folders are read like the game does: later folders win, and within a folder its `.pk3` files come before its loose files (`fs_dirbeforepak 0`). If you start the game with `+set fs_dirbeforepak 1`, turn on **{{EtDirVorPak}}** in the preferences under the game folders.':
+        'Soubory ve složkách hry se čtou jako ve hře: vyhrávají pozdější složky a v jedné složce jdou její `.pk3` před volnými soubory (`fs_dirbeforepak 0`). Spouštíš-li hru s `+set fs_dirbeforepak 1`, zapni v předvolbách pod složkami hry **{{EtDirVorPak}}**.',
+})

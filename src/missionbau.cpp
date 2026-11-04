@@ -193,7 +193,7 @@ std::vector<Pk3Datei> missionDateien(const MissionInhalt& m, const CommandDb& db
     if (!m.bsp.empty()) {
         out.push_back({"maps/" + m.name + ".bsp", m.bsp});
     }
-    out.push_back({"maps/" + m.name + ".ent", writeEntities(m.entities)});
+    out.push_back({"maps/" + m.name + ".ent", m.entText.empty() ? writeEntities(m.entities) : m.entText});
     entityGrenzenPruefen(m.entities, befunde);
 
     std::set<std::string> vorhanden;

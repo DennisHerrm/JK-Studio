@@ -68,6 +68,18 @@ struct GamePath {
 };
 
 [[nodiscard]] bool scanGamePath(const std::string& directory, GamePath& out);
+
+// rc609 W2b F17: eine Datei so suchen wie FS_FOpenFileRead (OJK
+// code/qcommon/files.cpp:1309-1380) in der Suchliste von FS_AddGameDirectory
+// (:2730-2805): spaetere Spielordner vor frueheren, je Ordner die .pk3 (die
+// alphabetisch letzte zuerst) und die losen Dateien des Ordners - mit
+// fs_dirbeforepak 0 (Vorgabe, :2895; Movie Duels 9 gleich, files.cpp:2861) die
+// .pk3 vor den losen Dateien, mit 1 die losen zuerst. ordner: niedrigste
+// Prioritaet zuerst. herkunft: das Archiv bzw. der volle Pfad der losen Datei.
+// Namen mit ".." oder "::" findet das Spiel nicht (FS_FOpenFileRead :1283), ein
+// fuehrender / oder \ faellt weg (:1276).
+[[nodiscard]] bool liesWieSpiel(const std::vector<GamePath>& ordner, const std::string& name, bool dirVorPak, std::string& out,
+                                std::string* herkunft = nullptr, bool* lose = nullptr);
 // rc608: FS_Startup liest base immer mit. Wer nur den Mod-Ordner einrichtet (".../MD"), bekommt den Ordner base
 // daneben als niedrigsten Rang dazu, wie im Spiel. Die Reihenfolge der uebrigen bleibt.
 [[nodiscard]] std::vector<std::string> spielordnerMitBase(const std::vector<std::string>& ordner);

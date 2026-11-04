@@ -4738,14 +4738,16 @@ void loadMission(const Mission& m) {
     // Die .ent hat Vorrang: Movie Duels laesst die .bsp unveraendert und
     // legt die Entities daneben. Ohne sie bekaeme man die Entities der
     // Originalkarte - ohne die Figuren der Mission.
-    if (!m.entFile.empty() && readFromArchives(m.entFile, data, &archiv)) {
+    bool entLose = false;
+    if (!m.entFile.empty() && readFromArchives(m.entFile, data, &archiv, &entLose)) {
         std::vector<MapEntity> ents;
         parseEntities(data, ents);
         if (!ents.empty()) {
             g_app->map.entities = std::move(ents);
             collectNames(g_app->map);
             merkeEntities();
-            g_app->entHerkunft = DateiHerkunft::ausPk3(archiv, m.entFile);
+            entTextQuelle(g_app->map.path, data);   // rc609 W2b
+            g_app->entHerkunft = DateiHerkunft::gefunden(archiv, entLose, m.entFile);   // W2b F17: auch lose
             g_app->entHerkunftKarte = g_app->map.path;
             diag::info(std::to_string(g_app->map.entities.size()) +
                        " Entities aus " + m.entFile);

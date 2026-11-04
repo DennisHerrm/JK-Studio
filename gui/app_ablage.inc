@@ -1666,7 +1666,7 @@ void refreshPk3List() {
 }
 
 bool readFromArchives(const std::string& name, std::string& out,
-                      std::string* fromArchive) {
+                      std::string* fromArchive, bool* istLose) {
     // RUECKWAERTS durch die Spielordner - der SPAETERE gewinnt.
     //
     // Das war ein handfester Fehler, und er hat still das halbe Programm
@@ -1688,22 +1688,12 @@ bool readFromArchives(const std::string& name, std::string& out,
     // models/players/_humanoid/_humanoid.gla durch eine Fassung mit 30384
     // Bildern. Geladen wurde die des Originalspiels mit 21376 - jede
     // Animation jenseits davon fehlte, und zwar ohne jede Meldung.
-    for (auto gp = g_app->gamePaths.rbegin(); gp != g_app->gamePaths.rend();
-         ++gp) {
-        for (auto a = gp->archives.rbegin(); a != gp->archives.rend(); ++a) {
-            if (const Pk3Entry* e = a->find(name)) {
-                std::string err;
-                if (readPk3File(*a, *e, out, &err)) {
-                    if (fromArchive != nullptr) {
-                        *fromArchive = a->path;
-                    }
-                    return true;
-                }
-                diag::warn("Auspacken fehlgeschlagen: " + name + " - " + err);
-            }
-        }
-    }
-    return false;
+    //
+    // rc609 W2b F17: Die Engine sucht je Ordner auch die losen Dateien
+    // (FS_AddGameDirectory haengt den Ordner selbst mit in die Suchliste) - mit
+    // fs_dirbeforepak 0 nach den .pk3 des Ordners, aber vor allem in frueheren
+    // Ordnern. Eine lose MovieDuels\ext_data\npcs\x.npc gewinnt also gegen base.
+    return liesWieSpiel(g_app->gamePaths, name, g_app->settings.fsDirBeforePak, out, fromArchive, istLose);
 }
 
 // Wie lange dauert ein Klang? -1, wenn er nicht zu finden ist.
@@ -3149,6 +3139,8 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
         return;
     }
     m.path = shownPath;
+    // rc609 W2b: der Entity-Lump als Text - Quelle des Entity-Texteditors
+    if (std::string lump; readBspEntityLump(bytes, lump)) { entTextQuelle(shownPath, lump); }
     // rc609 W2a: die Herkunft setzt, wer laedt (loadMap, loadMapFromArchive,
     // karteAusArchivOeffnen, loadMission); ohne Angabe gibt es keine eigene Datei.
     g_app->kartenHerkunft = DateiHerkunft{};
@@ -3381,13 +3373,14 @@ bool loadMapFromArchive(const std::string& id) {
     std::string archiv;
     // rc609 W2a: aus welchem Archiv (das gewinnende, wie die Engine sucht). Eine neue
     // Mission ("maps/<name>.bsp" aus kartenQuelle) hat keine eigene Datei.
-    const bool direkt = !id.empty() && readFromArchives(id, data, &archiv);
+    bool lose = false;
+    const bool direkt = !id.empty() && readFromArchives(id, data, &archiv, &lose);
     if (!direkt && (id.empty() || !kartenBytes(id, data))) {
         return false;
     }
     loadMapFromBytes(data, id);
     g_app->settings.mapPath.clear();
-    if (direkt) { g_app->kartenHerkunft = DateiHerkunft::ausPk3(archiv, id); }
+    if (direkt) { g_app->kartenHerkunft = DateiHerkunft::gefunden(archiv, lose, id); }   // W2b F17: auch eine lose Datei
     return true;
 }
 

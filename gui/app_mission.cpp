@@ -80,13 +80,16 @@ int waechst(ImGuiInputTextCallbackData* d) {
     return 0;
 }
 
+// rc609 W2b F13: Entity-Texte sind Bytes, die das Spiel als Latin-1 zeichnet; ImGui arbeitet
+// mit UTF-8. Das Feld zeigt die Bytes als Zeichen und gibt Latin-1 zurueck - ein vorhandenes
+// Latin-1-Zeichen bleibt beim Bearbeiten erhalten, eines jenseits davon gibt eine Meldung.
 bool textFeld(const char* id, const std::string& aktuell, std::string& neu, const char* hinweis = nullptr) {
     static std::unordered_map<ImGuiID, std::string> puffer;
     static ImGuiID aktiv = 0;
     const ImGuiID gid = ImGui::GetID(id);
     std::string& p = puffer[gid];
     if (aktiv != gid) {
-        p = aktuell;
+        p = latin1NachUtf8(aktuell);
     }
     const ImGuiInputTextFlags fl = ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue;
     const bool enter = (hinweis != nullptr)
@@ -97,8 +100,9 @@ bool textFeld(const char* id, const std::string& aktuell, std::string& neu, cons
     } else if (aktiv == gid) {
         aktiv = 0;
     }
-    if ((ImGui::IsItemDeactivatedAfterEdit() || enter) && p != aktuell) {
-        neu = p;
+    std::string bytes;
+    if ((ImGui::IsItemDeactivatedAfterEdit() || enter) && eingabeNachLatin1(p, bytes) && bytes != aktuell) {
+        neu = bytes;
         return true;
     }
     return false;
@@ -482,7 +486,12 @@ void skriptOeffnen(const std::string& ref, bool anlegen) {
     std::string text;
     std::string archiv;
     for (const char* endung : {".txt", ".IBI"}) {
-        if (readFromArchives("scripts/" + ref + endung, text, &archiv)) {
+        bool lose = false;
+        if (readFromArchives("scripts/" + ref + endung, text, &archiv, &lose)) {
+            if (lose) {   // W2b F17: eine lose Datei im Spielordner - wie jede lose Datei oeffnen
+                ladeSkriptDatei(archiv);
+                return;
+            }
             openScriptFromMemory(text, "scripts/" + ref + ".txt", DateiHerkunft::ausPk3(archiv, "scripts/" + ref + endung));
             return;
         }
@@ -894,6 +903,21 @@ bool entityKeySetzen(int i, const std::string& key, const std::string& wert) {
         return false;
     }
     aenderung(std::move(vorher));
+    return true;
+}
+
+bool entitiesErsetzen(std::vector<MapEntity> neu, bool neuerSchritt) {
+    if (entListeGleich(neu, g_app->map.entities)) { return false; }
+    const bool andereZahl = neu.size() != g_app->map.entities.size();
+    std::vector<MapEntity> vorher = std::move(g_app->map.entities);
+    g_app->map.entities = std::move(neu);
+    if (andereZahl) { g_app->hiddenEntities.clear(); }   // Nummern verschoben
+    if (g_app->pickedEntity >= static_cast<int>(g_app->map.entities.size())) { g_app->pickedEntity = -1; }
+    if (neuerSchritt || !entityUndoMoeglich()) {
+        aenderung(std::move(vorher));
+    } else {
+        nachAenderung();
+    }
     return true;
 }
 
@@ -3759,9 +3783,10 @@ void drawEntityInspector(float hoehe) {
         const bool enter = ImGui::InputTextWithHint("##neuerkey", tr(Str::EntKeyName), neuerKey, sizeof(neuerKey),
                                                     ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::SameLine();
-        if ((ImGui::SmallButton(tr(Str::EntAddKey)) || enter) && neuerKey[0] != '\0') {
+        std::string neuBytes;
+        if ((ImGui::SmallButton(tr(Str::EntAddKey)) || enter) && neuerKey[0] != '\0' && eingabeNachLatin1(neuerKey, neuBytes)) {
             // Ohne Wert gibt es den Schluessel nicht - "1" als Anfang, sichtbar und aenderbar.
-            if (e.find(neuerKey) == nullptr) { entityKeySetzen(i, neuerKey, "1"); }
+            if (e.find(neuBytes) == nullptr) { entityKeySetzen(i, neuBytes, "1"); }
             neuerKey[0] = '\0';
         }
     }
@@ -4002,6 +4027,8 @@ Zusammenstellung zusammenstellen() {
             if (kartenBytes(mp.karte, bsp) && readBsp(bsp, m)) { z.inhalt.entities = std::move(m.entities); }
         }
     }
+    // rc609 W2b: die geladene Karte packt den Text des Entity-Texteditors (gleiche Entities)
+    if (g_app->map.path == mp.karte && entListeGleich(z.inhalt.entities, g_app->map.entities)) { z.inhalt.entText = entTextFuerSpeichern(); }
     // Die Geometrie unter dem Missionsnamen.
     (void)kartenBytes(mp.karte, z.inhalt.bsp);
     // Skripte: alles, worauf die Entities zeigen, und jeder offene Reiter im
@@ -4484,10 +4511,12 @@ bool missionAusOrdnerLaden(const std::string& ordner, std::string* fehler) {
     loadMapFromBytes(bytes, id);
     g_app->settings.mapPath.clear();
     std::vector<MapEntity> ents;
-    parseEntities(slurp(pfadVerbinden(ordner, "maps/" + name + ".ent")), ents);
+    const std::string entText = slurp(pfadVerbinden(ordner, "maps/" + name + ".ent"));
+    parseEntities(entText, ents);
     if (!ents.empty()) {
         g_app->map.entities = std::move(ents);
         collectNames(g_app->map);
+        entTextQuelle(id, entText);   // rc609 W2b: Kommentare und Reihenfolge bleiben
     }
     merkeEntities();
     g_app->mission = App::MissionsProjekt{};

@@ -36,6 +36,7 @@
 #include "bhed/regelwerk.h"
 #include "bhed/ablauf.h"
 #include "bhed/bsp.h"
+#include "bhed/enttext.h"
 #include "bhed/areaportal.h"
 #include "bhed/holster.h"
 #include "bhed/schmerz.h"
@@ -147,6 +148,10 @@ struct DateiHerkunft {
     std::string eintrag;   // Pk3: Name im Archiv ("maps/x.bsp")
     [[nodiscard]] static DateiHerkunft lose(const std::string& p) { return {Art::Lose, p, {}}; }
     [[nodiscard]] static DateiHerkunft ausPk3(const std::string& a, const std::string& e) { return {Art::Pk3, a, e}; }
+    // rc609 W2b F17: was readFromArchives gefunden hat - eine lose Datei oder einen Eintrag einer .pk3.
+    [[nodiscard]] static DateiHerkunft gefunden(const std::string& her, bool istLose, const std::string& e) {
+        return istLose ? lose(her) : ausPk3(her, e);
+    }
 };
 
 // Zustand der Oberflaeche. Bewusst ein einfacher Verbund - das Programm hat
@@ -2592,8 +2597,12 @@ std::string fileName(const std::string& path);
 // dem die Datei kam. Das ist keine Spielerei: Movie Duels ERSETZT Dateien
 // des Originalspiels unter demselben Namen, und ohne diese Angabe sieht man
 // im Protokoll nicht, welche Fassung man geladen hat.
+//
+// rc609 W2b F17: wie das Spiel auch die losen Dateien der Spielordner
+// (liesWieSpiel, bhed/pk3.h; fs_dirbeforepak aus den Einstellungen). Kommt die
+// Datei lose, steht ihr voller Pfad in fromArchive und istLose ist true.
 bool readFromArchives(const std::string& name, std::string& out,
-                      std::string* fromArchive = nullptr);
+                      std::string* fromArchive = nullptr, bool* istLose = nullptr);
 void rescanGamePaths();
 void refreshPk3List();
 void rebuildTree();
@@ -3199,6 +3208,40 @@ int startKnopfZeile(const StartSpalte& sp, const char* titel, const StartKnopf* 
 // Die Hoehe, die eine Karte fuer ihre Texte braucht (bei dieser Breite)
 float startKarteHoehe(const char* titel, const char* unter, float breite);
 void meldung(const std::string& text, const std::string& ordner, bool warnung = false);
+
+// --- rc609 W2b: Entity-Texteditor (gui/app_enttext.cpp) ---------------------------
+// F13: eine Eingabe (UTF-8) als Latin-1-Bytes fuer die Entities; false und eine Meldung,
+// wenn ein Zeichen nicht in Latin-1 liegt (nichts wird still ersetzt).
+bool eingabeNachLatin1(const std::string& utf8, std::string& out);
+// Der Text, aus dem die Entities einer Karte gelesen wurden (Entity-Lump, .ent):
+// Kommentare, Leerzeilen und Reihenfolge bleiben darin erhalten.
+void entTextQuelle(const std::string& karte, const std::string& text);
+// Der Text der aktuellen Karte, abgeglichen mit map.entities - so schreibt "Entities speichern".
+const std::string& entTextFuerSpeichern();
+bool entTextUebernehmen();          // Strg+Enter: lesen wie das Spiel, ein Rueckgaengig-Schritt
+void entTextAusblenden();           // H: die gewaehlten Entities in 3D ausblenden
+void entTextAlleEinblenden();       // Alt+H
+bool entTextHatFokus();             // Panel hat den Fokus: F3/Strg+F/H gehoeren ihm
+void drawEntTextInhalt();
+void drawEntTextFenster();
+// fuer den Selbsttest
+const std::string& entTextPuffer();
+const std::string& entTextDoc();
+bool entTextGeaendert();
+int entTextFehlerZeile();
+const std::string& entTextMeldung();
+int entTextTrefferNr();
+int entTextTrefferZahl();
+bool entTextHervorhebung();
+void entTextHinterlegt(int& von, int& bis);
+int entTextBlockZeile(int entity);
+ImVec2 entTextZeilenOrt(int zeile, int spalte);
+int entTextErsteSichtbareZeile();
+ImVec2 entTextKopfOrt();
+void entTextMeldungOrt(ImVec2& a, ImVec2& b);
+// Die ganze Entity-Liste ersetzen (app_mission.cpp): ein Rueckgaengig-Schritt;
+// neuerSchritt=false haengt an den letzten an (Live-Tippen im Entity-Text).
+bool entitiesErsetzen(std::vector<MapEntity> neu, bool neuerSchritt);
 void drawEinblendungen();
 // Gibt es an der Mission Ungespeichertes (Entities oder Skripte)?
 bool missionUngespeichert();

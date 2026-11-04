@@ -2,6 +2,7 @@
 
 #include "bhed/inflate.h"
 #include "bhed/diag.h"
+#include "bhed/utf8pfad.h"
 
 #include <algorithm>
 #include <cctype>
@@ -10,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <string>
 #include <vector>
@@ -272,6 +274,46 @@ void sortierePk3WieEngine(std::vector<std::string>& namen) {
     std::stable_sort(namen.begin(), namen.end(), [&name](const std::string& x, const std::string& y) {
         return fsPathCmp(name(x), name(y)) < 0;
     });
+}
+
+bool liesWieSpiel(const std::vector<GamePath>& ordner, const std::string& name, bool dirVorPak, std::string& out, std::string* herkunft,
+                  bool* lose) {
+    if (lose != nullptr) { *lose = false; }
+    std::string n = name;
+    if (!n.empty() && (n[0] == '/' || n[0] == '\\')) { n.erase(0, 1); }   // files.cpp:1276
+    if (n.empty() || n.find("..") != std::string::npos || n.find("::") != std::string::npos) { return false; }   // :1283
+    const auto ausPk3 = [&](const GamePath& gp) {
+        for (auto a = gp.archives.rbegin(); a != gp.archives.rend(); ++a) {
+            if (const Pk3Entry* e = a->find(n)) {
+                std::string err;
+                if (readPk3File(*a, *e, out, &err)) {
+                    if (herkunft != nullptr) { *herkunft = a->path; }
+                    return true;
+                }
+                diag::warn("Auspacken fehlgeschlagen: " + n + " - " + err);
+            }
+        }
+        return false;
+    };
+    const auto ausOrdner = [&](const GamePath& gp) {
+        if (gp.directory.empty()) { return false; }
+        std::error_code ec;
+        const fs::path p = utf8Pfad(gp.directory) / utf8Pfad(n);
+        if (!fs::is_regular_file(p, ec)) { return false; }
+        std::ifstream f(p, std::ios::binary);
+        if (!f) { return false; }
+        out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+        if (herkunft != nullptr) {
+            const auto u = p.u8string();
+            *herkunft = std::string(u.begin(), u.end());
+        }
+        if (lose != nullptr) { *lose = true; }
+        return true;
+    };
+    for (auto gp = ordner.rbegin(); gp != ordner.rend(); ++gp) {
+        if (dirVorPak ? (ausOrdner(*gp) || ausPk3(*gp)) : (ausPk3(*gp) || ausOrdner(*gp))) { return true; }
+    }
+    return false;
 }
 
 bool scanGamePath(const std::string& directory, GamePath& out) {

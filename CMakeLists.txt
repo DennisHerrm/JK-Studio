@@ -61,6 +61,7 @@ add_library(bhed_core STATIC
   src/keys.cpp
   src/diag.cpp
   src/bsp.cpp
+  src/enttext.cpp
   src/inflate.cpp
   src/pk3.cpp
   src/pk3write.cpp
@@ -416,6 +417,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_view3d.cpp
     gui/app_mission.cpp
     gui/app_dateiort.cpp
+    gui/app_enttext.cpp
     gui/uiicons.cpp
     gui/app_ansichten.cpp
     gui/app_zeitleiste.cpp
@@ -778,6 +780,13 @@ if(BEHAVED_TESTS)
   add_executable(sicherschreibentest tests/sicherschreibentest.cpp)
   target_link_libraries(sicherschreibentest PRIVATE bhed_core)
   add_test(NAME sicherschreiben COMMAND sicherschreibentest ${CMAKE_CURRENT_BINARY_DIR})
+  # rc609 W2b: Entities als Text, Leser wie das Spiel (F11-F13); lose Dateien wie das Spiel (F17)
+  add_executable(enttexttest tests/enttexttest.cpp)
+  target_link_libraries(enttexttest PRIVATE bhed_core)
+  add_test(NAME enttext COMMAND enttexttest)
+  add_executable(losedateientest tests/losedateientest.cpp)
+  target_link_libraries(losedateientest PRIVATE bhed_core bhed_zlib)
+  add_test(NAME losedateien COMMAND losedateientest ${CMAKE_CURRENT_BINARY_DIR})
   add_executable(missionbautest tests/missionbautest.cpp)
   target_link_libraries(missionbautest PRIVATE bhed_core)
   add_test(NAME missionbau COMMAND missionbautest ${BEHAVED_BHC} ${BEHAVED_DATA} ${BEHAVED_SUPP}

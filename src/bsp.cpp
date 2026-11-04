@@ -1,5 +1,6 @@
 #include "bhed/bsp.h"
 #include "bhed/diag.h"
+#include "bhed/regelwerk.h"
 
 #include <cctype>
 
@@ -7,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,41 +38,153 @@ void addUnique(std::vector<std::string>& list, const std::string& value) {
     list.push_back(value);
 }
 
+// Die Feldtabellen fields[] der Spiele (nur die Namen; auskommentierte Eintraege
+// fehlen wie im Spiel). OJK code/game/g_spawn.cpp:223-371 (Movie Duels 9:
+// code/game/g_spawn.cpp:321-471 dieselben und dazu fullName, icon,
+// player_victoryscript), JK2 codeJK2/game/g_spawn.cpp:188-313.
+constexpr const char* kFelderOjk[] = {
+    "autobound", "groupname", "noBasicSounds", "noCombatSounds", "noExtraSounds", "classname", "origin", "mins",
+    "maxs", "model", "model2", "model3", "model4", "model5", "model6", "spawnflags", "speed", "duration", "interest",
+    "target", "target2", "target3", "target4", "targetJump", "targetname", "material", "message", "team", "mapname",
+    "wait", "finaltime", "random", "FOV", "count", "bounceCount", "health", "friction", "light", "dmg", "angles",
+    "angle", "modelAngles", "cameraGroup", "radius", "hiderange", "starttime", "turfrange", "type", "fxfile",
+    "fxfile2", "noVisTime", "endFrame", "linear", "weapon", "parm1", "parm2", "parm3", "parm4", "parm5", "parm6",
+    "parm7", "parm8", "parm9", "parm10", "parm11", "parm12", "parm13", "parm14", "parm15", "parm16", "delay",
+    "sounds", "closetarget", "opentarget", "paintarget", "soundGroup", "backwardstarget", "splashDamage",
+    "splashRadius", "spawnscript", "usescript", "awakescript", "angerscript", "attackscript", "victoryscript",
+    "lostenemyscript", "painscript", "fleescript", "deathscript", "delayscript", "delayscripttime", "blockedscript",
+    "ffirescript", "ffdeathscript", "mindtrickscript", "script_targetname", "NPC_targetname", "NPC_target",
+    "NPC_target2", "NPC_target4", "NPC_type", "ownername", "saberType", "saberColor", "saberLeftHand", "saberSolo",
+    "saberPitch", "startRGBA", "finalRGBA", "soundSet", "mass", "scale", "modelscale", "modelscale_vec", "style",
+    "lip", "switch_style", "height", "noise", "gravity", "storyhead", "tier_storyinfo", "zoffset", "music",
+    "forcevisible", "redcrosshair", "nodelay",
+};
+constexpr const char* kFelderJk2[] = {
+    "autobound", "groupname", "noBasicSounds", "noCombatSounds", "noExtraSounds", "classname", "origin", "mins",
+    "maxs", "model", "model2", "model3", "model4", "model5", "model6", "spawnflags", "speed", "duration", "interest",
+    "target", "target2", "target3", "target4", "targetname", "material", "message", "team", "mapname", "wait",
+    "finaltime", "random", "FOV", "count", "health", "friction", "light", "dmg", "angles", "angle", "cameraGroup",
+    "radius", "hiderange", "starttime", "type", "fullName", "fxfile", "fxfile2", "endFrame", "linear", "parm1",
+    "parm2", "parm3", "parm4", "parm5", "parm6", "parm7", "parm8", "parm9", "parm10", "parm11", "parm12", "parm13",
+    "parm14", "parm15", "parm16", "noTED", "delay", "sounds", "closetarget", "opentarget", "paintarget", "soundGroup",
+    "backwardstarget", "splashDamage", "splashRadius", "spawnscript", "usescript", "awakescript", "angerscript",
+    "attackscript", "victoryscript", "lostenemyscript", "painscript", "fleescript", "deathscript", "delayscript",
+    "delayscripttime", "blockedscript", "ffirescript", "ffdeathscript", "mindtrickscript", "script_targetname",
+    "NPC_targetname", "NPC_target", "NPC_target2", "NPC_target4", "NPC_type", "ownername", "startRGBA", "finalRGBA",
+    "soundSet", "scale", "_color", "style", "lip", "switch_style", "height",
+};
+constexpr const char* kFelderNurMd[] = {"fullName", "icon", "player_victoryscript"};
+
+bool gleichOhneGross(const std::string& a, const char* b) {
+    // Q_stricmp: Buchstaben ohne Ruecksicht auf Gross/Klein (q_shared.cpp Q_stricmpn).
+    std::size_t i = 0;
+    for (; i < a.size() && b[i] != '\0'; ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+    }
+    return i == a.size() && b[i] == '\0';
+}
+
+template <std::size_t N>
+bool inTabelle(const char* const (&t)[N], const std::string& k) {
+    return std::any_of(std::begin(t), std::end(t), [&k](const char* f) { return gleichOhneGross(k, f); });
+}
+
+// COM_ParseExt(data, qtrue) - OJK code/qcommon/q_shared.cpp:281-376, MD9 :299-394.
+struct Token {
+    bool ende = true;
+    bool offen = false;      // Anfuehrungszeichen ohne Ende (COM_Parse liest still bis zum NUL)
+    std::string text;
+    std::size_t anf = 0;
+    std::size_t bis = 0;     // hinter dem Token
+};
+
+Token naechstesToken(const std::string& t, std::size_t n, std::size_t& i) {
+    Token r;
+    for (;;) {
+        // SkipWhitespace: (unsigned char) <= ' ' (q_shared.cpp:188, "eurofix")
+        while (i < n && static_cast<unsigned char>(t[i]) <= ' ') { ++i; }
+        if (i >= n) { return r; }
+        if (t[i] == '/' && i + 1 < n && t[i + 1] == '/') {
+            i += 2;
+            while (i < n && t[i] != '\n') { ++i; }
+        } else if (t[i] == '/' && i + 1 < n && t[i + 1] == '*') {
+            i += 2;
+            while (i < n && (t[i] != '*' || i + 1 >= n || t[i + 1] != '/')) { ++i; }
+            if (i < n) { i += 2; }
+        } else {
+            break;
+        }
+    }
+    r.ende = false;
+    r.anf = i;
+    if (t[i] == '"') {
+        const std::size_t von = ++i;
+        while (i < n && t[i] != '"') { ++i; }
+        r.text = t.substr(von, std::min(i - von, kMaxTokenZeichen));
+        r.offen = i >= n;
+        if (i < n) { ++i; }
+        r.bis = i;
+        return r;
+    }
+    // Ein Wort: do { ... } while (c > 32) mit int c = *data (char ist signed) -
+    // ein Byte ab 0x80 beendet es (das erste Zeichen nimmt es immer).
+    const std::size_t von = i;
+    do {
+        ++i;
+    } while (i < n && static_cast<signed char>(t[i]) > 32);
+    r.text = t.substr(von, std::min(i - von, kMaxTokenZeichen));
+    r.bis = i;
+    return r;
+}
+
+int zeileVon(const std::string& t, std::size_t pos) {
+    return 1 + static_cast<int>(std::count(t.begin(), t.begin() + static_cast<std::ptrdiff_t>(std::min(pos, t.size())), '\n'));
+}
+
+// Die Kurzfelder - dieselbe Regel wie find (classname, targetname, origin und
+// cameraGroup sind Felder in allen drei Tabellen: der letzte gewinnt).
+void kurzfelder(MapEntity& e) {
+    const auto wert = [&e](const char* k) {
+        const std::string* v = e.find(k);
+        return v != nullptr ? *v : std::string();
+    };
+    e.classname = wert("classname");
+    e.targetname = wert("targetname");
+    e.cameraGroup = wert("cameraGroup");
+    e.origin = wert("origin");
+}
+
 }  // namespace
 
+
+bool entFeldSchluessel(const std::string& key) {
+    if (regelwerkJediOutcast()) { return inTabelle(kFelderJk2, key); }
+    return inTabelle(kFelderOjk, key) || (regelwerkMovieDuels() && inTabelle(kFelderNurMd, key));
+}
+
+int entSchluesselIndex(const MapEntity& e, const std::string& key) {
+    const int n = static_cast<int>(e.keys.size());
+    if (entFeldSchluessel(key)) {
+        // G_ParseField fuer jedes Paar der Reihe nach: der letzte Treffer bleibt stehen.
+        for (int i = n - 1; i >= 0; --i) {
+            if (gleichOhneGross(e.keys[static_cast<std::size_t>(i)].first, key.c_str())) { return i; }
+        }
+        return -1;
+    }
+    // G_SpawnString: der erste Treffer; JK2 vergleicht mit strcmp.
+    const bool genau = regelwerkJediOutcast();
+    for (int i = 0; i < n; ++i) {
+        const std::string& k = e.keys[static_cast<std::size_t>(i)].first;
+        if (genau ? k == key : gleichOhneGross(k, key.c_str())) { return i; }
+    }
+    return -1;
+}
+
 const std::string* MapEntity::find(const std::string& key) const {
-    // OHNE Ruecksicht auf Gross- und Kleinschreibung - so macht es die
-    // Engine. code/game/g_spawn.cpp, G_ParseField():
-    //
-    //     if ( !Q_stricmp(f->name, key) ) {
-    //
-    // Die Feldtabelle dort schreibt "NPC_targetname" und "NPC_type" gross,
-    // Karten schreiben mal so, mal so. Vorher verglich diese Stelle genau,
-    // und ein "NPC_targetname" in der .ent fand keinen Spawner - waehrend
-    // dieselbe Karte im Spiel einwandfrei lief.
-    //
-    // Nur die SCHLUESSEL sind unempfindlich. Klassennamen vergleicht die
-    // Engine mit strcmp, also genau - das bleibt auch hier so.
-    if (key.size() > 64) {
-        return nullptr;
-    }
-    for (const auto& [k, v] : keys) {
-        if (k.size() != key.size()) {
-            continue;
-        }
-        bool same = true;
-        for (std::size_t i = 0; i < k.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(k[i])) !=
-                std::tolower(static_cast<unsigned char>(key[i]))) {
-                same = false;
-                break;
-            }
-        }
-        if (same) {
-            return &v;
-        }
-    }
-    return nullptr;
+    // Klassennamen (die WERTE) vergleicht die Engine mit strcmp, also genau -
+    // das bleibt Sache der Aufrufer.
+    const int i = entSchluesselIndex(*this, key);
+    return i < 0 ? nullptr : &keys[static_cast<std::size_t>(i)].second;
 }
 
 void setKey(MapEntity& e, const std::string& key, const std::string& value) {
@@ -87,34 +201,14 @@ void setKey(MapEntity& e, const std::string& key, const std::string& value) {
     if (k.empty()) {
         return;
     }
-    const auto gleich = [&k](const std::string& a) {
-        if (a.size() != k.size()) { return false; }
-        for (std::size_t i = 0; i < a.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(k[i]))) {
-                return false;
-            }
-        }
-        return true;
-    };
-    auto it = std::find_if(e.keys.begin(), e.keys.end(), [&](const auto& kv) { return gleich(kv.first); });
     if (v.empty()) {
-        if (it != e.keys.end()) { e.keys.erase(it); }
-    } else if (it != e.keys.end()) {
-        it->second = v;
+        std::erase_if(e.keys, [&k](const auto& kv) { return gleichOhneGross(kv.first, k.c_str()); });
+    } else if (const int i = entSchluesselIndex(e, k); i >= 0) {
+        e.keys[static_cast<std::size_t>(i)].second = v;
     } else {
         e.keys.emplace_back(k, v);
     }
-    // Die Abkuerzungen wie beim Lesen - genau dieselben Schluessel.
-    e.classname.clear();
-    e.targetname.clear();
-    e.cameraGroup.clear();
-    e.origin.clear();
-    for (const auto& [kk, vv] : e.keys) {
-        if (kk == "classname") { e.classname = vv; }
-        else if (kk == "targetname") { e.targetname = vv; }
-        else if (kk == "cameraGroup") { e.cameraGroup = vv; }
-        else if (kk == "origin") { e.origin = vv; }
-    }
+    kurzfelder(e);
 }
 
 std::string writeEntities(const std::vector<MapEntity>& ents) {
@@ -133,71 +227,68 @@ std::string writeEntities(const std::vector<MapEntity>& ents) {
     return out;
 }
 
-void parseEntities(const std::string& text, std::vector<MapEntity>& out) {
+bool parseEntitiesGenau(const std::string& text, std::vector<MapEntity>& out, std::vector<EntBlockSpanne>* spannen,
+                        EntTextFehler* fehler) {
     out.clear();
+    if (spannen != nullptr) { spannen->clear(); }
+    const std::size_t n = std::min(text.find('\0'), text.size());
     std::size_t i = 0;
-    const std::size_t n = text.size();
-
-    while (i < n) {
-        // Bis zur naechsten oeffnenden Klammer
-        while (i < n && text[i] != '{') {
-            ++i;
+    std::size_t mehrzeilig = std::string::npos;   // in der laufenden Entity
+    const auto merke = [&](const Token& tk) {
+        if (mehrzeilig == std::string::npos && tk.anf < n && text[tk.anf] == '"' && tk.text.find('\n') != std::string::npos) { mehrzeilig = tk.anf; }
+    };
+    const auto fehl = [&](EntFehler art, std::size_t pos, const std::string& token) {
+        if (fehler != nullptr) {
+            fehler->art = art;
+            fehler->zeile = zeileVon(text, pos);
+            fehler->token = token;
+            fehler->zeileMehrzeilig = mehrzeilig == std::string::npos ? 0 : zeileVon(text, mehrzeilig);
         }
-        if (i >= n) {
-            break;
-        }
-        ++i;
-
+        return false;
+    };
+    for (;;) {
+        const Token auf = naechstesToken(text, n, i);
+        if (auf.ende) { break; }   // Ende des Texts: fertig
+        if (auf.offen) { return fehl(EntFehler::OffenesAnfuehrungszeichen, auf.anf, auf.text); }
+        // com_token[0] != '{' - auch "{abc" gilt als Klammer (das Wort danach verschluckt).
+        if (auf.text.empty() || auf.text[0] != '{') { return fehl(EntFehler::KlammerErwartet, auf.anf, auf.text); }
         MapEntity e;
-        while (i < n && text[i] != '}') {
-            // Schluessel und Wert stehen jeweils in Anfuehrungszeichen.
-            while (i < n && text[i] != '"' && text[i] != '}') {
-                ++i;
-            }
-            if (i >= n || text[i] == '}') {
+        EntBlockSpanne sp;
+        sp.anf = auf.anf;
+        mehrzeilig = std::string::npos;
+        std::size_t zeichen = 0;
+        for (;;) {
+            const Token k = naechstesToken(text, n, i);
+            if (k.ende) { return fehl(EntFehler::OhneSchliessendeKlammer, auf.anf, std::string()); }
+            if (k.offen) { return fehl(EntFehler::OffenesAnfuehrungszeichen, k.anf, k.text); }
+            merke(k);
+            if (!k.text.empty() && k.text[0] == '}') {
+                sp.ende = k.bis;
                 break;
             }
-            const std::size_t ks = ++i;
-            while (i < n && text[i] != '"') {
-                ++i;
-            }
-            if (i >= n) {
-                break;
-            }
-            const std::string key = text.substr(ks, i - ks);
-            ++i;
-
-            while (i < n && text[i] != '"' && text[i] != '}') {
-                ++i;
-            }
-            if (i >= n || text[i] == '}') {
-                // Schluessel ohne Wert - halbe Zeile, kommt in von Hand
-                // bearbeiteten Karten vor. Nicht abweisen, nur uebergehen.
-                break;
-            }
-            const std::size_t vs = ++i;
-            while (i < n && text[i] != '"') {
-                ++i;
-            }
-            if (i >= n) {
-                break;
-            }
-            const std::string value = text.substr(vs, i - vs);
-            ++i;
-
-            if (key == "classname") { e.classname = value; }
-            else if (key == "targetname") { e.targetname = value; }
-            else if (key == "cameraGroup") { e.cameraGroup = value; }
-            else if (key == "origin") { e.origin = value; }
-            e.keys.emplace_back(key, value);
-        }
-        if (i < n && text[i] == '}') {
-            ++i;
+            const Token w = naechstesToken(text, n, i);
+            if (w.ende) { return fehl(EntFehler::OhneSchliessendeKlammer, auf.anf, std::string()); }
+            if (w.offen) { return fehl(EntFehler::OffenesAnfuehrungszeichen, w.anf, w.text); }
+            merke(w);
+            if (!w.text.empty() && w.text[0] == '}') { return fehl(EntFehler::KlammerOhneWert, w.anf, k.text); }
+            if (static_cast<int>(e.keys.size()) == kMaxSpawnVars) { return fehl(EntFehler::ZuVielePaare, k.anf, k.text); }
+            zeichen += k.text.size() + 1 + w.text.size() + 1;
+            if (zeichen > static_cast<std::size_t>(kMaxSpawnVarsChars)) { return fehl(EntFehler::ZuVieleZeichen, k.anf, k.text); }
+            e.keys.emplace_back(k.text, w.text);
+            sp.paare.push_back({k.anf, k.bis, w.anf, w.bis});
         }
         if (!e.keys.empty()) {
+            kurzfelder(e);
             out.push_back(std::move(e));
+            if (spannen != nullptr) { spannen->push_back(std::move(sp)); }
         }
     }
+    return true;
+}
+
+void parseEntities(const std::string& text, std::vector<MapEntity>& out) {
+    // Fehler wie im Spiel erkannt, aber nicht abgewiesen: was davor steht, bleibt.
+    (void)parseEntitiesGenau(text, out);
 }
 
 bool readBspEntityLump(const std::string& bytes, std::string& text, std::string* error) {

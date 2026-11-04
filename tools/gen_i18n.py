@@ -2227,6 +2227,8 @@ from i18n_rc609_w1 import zeilen_vier as _rc609_w1  # noqa: E402  (rc609 W1: Weg
 S += _rc609_w1()
 from i18n_rc609_w2a import zeilen_vier as _rc609_w2a  # noqa: E402  (rc609 W2a: Dateien an Ort und Stelle speichern)
 S += _rc609_w2a()
+from i18n_rc609_w2b import zeilen_vier as _rc609_w2b  # noqa: E402  (rc609 W2b: Entity-Texteditor, Leser wie das Spiel)
+S += _rc609_w2b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

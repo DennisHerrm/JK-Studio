@@ -52,6 +52,9 @@ struct MissionInhalt {
     std::string name;                 // "md_tpa_jedi" -> maps/md_tpa_jedi.bsp/.ent
     std::string bsp;                  // die Kartengeometrie (leer: nicht mitpacken)
     std::vector<MapEntity> entities;  // ALLE Entities
+    // rc609 W2b: der Text der .ent (Entity-Texteditor, Kommentare und Reihenfolge);
+    // leer: writeEntities(entities).
+    std::string entText;
     struct Skript {
         std::string ref;              // "md_tpa/intro_jedi"
         std::string text;             // Quelltext
@@ -103,8 +106,7 @@ struct MissionBefund {
 // Schluessel und Wert). OJK code/game/g_local.h:221-222, g_spawn.cpp:1188, 1255;
 // Movie Duels 9 gleich (code/game/g_local.h:246-247, g_spawn.cpp:1353, 1427);
 // JK2 gleich (codeJK2/game/g_local.h:176-177).
-constexpr int kMaxSpawnVars = 64;
-constexpr int kMaxSpawnVarsChars = 2048;
+// kMaxSpawnVars und kMaxSpawnVarsChars stehen seit rc609 W2b in bsp.h (der Leser prueft sie auch).
 void entityGrenzenPruefen(const std::vector<MapEntity>& ents, std::vector<MissionBefund>& befunde);
 
 // rc609 W2a F1: die Skripte, die ein Skript selbst startet - run ( "x" ) und

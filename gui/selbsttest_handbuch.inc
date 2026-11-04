@@ -2445,6 +2445,111 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     // neuen Befehlen und die Frage nach dem Weg fuer eine Datei aus einer .pk3 -
     // md_am_sith aus dem eingerichteten Movie-Duels-Ordner. Abbrechen: nichts wird
     // in den Spielordner geschrieben.
+    // rc609 W2b: die Bilder des Abschnitts "Entities als Text bearbeiten" (Seite Missionen):
+    // md_am_sith aus dem Movie-Duels-Ordner, eine Entity in 3D gewaehlt und im Text
+    // hinterlegt; dann ein offenes Anfuehrungszeichen und die Meldung mit Zeile.
+    // Nichts wird gespeichert.
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "enttext") == 0) {
+        std::vector<Schritt> t;
+        auto md = std::make_shared<std::string>();
+        auto ent = std::make_shared<int>(-1);
+        auto zeile = std::make_shared<int>(-1);
+        t.push_back(tu("Handbuch Entity-Text: Archiv mit maps/md_am_sith.bsp laden", [=] {
+            for (const GamePath& gp : g_app->gamePaths) {
+                for (const Pk3& arc : gp.archives) {
+                    if (arc.find("maps/md_am_sith.bsp") != nullptr) { *md = arc.path; }
+                }
+            }
+            g_app->leftMode = 1;
+            if (!md->empty()) { missionenAusArchiv(*md); }
+        }));
+        t.push_back(warteBis("Handbuch Entity-Text: Missionsauswahl offen", [] { return g_app->missionPickOpen; }, 600));
+        t.push_back(waehleInListe("md_am_sith", false, 0, "##missionpick"));
+        t.push_back(warteBis("Handbuch Entity-Text: geladen", [] { return g_app->map.path == "maps/md_am_sith.bsp" && !g_app->geo.empty(); }, 3000));
+        t.push_back(pause(1.0));
+        t.push_back(tu("Handbuch Entity-Text: Panel auf, einen Spawner in 3D waehlen", [=] {
+            g_app->playing = false;
+            g_app->throughCamera = false;
+            g_app->cameraSelected = false;
+            g_app->selectedActor = -1;
+            dock::ausblenden("mission.enttext", false);
+            const ImGuiViewport* vp = ImGui::GetMainViewport();
+            const std::string name = dock::fensterName("mission.enttext");
+            const ImRect k = hb::karte();
+            ImGui::SetWindowPos(name.c_str(), ImVec2{k.Min.x + k.GetWidth() * 0.52F, k.Min.y + 8.0F});
+            ImGui::SetWindowSize(name.c_str(), ImVec2{k.GetWidth() * 0.47F, std::min(k.GetHeight() - 16.0F, vp->WorkSize.y * 0.8F)});
+            for (std::size_t i = 0; i < g_app->map.entities.size() && *ent < 0; ++i) {
+                const MapEntity& e = g_app->map.entities[i];
+                if (e.classname == "NPC_spawner" && !e.origin.empty() && e.find("npc_targetname") != nullptr) { *ent = static_cast<int>(i); }
+            }
+            float p[3]{};
+            if (*ent >= 0 && entityOrt(g_app->map.entities[static_cast<std::size_t>(*ent)], p)) {
+                const float ziel[3] = {p[0], p[1], p[2] + 30.0F};
+                g_app->cam.pos[0] = p[0] - 260.0F;
+                g_app->cam.pos[1] = p[1] + 120.0F;
+                g_app->cam.pos[2] = p[2] + 140.0F;
+                aimAngles(g_app->cam.pos, ziel, g_app->cam.angles);
+                g_app->cam.angles[1] -= 22.0F;   // die Entity links im Bild, rechts steht das Panel
+            }
+            entityAuswahlSetzen(*ent);
+            g_app->mapDirty = true;
+        }));
+        t.push_back(gezeichnet("Handbuch Entity-Text"));
+        t.push_back(pause(0.8));
+        hb::markiere("h_enttext", [=] {
+            int von = -1;
+            int bis = -1;
+            entTextHinterlegt(von, bis);
+            const ImVec2 a = entTextZeilenOrt(von, 0);
+            const ImVec2 b = entTextZeilenOrt(bis, 0);
+            const ImRect f = hb::fensterRect("###dock.mission.enttext");
+            return std::vector<hb::Marke>{hb::Marke(ImRect{f.Min.x + 4.0F, a.y - ImGui::GetFontSize(), f.Max.x - 4.0F, b.y + ImGui::GetFontSize()})};
+        });
+        t.push_back(hb::fotoTeil("h_enttext", [] {   // die ganze Kartenansicht samt Panel: mindestens 1920 breit
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Add(hb::fensterRect("###dock.mission.enttext"));
+            return r;
+        }));
+        t.push_back(tu("Handbuch Entity-Text: origin-Zeile merken", [=] {
+            const int von = entTextBlockZeile(*ent);
+            const std::string& p = entTextPuffer();
+            int z = 0;
+            for (std::size_t i = 0; i < p.size(); ++i) {
+                if (z > von && p.compare(i, 8, "\"origin\"") == 0) {
+                    *zeile = z;
+                    break;
+                }
+                if (p[i] == '\n') { ++z; }
+            }
+        }));
+        t.push_back(klickAn("Handbuch Entity-Text: in die origin-Zeile", [=] { return entTextZeilenOrt(*zeile, 2); }));
+        t.push_back(taste(ImGuiKey_End, "Ende"));
+        t.push_back(taste(ImGuiKey_Backspace, "Rueck (das schliessende Anfuehrungszeichen)"));
+        t.push_back(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Enter, "Strg+Enter"));
+        t.push_back(pause(0.5));
+        hb::markiere("h_enttext_fehler", [=] {
+            const ImVec2 a = entTextZeilenOrt(entTextFehlerZeile(), 0);
+            const ImRect f = hb::fensterRect("###dock.mission.enttext");
+            const float fs = ImGui::GetFontSize();
+            ImVec2 m0;
+            ImVec2 m1;
+            entTextMeldungOrt(m0, m1);
+            return std::vector<hb::Marke>{hb::Marke(ImRect{f.Min.x + 4.0F, a.y - fs * 0.8F, f.Max.x - 4.0F, a.y + fs * 0.8F}, 1),
+                                          hb::Marke(ImRect{m0.x - 4.0F, m0.y - 3.0F, m1.x + 6.0F, m1.y + 3.0F}, 2)};
+        });
+        t.push_back(hb::fotoTeil("h_enttext_fehler", [] {
+            ImRect r = hb::karte();
+            r.Min.x = 0.0F;
+            r.Add(hb::fensterRect("###dock.mission.enttext"));
+            return r;
+        }));
+        t.push_back(tu("Handbuch Entity-Text: nichts gespeichert, Panel zu", [] {
+            dock::ausblenden("mission.enttext", true);
+            g_app->entitiesUngespeichert.clear();
+        }));
+        return t;
+    }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "speichern") == 0) {
         std::vector<Schritt> t;
         auto md = std::make_shared<std::string>();

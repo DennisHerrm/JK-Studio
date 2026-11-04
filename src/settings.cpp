@@ -160,6 +160,8 @@ std::string writeSettings(const Settings& s) {
     put(o, "pk3SpeicherWeg", std::to_string(s.pk3SpeicherWeg));
     put(o, "missionsordnerAblauf", s.missionsordnerAblauf);
     put(o, "skriptVorlage", s.skriptVorlage);
+    put(o, "fs_dirbeforepak", s.fsDirBeforePak);
+    put(o, "entTextOffen", s.entTextOffen);
     put(o, "showTypes", s.showTypes);
     put(o, "gFloats", s.gFloats);
     put(o, "foldMacros", s.foldMacros);
@@ -318,6 +320,8 @@ bool readSettings(const std::string& text, Settings& out) {
         }
         else if (key == "missionsordnerAblauf") { out.missionsordnerAblauf = toBool(value); }
         else if (key == "skriptVorlage") { out.skriptVorlage = toBool(value); }
+        else if (key == "fs_dirbeforepak") { out.fsDirBeforePak = toBool(value); }
+        else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
         else if (key == "gFloats") { out.gFloats = toBool(value); }
         else if (key == "foldMacros") { out.foldMacros = toBool(value); }
         else if (key == "uiScale") {

@@ -7,9 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
-#include <fstream>
 #include <set>
-#include <sstream>
 
 namespace bhed::menue {
 
@@ -36,24 +34,8 @@ bool Spieldaten::ordnerDazu(const std::string& pfad) {
 }
 
 bool Spieldaten::lies(const std::string& pfad, std::string& out) const {
-    const std::string n = norm(pfad);
-    for (auto o = ordner.rbegin(); o != ordner.rend(); ++o) {
-        for (auto a = o->archives.rbegin(); a != o->archives.rend(); ++a) {
-            const Pk3Entry* e = a->find(n);
-            if (e != nullptr && readPk3File(*a, *e, out, nullptr)) { return true; }
-        }
-        std::error_code ec;
-        // rc608 Teil 3b: Namen aus Menues sind Latin-1, das Programm laeuft mit UTF-8 als Systemseite: Ein schmaler Pfad warf hier eine Ausnahme
-        const std::filesystem::path lose = utf8Pfad(o->directory) / utf8Pfad(pfad);
-        if (!o->directory.empty() && std::filesystem::is_regular_file(lose, ec)) {
-            std::ifstream f(lose, std::ios::binary);
-            std::ostringstream s;
-            s << f.rdbuf();
-            out = s.str();
-            return true;
-        }
-    }
-    return false;
+    // rc609 W2b: dieselbe Suche wie die Vorschau (liesWieSpiel, fs_dirbeforepak 0).
+    return liesWieSpiel(ordner, norm(pfad), false, out);
 }
 
 bool Spieldaten::gibt(const std::string& pfad) const {
