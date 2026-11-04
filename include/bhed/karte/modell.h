@@ -37,6 +37,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -76,6 +77,13 @@ bool aseLesen(const std::string& text, const std::string& modellPfad, Modell& m,
 bool glmLesen(const std::string& bytes, const std::string& skinText, Modell& m, std::string* fehler = nullptr);
 // Kennt der Editor die Endung (ModelLoader_forType)?
 [[nodiscard]] bool modellArtBekannt(const std::string& pfad);
+// rc609 KEMD (modell_assimp.cpp): .obj, .fbx, .gltf, .glb ueber assimp wie NRCs assmodel und q3map2 (LoadModel);
+// `leser` holt eine Datei aus dem Spiel-VFS (auch .mtl und Texturen, die das Modell nennt).
+using ModellDateiLeser = std::function<bool(const std::string& pfad, std::string& bytes)>;
+[[nodiscard]] bool modellArtAssimp(const std::string& pfad);
+bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler = nullptr);
+// updateAABB: die Grenzen der Flaechen und des Modells
+void modellGrenzenRechnen(Modell& m);
 
 // q3map2 InsertModel: der Name der .skin-Datei fuer "_skin"/"skin" (Ziffern:
 // <modell>_<n>.skin, sonst <modell ohne Endung>_<name>.skin) und ihr Inhalt

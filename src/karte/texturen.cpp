@@ -31,6 +31,7 @@
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <unordered_set>
 
 namespace bhed::karte {
 
@@ -487,9 +488,13 @@ void Dateisystem::pfadeSammeln(const Archiv& a, const std::string& basis, std::s
     }
 }
 
-// GetListInternal (vfs.cpp:150-174) mit DirectoryListVisitor / FileListVisitor
+// GetListInternal (vfs.cpp:150-174) mit DirectoryListVisitor / FileListVisitor. Doppelte Namen (ohne Gross/klein,
+// der erste bleibt) ueber eine Menge statt durch Vergleich mit allen bisherigen: dieselbe Liste in derselben
+// Reihenfolge, aber linear - mit den Movie-Duels-Daten (26730 Modelle und Klaenge) hielt der quadratische
+// Vergleich das Programm beim Oeffnen des Asset-Browsers 32 s an (rc609 KEMD).
 std::vector<std::string> Dateisystem::verzeichnisse(const std::string& basis, std::size_t tiefe) const {
     std::vector<std::string> treffer;
+    std::unordered_set<std::string> gesehen;
     for (const auto& a : m_archive) {
         std::vector<std::string> namen;
         pfadeSammeln(a, basis, tiefe, true, namen);
@@ -497,9 +502,7 @@ std::vector<std::string> Dateisystem::verzeichnisse(const std::string& basis, st
             std::string sub = n.substr(basis.size());
             if (!sub.empty() && sub[0] == '/') { sub.erase(0, 1); }
             if (!sub.empty() && sub.back() == '/') { sub.pop_back(); }
-            if (std::none_of(treffer.begin(), treffer.end(), [&](const std::string& t) { return gleichOhneFall(t, sub); })) {
-                treffer.push_back(sub);
-            }
+            if (gesehen.insert(klein(sub)).second) { treffer.push_back(sub); }
         }
     }
     return treffer;
@@ -518,6 +521,7 @@ void Dateisystem::dateienImArchiv(const std::string& archiv, const std::string& 
 
 std::vector<std::string> Dateisystem::dateien(const std::string& basis, const std::string& endungWunsch, std::size_t tiefe) const {
     std::vector<std::string> treffer;
+    std::unordered_set<std::string> gesehen;   // wie verzeichnisse(): erster Treffer bleibt, ohne Gross/klein
     for (const auto& a : m_archive) {
         std::vector<std::string> namen;
         pfadeSammeln(a, basis, tiefe, false, namen);
@@ -525,9 +529,7 @@ std::vector<std::string> Dateisystem::dateien(const std::string& basis, const st
             std::string sub = n.substr(basis.size());
             if (!sub.empty() && sub[0] == '/') { sub.erase(0, 1); }
             if (endungWunsch != "*" && !gleichOhneFall(endung(sub), endungWunsch)) { continue; }   // path_extension_is
-            if (std::none_of(treffer.begin(), treffer.end(), [&](const std::string& t) { return gleichOhneFall(t, sub); })) {
-                treffer.push_back(sub);
-            }
+            if (gesehen.insert(klein(sub)).second) { treffer.push_back(sub); }
         }
     }
     return treffer;

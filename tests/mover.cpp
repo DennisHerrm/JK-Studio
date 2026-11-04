@@ -49,14 +49,16 @@ MapEntity ent(const std::string& klasse,
     return e;
 }
 
-// Modell n: ein Tuerblatt 8 breit (x), 64 lang (y), 128 hoch (z).
+// Modell n: ein Tuerblatt 8 breit (x), 64 lang (y), 128 hoch (z) - so, wie das Spiel es sieht. rc609 KEMD: Lump 7 ist
+// je Seite eine Einheit kleiner, denn CMod_LoadSubmodels spreizt die Grenzen um einen Punkt (cm_load.cpp:201-203 MD),
+// und SP_func_door/SP_func_plat rechnen mit diesen (ent->maxs - ent->mins).
 BspGeometry geometrie(int anzahl) {
     BspGeometry g;
     g.models.resize(static_cast<std::size_t>(anzahl) + 1);
     for (int i = 1; i <= anzahl; ++i) {
         auto& m = g.models[static_cast<std::size_t>(i)];
-        m.mins[0] = 0; m.mins[1] = 0; m.mins[2] = 0;
-        m.maxs[0] = 8; m.maxs[1] = 64; m.maxs[2] = 128;
+        m.mins[0] = 1; m.mins[1] = 1; m.mins[2] = 1;
+        m.maxs[0] = 7; m.maxs[1] = 63; m.maxs[2] = 127;
     }
     return g;
 }

@@ -1894,6 +1894,8 @@ bool assetAbgelegt(std::size_t index, ImVec2 punkt);
 void assetSucheSetzen(const std::string& suche, int art);   // Selbsttest
 bool assetZelleMitte(std::size_t index, ImVec2& aus);         // Selbsttest: Mitte der Zelle im letzten Bild
 void assetBrowserNach(ImVec2 ort);                             // Selbsttest: Fenster dorthin
+[[nodiscard]] bool assetSammelnLaeuft();                       // rc609 KEMD: Sammeln im Hintergrund noch nicht fertig
+[[nodiscard]] const std::vector<karte::Asset>& assetListeAlle();   // rc609 KEMD (Selbsttest): die Liste, ohne zu sammeln
 // Stufe 9 Punkt 9 (app_karte_ueberblenden.cpp): Texturen ueberblenden (q3map2 _indexmap)
 [[nodiscard]] bool ueberblendenOffen();
 void ueberblendenUmschalten();

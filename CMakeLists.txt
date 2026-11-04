@@ -1167,6 +1167,8 @@ target_sources(bhed_core PRIVATE
   src/karte/filter.cpp
   src/karte/ebenen.cpp
   src/karte/modell.cpp
+  # rc609 KEMD: .obj/.fbx/.gltf/.glb im Karten-Editor ueber assimp (wie NRCs assmodel und q3map2)
+  src/karte/modell_assimp.cpp
   src/karte/modellbrowser.cpp
   src/karte/spielbeschreibung.cpp
   # Stufe 9 Punkt 1: Im Spiel testen (Suchpfad, Archiv, Befehlszeile)
@@ -1615,6 +1617,12 @@ if(BEHAVED_TESTS)
   add_executable(karteassets tests/karteassets.cpp)
   target_link_libraries(karteassets PRIVATE bhed_core)
   add_test(NAME karte_assets COMMAND karteassets)
+  # rc609 KEMD: .obj im Karten-Editor (assimp wie NRCs assmodel) gegen q3map2 -bhedmodels (Shader, Ecken, Dreiecke)
+  if(TARGET bhed_q3map2)
+    add_executable(karteobj tests/karteobj.cpp)
+    target_link_libraries(karteobj PRIVATE bhed_core)
+    add_test(NAME karte_obj COMMAND karteobj $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe)
+  endif()
   # Fund md_rev_TarisUpper2: "Fix all safe" aendert nichts Sichtbares (Glas, Werkzeug-Seiten)
   add_executable(karteoptsicher tests/karteoptsicher.cpp)
   target_link_libraries(karteoptsicher PRIVATE bhed_core)

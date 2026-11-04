@@ -5645,6 +5645,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_bspmerge.inc"   // rc609 B1: Brush-Entities in fertige Karten einfuegen
 #include "selbsttest_deckung.inc"   // rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung
 #include "selbsttest_modellsetzen.inc"   // rc609 M0: vorhandene Modelle mit einem Klick in die Karte
+#include "selbsttest_kemd.inc"   // rc609 KEMD: Karten-Editor mit Movie-Duels-Daten (Shader, Asset-Browser)
 #include "selbsttest_figurlicht.inc"   // figurlicht: Lichtgitter gegen r_debuglight im Spiel (rc608)
 #include "selbsttest_teil6.inc"       // teil6: Portale und Schmerz (rc608)
 #include "selbsttest_teil9.inc"       // teil9: Spieler in Cutscenes, Licht der Modelle (rc608)
@@ -5950,6 +5951,7 @@ void selbsttest() {
     static const bool nurKampfpunkte = std::strcmp(modus, "kampfpunkte") == 0;   // rc609 W4
     static const bool nurDeckung = std::strcmp(modus, "deckung") == 0;   // rc609 H2
     static const bool nurModellSetzen = std::strcmp(modus, "modellsetzen") == 0;   // rc609 M0
+    static const bool nurKemd = std::strcmp(modus, "kemd") == 0;   // rc609 KEMD
     static const bool nurModell = std::strcmp(modus, "modell") == 0;
     static const bool nurModellLeistung = std::strcmp(modus, "modellleistung") == 0;   // modell1
     // Stufe 1b: der Karten-Editor (NetRadiant-Custom).
@@ -6252,6 +6254,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurModellSetzen) {
                 a.schritte = modellsetzenSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurKemd) {
+                a.schritte = kemdSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurGeschuetze) {

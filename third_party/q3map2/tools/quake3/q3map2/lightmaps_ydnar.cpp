@@ -1130,7 +1130,17 @@ void SetupSurfaceLightmaps(){
 		lm.customHeight             = info.si->lmCustomHeight;
 
 		/* add the surface to the raw lightmap */
-		AddSurfaceToRawLightmap( num, lm );
+		/* BehavEd rc609 KEMD (NetRadiant-Custom crashes here as well): the first surface is refused only for a
+		   lightmap projection axis of ( 0 0 0 ) ("Chose a 0 valued axis", lm.w = lm.h = 0). NRC kept the empty raw
+		   lightmap; MapRawLightmap then clamped the luxel coordinates to [ 0, sw - 1 ] = [ 0, -1 ] and wrote before
+		   the zero-sized buffer (0xC0000005). The surface stays without a raw lightmap and is vertex lit like
+		   every surface with info.lm == nullptr (IlluminateVertexes, StoreSurfaceLightmaps: LIGHTMAP_BY_VERTEX). */
+		if ( !AddSurfaceToRawLightmap( num, lm ) ) {
+			numLightSurfaces -= lm.numLightSurfaces;
+			numRawLightmaps--;
+			std::memset( static_cast<void*>( &lm ), 0, sizeof( lm ) );
+			continue;
+		}
 		info.lm = &lm;
 
 		/* do an exhaustive merge */

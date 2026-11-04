@@ -39,6 +39,15 @@ bool gleichOhneFall(const std::string& a, const std::string& b) {
     return true;
 }
 
+// rc609 KEMD: ent->maxs - ent->mins eines Brush-Modells. gi.SetBrushModel nimmt CM_ModelBounds, und
+// CMod_LoadSubmodels hat die Grenzen der .bsp um einen Punkt gespreizt (cm_load.cpp:201-203 MD, :155-157 OpenJK):
+// je Achse 2 mehr als in Lump 7. SP_func_door (g_mover.cpp:1561-1563 MD) und SP_func_plat (:1741) rechnen damit
+// ihren Weg - ohne die 2 stand eine START_OPEN-Tuer mit lip ueber der Breite (jtg doorsBottom2) 2 Einheiten
+// falsch, und ein Wegpunkt galt als frei, den das Spiel "in solid" meldet.
+float cmGroesse(const BspGeometry::SubModel& sm, int achse) {
+    return (sm.maxs[achse] + 1.0F) - (sm.mins[achse] - 1.0F);
+}
+
 float zahl(const MapEntity& e, const char* key, float vorgabe, bool* gesetzt = nullptr) {
     const std::string* v = e.find(key);
     if (gesetzt != nullptr) { *gesetzt = (v != nullptr && !v->empty()); }
@@ -772,8 +781,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             float speed = zahl(e, "speed", 0.0F);
             if (speed == 0.0F) { speed = 400.0F; }
             const float lip = zahl(e, "lip", 8.0F);
-            const float groesse[3] = {sm.maxs[0] - sm.mins[0], sm.maxs[1] - sm.mins[1],
-                                      sm.maxs[2] - sm.mins[2]};
+            const float groesse[3] = {cmGroesse(sm, 0), cmGroesse(sm, 1), cmGroesse(sm, 2)};
             const float weite = std::fabs(dir[0]) * groesse[0] + std::fabs(dir[1]) * groesse[1] +
                                 std::fabs(dir[2]) * groesse[2] - lip;
             Tuer t;
@@ -885,7 +893,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             bool gesetzt = false;
             float hoehe = zahl(e, "height", 0.0F, &gesetzt);
             if (!gesetzt) {
-                hoehe = (sm.maxs[2] - sm.mins[2]) - zahl(e, "lip", 8.0F);
+                hoehe = cmGroesse(sm, 2) - zahl(e, "lip", 8.0F);   // ent->maxs[2] - ent->mins[2] (g_mover.cpp:1741 MD)
             }
             m.origin0[2] -= hoehe;
             continue;
@@ -2285,8 +2293,7 @@ bool tuerStellungen(const MapEntity& e, const BspGeometry& geo, float pos1[3], f
     float dir[3];
     bewegungsRichtung(ang, dir);
     const float lip = zahl(e, "lip", 8.0F);
-    const float weite = std::fabs(dir[0]) * (sm.maxs[0] - sm.mins[0]) + std::fabs(dir[1]) * (sm.maxs[1] - sm.mins[1]) +
-                        std::fabs(dir[2]) * (sm.maxs[2] - sm.mins[2]) - lip;
+    const float weite = std::fabs(dir[0]) * cmGroesse(sm, 0) + std::fabs(dir[1]) * cmGroesse(sm, 1) + std::fabs(dir[2]) * cmGroesse(sm, 2) - lip;
     for (int k = 0; k < 3; ++k) {
         pos1[k] = o[k];
         pos2[k] = o[k] + dir[k] * weite;

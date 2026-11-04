@@ -2254,6 +2254,8 @@ from i18n_rc609_b13 import zeilen_vier as _rc609_b13  # noqa: E402  (rc609 B13: 
 S += _rc609_b13()
 from i18n_rc609_me1 import zeilen_vier as _rc609_me1  # noqa: E402  (rc609 ME1: Menue oeffnen auf dem Startbildschirm)
 S += _rc609_me1()
+from i18n_rc609_kemd import zeilen_vier as _rc609_kemd  # noqa: E402  (rc609 KEMD: Asset-Browser sammelt im Hintergrund)
+S += _rc609_kemd()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

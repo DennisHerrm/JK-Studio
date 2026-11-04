@@ -7501,4 +7501,6 @@ TEXTE.update({
         "**Bez projektu:** Když není otevřené žádné menu, úvodní obrazovka ukazuje **{{MeStartMenueOeffnen}}** vedle **{{MePrjNeu}}** a **{{MePrjOeffnen}}**. Nabízí **{{MeAusSpiel}}**, **{{MeDateiOeffnen}}** a **{{MeMenuesatzOeffnen}}**. Upravte menu a stiskněte <kbd>Ctrl</kbd>+<kbd>S</kbd>: soubor mimo složky hry se zapíše zpět na stejné místo; menu ze hry nebo z jejích složek se jednou zeptá, kam dát vaši kopii, protože editor nikdy nemění složky hry. Stejná tlačítka zůstávají nahoře v liště.",
     "The start screen of the menu editor: open an existing menu without a project.":
         "Úvodní obrazovka editoru menu: otevřete existující menu bez projektu.",
+    "With large game data (Movie Duels) the list is collected in the background: a bar with **{{KeAbSammelt}}** shows the progress and the editor stays usable. Models in .obj, .fbx, .gltf and .glb show the surfaces and shaders that q3map2 bakes in.":
+        "S velkými herními daty (Movie Duels) vzniká seznam na pozadí: pruh s **{{KeAbSammelt}}** ukazuje průběh a editor zůstává použitelný. Modely .obj, .fbx, .gltf a .glb ukazují plochy a shadery, které q3map2 zapeče.",
 })
