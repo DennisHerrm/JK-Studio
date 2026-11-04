@@ -3,6 +3,7 @@
 #include "bhed/wegpunkte.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -15,6 +16,7 @@
 #include <queue>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <tuple>
 #include <unordered_map>
 
@@ -1303,6 +1305,179 @@ std::vector<WegBefund> pruefeWegNetz(const WegNetz& netz, const std::vector<MapE
         std::snprintf(z, sizeof(z), "%s: target \"%s\" does not exist", n.name.empty() ? "?" : n.name.c_str(),
                       name.c_str());
         aus.push_back(WegBefund{WegBefund::Art::ZielFehlt, k, z});
+    }
+    return aus;
+}
+
+// --- rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung ----------------------------------
+//
+// Die Regel steht in wegpunkte.h (NPC_FindCombatPoint mit CP_CLEAR|CP_COVER, wie ST_Commander ihn ruft). Die Reihenfolge
+// der Pruefungen ist hier eine andere als im Spiel (erst die Deckung, die im Freien mit dem ersten Strahl scheitert), das
+// Ergebnis dasselbe: alle Bedingungen muessen gelten.
+// Aus bhed/scene.h (dort mit den Quellstellen: CalcMuzzlePoint g_weapon.cpp:449, ps.viewheight bg_pmove.cpp:5717) - die
+// Datei bringt Konstanten mit, die hier anders heissen sollen (kStufe), darum nur diese beiden.
+void muzzlePoint(const float origin[3], float yawDeg, const std::string& weapon, float out[3]);
+namespace {
+constexpr float kKopf = 36.0F;   // kStandAugenhoehe: standheight 40 + STANDARD_VIEWHEIGHT_OFFSET -4
+}  // namespace
+
+bool wegDeckungGilt(const WegSichtFn& sicht, const WegKastenFn& kastenFrei, const std::array<float, 3>& ort,
+                    const std::array<float, 3>& feind, const WegDeckungRegeln& r) {
+    if (!sicht) { return false; }
+    const float dx = ort[0] - feind[0];
+    const float dy = ort[1] - feind[1];
+    const float dz = ort[2] - feind[2];
+    const float d2 = dx * dx + dy * dy + dz * dz;
+    if (r.sammeln > 0.0F && d2 >= r.sammeln * r.sammeln) { return false; }   // NPC_CollectCombatPoints: distance < radiusSqr
+    if (d2 > r.sichtweite * r.sichtweite) { return false; }                   // CP_CLEAR: distSqPointToEnemy > visRangeSq
+    if (r.meiden > 0.0F && d2 < r.meiden * r.meiden) { return false; }        // CP_AVOID_ENEMY: distSqPointToEnemy < avoidDist
+    if (kastenFrei && !kastenFrei(ort)) { return false; }                     // tr.allsolid || tr.startsolid
+    // SPOT_HEAD_LEAN ohne eyePoint: currentOrigin + ps.viewheight
+    const std::array<float, 3> kopf{feind[0], feind[1], feind[2] + kKopf};
+    // CP_COVER: G_ClearLOS(origin, Feind) - SPOT_ORIGIN, dann SPOT_HEAD_LEAN (Jedi Outcast: nur die Position des Feindes)
+    if (sicht(ort, feind)) { return false; }
+    if (r.jk2) { return sicht(ort, kopf); }   // CP_CLEAR vom origin: der Ursprung ist verdeckt, also der Kopf
+    if (sicht(ort, kopf)) { return false; }
+    // CP_CLEAR: CalcEntitySpot(NPC, SPOT_WEAPON) - CalcMuzzlePoint ohne gezeichnetes Waffenmodell (WP_BLASTER: Blickhoehe
+    // - 1, 2 vor, 1 rechts), die Figur blickt zum Feind; um den origin versetzt.
+    const float o[3] = {ort[0], ort[1], ort[2]};
+    float m[3];
+    muzzlePoint(o, std::atan2(feind[1] - ort[1], feind[0] - ort[0]) * (180.0F / 3.14159265F), "WP_BLASTER", m);
+    const std::array<float, 3> mund{m[0], m[1], m[2]};
+    return sicht(mund, feind) || sicht(mund, kopf);
+}
+
+WegDeckungErgebnis wegDeckungVorschlaege(const std::vector<std::array<float, 3>>& starts, const std::vector<char>& istWegpunkt,
+                                         const WegWelt& welt, const WegDeckungWunsch& w) {
+    WegDeckungErgebnis aus;
+    if (!welt.spur || !welt.sicht || starts.empty()) { return aus; }
+    const Laeufer lauf{welt};
+    WegErzeugung p;
+    p.abstand = w.reichweite;
+    p.startIstWegpunkt = istWegpunkt;
+    const float S0 = std::max(kGitter * 2.0F, w.reichweite);
+    const long long k2 = 3LL * std::max(1L, std::lround(S0 / kGitter));
+    const long long maxZellen = static_cast<long long>(std::max(1, p.maxKnoten)) * k2 * k2;
+    const auto kastenFrei = [&welt, &w](const V& o) {
+        if (w.kastenFrei) { return w.kastenFrei(o); }
+        return !welt.spur(o, {-kKastenBreite, -kKastenBreite, kKastenUnten}, {kKastenBreite, kKastenBreite, kKastenOben}, o).imFesten;
+    };
+    try {
+        const Laufgitter lg = laufgitterBauen(starts, starts.size(), lauf, p, maxZellen, [&](float a) {
+            if (w.weiter && !w.weiter(a)) { throw Abbruch{}; }
+        });
+        std::vector<float> weit(lg.z.size(), std::numeric_limits<float>::max());
+        for (std::size_t si = 0; si < starts.size(); ++si) {
+            if (si < istWegpunkt.size() && istWegpunkt[si] != 0 && lg.startZelle[si] >= 0) { ausbreitenAuf(lg.z, weit, lg.startZelle[si], w.reichweite); }
+        }
+        // Feindstellen: eine Gitterzelle je feindRaster (die Zellen, deren Gitterzahl ein Vielfaches ist), nach Feldern der
+        // Sichtweite einsortiert.
+        const int k = std::max(1, static_cast<int>(std::lround(w.feindRaster / kGitter)));
+        const float feld = std::max(kGitter, w.regeln.sichtweite);
+        std::vector<V> feinde;
+        std::unordered_map<long long, std::vector<int>> felder;
+        const auto feldVon = [feld](float x) { return static_cast<int>(std::floor(x / feld)); };
+        for (const Zelle& c : lg.z) {
+            if (!c.gitter || c.ix % k != 0 || c.iy % k != 0) { continue; }
+            felder[spalteSchluessel(feldVon(c.o[0]), feldVon(c.o[1]))].push_back(static_cast<int>(feinde.size()));
+            feinde.push_back(c.o);   // der Ursprung einer Figur, die dort steht (Boden + 24)
+        }
+        aus.feindStellen = feinde.size();
+        // Kandidaten
+        struct Kandidat {
+            V boden{};
+            V ort{};
+        };
+        std::vector<Kandidat> kand;
+        for (std::size_t i = 0; i < lg.z.size(); ++i) {
+            const Zelle& c = lg.z[i];
+            if (!c.gitter || weit[i] > w.reichweite) { continue; }
+            const V boden{c.o[0], c.o[1], c.o[2] + kKastenUnten};
+            if (w.erlaubt && !w.erlaubt(boden)) { continue; }
+            kand.push_back({boden, {std::round(c.o[0]), std::round(c.o[1]), std::round(boden[2] + 25.0F)}});
+        }
+        aus.kandidaten = kand.size();
+        // Je Kandidat und Feindstelle in Reichweite die Regel; `liste` != nullptr sammelt die Feindstellen.
+        const auto zaehle = [&](const Kandidat& c, std::vector<int>* liste) {
+            const V o{c.ort[0], c.ort[1], c.ort[2] + 0.125F};   // SP_point_combat: origin[2] += 0.125
+            if (!kastenFrei(o)) { return 0; }
+            int n = 0;
+            const int fx = feldVon(o[0]);
+            const int fy = feldVon(o[1]);
+            for (int ax = fx - 1; ax <= fx + 1; ++ax) {
+                for (int ay = fy - 1; ay <= fy + 1; ++ay) {
+                    const auto it = felder.find(spalteSchluessel(ax, ay));
+                    if (it == felder.end()) { continue; }
+                    for (const int f : it->second) {
+                        if (!wegDeckungGilt(welt.sicht, {}, o, feinde[static_cast<std::size_t>(f)], w.regeln)) { continue; }
+                        ++n;
+                        if (liste != nullptr) { liste->push_back(f); }
+                    }
+                }
+            }
+            return n;
+        };
+        std::vector<int> wert(kand.size(), 0);
+        std::atomic<std::size_t> naechster{0};
+        std::atomic<bool> halt{false};
+        std::atomic<std::size_t> erledigt{0};
+        const auto arbeit = [&](bool melder) {
+            for (;;) {
+                if (halt.load()) { return; }
+                const std::size_t i = naechster.fetch_add(1);
+                if (i >= kand.size()) { return; }
+                wert[i] = zaehle(kand[i], nullptr);
+                const std::size_t e = erledigt.fetch_add(1) + 1;
+                if (melder && (e & 63U) == 0U && w.weiter &&
+                    !w.weiter(0.3F + 0.7F * static_cast<float>(e) / static_cast<float>(std::max<std::size_t>(1, kand.size())))) {
+                    halt = true;
+                }
+            }
+        };
+        std::vector<std::thread> faeden;
+        for (int t = 1; t < std::max(1, w.faeden); ++t) { faeden.emplace_back(arbeit, false); }
+        arbeit(true);
+        for (std::thread& t : faeden) { t.join(); }
+        if (halt.load()) { throw Abbruch{}; }
+        // Die meisten Feindstellen zuerst, mit `abstand` untereinander und zu den vorhandenen Kampfpunkten.
+        std::vector<std::size_t> folge;
+        for (std::size_t i = 0; i < kand.size(); ++i) {
+            if (wert[i] > 0) { folge.push_back(i); }
+        }
+        aus.mitDeckung = folge.size();
+        std::stable_sort(folge.begin(), folge.end(), [&](std::size_t a, std::size_t b) { return wert[a] > wert[b]; });
+        std::vector<V> belegt = w.vorhanden;
+        for (const std::size_t i : folge) {
+            if (static_cast<int>(aus.punkte.size()) >= w.hoechstens) { break; }
+            const Kandidat& c = kand[i];
+            bool frei = true;
+            for (const V& b : belegt) { frei = frei && abstand(b, c.ort) >= w.abstand; }
+            if (!frei) { continue; }
+            belegt.push_back(c.ort);
+            WegDeckung d;
+            d.boden = c.boden;
+            d.ort = c.ort;
+            std::vector<int> liste;
+            d.feinde = zaehle(c, &liste);
+            V mitte{0.0F, 0.0F, 0.0F};
+            for (const int f : liste) {
+                for (std::size_t a = 0; a < 3; ++a) { mitte[a] += feinde[static_cast<std::size_t>(f)][a] / static_cast<float>(liste.size()); }
+            }
+            d.feindMitte = mitte;
+            float best = std::numeric_limits<float>::max();
+            for (const int f : liste) {
+                const float dd = abstand(feinde[static_cast<std::size_t>(f)], mitte);
+                if (dd < best) {
+                    best = dd;
+                    d.feind = feinde[static_cast<std::size_t>(f)];
+                }
+            }
+            d.richtung = std::atan2(mitte[1] - c.ort[1], mitte[0] - c.ort[0]) * (180.0F / 3.14159265F);
+            aus.punkte.push_back(d);
+        }
+    } catch (const Abbruch&) {
+        aus = WegDeckungErgebnis{};
+        aus.abgebrochen = true;
     }
     return aus;
 }

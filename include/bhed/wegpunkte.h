@@ -98,6 +98,9 @@ struct WegWelt {
     // rc609 W3b: springt eine Figur, die springen darf (SCF_NAV_CAN_JUMP), vom Wegpunkt mit origin a zu dem mit origin
     // b (NPC_TryJump/NPC_Jump, wie STEER::Path eine Sprungkante nimmt)? Leer: keine Sprungkanten.
     std::function<bool(const std::array<float, 3>& a, const std::array<float, 3>& b)> sprung;
+    // rc609 H2: G_ClearLOS von a nach b (Strahl mit CONTENTS_OPAQUE durch hoechstens drei func_glass, NPC_senses.cpp:929
+    // OpenJK). Leer: keine Kampfpunkt-Vorschlaege.
+    std::function<bool(const std::array<float, 3>& a, const std::array<float, 3>& b)> sicht;
 };
 
 struct WegErzeugung {
@@ -216,6 +219,71 @@ struct WegSprung {
                                                   const std::vector<std::vector<int>>& nachbarn,
                                                   std::vector<char> hatSprung, const WegWelt& welt,
                                                   const std::function<bool()>& weiter = {});
+
+// --- rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung ---------------------------
+//
+// Mike (03.11.): point_combat "should be sprinkled around randomly (usually behind cover) ... used by gunners to move to
+// cover or get a better angle for shooting". Ein Schuetze (Sturmtruppler) waehlt einen Kampfpunkt mit
+// NPC_FindCombatPoint (OpenJK code/game/NPC_combat.cpp:2721-2899, Movie Duels 9 :3487 gleich); ST_Commander verlangt
+// CP_CLEAR|CP_COVER, sobald er den Feind nicht mehr sieht oder der Feind zu nah ist (AI_Stormtrooper.cpp:2071-2111), und
+// immer CP_AVOID_ENEMY|CP_HAS_ROUTE|CP_TRYFAR mit avoidDist 200 (:2129-2132). Fuer einen Punkt (origin `ort`, wie
+// level.combatPoints[i].origin) und einen Feind, der mit seinem Ursprung `feind` steht, gilt die Deckungsregel, wenn
+//   Kasten     gi.trace(origin, NPC->mins, NPC->maxs, origin, MASK_NPCSOLID) nicht startsolid/allsolid (:2860-2864;
+//              playerMins/Maxs -16..16 x -24..40, NPC_stats.cpp:2028)
+//   Abstand    CP_CLEAR: Abstand zum Feind hoechstens visrange (:2812-2816; stats.visrange 1024, NPC_stats.cpp:1988);
+//              CP_AVOID_ENEMY: mindestens avoidDist (:2844-2848)
+//   CP_CLEAR   NPC_ClearLOS(Muendung, Feind) (:2869-2878): von der Muendung (CalcEntitySpot SPOT_WEAPON, um den origin
+//              versetzt) auf Ursprung oder Kopf des Feindes (G_ClearLOS Position zu Entity, NPC_senses.cpp:967-984)
+//   CP_COVER   NOT NPC_ClearLOS(origin, Feind) (:2881-2884): vom origin selbst weder Ursprung noch Kopf
+// Jedi Outcast (codeJK2/game/NPC_combat.cpp:2489-2700): CP_COVER prueft nur den Ursprung (NPC_ClearLOS(origin,
+// enemyPosition)), CP_CLEAR vom origin aus (nicht von der Muendung) auf Ursprung oder Kopf, Abstand bis visrange; kein
+// avoidDist ohne Schwert des Feindes (AI_Stormtrooper.cpp:2203-2207 JK2), gesammelt in CP_COLLECT_RADIUS 512 um den Feind.
+struct WegDeckungRegeln {
+    bool jk2 = false;
+    float sichtweite = 1024.0F;   // NPCInfo->stats.visrange (Vorgabe NPC_stats.cpp:1988)
+    float meiden = 200.0F;        // avoidDist von ST_Commander (Jedi Academy); Jedi Outcast 0
+    float sammeln = 0.0F;         // Jedi Outcast: CP_COLLECT_RADIUS 512 um den Feind; 0 = ohne
+};
+// G_ClearLOS (WegWelt::sicht) und der Kasten der Figur (frei = nicht im Festen); `kastenFrei` leer: frei.
+using WegSichtFn = std::function<bool(const std::array<float, 3>& a, const std::array<float, 3>& b)>;
+using WegKastenFn = std::function<bool(const std::array<float, 3>& o)>;
+[[nodiscard]] bool wegDeckungGilt(const WegSichtFn& sicht, const WegKastenFn& kastenFrei, const std::array<float, 3>& ort,
+                                  const std::array<float, 3>& feind, const WegDeckungRegeln& r);
+
+struct WegDeckungWunsch {
+    WegDeckungRegeln regeln;
+    float reichweite = 192.0F;   // Kandidaten: Zellen des Laufgitters, die ein Wegpunkt zu Fuss in dieser Weite erreicht
+    float feindRaster = 192.0F;  // Feindstellen: eine Zelle des Laufgitters je feindRaster x feindRaster
+    float abstand = 231.0F;      // Vorschlaege untereinander und zu vorhandenen Kampfpunkten mindestens so weit
+    int hoechstens = 64;
+    std::vector<std::array<float, 3>> vorhanden;                    // origin der vorhandenen point_combat
+    std::function<bool(const std::array<float, 3>& boden)> erlaubt;  // nur dort (gemalte Bereiche); leer: ueberall
+    std::function<bool(float anteil)> weiter;                       // false bricht ab
+    int faeden = 1;                                                 // so viele Faeden pruefen die Kandidaten
+    // Der Kasten der Figur am origin (frei = nicht im Festen) in der Welt zur Laufzeit; leer: WegWelt::spur (die Welt der
+    // Erzeugung, Tueren offen).
+    WegKastenFn kastenFrei;
+};
+struct WegDeckung {
+    std::array<float, 3> boden{};
+    std::array<float, 3> ort{};          // origin des point_combat (Boden + 25, ganzzahlig wie "Kampfpunkt setzen")
+    int feinde = 0;                      // Feindstellen, gegen die die Regel gilt
+    std::array<float, 3> feind{};        // eine davon (die naechste an ihrer Mitte) - zum Nachpruefen
+    std::array<float, 3> feindMitte{};   // Mitte der Feindstellen
+    float richtung = 0.0F;               // Gier vom Punkt zur Mitte (Grad, 0 = +x)
+};
+struct WegDeckungErgebnis {
+    std::vector<WegDeckung> punkte;      // die besten zuerst
+    std::size_t kandidaten = 0;
+    std::size_t feindStellen = 0;
+    std::size_t mitDeckung = 0;          // Kandidaten, fuer die die Regel gegen mindestens eine Feindstelle gilt
+    bool abgebrochen = false;
+};
+// Kandidaten: das Laufgitter der Erzeugung (W3a) von den Startpunkten aus, Zellen in `reichweite` eines vorhandenen
+// Wegpunkts (istWegpunkt je Startpunkt) - die Abdeckung aus W4. Feindstellen: Zellen des Laufgitters. Je Kandidat zaehlt,
+// gegen wie viele Feindstellen die Regel gilt; die mit den meisten zuerst, mit `abstand` untereinander.
+[[nodiscard]] WegDeckungErgebnis wegDeckungVorschlaege(const std::vector<std::array<float, 3>>& starts, const std::vector<char>& istWegpunkt,
+                                                       const WegWelt& welt, const WegDeckungWunsch& w);
 
 // --- Pruefen ----------------------------------------------------------------
 struct WegBefund {

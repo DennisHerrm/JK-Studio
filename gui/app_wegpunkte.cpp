@@ -246,6 +246,8 @@ std::unique_ptr<WegWeltKarte> wegWeltKarte(std::vector<MapEntity> ents) {
         return w->pruefer->knotenAn(o, &r, &schwebt) && !schwebt && (navJk2Regeln() || r >= 20.0F);
     };
     k->welt.kante = [w](const std::array<float, 3>& a, const std::array<float, 3>& b) { return w->pruefer->pruefeOrte(a, b).begehbar; };
+    // rc609 H2: G_ClearLOS fuer die Kampfpunkt-Vorschlaege - die Welt am Spawn (PHASE 0: Tueren zu), func_glass aus den Entities.
+    k->welt.sicht = [w](const std::array<float, 3>& a, const std::array<float, 3>& b) { return gClearLos(w->hilfe.spur, &w->ents, a, b); };
     // rc609 W3b: Sprung von Wegpunkt a nach b, wie STEER::Path ihn nimmt (NPC_TryJump(NextPosition), g_navigator.cpp:5027-5034
     // OpenJK): die Figur steht auf dem Boden unter a (ihr Kasten -24..40 wie der des Wegpunkts, Drop To Floor 90 tief) und
     // springt zum Punkt b. Die Welt am Spawn (PHASE 0); Jedi Outcast kennt keine Sprungkanten.
@@ -775,9 +777,8 @@ void wegAuftragPruefen() {
 float wegAuftragAnteil() { return g_app->wegAuftrag ? g_app->wegAuftrag->anteil.load() : 0.0F; }
 int wegAuftragSchritt() { return g_app->wegAuftrag ? g_app->wegAuftrag->schritt.load() : 0; }
 
-namespace {
-// Startpunkte der vollen Erzeugung (rc609 W4: auch der Abdeckung): Spielerstart, Figuren, Ziele, vorhandene Wegpunkte,
-// die Kamera. `startEntity`: je Startpunkt der Wegpunkt (Index in v), sonst -1.
+// Startpunkte der vollen Erzeugung (rc609 W4: auch der Abdeckung, H2: der Kampfpunkt-Vorschlaege): Spielerstart, Figuren,
+// Ziele, vorhandene Wegpunkte, die Kamera. `startEntity`: je Startpunkt der Wegpunkt (Index in v), sonst -1.
 void wegStartsVoll(const std::vector<MapEntity>& v, std::vector<std::array<float, 3>>& starts, std::vector<int>& startEntity) {
     for (std::size_t i = 0; i < v.size(); ++i) {
         const MapEntity& e = v[i];
@@ -795,7 +796,6 @@ void wegStartsVoll(const std::vector<MapEntity>& v, std::vector<std::array<float
     starts.push_back({g_app->cam.pos[0], g_app->cam.pos[1], g_app->cam.pos[2]});
     startEntity.push_back(-1);
 }
-}  // namespace
 
 bool wegAuftragStarten(WegAuftragArt art, const std::vector<std::array<float, 3>>& saat, int bereich, bool hintergrund) {
     if (g_app->geo.empty() || g_app->wegAuftrag) { return false; }
@@ -1426,6 +1426,7 @@ void wegUeberlagerung() {
             dl->AddText(ImVec2{c.x + 11.0F * px, c.y - 12.0F * px}, f, "!");
         }
     }
+    wegDeckungZeichnen(dl, px);   // rc609 H2: Vorschlaege als Geisterpunkte
     // rc609 W4: Testroute - gelb, Sprungkanten gestrichelt orange; die angeklickten Punkte
     for (std::size_t i = 0; i + 1 < g_app->wegRoute.size(); ++i) {
         const float wa[3] = {g_app->wegRoute[i][0], g_app->wegRoute[i][1], g_app->wegRoute[i][2] + 4.0F};
@@ -1986,6 +1987,7 @@ void drawWegFenster() {
             ImGui::EndChild();
         }
     }
+    wegDeckungFenster();   // rc609 H2: Vorschlaege hinter Deckung
     ImGui::SeparatorText(tr(Str::WegPruefenTitel));
     // rc609 W4 (Plan G): Testroute - der Weg, den ein NPC im Spiel naehme
     if (iconKnopf(tr(Str::WegRoute), UiIcon::Pfad, tr(Str::WegRouteHint), g_app->wegWerkzeug == 8, !g_app->geo.empty(), true)) {

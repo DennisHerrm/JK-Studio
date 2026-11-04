@@ -2240,6 +2240,7 @@ std::vector<Schritt> handbuchSchritte() {
 
 std::vector<Schritt> wegmalenHandbuchSchritte();
 std::vector<Schritt> kampfpunkteHandbuchSchritte();   // selbsttest_kampfpunkte.inc: rc609 W4, BHED_HB_NUR=kampfpunkte
+std::vector<Schritt> deckungHandbuchSchritte();   // selbsttest_deckung.inc: rc609 H2, BHED_HB_NUR=deckung
 void wegTreppeBlick();   // selbsttest_wegerzeugung.inc: rc609 W3b, die Kamera fuer h_weg_treppe   // selbsttest_wegmalen.inc: rc609 W3b, BHED_HB_NUR=wegmalen
 std::vector<Schritt> bspmergeHandbuchSchritte();   // selbsttest_bspmerge.inc: rc609 B1, BHED_HB_NUR=bspmerge
 
@@ -2455,6 +2456,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegmalen") == 0) { return wegmalenHandbuchSchritte(); }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kampfpunkte") == 0) { return kampfpunkteHandbuchSchritte(); }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "bspmerge") == 0) { return bspmergeHandbuchSchritte(); }   // rc609 B1
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "deckung") == 0) { return deckungHandbuchSchritte(); }
     // rc609 W3a: das Bild des Abschnitts "Erzeugung: Innenraeume, Treppen, Tueren" (h_weg_treppe) - mp/duel8 aus
     // den .pk3 des Spiels, ein erzeugtes Netz, der Blick auf die Treppe mit dem Punkt unten und oben.
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegerzeugung") == 0) {

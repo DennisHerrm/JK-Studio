@@ -427,6 +427,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_zeitleiste.cpp
     gui/app_kamera.cpp
     gui/app_wegpunkte.cpp
+    gui/app_deckung.cpp
     gui/app_modell.cpp
     gui/app_animation.cpp
     gui/app_wetter.cpp
@@ -776,6 +777,10 @@ if(BEHAVED_TESTS)
   add_executable(kampfpunkttest tests/kampfpunkttest.cpp)
   target_link_libraries(kampfpunkttest PRIVATE bhed_core)
   add_test(NAME kampfpunkt COMMAND kampfpunkttest)
+  # rc609 H2: Kampfpunkt-Vorschlaege hinter Deckung (NPC_FindCombatPoint CP_CLEAR|CP_COVER)
+  add_executable(deckungtest tests/deckungtest.cpp)
+  target_link_libraries(deckungtest PRIVATE bhed_core)
+  add_test(NAME deckung COMMAND deckungtest)
   add_executable(moveranimtest tests/moveranimtest.cpp)
   target_link_libraries(moveranimtest PRIVATE bhed_core)
   add_test(NAME moveranim COMMAND moveranimtest)
