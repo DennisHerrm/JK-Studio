@@ -1491,6 +1491,7 @@ void autosaveJedeSekunde();
 // Stufe 2, Punkt 10b (app_karte_modelle.cpp): die Modelle der misc_model
 [[nodiscard]] const karte::ModellQuelle& kartenModelle();
 void modelleLeeren();   // FlushReferences (Map_Free) / RefreshReferences
+void modellVergessen(const std::string& pfad);   // rc609 M0: nur dieses Modell neu laden (Live)
 [[nodiscard]] karte::ModellAnsicht kartenModellPfad(const std::string& pfad);
 // Stufe 2, Punkt 10c (app_karte_modellbrowser.cpp): der Modell-Browser
 void modellBrowserZeichnen(int breite, int hoehe);
@@ -1862,6 +1863,19 @@ bool blenderExport(const std::string& pfad);
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt);
 // Stufe 9: wohin etwas Abgelegtes kommt (2D-Ansicht unter dem Zeiger, Kamera: Flaeche unter dem Zeiger, sonst vor der Kamera)
 [[nodiscard]] karte::Vektor3f ablageOrt(ImVec2 punkt);
+// Die surfaceparms eines Shaders im Spiel der Karte (fuer kollisionAusKarte; app_karte_sprung.cpp)
+[[nodiscard]] std::vector<std::string> parmsVon(const std::string& shader);
+// --- rc609 M0: vorhandene Modelle in die Karte (app_karte_modellsetzen.cpp) ---------------
+// Ein Modell am Bildschirmpunkt (Kamera oder 2D-Ansicht) einsetzen: Klasse und Kollision aus dem Asset-Browser,
+// Unterkante auf dem Boden der Spielkollision; ein Rueckgaengig-Schritt. false: Klasse fehlt im Spiel (Grund in der
+// Konsole) oder Modell nicht lesbar.
+bool modellEinsetzen(const std::string& pfad, ImVec2 punkt);
+// Klasse (misc_model / misc_model_static) und Kollision - im Asset-Browser unter "Modelle"
+void modellSetzOptionen();
+int& modellSetzKlasse();      // 0 misc_model, 1 misc_model_static
+bool& modellSetzKollision();
+// Live: neuere Modelldateien der Karte laden (je Sekunde, alle Exemplare behalten ihre Schluessel)
+void modellLiveWacheKarte();
 // Stufe 9 Punkt 11 (app_karte_assets.cpp): Asset-Browser
 [[nodiscard]] bool assetBrowserOffen();
 void assetBrowserUmschalten();

@@ -64,9 +64,13 @@ bool EntitaetsKlassen::OhneFall::operator()(const std::string& a, const std::str
 }
 
 // name_set (eclasslib.h:126-130)
+// rc609 M0: dazu misc_model_static - Jedi Academy und Movie Duels zeichnen es als Modell (CG_DrawMiscEnts, mit angles und
+// modelscale/modelscale_vec wie misc_model); NRCs Regel kennt nur "model_static" anderer Spiele, der Editor zeigte einen
+// Kasten und konnte es weder drehen noch skalieren wie das Spiel.
 void EntitaetsKlasse::setzeName(const std::string& n) {
     name = n;
-    miscmodelIs = (beginntOhneFall(name, "misc_") && endetOhneFall(name, "model")) || gleichOhneFall(name, "model_static");
+    miscmodelIs = (beginntOhneFall(name, "misc_") && endetOhneFall(name, "model")) || gleichOhneFall(name, "model_static") ||
+                  gleichOhneFall(name, "misc_model_static");
 }
 
 // EntityClass_valueForKey (eclasslib.h:156-163)

@@ -2248,6 +2248,8 @@ from i18n_rc609_b1 import zeilen_vier as _rc609_b1  # noqa: E402  (rc609 B1: Bru
 S += _rc609_b1()
 from i18n_rc609_b2 import zeilen_vier as _rc609_b2  # noqa: E402  (rc609 B2: Mission <-> Map ohne Verlust)
 S += _rc609_b2()
+from i18n_rc609_m0 import zeilen_vier as _rc609_m0  # noqa: E402  (rc609 M0: vorhandene Modelle mit einem Klick in die Karte)
+S += _rc609_m0()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

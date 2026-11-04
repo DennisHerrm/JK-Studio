@@ -2973,7 +2973,9 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         // SP_misc_shield_floor_unit / SP_misc_ammo_floor_unit: nur das erste
         // animMap-Bild (siehe unten) - ein eigener Block.
         const bool ladestation = e.classname == "misc_shield_floor_unit" || e.classname == "misc_ammo_floor_unit";
-        item.shaderBase = modellBlockIn(*z.textures, "m|" + low + (ladestation ? "|bild0" : ""), [&] {
+        // rc609 M0: eine neu geladene Datei bekommt einen eigenen Block (ihre Flaechen koennen andere sein)
+        const int fassung = modellFassungVon(low);
+        item.shaderBase = modellBlockIn(*z.textures, "m|" + low + (ladestation ? "|bild0" : "") + (fassung > 0 ? "|v" + std::to_string(fassung) : std::string()), [&] {
             for (const Md3Surface& sf : mm.surfaces) {
                 TextureSet::Tex t;
                 loadTextureFor(sf.shader, t);

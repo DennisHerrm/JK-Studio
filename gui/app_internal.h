@@ -63,6 +63,7 @@
 #include "bhed/geschuetz.h"
 #include "bhed/mover.h"
 #include "bhed/md3.h"
+#include "bhed/modellsetzen.h"   // rc609 M0
 #include "bhed/efx/io.h"
 #include "bhed/shaderscript.h"
 #include "bhed/keys.h"
@@ -361,6 +362,8 @@ struct App {
         float startWinkel3[3] = {0.0F, 0.0F, 0.0F};   // Nicken, Gier, Rollen beim Anfassen (rc599)
         float startMaus[2] = {0.0F, 0.0F};
         float achsLaenge = 0.0F;        // Weltlaenge der Gizmo-Achse beim Anfassen
+        // rc609 M0: Skalieren eines Kartenmodells (Griffe 7..9 je Modellachse, 10 gleichmaessig)
+        float startSkala[3] = {1.0F, 1.0F, 1.0F};
         // Mehrfachauswahl (rc590): die anderen gewaehlten ziehen mit -
         // Ausgangsort und -winkel beim Anfassen.
         std::vector<std::pair<int, std::array<float, 3>>> gruppe;
@@ -380,6 +383,28 @@ struct App {
     int rasterSchritt = 0;              // 0 aus (Strg rastet dann auf 8), sonst 8/16/32/64
     std::string platzierKlasse;         // Platzieren-Leiste: naechster Klick setzt diese Klasse
     bool platzierZiehen = false;        // Kachel gedrueckt und in die Ansicht gezogen
+    // --- rc609 M0: vorhandene Modelle mit einem Klick in die Karte (gui/app_modellsetzen.cpp) ---
+    bool modellFensterOffen = false;
+    char modellSuche[128] = {};
+    std::vector<modellsetzen::ModellDatei> modellListe;   // .md3 unter models/ der Spielordner
+    std::size_t modellListeOrdner = 0;                    // Zahl der Spielordner beim Sammeln
+    bool modellListeNeu = true;
+    std::string modellPlatzieren;   // gewaehlt: der naechste Klick (oder das Loslassen) setzt es
+    bool modellZiehen = false;      // aus der Liste in die Ansicht gezogen
+    struct ModellGeist {            // das Modell unter der Maus, bevor es steht (3D-Vorschau)
+        bool aktiv = false;
+        std::string pfad;
+        float ort[3]{};
+        float winkel[3]{};
+        float skala[3]{1.0F, 1.0F, 1.0F};
+    };
+    ModellGeist modellGeist;
+    int modellGeistGezeichnet = 0;   // wie oft der Geist in ein Bild der Vorschau kam (Selbsttest)
+    std::map<std::string, std::pair<std::string, modellsetzen::DateiStand>> modellStaende;   // Live: Fundort und Stand je Modelldatei
+    std::map<std::string, int> modellFassung;                         // je neu geladener Datei hochgezaehlt
+    double modellWacheZeit = -1.0;
+    bool kartenModelleNeu = false;  // eine Modelldatei ist neuer: loadMapModels im naechsten Bild
+    bool entGizmoSkalieren = false; // Gizmo-Leiste: Skalieren (nur Kartenmodelle)
     struct AnsichtsMarke {
         bool da = false;
         Camera cam;
@@ -3257,6 +3282,30 @@ void platzierLeiste();                     // Kacheln in der Ansicht (app_view3d
 void platzierMaus();                       // Klick/Loslassen in der Ansicht setzt die gewaehlte Kachel
 void ansichtsMarkenTasten();
 int entityPlatzieren(const std::string& klasse, float sx, float sy);   // am Bildschirmpunkt (app_mission.cpp)
+// --- rc609 M0: vorhandene Modelle in die Karte (gui/app_modellsetzen.cpp) ---------------
+// Das Spiel der Vorschau fuer die Klassenwahl (kRegelwerkOpenJK/MovieDuels/JediOutcast).
+int modellSpiel();
+// Die .md3 der Spielordner (neu gesammelt, wenn sich die Ordner aenderten) und die Treffer der Suche.
+const std::vector<modellsetzen::ModellDatei>& modellBrowserListe();
+std::vector<std::size_t> modellBrowserTreffer(const std::string& suche);
+// Wohin ein Modell am Bildschirmpunkt kaeme: auf die Flaeche unter der Maus (an einer Wand davor), die Unterkante
+// des Modells (R_ModelBounds) auf dem Boden der Spielkollision. false: kein Treffer oder Modell nicht lesbar.
+bool modellOrtAn(const std::string& pfad, float sx, float sy, const modellsetzen::Lage& lage, float ort[3]);
+// Setzt es als misc_model_static (ein Rueckgaengig-Schritt, gewaehlt). -1: das Spiel kennt die Klasse nicht oder
+// kein Ort (Grund in der Statuszeile).
+int modellSetzenAn(const std::string& pfad, float sx, float sy);
+// Die Lage einer Entity, wie die Vorschau sie liest, und das Schreiben (genau ein Winkel- und ein Groessenschluessel).
+modellsetzen::Lage modellLageVon(const MapEntity& e);
+void modellLageSetzen(MapEntity& e, const modellsetzen::Lage& l);
+bool istKartenModell(const MapEntity& e);   // misc_model* mit "model"
+void drawModellFenster();
+void modellPlatzierMaus();
+// Live: je Sekunde den Stand der Modelldateien der Karte pruefen; neuere laden (alle Exemplare behalten Lage).
+void modellLiveWache();
+// Die Fassung einer Modelldatei (0 = nie neu geladen) - Teil des Schluessels ihres Bildblocks.
+int modellFassungVon(const std::string& pfadKlein);
+// Selbsttest: Bildschirmort eines Gizmo-Griffs der gezeigten Entity (app_mission.cpp; 1..3, 4, 7..10).
+bool entityGizmoGriffOrt(int griff, ImVec2& out);
 bool entityRueckgaengig();
 // Was auf Entity-NUMMERN zeigt (Auswahl, Animationsfenster, Wegkette) nach
 // einem Kartenwechsel vergessen bzw. nach dem Loeschen von Nummer i

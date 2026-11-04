@@ -72,6 +72,8 @@ add_library(bhed_core STATIC
   src/entdefs.cpp
   src/missionbau.cpp
   src/wegpunkte.cpp
+  # rc609 M0: vorhandene Modelle in die Karte (Klassen je Spiel, Lage, Boden, Browser, Live)
+  src/modellsetzen.cpp
   src/moveranim.cpp
   src/roffanim.cpp
   src/missionsgraph.cpp
@@ -431,6 +433,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_kamera.cpp
     gui/app_wegpunkte.cpp
     gui/app_deckung.cpp
+    gui/app_modellsetzen.cpp
     gui/app_modell.cpp
     gui/app_animation.cpp
     gui/app_wetter.cpp
@@ -468,6 +471,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_geoimport.cpp
     gui/app_karte_sprung.cpp
     gui/app_karte_assets.cpp
+    gui/app_karte_modellsetzen.cpp
     gui/app_karte_ueberblenden.cpp
     gui/app_karte_spielen.cpp
     gui/app_karte_logik.cpp
@@ -784,6 +788,10 @@ if(BEHAVED_TESTS)
   add_executable(deckungtest tests/deckungtest.cpp)
   target_link_libraries(deckungtest PRIVATE bhed_core)
   add_test(NAME deckung COMMAND deckungtest)
+  # rc609 M0: Modelle in die Karte - Klassen je Spiel, Lage wie Spiel und q3map2, Boden, Browser, Live
+  add_executable(modellsetzentest tests/modellsetzentest.cpp)
+  target_link_libraries(modellsetzentest PRIVATE bhed_core bhed_zlib)
+  add_test(NAME modellsetzen COMMAND modellsetzentest ${CMAKE_CURRENT_BINARY_DIR})
   add_executable(moveranimtest tests/moveranimtest.cpp)
   target_link_libraries(moveranimtest PRIVATE bhed_core)
   add_test(NAME moveranim COMMAND moveranimtest)

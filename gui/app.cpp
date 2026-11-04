@@ -6897,6 +6897,8 @@ void draw() {
         drawKarteMission();  // rc609 B2: Bezuege nach dem Nachladen
         drawKartenStatistik();
         drawWegFenster();
+        modellLiveWache();     // rc609 M0: neuere Modelldateien nachladen
+        drawModellFenster();   // rc609 M0: Modell-Browser
         drawNpcBrowser();
         drawAnimFenster();
         drawEinblendungen();

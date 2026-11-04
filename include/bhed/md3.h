@@ -113,6 +113,11 @@ struct Md3Model {
     // von Bild 0, dann alle von Bild 1.
     std::vector<Md3Tag> tags;
     int numTags = 0;
+    // rc609 M0: die Grenzen von Bild 0 aus dem Kopf (md3Frame_t bounds an ofsFrames) - das liefert
+    // R_ModelBounds (code/rd-vanilla/tr_model.cpp:1178-1187 OpenJK) fuer CG_CreateMiscEnts. false: Bild-Lump
+    // fehlt oder liegt ausserhalb der Datei (dann gilt der Kasten der Ecken von Bild 0).
+    bool kopfGrenzen = false;
+    float grenzen[2][3]{};
 
     [[nodiscard]] bool empty() const noexcept { return surfaces.empty(); }
 

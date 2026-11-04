@@ -135,6 +135,18 @@ bool readMd3(const std::string& b, Md3Model& out, std::string* error) {
         return false;
     }
     out.numFrames = numFrames;
+    // rc609 M0: md3Frame_t (qfiles.h: bounds[2][3], localOrigin[3], radius, name[16] = 56 Byte), Bild 0.
+    {
+        const std::int32_t ofsFrames = i32(b, 8 + kMaxQPath + 20);
+        if (ofsFrames >= static_cast<std::int32_t>(kHeader) && static_cast<std::size_t>(ofsFrames) + 56 <= b.size()) {
+            for (int r = 0; r < 2; ++r) {
+                for (int k = 0; k < 3; ++k) {
+                    out.grenzen[r][k] = f32(b, static_cast<std::size_t>(ofsFrames) + static_cast<std::size_t>(r * 3 + k) * 4);
+                }
+            }
+            out.kopfGrenzen = true;
+        }
+    }
 
     // --- Die Tags (Lump zwischen Bildern und Flaechen) --------------------
     //
