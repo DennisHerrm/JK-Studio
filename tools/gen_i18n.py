@@ -2256,6 +2256,8 @@ from i18n_rc609_me1 import zeilen_vier as _rc609_me1  # noqa: E402  (rc609 ME1: 
 S += _rc609_me1()
 from i18n_rc609_kemd import zeilen_vier as _rc609_kemd  # noqa: E402  (rc609 KEMD: Asset-Browser sammelt im Hintergrund)
 S += _rc609_kemd()
+from i18n_rc609_me2 import zeilen_vier as _rc609_me2  # noqa: E402  (rc609 ME2: loses Menue im Mod-Ordner an seinen Ort)
+S += _rc609_me2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

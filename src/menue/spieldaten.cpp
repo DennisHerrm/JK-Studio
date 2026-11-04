@@ -38,6 +38,11 @@ bool Spieldaten::lies(const std::string& pfad, std::string& out) const {
     return liesWieSpiel(ordner, norm(pfad), false, out);
 }
 
+bool Spieldaten::herkunft(const std::string& pfad, std::string& wo, bool& lose) const {
+    std::string inhalt;
+    return liesWieSpiel(ordner, norm(pfad), false, inhalt, &wo, &lose);
+}
+
 bool Spieldaten::gibt(const std::string& pfad) const {
     const std::string n = norm(pfad);
     for (const GamePath& o : ordner) {

@@ -2978,6 +2978,7 @@ std::vector<Schritt> schritteM6() {
 #include "selbsttest_menue_leiste.inc"  // rc608 Teil 3a
 #include "selbsttest_menue_pruefung.inc"  // rc608 Teil 3b
 #include "selbsttest_menue_loeschen.inc"  // rc609 ME1
+#include "selbsttest_menue_speichern.inc"  // rc609 ME2
 
 std::vector<Schritt> schritte() {
     // Mehrere Teile hintereinander: BHED_MENUE_NUR=a+b
@@ -3278,6 +3279,12 @@ std::vector<Schritt> schritte() {
     // BHED_MENUE_NUR=startoeffnen: Menue oeffnen auf dem Startbildschirm (rc609 ME1, auch die Handbuchbilder)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "startoeffnen") == 0) {
         for (auto& x : schritteStartMenue()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // BHED_MENUE_NUR=speichern: ein loses Menue im Mod-Ordner an seinen Ort speichern (rc609 ME2)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "speichern") == 0) {
+        for (auto& x : schritteSpeichernOrt()) { add(std::move(x)); }
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }

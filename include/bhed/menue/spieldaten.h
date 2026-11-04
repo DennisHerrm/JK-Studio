@@ -23,6 +23,8 @@ struct Spieldaten {
     // Gross/Klein egal, / oder \.
     [[nodiscard]] bool lies(const std::string& pfad, std::string& out) const;
     [[nodiscard]] bool gibt(const std::string& pfad) const;
+    // rc609 ME2: wo das Spiel die Datei findet (wie lies) - der volle Pfad der losen Datei (lose = true) oder die .pk3.
+    [[nodiscard]] bool herkunft(const std::string& pfad, std::string& wo, bool& lose) const;
     // Alle Dateien unter praefix mit einer der Endungen (klein, mit Punkt),
     // ohne Doppelte, Pfad wie im Archiv mit der hoechsten Prioritaet.
     [[nodiscard]] std::vector<std::string> liste(const std::string& praefix,

@@ -64,6 +64,7 @@
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
+#include "bhed/sicherschreiben.h"
 #include "bhed/scene.h"
 #include "bhed/shaderscript.h"
 #include "bhed/utf8pfad.h"
@@ -104,6 +105,7 @@ struct TextZeile {
 struct Dokument {
     std::string name;          // Spielpfad (ui/main.menu) - bestimmt Dialekt
     std::string platte;        // Datei auf der Platte ("" = aus dem Spiel)
+    bool ausSpiel = false;     // rc609 ME2: aus den Spieldaten gelesen (Aus dem Spiel, Menuesatz), nicht neu angelegt
     std::vector<Datei> altStaende;   // rc608: die Lesestaende dieses Bildes; die Panels halten Verweise hinein
     Textpuffer puffer;
     std::string geladen;       // Text beim Oeffnen
@@ -1022,6 +1024,38 @@ bool imSpielordner(const std::string& pfad) {
     return false;
 }
 
+// rc609 ME2 (shank 04.11.: "Der Menue-Editor darf ein Menue, das LOSE in einem Mod-Ordner (oder base) unter GameData
+// liegt, an seinen Ort zurueckspeichern - mit Sicherung"): eine vorhandene lose Datei in einem Unterordner des
+// GameData-Ordners (base, MD, jeder Mod-Ordner). Gesperrt bleiben der Programmordner selbst (exe, dll) und die .pk3
+// des Spiels: der Editor ersetzt keine .pk3, und eine lose Datei daneben wirkt nicht (fs_dirbeforepak 0, Befund W2a).
+std::string kanonisch(const std::string& pfad) {
+    std::error_code ec;
+    std::string k = kleinPfad(u8(fs::weakly_canonical(utf8Pfad(pfad), ec)));
+    while (k.size() > 1 && k.back() == '/') { k.pop_back(); }
+    return k;
+}
+bool loseImModOrdner(const std::string& pfad) {
+    std::error_code ec;
+    if (!fs::is_regular_file(utf8Pfad(pfad), ec) || kleinPfad(u8(utf8Pfad(pfad).extension())) == ".pk3") { return false; }
+    const std::string k = kanonisch(pfad);
+    auto unterMod = [&](const std::string& o) {
+        if (o.empty()) { return false; }
+        std::string gameData = kanonisch(o);
+        gameData.erase(std::min(gameData.size(), gameData.rfind('/')));   // eins ueber base bzw. dem Mod-Ordner
+        if (gameData.empty() || k.size() <= gameData.size() + 1 || k.compare(0, gameData.size(), gameData) != 0 || k[gameData.size()] != '/') {
+            return false;
+        }
+        return k.find('/', gameData.size() + 1) != std::string::npos;   // in einem Unterordner, nicht im Programmordner
+    };
+    for (const std::string& o : g_app->settings.gamePaths) {
+        if (unterMod(o)) { return true; }
+    }
+    for (const std::string& o : g_app->settings.gamePathsJk2) {
+        if (unterMod(o)) { return true; }
+    }
+    return false;
+}
+
 bool schreibeDatei(const std::string& pfad, const std::string& inhalt) {
     if (imSpielordner(pfad)) {
         Z().meldung = tr(Str::MeNieSpielordner);
@@ -1034,6 +1068,23 @@ bool schreibeDatei(const std::string& pfad, const std::string& inhalt) {
 }
 
 void imLaufendenSpielNeuLaden();   // M7 Punkt 13 (unten)
+
+// rc609 ME2: Liest das Spiel fuer diesen Spielpfad etwas anderes als die Datei ziel (eine .pk3 im selben Ordner,
+// fs_dirbeforepak 0, oder einen spaeteren Ordner)? Dann dessen Ort, sonst "". Nur, wenn ziel in einem Spielordner an
+// genau diesem Spielpfad liegt - sonst liest das Spiel die Datei ohnehin nicht.
+std::string verdecktVon(const std::string& spielPfad, const std::string& ziel) {
+    datenPruefen();
+    const Zustand& z = Z();
+    std::string wo;
+    bool lose = false;
+    if (!z.daten.herkunft(spielPfad, wo, lose)) { return {}; }
+    const std::string k = kanonisch(ziel);
+    if (lose && kanonisch(wo) == k) { return {}; }
+    for (const GamePath& o : z.daten.ordner) {
+        if (!o.directory.empty() && kanonisch(u8(utf8Pfad(o.directory) / utf8Pfad(spielPfad))) == k) { return wo; }
+    }
+    return {};
+}
 
 void speichern(Dokument& d, const std::string& ziel) {
     char buf[600];
@@ -1048,6 +1099,35 @@ void speichern(Dokument& d, const std::string& ziel) {
     Z().meldung = buf;
     addStatus(buf);
     if (ok) { imLaufendenSpielNeuLaden(); }
+}
+
+// rc609 ME2: an den Ort im Mod-Ordner. Die alte Datei wird <ziel>.bak (der Stand vor diesem Speichern, wie W2a
+// sicherungAnlegenD), dann ersetzt sicherSchreiben die Datei atomar - haelt das laufende Spiel sie offen, bleibt sie.
+void speichernAmOrt(Dokument& d, const std::string& ziel) {
+    Zustand& z = Z();
+    char buf[1600];
+    std::error_code ec;
+    fs::copy_file(utf8Pfad(ziel), utf8Pfad(ziel + ".bak"), fs::copy_options::overwrite_existing, ec);
+    SchreibFehler art = SchreibFehler::Keiner;
+    std::string fehler;
+    if (ec || !sicherSchreiben(ziel, d.puffer.text(), &fehler, &art)) {
+        std::snprintf(buf, sizeof(buf), tr(art == SchreibFehler::Gesperrt ? Str::DoGesperrt : Str::MeNichtGespeichert), (ec ? ziel + ".bak" : ziel).c_str());
+        z.meldung = buf;
+        addStatus(buf);
+        return;
+    }
+    d.platte = ziel;
+    d.gespeichert = d.puffer.text();
+    std::snprintf(buf, sizeof(buf), tr(Str::MeOrtGespeichert), ziel.c_str());
+    z.meldung = buf;
+    const std::string vor = verdecktVon(d.name, ziel);
+    if (!vor.empty()) {
+        std::snprintf(buf, sizeof(buf), tr(Str::MeOrtVerdeckt), vor.c_str());
+        z.meldung += "  " + std::string(buf);
+    }
+    // Die Leiste hat nur eine Zeile: Ort, .bak und Hinweis ganz in der Einblendung (wie W2a), mit Knopf zum Ordner
+    ::bhed::gui::meldung(z.meldung, directoryOf(ziel), !vor.empty());
+    imLaufendenSpielNeuLaden();
 }
 
 // --- Aenderungen an Text und Flaeche ------------------------------------------
@@ -6484,10 +6564,39 @@ void speichernWunsch(Dokument& d, bool unter) {
         speichern(d, d.platte);
         return;
     }
+    // rc609 ME2: ein loses Menue im Mod-Ordner an seinen Ort; aus dem Spiel geoeffnet ist der Ort, wo das Spiel es findet.
+    // Eines in einer .pk3 bleibt bei Speichern unter, mit Hinweis.
+    std::string hinweis;
+    if (!unter) {
+        std::string ort = d.platte;
+        if (ort.empty() && d.ausSpiel) {
+            datenPruefen();
+            bool lose = false;
+            std::string wo;
+            if (z.daten.herkunft(d.name, wo, lose)) {
+                if (lose) {
+                    fs::path p = utf8Pfad(wo);
+                    ort = u8(p.make_preferred());
+                } else {
+                    char b[1600];
+                    std::snprintf(b, sizeof(b), tr(Str::MeInPk3Kopie), d.name.c_str(), wo.c_str());
+                    hinweis = b;
+                }
+            }
+        }
+        if (!ort.empty() && loseImModOrdner(ort)) {
+            speichernAmOrt(d, ort);
+            return;
+        }
+    }
     const std::string ziel = z.speichernDialog ? z.speichernDialog()
                                                : platform::saveFileDialog(tr(unter ? Str::ActSaveAs : Str::MeSpeichern), "Menu (*.menu)|*.menu|", z.ordnerAusgabe,
                                                                           u8(utf8Pfad(d.name).filename()));
-    if (ziel.empty()) { return; }
+    if (!hinweis.empty()) { ::bhed::gui::meldung(hinweis, std::string(), true); }   // auch bei Abbruch, ganz in der Einblendung
+    if (ziel.empty()) {
+        if (!hinweis.empty()) { z.meldung = hinweis; }
+        return;
+    }
     if (!z.projektDatei.empty()) {
         char b[600];
         std::snprintf(b, sizeof(b), schreibeDatei(ziel, d.puffer.text()) ? tr(Str::MeSpeichernKopie) : tr(Str::MeNichtGespeichert), ziel.c_str());
@@ -6498,6 +6607,7 @@ void speichernWunsch(Dokument& d, bool unter) {
     std::string neuerName = u8(utf8Pfad(d.name).parent_path() / utf8Pfad(ziel).filename());
     std::replace(neuerName.begin(), neuerName.end(), '\\', '/');
     speichern(d, ziel);
+    if (!hinweis.empty()) { z.meldung += "  " + hinweis; }
     if (d.platte == ziel && neuerName != d.name) {   // Der Ordner im Spielpfad bestimmt das Format, der neue Dateiname gilt beim Export
         d.name = neuerName;
         d.geparst = -1;
@@ -7280,6 +7390,8 @@ int oeffneMenuesatz(const std::string& spielPfad) {
     for (const std::string& f : satz.loadMenus) {
         std::string inhalt;
         bool da = z.daten.lies(f, inhalt);
+        const bool ausDaten = da;
+        const std::size_t vorher = z.docs.size();
         for (const auto& dd : z.docs) {   // schon offen (eigene Dateien): deren Text
             if (!da && kleinPfad(dd->name) == kleinPfad(f)) {
                 inhalt = dd->puffer.text();
@@ -7289,6 +7401,7 @@ int oeffneMenuesatz(const std::string& spielPfad) {
         if (!da) { continue; }
         if (oeffne(f, "", inhalt)) {
             doc()->satz = nr;
+            if (z.docs.size() > vorher) { doc()->ausSpiel = ausDaten; }
             if (erstes < 0) { erstes = z.aktiv; }
             ++n;
         }
@@ -7452,7 +7565,10 @@ bool oeffneAusSpiel(const std::string& spielPfad) {
     datenPruefen();
     std::string t;
     if (!Z().daten.lies(spielPfad, t)) { return false; }
-    return oeffne(spielPfad, "", t);
+    const std::size_t vorher = Z().docs.size();
+    if (!oeffne(spielPfad, "", t)) { return false; }
+    if (Z().docs.size() > vorher) { doc()->ausSpiel = true; }   // ein schon offenes Dokument gleichen Namens bleibt, was es ist
+    return true;
 }
 
 bool oeffneDatei(const std::string& platte) {

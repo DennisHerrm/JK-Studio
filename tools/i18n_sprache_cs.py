@@ -2725,7 +2725,7 @@ TEXTE = {
     "MePrjExport": "Exportovat projekt jako pk3",
     "MePrjExportZiel": "Změnit umístění pk3...",
     "MePrjOrdnerZeigen": "Zobrazit složku projektu",
-    "MePrjLeer": "Začněte projektem: drží vše v jedné složce a každých 30 sekund vaši práci automaticky zálohuje. Nebo otevřete menu ze hry druhým tlačítkem nahoře.",
+    "MePrjLeer": "Začněte projektem: drží vše v jedné složce a každých 30 sekund vaši práci automaticky zálohuje. Nebo upravte jedno menu bez projektu kartou „Otevřít menu“ níže.",
     "MePrjGespeichert": "Projekt uložen: %s",
     "MePrjGeoeffnet": "Projekt %s otevřen (%d menu).",
     "MePrjFehltDatei": "Soubor projektu %s (už) neexistuje - byl přesunut nebo přejmenován?",
@@ -3026,6 +3026,8 @@ from i18n_rc609_me1 import texte as _rc609_me1  # noqa: E402
 TEXTE.update(_rc609_me1("cs"))
 from i18n_rc609_kemd import texte as _rc609_kemd  # noqa: E402
 TEXTE.update(_rc609_kemd("cs"))
+from i18n_rc609_me2 import texte as _rc609_me2  # noqa: E402
+TEXTE.update(_rc609_me2("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
