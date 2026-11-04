@@ -7367,6 +7367,10 @@ TEXTE.update({
         'Text zůstane, jak jsi ho napsal: pořadí, prázdné řádky a komentáře uloží **{{DoEntSpeichern}}** také. Když něco změníš v inspektoru nebo gizmem, přepíše se jen dotčený řádek; chybějící klíč dostane vlastní řádek.',
     'An unclosed quotation mark in the highlighted line: the message names the line, nothing was applied.':
         'Neuzavřená uvozovka ve zvýrazněném řádku: zpráva uvádí řádek, nic nebylo použito.',
+    'Middle click':
+        'Kliknutí prostředním tlačítkem',
+    'Middle click in the 3D view: inserts `x y z` of the point under the mouse at the text cursor (like BSP-Entity-Edit). Dragging with the middle button still moves the view.':
+        'Kliknutí prostředním tlačítkem ve 3D pohledu: vloží `x y z` bodu pod myší na místo kurzoru v textu (jako BSP-Entity-Edit). Tažení prostředním tlačítkem dál posouvá pohled.',
     'Apply the text.':
         'Použít text.',
     'Find: every match is highlighted; <kbd>F3</kbd> next, <kbd>Shift</kbd>+<kbd>F3</kbd> previous, <kbd>Esc</kbd> removes the highlight.':

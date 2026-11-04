@@ -4964,6 +4964,7 @@ void drawMapView() {
         const bool hilfen = !g_app->playing;
         if (hilfen) {
             lumpEditMaus();   // rc609 J: "Flaeche waehlen" im Fenster Shader und Flaechen
+            entTextMittelklick();   // rc609 Endrunde 1: Mittelklick setzt "x y z" in den Entity-Text
             animMaus();
             bahnGriffeMaus();
         }

@@ -55,6 +55,8 @@ struct Zustand {
     bool liveSchritt = false;          // Live-Tippen: der Rueckgaengig-Schritt steht schon
     int liveEntity = -1;
     bool fokus = false;                // Panel hat den Fokus (letztes Bild)
+    int marke = -1;                    // Schreibmarke (Byte im Puffer), zuletzt im aktiven Feld; -1 = keine
+    bool markeSetzen = false;          // nach dem Einfuegen: das aktive Feld bekommt die Schreibmarke dahinter
     bool feldAktiv = false;
     // Zeilen je Entity (aus dem Puffer) und die Farben
     std::vector<int> blockVon;
@@ -207,6 +209,7 @@ void neuAufbauen() {
     s.meldung.clear();
     s.liveSchritt = false;
     s.gezeigt = -2;
+    s.marke = -1;   // eine andere Karte: keine Schreibmarke
     pufferSetzen(latin1NachUtf8(s.doc));
 }
 
@@ -494,6 +497,9 @@ void textFeld(const ImVec2& platz) {
     }
     // Esc: Hervorhebung weg - und NICHT ImGuis "Text auf den Stand beim Anklicken zuruecksetzen".
     s.feldAktiv = ImGui::GetActiveID() == id;
+    if (s.feldAktiv && !s.markeSetzen) {
+        if (const ImGuiInputTextState* st = ImGui::GetInputTextState(id)) { s.marke = st->GetCursorPos(); }
+    }
     if (s.feldAktiv && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
         ImGui::SetKeyOwner(ImGuiKey_Escape, ImGui::GetID("##enttextesc"));
         s.hervorheben = false;
@@ -508,8 +514,12 @@ void textFeld(const ImVec2& platz) {
         }
     }
     if (s.neuLaden) {
-        if (ImGuiInputTextState* st = ImGui::GetInputTextState(id); st != nullptr && s.feldAktiv) { st->ReloadUserBufAndKeepSelection(); }
+        if (ImGuiInputTextState* st = ImGui::GetInputTextState(id); st != nullptr && s.feldAktiv) {
+            st->ReloadUserBufAndKeepSelection();
+            if (s.markeSetzen) { st->SetSelection(s.marke, s.marke); }
+        }
         s.neuLaden = false;
+        s.markeSetzen = false;
     }
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));   // der Text kommt gefaerbt darueber
     const bool neu = ImGui::InputTextMultiline(kFeld, s.puffer.data(), s.puffer.capacity() + 1, ImVec2{platz.x - nummernB, platz.y},
@@ -763,6 +773,44 @@ void entTextMeldungOrt(ImVec2& a, ImVec2& b) {
     a = z().meldungRect.Min;
     b = z().meldungRect.Max;
 }
+// Mittelklick in 3D (BSP-Entity-Edit): "x y z" des getroffenen Punkts an der Schreibmarke einfuegen
+// (gerundet wie die origin-Werte der Karten). Ohne Schreibmarke (das Feld war noch nie aktiv) nichts.
+bool entTextKoordinatenEinfuegen(const float p[3]) {
+    Zustand& s = z();
+    if (!g_app->settings.entTextOffen || s.marke < 0) { return false; }
+    char b[64];
+    std::snprintf(b, sizeof(b), "%ld %ld %ld", std::lround(p[0]), std::lround(p[1]), std::lround(p[2]));
+    const std::size_t an = std::min(static_cast<std::size_t>(s.marke), s.puffer.size());
+    std::string neu = s.puffer;
+    neu.insert(an, b);
+    pufferSetzen(neu);
+    s.marke = static_cast<int>(an + std::strlen(b));
+    s.markeSetzen = true;
+    s.geaendert = true;
+    s.zeilenAlt = true;
+    s.fehlerZeile = -1;
+    s.meldung.clear();
+    liveVersuch();
+    diag::detail(std::string("Entity-Text: Mittelklick, \"") + b + "\" an Byte " + std::to_string(an));
+    return true;
+}
+
+void entTextMittelklick() {
+    if (!g_app->settings.entTextOffen || g_app->camViewActive || g_app->geo.empty()) { return; }
+    const ImGuiIO& io = ImGui::GetIO();
+    const bool imBild = io.MousePos.x >= g_app->kartenAnsicht[0] && io.MousePos.x < g_app->kartenAnsicht[2] && io.MousePos.y >= g_app->kartenAnsicht[1] &&
+                        io.MousePos.y < g_app->kartenAnsicht[3] && ImGui::IsWindowHovered();
+    // ein Klick, kein Ziehen (Ziehen mit der mittleren Taste verschiebt die Ansicht)
+    if (!imBild || !ImGui::IsMouseReleased(ImGuiMouseButton_Middle) ||
+        io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Middle] >= io.MouseDragThreshold * io.MouseDragThreshold) {
+        return;
+    }
+    TraceTreffer t;
+    if (kartenStrahlUnterMaus(io.MousePos.x, io.MousePos.y, t)) { (void)entTextKoordinatenEinfuegen(t.point); }
+}
+
+int entTextMarke() { return z().marke; }
+
 ImVec2 entTextKopfOrt() {
     const Zustand& s = z();
     return ImVec2{s.feldRect.Max.x - ImGui::GetFontSize() * 2.0F, s.feldRect.Min.y - ImGui::GetFontSize() * 0.6F};

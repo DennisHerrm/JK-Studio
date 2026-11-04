@@ -7370,6 +7370,10 @@ TEXTE.update({
         'El texto se queda como lo escribiste: **{{DoEntSpeichern}}** guarda también el orden, las líneas en blanco y los comentarios. Si cambias algo en el inspector o con el gizmo, solo se reescribe la línea afectada; una clave que falta recibe su propia línea.',
     'An unclosed quotation mark in the highlighted line: the message names the line, nothing was applied.':
         'Unas comillas sin cerrar en la línea marcada: el mensaje indica la línea y no se aplicó nada.',
+    'Middle click':
+        'Clic central',
+    'Middle click in the 3D view: inserts `x y z` of the point under the mouse at the text cursor (like BSP-Entity-Edit). Dragging with the middle button still moves the view.':
+        'Clic central en la vista 3D: inserta `x y z` del punto bajo el ratón en el cursor del texto (como BSP-Entity-Edit). Arrastrar con el botón central sigue moviendo la vista.',
     'Apply the text.':
         'Aplicar el texto.',
     'Find: every match is highlighted; <kbd>F3</kbd> next, <kbd>Shift</kbd>+<kbd>F3</kbd> previous, <kbd>Esc</kbd> removes the highlight.':

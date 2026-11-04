@@ -3390,6 +3390,9 @@ bool entTextUebernehmen();          // Strg+Enter: lesen wie das Spiel, ein Ruec
 void entTextAusblenden();           // H: die gewaehlten Entities in 3D ausblenden
 void entTextAlleEinblenden();       // Alt+H
 bool entTextHatFokus();             // Panel hat den Fokus: F3/Strg+F/H gehoeren ihm
+void entTextMittelklick();          // Mittelklick in 3D: "x y z" an der Schreibmarke (BSP-Entity-Edit)
+bool entTextKoordinatenEinfuegen(const float p[3]);
+int entTextMarke();                 // Selbsttest: Schreibmarke (Byte im Puffer), -1 = keine
 void drawEntTextInhalt();
 void drawEntTextFenster();
 // fuer den Selbsttest

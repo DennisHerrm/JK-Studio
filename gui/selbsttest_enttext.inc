@@ -414,6 +414,37 @@ std::vector<Schritt> enttextSchritte() {
         return !ent.empty() && ent == entTextDoc() && ent.find("// rc609 W2b \xFC\n") != std::string::npos &&
                ent.find("\"w2b T\xFCr\"") != std::string::npos;
     }));
+    // --- I: Mittelklick in 3D setzt "x y z" an die Schreibmarke (BSP-Entity-Edit) ---------------
+    auto mk = std::make_shared<std::pair<std::string, std::string>>();   // Puffer davor, erwarteter Puffer
+    auto mkOrt = [] {
+        const float* k = g_app->kartenAnsicht;
+        return ImVec2{k[0] + (k[2] - k[0]) * 0.25F, k[3] - (k[3] - k[1]) * 0.15F};
+    };
+    add(klickAn("Entity-Text I: in den Text (Zeile des ersten Blocks)", [z] { return entTextZeilenOrt(entTextBlockZeile(z->ent), 0); }));
+    add(pause(0.2));
+    add(tu("Entity-Text I: Puffer merken", [mk] { mk->first = entTextPuffer(); }));
+    add(ziehenAn("Entity-Text I: mit der mittleren Taste ueber die Karte ziehen (verschiebt nur)", mkOrt, 40.0F, 0.0F, ImGuiMouseButton_Middle));
+    add(pause(0.2));
+    add(pruefe("Entity-Text I: Ziehen fuegt nichts ein", [mk] { return entTextPuffer() == mk->first; }));
+    add(tu("Entity-Text I: erwarteten Text berechnen (Spur unter der Maus wie der Klick)", [mk, mkOrt] {
+        const ImVec2 p = mkOrt();
+        TraceTreffer t;
+        mk->second.clear();
+        if (entTextMarke() < 0 || !kartenStrahlUnterMaus(p.x, p.y, t)) { return; }
+        char b[64];
+        std::snprintf(b, sizeof(b), "%ld %ld %ld", std::lround(t.point[0]), std::lround(t.point[1]), std::lround(t.point[2]));
+        mk->second = mk->first;
+        mk->second.insert(std::min(static_cast<std::size_t>(entTextMarke()), mk->second.size()), b);
+        diag::detail("Knopftest: Entity-Text I - Schreibmarke " + std::to_string(entTextMarke()) + ", erwartet \"" + b + "\"");
+    }));
+    add(klickAn("Entity-Text I: Mittelklick in die Karte", mkOrt, ImGuiMouseButton_Middle));
+    add(pause(0.2));
+    add(pruefe("Entity-Text I: \"x y z\" des Punkts unter der Maus steht an der Schreibmarke", [mk] {
+        return !mk->second.empty() && entTextPuffer() == mk->second && entTextGeaendert();
+    }));
+    add(foto("et_mittelklick"));
+    add(tu("Entity-Text I: den getippten Stand verwerfen (Text neu aus den Entities)", [] { entTextQuelle(g_app->map.path, std::string()); }));
+
     add(tu("Entity-Text: Panel zu, Laufordner aufraeumen", [z] {
         dock::ausblenden("mission.enttext", true);
         g_app->entitiesUngespeichert.clear();
