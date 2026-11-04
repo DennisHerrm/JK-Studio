@@ -2,9 +2,8 @@
 #include "bhed/diag.h"
 #include "bhed/regelwerk.h"
 
-#include <cctype>
-
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -75,18 +74,52 @@ constexpr const char* kFelderJk2[] = {
 };
 constexpr const char* kFelderNurMd[] = {"fullName", "icon", "player_victoryscript"};
 
+// Q_stricmpn (OJK code/qcommon/q_shared.cpp): nur 'a'..'z' werden zu Grossbuchstaben - ohne Locale.
+inline unsigned char grossAscii(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    return (u >= 'a' && u <= 'z') ? static_cast<unsigned char>(u - ('a' - 'A')) : u;
+}
+
 bool gleichOhneGross(const std::string& a, const char* b) {
     // Q_stricmp: Buchstaben ohne Ruecksicht auf Gross/Klein (q_shared.cpp Q_stricmpn).
     std::size_t i = 0;
     for (; i < a.size() && b[i] != '\0'; ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+        if (grossAscii(a[i]) != grossAscii(b[i])) { return false; }
     }
     return i == a.size() && b[i] == '\0';
 }
 
-template <std::size_t N>
-bool inTabelle(const char* const (&t)[N], const std::string& k) {
-    return std::any_of(std::begin(t), std::end(t), [&k](const char* f) { return gleichOhneGross(k, f); });
+// Endrunde 1: find() fragt fuer jeden Schluessel die Feldtabelle (rund 140 Namen) - je Bild tausendfach, seit W2b
+// gut 1 ms Prozessorzeit je Bild (Messung in NOTIZEN_rc609_endrunde.md). Die Namen nach ihrem ersten Buchstaben
+// (ohne Gross/Klein) vorsortiert; verglichen wird wie vorher mit gleichOhneGross, nur mit den Namen desselben Anfangs.
+// Gleiches Ergebnis, ein Bruchteil der Vergleiche.
+class FeldTabelle {
+public:
+    template <std::size_t N>
+    explicit FeldTabelle(const char* const (&t)[N]) {
+        for (const char* f : t) { nachAnfang_[grossAscii(f[0])].push_back(f); }
+    }
+    [[nodiscard]] bool enthaelt(const std::string& k) const {
+        if (k.empty()) { return false; }
+        const std::vector<const char*>& kandidaten = nachAnfang_[grossAscii(k[0])];
+        return std::any_of(kandidaten.begin(), kandidaten.end(), [&k](const char* f) { return gleichOhneGross(k, f); });
+    }
+
+private:
+    std::array<std::vector<const char*>, 256> nachAnfang_;
+};
+
+const FeldTabelle& felderOjk() {
+    static const FeldTabelle t(kFelderOjk);
+    return t;
+}
+const FeldTabelle& felderJk2() {
+    static const FeldTabelle t(kFelderJk2);
+    return t;
+}
+const FeldTabelle& felderNurMd() {
+    static const FeldTabelle t(kFelderNurMd);
+    return t;
 }
 
 // COM_ParseExt(data, qtrue) - OJK code/qcommon/q_shared.cpp:281-376, MD9 :299-394.
@@ -158,8 +191,8 @@ void kurzfelder(MapEntity& e) {
 
 
 bool entFeldSchluessel(const std::string& key) {
-    if (regelwerkJediOutcast()) { return inTabelle(kFelderJk2, key); }
-    return inTabelle(kFelderOjk, key) || (regelwerkMovieDuels() && inTabelle(kFelderNurMd, key));
+    if (regelwerkJediOutcast()) { return felderJk2().enthaelt(key); }
+    return felderOjk().enthaelt(key) || (regelwerkMovieDuels() && felderNurMd().enthaelt(key));
 }
 
 int entSchluesselIndex(const MapEntity& e, const std::string& key) {
