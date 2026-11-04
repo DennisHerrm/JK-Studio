@@ -118,6 +118,22 @@ std::string ibiText(const std::string& ibi) {
     return writeScript(sc);
 }
 bool fragtNachWeg() { return !g_app->speicherFragen.empty(); }
+// Spielvergleich (BHED_DO_BELEG=1): ein Wegpunkt 4 Einheiten unter dem Boden am Spielerstart - das Spiel meldet ihn beim
+// Laden mit Namen (SP_waypoint: "ERROR: Waypoint <name> at ... in solid!", G_CheckInSolid), also hat es genau diese
+// Entities gelesen.
+void belegSetzen(const char* name) {
+    if (std::getenv("BHED_DO_BELEG") == nullptr) { return; }
+    float p[3]{};
+    for (const MapEntity& e : g_app->map.entities) {
+        if (e.classname == "info_player_start" && entityOrt(e, p)) { break; }
+    }
+    const float unten[3] = {p[0], p[1], p[2] - 1000.0F};
+    const TraceTreffer t = traceRay(g_app->geo, p, unten);
+    if (!t.hit) { return; }
+    const float o[3] = {t.point[0], t.point[1], t.point[2] - 4.0F};
+    const int i = neueEntityAn("waypoint", o);
+    if (i >= 0) { (void)entityKeySetzen(i, "targetname", name); }
+}
 std::string kl(std::string s) {
     for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     return s;
@@ -178,6 +194,7 @@ std::vector<Schritt> dateiortSchritte() {
     }));
     add(tu("Dateiort A: worldspawn aendern, Entities speichern, in die BSP uebernehmen", [z] {
         (void)entityKeySetzen(0, "message", "rc609 W2a lose");
+        belegSetzen("w2a_beleg_lose");
         (void)entitiesSpeichern();
         (void)entitiesInBspUebernehmen();
     }));
@@ -253,6 +270,7 @@ std::vector<Schritt> dateiortSchritte() {
         z->eintraege = eintraege(z->pk3);
         if (z->bereit) { (void)karteAusArchivOeffnen(z->pk3, "maps/w2a_pk3.bsp"); }
         (void)entityKeySetzen(0, "message", "rc609 W2a pk3");
+        belegSetzen("w2a_beleg_pk3");
         (void)entitiesSpeichern();
     }));
     add(pruefe("Dateiort C: Herkunft .pk3 + Eintrag, es fragt nach dem Weg", [z] {
@@ -321,6 +339,38 @@ std::vector<Schritt> dateiortSchritte() {
     }));
     add(pruefe("Dateiort D: ohne Frage, lose .ent aktualisiert, .pk3 weiter Byte-gleich", [z] {
         return !fragtNachWeg() && lies(z->mod + "\\maps\\w2a_pk3.ent").find("zweites mal") != std::string::npos && lies(z->pk3) == z->pk3Vorher;
+    }));
+
+    // --- G: aus der .pk3, Weg 3 (Speichern unter; der Dateidialog antwortet im Selbsttest mit einem Pfad im Laufordner) --
+    auto unter = std::make_shared<std::string>();
+    add(tu("Dateiort G: Karte neu aus der .pk3, aendern, Entities speichern (Wahl nicht gemerkt)", [z, unter] {
+        g_app->settings.pk3SpeicherWeg = 0;
+        z->pk3Vorher = lies(z->pk3);
+        *unter = z->wurzel + "\\unter\\w2a_unter.ent";
+        std::error_code ec;
+        std::filesystem::create_directories(utf8Pfad(z->wurzel + "\\unter"), ec);
+        if (z->bereit) { (void)karteAusArchivOeffnen(z->pk3, "maps/w2a_pk3.bsp"); }
+        (void)entityKeySetzen(0, "message", "rc609 W2a speichern unter");
+        (void)entitiesSpeichern();
+    }));
+    add(pause(0.3));
+    add(tu("Dateiort G: der Dateidialog antwortet mit unter\\w2a_unter.ent", [unter] { platform::dialogAntwortImSelbsttest(*unter); }));
+    add(klick(tr(Str::DoWegUnter), "###speicherweg"));
+    add(pause(0.3));
+    add(pruefe("Dateiort G: Weg 3 - der Dialog schlug w2a_pk3.ent vor, die .ent liegt am gewaehlten Ort, .pk3 Byte-gleich", [z, unter] {
+        const std::string ent = lies(*unter);
+        const std::string vorschlag = platform::dialogVorschlagImSelbsttest();
+        diag::detail("Knopftest: Dateiort G - Vorschlag \"" + vorschlag + "\", " + std::to_string(ent.size()) + " Bytes am gewaehlten Ort");
+        return vorschlag == "w2a_pk3.ent" && ent.find("rc609 W2a speichern unter") != std::string::npos && lies(z->pk3) == z->pk3Vorher &&
+               g_app->settings.pk3SpeicherWeg == 0;
+    }));
+    add(tu("Dateiort G: zweites Speichern", [] {
+        (void)entityKeySetzen(0, "message", "rc609 W2a unter zweites mal");
+        (void)entitiesSpeichern();
+    }));
+    add(pause(0.3));
+    add(pruefe("Dateiort G: das zweite Speichern geht ohne Frage an die gewaehlte Datei", [z, unter] {
+        return !fragtNachWeg() && lies(*unter).find("unter zweites mal") != std::string::npos && lies(z->pk3) == z->pk3Vorher;
     }));
 
     // --- F1 / F7 / E: Mission ------------------------------------------------------------------

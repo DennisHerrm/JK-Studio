@@ -111,15 +111,24 @@ FilterSpec buildFilter(const char* filter) {
     return out;
 }
 
+// rc609 Endrunde 1: die Antwort, die der Selbsttest fuer den naechsten Dateidialog
+// vorgibt (einmal), und der Name, den der letzte Dialog vorgeschlagen haette.
+std::string g_selbsttestAntwort;
+std::string g_selbsttestVorschlag;
+
 std::string runDialog(const char* title, const char* filter,
                       const std::string& startDir, const std::string& suggested,
                       bool save, bool folder) {
     // Im Selbsttest KEIN Dialog: er hielte den Lauf an (unsichtbar hinter
-    // dem Testfenster). Wie "Abbrechen" behandeln und ins Protokoll.
+    // dem Testfenster). Wie "Abbrechen" behandeln und ins Protokoll - oder
+    // die Antwort, die der Selbsttest vorgegeben hat.
     if (std::getenv("BHED_EDITORTEST") != nullptr) {
-        diag::detail(std::string("Selbsttest: Dateidialog \"") + (title != nullptr ? title : "") +
-                     "\" unterdrueckt (wie Abbrechen)");
-        return {};
+        std::string antwort;
+        antwort.swap(g_selbsttestAntwort);
+        g_selbsttestVorschlag = suggested;
+        diag::detail(std::string("Selbsttest: Dateidialog \"") + (title != nullptr ? title : "") + "\" (Vorschlag \"" + suggested + "\") " +
+                     (antwort.empty() ? std::string("unterdrueckt (wie Abbrechen)") : "beantwortet: " + antwort));
+        return antwort;
     }
     IFileDialog* dialog = nullptr;
     const CLSID clsid = save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog;
@@ -210,6 +219,10 @@ std::string saveFileDialog(const char* title, const char* filter,
                            const std::string& suggestedName) {
     return runDialog(title, filter, startDir, suggestedName, true, false);
 }
+
+void dialogAntwortImSelbsttest(const std::string& pfad) { g_selbsttestAntwort = pfad; }
+
+std::string dialogVorschlagImSelbsttest() { return g_selbsttestVorschlag; }
 
 Answer askSaveChanges(const std::string& question, const char* title) {
     const int r = MessageBoxW(nullptr, toWide(question).c_str(), toWide(title).c_str(),

@@ -19,6 +19,10 @@ namespace bhed::platform {
 [[nodiscard]] std::string saveFileDialog(const char* title, const char* filter,
                                          const std::string& startDir,
                                          const std::string& suggestedName);
+// Selbsttest (nur mit BHED_EDITORTEST): der naechste Dateidialog liefert pfad
+// statt "Abbrechen"; der Name, den der letzte Dialog vorgeschlagen haette.
+void dialogAntwortImSelbsttest(const std::string& pfad);
+[[nodiscard]] std::string dialogVorschlagImSelbsttest();
 
 enum class Answer { Yes, No, Cancel };
 [[nodiscard]] Answer askSaveChanges(const std::string& question, const char* title);
