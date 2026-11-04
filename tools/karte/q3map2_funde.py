@@ -26,6 +26,10 @@ Faelle:
            mehr zur .srf. Das zweite -light muss dasselbe ergeben wie das erste auf der Ausgabe
            von -vis (alle 17 Lumps, Shader-Datei und externe Lightmaps gleich), mit und ohne
            -randomsamples (dann Bounce-Runden)
+  kemd1    (rc609 KEMD) misc_model mit spawnflags 4 (forceMeta) und einer ebenen Flaeche, -bsp ohne -meta:
+           die Flaeche bleibt ESurfaceType::ForcedMeta mit Lightmap-Achse ( 0 0 0 ), -light stuerzte in
+           MapSingleLuxel ab (lm->vecs nullptr; NRCs q3map2.exe ebenso). Rueckgabe 0, Lightmaps fuer die
+           Welt, die Modellflaeche per Ecke beleuchtet (LIGHTMAP_BY_VERTEX)
 """
 import os
 import re
@@ -375,8 +379,61 @@ def relicht(exe, ordner):
     return fehler
 
 
+def md3_viereck(pfad, shader):
+    """Ein MD3 mit einem Frame und einer Flaeche: waagrechtes Viereck in z = 8 (Normale lat 0 lng 0 = genau +z,
+    damit ClassifySurfaces es eben findet)."""
+    ecken = [(-16, -16, 8), (16, -16, 8), (16, 16, 8), (-16, 16, 8)]
+    dreiecke = [(0, 1, 2), (0, 2, 3)]
+    st = [(0, 1), (1, 1), (1, 0), (0, 0)]
+    normale = 0
+    flaeche_kopf = 4 + 64 + 4 * 10
+    o_dreiecke = flaeche_kopf
+    o_shader = o_dreiecke + 12 * len(dreiecke)
+    o_st = o_shader + 68
+    o_ecken = o_st + 8 * len(ecken)
+    o_ende = o_ecken + 8 * len(ecken)
+    f = b'IDP3' + b'kiste'.ljust(64, NUL) + struct.pack('<10i', 0, 1, 1, len(ecken), len(dreiecke), o_dreiecke, o_shader, o_st, o_ecken, o_ende)
+    f += b''.join(struct.pack('<3i', *d) for d in dreiecke)
+    f += shader.encode('latin-1').ljust(64, NUL) + struct.pack('<i', 0)
+    f += b''.join(struct.pack('<2f', *s) for s in st)
+    f += b''.join(struct.pack('<4h', x * 64, y * 64, z * 64, normale) for x, y, z in ecken)
+    kopf = 4 + 4 + 64 + 4 * 9
+    o_frames = kopf
+    o_flaechen = o_frames + 56
+    rahmen = struct.pack('<10f', -16, -16, 8, 16, 16, 8, 0, 0, 0, 24) + b'frame'.ljust(16, NUL)
+    daten = b'IDP3' + struct.pack('<i', 15) + b'kiste'.ljust(64, NUL) + struct.pack('<9i', 0, 1, 0, 1, 0, o_frames, o_frames, o_flaechen, o_flaechen + len(f))
+    os.makedirs(os.path.dirname(pfad), exist_ok=True)
+    with open(pfad, 'wb') as d:
+        d.write(daten + rahmen + f)
+
+
+def kemd1(exe, ordner):
+    md3_viereck(os.path.join(ordner, 'base', 'models', 's6', 'kiste.md3'), 'models/s6/kiste')
+    karte = os.path.join(ordner, 'kemd1.map')
+    schreiben(karte, raum_mit() + '{' + NL + '"classname" "misc_model"' + NL + '"model" "models/s6/kiste.md3"' + NL +
+              '"origin" "64 0 0"' + NL + '"spawnflags" "4"' + NL + '}' + NL)
+    rc1, _ = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-bsp', karte], ordner)
+    rc2, aus = lauf(exe, ['-game', 'ja', '-fs_basepath', ordner, '-light', '-threads', '1', karte], ordner)
+    l = lumps(os.path.join(ordner, 'kemd1.bsp'))
+    modell = []
+    welt = 0
+    if l and not rc1 and not rc2:
+        shader = [l[1][i:i + 64].split(NUL)[0].decode('latin-1') for i in range(0, len(l[1]), 72)]
+        for i in range(0, len(l[13]), 148):
+            sh, _, typ = struct.unpack_from('<3i', l[13], i)
+            lm0 = struct.unpack_from('<i', l[13], i + 36)[0]   # lightmapNum[0] (nach shader, fog, typ, 4 Zahlen, styles)
+            if shader[sh] == 'models/s6/kiste':
+                modell.append(lm0)
+            elif lm0 >= 0:
+                welt += 1
+    gut = rc1 == 0 and rc2 == 0 and 'Chose a 0 valued axis' in aus and modell == [-3] and welt > 0 and len(l[14]) > 0
+    print(('ok    ' if gut else 'FEHL  ') + 'kemd1: forceMeta-misc_model ohne -meta: -bsp %s, -light %s, Modellflaeche lightmapNum %s (soll [-3]), '
+          'Weltflaechen mit Lightmap %d, Lightmap-Lump %d Bytes' % (rc1, '0x%x' % (rc2 & 0xffffffff), modell, welt, len(l[14]) if l else -1))
+    return 0 if gut else 1
+
+
 FAELLE = {'nrc270': nrc270, 'nrc43': nrc43, 'nrc72': nrc72, 'nrc101': nrc101, 'nrc102': nrc102, 'gt113': gt113, 'gl143': gl143, 'gl108': gl108, 'gl128': gl128,
-          'relicht': relicht}
+          'relicht': relicht, 'kemd1': kemd1}
 
 
 def main():
