@@ -4364,6 +4364,39 @@ struct Lauf {
         }
         return kette;
     }
+    // rc609 W4: NAV_FindClosestWaypointForPoint(point) (codeJK2/game/g_nav.cpp:373-397) -> CNavigator::GetNearestNode
+    // (g_navigator.cpp:1484-1590) mit lastID und targetID WAYPOINT_NONE (TestBestFirst gibt dann NODE_NONE), flags
+    // NF_CLEAR_PATH. Der Marker ist keine Figur (NAV_ClearPathToPoint ohne STEPSIZE, g_nav.cpp:298-307); G_Spawn gibt
+    // ihn beim Laden jedes Mal mit derselben Nummer (freetime < 2000, g_utils.cpp:758), und nodeChecked wird erst im
+    // naechsten Bild geleert (ClearCheckedNodes, g_main.cpp:1278): ein CHECKED_FAILED gilt fuer alle folgenden Punkte
+    // (`gescheitert`). -1: WAYPOINT_NONE.
+    [[nodiscard]] int jk2MarkerWegpunkt(const NavVec& ort, std::vector<char>& gescheitert) const {
+        if (jk2Zahl() == 0) { return -1; }
+        gescheitert.resize(static_cast<std::size_t>(jk2Zahl()), 0);
+        const NavVec mi{-16.0F, -16.0F, -6.0F};
+        const NavVec ma{16.0F, 16.0F, 32.0F};
+        // TestNodePath(marker, ENTITYNUM_NONE, position, qfalse): clipmask ohne CONTENTS_BODY
+        const std::uint32_t maske = kJk2MaskNpcSolid & ~kNavBody;
+        const auto frei = [&](const NavVec& punkt) {
+            if (welt.pvs && !welt.pvs(ort, punkt)) { return false; }
+            NavSpur tr = spurDurch(spurF, ort, mi, ma, punkt, kNavKeineEntity, maske | kNavMonsterClip | kNavBotClip);
+            if (tr.startsolid && (tr.contents & kNavBotClip) != 0U) {
+                tr = spurDurch(spurF, ort, mi, ma, punkt, kNavKeineEntity, maske | kNavMonsterClip);
+            }
+            return !tr.startsolid && !tr.allsolid && tr.fraction == 1.0F;
+        };
+        for (const Jk2Naechster& n : jk2Sammeln(ort)) {
+            const NavNetzJk2::Knoten& k = jk2Knoten(n.id);
+            if (static_cast<int>(n.abstand) < k.radius * k.radius && std::fabs(k.punkt[2] - ort[2]) < 18.0F) { return n.id; }   // MAX_Z_DELTA
+            if (gescheitert[static_cast<std::size_t>(n.id)] != 0) { continue; }
+            if (!frei(k.punkt)) {
+                gescheitert[static_cast<std::size_t>(n.id)] = 1;
+                continue;
+            }
+            return n.id;   // "first one we find is fine"
+        }
+        return -1;
+    }
     // CNavigator::GetPathCost (g_navigator.cpp:2496-2566)
     [[nodiscard]] int jk2PfadKosten(int start, int ende) const {
         const int n = jk2Zahl();
@@ -5117,6 +5150,62 @@ int navNaechsterKnoten(const NavWelt& welt, const NavVec& pos, int vorher, int z
     LaufZustand z;
     Lauf l(welt, w, z);
     return l.naechster(pos, vorher, ziel);
+}
+
+std::vector<NavKampfPunkt> navKampfPunkte(const std::vector<MapEntity>& ents, const NavWelt& welt) {
+    constexpr int kMaxCombatPoints = 512;   // MAX_COMBAT_POINTS (g_local.h:138, codeJK2 ebenso)
+    std::vector<NavKampfPunkt> aus;
+    LaufWerte w;
+    LaufZustand z;
+    Lauf l(welt, w, z);
+    const NavNetz* netz = welt.netz.get();
+    const bool jk2 = netz != nullptr && netz->jk2 != nullptr;
+    std::map<int, int> knotenVon;   // Entity -> PT_COMBATNODE
+    if (netz != nullptr && !jk2) {
+        for (std::size_t k = 1; k < netz->knoten.size(); ++k) {
+            if (netz->knoten[k].typ == NavKnoten::Kampf) { knotenVon[netz->knoten[k].entity] = static_cast<int>(k); }
+        }
+    }
+    std::vector<char> gescheitert;   // Jedi Outcast: nodeChecked des Markers ueber alle Punkte
+    int zahl = 0;
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        if (klein(ents[i].classname) != "point_combat") { continue; }
+        NavKampfPunkt p;
+        p.entity = static_cast<int>(i);
+        if (zahl >= kMaxCombatPoints) {
+            p.zuViele = true;
+            aus.push_back(p);
+            continue;
+        }
+        ++zahl;
+        // G_SpawnVector("origin", "0 0 0")
+        std::istringstream is(ents[i].origin);
+        is >> p.ort[0] >> p.ort[1] >> p.ort[2];
+        p.ort[2] += 0.125F;
+        const auto kv = knotenVon.find(p.entity);
+        p.knoten = kv != knotenVon.end() ? kv->second : 0;
+        if (jk2) {
+            const int id = l.jk2MarkerWegpunkt(p.ort, gescheitert);
+            p.zuordnung = id;
+            p.ohneWegpunkt = id < 0;
+            if (id >= 0) { p.zuOrt = netz->jk2->knoten[static_cast<std::size_t>(id)].punkt; }
+        } else {
+            const int h = l.naechster(p.ort, 0, 0);
+            p.zuordnung = h;
+            p.ohneWegpunkt = h == 0;
+            if (h > 0) {
+                p.zuOrt = netz->knoten[static_cast<std::size_t>(h)].punkt;
+                p.zuEntity = netz->knoten[static_cast<std::size_t>(h)].entity;
+            } else if (h < 0) {
+                // PointOnEdge (ProjectToLine), wie GetNearestNode ihn prueft
+                const NavKante& k = netz->kanten[static_cast<std::size_t>(-h)];
+                p.zuOrt = p.ort;
+                (void)aufGerade(p.zuOrt, netz->knoten[static_cast<std::size_t>(k.a)].punkt, netz->knoten[static_cast<std::size_t>(k.b)].punkt);
+            }
+        }
+        aus.push_back(p);
+    }
+    return aus;
 }
 
 // --- Stufe 8b Punkt 3: ein Spieler (siehe navlauf.h) ----------------------------

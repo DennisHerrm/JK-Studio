@@ -243,30 +243,18 @@ float waagerecht(const V& a, const V& b) { return std::hypot(a[0] - b[0], a[1] -
 // rc609 W3b: "Abbrechen" waehrend der Erzeugung (WegErzeugung::fortschritt sagte false).
 struct Abbruch {};
 
-}  // namespace
-
-namespace {
-
-std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>& starts, const WegWelt& welt, const WegErzeugung& p,
-                                        WegErzeugungInfo* info) {
-    std::vector<NeuerWegpunkt> aus;
-    const Laeufer lauf{welt};
-    const float S0 = std::max(kGitter * 2.0F, p.abstand);
-    constexpr float kNie = std::numeric_limits<float>::max();
-    // Mehr Flaeche, als maxKnoten Punkte bei der dreifachen Rasterweite abdecken (je Punkt 3k x 3k Zellen), braucht das
-    // Gitter nicht (weiter wird das Raster nicht, siehe unten).
-    const long long k2 = 3LL * std::max(1L, std::lround(S0 / kGitter));
-    const long long maxZellen = static_cast<long long>(std::max(1, p.maxKnoten)) * k2 * k2;
-    // rc609 W3b: Fortschritt melden, bei false abbrechen.
-    float anteilBasis = 0.0F;    // je Durchgang (das Raster kann weiter werden) ein Stueck der Gesamtzeit
-    float anteilBreite = 1.0F;
-    const auto melde = [&](float a, int schritt) {
-        if (p.fortschritt && !p.fortschritt(anteilBasis + anteilBreite * std::clamp(a, 0.0F, 1.0F), schritt)) { throw Abbruch{}; }
-    };
-    const std::size_t saatZahl = p.saat < 0 ? starts.size() : std::min(starts.size(), static_cast<std::size_t>(p.saat));
-
-    // --- 1. Laufgitter ---------------------------------------------------------------
+// 1. Laufgitter (Kastenbreite 32) von den ersten `saatZahl` Startpunkten aus, gehen wie Pmove; die uebrigen Startpunkte
+// (vorhandene Wegpunkte) nur, wenn das Gitter sie erreicht. rc609 W4: aus erzeugeInnen herausgeloest (auch fuer die
+// Abdeckung), unveraendert.
+struct Laufgitter {
     std::vector<Zelle> z;
+    std::vector<int> startZelle;   // je Startpunkt seine Zelle, -1: keine
+    int unerreicht = 0;            // vorhandene Wegpunkte, die das Gitter nicht erreicht
+};
+Laufgitter laufgitterBauen(const std::vector<std::array<float, 3>>& starts, std::size_t saatZahl, const Laeufer& lauf, const WegErzeugung& p,
+                           long long maxZellen, const std::function<void(float)>& melde) {
+    Laufgitter lg;
+    std::vector<Zelle>& z = lg.z;
     std::unordered_map<long long, std::vector<int>> spalten;
     std::deque<int> offen;
     const auto verknuepfe = [&](int a, int b) {
@@ -294,7 +282,8 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
         offen.push_back(i);
         return i;
     };
-    std::vector<int> startZelle(starts.size(), -1);
+    lg.startZelle.assign(starts.size(), -1);
+    std::vector<int>& startZelle = lg.startZelle;
     for (std::size_t si = 0; si < saatZahl; ++si) {
         V o{};
         if (!lauf.boden(starts[si], o)) { continue; }
@@ -319,7 +308,7 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     static const int kVier[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
     std::size_t gelaufen = 0;
     while (!offen.empty()) {
-        if ((++gelaufen & 1023U) == 0U) { melde(0.3F * static_cast<float>(gelaufen) / static_cast<float>(z.size()), 1); }
+        if ((++gelaufen & 1023U) == 0U && melde) { melde(0.3F * static_cast<float>(gelaufen) / static_cast<float>(z.size())); }
         const int i = offen.front();
         offen.pop_front();
         for (const auto& r : kVier) {
@@ -333,7 +322,7 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     }
     // rc609 W3b: die uebrigen Startpunkte (vorhandene Wegpunkte) nur, wenn das Gitter sie erreicht hat - an eine der vier
     // umliegenden Zellen, die schon da ist.
-    int unerreicht = 0;   // vorhandene Wegpunkte, die das Gitter nicht erreicht (zaehlen fuer die Punktgrenze des Spiels)
+    int& unerreicht = lg.unerreicht;   // vorhandene Wegpunkte, die das Gitter nicht erreicht (zaehlen fuer die Punktgrenze des Spiels)
     for (std::size_t si = saatZahl; si < starts.size(); ++si) {
         V o{};
         std::vector<int> an;
@@ -364,6 +353,56 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
         startZelle[si] = i;
         for (const int j : an) { verknuepfe(i, j); }
     }
+    return lg;
+}
+
+// Weg auf dem Laufgitter von Zelle c aus (bis `bis`); `weit` behaelt das Kleinste.
+void ausbreitenAuf(const std::vector<Zelle>& z, std::vector<float>& weit, int c, float bis) {
+    using E = std::pair<float, int>;
+    std::priority_queue<E, std::vector<E>, std::greater<>> q;
+    weit[static_cast<std::size_t>(c)] = 0.0F;
+    q.emplace(0.0F, c);
+    while (!q.empty()) {
+        const auto [d, i] = q.top();
+        q.pop();
+        if (d > weit[static_cast<std::size_t>(i)]) { continue; }
+        for (const int j : z[static_cast<std::size_t>(i)].nb) {
+            const float nd = d + waagerecht(z[static_cast<std::size_t>(i)].o, z[static_cast<std::size_t>(j)].o);
+            if (nd <= bis && nd < weit[static_cast<std::size_t>(j)]) {
+                weit[static_cast<std::size_t>(j)] = nd;
+                q.emplace(nd, j);
+            }
+        }
+    }
+}
+
+}  // namespace
+
+namespace {
+
+std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>& starts, const WegWelt& welt, const WegErzeugung& p,
+                                        WegErzeugungInfo* info) {
+    std::vector<NeuerWegpunkt> aus;
+    const Laeufer lauf{welt};
+    const float S0 = std::max(kGitter * 2.0F, p.abstand);
+    constexpr float kNie = std::numeric_limits<float>::max();
+    // Mehr Flaeche, als maxKnoten Punkte bei der dreifachen Rasterweite abdecken (je Punkt 3k x 3k Zellen), braucht das
+    // Gitter nicht (weiter wird das Raster nicht, siehe unten).
+    const long long k2 = 3LL * std::max(1L, std::lround(S0 / kGitter));
+    const long long maxZellen = static_cast<long long>(std::max(1, p.maxKnoten)) * k2 * k2;
+    // rc609 W3b: Fortschritt melden, bei false abbrechen.
+    float anteilBasis = 0.0F;    // je Durchgang (das Raster kann weiter werden) ein Stueck der Gesamtzeit
+    float anteilBreite = 1.0F;
+    const auto melde = [&](float a, int schritt) {
+        if (p.fortschritt && !p.fortschritt(anteilBasis + anteilBreite * std::clamp(a, 0.0F, 1.0F), schritt)) { throw Abbruch{}; }
+    };
+    const std::size_t saatZahl = p.saat < 0 ? starts.size() : std::min(starts.size(), static_cast<std::size_t>(p.saat));
+
+    // --- 1. Laufgitter ---------------------------------------------------------------
+    Laufgitter lg = laufgitterBauen(starts, saatZahl, lauf, p, maxZellen, [&](float a) { melde(a, 1); });
+    std::vector<Zelle>& z = lg.z;
+    std::vector<int>& startZelle = lg.startZelle;
+    const int unerreicht = lg.unerreicht;
 
     // --- 2. Punkte ---------------------------------------------------------------------
     std::vector<int> knotenZelle;
@@ -493,24 +532,7 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     }
     // Weg auf dem Laufgitter zum naechsten Punkt (bis `bis`).
     std::vector<float> weit(z.size(), kNie);
-    const auto ausbreiten = [&](int c, float bis) {
-        using E = std::pair<float, int>;
-        std::priority_queue<E, std::vector<E>, std::greater<>> q;
-        weit[static_cast<std::size_t>(c)] = 0.0F;
-        q.emplace(0.0F, c);
-        while (!q.empty()) {
-            const auto [d, i] = q.top();
-            q.pop();
-            if (d > weit[static_cast<std::size_t>(i)]) { continue; }
-            for (const int j : z[static_cast<std::size_t>(i)].nb) {
-                const float nd = d + waagerecht(z[static_cast<std::size_t>(i)].o, z[static_cast<std::size_t>(j)].o);
-                if (nd <= bis && nd < weit[static_cast<std::size_t>(j)]) {
-                    weit[static_cast<std::size_t>(j)] = nd;
-                    q.emplace(nd, j);
-                }
-            }
-        }
-    };
+    const auto ausbreiten = [&](int c, float bis) { ausbreitenAuf(z, weit, c, bis); };
     const auto punkte = [&](float raster) {
         aus.clear();
         knotenZelle.clear();
@@ -852,6 +874,73 @@ std::vector<NeuerWegpunkt> erzeugeWegpunkte(const std::vector<std::array<float, 
         if (info != nullptr) { info->abgebrochen = true; }   // rc609 W3b: "Abbrechen" - nichts uebernehmen
         return {};
     }
+}
+
+// rc609 W4 (Plan G "Abdeckung"): das Laufgitter der Erzeugung von allen Startpunkten aus, dann je vorhandenem Wegpunkt
+// der Weg zu Fuss bis `reichweite`; was keiner erreicht, ist offen.
+WegAbdeckung wegAbdeckung(const std::vector<std::array<float, 3>>& starts, const std::vector<char>& istWegpunkt, const WegWelt& welt,
+                          float reichweite, const std::function<bool(float anteil)>& weiter) {
+    WegAbdeckung aus;
+    if (!welt.spur || starts.empty()) { return aus; }
+    const Laeufer lauf{welt};
+    WegErzeugung p;
+    p.abstand = reichweite;
+    p.startIstWegpunkt = istWegpunkt;
+    const float S0 = std::max(kGitter * 2.0F, reichweite);
+    const long long k2 = 3LL * std::max(1L, std::lround(S0 / kGitter));
+    const long long maxZellen = static_cast<long long>(std::max(1, p.maxKnoten)) * k2 * k2;
+    try {
+        const Laufgitter lg = laufgitterBauen(starts, starts.size(), lauf, p, maxZellen, [&](float a) {
+            if (weiter && !weiter(a)) { throw Abbruch{}; }
+        });
+        std::vector<float> weit(lg.z.size(), std::numeric_limits<float>::max());
+        for (std::size_t si = 0; si < starts.size(); ++si) {
+            if (si < istWegpunkt.size() && istWegpunkt[si] != 0 && lg.startZelle[si] >= 0) { ausbreitenAuf(lg.z, weit, lg.startZelle[si], reichweite); }
+        }
+        for (std::size_t i = 0; i < lg.z.size(); ++i) {
+            const Zelle& c = lg.z[i];
+            if (!c.gitter) { continue; }
+            ++aus.zellen;
+            if (weit[i] > reichweite) { aus.offen.push_back({c.o[0], c.o[1], c.o[2] + kKastenUnten}); }
+        }
+    } catch (const Abbruch&) {
+        aus = WegAbdeckung{};
+        aus.abgebrochen = true;
+    }
+    return aus;
+}
+
+// rc609 W4 (Rest aus W1): ein von Hand gesetzter Wegpunkt, den das Spiel verwirft, an die naechste Stelle, an der es
+// ihn behaelt - mit denselben Regeln wie die Erzeugung (Boden unter dem Kasten, origin = Boden + 25, Boden unter der
+// Mitte, welt.knoten: G_CheckInSolid und waypoint_getRadius). Gesucht wird in Ringen um den Klick auf demselben Boden
+// (hoechstens eine Stufe hoeher oder tiefer) und nur, wohin die Sicht auf Hoehe des origin frei ist (nicht durch eine
+// Wand).
+bool wegStelleSuchen(const std::array<float, 3>& boden, const WegWelt& welt, float weite, std::array<float, 3>& ort) {
+    if (!welt.spur) { return false; }
+    const Laeufer lauf{welt};
+    const auto gueltig = [&](const V& st, V& o) {
+        V k{};
+        if (!lauf.boden(st, k)) { return false; }
+        o = {std::round(k[0]), std::round(k[1]), std::round(k[2] + kKastenUnten + 25.0F)};
+        if (std::fabs(o[2] - 25.0F - boden[2]) > kStufe) { return false; }
+        if (welt.spur(o, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {o[0], o[1], o[2] - 90.0F}).anteil >= 1.0F) { return false; }
+        return !welt.knoten || welt.knoten(o);
+    };
+    if (gueltig(boden, ort)) { return true; }
+    const V auge{boden[0], boden[1], boden[2] + 25.0F};
+    constexpr float kSchritt = 8.0F;
+    for (float r = kSchritt; r <= weite; r += kSchritt) {
+        // je Ring so viele Stellen, dass sie hoechstens kSchritt auseinander liegen; die naechste zuerst
+        const int n = std::max(8, static_cast<int>(std::ceil(2.0F * 3.14159265F * r / kSchritt)));
+        for (int i = 0; i < n; ++i) {
+            const float w = 2.0F * 3.14159265F * static_cast<float>(i) / static_cast<float>(n);
+            const V st{boden[0] + std::cos(w) * r, boden[1] + std::sin(w) * r, boden[2]};
+            const WegSpurTreffer sicht = welt.spur(auge, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {st[0], st[1], auge[2]});
+            if (sicht.imFesten || sicht.anteil < 1.0F) { continue; }
+            if (gueltig(st, ort)) { return true; }
+        }
+    }
+    return false;
 }
 
 // rc609 W3a: Jede Kante braucht ein target-Feld an einem ihrer Enden (das Spiel verbindet in beide Richtungen,

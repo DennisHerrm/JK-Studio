@@ -2236,6 +2236,7 @@ std::vector<Schritt> handbuchSchritte() {
 }
 
 std::vector<Schritt> wegmalenHandbuchSchritte();
+std::vector<Schritt> kampfpunkteHandbuchSchritte();   // selbsttest_kampfpunkte.inc: rc609 W4, BHED_HB_NUR=kampfpunkte
 void wegTreppeBlick();   // selbsttest_wegerzeugung.inc: rc609 W3b, die Kamera fuer h_weg_treppe   // selbsttest_wegmalen.inc: rc609 W3b, BHED_HB_NUR=wegmalen
 
 std::vector<Schritt> handbuchSchritteInhalt() {
@@ -2445,6 +2446,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         return t;
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegmalen") == 0) { return wegmalenHandbuchSchritte(); }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kampfpunkte") == 0) { return kampfpunkteHandbuchSchritte(); }
     // rc609 W3a: das Bild des Abschnitts "Erzeugung: Innenraeume, Treppen, Tueren" (h_weg_treppe) - mp/duel8 aus
     // den .pk3 des Spiels, ein erzeugtes Netz, der Blick auf die Treppe mit dem Punkt unten und oben.
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "wegerzeugung") == 0) {

@@ -1168,6 +1168,28 @@ struct NavKoerperErgebnis {
 // --- Einzelne Teile der Engine, fuer Proben und die Oberflaeche ---------------
 // NAV::GetNearestNode(position, previous, goal, ignoreEnt, allowZOffset)
 [[nodiscard]] int navNaechsterKnoten(const NavWelt& welt, const NavVec& pos, int vorher, int ziel);
+
+// rc609 W4 (Mike: "they automatically connect to waypoints (no target needed)"): die Kampfpunkte so, wie das Spiel
+// sie nach dem Laden kennt. SP_point_combat (OpenJK code/game/NPC_combat.cpp:2593-2625, Movie Duels 9 :3359 gleich):
+// hoechstens MAX_COMBAT_POINTS 512 (g_local.h:138), origin[2] + 0.125, NAV::SpawnedPoint(PT_COMBATNODE) - der Punkt
+// wird selbst ein Knoten des Netzes (baueNavNetz, mit den Auto-Kanten). Nach dem Netzbau CP_FindCombatPointWaypoints
+// (:2627-2641, G_ConnectNavs g_main.cpp:534-538): waypoint = NAV::GetNearestNode(origin) (g_navigator.cpp:2440) in
+// der Welt nach PHASE VI (Tueren wieder auf pos1, :2088-2135); WAYPOINT_NONE (0) -> "ERROR: Combat Point at %s has
+// no waypoint!". Jedi Outcast (codeJK2/game/NPC_combat.cpp:2369-2412): kein Knoten, waypoint =
+// NAV_FindClosestWaypointForPoint (g_nav.cpp:373-397): CNavigator::GetNearestNode (g_navigator.cpp:1484-1590) mit
+// einem Marker -16..16 x -16..16 x -6..32, MASK_NPCSOLID, NF_CLEAR_PATH; WAYPOINT_NONE ist dort -1.
+struct NavKampfPunkt {
+    int entity = -1;          // Index in MapData::entities
+    NavVec ort{};             // level.combatPoints[i].origin (currentOrigin nach + 0.125)
+    bool zuViele = false;     // ueber MAX_COMBAT_POINTS: "Too many combat points", nicht im Spiel
+    int knoten = 0;           // der eigene NAV-Knoten (PT_COMBATNODE); 0: keiner ("Nav(%d) in solid", Jedi Outcast)
+    bool ohneWegpunkt = true; // waypoint == WAYPOINT_NONE: "has no waypoint"
+    int zuordnung = 0;        // Jedi Academy: GetNearestNode (> 0 Knoten, < 0 Kante); Jedi Outcast: Knoten-ID
+    NavVec zuOrt{};           // wohin: der Knoten bzw. der Punkt auf der Kante (PointOnEdge)
+    int zuEntity = -1;        // die Entity des zugeordneten Knotens (Jedi Academy), sonst -1
+};
+// `welt`: das Netz aus genau diesen Entities (baueNavNetz mit Spuren) und die Spur der Welt nach dem Netzbau.
+[[nodiscard]] std::vector<NavKampfPunkt> navKampfPunkte(const std::vector<MapEntity>& ents, const NavWelt& welt);
 // NAV::FindPath bis auf den Pfad: gibt es ein A* vom Knoten a zum Knoten b?
 // `pfad` (optional) bekommt die Knoten von a nach b. rc605: `springen` =
 // SCF_NAV_CAN_JUMP - dann gelten Sprungkanten (is_valid, g_navigator.cpp:551-556 MD).

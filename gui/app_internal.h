@@ -159,6 +159,7 @@ struct DateiHerkunft {
 };
 
 struct WegAuftrag;   // rc609 W3b: die Erzeugung im Hintergrund (gui/app_wegpunkte.cpp)
+struct WegAbdeckAuftrag;   // rc609 W4: die Abdeckung im Hintergrund (gui/app_wegpunkte.cpp)
 
 // Zustand der Oberflaeche. Bewusst ein einfacher Verbund - das Programm hat
 // genau ein Dokument, wie das Original.
@@ -1691,6 +1692,7 @@ struct App {
     int wegLetzter = -1;              // setzen: zuletzt gesetzter (Kette)
     float wegAbstand = 192.0F;        // Rasterweite beim Erzeugen
     float wegAbstandGenutzt = 192.0F; // rc609 W3a: die Rasterweite des letzten Erzeugens (weiter bei mehr Punkten, als das Spiel nimmt)
+    float wegAbstandVoll = 0.0F;      // rc609 W4: die Rasterweite der letzten vollen Erzeugung auf dieser Karte (0: keine)
     std::vector<WegErzeugungInfo::Luecke> wegLuecken;   // rc609 W3a: Teile, die das letzte Erzeugen nicht anbinden konnte
     bool wegKlickVerbraucht = false;  // ein Werkzeugklick waehlt nichts aus
     WegNetz wegNetz;
@@ -1716,6 +1718,20 @@ struct App {
     std::vector<std::array<float, 3>> wegMarken;      // Stellen des letzten Pfads ohne Kante oder Punkt
     std::vector<char> wegAbseits;                     // je Entity: Wegpunkt ausserhalb des Hauptteils des Netzes
     int wegTeileZahl = 0;                             // Teile des Netzes ausser dem Hauptteil
+    // rc609 W4 (Mike: point_combat "automatically connect to waypoints (no target needed)"; Plan G Testroute, Abdeckung):
+    // Werkzeug 7 Kampfpunkt setzen, 8 Testroute.
+    std::vector<NavKampfPunkt> wegKampf;              // die Kampfpunkte wie im Spiel (navKampfPunkte)
+    std::shared_ptr<const NavWelt> wegKampfWelt;      // das Netz, aus dem wegKampf gerechnet ist
+    bool wegVersetzen = true;                         // ein Wegpunkt, den das Spiel verwirft, rueckt an die naechste gueltige Stelle
+    bool wegRouteSpringen = true;                     // Testroute fuer eine Figur mit SCF_NAV_CAN_JUMP
+    std::vector<std::array<float, 3>> wegRouteKlick;  // die angeklickten Punkte (0..2)
+    std::vector<std::array<float, 3>> wegRoute;       // der Weg: Klick, Knoten ..., Klick (leer: keiner)
+    std::vector<char> wegRouteSprung;                 // je Stueck des Wegs: eine Sprungkante
+    std::vector<int> wegRouteKnoten;                  // die NAV-Knoten des Wegs (navAStar)
+    bool wegAbdeckungAn = false;                      // begehbare Flaechen ohne Wegpunkt in Reichweite einfaerben
+    std::shared_ptr<WegAbdeckAuftrag> wegAbdeckAuftrag;   // rechnet im Hintergrund
+    WegAbdeckung wegAbdeckung;                        // das Ergebnis
+    std::size_t wegAbdeckungSchl = 0;                 // fuer diese Entities und Rasterweite (0: keins)
     int entStand = 0;                 // zaehlt jede Entity-Aenderung (nachAenderung)
     // --- Draufsicht (rc589) ----------------------------------------------
     // Senkrecht nach unten; was hoeher liegt als draufSchnitt, schneidet die
@@ -3019,6 +3035,15 @@ void wegBereicheAktuell();
 int wegGenerierteEntfernen();
 bool wegVerbinden(int vonEntity, int nachEntity, bool sprung);
 int wegSetzen(const float boden[3], int verbindeMit);
+// rc609 W4: setzt einen point_combat am Boden (origin = Boden + 25 wie ein Wegpunkt, kein target), ein Schritt.
+int wegKampfSetzen(const float boden[3]);
+// rc609 W4: die Kampfpunkte wie im Spiel neu rechnen, wenn sich das Netz geaendert hat (nicht waehrend des Ziehens).
+void wegKampfAktuell();
+// rc609 W4: Testroute von a nach b - der Weg, den ein NPC im Spiel naehme (GetNearestNode, navAStar); false: keiner.
+bool wegRouteRechnen(const std::array<float, 3>& a, const std::array<float, 3>& b);
+// rc609 W4: Abdeckung - laeuft sie gerade, und das Ergebnis passt zu den Entities?
+[[nodiscard]] bool wegAbdeckungLaeuft();
+[[nodiscard]] bool wegAbdeckungAktuell();
 // rc609 W1: Verweise (target..target4, targetJump) auf diese Namen (klein
 // geschrieben) zaehlen bzw. entfernen - ohne Rueckgaengig-Schritt.
 int verweiseZaehlen(const std::set<std::string>& namenKlein);
@@ -3539,6 +3564,8 @@ void kollisionLaden(const std::string& bsp, const std::string& karte);
 // Paket saber) - nullptr, wenn fuer `karte` keine geladen ist.
 [[nodiscard]] std::shared_ptr<const KollisionsKarte> geladeneKollision(const std::string& karte);
 [[nodiscard]] std::shared_ptr<const NavWelt> navWeltVorschau();
+// rc609 W4: dieselbe Welt ohne Mover-Plan - die Karte, wie sie nach dem Netzbau beim Laden steht (Kampfpunkte, Testroute).
+[[nodiscard]] std::shared_ptr<const NavWelt> navWeltSpawn();
 // rc601 (bewegung, teil 3): den Stand der Mover aus der Mover-Simulation
 // (g_app->moverSim, bis endeMs) fuer die Wege uebernehmen (NavWelt::mover,
 // spurZeit). true: er hat sich geaendert - Ablauf und Szene noch einmal.

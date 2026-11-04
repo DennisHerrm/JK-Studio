@@ -14,6 +14,30 @@ NetRadiant-Menues, die englisch bleiben (tools/i18n_sprache_cs.py).
 TASTEN = {"Space": "Mezerník", "Up": "Nahoru", "Down": "Dolů", "Left": "Vlevo", "Right": "Vpravo"}
 
 TEXTE = {
+    'Combat points, test route, coverage':
+        'Bojové body, zkušební trasa, pokrytí',
+    'Top view: combat points (violet boxes). The dotted lines are the connections the game makes for them by itself; the point by the wall gets no point of its own in the game and is assigned the waypoint at the end of the solid line.':
+        'Pohled shora: bojové body (fialové kvádry). Tečkované čáry jsou spojení, která pro ně hra vytvoří sama; bod u zdi se ve hře nestane vlastním bodem a dostane bod trasy na konci plné čáry.',
+    'Click the floor to place a combat point (point_combat).':
+        'Kliknutím na podlahu položíte bojový bod (point_combat).',
+    "Warnings exactly like the game's messages; click one to fly there.":
+        'Varování přesně jako hlášení hry; kliknutím tam přeletíte.',
+    'Gunners move to combat points for cover or a better angle. **{{WegKampfSetzen}}** places one per click on the floor, 25 above it like a waypoint; several clicks place several. Delete, undo and Ctrl+D work as for every entity.':
+        'Střelci chodí k bojovým bodům do krytu nebo pro lepší úhel. **{{WegKampfSetzen}}** položí jedním kliknutím jeden na podlahu, 25 nad ni jako bod trasy; více kliknutí položí více bodů. Delete, zpět a Ctrl+D fungují jako u každé entity.',
+    'A combat point needs no target. When the map loads, the game makes it a point of the network itself and connects it to up to four nearby waypoints on the same floor (dotted lines). Then it assigns each combat point the nearest point of the network it can see - normally the combat point itself. Only if the game cannot make it a point (a box around it touches a wall), the solid line leads to the waypoint it gets instead.':
+        'Bojový bod nepotřebuje target. Při načtení mapy z něj hra sama udělá bod sítě a spojí ho až se čtyřmi blízkými body trasy na téže podlaze (tečkované čáry). Potom každému bojovému bodu přiřadí nejbližší bod sítě, který vidí - obvykle bojový bod samotný. Jen když z něj hra bod udělat nemůže (kvádr kolem něj se dotýká zdi), vede plná čára k bodu trasy, který dostane místo toho.',
+    'Red: the game prints "Combat Point at ... has no waypoint" for it - it finds no point of the network for it at all (for example on a map without connections, or by a wall far above all waypoints). Orange: "not connected to anything" - it is a point, but no waypoint is close enough on the same floor.':
+        'Červeně: hra pro něj hlásí "Combat Point at ... has no waypoint" - nenajde pro něj vůbec žádný bod sítě (třeba na mapě bez spojení nebo u zdi vysoko nad všemi body trasy). Oranžově: "not connected to anything" - je to bod, ale na téže podlaze není žádný bod trasy dost blízko.',
+    'Test route: from the floor next to the player start up onto the roof - the route an NPC takes in the game, with the jump edge (dashed).':
+        'Zkušební trasa: z podlahy u startu hráče nahoru na střechu - trasa, kterou NPC ve hře jde, se skokovou hranou (čárkovaně).',
+    '**{{WegRoute}}**: click two points on the floor. The editor shows the route an NPC would take in the game - from the point of the network the game picks for the start to the one for the goal, along the network as the game builds it. With **{{WegRouteSpringen}}** the NPC may use jump edges (as with force jump). If there is no route, the window says why. A missing connection shows up at once, before you look for it in the game.':
+        '**{{WegRoute}}**: klikněte na dva body na podlaze. Editor ukáže trasu, kterou by NPC ve hře šlo - od bodu sítě, který hra vybere pro start, k bodu pro cíl, po síti, jak ji hra staví. S **{{WegRouteSpringen}}** smí NPC použít skokové hrany (jako se skokem Síly). Když trasa není, okno řekne proč. Chybějící spojení se tak ukáže hned, dřív než ho budete hledat ve hře.',
+    'Coverage in the top view: walkable floor without a waypoint within reach is red.':
+        'Pokrytí v pohledu shora: schůdná podlaha bez bodu trasy v dosahu je červená.',
+    '**{{WegAbdeckung}}** switches to the top view and colours every patch of floor red (32 x 32) from which no waypoint can be reached on foot within **{{WegAbstand}}** - walking like the generation, from the player start, the characters and the waypoints. These are the spots a generation or a path missed. It is calculated in the background and again after every change.':
+        '**{{WegAbdeckung}}** přepne do pohledu shora a obarví červeně každý kus podlahy (32 x 32), odkud pěšky do **{{WegAbstand}}** nedosáhnete žádného bodu trasy - chůze jako při vytváření, od startu hráče, postav a bodů trasy. To jsou místa, která vytváření nebo trasa vynechaly. Počítá se na pozadí a po každé změně znovu.',
+    '**{{WegVersetzen}}** (on by default): a waypoint you place by hand where the game would drop it - in solid, too close to a wall or floating - goes to the nearest spot on the same floor where the game keeps it, with the same rules as the generation. The status line says how far and where to. Without it, the waypoint stays where you clicked and the status line warns.':
+        '**{{WegVersetzen}}** (výchozí zapnuto): bod trasy, který ručně položíte tam, kde by ho hra zahodila - v pevném, příliš blízko zdi nebo ve vzduchu -, se přesune na nejbližší místo na téže podlaze, kde ho hra ponechá, se stejnými pravidly jako vytváření. Stavový řádek řekne jak daleko a kam. Bez této volby zůstane bod, kde jste klikli, a stavový řádek varuje.',
     'Areas, path, start point, jump edges':
         'Oblasti, cesta, počáteční bod, skokové hrany',
     'Top view: a painted area (blue) and the waypoints "Generate here" placed inside it.':

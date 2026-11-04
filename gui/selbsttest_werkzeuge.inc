@@ -2137,6 +2137,24 @@ std::vector<Schritt> kartenWerkzeugSchritte() {
         *anzahl0 = g_app->map.entities.size();
     }));
     add(pause(0.6));
+    // Waehlt ein Klick an p nichts (die Treffer der Ansicht: Marke, Figur, Kamera, Modell, app_view3d_bedienung.inc)?
+    const auto klickLeer = [](const ImVec2& p) {
+        const float skal = g_app->mapImage.width > 0
+                               ? static_cast<float>(g_app->mapImage.width) / std::max(1.0F, g_app->kartenAnsicht[2] - g_app->kartenAnsicht[0])
+                               : 1.0F;
+        const float mx = (p.x - g_app->kartenAnsicht[0]) * skal;
+        const float my = (p.y - g_app->kartenAnsicht[1]) * skal;
+        const float fs = ImGui::GetFontSize();
+        const auto nah = [&](float sx, float sy, float weit) { return (sx - mx) * (sx - mx) + (sy - my) * (sy - my) < weit * weit; };
+        for (const App::PickedMarker& mk : g_app->markers) {
+            if (nah(mk.sx, mk.sy, fs * 1.2F)) { return false; }
+        }
+        for (const App::ActorMark& am : g_app->actorMarks) {
+            if (nah(am.sx, am.sy, fs * 1.6F)) { return false; }
+        }
+        if (g_app->cameraSx >= 0.0F && nah(g_app->cameraSx, g_app->cameraSy, fs * 1.2F * 2.5F)) { return false; }
+        return moverUnterMaus(p.x, p.y) < 0;
+    };
     add(tu("Einen Rahmen um zwei bis vier Marken suchen", [=] {
         erwartet->clear();
         // Eine Marke als Anker, dann die Nachbarn in 150 Punkten.
@@ -2165,6 +2183,11 @@ std::vector<Schritt> kartenWerkzeugSchritte() {
                 if (pb.x >= r0.x && pb.x <= r1.x && pb.y >= r0.y && pb.y <= r1.y) { drin.insert(static_cast<int>(b.entity)); }
                 if (std::fabs(pb.x - r0.x) < 26.0F && std::fabs(pb.y - r0.y) < 26.0F) { startFrei = false; }
             }
+            // rc609 W4: der Anfang muss fuer den Klick der Ansicht leer sein - auch keine Figur (Reichweite 1,6
+            // Schriftgroessen, seit rc597 waehlt sie ihren Spawner), keine Kamera, kein Modell. Gemessen (w4_wpmess):
+            // der Anfang 1345.9/424.1 lag 34,0 von der Marke der Figur 29 (NPC_Droid_R2D2, Entity 234) - der Klick
+            // waehlte sie, der Rahmen verschob dann ihren Spawner ("Entity moved"), gewaehlt 1 statt 3.
+            startFrei = startFrei && klickLeer(r0);
             if (drin.size() >= 2U && drin.size() <= 6U && startFrei) {
                 (*rahmen)[0] = r0;
                 (*rahmen)[1] = r1;

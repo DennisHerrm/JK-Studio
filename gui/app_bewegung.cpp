@@ -952,6 +952,8 @@ NavBauHilfe navBauHilfeKarte(const std::vector<MapEntity>& ents) {
     return t ? t->bau : NavBauHilfe{};
 }
 
+std::shared_ptr<const NavWelt> navWeltSpawn() { return navWeltBasis(); }
+
 std::shared_ptr<const NavWelt> navWeltVorschau() {
     const std::shared_ptr<const NavWelt> basis = navWeltBasis();
     NavWeltSpeicher& sp = navWeltSpeicher();

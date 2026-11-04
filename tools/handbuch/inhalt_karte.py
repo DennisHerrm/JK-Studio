@@ -347,6 +347,74 @@ WEGPUNKTE = {
             '在大地图上生成需要几秒钟。它在后台运行:窗口显示进度和步骤,你可以继续环顾四周或在其他窗口中工作。结果在最后以一个撤销步骤出现——与直接计算得到的路网相同。如果期间实体发生变化,结果会被丢弃并给出消息;**{{WegAbbrechen}}** 会停止它且不做任何更改。',
             '大きなマップでは生成に数秒かかります。生成はバックグラウンドで動きます。ウィンドウに進行状況と段階が表示され、その間も見回したりほかのウィンドウで作業したりできます。結果は最後に元に戻す 1 回分として入り、直接計算した場合と同じネットワークです。その間にエンティティが変わると、メッセージとともに結果を破棄します。**{{WegAbbrechen}}** は止めて、何も変更しません。'),
         ]),
+        ("h2", "kampf", T(
+            'Combat points, test route, coverage',
+            'Kampfpunkte, Testroute, Abdeckung',
+            '战斗点、测试路线、覆盖',
+            '戦闘ポイント・テストルート・カバー範囲')),
+        ("img", "h_weg_kampf", T(
+            'Top view: combat points (violet boxes). The dotted lines are the connections the game makes for them by itself; the point by the wall gets no point of its own in the game and is assigned the waypoint at the end of the solid line.',
+            'Draufsicht: Kampfpunkte (violette Kästen). Die gepunkteten Linien sind die Verbindungen, die das Spiel selbst für sie anlegt; der Punkt an der Wand wird im Spiel kein eigener Punkt und bekommt den Wegpunkt am Ende der durchgezogenen Linie.',
+            '俯视图:战斗点(紫色方框)。虚线是游戏自己为它们建立的连接;墙边的那个点在游戏中不会成为独立的点,而是被分配到实线末端的路径点。',
+            '上面図: 戦闘ポイント(紫の箱)。点線はゲームが自分で作る接続です。壁際の点はゲームでは独立した点にならず、実線の先のウェイポイントが割り当てられます。'), "breit"),
+        ("legende", [
+            (T("**{{WegKampfSetzen}}**"), T(
+            'Click the floor to place a combat point (point_combat).',
+            'Auf den Boden klicken setzt einen Kampfpunkt (point_combat).',
+            '单击地面放置战斗点(point_combat)。',
+            '床をクリックで戦闘ポイント (point_combat) を置きます。')),
+            (T("**{{WegKampfTitel}}**"), T(
+            "Warnings exactly like the game's messages; click one to fly there.",
+            'Warnungen genau wie die Meldungen des Spiels; ein Klick fliegt hin.',
+            '警告与游戏的消息完全一致;单击即可飞到那里。',
+            '警告はゲームのメッセージとまったく同じです。クリックするとそこへ飛びます。')),
+        ]),
+        ("list", [
+            T(
+            'Gunners move to combat points for cover or a better angle. **{{WegKampfSetzen}}** places one per click on the floor, 25 above it like a waypoint; several clicks place several. Delete, undo and Ctrl+D work as for every entity.',
+            'Schützen gehen zu Kampfpunkten, um Deckung oder einen besseren Winkel zu finden. **{{WegKampfSetzen}}** setzt je Klick einen auf den Boden, 25 darüber wie einen Wegpunkt; mehrere Klicks setzen mehrere. Entf, Rückgängig und Strg+D wirken wie bei jeder Entity.',
+            '枪手会移动到战斗点寻找掩护或更好的角度。**{{WegKampfSetzen}}** 每次单击在地面上放置一个,像路径点一样高出地面 25;多次单击就放置多个。Delete、撤销和 Ctrl+D 与所有实体一样有效。',
+            '銃を持つ敵は、遮蔽やよい角度を求めて戦闘ポイントへ移動します。**{{WegKampfSetzen}}** はクリックごとに床へ 1 つ、ウェイポイントと同じく 25 上に置きます。何度もクリックすれば何個でも置けます。Delete、元に戻す、Ctrl+D はほかのエンティティと同じです。'),
+            T(
+            'A combat point needs no target. When the map loads, the game makes it a point of the network itself and connects it to up to four nearby waypoints on the same floor (dotted lines). Then it assigns each combat point the nearest point of the network it can see - normally the combat point itself. Only if the game cannot make it a point (a box around it touches a wall), the solid line leads to the waypoint it gets instead.',
+            'Ein Kampfpunkt braucht kein target. Beim Laden der Karte macht das Spiel ihn selbst zu einem Punkt des Netzes und verbindet ihn mit bis zu vier Wegpunkten in der Nähe auf demselben Boden (gepunktete Linien). Danach ordnet es jedem Kampfpunkt den nächsten Punkt des Netzes zu, den es sieht - normalerweise den Kampfpunkt selbst. Nur wenn das Spiel ihn nicht zum Punkt machen kann (ein Kasten um ihn berührt eine Wand), führt die durchgezogene Linie zu dem Wegpunkt, den er stattdessen bekommt.',
+            '战斗点不需要 target。载入地图时,游戏会把它本身变成路网中的一个点,并把它连接到同一地面上附近最多四个路径点(虚线)。随后游戏为每个战斗点分配它能看到的最近的路网点——通常就是战斗点本身。只有当游戏无法把它变成点时(它周围的方框碰到墙),实线才会指向它改为得到的路径点。',
+            '戦闘ポイントに target は要りません。マップを読み込むと、ゲームはそれ自体をネットワークの点にし、同じ床の近くのウェイポイント最大 4 つと接続します(点線)。そのあと各戦闘ポイントに、見える中で一番近いネットワークの点を割り当てます - ふつうは戦闘ポイント自身です。ゲームが点にできない場合(周りの箱が壁に触れる)だけ、実線が代わりに割り当てられるウェイポイントへ伸びます。'),
+            T(
+            'Red: the game prints "Combat Point at ... has no waypoint" for it - it finds no point of the network for it at all (for example on a map without connections, or by a wall far above all waypoints). Orange: "not connected to anything" - it is a point, but no waypoint is close enough on the same floor.',
+            'Rot: Das Spiel meldet für ihn "Combat Point at ... has no waypoint" - es findet überhaupt keinen Punkt des Netzes für ihn (etwa auf einer Karte ohne Verbindungen oder an einer Wand weit über allen Wegpunkten). Orange: "not connected to anything" - er ist ein Punkt, aber kein Wegpunkt liegt nah genug auf demselben Boden.',
+            '红色:游戏会为它报告 "Combat Point at ... has no waypoint"——游戏完全找不到适合它的路网点(例如在没有连接的地图上,或在高于所有路径点的墙边)。橙色:"not connected to anything"——它是一个点,但同一地面上没有足够近的路径点。',
+            '赤: ゲームが "Combat Point at ... has no waypoint" を出します - それに合うネットワークの点がまったく見つかりません(接続のないマップや、すべてのウェイポイントよりずっと高い壁際など)。オレンジ: "not connected to anything" - 点にはなっていますが、同じ床に十分近いウェイポイントがありません。'),
+        ]),
+        ("img", "h_weg_route", T(
+            'Test route: from the floor next to the player start up onto the roof - the route an NPC takes in the game, with the jump edge (dashed).',
+            'Testroute: vom Boden beim Spielerstart hinauf aufs Dach - der Weg, den ein NPC im Spiel nimmt, mit der Sprungkante (gestrichelt).',
+            '测试路线:从玩家出生点旁的地面到屋顶——NPC 在游戏中走的路线,包括跳跃连线(虚线)。',
+            'テストルート: プレイヤー開始位置のそばの床から屋根の上まで - NPC がゲームで通る経路で、ジャンプ辺は破線です。'), "breit"),
+        ("list", [
+            T(
+            '**{{WegRoute}}**: click two points on the floor. The editor shows the route an NPC would take in the game - from the point of the network the game picks for the start to the one for the goal, along the network as the game builds it. With **{{WegRouteSpringen}}** the NPC may use jump edges (as with force jump). If there is no route, the window says why. A missing connection shows up at once, before you look for it in the game.',
+            '**{{WegRoute}}**: zwei Punkte auf dem Boden anklicken. Der Editor zeigt den Weg, den ein NPC im Spiel nähme - vom Punkt des Netzes, den das Spiel für den Start wählt, zu dem für das Ziel, entlang des Netzes, wie das Spiel es baut. Mit **{{WegRouteSpringen}}** darf der NPC Sprungkanten nehmen (wie mit Machtsprung). Gibt es keinen Weg, sagt das Fenster, warum. Eine fehlende Verbindung fällt so sofort auf, bevor man sie im Spiel sucht.',
+            '**{{WegRoute}}**:在地面上单击两个点。编辑器显示 NPC 在游戏中会走的路线——从游戏为起点选择的路网点到为终点选择的路网点,沿着游戏构建的路网。勾选 **{{WegRouteSpringen}}** 后,NPC 可以使用跳跃连线(如同有原力跳跃)。如果没有路线,窗口会说明原因。这样缺失的连接会立即显现,不必到游戏中去找。',
+            '**{{WegRoute}}**: 床の 2 点をクリックします。エディターは、NPC がゲームで通る経路を表示します - ゲームが出発点に選ぶネットワークの点から目的地の点まで、ゲームが作るネットワークに沿って。**{{WegRouteSpringen}}** をオンにすると NPC はジャンプ辺を使えます(フォースジャンプがある場合と同じ)。経路がなければ、ウィンドウが理由を示します。足りない接続がゲームで探す前にすぐ分かります。'),
+        ]),
+        ("img", "h_weg_abdeckung", T(
+            'Coverage in the top view: walkable floor without a waypoint within reach is red.',
+            'Abdeckung in der Draufsicht: begehbarer Boden ohne Wegpunkt in Reichweite ist rot.',
+            '俯视图中的覆盖:附近没有路径点的可行走地面显示为红色。',
+            '上面図のカバー範囲: 届く範囲にウェイポイントがない歩ける床は赤です。'), "breit"),
+        ("list", [
+            T(
+            '**{{WegAbdeckung}}** switches to the top view and colours every patch of floor red (32 x 32) from which no waypoint can be reached on foot within **{{WegAbstand}}** - walking like the generation, from the player start, the characters and the waypoints. These are the spots a generation or a path missed. It is calculated in the background and again after every change.',
+            '**{{WegAbdeckung}}** schaltet in die Draufsicht und färbt jedes Stück Boden (32 x 32) rot, von dem aus zu Fuß in **{{WegAbstand}}** kein Wegpunkt erreichbar ist - gelaufen wie bei der Erzeugung, vom Spielerstart, den Figuren und den Wegpunkten aus. Das sind die Stellen, die eine Erzeugung oder ein Pfad ausgelassen hat. Gerechnet wird im Hintergrund und nach jeder Änderung neu.',
+            '**{{WegAbdeckung}}** 会切换到俯视图,并把每块地面(32 x 32)涂成红色——从那里步行在 **{{WegAbstand}}** 内到达不了任何路径点。行走方式与生成相同,从玩家出生点、角色和路径点出发。这些就是生成或路径遗漏的地方。它在后台计算,每次更改后重新计算。',
+            '**{{WegAbdeckung}}** は上面図に切り替え、歩いて **{{WegAbstand}}** 以内にウェイポイントへ届かない床の区画(32 x 32)をすべて赤く塗ります。歩き方は生成と同じで、プレイヤー開始位置・キャラクター・ウェイポイントから歩きます。これが生成やパスが抜かした場所です。計算はバックグラウンドで行われ、変更のたびにやり直されます。'),
+            T(
+            '**{{WegVersetzen}}** (on by default): a waypoint you place by hand where the game would drop it - in solid, too close to a wall or floating - goes to the nearest spot on the same floor where the game keeps it, with the same rules as the generation. The status line says how far and where to. Without it, the waypoint stays where you clicked and the status line warns.',
+            '**{{WegVersetzen}}** (voreingestellt an): Ein Wegpunkt, den du von Hand dort setzt, wo das Spiel ihn verwerfen würde - im Festen, zu nah an einer Wand oder schwebend -, kommt an die nächste Stelle auf demselben Boden, an der das Spiel ihn behält, mit denselben Regeln wie die Erzeugung. Die Statuszeile sagt, wie weit und wohin. Ohne bleibt der Wegpunkt, wo du geklickt hast, und die Statuszeile warnt.',
+            '**{{WegVersetzen}}**(默认开启):如果你手动放置的路径点会被游戏丢弃——在实体内、离墙太近或悬空——它会被放到同一地面上游戏会保留它的最近位置,规则与生成相同。状态栏会显示移动了多远、移到哪里。关闭时,路径点留在你单击的位置,状态栏会发出警告。',
+            '**{{WegVersetzen}}**(既定でオン): ゲームが捨てる場所(ソリッド内、壁に近すぎる、浮いている)に手で置いたウェイポイントは、同じ床でゲームが残す一番近い位置へ、生成と同じ規則で移ります。ステータス行にどれだけどこへ動いたかが出ます。オフなら、ウェイポイントはクリックした所に残り、ステータス行が警告します。'),
+        ]),
         ("note", T(
             "The cutscene preview uses this network for walks exactly like the game: far targets need a path here, otherwise the figure stands still ([[figuren#wieimspiel]]). A network needs at least four waypoints. Doors on the network count while they are open; a closed door counts only if it opens by itself for NPCs.",
             "Die Szenenvorschau nutzt dieses Netz für Läufe genau wie das Spiel: ferne Ziele brauchen hier einen Weg, sonst bleibt die Figur stehen ([[figuren#wieimspiel]]). Für ein Netz braucht es mindestens vier Wegpunkte. Türen im Netz zählen, solange sie offen sind; eine geschlossene nur, wenn sie für NPCs von selbst aufgeht.",

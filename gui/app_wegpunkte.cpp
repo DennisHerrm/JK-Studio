@@ -44,6 +44,9 @@ namespace bhed::gui {
 namespace {
 
 constexpr const char* kErzeugtPrefix = "wpauto_";
+// rc609 W4: so weit sucht "Versetzen" eine Stelle, an der das Spiel einen von Hand gesetzten Wegpunkt behaelt (eigene
+// Annahme: vier Zellen des Laufgitters).
+constexpr float kVersetzWeite = 128.0F;
 const char* const kZielFelder[4] = {"target", "target2", "target3", "target4"};
 
 bool wegKlasse(const MapEntity& e) { return istWegKlasse(e.classname); }
@@ -417,6 +420,27 @@ struct WegAuftrag {
     }
 };
 
+// rc609 W4 (Plan G "Abdeckung"): das Laufgitter der Erzeugung rechnet Sekunden - wie die Erzeugung in einem eigenen Faden
+// auf einer Kopie (WegWeltKarte); das Ergebnis gilt fuer die Entities und die Rasterweite beim Start.
+struct WegAbdeckAuftrag {
+    std::size_t schluessel = 0;
+    std::vector<std::array<float, 3>> starts;
+    std::vector<char> istWegpunkt;
+    float reichweite = 192.0F;
+    std::unique_ptr<WegWeltKarte> welt;
+    WegAbdeckung ergebnis;
+    std::atomic<bool> abbrechen{false};
+    std::atomic<bool> fertig{false};
+    std::thread faden;
+    WegAbdeckAuftrag() = default;
+    WegAbdeckAuftrag(const WegAbdeckAuftrag&) = delete;
+    WegAbdeckAuftrag& operator=(const WegAbdeckAuftrag&) = delete;
+    ~WegAbdeckAuftrag() {
+        abbrechen = true;
+        if (faden.joinable()) { faden.join(); }
+    }
+};
+
 namespace {
 
 // Alle Entities (Klasse, Schluessel, Werte): hat sich waehrend der Erzeugung etwas geaendert?
@@ -608,6 +632,7 @@ void wegAuftragAnwenden(WegAuftrag& a) {
         g_app->wegAbstandGenutzt = a.info.abstand;
         g_app->wegLuecken = a.info.luecken;
     }
+    if (a.art == WegAuftragArt::Voll) { g_app->wegAbstandVoll = a.info.abstand; }   // rc609 W4: fuer die Abdeckung
     const std::vector<NeuerWegpunkt>& wp = a.wp;
     // Ein Knoten aus einem vorhandenen Wegpunkt ist dieser Wegpunkt (keine
     // Kopie an derselben Stelle): die erzeugten Nachbarn nennen ihn.
@@ -750,6 +775,28 @@ void wegAuftragPruefen() {
 float wegAuftragAnteil() { return g_app->wegAuftrag ? g_app->wegAuftrag->anteil.load() : 0.0F; }
 int wegAuftragSchritt() { return g_app->wegAuftrag ? g_app->wegAuftrag->schritt.load() : 0; }
 
+namespace {
+// Startpunkte der vollen Erzeugung (rc609 W4: auch der Abdeckung): Spielerstart, Figuren, Ziele, vorhandene Wegpunkte,
+// die Kamera. `startEntity`: je Startpunkt der Wegpunkt (Index in v), sonst -1.
+void wegStartsVoll(const std::vector<MapEntity>& v, std::vector<std::array<float, 3>>& starts, std::vector<int>& startEntity) {
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        const MapEntity& e = v[i];
+        const std::string& c = e.classname;
+        // rc609 W1: auch waypoint/waypoint_small (vorher nur die Ziele - ein von
+        // Hand gesetzter Wegpunkt in einem Raum ohne Figur blieb ohne Netz).
+        const bool start = c.rfind("info_player", 0) == 0 || c.rfind("NPC_", 0) == 0 || c.rfind("npc_", 0) == 0 ||
+                           c.rfind("waypoint_navgoal", 0) == 0 || gehWegpunkt(e);
+        float o[3];
+        if (start && entityOrt(e, o)) {
+            starts.push_back({o[0], o[1], o[2]});
+            startEntity.push_back(gehWegpunkt(e) ? static_cast<int>(i) : -1);
+        }
+    }
+    starts.push_back({g_app->cam.pos[0], g_app->cam.pos[1], g_app->cam.pos[2]});
+    startEntity.push_back(-1);
+}
+}  // namespace
+
 bool wegAuftragStarten(WegAuftragArt art, const std::vector<std::array<float, 3>>& saat, int bereich, bool hintergrund) {
     if (g_app->geo.empty() || g_app->wegAuftrag) { return false; }
     auto a = std::make_shared<WegAuftrag>();
@@ -802,22 +849,7 @@ bool wegAuftragStarten(WegAuftragArt art, const std::vector<std::array<float, 3>
         }
     };
     if (art == WegAuftragArt::Voll) {
-        // Startpunkte: Spielerstart, Figuren, Ziele, vorhandene Wegpunkte, die Kamera.
-        for (std::size_t i = 0; i < a->basis.size(); ++i) {
-            const MapEntity& e = a->basis[i];
-            const std::string& c = e.classname;
-            // rc609 W1: auch waypoint/waypoint_small (vorher nur die Ziele - ein von
-            // Hand gesetzter Wegpunkt in einem Raum ohne Figur blieb ohne Netz).
-            const bool start = c.rfind("info_player", 0) == 0 || c.rfind("NPC_", 0) == 0 || c.rfind("npc_", 0) == 0 ||
-                               c.rfind("waypoint_navgoal", 0) == 0 || gehWegpunkt(e);
-            float o[3];
-            if (start && entityOrt(e, o)) {
-                a->starts.push_back({o[0], o[1], o[2]});
-                a->startEntity.push_back(gehWegpunkt(e) ? static_cast<int>(i) : -1);
-            }
-        }
-        a->starts.push_back({g_app->cam.pos[0], g_app->cam.pos[1], g_app->cam.pos[2]});
-        a->startEntity.push_back(-1);
+        wegStartsVoll(a->basis, a->starts, a->startEntity);
     } else if (art == WegAuftragArt::Bereich) {
         // Saat: die gemalten Punkte, je eine Rasterweite auseinander (jeder Startpunkt wird selbst ein Punkt).
         const WegBereich& b = g_app->wegBereiche[static_cast<std::size_t>(bereich)];
@@ -1027,6 +1059,7 @@ void wegBereicheAktuell() {
     const std::string sch = wegBereichSchluessel();
     if (sch == g_app->wegBereicheKarte) { return; }
     g_app->wegBereicheKarte = sch;
+    g_app->wegAbstandVoll = 0.0F;   // rc609 W4: gilt fuer die Karte, auf der erzeugt wurde
     g_app->wegBereiche = sch.empty() ? std::vector<WegBereich>{} : wegBereicheLesen(slurp(wegBereichDatei(sch)));
     g_app->wegMarken.clear();
 }
@@ -1247,6 +1280,7 @@ bool wegAuswahlVerbinden() {
 void wegUeberlagerung() {
     if (!g_app->zeigeWegnetz || g_app->camViewActive || g_app->geo.empty()) { return; }
     wegNetzAktuell();
+    wegKampfAktuell();   // rc609 W4
     const WegNetz& netz = g_app->wegNetz;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->PushClipRect(ImVec2{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1]},
@@ -1337,12 +1371,99 @@ void wegUeberlagerung() {
                                   ImVec2{c.x - 5.0F * px, c.y}, gewaehlt ? IM_COL32(255, 165, 40, 255) : IM_COL32(90, 220, 120, 255));
                 break;
             case WegKnoten::Art::Kampf:
-                dl->AddRectFilled(ImVec2{c.x - 3.0F * px, c.y - 3.0F * px}, ImVec2{c.x + 3.0F * px, c.y + 3.0F * px},
-                                  gewaehlt ? IM_COL32(255, 165, 40, 255) : IM_COL32(240, 100, 90, 230));
+                // rc609 W4: die Farbe der Klasse (QUAKED point_combat (0.7 0 0.7), NPC_combat.cpp), dazu ihr Kasten unten
+                dl->AddRectFilled(ImVec2{c.x - 4.0F * px, c.y - 4.0F * px}, ImVec2{c.x + 4.0F * px, c.y + 4.0F * px},
+                                  gewaehlt ? IM_COL32(255, 165, 40, 255) : IM_COL32(200, 40, 200, 255));
                 break;
         }
         if (befundKnoten.count(static_cast<int>(i)) != 0U) {
             dl->AddCircle(c, 8.0F * px, IM_COL32(255, 70, 70, 255), 0, 2.0F * px);
+        }
+    }
+    // rc609 W4: Kampfpunkte - Kasten (QUAKED -16 -16 -24, 16 16 32), die Linie zum Wegpunkt, den das Spiel zuordnet
+    // (CP_FindCombatPointWaypoints), und ist das der Punkt selbst (sein eigener NAV-Knoten), seine Kanten im Netz des
+    // Spiels (die Auto-Kanten der Kampfpunkte). Rot: "has no waypoint"; orange: "Is Not Connected To Anything".
+    const NavNetz* kn = g_app->wegKampfWelt && g_app->wegKampfWelt->netz && !g_app->wegKampfWelt->netz->jk2 ? g_app->wegKampfWelt->netz.get() : nullptr;
+    const ImU32 kKampfFarbe = IM_COL32(200, 40, 200, 255);
+    for (const NavKampfPunkt& kp : g_app->wegKampf) {
+        if (kp.zuViele || (g_app->draufsicht && kp.ort[2] - 24.0F > g_app->draufSchnitt)) { continue; }
+        static const float kEcke[2][3] = {{-16.0F, -16.0F, -24.0F}, {16.0F, 16.0F, 32.0F}};
+        ImVec2 e[8];
+        bool alle = true;
+        for (int i = 0; i < 8; ++i) {
+            const float w[3] = {kp.ort[0] + kEcke[i & 1][0], kp.ort[1] + kEcke[(i >> 1) & 1][1], kp.ort[2] + kEcke[(i >> 2) & 1][2]};
+            alle = kartenPunktAufSchirm(w, e[i]) && alle;
+        }
+        if (alle) {
+            static const int kKante[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+            for (const auto& k : kKante) { dl->AddLine(e[k[0]], e[k[1]], kKampfFarbe, 1.4F * px); }
+        }
+        const float wm[3] = {kp.ort[0], kp.ort[1], kp.ort[2] - 20.0F};
+        ImVec2 c;
+        if (!kartenPunktAufSchirm(wm, c)) { continue; }
+        if (!kp.ohneWegpunkt && kp.zuEntity != kp.entity) {
+            const float wz[3] = {kp.zuOrt[0], kp.zuOrt[1], kp.zuOrt[2] - 20.0F};
+            ImVec2 z;
+            if (kartenPunktAufSchirm(wz, z)) { dl->AddLine(c, z, kKampfFarbe, 2.5F * px); }
+        } else if (kn != nullptr && kp.knoten > 0 && static_cast<std::size_t>(kp.knoten) < kn->links.size()) {
+            for (const NavNetz::Nachbar& nb : kn->links[static_cast<std::size_t>(kp.knoten)]) {
+                const NavVec& q = kn->knoten[static_cast<std::size_t>(nb.knoten)].punkt;
+                const float wz[3] = {q[0], q[1], q[2] - 20.0F};
+                ImVec2 z;
+                if (!kartenPunktAufSchirm(wz, z)) { continue; }
+                for (int st = 0; st < 10; st += 2) {   // gepunktet: eine Kante des Spiels, kein target
+                    const float t0 = static_cast<float>(st) / 10.0F;
+                    const float t1 = static_cast<float>(st + 1) / 10.0F;
+                    dl->AddLine(ImVec2{c.x + (z.x - c.x) * t0, c.y + (z.y - c.y) * t0}, ImVec2{c.x + (z.x - c.x) * t1, c.y + (z.y - c.y) * t1},
+                                kKampfFarbe, 2.0F * px);
+                }
+            }
+        }
+        const bool insel = kn != nullptr && kp.knoten > 0 && kn->knoten[static_cast<std::size_t>(kp.knoten)].insel;
+        if (kp.ohneWegpunkt || insel) {
+            const ImU32 f = kp.ohneWegpunkt ? IM_COL32(255, 50, 50, 255) : IM_COL32(255, 150, 40, 255);
+            dl->AddCircle(c, 10.0F * px, f, 0, 2.5F * px);
+            dl->AddText(ImVec2{c.x + 11.0F * px, c.y - 12.0F * px}, f, "!");
+        }
+    }
+    // rc609 W4: Testroute - gelb, Sprungkanten gestrichelt orange; die angeklickten Punkte
+    for (std::size_t i = 0; i + 1 < g_app->wegRoute.size(); ++i) {
+        const float wa[3] = {g_app->wegRoute[i][0], g_app->wegRoute[i][1], g_app->wegRoute[i][2] + 4.0F};
+        const float wb[3] = {g_app->wegRoute[i + 1][0], g_app->wegRoute[i + 1][1], g_app->wegRoute[i + 1][2] + 4.0F};
+        ImVec2 a;
+        ImVec2 b;
+        if (!kartenPunktAufSchirm(wa, a) || !kartenPunktAufSchirm(wb, b)) { continue; }
+        if (i + 1 < g_app->wegRouteSprung.size() && g_app->wegRouteSprung[i + 1] != 0) {
+            for (int st = 0; st < 12; st += 2) {
+                const float t0 = static_cast<float>(st) / 12.0F;
+                const float t1 = static_cast<float>(st + 1) / 12.0F;
+                dl->AddLine(ImVec2{a.x + (b.x - a.x) * t0, a.y + (b.y - a.y) * t0}, ImVec2{a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1},
+                            IM_COL32(255, 140, 30, 255), 4.0F * px);
+            }
+        } else {
+            dl->AddLine(a, b, IM_COL32(255, 235, 40, 255), 4.0F * px);
+        }
+    }
+    for (const auto& q : g_app->wegRouteKlick) {
+        const float w[3] = {q[0], q[1], q[2] + 4.0F};
+        ImVec2 a;
+        if (kartenPunktAufSchirm(w, a)) {
+            dl->AddCircleFilled(a, 6.0F * px, IM_COL32(255, 235, 40, 255));
+            dl->AddCircle(a, 6.0F * px, IM_COL32(0, 0, 0, 200), 0, 1.5F * px);
+        }
+    }
+    // rc609 W4: Abdeckung (Draufsicht) - jede Zelle des Laufgitters (32 x 32) ohne Wegpunkt in Reichweite, rot
+    if (g_app->wegAbdeckungAn && g_app->draufsicht && wegAbdeckungAktuell()) {
+        for (const auto& q : g_app->wegAbdeckung.offen) {
+            if (q[2] > g_app->draufSchnitt) { continue; }
+            ImVec2 e4[4];
+            bool alle = true;
+            static const float kD[4][2] = {{-16.0F, -16.0F}, {16.0F, -16.0F}, {16.0F, 16.0F}, {-16.0F, 16.0F}};
+            for (int i = 0; i < 4; ++i) {
+                const float w[3] = {q[0] + kD[i][0], q[1] + kD[i][1], q[2] + 1.0F};
+                alle = kartenPunktAufSchirm(w, e4[i]) && alle;
+            }
+            if (alle) { dl->AddQuadFilled(e4[0], e4[1], e4[2], e4[3], IM_COL32(255, 40, 40, 90)); }
         }
     }
     // Verbinden: Gummiband vom ersten Punkt zur Maus.
@@ -1423,11 +1544,53 @@ void wegWerkzeugMaus(float rasterSkal) {
         (void)wegAuftragStarten(WegAuftragArt::Start, {{t.point[0], t.point[1], t.point[2]}});
         return;
     }
+    if (g_app->wegWerkzeug == 7 || g_app->wegWerkzeug == 8) {
+        TraceTreffer t;
+        if (!kartenStrahlUnterMaus(io.MousePos.x, io.MousePos.y, t) || t.normal[2] < 0.5F) {
+            meldung(tr(Str::WegKeinBoden), "", true);
+            return;
+        }
+        if (g_app->wegWerkzeug == 7) {   // rc609 W4: Kampfpunkt setzen
+            g_app->pickedEntity = wegKampfSetzen(t.point);
+            g_app->zeigeWegnetz = true;
+            return;
+        }
+        // rc609 W4: Testroute - zwei Klicks; ein dritter beginnt neu
+        if (g_app->wegRouteKlick.size() >= 2U) {
+            g_app->wegRouteKlick.clear();
+            g_app->wegRoute.clear();
+            g_app->wegRouteSprung.clear();
+            g_app->wegRouteKnoten.clear();
+        }
+        g_app->wegRouteKlick.push_back({t.point[0], t.point[1], t.point[2]});
+        if (g_app->wegRouteKlick.size() == 2U) { (void)wegRouteRechnen(g_app->wegRouteKlick[0], g_app->wegRouteKlick[1]); }
+        return;
+    }
     if (g_app->wegWerkzeug == 1) {
         TraceTreffer t;
         if (!kartenStrahlUnterMaus(io.MousePos.x, io.MousePos.y, t) || t.normal[2] < 0.5F) {
             meldung(tr(Str::WegKeinBoden), "", true);
             return;
+        }
+        // rc609 W4 (Rest aus W1): verwirft das Spiel den Punkt hier (im Festen, zu eng, schwebend), an die naechste Stelle,
+        // an der es ihn behaelt - mit Meldung, wohin.
+        if (g_app->wegVersetzen) {
+            const std::unique_ptr<WegWeltKarte> k = wegWeltKarte();
+            const std::array<float, 3> boden{t.point[0], t.point[1], t.point[2]};
+            std::array<float, 3> ort{};
+            if (k->welt.spur && wegStelleSuchen(boden, k->welt, kVersetzWeite, ort)) {
+                const float d = std::hypot(ort[0] - std::round(boden[0]), ort[1] - std::round(boden[1]));
+                if (d > 0.5F || std::fabs(ort[2] - std::round(boden[2] + 25.0F)) > 0.5F) {
+                    char z[200];
+                    std::snprintf(z, sizeof(z), tr(Str::WegVersetzt), static_cast<double>(d), static_cast<double>(ort[0]),
+                                  static_cast<double>(ort[1]), static_cast<double>(ort[2]));
+                    addStatus(z);
+                    g_app->wegMeldung = z;
+                }
+                t.point[0] = ort[0];
+                t.point[1] = ort[1];
+                t.point[2] = ort[2] - 25.0F;
+            }
         }
         const int vorige = io.KeyShift ? -1 : g_app->wegLetzter;
         g_app->wegLetzter = wegSetzen(t.point, vorige);
@@ -1466,11 +1629,153 @@ void wegWerkzeugMaus(float rasterSkal) {
     g_app->pickedEntity = best;
 }
 
+// --- rc609 W4: Kampfpunkte, Testroute, Abdeckung ---------------------------------------
+
+int wegKampfSetzen(const float boden[3]) {
+    std::vector<MapEntity> vorher = g_app->map.entities;
+    MapEntity e;
+    setKey(e, "classname", "point_combat");
+    char o[96];
+    // Wie ein Wegpunkt: der Kasten -24.. beginnt eine Einheit ueber dem Boden - dort steht eine Figur (DEFAULT_MINS_2),
+    // die den Punkt als Ziel nimmt. SP_point_combat legt selbst + 0.125 dazu; ein target braucht es nicht.
+    std::snprintf(o, sizeof(o), "%d %d %d", static_cast<int>(std::lround(boden[0])), static_cast<int>(std::lround(boden[1])),
+                  static_cast<int>(std::lround(boden[2] + 25.0F)));
+    setKey(e, "origin", o);
+    g_app->map.entities.push_back(e);
+    entitiesGeaendert(std::move(vorher));
+    g_app->hiddenClasses.erase("point_combat");
+    return static_cast<int>(g_app->map.entities.size()) - 1;
+}
+
+void wegKampfAktuell() {
+    bool da = false;
+    for (const MapEntity& e : g_app->map.entities) { da = da || kleinW(e.classname) == "point_combat"; }
+    if (!da || g_app->geo.empty()) {
+        g_app->wegKampf.clear();
+        g_app->wegKampfWelt.reset();
+        return;
+    }
+    // Waehrend des Ziehens nicht: das Netz mit Spuren braucht auf grossen Karten bis zu 0,2 s.
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && g_app->wegKampfWelt) { return; }
+    const std::shared_ptr<const NavWelt> w = navWeltSpawn();
+    if (!w || w == g_app->wegKampfWelt) { return; }
+    g_app->wegKampfWelt = w;
+    g_app->wegKampf = navKampfPunkte(g_app->map.entities, *w);
+}
+
+bool wegRouteRechnen(const std::array<float, 3>& a, const std::array<float, 3>& b) {
+    g_app->wegRoute.clear();
+    g_app->wegRouteSprung.clear();
+    g_app->wegRouteKnoten.clear();
+    const std::shared_ptr<const NavWelt> w = navWeltSpawn();
+    char z[260];
+    if (!w || !w->netz || w->netz->jk2) {
+        g_app->wegMeldung = tr(Str::WegRouteOhneNetz);
+        return false;
+    }
+    const NavNetz& netz = *w->netz;
+    // Die Figur steht auf dem Boden: ihr origin 24 darueber (DEFAULT_MINS_2). NAV::FindPath (g_navigator.cpp:2801-2830
+    // OpenJK): das Ziel GetNearestNode(Ziel), der Start GetNearestNode(Figur, goal = Ziel); eine Kante nimmt das Spiel
+    // zufaellig mit ihrem Knoten A oder B (Q_irand) - hier A.
+    const NavVec von{a[0], a[1], a[2] + 24.0F};
+    const NavVec nach{b[0], b[1], b[2] + 24.0F};
+    int ziel = navNaechsterKnoten(*w, nach, 0, 0);
+    int start = ziel != 0 ? navNaechsterKnoten(*w, von, 0, ziel) : 0;
+    if (ziel == 0 || start == 0) {
+        const NavVec& o = ziel == 0 ? nach : von;
+        std::snprintf(z, sizeof(z), tr(Str::WegRouteKeinKnoten), static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2]));
+        g_app->wegMeldung = z;
+        return false;
+    }
+    if (start < 0) { start = netz.kanten[static_cast<std::size_t>(-start)].a; }
+    if (ziel < 0) { ziel = netz.kanten[static_cast<std::size_t>(-ziel)].a; }
+    std::vector<int> pfad;
+    if (start != ziel && !navAStar(netz, start, ziel, &pfad, g_app->wegRouteSpringen)) {
+        g_app->wegMeldung = tr(g_app->wegRouteSpringen ? Str::WegRouteKeinWeg : Str::WegRouteKeinWegLaufen);
+        return false;
+    }
+    if (pfad.empty()) { pfad.push_back(start); }
+    g_app->wegRouteKnoten = pfad;
+    g_app->wegRoute.push_back(a);
+    g_app->wegRouteSprung.push_back(0);
+    int spruenge = 0;
+    float laenge = 0.0F;
+    for (std::size_t i = 0; i < pfad.size(); ++i) {
+        const NavVec& p = netz.knoten[static_cast<std::size_t>(pfad[i])].punkt;
+        bool sprung = false;
+        if (i > 0) {
+            const int k = netz.kanteZwischen(pfad[i - 1], pfad[i]);
+            sprung = k > 0 && (netz.kanten[static_cast<std::size_t>(k)].flags & NavKante::Springen) != 0U;
+            const NavVec& q = netz.knoten[static_cast<std::size_t>(pfad[i - 1])].punkt;
+            laenge += std::hypot(std::hypot(p[0] - q[0], p[1] - q[1]), p[2] - q[2]);
+        }
+        spruenge += sprung ? 1 : 0;
+        g_app->wegRoute.push_back({p[0], p[1], p[2] - 24.0F});
+        g_app->wegRouteSprung.push_back(sprung ? 1 : 0);
+    }
+    g_app->wegRoute.push_back(b);
+    g_app->wegRouteSprung.push_back(0);
+    std::snprintf(z, sizeof(z), trN(Str::WegRouteErgebnis, static_cast<int>(pfad.size()), spruenge), static_cast<int>(pfad.size()),
+                  static_cast<double>(laenge), spruenge);
+    g_app->wegMeldung = z;
+    return true;
+}
+
+namespace {
+// Reichweite der Abdeckung: die Rasterweite - hat die volle Erzeugung auf dieser Karte sie vergroessert (mehr Punkte, als
+// das Spiel nimmt), deren Abstand; sonst stuende jede Flaeche zwischen den weiter gesetzten Punkten rot da.
+float wegAbdeckReichweite() { return std::max(g_app->wegAbstand, g_app->wegAbstandVoll); }
+
+std::size_t wegAbdeckSchluessel() {
+    const std::size_t h = entitiesSchluessel(g_app->map.entities);
+    return ((h * 1099511628211ULL) ^ static_cast<std::size_t>(std::lround(wegAbdeckReichweite() * 16.0F))) | 1U;
+}
+
+// Im Hauptfaden, jedes Bild: das Ergebnis uebernehmen; passt es nicht mehr (Entities oder Rasterweite geaendert), neu.
+void wegAbdeckungPruefen() {
+    if (g_app->wegAbdeckAuftrag && g_app->wegAbdeckAuftrag->fertig) {
+        const std::shared_ptr<WegAbdeckAuftrag> a = std::move(g_app->wegAbdeckAuftrag);
+        if (a->faden.joinable()) { a->faden.join(); }
+        if (!a->ergebnis.abgebrochen) {
+            g_app->wegAbdeckung = std::move(a->ergebnis);
+            g_app->wegAbdeckungSchl = a->schluessel;
+            diag::detail("Wegpunkte: Abdeckung - " + std::to_string(g_app->wegAbdeckung.offen.size()) + " von " +
+                         std::to_string(g_app->wegAbdeckung.zellen) + " Zellen ohne Wegpunkt in " +
+                         std::to_string(static_cast<int>(a->reichweite)));
+        }
+    }
+    if (!g_app->wegAbdeckungAn || g_app->geo.empty() || g_app->wegAbdeckAuftrag || ImGui::IsMouseDown(ImGuiMouseButton_Left)) { return; }
+    const std::size_t schl = wegAbdeckSchluessel();
+    if (schl == g_app->wegAbdeckungSchl) { return; }
+    auto a = std::make_shared<WegAbdeckAuftrag>();
+    a->schluessel = schl;
+    a->reichweite = wegAbdeckReichweite();
+    std::vector<int> startEntity;
+    wegStartsVoll(g_app->map.entities, a->starts, startEntity);
+    // ohne die Kamera: die Abdeckung haengt nur an der Karte
+    a->starts.pop_back();
+    startEntity.pop_back();
+    for (const int se : startEntity) { a->istWegpunkt.push_back(se >= 0 ? 1 : 0); }
+    a->welt = wegWeltKarte(g_app->map.entities);
+    if (!a->welt->welt.spur) { return; }
+    WegAbdeckAuftrag* roh = a.get();
+    a->faden = std::thread([roh] {
+        roh->ergebnis = wegAbdeckung(roh->starts, roh->istWegpunkt, roh->welt->welt, roh->reichweite, [roh](float) { return !roh->abbrechen.load(); });
+        roh->fertig = true;
+    });
+    g_app->wegAbdeckAuftrag = a;
+}
+}  // namespace
+
+bool wegAbdeckungLaeuft() { return g_app->wegAbdeckAuftrag != nullptr; }
+bool wegAbdeckungAktuell() { return g_app->wegAbdeckungSchl != 0 && g_app->wegAbdeckungSchl == wegAbdeckSchluessel(); }
+
 // --- Das Fenster ---------------------------------------------------------------------
 
 void drawWegFenster() {
     wegAuftragPruefen();    // rc609 W3b: Ergebnis der Erzeugung im Hintergrund uebernehmen
     wegBereicheAktuell();   // rc609 W3b: die Bereiche der geladenen Karte
+    wegAbdeckungPruefen();  // rc609 W4: Abdeckung im Hintergrund
     if (!g_app->wegFensterOffen) {
         g_app->wegWerkzeug = 0;
         return;
@@ -1519,6 +1824,9 @@ void drawWegFenster() {
                               : g_app->wegWerkzeug == 2 ? tr(Str::WegVerbindenHint)
                                                         : tr(Str::WegWerkzeugHint));
     ImGui::PopTextWrapPos();
+    // rc609 W4 (Rest aus W1): einen Punkt, den das Spiel verwirft, an die naechste gueltige Stelle
+    ImGui::Checkbox(tr(Str::WegVersetzen), &g_app->wegVersetzen);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegVersetzenHint)); }
     // rc609 W1 (Mike): Verbindungen wie im Spiel
     ImGui::SeparatorText(tr(Str::WegKantenTitel));
     ImGui::Checkbox(tr(Str::WegAutoVerbinden), &g_app->wegAutoVerbinden);
@@ -1639,7 +1947,75 @@ void drawWegFenster() {
     if (iconTextKnopf(tr(Str::WegSprungkanten), UiIcon::Oben, tr(Str::WegSprungkantenHint), !laeuft && !g_app->geo.empty() && !navJk2Regeln())) {
         (void)wegAuftragStarten(WegAuftragArt::Sprung);
     }
+    // rc609 W4 (Mike): Kampfpunkte - setzen per Klick, die Zuordnung des Spiels, Warnungen wie die Meldungen des Spiels
+    ImGui::SeparatorText(tr(Str::WegKampfTitel));
+    wegKampfAktuell();
+    if (iconKnopf(tr(Str::WegKampfSetzen), UiIcon::Zielen, tr(Str::WegKampfSetzenHint), g_app->wegWerkzeug == 7, !g_app->geo.empty(), true)) {
+        g_app->wegWerkzeug = g_app->wegWerkzeug == 7 ? 0 : 7;
+        g_app->zeigeWegnetz = true;
+    }
+    ImGui::SameLine();
+    {
+        int ohne = 0;
+        int allein = 0;
+        const NavNetz* kn = g_app->wegKampfWelt && g_app->wegKampfWelt->netz && !g_app->wegKampfWelt->netz->jk2 ? g_app->wegKampfWelt->netz.get() : nullptr;
+        for (const NavKampfPunkt& kp : g_app->wegKampf) {
+            ohne += kp.ohneWegpunkt && !kp.zuViele ? 1 : 0;
+            allein += kn != nullptr && kp.knoten > 0 && kn->knoten[static_cast<std::size_t>(kp.knoten)].insel ? 1 : 0;
+        }
+        ImGui::TextDisabled(trN(Str::WegKampfStand, static_cast<int>(g_app->wegKampf.size())), static_cast<int>(g_app->wegKampf.size()));
+        if (ohne > 0 || allein > 0) {
+            ImGui::BeginChild("##wegkampf", ImVec2{-1.0F, ImGui::GetTextLineHeightWithSpacing() * static_cast<float>(std::min(ohne + allein, 5) + 1)},
+                              ImGuiChildFlags_Borders);
+            for (std::size_t i = 0; i < g_app->wegKampf.size(); ++i) {
+                const NavKampfPunkt& kp = g_app->wegKampf[i];
+                const bool insel = kn != nullptr && kp.knoten > 0 && kn->knoten[static_cast<std::size_t>(kp.knoten)].insel;
+                if (kp.zuViele || (!kp.ohneWegpunkt && !insel)) { continue; }
+                char z[200];
+                std::snprintf(z, sizeof(z), tr(kp.ohneWegpunkt ? Str::WegKampfOhneWegpunkt : Str::WegKampfAllein), static_cast<double>(kp.ort[0]),
+                              static_cast<double>(kp.ort[1]), static_cast<double>(kp.ort[2]));
+                ImGui::PushID(static_cast<int>(i));
+                ImGui::PushStyleColor(ImGuiCol_Text, kp.ohneWegpunkt ? ImVec4{1.0F, 0.4F, 0.4F, 1.0F} : ImVec4{1.0F, 0.65F, 0.3F, 1.0F});
+                if (ImGui::Selectable(z)) {
+                    g_app->pickedEntity = kp.entity;
+                    zurEntityFliegen(static_cast<std::size_t>(kp.entity));
+                }
+                ImGui::PopStyleColor();
+                ImGui::PopID();
+            }
+            ImGui::EndChild();
+        }
+    }
     ImGui::SeparatorText(tr(Str::WegPruefenTitel));
+    // rc609 W4 (Plan G): Testroute - der Weg, den ein NPC im Spiel naehme
+    if (iconKnopf(tr(Str::WegRoute), UiIcon::Pfad, tr(Str::WegRouteHint), g_app->wegWerkzeug == 8, !g_app->geo.empty(), true)) {
+        g_app->wegWerkzeug = g_app->wegWerkzeug == 8 ? 0 : 8;
+        g_app->wegRouteKlick.clear();
+        g_app->wegRoute.clear();
+        g_app->wegRouteSprung.clear();
+        g_app->wegRouteKnoten.clear();
+        g_app->zeigeWegnetz = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox(tr(Str::WegRouteSpringen), &g_app->wegRouteSpringen) && g_app->wegRouteKlick.size() == 2U) {
+        (void)wegRouteRechnen(g_app->wegRouteKlick[0], g_app->wegRouteKlick[1]);
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegRouteSpringenHint)); }
+    // rc609 W4 (Plan G): Abdeckung - in der Draufsicht
+    if (ImGui::Checkbox(tr(Str::WegAbdeckung), &g_app->wegAbdeckungAn) && g_app->wegAbdeckungAn) {
+        g_app->zeigeWegnetz = true;
+        if (!g_app->draufsicht) { draufsichtSchalten(true); }
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::WegAbdeckungHint)); }
+    if (g_app->wegAbdeckungAn) {
+        ImGui::SameLine();
+        if (wegAbdeckungLaeuft()) {
+            ImGui::TextDisabled("%s", tr(Str::WegAbdeckungRechnet));
+        } else if (wegAbdeckungAktuell()) {
+            ImGui::TextDisabled(trN(Str::WegAbdeckungStand, static_cast<int>(g_app->wegAbdeckung.offen.size()), static_cast<int>(g_app->wegAbdeckung.zellen)),
+                                static_cast<int>(g_app->wegAbdeckung.offen.size()), static_cast<int>(g_app->wegAbdeckung.zellen));
+        }
+    }
     if (iconTextKnopf(tr(Str::WegPruefen), UiIcon::Haken, tr(Str::WegPruefenHint))) {
         g_app->wegBefunde = pruefeWegNetz(netz, g_app->map.entities, kartenStrahl(), kartenBodenStrahl());
         g_app->wegGeprueft = true;

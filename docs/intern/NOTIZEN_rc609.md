@@ -315,6 +315,62 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - Bereiche liegen im Einstellungsordner je Karte; mit einer Mission werden sie nicht in den Missionsordner gelegt.
 - Das Fenster ist bei 200 % Oberfläche höher als der Bildschirm und rollt (alle Teile erreichbar).
 
+## W4: Kampfpunkte (point_combat) von Hand, Testroute, Abdeckung, Versetzen, Gruppen-Test
+
+Auftrag `auftrag_rc609_w4.md` (Plan H Stufe 1 und G aus `plaene/wegpunkte_und_enttext.md`, Mike: point_combat "they automatically connect to waypoints (no target needed) ... I can go around the map and click areas to add a point_combat."). Skripte in `<SP neu>/w4` (`lauf.py` wie W3b, `mdkampf.py` für den Spielvergleich).
+
+### Quellen (OpenJK `code/game`, Movie Duels 9 gleich, Jedi Outcast `codeJK2/game`)
+- SP_point_combat: OJK `NPC_combat.cpp:2593-2625`, MD9 `:3359` (bis auf die Schreibweise gleich): höchstens MAX_COMBAT_POINTS 512 (`g_local.h:138`), origin[2] + 0.125, G_CheckInSolid nur als Meldung, `NAV::SpawnedPoint(self, PT_COMBATNODE)` - der Kampfpunkt ist selbst ein Knoten (Kasten ±SC_MEDIUM_RADIUS von origin bis +5, sonst "in solid", `g_navigator.cpp:2299-2330`).
+- Auto-Kanten der Kampf- und Zielpunkte: `g_navigator.cpp:1741-1858` (MIN_WAY_NEIGHBORS 4, MAX_EDGE_AUTO_LEN 500, MAX_NONWP_NEIGHBORS 1 bei halber Länge, MAX_EDGE_FLOOR_DIST, gi.inPVS) - schon in `baueNavNetz`.
+- CP_FindCombatPointWaypoints: OJK `NPC_combat.cpp:2627-2641`, aufgerufen in G_ConnectNavs nach dem Netzbau (`g_main.cpp:534-538`), nach PHASE VI (Türen wieder pos1, `g_navigator.cpp:2088-2135`); `NAV::GetNearestNode(origin)` (`:2440-2614`), WAYPOINT_NONE = 0 (`g_nav.h:26`) -> "ERROR: Combat Point at %s has no waypoint!" ohne `developer` (MD9: ohne delayedShutDown). vtos `(%4.2f %4.2f %4.2f)` (`g_utils.cpp:734` MD9).
+- "Combat Point ... Is Not Connected To Anything": `g_navigator.cpp:2023-2028` (nur ohne FINAL_BUILD).
+- Jedi Outcast: `codeJK2/game/NPC_combat.cpp:2369-2412` (kein Knoten), NAV_FindClosestWaypointForPoint (`g_nav.cpp:373-397`: Marker -16 -16 -6 / 16 16 32, MASK_NPCSOLID), CNavigator::GetNearestNode (`g_navigator.cpp:1484-1590`, NF_CLEAR_PATH, TestNodePath ohne CONTENTS_BODY, NAV_ClearPathToPoint ohne STEPSIZE für eine Nicht-Figur `g_nav.cpp:298-307`), G_Spawn gibt beim Laden dieselbe Nummer (`g_utils.cpp:758`), ClearCheckedNodes erst im nächsten Bild (`g_main.cpp:1278`).
+- Testroute: NAV::FindPath (`g_navigator.cpp:2801-2830`): Ziel = GetNearestNode(Ziel), Start = GetNearestNode(Figur, goal = Ziel), eine Kante -> ihr Knoten A oder B (Q_irand); navAStar mit SCF_NAV_CAN_JUMP für Sprungkanten (W3b).
+
+### 1: Kampfpunkt setzen (H, Stufe 1)
+- Kern `navKampfPunkte(ents, welt)` (`src/navlauf.cpp`, `include/bhed/navlauf.h`): je point_combat in der Reihenfolge der Entities der origin + 0.125, der eigene NAV-Knoten aus `baueNavNetz` (oder keiner: "in solid"), die Zuordnung `Lauf::naechster` (der vorhandene Port von GetNearestNode) in der Welt nach dem Netzbau (`navWeltSpawn()`, neu öffentlich: Türen auf pos1, START_OFF ohne contents), über 512 "zu viele". Jedi Outcast: `Lauf::jk2MarkerWegpunkt` (neu) - Marker-Kasten, NF_CLEAR_PATH, gescheiterte Knoten gelten für die folgenden Punkte weiter.
+- Wegpunkt-Fenster, Abschnitt "Kampfpunkte": Werkzeug "Kampfpunkt setzen" (Werkzeug 7): Klick auf den Boden (Normale z ≥ 0,5 wie beim Wegpunkt) setzt `point_combat` mit origin = Boden + 25, ohne target und targetname, ein Rückgängig-Schritt je Klick. Entf, Strg+D, Strg+Z wie bei jeder Entity.
+- Ansicht: Kasten der Klasse (QUAKED -16 -16 -24 / 16 16 32) und Farbe (0.7 0 0.7); ist die Zuordnung der Punkt selbst, gepunktete Linien zu seinen Kanten im Netz des Spiels (die Auto-Kanten), sonst eine durchgezogene Linie zum zugeordneten Wegpunkt (bzw. zum Punkt auf der Kante). Rot mit "!": das Spiel meldet "has no waypoint" (genau dann, wenn GetNearestNode WAYPOINT_NONE gibt); orange: "Is Not Connected To Anything" (Knoten ohne Kante). Im Fenster die Liste der Warnungen mit dem Text des Spiels, Klick fliegt hin.
+- Neu gerechnet, wenn sich das Netz ändert (navWeltSpawn ist nach den Entities zwischengespeichert), nicht während die Maus gedrückt ist.
+
+### 2: Testroute (G)
+- Werkzeug 8: zwei Klicks auf den Boden; Ziel = GetNearestNode(Ziel + 24), Start = GetNearestNode(Start + 24, goal = Ziel), eine Kante -> Knoten A, dann `navAStar` (mit "NPC kann springen" auch über Sprungkanten, SCF_NAV_CAN_JUMP). Gelb, Sprungkanten orange gestrichelt; Meldung "Weg: n Punkte, Länge, Sprünge"; ohne Weg die Meldung, warum (kein Knoten in der Nähe, nicht verbunden, zu Fuß nicht verbunden). Ein dritter Klick beginnt neu. Jedi Outcast: Meldung (kein Netz wie das von Jedi Academy).
+
+### 3: Abdeckung (G)
+- `wegAbdeckung` (`src/wegpunkte.cpp`): das Laufgitter der Erzeugung (W3a, Schritt 1 dafür unverändert in `laufgitterBauen` herausgelöst, das Ausbreiten in `ausbreitenAuf`) von den Startpunkten der vollen Erzeugung ohne die Kamera, dann je vorhandenem Wegpunkt der Weg zu Fuß bis zur Reichweite; jede Gitterzelle (32 x 32) ohne Wegpunkt in Reichweite ist offen. Im Hintergrund (`WegAbdeckAuftrag`, wie W3b), neu nach jeder Änderung; rot in der Draufsicht. Schalter "Abdeckung zeigen" schaltet in die Draufsicht.
+- Reichweite = die Rasterweite; hat die volle Erzeugung auf dieser Karte sie vergrößert (NUM_NODES), deren Abstand.
+
+### 4: Handgesetzter Punkt "in solid" (Rest aus W1)
+- `wegStelleSuchen` (`src/wegpunkte.cpp`): gilt der Klick (Boden + 25, Boden unter der Mitte, `welt.knoten` = G_CheckInSolid, waypoint_getRadius ≥ SC_MEDIUM_RADIUS, nicht schwebend - die Regeln der Erzeugung aus W3a), bleibt er; sonst Ringe im Abstand 8 bis 128 auf demselben Boden (± STEPSIZE), nur mit freier Sicht auf Höhe des origin, die nächste gültige Stelle. Meldung in der Statuszeile und im Fenster: "um n Einheiten nach x y z gerückt". Schalter "An gültige Stelle rücken" (an), aus = wie bisher (Meldung "in solid").
+
+### 5: Gruppen-Fehler im Selbsttest `wegpunkte`
+- Ursache an einer Stelle gemessen (`w4_wpmess`, Messschritt danach wieder entfernt): der Rahmenanfang 1345,9/424,1 lag 34,0 von der Marke der Figur 29 (NPC_Droid_R2D2, Entity 234). Eine Figur trifft der Klick bis 1,6 Schriftgrößen (seit rc597 wählt sie ihren Spawner); der Test prüfte nur Entity-Marken bis 26. Der "Klick ins Leere" wählte den Droiden, der Rahmen verschob ihn ("Entity moved"), gewählt 1 statt 3 - die übrigen vier Fehler folgen daraus. **Fehler des Tests**, nicht der Bedienung.
+- Berichtigt: der Anfang muss für den Klick der Ansicht leer sein (Marke 1,2, Figur 1,6, Kamera 3 Schriftgrößen, kein Modell unter der Maus - die Treffer aus `app_view3d_bedienung.inc`). `wegpunkte` (`w4_wp`): **53 OK, 0 FEHLER** (vorher 48/5).
+
+### Tests
+- ctest `kampfpunkt` (neu, `tests/kampfpunkttest.cpp`, Brushes mit `kollisionsSpur`): JKA frei = eigener Knoten 5, Zuordnung 5, 2 Auto-Kanten, origin z 25.125; an der Wand kein Knoten, zugeordnet b (Sicht frei) statt des näheren e hinter der Wand; ohne Kante "has no waypoint"; der 513. zu viel. JK2: Punkt 1 n1 (Wand) gescheitert -> n2, Punkt 2 n1 bleibt gescheitert -> WAYPOINT_NONE. Erster Lauf 1 FEHL: im Test lag der JK2-Marker (-16..16) von Punkt 1 in der Wand (Geometrie des Tests, Punkt von 120 auf 130 verschoben), dann alle ok.
+- Selbsttest `kampfpunkte` (neu, `gui/selbsttest_kampfpunkte.inc`, Karte aus `BHED_WE_PK3`/`BHED_WE_KARTE`):
+  - Erste Läufe (`w4_kpjtg`): zwei Testfehler - der Knopf "Kampfpunkt setzen" schaltet um (der zweite Klick schaltete das Werkzeug aus, 0 statt 3 Punkte), danach ein Zugriff auf eine leere Liste (Absturz im Test); berichtigt. Dann **rot** in der Abdeckung (echter Fehler): 30307 von 59798 Zellen rot, die Stelle blieb nach Rückgängig rot - gemessen: Reichweite 128 (Rasterweite), die volle Erzeugung hatte den Abstand auf 289 vergrößert (NUM_NODES). Behoben: Reichweite = Abstand der vollen Erzeugung auf dieser Karte, wenn größer.
+  - jeditemple_garden **grün** (`w4_kpjtg2`, 15 OK, 0 FEHLER): Warnung ohne Netz (1 Kampfpunkt, "has no waypoint", rote Zeile im Fenster, 1 Schritt), Rückgängig; 3 Klicks = 3 point_combat, 3 Schritte; Zuordnung je Punkt = eigener Knoten (978/979/980 = GetNearestNode), je 4 Kanten zu Wegpunkten; Wand-Stelle (-2432 5552 46): kein Knoten, zugeordnet Wegpunkt Entity 346 (= GetNearestNode 5); Strg+D/Entf/Strg+Z je ein Schritt; Startpunkt Dach 8 Sprungkanten, Testroute 43 Punkte, 12762 Einheiten, 1 Sprung, ohne Sprung "kein Weg zu Fuß"; Abdeckung 7148 von 59798 Zellen offen, im Loch 10, an Wegpunkten 0, nach Rückgängig 0; Versetzen: ohne -> (-2431 5552 71), das Spiel behält ihn nicht (rot im selben Test), mit -> 8 weiter (-2431 5544 71), behält ihn, Meldung "um 8 Einheiten ... gerückt".
+  - Gegenprobe **mp/ffa5** (nicht zum Entwickeln benutzt, `w4_kpffa5c`, 15 OK, 0 FEHLER): Zuordnung 3/3 (Knoten 1000-1002), Wand (-448 224 -16) -> Wegpunkt 509, Abdeckung 499 von 12873, im Loch 13 -> 0, Versetzen 8 weit. Dort band der Startpunkt das "Dach" mit 3 Sprungkanten an einen abgetrennten Teil, nicht an den Boden der Strecke (auch über die Felder nicht verbunden): die Testroute zeigt richtig keinen Weg mit Meldung. Erster ffa5-Lauf 14/1: der Test verlangte einen Weg, sobald Sprungkanten entstanden - jetzt aus den Feldern geprüft. mp/duel6 hatte keine gerade Strecke 13 x 5 (nicht benutzt).
+- **Spielvergleich Movie Duels** (`mdkampf.py`, eigener fs_homepath `laeufe/w4_mdhome`, fs_game MD, `developer 1`, Fenster außer Sicht, Karte = jeditemple_garden mit den Entities des Editors als `maps/w4kampf.bsp`): 6 Kampfpunkte (3 frei, 1 an der Wand, 1 frei und 1 an einer Wand auf dem Dach ohne Wegpunkte dort). Editor "has no waypoint": (-88 1832 819); Spiel: "ERROR: Combat Point at (-88.00 1832.00 819.12) has no waypoint!" - **gleich**. Dazu "Nav(2) in solid" genau für die zwei Punkte, denen der Editor keinen eigenen Knoten gibt.
+- `wegpunkte` (`w4_wp`) **53/0** (vorher 48/5, `w4_wpmess`).
+- Handbuch: Seite NPC-Wegpunkte, Abschnitt "Kampfpunkte, Testroute, Abdeckung" (6 Sprachen) mit `h_weg_kampf`, `h_weg_route`, `h_weg_abdeckung` aus `BHED_HB_NUR=kampfpunkte` (jtg, 3840x2160@2, 2560 breit), je Sprache parallel.
+- Schluss (einmal, parallel): Bau aller Ziele 0 Warnungen; ctest 203/203 (neu `kampfpunkt`); `kampfpunkte` jtg 15/0 (`w4_endjtg`), ffa5 15/0 (`w4_endffa5`); `wegerzeugung` jtg mit Dach 9/0 (788 Wegpunkte wie W3a/W3b - der herausgelöste Laufgitter-Schritt rechnet gleich); `wegmalen` jtg 17/0; `wegpunkte2` 29/0; `wegpunkte` 53/0; `mission1` 98/0; Lints lint_sources, lint_fassung, lint_i18n, lint_i18n_erzeugt, lint_headers, lint_feldinit, lint_gapp, lint_settings ok, lint_portability 106 (Basis; der neue Fund `std::size_t` in wegpunkte.h behoben); `hilfe_orte.inc` mit `gen_hilfe_orte.py` neu, `gen_handbuch.py` es/cs 0 Texte englisch.
+
+### Eigene Annahmen (keine Engine-Quelle)
+- origin eines gesetzten Kampfpunkts = Boden + 25 wie ein Wegpunkt (SP_point_combat setzt nichts auf den Boden; dort steht eine Figur, die ihn als Ziel nimmt).
+- Testroute: die Figur steht auf dem angeklickten Boden (origin + 24); von einer Kante nimmt das Spiel zufällig A oder B, der Editor A.
+- Abdeckung: Reichweite (Rasterweite bzw. der Abstand der vollen Erzeugung, der Maßstab aus W3a/W3b), Startpunkte ohne die Kamera; begehbar = das Laufgitter von den Startpunkten aus (nur Gesprungenes ohne Wegpunkt dort erscheint nicht).
+- Versetzen: Ringe im Abstand 8 bis 128 (vier Zellen des Laufgitters), derselbe Boden ± STEPSIZE, freie Sicht auf Höhe des origin.
+
+### Offen
+- Stufe 2 (Vorschläge hinter Deckung, NPC_FindCombatPoint) wie geplant danach.
+- Jedi Outcast: die Zuordnung (NAV_FindClosestWaypointForPoint) ist nur gegen die Quelle und im ctest geprüft, kein Spielvergleich (JKO nur mit Steam-Anmeldung). Testroute und Kampfpunkt-Kanten gibt es unter den Regeln von Jedi Outcast nicht (dort kein Knoten).
+- "Is Not Connected To Anything" druckt Movie Duels 9 nicht (FINAL_BUILD); im Spielvergleich nicht nachweisbar, im Editor aus der Quelle.
+- gi.inPVS der Auto-Kanten nimmt wie bisher nur die Cluster (ohne Areas) - unverändert aus `navBauHilfeKarte`.
+- Abdeckung: das Laufgitter rechnet auf großen Karten Sekunden (Hintergrund); kein Tempo gemessen (parallel laufen andere Agenten).
+
 ## English
 - NPC waypoints: deleting an entity also removes every target to targetJump that named it, in the same undo step; for entities other than waypoints the program asks first. "Close the gap when deleting" connects the neighbours of a deleted waypoint.
 - NPC waypoints: a waypoint you place, move or duplicate connects to its neighbours with the game's own edge test (NAV::TestEdge, HardConnect in Jedi Outcast); connections the game would drop after a move are removed. Switch "Connect automatically" and button "Connect to neighbours".
@@ -337,7 +393,10 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - NPC waypoints: "Start point" - click on floor the generation did not reach (a roof) and it walks on from there and connects it, on foot or with jump edges.
 - NPC waypoints: jump edges (targetJump) are suggested only between parts not connected otherwise and only where an NPC really makes the jump in the game (NPC_TryJump/NPC_Jump, both directions); on Jedi Temple Garden the roof becomes reachable for NPCs that can jump.
 - NPC waypoints: parts the player start cannot reach are drawn violet, with "Connect parts"; "Check network" no longer reports waypoints on floors of brush entities (func_static) as floating.
-
+- NPC waypoints: new tool "Place combat point" - each click on the floor places a point_combat (no target needed). The view shows its box, the connections the game makes for it by itself and, where the game assigns another waypoint, a line to it; a warning exactly where the game reports "has no waypoint" (checked against Movie Duels), orange where it is "not connected to anything".
+- NPC waypoints: "Test route" - click two points and see the route an NPC would take in the game, over jump edges for NPCs that can jump; if there is none, the window says why.
+- NPC waypoints: "Show coverage" colours walkable floor without a waypoint within reach red in the top view.
+- NPC waypoints: a waypoint placed by hand where the game would drop it (in solid, too close to a wall) moves to the nearest valid spot, with a message where to; can be switched off.
 
 ## Deutsch
 - NPC-Wegpunkte: Beim Löschen einer Entity verschwindet jedes target bis targetJump, das sie nannte, im selben Rückgängig-Schritt; bei anderen Entities als Wegpunkten fragt das Programm erst. "Lücke beim Löschen schließen" verbindet die Nachbarn eines gelöschten Wegpunkts.
@@ -361,7 +420,10 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - NPC-Wegpunkte: "Startpunkt" - auf Boden klicken, den die Erzeugung nicht erreicht hat (ein Dach), und sie läuft von dort weiter und schließt ihn an, zu Fuß oder mit Sprungkanten.
 - NPC-Wegpunkte: Sprungkanten (targetJump) werden nur zwischen sonst nicht verbundenen Teilen vorgeschlagen und nur, wo ein NPC den Sprung im Spiel wirklich schafft (NPC_TryJump/NPC_Jump, beide Richtungen); auf Jedi Temple Garden wird das Dach für NPCs erreichbar, die springen können.
 - NPC-Wegpunkte: Teile, die der Spielerstart nicht erreicht, sind violett, mit "Anschließen"; "Netz prüfen" meldet Wegpunkte auf Böden aus Brush-Entities (func_static) nicht mehr als schwebend.
-
+- NPC-Wegpunkte: neues Werkzeug "Kampfpunkt setzen" - jeder Klick auf den Boden setzt einen point_combat (kein target nötig). Die Ansicht zeigt seinen Kasten, die Verbindungen, die das Spiel selbst für ihn anlegt, und, wo das Spiel einen anderen Wegpunkt zuordnet, eine Linie dorthin; eine Warnung genau dort, wo das Spiel "has no waypoint" meldet (gegen Movie Duels geprüft), orange, wo er "mit nichts verbunden" ist.
+- NPC-Wegpunkte: "Testroute" - zwei Punkte anklicken und den Weg sehen, den ein NPC im Spiel nähme, über Sprungkanten für NPCs, die springen können; gibt es keinen, sagt das Fenster, warum.
+- NPC-Wegpunkte: "Abdeckung zeigen" färbt in der Draufsicht begehbaren Boden ohne Wegpunkt in Reichweite rot.
+- NPC-Wegpunkte: Ein von Hand gesetzter Wegpunkt, den das Spiel verwerfen würde (im Festen, zu nah an einer Wand), rückt an die nächste gültige Stelle, mit Meldung, wohin; abschaltbar.
 
 ## 中文
 - NPC 路径点:删除实体时,所有指向它的 target 到 targetJump 会在同一个撤销步骤中一并移除;对于路径点以外的实体,程序会先询问。"删除时填补空缺"会连接被删路径点的相邻点。
@@ -385,7 +447,10 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - NPC 路径点:“起点”——点击生成未到达的地面(屋顶),它会从那里继续行走并连接,步行或通过跳跃连线。
 - NPC 路径点:只在彼此不相连的部分之间、并且只在 NPC 在游戏中确实能完成跳跃的地方(NPC_TryJump/NPC_Jump,双向)建议跳跃连线(targetJump);在 Jedi Temple Garden 上,会跳跃的 NPC 可以到达屋顶。
 - NPC 路径点:玩家出生点无法到达的部分以紫色显示,并有“连接各部分”;“检查路网”不再把位于画刷实体(func_static)地面上的路径点报告为悬空。
-
+- NPC 路径点:新工具“放置战斗点”——每次单击地面放置一个 point_combat(不需要 target)。视图显示它的方框、游戏自己为它建立的连接,以及游戏分配其他路径点时指向该路径点的线;在游戏报告 "has no waypoint" 的地方准确显示警告(已与 Movie Duels 对照),“没有任何连接”时显示橙色。
+- NPC 路径点:“测试路线”——单击两个点即可看到 NPC 在游戏中会走的路线,能跳跃的 NPC 也会走跳跃连线;没有路线时窗口会说明原因。
+- NPC 路径点:“显示覆盖”在俯视图中把附近没有路径点的可行走地面涂成红色。
+- NPC 路径点:手动放在游戏会丢弃的位置(在实体内、离墙太近)的路径点会移到最近的有效位置,并提示移到了哪里;可以关闭。
 
 ## 日本語
 - NPC ウェイポイント: エンティティを削除すると、それを指していた target から targetJump も同じ元に戻す 1 回で消えます。ウェイポイント以外のエンティティでは先に確認します。「削除時に隙間を埋める」で削除したウェイポイントの隣どうしを接続します。
@@ -409,7 +474,10 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - NPC ウェイポイント: 「開始点」- 生成が届かなかった床(屋根)をクリックすると、そこから歩いて接続します。徒歩で、またはジャンプ辺で。
 - NPC ウェイポイント: ジャンプ辺(targetJump)は、ほかでつながっていない部分の間で、NPC がゲームで実際に跳べる所(NPC_TryJump/NPC_Jump、両方向)だけに提案されます。Jedi Temple Garden では跳べる NPC が屋根に届くようになります。
 - NPC ウェイポイント: プレイヤー開始位置から届かない部分は紫で描かれ、「部分を接続」が使えます。「ネットワークをチェック」はブラシエンティティ(func_static)の床の上のウェイポイントを浮いていると報告しなくなりました。
-
+- NPC ウェイポイント: 新しいツール「戦闘ポイントを置く」- 床をクリックするたびに point_combat を置きます (target は不要)。ビューにはその箱、ゲームが自分で作る接続、ゲームが別のウェイポイントを割り当てる場合はそこへの線を表示します。ゲームが "has no waypoint" を出す所にだけ警告 (Movie Duels と照合済み)、「何にも接続されていない」場合はオレンジです。
+- NPC ウェイポイント: 「テストルート」- 2 点をクリックすると、NPC がゲームで通る経路が見えます。ジャンプできる NPC ならジャンプ辺も通ります。経路がなければ理由をウィンドウに示します。
+- NPC ウェイポイント: 「カバー範囲を表示」で、届く範囲にウェイポイントのない歩ける床を上面図で赤く塗ります。
+- NPC ウェイポイント: ゲームが捨てる場所 (ソリッド内、壁に近すぎる) に手で置いたウェイポイントは、一番近い有効な位置へ移り、移動先を知らせます。オフにもできます。
 
 ## Español
 - Puntos de ruta NPC: al borrar una entidad desaparece cada target a targetJump que la nombraba, en el mismo paso de deshacer; para entidades que no son puntos de ruta el programa pregunta antes. "Cerrar el hueco al borrar" conecta los vecinos de un punto borrado.
@@ -433,7 +501,10 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - Puntos de ruta de PNJ: "Punto de inicio": haz clic en un suelo al que no llegó la generación (un tejado) y sigue desde allí y lo conecta, a pie o con aristas de salto.
 - Puntos de ruta de PNJ: las aristas de salto (targetJump) se proponen solo entre partes no conectadas de otro modo y solo donde un PNJ hace de verdad el salto en el juego (NPC_TryJump/NPC_Jump, ambas direcciones); en Jedi Temple Garden el tejado queda al alcance de los PNJ que saltan.
 - Puntos de ruta de PNJ: las partes a las que no llega el inicio del jugador se dibujan en violeta, con "Conectar partes"; "Comprobar red" ya no indica como flotantes los puntos sobre suelos de entidades brush (func_static).
-
+- Puntos de ruta de PNJ: nueva herramienta "Colocar punto de combate": cada clic en el suelo coloca un point_combat (no hace falta target). La vista muestra su caja, las conexiones que el juego crea por sí mismo y, cuando el juego asigna otro punto de ruta, una línea hasta él; un aviso exactamente donde el juego informa "has no waypoint" (comprobado con Movie Duels), naranja donde "no está conectado a nada".
+- Puntos de ruta de PNJ: "Ruta de prueba": haz clic en dos puntos y verás la ruta que tomaría un PNJ en el juego, por aristas de salto para los PNJ que saben saltar; si no hay ninguna, la ventana dice por qué.
+- Puntos de ruta de PNJ: "Mostrar cobertura" colorea de rojo en la vista cenital el suelo transitable sin punto de ruta al alcance.
+- Puntos de ruta de PNJ: un punto de ruta colocado a mano donde el juego lo descartaría (dentro de lo sólido, demasiado cerca de una pared) se mueve al lugar válido más cercano, con un mensaje de adónde; se puede desactivar.
 
 ## Čeština
 - Body trasy NPC: při mazání entity zmizí každé target až targetJump, které ji jmenovalo, v tomtéž kroku zpět; u jiných entit než bodů trasy se program nejdřív zeptá. "Při mazání uzavřít mezeru" spojí sousedy smazaného bodu.
@@ -457,3 +528,7 @@ Auftrag `auftrag_rc609_w3b.md` (Plan E und G aus `plaene/wegpunkte_und_enttext.m
 - Body trasy NPC: "Počáteční bod" - klikněte na podlahu, kam vytváření nedošlo (střecha), a odtud pokračuje a připojí ji, pěšky nebo skokovými hranami.
 - Body trasy NPC: skokové hrany (targetJump) se navrhují jen mezi jinak nespojenými částmi a jen tam, kde NPC skok ve hře opravdu zvládne (NPC_TryJump/NPC_Jump, oba směry); na Jedi Temple Garden se střecha stane dosažitelnou pro NPC, která umí skákat.
 - Body trasy NPC: části, kam se ze startu hráče nedojde, jsou fialové, s "Připojit části"; "Zkontrolovat síť" už nehlásí body na podlahách brush entit (func_static) jako vznášející se.
+- Body trasy NPC: nový nástroj "Položit bojový bod" - každé kliknutí na podlahu položí point_combat (target není potřeba). Pohled ukáže jeho kvádr, spojení, která pro něj hra vytvoří sama, a kde hra přiřadí jiný bod trasy, čáru k němu; varování přesně tam, kde hra hlásí "has no waypoint" (ověřeno proti Movie Duels), oranžově, kde "není s ničím spojen".
+- Body trasy NPC: "Zkušební trasa" - klikněte na dva body a uvidíte trasu, kterou by NPC ve hře šlo, přes skokové hrany pro NPC, která umí skákat; když žádná není, okno řekne proč.
+- Body trasy NPC: "Zobrazit pokrytí" obarví v pohledu shora červeně schůdnou podlahu bez bodu trasy v dosahu.
+- Body trasy NPC: bod trasy položený ručně tam, kde by ho hra zahodila (v pevném, příliš blízko zdi), se přesune na nejbližší platné místo se zprávou kam; lze vypnout.

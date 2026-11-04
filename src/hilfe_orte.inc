@@ -116,6 +116,8 @@
 {"vorschau", "knopf:WegBereichLoeschen@###wegpunkte", "ViewMap>WegTitel>WegBereichLoeschen", "WegBereichLoeschen", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegAnschliessen@###wegpunkte", "ViewMap>WegTitel>WegAnschliessen", "WegAnschliessenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegSprungkanten@###wegpunkte", "ViewMap>WegTitel>WegSprungkanten", "WegSprungkantenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
+{"vorschau", "knopf:WegKampfSetzen@###wegpunkte", "ViewMap>WegTitel>WegKampfSetzen", "WegKampfSetzenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
+{"vorschau", "knopf:WegRoute@###wegpunkte", "ViewMap>WegTitel>WegRoute", "WegRouteHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegPruefen@###wegpunkte", "ViewMap>WegTitel>WegPruefen", "WegPruefenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"modell", "knopf:ActCopy", "ViewModel>ActCopy", "HintCopy", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:ModelAnimToScript", "ViewModel>ModelAnimToScript", "ModelAnimToScriptHint", "modus:2 < knopf:ViewModel@modebar", ""},

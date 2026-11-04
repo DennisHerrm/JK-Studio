@@ -34,6 +34,7 @@
 #include "bhed/bsp.h"
 
 #include <array>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -156,6 +157,20 @@ struct WegErzeugungInfo {
 // Richtungen): erst ein aufspannender Wald, damit das Netz zusammenhaengt, dann
 // die uebrigen, ein volles Ende gibt Kanten ueber eine Kette ab (rc609 W3a).
 // Ergebnis je Knoten: die Indizes, die er als target..target4 nennt.
+// rc609 W4 (Plan G "Abdeckung"): begehbarer Boden (das Laufgitter der Erzeugung von den Startpunkten aus), den kein
+// vorhandener Wegpunkt (istWegpunkt je Startpunkt != 0) zu Fuss in `reichweite` erreicht. `weiter` (Anteil 0..1) false
+// bricht ab.
+struct WegAbdeckung {
+    std::vector<std::array<float, 3>> offen;   // Boden der Gitterzellen ohne Wegpunkt in Reichweite (je 32 x 32)
+    std::size_t zellen = 0;                    // Gitterzellen insgesamt
+    bool abgebrochen = false;
+};
+[[nodiscard]] WegAbdeckung wegAbdeckung(const std::vector<std::array<float, 3>>& starts, const std::vector<char>& istWegpunkt,
+                                        const WegWelt& welt, float reichweite, const std::function<bool(float anteil)>& weiter = {});
+// rc609 W4: der origin fuer einen Wegpunkt am Boden `boden` wie bei der Erzeugung (Boden + 25), wenn das Spiel ihn dort
+// behaelt; sonst die naechste solche Stelle bis `weite` auf demselben Boden mit freier Sicht. false: keine.
+[[nodiscard]] bool wegStelleSuchen(const std::array<float, 3>& boden, const WegWelt& welt, float weite, std::array<float, 3>& ort);
+
 [[nodiscard]] std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder = 4);
 
 // --- rc609 W3b: Bereiche, Pfade, Sprungkanten ---------------------------------
