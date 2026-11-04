@@ -145,6 +145,17 @@ const char* formatName(Format format) {
     }
 }
 
+// rc609 F14: 1:1 wie die Engine - OpenJK und Movie Duels 9 lesen mit demselben
+// LoadTGA (code/rd-common/tr_image_tga.cpp). Was das Spiel abweist, weist auch die
+// Vorschau ab; sonst zeigt sie eine Textur, die im Spiel fehlt (und umgekehrt).
+//   - keine Farbtabelle (byColourmapType 0, w1stColourMapEntry 0, Laenge 0 oder 256,
+//     Eintragsgroesse 0 oder 24 - auch wenn keine Tabelle folgt, wird sie nicht uebersprungen)
+//   - nur Typ 2 (RGB), 3 (Grau) und 10 (RLE-RGB); 8, 24 oder 32 Bit je Bildpunkt
+//   - Typ 10 nur von unten nach oben und nur mit 24/32 Bit
+//   - Bit 0x10 (rechts nach links) waehlt dort zwar iXStart/iXStep, geschrieben wird
+//     aber mit *pOut++ - die Zeile bleibt also ungespiegelt, wie hier
+//   - ein RLE-Paket ueber das letzte Bild hinaus wird abgeschnitten (goto breakOut)
+// Abweichend nur, wo die Engine ueber das Dateiende hinaus liest: hier Fehler.
 Image decodeTga(const unsigned char* data, size_t size) {
     Image out;
     auto fail = [&](const char* why) {
@@ -157,140 +168,103 @@ Image decodeTga(const unsigned char* data, size_t size) {
     const unsigned idLength = data[0];
     const unsigned colourMapType = data[1];
     const unsigned imageType = data[2];
+    const unsigned firstColourMapEntry =
+        static_cast<unsigned>(data[3]) | (static_cast<unsigned>(data[4]) << 8);
     const unsigned colourMapLength =
         static_cast<unsigned>(data[5]) | (static_cast<unsigned>(data[6]) << 8);
     const unsigned colourMapDepth = data[7];
     const int width = static_cast<int>(data[12]) | (static_cast<int>(data[13]) << 8);
     const int height = static_cast<int>(data[14]) | (static_cast<int>(data[15]) << 8);
-    const unsigned depth = data[16];
-    const unsigned descriptor = data[17];
+    const unsigned planes = data[16];
+    const unsigned scanLineOrder = data[17];
 
+    // Die Kopfpruefungen in der Reihenfolge von LoadTGA.
+    if (colourMapType != 0) { return fail("LoadTGA: colourmaps not supported"); }
+    if (imageType != 2 && imageType != 3 && imageType != 10) {
+        return fail("LoadTGA: Only type 2 (RGB), 3 (gray), and 10 (RLE-RGB) images supported");
+    }
+    if (firstColourMapEntry != 0) { return fail("LoadTGA: colourmaps not supported"); }
+    if (colourMapLength != 0 && colourMapLength != 256) {
+        return fail("LoadTGA: ColourMapLength must be either 0 or 256");
+    }
+    if (colourMapDepth != 0 && colourMapDepth != 24) {
+        return fail("LoadTGA: ColourMapEntrySize must be either 0 or 24");
+    }
+    if ((planes != 24 && planes != 32) && (planes != 8 && imageType != 3)) {
+        return fail("LoadTGA: Only type 2 (RGB), 3 (gray), and 10 (RGB) TGA images supported");
+    }
+    if (imageType == 10) {
+        if ((scanLineOrder & 0x30) != 0x00) {
+            return fail("LoadTGA: RLE-RGB Images (type 10) must be in bottom-to-top format");
+        }
+        if (planes != 24 && planes != 32) {
+            return fail("LoadTGA: RLE-RGB Images (type 10) must be 24 or 32 bit");
+        }
+    }
+    // Typ 3 mit z. B. 16 Bit kommt durch die Kopfpruefung und scheitert in der
+    // Bildpunktschleife am default-Zweig (TGA_FORMAT_ERROR) - das ganze Bild.
+    if (planes != 8 && planes != 24 && planes != 32) {
+        return fail("LoadTGA: Image can only have 8, 24 or 32 planes for RGB/greyscale");
+    }
     if (tooBig(width, height)) { return fail("implausible image size");
 }
 
-    const bool rleCompressed = imageType == 9 || imageType == 10 || imageType == 11;
-    const bool paletted = imageType == 1 || imageType == 9;
-    const bool greyscale = imageType == 3 || imageType == 11;
-
-    if (imageType != 1 && imageType != 2 && imageType != 3 && imageType != 9 &&
-        imageType != 10 && imageType != 11) {
-        return fail("unsupported TGA image type");
-    }
-    if (depth != 8 && depth != 15 && depth != 16 && depth != 24 && depth != 32) {
-        return fail("unsupported TGA bit depth");
-    }
-
-    size_t offset = 18 + idLength;
+    size_t offset = 18 + idLength;   // pIn: hinter dem Kopf und dem Kommentar
     if (offset > size) { return fail("truncated after the header");
 }
 
-    // Farbtabelle, wenn vorhanden.
-    std::vector<unsigned char> palette;
-    if (colourMapType == 1) {
-        const unsigned entryBytes = (colourMapDepth + 7) / 8;
-        const size_t tableBytes = static_cast<size_t>(colourMapLength) * entryBytes;
-        if (offset + tableBytes > size) { return fail("truncated colour map");
-}
-        palette.assign(data + offset, data + offset + tableBytes);
-        offset += tableBytes;
-    } else if (paletted) {
-        return fail("paletted image without a colour map");
-    }
-
-    const unsigned bytesPerPixel = (depth + 7) / 8;
-    const size_t pixelCount = static_cast<size_t>(width) * height;
+    const size_t bytesPerPixel = planes / 8;
+    const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
     out.rgba.assign(pixelCount * 4, 0);
 
-    // Ein Bildpunkt in RGBA umsetzen. Targa legt Farben als BGR ab - das ist
-    // der Klassiker, an dem umgesetzte Bilder blau statt rot werden.
+    // Ein Bildpunkt wie in LoadTGA: BGR(A); 8 Bit ist Grau, Alpha 255.
     auto writePixel = [&](size_t index, const unsigned char* pixel) {
-        unsigned char r = 0;
-        unsigned char g = 0;
-        unsigned char b = 0;
-        unsigned char a = 255;
-        if (paletted) {
-            const unsigned entryBytes = (colourMapDepth + 7) / 8;
-            const size_t entry = static_cast<size_t>(pixel[0]) * entryBytes;
-            if (entry + entryBytes <= palette.size()) {
-                b = palette[entry];
-                g = entryBytes > 1 ? palette[entry + 1] : b;
-                r = entryBytes > 2 ? palette[entry + 2] : b;
-                if (entryBytes > 3) { a = palette[entry + 3];
-}
-            }
-        } else if (greyscale) {
-            r = g = b = pixel[0];
-        } else if (depth == 15 || depth == 16) {
-            const unsigned value =
-                static_cast<unsigned>(pixel[0]) | (static_cast<unsigned>(pixel[1]) << 8);
-            // Fuenf Bit je Kanal auf acht strecken: nicht mal 8, sondern die
-            // oberen Bits nach unten wiederholen. Sonst erreicht Weiss nur 248.
-            const unsigned r5 = (value >> 10) & 0x1F;
-            const unsigned g5 = (value >> 5) & 0x1F;
-            const unsigned b5 = value & 0x1F;
-            r = static_cast<unsigned char>((r5 << 3) | (r5 >> 2));
-            g = static_cast<unsigned char>((g5 << 3) | (g5 >> 2));
-            b = static_cast<unsigned char>((b5 << 3) | (b5 >> 2));
-            if (depth == 16) { a = ((value & 0x8000) != 0U) ? 255 : 0;
-}
+        unsigned char* o = out.rgba.data() + index * 4;
+        if (planes == 8) {
+            o[0] = o[1] = o[2] = pixel[0];
+            o[3] = 255;
         } else {
-            b = pixel[0];
-            g = pixel[1];
-            r = pixel[2];
-            if (depth == 32) { a = pixel[3];
-}
+            o[0] = pixel[2];
+            o[1] = pixel[1];
+            o[2] = pixel[0];
+            o[3] = planes == 32 ? pixel[3] : 255;
         }
-        out.rgba[index * 4 + 0] = r;
-        out.rgba[index * 4 + 1] = g;
-        out.rgba[index * 4 + 2] = b;
-        out.rgba[index * 4 + 3] = a;
     };
 
-    // Zeilenrichtung. Bit 5 des Deskriptors: gesetzt heisst oben beginnend,
-    // sonst unten - und unten ist die Voreinstellung. Wer das uebersieht,
-    // bekommt jedes zweite Bild auf dem Kopf.
-    const bool topDown = (descriptor & 0x20) != 0;
+    // Zeilen: Bit 0x20 gesetzt heisst oben beginnend (iYStart 0), sonst unten.
+    // Typ 10 ist immer von unten (oben geprueft).
+    const bool topDown = (scanLineOrder & 0x20) != 0;
 
-    std::vector<unsigned char> pixel(bytesPerPixel);
-    size_t written = 0;
-    while (written < pixelCount) {
-        if (rleCompressed) {
+    if (imageType == 10) {
+        size_t written = 0;
+        std::vector<unsigned char> pixel(bytesPerPixel);
+        while (written < pixelCount) {
             if (offset >= size) { return fail("truncated RLE data");
 }
             const unsigned packet = data[offset++];
-            const size_t count = (packet & 0x7F) + 1U;
-            if (written + count > pixelCount) { return fail("RLE packet overruns");
-}
-
-            if ((packet & 0x80) != 0U) {
-                // Ein Bildpunkt, count-mal wiederholt.
+            // Ueber das letzte Bild hinaus: abgeschnitten (goto breakOut).
+            const size_t count = std::min<size_t>((packet & 0x7FU) + 1U, pixelCount - written);
+            if ((packet & 0x80U) != 0U) {
                 if (offset + bytesPerPixel > size) { return fail("truncated RLE run");
 }
                 std::memcpy(pixel.data(), data + offset, bytesPerPixel);
                 offset += bytesPerPixel;
-                for (size_t i = 0; i < count; ++i) {
-                    writePixel(written + i, pixel.data());
-                }
+                for (size_t i = 0; i < count; ++i) { writePixel(written + i, pixel.data()); }
             } else {
-                if (offset + count * bytesPerPixel > size) {
-                    return fail("truncated RLE literals");
-                }
-                for (size_t i = 0; i < count; ++i) {
-                    writePixel(written + i, data + offset + i * bytesPerPixel);
-                }
+                if (offset + count * bytesPerPixel > size) { return fail("truncated RLE literals");
+}
+                for (size_t i = 0; i < count; ++i) { writePixel(written + i, data + offset + i * bytesPerPixel); }
                 offset += count * bytesPerPixel;
             }
             written += count;
-        } else {
-            if (offset + bytesPerPixel > size) { return fail("truncated pixel data");
-}
-            writePixel(written, data + offset);
-            offset += bytesPerPixel;
-            ++written;
         }
+    } else {
+        if (pixelCount * bytesPerPixel > size - offset) { return fail("truncated pixel data");
+}
+        for (size_t i = 0; i < pixelCount; ++i) { writePixel(i, data + offset + i * bytesPerPixel); }
     }
 
-    // Falls die Datei von unten nach oben liegt, Zeilen tauschen.
+    // Von unten nach oben gelesen: Zeilen tauschen (iYStart wHeight-1, iYStep -1).
     if (!topDown && height > 1) {
         const size_t rowBytes = static_cast<size_t>(width) * 4;
         std::vector<unsigned char> row(rowBytes);
@@ -306,7 +280,7 @@ Image decodeTga(const unsigned char* data, size_t size) {
 
     out.width = width;
     out.height = height;
-    out.hasAlpha = depth == 32 || (depth == 16 && !greyscale);
+    out.hasAlpha = planes == 32;
     out.ok = true;
     return out;
 }

@@ -348,20 +348,26 @@ struct SchattenGeo {
 };
 SchattenGeo g_schatten;
 
+// rc609 L: ParseEntityCompileParams (map.cpp) - worldspawn und func_group WORLDSPAWN_CAST_SHADOWS (1), andere
+// ENTITY_CAST_SHADOWS (0); danach GetEntityShadowFlags (bspfile_abstract.cpp): _castShadows bzw. _cs, wenn
+// gesetzt - auch bei worldspawn und func_group (bis rc608 galt dort immer 1)
 int entitaetWirft(const karte::Entitaet& e, bool welt) {
-    if (welt) { return 1; }   // WORLDSPAWN_CAST_SHADOWS (func_group gehoert nach -bsp zur Welt)
     for (const char* k : {"_castShadows", "_cs"}) {
         const std::string w = e.wert(k);
         if (!w.empty()) { return std::atoi(w.c_str()); }
     }
-    return 0;   // ENTITY_CAST_SHADOWS
+    return welt ? 1 : 0;
 }
+
+// games.cpp game_sof2 (game_ja, game_jk2): "default patchMeta subdivisions tolerance" (patchSubdivisions)
+constexpr int kPatchUnterteilungen = 8;
 
 void schattenGeoBauen(std::size_t geoStand, bool patches) {
     SchattenGeo& sg = g_schatten;
     sg.teile.clear();
     sg.dreiecke = 0;
     sg.modellDreiecke = 0;
+    std::size_t patchDreiecke = 0;
     // Eimer: Art, Zelle (1024er Raster), Shader (nur alphashadow)
     std::map<std::tuple<int, int, int, int, std::string>, std::vector<kartegpu::Punkt3>> eimer;
     const auto dreieck = [&eimer](int art, const std::string& sh, const Vektor3f* p, const Vektor3f& n, const karte::Vektor2f* st) {
@@ -428,17 +434,30 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
                 const karte::ShaderSkript& s = skript(patch.shader());
                 if (s.himmel || s.nichtZeichnen || (s.durchscheinend && !s.alphaSchatten && !s.lichtFilter)) { continue; }
                 const int art = (s.alphaSchatten || s.lichtFilter) ? 3 : 0;
-                const karte::PatchTesselierung& tess = patch.tesselierung();
-                for (std::size_t sIdx = 0; sIdx < tess.numStrips; ++sIdx) {
-                    const std::size_t basis = sIdx * tess.lenStrips;
-                    for (std::size_t k = 0; k + 2 < tess.lenStrips; ++k) {
-                        const unsigned ia = tess.indices[basis + k];
-                        const unsigned ib = tess.indices[basis + k + 1];
-                        const unsigned ic = tess.indices[basis + k + 2];
-                        if (ia >= tess.vertices.size() || ib >= tess.vertices.size() || ic >= tess.vertices.size()) { continue; }
-                        const Vektor3f p[3] = {tess.vertices[ia].vertex, tess.vertices[ib].vertex, tess.vertices[ic].vertex};
-                        const karte::Vektor2f st[3] = {tess.vertices[ia].texcoord, tess.vertices[ib].texcoord, tess.vertices[ic].texcoord};
-                        dreieck(art, patch.shader(), p, tess.vertices[ia].normal, st);
+                // rc609 L: das Netz von -light statt der Editor-Ansicht - PopulateWithBSPModel (light_trace.cpp):
+                // TessellatedMesh( ds, info.patchIterations ), patchIterations = IterationsForCurve( longestCurve,
+                // patchSubdivisions ) (lightmaps_ydnar.cpp), longestCurve aus ParsePatch; entartete Patches
+                // verwirft ParsePatch schon in -bsp
+                std::vector<karte::EchtNetzPunkt> netz;
+                for (const karte::PatchPunkt& pp : patch.punkte()) { netz.push_back(karte::EchtNetzPunkt{pp.vertex, Vektor3f(0, 0, 0), {pp.texcoord[0], pp.texcoord[1]}}); }
+                int breite = static_cast<int>(patch.breite());
+                int hoehe = static_cast<int>(patch.hoehe());
+                float kurve = 0;
+                if (!karte::echtPatchSteuernetz(netz, breite, hoehe, kurve)) { continue; }
+                karte::echtNetzTesselieren(netz, breite, hoehe, karte::echtIterationenFuerKurve(kurve, kPatchUnterteilungen));
+                // MeshQuadIterator (q3map2.h): je Viereck (q0 q1 q2) und (q0 q2 q3), die Ecken nach (x + y) & 1
+                for (int y = 0; y + 1 < hoehe; ++y) {
+                    for (int x = 0; x + 1 < breite; ++x) {
+                        const int pw[5] = {x + (y * breite), x + ((y + 1) * breite), x + 1 + ((y + 1) * breite), x + 1 + (y * breite), x + (y * breite)};
+                        const int r = (x + y) & 1;
+                        const auto P = [&netz, &pw, r](int i) -> const karte::EchtNetzPunkt& { return netz[static_cast<std::size_t>(pw[r + i])]; };
+                        for (const std::array<int, 3>& d : {std::array<int, 3>{0, 1, 2}, std::array<int, 3>{0, 2, 3}}) {
+                            const Vektor3f p[3] = {P(d[0]).ort, P(d[1]).ort, P(d[2]).ort};
+                            const karte::Vektor2f st[3] = {karte::Vektor2f(P(d[0]).st[0], P(d[0]).st[1]), karte::Vektor2f(P(d[1]).st[0], P(d[1]).st[1]),
+                                                           karte::Vektor2f(P(d[2]).st[0], P(d[2]).st[1])};
+                            dreieck(art, patch.shader(), p, P(d[0]).normale, st);
+                            ++patchDreiecke;
+                        }
                     }
                 }
             }
@@ -490,6 +509,7 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
     }
     sg.dreiecke = alle.size() / 3;
     ed().echtLicht.schattenModellDreiecke = sg.modellDreiecke;
+    ed().echtLicht.schattenPatchDreiecke = patchDreiecke;
     if (!alle.empty()) { (void)sg.puffer.setzen(alle.data(), alle.size() * sizeof(kartegpu::Punkt3)); }
     sg.geoStand = geoStand;
     sg.patches = patches;
@@ -611,7 +631,7 @@ void schnellBauStarten(std::size_t kartenStand) {
                                                                     std::to_string(zeiten.gpuMs) + " -bhedgpubakecheck 0 "
                                                               : std::string();
     const std::vector<std::string> befehle = {grund + "-meta \"" + karte + "\"", grund + "-vis -fast \"" + bsp + "\"",
-                                              grund + "-light -fast " + std::string(e.echtLicht.patchSchatten ? "-patchshadows " : "") + gpu + "\"" + bsp + "\""};
+                                              grund + "-light -fast " + std::string(patchSchattenAn() ? "-patchshadows " : "") + gpu + "\"" + bsp + "\""};
     const std::string kartenName = e.name;
     g_backen.abbrechen = false;
     g_backen.stand = 2;
@@ -773,6 +793,9 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel darueber (RB_FogPass, FP_LE)
     d.nebelFlaeche = s.nebelParms && !s.stufeGefunden;
     d.himmel = s.himmel;
+    // rc609 P: SS_PORTAL; ohne jede Stufe setzt FinishShader (tr_shader.cpp) sort auf SS_FOG - dann ist es kein Portal
+    d.portal = s.portal && s.stufeGefunden;
+    d.portalWeite = static_cast<float>(s.portalWeite);
     return d;
 }
 
@@ -924,10 +947,11 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     g_dreieckeBild = kartegpu::schattenDreiecke();
     weltAktualisieren(geoStand);
     static std::size_t schattenNeuGeladen = 0;   // Stufe 9d: nach Flush & Reload Shaders auch die Schattengeometrie (Shader-Regeln)
-    if (g_schatten.geoStand != geoStand || g_schatten.patches != e.echtLicht.patchSchatten || g_schatten.geraet != kartegpu::geraetStand() ||
+    const bool patches = patchSchattenAn();   // rc609 L: die Einstellung der Karte
+    if (g_schatten.geoStand != geoStand || g_schatten.patches != patches || g_schatten.geraet != kartegpu::geraetStand() ||
         schattenNeuGeladen != e.neuGeladen) {
         schattenNeuGeladen = e.neuGeladen;
-        schattenGeoBauen(geoStand, e.echtLicht.patchSchatten);
+        schattenGeoBauen(geoStand, patches);
         for (Platz& p : g_plaetze) { p.gueltig = false; }
         for (SonnenKarte& k : g_kaskade) { k.gueltig = false; }
         for (SonnenKarte& k : g_himmelKarten) { k.gueltig = false; }

@@ -332,6 +332,12 @@ void editorDatenPruefen(const std::string& q3) {
                befehlMitVisExakt(q + "-light -fast \"C:/m/a.map\"") == q + "-light -fast \"C:/m/a.map\"" &&
                befehlMitVisExakt(befehlMitVisExakt(q + "-vis \"C:/m/a.map\"")) == q + "-vis -bhedvisexact \"C:/m/a.map\"",
            "vis1: -bhedvisexact nur fuer -vis, vor der Karte, nicht doppelt");
+    pruefe(befehlMitPatchSchatten(q + "-light -fast -nogrid \"C:/m/a.map\"") == q + "-light -fast -nogrid -patchshadows \"C:/m/a.map\"" &&
+               befehlMitPatchSchatten(q + "-meta \"C:/m/a.map\"") == q + "-meta \"C:/m/a.map\"" &&
+               befehlMitPatchSchatten(q + "-light -fast -PatchShadows \"C:/m/a.map\"") == q + "-light -fast -PatchShadows \"C:/m/a.map\"" &&
+               lichtOhnePatchSchatten(q + "-light -fast \"C:/m/a.map\"") && !lichtOhnePatchSchatten(q + "-light -patchshadows \"C:/m/a.map\"") &&
+               !lichtOhnePatchSchatten(q + "-vis \"C:/m/a.map\""),
+           "rc609 L: -patchshadows nur fuer -light, vor der Karte, nicht doppelt; Licht-Schritt ohne -patchshadows erkannt");
     pruefe(befehlMitLichtWiederverwendung(q + "-light -fast -samples 2 \"C:/m/a.map\"") == q + "-light -fast -samples 2 -bhedlightcache \"C:/m/a.map\"" &&
                befehlMitLichtWiederverwendung(q + "-vis \"C:/m/a.map\"") == q + "-vis \"C:/m/a.map\"",
            "Stufe 8a/5b: -bhedlightcache nur fuer -light, vor der Karte");

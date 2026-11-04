@@ -138,6 +138,7 @@ add_library(bhed_core STATIC
   src/gesicht.cpp
   src/holster.cpp
   src/areaportal.cpp
+  src/portalsicht.cpp   # rc609 P: Spiegel und Portalkameras wie die Engine
   src/himmelbox.cpp
   src/schmerz.cpp
   src/geschuetz.cpp
@@ -415,6 +416,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
   add_executable(behaved WIN32
     gui/app.cpp
     gui/app_view3d.cpp
+    gui/app_portalsicht.cpp   # rc609 P: Spiegel und Portalkameras aus der .bsp (Vorschau und Karten-Editor)
     gui/app_mission.cpp
     gui/app_dateiort.cpp
     gui/app_enttext.cpp
@@ -789,6 +791,10 @@ if(BEHAVED_TESTS)
   add_executable(enttexttest tests/enttexttest.cpp)
   target_link_libraries(enttexttest PRIVATE bhed_core)
   add_test(NAME enttext COMMAND enttexttest)
+  # rc609 P: Spiegel und Portalkameras wie die Engine
+  add_executable(portalsichttest tests/portalsichttest.cpp)
+  target_link_libraries(portalsichttest PRIVATE bhed_core)
+  add_test(NAME portalsicht COMMAND portalsichttest)
   add_executable(losedateientest tests/losedateientest.cpp)
   target_link_libraries(losedateientest PRIVATE bhed_core bhed_zlib)
   add_test(NAME losedateien COMMAND losedateientest ${CMAKE_CURRENT_BINARY_DIR})
@@ -980,6 +986,17 @@ if(BEHAVED_TESTS)
     # Einstellungen - sonst fand "Zeig es mir" einen umbenannten Menuepunkt nicht mehr.
     add_test(NAME hilfe_orte
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_hilfe_orte.py --check)
+    # rc609 F9: was zur Karte gehoert, raeumt auch der Kartenwechsel weg (wie clearMap); der
+    # Selbsttest nimmt absichtlich Zustaende heraus und muss sie gemeldet bekommen.
+    add_test(NAME lint_mapstate
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_mapstate.py)
+    add_test(NAME lint_mapstate_selbsttest
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_mapstate.py --selbsttest)
+    # rc609 F: kein return zwischen BeginTable und EndTable (Lambdas ausgenommen)
+    add_test(NAME lint_endtable
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py)
+    add_test(NAME lint_endtable_selbsttest
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py --selbsttest)
     # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
     # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
     # was NRCs q3map2.exe unter denselben Bedingungen schreibt

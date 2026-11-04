@@ -66,6 +66,7 @@
 #include "bhed/shaderscript.h"
 #include "bhed/keys.h"
 #include "bhed/pk3.h"
+#include "bhed/portalsicht.h"   // rc609 P
 #include "bhed/roff.h"
 #include "bhed/sound.h"
 #include "bhed/edit.h"
@@ -664,6 +665,10 @@ struct App {
         float schnitt[4]{0.0F, 0.0F, 0.0F, 1.0F};
         bool umkehren = false;
         bool portal = false;
+        // rc609 P: newParms.ori.origin und ori.axis[0] (R_MirrorPoint/R_MirrorVector) und pvsOrigin (oldorigin)
+        float auge[3]{};
+        float vorn[3]{};
+        float pvsOrt[3]{};
     };
     NebenSicht nebenSicht;
     // Durch die gewaehlte Kamera schauen statt frei zu fliegen.
@@ -2849,9 +2854,22 @@ void kameraVorschauZeigen();
 void lichtStileZuZeit();
 // Der Ort des misc_skyportal der Karte (rc593), false ohne eines.
 bool himmelPortalOrt(float ort[3]);
-// Der Spiegel, den die Kamera gerade sieht (rc593): Ebene n.p = d. false
-// ohne einen - siehe app_view3d.cpp, spiegelKandidaten.
-bool spiegelFuer(const Camera& cam, float ebene[4]);
+// Der Spiegel oder die Portalkamera, die die Kamera gerade sieht (rc593, rc609 P: R_MirrorViewBySurface ueber
+// bhed/portalsicht): Ebene n.p = d, die Sicht in App::nebenSicht. false ohne eine. breite/hoehe: das Bild.
+bool spiegelFuer(const Camera& cam, int breite, int hoehe, float ebene[4]);
+// rc609 P, gemeinsam mit dem Karten-Editor (app_portalsicht.cpp): die Flaechen mit `sort portal` einer .bsp
+// (R_PlaneForSurface) mit ihren Blaettern und die misc_portal_surface; die Sicht fuer eine Kamera (nur Flaechen und Schirme,
+// die vom Auge aus im Bild sind: R_MarkLeaves, Snapshot); die Hauptsicht als PortalAuge und die Sicht als NebenSicht.
+struct PortalKarte {
+    std::vector<PortalFlaeche> flaechen;
+    std::vector<std::vector<int>> blaetter;   // je Flaeche die Blaetter, in denen sie steht
+    std::vector<PortalSchirm> schirme;
+};
+[[nodiscard]] PortalKarte portalKarteAus(const BspGeometry& geo, const TextureSet& bilder, const std::vector<MapEntity>& ents);
+[[nodiscard]] bool portalSichtFuer(const PortalKarte& k, const BspGeometry& geo, const AreaPortale& portale, const Camera& cam, int breite, int hoehe,
+                                   double zeitMs, PortalSicht& aus);
+[[nodiscard]] PortalAuge portalAugeAus(const Camera& cam, int breite, int hoehe, float fern);
+void nebenSichtAus(const PortalSicht& p, App::NebenSicht& ns);
 // Die MOVE-Schluessel des Skripts, in der Reihenfolge, in der App::selectedKey
 // zaehlt: Ort, Winkel (erstes PAN danach, sonst das vorige) und Zeile.
 struct KameraSchluessel {
@@ -3334,6 +3352,7 @@ bool bspLumpsSpeichern(const karte::BspLumps& lumps, const std::function<void()>
 // app_ablage.inc: Geometrie aus Bytes (wie beim Laden) und die daraus aufgestellte Szene vergessen
 bool karteGeometrieLesen(const std::string& bytes, const std::string& shownPath);
 void kartenSzeneVergessen();
+void kartenGeometrieVergessen();
 // fuer den Selbsttest
 int lumpEditFlaeche();
 void lumpEditFlaecheSetzen(int i);
@@ -3609,7 +3628,9 @@ inline constexpr int kBildGrenze = 4096;
 void regelwerkAnwendenJetzt();
 void areaPortaleJetzt(const float auge[3], const float* vorn = nullptr);
 // CM_SnapPVS(ort): die Gebietsmaske dieser Sicht in den Indexpuffer der Karte (nur wenn sie sich aendert).
-void areaSichtSetzen(const float ort[3], const float* vorn = nullptr);
+// rc609 P: `fernOrt` - der Ort der Sicht fuer die ferne Ebene, wenn er nicht der des PVS ist (Spiegel und Portal:
+// newParms.ori.origin gegen pvsOrigin).
+void areaSichtSetzen(const float ort[3], const float* vorn = nullptr, const float* fernOrt = nullptr);
 // tr.distanceCull: R_LoadEntities, worldspawn "distanceCull", Vorgabe 12000.
 [[nodiscard]] float kartenDistanceCull();
 // rc608 Teil 11: fuer eine andere Karte (das Spielbild des Karten-Editors) - die Vorschau ruft sie mit g_app->geo

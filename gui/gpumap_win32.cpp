@@ -317,7 +317,8 @@ std::uint64_t g_patchLodMover = 0;   // rc608 Teil 13c
 // Satz 4 (zeitleiste1): ein Bild des Filmstreifens der Zeitleiste.
 // Satz 5 (rc608 Teil 11): das Spielbild des Karten-Editors (kZielKarteneditor).
 // Satz 6 (rc608 Teil 13b): sein Himmelsportal (kZielKarteneditorPortal).
-constexpr int kZielSaetze = 7;
+// Satz 7 (rc609 P): seine Spiegel- bzw. Portalsicht (kZielKarteneditorSpiegel).
+constexpr int kZielSaetze = 8;
 ZielFelder g_geparkt[kZielSaetze];
 int g_zielSatz = 0;
 // Zaehlt die Bilder der Ansicht (neuesBild) - siehe Netzpuffer::dynBild.

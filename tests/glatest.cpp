@@ -503,6 +503,23 @@ int main() {
                nx == 209);
     }
 
+    // --- rc609 F15: lange Elternkette (readGla laesst 4096 Knochen zu) ------
+    // Knochen i haengt an i+1, der letzte ist die Wurzel: Rekursionstiefe 4096.
+    {
+        bhed::GlaAnimation kette;
+        kette.numFrames = 1;
+        kette.bones.resize(4096);
+        for (std::size_t i = 0; i + 1 < kette.bones.size(); ++i) { kette.bones[i].parent = static_cast<int>(i + 1); }
+        std::vector<bhed::BoneMatrix> w;
+        std::printf("  F15: Kette aus 4096 Knochen ...\n");
+        std::fflush(stdout);
+        kette.worldMatricesLerp(0, 0, 0.5F, w);
+        const std::size_t nLerp = w.size();
+        kette.worldMatrices(0, w);
+        std::printf("  F15: %zu / %zu Matrizen\n", nLerp, w.size());
+        expect("F15: Kette aus 4096 Knochen ohne Absturz", nLerp == 4096U && w.size() == 4096U);
+    }
+
     std::printf("\n%s (%d Fehlschlaege)\n",
                 fails != 0 ? "FEHLGESCHLAGEN" : "alle Skelettproben bestanden", fails);
     return fails != 0 ? 1 : 0;

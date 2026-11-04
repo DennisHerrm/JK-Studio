@@ -18,6 +18,10 @@
 // ins Bild (brushModelleImSpiel, mit ihnen ein model2), die Gebietsportale gelten (portalOffenImSpiel), die Halme
 // (grasNetzFuer) und die fx_runner (fxRunnerAus, buildEffectMesh; Portal-Entities nur im Himmelsportal) wie die Vorschau.
 //
+// rc609 P: Spiegel und Portalkameras (misc_portal_surface, sort portal) ueber denselben Code wie die Vorschau (bhed/portalsicht,
+// portalKarteAus/portalSichtFuer wie spiegelFuer): erst die zweite Sicht in einen eigenen Satz, die Portalflaechen der Hauptszene legen sie unter
+// ihre Stufen. Im Spiegeldurchgang fehlt, was auch der Vorschau dort fehlt (Halme, Nebel, Wetter, Gluehen).
+//
 // Nicht dabei (anders als die Vorschau mit ihrer Mission): Figuren, Mover in Bewegung (ohne Mission benutzt sie nichts),
 // das dynamische Licht der Effekte, Emittermodelle.
 #include "karte_echtlicht.h"
@@ -34,6 +38,7 @@
 #include "bhed/kollision.h"
 #include "bhed/md3.h"
 #include "bhed/mover.h"
+#include "bhed/portalsicht.h"   // rc609 P
 #include "bhed/regelwerk.h"
 #include "bhed/saberkontakt.h"   // kInhaltFest
 
@@ -96,7 +101,14 @@ struct Szene {
     float portalOrt[3] = {0.0F, 0.0F, 0.0F};
     std::uint64_t nummerZaehler = 0;
     std::shared_ptr<const KollisionsKarte> kollision;
+    // rc609 P: die Portalflaechen und misc_portal_surface dieser .bsp (bei neuer Nummer oder neuen Bildern neu)
+    std::uint64_t portalNummer = 0;
+    std::size_t portalBilder = 0;
+    PortalKarte portalKarte;
 };
+
+// Welche Sicht sichtZeichnen zeichnet: die Hauptszene, das Himmelsportal oder den Spiegel bzw. die Portalkamera.
+enum class Sicht { Haupt, Himmel, Spiegel };
 
 // Ein Kartenmodell oder Brush-Modell in diesem Bild - wie MoverDraw der Vorschau (offset, Drehung, Groesse, Licht).
 // Ein Brush-Modell traegt seine Lightmaps (modellLicht false), ein .md3 das Licht aus dem Lichtgitter.
@@ -385,12 +397,23 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit) {
 // Eine Sicht der Szene in das gewaehlte Ziel: Karte und Modelle deckend, Nebel, Karte und Modelle gemischt, Wetter,
 // Gluehen, Gamma. Der Durchgang des Himmelsportals (`portal`) zeichnet wie das Nebenbild der Vorschau kein Wetter,
 // kein Gluehen und keine Gamma-Tabelle (nebenbild, imPortalDurchgang).
-int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit, bool portal, std::string& f) {
+int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit, Sicht art, std::string& f, const App::NebenSicht* ns = nullptr) {
+    const bool portal = art != Sicht::Haupt;
+    const bool spiegel = art == Sicht::Spiegel && ns != nullptr;
     const float fern = kartenFernFuer(s.geo);
     float vp[16];
     gpu::baueViewProj(cam, breite, hoehe, 4.0F, fern, vp);   // r_znear 4
+    // Spiegel und Portalkamera wie die Vorschau (gpuBild mit imSpiegelDurchgang): die Welt durch die Abbildung, von der
+    // echten Kamera aus; die Schnittebene genau auf portalPlane.
+    if (spiegel) {
+        gpu::multipliziere(vp, ns->welt, vp);
+        gpu::setzeSpiegelung(true, ns->schnitt, ns->umkehren);
+    }
     // R_MarkLeaves: das PVS des Clusters, in dem die Kamera steht, und die Gebiete, die mit ihrem verbunden sind (areamask).
-    const int blatt = s.geo.leafAt(cam.pos);
+    // rc609 P: in der zweiten Sicht von pvsOrigin aus (oldorigin, die Gebietsmaske des Snapshots von dort).
+    const float* pvsOrt = spiegel ? ns->pvsOrt : cam.pos;
+    const float* sichtOrt = spiegel ? ns->auge : cam.pos;
+    const int blatt = s.geo.leafAt(pvsOrt);
     const bool imBaum = blatt >= 0 && static_cast<std::size_t>(blatt) < s.geo.leafs.size();
     const int cluster = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].cluster : -1;
     const int gebiet = imBaum ? s.geo.leafs[static_cast<std::size_t>(blatt)].area : -1;
@@ -398,7 +421,10 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     if (s.fernKaesten.size() != s.geo.surfaces.size()) { s.fernKaesten = flaechenKaesten(s.geo); }
     float blick[3];
     winkelVektoren(cam.angles, blick, nullptr, nullptr);   // AngleVectors: viewParms.ori.axis[0]
-    FernStand fernJetzt = fernStand(s.geo, s.fernKaesten, fernebeneFuer(cam.pos, blick, s.distanceCull));
+    if (spiegel) {
+        for (int k = 0; k < 3; ++k) { blick[k] = ns->vorn[k]; }
+    }
+    FernStand fernJetzt = fernStand(s.geo, s.fernKaesten, fernebeneFuer(sichtOrt, blick, s.distanceCull));
     if (cluster != s.pvsCluster || gebiet != s.pvsGebiet || !(fernJetzt == s.fernZuletzt)) {
         s.pvsCluster = cluster;
         s.pvsGebiet = gebiet;
@@ -422,8 +448,8 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     }
     gpu::HimmelVorgabe hv;
     for (int i = 0; i < 3; ++i) {
-        hv.augeOrt[i] = cam.pos[i];
-        hv.pvsOrt[i] = cam.pos[i];
+        hv.augeOrt[i] = sichtOrt[i];
+        hv.pvsOrt[i] = pvsOrt[i];
     }
     hv.fern = fern;
     hv.distanceCull = s.distanceCull;
@@ -436,6 +462,13 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     cam.forward(vorn);
     cam.right(rechts);
     cam.up(hoch);
+    if (spiegel) {
+        // Der Himmel blickt im Spiegel/Portal in die abgebildete Richtung (wie die Vorschau).
+        for (float* v3 : {vorn, rechts, hoch}) {
+            const float alt[3] = {v3[0], v3[1], v3[2]};
+            for (int z = 0; z < 3; ++z) { v3[z] = ns->achsen[z * 3] * alt[0] + ns->achsen[z * 3 + 1] * alt[1] + ns->achsen[z * 3 + 2] * alt[2]; }
+        }
+    }
     const float fokus = 1.0F / std::tan(cam.fovY * 3.14159265F / 180.0F * 0.5F);
     const std::vector<ModellBild> modelle = modelleImBild(s, zeit);
     if (!portal) { g_stand.modelle = static_cast<int>(modelle.size()); }
@@ -449,7 +482,9 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     // RB_DrawSurfaceSprites je Sicht mit ihren viewParms (Hauptbild und Himmelsportal); rangescalefactor 1: die Kamera ist
     // die erste Sicht (R_SurfaceSpriteFrameUpdate nimmt deren Bildwinkel als Standard).
     BspMesh& gras = portal ? s.grasNetzPortal : s.grasNetz;
-    {
+    if (spiegel) {
+        gras = BspMesh{};   // die Vorschau zeichnet im Spiegel keine Halme
+    } else {
         GrasQuelle q;
         q.welt = &s.netz;
         q.geo = &s.geo;
@@ -463,12 +498,13 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
         const int vierecke = grasNetzFuer(q, cam, 1.0F, gras);
         if (!portal) { g_stand.grasVierecke = vierecke; }
     }
-    BspMesh& effekte = portal ? s.effektNetzPortal : s.effektNetz;
-    effektNetzBauen(s, cam, breite, hoehe, zeit, portal, effekte);
+    // Im Spiegel das Effektnetz der Hauptsicht (die Vorschau nimmt dort g_app->effectMesh): gebaut fuer die echte Kamera.
+    BspMesh& effekte = art == Sicht::Himmel ? s.effektNetzPortal : s.effektNetz;
+    effektNetzBauen(s, cam, breite, hoehe, zeit, art == Sicht::Himmel, effekte);
     if (!portal) {
         g_stand.effektLaeufer = static_cast<int>(s.effektLaeufer.size());
         g_stand.effektEcken = static_cast<int>(effekte.verts.size());
-    } else {
+    } else if (art == Sicht::Himmel) {
         g_stand.portalEffektEcken = static_cast<int>(effekte.verts.size());
     }
     int aufrufe = 0;
@@ -481,7 +517,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
         aufrufe += gpu::zeichneKarte(gras, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 3, vorn, rechts, hoch, fokus, &fg,
                                      nullptr, lage);
         if (f.empty()) { f = fg; }
-        if (g_app->showFog && !s.geo.nebel.empty()) {
+        if (!spiegel && g_app->showFog && !s.geo.nebel.empty()) {
             static const std::vector<gpu::FigurSchatten> kKeineFiguren;
             std::string fn;
             aufrufe += gpu::zeichneNebel(gras, &s.bilder, &s.geo, vp, zeit, cam.pos, nebelListeFuer(s.geo), kKeineFiguren, &fn, nullptr, -1,
@@ -509,7 +545,8 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
                                                gpu::kSpielLightmapFaktor, 0.0F, &fm, nullptr, lage, m.modellLicht ? &m.licht : nullptr);
             if (f.empty()) { f = fm; }
         }
-        if (durchgang == 0 && g_app->showFog && !s.geo.nebel.empty()) {
+        // Die Vorschau zeichnet im Spiegeldurchgang keinen Nebel (imSpiegelDurchgang).
+        if (durchgang == 0 && !spiegel && g_app->showFog && !s.geo.nebel.empty()) {
             static const std::vector<gpu::FigurSchatten> kKeineFiguren;
             const std::vector<gpu::NebelGpu> nebel = nebelListeFuer(s.geo);
             aufrufe += gpu::zeichneNebel(s.netz, &s.bilder, &s.geo, vp, zeit, cam.pos, nebel, kKeineFiguren, &f);
@@ -550,6 +587,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
         // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht) - wie die Vorschau.
         if (regelwerkMovieDuels()) { gpu::spielGammaAnwenden(); }
     }
+    if (spiegel) { gpu::setzeSpiegelung(false, nullptr, false); }
     return aufrufe;
 }
 
@@ -584,14 +622,38 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
             Camera pk = cam;
             for (int i = 0; i < 3; ++i) { pk.pos[i] = s.portalOrt[i]; }
             std::string fp;
-            g_stand.himmelPortal = sichtZeichnen(s, pk, breite, hoehe, zeit, true, fp) > 0;
+            g_stand.himmelPortal = sichtZeichnen(s, pk, breite, hoehe, zeit, Sicht::Himmel, fp) > 0;
+        }
+    }
+    // rc609 P: Spiegel oder Portalkamera wie die Vorschau (spiegelFuer, R_MirrorViewBySurface): erst die zweite Sicht in
+    // ihren Satz, ohne Himmelsportal (wie der Spiegeldurchgang der Vorschau, der vor dem Himmelsportal kommt).
+    g_stand.spiegel = false;
+    g_stand.portalKamera = false;
+    if (s.portalNummer != s.nummer || s.portalBilder != s.bilder.byShader.size()) {
+        s.portalNummer = s.nummer;
+        s.portalBilder = s.bilder.byShader.size();
+        s.portalKarte = portalKarteAus(s.geo, s.bilder, s.entities);
+    }
+    PortalSicht ps;
+    if (portalSichtFuer(s.portalKarte, s.geo, s.portale, cam, breite, hoehe, static_cast<double>(zeit) * 1000.0, ps)) {
+        App::NebenSicht ns;
+        nebenSichtAus(ps, ns);
+        gpu::waehleZiel(gpu::kZielKarteneditorSpiegel);
+        if (gpu::bereiteZiel(breite, hoehe)) {
+            std::string fs;
+            g_stand.spiegel = sichtZeichnen(s, cam, breite, hoehe, zeit, Sicht::Spiegel, fs, &ns) > 0;
+            g_stand.portalKamera = g_stand.spiegel && ps.portal;
+            std::copy(std::begin(ns.welt), std::end(ns.welt), g_stand.spiegelWelt);
+            std::copy(std::begin(ns.schnitt), std::end(ns.schnitt), g_stand.spiegelSchnitt);
         }
     }
     gpu::waehleZiel(gpu::kZielKarteneditor);
     if (gpu::bereiteZiel(breite, hoehe)) {
         if (g_stand.himmelPortal) { gpu::setzeHimmelPortal(gpu::kZielKarteneditorPortal); }
-        aufrufe = sichtZeichnen(s, cam, breite, hoehe, zeit, false, f);
+        if (g_stand.spiegel) { gpu::setzeSpiegelBild(gpu::kZielKarteneditorSpiegel); }
+        aufrufe = sichtZeichnen(s, cam, breite, hoehe, zeit, Sicht::Haupt, f);
         gpu::setzeHimmelPortal(-1);
+        gpu::setzeSpiegelBild(-1);
         bild = gpu::zielTextur();
         fehlerText = f;
     } else {
@@ -609,6 +671,69 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
 }
 
 SpielbildStand spielbildStand() { return g_stand; }
+
+// rc609 P: Spiegel und Portalkameras in der Echtzeit-Ansicht. Die Flaechen sind die Pinselseiten des Editors mit einem
+// Portal-Shader (q3map2 schreibt sie als SF_FACE mit der Ebene der Seite, Normale nach aussen), die misc_portal_surface und
+// ihre Kameras sind die Entities des Editors - so folgt die Sicht jedem Verschieben im naechsten Bild. Gewaehlt und
+// abgebildet wird ueber denselben Code wie Vorschau und Spielbild (bhed/portalsicht). Patches mit Portal-Shader nimmt die
+// Engine mit der Ebene aus den ersten drei Gitterecken (R_PlaneForSurface SF_GRID) - hier wie in der Vorschau nicht dabei.
+bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtfeld, std::size_t geoStand, PortalSicht& aus) {
+    static std::size_t stand = static_cast<std::size_t>(-1);
+    static std::vector<PortalFlaeche> flaechen;
+    static std::vector<PortalSchirm> schirme;
+    Editor& ed = editor();
+    if (stand != geoStand) {
+        stand = geoStand;
+        flaechen.clear();
+        std::vector<MapEntity> ents;
+        std::map<std::string, int> rang;   // sortedIndex: die Shader in der Reihenfolge ihres ersten Auftretens
+        for (const auto& en : ed.karte.entitaeten()) {
+            MapEntity m;
+            m.classname = en->klassenname();
+            for (const auto& [sk, sw] : en->schluessel()) {
+                m.keys.emplace_back(sk, sw);
+                if (sk == "targetname") { m.targetname = sw; }
+                if (sk == "origin") { m.origin = sw; }
+            }
+            ents.push_back(std::move(m));
+            if (!en->sichtbar()) { continue; }
+            for (const auto& prim : en->kinder()) {
+                if (prim->art() != karte::Primitiv::Art::Pinsel) { continue; }
+                auto& pinsel = static_cast<karte::Pinsel&>(*prim);
+                if (!pinsel.sichtbar()) { continue; }
+                pinsel.bRep(ed.karte.kontext);
+                for (const auto& fl : pinsel.flaechen()) {
+                    if (!fl || !fl->traegtBei()) { continue; }
+                    const SpielDarstellung sd = spielDarstellung(fl->shader());
+                    if (!sd.portal || sd.unsichtbar) { continue; }
+                    const karte::Wicklung& w = fl->wicklung();
+                    if (w.numpoints < 3) { continue; }
+                    PortalFlaeche f;
+                    const karte::Vektor3d& n = fl->ebene().normal();
+                    for (int q = 0; q < 3; ++q) { f.ebene[q] = static_cast<float>(n[static_cast<std::size_t>(q)]); }
+                    f.ebene[3] = static_cast<float>(fl->ebene().dist());
+                    for (std::size_t i = 0; i < w.numpoints; ++i) {
+                        f.ecken.push_back({static_cast<float>(w[i].vertex[0]), static_cast<float>(w[i].vertex[1]), static_cast<float>(w[i].vertex[2])});
+                        f.normalen.push_back({f.ebene[0], f.ebene[1], f.ebene[2]});
+                    }
+                    for (std::size_t i = 1; i + 1 < w.numpoints; ++i) {
+                        f.indizes.push_back(0);
+                        f.indizes.push_back(static_cast<int>(i));
+                        f.indizes.push_back(static_cast<int>(i + 1));
+                    }
+                    f.portalWeite = sd.portalWeite;
+                    f.sortierung = rang.emplace(fl->shader(), static_cast<int>(rang.size())).first->second;
+                    flaechen.push_back(std::move(f));
+                }
+            }
+        }
+        schirme = flaechen.empty() ? std::vector<PortalSchirm>{} : portalSchirme(ents, [](const MapEntity& e) { return gespawntImSpiel(e); });
+    }
+    if (flaechen.empty() || schirme.empty()) { return false; }
+    const Camera cam = alsSpielKamera(k, breite, hoehe, sichtfeld);
+    return portalSichtWaehlen(portalAugeAus(cam, breite, hoehe, karte::fernEbene(ed.kameraE)), flaechen, schirme,
+                              (g_zeitFest >= 0.0 ? g_zeitFest : ImGui::GetTime()) * 1000.0, aus);
+}
 void spielbildZeitFest(double sekunden) { g_zeitFest = sekunden; }
 
 }  // namespace bhed::gui::karteneditor

@@ -3853,6 +3853,9 @@ enum class Str {
     WegAbdeckungHint,
     WegAbdeckungRechnet,
     WegAbdeckungStand,
+    KePatchSchattenKarteTip,
+    KePatchSchattenHinweis,
+    LmsgL007,
     Count,
 };
 

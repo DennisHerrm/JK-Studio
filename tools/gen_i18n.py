@@ -2236,6 +2236,10 @@ from i18n_rc609_w3b import zeilen_vier as _rc609_w3b  # noqa: E402  (rc609 W3b: 
 S += _rc609_w3b()
 from i18n_rc609_w4 import zeilen_vier as _rc609_w4  # noqa: E402  (rc609 W4: Kampfpunkte, Testroute, Abdeckung)
 S += _rc609_w4()
+from i18n_rc609_l import zeilen_vier as _rc609_l  # noqa: E402  (rc609 L: Licht geht durch Patches, -patchshadows der Karte)
+S += _rc609_l()
+from i18n_rc609_f import zeilen_vier as _rc609_f  # noqa: E402  (rc609 F: Funde der Codepruefung)
+S += _rc609_f()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

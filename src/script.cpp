@@ -158,6 +158,7 @@ struct Reader {
     std::vector<std::string> lines;
     std::size_t pos = 0;
     std::vector<Diag>* diag = nullptr;
+    bool zuTief = false;   // rc609 F16: kSkriptTiefeMax ueberschritten, Rest wortgetreu
 
     void note(const std::string& m) {
         if (diag != nullptr) { diag->push_back({static_cast<int>(pos) + 1, m});
@@ -278,8 +279,23 @@ struct Reader {
                     }
                     ++pos;
                 }
+                // rc609 F16: tiefer als kSkriptTiefeMax nicht absteigen (sonst Stapelueberlauf
+                // bei tausenden Ebenen) - ab dieser Zeile bleibt alles wortgetreu stehen, nichts
+                // geht beim Speichern verloren, und das Uebersetzen verweigert (C005).
+                if (depth + 1 >= kSkriptTiefeMax) {
+                    note(zeileNr, "Block tiefer als " + std::to_string(kSkriptTiefeMax) + " Ebenen: " + n.name, "L007",
+                         n.name);
+                    zuTief = true;
+                    for (pos = static_cast<std::size_t>(zeileNr - 1); pos < lines.size(); ++pos) { wortgetreu(out, lines[pos]); }
+                    return false;
+                }
                 n.hasBlock = true;
                 if (!readNodes(n.children, depth + 1)) {
+                    if (zuTief) {
+                        n.blockOffen = true;
+                        out.push_back(std::move(n));
+                        return false;
+                    }
                     note(zeileNr, "Block nicht geschlossen: " + n.name, "L004", n.name);
                     n.blockOffen = true;
                     out.push_back(std::move(n));

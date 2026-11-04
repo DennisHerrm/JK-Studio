@@ -3327,7 +3327,14 @@ void drawMapView() {
                 // CM_SnapPVS je Sicht: die Gebietsmaske des eigenen Orts (CG_DrawSkyBoxPortal, cg_view.cpp).
                 float bildVorn[3];
                 winkelVektoren(bildCam.angles, bildVorn, nullptr, nullptr);   // AngleVectors: viewParms.ori.axis[0]
-                areaSichtSetzen(bildCam.pos, bildVorn);
+                if (nebenbild && g_app->imSpiegelDurchgang) {
+                    // rc609 P: R_MarkLeaves mit newParms.pvsOrigin (oldorigin des misc_portal_surface), die Gebietsmaske des
+                    // Snapshots von dort (SV_AddEntitiesVisibleFromPoint mit origin2), die ferne Ebene vom abgebildeten Auge.
+                    const App::NebenSicht& w = g_app->nebenSicht;
+                    areaSichtSetzen(w.pvsOrt, w.vorn, w.auge);
+                } else {
+                    areaSichtSetzen(bildCam.pos, bildVorn);
+                }
                 {
                     gpu::HimmelVorgabe hv;
                     for (int k = 0; k < 3; ++k) {
@@ -3335,14 +3342,12 @@ void drawMapView() {
                         hv.pvsOrt[k] = bildCam.pos[k];
                     }
                     if (nebenbild && g_app->imSpiegelDurchgang) {
-                        // R_MirrorPoint: der Ort, von dem die Engine im Spiegel blickt. Die Karte wird hier mit
-                        // nebenSicht.welt gespiegelt, also die Umkehrung davon auf das Auge.
+                        // R_MirrorPoint: der Ort, von dem die Engine im Spiegel blickt; R_GetPortalOrientations: pvsOrigin
+                        // ist bei Spiegel und Portalkamera e.oldorigin (rc609 P, bhed/portalsicht).
                         const App::NebenSicht& w = g_app->nebenSicht;
-                        const float d[3] = {bildCam.pos[0] - w.welt[3], bildCam.pos[1] - w.welt[7], bildCam.pos[2] - w.welt[11]};
-                        for (int k = 0; k < 3; ++k) { hv.augeOrt[k] = w.welt[k] * d[0] + w.welt[4 + k] * d[1] + w.welt[8 + k] * d[2]; }
-                        // R_GetPortalOrientations: Eine Portalkamera bringt ihr pvsOrigin mit, ein Spiegel behaelt das alte.
-                        if (w.portal) {
-                            for (int k = 0; k < 3; ++k) { hv.pvsOrt[k] = hv.augeOrt[k]; }
+                        for (int k = 0; k < 3; ++k) {
+                            hv.augeOrt[k] = w.auge[k];
+                            hv.pvsOrt[k] = w.pvsOrt[k];
                         }
                     }
                     hv.fern = kartenFern() + (nah > 4.0F ? nah : 0.0F);
@@ -4493,7 +4498,7 @@ void drawMapView() {
                 gpu::setzeHimmelPortal(-1);
             } else if (gpu::bereiteZiel(gw, gh)) {
                 // --- Spiegel (rc593): das Spiegelbild zuerst, in Satz 3 ------
-                if (!g_app->draufsicht && spiegelFuer(useCam, g_app->spiegelEbene)) {
+                if (!g_app->draufsicht && spiegelFuer(useCam, gw, gh, g_app->spiegelEbene)) {
                     g_app->imSpiegelDurchgang = true;
                     const bool ok = nebenBild(useCam, gw, gh, 3, "Spiegel");
                     g_app->imSpiegelDurchgang = false;

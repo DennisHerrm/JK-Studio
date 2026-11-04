@@ -5629,6 +5629,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_dateiort.inc"     // rc609 W2a: Dateien an Ort und Stelle speichern
 #include "selbsttest_enttext.inc"      // rc609 W2b: Entity-Texteditor
 #include "selbsttest_lumpedit.inc"     // rc609 J: Shader, Nebel und Flaechen fertiger Karten
+#include "selbsttest_fundef.inc"      // rc609 F: Funde der Codepruefung (F10, IBSP)
 #include "selbsttest_karte1bis2.inc"   // Stufe 8d: Karten-Editor Stufe 1b und 2
 #include "selbsttest_karte3bis5.inc"   // Stufe 8d: Karten-Editor Stufe 3 bis 5 (mit karte6/karte8)
 #include "selbsttest_handbuch.inc"   // Stufe 8d: grosse Karte, Stufe 8g und die Bildlaeufe des Handbuchs
@@ -5645,10 +5646,12 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_teil10.inc"      // teil10: Schwert und Hang des Spielers, Geonosis (rc608)
 #include "selbsttest_teil10b.inc"     // teil10b: Schwertlicht von Movie Duels, Figurtexturen ueber Shaderskripte (rc608)
 #include "selbsttest_teil11.inc"      // teil11: der Karten-Editor gegen das Spiel (rc608)
+#include "selbsttest_patchlicht.inc"  // rc609 L: Licht geht durch Patches
 #include "selbsttest_teil13.inc"      // teil13: Schwertlicht eines Griffs ohne Klinge (rc608)
 #include "selbsttest_teil13b.inc"     // teil13b: Spielbild des Karten-Editors mit Modellen, Himmelsportal, Wetter (rc608)
 #include "selbsttest_teil13c.inc"     // teil13c: Brush-Modelle und Gebietsportale im Spielbild, Patch-LOD an Movern (rc608)
 #include "selbsttest_teil13d.inc"     // teil13d: Reiten wie im Spiel (rc608)
+#include "selbsttest_editorportal.inc"   // rc609 P: Spiegel und Portalkameras im Karten-Editor
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
@@ -5997,6 +6000,10 @@ void selbsttest() {
     static const bool nurEnttext = std::strcmp(modus, "enttext") == 0;
     // rc609 J: Shader, Nebel und Flaechen fertiger Karten
     static const bool nurLumpedit = std::strcmp(modus, "lumpedit") == 0;
+    // rc609 L: Licht geht durch Patches (Echtzeit, Schnell-Backen, voller Bau, wie im Spiel; Schalter aus/an)
+    static const bool nurPatchlicht = std::strcmp(modus, "patchlicht") == 0;
+    // rc609 F: Funde der Codepruefung in der Bedienung (F10, IBSP)
+    static const bool nurFundef = std::strcmp(modus, "fundef") == 0;
     // pruefung3: der Rest gegen das Spiel, je Punkt eine eigene Mission.
     static const bool nurPruefung3 = std::strcmp(modus, "pruefung3") == 0;
     // geschuetze: Sentry und Turm mit Feind und Schaden (rc608).
@@ -6010,6 +6017,7 @@ void selbsttest() {
     static const bool nurTeil13b = std::strcmp(modus, "teil13b") == 0;
     static const bool nurTeil13c = std::strcmp(modus, "teil13c") == 0;
     static const bool nurTeil13d = std::strcmp(modus, "teil13d") == 0;
+    static const bool nurEditorportal = std::strcmp(modus, "editorportal") == 0;   // rc609 P
     static const bool nurTeil11 = std::strcmp(modus, "teil11") == 0;
     static const bool nurLeistung = std::strcmp(modus, "leistung") == 0;   // rc608 Teil 12
     // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
@@ -6136,6 +6144,12 @@ void selbsttest() {
                 a.schritte = lumpeditSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
+            } else if (nurPatchlicht) {
+                a.schritte = patchlicht::schritte();
+            } else if (nurFundef) {
+                a.schritte = fundefSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
             } else if (nurMission1) {
                 a.schritte = mission1Schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
@@ -6174,6 +6188,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurTeil13c) {
                 a.schritte = teil13c::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurEditorportal) {
+                a.schritte = editorportalSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurTeil13d) {

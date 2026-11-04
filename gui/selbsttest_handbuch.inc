@@ -320,6 +320,8 @@ std::vector<Schritt> schritte();        // selbsttest_reste1.inc: Liste reste1 (
 std::vector<Schritt> ruheOhneKarte();   // selbsttest_reste1.inc: Map-Tab ohne Karte ruht (Modus reiter und 1)
 }  // namespace reste1
 
+std::vector<Schritt> portaleHandbuchSchritte();   // selbsttest_editorportal.inc: rc609 P, Spiegel und Portalkamera
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -2271,6 +2273,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte9d") == 0) {
         return karte9dHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "portale") == 0) {
+        return portaleHandbuchSchritte();   // rc609 P (selbsttest_editorportal.inc)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

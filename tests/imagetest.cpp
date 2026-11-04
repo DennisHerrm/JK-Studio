@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <cstdio>
 #include <atomic>
 #include <map>
@@ -349,6 +350,78 @@ int main() {
         expect("RGBA mit vier Kanaelen", im.rgba.size() == 16U * 8U * 4U);
         expect("Rot steht auf 200", im.rgba[0] == 200);
         expect("Alpha ist voll", im.rgba[3] == 255);
+    }
+
+    // --- rc609 F14: TGA wie LoadTGA (code/rd-common/tr_image_tga.cpp) -------
+    {
+        auto kopf = [](unsigned typ, int w, int h, unsigned bits, unsigned ordnung) {
+            std::vector<unsigned char> b(18, 0);
+            b[2] = static_cast<unsigned char>(typ);
+            b[12] = static_cast<unsigned char>(w);
+            b[14] = static_cast<unsigned char>(h);
+            b[16] = static_cast<unsigned char>(bits);
+            b[17] = static_cast<unsigned char>(ordnung);
+            return b;
+        };
+        auto dazu = [](std::vector<unsigned char>& b, std::initializer_list<int> werte) {
+            for (const int v : werte) { b.push_back(static_cast<unsigned char>(v)); }
+        };
+        auto lies = [](const std::vector<unsigned char>& b) { return bhed::image::decodeTga(b.data(), b.size()); };
+        // Bit 0x10: LoadTGA waehlt iXStart = Breite-1, schreibt aber mit *pOut++ -
+        // die Zeile bleibt ungespiegelt. 2x1, Typ 2: rot, blau (BGR).
+        auto spiegel = kopf(2, 2, 1, 24, 0x10);
+        dazu(spiegel, {0, 0, 255, 255, 0, 0});
+        const auto s = lies(spiegel);
+        std::printf("  TGA 0x10: ok %d, x=0 rgb %d %d %d\n", s.ok ? 1 : 0, s.ok ? s.rgba[0] : -1,
+                    s.ok ? s.rgba[1] : -1, s.ok ? s.rgba[2] : -1);
+        expect("TGA 0x10: wie LoadTGA ungespiegelt (x=0 rot)", s.ok && s.rgba[0] == 255 && s.rgba[2] == 0);
+        // Typ 1 (Farbtabelle): "colourmaps not supported".
+        auto pal = kopf(1, 1, 1, 8, 0);
+        pal[1] = 1;
+        pal[5] = 1;
+        pal[7] = 24;
+        dazu(pal, {10, 20, 30, 0});
+        const auto p1 = lies(pal);
+        std::printf("  TGA Typ 1: ok %d (%s)\n", p1.ok ? 1 : 0, p1.error.c_str());
+        expect("TGA Typ 1 abgewiesen wie LoadTGA", !p1.ok);
+        // Typ 2 mit Farbtabellen-Kennung 1: ebenso abgewiesen.
+        auto t2pal = kopf(2, 1, 1, 24, 0);
+        t2pal[1] = 1;
+        dazu(t2pal, {1, 2, 3});
+        expect("TGA Typ 2 mit byColourmapType 1 abgewiesen", !lies(t2pal).ok);
+        // Typ 11 (RLE-Grau): abgewiesen.
+        auto t11 = kopf(11, 1, 1, 8, 0);
+        dazu(t11, {0x80, 7});
+        expect("TGA Typ 11 abgewiesen", !lies(t11).ok);
+        // 16 Bit: "Only type 2 (RGB), 3 (gray), and 10 (RGB)".
+        auto t16 = kopf(2, 1, 1, 16, 0);
+        dazu(t16, {0xFF, 0x7F});
+        expect("TGA 16 Bit abgewiesen", !lies(t16).ok);
+        // Typ 3 mit 16 Bit kommt durch den Kopf und scheitert in der Schleife.
+        auto g16 = kopf(3, 1, 1, 16, 0);
+        dazu(g16, {0xFF, 0x7F});
+        expect("TGA Typ 3 mit 16 Bit abgewiesen", !lies(g16).ok);
+        // Typ 2 mit 8 Bit nimmt der Kopf an (planes == 8), LoadTGA liest ein Byte als Grau.
+        auto t28 = kopf(2, 2, 1, 8, 0x20);
+        dazu(t28, {40, 90});
+        const auto g8 = lies(t28);
+        std::printf("  TGA Typ 2/8 Bit: ok %d, Bildpunkte %d/%d/%d %d/%d/%d\n", g8.ok ? 1 : 0,
+                    g8.ok ? g8.rgba[0] : -1, g8.ok ? g8.rgba[1] : -1, g8.ok ? g8.rgba[2] : -1,
+                    g8.ok ? g8.rgba[4] : -1, g8.ok ? g8.rgba[5] : -1, g8.ok ? g8.rgba[6] : -1);
+        expect("TGA Typ 2 mit 8 Bit: ein Byte je Bildpunkt als Grau",
+               g8.ok && g8.rgba[0] == 40 && g8.rgba[1] == 40 && g8.rgba[2] == 40 && g8.rgba[4] == 90 &&
+                   g8.rgba[6] == 90 && g8.rgba[7] == 255);
+        // Typ 10 von oben nach unten: "must be in bottom-to-top format".
+        auto rleOben = kopf(10, 1, 1, 24, 0x20);
+        dazu(rleOben, {0x80, 1, 2, 3});
+        expect("TGA Typ 10 von oben abgewiesen", !lies(rleOben).ok);
+        // Typ 10, 2x1, letztes Paket zu lang (4 Wiederholungen): abgeschnitten, gelesen.
+        auto rle = kopf(10, 2, 1, 24, 0);
+        dazu(rle, {0x83, 0, 255, 0});
+        const auto r = lies(rle);
+        std::printf("  TGA Typ 10 Ueberlauf: ok %d (%s)\n", r.ok ? 1 : 0, r.error.c_str());
+        expect("TGA Typ 10 mit ueberlaufendem letztem Paket gelesen (goto breakOut)",
+               r.ok && r.rgba[1] == 255 && r.rgba[5] == 255);
     }
 
     // --- Format am Inhalt, nicht an der Endung -----------------------------

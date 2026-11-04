@@ -1081,7 +1081,7 @@ struct Editor {
     struct EchtLichtZustand {
         bool an = false;                   // Vorschau in der Kamera ("RealtimeLight")
         bool backen = false;               // Schnell-Backen im Hintergrund ("QuickBake")
-        bool patchSchatten = false;        // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows; Vorschau und Schnell-Backen)
+        bool patchSchatten = false;        // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows). rc609 L: die Vorgabe fuer Karten ohne kPatchSchattenSchluessel
         double pauseSekunden = 2.0;        // so lange ohne Aenderung, dann backen
         // fuer den Selbsttest und die Anzeige
         std::size_t lichter = 0;           // Lichter der Karte
@@ -1096,7 +1096,10 @@ struct Editor {
         std::size_t effektEcken = 0;       // Stufe 9d: Ecken des Effektnetzes im letzten Bild
         double effektMs = 0;               // Stufe 9d: Effekte im letzten Bild (Prozessor: Teilchen, Netz, Zeichenaufrufe)
         bool portal = false;               // Stufe 9d: der Himmel zeigte im letzten Bild ein misc_skyportal
+        bool spiegel = false;              // rc609 P: die Portalflaechen zeigten im letzten Bild eine Spiegel- oder Portalsicht
+        bool spiegelPortal = false;        // rc609 P: ... und es war eine misc_portal_camera
         std::size_t schattenModellDreiecke = 0;   // Stufe 9d: Dreiecke der misc_model in der Schattengeometrie
+        std::size_t schattenPatchDreiecke = 0;    // rc609 L: Dreiecke der Patches in der Schattengeometrie (Netz von -light)
         // Schnell-Backen
         int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
         double bauSekunden = 0;            // Dauer des letzten Baus
@@ -1629,6 +1632,14 @@ void bauMenueNeuLaden();               // Reset: build_commands_clear + LoadBuil
 [[nodiscard]] std::string bauKartenPfad();         // Map_Name der gebauten Datei
 void bauMenueEintraegeZeichnen();      // Build_constructMenu
 void bauStarten(std::size_t index);    // RunBSP
+// rc609 L: "Patch shadows" (q3map2 -patchshadows) als Einstellung der Karte - worldspawn "_bhed_patchshadows"
+// "1"/"0", ohne den Schluessel echtLicht.patchSchatten (die Vorgabe). Gilt fuer Echtzeit-Licht, Schnell-Backen und
+// den vollen Bau (jeder Licht-Schritt bekommt -patchshadows); patchSchattenSetzen ist ein Rueckgaengig-Schritt.
+inline constexpr const char* kPatchSchattenSchluessel = "_bhed_patchshadows";
+[[nodiscard]] bool patchSchattenAn();
+void patchSchattenSetzen(bool an);
+[[nodiscard]] std::size_t kartePatchAnzahl();
+[[nodiscard]] std::string bauPatchHinweis();   // die Warnung des laufenden bzw. letzten Licht-Schritts (leer: keine)
 void bauZuletztStarten();              // Build_runRecentExecutedBuild
 // Stufe 9 Punkt 1 (eigene Funktion, nicht in NRC): Build > Test in game - bauen bzw. das
 // Schnell-Backen nehmen, die .bsp in den eigenen Testordner, das Spiel mit +devmap starten

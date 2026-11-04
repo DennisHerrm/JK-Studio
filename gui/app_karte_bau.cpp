@@ -242,6 +242,36 @@ std::string bauKartenPfad() {
     return mitSchraegstrich(ed.bauKarte.empty() || ed.bauKarteFuer != ed.name ? ed.name : ed.bauKarte);
 }
 
+// rc609 L: "Patch shadows" als Einstellung der Karte (worldspawn kPatchSchattenSchluessel), ohne den
+// Schluessel die Vorgabe aus den Einstellungen
+bool patchSchattenAn() {
+    const Editor& ed = e();
+    if (const auto welt = ed.karte.welt(); welt != nullptr) {
+        const std::string w = welt->wert(kPatchSchattenSchluessel);
+        if (!w.empty()) { return std::atoi(w.c_str()) != 0; }
+    }
+    return ed.echtLicht.patchSchatten;
+}
+
+void patchSchattenSetzen(bool an) {
+    Editor& ed = e();
+    if (const auto welt = ed.karte.welt(); welt != nullptr) {
+        karte::Befehl b(ed.karte.undo, "entitySetKeyValue -key " + std::string(kPatchSchattenSchluessel));
+        welt->setzen(kPatchSchattenSchluessel, an ? "1" : "0");
+        ++ed.sichtStand;
+    }
+    ed.echtLicht.patchSchatten = an;   // die Vorgabe fuer Karten ohne den Schluessel
+    einstellungenSpeichern();
+}
+
+std::size_t kartePatchAnzahl() {
+    std::size_t n = 0;
+    for (const auto& ent : e().karte.entitaeten()) {
+        for (const auto& prim : ent->kinder()) { n += prim->art() == karte::Primitiv::Art::Patch ? 1U : 0U; }
+    }
+    return n;
+}
+
 // Build_constructMenu (build.cpp:1224-1248): je Eintrag ein Menuepunkt mit den
 // Befehlen als Tooltip (setToolTipsVisible), je Trenner ein Trenner.
 void bauMenueEintraegeZeichnen() {
@@ -316,17 +346,16 @@ void bauMenueEintraegeZeichnen() {
         ed.echtLicht.spielbild = !ed.echtLicht.spielbild;
         einstellungenSpeichern();
     }
-    // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows) - Vorschau und Schnell-Backen
+    // Stufe 9c: Patches werfen Schatten (q3map2 -patchshadows). rc609 L: eine Einstellung der Karte, die
+    // auch der volle Bau nimmt (patchSchattenAn)
     const std::string ps = std::string(trK(Str::KePatchSchatten)) + "##baupatchschatten";
+    const std::string psTip = std::string(trK(Str::KePatchSchattenTip)) + "\n\n" + trK(Str::KePatchSchattenKarteTip);
     QtPunkt psp;
     psp.id = ps.c_str();
     psp.art = QtArt::Pruefbar;
-    psp.haken = ed.echtLicht.patchSchatten;
-    psp.tooltip = trK(Str::KePatchSchattenTip);
-    if (qtPunkt(psp)) {
-        ed.echtLicht.patchSchatten = !ed.echtLicht.patchSchatten;
-        einstellungenSpeichern();
-    }
+    psp.haken = patchSchattenAn();
+    psp.tooltip = psTip.c_str();
+    if (qtPunkt(psp)) { patchSchattenSetzen(!patchSchattenAn()); }
     // Stufe 9d: fx_runner in der Echtzeit-Ansicht (abschaltbar)
     const std::string fx = std::string(trK(Str::KeEchtEffekte)) + "##bauechteffekte";
     QtPunkt fxp;
@@ -1234,6 +1263,7 @@ struct BauLauf {
     // langen vollen VIS (auch im Fortschrittsfenster)
     std::string prtPfad;
     std::string visWarnung;
+    std::string patchWarnung;   // rc609 L: Licht-Schritt ohne -patchshadows bei einer Karte mit Patches
 };
 BauLauf g_lauf;
 
@@ -1566,10 +1596,12 @@ void stapelAusgabe(const std::string& stueck) {
 }
 
 void visVorschauMelden();
+void patchHinweisMelden();
 
 bool stapelBefehlStarten() {
     BauLauf& l = g_lauf;
     visVorschauMelden();
+    patchHinweisMelden();
     ausgabe("=== running build command ===");
     ausgabe(l.befehle[l.schritt]);
     std::string grund;
@@ -1620,6 +1652,20 @@ void visVorschauMelden() {
     w += trK(Str::KeVisAuswege);
     konsoleSchreiben(KonsolenZeile::Art::Warnung, w + "\n");
     l.visWarnung = w;
+}
+
+// rc609 L (eigene Funktion, nicht in NRC): laeuft ein -light ohne -patchshadows und hat die Karte Patches, lassen
+// sie das Licht durch (q3map2 light_trace.cpp PopulateWithBSPModel: "if ( ds.surfaceType == MST_PATCH &&
+// !patchShadows ) continue;") - wie im Original, aber gesagt: in der Konsole und im Fortschrittsfenster.
+void patchHinweisMelden() {
+    BauLauf& l = g_lauf;
+    l.patchWarnung.clear();
+    const std::size_t n = kartePatchAnzahl();
+    if (n == 0 || !karte::lichtOhnePatchSchatten(l.befehle[l.schritt])) { return; }
+    char z[1024];
+    std::snprintf(z, sizeof(z), trK(Str::KePatchSchattenHinweis), static_cast<int>(n));
+    konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(z) + "\n");
+    l.patchWarnung = z;
 }
 
 // EndMonitoringLoop mit dem Grund (Abweichung: die Zusammenfassung)
@@ -1685,6 +1731,7 @@ void schrittBeginnen() {
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
     l.beob = karte::BauSchrittBeobachter{};
     visVorschauMelden();
+    patchHinweisMelden();
     ausgabe("=== running build command ===");
     ausgabe(l.befehle[l.schritt]);
     if (!l.prozess.starten(l.befehle[l.schritt], std::string(), false, grund)) {
@@ -1704,6 +1751,8 @@ void schrittBeginnen() {
 }
 
 }  // namespace
+
+std::string bauPatchHinweis() { return g_lauf.patchWarnung; }
 
 // BuildMonitor_Run -> CWatchBSP::DoMonitoringLoop
 void bauAusfuehren(const std::vector<std::string>& befehle) {
@@ -1992,6 +2041,11 @@ void bauFortschrittZeichnen() {
             ImGui::TextWrapped("%s", g_lauf.visWarnung.c_str());
             ImGui::PopStyleColor();
         }
+        if (!g_lauf.patchWarnung.empty() && st.stufe == "LIGHT") {   // rc609 L
+            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));
+            ImGui::TextWrapped("%s", g_lauf.patchWarnung.c_str());
+            ImGui::PopStyleColor();
+        }
         if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str())) { bauAbbrechen(); }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("%s", trK(Str::KeFsHinweis));
@@ -2268,6 +2322,11 @@ void bauStarten(std::size_t index) {
     // vis1 (Abweichung): mit mehreren Threads genau das VIS von -threads 1
     if (ed.bau.visExakt) {
         for (std::string& b : befehle) { b = karte::befehlMitVisExakt(b); }
+    }
+    // rc609 L (Abweichung, eigene Bauoption): "Patch shadows" der Karte - jeder Licht-Schritt bekommt -patchshadows.
+    // Aus bleibt der Eintrag, wie er ist (NRC: nur die [Final]-Eintraege haben -patchshadows)
+    if (patchSchattenAn()) {
+        for (std::string& b : befehle) { b = karte::befehlMitPatchSchatten(b); }
     }
     // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU. Stufe 8d: Auto -
     // bhed_q3map2 waehlt mit den gemerkten Zeiten dieser Karte die schnellere Variante
