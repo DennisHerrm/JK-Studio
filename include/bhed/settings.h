@@ -252,6 +252,7 @@ struct Settings {
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;
     bool lumpEditKarteOffen = false;
+    bool texListeOffen = false;          // rc609 K: Fenster "Texturen der Karte" (Karten-Editor)
     bool showTypes = false;
     bool gFloats = false;
     bool foldMacros = true;

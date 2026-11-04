@@ -6761,6 +6761,7 @@ void draw() {
     // rc609 W2b: der Entity-Text hat keinen Platz im Hauptfenster - sein eigenes, andockbares Fenster
     drawEntTextFenster();
     drawLumpEditFenster();   // rc609 J
+    karteneditor::texturListeZeichnen();   // rc609 K
 
     // --- Die Aufteilung in Zahlen ---------------------------------------
     //

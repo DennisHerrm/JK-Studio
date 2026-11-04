@@ -3008,6 +3008,8 @@ from i18n_rc609_l import texte as _rc609_l  # noqa: E402
 TEXTE.update(_rc609_l("es"))
 from i18n_rc609_f import texte as _rc609_f  # noqa: E402
 TEXTE.update(_rc609_f("es"))
+from i18n_rc609_k import texte as _rc609_k  # noqa: E402
+TEXTE.update(_rc609_k("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

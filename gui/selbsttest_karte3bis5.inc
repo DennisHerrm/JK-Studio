@@ -5705,7 +5705,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         {"Grid", {"Grid"}, 163, 346},
         // Misc und Help: NRC + die Programm-Eintraege (Stufe 3 Punkt 0b, Abweichung):
         // Misc + Trenner 7 + drei Untermenues je 24, Help + Manual und About BehavEd.
-        {"Misc", {"Misc"}, 262, 178 + 7 + 3 * 24},
+        // rc609 K: + Trenner 7 + "Map textures..." 24 (kuerzer als 262)
+        {"Misc", {"Misc"}, 262, 178 + 7 + 24 + 7 + 3 * 24},
         {"Misc__Theming", {"Misc", "Theming"}, 263, 497},
         {"Misc__Theming__GUI_Theme", {"Misc", "Theming", "GUI Theme"}, 122, 106},
         {"Entity", {"Entity"}, 263, 137},

@@ -2240,6 +2240,8 @@ from i18n_rc609_l import zeilen_vier as _rc609_l  # noqa: E402  (rc609 L: Licht 
 S += _rc609_l()
 from i18n_rc609_f import zeilen_vier as _rc609_f  # noqa: E402  (rc609 F: Funde der Codepruefung)
 S += _rc609_f()
+from i18n_rc609_k import zeilen_vier as _rc609_k  # noqa: E402  (rc609 K: Texturen der Karte - Uebersicht und Ersetzen)
+S += _rc609_k()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

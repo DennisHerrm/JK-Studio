@@ -2220,6 +2220,7 @@ bool aufnahmeHinweisGanz() {
 }
 
 std::vector<Schritt> handbuchSchritteInhalt();
+std::vector<Schritt> texturlisteHandbuchSchritte();   // rc609 K (selbsttest_texturliste.inc)
 
 // rc608 Teil 3b: BHED_HB_FENSTER=3840x2160@2: die Bilder in voller Groesse (Fenster x Hoehe @ Oberflaeche), wie mit "Interface Scale"
 std::vector<Schritt> handbuchSchritte() {
@@ -2602,6 +2603,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         }));
         return t;
     }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "texturliste") == 0) { return texturlisteHandbuchSchritte(); }   // rc609 K
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "lumps") == 0) {   // rc609 J
         std::vector<Schritt> t;
         auto flaeche = std::make_shared<int>(-1);
