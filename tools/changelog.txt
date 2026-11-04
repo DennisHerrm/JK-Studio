@@ -6,6 +6,296 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ", gegliedert mit "### Bereich", in jeder Sprache gleich viele)
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc609 2026-11-04
+[en]
+- NPC waypoints by hand and generated the way the game walks, an entity text editor, files saved where they were opened, compiled maps edited (shaders, fogs, inserted brush entities, clips and movers), mission and map without loss, models into the map with one click, whole tabs in their own windows.
+### Mission tab
+- New panel "Entity text" (menu Window): the whole entity list as .ent text with line numbers and colours, linked to the selection in 3D both ways. Apply (Ctrl+Enter) reads it like the game in one undo step, an error names the line and applies nothing; origin, angles, scale, light and colour work while you type; order, blank lines and comments are kept. Find and replace (Ctrl+F, Ctrl+H), H hides the selected entities, Alt+H shows all, a middle click in 3D inserts `x y z` of the point under the mouse.
+- Entities are read exactly like the game (comments, words without quotation marks, and for a key that appears twice the one the game uses - per game); values are Latin-1 as in the game: ä, ü or é arrive in the .ent as the game reads them, a character the game cannot show gives a message.
+- Loose files in the game folders are read in the game's order (later folders first, within a folder the .pk3 before its loose files, setting for fs_dirbeforepak 1): preview, maps, scripts, .ent files and the menu editor.
+- New tile "Model": every .md3 of the game folders with a search; click or drag a model into the map - it stands under the mouse, drawn like the game, and becomes a misc_model_static whose bottom stands on the floor of the game's collision, in one undo step (Jedi Outcast has no misc_model_static; the window says so).
+- The gizmo bar scales map models along their own axes (modelscale_vec) or evenly (modelscale); turning and scaling write exactly one angle and one scale key, so the game, Movie Duels and q3map2 read the same position. A newer file of a model in use is loaded within a second.
+- Preview: mirrors and portal cameras follow the game more closely - the cut lies exactly on the mirror plane, the second view uses the visibility from the portal surface or camera, direction and roll are rounded like the game, no view beyond the `alphaGen portal` range, a portal shader without any stage is no portal.
+### Mission and map
+- New "File > Edit map of the mission" in the map editor: it opens the map of the mission in the Mission tab (its .map next to the .bsp, otherwise the .bsp), and the build writes into exactly the mission's file - the loose .bsp (old one as .bsp.bak) or its entry in the .pk3 (.pk3.bak).
+- After the build the Mission tab reloads the map by itself (geometry, light, collision, waypoints, navigation, entities) and keeps scripts, placed and changed entities, camera, timeline and selection; NPC paths follow the new collision. References the build breaks are listed in the window "Mission and map: references" - nothing is dropped silently.
+### NPC waypoints
+- Deleting an entity also removes every target that named it, in the same undo step; "Close the gap when deleting" connects the neighbours. A waypoint you place, move or duplicate connects with the game's own edge test (NAV::TestEdge, HardConnect in Jedi Outcast), connections the game would drop are removed ("Connect automatically", "Connect to neighbours").
+- Ctrl+D and the right-click menu duplicate waypoints with free names, the copies stay connected; rename the selection by a pattern. A waypoint placed by hand where the game would drop it (in solid, too close to a wall) moves to the nearest valid spot, with a message.
+- The generation walks like an NPC in the game (steps, slopes, doors opened as the game's network build opens them, doors and platforms travel exactly as far as in the game) and reaches every room a figure can walk into, also behind narrow doors and up stairs; it also starts from waypoints already on the map, keeps within the game's 1023 waypoints, names parts it cannot connect and runs in the background with progress and Cancel.
+- Paint areas with brush or lasso and "Generate here", no-go areas, draw a path over the floor, or click a "Start point" on floor the generation did not reach (a roof); jump edges (targetJump) are suggested only where an NPC really makes the jump in the game (NPC_TryJump/NPC_Jump).
+- Parts the player start cannot reach are drawn violet, with "Connect parts"; "Check network" no longer reports waypoints on func_static floors as floating; "Test route" shows the route an NPC would take or says why there is none; "Show coverage" colours walkable floor without a waypoint in reach red.
+- New tool "Place combat point": the view shows its box, the connections the game makes for it and the waypoint the game assigns, with a warning exactly where the game reports "has no waypoint" or "not connected to anything". "Generate suggestions" finds combat points behind cover the way a gunner picks them in the game (NPC_FindCombatPoint), as ghost points with their reason; accept one or all in one undo step.
+### Saving
+- Files are saved where they were opened - a loose .bsp, .ent or script without a question, no copy under Documents, no new .pk3; new "Save entities" and "Write entities into the BSP" (byte for byte like the map editor's -onlyents, backup .bsp.bak). A file from a .pk3 asks: change only this entry in the .pk3 (.pk3.bak), loose file in the mod folder, save as, or the previous mission folder way; "Pack as .pk3..." is a separate command.
+- Every file is written through a temporary file and renamed only when complete; on an error the old file stays. Packing a mission includes scripts started only by run, never writes an empty .ent and refuses ".." paths and entities over the game's limits (64 keys, 2048 characters); reloading the same map asks before discarding entity changes.
+### Compiled maps
+- New window "Shaders and surfaces" (also in the map editor for a .bsp): click a surface and swap its shader (this surface or all with the same shader), change material, surfaceFlags and contentFlags with the game's names, set and edit fogs; the tab "Lumps as text" has one line per shader and fog. Geometry, lightmaps, light grid, visibility and entities stay byte for byte; checked as the game loads the map, with a warning when a shader does not fit the baked light.
+- Map editor: new Build > "Insert into compiled map": triggers, func_usable and other invisible brush entities are compiled on their own with q3map2 and appended as new models *N, together with their new point entities; BSP tree, VIS, lightmaps and surfaces of the world stay byte for byte; checked against the game's limits (511 models in single player, 510 in multiplayer).
+- "Insert into compiled map" also takes new clip brushes into the world (entered into every BSP leaf they reach, so the game collides with them) and visible movers (func_door, func_train, func_rotating, func_static, func_plat) with surfaces and lightmaps that fit the map, lit with the converted world as shadow caster and the map's lights; the world's lightmaps stay byte for byte.
+### Map editor
+- New window "Map textures" (Misc > Map textures...): every shader and texture of the map with image, counts and size; a click selects everything that uses it; "Replace with" and "Replace folder" (gaps listed first) for the whole map, the selection or what is visible, in one undo step; "Keep world size" rescales brush sides.
+- Mirrors and portal cameras show in the real-time light and in "Built map as in the game", through the same code as the Mission tab.
+- "Patch shadows" is saved in the map and used by every full build (-patchshadows), a build without it warns when the map has patches; the real-time light follows q3map2 for `_cs` on func_group and divides patches like -light.
+- Asset browser: choose misc_model (baked in by q3map2) or misc_model_static (drawn by the game) and "Collision" (spawnflags 2 or a clip brush around it); dropped models stand on the floor of the game's collision. Models in .obj, .fbx, .gltf and .glb show with the surfaces q3map2 bakes in, also without normals.
+### Menu editor
+- The start screen has "Open menu" next to "New project..." and "Open project...": open a menu from the game, a file or a whole menu set, edit it and save it without a project.
+- Ctrl+S saves a loose menu in a mod folder or base back to its place, the previous version stays as .bak; the whole message appears at the bottom right and says when the game reads the same menu from a .pk3 first; a menu inside a .pk3 still asks where your copy goes.
+- Lock and eye stay with their elements when something before them is deleted, Undo gives them back and restores neighbouring elements in their order; a menu opened with Open file shows `ui/name.menu` in its tab.
+### Interface
+- Whole tabs (Events, Mission, Model, Map Editor, Menu Editor) open in their own window - right-click in the mode bar, drag the tab button out or Window > "This tab in its own window" - also on a second screen. Both work on the same data at once, shortcuts and undo go to the window you work in; closing it or dragging its title bar onto the mode bar brings the tab back; position, size and screen are kept and saved with named layouts.
+- Counted messages use the right singular or plural (for example "1 brush entity", "1 patch").
+### Speed
+- Mission tab and map editor need about 1 ms less processor time per frame (looking up an entity key); own windows and floating panels that do not change draw no new frame.
+- The asset browser collects models and sounds in the background with a progress bar - with Movie Duels data it held the program for about 30 seconds when first opened.
+### Guide
+- New chapters with pictures in six languages: NPC waypoints, entity text, saving, compiled maps, inserting into compiled maps, mission and map, models, map textures, patch shadows, mirrors and tabs in their own windows.
+### Fixed
+- q3map2 no longer crashes in -light on a flat surface of a force-meta misc_model (spawnflags 4) built without -meta (NetRadiant-Custom's q3map2 crashes there too); the surface is lit per vertex.
+- Menu editor: deleting while the mouse was still dragging (handle, move, click into a multiple selection) could crash.
+- Scripts nested deeper than 256 levels no longer crash the program; an .IBI with a wrong header and a Quake 3 map (IBSP 46) are rejected with a message as in the game; a broken .pk3 no longer reserves the size it claims.
+- TGA images are read exactly like the game (unsupported types rejected, 8-bit type 2 grey, an RLE overrun as in the game); a map change whose new geometry cannot be read leaves nothing of the previous map behind.
+[de]
+- NPC-Wegpunkte von Hand und erzeugt so, wie das Spiel läuft, ein Entity-Texteditor, Dateien werden dort gespeichert, wo sie geöffnet wurden, fertige Karten bearbeiten (Shader, Nebel, eingefügte Brush-Entities, Clips und Mover), Mission und Karte ohne Verlust, Modelle mit einem Klick in die Karte, ganze Tabs in eigenen Fenstern.
+### Mission-Tab
+- Neues Panel "Entity-Text" (Menü Fenster): die ganze Entity-Liste als .ent-Text mit Zeilennummern und Farben, in beide Richtungen mit der Auswahl in 3D verbunden. Übernehmen (Strg+Enter) liest ihn wie das Spiel in einem Rückgängig-Schritt, ein Fehler nennt die Zeile und übernimmt nichts; origin, Winkel, Größe, Licht und Farbe wirken schon beim Tippen; Reihenfolge, Leerzeilen und Kommentare bleiben. Suchen und Ersetzen (Strg+F, Strg+H), H blendet die gewählten Entities aus, Alt+H alle ein, ein Mittelklick in 3D setzt `x y z` des Punkts unter der Maus ein.
+- Entities werden genau wie im Spiel gelesen (Kommentare, Wörter ohne Anführungszeichen und bei einem doppelten Schlüssel der, den das Spiel nimmt - je Spiel); Werte sind Latin-1 wie im Spiel: ä, ü oder é kommen so in die .ent, wie das Spiel sie liest, ein Zeichen, das das Spiel nicht zeigen kann, gibt eine Meldung.
+- Lose Dateien in den Spielordnern werden in der Reihenfolge des Spiels gelesen (spätere Ordner zuerst, in einem Ordner die .pk3 vor seinen losen Dateien, Einstellung für fs_dirbeforepak 1): Vorschau, Karten, Skripte, .ent-Dateien und der Menü-Editor.
+- Neue Kachel "Modell": jedes .md3 der Spielordner mit Suche; ein Modell anklicken oder in die Karte ziehen - es steht unter der Maus, gezeichnet wie im Spiel, und wird ein misc_model_static, dessen Unterkante auf dem Boden der Spielkollision steht, in einem Rückgängig-Schritt (Jedi Outcast kennt kein misc_model_static; das Fenster sagt es).
+- Die Gizmo-Leiste skaliert Kartenmodelle entlang ihrer eigenen Achsen (modelscale_vec) oder gleichmäßig (modelscale); Drehen und Skalieren schreiben genau einen Winkel- und einen Größenschlüssel, damit Spiel, Movie Duels und q3map2 dieselbe Lage lesen. Eine neuere Datei eines benutzten Modells wird innerhalb einer Sekunde geladen.
+- Vorschau: Spiegel und Portalkameras folgen dem Spiel genauer - der Schnitt liegt genau auf der Spiegelebene, die zweite Sicht nimmt die Sichtbarkeit vom Portal bzw. der Kamera aus, Richtung und Roll werden gerundet wie im Spiel, keine Sicht jenseits der Weite von `alphaGen portal`, ein Portal-Shader ganz ohne Stufe ist kein Portal.
+### Mission und Karte
+- Neu "File > Karte der Mission bearbeiten" im Karten-Editor: öffnet die Karte der Mission im Mission-Tab (ihre .map neben der .bsp, sonst die .bsp), und der Bau schreibt in genau die Datei der Mission - die lose .bsp (die alte als .bsp.bak) oder ihren Eintrag in der .pk3 (.pk3.bak).
+- Nach dem Bau lädt der Mission-Tab die Karte selbst nach (Geometrie, Licht, Kollision, Wegpunkte, Navigation, Entities) und behält Skripte, gesetzte und geänderte Entities, Kamera, Zeitleiste und Auswahl; die Wege der NPCs folgen der neuen Kollision. Bezüge, die der Bau bricht, stehen im Fenster "Mission und Karte: Bezüge" - nichts fällt still weg.
+### NPC-Wegpunkte
+- Beim Löschen einer Entity verschwindet auch jedes target, das sie nannte, im selben Rückgängig-Schritt; "Lücke beim Löschen schließen" verbindet die Nachbarn. Ein Wegpunkt, den du setzt, verschiebst oder duplizierst, verbindet sich nach der Kantenprüfung des Spiels (NAV::TestEdge, in Jedi Outcast HardConnect), Verbindungen, die das Spiel verwerfen würde, fallen weg ("Automatisch verbinden", "Mit Nachbarn verbinden").
+- Strg+D und das Rechtsklickmenü duplizieren Wegpunkte mit freien Namen, die Kopien bleiben verbunden; die Auswahl lässt sich nach Muster umbenennen. Ein von Hand gesetzter Wegpunkt, den das Spiel verwerfen würde (im Festen, zu nah an einer Wand), rückt an die nächste gültige Stelle, mit Meldung.
+- Die Erzeugung läuft wie ein NPC im Spiel (Stufen, Schrägen, Türen offen, wie der Netzbau des Spiels sie öffnet, Türen und Plattformen fahren genau so weit wie im Spiel) und erreicht jeden Raum, in den eine Figur gehen kann, auch hinter schmalen Türen und über Treppen; sie beginnt auch an Wegpunkten, die schon auf der Karte stehen, bleibt innerhalb der 1023 Wegpunkte des Spiels, nennt Teile, die sie nicht anbinden kann, und läuft im Hintergrund mit Fortschritt und Abbrechen.
+- Bereiche mit Pinsel oder Lasso malen und "Hier erzeugen", Sperrbereiche, einen Pfad über den Boden ziehen oder einen "Startpunkt" auf Boden klicken, den die Erzeugung nicht erreicht hat (ein Dach); Sprungkanten (targetJump) werden nur vorgeschlagen, wo ein NPC den Sprung im Spiel wirklich schafft (NPC_TryJump/NPC_Jump).
+- Teile, die der Spielerstart nicht erreicht, sind violett, mit "Anschließen"; "Netz prüfen" meldet Wegpunkte auf Böden aus func_static nicht mehr als schwebend; "Testroute" zeigt den Weg, den ein NPC nähme, oder sagt, warum es keinen gibt; "Abdeckung zeigen" färbt begehbaren Boden ohne Wegpunkt in Reichweite rot.
+- Neues Werkzeug "Kampfpunkt setzen": Die Ansicht zeigt seinen Kasten, die Verbindungen, die das Spiel für ihn anlegt, und den Wegpunkt, den das Spiel zuordnet, mit einer Warnung genau dort, wo das Spiel "has no waypoint" oder "mit nichts verbunden" meldet. "Vorschläge erzeugen" findet Kampfpunkte hinter Deckung so, wie ein Schütze sie im Spiel wählt (NPC_FindCombatPoint), als Geisterpunkte mit Grund; einzeln oder alle in einem Rückgängig-Schritt annehmen.
+### Speichern
+- Dateien werden dort gespeichert, wo sie geöffnet wurden - eine lose .bsp, .ent oder ein Skript ohne Rückfrage, keine Kopie unter Dokumente, keine neue .pk3; neu "Entities speichern" und "Entities in die BSP übernehmen" (Byte für Byte wie -onlyents des Karten-Editors, Sicherung .bsp.bak). Eine Datei aus einer .pk3 fragt: nur diesen Eintrag in der .pk3 ändern (.pk3.bak), lose Datei im Mod-Ordner, Speichern unter oder der bisherige Missionsordner-Weg; "Als .pk3 packen..." ist ein eigener Befehl.
+- Jede Datei wird über eine Temp-Datei geschrieben und erst fertig umbenannt; bei einem Fehler bleibt die alte Datei. Das Packen einer Mission nimmt auch nur per run gestartete Skripte mit, schreibt nie eine leere .ent und weist Pfade mit ".." und Entities über den Grenzen des Spiels (64 Schlüssel, 2048 Zeichen) ab; Neuladen derselben Karte fragt vor dem Verwerfen von Entity-Änderungen.
+### Fertige Karten
+- Neues Fenster "Shader und Flächen" (auch im Karten-Editor für eine .bsp): eine Fläche anklicken und ihren Shader tauschen (diese Fläche oder alle mit demselben Shader), Material, surfaceFlags und contentFlags mit den Namen des Spiels ändern, Nebel setzen und bearbeiten; der Reiter "Lumps als Text" hat eine Zeile je Shader und Nebel. Geometrie, Lightmaps, Lichtgitter, Sichtbarkeit und Entities bleiben Byte für Byte; geprüft wie beim Laden im Spiel, mit Warnung, wenn ein Shader nicht zum gebackenen Licht passt.
+- Karten-Editor: neu Build > "In fertige Karte einfügen": Trigger, func_usable und andere unsichtbare Brush-Entities werden allein mit q3map2 gebaut und als neue Modelle *N angehängt, zusammen mit ihren neuen Punkt-Entities; BSP-Baum, VIS, Lightmaps und Flächen der Welt bleiben Byte für Byte; geprüft gegen die Grenzen des Spiels (511 Modelle im Einzelspieler, 510 im Mehrspieler).
+- "In fertige Karte einfügen" nimmt auch neue Clip-Brushes in die Welt auf (in jedes BSP-Blatt eingetragen, in das sie reichen, damit das Spiel mit ihnen kollidiert) und sichtbare Mover (func_door, func_train, func_rotating, func_static, func_plat) mit Flächen und Lightmaps passend zur Karte, beleuchtet mit der zurückgewandelten Welt als Schattenwerfer und den Lichtern der Karte; die Lightmaps der Welt bleiben Byte für Byte.
+### Karten-Editor
+- Neues Fenster "Texturen der Karte" (Misc > Texturen der Karte...): jeder Shader und jede Textur der Karte mit Bild, Anzahlen und Größe; ein Klick wählt alles, was sie benutzt; "Ersetzen durch" und "Ordner ersetzen" (Lücken vorher gelistet) für die ganze Karte, die Auswahl oder das Sichtbare, in einem Rückgängig-Schritt; "Gleiche Weltgröße" skaliert Brush-Seiten um.
+- Spiegel und Portalkameras erscheinen im Echtzeit-Licht und in "Gebaute Karte wie im Spiel", über denselben Code wie im Mission-Tab.
+- "Patch-Schatten" wird in der Karte gespeichert und gilt für jeden vollen Bau (-patchshadows), ein Bau ohne warnt, wenn die Karte Patches hat; das Echtzeit-Licht folgt q3map2 bei `_cs` an func_group und unterteilt Patches wie -light.
+- Asset-Browser: misc_model (von q3map2 eingebacken) oder misc_model_static (vom Spiel gezeichnet) wählen und "Kollision" (spawnflags 2 oder ein Clip-Brush darum); abgelegte Modelle stehen auf dem Boden der Spielkollision. Modelle in .obj, .fbx, .gltf und .glb erscheinen mit den Flächen, die q3map2 einbackt, auch ohne Normalen.
+### Menü-Editor
+- Der Startbildschirm hat "Menü öffnen" neben "Neues Projekt..." und "Projekt öffnen...": ein Menü aus dem Spiel, einer Datei oder einen ganzen Menüsatz öffnen, bearbeiten und ohne Projekt speichern.
+- Strg+S speichert ein loses Menü in einem Mod-Ordner oder base an seinen Ort zurück, der vorige Stand bleibt als .bak; die ganze Meldung steht unten rechts und sagt, wenn das Spiel dasselbe Menü zuerst aus einer .pk3 liest; ein Menü in einer .pk3 fragt weiter, wohin die Kopie kommt.
+- Schloss und Auge bleiben an ihren Elementen, wenn davor etwas gelöscht wird, Rückgängig gibt sie zurück und stellt benachbarte Elemente in ihrer Reihenfolge wieder her; ein über "Datei öffnen" geöffnetes Menü heißt im Reiter `ui/name.menu`.
+### Oberfläche
+- Ganze Tabs (Ereignisse, Mission, Modell, Karten-Editor, Menü-Editor) öffnen sich in einem eigenen Fenster - Rechtsklick in der Modusleiste, den Tab-Knopf herausziehen oder Fenster > "Diesen Tab in eigenem Fenster" -, auch auf einem zweiten Bildschirm. Beide arbeiten gleichzeitig auf denselben Daten, Tastenkürzel und Rückgängig gelten dem Fenster, in dem du arbeitest; Schließen oder die Titelleiste auf die Modusleiste ziehen holt den Tab zurück; Lage, Größe und Bildschirm bleiben und werden mit benannten Anordnungen gespeichert.
+- Zähltexte stehen in Einzahl oder Mehrzahl, wie die Zahl es verlangt (z. B. "1 Brush-Entity", "1 Patch").
+### Tempo
+- Mission-Tab und Karten-Editor brauchen rund 1 ms weniger Prozessorzeit je Bild (Nachschlagen eines Entity-Schlüssels); eigene Fenster und schwebende Panels, in denen sich nichts ändert, zeichnen kein neues Bild.
+- Der Asset-Browser sammelt Modelle und Klänge im Hintergrund mit Fortschrittsbalken - mit den Movie-Duels-Daten hielt er das Programm beim ersten Öffnen etwa 30 Sekunden an.
+### Handbuch
+- Neue Kapitel mit Bildern in sechs Sprachen: NPC-Wegpunkte, Entity-Text, Speichern, fertige Karten, In fertige Karte einfügen, Mission und Karte, Modelle, Texturen der Karte, Patch-Schatten, Spiegel und Tabs in eigenen Fenstern.
+### Behoben
+- q3map2 stürzt bei -light nicht mehr ab, wenn eine ebene Fläche eines misc_model mit force meta (spawnflags 4) ohne -meta gebaut wird (das q3map2 von NetRadiant-Custom stürzt dort ebenso ab); die Fläche wird je Eckpunkt beleuchtet.
+- Menü-Editor: Löschen, während die Maus noch zog (Griff, Verschieben, Klick in eine Mehrfachauswahl), konnte abstürzen.
+- Skripte mit mehr als 256 verschachtelten Ebenen bringen das Programm nicht mehr zum Absturz; eine .IBI mit falschem Kopf und eine Quake-3-Karte (IBSP 46) werden wie im Spiel mit Meldung abgewiesen; eine kaputte .pk3 reserviert nicht mehr die Größe, die sie behauptet.
+- TGA-Bilder werden genau wie im Spiel gelesen (nicht unterstützte Arten abgewiesen, 8-Bit-Typ-2 grau, ein RLE-Überlauf wie im Spiel); ein Kartenwechsel, dessen neue Geometrie sich nicht lesen lässt, lässt nichts von der vorigen Karte stehen.
+[zh]
+- NPC 路径点可手动放置,也可像游戏中行走那样生成;新增实体文本编辑器;文件保存在打开它的位置;可编辑已编译地图(着色器、雾、插入画刷实体、裁剪画刷和移动体);任务与地图互不丢失;一键把模型放入地图;整个标签页可在独立窗口中打开。
+### 任务选项卡
+- 新面板“实体文本”(窗口菜单):以 .ent 文本显示整个实体列表,带行号和颜色,与 3D 中的选择双向联动。应用(Ctrl+Enter)像游戏一样读取文本,只占一个撤销步骤,出错时指出行号且不应用任何内容;origin、角度、缩放、光照和颜色在输入时即生效;保留顺序、空行和注释。查找和替换(Ctrl+F、Ctrl+H),H 隐藏所选实体,Alt+H 全部显示,在 3D 中单击中键会插入鼠标下那一点的 `x y z`。
+- 实体的读取方式与游戏完全相同(注释、不带引号的单词,重复的键取游戏使用的那一个——按游戏区分);实体值与游戏一样是 Latin-1:ä、ü、é 以游戏读取的方式写入 .ent,游戏无法显示的字符会给出提示。
+- 游戏文件夹中的散装文件按游戏的顺序读取(后面的文件夹优先,同一文件夹内 .pk3 先于散装文件,并有 fs_dirbeforepak 1 的设置):预览、地图、脚本、.ent 文件和菜单编辑器。
+- 新图块“模型”:列出游戏文件夹中的每个 .md3 并可搜索;单击或把模型拖入地图——它以游戏的绘制方式立在鼠标下,成为底部立在游戏碰撞地面上的 misc_model_static,只占一个撤销步骤(Jedi Outcast 没有 misc_model_static,窗口会说明)。
+- 操纵器栏可沿模型自身的轴(modelscale_vec)或等比(modelscale)缩放地图模型;旋转和缩放只写一个角度键和一个缩放键,使游戏、Movie Duels 和 q3map2 读到相同的位置。正在使用的模型出现较新文件时,一秒内加载。
+- 预览:镜子和传送门摄像机更贴近游戏——剪切面正好位于镜面上,第二个视野使用传送门或摄像机处的可见性,方向和滚转像游戏一样取整,超出 `alphaGen portal` 距离时不显示视野,完全没有阶段的传送门着色器不是传送门。
+### 任务与地图
+- 地图编辑器新增“File > 编辑任务的地图”:打开任务选项卡中任务的地图(.bsp 旁边的 .map,否则打开 .bsp),编译会写入任务原本的文件——散装的 .bsp(旧文件保留为 .bsp.bak)或其在 .pk3 中的条目(.pk3.bak)。
+- 编译后任务选项卡会自动重新载入地图(几何体、光照、碰撞、路径点、导航、实体),并保留脚本、放置和修改过的实体、摄像机、时间轴和选择;NPC 的路径跟随新的碰撞。编译导致失效的引用会列在“任务与地图:引用”窗口中——不会悄悄丢失任何内容。
+### NPC 路径点
+- 删除实体时,所有指向它的 target 会在同一个撤销步骤中一并移除;“删除时填补空缺”会连接相邻点。你放置、移动或复制的路径点按游戏自身的连线检查(NAV::TestEdge,Jedi Outcast 中为 HardConnect)相连,游戏会丢弃的连接将被移除(“自动连接”、“连接到邻近点”)。
+- Ctrl+D 和右键菜单可复制路径点并赋予空闲名称,副本之间保持相连;所选路径点可按模式重命名。手动放在游戏会丢弃的位置(在实体内、离墙太近)的路径点会移到最近的有效位置,并给出提示。
+- 生成时像游戏中的 NPC 一样行走(台阶、坡度,门像游戏构建路网时那样打开,门和平台的移动距离与游戏完全一致),能到达角色可以走进的每个房间,包括窄门后面和楼梯上方;生成也会从地图上已有的路径点开始,保持在游戏的 1023 个路径点以内,报告无法连接的部分,并在后台运行,带进度和取消。
+- 用画笔或套索绘制区域并“在此生成”,禁止区域,在地面上画一条路径,或在生成未到达的地面(屋顶)上单击“起点”;只在 NPC 在游戏中确实能完成跳跃的地方(NPC_TryJump/NPC_Jump)建议跳跃连线(targetJump)。
+- 玩家出生点无法到达的部分以紫色显示,并可“连接”;“检查路网”不再把 func_static 地面上的路径点报告为悬空;“测试路线”显示 NPC 会走的路线,或说明为何没有路线;“显示覆盖”把附近没有路径点的可行走地面涂成红色。
+- 新工具“放置战斗点”:视图显示它的方框、游戏为它建立的连接和游戏分配的路径点,并在游戏报告 "has no waypoint" 或“没有任何连接”的地方准确显示警告。“生成建议”按游戏中枪手的选择方式寻找有掩护的战斗点(NPC_FindCombatPoint),以带原因的虚影点显示;可逐个或在一个撤销步骤中全部接受。
+### 保存
+- 文件保存在打开它的位置——散装的 .bsp、.ent 或脚本不经询问直接保存,不会在“文档”下复制,也不会生成新的 .pk3;新增“保存实体”和“把实体写入 BSP”(与地图编辑器的 -onlyents 逐字节相同,备份 .bsp.bak)。来自 .pk3 的文件会询问:只修改 .pk3 中的这个条目(.pk3.bak)、模组文件夹中的散装文件、另存为,或以前的任务文件夹方式;“打包为 .pk3...”是单独的命令。
+- 每个文件先写入临时文件,完成后才重命名;出错时旧文件保留。打包任务时会包含仅通过 run 启动的脚本,不会写出空的 .ent,并拒绝含 “..” 的路径以及超出游戏上限(64 个键、2048 个字符)的实体;重新加载同一地图前会询问是否放弃实体修改。
+### 已编译地图
+- 新窗口“着色器和表面”(在地图编辑器中也可用于 .bsp):单击表面并更换其着色器(仅此表面或所有使用相同着色器的表面),以游戏的名称修改材质、surfaceFlags 和 contentFlags,设置和编辑雾;“数据块文本”标签页每个着色器和每团雾一行。几何、光照贴图、光照网格、可见性和实体逐字节保持不变;按游戏加载地图的方式检查,着色器与烘焙光照不匹配时给出警告。
+- 地图编辑器:新增 Build > “插入到已编译地图”:触发器、func_usable 和其他不可见画刷实体会单独用 q3map2 编译,连同新的点实体一起作为新模型 *N 追加;世界的 BSP 树、VIS、光照贴图和表面逐字节保持不变;按游戏的限制检查(单人模式 511 个模型,多人模式 510 个)。
+- “插入到已编译地图”还会把新的裁剪画刷放入世界(登记到它们伸入的每个 BSP 叶节点,游戏会与之碰撞),并为可见移动体(func_door、func_train、func_rotating、func_static、func_plat)生成与地图相符的表面和光照贴图,以转换回来的世界作为投影体、使用地图的灯光照明;世界的光照贴图逐字节保持不变。
+### 地图编辑器
+- 新窗口“地图纹理”(Misc > 地图纹理...):列出地图的每个着色器和纹理及其图像、数量和尺寸;单击会选中所有使用它的内容;“替换为”和“替换文件夹”(先列出缺口)可用于整个地图、选中内容或可见内容,只占一个撤销步骤;“保持世界尺寸”会重新缩放画刷面。
+- 镜子和传送门摄像机会在实时光照和“按游戏显示已编译地图”中显示,使用与任务选项卡相同的代码。
+- “面片阴影”保存在地图中,并用于每次完整编译(-patchshadows),地图有面片而编译不带它时会给出警告;实时光照在 func_group 的 `_cs` 上遵循 q3map2,并像 -light 一样细分面片。
+- 资源浏览器:可选择 misc_model(由 q3map2 烘焙)或 misc_model_static(由游戏绘制)以及“碰撞”(spawnflags 2 或围绕它的裁剪画刷);放下的模型立在游戏碰撞的地面上。.obj、.fbx、.gltf 和 .glb 模型以 q3map2 烘焙的面显示,没有法线的也一样。
+### 菜单编辑器
+- 开始屏幕在“新建项目...”和“打开项目...”旁边新增“打开菜单”:从游戏、文件或整个菜单集打开菜单,无需项目即可编辑和保存。
+- Ctrl+S 会把模组文件夹或 base 中的散装菜单保存回原处,之前的版本以 .bak 保留;完整的消息显示在右下角,并说明游戏是否会先从 .pk3 读取同一菜单;.pk3 中的菜单仍会询问副本保存到哪里。
+- 删除前面的元素时,锁和眼睛保留在各自的元素上,撤销会把它们还回来,并按原来的顺序恢复相邻元素;通过“打开文件”打开的菜单在标签上显示为 `ui/name.menu`。
+### 界面
+- 整个标签页(事件、任务、模型、地图编辑器、菜单编辑器)可以在独立窗口中打开——在模式栏中右键单击、把标签页按钮拖出,或使用“窗口 > 此标签页使用单独窗口”——也可放到第二个屏幕上。两者同时在同一数据上工作,快捷键和撤销作用于你正在操作的窗口;关闭窗口或把标题栏拖到模式栏上即可取回标签页;位置、大小和屏幕会保留,并随命名布局一起保存。
+- 带数量的提示会按数量使用单数或复数(例如 "1 brush entity"、"1 patch")。
+### 速度
+- 任务选项卡和地图编辑器每帧少用约 1 毫秒处理器时间(查找实体键);没有变化的独立窗口和浮动面板不会绘制新画面。
+- 资源浏览器在后台收集模型和声音并显示进度条——使用 Movie Duels 数据时,首次打开曾让程序停顿约 30 秒。
+### 手册
+- 新章节附带图片,六种语言:NPC 路径点、实体文本、保存、已编译地图、插入到已编译地图、任务与地图、模型、地图纹理、面片阴影、镜子以及独立窗口中的标签页。
+### 修复
+- 当 force meta(spawnflags 4)的 misc_model 的平面在不加 -meta 时编译,q3map2 的 -light 不再崩溃(NetRadiant-Custom 的 q3map2 在此同样崩溃);该面按顶点照明。
+- 菜单编辑器:在鼠标仍在拖动时删除(手柄、移动、在多选中单击)可能崩溃。
+- 嵌套超过 256 层的脚本不再导致程序崩溃;文件头错误的 .IBI 和 Quake 3 地图(IBSP 46)会像游戏中一样被拒绝并给出提示;损坏的 .pk3 不再预留它声称的大小。
+- TGA 图像的读取方式与游戏完全一致(不支持的类型被拒绝,类型 2 的 8 位图像显示为灰色,RLE 越界与游戏相同);切换地图时若新地图的几何体无法读取,上一张地图的内容不再残留。
+[ja]
+- NPC ウェイポイントを手で置くことも、ゲームの歩き方どおりに生成することもできます。エンティティテキストエディター、開いた場所への保存、コンパイル済みマップの編集 (シェーダー、フォグ、ブラシエンティティ・クリップ・ムーバーの挿入)、ミッションとマップを失わない往復、ワンクリックでモデルをマップへ、タブを丸ごと別ウィンドウに。
+### ミッションタブ
+- 新しいパネル「エンティティテキスト」(ウィンドウメニュー): エンティティ一覧全体を行番号と色付きの .ent テキストで表示し、3D の選択と双方向に連動します。適用 (Ctrl+Enter) はゲームと同じように読み込んで 1 回の元に戻す操作にまとめ、エラーがあれば行を示して何も適用しません。origin、角度、スケール、ライト、色は入力中から反映され、順序・空行・コメントは保たれます。検索と置換 (Ctrl+F、Ctrl+H)、H で選択エンティティを隠し Alt+H で全表示、3D で中クリックするとマウス下の点の `x y z` を挿入します。
+- エンティティはゲームとまったく同じように読み込まれます (コメント、引用符なしの語、同じキーが 2 回あるときはゲームが使う方 - ゲームごと)。値はゲームと同じ Latin-1 です: ä、ü、é はゲームが読むとおりに .ent に入り、ゲームが表示できない文字はメッセージで知らせます。
+- ゲームフォルダーのばらのファイルはゲームと同じ順序で読み込まれます (後のフォルダーが先、同じフォルダー内では .pk3 がばらのファイルより先、fs_dirbeforepak 1 用の設定あり): プレビュー、マップ、スクリプト、.ent ファイル、メニューエディター。
+- 新しいタイル「モデル」: ゲームフォルダーのすべての .md3 を検索付きで表示。モデルをクリックするかマップへドラッグすると、ゲームと同じ描き方でマウスの下に立ち、底面がゲームの衝突判定の床に立つ misc_model_static になります (元に戻す 1 回分)。Jedi Outcast には misc_model_static がないため、ウィンドウがそう伝えます。
+- ギズモバーでマップモデルを自分の軸に沿って (modelscale_vec) または均等に (modelscale) 拡大縮小できます。回転と拡大縮小は角度キーとスケールキーをちょうど 1 つずつ書くので、ゲーム、Movie Duels、q3map2 が同じ姿勢を読みます。使用中のモデルの新しいファイルは 1 秒以内に読み込まれます。
+- プレビュー: 鏡とポータルカメラがゲームにより近くなりました - 切断面は鏡の平面ちょうどにあり、2 つ目の視点はポータルまたはカメラからの可視性を使い、向きとロールはゲームと同じく丸められ、`alphaGen portal` の範囲外では映像を出さず、ステージのないポータルシェーダーはポータルではありません。
+### ミッションとマップ
+- マップエディターに新しく「File > ミッションのマップを編集」: ミッションタブで開いているミッションのマップ (.bsp の隣の .map、なければ .bsp) を開き、ビルドはミッションのファイルそのものに書き込みます - ばらの .bsp (古いものは .bsp.bak) または .pk3 内のエントリー (.pk3.bak)。
+- ビルド後、ミッションタブはマップを自動で読み直し (ジオメトリー、ライト、衝突、ウェイポイント、ナビゲーション、エンティティ)、スクリプト、置いた・変えたエンティティ、カメラ、タイムライン、選択を保ちます。NPC の経路は新しい衝突に従います。ビルドで壊れた参照は「ミッションとマップ: 参照」ウィンドウに一覧され、黙って消えるものはありません。
+### NPC ウェイポイント
+- エンティティを削除すると、それを指していた target もすべて同じ元に戻す操作で消えます。「削除時に隙間を埋める」は隣同士をつなぎます。置いた・動かした・複製したウェイポイントはゲーム自身の辺テスト (NAV::TestEdge、Jedi Outcast では HardConnect) でつながり、ゲームが捨てる接続は外されます (「自動で接続」「近くの点と接続」)。
+- Ctrl+D と右クリックメニューでウェイポイントを空いている名前で複製でき、コピー同士はつながったままです。選択をパターンで名前変更できます。ゲームが捨てる場所 (固体の中、壁に近すぎる) に手で置いたウェイポイントは、メッセージ付きで最寄りの有効な位置へ移ります。
+- 生成はゲームの NPC と同じように歩き (段差、斜面、ゲームのネットワーク構築と同じく開いたドア、ゲームとまったく同じ距離を動くドアとプラットフォーム)、狭いドアの奥や階段の上も含め、キャラクターが歩いて入れるすべての部屋に届きます。マップに既にあるウェイポイントからも始まり、ゲームの 1023 個の上限内に収め、つなげない部分を知らせ、進行状況とキャンセル付きでバックグラウンドで動きます。
+- ブラシまたは投げ縄で範囲を塗って「ここに生成」、立入禁止範囲、床の上に経路を描く、または生成が届かなかった床 (屋根) で「開始点」をクリック。ジャンプ辺 (targetJump) は NPC がゲームで本当に跳べる所 (NPC_TryJump/NPC_Jump) だけに提案されます。
+- プレイヤーのスタートから届かない部分は紫で表示され「接続」できます。「ネットワークを確認」は func_static の床の上のウェイポイントを浮いていると報告しなくなりました。「テストルート」は NPC が通る経路を示すか、ない理由を伝えます。「カバー範囲を表示」は近くにウェイポイントのない歩ける床を赤く塗ります。
+- 新しいツール「戦闘ポイントを置く」: ビューにボックス、ゲームが作る接続、ゲームが割り当てるウェイポイントを表示し、ゲームが "has no waypoint" や「何ともつながっていない」と報告する所にちょうど警告を出します。「戦闘ポイントを提案」はゲームの射手と同じ方法で遮蔽物の陰の戦闘ポイントを探し (NPC_FindCombatPoint)、理由付きのゴーストポイントとして示します。1 つずつ、または全部を 1 回の元に戻す操作で採用できます。
+### 保存
+- ファイルは開いた場所に保存されます - ばらの .bsp、.ent、スクリプトは確認なしで、ドキュメントへのコピーも新しい .pk3 もなし。新しく「エンティティを保存」と「エンティティを BSP に書き込む」(マップエディターの -onlyents とバイト単位で同じ、バックアップ .bsp.bak)。.pk3 から開いたファイルは尋ねます: .pk3 内のこのエントリーだけを変更 (.pk3.bak)、Mod フォルダーにばらのファイル、名前を付けて保存、または従来のミッションフォルダー方式。「.pk3 にまとめる...」は別のコマンドです。
+- どのファイルも一時ファイル経由で書き、完成してから名前を変えます。エラー時は古いファイルが残ります。ミッションのパックには run だけで起動するスクリプトも含まれ、空の .ent は書かず、".." を含むパスやゲームの上限 (64 キー、2048 文字) を超えるエンティティは拒否します。同じマップを読み直す前に、エンティティの変更を捨てるか尋ねます。
+### コンパイル済みマップ
+- 新しいウィンドウ「シェーダーとサーフェス」(マップエディターでも .bsp に使えます): サーフェスをクリックしてシェーダーを差し替え (そのサーフェスだけ、または同じシェーダーのすべて)、マテリアル、surfaceFlags、contentFlags をゲームの名前で変更し、フォグを設定・編集します。「ランプをテキストで」タブはシェーダーとフォグごとに 1 行です。ジオメトリー、ライトマップ、ライトグリッド、可視性、エンティティはバイト単位でそのまま。ゲームがマップを読むときと同じように検査し、シェーダーが焼いたライトに合わないときは警告します。
+- マップエディター: 新しく Build > 「コンパイル済みマップに挿入」: トリガー、func_usable などの見えないブラシエンティティを q3map2 で単独にビルドし、新しいポイントエンティティと一緒に新しいモデル *N として追加します。ワールドの BSP ツリー、VIS、ライトマップ、サーフェスはバイト単位でそのまま。ゲームの上限 (シングルプレイ 511 モデル、マルチプレイ 510) で検査します。
+- 「コンパイル済みマップに挿入」は新しいクリップブラシもワールドに入れ (届くすべての BSP リーフに登録するので、ゲームはそれと衝突します)、見えるムーバー (func_door、func_train、func_rotating、func_static、func_plat) にはマップに合ったサーフェスとライトマップを付けます。逆変換したワールドを影の元にし、マップのライトで照らします。ワールドのライトマップはバイト単位でそのままです。
+### マップエディター
+- 新しいウィンドウ「マップのテクスチャ」(Misc > マップのテクスチャ...): マップのすべてのシェーダーとテクスチャを画像、使用数、サイズ付きで表示。クリックでそれを使うものをすべて選択。「置き換え先」と「フォルダーを置き換え」(先に欠けを一覧) をマップ全体、選択、見えているものに対して 1 回の元に戻す操作で。「ワールドサイズを保つ」はブラシ面を拡大縮小し直します。
+- 鏡とポータルカメラがリアルタイムライトと「ゲームどおりのビルド済みマップ」に、ミッションタブと同じコードで表示されます。
+- 「パッチの影」がマップに保存され、すべてのフルビルドで使われます (-patchshadows)。パッチのあるマップをそれなしでビルドすると警告します。リアルタイムライトは func_group の `_cs` で q3map2 に従い、パッチを -light と同じように分割します。
+- アセットブラウザー: misc_model (q3map2 が焼き込む) か misc_model_static (ゲームが描く) と「衝突」(spawnflags 2 または周りのクリップブラシ) を選べます。置いたモデルはゲームの衝突判定の床に立ちます。.obj、.fbx、.gltf、.glb のモデルは q3map2 が焼き込むサーフェスで表示され、法線がなくても正しく表示されます。
+### メニューエディター
+- スタート画面の「新しいプロジェクト...」と「プロジェクトを開く...」の隣に「メニューを開く」: ゲーム、ファイル、メニューセット全体からメニューを開き、プロジェクトなしで編集・保存できます。
+- Ctrl+S は Mod フォルダーや base にあるばらのメニューを元の場所に保存し、前の版は .bak として残ります。メッセージ全体が右下に表示され、ゲームが同じメニューを先に .pk3 から読む場合はそう伝えます。.pk3 内のメニューは今までどおりコピーの保存先を尋ねます。
+- 前にある要素を削除しても鍵と目はそれぞれの要素に残り、元に戻すとそれらが戻り、隣り合う要素も元の順序で戻ります。「ファイルを開く」で開いたメニューのタブ名は `ui/name.menu` になります。
+### インターフェース
+- タブを丸ごと (イベント、ミッション、モデル、マップエディター、メニューエディター) 別ウィンドウで開けます - モードバーで右クリック、タブボタンをドラッグして外に出す、またはウィンドウ > 「このタブを別ウィンドウに」- 2 台目の画面にも置けます。両方が同時に同じデータで動き、ショートカットと元に戻すは作業中のウィンドウに効きます。閉じるかタイトルバーをモードバーへドラッグするとタブが戻ります。位置、サイズ、画面は保たれ、名前付きレイアウトと一緒に保存されます。
+- 件数付きメッセージは数に応じて単数形・複数形を使い分けます (例: "1 brush entity"、"1 patch")。
+### 速度
+- ミッションタブとマップエディターの 1 フレームあたりのプロセッサ時間が約 1 ms 減りました (エンティティのキーの検索)。変化のない別ウィンドウとフローティングパネルは新しいフレームを描きません。
+- アセットブラウザーはモデルとサウンドを進行状況バー付きでバックグラウンドで集めます - Movie Duels のデータでは初回に約 30 秒プログラムが止まっていました。
+### マニュアル
+- 画像付きの新しい章を 6 言語で: NPC ウェイポイント、エンティティテキスト、保存、コンパイル済みマップ、コンパイル済みマップに挿入、ミッションとマップ、モデル、マップのテクスチャ、パッチの影、鏡、別ウィンドウのタブ。
+### 修正
+- force meta (spawnflags 4) の misc_model の平らな面を -meta なしでビルドしても、q3map2 の -light が落ちなくなりました (NetRadiant-Custom の q3map2 もそこで落ちます)。その面は頂点ごとに照らされます。
+- メニューエディター: マウスでまだドラッグしている間 (ハンドル、移動、複数選択内のクリック) に削除すると落ちることがありました。
+- 256 段より深く入れ子になったスクリプトでプログラムが落ちなくなりました。ヘッダーの違う .IBI と Quake 3 のマップ (IBSP 46) はゲームと同じくメッセージ付きで拒否されます。壊れた .pk3 が主張するサイズを確保しなくなりました。
+- TGA 画像はゲームとまったく同じように読み込まれます (未対応の形式は拒否、8 ビットのタイプ 2 は灰色、RLE のはみ出しはゲームと同じ)。新しいマップのジオメトリーが読めないマップ切り替えで、前のマップのものが残らなくなりました。
+[es]
+- Puntos de ruta de NPC a mano y generados como camina el juego, un editor de texto de entidades, los archivos se guardan donde se abrieron, mapas compilados editables (shaders, nieblas, entidades de brush, clips y móviles insertados), misión y mapa sin pérdidas, modelos en el mapa con un clic, pestañas enteras en ventanas propias.
+### Pestaña Misión
+- Nuevo panel "Texto de entidades" (menú Ventana): toda la lista de entidades como texto .ent con números de línea y colores, unida en ambos sentidos a la selección en 3D. Aplicar (Ctrl+Enter) lo lee como el juego en un solo paso de deshacer; un error nombra la línea y no aplica nada; origin, ángulos, escala, luz y color actúan mientras escribes; se conservan el orden, las líneas vacías y los comentarios. Buscar y sustituir (Ctrl+F, Ctrl+H), H oculta las entidades seleccionadas, Alt+H muestra todas, un clic central en 3D inserta `x y z` del punto bajo el ratón.
+- Las entidades se leen exactamente como en el juego (comentarios, palabras sin comillas y, para una clave repetida, la que usa el juego, según el juego); los valores son Latin-1 como en el juego: ä, ü o é llegan al .ent como el juego los lee, y un carácter que el juego no puede mostrar da un aviso.
+- Los archivos sueltos de las carpetas del juego se leen en el orden del juego (las carpetas posteriores primero, dentro de una carpeta el .pk3 antes que sus archivos sueltos, ajuste para fs_dirbeforepak 1): vista previa, mapas, scripts, archivos .ent y el editor de menús.
+- Nueva ficha "Modelo": todos los .md3 de las carpetas del juego con búsqueda; haz clic o arrastra un modelo al mapa: queda bajo el ratón, dibujado como en el juego, y se convierte en un misc_model_static cuya base se apoya en el suelo de la colisión del juego, en un solo paso de deshacer (Jedi Outcast no tiene misc_model_static; la ventana lo indica).
+- La barra del gizmo escala los modelos del mapa a lo largo de sus propios ejes (modelscale_vec) o por igual (modelscale); girar y escalar escriben exactamente una clave de ángulo y una de escala, para que el juego, Movie Duels y q3map2 lean la misma posición. Un archivo más nuevo de un modelo en uso se carga en menos de un segundo.
+- Vista previa: los espejos y las cámaras de portal siguen más de cerca al juego: el corte está exactamente en el plano del espejo, la segunda vista usa la visibilidad desde el portal o la cámara, la dirección y el giro se redondean como en el juego, no hay vista más allá del alcance de `alphaGen portal`, y un shader de portal sin ninguna etapa no es un portal.
+### Misión y mapa
+- Nuevo "File > Editar el mapa de la misión" en el editor de mapas: abre el mapa de la misión abierta en la pestaña Misión (su .map junto al .bsp, si no el .bsp), y la compilación escribe exactamente en el archivo de la misión: el .bsp suelto (el antiguo como .bsp.bak) o su entrada en el .pk3 (.pk3.bak).
+- Tras la compilación, la pestaña Misión vuelve a cargar el mapa por sí sola (geometría, luz, colisión, puntos de ruta, navegación, entidades) y conserva scripts, entidades colocadas y cambiadas, cámara, línea de tiempo y selección; los caminos de los NPC siguen la nueva colisión. Las referencias que rompe la compilación aparecen en la ventana "Misión y mapa: referencias"; nada se pierde en silencio.
+### Puntos de ruta de NPC
+- Al borrar una entidad desaparece también cada target que la nombraba, en el mismo paso de deshacer; "Cerrar el hueco al borrar" une a los vecinos. Un punto de ruta que colocas, mueves o duplicas se conecta con la prueba de aristas del propio juego (NAV::TestEdge, HardConnect en Jedi Outcast), y se quitan las conexiones que el juego descartaría ("Conectar automáticamente", "Conectar con los vecinos").
+- Ctrl+D y el menú contextual duplican puntos de ruta con nombres libres, las copias siguen conectadas entre sí; la selección se puede renombrar según un patrón. Un punto de ruta colocado a mano donde el juego lo descartaría (dentro de lo sólido, demasiado cerca de una pared) pasa al punto válido más cercano, con un aviso.
+- La generación camina como un NPC en el juego (escalones, pendientes, puertas abiertas como las abre la red del juego, puertas y plataformas que se desplazan exactamente lo mismo que en el juego) y llega a cada sala en la que puede entrar una figura, también tras puertas estrechas y por escaleras; también parte de los puntos de ruta que ya hay en el mapa, se mantiene dentro de los 1023 puntos de ruta del juego, nombra las partes que no puede conectar y trabaja en segundo plano con progreso y Cancelar.
+- Pinta zonas con pincel o lazo y "Generar aquí", zonas prohibidas, traza un camino sobre el suelo o haz clic en un "Punto de inicio" en un suelo al que la generación no llegó (un tejado); las aristas de salto (targetJump) solo se proponen donde un NPC realmente da el salto en el juego (NPC_TryJump/NPC_Jump).
+- Las partes que no alcanza el inicio del jugador se dibujan en violeta, con "Conectar"; "Comprobar red" ya no informa de puntos de ruta flotantes sobre suelos de func_static; "Ruta de prueba" muestra el camino que tomaría un NPC o explica por qué no hay ninguno; "Mostrar cobertura" pinta de rojo el suelo transitable sin punto de ruta al alcance.
+- Nueva herramienta "Colocar punto de combate": la vista muestra su caja, las conexiones que el juego crea para él y el punto de ruta que el juego le asigna, con un aviso justo donde el juego informa "has no waypoint" o "sin conexión con nada". "Sugerir puntos de combate" busca puntos de combate a cubierto como los elige un tirador en el juego (NPC_FindCombatPoint), como puntos fantasma con su motivo; acepta uno o todos en un solo paso de deshacer.
+### Guardar
+- Los archivos se guardan donde se abrieron: un .bsp, .ent o script suelto sin preguntar, sin copia en Documentos, sin .pk3 nuevo; nuevos "Guardar entidades" y "Escribir las entidades en el BSP" (byte a byte como -onlyents del editor de mapas, copia .bsp.bak). Un archivo de un .pk3 pregunta: cambiar solo esta entrada del .pk3 (.pk3.bak), archivo suelto en la carpeta del mod, guardar como, o el camino anterior de la carpeta de misiones; "Empaquetar como .pk3..." es un comando aparte.
+- Cada archivo se escribe a través de un archivo temporal y se renombra solo cuando está completo; ante un error queda el archivo antiguo. Empaquetar una misión incluye los scripts iniciados solo con run, nunca escribe un .ent vacío y rechaza rutas con ".." y entidades por encima de los límites del juego (64 claves, 2048 caracteres); volver a cargar el mismo mapa pregunta antes de descartar cambios de entidades.
+### Mapas compilados
+- Nueva ventana "Shaders y superficies" (también en el editor de mapas para un .bsp): haz clic en una superficie y cambia su shader (esta superficie o todas con el mismo shader), cambia material, surfaceFlags y contentFlags con los nombres del juego, asigna y edita nieblas; la pestaña "Lumps como texto" tiene una línea por shader y por niebla. Geometría, lightmaps, rejilla de luz, visibilidad y entidades quedan byte a byte; se comprueba como al cargar el mapa en el juego, con un aviso si un shader no encaja con la luz horneada.
+- Editor de mapas: nuevo Build > "Insertar en el mapa compilado": triggers, func_usable y otras entidades de brush invisibles se compilan por separado con q3map2 y se añaden como modelos nuevos *N, junto con sus nuevas entidades de punto; el árbol BSP, VIS, lightmaps y superficies del mundo quedan byte a byte; se comprueba con los límites del juego (511 modelos en un jugador, 510 en multijugador).
+- "Insertar en el mapa compilado" también lleva brushes clip nuevos al mundo (inscritos en cada hoja BSP a la que llegan, para que el juego choque con ellos) y móviles visibles (func_door, func_train, func_rotating, func_static, func_plat) con superficies y lightmaps acordes al mapa, iluminados con el mundo reconvertido como proyector de sombras y las luces del mapa; los lightmaps del mundo quedan byte a byte.
+### Editor de mapas
+- Nueva ventana "Texturas del mapa" (Misc > Texturas del mapa...): cada shader y textura del mapa con imagen, cantidades y tamaño; un clic selecciona todo lo que la usa; "Sustituir por" y "Sustituir carpeta" (antes se listan los huecos) para todo el mapa, la selección o lo visible, en un solo paso de deshacer; "Mantener el tamaño en el mundo" reescala las caras de brush.
+- Los espejos y las cámaras de portal aparecen en la luz en tiempo real y en "Mapa compilado como en el juego", con el mismo código que la pestaña Misión.
+- "Sombras de patches" se guarda en el mapa y lo usa cada compilación completa (-patchshadows); una compilación sin él avisa si el mapa tiene patches; la luz en tiempo real sigue a q3map2 con `_cs` en func_group y divide los patches como -light.
+- Navegador de recursos: elige misc_model (horneado por q3map2) o misc_model_static (dibujado por el juego) y "Colisión" (spawnflags 2 o un brush clip alrededor); los modelos soltados se apoyan en el suelo de la colisión del juego. Los modelos .obj, .fbx, .gltf y .glb se ven con las superficies que hornea q3map2, también sin normales.
+### Editor de menús
+- La pantalla de inicio tiene "Abrir menú" junto a "Nuevo proyecto..." y "Abrir proyecto...": abre un menú del juego, un archivo o un conjunto de menús entero, edítalo y guárdalo sin proyecto.
+- Ctrl+S guarda un menú suelto en una carpeta de mod o en base de vuelta en su sitio, la versión anterior queda como .bak; el mensaje completo aparece abajo a la derecha y dice si el juego lee antes el mismo menú desde un .pk3; un menú dentro de un .pk3 sigue preguntando adónde va tu copia.
+- El candado y el ojo se quedan con sus elementos cuando se borra algo antes de ellos; Deshacer los devuelve y restaura los elementos vecinos en su orden; un menú abierto con Abrir archivo se llama `ui/name.menu` en su pestaña.
+### Interfaz
+- Pestañas enteras (Eventos, Misión, Modelo, Editor de mapas, Editor de menús) se abren en una ventana propia (clic derecho en la barra de modos, arrastrar fuera el botón de la pestaña o Ventana > "Esta pestaña en ventana propia"), también en una segunda pantalla. Ambas trabajan a la vez sobre los mismos datos, los atajos y deshacer van a la ventana en la que trabajas; cerrarla o arrastrar su barra de título a la barra de modos devuelve la pestaña; posición, tamaño y pantalla se conservan y se guardan con las disposiciones con nombre.
+- Los mensajes con cantidades usan el singular o el plural según el número (por ejemplo "1 entidad de brush", "1 patch").
+### Velocidad
+- La pestaña Misión y el editor de mapas necesitan cerca de 1 ms menos de procesador por fotograma (búsqueda de una clave de entidad); las ventanas propias y los paneles flotantes que no cambian no dibujan un fotograma nuevo.
+- El navegador de recursos reúne modelos y sonidos en segundo plano con una barra de progreso; con los datos de Movie Duels detenía el programa unos 30 segundos al abrirlo por primera vez.
+### Manual
+- Capítulos nuevos con imágenes en seis idiomas: puntos de ruta de NPC, texto de entidades, guardar, mapas compilados, insertar en el mapa compilado, misión y mapa, modelos, texturas del mapa, sombras de patches, espejos y pestañas en ventanas propias.
+### Corregido
+- q3map2 ya no se cuelga en -light con una superficie plana de un misc_model con force meta (spawnflags 4) compilado sin -meta (el q3map2 de NetRadiant-Custom también se cuelga ahí); la superficie se ilumina por vértice.
+- Editor de menús: borrar mientras el ratón aún arrastraba (tirador, mover, clic en una selección múltiple) podía colgar el programa.
+- Los scripts anidados a más de 256 niveles ya no cuelgan el programa; un .IBI con cabecera incorrecta y un mapa de Quake 3 (IBSP 46) se rechazan con un aviso como en el juego; un .pk3 dañado ya no reserva el tamaño que afirma.
+- Las imágenes TGA se leen exactamente como en el juego (tipos no admitidos rechazados, 8 bits de tipo 2 en gris, un desbordamiento RLE como en el juego); un cambio de mapa cuya nueva geometría no se puede leer no deja nada del mapa anterior.
+[cs]
+- Body trasy NPC ručně i generované tak, jak chodí hra, textový editor entit, soubory se ukládají tam, kde byly otevřeny, úpravy hotových map (shadery, mlhy, vložené brush entity, clipy a pohyblivé objekty), mise a mapa beze ztrát, modely do mapy jedním kliknutím, celé karty ve vlastních oknech.
+### Karta Mise
+- Nový panel „Text entit“ (nabídka Okno): celý seznam entit jako text .ent s čísly řádků a barvami, oboustranně propojený s výběrem ve 3D. Použít (Ctrl+Enter) ho načte jako hra v jednom kroku zpět; chyba uvede řádek a nic se nepoužije; origin, úhly, měřítko, světlo a barva působí už při psaní; pořadí, prázdné řádky a komentáře zůstávají. Hledat a nahradit (Ctrl+F, Ctrl+H), H skryje vybrané entity, Alt+H zobrazí všechny, kliknutí prostředním tlačítkem ve 3D vloží `x y z` bodu pod myší.
+- Entity se čtou přesně jako ve hře (komentáře, slova bez uvozovek a u zdvojeného klíče ten, který bere hra – podle hry); hodnoty jsou v Latin-1 jako ve hře: ä, ü nebo é se do .ent dostanou tak, jak je hra čte, a znak, který hra neumí zobrazit, vyvolá zprávu.
+- Volné soubory ve složkách hry se čtou v pořadí hry (pozdější složky dříve, ve složce .pk3 před jejími volnými soubory, nastavení pro fs_dirbeforepak 1): náhled, mapy, skripty, soubory .ent a editor menu.
+- Nová dlaždice „Model“: každý .md3 ze složek hry s vyhledáváním; klikněte na model nebo ho přetáhněte do mapy – stojí pod myší, kreslený jako ve hře, a stane se z něj misc_model_static, jehož spodek stojí na podlaze kolizí hry, v jednom kroku zpět (Jedi Outcast misc_model_static nemá; okno to řekne).
+- Lišta gizma mění měřítko modelů mapy podél jejich vlastních os (modelscale_vec) nebo rovnoměrně (modelscale); otáčení a měřítko zapisují právě jeden klíč úhlu a jeden klíč měřítka, aby hra, Movie Duels a q3map2 četly stejnou polohu. Novější soubor používaného modelu se načte do sekundy.
+- Náhled: zrcadla a portálové kamery se více drží hry – řez leží přesně v rovině zrcadla, druhý pohled používá viditelnost z portálu nebo kamery, směr a náklon se zaokrouhlují jako ve hře, za dosahem `alphaGen portal` se nic nezobrazí a portálový shader bez jediné fáze není portál.
+### Mise a mapa
+- Nové „File > Upravit mapu mise“ v editoru map: otevře mapu mise otevřené na kartě Mise (její .map vedle .bsp, jinak .bsp) a sestavení zapíše přesně do souboru mise – volné .bsp (staré jako .bsp.bak) nebo jeho položky v .pk3 (.pk3.bak).
+- Po sestavení karta Mise sama znovu načte mapu (geometrie, světlo, kolize, body trasy, navigace, entity) a zachová skripty, umístěné a změněné entity, kameru, časovou osu a výběr; cesty NPC se řídí novými kolizemi. Odkazy, které sestavení rozbije, jsou v okně „Mise a mapa: odkazy“ – nic nezmizí potichu.
+### Body trasy NPC
+- Při smazání entity zmizí ve stejném kroku zpět i každý target, který ji jmenoval; „Při mazání zacelit mezeru“ spojí sousedy. Bod trasy, který položíte, posunete nebo zdvojíte, se spojí podle vlastního testu hran hry (NAV::TestEdge, v Jedi Outcast HardConnect) a spojení, která by hra zahodila, zmizí („Spojovat automaticky“, „Spojit se sousedy“).
+- Ctrl+D a místní nabídka zdvojí body trasy s volnými názvy, kopie zůstanou propojené; výběr lze přejmenovat podle vzoru. Ručně položený bod trasy tam, kde by ho hra zahodila (v pevné hmotě, příliš blízko u zdi), se přesune na nejbližší platné místo, se zprávou.
+- Generování chodí jako NPC ve hře (schody, svahy, dveře otevřené tak, jak je otevírá stavba sítě hry, dveře a plošiny jezdí přesně tak daleko jako ve hře) a dosáhne každé místnosti, do které může postava vejít, i za úzkými dveřmi a po schodech; začíná i u bodů trasy, které už na mapě jsou, drží se v 1023 bodech trasy hry, jmenuje části, které nedokáže připojit, a běží na pozadí s průběhem a Zrušit.
+- Malujte oblasti štětcem nebo lasem a „Generovat zde“, zakázané oblasti, nakreslete cestu po podlaze nebo klikněte na „Počáteční bod“ na podlaze, kam generování nedošlo (střecha); skokové hrany (targetJump) se navrhují jen tam, kde NPC skok ve hře opravdu zvládne (NPC_TryJump/NPC_Jump).
+- Části, kam start hráče nedosáhne, jsou fialové, s „Připojit“; „Zkontrolovat síť“ už nehlásí body trasy na podlahách z func_static jako visící ve vzduchu; „Zkušební trasa“ ukáže cestu, kterou by šlo NPC, nebo řekne, proč žádná není; „Zobrazit pokrytí“ obarví červeně schůdnou podlahu bez bodu trasy v dosahu.
+- Nový nástroj „Položit bojový bod“: pohled ukáže jeho kvádr, spojení, která pro něj hra vytvoří, a bod trasy, který mu hra přiřadí, s varováním přesně tam, kde hra hlásí „has no waypoint“ nebo „není s ničím spojen“. „Navrhnout bojové body“ hledá bojové body za krytem tak, jak je ve hře vybírá střelec (NPC_FindCombatPoint), jako přízračné body s důvodem; přijměte jeden nebo všechny v jednom kroku zpět.
+### Ukládání
+- Soubory se ukládají tam, kde byly otevřeny – volné .bsp, .ent nebo skript bez dotazu, žádná kopie v Dokumentech, žádné nové .pk3; nové „Uložit entity“ a „Zapsat entity do BSP“ (bajt po bajtu jako -onlyents editoru map, záloha .bsp.bak). Soubor z .pk3 se zeptá: změnit jen tuto položku v .pk3 (.pk3.bak), volný soubor ve složce modu, uložit jako, nebo dosavadní cesta přes složku misí; „Zabalit jako .pk3...“ je samostatný příkaz.
+- Každý soubor se zapisuje přes dočasný soubor a přejmenuje se až hotový; při chybě zůstane starý soubor. Zabalení mise bere i skripty spouštěné jen přes run, nikdy nezapíše prázdný .ent a odmítne cesty s „..“ a entity nad limity hry (64 klíčů, 2048 znaků); nové načtení stejné mapy se před zahozením změn entit zeptá.
+### Hotové mapy
+- Nové okno „Shadery a plochy“ (také v editoru map pro .bsp): klikněte na plochu a vyměňte její shader (tato plocha nebo všechny se stejným shaderem), změňte materiál, surfaceFlags a contentFlags s názvy hry, nastavte a upravte mlhy; karta „Lumpy jako text“ má jeden řádek na shader a mlhu. Geometrie, lightmapy, mřížka světla, viditelnost a entity zůstávají bajt po bajtu; kontroluje se jako při načítání mapy ve hře, s varováním, když shader nesedí k zapečenému světlu.
+- Editor map: nové Build > „Vložit do hotové mapy“: triggery, func_usable a další neviditelné brush entity se sestaví samostatně pomocí q3map2 a připojí se jako nové modely *N spolu se svými novými bodovými entitami; strom BSP, VIS, lightmapy a plochy světa zůstávají bajt po bajtu; kontroluje se podle limitů hry (511 modelů pro jednoho hráče, 510 pro více hráčů).
+- „Vložit do hotové mapy“ bere do světa i nové clip brushe (zapsané do každého listu BSP, kam zasahují, aby s nimi hra kolidovala) a viditelné pohyblivé objekty (func_door, func_train, func_rotating, func_static, func_plat) s plochami a lightmapami, které k mapě sedí, osvětlené se zpětně převedeným světem jako vrhačem stínů a se světly mapy; lightmapy světa zůstávají bajt po bajtu.
+### Editor map
+- Nové okno „Textury mapy“ (Misc > Textury mapy...): každý shader a textura mapy s obrázkem, počty a velikostí; kliknutí vybere vše, co ji používá; „Nahradit“ a „Nahradit složku“ (mezery se vypíší předem) pro celou mapu, výběr nebo to, co je vidět, v jednom kroku zpět; „Zachovat velikost ve světě“ přepočítá měřítko stěn brushů.
+- Zrcadla a portálové kamery se zobrazují ve světle v reálném čase a v „Sestavená mapa jako ve hře“, stejným kódem jako na kartě Mise.
+- „Stíny patchů“ se ukládají v mapě a platí pro každé úplné sestavení (-patchshadows); sestavení bez nich upozorní, má-li mapa patche; světlo v reálném čase se u `_cs` na func_group řídí q3map2 a dělí patche jako -light.
+- Prohlížeč assetů: vyberte misc_model (zapéká q3map2) nebo misc_model_static (kreslí hra) a „Kolize“ (spawnflags 2 nebo clip brush kolem); položené modely stojí na podlaze kolizí hry. Modely .obj, .fbx, .gltf a .glb se zobrazují s plochami, které zapéká q3map2, i bez normál.
+### Editor menu
+- Úvodní obrazovka má „Otevřít menu“ vedle „Nový projekt...“ a „Otevřít projekt...“: otevřete menu ze hry, ze souboru nebo celou sadu menu, upravte je a uložte bez projektu.
+- Ctrl+S uloží volné menu ve složce modu nebo v base zpět na jeho místo, předchozí verze zůstane jako .bak; celá zpráva se objeví vpravo dole a řekne, když hra čte stejné menu nejdřív z .pk3; menu uvnitř .pk3 se dál ptá, kam má jít vaše kopie.
+- Zámek a oko zůstávají u svých prvků, když se smaže něco před nimi; Zpět je vrátí a obnoví sousední prvky v jejich pořadí; menu otevřené přes Otevřít soubor se na kartě jmenuje `ui/name.menu`.
+### Rozhraní
+- Celé karty (Události, Mise, Model, Editor map, Editor menu) se otevřou ve vlastním okně – pravým kliknutím na liště režimů, vytažením tlačítka karty nebo Okno > „Tuto kartu ve vlastním okně“ –, i na druhé obrazovce. Obě pracují současně se stejnými daty, zkratky a Zpět patří oknu, ve kterém pracujete; zavření nebo přetažení jeho titulní lišty na lištu režimů vrátí kartu zpět; poloha, velikost a obrazovka zůstanou a ukládají se s pojmenovanými rozvrženími.
+- Zprávy s počty používají jednotné nebo množné číslo podle čísla (např. „1 brush entita“, „1 patch“).
+### Rychlost
+- Karta Mise a editor map potřebují asi o 1 ms méně času procesoru na snímek (hledání klíče entity); vlastní okna a plovoucí panely, ve kterých se nic nemění, nekreslí nový snímek.
+- Prohlížeč assetů sbírá modely a zvuky na pozadí s ukazatelem průběhu – s daty Movie Duels při prvním otevření zastavil program asi na 30 sekund.
+### Příručka
+- Nové kapitoly s obrázky v šesti jazycích: body trasy NPC, text entit, ukládání, hotové mapy, vložení do hotové mapy, mise a mapa, modely, textury mapy, stíny patchů, zrcadla a karty ve vlastních oknech.
+### Opraveno
+- q3map2 už nepadá v -light na rovné ploše misc_model s force meta (spawnflags 4) sestavené bez -meta (q3map2 z NetRadiant-Custom tam padá také); plocha se osvětlí po vrcholech.
+- Editor menu: mazání, zatímco myš ještě táhla (úchyt, posun, kliknutí do vícenásobného výběru), mohlo shodit program.
+- Skripty vnořené hlouběji než 256 úrovní už program neshodí; .IBI se špatnou hlavičkou a mapa z Quake 3 (IBSP 46) se jako ve hře odmítnou se zprávou; poškozené .pk3 už nerezervuje velikost, kterou tvrdí.
+- Obrázky TGA se čtou přesně jako ve hře (nepodporované typy se odmítnou, 8bitový typ 2 je šedý, přetečení RLE jako ve hře); změna mapy, jejíž novou geometrii nelze přečíst, nenechá nic z předchozí mapy.
+
 ## rc608 2026-11-03
 [en]
 - Mission preview and the map editor's game picture now follow the game's renderer much more closely (light, sky, fog, patches, area portals, glow), turrets fight, riding works; the menu editor got a new right panel, in-place text, drag and drop and undo everywhere; faster loading.
