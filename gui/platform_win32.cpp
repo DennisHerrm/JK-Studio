@@ -283,32 +283,34 @@ std::string settingsDirectory() {
     // Stufe 8c (Umbenennung in JK Studio): %APPDATA%\jkstudio statt %APPDATA%\behaved.
     // Beim ersten Start wird der alte Ordner kopiert (bhed/umzug.h), das Original
     // bleibt. BHED_APPDATA ersetzt im Test den Ordner %APPDATA% (der echte des
-    // Anwenders wird dann nicht angefasst).
-    std::string basis;
-    if (const wchar_t* test = _wgetenv(L"BHED_APPDATA"); test != nullptr && test[0] != L'\0') {
-        basis = toUtf8(test);
-    } else {
-        wchar_t* appdata = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata))) {
-            basis = toUtf8(appdata);
-            CoTaskMemFree(appdata);
+    // Anwenders wird dann nicht angefasst). Einmal je Sitzung gewaehlt (gefragt
+    // wird auch aus Hintergrundfaeden, etwa vom Schnell-Backen).
+    static const std::string gewaehlt = [] {
+        std::wstring basis;
+        if (const wchar_t* test = _wgetenv(L"BHED_APPDATA"); test != nullptr && test[0] != L'\0') {
+            basis = test;
+        } else {
+            wchar_t* appdata = nullptr;
+            if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata))) {
+                basis = appdata;
+                CoTaskMemFree(appdata);
+            }
         }
-    }
-    if (basis.empty()) { return {}; }
-    const std::string dir = basis + "\\" + umzug::kNeuerOrdner;
-    static bool versucht = false;
-    if (!versucht) {
-        versucht = true;
-        const auto pfad = [](const std::string& s) { return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size())); };
-        const umzug::Ergebnis e = umzug::uebernehmen(pfad(basis + "\\" + umzug::kAlterOrdner), pfad(dir));
+        if (basis.empty()) { return std::string(); }
+        // rc610 F78 (Fund B8-1): scheitert das Kopieren, entsteht kein leerer neuer
+        // Ordner mehr - diese Sitzung bleibt im alten, der naechste Start versucht es wieder.
+        const umzug::Wahl w = umzug::ordnerWaehlen(std::filesystem::path(basis));
+        const umzug::Ergebnis& e = w.umzug;
         if (e.uebernommen || !e.fehler.empty()) {
             diag::detail("Einstellungen: " + std::string(umzug::kAlterOrdner) + " -> " + umzug::kNeuerOrdner + ": " +
-                         (e.uebernommen ? std::to_string(e.dateien) + " Dateien kopiert, " + std::to_string(e.ausgelassen) + " ausgelassen (das Original bleibt)"
-                                        : "Fehler: " + e.fehler));
+                         (e.uebernommen ? std::to_string(e.dateien) + " Dateien kopiert, " + std::to_string(e.ausgelassen) +
+                                              " ausgelassen (das Original bleibt)"
+                                        : "Fehler: " + e.fehler + " - diese Sitzung nutzt " + umzug::kAlterOrdner +
+                                              ", der naechste Start versucht es wieder"));
         }
-    }
-    CreateDirectoryW(toWide(dir).c_str(), nullptr);
-    return dir;
+        return toUtf8(w.ordner.wstring());
+    }();
+    return gewaehlt;
 }
 
 

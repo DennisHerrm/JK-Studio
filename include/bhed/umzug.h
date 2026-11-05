@@ -41,6 +41,19 @@ struct Ergebnis {
 // wieder). Existiert `neu` schon, geschieht nichts.
 [[nodiscard]] Ergebnis uebernehmen(const std::filesystem::path& alt, const std::filesystem::path& neu);
 
+// Der Einstellungsordner unter `basis` (%APPDATA%): `basis/jkstudio`, beim
+// ersten Start mit einer Kopie von `basis/behaved` (uebernehmen), danach
+// angelegt. rc610 F78 (Fund B8-1): scheitert die Uebernahme, bleibt
+// `basis/jkstudio` weg - der naechste Start versucht es wieder - und diese
+// Sitzung arbeitet im alten Ordner, mit den Spielordnern und Tasten des
+// Anwenders (bis rc609 legte der Aufrufer den neuen Ordner trotzdem leer an,
+// und es wurde nie wieder kopiert).
+struct Wahl {
+    std::filesystem::path ordner;
+    Ergebnis umzug;
+};
+[[nodiscard]] Wahl ordnerWaehlen(const std::filesystem::path& basis);
+
 }  // namespace bhed::umzug
 
 #endif  // BHED_UMZUG_H

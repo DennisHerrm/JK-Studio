@@ -1,6 +1,10 @@
 // umzugtest.cpp - Stufe 8c: der Einstellungsordner zieht von %APPDATA%\\behaved
 // nach %APPDATA%\\jkstudio um (siehe bhed/umzug.h) - ohne Fenster, in einem
 // eigenen Ordner unter %TEMP% (der echte Ordner des Anwenders wird nie angefasst).
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -79,6 +83,29 @@ int main() {
 
     const Ergebnis e3 = uebernehmen(basis / "gibtsnicht", basis / "frisch");
     expect("ohne alten Ordner: nichts zu tun", !e3.uebernommen && e3.fehler.empty() && !fs::exists(basis / "frisch"));
+
+#ifdef _WIN32
+    // rc610 F78 (Fund B8-1): eine Datei im alten Ordner laesst sich nicht kopieren
+    // (ein anderes Programm haelt sie ohne Teilen offen). Kein neuer Ordner, die
+    // Sitzung bleibt im alten; der naechste Start kopiert.
+    {
+        const fs::path b2 = basis / "zweiter";
+        schreib(b2 / kAlterOrdner / "behaved.cfg", cfg);
+        schreib(b2 / kAlterOrdner / "gesperrt.txt", "x");
+        HANDLE h = CreateFileW((b2 / kAlterOrdner / "gesperrt.txt").c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+        const Wahl w1 = ordnerWaehlen(b2);
+        CloseHandle(h);
+        std::printf("      (%s)\n", w1.umzug.fehler.c_str());
+        expect("gescheiterte Uebernahme: kein neuer Ordner, diese Sitzung im alten",
+               h != INVALID_HANDLE_VALUE && !w1.umzug.fehler.empty() && w1.ordner == b2 / kAlterOrdner &&
+                   !fs::exists(b2 / kNeuerOrdner) && !fs::exists(b2 / (std::string(kNeuerOrdner) + ".umzug")));
+        const Wahl w2 = ordnerWaehlen(b2);
+        expect("naechster Start ohne Sperre: kopiert, neuer Ordner mit behaved.cfg",
+               w2.umzug.uebernommen && w2.ordner == b2 / kNeuerOrdner && lies(b2 / kNeuerOrdner / "behaved.cfg") == cfg);
+        const Wahl w3 = ordnerWaehlen(basis / "leer");
+        expect("ohne alten Ordner: der neue wird angelegt", w3.umzug.fehler.empty() && fs::is_directory(basis / "leer" / kNeuerOrdner));
+    }
+#endif
 
     fs::remove_all(basis, ec);
     std::printf(fehler == 0 ? "\nalle Umzugsproben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);

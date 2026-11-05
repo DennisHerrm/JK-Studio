@@ -88,4 +88,19 @@ Ergebnis uebernehmen(const fs::path& alt, const fs::path& neu) {
     return e;
 }
 
+Wahl ordnerWaehlen(const fs::path& basis) {
+    Wahl w;
+    const fs::path alt = basis / kAlterOrdner;
+    const fs::path neu = basis / kNeuerOrdner;
+    w.umzug = uebernehmen(alt, neu);
+    if (!w.umzug.fehler.empty()) {
+        w.ordner = alt;
+        return w;
+    }
+    std::error_code ec;
+    fs::create_directories(neu, ec);
+    w.ordner = neu;
+    return w;
+}
+
 }  // namespace bhed::umzug
