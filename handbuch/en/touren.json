@@ -1114,7 +1114,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.",
+      "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.",
       "bild": "h_tut_update_2",
       "unter": "Step 2 in the program: the tutorial highlights where to go next.",
       "ziel": "fenster:###update",

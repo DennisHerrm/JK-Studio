@@ -1114,7 +1114,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Lies die Antwort.** Das Fenster sagt, dass du die neueste Fassung hast - oder zeigt die neue mit ihren Notizen und **{{UpdInstall}}**. Ohne Verbindung sagt es das; **{{UpdRetry}}** versucht es noch einmal.",
+      "text": "**Lies die Antwort.** Das Fenster sagt, dass du die neueste Fassung hast - oder zeigt die neue mit ihren Notizen und **{{UpdInstall}}**. Ohne Verbindung sagt es das; **{{UpdRetry}}** versucht es noch einmal. Nach der Installation bietet es **{{UpdRestart}}** an, bis du neu startest, auch wenn du noch einmal suchst; schließt du das Programm während der Installation, wird sie zuerst fertig.",
       "bild": "h_tut_update_2",
       "unter": "Schritt 2 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
       "ziel": "fenster:###update",

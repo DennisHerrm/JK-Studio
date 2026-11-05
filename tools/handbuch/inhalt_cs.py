@@ -1275,8 +1275,8 @@ TEXTE = {
         "**Vyhledejte novou verzi.** **{{MenuHelp}} → {{UpdMenu}}**. Program se zeptá GitHubu na nejnovější vydání - jen teď, protože jste to zvolili.",
     "The tutorial points at the Help menu.":
         "Tutoriál ukazuje na nabídku Nápověda.",
-    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.":
-        "**Přečtěte si odpověď.** Okno řekne, že máte nejnovější verzi - nebo ukáže novou s poznámkami a **{{UpdInstall}}**. Bez připojení to oznámí; **{{UpdRetry}}** to zkusí znovu.",
+    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
+        "**Přečtěte si odpověď.** Okno řekne, že máte nejnovější verzi - nebo ukáže novou s poznámkami a **{{UpdInstall}}**. Bez připojení to oznámí; **{{UpdRetry}}** to zkusí znovu. Po instalaci nabízí **{{UpdRestart}}**, dokud program nerestartujete, i když hledáte znovu; zavřete-li program během instalace, instalace se nejdřív dokončí.",
     "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.":
         "**Při spuštění, nebo ne.** **{{MenuHelp}} → {{UpdAutoCheck}}** zapíná nebo vypíná kontrolu při spuštění. Nic jiného se nikdy neposílá.",
     "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.":

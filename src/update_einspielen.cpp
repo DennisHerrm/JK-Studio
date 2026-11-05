@@ -16,13 +16,19 @@
 #include <windows.h>
 #include <bcrypt.h>
 
+#include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "bhed/diag.h"
@@ -34,6 +40,17 @@ namespace {
 
 namespace fs = std::filesystem;
 using ::bhed::i18n::Str;
+
+// Im Zwischenordner: die Ziele, die es vor dem Tausch nicht gab (eines je Zeile).
+constexpr const wchar_t* kNeuAngelegt = L"neu_angelegt.txt";
+
+std::mutex g_hakenSperre;
+std::function<void(TestPhase, const std::string&)> g_haken;
+
+std::function<void(TestPhase, const std::string&)> haken() {
+    std::lock_guard<std::mutex> l(g_hakenSperre);
+    return g_haken;
+}
 
 std::string klein(std::string s) {
     for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
@@ -208,9 +225,16 @@ Echtheit pruefeEchtheit(const std::string& zipName, const std::string& zip, cons
     return (!ist.empty() && ist == soll) ? Echtheit::Ok : Echtheit::SummeFalsch;
 }
 
+void testHakenSetzen(std::function<void(TestPhase, const std::string& rel)> h) {
+    std::lock_guard<std::mutex> l(g_hakenSperre);
+    g_haken = std::move(h);
+}
+
 Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipName, const std::string* summen,
-                            const std::string* signatur, const std::string& schluesselHex, const std::wstring& exeW) {
+                            const std::string* signatur, const std::string& schluesselHex, const std::wstring& exeW,
+                            const std::atomic<bool>* abbrechen) {
     Einspielergebnis erg;
+    const auto testHaken = haken();
     const fs::path exe(exeW);
     const fs::path ordner = exe.parent_path();
     std::error_code ec;
@@ -263,6 +287,12 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
         const std::string rel = zielImOrdner(e.name, ober);
         const Einspielen art = einspielenAls(rel, laufenderName, nurProgramm);
         if (art == Einspielen::Ueberspringen) { continue; }
+        // rc610 F78 (Fund B8-4): das Programm wird beendet - bis hierher ist nichts getauscht.
+        if (abbrechen != nullptr && abbrechen->load()) {
+            erg.problem = meldung(Str::UpdErrAbort);
+            aufraeumen();
+            return erg;
+        }
         std::string inhalt;
         if (!readPk3File(archiv, e, inhalt, &fehler)) {
             erg.problem = e.name + ": " + fehler;
@@ -289,10 +319,25 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
             aufraeumen();
             return erg;
         }
+        if (testHaken) { testHaken(TestPhase::Entpackt, t.rel); }
         liste.push_back(std::move(t));
     }
 
+    // rc610 F78: das Programm zuletzt (auch wenn das .zip es frueher nennt). Dann
+    // heisst "<exe>.alt ist da": alles ist getauscht - darauf verlaesst sich
+    // resteAufraeumen beim naechsten Start.
+    std::stable_partition(liste.begin(), liste.end(), [](const Tausch& t) { return !t.programm; });
+    // Was es noch nicht gibt, steht in neu_angelegt.txt: bricht der Tausch ohne
+    // Rueckstellen ab (das Programm endet), entfernt resteAufraeumen es wieder.
+    {
+        std::ofstream liste_(zwischen / kNeuAngelegt, std::ios::binary | std::ios::trunc);
+        for (const Tausch& t : liste) {
+            if (!t.programm && !fs::exists(t.ziel, ec)) { liste_ << t.rel << '\n'; }
+        }
+    }
+
     // 3. Tauschen. Die laufende .exe laesst sich nur umbenennen, nicht ueberschreiben.
+    bool zurueckGescheitert = false;
     for (Tausch& t : liste) {
         t.hatteAlt = fs::exists(t.ziel, ec);
         if (t.hatteAlt) {
@@ -307,28 +352,80 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
         }
         if (!MoveFileExW(t.neu.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
             erg.problem = meldung(Str::UpdErrReplace, t.rel, static_cast<long long>(GetLastError()));
-            if (t.hatteAlt) { MoveFileExW(t.alt.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING); }
+            if (t.hatteAlt && !MoveFileExW(t.alt.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                diag::detail("Update: " + t.rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) + ")");
+                zurueckGescheitert = true;
+            }
             break;
         }
         t.getauscht = true;
+        if (testHaken) { testHaken(TestPhase::Getauscht, t.rel); }
         if (t.programm) { diag::detail("Update: neues Programm an " + schmal(exe.wstring()) + " (aus " + t.rel + ")"); }
         ++erg.dateien;
     }
     if (!erg.problem.empty()) {
         // Zurueck: in umgekehrter Reihenfolge die alten Dateien an ihren Platz.
+        // rc610 F78 (Fund B8-5): jeder Schritt geprueft. Was sich nicht
+        // zurueckstellen laesst (meist dieselbe Sperre, an der der Tausch
+        // scheiterte), bleibt als Sicherung im Zwischenordner liegen; der naechste
+        // Start stellt es zurueck (resteAufraeumen). Bis rc609 loeschte aufraeumen
+        // sie in jedem Fall.
+        int zurueck = 0;
         for (auto it = liste.rbegin(); it != liste.rend(); ++it) {
             if (!it->getauscht) { continue; }
-            if (it->hatteAlt) {
-                MoveFileExW(it->alt.c_str(), it->ziel.c_str(), MOVEFILE_REPLACE_EXISTING);
+            const bool ok = it->hatteAlt ? MoveFileExW(it->alt.c_str(), it->ziel.c_str(), MOVEFILE_REPLACE_EXISTING) != 0
+                                         : DeleteFileW(it->ziel.c_str()) != 0;
+            if (ok) {
+                ++zurueck;
             } else {
-                DeleteFileW(it->ziel.c_str());
+                diag::detail("Update: " + it->rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) +
+                             "), die Sicherung bleibt in " + kZwischenOrdner);
+                zurueckGescheitert = true;
             }
         }
-        diag::detail("Update: Tausch abgebrochen, " + std::to_string(erg.dateien) + " Dateien zurueckgestellt - " + erg.problem);
+        diag::detail("Update: Tausch abgebrochen, " + std::to_string(zurueck) + " von " + std::to_string(erg.dateien) +
+                     " Dateien zurueckgestellt - " + erg.problem);
         erg.dateien = 0;
+        erg.sicherungBleibt = zurueckGescheitert;
     }
-    aufraeumen();
+    if (!zurueckGescheitert) { aufraeumen(); }
     return erg;
+}
+
+int resteAufraeumen(const std::wstring& exeW) {
+    const fs::path exe(exeW);
+    const fs::path zwischen = exe.parent_path() / kZwischenOrdner;
+    std::error_code ec;
+    if (!fs::exists(zwischen, ec)) { return 0; }
+    fs::path exeAlt = exe;
+    exeAlt += L".alt";
+    int zurueck = 0;
+    bool alles = true;
+    // "<exe>.alt" da: das Programm (zuletzt) ist getauscht, also alles - die
+    // Reste sind nur noch wegzuraeumen. Sonst ist der Tausch nicht fertig
+    // geworden: die Sicherungen zurueck, die neu angelegten Dateien weg.
+    if (!fs::exists(exeAlt, ec)) {
+        const fs::path alt = zwischen / L"alt";
+        for (fs::recursive_directory_iterator it(alt, ec), ende; !ec && it != ende; it.increment(ec)) {
+            if (!it->is_regular_file(ec)) { continue; }
+            const fs::path ziel = exe.parent_path() / fs::relative(it->path(), alt, ec);
+            fs::create_directories(ziel.parent_path(), ec);
+            if (MoveFileExW(it->path().c_str(), ziel.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                ++zurueck;
+            } else {
+                alles = false;
+            }
+        }
+        std::ifstream neu(zwischen / kNeuAngelegt, std::ios::binary);
+        std::string rel;
+        while (std::getline(neu, rel)) {
+            if (!rel.empty()) { fs::remove(exe.parent_path() / utf8Pfad(rel), ec); }
+        }
+    }
+    diag::detail("Update: Reste eines unterbrochenen Updates - " + std::to_string(zurueck) + " Dateien zurueckgestellt" +
+                 (alles ? "" : ", nicht alle (die Sicherung bleibt fuer den naechsten Start)"));
+    if (alles) { fs::remove_all(zwischen, ec); }
+    return zurueck;
 }
 
 }  // namespace bhed::update

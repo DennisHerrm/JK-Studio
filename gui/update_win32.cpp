@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -50,6 +51,9 @@ struct Geteilt {
     bool fensterOffen = false;
     bool hinweisWeg = false;   // "Spaeter" - der Hinweis unten verschwindet bis zum naechsten Fund
     std::atomic<bool> laeuft{false};
+    // rc610 F78 (Fund B8-4): das Programm endet - Laden und Entpacken hoeren auf,
+    // ein begonnener Tausch laeuft zu Ende (beimBeenden wartet darauf).
+    std::atomic<bool> beenden{false};
 };
 Geteilt& g() {
     static Geteilt* x = new Geteilt();
@@ -239,6 +243,10 @@ Antwort holen(const std::wstring& url, const std::vector<std::wstring>& kopf, bo
                 gesamt = laengeWert;
             }
             for (;;) {
+                if (g().beenden.load()) {
+                    a.fehler = text(Str::UpdErrAbort);
+                    break;
+                }
                 DWORD verfuegbar = 0;
                 if (!WinHttpQueryDataAvailable(anfrage, &verfuegbar)) {
                     a.fehler = text(Str::UpdErrAbort);
@@ -267,6 +275,26 @@ std::vector<std::wstring> apiKopf(const std::string& token, const wchar_t* accep
     std::vector<std::wstring> k{std::wstring(L"Accept: ") + accept, L"X-GitHub-Api-Version: 2022-11-28"};
     if (!token.empty()) { k.push_back(L"Authorization: Bearer " + breit(token)); }
     return k;
+}
+
+// rc610 F78 (Fund B8-9): die Ablage des geladenen .zip, je laufendem Prozess ein
+// Unterordner <pid>. Bis rc609 lag das .zip fuer alle Installationen unter
+// demselben Namen, und jeder Start (auch der einer zweiten Installation) loeschte
+// den ganzen Ordner - mitten aus dem Entpacken einer anderen heraus.
+fs::path ablageOrdner() {
+    wchar_t temp[MAX_PATH] = {};
+    GetTempPathW(MAX_PATH, temp);
+    return fs::path(temp) / L"behaved_update";
+}
+
+bool prozessLaeuft(const std::wstring& name) {
+    if (name.empty() || name.find_first_not_of(L"0123456789") != std::wstring::npos) { return false; }
+    const DWORD pid = static_cast<DWORD>(std::wcstoul(name.c_str(), nullptr, 10));
+    HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, pid);
+    if (h == nullptr) { return false; }
+    const bool laeuft = WaitForSingleObject(h, 0) == WAIT_TIMEOUT;
+    CloseHandle(h);
+    return laeuft;
 }
 
 // --- Die beiden Hintergrundauftraege --------------------------------------
@@ -373,9 +401,7 @@ void installAuftrag(bhed::update::Release r) {
     // Das .zip ablegen; einspielen (src/update_einspielen.cpp) prueft es, entpackt
     // in den Zwischenordner und tauscht erst dann.
     std::error_code ec;
-    wchar_t temp[MAX_PATH] = {};
-    GetTempPathW(MAX_PATH, temp);
-    const fs::path ablage = fs::path(temp) / L"behaved_update";
+    const fs::path ablage = ablageOrdner() / std::to_wstring(GetCurrentProcessId());
     fs::create_directories(ablage, ec);
     const fs::path zipDatei = ablage / breit(asset->name);
     {
@@ -384,7 +410,8 @@ void installAuftrag(bhed::update::Release r) {
     }
     const bhed::update::Einspielergebnis erg =
         bhed::update::einspielen(zipDatei.wstring(), asset->name, mitSummen ? &summen : nullptr,
-                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad());
+                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad(), &g().beenden);
+    fs::remove_all(ablage, ec);
     diag::detail("Update: " + std::to_string(erg.dateien) + " Dateien ersetzt" + (erg.problem.empty() ? "" : " - " + erg.problem));
     setze([&](Zustand& z) {
         z.dateien = erg.dateien;
@@ -427,14 +454,21 @@ Zustand zustand() {
 }
 
 void pruefen(bool stumm) {
-    setze([](Zustand& z) {
-        z.stand = Stand::Pruefe;
-        z.meldung.clear();
-    });
     if (!stumm) {
         std::lock_guard<std::mutex> l(g().m);
         g().fensterOffen = true;
     }
+    // rc610 F78 (Fund B8-3): nach einer fertigen Installation gilt das installierte
+    // Release als aktuell - es bleibt bei "Neu starten" (bis rc609 bot die naechste
+    // Suche dasselbe Release wieder an, ein zweites Installieren scheiterte am
+    // laufenden Programm, und "Neu starten" war weg). Waehrend des Ladens ebenso:
+    // der Zustand gehoert dem laufenden Auftrag.
+    const Stand jetzt = zustand().stand;
+    if (jetzt == Stand::Fertig || jetzt == Stand::Laedt) { return; }
+    setze([](Zustand& z) {
+        z.stand = Stand::Pruefe;
+        z.meldung.clear();
+    });
     imHintergrund(pruefAuftrag);
 }
 
@@ -451,6 +485,10 @@ void installieren() {
 }
 
 void beimStart() {
+    // rc610 F78 (Funde B8-4, B8-5): zuerst ein Update, das nicht zu Ende kam -
+    // vor dem Loeschen von "<exe>.alt", daran erkennt resteAufraeumen, ob der
+    // Tausch fertig wurde. Die Sicherungen verschwinden erst, wenn sie zurueck sind.
+    (void)bhed::update::resteAufraeumen(exePfad());
     // Reste eines frueheren Updates: die alte .exe und das geladene .zip.
     std::wstring alt = exePfad() + L".alt";
     DeleteFileW(alt.c_str());
@@ -458,12 +496,15 @@ void beimStart() {
     // umbenannt; laeuft jetzt jkstudio.exe daneben, raeumt sie den Rest weg.
     const std::wstring altesProgramm = (fs::path(exePfad()).parent_path() / (breit(bhed::update::kAltesProgramm) + L".alt")).wstring();
     if (altesProgramm != alt) { DeleteFileW(altesProgramm.c_str()); }
-    wchar_t temp[MAX_PATH] = {};
-    GetTempPathW(MAX_PATH, temp);
+    // Die Ablagen beendeter Prozesse (und lose .zip der Fassungen bis rc609); die
+    // eines laufenden - einer zweiten Installation mitten im Update - bleibt.
     std::error_code ec;
-    fs::remove_all(fs::path(temp) / L"behaved_update", ec);
-    // Stufe 8d: ein abgebrochener Zwischenordner neben der .exe.
-    fs::remove_all(fs::path(exePfad()).parent_path() / bhed::update::kZwischenOrdner, ec);
+    for (fs::directory_iterator it(ablageOrdner(), ec), ende; !ec && it != ende; it.increment(ec)) {
+        if (!(it->is_directory(ec) && prozessLaeuft(it->path().filename().wstring()))) {
+            std::error_code ec2;
+            fs::remove_all(it->path(), ec2);
+        }
+    }
     // Im Selbsttest nie von selbst ins Netz.
     char* test = nullptr;
     std::size_t laenge = 0;
@@ -516,6 +557,14 @@ void neustartWennVorgemerkt() {
         diag::detail("Update: " + m);
         platform::showError(m, tr(Str::AppTitle));
     }
+}
+
+void beimBeenden() {
+    g().beenden = true;
+    if (!g().laeuft.load()) { return; }
+    diag::detail("Update: Beenden wartet auf den laufenden Auftrag (Laden abgebrochen, ein begonnener Tausch laeuft zu Ende)");
+    while (g().laeuft.load()) { std::this_thread::sleep_for(std::chrono::milliseconds(20)); }
+    diag::detail("Update: Auftrag beendet - " + zustand().meldung);
 }
 
 bool warteAufVorgaenger(const std::string& argument) {

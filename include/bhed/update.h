@@ -17,6 +17,8 @@
 #ifndef BHED_UPDATE_H
 #define BHED_UPDATE_H
 
+#include <atomic>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -148,17 +150,41 @@ enum class Echtheit { Ok, OhneSummen, NichtGelistet, SummeFalsch, OhneSignatur, 
 //      Umbenennen) - scheitert ein Eintrag, ist ebenfalls nichts geaendert;
 //   3. tauschen: jede alte Datei in den Zwischenordner, die neue an ihren
 //      Platz; die laufende .exe wird wie bisher zu "<exe>.alt". Scheitert
-//      ein Tausch, kommen die alten Dateien zurueck.
+//      ein Tausch, kommen die alten Dateien zurueck. Das Programm wird
+//      zuletzt getauscht (rc610 F78).
 // `zipPfad`: das geladene .zip auf der Platte, `exe`: die laufende .exe.
+// `abbrechen` (rc610 F78, Fund B8-4): wird es waehrend des Entpackens true (das
+// Programm endet), hoert einspielen auf, bevor etwas getauscht ist; den Tausch
+// selbst bricht es nie ab.
 inline constexpr const char* kZwischenOrdner = "jkstudio-update.tmp";
 struct Einspielergebnis {
     Echtheit echtheit = Echtheit::Ok;
     int dateien = 0;            // ersetzte bzw. neue Dateien
     std::string problem;        // leer = alles gut (uebersetzte Meldung)
+    // rc610 F78 (Fund B8-5): nicht jede alte Datei liess sich zurueckstellen; ihre
+    // Sicherung bleibt im Zwischenordner, resteAufraeumen stellt sie beim
+    // naechsten Start zurueck.
+    bool sicherungBleibt = false;
 };
 [[nodiscard]] Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipName,
                                           const std::string* summen, const std::string* signatur,
-                                          const std::string& schluesselHex, const std::wstring& exe);
+                                          const std::string& schluesselHex, const std::wstring& exe,
+                                          const std::atomic<bool>* abbrechen = nullptr);
+
+// Beim Programmstart (rc610 F78): ein Zwischenordner neben `exe` ist der Rest
+// eines Updates, das nicht zu Ende kam (Rueckstellen gescheitert, Programm
+// mitten im Tausch beendet). Ohne "<exe>.alt" war der Tausch nicht fertig: die
+// Sicherungen kommen zurueck an ihren Platz, die dabei neu angelegten Dateien
+// weg. Mit "<exe>.alt" war er fertig, nur der Ordner bleibt uebrig. Der
+// Zwischenordner verschwindet erst, wenn alles zurueckgestellt ist.
+// Rueckgabe: so viele Dateien wurden zurueckgestellt.
+int resteAufraeumen(const std::wstring& exe);
+
+// Nur fuer ctest und Selbsttest (rc610 F78): einspielen ruft den Haken nach
+// jedem entpackten und nach jedem getauschten Eintrag (`rel` wie zielImOrdner),
+// im Faden des Einspielens. Leer = aus.
+enum class TestPhase { Entpackt, Getauscht };
+void testHakenSetzen(std::function<void(TestPhase, const std::string& rel)> haken);
 
 }  // namespace bhed::update
 

@@ -9,9 +9,20 @@
 // Nur aus einer KOPIE des Programmordners starten: der Test installiert
 // wirklich (mit BHED_UPDATE_LOKAL=rc500 gilt das aktuelle Release als neuer).
 // Neu gestartet wird nicht.
+//
+// rc610 F78: BHED_UPDATE_TEIL waehlt, was nach dem Fund geschieht -
+//   leer      (B8-3) nach dem Installieren noch einmal suchen und installieren:
+//             es bleibt bei "Fertig, neu starten"
+//   zweite    (B8-9) wie leer; beim ersten entpackten Eintrag legt der Test
+//             f78_entpackt.txt neben die .exe und wartet auf f78_weiter.txt -
+//             dazwischen startet der Treiber eine zweite Installation
+//   beenden   (B8-4) Beenden ohne Fragen, sobald der erste Eintrag getauscht
+//             ist (5 ms Pause je Tausch); den Ordner danach prueft der Treiber
 std::vector<Schritt> updateSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const char* teilWert = std::getenv("BHED_UPDATE_TEIL");
+    const std::string teil = teilWert != nullptr ? teilWert : "";
     add(tu("Update: nachsehen", [] { updater::pruefen(false); }));
     add(warteBis("GitHub hat geantwortet", [] { return updater::zustand().stand != updater::Stand::Pruefe; }, 3000));
     add(pause(0.3));
@@ -24,7 +35,51 @@ std::vector<Schritt> updateSchritte() {
         return z.stand == updater::Stand::Verfuegbar && !z.release.tag.empty() &&
                bhed::update::zipAsset(z.release) != nullptr;
     }));
+    static std::atomic<int> getauscht{0};
+    if (teil == "beenden") {
+        add(tu("Update: Pause je Tausch (5 ms), Zaehler", [] {
+            bhed::update::testHakenSetzen([](bhed::update::TestPhase p, const std::string&) {
+                if (p == bhed::update::TestPhase::Getauscht) {
+                    ++getauscht;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            });
+        }));
+    } else if (teil == "zweite") {
+        add(tu("Update: beim ersten entpackten Eintrag auf die zweite Installation warten", [] {
+            const std::string ordner = platform::executableDirectory();
+            bhed::update::testHakenSetzen([ordner](bhed::update::TestPhase p, const std::string&) {
+                static bool erster = true;
+                if (p != bhed::update::TestPhase::Entpackt || !erster) { return; }
+                erster = false;
+                { std::ofstream(::bhed::utf8Pfad(ordner + "/f78_entpackt.txt")) << "1\n"; }
+                std::error_code ec;
+                for (int i = 0; i < 1800 && !std::filesystem::exists(::bhed::utf8Pfad(ordner + "/f78_weiter.txt"), ec); ++i) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            });
+        }));
+    }
     add(tu("Update: installieren", [] { updater::installieren(); }));
+    if (teil == "beenden") {
+        auto start = std::make_shared<std::chrono::steady_clock::time_point>();
+        add(Schritt{"Warte: der erste Eintrag ist getauscht", [start](int b) {
+                        if (b == 0) { *start = std::chrono::steady_clock::now(); }
+                        if (getauscht.load() > 0) { return true; }
+                        if (std::chrono::duration<double>(std::chrono::steady_clock::now() - *start).count() > 600.0 ||
+                            updater::zustand().stand == updater::Stand::Fehler) {
+                            meldeFehler("Update: kein Eintrag getauscht (" + updater::zustand().meldung + ")");
+                            return true;
+                        }
+                        return false;
+                    }, true});
+        add(tu("Update: Beenden ohne Fragen, mitten im Tausch", [] {
+            diag::detail("Knopftest: Update - Beenden nach " + std::to_string(getauscht.load()) + " getauschten Eintraegen");
+            g_app->quitConfirmed = true;
+            g_app->wantQuit = true;
+        }));
+        return s;
+    }
     // rc601: das Zip wuchs von 14 auf ~110 MB (Handbuch in vier Sprachen mit
     // Bildern) - mit 6000 Bildern (in Wahrheit 4000, der Deckel je Schritt)
     // brach der Test beim Laden ab ("haengt", 0 Dateien). Darum Sekunden.
@@ -60,6 +115,29 @@ std::vector<Schritt> updateSchritte() {
                      (exe ? "ja" : "nein") + ", Starter " + (starter ? "ja" : "nein") + ", data " + (daten ? "ja" : "nein") +
                      ", Meldung " + z.meldung);
         return z.stand == updater::Stand::Fertig && z.dateien > 0 && alt && exe && starter && daten;
+    }));
+    // B8-3: dieselbe Fassung noch einmal suchen (Hilfe -> Nach Updates suchen) und installieren.
+    add(tu("Update: nach der Installation noch einmal suchen", [] {
+        bhed::update::testHakenSetzen({});
+        updater::pruefen(false);
+    }));
+    add(warteBis("GitHub hat geantwortet (zweite Suche)", [] { return updater::zustand().stand != updater::Stand::Pruefe; }, 3000));
+    add(pruefe("Update: nach der Installation gilt das Release als installiert - weiter \"Neu starten\", kein \"Installieren\"", [] {
+        const updater::Zustand z = updater::zustand();
+        diag::detail("Knopftest: Update - zweite Suche: Stand " + std::to_string(static_cast<int>(z.stand)) + ", Release " + z.release.tag);
+        return z.stand == updater::Stand::Fertig;
+    }));
+    add(tu("Update: noch einmal installieren", [] { updater::installieren(); }));
+    auto zweitStart = std::make_shared<std::chrono::steady_clock::time_point>();
+    add(Schritt{"Warte: zweites Installieren fertig", [zweitStart](int b) {
+                    if (b == 0) { *zweitStart = std::chrono::steady_clock::now(); }
+                    const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - *zweitStart).count();
+                    return updater::zustand().stand != updater::Stand::Laedt || sek > 600.0;
+                }, true});
+    add(pruefe("Update: das zweite Installieren endet ohne Fehler, \"Neu starten\" bleibt", [] {
+        const updater::Zustand z = updater::zustand();
+        diag::detail("Knopftest: Update - zweites Installieren: Stand " + std::to_string(static_cast<int>(z.stand)) + ", Meldung " + z.meldung);
+        return z.stand == updater::Stand::Fertig;
     }));
     return s;
 }

@@ -1278,8 +1278,8 @@ TEXTE = {
         "**Busca una versión nueva.** **{{MenuHelp}} → {{UpdMenu}}**. El programa pregunta a GitHub por la versión más reciente, solo ahora, porque tú lo has elegido.",
     "The tutorial points at the Help menu.":
         "El tutorial señala el menú Ayuda.",
-    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again.":
-        "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar.",
+    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
+        "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar. Después de la instalación ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
     "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.":
         "**Al iniciar o no.** **{{MenuHelp}} → {{UpdAutoCheck}}** activa o desactiva la comprobación al iniciar. Nunca se envía nada más.",
     "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.":

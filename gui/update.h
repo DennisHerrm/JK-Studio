@@ -36,6 +36,11 @@ void installieren();
 void neuStarten();
 // Das Beenden wurde abgebrochen - dann auch kein Neustart.
 void neustartVergessen();
+// rc610 F78 (Fund B8-4): aus main, wenn das Fenster zu ist. Ein laufendes Laden
+// oder Entpacken bricht ab (es ist noch nichts getauscht); ein begonnener Tausch
+// laeuft zu Ende - bis rc609 endete der Prozess mittendrin, im schlimmsten Fall
+// ohne jkstudio.exe.
+void beimBeenden();
 // Ganz am Ende von main: den vorgemerkten Neustart ausfuehren.
 void neustartWennVorgemerkt();
 // Eine Kopie des Zustands (der Hintergrundfaden schreibt ihn).

@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <bcrypt.h>
 
+#include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -249,6 +250,71 @@ void echtheitsproben(Expect expect) {
         std::printf("      (%s)\n", e.problem.c_str());
         expect("einspielen: Tausch scheitert -> alle alten Dateien zurueck, kein Zwischenordner",
                !e.problem.empty() && e.dateien == 0 && bildVon(inst) == vorher && !fs::exists(inst / kZwischenOrdner, ec));
+    }
+    {
+        // rc610 F78 (Fund B8-5): der Tausch von data/x.txt scheitert (gesperrt wie
+        // oben), und das Zurueckstellen der schon getauschten data/base/behaved.bhc
+        // scheitert ebenso (ein Virenscanner haelt die eben eingesetzte Datei offen).
+        // Die alte bhc darf dabei nicht verloren gehen.
+        aufbauen();
+        schreibe(zipPfad, zipEcht);
+        const fs::path bhc = inst / L"data" / L"base" / L"behaved.bhc";
+        HANDLE scanner = INVALID_HANDLE_VALUE;
+        testHakenSetzen([&](TestPhase p, const std::string& rel) {
+            if (p == TestPhase::Getauscht && rel == "data/base/behaved.bhc") {
+                scanner = CreateFileW(bhc.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+            }
+        });
+        HANDLE sperre = CreateFileW((inst / L"data" / L"x.txt").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                    0, nullptr);
+        const Einspielergebnis e = einspielen(zipPfad.wstring(), z, &summenEcht, nullptr, "", exe.wstring());
+        testHakenSetzen({});
+        CloseHandle(sperre);
+        const bool gesperrt = scanner != INVALID_HANDLE_VALUE;
+        if (gesperrt) { CloseHandle(scanner); }
+        const fs::path sicherung = inst / kZwischenOrdner / L"alt" / L"data" / L"base" / L"behaved.bhc";
+        const bool altDa = lies(bhc) == "alte bhc" || lies(sicherung) == "alte bhc";
+        std::printf("      (%s) Ziel \"%s\", Sicherung \"%s\", Scanner %s\n", e.problem.c_str(), lies(bhc).c_str(), lies(sicherung).c_str(),
+                    gesperrt ? "hielt sie offen" : "kam nicht dazu");
+        expect("einspielen: Zurueckstellen scheitert -> die alte Datei bleibt (am Ziel oder als Sicherung)",
+               gesperrt && !e.problem.empty() && e.dateien == 0 && altDa && lies(exe) == "ALTES PROGRAMM");
+        // Der naechste Start (die Sperre ist weg) stellt sie zurueck.
+        const int n = resteAufraeumen(exe.wstring());
+        expect("resteAufraeumen: beim naechsten Start ist die alte Datei zurueck, kein Zwischenordner",
+               e.sicherungBleibt && n == 1 && lies(bhc) == "alte bhc" && lies(inst / L"data" / L"x.txt") == "altes x" &&
+                   !fs::exists(inst / kZwischenOrdner, ec));
+    }
+    {
+        // rc610 F78 (Fund B8-4): das Programm endet mitten im Tausch (hier: der Haken
+        // wirft nach data/base/behaved.bhc, einspielen kommt nicht zum Rueckstellen).
+        // Der naechste Start stellt die Sicherungen zurueck und entfernt, was neu war.
+        aufbauen();
+        schreibe(zipPfad, zipEcht);
+        const Bild vorher = bildVon(inst);
+        testHakenSetzen([](TestPhase p, const std::string& rel) {
+            if (p == TestPhase::Getauscht && rel == "data/base/behaved.bhc") { throw 1; }
+        });
+        bool abgebrochen = false;
+        try {
+            (void)einspielen(zipPfad.wstring(), z, &summenEcht, nullptr, "", exe.wstring());
+        } catch (int) {
+            abgebrochen = true;
+        }
+        testHakenSetzen({});
+        const bool halb = lies(inst / L"data" / L"base" / L"behaved.bhc") == "neue bhc" && lies(exe) == "ALTES PROGRAMM";
+        const int n = resteAufraeumen(exe.wstring());
+        expect("einspielen mitten im Tausch beendet: das Programm ist noch das alte (es kommt zuletzt)", abgebrochen && halb);
+        expect("resteAufraeumen nach einem unterbrochenen Tausch: alles wie vorher, kein Zwischenordner",
+               n >= 1 && bildVon(inst) == vorher && !fs::exists(inst / kZwischenOrdner, ec));
+        // Fertig getauscht, nur der Zwischenordner blieb (Ende mitten im Wegraeumen): nichts zurueck.
+        aufbauen();
+        schreibe(zipPfad, zipEcht);
+        const Einspielergebnis e = einspielen(zipPfad.wstring(), z, &summenEcht, nullptr, "", exe.wstring());
+        fs::create_directories(inst / kZwischenOrdner / L"alt" / L"data", ec);
+        schreibe(inst / kZwischenOrdner / L"alt" / L"data" / L"x.txt", "altes x");
+        const int n2 = resteAufraeumen(exe.wstring());
+        expect("resteAufraeumen nach fertigem Tausch (<exe>.alt da): nichts zurueck, nur aufgeraeumt",
+               e.problem.empty() && n2 == 0 && lies(inst / L"data" / L"x.txt") == "neues x" && !fs::exists(inst / kZwischenOrdner, ec));
     }
     {
         aufbauen();

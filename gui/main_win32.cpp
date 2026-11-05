@@ -1617,6 +1617,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     if (g_einzelMutex != nullptr) {
         CloseHandle(g_einzelMutex);
     }
+    // Ein laufendes Update: abbrechen oder den Tausch zu Ende bringen lassen.
+    bhed::gui::updater::beimBeenden();
     // "Neu starten" nach einem Update: erst jetzt, wo alles gesichert und
     // die Kennung frei ist.
     bhed::gui::updater::neustartWennVorgemerkt();

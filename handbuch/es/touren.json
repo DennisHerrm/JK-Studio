@@ -1114,7 +1114,7 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar.",
+      "text": "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar. Después de la instalación ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
       "bild": "h_tut_update_2",
       "unter": "Paso 2 en el programa: el tutorial resalta dónde seguir.",
       "ziel": "fenster:###update",
