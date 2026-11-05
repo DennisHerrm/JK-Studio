@@ -3988,6 +3988,8 @@ enum class Str {
     TfMenuEigenesHint,
     TfMenuAlleZurueck,
     KeLumpsUngespeichert,
+    KeLichtWuerfelFortschritt,
+    KeLichtWuerfelGrenze,
     Count,
 };
 

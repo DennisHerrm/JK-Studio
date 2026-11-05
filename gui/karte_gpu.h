@@ -14,6 +14,7 @@
 
 #include "bhed/karte/xyansicht.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -184,28 +185,38 @@ void aufraeumen();
 // --- Stufe 7/9c: Echtzeit-Licht (eigene Funktion, Vorschau) ----------------
 //
 // Die Grafikkarte rechnet das direkte Licht je Bildpunkt mit den Formeln von
-// q3map2 (bhed/karte/echtlicht.h). Stufe 9c: bis kLichtMax Lichter je Bild in
-// einem Puffer, je Kachel (kKachel Bildpunkte) eine Bitmaske der Lichter, deren
+// q3map2 (bhed/karte/echtlicht.h). Stufe 9c: die Lichter des Bilds in einem
+// Puffer, je Kachel (kKachel Bildpunkte) eine Bitmaske der Lichter, deren
 // Huelle die Kachel trifft; Flaechenlichter mit ihren Ecken (Formfaktor).
-// Schatten: Schattenwuerfel (zwei Groessen), die Sonne in zwei Kaskaden (ganze
-// Karte, um die Kamera) und die Sonnen von q3map_skyLight je eine Karte; der
+// rc610 LICHT1: ohne Grenze je Bild - die Sonnen vorn, dann die Lichter nach der
+// Tiefe ihres Mittelpunkts; je Tiefenstufe (kZbins, exponentiell ab kZbinNah) der
+// Bereich der Lichter, deren Huelle die Stufe trifft (z-binning): ein Bildpunkt
+// prueft nur die Lichter seiner Kachel UND seiner Tiefe.
+// Schatten: Schattenwuerfel im Atlas (bhed/schattenatlas.h, je Licht einer,
+// behalten, bis sich in seiner Huelle etwas aendert), die Sonne in zwei Kaskaden
+// (ganze Karte, um die Kamera) und die Sonnen von q3map_skyLight je eine Karte; der
 // Strahl zur Sonne endet am Himmel wie in q3map2 (Himmelstiefe S, darunter die
 // Verdecker O).
-inline constexpr int kLichtMax = 512;          // Lichter je Bild
-inline constexpr int kSchattenGross = 32;      // Schattenwuerfel 512 x 512 (die wichtigsten)
-inline constexpr int kSchattenKlein = 96;      // Schattenwuerfel 256 x 256
-inline constexpr int kSchattenMax = kSchattenGross + kSchattenKlein;
 inline constexpr int kHimmelSonnenMax = 16;    // Sonnen mit eigener Karte (1024 x 1024)
 inline constexpr int kKaskadeGroesse = 2048;   // Bildpunkte je Seite einer Sonnenkaskade
 inline constexpr int kKachel = 32;             // Bildpunkte je Kachel der Lichtliste
+inline constexpr int kZbins = 128;             // rc610 LICHT1: Tiefenstufen der Lichtliste
+inline constexpr float kZbinNah = 8.0F;        //   ... die erste endet hier (Einheiten vor dem Auge)
+inline constexpr float kZbinJeOktave = 128.0F / 13.0F;   //   ... je Verdopplung der Tiefe (bis 8 * 2^13 = 65536)
+// Die Tiefenstufe einer Tiefe (wie der Shader)
+[[nodiscard]] inline int zbinFuer(float tiefe) {
+    const float t = tiefe > kZbinNah ? tiefe : kZbinNah;
+    const int b = static_cast<int>(std::floor(std::log2(t / kZbinNah) * kZbinJeOktave));
+    return b < 0 ? 0 : (b >= kZbins ? kZbins - 1 : b);
+}
 struct LichtGpu {
     float pos[4];        // xyz Ursprung, w photons
     float farbe[4];      // rgb, a Art (0 Punkt, 1 Spot, 2 Sonne, 3 Flaeche)
     float richtung[4];   // xyz Spot-/Flaechennormale bzw. zur Sonne, w radiusByDist
     float werte[4];      // x linear, y Winkel, z fade, w Huelle
-    float mehr[4];       // x Schatten: Wuerfel >= 0, Sonne: Himmelskarte >= 0 oder -3 Kaskaden; -1 ohne; y Weite; z angleScale; w extraDist
+    float mehr[4];       // x Schatten: Wuerfel im Atlas ((Seite * 64 + Ecke x / 64) * 64 + Ecke y / 64) >= 0, Sonne: Himmelskarte >= 0 oder -3 Kaskaden; -1 ohne; y Weite; z angleScale; w extraDist
     float flaeche[4];    // x add, y zweiseitig, z erste Ecke, w Eckenzahl (0: Naeherung ohne Ecken)
-    float zusatz[4];     // x 1 negativ, y Flaeche (Flaechenlicht), z Radius des Stuecks, w frei
+    float zusatz[4];     // x 1 negativ, y Flaeche (Flaechenlicht), z Radius des Stuecks, w Groesse des Wuerfels
 };
 // Ein Teil der Schattengeometrie (Punkt3-Ecken): art 0 deckende Dreiecke
 // (Strahlen aller Lichter), 1 nur Volumen (strukturelle deckende Pinsel, die
@@ -221,13 +232,21 @@ struct SchattenTeil {
     float mx[3]{0, 0, 0};
 };
 [[nodiscard]] bool echtLichtVerfuegbar();
-// Lichter, Ecken der Flaechenlichter (xyz je Ecke), die Kachelmasken (worte je
-// Kachel, kachelnX * kachelnY Kacheln), Umgebung und Minimum (rgb).
-void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
-                 int kachelnY, int worte, const float* umgebung, const float* minimum, const float* minimumEcken);
-// Den Schattenwuerfel slot (< kSchattenGross: 512, sonst 256) fuer ein Licht an
-// pos (Weite = Huelle) aus den Teilen der Arten 0, 1, 3 rendern. Vor beginnen().
-bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile);
+// Lichter (erst `sonnen` Sonnen, dann nach Tiefe), Ecken der Flaechenlichter (xyz je Ecke), die Kachelmasken (worte je
+// Kachel, kachelnX * kachelnY Kacheln), je Tiefenstufe der Bereich [von, bis) der Lichter (2 * kZbins Werte), Umgebung
+// und Minimum (rgb).
+void lichtSetzen(const std::vector<LichtGpu>& lichter, int sonnen, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln,
+                 int kachelnX, int kachelnY, int worte, const std::vector<std::uint32_t>& zbins, const float* umgebung, const float* minimum,
+                 const float* minimumEcken);
+// rc610 LICHT1: der Atlas der Schattenwuerfel mit so vielen Seiten (bhed/schattenatlas.h; was in den bleibenden
+// Seiten schon gerechnet ist, bleibt). Vor beginnen(). false: kein Grafikspeicher.
+bool schattenAtlasSeiten(int seiten);
+[[nodiscard]] std::size_t schattenAtlasBytes();
+// Den Schattenwuerfel `wuerfel` der Seite `seite` (Groesse `groesse`) fuer ein Licht an pos (Weite = Huelle) aus den
+// Teilen der Arten 0 bis 4 rendern. Vor beginnen().
+bool schattenWuerfel(int seite, int wuerfel, int groesse, const float* pos, float weite, const std::vector<SchattenTeil>& teile);
+// Das Budget des Grafikspeichers (DXGI, lokal; 0: unbekannt)
+[[nodiscard]] std::size_t grafikBudget();
 // Eine Sonnenkaskade (0: ganze Karte, 1: um die Kamera): richtung zur Sonne,
 // Kasten um mitte mit halb (quer) und tiefe (laengs).
 bool sonnenKaskade(int stufe, const float* richtung, const float* mitte, float halb, float tiefe, const std::vector<SchattenTeil>& teile);
@@ -247,8 +266,6 @@ struct NebelEcht {
 };
 // vorn: xyz Blickrichtung, w dot(Auge, vorn); ebenen je vier (Normale nach aussen, Abstand)
 void nebelSetzen(const std::vector<NebelEcht>& nebel, const std::vector<float>& ebenen, int global, const float* vorn);
-// Gezeichnete Dreiecke aller Schattenkarten bisher (das Budget je Bild).
-[[nodiscard]] std::size_t schattenDreiecke();
 
 // Schnell-Backen (Stufe 7 Punkt 5b): die gebauten Flaechen einer .bsp mit ihren
 // echten Lightmaps. Ecke wie bhed::BspVertex (xyz, st, Lightmap-st, Normale, Farbe).

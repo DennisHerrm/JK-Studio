@@ -7,6 +7,7 @@
 #include "bhed/arbeiter.h"
 #include "bhed/diag.h"
 #include "bhed/gpushader.h"
+#include "bhed/schattenatlas.h"
 #include "bhed/karte/texturen.h"
 
 #include "backend.h"
@@ -16,6 +17,7 @@
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <dxgi1_4.h>
 
 #include <algorithm>
 #include <cmath>
@@ -169,22 +171,23 @@ struct Zustand {
     ID3D11Buffer* cbSchatten = nullptr;   // eine Seite bzw. eine Sonnenkarte
     ID3D11Buffer* lichtBuf = nullptr;     // Buffer<float4>: 7 je Licht
     ID3D11ShaderResourceView* lichtSrv = nullptr;
+    std::size_t lichtPlatz = 0;           // rc610 LICHT1: Lichter, fuer die der Puffer reicht (waechst)
     ID3D11Buffer* eckenBuf = nullptr;     // Buffer<float4>: Ecken der Flaechenlichter
     ID3D11ShaderResourceView* eckenSrv = nullptr;
     std::size_t eckenPlatz = 0;
     ID3D11Buffer* kachelBuf = nullptr;    // Buffer<uint>: Bitmasken je Kachel
     ID3D11ShaderResourceView* kachelSrv = nullptr;
     std::size_t kachelPlatz = 0;
-    struct Pool {                          // Schattenwuerfel einer Groesse
-        int groesse = 0;
-        int anzahl = 0;
-        ID3D11Texture2D* tex = nullptr;
-        std::vector<ID3D11RenderTargetView*> rtv;
+    struct Atlas {                         // rc610 LICHT1: die Schattenwuerfel (bhed/schattenatlas.h)
+        int seiten = 0;
+        ID3D11Texture2D* tex = nullptr;    // kAtlasBreite x kAtlasHoehe x seiten, R16_FLOAT
         ID3D11ShaderResourceView* srv = nullptr;
+        ID3D11Texture2D* ziel = nullptr;   // eine Wuerfelseite bis 512 x 512 (danach in den Atlas kopiert)
+        ID3D11RenderTargetView* zielRtv = nullptr;
         ID3D11Texture2D* tiefe = nullptr;
         ID3D11DepthStencilView* dsv = nullptr;
     };
-    Pool pool[2];
+    Atlas atlas;
     struct Karten {                        // Sonnenkarten: Schichten mit O und S
         int groesse = 0;
         int schichten = 0;
@@ -235,13 +238,14 @@ void los(T*& p) {
     }
 }
 
-void poolLoesen(Zustand::Pool& p) {
-    for (auto& v : p.rtv) { los(v); }
-    p.rtv.clear();
-    los(p.srv);
-    los(p.tex);
-    los(p.dsv);
-    los(p.tiefe);
+void atlasLoesen(Zustand::Atlas& a) {
+    los(a.srv);
+    los(a.tex);
+    a.seiten = 0;
+    los(a.zielRtv);
+    los(a.ziel);
+    los(a.dsv);
+    los(a.tiefe);
 }
 void kartenLoesen(Zustand::Karten& k) {
     for (auto& v : k.rtvO) { los(v); }
@@ -271,14 +275,14 @@ void echtLichtLoesen() {
     los(g.cbSchatten);
     los(g.lichtBuf);
     los(g.lichtSrv);
+    g.lichtPlatz = 0;
     los(g.eckenBuf);
     los(g.eckenSrv);
     g.eckenPlatz = 0;
     los(g.kachelBuf);
     los(g.kachelSrv);
     g.kachelPlatz = 0;
-    poolLoesen(g.pool[0]);
-    poolLoesen(g.pool[1]);
+    atlasLoesen(g.atlas);
     kartenLoesen(g.kaskaden);
     kartenLoesen(g.himmelK);
     los(g.punktAbtaster);
@@ -1107,8 +1111,8 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->PSSetConstantBuffers(3, 1, &g.cbNebel);   // Stufe 9d: B5, die Nebel (b2 gehoert den Schattenkarten)
         ID3D11ShaderResourceView* srv[11] = {static_cast<ID3D11ShaderResourceView*>(z.bild),
                                              nullptr,
-                                             g.pool[0].srv,
-                                             g.pool[1].srv,
+                                             g.atlas.srv,
+                                             nullptr,
                                              g.kaskaden.srvO,
                                              g.kaskaden.srvS,
                                              g.himmelK.srvO,
@@ -1246,7 +1250,7 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z) {
 // bisher mal 2 "wie r_mapOverBrightBits", im Spiel gemessen 1). Vorschau: kein
 // Bounce, kein Filter, kein Supersampling, Schatten aus Karten statt Strahlen.
 //
-// Stufe 9c: Lichter in einem Puffer (bis kLichtMax), je Kachel eine Bitmaske;
+// Stufe 9c: Lichter in einem Puffer (rc610 LICHT1: ohne Grenze, mit Tiefenstufen), je Kachel eine Bitmaske;
 // Flaechenlichter mit PointToPolygonFormFactor ueber ihre Ecken; Schatten mit
 // 5 bzw. 9 Proben (PCF) und Versatz entlang der Normale. Sonne wie TraceLine mit
 // testAll (light_trace.cpp:1702-1755): der Strahl zur Sonne endet am ersten festen
@@ -1267,6 +1271,9 @@ struct Konstanten4 {
     float kaskadeRichtung[4];   // Stufe 9d: zur Sonne, mit der die Kaskaden gerendert sind
     float kaskadeVp[2][16];
     float himmelVp[kHimmelSonnenMax][16];
+    int sonnen[4];         // rc610 LICHT1: x Sonnen vorn in der Liste
+    float zbinInfo[4];     //   ... x kZbinNah, y kZbinJeOktave, z kZbins
+    std::uint32_t zbin[kZbins / 2][4];   //   ... je Tiefenstufe [von, bis) der Lichter (zwei Stufen je Eintrag)
 };
 struct KonstantenNebel {   // Stufe 9d: B5
     int zahl[4];           // x Nebel, y der globale (-1: keiner)
@@ -1295,10 +1302,10 @@ cbuffer B4 : register(b1) {
     float4 umgebung; float4 minimum; float4 minimumEcken; float4 sonne; float4 himmelInfo; int4 anzahl; float4 kaskadeRichtung;
     row_major float4x4 kaskadeVp[2];
     row_major float4x4 himmelVp[16];
+    int4 sonnen; float4 zbinInfo; uint4 zbin[64];
 };
 Texture2D bild : register(t0);
-TextureCubeArray schattenG : register(t2);
-TextureCubeArray schattenK : register(t3);
+Texture2DArray<float> schattenAtlas : register(t2);
 Texture2DArray kaskO : register(t4);
 Texture2DArray kaskS : register(t5);
 Texture2DArray himO : register(t6);
@@ -1474,12 +1481,33 @@ float beitrag(LichtD L, float3 p, float3 n) {
     if (add <= 1.0) { return 0.0; }
     return add;
 }
+// rc610 LICHT1: ein Texel eines Wuerfels im Atlas - die Seite und st wie bei TextureCube (die groesste Komponente,
+// D3D-Seiten +X -X +Y -Y +Z -Z wie schattenWuerfel sie rendert, nebeneinander ab der Ecke o), Punktabtastung
+float wuerfelTexel(float3 d, uint2 o, uint schicht, float g) {
+    float3 a = abs(d);
+    uint seite;
+    float sc;
+    float tc;
+    float ma;
+    if (a.x >= a.y && a.x >= a.z) {
+        ma = a.x; seite = d.x >= 0.0 ? 0u : 1u; sc = d.x >= 0.0 ? -d.z : d.z; tc = -d.y;
+    } else if (a.y >= a.z) {
+        ma = a.y; seite = d.y >= 0.0 ? 2u : 3u; sc = d.x; tc = d.y >= 0.0 ? d.z : -d.z;
+    } else {
+        ma = a.z; seite = d.z >= 0.0 ? 4u : 5u; sc = d.z >= 0.0 ? d.x : -d.x; tc = -d.y;
+    }
+    float2 uv = float2(sc, tc) / ma * 0.5 + 0.5;
+    int2 t = (int2)clamp(uv * g, 0.0, g - 1.0);
+    return schattenAtlas.Load(int4((int)(o.x + seite * (uint)g) + t.x, (int)o.y + t.y, (int)schicht, 0));
+}
 // Schattenwuerfel: 5 Proben, Versatz entlang der Normale um gut einen Texel
 float wuerfelSicht(LichtD L, float3 p, float3 n, bool weich) {
-    float slot = L.mehr.x;
-    if (slot < 0.0) { return 1.0; }
-    bool gross = slot < 31.5;
-    float groesse = gross ? 512.0 : 256.0;
+    if (L.mehr.x < 0.0) { return 1.0; }
+    // mehr.x = (Seite * 64 + Ecke x / 64) * 64 + Ecke y / 64 (app_karte_echtlicht.cpp)
+    uint code = (uint)L.mehr.x;
+    uint schicht = code >> 12u;
+    uint2 o = uint2(((code >> 6u) & 63u) * 64u, (code & 63u) * 64u);
+    float groesse = L.zusatz.w;
     float texel = 2.0 * length(p - L.pos.xyz) / groesse;
     float3 q = p + n * (texel * 1.5 + 0.5);
     float3 d = q - L.pos.xyz;
@@ -1490,16 +1518,13 @@ float wuerfelSicht(LichtD L, float3 p, float3 n, bool weich) {
     float r = 1.5 * 2.0 / groesse;
     float bias = 1.0 + ab * 0.003;
     if (!weich) {   // schwache Lichter: eine Probe reicht (die Kante faellt kaum auf)
-        float g1 = gross ? schattenG.SampleLevel(punktAbtaster, float4(dn, slot), 0).r : schattenK.SampleLevel(punktAbtaster, float4(dn, slot - 32.0), 0).r;
-        return (ab - bias <= g1 * L.mehr.y) ? 1.0 : 0.0;
+        return (ab - bias <= wuerfelTexel(dn, o, schicht, groesse) * L.mehr.y) ? 1.0 : 0.0;
     }
     float summe = 0.0;
     const float2 versatz5[5] = {float2(0, 0), float2(1, 0.3), float2(-1, -0.3), float2(-0.3, 1), float2(0.3, -1)};
     [unroll] for (int k = 0; k < 5; ++k) {
         float3 dir = dn + (t1 * versatz5[k].x + t2 * versatz5[k].y) * r;
-        float g = gross ? schattenG.SampleLevel(punktAbtaster, float4(dir, slot), 0).r
-                        : schattenK.SampleLevel(punktAbtaster, float4(dir, slot - 32.0), 0).r;
-        summe += (ab - bias <= g * L.mehr.y) ? 1.0 : 0.0;
+        summe += (ab - bias <= wuerfelTexel(dir, o, schicht, groesse) * L.mehr.y) ? 1.0 : 0.0;
     }
     return summe * 0.2;
 }
@@ -1564,8 +1589,18 @@ float4 ps4(VO4 i) : SV_Target {
     uint ky = min((uint)i.pos.y / 32u, (uint)max(anzahl.z - 1, 0));
     uint worte = (uint)anzahl.w;
     uint basis = (ky * (uint)anzahl.y + kx) * worte;
-    [loop] for (uint w = 0u; w < worte; ++w) {
+    // rc610 LICHT1: erst die Sonnen (ueberall), dann nur die Lichter der Tiefenstufe dieses Bildpunkts [von, bis)
+    [loop] for (int s = 0; s < sonnen.x; ++s) { lm += lichtVon((uint)s, i.welt, n); }
+    int zb = (int)clamp(floor(log2(max(i.tiefe, zbinInfo.x) / zbinInfo.x) * zbinInfo.y), 0.0, zbinInfo.z - 1.0);
+    uint4 zq = zbin[zb >> 1];
+    uint von = (zb & 1) != 0 ? zq.z : zq.x;
+    uint bis = (zb & 1) != 0 ? zq.w : zq.y;
+    uint w0 = von >> 5u;
+    uint w1 = von < bis ? ((bis - 1u) >> 5u) + 1u : w0;
+    [loop] for (uint w = w0; w < w1 && w < worte; ++w) {
         uint m = kachelB[basis + w];
+        if (w == w0) { m &= 0xFFFFFFFFu << (von & 31u); }
+        if (w + 1u == w1) { m &= 0xFFFFFFFFu >> (31u - ((bis - 1u) & 31u)); }
 #ifdef OHNE_FBL
         [loop] for (uint bit = 0u; bit < 32u && m != 0u; ++bit) {
             if ((m & (1u << bit)) == 0u) { continue; }
@@ -1634,45 +1669,25 @@ float psUnterA(VOS i) : SV_Target {
 }
 )";
 
-bool poolAnlegen(Zustand::Pool& p, int groesse, int anzahl) {
+// rc610 LICHT1: das Ziel fuer eine Wuerfelseite (512 x 512, kleinere Wuerfel nutzen die Ecke oben links) samt Tiefe
+bool atlasZielAnlegen(Zustand::Atlas& a) {
     ID3D11Device* d = geraet();
-    p.groesse = groesse;
-    p.anzahl = anzahl;
     D3D11_TEXTURE2D_DESC td{};
-    td.Width = static_cast<UINT>(groesse);
-    td.Height = static_cast<UINT>(groesse);
+    td.Width = 512;
+    td.Height = 512;
     td.MipLevels = 1;
-    td.ArraySize = static_cast<UINT>(6 * anzahl);
+    td.ArraySize = 1;
     td.Format = DXGI_FORMAT_R16_FLOAT;
     td.SampleDesc.Count = 1;
     td.Usage = D3D11_USAGE_DEFAULT;
-    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    td.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
-    if (FAILED(d->CreateTexture2D(&td, nullptr, &p.tex))) { return false; }
-    p.rtv.assign(static_cast<std::size_t>(6 * anzahl), nullptr);
-    for (int i = 0; i < 6 * anzahl; ++i) {
-        D3D11_RENDER_TARGET_VIEW_DESC rd{};
-        rd.Format = td.Format;
-        rd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-        rd.Texture2DArray.FirstArraySlice = static_cast<UINT>(i);
-        rd.Texture2DArray.ArraySize = 1;
-        d->CreateRenderTargetView(p.tex, &rd, &p.rtv[static_cast<std::size_t>(i)]);
-        const float eins[4] = {1, 1, 1, 1};
-        if (p.rtv[static_cast<std::size_t>(i)] != nullptr) { ::bhed::render::leeren(kontext(), p.rtv[static_cast<std::size_t>(i)], eins); }
-    }
-    D3D11_SHADER_RESOURCE_VIEW_DESC sv{};
-    sv.Format = td.Format;
-    sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBEARRAY;
-    sv.TextureCubeArray.MipLevels = 1;
-    sv.TextureCubeArray.NumCubes = static_cast<UINT>(anzahl);
-    ::bhed::render::sichtAnlegen(d, p.tex, &sv, &p.srv);
-    td.ArraySize = 1;
-    td.MiscFlags = 0;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET;
+    if (FAILED(d->CreateTexture2D(&td, nullptr, &a.ziel))) { return false; }
+    d->CreateRenderTargetView(a.ziel, nullptr, &a.zielRtv);
     td.Format = DXGI_FORMAT_D32_FLOAT;
     td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-    d->CreateTexture2D(&td, nullptr, &p.tiefe);
-    if (p.tiefe != nullptr) { d->CreateDepthStencilView(p.tiefe, nullptr, &p.dsv); }
-    return p.srv != nullptr && p.dsv != nullptr;
+    d->CreateTexture2D(&td, nullptr, &a.tiefe);
+    if (a.tiefe != nullptr) { d->CreateDepthStencilView(a.tiefe, nullptr, &a.dsv); }
+    return a.zielRtv != nullptr && a.dsv != nullptr;
 }
 
 bool kartenAnlegen(Zustand::Karten& k, int groesse, int schichten) {
@@ -1805,9 +1820,10 @@ bool bereit4() {
     d->CreateBuffer(&cb, nullptr, &g.cbSchatten);
     cb.ByteWidth = sizeof(KonstantenNebel);
     d->CreateBuffer(&cb, nullptr, &g.cbNebel);
-    g.lichtBuf = pufferAnlegen(static_cast<UINT>(kLichtMax * sizeof(LichtGpu)), DXGI_FORMAT_R32G32B32A32_FLOAT,
-                               static_cast<UINT>(kLichtMax * (sizeof(LichtGpu) / 16)), &g.lichtSrv);
-    const bool pools = poolAnlegen(g.pool[0], 512, kSchattenGross) && poolAnlegen(g.pool[1], 256, kSchattenKlein);
+    g.lichtPlatz = 256;
+    g.lichtBuf = pufferAnlegen(static_cast<UINT>(g.lichtPlatz * sizeof(LichtGpu)), DXGI_FORMAT_R32G32B32A32_FLOAT,
+                               static_cast<UINT>(g.lichtPlatz * (sizeof(LichtGpu) / 16)), &g.lichtSrv);
+    const bool pools = atlasZielAnlegen(g.atlas);
     const bool kask = kartenAnlegen(g.kaskaden, kKaskadeGroesse, 2);
     D3D11_SAMPLER_DESC sd{};
     sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
@@ -1886,8 +1902,6 @@ struct RtSicherung {
     RtSicherung& operator=(const RtSicherung&) = delete;
 };
 
-std::size_t g_schattenDreiecke = 0;   // gezeichnete Dreiecke aller Schattenkarten (Budget je Bild)
-
 // Wuerfelseite (Achse, Vorzeichen) vom Licht aus: der Kasten liegt (teilweise) im 90-Grad-Stumpf
 bool seiteTrifft(const SchattenTeil& t, const float* seite) {
     if (seite == nullptr) { return true; }
@@ -1952,7 +1966,6 @@ void schattenZiehen(const KonstantenSchatten& k, ID3D11PixelShader* ps, ID3D11Pi
         const UINT versatz = 0;
         c->IASetVertexBuffers(0, 1, &vb, &schritt, &versatz);
         c->Draw(static_cast<UINT>(t.anzahl), static_cast<UINT>(t.erstes));
-        g_schattenDreiecke += t.anzahl / 3;
     }
     ID3D11ShaderResourceView* leer[2] = {nullptr, nullptr};
     c->PSSetShaderResources(0, 2, leer);
@@ -2025,10 +2038,19 @@ void nebelSetzen(const std::vector<NebelEcht>& nebel, const std::vector<float>& 
     c->Unmap(g.cbNebel, 0);
 }
 
-void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln, int kachelnX,
-                 int kachelnY, int worte, const float* umgebung, const float* minimum, const float* minimumEcken) {
+void lichtSetzen(const std::vector<LichtGpu>& lichter, int sonnen, const std::vector<float>& ecken, const std::vector<std::uint32_t>& kacheln,
+                 int kachelnX, int kachelnY, int worte, const std::vector<std::uint32_t>& zbins, const float* umgebung, const float* minimum,
+                 const float* minimumEcken) {
     if (!bereit4()) { return; }
     ID3D11DeviceContext* c = kontext();
+    if (lichter.size() > g.lichtPlatz) {   // rc610 LICHT1: der Puffer waechst mit den Lichtern des Bilds
+        los(g.lichtBuf);
+        los(g.lichtSrv);
+        g.lichtPlatz = std::max(lichter.size(), g.lichtPlatz * 2);
+        g.lichtBuf = pufferAnlegen(static_cast<UINT>(g.lichtPlatz * sizeof(LichtGpu)), DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                   static_cast<UINT>(g.lichtPlatz * (sizeof(LichtGpu) / 16)), &g.lichtSrv);
+        if (g.lichtBuf == nullptr) { g.lichtPlatz = 0; }
+    }
     D3D11_MAPPED_SUBRESOURCE m{};
     if (FAILED(c->Map(g.cb4, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return; }
     auto* k = static_cast<Konstanten4*>(m.pData);
@@ -2043,7 +2065,7 @@ void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>&
     k->sonne[2] = g.kaskadeTexel[0];
     k->sonne[3] = g.kaskadeTexel[1];
     k->himmelInfo[0] = g.himmelTexel;
-    const std::size_t n = std::min<std::size_t>(lichter.size(), kLichtMax);
+    const std::size_t n = std::min(lichter.size(), g.lichtPlatz);
     k->anzahl[0] = static_cast<int>(n);
     k->anzahl[1] = kachelnX;
     k->anzahl[2] = kachelnY;
@@ -2051,6 +2073,14 @@ void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>&
     std::memcpy(k->kaskadeVp, g.kaskadeVp, sizeof(k->kaskadeVp));
     std::memcpy(k->kaskadeRichtung, g.kaskadeRichtung, sizeof(k->kaskadeRichtung));
     std::memcpy(k->himmelVp, g.himmelVp, sizeof(k->himmelVp));
+    k->sonnen[0] = std::min(sonnen, static_cast<int>(n));
+    k->zbinInfo[0] = kZbinNah;
+    k->zbinInfo[1] = kZbinJeOktave;
+    k->zbinInfo[2] = static_cast<float>(kZbins);
+    for (std::size_t b = 0; b < static_cast<std::size_t>(kZbins) && b * 2 + 1 < zbins.size(); ++b) {
+        k->zbin[b / 2][(b % 2) * 2] = std::min<std::uint32_t>(zbins[b * 2], static_cast<std::uint32_t>(n));
+        k->zbin[b / 2][(b % 2) * 2 + 1] = std::min<std::uint32_t>(zbins[b * 2 + 1], static_cast<std::uint32_t>(n));
+    }
     c->Unmap(g.cb4, 0);
     if (n > 0 && SUCCEEDED(c->Map(g.lichtBuf, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
         std::memcpy(m.pData, lichter.data(), n * sizeof(LichtGpu));
@@ -2087,15 +2117,77 @@ void lichtSetzen(const std::vector<LichtGpu>& lichter, const std::vector<float>&
     }
 }
 
-bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<SchattenTeil>& teile) {
-    if (slot < 0 || slot >= kSchattenMax || !bereit4() || weite <= 1.0F) { return false; }
-    Zustand::Pool& p = g.pool[slot < kSchattenGross ? 0 : 1];
-    const int platz = slot < kSchattenGross ? slot : slot - kSchattenGross;
+bool schattenAtlasSeiten(int seiten) {
+    if (!bereit4()) { return false; }
+    if (seiten == g.atlas.seiten) { return true; }
+    if (seiten <= 0) {
+        los(g.atlas.srv);
+        los(g.atlas.tex);
+        g.atlas.seiten = 0;
+        return true;
+    }
+    ID3D11Device* d = geraet();
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(kAtlasBreite);
+    td.Height = static_cast<UINT>(kAtlasHoehe);
+    td.MipLevels = 1;
+    td.ArraySize = static_cast<UINT>(seiten);
+    td.Format = DXGI_FORMAT_R16_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DEFAULT;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ID3D11Texture2D* neu = nullptr;
+    if (FAILED(d->CreateTexture2D(&td, nullptr, &neu))) { return false; }
+    ID3D11ShaderResourceView* srv = nullptr;
+    ::bhed::render::sichtAnlegen(d, neu, nullptr, &srv);
+    if (srv == nullptr) {
+        los(neu);
+        return false;
+    }
+    // was schon gerechnet ist, mitnehmen
+    for (int s = 0; s < std::min(g.atlas.seiten, seiten) && g.atlas.tex != nullptr; ++s) {
+        kontext()->CopySubresourceRegion(neu, static_cast<UINT>(s), 0, 0, 0, g.atlas.tex, static_cast<UINT>(s), nullptr);
+    }
+    los(g.atlas.srv);
+    los(g.atlas.tex);
+    g.atlas.tex = neu;
+    g.atlas.srv = srv;
+    g.atlas.seiten = seiten;
+    return true;
+}
+
+std::size_t schattenAtlasBytes() { return static_cast<std::size_t>(g.atlas.seiten) * kAtlasSeitenBytes; }
+
+std::size_t grafikBudget() {
+    std::size_t r = 0;
+    ID3D11Device* d = verfuegbar() ? geraet() : nullptr;
+    IDXGIDevice* dx = nullptr;
+    if (d == nullptr || FAILED(d->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dx))) || dx == nullptr) { return 0; }
+    IDXGIAdapter* ad = nullptr;
+    if (SUCCEEDED(dx->GetAdapter(&ad)) && ad != nullptr) {
+        IDXGIAdapter3* ad3 = nullptr;
+        if (SUCCEEDED(ad->QueryInterface(__uuidof(IDXGIAdapter3), reinterpret_cast<void**>(&ad3))) && ad3 != nullptr) {
+            DXGI_QUERY_VIDEO_MEMORY_INFO mi{};
+            if (SUCCEEDED(ad3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &mi))) { r = static_cast<std::size_t>(mi.Budget); }
+            ad3->Release();
+        }
+        ad->Release();
+    }
+    dx->Release();
+    return r;
+}
+
+bool schattenWuerfel(int seite, int wuerfel, int groesse, const float* pos, float weite, const std::vector<SchattenTeil>& teile) {
+    const int je = wuerfelJeSeite(groesse);
+    if (seite < 0 || seite >= g.atlas.seiten || wuerfel < 0 || wuerfel >= je || groesse > 512 || !bereit4() || weite <= 1.0F ||
+        g.atlas.zielRtv == nullptr) {
+        return false;
+    }
     ID3D11DeviceContext* c = kontext();
     RtSicherung sicher;
     D3D11_VIEWPORT vp{};
-    vp.Width = static_cast<float>(p.groesse);
-    vp.Height = static_cast<float>(p.groesse);
+    vp.Width = static_cast<float>(groesse);
+    vp.Height = static_cast<float>(groesse);
     vp.MaxDepth = 1;
     c->RSSetViewports(1, &vp);
     // Seiten wie TextureCube: +X -X +Y -Y +Z -Z (Blickrichtung, oben)
@@ -2112,21 +2204,28 @@ bool schattenWuerfel(int slot, const float* pos, float weite, const std::vector<
     ks.licht[2] = pos[2];
     ks.licht[3] = weite;
     const float kugel[4] = {pos[0], pos[1], pos[2], weite};
+    const UINT spalten = static_cast<UINT>(kAtlasBreite / groesse);
     for (int s = 0; s < 6; ++s) {
-        ID3D11RenderTargetView* rtv = p.rtv[static_cast<std::size_t>(platz * 6 + s)];
-        if (rtv == nullptr) { continue; }
-        ::bhed::render::zielSetzen(c, 1, &rtv, p.dsv);
+        ID3D11RenderTargetView* rtv = g.atlas.zielRtv;
+        ::bhed::render::zielSetzen(c, 1, &rtv, g.atlas.dsv);
         const float eins[4] = {1, 1, 1, 1};
         ::bhed::render::leeren(c, rtv, eins);
-        c->ClearDepthStencilView(p.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+        c->ClearDepthStencilView(g.atlas.dsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
         float blick[16];
         blickLH(pos, vorn[s], oben[s], blick);
         mal(blick, proj, ks.vp);
         // Punkt-, Spot- und Flaechenlichter: TraceLine ohne testAll - auch feste Blaetter halten auf
         // die Himmelspinsel sind feste Blaetter (Art 2 und 4) - fuer Punktlichter halten sie auf
-        const float seite[5] = {pos[0], pos[1], pos[2], static_cast<float>(s / 2), (s % 2) == 0 ? 1.0F : -1.0F};
+        const float seiteW[5] = {pos[0], pos[1], pos[2], static_cast<float>(s / 2), (s % 2) == 0 ? 1.0F : -1.0F};
         schattenZiehen(ks, g.psSchatten, g.psSchattenA, (1U << 0) | (1U << 1) | (1U << 2) | (1U << 3) | (1U << 4), teile, kugel,
-                       tiefenZustand(TiefenTest::Kleiner, true), nullptr, seite);
+                       tiefenZustand(TiefenTest::Kleiner, true), nullptr, seiteW);
+        // in den Atlas: Seite s des Wuerfels liegt an Platz wuerfel * 6 + s (Zeile fuer Zeile)
+        ID3D11RenderTargetView* keins = nullptr;
+        ::bhed::render::zielSetzen(c, 1, &keins, nullptr);
+        const UINT platz = static_cast<UINT>(wuerfel * 6 + s);
+        const D3D11_BOX box{0, 0, 0, static_cast<UINT>(groesse), static_cast<UINT>(groesse), 1};
+        c->CopySubresourceRegion(g.atlas.tex, static_cast<UINT>(seite), (platz % spalten) * static_cast<UINT>(groesse),
+                                 (platz / spalten) * static_cast<UINT>(groesse), 0, g.atlas.ziel, 0, &box);
     }
     return true;
 }
@@ -2166,8 +2265,6 @@ bool himmelsSonne(int schicht, const float* richtung, const float* mitte, float 
     g.himmelTexel = 2.0F * halb / 1024.0F;
     return true;
 }
-
-std::size_t schattenDreiecke() { return g_schattenDreiecke; }
 
 void sonnenSchattenAus() {
     g.kaskadeAn[0] = false;

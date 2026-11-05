@@ -1120,6 +1120,12 @@ struct Editor {
         std::size_t lichter = 0;           // Lichter der Karte
         std::size_t gezeichnet = 0;        // davon im letzten Bild
         std::size_t schattenNeu = 0;       // Schattenwuerfel neu gerendert (gesamt)
+        std::size_t fehlend = 0;           // rc610 LICHT1: Lichter im Bild, die im letzten Bild fehlten (Wuerfel ausstehend oder ueber der Grenze)
+        std::size_t ohneSchatten = 0;      // rc610 LICHT1: ... die ohne Schattenwuerfel gezeichnet wurden
+        std::size_t wuerfelAusstehend = 0; // rc610 LICHT1: Schattenwuerfel, die noch zu rechnen sind
+        std::size_t wuerfel = 0;           // rc610 LICHT1: Schattenwuerfel mit Platz im Atlas
+        std::size_t wuerfelOhnePlatz = 0;  // rc610 LICHT1: Lichter ohne Platz (Budget des Grafikspeichers erreicht)
+        std::size_t wuerfelBytes = 0;      // rc610 LICHT1: Grafikspeicher des Atlas
         double lichtMs = 0;                // Lichtliste + Schatten im letzten Bild (Prozessor)
         std::size_t nebel = 0;             // Stufe 9d: Nebel der Karte (Pinsel mit fogParms, globaler Nebel)
         bool effekte = true;               // Stufe 9d: fx_runner in der Echtzeit-Ansicht ("RealtimeEffects")

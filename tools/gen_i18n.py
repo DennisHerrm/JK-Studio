@@ -2262,6 +2262,8 @@ from i18n_rc609_t1 import zeilen_vier as _rc609_t1  # noqa: E402  (rc609 T1: gan
 S += _rc609_t1()
 from i18n_rc610_f23 import zeilen_vier as _rc610_f23  # noqa: E402  (rc610 F23: Funde der Codepruefung Bereich 2 und 3)
 S += _rc610_f23()
+from i18n_rc610_licht1 import zeilen_vier as _rc610_licht1  # noqa: E402  (rc610 LICHT1: Echtzeit-Licht der ganzen Karte)
+S += _rc610_licht1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

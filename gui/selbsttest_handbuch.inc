@@ -312,6 +312,9 @@ std::vector<Schritt> einrichten();   // in den Karten-Editor, Spieldaten bereit
 namespace stufe9d {
 std::vector<Schritt> schritte();   // selbsttest_karte9d.inc: Stufe 9d (Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke)
 }  // namespace stufe9d
+namespace licht1 {
+std::vector<Schritt> schritte();   // selbsttest_kartelicht1.inc: rc610 LICHT1, das Echtzeit-Licht zeigt die ganze Karte
+}  // namespace licht1
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -578,6 +581,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =licht1: rc610 LICHT1 - das Echtzeit-Licht zeigt die ganze Karte (langer Hangar gegen gebacken)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "licht1") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : licht1::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =reste1: Liste reste1 (Decals in der Echtzeit-Ansicht)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "reste1") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -632,6 +642,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
     for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
     for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }   // Stufe 9d: Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke
+    for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
@@ -916,6 +927,7 @@ void skriptNeu() {
 #include "selbsttest_karte9.inc"
 #include "selbsttest_karte9c.inc"
 #include "selbsttest_karte9d.inc"   // Stufe 9d: Nebel, Effekte, Skyportal, Modellschatten, Shader live, Patch-Bruecke
+#include "selbsttest_kartelicht1.inc"   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
 #include "selbsttest_optsicher.inc"
 #include "selbsttest_reste1.inc"   // Liste reste1: Decals in der Echtzeit-Ansicht
 
@@ -1686,6 +1698,24 @@ std::vector<Schritt> karte7HandbuchSchritte() {
     add(warteBis("Handbuch Stufe 7: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
     add(pause(0.8));
     add(hb::fotoTeil("h_karte7_licht", kamera));
+    // rc610 LICHT1: der lange Hangar (576 Lichter) vom Anfang aus - das Licht am fernen Ende ist da
+    add(tu("Handbuch Stufe 7: langer Hangar, Echtzeit-Licht", [] {
+        karteDialogeZu();
+        licht1::hangarSchreiben();
+        (void)ke::karteOeffnen(licht1::hangarKarte());
+        ke::editor().kameraE.modus = karte::KameraModus::Textur;
+        stufe9c::kameraAuf(licht1::punkte()[0]);
+    }));
+    add(warteBis("Handbuch Stufe 7: Texturen (Hangar)", [] { return ke::kameraBilderFertig(); }, 6000));
+    add(stufe9c::langeWarten("Handbuch Stufe 7: Schattenwuerfel (Hangar)", [] { return ke::editor().echtLicht.wuerfelAusstehend == 0; }, 20000));
+    add(tu("Handbuch Stufe 7: Maus in die Kamera (kein Tooltip im Bild)", [kamera] { setzeMaus(kamera().GetCenter()); }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_karte7_hangar", voll));   // das ganze Fenster: mindestens 1920 breit
+    add(tu("Handbuch Stufe 7: zurueck zum Testraum", [kameraSetzen] {
+        (void)ke::karteOeffnen(stufe7::lichtKarte());
+        kameraSetzen();
+    }));
+    add(warteBis("Handbuch Stufe 7: Texturen (Testraum)", [] { return ke::kameraBilderFertig(); }, 6000));
     // Build-Menue, die Maus auf "Real-time light" (Tooltip)
     add(klick(ke::trK(Str::KeLBuild), "###main"));
     add(pause(0.4));

@@ -1258,7 +1258,9 @@ target_sources(bhed_core PRIVATE
   # Stufe 5 Punkt 4: Beheben auf Knopfdruck (mit Rueckgaengig)
   src/karte/optimierer_beheben.cpp
   # Stufe 7 Punkt 5: Echtzeit-Licht (die Lichter der Karte wie q3map2 -light)
-  src/karte/echtlicht.cpp)
+  src/karte/echtlicht.cpp
+  # rc610 LICHT1: Plaetze der Schattenwuerfel des Echtzeit-Lichts (eigener Code)
+  src/schattenatlas.cpp)
 # Menue-Editor M1: .menu lesen wie die Engine (SP COM_ParseExt, MP botlib),
 # Modell mit Quelltext-Spannen, @MENUS-Texte, Spieldaten.
 target_sources(bhed_core PRIVATE
@@ -1510,6 +1512,10 @@ if(BEHAVED_TESTS)
   add_executable(karteechtlicht tests/karteechtlicht.cpp)
   target_link_libraries(karteechtlicht PRIVATE bhed_core)
   add_test(NAME karte_echtlicht COMMAND karteechtlicht)
+  # rc610 LICHT1: Plaetze der Schattenwuerfel (Atlas, Groessen im Budget)
+  add_executable(schattenatlas tests/schattenatlas.cpp)
+  target_link_libraries(schattenatlas PRIVATE bhed_core)
+  add_test(NAME schattenatlas COMMAND schattenatlas)
   add_executable(karteauswahl tests/karteauswahl.cpp)
   target_link_libraries(karteauswahl PRIVATE bhed_core)
   add_test(NAME karte_auswahl COMMAND karteauswahl)

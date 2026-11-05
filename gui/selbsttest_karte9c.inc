@@ -167,7 +167,6 @@ bool bildHolen(Bild& b) { return ke::kameraBild(b.rgba, b.breite, b.hoehe); }
 struct Lauf {
     std::string name;
     std::string karte;
-    std::string bsp;
     std::vector<Punkt> punkte;
     std::vector<Bild> echt;
     std::vector<Abweichung> ergebnis;
@@ -182,6 +181,33 @@ std::string dateiName(const std::string& pfad) {
     return n;
 }
 
+// Eine Karte oeffnen (Eintrag "karte.map" oder "karte.map|karte.bsp": die Lichter aus der .bsp geschaetzt, weil
+// dekompilierte Karten keine haben); Echtzeit-Licht und Backen aus. Rueckgabe: ms fuers Schaetzen.
+double karteMitLichternOeffnen(const std::string& eintrag) {
+    const std::size_t strich = eintrag.find('|');
+    const std::string pfad = eintrag.substr(0, strich);
+    const std::string bsp = strich == std::string::npos ? std::string() : eintrag.substr(strich + 1);
+    karteDialogeZu();
+    ke::Editor& e = ke::editor();
+    e.echtLicht.an = false;
+    e.echtLicht.backen = false;
+    (void)ke::karteOeffnen(pfad);
+    if (bsp.empty()) { return 0; }
+    const auto t0 = std::chrono::steady_clock::now();
+    const std::string daten = dateiInhalt(bsp);
+    karte::LichtSchaetzOptionen o;
+    const std::vector<karte::GeschaetztesLicht> l = karte::lichterSchaetzen(daten, o);
+    for (const karte::GeschaetztesLicht& g : l) {
+        auto ent = e.karte.neueEntitaet("light", false);
+        for (const auto& [k, w] : karte::lichtSchluessel(g)) { ent->setzen(k, w); }
+        e.karte.entitaetEinfuegen(ent);
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    diag::detail("Knopftest: Licht 9c - " + dateiName(pfad) + ": " + std::to_string(l.size()) + " Lichter geschaetzt (" + std::to_string(static_cast<int>(ms)) +
+                 " ms)");
+    return ms;
+}
+
 // Eine Karte messen: Echtzeit-Bilder an allen Punkten, dann Schnell-Backen, gebackene Bilder.
 // grenzeMittel/grenzeMax > 0: der Grenzwert der Abweichung je Punkt (Pruefschritt)
 std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_ptr<std::vector<std::string>>& summen, double grenzeMittel = 0,
@@ -189,31 +215,11 @@ std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_p
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     auto lauf = std::make_shared<Lauf>();
-    const std::size_t strich = eintrag.find('|');
-    lauf->karte = eintrag.substr(0, strich);
-    lauf->bsp = strich == std::string::npos ? std::string() : eintrag.substr(strich + 1);
+    lauf->karte = eintrag.substr(0, eintrag.find('|'));
     lauf->name = dateiName(lauf->karte);
-    add(tu("Licht 9c: Karte oeffnen " + lauf->karte, [lauf] {
-        karteDialogeZu();
+    add(tu("Licht 9c: Karte oeffnen " + lauf->karte, [lauf, eintrag] {
         ke::Editor& e = ke::editor();
-        e.echtLicht.an = false;
-        e.echtLicht.backen = false;
-        (void)ke::karteOeffnen(lauf->karte);
-        if (!lauf->bsp.empty()) {
-            // dekompilierte Karten haben keine Lichter (q3map2 entfernt sie): aus der .bsp schaetzen
-            const auto t0 = std::chrono::steady_clock::now();
-            const std::string daten = dateiInhalt(lauf->bsp);
-            karte::LichtSchaetzOptionen o;
-            const std::vector<karte::GeschaetztesLicht> l = karte::lichterSchaetzen(daten, o);
-            for (const karte::GeschaetztesLicht& g : l) {
-                auto ent = e.karte.neueEntitaet("light", false);
-                for (const auto& [k, w] : karte::lichtSchluessel(g)) { ent->setzen(k, w); }
-                e.karte.entitaetEinfuegen(ent);
-            }
-            lauf->schaetzMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-            diag::detail("Knopftest: Licht 9c - " + lauf->name + ": " + std::to_string(l.size()) + " Lichter geschaetzt (" +
-                         std::to_string(static_cast<int>(lauf->schaetzMs)) + " ms)");
-        }
+        lauf->schaetzMs = karteMitLichternOeffnen(eintrag);
         lauf->punkte = kameraPunkte();
         e.kameraE.modus = karte::KameraModus::Textur;
         e.echtLicht.an = true;
@@ -226,7 +232,9 @@ std::vector<Schritt> karteMessen(const std::string& eintrag, const std::shared_p
         add(tu("Licht 9c: Echtzeit-Punkt " + std::to_string(i), [lauf, i] {
             if (i < lauf->punkte.size()) { kameraAuf(lauf->punkte[i]); }
         }));
-        add(pause(1.2));   // Schattenwuerfel: hoechstens einige neu je Bild
+        add(pause(1.2));
+        // rc610 LICHT1: alle Schattenwuerfel gerechnet (grosse Karten brauchen beim Einschalten einige Bilder)
+        add(langeWarten("Licht 9c: Schattenwuerfel " + std::to_string(i), [] { return ke::editor().echtLicht.wuerfelAusstehend == 0; }, 20000));
         add(tu("Licht 9c: Echtzeit-Bild " + std::to_string(i), [lauf, i] {
             if (i >= lauf->punkte.size()) { return; }
             Bild b;

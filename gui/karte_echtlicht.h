@@ -22,7 +22,7 @@ namespace bhed::gui::karteneditor {
 // Die Vorschau gilt in diesem Bild (an, Textur-Modus, Direct3D 11 mit Shader-Modell 4.1)
 [[nodiscard]] bool echtLichtAktiv();
 // Vor beginnen() der Kamera: Lichter der Karte (bei Aenderung neu), Auswahl der
-// Lichter fuer dieses Bild, Schattenwuerfel (einige je Bild), lichtSetzen.
+// Lichter fuer dieses Bild, Schattenwuerfel (rc610 LICHT1: je Licht einer, behalten), lichtSetzen.
 // teile: die Dreiecke, die Schatten werfen (ohne Himmel und Durchsichtiges).
 // Stufe 9c: vp = Kameramatrix (spaltenweise, wie Zustand3::matrix), breite/hoehe
 // des Bilds (Kacheln); die Schattengeometrie baut die Funktion selbst aus der Karte.
@@ -49,6 +49,8 @@ struct SpielDarstellung {
 // starten, abbrechen, Ergebnis abholen.
 void echtLichtSchritt(std::size_t kartenStand);
 void echtLichtBeenden();   // beim Beenden: einen laufenden Bau abbrechen
+// rc610 LICHT1, fuer den Selbsttest: alle Schattenwuerfel in dieser Groesse (512, 256, 128, 64; 0: nach der Huelle)
+void echtLichtWuerfelFest(int groesse);
 // Stufe 9 Punkt 1: die .bsp des Schnell-Backens, wenn sie zum Stand passt (sonst leer)
 [[nodiscard]] std::string schnellBspFuer(std::size_t kartenStand);
 // Die gebackenen Flaechen zeichnen (statt der Pinsel und Patches); false: nichts gebacken/aktuell.
