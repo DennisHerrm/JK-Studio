@@ -549,6 +549,10 @@ bool alsPng(const std::string& bmpPfad, const ImRect& r, int maxBreite, const st
                     (static_cast<std::size_t>(y0) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x0)) * 4U;
     const std::string png = ::bhed::ki::pngAusBgra(q, x1 - x0, y1 - y0, w * 4, maxBreite);
     if (png.empty()) { return false; }
+    // rc610 R1: das Bild der heutigen Leiste kommt vor dem JSON-Schritt, der den Ordner bisher erst anlegte - bei der
+    // ersten Szene fehlte "bilder" noch, das PNG der ersten Leiste wurde nie geschrieben.
+    std::error_code ecOrdner;
+    std::filesystem::create_directories(::bhed::utf8Pfad(pngPfad).parent_path(), ecOrdner);
     std::ofstream o(::bhed::utf8Pfad(pngPfad), std::ios::binary);
     o.write(png.data(), static_cast<std::streamsize>(png.size()));
     std::error_code ec;
