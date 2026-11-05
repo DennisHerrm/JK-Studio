@@ -906,6 +906,10 @@ if(BEHAVED_TESTS)
 
   add_test(NAME tasten COMMAND keytest)
   add_test(NAME protokoll COMMAND diagtest)
+  # rc610 F78 (B7-1): das Protokoll aus acht Faeden zugleich
+  add_executable(diagfaeden tests/diagfaeden.cpp)
+  target_link_libraries(diagfaeden PRIVATE bhed_core)
+  add_test(NAME diag_faeden COMMAND diagfaeden ${CMAKE_CURRENT_BINARY_DIR})
   set(BEHAVED_BSP "" CACHE FILEPATH "Eine .bsp zum Pruefen des Entity-Lesers")
   add_test(NAME karte COMMAND bsptest ${BEHAVED_BSP})
   add_test(NAME kartengeometrie COMMAND bspgeotest ${BEHAVED_BSP})

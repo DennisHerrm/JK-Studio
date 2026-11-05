@@ -1,16 +1,31 @@
 #include "bhed/diag.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace bhed::diag {
 namespace {
+
+// rc610 F78 (Fund B7-1): geschrieben wird auch aus Hintergrundfaeden (Arbeiter
+// von bildVorratFuellen, Updater, Schnell-Backen, Waechter). Ohne Sperre
+// zerstoerten zwei gleichzeitige g_lines.push_back den Speicher (ctest
+// diag_faeden: Heap-Fehler 0xc0000374). Eine Sperre fuer alles hier; rekursiv,
+// weil der Ausnahmebehandler (gui/main_win32.cpp) in dem Faden schreibt, in dem
+// die Ausnahme kam - auch mitten in einem Aufruf von hier. Nie freigegeben:
+// Faeden duerfen bis zuletzt schreiben.
+std::recursive_mutex& sperre() {
+    static auto* m = new std::recursive_mutex();
+    return *m;
+}
+using Sperre = std::lock_guard<std::recursive_mutex>;
 
 std::ofstream g_file;
 std::vector<std::string> g_lines;
@@ -38,6 +53,7 @@ bool open(const std::string& path) {
     // Das vorige Protokoll beiseitelegen, nicht ueberschreiben - sonst
     // loescht der Neustartversuch nach dem Absturz gerade den Beweis.
     const std::string previous = path + ".vorher";
+    const Sperre l(sperre());
     std::remove(previous.c_str());
     std::rename(path.c_str(), previous.c_str());
 
@@ -46,6 +62,7 @@ bool open(const std::string& path) {
 }
 
 void close() {
+    const Sperre l(sperre());
     write(Level::Info, "beendet");
     if (g_file.is_open()) {
         g_file.close();
@@ -54,15 +71,18 @@ void close() {
 
 namespace {
 std::ofstream g_detail;
+// Ohne Sperre lesbar: detail() und detailOn() fragen es bei jedem Aufruf.
+std::atomic<bool> g_detailOffen{false};
+std::string g_logVerzeichnis;
 }  // namespace
 
-namespace {
-std::string g_logVerzeichnis;
+std::string logVerzeichnis() {
+    const Sperre l(sperre());
+    return g_logVerzeichnis;
 }
 
-std::string logVerzeichnis() { return g_logVerzeichnis; }
-
 bool openDetail(const std::string& path) {
+    const Sperre l(sperre());
     // Aus dem Pfad das Verzeichnis merken - fuer den Bericht.
     const std::size_t schraeg = path.find_last_of("/\\");
     if (schraeg != std::string::npos) {
@@ -87,19 +107,26 @@ bool openDetail(const std::string& path) {
     std::remove(previous.c_str());
     std::rename(path.c_str(), previous.c_str());
     g_detail.open(path, std::ios::out | std::ios::trunc);
-    return g_detail.is_open();
+    g_detailOffen = g_detail.is_open();
+    return g_detailOffen;
 }
 
 void closeDetail() {
+    const Sperre l(sperre());
+    g_detailOffen = false;
     if (g_detail.is_open()) {
         g_detail << "--- Ende ---\n";
         g_detail.close();
     }
 }
 
-bool detailOn() noexcept { return g_detail.is_open(); }
+bool detailOn() noexcept { return g_detailOffen.load(std::memory_order_relaxed); }
 
 void detail(const std::string& text) {
+    if (!g_detailOffen.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const Sperre l(sperre());
     if (!g_detail.is_open()) {
         return;
     }
@@ -113,6 +140,7 @@ void write(Level level, const std::string& text) {
     std::string line;
     line.reserve(text.size() + 16);
     line += mark(level);
+    const Sperre l(sperre());
     for (int i = 0; i < g_depth; ++i) {
         line += "  ";
     }
@@ -128,12 +156,14 @@ void write(Level level, const std::string& text) {
 }
 
 Step::Step(std::string name) : name_(std::move(name)), startMicros_(nowMicros()) {
+    const Sperre l(sperre());
     write(Level::Step, "> " + name_);
     g_stack.push_back(name_);
     ++g_depth;
 }
 
 Step::~Step() {
+    const Sperre l(sperre());
     --g_depth;
     if (!g_stack.empty()) {
         g_stack.pop_back();
@@ -146,11 +176,23 @@ Step::~Step() {
 
 void Step::fail(const std::string& reason) { failure_ = reason; }
 
-std::string currentStep() { return g_stack.empty() ? std::string{} : g_stack.back(); }
+std::string currentStep() {
+    const Sperre l(sperre());
+    return g_stack.empty() ? std::string{} : g_stack.back();
+}
 
-const std::vector<std::string>& lines() { return g_lines; }
+std::vector<std::string> lines() {
+    const Sperre l(sperre());
+    return g_lines;
+}
+
+std::size_t lineCount() {
+    const Sperre l(sperre());
+    return g_lines.size();
+}
 
 void writeHeader(const std::vector<std::pair<std::string, std::string>>& entries) {
+    const Sperre l(sperre());
     for (const auto& [key, value] : entries) {
         char buf[300];
         std::snprintf(buf, sizeof(buf), "%-14s %s", key.c_str(), value.c_str());
@@ -160,6 +202,7 @@ void writeHeader(const std::vector<std::pair<std::string, std::string>>& entries
 }
 
 void resetForTesting() {
+    const Sperre l(sperre());
     if (g_file.is_open()) {
         g_file.close();
     }

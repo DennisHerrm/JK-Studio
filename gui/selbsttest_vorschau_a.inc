@@ -4277,7 +4277,7 @@ std::vector<Schritt> kartenPruefungSchritte() {
                          lauf << nr << ' ' << liste.size() << ' ' << karte << '\n';
                      }
                      *meld = g_app->d3dMeldungen.size();
-                     *zeilen = diag::lines().size();
+                     *zeilen = diag::lineCount();
                      *t0 = std::chrono::steady_clock::now();
                      *geladen = loadMapFromArchive(karte);
                      *ladeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - *t0).count();
@@ -4459,7 +4459,7 @@ std::vector<Schritt> kartenPruefungSchritte() {
                      std::set<std::string> protokoll;
                      int warn = 0;
                      int err = 0;
-                     const std::vector<std::string>& lz = diag::lines();
+                     const std::vector<std::string> lz = diag::lines();
                      for (std::size_t i = *zeilen; i < lz.size(); ++i) {
                          const bool istErr = lz[i].rfind("ERR", 0) == 0;
                          const bool istWarn = lz[i].rfind("WARN", 0) == 0;

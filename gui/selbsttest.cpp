@@ -3653,7 +3653,7 @@ Path ersterKameraweg(const char* art) {
     return Path{};
 }
 
-std::size_t diagZeilen() { return diag::lines().size(); }
+std::size_t diagZeilen() { return diag::lineCount(); }
 
 // --- Karte: jede Funktion (27.09.) ------------------------------------------
 //

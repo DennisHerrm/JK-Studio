@@ -25,6 +25,7 @@
 #ifndef BHED_DIAG_H
 #define BHED_DIAG_H
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -129,8 +130,11 @@ private:
 [[nodiscard]] std::string currentStep();
 
 // Alle bisherigen Zeilen - fuer den Menuepunkt "Protokoll anzeigen" und fuer
-// den Fall, dass die Datei nicht geschrieben werden konnte.
-[[nodiscard]] const std::vector<std::string>& lines();
+// den Fall, dass die Datei nicht geschrieben werden konnte. Eine Kopie: andere
+// Faeden schreiben weiter (rc610 F78, alle Funktionen hier sind fadenfest).
+[[nodiscard]] std::vector<std::string> lines();
+// lines().size() ohne Kopie.
+[[nodiscard]] std::size_t lineCount();
 
 // Kopfzeilen mit Angaben zur Umgebung. Der Aufrufer liefert sie, weil sie
 // betriebssystemabhaengig sind.
