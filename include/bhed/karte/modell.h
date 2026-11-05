@@ -77,9 +77,12 @@ bool aseLesen(const std::string& text, const std::string& modellPfad, Modell& m,
 bool glmLesen(const std::string& bytes, const std::string& skinText, Modell& m, std::string* fehler = nullptr);
 // Kennt der Editor die Endung (ModelLoader_forType)?
 [[nodiscard]] bool modellArtBekannt(const std::string& pfad);
-// rc609 KEMD (modell_assimp.cpp): .obj, .fbx, .gltf, .glb ueber assimp wie NRCs assmodel und q3map2 (LoadModel);
+// rc609 KEMD (modell_assimp.cpp): Modelle ueber assimp wie NRCs assmodel und q3map2 (LoadModel);
 // `leser` holt eine Datei aus dem Spiel-VFS (auch .mtl und Texturen, die das Modell nennt).
+// rc610 MODOBJ: jede Endung, die assimp liest, wie NRCs Modell-Browser (Radiant_RegisterModules: ohne bsp, pk3,
+// md5anim, md5camera, ogex; klein). modellArtAssimp: eine davon ausser md3 und ase (eigene Lader).
 using ModellDateiLeser = std::function<bool(const std::string& pfad, std::string& bytes)>;
+[[nodiscard]] const std::vector<std::string>& modellEndungenAssimp();
 [[nodiscard]] bool modellArtAssimp(const std::string& pfad);
 bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler = nullptr);
 // updateAABB: die Grenzen der Flaechen und des Modells

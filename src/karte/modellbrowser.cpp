@@ -15,6 +15,7 @@
 //   Public License for more details (LICENSE).
 #include "bhed/karte/modellbrowser.h"
 
+#include "bhed/karte/modell.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/karte/xyansicht.h"
 
@@ -92,6 +93,12 @@ ModellOrdner modellBaum(const Dateisystem& fs, const std::string& ordnerListe, c
         }
     }
     return wurzel;
+}
+
+std::vector<std::string> modellBrowserEndungen() {
+    std::vector<std::string> v = modellEndungenAssimp();
+    v.emplace_back("glm");
+    return v;
 }
 
 ModellZellen::ModellZellen(int breite, int zelle, int schriftHoehe, int schriftUnterlaenge)

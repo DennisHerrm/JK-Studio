@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <string>
 
+#include "bhed/karte/modell.h"
 #include "bhed/karte/modellimport.h"
 #include "bhed/md3.h"
 
@@ -135,6 +136,57 @@ int main() {
     }
     std::printf("      %zu Flaechen\n", mt.surfaces.size());
     expect("3200 Dreiecke auf mehrere Flaechen (je <= 1000 Punkte, <= 2000 Dreiecke), keins verloren", klein && summe == 3200);
+    // rc610 MODOBJ: ein Modell, wie der Editor es zeigt (Z oben, Umlauf wie Q3), als Paket
+    std::printf("--- md3PaketAusModell ---\n");
+    Modell mo;
+    ModellFlaeche fa;
+    fa.shader = "models/pack/holz";
+    fa.punkte = {{Vektor3f(0, 0, 0), Vektor3f(0, 0, 1), Vektor2f(0, 0)}, {Vektor3f(64, 0, 0), Vektor3f(0, 0, 1), Vektor2f(1, 0)},
+                 {Vektor3f(0, 64, 0), Vektor3f(0, 0, 1), Vektor2f(0, 1)}};
+    fa.indizes = {0, 2, 1};
+    ModellFlaeche fb = fa;
+    fb.shader = "textures/spiel/skript";
+    for (ModellPunkt& q : fb.punkte) { q.ort[2] = 32; }
+    mo.flaechen = {fa, fb};
+    std::vector<std::string> gefragt;
+    const Md3Paket pm = md3PaketAusModell(mo, importStamm("models/Pack/Baum Gross.OBJ"), [&gefragt](const std::string& s, std::string& bild, std::string& b) {
+        gefragt.push_back(s);
+        if (s != "models/pack/holz") { return false; }
+        bild = "models/pack/holz.jpg";
+        b = "jpg-bytes";
+        return true;
+    });
+    expect("Stamm aus dem Pfad ohne models/, mit Endung: pack_baum_gross_obj", importStamm("models/Pack/Baum Gross.OBJ") == "pack_baum_gross_obj");
+    expect("lange Stamme: 20 Zeichen, verschiedene bleiben verschieden",
+           importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.obj").size() == 20 &&
+               importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.obj") != importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.fbx"));
+    expect("je Flaeche gefragt, kein Fehler", gefragt.size() == 2 && pm.fehler.empty() && pm.modellPfad == "models/import/pack_baum_gross_obj/pack_baum_gross_obj.md3");
+    bool jpg = false, skriptHolz = false, skriptSpiel = false;
+    for (const Md3Paket::Datei& d : pm.dateien) {
+        jpg = jpg || (d.pfad == "models/import/pack_baum_gross_obj/holz.jpg" && d.inhalt == "jpg-bytes");
+        if (d.pfad == "shaders/pack_baum_gross_obj.shader") {
+            skriptHolz = d.inhalt.find("models/import/pack_baum_gross_obj/holz\n{") != std::string::npos;
+            skriptSpiel = d.inhalt.find("textures/spiel/skript") != std::string::npos;
+        }
+    }
+    expect("das Bild im Paket, im Skript nur der neue Shader (der des Spiels bleibt draussen)", jpg && skriptHolz && !skriptSpiel);
+    Md3Model mma;
+    const bool mok = !pm.dateien.empty() && readMd3(pm.dateien[0].inhalt, mma, &err) && mma.surfaces.size() == 2;
+    expect("zwei Flaechen: holz neu benannt, der Shader des Spiels unveraendert",
+           mok && mma.surfaces[0].shader == "models/import/pack_baum_gross_obj/holz" && mma.surfaces[1].shader == "textures/spiel/skript");
+    if (mok) {
+        const Md3Surface& s = mma.surfaces[0];
+        bool gleich = s.indexes.size() == 3 && s.verts.size() == 3;
+        for (std::size_t k = 0; gleich && k < 3; ++k) {
+            const Md3Vertex& v = s.verts[s.indexes[k]];
+            const ModellPunkt& q = fa.punkte[fa.indizes[k]];
+            gleich = std::fabs(v.xyz[0] - q.ort[0]) < 1e-3 && std::fabs(v.xyz[1] - q.ort[1]) < 1e-3 && std::fabs(v.xyz[2] - q.ort[2]) < 1e-3 &&
+                     std::fabs(v.st[0] - q.st[0]) < 1e-6 && std::fabs(v.st[1] - q.st[1]) < 1e-6 && std::fabs(v.normal[2] - 1.0) < 0.01;
+        }
+        expect("Umlauf, Orte, st und Normalen genau wie im Modell", gleich);
+        expect("ohne Bild kein Skript-Eintrag; nur Spiel-Shader: keine .shader-Datei",
+               md3PaketAusModell(Modell{{fb}, Kasten(), false}, "nur_spiel", [](const std::string&, std::string&, std::string&) { return false; }).dateien.size() == 1);
+    }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

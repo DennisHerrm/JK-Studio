@@ -1462,6 +1462,7 @@ void einstellungenLaden() {
     ed.texQual.kompression = 0;
     // ModelBrowser_Construct (modelwindow.cpp:1378-1380)
     ed.modBroE.zelle = static_cast<int>(zahl("ModelBrowserCellSize", 80));
+    ed.modBroE.umwandeln = zahl("ModelBrowserConvertMd3", 1) != 0.0F;   // rc610 MODOBJ
     {
         const auto it = k.find("ModelBrowserFolders");
         if (it != k.end()) { ed.modBroE.ordner = it->second; }
@@ -1776,6 +1777,7 @@ void einstellungenSpeichern() {
     k["SI_Exclude"] = std::to_string(ed.filterMaske);
     k["ModelBrowserCellSize"] = std::to_string(ed.modBroE.zelle);
     k["ModelBrowserFolders"] = ed.modBroE.ordner;
+    k["ModelBrowserConvertMd3"] = ed.modBroE.umwandeln ? "1" : "0";
     {
         char z[96];
         std::snprintf(z, sizeof(z), "%g %g %g", static_cast<double>(ed.modBroE.hintergrund[0]), static_cast<double>(ed.modBroE.hintergrund[1]),

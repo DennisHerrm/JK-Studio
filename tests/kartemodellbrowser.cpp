@@ -9,6 +9,7 @@
 #include "bhed/karte/modellbrowser.h"
 #include "bhed/karte/texturen.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -61,6 +62,20 @@ void baum() {
     pruefe(t.ordner.size() == 1 && tm != t.ordner.end() && tm->second.dateien.count("b.ASE") == 1 && tm->second.ordner.count("a") == 1 &&
                tm->second.ordner.at("a").dateien.size() == 2 && tm->second.dateien.size() == 1,
            "constructTree: md3/ASE/glm unter models/, nicht c.txt und other/");
+    // rc610 MODOBJ: die Endungen wie NRC (assmodel: alle von assimp) und glm
+    const std::vector<std::string> e = modellBrowserEndungen();
+    const auto hat = [&e](const char* x) { return std::find(e.begin(), e.end(), x) != e.end(); };
+    pruefe(hat("md3") && hat("ase") && hat("glm") && hat("obj") && hat("fbx") && hat("glb") && hat("gltf") && hat("3ds") && hat("dae") && hat("md2") &&
+               hat("mdl") && hat("md5mesh") && hat("blend") && hat("x") && hat("ply") && hat("stl") && !hat("bsp") && !hat("pk3") && !hat("md5anim") &&
+               !hat("md5camera") && !hat("ogex") && !hat("mtl") && !hat("tga"),
+           "modellBrowserEndungen: assimp ohne bsp/pk3/md5anim/md5camera/ogex, dazu glm");
+    std::printf("      %zu Endungen\n", e.size());
+    for (const char* n : {"models/a/F.OBJ", "models/a/g.Fbx", "models/a/h.mtl"}) { std::ofstream(tmp / n) << "x"; }
+    const ModellOrdner nrc = modellBaum(dfs, "*models/99*", e);
+    const auto na = nrc.ordner.find("models");
+    pruefe(na != nrc.ordner.end() && na->second.ordner.count("a") == 1 && na->second.ordner.at("a").dateien.count("F.OBJ") == 1 &&
+               na->second.ordner.at("a").dateien.count("g.Fbx") == 1 && na->second.ordner.at("a").dateien.count("h.mtl") == 0,
+           "constructTree mit allen Endungen: F.OBJ und g.Fbx (gross geschrieben), nicht h.mtl");
     const ModellOrdner flach = modellBaum(dfs, "*models/1*", {"md3", "ase", "glm"});
     const auto fm = flach.ordner.find("models");
     pruefe(fm != flach.ordner.end() && fm->second.ordner.empty() && fm->second.dateien.size() == 1, "Tiefe 1: nur models/b.ASE");

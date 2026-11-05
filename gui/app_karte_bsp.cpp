@@ -88,6 +88,8 @@ std::string arbeitsOrdner(const std::string& stamm) {
     return mitSchraeg(platform::settingsDirectory()) + "/karte_bsp/" + stamm;
 }
 
+}  // namespace
+
 // Der Aufruf von bhed_q3map2 (Map_ImportFile: AppPath + "q3map2." + RADIANT_EXECUTABLE)
 karte::Q3map2Aufruf q3map2Aufruf() {
     karte::Q3map2Aufruf a;
@@ -98,8 +100,13 @@ karte::Q3map2Aufruf q3map2Aufruf() {
     a.enginePfad = enginePfadAnzeige();
     a.benutzerPfad.clear();   // g_qeglobals.m_userEnginePath (ja/jk2.game ohne prefix)
     a.fsGame = bauSpielName();   // gamename_get
+    // rc610 MODOBJ: wie bauVariablen "ExtraResourcePaths" - die Extra Resource Paths und der Import-Ordner
+    for (const std::string& p : e().zusatzPfade) { a.pakPfade.push_back(p); }
+    a.pakPfade.push_back(importOrdner());
     return a;
 }
+
+namespace {
 
 // q3map2 ohne Fenster starten und warten (Q_Exec( ..., waitfor = true ));
 // Abweichung: hoechstens 10 Minuten.

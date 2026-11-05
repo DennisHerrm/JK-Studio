@@ -104,7 +104,19 @@ std::string onlyentsBefehl(const Q3map2Aufruf& a, const std::string& map, bool l
     return gemeinsamerAnfang(a) + " -bsp -onlyents " + (lichterBehalten ? "-keeplights " : "") + inAnfuehrung(map);
 }
 
-std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map) { return gemeinsamerAnfang(a) + " -bsp " + inAnfuehrung(map); }
+namespace {
+
+std::string pakPfadeText(const Q3map2Aufruf& a) {   // << " -fs_pakpath " << Quoted( path )
+    std::string s;
+    for (const std::string& p : a.pakPfade) {
+        if (!p.empty()) { s += " -fs_pakpath " + inAnfuehrung(p); }
+    }
+    return s;
+}
+
+}  // namespace
+
+std::string teilBauBefehl(const Q3map2Aufruf& a, const std::string& map) { return gemeinsamerAnfang(a) + pakPfadeText(a) + " -bsp " + inAnfuehrung(map); }
 
 std::vector<std::string> teilLichtBefehle(const Q3map2Aufruf& a, const std::string& map, const std::string& cmdline) {
     std::string bsp;
@@ -141,7 +153,8 @@ std::vector<std::string> teilLichtBefehle(const Q3map2Aufruf& a, const std::stri
         }
         s = e + 1;
     }
-    return {gemeinsamerAnfang(a) + " -bsp" + bsp + " " + inAnfuehrung(map), gemeinsamerAnfang(a) + " -light" + licht + " " + inAnfuehrung(map)};
+    return {gemeinsamerAnfang(a) + pakPfadeText(a) + " -bsp" + bsp + " " + inAnfuehrung(map),
+            gemeinsamerAnfang(a) + pakPfadeText(a) + " -light" + licht + " " + inAnfuehrung(map)};
 }
 
 std::string bhedModelleBefehl(const Q3map2Aufruf& a, const std::vector<std::string>& pakPfade, const std::string& liste, const std::string& aus) {

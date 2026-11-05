@@ -28,7 +28,9 @@
 //   GNU General Public License for more details (LICENSE).
 #include "bhed/karte/optimierer.h"
 
+#include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/patchkollision.h"
 
 #include <algorithm>
@@ -266,7 +268,8 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s brushes or patches with q3map_lightmapSize next to light styles: external lightmaps lose the style stages",
     "%s keys or values longer than 1023 characters (q3map2 stops with \"Token too large\", the game cuts them off)",
     "entity text about %s bytes of %s (%s bytes from kept lights)",
-    "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map"
+    "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map",
+    "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -841,6 +844,28 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         if (clip.anzahl > 0) {
             detailSetzen(clip, "%s misc_model with clip flags", {std::to_string(clip.anzahl)});
             out.push_back(clip);
+        }
+        // rc610 MODOBJ: Modelle, die das Spiel zur Laufzeit laden soll, in einem Format, das es nicht laedt. q3map2 backt nur
+        // misc_model, _decal, _skybox ein (UnparseEntities); alles andere laedt das Spiel selbst - nur MD3 und Ghoul2
+        // (RE_RegisterModel), misc_model_static nur .md3 (CG_CreateMiscEntFromGent: ERR_DROP, die Karte laedt nicht)
+        Befund format = neu("modellformat", Schwere::Fehler,
+                            "OpenJK code/rd-vanilla/tr_model.cpp:686-698 RE_RegisterModel (MDXA_IDENT, MDXM_IDENT, MD3_IDENT), "
+                            "code/cgame/cg_main.cpp:1978-1983 CG_CreateMiscEntFromGent (\"is not an md3\", ERR_DROP); q3map2 writebsp.cpp UnparseEntities");
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            if (eingebackeneEntitaet(ents[e].klasse)) { continue; }
+            const bool statisch = klein(ents[e].klasse) == "misc_model_static";
+            for (const char* sl : {"model", "model2"}) {
+                const std::string m = ents[e].wert(sl);
+                if (m.empty() || m[0] == '*' || !modellArtBekannt(m)) { continue; }
+                const std::string x = klein(m.substr(m.find_last_of('.') + 1));
+                if (x == "md3" || (!statisch && x == "glm")) { continue; }
+                add(format, ObjektRef{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + " " + m});
+            }
+        }
+        if (format.anzahl > 0) {
+            detailSetzen(format, "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)",
+                         {std::to_string(format.anzahl)});
+            out.push_back(format);
         }
     }
 

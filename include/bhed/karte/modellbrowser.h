@@ -47,6 +47,10 @@ struct ModellOrdner {
 // ModelBrowser_constructTree: die Modelldateien (Endungen ohne Gross/klein)
 // aus allen Archiven in deren Reihenfolge, je Ordner der Liste bis zur Tiefe.
 [[nodiscard]] ModellOrdner modellBaum(const Dateisystem& fs, const std::string& ordnerListe, const std::vector<std::string>& endungen);
+// rc610 MODOBJ: die Endungen fuer modellBaum - GetTypeList( ModelLoader::Name ): ja.game hat modeltypes "*", NRC
+// laedt jedes Modell ueber assmodel (modellEndungenAssimp, darin md3 und ase); dazu glm (Abweichung: Ghoul2 hat in
+// NRC keinen Lader, der Editor zeigt es wie das Spiel).
+[[nodiscard]] std::vector<std::string> modellBrowserEndungen();
 
 // CellPos (Zellen: halbe Groesse zelle, Schrift hoehe/unterlaenge, 8 Rand links)
 class ModellZellen {

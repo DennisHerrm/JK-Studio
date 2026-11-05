@@ -24,6 +24,7 @@
 
 #include "bhed/karte/geometrieimport.h"
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -42,8 +43,21 @@ struct Md3Paket {
     std::string fehler;           // leer = gut
 };
 
-// stamm: Dateiname ohne Endung (klein, nur [a-z0-9_-]); Ordner models/import/<stamm>.
+// stamm: Dateiname ohne Endung (klein, nur [a-z0-9_-], hoechstens 20 Zeichen - laenger: Anfang und Pruefsumme);
+// Ordner models/import/<stamm>. Namen in der .md3 (Modell, Shader) und Bildpfade bleiben unter MAX_QPATH (64):
+// zu lange Texturnamen werden ebenso gekuerzt.
 [[nodiscard]] Md3Paket md3Paket(const ImportNetz& netz, const std::string& stamm);
+
+// rc610 MODOBJ: ein Modell aus dem Spiel-VFS (wie der Editor es zeigt: modell.h, Z oben, Umlauf und st wie Q3) als
+// Paket fuer den Import-Ordner - dieselben Dreiecke, Normalen und Texturkoordinaten. Je Flaeche fragt bildHolen nach
+// dem Shader: true mit Bildpfad und Bytes = das Bild kommt ins Paket (Shader models/import/<stamm>/<bild>); false =
+// der Shader bleibt, wie er ist (ein Skript des Spiels, oder es gibt nichts - wie beim misc_model).
+using ModellBildHolen = std::function<bool(const std::string& shader, std::string& bild, std::string& bytes)>;
+struct Modell;
+[[nodiscard]] Md3Paket md3PaketAusModell(const Modell& m, const std::string& stamm, const ModellBildHolen& bildHolen);
+// Der Stamm fuer ein Modell des Spiel-VFS: der Pfad ohne "models/", mit der Endung ("models/Pack/Baum.OBJ" ->
+// "pack_baum_obj"), wie md3Paket ihn kuerzt - verschiedene Dateien bekommen verschiedene Pakete.
+[[nodiscard]] std::string importStamm(const std::string& vfsPfad);
 // Stufe 9d: JA, JK2 und MD lesen Shader aus shaders/ (tr_shader.cpp ScanAndLoadShaderFiles( "shaders" ),
 // shaderpath in ja.game/jk2.game) - md3Paket legt das Skript dort ab (bis Stufe 9d: scripts/, das liest
 // keines dieser Spiele).

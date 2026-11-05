@@ -7526,3 +7526,7 @@ TEXTE.update(_T1)
 # rc610 TUT-GEO: Tutorial "Ein Modell zu Brushes machen"
 from inhalt_tutgeo import ES as _TG  # noqa: E402
 TEXTE.update(_TG)
+
+# rc610 MODOBJ: Modell-Browser mit .obj, .fbx usw., Setzen wandelt in .md3
+from inhalt_modobj import ES as _MO  # noqa: E402
+TEXTE.update(_MO)

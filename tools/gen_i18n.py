@@ -2264,6 +2264,8 @@ from i18n_rc610_f23 import zeilen_vier as _rc610_f23  # noqa: E402  (rc610 F23: 
 S += _rc610_f23()
 from i18n_rc610_licht1 import zeilen_vier as _rc610_licht1  # noqa: E402  (rc610 LICHT1: Echtzeit-Licht der ganzen Karte)
 S += _rc610_licht1()
+from i18n_rc610_modobj import zeilen_vier as _rc610_modobj  # noqa: E402  (rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3)
+S += _rc610_modobj()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

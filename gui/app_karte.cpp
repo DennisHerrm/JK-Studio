@@ -149,6 +149,11 @@ void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
         // rc610 F23 (B3-2): das Spiel kam im Hintergrund (spielPruefen, z. B. nach einem Reiterwechsel im Hauptfenster) - ohne
         // Eingabe im Editor. Szenen und Ansichten neu, wie nach einem Befehl (Shader_Realise: die Flaechen holen ihre Shader neu)
         ++e.sichtStand;
+        // rc610 MODOBJ: die Modelle aus dem neuen Suchpfad (NRC referencecache.cpp: ReferenceAPI haengt g_referenceCache an das
+        // Dateisystem, dessen Realise laedt jedes Modell neu).
+        // Sonst blieb ein Modell, das vor dem neuen Suchpfad nicht zu finden war (die erste .md3 im neuen Import-Ordner),
+        // ein NullModel.
+        modelleLeeren();
     }
 }
 

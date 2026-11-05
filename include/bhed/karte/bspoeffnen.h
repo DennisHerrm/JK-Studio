@@ -60,6 +60,9 @@ struct Q3map2Aufruf {
     std::string enginePfad;    // EnginePath_get
     std::string benutzerPfad;  // g_qeglobals.m_userEnginePath (JA/JK2: leer)
     std::string fsGame;        // gamename_get ("base", "MD")
+    // rc610 MODOBJ: -fs_pakpath je Pfad (build_init_variables "ExtraResourcePaths", qe3.cpp:167-171) - fuer den
+    // Teil-Compile von "In fertige Karte einfuegen": die Modelle der misc_model (Schattenwerfer) aus diesen Ordnern
+    std::vector<std::string> pakPfade;
 };
 [[nodiscard]] std::string convertBefehl(const Q3map2Aufruf& a, bool brushPrimitives, const std::string& bsp);
 // str( PathExtensionless( filename ), "_converted.map" )

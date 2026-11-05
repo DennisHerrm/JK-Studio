@@ -53,6 +53,10 @@ struct ImportTeil {
     std::string textur;
     std::string texturDaten;
     std::string texturEndung;
+    // rc610 MODOBJ (md3PaketAusModell): ein Shader, den es im Spiel schon gibt (Skript) - die .md3 nennt ihn so,
+    // ohne Bild und ohne Eintrag im Shader-Skript des Pakets; und die Normalen des Modells (leer: aus den Dreiecken)
+    std::string shaderFest;
+    std::vector<ImportPunkt> normalen;
 };
 
 struct ImportNetz {

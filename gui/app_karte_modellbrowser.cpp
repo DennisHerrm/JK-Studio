@@ -16,8 +16,8 @@
 // (Einstellungen "Model View Size" 16..8192, "List of *folderToLoad/depth*",
 // ModelBrowserFolders, ModelBrowserCellSize, ColorModBroBackground).
 //
-// Die Ordner listen die Endungen, die der Editor laden kann (md3, ase, glm);
-// NRC listet alle Modelltypen seiner Lader (dazu die von assimp).
+// Die Ordner listen die Endungen aller Lader wie NRC (rc610 MODOBJ: assimp wie
+// NRCs assmodel, dazu glm; modellBrowserEndungen).
 //
 //   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   For a list of contributors, see the accompanying CONTRIBUTORS file.
@@ -35,14 +35,17 @@
 #include "app_internal.h"
 #include "karte_gpu.h"
 
+#include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/eklasse.h"
 #include "bhed/karte/modellbrowser.h"
 #include "bhed/karte/raster.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -167,11 +170,27 @@ std::vector<Zeile> zeilen() {
     return v;
 }
 
-// mouseDoubleClick: misc_model vor der Kamera ("insertModel")
+// modelscale nach einer Umwandlung (md3Paket: ueber +-511 verkleinert)
+void skalaSetzen(karte::Entitaet& ent, double skala) {
+    if (skala == 1.0) { return; }
+    char t[48];
+    std::snprintf(t, sizeof(t), "%g", skala);
+    ent.setzen("modelscale", t);
+}
+
+// mouseDoubleClick: misc_model vor der Kamera ("insertModel"). rc610 MODOBJ: mit MD3 an zuerst die Umwandlung
 void modellEinfuegen() {
     Editor& ed = e();
     Zustand& s = z();
-    if (!s.ordnerDa || s.aktuell < 0) { return; }
+    if (!s.ordnerDa || s.aktuell < 0 || static_cast<std::size_t>(s.aktuell) >= s.dateien.size()) { return; }
+    std::string pfad = s.ordnerPfad + s.dateien[static_cast<std::size_t>(s.aktuell)];
+    double skala = 1.0;
+    if (ed.modBroE.umwandeln && modellUmwandelnNoetig(pfad, false)) {
+        const ModellUmwandlung u = modellUmwandeln(pfad);
+        if (u.modell.empty()) { return; }
+        pfad = u.modell;
+        skala = u.modelscale;
+    }
     karte::Karte& k = ed.karte;
     k.undo.start();
     auto ent = k.neueEntitaet("misc_model", false);   // findOrInsert( "misc_model", false )
@@ -182,12 +201,14 @@ void modellEinfuegen() {
     k.auswahl.leeren();
     k.auswahl.waehlen(ent);
     const karte::EntitaetsKlasse* kl = ent->klasse();
-    ent->setzen(kl != nullptr ? kl->miscmodelKey : std::string("model"), s.ordnerPfad + s.dateien[static_cast<std::size_t>(s.aktuell)]);
+    ent->setzen(kl != nullptr ? kl->miscmodelKey : std::string("model"), pfad);
+    skalaSetzen(*ent, skala);
     k.undo.finish("insertModel");
     auswahlGeaendert();
 }
 
-// mouseReleaseEvent links ohne Weg: das Modell den gewaehlten Entitaeten ("entityAssignModel")
+// mouseReleaseEvent links ohne Weg: das Modell den gewaehlten Entitaeten ("entityAssignModel"). rc610 MODOBJ: die .md3, wenn
+// MD3 an ist oder das Spiel die Entity zur Laufzeit laedt (nicht eingebacken: misc_model_static nur .md3)
 void modellZuweisen() {
     Editor& ed = e();
     Zustand& s = z();
@@ -196,12 +217,27 @@ void modellZuweisen() {
     if (s.aktuell < 0 || static_cast<std::size_t>(s.aktuell) >= s.dateien.size()) { return; }
     const std::string pfad = s.ordnerPfad + s.dateien[static_cast<std::size_t>(s.aktuell)];
     karte::Karte& k = ed.karte;
-    k.undo.start();
+    std::vector<std::shared_ptr<karte::Entitaet>> ziele;
+    bool umwandeln = false;
     for (const auto& w : k.auswahl.elemente()) {   // foreachSelected: Node_getEntity( instance.path().top() )
         const auto ent = w.entitaet.lock();
         if (!ent || !w.primitiv.expired()) { continue; }
+        ziele.push_back(ent);
+        const bool laufzeit = !karte::eingebackeneEntitaet(ent->klassenname());
+        umwandeln = umwandeln || ((ed.modBroE.umwandeln || laufzeit) && modellUmwandelnNoetig(pfad, laufzeit));
+    }
+    ModellUmwandlung u;
+    if (umwandeln) {
+        u = modellUmwandeln(pfad);
+        if (u.modell.empty()) { return; }
+    }
+    k.undo.start();
+    for (const auto& ent : ziele) {
         const karte::EntitaetsKlasse* kl = ent->klasse();
-        ent->setzen(kl != nullptr ? kl->miscmodelKey : std::string("model"), pfad);
+        const bool laufzeit = !karte::eingebackeneEntitaet(ent->klassenname());
+        const bool md3 = umwandeln && (ed.modBroE.umwandeln || laufzeit) && modellUmwandelnNoetig(pfad, laufzeit);
+        ent->setzen(kl != nullptr ? kl->miscmodelKey : std::string("model"), md3 ? u.modell : pfad);
+        if (md3) { skalaSetzen(*ent, u.modelscale); }
     }
     k.undo.finish("entityAssignModel");
 }
@@ -396,7 +432,7 @@ void rollbalken(ImVec2 a, ImVec2 c) {
 void modellBrowserBaumBauen() {   // ModelBrowser_constructTree
     Editor& ed = e();
     Zustand& s = z();
-    s.baum = ed.karteSpiel ? karte::modellBaum(ed.karteSpiel->fs, ed.modBroE.ordner, {"md3", "ase", "glm"}) : karte::ModellOrdner{};
+    s.baum = ed.karteSpiel ? karte::modellBaum(ed.karteSpiel->fs, ed.modBroE.ordner, karte::modellBrowserEndungen()) : karte::ModellOrdner{};
     s.baumAlt = false;
     s.baumSpiel = ed.karteSpiel.get();
     s.ordnerDa = false;   // ModelGraph_clear
@@ -405,6 +441,28 @@ void modellBrowserBaumBauen() {   // ModelBrowser_constructTree
     s.grenzen.clear();
     s.aktuell = -1;
 }
+
+namespace {
+
+// rc610 MODOBJ (Abweichung): kam ein neues Spiel (der erste Import-Ordner einer Umwandlung kommt in den Suchpfad), bleibt der
+// offene Ordner offen - NRC baut den Baum nur beim Start und mit "Reload Model Folders Tree View" neu
+void baumNeuOrdnerBehalten() {
+    Zustand& s = z();
+    const std::string pfad = s.ordnerDa ? s.ordnerPfad : std::string();
+    const bool offen = s.ordnerDa;
+    modellBrowserBaumBauen();
+    if (!offen) { return; }
+    const karte::ModellOrdner* o = &s.baum;
+    for (std::size_t a = 0; o != nullptr && a < pfad.size();) {
+        const std::size_t b = pfad.find('/', a);
+        const auto it = o->ordner.find(pfad.substr(a, b - a));
+        o = it == o->ordner.end() ? nullptr : &it->second;
+        a = b + 1;
+    }
+    if (o != nullptr) { ordnerAktivieren(pfad, *o); }
+}
+
+}  // namespace
 
 void modellBrowserLagenNeu() {   // CellSizeImport
     lagenSetzen();
@@ -418,7 +476,11 @@ int modellBrowserAktuell() { return z().aktuell; }
 void modellBrowserZeichnen(int breite, int hoehe) {
     Editor& ed = e();
     Zustand& s = z();
-    if (s.baumAlt || s.baumSpiel != ed.karteSpiel.get()) { modellBrowserBaumBauen(); }
+    if (s.baumAlt) {
+        modellBrowserBaumBauen();
+    } else if (s.baumSpiel != ed.karteSpiel.get()) {
+        baumNeuOrdnerBehalten();
+    }
     texturBilderAbholen();   // die Bilder der Modelle kommen auch ohne Kamera an
     const float sc = massstab();
     karte::Teiler& t = ed.modTeiler;
@@ -454,6 +516,24 @@ void modellBrowserZeichnen(int breite, int hoehe) {
             (void)karteIcon(dl, "refresh_modelstree", ImVec2{std::floor(k0.x + (k1.x - k0.x - g) * 0.5F), std::floor(k0.y + (k1.y - k0.y - g) * 0.5F)}, g,
                             ImGui::GetColorU32(karteIconFarbe("refresh_modelstree")));
             if (geklickt) { modellBrowserBaumBauen(); }
+        }
+        {   // rc610 MODOBJ (eigene Funktion): Setzen wandelt in .md3 um (Vorgabe); aus = der Original-Pfad wie NRC
+            dl->PushClipRect(bp(x, y), bp(x + b, y + kLeisteH), true);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{std::round(2.0F * sc), std::round(2.0F * sc)});
+            const float hoch = ImGui::GetFontSize() + std::round(2.0F * sc) * 2.0F;
+            ImGui::SetCursorScreenPos(ImVec2{bp(x + 2 + kKnopf + 6, y).x, std::floor(bp(x, y).y + (static_cast<float>(kLeisteH) * sc - hoch) * 0.5F)});
+            if (ImGui::Checkbox((std::string(trK(Str::KeModBroMd3)) + "##modbroumwandeln").c_str(), &ed.modBroE.umwandeln)) {
+                g_app->settings.karte["ModelBrowserConvertMd3"] = ed.modBroE.umwandeln ? "1" : "0";
+            }
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 34.0F, 0.0F});
+                if (ImGui::BeginTooltip()) {
+                    ImGui::TextWrapped("%s", trK(Str::KeModBroMd3Hint));
+                    ImGui::EndTooltip();
+                }
+            }
+            dl->PopClipRect();
         }
         // QTreeView ohne Kopf
         const ImVec2 ta = bp(x, y + kLeisteH);

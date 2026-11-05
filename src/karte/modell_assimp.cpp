@@ -4,8 +4,8 @@
 // assimp-Schritte und dieselbe Drehung Y oben -> Z oben), PicoSurface::CopyPicoSurface (model.cpp:217-296,
 // Shadername aus Material oder Diffuse-Textur) und AssIOSystem (plugin.cpp:94-160, Dateien aus dem Spiel-VFS).
 // q3map2 laedt misc_model genauso (tools/quake3/q3map2/model.cpp: LoadModel, AssModelMesh) - darum zeigt der
-// Editor dieselben Flaechen und Shader, die der Bau einbackt. Der Editor kennt nur die Leser, die mit dem
-// Programm gebaut werden (assimp_editor: obj, fbx, gltf/glb).
+// Editor dieselben Flaechen und Shader, die der Bau einbackt. rc610 MODOBJ: alle Leser von assimp (wie NRCs
+// libassimp-6.dll und der q3map2), die Endungen wie Radiant_RegisterModules (plugin.cpp:304-319).
 //
 //   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   This program is free software; you can redistribute it and/or modify it under
@@ -22,8 +22,10 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <vector>
 
 namespace bhed::karte {
 
@@ -101,10 +103,42 @@ std::string shaderName(const aiScene* sc, const aiMesh* mesh, const std::string&
 
 }  // namespace
 
+const std::vector<std::string>& modellEndungenAssimp() {
+    // Radiant_RegisterModules (assmodel/plugin.cpp:304-319): GetExtensionList "*.3ds;*.obj;*.dae", je Endung ein
+    // ModelLoader - ohne bsp und pk3 (der Leser geht nicht), md5anim und md5camera (kein Modell) und ogex (stuerzt ab)
+    static const std::vector<std::string> liste = [] {
+        Assimp::Importer importer;
+        aiString endungen;
+        importer.GetExtensionList(endungen);
+        std::vector<std::string> v;
+        const std::string text = endungen.C_Str();
+        std::size_t a = 0;
+        while (a < text.size()) {
+            std::size_t b = text.find(';', a);
+            if (b == std::string::npos) { b = text.size(); }
+            const std::size_t punkt = text.find('.', a);
+            if (punkt != std::string::npos && punkt < b) {
+                const std::string e = kleinA(text.substr(punkt + 1, b - punkt - 1));
+                if (!e.empty() && e != "bsp" && e != "pk3" && e != "md5anim" && e != "md5camera" && e != "ogex" &&
+                    std::find(v.begin(), v.end(), e) == v.end()) {
+                    v.push_back(e);
+                }
+            }
+            a = b + 1;
+        }
+        return v;
+    }();
+    return liste;
+}
+
 bool modellArtAssimp(const std::string& pfad) {
     const std::size_t p = pfad.find_last_of('.');
-    const std::string e = p == std::string::npos ? std::string() : kleinA(pfad.substr(p + 1));
-    return e == "obj" || e == "fbx" || e == "gltf" || e == "glb";
+    const std::size_t s = pfad.find_last_of('/');
+    if (p == std::string::npos || (s != std::string::npos && p < s)) { return false; }
+    const std::string e = kleinA(pfad.substr(p + 1));
+    if (e == "md3" || e == "ase") { return false; }   // eigene Lader (MD3Model_read; .ase wie picomodel)
+    const std::vector<std::string>& v = modellEndungenAssimp();
+    return std::find(v.begin(), v.end(), e) != v.end();
 }
 
 bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler) {

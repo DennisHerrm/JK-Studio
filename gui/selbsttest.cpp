@@ -73,6 +73,7 @@
 #include "bhed/karte/ebenen.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/modellbrowser.h"
+#include "bhed/karte/modellimport.h"   // rc610 MODOBJ: Testmodelle (md3Paket)
 #include "bhed/karte/region.h"
 #include "bhed/karte/filter.h"
 #include "bhed/karte/kartenformat.h"

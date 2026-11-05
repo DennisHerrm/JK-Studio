@@ -788,6 +788,7 @@ struct Editor {
         int zelle = 80;                           // m_cellSize ("ModelBrowserCellSize")
         std::string ordner = "*models/99*";       // m_prefFoldersToLoad ("ModelBrowserFolders")
         std::array<float, 3> hintergrund{.25F, .25F, .25F};   // m_background_color ("ColorModBroBackground")
+        bool umwandeln = true;                    // rc610 MODOBJ: Setzen wandelt in .md3 ("ModelBrowserConvertMd3")
     } modBroE;
     karte::Teiler modTeiler;                      // "ModelBrowser/splitter"
     // Der Ebenen-Browser (layerswindow.cpp: LayersBrowser g_lbro)
@@ -1753,6 +1754,7 @@ void bspNurEntitaeten();
 // geoeffnete fertige Karte (Teil-Compile mit q3map2 -bsp, karte::bspModelleAnhaengen, Speichern wie J)
 [[nodiscard]] int bspNeuePinselEntitaeten();   // wie viele Brush-Entities seit dem Oeffnen neu sind
 void bspInFertigeKarte();
+[[nodiscard]] karte::Q3map2Aufruf q3map2Aufruf();   // der Aufruf von bhed_q3map2 (Map_ImportFile, Teil-Compile)
 // rc609 B13: die Abdruecke der Geometrie (Fingerabdruck mit und ohne Welt, Welt-Brushes) nach Oeffnen, Rueckgewinnung, Einfuegen
 void bspGeometrieMerken();
 // rc609 B13: die erste Rueckgabe != 0 der Schritte des letzten Baus (bauEigeneBefehle), sonst 0
@@ -1914,6 +1916,18 @@ void geoImportEinfuegen();
 // Stufe 9 Punkt 10: die gewaehlten Brushes fuer Blender (.obj oder .glb, Y oben); pfad leer: Dateidialog
 bool blenderExport(const std::string& pfad);
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt);
+// rc610 MODOBJ: Modelle aus dem Spiel-VFS (Modell-Browser, Asset-Browser) in ein Format, das das Spiel laedt. Das Spiel laedt
+// nur MD3 und Ghoul2 (OpenJK code/rd-vanilla/tr_model.cpp:686-698 RE_RegisterModel: MDXA_IDENT, MDXM_IDENT, MD3_IDENT),
+// misc_model_static nur .md3 (code/cgame/cg_main.cpp:1978-1983, sonst ERR_DROP "is not an md3"). nurMd3: auch .glm umwandeln.
+[[nodiscard]] bool modellUmwandelnNoetig(const std::string& pfad, bool nurMd3);
+// Das Modell, wie der Editor es zeigt, als .md3-Paket (md3PaketAusModell) in den Import-Ordner: Bilder ohne Shader-Skript
+// kommen mit, Shader mit Skript bleiben. Nur geaenderte Dateien werden geschrieben; der erste Import-Ordner kommt in den
+// Suchpfad. modell leer: Fehler (gemeldet).
+struct ModellUmwandlung {
+    std::string modell;        // models/import/<stamm>/<stamm>.md3
+    double modelscale = 1.0;   // != 1: "modelscale" setzen (MD3 haelt +-511)
+};
+[[nodiscard]] ModellUmwandlung modellUmwandeln(const std::string& vfsPfad);
 // Stufe 9: wohin etwas Abgelegtes kommt (2D-Ansicht unter dem Zeiger, Kamera: Flaeche unter dem Zeiger, sonst vor der Kamera)
 [[nodiscard]] karte::Vektor3f ablageOrt(ImVec2 punkt);
 // Die surfaceparms eines Shaders im Spiel der Karte (fuer kollisionAusKarte; app_karte_sprung.cpp)

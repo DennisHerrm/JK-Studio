@@ -336,9 +336,11 @@ if(MSVC AND BEHAVED_Q3MAP2)
   endif()
 endif()
 
-# Stufe 9 Punkt 2: assimp 6.0.2 (BSD-3, GPL-vertraeglich) fuer den Geometrie-Import im Editor
-# (obj/fbx/glb). Mit dem MSVC-q3map2 (add_subdirectory(src/q3map2)) gibt es das Ziel schon;
-# sonst (q3map2 mit clang-cl als eigener Bau) hier eines nur mit den drei Lesern.
+# Stufe 9 Punkt 2: assimp 6.0.2 (BSD-3, GPL-vertraeglich) fuer den Geometrie-Import im Editor.
+# Mit dem MSVC-q3map2 (add_subdirectory(src/q3map2)) gibt es das Ziel schon; sonst (q3map2 mit
+# clang-cl als eigener Bau) hier eines. rc610 MODOBJ: mit allen Lesern, die assimp von sich aus baut -
+# dieselben wie in NRCs libassimp-6.dll (assmodel: der Modell-Browser zeigt jede Endung davon) und im
+# q3map2 (misc_model); ohne M3D, USD, VRML und C4D (in assimp aus, auch in NRCs DLL nicht).
 if(NOT TARGET assimp)
   set(BHED_TP9 ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
   if(NOT TARGET bhed_zlib)
@@ -362,10 +364,7 @@ if(NOT TARGET assimp)
     add_library(ZLIB::ZLIB ALIAS bhed_zlib)
   endif()
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-  set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-  foreach(i OBJ FBX GLTF)
-    set(ASSIMP_BUILD_${i}_IMPORTER ON CACHE BOOL "" FORCE)
-  endforeach()
+  set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT ON CACHE BOOL "" FORCE)
   foreach(o ZLIB TESTS SAMPLES ASSIMP_TOOLS DRACO USE_CCACHE)
     set(ASSIMP_BUILD_${o} OFF CACHE BOOL "" FORCE)
   endforeach()

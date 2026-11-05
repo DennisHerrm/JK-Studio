@@ -186,10 +186,15 @@ void lader() {
     pruefe(md3Lesen(md3Datei("models\\x\\y.tga"), m) && m.flaechen.size() == 1 && m.flaechen[0].shader == "models/x/y", "md3: Shader ohne Endung, '/'");
     pruefe(m.flaechen[0].punkte.size() == 3 && nah(m.flaechen[0].punkte[2].ort[0], 3) && nah(m.grenzen.origin[0], 2) && nah(m.grenzen.extents[0], 1),
            "md3: Bild 0 (1, 2, 3), Grenzen 1..3");
-    // rc609 KEMD: dazu .obj/.fbx/.gltf/.glb ueber assimp (NRC assmodel); andere Endungen nicht
+    // rc609 KEMD: dazu assimp (NRC assmodel); rc610 MODOBJ: jede Endung von assimp wie NRCs Modell-Browser, ohne bsp/pk3/
+    // md5anim/md5camera/ogex (Radiant_RegisterModules)
     pruefe(modellArtBekannt("models/a.MD3") && modellArtBekannt("b.ase") && modellArtBekannt("c.glm") && modellArtBekannt("d.obj") &&
-               modellArtBekannt("e.GLB") && !modellArtBekannt("f.3ds") && !modellArtBekannt("g.md2"),
-           "Endungen md3/ase/glm, obj/fbx/gltf/glb");
+               modellArtBekannt("e.GLB") && modellArtBekannt("f.3ds") && modellArtBekannt("g.md2") && modellArtBekannt("h.DAE") &&
+               !modellArtBekannt("i.bsp") && !modellArtBekannt("j.md5anim") && !modellArtBekannt("k.ogex") && !modellArtBekannt("l.txt") &&
+               !modellArtBekannt("ordner.obj/datei"),
+           "Endungen md3/ase/glm und die von assimp (ohne bsp, md5anim, ogex)");
+    pruefe(!modellArtAssimp("a.md3") && !modellArtAssimp("b.ASE") && modellArtAssimp("c.Fbx") && !modellArtAssimp("d.glm"),
+           "md3 und ase mit den eigenen Ladern");
     // ASE
     Modell a;
     std::string fehler;

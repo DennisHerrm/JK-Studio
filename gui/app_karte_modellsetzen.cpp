@@ -161,7 +161,7 @@ void modellSetzOptionen() {
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", trK(Str::KeM0KollisionHint)); }
 }
 
-bool modellEinsetzen(const std::string& pfad, ImVec2 punkt) {
+bool modellEinsetzen(const std::string& quellPfad, ImVec2 punkt) {
     Editor& ed = e();
     const std::vector<modellsetzen::KlassenAngebot> k = modellsetzen::modellKlassen(spielNr(), true);
     const int kl = z().klasse == 1 ? 1 : 0;
@@ -170,6 +170,15 @@ bool modellEinsetzen(const std::string& pfad, ImVec2 punkt) {
         std::snprintf(t, sizeof(t), trK(Str::M0KlasseFehlt), klassenName(kl), k[static_cast<std::size_t>(kl)].grund.c_str());
         fehler(t);
         return false;
+    }
+    // rc610 MODOBJ: misc_model_static laedt nur .md3 (cg_main.cpp:1978-1983) - umwandeln wie im Modell-Browser
+    std::string pfad = quellPfad;
+    double skala = 1.0;
+    if ((kl == 1 || ed.modBroE.umwandeln) && modellUmwandelnNoetig(pfad, kl == 1)) {
+        const ModellUmwandlung u = modellUmwandeln(pfad);
+        if (u.modell.empty()) { return false; }
+        pfad = u.modell;
+        skala = u.modelscale;
     }
     if (kl == 1 && !endetMd3(pfad)) {
         std::snprintf(t, sizeof(t), trK(Str::KeM0NurMd3), pfad.c_str());
@@ -190,8 +199,9 @@ bool modellEinsetzen(const std::string& pfad, ImVec2 punkt) {
         return false;
     }
     const karte::Kasten& g = a.modell->grenzen;   // localAABB: was q3map2 mit ModelGetTransform einsetzt
-    const float mn[3] = {g.origin[0] - g.extents[0], g.origin[1] - g.extents[1], g.origin[2] - g.extents[2]};
-    const float mx[3] = {g.origin[0] + g.extents[0], g.origin[1] + g.extents[1], g.origin[2] + g.extents[2]};
+    const float sk = static_cast<float>(skala);   // modelscale der .md3 (die Datei ist verkleinert)
+    const float mn[3] = {(g.origin[0] - g.extents[0]) * sk, (g.origin[1] - g.extents[1]) * sk, (g.origin[2] - g.extents[2]) * sk};
+    const float mx[3] = {(g.origin[0] + g.extents[0]) * sk, (g.origin[1] + g.extents[1]) * sk, (g.origin[2] + g.extents[2]) * sk};
     const modellsetzen::Lage lage;
     const float ort[3] = {boden[0], boden[1], modellsetzen::ursprungZAufBoden(boden[2], mn, mx, lage)};
     const std::string klasse = klassenName(kl);
@@ -202,6 +212,11 @@ bool modellEinsetzen(const std::string& pfad, ImVec2 punkt) {
         ent->setzen("origin", karte::zahlText(ort[0]) + ' ' + karte::zahlText(ort[1]) + ' ' + karte::zahlText(ort[2]));
         const karte::EntitaetsKlasse* ek = ent->klasse();
         ent->setzen(ek != nullptr && !ek->miscmodelKey.empty() ? ek->miscmodelKey : std::string("model"), pfad);
+        if (skala != 1.0) {
+            char m[48];
+            std::snprintf(m, sizeof(m), "%g", skala);
+            ent->setzen("modelscale", m);
+        }
         if (z().kollision && kl == 0) { ent->setzen("spawnflags", "2"); }   // q3map2 eClipModel
         ed.karte.entitaetEinfuegen(ent);
         ed.karte.auswahl.waehlen(ent);

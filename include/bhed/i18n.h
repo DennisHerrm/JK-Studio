@@ -3990,6 +3990,12 @@ enum class Str {
     KeLumpsUngespeichert,
     KeLichtWuerfelFortschritt,
     KeLichtWuerfelGrenze,
+    KeModBroMd3,
+    KeModBroMd3Hint,
+    KeMoUmgewandelt,
+    KeOptPrModellFormat,
+    KeOptPrModellFormatE,
+    KeOptD36,
     Count,
 };
 

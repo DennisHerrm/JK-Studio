@@ -10,20 +10,23 @@
 //   version (LICENSE).
 #include "bhed/karte/modellimport.h"
 
+#include "bhed/karte/modell.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <array>
+#include <cstdio>
 #include <map>
+#include <set>
 #include <tuple>
 
 namespace bhed::karte {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
 constexpr std::size_t kMaxPunkte = 1000;    // SHADER_MAX_VERTEXES
 constexpr std::size_t kMaxDreiecke = 2000;  // SHADER_MAX_INDEXES / 3
 constexpr std::size_t kMaxFlaechen = 32;    // MD3_MAX_SURFACES
@@ -60,6 +63,22 @@ std::string sauber(const std::string& t) {
     return r.empty() ? std::string("tex") : r;
 }
 
+// rc610 MODOBJ: hoechstens n Zeichen - laenger: der Anfang, '_' und 7 Ziffern einer Pruefsumme (FNV-1a) des Ganzen
+std::string gekuerzt(const std::string& s, std::size_t n) {
+    if (s.size() <= n) { return s; }
+    std::uint32_t h = 2166136261U;
+    for (const char c : s) {
+        h ^= static_cast<unsigned char>(c);
+        h *= 16777619U;
+    }
+    char z[16];
+    std::snprintf(z, sizeof(z), "_%07x", static_cast<unsigned>(h & 0xFFFFFFFU));
+    return s.substr(0, n - 8) + z;
+}
+
+constexpr std::size_t kMaxQpath = 63;   // MAX_QPATH 64 mit der Null (q_shared.h; md3Header_t::name, md3Shader_t::name)
+constexpr std::size_t kMaxStamm = 20;   // models/import/<stamm>/<stamm>.md3 bleibt darunter
+
 struct Punkt {
     double x, y, z, nx, ny, nz, s, t;
 };
@@ -91,7 +110,7 @@ void md3NormaleAuspacken(short n, double& x, double& y, double& z) {
 
 Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     Md3Paket p;
-    const std::string stamm = sauber(stammRoh);
+    const std::string stamm = gekuerzt(sauber(stammRoh), kMaxStamm);
     const std::string ordner = "models/import/" + stamm;
     p.modellPfad = ordner + "/" + stamm + ".md3";
     // je Shader die Dreiecke (Punkte je Teil mit Normalen), Texturen als Dateien
@@ -99,32 +118,43 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     std::vector<std::string> reihenfolge;
     std::map<std::string, std::string> bildVon;   // Shader -> Bilddatei (mit Endung) oder leer
     double groesste = 0;
+    std::set<std::string> fest;   // Shader des Spiels: ohne Eintrag im Skript
     for (const ImportTeil& t : netz.teile) {
         std::string shader;
         std::string bild;
-        if (!t.texturDaten.empty()) {
+        if (!t.shaderFest.empty()) {
+            shader = t.shaderFest;
+            fest.insert(shader);
+        } else if (!t.texturDaten.empty()) {
             std::string basis = t.textur;
             const std::size_t sl = basis.find_last_of("/\\");
             if (sl != std::string::npos) { basis = basis.substr(sl + 1); }
             const std::size_t pk = basis.rfind('.');
             if (pk != std::string::npos && pk > 0) { basis = basis.substr(0, pk); }
             if (basis.empty() || basis[0] == '*') { basis = "tex" + basis.substr(basis.empty() ? 0 : 1); }
-            shader = ordner + "/" + sauber(basis);
+            // Bildpfad = Shader + ".endung" (hoechstens 4): beide unter MAX_QPATH
+            shader = ordner + "/" + gekuerzt(sauber(basis), kMaxQpath - 5 - ordner.size() - 1);
             bild = shader + "." + (t.texturEndung.empty() ? std::string("png") : sauber(t.texturEndung));
             bool schon = false;
             for (const Md3Paket::Datei& d : p.dateien) { schon = schon || d.pfad == bild; }
             if (!schon) { p.dateien.push_back({bild, t.texturDaten}); }
         } else {
-            shader = ordner + "/" + sauber(t.material.empty() ? std::string("default") : t.material);
+            shader = ordner + "/" + gekuerzt(sauber(t.material.empty() ? std::string("default") : t.material), kMaxQpath - ordner.size() - 1);
+        }
+        if (shader.size() > kMaxQpath) {
+            p.fehler = "shader name longer than " + std::to_string(kMaxQpath) + " characters: " + shader;
+            return p;
         }
         if (jeShader.find(shader) == jeShader.end()) {
             reihenfolge.push_back(shader);
             bildVon[shader] = bild;
         }
-        // Normalen je Punkt (flaechengewichtet)
+        // Normalen je Punkt: die des Modells, sonst flaechengewichtet aus den Dreiecken
         std::vector<std::array<double, 3>> n(t.punkte.size(), {0, 0, 0});
+        const bool eigene = t.normalen.size() == t.punkte.size();
+        for (std::size_t i = 0; eigene && i < n.size(); ++i) { n[i] = {t.normalen[i].x, t.normalen[i].y, t.normalen[i].z}; }
         for (const auto& d : t.dreiecke) {
-            if (d[0] >= t.punkte.size() || d[1] >= t.punkte.size() || d[2] >= t.punkte.size()) { continue; }
+            if (eigene || d[0] >= t.punkte.size() || d[1] >= t.punkte.size() || d[2] >= t.punkte.size()) { continue; }
             const ImportPunkt &a = t.punkte[d[0]], &b = t.punkte[d[1]], &c = t.punkte[d[2]];
             const double ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z, vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
             const double fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
@@ -274,14 +304,57 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     p.dateien.insert(p.dateien.begin(), {p.modellPfad, m});
     // Shader-Skript
     std::string sh = "// JK Studio: " + stamm + " (Stufe 9, Modell-Import)\n";
+    std::size_t eintraege = 0;
     for (const std::string& s : reihenfolge) {
+        if (fest.count(s) != 0U) { continue; }
+        ++eintraege;
         const std::string& bild = bildVon[s];
         sh += "\n" + s + "\n{\n";
         if (!bild.empty()) { sh += "\tqer_editorimage " + bild + "\n"; }
         sh += "\t{\n\t\tmap " + (bild.empty() ? std::string("$whiteimage") : bild) + "\n\t\trgbGen lightingDiffuse\n\t}\n}\n";
     }
-    p.dateien.push_back({std::string(kSpielShaderOrdner) + stamm + ".shader", sh});
+    if (eintraege > 0) { p.dateien.push_back({std::string(kSpielShaderOrdner) + stamm + ".shader", sh}); }
     return p;
+}
+
+Md3Paket md3PaketAusModell(const Modell& m, const std::string& stamm, const ModellBildHolen& bildHolen) {
+    ImportNetz netz;
+    for (const ModellFlaeche& f : m.flaechen) {
+        if (f.shader.empty() || f.indizes.size() < 3) { continue; }
+        ImportTeil t;
+        t.name = "surf" + std::to_string(netz.teile.size());
+        t.hatUv = true;
+        for (const ModellPunkt& q : f.punkte) {
+            t.punkte.push_back({q.ort[0], q.ort[1], q.ort[2]});
+            t.normalen.push_back({q.normale[0], q.normale[1], q.normale[2]});
+            t.uv.push_back({q.st[0], q.st[1]});
+        }
+        // md3Paket dreht den Umlauf einer Datei von aussen gegen den Uhrzeiger um - das Modell laeuft schon wie Q3
+        // (FlipWindingOrder, MD3Model_read): hier zurueck, damit die .md3 genau seinen Umlauf hat
+        for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) { t.dreiecke.push_back({f.indizes[i], f.indizes[i + 2], f.indizes[i + 1]}); }
+        std::string bild;
+        std::string bytes;
+        if (bildHolen && bildHolen(f.shader, bild, bytes) && !bytes.empty()) {
+            t.material = f.shader;
+            t.textur = bild;
+            t.texturDaten = std::move(bytes);
+            const std::size_t pk = bild.find_last_of('.');
+            t.texturEndung = pk == std::string::npos ? std::string("png") : bild.substr(pk + 1);
+        } else {
+            t.shaderFest = f.shader;
+        }
+        netz.teile.push_back(std::move(t));
+    }
+    return md3Paket(netz, stamm);
+}
+
+std::string importStamm(const std::string& vfsPfad) {
+    std::string r = vfsPfad;
+    std::replace(r.begin(), r.end(), '\\', '/');
+    std::string k = r;
+    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (k.rfind("models/", 0) == 0) { r = r.substr(7); }
+    return gekuerzt(sauber(r), kMaxStamm);
 }
 
 std::string importArchivName(const std::string& rel) {

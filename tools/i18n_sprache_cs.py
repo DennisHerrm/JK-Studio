@@ -3034,6 +3034,8 @@ from i18n_rc610_f23 import texte as _rc610_f23  # noqa: E402
 TEXTE.update(_rc610_f23("cs"))
 from i18n_rc610_licht1 import texte as _rc610_licht1  # noqa: E402
 TEXTE.update(_rc610_licht1("cs"))
+from i18n_rc610_modobj import texte as _rc610_modobj  # noqa: E402
+TEXTE.update(_rc610_modobj("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

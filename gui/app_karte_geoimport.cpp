@@ -299,6 +299,70 @@ bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
     return true;
 }
 
+bool modellUmwandelnNoetig(const std::string& pfad, bool nurMd3) {
+    if (!karte::modellArtBekannt(pfad)) { return false; }
+    const std::string x = endungVon(pfad);
+    return x != "md3" && (nurMd3 || x != "glm");
+}
+
+ModellUmwandlung modellUmwandeln(const std::string& vfsPfad) {
+    Editor& ed = e();
+    char t[1400];
+    const karte::ModellAnsicht a = kartenModellPfad(vfsPfad);
+    if (!a.modell || a.modell->null) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), vfsPfad.c_str(), "model load failed");
+        fehler(t);
+        return {};
+    }
+    const std::shared_ptr<Spielkontext> sp = ed.karteSpiel;
+    // Je Shader: ein Skript des Spiels bleibt; sonst das Bild, das das Spiel naehme (R_LoadImage ohne Endung: die Lader
+    // in der Reihenfolge von R_ImageLoader_Init, rd-common/tr_image_load.cpp:95-97 - jpg, png, tga)
+    const karte::ModellBildHolen holen = [sp](const std::string& shader, std::string& bild, std::string& bytes) {
+        if (!sp) { return false; }
+        if (const karte::ShaderEintrag* s = sp->inventar.shaderFinden(shader); s != nullptr && !s->istStandard()) { return false; }
+        for (const char* x : {"jpg", "png", "tga"}) {
+            if (sp->fs.dateiLesen(shader + "." + x, bytes)) {
+                bild = shader + "." + x;
+                return true;
+            }
+        }
+        return false;
+    };
+    const karte::Md3Paket paket = karte::md3PaketAusModell(*a.modell, karte::importStamm(vfsPfad), holen);
+    if (!paket.fehler.empty()) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), vfsPfad.c_str(), paket.fehler.c_str());
+        fehler(t);
+        return {};
+    }
+    const bool ersterOrdner = importOrdner().empty();
+    const fs::path wurzel = pfadVon(platform::settingsDirectory() + "\\import");
+    for (const karte::Md3Paket::Datei& d : paket.dateien) {
+        const fs::path ziel = wurzel / pfadVon(d.pfad);
+        std::string alt;
+        {
+            std::ifstream f(ziel, std::ios::binary);
+            std::ostringstream o;
+            o << f.rdbuf();
+            alt = o.str();
+        }
+        if (alt == d.inhalt) { continue; }   // gleich: kein neuer Stand (die Live-Wache laedt sonst neu)
+        std::error_code ec;
+        fs::create_directories(ziel.parent_path(), ec);
+        std::ofstream f(ziel, std::ios::binary);
+        f.write(d.inhalt.data(), static_cast<std::streamsize>(d.inhalt.size()));
+        if (!f) {
+            std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), vfsPfad.c_str(), "write");
+            fehler(t);
+            return {};
+        }
+    }
+    if (ersterOrdner) { ed.spielKennung.clear(); }   // EnginePath_Realise: der neue Import-Ordner kommt in den Suchpfad
+    std::snprintf(t, sizeof(t), trKN(Str::KeMoUmgewandelt, paket.flaechen, paket.dreiecke), vfsPfad.c_str(), paket.modellPfad.c_str(),
+                  static_cast<int>(paket.flaechen), static_cast<int>(paket.dreiecke));
+    ausgabe(t);
+    return {paket.modellPfad, paket.modelscale};
+}
+
 void geoImportDialogZeichnen() {
     GeoImportZustand& z = e().geoImport;
     if (!z.offen) { return; }

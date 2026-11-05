@@ -109,7 +109,8 @@ private:
                 if (spiel->fs.dateiLesen(pfad, bytes)) {
                     ausgabe("Loaded Model: \"" + pfad + "\"");
                     karte::Modell neu;
-                    const std::string ende = klein(pfad.substr(pfad.size() - 4));
+                    const std::size_t punkt = pfad.find_last_of('.');
+                    const std::string ende = klein(pfad.substr(punkt));   // modellArtBekannt: es gibt eine Endung
                     bool ok = false;
                     if (ende == ".md3") {
                         ok = karte::md3Lesen(bytes, neu);
