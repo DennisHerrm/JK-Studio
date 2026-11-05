@@ -12,6 +12,7 @@
 // Datenfrei: Karte und Brush-Modelle werden hier von Hand gebaut.
 
 #include "bhed/mover.h"
+#include "bhed/regelwerk.h"   // F6b: Movie Duels umschalten
 #include "bhed/scene.h"   // F4b (B4b-5): beruehrtFelder
 
 #include <algorithm>
@@ -264,6 +265,114 @@ void f4bTueren() {
     }
 }
 
+// F6b: Use_BinaryMover, G_FindTeams und func_bobbing/func_rotating wie im Spiel (Punkte 6, 7, 8, 11, 12).
+void f6bMover() {
+    std::printf("F6b: Mover\n");
+    const BspGeometry g = geometrie(4);
+    const auto imFeld = [](double ab) {
+        return [ab](double ms, const float mn[3], const float mx[3]) {
+            const float p[3] = {-60.0F, 32.0F, 40.0F};
+            return ms >= ab && p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1] && p[2] >= mn[2] &&
+                   p[2] <= mx[2];
+        };
+    };
+    // (6) LOCKED + TOGGLE behaelt den Namen; LOCKED: nach dem Entsperren oeffnet das Feld.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "t"}, {"spawnflags", "24"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "t"}, {3000.0, "t"}}, nullptr, 6000.0);
+        erwarte("(6) LOCKED+TOGGLE: das zweite use oeffnet", nah(s.at(1, 3500).origin[1], 56.0F));
+        MapData feld;
+        feld.entities.push_back(ent("func_door", {{"model", "*2"}, {"angle", "90"}, {"targetname", "u"}, {"spawnflags", "16"}}));
+        MoverSim f;
+        f.baue(feld, g, {{1000.0, "u"}}, imFeld(2000.0), 6000.0);
+        erwarte("(6) LOCKED: nach dem Entsperren oeffnet das Feld", f.tuerZustand(2, 1500.0) == 0 && f.tuerZustand(2, 2500.0) != 0);
+    }
+    // (7) delay 1: das zweite use verschiebt Use_BinaryMover_Go; in POS2 ersetzt es ReturnToPos1.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "t"}, {"delay", "1"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "t"}, {1500.0, "t"}}, nullptr, 6000.0);
+        std::printf("        delay: y bei 2100 %.1f, 2700 %.1f\n", static_cast<double>(s.at(1, 2100.0).origin[1]),
+                    static_cast<double>(s.at(1, 2700.0).origin[1]));
+        erwarte("(7) delay: uses 1000 und 1500 - zu bis 2550, dann auf",
+                nah(s.at(1, 2100.0).origin[1], 0.0F) && nah(s.at(1, 2700.0).origin[1], 56.0F));
+        // use 0 -> Go 1000 -> offen 1190, ReturnToPos1 3190; use 3100 -> Go 4100 in POS2 -> zurueck erst 6100.
+        MoverSim u;
+        u.baue(map, g, {{0.0, "t"}, {3100.0, "t"}}, nullptr, 9000.0);
+        std::printf("        delay in POS2: y bei 3500 %.1f, 6500 %.1f\n", static_cast<double>(u.at(1, 3500.0).origin[1]),
+                    static_cast<double>(u.at(1, 6500.0).origin[1]));
+        erwarte("(7) delay in POS2: das think ist Go statt ReturnToPos1 - offen bis 6100",
+                nah(u.at(1, 3500.0).origin[1], 56.0F) && nah(u.at(1, 6500.0).origin[1], 0.0F));
+    }
+    // (8) Teammeister jeder Klasse: ein func_static zuerst - die Tuer ist Slave, denkt nicht, heisst nicht mehr "d".
+    {
+        MapData map;
+        map.entities.push_back(ent("func_static", {{"model", "*2"}, {"team", "x"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"team", "x"}, {"targetname", "d"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "d"}}, imFeld(500.0), 4000.0);
+        erwarte("(8) Meister func_static: use d und Feld bewegen die Tuer nicht",
+                nah(s.at(1, 1500.0).origin[1], 0.0F) && nah(s.at(1, 3000.0).origin[1], 0.0F));
+        const KartenTeams kt = findeTeams(map.entities);
+        erwarte("(8) findeTeams: Meister 0, der Name beim Meister",
+                kt.meister[0] == 0 && kt.meister[1] == 0 && kt.zielname[0] == "d" && kt.zielname[1].empty());
+    }
+    // (11) Movie Duels: spinangles dreht ohne targetname; mit health ist es ein func_breakable.
+    regelwerkAnwendenSpiel(kRegelwerkMovieDuels, -1);
+    {
+        MapData map;
+        map.entities.push_back(ent("func_rotating", {{"model", "*1"}, {"spinangles", "10 20 30"}}));
+        map.entities.push_back(ent("func_rotating", {{"model", "*2"}, {"spawnflags", "1"}, {"health", "5"}, {"targetname", "r"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "r"}}, nullptr, 3000.0);
+        const MoverSim::Stand a = s.at(1, 1000.0);
+        erwarte("(11) MD spinangles: 10 20 30 je Sekunde, ohne START_ON",
+                nah(a.angles[0], 10.0F, 0.01F) && nah(a.angles[1], 20.0F, 0.01F) && nah(a.angles[2], 30.0F, 0.01F));
+        erwarte("(11) MD health: mit targetname steht es, use bricht es",
+                nah(s.at(2, 500.0).angles[1], 0.0F, 0.01F) && s.at(2, 500.0).sichtbar && !s.at(2, 2000.0).sichtbar);
+    }
+    regelwerkAnwendenSpiel(kRegelwerkOpenJK, -1);
+    {
+        MapData map;
+        map.entities.push_back(ent("func_rotating", {{"model", "*1"}, {"spinangles", "10 20 30"}}));
+        MoverSim s;
+        s.baue(map, g, {}, nullptr, 2000.0);
+        erwarte("(11) Gegenprobe OpenJK: spinangles gibt es nicht - steht", nah(s.at(1, 1000.0).angles[1], 0.0F, 0.01F));
+    }
+    // (11) func_bobbing LOCKED: das erste use entsperrt nur und loescht den Namen - es wippt weiter.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_bobbing", {{"model", "*1"}, {"origin", "0 0 100"}, {"targetname", "p"}, {"spawnflags", "16"},
+                                                   {"target", "holo"}}));
+        map.entities.push_back(ent("func_wall", {{"model", "*2"}, {"targetname", "holo"}, {"spawnflags", "1"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "p"}, {2000.0, "p"}}, nullptr, 4000.0);
+        erwarte("(11) func_bobbing LOCKED: wippt weiter, target nie",
+                !nah(s.at(1, 2500.0).origin[2], 0.0F, 1.0F) && !s.at(2, 3000.0).sichtbar);
+    }
+    // (12) func_bobbing ohne START_OFF: speed 1 -> trDuration 1000. use 1000: target; POS2 im Bild 2050: opentarget,
+    // wait 0 -> ReturnToPos1 im selben Bild; POS1 im Bild 3050: closetarget. use 4000: wieder target.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_bobbing", {{"model", "*1"}, {"targetname", "p"}, {"speed", "1"}, {"target", "w1"},
+                                                   {"opentarget", "w2"}, {"closetarget", "w3"}}));
+        map.entities.push_back(ent("func_wall", {{"model", "*2"}, {"targetname", "w1"}, {"spawnflags", "1"}}));
+        map.entities.push_back(ent("func_wall", {{"model", "*3"}, {"targetname", "w2"}, {"spawnflags", "1"}}));
+        map.entities.push_back(ent("func_wall", {{"model", "*4"}, {"targetname", "w3"}, {"spawnflags", "1"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "p"}, {4000.0, "p"}}, nullptr, 6000.0);
+        const auto sicht = [&s](int m, double ms) { return s.at(m, ms).sichtbar ? 1 : 0; };
+        std::printf("        func_bobbing Bahn: w1 %d/%d/%d w2 %d/%d w3 %d/%d\n", sicht(2, 900.0), sicht(2, 1100.0), sicht(2, 4100.0),
+                    sicht(3, 2000.0), sicht(3, 2100.0), sicht(4, 3000.0), sicht(4, 3100.0));
+        erwarte("(12) func_bobbing: target bei 1000 und 4000", sicht(2, 900.0) == 0 && sicht(2, 1100.0) == 1 && sicht(2, 4100.0) == 0);
+        erwarte("(12) func_bobbing: opentarget bei 2050", sicht(3, 2000.0) == 0 && sicht(3, 2100.0) == 1);
+        erwarte("(12) func_bobbing: closetarget bei 3050", sicht(4, 3000.0) == 0 && sicht(4, 3100.0) == 1);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -317,7 +426,9 @@ int main() {
         MoverSim s;
         s.baue(map, g, {{1000.0, "t"}, {3000.0, "t"}}, nullptr, 6000.0);
         erwarte("LOCKED: erster use oeffnet nicht", nah(s.at(1, 2000).origin[1], 0.0F));
-        erwarte("zweiter use oeffnet", nah(s.at(1, 3500).origin[1], 56.0F));
+        // F6b (6): UnLockDoors loescht ohne TOGGLE den targetname ("not usable ever again", g_mover.cpp:924-938 OpenJK,
+        // :948-963 MD) - das zweite use findet die Tuer nicht mehr.
+        erwarte("zweiter use oeffnet nicht (UnLockDoors: targetname weg)", nah(s.at(1, 3500).origin[1], 0.0F));
     }
     // --- Team: beide Blaetter, targetname am zweiten ----------------------
     {
@@ -1239,6 +1350,7 @@ int main() {
     }
 
     f4bTueren();
+    f6bMover();
 
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);

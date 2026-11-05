@@ -87,6 +87,16 @@ struct MoverUse {
 // es nicht. GEntity_UseFunc (g_functions.cpp:243-248 OpenJK, :258-263 MD) blockt dann jedes use.
 [[nodiscard]] bool startetInaktiv(const MapEntity& e);
 
+// F6b: G_FindTeams (g_main.cpp:551-603 OpenJK, :685-735 MD) nach dem Spawnen. Jede Entity mit "team" zaehlt, gleich
+// welcher Klasse: die erste mit dem Namen (strcmp) ist Meister, jede spaetere wird Slave; der targetname jedes Slaves,
+// der einen hat, geht an den Meister (der letzte gewinnt), der Slave hat danach keinen. G_UseTargets/G_Find finden
+// die Entities unter `zielname`.
+struct KartenTeams {
+    std::vector<int> meister;            // je Entity: Index des Meisters (bei ihm selbst er), -1 ohne "team"
+    std::vector<std::string> zielname;   // je Entity: der targetname nach G_FindTeams
+};
+[[nodiscard]] KartenTeams findeTeams(const std::vector<MapEntity>& ents);
+
 // --- Was beim Zerbrechen entsteht ------------------------------------------
 //
 // func_breakable (funcBBrushDieGo, g_breakable.cpp:79) und

@@ -3,6 +3,7 @@
 // (code/game, code/Ragl, code/Ratl, code/Ravl); OpenJK code/game ist bis auf
 // die vermerkten Stellen gleich.
 #include "bhed/navlauf.h"
+#include "bhed/mover.h"   // F6b: findeTeams
 
 #include <algorithm>
 #include <bit>
@@ -838,23 +839,15 @@ struct NavTeams {
 };
 NavTeams navTeams(const std::vector<MapEntity>& ents) {
     NavTeams tm;
-    tm.meisterVon.assign(ents.size(), -1);
+    const KartenTeams kt = findeTeams(ents);   // F6b: dieselbe Zuordnung wie MoverSim und der Nachbau
+    tm.meisterVon = kt.meister;
+    tm.teamZiel = kt.zielname;
     tm.kette.assign(ents.size(), {});
-    tm.teamZiel.assign(ents.size(), {});
-    for (std::size_t i = 0; i < ents.size(); ++i) { tm.teamZiel[i] = ents[i].targetname; }
     for (std::size_t i = 0; i < ents.size(); ++i) {
-        const std::string team = text(ents[i], "team");
-        if (team.empty() || tm.meisterVon[i] >= 0) { continue; }
-        tm.meisterVon[i] = static_cast<int>(i);
+        if (tm.meisterVon[i] != static_cast<int>(i)) { continue; }
         tm.kette[i].push_back(static_cast<int>(i));
         for (std::size_t j = i + 1; j < ents.size(); ++j) {
-            if (tm.meisterVon[j] >= 0 || text(ents[j], "team") != team) { continue; }
-            tm.kette[i].insert(tm.kette[i].begin() + 1, static_cast<int>(j));
-            tm.meisterVon[j] = static_cast<int>(i);
-            if (!tm.teamZiel[j].empty()) {
-                tm.teamZiel[i] = tm.teamZiel[j];
-                tm.teamZiel[j].clear();
-            }
+            if (tm.meisterVon[j] == static_cast<int>(i)) { tm.kette[i].insert(tm.kette[i].begin() + 1, static_cast<int>(j)); }
         }
     }
     return tm;

@@ -191,6 +191,10 @@ struct AblaufWelt {
     // dieser Schwierigkeit nicht spawnt (SpawnForCurrentDifficultySetting),
     // startet auch kein Skript. < 0: alle Entities.
     int spielstufe = -1;
+    // F6b (9): Startwert von holdrand fuer Q_flrand (target_delay "random"). Im Spiel 0x89abcdef beim Laden der
+    // Bibliothek (q_math.c:223 OpenJK/MD, SP ohne Rand_Init) - danach zieht jede Stelle der Engine daraus, der Stand
+    // beim use ist dort nicht vorhersagbar. Hier wiederholbar ab diesem Wert.
+    std::uint32_t zufallStart = 0x89abcdefU;
 };
 
 // Woher ein Befehl im flachen Skript stammt.

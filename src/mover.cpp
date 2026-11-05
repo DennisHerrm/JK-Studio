@@ -107,6 +107,18 @@ void bewegungsRichtung(const float ang[3], float dir[3]) {
     dir[2] = -sp;
 }
 
+// SP_func_rotating: trDelta - speed (0 -> 100) um die Achse der spawnflags (4 ROLL, 8 PITCH, sonst YAW); Movie Duels
+// nimmt mit "spinangles" (G_SpawnVector) diesen Vektor (g_mover.cpp:2314-2340 OpenJK, :2441-2490 MD).
+void drehungAus(const MapEntity& e, MoverSim::Mover& m) {
+    float speed = zahl(e, "speed", 0.0F);
+    if (speed == 0.0F) { speed = 100.0F; }
+    const int sf = ganz(e, "spawnflags");
+    const int achse = ((sf & 4) != 0) ? 2 : ((sf & 8) != 0) ? 0 : 1;
+    for (float& d : m.drehung) { d = 0.0F; }
+    m.drehung[achse] = speed;
+    if (const std::string* v = e.find("spinangles"); v != nullptr && regelwerkMovieDuels()) { vektor(*v, m.drehung); }
+}
+
 int modellVon(const MapEntity& e) {
     const std::string m = text(e, "model");
     if (m.size() < 2 || m[0] != '*') {
@@ -144,9 +156,16 @@ struct Team {
     Lage lage = Lage::Pos1;
     double bahnAb = 0.0;
     double bahnDauer = 1.0;
-    double zurueckUm = -1.0;       // ReturnToPos1-Termin
-    double losUm = -1.0;           // verzoegertes Use_BinaryMover_Go
+    // F6b: das EINE think des Meisters (e_ThinkFunc/nextthink, G_RunThink): ReturnToPos1 oder - mit delay -
+    // Use_BinaryMover_Go. Ein neues ersetzt das alte (Use_BinaryMover :1017-1021, Reached_BinaryMover :745-763,
+    // Use_BinaryMover_Go POS2 :841-852 OpenJK). denkUm < 0: keins (nextthink -1 bzw. thinkF_NULL).
+    enum class Denken { Nichts, Go, Zurueck };
+    Denken denken = Denken::Nichts;
+    double denkUm = -1.0;
     bool fertig = false;           // wait < 0 und offen: nicht mehr benutzbar
+    // F6b: ein func_bobbing ohne START_OFF - es behaelt Use_BinaryMover aus InitMover (g_mover.cpp:1113 OpenJK)
+    // und faehrt die Bahn von pos1 = pos2 = (0,0,0) mit trDuration = speed * 1000 (SP_func_bobbing :2406-2450).
+    bool bobbing = false;
 };
 
 constexpr int kToggle = 8;
@@ -511,6 +530,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         quelle = &gefiltert;
     }
     const MapData& map = *quelle;
+    const KartenTeams kt = findeTeams(map.entities);   // F6b: G_FindTeams ueber alle Klassen
     mover_.clear();
     tuerWechsel_.clear();   // rc601 (bewegung, teil 3)
     fx_.clear();
@@ -552,7 +572,6 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
 
     // --- Tueren und Teams --------------------------------------------------
     std::vector<Team> teams;
-    std::map<std::string, std::size_t> teamNachName;   // "team"-Schluessel
     std::vector<int> teamVonEntity(map.entities.size(), -1);
     // --- fx_runner, die auf ein use warten --------------------------------
     struct Runner { std::size_t entity; bool oneShot; bool an = false; std::size_t offen = 0; };
@@ -728,10 +747,18 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             continue;
         }
         const auto& sm = geo.models[static_cast<std::size_t>(modell)];
-        if (e.classname == "func_breakable") {
+        // F6b (11): Movie Duels SP_func_rotating (g_mover.cpp:2441-2490 MD) macht mit health ein func_breakable daraus
+        // (SP_func_breakable mit spawnflags 0, danach wieder die der Karte), das sich ohne targetname dreht; ein use
+        // bricht es (funcBBrushUse), statt die Drehung zu schalten.
+        const bool drehBruch = e.classname == "func_rotating" && regelwerkMovieDuels() && ganz(e, "health") != 0;
+        if (e.classname == "func_breakable" || drehBruch) {
             // SP_func_breakable, g_breakable.cpp:389; InitBBrush: steht auf
             // origin, ohne Winkel (TR_STATIONARY auf pos1).
             const std::size_t mi = neuerMover(ei, modell, e);
+            if (drehBruch) {
+                drehungAus(e, mover_[mi]);
+                mover_[mi].drehAnfang = text(e, "targetname").empty();   // trType = targetname ? TR_STATIONARY : TR_LINEAR
+            }
             Bruchstelle b;
             b.entity = ei;
             b.mover = static_cast<int>(mi);
@@ -817,20 +844,20 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             }
             for (int k = 0; k < 3; ++k) { m.origin0[k] = t.pos1[k]; }
 
-            // Team (G_FindTeams, g_main.cpp:551-603 OpenJK, :685-735 MD): der erste mit dem "team"-Namen (strcmp) ist
-            // Meister. G_FindTeams laeuft erst NACH G_SpawnEntitiesFromString (g_main.cpp:801): beim Spawnen hat jede
-            // Tuer noch ihren eigenen targetname, health und spawnflags, und SP_func_door (g_mover.cpp:1512-1530) waehlt
-            // damit Think_SpawnNewDoorTrigger oder Think_MatchTeam. Es laeuft nur das think des Meisters (G_RunMover
-            // kehrt fuer Slaves zurueck, :565-570) - also zaehlen nur SEINE Werte (F4b, B4b-1). Danach kopiert
-            // G_FindTeams den targetname JEDES Slaves, der einen hat, auf den Meister und loescht den des Slaves
-            // ("make sure that targets only point at the master"): der letzte gewinnt.
-            const std::string teamName = text(e, "team");
+            // Team (G_FindTeams, g_main.cpp:551-603 OpenJK, :685-735 MD): die erste Entity mit dem "team"-Namen (strcmp),
+            // gleich welcher Klasse, ist Meister (F6b, findeTeams). G_FindTeams laeuft erst NACH G_SpawnEntitiesFromString
+            // (g_main.cpp:801): beim Spawnen hat jede Tuer noch ihren eigenen targetname, health und spawnflags, und
+            // SP_func_door (g_mover.cpp:1512-1530) waehlt damit Think_SpawnNewDoorTrigger oder Think_MatchTeam. Es laeuft
+            // nur das think des Meisters (G_RunMover kehrt fuer Slaves zurueck, :565-570) - also zaehlen nur SEINE Werte
+            // (F4b, B4b-1). Danach traegt der Meister den targetname des letzten Slaves, der einen hatte. Ist der Meister
+            // keine func_door, denkt keine Tuer des Teams und keine heisst noch wie vorher: sie stehen fuer immer auf pos1.
+            const int meister = kt.meister[ei];
             std::size_t ti = teams.size();
-            const auto it = teamName.empty() ? teamNachName.end() : teamNachName.find(teamName);
-            if (it != teamNachName.end()) {
-                ti = it->second;
-                const std::string tn = text(e, "targetname");
-                if (!tn.empty()) { teams[ti].targetname = tn; }
+            if (meister >= 0 && meister != static_cast<int>(ei)) {
+                if (teamVonEntity[static_cast<std::size_t>(meister)] < 0 || map.entities[static_cast<std::size_t>(meister)].classname != "func_door") {
+                    continue;
+                }
+                ti = static_cast<std::size_t>(teamVonEntity[static_cast<std::size_t>(meister)]);
             } else {
                 Team neu;
                 neu.flags = sf;
@@ -843,12 +870,11 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                 neu.target2 = text(e, "target2");
                 neu.opentarget = text(e, "opentarget");
                 neu.closetarget = text(e, "closetarget");
-                neu.targetname = text(e, "targetname");
-                neu.eigenerName = !neu.targetname.empty();
+                neu.targetname = kt.zielname[ei];
+                neu.eigenerName = !text(e, "targetname").empty();
                 neu.gesundheit = ganz(e, "health") != 0;   // G_SpawnInt( "health", "0", &health )
                 neu.meister = ei;
                 teams.push_back(neu);
-                if (!teamName.empty()) { teamNachName[teamName] = ti; }
             }
             Team& team = teams[ti];
             team.tueren.push_back(t);
@@ -866,12 +892,10 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             const std::size_t mi = neuerMover(ei, modell, e);
             Mover& m = mover_[mi];
             winkelAus(e, m.angles0);
-            float speed = zahl(e, "speed", 0.0F);
-            if (speed == 0.0F) { speed = 100.0F; }
-            const int sf = ganz(e, "spawnflags");
-            const int achse = ((sf & 4) != 0) ? 2 : ((sf & 8) != 0) ? 0 : 1;
-            m.drehung[achse] = speed;
-            m.drehAnfang = (sf & 1) != 0;
+            drehungAus(e, m);
+            m.drehAnfang = (ganz(e, "spawnflags") & 1) != 0;
+            // F6b (11): Movie Duels - mit "spinangles" dreht es ohne targetname auch ohne START_ON (:2475-2483 MD)
+            if (regelwerkMovieDuels() && e.find("spinangles") != nullptr && text(e, "targetname").empty()) { m.drehAnfang = true; }
             moverVonEntity[ei] = static_cast<int>(mi);
             continue;
         }
@@ -892,8 +916,35 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             if (!m.bobAnfang) {   // START_OFF: steht an der Stelle der Phase
                 const float s = std::sin(phase * 3.14159265358979F * 2.0F);
                 for (int k = 0; k < 3; ++k) { m.origin0[k] += s * m.bobDelta[k]; }
+                moverVonEntity[ei] = static_cast<int>(mi);
+                continue;
             }
-            moverVonEntity[ei] = static_cast<int>(mi);
+            // F6b (12): ohne START_OFF bleibt Use_BinaryMover aus InitMover (F4b, B4b-3) - mit allem, was dazugehoert:
+            // LOCKED (UnLockDoors), delay als think, die Bahn MOVER_1TO2/POS2/2TO1 von pos1 nach pos2 (beide (0,0,0),
+            // InitMover kopiert sie nie) mit trDuration = speed * 1000 (int, SP_func_bobbing :2432), Reached_BinaryMover
+            // mit opentarget/closetarget und wait. "wait" (F_FLOAT) und "delay" (F_INT) nimmt nur SP_func_door mal 1000
+            // - hier sind es ms (g_spawn.cpp:255/302). Ein Team (G_FindTeams) bekommt es hier nicht.
+            if (kt.meister[ei] < 0 || kt.meister[ei] == static_cast<int>(ei)) {
+                Team bt;
+                bt.bobbing = true;
+                bt.flags = sf;
+                bt.waitMs = static_cast<double>(zahl(e, "wait", 0.0F));
+                bt.delayMs = static_cast<double>(ganz(e, "delay"));
+                bt.target = text(e, "target");
+                bt.target2 = text(e, "target2");
+                bt.opentarget = text(e, "opentarget");
+                bt.closetarget = text(e, "closetarget");
+                bt.targetname = kt.zielname[ei];
+                bt.meister = ei;
+                Tuer t;
+                t.mover = mi;
+                const auto dauer = static_cast<int>(speed * 1000.0F);
+                t.dauerMs = dauer <= 0 ? 1.0 : static_cast<double>(dauer);   // SetMoverState: <= 0 wird 1
+                t.linear = ganz(e, "linear") != 0;                          // alt_fire (F_INT)
+                bt.tueren.push_back(t);
+                teamVonEntity[ei] = static_cast<int>(teams.size());
+                teams.push_back(bt);
+            }
             continue;
         }
         if (e.classname == "func_static") {
@@ -920,6 +971,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
 
     // --- Die Ausloesefelder (Think_SpawnNewDoorTrigger, g_mover.cpp:1237) ---
     for (Team& t : teams) {
+        if (t.bobbing) { continue; }   // nur SP_func_door setzt Think_SpawnNewDoorTrigger
         // SP_func_door (g_mover.cpp:1514-1530 OpenJK): mit den Werten des Meisters beim Spawnen (B4b-1).
         const bool gesperrt = (t.flags & kLocked) != 0;
         const bool ohneFeld = !gesperrt && (t.eigenerName || t.gesundheit || (t.flags & kPlayerUse) != 0 ||
@@ -963,7 +1015,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         }
         for (std::size_t i = 0; i < map.entities.size(); ++i) {
             const MapEntity& z = map.entities[i];
-            if (gleichOhneFall(text(z, "targetname"), name) &&
+            if (gleichOhneFall(kt.zielname[i], name) &&   // F6b: G_Find nach G_FindTeams
                 (!nurEcke || z.classname == "path_corner")) {
                 return static_cast<int>(i);
             }
@@ -1014,6 +1066,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
     // is_valid fragt beides bei jedem A* (g_navigator.cpp:584-622 MD).
     // MatchTeam setzt den Zustand fuer das ganze Team (g_mover.cpp).
     const auto merke = [&](const Team& t, double ab) {
+        if (t.bobbing) { return; }   // die Wegsuche fragt nur func_door
         const int z = t.lage == Lage::Pos1 ? 0 : t.lage == Lage::Pos2 ? 1 : t.lage == Lage::AufDemWeg ? 2 : 3;
         for (const Tuer& d : t.tueren) {
             tuerWechsel_[mover_[d.mover].modell].push_back(TuerWechsel{ab, z, (t.flags & kLocked) != 0});
@@ -1054,6 +1107,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             case Lage::Pos1:
                 team.lage = Lage::AufDemWeg;
                 merke(team, t);   // rc601 (bewegung, teil 3)
+                if (team.bobbing && mover_[team.tueren.front().mover].binaerAb < 0.0) {
+                    mover_[team.tueren.front().mover].binaerAb = t;   // ab MatchTeam auf pos1 (F4b, B4b-3)
+                }
                 bahnStueck(team, t, t + 50.0, true);   // "start moving 50 msec later"
                 {
                     Oeffnung o;
@@ -1065,8 +1121,9 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                 if (!team.target.empty()) { benutze(team.target, t, tiefe + 1, std::string{}); }
                 break;
             case Lage::Pos2:
-                // Offen: nur die Rueckkehr neu stellen (TOGGLE sofort).
-                team.zurueckUm = ((team.flags & kToggle) != 0) ? t + kTakt : t + team.waitMs;
+                // Offen: nur die Rueckkehr neu stellen (TOGGLE sofort) - think = ReturnToPos1 (:841-852).
+                team.denken = Team::Denken::Zurueck;
+                team.denkUm = ((team.flags & kToggle) != 0) ? t + kTakt : t + team.waitMs;
                 if (!team.target2.empty()) { benutze(team.target2, t, tiefe + 1, std::string{}); }
                 break;
             case Lage::ZurueckDemWeg:
@@ -1126,13 +1183,15 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         if (inaktivJetzt[team.meister] != 0) {
             return;
         }
-        if ((team.flags & kLocked) != 0) {   // UnLockDoors: nur entsperren
-            team.flags &= ~kLocked;
+        if ((team.flags & kLocked) != 0) {   // UnLockDoors (g_mover.cpp:924-938 OpenJK, :948-963 MD): nur entsperren -
+            team.flags &= ~kLocked;          // ohne TOGGLE (8) ist der targetname weg, "not usable ever again"
+            if ((team.flags & kToggle) == 0) { team.targetname.clear(); }
             merke(team, t);   // rc601 (bewegung, teil 3)
             return;
         }
-        if (team.delayMs > 0.0) {
-            if (team.losUm < 0.0) { team.losUm = t + team.delayMs; }
+        if (team.delayMs > 0.0) {   // F6b (7): think = Use_BinaryMover_Go - ein zweites use verschiebt den Termin
+            team.denken = Team::Denken::Go;
+            team.denkUm = t + team.delayMs;
             return;
         }
         tuerGo(ti, t, tiefe);
@@ -1640,7 +1699,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
         std::vector<bool> teamSchon(teams.size(), false);
         for (std::size_t ei = 0; ei < map.entities.size(); ++ei) {
             const MapEntity& e = map.entities[ei];
-            const std::string tn = text(e, "targetname");
+            const std::string& tn = kt.zielname[ei];   // F6b: der Name nach G_FindTeams
             bool trifft = nur >= 0 ? static_cast<int>(ei) == nur : gleichOhneFall(tn, ziel);
             // Ein Team hoert nur am Meister auf den Namen, den G_FindTeams ihm gab; die Slaves haben keinen mehr
             // (F4b, B4b-1).
@@ -1708,21 +1767,10 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                     // func_rotating_use (g_mover.cpp:2269-2295 OpenJK, :2389 MD): an/aus - nur apos.trType wechselt
                     // (TR_LINEAR <-> TR_STATIONARY), siehe at().
                     m.drehUm.push_back(t);
-                } else if (m.klasse == "func_bobbing" && !m.bobAnfang) {
-                    // func_bobbing_use: aus haelt am aktuellen Ort, an
-                    // setzt die Welle an der gemerkten Phase fort.
-                    m.bobUm.push_back(t);
                 } else if (m.klasse == "func_bobbing") {
-                    // F4b (B4b-3): ohne START_OFF setzt SP_func_bobbing (g_mover.cpp:2406-2450 OpenJK, :2605 MD) keine
-                    // use-Funktion; es bleibt Use_BinaryMover aus InitMover (:1113). "delay" ist F_INT und wird hier
-                    // NICHT mal 1000 genommen (nextthink = level.time + delay, :1016-1020). Use_BinaryMover_Go ->
-                    // MatchTeam(MOVER_1TO2) -> SetMoverState: trBase = pos1, das SP_func_bobbing nie setzt - (0,0,0),
-                    // trDelta 0. Ab da steht es dort fuer immer; G_UseTargets feuert sein "target". Die Fahrt der
-                    // Bahn danach (opentarget, target2, closetarget) aendert den Ort nicht und wird nicht gerechnet.
-                    if (m.binaerAb < 0.0) {
-                        m.binaerAb = t + static_cast<double>(std::max(0, ganz(e, "delay")));
-                        warte.push_back(Ereignis{m.binaerAb, text(e, "target"), tiefe + 1, ausloeser});
-                    }
+                    // func_bobbing_use (nur mit START_OFF): aus haelt am aktuellen Ort, an setzt die Welle an der
+                    // gemerkten Phase fort. Ohne START_OFF ist es ein Team (Use_BinaryMover, F6b).
+                    m.bobUm.push_back(t);
                 }
                 continue;
             }
@@ -1897,15 +1945,12 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
             benutze(e.ziel, e.ms, e.tiefe, e.ausloeser);
             reiheJetzt = std::numeric_limits<int>::max();
         }
+        // G_RunMover (g_mover.cpp:557-575 OpenJK): erst G_MoverTeam (blockiert? angekommen?), dann G_RunThink.
         for (std::size_t ti = 0; ti < teams.size(); ++ti) {
             Team& team = teams[ti];
-            if (team.losUm >= 0.0 && t >= team.losUm) {
-                const double wann = team.losUm;
-                team.losUm = -1.0;
-                tuerGo(ti, wann, 0);
-            }
             // rc605 (Ende): blockiert? Dann steht das Team, und Blocked_Door (g_mover.cpp:
             // 1193-1239 MD) schadet der Figur und kehrt um - ein CRUSHER (4) nicht.
+            bool steht = false;
             if (team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) {
                 int figurHier = -1;
                 std::size_t teil = 0;
@@ -1914,6 +1959,7 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                     teil = di;
                 }
                 if (figurHier >= 0) {
+                    steht = true;
                     for (const Tuer& d : team.tueren) { anhalten(d.mover, t); }
                     team.bahnAb += kTakt;
                     const Mover& mt = mover_[team.tueren[teil].mover];
@@ -1921,14 +1967,13 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                     quetsch_.push_back(Quetschung{t, mt.modell, mt.entity, figurHier, team.tueren[teil].schaden, false});
                     // Blocked_Door: ent->damage (der Meister), dann Use_BinaryMover
                     const Mover& mm = mover_[team.tueren.front().mover];
-                    const bool kehrt = (team.flags & 4) == 0;
+                    const bool kehrt = (team.flags & 4) == 0 && !team.bobbing;   // func_bobbing: kein Blocked_Door
                     quetsch_.push_back(Quetschung{t, mm.modell, mm.entity, figurHier, team.tueren.front().schaden, kehrt});
                     if (kehrt) { tuerUse(ti, t, 0); }
-                    continue;
                 }
             }
-            // Angekommen? (Reached_BinaryMover, g_mover.cpp:725)
-            if ((team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) &&
+            // Angekommen? (Reached_BinaryMover, g_mover.cpp:725): das think wird ReturnToPos1 (bzw. keins).
+            if (!steht && (team.lage == Lage::AufDemWeg || team.lage == Lage::ZurueckDemWeg) &&
                 t >= team.bahnAb + team.bahnDauer) {
                 const double da = team.bahnAb + team.bahnDauer;
                 if (team.lage == Lage::AufDemWeg) {
@@ -1936,8 +1981,11 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                     merke(team, t);   // rc601 (bewegung, teil 3)
                     if (team.waitMs < 0.0) {
                         team.fertig = true;
-                    } else if ((team.flags & kToggle) == 0) {
-                        team.zurueckUm = da + team.waitMs;
+                        team.denken = Team::Denken::Nichts;
+                        team.denkUm = -1.0;
+                    } else {
+                        team.denken = Team::Denken::Zurueck;
+                        team.denkUm = (team.flags & kToggle) == 0 ? da + team.waitMs : -1.0;
                     }
                     if (!team.opentarget.empty()) { benutze(team.opentarget, da, 1, std::string{}); }
                 } else {
@@ -1946,17 +1994,23 @@ void MoverSim::baue(const MapData& karte, const BspGeometry& geo,
                     if (!team.closetarget.empty()) { benutze(team.closetarget, da, 1, std::string{}); }
                 }
             }
-            // ReturnToPos1
-            if (team.lage == Lage::Pos2 && team.zurueckUm >= 0.0 && t >= team.zurueckUm) {
-                const double wann = team.zurueckUm;
-                team.zurueckUm = -1.0;
-                team.lage = Lage::ZurueckDemWeg;
-                merke(team, t);   // rc601 (bewegung, teil 3): G_RunThink in diesem Bild
-                bahnStueck(team, wann, wann, false);   // ReturnToPos1: MatchTeam( ent, MOVER_2TO1, level.time )
+            // G_RunThink: Use_BinaryMover_Go (delay) oder ReturnToPos1
+            if (team.denkUm >= 0.0 && t >= team.denkUm) {
+                const double wann = team.denkUm;
+                const Team::Denken art = team.denken;
+                team.denken = Team::Denken::Nichts;
+                team.denkUm = -1.0;
+                if (art == Team::Denken::Go) {
+                    tuerGo(ti, wann, 0);
+                } else if (art == Team::Denken::Zurueck) {
+                    team.lage = Lage::ZurueckDemWeg;
+                    merke(team, t);   // rc601 (bewegung, teil 3): G_RunThink in diesem Bild
+                    bahnStueck(team, wann, wann, false);   // ReturnToPos1: MatchTeam( ent, MOVER_2TO1, level.time )
+                }
             }
             // Ausloesefeld: eine Figur darin oeffnet und haelt offen
             // (Touch_DoorTrigger: nicht, solange sie schon aufgeht).
-            if (team.hatFeld && figur && (team.flags & kLocked) == 0 &&
+            if (!steht && team.hatFeld && figur && (team.flags & kLocked) == 0 &&
                 team.lage != Lage::AufDemWeg && figur(t, team.feldMin, team.feldMax)) {
                 tuerUse(ti, t, 0);
             }
@@ -2391,6 +2445,27 @@ bool tuerStellungen(const MapEntity& e, const BspGeometry& geo, float pos1[3], f
 // F4b: siehe bhed/mover.h. Movie Duels ruft InitTrigger auch in SP_trigger_push, SP_trigger_teleport,
 // SP_trigger_hurt, SP_trigger_space, SP_trigger_shipboundary und SP_trigger_hyperspace (g_trigger.cpp:41-55,
 // 966, 1173, 1426, 1524, 1614, 1773 MD); OpenJK nur in trigger_space und trigger_shipboundary (:1359, :1405).
+KartenTeams findeTeams(const std::vector<MapEntity>& ents) {
+    KartenTeams kt;
+    kt.meister.assign(ents.size(), -1);
+    kt.zielname.resize(ents.size());
+    for (std::size_t i = 0; i < ents.size(); ++i) { kt.zielname[i] = ents[i].targetname; }
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const std::string team = text(ents[i], "team");
+        if (team.empty() || kt.meister[i] >= 0) { continue; }
+        kt.meister[i] = static_cast<int>(i);
+        for (std::size_t j = i + 1; j < ents.size(); ++j) {
+            if (kt.meister[j] >= 0 || text(ents[j], "team") != team) { continue; }
+            kt.meister[j] = static_cast<int>(i);
+            if (!kt.zielname[j].empty()) {
+                kt.zielname[i] = kt.zielname[j];
+                kt.zielname[j].clear();
+            }
+        }
+    }
+    return kt;
+}
+
 bool startetInaktiv(const MapEntity& e) {
     if ((ganz(e, "spawnflags") & 128) == 0) { return false; }
     static const char* const kImmer[] = {

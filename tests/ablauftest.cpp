@@ -1096,6 +1096,63 @@ void zielKette() {
     }
 }
 
+
+// F6b: Tueren im Nachbau (UnLockDoors, G_FindTeams), target_delay "random", target_change_parm, Movie Duels func_rotating
+// mit health.
+void f6bKette() {
+    using namespace f4b;
+    std::printf("F6b: Nachbau\n");
+    // (6) LOCKED: das erste use entsperrt nur (kein usescript), ohne TOGGLE ist der Name danach weg; mit TOGGLE (24)
+    // laeuft das usescript beim zweiten use.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("func_door", {{"targetname", "ld"}, {"spawnflags", "16"}, {"usescript", "f/m3"}}),
+                      ent("func_door", {{"targetname", "lt"}, {"spawnflags", "24"}, {"usescript", "f/rs"}})};
+        const Ablauf a = lauf(m, "use ( \"ld\" );\nuse ( \"lt\" );\nwait ( 500.000 );\nuse ( \"ld\" );\nuse ( \"lt\" );\nwait ( 500.000 );\n");
+        pruefe(zeiten(a, "marke_m3").empty(), ("(6) LOCKED ohne TOGGLE: usescript nie (marke_m3 bei" + liste(zeiten(a, "marke_m3")) + ")").c_str());
+        pruefe(zeiten(a, "marke_rs").size() == 1U,
+               ("(6) LOCKED+TOGGLE: usescript beim zweiten use (marke_rs bei" + liste(zeiten(a, "marke_rs")) + ")").c_str());
+    }
+    // (8) Team: der Name gehoert dem Meister - sein usescript laeuft, das des Slaves nie.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("func_door", {{"team", "tt"}, {"script_targetname", "meister"}, {"usescript", "f/m1"}}),
+                      ent("func_door", {{"team", "tt"}, {"targetname", "paar"}, {"usescript", "f/m2"}})};
+        const Ablauf a = lauf(m, "use ( \"paar\" );\nwait ( 500.000 );\n");
+        pruefe(zeiten(a, "marke_m1").size() == 1U && zeiten(a, "marke_m2").empty(),
+               ("(8) Team: usescript des Meisters (m1 bei" + liste(zeiten(a, "marke_m1")) + ", m2 bei" + liste(zeiten(a, "marke_m2")) + ")")
+                   .c_str());
+    }
+    // (9) target_delay wait 2 random 1: Q_flrand(-1, 1) ab holdrand 0x89abcdef = (14289 * 2 / 32768) - 1 = -0.12787,
+    // nextthink = (2 - 0.12787) * 1000 = 1872 -> im Bild 1900.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_delay", {{"targetname", "verz"}, {"wait", "2"}, {"random", "1"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "use ( \"verz\" );\nwait ( 3000.000 );\n");
+        const double u = zeiten(a, "verz").at(0);
+        pruefeZeiten(a, "ziel", {std::ceil((u + 1872.0) / 50.0) * 50.0}, "(9) target_delay random 1");
+    }
+    // (10) target_change_parm: parm1 kommt an den, der benutzt - affect ( $get( STRING, "SET_PARM1" )$ ) trifft dann
+    // die Entity aus parm1.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_change_parm", {{"targetname", "cp"}, {"parm1", "geaendert"}}),
+                      ent("func_static", {{"script_targetname", "geaendert"}, {"origin", "0 0 0"}})};
+        const Ablauf a = lauf(m, "use ( \"cp\" );\nwait ( 100.000 );\naffect ( $get( STRING, \"SET_PARM1\" )$, FLUSH )\n{\n"
+                                 "\tuse ( \"marke_parm\" );\n}\nwait ( 200.000 );\n");
+        pruefe(zeiten(a, "marke_parm").size() == 1U, ("(10) target_change_parm: marke_parm bei" + liste(zeiten(a, "marke_parm"))).c_str());
+    }
+    // (11) Movie Duels: func_rotating mit health ist ein func_breakable - use bricht es und feuert target.
+    regelwerkAnwendenSpiel(kRegelwerkMovieDuels, -1);
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("func_rotating", {{"targetname", "r"}, {"health", "5"}, {"target", "ziel"}, {"model", "*1"}})};
+        const Ablauf a = lauf(m, "use ( \"r\" );\nwait ( 500.000 );\n");
+        pruefeZeiten(a, "ziel", {zeiten(a, "r").at(0)}, "(11) MD func_rotating health: funcBBrushUse feuert target");
+    }
+    regelwerkAnwendenSpiel(kRegelwerkOpenJK, -1);
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -1111,6 +1168,7 @@ int main(int argc, char** argv) {
     kartenwechsel();       // rc605 (Schlussrunde)
     wartenAufNamen();      // Zeitleiste 4
     zielKette();           // F4b
+    f6bKette();            // F6b
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }

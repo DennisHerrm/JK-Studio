@@ -393,7 +393,12 @@ struct Geplant {
 class Nachbau {
 public:
     Nachbau(const AblaufWelt& w, Ablauf& a, std::set<std::string> vorhanden)
-        : welt_(w), aus_(a), vorhanden_(std::move(vorhanden)) {}
+        : welt_(w), aus_(a), vorhanden_(std::move(vorhanden)), holdrand_(w.zufallStart) {
+        if (welt_.karte != nullptr) {
+            teams_ = findeTeams(welt_.karte->entities);   // F6b: die Namen nach G_FindTeams
+            entsperrt_.assign(welt_.karte->entities.size(), 0);
+        }
+    }
 
     // Figuren, deren Spawner in diesem Ablauf benutzt wurde (klein).
     std::set<std::string> gespawnt;
@@ -438,6 +443,11 @@ private:
     int naechsteGruppe_ = 1;
     int folge_ = 0;
     std::uint32_t zufall_ = 0x9E3779B9U;   // F4b: wuerfle
+    // F6b (9): holdrand von flrand/irand (shared/qcommon/q_math.c:223-260 OpenJK, MD gleich)
+    std::uint32_t holdrand_ = 0;
+    // F6b (6, 8): G_FindTeams - wer unter welchem Namen gefunden wird; UnLockDoors loescht ihn (entsperrt_)
+    KartenTeams teams_;
+    std::vector<char> entsperrt_;
     double jetzt_ = 0.0;
     int traeger_ = -1;
     int tiefe_ = 0;
@@ -1526,6 +1536,20 @@ private:
         return static_cast<int>(zufall_ % static_cast<std::uint32_t>(n));
     }
 
+    // F6b (9): Q_flrand (q_math.c:231-245 OpenJK, MD :232-243): holdrand = holdrand * 214013 + 2531011, dann
+    // (holdrand >> 17) * (max - min) / QRAND_MAX (32768) + min.
+    float qFlrand(float lo, float hi) {
+        holdrand_ = holdrand_ * 214013U + 2531011U;
+        const auto r = static_cast<float>(holdrand_ >> 17U);
+        return r * (hi - lo) / 32768.0F + lo;
+    }
+
+    // F6b (6, 8): der targetname, unter dem G_Find die Entity findet (nach G_FindTeams und UnLockDoors).
+    const std::string& zielVon(const MapEntity& e) const {
+        const auto i = static_cast<std::size_t>(&e - welt_.karte->entities.data());
+        return i < teams_.zielname.size() ? teams_.zielname[i] : e.targetname;
+    }
+
     // F4b: GEntity_UseFunc auf GENAU dieser Entity (G_PickTarget, target_random_use) - fuer MoverSim mit ihrem Index.
     void benutzeNur(const MapEntity& e, int ausloeser, int tiefe) {
         if (tiefe > 32 || welt_.karte == nullptr) {
@@ -1534,7 +1558,7 @@ private:
         const std::string wer = (ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < wesen_.size())
                                     ? wesen_[static_cast<std::size_t>(ausloeser)]->name
                                     : std::string{};
-        Ablauf::Benutzung b{jetzt_, e.targetname, wer, amZug_};
+        Ablauf::Benutzung b{jetzt_, zielVon(e), wer, amZug_};
         b.entity = static_cast<int>(&e - welt_.karte->entities.data());
         aus_.benutzt.push_back(std::move(b));
         benutzeEine(e, ausloeser, tiefe);
@@ -1547,7 +1571,7 @@ private:
             return out;
         }
         for (const MapEntity& e : welt_.karte->entities) {
-            if (&e == ohne || !gleich(e.targetname, name)) { continue; }
+            if (&e == ohne || !gleich(zielVon(e), name)) { continue; }
             if (welt_.spielstufe >= 0 && !spawntBeiSchwierigkeit(e, welt_.spielstufe)) { continue; }
             out.push_back(&e);
         }
@@ -1681,7 +1705,7 @@ private:
         }
         bool traf = false;
         for (const MapEntity& e : welt_.karte->entities) {
-            if (!gleich(e.targetname, name)) {
+            if (!gleich(zielVon(e), name)) {   // F6b: ein Team nur am Meister (G_FindTeams)
                 continue;
             }
             // rc604: eine Entity, die G_SpawnGEntityFromSpawnVars wegen
@@ -1809,14 +1833,17 @@ private:
         }
         if (cn == "target_delay") {
             // F4b (B4b-10): Use_Target_Delay (g_target.cpp:78-85 OpenJK, :85 MD): usescript, dann nextthink = level.time
-            // + (wait + random * Q_flrand(-1, 1)) * 1000 - ein zweites use verschiebt das eine think. Der Zufallsanteil
-            // bleibt wie bisher 0 (die Mitte).
+            // + (wait + random * Q_flrand(-1, 1)) * 1000 - ein zweites use verschiebt das eine think. F6b (9): "random"
+            // (F_FLOAT) wirkt; Q_flrand wird immer gezogen (holdrand ab AblaufWelt::zufallStart).
             usescript();
             // "delay", sonst "wait", Vorgabe 1 s (SP_target_delay).
-            double s = zahl(wertVon(e, "delay"), -1.0);
-            if (s < 0.0) { s = zahl(wertVon(e, "wait"), 1.0); }
-            if (s == 0.0) { s = 1.0; }
-            denkenSetzen(wi, jetzt_ + static_cast<double>(static_cast<int>(static_cast<float>(s) * 1000.0F)), ausloeser);
+            const std::string dv = wertVon(e, "delay");
+            float s = static_cast<float>(dv.empty() ? zahl(wertVon(e, "wait"), 1.0) : zahl(dv));
+            if (s == 0.0F) { s = 1.0F; }
+            const auto zufall = static_cast<float>(zahl(wertVon(e, "random")));
+            const float fl = qFlrand(-1.0F, 1.0F);
+            // (int)(level.time + x): bei ganzer Zeit dasselbe wie die Zeit plus floor(x)
+            denkenSetzen(wi, jetzt_ + std::floor(static_cast<double>((s + zufall * fl) * 1000.0F)), ausloeser);
             return;
         }
         if (cn == "target_counter") {
@@ -1903,7 +1930,7 @@ private:
             const std::string t = wertVon(e, "target");
             if (welt_.karte != nullptr && !t.empty()) {
                 for (const MapEntity& z : welt_.karte->entities) {
-                    if (gleich(z.targetname, t)) {
+                    if (gleich(zielVon(z), t)) {
                         inaktivSetzen(wesenFuer(z), cn == "target_deactivate");
                     }
                 }
@@ -1928,7 +1955,10 @@ private:
             }
             return;
         }
-        if (cn == "func_breakable") {
+        // F6b (11): Movie Duels SP_func_rotating mit health ist ein func_breakable (g_mover.cpp:2446-2453 MD)
+        const bool drehBruch = cn == "func_rotating" && regelwerkMovieDuels() && !wertVon(e, "health").empty() &&
+                               std::atoi(wertVon(e, "health").c_str()) != 0;
+        if (cn == "func_breakable" || drehBruch) {
             // funcBBrushUse (g_breakable.cpp:201). Das Bild macht MoverSim;
             // die ZIELE feuert der Nachbau, denn eines davon kann ein
             // Skript starten - MoverSim bekommt sie dann einzeln
@@ -1994,6 +2024,25 @@ private:
                 }
             }
             return;
+        }
+        if (cn == "target_change_parm") {
+            // F6b (10): target_change_parm_use (g_target.cpp:1131-1149 OpenJK, :1217-1235 MD): ohne activator nichts,
+            // sonst Q3_SetParm( activator, n, parm ) fuer jeden nicht leeren parm1..parm16 - kein usescript.
+            // SP_target_change_parm setzt die use-Funktion nur, wenn es parms gibt; ohne setzt ladeParms nichts.
+            if (ausloeser < 0 || static_cast<std::size_t>(ausloeser) >= wesen_.size()) { return; }
+            ladeParms(*wesen_[static_cast<std::size_t>(ausloeser)], e);
+            return;
+        }
+        if (cn == "func_door" || (cn == "func_bobbing" && (flags & 4) == 0)) {
+            // F6b (6): Use_BinaryMover (g_mover.cpp:957-1022 OpenJK): an den Meister (nur er heisst noch so, F6b 8);
+            // LOCKED (16) entsperrt nur - UnLockDoors (:924-938) - und G_ActivateBehavior laeuft nicht. Ohne TOGGLE (8)
+            // ist der targetname danach weg.
+            const auto ei = static_cast<std::size_t>(&e - welt_.karte->entities.data());
+            if ((flags & 16) != 0 && ei < entsperrt_.size() && entsperrt_[ei] == 0) {
+                entsperrt_[ei] = 1;
+                if ((flags & 8) == 0) { teams_.zielname[ei].clear(); }
+                return;
+            }
         }
         // Tueren, Waende, Effekte, Lautsprecher, Musik: das Bild macht
         // MoverSim, der Klang die Ansicht. Hier nur das usescript.
