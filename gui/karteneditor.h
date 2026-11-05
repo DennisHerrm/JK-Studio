@@ -41,6 +41,7 @@
 #include "bhed/karte/logik.h"
 #include "bhed/navlauf.h"
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/bspmerge.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -129,7 +130,7 @@ struct BspHerkunft {
     std::string stamm;
     std::uint64_t fingerabdruck = 0; // karte::geometrieFingerabdruck nach dem Laden
     std::vector<std::uint64_t> pinselAbdruecke;   // rc609 B1: karte::pinselAbdruecke der Brush-Entities der .bsp
-    std::vector<std::uint64_t> punktAbdruecke;    // rc609 B1: karte::punktAbdruecke der Punkt-Entities der .bsp
+    karte::PunktStand punktStand;                 // rc609 B1, rc610 F23: die Punkt-Entities der .bsp (Objekt und Abdruck)
     std::uint64_t fingerabdruckOhneWelt = 0;      // rc609 B13: geometrieFingerabdruck ohne die worldspawn
     std::vector<std::uint64_t> weltAbdruecke;     // rc609 B13: karte::weltAbdruecke der Welt-Brushes der .bsp
 };
@@ -698,6 +699,7 @@ struct Editor {
     bool frageOffen = false;
     std::string frageTitel;                // "New Map", "Open Map"
     std::function<void()> nachFrage;       // was danach geschieht
+    int frageArt = 0;                      // 0 die Karte (ConfirmModified), 1 die Lumps der .bsp (rc610 F23, Fenster "Shader und Flaechen")
 
     // --- Konsole ---
     std::vector<KonsolenZeile> konsole;
@@ -1655,6 +1657,8 @@ void zuletztOeffnen(std::size_t index);
 [[nodiscard]] bool geaendert();
 // ConfirmModified( titel ) und danach (Save / Discard / Cancel).
 void rueckfrageDann(const char* titel, std::function<void()> danach);
+// rc610 F23 (B2-3): nur die Frage nach den ungespeicherten Lumps der .bsp (Fenster "Shader und Flaechen"), dann danach.
+void lumpRueckfrage(const std::string& titel, std::function<void()> danach);
 // Entity_reloadDefinitions: die Klassen neu lesen und die Karte neu laden
 // (MapEntityClasses::unrealise/realise).
 void entitaetenKlassenNeuLaden();
@@ -1752,6 +1756,8 @@ void bspGeometrieMerken();
 void lumpDokPruefen();
 [[nodiscard]] std::string browserShader();   // TextureBrowser_GetSelectedShader
 void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& gespeichert);
+// rc610 F23 (B2-5): eine Datei des Arbeitsordners einer fertigen Karte schreiben (<stamm>_original.bsp, <stamm>.bsp, Teil-Karten)
+[[nodiscard]] bool arbeitsDateiSchreiben(const std::string& pfad, const std::string& daten);
 [[nodiscard]] bool lumpSpielbildAn();        // die bearbeitete Karte im Spielbild statt der Pinsel
 void lumpSpielbildSetzen(bool an);
 [[nodiscard]] bool lumpSpielbildGezeigt();   // in diesem Bild aus der bearbeiteten Karte gezeichnet

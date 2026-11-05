@@ -3436,6 +3436,11 @@ bool lumpEditKarteWahl();
 bool lumpEditKarteKlick(const float start[3], const float ende[3]);
 bool lumpEditKarteSpielbild(std::shared_ptr<const std::string>& daten, std::uint64_t& nummer);
 void lumpEditKarteUeberlagerung(const std::function<bool(const float*, ImVec2&)>& abbild);
+// rc610 F23 (B2-3): ungespeicherte Aenderungen an der geoeffneten .bsp; Speichern (danach() nach Erfolg - bei einer .pk3 nach
+// dem Dialog der Speicherwege) bzw. Verwerfen (zurueck auf den Stand der Datei)
+bool lumpEditKarteUngespeichert();
+void lumpEditKarteSpeichern(std::function<void()> danach);
+void lumpEditKarteVerwerfen();
 // Speichern auf den Wegen aus W2a (app_dateiort.cpp); gespeichert() nach Erfolg.
 bool bspLumpsSpeichern(const karte::BspLumps& lumps, const std::function<void()>& gespeichert);
 // app_ablage.inc: Geometrie aus Bytes (wie beim Laden) und die daraus aufgestellte Szene vergessen

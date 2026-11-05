@@ -52,6 +52,7 @@
 #define BHED_KARTE_BSPMERGE_H
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -131,15 +132,24 @@ inline constexpr const char* kTeilWelt = "_bhed_welt";
 [[nodiscard]] std::vector<std::uint64_t> pinselAbdruecke(const Karte& k);
 // Neu = Brush-Entity (nicht worldspawn, nicht eingebacken), deren Abdruck in vorher nicht (mehr) frei ist.
 [[nodiscard]] std::vector<const Entitaet*> neuePinselEntitaeten(const Karte& k, const std::vector<std::uint64_t>& vorher);
-// Neue Punkt-Entities (ohne Brushes, nicht worldspawn, nicht eingebacken): ihr Abdruck (Schluessel)
-// ist in vorher nicht (mehr) frei. Sie kommen mit in die Teilkarte (q3map2 schreibt sie wie beim Bau ins
-// Entity-Lump des Teils, MergeBSPMain uebernimmt alle Entities des Teils) - so bekommt ein neuer
-// Trigger sein neues Ziel (target_print, target_relay ...) im selben Schritt. geaendert: wie viele
-// Punkt-Entities der Karte seit dem Oeffnen geaendert oder entfernt wurden (das kann nur
-// "Update entities only").
+// Die Punkt-Entities (ohne Brushes, nicht worldspawn, nicht eingebacken) beim Oeffnen: je Entity das Objekt des
+// Editors und ihr Abdruck (Schluessel). rc610 F23 (B2-2): das Objekt unterscheidet "geaendert" von "neu" - ein
+// Abdruck allein tut es nicht (ein verschobener NPC war "neu" und stand danach zweimal in der .bsp).
+struct PunktStand {
+    std::vector<std::weak_ptr<const Entitaet>> objekte;
+    std::vector<std::uint64_t> abdruecke;
+};
 [[nodiscard]] std::uint64_t entitaetAbdruck(const Karte& k, const Entitaet& e);
-[[nodiscard]] std::vector<std::uint64_t> punktAbdruecke(const Karte& k);
-[[nodiscard]] std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const std::vector<std::uint64_t>& vorher, int* geaendert = nullptr);
+[[nodiscard]] PunktStand punktStand(const Karte& k);
+// Neu ist eine Punkt-Entity, die es beim Merken nicht gab (ein anderes Objekt) und deren Abdruck keinem damals gemerkten
+// gleicht, das inzwischen fehlt oder anders ist (geloescht und gleich neu angelegt ist nicht neu). Neue kommen mit in die
+// Teilkarte (q3map2 schreibt sie wie beim Bau ins Entity-Lump des Teils, MergeBSPMain uebernimmt alle Entities des Teils) -
+// so bekommt ein neuer Trigger sein neues Ziel (target_print, target_relay ...) im selben Schritt. Geaenderte und entfernte
+// bleiben, wie sie in der fertigen Karte stehen (das kann nur "Update entities only"); geaendert: wie viele es sind.
+[[nodiscard]] std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const PunktStand& vorher, int* geaendert = nullptr);
+// Nach dem Einfuegen: die neuen gehoeren jetzt zur fertigen Karte. Geaenderte behalten den Abdruck von damals - so stehen
+// sie weiter in der .bsp, und die Warnung bleibt.
+void punktStandErgaenzen(const Karte& k, PunktStand& stand);
 // Stufe 2: die Abdruecke der Welt-Brushes (je Primitiv sein Text, primitivText) beim Oeffnen; neu sind die Welt-
 // Primitive, deren Abdruck in vorher nicht (mehr) frei ist; fehlend: wie viele von vorher es nicht mehr gibt
 // (geaenderte oder geloeschte Welt-Brushes - die kann nur ein voller Bau).

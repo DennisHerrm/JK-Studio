@@ -22,6 +22,16 @@
 //   H  Vergleichsbild: Karten-Editor und Vorschau (Mission-Tab, die gespeicherte Datei neu geladen) aus dem Auge des Spielers
 //      am Start, Blick auf die Tuer; die Vorschau hat die Tuer mit Lightmap (Luxel nicht schwarz)
 //   I  Karten-Editor: die Datei wieder oeffnen - der Clip ist ein Welt-Brush, die Tuer da, nichts neu
+//   J  rc610 F23, die Funde der Codepruefung B2-1 bis B2-5 (Run Engine After Compile an, Befehle nur gemerkt):
+//      a  ein Shader getauscht im Fenster "Shader und Flaechen" (nicht gespeichert), das target_print aus B verschoben, ein
+//         zweiter Trigger mit neuem Ziel: Einfuegen fragt nach den Lumps (Speichern), die Datei hat Shader, Trigger, das neue Ziel
+//         und das verschobene genau einmal (wie in der fertigen Karte, wie die Warnung sagt), kein Spielstart
+//      b  ein dritter Trigger, die lose Datei ist von einem anderen Programm geoeffnet (wie vom laufenden Spiel): das Speichern
+//         scheitert - Datei und Arbeitskopie unveraendert, der Trigger gilt weiter als neu; danach geht es
+//      c  Update entities only: kein Spielstart
+//      d  noch ein Tausch, File > Open .bsp...: Rueckfrage; Abbrechen behaelt die Lumps, Verwerfen oeffnet den Dialog
+//      e  eine Datei des Arbeitsordners mit eingebautem Schreibfehler: false, der alte Inhalt bleibt
+//      f  neue Karte, Im Spiel testen (Fall 3: bauen): genau ein Spielstart mit dem Kartennamen
 // Fuer den Spielvergleich (Movie Duels per Popen, nicht im Programm): <Lauf>\bspmerge\spiel.txt mit Karte und Startpunkt.
 namespace bm {
 
@@ -52,6 +62,15 @@ struct Zustand {
     int tuerModell = 0;
     int tuerenVorher = 0;
     int clipsVorher = 0;
+    // rc610 F23
+    std::vector<std::string> befehle;   // gemerkte Befehlszeilen (kartenBefehlStarten)
+    int lumpFlaeche = -1;
+    std::string lumpShader;
+    std::string druckerOrigin;          // das target_print aus B in der Datei
+    std::string vorherJ;
+    std::string arbeitVorher;
+    int modelleJ = 0;
+    std::shared_ptr<std::ifstream> sperre;
 };
 
 std::string lies(const std::string& p) {
@@ -221,6 +240,38 @@ void triggerBauen(const Zustand& z) {
     e.kamera.setzeUrsprung(karte::Vektor3f(z.start[0], z.start[1], z.start[2] + 48.0F));
     e.kamera.setzeWinkel(karte::Vektor3f(-10.0F, z.yaw, 0.0F));
     ++e.sichtStand;
+}
+
+// rc610 F23: wie oft ein Text im Entity-Lump einer .bsp steht
+int imEntityLump(const std::string& bsp, const std::string& text) {
+    karte::BspDatei d;
+    if (!karte::bspLesen(bsp, d)) { return -1; }
+    const std::string ent = karte::bspEntitaetenText(d);
+    int n = 0;
+    for (std::size_t p = ent.find(text); p != std::string::npos; p = ent.find(text, p + 1)) { ++n; }
+    return n;
+}
+
+// rc610 F23: ein Trigger innerhalb des Triggers aus B (um r eingerueckt) mit dem Ziel ziel
+void innenTrigger(const Zustand& z, float r, const std::string& ziel) {
+    ke::Editor& e = ke::editor();
+    auto trig = e.karte.neueEntitaet("trigger_multiple", true);
+    e.karte.entitaetEinfuegen(trig);
+    trig->setzen("target", ziel);
+    (void)stufe2::testPinsel(karte::Vektor3f(z.tmin[0] + r, z.tmin[1] + r, z.tmin[2] + r), karte::Vektor3f(z.tmax[0] - r, z.tmax[1] - r, z.tmax[2] - r),
+                             "textures/system/trigger", trig);
+    ke::auswahlGeaendert();
+    ++e.sichtStand;
+}
+
+// rc610 F23: ein Shader mit $lightmap-Stufe, den die gewaehlte Karte noch nicht hat (ausser `ohne`)
+std::string fremderShader(const std::string& ohne) {
+    const karte::BspLumps* l = lumpEditLumps();
+    for (const auto& [name, info] : g_app->shaderMap) {
+        if (l == nullptr || name == ohne || name.rfind("textures/", 0) != 0 || info.image.empty() || !info.lightmapStufe) { continue; }
+        if (std::none_of(l->shader.begin(), l->shader.end(), [&name](const karte::LumpShader& x) { return x.name == name; })) { return name; }
+    }
+    return std::string();
 }
 
 }  // namespace bm
@@ -494,6 +545,199 @@ std::vector<Schritt> bspmergeSchritte() {
         diag::detail("Knopftest: B13 I - func_door " + std::to_string(z->tuerenVorher) + " -> " + std::to_string(tueren) + ", Clip-Brushes in der Welt " +
                      std::to_string(z->clipsVorher) + " -> " + std::to_string(clips) + ", neu " + std::to_string(ke::bspNeuePinselEntitaeten()) + "/" + std::to_string(ke::bspNeueWeltPinsel()));
         return tueren == z->tuerenVorher + 1 && clips == z->clipsVorher + 1 && ke::bspNeuePinselEntitaeten() == 0 && ke::bspNeueWeltPinsel() == 0;
+    }));
+    // --- J: rc610 F23 - Funde B2-1 bis B2-5 ------------------------------------------------------------------
+    add(tu("F23 J: Run Engine After Compile an (Befehle nur gemerkt), Fenster Shader und Flaechen", [z] {
+        ke::Editor& e = ke::editor();
+        e.befehlStarten = [z](const std::string& zeile) {
+            z->befehle.push_back(zeile);
+            return true;
+        };
+        e.bau.spielStarten = true;
+        g_app->leftMode = 3;
+        dock::ausblenden("karte.lumps", false);
+    }));
+    add(warteBis("F23 J: die fertige Karte im Fenster", [z] { return lumpEditLumps() != nullptr && ke::editor().bspHerkunft.quelle == z->lose; }, 1800));
+    add(tu("F23 Ja: Shader einer Flaeche tauschen (nicht speichern), target_print verschieben, zweiter Trigger mit neuem Ziel, einfuegen", [z] {
+        const karte::BspLumps* l = lumpEditLumps();
+        for (std::size_t i = 0; l != nullptr && i < l->flaechen.size() && z->lumpFlaeche < 0; ++i) {
+            if (l->flaechen[i].lightmap >= 0) { z->lumpFlaeche = static_cast<int>(i); }
+        }
+        z->lumpShader = bm::fremderShader(std::string());
+        lumpEditFlaecheSetzen(z->lumpFlaeche);
+        (void)lumpEditTauschen(z->lumpShader, false);
+        ke::Editor& e = ke::editor();
+        for (const auto& en : e.karte.entitaeten()) {
+            if (en->wert("targetname") != "bm_drucker") { continue; }
+            z->druckerOrigin = en->wert("origin");
+            float o[3] = {0.0F, 0.0F, 0.0F};
+            (void)std::sscanf(z->druckerOrigin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+            char t[96];
+            std::snprintf(t, sizeof(t), "%g %g %g", o[0] + 64.0F, o[1], o[2]);
+            en->setzen("origin", t);
+        }
+        bm::innenTrigger(*z, 8.0F, "bm_drucker2");
+        auto druck = e.karte.neueEntitaet("target_print", false);
+        e.karte.entitaetEinfuegen(druck);
+        druck->setzen("targetname", "bm_drucker2");
+        druck->setzen("message", "bspmerge trigger 2");
+        druck->setzen("origin", z->druckerOrigin);
+        diag::detail("Knopftest: F23 Ja - Flaeche " + std::to_string(z->lumpFlaeche) + " -> " + z->lumpShader + ", ungespeichert " +
+                     (lumpEditIstUngespeichert() ? "ja" : "nein") + ", target_print bei " + z->druckerOrigin);
+        z->befehle.clear();
+        z->vorherJ = bm::lies(z->lose);
+        e.bspEinfuegenFertig.clear();
+        ke::konsoleLeeren();
+        ke::bspInFertigeKarte();
+    }));
+    add(warteBis("F23 Ja: Rueckfrage oder eingefuegt", [] { return ke::editor().frageOffen || (!ke::bauLaeuft() && !ke::editor().bspEinfuegenFertig.empty()); }, 3600));
+    add(pruefe("F23 Ja (B2-3): vor dem Einfuegen fragt der Editor nach den ungespeicherten Lumps", [] { return ke::editor().frageOffen; }));
+    add(klick(tr(Str::KeSave), "kartefrage"));
+    add(warteBis("F23 Ja: eingefuegt und gespeichert", [] { return !ke::bauLaeuft() && !ke::editor().bspEinfuegenFertig.empty(); }, 3600));
+    add(pruefe("F23 Ja (B2-3): die gespeicherte Datei hat den getauschten Shader und den neuen Trigger", [z] {
+        const std::string lose = bm::lies(z->lose);
+        karte::BspLumps l;
+        const bool da = karte::bspLumpsLesen(lose, l) && z->lumpFlaeche >= 0 && static_cast<std::size_t>(z->lumpFlaeche) < l.flaechen.size();
+        const int nr = da ? l.flaechen[static_cast<std::size_t>(z->lumpFlaeche)].shaderNum : -1;
+        const std::string name = nr >= 0 && static_cast<std::size_t>(nr) < l.shader.size() ? l.shader[static_cast<std::size_t>(nr)].name : std::string();
+        const int trigger = bm::imEntityLump(lose, "\"target\" \"bm_drucker2\"");
+        diag::detail("Knopftest: F23 Ja - Flaeche " + std::to_string(z->lumpFlaeche) + ": " + name + " (soll " + z->lumpShader + "), Trigger " +
+                     std::to_string(trigger) + ", " + ke::editor().bspEinfuegenFertig + ", Lumps ungespeichert " + (lumpEditIstUngespeichert() ? "ja" : "nein"));
+        return !z->lumpShader.empty() && name == z->lumpShader && trigger == 1 && !lumpEditIstUngespeichert();
+    }));
+    add(pruefe("F23 Ja (B2-2): das verschobene target_print steht genau einmal in der Datei, wie in der fertigen Karte (wie die Warnung sagt); "
+               "das neue Ziel einmal",
+               [z] {
+                   const std::string lose = bm::lies(z->lose);
+                   const int alt = bm::imEntityLump(lose, "\"targetname\" \"bm_drucker\"\n");
+                   const int ort = bm::imEntityLump(lose, "\"origin\" \"" + z->druckerOrigin + "\"");
+                   const int neu = bm::imEntityLump(lose, "\"targetname\" \"bm_drucker2\"");
+                   char w[512];
+                   std::snprintf(w, sizeof(w), ke::trKN(Str::KeBmEinfuegenPunkte, 1), 1);
+                   const bool warnung = stufe3::konsoleText().find(w) != std::string::npos;
+                   diag::detail("Knopftest: F23 Ja - bm_drucker " + std::to_string(alt) + "x, an der alten Stelle " + std::to_string(ort) + "x, bm_drucker2 " +
+                                std::to_string(neu) + "x, Warnung " + (warnung ? "ja" : "nein"));
+                   return alt == 1 && ort >= 1 && neu == 1 && warnung;
+               }));
+    add(pruefe("F23 Ja (B2-1): nach dem Teil-Compile kein Spielstart", [z] {
+        diag::detail("Knopftest: F23 Ja - gemerkte Befehle " + std::to_string(z->befehle.size()) + (z->befehle.empty() ? std::string() : ": " + z->befehle[0]));
+        return z->befehle.empty();
+    }));
+    add(tu("F23 Jb: dritter Trigger, die lose Datei offen wie vom laufenden Spiel, einfuegen", [z] {
+        bm::innenTrigger(*z, 16.0F, "bm_drucker3");
+        const ke::BspHerkunft& h = ke::editor().bspHerkunft;
+        z->vorherJ = bm::lies(z->lose);
+        z->arbeitVorher = bm::lies(h.ordner + "/" + h.stamm + "_original.bsp");
+        karte::BspDatei d;
+        z->modelleJ = karte::bspLesen(z->vorherJ, d) ? static_cast<int>(d.lumps[7].size() / 40) : 0;
+        z->sperre = std::make_shared<std::ifstream>(::bhed::utf8Pfad(z->lose), std::ios::binary);
+        ke::editor().bspEinfuegenFertig.clear();
+        ke::bspInFertigeKarte();
+    }));
+    add(warteBis("F23 Jb: Bau fertig", [] { return !ke::bauLaeuft(); }, 3600));
+    add(pause(0.5));
+    add(pruefe("F23 Jb (B2-4): Speichern gescheitert - Datei und Arbeitskopie unveraendert, der Trigger gilt weiter als neu", [z] {
+        const ke::BspHerkunft& h = ke::editor().bspHerkunft;
+        const bool lose = bm::lies(z->lose) == z->vorherJ;
+        const bool arbeit = bm::lies(h.ordner + "/" + h.stamm + "_original.bsp") == z->arbeitVorher;
+        diag::detail("Knopftest: F23 Jb - lose unveraendert " + std::string(lose ? "ja" : "nein") + ", Arbeitskopie unveraendert " + (arbeit ? "ja" : "nein") +
+                     ", neu " + std::to_string(ke::bspNeuePinselEntitaeten()) + ", fertig \"" + ke::editor().bspEinfuegenFertig + "\"");
+        return lose && arbeit && ke::bspNeuePinselEntitaeten() == 1 && ke::editor().bspEinfuegenFertig.empty();
+    }));
+    add(tu("F23 Jb: die Datei wieder frei, noch einmal einfuegen", [z] {
+        z->sperre.reset();
+        ke::editor().bspEinfuegenFertig.clear();
+        ke::bspInFertigeKarte();
+    }));
+    add(warteBis("F23 Jb: eingefuegt und gespeichert", [] { return !ke::bauLaeuft() && !ke::editor().bspEinfuegenFertig.empty(); }, 3600));
+    add(pruefe("F23 Jb (B2-4): der dritte Trigger genau einmal, ein Modell mehr, nichts mehr neu", [z] {
+        const std::string lose = bm::lies(z->lose);
+        karte::BspDatei d;
+        const int modelle = karte::bspLesen(lose, d) ? static_cast<int>(d.lumps[7].size() / 40) : 0;
+        const int n = bm::imEntityLump(lose, "\"target\" \"bm_drucker3\"");
+        diag::detail("Knopftest: F23 Jb - Modelle " + std::to_string(z->modelleJ) + " -> " + std::to_string(modelle) + ", bm_drucker3 " + std::to_string(n) + "x");
+        return modelle == z->modelleJ + 1 && n == 1 && ke::bspNeuePinselEntitaeten() == 0;
+    }));
+    add(tu("F23 Jc: Update entities only", [z] {
+        z->befehle.clear();
+        ke::editor().bspNurEntitaetenFertig.clear();
+        ke::bspNurEntitaeten();
+    }));
+    add(warteBis("F23 Jc: fertig", [] { return !ke::bauLaeuft() && !ke::editor().bspNurEntitaetenFertig.empty(); }, 3600));
+    add(pruefe("F23 Jc (B2-1): nach Update entities only kein Spielstart", [z] {
+        diag::detail("Knopftest: F23 Jc - gemerkte Befehle " + std::to_string(z->befehle.size()) + (z->befehle.empty() ? std::string() : ": " + z->befehle[0]));
+        return z->befehle.empty();
+    }));
+    add(tu("F23 Jd: Karte als gespeichert, noch ein Shader getauscht, File > Open .bsp...", [z] {
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        lumpEditFlaecheSetzen(z->lumpFlaeche);
+        (void)lumpEditTauschen(bm::fremderShader(z->lumpShader), false);
+        ke::bspOeffnenDialog();
+    }));
+    add(pause(0.3));
+    add(pruefe("F23 Jd (B2-3): Rueckfrage wegen der Lumps, der Dialog ist noch zu", [] {
+        diag::detail("Knopftest: F23 Jd - Frage " + std::string(ke::editor().frageOffen ? "ja" : "nein") + ", Dialog " + (ke::bspDialogOffen() ? "ja" : "nein") +
+                     ", Lumps ungespeichert " + (lumpEditIstUngespeichert() ? "ja" : "nein"));
+        return ke::editor().frageOffen && !ke::bspDialogOffen();
+    }));
+    add(klick(tr(Str::KeCancel), "kartefrage"));
+    add(pause(0.3));
+    add(pruefe("F23 Jd (B2-3): Abbrechen - kein Dialog, die Lumps bleiben ungespeichert", [] { return !ke::bspDialogOffen() && lumpEditIstUngespeichert(); }));
+    add(tu("F23 Jd: noch einmal File > Open .bsp...", [] { ke::bspOeffnenDialog(); }));
+    add(pause(0.3));
+    add(klick(tr(Str::KeDiscard), "kartefrage"));
+    add(pause(0.3));
+    add(pruefe("F23 Jd (B2-3): Verwerfen - der Dialog ist offen, die Lumps sind verworfen", [] {
+        diag::detail("Knopftest: F23 Jd - Dialog " + std::string(ke::bspDialogOffen() ? "ja" : "nein") + ", Lumps ungespeichert " +
+                     (lumpEditIstUngespeichert() ? "ja" : "nein"));
+        return ke::bspDialogOffen() && !lumpEditIstUngespeichert();
+    }));
+    add(tu("F23 Jd: Dialog zu", [] { karteDialogeZu(); }));
+    add(pause(0.2));
+    add(pruefe("F23 Je (B2-5): Arbeitsdatei mit eingebautem Schreibfehler - false, der alte Inhalt bleibt", [z] {
+        const std::string pfad = z->wurzel + "/f23_arbeit.bsp";
+        std::ofstream(::bhed::utf8Pfad(pfad), std::ios::binary) << "alter Inhalt";
+        ::bhed::sicherSchreibenFehlerEinbauen(1);
+        const bool ok = ke::arbeitsDateiSchreiben(pfad, std::string(4096, 'n'));
+        ::bhed::sicherSchreibenFehlerEinbauen(0);
+        const std::string jetzt = bm::lies(pfad);
+        diag::detail("Knopftest: F23 Je - Ergebnis " + std::string(ok ? "true" : "false") + ", Inhalt " + std::to_string(jetzt.size()) + " Bytes");
+        return !ok && jetzt == "alter Inhalt";
+    }));
+    add(tu("F23 Jf: neue Karte, ein dichter Raum mit info_player_start, Im Spiel testen", [z] {
+        ke::Editor& e = ke::editor();
+        e.karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        (void)e.karte.weltHolenOderAnlegen();
+        using V = karte::Vektor3f;
+        for (const auto& [a, b] : {std::pair<V, V>{V(-272, -272, -16), V(272, 272, 0)}, {V(-272, -272, 256), V(272, 272, 272)},
+                                   {V(-272, -272, 0), V(-256, 272, 256)}, {V(256, -272, 0), V(272, 272, 256)},
+                                   {V(-256, -272, 0), V(256, -256, 256)}, {V(-256, 256, 0), V(256, 272, 256)}}) {
+            (void)stufe2::testPinsel(a, b, "textures/common/caulk");
+        }
+        const auto start = e.karte.neueEntitaet("info_player_start", false);
+        start->setzen("origin", "0 0 32");
+        e.karte.entitaetEinfuegen(start);
+        const std::string pfad = z->wurzel + "\\f23spiel.map";
+        e.dateiDialog = [pfad](const std::string&) { return pfad; };
+        z->befehle.clear();
+        ke::konsoleLeeren();
+        ke::imSpielTesten(std::string());
+    }));
+    add(warteBis("F23 Jf: gebaut", [] { return !ke::bauLaeuft(); }, 3600));
+    add(pause(1.0));
+    add(pruefe("F23 Jf (B2-1): Im Spiel testen nach dem Bauen - genau ein Spielstart, mit +devmap f23spiel", [z] {
+        std::string alle;
+        for (const std::string& b : z->befehle) { alle += " | " + b; }
+        diag::detail("Knopftest: F23 Jf - " + std::to_string(z->befehle.size()) + " Befehle" + alle);
+        return z->befehle.size() == 1U && z->befehle[0].find("+devmap f23spiel") != std::string::npos;
+    }));
+    add(tu("F23 J: aufraeumen", [] {
+        ke::Editor& e = ke::editor();
+        e.befehlStarten = nullptr;
+        e.bau.spielStarten = false;
+        e.dateiDialog = nullptr;
+        dock::ausblenden("karte.lumps", true);
     }));
     add(tu("B1: zurueck in den Mission-Tab", [] { g_app->leftMode = 1; }));
     return s;

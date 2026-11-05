@@ -843,7 +843,7 @@ void tasten(LumpDok& d) {
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { d.sucheOffen = false; }
 }
 
-void speichern(LumpDok& d);
+void speichern(LumpDok& d, std::function<void()> danach = nullptr);
 
 void inhalt(LumpDok* dp) {
     fe().fokus = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
@@ -910,12 +910,16 @@ void inhalt(LumpDok* dp) {
     }
 }
 
-void speichern(LumpDok& d) {
+void speichern(LumpDok& d, std::function<void()> danach) {
     if (d.editor) {
-        karteneditor::lumpBspSpeichern(d.bytes, [] {
-            editorDok().ungespeichert = false;
-            editorDok().meldung = tr(Str::LeGespeichert);
-            editorDok().meldungFehler = false;
+        // rc610 F23: was gespeichert ist, ist der Stand der Datei (Verwerfen kehrt dorthin zurueck)
+        karteneditor::lumpBspSpeichern(d.bytes, [bytes = d.bytes, danach = std::move(danach)] {
+            LumpDok& e = editorDok();
+            e.ungespeichert = false;
+            e.original = bytes;
+            e.meldung = tr(Str::LeGespeichert);
+            e.meldungFehler = false;
+            if (danach) { danach(); }
         });
         return;
     }
@@ -1089,6 +1093,21 @@ void lumpEditKarteSetzen(const std::string& quelle, const std::string& bytes) {
     d.basis = d.lumps;
     textNachLumps(d);
     if (!quelle.empty()) { editorGeo(d); }
+}
+
+bool lumpEditKarteUngespeichert() {
+    const LumpDok& d = editorDok();
+    return !d.karte.empty() && d.ungespeichert;
+}
+
+void lumpEditKarteSpeichern(std::function<void()> danach) { speichern(editorDok(), std::move(danach)); }
+
+void lumpEditKarteVerwerfen() {
+    LumpDok& d = editorDok();
+    const std::string quelle = d.karte;
+    const std::string bytes = d.original;
+    d.original.clear();   // lumpEditKarteSetzen laedt nur bei anderen Bytes neu
+    lumpEditKarteSetzen(quelle, bytes);
 }
 
 bool lumpEditKarteWahl() { return g_app->leftMode == 3 && g_app->settings.lumpEditKarteOffen && fe().waehlen && !editorDok().karte.empty(); }

@@ -67,6 +67,7 @@
 #include "bhed/missionbau.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/bsplumps.h"
+#include "bhed/sicherschreiben.h"       // rc610 F23 (B2-5): Fehler beim Schreiben einbauen
 #include "bhed/karte/spielkollision.h"
 #include "bhed/kollision.h"
 #include "bhed/karte/ebenen.h"

@@ -17,6 +17,7 @@
 #include "bhed/bsp.h"
 #include "bhed/karte/bspmerge.h"
 #include "bhed/karte/bspoeffnen.h"
+#include "bhed/karte/karte.h"
 #include "bhed/kollision.h"
 
 #include <algorithm>
@@ -92,6 +93,39 @@ int einheit() {
     pruefe(jka.size() == 2 && jka[0].hoechstens == 511 && jka[1].hoechstens == 510, "JKA: SP 511 (BOX_MODEL_HANDLE), MP 510 (CAPSULE_MODEL_HANDLE)");
     pruefe(md.size() == 2 && md[0].hoechstens == 511 && md[1].hoechstens == 510, "Movie Duels: SP 511, MP 510");
     pruefe(jk2.size() == 2 && jk2[0].hoechstens == 511, "JK2: SP 511");
+    // rc610 F23 (B2-2): welche Punkt-Entities neu sind - ein geaenderter NPC ist es nicht (er bleibt, wie er in der fertigen
+    // Karte steht), ein geloeschtes und gleich wieder angelegtes Licht auch nicht
+    {
+        using bhed::karte::neuePunktEntitaeten;
+        bhed::karte::Karte k;
+        (void)k.weltHolenOderAnlegen();
+        const auto npc = k.neueEntitaet("NPC_stormtrooper", false);
+        npc->setzen("origin", "0 0 24");
+        npc->setzen("targetname", "st1");
+        k.entitaetEinfuegen(npc);
+        const auto licht = k.neueEntitaet("light", false);
+        licht->setzen("origin", "64 0 64");
+        k.entitaetEinfuegen(licht);
+        bhed::karte::PunktStand stand = bhed::karte::punktStand(k);
+        int geaendert = -1;
+        pruefe(neuePunktEntitaeten(k, stand, &geaendert).empty() && geaendert == 0, "Punkt-Entities: nach dem Merken nichts neu, nichts geaendert");
+        npc->setzen("origin", "64 0 24");
+        pruefe(neuePunktEntitaeten(k, stand, &geaendert).empty() && geaendert == 1, "Punkt-Entities: der verschobene NPC ist nicht neu, 1 geaendert");
+        const auto ziel = k.neueEntitaet("target_print", false);
+        ziel->setzen("targetname", "ziel");
+        k.entitaetEinfuegen(ziel);
+        auto neu = neuePunktEntitaeten(k, stand, &geaendert);
+        pruefe(neu.size() == 1 && neu[0] == ziel.get() && geaendert == 1, "Punkt-Entities: das neue target_print ist neu");
+        (void)k.entitaetEntfernen(licht.get());
+        const auto licht2 = k.neueEntitaet("light", false);
+        licht2->setzen("origin", "64 0 64");
+        k.entitaetEinfuegen(licht2);
+        neu = neuePunktEntitaeten(k, stand, &geaendert);
+        pruefe(neu.size() == 1 && neu[0] == ziel.get() && geaendert == 1, "Punkt-Entities: Licht geloescht und gleich neu angelegt - nicht neu");
+        bhed::karte::punktStandErgaenzen(k, stand);
+        pruefe(neuePunktEntitaeten(k, stand, &geaendert).empty() && geaendert == 1,
+               "Punkt-Entities: nach dem Einfuegen gehoert das target_print dazu, der NPC bleibt geaendert");
+    }
     return g_fehler == 0 ? 0 : 1;
 }
 

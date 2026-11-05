@@ -2260,6 +2260,8 @@ from i18n_rc609_me2 import zeilen_vier as _rc609_me2  # noqa: E402  (rc609 ME2: 
 S += _rc609_me2()
 from i18n_rc609_t1 import zeilen_vier as _rc609_t1  # noqa: E402  (rc609 T1: ganze Tabs in eigenen Fenstern)
 S += _rc609_t1()
+from i18n_rc610_f23 import zeilen_vier as _rc610_f23  # noqa: E402  (rc610 F23: Funde der Codepruefung Bereich 2 und 3)
+S += _rc610_f23()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

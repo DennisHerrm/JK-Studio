@@ -3987,6 +3987,7 @@ enum class Str {
     TfMenuEigenes,
     TfMenuEigenesHint,
     TfMenuAlleZurueck,
+    KeLumpsUngespeichert,
     Count,
 };
 

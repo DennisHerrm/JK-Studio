@@ -187,15 +187,17 @@ void karteFreigeben() {
     e.karte.kontext.modelle = &kartenModelle();
 }
 
-// ConfirmModified (qe3.cpp:128-150) als Klappfenster: Save / Discard / Cancel.
+// ConfirmModified (qe3.cpp:128-150) als Klappfenster: Save / Discard / Cancel. Danach die Lumps der .bsp (lumpRueckfrage).
 void mitRueckfrage(const char* titel, std::function<void()> danach) {
+    std::function<void()> lumps = [t = std::string(titel), danach = std::move(danach)]() mutable { lumpRueckfrage(t, std::move(danach)); };
     if (!geaendert()) {
-        danach();
+        lumps();
         return;
     }
     g().frageOffen = true;
+    g().frageArt = 0;
     g().frageTitel = titel;
-    g().nachFrage = std::move(danach);
+    g().nachFrage = std::move(lumps);
 }
 
 void zeichneRueckfrage() {
@@ -204,7 +206,7 @@ void zeichneRueckfrage() {
     const std::string id = e.frageTitel + "###kartefrage";
     if (!ImGui::IsPopupOpen(id.c_str())) { ImGui::OpenPopup(id.c_str()); }
     if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::TextUnformatted(tr(Str::KeConfirmModified));
+        ImGui::TextUnformatted(tr(e.frageArt == 1 ? Str::KeLumpsUngespeichert : Str::KeConfirmModified));
         ImGui::Spacing();
         int wahl = -1;
         if (ImGui::Button(tr(Str::KeSave))) { wahl = 0; }
@@ -218,7 +220,12 @@ void zeichneRueckfrage() {
             std::function<void()> danach = std::move(e.nachFrage);
             e.nachFrage = nullptr;
             bool weiter = wahl == 1;
-            if (wahl == 0) {
+            if (e.frageArt == 1) {
+                // Lumps: Speichern wie der Knopf des Fensters (bei einer .pk3 erst nach dem Dialog der Speicherwege), Verwerfen
+                // setzt das Fenster auf den Stand der Datei zurueck
+                if (wahl == 0) { lumpEditKarteSpeichern(std::move(danach)); }
+                if (wahl == 1) { lumpEditKarteVerwerfen(); }
+            } else if (wahl == 0) {
                 // Map_SaveAs bei einer unbenannten Karte, sonst Map_Save.
                 weiter = e.name == "unnamed.map" ? karteSpeichernUnterDialog() : karteSpeichern();
             }
@@ -283,6 +290,19 @@ std::string startOrdner() {
 }
 
 }  // namespace
+
+// rc610 F23 (B2-3): dieselbe Frage fuer die ungespeicherten Aenderungen im Fenster "Shader und Flaechen" - sie gelten der
+// geoeffneten .bsp und gehen mit ihr (karteFreigeben, eine andere .bsp, Einfuegen) verloren.
+void lumpRueckfrage(const std::string& titel, std::function<void()> danach) {
+    if (!lumpEditKarteUngespeichert()) {
+        danach();
+        return;
+    }
+    g().frageOffen = true;
+    g().frageArt = 1;
+    g().frageTitel = titel;
+    g().nachFrage = std::move(danach);
+}
 
 void rueckfrageDann(const char* titel, std::function<void()> danach) { mitRueckfrage(titel, std::move(danach)); }
 

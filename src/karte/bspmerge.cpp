@@ -1149,19 +1149,33 @@ bool punkt(const Karte& k, const Entitaet& e) {
 std::uint64_t pinselAbdruck(const Karte& k, const Entitaet& e) { return abdruck(k, e, false); }
 std::uint64_t entitaetAbdruck(const Karte& k, const Entitaet& e) { return abdruck(k, e, true); }
 
-std::vector<std::uint64_t> punktAbdruecke(const Karte& k) {
-    std::vector<std::uint64_t> v;
+PunktStand punktStand(const Karte& k) {
+    PunktStand v;
     for (const auto& e : k.entitaeten()) {
-        if (punkt(k, *e)) { v.push_back(entitaetAbdruck(k, *e)); }
+        if (!punkt(k, *e)) { continue; }
+        v.objekte.emplace_back(e);
+        v.abdruecke.push_back(entitaetAbdruck(k, *e));
     }
     return v;
 }
 
-std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const std::vector<std::uint64_t>& vorher, int* geaendert) {
-    std::multiset<std::uint64_t> frei(vorher.begin(), vorher.end());
+std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const PunktStand& vorher, int* geaendert) {
+    // Die damals gemerkten Objekte, die noch in der Karte stehen (geloeschte haelt das Rueckgaengig am Leben)
+    std::map<const Entitaet*, std::size_t> alt;
+    for (std::size_t i = 0; i < vorher.objekte.size(); ++i) {
+        if (const auto o = vorher.objekte[i].lock()) { alt.emplace(o.get(), i); }
+    }
+    std::set<const Entitaet*> da;
+    for (const auto& e : k.entitaeten()) { da.insert(e.get()); }
+    // frei: die Abdruecke der gemerkten, die fehlen oder geaendert sind
+    std::multiset<std::uint64_t> frei;
+    for (std::size_t i = 0; i < vorher.abdruecke.size(); ++i) {
+        const auto o = i < vorher.objekte.size() ? vorher.objekte[i].lock() : nullptr;
+        if (o == nullptr || da.count(o.get()) == 0U || entitaetAbdruck(k, *o) != vorher.abdruecke[i]) { frei.insert(vorher.abdruecke[i]); }
+    }
     std::vector<const Entitaet*> neu;
     for (const auto& e : k.entitaeten()) {
-        if (!punkt(k, *e)) { continue; }
+        if (!punkt(k, *e) || alt.count(e.get()) != 0U) { continue; }
         const auto it = frei.find(entitaetAbdruck(k, *e));
         if (it != frei.end()) {
             frei.erase(it);
@@ -1171,6 +1185,15 @@ std::vector<const Entitaet*> neuePunktEntitaeten(const Karte& k, const std::vect
     }
     if (geaendert != nullptr) { *geaendert = static_cast<int>(frei.size()); }
     return neu;
+}
+
+void punktStandErgaenzen(const Karte& k, PunktStand& stand) {
+    const std::vector<const Entitaet*> neu = neuePunktEntitaeten(k, stand);
+    for (const auto& e : k.entitaeten()) {
+        if (std::find(neu.begin(), neu.end(), e.get()) == neu.end()) { continue; }
+        stand.objekte.emplace_back(e);
+        stand.abdruecke.push_back(entitaetAbdruck(k, *e));
+    }
 }
 
 std::vector<std::uint64_t> pinselAbdruecke(const Karte& k) {

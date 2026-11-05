@@ -36,6 +36,7 @@
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/sicherschreiben.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
 
@@ -75,11 +76,6 @@ bool dateiLesen(const std::string& pfad, std::string& daten) {
     s << f.rdbuf();
     daten = s.str();
     return true;
-}
-
-bool dateiSchreibenRoh(const std::string& pfad, const std::string& daten) {
-    std::ofstream f(pfadVon(pfad), std::ios::binary | std::ios::trunc);
-    return f && f.write(daten.data(), static_cast<std::streamsize>(daten.size()));
 }
 
 std::string stammVon(const std::string& pfad) {
@@ -129,7 +125,7 @@ std::string umwandeln(const std::string& daten, const std::string& stamm, std::s
     fs::create_directories(pfadVon(ordner), ec);
     const std::string bsp = ordner + "/" + stamm + ".bsp";
     const std::string original = ordner + "/" + stamm + "_original.bsp";
-    if (!dateiSchreibenRoh(bsp, daten) || !dateiSchreibenRoh(original, daten)) {
+    if (!arbeitsDateiSchreiben(bsp, daten) || !arbeitsDateiSchreiben(original, daten)) {
         fehler("writing " + bsp + " failure");
         return {};
     }
@@ -169,6 +165,16 @@ std::string kleinVon(std::string s) {
 
 }  // namespace
 
+// Die Dateien des Arbeitsordners (<stamm>_original.bsp, <stamm>.bsp, die Teil-Karten). rc610 F23 (B2-5): wie die uebrigen
+// Schreibwege (bhed/sicherschreiben.h: Temp-Datei daneben, Schreiben und Schliessen geprueft, dann umbenannt) - scheitert ein
+// Schritt, bleibt der vorige Stand; vorher schnitt trunc ihn ab, und ein Fehler beim Schliessen blieb unbemerkt.
+bool arbeitsDateiSchreiben(const std::string& pfad, const std::string& daten) {
+    std::string grund;
+    if (sicherSchreiben(pfad, daten, &grund)) { return true; }
+    diag::warn("Karten-Editor: " + grund);
+    return false;
+}
+
 // --- Punkt 1: oeffnen ---------------------------------------------------------------
 
 bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const std::string& begleitName, const std::string& begleit) {
@@ -201,7 +207,7 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
         ordner = arbeitsOrdner(stamm);
         std::error_code ec;
         fs::create_directories(pfadVon(ordner), ec);
-        if (!dateiSchreibenRoh(ordner + "/" + stamm + ".bsp", daten) || !dateiSchreibenRoh(ordner + "/" + stamm + "_original.bsp", daten)) {
+        if (!arbeitsDateiSchreiben(ordner + "/" + stamm + ".bsp", daten) || !arbeitsDateiSchreiben(ordner + "/" + stamm + "_original.bsp", daten)) {
             fehler("writing " + ordner + "/" + stamm + ".bsp failure");
             return false;
         }
@@ -219,7 +225,7 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
     }
     // <Arbeitsordner>/<Name>.map: dort sucht -onlyents die Entitaeten
     const std::string karteDatei = ordner + "/" + stamm + ".map";
-    if (!dateiSchreibenRoh(karteDatei, text)) {
+    if (!arbeitsDateiSchreiben(karteDatei, text)) {
         fehler("writing " + karteDatei + " failure");
         return false;
     }
@@ -235,7 +241,7 @@ bool bspOeffnenAus(const std::string& anzeige, const std::string& daten, const s
         ed.bspHerkunft.stamm = stamm;
         bspGeometrieMerken();
         ed.bspHerkunft.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
-        ed.bspHerkunft.punktAbdruecke = karte::punktAbdruecke(ed.karte);
+        ed.bspHerkunft.punktStand = karte::punktStand(ed.karte);
     }
     return ok;
 }
@@ -458,7 +464,7 @@ void bspNurEntitaeten() {
     }
     // Die Entitaeten fuer q3map2: <Arbeitsordner>/<Name>.map (die Karte des
     // Editors bleibt, wo sie ist); eine frische Kopie der Original-.bsp
-    if (!karte::karteSpeichern(karteDatei, ed.karte, false) || !dateiSchreibenRoh(bsp, original)) {
+    if (!karte::karteSpeichern(karteDatei, ed.karte, false) || !arbeitsDateiSchreiben(bsp, original)) {
         fehler("writing " + karteDatei + " failure");
         return;
     }
@@ -484,7 +490,7 @@ void bspNurEntitaeten() {
                          const std::string fertig = karte::bspEntitaetenEinsetzen(orig, neu);
                          karte::BspDatei a;
                          karte::BspDatei c;
-                         if (fertig.empty() || !karte::bspLesen(orig, a) || !karte::bspLesen(fertig, c) || !dateiSchreibenRoh(g_nurEntitaetenBsp, fertig)) {
+                         if (fertig.empty() || !karte::bspLesen(orig, a) || !karte::bspLesen(fertig, c) || !arbeitsDateiSchreiben(g_nurEntitaetenBsp, fertig)) {
                              fehler("bspEntitaetenEinsetzen failed: " + g_nurEntitaetenBsp);
                              return;
                          }
@@ -529,12 +535,20 @@ TeilInhalt teilInhalt() {
     TeilInhalt t;
     t.pinsel = karte::neuePinselEntitaeten(ed.karte, h.pinselAbdruecke);
     t.entitaeten = t.pinsel;
-    for (const karte::Entitaet* p : karte::neuePunktEntitaeten(ed.karte, h.punktAbdruecke, &t.geaendert)) { t.entitaeten.push_back(p); }
+    for (const karte::Entitaet* p : karte::neuePunktEntitaeten(ed.karte, h.punktStand, &t.geaendert)) { t.entitaeten.push_back(p); }
     t.welt = karte::neueWeltPrimitive(ed.karte, h.weltAbdruecke);
     return t;
 }
 
 void bspEinfuegenAbschluss();
+void teilBauen();
+
+void geometrieMerken(BspHerkunft& h) {
+    const Editor& ed = e();
+    h.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
+    h.fingerabdruckOhneWelt = karte::geometrieFingerabdruck(ed.karte, {ed.karte.welt().get()});
+    h.weltAbdruecke = karte::weltAbdruecke(ed.karte);
+}
 
 // Stufe 3: der Teil hat sichtbare Flaechen. Noch einmal bauen, jetzt mit der zurueckgewandelten Welt als Schattenwerfer und den
 // Lichtern der Karte (karte::teilKarte mitWelt), q3map2 -bsp und -light mit den Schaltern der Karte; uebernommen werden danach nur
@@ -553,7 +567,7 @@ void lichtTeilStarten() {
     std::vector<MapEntity> ents;
     if (dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", orig) && karte::bspLesen(orig, d)) { parseEntities(karte::bspEntitaetenText(d), ents); }
     const std::string* cmd = ents.empty() ? nullptr : ents[0].find("_q3map2_cmdline");
-    if (!dateiSchreibenRoh(lichtMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt, true))) {
+    if (!arbeitsDateiSchreiben(lichtMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt, true))) {
         fehler("writing " + lichtMap + " failure");
         return;
     }
@@ -614,35 +628,39 @@ void bspEinfuegenAbschluss() {
         ed.bspEinfuegenFertig = "fehler";
         return;
     }
-    // Die Arbeitskopie bekommt die neuen Modelle sofort (lumpBspSpeichern schreibt sie zuerst) - ab jetzt
-    // gehoeren die Brush-Entities und Clips zur Karte und werden nicht noch einmal eingefuegt.
-    bspGeometrieMerken();
-    h.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
-    h.punktAbdruecke = karte::punktAbdruecke(ed.karte);
-    lumpEditKarteSetzen(h.quelle, r.bsp);
+    // rc610 F23 (B2-4): erst wenn die Datei und die Arbeitskopie den neuen Stand haben (lumpBspSpeichern ruft dann zurueck),
+    // gehoeren die Brush-Entities, Clips und neuen Punkt-Entities zur Karte und werden nicht noch einmal eingefuegt. Scheitert
+    // das Speichern oder wird der Speicherweg abgebrochen, bleibt alles beim Stand vorher - ein neues Einfuegen baut wieder auf
+    // der unveraenderten Arbeitskopie auf. Der neue Stand wird jetzt genommen (Aenderungen danach sind nicht eingefuegt).
+    BspHerkunft neu = h;
+    geometrieMerken(neu);
+    neu.pinselAbdruecke = karte::pinselAbdruecke(ed.karte);
+    karte::punktStandErgaenzen(ed.karte, neu.punktStand);
+    std::vector<std::string> zeilen;
     if (r.neueModelle > 0) {
         std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenFertig, r.neueModelle), r.neueModelle, r.ersteNummer, r.ersteNummer + r.neueModelle - 1, h.quelle.c_str());
-        ausgabe(z);
+        zeilen.emplace_back(z);
     }
     if (r.weltPinsel > 0) {
         std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenClips, r.weltPinsel, r.weltBlaetter), r.weltPinsel, r.weltBlaetter, h.quelle.c_str());
-        ausgabe(z);
+        zeilen.emplace_back(z);
     }
     std::string fertig;
     if (r.neueModelle > 0) { fertig = "*" + std::to_string(r.ersteNummer) + " *" + std::to_string(r.ersteNummer + r.neueModelle - 1); }
     if (r.weltPinsel > 0) { fertig += std::string(fertig.empty() ? "" : " ") + "clips " + std::to_string(r.weltPinsel); }
-    lumpBspSpeichern(r.bsp, [fertig] { e().bspEinfuegenFertig = fertig; });
+    lumpBspSpeichern(r.bsp, [neu = std::move(neu), bsp = r.bsp, zeilen = std::move(zeilen), fertig] {
+        Editor& ed2 = e();
+        if (!ed2.bspHerkunft.aktiv || ed2.bspHerkunft.ordner != neu.ordner || ed2.bspHerkunft.stamm != neu.stamm) { return; }   // eine andere Karte
+        ed2.bspHerkunft = neu;
+        lumpEditKarteSetzen(neu.quelle, bsp);
+        for (const std::string& zeile : zeilen) { ausgabe(zeile); }
+        ed2.bspEinfuegenFertig = fertig;
+    });
 }
 
 }  // namespace
 
-void bspGeometrieMerken() {
-    Editor& ed = e();
-    BspHerkunft& h = ed.bspHerkunft;
-    h.fingerabdruck = karte::geometrieFingerabdruck(ed.karte);
-    h.fingerabdruckOhneWelt = karte::geometrieFingerabdruck(ed.karte, {ed.karte.welt().get()});
-    h.weltAbdruecke = karte::weltAbdruecke(ed.karte);
-}
+void bspGeometrieMerken() { geometrieMerken(e().bspHerkunft); }
 
 int bspNeuePinselEntitaeten() {
     const Editor& ed = e();
@@ -685,12 +703,27 @@ void bspInFertigeKarte() {
         std::snprintf(z, sizeof(z), trKN(Str::KeBmEinfuegenPunkte, t.geaendert), t.geaendert);
         warnung(z);
     }
+    // rc610 F23 (B2-3): der Merge baut auf <stamm>_original.bsp auf und ersetzt danach das Dokument des Fensters "Shader und
+    // Flaechen" - ungespeicherte Aenderungen dort erst speichern (dann sind sie in der Arbeitskopie) oder verwerfen
+    lumpRueckfrage(titel, [] { teilBauen(); });
+}
+
+namespace {
+
+// Der Teil-Compile von bspInFertigeKarte (nach der Rueckfrage)
+void teilBauen() {
+    Editor& ed = e();
+    if (!ed.bspHerkunft.aktiv) { return; }
+    const std::string titel = karte::ohneMnemonik(trK(Str::KeBmEinfuegen));
+    const BspHerkunft& h = ed.bspHerkunft;
+    const TeilInhalt t = teilInhalt();
+    if (t.pinsel.empty() && t.welt.empty()) { return; }
     const std::string teilMap = h.ordner + "/" + h.stamm + "_teil.map";
     g_teilBsp = h.ordner + "/" + h.stamm + "_teil.bsp";
     g_teilBeleuchtet = false;
     std::error_code ec;
     fs::remove(pfadVon(g_teilBsp), ec);
-    if (!dateiSchreibenRoh(teilMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt))) {
+    if (!arbeitsDateiSchreiben(teilMap, karte::teilKarte(ed.karte, t.entitaeten, t.welt))) {
         fehler("writing " + teilMap + " failure");
         return;
     }
@@ -700,6 +733,8 @@ void bspInFertigeKarte() {
         if (art == 0) { bspEinfuegenAbschluss(); }
     });
 }
+
+}  // namespace
 
 // --- rc609 J: Shader, Nebel und Flaechen der geoeffneten .bsp (gui/app_lumpedit.cpp) -------------
 
@@ -721,12 +756,19 @@ std::string browserShader() { return e().texBro.shader; }
 
 // Speichern: die Arbeitskopie <stamm>_original.bsp (darauf setzt "Update entities only" auf) und
 // die Datei, aus der die Karte kam - lose mit x.bsp.bak, aus dem Spiel auf den Wegen aus W2a.
-void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& gespeichert) {
+void lumpBspSpeichern(const std::string& bytes, const std::function<void()>& gespeichertDann) {
     const BspHerkunft& h = e().bspHerkunft;
-    if (!h.aktiv || !dateiSchreibenRoh(h.ordner + "/" + h.stamm + "_original.bsp", bytes)) {
-        fehler("writing " + h.ordner + "/" + h.stamm + "_original.bsp failure");
-        return;
-    }
+    if (!h.aktiv) { return; }
+    // rc610 F23 (B2-4): erst die Datei, aus der die Karte kam, dann die Arbeitskopie. Scheitert das Ziel oder wird der
+    // Speicherweg abgebrochen, bleibt die Arbeitskopie beim Stand der Datei (vorher war sie schon ueberschrieben).
+    const std::string arbeit = h.ordner + "/" + h.stamm + "_original.bsp";
+    const std::function<void()> gespeichert = [arbeit, bytes, gespeichertDann] {
+        if (!arbeitsDateiSchreiben(arbeit, bytes)) {
+            fehler("writing " + arbeit + " failure");
+            return;
+        }
+        gespeichertDann();
+    };
     DateiHerkunft ziel;
     if (h.quelle.find(':') != std::string::npos) {
         ziel = DateiHerkunft::lose(h.quelle);
