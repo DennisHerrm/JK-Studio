@@ -35,6 +35,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -282,7 +283,9 @@ void fahre(const Vorlage& v, const Satz& s, bool md, Lauf& l) {
         geo.models[i].maxs[2] = 128.0F;
     }
     std::vector<MoverUse> uses;
-    for (const Ablauf::Benutzung& b : l.ablauf.benutzt) { uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser}); }
+    for (const Ablauf::Benutzung& b : l.ablauf.benutzt) {
+        uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, std::numeric_limits<int>::max(), b.entity, b.inaktiv});
+    }
     l.mover.baue(l.karte, geo, uses, nullptr, l.ende);
 
     // --- Die Spur ----------------------------------------------------------
@@ -292,7 +295,13 @@ void fahre(const Vorlage& v, const Satz& s, bool md, Lauf& l) {
         t += "skript " + l.ablauf.skripte[i] + " ab " + zahl(i < l.ablauf.skriptBeginn.size() ? l.ablauf.skriptBeginn[i] : -9.0) + "\n";
     }
     for (const auto& [n, ms] : l.ablauf.erscheint) { t += "erscheint " + n + " " + zahl(ms) + "\n"; }
-    for (const Ablauf::Benutzung& b : l.ablauf.benutzt) { t += "use " + b.name + " " + zahl(b.ms) + " von " + b.ausloeser + "\n"; }
+    for (const Ablauf::Benutzung& b : l.ablauf.benutzt) {
+        if (b.inaktiv >= 0) {   // F4b: SVF_INACTIVE einer Entity
+            t += "inaktiv " + std::to_string(b.entity) + " " + std::to_string(b.inaktiv) + " " + zahl(b.ms) + "\n";
+            continue;
+        }
+        t += "use " + b.name + " " + zahl(b.ms) + " von " + b.ausloeser + (b.entity >= 0 ? " nur " + std::to_string(b.entity) : "") + "\n";
+    }
     for (const std::string& hw : l.ablauf.hinweise) { t += "hinweis " + hw + "\n"; }
     t += writeScript(l.ablauf.flach);
     std::vector<const Actor*> figuren;

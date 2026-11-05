@@ -31,6 +31,7 @@
 
 #include "bhed/clock.h"
 #include "bhed/gegenstaende.h"   // rc603: spawntBeiSchwierigkeit (Kartenstart)
+#include "bhed/mover.h"          // F4b: startetInaktiv
 #include "bhed/npcklasse.h"      // rc604 fix604: npcSpawntBeimKartenstart
 #include "bhed/regelwerk.h"      // rc604 fix604: leicheAb
 #include "bhed/scene.h"
@@ -273,7 +274,9 @@ struct Wesen {
     // target_scriptrunner / target_relay / trigger: Zaehler und Sperre.
     int zaehler = 0;
     bool zaehlerGesetzt = false;
-    double gesperrtBis = -1.0;
+    int zaehlerVoll = 0;   // F4b: target_counter max_health (SP_target_counter)
+    int abprall = 0;       // F4b: target_counter bounceCount (F_INT, -1: immer)
+    double gesperrtBis = -1.0;   // painDebounceTime (target_relay, trigger) bzw. nextthink (target_scriptrunner)
     bool inaktiv = false;
     bool verbraucht = false;
     // Der letzte Block kam aus einer Endlosschleife: auch was er anstiess
@@ -377,9 +380,12 @@ struct Geplant {
     // (thinkF_G_FreeEntity 50 ms nach dem Bruch); wesen = der func_breakable.
     // Beide laufen in Schritt 3 von takte an seinem Platz (G_RunThink vor
     // seinem ICARUS-Update, g_main.cpp:1062-1088 OpenJK), nicht in Schritt 2.
-    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch, Frei } art = Art::Benutzen;
+    // F4b: Denken - das think einer Entity nach ihrem "delay" (target_relay_use_go, Think_Target_Delay,
+    // scriptrunner_run); wesen = die Entity, ausloeser = ihr activator. Eine Entity hat EIN think: ein neues
+    // ersetzt das alte (denkenSetzen).
+    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch, Frei, Denken } art = Art::Benutzen;
     std::string name;         // Benutzen: targetname; Skript: Pfad
-    int wesen = -1;           // Skript/Spawn: auf wem
+    int wesen = -1;           // Skript/Spawn/Denken: auf wem
     int ausloeser = -1;
     bool roffNotiz = false;   // rc604: aus einer Notiz "USE" einer ROFF-Bahn
 };
@@ -431,6 +437,7 @@ private:
     std::set<int> erledigt_;
     int naechsteGruppe_ = 1;
     int folge_ = 0;
+    std::uint32_t zufall_ = 0x9E3779B9U;   // F4b: wuerfle
     double jetzt_ = 0.0;
     int traeger_ = -1;
     int tiefe_ = 0;
@@ -722,12 +729,12 @@ private:
             e.classname == "target_counter" || e.classname == "target_delay") {
             const std::string c = wertVon(e, "count");
             w.zaehler = c.empty() ? 0 : std::atoi(c.c_str());
-            const std::string sf = wertVon(e, "spawnflags");
-            const int flags = sf.empty() ? 0 : std::atoi(sf.c_str());
-            if ((flags & 128) != 0 && e.classname != "target_counter") {
-                w.inaktiv = true;   // INACTIVE
-            }
+            const std::string b = wertVon(e, "bounceCount");
+            w.abprall = b.empty() ? 0 : std::atoi(b.c_str());
         }
+        // F4b (B4b-13): SVF_INACTIVE nach dem Spawnen - nur wo die Spawnfunktion es aus 128 setzt (bhed/mover.h;
+        // target_delay kennt es nicht, target_counter setzt es erst nach dem Feuern).
+        w.inaktiv = startetInaktiv(e);
     }
 
     int reiheVon(const MapEntity* e) const {
@@ -1488,6 +1495,133 @@ private:
     // Pruefung 4b: ein think eines func_breakable (laeuft an seinem Platz).
     static bool istDenken(const Geplant& g) { return g.art == Geplant::Art::Bruch || g.art == Geplant::Art::Frei; }
 
+    // F4b: e_ThinkFunc/nextthink setzen - eine Entity hat nur ein think, das neue ersetzt ein noch nicht gelaufenes
+    // (Use_Target_Delay, g_target.cpp:78-85; target_relay_use mit delay, :447-452 OpenJK; MD gleich).
+    void denkenSetzen(int wi, double ms, int ausloeser) {
+        geplant_.erase(std::remove_if(geplant_.begin(), geplant_.end(),
+                                      [wi](const Geplant& g) { return g.art == Geplant::Art::Denken && g.wesen == wi; }),
+                       geplant_.end());
+        plane(Geplant{ms, 0, Geplant::Art::Denken, std::string{}, wi, ausloeser});
+    }
+
+    // F4b: SVF_INACTIVE setzen oder loeschen - fuer MoverSim als Benutzung ohne Namen (Ablauf::Benutzung::inaktiv).
+    void inaktivSetzen(int wi, bool an) {
+        Wesen& w = *wesen_[static_cast<std::size_t>(wi)];
+        w.inaktiv = an;
+        if (w.ent != nullptr && !w.figur && welt_.karte != nullptr && !welt_.karte->entities.empty() &&
+            w.ent >= welt_.karte->entities.data() && w.ent < welt_.karte->entities.data() + welt_.karte->entities.size()) {
+            Ablauf::Benutzung b{jetzt_, std::string{}, std::string{}, amZug_};
+            b.entity = static_cast<int>(w.ent - welt_.karte->entities.data());
+            b.inaktiv = an ? 1 : 0;
+            aus_.benutzt.push_back(std::move(b));
+        }
+    }
+
+    // F4b: der Zufall der Engine (rand() in G_PickTarget, Q_irand in target_random_use), wiederholbar: xorshift32 ab
+    // einem festen Anfang, in der Reihenfolge der Ziehungen - dieselbe Szene zieht beim naechsten Rechnen dasselbe.
+    int wuerfle(int n) {
+        zufall_ ^= zufall_ << 13U;
+        zufall_ ^= zufall_ >> 17U;
+        zufall_ ^= zufall_ << 5U;
+        return static_cast<int>(zufall_ % static_cast<std::uint32_t>(n));
+    }
+
+    // F4b: GEntity_UseFunc auf GENAU dieser Entity (G_PickTarget, target_random_use) - fuer MoverSim mit ihrem Index.
+    void benutzeNur(const MapEntity& e, int ausloeser, int tiefe) {
+        if (tiefe > 32 || welt_.karte == nullptr) {
+            return;
+        }
+        const std::string wer = (ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < wesen_.size())
+                                    ? wesen_[static_cast<std::size_t>(ausloeser)]->name
+                                    : std::string{};
+        Ablauf::Benutzung b{jetzt_, e.targetname, wer, amZug_};
+        b.entity = static_cast<int>(&e - welt_.karte->entities.data());
+        aus_.benutzt.push_back(std::move(b));
+        benutzeEine(e, ausloeser, tiefe);
+    }
+
+    // F4b: die Ziele unter `name`, wie G_Find sie findet (ohne die von notsingle/Schwierigkeit entfernten), ausser `ohne`.
+    std::vector<const MapEntity*> zieleVon(const std::string& name, const MapEntity* ohne) const {
+        std::vector<const MapEntity*> out;
+        if (welt_.karte == nullptr || name.empty()) {
+            return out;
+        }
+        for (const MapEntity& e : welt_.karte->entities) {
+            if (&e == ohne || !gleich(e.targetname, name)) { continue; }
+            if (welt_.spielstufe >= 0 && !spawntBeiSchwierigkeit(e, welt_.spielstufe)) { continue; }
+            out.push_back(&e);
+        }
+        return out;
+    }
+
+    // F4b (B4b-9): target_relay_use_go (g_target.cpp:404-421 OpenJK, :454-471 MD): usescript, dann mit RANDOM (4)
+    // G_PickTarget - ein Ziel, choice[rand() % num_choices] unter hoechstens MAXCHOICES 32 (g_utils.cpp:568-599) -
+    // sonst G_UseTargets.
+    void relaisLos(int wi, int ausloeser, int tiefe) {
+        Wesen& w = *wesen_[static_cast<std::size_t>(wi)];
+        const MapEntity& e = *w.ent;
+        const auto it = w.verhalten.find("usescript");
+        if (it != w.verhalten.end()) {
+            starteSkript(wi, it->second, ausloeser);
+        }
+        const std::string sf = wertVon(e, "spawnflags");
+        const int flags = sf.empty() ? 0 : std::atoi(sf.c_str());
+        if ((flags & 4) != 0) {
+            std::vector<const MapEntity*> wahl = zieleVon(wertVon(e, "target"), nullptr);
+            if (wahl.size() > 32U) { wahl.resize(32U); }
+            if (!wahl.empty()) {
+                benutzeNur(*wahl[static_cast<std::size_t>(wuerfle(static_cast<int>(wahl.size())))], ausloeser, tiefe + 1);
+            }
+            return;
+        }
+        benutze(wertVon(e, "target"), ausloeser, tiefe + 1);
+    }
+
+    // F4b (B4b-12): scriptrunner_run (g_target.cpp:722-791 OpenJK, :794 MD): count (-1 immer; <= 0: useF_NULL und
+    // kein Lauf), das usescript (runonactivator: auf dem activator), dann nextthink = level.time + wait.
+    void skriptstarterLauf(int wi, int ausloeser) {
+        Wesen& w = *wesen_[static_cast<std::size_t>(wi)];
+        const MapEntity& e = *w.ent;
+        w.gesperrtBis = -1.0;   // G_RunThink: nextthink = 0 vor dem think
+        if (!w.zaehlerGesetzt) {
+            w.zaehlerGesetzt = true;
+            if (w.zaehler == 0) { w.zaehler = 1; }   // SP_target_scriptrunner: "default 1 use only"
+        }
+        if (w.zaehler != -1) {
+            if (w.zaehler <= 0) {
+                w.verbraucht = true;
+                return;
+            }
+            --w.zaehler;
+        }
+        const std::string skript = wertVon(e, "usescript");
+        if (!skript.empty()) {
+            const std::string sf = wertVon(e, "spawnflags");
+            const int flags = sf.empty() ? 0 : std::atoi(sf.c_str());
+            // runonactivator: auf dem, der benutzt hat.
+            const int auf = ((flags & 1) != 0 && ausloeser >= 0) ? ausloeser : wi;
+            starteSkript(auf, skript, ausloeser);
+        }
+        const auto wait = static_cast<float>(zahl(wertVon(e, "wait"))) * 1000.0F;   // F_FLOAT, wait *= 1000
+        if (wait > 0.0F) { w.gesperrtBis = jetzt_ + static_cast<double>(wait); }
+    }
+
+    // F4b: das faellige think (Geplant::Art::Denken).
+    void denkeLos(int wi, int ausloeser) {
+        Wesen& w = *wesen_[static_cast<std::size_t>(wi)];
+        if (w.ent == nullptr) {
+            return;
+        }
+        const std::string& cn = w.ent->classname;
+        if (cn == "target_relay") {
+            relaisLos(wi, ausloeser, 0);
+        } else if (cn == "target_scriptrunner") {
+            skriptstarterLauf(wi, ausloeser);
+        } else if (cn == "target_delay") {
+            benutze(wertVon(*w.ent, "target"), ausloeser, 1);   // Think_Target_Delay: G_UseTargets
+        }
+    }
+
     // funcBBrushDieGo (g_breakable.cpp:79-182 OpenJK): die Ziele, dann
     // think = G_FreeEntity, nextthink = level.time + 50.
     void bruchGo(int wi, const std::string& ziel, int ausloeser, int tiefe) {
@@ -1566,7 +1700,7 @@ private:
             if (wi >= 0 && wesen_[static_cast<std::size_t>(wi)]->figur) {
                 Wesen& w = *wesen_[static_cast<std::size_t>(wi)];
                 const auto it = w.verhalten.find("usescript");
-                if (it != w.verhalten.end() && w.gibt) {
+                if (it != w.verhalten.end() && w.gibt && !w.inaktiv) {   // F4b: GEntity_UseFunc
                     starteSkript(wi, it->second, ausloeser);
                 }
             }
@@ -1580,32 +1714,24 @@ private:
         const std::string sf = wertVon(e, "spawnflags");
         const int flags = sf.empty() ? 0 : std::atoi(sf.c_str());
 
+        // F4b (B4b-13): GEntity_UseFunc (g_functions.cpp:243-248 OpenJK, :258-263 MD) - SVF_INACTIVE (target_deactivate,
+        // SET_INACTIVE, spawnflags 128) blockt jedes use, vor der use-Funktion und ihrem usescript.
+        if (w.inaktiv) {
+            return;
+        }
         if (cn == "target_scriptrunner") {
-            if (w.inaktiv || w.gesperrtBis > jetzt_ || w.verbraucht) {
-                return;
+            // F4b (B4b-12): target_scriptrunner_use (g_target.cpp:798-815 OpenJK, MD gleich) sperrt nur ueber
+            // nextthink > level.time - mit delay ist das der Lauftermin. count und wait wirken erst im Lauf
+            // (skriptstarterLauf). "delay" ist G_SpawnFloat, mal 1000 in ein int (SP_target_scriptrunner, :851-855).
+            if (w.verbraucht || w.gesperrtBis > jetzt_) {
+                return;   // useF_NULL bzw. das think steht noch aus
             }
-            // count: wie oft; Vorgabe 1, -1 = immer (SP_target_scriptrunner).
-            if (!w.zaehlerGesetzt) {
-                w.zaehlerGesetzt = true;
-                if (w.zaehler == 0) { w.zaehler = 1; }
-            }
-            if (w.zaehler > 0) {
-                --w.zaehler;
-                if (w.zaehler == 0) { w.verbraucht = true; }
-            }
-            const double wait = zahl(wertVon(e, "wait")) * 1000.0;
-            if (wait > 0.0) { w.gesperrtBis = jetzt_ + wait; }
-            const double delay = zahl(wertVon(e, "delay")) * 1000.0;
-            const std::string skript = wertVon(e, "usescript");
-            if (skript.empty()) {
-                return;
-            }
-            // runonactivator: auf dem, der benutzt hat.
-            const int auf = ((flags & 1) != 0 && ausloeser >= 0) ? ausloeser : wi;
-            if (delay > 0.0) {
-                plane(Geplant{jetzt_ + delay, 0, Geplant::Art::Skript, skript, auf, ausloeser});
+            const auto delay = static_cast<int>(static_cast<float>(zahl(wertVon(e, "delay"))) * 1000.0F);
+            if (delay != 0) {
+                w.gesperrtBis = jetzt_ + delay;
+                denkenSetzen(wi, jetzt_ + delay, ausloeser);
             } else {
-                starteSkript(auf, skript, ausloeser);
+                skriptstarterLauf(wi, ausloeser);
             }
             return;
         }
@@ -1652,35 +1778,53 @@ private:
             return;
         }
         if (cn == "target_relay") {
-            if (w.inaktiv || w.gesperrtBis > jetzt_ || w.verbraucht) {
+            // F4b (B4b-8, B4b-9): target_relay_use (g_target.cpp:424-466 OpenJK, :474 MD).
+            if (w.verbraucht) {
+                return;   // useF_NULL nach wait -1
+            }
+            // spawnflags 1/2: "&& activator->client" - von einem Spieler oder NPC benutzt, feuert es nicht.
+            if ((flags & 3) != 0 && ausloeser >= 0 && static_cast<std::size_t>(ausloeser) < wesen_.size() &&
+                wesen_[static_cast<std::size_t>(ausloeser)]->istClient) {
                 return;
             }
-            const double delay = zahl(wertVon(e, "delay")) * 1000.0;
-            const double wait = zahl(wertVon(e, "wait")) * 1000.0;
-            usescript();
-            const std::string t = wertVon(e, "target");
-            if (delay > 0.0) {
-                plane(Geplant{jetzt_ + delay, 0, Geplant::Art::Benutzen, t, -1, ausloeser});
-            } else {
-                benutze(t, ausloeser, tiefe + 1);
+            if (w.gesperrtBis > jetzt_) {
+                return;   // painDebounceTime
             }
-            if (wait < 0.0) { w.verbraucht = true; }
-            else if (wait > 0.0) { w.gesperrtBis = jetzt_ + wait; }
+            // "delay" ist F_INT (g_spawn.cpp:302 OpenJK, :401 MD), SP_target_relay: delay *= 1000. Mit delay setzt es
+            // nur das think (target_relay_use_go) und kehrt zurueck - vor wait und useF_NULL: es sperrt nie, und ein
+            // zweites use in der Wartezeit verschiebt den Termin.
+            const double delay = static_cast<double>(std::atoi(wertVon(e, "delay").c_str())) * 1000.0;
+            if (delay != 0.0) {
+                denkenSetzen(wi, jetzt_ + delay, ausloeser);
+                return;
+            }
+            relaisLos(wi, ausloeser, tiefe);
+            const auto wait = static_cast<float>(zahl(wertVon(e, "wait"))) * 1000.0F;   // F_FLOAT, wait *= 1000
+            if (wait < 0.0F) {
+                w.verbraucht = true;
+            } else {
+                w.gesperrtBis = jetzt_ + static_cast<double>(wait);
+            }
             return;
         }
         if (cn == "target_delay") {
+            // F4b (B4b-10): Use_Target_Delay (g_target.cpp:78-85 OpenJK, :85 MD): usescript, dann nextthink = level.time
+            // + (wait + random * Q_flrand(-1, 1)) * 1000 - ein zweites use verschiebt das eine think. Der Zufallsanteil
+            // bleibt wie bisher 0 (die Mitte).
             usescript();
             // "delay", sonst "wait", Vorgabe 1 s (SP_target_delay).
             double s = zahl(wertVon(e, "delay"), -1.0);
             if (s < 0.0) { s = zahl(wertVon(e, "wait"), 1.0); }
             if (s == 0.0) { s = 1.0; }
-            plane(Geplant{jetzt_ + s * 1000.0, 0, Geplant::Art::Benutzen, wertVon(e, "target"), -1, ausloeser});
+            denkenSetzen(wi, jetzt_ + static_cast<double>(static_cast<int>(static_cast<float>(s) * 1000.0F)), ausloeser);
             return;
         }
         if (cn == "target_counter") {
+            // F4b (B4b-11): target_counter_use (g_target.cpp:579-626 OpenJK, :647 MD).
             if (!w.zaehlerGesetzt) {
                 w.zaehlerGesetzt = true;
                 if (w.zaehler == 0) { w.zaehler = 2; }
+                w.zaehlerVoll = w.zaehler;   // SP_target_counter: max_health = count
             }
             if (w.zaehler == 0) {
                 return;
@@ -1691,7 +1835,30 @@ private:
                 return;
             }
             usescript();
+            if ((flags & 128) != 0) {
+                inaktivSetzen(wi, true);   // INACTIVE nach dem Feuern
+            }
             benutze(wertVon(e, "target"), ausloeser, tiefe + 1);
+            if (w.zaehler == 0 && w.abprall != 0) {   // bounceCount: wieder von vorn (-1: immer)
+                w.zaehler = w.zaehlerVoll;
+                if (w.abprall > 0) { --w.abprall; }
+            }
+            return;
+        }
+        if (cn == "target_random") {
+            // F4b (B4b-14): target_random_use (g_target.cpp:649-713 OpenJK, :720 MD): usescript, USEONCE (1) nimmt
+            // die use-Funktion, dann mit EINEM Ziel G_UseTargets, sonst eins per Q_irand(1, n) (ohne sich selbst).
+            if (w.verbraucht) {
+                return;
+            }
+            usescript();
+            if ((flags & 1) != 0) { w.verbraucht = true; }
+            const std::vector<const MapEntity*> wahl = zieleVon(wertVon(e, "target"), &e);
+            if (wahl.size() == 1U) {
+                benutze(wertVon(e, "target"), ausloeser, tiefe + 1);
+            } else if (wahl.size() > 1U) {
+                benutzeNur(*wahl[static_cast<std::size_t>(wuerfle(static_cast<int>(wahl.size())))], ausloeser, tiefe + 1);
+            }
             return;
         }
         // rc605 (Ende): target_level_change_use (code/game/g_target.cpp OpenJK,
@@ -1730,21 +1897,25 @@ private:
             return;
         }
         if (cn == "target_activate" || cn == "target_deactivate") {
+            // target_activate_use / target_deactivate_use (g_target.cpp OpenJK; G_SetActiveState, g_utils.cpp:1744-1765
+            // MD): usescript, dann SVF_INACTIVE an jeder Entity mit dem targetname.
+            usescript();
             const std::string t = wertVon(e, "target");
             if (welt_.karte != nullptr && !t.empty()) {
                 for (const MapEntity& z : welt_.karte->entities) {
                     if (gleich(z.targetname, t)) {
-                        wesen_[static_cast<std::size_t>(wesenFuer(z))]->inaktiv = (cn == "target_deactivate");
+                        inaktivSetzen(wesenFuer(z), cn == "target_deactivate");
                     }
                 }
             }
             return;
         }
         if (cn == "trigger_once" || cn == "trigger_multiple" || cn == "trigger_always") {
-            if (w.inaktiv || w.verbraucht || w.gesperrtBis > jetzt_) {
+            if (w.verbraucht || w.gesperrtBis > jetzt_) {
                 return;
             }
-            const double delay = zahl(wertVon(e, "delay")) * 1000.0;
+            // F4b (B4b-8): "delay" ist F_INT, SP_trigger_multiple/SP_trigger_once: delay *= 1000 (g_trigger.cpp:456, 525).
+            const double delay = static_cast<double>(std::atoi(wertVon(e, "delay").c_str())) * 1000.0;
             if (cn == "trigger_once") { w.verbraucht = true; }
             const double wait = zahl(wertVon(e, "wait")) * 1000.0;
             if (wait > 0.0) { w.gesperrtBis = jetzt_ + delay + wait; }
@@ -2650,7 +2821,7 @@ private:
             psTempoSetzen(w, t, std::atoi(wert.c_str()));
             return true;
         }
-        if (k == "set_inactive") { w.inaktiv = gleich(wert, "true"); return true; }
+        if (k == "set_inactive") { inaktivSetzen(wi, gleich(wert, "true")); return true; }   // Q3_SetInactive
         // rc604 fix604: was contents/clipmask aendert, fuer den gemeinsamen Takt
         // (NavFigurKoerper::fest). Q3_Set: SET_SOLID / SET_INVISIBLE mit
         // !Q_stricmp("true", data) (Q3_Interface.cpp:9496-9516 MD / 8900-8920
@@ -3289,6 +3460,8 @@ void Nachbau::takte() {
                 }
             } else if (g.art == Geplant::Art::Skript) {
                 starteSkript(g.wesen, g.name, g.ausloeser);
+            } else if (g.art == Geplant::Art::Denken) {
+                denkeLos(g.wesen, g.ausloeser);
             } else if (g.art == Geplant::Art::Spawn && g.wesen >= 0) {
                 Wesen& f = *wesen_[static_cast<std::size_t>(g.wesen)];
                 if (!f.gibt) {

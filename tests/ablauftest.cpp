@@ -926,6 +926,176 @@ void kartenwechsel() {
     regelwerkAnwendenSpiel(kRegelwerkMovieDuels, -1);
 }
 
+// F4b: die target-Kette wie im Spiel (B4b-8 bis B4b-14). Jede Zeit aus g_target.cpp/g_trigger.cpp (OpenJK, MD gleich):
+// "delay" ist F_INT (g_spawn.cpp:302), target_relay_use/target_relay_use_go (g_target.cpp:404-466), Use_Target_Delay
+// (:78-85), target_counter_use (:579-626), scriptrunner_run/target_scriptrunner_use (:722-815), target_random_use
+// (:649-713), GEntity_UseFunc (g_functions.cpp:243-248).
+namespace f4b {
+
+MapEntity ent(const std::string& k, std::vector<std::pair<std::string, std::string>> keys) {
+    MapEntity e;
+    e.classname = k;
+    for (const auto& [a, b] : keys) {
+        if (a == "targetname") { e.targetname = b; }
+        if (a == "origin") { e.origin = b; }
+    }
+    keys.emplace_back("classname", k);
+    e.keys = std::move(keys);
+    return e;
+}
+
+// Die Skripte der Starter: jedes benutzt eine Marke, an der man die Laeufe zaehlt.
+Ablauf lauf(const MapData& m, const std::string& start) {
+    static std::map<std::string, std::shared_ptr<Script>> skripte;
+    for (const char* n : {"m1", "m2", "m3", "rs"}) {
+        skripte[std::string("f/") + n] = std::make_shared<Script>(lies("use ( \"marke_" + std::string(n) + "\" );\n"));
+    }
+    AblaufWelt w;
+    w.karte = &m;
+    w.skript = [](const std::string& pfad) -> const Script* {
+        const auto it = skripte.find(pfad);
+        return it == skripte.end() ? nullptr : it->second.get();
+    };
+    return simuliereAblauf(lies(start), "", w);
+}
+
+std::vector<double> zeiten(const Ablauf& a, const std::string& name) {
+    std::vector<double> out;
+    for (const Ablauf::Benutzung& b : a.benutzt) {
+        if (b.name == name) { out.push_back(b.ms); }
+    }
+    return out;
+}
+
+std::string liste(const std::vector<double>& v) {
+    std::string t;
+    for (const double x : v) { t += " " + std::to_string(static_cast<long>(x)); }
+    return t.empty() ? " -" : t;
+}
+
+void pruefeZeiten(const Ablauf& a, const std::string& name, const std::vector<double>& soll, const std::string& was) {
+    const std::vector<double> ist = zeiten(a, name);
+    bool ok = ist.size() == soll.size();
+    for (std::size_t i = 0; ok && i < ist.size(); ++i) { ok = std::fabs(ist[i] - soll[i]) < 0.5; }
+    pruefe(ok, (was + ": " + name + " bei" + liste(ist) + " (soll" + liste(soll) + ")").c_str());
+}
+
+}  // namespace f4b
+
+void zielKette() {
+    using namespace f4b;
+    std::printf("F4b: target-Kette\n");
+    // B4b-8: trigger_multiple "delay" "0.5" -> 0 s, target_relay "delay" "1.5" -> 1 s.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}),
+                      ent("trigger_multiple", {{"targetname", "trig"}, {"delay", "0.5"}, {"target", "nach_trig"}}),
+                      ent("target_relay", {{"targetname", "rel"}, {"delay", "1.5"}, {"target", "nach_rel"}})};
+        const Ablauf a = lauf(m, "use ( \"trig\" );\nuse ( \"rel\" );\nwait ( 3000.000 );\n");
+        pruefeZeiten(a, "nach_trig", {zeiten(a, "trig").at(0)}, "B4b-8 trigger_multiple delay 0.5 ist F_INT 0");
+        pruefeZeiten(a, "nach_rel", {zeiten(a, "rel").at(0) + 1000.0}, "B4b-8 target_relay delay 1.5 ist F_INT 1 s");
+    }
+    // B4b-9 a/b: target_relay delay 1, wait -1: ein delay-Relais sperrt nie, ein zweites use verschiebt.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}),
+                      ent("target_relay", {{"targetname", "rel"}, {"delay", "1"}, {"wait", "-1"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "use ( \"rel\" );\nwait ( 5000.000 );\nuse ( \"rel\" );\nwait ( 2000.000 );\n");
+        const std::vector<double> ua = zeiten(a, "rel");
+        pruefeZeiten(a, "ziel", {ua.at(0) + 1000.0, ua.at(1) + 1000.0}, "B4b-9a Relais delay 1 wait -1, uses 0 und 5000");
+        const Ablauf b = lauf(m, "use ( \"rel\" );\nwait ( 500.000 );\nuse ( \"rel\" );\nwait ( 2000.000 );\n");
+        pruefeZeiten(b, "ziel", {zeiten(b, "rel").at(1) + 1000.0}, "B4b-9b dasselbe, uses 0 und 500");
+    }
+    // B4b-9 c: RANDOM (4) benutzt EIN Ziel (G_PickTarget).
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_relay", {{"targetname", "rel"}, {"spawnflags", "4"}, {"target", "welle"}})};
+        for (const char* n : {"w1", "w2", "w3"}) {
+            m.entities.push_back(ent("NPC_spawner", {{"targetname", "welle"}, {"NPC_targetname", n}, {"NPC_type", "stormtrooper"}}));
+        }
+        const Ablauf a = lauf(m, "use ( \"rel\" );\nwait ( 1000.000 );\n");
+        pruefe(a.erscheint.size() == 1U, ("B4b-9c RANDOM: " + std::to_string(a.erscheint.size()) + " von 3 Spawnern (soll 1)").c_str());
+    }
+    // B4b-9 d: das usescript laeuft erst in target_relay_use_go, nach dem delay.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}),
+                      ent("target_relay", {{"targetname", "rel"}, {"delay", "2"}, {"usescript", "f/rs"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "use ( \"rel\" );\nwait ( 3000.000 );\n");
+        const std::vector<double> t = zeiten(a, "marke_rs");
+        pruefe(t.size() == 1U && t[0] >= 2000.0 && t[0] <= 2050.0,
+               ("B4b-9d usescript nach dem delay: marke_rs bei" + liste(t) + " (soll 2000..2050)").c_str());
+    }
+    // B4b-9 e: spawnflags 1, vom Spieler benutzt ("activator->client"): nichts.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_relay", {{"targetname", "rel"}, {"spawnflags", "1"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "affect ( \"player\", FLUSH )\n{\n\tuse ( \"rel\" );\n}\nwait ( 500.000 );\n");
+        pruefeZeiten(a, "ziel", {}, "B4b-9e Relais 1 vom Spieler");
+    }
+    // B4b-10: target_delay wait 3, uses 0 und 1000 -> einmal bei 4000.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_delay", {{"targetname", "verz"}, {"wait", "3"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "use ( \"verz\" );\nwait ( 1000.000 );\nuse ( \"verz\" );\nwait ( 5000.000 );\n");
+        pruefeZeiten(a, "ziel", {zeiten(a, "verz").at(1) + 3000.0}, "B4b-10 target_delay zweimal benutzt");
+    }
+    // B4b-11: target_counter count 3, bounceCount -1: feuert beim 3. und 6. use.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}),
+                      ent("target_counter", {{"targetname", "zahl"}, {"count", "3"}, {"bounceCount", "-1"}, {"target", "ziel"}})};
+        std::string s;
+        for (int i = 0; i < 6; ++i) { s += "use ( \"zahl\" );\nwait ( 100.000 );\n"; }
+        const Ablauf a = lauf(m, s);
+        const std::vector<double> u = zeiten(a, "zahl");
+        pruefeZeiten(a, "ziel", {u.at(2), u.at(5)}, "B4b-11 target_counter bounceCount -1");
+    }
+    // B4b-12: target_scriptrunner - count und wait erst im Lauf nach dem delay.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}),
+                      ent("target_scriptrunner", {{"targetname", "sa"}, {"count", "-1"}, {"delay", "2"}, {"usescript", "f/m1"}}),
+                      ent("target_scriptrunner",
+                          {{"targetname", "sb"}, {"count", "-1"}, {"delay", "2"}, {"wait", "5"}, {"usescript", "f/m2"}})};
+        const Ablauf a = lauf(m, "use ( \"sa\" );\nuse ( \"sb\" );\nwait ( 1000.000 );\nuse ( \"sa\" );\nwait ( 5000.000 );\n"
+                                 "use ( \"sb\" );\nwait ( 4000.000 );\n");
+        const std::vector<double> ta = zeiten(a, "marke_m1");
+        const std::vector<double> tb = zeiten(a, "marke_m2");
+        pruefe(ta.size() == 1U && ta[0] >= 2000.0 && ta[0] <= 2050.0,
+               ("B4b-12a delay 2, uses 0 und 1000: ein Lauf bei 2000 (marke_m1 bei" + liste(ta) + ")").c_str());
+        pruefe(tb.size() == 1U && tb[0] >= 2000.0 && tb[0] <= 2050.0,
+               ("B4b-12b delay 2 wait 5, uses 0 und 6000: ein Lauf, gesperrt bis 7000 (marke_m2 bei" + liste(tb) + ")").c_str());
+    }
+    // B4b-13: SVF_INACTIVE blockt jedes use - target_deactivate auf einen NPC_spawner, SET_INACTIVE auf ein target_delay.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_deactivate", {{"targetname", "aus"}, {"target", "welle2"}}),
+                      ent("NPC_spawner", {{"targetname", "welle2"}, {"NPC_targetname", "w9"}, {"NPC_type", "stormtrooper"},
+                                          {"spawnscript", "f/m3"}}),
+                      ent("target_delay", {{"targetname", "verz"}, {"script_targetname", "verz"}, {"wait", "1"}, {"target", "ziel"}})};
+        const Ablauf a = lauf(m, "use ( \"aus\" );\nuse ( \"welle2\" );\naffect ( \"verz\", FLUSH )\n{\n"
+                                 "\tset ( \"SET_INACTIVE\", \"true\" );\n}\nwait ( 100.000 );\nuse ( \"verz\" );\nwait ( 2000.000 );\n");
+        pruefe(a.erscheint.empty() && zeiten(a, "marke_m3").empty(),
+               ("B4b-13 target_deactivate -> NPC_spawner: " + std::to_string(a.erscheint.size()) + " Spawns (soll 0)").c_str());
+        pruefeZeiten(a, "ziel", {}, "B4b-13 SET_INACTIVE -> target_delay");
+    }
+    // B4b-14: target_random - mit einem Ziel immer dieses, mit zweien genau eins.
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("target_random", {{"targetname", "zz"}, {"target", "eins"}}),
+                      ent("target_scriptrunner", {{"targetname", "eins"}, {"usescript", "f/m1"}}),
+                      ent("target_random", {{"targetname", "zw"}, {"target", "zwei"}}),
+                      ent("target_scriptrunner", {{"targetname", "zwei"}, {"usescript", "f/m2"}}),
+                      ent("target_scriptrunner", {{"targetname", "zwei"}, {"usescript", "f/m3"}})};
+        const Ablauf a = lauf(m, "use ( \"zz\" );\nuse ( \"zw\" );\nwait ( 500.000 );\n");
+        const std::size_t eins = zeiten(a, "marke_m1").size();
+        const std::size_t zwei = zeiten(a, "marke_m2").size() + zeiten(a, "marke_m3").size();
+        pruefe(eins == 1U, ("B4b-14 target_random mit einem Ziel: " + std::to_string(eins) + " Lauf (soll 1)").c_str());
+        pruefe(zwei == 1U, ("B4b-14 target_random mit zwei Zielen: " + std::to_string(zwei) + " Laeufe (soll 1)").c_str());
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -940,6 +1110,7 @@ int main(int argc, char** argv) {
     missionGescheitert();  // rc605 (Ende)
     kartenwechsel();       // rc605 (Schlussrunde)
     wartenAufNamen();      // Zeitleiste 4
+    zielKette();           // F4b
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }
