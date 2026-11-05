@@ -1540,6 +1540,12 @@ void ueberwachungZuruecksetzen() {
     l.zustand = BauZustand::Leerlauf;
 }
 
+// rc610 F23 (B2-1): "Run Engine After Compile" gilt nur dem Bau aus dem Build-Menue (NRC: CWatchBSP::DoEBeginStep
+// startet mit g_WatchBSP_RunQuake, und BuildMonitor_Run ruft nur RunBSP, qe3.cpp:256). Eigene Auftraege (Teil-Compile, Update entities only, Zusammenfuehren, AutoCaulk) und
+// "Im Spiel testen" bringen ihren Rueckruf mit (danach) - dort startet das Spiel nicht, bzw. nur ueber diesen Rueckruf.
+// Vor zusammenfassung abfragen: der Rueckruf laeuft darin und kann schon den naechsten Auftrag beginnen.
+bool spielNachDemBau() { return e().bau.spielStarten && !g_lauf.danach; }
+
 // runEngineCmd / runEngine (watchbsp.cpp:273-307); constructEngineArgs nimmt
 // gamename_get - hier bauSpielName (Movie Duels: +set fs_game MD)
 void spielStarten() {
@@ -1692,8 +1698,9 @@ void schrittBeginnen() {
     Editor& ed = e();
     ueberwachungZuruecksetzen();
     if (l.schritt == l.befehle.size()) {   // finita
+        const bool spiel = spielNachDemBau();
         zusammenfassung(0, std::string());
-        if (ed.bau.spielStarten) { spielStarten(); }
+        if (spiel) { spielStarten(); }
         return;
     }
     // monitoring off or unmonitored command
@@ -1924,8 +1931,9 @@ void bauSchritt() {
             }
         } else {
             l.zustand = BauZustand::Leerlauf;
+            const bool spiel = spielNachDemBau();
             zusammenfassung(0, std::string());
-            if (ed.bau.spielStarten) { spielStarten(); }   // RunBatch: "cd /D <engine>" + runEngineCmd
+            if (spiel) { spielStarten(); }   // RunBatch: "cd /D <engine>" + runEngineCmd
         }
         break;
     }
