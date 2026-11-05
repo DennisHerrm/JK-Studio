@@ -14,6 +14,7 @@
 #include "bhed/mover.h"
 #include "bhed/scene.h"   // F4b (B4b-5): beruehrtFelder
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
