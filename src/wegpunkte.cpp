@@ -986,33 +986,21 @@ bool wegStelleSuchen(const std::array<float, 3>& boden, const WegWelt& welt, flo
 // dahinter hing nicht mehr am Netz. Jetzt zuerst ein aufspannender Wald (jeder Punkt traegt die Kante zu dem, von dem
 // aus er erreicht wurde: ein Feld je Punkt - so bleibt alles verbunden), dann die uebrigen Kanten, gerade vor
 // diagonalen; ist ein Ende voll, wandert eine seiner Kanten ueber eine Kette zu einem Punkt mit freiem Feld.
-std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder) {
+// rc610 F46 B4-3: `frei` (je Punkt, sonst `felder`) und `schon` (Paare, die keine Kante brauchen) fuer vorhandene
+// Wegpunkte mit belegten Feldern; ohne beide wie vorher.
+std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder, const std::vector<int>* frei,
+                                            const std::set<std::pair<int, int>>* schon) {
     const std::size_t n = wp.size();
     std::vector<std::vector<int>> ziele(n);
     if (felder <= 0) { return ziele; }
-    const auto voll = [&](int i) { return static_cast<int>(ziele[static_cast<std::size_t>(i)].size()) >= felder; };
+    const auto platz = [&](int i) { return frei != nullptr && static_cast<std::size_t>(i) < frei->size() ? (*frei)[static_cast<std::size_t>(i)] : felder; };
+    const auto voll = [&](int i) { return static_cast<int>(ziele[static_cast<std::size_t>(i)].size()) >= platz(i); };
+    const auto verbunden = [&](int x, int y) { return schon != nullptr && schon->count({std::min(x, y), std::max(x, y)}) != 0U; };
     std::set<std::pair<int, int>> vergeben;   // (min, max)
     const auto traegt = [&](int halter, int ziel) {
         ziele[static_cast<std::size_t>(halter)].push_back(ziel);
         vergeben.insert({std::min(halter, ziel), std::max(halter, ziel)});
     };
-    // 1. aufspannender Wald in Breitensuche (Startreihenfolge der Punkte)
-    std::vector<char> gesehen(n, 0);
-    for (std::size_t s0 = 0; s0 < n; ++s0) {
-        if (gesehen[s0] != 0) { continue; }
-        gesehen[s0] = 1;
-        std::deque<int> q{static_cast<int>(s0)};
-        while (!q.empty()) {
-            const int i = q.front();
-            q.pop_front();
-            for (const int j : wp[static_cast<std::size_t>(i)].nachbarn) {
-                if (gesehen[static_cast<std::size_t>(j)] != 0) { continue; }
-                gesehen[static_cast<std::size_t>(j)] = 1;
-                traegt(j, i);   // genau ein Feld je Punkt
-                q.push_back(j);
-            }
-        }
-    }
     // Ein Feld an `u` freimachen: eine Kette u -> v1 -> ... bis zu einem Punkt mit freiem Feld; jede Kante der Kette
     // wechselt den Traeger (Breitensuche, hoechstens 256 Punkte).
     const auto freimachen = [&](int u) {
@@ -1044,11 +1032,41 @@ std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp
         }
         return false;
     };
+    // 1. aufspannender Wald in Breitensuche (Startreihenfolge der Punkte). Die Kante zum Vorgaenger traegt der neue
+    // Punkt; hat er kein Feld frei (ein vorhandener Wegpunkt), der Vorgaenger, sonst einer, der eines freimachen kann.
+    const auto waldKante = [&](int j, int i) {
+        if (verbunden(j, i)) { return; }
+        if (!voll(j)) {
+            traegt(j, i);
+        } else if (!voll(i)) {
+            traegt(i, j);
+        } else if (freimachen(j)) {
+            traegt(j, i);
+        } else if (freimachen(i)) {
+            traegt(i, j);
+        }
+    };
+    std::vector<char> gesehen(n, 0);
+    for (std::size_t s0 = 0; s0 < n; ++s0) {
+        if (gesehen[s0] != 0) { continue; }
+        gesehen[s0] = 1;
+        std::deque<int> q{static_cast<int>(s0)};
+        while (!q.empty()) {
+            const int i = q.front();
+            q.pop_front();
+            for (const int j : wp[static_cast<std::size_t>(i)].nachbarn) {
+                if (gesehen[static_cast<std::size_t>(j)] != 0) { continue; }
+                gesehen[static_cast<std::size_t>(j)] = 1;
+                waldKante(j, i);   // genau ein Feld je Punkt
+                q.push_back(j);
+            }
+        }
+    }
     // 2. die uebrigen Kanten: gerade zuerst, damit bei vollen Feldern eher Diagonalen wegfallen
     std::vector<std::tuple<int, int, int>> kanten;   // (diagonal, a, b)
     for (std::size_t a = 0; a < n; ++a) {
         for (const int b : wp[a].nachbarn) {
-            if (static_cast<int>(a) < b && vergeben.count({static_cast<int>(a), b}) == 0U) {
+            if (static_cast<int>(a) < b && vergeben.count({static_cast<int>(a), b}) == 0U && !verbunden(static_cast<int>(a), b)) {
                 const auto& pa = wp[a].boden;
                 const auto& pb = wp[static_cast<std::size_t>(b)].boden;
                 const bool diag = std::fabs(pa[0] - pb[0]) > 1.0F && std::fabs(pa[1] - pb[1]) > 1.0F;
@@ -1060,7 +1078,10 @@ std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp
                      [](const auto& x, const auto& y) { return std::get<0>(x) < std::get<0>(y); });
     for (const auto& [diag, a, b] : kanten) {
         (void)diag;
-        const int halter = ziele[static_cast<std::size_t>(a)].size() <= ziele[static_cast<std::size_t>(b)].size() ? a : b;
+        // das Ende mit mehr freien Feldern (bei gleich vielen Feldern je Punkt: das mit weniger Zielen)
+        const int restA = platz(a) - static_cast<int>(ziele[static_cast<std::size_t>(a)].size());
+        const int restB = platz(b) - static_cast<int>(ziele[static_cast<std::size_t>(b)].size());
+        const int halter = restA >= restB ? a : b;
         const int ziel = halter == a ? b : a;
         if (!voll(halter)) {
             traegt(halter, ziel);

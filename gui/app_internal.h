@@ -1758,6 +1758,7 @@ struct App {
     std::vector<std::array<float, 3>> wegMarken;      // Stellen des letzten Pfads ohne Kante oder Punkt
     std::vector<char> wegAbseits;                     // je Entity: Wegpunkt ausserhalb des Hauptteils des Netzes
     int wegTeileZahl = 0;                             // Teile des Netzes ausser dem Hauptteil
+    int wegKantenOhneFeld = 0;                        // rc610 F46 B4-3: Kanten der letzten Erzeugung ohne freies target-Feld an beiden Enden
     // rc609 W4 (Mike: point_combat "automatically connect to waypoints (no target needed)"; Plan G Testroute, Abdeckung):
     // Werkzeug 7 Kampfpunkt setzen, 8 Testroute.
     std::vector<NavKampfPunkt> wegKampf;              // die Kampfpunkte wie im Spiel (navKampfPunkte)

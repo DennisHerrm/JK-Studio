@@ -654,31 +654,6 @@ void wegAuftragAnwenden(WegAuftrag& a) {
         do { n = std::string(kErzeugtPrefix) + std::to_string(nr++); } while (belegt.count(n) != 0U);
         namen[i] = n;
     }
-    int kanten = 0;
-    int neuZahl = 0;
-    std::vector<int> index(wp.size(), -1);   // Entity je Knoten
-    std::vector<int> neue;
-    for (std::size_t i = 0; i < wp.size(); ++i) {
-        if (vorhanden[i] >= 0) {
-            index[i] = vorhanden[i];
-            continue;
-        }
-        MapEntity e;
-        setKey(e, "classname", "waypoint");
-        char o[96];
-        std::snprintf(o, sizeof(o), "%d %d %d", static_cast<int>(std::lround(wp[i].ort[0])),
-                      static_cast<int>(std::lround(wp[i].ort[1])), static_cast<int>(std::lround(wp[i].ort[2])));
-        setKey(e, "origin", o);
-        setKey(e, "targetname", namen[i]);
-        for (std::size_t z = 0; z < a.ziele[i].size() && z < 4; ++z) {
-            setKey(e, kZielFelder[z], namen[static_cast<std::size_t>(a.ziele[i][z])]);
-            ++kanten;
-        }
-        g_app->map.entities.push_back(e);
-        index[i] = static_cast<int>(g_app->map.entities.size()) - 1;
-        neue.push_back(index[i]);
-        ++neuZahl;
-    }
     // Die Kanten, die ein vorhandener Wegpunkt tragen soll: in seine freien
     // Felder, sonst in ein freies des Nachbarn. rc609 W3b: ausser der vollen Erzeugung keine neue Kante zwischen zwei
     // vorhandenen Wegpunkten desselben Teils - das Netz, das schon zusammenhaengt, bleibt, wie es ist.
@@ -686,23 +661,88 @@ void wegAuftragAnwenden(WegAuftrag& a) {
         return a.art != WegAuftragArt::Voll && x < static_cast<int>(a.teilVon.size()) && y < static_cast<int>(a.teilVon.size()) &&
                a.teilVon[static_cast<std::size_t>(x)] >= 0 && a.teilVon[static_cast<std::size_t>(x)] == a.teilVon[static_cast<std::size_t>(y)];
     };
-    for (std::size_t i = 0; i < wp.size(); ++i) {
-        if (vorhanden[i] < 0) { continue; }
-        for (const int j : a.ziele[i]) {
-            const int ea = index[i];
-            const int eb = index[static_cast<std::size_t>(j)];
-            if (verbunden(ea, eb) || (vorhanden[static_cast<std::size_t>(j)] >= 0 && teilGleich(ea, eb))) { continue; }
-            int halter = ea;
-            int feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(ea)]);
-            if (feld < 0) {
-                halter = eb;
-                feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(eb)]);
+    int kanten = 0;
+    int neuZahl = 0;
+    std::vector<int> index(wp.size(), -1);   // Entity je Knoten
+    std::vector<int> neue;
+    const std::vector<MapEntity> stand = g_app->map.entities;   // mit den Namen der vorhandenen Wegpunkte
+    // Baut die neuen Wegpunkte und Kanten; zaehlt die Kanten, fuer die an beiden Enden kein target-Feld frei ist
+    const auto bauen = [&](const std::vector<std::vector<int>>& ziele) {
+        g_app->map.entities = stand;
+        kanten = 0;
+        neuZahl = 0;
+        index.assign(wp.size(), -1);
+        neue.clear();
+        int ohneFeld = 0;
+        for (std::size_t i = 0; i < wp.size(); ++i) {
+            if (vorhanden[i] >= 0) {
+                index[i] = vorhanden[i];
+                continue;
             }
-            if (feld < 0) { continue; }
-            setKey(g_app->map.entities[static_cast<std::size_t>(halter)], kZielFelder[feld],
-                   namen[halter == ea ? static_cast<std::size_t>(j) : i]);
-            ++kanten;
+            MapEntity e;
+            setKey(e, "classname", "waypoint");
+            char o[96];
+            std::snprintf(o, sizeof(o), "%d %d %d", static_cast<int>(std::lround(wp[i].ort[0])),
+                          static_cast<int>(std::lround(wp[i].ort[1])), static_cast<int>(std::lround(wp[i].ort[2])));
+            setKey(e, "origin", o);
+            setKey(e, "targetname", namen[i]);
+            for (std::size_t z = 0; z < ziele[i].size() && z < 4; ++z) {
+                setKey(e, kZielFelder[z], namen[static_cast<std::size_t>(ziele[i][z])]);
+                ++kanten;
+            }
+            g_app->map.entities.push_back(e);
+            index[i] = static_cast<int>(g_app->map.entities.size()) - 1;
+            neue.push_back(index[i]);
+            ++neuZahl;
         }
+        for (std::size_t i = 0; i < wp.size(); ++i) {
+            if (vorhanden[i] < 0) { continue; }
+            for (const int j : ziele[i]) {
+                const int ea = index[i];
+                const int eb = index[static_cast<std::size_t>(j)];
+                if (verbunden(ea, eb) || (vorhanden[static_cast<std::size_t>(j)] >= 0 && teilGleich(ea, eb))) { continue; }
+                int halter = ea;
+                int feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(ea)]);
+                if (feld < 0) {
+                    halter = eb;
+                    feld = freiesFeld(g_app->map.entities[static_cast<std::size_t>(eb)]);
+                }
+                if (feld < 0) {
+                    ++ohneFeld;
+                    continue;
+                }
+                setKey(g_app->map.entities[static_cast<std::size_t>(halter)], kZielFelder[feld],
+                       namen[halter == ea ? static_cast<std::size_t>(j) : i]);
+                ++kanten;
+            }
+        }
+        return ohneFeld;
+    };
+    g_app->wegKantenOhneFeld = bauen(a.ziele);
+    if (g_app->wegKantenOhneFeld > 0) {
+        // rc610 F46 B4-3: verteileZiele rechnete jeden vorhandenen Wegpunkt mit vier freien Feldern. Hat einer weniger und
+        // fiele dadurch eine Kante weg (bei voller Kante des Waldes zerfiele das Netz), noch einmal mit den wahren freien
+        // Feldern und den Paaren, die schon verbunden sind (oder als ein Teil gelten). Sonst bleibt alles wie vorher.
+        g_app->map.entities = stand;
+        std::vector<int> frei(wp.size(), 4);
+        std::set<std::pair<int, int>> schon;
+        for (std::size_t i = 0; i < wp.size(); ++i) {
+            if (vorhanden[i] < 0) { continue; }
+            const MapEntity& e = stand[static_cast<std::size_t>(vorhanden[i])];
+            frei[i] = 0;
+            for (const char* f : kZielFelder) {
+                const std::string* t = e.find(f);
+                if (t == nullptr || t->empty()) { ++frei[i]; }
+            }
+            for (const int j : wp[i].nachbarn) {
+                const int ej = vorhanden[static_cast<std::size_t>(j)];
+                if (ej >= 0 && (verbunden(vorhanden[i], ej) || teilGleich(vorhanden[i], ej))) {
+                    schon.insert({std::min(static_cast<int>(i), j), std::max(static_cast<int>(i), j)});
+                }
+            }
+        }
+        a.ziele = verteileZiele(a.wp, 4, &frei, &schon);
+        g_app->wegKantenOhneFeld = bauen(a.ziele);
     }
     // Sprungkanten: targetJump am Traeger (g_navigator.cpp:2381 OpenJK: mTargets[4] = targetJump).
     int spruenge = 0;

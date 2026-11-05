@@ -36,7 +36,9 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace bhed {
@@ -174,7 +176,10 @@ struct WegAbdeckung {
 // behaelt; sonst die naechste solche Stelle bis `weite` auf demselben Boden mit freier Sicht. false: keine.
 [[nodiscard]] bool wegStelleSuchen(const std::array<float, 3>& boden, const WegWelt& welt, float weite, std::array<float, 3>& ort);
 
-[[nodiscard]] std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder = 4);
+// rc610 F46 B4-3: frei = freie target-Felder je Punkt (nullptr: `felder` fuer jeden), schon = Paare (min, max), die
+// schon verbunden sind und kein Feld brauchen (nullptr: keine)
+[[nodiscard]] std::vector<std::vector<int>> verteileZiele(const std::vector<NeuerWegpunkt>& wp, int felder = 4, const std::vector<int>* frei = nullptr,
+                                                          const std::set<std::pair<int, int>>* schon = nullptr);
 
 // --- rc609 W3b: Bereiche, Pfade, Sprungkanten ---------------------------------
 //

@@ -534,6 +534,12 @@ std::vector<Schritt> wegerzeugungSchritte() {
         }
         diag::detail("Knopftest: WE - Wegpunkte " + std::to_string(wp.size()));
     }));
+    // rc610 F46 B4-3: jede Kante, die die Erzeugung einem vorhandenen Wegpunkt gibt, findet ein freies target-Feld
+    // an einem ihrer Enden (sonst fiel sie still weg)
+    add(pruefe("WE: keine Kante faellt ohne freies Feld weg (vorhandene Wegpunkte mit belegten Feldern)", [] {
+        diag::detail("Knopftest: WE - Kanten ohne freies Feld: " + std::to_string(g_app->wegKantenOhneFeld));
+        return g_app->wegKantenOhneFeld == 0;
+    }));
     add(tu("WE: Teile, die die Erzeugung nicht anbinden konnte", [] {
         for (const WegErzeugungInfo::Luecke& l : g_app->wegLuecken) {
             diag::detail("Knopftest: WE - nicht angebunden: letzter Punkt " + we::ortText(l.anker) + ", danach Laufgitter " + we::ortText(l.weiter) +
