@@ -152,6 +152,7 @@ struct Item {
     bool notselectable = false, scrollhidden = false;
     // editFieldDef_t
     float minVal = 0, maxVal = 0, defVal = 0;
+    float range = 0;            // Movie Duels: cvarRotateScale (editFieldDef_t.range)
     int maxChars = 0, maxPaintChars = 0;
     // multiDef_t
     std::vector<std::string> cvarList, cvarStr;
@@ -268,6 +269,7 @@ inline constexpr int ITEM_TYPE_BIND = 13;
 inline constexpr int ITEM_TYPE_TEXTSCROLL = 14;
 inline constexpr int ITEM_TYPE_SLIDER_INTEGER = 15;   // Movie Duels
 inline constexpr int ITEM_TYPE_SLIDER_ROTATE = 16;    // Movie Duels (zeichnet nichts)
+inline constexpr int ITEM_TYPE_MODEL_ITEM = 17;       // Movie Duels MP (md9 codemp/ui/menudef.h:51)
 
 inline constexpr int ITEM_ALIGN_LEFT = 0;
 inline constexpr int ITEM_ALIGN_CENTER = 1;

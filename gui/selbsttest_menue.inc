@@ -974,6 +974,13 @@ std::vector<Schritt> schritteM5bProjekt() {
     add(pruefe("M5b Projekt: Doppelklick oeffnet den Menue-Editor mit dem Projekt", [st, datei, geaendert] {
         return g_app->leftMode == 4 && me::projektDatei() == *datei && st().dokumente == 1 && st().text == *geaendert;
     }));
+    // rc610 F6b B6b-5: die zz_menu.pk3 des ersten Exports liegt jetzt im Projektordner - sie gehoert nicht ins Paket
+    // (das Spiel liest keine pk3 in einer pk3: FS_AddGameDirectory nimmt nur die *.pk3 des Spielordners)
+    add(tu("M5b Projekt: nach dem Wiederoeffnen noch einmal als pk3 ausgeben", [] { (void)me::exportiereProjektJetzt(); }));
+    add(pruefe("M5b Projekt: die vorige zz_menu.pk3 kommt nicht ins neue Paket (gleich viele Dateien)", [] {
+        return me::paketDatei("zz_menu.pk3", false).empty() &&
+               me::letzterExport() == 2 + (me::paketDatei("ui/menus.txt", false).empty() ? 0 : 1) + (me::paketDatei("ui/ingame.txt", false).empty() ? 0 : 1);
+    }));
     // Dateizuordnung: nur nach Rueckfrage; der Test antwortet Nein
     add(tu("M5b Projekt: Frage zur Dateizuordnung", [] { me::fragZuordnung(); }));
     add(pause(0.3));

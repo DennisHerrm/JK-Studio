@@ -9,7 +9,9 @@
 // code/ui/ui_shared.cpp und code/ui/ui_main.cpp (dieselben Funktionen der
 // SP-Fassung mit COM_ParseExt, den Namenstabellen types[]/styles[]/
 // alignment[]/itemFlags[] und PC_ParseWarning) sowie aus Movie Duels
-// code/ui/ui_shared.cpp (cvarInt, cvarRotateScale, exec, ownerdrawID).
+// code/ui/ui_shared.cpp (cvarInt, cvarRotateScale, exec, ownerdrawID) und Movie Duels
+// codemp/ui/ui_shared.c (itemParseKeywords, ItemParse_cvarInt, ItemParse_cvar, PC_Script_Parse,
+// Item_ValidateTypeData mit ITEM_TYPE_MODEL_ITEM).
 //
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
@@ -66,6 +68,7 @@ enum class Art {
     Name,         // SP: type/style/textalign/descAlignment als Name
     Flag,         // flag WINDOW_INACTIVE
     CvarFloat,    // cvar def min max
+    CvarInt,      // MD MP ItemParse_cvarInt: cvar, dann drei PC_Int_Parse ohne Pruefung
     CvarRotate,   // MD: cvar range
     CvarStrList,
     CvarFloatList,
@@ -79,6 +82,7 @@ enum Bit : unsigned {
     kMP = 2U,      // in codemp/ui
     kMD = 4U,      // nur Movie Duels (SP)
     kTD = 8U,      // braucht typeData (Item_ValidateTypeData, sonst qfalse)
+    kMDMP = 16U,   // Movie Duels MP zusaetzlich (md9 codemp/ui/ui_shared.c itemParseKeywords :9617 ff.)
 };
 
 struct Schluessel {
@@ -115,10 +119,10 @@ const Schluessel kItem[] = {
     {"columns", Art::Columns, Art::Columns, kBeide | kTD},
     {"cvar", Art::Str, Art::Str, kBeide},
     {"cvarFloat", Art::CvarFloat, Art::CvarFloat, kBeide | kTD},
-    {"cvarInt", Art::CvarFloat, Art::CvarFloat, kMD | kTD},
-    {"cvarRotateScale", Art::CvarRotate, Art::CvarRotate, kMD | kTD},
+    {"cvarInt", Art::CvarFloat, Art::CvarInt, kMD | kMDMP | kTD},
+    {"cvarRotateScale", Art::CvarRotate, Art::CvarRotate, kMD | kMDMP | kTD},
     {"cvarFloatList", Art::CvarFloatList, Art::CvarFloatList, kBeide | kTD},
-    {"cvarSubString", Art::Keine, Art::Keine, kSP},
+    {"cvarSubString", Art::Keine, Art::Keine, kSP | kMDMP},
     {"cvarStrList", Art::CvarStrList, Art::CvarStrList, kBeide | kTD},
     {"cvarTest", Art::Str, Art::Str, kBeide},
     {"decoration", Art::Keine, Art::Keine, kBeide},
@@ -241,9 +245,9 @@ bool nichtInJk2Sp(const char* n) noexcept {
 }
 
 bool gilt(const Schluessel& k, Dialekt d, Spiel s) noexcept {
-    // Movie Duels MP (ui/MD_MP) benutzt die MD-Woerter auch (cvarRotateScale) - der MP-Code von
-    // Movie Duels liegt nicht vor; angenommen wie in dessen SP-Code.
-    if (d == Dialekt::MP) { return (k.bits & kMP) != 0 || ((k.bits & kMD) != 0 && s == Spiel::MD); }
+    // Movie Duels MP: eigene Tabelle (md9 codemp/ui/ui_shared.c itemParseKeywords/menuParseKeywords) -
+    // die von OpenJK MP plus cvarInt, cvarRotateScale und cvarSubString; ohne exec und ownerdrawID.
+    if (d == Dialekt::MP) { return (k.bits & kMP) != 0 || ((k.bits & kMDMP) != 0 && s == Spiel::MD); }
     if (s == Spiel::JK2 && nichtInJk2Sp(k.name)) { return false; }
     if ((k.bits & kSP) != 0) { return true; }
     return (k.bits & kMD) != 0 && s == Spiel::MD;
@@ -275,6 +279,20 @@ int nameIndex(const char* const (&tab)[N], const std::string& w) {
         if (gleichOhneFall(w, tab[i])) { return static_cast<int>(i); }
     }
     return -1;
+}
+
+// Q_strcat (shared/qcommon/q_string.c:199, OpenJK und Movie Duels gleich) in einen Puffer von groesse
+// Bytes: passt src nicht ganz hinein, haengt es nichts an (kein Kuerzen).
+void qStrcat(std::string& ziel, std::size_t groesse, const std::string& src) {
+    if (ziel.size() >= groesse) { return; }
+    if (src.size() + 1 > groesse - ziel.size()) { return; }
+    ziel += src;
+}
+
+// PC_Script_Parse: ein Wort an das Skript haengen (lange in "", dann " ")
+void skriptWort(std::string& s, std::size_t groesse, const std::string& wort) {
+    qStrcat(s, groesse, wort.size() > 1 ? "\"" + wort + "\"" : wort);
+    qStrcat(s, groesse, " ");
 }
 
 // ============================================================================
@@ -352,7 +370,8 @@ public:
         merk(t);
         return true;
     }
-    // PC_Script_Parse (SP): Woerter mit PC_ParseExt, lange in "", je ein " ".
+    // PC_Script_Parse (SP, OJ code/ui/ui_shared.cpp:288, MD :297): Woerter mit PC_ParseExt, lange in "",
+    // je ein " ", in char script[4096] mit Q_strcat.
     bool skript(std::string& out) override {
         std::string s;
         Token t = lex_.parseExt(true);
@@ -367,9 +386,7 @@ public:
                 out = s;
                 return true;
             }
-            if (t.s.size() > 1) { s += "\"" + t.s + "\""; }
-            else { s += t.s; }
-            s += " ";
+            skriptWort(s, 4096, t.s);
         }
     }
     bool schluesselwort(Token& t, bool imItem) override {
@@ -391,6 +408,7 @@ public:
     MpGrund(PcQuelle& q, Datei& d) : q_(q), d_(d) {}
     PcQuelle& q_;
     Datei& d_;
+    bool mdMp = false;   // Movie Duels MP: PC_Script_Parse setzt "-" und eine Zahl wieder zusammen
     bool lese(Token& t) {
         const bool ok = q_.lies(t);
         if (ok) { merk(t); }
@@ -434,7 +452,8 @@ public:
         v = neg ? -static_cast<float>(t.fval) : static_cast<float>(t.fval);
         return true;
     }
-    bool skript(std::string& out) override {   // PC_Script_Parse (MP, 2048)
+    // PC_Script_Parse (MP, OJ codemp/ui/ui_shared.c:584, MD :627): char script[2048] mit Q_strcat
+    bool skript(std::string& out) override {
         std::string s;
         Token t;
         if (!lese(t)) { return false; }
@@ -445,10 +464,19 @@ public:
                 out = s;
                 return true;
             }
-            if (t.s.size() > 1) { s += "\"" + t.s + "\""; }
-            else { s += t.s; }
-            s += " ";
-            if (s.size() > 2047) { s.resize(2047); }
+            if (mdMp && t.s == "-") {   // MD :656-674: "-204" kommt als "-" und "204"
+                if (!lese(t)) { return false; }
+                if (t.typ == TT_NUMBER) {
+                    qStrcat(s, 2048, "\"-" + t.s + "\" ");
+                    continue;
+                }
+                qStrcat(s, 2048, "- ");
+                if (gleichOhneFall(t.s, "}")) {
+                    out = s;
+                    return true;
+                }
+            }
+            skriptWort(s, 2048, t.s);
         }
     }
     bool schluesselwort(Token& t, bool) override { return q_.lies(t); }
@@ -462,9 +490,13 @@ public:
 // Die Schluesselwoerter anwenden.
 // ============================================================================
 
-void typDatenPruefen(Item& it, Spiel spiel) {   // Item_ValidateTypeData
+void typDatenPruefen(Item& it, Dialekt d, Spiel spiel) {   // Item_ValidateTypeData
     if (it.typeData) { return; }
     if (spiel == Spiel::MD && (it.type == ITEM_TYPE_SLIDER_INTEGER || it.type == ITEM_TYPE_SLIDER_ROTATE)) {
+        it.typeData = true;
+        return;
+    }
+    if (spiel == Spiel::MD && d == Dialekt::MP && it.type == ITEM_TYPE_MODEL_ITEM) {   // md9 codemp/ui/ui_shared.c:7868
         it.typeData = true;
         return;
     }
@@ -487,12 +519,40 @@ void typDatenPruefen(Item& it, Spiel spiel) {   // Item_ValidateTypeData
     }
 }
 
+// ItemParse_cvar: minVal, maxVal und defVal auf -1 fuer diese Typen (mit typeData), ITEM_TYPE_SLIDER_ROTATE
+// dazu range 720. OJ SP code/ui/ui_shared.cpp:4394 (mit TEXTSCROLL), OJ MP codemp/ui/ui_shared.c:7956
+// (ohne TEXTSCROLL), MD SP code/ui/ui_shared.cpp:4311 und MD MP codemp/ui/ui_shared.c (je mit
+// SLIDER_INTEGER/INTSLIDER und SLIDER_ROTATE; MD MP ohne TEXTSCROLL).
+// typeData haben SLIDER_INTEGER und SLIDER_ROTATE nur in Movie Duels (typDatenPruefen).
+void cvarVorgaben(Item& it, Dialekt d) {
+    if (!it.typeData) { return; }
+    switch (it.type) {
+        case ITEM_TYPE_EDITFIELD:
+        case ITEM_TYPE_NUMERICFIELD:
+        case ITEM_TYPE_YESNO:
+        case ITEM_TYPE_BIND:
+        case ITEM_TYPE_SLIDER:
+        case ITEM_TYPE_SLIDER_INTEGER:
+        case ITEM_TYPE_TEXT:
+            break;
+        case ITEM_TYPE_TEXTSCROLL:
+            if (d == Dialekt::MP) { return; }
+            break;
+        case ITEM_TYPE_SLIDER_ROTATE:
+            it.range = 720;
+            break;
+        default:
+            return;
+    }
+    it.minVal = it.maxVal = it.defVal = -1;
+}
+
 // Liest die Argumente von k fuer ein Item. false = "couldn't parse".
 bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
     const std::string n = k.name;
     const Art art = (d == Dialekt::MP) ? k.mp : k.sp;
     if ((k.bits & kTD) != 0 || n == "cvar" || n == "font" || n == "notselectable" || n == "scrollhidden") {
-        typDatenPruefen(it, spiel);
+        typDatenPruefen(it, d, spiel);
     }
     if ((k.bits & kTD) != 0 && !it.typeData) { return false; }
     switch (art) {
@@ -519,9 +579,7 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
             else if (n == "cinematic") { it.window.cinematicName = s; }
             else if (n == "cvar") {
                 it.cvar = s;
-                if (it.typeData) {   // MP ItemParse_cvar: minVal -1, maxVal -1, defVal -1
-                    if (d == Dialekt::MP) { it.minVal = it.maxVal = it.defVal = -1; }
-                }
+                cvarVorgaben(it, d);
             }
             else if (n == "cvarTest") { it.cvarTest = s; }
             else if (n == "background") { it.window.background = s; }
@@ -556,7 +614,7 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
             else if (n == "style") { it.window.style = v; }
             else if (n == "textalign") { it.textalignment = v; }
             else if (n == "textstyle") { it.textStyle = v; }
-            else if (n == "type") { it.type = v; typDatenPruefen(it, spiel); }
+            else if (n == "type") { it.type = v; typDatenPruefen(it, d, spiel); }
             else if (n == "visible") { if (v != 0) { it.window.flags |= WINDOW_VISIBLE; } }
             else if (n == "invertyesno") { it.invertYesNo = v; }
             else if (n == "xoffset") { it.xoffset = v; }
@@ -641,7 +699,7 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
                 if (i >= ITEM_TYPE_SLIDER_INTEGER && spiel != Spiel::MD) { i = -1; }   // nur Movie Duels
                 if (i < 0) { g.warn("Unknown item type value '" + s + "'", false); }
                 else { it.type = i; }
-                typDatenPruefen(it, spiel);
+                typDatenPruefen(it, d, spiel);
             } else if (n == "style") {
                 const int i = nameIndex(kStyles, s);
                 if (i < 0) { g.warn("Unknown item style value '" + s + "'", false); }
@@ -669,12 +727,25 @@ bool itemArg(Grund& g, const Schluessel& k, Dialekt d, Spiel spiel, Item& it) {
             }
             return false;
         }
+        case Art::CvarInt: {   // md9 codemp/ui/ui_shared.c:9257: die Zahlen ohne Pruefung, sonst 0
+            std::string c;
+            if (!g.str(c)) { return false; }
+            it.cvar = c;
+            int def = 0, lo = 0, hi = 0;
+            static_cast<void>(g.ganz(def));
+            static_cast<void>(g.ganz(lo));
+            static_cast<void>(g.ganz(hi));
+            it.defVal = static_cast<float>(def);
+            it.minVal = static_cast<float>(lo);
+            it.maxVal = static_cast<float>(hi);
+            return true;
+        }
         case Art::CvarRotate: {
             std::string c;
             float range = 0;
             if (g.str(c) && g.komma(range)) {
                 it.cvar = c;
-                it.maxVal = range;
+                it.range = range;
                 return true;
             }
             return false;
@@ -1250,6 +1321,7 @@ Datei lies(const std::string& pfad, const std::string& text, const LeseOptionen&
     }
     q.oeffne(0);
     MpGrund g(q, d);
+    g.mdMp = opt.spiel == Spiel::MD;
     Leser l(g, d);
     while (true) {
         Token t;

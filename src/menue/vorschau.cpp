@@ -1060,17 +1060,35 @@ int schriftHoehe(const Schrift& f, float scale, Jk2Schrift jk2) {
     return jk2 == Jk2Schrift::Sp ? rundeFont(v) : static_cast<int>(v);
 }
 
+// Item_EnableShowViaCvar: OJ SP code/ui/ui_shared.cpp:6120 (MD SP :6109) mit char buff/script[1024],
+// OJ MP codemp/ui/ui_shared.c:2211 (MD MP :2334) mit [2048]. cvarSubString: im SP ist buff der erste
+// Wert der Liste und durchsucht werden die Woerter der cvar; MD MP vergleicht mit strstr(buff, val)
+// (OJ MP kennt cvarSubString nicht).
 bool itemZeigtUeberCvar(const Item& it, int flag, const Umgebung& u) {
     if (it.enableCvar.empty() || it.cvarTest.empty()) { return true; }
-    const std::string buff = u.cvar ? u.cvar(it.cvarTest) : std::string();
+    const bool mp = u.dialekt == Dialekt::MP;
+    const bool teil = (it.cvarFlags & CVAR_SUBSTRING) != 0;
+    const std::size_t laenge = mp ? 2047 : 1023;   // Q_strncpyz / getCVarString in den Puffer
+    const std::string wert = (u.cvar ? u.cvar(it.cvarTest) : std::string()).substr(0, laenge);
+    std::string buff, liste;
     std::size_t p = 0;
     std::string val;
-    while (true) {
+    if (teil && !mp) {
         if (!stringParse(it.enableCvar, p, val)) { return (it.cvarFlags & flag) != 0 ? false : true; }
+        buff = val.substr(0, laenge);
+        liste = wert;
+        p = 0;
+    } else {
+        buff = wert;
+        liste = it.enableCvar.substr(0, laenge);
+    }
+    while (true) {
+        if (!stringParse(liste, p, val)) { return (it.cvarFlags & flag) != 0 ? false : true; }
         if (val == ";") { continue; }
+        const bool trifft = (teil && mp && buff.find(val) != std::string::npos) || gleichOhneFall(buff, val);
         if ((it.cvarFlags & flag) != 0) {
-            if (gleichOhneFall(buff, val)) { return true; }
-        } else if (gleichOhneFall(buff, val)) {
+            if (trifft) { return true; }
+        } else if (trifft) {
             return false;
         }
     }

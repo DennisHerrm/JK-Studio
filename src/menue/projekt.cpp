@@ -4,6 +4,7 @@
 // Eigener Code.
 #include "bhed/menue/projekt.h"
 
+#include <cctype>
 #include <cstdlib>
 
 namespace bhed::menue {
@@ -164,7 +165,12 @@ bool paketPfad(const std::string& rel) {
         a = e + 1;
     }
     const std::string end = kProjektEndung;
-    return !(rel.size() >= end.size() && rel.compare(rel.size() - end.size(), end.size(), end) == 0);
+    if (rel.size() >= end.size() && rel.compare(rel.size() - end.size(), end.size(), end) == 0) { return false; }
+    // keine pk3: das Spiel liest keine pk3 in einer pk3 (FS_AddGameDirectory, OJ code/qcommon/files.cpp:2730,
+    // nimmt nur die *.pk3 des Spielordners), und die zz_menu.pk3 des letzten Exports liegt im Projektordner
+    std::string endung = rel.size() >= 4 ? rel.substr(rel.size() - 4) : std::string();
+    for (char& c : endung) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return endung != ".pk3";
 }
 
 std::string sicherungText(const std::vector<SicherungsEintrag>& e, std::int64_t zeit) {
