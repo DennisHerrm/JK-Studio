@@ -54,7 +54,7 @@ Die Rotlaeufe liefen auf fc539779 plus den neuen Pruefungen (Commit 1e599523, nu
 ## Schluss
 
 - Sauberer Neubau (`--clean-first`): 0 Warnungen, 0 Fehler. ctest 215 von 215.
-- Parallel (`laeufe/f23e_*`): `bspmerge` 23/0, `lumpedit` 18/0, `karteneditor` kurz (`fotos`) 78/0, `ruhen` 32/0. Modus 1 (`f23e_m1`) lief bei Abgabe noch (Zeitgrenze 5400 s im Laufskript).
+- Parallel (`laeufe/f23e_*`): `bspmerge` 23/0, `lumpedit` 18/0, `karteneditor` kurz (`fotos`) 78/0, `ruhen` 32/0. Modus 1 (`f23e_m1`) 2651/0.
 - Lints: lint_sources, lint_d3dbesitz, lint_mapstate, lint_gapp, lint_feldinit, lint_i18n, lint_settings, lint_imgui_context, lint_rueckkopplung, lint_fassung ok; lint_portability 102 wie vorher (keine in geaenderten Dateien). Handbuch `--pruefen` ok (es/cs 0 englisch).
 - Handbuch (6 Sprachen): "Brush-Entities in fertige Karten einfuegen" (Rueckfrage zu den Lumps, gescheitertes Speichern), Karten-Werkzeuge 9 (Nach dem Bauen das Spiel starten nur nach dem Build-Menue). Keine neuen Bilder.
 
