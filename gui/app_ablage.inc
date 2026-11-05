@@ -3288,6 +3288,8 @@ void loadMapFromBytes(const std::string& bytes, const std::string& shownPath) {
     const std::size_t vorherNetze = g_app->brushMeshes.size();
     // Alles, was aus DIESER Karte entsteht:
     kartenSzeneVergessen();
+    // rc610 R1: ein neues Level der Medien (RE_RegisterMedia_LevelLoadBegin); prepareScene raeumt am Ende auf.
+    medienLevelBeginnen();
     // Und was auf NUMMERN in der Karte zeigt.
     //
     // pickedEntity ist ein Index in map.entities - nach dem Wechsel meint

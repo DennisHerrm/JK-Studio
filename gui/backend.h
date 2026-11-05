@@ -34,6 +34,9 @@ void shutdown();
 void newFrame();
 // Zeichnet die Daten von ImGui::GetDrawData() und tauscht die Puffer.
 void present(float r, float g, float bl);
+// rc610 R1: nach dem naechsten Present die Zwischenpuffer des Treibers freigeben (IDXGIDevice3::Trim) - am Ende des
+// Ladens einer Karte, wenn die Bilder und Puffer der vorigen gerade freigegeben wurden.
+void grafikTrimmenAnfordern();
 
 // rc608 Teil 12: Bildzeiten fuer die Leistungsmessung (Selbsttest "leistung").
 // cpuMs: newFrame bis vor Present (Oberflaeche, Szene, Zeichenbefehle; ohne das

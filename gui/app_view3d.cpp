@@ -2154,6 +2154,7 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
         return kWeiss;
     }
     const std::string sk = image::mappingName(bildName) + "@" + bildStufeText();
+    figurBildGenutzt(sk);   // rc610 R1
     if (const auto da = g_app->figurStufenBilder.find(sk); da != g_app->figurStufenBilder.end()) {
         if (auto lebt = da->second.lock()) { return lebt; }
     }
@@ -2427,6 +2428,7 @@ ModelTextures texturesFor(const GlmModel& model) {
         // nie ein Bild aus dem Zwischenspeicher der ersten bekommt.
         const std::string schluessel =
             image::mappingName(name) + "@" + bildStufeText();
+        figurBildGenutzt(schluessel);   // rc610 R1
         const auto imCache = g_app->texCache.find(schluessel);
         if (imCache != g_app->texCache.end()) {
             out.bySurface[i] = imCache->second;
@@ -2474,6 +2476,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                     // Shadernamen - sonst faende eine Bildstufe "map <Shadername>" (ladeStufenBild, wie
                     // R_FindImageFile nur Dateien) das Bild des Skripts, das es als Datei gar nicht gibt.
                     const std::string dateiSchluessel = image::mappingName(kandidat) + "@" + bildStufeText();
+                    figurBildGenutzt(dateiSchluessel);   // rc610 R1
                     TextureSet::Tex t2;
                     if (const auto da = g_app->texCache.find(dateiSchluessel); da != g_app->texCache.end()) {
                         t2 = da->second;
@@ -2559,6 +2562,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                 continue;
             }
             const std::string sk = image::mappingName(st.image) + "@" + bildStufeText();
+            figurBildGenutzt(sk);   // rc610 R1
             TextureSet::Tex z;
             const auto hit = g_app->texCache.find(sk);
             if (hit != g_app->texCache.end()) {
@@ -4432,6 +4436,7 @@ const App::ActorAssets* hiltFor(const std::string& pfad) {
     if (pfad.empty()) {
         return nullptr;
     }
+    g_app->griffeGenutzt.insert(pfad);   // rc610 R1: in diesem Level benutzt
     const auto have = g_app->hiltCache.find(pfad);
     if (have != g_app->hiltCache.end()) {
         return have->second.model.empty() ? nullptr : &have->second;
@@ -7859,6 +7864,7 @@ void prepareScene() {
     // dieses Durchgangs (bhed/spuren.h) - auch fuer Szenen ohne Figuren.
     zeitleisteModellBauen();
     if (g_app->scene.actors.empty()) {
+        medienLevelEnde();   // rc610 R1
         return;
     }
     loadActorModels();
@@ -7957,6 +7963,7 @@ void prepareScene() {
     // nicht "rechnet sie richtig", sondern "laeuft sie ueberhaupt". Ich
     // habe zweimal an der Rechnung gebessert, ohne das zu pruefen.
     preloadSaberAssets();
+    medienLevelEnde();   // rc610 R1: was dieses Level nicht genommen hat, geht
 }
 
 // Die Shader eines Effekts laden - EINMAL je Name.

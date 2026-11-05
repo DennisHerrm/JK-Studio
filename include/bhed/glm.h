@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "bhed/gla.h"
+#include "bhed/wache.h"
 
 namespace bhed {
 
@@ -95,6 +96,10 @@ struct GlmSurface {
     }
 };
 
+// rc610 R1: wer sich ein Modell nach seiner Adresse merkt (die Figurenpuffer, gui/gpumap_win32.cpp), erfaehrt ueber
+// die Wache in GlmModel, wann es verschwindet oder neuen Inhalt bekommt (nullptr: niemand hoert zu).
+inline void (*glmWegMelden)(const void* wache) = nullptr;
+
 struct GlmModel {
     std::string name;
     std::string animFile;    // Pfad der .gla, ohne Endung
@@ -110,6 +115,8 @@ struct GlmModel {
 
     float mins[3]{};
     float maxs[3]{};
+    // rc610 R1: meldet Ende und neuen Inhalt (bhed/wache.h) - die Figurenpuffer der Grafikkarte haengen an ihr.
+    AdressWache<&glmWegMelden> wache;
 
     [[nodiscard]] bool empty() const noexcept { return surfaces.empty(); }
 };

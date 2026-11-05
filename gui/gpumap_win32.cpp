@@ -321,6 +321,17 @@ std::uint64_t g_patchLodMover = 0;   // rc608 Teil 13c
 // Satz 7 (rc609 P): seine Spiegel- bzw. Portalsicht (kZielKarteneditorSpiegel).
 constexpr int kZielSaetze = 8;
 ZielFelder g_geparkt[kZielSaetze];
+void gibZielFelderFrei(ZielFelder& z) {
+    if (z.srv != nullptr) { z.srv->Release(); }
+    if (z.rtv != nullptr) { z.rtv->Release(); }
+    if (z.tex != nullptr) { z.tex->Release(); }
+    if (z.dsv != nullptr) { z.dsv->Release(); }
+    if (z.tiefeTex != nullptr) { z.tiefeTex->Release(); }
+    if (z.tiefeLesen != nullptr) { z.tiefeLesen->Release(); }
+    if (z.aufTex != nullptr) { z.aufTex->Release(); }
+    if (z.tiefeMsSrv != nullptr) { z.tiefeMsSrv->Release(); }
+    z = ZielFelder{};
+}
 int g_zielSatz = 0;
 // Zaehlt die Bilder der Ansicht (neuesBild) - siehe Netzpuffer::dynBild.
 std::uint64_t g_bildNummer = 1;
@@ -1334,7 +1345,10 @@ struct FigurPuffer {
     // Wovon der Puffer gebaut wurde - siehe figurSignatur.
     std::uint64_t signatur = 0;
 };
-std::map<const GlmModel*, FigurPuffer> g_figuren;
+// rc610 R1: Schluessel ist die Adresse der Wache im Modell (GlmModel::wache). Verschwindet das Modell oder bekommt es
+// neuen Inhalt, meldet die Wache es (glmWegMelden), und der Puffer geht mit (figurPufferWeg). Bis rc609 blieben die
+// Puffer jedes je gezeichneten Modells bis zum Beenden (allekarten: 18 Figurenpuffer nach der Rueckkehr auf academy1).
+std::map<const void*, FigurPuffer> g_figuren;
 std::map<const void*, ID3D11ShaderResourceView*> g_figurBilder;
 // Zu jedem Bild: die Adresse der Bildpunkte, aus denen es hochgeladen wurde.
 std::map<const void*, const void*> g_figurBildDaten;
@@ -1829,10 +1843,25 @@ bool hatSichtbareFlaechen(const GlmModel& model) {
     return false;
 }
 
+// rc610 R1: glmWegMelden - ein Modell verschwindet oder bekommt neuen Inhalt.
+void figurPufferWeg(const void* wache) {
+    if (std::this_thread::get_id() != g_figurBildFaden) { return; }
+    const auto it = g_figuren.find(wache);
+    if (it == g_figuren.end()) { return; }
+    if (it->second.vb != nullptr) { it->second.vb->Release(); }
+    if (it->second.ib != nullptr) { it->second.ib->Release(); }
+    g_figuren.erase(it);
+}
+
 // Die Ecken eines Modells hochladen - einmal je Modell.
 FigurPuffer* holeFigurPuffer(const GlmModel& model, std::string* fehler) {
+    if (glmWegMelden == nullptr) {   // rc610 R1: ab dem ersten Puffer hoert gpumap zu
+        glmWegMelden = &figurPufferWeg;
+        g_figurBildFaden = std::this_thread::get_id();
+    }
+    const void* schluessel = &model.wache;
     const std::uint64_t sig = figurSignatur(model);
-    const auto it = g_figuren.find(&model);
+    const auto it = g_figuren.find(schluessel);
     if (it != g_figuren.end()) {
         if (it->second.signatur == sig) {
             return &it->second;
@@ -1894,8 +1923,8 @@ FigurPuffer* holeFigurPuffer(const GlmModel& model, std::string* fehler) {
         return nullptr;
     }
     fp.signatur = sig;
-    g_figuren[&model] = fp;
-    return &g_figuren[&model];
+    g_figuren[schluessel] = fp;
+    return &g_figuren[schluessel];
 }
 
 // Eine Figurentextur hochladen. Der Schluessel ist die Adresse des
@@ -6283,8 +6312,21 @@ void vergissMoverNetze() {
     g_moverNetze.clear();
 }
 
+namespace {
+void gibNetzpufferFrei();
+}  // namespace
+
 void vergissKarte() {
     vergissKastenSaetze();
+    // rc610 R1: was es nur fuer DIESE Karte gab, geht mit ihr (allekarten: nach der Rueckkehr auf academy1 lagen noch 82 MB
+    // Zielsatz des Himmelsportals von yavin2). Die Puffer des Netzes, der Effekte und des Grases legt das naechste Bild
+    // in der Groesse der neuen Karte an; der Effekt- und der Graspuffer wuchsen bisher nur. Das Himmelsportal
+    // (misc_skyportal) und der Spiegel zeichnen im Spiel in den Bildpuffer (kein eigener Speicher) - ihre Zielsaetze
+    // legt die naechste Karte, die eins hat, neu an.
+    gibNetzpufferFrei();
+    for (const int satz : szeneJetzt() == 0 ? std::array<int, 2>{2, 3} : std::array<int, 2>{kZielKarteneditorPortal, kZielKarteneditorSpiegel}) {
+        if (satz != g_zielSatz) { gibZielFelderFrei(g_geparkt[satz]); }
+    }
     g_auffaellig.clear();
     g_auffaelligName.clear();
     // Kartenwechsel (Kartenpruefung 27.09., shank: "es waren einfach alle
@@ -6406,6 +6448,7 @@ void shutdown() {
         if (fp.ib != nullptr) { fp.ib->Release(); }
     }
     g_figuren.clear();
+    glmWegMelden = nullptr;   // rc610 R1: danach hoert niemand mehr zu
     texWegMelden = nullptr;   // reste2 Punkt 2: danach hoert niemand mehr zu
     figurBilderAllesLoesen();
     g_figurBilder.clear();   // ausgeschrieben fuer lint_d3dbesitz (figurBilderAllesLoesen hat freigegeben)
@@ -6461,17 +6504,7 @@ void shutdown() {
     g_zielH = 0;
     g_zielProben = 1;
     g_zielVeraendert = false;
-    for (ZielFelder& z : g_geparkt) {
-        if (z.srv != nullptr) { z.srv->Release(); }
-        if (z.rtv != nullptr) { z.rtv->Release(); }
-        if (z.tex != nullptr) { z.tex->Release(); }
-        if (z.dsv != nullptr) { z.dsv->Release(); }
-        if (z.tiefeTex != nullptr) { z.tiefeTex->Release(); }
-        if (z.tiefeLesen != nullptr) { z.tiefeLesen->Release(); }
-        if (z.aufTex != nullptr) { z.aufTex->Release(); }
-        if (z.tiefeMsSrv != nullptr) { z.tiefeMsSrv->Release(); }
-        z = ZielFelder{};
-    }
+    for (ZielFelder& z : g_geparkt) { gibZielFelderFrei(z); }
     g_zielSatz = 0;
     g_himmelPortalSatz = -1;
     g_spiegelSatz = -1;

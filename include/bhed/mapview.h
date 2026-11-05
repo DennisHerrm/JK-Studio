@@ -12,6 +12,7 @@
 #include "bhed/gla.h"
 #include "bhed/glm.h"
 #include "bhed/rumpfwinkel.h"
+#include "bhed/wache.h"
 
 #include <array>
 #include <cstddef>
@@ -183,25 +184,7 @@ struct MapImage {
 // niemand hoert zu) bekommt die Adresse der TexWache - sie steckt in jedem TextureSet::Tex und ist so
 // eindeutig wie das Tex selbst.
 inline void (*texWegMelden)(const void* wache) = nullptr;
-struct TexWache {
-    TexWache() = default;
-    TexWache(const TexWache& /*andere*/) noexcept {}
-    TexWache(TexWache&& /*andere*/) noexcept {}
-    TexWache& operator=(const TexWache& /*andere*/) noexcept {
-        melden();
-        return *this;
-    }
-    TexWache& operator=(TexWache&& /*andere*/) noexcept {
-        melden();
-        return *this;
-    }
-    ~TexWache() { melden(); }
-
-private:
-    void melden() const noexcept {
-        if (texWegMelden != nullptr) { texWegMelden(this); }
-    }
-};
+using TexWache = AdressWache<&texWegMelden>;
 
 struct TextureSet {
     struct Tex {

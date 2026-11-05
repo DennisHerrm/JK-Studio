@@ -2190,6 +2190,7 @@ void winkelZuAchsen(const float w[3], float achse[3][3]) {
 
 // Ghoul2-Modell eines Gegenstands, einmal je Pfad (auch der Fehlschlag).
 const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad) {
+    g_app->gegenstaendeGenutzt.insert(pfad);   // rc610 R1: in diesem Level benutzt
     const auto have = g_app->gegenstandGlmCache.find(pfad);
     if (have != g_app->gegenstandGlmCache.end()) {
         return have->second.model.empty() ? nullptr : &have->second;
@@ -2221,6 +2222,7 @@ std::map<std::size_t, std::array<float, 3>> g_versteckteMd3;
 const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
     if (bild < 0) { return gegenstandGlmFuer(pfad); }
     const std::string schluessel = pfad + "|bild" + std::to_string(bild);
+    g_app->gegenstaendeGenutzt.insert(schluessel);   // rc610 R1
     const auto have = g_app->gegenstandGlmCache.find(schluessel);
     if (have != g_app->gegenstandGlmCache.end()) {
         return have->second.model.empty() ? nullptr : &have->second;
@@ -3175,10 +3177,9 @@ void preloadSaberAssets() {
     // der .npc, Kinomodelle. Actor::modelle fuehrt sie alle.
     for (const Actor& a : g_app->scene.actors) {
         for (const std::string& m : a.modelle) {
-            if (!m.empty() && g_app->hiltCache.find(m) == g_app->hiltCache.end()) {
-                (void)hiltFor(m);
-                ++griffe;
-            }
+            if (m.empty()) { continue; }
+            griffe += g_app->hiltCache.count(m) == 0U ? 1U : 0U;
+            (void)hiltFor(m);   // rc610 R1: auch ein vorhandener Griff ist in diesem Level benutzt
         }
     }
 
@@ -4064,25 +4065,6 @@ void loadActorModels() {
         g_app->actorAssets[i] = neu;
         ++found;
     }
-    // rc604 fix604: beim Kartenwechsel die Modelle freigeben, die keine Figur
-    // mehr nennt (nur noch modelCache haelt sie) - sie sind schnell wieder
-    // gelesen. Bis rc603 blieb jedes Modell jeder Karte bis zum Beenden.
-    if (g_app->modelCacheKarte != g_app->map.path) {
-        g_app->modelCacheKarte = g_app->map.path;
-        std::size_t frei = 0;
-        for (auto it = g_app->modelCache.begin(); it != g_app->modelCache.end();) {
-            if (it->second.use_count() == 1) {
-                it = g_app->modelCache.erase(it);
-                ++frei;
-            } else {
-                ++it;
-            }
-        }
-        if (frei != 0U) {
-            diag::detail("Figurenmodelle: " + std::to_string(frei) + " der vorigen Karte freigegeben, " +
-                         std::to_string(g_app->modelCache.size()) + " bleiben");
-        }
-    }
     diag::info(std::to_string(found) + " von " +
                std::to_string(g_app->scene.actors.size()) + " Figuren mit Modell");
     {
@@ -4173,6 +4155,77 @@ void loadActorModels() {
         }
     }
     g_app->mapDirty = true;
+}
+
+// rc610 R1: ein neues Level der Medien (RE_RegisterMedia_LevelLoadBegin, tr_model.cpp OpenJK): was ab jetzt
+// genommen wird, gilt als "in diesem Level benutzt" (iLastLevelUsedOn).
+void medienLevelBeginnen() {
+    ++g_app->medienLevel;
+    g_app->figurBilderGenutzt.clear();
+    g_app->griffeGenutzt.clear();
+    g_app->gegenstaendeGenutzt.clear();
+}
+
+// Ein Figurenbild aus texCache wurde genommen (texturesFor, ladeStufenBild, Gluehstufen).
+void figurBildGenutzt(const std::string& schluessel) {
+    g_app->figurBilderGenutzt.insert(schluessel);
+    g_app->figurBilderVorrat.insert(schluessel);
+}
+
+// rc610 R1: Ende des Ladens eines Levels - RE_RegisterMedia_LevelLoadEnd (tr_model.cpp OpenJK) ruft
+// RE_RegisterModels_LevelLoadEnd und RE_RegisterImages_LevelLoadEnd (tr_image.cpp): jedes Bild, dessen
+// iLastLevelUsedOn nicht das jetzige Level ist, wird geloescht, ebenso die Modelle dieses Levels nicht (ueber der
+// Grenze r_modelpoolmegs, die jede Figurenszene uebersteigt). Hier: einmal je Level am Ende des ersten
+// Szenenaufbaus (prepareScene). Die Grafikpuffer und -bilder gehen mit ihren Modellen und Bildern (Wachen,
+// bhed/wache.h). Die Bilder der Karte selbst raeumt loadMapTextures (kartenBilder).
+void medienLevelEnde() {
+    if (g_app->medienLevelAufgeraeumt == g_app->medienLevel) { return; }
+    g_app->medienLevelAufgeraeumt = g_app->medienLevel;
+    // Figurenmodelle: was keine Figur der Szene mehr nennt (nur noch modelCache haelt es; rc604 fix604, bis rc609 nur in
+    // Szenen mit Figuren - eine Karte ohne Figuren behielt die der vorigen).
+    std::size_t modelle = 0;
+    for (auto it = g_app->modelCache.begin(); it != g_app->modelCache.end();) {
+        if (it->second.use_count() == 1) {
+            it = g_app->modelCache.erase(it);
+            ++modelle;
+        } else {
+            ++it;
+        }
+    }
+    std::size_t griffe = 0;
+    for (auto it = g_app->hiltCache.begin(); it != g_app->hiltCache.end();) {
+        if (g_app->griffeGenutzt.count(it->first) == 0U) {
+            it = g_app->hiltCache.erase(it);
+            ++griffe;
+        } else {
+            ++it;
+        }
+    }
+    std::size_t gegenstaende = 0;
+    for (auto it = g_app->gegenstandGlmCache.begin(); it != g_app->gegenstandGlmCache.end();) {
+        if (g_app->gegenstaendeGenutzt.count(it->first) == 0U) {
+            it = g_app->gegenstandGlmCache.erase(it);
+            ++gegenstaende;
+        } else {
+            ++it;
+        }
+    }
+    // Figurenbilder in texCache: nicht in diesem Level genommen und kein Bild der Karte.
+    std::size_t bilder = 0;
+    for (auto it = g_app->figurBilderVorrat.begin(); it != g_app->figurBilderVorrat.end();) {
+        if (g_app->figurBilderGenutzt.count(*it) == 0U && g_app->kartenBilder.count(*it) == 0U) {
+            bilder += g_app->texCache.erase(*it);
+            it = g_app->figurBilderVorrat.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    render::grafikTrimmenAnfordern();
+    if (modelle + griffe + gegenstaende + bilder != 0U) {
+        diag::detail("Medien der vorigen Level freigegeben: " + std::to_string(modelle) + " Figurenmodelle, " + std::to_string(griffe) +
+                     " Griffe, " + std::to_string(gegenstaende) + " Gegenstaende, " + std::to_string(bilder) + " Figurenbilder; " +
+                     std::to_string(g_app->modelCache.size()) + " Figurenmodelle bleiben");
+    }
 }
 
 // Das Skelett zum geladenen Modell holen.

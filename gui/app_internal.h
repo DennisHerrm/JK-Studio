@@ -1593,9 +1593,16 @@ struct App {
     //
     // Schluessel ist der Modellordner: models/players/<name>.
     std::map<std::string, std::shared_ptr<const ActorAssets>> modelCache;
-    // rc604 fix604: fuer welche Karte modelCache zuletzt aufgeraeumt wurde -
-    // beim Kartenwechsel fallen die Modelle, die keine Figur mehr nennt.
-    std::string modelCacheKarte;
+    // rc610 R1: Medien je Level wie RE_RegisterMedia_LevelLoadBegin/-End (tr_model.cpp, tr_image.cpp OpenJK): jeder
+    // Kartenwechsel beginnt ein Level (medienLevelBeginnen), am Ende des ersten Szenenaufbaus der Karte gehen die
+    // Figurenmodelle, Griffe, Gegenstaende und Figurenbilder, die dieses Level nicht benutzt hat (medienLevelEnde).
+    // Bis rc609 blieben sie bis zum Beenden (allekarten: Grafik +716 MB, Prozess +3,4 GB nach allen Karten).
+    int medienLevel = 0;
+    int medienLevelAufgeraeumt = 0;
+    std::unordered_set<std::string> figurBilderGenutzt;   // Schluessel in texCache, die Figuren in diesem Level nahmen
+    std::unordered_set<std::string> figurBilderVorrat;    // alle Schluessel in texCache, die Figuren je nahmen
+    std::unordered_set<std::string> griffeGenutzt;        // hiltCache, in diesem Level
+    std::unordered_set<std::string> gegenstaendeGenutzt;  // gegenstandGlmCache, in diesem Level
     // Die Modelle der Schwertgriffe. Schluessel ist der VOLLE Pfad aus der
     // .sab-Datei - anders als bei Figuren, die immer unter
     // models/players/<name>/model.glm liegen.
@@ -3666,6 +3673,10 @@ void fensterZeigen(bool& offen, const char* id);
 // Kamera, Zeitleiste, Szene, Mover und Effekte aus dem aktiven Skript neu
 // aufbauen (app_view3d.cpp).
 void prepareScene();
+// rc610 R1: Level der Medien (siehe App::medienLevel).
+void medienLevelBeginnen();
+void medienLevelEnde();
+void figurBildGenutzt(const std::string& schluessel);
 
 // --- Paket bewegung (rc601): Schwerkraft der Figuren (app_bewegung.cpp) ---
 // Rechnet Actor::hoehe fuer die fertige Szene ein (scene.h,

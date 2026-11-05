@@ -1437,6 +1437,9 @@ void plattformHakenSetzen() {
     pio.Platform_RenderWindow = glFensterZeichnen;
 }
 
+bool g_trimmen = false;
+void grafikTrimmenAnfordern() { g_trimmen = true; }
+
 void present(float r, float g, float bl) {
     if (!g_ready) {
         return;
@@ -1462,6 +1465,16 @@ void present(float r, float g, float bl) {
             ++g_bildZeiten.cpuBilder;
         }
         const HRESULT hr = g_swap->Present(1, 0);
+        if (g_trimmen) {
+            g_trimmen = false;
+            // Trim verlangt vorher ClearState (IDXGIDevice3::Trim); das naechste Bild setzt seinen Zustand selbst.
+            g_context->ClearState();
+            IDXGIDevice3* d3 = nullptr;
+            if (SUCCEEDED(g_device->QueryInterface(__uuidof(IDXGIDevice3), reinterpret_cast<void**>(&d3))) && d3 != nullptr) {
+                d3->Trim();
+                d3->Release();
+            }
+        }
         if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || g_verlustSpielen) {
             // Den Grund VOR dem Freigeben fragen - danach gibt es ihn nicht mehr.
             const HRESULT grund = g_verlustSpielen ? S_OK : g_device->GetDeviceRemovedReason();
