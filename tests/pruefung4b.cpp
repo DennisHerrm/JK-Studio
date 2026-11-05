@@ -1301,6 +1301,81 @@ void geschuetzTod() {
     pruefe(l3.wiederMs.size() == 1U && std::fabs(l3.wiederMs[0] - 3400.0) < 50.5, "misc_turretG2 CANRESPAWN: wieder nach count ms (Movie Duels)");
 }
 
+// rc610 F46 B4-1: Movie Duels spielt beim Turbolaser (misc_turretG2 TURBO) weder shutdown noch ping noch startup
+// (g_turret.cpp MD 584, 634, 752); OpenJK sucht mit dem Turbo keine Feinde (dort bleibt alles still), der Turm ohne
+// Turbo spielt alle drei. B4-2: mit mp_rules ist ein Fahrzeug mit Pilot ein Ziel (Team des Piloten), eines ohne nicht,
+// ein Reiter in einem Fahrzeug mit hideRider auch nicht (g_turret.cpp MD 681-704, turret_target_team 201-208).
+void geschuetzF46() {
+    std::printf("--- rc610 F46: misc_turretG2 Turbo-Klaenge, Fahrzeuge als Ziel (Movie Duels) ---\n");
+    const float ort[3] = {-60.0F, 200.0F, 0.0F};
+    const SchussZiel z = gZiel(ort);
+    const auto lauf = [&](int spawnflags, TodRegelwerk r, const SchussZiel& ziel, double weg) {
+        GeschuetzDaten d;
+        d.art = GeschuetzArt::TurmG2;
+        d.nummer = 4;
+        d.team = "player";
+        d.spawnflags = spawnflags;
+        d.ursprung[2] = 30.0F;
+        auto sim = std::make_shared<GeschuetzSim>();
+        sim->setze({d}, r, -200.0, true);
+        const GeschuetzWelt w = gWelt(gWeltFuer(ziel));
+        std::vector<SchadenAuftrag> a;
+        for (double t = -200.0; t <= 12000.0 + 1e-6; t += 50.0) {
+            if (t < weg) {
+                sim->bild(t, {ziel}, w, a);
+            } else {
+                sim->bild(t, {}, w, a);
+            }
+        }
+        return sim;
+    };
+    const auto klaenge = [](const GeschuetzLauf& l) {
+        std::string k;
+        for (const char* n : {"startup", "shutdown", "ping"}) {
+            const std::string pfad = std::string("sound/chars/turret/") + n + ".wav";
+            const bool da = std::any_of(l.klaenge.begin(), l.klaenge.end(), [&](const GeschuetzKlang& x) { return pfad == x.datei; });
+            if (da) { k += (k.empty() ? "" : ",") + std::string(n); }
+        }
+        return k;
+    };
+    {
+        SchussZiel spieler = z;   // der Turbo nimmt noDamageTeam TEAM_ENEMY (ohne alliedTeam/teamnodmg)
+        spieler.team = kTeamSpieler;
+        const auto md = lauf(8, TodRegelwerk::MovieDuels, spieler, 3000.0);
+        const GeschuetzLauf& l = md->laeufe().front();
+        pruefe(!l.schuesse.empty() && klaenge(l).empty(), "MD Turbo: feuert, aber kein startup, shutdown, ping (" + klaenge(l) + ")");
+        const auto mdTurm = lauf(0, TodRegelwerk::MovieDuels, z, 3000.0);
+        pruefe(klaenge(mdTurm->laeufe().front()) == "startup,shutdown,ping", "MD ohne Turbo: startup, shutdown, ping (" + klaenge(mdTurm->laeufe().front()) + ")");
+        const auto oj = lauf(0, TodRegelwerk::OpenJK, z, 3000.0);
+        pruefe(klaenge(oj->laeufe().front()) == "startup,shutdown,ping", "OpenJK ohne Turbo: startup, shutdown, ping (" + klaenge(oj->laeufe().front()) + ")");
+        const auto ojTurbo = lauf(8, TodRegelwerk::OpenJK, spieler, 3000.0);
+        pruefe(ojTurbo->laeufe().front().schuesse.empty() && klaenge(ojTurbo->laeufe().front()).empty(), "OpenJK Turbo: sucht keine Feinde, still");
+    }
+    {
+        SchussZiel f = z;   // ein Fahrzeug (eigenes Team frei), der Pilot ist ein Feind
+        f.fahrzeug = true;
+        f.team = kTeamFrei;
+        f.hatPilot = true;
+        f.pilotTeam = kTeamFeind;
+        pruefe(!lauf(0, TodRegelwerk::MovieDuels, f, 1.0e9)->laeufe().front().schuesse.empty(), "MD: Fahrzeug mit feindlichem Pilot ist ein Ziel");
+        SchussZiel ohne = f;
+        ohne.hatPilot = false;
+        ohne.team = kTeamFeind;
+        pruefe(lauf(0, TodRegelwerk::MovieDuels, ohne, 1.0e9)->laeufe().front().schuesse.empty(), "MD: Fahrzeug ohne Pilot ist kein Ziel");
+        SchussZiel freund = f;
+        freund.pilotTeam = kTeamSpieler;
+        freund.team = kTeamFeind;
+        pruefe(lauf(0, TodRegelwerk::MovieDuels, freund, 1.0e9)->laeufe().front().schuesse.empty(), "MD: Fahrzeug zaehlt mit dem Team des Piloten (noDamageTeam)");
+        SchussZiel versteckt = f;
+        versteckt.pilotNotarget = true;
+        pruefe(lauf(0, TodRegelwerk::MovieDuels, versteckt, 1.0e9)->laeufe().front().schuesse.empty(), "MD: Pilot mit FL_NOTARGET - kein Ziel");
+        SchussZiel reiter = z;
+        reiter.reiterVerborgen = true;
+        pruefe(lauf(0, TodRegelwerk::MovieDuels, reiter, 1.0e9)->laeufe().front().schuesse.empty(), "MD: Reiter in einem Fahrzeug mit hideRider ist kein Ziel");
+        pruefe(!lauf(0, TodRegelwerk::OpenJK, reiter, 1.0e9)->laeufe().front().schuesse.empty(), "OpenJK: kein Fahrzeugfall, der Reiter bleibt ein Ziel");
+    }
+}
+
 void g2Strahl() {
     std::printf("--- rc608: G2_SegmentTriangleTest (Spur ohne Kasten) ---\n");
     const std::vector<float> ecken = {0.0F, -10.0F, -10.0F, 0.0F, 10.0F, -10.0F, 0.0F, 0.0F, 10.0F};
@@ -1341,6 +1416,7 @@ int main() {
     geschuetzTurm();
     geschuetzGeschoss();
     geschuetzTod();
+    geschuetzF46();
     g2Strahl();
     std::printf("%d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;

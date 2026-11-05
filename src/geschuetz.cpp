@@ -811,7 +811,8 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
             z.knochen.turboAb = lt;
             l.turboAnims.emplace_back(t, std::make_pair(4, 5));
         }
-        l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/shutdown.wav"});
+        // rc610 F46 B4-1: Movie Duels ohne shutdown beim Turbo (g_turret.cpp:584 MD), OpenJK spielt ihn immer
+        if (!(md && turbo)) { l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/shutdown.wav"}); }
         z.aimDebounce = lt + 5000.0;
         z.feind = kSchussKeine;
     };
@@ -880,7 +881,8 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
         if (!(turbo && !(md && mp))) {
             if (z.aimDebounce > lt && z.painDebounce < lt) {
                 z.painDebounce = lt + 1000.0;
-                l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/ping.wav"});
+                // rc610 F46 B4-1: ping nur ohne Turbo (g_turret.cpp:634 MD); OpenJK kommt mit dem Turbo nicht hierher
+                if (!turbo) { l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/ping.wav"}); }
             }
             float org2[3] = {l.ursprung[0], l.ursprung[1], l.ursprung[2]};
             org2[2] += (z.sf & 2) != 0 ? 20.0F : -20.0F;
@@ -890,8 +892,15 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
                 if (!zz.takedamage || !imRadius(zz, org2, z.radius)) { continue; }
                 if (zz.health <= 0 || zz.notarget) { continue; }
                 if (md && mp) {
-                    if (zz.fahrzeug) { continue; }   // "a ship: only with someone in it" - ohne Pilot
-                    if (zz.team == z.noDamageTeam) { continue; }
+                    // rc610 F46 B4-2 (g_turret.cpp:681-704 MD): "a ship: only with someone in it, and he counts (his team,
+                    // notarget)"; "someone inside a closed ship: the ship is the target" (hideRider); turret_target_team
+                    // (:201-208): ein Fahrzeug zaehlt mit dem Team seines Piloten
+                    if (zz.fahrzeug) {
+                        if (!zz.hatPilot || zz.pilotNotarget) { continue; }
+                    } else if (zz.reiterVerborgen) {
+                        continue;
+                    }
+                    if ((zz.fahrzeug ? zz.pilotTeam : zz.team) == z.noDamageTeam) { continue; }
                 } else if (zz.team == z.noDamageTeam) {
                     continue;
                 }
@@ -906,7 +915,8 @@ void GeschuetzSim::turmDenken(std::size_t i, double lt, const std::vector<Schuss
                 if (abstand < besterAbstand) {
                     if (z.attackDebounce < lt) {
                         z.attackDebounce = lt + 1400.0;
-                        l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/startup.wav"});
+                        // rc610 F46 B4-1: startup nur ohne Turbo, attackDebounceTime immer (g_turret.cpp:750-756 MD)
+                        if (!turbo) { l.klaenge.push_back(GeschuetzKlang{t, "sound/chars/turret/startup.wav"}); }
                     }
                     bester = zz.nummer;
                     besterAbstand = abstand;

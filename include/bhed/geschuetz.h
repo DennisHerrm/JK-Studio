@@ -147,7 +147,14 @@ struct SchussZiel {
     float hi[3]{};               // absmax
     float auge[3]{};             // renderInfo.eyePoint
     float tempo[3]{};            // ps.velocity (LEAD)
-    bool fahrzeug = false;       // m_pVehicle (ohne Pilot - die Vorschau setzt keinen)
+    bool fahrzeug = false;       // m_pVehicle
+    // rc610 F46 B4-2 (Movie Duels, misc_turretG2 mit mp_rules, g_turret.cpp:681-704 MD): der Pilot eines Fahrzeugs
+    // (m_pVehicle->m_pPilot) mit seinem Team und FL_NOTARGET; bei einem Reiter, ob sein Fahrzeug ihn verbirgt
+    // (s.m_iVehicleNum, m_pVehicleInfo->hideRider)
+    bool hatPilot = false;
+    int pilotTeam = kTeamFrei;
+    bool pilotNotarget = false;
+    bool reiterVerborgen = false;
     int team = kTeamFrei;        // client->playerTeam
     int health = 100;
     bool takedamage = true;

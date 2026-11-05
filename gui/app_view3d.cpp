@@ -6410,6 +6410,14 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
         return std::max(kTeamFrei, teamAusName(it->second.team, regel));
     };
     std::vector<SchussZiel> ziele;
+    // Team einer Figur zur Zeit t: aus der .npc, dann SET_PLAYER_TEAM des Skripts
+    const auto teamBei = [&](const Actor& a, double t) {
+        int team = npcTeam(a);
+        for (const auto& [ms, name] : a.teamGesetzt) {
+            if (ms <= t + 1e-6) { team = teamAusSkript(name); }
+        }
+        return team;
+    };
     const auto zieleBauen = [&](double t) {
         ziele.clear();
         for (const Figur& fi : figuren) {
@@ -6444,11 +6452,19 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
                 }
             }
             z.fahrzeug = a.fahrzeug.da;
-            int team = npcTeam(a);
-            for (const auto& [ms, name] : a.teamGesetzt) {
-                if (ms <= t + 1e-6) { team = teamAusSkript(name); }
+            z.team = teamBei(a, t);
+            // rc610 F46 B4-2 (g_turret.cpp:681-704 MD): der Pilot eines Fahrzeugs (m_pVehicle->m_pPilot, G_IsRidingVehicle),
+            // bei einem Reiter, ob sein Fahrzeug ihn verbirgt (hideRider)
+            if (const Actor::Ritt* r = rittBei(a, t)) { z.reiterVerborgen = g_app->scene.actors[r->fahrzeug].fahrzeug.reiterVerbergen; }
+            if (z.fahrzeug) {
+                for (const Actor& p : g_app->scene.actors) {
+                    const Actor::Ritt* r = rittBei(p, t);
+                    if (r == nullptr || r->fahrzeug != ai) { continue; }
+                    z.hatPilot = true;
+                    z.pilotTeam = teamBei(p, t);
+                    z.pilotNotarget = zurZeit(p.keinZiel, t);
+                }
             }
-            z.team = team;
             z.health = fi.tot || (a.getoetetMs >= 0.0 && t > a.getoetetMs + 1e-6) ? 0 : fi.gesundheit;
             z.notarget = zurZeit(a.keinZiel, t);
             ziele.push_back(z);
