@@ -2,6 +2,7 @@
 #include "bhed/regelwerk.h"
 
 #include "bhed/num.h"
+#include "bhed/sicherschreiben.h"
 #include <algorithm>
 
 #include <cstddef>
@@ -543,14 +544,11 @@ bool loadSettingsFile(const std::string& path, Settings& out) {
     return readSettings(ss.str(), out);
 }
 
-bool saveSettingsFile(const std::string& path, const Settings& s) {
-    std::ofstream f(path, std::ios::binary);
-    if (!f) {
-        return false;
-    }
-    const std::string text = writeSettings(s);
-    f.write(text.data(), static_cast<std::streamsize>(text.size()));
-    return static_cast<bool>(f);
-}
+// rc610 F78 (Fund B8-2): bis rc609 mit std::ofstream (trunc) und dem Ergebnis
+// vor dem Schliessen - die alte behaved.cfg war leer, bevor ein Byte stand, und
+// ein Fehler beim Leeren des Puffers blieb unbemerkt (Spielordner und Tasten
+// stehen am Ende der Datei). Jetzt wie F5: Temp-Datei, Schliessen geprueft,
+// atomar ersetzt; bei einem Fehler bleibt die alte Datei.
+bool saveSettingsFile(const std::string& path, const Settings& s) { return sicherSchreiben(path, writeSettings(s)); }
 
 }  // namespace bhed

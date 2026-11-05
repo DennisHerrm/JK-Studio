@@ -7,6 +7,7 @@
 //
 // Aufruf: sicherschreibentest <Arbeitsordner>
 #include "bhed/sicherschreiben.h"
+#include "bhed/settings.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -85,6 +86,37 @@ int main(int argc, char** argv) {
     pruefe(lies(datei) == alt, "gesperrt: alte Datei unveraendert");
     pruefe(!tmpDa(datei), "gesperrt: keine Temp-Datei");
     pruefe(!bhed::dateiGesperrt(datei.string()), "nach dem Schliessen nicht mehr gesperrt");
+
+    // rc610 F78 (Fund B8-2): die Einstellungen (behaved.cfg) beim Beenden. Ein
+    // Schreibfehler laesst die alte Datei mit Spielordnern und Tasten stehen.
+    {
+        const fs::path cfg = ordner / "behaved.cfg";
+        bhed::Settings alteEinst;
+        alteEinst.gamePaths = {"C:/Spiele/GameData/base"};
+        bhed::Settings neueEinst = alteEinst;
+        neueEinst.gamePaths.push_back("D:/Mods/GameData/base");
+        for (int i = 0; i < 40; ++i) { neueEinst.recent.push_back("C:/skripte/datei" + std::to_string(i) + ".icarus"); }
+        pruefe(bhed::saveSettingsFile(cfg.string(), alteEinst), "Einstellungen: Normalfall true");
+        const std::string altCfg = lies(cfg);
+        for (int stufe = 1; stufe <= 3; ++stufe) {
+            bhed::sicherSchreibenFehlerEinbauen(stufe);
+            const bool ok = bhed::saveSettingsFile(cfg.string(), neueEinst);
+            bhed::sicherSchreibenFehlerEinbauen(0);
+            const std::string jetzt = lies(cfg);
+            bhed::Settings gelesen;
+            const bool lesbar = bhed::loadSettingsFile(cfg.string(), gelesen);
+            std::printf("  Einstellungen, Fehler beim %s: Rueckgabe %s, Datei %zu Bytes (alt %zu), Spielordner %zu\n", namen[stufe],
+                        ok ? "true" : "false", jetzt.size(), altCfg.size(), gelesen.gamePaths.size());
+            pruefe(!ok, std::string("Einstellungen, Fehler beim ") + namen[stufe] + ": saveSettingsFile meldet false");
+            pruefe(jetzt == altCfg && lesbar && gelesen.gamePaths == alteEinst.gamePaths,
+                   std::string("Einstellungen, Fehler beim ") + namen[stufe] + ": alte behaved.cfg unveraendert");
+            pruefe(!tmpDa(cfg), std::string("Einstellungen, Fehler beim ") + namen[stufe] + ": keine Temp-Datei");
+        }
+        pruefe(bhed::saveSettingsFile(cfg.string(), neueEinst), "Einstellungen: danach wieder true");
+        bhed::Settings gelesen;
+        pruefe(bhed::loadSettingsFile(cfg.string(), gelesen) && gelesen.gamePaths == neueEinst.gamePaths && !tmpDa(cfg),
+               "Einstellungen: neuer Inhalt vollstaendig, keine Temp-Datei");
+    }
 
     // Fehlende Ordner entstehen
     const fs::path tief = ordner / "maps" / "neu" / "x.ent";
