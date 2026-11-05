@@ -266,7 +266,7 @@ list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_KARTE})
 behaved_eingebaute_daten(bhed_core ${CMAKE_BINARY_DIR}/eingebaut/eingebaute_daten.inc ${BEHAVED_EINGEBAUT})
 
 # Werkzeug
-add_executable(bhed tools/bhed_cli.cpp)
+add_executable(bhed tools/bhed_cli.cpp tools/bhed.manifest)   # rc610 F78: UTF-8 als Codepage
 target_link_libraries(bhed PRIVATE bhed_core)
 
 # Befehlsmodell neben die .exe legen, damit bhed ohne --data laeuft
@@ -740,6 +740,10 @@ if(BEHAVED_TESTS)
   add_executable(umzugtest tests/umzugtest.cpp)
   target_link_libraries(umzugtest PRIVATE bhed_core)
   add_test(NAME umzug COMMAND umzugtest)
+  # rc610 F78 (B8-6, B8-7, B8-8): bhed mit Dateinamen ausserhalb der Codepage, Schreibfehler, Aufruf ueber den PATH
+  add_executable(bhedclitest tests/bhedclitest.cpp)
+  add_dependencies(bhedclitest bhed)
+  add_test(NAME bhed_cli COMMAND bhedclitest $<TARGET_FILE:bhed> ${CMAKE_CURRENT_BINARY_DIR})
   # Stufe 8c: der Updater von rc604 (aus git 8cc7bd1e) gegen einen lokalen Testserver -
   # das Programm; den Server, das Paket und den Start danach macht tools/karte/updater_uebergang.py
   # (ctest updater_uebergang, unten bei den q3map2-Tests: braucht jkstudio.exe und bhed_q3map2.exe)

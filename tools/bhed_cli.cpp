@@ -12,11 +12,17 @@
 // --data <ordner> angegeben.
 
 #include "bhed/ibi.h"
+#include "bhed/sicherschreiben.h"
 #include "bhed/tree.h"
 #include "bhed/validate.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <cctype>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -35,13 +41,32 @@ std::string slurp(const fs::path& p) {
     return ss.str();
 }
 
+// rc610 F78 (Fund B8-7): ueber sicherSchreiben wie das Programm (F5) - bis rc609
+// mit trunc und dem Ergebnis vor dem Schliessen: die alte .ibi war abgeschnitten,
+// und ein Fehler beim Leeren des Puffers meldete trotzdem Erfolg (Rueckgabe 0).
 bool spew(const fs::path& p, const std::string& s) {
-    std::ofstream f(p, std::ios::binary);
-    if (!f) {
-        return false;
+    const std::u8string u = p.u8string();
+    return bhed::sicherSchreiben(std::string(u.begin(), u.end()), s);
+}
+
+// Die laufende .exe. rc610 F78 (Fund B8-8): nicht argv[0] - ueber den PATH
+// aufgerufen ist das nur "bhed", ohne Ordner.
+fs::path eigenePfad() {
+#ifdef _WIN32
+    std::wstring p(MAX_PATH, L'\0');
+    for (;;) {
+        const DWORD n = GetModuleFileNameW(nullptr, p.data(), static_cast<DWORD>(p.size()));
+        if (n == 0) { return {}; }
+        if (n < p.size()) {
+            p.resize(n);
+            return p;
+        }
+        p.resize(p.size() * 2);
     }
-    f.write(s.data(), static_cast<std::streamsize>(s.size()));
-    return static_cast<bool>(f);
+#else
+    std::error_code ec;
+    return fs::read_symlink("/proc/self/exe", ec);
+#endif
 }
 
 // data/base neben der .exe, daneben, oder eine Ebene hoeher suchen.
@@ -81,8 +106,13 @@ int usage() {
 int walkFiles(const fs::path& p, std::vector<fs::path>& out) {
     std::error_code ec;
     if (fs::is_directory(p, ec)) {
-        for (const auto& e : fs::recursive_directory_iterator(p, ec)) {
-            if (!e.is_regular_file()) {
+        // rc610 F78 (Fund B8-6): mit Fehlercode weiter - ein Ordner ohne Leserecht
+        // warf bis rc609 aus operator++ eine Ausnahme, die niemand fing.
+        for (fs::recursive_directory_iterator it(p, fs::directory_options::skip_permission_denied, ec), ende; !ec && it != ende;
+             it.increment(ec)) {
+            const fs::directory_entry& e = *it;
+            std::error_code art;
+            if (!e.is_regular_file(art)) {
                 continue;
             }
             std::string ext = e.path().extension().string();
@@ -99,9 +129,7 @@ int walkFiles(const fs::path& p, std::vector<fs::path>& out) {
     return static_cast<int>(out.size());
 }
 
-} // namespace
-
-int main(int argc, char** argv) {
+int lauf(int argc, char** argv) {
     if (argc < 2) {
         return usage();
     }
@@ -127,7 +155,7 @@ int main(int argc, char** argv) {
         else { pos.push_back(a); }
     }
 
-    const fs::path data = findData(argv[0], dataOpt);
+    const fs::path data = findData(eigenePfad(), dataOpt);
     if (data.empty()) {
         std::fputs("Befehlsmodell nicht gefunden. Erwartet data/base/behaved.bhc\n"
                    "neben der .exe, oder --data <ordner> angeben.\n", stderr);
@@ -271,4 +299,17 @@ int main(int argc, char** argv) {
     }
 
     return usage();
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    // rc610 F78 (Fund B8-6): eine Ausnahme (Dateisystem, Speicher) endet mit einer
+    // Meldung und 2 - bis rc609 mit abort.
+    try {
+        return lauf(argc, argv);
+    } catch (const std::exception& x) {
+        std::fprintf(stderr, "Fehler: %s\n", x.what());
+        return 2;
+    }
 }
