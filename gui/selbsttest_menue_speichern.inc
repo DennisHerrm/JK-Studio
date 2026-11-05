@@ -20,6 +20,7 @@ std::vector<Schritt> schritteSpeichernOrt() {
     const fs::path programm = gameData / "me2_programm.menu";   // im Programmordner (exe, dll): bleibt gesperrt
     const fs::path kopie = wurzel / "kopien" / "me2_kopie.menu";
     const fs::path kopie2 = wurzel / "kopien" / "me2_kopie2.menu";
+    const fs::path nachbar = wurzel / "GameData_x" / "ui" / "me2_nachbar.menu";   // rc610 F46 B6-5: neben GameData, nicht darin
     const auto liesDatei = [](const fs::path& p) {
         std::ifstream f(p, std::ios::binary);
         return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -49,7 +50,8 @@ std::vector<Schritt> schritteSpeichernOrt() {
         std::error_code ec;
         fs::remove_all(wurzel, ec);
         for (const fs::path& p : {lose, schatten, programm, kopie}) { fs::create_directories(p.parent_path(), ec); }
-        for (const fs::path& p : {lose, datei, schatten, programm}) { std::ofstream(p, std::ios::binary) << kLoeschText; }
+        fs::create_directories(nachbar.parent_path(), ec);
+        for (const fs::path& p : {lose, datei, schatten, programm, nachbar}) { std::ofstream(p, std::ios::binary) << kLoeschText; }
         (void)writePk3(pfadText(pk3), {{"ui/me2_inpk3.menu", kLoeschText}, {"ui/me2_schatten.menu", kLoeschText}});
         *pk3Vorher = liesDatei(pk3);
         *alteOrdner = g_app->settings.gamePaths;
@@ -160,6 +162,21 @@ std::vector<Schritt> schritteSpeichernOrt() {
         std::error_code ec;
         return *gefragt == 1 && liesDatei(programm) == kLoeschText && liesDatei(kopie2) == me::stand().text &&
                !fs::exists(bak(programm), ec);
+    }));
+
+    // 6. rc610 F46 B6-5: ein Ordner neben GameData, dessen Name mit "GameData" beginnt, ist kein Spielordner -
+    //    Strg+S schreibt dorthin wie bei jeder anderen Datei, ohne Dialog
+    add(tu("ME2: GameData_x/ui/me2_nachbar.menu ueber Datei oeffnen", [=] {
+        leer();
+        dialog(kopie2);
+        *gefragt = 0;
+        (void)me::oeffneDatei(pfadText(nachbar));
+    }));
+    add(pause(0.3));
+    bearbeitenUndSpeichern("mitte");
+    add(pruefe("ME2 Nachbarordner (GameData_x): Strg+S schreibt an den Ort, ohne Dialog", [=] {
+        diag::detail("ME2 nachbar: gefragt " + std::to_string(*gefragt) + ", Meldung: " + me::letzteMeldung());
+        return *gefragt == 0 && liesDatei(nachbar) == me::stand().text && me::stand().text.find("\"mitte\"") == std::string::npos;
     }));
 
     // Der Startbildschirm nennt die Karte "Menue oeffnen" (MePrjLeer), in jeder Sprache

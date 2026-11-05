@@ -1037,7 +1037,12 @@ bool imSpielordner(const std::string& pfad) {
         std::string g = kleinPfad(fs::weakly_canonical(fs::path(o), ec).string());
         // GameData-Ordner (eins ueber base) ebenfalls schuetzen
         const std::string eltern = kleinPfad(fs::path(g).parent_path().string());
-        return k.compare(0, g.size(), g) == 0 || (!eltern.empty() && k.compare(0, eltern.size(), eltern) == 0);
+        // rc610 F46 B6-5: nur der Ordner selbst und was darunter liegt (Trennzeichen danach wie loseImModOrdner) -
+        // "GameData_x" neben "GameData" ist kein Spielordner
+        const auto unter = [&k](const std::string& o) {
+            return !o.empty() && k.compare(0, o.size(), o) == 0 && (k.size() == o.size() || o.back() == '/' || k[o.size()] == '/');
+        };
+        return unter(g) || unter(eltern);
     };
     for (const std::string& o : g_app->settings.gamePaths) {
         if (pruefe(o)) { return true; }
