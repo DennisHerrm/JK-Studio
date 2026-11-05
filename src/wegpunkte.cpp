@@ -413,7 +413,11 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     int grenze = std::numeric_limits<int>::max();
     // Der origin eines Punkts in Zelle c (Start: der Startpunkt selbst, wenn er ein Wegpunkt ist), wenn das Spiel ihn dort
     // behaelt.
-    const auto ortFuer = [&](int c, int start, V& ort) {
+    // rc610 R1: Ergebnis je Zelle ohne Startpunkt merken - es haengt nur an der Zelle und der Welt, und jeder weitere
+    // Durchgang (das Raster wird weiter) und jede Kette fragt dieselben Zellen wieder (taspir1: Minuten an Spuren).
+    std::vector<signed char> ortGemerkt(z.size(), -1);   // -1 offen, 0 nein, 1 ja (ort in ortMerk)
+    std::vector<V> ortMerk(z.size());
+    const auto ortFuerRechnen = [&](int c, int start, V& ort) {
         const V& o = z[static_cast<std::size_t>(c)].o;
         // origin = Boden + 25 (der Kasten -24..45 beginnt eine Einheit ueber dem Boden), gerundet wie in der .ent.
         ort = {std::round(o[0]), std::round(o[1]), std::round(o[2] + kKastenUnten + 25.0F)};
@@ -426,6 +430,13 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
         // 1,5 x MAX_EDGE_FLOOR_DIST tief, g_navigator.cpp:1573-1595 MD) und seine Kanten gelten nur fuer Flieger.
         if (welt.spur(ort, {0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F}, {ort[0], ort[1], ort[2] - 90.0F}).anteil >= 1.0F) { return false; }
         return !welt.knoten || welt.knoten(ort);
+    };
+    const auto ortFuer = [&](int c, int start, V& ort) {
+        if (start >= 0) { return ortFuerRechnen(c, start, ort); }
+        signed char& g = ortGemerkt[static_cast<std::size_t>(c)];
+        if (g < 0) { g = ortFuerRechnen(c, start, ortMerk[static_cast<std::size_t>(c)]) ? 1 : 0; }
+        ort = ortMerk[static_cast<std::size_t>(c)];
+        return g == 1;
     };
     const auto setze = [&](int c, int start) {
         if (knotenVon[static_cast<std::size_t>(c)] >= 0 || static_cast<int>(aus.size()) >= grenze) { return false; }
@@ -585,11 +596,29 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     // Kantenpruefung des Spiels behaelt sie in beide Richtungen - das target-Feld kommt spaeter an einen der beiden
     // (verteileZiele), und das Spiel spurt vom Traeger zum Ziel (CWayEdge mNodeA -> mNodeB).
     // 0: geht, 1: keine gerade Linie zu Fuss, 2: die Kantenpruefung des Spiels verwirft sie.
+    // rc610 R1: je Paar von Zellen mit diesen origins gemerkt (dieselbe Rechnung, dasselbe Ergebnis) - die Kanten und Ketten
+    // jedes weiteren Durchgangs fragen dieselben Paare wieder.
+    struct KanteMerk {
+        V oa{};
+        V ob{};
+        int grund = 0;
+    };
+    std::unordered_map<long long, KanteMerk> kanteGemerkt;
     const auto kanteGrund = [&](int ca, const V& oa, int cb, const V& ob) {
+        const long long schluessel = spalteSchluessel(ca, cb);
+        if (const auto da = kanteGemerkt.find(schluessel); da != kanteGemerkt.end() && da->second.oa == oa && da->second.ob == ob) {
+            return da->second.grund;
+        }
         V o = z[static_cast<std::size_t>(ca)].o;
         const V& ziel = z[static_cast<std::size_t>(cb)].o;
-        if (!lauf.gehen(o, ziel[0], ziel[1]) || std::fabs(o[2] - ziel[2]) > 1.0F) { return 1; }
-        return (!welt.kante || (welt.kante(oa, ob) && welt.kante(ob, oa))) ? 0 : 2;
+        int grund = 0;
+        if (!lauf.gehen(o, ziel[0], ziel[1]) || std::fabs(o[2] - ziel[2]) > 1.0F) {
+            grund = 1;
+        } else {
+            grund = (!welt.kante || (welt.kante(oa, ob) && welt.kante(ob, oa))) ? 0 : 2;
+        }
+        kanteGemerkt[schluessel] = KanteMerk{oa, ob, grund};
+        return grund;
     };
     const auto kanteGeht = [&](int ca, const V& oa, int cb, const V& ob) { return kanteGrund(ca, oa, cb, ob) == 0; };
     std::vector<WegErzeugungInfo::Luecke> luecken;
@@ -666,17 +695,23 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     std::vector<float> zielWeit(z.size(), kNie);
     const auto kette = [&](int von, int ziel, float raster) {
         if (knotenVon[static_cast<std::size_t>(von)] < 0) { return false; }
-        // Weg auf dem Laufgitter zum Ziel
+        // Weg auf dem Laufgitter zum Ziel. rc610 R1: nur so weit, wie die Kette ihn liest - sie nimmt nur Zellen, die dem
+        // Ziel naeher liegen als ihr Anker, und der erste Anker ist `von`. Ist `von` fest (sein Weg endgueltig), sind alle
+        // Zellen mit einem Weg bis zu seinem fest, jede andere hat einen laengeren und kaeme nie in Frage; die Werte der
+        // festen sind dieselben wie nach dem ganzen Durchlauf (Dijkstra). Bisher lief er je Kette ueber das ganze Gitter.
         std::fill(zielWeit.begin(), zielWeit.end(), kNie);
         {
             using E = std::pair<float, int>;
             std::priority_queue<E, std::vector<E>, std::greater<>> q;
             zielWeit[static_cast<std::size_t>(ziel)] = 0.0F;
             q.emplace(0.0F, ziel);
+            float bis = kNie;   // der Weg von `von`, sobald er fest ist
             while (!q.empty()) {
                 const auto [d, i] = q.top();
                 q.pop();
+                if (d > bis) { break; }
                 if (d > zielWeit[static_cast<std::size_t>(i)]) { continue; }
+                if (i == von) { bis = d; }
                 for (const int j : z[static_cast<std::size_t>(i)].nb) {
                     const float nd = d + waagerecht(z[static_cast<std::size_t>(i)].o, z[static_cast<std::size_t>(j)].o);
                     if (nd < zielWeit[static_cast<std::size_t>(j)]) {

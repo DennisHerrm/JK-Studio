@@ -2522,18 +2522,22 @@ Schritt pause(double sekunden) {
 // rc609 W3b: die Erzeugung der Wegpunkte rechnet im Hintergrund - warten, bis ihr Ergebnis uebernommen ist.
 // Nach Zeit, nicht nach Bildern: im Leerlauf zeichnet das Programm ueber 200 Bilder je Sekunde, t1_danger rechnet unter
 // Volllast laenger als zwei Minuten.
+// rc610 R1: mit eigener Zeitgrenze - die allgemeine von 4000 Bildern (bei ueber 200 Bildern je Sekunde rund 18 s) meldete
+// die Erzeugung auf taspir1 als "haengt", waehrend sie lief.
 Schritt wegFertig() {
     auto bis = std::make_shared<double>(0.0);
-    return {"Wegpunkte: Erzeugung im Hintergrund fertig", [=](int b) {
-                if (b == 0) { *bis = ImGui::GetTime() + 600.0; }
-                if (!wegAuftragLaeuft()) { return true; }
-                if (ImGui::GetTime() > *bis) {
-                    ++g_fehler;
-                    diag::detail("Knopftest FEHLER: Wegpunkte: Erzeugung im Hintergrund nach 600 s nicht fertig");
-                    return true;
-                }
-                return false;
-            }};
+    Schritt x{"Wegpunkte: Erzeugung im Hintergrund fertig", [=](int b) {
+                  if (b == 0) { *bis = ImGui::GetTime() + 600.0; }
+                  if (!wegAuftragLaeuft()) { return true; }
+                  if (ImGui::GetTime() > *bis) {
+                      ++g_fehler;
+                      diag::detail("Knopftest FEHLER: Wegpunkte: Erzeugung im Hintergrund nach 600 s nicht fertig");
+                      return true;
+                  }
+                  return false;
+              }};
+    x.eigeneZeitgrenze = true;
+    return x;
 }
 
 // Das Baumfenster auf einen Anteil seines Rollbereichs stellen (1 = unten).
