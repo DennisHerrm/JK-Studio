@@ -441,6 +441,9 @@ void zeichneSurfaceInspector() {
     ImGui::PopStyleVar();
     if (sichtbar) {
         g_innen = ImGui::GetCursorScreenPos();
+        // g_pressedKeysFilter nimmt Tab auch den Feldern: im Inspector wandert der Fokus nie mit Tab (sonst machte Tab
+        // das Texturfeld aktiv, und das naechste Esc braeche nur dessen Eingabe ab).
+        ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, true);
         // Texture (NonModalEntry)
         const char* texturText = trK(Str::KeSiTexture);
         zeilenText(texturText, 11.0F, 11.0F);
@@ -528,9 +531,13 @@ void zeichneSurfaceInspector() {
                 karte::patchBefehl(ed.karte, karte::PatchBefehl::TexturNatuerlich);
             }
         }
-        // g_pressedKeysFilter: Return, Enter, Esc, Tab und ohne Zusatztasten
-        // Pfeil hoch/runter, Bild hoch/runter gehen nicht an die Kuerzel
-        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+        ImGui::PopItemFlag();
+        // g_pressedKeysFilter (surfacedialog.cpp:594-631 NRC): Return, Enter, Esc, Tab und ohne Zusatztasten
+        // Pfeil hoch/runter, Bild hoch/runter gehen nicht an die Kuerzel - hier nur, solange ein Feld oder Knopf
+        // des Inspectors aktiv ist. NRC filtert sie am ganzen Fenster, auch ohne Fokus-Widget (das loescht es beim
+        // Zeigen, "to keep global shortcuts working"): nach S verschluckte es Esc (UnSelectSelection2), Tab
+        // (CameraFocusOnSelected) und die Pfeile der Kamera. Nicht uebernommen (rc610 F6b, Meldung 05.11.).
+        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsAnyItemActive()) {
             const ImGuiIO& io = ImGui::GetIO();
             const bool ohne = !io.KeyCtrl && !io.KeyShift && !io.KeyAlt;
             if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||

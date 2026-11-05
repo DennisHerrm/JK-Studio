@@ -4432,6 +4432,31 @@ std::vector<Schritt> texturen() {
     add(tasteKombi(ImGuiKey_S, "S"));
     add(pruefe("S: Surface Inspector zu", [] { return !ke::editor().siOffen; }));
     add(tu("Schritte zurueck auf 8", [] { ke::editor().siWerte = karte::SiWerte{}; }));
+    // rc610 F6b (13, Meldung 05.11.): Flaechen gewaehlt, S oeffnet den Surface Inspector (er hat den Fokus, kein Feld wird
+    // bearbeitet) - Tab und Esc gehen an die Kuerzel wie ohne Fenster: Tab ist CameraFocusOnSelected, Esc hebt die
+    // Flaechenauswahl auf. Der Inspector bleibt offen.
+    add(tu("Flaechen waehlen (Select All Faces with this Texture), Kamera weit weg", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.auswahl.leeren();
+        e.bearbeitung.browserShader = "textures/common/caulk";
+        (void)ke::ausfuehren("SelectTextured");
+        e.kamera.setzeUrsprung(karte::Vektor3f(-2000, 300, 500));
+    }));
+    add(tasteKombi(ImGuiKey_S, "S"));
+    add(pause(0.3));
+    add(pruefe("S mit Flaechen: Surface Inspector offen, 6 Flaechen gewaehlt", [] {
+        return ke::editor().siOffen && ke::editor().karte.auswahl.flaechen().size() == 6;
+    }));
+    add(tasteKombi(ImGuiKey_Tab, "Tab"));
+    add(pruefe("Tab bei offenem Surface Inspector: CameraFocusOnSelected", [] {
+        return karte::laenge(ke::editor().kamera.ursprung - karte::Vektor3f(-2000, 300, 500)) > 1.0;
+    }));
+    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    add(pruefe("Esc bei offenem Surface Inspector: Flaechenauswahl leer (UnSelectSelection2), Inspector offen", [] {
+        return ke::editor().karte.auswahl.flaechen().empty() && ke::editor().siOffen;
+    }));
+    add(tasteKombi(ImGuiKey_S, "S"));
+    add(pruefe("S: Surface Inspector wieder zu", [] { return !ke::editor().siOffen; }));
     // Tags des Texturbrowsers
     add(tu("View > Tags GUI", [] { (void)ke::ausfuehren("TagsToggleGui"); }));
     add(pause(0.3));
