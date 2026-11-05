@@ -622,17 +622,30 @@ void Laufzeit::anwenden(Datei& kopie) const {
     }
 }
 
-int Laufzeit::itemBei(int menu, float x, float y, const Umgebung& u) const {
-    if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return -1; }
-    const Menu& m = d->menus[static_cast<std::size_t>(menu)];
-    for (std::size_t i = m.items.size(); i-- > 0;) {
-        const Item& it = m.items[i];
-        const int flags = items[static_cast<std::size_t>(menu)][i].flags;
-        const Rechteck& r = rects[static_cast<std::size_t>(menu)][i];
-        if ((flags & WINDOW_DECORATION) != 0 || !itemSichtbar(it, flags, u)) { continue; }   // Item_SetFocus
-        if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) { return static_cast<int>(i); }
+namespace {
+// Rect_ContainsPoint (ui_shared.cpp/.c): echt innerhalb, der Rand zaehlt nicht
+bool imRechteck(const Rechteck& r, float x, float y) { return x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h; }
+}  // namespace
+
+int Laufzeit::flagsGemalt(int menu, std::size_t i, const Umgebung& u) const {
+    const Item& it = d->menus[static_cast<std::size_t>(menu)].items[i];
+    int f = items[static_cast<std::size_t>(menu)][i].flags;
+    if (it.window.ownerDrawFlags != 0 && u.ownerDrawSichtbar) {   // Item_Paint: DC->ownerDrawVisible
+        if (u.ownerDrawSichtbar(it.window.ownerDrawFlags)) {
+            f |= WINDOW_VISIBLE;
+        } else {
+            f &= ~WINDOW_VISIBLE;
+        }
     }
-    return -1;
+    return f;
+}
+
+Rechteck Laufzeit::textRectBei(int menu, std::size_t i, const Umgebung& u) const {
+    Item it = d->menus[static_cast<std::size_t>(menu)].items[i];
+    it.window.rect = rects[static_cast<std::size_t>(menu)][i];
+    const std::string t = !it.text.empty() ? (u.texte != nullptr ? u.texte->imSpiel(it.text) : it.text) : (it.cvar.empty() ? std::string() : cvar(it.cvar));
+    if (t.empty()) { return {}; }
+    return textRechteck(it, t, u, d->spiel);
 }
 
 std::vector<int> Laufzeit::tabReihenfolge(int menu) const {
@@ -674,30 +687,110 @@ std::vector<int> Laufzeit::tabReihenfolge(int menu) const {
     return r;
 }
 
+// rc610 F46 B6-4: Menu_HandleMouseMove (OpenJK code/ui/ui_shared.cpp:9333-9430 SP, codemp/ui/ui_shared.c:6640-6713 MP;
+// Movie Duels Update 9 gleich) mit Item_MouseEnter, Item_MouseLeave, Item_SetFocus und Menu_ClearFocus. Vorher bekam nur
+// das oberste Element unter dem Zeiger mouseEnter und den Fokus, auch ein inaktives, und nie eine Dekoration.
 void Laufzeit::maus(int menu, float x, float y) {
     if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return; }
+    if ((menuFlags[static_cast<std::size_t>(menu)] & (WINDOW_VISIBLE | WINDOW_FORCED)) == 0) { return; }
     Umgebung u;
     fuelle(menu, u);
-    const int neu = itemBei(menu, x, y, u);
     const Menu& m = d->menus[static_cast<std::size_t>(menu)];
     auto& z = items[static_cast<std::size_t>(menu)];
-    for (std::size_t i = 0; i < z.size(); ++i) {
-        const bool war = (z[i].flags & WINDOW_MOUSEOVER) != 0;
-        const bool ist = static_cast<int>(i) == neu;
-        if (war && !ist) {
-            z[i].flags &= ~(WINDOW_MOUSEOVER | WINDOW_HASFOCUS);
+    const bool sp = d->dialekt == Dialekt::SP;
+    const auto cvarGesperrt = [&](const Item& it) {   // "items can be enabled and disabled based on cvars"
+        return ((it.cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) != 0 && !itemZeigtUeberCvar(it, CVAR_ENABLE, u)) ||
+               ((it.cvarFlags & (CVAR_SHOW | CVAR_HIDE)) != 0 && !itemZeigtUeberCvar(it, CVAR_SHOW, u));
+    };
+    // item->textRect beim Zeichnen; das MP rechnet hier mit r.y -= r.h, das SP nicht ("NOt sure why this is here")
+    const auto textRectHier = [&](std::size_t i) {
+        Rechteck r = textRectBei(menu, i, u);
+        if (!sp) { r.y -= r.h; }
+        return r;
+    };
+    const auto mausRaus = [&](std::size_t i) {   // Item_MouseLeave, Item_SetMouseOver(qfalse)
+        if ((z[i].flags & WINDOW_MOUSEOVERTEXT) != 0) {
+            fuehreAus(menu, static_cast<int>(i), m.items[i].mouseExitText);
+            z[i].flags &= ~WINDOW_MOUSEOVERTEXT;
+        }
+        fuehreAus(menu, static_cast<int>(i), m.items[i].mouseExit);
+        z[i].flags &= ~WINDOW_MOUSEOVER;
+        ++version;
+    };
+    const auto mausRein = [&](std::size_t i) {   // Item_MouseEnter
+        const Item& it = m.items[i];
+        if (cvarGesperrt(it)) { return; }
+        if (imRechteck(textRectHier(i), x, y)) {
+            if ((z[i].flags & WINDOW_MOUSEOVERTEXT) == 0) {
+                fuehreAus(menu, static_cast<int>(i), it.mouseEnterText);
+                z[i].flags |= WINDOW_MOUSEOVERTEXT;
+                ++version;
+            }
+        } else if ((z[i].flags & WINDOW_MOUSEOVERTEXT) != 0) {
+            fuehreAus(menu, static_cast<int>(i), it.mouseExitText);
+            z[i].flags &= ~WINDOW_MOUSEOVERTEXT;
             ++version;
-            fuehreAus(menu, static_cast<int>(i), m.items[i].mouseExit);
-            fuehreAus(menu, static_cast<int>(i), m.items[i].leaveFocus);
-        } else if (!war && ist) {
-            for (ItemZustand& q : z) { q.flags &= ~WINDOW_HASFOCUS; }
-            z[i].flags |= WINDOW_MOUSEOVER | WINDOW_HASFOCUS;
+        }
+        if ((z[i].flags & WINDOW_MOUSEOVER) == 0) {
+            fuehreAus(menu, static_cast<int>(i), it.mouseEnter);
+            z[i].flags |= WINDOW_MOUSEOVER;
             ++version;
-            // Item_SetFocus: focusSound des Items, sonst DC->Assets.itemFocusSound
-            const std::string& fk = m.items[i].focusSound.empty() ? fokusKlangStd : m.items[i].focusSound;
-            if (!fk.empty()) { klaenge.push_back(fk); }
-            fuehreAus(menu, static_cast<int>(i), m.items[i].mouseEnter);
-            fuehreAus(menu, static_cast<int>(i), m.items[i].onFocus);
+        }
+    };
+    const auto fokusWeg = [&]() {   // Menu_ClearFocus: SP leaveFocus nur beim Element mit Fokus, MP bei jedem
+        int alt = -1;
+        for (std::size_t i = 0; i < z.size() && i < m.items.size(); ++i) {
+            const bool hatte = (z[i].flags & WINDOW_HASFOCUS) != 0;
+            if (hatte) { alt = static_cast<int>(i); }
+            z[i].flags &= ~WINDOW_HASFOCUS;
+            if (hatte || !sp) { fuehreAus(menu, static_cast<int>(i), m.items[i].leaveFocus); }
+        }
+        return alt;
+    };
+    const auto fokus = [&](std::size_t i) {   // Item_SetFocus
+        const Item& it = m.items[i];
+        const int f = flagsGemalt(menu, i, u);
+        if ((f & (WINDOW_DECORATION | WINDOW_HASFOCUS)) != 0 || (f & WINDOW_VISIBLE) == 0 || (sp && (f & WINDOW_INACTIVE) != 0)) { return false; }
+        if (cvarGesperrt(it)) { return false; }
+        const int alt = fokusWeg();
+        ++version;
+        bool klang = false;
+        if (it.type == ITEM_TYPE_TEXT) {   // ein Text nimmt den Fokus nur in seinem textRect, sonst behaelt ihn der alte
+            if (imRechteck(textRectHier(i), x, y)) {
+                z[i].flags |= WINDOW_HASFOCUS;
+                klang = true;
+            } else if (alt >= 0) {
+                z[static_cast<std::size_t>(alt)].flags |= WINDOW_HASFOCUS;
+                fuehreAus(menu, alt, m.items[static_cast<std::size_t>(alt)].onFocus);
+            }
+        } else {
+            z[i].flags |= WINDOW_HASFOCUS;
+            fuehreAus(menu, static_cast<int>(i), it.onFocus);
+            klang = true;
+        }
+        // focusSound des Items, sonst DC->Assets.itemFocusSound
+        const std::string& fk = it.focusSound.empty() ? fokusKlangStd : it.focusSound;
+        if (klang && !fk.empty()) { klaenge.push_back(fk); }
+        return true;
+    };
+    // "this is the whole issue of focus vs. mouse over.. going through everything twice": im ersten Durchgang wirkt nur
+    // das Verlassen, im zweiten mouseEnter und der Fokus fuer das erste, das ihn nimmt
+    bool fokusGesetzt = false;
+    for (int durchgang = 0; durchgang < 2; ++durchgang) {
+        for (std::size_t i = 0; i < m.items.size() && i < z.size(); ++i) {
+            const Item& it = m.items[i];
+            const int f = flagsGemalt(menu, i, u);
+            if ((f & (WINDOW_VISIBLE | WINDOW_FORCED)) == 0) { continue; }
+            if (sp && (f & WINDOW_INACTIVE) != 0) { continue; }   // nur SP
+            if (cvarGesperrt(it)) { continue; }
+            if (imRechteck(rects[static_cast<std::size_t>(menu)][i], x, y)) {
+                if (durchgang == 1 && (f & WINDOW_VISIBLE) != 0 && (f & WINDOW_FADINGOUT) == 0) {   // IsVisible
+                    mausRein(i);
+                    if (!fokusGesetzt) { fokusGesetzt = fokus(i); }
+                }
+            } else if ((z[i].flags & WINDOW_MOUSEOVER) != 0) {
+                mausRaus(i);
+            }
         }
     }
 }
@@ -706,8 +799,14 @@ void Laufzeit::klick(int menu, float x, float y) {
     if (d == nullptr || menu < 0 || static_cast<std::size_t>(menu) >= d->menus.size()) { return; }
     Umgebung u;
     fuelle(menu, u);
-    const int i = itemBei(menu, x, y, u);
-    if (i < 0) { return; }
+    // rc610 F46 B6-4: Menu_HandleKey nimmt das (erste) Element mit dem Fokus; Item_HandleKey und A_MOUSE1 wirken nur,
+    // wenn der Zeiger in seinem rect steht (code/ui/ui_shared.cpp Menu_HandleKey, codemp/ui/ui_shared.c ebenso)
+    int i = -1;
+    const auto& z = items[static_cast<std::size_t>(menu)];
+    for (std::size_t k = 0; k < z.size() && i < 0; ++k) {
+        if ((z[k].flags & WINDOW_HASFOCUS) != 0) { i = static_cast<int>(k); }
+    }
+    if (i < 0 || !imRechteck(rects[static_cast<std::size_t>(menu)][static_cast<std::size_t>(i)], x, y)) { return; }
     const Item& it = d->menus[static_cast<std::size_t>(menu)].items[static_cast<std::size_t>(i)];
     switch (it.type) {
         case ITEM_TYPE_YESNO:   // Item_YesNo_HandleKey

@@ -29,7 +29,7 @@ constexpr int kNumForcePowers = 18;    // NUM_FORCE_POWERS
 constexpr int kMaxForceRank = 7;       // MAX_FORCE_RANK
 constexpr int kForceLevels = 4;        // NUM_FORCE_POWER_LEVELS
 constexpr int FP_LEVITATION = 1, FP_SABER_OFFENSE = 15, FP_SABER_DEFENSE = 16, FP_SABERTHROW = 17;
-constexpr float kPulseDivisor = 75.0F;   // PULSE_DIVISOR
+constexpr int kPulseDivisor = 75;   // PULSE_DIVISOR
 
 // bg_misc.c
 constexpr const char* kForceMasteryLevels[kMaxForceRank + 1] = {"MASTERY0", "MASTERY1", "MASTERY2", "MASTERY3",
@@ -45,7 +45,8 @@ constexpr const char* kSkillLevels[5] = {"SKILL1", "SKILL2", "SKILL3", "SKILL4",
 
 // codemp/ui/menudef.h
 enum MpOd {
-    UI_EFFECTS = 201, UI_GAMETYPE = 205, UI_SKILL = 207, UI_NETSOURCE = 220, UI_NETFILTER = 222, UI_ALLMAPS_SELECTION = 236,
+    UI_HANDICAP = 200, UI_EFFECTS = 201, UI_CLANNAME = 203, UI_GAMETYPE = 205, UI_SKILL = 207, UI_BLUETEAM1 = 210, UI_BLUETEAM5 = 214,
+    UI_REDTEAM1 = 215, UI_REDTEAM5 = 219, UI_BLUETEAM6 = 280, UI_BLUETEAM8 = 282, UI_REDTEAM6 = 283, UI_REDTEAM8 = 285, UI_NETSOURCE = 220, UI_NETFILTER = 222, UI_ALLMAPS_SELECTION = 236,
     UI_BOTNAME = 239, UI_BOTSKILL = 240, UI_REDBLUE = 241, UI_SELECTEDPLAYER = 243, UI_MAPCINEMATIC = 244,
     UI_NETGAMETYPE = 245, UI_SERVERREFRESHDATE = 247, UI_SERVERMOTD = 248, UI_GLINFO = 249, UI_KEYBINDSTATUS = 250,
     UI_JOINGAMETYPE = 253, UI_STARTMAPCINEMATIC = 255, UI_FORCE_SIDE = 257, UI_FORCE_RANK = 258, UI_FORCE_RANK_SABERTHROW = 276,
@@ -196,6 +197,28 @@ bool zeileAus(const std::string& liste, int index, std::string& out) {
     return true;
 }
 
+// UI_DrawNetSource: "%s %s", MENUS_SOURCE und GetNetSourceString (auch UI_OwnerDrawWidth)
+std::string netQuelleText(const OdKontext& k) {
+    int src = zahl(k, "ui_netSource");
+    if (src < 0 || src >= 7) { src = 0; }   // numNetSources = 7
+    const int lan = src == 0 ? 0 : src <= 5 ? 1 : 2;   // UI_SourceForLAN
+    std::string name;
+    if (!zeileAus(se(k, "MP_INGAME_NET_SOURCES"), lan, name)) { name.clear(); }
+    if (src >= 1 && src <= 5) { name += " " + std::to_string(src); }
+    return se(k, "MENUS_SOURCE") + " " + name;
+}
+
+// UI_DrawNetFilter: "%s %s", MENUS_GAME und UI_FilterDescription (auch UI_OwnerDrawWidth)
+std::string netFilterText(const OdKontext& k) {
+    const FeederDaten* fd = k.daten;
+    const int v = zahl(k, "ui_serverFilterType");
+    const int n = fd != nullptr ? static_cast<int>(fd->mods.size()) : 0;
+    std::string d = se(k, "MENUS_ALL");
+    if (d.size() > 14) { d.resize(14); }   // char sAll[15]
+    if (v > 0 && v <= n) { d = fd->mods[static_cast<std::size_t>(v - 1)].second; }
+    return se(k, "MENUS_GAME") + " " + d;
+}
+
 // UI_TrueJediEnabled mit leerem bzw. Beispiel-CS_SERVERINFO
 bool trueJedi(const Spielbeispiel& b) { return b.jediVmerc; }
 
@@ -314,20 +337,9 @@ void mp(Zeichner& z, OdErgebnis& r) {
             z.text(x, y, c, fd->karten[static_cast<std::size_t>(map)].first);
         }
     } else if (id == UI_NETSOURCE) {   // UI_DrawNetSource
-        int src = zahl(k, "ui_netSource");
-        if (src < 0 || src >= 7) { src = 0; }   // numNetSources = 7
-        const int lan = src == 0 ? 0 : src <= 5 ? 1 : 2;   // UI_SourceForLAN
-        std::string name;
-        if (!zeileAus(se(k, "MP_INGAME_NET_SOURCES"), lan, name)) { name.clear(); }
-        if (src >= 1 && src <= 5) { name += " " + std::to_string(src); }
-        z.text(x, y, c, se(k, "MENUS_SOURCE") + " " + name);
+        z.text(x, y, c, netQuelleText(k));
     } else if (id == UI_NETFILTER) {   // UI_DrawNetFilter / UI_FilterDescription
-        const int v = zahl(k, "ui_serverFilterType");
-        const int n = fd != nullptr ? static_cast<int>(fd->mods.size()) : 0;
-        std::string d = se(k, "MENUS_ALL");
-        if (d.size() > 14) { d.resize(14); }   // char sAll[15]
-        if (v > 0 && v <= n) { d = fd->mods[static_cast<std::size_t>(v - 1)].second; }
-        z.text(x, y, c, se(k, "MENUS_GAME") + " " + d);
+        z.text(x, y, c, netFilterText(k));
     } else if (id == UI_BOTNAME) {   // UI_DrawBotName: uiInfo.botIndex = 0
         z.text(x, y, c, fd != nullptr && !fd->bots.empty() ? fd->bots.front() : std::string());
     } else if (id == UI_BOTSKILL) {   // uiInfo.skillIndex = 0
@@ -339,7 +351,9 @@ void mp(Zeichner& z, OdErgebnis& r) {
     } else if (id == UI_SERVERREFRESHDATE) {
         if (bsp.serverRefresh) {
             const Farbe tief{0.8F * c.r, 0.8F * c.g, 0.8F * c.b, 0.8F * c.a};
-            const float t = 0.5F + 0.5F * std::sin(static_cast<float>(k.zeitMs) / kPulseDivisor);
+            // sin((float)(realTime / PULSE_DIVISOR)) ganzzahlig (ui_main.c:2857 OpenJK), Movie Duels in float (ui_main.c:3982)
+            const float w = k.spiel == Spiel::MD ? static_cast<float>(k.zeitMs) / static_cast<float>(kPulseDivisor) : static_cast<float>(k.zeitMs / kPulseDivisor);
+            const float t = 0.5F + 0.5F * std::sin(w);
             const Farbe f{c.r + t * (tief.r - c.r), c.g + t * (tief.g - c.g), c.b + t * (tief.b - c.b), c.a + t * (tief.a - c.a)};
             std::string s = se(k, "MP_INGAME_GETTINGINFOFORSERVERS");
             const std::size_t p = s.find("%d");
@@ -521,6 +535,66 @@ MpKraft mpKraft(const std::string& forcePowers, bool freeSaber, const Spielbeisp
     }
     k.verfuegbar = verfuegbar;
     return k;
+}
+
+// rc610 F46 B6-3: UI_OwnerDrawWidth - der Text, dessen Breite Item_SetTextExtents bei ITEM_ALIGN_CENTER und RIGHT
+// dazurechnet: Text_Width(s, scale, 0). MP: codemp/ui/ui_main.c:2578-2797 (OpenJK), :3643 ff. (Movie Duels: Schluessel
+// MD_MP_INGAME, UI_NETFILTER "Movie Duels"). uiInfo.teamCount und aliasCount bleiben 0 (nie gefuellt): Teamnamen ohne
+// Text, Teammitglieder (Bot) mit aliasList[1].name = NULL ("%s" -> "(null)" im MSVC-printf). SP (code/ui/ui_main.cpp:
+// 3946): nur UI_KEYBINDSTATUS mit wartender Taste (Display_KeyBindPending) - die Vorschau wartet nie.
+int ownerDrawBreite(int id, float scale, const OdKontext& k) {
+    if (k.dialekt != Dialekt::MP || !k.breite) { return 0; }
+    const bool md = k.spiel == Spiel::MD;
+    const std::string ingame = md ? "MD_MP_INGAME_" : "MP_INGAME_";
+    std::string s;
+    bool da = true;   // if (s): ein Text (auch ein leerer) oder keiner
+    if (id == UI_HANDICAP) {   // handicap: Cvar_Get("handicap", "100") (codemp/client/cl_main.cpp:2848)
+        static constexpr const char* kHandicap[20] = {"None", "95", "90", "85", "80", "75", "70", "65", "60", "55",
+                                                      "50", "45", "40", "35", "30", "25", "20", "15", "10", "5"};
+        const std::string w = k.cvar ? k.cvar("handicap") : std::string();
+        const int h = static_cast<int>(std::clamp(static_cast<float>(std::atof(w.empty() ? "100" : w.c_str())), 5.0F, 100.0F));
+        s = kHandicap[20 - h / 5];
+    } else if (id == UI_SKIN_COLOR) {   // uiSkinColor = TEAM_FREE: default
+        s = se(k, "MENUS_DEFAULT");
+    } else if (id == UI_FORCE_SIDE || id == UI_JEDI_NONJEDI || id == UI_FORCE_RANK || (id > UI_FORCE_RANK && id <= UI_FORCE_RANK_SABERTHROW)) {
+        const Spielbeispiel bsp = k.beispiel != nullptr ? *k.beispiel : Spielbeispiel{};
+        const MpKraft kraft = mpKraft(k.cvar ? k.cvar("forcepowers") : std::string(), zahl(k, "ui_freeSaber") != 0, bsp);
+        if (id == UI_FORCE_SIDE) {
+            s = se(k, kraft.seite == 2 ? "MENUS_FORCEDESC_DARK" : "MENUS_FORCEDESC_LIGHT");   // i < 1 || i > 2: 1
+        } else if (id == UI_JEDI_NONJEDI) {
+            const int i = kraft.jediNonJedi < 0 || kraft.jediNonJedi > 1 ? 0 : kraft.jediNonJedi;
+            s = se(k, i == 0 ? "MENUS_NO" : "MENUS_YES");   // FORCE_NONJEDI 0 (ui_force.h)
+        } else if (id == UI_FORCE_RANK) {
+            const int i = kraft.rang < 1 || kraft.rang > kMaxForceRank ? 1 : kraft.rang;
+            s = se(k, ingame + kForceMasteryLevels[i]);
+        } else {
+            s = std::to_string(kraft.raenge[static_cast<std::size_t>(id - UI_FORCE_RANK - 1)]);   // va("%i", ...) ungekuerzt
+        }
+    } else if (id == UI_CLANNAME) {
+        s = k.cvar ? k.cvar("ui_teamName") : std::string();
+    } else if (id == UI_GAMETYPE) {   // uiInfo.gameTypes[ui_gametype.integer].gameType
+        const int i = zahl(k, "ui_gametype");
+        da = k.daten != nullptr && i >= 0 && static_cast<std::size_t>(i) < k.daten->spieltypen.size();
+        if (da) { s = k.daten->spieltypen[static_cast<std::size_t>(i)].first; }
+    } else if (id == UI_SKILL) {
+        int i = zahl(k, "g_spSkill");
+        if (i < 1 || i > 5) { i = 1; }
+        s = se(k, ingame + kSkillLevels[i - 1]);
+    } else if ((id >= UI_BLUETEAM1 && id <= UI_REDTEAM5) || (id >= UI_BLUETEAM6 && id <= UI_REDTEAM8)) {
+        const bool blau = id <= UI_BLUETEAM5 || (id >= UI_BLUETEAM6 && id <= UI_BLUETEAM8);
+        const int nutzen = blau ? (id <= UI_BLUETEAM5 ? id - UI_BLUETEAM1 + 1 : id - 274) : (id <= UI_REDTEAM5 ? id - UI_REDTEAM1 + 1 : id - 277);
+        const int value = zahl(k, std::string(blau ? "ui_blueteam" : "ui_redteam") + std::to_string(nutzen));
+        s = std::to_string(nutzen) + ". " + (value <= 1 ? "Human" : "(null)");
+    } else if (id == UI_NETSOURCE) {
+        s = netQuelleText(k);
+    } else if (id == UI_NETFILTER) {
+        s = md ? se(k, "MENUS_GAME") + " Movie Duels" : netFilterText(k);
+    } else if (id == UI_SERVERREFRESHDATE) {
+        s = k.cvar ? k.cvar("ui_lastServerRefresh_" + std::to_string(zahl(k, "ui_netSource"))) : std::string();
+    } else {
+        da = false;   // UI_BLUETEAMNAME, UI_REDTEAMNAME (teamCount 0), UI_KEYBINDSTATUS ohne wartende Taste, alle anderen
+    }
+    return da ? k.breite(s, scale, 0, std::string()) : 0;
 }
 
 OdErgebnis ownerDraw(const OdAufruf& a, const OdKontext& k) {

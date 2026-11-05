@@ -460,6 +460,7 @@ struct Zustand {
     int letztePrims = 0;
     int asienPrims = 0;   // M3: Zeichen aus den asiatischen Glyphenseiten im letzten Bild
     int laufMenue = -1;   // M3: das im Bedienmodus gezeichnete Menue (Animationen der Figuren)
+    float laufMausX = -1.0F, laufMausY = -1.0F;   // rc610 F46 B6-4: DC->cursorx/y der letzten Mausbewegung (-1: keine)
     int hudPrims = 0;     // M3: Zahlen und Fadenkreuz des HUD im letzten Bild
     std::vector<std::string> klangListe;   // M3 Punkt 3: ausgeloeste Klaenge seit klangListeLeeren
     // M3 Punkt 5: HUD-Menues wie im Spiel (CG_DrawHUD) mit Beispielwerten
@@ -1770,6 +1771,7 @@ Umgebung umgebung(const Dokument& d) {
         return datapadZeichnen(art, out, du);
     };
     u.ownerDraw = [k](const OdAufruf& a) { return ownerDraw(a, k); };
+    u.ownerDrawBreite = [k](int id, float scale) { return ownerDrawBreite(id, scale, k); };   // rc610 F46 B6-3
     return u;
 }
 
@@ -2824,6 +2826,8 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
             z.lauf.oeffne(d.datei.menus[static_cast<std::size_t>(mi)].window.name);
             z.laufDatei = z.aktiv;
             z.laufVersion = -1;
+            z.laufMausX = -1.0F;   // Menus_OpenByName: "handle a mouse move on the new menu in case your already over an item"
+            z.laufMausY = -1.0F;
         }
         // M2: transition/orbit/fadein/fadeout im Takt der Engine (ein Item_Paint je Spielbild)
         {
@@ -2935,9 +2939,17 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     if (z.interaktion) {
         dl->PopClipRect();
         if (hover) {
-            z.lauf.maus(mi, vx, vy);
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !leertaste) { z.lauf.klick(mi, vx, vy); }
-            if (ImGui::GetIO().MouseWheel != 0.0F && !ImGui::GetIO().KeyCtrl) { z.lauf.rad(mi, vx, vy, static_cast<int>(ImGui::GetIO().MouseWheel)); }   // M4: Textscroll (Movie Duels)
+            // rc610 F46 B6-4: der Zeiger des Spiels steht auf ganzen Bildpunkten des 640x480-Schirms (uiDC.cursorx/y, int),
+            // Menu_HandleMouseMove laeuft nur bei einer Bewegung (UI_MouseEvent -> Display_MouseMove)
+            const float cx = std::clamp(std::floor(vx), 0.0F, kSchirmBreite);
+            const float cy = std::clamp(std::floor(vy), 0.0F, kSchirmHoehe);
+            if (cx != z.laufMausX || cy != z.laufMausY) {
+                z.laufMausX = cx;
+                z.laufMausY = cy;
+                z.lauf.maus(mi, cx, cy);
+            }
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !leertaste) { z.lauf.klick(mi, cx, cy); }
+            if (ImGui::GetIO().MouseWheel != 0.0F && !ImGui::GetIO().KeyCtrl) { z.lauf.rad(mi, cx, cy, static_cast<int>(ImGui::GetIO().MouseWheel)); }   // M4: Textscroll (Movie Duels)
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { z.lauf.escape(mi); }
         }
         if (satzWechsel()) { return; }   // M2 Punkt 3
@@ -7720,6 +7732,8 @@ void setzeInteraktion(bool an) {
     z.interaktion = an;
     z.laufDatei = -1;
     z.laufVersion = -1;
+    z.laufMausX = -1.0F;
+    z.laufMausY = -1.0F;
     z.lauf.cvars.clear();
     z.lauf.protokoll.clear();
 }

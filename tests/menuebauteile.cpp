@@ -73,6 +73,7 @@ int main() {
         const int u01 = itemNr(m, "dt_sub_0_1");
         if (u01 >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(u01)].window.rect;
+            l.maus(0, r.x + 5, r.y + 5);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
             l.klick(0, r.x + 5, r.y + 5);
         }
         pruefe(l.cvar("ui_sel") == "0_1", was + ": Klick auf Unterreiter setzt ui_sel 0_1");
@@ -80,6 +81,7 @@ int main() {
         const int r2 = itemNr(m, "dt_tab_2_0");
         if (r2 >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(r2)].window.rect;
+            l.maus(0, r.x + 5, r.y + 5);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
             l.klick(0, r.x + 5, r.y + 5);
         }
         pruefe(l.cvar("ui_tab") == "2" && l.cvar("ui_sel") == "2_0", was + ": Klick auf Reiter 3 setzt ui_tab 2 und ui_sel 2_0");
@@ -87,6 +89,7 @@ int main() {
         const int re = itemNr(m, "dt_right_0");
         if (re >= 0) {
             const Rechteck& r = m.items[static_cast<std::size_t>(re)].window.rect;
+            l.maus(0, r.x + 3, r.y + 5);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
             l.klick(0, r.x + 3, r.y + 5);
         }
         pruefe(l.cvar("ui_tabofs") == "1", was + ": Pfeil rechts blaettert die Reiter (ui_tabofs 1)");

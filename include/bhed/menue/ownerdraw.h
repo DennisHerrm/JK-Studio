@@ -126,6 +126,8 @@ struct OdErgebnis {
 };
 
 [[nodiscard]] OdErgebnis ownerDraw(const OdAufruf& a, const OdKontext& k);
+// rc610 F46 B6-3: DC->ownerDrawWidth (UI_OwnerDrawWidth) fuer Item_SetTextExtents: Breite in Bildpunkten, 0 = keine
+[[nodiscard]] int ownerDrawBreite(int id, float scale, const OdKontext& k);
 
 // MP-Kraftwerte wie UI_UpdateForcePowers (aus der cvar "forcepowers") + UpdateForceUsed
 struct MpKraft {

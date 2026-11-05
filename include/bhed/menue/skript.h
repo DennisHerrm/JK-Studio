@@ -120,9 +120,9 @@ struct Laufzeit {
     void fuehreAus(int menu, int item, const std::string& skript);   // Item_RunScript
     [[nodiscard]] std::string cvar(const std::string& n) const;
     void setzeCvar(const std::string& n, const std::string& w);
-    // Maus ueber (x, y) im virtuellen Bildschirm: Fokus und mouseEnter/Exit.
+    // Maus ueber (x, y) im virtuellen Bildschirm, je Bewegung (Menu_HandleMouseMove): mouseEnter/Exit, Fokus.
     void maus(int menu, float x, float y);
-    // Klick (Taste 1) auf (x, y): Item_HandleKey / Item_Action.
+    // Klick (Taste 1) auf (x, y): Item_HandleKey / Item_Action fuer das Element mit dem Fokus.
     void klick(int menu, float x, float y);
     // M4: Mausrad (schritte > 0 = rauf) ueber einer Textscroll mit Fokus (nur Movie Duels)
     void rad(int menu, float x, float y, int schritte);
@@ -131,8 +131,9 @@ struct Laufzeit {
     void fuelle(int menu, Umgebung& u) const;
     // Schreibt Rechtecke, Texte, Farben und Hintergruende in eine Kopie der Datei.
     void anwenden(Datei& kopie) const;
-    // Das Item unter (x, y), das den Fokus nehmen kann (-1 = keins).
-    [[nodiscard]] int itemBei(int menu, float x, float y, const Umgebung& u) const;
+    // rc610 F46 B6-4: die Flags nach Item_Paint (ownerDrawFlags) und item->textRect, wie Item_SetTextExtents es setzt
+    [[nodiscard]] int flagsGemalt(int menu, std::size_t item, const Umgebung& u) const;
+    [[nodiscard]] Rechteck textRectBei(int menu, std::size_t item, const Umgebung& u) const;
     // M6 Punkt 2: die Items in der Reihenfolge, in der Tab/Pfeil runter sie fokussiert -
     // Menu_SetNextCursorItem ab cursorItem -1 (Menu_Init) mit den Pruefungen von Item_SetFocus
     // (keine Dekoration, sichtbar, SP nicht WINDOW_INACTIVE, enableCvar/showCvar), bis die Folge

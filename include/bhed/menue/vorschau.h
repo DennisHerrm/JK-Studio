@@ -158,6 +158,8 @@ struct Umgebung {
     std::function<std::string(const std::string& befehl)> bindung;
     // M7: DC->ownerDrawItem (ownerdraw.h); ohne: Platzhalter
     std::function<OdErgebnis(const OdAufruf&)> ownerDraw;
+    // rc610 F46 B6-3: DC->ownerDrawWidth (UI_OwnerDrawWidth, ownerdraw.h) fuer Item_SetTextExtents; ohne: 0
+    std::function<int(int ownerDraw, float scale)> ownerDrawBreite;
     // M7: Schrift beim Namen (cgame zeichnet mit cgs.media.qhFont* statt item->font); ohne: keine
     std::function<const Schrift*(const std::string& name)> schriftNamens;
     // M5: laedt der Renderer dieses Bild/diesen Shader? (RE_RegisterShaderNoMip: fehlt es, kommt
@@ -219,7 +221,7 @@ struct TextMass {
 [[nodiscard]] TextMass textMasse(const Item& it, const Umgebung& u);
 
 // Item_SetTextExtents: textRect (x, y, w, h) im Bildschirm fuer text.
-[[nodiscard]] Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u);
+[[nodiscard]] Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u, Spiel spiel = Spiel::JA);
 
 // Welche Schrift hinter einer Nummer steckt (Namen aus assetGlobalDef und
 // den menuDef-Schriften der Datei), Index = item->font bzw. iMenuFont:

@@ -93,6 +93,7 @@ int main() {
     pruefe(itemSichtbar(d.menus[0].items[3], l.items[0][3].flags, u) && !itemSichtbar(d.menus[0].items[4], l.items[0][4].flags, u),
            "ui_tab 1: t1 sichtbar, t2 nicht");
 
+    l.maus(0, 20, 15);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
     l.klick(0, 20, 15);
     pruefe((l.menuFlags[1] & WINDOW_VISIBLE) != 0 && l.stapel.size() == 1 && l.stapel[0] == 0, "Klick auf b1: open sub, main auf dem Stapel");
     pruefe(l.cvar("x") == "5", "action: setcvar x 5");
@@ -101,12 +102,16 @@ int main() {
     pruefe((l.menuFlags[1] & WINDOW_VISIBLE) == 0 && (l.menuFlags[0] & WINDOW_HASFOCUS) != 0 && l.stapel.empty(),
            "onESC: close sub, main bekommt den Fokus zurueck");
 
+    l.maus(0, 310, 15);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
     l.klick(0, 310, 15);
     pruefe(l.cvar("r_yn") == "1", "Ja/Nein schaltet auf 1");
+    l.maus(0, 310, 15);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
     l.klick(0, 310, 15);
     pruefe(l.cvar("r_yn") == "0", "Ja/Nein schaltet auf 0");
+    l.maus(0, 310, 45);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
     l.klick(0, 310, 45);
     pruefe(l.cvar("r_mu") == "1", "Mehrfachwahl: naechster Wert");
+    l.maus(0, 300 + 48, 75);   // rc610 F46: der Klick trifft das Element mit dem Fokus (Menu_HandleKey)
     l.klick(0, 300 + 48, 75);
     pruefe(l.cvar("r_sl") == "5", "Schieber: Mitte = 5");
     l.maus(0, 20, 15);

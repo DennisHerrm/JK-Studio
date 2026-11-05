@@ -40,8 +40,9 @@ namespace {
 
 constexpr int kGlyphs = 256;
 constexpr std::size_t kFontdatGroesse = 256 * 28 + 5 * 2 + 2;   // sizeof(dfontdat_t) = 7180 (auf 4 aufgefuellt)
-constexpr float kPulseDivisor = 75.0F;                        // PULSE_DIVISOR
-constexpr int kBlinkDivisor = 200;                            // BLINK_DIVISOR
+constexpr int kPulseDivisor = 75;                             // PULSE_DIVISOR (code/ und codemp/qcommon/q_shared.h)
+constexpr int kBlinkDivisorSp = 600;                          // BLINK_DIVISOR, code/qcommon/q_shared.h:272
+constexpr int kBlinkDivisorMp = 200;                          // BLINK_DIVISOR, codemp/qcommon/q_shared.h:290
 constexpr int ITEM_TEXTSTYLE_BLINK = 1;
 constexpr int ITEM_TEXTSTYLE_PULSE = 2;
 constexpr int ITEM_TEXTSTYLE_SHADOWED = 3;
@@ -145,16 +146,31 @@ public:
     float cvarWert(const std::string& n) const { return static_cast<float>(std::atof(cvar(n).c_str())); }
     std::string se(const std::string& t) const { return u_.texte != nullptr ? u_.texte->imSpiel(t) : t; }
 
-    // Item_SetTextExtents
+    // Item_SetTextExtents (OpenJK code/ui/ui_shared.cpp:6212-6260, codemp/ui/ui_shared.c:4430-4470; Movie Duels SP
+    // :6215 ff., MP :5002 ff.). rc610 F46 B6-3: zur Ausrichtung zaehlt bei ownerdraws mit CENTER oder RIGHT
+    // DC->ownerDrawWidth dazu und bei zentrierten Eingabefeldern der Wert der cvar (char buff[256]); textRect.w bleibt
+    // die Breite des Texts. Movie Duels SP teilt "originalWidth / static_cast<float>(2)", die anderen ganzzahlig.
     Rechteck textRect(const Item& it, const std::string& text) const {
         Rechteck r;
-        const int originalWidth = textBreite(text, it.textscale, it.font);
-        r.w = static_cast<float>(originalWidth);
+        const int breite = textBreite(text, it.textscale, it.font);
+        int originalWidth = breite;
+        if (it.type == ITEM_TYPE_OWNERDRAW && (it.textalignment == ITEM_ALIGN_CENTER || it.textalignment == ITEM_ALIGN_RIGHT)) {
+            if (u_.ownerDrawBreite) { originalWidth += u_.ownerDrawBreite(it.window.ownerDraw, it.textscale); }
+        } else if (it.type == ITEM_TYPE_EDITFIELD && it.textalignment == ITEM_ALIGN_CENTER && !it.cvar.empty()) {
+            std::string buff = cvar(it.cvar);
+            if (buff.size() > 255) { buff.resize(255); }
+            originalWidth += textBreite(buff, it.textscale, it.font);
+        }
+        r.w = static_cast<float>(breite);
         r.h = static_cast<float>(textHoehe(it.textscale, it.font));
         r.x = it.textalignx;
         r.y = it.textaligny;
-        if (it.textalignment == ITEM_ALIGN_RIGHT) { r.x = it.textalignx - static_cast<float>(originalWidth); }
-        else if (it.textalignment == ITEM_ALIGN_CENTER) { r.x = it.textalignx - static_cast<float>(originalWidth / 2); }
+        if (it.textalignment == ITEM_ALIGN_RIGHT) {
+            r.x = it.textalignx - static_cast<float>(originalWidth);
+        } else if (it.textalignment == ITEM_ALIGN_CENTER) {
+            const bool mdSp = d_.spiel == Spiel::MD && u_.dialekt == Dialekt::SP;
+            r.x = it.textalignx - (mdSp ? static_cast<float>(originalWidth) / 2.0F : static_cast<float>(originalWidth / 2));
+        }
         zuFenster(r.x, r.y, it.window);
         return r;
     }
@@ -286,14 +302,28 @@ private:
     }
     static Farbe mal(const Farbe& a, float f) { return Farbe{a.r * f, a.g * f, a.b * f, a.a * f}; }
 
-    // Item_TextColor
+    // rc610 F46 B6-2: 0.5 + 0.5 * sin((float)(DC->realTime / PULSE_DIVISOR)) - ganzzahlig geteilt in OpenJK SP und MP und
+    // Movie Duels MP; Movie Duels SP teilt durch static_cast<float>(PULSE_DIVISOR) (Item_TextColor, Item_TextField_Paint,
+    // Item_Bind_Paint, Item_OwnerDraw_Paint, Item_Slider_Paint)
+    float puls() const {
+        const bool mdSp = d_.spiel == Spiel::MD && u_.dialekt == Dialekt::SP;
+        const float w = mdSp ? static_cast<float>(u_.zeitMs) / static_cast<float>(kPulseDivisor) : static_cast<float>(u_.zeitMs / kPulseDivisor);
+        return 0.5F + 0.5F * std::sin(w);
+    }
+    // !((DC->realTime / BLINK_DIVISOR) & 1): SP 600, MP 200
+    bool blinkAn() const { return ((u_.zeitMs / (u_.dialekt == Dialekt::SP ? kBlinkDivisorSp : kBlinkDivisorMp)) & 1) == 0; }
+
+    // Item_TextColor (OpenJK code/ui/ui_shared.cpp:6276-6327 SP, codemp/ui/ui_shared.c:4483-4516 MP; Movie Duels SP
+    // :6255-6297). rc610 F46 B6-2: im SP steht der BLINK-Zweig in /* */ (Movie Duels: fehlt), und der Fokus gilt nicht
+    // fuer einen autowrapped Text ("!(item->type == ITEM_TYPE_TEXT && item->window.flags & WINDOW_AUTOWRAPPED)").
     Farbe textFarbe(const Item& it, int flags) const {
-        const float puls = 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor);
+        const bool sp = u_.dialekt == Dialekt::SP;
+        const bool fokusAus = sp && it.type == ITEM_TYPE_TEXT && ((flags | it.window.flags) & WINDOW_AUTOWRAPPED) != 0;
         Farbe c;
-        if ((flags & WINDOW_HASFOCUS) != 0) {
-            c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls);
-        } else if (it.textStyle == ITEM_TEXTSTYLE_BLINK && ((u_.zeitMs / kBlinkDivisor) & 1) == 0) {
-            c = lerp(it.window.foreColor, mal(it.window.foreColor, 0.8F), puls);
+        if ((flags & WINDOW_HASFOCUS) != 0 && !fokusAus) {
+            c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls());
+        } else if (!sp && it.textStyle == ITEM_TEXTSTYLE_BLINK && blinkAn()) {
+            c = lerp(it.window.foreColor, mal(it.window.foreColor, 0.8F), puls());
         } else {
             c = it.window.foreColor;
         }
@@ -310,7 +340,7 @@ private:
     // DC->getValue = 0, Fokus pulsiert, Blinken, enableCvar), mit Text erst Item_Text_Paint und dann
     // DC->ownerDrawItem rechts daneben (+8; MP nur bei nicht leerem Text), sonst am rect mit textalignx/y
     void ownerDrawMalen(const Item& it, int flags) {
-        const float puls = 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor);
+        const float puls = this->puls();
         Farbe color = it.window.foreColor;
         for (const ColorRange& cr : it.colorRanges) {
             if (0.0F >= cr.low && 0.0F <= cr.high) {
@@ -320,7 +350,7 @@ private:
         }
         if ((flags & WINDOW_HASFOCUS) != 0) {
             color = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls);
-        } else if (it.textStyle == ITEM_TEXTSTYLE_BLINK && ((u_.zeitMs / kBlinkDivisor) & 1) == 0) {
+        } else if (it.textStyle == ITEM_TEXTSTYLE_BLINK && blinkAn()) {
             color = lerp(it.window.foreColor, mal(it.window.foreColor, 0.8F), puls);
         }
         if ((it.cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) != 0 && !itemZeigtUeberCvar(it, CVAR_ENABLE, u_)) { color = m_.disableColor; }
@@ -543,7 +573,7 @@ private:
                 std::string buff = it.cvar.empty() ? std::string() : se(cvar(it.cvar));
                 const Farbe c = (flags & WINDOW_HASFOCUS) != 0
                                     ? lerp(m_.focusColor, mal(m_.focusColor, 0.8F),
-                                           0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor))
+                                           puls())
                                     : it.window.foreColor;
                 const float offset = (!it.text.empty()) ? 8.0F : 0.0F;
                 text(tr_.x + tr_.w + offset, tr_.y, it.textscale, c, buff, static_cast<int>(it.window.rect.w), it.textStyle,
@@ -590,7 +620,7 @@ private:
             case ITEM_TYPE_BIND: {   // M7: Item_Bind_Paint mit BindingFromName (tasten.cpp)
                 Farbe c;
                 if ((flags & WINDOW_HASFOCUS) != 0) {   // ohne wartende Taste (g_bindItem): Fokusfarbe pulsiert
-                    c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), 0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor));
+                    c = lerp(m_.focusColor, mal(m_.focusColor, 0.8F), puls());
                 } else {
                     c = u_.dialekt == Dialekt::MP ? it.window.foreColor : textFarbe(it, flags);
                 }
@@ -610,7 +640,7 @@ private:
             case ITEM_TYPE_SLIDER_INTEGER: {   // Item_Slider_Paint (Movie Duels auch fuer SLIDER_INTEGER)
                 const Farbe c = (flags & WINDOW_HASFOCUS) != 0
                                     ? lerp(m_.focusColor, mal(m_.focusColor, 0.8F),
-                                           0.5F + 0.5F * std::sin(static_cast<float>(u_.zeitMs) / kPulseDivisor))
+                                           puls())
                                     : it.window.foreColor;
                 const float y = it.window.rect.y;
                 float x = it.window.rect.x;
@@ -1218,11 +1248,16 @@ TextMass textMasse(const Item& it, const Umgebung& u) {
     return m;
 }
 
-Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u) {
-    static const Datei leer{};
+Rechteck textRechteck(const Item& it, const std::string& text, const Umgebung& u, Spiel spiel) {
+    static const Datei leerJa{};
+    static const Datei leerMd = [] {
+        Datei d;
+        d.spiel = Spiel::MD;
+        return d;
+    }();
     static const Menu leerM{};
     std::vector<Prim> dummy;
-    return Maler(leer, leerM, u, dummy).textRect(it, text);
+    return Maler(spiel == Spiel::MD ? leerMd : leerJa, leerM, u, dummy).textRect(it, text);
 }
 
 SliderMasse sliderMasse(Dialekt d, Spiel s) {
