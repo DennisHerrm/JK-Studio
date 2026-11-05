@@ -12,6 +12,7 @@
 // Datenfrei: Karte und Brush-Modelle werden hier von Hand gebaut.
 
 #include "bhed/mover.h"
+#include "bhed/scene.h"   // F4b (B4b-5): beruehrtFelder
 
 #include <cmath>
 #include <cstddef>
@@ -61,6 +62,205 @@ BspGeometry geometrie(int anzahl) {
         m.maxs[0] = 7; m.maxs[1] = 63; m.maxs[2] = 127;
     }
     return g;
+}
+
+
+// --- F4b: Kartenmechaniken wie im Spiel (B4b-1 bis B4b-7) --------------------------------------------------------------
+//
+// EvaluateTrajectory (bg_misc.cpp:488-512 OpenJK) fuer TR_NONLINEAR_STOP/TR_LINEAR_STOP - die Bahn der Engine, gegen die
+// die Vorschau verglichen wird.
+float bahnDerEngine(double trTime, double dauer, double ms, float von, float nach, bool linear) {
+    double at = std::min(ms, trTime + dauer);
+    double d = 0.0;
+    if (linear) {
+        d = std::max(0.0, (at - trTime) * 0.001) * 1000.0 / dauer;
+    } else if (at - trTime > 0.0 && at - trTime <= dauer) {
+        d = std::cos((90.0 - 90.0 * (at - trTime) / dauer) * 3.14159265358979 / 180.0);
+    }
+    return von + (nach - von) * static_cast<float>(d);
+}
+
+void f4bTueren() {
+    std::printf("F4b: Tueren und Mover\n");
+    const BspGeometry g = geometrie(2);
+    // Feld (Lump 1..7 / 1..63 / 1..127 je Tuer am Ursprung): eine Figur vor der Tuer (x -60).
+    const auto vorDerTuer = [](double ab) {
+        return [ab](double ms, const float mn[3], const float mx[3]) {
+            const float p[3] = {-60.0F, 32.0F, 40.0F};
+            return ms >= ab && p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1] && p[2] >= mn[2] &&
+                   p[2] <= mx[2];
+        };
+    };
+    // B4b-1 (a): nur der Slave hat einen targetname - der Meister baut beim Spawnen trotzdem ein Feld.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"team", "t1"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*2"}, {"angle", "270"}, {"team", "t1"}, {"targetname", "tuer1"}}));
+        MoverSim s;
+        s.baue(map, g, {}, vorDerTuer(500.0), 3000.0);
+        erwarte("B4b-1a Team, targetname nur am Slave: die Figur im Feld oeffnet", s.tuerZustand(1, 1000.0) != 0);
+        MoverSim u;
+        u.baue(map, g, {{1000.0, "tuer1"}}, nullptr, 3000.0);
+        erwarte("B4b-1a ... und use tuer1 oeffnet auch", u.tuerZustand(1, 1500.0) != 0);
+    }
+    // B4b-1 (b): beide Namen - G_FindTeams gibt dem Meister den des Slaves, "a" gibt es nicht mehr.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"team", "t1"}, {"targetname", "a"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*2"}, {"angle", "270"}, {"team", "t1"}, {"targetname", "b"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "a"}, {4000.0, "b"}}, nullptr, 6000.0);
+        erwarte("B4b-1b use a oeffnet nicht", s.tuerZustand(1, 1500.0) == 0 && s.tuerZustand(2, 1500.0) == 0);
+        erwarte("B4b-1b use b oeffnet das Team", s.tuerZustand(1, 4500.0) != 0 && s.tuerZustand(2, 4500.0) != 0);
+    }
+    // B4b-1 (c): nur der Slave hat health - der Meister baut ein Feld.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"team", "t1"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*2"}, {"angle", "270"}, {"team", "t1"}, {"health", "1"}}));
+        MoverSim s;
+        s.baue(map, g, {}, vorDerTuer(500.0), 3000.0);
+        erwarte("B4b-1c health nur am Slave: die Figur im Feld oeffnet", s.tuerZustand(1, 1000.0) != 0);
+    }
+    // B4b-2: Umkehr mitten im Schliessen (Use_BinaryMover_Go, g_mover.cpp:856-919). Hoch (angle -1), Weg 128 - 8 = 120,
+    // speed 50: trDuration 2400. use 0 -> auf 50..2450, POS2 im Bild 2450, ReturnToPos1 2450 + 2000 = 4450, zu bis
+    // 6850. use 5650 (halbe Zeit).
+    for (const bool linear : {false, true}) {
+        MapData map;
+        std::vector<std::pair<std::string, std::string>> k = {{"model", "*1"}, {"angle", "-1"}, {"speed", "50"}, {"targetname", "t"}};
+        if (linear) { k.emplace_back("linear", "1"); }
+        map.entities.push_back(ent("func_door", k));
+        MoverSim s;
+        s.baue(map, g, {{0.0, "t"}, {5650.0, "t"}}, nullptr, 10000.0);
+        constexpr double kD = 2400.0;
+        const double total = kD - 50.0;
+        double trTime = 0.0;
+        if (!linear) {
+            // currentOrigin bei 5650: 120 * (1 - sin(90 * 1200 / 2400)) ueber pos1
+            const double f = 1.0 - std::sin(0.5 * 3.14159265358979 * 0.5);
+            const double fPartial = (90.0 - std::acos(f) * 180.0 / 3.14159265358979) / 90.0 * kD;
+            const double partial = total - std::floor(fPartial);
+            trTime = 5650.0 - (total - partial);
+        } else {
+            trTime = 5650.0 - (total - (5650.0 - 4450.0));
+        }
+        const double an = trTime + kD;
+        bool bahnGleich = true;
+        std::string werte;
+        for (const double ms : {5700.0, 6000.0, 6500.0, an - 100.0}) {
+            const float soll = bahnDerEngine(trTime, kD, ms, 0.0F, 120.0F, linear);
+            const float ist = s.at(1, ms).origin[2];
+            bahnGleich = bahnGleich && nah(ist, soll, 0.05F);
+            werte += " " + std::to_string(static_cast<int>(ms)) + ":" + std::to_string(ist) + "/" + std::to_string(soll);
+        }
+        const double erstesBild = std::ceil(an / 50.0) * 50.0;   // Reached_BinaryMover im ersten Bild ab trTime + trDuration
+        std::printf("        %s: trTime %.0f, an %.0f, Bild %.0f;%s\n", linear ? "linear" : "nichtlinear", trTime, an, erstesBild,
+                    werte.c_str());
+        erwarte(linear ? "B4b-2 linear: die Bahn der Engine nach der Umkehr (50 ms zurueck)"
+                       : "B4b-2 nichtlinear: dieselbe sin-Kurve nach der Umkehr",
+                bahnGleich);
+        erwarte(linear ? "B4b-2 linear: offen erst im Bild ab trTime + trDuration" : "B4b-2 nichtlinear: offen erst im Bild ab trTime + trDuration",
+                s.tuerZustand(1, erstesBild - 50.0) == 2 && s.tuerZustand(1, erstesBild) == 1);
+    }
+    // B4b-3: func_bobbing ohne START_OFF - use springt auf pos1 (0,0,0) und feuert sein target.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_bobbing", {{"model", "*1"}, {"origin", "0 0 100"}, {"targetname", "plattform"},
+                                                   {"height", "32"}, {"speed", "4"}, {"target", "holo"}}));
+        map.entities.push_back(ent("func_wall", {{"model", "*2"}, {"targetname", "holo"}, {"spawnflags", "1"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "plattform"}, {2000.0, "plattform"}}, nullptr, 4000.0);
+        const MoverSim::Stand a = s.at(1, 1050.0);
+        const MoverSim::Stand b = s.at(1, 3000.0);
+        std::printf("        func_bobbing: z bei 500 %.1f, 1050 %.1f, 3000 %.1f\n", static_cast<double>(s.at(1, 500.0).origin[2]),
+                    static_cast<double>(a.origin[2]), static_cast<double>(b.origin[2]));
+        erwarte("B4b-3 func_bobbing ohne START_OFF: wippt bis zum use", nah(s.at(1, 500.0).origin[2], 100.0F + 32.0F * 0.7071F, 0.1F));
+        erwarte("B4b-3 ... nach dem use auf (0,0,0) und bleibt dort",
+                nah(a.origin[0], 0.0F, 0.01F) && nah(a.origin[1], 0.0F, 0.01F) && nah(a.origin[2], 0.0F, 0.01F) &&
+                    nah(b.origin[2], 0.0F, 0.01F));
+        erwarte("B4b-3 ... und G_UseTargets feuert sein target", !s.at(2, 900.0).sichtbar && s.at(2, 1100.0).sichtbar);
+    }
+    // B4b-4: func_rotating START_ON, aus bei 2000, an bei 5000 - aus zeigt das cgame die Spawnwinkel, an trBase +
+    // trDelta * t / 1000 mit trTime 0.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_rotating", {{"model", "*1"}, {"spawnflags", "1"}, {"speed", "90"}, {"targetname", "rad"}}));
+        MoverSim s;
+        s.baue(map, g, {{2000.0, "rad"}, {5000.0, "rad"}}, nullptr, 7000.0);
+        std::printf("        func_rotating: 1000 %.1f, 3000 %.1f, 5500 %.1f\n", static_cast<double>(s.at(1, 1000.0).angles[1]),
+                    static_cast<double>(s.at(1, 3000.0).angles[1]), static_cast<double>(s.at(1, 5500.0).angles[1]));
+        erwarte("B4b-4 func_rotating aus: die Spawnwinkel", nah(s.at(1, 3000.0).angles[1], 0.0F, 0.01F));
+        erwarte("B4b-4 ... wieder an: 90 * 5,5 = 495 -> 135", nah(s.at(1, 5500.0).angles[1], 135.0F, 0.01F));
+    }
+    // B4b-5: wer im Tuerfeld zaehlt (G_TouchTriggersLerped) - unsichtbare Figuren und der Spieler in der Kamera ja,
+    // Tote nein.
+    {
+        Actor unsichtbar;
+        unsichtbar.name = "geist";
+        ActorStep hide;
+        hide.kind = ActorStep::Kind::Hide;
+        unsichtbar.steps = {hide};
+        Actor spieler;
+        spieler.name = "player";
+        spieler.kameraVerborgen = {{0.0, -1.0}};
+        Actor tot;
+        tot.name = "leiche";
+        tot.getoetetMs = 1000.0;
+        const auto beruehrt = [](const Actor& a, double ms) { return beruehrtFelder(a, a.at(ms), ms); };
+        erwarte("B4b-5a SET_INVISIBLE: die Figur beruehrt das Feld", !unsichtbar.at(500.0).visible && beruehrt(unsichtbar, 500.0));
+        erwarte("B4b-5b Spieler in der Skriptkamera: beruehrt das Feld", !spieler.at(500.0).visible && beruehrt(spieler, 500.0));
+        erwarte("B4b-5c Tote beruehren nichts", beruehrt(tot, 500.0) && !beruehrt(tot, 1500.0));
+        // (c) an der Tuer: der Tote liegt im Feld - sie schliesst nach wait.
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}}));
+        MoverSim s;
+        const auto feld = [&tot](double ms, const float mn[3], const float mx[3]) {
+            const float p[3] = {-60.0F, 32.0F, 40.0F};
+            return beruehrtFelder(tot, tot.at(ms), ms) && p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1];
+        };
+        s.baue(map, g, {}, feld, 6000.0);
+        erwarte("B4b-5c Tuer: offen, solange er lebt; nach seinem Tod schliesst sie nach wait",
+                s.tuerZustand(1, 900.0) == 1 && s.tuerZustand(1, 5000.0) == 0);
+    }
+    // B4b-6: das Feld ist absmin..absmax (Lump +-2), dazu +-120 auf der duennsten Achse: x -121..129.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}}));
+        MoverSim s;
+        const auto rand = [](double ms, const float mn[3], const float mx[3]) {
+            const float p[3] = {-120.0F, 32.0F, 40.0F};   // 1 Einheit ausserhalb von Lump - 120
+            return ms >= 500.0 && p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1] && p[2] >= mn[2] && p[2] <= mx[2];
+        };
+        s.baue(map, g, {}, rand, 2000.0);
+        erwarte("B4b-6 Figur 1 Einheit ausserhalb von Lump +-120: im Feld", s.tuerZustand(1, 1000.0) != 0);
+    }
+    // B4b-7: INACTIVE (128) - kein use und kein Feld, bis target_activate (SVF_INACTIVE weg).
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "tor"}, {"spawnflags", "128"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*2"}, {"angle", "90"}, {"spawnflags", "128"}}));
+        MoverUse frei;
+        frei.ms = 3000.0;
+        frei.entity = 0;
+        frei.inaktiv = 0;
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "tor"}, frei, {4000.0, "tor"}}, vorDerTuer(500.0), 6000.0);
+        erwarte("B4b-7 INACTIVE: use oeffnet nicht", s.tuerZustand(1, 2000.0) == 0);
+        erwarte("B4b-7 INACTIVE: das Feld oeffnet nicht", s.tuerZustand(2, 2000.0) == 0);
+        erwarte("B4b-7 nach target_activate oeffnet das use", s.tuerZustand(1, 4500.0) != 0);
+    }
+    // B4b-13 (MoverSim): SVF_INACTIVE blockt auch das use eines func_wall.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_wall", {{"model", "*1"}, {"targetname", "holo"}, {"spawnflags", "1"}}));
+        MoverUse aus;
+        aus.ms = 500.0;
+        aus.entity = 0;
+        aus.inaktiv = 1;
+        MoverSim s;
+        s.baue(map, g, {aus, {1000.0, "holo"}}, nullptr, 2000.0);
+        erwarte("B4b-13 SET_INACTIVE: func_wall bleibt aus", !s.at(1, 1500.0).sichtbar);
+    }
 }
 
 }  // namespace
@@ -201,7 +401,7 @@ int main() {
         erwarte("func_plat ruht unten (Hoehe - lip = 120)", nah(s.at(2, 0).origin[2], -120.0F));
     }
 
-    // --- func_rotating auf use: der Winkel bleibt beim Abschalten stehen ---
+    // --- func_rotating auf use: abgeschaltet zeigt das cgame die Spawnwinkel (F4b, B4b-4) ---
     {
         MapData map;
         map.entities.push_back(ent("func_rotating", {{"model", "*1"}, {"speed", "90"},
@@ -210,9 +410,13 @@ int main() {
         MoverSim s;
         s.baue(map, g, {{1000.0, "rad"}, {2000.0, "rad"}}, nullptr, 5000.0);
         erwarte("func_rotating ohne START_ON steht", nah(s.at(1, 900).angles[1], 0.0F));
-        erwarte("nach use dreht es", nah(s.at(1, 1500).angles[1], 45.0F));
-        erwarte("abgeschaltet bleibt der Winkel stehen (nicht zurueck auf 0)",
-                nah(s.at(1, 4000).angles[1], 90.0F));
+        // F4b (B4b-4): TR_LINEAR mit trTime 0 aus G_Spawn - das erste Anschalten springt auf trBase + 90 * 1,5 (bis F4b:
+        // 45, als liefe es erst ab dem use).
+        erwarte("nach use dreht es (ab trTime 0: 135)", nah(s.at(1, 1500).angles[1], 135.0F));
+        // func_rotating_use setzt nur apos.trType = TR_STATIONARY (g_mover.cpp:2269-2295 OpenJK), das cgame zeichnet
+        // EvaluateTrajectory(&apos) = trBase (cg_ents.cpp:1896) - bis F4b stand hier "bleibt bei 90 stehen".
+        erwarte("abgeschaltet: die Spawnwinkel (TR_STATIONARY auf trBase)",
+                nah(s.at(1, 4000).angles[1], 0.0F));
         const std::vector<MoverKlang> k = s.klaenge(5000.0);
         erwarte("func_rotating: START und Schleife beim Einschalten, END beim Abschalten",
                 k.size() == 3U && k[0].stufe == 0 && nah(static_cast<float>(k[0].ms), 1000.0F) &&
@@ -1032,6 +1236,8 @@ int main() {
                 std::fabs(a1 - a0) < 6.0F && !s.quetschungen().empty() && s.quetschungen()[0].schaden == 2 &&
                     nah(s.at(1, 3000).origin[0], frei.at(1, 2000).origin[0], 6.0F));
     }
+
+    f4bTueren();
 
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);

@@ -908,6 +908,9 @@ struct Actor {    std::string name;        // der Name aus dem affect
     // Ablauf::erscheint). < 0: es gibt sie schon vor dem Skript - beim
     // Laden der Karte gespawnt und laengst gelandet.
     double erscheintMs = -1.0;
+    // F4b (B4b-5): der NPC_type steht in keiner .npc - NPC_Spawn_Do gibt die Entity frei (NPC_spawn.cpp:2577 OpenJK),
+    // es gibt sie im Spiel nie.
+    bool nieGespawnt = false;
     // JSF_AMBUSH haengt bis zum ersten SET_BEHAVIOR_STATE, das nicht
     // BS_NOCLIP ist (Q3_SetBState setzt client->noclip = false,
     // Q3_Interface.cpp:2667-2674). < 0: nie.
@@ -1182,6 +1185,8 @@ struct SzenenHilfe {
 // Pruefung 3: setzt PM_Footsteps hier eine Standanimation, die PM_AdjustStand-
 // AnimForSlope kennt? (steht, kein Timer der Beine, eine bekannte Haltung)
 [[nodiscard]] bool hangStandErlaubt(const struct ActorState& st, double beineBis, double ms);
+// F4b (B4b-5): Beruehrt die Figur zur Zeit ms Ausloesefelder (Touch_DoorTrigger)? st = a.at(ms).
+[[nodiscard]] bool beruehrtFelder(const struct Actor& a, const struct ActorState& st, double ms);
 
 // Die Effekt-Notizen der ROFF-Bahnen als Effektstarts (rc592).
 //

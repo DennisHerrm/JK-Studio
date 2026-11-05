@@ -244,6 +244,11 @@ struct Ablauf {
         std::string ausloeser;
         // Pruefung 4b: der Platz im Bild, an dem benutzt wurde (MoverUse::reihe).
         int reihe = std::numeric_limits<int>::max();
+        // F4b: >= 0 - nur diese Entity (Index in der Karte; MoverUse::entity): G_PickTarget und target_random.
+        int entity = -1;
+        // F4b: SVF_INACTIVE der Entity `entity` gesetzt (1) oder geloescht (0) statt eines use (MoverUse::inaktiv).
+        // Der Name ist dann leer.
+        int inaktiv = -1;
     };
     std::vector<Benutzung> benutzt;
     // rc605 (Ende): ein target_level_change wurde benutzt - target_level_change_use

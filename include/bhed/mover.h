@@ -65,7 +65,27 @@ struct MoverUse {
     // (funcBBrushDieGo, G_FreeEntity) in diesem Bild faellig, laeuft es vor
     // einem use mit gleichem oder groesserem Platz (g_main.cpp:1062-1088).
     int reihe = std::numeric_limits<int>::max();
+    // F4b: >= 0 - genau diese Entity (Index in MapData::entities), nicht jede mit dem targetname.
+    // G_PickTarget (target_relay RANDOM, g_target.cpp:404-421 OpenJK) und target_random_use
+    // (g_target.cpp:649-713) rufen GEntity_UseFunc auf EINER Entity.
+    int entity = -1;
+    // F4b (B4b-7, B4b-13): kein use, sondern SVF_INACTIVE der Entity `entity` wird gesetzt (1)
+    // oder geloescht (0) - target_(de)activate (G_SetActiveState, g_utils.cpp:1744-1751 MD),
+    // SET_INACTIVE (Q3_SetInactive, Q3_Interface.cpp:4690-4700 OpenJK), target_counter 128.
+    // -1: ein use.
+    int inaktiv = -1;
 };
+
+// F4b (B4b-7, B4b-13): Hat die Entity nach dem Spawnen SVF_INACTIVE? Spawnflag 128 (INACTIVE) setzt
+// es bei allem, was InitMover ruft (g_mover.cpp:1117-1121 OpenJK, :1160-1164 MD: func_door, func_plat,
+// func_button, func_train, func_static, func_rotating, func_bobbing, func_pendulum, func_wall), bei
+// InitTrigger (g_trigger.cpp:40-53: trigger_multiple, trigger_once, trigger_bidirectional, trigger_space,
+// trigger_shipboundary; Movie Duels auch trigger_push/teleport/hurt/hyperspace), bei target_relay
+// (g_target.cpp:470-477), target_scriptrunner (:835-839), trigger_visible (g_trigger.cpp:1694-1698),
+// misc_security_panel (g_mover.cpp:2673-2677) und den Geschuetzen emplaced_gun/emplaced_eweb
+// (g_emplaced.cpp:423-426, 793-796). target_counter 128 wirkt erst nach dem Feuern, target_delay kennt
+// es nicht. GEntity_UseFunc (g_functions.cpp:243-248 OpenJK, :258-263 MD) blockt dann jedes use.
+[[nodiscard]] bool startetInaktiv(const MapEntity& e);
 
 // --- Was beim Zerbrechen entsteht ------------------------------------------
 //
@@ -516,6 +536,8 @@ public:
         double bobPhase = 0.0;                    // "phase", Anteil der Periode
         bool bobAnfang = false;
         std::vector<double> bobUm;                // jedes use schaltet um
+        // F4b (B4b-3): func_bobbing ohne START_OFF - ab hier steht es auf pos1 = (0,0,0) (Use_BinaryMover). < 0: nie.
+        double binaerAb = -1.0;
         // Sichtbarkeit: Umschaltzeiten (func_wall/func_usable START_OFF)
         bool sichtbarAnfang = true;
         std::vector<double> umschalten;

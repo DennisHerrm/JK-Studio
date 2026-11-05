@@ -7403,6 +7403,7 @@ void prepareScene() {
             ActorStep weg;
             weg.kind = ActorStep::Kind::Hide;
             ac.steps.insert(ac.steps.begin(), weg);
+            ac.nieGespawnt = true;   // F4b (B4b-5): beruehrt auch keine Ausloesefelder
         }
     }
     // SET_CAMERA_GROUP aus dem Ablauf einsammeln (fuer camera FOLLOW).
@@ -7498,7 +7499,7 @@ void prepareScene() {
         for (const Ablauf::Benutzung& b : g_app->ablauf.benutzt) {
             // Mit dem Ausloeser: target_print zeigt nur, was der Spieler
             // ausloest (Use_Target_Print, activator->client).
-            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, b.reihe});
+            uses.push_back(MoverUse{b.ms, b.name, true, b.ausloeser, b.reihe, b.entity, b.inaktiv});
         }
         // rc605: die Ziele explodierender misc_trip_mine (WP_Explode ->
         // G_UseTargets) rechnet der Nachbau (ablaufWelt, AblaufWelt::
@@ -7518,7 +7519,7 @@ void prepareScene() {
             }
             for (std::size_t s = 0; s < schritte; ++s) {
                 const ActorState st = a.at(static_cast<double>(s) * kTakt);
-                if (!st.visible) {
+                if (!beruehrtFelder(a, st, static_cast<double>(s) * kTakt)) {   // F4b (B4b-5)
                     continue;
                 }
                 figuren[s].push_back(Ort{{st.pos[0], st.pos[1], st.pos[2]}});

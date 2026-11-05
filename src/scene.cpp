@@ -510,6 +510,21 @@ bool wegBewegtBei(const ActorStep& st, double t) {
     return false;
 }
 
+// G_TouchTriggersLerped (g_active.cpp:1358-1453 OpenJK, :1706 MD; gerufen aus ClientThink_real, :5467 OpenJK) prueft nur
+// noclip und STAT_HEALTH: ein toter Client beruehrt nur trigger_teleport mit TTSF_DEAD_OK, ein toter NPC gar nichts.
+// SET_INVISIBLE (Q3_SetInvisible, Q3_Interface.cpp:2901: EF_NODRAW, contents 0) und der Spieler in der Skriptkamera
+// (nur das cgame verbirgt ihn, kameraVerborgen) beruehren Felder weiter. Was es (noch) nicht gibt, beruehrt nichts:
+// vor NPC_Begin (erscheintMs), nach G_FreeEntity (removed) und ein NPC_type ohne .npc (nieGespawnt).
+bool beruehrtFelder(const Actor& a, const ActorState& st, double ms) {
+    if (st.removed || a.nieGespawnt) {
+        return false;
+    }
+    if (a.erscheintMs >= 0.0 && ms < a.erscheintMs) {
+        return false;
+    }
+    return !(a.getoetetMs >= 0.0 && ms >= a.getoetetMs);
+}
+
 void rittePlanen(std::vector<Actor>& figuren, std::vector<RittBenutzung> benutzt) {
     for (Actor& f : figuren) { f.ritte.clear(); }
     std::stable_sort(benutzt.begin(), benutzt.end(), [](const RittBenutzung& x, const RittBenutzung& y) { return x.ms < y.ms; });
