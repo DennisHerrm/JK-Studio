@@ -1955,6 +1955,13 @@ void drawMapView() {
         return;
     }
 
+    // rc610 R1: nach einem Kartenwechsel (camTrackValid weg) die Szene aufbauen, BEVOR dieses Bild zeichnet - sonst
+    // zeichnete das erste Bild der neuen Karte mit leerer Mover-Simulation: func_usable/func_wall mit START_OFF
+    // (SVF_NOCLIENT, im Spiel nie im Bild) standen ein Bild lang da, und ihre Netze blieben in brushMeshes
+    // (duel_carbon: 47 statt der 41 Brush-Modelle, die das Spiel zeichnet). Dieselbe eine Stelle wie die Zeitleiste.
+    if (!g_app->camTrackValid) {
+        prepareScene();
+    }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     // Die Seitenleiste nimmt sich ihren Platz VOM BILD, nicht von der
     // Hoehe. Eingeklappt bleibt nur ein schmaler Knopf stehen - so wie in
