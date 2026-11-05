@@ -51,6 +51,7 @@
 #include "bhed/karte/zuletzt.h"
 #include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
+#include "bhed/sicherschreiben.h"
 
 #include <algorithm>
 #include <cctype>
@@ -61,6 +62,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 
 namespace bhed::gui::karteneditor {
@@ -1292,24 +1294,41 @@ karte::BauZeitenSpeicher bauZeitenLesen() {
 
 }  // namespace
 
+// rc610 F78 (Fund B7-2): gemerkt wird aus dem Faden des Schnell-Backens und am
+// Ende eines Baus im Hauptfaden. Ohne Sperre las der eine eine halb geschriebene
+// Datei oder ueberschrieb die Zeit des anderen (Selbsttest f78: 388 von 400
+// Zeiten fehlten). Lesen, Merken und Schreiben unter einer Sperre, geschrieben
+// ueber sicherSchreiben (Temp-Datei, atomar ersetzt).
+namespace {
+std::mutex& gpuZeitenSperre() {
+    static std::mutex m;
+    return m;
+}
+}  // namespace
+
 karte::GpuZeiten gpuZeitenHolen(const std::string& karte, const std::string& schalter) {
     karte::GpuZeitenSpeicher sp;
     std::string text;
-    if (dateiLesen(gpuZeitenPfad(), text)) { (void)sp.lesen(text); }
+    {
+        const std::lock_guard<std::mutex> l(gpuZeitenSperre());
+        if (dateiLesen(gpuZeitenPfad(), text)) { (void)sp.lesen(text); }
+    }
     return sp.holen(karte, schalter);
 }
 
 void gpuZeitMerken(const std::string& karte, const std::string& schalter, karte::GpuWeg weg, double sekunden) {
-    karte::GpuZeitenSpeicher sp;
-    std::string text;
-    if (dateiLesen(gpuZeitenPfad(), text)) { (void)sp.lesen(text); }
-    sp.merken(karte, schalter, weg, static_cast<long long>(sekunden * 1000.0 + 0.5));
-    std::ofstream f(pfadAus(gpuZeitenPfad()), std::ios::binary | std::ios::trunc);
-    const std::string t = sp.schreiben();
-    if (f) { f.write(t.data(), static_cast<std::streamsize>(t.size())); }
+    bool ok = false;
+    {
+        const std::lock_guard<std::mutex> l(gpuZeitenSperre());
+        karte::GpuZeitenSpeicher sp;
+        std::string text;
+        if (dateiLesen(gpuZeitenPfad(), text)) { (void)sp.lesen(text); }
+        sp.merken(karte, schalter, weg, static_cast<long long>(sekunden * 1000.0 + 0.5));
+        ok = sicherSchreiben(gpuZeitenPfad(), sp.schreiben());
+    }
     diag::detail("GPU bake Auto: " + karte + " [" + schalter + "] " +
                  (weg == karte::GpuWeg::GpuNachproben ? "GPU+subsamples " : weg == karte::GpuWeg::Gpu ? "GPU " : "CPU ") +
-                 std::to_string(sekunden) + " s gemerkt");
+                 std::to_string(sekunden) + (ok ? " s gemerkt" : " s NICHT gemerkt (karte_gpuzeiten.txt nicht schreibbar)"));
 }
 
 // vis4: auf welchem Weg ein -light-Lauf rechnete (fuer die gemerkte Zeit)
