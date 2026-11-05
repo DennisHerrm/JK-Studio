@@ -3508,8 +3508,6 @@ TEXTE = {
         "**Solo si ninguno funciona** (por ejemplo Jedi Academy SP con un nombre de mapa que el juego ya tiene), el programa pregunta antes de escribir el archivo en el juego: en una carpeta de mod `jkstudio_test` (iniciada con `+set fs_game jkstudio_test`), o en la carpeta del mod activo. Puedes borrar el archivo más tarde.",
     "The console shows the way that was chosen and the whole command line. Map names with spaces cannot be loaded with `devmap`; save the map under a name without spaces.":
         "La consola muestra el camino elegido y la línea de comandos completa. Los nombres de mapa con espacios no se pueden cargar con `devmap`; guarda el mapa con un nombre sin espacios.",
-    "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build.":
-        "No está en NetRadiant-Custom. El propio **Run Engine After Compile** de NetRadiant-Custom (preferencias, página Build) se queda como está: inicia el motor desde la carpeta del juego tras cada compilación.",
     "Geometry to brushes":
         "Geometría a brushes",
     "**{{KeLFile}} > {{KeGiMenue}}** reads a model (.obj, .fbx, .glb or .gltf, for example from Blender) and turns it into brushes. A window lists the parts of the file; for each part choose **{{KeGiAuto}}**, **{{KeGiPinsel}}** or **{{KeGiModellClip}}** - the column **{{KeGiErgebnis}}** shows at once how many brushes it becomes and whether they are detail. **{{KeGiEinfuegen}}** inserts everything as one undo step and selects it; then the optimizer opens.":
@@ -7510,6 +7508,13 @@ TEXTE.update({
         "La pantalla de inicio del editor de menús: abre un menú existente sin proyecto.",
     "With large game data (Movie Duels) the list is collected in the background: a bar with **{{KeAbSammelt}}** shows the progress and the editor stays usable. Models in .obj, .fbx, .gltf and .glb show the surfaces and shaders that q3map2 bakes in.":
         "Con datos de juego grandes (Movie Duels) la lista se reúne en segundo plano: una barra con **{{KeAbSammelt}}** muestra el progreso y el editor sigue usable. Los modelos .obj, .fbx, .gltf y .glb muestran las superficies y los shaders que q3map2 hornea.",
+    # rc610 F23
+    'Unsaved changes in the window **{{LePanel}}** are asked about first: **{{KeSave}}** saves them, and the entities are inserted into the saved map; **{{KeDiscard}}** drops them; **{{KeCancel}}** inserts nothing. The same question comes before another map is opened.':
+        'Los cambios sin guardar en la ventana **{{LePanel}}** se preguntan antes: **{{KeSave}}** los guarda y las entidades se insertan en el mapa guardado; **{{KeDiscard}}** los descarta; **{{KeCancel}}** no inserta nada. La misma pregunta aparece antes de abrir otro mapa.',
+    'If saving fails (for example because the game has the file open) or you cancel the choice of the save path, nothing changes: the file, the working copy and the new entities stay as before, and you can insert again.':
+        'Si el guardado falla (por ejemplo, porque el juego tiene el archivo abierto) o cancelas la elección de la forma de guardar, nada cambia: el archivo, la copia de trabajo y las entidades nuevas quedan como antes y puedes volver a insertar.',
+    "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build from the menu **{{KeLBuild}}**. Not after **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** or merging maps; **{{KeStMenue}}** starts the game itself, once.":
+        'No está en NetRadiant-Custom. El propio **Run Engine After Compile** de NetRadiant-Custom (preferencias, página Build) se queda como está: inicia el motor desde la carpeta del juego tras cada compilación desde el menú **{{KeLBuild}}**. No tras **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** ni al combinar mapas; **{{KeStMenue}}** inicia el juego por sí mismo, una vez.',
 })
 
 # rc609 T1: ganze Tabs in eigenen Fenstern

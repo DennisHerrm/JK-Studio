@@ -3505,8 +3505,6 @@ TEXTE = {
         "**Jen když nefunguje ani jedno** (například Jedi Academy SP s názvem mapy, který hra už má), program se zeptá, než zapíše archiv do hry: do složky modu `jkstudio_test` (spuštěné s `+set fs_game jkstudio_test`), nebo do složky aktivního modu. Soubor můžete později smazat.",
     "The console shows the way that was chosen and the whole command line. Map names with spaces cannot be loaded with `devmap`; save the map under a name without spaces.":
         "Konzole ukáže zvolený způsob a celý příkazový řádek. Názvy map s mezerami nelze načíst pomocí `devmap`; uložte mapu pod názvem bez mezer.",
-    "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build.":
-        "Není v NetRadiant-Custom. Vlastní **Po kompilaci spustit engine** NetRadiant-Custom (předvolby, stránka Sestavení) zůstává, jak je: po každém sestavení spustí engine ze složky hry.",
     "Geometry to brushes":
         "Geometrie na brushe",
     "**{{KeLFile}} > {{KeGiMenue}}** reads a model (.obj, .fbx, .glb or .gltf, for example from Blender) and turns it into brushes. A window lists the parts of the file; for each part choose **{{KeGiAuto}}**, **{{KeGiPinsel}}** or **{{KeGiModellClip}}** - the column **{{KeGiErgebnis}}** shows at once how many brushes it becomes and whether they are detail. **{{KeGiEinfuegen}}** inserts everything as one undo step and selects it; then the optimizer opens.":
@@ -7507,6 +7505,13 @@ TEXTE.update({
         "Úvodní obrazovka editoru menu: otevřete existující menu bez projektu.",
     "With large game data (Movie Duels) the list is collected in the background: a bar with **{{KeAbSammelt}}** shows the progress and the editor stays usable. Models in .obj, .fbx, .gltf and .glb show the surfaces and shaders that q3map2 bakes in.":
         "S velkými herními daty (Movie Duels) vzniká seznam na pozadí: pruh s **{{KeAbSammelt}}** ukazuje průběh a editor zůstává použitelný. Modely .obj, .fbx, .gltf a .glb ukazují plochy a shadery, které q3map2 zapeče.",
+    # rc610 F23
+    'Unsaved changes in the window **{{LePanel}}** are asked about first: **{{KeSave}}** saves them, and the entities are inserted into the saved map; **{{KeDiscard}}** drops them; **{{KeCancel}}** inserts nothing. The same question comes before another map is opened.':
+        'Na neuložené změny v okně **{{LePanel}}** se program nejdřív zeptá: **{{KeSave}}** je uloží a entity se vloží do uložené mapy; **{{KeDiscard}}** je zahodí; **{{KeCancel}}** nevloží nic. Stejná otázka přijde i před otevřením jiné mapy.',
+    'If saving fails (for example because the game has the file open) or you cancel the choice of the save path, nothing changes: the file, the working copy and the new entities stay as before, and you can insert again.':
+        'Když se uložení nepodaří (třeba proto, že hra má soubor otevřený) nebo zrušíte volbu způsobu uložení, nic se nezmění: soubor, pracovní kopie i nové entity zůstanou jako dřív a vložit můžete znovu.',
+    "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build from the menu **{{KeLBuild}}**. Not after **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** or merging maps; **{{KeStMenue}}** starts the game itself, once.":
+        'Není v NetRadiant-Custom. Vlastní **Po kompilaci spustit engine** NetRadiant-Custom (předvolby, stránka Sestavení) zůstává, jak je: po každém sestavení z nabídky **{{KeLBuild}}** spustí engine ze složky hry. Ne po **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** ani po slučování map; **{{KeStMenue}}** spustí hru samo, jednou.',
 })
 
 # rc609 T1: ganze Tabs in eigenen Fenstern

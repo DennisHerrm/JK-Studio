@@ -40,10 +40,10 @@ KARTE_WERKZEUGE9 = {
               "コンソールには選ばれた方法とコマンドライン全体が表示されます。空白を含むマップ名は `devmap` で読み込めないので、空白のない名前で保存してください。"),
         ]),
         ("note", T(
-            "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build.",
-            "Nicht in NetRadiant-Custom. Das eigene **Nach dem Bauen das Spiel starten** von NetRadiant-Custom (Einstellungen, Seite Build) bleibt, wie es ist: es startet die Engine nach jedem Bau aus dem Spielordner.",
-            "NetRadiant-Custom 中没有。NetRadiant-Custom 自带的 **编译后运行游戏**(首选项,Build 页)保持不变:它在每次编译后从游戏文件夹启动引擎。",
-            "NetRadiant-Custom にはありません。NetRadiant-Custom 自身の **コンパイル後にゲームを起動**(設定の Build ページ)はそのままで、ビルドのたびにゲームのフォルダーからエンジンを起動します。")),
+            "Not in NetRadiant-Custom. NetRadiant-Custom's own **Run Engine After Compile** (preferences, page Build) stays as it is: it starts the engine from the game folder after every build from the menu **{{KeLBuild}}**. Not after **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** or merging maps; **{{KeStMenue}}** starts the game itself, once.",
+            "Nicht in NetRadiant-Custom. Das eigene **Nach dem Bauen das Spiel starten** von NetRadiant-Custom (Einstellungen, Seite Build) bleibt, wie es ist: es startet die Engine nach jedem Bau aus dem Menü **{{KeLBuild}}** aus dem Spielordner. Nicht nach **{{KeBmEinfuegen}}**, **{{KeBmNurEntities}}** oder dem Zusammenführen von Karten; **{{KeStMenue}}** startet das Spiel selbst, einmal.",
+            "NetRadiant-Custom 中没有。NetRadiant-Custom 自带的 **编译后运行游戏**(首选项,Build 页)保持不变:它在每次从 **{{KeLBuild}}** 菜单编译后从游戏文件夹启动引擎。**{{KeBmEinfuegen}}**、**{{KeBmNurEntities}}** 或合并地图之后不会启动;**{{KeStMenue}}** 会自己启动游戏,只启动一次。",
+            "NetRadiant-Custom にはありません。NetRadiant-Custom 自身の **コンパイル後にゲームを起動**(設定の Build ページ)はそのままで、**{{KeLBuild}}** メニューからのビルドのたびにゲームのフォルダーからエンジンを起動します。**{{KeBmEinfuegen}}**、**{{KeBmNurEntities}}**、マップの結合の後には起動しません。**{{KeStMenue}}** はゲームを自分で 1 回だけ起動します。")),
         ("h2", "geometrie", T("Geometry to brushes", "Geometrie zu Brushes", "几何体转画刷", "ジオメトリをブラシに")),
         ("p", T(
             "**{{KeLFile}} > {{KeGiMenue}}** reads a model (.obj, .fbx, .glb or .gltf, for example from Blender) and turns it into brushes. A window lists the parts of the file; for each part choose **{{KeGiAuto}}**, **{{KeGiPinsel}}** or **{{KeGiModellClip}}** - the column **{{KeGiErgebnis}}** shows at once how many brushes it becomes and whether they are detail. **{{KeGiEinfuegen}}** inserts everything as one undo step and selects it; then the optimizer opens.",
