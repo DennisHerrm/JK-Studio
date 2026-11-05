@@ -361,6 +361,20 @@ std::vector<Schritt> umrissSchritte() {
         g_app->throughCamera = false;
         entityAuswahlSetzen(-1);
         kandidaten->clear();
+        // rc610 R1: die Mitte in der WELT. Ein Brush-Modell mit origin-Brush hat seine Grenzen relativ zum origin der
+        // Entity (q3map2 zieht ihn ab, die Engine stellt das Modell dorthin, siehe brushModelleImSpiel); die Kamera
+        // blickte bei solchen Modellen auf die Grenzen um den Weltnullpunkt, das Objekt lag ausserhalb des Bildes.
+        // Nur Modelle, die das Bild an ihrer Entity zeichnet (Figuren-Mover stehen anderswo, wie beim Zeichnen).
+        std::vector<bool> anderswo(g_app->geo.models.size(), false);
+        for (const Actor& a : g_app->scene.actors) {
+            if (a.brushModel > 0 && a.haveStart && static_cast<std::size_t>(a.brushModel) < anderswo.size()) {
+                anderswo[static_cast<std::size_t>(a.brushModel)] = true;
+            }
+        }
+        std::map<int, BrushStellung> stellung;
+        for (const BrushStellung& b : brushModelleImSpiel(g_app->map.entities, g_app->geo, g_app->moverSim, g_app->playMs, anderswo)) {
+            stellung[b.modell] = b;
+        }
         for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
             const MapEntity& e = g_app->map.entities[i];
             const std::string* mdl = e.find("model");
@@ -369,13 +383,24 @@ std::vector<Schritt> umrissSchritte() {
             if (nr <= 0 || static_cast<std::size_t>(nr) >= g_app->geo.models.size()) { continue; }
             const auto bm = g_app->brushMeshes.find(nr);
             if (bm == g_app->brushMeshes.end() || bm->second.indexes.empty()) { continue; }
+            const auto st = stellung.find(nr);
+            if (st == stellung.end()) { continue; }
             const auto& sm = g_app->geo.models[static_cast<std::size_t>(nr)];
             Kandidat k;
             k.entity = static_cast<int>(i);
             float d2 = 0.0F;
+            float lokal[3];
             for (int a = 0; a < 3; ++a) {
-                k.mitte[a] = (sm.mins[a] + sm.maxs[a]) * 0.5F;
+                lokal[a] = (sm.mins[a] + sm.maxs[a]) * 0.5F;
                 d2 += (sm.maxs[a] - sm.mins[a]) * (sm.maxs[a] - sm.mins[a]);
+            }
+            // R_RotateForEntity: Welt = origin + axis[0]*x + axis[1]*y + axis[2]*z (axis[1] zeigt nach links).
+            float vorn[3];
+            float rechts[3];
+            float oben[3];
+            winkelVektoren(st->second.winkel, vorn, rechts, oben);
+            for (int a = 0; a < 3; ++a) {
+                k.mitte[a] = st->second.ort[a] + vorn[a] * lokal[0] - rechts[a] * lokal[1] + oben[a] * lokal[2];
             }
             k.radius = std::sqrt(d2) * 0.5F;
             if (k.radius > 24.0F && k.radius < 700.0F) { kandidaten->push_back(k); }
