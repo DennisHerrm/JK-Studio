@@ -5268,7 +5268,7 @@ Aufnahme& aufnahme() {
 // Bild (frameLerp, wie die Szene sie rechnet) und animHoldMSec ((numFrames -
 // 1) * frameLerp). false: das Modell kennt sie nicht (PM_SetAnimFinal:
 // numFrames 0 -> es setzt nichts).
-bool aufnahmeAnimInfo(int figur, const std::string& anim, double& lerp, double& halten) {
+bool aufnahmeAnimInfo(int figur, const std::string& anim, double& lerp, double& halten, bool* rueckwaerts = nullptr) {
     if (figur < 0 || static_cast<std::size_t>(figur) >= g_app->actorAssets.size() || anim.empty()) { return false; }
     const App::Skeleton* sk = g_app->actorAssets[static_cast<std::size_t>(figur)]->skeleton;
     if (sk == nullptr) { return false; }
@@ -5276,6 +5276,7 @@ bool aufnahmeAnimInfo(int figur, const std::string& anim, double& lerp, double& 
         if (e.numFrames <= 0 || klein(e.name) != klein(anim)) { continue; }
         lerp = animBildMs(e);
         halten = std::max(0, e.numFrames - 1) * lerp;
+        if (rueckwaerts != nullptr) { *rueckwaerts = e.fps < 0; }   // F4b (B4b-15): frameLerp < 0
         return true;
     }
     return false;
@@ -5336,8 +5337,9 @@ void aufnahmeAnimSchritt(Aufnahme& r, const NavSpielerEingabe& e, bool gehen, co
         const PmBeinWahl w = pmFootstepsBeine(r.pm, vor, seit, gehen, r.rueckwaerts, z);
         double lerp = 0.0;
         double halten = 0.0;
-        if (!w.anim.empty() && aufnahmeAnimInfo(r.figur, w.anim, lerp, halten)) {
-            const float tempo = pmFussTempo(w.anim, result, r.pm, lerp, r.inKamera);
+        bool rueck = false;
+        if (!w.anim.empty() && aufnahmeAnimInfo(r.figur, w.anim, lerp, halten, &rueck)) {
+            const float tempo = pmFussTempo(w.anim, result, r.pm, rueck ? -lerp : lerp, r.inKamera);
             const std::string alt = r.beine.anim;
             if (pmSetAnimNormal(r.beine, w.anim, tempo, uhr, kPmBlendVorgabe, w.halten ? halten : -1.0) && alt != r.beine.anim) {
                 r.beineVorherHalten = r.beineHalten;

@@ -531,6 +531,9 @@ float pmFussTempo(const std::string& anim, float resultSpeed, const PmFigur& f, 
         return 1.0F;
     }
     if (f.md && resultSpeed < 1.0F && inKamera) { return 1.0F; }
+    // F4b (B4b-15): animSpeed = 50 / frameLerp - bei negativen fps (frameLerp < 0, rueckwaerts) passt PM_SetAnimFinal
+    // NICHT an ("&& !(animSpeed<0.0f)", bg_panimate.cpp:4756-4760 OpenJK; "animSpeed >= 0.0f" MD).
+    if (frameLerpMs < 0.0) { return 1.0F; }
     float soll = 150.0F;
     if (kriechen) {
         soll = 75.0F;

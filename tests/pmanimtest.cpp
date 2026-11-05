@@ -291,6 +291,16 @@ int main() {
         pruefe(nah(pmFussTempo("BOTH_RUN1", 0.0F, md, 50.0, true), 1.0), "Movie Duels in der Kamerafahrt unter 1: ungeskaliert");
         pruefe(nah(pmFussTempo("BOTH_RUN1", 75.0F, figur("WP_NONE", false, "CLASS_WAMPA"), 50.0, false), 1.0), "Wampa: ungeskaliert");
         pruefe(pmLaufAnim("BOTH_JOG_BLASTER", true) && !pmLaufAnim("BOTH_JOG_BLASTER", false), "BOTH_JOG_BLASTER laeuft nur in Movie Duels");
+        // F4b (B4b-15): PM_SetAnimFinal (bg_panimate.cpp:4719-4760 OpenJK; MD "animSpeed >= 0.0f") passt nur bei
+        // !(animSpeed < 0) an. BOTH_WALKBACK_STAFF und BOTH_RUNBACK_DUAL haben in _humanoid/animation.cfg -20 fps
+        // (assets1.pk3 und MD_Assets2.pk3): frameLerp floor(1000 / -20) = -50, sie spielen mit dem Tempo der .cfg.
+        PmFigur dual = f;
+        dual.saberStil = 6;
+        pruefe(nah(pmFussTempo("BOTH_WALKBACK_STAFF", 64.0F, stab, -50.0, false), 1.0),
+               "BOTH_WALKBACK_STAFF (-20 fps) rueckwaerts mit 64: ungeskaliert");
+        // BOTH_RUNBACK_DUAL steht nicht in PM_RunningAnim (bg_panimate.cpp OpenJK): ungeskaliert, auch ohne die -20 fps.
+        pruefe(nah(pmFussTempo("BOTH_RUNBACK_DUAL", 100.0F, dual, -50.0, false), 1.0),
+               "BOTH_RUNBACK_DUAL (-20 fps, keine Laufanimation) rueckwaerts mit 100: ungeskaliert");
     }
 
     std::printf("PM_SetAnimFinal\n");
