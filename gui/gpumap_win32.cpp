@@ -6350,6 +6350,11 @@ void vergissKarte() {
 
 bool himmelBoxGemerkt() { return g_himmelBoxNetz != nullptr; }
 
+void kartenPlaetze(int& bild, int& lightmap) {
+    bild = g_bilder.empty() ? -1 : g_bilder.rbegin()->first;
+    lightmap = g_lightmaps.empty() ? -1 : g_lightmaps.rbegin()->first;
+}
+
 bool lightmapAbtasterWieImSpiel() {
     if (g_samplerLm == nullptr) { return false; }
     D3D11_SAMPLER_DESC sd{};
@@ -8220,6 +8225,10 @@ void bildBeginnt() {}
 void spielGammaAnwenden() {}
 int spielGammaStand() { return 0; }
 bool himmelBoxGemerkt() { return false; }
+void kartenPlaetze(int& bild, int& lightmap) {
+    bild = -1;
+    lightmap = -1;
+}
 bool lightmapAbtasterWieImSpiel() { return false; }
 void bildFertig() {}
 void beginneMessung(Abschnitt) {}

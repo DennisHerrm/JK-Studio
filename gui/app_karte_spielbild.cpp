@@ -660,6 +660,9 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
         fehlerText = "kein Renderziel";
     }
     gpu::waehleZiel(0);
+    gpu::kartenPlaetze(g_stand.hoechstesBild, g_stand.hoechsteLightmap);
+    g_stand.bildPlaetze = static_cast<int>(s.bilder.byShader.size());
+    g_stand.lightmapPlaetze = static_cast<int>(s.geo.lightmaps.size());
     gpu::szeneWaehlen(0);
     if (g_stand.nummer != nummer || (aufrufe > 0) != (g_stand.aufrufe > 0)) {
         diag::detail("Karten-Editor: Spielbild - " + std::to_string(aufrufe) + " Zeichenaufrufe" + (fehlerText.empty() ? std::string() : " (" + fehlerText + ")"));

@@ -86,6 +86,11 @@ struct SpielbildStand {
     bool portalKamera = false; //   ... und es war eine misc_portal_camera
     float spiegelWelt[16]{};   //   ... ihre Abbildung (PortalSicht::welt) und Schnittebene
     float spiegelSchnitt[4]{};
+    // rc610 F23 (B3-1): Plaetze der Szene (Bilder samt Modellbildern, Lightmaps) und der hoechste belegte Platz im Grafikspeicher
+    int bildPlaetze = 0;
+    int lightmapPlaetze = 0;
+    int hoechstesBild = -1;
+    int hoechsteLightmap = -1;
 };
 [[nodiscard]] SpielbildStand spielbildStand();
 // rc609 P: die Spiegel- bzw. Portalsicht der Echtzeit-Ansicht (Pinsel des Editors, misc_portal_surface des Editors - live)

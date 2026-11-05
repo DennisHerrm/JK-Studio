@@ -146,6 +146,9 @@ void spielUebernehmen(std::shared_ptr<Spielkontext> k) {
         e.karteSpiel = e.spiel;
         e.karte.klassen = &e.karteSpiel->klassen;
         e.karte.kontext.texturen = &e.karteSpiel->inventar;
+        // rc610 F23 (B3-2): das Spiel kam im Hintergrund (spielPruefen, z. B. nach einem Reiterwechsel im Hauptfenster) - ohne
+        // Eingabe im Editor. Szenen und Ansichten neu, wie nach einem Befehl (Shader_Realise: die Flaechen holen ihre Shader neu)
+        ++e.sichtStand;
     }
 }
 

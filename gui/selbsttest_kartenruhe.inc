@@ -147,12 +147,94 @@ std::vector<Schritt> schritte() {
         if (const ImGuiWindow* w = tabfenster::fenster(3)) { ImGui::SetWindowSize(w->Name, ImVec2{w->Size.x + 40.0F, w->Size.y + 30.0F}); }
     }, true);
     aenderung(s, "neuZeichnen (Ende eines Hintergrundlaufs)", [] { ke::neuZeichnen(); }, true);
+    // --- rc610 F23 (B3-2): das Spiel des Editors wird im Hintergrund neu geladen (Reiterwechsel auf eine Mission mit anderen
+    // Spielordnern, setzeSitzungsSpielordner) - ohne Eingabe im Editor zeigen die Ansichten danach das neue Spiel ------------
+    auto spielVor = std::make_shared<Zahl>();
+    auto spielNach = std::make_shared<Zahl>();
+    auto kennung = std::make_shared<std::string>();
+    add(tu("Ruhe: Spielordner der Sitzung ohne Movie Duels (wie der Reiter einer JKA-Mission; ein leerer base im Laufordner)", [=] {
+        *spielVor = zaehlen();
+        *kennung = ke::editor().spielKennung;
+        const std::filesystem::path jka = std::filesystem::current_path() / "f23_jka" / "base";
+        std::error_code ec;
+        std::filesystem::create_directories(jka, ec);
+        setzeSitzungsSpielordner({jka.string()});
+        diag::detail("Knopftest: Ruhe: Sitzung " + jka.string() + ", Spiel " + std::to_string(ke::kartenSpielNummer()));
+    }));
+    add(warteBis("Ruhe: das Spiel des Editors ist neu geladen", [=] { return ke::editor().spielKennung != *kennung && ke::spielBereit(); }, 3000));
+    add(Schritt{"Ruhe: drei Bilder nach dem Laden", [=](int b) {
+                    if (b < 3) { return false; }
+                    *spielNach = zaehlen();
+                    return true;
+                }});
+    add(pruefe("Ruhe: nach dem Neuladen des Spiels im Hintergrund zeichnen die Ansichten neu (B3-2)", [=] {
+        diag::detail("Knopftest: Ruhe: Spiel neu geladen (" + *kennung + " -> " + ke::editor().spielKennung + "): " + text(*spielVor, *spielNach));
+        return ke::editor().spielKennung != *kennung && spielNach->kamera > spielVor->kamera && (spielVor->xy[0] == 0U || spielNach->xy[0] > spielVor->xy[0]);
+    }));
+    add(tu("Ruhe: Spielordner der Sitzung zurueck", [=] {
+        *kennung = ke::editor().spielKennung;
+        setzeSitzungsSpielordner({});
+    }));
+    add(warteBis("Ruhe: das Spiel des Editors ist wieder das alte", [=] { return ke::editor().spielKennung != *kennung && ke::spielBereit(); }, 3000));
     add(tu("Ruhe: wieder jedes Bild zeichnen, Fenster zurueck", [] {
         ke::zeichnenNachBedarfImTest(false);
         tabfenster::zurueck(3);
         g_app->leftMode = 0;
     }));
     add(pause(0.5));
+    // --- rc610 F23 (B3-1, nicht nachstellbar): das Spielbild (Szene 1) vergisst beim Wechsel der .bsp die Bilder und Lightmaps
+    // der vorigen - aufbauen laedt die Bilder ueber loadMapTextures, und das ruft gpu::vergissKarte fuer die gewaehlte Szene 1.
+    // Erst duel_jeditemple (viele Shader und Lightmaps, Kamera wie Teil 11), dann maps/mp/duel1: danach liegt im Grafikspeicher
+    // der Szene kein Platz mehr, den duel1 nicht hat.
+    auto erste = std::make_shared<ke::SpielbildStand>();
+    add(tu("Spielbild: duel_jeditemple als Vorlage, Built map as in the game", [] {
+        g_app->leftMode = 3;
+        ke::Editor& ed = ke::editor();
+        ed.echtLicht.spielbild = true;
+        ed.karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        std::string daten;
+        std::string f;
+        if (!ed.karteSpiel || !ed.karteSpiel->fs.dateiLesen("maps/duel_jeditemple.bsp", daten) || !ke::vorlageLaden(daten, "duel_jeditemple.bsp", &f)) {
+            meldeFehler("Spielbild: maps/duel_jeditemple.bsp nicht geladen " + f);
+        }
+        ed.kamera.ursprung = karte::Vektor3f(-1250.0F, -20.0F, -1113.75F);
+        ed.kamera.winkel = karte::Vektor3f(0.0F, 90.0F, 0.0F);
+        ++ed.sichtStand;
+    }));
+    add(warteBis("Spielbild: Texturen duel_jeditemple", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(stufe9c::langeWarten("Spielbild: duel_jeditemple gezeigt", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
+    add(pause(1.0));
+    add(tu("Spielbild: Plaetze von duel_jeditemple merken, maps/mp/duel1 als Vorlage", [erste] {
+        *erste = ke::spielbildStand();
+        ke::Editor& ed = ke::editor();
+        std::string daten;
+        std::string f;
+        if (!ed.karteSpiel || !ed.karteSpiel->fs.dateiLesen("maps/mp/duel1.bsp", daten) || !ke::vorlageLaden(daten, "duel1.bsp", &f)) {
+            meldeFehler("Spielbild: maps/mp/duel1.bsp nicht geladen " + f);
+        }
+        ++ed.sichtStand;
+    }));
+    add(warteBis("Spielbild: Texturen duel1", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(stufe9c::langeWarten("Spielbild: duel1 gezeigt", [erste] { return ke::spielbildStand().nummer != erste->nummer && ke::editor().echtLicht.spielbildGezeigt; },
+                             20000));
+    add(pause(1.0));
+    add(pruefe("Spielbild: nach dem Wechsel liegen nur Plaetze von duel1 im Grafikspeicher der Szene (B3-1)", [erste] {
+        const ke::SpielbildStand z = ke::spielbildStand();
+        char t[300];
+        std::snprintf(t, sizeof t,
+                      "Knopftest: Spielbild B3-1 - duel_jeditemple %d Bilder / %d Lightmaps, hoechster Platz %d / %d; duel1 %d / %d, hoechster Platz %d / %d",
+                      erste->bildPlaetze, erste->lightmapPlaetze, erste->hoechstesBild, erste->hoechsteLightmap, z.bildPlaetze, z.lightmapPlaetze,
+                      z.hoechstesBild, z.hoechsteLightmap);
+        diag::detail(t);
+        // Vorbedingung: die erste Karte hat Plaetze belegt, die es in der zweiten nicht gibt
+        const bool sinnvoll = erste->hoechstesBild >= z.bildPlaetze || erste->hoechsteLightmap >= z.lightmapPlaetze;
+        return sinnvoll && z.hoechstesBild < z.bildPlaetze && z.hoechsteLightmap < z.lightmapPlaetze;
+    }));
+    add(tu("Spielbild: Vorlage weg, Mission-Tab", [] {
+        ke::vorlageEntfernen();
+        g_app->leftMode = 0;
+    }));
     return s;
 }
 }  // namespace kartenruhe

@@ -41,6 +41,8 @@ void shutdown();
 void vergissKarte();
 // Selbsttest: haelt der Zwischenspeicher der Himmelsbox noch ein Netz (vergissKarte leert ihn)?
 [[nodiscard]] bool himmelBoxGemerkt();
+// rc610 F23 (B3-1), Selbsttest: der hoechste belegte Platz der Bilder und der Lightmaps der gewaehlten Szene (-1: keiner).
+void kartenPlaetze(int& bild, int& lightmap);
 // Selbsttest: tastet die Karte ihre Lightmaps wie R_LoadLightmaps ab (bilinear ohne Anisotropie, geklemmt)?
 [[nodiscard]] bool lightmapAbtasterWieImSpiel();
 
