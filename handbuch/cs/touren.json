@@ -1445,6 +1445,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-geometrie",
+   "gruppe": "tut",
+   "titel": "Udělat z modelu brushe",
+   "kurz": "Exportujte model z Blenderu, v editoru map z jeho částí udělejte brushe nebo model s clip brushi a zkontrolujte výsledek.",
+   "seite": "k-geometrie.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Připravte model.** Postavte ho v Blenderu ve velikosti, jakou má mít ve hře - hráč je vysoký 64 jednotek a jedna jednotka Blenderu se stane jednou jednotkou (nebo později nastavte **{{KeGiSkala}}**). Každý objekt se stane jednou částí; pevné části uzavřete (bez děr) - jen uzavřené části se stanou pevnými brushi. Materiály pojmenujte jako textury, například `crate01`. Exportujte přes **File > Export** jako .obj, .fbx nebo .glb/.gltf s výchozím nastavením (Y nahoru). Pak v liště režimů přepněte na **{{ViewMapEditor}}**.",
+      "bild": "h_tut_geo_1",
+      "unter": "Krok 1 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Otevřete import.** **{{KeLFile}} > {{KeGiMenue}}** a vyberte soubor. Okno **{{KeGiTitel}}** vypíše každou část souboru s jejími trojúhelníky a s tím, zda je uzavřená. Soubor .bsp vybraný zde se otevře jako přes **{{KeLOpenBsp}}**.",
+      "bild": "h_tut_geo_2",
+      "unter": "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "menue:KeLFile>KeGiMenue",
+      "fertig": "offen:###geoimport",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Zvolte pro každou část.** Ve sloupci **{{KeGiArt}}**: **{{KeGiAuto}}** (brushe pro uzavřenou část s nejvýše 256 brushi, jinak model s clip brushi), **{{KeGiPinsel}}** nebo **{{KeGiModellClip}}**. Sloupec **{{KeGiErgebnis}}** hned ukáže, kolik brushů vznikne a zda jsou detail, nebo strukturální. **{{KeGiVorsatz}}** se přidá před každý název materiálu: s `textures/yavin/` se z materiálu `crate01` stane textura `textures/yavin/crate01`. V příkladu se bedna (48 jednotek) stane jedním detail brushem, sloup s podstavcem dvěma strukturálními brushi (podstavec a dřík) a otevřený panel s rostlinami modelem + clip.",
+      "bild": "h_tut_geo_3",
+      "unter": "Krok 3 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "fenster:###geoimport",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Vložte.** **{{KeGiEinfuegen}}** vloží vše do mapy jako jeden krok zpět - <kbd>Ctrl</kbd>+<kbd>Z</kbd> vše vrátí. Se zapnutou volbou **{{KeGiOptimierer}}** (výchozí) se potom otevře optimalizátor a zkontroluje mapu s novými brushi vůči limitům hry.",
+      "bild": "h_tut_geo_4",
+      "unter": "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "knopf:KeGiEinfuegen@###geoimport",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Zkontrolujte výsledek.** Stěny na povrchu modelu mají jeho materiál, zarovnaný podle jeho UV; stěny uvnitř, které nikdo nevidí, jsou caulk. Malé části (pod 64 jednotek) a otevřené části jsou detail, takže mapu nerozřežou na listy BSP. Část jako **{{KeGiModellClip}}** je misc_model s clip brushi kolem; jeho .obj leží ve složce importu vedle nastavení, nikdy ve složce hry - konzole řekne kde.",
+      "bild": "h_tut_geo_5",
+      "unter": "Krok 5 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "fenster:##feldKamera",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Sestavte mapu a podívejte se na ni ve hře.** **{{KeLBuild}}** zkompiluje mapu jako v Vaše první mapa: místnost k procházení; **{{KeLBuild}} > {{KeStMenue}}** s ní spustí hru. {{KeStMenue}} a **{{KePkMenue}}** zabalí do archivu i složku importu, aby hra našla i model části jako {{KeGiModellClip}}.",
+      "bild": "h_tut_geo_6",
+      "unter": "Krok 6 v programu: tutoriál zvýrazní, kde pokračovat.",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

@@ -110,6 +110,11 @@ const ZielRoh kZiele[] = {
     {"tour:tut-karte@12", "karte", "karte bauen kompilieren bsp erzeugen compile the map build q3map2 编译地图 构建地图 マップをビルド コンパイル"},
     {"tour:tut-karte@13", "karte", "im editor spielen durchlaufen herumlaufen durch die karte laufen play in editor walk around 在编辑器中试玩 走一走 エディターで遊ぶ 歩き回る"},
     {"tour:tut-karte@14", "karte", "karte als pk3 packen ins spiel bringen veroeffentlichen pack map as pk3 release 打包成pk3 放进游戏 pk3にパック ゲームに入れる"},
+    // rc610 TUT-GEO: shank fragte "wie benutzt man das model zu brush?" - die Tour k-geometrie
+    {"tour:k-geometrie", "karte",
+     "modell zu brush modell zu brushes machen modell in brushes umwandeln geometrie als brushes importieren blender modell importieren obj importieren "
+     "model to brush convert a model to brushes turn a mesh into brushes import geometry as brushes import obj fbx from blender "
+     "模型转画刷 把模型变成画刷 导入几何体 导入obj モデルをブラシに ジオメトリをブラシとして読み込む objを読み込む"},
     {"ort:knopf:ViewMapEditor@modebar", "karte", "karteneditor oeffnen open the map editor radiant 打开地图编辑器 マップエディターを開く"},
     // --- Skripte -----------------------------------------------------------------
     {"tour:k-neues-skript", "skript", "erstes skript schreiben neues skript anfangen write my first script new script 写第一个脚本 新建脚本 最初のスクリプト 新しいスクリプト"},

@@ -119,5 +119,6 @@ const ZielRoh kZieleEs[] = {
     {"seite:k-trigger.html", "vorschau", "crear un trigger que pase algo cuando el jugador entra en una zona"},
     {"seite:menue_editor.html", "menue", "editar los menus del juego editor de menus"},
     {"seite:menue_editor.html#bedienen", "menue", "probar los botones del menu modo interactivo"},
+    {"tour:k-geometrie", "karte", "convertir un modelo en brushes modelo a brush importar geometria como brushes importar obj de blender"},   // rc610 TUT-GEO
     {nullptr, nullptr, nullptr},
 };

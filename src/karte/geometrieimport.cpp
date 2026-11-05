@@ -520,7 +520,9 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
     EinfuegeErgebnis r;
     Befehl undo(k.undo, "importGeometry");
     k.auswahl.leeren();
-    const auto welt = k.welt();
+    // Map_FindOrInsertWorldspawn (NRC map.cpp:539-554): eine neue Karte hat noch keinen worldspawn - rc610 TUT-GEO,
+    // vorher stuerzte der Import in eine neue Karte hier ab (welt() leer)
+    std::shared_ptr<Entitaet> welt;
     bool modell = false;
     const auto vek = [](const ImportPunkt& p) { return Vektor3d(p.x, p.y, p.z); };
     for (const TeilErgebnis& t : teile) {
@@ -542,6 +544,7 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
             if (p->anzahl() < 4) { continue; }
             if (ip.detail) { p->setzeDetail(true); }
             p->schicht = static_cast<int>(k.aktuelleSchicht);
+            if (!welt) { welt = k.weltHolenOderAnlegen(); }
             welt->kindEinfuegen(p);
             k.auswahl.waehlen(welt, p);
             ++r.pinsel;

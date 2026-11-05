@@ -18,6 +18,7 @@
 //   6. k-skins     Haut, Flaechenliste, Kappen, Skelett (uebersprungen: Dateidialog)
 //   7. tut-menue   Menue-Editor: aus dem Spiel, verschieben, bedienen, exportieren
 //   8. tut-karte-tuer  Karten-Editor: Brush, func_door, angle, Trigger, verbinden
+//      k-geometrie     rc610 TUT-GEO: ein Modell zu Brushes (selbsttest_tutgeo.inc, BHED_H2_NUR=geo)
 //   9. k-update    suchen, Antwort, beim Start, Aenderungen
 //  10. k-spielordner  Pfade, Ordner dazu, Liste, Einstellungen, Regelwerk
 namespace hilfe2 {
@@ -897,6 +898,7 @@ std::vector<Schritt> schritte() {
         if (mit("wege")) { for (Schritt& x : wegpunkte()) { s.push_back(std::move(x)); } }
         if (mit("skins")) { for (Schritt& x : skins()) { s.push_back(std::move(x)); } }
         if (mit("menue")) { for (Schritt& x : menue()) { s.push_back(std::move(x)); } }
+        if (mit("geo")) { for (Schritt& x : tutgeo::tour()) { s.push_back(std::move(x)); } }   // rc610 TUT-GEO (vor der Tuer: endet in Events)
         if (mit("tuer")) { for (Schritt& x : karteTuer()) { s.push_back(std::move(x)); } }
         if (mit("update")) { for (Schritt& x : update()) { s.push_back(std::move(x)); } }
         if (mit("spielordner")) { for (Schritt& x : spielordner()) { s.push_back(std::move(x)); } }
@@ -911,6 +913,7 @@ std::vector<Schritt> schritte() {
     for (Schritt& x : wegpunkte()) { s.push_back(std::move(x)); }
     for (Schritt& x : skins()) { s.push_back(std::move(x)); }
     for (Schritt& x : menue()) { s.push_back(std::move(x)); }
+    for (Schritt& x : tutgeo::tour()) { s.push_back(std::move(x)); }   // rc610 TUT-GEO: k-geometrie (vor der Tuer - k-update erwartet danach den Karten-Editor)
     for (Schritt& x : karteTuer()) { s.push_back(std::move(x)); }
     for (Schritt& x : update()) { s.push_back(std::move(x)); }
     for (Schritt& x : spielordner()) { s.push_back(std::move(x)); }

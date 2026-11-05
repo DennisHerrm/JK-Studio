@@ -1445,6 +1445,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-geometrie",
+   "gruppe": "tut",
+   "titel": "モデルをブラシにする",
+   "kurz": "Blender からモデルを書き出し、マップエディターでその部品をブラシか、クリップブラシ付きのモデルにして、結果を確認します。",
+   "seite": "k-geometrie.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**モデルを用意します。** Blender で、ゲーム内で必要な大きさで作ります。プレイヤーの高さは 64 ユニットで、Blender の 1 単位が 1 ユニットになります(あとで **{{KeGiSkala}}** を設定してもかまいません)。オブジェクトごとに 1 つの部品になります。固体にする部品は穴のない閉じた形にしてください。閉じた部品だけが固体のブラシになります。マテリアルにはテクスチャと同じ名前(例: `crate01`)を付けます。**File > Export** で既定の設定(Y 上)のまま .obj、.fbx、.glb/.gltf として書き出します。次にモードバーで **{{ViewMapEditor}}** に切り替えます。",
+      "bild": "h_tut_geo_1",
+      "unter": "プログラムでの手順 1: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**読み込みを開きます。** **{{KeLFile}} > {{KeGiMenue}}** でファイルを選びます。ウィンドウ **{{KeGiTitel}}** に、ファイルの各部品とその三角形の数、閉じているかどうかが並びます。ここで .bsp を選ぶと **{{KeLOpenBsp}}** と同じように開きます。",
+      "bild": "h_tut_geo_2",
+      "unter": "プログラムでの手順 2: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "menue:KeLFile>KeGiMenue",
+      "fertig": "offen:###geoimport",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**部品ごとに選びます。** 列 **{{KeGiArt}}** で、**{{KeGiAuto}}**(閉じていて 256 個以下のブラシになる部品はブラシ、それ以外はクリップブラシ付きのモデル)、**{{KeGiPinsel}}**、**{{KeGiModellClip}}** のどれかを選びます。列 **{{KeGiErgebnis}}** に、いくつのブラシになるか、detail か構造かがすぐに表示されます。**{{KeGiVorsatz}}** は各マテリアル名の前に付きます。`textures/yavin/` なら、マテリアル `crate01` はテクスチャ `textures/yavin/crate01` になります。例では、箱(48 ユニット)が detail ブラシ 1 個、台座付きの柱が構造ブラシ 2 個(台座と柱身)、開いた植物のパネルがモデル + クリップになります。",
+      "bild": "h_tut_geo_3",
+      "unter": "プログラムでの手順 3: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "fenster:###geoimport",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**挿入します。** **{{KeGiEinfuegen}}** ですべてを 1 回の元に戻す操作としてマップに入れます。<kbd>Ctrl</kbd>+<kbd>Z</kbd> で全部元に戻ります。**{{KeGiOptimierer}}**(既定でオン)なら、続いて最適化が開き、新しいブラシを含むマップをゲームの制限と照らし合わせます。",
+      "bild": "h_tut_geo_4",
+      "unter": "プログラムでの手順 4: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "knopf:KeGiEinfuegen@###geoimport",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**結果を確認します。** モデルの表面にある面はそのマテリアルを持ち、UV に合わせて配置されます。内側の誰にも見えない面は caulk です。小さな部品(64 ユニット未満)と開いた部品は detail なので、マップを BSP のリーフに切り分けません。**{{KeGiModellClip}}** の部品は、周りにクリップブラシのある misc_model です。その .obj は設定の隣の読み込みフォルダーにあり、ゲームフォルダーには入りません。場所はコンソールに表示されます。",
+      "bild": "h_tut_geo_5",
+      "unter": "プログラムでの手順 5: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "fenster:##feldKamera",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**ビルドしてゲームで見ます。** **{{KeLBuild}}** で はじめてのマップ:歩き回れる部屋 と同じようにマップをコンパイルし、**{{KeLBuild}} > {{KeStMenue}}** でそのマップを使ってゲームを起動します。{{KeStMenue}} と **{{KePkMenue}}** は読み込みフォルダーもアーカイブに入れるので、{{KeGiModellClip}} の部品のモデルもゲームが見つけられます。",
+      "bild": "h_tut_geo_6",
+      "unter": "プログラムでの手順 6: チュートリアルが次の操作場所を強調表示します。",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

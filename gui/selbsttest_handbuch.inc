@@ -293,6 +293,9 @@ namespace hilfe2 {
 std::vector<Schritt> schritte();   // selbsttest_hilfe2.inc: Stufe H2 - mehr interaktive Touren, Helfer, KI
 std::vector<Schritt> handbuchFotos();   // dito: die Bilder der neuen Tutorials
 }  // namespace hilfe2
+namespace tutgeo {
+std::vector<Schritt> tour();   // selbsttest_tutgeo.inc: rc610 TUT-GEO, die Tour "Ein Modell zu Brushes machen"
+}  // namespace tutgeo
 namespace hilfe1 {
 std::vector<Schritt> schritte();   // selbsttest_hilfe1.inc: Stufe H1 - Helfer, Touren, KI
 std::vector<Schritt> handbuchFotos();   // dito: die Bilder der Handbuchseite
@@ -537,6 +540,12 @@ std::vector<Schritt> karteneditorSchritte() {
     // =hilfe2: Stufe H2 - mehr interaktive Touren mit echten Aktionen, Helfer, KI
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "hilfe2") == 0) {
         for (Schritt& x : hilfe2::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =tutgeo: rc610 TUT-GEO - die Tour "Ein Modell zu Brushes machen" mit echten Aktionen
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "tutgeo") == 0) {
+        for (Schritt& x : tutgeo::tour()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
@@ -923,6 +932,7 @@ void skriptNeu() {
 #include "selbsttest_karte8c.inc"
 #include "selbsttest_hilfe1.inc"   // Stufe H1: Helfer, Touren, KI-Anbindung
 #include "selbsttest_hilfe2.inc"   // Stufe H2: mehr interaktive Touren, Helfer, KI
+#include "selbsttest_tutgeo.inc"   // rc610 TUT-GEO: Tour und Bilder "Ein Modell zu Brushes machen"
 #include "selbsttest_karte8g.inc"
 #include "selbsttest_karte9.inc"
 #include "selbsttest_karte9c.inc"
@@ -2301,6 +2311,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "hilfe2") == 0) {
         return hilfe2::handbuchFotos();   // Stufe H2: die neuen Tutorials mit ihrer Hervorhebung
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "tutgeo") == 0) {
+        return tutgeo::tour();   // rc610 TUT-GEO: die Bilder h_tut_geo_1 .. _6 (die Tour an jedem Schritt)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartebauen") == 0) {
         return karteneditorHandbuchSchritte(true);

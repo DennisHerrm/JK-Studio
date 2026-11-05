@@ -53,7 +53,9 @@ TOUREN = ["k-neues-skript", "k-befehl-einfuegen", "k-werte-bearbeiten", "k-zeile
           "k-gangart", "k-wegpunkte", "k-neu-timen", "tut-p1", "k-skins",
           "k-spielordner", "k-update", "tut-karte-tuer", "tut-menue",
           # M5b: das erste eigene Menue im Menue-Editor (inhalt_menue5b.py)
-          "tut-menue-eigen"]
+          "tut-menue-eigen",
+          # rc610 TUT-GEO: ein Modell zu Brushes machen (inhalt_tutgeo.py)
+          "k-geometrie"]
 ANSICHTEN = ["classic"]
 
 # Die Ereignisliste gibt es nur im Modus Events - sonst zeigt die Tour auf
@@ -378,3 +380,15 @@ def pruefe(seite, ansicht, nr, a, kennung_bekannt):
     for akt in [t.strip() for t in (a["einrichten"] + ";" + a.get("ueberspringen", "")).split(";") if t.strip()]:
         if akt.split(":")[0] not in AKTIONEN:
             raise SystemExit("%s: unbekannte Aktion: %s" % (wo, akt))
+# --- rc610 TUT-GEO: k-geometrie - ein Modell zu Brushes machen ------------------------------
+# Schritt 2 oeffnet einen Dateidialog: nie "Mach es". Erledigt ist er, wenn das Fenster
+# Geometrie zu Brushes offen ist (die Datei gelesen); Schritt 4, wenn Brushes dazukommen.
+GEO = KARTE + " && offen:###geoimport < menue:KeLFile>KeGiMenue"
+NACH_SCHRITT.update({
+    ("k-geometrie", "classic", 1): A("knopf:ViewMapEditor@modebar", "modus:3", einrichten="modus:3", sicher=True),
+    ("k-geometrie", "classic", 2): A("menue:KeLFile>KeGiMenue", "offen:###geoimport", voraus=KARTE),
+    ("k-geometrie", "classic", 3): A("fenster:###geoimport", "manuell", voraus=GEO),
+    ("k-geometrie", "classic", 4): A("knopf:KeGiEinfuegen@###geoimport", "zahl:karte.pinsel+", voraus=GEO),
+    ("k-geometrie", "classic", 5): A("fenster:##feldKamera", "manuell", voraus=KARTE),
+    ("k-geometrie", "classic", 6): A("menue:KeLBuild", "zahl:karte.gebaut+|zahl:karte.spielen", voraus=KARTE),
+})

@@ -7522,3 +7522,7 @@ TEXTE.update({
 # rc609 T1: ganze Tabs in eigenen Fenstern
 from inhalt_tabfenster import ES as _T1  # noqa: E402
 TEXTE.update(_T1)
+
+# rc610 TUT-GEO: Tutorial "Ein Modell zu Brushes machen"
+from inhalt_tutgeo import ES as _TG  # noqa: E402
+TEXTE.update(_TG)

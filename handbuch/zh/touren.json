@@ -1445,6 +1445,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-geometrie",
+   "gruppe": "tut",
+   "titel": "把模型变成画刷",
+   "kurz": "从 Blender 导出模型,在地图编辑器中把它的部件变成画刷或带碰撞画刷的模型,并检查结果。",
+   "seite": "k-geometrie.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**准备模型。** 在 Blender 中按它在游戏中应有的大小制作——玩家高 64 个单位,一个 Blender 单位就是一个单位(也可以之后设置 **{{KeGiSkala}}**)。每个物体成为一个部件;把实心的部件封闭(没有洞)——只有封闭的部件才会成为实心画刷。按纹理给材质命名,例如 `crate01`。用 **File > Export** 以默认设置(Y 轴向上)导出为 .obj、.fbx 或 .glb/.gltf。然后在模式栏中切换到 **{{ViewMapEditor}}**。",
+      "bild": "h_tut_geo_1",
+      "unter": "程序中的第 1 步:教程高亮显示下一步的位置。",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**打开导入。** 选择 **{{KeLFile}} > {{KeGiMenue}}** 并选取文件。窗口 **{{KeGiTitel}}** 列出文件中的每个部件、它的三角形数量以及是否封闭。在这里选择 .bsp 时,会像 **{{KeLOpenBsp}}** 一样打开。",
+      "bild": "h_tut_geo_2",
+      "unter": "程序中的第 2 步:教程高亮显示下一步的位置。",
+      "ziel": "menue:KeLFile>KeGiMenue",
+      "fertig": "offen:###geoimport",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**为每个部件选择。** 在 **{{KeGiArt}}** 列中选择:**{{KeGiAuto}}**(封闭且不超过 256 个画刷的部件生成画刷,否则生成带碰撞画刷的模型)、**{{KeGiPinsel}}** 或 **{{KeGiModellClip}}**。**{{KeGiErgebnis}}** 列会立即显示它会变成多少个画刷,以及它们是 detail 还是结构画刷。**{{KeGiVorsatz}}** 会加在每个材质名前面:使用 `textures/yavin/` 时,材质 `crate01` 会成为纹理 `textures/yavin/crate01`。在示例中,箱子(48 个单位)成为一个 detail 画刷,带底座的柱子成为两个结构画刷(底座和柱身),开放的植物面板成为模型 + 碰撞。",
+      "bild": "h_tut_geo_3",
+      "unter": "程序中的第 3 步:教程高亮显示下一步的位置。",
+      "ziel": "fenster:###geoimport",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**插入。** **{{KeGiEinfuegen}}** 把所有内容作为一个撤销步骤放入地图——<kbd>Ctrl</kbd>+<kbd>Z</kbd> 会全部撤回。勾选 **{{KeGiOptimierer}}**(默认开启)时,随后会打开优化器,按游戏的限制检查加入新画刷后的地图。",
+      "bild": "h_tut_geo_4",
+      "unter": "程序中的第 4 步:教程高亮显示下一步的位置。",
+      "ziel": "knopf:KeGiEinfuegen@###geoimport",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**检查结果。** 位于模型表面的面使用模型的材质,并按其 UV 对齐;模型内部、谁也看不到的面是 caulk。小部件(小于 64 个单位)和开放部件是 detail,因此不会把地图切成 BSP 叶。作为 **{{KeGiModellClip}}** 的部件是一个 misc_model,周围有碰撞画刷;它的 .obj 位于设置旁的导入文件夹中,绝不在游戏文件夹里——控制台会告诉你位置。",
+      "bild": "h_tut_geo_5",
+      "unter": "程序中的第 5 步:教程高亮显示下一步的位置。",
+      "ziel": "fenster:##feldKamera",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**编译并在游戏中查看。** **{{KeLBuild}}** 像 你的第一张地图:一个可以走动的房间 中那样编译地图;**{{KeLBuild}} > {{KeStMenue}}** 用它启动游戏。{{KeStMenue}} 和 **{{KePkMenue}}** 会把导入文件夹一起打包进存档,这样游戏也能找到作为 {{KeGiModellClip}} 的部件的模型。",
+      "bild": "h_tut_geo_6",
+      "unter": "程序中的第 6 步:教程高亮显示下一步的位置。",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

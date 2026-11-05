@@ -1445,6 +1445,83 @@
      }
     ]
    }
+  },
+  {
+   "id": "k-geometrie",
+   "gruppe": "tut",
+   "titel": "Ein Modell zu Brushes machen",
+   "kurz": "Exportiere ein Modell aus Blender, mach im Karten-Editor aus seinen Teilen Brushes oder ein Modell mit Clip-Brushes und prüfe das Ergebnis.",
+   "seite": "k-geometrie.html",
+   "ansichten": {
+    "classic": [
+     {
+      "text": "**Bereite das Modell vor.** Bau es in Blender in der Größe, die es im Spiel haben soll - der Spieler ist 64 Einheiten groß, und eine Blender-Einheit wird eine Einheit (oder stell später **{{KeGiSkala}}** ein). Jedes Objekt wird ein Teil; schließ die festen (ohne Löcher) - nur geschlossene Teile werden feste Brushes. Benenne die Materialien wie die Texturen, zum Beispiel `crate01`. Exportiere mit **File > Export** als .obj, .fbx oder .glb/.gltf mit den Vorgaben (Y oben). Dann schalte in der Modusleiste auf **{{ViewMapEditor}}**.",
+      "bild": "h_tut_geo_1",
+      "unter": "Schritt 1 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "knopf:ViewMapEditor@modebar",
+      "fertig": "modus:3",
+      "voraus": "",
+      "einrichten": "modus:3",
+      "sicher": true,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Öffne den Import.** **{{KeLFile}} > {{KeGiMenue}}** und wähl die Datei. Das Fenster **{{KeGiTitel}}** listet jeden Teil der Datei mit seinen Dreiecken und ob er geschlossen ist. Eine hier gewählte .bsp öffnet sich wie mit **{{KeLOpenBsp}}**.",
+      "bild": "h_tut_geo_2",
+      "unter": "Schritt 2 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "menue:KeLFile>KeGiMenue",
+      "fertig": "offen:###geoimport",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Wähl für jeden Teil.** In der Spalte **{{KeGiArt}}**: **{{KeGiAuto}}** (Brushes für einen geschlossenen Teil mit bis zu 256 Brushes, sonst ein Modell mit Clip-Brushes), **{{KeGiPinsel}}** oder **{{KeGiModellClip}}**. Die Spalte **{{KeGiErgebnis}}** zeigt sofort, wie viele Brushes daraus werden und ob sie detail oder strukturell sind. **{{KeGiVorsatz}}** kommt vor jeden Materialnamen: Mit `textures/yavin/` wird das Material `crate01` zur Textur `textures/yavin/crate01`. Im Beispiel wird die Kiste (48 Einheiten) ein Detail-Brush, die Säule mit Sockel zwei strukturelle Brushes (Sockel und Schaft), die offene Pflanzenwand ein Modell + Clip.",
+      "bild": "h_tut_geo_3",
+      "unter": "Schritt 3 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "fenster:###geoimport",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Füge ein.** **{{KeGiEinfuegen}}** setzt alles als einen Undo-Schritt in die Karte - <kbd>Strg</kbd>+<kbd>Z</kbd> nimmt alles zurück. Mit **{{KeGiOptimierer}}** (vorgegeben an) öffnet sich danach der Optimierer und prüft die Karte mit den neuen Brushes gegen die Grenzen des Spiels.",
+      "bild": "h_tut_geo_4",
+      "unter": "Schritt 4 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "knopf:KeGiEinfuegen@###geoimport",
+      "fertig": "zahl:karte.pinsel+",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar && offen:###geoimport < menue:KeLFile>KeGiMenue",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Prüf das Ergebnis.** Seiten auf der Oberfläche des Modells haben sein Material, ausgerichtet nach seiner UV; Seiten im Innern, die niemand sieht, sind caulk. Kleine Teile (unter 64 Einheiten) und offene Teile sind detail, damit sie die Karte nicht in BSP-Blätter zerschneiden. Ein Teil als **{{KeGiModellClip}}** ist ein misc_model mit Clip-Brushes darum; seine .obj liegt im Import-Ordner neben den Einstellungen, nie im Spielordner - die Konsole sagt, wo.",
+      "bild": "h_tut_geo_5",
+      "unter": "Schritt 5 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "fenster:##feldKamera",
+      "fertig": "manuell",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     },
+     {
+      "text": "**Bau und sieh es dir im Spiel an.** **{{KeLBuild}}** kompiliert die Karte wie in Deine erste Karte: ein Raum zum Herumlaufen; **{{KeLBuild}} > {{KeStMenue}}** startet das Spiel damit. {{KeStMenue}} und **{{KePkMenue}}** packen den Import-Ordner mit ins Archiv, damit das Spiel auch das Modell eines Teils als {{KeGiModellClip}} findet.",
+      "bild": "h_tut_geo_6",
+      "unter": "Schritt 6 im Programm: das Tutorial hebt hervor, wo es weitergeht.",
+      "ziel": "menue:KeLBuild",
+      "fertig": "zahl:karte.gebaut+|zahl:karte.spielen",
+      "voraus": "modus:3 < knopf:ViewMapEditor@modebar",
+      "einrichten": "",
+      "sicher": false,
+      "ueberspringen": ""
+     }
+    ]
+   }
   }
  ]
 }

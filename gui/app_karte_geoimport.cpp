@@ -20,6 +20,7 @@
 #include "bhed/karte/spielbeschreibung.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -302,19 +303,24 @@ void geoImportDialogZeichnen() {
     GeoImportZustand& z = e().geoImport;
     if (!z.offen) { return; }
     const std::string titel = std::string(trK(Str::KeGiTitel)) + "###geoimport";
-    ImGui::SetNextWindowSize(ImVec2(760, 460), ImGuiCond_Appearing);
+    // rc610 TUT-GEO: Groesse mit der Schrift des Karten-Editors (13 Punkte = 1, wie die Ansichten; sie waechst mit der
+    // Oberflaechengroesse und den DPI), hoechstens 60 x 80 % des Fensters (daneben bleibt Platz fuer das Tutorial); die Tabelle fuellt es bis ueber die Knoepfe - bei
+    // 150 % lag die dritte Zeile unter dem festen Tabellenrand von 220 Punkten, und die Vorschau war abgeschnitten
+    const float sk = std::max(1.0F, ImGui::GetFontSize() / 13.0F);
+    const ImVec2 platz = ImGui::GetMainViewport()->WorkSize;
+    ImGui::SetNextWindowSize(ImVec2(std::min(std::round(760.0F * sk), platz.x * 0.6F), std::min(std::round(460.0F * sk), platz.y * 0.8F)),
+                             ImGuiCond_Appearing);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5F, 0.5F));
     bool offen = true;
     if (ImGui::Begin(titel.c_str(), &offen)) {
         ImGui::TextUnformatted(z.datei.c_str());
         bool neuLesen = false;
-        ImGui::SetNextItemWidth(120);
+        ImGui::SetNextItemWidth(std::round(120.0F * sk));
         neuLesen |= ImGui::InputFloat((std::string(trK(Str::KeGiSkala)) + "##giskala").c_str(), &z.skala, 0.0F, 0.0F, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::SameLine();
         neuLesen |= ImGui::Checkbox((std::string(trK(Str::KeGiYOben)) + "##giyoben").c_str(), &z.yOben);
-        ImGui::SetNextItemWidth(260);
+        ImGui::SetNextItemWidth(std::round(260.0F * sk));
         if (ImGui::InputText((std::string(trK(Str::KeGiVorsatz)) + "##givorsatz").c_str(), z.vorsatz, sizeof(z.vorsatz))) { z.neu = true; }
-        ImGui::SameLine();
         ImGui::Checkbox((std::string(trK(Str::KeGiOptimierer)) + "##gioptimierer").c_str(), &z.optimierer);
         if (neuLesen && z.skala > 0.0F) {
             const std::vector<int> alt = z.wahl;
@@ -323,14 +329,20 @@ void geoImportDialogZeichnen() {
                 z.neu = true;
             }
         }
-        if (ImGui::BeginTable("##giteile", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY, ImVec2(0, 220))) {
-            ImGui::TableSetupColumn(trK(Str::KeGiTeil));
-            ImGui::TableSetupColumn(trK(Str::KeGiDreiecke));
-            ImGui::TableSetupColumn(trK(Str::KeGiGeschlossen));
-            ImGui::TableSetupColumn(trK(Str::KeGiArt));
-            ImGui::TableSetupColumn(trK(Str::KeGiErgebnis));
+        const char* arten[3] = {trK(Str::KeGiAuto), trK(Str::KeGiPinsel), trK(Str::KeGiModellClip)};
+        float artBreite = 0.0F;   // die Klappliste so breit wie ihr laengster Eintrag (in jeder Sprache)
+        for (const char* a : arten) { artBreite = std::max(artBreite, ImGui::CalcTextSize(a).x); }
+        artBreite += ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0F;
+        // die Tabelle fuellt das Fenster bis ueber die Knoepfe; Dreiecke und Geschlossen so breit wie ihr Inhalt
+        if (ImGui::BeginTable("##giteile", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+                              ImVec2(0.0F, -ImGui::GetFrameHeightWithSpacing()))) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn(trK(Str::KeGiTeil), ImGuiTableColumnFlags_WidthStretch, 0.4F);
+            ImGui::TableSetupColumn(trK(Str::KeGiDreiecke), ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(trK(Str::KeGiGeschlossen), ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(trK(Str::KeGiArt), ImGuiTableColumnFlags_WidthFixed, artBreite);
+            ImGui::TableSetupColumn(trK(Str::KeGiErgebnis), ImGuiTableColumnFlags_WidthStretch, 2.0F);
             ImGui::TableHeadersRow();
-            const char* arten[3] = {trK(Str::KeGiAuto), trK(Str::KeGiPinsel), trK(Str::KeGiModellClip)};
             for (std::size_t i = 0; i < z.netz.teile.size() && i < z.vorschau.size(); ++i) {
                 const karte::TeilErgebnis& r = z.vorschau[i];
                 ImGui::TableNextRow();
@@ -344,6 +356,8 @@ void geoImportDialogZeichnen() {
                 ImGui::SetNextItemWidth(-1);
                 const std::string id = "##giart" + std::to_string(i);
                 if (ImGui::Combo(id.c_str(), &z.wahl[i], arten, 3)) { z.neu = true; }
+                // die Lage fuer den Selbsttest (ImGui meldet eine Klappliste nicht unter ihrer Kennung, wie klappe())
+                e().klappOrte.push_back({id, ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y, ImGui::GetItemRectMax().x, ImGui::GetItemRectMax().y});
                 ImGui::TableNextColumn();
                 char t[256];
                 std::snprintf(t, sizeof(t), trKN(Str::KeGiVorschauText, r.pinsel.size()), static_cast<int>(r.pinsel.size()),
