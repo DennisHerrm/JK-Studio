@@ -2979,6 +2979,7 @@ std::vector<Schritt> schritteM6() {
 #include "selbsttest_menue_pruefung.inc"  // rc608 Teil 3b
 #include "selbsttest_menue_loeschen.inc"  // rc609 ME1
 #include "selbsttest_menue_speichern.inc"  // rc609 ME2
+#include "selbsttest_menue_f46.inc"  // rc610 F46
 
 std::vector<Schritt> schritte() {
     // Mehrere Teile hintereinander: BHED_MENUE_NUR=a+b
@@ -3288,6 +3289,12 @@ std::vector<Schritt> schritte() {
         add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // BHED_MENUE_NUR=seitenwechsel: Seitenwechsel aus dem Code leert die Auswahl (rc610 F46 B6-1)
+    if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "seitenwechsel") == 0) {
+        for (auto& x : schritteSeitenwechsel()) { add(std::move(x)); }
+        add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // BHED_MENUE_NUR=spielbeleg: ein loses Menue des eigenen fs_homepath zurueckspeichern (rc609 Endrunde 1, Spielvergleich)
     if (const char* nur = std::getenv("BHED_MENUE_NUR"); nur != nullptr && std::strcmp(nur, "spielbeleg") == 0) {
         for (auto& x : schritteSpielbeleg()) { add(std::move(x)); }
@@ -3582,6 +3589,7 @@ std::vector<Schritt> schritte() {
     for (auto& x : schritteUndoMehr()) { add(std::move(x)); }
     for (auto& x : schritteAnfaenger()) { add(std::move(x)); }
     for (auto& x : schritteEng()) { add(std::move(x)); }
+    for (auto& x : schritteSeitenwechsel()) { add(std::move(x)); }   // rc610 F46
     add(tu("Zurueck zum Skript-Modus", [] { g_app->leftMode = 0; }));
     return s;
 }

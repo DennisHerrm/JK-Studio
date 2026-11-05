@@ -979,6 +979,24 @@ int menuDerSeite(const Dokument& d) {
     return s[static_cast<std::size_t>(std::clamp(d.seite, 0, static_cast<int>(s.size()) - 1))].menu;
 }
 
+// rc610 F46 B6-1: Seitenwechsel aus dem Code (Skript im Bedienen-Modus, Hierarchie, Gliederung, Diagnose) wie beim
+// Reiter (zeichneSeiten): eine andere Seite leert die Auswahl - deren Indizes gehoerten zum Menue der alten Seite.
+void zeigeSeite(Dokument& d, int seite) {
+    if (seite == d.seite) { return; }
+    d.seite = seite;
+    d.auswahl.clear();
+}
+
+// Die Seite eines ganzen Menues (ohne cvar-Unterseite) zeigen
+void zeigeMenue(Dokument& d, int menu) {
+    const std::vector<Seite> s = seitenImMenue(d.datei);
+    int ziel = -1;
+    for (std::size_t k = 0; k < s.size(); ++k) {
+        if (s[k].menu == menu && s[k].cvar.empty()) { ziel = static_cast<int>(k); }
+    }
+    if (ziel >= 0) { zeigeSeite(d, ziel); }
+}
+
 bool oeffne(const std::string& name, const std::string& platte, const std::string& text) {
     Zustand& z = Z();
     for (std::size_t i = 0; i < z.docs.size(); ++i) {
@@ -1621,12 +1639,7 @@ void auswahlAusCursor(Dokument& d) {
         if (c < me.anfang || c > me.ende) { continue; }
         for (std::size_t i = 0; i < me.items.size(); ++i) {
             if (c >= me.items[i].anfang && c <= me.items[i].ende) {
-                if (static_cast<int>(m) != mi) {
-                    const std::vector<Seite> s = seitenImMenue(d.datei);
-                    for (std::size_t k = 0; k < s.size(); ++k) {
-                        if (s[k].menu == static_cast<int>(m) && s[k].cvar.empty()) { d.seite = static_cast<int>(k); }
-                    }
-                }
+                if (static_cast<int>(m) != mi) { zeigeMenue(d, static_cast<int>(m)); }
                 d.auswahl.assign(1, static_cast<int>(i));
                 return;
             }
@@ -2313,10 +2326,7 @@ bool satzWechsel() {
                     z.lauf.oeffne(ziel);
                     z.laufDatei = z.aktiv;
                     z.laufVersion = -1;
-                    const std::vector<Seite> s = seitenImMenue(od.datei);
-                    for (std::size_t w = 0; w < s.size(); ++w) {
-                        if (s[w].menu == static_cast<int>(q) && s[w].cvar.empty()) { od.seite = static_cast<int>(w); }
-                    }
+                    zeigeMenue(od, static_cast<int>(q));
                     z.satzWechsel = ziel;
                     return true;
                 }
@@ -2928,12 +2938,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (satzWechsel()) { return; }   // M2 Punkt 3
         // Ein Menue, das ein Skript geoeffnet hat: dessen Seite zeigen
         for (std::size_t k = 0; k < z.lauf.menuFlags.size(); ++k) {
-            if ((z.lauf.menuFlags[k] & WINDOW_HASFOCUS) != 0 && static_cast<int>(k) != mi) {
-                const std::vector<Seite> s = seitenImMenue(d.datei);
-                for (std::size_t q = 0; q < s.size(); ++q) {
-                    if (s[q].menu == static_cast<int>(k) && s[q].cvar.empty()) { d.seite = static_cast<int>(q); }
-                }
-            }
+            if ((z.lauf.menuFlags[k] & WINDOW_HASFOCUS) != 0 && static_cast<int>(k) != mi) { zeigeMenue(d, static_cast<int>(k)); }
         }
         return;
     }
@@ -4172,10 +4177,7 @@ void panelProbleme(Dokument& d) {
         if (ImGui::Selectable(t.c_str(), false)) {
             if (x.ende > x.anfang || x.zeile > 0) { springe(d, x.ende > x.anfang ? x.anfang : d.puffer.zeilenAnfang(std::max(0, x.zeile - 1))); }
             if (x.menu >= 0) {
-                const std::vector<Seite> s = seitenImMenue(d.datei);
-                for (std::size_t q = 0; q < s.size(); ++q) {
-                    if (s[q].menu == x.menu && s[q].cvar.empty()) { d.seite = static_cast<int>(q); }
-                }
+                zeigeMenue(d, x.menu);
                 if (x.item >= 0) { d.auswahl.assign(1, x.item); }
             }
         }
@@ -6076,12 +6078,7 @@ void zeichneEbene(Dokument& d, int menu, int i) {
         const bool angeklickt = ImGui::Selectable(l, sel, ImGuiSelectableFlags_AllowDoubleClick, ImVec2{zeilenBreite, 0.0F});
         if (sel && Z().hierarchieRollen) { ImGui::SetScrollHereY(0.3F); }
         if (angeklickt) {
-            if (!aufSeite) {
-                const std::vector<Seite> s = seitenImMenue(d.datei);
-                for (std::size_t k = 0; k < s.size(); ++k) {
-                    if (s[k].menu == menu && s[k].cvar.empty()) { d.seite = static_cast<int>(k); }
-                }
-            }
+            if (!aufSeite) { zeigeMenue(d, menu); }
             // Strg nimmt hinzu oder heraus, Umschalt waehlt den Bereich ab der zuletzt angeklickten Zeile
             const std::vector<int>& reihe = Z().hierarchieReiheAlt;
             const auto von = std::find(reihe.begin(), reihe.end(), d.hierarchieAnker);
@@ -6180,10 +6177,7 @@ void zeichneGliederung(Dokument& d) {
         const bool offen = ImGui::TreeNodeEx("##m", ImGuiTreeNodeFlags_DefaultOpen, "menuDef %s%s", me.window.name.c_str(), me.ok ? "" : " (!)");
         if (ImGui::IsItemClicked()) {
             springe(d, me.anfang);
-            const std::vector<Seite> s = seitenImMenue(d.datei);
-            for (std::size_t k = 0; k < s.size(); ++k) {
-                if (s[k].menu == static_cast<int>(m) && s[k].cvar.empty()) { d.seite = static_cast<int>(k); }
-            }
+            zeigeMenue(d, static_cast<int>(m));
         }
         if (offen) {
             // M2 Ebenenliste (wie der Object Inspector): oben = vorne (zuletzt gezeichnet),
