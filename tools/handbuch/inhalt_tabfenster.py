@@ -74,12 +74,12 @@ X = {
         "Los **diálogos**, como la pregunta antes de cerrar, se abren en la ventana principal, que entonces pasa al frente.",
         "**Dialogy**, například dotaz před zavřením, se otevírají v hlavním okně; to se pak přesune dopředu."),
     "ruhe": (
-        "**A resting window does not draw.** A window in which nothing changes shows no new picture, while you work in another one. The 3D views of the map editor still draw every frame while the program runs, as in the main window.",
-        "**Ein ruhendes Fenster zeichnet nicht.** Ein Fenster, in dem sich nichts ändert, zeigt kein neues Bild, während du in einem anderen arbeitest. Die 3D-Ansichten des Karten-Editors zeichnen weiter in jedem Bild, solange das Programm läuft - wie im Hauptfenster.",
-        "**静止的窗口不会绘制。** 当你在另一个窗口中工作时,内容没有变化的窗口不会显示新画面。地图编辑器的 3D 视图在程序运行期间仍会每帧绘制,与在主窗口中一样。",
-        "**静止しているウィンドウは描画しません。** 別のウィンドウで作業している間、何も変化しないウィンドウは新しい画像を表示しません。マップエディターの 3D ビューは、メインウィンドウと同じく、プログラムが動いている間は毎フレーム描画します。",
-        "**Una ventana en reposo no dibuja.** Una ventana en la que nada cambia no muestra una imagen nueva mientras trabajas en otra. Las vistas 3D del editor de mapas siguen dibujando cada fotograma mientras el programa funciona, como en la ventana principal.",
-        "**Okno v klidu nekreslí.** Okno, ve kterém se nic nemění, neukazuje nový obraz, zatímco pracujete v jiném. 3D pohledy editoru map kreslí dál každý snímek, dokud program běží - stejně jako v hlavním okně."),
+        "**A resting window does not draw.** A window in which nothing changes shows no new picture, while you work in another one. The camera and 2D views of the map editor, like NetRadiant-Custom, draw only when something changes in them - input in the editor, the map, the view, a finished background job or an animation.",
+        "**Ein ruhendes Fenster zeichnet nicht.** Ein Fenster, in dem sich nichts ändert, zeigt kein neues Bild, während du in einem anderen arbeitest. Kamera und 2D-Ansichten des Karten-Editors zeichnen wie in NetRadiant-Custom nur, wenn sich in ihnen etwas ändert - eine Eingabe im Editor, die Karte, die Ansicht, ein fertiger Hintergrundlauf oder eine Animation.",
+        "**静止的窗口不会绘制。** 当你在另一个窗口中工作时,内容没有变化的窗口不会显示新画面。与 NetRadiant-Custom 相同,地图编辑器的摄像机视图和 2D 视图只在其中有变化时才绘制——编辑器中的输入、地图、视图、完成的后台任务或动画。",
+        "**静止しているウィンドウは描画しません。** 別のウィンドウで作業している間、何も変化しないウィンドウは新しい画像を表示しません。マップエディターのカメラと 2D ビューは、NetRadiant-Custom と同じく、その中で何かが変わったとき (エディター内の入力、マップ、ビュー、終わったバックグラウンド処理、アニメーション) だけ描画します。",
+        "**Una ventana en reposo no dibuja.** Una ventana en la que nada cambia no muestra una imagen nueva mientras trabajas en otra. La cámara y las vistas 2D del editor de mapas, como en NetRadiant-Custom, solo dibujan cuando algo cambia en ellas: una entrada en el editor, el mapa, la vista, un trabajo en segundo plano terminado o una animación.",
+        "**Okno v klidu nekreslí.** Okno, ve kterém se nic nemění, neukazuje nový obraz, zatímco pracujete v jiném. Kamera a 2D pohledy editoru map kreslí jako v NetRadiant-Custom jen tehdy, když se v nich něco změní - vstup v editoru, mapa, pohled, dokončená úloha na pozadí nebo animace."),
     "qualitaet": (
         "**Every view keeps its quality.** A second window costs extra time per frame, but no view is drawn smaller or simpler because of it.",
         "**Jede Ansicht behält ihre Qualität.** Ein zweites Fenster kostet zusätzlich Zeit je Bild, aber keine Ansicht wird deshalb kleiner oder einfacher gezeichnet.",

@@ -641,7 +641,20 @@ void xyZeichnen(int index) {
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float hinten[4] = {ed.farben.rasterHinten[0], ed.farben.rasterHinten[1], ed.farben.rasterHinten[2], 1.0F};
-    if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
+    // rc610 R1: nur neu zeichnen, wenn sich etwas geaendert hat (ZeichenAnlass, NRC XYWnd::queueDraw): dazu Lage und
+    // Blickrichtung der Kamera (ihr Symbol), der Zeiger (Fadenkreuz) und ein laufender Bau (seine Rueckmeldung).
+    std::vector<float> lage(&mvp[0], &mvp[0] + 16);
+    for (const float x : {static_cast<float>(v.breite), static_cast<float>(v.hoehe), static_cast<float>(ed.anzeige.msaa), hinten[0], hinten[1], hinten[2],
+                          ed.kamera.ursprung[0], ed.kamera.ursprung[1], ed.kamera.ursprung[2], ed.kamera.winkel[0], ed.kamera.winkel[1],
+                          ed.kamera.winkel[2], f.maus[0], f.maus[1], f.maus[2], ed.farben.auswahl[0], ed.farben.auswahl[1], ed.farben.auswahl[2]}) {
+        lage.push_back(x);
+    }
+    const bool zeichnen = !kartegpu::verfuegbar() || ansichtZeichnen(f.anlass, std::move(lage), (f.jagen ? 2U : 0U) | (bauLaeuft() ? 128U : 0U),
+                                                                kartegpu::textur(100 + index));
+    if (!zeichnen) {
+        // Das zuletzt gezeichnete Bild bleibt stehen.
+        dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(100 + index)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
+    } else if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
         if (!s.geoGpuAktuell) {
             s.gpuGeo.setzen(s.geo);
             s.geoGpuAktuell = true;

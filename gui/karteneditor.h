@@ -413,8 +413,24 @@ void setzeSchrift(ImFont* schrift);
 enum class AnsichtTyp { YZ = 0, XZ = 1, XY = 2, Kamera = 3 };   // VIEWTYPE (xywindow.h)
 
 // Eine 2D-Ansicht (XYWnd) mit Maus- und Tastenzustand.
+// rc610 R1: wann eine Ansicht (Kamera, XY/XZ/YZ) ihr Bild neu zeichnet - wie NRCs queueDraw nur, wenn sich etwas
+// aendert: neuZeichnen() (Eingabe im Editor, Einstellungen, Ende eines Hintergrundlaufs), die Szene (szeneStand,
+// geometrieStand: jeder Befehl, Rueckgaengig, Auswahl, Verstecken), die Lage der Ansicht (Kamera, Massstab,
+// Groesse), ein Grafikgeraet ohne ihr Bild, und solange das Bild selbst laeuft (Texturen laden, Spielbild, Effekte,
+// Kamerafahrt). Sonst zeigt sie das zuletzt gezeichnete Bild weiter (kein neues Bild im ruhenden Fenster).
+struct ZeichenAnlass {
+    std::uint64_t stand = 0;          // Editor::zeichnenStand beim letzten Bild
+    std::size_t szene = 0;            // szeneStand()
+    std::size_t geo = 0;              // geometrieStand()
+    std::vector<float> lage;          // Matrix, Groesse und was die Ansicht sonst zeigt (Kamera im 2D)
+    unsigned laeuft = 1;              // das letzte Bild haengt an der Zeit (Bits je Grund; 1 auch: es gibt noch keins)
+    std::size_t bilder = 0;           // gezeichnete Bilder (Selbsttest)
+    std::string grund;                // warum zuletzt gezeichnet (Selbsttest): t Test, b kein Bild, l<Bits> laeuft, s neuZeichnen,
+                                      // z Szene, g Geometrie, a Lage
+};
 struct XyFenster {
     karte::XyAnsicht ansicht;
+    ZeichenAnlass anlass;        // rc610 R1
     bool verschieben = false;    // m_move_started (Pan mit M2)
     bool zoomen = false;         // m_zoom_started (Alt+M2)
     int zoomX = 0;               // g_zoom2x
@@ -473,6 +489,11 @@ struct KameraFenster {
     double zeichenMs = 0.0;         // ShowStats: msec des letzten Bilds
     double letzteStatistik = -1.0;  // m_render_time (f2f)
     std::size_t bilder = 0;         // fuer den Selbsttest: gezeichnete Bilder der Kamera
+    ZeichenAnlass anlass;           // rc610 R1
+    // rc610 R1: was das letzte gezeichnete Bild zeigte (die Hinweise darueber bleiben, wenn es stehen bleibt)
+    bool echtGezeigt = false;
+    bool gebackenGezeigt = false;
+    std::string statistik;          // ShowStats des letzten gezeichneten Bilds
 };
 // Stufe 7 Punkt 6c (Tester: "terribly low mouse sensitivity" im 3D-Fenster):
 // der Mauszeiger, den der Freelook liest und zuruecksetzt. Im Programm ist es
@@ -625,6 +646,9 @@ struct EntitaetenOberflaeche {
 };
 
 struct Editor {
+    // rc610 R1: queueDraw - jedes neuZeichnen() zaehlt hoch, jede Ansicht zeichnet, wenn ihr Stand zurueckliegt.
+    std::uint64_t zeichnenStand = 1;
+    std::vector<unsigned> fensterImBild;   // ImGui-Fenster (ID), die der Editor im letzten Bild gezeichnet hat
     // --- die Karte (g_map) ---
     karte::Karte karte;
     std::string name = "unnamed.map";   // Map_Name; "unnamed.map" = Map_Unnamed
@@ -1398,6 +1422,16 @@ bool kameraTasteVerbraucht(int key);
 void kameraTastenLoslassen();
 // Braucht die Kamera Bilder (Bewegung, Freelook, Texturen laden)?
 [[nodiscard]] bool kameraBrauchtBilder();
+// rc610 R1: queueDraw - alle Ansichten zeichnen im naechsten Bild neu (siehe ZeichenAnlass).
+void neuZeichnen();
+// Soll die Ansicht in diesem Bild zeichnen? `lage` sind die Werte, an denen ihr Bild sonst noch haengt; `laeuft`:
+// das Bild haengt an der Zeit. Merkt sich den Stand, wenn ja.
+[[nodiscard]] bool ansichtZeichnen(ZeichenAnlass& a, std::vector<float> lage, unsigned laeuft, void* bisherigesBild);
+// Selbsttest: wie im Programm nur bei Bedarf zeichnen (sonst zeichnet jede Ansicht im Selbsttest jedes Bild, wie bis
+// rc609 - die Selbsttests aendern den Zustand ohne Eingabe). Streng: auch ein Schritt des Tests zaehlt nicht als Eingabe.
+void zeichnenNachBedarfImTest(bool an);
+// Ein Schritt des Selbsttests beginnt oder endet: wie eine Eingabe (neuZeichnen), ausser im strengen Fall.
+void schrittWieEingabe();
 // Fuer den Selbsttest: sind alle angeforderten Bilder geladen?
 [[nodiscard]] bool kameraBilderFertig();
 // Fuer den Selbsttest (Punkt 12): Groesse der Kamera- und der 2D-Szenen als Text.

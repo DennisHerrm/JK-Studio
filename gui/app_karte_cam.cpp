@@ -1148,22 +1148,40 @@ void kameraZeichnen() {
     // Schattenwuerfel den alten Stand).
     // rc608 Teil 11: "Built map as in the game" - die gebaute Karte durch den Zeichner der Vorschau, vor beginnen()
     // (er braucht das Geraet fuer sich). Mit dem Schnell-Backen ersetzt es die Pinsel ganz, das Echtzeit-Licht ruht.
+    const bool texturModus = c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht;
+    // rc610 R1: nur neu zeichnen, wenn sich etwas geaendert hat (ZeichenAnlass, NRC queueDraw). An der Zeit haengen die
+    // Kamerafahrt und der Freelook, ladende Texturen, das gezeigte Spielbild (Shader und Modelle nach der Zeit), die Effekte der
+    // Echtzeit-Ansicht und "Im Editor spielen".
+    const unsigned laeuft = (k.bewegung != 0U ? 2U : 0U) | (f.frei ? 4U : 0U) | (!lager().fertig() ? 8U : 0U) |
+                            ((texturModus && ed.echtLicht.spielbildGezeigt) ? 16U : 0U) | ((echtLichtAktiv() && ed.echtLicht.effekte) ? 32U : 0U) |
+                            (spielenAktiv() ? 64U : 0U) | (bauLaeuft() ? 128U : 0U);
+    std::vector<float> lage(&vp[0], &vp[0] + 16);
+    for (const float x : {static_cast<float>(f.breite), static_cast<float>(f.hoehe), static_cast<float>(c.msaa), hinten[0], hinten[1], hinten[2],
+                          ed.farben.auswahl3d[0], ed.farben.auswahl3d[1], ed.farben.auswahl3d[2]}) {
+        lage.push_back(x);
+    }
+    const bool zeichnen = !kartegpu::verfuegbar() || ansichtZeichnen(f.anlass, std::move(lage), laeuft, kartegpu::textur(200));
     void* spielbildSrv = nullptr;
-    if (kartegpu::verfuegbar() && (c.modus == karte::KameraModus::Textur || c.modus == karte::KameraModus::TexturDraht)) {
+    if (zeichnen && kartegpu::verfuegbar() && texturModus) {
         spielbildSrv = spielbildFuerKamera(k, f.breite, f.hoehe);
     }
     // rc609 J: die bearbeitete fertige Karte im Spielbild ersetzt die Pinsel wie das Schnell-Backen
     const bool lumpBild = lumpSpielbildGezeigt();
     const bool spielGebacken = spielbildSrv != nullptr && (ed.echtLicht.gebackenZeigen || lumpBild);
-    ed.echtLicht.spielbildGezeigt = spielbildSrv != nullptr;
-    bool echtJetzt = false;
-    if (!spielGebacken && echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
+    if (zeichnen) { ed.echtLicht.spielbildGezeigt = spielbildSrv != nullptr; }
+    bool echtJetzt = !zeichnen && f.echtGezeigt;
+    if (zeichnen && !spielGebacken && echtLichtAktiv() && g_geo.gpuAktuell && g_geo.dreiecke.gueltig()) {
         // Stufe 9c: die Schattengeometrie nach den Regeln von q3map2 baut echtlicht selbst
         echtLichtBildVorbereiten(k.ursprung, &vp[0], f.breite, f.hoehe, geoStand);
         echtJetzt = true;
     }
-    const bool gebacken = ed.echtLicht.gebackenZeigen || lumpBild;
-    if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
+    const bool gebacken = zeichnen ? (ed.echtLicht.gebackenZeigen || lumpBild) : f.gebackenGezeigt;
+    f.echtGezeigt = echtJetzt;
+    f.gebackenGezeigt = gebacken;
+    if (!zeichnen) {
+        // Das zuletzt gezeichnete Bild bleibt stehen (dasselbe Bild, kein neues im ruhenden Fenster).
+        dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(200)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
+    } else if (kartegpu::verfuegbar() && kartegpu::beginnen(200, f.breite, f.hoehe, c.msaa, hinten, true)) {
         for (Szene3* q : {&g_geo, &g_szene}) {
             if (q->gpuAktuell && ((!q->dreiecke.gueltig() && q->dreieckAnzahl > 0) || (!q->linien.gueltig() && q->linienPunkte > 0))) {
                 q->stand = static_cast<std::size_t>(-1);   // Grafikgeraet neu: im naechsten Bild neu bauen
@@ -1889,16 +1907,20 @@ void kameraZeichnen() {
     ansichtsmodiAnzeige(dl, o.x + 6, o.y + 6);   // Stufe 8b Punkt 5
     // ShowStats: unten links
     if (c.zeigeStatistik) {
-        const double f2f = f.letzteStatistik >= 0.0 ? (jetzt - f.letzteStatistik) * 1000.0 : 0.0;
-        f.letzteStatistik = jetzt;
-        char z[160];
-        std::snprintf(z, sizeof(z), "prims: %zu | states: %zu | transforms: %zu | msec: %d | f2f: %d", prims, zustaende, transforms,
-                      static_cast<int>(f.zeichenMs), static_cast<int>(f2f));
-        dl->AddText(ImVec2{o.x + 1, o.y + groesse.y - schriftHoehe}, IM_COL32(255, 255, 255, 255), z);
+        // rc610 R1: die Werte des zuletzt gezeichneten Bilds (wie NRC: die Zeile entsteht beim Zeichnen)
+        if (zeichnen) {
+            const double f2f = f.letzteStatistik >= 0.0 ? (jetzt - f.letzteStatistik) * 1000.0 : 0.0;
+            f.letzteStatistik = jetzt;
+            char z[160];
+            std::snprintf(z, sizeof(z), "prims: %zu | states: %zu | transforms: %zu | msec: %d | f2f: %d", prims, zustaende, transforms,
+                          static_cast<int>(f.zeichenMs), static_cast<int>(f2f));
+            f.statistik = z;
+        }
+        dl->AddText(ImVec2{o.x + 1, o.y + groesse.y - schriftHoehe}, IM_COL32(255, 255, 255, 255), f.statistik.c_str());
     }
     dl->PopClipRect();
     ImGui::PopFont();
-    f.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - beginn).count();
+    if (zeichnen) { f.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - beginn).count(); }
 
     // Stufe 8b Punkt 3: Im Editor spielen - Eingabe, Pmove und Anzeige statt der Kamerasteuerung
     if (spielenAktiv()) {

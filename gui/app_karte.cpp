@@ -23,6 +23,7 @@
 
 #include "app_internal.h"
 #include "fenster_dock.h"
+#include "tabfenster.h"
 #include "dockvorgabe.h"
 #include "bhed/theme.h"
 #include "karte_gpu.h"
@@ -1763,9 +1764,43 @@ void zeichneHauptmenue() {
     }
 }
 
+namespace {
+bool g_nachBedarfImTest = false;
+
+// rc610 R1: hat der Editor in diesem Bild eine Eingabe bekommen - Maus oder Tasten ueber bzw. in einem seiner Fenster
+// (der Tab, seine Menues, Dialoge und Popups)? Dann koennen sich seine Einstellungen geaendert haben, und alle Ansichten
+// zeichnen neu (NRC ruft dafuer queueDraw bzw. UpdateAllWindows an jeder Stelle).
+bool eingabeImEditor() {
+    const ImGuiIO& io = ImGui::GetIO();
+    bool maus = io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F || io.MouseWheel != 0.0F || io.MouseWheelH != 0.0F;
+    for (int b = 0; b < ImGuiMouseButton_COUNT && !maus; ++b) {
+        maus = ImGui::IsMouseClicked(b) || ImGui::IsMouseReleased(b);
+    }
+    bool tasten = !io.InputQueueCharacters.empty();
+    for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END && !tasten; ++k) {
+        tasten = ImGui::IsKeyPressed(static_cast<ImGuiKey>(k), false) || ImGui::IsKeyReleased(static_cast<ImGuiKey>(k));
+    }
+    // Die Maus zaehlt ueber einem Fenster des Editors (oder beim Ziehen darin), die Tasten im Fenster mit dem Fokus.
+    const ImGuiContext& gc = *GImGui;
+    const std::vector<unsigned>& eigene = g().fensterImBild;
+    const auto eigenes = [&](const ImGuiWindow* w) {
+        return w != nullptr && w->RootWindow != nullptr && std::find(eigene.begin(), eigene.end(), w->RootWindow->ID) != eigene.end();
+    };
+    if (maus && (tabfenster::modusUnterMaus() == 3 || eigenes(gc.HoveredWindow) || eigenes(gc.ActiveIdWindow))) { return true; }
+    return tasten && (tabfenster::fokusModus() == 3 || eigenes(gc.NavWindow));
+}
+}  // namespace
+
 void zeichne(float hoehe) {
     Editor& e = g();
     const auto zeichenStart = std::chrono::steady_clock::now();
+    // rc610 R1: welche Fenster schon vor dem Editor in diesem Bild standen (die uebrigen sind seine)
+    std::vector<const ImGuiWindow*> vorher;
+    for (const ImGuiWindow* w : GImGui->Windows) {
+        if (w->LastFrameActive == ImGui::GetFrameCount()) { vorher.push_back(w); }
+    }
+    const bool eingabe = eingabeImEditor();
+    if (eingabe) { neuZeichnen(); }
     kartegpu::aufraeumen();   // Bilder, die ein frueheres Bild freigab
     e.gezeichnet = true;
     bildBeginnen();
@@ -1911,7 +1946,53 @@ void zeichne(float hoehe) {
     zeichneRueckfrage();
     ImGui::PopFont();
     tastenVerarbeiten();
+    // rc610 R1: was die Eingabe nach den Ansichten aenderte (Tastenkuerzel, Menues), zeigt das naechste Bild
+    if (eingabe) { neuZeichnen(); }
+    e.fensterImBild.clear();
+    for (const ImGuiWindow* w : GImGui->Windows) {
+        if (w->LastFrameActive == ImGui::GetFrameCount() && std::find(vorher.begin(), vorher.end(), w) == vorher.end()) {
+            e.fensterImBild.push_back(w->RootWindow != nullptr ? w->RootWindow->ID : w->ID);
+        }
+    }
     e.zeichenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - zeichenStart).count();
+}
+
+void neuZeichnen() { ++g().zeichnenStand; }
+
+void zeichnenNachBedarfImTest(bool an) {
+    g_nachBedarfImTest = an;
+    neuZeichnen();
+}
+
+void schrittWieEingabe() {
+    if (!g_nachBedarfImTest) { neuZeichnen(); }
+}
+
+bool ansichtZeichnen(ZeichenAnlass& a, std::vector<float> lage, unsigned laeuft, void* bisherigesBild) {
+    const Editor& ed = g();
+    // Im Selbsttest jedes Bild wie bis rc609, ausser bei Bedarf eingeschaltet (BHED_KARTE_NACHBEDARF=1 fuer ganze Laeufe)
+    static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr && std::getenv("BHED_KARTE_NACHBEDARF") == nullptr;
+    const std::size_t szene = szeneStand();
+    const std::size_t geo = geometrieStand();
+    std::string grund;
+    if (imTest && !g_nachBedarfImTest) { grund += "t"; }
+    if (bisherigesBild == nullptr) { grund += "b"; }
+    if ((a.laeuft | laeuft) != 0U) { grund += "l" + std::to_string(a.laeuft | laeuft); }
+    if (a.stand != ed.zeichnenStand) { grund += "s"; }
+    if (a.szene != szene) { grund += "z"; }
+    if (a.geo != geo) { grund += "g"; }
+    if (a.lage != lage) { grund += "a"; }
+    const bool zeichnen = !grund.empty();
+    if (zeichnen) {
+        a.grund = std::move(grund);
+        a.stand = ed.zeichnenStand;
+        a.szene = szene;
+        a.geo = geo;
+        a.lage = std::move(lage);
+        a.laeuft = laeuft;
+        ++a.bilder;
+    }
+    return zeichnen;
 }
 }  // namespace bhed::gui::karteneditor
 

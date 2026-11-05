@@ -321,6 +321,9 @@ std::vector<Schritt> ruheOhneKarte();   // selbsttest_reste1.inc: Map-Tab ohne K
 }  // namespace reste1
 
 std::vector<Schritt> portaleHandbuchSchritte();   // selbsttest_editorportal.inc: rc609 P, Spiegel und Portalkamera
+namespace kartenruhe {
+std::vector<Schritt> schritte();   // selbsttest_kartenruhe.inc: rc610 R1, nur bei Bedarf zeichnen
+}  // namespace kartenruhe
 
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
@@ -515,6 +518,11 @@ std::vector<Schritt> karteneditorSchritte() {
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "stufe8b") == 0) {
         for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =ruhen: rc610 R1 - die Ansichten zeichnen nur bei Bedarf (NRC queueDraw)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "ruhen") == 0) {
+        for (Schritt& x : kartenruhe::schritte()) { add(std::move(x)); }
         return s;
     }
     // =hilfe1: Stufe H1 - der Helfer, die Tour "Deine erste Karte" mit echten Aktionen, die KI-Anbindung

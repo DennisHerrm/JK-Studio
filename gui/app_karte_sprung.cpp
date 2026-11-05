@@ -130,6 +130,7 @@ void sprungPruefungSchritt() {
     Editor& ed = e();
     if (!ed.sprungLaeuft || !g_lauf.fertig.load()) { return; }
     if (g_lauf.faden.joinable()) { g_lauf.faden.join(); }
+    neuZeichnen();   // rc610 R1: die Befunde stehen in den Ansichten
     {
         std::lock_guard<std::mutex> l(g_lauf.mutex);
         ed.sprungBericht = g_lauf.ergebnis;

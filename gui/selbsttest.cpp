@@ -5670,6 +5670,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
 #include "selbsttest_dock4.inc"   // dock4: Map Editor und Menu Editor im DockSpace
 #include "selbsttest_tabfenster.inc"   // rc609 T1: ganze Tabs in eigenen Fenstern
+#include "selbsttest_kartenruhe.inc"   // rc610 R1: der Karten-Editor zeichnet nur bei Bedarf
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6774,7 +6775,11 @@ void selbsttest() {
             g_liste = &a.schritte;
             g_einfuegeAn = a.schritt + 1U;
             if (a.imSchritt == 0) { diag::detail("Knopftest: " + text); }
+            // rc610 R1: ein Schritt aendert den Zustand wie eine Eingabe - die Ansichten des Karten-Editors zeichnen neu,
+            // auch wenn sie nur bei Bedarf zeichnen (karteneditor::zeichnenNachBedarfImTest, BHED_KARTE_NACHBEDARF)
+            if (a.imSchritt == 0) { karteneditor::schrittWieEingabe(); }
             if (tun(a.imSchritt)) {
+                karteneditor::schrittWieEingabe();
                 ++a.schritt;
                 a.imSchritt = 0;
             } else {

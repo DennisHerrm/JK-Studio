@@ -1173,6 +1173,7 @@ void echtLichtSchritt(std::size_t kartenStand) {
     if (st == 3) {
         if (g_backen.faden.joinable()) { g_backen.faden.join(); }
         ergebnisUebernehmen();
+        neuZeichnen();   // rc610 R1: das gebackene Bild zeigen
         g_gebackenStand = g_backen.kartenStand;
         e.echtLicht.bauSekunden = g_backen.sekunden;
         e.echtLicht.bauStand = 3;
