@@ -219,6 +219,14 @@ void meldeOk(const std::string& text) {
 bool g_bildlauf = false;
 std::string g_bildlaufLetzter;   // erster nicht gewerteter Fehlschlag seit dem letzten Bild oder Teil
 
+// TD1: Movie Duels hat am 05.11. Archive entfernt (u. a. den MP-Menuesatz ui/MD_MP; shank: bewusst, nicht wiederherstellen). Eine
+// Pruefung, deren feste Spieldaten fehlen, meldet sich als uebersprungen - nicht als FEHLER, nicht als OK.
+int g_uebersprungen = 0;
+void meldeUebersprungen(const std::string& text, const std::string& grund) {
+    ++g_uebersprungen;
+    diag::detail("Knopftest uebersprungen (Daten fehlen): " + text + " - " + grund);
+}
+
 void meldeFehler(const std::string& text) {
     if (g_bildlauf) {
         diag::detail("Knopftest Bildlauf, nicht gewertet: " + text);
@@ -614,6 +622,25 @@ Schritt pruefe(const std::string& text, std::function<bool()> bedingung) {
                 pruefeWahr(bedingung(), text);
                 return true;
             }};
+}
+
+// TD1: fehlt() nennt, welche Spieldaten fehlen ("" = alles da) - dann uebersprungen statt geprueft
+Schritt pruefeMitDaten(const std::string& text, std::function<std::string()> fehlt, std::function<bool()> bedingung) {
+    return {"Pruefe " + text, [=](int) {
+                const std::string grund = fehlt();
+                if (!grund.empty()) {
+                    meldeUebersprungen(text, grund);
+                } else {
+                    pruefeWahr(bedingung(), text);
+                }
+                return true;
+            }};
+}
+
+// TD1: eine Datei der Spieldaten (Archive und lose Dateien wie das Spiel) - fuer pruefeMitDaten
+std::string spielDateiFehlt(const std::string& pfad) {
+    std::string t;
+    return readFromArchives(pfad, t) ? std::string() : pfad + " fehlt in den Spieldaten";
 }
 
 Schritt tu(const std::string& text, std::function<void()> was) {
@@ -5668,6 +5695,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_teil13c.inc"     // teil13c: Brush-Modelle und Gebietsportale im Spielbild, Patch-LOD an Movern (rc608)
 #include "selbsttest_teil13d.inc"     // teil13d: Reiten wie im Spiel (rc608)
 #include "selbsttest_editorportal.inc"   // rc609 P: Spiegel und Portalkameras im Karten-Editor
+#include "selbsttest_r3.inc"            // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht (karteneditor, BHED_KARTE_NUR=r3)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_mb1a1.inc"      // Modell-Block 1a-1: der neue Model-Tab (modellblock)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)

@@ -7531,6 +7531,8 @@ TEXTE.update(_MO)
 # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen, Nachfragen
 from inhalt_r2a import CS as _R2A  # noqa: E402
 TEXTE.update(_R2A)
+from inhalt_r3 import CS as _R3  # noqa: E402
+TEXTE.update(_R3)
 
 # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
 from inhalt_mb1a1 import CS as _MB1  # noqa: E402

@@ -3997,7 +3997,6 @@ enum class Str {
     KeOptPrModellFormatE,
     KeOptD36,
     KeLumpsTeilBau,
-    KeLichtGrenzenTip2,
     KeLumpsBehalten,
     KeLumpsErsetzen,
     MbBereichAnsehen,
@@ -4141,6 +4140,10 @@ enum class Str {
     MbAktUndo,
     MbAktRedo,
     MbAktTexNeu,
+    MeMdMpFehlt,
+    KeOptPrModellGespiegelt,
+    KeOptPrModellGespiegeltE,
+    KeLichtGrenzenTip3,
     Count,
 };
 

@@ -92,9 +92,8 @@ std::vector<Schritt> teil6Schritte() {
     }));
     add(warteBis("Teil 6: duel_mustafar geladen", [] { return g_app->map.path == "maps/duel_mustafar.bsp" && g_app->camTrackValid; }, 4000));
     add(pause(0.5));
-    add(pruefe("Teil 7: Weather/duel_mustafar.cfg gilt unter Movie Duels (r_weather 3: eine Wolke snowflake2)", [] {
-        return regelwerkMovieDuels() && wetterWolkenMitBild("gfx/effects/snowflake2") == 1;
-    }));
+    // TD1: Weather/duel_mustafar.cfg sagt seit den Daten vom 05.11. "r_weather 0" (die Vorschau zeigt richtig keine Wolke) - die
+    // Pruefung, dass Weather/<karte>.cfg unter Movie Duels gilt, laeuft unten mit einer Karte, deren .cfg r_weather 3 setzt.
     add(pruefe("Teil 7: r_picmip halbiert je Stufe, Grenze der Grafikkarte bleibt", [] {
         image::Image im;
         im.width = 512;
@@ -333,20 +332,68 @@ std::vector<Schritt> teil6Schritte() {
                      std::to_string(it->second.front().tempo[2]) + ", Weg " + std::to_string(dx) + " " + std::to_string(dy));
         return std::sqrt(dx * dx + dy * dy) > 1.0F && dx < 0.0F;   // die Kiste steht bei +x
     }));
-    // Endrunde 4: Movie Duels 9 (exe vom 01.11.2026, tr_WorldEffects.cpp dfce7ac7): "r_weather 6" ist der Nebel "fog"
-    // (60 Wolken alpha_smoke2b), vorher ohne Zweig. duel_carbon hat nur diese Zeile (Update 9) und kein Wetter-Entity.
-    add(tu("Endrunde 4: duel_carbon laden (Weather/duel_carbon.cfg: r_weather 6)", [] {
-        g_app->leftMode = 1;
-        (void)loadMapFromArchive("maps/duel_carbon.bsp");
-        g_app->mapDirty = true;
-    }));
-    add(warteBis("Endrunde 4: duel_carbon bereit", [] { return g_app->mapBereit && g_app->camTrackValid; }, 4000));
-    add(gezeichnet("duel_carbon"));
-    add(pruefe("Endrunde 4: r_weather 6 unter Movie Duels 9 - der Nebel \"fog\" (eine Wolke alpha_smoke2b)", [] {
-        const int n = wetterWolkenMitBild("gfx/effects/alpha_smoke2b");
-        diag::detail("Knopftest: Endrunde 4 - duel_carbon Nebelwolken " + std::to_string(n));
-        return regelwerkMovieDuels() && n == 1;
-    }));
+    // Teil 7 / Endrunde 4: Weather/<karte>.cfg gilt unter Movie Duels (MD9 cg_main.cpp CG_ParseWeatherFile, tr_WorldEffects.cpp
+    // r_weather). TD1: die Karten nach den Daten vom 05.11. - duel_mustafar.cfg und duel_carbon.cfg sagen jetzt "r_weather 0";
+    // r_weather 3 (der Lava-Sturm, eine Wolke snowflake2, tr_WorldEffects.cpp:2274-2286) steht in Weather/duel_mus_both2.cfg (MD_Maps_Ep3.pk3), r_weather 6 (der Nebel
+    // "fog", eine Wolke alpha_smoke2b, Movie Duels 9) in Weather/duel_ahs_wbw.cfg (MD_Maps_Canonical.pk3). Fehlt die Karte oder sagt
+    // ihre .cfg etwas anderes: uebersprungen (Daten fehlen).
+    struct WetterFall {
+        const char* karte;
+        const char* zeile;
+        const char* bild;
+        const char* was;
+    };
+    for (const WetterFall& w : {WetterFall{"duel_mus_both2", "r_weather 3", "gfx/effects/snowflake2", "Teil 7: r_weather 3 (Lava-Sturm, Wolke snowflake2)"},
+                                WetterFall{"duel_ahs_wbw", "r_weather 6", "gfx/effects/alpha_smoke2b", "Endrunde 4: r_weather 6 unter Movie Duels 9 - der Nebel \"fog\" (Wolke alpha_smoke2b)"}}) {
+        const std::string karte = w.karte;
+        const std::string zeile = w.zeile;
+        const auto fehlt = [karte, zeile] {
+            std::string t;
+            if (!spielDateiFehlt("maps/" + karte + ".bsp").empty()) { return spielDateiFehlt("maps/" + karte + ".bsp"); }
+            if (!readFromArchives("weather/" + karte + ".cfg", t)) { return "weather/" + karte + ".cfg fehlt in den Spieldaten"; }
+            return t.find(zeile) == std::string::npos ? "weather/" + karte + ".cfg sagt nicht \"" + zeile + "\"" : std::string();
+        };
+        add(tu("Teil 7: " + karte + " laden (Weather/" + karte + ".cfg: " + zeile + ")", [karte, fehlt] {
+            if (!fehlt().empty()) { return; }
+            g_app->leftMode = 1;
+            (void)loadMapFromArchive("maps/" + karte + ".bsp");
+            g_app->mapDirty = true;
+        }));
+        add(warteBis("Teil 7: " + karte + " bereit", [fehlt] { return !fehlt().empty() || (g_app->mapBereit && g_app->camTrackValid); }, 4000));
+        add(gezeichnet(karte));
+        add(pruefeMitDaten(std::string("Weather/") + karte + ".cfg gilt unter Movie Duels: " + w.was, fehlt, [karte, w] {
+            // Dazu kommt, was fx_lava der Karte schickt (MD9 g_fx.cpp:318-345 SP_CreateLava: ohne 1/4 "lava" = eine Wolke snowflake2,
+            // ohne 1/2/4 und mit 8 dazu "fog" = alpha_smoke2b; G_FindConfigstringIndex: jeder Befehl einmal) - duel_mus_both2 hat ein
+            // fx_lava ohne spawnflags: zwei Wolken snowflake2 wie im Spiel.
+            std::string bsp;
+            bool lava = false;
+            bool nebel = false;
+            if (readFromArchives("maps/" + karte + ".bsp", bsp) && bsp.size() >= 16) {
+                std::uint32_t ofs = 0;
+                std::uint32_t len = 0;
+                std::memcpy(&ofs, bsp.data() + 8, 4);
+                std::memcpy(&len, bsp.data() + 12, 4);
+                const std::string ents = ofs + len <= bsp.size() ? bsp.substr(ofs, len) : std::string();
+                for (std::size_t a = ents.find('{'); a != std::string::npos; a = ents.find('{', a + 1)) {
+                    const std::size_t e = ents.find('}', a);
+                    if (e == std::string::npos) { break; }
+                    const std::string block = ents.substr(a, e - a);
+                    if (block.find("\"fx_lava\"") == std::string::npos) { continue; }
+                    int f = 0;
+                    if (const std::size_t sf = block.find("\"spawnflags\""); sf != std::string::npos) {
+                        const std::size_t q = block.find('"', sf + 12);
+                        if (q != std::string::npos) { f = std::atoi(block.c_str() + q + 1); }
+                    }
+                    lava = lava || ((f & 1) == 0 && (f & 4) == 0);
+                    nebel = nebel || (f & 7) == 0 || (f & 8) != 0;
+                }
+            }
+            const int erwartet = 1 + ((std::string(w.bild) == "gfx/effects/snowflake2" ? lava : nebel) ? 1 : 0);
+            const int n = wetterWolkenMitBild(w.bild);
+            diag::detail("Knopftest: Teil 7 - " + karte + " Wolken " + w.bild + ": " + std::to_string(n) + ", erwartet " + std::to_string(erwartet));
+            return regelwerkMovieDuels() && n == erwartet;
+        }));
+    }
     add(tu("Teil 6: Regelwerk zurueck", [=] {
         g_app->settings.regelwerk = *regelVorher;
         regelwerkAnwendenJetzt();

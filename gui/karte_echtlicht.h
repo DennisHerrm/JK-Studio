@@ -60,6 +60,9 @@ struct SpielDarstellung {
     bool portal = false;         // rc609 P: sort portal (mit mindestens einer Stufe) - zeigt die Spiegel- bzw. Portalsicht unter ihren Stufen
     float portalWeite = 0;       //   ... portalRange (alphaGen portal)
     std::vector<SpielStufe> weitere;   // rc610 R2a: bei Portalflaechen die Stufen nach der ersten (RB_StageIteratorGeneric)
+    // rc610 R3: auch sonst (das Echtzeit-Licht zeichnet sie) - die Stufen nach der Grundstufe bzw. dem Paar aus Lightmap und Bild,
+    // soweit die Echtzeit-Ansicht sie genau zeichnen kann (stufeDarstellbar); glueh: alle Stufen mit glow davon (RB_DrawSurfs)
+    std::vector<SpielStufe> glueh;
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.

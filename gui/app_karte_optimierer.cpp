@@ -133,6 +133,7 @@ constexpr PruefText kPruefTexte[] = {
     {"modellezusammen", Str::KeOptPrModelle, Str::KeOptPrModelleE},
     {"modellunsichtbar", Str::KeOptPrModellCull, Str::KeOptPrModellCullE},
     {"modellformat", Str::KeOptPrModellFormat, Str::KeOptPrModellFormatE},   // rc610 MODOBJ
+    {"modellgespiegelt", Str::KeOptPrModellGespiegelt, Str::KeOptPrModellGespiegeltE},   // rc610 R3
     {"commonorigin", Str::KeOptPrCommonOrigin, Str::KeOptPrCommonOriginE},
     {"riesenpinsel", Str::KeOptPrRiesig, Str::KeOptPrRiesigE},
     {"flaechenlichtleck", Str::KeOptPrLichtleck, Str::KeOptPrLichtleckE},

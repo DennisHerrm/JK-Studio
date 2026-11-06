@@ -2270,6 +2270,8 @@ from i18n_rc610_r2a import zeilen_vier as _rc610_r2a  # noqa: E402  (rc610 R2a: 
 S += _rc610_r2a()
 from i18n_mb1a1 import zeilen_vier as _mb1a1  # noqa: E402  (Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen, wie 3ds Max)
 S += _mb1a1()
+from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
+S += _r3()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

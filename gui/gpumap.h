@@ -302,6 +302,11 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const std::vector<GluehQuelle>& weitere);
 // Wie viele Aufrufe der weiteren Quellen das letzte Gluehen gezeichnet hat.
 int gluehenMoverAufrufe();
+// rc610 R3: Durchgang 2 von zeichneGluehen (RB_BlurGlowTexture, derselbe Code) fuer einen fremden vollen Gluehpuffer -
+// das Echtzeit-Licht des Karten-Editors. vollSrv: ID3D11ShaderResourceView* (vollW x vollH, ohne Mehrfachabtastung),
+// breite x hoehe: kGluehBreite x kGluehHoehe. Gibt die ID3D11ShaderResourceView* des weichen Puffers zurueck (nullptr:
+// kein Geraet, kein Shader); danach sind kein Ziel und kein Eingang gebunden, Viewport und Zustaende setzt der Aufrufer neu.
+[[nodiscard]] void* gluehenWeichzeichnen(void* vollSrv, int vollW, int vollH, int breite, int hoehe, bool weich);
 // rc602 kartenpruefung: Effektteilchen mit glow-Stufe gehen ins Gluehen.
 // Vor zeichneGluehen das Effektnetz dieses Bildes nennen (nullptr = keins);
 // gluehenEffektAufrufe zaehlt, was davon gezeichnet wurde (Selbsttest).

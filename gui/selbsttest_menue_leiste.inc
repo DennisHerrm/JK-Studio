@@ -1516,6 +1516,8 @@ std::vector<Schritt> schritteEigeneAnimation() {
 // rc608 Teil 3a: im Spielfoto: Movie Duels MP liest ui/MovieDuels-MP-Menus.txt, dort steht font 2 = albertus_bold und bigFont = ergoec
 std::vector<Schritt> schritteMpSchrift() {
     std::vector<Schritt> s;
+    auto mdmp = std::make_shared<MdMpSatz>();
+    for (Schritt& x : mdMpSatzAn("rc608 MP-Schriften", mdmp)) { s.push_back(std::move(x)); }
     s.push_back(tu("rc608 MP-Schriften: ein Menue oeffnen", [] {
         me::schliesseAlleOhneSpeichern();
         g_app->leftMode = 4;
@@ -1523,14 +1525,16 @@ std::vector<Schritt> schritteMpSchrift() {
         (void)me::oeffneText("ui/jamp/mp_schrift.menu", "menuDef\n{\n  name \"mp_schrift\"\n  rect 0 0 640 480\n  visible 1\n}\n");
     }));
     s.push_back(pause(0.3));
-    s.push_back(pruefe("rc608 MP-Schriften: die Nummern aus dem Menuesatz des Spiels", [] {
+    s.push_back(pruefe("rc608 MP-Schriften: die Nummern aus dem Menuesatz des Spiels", [mdmp] {
         const std::string f2 = me::schriftNameMp(2);
         const std::string f3 = me::schriftNameMp(3);
-        const std::string fehler = "spiel " + std::to_string(me::stand().spiel) + ": font 2 = " + f2 + ", font 3 = " + f3;
+        const std::string fehler = "spiel " + std::to_string(me::stand().spiel) + ": font 2 = " + f2 + ", font 3 = " + f3 + (mdmp->eigener ? " (eigener MD-MP-Menuesatz)" : "");
         diag::info(fehler);
+        if (mdmp->eigener) { return f2 == "anewhope" && f3 == "ergoec"; }   // TD1: assetGlobalDef des eigenen Satzes (font, bigFont)
         if (me::stand().spiel == 2) { return f2 == "albertus_bold" && f3 == "ergoec"; }
         return me::stand().spiel == 0 ? (f2 == "ergoec" && f3 == "anewhope") : !f2.empty();
     }));
+    s.push_back(mdMpSatzAus(mdmp));
     return s;
 }
 

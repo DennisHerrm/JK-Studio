@@ -660,8 +660,11 @@ void schnellBauStarten(std::size_t kartenStand) {
         return;
     }
     e.echtLicht.bauOrdner = ordner;
+    // rc610 R3: die Extra Resource Paths und der Import-Ordner wie im Build-Menue (bauVariablen "ExtraResourcePaths", NRC
+    // ToolXMLConstructor::flush: -fs_pakpath) - sonst findet q3map2 dort liegende Modelle nicht und backt die misc_model nicht ein
     const std::string grund = "\"" + q3map2Pfad() + "\" -game " + (kartenSpielNummer() == kRegelwerkJediOutcast ? "jk2" : "ja") +
-                              " -fs_basepath \"" + enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " + bauSpielName() + " ";
+                              " -fs_basepath \"" + enginePfadAnzeige() + "\" -fs_homepath \"\" -fs_game " + bauSpielName() +
+                              bauVariablen()["ExtraResourcePaths"] + " ";
     const std::string bsp = karte.substr(0, karte.size() - 4) + ".bsp";
     // -vis nur mit einer .prt (eine Karte, die leckt, hat keine - waehrend des Bauens
     // oft der Fall; -light geht auch ohne Sichtbarkeit)
@@ -886,6 +889,37 @@ SpielStufe spielStufe(const ShaderInfo::Stage& st) {
     return s;
 }
 
+namespace {
+
+// rc610 R3: wie viele Stufen das Echtzeit-Licht als Grundstufe zeichnet (das Bild mit seinem Licht statt Lightmap mal Bild):
+// die $lightmap-Stufe und die Bildstufe, die mit ihr multipliziert (GL_DST_COLOR GL_ZERO bzw. GL_ZERO GL_SRC_COLOR, in beiden
+// Reihenfolgen), ohne Lightmap die erste. 0: eine andere Form (Lightmap allein oder weiter hinten) - dann keine weiteren Stufen.
+std::size_t basisStufen(const ShaderInfo& si) {
+    if (si.stages.empty()) { return 0; }
+    const auto filter = [](const ShaderInfo::Stage& s) {
+        return (s.srcFactor == BlendFactor::DstColor && s.dstFactor == BlendFactor::Zero) ||
+               (s.srcFactor == BlendFactor::Zero && s.dstFactor == BlendFactor::SrcColor);
+    };
+    if (si.stages.size() >= 2 && si.stages[0].lightmap != si.stages[1].lightmap && filter(si.stages[1])) { return 2; }
+    for (const ShaderInfo::Stage& s : si.stages) {
+        if (s.lightmap) { return 0; }
+    }
+    return 1;
+}
+
+// rc610 R3: eine Stufe, die die Echtzeit-Ansicht genau so zeichnet wie RB_IterateStagesGeneric: ein festes Bild (kein animMap mit
+// mehreren, kein Video), tcGen base ohne tcMod, rgbGen identity/identityLighting/const bzw. keins (ParseStage: identity oder
+// identityLighting, beide am Schirm 1 - gpustate.h, Licht), alphaGen aus dem Bild, identity oder const; sonst bleibt sie weg.
+bool stufeDarstellbar(const ShaderInfo::Stage& s) {
+    const bool farbe = s.rgbArt == RgbGenArt::Keins || s.rgbArt == RgbGenArt::Identity || s.rgbArt == RgbGenArt::IdentityLighting ||
+                       s.rgbArt == RgbGenArt::Const;
+    const bool alpha = s.alphaGen == AlphaGen::FromImage || s.alphaGen == AlphaGen::Identity || s.alphaGen == AlphaGen::Const;
+    return !s.lightmap && !s.weiss && !s.image.empty() && s.video.empty() && !s.ss.aktiv() && s.texGen == TexGen::Base && s.numTexMods == 0 &&
+           s.animImages.size() <= 1 && farbe && !s.rgbWave.active() && alpha && !s.alphaWave.active() && !s.alphaEntity;
+}
+
+}  // namespace
+
 SpielDarstellung spielDarstellung(const std::string& shader) {
     SpielDarstellung d;
     const karte::ShaderSkript& s = skript(shader);
@@ -921,6 +955,20 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
                 d.weitere.push_back(spielStufe(si->stages[i]));
             }
         }
+    } else if (const ShaderInfo* si = echtShaderInfo(shader); si != nullptr && si->stages.size() > 1U) {
+        // rc610 R3 (Tester: "glow texture should be seeable too"): RB_StageIteratorGeneric zeichnet jede weitere Stufe ueber die
+        // Grundstufe - im Shader des Testers die dritte ({ _glw GL_ONE GL_ONE glow }); die Stufen mit glow gehen dazu ins Gluehen
+        const std::size_t ab = basisStufen(*si);
+        for (std::size_t i = ab; ab > 0 && i < si->stages.size(); ++i) {
+            if (!stufeDarstellbar(si->stages[i])) { continue; }
+            d.weitere.push_back(spielStufe(si->stages[i]));
+            if (si->stages[i].glow) { d.glueh.push_back(d.weitere.back()); }
+        }
+    }
+    // rc610 R3: eine leuchtende Grundstufe ohne Lightmap ({ map bild glow }) geht ebenso ins Gluehen
+    if (const ShaderInfo* si = echtShaderInfo(shader); si != nullptr && !si->stages.empty() && si->stages[0].glow && basisStufen(*si) == 1U &&
+                                                       stufeDarstellbar(si->stages[0])) {
+        d.glueh.insert(d.glueh.begin(), spielStufe(si->stages[0]));
     }
     return d;
 }

@@ -113,6 +113,10 @@ struct BildZeile {
 [[nodiscard]] int schachbrettZellen();
 // rc608 (Selbsttest): das letzte Bild, in dem Engine messages "Keine Meldungen" zeigte
 [[nodiscard]] int meldungenLeerBild();
+// TD1: Movie Duels ohne MP-Menuesatz (ui/MD_MP/menudef.h fehlt in den Spieldaten); das letzte Bild, in dem der Editor dazu
+// seinen Hinweis zeigte (-1: nie)
+[[nodiscard]] bool mdMpSatzFehlt();
+[[nodiscard]] int mdMpHinweisBild();
 // rc608 Punkt 2 (Selbsttest): der Text-Editor im letzten Bild
 struct TextAnsicht {
     long long zeichen = 0;

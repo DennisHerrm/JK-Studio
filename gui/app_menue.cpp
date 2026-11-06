@@ -389,6 +389,10 @@ struct Zustand {
     bool schachbrett = true;     // rc608 Punkt 9: zeigt, dass ein Menue ohne fullScreen nichts deckt
     int schachbrettZellen = 0;
     int meldungenLeerBild = -1;   // rc608: letztes Bild, in dem "Keine Meldungen" stand
+    int mdMpHinweisBild = -1;     // TD1: letztes Bild mit dem Hinweis, dass der MD-MP-Menuesatz fehlt
+    std::size_t mdMpStand = static_cast<std::size_t>(-1);   // TD1: mdMpSatzFehlt je Stand der Spieldaten
+    int mdMpSpiel = -1;
+    bool mdMpFehlt = false;
     bool balkenZieht = false;   // rc608 Punkt 2: der waagerechte Rollbalken des Text-Editors
     float balkenGriff = 0;
     ImRect balkenRect;
@@ -2627,6 +2631,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     const Abbildung passend = abbildung(bw, bh, z.seitenv);
     z.flaecheBild = ImVec2{passend.sx * kSchirmBreite, passend.sy * kSchirmHoehe};
     dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + bh}, IM_COL32(0, 0, 0, 255));
+    const bool mdMpHinweis = d.datei.dialekt == Dialekt::MP && mdMpSatzFehlt();   // TD1: Hinweis oben in der Flaeche (nach den Elementen)
     // rc608 Punkt 5: das unsichtbare Eingabefeld liegt ueber dem Element und kommt vor der Flaeche an die Reihe
     const bool schreibt = z.schreib.an && z.schreib.d == &d && !z.interaktion && menuDerSeite(d) == z.schreib.menu;
     ImGuiInputTextState* schreibFeld = nullptr;
@@ -2918,6 +2923,14 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     zeichneRefBild(dl, ab, o, true);   // M6 Punkt 7: ueber dem Menue
     zeichneTabNummern(dl, d, mi, ab, o);   // M6 Punkt 2
     zeichneModellGizmo(dl, d, mi, ab, o);   // M7 Punkt 12
+    if (mdMpHinweis) {   // TD1: ohne MD-MP-Menuesatz oben ueber dem Bild, umbrochen auf die Breite der Flaeche
+        const char* t = tr(Str::MeMdMpFehlt);
+        const float rand = ImGui::GetFontSize() * 0.5F;
+        const ImVec2 groesseT = ImGui::CalcTextSize(t, nullptr, false, bw - 2.0F * rand);
+        dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + groesseT.y + 2.0F * rand}, IM_COL32(40, 30, 0, 230));
+        dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{o.x + rand, o.y + rand}, IM_COL32(255, 217, 102, 255), t, nullptr, bw - 2.0F * rand);
+        z.mdMpHinweisBild = ImGui::GetFrameCount();
+    }
     // Raster
     if (z.raster && !z.interaktion && z.rasterWeite >= 2) {
         for (float x = 0; x <= 640; x += z.rasterWeite) {
@@ -6489,6 +6502,11 @@ void zeichneMeldungen(Dokument& d) {
     // rc608 (shank fragte, was der Abschnitt macht, weil er leer dastand)
     ImGui::PushTextWrapPos(0.0F);
     ImGui::TextDisabled("%s", tr(Str::MeMeldungenSatz));
+    // TD1: Movie Duels ohne MP-Menuesatz - die Meldung "global defines ui/MD_MP/menudef.h not found" allein sagt nicht, warum
+    if (d.datei.dialekt == Dialekt::MP && mdMpSatzFehlt()) {
+        ImGui::TextColored(ImVec4{1, 0.85F, 0.4F, 1}, "%s", tr(Str::MeMdMpFehlt));
+        z.mdMpHinweisBild = ImGui::GetFrameCount();
+    }
     if (d.datei.meldungen.empty()) {
         ImGui::TextUnformatted(tr(Str::MeMeldungenKeine));
         z.meldungenLeerBild = ImGui::GetFrameCount();
@@ -7527,6 +7545,17 @@ bool modellGriffe(float* xy8, float* g) {
 
 int schachbrettZellen() { return Z().schachbrettZellen; }
 int meldungenLeerBild() { return Z().meldungenLeerBild; }
+bool mdMpSatzFehlt() {
+    datenPruefen();
+    Zustand& z = Z();
+    if (z.mdMpStand != z.datenStand || z.mdMpSpiel != static_cast<int>(z.spiel)) {   // je Stand der Spieldaten einmal nachsehen
+        z.mdMpStand = z.datenStand;
+        z.mdMpSpiel = static_cast<int>(z.spiel);
+        z.mdMpFehlt = z.spiel == Spiel::MD && !z.daten.gibt("ui/MD_MP/menudef.h");
+    }
+    return z.mdMpFehlt;
+}
+int mdMpHinweisBild() { return Z().mdMpHinweisBild; }
 
 TextAnsicht textAnsicht() {
     const Zustand& z = Z();

@@ -550,9 +550,13 @@ std::vector<Schritt> schritteSatz() {
         }
         return false;
     };
+    auto mdmp = std::make_shared<MdMpSatz>();
     for (const bool mp : {false, true}) {
         const std::string was = mp ? "MP" : "SP";
         const std::string datei = mp ? (me::stand().spiel == 2 ? "ui/MD_MP/eigen.menu" : me::stand().spiel == 1 ? "ui/jk2mp/eigen.menu" : "ui/jamp/eigen.menu") : "ui/eigen.menu";
+        if (mp) {
+            for (Schritt& x : mdMpSatzAn("3b Satz MP", mdmp)) { add(std::move(x)); }
+        }
         add(tu("3b Satz: neues Menue " + was, [datei] {
             me::schliesseAlleOhneSpeichern();
             g_app->leftMode = 4;
@@ -596,6 +600,7 @@ std::vector<Schritt> schritteSatz() {
         add(pruefe("3b Satz: " + was + ": Mit einem Weg dorthin ist die Warnung weg", [zeileMit] { return !zeileMit("'eigen'"); }));
     }
     add(tu("3b Satz: aufraeumen", [] { me::schliesseAlleOhneSpeichern(); }));
+    add(mdMpSatzAus(mdmp));
     return s;
 }
 

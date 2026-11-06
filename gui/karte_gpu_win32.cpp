@@ -221,6 +221,20 @@ struct Zustand {
     ID3D11VertexShader* vsU = nullptr;
     ID3D11PixelShader* psU = nullptr;
     ID3D11BlendState* blendNurTiefe = nullptr;
+    // rc610 R3: das Gluehen im Echtzeit-Licht (RB_DrawSurfs, tr_backend.cpp:1335-1389): die leuchtenden Stufen in einen
+    // eigenen Puffer mit der Tiefe der Szene, weichgezeichnet von gpu::gluehenWeichzeichnen, dann aufgelegt (RB_DrawGlowOverlay)
+    ID3D11Texture2D* glueh = nullptr;              // mit den Proben des Ziels (teilt dessen Tiefe)
+    ID3D11RenderTargetView* gluehRtv = nullptr;
+    ID3D11Texture2D* gluehAuf = nullptr;           // aufgeloest (nur mit Mehrfachabtastung)
+    ID3D11ShaderResourceView* gluehSrv = nullptr;
+    int gluehBreite = 0;
+    int gluehHoehe = 0;
+    int gluehProben = 0;
+    bool gescheitertA = false;
+    ID3D11VertexShader* vsA = nullptr;
+    ID3D11PixelShader* psA = nullptr;
+    ID3D11BlendState* blendAuflegen[2] = {nullptr, nullptr};   // r_DynamicGlowSoft 1: GL_ONE GL_ONE_MINUS_SRC_COLOR; 0: GL_ONE GL_ONE
+    ID3D11SamplerState* klemmAbtaster = nullptr;               // GL_LINEAR, am Rand geklemmt (GL_TEXTURE_RECTANGLE_ARB)
     // waehrend beginnen/beenden
     int aktiv = -1;
     ID3D11RenderTargetView* altRtv = nullptr;
@@ -260,6 +274,16 @@ void kartenLoesen(Zustand::Karten& k) {
     los(k.tiefe);
 }
 
+void gluehLoesen() {
+    los(g.gluehSrv);
+    los(g.gluehAuf);
+    los(g.gluehRtv);
+    los(g.glueh);
+    g.gluehBreite = 0;
+    g.gluehHoehe = 0;
+    g.gluehProben = 0;
+}
+
 void echtLichtLoesen() {
     los(g.vs4);
     los(g.ps4);
@@ -297,6 +321,13 @@ void echtLichtLoesen() {
     los(g.psU);
     los(g.blendNurTiefe);
     g.gescheitertU = false;
+    gluehLoesen();
+    los(g.vsA);
+    los(g.psA);
+    los(g.blendAuflegen[0]);
+    los(g.blendAuflegen[1]);
+    los(g.klemmAbtaster);
+    g.gescheitertA = false;
     g.gescheitert4 = false;
     g.kaskadeAn[0] = g.kaskadeAn[1] = false;
 }
@@ -2490,6 +2521,145 @@ bool bereitU() {
     return !g.gescheitertU;
 }
 }  // namespace
+
+namespace {
+// rc610 R3: RB_DrawGlowOverlay - das weiche Bild (r_DynamicGlowWidth x Height) ueber das ganze Ziel, linear abgetastet
+const char* const kShaderA = R"(
+Texture2D bild : register(t0);
+SamplerState abtaster : register(s0);
+struct VO { float4 pos : SV_Position; float2 uv : TEXCOORD0; };
+VO vsa(uint i : SV_VertexID) {
+    VO o;
+    float2 p = float2((i << 1) & 2, i & 2);
+    o.pos = float4(p * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);
+    o.uv = p;
+    return o;
+}
+float4 psa(VO i) : SV_Target { return float4(bild.Sample(abtaster, i.uv).rgb, 1.0); }
+)";
+bool bereitA() {
+    if (g.vsA != nullptr) { return true; }
+    if (g.gescheitertA || !bereit3()) { return false; }
+    g.gescheitertA = true;
+    ID3DBlob* b[2] = {nullptr, nullptr};
+    ID3DBlob* fehler = nullptr;
+    if (FAILED(D3DCompile(kShaderA, std::strlen(kShaderA), "karteA", nullptr, nullptr, "vsa", "vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[0], &fehler)) ||
+        FAILED(D3DCompile(kShaderA, std::strlen(kShaderA), "karteA", nullptr, nullptr, "psa", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[1], &fehler))) {
+        los(fehler);
+        for (auto*& x : b) { los(x); }
+        return false;
+    }
+    los(fehler);
+    ID3D11Device* d = geraet();
+    d->CreateVertexShader(b[0]->GetBufferPointer(), b[0]->GetBufferSize(), nullptr, &g.vsA);
+    d->CreatePixelShader(b[1]->GetBufferPointer(), b[1]->GetBufferSize(), nullptr, &g.psA);
+    for (auto*& x : b) { los(x); }
+    // RB_DrawGlowOverlay: qglBlendFunc( GL_ONE, GL_ONE_MINUS_SRC_COLOR ) bzw. ( GL_ONE, GL_ONE ); Alpha des Ziels bleibt
+    D3D11_BLEND_DESC bd{};
+    bd.RenderTarget[0].BlendEnable = TRUE;
+    bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_COLOR;
+    bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+    bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+    bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    d->CreateBlendState(&bd, &g.blendAuflegen[0]);
+    bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+    d->CreateBlendState(&bd, &g.blendAuflegen[1]);
+    D3D11_SAMPLER_DESC sd{};
+    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sd.MaxLOD = D3D11_FLOAT32_MAX;
+    d->CreateSamplerState(&sd, &g.klemmAbtaster);
+    g.gescheitertA = g.vsA == nullptr || g.psA == nullptr || g.blendAuflegen[0] == nullptr || g.blendAuflegen[1] == nullptr || g.klemmAbtaster == nullptr;
+    return !g.gescheitertA;
+}
+}  // namespace
+
+bool gluehenBeginnen() {
+    if (g.aktiv < 0 || !bereitA()) { return false; }
+    const Ziel& z = g.ziele[g.aktiv];
+    if (z.dsv == nullptr) { return false; }
+    ID3D11Device* d = geraet();
+    ID3D11DeviceContext* c = kontext();
+    if (g.glueh == nullptr || g.gluehBreite != z.breite || g.gluehHoehe != z.hoehe || g.gluehProben != z.msaa) {
+        gluehLoesen();
+        D3D11_TEXTURE2D_DESC td{};
+        td.Width = static_cast<UINT>(z.breite);
+        td.Height = static_cast<UINT>(z.hoehe);
+        td.MipLevels = 1;
+        td.ArraySize = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = static_cast<UINT>(z.msaa);
+        td.Usage = D3D11_USAGE_DEFAULT;
+        td.BindFlags = z.msaa > 1 ? D3D11_BIND_RENDER_TARGET : (D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+        if (FAILED(d->CreateTexture2D(&td, nullptr, &g.glueh)) || FAILED(d->CreateRenderTargetView(g.glueh, nullptr, &g.gluehRtv))) {
+            gluehLoesen();
+            return false;
+        }
+        if (z.msaa > 1) {
+            td.SampleDesc.Count = 1;
+            td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            if (FAILED(d->CreateTexture2D(&td, nullptr, &g.gluehAuf))) {
+                gluehLoesen();
+                return false;
+            }
+        }
+        if (FAILED(::bhed::render::sichtAnlegen(d, g.gluehAuf != nullptr ? g.gluehAuf : g.glueh, nullptr, &g.gluehSrv))) {
+            gluehLoesen();
+            return false;
+        }
+        g.gluehBreite = z.breite;
+        g.gluehHoehe = z.hoehe;
+        g.gluehProben = z.msaa;
+    }
+    // "Just clear colors, but leave the depth buffer intact so we can 'share' it."
+    ::bhed::render::zielSetzen(c, 1, &g.gluehRtv, z.dsv);
+    const float schwarz[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    ::bhed::render::leeren(c, g.gluehRtv, schwarz);
+    return true;
+}
+
+void* gluehenVoll(int& breite, int& hoehe) {
+    if (g.aktiv < 0 || g.glueh == nullptr) { return nullptr; }
+    const Ziel& z = g.ziele[g.aktiv];
+    ID3D11DeviceContext* c = kontext();
+    ::bhed::render::zielSetzen(c, 1, &z.rtv, z.dsv);
+    if (g.gluehAuf != nullptr) { ::bhed::render::aufloesen(c, g.gluehAuf, 0, g.glueh, 0, DXGI_FORMAT_R8G8B8A8_UNORM); }
+    breite = g.gluehBreite;
+    hoehe = g.gluehHoehe;
+    return g.gluehSrv;
+}
+
+void gluehenAuflegen(void* weich, bool soft) {
+    if (g.aktiv < 0 || weich == nullptr || !bereitA()) { return; }
+    const Ziel& z = g.ziele[g.aktiv];
+    ID3D11DeviceContext* c = kontext();
+    // der Weichzeichner hat Ziel, Viewport und Zustaende gesetzt
+    ::bhed::render::zielSetzen(c, 1, &z.rtv, z.dsv);
+    D3D11_VIEWPORT vp{};
+    vp.Width = static_cast<float>(z.breite);
+    vp.Height = static_cast<float>(z.hoehe);
+    vp.MaxDepth = 1.0F;
+    c->RSSetViewports(1, &vp);
+    const float faktor[4] = {0, 0, 0, 0};
+    c->OMSetBlendState(g.blendAuflegen[soft ? 0 : 1], faktor, 0xFFFFFFFFU);
+    c->OMSetDepthStencilState(tiefenZustand(TiefenTest::Aus, false), 0);   // GLS_DEPTHTEST_DISABLE
+    c->RSSetState(g.rs3[z.msaa > 1 ? 2 : 0]);                              // GL_Cull( CT_TWO_SIDED )
+    c->IASetInputLayout(nullptr);
+    c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    c->VSSetShader(g.vsA, nullptr, 0);
+    c->GSSetShader(nullptr, nullptr, 0);
+    c->PSSetShader(g.psA, nullptr, 0);
+    ID3D11ShaderResourceView* s = static_cast<ID3D11ShaderResourceView*>(weich);
+    c->PSSetShaderResources(0, 1, &s);
+    c->PSSetSamplers(0, 1, &g.klemmAbtaster);
+    c->Draw(3, 0);
+    ID3D11ShaderResourceView* nichts = nullptr;
+    c->PSSetShaderResources(0, 1, &nichts);
+}
 
 void bildUnterlegen(void* srv) {
     if (g.aktiv < 0 || srv == nullptr || !bereitU()) { return; }

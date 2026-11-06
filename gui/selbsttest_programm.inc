@@ -2471,6 +2471,7 @@ std::vector<Schritt> neustartSchritte() {
         g_app->settings.queryOnDiscard = g_queryVorher;
         if (g_flussVorher >= 0) { g_app->settings.flussAnsicht = g_flussVorher; }
         char z[120];
+        if (g_uebersprungen > 0) { diag::detail("Knopftest: " + std::to_string(g_uebersprungen) + " Pruefungen uebersprungen (Daten fehlen)"); }
         std::snprintf(z, sizeof(z), "Knopftest fertig: %d OK, %d FEHLER", g_ok, g_fehler);
         diag::detail(z);
         diag::detail("Knopftest: Neustart wird angefordert (Marke: neustart_angekommen.txt)");

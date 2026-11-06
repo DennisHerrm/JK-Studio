@@ -867,6 +867,34 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                          {std::to_string(format.anzahl)});
             out.push_back(format);
         }
+        // rc610 R3: Laufzeit-Modelle mit spiegelnder Skalierung (Produkt der drei Achsen < 0, z. B. Flip X: modelscale_vec "-1 1 1").
+        // Das Spiel zeichnet sie ohne Umkehr der Wicklung (GL_Cull kehrt nur fuer viewParms.isMirror um) - man sieht ihr Inneres;
+        // q3map2 kehrt sie nur beim Einbacken von misc_model um (model.cpp:1216, :1430-1432). Die Skalierung wie die Spawn-Funktion:
+        // misc_model_static modelscale_vec (Vorgabe 1 1 1), modelscale ungleich 0 ueberschreibt (g_misc.cpp:408-415);
+        // misc_model_breakable und misc_model_ghoul modelscale_vec, sonst modelscale ungleich 0 (g_breakable.cpp:1172-1180,
+        // g_misc_model.cpp:192-200).
+        Befund gespiegelt = neu("modellgespiegelt", Schwere::Warnung,
+                                "OpenJK code/rd-vanilla/tr_backend.cpp:126-165 GL_Cull (only viewParms.isMirror), code/cgame/cg_main.cpp:2043-2047 "
+                                "CG_DrawMiscEnts ScaleModelAxis, code/game/g_misc.cpp:408-415; q3map2 model.cpp:1216 InsertModel (baked misc_model only)");
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            const std::string kl = klein(ents[e].klasse);
+            const bool statisch = kl == "misc_model_static";
+            if (!statisch && kl != "misc_model_breakable" && kl != "misc_model_ghoul") { continue; }
+            if (ents[e].wert("model").empty()) { continue; }
+            float s[3] = {1, 1, 1};
+            const std::string vec = ents[e].wert("modelscale_vec");
+            const bool mitVec = !vec.empty() && std::sscanf(vec.c_str(), "%f %f %f", &s[0], &s[1], &s[2]) == 3;   // G_SpawnVector
+            const float m = static_cast<float>(std::atof(ents[e].wert("modelscale").c_str()));                    // G_SpawnFloat
+            if (m != 0.0F && (statisch || !mitVec)) { s[0] = s[1] = s[2] = m; }
+            if (s[0] * s[1] * s[2] < 0.0F) {
+                add(gespiegelt, ObjektRef{static_cast<int>(e), -1, -1, stelle(ents[e], static_cast<int>(e), -1) + " " + ents[e].wert("model")});
+            }
+        }
+        if (gespiegelt.anzahl > 0) {
+            detailSetzen(gespiegelt, "%s models the game loads at run time with a mirroring scale: the game draws their inside (use misc_model, or rotate)",
+                         {std::to_string(gespiegelt.anzahl)});
+            out.push_back(gespiegelt);
+        }
     }
 
     messen("patches");

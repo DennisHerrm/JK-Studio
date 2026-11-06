@@ -1010,6 +1010,8 @@ void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModel
             wirft = wirftSchatten(e, wirftSchatten(*eltern, 0));
         }
         const Matrix4 m = miscModellMatrix(e);
+        // rc610 R3: InsertModel (model.cpp:1216, :1430-1432) - bei negativer Determinante die Wicklung umgekehrt
+        const bool umkehren = haendigkeit(m) == Haendigkeit::Links;
         EchtModellFlaeche f;
         f.quelle = &e;
         f.inWelt = eltern == nullptr;
@@ -1023,7 +1025,7 @@ void echtModellFlaechen(const Karte& k, const std::function<void(const EchtModel
             f.st.clear();
             for (std::size_t j = 0; j + 2 < mf.indizes.size(); j += 3) {
                 for (std::size_t c = 0; c < 3; ++c) {
-                    const std::uint32_t ix = mf.indizes[j + c];
+                    const std::uint32_t ix = mf.indizes[j + (umkehren && c > 0 ? 3 - c : c)];
                     if (ix >= mf.punkte.size()) { break; }
                     const ModellPunkt& p = mf.punkte[ix];
                     f.ort.push_back(transformierterPunkt(m, p.ort));

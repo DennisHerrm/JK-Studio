@@ -2672,6 +2672,64 @@ std::vector<Schritt> schritteTyp() {
 }
 
 // M7: Platzhalter-Bestand, Beispielwerte, Lade-/Verbindungsmenues, ui_load, Komponenten, Gizmo
+// TD1: Movie Duels ohne MP-Menuesatz (shank hat die MD-MP-Archive am 05.11. bewusst entfernt: "md mp hat noch kein fertiges und
+// richtiges Menue"). Die Pruefungen dazu melden "uebersprungen (Daten fehlen)" fuer den Satz des Spiels und laufen mit einem eigenen
+// kleinen MP-Menuesatz aus dem Laufordner (td1_mdmp, als Spielordner dieser Sitzung - nichts aus dem Spiel): ui/MD_MP/menudef.h,
+// ui/MD_MP/main.menu mit assetGlobalDef (font anewhope, bigFont ergoec - Schriften von Jedi Academy in base) und die Liste
+// ui/MovieDuels-MP-Menus.txt. Mit den Daten des Spiels laufen die Pruefungen wie bisher gegen sie.
+struct MdMpSatz {
+    bool eigener = false;   // der eigene Satz ist eingebunden
+};
+std::string mdMpOrdner() { return stufe2::laufDatei("td1_mdmp"); }
+constexpr const char* kMdMpMain =
+    "{\n  assetGlobalDef\n  {\n    font \"anewhope\" 16\n    bigFont \"ergoec\" 20\n  }\n  menuDef\n  {\n    name \"main\"\n"
+    "    fullScreen 1\n    rect 0 0 640 480\n    visible 1\n  }\n}\n";
+std::vector<Schritt> mdMpSatzAn(const std::string& wofuer, std::shared_ptr<MdMpSatz> m) {
+    std::vector<Schritt> s;
+    // die Spieldaten muessen da sein, bevor feststeht, ob der Satz fehlt (Teillauf: der Menue-Editor war noch nie offen)
+    s.push_back(tu("TD1: Menue-Editor mit den Spieldaten", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+        g_app->leftMode = 4;
+        tourSchliessen();
+    }));
+    s.push_back(pause(0.3));
+    s.push_back(tu("TD1: MD-MP-Menuesatz fuer " + wofuer, [wofuer, m] {
+        m->eigener = false;
+        if (!me::mdMpSatzFehlt()) { return; }   // nur Movie Duels (stand().spiel gilt erst mit offenem Dokument)
+        meldeUebersprungen(wofuer + " mit dem MD-MP-Menuesatz des Spiels", "MD-MP-Menuesatz nicht installiert (ui/MD_MP fehlt in den Spieldaten) - "
+                                                                          "dieselbe Pruefung mit eigenem MP-Testmenue aus dem Laufordner");
+        std::error_code ec;
+        std::filesystem::create_directories(::bhed::utf8Pfad(mdMpOrdner()), ec);
+        std::string err;
+        const bool ok = writePk3(mdMpOrdner() + "\\zz_td1_mdmp.pk3",
+                                 {{"ui/MD_MP/menudef.h", "#define WINDOW_STYLE_EMPTY 0\n#define WINDOW_STYLE_FILLED 1\n#define ITEM_TYPE_TEXT 0\n"},
+                                  {"ui/MD_MP/main.menu", kMdMpMain},
+                                  {"ui/MovieDuels-MP-Menus.txt", "{\n  loadMenu { \"ui/MD_MP/main.menu\" }\n}\n"}},
+                                 &err);
+        if (!ok) {
+            meldeFehler("TD1: eigener MD-MP-Menuesatz nicht geschrieben: " + err);
+            return;
+        }
+        std::vector<std::string> ordner = aktiveSpielordner();
+        ordner.push_back(mdMpOrdner());
+        setzeSitzungsSpielordner(std::move(ordner));
+        rescanGamePaths();
+        m->eigener = true;
+    }));
+    s.push_back(warteBis("TD1: MD-MP-Menuesatz eingebunden", [m] { return !m->eigener || !me::mdMpSatzFehlt(); }, 600));
+    return s;
+}
+Schritt mdMpSatzAus(std::shared_ptr<MdMpSatz> m) {
+    return tu("TD1: eigener MD-MP-Menuesatz weg", [m] {
+        if (!m->eigener) { return; }
+        std::vector<std::string> ordner = aktiveSpielordner();
+        if (!ordner.empty() && ordner.back() == mdMpOrdner()) { ordner.pop_back(); }
+        setzeSitzungsSpielordner(std::move(ordner));
+        rescanGamePaths();
+        m->eigener = false;
+    });
+}
+
 std::vector<Schritt> schritteM7() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -2785,6 +2843,25 @@ std::vector<Schritt> schritteM7() {
         diag::info("Menue-Editor M7 Ladebild: Balken " + std::to_string(x.ladebalken) + ", Beispiel " + std::to_string(x.beispielPrims));
         return x.spiel != 0 || (x.ladebalken == 4 && x.beispielPrims > 0);
     }));
+    // TD1: ohne MD-MP-Menuesatz sagt der Editor es fuer ein MD-MP-Menue (Meldungen und Vorschau), statt leer zu bleiben
+    add(tu("TD1 MD MP: alles zu, ein MP-Menue in ui/MD_MP", [] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ui/MD_MP/td1_hinweis.menu",
+                             "{\n  menuDef\n  {\n    name \"td1\"\n    rect 0 0 640 480\n    visible 1\n    itemDef\n    {\n      name \"t\"\n"
+                             "      type ITEM_TYPE_TEXT\n      text \"Hallo\"\n      rect 100 100 200 40\n      textscale 1\n      visible 1\n    }\n  }\n}\n");
+    }));
+    add(pause(0.5));
+    add(pruefeMitDaten("TD1 MD MP: ohne MD-MP-Menuesatz zeigt der Editor fuer das MD-MP-Menue einen Hinweis (Meldungen, Vorschau)",
+                       [] { return me::stand().spiel != 2 ? std::string("kein Movie Duels") : !me::mdMpSatzFehlt() ? std::string("MD-MP-Menuesatz ist installiert") : std::string(); },
+                       [] {
+                           const int b = me::mdMpHinweisBild();
+                           diag::detail("Knopftest: TD1 MD MP - Hinweis im Bild " + std::to_string(b) + " (jetzt " + std::to_string(ImGui::GetFrameCount()) + ")");
+                           return b >= 0 && ImGui::GetFrameCount() - b < 5;
+                       }));
+    auto mdmp = std::make_shared<MdMpSatz>();
+    for (Schritt& x : mdMpSatzAn("M7 MP-Startmenue", mdmp)) { add(std::move(x)); }
     // M5b-Rest: neues Projekt mit Startmenue im Mehrspieler-Format
     add(tu("M7 MP-Startmenue: alles zu, Format Mehrspieler, neues Projekt", [] {
         namespace fs = std::filesystem;
@@ -2798,12 +2875,16 @@ std::vector<Schritt> schritteM7() {
         me::neuesProjektFormat(false);
     }));
     add(pause(0.3));
-    add(pruefe("M7 MP-Startmenue: Dokument im MP-Menueordner, MP-Dialekt, ohne Meldung (menudef.h vorab gelesen)", [st] {
+    add(pruefe("M7 MP-Startmenue: Dokument im MP-Menueordner, MP-Dialekt, ohne Meldung (menudef.h vorab gelesen)", [st, mdmp] {
         const std::string n = me::dokumentName();
-        diag::info("Menue-Editor M7 MP-Startmenue: " + n);
+        diag::info("Menue-Editor M7 MP-Startmenue: " + n + ", Meldungen " + std::to_string(st().meldungen) + ", Menues " + std::to_string(st().menus) +
+                   (mdmp->eigener ? " (eigener MD-MP-Menuesatz)" : ""));
         return me::dokumentMp() && (n == "ui/jamp/my_menu.menu" || n == "ui/MD_MP/my_menu.menu" || n == "ui/jk2mp/my_menu.menu") &&
                st().meldungen == 0 && st().menus == 1;
     }));
+    add(pruefeMitDaten("TD1 MD MP: mit dem eigenen MD-MP-Menuesatz kein Hinweis mehr", [mdmp] { return mdmp->eigener ? std::string() : std::string("kein eigener Satz noetig"); },
+                       [] { return !me::mdMpSatzFehlt(); }));
+    add(mdMpSatzAus(mdmp));
     return s;
 }
 

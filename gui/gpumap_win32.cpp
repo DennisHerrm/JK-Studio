@@ -1784,6 +1784,13 @@ int g_glowVollH = 0;
 // Weichzeichnen liest seine aufgeloeste Kopie g_glowVollAufTex (g_glowVollSrv).
 int g_glowVollProben = 1;
 ID3D11Texture2D* g_glowVollAufTex = nullptr;
+// rc610 R3: die kleinen Puffer fuer das Gluehen des Echtzeit-Lichts im Karten-Editor (gluehenWeichzeichnen) - eigene, weil
+// bereiteGluehpuffer die der Vorschau mit deren Zielgroesse neu anlegt.
+ID3D11Texture2D* g_glowFremdTex[2] = {nullptr, nullptr};
+ID3D11RenderTargetView* g_glowFremdRtv[2] = {nullptr, nullptr};
+ID3D11ShaderResourceView* g_glowFremdSrv[2] = {nullptr, nullptr};
+int g_glowFremdW = 0;
+int g_glowFremdH = 0;
 
 // Je Himmel die sechs Plaetze, aus denen er gebaut wurde - als INHALT, nicht
 // als Zeiger auf den Vektor: nach einem Kartenwechsel kann der neue Vektor
@@ -2201,6 +2208,52 @@ ShaderPaar* holeFigurShader(std::string* fehler) {
 }
 
 // Die drei Gluehpuffer anlegen.
+// Der Abtaster der Vollbilder: linear, am Rand geklemmt statt umlaufend
+bool randAbtasterAnlegen(ID3D11Device* d) {
+    if (g_samplerRand == nullptr) {
+        D3D11_SAMPLER_DESC sd{};
+        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        sd.MaxLOD = D3D11_FLOAT32_MAX;
+        d->CreateSamplerState(&sd, &g_samplerRand);
+    }
+    return g_samplerRand != nullptr;
+}
+
+// Ein Gluehpuffer ohne Mehrfachabtastung: Renderziel und Eingang
+bool gluehTexturAnlegen(ID3D11Device* d, int w, int h, ID3D11Texture2D** tex, ID3D11RenderTargetView** rtv, ID3D11ShaderResourceView** srv) {
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(w);
+    td.Height = static_cast<UINT>(h);
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DEFAULT;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    if (FAILED(d->CreateTexture2D(&td, nullptr, tex))) {
+        return false;
+    }
+    return SUCCEEDED(d->CreateRenderTargetView(*tex, nullptr, rtv)) &&
+           SUCCEEDED(::bhed::render::sichtAnlegen(d, *tex, nullptr, srv));
+}
+
+// Die Konstanten der Vollbild-Durchgaenge (zwei float4)
+bool gluehKonstantenAnlegen(ID3D11Device* d) {
+    if (g_cbGlow != nullptr) {
+        return true;
+    }
+    D3D11_BUFFER_DESC bd{};
+    bd.ByteWidth = 8U * 4U;   // zwei float4
+    bd.Usage = D3D11_USAGE_DYNAMIC;
+    bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    return SUCCEEDED(d->CreateBuffer(&bd, nullptr, &g_cbGlow));
+}
+
 bool bereiteGluehpuffer(int breite, int hoehe) {
     ID3D11Device* d = dev();
     if (d == nullptr || breite <= 0 || hoehe <= 0) {
@@ -2233,24 +2286,6 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
         if (g_glowRtv[i] != nullptr) { g_glowRtv[i]->Release(); g_glowRtv[i] = nullptr; }
         if (g_glowTex[i] != nullptr) { g_glowTex[i]->Release(); g_glowTex[i] = nullptr; }
     }
-    auto lege = [&](int w, int h, ID3D11Texture2D** tex,
-                    ID3D11RenderTargetView** rtv,
-                    ID3D11ShaderResourceView** srv) {
-        D3D11_TEXTURE2D_DESC td{};
-        td.Width = static_cast<UINT>(w);
-        td.Height = static_cast<UINT>(h);
-        td.MipLevels = 1;
-        td.ArraySize = 1;
-        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        td.SampleDesc.Count = 1;
-        td.Usage = D3D11_USAGE_DEFAULT;
-        td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        if (FAILED(d->CreateTexture2D(&td, nullptr, tex))) {
-            return false;
-        }
-        return SUCCEEDED(d->CreateRenderTargetView(*tex, nullptr, rtv)) &&
-               SUCCEEDED(::bhed::render::sichtAnlegen(d, *tex, nullptr, srv));
-    };
     if (g_zielProben > 1) {
         D3D11_TEXTURE2D_DESC td{};
         td.Width = static_cast<UINT>(g_zielW);
@@ -2270,24 +2305,17 @@ bool bereiteGluehpuffer(int breite, int hoehe) {
             FAILED(::bhed::render::sichtAnlegen(d, g_glowVollAufTex, nullptr, &g_glowVollSrv))) {
             return false;
         }
-    } else if (!lege(g_zielW, g_zielH, &g_glowVollTex, &g_glowVollRtv, &g_glowVollSrv)) {
+    } else if (!gluehTexturAnlegen(d, g_zielW, g_zielH, &g_glowVollTex, &g_glowVollRtv, &g_glowVollSrv)) {
         return false;
     }
     for (int i = 0; i < 2; ++i) {
-        if (!lege(breite, hoehe, &g_glowTex[i], &g_glowRtv[i],
-                  &g_glowSrv[i])) {
+        if (!gluehTexturAnlegen(d, breite, hoehe, &g_glowTex[i], &g_glowRtv[i],
+                                &g_glowSrv[i])) {
             return false;
         }
     }
-    if (g_cbGlow == nullptr) {
-        D3D11_BUFFER_DESC bd{};
-        bd.ByteWidth = 8U * 4U;   // zwei float4
-        bd.Usage = D3D11_USAGE_DYNAMIC;
-        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        if (FAILED(d->CreateBuffer(&bd, nullptr, &g_cbGlow))) {
-            return false;
-        }
+    if (!gluehKonstantenAnlegen(d)) {
+        return false;
     }
     g_glowW = breite;
     g_glowH = hoehe;
@@ -2778,7 +2806,8 @@ bool wechsleAufVollbild() {
     return true;
 }
 
-void setzeGlowKonstanten(float abstand, float gewicht, bool weich, bool vollerPuffer = false) {
+// qb x qh: die Groesse der Quelle - der Abstand zaehlt in ihren Bildpunkten (im ersten Durchgang die des vollen Puffers).
+void setzeGlowKonstanten(float abstand, float gewicht, bool weich, int qb, int qh) {
     ID3D11DeviceContext* c = ctx();
     if (c == nullptr || g_cbGlow == nullptr) {
         return;
@@ -2786,9 +2815,6 @@ void setzeGlowKonstanten(float abstand, float gewicht, bool weich, bool vollerPu
     D3D11_MAPPED_SUBRESOURCE m{};
     if (SUCCEEDED(c->Map(g_cbGlow, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
         auto* f = static_cast<float*>(m.pData);
-        // Der Abstand zaehlt in Bildpunkten der Quelle: im ersten Durchgang des vollen Puffers.
-        const int qb = vollerPuffer ? g_glowVollW : g_glowW;
-        const int qh = vollerPuffer ? g_glowVollH : g_glowH;
         f[0] = (qb > 0) ? 1.0F / static_cast<float>(qb) : 0.0F;
         f[1] = (qh > 0) ? 1.0F / static_cast<float>(qh) : 0.0F;
         f[2] = abstand;
@@ -3493,6 +3519,65 @@ void gluehenFigurenBeginnen(bool an, int breite, int hoehe) {
 
 void gluehenFigurenEnde() { g_figurGluehenAn = false; }
 
+// --- Durchgang 2: fuenfmal weichzeichnen, der erste verkleinert --------
+//
+// RB_BlurGlowTexture: r_DynamicGlowPasses 5, Abstand 0,1 und je Durchgang + r_DynamicGlowDelta 0,8, ungerundet
+// mit GL_LINEAR, Gewicht r_DynamicGlowIntensity 1,13 / 4 (im Spiel abgefragt: alles Vorgabe). Der erste Durchgang
+// zeichnet in r_DynamicGlowWidth x Height und liest den vollen Puffer (vollW x vollH) je Zielpunkt an vier Stellen,
+// 0,1 Bildpunkte der Quelle um die Mitte. Es gibt kein Kastenmittel: Das Gluehen ist so schmal und so hell wie im Spiel.
+// rc610 R3: gemeinsam fuer die Vorschau (zeichneGluehen) und das Echtzeit-Licht des Karten-Editors (gluehenWeichzeichnen).
+// Gibt zurueck, welcher der beiden kleinen Puffer das Ergebnis traegt. Der Vollbild-Shader muss gesetzt sein.
+namespace {
+int weichzeichnen(ID3D11ShaderResourceView* voll, int vollW, int vollH, ID3D11RenderTargetView* const* rtv,
+                  ID3D11ShaderResourceView* const* srv, int breite, int hoehe, bool weich) {
+    float abstand = 0.1F;
+    setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, vollW, vollH);
+    blitte(voll, rtv[0], breite, hoehe, g_glowBlurPs);
+    int quelle = 0;
+    for (int p = 1; p < 5; ++p) {
+        abstand += 0.8F;
+        setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, breite, hoehe);
+        blitte(srv[quelle], rtv[1 - quelle], breite, hoehe, g_glowBlurPs);
+        quelle = 1 - quelle;
+    }
+    return quelle;
+}
+}  // namespace
+
+void* gluehenWeichzeichnen(void* vollSrv, int vollW, int vollH, int breite, int hoehe, bool weich) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || vollSrv == nullptr || vollW <= 0 || vollH <= 0 || breite <= 0 || hoehe <= 0) {
+        return nullptr;
+    }
+    if (g_glowFremdRtv[0] == nullptr || g_glowFremdW != breite || g_glowFremdH != hoehe) {
+        for (int i = 0; i < 2; ++i) {
+            if (g_glowFremdSrv[i] != nullptr) { g_glowFremdSrv[i]->Release(); g_glowFremdSrv[i] = nullptr; }
+            if (g_glowFremdRtv[i] != nullptr) { g_glowFremdRtv[i]->Release(); g_glowFremdRtv[i] = nullptr; }
+            if (g_glowFremdTex[i] != nullptr) { g_glowFremdTex[i]->Release(); g_glowFremdTex[i] = nullptr; }
+        }
+        g_glowFremdW = 0;
+        g_glowFremdH = 0;
+        for (int i = 0; i < 2; ++i) {
+            if (!gluehTexturAnlegen(d, breite, hoehe, &g_glowFremdTex[i], &g_glowFremdRtv[i], &g_glowFremdSrv[i])) {
+                return nullptr;
+            }
+        }
+        g_glowFremdW = breite;
+        g_glowFremdH = hoehe;
+    }
+    if (!gluehKonstantenAnlegen(d) || !randAbtasterAnlegen(d) || !wechsleAufVollbild()) {
+        return nullptr;
+    }
+    const int quelle = weichzeichnen(static_cast<ID3D11ShaderResourceView*>(vollSrv), vollW, vollH, g_glowFremdRtv, g_glowFremdSrv,
+                                     breite, hoehe, weich);
+    // Eingang und Ziel abmelden: der Aufrufer liest das Ergebnis und setzt sein eigenes Ziel
+    ID3D11ShaderResourceView* nichts[2] = {nullptr, nullptr};
+    c->PSSetShaderResources(0, 2, nichts);
+    ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
+    return g_glowFremdSrv[quelle];
+}
+
 int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const BspGeometry* geo, const float* viewProj,
                    float zeitSekunden, int breite, int hoehe, bool weich,
@@ -3758,32 +3843,18 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     if (n == 0) {
         return 0;
     }
-    // --- Durchgang 2: fuenfmal weichzeichnen, der erste verkleinert --------
-    //
-    // RB_BlurGlowTexture: r_DynamicGlowPasses 5, Abstand 0,1 und je Durchgang + r_DynamicGlowDelta 0,8, ungerundet
-    // mit GL_LINEAR, Gewicht r_DynamicGlowIntensity 1,13 / 4 (im Spiel abgefragt: alles Vorgabe). Der erste Durchgang
-    // zeichnet in r_DynamicGlowWidth x Height und liest den vollen Puffer je Zielpunkt an vier Stellen, 0,1 Bildpunkte
-    // der Quelle um die Mitte. Es gibt kein Kastenmittel: Das Gluehen ist so schmal und so hell wie im Spiel.
+    // --- Durchgang 2: weichzeichnen (weichzeichnen) -----------------------
     setzeSchritt("Gluehen: weichzeichnen");
     if (!wechsleAufVollbild()) {
         if (fehler != nullptr) { *fehler = "Vollbild-Shader fehlt"; }
         return 0;
     }
-    float abstand = 0.1F;
-    setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich, true);
     // Mit r_ext_multisample liest glCopyTexSubImage den aufgeloesten Bildpuffer (RB_BlurGlowTexture).
     if (g_glowVollAufTex != nullptr) {
         ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
         ::bhed::render::aufloesen(c, g_glowVollAufTex, 0, g_glowVollTex, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     }
-    blitte(g_glowVollSrv, g_glowRtv[0], breite, hoehe, g_glowBlurPs);
-    int quelle = 0;
-    for (int p = 1; p < 5; ++p) {
-        abstand += 0.8F;
-        setzeGlowKonstanten(abstand, 1.13F * 0.25F, weich);
-        blitte(g_glowSrv[quelle], g_glowRtv[1 - quelle], breite, hoehe, g_glowBlurPs);
-        quelle = 1 - quelle;
-    }
+    const int quelle = weichzeichnen(g_glowVollSrv, g_glowVollW, g_glowVollH, g_glowRtv, g_glowSrv, breite, hoehe, weich);
 
     // --- Durchgang 3: auflegen -------------------------------------------
     //
@@ -3792,7 +3863,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // und zu beschreiben ist bei Direct3D nicht erlaubt, und der Treiber
     // meldet es als stille Nichtbindung: das Bild bliebe schwarz.
     setzeSchritt("Gluehen: auflegen");
-    setzeGlowKonstanten(0.0F, 1.0F, weich);
+    setzeGlowKonstanten(0.0F, 1.0F, weich, g_glowW, g_glowH);
     // --- Erst das Ziel setzen, DANN die Eingaenge -------------------------
     //
     // Eine Textur darf bei Direct3D nicht gleichzeitig Eingang und Ausgang
@@ -6625,6 +6696,13 @@ void shutdown() {
         if (g_glowRtv[i] != nullptr) { g_glowRtv[i]->Release(); g_glowRtv[i] = nullptr; }
         if (g_glowTex[i] != nullptr) { g_glowTex[i]->Release(); g_glowTex[i] = nullptr; }
     }
+    for (int i = 0; i < 2; ++i) {
+        if (g_glowFremdSrv[i] != nullptr) { g_glowFremdSrv[i]->Release(); g_glowFremdSrv[i] = nullptr; }
+        if (g_glowFremdRtv[i] != nullptr) { g_glowFremdRtv[i]->Release(); g_glowFremdRtv[i] = nullptr; }
+        if (g_glowFremdTex[i] != nullptr) { g_glowFremdTex[i]->Release(); g_glowFremdTex[i] = nullptr; }
+    }
+    g_glowFremdW = 0;
+    g_glowFremdH = 0;
     if (g_cbGlow != nullptr) { g_cbGlow->Release(); g_cbGlow = nullptr; }
     if (g_vollbildVs != nullptr) { g_vollbildVs->Release(); g_vollbildVs = nullptr; }
     if (g_glowBlurPs != nullptr) { g_glowBlurPs->Release(); g_glowBlurPs = nullptr; }
@@ -7800,17 +7878,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         sd.MaxLOD = D3D11_FLOAT32_MAX;
         d->CreateSamplerState(&sd, &g_sampler);
     }
-    if (g_samplerRand == nullptr) {
-        // Derselbe Filter, aber am Rand geklemmt statt umlaufend.
-        D3D11_SAMPLER_DESC sd{};
-        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-        sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-        sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-        sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-        sd.MaxLOD = D3D11_FLOAT32_MAX;
-        d->CreateSamplerState(&sd, &g_samplerRand);
-    }
+    (void)randAbtasterAnlegen(d);
 
     // JeBild fuellen.
     setzeSchritt("Karte: Konstanten fuellen");

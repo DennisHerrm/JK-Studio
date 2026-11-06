@@ -325,6 +325,10 @@ std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_modobj_browser (B
 namespace r2a {
 std::vector<Schritt> schritte();   // selbsttest_r2a.inc: rc610 R2a, Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
 }  // namespace r2a
+namespace r3 {
+std::vector<Schritt> schritte();   // selbsttest_r3.inc: rc610 R3, gespiegelte Modelle und Glow im Echtzeit-Licht
+std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_r3_glow (BHED_HB_NUR=r3)
+}  // namespace r3
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -619,6 +623,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =r3: rc610 R3 - gespiegelte Modelle in allen Ansichten, Glow im Echtzeit-Licht (BHED_R3_ZEIT=1: nur die Bildzeit)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "r3") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : r3::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =reste1: Liste reste1 (Decals in der Echtzeit-Ansicht)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "reste1") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -676,6 +687,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
     for (Schritt& x : modobj::schritte()) { add(std::move(x)); }   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
     for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
+    for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
@@ -2373,6 +2385,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "r2a") == 0) {
         return r2aHandbuchSchritte();   // rc610 R2a (selbsttest_editorportal.inc)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "r3") == 0) {
+        return r3::handbuchSchritte();   // rc610 R3: Glow im Echtzeit-Licht (selbsttest_r3.inc)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

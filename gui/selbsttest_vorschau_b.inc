@@ -783,26 +783,29 @@ std::vector<Schritt> gluehenFigurSchritte() {
     // Selbsttests nicht - in einem leeren Reiter steht sie da.
     auto vorher = std::make_shared<int>(-1);
     for (Schritt& x : leererReiterMitKarte("md_am_sith", vorher)) { add(std::move(x)); }
-    // Kraeftig rote Bildpunkte im unteren mittleren Teil des Bildes, wo der
-    // Kopf von sbd1 steht: dort liegt das rote Auge der Leuchtstufe.
-    auto rot = [] {
+    // TD1: SBD ist seit den Movie-Duels-Daten vom 05.11. ein anderes Modell (models/players/sbd/model.glm auf _humanoid_sbd, groesser,
+    // anders gedreht) - die feste Kamera 28 vor dem Fuss stand im Rumpf. Die Leuchtstufe ist geblieben: shaders/sbd.shader
+    // (MD_Models_PT.pk3) traegt in models/players/sbd/body und body_cortosis als letzte Stufe { map models/players/SBD/body_e
+    // blendFunc GL_ONE GL_ONE glow rgbGen identity }, und Body_E.jpg ist schwarz bis auf das rote Auge (84 Bildpunkte bei 181..192,
+    // 271..273). Gesucht wird daher die Blickrichtung in der die Stufen der
+    // Figur die meisten kraeftig roten Bildpunkte hinzufuegen (8 Richtungen, drei Hoehen) (Bild mit gegen ohne Stufen, gpu::figurStufenAus) - das Auge.
+    auto rotMaske = [] {
         std::vector<std::uint8_t> px;
         int w = 0;
         int h = 0;
-        if (!gpu::leseFarbe(px, w, h) || px.empty() || w <= 0 || h <= 0) { return -1; }
-        int n = 0;
-        for (int y = h * 55 / 100; y < h; ++y) {
-            for (int x = w * 45 / 100; x < w * 75 / 100; ++x) {
-                const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)) * 4U;
-                if (px[i] >= 200 && px[i + 1] <= 90 && px[i + 2] <= 90) { ++n; }
-            }
-        }
-        return n;
+        std::vector<char> m;
+        if (!gpu::leseFarbe(px, w, h) || px.empty() || w <= 0 || h <= 0) { return m; }
+        m.assign(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0);
+        for (std::size_t i = 0; i < m.size(); ++i) { m[i] = (px[i * 4] >= 200 && px[i * 4 + 1] <= 90 && px[i * 4 + 2] <= 90) ? 1 : 0; }
+        return m;
     };
     auto fi = std::make_shared<int>(-1);
     auto ohne = std::make_shared<int>(-1);
+    auto richtung = std::make_shared<int>(-1);   // beste Richtung * 3 + Hoehe
+    auto bester = std::make_shared<int>(-1);
+    auto mitStufen = std::make_shared<std::vector<char>>();
     constexpr double kMs = 3690.0;
-    auto stelle = [=](bool gluehen) {
+    auto stelle = [=](bool gluehen, int r) {
         g_app->leftMode = 1;   // Mission: die Karte ist sichtbar (im Modus Ereignisse nicht)
         g_app->throughCamera = false;
         g_app->cameraSelected = false;
@@ -811,24 +814,22 @@ std::vector<Schritt> gluehenFigurSchritte() {
         g_app->playMs = kMs;
         g_app->showGlow = gluehen;
         if (*fi >= 0) {
-            // Wo die Figur gezeichnet wurde (nach der Schwerkraft), sonst
-            // der Skriptort. Von vorn: der Spawner sagt "angle 90", die
-            // Figur blickt nach +y.
+            // Wo die Figur gezeichnet wurde (nach der Schwerkraft), sonst der Skriptort
             const ActorState st = g_app->scene.actors[static_cast<std::size_t>(*fi)].at(kMs);
             float p[3] = {st.pos[0], st.pos[1], st.pos[2]};
             if (static_cast<std::size_t>(*fi) < g_app->figurGezeichnet.size() &&
                 g_app->figurGezeichnet[static_cast<std::size_t>(*fi)] != std::array<float, 3>{0.0F, 0.0F, 0.0F}) {
                 for (int k = 0; k < 3; ++k) { p[k] = g_app->figurGezeichnet[static_cast<std::size_t>(*fi)][static_cast<std::size_t>(k)]; }
             }
-            diag::detail("Knopftest: Gluehen Figur - Ort " + std::to_string(p[0]) + " " + std::to_string(p[1]) + " " +
-                         std::to_string(p[2]) + " (Skript " + std::to_string(st.pos[1]) + ")");
-            // Abschluss rc607: seit Zeitleiste 5 traegt sbd1 den Oberkoerper in TORSO_WEAPONREST2 (Beine
-            // BOTH_STAND1, wie PM_TorsoAnimation) - Kopf und Auge zeigen nach -x, nicht mehr nach +y.
-            // Die Kamera steht davor (vorher von +y: das Auge nur noch von der Seite, 0 rote Punkte).
-            g_app->cam.pos[0] = p[0] - 28.0F;
-            g_app->cam.pos[1] = p[1];
-            g_app->cam.pos[2] = p[2] + 50.0F;
-            g_app->cam.angles[0] = 0.0F; g_app->cam.angles[1] = 0.0F; g_app->cam.angles[2] = 0.0F;
+            // r / 3: die Richtung (45 Grad je Schritt), r % 3: Augenhoehe 40, 60 bzw. 80 ueber dem Ursprung; 40 Einheiten Abstand
+            const float a = static_cast<float>(r / 3) * 0.785398F;
+            const float hoch = 40.0F + 20.0F * static_cast<float>(r % 3);
+            g_app->cam.pos[0] = p[0] - 40.0F * std::cos(a);
+            g_app->cam.pos[1] = p[1] - 40.0F * std::sin(a);
+            g_app->cam.pos[2] = p[2] + hoch;
+            g_app->cam.angles[0] = 0.0F;
+            g_app->cam.angles[1] = static_cast<float>(r / 3) * 45.0F;
+            g_app->cam.angles[2] = 0.0F;
         }
         g_app->mapDirty = true;
     };
@@ -840,31 +841,51 @@ std::vector<Schritt> gluehenFigurSchritte() {
             if (g_app->scene.actors[i].name == "sbd1") { *fi = static_cast<int>(i); }
         }
         for (auto& f : g_app->figurGezeichnet) { f = {0.0F, 0.0F, 0.0F}; }   // 0 0 0: noch nicht gezeichnet (wie assign)
-        stelle(false);
+        stelle(false, 0);
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
-    add(tu("Gluehen Figur: vor den gezeichneten Ort", [=] { stelle(false); }));
+    for (int r = 0; r < 24; ++r) {
+        add(tu("Gluehen Figur: Richtung " + std::to_string(r) + " mit Stufen", [=] {
+            gpu::figurStufenAus(false);
+            stelle(false, r);
+        }));
+        add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+        add(tu("Gluehen Figur: Richtung " + std::to_string(r) + " ohne Stufen", [=] {
+            *mitStufen = rotMaske();
+            gpu::figurStufenAus(true);
+            g_app->mapDirty = true;
+        }));
+        add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+        add(tu("Gluehen Figur: Richtung " + std::to_string(r) + " zaehlen", [=] {
+            const std::vector<char> o = rotMaske();
+            int n = 0;
+            for (std::size_t i = 0; i < o.size() && i < mitStufen->size(); ++i) { n += ((*mitStufen)[i] != 0 && o[i] == 0) ? 1 : 0; }
+            if (n > *bester) {
+                *bester = n;
+                *richtung = r;
+            }
+            gpu::figurStufenAus(false);
+        }));
+    }
+    add(tu("Gluehen Figur: in die beste Richtung", [=] { stelle(false, std::max(0, *richtung)); }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.3));
     add(foto("gluehen_figur_ohne"));
-    // Schwelle 20: die Figur ist so gross, wie die Szene breit ist (fov_x fest).
-    // rc605 zeichnete die Szene 1384 breit (31 rote Punkte); seit dem Eintrag
-    // "Map Editor" der Modusleiste (Karten-Editor Stufe 1b, die Leiste ist so
-    // breit wie ihre laengste Beschriftung) sind es 1359 und 29 Punkte - das
-    // Auge ist weiter klar im Bild, die alte Schwelle 30 lag nur einen Punkt
-    // unter dem rc605-Wert.
+    // Schwelle 20 kraeftig rote Punkte, die die Stufen hinzufuegen: das Auge ist 11 x 3 Texel der 512er Leuchttextur
     add(pruefe("Gluehen Figur: die Leuchtstufe (rotes Auge von sbd1) liegt im Bild", [=] {
-        *ohne = rot();
-        diag::detail("Knopftest: Gluehen Figur - sbd1 #" + std::to_string(*fi) + ", rote Bildpunkte am Kopf " +
-                     std::to_string(*ohne));
-        return *fi >= 0 && *ohne > 20;
+        const std::vector<char> m = rotMaske();
+        *ohne = static_cast<int>(std::count(m.begin(), m.end(), 1));
+        diag::detail("Knopftest: Gluehen Figur - sbd1 #" + std::to_string(*fi) + ", Richtung " + std::to_string(*richtung) + ", rote Punkte der Stufen " +
+                     std::to_string(*bester) + ", rot im Bild " + std::to_string(*ohne));
+        return *fi >= 0 && *bester > 20;
     }));
-    add(tu("Gluehen Figur: Gluehen an", [=] { stelle(true); }));
+    add(tu("Gluehen Figur: Gluehen an", [=] { stelle(true, std::max(0, *richtung)); }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     add(pause(0.3));
     add(foto("gluehen_figur_mit"));
     add(pruefe("Gluehen Figur: die Leuchtstufe geht ins Gluehen", [=] {
-        const int r = rot();
+        const std::vector<char> m = rotMaske();
+        const int r = static_cast<int>(std::count(m.begin(), m.end(), 1));
         const int n = gpu::gluehenFigurAufrufe();
         diag::detail("Knopftest: Gluehen Figur - mit Gluehen rote Bildpunkte " + std::to_string(r) +
                      ", Figurenaufrufe im Gluehen " + std::to_string(n));
@@ -6489,6 +6510,7 @@ std::vector<Schritt> endeSchritte(bool voll) {
         g_app->settings.queryOnDiscard = g_queryVorher;
         if (g_flussVorher >= 0) { g_app->settings.flussAnsicht = g_flussVorher; }
         char z[120];
+        if (g_uebersprungen > 0) { diag::detail("Knopftest: " + std::to_string(g_uebersprungen) + " Pruefungen uebersprungen (Daten fehlen)"); }
         std::snprintf(z, sizeof(z), "Knopftest fertig: %d OK, %d FEHLER",
                       g_ok, g_fehler);
         diag::detail(z);

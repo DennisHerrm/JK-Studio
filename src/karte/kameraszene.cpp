@@ -530,6 +530,13 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             const ModellAnsicht a = k.modelle->ansicht(*ent);
             const Matrix4 m = miscModellMatrix(*ent);
             s.etagen.push_back({modellWeltKasten(a, m), entGew});
+            // rc610 R3: gespiegelt (Determinante < 0, z. B. Flip X: modelscale_vec "-1 1 1") dreht die Matrix die Wicklung um.
+            // q3map2 backt misc_model mit umgekehrter Wicklung ein (model.cpp:1216 transform_lefthanded, :1430-1432 swap der
+            // Indizes), NRC zeichnet es mit glFrontFace( GL_CCW ) (renderstate.cpp:1561) - beide zeigen die Vorderseite. Was das
+            // Spiel zur Laufzeit laedt (misc_model_static u. a.: CG_DrawMiscEnts, cg_main.cpp:2043-2047 ScaleModelAxis), zeichnet
+            // der Renderer ohne Umkehr (GL_Cull, tr_backend.cpp:126-165: nur viewParms.isMirror) - dort sieht man im Spiel die
+            // Innenseite, die Kamera zeigt es ebenso (Kartenpruefung "modellgespiegelt").
+            const bool umkehren = haendigkeit(m) == Haendigkeit::Links && klein(ent->klassenname()) == "misc_model";
             if (a.modell) {
                 for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
                     const ModellFlaeche& f = a.modell->flaechen[fi];
@@ -540,7 +547,7 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                     for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
                         std::vector<KameraPunkt> d(3);
                         for (std::size_t j = 0; j < 3; ++j) {
-                            const ModellPunkt& p = f.punkte[f.indizes[i + j]];
+                            const ModellPunkt& p = f.punkte[f.indizes[i + (umkehren && j > 0 ? 3 - j : j)]];
                             Vektor3f n = transformierteRichtung(m, p.normale);
                             const float l = static_cast<float>(laenge(n));
                             if (l > 0) { n = n * (1.0F / l); }

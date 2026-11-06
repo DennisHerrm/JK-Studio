@@ -40,6 +40,7 @@
 #include "bhed/karte/spielkollision.h"
 #include "bhed/saberspuren.h"
 #include "karte_echtlicht.h"
+#include "gpumap.h"
 #include "karte_gpu.h"
 #include "platform.h"
 #include "tastatur.h"
@@ -1226,6 +1227,15 @@ void kameraZeichnen() {
         void* portalBild = nullptr;   // Stufe 9d: misc_skyportal (Zielbild 201)
         void* spiegelBild = nullptr;  // rc609 P: Spiegel- oder Portalsicht (Zielbild 202)
         bool imSpiegel = false;       // rc609 P: gerade im Durchgang der Spiegel-/Portalsicht
+        // rc610 R3: die Stapel mit leuchtenden Stufen im Hauptbild des Echtzeit-Lichts (fuer das Gluehen danach)
+        struct GluehStapel {
+            const Szene3* q;
+            const Stapel3* st;
+            bool wegschneiden;
+        };
+        std::vector<GluehStapel> gluehStapel;
+        ed.echtLicht.weitereStufen = 0;
+        ed.echtLicht.gluehAufrufe = 0;
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
             if (b == nullptr || !b->fertig) { return; }
@@ -1319,15 +1329,19 @@ void kameraZeichnen() {
             if (fuellen) {
                 kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
                 // rc610 R2a: eine Portalflaeche mit allen Stufen ueber der Spiegel- bzw. Portalsicht (RB_StageIteratorGeneric), jede
-                // auf der Tiefe der ersten (GL_LEQUAL), ohne Licht wie die erste gemischte Stufe
-                if (spielBild && sd.portal && texturen) {
+                // auf der Tiefe der ersten (GL_LEQUAL), ohne Licht wie die erste gemischte Stufe. rc610 R3: im Echtzeit-Licht jeder
+                // Shader mit seinen weiteren Stufen (spielDarstellung: nach der Grundstufe bzw. Lightmap und Bild)
+                if (spielBild && texturen && (sd.portal || echtJetzt)) {
+                    if (!sd.glueh.empty() && echtJetzt && !imSpiegel) { gluehStapel.push_back({&q, &st, z.wegschneiden}); }
                     for (const SpielStufe& w : sd.weitere) {
                         const Bild* wb = lager().holen(w.bild);
                         if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
+                        if (!sd.portal) { ++ed.echtLicht.weitereStufen; }
                         kartegpu::Zustand3 zw = z;
                         zw.bild = wb->srv;
                         zw.licht = false;
                         zw.echtLicht = false;
+                        zw.eckLicht = false;
                         zw.alphaFunktion = w.alphaFunktion;
                         zw.alphaRef = w.alphaRef;
                         zw.portalWeite = w.portalWeite;
@@ -1464,6 +1478,7 @@ void kameraZeichnen() {
             kartegpu::bildUnterlegen(spielbildSrv);
             spielbildTiefe(&vp[0]);
         }
+        gluehStapel.clear();   // rc610 R3: was Himmelsportal und Spiegel gesammelt haben, gehoert nicht ins Hauptbild
         // eSortFullbright: deckende Shader, Himmel, Fuellungen
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
@@ -1500,6 +1515,38 @@ void kameraZeichnen() {
         }
         // Stufe 9d: fx_runner (Effekte) in der Echtzeit-Ansicht, abschaltbar (Build > Real-time effects)
         if (echtJetzt && texturen && fuellen && ed.echtLicht.effekte) { echtEffekteZeichnen(k, &vp[0], geoStand, basis); }
+        // rc610 R3: das Gluehen wie RB_DrawSurfs (tr_backend.cpp:1335-1389): die Stufen mit glow noch einmal in einen schwarzen
+        // Puffer mit der Tiefe der Szene (g_bRenderGlowingObjects: RB_IterateStagesGeneric laesst Stufen ohne glow weg, jede mit
+        // ihrem blendFunc, ohne Tiefe zu schreiben), weichzeichnen mit demselben Code wie das Spielbild (RB_BlurGlowTexture) und
+        // mit r_DynamicGlowSoft 1 auflegen (RB_DrawGlowOverlay: GL_ONE GL_ONE_MINUS_SRC_COLOR). Vor Auswahl und Griffen (2D).
+        if (echtJetzt && texturen && fuellen && !gluehStapel.empty() && kartegpu::gluehenBeginnen()) {
+            for (const GluehStapel& gs : gluehStapel) {
+                const SpielDarstellung sd = spielDarstellung(gs.st->shader);
+                for (const SpielStufe& w : sd.glueh) {
+                    const Bild* wb = lager().holen(w.bild);
+                    if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
+                    kartegpu::Zustand3 zg = basis;
+                    zg.bild = wb->srv;
+                    zg.licht = false;
+                    zg.echtLicht = false;
+                    zg.wegschneiden = gs.wegschneiden;
+                    zg.alphaFunktion = w.alphaFunktion;
+                    zg.alphaRef = w.alphaRef;
+                    zg.mischen = w.mischQuelle != 0 ? kartegpu::Mischen::Spiel : kartegpu::Mischen::Aus;
+                    zg.mischQuelle = w.mischQuelle;
+                    zg.mischZiel = w.mischZiel;
+                    zg.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                    zg.tiefeSchreiben = false;
+                    for (int c4 = 0; c4 < 4; ++c4) { zg.farbe[c4] = w.farbe[c4]; }
+                    kartegpu::dreiecke(gs.q->dreiecke, gs.st->dreiecke.erstes, gs.st->dreiecke.anzahl, zg);
+                    ++ed.echtLicht.gluehAufrufe;
+                }
+            }
+            int gw = 0;
+            int gh = 0;
+            void* voll = kartegpu::gluehenVoll(gw, gh);
+            kartegpu::gluehenAuflegen(gpu::gluehenWeichzeichnen(voll, gw, gh, gpu::kGluehBreite, gpu::kGluehHoehe, true), true);
+        }
         const auto& sel = ed.farben.auswahl3d;
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
         std::vector<kartegpu::Punkt3> flaechenTint;

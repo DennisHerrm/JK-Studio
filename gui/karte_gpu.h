@@ -304,6 +304,13 @@ void gebackenZeichnen(const GebackenNetz& netz, std::uint32_t erster, std::uint3
 // rc608 Teil 11: ein fertiges Bild gleicher Groesse (das Spielbild aus gpu::, eine ID3D11ShaderResourceView*)
 // ins laufende Ziel legen - ohne Tiefe; die Tiefe kommt danach mit Mischen::NurTiefe.
 void bildUnterlegen(void* srv);
+// rc610 R3: das Gluehen im Echtzeit-Licht wie RB_DrawSurfs (tr_backend.cpp:1335-1389). gluehenBeginnen: ab hier zeichnen
+// dreiecke() usw. in einen schwarzen Puffer gleicher Groesse mit der Tiefe des laufenden Ziels (false: kein Ziel mit Tiefe);
+// gluehenVoll: zurueck ins Ziel, der Puffer aufgeloest als ID3D11ShaderResourceView* (zum Weichzeichnen, gpu::gluehenWeichzeichnen);
+// gluehenAuflegen: das weiche Bild ueber das Ziel (RB_DrawGlowOverlay; soft = r_DynamicGlowSoft).
+[[nodiscard]] bool gluehenBeginnen();
+[[nodiscard]] void* gluehenVoll(int& breite, int& hoehe);
+void gluehenAuflegen(void* weich, bool soft);
 // Fuer den Selbsttest: ein Bildpunkt des aufgeloesten Renderziels.
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
 // Stufe 9c: das ganze Bild (RGBA, Zeilen von oben) fuer die Lichtmessung.

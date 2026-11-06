@@ -1153,6 +1153,9 @@ struct Editor {
         double grasMs = 0;                 // Halme im letzten Bild (Prozessor)
         std::uint64_t grasPruefsumme = 0;  // Selbsttest: Pruefsumme der Halm-Ecken des letzten Netzes (gleiches Bild?)
         bool grasZeit = false;             // die Halme im Bild haengen an der Zeit (ssWindIdle, Effekt-Halme): jedes Bild neu
+        // rc610 R3: die Stufen nach der ersten (RB_StageIteratorGeneric) und das Gluehen (RB_BlurGlowTexture) im letzten Bild
+        std::size_t weitereStufen = 0;     // Zeichenaufrufe weiterer Stufen (ohne Portalflaechen)
+        std::size_t gluehAufrufe = 0;      // Zeichenaufrufe der Stufen mit glow in den Gluehpuffer
         // Schnell-Backen
         int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
         double bauSekunden = 0;            // Dauer des letzten Baus
