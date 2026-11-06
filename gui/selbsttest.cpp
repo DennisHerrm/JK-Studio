@@ -38,6 +38,8 @@
 #include "hilfe.h"      // H1: der Helfer
 #include "ki.h"         // H1: KI-Anbindung (kiSicht)
 #include "bhed/gpucam.h"   // mb1a2: selbsttest_mb1a2.inc
+#include "bhed/modell/animcfg.h"    // Stufe 2: selbsttest_mb2.inc
+#include "bhed/modell/glmdatei.h"   // Stufe 2: selbsttest_mb2.inc
 #include "bhed/gpuskin.h"  // mb1a2
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/ki.h"
@@ -4578,6 +4580,19 @@ Schritt kuerzelZeileKlicken(const std::string& name) {
     });
 }
 
+// mb3: "die Zeile wartet auf eine Taste" - bei Fehlschlag steht im Protokoll, wer den Fokus hat und wo die Maus ist.
+Schritt kuerzelWartetPruefe(const std::string& text) {
+    return pruefe(text, [] {
+        if (g_app->kuerzelWartet) { return true; }
+        const ImGuiContext& g = *GImGui;
+        diag::detail(std::string("Knopftest: wartet nicht - Fokus \"") + (g.NavWindow != nullptr ? g.NavWindow->Name : "-") +
+                     "\", unter der Maus \"" + (g.HoveredWindow != nullptr ? g.HoveredWindow->Name : "-") + "\", Maus " +
+                     std::to_string(static_cast<int>(g.IO.MousePos.x)) + "/" + std::to_string(static_cast<int>(g.IO.MousePos.y)) +
+                     ", Bild " + std::to_string(g.FrameCount));
+        return false;
+    });
+}
+
 // Eine Taste mit beliebig vielen Modifikatoren (Strg, Umschalt, Alt).
 Schritt tasteKombi(ImGuiKeyChord chord, const std::string& name) {
     return {"Taste " + name, [=](int b) {
@@ -4679,6 +4694,30 @@ std::vector<Schritt> kuerzelAlleSchritte() {
         }
     }));
     add(pause(0.5));
+    add(tu("Gamepad: Kuerzelfenster oeffnen", [] { fensterZeigen(g_app->keysOpen, "###keys"); }));
+    add(pause(0.25));
+    add(kuerzelZeileSuchen("Delete"));
+    add(kuerzelZeileKlicken("Delete"));
+    add(pause(0.15));
+    add(kuerzelWartetPruefe("Gamepad: die Delete-Zeile wartet auf eine Taste"));
+    // mb3: ein Gamepad ist keine Belegung. Der Win32-Backend fragt XInput in jedem Bild ab, auch im Hintergrund
+    // (imgui_impl_win32.cpp ImGui_ImplWin32_UpdateGamepads) - mit shanks Controller nahm die Aufnahme
+    // "GamepadLStickRight" auf (Modus 1 und kuerzel, 06.11.: 25 bis 51 FEHLER).
+    auto belegungVorher = std::make_shared<ImGuiKeyChord>(0);
+    add(tu("Gamepad-Stick nach rechts waehrend der Aufnahme", [=] {
+        *belegungVorher = kuerzelVon(keys::Action::Delete);
+        ImGui::GetIO().AddKeyAnalogEvent(ImGuiKey_GamepadLStickRight, true, 1.0F);
+    }));
+    add(pause(0.1));
+    add(tu("Gamepad-Stick los", [] { ImGui::GetIO().AddKeyAnalogEvent(ImGuiKey_GamepadLStickRight, false, 0.0F); }));
+    add(pause(0.1));
+    add(pruefe("Ein Gamepad-Stick ist keine Belegung: die Delete-Zeile wartet weiter, Delete unveraendert", [=] {
+        return g_app->kuerzelWartet && kuerzelVon(keys::Action::Delete) == *belegungVorher;
+    }));
+    add(tu("Gamepad: Aufnahme mit Esc abbrechen", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); }));
+    add(tu("Esc los", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); }));
+    add(pause(0.15));
+    add(pruefe("Gamepad: Esc beendet die Aufnahme", [] { return !g_app->kuerzelWartet; }));
 
     const ImGuiKeyChord gruppen[3] = {ImGuiMod_Ctrl | ImGuiMod_Shift, ImGuiMod_Ctrl | ImGuiMod_Alt,
                                       ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiMod_Alt};
@@ -4696,7 +4735,7 @@ std::vector<Schritt> kuerzelAlleSchritte() {
         add(kuerzelZeileSuchen(name));
         add(kuerzelZeileKlicken(name));
         add(pause(0.15));
-        add(pruefe(name + ": die Zeile wartet auf eine Taste", [] { return g_app->kuerzelWartet; }));
+        add(kuerzelWartetPruefe(name + ": die Zeile wartet auf eine Taste"));
         add(tasteKombi(neu, neuName));
         add(pause(0.15));
         add(pruefe(name + ": neue Belegung " + neuName + " aufgenommen", [=] {
@@ -5701,6 +5740,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_mb1a1.inc"      // Modell-Block 1a-1: der neue Model-Tab (modellblock)
 #include "selbsttest_mb1a2.inc"      // Modell-Block 1a-2: Weights, wie Blender, Model-Tab ohne Skriptteile (modellblock)
+#include "selbsttest_mb2.inc"        // Modell-Block Stufe 2: GLM/GLA schreiben, animation.cfg, Karten-GLA (modellblock)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6667,6 +6707,7 @@ void selbsttest() {
                 a.schritte = mb1::schritte();
                 if (const char* nur = std::getenv("BHED_MODELL_NUR"); nur != nullptr) {   // mb1a2
                     for (Schritt& x : mb2::schritte(nur)) { a.schritte.push_back(std::move(x)); }
+                    for (Schritt& x : mb3::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Stufe 2
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

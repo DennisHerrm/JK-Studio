@@ -355,6 +355,7 @@ bool readGla(const std::string& b, GlaAnimation& out, std::string* error) {
         return false;
     }
     out.skeletonName = fixed(b, 8, kMaxQPath);
+    out.dateiName = b.substr(8, kMaxQPath);
     std::size_t at = 8 + kMaxQPath;
     out.scale = f32(b, at);
     at += 4;
@@ -401,6 +402,7 @@ bool readGla(const std::string& b, GlaAnimation& out, std::string* error) {
         }
         GlaBone& bone = out.bones[static_cast<std::size_t>(i)];
         bone.name = fixed(b, base, kMaxQPath);
+        bone.flags = static_cast<std::uint32_t>(i32(b, base + kMaxQPath));
         bone.parent = i32(b, base + kMaxQPath + 4);
         std::size_t m = base + kMaxQPath + 8;
         for (int r = 0; r < 3; ++r) {
@@ -414,6 +416,12 @@ bool readGla(const std::string& b, GlaAnimation& out, std::string* error) {
                 bone.basePoseInv.m[r][c] = f32(b, m);
                 m += 4;
             }
+        }
+        // Stufe 2: die Kinderliste (numChildren, children[]) fuer den Schreiber
+        const std::int32_t numChildren = i32(b, m);
+        if (numChildren > 0 && numChildren <= numBones && m + 4 + static_cast<std::size_t>(numChildren) * 4 <= b.size()) {
+            bone.kinder.reserve(static_cast<std::size_t>(numChildren));
+            for (std::int32_t k = 0; k < numChildren; ++k) { bone.kinder.push_back(i32(b, m + 4 + static_cast<std::size_t>(k) * 4)); }
         }
     }
 
@@ -460,6 +468,93 @@ bool readGla(const std::string& b, GlaAnimation& out, std::string* error) {
                  std::to_string(out.bonePool.size()) + " Bytes, " +
                  std::to_string(out.indexes.size()) + " Verweise, Massstab " +
                  std::to_string(out.scale));
+    return true;
+}
+
+namespace {
+void glaI32(std::string& o, std::int32_t v) {
+    char c[4];
+    std::memcpy(c, &v, 4);
+    o.append(c, 4);
+}
+void glaF32(std::string& o, float v) {
+    char c[4];
+    std::memcpy(c, &v, 4);
+    o.append(c, 4);
+}
+void glaMatrix(std::string& o, const BoneMatrix& m) {
+    for (const auto& zeile : m.m) {
+        for (float x : zeile) { glaF32(o, x); }
+    }
+}
+void glaFlicken(std::string& o, std::size_t at, std::int32_t v) { std::memcpy(o.data() + at, &v, 4); }
+}  // namespace
+
+bool schreibGla(const GlaAnimation& a, std::string& o, std::string* fehler) {
+    o.clear();
+    const auto falsch = [&](const std::string& f) {
+        if (fehler != nullptr) { *fehler = f; }
+        return false;
+    };
+    const auto nb = static_cast<std::int32_t>(a.bones.size());
+    if (nb <= 0) { return falsch("kein Skelett"); }
+    if (a.skeletonName.size() >= kMaxQPath) { return falsch("Name im Kopf laenger als 63 Zeichen"); }
+    if (a.indexes.size() != static_cast<std::size_t>(a.numFrames) * a.bones.size()) { return falsch("Bildverweise passen nicht zu Bildern x Knochen"); }
+    if (a.bonePool.size() % 14U != 0U) { return falsch("Vorrat ist kein Vielfaches von 14 Bytes"); }
+    if (a.bonePool.size() / 14U > 0xFFFFFFU) { return falsch("Vorrat groesser als ein 24-Bit-Verweis erreicht"); }
+    o.reserve(100U + a.bones.size() * 200U + a.indexes.size() * 3U + a.bonePool.size() + 4U);
+    o += "2LGA";
+    glaI32(o, 6);   // MDXA_VERSION
+    if (a.dateiName.size() == kMaxQPath && a.dateiName.substr(0, ::strnlen(a.dateiName.data(), kMaxQPath)) == a.skeletonName) {
+        o += a.dateiName;   // die Bytes der Datei, solange der Name derselbe ist
+    } else {
+        std::string f = a.skeletonName;
+        f.resize(kMaxQPath, '\0');
+        o += f;
+    }
+    glaF32(o, a.scale);
+    glaI32(o, a.numFrames);
+    const std::size_t ofsFrames = o.size();
+    glaI32(o, 0);
+    glaI32(o, nb);
+    const std::size_t ofsPool = o.size();
+    glaI32(o, 0);
+    const std::size_t ofsSkel = o.size();
+    glaI32(o, 0);
+    const std::size_t ofsEnd = o.size();
+    glaI32(o, 0);
+    constexpr std::size_t kKopfEnde = 100;
+    std::vector<std::size_t> platz(a.bones.size());
+    for (std::size_t& p : platz) {
+        p = o.size();
+        glaI32(o, 0);
+    }
+    glaFlicken(o, ofsSkel, static_cast<std::int32_t>(o.size()));
+    for (std::size_t i = 0; i < a.bones.size(); ++i) {
+        const GlaBone& k = a.bones[i];
+        if (k.name.size() >= kMaxQPath) { return falsch("Knochenname \"" + k.name + "\" laenger als 63 Zeichen"); }
+        glaFlicken(o, platz[i], static_cast<std::int32_t>(o.size() - kKopfEnde));
+        std::string n = k.name;
+        n.resize(kMaxQPath, '\0');
+        o += n;
+        glaI32(o, static_cast<std::int32_t>(k.flags));
+        glaI32(o, k.parent);
+        glaMatrix(o, k.basePose);
+        glaMatrix(o, k.basePoseInv);
+        glaI32(o, static_cast<std::int32_t>(k.kinder.size()));
+        for (int c : k.kinder) { glaI32(o, c); }
+    }
+    glaFlicken(o, ofsFrames, static_cast<std::int32_t>(o.size()));
+    const std::size_t vorrat = a.bonePool.size() / 14U;
+    for (std::uint32_t x : a.indexes) {
+        if (x >= vorrat) { return falsch("Bildverweis " + std::to_string(x) + " hinter dem Vorrat"); }
+        const char c[3] = {static_cast<char>(x & 0xFFU), static_cast<char>((x >> 8U) & 0xFFU), static_cast<char>((x >> 16U) & 0xFFU)};
+        o.append(c, 3);
+    }
+    while (o.size() % 4U != 0U) { o += '\0'; }   // ausgerichtet vor dem Vorrat (writeMdxa alignTo(4))
+    glaFlicken(o, ofsPool, static_cast<std::int32_t>(o.size()));
+    o.append(reinterpret_cast<const char*>(a.bonePool.data()), a.bonePool.size());
+    glaFlicken(o, ofsEnd, static_cast<std::int32_t>(o.size()));
     return true;
 }
 

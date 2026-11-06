@@ -1441,7 +1441,8 @@ Layout computeLayout() {
         // Elementzeilen, also genau zwei Mal rowH, plus die Aussenraender
         // des Bandes.
         // Modell-Block 1a-1: dazu die Zeile Primaer/Sekundaer.
-        l.toolH = rowH * 3.0F + st.ItemSpacing.y * 2.0F;
+        // Stufe 2: und die Zeile der Marker (animation.cfg), mit drei Zeilen lag sie unter dem Rand (mb3_ui1: Ziehen ohne Wirkung).
+        l.toolH = rowH * 4.0F + st.ItemSpacing.y * 3.0F;
     } else if (g_app->leftMode == 1 && dock::zuhause("mission.zeitleiste")) {
         // IMMER Platz lassen, auch ohne Karte - sonst springt die Anordnung
         // beim Laden.

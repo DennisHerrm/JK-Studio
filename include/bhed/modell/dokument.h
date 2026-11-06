@@ -29,6 +29,7 @@
 
 #include "bhed/glm.h"
 #include "bhed/md3.h"
+#include "bhed/modell/animcfg.h"
 
 namespace bhed::modell {
 
@@ -42,6 +43,12 @@ struct Ecke {
     float uv[2]{};
     std::uint8_t knochen[4]{};
     float gewicht[4]{};
+    // Stufe 2 (GLM-Schreiber): die Gewichtsfelder, wie sie in der Datei standen (mdxmVertex_t
+    // uiNmWeightsAndBoneIndexes und BoneWeightings[4], mdx_format.h). Die Datei traegt dort mehr als das Spiel liest
+    // (das letzte Gewicht, unbenutzte Felder); der Schreiber nimmt sie, solange knochen/gewicht dazu passen.
+    std::uint32_t dateiPack = 0;
+    std::uint8_t dateiGewicht[4]{};
+    bool ausDatei = false;
 };
 
 // Eine Halbkante: vom Punkt ihrer Ecke zum Punkt der naechsten Kante im
@@ -72,6 +79,11 @@ struct Netz {
     // vielen Knochen (leer = es wird nicht gemalt, es gelten die Ecken).
     // Gezeichnet wird, was das Spiel daraus machte (gewichte.h, fuersSpiel).
     std::vector<GewichtListe> mal;
+    // Stufe 2: die Knochenverweise der Flaeche (mdxmSurface_t ofsBoneReferences) in der Reihenfolge der Datei - mit
+    // den Nummern der Datei und so, wie readGlm sie aufloest (nach dem Umlegen JK2 <-> JKA). Leer: nicht aus einer .glm.
+    std::vector<std::int32_t> dateiRefs;
+    std::vector<std::int32_t> dateiRefsAufgeloest;
+    bool ausDatei = false;   // die Flaeche dieser Stufe stand so in einer .glm (Rohfelder gelesen)
 
     [[nodiscard]] int dreiecke() const noexcept { return static_cast<int>(kanten.size() / 3U); }
     // Ecken und Dreiecke (drei Eckindizes je Dreieck) uebernehmen und die
@@ -90,6 +102,12 @@ struct Netz {
 struct Teil {
     std::string name;
     std::string shader;
+    // Stufe 2: Name und Shader als die 64 Bytes der Datei (MAX_QPATH, hinter der Null steht in vielen Raven-Dateien
+    // noch Rest) - der Schreiber nimmt sie, solange der Name gleich ist. Leer: nicht aus einer .glm.
+    std::string dateiName;
+    std::string dateiShader;
+    // Die Kinderliste der Datei (childIndexes): Movie Duels nahdar fuehrt in hips ein Kind zweimal.
+    std::vector<int> dateiKinder;
     std::uint32_t flaggen = 0;
     int eltern = -1;
     std::vector<int> kinder;
@@ -110,6 +128,14 @@ struct Inhalt {
     bool jk2Umgewandelt = false;
     bool jkaUmgewandelt = false;
     std::vector<Teil> teile;
+    // Stufe 2: Kopf der Datei roh (Name und Pfad der .gla je 64 Bytes, numBones vor dem Umlegen).
+    std::string dateiName;
+    std::string dateiGla;
+    int dateiKnochen = 0;
+    // Stufe 2: die animation.cfg der GLA (Archivpfad und Zeilen). Die Marker der Zeitleiste sind diese Zeilen; sie
+    // aendern sich ueber das Dokument (ein Rueckgaengig-Schritt je Aenderung).
+    std::string cfgPfad;
+    AnimCfg cfg;
 
     [[nodiscard]] bool leer() const noexcept { return teile.empty(); }
     [[nodiscard]] int teilIndex(const std::string& name) const;

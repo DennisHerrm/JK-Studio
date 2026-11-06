@@ -116,6 +116,9 @@ add_library(bhed_core STATIC
   src/modell/dokument.cpp
   src/modell/g2.cpp
   src/modell/gewichte.cpp
+  src/modell/animcfg.cpp
+  src/modell/glmdatei.cpp
+  src/modell/xsiaufnahme.cpp
   src/camtrack.cpp
   src/scene.cpp
   # rc602: SP_NPC_* -> NPC_type (beide Regelwerke), siehe bhed/npcklasse.h.
@@ -191,6 +194,18 @@ target_include_directories(bhed_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # die niemand beheben kann, verdecken nur die eigenen.
 target_include_directories(bhed_core SYSTEM PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+# Modell-Block Stufe 2: G2C (third_party/g2c, DennisHerrm/G2C-toolkit, GPL-2.0) - dotXSI lesen und gegen ein Skelett
+# auswerten wie Carcass, Knochen in 14 Bytes packen. Fremder Code als eigenes Ziel ohne unsere Warnungspolitik (wie imgui).
+# (die Liste ueber file(GLOB): lint_sources prueft Pfade "src/*.cpp" gegen die eigenen Quellen)
+file(GLOB BHED_G2C_QUELLEN CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/g2c/src/*.cpp)
+add_library(g2c STATIC ${BHED_G2C_QUELLEN})
+target_include_directories(g2c SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/g2c/include)
+if(MSVC)
+  target_compile_options(g2c PRIVATE /W0 /utf-8)
+else()
+  target_compile_options(g2c PRIVATE -w)
+endif()
+target_link_libraries(bhed_core PRIVATE g2c)
 
 if(MSVC)
   target_compile_options(bhed_core PUBLIC /W4 /permissive- /utf-8 /Zc:__cplusplus)
@@ -442,6 +457,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab.cpp
     gui/app_modelltab_ansicht.cpp
     gui/app_modelltab_mb2.cpp
+    gui/app_modelltab_mb3.cpp
     gui/app_animation.cpp
     gui/app_wetter.cpp
     gui/app_gras.cpp
@@ -938,6 +954,10 @@ if(BEHAVED_TESTS)
   add_executable(modellgewichtetest tests/modell_gewichte.cpp)
   target_link_libraries(modellgewichtetest PRIVATE bhed_core)
   add_test(NAME modell_gewichte COMMAND modellgewichtetest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+  # Modell-Block Stufe 2: .glm/.gla schreiben, animation.cfg, Grenzen, Karten-GLA
+  add_executable(modelldateientest tests/modell_dateien.cpp)
+  target_link_libraries(modelldateientest PRIVATE bhed_core)
+  add_test(NAME modell_dateien COMMAND modelldateientest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest

@@ -93,8 +93,9 @@ std::vector<Schritt> mb2Schritte() {
     auto skriptStand = std::make_shared<std::uint64_t>(0);
     add(tu("MB2 Nachtrag: Stand des Skripts merken", [skriptStand] { *skriptStand = g_app->doc.stand(); }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_S, "Strg+S"));
-    add(pruefe("MB2 Nachtrag: Strg+S im Model-Tab speichert kein Skript, sondern sagt, wann das Modell gespeichert werden kann", [skriptStand] {
-        return g_app->doc.dirty() == (g_app->doc.undoDepth() > 0) && g_app->mtab.meldung == tr(Str::MbDateiSpeichernSpaeter) &&
+    // Stufe 2: Strg+S speichert das Modell - aus einem Archiv geoeffnet ueber "Speichern unter" (im Selbsttest unterdrueckt).
+    add(pruefe("MB2 Nachtrag: Strg+S im Model-Tab speichert kein Skript, sondern das Modell (Speichern unter, Vorschlag die .glm)", [skriptStand] {
+        return g_app->doc.dirty() == (g_app->doc.undoDepth() > 0) && platform::dialogVorschlagImSelbsttest() == fileName(g_app->modelPath) &&
                g_app->doc.stand() == *skriptStand;
     }));
     add(tu("MB2 Ins Skript: BOTH_WALK1 gewaehlt", [] { animWaehlen(mb1::animNach("BOTH_WALK1"), false); }));

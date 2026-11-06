@@ -11,6 +11,8 @@
 #ifndef BHED_GUI_MODELLTAB_H
 #define BHED_GUI_MODELLTAB_H
 
+#include <deque>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -19,6 +21,7 @@
 #include "bhed/gla.h"
 #include "bhed/glm.h"
 #include "bhed/mapview.h"
+#include "bhed/modell/animcfg.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/gewichte.h"
@@ -38,6 +41,12 @@ struct ModellAnbau {
 
 // Eine der vier Ansichten. Oben, Vorne und Links sind orthographisch, die
 // Perspektive ist die Kreiskamera des Model-Tabs (modelCam, modelOrbit).
+// Stufe 2: eine GLA als Quelle der Plaetze einer Karten-GLA (feste Kopie, die Plaetze zeigen auf sie).
+struct ModellGlaQuelle {
+    std::string name;
+    GlaAnimation gla;
+};
+
 enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4, Hinten = 5, Rechts = 6 };
 
 struct ModellAnsicht {
@@ -189,6 +198,30 @@ struct ModellTab {
     // 12 gewaehlte Ecken
     int ueber[13]{};
     bool aktionenSichtbar = false;   // die Suche "Alle Aktionen" ist offen
+    // Stufe 2: Speichern, Frage im Programm, animation.cfg, Karten-GLA, Marker
+    std::string speicherPfad;     // wohin Strg+S schreibt (nach dem ersten Speichern)
+    int gespeichertStand = -1;    // dok.stand() beim letzten Speichern
+    int frageArt = 0;             // 0 keine, 1 Modell speichern, 2 Karten-GLA bauen (trotz Befunden?)
+    std::string frageZiel;
+    std::vector<std::string> frageZeilen;
+    bool frageSichtbar = false;
+    std::string cfgFuer;          // GLA, zu der die animation.cfg im Dokument gehoert
+    std::string cfgPfadJetzt;
+    int cfgStand = -1;
+    int cfgBefunde = 0;           // Selbsttest
+    std::deque<ModellGlaQuelle> kgQuellen;
+    std::vector<modell::Platz> plaetze;
+    char kgKarte[64] = {};
+    int glaZiel = 0;              // 0 Karten-GLA, 1 _humanoid.gla (Mod-Ordner), 2 eigene GLA (eigenes Skelett)
+    char eigenName[64] = {};      // Ordner und Name der eigenen GLA
+    std::map<std::string, modell::PlatzQuelle> belegung;   // Platzname -> Quelle, fuer alle Ziele
+    std::string plaetzeFuer;
+    int platzWahl = -1;
+    int kgStand = 0;
+    int ziehtSequenz = -1;        // Selbsttest: zuletzt gezogene Sequenz
+    int markerAenderungen = 0;
+    int markerGriff = 0;          // 1 Anfang, 2 Ende des Balkens
+    AnimEntry markerZug;
 };
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
@@ -237,6 +270,28 @@ void drawModellKontextMenue();
 [[nodiscard]] const char* modellZusatzHinweis(int i);
 void modellZusatzAusloesen(int i);
 void modellBedienungSetzen(int b);
+// Stufe 2 (app_modelltab_mb3.cpp)
+void modellSpeichern(bool unter);
+[[nodiscard]] bool modellUngespeichert();
+void drawModellSpeichernFrage();
+void drawModellAnimationBereich();
+void modellMarkerZeile(const AnimEntry* e);
+bool modellMarkerAendern(const AnimEntry& neu);
+void modellSequenzZiehen(int anim);
+bool modellPlatzSetzen(int platz, int anim);
+int modellAufFreienPlatz(int anim);
+void modellPlatzLeeren(int platz);
+void modellGlaZielSetzen(int ziel);
+[[nodiscard]] bool modellImSpielordner(const std::string& datei);
+bool modellVorhandeneKartenGla();
+bool modellKartenGlaBauen(const std::string& datei, bool trotzdem);
+bool modellGlaSpeichern(const std::string& datei);
+bool modellCfgSpeichern(const std::string& datei);
+void modellGlaSpeichernFrage();
+void modellCfgSpeichernFrage();
+void modellKartenGlaBauenFrage();
+bool modellXsiAufnehmen(const std::string& datei);
+void modellXsiAufnehmenFrage();
 void modellPerspektiveUmschalten();
 void modellKreisenSchritt(float gier, float nick);
 void drawModellExplorer(float hoehe);

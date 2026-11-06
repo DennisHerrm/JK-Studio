@@ -226,9 +226,12 @@ void modellDateiMenue() {
         refreshPk3List();
         g_app->pk3Open = true;
     }
-    // Ein .glm schreiben kann JK Studio erst mit dem GLM-Schreiber (Stufe 2 des Modell-Blocks).
-    ImGui::MenuItem(tr(Str::MbDateiSpeichern), "Ctrl+S", false, false);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::MbDateiSpeichernSpaeter)); }
+    // Stufe 2: .glm aus dem Modelldokument (app_modelltab_mb3.cpp)
+    const bool glm = mt().dok.inhalt().herkunft == modell::Herkunft::Glm;
+    if (ImGui::MenuItem(tr(Str::MbDateiSpeichern), "Ctrl+S", false, glm)) { modellSpeichern(false); }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(glm ? Str::MbDateiSpeichernHint : Str::MbSpNichtGlm)); }
+    if (ImGui::MenuItem(tr(Str::MbDateiSpeichernUnter), "Ctrl+Shift+S", false, glm)) { modellSpeichern(true); }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(glm ? Str::MbDateiSpeichernUnterHint : Str::MbSpNichtGlm)); }
     if (ImGui::MenuItem(tr(Str::MbFoto), nullptr, false, !g_app->model.empty())) {
         const std::string p = platform::saveFileDialog(tr(Str::MbFoto), "Bitmap (*.bmp)|*.bmp", g_app->settings.lastDir,
                                                        fileName(directoryOf(g_app->modelPath)) + ".bmp");
@@ -246,7 +249,6 @@ void modellDateiMenue() {
 void modellDateiTasten(bool nurRueckgaengig) {
     const ImGuiIO& io = ImGui::GetIO();
     const auto taste = [](ImGuiKeyChord c) { return ImGui::IsKeyChordPressed(c); };
-    ModellTab& t = mt();
     if (taste(ImGuiMod_Ctrl | ImGuiKey_Z)) {
         (void)modellRueckgaengig();
         return;
@@ -261,11 +263,13 @@ void modellDateiTasten(bool nurRueckgaengig) {
         openModelFile();
         return;
     }
-    if (taste(ImGuiMod_Ctrl | ImGuiKey_S) || taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S) ||
-        (alt && (ImGui::IsKeyPressed(ImGuiKey_S, false) || ImGui::IsKeyPressed(ImGuiKey_V, false)))) {
-        // Kein Skript speichern: das Modell kann erst Stufe 2 schreiben - sagen, statt still nichts zu tun.
-        t.meldung = tr(Str::MbDateiSpeichernSpaeter);
-        addStatus(t.meldung);
+    // Stufe 2: Strg+S gilt dem Modell (wie BehavEd Alt+S speichern, Alt+V speichern unter), kein Skript.
+    if (taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S) || (alt && ImGui::IsKeyPressed(ImGuiKey_V, false))) {
+        modellSpeichern(true);
+        return;
+    }
+    if (taste(ImGuiMod_Ctrl | ImGuiKey_S) || (alt && ImGui::IsKeyPressed(ImGuiKey_S, false))) {
+        modellSpeichern(false);
         return;
     }
     if (taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_I)) {

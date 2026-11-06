@@ -81,7 +81,7 @@ const char* bereichStufe(ModellBereich b) {
         case ModellBereich::Uv: return "1b";
         case ModellBereich::Weights: break;
         case ModellBereich::Painting: return "1c";
-        case ModellBereich::Animation: return "2-7";
+        case ModellBereich::Animation: return "3-7";   // Stufe 2: GLA, animation.cfg, Karten-GLA, Marker
         case ModellBereich::Ansehen: break;
     }
     return "";
@@ -1138,11 +1138,17 @@ void drawModellBefehlsfeld() {
         ImGui::PopTextWrapPos();
         ImGui::Separator();
     }
+    if (t.bereich == ModellBereich::Animation && !g_app->model.empty()) { drawModellAnimationBereich(); }   // Stufe 2
     if (!g_app->model.empty()) {
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRModell), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutModell(); }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRLod), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutLod(); }
         // Die Anzeige gilt in jedem Bereich (Entwurf: "Die Anzeige-Schalter gelten auch in den anderen Bereichen").
-        if (ImGui::CollapsingHeader(tr(Str::MbRAnzeige), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutAnzeige(); }
+        // Stufe 2: im Bereich Animation ab Werk zu (eigene Kennung) - dort brauchen GLA, animation.cfg und Plaetze den Platz.
+        const bool anim = t.bereich == ModellBereich::Animation;
+        if (ImGui::CollapsingHeader((std::string(tr(Str::MbRAnzeige)) + (anim ? "###anzeigeAnim" : "")).c_str(),
+                                    anim ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_DefaultOpen)) {
+            rolloutAnzeige();
+        }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRAnbauten), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutAnbauten(); }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRPruefen), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutPruefen(); }
     }
@@ -1418,6 +1424,14 @@ const std::vector<ZusatzAktion>& zusatzAktionen() {
         {Str::MbAndereAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(true); }, 1},
         {Str::MbAllesEinblenden, Str::MbAugeHint, "", [] { modellAllesEinblenden(); }, 1},
         {Str::MbInsSkriptFenster, Str::MbInsSkriptHint, "Ctrl+Shift+I", [] { modellInsSkriptOeffnen(g_app->animIndex); }, 3},
+        {Str::MbDateiSpeichern, Str::MbDateiSpeichernHint, "Ctrl+S", [] { modellSpeichern(false); }, 3},
+        {Str::MbDateiSpeichernUnter, Str::MbDateiSpeichernUnterHint, "Ctrl+Shift+S", [] { modellSpeichern(true); }, 3},
+        {Str::MbGlaSpeichern, Str::MbGlaSpeichernHint, "", [] { modellGlaSpeichernFrage(); }, 4},
+        {Str::MbCfgSpeichern, Str::MbCfgSpeichernHint, "", [] { modellCfgSpeichernFrage(); }, 4},
+        {Str::MbKgBauen, Str::MbKgBauenHint, "", [] { modellKartenGlaBauenFrage(); }, 4},
+        {Str::MbKgVorhanden, Str::MbKgVorhandenHint, "", [] { (void)modellVorhandeneKartenGla(); }, 4},
+        {Str::MbKgAufFreien, Str::MbKgZiehen, "", [] { (void)modellAufFreienPlatz(g_app->animIndex); }, 4},
+        {Str::MbXsiAufnehmen, Str::MbXsiAufnehmenHint, "", [] { modellXsiAufnehmenFrage(); }, 4},
     };
     return kListe;
 }
@@ -1470,9 +1484,9 @@ void drawModellKontextMenue() {
             if (unter) { ImGui::EndMenu(); }
             unter = false;
             gruppe = a.gruppe;
-            if (gruppe == 0 || gruppe == 2) {
-                if (gruppe == 0) { ImGui::Separator(); }
-                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbRAnzeige));
+            if (gruppe == 0 || gruppe == 2 || gruppe == 4) {
+                if (gruppe != 2) { ImGui::Separator(); }
+                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : gruppe == 2 ? Str::MbRAnzeige : Str::MbBereichAnimation));
                 zeigen = unter;
             } else {
                 ImGui::Separator();

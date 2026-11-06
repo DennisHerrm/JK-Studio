@@ -246,17 +246,11 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
             if (rAt + static_cast<std::size_t>(numBoneRefs) * 4 <= b.size()) {
                 boneRefs.reserve(static_cast<std::size_t>(numBoneRefs));
                 for (std::int32_t r = 0; r < numBoneRefs; ++r) {
-                    std::int32_t ref = i32(b, rAt + static_cast<std::size_t>(r) * 4);
+                    const std::int32_t ref = i32(b, rAt + static_cast<std::size_t>(r) * 4);
                     // JK2-Modell auf das JKA-Skelett umlegen (siehe
                     // kJk2NachJka) - wie R_LoadMDXM die BoneRefs umschreibt.
-                    if (jk2Modell) {
-                        ref = (ref >= 0 && ref < 72) ? kJk2NachJka[ref] : 0;
-                    }
                     // rc604: JKA-Modell auf das JK2-Skelett (kJkaNachJk2).
-                    if (jkaModell) {
-                        ref = (ref >= 0 && ref < 53) ? kJkaNachJk2[ref] : 0;
-                    }
-                    boneRefs.push_back(ref);
+                    boneRefs.push_back(glmVerweisUmlegen(ref, jk2Modell, jkaModell));
                 }
             }
         }
@@ -606,6 +600,12 @@ bool boltMatrix(const GlmModel& model, int surface,
     }
 
     return boltFromTriangle(p, out);
+}
+
+std::int32_t glmVerweisUmlegen(std::int32_t ref, bool jk2Modell, bool jkaModell) noexcept {
+    if (jk2Modell) { return (ref >= 0 && ref < 72) ? kJk2NachJka[ref] : 0; }
+    if (jkaModell) { return (ref >= 0 && ref < 53) ? kJkaNachJk2[ref] : 0; }
+    return ref;
 }
 
 void setzeGhoul2Jk2(bool jk2) noexcept { gGhoul2Jk2.store(jk2, std::memory_order_relaxed); }

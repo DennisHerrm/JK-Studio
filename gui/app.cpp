@@ -3643,6 +3643,8 @@ void drawKeyBindings() {
             if (ImGui::Button(knopf.c_str(), ImVec2{ImGui::GetFontSize() * 9.0F, 0.0F})) {
                 waiting = (waiting == b.action) ? keys::Action::Unhandled
                                                 : b.action;
+                diag::detail(std::string("Tastenkuerzel: Zeile ") + b.name + (waiting == b.action ? " wartet" : " wartet nicht mehr") +
+                             ", Bild " + std::to_string(ImGui::GetFrameCount()));
             }
             // Doppelt belegt? Dann daneben sagen, von wem.
             if (now != ImGuiKey_None && waiting != b.action) {
@@ -3665,12 +3667,17 @@ void drawKeyBindings() {
     // zur neuen Belegung, und die Kuerzel wirkten "kaputt".
     if (waiting != keys::Action::Unhandled &&
         !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+        // mb3: wer den Fokus hat, ins Protokoll (Modus 1: Zeilen der Kuerzel-Tabelle warteten nicht).
+        const ImGuiWindow* fokus = GImGui->NavWindow;
+        diag::detail(std::string("Tastenkuerzel: Aufnahme abgebrochen, Fokus bei \"") +
+                     (fokus != nullptr ? fokus->Name : "-") + "\", Bild " + std::to_string(ImGui::GetFrameCount()));
         waiting = keys::Action::Unhandled;
     }
     g_app->kuerzelWartet = (waiting != keys::Action::Unhandled);
     if (waiting != keys::Action::Unhandled) {
         // Esc bricht ab, Rueckschritt loescht die Belegung.
         if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+            diag::detail("Tastenkuerzel: Esc bricht die Aufnahme ab");
             waiting = keys::Action::Unhandled;
         } else if (ImGui::IsKeyPressed(ImGuiKey_Backspace, false)) {
             setChord(waiting, ImGuiKey_None);
@@ -3687,6 +3694,11 @@ void drawKeyBindings() {
                 // but I can't" - aufgenommen wurde "Ctrl+ModCtrl", bevor
                 // das F ueberhaupt kam. Maustasten ebenso wenig: der Klick
                 // auf den Knopf selbst ist keine Belegung.
+                //
+                // mb3: Gamepad-Tasten auch nicht. Der Win32-Backend fragt XInput in jedem Bild ab, auch im Hintergrund
+                // (imgui_impl_win32.cpp ImGui_ImplWin32_UpdateGamepads); ein angeschlossener Controller wurde so zur
+                // Belegung "GamepadLStickRight" (Selbsttest kuerzel 06.11.: 44 FEHLER, 14 Gamepad-Aufnahmen).
+                if (ImGui::IsGamepadKey(key)) { continue; }
                 if (key == ImGuiKey_LeftCtrl || key == ImGuiKey_RightCtrl ||
                     key == ImGuiKey_LeftShift || key == ImGuiKey_RightShift ||
                     key == ImGuiKey_LeftAlt || key == ImGuiKey_RightAlt ||
@@ -3706,6 +3718,8 @@ void drawKeyBindings() {
                 if (ImGui::GetIO().KeyAlt) { c |= ImGuiMod_Alt; }
                 if (ImGui::GetIO().KeyShift) { c |= ImGuiMod_Shift; }
                 setChord(waiting, c);
+                diag::detail(std::string("Tastenkuerzel: aufgenommen ") + ImGui::GetKeyChordName(c) + ", Bild " +
+                             std::to_string(ImGui::GetFrameCount()));
                 waiting = keys::Action::Unhandled;
                 break;
             }
@@ -6192,6 +6206,7 @@ void bereichZeichnen(const Layout& l) {
     // rc609 W2b: der Entity-Text hat keinen Platz im Hauptfenster - sein eigenes, andockbares Fenster
     drawEntTextFenster();
     drawModellInsSkriptFenster();   // mb1a2
+    if (g_app->leftMode == 2) { drawModellSpeichernFrage(); }   // Stufe 2: Grenzen vor dem Speichern, im Programm
     drawLumpEditFenster();   // rc609 J
     karteneditor::texturListeZeichnen();   // rc609 K
 }

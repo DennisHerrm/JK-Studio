@@ -154,6 +154,7 @@ void drawAnimListe(float hoehe) {
                 ImGui::SetCursorScreenPos(ImVec2{p0.x + ih0 * 1.3F, p0.y});
             }
             const bool geklickt = ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick);
+            modellSequenzZiehen(static_cast<int>(i));   // Stufe 2: auf einen Platz der Karten-GLA ziehen
             if (geklickt) {
                 animWaehlen(static_cast<int>(i), true);
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { modellInsSkriptOeffnen(static_cast<int>(i)); }
@@ -176,6 +177,8 @@ void drawAnimListe(float hoehe) {
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem(tr(Str::MbInsSkriptMenue), "Ctrl+Shift+I")) { modellInsSkriptOeffnen(static_cast<int>(i)); }
+                if (ImGui::MenuItem(tr(Str::MbKgAufFreien))) { (void)modellAufFreienPlatz(static_cast<int>(i)); }   // Stufe 2
+                ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
                 ImGui::EndPopup();
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
@@ -617,6 +620,7 @@ void drawModelPanel() {
         ImGui::SliderInt("##frameoff", &none, 0, 0, "");
         ImGui::EndDisabled();
         modellSequenzZeile(nullptr);
+        modellMarkerZeile(nullptr);   // Stufe 2
         return;
     }
     int rel = g_app->animFrame - e->firstFrame;
@@ -628,6 +632,7 @@ void drawModelPanel() {
         g_app->modelDirty = true;
     }
     modellSequenzZeile(e);
+    modellMarkerZeile(e);   // Stufe 2: die Zeile der animation.cfg, bearbeitbar
     (void)sp;
 }
 

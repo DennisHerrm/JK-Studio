@@ -48,6 +48,9 @@ struct GlaBone {
     int parent = -1;
     BoneMatrix basePose;        // Grundstellung
     BoneMatrix basePoseInv;     // und ihre Umkehrung
+    // Stufe 2 (GLA-Schreiber): mdxaSkel_t flags (BONE_FLAG_ALWAYSXFORM) und die Kinderliste in der Reihenfolge der Datei.
+    std::uint32_t flags = 0;
+    std::vector<int> kinder;
 };
 
 // Ein eigenes Bild fuer einen Knochen und seinen ganzen Teilbaum.
@@ -65,6 +68,8 @@ struct BoneFrameOverride {
 struct GlaAnimation {
     std::string name;
     std::string skeletonName;
+    // Stufe 2: der Name im Kopf als die 64 Bytes der Datei (Rest hinter der Null bleibt beim Zurueckschreiben).
+    std::string dateiName;
     float scale = 0.0F;
     int numFrames = 0;
     std::vector<GlaBone> bones;
@@ -174,6 +179,13 @@ struct GlaAnimation {
 
 [[nodiscard]] bool readGla(const std::string& bytes, GlaAnimation& out,
                            std::string* error = nullptr);
+
+// Stufe 2: eine .gla schreiben, im Aufbau von Carcass und G2C (g2c src/mdxa.cpp writeMdxa; mdx_format.h): Kopf
+// (100 Bytes), Verzeichnis int[numBones] ab dem Ende des Kopfs, je Knochen mdxaSkel_t mit Kinderliste, je Bild und
+// Knochen drei Bytes Verweis, auf 4 Bytes ausgerichtet, dann der Vorrat (14 Bytes je Eintrag). Grundstellung und
+// Umkehrung, Flaggen, Kinder und Vorrat werden geschrieben, wie sie im Speicher stehen - eine gelesene Datei wird
+// Byte fuer Byte dieselbe. Der Anhang (anhang) wird nicht mitgeschrieben. false: nicht schreibbar (Grund in fehler).
+[[nodiscard]] bool schreibGla(const GlaAnimation& a, std::string& aus, std::string* fehler = nullptr);
 
 // Ein Abschnitt aus der animation.cfg.
 //

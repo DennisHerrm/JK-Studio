@@ -14,6 +14,7 @@ import inhalt_r2a  # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen
 import inhalt_r3  # rc610 R3: weitere Stufen und Glow im Echtzeit-Licht, gespiegelte Modelle
 import inhalt_mb1a1  # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen wie ModView, Bedienung wie 3ds Max
 import inhalt_mb1a2  # Modell-Block 1a-2: Weights, Bedienung wie 3ds Max oder Blender, Ins Skript
+import inhalt_mb2  # Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
 import inhalt_funktionen
 import inhalt_skript
 import inhalt_karte
@@ -64,7 +65,7 @@ inhalt_r2a.einhaengen(inhalt_karte7.KARTE_TEMPO, inhalt_karteneditor.KARTENEDITO
 inhalt_r3.einhaengen(inhalt_karte7.KARTE_TEMPO)
 
 SEITEN = (inhalt_start.SEITEN[:1] + inhalt_hilfe1.SEITEN + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_dock.SEITEN + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_bspmerge.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN + inhalt_karte8b.SEITEN + inhalt_karte8g.SEITEN + inhalt_karte9.SEITEN + inhalt_menue.SEITEN + inhalt_menue3.SEITEN + inhalt_menue5.SEITEN + inhalt_menue5b.SEITEN + inhalt_menue6.SEITEN + inhalt_menue7.SEITEN +
-          inhalt_mission.SEITEN + [inhalt_mb1a1.seite()] + inhalt_mb1a2.seiten() + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
+          inhalt_mission.SEITEN + [inhalt_mb1a1.seite()] + inhalt_mb1a2.seiten() + [inhalt_mb2.seite()] + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
 
 import inhalt_schritte
 inhalt_schritte.anwenden(SEITEN)

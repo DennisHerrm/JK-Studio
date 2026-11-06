@@ -1,5 +1,6 @@
 // modell/dokument.cpp - das Modelldokument (siehe bhed/modell/dokument.h)
 #include "bhed/modell/dokument.h"
+#include "bhed/modell/glmdatei.h"
 #include "bhed/modell/gewichte.h"
 
 #include <algorithm>
@@ -231,6 +232,7 @@ bool ausGlm(const std::string& bytes, Inhalt& out, std::string* fehler) {
             out.teile[i].stufen[static_cast<std::size_t>(stufe)].aufbauen(eckenAus(ms.surfaces[i].verts), ms.surfaces[i].indexes);
         }
     }
+    glmRohfelder(bytes, out);   // Stufe 2: was der Schreiber zum unveraenderten Zurueckschreiben braucht
     return true;
 }
 

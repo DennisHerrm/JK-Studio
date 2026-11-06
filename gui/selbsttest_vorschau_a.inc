@@ -1966,7 +1966,7 @@ std::vector<Schritt> fensterSchritte() {
     add(kuerzelZeileSuchen("Find"));
     add(kuerzelZeileKlicken("Find"));
     add(pause(0.2));
-    add(pruefe("Die Find-Zeile wartet auf eine Taste", [] { return g_app->kuerzelWartet; }));
+    add(kuerzelWartetPruefe("Die Find-Zeile wartet auf eine Taste"));
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_G, "Strg+G"));
     add(pause(0.2));
     add(pruefe("Strg+G wird als Strg+G aufgenommen, nicht als Ctrl+ModCtrl", [] {

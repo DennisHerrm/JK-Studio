@@ -7544,3 +7544,7 @@ TEXTE.update(_MB1)
 # Modell-Block 1a-2: Weights, Bedienung, Ins Skript
 from inhalt_mb1a2 import ES as _MB2  # noqa: E402
 TEXTE.update(_MB2)
+
+# Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
+from inhalt_mb2 import ES as _MB3  # noqa: E402
+TEXTE.update(_MB3)

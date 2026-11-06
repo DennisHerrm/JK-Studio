@@ -188,5 +188,9 @@ void applySkin(const std::string& skinText, GlmModel& model);
 void setzeGhoul2Jk2(bool jk2) noexcept;
 [[nodiscard]] bool ghoul2Jk2() noexcept;
 
+// Stufe 2 (GLM-Schreiber): ein Knochenverweis der Datei, umgelegt wie readGlm es tut - jk2Modell: OldToNewRemapTable
+// (72 -> 53), jkaModell: NewToOldRemapTable (53 -> 72); sonst unveraendert.
+[[nodiscard]] std::int32_t glmVerweisUmlegen(std::int32_t ref, bool jk2Modell, bool jkaModell) noexcept;
+
 }  // namespace bhed
 #endif
