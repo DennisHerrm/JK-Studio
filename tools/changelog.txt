@@ -6,6 +6,458 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ", gegliedert mit "### Bereich", in jeder Sprache gleich viele)
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc610 2026-11-06
+[en]
+- Real-time light in the map editor shows every light with its shadows and grows grass, the model browser takes .obj, .fbx and the other formats of NetRadiant-Custom and converts them to .md3, doors, movers and scripts in the mission preview follow the game more closely, the menu editor reads Movie Duels multiplayer menus, safer updates and settings, a new tutorial from a model to brushes.
+- Windows 10 before version 1903 is no longer supported.
+### Map editor: real-time light
+- Every light whose reach touches the picture is drawn with its shadows - also far away and however many lights the map has. Standing at the start of a long hangar now shows the light at its far end.
+- Each light keeps its shadow cube until something changes within its reach. Switching the light on computes all cubes first (the camera shows the progress on large maps); walking around computes nothing new.
+- Shadow cubes take the graphics memory they need, up to a quarter of the card's budget; lights with a small reach get smaller cubes, and if the budget is not enough the status bar says how many lights are without shadows.
+- Faster with many lights - each pixel only checks the lights near its depth.
+- Grass, bushes and vines (shader stages with surfaceSprites, e.g. textures/yavin/ground_grasssprite) now grow in the real-time light too - on brush faces, patches and misc_model, with the same density, size, fade and spread as "Built map as in the game", lit by the real-time light of the face below them. Each face keeps its sprites until it changes; one draw per stage, only what is in range and in view.
+- Mirrors and portals in the real-time light show all stages of their shader above the reflection, like the game (for example a floor texture with alpha over a tinted mirror).
+### Map editor: models from other programs
+- The model browser lists every model type NetRadiant-Custom lists - .obj, .fbx, .glb/.gltf, .3ds, .dae, .md2, .mdl, .md5mesh, .blend and the rest of its model loader, besides .md3, .ase and .glm - also in capital letters and from .pk3 files, with preview, in the 2D views and in the camera.
+- Placing such a model converts it to an .md3 with its textures and a shader in the import folder (switch "MD3" in the model browser, on by default); the map takes the files along into its .pk3, so the model also works in misc_model_static and misc_model_breakable. Off: the original path for misc_model, like NetRadiant-Custom.
+- The asset browser converts models for misc_model_static instead of refusing them; the map check reports entities the game loads at run time with a model format it cannot load.
+- A model in a newly created import folder no longer stays empty; "Insert into compiled map" finds models in the extra resource paths and the import folder.
+- The asset browser lists the same model types as the model browser (.obj, .fbx, .glb and the rest); two different textures with the same name from different folders get their own shader when a model is converted to .md3.
+### Map editor
+- The camera and 2D views draw only when something changes (input in the editor, the map, the view, a finished background job, animation), like NetRadiant-Custom. A map editor window nobody works in shows no new frames.
+- Insert into compiled map: a moved or changed existing point entity is no longer added a second time; it stays as in the compiled map, as the warning says.
+- Insert into compiled map: if saving fails (the game has the file open) or the save path is cancelled, nothing counts as inserted, and inserting again works.
+- Unsaved changes in the window "Shaders and surfaces" are asked about (Save / Discard / Cancel) before Insert into compiled map and before another map is opened; they were lost without a question.
+- Closing the program with the window cross or Alt+F4 asks about an unsaved map like File > Exit, also when the map editor is in its own window; changes in "Shaders and surfaces" made while a part compiles are no longer replaced without asking (keep / replace).
+- After quitting was cancelled at a later question ("Exit?", an unsaved script or mission), closing the program asks about a changed map again; before, the first answer counted for good.
+- The files in the work folder of a compiled map are written via a temporary file, so a failed write keeps the previous state.
+- "Run Engine After Compile" starts the game only after a build from the Build menu - no longer after Insert into compiled map, Update entities only or merging maps (it started without a map name), and Test in game starts it once instead of twice.
+- After the game is reloaded in the background (switching to a mission tab with other game folders), the camera and 2D views show the new game at once.
+- The curve tool no longer crashes in a new map without a worldspawn.
+- Importing geometry as brushes into a new, empty map no longer crashes.
+- The window "Geometry to brushes" grows with the interface size; at 150 % the third part and the preview were cut off.
+- With the Surface Inspector open, Esc deselects again and Tab, Return, the arrow keys and Page Up/Down reach their shortcuts, as long as no field of the inspector is being edited.
+- The remembered GPU bake times are no longer lost when a build and the quick bake finish together.
+### Mission preview
+- Changing the map now frees the characters, saber hilts, items and character images the new map does not use, like the game at the end of loading a level. After all maps the graphics and process memory are back where they started (before: +716 MB graphics, +3.4 GB process).
+- Right after a map change, func_usable and func_wall with START_OFF were drawn for one frame; the scene is now built before the first frame.
+- The selection outline only surrounds what of the selected object is really visible (a platform's shield under the lava no longer enlarges it); figures that stay from one level to the next keep their textures in memory, another model with the same skin no longer reads them again.
+- Door teams behave like the game - the trigger field and health of the first door decide, and only the last name given in the team opens it.
+- Door teams follow the first entity of the team of any class; only the team master answers to the name and runs its use script.
+- Team members of other classes follow their team master like in the game - a func_bobbing or func_rotating in a door's team jumps to its own positions (0 0 0) when the door moves, and a door in the team of a func_bobbing or of a func_rotating without targetname opens when that one is used.
+- A door that reverses halfway keeps moving on the same curve and arrives when it does in the game; a door's trigger field has its full game size.
+- Invisible figures and the player during a script camera open doors like in the game; dead figures no longer hold a door open.
+- An unlocked door can no longer be used by its name unless it is a toggle door; a second use of a door with delay moves the start, as in the game.
+- Entities switched off with INACTIVE, target_deactivate or SET_INACTIVE ignore every use until switched on again (doors, spawners, delays, counters and more).
+- A func_bobbing without START_OFF stops at its origin when used, and a switched-off func_rotating shows its spawn angles, as in the game.
+- A func_bobbing without START_OFF runs the full mover path after its first use - target, opentarget, closetarget, wait, delay and LOCKED.
+- Movie Duels: the turbo laser (misc_turretG2) plays no startup, shutdown or ping sounds; a vehicle with a pilot is a turret target with the pilot's team, a rider hidden in a closed vehicle is not.
+- Recording: backwards walk and run animations with negative frame rates keep their own speed, as in the game.
+### Script preview
+- "delay" of relays and triggers counts whole seconds; relays with delay, RANDOM and the player-only flags, target_delay used twice, target_counter with bounceCount and target_scriptrunner with count, wait and delay now fire as in the game; target_random is new.
+- target_delay uses its "random" value, target_change_parm passes its parms to whoever used it, and Movie Duels func_rotating with spinangles or health behaves like in Movie Duels.
+- ICARUS: an entity with a usescript but without a name runs it (for example a nameless team master), and $get( ... )$ works in use, kill, remove, signal, waitsignal, wait, sound, set, declare, free and in the duration of move and rotate.
+### NPC waypoints
+- Creating the network on large maps is much faster with the same result, byte for byte (taspir1: 265 s -> 18 s).
+- An edge to an existing waypoint whose target fields are full no longer drops silently; the network stays connected.
+- After creating a network, the message counts each part that stays unconnected once (taspir1 reported 3241 parts, the network has 26).
+### Menu editor
+- Use mode: moving the pointer runs mouseEnter for every item under it, decorations too, and gives the focus to the first item that takes it (in single player not to an inactive one), like the game; the focus stays until another item takes it, and a click acts on the item with the focus.
+- Centred edit fields and centred or right-aligned ownerdraws place their text like the game (the cvar value and the ownerdraw width count); Movie Duels single player centres with half pixels.
+- Single player: textstyle 1 (blink) no longer blinks, wrapped text keeps its colour with the focus, ownerdraws blink at the single-player rate; the focus pulse steps like the game.
+- Switching the page from a script, the hierarchy, the outline or the problems list clears the selection like the page tab (it could crash or delete an item of another menu).
+- A folder next to GameData whose name starts with "GameData" is no longer treated as a game folder when saving.
+- Movie Duels multiplayer menus are read with the keywords of the Movie Duels multiplayer code - cvarInt, cvarRotateScale, cvarSubString and the model item type load, exec and ownerdrawID are skipped like in the game, and negative numbers in scripts stay numbers.
+- cvarSubString now works in the preview for show, hide, enable and disable; long scripts end where the game's buffer ends; cvar resets the slider range only where the game does.
+- Movie Duels multiplayer: ITEM_TYPE_MODEL_ITEM is drawn like in the game (fixed 45 degree view, turning); script commands a game version does not know (for example delay or showMenu in multiplayer, setcvartocvar in single player) do nothing there, like in the game.
+- Exporting a project no longer packs the previous pk3 from the project folder into the new one.
+### Updates, settings and command line
+- Updater: after installing, "Check for updates" keeps offering "Restart now" instead of the same release again (installing it twice failed).
+- Updater: closing the program during an installation no longer leaves a half-updated folder - loading stops, a started swap finishes first; an update interrupted anyway is undone at the next start.
+- Updater: if old files cannot be put back after a failed update, their backups stay and the next start restores them; a second installation starting at the same time no longer deletes the download of the first.
+- Settings: if copying the old settings folder (behaved -> jkstudio) fails, the program keeps using the old folder and tries again at the next start (before, it started with an empty folder for good).
+- Settings: behaved.cfg is written safely - a write error (full disk) keeps the previous file with game folders and keys.
+- Fixed a possible crash when several background tasks wrote to the log at the same time (for example damaged textures while loading a map).
+- bhed (command line): file names outside the system code page work, write errors are reported, and data/base is found when bhed is called through PATH.
+### Guide
+- New tutorial "Turn a model into brushes" - from Blender to the map editor, step by step with an example model, also as an interactive tutorial in the program. The section "Geometry to brushes" links to it, and the helper finds it ("how do I turn a model into brushes").
+- The mirror picture shows a bright cube in the mirror.
+[de]
+- Das Echtzeit-Licht im Karten-Editor zeigt jedes Licht mit seinen Schatten und lässt Gras wachsen, der Modell-Browser nimmt .obj, .fbx und die übrigen Formate von NetRadiant-Custom und wandelt sie in .md3 um, Türen, Mover und Skripte der Missions-Vorschau folgen dem Spiel genauer, der Menü-Editor liest die Mehrspieler-Menüs von Movie Duels, Updates und Einstellungen sind sicherer, ein neues Tutorial führt vom Modell zu Brushes.
+- Windows 10 vor Version 1903 wird nicht mehr unterstützt.
+### Karten-Editor: Echtzeit-Licht
+- Jedes Licht, dessen Reichweite das Bild berührt, wird mit seinen Schatten gezeichnet - auch in der Ferne und gleich, wie viele Lichter die Karte hat. Am Anfang eines langen Hangars ist jetzt auch das Licht an seinem Ende zu sehen.
+- Jedes Licht behält seinen Schattenwürfel, bis sich in seiner Reichweite etwas ändert. Beim Einschalten werden zuerst alle Würfel gerechnet (bei großen Karten zeigt die Kamera den Fortschritt); ein Rundgang rechnet nichts neu.
+- Die Schattenwürfel nehmen sich den Grafikspeicher, den sie brauchen, bis zu einem Viertel des Budgets der Grafikkarte; Lichter mit kleiner Reichweite bekommen kleinere Würfel, und reicht das Budget nicht, sagt die Statuszeile, wie viele Lichter ohne Schatten sind.
+- Schneller mit vielen Lichtern - jeder Bildpunkt prüft nur die Lichter nahe seiner Tiefe.
+- Gras, Büsche und Ranken (Shaderstufen mit surfaceSprites, z. B. textures/yavin/ground_grasssprite) wachsen jetzt auch im Echtzeit-Licht - auf Brushseiten, Patches und misc_model, mit derselben Dichte, Größe, Ausblendung und Verteilung wie „Gebaute Karte wie im Spiel“, beleuchtet vom Echtzeit-Licht der Fläche darunter. Jede Fläche behält ihre Halme, bis sie sich ändert; ein Zeichenaufruf je Stufe, nur was in Reichweite und im Bild ist.
+- Spiegel und Portale zeigen im Echtzeit-Licht alle Stufen ihres Shaders über dem Spiegelbild, wie das Spiel (zum Beispiel eine Bodentextur mit Alpha über einem getönten Spiegel).
+### Karten-Editor: Modelle aus anderen Programmen
+- Der Modell-Browser listet jede Modellart, die NetRadiant-Custom listet - .obj, .fbx, .glb/.gltf, .3ds, .dae, .md2, .mdl, .md5mesh, .blend und den Rest seines Modell-Laders, neben .md3, .ase und .glm - auch groß geschrieben und aus .pk3-Dateien, mit Vorschau, in den 2D-Ansichten und in der Kamera.
+- Setzen wandelt ein solches Modell in eine .md3 mit seinen Texturen und einem Shader im Import-Ordner um (Schalter „MD3“ im Modell-Browser, Vorgabe an); die Karte nimmt die Dateien in ihre .pk3 mit, so geht das Modell auch in misc_model_static und misc_model_breakable. Aus: der Original-Pfad für misc_model wie in NetRadiant-Custom.
+- Der Asset-Browser wandelt Modelle für misc_model_static um, statt sie abzulehnen; die Kartenprüfung meldet Entities, die das Spiel zur Laufzeit lädt, mit einem Modellformat, das es nicht laden kann.
+- Ein Modell in einem neu angelegten Import-Ordner bleibt nicht mehr leer; „In fertige Karte einfügen“ findet Modelle in den Extra Resource Paths und im Import-Ordner.
+- Der Asset-Browser listet dieselben Modellarten wie der Modell-Browser (.obj, .fbx, .glb und die übrigen); zwei verschiedene Texturen gleichen Namens aus verschiedenen Ordnern bekommen beim Umwandeln in .md3 je einen eigenen Shader.
+### Karten-Editor
+- Kamera und 2D-Ansichten zeichnen nur noch, wenn sich etwas ändert (Eingabe im Editor, die Karte, die Ansicht, ein fertiger Hintergrundlauf, Animation), wie NetRadiant-Custom. Ein Map-Editor-Fenster, in dem niemand arbeitet, zeigt keine neuen Bilder.
+- In fertige Karte einfügen: Eine verschobene oder geänderte vorhandene Punkt-Entity wird nicht mehr ein zweites Mal angehängt; sie bleibt wie in der fertigen Karte, wie die Warnung sagt.
+- In fertige Karte einfügen: Scheitert das Speichern (das Spiel hat die Datei offen) oder wird der Speicherweg abgebrochen, gilt nichts als eingefügt, und ein neues Einfügen geht.
+- Ungespeicherte Änderungen im Fenster „Shader und Flächen“ werden vor dem Einfügen in die fertige Karte und vor dem Öffnen einer anderen Karte abgefragt (Speichern / Verwerfen / Abbrechen); vorher gingen sie ohne Frage verloren.
+- Das Programm über das Kreuz oder Alt+F4 zu schließen fragt wie File > Exit nach einer ungespeicherten Karte, auch wenn der Karten-Editor in einem eigenen Fenster steht; Änderungen in „Shader und Flächen“ während eines Teil-Compiles werden nicht mehr ohne Frage ersetzt (behalten / ersetzen).
+- Wurde das Beenden bei einer späteren Frage abgebrochen („Exit?“, ein ungespeichertes Skript oder eine Mission), fragt das Schließen wieder nach einer geänderten Karte; vorher galt die erste Antwort für immer.
+- Die Dateien im Arbeitsordner einer fertigen Karte werden über eine Temp-Datei geschrieben; ein gescheitertes Schreiben lässt den vorigen Stand stehen.
+- „Nach dem Bauen das Spiel starten“ startet das Spiel nur nach einem Bau aus dem Menü Build – nicht mehr nach In fertige Karte einfügen, Nur Entities aktualisieren oder dem Zusammenführen (dort startete es ohne Kartennamen), und Im Spiel testen startet es einmal statt zweimal.
+- Wird das Spiel im Hintergrund neu geladen (Wechsel auf den Reiter einer Mission mit anderen Spielordnern), zeigen Kamera und 2D-Ansichten sofort das neue Spiel.
+- Das Kurven-Werkzeug stürzt in einer neuen Karte ohne worldspawn nicht mehr ab.
+- Geometrie als Brushes in eine neue, leere Karte zu importieren stürzt nicht mehr ab.
+- Das Fenster „Geometrie zu Brushes“ wächst mit der Oberflächengröße; bei 150 % waren der dritte Teil und die Vorschau abgeschnitten.
+- Bei offenem Surface Inspector hebt Esc die Auswahl wieder auf, und Tab, Return, die Pfeiltasten und Bild hoch/runter erreichen ihre Kürzel, solange kein Feld des Inspectors bearbeitet wird.
+- Die gemerkten GPU-Backzeiten gehen nicht mehr verloren, wenn ein Bau und das Schnell-Backen gleichzeitig enden.
+### Missions-Vorschau
+- Ein Kartenwechsel gibt jetzt die Figuren, Schwertgriffe, Gegenstände und Figurenbilder frei, die die neue Karte nicht benutzt – wie das Spiel am Ende des Ladens eines Levels. Nach allen Karten sind Grafik- und Prozessspeicher wieder auf dem Anfangsstand (vorher +716 MB Grafik, +3,4 GB Prozess).
+- Direkt nach einem Kartenwechsel standen func_usable und func_wall mit START_OFF ein Bild lang da; die Szene entsteht jetzt vor dem ersten Bild.
+- Der Umriss der Auswahl umrandet nur, was vom gewählten Objekt wirklich zu sehen ist (der Schild einer Plattform unter der Lava vergrößert ihn nicht mehr); Figuren, die von einem Level ins nächste bleiben, behalten ihre Bilder im Speicher, ein weiteres Modell mit derselben Haut liest sie nicht noch einmal.
+- Türteams verhalten sich wie im Spiel - Auslösefeld und health der ersten Tür entscheiden, und nur der zuletzt im Team vergebene Name öffnet sie.
+- Türteams richten sich nach der ersten Entity des Teams, gleich welcher Klasse; nur der Teammeister hört auf den Namen und führt sein usescript aus.
+- Teammitglieder anderer Klassen folgen ihrem Teammeister wie im Spiel - ein func_bobbing oder func_rotating im Team einer Tür springt auf seine eigenen Positionen (0 0 0), wenn die Tür fährt, und eine Tür im Team eines func_bobbing oder eines func_rotating ohne targetname öffnet, wenn dieser benutzt wird.
+- Eine Tür, die mitten im Weg umkehrt, fährt auf derselben Kurve weiter und kommt an, wann sie es im Spiel tut; das Auslösefeld einer Tür hat seine volle Größe aus dem Spiel.
+- Unsichtbare Figuren und der Spieler während einer Skriptkamera oeffnen Türen wie im Spiel; Tote halten eine Tür nicht mehr offen.
+- Eine entsperrte Tür lässt sich nicht mehr über ihren Namen benutzen, außer sie ist eine Umschalttür; ein zweites use einer Tür mit delay verschiebt den Start, wie im Spiel.
+- Mit INACTIVE, target_deactivate oder SET_INACTIVE abgeschaltete Entities überhören jedes use, bis sie wieder an sind (Türen, Spawner, Verzögerungen, Zähler und mehr).
+- Ein func_bobbing ohne START_OFF bleibt bei use an seinem Ursprung stehen, und ein abgeschaltetes func_rotating zeigt seine Spawnwinkel, wie im Spiel.
+- Ein func_bobbing ohne START_OFF fährt nach dem ersten use die ganze Mover-Bahn - target, opentarget, closetarget, wait, delay und LOCKED.
+- Movie Duels: Der Turbolaser (misc_turretG2) spielt keine Klänge für Starten, Abschalten und Ping; ein Fahrzeug mit Pilot ist ein Ziel der Geschütze mit dem Team des Piloten, ein in einem geschlossenen Fahrzeug verborgener Reiter nicht.
+- Aufnahme: Rückwärts gespielte Geh- und Laufanimationen mit negativer Bildrate behalten ihr eigenes Tempo, wie im Spiel.
+### Skriptvorschau
+- "delay" von Relais und Triggern zählt ganze Sekunden; Relais mit delay, RANDOM und den Nur-Spieler-Flags, zweimal benutzte target_delay, target_counter mit bounceCount und target_scriptrunner mit count, wait und delay feuern jetzt wie im Spiel; target_random ist neu.
+- target_delay nimmt seinen "random"-Wert, target_change_parm gibt seine parms an den, der es benutzt, und func_rotating mit spinangles oder health verhält sich in Movie Duels wie dort.
+- ICARUS: Eine Entity mit usescript, aber ohne Namen führt es aus (zum Beispiel ein namenloser Teammeister), und $get( ... )$ wirkt in use, kill, remove, signal, waitsignal, wait, sound, set, declare, free und in der Dauer von move und rotate.
+### NPC-Wegpunkte
+- Das Netz entsteht auf großen Karten viel schneller, mit demselben Ergebnis Byte für Byte (taspir1: 265 s -> 18 s).
+- Eine Kante zu einem vorhandenen Wegpunkt mit vollen target-Feldern fällt nicht mehr still weg; das Netz bleibt verbunden.
+- Nach dem Erzeugen zählt die Meldung jeden Teil, der ohne Verbindung bleibt, einmal (taspir1 meldete 3241 Teile, das Netz hat 26).
+### Menü-Editor
+- Bedienen: Bewegen des Zeigers führt mouseEnter für jedes Element darunter aus, auch für Dekorationen, und gibt den Fokus dem ersten Element, das ihn nimmt (im Einzelspieler keinem inaktiven), wie im Spiel; der Fokus bleibt, bis ein anderes Element ihn nimmt, und ein Klick wirkt auf das Element mit dem Fokus.
+- Zentrierte Eingabefelder und zentrierte oder rechtsbündige Ownerdraws setzen ihren Text wie das Spiel (der Wert der cvar und die Breite des Ownerdraws zählen mit); Movie Duels Einzelspieler zentriert auf halbe Bildpunkte.
+- Einzelspieler: textstyle 1 (Blinken) blinkt nicht mehr, umbrochener Text behält mit dem Fokus seine Farbe, Ownerdraws blinken im Takt des Einzelspielers; der Fokuspuls springt wie im Spiel.
+- Ein Seitenwechsel aus einem Skript, der Hierarchie, der Gliederung oder der Problemliste leert die Auswahl wie der Reiter (vorher konnte das Programm abstürzen oder ein Element eines anderen Menüs löschen).
+- Ein Ordner neben GameData, dessen Name mit „GameData“ beginnt, gilt beim Speichern nicht mehr als Spielordner.
+- Mehrspieler-Menüs von Movie Duels werden mit den Schlüsselwörtern des Movie-Duels-Mehrspielercodes gelesen - cvarInt, cvarRotateScale, cvarSubString und der Modell-Elementtyp laden, exec und ownerdrawID werden wie im Spiel übersprungen, und negative Zahlen in Skripten bleiben Zahlen.
+- cvarSubString wirkt jetzt in der Vorschau für Zeigen, Verbergen, Ein- und Ausschalten; lange Skripte enden, wo der Puffer des Spiels endet; cvar setzt den Bereich eines Schiebers nur dort zurück, wo das Spiel es tut.
+- Movie Duels Mehrspieler: ITEM_TYPE_MODEL_ITEM wird wie im Spiel gezeichnet (fester Blickwinkel 45 Grad, dreht sich); Skriptbefehle, die eine Spielfassung nicht kennt (zum Beispiel delay oder showMenu im Mehrspieler, setcvartocvar im Einzelspieler), tun dort nichts, wie im Spiel.
+- Beim Export eines Projekts kommt die vorige pk3 aus dem Projektordner nicht mehr in die neue.
+### Updates, Einstellungen und Befehlszeile
+- Updater: Nach der Installation bietet „Nach Updates suchen“ weiter „Jetzt neu starten“ an statt noch einmal dasselbe Release (ein zweites Installieren scheiterte).
+- Updater: Schließen des Programms während einer Installation hinterlässt keinen halb erneuerten Ordner mehr - das Laden hört auf, ein begonnener Tausch wird zuerst fertig; ein trotzdem unterbrochenes Update wird beim nächsten Start zurückgenommen.
+- Updater: Lassen sich nach einem gescheiterten Update alte Dateien nicht zurückstellen, bleiben ihre Sicherungen, und der nächste Start stellt sie zurück; eine zweite Installation, die gleichzeitig startet, löscht den Download der ersten nicht mehr.
+- Einstellungen: Scheitert das Kopieren des alten Einstellungsordners (behaved -> jkstudio), arbeitet das Programm im alten Ordner weiter und versucht es beim nächsten Start erneut (vorher startete es für immer mit einem leeren Ordner).
+- Einstellungen: behaved.cfg wird sicher geschrieben - ein Schreibfehler (volle Platte) lässt die vorige Datei mit Spielordnern und Tasten stehen.
+- Ein möglicher Absturz ist behoben, wenn mehrere Hintergrundaufgaben gleichzeitig ins Protokoll schrieben (etwa beschädigte Texturen beim Laden einer Karte).
+- bhed (Befehlszeile): Dateinamen außerhalb der Codepage des Systems gehen, Schreibfehler werden gemeldet, und data/base wird gefunden, wenn bhed über den PATH aufgerufen wird.
+### Handbuch
+- Neues Tutorial „Ein Modell zu Brushes machen“ - von Blender in den Karten-Editor, Schritt für Schritt mit einem Beispielmodell, auch als interaktives Tutorial im Programm. Der Abschnitt „Geometrie zu Brushes“ verweist darauf, und der Helfer findet es („wie mache ich aus einem Modell Brushes“).
+- Das Spiegelbild zeigt einen hellen Würfel im Spiegel.
+[zh]
+- 地图编辑器的实时光照会显示每个光源及其阴影并长出草丛,模型浏览器支持 .obj、.fbx 以及 NetRadiant-Custom 的其他格式并将其转换为 .md3,任务预览中的门、移动体和脚本更贴近游戏,菜单编辑器可读取 Movie Duels 多人菜单,更新和设置更安全,新增从模型到画刷的教程。
+- 不再支持 1903 版之前的 Windows 10。
+### 地图编辑器:实时光照
+- 凡是照射范围触及画面的光源都会带着阴影绘制——包括远处的,无论地图有多少光源。站在长机库的起点,现在也能看到机库尽头的光。
+- 每个光源保留自己的阴影立方体,直到其照射范围内有东西改变。打开时先计算所有立方体(大地图上摄像机会显示进度);四处走动不会重新计算。
+- 阴影立方体按需占用显存,最多为显卡预算的四分之一;照射范围小的光源使用较小的立方体,预算不够时状态栏会显示有多少个光源没有阴影。
+- 光源多时更快——每个像素只检查其深度附近的光源。
+- 草、灌木和藤蔓(带 surfaceSprites 的着色器阶段,例如 textures/yavin/ground_grasssprite)现在也会在实时光照中生长——在画刷面、补丁和 misc_model 上,密度、大小、淡出和分布与“已构建的地图如游戏中显示”相同,并由其下方表面的实时光照照亮。每个面保留其精灵直到它改变;每个阶段一次绘制调用,只处理范围内和画面内的部分。
+- 镜子和传送门在实时光照中显示其着色器在倒影之上的所有阶段,与游戏相同(例如带 alpha 的地面纹理覆盖在着色的镜子上)。
+### 地图编辑器:其他程序的模型
+- 模型浏览器会列出 NetRadiant-Custom 列出的所有模型类型——除了 .md3、.ase 和 .glm,还有 .obj、.fbx、.glb/.gltf、.3ds、.dae、.md2、.mdl、.md5mesh、.blend 以及其模型加载器支持的其他格式——大写扩展名和 .pk3 文件中的模型也会列出,并带预览,在 2D 视图和摄像机中显示。
+- 放置这类模型时会把它转换为导入文件夹中带纹理和着色器的 .md3(模型浏览器中的开关“MD3”,默认打开);地图会把这些文件一起打包进 .pk3,因此模型也能用于 misc_model_static 和 misc_model_breakable。关闭时:misc_model 使用原始路径,与 NetRadiant-Custom 相同。
+- 资源浏览器会为 misc_model_static 转换模型,而不是拒绝;地图检查会报告游戏在运行时加载、但模型格式无法加载的实体。
+- 新建的导入文件夹中的模型不再显示为空;“插入到已编译地图”能找到附加资源路径和导入文件夹中的模型。
+- 资源浏览器列出与模型浏览器相同的模型类型(.obj、.fbx、.glb 等);将模型转换为 .md3 时,来自不同文件夹的两张同名不同纹理各自获得自己的着色器。
+### 地图编辑器
+- 摄像机视图和 2D 视图只在有变化时才重绘(编辑器中的输入、地图、视图、完成的后台任务、动画),与 NetRadiant-Custom 相同。无人操作的地图编辑器窗口不再显示新帧。
+- 插入到已编译地图:移动或修改过的已有点实体不再被第二次追加;它保持已编译地图中的样子,与警告所说一致。
+- 插入到已编译地图:如果保存失败(游戏打开了该文件)或取消了保存方式,则不算已插入,可以再次插入。
+- 在插入到已编译地图之前以及打开另一张地图之前,会询问“着色器和表面”窗口中未保存的更改(保存 / 放弃 / 取消);以前它们会在没有询问的情况下丢失。
+- 通过窗口关闭按钮或 Alt+F4 关闭程序时,会像 File > Exit 一样询问未保存的地图,即使地图编辑器在单独的窗口中;部分编译期间在“着色器和表面”中所做的更改不再在未询问的情况下被替换(保留/替换)。
+- 在后续问题(“Exit?”、未保存的脚本或任务)中取消退出后,再次关闭程序时会重新询问已更改的地图;以前第一次的回答会一直有效。
+- 已编译地图工作文件夹中的文件通过临时文件写入,写入失败时保留之前的状态。
+- “编译后运行游戏”只在从 Build 菜单编译后启动游戏——插入到已编译地图、仅更新实体或合并地图之后不再启动(那时启动时没有地图名),“在游戏中测试”只启动一次而不是两次。
+- 游戏在后台重新加载后(切换到使用其他游戏文件夹的任务选项卡),摄像机和 2D 视图立即显示新的游戏。
+- 在没有 worldspawn 的新地图中,曲线工具不再崩溃。
+- 把几何体作为画刷导入到新的空地图时不再崩溃。
+- “几何体转画刷”窗口会随界面大小放大;以前在 150% 时第三个部件和预览会被截断。
+- Surface Inspector 打开时,只要没有在编辑其中的字段,Esc 会再次取消选择,Tab、回车、方向键和 Page Up/Down 也会触发各自的快捷键。
+- 构建和快速烘焙同时结束时,记住的 GPU 烘焙时间不再丢失。
+### 任务预览
+- 切换地图时,现在会释放新地图不使用的角色、光剑剑柄、物品和角色贴图,与游戏在关卡加载结束时的做法相同。遍历所有地图后,显存和进程内存回到起始水平(之前:显存 +716 MB,进程 +3.4 GB)。
+- 切换地图后,带 START_OFF 的 func_usable 和 func_wall 会被绘制一帧;现在场景在第一帧之前就已建立。
+- 选择轮廓只围绕所选对象真正可见的部分(平台在熔岩下的护盾不再使其变大);从一个关卡保留到下一个关卡的角色会把纹理保留在内存中,使用相同皮肤的另一个模型不再重新读取它们。
+- 门组的行为与游戏一致——由第一扇门的触发区域和 health 决定,只有组内最后指定的名称才能打开它。
+- 门组以组内第一个实体为准,不论其类别;只有组长响应名称并运行其 usescript。
+- 其他类别的队伍成员像游戏中一样跟随队长——门所在队伍中的 func_bobbing 或 func_rotating 会在门移动时跳到自己的位置 (0 0 0);func_bobbing 或没有 targetname 的 func_rotating 所在队伍中的门,会在其被使用时打开。
+- 中途反向的门会沿同一条曲线继续移动,并在与游戏相同的时间到达;门的触发区域具有游戏中的完整大小。
+- 隐身角色和脚本镜头期间的玩家会像游戏中一样打开门;死亡的角色不再使门保持打开。
+- 解锁后的门不再能通过名称使用,除非它是切换门;带 delay 的门被第二次 use 时会推迟开始,与游戏一致。
+- 通过 INACTIVE、target_deactivate 或 SET_INACTIVE 关闭的实体会忽略所有 use,直到重新开启(门、生成器、延迟、计数器等)。
+- 没有 START_OFF 的 func_bobbing 被使用时停在其原点,关闭的 func_rotating 显示其生成时的角度,与游戏一致。
+- 没有 START_OFF 的 func_bobbing 在第一次 use 后执行完整的移动路径——target、opentarget、closetarget、wait、delay 和 LOCKED。
+- Movie Duels:涡轮激光炮(misc_turretG2)不再播放启动、关闭和 ping 声音;有驾驶员的载具是炮塔的目标,队伍为驾驶员的队伍,隐藏在封闭载具中的骑乘者则不是。
+- 录制:帧率为负的倒走和倒跑动画保持其自身速度,与游戏一致。
+### 脚本预览
+- 中继和触发器的 "delay" 按整秒计算;带 delay、RANDOM 和仅玩家标志的中继、被使用两次的 target_delay、带 bounceCount 的 target_counter 以及带 count、wait 和 delay 的 target_scriptrunner 现在与游戏中一样触发;新增 target_random。
+- target_delay 使用其 "random" 值,target_change_parm 把其 parms 交给使用者,带 spinangles 或 health 的 func_rotating 在 Movie Duels 中的行为与该游戏一致。
+- ICARUS:带 usescript 但没有名称的实体会执行它(例如没有名称的队长),$get( ... )$ 在 use、kill、remove、signal、waitsignal、wait、sound、set、declare、free 以及 move 和 rotate 的时长中生效。
+### NPC 路径点
+- 在大型地图上生成网络快得多,结果逐字节相同(taspir1:265 秒 -> 18 秒)。
+- 通往 target 字段已满的现有路点的边不再悄悄丢失;网络保持连通。
+- 生成路网后,提示对每个仍未连接的部分只计一次(taspir1 曾报告 3241 个部分,而路网只有 26 个)。
+### 菜单编辑器
+- 操作模式:移动指针时,指针下的每个项(包括装饰项)都执行 mouseEnter,焦点交给第一个能接受它的项(单人模式下不交给非活动项),与游戏一致;焦点一直保留到另一个项取得它,单击作用于拥有焦点的项。
+- 居中的输入框以及居中或右对齐的 ownerdraw 像游戏一样放置文本(cvar 的值和 ownerdraw 的宽度一并计入);Movie Duels 单人模式按半像素居中。
+- 单人模式:textstyle 1(闪烁)不再闪烁,自动换行的文本在获得焦点时保持颜色,ownerdraw 按单人模式的节奏闪烁;焦点脉冲像游戏一样分级跳变。
+- 由脚本、层级、大纲或问题列表切换页面时,像页面选项卡一样清空选择(以前可能崩溃或删除另一个菜单中的项)。
+- GameData 旁边名称以“GameData”开头的文件夹在保存时不再被视为游戏文件夹。
+- Movie Duels 多人菜单按 Movie Duels 多人代码的关键字读取——cvarInt、cvarRotateScale、cvarSubString 和模型元素类型可以加载,exec 和 ownerdrawID 像游戏中一样被跳过,脚本中的负数仍是数字。
+- cvarSubString 现在在预览中对显示、隐藏、启用和禁用生效;长脚本在游戏缓冲区结束处截止;cvar 只在游戏会重置的地方重置滑块范围。
+- Movie Duels 多人模式:ITEM_TYPE_MODEL_ITEM 像游戏中一样绘制(固定 45 度视角,旋转);某个游戏版本不认识的脚本命令(例如多人模式中的 delay 或 showMenu、单人模式中的 setcvartocvar)在那里不起作用,与游戏相同。
+- 导出项目时不再把项目文件夹中之前的 pk3 打包进新的 pk3。
+### 更新、设置和命令行
+- 更新程序:安装完成后,“检查更新”会继续提供“立即重新启动”,而不是再次提供同一版本(第二次安装会失败)。
+- 更新程序:在安装过程中关闭程序不再留下更新了一半的文件夹——下载会停止,已开始的替换会先完成;如果更新仍被中断,下次启动时会撤销。
+- 更新程序:更新失败后若旧文件无法还原,其备份会保留,下次启动时还原;同时启动的第二个安装不再删除第一个安装的下载文件。
+- 设置:如果复制旧设置文件夹(behaved -> jkstudio)失败,程序会继续使用旧文件夹,并在下次启动时重试(以前会永久以空文件夹启动)。
+- 设置:behaved.cfg 以安全方式写入——写入错误(磁盘已满)时保留包含游戏文件夹和按键的旧文件。
+- 修复了多个后台任务同时写入日志时可能出现的崩溃(例如加载地图时遇到损坏的纹理)。
+- bhed(命令行):支持系统代码页之外的文件名,报告写入错误,并且通过 PATH 调用 bhed 时能找到 data/base。
+### 手册
+- 新教程“把模型变成画刷”——从 Blender 到地图编辑器,用示例模型逐步讲解,也可在程序中作为交互式教程运行。“几何体转画刷”一节会链接到它,助手也能找到它(“如何把模型变成画刷”)。
+- 镜子图片在镜中显示一个明亮的立方体。
+[ja]
+- マップエディターのリアルタイムライトはすべてのライトを影付きで表示し、草も生えます。モデルブラウザーは .obj、.fbx など NetRadiant-Custom のほかの形式も扱い、.md3 に変換します。ミッションプレビューのドア、ムーバー、スクリプトがよりゲームに近くなり、メニューエディターは Movie Duels のマルチプレイヤーメニューを読み込みます。アップデートと設定がより安全になり、モデルからブラシへの新しいチュートリアルが加わりました。
+- バージョン 1903 より前の Windows 10 はサポートされなくなりました。
+### マップエディター: リアルタイムライト
+- 届く範囲が画面に触れるライトはすべて影付きで描画されます。遠くのものも、マップのライトの数にかかわらずです。長い格納庫の入口に立っても、奥の端の光が見えるようになりました。
+- 各ライトは届く範囲で何かが変わるまで自分の影キューブを保持します。オンにすると最初にすべてのキューブを計算し(大きなマップではカメラに進行状況が表示されます)、歩き回っても再計算はありません。
+- 影キューブはグラフィックカードの予算の 4 分の 1 まで必要なグラフィックメモリを使います。届く範囲が小さいライトは小さいキューブになり、予算が足りない場合は影のないライトの数をステータスバーに表示します。
+- ライトが多いときに速くなりました。各ピクセルは自分の深度に近いライトだけを調べます。
+- 草、茂み、つる(surfaceSprites を持つシェーダーステージ。例: textures/yavin/ground_grasssprite)がリアルタイムライトでも生えるようになりました。ブラシ面、パッチ、misc_model 上に、「ビルドしたマップをゲームと同じ表示」と同じ密度、大きさ、フェード、配置で、下の面のリアルタイムライトに照らされて表示されます。各面は変更されるまでスプライトを保持し、ステージごとに 1 回の描画で、範囲内かつ画面内のものだけを処理します。
+- リアルタイムライトのミラーとポータルは、ゲームと同じく映り込みの上にシェーダーの全ステージを表示します(例: 色付きミラーの上のアルファ付き床テクスチャ)。
+### マップエディター: ほかのプログラムのモデル
+- モデルブラウザーが NetRadiant-Custom と同じすべてのモデル形式を一覧にします。.md3・.ase・.glm に加えて .obj、.fbx、.glb/.gltf、.3ds、.dae、.md2、.mdl、.md5mesh、.blend などモデルローダーが読めるもの全部です。大文字の拡張子や .pk3 内のものも出ます。プレビュー、2D ビュー、カメラにも表示されます。
+- そうしたモデルを配置すると、インポートフォルダーにテクスチャとシェーダー付きの .md3 として変換します(モデルブラウザーのスイッチ「MD3」、既定でオン)。マップはそのファイルを .pk3 に一緒に入れるので、misc_model_static や misc_model_breakable でも使えます。オフ: misc_model には NetRadiant-Custom と同じく元のパス。
+- アセットブラウザーは misc_model_static 用のモデルを拒否せずに変換します。マップ検査は、ゲームが実行時に読み込むのに読めないモデル形式を持つエンティティを報告します。
+- 新しく作ったインポートフォルダーのモデルが空のままになりません。「コンパイル済みマップに挿入」は追加リソースパスとインポートフォルダーのモデルを見つけます。
+- アセットブラウザーはモデルブラウザーと同じモデル形式(.obj、.fbx、.glb など)を一覧にします。別フォルダーにある同名の異なるテクスチャは、モデルを .md3 に変換するときにそれぞれ独自のシェーダーを得ます。
+### マップエディター
+- カメラと 2D ビューは、何かが変わったときだけ描画します (エディター内の入力、マップ、ビュー、終わったバックグラウンド処理、アニメーション)。NetRadiant-Custom と同じです。誰も操作していないマップエディターのウィンドウは新しいフレームを表示しません。
+- コンパイル済みマップに挿入: 移動または変更した既存のポイントエンティティが 2 回目に追加されることはなくなりました。警告のとおり、コンパイル済みマップのままです。
+- コンパイル済みマップに挿入: 保存に失敗したとき (ゲームがファイルを開いている) や保存方法を取り消したときは何も挿入されたことにならず、もう一度挿入できます。
+- コンパイル済みマップへの挿入の前と別のマップを開く前に、「シェーダーとサーフェス」ウィンドウの未保存の変更を確認します (保存 / 破棄 / キャンセル)。以前は確認なしに失われていました。
+- ウィンドウの × や Alt+F4 でプログラムを閉じると、File > Exit と同じく未保存のマップについて確認します(マップエディターが別ウィンドウでも)。パーツのコンパイル中に「シェーダーとサーフェス」で行った変更が確認なしに置き換えられることはなくなりました(残す / 置き換える)。
+- 後の質問 (「Exit?」、未保存のスクリプトやミッション) で終了を取り消した後、プログラムを閉じると変更したマップについて再び確認します。以前は最初の答えがずっと有効でした。
+- コンパイル済みマップの作業フォルダーのファイルは一時ファイル経由で書き込まれ、書き込みに失敗しても前の状態が残ります。
+- 「コンパイル後にゲームを起動」は Build メニューからのビルドの後だけゲームを起動します。コンパイル済みマップへの挿入、エンティティのみ更新、マップの結合の後には起動しなくなりました (マップ名なしで起動していました)。ゲーム内でテストは 2 回ではなく 1 回だけ起動します。
+- ゲームがバックグラウンドで読み込み直されたとき (別のゲームフォルダーを使うミッションのタブへの切り替え)、カメラと 2D ビューはすぐに新しいゲームを表示します。
+- worldspawn のない新しいマップでカーブツールがクラッシュしなくなりました。
+- 新しい空のマップにジオメトリをブラシとして読み込んでも落ちなくなりました。
+- ウィンドウ「ジオメトリをブラシに」がインターフェースの大きさに合わせて大きくなります。150% では 3 つ目の部品とプレビューが切れていました。
+- Surface Inspector を開いていても、そのフィールドを編集していなければ、Esc で再び選択が解除され、Tab、Return、矢印キー、Page Up/Down もそれぞれのショートカットに届きます。
+- ビルドとクイックベイクが同時に終わっても、記憶した GPU ベイク時間が失われなくなりました。
+### ミッションプレビュー
+- マップを切り替えると、新しいマップで使わないキャラクター、セーバーの柄、アイテム、キャラクター画像を解放するようになりました (ゲームがレベル読み込みの最後に行うのと同じ)。すべてのマップの後、グラフィックとプロセスのメモリは最初の状態に戻ります (以前: グラフィック +716 MB、プロセス +3.4 GB)。
+- マップ切り替えの直後、START_OFF の func_usable と func_wall が 1 フレームだけ表示されていました。最初のフレームの前にシーンを作るようになりました。
+- 選択のアウトラインは選択したオブジェクトの実際に見える部分だけを囲みます(溶岩の下のプラットフォームのシールドで大きくならなくなりました)。レベルをまたいで残るキャラクターはテクスチャをメモリに保持し、同じスキンの別モデルが再読み込みしなくなりました。
+- ドアのチームがゲームと同じように動作します。最初のドアのトリガー範囲と health で決まり、チーム内で最後に付けられた名前だけが開けます。
+- ドアのチームはクラスに関係なくチームの最初のエンティティに従います。名前に応えて usescript を実行するのはチームマスターだけです。
+- 他のクラスのチームメンバーがゲームと同じくチームマスターに従います。ドアのチームにある func_bobbing や func_rotating はドアが動くと自身の位置 (0 0 0) に移り、func_bobbing または targetname のない func_rotating のチームにあるドアは、それが使われると開きます。
+- 途中で反転したドアは同じカーブのまま動き続け、ゲームと同じ時刻に到着します。ドアのトリガー範囲はゲームと同じ大きさになりました。
+- 不可視のキャラクターとスクリプトカメラ中のプレイヤーは、ゲームと同じようにドアを開けます。死んだキャラクターがドアを開けたままにすることはなくなりました。
+- ロック解除したドアは、トグルドアでなければ名前で使えなくなります。delay 付きドアへの 2 回目の use は開始を遅らせます(ゲームと同じ)。
+- INACTIVE、target_deactivate、SET_INACTIVE で無効にしたエンティティは、再び有効になるまですべての use を無視します(ドア、スポナー、ディレイ、カウンターなど)。
+- START_OFF のない func_bobbing は use で原点に止まり、停止した func_rotating はスポーン時の角度を表示します(ゲームと同じ)。
+- START_OFF のない func_bobbing は最初の use の後、target、opentarget、closetarget、wait、delay、LOCKED を含むムーバーの経路をすべて実行します。
+- Movie Duels: ターボレーザー(misc_turretG2)は起動・停止・ping の音を鳴らしません。パイロットの乗った乗り物はパイロットのチームでタレットの標的になり、閉じた乗り物に隠れた乗り手は標的になりません。
+- 録画: フレームレートが負の後ろ歩き・後ろ走りアニメーションは、ゲームと同じく本来の速度のまま再生されます。
+### スクリプトプレビュー
+- リレーとトリガーの "delay" は整数秒で数えます。delay、RANDOM、プレイヤー専用フラグ付きのリレー、2 回使われた target_delay、bounceCount 付きの target_counter、count・wait・delay 付きの target_scriptrunner がゲームと同じように発火します。target_random に対応しました。
+- target_delay は "random" の値を使い、target_change_parm は使った相手に parms を渡し、spinangles や health 付きの func_rotating は Movie Duels と同じように動きます。
+- ICARUS: usescript を持つが名前のないエンティティもそれを実行します(例: 名前のないチームマスター)。$get( ... )$ は use、kill、remove、signal、waitsignal、wait、sound、set、declare、free と move・rotate の時間で働きます。
+### NPC ウェイポイント
+- 大きなマップでのネットワーク作成が大幅に速くなり、結果はバイト単位で同じです (taspir1: 265 秒 -> 18 秒)。
+- target 欄が埋まっている既存のウェイポイントへの辺が黙って消えることはなくなり、ネットワークはつながったままです。
+- ネットワーク生成後のメッセージは、接続されないまま残る部分をそれぞれ 1 回だけ数えます(taspir1 は 3241 部分と報告していましたが、ネットワークは 26 部分です)。
+### メニューエディター
+- 操作モード: ポインターを動かすと、その下のすべての項目(装飾も)で mouseEnter が実行され、フォーカスは受け取れる最初の項目に移ります(シングルプレイヤーでは非アクティブな項目には移りません)。ゲームと同じです。フォーカスは別の項目が取るまで残り、クリックはフォーカスのある項目に作用します。
+- 中央揃えの入力欄と、中央揃えまたは右揃えの ownerdraw はゲームと同じ位置にテキストを置きます(cvar の値と ownerdraw の幅も数えます)。Movie Duels のシングルプレイヤーは半ピクセル単位で中央揃えします。
+- シングルプレイヤー: textstyle 1(点滅)は点滅しなくなり、折り返したテキストはフォーカスがあっても色を保ち、ownerdraw はシングルプレイヤーの間隔で点滅します。フォーカスの脈動はゲームと同じように段階的に変わります。
+- スクリプト、階層、アウトライン、問題一覧からページを切り替えると、ページタブと同じく選択が解除されます(以前はクラッシュしたり、別のメニューの項目を削除したりすることがありました)。
+- GameData の隣にある、名前が「GameData」で始まるフォルダーは、保存時にゲームフォルダーとして扱われなくなりました。
+- Movie Duels のマルチプレイヤーメニューを Movie Duels マルチプレイヤーコードのキーワードで読み込みます。cvarInt、cvarRotateScale、cvarSubString とモデル項目タイプが読み込まれ、exec と ownerdrawID はゲームと同じく読み飛ばされ、スクリプト内の負の数は数のままです。
+- cvarSubString がプレビューの表示・非表示・有効・無効で働くようになりました。長いスクリプトはゲームのバッファーが終わるところで終わり、cvar はゲームと同じ場合にだけスライダーの範囲をリセットします。
+- Movie Duels マルチプレイ: ITEM_TYPE_MODEL_ITEM をゲームと同じく描画します(45 度の固定視野、回転)。ゲームの版が知らないスクリプトコマンド(例: マルチプレイの delay や showMenu、シングルプレイの setcvartocvar)は、ゲームと同じく何もしません。
+- プロジェクトを書き出すとき、プロジェクトフォルダーにある前の pk3 を新しい pk3 に入れなくなりました。
+### アップデート、設定、コマンドライン
+- アップデーター: インストール後に「アップデートを確認...」を選んでも、同じリリースを再び提示せず「今すぐ再起動」を表示し続けます(2 回目のインストールは失敗していました)。
+- アップデーター: インストール中にプログラムを閉じても、更新が半分だけのフォルダーは残りません。ダウンロードは止まり、始まった置き換えは先に完了します。それでも中断された更新は次回の起動時に元に戻されます。
+- アップデーター: 更新の失敗後に古いファイルを戻せなかった場合、そのバックアップは残り、次回の起動時に戻されます。同時に起動した 2 つ目のインストールが 1 つ目のダウンロードを消すことはなくなりました。
+- 設定: 古い設定フォルダー(behaved -> jkstudio)のコピーに失敗した場合、プログラムは古いフォルダーを使い続け、次回の起動時に再試行します(以前は空のフォルダーのまま起動し続けていました)。
+- 設定: behaved.cfg は安全に書き込まれます。書き込みエラー(ディスクがいっぱい)のときは、ゲームフォルダーとキーを含む前のファイルが残ります。
+- 複数のバックグラウンド処理が同時にログに書き込んだときに起こりうるクラッシュを修正しました(マップ読み込み中の破損したテクスチャなど)。
+- bhed(コマンドライン): システムのコードページ外のファイル名が使え、書き込みエラーが報告され、PATH 経由で呼び出しても data/base が見つかります。
+### マニュアル
+- 新しいチュートリアル「モデルをブラシにする」- Blender からマップエディターまで、サンプルモデルで順を追って説明します。プログラム内のインタラクティブ チュートリアルとしても動きます。「ジオメトリをブラシに」の節からリンクし、ヘルパーでも見つかります(「モデルをブラシにするには」)。
+- ミラーの画像で、鏡に明るい立方体が映ります。
+[es]
+- La luz en tiempo real del editor de mapas muestra cada luz con sus sombras y hace crecer la hierba, el explorador de modelos acepta .obj, .fbx y los demás formatos de NetRadiant-Custom y los convierte a .md3, puertas, móviles y scripts de la vista previa de misiones siguen más de cerca al juego, el editor de menús lee los menús multijugador de Movie Duels, las actualizaciones y los ajustes son más seguros y un nuevo tutorial lleva de un modelo a brushes.
+- Windows 10 anterior a la versión 1903 ya no es compatible.
+### Editor de mapas: luz en tiempo real
+- Toda luz cuyo alcance toca la imagen se dibuja con sus sombras, también lejos y sin importar cuántas luces tenga el mapa. Desde el principio de un hangar largo ahora se ve también la luz de su extremo.
+- Cada luz conserva su cubo de sombra hasta que algo cambia dentro de su alcance. Al activarla se calculan primero todos los cubos (en mapas grandes la cámara muestra el progreso); recorrer el mapa no recalcula nada.
+- Los cubos de sombra usan la memoria gráfica que necesitan, hasta una cuarta parte del presupuesto de la tarjeta; las luces de alcance pequeño reciben cubos más pequeños y, si el presupuesto no alcanza, la barra de estado indica cuántas luces quedan sin sombras.
+- Más rápida con muchas luces; cada píxel solo comprueba las luces cercanas a su profundidad.
+- La hierba, los arbustos y las enredaderas (etapas de shader con surfaceSprites, p. ej. textures/yavin/ground_grasssprite) crecen ahora también con la luz en tiempo real, en caras de brush, parches y misc_model, con la misma densidad, tamaño, desvanecimiento y reparto que «Mapa compilado como en el juego», iluminados por la luz en tiempo real de la cara de debajo. Cada cara conserva sus sprites hasta que cambia; una llamada de dibujo por etapa, solo lo que está al alcance y en la imagen.
+- Los espejos y portales muestran con la luz en tiempo real todas las etapas de su shader sobre el reflejo, como el juego (por ejemplo una textura de suelo con alfa sobre un espejo teñido).
+### Editor de mapas: modelos de otros programas
+- El navegador de modelos muestra todos los tipos de modelo que muestra NetRadiant-Custom: .obj, .fbx, .glb/.gltf, .3ds, .dae, .md2, .mdl, .md5mesh, .blend y el resto de su cargador de modelos, además de .md3, .ase y .glm; también en mayúsculas y desde archivos .pk3, con vista previa, en las vistas 2D y en la cámara.
+- Colocar un modelo así lo convierte en un .md3 con sus texturas y un shader en la carpeta de importación (interruptor «MD3» en el navegador de modelos, activado por defecto); el mapa lleva los archivos en su .pk3, así el modelo funciona también en misc_model_static y misc_model_breakable. Desactivado: la ruta original para misc_model, como en NetRadiant-Custom.
+- El navegador de recursos convierte los modelos para misc_model_static en lugar de rechazarlos; la comprobación del mapa avisa de las entidades que el juego carga en tiempo de ejecución con un formato de modelo que no puede cargar.
+- Un modelo en una carpeta de importación recién creada ya no queda vacío; «Insertar en el mapa terminado» encuentra modelos en las rutas de recursos adicionales y en la carpeta de importación.
+- El navegador de recursos muestra los mismos tipos de modelo que el navegador de modelos (.obj, .fbx, .glb y los demás); dos texturas distintas con el mismo nombre de carpetas diferentes reciben cada una su propio shader al convertir un modelo a .md3.
+### Editor de mapas
+- La cámara y las vistas 2D solo se dibujan cuando algo cambia (entrada en el editor, el mapa, la vista, un trabajo en segundo plano terminado, animación), como NetRadiant-Custom. Una ventana del editor de mapas en la que nadie trabaja no muestra fotogramas nuevos.
+- Insertar en el mapa compilado: una entidad de punto existente movida o cambiada ya no se añade por segunda vez; queda como en el mapa compilado, como dice el aviso.
+- Insertar en el mapa compilado: si el guardado falla (el juego tiene el archivo abierto) o se cancela la forma de guardar, nada cuenta como insertado y se puede volver a insertar.
+- Antes de insertar en el mapa compilado y antes de abrir otro mapa se pregunta por los cambios sin guardar en la ventana «Shaders y superficies» (Guardar / Descartar / Cancelar); antes se perdían sin preguntar.
+- Cerrar el programa con la cruz de la ventana o Alt+F4 pregunta por un mapa sin guardar como File > Exit, también si el editor de mapas está en su propia ventana; los cambios en «Shaders y superficies» hechos mientras se compila una parte ya no se sustituyen sin preguntar (conservar / sustituir).
+- Si se cancela la salida en una pregunta posterior («Exit?», un script o una misión sin guardar), al cerrar el programa se vuelve a preguntar por un mapa modificado; antes valía para siempre la primera respuesta.
+- Los archivos de la carpeta de trabajo de un mapa compilado se escriben mediante un archivo temporal; si la escritura falla, queda el estado anterior.
+- «Run Engine After Compile» solo inicia el juego tras una compilación desde el menú Build; ya no tras Insertar en el mapa compilado, Actualizar solo las entidades o combinar mapas (allí se iniciaba sin nombre de mapa), y Probar en el juego lo inicia una vez en lugar de dos.
+- Cuando el juego se vuelve a cargar en segundo plano (al cambiar a la pestaña de una misión con otras carpetas del juego), la cámara y las vistas 2D muestran el juego nuevo enseguida.
+- La herramienta de curvas ya no se cierra con error en un mapa nuevo sin worldspawn.
+- Importar geometría como brushes en un mapa nuevo y vacío ya no se cierra con un error.
+- La ventana «Geometría a brushes» crece con el tamaño de la interfaz; al 150 % la tercera parte y la vista previa quedaban cortadas.
+- Con el Surface Inspector abierto, Esc vuelve a deseleccionar y Tab, Intro, las flechas y Re Pág/Av Pág llegan a sus atajos, mientras no se esté editando un campo del inspector.
+- Los tiempos de horneado en GPU recordados ya no se pierden cuando una compilación y el horneado rápido terminan a la vez.
+### Vista previa de misiones
+- Al cambiar de mapa se liberan ahora los personajes, empuñaduras de sable, objetos e imágenes de personajes que el mapa nuevo no usa, como hace el juego al terminar de cargar un nivel. Después de todos los mapas, la memoria gráfica y la del proceso vuelven al nivel inicial (antes: +716 MB gráficos, +3,4 GB proceso).
+- Justo después de un cambio de mapa, func_usable y func_wall con START_OFF se dibujaban durante un fotograma; ahora la escena se crea antes del primer fotograma.
+- El contorno de la selección rodea solo lo que se ve realmente del objeto seleccionado (el escudo de una plataforma bajo la lava ya no lo agranda); las figuras que siguen de un nivel al siguiente conservan sus imágenes en memoria y otro modelo con la misma skin ya no las vuelve a leer.
+- Los equipos de puertas se comportan como en el juego: deciden el campo de activación y la salud de la primera puerta, y solo el último nombre asignado en el equipo la abre.
+- Los equipos de puertas siguen a la primera entidad del equipo, de cualquier clase; solo el maestro del equipo responde al nombre y ejecuta su usescript.
+- Los miembros de equipo de otras clases siguen a su jefe de equipo como en el juego; un func_bobbing o func_rotating en el equipo de una puerta salta a sus propias posiciones (0 0 0) cuando la puerta se mueve, y una puerta en el equipo de un func_bobbing o de un func_rotating sin targetname se abre cuando este se usa.
+- Una puerta que se invierte a mitad de camino sigue por la misma curva y llega cuando lo hace en el juego; el campo de activación de una puerta tiene su tamaño completo del juego.
+- Las figuras invisibles y el jugador durante una cámara de script abren puertas como en el juego; las figuras muertas ya no mantienen una puerta abierta.
+- Una puerta desbloqueada ya no se puede usar por su nombre, salvo que sea una puerta de alternancia; un segundo use de una puerta con delay retrasa el inicio, como en el juego.
+- Las entidades desactivadas con INACTIVE, target_deactivate o SET_INACTIVE ignoran todo use hasta que se reactivan (puertas, generadores, retardos, contadores y más).
+- Un func_bobbing sin START_OFF se detiene en su origen al usarlo, y un func_rotating apagado muestra sus ángulos iniciales, como en el juego.
+- Un func_bobbing sin START_OFF recorre tras su primer use toda la trayectoria de mover: target, opentarget, closetarget, wait, delay y LOCKED.
+- Movie Duels: el turboláser (misc_turretG2) no reproduce los sonidos de arranque, apagado ni ping; un vehículo con piloto es objetivo de las torretas con el equipo del piloto, un jinete oculto en un vehículo cerrado no.
+- Grabación: las animaciones de caminar y correr hacia atrás con frecuencia de fotogramas negativa mantienen su propia velocidad, como en el juego.
+### Vista previa de scripts
+- El "delay" de relés y disparadores cuenta segundos enteros; los relés con delay, RANDOM y las banderas solo para el jugador, target_delay usado dos veces, target_counter con bounceCount y target_scriptrunner con count, wait y delay se disparan ahora como en el juego; target_random es nuevo.
+- target_delay usa su valor "random", target_change_parm pasa sus parms a quien lo usa, y func_rotating con spinangles o health se comporta en Movie Duels como allí.
+- ICARUS: una entidad con usescript pero sin nombre lo ejecuta (por ejemplo un jefe de equipo sin nombre), y $get( ... )$ funciona en use, kill, remove, signal, waitsignal, wait, sound, set, declare, free y en la duración de move y rotate.
+### Puntos de ruta de NPC
+- Crear la red en mapas grandes es mucho más rápido, con el mismo resultado byte a byte (taspir1: 265 s -> 18 s).
+- Una arista hacia un punto de ruta existente con los campos target llenos ya no desaparece en silencio; la red sigue conectada.
+- Tras crear una red, el mensaje cuenta una sola vez cada parte que queda sin conectar (taspir1 indicaba 3241 partes; la red tiene 26).
+### Editor de menús
+- Modo Usar: mover el puntero ejecuta mouseEnter en cada elemento que hay debajo, también en las decoraciones, y da el foco al primer elemento que puede tomarlo (en un jugador no a uno inactivo), como el juego; el foco se queda hasta que otro elemento lo toma, y un clic actúa sobre el elemento con el foco.
+- Los campos de texto centrados y los ownerdraw centrados o alineados a la derecha colocan su texto como el juego (cuentan el valor de la cvar y el ancho del ownerdraw); Movie Duels en un jugador centra con medios píxeles.
+- Un jugador: textstyle 1 (parpadeo) ya no parpadea, el texto ajustado conserva su color con el foco, los ownerdraw parpadean al ritmo de un jugador; el pulso del foco avanza a saltos como en el juego.
+- Cambiar de página desde un script, la jerarquía, el esquema o la lista de problemas vacía la selección como la pestaña de página (antes podía fallar o borrar un elemento de otro menú).
+- Una carpeta junto a GameData cuyo nombre empieza por «GameData» ya no se trata como carpeta del juego al guardar.
+- Los menús multijugador de Movie Duels se leen con las palabras clave del código multijugador de Movie Duels: cvarInt, cvarRotateScale, cvarSubString y el tipo de elemento de modelo se cargan, exec y ownerdrawID se omiten como en el juego, y los números negativos de los scripts siguen siendo números.
+- cvarSubString funciona ahora en la vista previa para mostrar, ocultar, activar y desactivar; los scripts largos terminan donde termina el búfer del juego; cvar restablece el rango de un deslizador solo donde lo hace el juego.
+- Movie Duels multijugador: ITEM_TYPE_MODEL_ITEM se dibuja como en el juego (vista fija de 45 grados, girando); los comandos de script que una versión del juego no conoce (por ejemplo delay o showMenu en multijugador, setcvartocvar en un jugador) no hacen nada allí, como en el juego.
+- Al exportar un proyecto ya no se mete la pk3 anterior de la carpeta del proyecto en la nueva.
+### Actualizaciones, ajustes y línea de comandos
+- Actualizador: después de instalar, «Buscar actualizaciones» sigue ofreciendo «Reiniciar ahora» en lugar de la misma versión otra vez (instalarla dos veces fallaba).
+- Actualizador: cerrar el programa durante una instalación ya no deja una carpeta a medio actualizar; la descarga se detiene y un intercambio ya iniciado termina primero; una actualización interrumpida de todos modos se deshace en el siguiente inicio.
+- Actualizador: si tras una actualización fallida no se pueden restaurar archivos antiguos, sus copias de seguridad se conservan y el siguiente inicio los restaura; una segunda instalación que arranca al mismo tiempo ya no borra la descarga de la primera.
+- Ajustes: si falla la copia de la carpeta de ajustes antigua (behaved -> jkstudio), el programa sigue usando la carpeta antigua y lo vuelve a intentar en el siguiente inicio (antes arrancaba para siempre con una carpeta vacía).
+- Ajustes: behaved.cfg se escribe de forma segura; un error de escritura (disco lleno) conserva el archivo anterior con las carpetas del juego y las teclas.
+- Corregido un posible cierre inesperado cuando varias tareas en segundo plano escribían a la vez en el registro (por ejemplo, texturas dañadas al cargar un mapa).
+- bhed (línea de comandos): funcionan los nombres de archivo fuera de la página de códigos del sistema, se informan los errores de escritura y se encuentra data/base cuando bhed se llama a través de PATH.
+### Manual
+- Nuevo tutorial «Convertir un modelo en brushes»: de Blender al editor de mapas, paso a paso con un modelo de ejemplo, también como tutorial interactivo en el programa. La sección «Geometría a brushes» enlaza con él y el asistente lo encuentra («cómo convertir un modelo en brushes»).
+- La imagen del espejo muestra un cubo claro en el espejo.
+[cs]
+- Světlo v reálném čase v editoru map ukazuje každé světlo s jeho stíny a nechává růst trávu, prohlížeč modelů bere .obj, .fbx a ostatní formáty NetRadiant-Custom a převádí je na .md3, dveře, pohyblivé objekty a skripty v náhledu misí věrněji sledují hru, editor menu čte multiplayerová menu Movie Duels, aktualizace a nastavení jsou bezpečnější a nový tutoriál vede od modelu k brushům.
+- Windows 10 starší než verze 1903 již není podporován.
+### Editor map: světlo v reálném čase
+- Každé světlo, jehož dosah zasahuje do obrazu, se kreslí se svými stíny - i v dálce a bez ohledu na to, kolik světel mapa má. Na začátku dlouhého hangáru je teď vidět i světlo na jeho konci.
+- Každé světlo si ponechá svou stínovou krychli, dokud se v jeho dosahu něco nezmění. Při zapnutí se nejprve spočítají všechny krychle (na velkých mapách kamera ukazuje průběh); procházka mapou nic znovu nepočítá.
+- Stínové krychle si berou grafickou paměť, kterou potřebují, až do čtvrtiny rozpočtu grafické karty; světla s malým dosahem dostanou menší krychle, a pokud rozpočet nestačí, stavový řádek řekne, kolik světel je bez stínů.
+- Rychlejší s mnoha světly - každý pixel kontroluje jen světla blízko své hloubky.
+- Tráva, keře a popínavé rostliny (fáze shaderu se surfaceSprites, např. textures/yavin/ground_grasssprite) nyní rostou i ve světle v reálném čase - na stěnách brushů, patchích a misc_model, se stejnou hustotou, velikostí, mizením a rozložením jako „Sestavená mapa jako ve hře“, osvětlené světlem v reálném čase plochy pod nimi. Každá plocha si drží své sprity, dokud se nezmění; jedno volání kreslení na fázi, jen to, co je v dosahu a v obraze.
+- Zrcadla a portály ve světle v reálném čase ukazují všechny fáze svého shaderu nad odrazem, jako hra (například texturu podlahy s alfou nad tónovaným zrcadlem).
+### Editor map: modely z jiných programů
+- Prohlížeč modelů uvádí každý typ modelu, který uvádí NetRadiant-Custom - vedle .md3, .ase a .glm také .obj, .fbx, .glb/.gltf, .3ds, .dae, .md2, .mdl, .md5mesh, .blend a zbytek jeho zavaděče modelů - i velkými písmeny a ze souborů .pk3, s náhledem, ve 2D pohledech i v kameře.
+- Umístění takového modelu ho převede na .md3 s texturami a shaderem ve složce importu (přepínač „MD3“ v prohlížeči modelů, ve výchozím stavu zapnuto); mapa vezme soubory do svého .pk3, takže model funguje i v misc_model_static a misc_model_breakable. Vypnuto: původní cesta pro misc_model jako v NetRadiant-Custom.
+- Prohlížeč assetů převádí modely pro misc_model_static, místo aby je odmítl; kontrola mapy hlásí entity, které hra načítá za běhu, s formátem modelu, který neumí načíst.
+- Model v nově vytvořené složce importu už nezůstane prázdný; „Vložit do hotové mapy“ najde modely v dalších cestách zdrojů a ve složce importu.
+- Prohlížeč assetů uvádí stejné typy modelů jako prohlížeč modelů (.obj, .fbx, .glb a ostatní); dvě různé textury stejného jména z různých složek dostanou při převodu modelu na .md3 každá vlastní shader.
+### Editor map
+- Kamera a 2D pohledy se kreslí jen tehdy, když se něco změní (vstup v editoru, mapa, pohled, dokončená úloha na pozadí, animace), jako v NetRadiant-Custom. Okno editoru map, ve kterém nikdo nepracuje, nezobrazuje nové snímky.
+- Vložit do hotové mapy: přesunutá nebo změněná existující bodová entita se už nepřidá podruhé; zůstane jako v hotové mapě, jak říká upozornění.
+- Vložit do hotové mapy: když se uložení nepodaří (hra má soubor otevřený) nebo se zruší způsob uložení, nic se nepočítá jako vložené a vložit lze znovu.
+- Na neuložené změny v okně „Shadery a plochy“ se program zeptá před vložením do hotové mapy a před otevřením jiné mapy (Uložit / Zahodit / Zrušit); dříve se bez dotazu ztratily.
+- Zavření programu křížkem okna nebo Alt+F4 se zeptá na neuloženou mapu jako File > Exit, i když je editor map ve vlastním okně; změny v „Shadery a plochy“ provedené během sestavování části už se bez dotazu nenahradí (ponechat / nahradit).
+- Když se ukončení zruší u pozdější otázky („Exit?“, neuložený skript nebo mise), zavření programu se znovu zeptá na změněnou mapu; dříve platila první odpověď navždy.
+- Soubory v pracovní složce hotové mapy se zapisují přes dočasný soubor; nepovedený zápis ponechá předchozí stav.
+- „Po kompilaci spustit engine“ spustí hru jen po sestavení z nabídky Build – už ne po Vložit do hotové mapy, Aktualizovat jen entity ani po slučování map (tam se spouštěla bez názvu mapy), a Testovat ve hře ji spustí jednou místo dvakrát.
+- Po novém načtení hry na pozadí (přepnutí na kartu mise s jinými složkami hry) ukážou kamera i 2D pohledy hned novou hru.
+- Nástroj křivek už v nové mapě bez worldspawn nespadne.
+- Import geometrie jako brushů do nové prázdné mapy už nespadne.
+- Okno „Geometrie na brushe“ roste s velikostí rozhraní; při 150 % byly třetí část a náhled oříznuté.
+- Při otevřeném Surface Inspectoru Esc opět zruší výběr a Tab, Enter, šipky a Page Up/Down dojdou ke svým zkratkám, pokud se neupravuje žádné pole inspektoru.
+- Zapamatované časy zapékání na GPU se už neztratí, když build a rychlé zapékání skončí současně.
+### Náhled misí
+- Změna mapy teď uvolní postavy, jílce mečů, předměty a obrázky postav, které nová mapa nepoužívá – jako hra na konci načítání úrovně. Po všech mapách jsou grafická paměť i paměť procesu zpět na počátečním stavu (dříve +716 MB grafika, +3,4 GB proces).
+- Hned po změně mapy se func_usable a func_wall se START_OFF na jeden snímek vykreslily; scéna teď vzniká před prvním snímkem.
+- Obrys výběru obepíná jen to, co je z vybraného objektu opravdu vidět (štít plošiny pod lávou ho už nezvětšuje); postavy, které zůstávají z jednoho levelu do dalšího, si drží své obrázky v paměti a další model se stejným skinem je už znovu nečte.
+- Týmy dveří se chovají jako ve hře - rozhoduje spouštěcí pole a health prvních dveří a otevře je jen jméno, které bylo v týmu zadáno jako poslední.
+- Týmy dveří se řídí první entitou týmu libovolné třídy; na jméno reaguje a svůj usescript spouští jen vedoucí týmu.
+- Členové týmu jiných tříd následují vedoucího týmu jako ve hře - func_bobbing nebo func_rotating v týmu dveří skočí na své vlastní pozice (0 0 0), když se dveře pohnou, a dveře v týmu func_bobbing nebo func_rotating bez targetname se otevřou, když je použit.
+- Dveře, které se v půli cesty obrátí, pokračují po stejné křivce a dorazí ve stejnou chvíli jako ve hře; spouštěcí pole dveří má plnou velikost ze hry.
+- Neviditelné postavy a hráč během skriptové kamery otevírají dveře jako ve hře; mrtvé postavy už dveře nedrží otevřené.
+- Odemčené dveře už nelze použít podle jména, pokud to nejsou přepínací dveře; druhé use dveří s delay posune začátek, jako ve hře.
+- Entity vypnuté pomocí INACTIVE, target_deactivate nebo SET_INACTIVE ignorují každé use, dokud se znovu nezapnou (dveře, spawnery, zpoždění, počítadla a další).
+- func_bobbing bez START_OFF se po use zastaví ve svém počátku a vypnutý func_rotating ukazuje své úhly ze spawnu, jako ve hře.
+- func_bobbing bez START_OFF po prvním use projede celou dráhu moveru - target, opentarget, closetarget, wait, delay a LOCKED.
+- Movie Duels: turbolaser (misc_turretG2) nehraje zvuky spuštění, vypnutí ani ping; vozidlo s pilotem je cílem věží s týmem pilota, jezdec skrytý v uzavřeném vozidle ne.
+- Záznam: animace chůze a běhu pozpátku se zápornou snímkovou frekvencí si zachovávají vlastní rychlost, jako ve hře.
+### Náhled skriptů
+- "delay" relé a triggerů počítá celé sekundy; relé s delay, RANDOM a příznaky jen pro hráče, dvakrát použitý target_delay, target_counter s bounceCount a target_scriptrunner s count, wait a delay se nyní spouštějí jako ve hře; target_random je nový.
+- target_delay používá svou hodnotu "random", target_change_parm předá své parms tomu, kdo ho použil, a func_rotating se spinangles nebo health se v Movie Duels chová jako tam.
+- ICARUS: entita s usescript, ale bez jména, ho spustí (například bezejmenný vedoucí týmu), a $get( ... )$ funguje v use, kill, remove, signal, waitsignal, wait, sound, set, declare, free a v délce move a rotate.
+### Body trasy NPC
+- Vytvoření sítě na velkých mapách je mnohem rychlejší a výsledek je bajt po bajtu stejný (taspir1: 265 s -> 18 s).
+- Hrana k existujícímu waypointu s plnými poli target už tiše nezmizí; síť zůstane propojená.
+- Po vytvoření sítě zpráva počítá každou část, která zůstane nepřipojená, jen jednou (taspir1 hlásil 3241 částí, síť jich má 26).
+### Editor menu
+- Režim Ovládat: pohyb ukazatele spustí mouseEnter u každého prvku pod ním, i u dekorací, a dá fokus prvnímu prvku, který ho může převzít (v jednom hráči ne neaktivnímu), jako ve hře; fokus zůstane, dokud ho nepřevezme jiný prvek, a kliknutí působí na prvek s fokusem.
+- Vystředěná vstupní pole a vystředěné nebo doprava zarovnané ownerdraw umísťují text jako hra (počítá se hodnota cvar a šířka ownerdraw); Movie Duels v jednom hráči středí na poloviny pixelů.
+- Jeden hráč: textstyle 1 (blikání) už nebliká, zalomený text si s fokusem ponechá barvu, ownerdraw blikají v rytmu jednoho hráče; pulz fokusu se mění po skocích jako ve hře.
+- Přepnutí stránky ze skriptu, hierarchie, osnovy nebo seznamu problémů vyprázdní výběr jako karta stránky (dříve mohl program spadnout nebo smazat prvek jiného menu).
+- Složka vedle GameData, jejíž název začíná na „GameData“, se při ukládání už nepovažuje za složku hry.
+- Menu Movie Duels pro více hráčů se čtou s klíčovými slovy kódu Movie Duels pro více hráčů - cvarInt, cvarRotateScale, cvarSubString a typ prvku modelu se načtou, exec a ownerdrawID se přeskočí jako ve hře a záporná čísla ve skriptech zůstanou čísly.
+- cvarSubString nyní v náhledu funguje pro zobrazení, skrytí, zapnutí a vypnutí; dlouhé skripty končí tam, kde končí vyrovnávací paměť hry; cvar vrací rozsah posuvníku jen tam, kde to dělá hra.
+- Movie Duels multiplayer: ITEM_TYPE_MODEL_ITEM se kreslí jako ve hře (pevný pohled 45 stupňů, otáčí se); příkazy skriptu, které verze hry nezná (například delay nebo showMenu v multiplayeru, setcvartocvar v singleplayeru), tam nedělají nic, jako ve hře.
+- Export projektu už do nové pk3 nebalí předchozí pk3 ze složky projektu.
+### Aktualizace, nastavení a příkazový řádek
+- Aktualizace: po instalaci nabízí „Vyhledat aktualizace“ dál „Restartovat nyní“ místo stejné verze znovu (druhá instalace selhala).
+- Aktualizace: zavření programu během instalace už nezanechá napůl aktualizovanou složku - stahování se zastaví, započatá výměna se nejdřív dokončí; přesto přerušená aktualizace se při dalším spuštění vrátí.
+- Aktualizace: pokud po neúspěšné aktualizaci nejde vrátit staré soubory, jejich zálohy zůstanou a další spuštění je vrátí; druhá instalace spuštěná ve stejnou chvíli už nesmaže stažený soubor první.
+- Nastavení: pokud selže kopírování staré složky nastavení (behaved -> jkstudio), program dál používá starou složku a při dalším spuštění to zkusí znovu (dříve navždy startoval s prázdnou složkou).
+- Nastavení: behaved.cfg se zapisuje bezpečně - chyba zápisu (plný disk) ponechá předchozí soubor se složkami hry a klávesami.
+- Opraven možný pád, když do protokolu zapisovalo současně několik úloh na pozadí (například poškozené textury při načítání mapy).
+- bhed (příkazový řádek): fungují názvy souborů mimo kódovou stránku systému, chyby zápisu se hlásí a data/base se najde, i když se bhed volá přes PATH.
+### Příručka
+- Nový tutoriál „Udělat z modelu brushe“ - z Blenderu do editoru map, krok za krokem s ukázkovým modelem, také jako interaktivní tutoriál v programu. Oddíl „Geometrie na brushe“ na něj odkazuje a pomocník ho najde („jak udělat z modelu brushe“).
+- Obrázek zrcadla ukazuje v zrcadle světlou krychli.
+
 ## rc609 2026-11-04
 [en]
 - NPC waypoints by hand and generated the way the game walks, an entity text editor, files saved where they were opened, compiled maps edited (shaders, fogs, inserted brush entities, clips and movers), mission and map without loss, models into the map with one click, whole tabs in their own windows.
