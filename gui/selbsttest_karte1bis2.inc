@@ -5147,7 +5147,13 @@ std::vector<Schritt> modellBrowser() {
         add(pause(0.2));
     }
     add(pruefe("aufgeklappt: models/map_objects/bespin/ sichtbar", [] { return finde("##mbmodels/map_objects/bespin/", "", 0, true) != nullptr; }));
-    add(klickAn("Doppelklick auf bespin", elementOrt("##mbmodels/map_objects/bespin/"), 0, true));
+    // auf den Namen, nicht die Zeilenmitte: hat bespin selbst Unterordner (Movie Duels seit 05.11.: impholo), liegt die Mitte
+    // der schmalen Baumspalte im Dreieck, und der Doppelklick klappt zweimal statt den Ordner zu laden (wie Qt)
+    add(klickAn("Doppelklick auf bespin", [] {
+        const Element* el = finde("##mbmodels/map_objects/bespin/", "", 0, true);
+        if (el == nullptr) { return ImVec2{0, 0}; }
+        return ImVec2{el->rect.Min.x + (20.0F * 3.0F + 3.0F + 8.0F) * ke::massstab(), el->rect.GetCenter().y};
+    }, 0, true));
     add(pause(0.6));
     add(pruefe("bespin geladen: Dateien, Ordnerpfad", [] {
         const auto d = ke::modellBrowserDateien();
@@ -5167,6 +5173,7 @@ std::vector<Schritt> modellBrowser() {
     add(klickAn("Klick auf die erste Zelle", modellZelle(0)));
     add(pruefe("Klick: Modell 0 den gewaehlten zugewiesen (\"entityAssignModel\")", [] {
         const auto d = ke::modellBrowserDateien();
+        if (d.empty()) { return false; }   // bespin nicht geladen (Pruefung oben): kein d[0]
         const std::string soll = "models/map_objects/bespin/" + d[0];
         for (const auto& ent : ke::editor().karte.entitaeten()) {
             if (ent->klassenname() == "misc_model" && ent->wert("model") == soll) {
