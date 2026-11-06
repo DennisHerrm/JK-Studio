@@ -235,10 +235,29 @@ std::vector<Schritt> schritte() {
         ke::modellBrowserBaumBauen();
     }));
     add(pause(0.5));
-    add(klickAn("Pfeil vor models/", [] {
-        const Element* el = finde("##mbmodels/", "", 0, true);
-        return el == nullptr ? ImVec2{0, 0} : ImVec2{el->rect.Min.x + 8.0F * ke::massstab(), el->rect.GetCenter().y};
-    }));
+    // Im vollen Lauf hat Stufe 2 models/ und models/map_objects/ schon aufgeklappt: models/ nur aufklappen, wenn es zu ist (ein
+    // Klick klappte es sonst wieder zu), map_objects/ zuklappen (seine Ordner schoben modobj/ aus dem Bild). Offen heisst: unter
+    // der Zeile steht eine Zeile mit ihrem Pfad davor.
+    const auto pfeilWenn = [](const std::string& pfad, int tiefe, bool aufklappen) {
+        const std::string id = "##mb" + pfad;
+        Schritt pfeil = klickAn("Pfeil vor " + pfad, [id, tiefe] {
+            const Element* el = finde(id, "", 0, true);
+            return el == nullptr ? ImVec2{0, 0}
+                                 : ImVec2{el->rect.Min.x + (20.0F * static_cast<float>(tiefe) + 8.0F) * ke::massstab(), el->rect.GetCenter().y};
+        });
+        auto fertig = std::make_shared<bool>(false);
+        return Schritt{pfeil.text + (aufklappen ? " (wenn zu)" : " (wenn offen)"), [klick = pfeil.tun, fertig, id, aufklappen](int b) {
+                           if (b == 0) {
+                               const bool da = finde(id, "", 0, true) != nullptr;
+                               const bool offen = finde(id, "", 1, true) != nullptr;
+                               *fertig = !da || offen == aufklappen;
+                           }
+                           return *fertig || klick(b);
+                       }};
+    };
+    add(pfeilWenn("models/", 0, true));
+    add(pause(0.3));
+    add(pfeilWenn("models/map_objects/", 1, false));
     add(pause(0.3));
     add(pruefe("Baum wie NRC: models/modobj/ und models/modobj_pk3/ (nur .obj, gross geschrieben, in der .pk3)", [] {
         const bool a = finde("##mbmodels/modobj/", "", 0, true) != nullptr;
