@@ -190,6 +190,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mb2()})
             from i18n_mb3 import zeilen_vier as _mb3   # Modell-Block Stufe 3: Control Rig, Posen, Ghosts, Pfade
             texte.update({e[0]: e[1:] for e in _mb3()})
+            from i18n_mb3b import zeilen_vier as _mb3b   # Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Werkzeuge
+            texte.update({e[0]: e[1:] for e in _mb3b()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

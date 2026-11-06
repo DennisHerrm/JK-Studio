@@ -378,6 +378,62 @@ std::vector<Schritt> modellLeistungSchritte() {
         }));
         return s;
     }
+    // Stufe 3b, BHED_MODELL1_NUR=kurven: Sturmtruppler, die Sequenz der Messung reduziert (Schluessel an allen 53 Knochen), laeuft: ohne
+    // Editor, Dopesheet offen (alle Knochen), Kurveneditor offen (alle 53 Knochen mit 7 Kanaelen, 371 Kurven).
+    if (nur != nullptr && std::strcmp(nur, "kurven") == 0) {
+        add(tu("Modell1: stormtrooper laden, Bereich Animation", [] {
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Modell1: " + fehler); }
+            g_app->leftMode = 2;
+            g_app->mtab.bereich = ModellBereich::Animation;
+            m1Grundlage();
+        }));
+        add(pause(1.0));
+        add(tu("Modell1: die Sequenz der Messung reduziert", [] {
+            m1Grundlage();   // waehlt die Sequenz, die m1Abspielen spielt
+            (void)modellRigAnlegen();
+            const AnimEntry& e = g_app->animList[static_cast<std::size_t>(g_app->animIndex)];
+            modell::RigSchicht r;
+            (void)modell::rigReduzieren(g_app->anim, modell::RigSchicht{}, e.firstFrame, e.numFrames, r, nullptr);
+            g_app->mtab.dok.aendern("Modell1 Reduzieren", [&](modell::Inhalt& in) { in.rig.schichten[e.name] = r; }, false);
+            diag::detail("Knopftest: Modell1 kurven - " + e.name + " " + std::to_string(e.numFrames) + " Frames, " + std::to_string(r.schluesselZahl()) + " Schluessel");
+        }));
+        add(pause(0.5));
+        add(m1Messblock("stormtrooper", "Animation mit reduzierten Schluesseln, ohne Editor", [] {
+            g_app->mtab.kvOffen = false;
+            m1Abspielen();
+        }));
+        add(m1Messblock("stormtrooper", "Dopesheet offen, 53 Knochen", [] {
+            g_app->mtab.kvOffen = true;
+            g_app->mtab.kvArt = 0;
+            g_app->mtab.kvNurAnimierte = true;
+            g_app->mtab.kvNurGewaehlte = false;
+            g_app->mtab.kvEinpassen = true;
+            modellRigGriffWaehlen(-1);
+            m1Abspielen();
+        }));
+        add(pruefe("Modell1 kurven: Dopesheet gezeichnet", [] {
+            diag::detail("Knopftest: Modell1 kurven - Dopesheet " + std::to_string(g_app->mtab.kvRauten) + " Rauten, Editor " + std::to_string(g_app->mtab.kvZeitMs) + " ms");
+            return g_app->mtab.kvRauten > 0;
+        }));
+        add(m1Messblock("stormtrooper", "Kurveneditor offen, 53 Knochen x 7 Kanaele", [] {
+            g_app->mtab.kvArt = 1;
+            g_app->mtab.kvKanalAus.clear();
+            g_app->mtab.kvEinpassen = true;
+            m1Abspielen();
+        }));
+        add(pruefe("Modell1 kurven: Kurveneditor gezeichnet", [] {
+            diag::detail("Knopftest: Modell1 kurven - Kurven " + std::to_string(g_app->mtab.kvKurvenPunkte) + " Punkte, Editor " + std::to_string(g_app->mtab.kvZeitMs) + " ms");
+            return g_app->mtab.kvKurvenPunkte > 0;
+        }));
+        add(tu("Modell1: zurueck", [] {
+            g_app->mtab.kvOffen = false;
+            g_app->mtab.bereich = ModellBereich::Ansehen;
+            g_app->leftMode = 1;
+            g_app->doc.markSaved();
+        }));
+        return s;
+    }
     if (!nurRuhe) { add(m1Messblock("ohne Figur", "ruhig", [] {})); }
     // JKA: Sturmtruppler; JKA mit vielen Flaechen (jedi_hf, 214); Movie Duels
     // mit den meisten Flaechen (jedi_hm, 236) und den meisten Ecken in LOD 0

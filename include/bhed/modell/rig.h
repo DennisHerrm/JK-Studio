@@ -132,8 +132,12 @@ struct Rig {
 
 // M eines Knochens zum Bild (false: keine Schluessel fuer ihn).
 [[nodiscard]] bool rigWert(const RigSchicht& s, int knochen, float bild, BoneMatrix& m);
+// Dasselbe fuer eine Schluesselliste (Stufe 3b: Reduzieren, Kurveneditor).
+[[nodiscard]] bool schluesselWert(const std::vector<RigSchluessel>& v, float bild, BoneMatrix& m);
 // Alle M zum Bild, fuer worldMatricesLerp (nachMal).
 void rigNachMal(const RigSchicht& s, float bild, std::vector<std::pair<int, BoneMatrix>>& aus);
+// Dasselbe fuer worldMatricesLerp(bildA, bildB, anteil): mit Bindebasis umgerechnet (M_eff = B^-1 A^-1 B M, Stufe 3b).
+void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
 // Einen Schluessel setzen (ersetzt einen am selben Bild).
 void rigSchluesselSetzen(RigSchicht& s, int knochen, int bild, const BoneMatrix& m);
 void rigSchluesselLoeschen(RigSchicht& s, int knochen, int bild);
@@ -146,6 +150,9 @@ void rigWelt(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, f
 // `drehung` ist eine reine Drehung (Spalte 3 = 0), `weg` eine Verschiebung in Weltachsen (nur Becken/Wurzel).
 void rigGriffDrehen(const GlaAnimation& g, const Rig& r, int griff, int bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& drehung,
                     const float weg[3], RigSchicht& s);
+
+// Stufe 3b: einen Knochen in Weltachsen verschieben (Bewegungspfad ziehen): X'(b) = T(weg) X(b), ein Schluessel am Bild.
+void rigKnochenVerschieben(const GlaAnimation& g, RigSchicht& s, int knochen, int bild, const std::vector<BoneMatrix>& welt, const float weg[3]);
 
 // --- Posen -----------------------------------------------------------------------------------------------------------
 struct RigPose {

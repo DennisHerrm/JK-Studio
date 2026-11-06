@@ -2274,6 +2274,8 @@ from i18n_mb2 import zeilen_vier as _mb2  # noqa: E402  (Modell-Block Stufe 2: G
 S += _mb2()
 from i18n_mb3 import zeilen_vier as _mb3  # noqa: E402  (Modell-Block Stufe 3: Knochen-Erkennung, Control Rig, Posen, Ghosts, Pfade)
 S += _mb3()
+from i18n_mb3b import zeilen_vier as _mb3b  # noqa: E402  (Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Animationswerkzeuge, Aufraeumen)
+S += _mb3b()
 from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
 S += _r3()
 

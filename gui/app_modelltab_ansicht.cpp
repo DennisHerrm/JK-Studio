@@ -172,7 +172,7 @@ void posieren() {
     }
     // Stufe 3: die Schluessel des Control Rigs (FK wie G2API_SetBoneAngles POSTMULT, siehe bhed/modell/rig.h)
     std::vector<std::pair<int, BoneMatrix>> rigM;
-    modellRigNachMal(static_cast<float>(fA) + (fB != fA ? anteil : 0.0F), rigM);
+    modellRigNachMal(fA, fB, anteil, rigM);
     a.worldMatricesLerp(fA, fB, anteil, ueber, rigM, g_app->modellWelt);
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
 }
@@ -1762,7 +1762,12 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         ImGui::GetMouseDragDelta(ImGuiMouseButton_Right).x == 0.0F && ImGui::GetMouseDragDelta(ImGuiMouseButton_Right).y == 0.0F) {
         t.kontextOeffnen = true;
     }
-    if (!malen && t.modal.art == 0 && t.modalEndeBild != ImGui::GetFrameCount() && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && (!io.KeyAlt || t.auswahlArt != AuswahlArt::Objekt)) {
+    // Stufe 3b: ein Punkt eines Bewegungspfads (Becken/Wurzel) zieht vor Gizmo und Rahmen
+    const bool pfadKlick = !malen && t.modal.art == 0 && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt && modellPfadZiehenStart(a, io.MousePos);
+    if (t.aktiv == n) { modellPfadZiehenWeiter(a); }
+    if (ueber && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { modellPfadTooltip(a, io.MousePos); }
+    if (!pfadKlick && !malen && t.modal.art == 0 && t.modalEndeBild != ImGui::GetFrameCount() && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+        (!io.KeyAlt || t.auswahlArt != AuswahlArt::Objekt)) {
         t.griff = hatMitte ? gizmoGriff(a, mitte, io.MousePos) : 0;
         t.ziehStart[0] = io.MousePos.x;
         t.ziehStart[1] = io.MousePos.y;
@@ -1940,7 +1945,10 @@ void drawModellArbeitsflaeche() {
     // Das Befehlsfeld behaelt seine Breite (die Texte passen hinein), die Ansicht nimmt den Rest.
     const float befehlB = std::max(std::min(fs * 17.0F, frei.x - fs * 8.0F), fs * 8.0F);
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y, 64.0F)};
+    // Stufe 3b: Dopesheet/Kurveneditor unter den Ansichten, solange offen (die Ansichten werden so viel niedriger)
+    if (t.kvOffen && t.kvHoehe <= 0.0F) { t.kvHoehe = fs * 16.0F; }
+    const float editorH = modellAnimEditorHoehe(frei.y);
+    const ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y - (editorH > 0.0F ? editorH + ImGui::GetStyle().ItemSpacing.y : 0.0F), 64.0F)};
     ImGui::BeginChild("mtansichten", ansichtenG, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     for (ModellAnsicht& a : t.ansichten) { a.sichtbar = false; }
     if (t.vierAnsichten) {
@@ -1957,8 +1965,10 @@ void drawModellArbeitsflaeche() {
     ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, ansichtenG.y}, ImGuiChildFlags_Borders);
     drawModellBefehlsfeld();
     ImGui::EndChild();
+    if (editorH > 0.0F) { drawModellAnimEditorUnten(ImVec2{frei.x, editorH}); }
     drawModellAktionen();
     drawModellRigUebersicht();   // Stufe 3
+    drawModellAnimEditor();      // Stufe 3b: Dopesheet / Kurveneditor
     drawModellModusMenue();
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");

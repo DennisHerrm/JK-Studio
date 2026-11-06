@@ -2343,6 +2343,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb2.inc: Modell-Block S
 namespace rig3 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb3.inc: Modell-Block Stufe 3, BHED_HB_NUR=mb3
 }  // namespace rig3
+namespace kv5 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_mb5.inc: Modell-Block Stufe 3b, BHED_HB_NUR=mb5
+}  // namespace kv5
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2364,6 +2367,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb3") == 0) {
         return rig3::handbuchSchritte();   // Modell-Block Stufe 3: Rig, Uebersicht, Ghosts/Pfade, Menue Animation
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb5") == 0) {
+        return kv5::handbuchSchritte();   // Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Werkzeuge, Reduzieren
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

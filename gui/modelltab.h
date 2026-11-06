@@ -11,8 +11,10 @@
 #ifndef BHED_GUI_MODELLTAB_H
 #define BHED_GUI_MODELLTAB_H
 
+#include <array>
 #include <deque>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -25,6 +27,7 @@
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/gewichte.h"
+#include "bhed/modell/animkurven.h"
 #include "bhed/modell/rig.h"
 
 namespace bhed::gpu {
@@ -272,6 +275,68 @@ struct ModellTab {
     int pfadPunkte = 0;
     int pfadSchluessel = 0;
     std::string rigMeldung;
+    // Stufe 3b: Dopesheet und Kurveneditor (app_modelltab_kurven.cpp)
+    bool kvOffen = false;
+    int kvArt = 0;                // 0 Dopesheet, 1 Kurveneditor
+    float kvHoehe = 0.0F;         // unter den Ansichten (0: Vorgabe)
+    std::string kvTitel;          // Selbsttest: der Name des Editors im letzten Bild
+    bool kvEinpassen = true;
+    float kvVon = 0.0F;
+    float kvBis = 40.0F;
+    float kvYVon = -1.0F;
+    float kvYBis = 1.0F;
+    float kvScrollY = 0.0F;
+    bool kvNurAnimierte = true;
+    bool kvNurGewaehlte = true;   // wie Blender (Only Show Selected) und die Spuransicht: die gewaehlten, ohne Wahl alle
+    bool kvHenkelZeigen = true;
+    std::array<char, 6> kvGliedZu{};
+    std::set<int> kvKnochenAuf;
+    std::map<int, unsigned> kvKanalAus;   // je Knochen ausgeblendete Kanaele (Bit je Kanal)
+    modell::Wahl kvWahl;
+    int kvLetzterKnochen = -1;
+    std::vector<std::pair<int, modell::RigSchluessel>> kvAblage;
+    int kvZiehArt = 0;            // 1 Rahmen, 2 Zeit ziehen (Dopesheet), 3 Schluessel (Kurven), 4 Zeit setzen, 5 Henkel
+    float kvZugMaus[2]{};
+    modell::RigSchicht kvZugStart;
+    modell::Wahl kvZugWahl;
+    bool kvZugAngelegt = false;
+    int kvZugKnochen = -1;
+    int kvZugIndex = -1;
+    int kvZugKanal = -1;
+    int kvZugHenkel = 0;
+    int kvModal = 0;              // 1 G, 2 S (Blender)
+    bool kvModalLaeuft = false;
+    int kvModalEndeBild = -1;
+    bool kvHover = false;
+    bool kvHoverVorher = false;
+    int kvRegler = 0;
+    int kvReglerWerkzeug = 0;
+    float kvReglerWert = 0.0F;
+    float kvReglerLo = 0.0F;
+    float kvReglerHi = 1.0F;
+    int kvReglerText = 0;         // Str
+    int kvReglerHinweis = 0;
+    modell::RigSchicht kvReglerStart;
+    bool kvReglerAngewandt = false;
+    bool kvReglerOeffnen = false;
+    int kvReglerSichtbar = -1;
+    bool kvAnimOffset = false;
+    char kvPoseName[64] = {};
+    int kvPoseWahl = -1;
+    modell::ReduzierBericht kvBericht;
+    int kvPfadZug = -1;
+    int kvPfadBild = 0;
+    modell::RigSchicht kvPfadStart;
+    bool kvPfadAngelegt = false;
+    float kvPfadMaus[2]{};
+    float kvPfadOrt[3]{};
+    float kvPfadWeg[3]{};
+    // Selbsttest
+    int kvRauten = 0;
+    int kvKurvenPunkte = 0;
+    int kvAenderungen = 0;
+    int kvGezeichnet = -1;
+    double kvZeitMs = 0.0;
 };
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
@@ -337,7 +402,7 @@ void modellRigAktionAusloesen(int i);
 void modellRigGriffWaehlen(int griff);
 [[nodiscard]] modell::RigSchicht* modellRigSchicht(bool anlegen);   // die Schicht der gewaehlten Sequenz (im Dokument)
 [[nodiscard]] const modell::RigSchicht* modellRigSchichtJetzt();
-void modellRigNachMal(float bild, std::vector<std::pair<int, BoneMatrix>>& aus);
+void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
 [[nodiscard]] bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3]);
 [[nodiscard]] std::vector<gpu::ModellGeist> modellGeister();
 [[nodiscard]] bool modellRigGriffMitte(float m[3]);
@@ -363,6 +428,37 @@ void modellRigZuordnen(int knochen, modell::Rolle rolle, modell::Seite seite);
 bool modellRigTasten();                              // die Tasten der Rig-Aktionen (Bereich Animation)
 bool modellRigAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
 [[nodiscard]] bool modellRigGriffAufSchirm(int griff, ImVec2& out);
+// Stufe 3b (app_modelltab_kurven.cpp): Dopesheet, Kurveneditor, Animationswerkzeuge, Pfade ziehen
+void drawModellAnimEditor();
+[[nodiscard]] float modellAnimEditorHoehe(float frei);   // 0, wenn zu
+void drawModellAnimEditorUnten(ImVec2 groesse);
+void drawModellKurvenBereich();
+void modellKurvenMenue();
+void modellKurvenKontextMenue();
+bool modellKurvenAktionenSuche(const std::string& such);
+bool modellKurvenTasten();
+[[nodiscard]] int modellKurvenAktionZahl();
+[[nodiscard]] const char* modellKurvenAktionText(int i);
+[[nodiscard]] const char* modellKurvenAktionHinweis(int i);
+[[nodiscard]] const char* modellKurvenAktionTaste(int i, bool blender);
+[[nodiscard]] const char* modellKurvenAktionQuelle(int i);
+[[nodiscard]] ImGuiKeyChord modellKurvenAktionChord(int i, bool blender);
+[[nodiscard]] int modellKurvenAktionGruppe(int i);
+[[nodiscard]] const char* modellKurvenGruppeText(int g);
+void modellKurvenAktionAusloesen(int i);
+[[nodiscard]] std::string modellKurvenAktionSuchText(int i);   // die Zeile in der Suche (mit Gruppe und Taste)
+[[nodiscard]] int modellKurvenAktionNach(int text);           // Index zur Kennung (Str), -1 keine
+void modellKurvenAnimOffset(const modell::RigSchicht& vorher, modell::RigSchicht& neu, const std::vector<int>& knochen, int bild);
+bool modellPfadZiehenStart(const ModellAnsicht& a, ImVec2 maus);
+void modellPfadZiehenWeiter(const ModellAnsicht& a);
+[[nodiscard]] bool modellPfadZiehtGerade();
+void modellPfadTooltip(const ModellAnsicht& a, ImVec2 maus);
+[[nodiscard]] bool modellDsRauteAufSchirm(int knochen, int bild, ImVec2& out);
+[[nodiscard]] bool modellKePunktAufSchirm(int knochen, int kanal, int bild, float wert, ImVec2& out);
+[[nodiscard]] bool modellKvZeileAufSchirm(int art, int glied, ImVec2& out);
+[[nodiscard]] float modellKvBildAufSchirm(float bild);
+[[nodiscard]] bool modellKvFeldEnthaelt(ImVec2 p);   // im Zeitfeld des Editors (letztes Bild)
+[[nodiscard]] bool modellPfadPunktAufSchirm(int pfad, int bild, ImVec2& out);
 // Stufe 2 (app_modelltab_mb3.cpp)
 void modellSpeichern(bool unter);
 [[nodiscard]] bool modellUngespeichert();

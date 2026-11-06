@@ -1142,6 +1142,7 @@ void drawModellBefehlsfeld() {
     }
     if (t.bereich == ModellBereich::Animation && !g_app->model.empty()) {
         drawModellRigBereich();       // Stufe 3: Rig, Posen, Ghosts, Pfade, Backen
+        drawModellKurvenBereich();    // Stufe 3b: Editoren, Reduzieren, Spiegeln, Posen-Bibliothek
         drawModellAnimationBereich();   // Stufe 2
     }
     if (!g_app->model.empty()) {
@@ -1544,6 +1545,7 @@ bool modellTasten() {
         mt().modalEndeBild = ImGui::GetFrameCount();
         return true;
     }
+    if (modellKurvenTasten()) { return true; }   // Stufe 3b: Schluessel, Editor-Tasten (Bereich Animation)
     if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
     if (modellBlender()) {
         for (const BlenderTaste& k : blenderTasten()) {
@@ -1632,7 +1634,11 @@ void drawModellAktionen() {
         }
         ImGui::SetItemTooltip("%s", tr(a.hinweis));
     }
-    if (!rigAusgeloest && modellRigAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Stufe 3
+    if (!rigAusgeloest && modellRigAktionenSuche(such)) {   // Stufe 3
+        ImGui::CloseCurrentPopup();
+        rigAusgeloest = true;
+    }
+    if (!rigAusgeloest && modellKurvenAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Stufe 3b
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

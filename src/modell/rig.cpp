@@ -4,6 +4,8 @@
 //   is part of BehavEd-Remake and licensed under the GNU General Public License version 2 or later (LICENSE).
 #include "bhed/modell/rig.h"
 
+#include "bhed/modell/animkurven.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -971,8 +973,15 @@ BoneMatrix ausSchluessel(const RigSchluessel& k) {
     return m;
 }
 
-void slerp(const float a[4], const float b0[4], float t, float out[4]) {
+void slerp(const float a0[4], const float b0[4], float t, float out[4]) {
+    // Stufe 3b: die Schieber aendern die Kanaele einzeln (wie Blender), q ist dann nicht mehr ganz Einheit - normiert
+    float a[4] = {a0[0], a0[1], a0[2], a0[3]};
     float b[4] = {b0[0], b0[1], b0[2], b0[3]};
+    for (float* x : {a, b}) {
+        const double l = std::sqrt(static_cast<double>(x[0]) * x[0] + static_cast<double>(x[1]) * x[1] + static_cast<double>(x[2]) * x[2] +
+                                   static_cast<double>(x[3]) * x[3]);
+        for (int k = 0; k < 4 && l > 0.0; ++k) { x[k] = static_cast<float>(x[k] / l); }
+    }
     double d = 0.0;
     for (int k = 0; k < 4; ++k) { d += static_cast<double>(a[k]) * static_cast<double>(b[k]); }
     if (d < 0.0) {
@@ -1016,7 +1025,10 @@ bool RigSchicht::hatSchluessel(int k, int bild) const noexcept {
 
 bool rigWert(const RigSchicht& s, int k, float bild, BoneMatrix& m) {
     if (k < 0 || static_cast<std::size_t>(k) >= s.knochen.size()) { return false; }
-    const auto& v = s.knochen[static_cast<std::size_t>(k)];
+    return schluesselWert(s.knochen[static_cast<std::size_t>(k)], bild, m);
+}
+
+bool schluesselWert(const std::vector<RigSchluessel>& v, float bild, BoneMatrix& m) {
     if (v.empty()) { return false; }
     if (bild <= static_cast<float>(v.front().bild)) {
         m = ausSchluessel(v.front());
@@ -1028,10 +1040,22 @@ bool rigWert(const RigSchicht& s, int k, float bild, BoneMatrix& m) {
     }
     for (std::size_t i = 0; i + 1 < v.size(); ++i) {
         if (bild >= static_cast<float>(v[i].bild) && bild <= static_cast<float>(v[i + 1].bild)) {
-            const float t = (bild - static_cast<float>(v[i].bild)) / static_cast<float>(std::max(v[i + 1].bild - v[i].bild, 1));
+            if (bild == static_cast<float>(v[i + 1].bild)) {
+                m = ausSchluessel(v[i + 1]);
+                return true;
+            }
             RigSchluessel z;
-            slerp(v[i].q, v[i + 1].q, t, z.q);
-            for (int a = 0; a < 3; ++a) { z.t[a] = v[i].t[a] + (v[i + 1].t[a] - v[i].t[a]) * t; }
+            // Stufe 3b: der linke Schluessel bestimmt den Abschnitt (wie BezTriple::ipo, fcurve_eval_keyframes_interpolate)
+            if (v[i].interp == Interp::Konstant) {
+                z = v[i];
+            } else if (v[i].interp == Interp::Bezier) {
+                // je Kanal eine F-Kurve wie Blender, das Quaternion danach normiert (BKE_pchan_to_mat4: normalize_qt_qt)
+                for (int c = 0; c < kKanaele; ++c) { kanalSetzen(z, c, kanalAuswerten(v, c, bild)); }
+            } else {
+                const float t = (bild - static_cast<float>(v[i].bild)) / static_cast<float>(std::max(v[i + 1].bild - v[i].bild, 1));
+                slerp(v[i].q, v[i + 1].q, t, z.q);
+                for (int a = 0; a < 3; ++a) { z.t[a] = v[i].t[a] + (v[i + 1].t[a] - v[i].t[a]) * t; }
+            }
             m = ausSchluessel(z);
             return true;
         }
@@ -1054,45 +1078,79 @@ void rigSchluesselSetzen(RigSchicht& s, int k, int bild, const BoneMatrix& m) {
     auto& v = s.knochen[static_cast<std::size_t>(k)];
     RigSchluessel neu;
     neu.bild = bild;
+    neu.interp = s.neuInterp;
     quatAusMatrix(m, neu.q);
     neu.t[0] = m.m[0][3];
     neu.t[1] = m.m[1][3];
     neu.t[2] = m.m[2][3];
     const auto it = std::lower_bound(v.begin(), v.end(), bild, [](const RigSchluessel& a, int b) { return a.bild < b; });
+    // Stufe 3b: q in der Halbkugel des Nachbarn (die Kanaele liefen sonst ueber 0; q und -q drehen gleich)
+    const RigSchluessel* nachbar = nullptr;
+    if (it != v.begin()) {
+        nachbar = &*(it - 1);
+    } else if (it != v.end() && it->bild != bild) {
+        nachbar = &*it;
+    } else if (it != v.end() && it + 1 != v.end()) {
+        nachbar = &*(it + 1);
+    }
+    if (nachbar != nullptr && neu.q[0] * nachbar->q[0] + neu.q[1] * nachbar->q[1] + neu.q[2] * nachbar->q[2] + neu.q[3] * nachbar->q[3] < 0.0F) {
+        for (float& x : neu.q) { x = -x; }
+    }
     if (it != v.end() && it->bild == bild) {
-        *it = neu;
+        // ersetzt: Interpolation und Henkel bleiben (die Henkel sind relativ, sie gehen mit dem Wert)
+        std::memcpy(it->q, neu.q, sizeof neu.q);
+        std::memcpy(it->t, neu.t, sizeof neu.t);
     } else {
         v.insert(it, neu);
     }
+    henkelNeu(v);
 }
 
 void rigSchluesselLoeschen(RigSchicht& s, int k, int bild) {
     if (k < 0 || static_cast<std::size_t>(k) >= s.knochen.size()) { return; }
     auto& v = s.knochen[static_cast<std::size_t>(k)];
     v.erase(std::remove_if(v.begin(), v.end(), [&](const RigSchluessel& x) { return x.bild == bild; }), v.end());
+    henkelNeu(v);
+}
+
+void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
+    rigNachMal(s, static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F), aus);
+    if (!s.bindeBasis) { return; }
+    // Bindebasis: X = X(p) B(p)^-1 B M soll gelten; worldMatricesLerp rechnet X(p) B(p)^-1 A B M_eff, also
+    // M_eff = B^-1 A^-1 B M mit A wie dort (localMatrixLerp)
+    for (auto& [k, m] : aus) {
+        if (k < 0 || static_cast<std::size_t>(k) >= g.bones.size()) { continue; }
+        const GlaBone& kb = g.bones[static_cast<std::size_t>(k)];
+        const BoneMatrix a = g.localMatrixLerp(bildA, bildB, bildB != bildA ? anteil : 0.0F, k);
+        m = kb.basePoseInv * starrInvers(a) * kb.basePose * m;
+    }
 }
 
 void rigWelt(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<BoneMatrix>& welt) {
     std::vector<std::pair<int, BoneMatrix>> nach;
-    rigNachMal(s, static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F), nach);
+    rigNachMalAuf(g, s, bildA, bildB, anteil, nach);
     g.worldMatricesLerp(bildA, bildB, anteil, {}, nach, welt);
 }
 
 namespace {
 
-// M eines Knochens am Bild (Einheit ohne Schluessel)
-BoneMatrix wertOder(const RigSchicht& s, int k, int bild) {
+// M eines Knochens am Bild (Einheit ohne Schluessel; mit Bindebasis ohne Schluessel B^-1 A B - dieselbe Lage wie die GLA)
+BoneMatrix wertOder(const GlaAnimation& g, const RigSchicht& s, int k, int bild) {
     BoneMatrix m = BoneMatrix::identity();
-    (void)rigWert(s, k, static_cast<float>(bild), m);
+    if (rigWert(s, k, static_cast<float>(bild), m)) { return m; }
+    if (s.bindeBasis && k >= 0 && static_cast<std::size_t>(k) < g.bones.size()) {
+        const GlaBone& kb = g.bones[static_cast<std::size_t>(k)];
+        return kb.basePoseInv * g.localMatrix(bild, k) * kb.basePose;
+    }
     return m;
 }
 
 // X'(b) := T(P) R T(-P) X'(b): M_neu = M_alt * X'(b)^-1 T(P) R T(-P) X'(b)
-void weltDrehungAuf(RigSchicht& s, int k, int bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& um) {
+void weltDrehungAuf(const GlaAnimation& g, RigSchicht& s, int k, int bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& um) {
     if (k < 0 || static_cast<std::size_t>(k) >= welt.size()) { return; }
     const BoneMatrix& x = welt[static_cast<std::size_t>(k)];
     const BoneMatrix zusatz = starrInvers(x) * um * x;
-    rigSchluesselSetzen(s, k, bild, wertOder(s, k, bild) * zusatz);
+    rigSchluesselSetzen(s, k, bild, wertOder(g, s, k, bild) * zusatz);
 }
 
 BoneMatrix umPunkt(const BoneMatrix& r, const float p[3]) {
@@ -1104,7 +1162,6 @@ BoneMatrix umPunkt(const BoneMatrix& r, const float p[3]) {
 
 void rigGriffDrehen(const GlaAnimation& g, const Rig& r, int griff, int bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& drehung,
                     const float weg[3], RigSchicht& s) {
-    (void)g;
     if (griff < 0 || static_cast<std::size_t>(griff) >= r.griffe.size()) { return; }
     const Griff& gr = r.griffe[static_cast<std::size_t>(griff)];
     if (gr.ik || gr.knochen < 0 || static_cast<std::size_t>(gr.knochen) >= welt.size()) { return; }
@@ -1112,8 +1169,8 @@ void rigGriffDrehen(const GlaAnimation& g, const Rig& r, int griff, int bild, co
     ort(welt[static_cast<std::size_t>(gr.knochen)], p);
     BoneMatrix um = umPunkt(drehung, p);
     if (weg != nullptr && (weg[0] != 0.0F || weg[1] != 0.0F || weg[2] != 0.0F)) { um = verschiebung(weg) * um; }
-    weltDrehungAuf(s, gr.knochen, bild, welt, um);
-    for (const int c : gr.mit) { weltDrehungAuf(s, c, bild, welt, um); }
+    weltDrehungAuf(g, s, gr.knochen, bild, welt, um);
+    for (const int c : gr.mit) { weltDrehungAuf(g, s, c, bild, welt, um); }
     // Drehknochen: Anteil der Drehung um die Achse des Segments (twistVon -> knochen), am Drehknochen
     if (gr.twist >= 0 && gr.twistVon >= 0 && static_cast<std::size_t>(gr.twist) < welt.size() && static_cast<std::size_t>(gr.twistVon) < welt.size()) {
         float a[3];
@@ -1130,9 +1187,13 @@ void rigGriffDrehen(const GlaAnimation& g, const Rig& r, int griff, int bild, co
             const float grad = 2.0F * std::atan2(proj, q[0]) * 180.0F / kPi;   // Twist-Anteil (Swing-Twist-Zerlegung)
             float px[3];
             ort(welt[static_cast<std::size_t>(gr.twist)], px);
-            weltDrehungAuf(s, gr.twist, bild, welt, umPunkt(drehungUm(achse, grad * gr.twistAnteil), px));
+            weltDrehungAuf(g, s, gr.twist, bild, welt, umPunkt(drehungUm(achse, grad * gr.twistAnteil), px));
         }
     }
+}
+
+void rigKnochenVerschieben(const GlaAnimation& g, RigSchicht& s, int knochen, int bild, const std::vector<BoneMatrix>& welt, const float weg[3]) {
+    weltDrehungAuf(g, s, knochen, bild, welt, verschiebung(weg));
 }
 
 // --- Posen -------------------------------------------------------------------------------------------------------------
@@ -1148,10 +1209,11 @@ RigPose poseAus(const GlaAnimation& g, const std::vector<BoneMatrix>& welt) {
 
 namespace {
 
-// L(b) zum Bild ohne Schicht: B(p)^-1 A(b) B(b), an der Wurzel A(b) B(b).
-BoneMatrix relativ(const GlaAnimation& g, int b, int bild) {
+// L(b) zum Bild ohne Schicht: B(p)^-1 A(b) B(b), an der Wurzel A(b) B(b). Mit Bindebasis ist A die Einheit (die
+// Schluessel beschreiben den Knochen ganz).
+BoneMatrix relativ(const GlaAnimation& g, const RigSchicht& s, int b, int bild) {
     const GlaBone& kb = g.bones[static_cast<std::size_t>(b)];
-    const BoneMatrix a = g.localMatrix(bild, b);
+    const BoneMatrix a = s.bindeBasis ? BoneMatrix::identity() : g.localMatrix(bild, b);
     if (kb.parent < 0 || static_cast<std::size_t>(kb.parent) >= g.bones.size()) { return a * kb.basePose; }
     return g.bones[static_cast<std::size_t>(kb.parent)].basePoseInv * a * kb.basePose;
 }
@@ -1203,7 +1265,7 @@ int poseEinfuegen(const GlaAnimation& g, const Rig& r, const RigPose& p, bool ge
             if (da[static_cast<std::size_t>(par)] == 0) { continue; }
             lStern = starrInvers(ziel[static_cast<std::size_t>(par)]) * ziel[static_cast<std::size_t>(b)];
         }
-        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, b, bild)) * lStern);
+        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, s, b, bild)) * lStern);
         ++gesetzt;
     }
     return gesetzt;
@@ -1216,7 +1278,7 @@ int bindePose(const GlaAnimation& g, int bild, const std::vector<int>& nurKnoche
         if (!nurKnochen.empty() && std::find(nurKnochen.begin(), nurKnochen.end(), b) == nurKnochen.end()) { continue; }
         const GlaBone& kb = g.bones[static_cast<std::size_t>(b)];
         const BoneMatrix lBinde = (kb.parent < 0 || kb.parent >= n) ? kb.basePose : g.bones[static_cast<std::size_t>(kb.parent)].basePoseInv * kb.basePose;
-        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, b, bild)) * lBinde);
+        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, s, b, bild)) * lBinde);
         ++gesetzt;
     }
     return gesetzt;
@@ -1250,7 +1312,7 @@ int handPoseSetzen(const GlaAnimation& g, const Rig& r, Seite seite, int quellBi
         const int par = g.bones[static_cast<std::size_t>(b)].parent;
         const BoneMatrix lStern = (par < 0 || par >= n) ? ziel[static_cast<std::size_t>(b)]
                                                         : starrInvers(ziel[static_cast<std::size_t>(par)]) * ziel[static_cast<std::size_t>(b)];
-        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, b, bild)) * lStern);
+        rigSchluesselSetzen(s, b, bild, starrInvers(relativ(g, s, b, bild)) * lStern);
     }
     return static_cast<int>(finger.size());
 }
@@ -1306,7 +1368,8 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
                 BoneMatrix a = q.localMatrix(f, b);
                 if (mJe[static_cast<std::size_t>(b)] != nullptr) {
                     const GlaBone& kb = q.bones[static_cast<std::size_t>(b)];
-                    a = a * kb.basePose * *mJe[static_cast<std::size_t>(b)] * kb.basePoseInv;
+                    // Stufe 3b, Bindebasis: A' = B M B^-1 (ohne die Bilder der GLA)
+                    a = (s.bindeBasis ? kb.basePose : a * kb.basePose) * *mJe[static_cast<std::size_t>(b)] * kb.basePoseInv;
                 }
                 g2::Mat3x4 m;
                 std::memcpy(m.m, a.m, sizeof m.m);

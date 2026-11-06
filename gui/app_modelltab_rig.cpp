@@ -167,7 +167,11 @@ void schichtAendern(Str was, const std::function<void(modell::RigSchicht&)>& f) 
     ModellTab& t = mt();
     const AnimEntry* e = sequenz();
     const std::string name = e != nullptr ? e->name : std::string();
-    t.dok.aendern(tr(was), [&](modell::Inhalt& in) { f(in.rig.schichten[name]); }, false);
+    t.dok.aendern(tr(was), [&](modell::Inhalt& in) {
+        modell::RigSchicht& sch = in.rig.schichten[name];
+        sch.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender
+        f(sch);
+    }, false);
     g_app->modelDirty = true;
 }
 
@@ -309,13 +313,18 @@ bool modellRigAktionenSuche(const std::string& such) {
     return false;
 }
 
-void modellAnimationMenue() { aktionenAlsMenue(-1); }
+void modellAnimationMenue() {
+    aktionenAlsMenue(-1);
+    ImGui::Separator();
+    modellKurvenMenue();   // Stufe 3b: Animationswerkzeuge
+}
 
 void modellRigKontextMenue() {
     if (ImGui::BeginMenu(tr(Str::MbRgGruppeRig))) {
         aktionenAlsMenue(-1);
         ImGui::EndMenu();
     }
+    modellKurvenKontextMenue();   // Stufe 3b
 }
 
 // --- Rig anlegen ----------------------------------------------------------------------------------------------------------
@@ -399,7 +408,7 @@ const modell::RigSchicht* modellRigSchichtJetzt() {
     return it == in.rig.schichten.end() ? nullptr : &it->second;
 }
 
-void modellRigNachMal(float bild, std::vector<std::pair<int, BoneMatrix>>& aus) {
+void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
     aus.clear();
     const modell::RigSchicht* s = modellRigSchichtJetzt();
     if (s == nullptr) { return; }
@@ -407,8 +416,9 @@ void modellRigNachMal(float bild, std::vector<std::pair<int, BoneMatrix>>& aus) 
     int anzahl = 0;
     bereich(erstes, anzahl);
     // die Schicht gehoert zur Sequenz: ausserhalb ihrer Bilder wirkt sie nicht
+    const float bild = static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F);
     if (bild < static_cast<float>(erstes) || bild > static_cast<float>(erstes + anzahl)) { return; }
-    modell::rigNachMal(*s, bild, aus);
+    modell::rigNachMalAuf(g_app->anim, *s, bildA, bildB, anteil, aus);   // Stufe 3b: mit Bindebasis umgerechnet
 }
 
 namespace {
@@ -416,7 +426,7 @@ namespace {
 // Die Welt eines Bilds der gewaehlten Sequenz mit ihrer Schicht.
 void weltBei(int bild, std::vector<BoneMatrix>& welt) {
     std::vector<std::pair<int, BoneMatrix>> m;
-    modellRigNachMal(static_cast<float>(bild), m);
+    modellRigNachMal(bild, bild, 0.0F, m);
     g_app->anim.worldMatricesLerp(bild, bild, 0.0F, {}, m, welt);
 }
 
@@ -483,7 +493,9 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
         std::memcpy(weg, wert, sizeof weg);
     }
     modell::RigSchicht neu = t.rigSchichtStart;
+    neu.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
     modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
+    modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);   // Stufe 3b
     const AnimEntry* e = sequenz();
     const std::string name = e != nullptr ? e->name : std::string();
     t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
@@ -541,8 +553,10 @@ bool modellRigModalTasten() {
             // um die Blickachse: als Drehung zerlegt in die Weltachsen geht nicht - eigene Drehung
             if (!t.rigZieht) { modellRigZiehen(2, wert); }
             modell::RigSchicht neu = t.rigSchichtStart;
+            neu.neuInterp = modell::Interp::Bezier;
             const float nichts[3] = {0.0F, 0.0F, 0.0F};
             modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, modell::drehungUm(blick, grad), nichts, neu);
+            modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);
             const AnimEntry* e = sequenz();
             const std::string name = e != nullptr ? e->name : std::string();
             t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);

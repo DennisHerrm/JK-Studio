@@ -3044,6 +3044,8 @@ from i18n_mb2 import texte as _mb2  # noqa: E402
 TEXTE.update(_mb2("cs"))
 from i18n_mb3 import texte as _mb3  # noqa: E402
 TEXTE.update(_mb3("cs"))
+from i18n_mb3b import texte as _mb3b  # noqa: E402
+TEXTE.update(_mb3b("cs"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("cs"))
 
