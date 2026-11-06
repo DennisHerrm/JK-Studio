@@ -333,6 +333,8 @@ bool beendenFrage() {
     return false;
 }
 
+void beendenVergessen() { g().beendenBeantwortet = false; }
+
 bool karteDateiSchreiben(const std::string& pfad, const std::string& text) { return dateiSchreibenMitMeldung(pfad, text); }
 
 bool karteDateiLesen(const std::string& pfad, std::string& text) {   // MapResource_loadFile

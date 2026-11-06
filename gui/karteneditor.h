@@ -1681,6 +1681,9 @@ void rueckfrageDann(const char* titel, std::function<void()> danach);
 // Lumps fragen (ConfirmModified "Exit Radiant"); der Map Editor kommt dazu nach vorn. true: weiter beenden; false: es wird gefragt,
 // die Antwort ruft confirmQuit wieder.
 [[nodiscard]] bool beendenFrage();
+// Endrunde rc610: das Beenden wurde nach der Kartenfrage abgebrochen (eine spaetere Frage mit Nein/Abbrechen) - das naechste
+// Beenden fragt wieder nach der Karte.
+void beendenVergessen();
 // rc610 F23 (B2-3): nur die Frage nach den ungespeicherten Lumps der .bsp (Fenster "Shader und Flaechen"), dann danach.
 void lumpRueckfrage(const std::string& titel, std::function<void()> danach);
 // Entity_reloadDefinitions: die Klassen neu lesen und die Karte neu laden

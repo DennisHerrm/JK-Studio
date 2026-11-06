@@ -5167,7 +5167,7 @@ bool missionBeendenFrage() {
               }
           },
           [] {
-              updater::neustartVergessen();
+              beendenAbgebrochen();
               g_app->missionSpeichernOffen = g_app->missionAktiv;
           });
     return false;

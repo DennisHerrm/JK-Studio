@@ -4075,6 +4075,16 @@ bool gizmoWriteBack() {
     return true;
 }
 
+// Das Beenden wurde bei einer Frage abgebrochen: das naechste Beenden fragt alles wieder (Endrunde rc610: die Antwort auf die
+// Kartenfrage und die Entities-Frage blieben sonst stehen, und das Kreuz fragte danach nicht mehr nach einer wieder
+// geaenderten Karte oder neuen Entities).
+void beendenAbgebrochen() {
+    g_app->quitAskFrom = 0;
+    g_app->entFrageBeantwortet = false;
+    karteneditor::beendenVergessen();
+    updater::neustartVergessen();   // "Neu starten" ebenso abgebrochen
+}
+
 bool confirmQuit() {
     // Schon beantwortet? Dann nicht nochmal fragen.
     //
@@ -4146,8 +4156,7 @@ bool confirmQuit() {
         [] {
             // Abgebrochen: die Kette faengt beim naechsten Versuch von
             // vorn an. Sonst uebersaehe sie die schon gefragten Reiter.
-            g_app->quitAskFrom = 0;
-            updater::neustartVergessen();   // "Neu starten" ebenso abgebrochen
+            beendenAbgebrochen();
             // Und zurueck in den Reiter, in dem man gearbeitet hat - sonst
             // stand man im gefragten, waehrend das Band den alten zeigte.
             const int z = g_app->quitZurueck;
@@ -4167,7 +4176,7 @@ bool confirmQuit() {
             frage(tr(Str::AskExit), [] {
                 g_app->quitConfirmed = true;
                 g_app->wantQuit = true;
-            }, [] { updater::neustartVergessen(); });
+            }, [] { beendenAbgebrochen(); });
         }
         return false;
     }

@@ -359,6 +359,58 @@ std::vector<Schritt> schliessenSchritte() {
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     auto merk = std::make_shared<bool>(false);
     auto antwort = std::make_shared<int>(-1);
+    // Endrunde rc610 (voller karteneditor-Lauf): File > Exit, die Karte verworfen, dann "Exit?" mit Nein - das Programm laeuft
+    // weiter, die Karte wird wieder geaendert. Das Kreuz muss dann wieder nach der Karte fragen (beendenBeantwortet blieb stehen).
+    auto frageKam = std::make_shared<bool>(false);
+    add(tu("R2a Schliessen: File > Exit, Karte verwerfen, \"Exit?\" Nein, Karte wieder aendern, Kreuz", [merk, antwort, frageKam] {
+        karteDialogeZu();
+        ke::Editor& e = ke::editor();
+        e.karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        (void)e.karte.weltHolenOderAnlegen();
+        {
+            karte::Befehl b(e.karte.undo, "brushCreate");
+            (void)stufe2::testPinsel(karte::Vektor3f(0, 0, 0), karte::Vektor3f(64, 64, 64), kStein);
+        }
+        *merk = g_app->settings.queryOnDiscard;
+        g_app->settings.queryOnDiscard = true;
+        g_app->quitConfirmed = false;
+        g_app->wantQuit = false;
+        (void)ke::ausfuehren("Exit");
+        std::function<void()> verwerfen = std::move(e.nachFrage);   // Rueckfrage "Exit Radiant": Discard
+        e.nachFrage = nullptr;
+        e.frageOffen = false;
+        if (verwerfen) { verwerfen(); }
+        g_app->wantQuit = false;   // falls doch nicht gefragt wurde: nicht wirklich beenden (die Pruefung meldet es)
+        g_app->quitConfirmed = false;
+        std::function<void()> nein = std::move(g_app->frageNein);   // "Exit?": Nein
+        *frageKam = static_cast<bool>(nein);
+        g_app->frageJa = nullptr;
+        g_app->frageNein = nullptr;
+        g_app->frageOffen = false;
+        if (nein) { nein(); }
+        {
+            karte::Befehl b(e.karte.undo, "brushCreate");
+            (void)stufe2::testPinsel(karte::Vektor3f(128, 0, 0), karte::Vektor3f(192, 64, 64), kStein);
+        }
+        g_app->settings.queryOnDiscard = *merk;
+        *antwort = confirmQuit() ? 1 : 0;
+    }));
+    add(pause(0.3));
+    add(pruefe("R2a Schliessen: nach abgebrochenem Beenden fragt das Kreuz wieder nach der geaenderten Karte", [antwort, frageKam] {
+        const ke::Editor& e = ke::editor();
+        diag::detail("Knopftest: R2a Schliessen nach Abbruch - \"Exit?\" " + std::string(*frageKam ? "ja" : "nein") + ", confirmQuit " +
+                     std::to_string(*antwort) + ", Frage " + (e.frageOffen ? "ja" : "nein"));
+        return *frageKam && *antwort == 0 && e.frageOffen && !g_app->wantQuit;
+    }));
+    add(tu("R2a Schliessen: die Frage schliessen (Cancel), Karte als gespeichert", [] {
+        ke::Editor& e = ke::editor();
+        e.nachFrage = nullptr;
+        e.frageOffen = false;
+        e.karte.undo.alsGespeichertMarkieren();
+        g_app->quitConfirmed = false;
+        g_app->wantQuit = false;
+    }));
     add(tu("R2a Schliessen: neue Karte mit einem Pinsel (ungespeichert), Kreuz des Hauptfensters (confirmQuit)", [merk, antwort] {
         karteDialogeZu();
         ke::Editor& e = ke::editor();

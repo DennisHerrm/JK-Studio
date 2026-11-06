@@ -3531,6 +3531,8 @@ void loadMap(const std::string& path);
 void loadMapFromBytes(const std::string& bytes, const std::string& shownPath);
 // Darf beendet werden? Prueft ALLE Reiter, nicht nur den aktiven.
 bool confirmQuit();
+// Eine Frage beim Beenden wurde abgebrochen: das naechste Beenden fragt wieder von vorn (Karte, Entities, Reiter).
+void beendenAbgebrochen();
 // Die Gizmo-Vorschau ins Skript schreiben - ueber replaceAt, also mit
 // Rueckgaengig.
 bool gizmoWriteBack();

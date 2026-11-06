@@ -4208,9 +4208,11 @@ bool beendenAngestossen() {
                  " frage " + std::to_string(g_app->frageOffen) + " " + g_app->frageText);
     const bool ja = g_app->wantQuit || g_app->askSaveOpen || g_app->frageOffen;
     if (g_app->frageOffen) {   // "Exit?" (queryOnDiscard) bzw. eine Frage des Programms: Nein
+        std::function<void()> nein = std::move(g_app->frageNein);
         g_app->frageOffen = false;
         g_app->frageJa = nullptr;
         g_app->frageNein = nullptr;
+        if (nein) { nein(); }
     }
     g_app->wantQuit = false;
     g_app->quitConfirmed = false;
@@ -4221,7 +4223,7 @@ bool beendenAngestossen() {
         g_app->askSaveThen = nullptr;
         if (abbruch) { abbruch(); }
     }
-    g_app->quitAskFrom = 0;
+    beendenAbgebrochen();   // zurueckgenommen wie ein Abbrechen: das naechste Beenden fragt wieder nach der Karte
     return ja;
 }
 
