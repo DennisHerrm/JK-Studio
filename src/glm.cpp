@@ -330,8 +330,13 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
                         static_cast<unsigned char>(b[o + 28 + static_cast<std::size_t>(k)]));
                     const std::uint32_t upper =
                         (packed >> (20 + 2 * static_cast<std::uint32_t>(k))) & 0x3U;
-                    gv.weights[k] =
-                        static_cast<float>(lower | (upper << 8)) / 1023.0F;
+                    // mb1a2: mit dem Kehrwert MULTIPLIZIERT wie dort
+                    // (fG2_BONEWEIGHT_RECIPROCAL_MULT * iTemp, mdx_format.h:82,
+                    // 347) - geteilt durch 1023 sind 24 der 1024 Werte ein Bit
+                    // anders, und mit ihnen der Rest fuer das letzte Gewicht
+                    // (ctest modell_gewichte).
+                    gv.weights[k] = static_cast<float>(1.0F / 1023.0F) *
+                                    static_cast<float>(lower | (upper << 8));
                     total += gv.weights[k];
                 }
             }

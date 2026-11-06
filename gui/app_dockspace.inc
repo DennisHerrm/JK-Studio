@@ -107,10 +107,11 @@ std::vector<Blatt> blaetter(int b) {
         return {{"mission.modus", Str::DockPanels}, {"mission.ebenen", Str::EntityLayers}, {"mission.ansicht", Str::DockPanelMapView},
                 {"mission.fluss", Str::GroupScriptFlow}, {"mission.zeitleiste", Str::DockPanelTimeline}};
     }
-    if (b == 2) {
-        return {{"modell.modus", Str::DockPanels},        {"modell.animationen", Str::ModelAnimations},
-                {"modell.ansicht", Str::DockPanelModelView}, {"modell.fluss", Str::GroupScriptFlow},
-                {"modell.aktionen", Str::GroupActions},   {"modell.leiste", Str::DockPanelModelBar}};
+    if (b == 2) {   // mb1a2: ohne Script Flow und Actions (nur zum Modellieren)
+        return {{"modell.modus", Str::DockPanels},
+                {"modell.animationen", Str::ModelAnimations},
+                {"modell.ansicht", Str::DockPanelModelView},
+                {"modell.leiste", Str::DockPanelModelBar}};
     }
     return {{"ereignisse.modus", Str::DockPanels},
             {"ereignisse.liste", Str::GroupEvents},
@@ -239,6 +240,13 @@ bool uebernehmen(int b) {
     const ImGuiDockNode* n = ImGui::DockBuilderGetNode(id);
     if (n == nullptr || !n->IsDockSpace()) { return false; }
     const std::vector<Blatt> p = blaetter(b);
+    // mb1a2: ein gespeicherter Baum des Model-Tabs aus der Zeit mit Script Flow und Actions hat mehr Knoten, als es Panels gibt
+    // - deren Knoten blieben leer stehen. Dann die Standardanordnung (die Panels ohne die beiden).
+    if (knotenZaehlen(n) > static_cast<int>(2 * p.size() - 1)) {
+        diag::detail("Fenster: gespeicherter DockSpace von Bereich " + std::to_string(b) + " hat " + std::to_string(knotenZaehlen(n)) +
+                     " Knoten fuer " + std::to_string(p.size()) + " Panels - Standardanordnung");
+        return false;
+    }
     for (const Blatt& x : p) {
         const std::string name = fensterName(x);
         if (ImGui::FindWindowByName(name.c_str()) == nullptr && ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())) == nullptr) {
@@ -425,7 +433,8 @@ bool draussen(const std::string& panel);
 // Tabelle und des Bandes, dann die Panels in ihren Knoten.
 void zeichnen(const Layout& l) {
     const int b = g_app->leftMode;
-    if (b < 0 || b > 2 || g_mess.aussenN < 2 || g_mess.innenN < 2) { return; }
+    // mb1a2: der Model-Tab misst nur eine aeussere Spalte (keine Script-Flow- und Actions-Spalte)
+    if (b < 0 || b > 2 || g_mess.aussenN < (b == 2 ? 1 : 2) || g_mess.innenN < 2) { return; }
     const ImGuiStyle& st = ImGui::GetStyle();
     const float kanteH = (b == 1) ? std::max(4.0F, st.ItemSpacing.y) + st.ItemSpacing.y : 0.0F;
     // g_mess.unten ist das Zeilenende der alten Tabelle; dort beginnt (mit dem

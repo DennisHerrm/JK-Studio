@@ -1348,10 +1348,8 @@ S = [
     ("ModelAnimSearch", "Search animation...", "Animation suchen...", "搜索动画...", "アニメーションを検索..."),
     ("ModelAnimAll", "All", "Alle", "全部", "すべて"),
     ("ModelAnimToScript", "Into script", "Ins Skript", "插入脚本", "スクリプトへ"),
-    ("ModelAnimToScriptHint", "Adds set ( SET_ANIM_BOTH / UPPER / LOWER, \"name\" ) after the selected line of the open script. Double-click an animation does the same.", "Fügt set ( SET_ANIM_BOTH / UPPER / LOWER, \"Name\" ) hinter der gewählten Zeile des offenen Skripts ein. Doppelklick auf eine Animation tut dasselbe.", "在打开脚本的所选行之后添加 set ( SET_ANIM_BOTH / UPPER / LOWER, \"名称\" )。双击动画效果相同。", "開いているスクリプトの選択行の後に set ( SET_ANIM_BOTH / UPPER / LOWER, \"名前\" ) を追加。アニメーションのダブルクリックでも同じ。"),
     ("ModelAnimRowHint", "%d {frame|frames}, %.2f s at %d fps - click plays, double-click puts it into the script", "%d {Bild|Bilder}, %.2f s bei %d fps - Klick spielt ab, Doppelklick setzt sie ins Skript", "%d 帧,%.2f 秒,%d fps - 单击播放,双击插入脚本", "%d フレーム、%.2f 秒、%d fps - クリックで再生、ダブルクリックでスクリプトへ"),
     ("ModelAnimNone", "No animation matches", "Keine Animation passt", "没有匹配的动画", "一致するアニメーションがありません"),
-    ("ModelAnimInserted", "%s put into the script", "%s ins Skript gesetzt", "%s 已插入脚本", "%s をスクリプトに追加"),
     ("ModelPrevFrame", "Previous frame", "Bild zurück", "上一帧", "前のフレーム"),
     ("ModelNextFrame", "Next frame", "Bild vor", "下一帧", "次のフレーム"),
     ("EntAnimate", "Animate", "Animieren", "动画", "アニメート"),
@@ -2270,6 +2268,8 @@ from i18n_rc610_r2a import zeilen_vier as _rc610_r2a  # noqa: E402  (rc610 R2a: 
 S += _rc610_r2a()
 from i18n_mb1a1 import zeilen_vier as _mb1a1  # noqa: E402  (Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen, wie 3ds Max)
 S += _mb1a1()
+from i18n_mb1a2 import zeilen_vier as _mb1a2  # noqa: E402  (Modell-Block 1a-2: Weights, wie Blender, Model-Tab ohne Skriptteile)
+S += _mb1a2()
 from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
 S += _r3()
 

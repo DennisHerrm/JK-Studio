@@ -184,6 +184,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rc609_t1()})
             from i18n_mb1a1 import zeilen_vier as _mb1a1   # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen, wie 3ds Max
             texte.update({e[0]: e[1:] for e in _mb1a1()})
+            from i18n_mb1a2 import zeilen_vier as _mb1a2   # Modell-Block 1a-2: Weights, wie Blender, Ins Skript
+            texte.update({e[0]: e[1:] for e in _mb1a2()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

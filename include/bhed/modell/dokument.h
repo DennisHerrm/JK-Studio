@@ -46,6 +46,13 @@ struct Ecke {
 
 // Eine Halbkante: vom Punkt ihrer Ecke zum Punkt der naechsten Kante im
 // selben Dreieck. Dreieck t besteht aus den Kanten 3t, 3t+1, 3t+2.
+// Modell-Block 1a-2: ein Knochen mit Gewicht in einer Malliste (siehe gewichte.h).
+struct KnochenGewicht {
+    int knochen = 0;
+    float gewicht = 0.0F;
+};
+using GewichtListe = std::vector<KnochenGewicht>;
+
 struct Halbkante {
     int ecke = -1;       // Index in Netz::ecken (die Ecke am Anfang)
     int punkt = -1;      // Netz::punktVon[ecke]
@@ -61,6 +68,10 @@ struct Netz {
     // Kanten, an denen mehr als zwei Dreiecke oder zwei gleich gerichtete
     // haengen - sie bleiben ohne Gegenkante und zaehlen hier.
     int nichtMannigfaltig = 0;
+    // Modell-Block 1a-2: waehrend des Malens je Ecke eine Liste mit beliebig
+    // vielen Knochen (leer = es wird nicht gemalt, es gelten die Ecken).
+    // Gezeichnet wird, was das Spiel daraus machte (gewichte.h, fuersSpiel).
+    std::vector<GewichtListe> mal;
 
     [[nodiscard]] int dreiecke() const noexcept { return static_cast<int>(kanten.size() / 3U); }
     // Ecken und Dreiecke (drei Eckindizes je Dreieck) uebernehmen und die
@@ -134,6 +145,8 @@ public:
     // Ziehens, dessen Schritt aendern() beim ersten Bewegen angelegt hat.
     void vorschau(const std::function<void(Inhalt&)>& f);
     bool rueckgaengig();
+    // mb1a2: den letzten Schritt verwerfen (zurueck, ohne Wiederholen) - ein abgebrochenes G/R/S.
+    bool abbrechen();
     bool wiederholen();
     [[nodiscard]] bool kannRueckgaengig() const noexcept { return !zurueck_.empty(); }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !vor_.empty(); }

@@ -39,15 +39,6 @@ const char* animGruppe(const std::string& name) {
     return "";
 }
 
-// SET_ANIM_UPPER fuer TORSO_, SET_ANIM_LOWER fuer LEGS_, sonst SET_ANIM_BOTH
-// (Q3_Interface.h: "Torso and head anim", "Legs anim", "same anim on torso
-// and legs").
-const char* animSetzen(const std::string& name) {
-    if (name.rfind("TORSO_", 0) == 0) { return "SET_ANIM_UPPER"; }
-    if (name.rfind("LEGS_", 0) == 0) { return "SET_ANIM_LOWER"; }
-    return "SET_ANIM_BOTH";
-}
-
 }  // namespace
 
 void animWaehlen(int i, bool abspielen) {
@@ -59,30 +50,6 @@ void animWaehlen(int i, bool abspielen) {
     g_app->animText = e.name;
     g_app->animPlaying = abspielen;
     g_app->modelDirty = true;
-}
-
-bool animInsSkript(int i) {
-    if (i < 0 || static_cast<std::size_t>(i) >= g_app->animList.size()) { return false; }
-    const std::string& name = g_app->animList[static_cast<std::size_t>(i)].name;
-    const std::string text = std::string("set ( /*@SET_TYPES*/ \"") + animSetzen(name) + "\", \"" + name + "\" );\n";
-    Script s;
-    std::vector<Diag> diag;
-    if (!readScript(text, s, diag) || s.nodes.empty()) { return false; }
-    Path at;
-    bool ok = false;
-    if (g_app->selectedPath.empty()) {
-        ok = g_app->doc.insertAfterAll(Path{}, {s.nodes.front()}, &at);
-    } else {
-        ok = g_app->doc.insertAfterAll(g_app->selectedPath, {s.nodes.front()}, &at);
-    }
-    if (!ok) { return false; }
-    g_app->selectedPath = at;
-    rebuildTree();
-    g_app->camTrackValid = false;
-    char z[200];
-    std::snprintf(z, sizeof(z), tr(Str::ModelAnimInserted), name.c_str());
-    meldung(z, "");
-    return true;
 }
 
 // --- Die Animationsliste (linke Spalte) -------------------------------------------
@@ -131,8 +98,9 @@ void drawAnimListe(float hoehe) {
             addStatus(kop);
         }
         ImGui::SameLine();
-        if (iconTextKnopf(tr(Str::ModelAnimToScript), UiIcon::Skript, tr(Str::ModelAnimToScriptHint), hat)) {
-            animInsSkript(sel);
+        // mb1a2: "Ins Skript" oeffnet sein eigenes Fenster (Ziel, Figur, Befehl, Vorschau) - der Model-Tab hat keinen Skriptbaum
+        if (iconTextKnopf(tr(Str::ModelAnimToScript), UiIcon::Skript, tr(Str::MbInsSkriptHint), hat)) {
+            modellInsSkriptOeffnen(sel);
         }
         ImGui::PopStyleVar();
     }
@@ -177,9 +145,18 @@ void drawAnimListe(float hoehe) {
             const AnimEntry& e = g_app->animList[i];
             ImGui::PushID(static_cast<int>(i));
             const bool gewaehlt = static_cast<int>(i) == sel;
-            if (ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick)) {
+            // mb1a2: das Symbol "Sequenz" vor dem Namen wie im Szenen-Explorer - davor gesetzt, die Zeile behaelt ihren
+            // Namen als Beschriftung (mit Leerzeichen davor fand der Selbsttest `modell` sie nicht mehr: mb2e_modell)
+            {
+                const float ih0 = ImGui::GetTextLineHeight();
+                const ImVec2 p0 = ImGui::GetCursorScreenPos();
+                uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbSequenz, p0, ih0, ImGui::GetColorU32(uiIconFarbe(UiIcon::MbSequenz)));
+                ImGui::SetCursorScreenPos(ImVec2{p0.x + ih0 * 1.3F, p0.y});
+            }
+            const bool geklickt = ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick);
+            if (geklickt) {
                 animWaehlen(static_cast<int>(i), true);
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { animInsSkript(static_cast<int>(i)); }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { modellInsSkriptOeffnen(static_cast<int>(i)); }
             }
             // Modell-Block 1a-1: Primaer (ganzer Koerper) und Sekundaer (ab dem
             // Sekundaer-Start, Vorgabe lower_lumbar wie SET_ANIM_UPPER) - ModView.
@@ -197,6 +174,8 @@ void drawAnimListe(float hoehe) {
                     g_app->mtab.sekundaer = -1;
                     g_app->modelDirty = true;
                 }
+                ImGui::Separator();
+                if (ImGui::MenuItem(tr(Str::MbInsSkriptMenue), "Ctrl+Shift+I")) { modellInsSkriptOeffnen(static_cast<int>(i)); }
                 ImGui::EndPopup();
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
@@ -443,7 +422,7 @@ void modellSequenzZeile(const AnimEntry* e) {
         }
     }
     ImGui::SameLine(0.0F, ImGui::GetFontSize() * 1.5F);
-    ImGui::TextDisabled("%s", tr(Str::MbZeitHinweis));
+    ImGui::TextDisabled("%s", tr(modellBlender() ? Str::MbZeitHinweisBlender : Str::MbZeitHinweis));   // mb1a2: Zaehlung je Modus
 }
 
 // --- Die Leiste unter allen drei Spalten -------------------------------------------------
@@ -530,11 +509,14 @@ void drawModelPanel() {
         // Modell-Block 1a-1: wie 3ds Max ab 0 gezaehlt - 12 / 39 heisst Bild 12
         // von 0..39 (stufenplan.md, Entscheidung shank 04.11.: Zeitleiste im
         // Max-Modus ab 0, passt direkt zur animation.cfg).
+        // mb1a2: wie Blender ab 1 (frame_start 1, blender_dump.txt) - 1 / 40 heisst das erste von 40 Bildern; der
+        // GLA-Frame (ab 0) steht im Tooltip (stufenplan.md, Empfehlung zur Zaehlung).
+        const bool abEins = modellBlender();
         const int rel = e != nullptr ? g_app->animFrame - e->firstFrame : 0;
         char jetzt[32];
         char gesamt[64];
-        std::snprintf(jetzt, sizeof(jetzt), "%d", e != nullptr ? rel : 0);
-        std::snprintf(gesamt, sizeof(gesamt), " / %d   %.2f s", e != nullptr ? std::max(e->numFrames - 1, 0) : 0,
+        std::snprintf(jetzt, sizeof(jetzt), "%d", e != nullptr ? rel + (abEins ? 1 : 0) : (abEins ? 1 : 0));
+        std::snprintf(gesamt, sizeof(gesamt), " / %d   %.2f s", e != nullptr ? std::max(e->numFrames - (abEins ? 0 : 1), 0) : 0,
                       e != nullptr ? static_cast<double>(rel) / static_cast<double>(std::max(e->fps, 1)) : 0.0);
         const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
         const ImVec2 t2 = ImGui::CalcTextSize(gesamt);
@@ -547,6 +529,10 @@ void drawModelPanel() {
         dl->AddText(ImVec2{a.x + fs * 0.4F, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
         dl->AddText(ImVec2{a.x + fs * 0.4F + t1.x, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled),
                     gesamt);
+        if (e != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+            ImGui::SetTooltip(tr(Str::MbGlaBild), g_app->animFrame, rel);
+        }
+        g_app->mtab.zaehlungText = std::string(jetzt) + gesamt;   // Selbsttest
     }
     ImGui::SameLine(0.0F, fs * 0.6F);
     // Schleife: aus der animation.cfg (aus), erzwungen (an)

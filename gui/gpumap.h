@@ -17,6 +17,8 @@
 #include <cstring>
 #include <vector>
 
+struct ImDrawList;   // mb1a2: zeichneUeberlagerung
+
 #include "bhed/areaportal.h"
 #include "bhed/bspgeo.h"
 #include "bhed/himmelbox.h"
@@ -227,6 +229,7 @@ struct ModellAnsichtArt {
     bool drahtgitter = false;
     bool zweiseitig = false;
     bool kantenUeber = false;
+    int hintergrund = -1;   // mb1a2: -1 der Verlauf, sonst 0xRRGGBB einfarbig (ModView: glClearColor mit AppVars._R/_G/_B)
 };
 // Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
 // `welt` 4x4 zeilenweise wie zeichneFigur.
@@ -239,6 +242,9 @@ struct ModellZusatz {
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler, const ModellAnsichtArt& art,
                          const std::vector<ModellZusatz>& zusatz);
+// mb1a2: eine ImGui-Zeichenliste (Ueberlagerung in Bildpunkten des Ziels) ueber das gewaehlte Modellziel legen - fuer
+// das Foto mit Knochen, Tags, Nummern usw. (ImGui_ImplDX11_RenderDrawData auf das Ziel statt auf den Schirm).
+bool zeichneUeberlagerung(ImDrawList* liste);
 // Das Bild des gewaehlten Modellziels (RGBA, Zeilen von oben).
 [[nodiscard]] bool leseModellZiel(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe);
 // modell1: was das letzte fertig gemessene Neuzeichnen des Modellfensters auf

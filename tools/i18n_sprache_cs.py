@@ -687,10 +687,8 @@ TEXTE = {
     "ModelAnimSearch": "Hledat animaci...",
     "ModelAnimAll": "Vše",
     "ModelAnimToScript": "Do skriptu",
-    "ModelAnimToScriptHint": "Přidá set ( SET_ANIM_BOTH / UPPER / LOWER, \"name\" ) za vybraný řádek otevřeného skriptu. Dvojklik na animaci udělá totéž.",
     "ModelAnimRowHint": "%d {snímek|snímky|snímků}, %.2f s při %d fps - kliknutí přehraje, dvojklik vloží do skriptu",
     "ModelAnimNone": "Žádná animace neodpovídá",
-    "ModelAnimInserted": "%s vloženo do skriptu",
     "ModelPrevFrame": "Předchozí snímek",
     "ModelNextFrame": "Další snímek",
     "EntAnimate": "Animovat",
@@ -3040,6 +3038,8 @@ from i18n_rc610_r2a import texte as _rc610_r2a  # noqa: E402
 TEXTE.update(_rc610_r2a("cs"))
 from i18n_mb1a1 import texte as _mb1a1  # noqa: E402
 TEXTE.update(_mb1a1("cs"))
+from i18n_mb1a2 import texte as _mb1a2  # noqa: E402
+TEXTE.update(_mb1a2("cs"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("cs"))
 

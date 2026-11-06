@@ -18,6 +18,7 @@
 #include "bhed/messpunkt.h"
 #include "bhed/kartenpruefung.h"   // rc604 fix604b (B3): imSpiel
 #include "bhed/regelwerk.h"        // rc604 (A2 Rest): roffNotizenOpenJk
+#include "bhed/modell/g2.h"        // mb1a2: Ghoul2-Regeln der Figuren (figurG2Regeln)
 #include "bhed/npcklasse.h"       // Pruefung 3: rumpfBolzenKnochen
 #include "bhed/todesanim.h"       // Pruefung 3: rumpfWinkelAusBolzen
 #include "bhed/arbeiter.h"

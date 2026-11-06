@@ -21,6 +21,7 @@
 #include "bhed/mapview.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
+#include "bhed/modell/gewichte.h"
 
 namespace bhed::gui {
 
@@ -32,11 +33,12 @@ struct ModellAnbau {
     ModelTextures texturen;
     std::string ziel;      // Tag-Flaeche oder Knochen
     bool knochen = false;
+    bool versteckt = false;   // mb1a2: Auge im Explorer (nur die Ansicht)
 };
 
 // Eine der vier Ansichten. Oben, Vorne und Links sind orthographisch, die
 // Perspektive ist die Kreiskamera des Model-Tabs (modelCam, modelOrbit).
-enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4 };
+enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4, Hinten = 5, Rechts = 6 };
 
 struct ModellAnsicht {
     AnsichtArt art = AnsichtArt::Perspektive;
@@ -72,6 +74,27 @@ struct ModellAnzeige {
     bool durchsicht = false;    // Alt+X
     bool statistik = false;     // 7
     bool klammer = true;        // J: Auswahlklammer
+    // mb1a2: ModView "Show vertex indexes" / "Show triangle indexes" (r_surface.cpp:864-935) an der gewaehlten
+    // Flaeche, "Ruler" (model.cpp:2431-2462)
+    bool eckNummern = false;
+    bool dreieckNummern = false;
+    bool lineal = false;
+};
+
+// mb1a2: Unterobjekte. Objekt = Flaechen (Teile); Ecke/Kante/Dreieck waehlen Ecken der gezeichneten Stufe
+// (Blender 1/2/3, 3ds Max 1/2/4), Rand und Element wie Max 3 und 5.
+enum class AuswahlArt : int { Objekt = 0, Ecke, Kante, Dreieck, Rand, Element };
+
+// mb1a2: G/R/S wie Blender (transform.translate/rotate/resize, modal mit Achse und Zahl)
+struct ModellModal {
+    int art = 0;            // 0 keins, 1 G, 2 R, 3 S
+    int achse = -1;         // 0..2 X/Y/Z
+    int achsStufe = 0;      // 0 aus, 1 global, 2 lokal (Blender: zweimal dieselbe Taste)
+    bool ebene = false;     // Umschalt+X: die Ebene ohne X
+    std::string zahl;       // Zahleneingabe
+    float mausStart[2]{};
+    float mitte[3]{};
+    int ansicht = 3;
 };
 
 struct ModellTab {
@@ -94,6 +117,43 @@ struct ModellTab {
     int sekFrame = 0;
     float sekZeit = 0.0F;
     ModellAnzeige an;
+    // --- mb1a2: das Auge im Szenen-Explorer - blendet NUR in der Ansicht aus (wie Max "Hide", Blenders Auge); Datei und
+    // Ghoul2-Regeln bleiben. Je Teil (Flaechen, Tags) und je Knochen; bleibt beim Wechsel von Sequenz und LOD.
+    std::vector<char> verstecktTeil;
+    std::vector<char> verstecktKnochen;
+    int verstecktStand = 0;       // zaehlt jede Aenderung (Schluessel der Anzeige)
+    int symbolZaehler = 0;        // Selbsttest: gezeichnete Symbole im Explorer
+    int augenZaehler = 0;         // Selbsttest: gezeichnete Augen
+    // --- mb1a2: Weights ----------------------------------------------------------------------------
+    int pinselArt = 0;            // modell::PinselArt
+    float pinselGewicht = 1.0F;
+    float pinselStaerke = 0.5F;
+    float pinselRadius = 40.0F;   // Bildpunkte
+    bool pinselSpiegeln = false;  // X-Spiegel beim Malen (Knochen l/r)
+    bool malStrich = false;       // ein Strich laeuft (ein Rueckgaengig-Schritt)
+    float letzterTupfer[2]{};
+    std::vector<std::vector<modell::EckOrt>> spiegel;   // Spiegelpartner der gezeichneten Stufe
+    int spiegelStand = -1;        // dok.stand, fuer den die Karte gilt
+    int tupferZahl = 0;           // Selbsttest
+    int gemalteEcken = 0;         // Selbsttest: Ecken des letzten Tupfers
+    // --- mb1a2: Unterobjekte, Blender ---------------------------------------------------------------------
+    AuswahlArt auswahlArt = AuswahlArt::Objekt;
+    AuswahlArt editArt = AuswahlArt::Ecke;   // Tab kehrt zu ihr zurueck
+    std::vector<modell::EckOrt> eckenWahl;   // gewaehlte Ecken (gezeichnete Stufe)
+    ModellModal modal;
+    int modalEndeBild = -1;       // das Bild, in dem ein Klick G/R/S beendet hat (waehlt dann nichts)
+    bool bereichMenue = false;    // Strg+Tab
+    bool modusMenueSichtbar = false;
+    bool kontextOeffnen = false;  // Rechtsklick in die Ansicht
+    bool kontextSichtbar = false;
+    // --- mb1a2: Ins Skript --------------------------------------------------------------------------
+    int insAnim = -1;
+    int insBefehl = 0;            // 0 SET_ANIM_BOTH 1 UPPER 2 LOWER 3 HOLDTIME_BOTH 4 HOLDTIME_UPPER 5 HOLDTIME_LOWER
+    int insZiel = -2;             // Reiter (-1 neues Skript, -2 der aktive)
+    char insFigur[64] = {};
+    int insHalteMs = 0;
+    std::string insMeldung;
+    std::string zaehlungText;     // Selbsttest: die Zaehlung der Zeitleiste im letzten Bild
     float fov = 80.0F;
     // Auswahl: Flaechen (Teil-Indizes) und ein Knochen
     std::vector<int> auswahl;
@@ -125,8 +185,9 @@ struct ModellTab {
     std::string letzteTaste;
     int neuGebaut = 0;        // wie oft die Anzeige neu gebaut wurde
     // je Bild gezeichnete Ueberlagerung: 0 Knochen-Striche, 1 Normalen, 2 Gewichte, 3 Tags, 4 Huelle, 5 Ursprung,
-    // 6 Randecken (Risse), 7 Auswahl-Striche
-    int ueber[8]{};
+    // 6 Randecken (Risse), 7 Auswahl-Striche; mb1a2: 8 Ecknummern, 9 Dreiecknummern, 10 Lineal-Striche, 11 Pinselkreis,
+    // 12 gewaehlte Ecken
+    int ueber[13]{};
     bool aktionenSichtbar = false;   // die Suche "Alle Aktionen" ist offen
 };
 
@@ -135,6 +196,49 @@ void modellDokumentLaden(const std::string& bytes);
 void modellAnzeigeAktualisieren();
 void drawModellBereiche();
 void modellSequenzZeile(const AnimEntry* e);
+// mb1a2
+void modellDateiMenue();
+void modellDateiTasten(bool nurRueckgaengig);
+void drawModellInsSkriptFenster();
+void modellInsSkriptOeffnen(int anim);
+[[nodiscard]] std::string modellInsSkriptZeile();
+bool modellInsSkriptEinfuegen();
+void drawModellGewichte();
+[[nodiscard]] bool modellBlender();
+[[nodiscard]] const char* modellBlenderTasteQuelle(int i);
+[[nodiscard]] int modellBlenderTasteZahl();
+[[nodiscard]] ImGuiKeyChord modellBlenderTasteChord(int i);
+[[nodiscard]] const char* modellBlenderTasteText(int i);
+bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich);
+void modellStrichEnde();
+bool modellUebernehmen();
+int modellAufAuswahlSetzen();
+int modellSpiegeln(int quelle);
+void modellAuswahlArtSetzen(AuswahlArt a);
+[[nodiscard]] bool modellGewichtFarbe(int flaeche, int ecke, float& gewicht);
+[[nodiscard]] bool modellEckeAufSchirm(int flaeche, int ecke, ImVec2& out);
+bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, int& w, int& h);
+void modellAnsichtSetzen(AnsichtArt a);
+[[nodiscard]] bool modellTeilVersteckt(int teil);
+[[nodiscard]] bool modellKnochenVersteckt(int knochen);
+// Auge: Teil (mit allen Kindern) aus/ein; solo: nur dieses (und seine Kinder) zeigen.
+void modellTeilAuge(int teil, bool solo);
+void modellKnochenAuge(int knochen, bool solo);
+void modellAllesEinblenden();
+[[nodiscard]] float modellAugeX();
+void modellAuswahlAusblenden(bool nichtGewaehlte);
+bool modellModalStarten(int art);
+void modellModalEnde(bool uebernehmen);
+bool modellModalTasten();
+void drawModellModusMenue();
+void drawModellKontextMenue();
+[[nodiscard]] int modellZusatzZahl();
+[[nodiscard]] const char* modellZusatzText(int i);
+[[nodiscard]] const char* modellZusatzHinweis(int i);
+void modellZusatzAusloesen(int i);
+void modellBedienungSetzen(int b);
+void modellPerspektiveUmschalten();
+void modellKreisenSchritt(float gier, float nick);
 void drawModellExplorer(float hoehe);
 void drawModellBefehlsfeld();
 void drawModellArbeitsflaeche();

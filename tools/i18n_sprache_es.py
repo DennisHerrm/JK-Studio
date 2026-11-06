@@ -685,10 +685,8 @@ TEXTE = {
     "ModelAnimSearch": "Buscar animación...",
     "ModelAnimAll": "Todas",
     "ModelAnimToScript": "Al script",
-    "ModelAnimToScriptHint": "Añade set ( SET_ANIM_BOTH / UPPER / LOWER, \"nombre\" ) tras la línea seleccionada del script abierto. Doble clic en una animación hace lo mismo.",
     "ModelAnimRowHint": "%d {fotograma|fotogramas}, %.2f s a %d fps - clic la reproduce, doble clic la pone en el script",
     "ModelAnimNone": "Ninguna animación coincide",
-    "ModelAnimInserted": "%s puesta en el script",
     "ModelPrevFrame": "Fotograma anterior",
     "ModelNextFrame": "Fotograma siguiente",
     "EntAnimate": "Animar",
@@ -3038,6 +3036,8 @@ from i18n_rc610_r2a import texte as _rc610_r2a  # noqa: E402
 TEXTE.update(_rc610_r2a("es"))
 from i18n_mb1a1 import texte as _mb1a1  # noqa: E402
 TEXTE.update(_mb1a1("es"))
+from i18n_mb1a2 import texte as _mb1a2  # noqa: E402
+TEXTE.update(_mb1a2("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 

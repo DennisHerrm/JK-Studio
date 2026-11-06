@@ -64,6 +64,12 @@ void modellFokusAktualisieren() {
         ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
         t.fokus = t.klickDrinBild == ImGui::GetFrameCount();
     }
+    // mb1a2: Strg+Tab ist in Blender das Modus-Menue - ImGui nimmt es sonst fuer den Fensterwechsel (NavUpdateWindowing,
+    // ConfigNavWindowingKeyNext); nur solange der Model-Tab wie Blender den Fokus hat.
+    ImGuiContext& g = *GImGui;
+    const bool blender = g_app->leftMode == 2 && t.fokus && g_app->settings.modellBedienung == 1;
+    g.ConfigNavWindowingKeyNext = blender ? 0 : (g.IO.ConfigMacOSXBehaviors ? (ImGuiMod_Super | ImGuiKey_Tab) : (ImGuiMod_Ctrl | ImGuiKey_Tab));
+    g.ConfigNavWindowingKeyPrev = blender ? 0 : (g.IO.ConfigMacOSXBehaviors ? (ImGuiMod_Super | ImGuiMod_Shift | ImGuiKey_Tab) : (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab));
 }
 
 namespace {
@@ -73,7 +79,7 @@ const char* bereichStufe(ModellBereich b) {
     switch (b) {
         case ModellBereich::Modellieren: return "1d";
         case ModellBereich::Uv: return "1b";
-        case ModellBereich::Weights: return "1a-2";
+        case ModellBereich::Weights: break;
         case ModellBereich::Painting: return "1c";
         case ModellBereich::Animation: return "2-7";
         case ModellBereich::Ansehen: break;
@@ -131,6 +137,9 @@ void modellDokumentLaden(const std::string& bytes) {
     t.dok.laden(std::move(in));
     t.dokModell = g_app->modelPath;
     t.g2 = modell::G2Zustand{};
+    t.verstecktTeil.clear();   // mb1a2
+    t.verstecktKnochen.clear();
+    ++t.verstecktStand;
     t.hautAus.clear();
     t.anzeigeSchluessel.clear();
     t.auswahl.clear();
@@ -168,29 +177,18 @@ void modellAnzeigeAktualisieren() {
     std::vector<char> haut(g_app->model.surfaces.size(), 0);
     for (std::size_t i = 0; i < haut.size(); ++i) { haut[i] = g_app->model.surfaces[i].skinnedOff ? 1 : 0; }
     if (haut != t.hautAus) {
-        std::vector<std::string> aus;
-        for (std::size_t i = 0; i < haut.size(); ++i) {
-            if (haut[i] != 0) { aus.push_back(g_app->model.surfaces[i].name); }
-        }
-        modell::hautAnwenden(in, t.g2, aus);
+        modell::hautAnwenden(in, t.g2, modell::hautAusModell(in, g_app->model));
         t.hautAus = haut;
     }
     const int lod = std::clamp(t.lodWahl > 0 ? t.lodWahl - 1 : automatischeStufe(in), 0, std::max(in.stufenZahl - 1, 0));
     // "Kappen" (_off-Flaechen) der Leiste: G2_SetSurfaceOnOff(..., 0) fuer jede
     // Flaeche mit OFF in der Datei, die der Anwender nicht selbst geschaltet hat.
-    modell::G2Zustand z = t.g2;
-    if (g_app->showCaps) {
-        for (std::size_t i = 0; i < in.teile.size(); ++i) {
-            if ((in.teile[i].flaggen & modell::kG2Aus) == 0U) { continue; }
-            const bool eigen = std::any_of(t.g2.slist.begin(), t.g2.slist.end(),
-                                           [&](const modell::FlaechenSchalter& s) { return s.flaeche == static_cast<int>(i); });
-            if (!eigen) { (void)modell::setzeFlaecheAnAus(in, z, in.teile[i].name, 0U); }
-        }
-    }
+    const modell::G2Zustand z = g_app->showCaps ? modell::mitKappen(in, t.g2) : t.g2;
     std::string schluessel = g_app->modelPath + "|" + std::to_string(t.dok.stand()) + "|" + std::to_string(lod) + "|" +
                              std::to_string(z.wurzel) + "|";
     for (const modell::FlaechenSchalter& s : z.slist) { schluessel += std::to_string(s.flaeche) + ":" + std::to_string(s.offFlags) + ","; }
     for (const GlmSurface& s : g_app->model.surfaces) { schluessel += s.texture + ";"; }
+    schluessel += "|v" + std::to_string(t.verstecktStand);   // mb1a2: das Auge
     if (schluessel == t.anzeigeSchluessel) { return; }
     GlmModel neu = modell::zuGlm(in, lod);
     t.gezeichnet = modell::gezeichnet(in, z);
@@ -198,7 +196,8 @@ void modellAnzeigeAktualisieren() {
         neu.surfaces[i].texture = g_app->model.surfaces[i].texture;
         // Gezeichnet wird nach den Ghoul2-Regeln: alles andere gilt dem
         // Zeichner als von der Haut abgeschaltet (er zeichnet mit kappen).
-        neu.surfaces[i].skinnedOff = t.gezeichnet[i] == 0;
+        // mb1a2: ein im Explorer ausgeblendetes Teil zeichnet die Ansicht nicht (nur die Ansicht - gezeichnet bleibt die Regel)
+        neu.surfaces[i].skinnedOff = t.gezeichnet[i] == 0 || modellTeilVersteckt(static_cast<int>(i));
     }
     t.anzeige = std::move(neu);
     t.lodJetzt = lod;
@@ -211,14 +210,14 @@ void modellFlaecheSchalten(int flaeche, std::uint32_t offFlags) {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
     if (flaeche < 0 || static_cast<std::size_t>(flaeche) >= in.teile.size()) { return; }
-    (void)modell::setzeFlaecheAnAus(in, t.g2, in.teile[static_cast<std::size_t>(flaeche)].name, offFlags);
+    (void)modell::setzeFlaecheAnAus(in, t.g2, modell::spielName(in, flaeche), offFlags);
 }
 
 void modellWurzelSetzen(int flaeche) {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
     if (flaeche < 0 || static_cast<std::size_t>(flaeche) >= in.teile.size()) { return; }
-    (void)modell::setzeWurzel(in, t.g2, in.teile[static_cast<std::size_t>(flaeche)].name);
+    (void)modell::setzeWurzel(in, t.g2, modell::spielName(in, flaeche));
 }
 
 bool modellRueckgaengig() {
@@ -337,7 +336,10 @@ void drawModellBereiche() {
     for (int i = 0; i < kModellBereiche; ++i) {
         if (i > 0) { ImGui::SameLine(); }
         ImGui::PushID(i);
-        if (reiterKnopf(tr(bereichText(i)), static_cast<int>(t.bereich) == i)) { t.bereich = static_cast<ModellBereich>(i); }
+        if (reiterKnopf(tr(bereichText(i)), static_cast<int>(t.bereich) == i)) {
+            t.bereich = static_cast<ModellBereich>(i);
+            g_app->modelDirty = true;   // mb1a2: Weights zeigt die Farbe des Knochens
+        }
         ImGui::PopID();
     }
     ImGui::PopStyleVar();
@@ -347,6 +349,44 @@ void drawModellBereiche() {
 namespace {
 
 int g_explorerArt = 0;      // 0 nach Hierarchie, 1 nach Ebenen
+float g_augeX = 0.0F;       // mb1a2: linker Rand des Baums - dort steht die Spalte der Augen
+
+// mb1a2: das Auge am linken Rand der Zeile (vor dem Einzug), Klick schaltet; Strg/Alt+Klick: solo.
+bool augeKnopf(const char* id, bool versteckt, bool& solo) {
+    ++mt().augenZaehler;
+    const ImVec2 zurueck = ImGui::GetCursorScreenPos();
+    const float h = ImGui::GetTextLineHeight();
+    ImGui::SetCursorScreenPos(ImVec2{g_augeX, zurueck.y});
+    const bool k = ImGui::InvisibleButton(id, ImVec2{h, h});
+    // Nur sichtbare Zeilen zeichnen: der Explorer hat ~100 Zeilen, zu sehen sind ein Dutzend - die Pfade der Symbole kosteten
+    // sonst jedes Bild Zeit (modellleistung: Bild-CPU 0.15-0.3 ms mehr als d8d08e285, mb2e_leist gegen mb2e_leist_basis).
+    if (!ImGui::IsItemVisible()) {
+        ImGui::SetCursorScreenPos(zurueck);
+        solo = false;
+        return k;
+    }
+    const bool ueber = ImGui::IsItemHovered();
+    ImVec4 f = uiIconFarbe(versteckt ? UiIcon::Versteckt : UiIcon::Sichtbar);
+    if (!ueber) { f.w *= versteckt ? 0.55F : 0.8F; }
+    uiIcon(ImGui::GetWindowDrawList(), versteckt ? UiIcon::Versteckt : UiIcon::Sichtbar, ImVec2{g_augeX, zurueck.y}, h, ImGui::GetColorU32(f));
+    ImGui::SetItemTooltip("%s", tr(Str::MbAugeHint));
+    solo = k && (ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeyAlt);
+    ImGui::SetCursorScreenPos(zurueck);
+    return k;
+}
+
+// Das Symbol einer Zeile im Platz, den die Leerzeichen am Anfang ihres Textes lassen.
+void zeilenSymbol(UiIcon icon) {
+    ++mt().symbolZaehler;
+    if (!ImGui::IsItemVisible()) { return; }   // nur sichtbare Zeilen (siehe augeKnopf)
+    const ImVec2 lo = ImGui::GetItemRectMin();
+    const float h = ImGui::GetTextLineHeight();
+    const float x = lo.x + ImGui::GetTreeNodeToLabelSpacing();
+    const float y = lo.y + (ImGui::GetItemRectSize().y - h) * 0.5F;
+    uiIcon(ImGui::GetWindowDrawList(), icon, ImVec2{x, y}, h, ImGui::GetColorU32(uiIconFarbe(icon)));
+}
+
+const char* kSymbolPlatz = "     ";   // Platz fuer das Symbol vor dem Namen
 bool g_sucheFokus = false;  // H: in das Suchfeld
 std::string g_anbauZiel;    // offenes Anbau-Fenster: Tag oder Knochen
 bool g_anbauKnochen = false;
@@ -403,17 +443,29 @@ void flaechenZeile(int i, bool kinder, const std::string& such, int tiefe) {
         }
     }
     const bool gezeichnet = static_cast<std::size_t>(i) < t.gezeichnet.size() && t.gezeichnet[static_cast<std::size_t>(i)] != 0;
+    const bool versteckt = modellTeilVersteckt(i);
     const bool gewaehlt = std::find(t.auswahl.begin(), t.auswahl.end(), i) != t.auswahl.end();
     // Ohne SpanAvailWidth: die Zeile ist so breit wie ihr Text (der Baum rollt waagerecht).
     ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_DefaultOpen;
     if (unter.empty()) { f |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen; }
     if (gewaehlt) { f |= ImGuiTreeNodeFlags_Selected; }
-    std::string text = teil.name;
+    std::string text = kSymbolPlatz + teil.name;
     if (t.g2.wurzel == i) { text += std::string("  (") + tr(Str::MbWurzel) + ")"; }
-    if (!gezeichnet) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
     ImGui::PushID(i);
+    bool solo = false;
+    if (augeKnopf("##auge", versteckt, solo)) { modellTeilAuge(i, solo); }
+    if (!gezeichnet || versteckt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
     const bool offen = ImGui::TreeNodeEx("##fl", f, "%s", text.c_str());
-    if (!gezeichnet) { ImGui::PopStyleColor(); }
+    if (!gezeichnet || versteckt) { ImGui::PopStyleColor(); }
+    // mb1a2: das Symbol der Art; im Spiel abgeschaltete Flaechen (Ghoul2) tragen dazu den roten Kreis - das Auge ist davon getrennt
+    const bool kappe = (teil.flaggen & modell::kG2Aus) != 0U;
+    zeilenSymbol(kappe ? UiIcon::MbKappe : (unter.empty() ? UiIcon::MbFlaeche : UiIcon::MbFlaecheKinder));
+    if (!gezeichnet && ImGui::IsItemVisible()) {
+        const float h = ImGui::GetTextLineHeight();
+        const ImVec2 hi = ImGui::GetItemRectMax();
+        uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbG2Aus, ImVec2{hi.x - h * 1.1F, ImGui::GetItemRectMin().y}, h, ImGui::GetColorU32(uiIconFarbe(UiIcon::MbG2Aus)));
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbG2AusHint)); }
+    }
     if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), teil.name.c_str()); }
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen()) { waehleFlaeche(i); }
     flaechenMenue(i);
@@ -448,11 +500,23 @@ void anbauMenue(const std::string& ziel, bool knochen) {
 }
 
 void anbautenUnter(const std::string& ziel) {
-    for (const ModellAnbau& a : mt().anbauten) {
+    for (std::size_t k = 0; k < mt().anbauten.size(); ++k) {
+        ModellAnbau& a = mt().anbauten[k];
         if (a.ziel != ziel) { continue; }
+        ImGui::PushID(static_cast<int>(9000 + k));
+        bool solo = false;
+        if (augeKnopf("##auge", a.versteckt, solo)) {
+            a.versteckt = !a.versteckt;
+            g_app->modelDirty = true;
+        }
         ImGui::Indent();
-        ImGui::TextDisabled("%s", fileName(a.pfad).c_str());
+        ImGui::TextDisabled("%s%s", kSymbolPlatz, fileName(a.pfad).c_str());
+        {
+            const float h = ImGui::GetTextLineHeight();
+            uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbAnbau, ImGui::GetItemRectMin(), h, ImGui::GetColorU32(uiIconFarbe(UiIcon::MbAnbau)));
+        }
         ImGui::Unindent();
+        ImGui::PopID();
     }
 }
 
@@ -471,9 +535,15 @@ void knochenZeile(int b, const std::vector<std::vector<int>>& kinder, const std:
     if (tiefe < 3) { f |= ImGuiTreeNodeFlags_DefaultOpen; }
     if (t.knochenWahl == b) { f |= ImGuiTreeNodeFlags_Selected; }
     ImGui::PushID(1000 + b);
-    std::string text = k.name;
+    std::string text = kSymbolPlatz + k.name;
     if (k.name == t.sekundaerKnochen) { text += std::string("  (") + tr(Str::MbSekStart) + ")"; }
+    const bool versteckt = modellKnochenVersteckt(b);
+    bool solo = false;
+    if (augeKnopf("##auge", versteckt, solo)) { modellKnochenAuge(b, solo); }
+    if (versteckt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
     const bool offen = ImGui::TreeNodeEx("##kn", f, "%s", text.c_str());
+    if (versteckt) { ImGui::PopStyleColor(); }
+    zeilenSymbol(k.parent < 0 ? UiIcon::MbWurzel : UiIcon::MbKnochen);
     if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), k.name.c_str()); }
     if (modellSpielKnochen(k.name)) {
         // Markierung am Zeilenende: dieser Knochen wird vom Spielcode gesucht.
@@ -559,6 +629,8 @@ void drawModellExplorer(float hoehe) {
     }
     modellAnzeigeAktualisieren();
     modellKlickPruefen();
+    t.symbolZaehler = 0;
+    t.augenZaehler = 0;
     const modell::Inhalt& in = t.dok.inhalt();
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{ImGui::GetFontSize() * 0.35F, 2.0F});
     if (reiterKnopf(tr(Str::MbNachHierarchie), g_explorerArt == 0)) { g_explorerArt = 0; }
@@ -573,13 +645,26 @@ void drawModellExplorer(float hoehe) {
     ImGui::InputTextWithHint("##mtsuche", tr(Str::MbSuche), t.suche, sizeof t.suche);
     const std::string such = klein(t.suche);
     ImGui::BeginChild("mtbaum", ImVec2{-1.0F, -1.0F}, ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
+    // mb1a2: links eine Spalte fuer die Augen, der Baum rueckt um sie ein
+    g_augeX = ImGui::GetCursorScreenPos().x;
+    const float augeB = ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::Indent(augeB);
     int gezeichnet = 0;
     for (const char g : t.gezeichnet) { gezeichnet += g != 0 ? 1 : 0; }
-    const std::string modellText = fileName(g_app->modelPath) + "  " + tr(Str::MbRModell);
-    if (ImGui::TreeNodeEx("##mtmodell", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", modellText.c_str())) {
+    const std::string modellText = kSymbolPlatz + fileName(g_app->modelPath) + "  " + tr(Str::MbRModell);
+    const bool modellOffen = ImGui::TreeNodeEx("##mtmodell", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", modellText.c_str());
+    zeilenSymbol(UiIcon::MbModell);
+    if (ImGui::BeginPopupContextItem("##modellmenue")) {   // mb1a2: Alle einblenden auch hier
+        if (ImGui::MenuItem(tr(Str::MbAllesEinblenden), modellBlender() ? "Alt+H" : nullptr)) { modellAllesEinblenden(); }
+        ImGui::EndPopup();
+    }
+    if (modellOffen) {
         char kopf[160];
         std::snprintf(kopf, sizeof kopf, tr(Str::MbFlaechen), t.lodJetzt + 1, gezeichnet);
-        if (ImGui::TreeNodeEx("##mtflaechen", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", kopf)) {
+        const std::string kopfText = kSymbolPlatz + std::string(kopf);
+        const bool flOffen = ImGui::TreeNodeEx("##mtflaechen", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", kopfText.c_str());
+        zeilenSymbol(UiIcon::MbLod);
+        if (flOffen) {
             if (!such.empty()) {
                 for (std::size_t i = 0; i < in.teile.size(); ++i) {
                     if (passt(in.teile[i].name, such)) { flaechenZeile(static_cast<int>(i), false, such, 0); }
@@ -607,14 +692,23 @@ void drawModellExplorer(float hoehe) {
         int tags = 0;
         for (const modell::Teil& x : in.teile) { tags += x.istTag() ? 1 : 0; }
         std::snprintf(kopf, sizeof kopf, tr(Str::MbTags), tags);
-        if (ImGui::TreeNodeEx("##mttags", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", kopf)) {
+        const std::string tagKopf = kSymbolPlatz + std::string(kopf);
+        const bool tagsOffen = ImGui::TreeNodeEx("##mttags", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", tagKopf.c_str());
+        zeilenSymbol(UiIcon::MbTag);
+        if (tagsOffen) {
             for (std::size_t i = 0; i < in.teile.size(); ++i) {
                 const modell::Teil& x = in.teile[i];
                 if (!x.istTag() || !passt(x.name, such)) { continue; }
                 ImGui::PushID(static_cast<int>(5000 + i));
                 ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
                 if (t.tagWahl == static_cast<int>(i)) { f |= ImGuiTreeNodeFlags_Selected; }
-                ImGui::TreeNodeEx("##tag", f, "%s", x.name.c_str());
+                const bool versteckt = modellTeilVersteckt(static_cast<int>(i));
+                bool solo = false;
+                if (augeKnopf("##auge", versteckt, solo)) { modellTeilAuge(static_cast<int>(i), solo); }
+                if (versteckt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
+                ImGui::TreeNodeEx("##tag", f, "%s%s", kSymbolPlatz, x.name.c_str());
+                if (versteckt) { ImGui::PopStyleColor(); }
+                zeilenSymbol(UiIcon::MbTag);
                 if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), x.name.c_str()); }
                 if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
                     t.tagWahl = static_cast<int>(i);
@@ -628,7 +722,10 @@ void drawModellExplorer(float hoehe) {
         }
         if (!g_app->anim.bones.empty()) {
             std::snprintf(kopf, sizeof kopf, tr(Str::MbKnochen), fileName(g_app->anim.name).c_str(), static_cast<int>(g_app->anim.bones.size()));
-            if (ImGui::TreeNodeEx("##mtknochen", ImGuiTreeNodeFlags_SpanAvailWidth, "%s", kopf)) {
+            const std::string knKopf = kSymbolPlatz + std::string(kopf);
+            const bool knOffen = ImGui::TreeNodeEx("##mtknochen", ImGuiTreeNodeFlags_SpanAvailWidth, "%s", knKopf.c_str());
+            zeilenSymbol(UiIcon::MbKnochen);
+            if (knOffen) {
                 std::vector<std::vector<int>> kinder(g_app->anim.bones.size());
                 for (std::size_t b = 0; b < g_app->anim.bones.size(); ++b) {
                     const int p = g_app->anim.bones[b].parent;
@@ -644,9 +741,108 @@ void drawModellExplorer(float hoehe) {
         }
         ImGui::TreePop();
     }
+    ImGui::Unindent(augeB);
     ImGui::EndChild();
     anbauFenster();
     ImGui::EndChild();
+}
+
+// --- mb1a2: das Auge ---------------------------------------------------------------------------------
+
+float modellAugeX() { return g_augeX; }
+
+bool modellTeilVersteckt(int teil) {
+    const ModellTab& t = mt();
+    return teil >= 0 && static_cast<std::size_t>(teil) < t.verstecktTeil.size() && t.verstecktTeil[static_cast<std::size_t>(teil)] != 0;
+}
+
+bool modellKnochenVersteckt(int knochen) {
+    const ModellTab& t = mt();
+    return knochen >= 0 && static_cast<std::size_t>(knochen) < t.verstecktKnochen.size() && t.verstecktKnochen[static_cast<std::size_t>(knochen)] != 0;
+}
+
+namespace {
+
+void versteckGroesse() {
+    ModellTab& t = mt();
+    t.verstecktTeil.resize(t.dok.inhalt().teile.size(), 0);
+    t.verstecktKnochen.resize(g_app->anim.bones.size(), 0);
+}
+
+// Ein Teil und alle seine Kinder (Ghoul2-Hierarchie) auf `wert`.
+void teilSetzen(int teil, char wert, int tiefe) {
+    ModellTab& t = mt();
+    const modell::Inhalt& in = t.dok.inhalt();
+    if (teil < 0 || static_cast<std::size_t>(teil) >= in.teile.size() || tiefe > static_cast<int>(in.teile.size())) { return; }
+    t.verstecktTeil[static_cast<std::size_t>(teil)] = wert;
+    for (const int k : in.teile[static_cast<std::size_t>(teil)].kinder) { teilSetzen(k, wert, tiefe + 1); }
+}
+
+void knochenSetzen(int knochen, char wert) {
+    ModellTab& t = mt();
+    const GlaAnimation& a = g_app->anim;
+    for (std::size_t b = 0; b < a.bones.size(); ++b) {
+        // Teil des Teilbaums ab `knochen`?
+        int p = static_cast<int>(b);
+        for (int schritt = 0; p >= 0 && schritt < 256; ++schritt) {
+            if (p == knochen) {
+                t.verstecktKnochen[b] = wert;
+                break;
+            }
+            p = a.bones[static_cast<std::size_t>(p)].parent;
+            if (p >= 0 && static_cast<std::size_t>(p) >= a.bones.size()) { break; }
+        }
+    }
+}
+
+void versteckGeaendert() {
+    ++mt().verstecktStand;
+    g_app->modelDirty = true;
+}
+
+}  // namespace
+
+void modellTeilAuge(int teil, bool solo) {
+    ModellTab& t = mt();
+    versteckGroesse();
+    if (solo) {
+        std::fill(t.verstecktTeil.begin(), t.verstecktTeil.end(), static_cast<char>(1));
+        teilSetzen(teil, 0, 0);
+    } else {
+        teilSetzen(teil, modellTeilVersteckt(teil) ? 0 : 1, 0);
+    }
+    versteckGeaendert();
+}
+
+void modellKnochenAuge(int knochen, bool solo) {
+    ModellTab& t = mt();
+    versteckGroesse();
+    if (solo) {
+        std::fill(t.verstecktKnochen.begin(), t.verstecktKnochen.end(), static_cast<char>(1));
+        knochenSetzen(knochen, 0);
+    } else {
+        knochenSetzen(knochen, modellKnochenVersteckt(knochen) ? 0 : 1);
+    }
+    versteckGeaendert();
+}
+
+void modellAllesEinblenden() {
+    ModellTab& t = mt();
+    t.verstecktTeil.assign(t.verstecktTeil.size(), 0);
+    t.verstecktKnochen.assign(t.verstecktKnochen.size(), 0);
+    for (ModellAnbau& a : t.anbauten) { a.versteckt = false; }
+    versteckGeaendert();
+}
+
+void modellAuswahlAusblenden(bool nichtGewaehlte) {
+    ModellTab& t = mt();
+    versteckGroesse();
+    for (std::size_t i = 0; i < t.verstecktTeil.size(); ++i) {
+        const bool gewaehlt = std::find(t.auswahl.begin(), t.auswahl.end(), static_cast<int>(i)) != t.auswahl.end();
+        if (gewaehlt != nichtGewaehlte) { t.verstecktTeil[i] = 1; }
+    }
+    if (!nichtGewaehlte) { t.auswahl.clear(); }   // Blender: H blendet die Auswahl aus, sie ist danach leer
+    versteckGeaendert();
 }
 
 // --- Befehlsfeld ------------------------------------------------------------------------------
@@ -801,6 +997,31 @@ void rolloutAnzeige() {
     schalter(Str::MbAnZweiseitig, a.zweiseitig);
     schalter(Str::MbAnStatistik, a.statistik);
     schalter(Str::MbAnKlammer, a.klammer);
+    schalter(Str::MbAnEckNummern, a.eckNummern);   // mb1a2: ModView, an der gewaehlten Flaeche
+    ImGui::SetItemTooltip("%s", tr(Str::MbAnEckNummernHint));
+    schalter(Str::MbAnDreieckNummern, a.dreieckNummern);
+    ImGui::SetItemTooltip("%s", tr(Str::MbAnEckNummernHint));
+    schalter(Str::MbAnLineal, a.lineal);
+    ImGui::SetItemTooltip("%s", tr(Str::MbAnLinealHint));
+    {   // mb1a2: Hintergrund wie ModView (Farbwahl; Vorgabe dort 256/5 = 51 je Kanal) oder der Verlauf
+        bool eigen = g_app->settings.modellHintergrund >= 0;
+        if (ImGui::Checkbox(tr(Str::MbAnHintergrund), &eigen)) {
+            g_app->settings.modellHintergrund = eigen ? 0x333333 : -1;
+            neu = true;
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::MbAnHintergrundHint));
+        if (eigen) {
+            ImGui::SameLine();
+            const int h = g_app->settings.modellHintergrund;
+            float f[3] = {static_cast<float>((h >> 16) & 0xFF) / 255.0F, static_cast<float>((h >> 8) & 0xFF) / 255.0F,
+                          static_cast<float>(h & 0xFF) / 255.0F};
+            if (ImGui::ColorEdit3("##mthg", f, ImGuiColorEditFlags_NoInputs)) {
+                const auto b = [](float x) { return static_cast<int>(std::lround(std::clamp(x, 0.0F, 1.0F) * 255.0F)); };
+                g_app->settings.modellHintergrund = (b(f[0]) << 16) | (b(f[1]) << 8) | b(f[2]);
+                neu = true;
+            }
+        }
+    }
     // Blickwinkel: ModView kennt 10, 80 und 90 Grad.
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7.0F);
     if (ImGui::SliderFloat(tr(Str::MbAnFov), &g_app->modelCam.fovY, 10.0F, 120.0F, "%.0f")) { neu = true; }
@@ -902,13 +1123,16 @@ void drawModellBefehlsfeld() {
     // Bedienmodus: wie 3ds Max (Vorgabe) oder wie Blender (Belegung in 1a-2).
     ImGui::AlignTextToFramePadding();
     ImGui::TextDisabled("%s", tr(Str::MbBedienung));
-    if (reiterKnopf(tr(Str::MbWieMax), g_app->settings.modellBedienung == 0)) { g_app->settings.modellBedienung = 0; }
+    if (reiterKnopf(tr(Str::MbWieMax), g_app->settings.modellBedienung == 0)) { modellBedienungSetzen(0); }
     ImGui::SameLine(0.0F, 2.0F);
-    if (reiterKnopf(tr(Str::MbWieBlender), g_app->settings.modellBedienung == 1)) { g_app->settings.modellBedienung = 1; }
+    if (reiterKnopf(tr(Str::MbWieBlender), g_app->settings.modellBedienung == 1)) { modellBedienungSetzen(1); }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbWieBlenderHint)); }
     ImGui::Separator();
     ImGui::BeginChild("mtrollouts", ImVec2{-1.0F, -1.0F});
-    if (t.bereich != ModellBereich::Ansehen) {
+    if (t.bereich == ModellBereich::Weights && !g_app->model.empty() && ImGui::CollapsingHeader(tr(Str::MbRGewichte), ImGuiTreeNodeFlags_DefaultOpen)) {
+        drawModellGewichte();   // mb1a2
+    }
+    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights) {
         ImGui::PushTextWrapPos(0.0F);
         ImGui::TextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
         ImGui::PopTextWrapPos();
@@ -973,6 +1197,9 @@ void achseSetzen(int a) {
     t.achse = t.achse == a ? -1 : a;
 }
 
+void blenderAlle(bool an);   // mb1a2: unten bei den Tasten wie Blender
+void blenderUmkehren();
+
 const std::vector<MaxTaste>& maxTasten() {
     static const std::vector<MaxTaste> kListe = {
         {ImGuiKey_Q, Str::MbAktAuswaehlen, [] { mt().gizmo = 0; }},
@@ -994,24 +1221,9 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiKey_F, Str::MbAktVorne, [] { ansichtArt(AnsichtArt::Vorne); }},
         {ImGuiKey_L, Str::MbAktLinks, [] { ansichtArt(AnsichtArt::Links); }},
         {ImGuiKey_B, Str::MbAktUnten, [] { ansichtArt(AnsichtArt::Unten); }},
-        {ImGuiMod_Ctrl | ImGuiKey_A, Str::MbAktAlle, [] {
-             ModellTab& t = mt();
-             t.auswahl.clear();
-             for (std::size_t i = 0; i < t.gezeichnet.size(); ++i) {
-                 if (t.gezeichnet[i] != 0) { t.auswahl.push_back(static_cast<int>(i)); }
-             }
-         }},
-        {ImGuiMod_Ctrl | ImGuiKey_D, Str::MbAktNichts, [] { mt().auswahl.clear(); }},
-        {ImGuiMod_Ctrl | ImGuiKey_I, Str::MbAktUmkehren, [] {
-             ModellTab& t = mt();
-             std::vector<int> neu;
-             for (std::size_t i = 0; i < t.gezeichnet.size(); ++i) {
-                 if (t.gezeichnet[i] != 0 && std::find(t.auswahl.begin(), t.auswahl.end(), static_cast<int>(i)) == t.auswahl.end()) {
-                     neu.push_back(static_cast<int>(i));
-                 }
-             }
-             t.auswahl = neu;
-         }},
+        {ImGuiMod_Ctrl | ImGuiKey_A, Str::MbAktAlle, [] { blenderAlle(true); }},
+        {ImGuiMod_Ctrl | ImGuiKey_D, Str::MbAktNichts, [] { blenderAlle(false); }},
+        {ImGuiMod_Ctrl | ImGuiKey_I, Str::MbAktUmkehren, [] { blenderUmkehren(); }},
         {ImGuiKey_Comma, Str::MbAktZurueck, [] { bildSchritt(-1); }},
         {ImGuiKey_Period, Str::MbAktVor, [] { bildSchritt(1); }},
         {ImGuiKey_Slash, Str::MbAktAbspielen, [] {
@@ -1022,6 +1234,14 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiKey_G, Str::MbAnRaster, [] { mt().an.raster = !mt().an.raster; }},
         {ImGuiKey_J, Str::MbAnKlammer, [] { mt().an.klammer = !mt().an.klammer; }},
         {ImGuiKey_7, Str::MbAnStatistik, [] { mt().an.statistik = !mt().an.statistik; }},
+        // mb1a2: Unterobjekt-Ebenen (Autodesk-Karte: 1 Scheitelpunkt, 2 Kante, 3 Rand, 4 Polygon, 5 Element, 6 Objekt;
+        // vorbilder_max_blender.md) - Polygon ist in der .glm ein Dreieck
+        {ImGuiKey_1, Str::MbMaxEcke, [] { modellAuswahlArtSetzen(AuswahlArt::Ecke); }},
+        {ImGuiKey_2, Str::MbMaxKante, [] { modellAuswahlArtSetzen(AuswahlArt::Kante); }},
+        {ImGuiKey_3, Str::MbMaxRand, [] { modellAuswahlArtSetzen(AuswahlArt::Rand); }},
+        {ImGuiKey_4, Str::MbMaxPolygon, [] { modellAuswahlArtSetzen(AuswahlArt::Dreieck); }},
+        {ImGuiKey_5, Str::MbMaxElement, [] { modellAuswahlArtSetzen(AuswahlArt::Element); }},
+        {ImGuiKey_6, Str::MbMaxObjekt, [] { modellAuswahlArtSetzen(AuswahlArt::Objekt); }},
         {ImGuiKey_H, Str::MbAktName, [] { g_sucheFokus = true; }},
         {ImGuiKey_X, Str::MbAktionen, [] { mt().aktionenOffen = true; }},
         {ImGuiMod_Ctrl | ImGuiKey_Z, Str::MbAktUndo, [] { (void)modellRueckgaengig(); }},
@@ -1030,6 +1250,251 @@ const std::vector<MaxTaste>& maxTasten() {
     };
     return kListe;
 }
+
+// --- mb1a2: Tasten wie Blender ------------------------------------------------------------------------
+//
+// Die Belegung "Blender" (Vorgabe) aus belege/blender_keys.txt (Blender 5.0.0, keymap_data/blender_default.py,
+// ausgelesen 04.11.) - je Taste die Zeile als Quelle. Die Ziffernblock-Ansichten und Pos1 stehen nicht im Auszug
+// (er traegt nur die Gruppen Window, Screen, Frames, Object/Mesh/Pose, UV); sie folgen blender_default.py
+// (view3d.view_axis, view_persportho, view_orbit, view_all) und sind als "Doku" markiert. Die Leertaste spielt ab
+// (Vorgabe "Spacebar Action = Play", vorbilder_max_blender.md). Die Liste ist zugleich die Pruefliste des Selbsttests.
+struct BlenderTaste {
+    ImGuiKeyChord chord;
+    Str text;
+    std::function<void()> tun;
+    const char* quelle;
+};
+
+void blenderModal(int art) { (void)modellModalStarten(art); }
+
+void blenderAlle(bool an) {
+    ModellTab& t = mt();
+    if (t.auswahlArt == AuswahlArt::Objekt) {
+        t.auswahl.clear();
+        if (an) {
+            for (std::size_t i = 0; i < t.gezeichnet.size(); ++i) {
+                if (t.gezeichnet[i] != 0) { t.auswahl.push_back(static_cast<int>(i)); }
+            }
+        }
+        return;
+    }
+    t.eckenWahl.clear();
+    if (!an) { return; }
+    const modell::Inhalt& in = t.dok.inhalt();
+    for (std::size_t i = 0; i < in.teile.size() && i < t.gezeichnet.size(); ++i) {
+        if (t.gezeichnet[i] == 0 || static_cast<std::size_t>(t.lodJetzt) >= in.teile[i].stufen.size()) { continue; }
+        const std::size_t n = in.teile[i].stufen[static_cast<std::size_t>(t.lodJetzt)].ecken.size();
+        for (std::size_t e = 0; e < n; ++e) { t.eckenWahl.push_back(modell::EckOrt{static_cast<int>(i), static_cast<int>(e)}); }
+    }
+}
+
+void blenderUmkehren() {
+    ModellTab& t = mt();
+    if (t.auswahlArt == AuswahlArt::Objekt) {
+        std::vector<int> neu;
+        for (std::size_t i = 0; i < t.gezeichnet.size(); ++i) {
+            if (t.gezeichnet[i] != 0 && std::find(t.auswahl.begin(), t.auswahl.end(), static_cast<int>(i)) == t.auswahl.end()) {
+                neu.push_back(static_cast<int>(i));
+            }
+        }
+        t.auswahl = neu;
+        return;
+    }
+    const std::vector<modell::EckOrt> alt = t.eckenWahl;
+    blenderAlle(true);
+    std::vector<modell::EckOrt> neu;
+    for (const modell::EckOrt& o : t.eckenWahl) {
+        const bool war = std::any_of(alt.begin(), alt.end(), [&](const modell::EckOrt& x) { return x.teil == o.teil && x.ecke == o.ecke; });
+        if (!war) { neu.push_back(o); }
+    }
+    t.eckenWahl = neu;
+}
+
+void spielenUmschalten() {
+    if (g_app->animIndex >= 0) { g_app->animPlaying = !g_app->animPlaying; }
+}
+
+const std::vector<BlenderTaste>& blenderTasten() {
+    static const std::vector<BlenderTaste> kListe = {
+        {ImGuiKey_G, Str::MbBlGreifen, [] { blenderModal(1); }, "Object Mode | transform.translate | G PRESS"},
+        {ImGuiKey_R, Str::MbBlDrehen, [] { blenderModal(2); }, "Object Mode | transform.rotate | R PRESS"},
+        {ImGuiKey_S, Str::MbBlSkalieren, [] { blenderModal(3); }, "Object Mode | transform.resize | S PRESS"},
+        {ImGuiKey_Tab, Str::MbBlTab, [] {
+             ModellTab& t = mt();
+             modellAuswahlArtSetzen(t.auswahlArt == AuswahlArt::Objekt ? t.editArt : AuswahlArt::Objekt);
+         },
+         "Object Non-modal | object.mode_set | TAB PRESS mode=EDIT, toggle=True"},
+        {ImGuiMod_Ctrl | ImGuiKey_Tab, Str::MbBlModusMenue, [] { mt().bereichMenue = true; },
+         "Object Non-modal | view3d.object_mode_pie_or_toggle | Strg+TAB PRESS"},
+        {ImGuiKey_1, Str::MbBlEcke, [] { modellAuswahlArtSetzen(AuswahlArt::Ecke); }, "Mesh | mesh.select_mode | ONE PRESS type=VERT"},
+        {ImGuiKey_2, Str::MbBlKante, [] { modellAuswahlArtSetzen(AuswahlArt::Kante); }, "Mesh | mesh.select_mode | TWO PRESS type=EDGE"},
+        {ImGuiKey_3, Str::MbBlFlaeche, [] { modellAuswahlArtSetzen(AuswahlArt::Dreieck); }, "Mesh | mesh.select_mode | THREE PRESS type=FACE"},
+        {ImGuiKey_A, Str::MbBlAlle, [] { blenderAlle(true); }, "Object Mode | object.select_all | A PRESS action=SELECT"},
+        {ImGuiMod_Alt | ImGuiKey_A, Str::MbBlNichts, [] { blenderAlle(false); }, "Object Mode | object.select_all | Alt+A PRESS action=DESELECT"},
+        {ImGuiMod_Ctrl | ImGuiKey_I, Str::MbBlUmkehren, [] { blenderUmkehren(); }, "Object Mode | object.select_all | Strg+I PRESS action=INVERT"},
+        {ImGuiKey_B, Str::MbBlRahmen, [] { mt().gizmo = 0; }, "3D View | view3d.select_box | B PRESS"},
+        {ImGuiKey_Keypad1, Str::MbAnsichtVorne, [] { modellAnsichtSetzen(AnsichtArt::Vorne); }, "Doku | view3d.view_axis | NUMPAD_1 type=FRONT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad1, Str::MbAnsichtHinten, [] { modellAnsichtSetzen(AnsichtArt::Hinten); },
+         "Doku | view3d.view_axis | Strg+NUMPAD_1 type=BACK"},
+        {ImGuiKey_Keypad3, Str::MbAnsichtRechts, [] { modellAnsichtSetzen(AnsichtArt::Rechts); }, "Doku | view3d.view_axis | NUMPAD_3 type=RIGHT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad3, Str::MbAnsichtLinks, [] { modellAnsichtSetzen(AnsichtArt::Links); },
+         "Doku | view3d.view_axis | Strg+NUMPAD_3 type=LEFT"},
+        {ImGuiKey_Keypad7, Str::MbAnsichtOben, [] { modellAnsichtSetzen(AnsichtArt::Oben); }, "Doku | view3d.view_axis | NUMPAD_7 type=TOP"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad7, Str::MbAnsichtUnten, [] { modellAnsichtSetzen(AnsichtArt::Unten); },
+         "Doku | view3d.view_axis | Strg+NUMPAD_7 type=BOTTOM"},
+        {ImGuiKey_Keypad5, Str::MbBlPersp, [] { modellPerspektiveUmschalten(); }, "Doku | view3d.view_persportho | NUMPAD_5"},
+        {ImGuiKey_Keypad4, Str::MbBlKreisLinks, [] { modellKreisenSchritt(15.0F, 0.0F); }, "Doku | view3d.view_orbit | NUMPAD_4 ORBITLEFT"},
+        {ImGuiKey_Keypad6, Str::MbBlKreisRechts, [] { modellKreisenSchritt(-15.0F, 0.0F); }, "Doku | view3d.view_orbit | NUMPAD_6 ORBITRIGHT"},
+        {ImGuiKey_Keypad8, Str::MbBlKreisOben, [] { modellKreisenSchritt(0.0F, 15.0F); }, "Doku | view3d.view_orbit | NUMPAD_8 ORBITUP"},
+        {ImGuiKey_Keypad2, Str::MbBlKreisUnten, [] { modellKreisenSchritt(0.0F, -15.0F); }, "Doku | view3d.view_orbit | NUMPAD_2 ORBITDOWN"},
+        {ImGuiKey_KeypadDecimal, Str::MbBlGewaehlte, [] { modellAnsichtEinpassenAktiv(); }, "3D View | view3d.view_selected | NUMPAD_PERIOD PRESS"},
+        {ImGuiKey_Home, Str::MbBlAlles, [] {
+             ModellTab& t = mt();
+             const std::vector<int> a = t.auswahl;
+             const std::vector<modell::EckOrt> e = t.eckenWahl;
+             t.auswahl.clear();
+             t.eckenWahl.clear();
+             modellAnsichtEinpassenAktiv();
+             t.auswahl = a;
+             t.eckenWahl = e;
+         },
+         "Doku | view3d.view_all | HOME"},
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Q, Str::MbBlVier, [] { mt().vierAnsichten = !mt().vierAnsichten; },
+         "Doku | screen.region_quadview | Strg+Alt+Q"},
+        {ImGuiKey_H, Str::MbAuswahlAusblenden, [] { modellAuswahlAusblenden(false); }, "Doku | object.hide_view_set | H"},
+        {ImGuiMod_Shift | ImGuiKey_H, Str::MbAndereAusblenden, [] { modellAuswahlAusblenden(true); },
+         "Doku | object.hide_view_set unselected=True | Umschalt+H"},
+        {ImGuiMod_Alt | ImGuiKey_H, Str::MbAllesEinblenden, [] { modellAllesEinblenden(); }, "Doku | object.hide_view_clear | Alt+H"},
+        {ImGuiKey_Space, Str::MbAktAbspielen, [] { spielenUmschalten(); }, "vorbilder: Spacebar Action = Play (Blender.py)"},
+        {ImGuiMod_Shift | ImGuiKey_Space, Str::MbAktAbspielen, [] { spielenUmschalten(); }, "Frames | screen.animation_play | Umschalt+SPACE PRESS"},
+        {ImGuiKey_LeftArrow, Str::MbAktZurueck, [] { bildSchritt(-1); }, "Frames | screen.frame_offset | LEFT_ARROW PRESS delta=-1"},
+        {ImGuiKey_RightArrow, Str::MbAktVor, [] { bildSchritt(1); }, "Frames | screen.frame_offset | RIGHT_ARROW PRESS delta=1"},
+        {ImGuiMod_Shift | ImGuiKey_LeftArrow, Str::MbAktAnfang, [] { bildRand(false); }, "Frames | screen.frame_jump | Umschalt+LEFT_ARROW PRESS end=False"},
+        {ImGuiMod_Shift | ImGuiKey_RightArrow, Str::MbAktEnde, [] { bildRand(true); }, "Frames | screen.frame_jump | Umschalt+RIGHT_ARROW PRESS end=True"},
+        {ImGuiKey_F3, Str::MbAktionen, [] { mt().aktionenOffen = true; }, "Window | wm.search_menu | F3 PRESS"},
+        {ImGuiMod_Ctrl | ImGuiKey_Z, Str::MbAktUndo, [] { (void)modellRueckgaengig(); }, "Screen | ed.undo | Strg+Z PRESS"},
+        {ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, Str::MbAktRedo, [] { (void)modellWiederholen(); }, "Screen | ed.redo | Strg+Umschalt+Z PRESS"},
+    };
+    return kListe;
+}
+
+// --- mb1a2: die Funktionen ohne eigene Taste des Vorbilds - in "Alle Aktionen suchen" (X / F3) und im Rechtsklick-
+// Menue der Ansicht, mit Tooltip (shank 06.11.: "dass man es leicht und gut findet"). `taste` ist die eigene Taste von
+// JK Studio, wo es eine gibt.
+struct ZusatzAktion {
+    Str text;
+    Str hinweis;
+    const char* taste;
+    std::function<void()> tun;
+    int gruppe;   // 0 Weights, 1 Auswahl, 2 Anzeige, 3 Skript
+};
+
+void weights(int art) {
+    ModellTab& t = mt();
+    t.bereich = ModellBereich::Weights;
+    if (art >= 0) { t.pinselArt = art; }
+    g_app->modelDirty = true;
+}
+
+const std::vector<ZusatzAktion>& zusatzAktionen() {
+    static const std::vector<ZusatzAktion> kListe = {
+        {Str::MbBereichWeights, Str::MbGwKnochenWaehlen, "", [] { weights(-1); }, 0},
+        {Str::MbGwHinzu, Str::MbGwHinzuHint, "", [] { weights(static_cast<int>(modell::PinselArt::Hinzufuegen)); }, 0},
+        {Str::MbGwAbziehen, Str::MbGwAbziehenHint, "", [] { weights(static_cast<int>(modell::PinselArt::Abziehen)); }, 0},
+        {Str::MbGwGlaetten, Str::MbGwGlaettenHint, "", [] { weights(static_cast<int>(modell::PinselArt::Glaetten)); }, 0},
+        {Str::MbGwSetzen, Str::MbGwSetzenHint, "", [] { weights(static_cast<int>(modell::PinselArt::Setzen)); }, 0},
+        {Str::MbGwAufAuswahl, Str::MbGwAufAuswahlHint, "", [] { (void)modellAufAuswahlSetzen(); }, 0},
+        {Str::MbGwSpiegelnPlus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(1); }, 0},
+        {Str::MbGwSpiegelnMinus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(-1); }, 0},
+        {Str::MbGwUebernehmen, Str::MbGwUebernehmenHint, "", [] { (void)modellUebernehmen(); }, 0},
+        {Str::MbAnEckNummern, Str::MbAnEckNummernHint, "", [] { mt().an.eckNummern = !mt().an.eckNummern; }, 2},
+        {Str::MbAnDreieckNummern, Str::MbAnEckNummernHint, "", [] { mt().an.dreieckNummern = !mt().an.dreieckNummern; }, 2},
+        {Str::MbAnLineal, Str::MbAnLinealHint, "", [] { mt().an.lineal = !mt().an.lineal; }, 2},
+        {Str::MbAnHintergrund, Str::MbAnHintergrundHint, "", [] {
+             g_app->settings.modellHintergrund = g_app->settings.modellHintergrund >= 0 ? -1 : 0x333333;
+         },
+         2},
+        {Str::MbAuswahlAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(false); }, 1},
+        {Str::MbAndereAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(true); }, 1},
+        {Str::MbAllesEinblenden, Str::MbAugeHint, "", [] { modellAllesEinblenden(); }, 1},
+        {Str::MbInsSkriptFenster, Str::MbInsSkriptHint, "Ctrl+Shift+I", [] { modellInsSkriptOeffnen(g_app->animIndex); }, 3},
+    };
+    return kListe;
+}
+
+std::string zusatzText(const ZusatzAktion& a) {
+    std::string t = tr(a.text);
+    if (a.taste[0] != '\0') { t += std::string(" (") + a.taste + ")"; }
+    return t;
+}
+
+void zusatzAusloesen(const ZusatzAktion& a) {
+    a.tun();
+    ++mt().tastenZaehler;
+    mt().letzteTaste = tr(a.text);
+    g_app->modelDirty = true;
+}
+
+}  // namespace
+
+int modellZusatzZahl() { return static_cast<int>(zusatzAktionen().size()); }
+const char* modellZusatzText(int i) { return tr(zusatzAktionen()[static_cast<std::size_t>(i)].text); }
+const char* modellZusatzHinweis(int i) { return tr(zusatzAktionen()[static_cast<std::size_t>(i)].hinweis); }
+void modellZusatzAusloesen(int i) { zusatzAusloesen(zusatzAktionen()[static_cast<std::size_t>(i)]); }
+
+// mb1a2: das Rechtsklick-Menue der Ansicht (3ds Max: Quad-Menue, Blender: Kontextmenue) - Auswahlart, Weights, Anzeige,
+// Ins Skript; jede Zeile mit Tooltip.
+void drawModellKontextMenue() {
+    ModellTab& t = mt();
+    t.kontextSichtbar = ImGui::BeginPopup("##mtkontext");
+    if (!t.kontextSichtbar) { return; }
+    const bool blender = modellBlender();
+    ImGui::TextDisabled("%s", tr(Str::MbKontextAuswahl));
+    static const Str kArten[6] = {Str::MbMaxObjekt, Str::MbMaxEcke, Str::MbMaxKante, Str::MbMaxPolygon, Str::MbMaxRand, Str::MbMaxElement};
+    static const Str kArtenBl[4] = {Str::MbBlObjektModus, Str::MbBlEcke, Str::MbBlKante, Str::MbBlFlaeche};
+    for (int a = 0; a < (blender ? 4 : 6); ++a) {
+        if (ImGui::MenuItem(tr(blender ? kArtenBl[a] : kArten[a]), nullptr, static_cast<int>(t.auswahlArt) == a)) {
+            modellAuswahlArtSetzen(static_cast<AuswahlArt>(a));
+        }
+    }
+    // Weights und Anzeige als Untermenues (wie die Quad-Menues von 3ds Max und die Kontextmenues von Blender): alles in
+    // einer Spalte war 1151 Bildpunkte hoch (uiScale 1.5) - ueber den Rand des Hauptfensters hinaus wird ein Popup ein
+    // eigenes Fenster, und Platz nur, wenn noetig.
+    int gruppe = -1;
+    bool unter = false;   // ein Untermenue ist offen
+    bool zeigen = true;   // die Zeilen der Gruppe stehen da (Untermenue zu: nein)
+    const auto& liste = zusatzAktionen();
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        const ZusatzAktion& a = liste[i];
+        if (a.gruppe != gruppe) {
+            if (unter) { ImGui::EndMenu(); }
+            unter = false;
+            gruppe = a.gruppe;
+            if (gruppe == 0 || gruppe == 2) {
+                if (gruppe == 0) { ImGui::Separator(); }
+                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbRAnzeige));
+                zeigen = unter;
+            } else {
+                ImGui::Separator();
+                zeigen = true;
+            }
+        }
+        if (!zeigen) { continue; }
+        ImGui::PushID(static_cast<int>(i));
+        bool an = false;
+        if (a.text == Str::MbAnEckNummern) { an = t.an.eckNummern; }
+        if (a.text == Str::MbAnDreieckNummern) { an = t.an.dreieckNummern; }
+        if (a.text == Str::MbAnLineal) { an = t.an.lineal; }
+        if (a.text == Str::MbAnHintergrund) { an = g_app->settings.modellHintergrund >= 0; }
+        if (ImGui::MenuItem(tr(a.text), a.taste[0] != '\0' ? a.taste : nullptr, an)) { zusatzAusloesen(a); }
+        ImGui::SetItemTooltip("%s", tr(a.hinweis));
+        ImGui::PopID();
+    }
+    if (unter) { ImGui::EndMenu(); }
+    ImGui::EndPopup();
+}
+
+namespace {
 
 void tasteAusloesen(const MaxTaste& k) {
     k.tun();
@@ -1044,8 +1509,26 @@ bool modellFokus() {
     return g_app->leftMode == 2 && mt().fokus && !ImGui::GetIO().WantTextInput && !g_app->model.empty();
 }
 
+bool modellBlender() { return g_app->settings.modellBedienung == 1; }
+
 bool modellTasten() {
     if (!modellFokus()) { return false; }
+    if (modellModalTasten()) {   // mb1a2: waehrend G/R/S gehoeren die Tasten der Umformung
+        mt().modalEndeBild = ImGui::GetFrameCount();
+        return true;
+    }
+    if (modellBlender()) {
+        for (const BlenderTaste& k : blenderTasten()) {
+            if (ImGui::IsKeyChordPressed(k.chord)) {
+                k.tun();
+                ++mt().tastenZaehler;
+                mt().letzteTaste = tr(k.text);
+                g_app->modelDirty = true;
+                return true;
+            }
+        }
+        return false;
+    }
     for (const MaxTaste& k : maxTasten()) {
         if (ImGui::IsKeyChordPressed(k.chord)) {
             tasteAusloesen(k);
@@ -1054,6 +1537,11 @@ bool modellTasten() {
     }
     return false;
 }
+
+int modellBlenderTasteZahl() { return static_cast<int>(blenderTasten().size()); }
+ImGuiKeyChord modellBlenderTasteChord(int i) { return blenderTasten()[static_cast<std::size_t>(i)].chord; }
+const char* modellBlenderTasteText(int i) { return tr(blenderTasten()[static_cast<std::size_t>(i)].text); }
+const char* modellBlenderTasteQuelle(int i) { return blenderTasten()[static_cast<std::size_t>(i)].quelle; }
 
 int modellTasteZahl() { return static_cast<int>(maxTasten().size()); }
 
@@ -1082,16 +1570,71 @@ void drawModellAktionen() {
     const bool enter = ImGui::InputTextWithHint("##aktsuche", tr(Str::MbAktionen), suche, sizeof suche, ImGuiInputTextFlags_EnterReturnsTrue);
     const std::string such = klein(suche);
     bool erster = enter;
-    for (const MaxTaste& k : maxTasten()) {
-        if (!passt(tr(k.text), such)) { continue; }
-        if (ImGui::Selectable(tr(k.text)) || erster) {
-            tasteAusloesen(k);
+    if (modellBlender()) {   // mb1a2: F3 sucht in der Belegung wie Blender
+        for (const BlenderTaste& k : blenderTasten()) {
+            if (!passt(tr(k.text), such)) { continue; }
+            if (ImGui::Selectable(tr(k.text)) || erster) {
+                k.tun();
+                ++t.tastenZaehler;
+                t.letzteTaste = tr(k.text);
+                g_app->modelDirty = true;
+                ImGui::CloseCurrentPopup();
+                break;
+            }
+        }
+    } else {
+        for (const MaxTaste& k : maxTasten()) {
+            if (!passt(tr(k.text), such)) { continue; }
+            if (ImGui::Selectable(tr(k.text)) || erster) {
+                tasteAusloesen(k);
+                ImGui::CloseCurrentPopup();
+                break;
+            }
+        }
+    }
+    for (const ZusatzAktion& a : zusatzAktionen()) {   // mb1a2: auch die Funktionen ohne Taste des Vorbilds
+        const std::string text = zusatzText(a);
+        if (!passt(text, such)) { continue; }
+        if (ImGui::Selectable(text.c_str())) {
+            zusatzAusloesen(a);
             ImGui::CloseCurrentPopup();
             break;
         }
+        ImGui::SetItemTooltip("%s", tr(a.hinweis));
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
+}
+
+// mb1a2: Strg+Tab wie Blenders Modus-Menue: Objekt, Bearbeiten (Ecken), Weights.
+void drawModellModusMenue() {
+    ModellTab& t = mt();
+    if (t.bereichMenue) {
+        ImGui::OpenPopup("###mtmodus");
+        t.bereichMenue = false;
+    }
+    t.modusMenueSichtbar = ImGui::BeginPopup("###mtmodus");
+    if (!t.modusMenueSichtbar) { return; }
+    if (ImGui::MenuItem(tr(Str::MbBlObjektModus), nullptr, t.auswahlArt == AuswahlArt::Objekt)) {
+        t.bereich = ModellBereich::Ansehen;
+        modellAuswahlArtSetzen(AuswahlArt::Objekt);
+    }
+    if (ImGui::MenuItem(tr(Str::MbBlEditModus), nullptr, t.auswahlArt != AuswahlArt::Objekt)) { modellAuswahlArtSetzen(t.editArt); }
+    if (ImGui::MenuItem(tr(Str::MbBereichWeights), nullptr, t.bereich == ModellBereich::Weights)) {
+        t.bereich = ModellBereich::Weights;
+        g_app->modelDirty = true;
+    }
+    ImGui::EndPopup();
+}
+
+// mb1a2: der Schalter in den Einstellungen wirkt sofort - wie Blender eine grosse Ansicht, wie Max die vier.
+void modellBedienungSetzen(int b) {
+    ModellTab& t = mt();
+    if (g_app->settings.modellBedienung == b) { return; }
+    g_app->settings.modellBedienung = b;
+    modellModalEnde(false);
+    t.vierAnsichten = b == 0 && t.vierAnsichten;
+    g_app->modelDirty = true;
 }
 
 }  // namespace bhed::gui

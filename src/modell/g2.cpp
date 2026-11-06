@@ -1,7 +1,13 @@
 // modell/g2.cpp - eine Ghoul2-Instanz wie im Spiel (siehe bhed/modell/g2.h)
+//
+//   Spawn rules ported from OpenJK (code/game/NPC_spawn.cpp, g_client.cpp, codemp/ghoul2/G2_surfaces.cpp; Copyright (C)
+//   1999-2005 Id Software, Inc., 2000-2013 Raven Software, Inc., 2013-2015 OpenJK contributors) and Movie Duels
+//   (g_client.cpp), licensed under the GNU General Public License version 2. This file is part of BehavEd-Remake and
+//   licensed under the GNU General Public License version 2 or later (LICENSE).
 #include "bhed/modell/g2.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <set>
@@ -9,10 +15,11 @@
 namespace bhed::modell {
 namespace {
 
-// G2_IsSurfaceLegal (G2_surfaces.cpp:137-156): Name ohne Gross/Klein (Q_stricmp).
+// G2_IsSurfaceLegal (G2_surfaces.cpp:137-156): Name ohne Gross/Klein (Q_stricmp) gegen den Namen der
+// Hierarchie, wie R_LoadMDXM ihn hinterlaesst (spielName: ohne "_off").
 int flaecheNachName(const Inhalt& in, const std::string& name) {
     for (std::size_t i = 0; i < in.teile.size(); ++i) {
-        const std::string& n = in.teile[i].name;
+        const std::string n = spielName(in, static_cast<int>(i));
         if (n.size() != name.size()) { continue; }
         bool gleich = true;
         for (std::size_t k = 0; k < n.size() && gleich; ++k) {
@@ -41,6 +48,100 @@ void zeichneRekursiv(const Inhalt& in, const G2Zustand& z, int flaeche, std::vec
 }
 
 }  // namespace
+
+std::string spielName(const Inhalt& in, int teil) {
+    if (teil < 0 || static_cast<std::size_t>(teil) >= in.teile.size()) { return std::string(); }
+    std::string n = in.teile[static_cast<std::size_t>(teil)].name;
+    // R_LoadMDXM (tr_ghoul2.cpp:3722-3735 OpenJK, MD9 :5397-5402): Q_strlwr, dann "_off" am Ende weg; unter JK2_MODE
+    // nur fuer ein JKA-Modell (isANewModelFile) - dieselbe Regel wie applySkin (glm.cpp).
+    if (ghoul2Jk2() && !in.jkaUmgewandelt) { return n; }
+    for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (n.size() >= 4 && n.compare(n.size() - 4, 4, "_off") == 0) { n.resize(n.size() - 4); }
+    return n;
+}
+
+G2Zustand spawnZustand(const Inhalt& in, const std::vector<std::string>& hautAus, const SpawnRegeln& r) {
+    G2Zustand z;
+    // G2API_SetSkin -> G2API_SetSurfaceOnOffFromSkin ("this is going to set the surfs on/off matching the skin file")
+    hautAnwenden(in, z, hautAus);
+    // G_SetG2PlayerModelInfo (g_client.cpp OpenJK 1128-1160, MD9 1629-1669): surfOff mit 0x2, dann surfOn mit 0
+    for (const std::string& n : r.surfOff) { (void)setzeFlaecheAnAus(in, z, n, kG2Aus); }
+    for (const std::string& n : r.surfOn) { (void)setzeFlaecheAnAus(in, z, n, 0U); }
+    // "carrying a key, turn on the key sleeve surface (assuming we have one)"
+    if (r.imperialMitSchluessel) { (void)setzeFlaecheAnAus(in, z, "l_arm_key", 0U); }
+    // Movie Duels Update 9 g_set_g2_player_model (g_client.cpp:2381): danach immer
+    // G2API_SetSurfaceOnOff(..., "force_shield", TURN_OFF) mit TURN_OFF 0x100 (g_client.cpp:2282). OpenJK hat die Zeile nicht.
+    if (r.movieDuelsSp) { (void)setzeFlaecheAnAus(in, z, "force_shield", kG2OhneKinder); }
+    return z;
+}
+
+std::vector<std::string> npcFlaechenListe(const std::string& text) {
+    // NPC_GetSurfaceParms liest surfOff/surfOn als Text, G_SetG2PlayerModelInfo zerlegt ihn mit COM_ParseExt
+    // (Woerter zwischen Leerraum).
+    std::vector<std::string> l;
+    std::string w;
+    for (const char c : text) {
+        if (static_cast<unsigned char>(c) <= 32U) {   // SkipWhitespace: alles <= ' '
+            if (!w.empty()) { l.push_back(w); }
+            w.clear();
+        } else {
+            w += c;
+        }
+    }
+    if (!w.empty()) { l.push_back(w); }
+    return l;
+}
+
+Inhalt hierarchieAus(const GlmModel& m) {
+    Inhalt in;
+    in.herkunft = Herkunft::Glm;
+    in.name = m.name;
+    in.jk2Umgewandelt = m.jk2Umgewandelt;
+    in.jkaUmgewandelt = m.jkaUmgewandelt;
+    in.stufenZahl = 1;
+    in.teile.resize(m.surfaces.size());
+    for (std::size_t i = 0; i < m.surfaces.size(); ++i) {
+        in.teile[i].name = m.surfaces[i].name;
+        in.teile[i].flaggen = m.surfaces[i].flags;
+        in.teile[i].eltern = m.surfaces[i].parent;
+    }
+    for (std::size_t i = 0; i < in.teile.size(); ++i) {   // Kinder aus den Eltern, in der Reihenfolge der Datei
+        const int p = in.teile[i].eltern;
+        if (p >= 0 && static_cast<std::size_t>(p) < in.teile.size() && static_cast<std::size_t>(p) != i) {
+            in.teile[static_cast<std::size_t>(p)].kinder.push_back(static_cast<int>(i));
+        }
+    }
+    return in;
+}
+
+std::vector<std::string> hautAusModell(const Inhalt& in, const GlmModel& m) {
+    std::vector<std::string> aus;
+    for (std::size_t i = 0; i < m.surfaces.size() && i < in.teile.size(); ++i) {
+        if (m.surfaces[i].skinnedOff) { aus.push_back(spielName(in, static_cast<int>(i))); }
+    }
+    return aus;
+}
+
+G2Zustand mitKappen(const Inhalt& in, const G2Zustand& z) {
+    // Die Leiste "Kappen": G2_SetSurfaceOnOff(..., 0) fuer jede Flaeche mit OFF in der Datei, die keine
+    // Ueberschreibung hat (Haut, Spielcode oder Anwender).
+    G2Zustand k = z;
+    for (std::size_t i = 0; i < in.teile.size(); ++i) {
+        if ((in.teile[i].flaggen & kG2Aus) == 0U) { continue; }
+        const bool eigen = std::any_of(z.slist.begin(), z.slist.end(), [&](const FlaechenSchalter& s) { return s.flaeche == static_cast<int>(i); });
+        if (!eigen) { (void)setzeFlaecheAnAus(in, k, spielName(in, static_cast<int>(i)), 0U); }
+    }
+    return k;
+}
+
+void g2Uebertragen(const Inhalt& in, const G2Zustand& z, GlmModel& m) {
+    const std::vector<char> an = gezeichnet(in, z);
+    const std::vector<char> kappen = gezeichnet(in, mitKappen(in, z));
+    for (std::size_t i = 0; i < m.surfaces.size() && i < an.size(); ++i) {
+        m.surfaces[i].g2An = an[i] != 0 ? 1 : 0;
+        m.surfaces[i].g2Kappen = kappen[i] != 0 ? 1 : 0;
+    }
+}
 
 bool setzeFlaecheAnAus(const Inhalt& in, G2Zustand& z, const std::string& name, std::uint32_t off) {
     const int f = flaecheNachName(in, name);
@@ -72,7 +173,7 @@ bool setzeWurzel(const Inhalt& in, G2Zustand& z, const std::string& name) {
 
 void hautAnwenden(const Inhalt& in, G2Zustand& z, const std::vector<std::string>& hautAus) {
     z.slist.clear();   // "remove any overrides we had before."
-    for (const std::string& n : hautAus) {
+    for (const std::string& n : hautAus) {   // Namen der Haut wie das Spiel (spielName der Flaeche)
         const int f = flaecheNachName(in, n);
         // Eine Flaeche, die es nicht gibt, hat keine Flaggen; G2_SetSurfaceOnOff findet sie nicht.
         if (f < 0) { continue; }

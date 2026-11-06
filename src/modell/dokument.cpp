@@ -1,5 +1,6 @@
 // modell/dokument.cpp - das Modelldokument (siehe bhed/modell/dokument.h)
 #include "bhed/modell/dokument.h"
+#include "bhed/modell/gewichte.h"
 
 #include <algorithm>
 #include <cstring>
@@ -304,8 +305,14 @@ GlmModel zuGlm(const Inhalt& in, int stufe) {
         if (s >= t.stufen.size()) { continue; }
         const Netz& n = t.stufen[s];
         g.verts.reserve(n.ecken.size());
-        for (const Ecke& e : n.ecken) {
+        for (std::size_t ei = 0; ei < n.ecken.size(); ++ei) {
+            const Ecke& e = n.ecken[ei];
             g.verts.push_back(vertexAus(e));
+            // 1a-2: waehrend des Malens zeichnet die Figur, was das Spiel aus der Malliste machte.
+            if (ei < n.mal.size()) {
+                Ecke spiel = e;
+                if (aufEcke(n.mal[ei], spiel)) { g.verts.back() = vertexAus(spiel); }
+            }
             // Grenzen wie readGlm: ueber alle Ecken aller Flaechen der Stufe.
             for (int k = 0; k < 3; ++k) {
                 if (erste) {
@@ -352,6 +359,14 @@ void Dokument::vorschau(const std::function<void(Inhalt&)>& f) {
 bool Dokument::rueckgaengig() {
     if (zurueck_.empty()) { return false; }
     vor_.emplace_back(zurueck_.back().first, std::move(jetzt_));
+    jetzt_ = std::move(zurueck_.back().second);
+    zurueck_.pop_back();
+    ++stand_;
+    return true;
+}
+
+bool Dokument::abbrechen() {
+    if (zurueck_.empty()) { return false; }
     jetzt_ = std::move(zurueck_.back().second);
     zurueck_.pop_back();
     ++stand_;

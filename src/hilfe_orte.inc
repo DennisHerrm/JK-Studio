@@ -121,7 +121,7 @@
 {"vorschau", "knopf:WegRoute@###wegpunkte", "ViewMap>WegTitel>WegRoute", "WegRouteHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"vorschau", "knopf:WegPruefen@###wegpunkte", "ViewMap>WegTitel>WegPruefen", "WegPruefenHint", "zahl:vorschau.bereit < knopf:ViewMap@modebar && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", ""},
 {"modell", "knopf:ActCopy", "ViewModel>ActCopy", "HintCopy", "modus:2 < knopf:ViewModel@modebar", ""},
-{"modell", "knopf:ModelAnimToScript", "ViewModel>ModelAnimToScript", "ModelAnimToScriptHint", "modus:2 < knopf:ViewModel@modebar", ""},
+{"modell", "knopf:ModelAnimToScript", "ViewModel>ModelAnimToScript", "MbInsSkriptHint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:OpenGlm", "ViewModel>OpenGlm", "OpenGlmHint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:OpenGlmPk3", "ViewModel>OpenGlmPk3", "OpenGlmPk3Hint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:NpcBrowser", "ViewModel>NpcBrowser", "NpcBrowserHint", "modus:2 < knopf:ViewModel@modebar", ""},

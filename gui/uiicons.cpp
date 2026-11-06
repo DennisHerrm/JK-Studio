@@ -120,6 +120,19 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::Tuer: c = ImVec4{0.55F, 0.70F, 1.00F, 1.0F}; break;      // Mover
         case UiIcon::Wegpunkt: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;  // Laufziel
         case UiIcon::Bruch: c = ImVec4{0.85F, 0.66F, 0.42F, 1.0F}; break;
+        // mb1a2: Szenen-Explorer des Model-Tabs - je Art eine eigene Farbe
+        case UiIcon::MbModell: c = ImVec4{0.80F, 0.82F, 0.86F, 1.0F}; break;        // neutral wie die Datei
+        case UiIcon::MbFlaeche: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;       // blau
+        case UiIcon::MbFlaecheKinder: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break; // tuerkis
+        case UiIcon::MbKappe: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;         // grau (in der Datei aus)
+        case UiIcon::MbTag: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;           // gruen wie die Tags in der Ansicht
+        case UiIcon::MbKnochen: c = ImVec4{0.98F, 0.86F, 0.38F, 1.0F}; break;       // gelb
+        case UiIcon::MbWurzel: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;        // orange
+        case UiIcon::MbAnbau: c = ImVec4{0.95F, 0.40F, 0.95F, 1.0F}; break;         // magenta
+        case UiIcon::MbSequenz: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;       // bernstein wie die Animation
+        case UiIcon::MbLod: c = ImVec4{0.65F, 0.85F, 0.55F, 1.0F}; break;
+        case UiIcon::MbG2Aus: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;         // rot wie "aus"
+
         default: break;
     }
     // Helles Farbschema: dieselbe Farbe, dunkler.
@@ -150,6 +163,58 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
                    ImVec2{2.0F, 14.0F}}, true);
             z.rahmen(4.5F, 2.0F, 10.5F, 6.0F, 0.0F);
             z.rahmen(4.5F, 9.0F, 11.5F, 14.0F, 0.5F);
+            break;
+        // --- mb1a2: Szenen-Explorer des Model-Tabs ------------------------------------------------
+        case UiIcon::MbModell:   // Gitter aus Dreiecken
+            z.zug({ImVec2{8.0F, 1.5F}, ImVec2{14.5F, 13.5F}, ImVec2{1.5F, 13.5F}}, true);
+            z.zug({ImVec2{4.75F, 7.5F}, ImVec2{11.25F, 7.5F}, ImVec2{8.0F, 13.5F}}, true);
+            break;
+        case UiIcon::MbFlaeche:   // ein gefuelltes Dreieck
+            z.flaeche({ImVec2{8.0F, 2.5F}, ImVec2{14.0F, 13.0F}, ImVec2{2.0F, 13.0F}});
+            break;
+        case UiIcon::MbFlaecheKinder:   // Dreieck mit zwei kleinen darunter (Hierarchie)
+            z.flaeche({ImVec2{8.0F, 1.0F}, ImVec2{12.0F, 7.5F}, ImVec2{4.0F, 7.5F}});
+            z.zug({ImVec2{4.0F, 9.0F}, ImVec2{7.0F, 14.5F}, ImVec2{1.0F, 14.5F}}, true);
+            z.zug({ImVec2{12.0F, 9.0F}, ImVec2{15.0F, 14.5F}, ImVec2{9.0F, 14.5F}}, true);
+            break;
+        case UiIcon::MbKappe:   // halbe Scheibe (schliesst ein Loch)
+            z.bogen(8.0F, 11.0F, 6.0F, kPi, 2.0F * kPi);
+            z.linie(2.0F, 11.0F, 14.0F, 11.0F);
+            z.linie(5.0F, 14.0F, 11.0F, 14.0F);
+            break;
+        case UiIcon::MbTag:   // Anbaupunkt: Kreis mit Kreuz
+            z.kreis(8.0F, 8.0F, 5.0F);
+            z.linie(8.0F, 1.0F, 8.0F, 15.0F);
+            z.linie(1.0F, 8.0F, 15.0F, 8.0F);
+            break;
+        case UiIcon::MbKnochen:   // Knochen: Schaft mit zwei Gelenken
+            z.linie(4.5F, 11.5F, 11.5F, 4.5F);
+            z.punkt(3.5F, 12.5F, 2.2F);
+            z.punkt(12.5F, 3.5F, 2.2F);
+            break;
+        case UiIcon::MbWurzel:   // Wurzelknochen: Gelenk auf dem Boden, Schaft nach oben
+            z.linie(2.0F, 14.0F, 14.0F, 14.0F);
+            z.punkt(8.0F, 11.0F, 2.6F);
+            z.linie(8.0F, 9.0F, 8.0F, 2.0F);
+            z.punkt(8.0F, 2.0F, 1.5F);
+            break;
+        case UiIcon::MbAnbau:   // zwei verbundene Glieder
+            z.rahmen(1.5F, 6.0F, 8.5F, 10.0F, 2.0F);
+            z.rahmen(7.5F, 6.0F, 14.5F, 10.0F, 2.0F);
+            break;
+        case UiIcon::MbSequenz:   // Filmstreifen
+            z.rahmen(1.5F, 3.0F, 14.5F, 13.0F, 0.5F);
+            z.linie(5.5F, 3.0F, 5.5F, 13.0F);
+            z.linie(10.5F, 3.0F, 10.5F, 13.0F);
+            break;
+        case UiIcon::MbLod:   // drei Stufen, nach oben schmaler
+            z.linie(1.5F, 13.5F, 14.5F, 13.5F);
+            z.linie(3.5F, 9.0F, 12.5F, 9.0F);
+            z.linie(5.5F, 4.5F, 10.5F, 4.5F);
+            break;
+        case UiIcon::MbG2Aus:   // Kreis mit Schraegstrich (im Spiel abgeschaltet)
+            z.kreis(8.0F, 8.0F, 6.0F);
+            z.linie(3.8F, 12.2F, 12.2F, 3.8F);
             break;
         case UiIcon::SpeichernUnter:   // kleine Diskette mit Stift
             z.zug({ImVec2{1.5F, 3.0F}, ImVec2{8.5F, 3.0F}, ImVec2{10.5F, 5.0F}, ImVec2{10.5F, 7.0F}});

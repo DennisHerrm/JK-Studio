@@ -74,11 +74,39 @@ std::vector<Schritt> schritteSeitenwechsel() {
     oeffnen("Hierarchie", true);
     add(tu("F46 B6-1 Hierarchie: g2 waehlen", [] { me::waehle(me::itemNummer("g2"), false); }));
     add(pause(0.2));
+    // mb1a2 (F46 unter Last rot): die Zeile k1 liegt am unteren Rand der Hierarchie (y 1361 bei 1404 hohem Fenster). Die
+    // Pause nach dem Waehlen ist Zeit, nicht Bilder: unter Last ist sie nach einem Bild um, und der Klick ging an den Ort aus
+    // einem Bild, in dem die Zeile noch nicht (oder anders) stand. Erst klicken, wenn k1 drei Bilder lang am selben Ort steht.
+    const auto stabil = std::make_shared<std::pair<ImVec2, int>>(ImVec2{-1.0F, -1.0F}, 0);
+    const auto warteBilder = std::make_shared<int>(0);
+    add(warteBis("F46 B6-1 Hierarchie: k1 steht drei Bilder am selben Ort", [stabil, warteBilder] {
+        const ImVec2 p = zeileNr("k1", 0);
+        ++*warteBilder;
+        stabil->second = (p.x >= 0.0F && p.x == stabil->first.x && p.y == stabil->first.y) ? stabil->second + 1 : 0;
+        stabil->first = p;
+        if (stabil->second >= 3) {
+            diag::detail("Knopftest: F46 B6-1 Hierarchie - k1 nach " + std::to_string(*warteBilder) + " Bildern stabil");
+            return true;
+        }
+        return false;
+    }, 600));
     add(halteTaste(ImGuiMod_Ctrl, true));
-    add(klickAn("F46 B6-1 Hierarchie: Strg-Klick auf k1 (Menue klein)", [] { return zeileNr("k1", 0); }));
+    const auto klickOrt = std::make_shared<ImVec2>();
+    const auto klickBild = std::make_shared<int>(0);
+    add(klickAn("F46 B6-1 Hierarchie: Strg-Klick auf k1 (Menue klein)", [klickOrt, klickBild] {
+        *klickOrt = zeileNr("k1", 0);
+        *klickBild = ImGui::GetFrameCount();
+        return *klickOrt;
+    }));
     add(halteTaste(ImGuiMod_Ctrl, false));
     add(pause(0.2));
-    add(pruefe("F46 B6-1 Hierarchie: Seite klein, gewaehlt ist nur k1", [] {
+    add(pruefe("F46 B6-1 Hierarchie: Seite klein, gewaehlt ist nur k1", [klickOrt, klickBild] {
+        const ImVec2 jetzt = zeileNr("k1", 0);
+        char z[200];
+        std::snprintf(z, sizeof z, "Knopftest: F46 B6-1 Hierarchie - k1 beim Klick (Bild %d) %.0f/%.0f, jetzt (Bild %d) %.0f/%.0f",
+                      *klickBild, static_cast<double>(klickOrt->x), static_cast<double>(klickOrt->y), ImGui::GetFrameCount(),
+                      static_cast<double>(jetzt.x), static_cast<double>(jetzt.y));
+        diag::detail(z);
         diag::detail("Knopftest: F46 B6-1 Hierarchie - Seite " + std::to_string(me::stand().seite) + ", Auswahl " + auswahlText());
         return me::stand().seite == 1 && auswahlText() == "1";
     }));

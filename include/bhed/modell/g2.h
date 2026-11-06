@@ -44,7 +44,11 @@ struct G2Zustand {
     int wurzel = 0;                        // mSurfaceRoot
 };
 
-// G2_SetSurfaceOnOff: false, wenn es die Flaeche nicht gibt.
+// mb1a2: der Name einer Flaeche in der Hierarchie des Spiels - R_LoadMDXM schreibt ihn klein und streicht "_off"
+// am Ende (unter JK2_MODE nur bei einem JKA-Modell). G2_IsSurfaceLegal sucht nach diesem Namen.
+[[nodiscard]] std::string spielName(const Inhalt& in, int teil);
+
+// G2_SetSurfaceOnOff: false, wenn es die Flaeche nicht gibt (Name wie im Spiel, siehe spielName).
 bool setzeFlaecheAnAus(const Inhalt& in, G2Zustand& z, const std::string& name, std::uint32_t offFlags);
 // G2_SetRootSurface
 bool setzeWurzel(const Inhalt& in, G2Zustand& z, const std::string& name);
@@ -53,6 +57,25 @@ bool setzeWurzel(const Inhalt& in, G2Zustand& z, const std::string& name);
 // tragen. `hautAus` sind die Flaechennamen der Haut mit "*off" (nach der
 // "_off"-Regel von R_RegisterSkin, siehe applySkin in glm.cpp).
 void hautAnwenden(const Inhalt& in, G2Zustand& z, const std::vector<std::string>& hautAus);
+// mb1a2: was der Spielcode beim Erzeugen einer Figur schaltet (Mission-Tab, Karten-Figuren).
+struct SpawnRegeln {
+    std::vector<std::string> surfOff;   // .npc "surfOff" (NPC_GetSurfaceParms)
+    std::vector<std::string> surfOn;    // .npc "surfOn"
+    bool imperialMitSchluessel = false; // CLASS_IMPERIAL mit "message" (Schluessel)
+    bool movieDuelsSp = false;          // Movie Duels Einzelspieler: force_shield aus
+};
+// Haut, surfOff/surfOn, Schluesselaermel und force_shield in der Reihenfolge des Spiels.
+[[nodiscard]] G2Zustand spawnZustand(const Inhalt& in, const std::vector<std::string>& hautAus, const SpawnRegeln& r);
+// Die Woerter von surfOff/surfOn (COM_ParseExt: durch Leerraum getrennt).
+[[nodiscard]] std::vector<std::string> npcFlaechenListe(const std::string& text);
+// Nur die Hierarchie eines gelesenen Modells (Namen, Flaggen, Eltern, Kinder; keine Netze) - genug fuer die Regeln.
+[[nodiscard]] Inhalt hierarchieAus(const GlmModel& m);
+// Die Flaechen mit "*off" der Haut (skinnedOff) als Namen wie im Spiel.
+[[nodiscard]] std::vector<std::string> hautAusModell(const Inhalt& in, const GlmModel& m);
+// Dazu alle Kappen an (die Leiste "Kappen", G2_SetSurfaceOnOff(..., 0) fuer OFF-Flaechen ohne Ueberschreibung).
+[[nodiscard]] G2Zustand mitKappen(const Inhalt& in, const G2Zustand& z);
+// RenderSurfaces in die Flaechen schreiben (GlmSurface::g2An, g2Kappen) - der Zeichner folgt dann den Regeln.
+void g2Uebertragen(const Inhalt& in, const G2Zustand& z, GlmModel& m);
 // Die offFlags einer Flaeche (Ueberschreibung vor Flaggen der Datei).
 [[nodiscard]] std::uint32_t offFlags(const Inhalt& in, const G2Zustand& z, int flaeche);
 // RenderSurfaces: je Flaeche 1, wenn sie gezeichnet wird. Ein .md3 ist kein

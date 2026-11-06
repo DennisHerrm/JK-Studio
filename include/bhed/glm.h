@@ -85,9 +85,19 @@ struct GlmSurface {
     [[nodiscard]] bool isOffByName() const noexcept;
 
     // Wird diese Flaeche gezeichnet?
+    // mb1a2: gezeichnet nach den Ghoul2-Regeln des Spiels (RenderSurfaces mit
+    // Haut, .npc surfOff/surfOn und dem Spielcode, modell::g2Uebertragen):
+    // g2An ohne, g2Kappen mit den Kappen der Leiste. -1: nicht berechnet -
+    // dann gelten Haut und Name wie bis rc610 (Model-Tab alt, Anbauten).
+    std::int8_t g2An = -1;
+    std::int8_t g2Kappen = -1;
+
     [[nodiscard]] bool isVisible(bool showCaps) const noexcept {
         if (isTag() || verts.empty()) {
             return false;
+        }
+        if (g2An >= 0) {
+            return (showCaps ? g2Kappen : g2An) > 0;
         }
         if (skinnedOff) {
             return false;   // die .skin hat sie abgeschaltet

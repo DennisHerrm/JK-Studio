@@ -905,6 +905,7 @@ std::vector<Schritt> schritte() {
         }));
         return s;
     }
+    if (n == "mb2" || n == "blender" || n == "bild2") { return {}; }   // mb1a2: selbsttest_mb1a2.inc
     if (n.empty() || n == "funktionen") {
         for (Schritt& x : funktionenSchritte()) { s.push_back(std::move(x)); }
     }

@@ -2765,6 +2765,12 @@ void handleShortcuts() {
     // Modell-Block 1a-1: im Model-Tab (letzter Klick in Ansicht, Explorer,
     // Befehlsfeld oder Leiste) gelten die Tasten von 3ds Max.
     if (!nurRueckgaengig && modellTasten()) { return; }
+    // mb1a2: im Model-Tab gibt es kein Skript - Datei-Befehle und Rueckgaengig gelten dem Modell, die Kuerzel des
+    // Skriptbaums nicht.
+    if (g_app->leftMode == 2) {
+        modellDateiTasten(nurRueckgaengig);
+        return;
+    }
     // Strg+Umschalt+Z gilt weiterhin als Wiederherstellen, auch wenn die
     // Belegung von Redo geaendert wurde - das erwartet jeder.
     // Strg+Umschalt+S sichert alle Reiter - so heisst es in jedem Editor,
@@ -5339,6 +5345,9 @@ void drawTlKante() {
 #include "app_dockspace.inc"   // dock2: durchgehender DockSpace (ab Werk an, BHED_DOCKSPACE=0 = Rueckweg)
 }  // namespace
 
+// mb1a2: das Fenster "Ins Skript" des Model-Tabs legt ein neues Skript an wie der Knopf New (neuer Reiter)
+void modellNeuesSkript() { neuesSkript(); }
+
 // dock2: der Schalter des DockSpace (app_dockspace.inc) fuer den Selbsttest.
 bool& dockraumAn() { return dockraum::an(); }
 bool dockraumStandard(int bereich) { return bereich >= 0 && bereich <= 2 && dockraum::standard(bereich); }
@@ -5417,7 +5426,10 @@ void bereichZeichnen(const Layout& l) {
     } else {
         // dock1: Actions in einem eigenen Fenster - dann zwei Spalten wie bei
         // der Mission.
-        const bool mitKnoepfen = (g_app->leftMode != 1) && (dockraum::an() || dock::zuhause(aktionenPanel()));
+        // mb1a2 (shank 06.11.: "der model tab sollte komplett sein ohne das andere"): im Model-Tab weder Script Flow noch
+        // Actions - die linke Spalte (Modusleiste, Explorer, Ansicht) nimmt die ganze Breite.
+        const bool nurLinks = g_app->leftMode == 2;
+        const bool mitKnoepfen = !nurLinks && (g_app->leftMode != 1) && (dockraum::an() || dock::zuhause(aktionenPanel()));
         // dock2: im DockSpace richtet sich die Tabelle nur ein (gemessen, ohne
         // Inhalt); die Panels stehen danach in Dock-Knoten genau auf ihren Spalten.
         const ImVec2 tabelleStart = ImGui::GetCursorScreenPos();
@@ -5428,7 +5440,7 @@ void bereichZeichnen(const Layout& l) {
             dockraum::g_mess.bandLinks = tabelleStart.x - ImGui::GetStyle().CellPadding.x;
             dockraum::g_mess.bandRechts = tabelleStart.x + ImGui::GetContentRegionAvail().x + ImGui::GetStyle().CellPadding.x;
         }
-        const int spalten = mitKnoepfen ? 3 : 2;
+        const int spalten = nurLinks ? 1 : (mitKnoepfen ? 3 : 2);
         // --- KEINE gespeicherten Spaltenbreiten -------------------------
         //
         // ImGui legt Spaltenbreiten in der `imgui.ini` ab und stellt sie
@@ -5633,15 +5645,17 @@ void bereichZeichnen(const Layout& l) {
             // die Karte auf 0 (27.09.).
             ImGui::TableSetupColumn("Events",
                                     ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
-                                    breiteEvents);
+                                    nurLinks ? gesamtB : breiteEvents);
             // Auch der Script Flow FEST, als Rest ausgerechnet (siehe unten):
             // bei gemischten festen und gedehnten Spalten verteilt ImGui den
             // Rest selbst und gab der linken Spalte 37 Punkte mehr als
             // gewuenscht - genau die fehlten dem Script Flow (27.09.).
-            ImGui::TableSetupColumn("Flow",
-                                    ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
-                                    std::max(minFlow, gesamtB - breiteEvents - (mitKnoepfen ? l.buttonsW : 0.0F) -
-                                                          g_app->spaltenUeberhang));
+            if (!nurLinks) {
+                ImGui::TableSetupColumn("Flow",
+                                        ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
+                                        std::max(minFlow, gesamtB - breiteEvents - (mitKnoepfen ? l.buttonsW : 0.0F) -
+                                                              g_app->spaltenUeberhang));
+            }
             if (mitKnoepfen) {
                 // Feste Breite, und zwar die GEWUENSCHTE, nicht die
                 // kleinstmoegliche: `minButtonsW` ist die Untergrenze, bei
@@ -5707,7 +5721,8 @@ void bereichZeichnen(const Layout& l) {
                 // stehen.
                 const float minB = mitKnoepfen ? l.minButtonsW : 0.0F;
                 const float maxLAnordnung = std::max(minEvents, gesamtB - minB - minFlow - spiel);
-                const float zielL = std::floor(std::clamp(gesamtB * linksAnteil, minEvents, maxLAnordnung));
+                const float zielL = nurLinks ? std::floor(gesamtB - spiel)
+                                             : std::floor(std::clamp(gesamtB * linksAnteil, minEvents, maxLAnordnung));
                 float zielB = 0.0F;
                 if (mitKnoepfen) {
                     const float maxB = std::max(
@@ -5804,13 +5819,13 @@ void bereichZeichnen(const Layout& l) {
                     // frei bleibt (soll nur der Rahmen sein).
                     g_app->spaltenLuecke = tabI->OuterRect.Max.x - tabI->Columns[letzte].MaxX;
                 }
-                const int n = mitKnoepfen ? 3 : 2;
+                const int n = spalten;
                 for (int k = 0; k < 3; ++k) {
                     g_app->spaltenB[k] = (k < n) ? tabI->Columns[k].MaxX - tabI->Columns[k].MinX : 0.0F;
                 }
                 g_app->teilerX[0] = tabI->Columns[0].MaxX;
                 g_app->teilerX[1] = mitKnoepfen ? tabI->Columns[1].MaxX : 0.0F;
-                g_app->teilerAnzahl = mitKnoepfen ? 2 : 1;
+                g_app->teilerAnzahl = nurLinks ? 0 : (mitKnoepfen ? 2 : 1);
             }
 
             ImGui::TableNextColumn();
@@ -5969,12 +5984,14 @@ void bereichZeichnen(const Layout& l) {
                 drawEventsList(l);
             }
 
-            ImGui::TableNextColumn();
-            if (dockraum::an()) {
-                dockraum::zelleMessen(1);
-            } else {
-                drawFlowArea(l);
-                dock::heimPlatz(flussPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (!nurLinks) {
+                ImGui::TableNextColumn();
+                if (dockraum::an()) {
+                    dockraum::zelleMessen(1);
+                } else {
+                    drawFlowArea(l);
+                    dock::heimPlatz(flussPanel(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+                }
             }
 
             if (mitKnoepfen) {
@@ -6174,6 +6191,7 @@ void bereichZeichnen(const Layout& l) {
     if (!dockraum::an()) { drawDockFenster(l); }
     // rc609 W2b: der Entity-Text hat keinen Platz im Hauptfenster - sein eigenes, andockbares Fenster
     drawEntTextFenster();
+    drawModellInsSkriptFenster();   // mb1a2
     drawLumpEditFenster();   // rc609 J
     karteneditor::texturListeZeichnen();   // rc609 K
 }
@@ -6204,7 +6222,8 @@ void fensterKopf() {
     //
     // Im Karten-Editor gibt es keine Skript-Reiter (Stufe 3 Punkt 0b): der
     // Editor beginnt direkt unter der Menueleiste.
-    if (!g_app->tabs.empty() && !kartenLeiste && g_app->leftMode != 4) {
+    // mb1a2: auch der Model-Tab hat keine Skript-Reiter (shank: "der model tab sollte komplett sein ohne das andere")
+    if (!g_app->tabs.empty() && !kartenLeiste && g_app->leftMode != 4 && g_app->leftMode != 2) {
         // KEIN ImGuiTabBarFlags_AutoSelectNewTabs: das Programm waehlt einen
         // neuen Reiter selbst (addTab setzt homeTab), und die Nachfuehrung
         // unten bringt ImGui dorthin. Mit der Fahne hielt die Leiste einen

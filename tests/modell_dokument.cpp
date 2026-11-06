@@ -227,15 +227,41 @@ int main(int argc, char** argv) {
         expect("Flaeche aus", setzeFlaecheAnAus(h, z, "torso", kG2Aus) && an(gezeichnet(h, z)) == "101000");
         expect("aus ohne Kinder", setzeFlaecheAnAus(h, z, "TORSO", kG2Aus | kG2OhneKinder) && an(gezeichnet(h, z)) == "100000" && z.slist.size() == 1U);
         expect("wieder an (Eintrag bleibt, Flaggen 0)", setzeFlaecheAnAus(h, z, "torso", 0) && an(gezeichnet(h, z)) == "111000" && z.slist.size() == 1U);
-        expect("Kappe an", setzeFlaecheAnAus(h, z, "torso_cap_off", 0) && an(gezeichnet(h, z)) == "111100");
+        // mb1a2: G2_IsSurfaceLegal sucht den Namen aus R_LoadMDXM - "_off" ist dort gestrichen
+        expect("Name mit _off findet die Flaeche nicht (R_LoadMDXM streicht es)", !setzeFlaecheAnAus(h, z, "torso_cap_off", 0) && spielName(h, 3) == "torso_cap");
+        expect("Kappe an", setzeFlaecheAnAus(h, z, "torso_cap", 0) && an(gezeichnet(h, z)) == "111100");
         expect("Tag an bleibt ungezeichnet (ISBOLT bleibt)", setzeFlaecheAnAus(h, z, "*r_hand", 0) && an(gezeichnet(h, z)) == "111100");
         expect("unbekannte Flaeche", !setzeFlaecheAnAus(h, z, "gibtsnicht", kG2Aus));
         expect("Wurzel torso", setzeWurzel(h, z, "torso") && an(gezeichnet(h, z)) == "011100");
         expect("Wurzel zweite_wurzel", setzeWurzel(h, z, "zweite_wurzel") && an(gezeichnet(h, z)) == "000001");
         expect("unbekannte Wurzel aendert nichts", !setzeWurzel(h, z, "nichts") && z.wurzel == 5);
         z.wurzel = 0;
-        hautAnwenden(h, z, {"head", "torso_cap_off"});
+        hautAnwenden(h, z, {"head", "torso_cap"});
         expect("Haut: Ueberschreibungen weg, head aus, Kappe bleibt aus ohne Eintrag", an(gezeichnet(h, z)) == "110000" && z.slist.size() == 1U);
+        // mb1a2: was der Spielcode beim Erzeugen schaltet
+        Inhalt d = h;
+        d.teile.push_back(teil("force_shield_off", 0, 0));   // 6: Droideka (Movie Duels), Flagge 0
+        d.teile[0].kinder.push_back(6);
+        SpawnRegeln r;
+        expect("force_shield_off mit Flagge 0: RenderSurfaces zeichnet es (OpenJK)", an(gezeichnet(d, spawnZustand(d, {}, r))) == "1110001");
+        r.movieDuelsSp = true;
+        expect("Movie Duels SP: g_client.cpp:2381 schaltet force_shield mit 0x100 ab", an(gezeichnet(d, spawnZustand(d, {}, r))) == "1110000");
+        r.movieDuelsSp = false;
+        r.surfOff = npcFlaechenListe("head torso_cap");
+        r.surfOn = npcFlaechenListe("torso_cap");
+        expect(".npc surfOff head, dann surfOn torso_cap", an(gezeichnet(d, spawnZustand(d, {}, r))) == "1101001");
+        expect("zwei surfOff-Zeilen (mit Komma verbunden) sind ein Wort wie COM_ParseExt", npcFlaechenListe("a b,c	d") == std::vector<std::string>({"a", "b,c", "d"}));
+        SpawnRegeln schl;
+        d.teile.push_back(teil("l_arm_key", 0, kG2Aus));     // 7
+        d.teile[0].kinder.push_back(7);
+        expect("l_arm_key ohne Schluessel aus", an(gezeichnet(d, spawnZustand(d, {}, schl))).back() == '0');
+        schl.imperialMitSchluessel = true;
+        expect("CLASS_IMPERIAL mit message: l_arm_key an", an(gezeichnet(d, spawnZustand(d, {}, schl))).back() == '1');
+        expect("Haut vor surfOn: surfOn head schaltet die Haut-Flaeche wieder an", [&] {
+            SpawnRegeln o;
+            o.surfOn = {"head"};
+            return an(gezeichnet(d, spawnZustand(d, {"head"}, o)))[2] == '1';
+        }());
     }
 
     // --- LOD wie G2_ComputeLOD ---------------------------------------------------------

@@ -3032,6 +3032,8 @@ enum class UiIcon : int {
     TonAus, Schloss, SchlossOffen,
     // rc608 Teil 3b: Speichern unter neben Speichern; zwei gleiche Disketten sagten nichts
     SpeichernUnter,
+    // mb1a2: die Arten im Szenen-Explorer des Model-Tabs (selbst gezeichnet) und der Ghoul2-Schalter "aus"
+    MbModell, MbFlaeche, MbFlaecheKinder, MbKappe, MbTag, MbKnochen, MbWurzel, MbAnbau, MbSequenz, MbLod, MbG2Aus,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.
@@ -3186,7 +3188,6 @@ void drawKameraInspector(float hoehe);
 void drawEntityInspector(float hoehe);
 // --- Model-Tab (gui/app_modell.cpp, rc591) -----------------------------------
 void animWaehlen(int i, bool abspielen);
-bool animInsSkript(int i);
 void drawAnimListe(float hoehe);
 void modellAnsichtEinpassen();
 bool npcLaden(const std::string& typ);
@@ -3911,6 +3912,8 @@ void addGamePathDirectory(const std::string& dir);
 // rc604 jk2: die NPC-Beschreibungen des Spiels nach dem Regelwerk lesen
 // (Jedi Outcast: ext_data/NPCs.cfg). Rueckgabe: gelesene Dateien.
 int npcDateienLesen(NpcMap& m);
+// mb1a2: eine Figur eines NPC-Typs genau wie der Mission-Tab sie baut (Modell, Haut, mit `regeln` die Ghoul2-Regeln).
+bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln, std::string* ordner);
 // Stufe 7: dasselbe in zwei Teilen. npcLeseAuftrag (Hauptfaden) bestimmt die
 // Dateien und je Datei die Archive in der Reihenfolge von readFromArchives;
 // npcAuftragLesen liest und zerlegt sie - ohne g_app und ohne diag, also in

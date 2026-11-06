@@ -1256,6 +1256,11 @@ struct NpcDef {
     // und rot, reborn_new in blau und rot. Wer den Modellpuffer nur nach
     // dem Modellnamen schluesselt, zeigt dem zweiten den Skin des ersten.
     std::string customSkin = "default";
+    // mb1a2: "surfOff" / "surfOn" wie NPC_GetSurfaceParms (NPC_stats.cpp MD9 2165-2220): je Zeile ein Wort
+    // (COM_ParseString), mehrere Zeilen mit "," aneinander - G_SetG2PlayerModelInfo zerlegt den Text danach nur an
+    // Leerraum (COM_ParseExt), "a,b" bleibt also ein Name (modell::npcFlaechenListe).
+    std::string surfOff;
+    std::string surfOn;
     // walkSpeed/runSpeed aus der .npc (NPC_ParseParms, NPC_stats.cpp:3720
     // ff. in Movie Duels). NEGATIV heisst: nicht angegeben, es gelten 90/300.
     // rc601 (bewegung): 0 ist ein gueltiger Wert - die Engine verwirft nur

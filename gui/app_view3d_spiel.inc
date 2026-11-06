@@ -3434,6 +3434,62 @@ bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel
     return true;
 }
 
+// mb1a2: die Flaechen einer Figur nach den Ghoul2-Regeln des Spiels (bhed/modell/g2.h) statt nach "_off" im Namen:
+// G2API_SetSkin -> G2API_SetSurfaceOnOffFromSkin, G_SetG2PlayerModelInfo (surfOff/surfOn der .npc, Schluesselaermel
+// fuer CLASS_IMPERIAL mit message), in Movie Duels SP danach force_shield aus (g_client.cpp:2381 MD9), gezeichnet
+// wie RenderSurfaces. `npc` nullptr: ein angebautes Modell (nur die Haut).
+void figurG2Regeln(GlmModel& gm, const NpcDef* npc, bool mitSchluessel) {
+    const modell::Inhalt in = modell::hierarchieAus(gm);
+    modell::SpawnRegeln r;
+    if (npc != nullptr) {
+        r.surfOff = modell::npcFlaechenListe(npc->surfOff);
+        r.surfOn = modell::npcFlaechenListe(npc->surfOn);
+        r.imperialMitSchluessel = mitSchluessel && npc->klasse == "class_imperial";
+        r.movieDuelsSp = regelwerkMovieDuels() && !regelwerkJediOutcast();
+    }
+    modell::g2Uebertragen(in, modell::spawnZustand(in, modell::hautAusModell(in, gm), r), gm);
+}
+
+// Traegt der Spawner einer Figur einen Schluessel ("message", NPC_Spawn_Do gibt ihn weiter)?
+bool figurMitSchluessel(const Actor& a) {
+    if (a.kartenEntity < 0 || static_cast<std::size_t>(a.kartenEntity) >= g_app->map.entities.size()) { return false; }
+    const std::string* m = g_app->map.entities[static_cast<std::size_t>(a.kartenEntity)].find("message");
+    return m != nullptr && !m->empty();
+}
+
+// Die Haut einer Figur wie die Engine: "|kopf|rumpf|beine", sonst model_<customSkin>.skin (NPC_stats.cpp:1908), dann
+// die Vorgabe model_default.skin (ebenda:1597), zuletzt model.skin (alte Modelle). mb1a2: aus loadActorModels
+// herausgezogen, damit der Selbsttest die Figur genauso baut.
+bool figurHautAnwenden(const std::string& dir, const std::string& customSkin, GlmModel& gm, const std::string& figur) {
+    if (hautAusDreiTeilen(dir, customSkin, gm)) { return true; }
+    for (const std::string& which : {"model_" + customSkin + ".skin", std::string("model_default.skin"), std::string("model.skin")}) {
+        std::string skin;
+        if (readFromArchives(dir + "/" + which, skin)) {
+            applySkin(skin, gm);
+            if (which != "model_" + customSkin + ".skin") {
+                diag::detail("Figur " + figur + ": Skin \"" + customSkin + "\" nicht gefunden, " + which + " genommen");
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln, std::string* ordner) {
+    std::string key = npcTyp;
+    for (char& c : key) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    const auto it = g_app->npcMap.find(key);
+    if (it == g_app->npcMap.end() || it->second.playerModel.empty()) { return false; }
+    const std::string dir = "models/players/" + it->second.playerModel;
+    if (ordner != nullptr) { *ordner = dir; }
+    std::string data;
+    std::string err;
+    if (!readFromArchives(dir + "/model.glm", data) || !readGlm(data, gm, &err)) { return false; }
+    (void)figurHautAnwenden(dir, it->second.customSkin, gm, npcTyp);
+    if (regeln) { figurG2Regeln(gm, &it->second, false); }
+    return true;
+}
+
 void loadActorModels() {
     diag::Step step("Figurenmodelle suchen");
     static const std::shared_ptr<const App::ActorAssets> kOhneModell = std::make_shared<const App::ActorAssets>();
@@ -3953,7 +4009,10 @@ void loadActorModels() {
         // Im Protokoll von shank stand rund zwanzigmal hintereinander "42
         // gefunden, 0 nicht gefunden" - jedes Mal derselbe Sturmtruppler,
         // neu gelesen, neu entpackt, neu verkleinert.
-        const std::string schluessel = dir + "|" + it->second.customSkin;
+        // mb1a2: die Ghoul2-Regeln der Figur haengen auch an surfOff/surfOn der .npc und am Schluessel
+        const bool mitSchluessel = figurMitSchluessel(a);
+        const std::string schluessel = dir + "|" + it->second.customSkin + "|" + it->second.surfOff + "|" + it->second.surfOn + "|" +
+                                       it->second.klasse + (mitSchluessel ? "|s" : "");
         const auto cached = g_app->modelCache.find(schluessel);
         if (cached != g_app->modelCache.end()) {
             modellBilderGenutzt(*cached->second);   // rc610 R2a (B3-3)
@@ -3990,26 +4049,12 @@ void loadActorModels() {
         // Reihenfolge wie im Vorwaermen weiter oben. Zwei Stellen, die
         // dasselbe tun, muessen es GLEICH tun; laufen sie auseinander,
         // haengt das Aussehen davon ab, welcher Weg zuerst drankam.
-        bool skinGefunden = hautAusDreiTeilen(dir, it->second.customSkin, gm);
-        if (!skinGefunden) for (const std::string& which :
-             {"model_" + it->second.customSkin + ".skin",
-              std::string("model_default.skin"), std::string("model.skin")}) {
-            std::string skin;
-            if (readFromArchives(dir + "/" + which, skin)) {
-                applySkin(skin, gm);
-                skinGefunden = true;
-                if (which != "model_" + it->second.customSkin + ".skin") {
-                    diag::detail("Figur " + a.name + ": Skin \"" +
-                                 it->second.customSkin + "\" nicht gefunden, " +
-                                 which + " genommen");
-                }
-                break;
-            }
-        }
+        const bool skinGefunden = figurHautAnwenden(dir, it->second.customSkin, gm, a.name);
         if (!skinGefunden) {
             diag::detail("Figur " + a.name + ": KEINE .skin unter " + dir +
                          " - die Flaechen bleiben ohne Texturnamen");
         }
+        figurG2Regeln(gm, &it->second, mitSchluessel);
         assets.model = std::move(gm);
         msGlm += zeitAb(tGlm);
         // Texturen dazu, ueber denselben Weg wie beim einzelnen Modell.

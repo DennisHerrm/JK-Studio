@@ -44,6 +44,8 @@
 #include <dxgi1_4.h>
 #include <psapi.h>
 #include <d3dcompiler.h>
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
 #include <d3d11shader.h>
 
 #include <array>
@@ -6130,6 +6132,21 @@ void modellZielWaehlen(int nr) {
     g_modellAktiv = nr;
 }
 
+bool zeichneUeberlagerung(ImDrawList* liste) {
+    ID3D11DeviceContext* c = ctx();
+    if (c == nullptr || g_modellRtv == nullptr || liste == nullptr) { return false; }
+    ::bhed::render::zielSetzen(c, 1, &g_modellRtv, nullptr);
+    ImDrawData dd;
+    dd.Valid = true;
+    dd.DisplayPos = ImVec2{0.0F, 0.0F};
+    dd.DisplaySize = ImVec2{static_cast<float>(g_modellW), static_cast<float>(g_modellH)};
+    dd.FramebufferScale = ImVec2{1.0F, 1.0F};
+    dd.OwnerViewport = ImGui::GetMainViewport();
+    dd.AddDrawList(liste);
+    ImGui_ImplDX11_RenderDrawData(&dd);
+    return true;
+}
+
 bool leseModellZiel(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
@@ -6226,7 +6243,10 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
     // war es beim ersten Versuch, das Modellfenster blieb leer.
     {
         const float grau[4] = {45.0F / 255.0F, 45.0F / 255.0F, 45.0F / 255.0F, 1.0F};
-        ::bhed::render::leeren(c, g_modellRtv, grau);
+        // mb1a2: ein einfarbiger Hintergrund wie ModView (glClearColor(1/(256/_R), ...)) statt des Verlaufs
+        const float farbe[4] = {static_cast<float>((art.hintergrund >> 16) & 0xFF) / 256.0F, static_cast<float>((art.hintergrund >> 8) & 0xFF) / 256.0F,
+                                static_cast<float>(art.hintergrund & 0xFF) / 256.0F, 1.0F};
+        ::bhed::render::leeren(c, g_modellRtv, art.hintergrund >= 0 ? farbe : grau);
     }
     c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     D3D11_VIEWPORT vp{};
@@ -6248,7 +6268,7 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
         if (vs != nullptr) { vs->Release(); }
         if (ps != nullptr) { ps->Release(); }
     }
-    if (g_modellHgVs != nullptr && g_modellHgPs != nullptr) {
+    if (g_modellHgVs != nullptr && g_modellHgPs != nullptr && art.hintergrund < 0) {
         c->IASetInputLayout(nullptr);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         c->VSSetShader(g_modellHgVs, nullptr, 0);
@@ -8425,6 +8445,7 @@ int zeichneMenueKlingen(int, const std::vector<KlingenQuad>&, const float*, std:
 void* modellZielTextur() { return nullptr; }
 void modellZielWaehlen(int) {}
 bool leseModellZiel(std::vector<std::uint8_t>&, int&, int&) { return false; }
+bool zeichneUeberlagerung(ImDrawList*) { return false; }
 int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vector<BoneMatrix>&,
                          const float*, bool, std::string* fehler) {
     if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }

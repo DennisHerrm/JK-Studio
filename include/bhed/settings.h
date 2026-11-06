@@ -254,6 +254,9 @@ struct Settings {
     // rc609 W2b: fs_dirbeforepak wie im Spiel (files.cpp:2895, Vorgabe 0) und das Panel "Entity-Text"
     bool fsDirBeforePak = false;
     bool entTextOffen = false;
+    bool insSkriptOffen = false;   // mb1a2: das Fenster "Ins Skript" des Model-Tabs (ab Werk zu)
+    // mb1a2: Hintergrund der Modellansicht - -1 der Verlauf, sonst 0xRRGGBB (ModView: AppVars._R/_G/_B, 256/5 = 51)
+    int modellHintergrund = -1;
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;
     bool lumpEditKarteOffen = false;

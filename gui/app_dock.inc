@@ -20,8 +20,9 @@ const char* aktionenPanel() { return (g_app->leftMode == 2) ? "modell.aktionen" 
 bool spaltenFrei() { return !dock::zuhause(flussPanel()) || !dock::zuhause(linksInhaltPanel()); }
 
 void drawSpaltenFrei(const Layout& l) {
-    const bool fluss = dock::zuhause(flussPanel());
-    const bool knoepfe = g_app->leftMode != 1 && dock::zuhause(aktionenPanel());
+    // mb1a2: der Model-Tab hat weder Script Flow noch Actions
+    const bool fluss = g_app->leftMode != 2 && dock::zuhause(flussPanel());
+    const bool knoepfe = g_app->leftMode == 0 && dock::zuhause(aktionenPanel());
     const bool linksVoll = dock::zuhause(linksInhaltPanel());
     const bool linksDehnen = linksVoll || !fluss;
     const bool ebenen = (g_app->leftMode == 1 || g_app->leftMode == 2) &&

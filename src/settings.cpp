@@ -165,6 +165,8 @@ std::string writeSettings(const Settings& s) {
     put(o, "skriptVorlage", s.skriptVorlage);
     put(o, "fs_dirbeforepak", s.fsDirBeforePak);
     put(o, "entTextOffen", s.entTextOffen);
+    put(o, "insSkriptOffen", s.insSkriptOffen);                        // mb1a2
+    put(o, "modelBackground", std::to_string(s.modellHintergrund));   // mb1a2
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
     put(o, "texListeOffen", s.texListeOffen);
@@ -328,6 +330,8 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "skriptVorlage") { out.skriptVorlage = toBool(value); }
         else if (key == "fs_dirbeforepak") { out.fsDirBeforePak = toBool(value); }
         else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
+        else if (key == "insSkriptOffen") { out.insSkriptOffen = toBool(value); }                       // mb1a2
+        else if (key == "modelBackground") { out.modellHintergrund = std::atoi(value.c_str()); }       // mb1a2
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
         else if (key == "texListeOffen") { out.texListeOffen = toBool(value); }

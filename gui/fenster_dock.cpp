@@ -217,8 +217,8 @@ const std::vector<Panel>& panels() {
         {"mission.lumps", 1, Str::LePanel},
         {"modell.ansicht", 2, Str::DockPanelModelView},
         {"modell.animationen", 2, Str::ModelAnimations},
-        {"modell.fluss", 2, Str::GroupScriptFlow},
-        {"modell.aktionen", 2, Str::GroupActions},
+        // mb1a2: kein Script Flow und keine Actions im Model-Tab; "Ins Skript" ohne Platz im Hauptfenster (ab Werk zu)
+        {"modell.insskript", 2, Str::MbInsSkriptFenster},
         {"modell.leiste", 2, Str::DockPanelModelBar},
         {"karte.kamera", 3, Str::KeViewCamera},
         {"karte.xy", 3, Str::KeViewXY},
@@ -284,6 +284,7 @@ bool* zusatzOffen(const char* id) {
     if (std::strcmp(id, "mission.lumps") == 0) { return &g_app->settings.lumpEditOffen; }
     if (std::strcmp(id, "karte.lumps") == 0) { return &g_app->settings.lumpEditKarteOffen; }
     if (std::strcmp(id, "karte.texliste") == 0) { return &g_app->settings.texListeOffen; }
+    if (std::strcmp(id, "modell.insskript") == 0) { return &g_app->settings.insSkriptOffen; }   // mb1a2
     return nullptr;
 }
 

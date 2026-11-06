@@ -4700,6 +4700,12 @@ void drawStatus(const Layout& l) {
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::StatusMpHint)); }
         ImGui::SameLine();
     }
+    // mb1a2: der Model-Tab zeigt keine Skript-Zustaende (Meldungen des Skripts, Undo des Skripts, Compiled)
+    const bool skriptZeile = g_app->leftMode != 2;
+    if (!skriptZeile) {
+        errs = 0;
+        warns = 0;
+    }
     zaehler(errs, tr(Str::StatusErrors), true);
     zaehler(warns, tr(Str::StatusWarnings), false);
     if (errs == 0 && warns == 0) {
@@ -4725,9 +4731,9 @@ void drawStatus(const Layout& l) {
     // "ich dachte, die Undo History wird immer unten angezeigt, so dass man
     // sie schnell oeffnen kann, am besten bevor man das erste Undo gemacht
     // hat"). Der Text wird nur neu gerechnet, wenn sich der Stapel aendert.
-    std::string eintrag = g_app->undoMeldung;
+    std::string eintrag = skriptZeile ? g_app->undoMeldung : std::string();
     bool redoListe = g_app->undoMeldungRedo;
-    if (eintrag.empty() && g_app->doc.undoDepth() > 0) {
+    if (eintrag.empty() && skriptZeile && g_app->doc.undoDepth() > 0) {
         static std::string letzterText;
         static std::uint64_t letzterStand = static_cast<std::uint64_t>(-1);
         static int letzterReiter = -1;
@@ -4747,6 +4753,14 @@ void drawStatus(const Layout& l) {
         }
         eintrag = letzterText;
         redoListe = false;
+    }
+    if (!skriptZeile && g_app->mtab.dok.kannRueckgaengig()) {
+        // mb1a2: im Model-Tab der naechste Schritt des Modell-Rueckgaengig (Strg+Z)
+        trenner();
+        char z[200];
+        std::snprintf(z, sizeof z, tr(Str::MbStatusUndo), g_app->mtab.dok.rueckgaengigName().c_str());
+        ImGui::TextDisabled("%s", z);
+        ImGui::SameLine();
     }
     if (!eintrag.empty()) {
         trenner();
@@ -4808,10 +4822,13 @@ void drawStatus(const Layout& l) {
     // shank: "Don't really need an FPS counter for scripting, maybe just have
     // it on the map window" - die Bildrate nur im Karten-Reiter.
     std::vector<std::string> teile;
-    if (!g_app->statusLines.empty() && !(g_app->leftMode == 4 && g_app->statusLines.back() == g_app->statusModell)) {
+    if (!skriptZeile) {
+        // mb1a2: im Model-Tab die letzte Meldung des Modells statt der des Skripts
+        if (!g_app->mtab.meldung.empty()) { teile.push_back(g_app->mtab.meldung); }
+    } else if (!g_app->statusLines.empty() && !(g_app->leftMode == 4 && g_app->statusLines.back() == g_app->statusModell)) {
         teile.push_back(g_app->statusLines.back());
     }
-    if (!letzteZeit.empty()) {
+    if (!letzteZeit.empty() && skriptZeile) {
         teile.push_back(letzteZeit);
     }
     // rc609 T1: in einem eigenen Fenster nur mit dem Fokus - die Zahl wechselt
@@ -4967,11 +4984,15 @@ void drawMenu() {
     if (!ImGui::BeginMenuBar()) { return; }
     dock::eigenesFensterWennVerdeckt();
     if (ImGui::BeginMenu(tr(Str::MenuFile))) {
+        if (g_app->leftMode == 2) {
+            modellDateiMenue();   // mb1a2: im Model-Tab gelten die Datei-Befehle dem Modell
+        } else {
         if (ImGui::MenuItem(tr(Str::FileNew))) { doNew(); }
         if (ImGui::MenuItem(tr(Str::FileOpen), "Ctrl+O")) { doOpen(); }
         if (ImGui::MenuItem(tr(Str::FileSave), "Ctrl+S")) { (void)doSave(); }
         // Strg+A ist im Original "Speichern unter", nicht "alles markieren".
         if (ImGui::MenuItem(tr(Str::FileSaveAs), "Ctrl+A")) { (void)doSaveAs(); }
+        }
         // Zuletzt geoeffnete Missionen (rc599): ein ganzes Projekt - Karte,
         // Entities und alle Skripte der Mission in ihren Reitern.
         {
@@ -4988,7 +5009,7 @@ void drawMenu() {
                 ImGui::EndMenu();
             }
         }
-        if (ImGui::BeginMenu(tr(Str::MsgRecent), !g_app->settings.recent.empty())) {
+        if (g_app->leftMode != 2 && ImGui::BeginMenu(tr(Str::MsgRecent), !g_app->settings.recent.empty())) {
             for (const std::string& r : g_app->settings.recent) {
                 if (ImGui::MenuItem(r.c_str())) {
                 const std::string rp = r;

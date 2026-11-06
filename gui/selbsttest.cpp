@@ -37,6 +37,8 @@
 #include "tour.h"       // rc601 tour: Tutorials im Programm (tourSicht)
 #include "hilfe.h"      // H1: der Helfer
 #include "ki.h"         // H1: KI-Anbindung (kiSicht)
+#include "bhed/gpucam.h"   // mb1a2: selbsttest_mb1a2.inc
+#include "bhed/gpuskin.h"  // mb1a2
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/ki.h"
 #include "backend.h"
@@ -5698,6 +5700,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_r3.inc"            // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht (karteneditor, BHED_KARTE_NUR=r3)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_mb1a1.inc"      // Modell-Block 1a-1: der neue Model-Tab (modellblock)
+#include "selbsttest_mb1a2.inc"      // Modell-Block 1a-2: Weights, wie Blender, Model-Tab ohne Skriptteile (modellblock)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6662,6 +6665,9 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurModellBlock) {
                 a.schritte = mb1::schritte();
+                if (const char* nur = std::getenv("BHED_MODELL_NUR"); nur != nullptr) {   // mb1a2
+                    for (Schritt& x : mb2::schritte(nur)) { a.schritte.push_back(std::move(x)); }
+                }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurModellLeistung) {

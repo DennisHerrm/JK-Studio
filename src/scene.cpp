@@ -2165,6 +2165,20 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         if (key == "customskin") {
             cur.customSkin = wert;
         }
+        if (key == "surfoff" || key == "surfon") {   // mb1a2: NPC_GetSurfaceParms
+            std::string wort;
+            if (!wert.empty() && wert[0] == '"') {
+                const std::size_t e = wert.find('"', 1);
+                wort = wert.substr(1, e == std::string::npos ? std::string::npos : e - 1);
+            } else {
+                std::size_t e = 0;
+                while (e < wert.size() && static_cast<unsigned char>(wert[e]) > 32U) { ++e; }
+                wort = wert.substr(0, e);
+            }
+            std::string& liste = key == "surfoff" ? cur.surfOff : cur.surfOn;
+            if (!liste.empty()) { liste += ","; }
+            liste += wort;
+        }
         // walkSpeed / runSpeed (NPC_ParseParms, dl_NPC_stats.cpp:3293 ff.).
         // Ohne sie gingen alle Figuren mit 90 und liefen mit 300 - die
         // Wege dauerten dadurch anders lange als im Spiel.

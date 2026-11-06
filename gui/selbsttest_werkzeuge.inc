@@ -2754,9 +2754,19 @@ std::vector<Schritt> modellSchritte() {
     add(klick(tr(Str::ModelPrevFrame), "###main"));
     add(pause(0.2));
     add(pruefe("Bild zurueck", [=] { return g_app->animFrame == *bild; }));
-    // Ins Skript
-    add(tu("Erste Zeile des Skripts waehlen", [] { selectByPath(Path{0}); }));
+    // Ins Skript - seit mb1a2 ueber das eigene Fenster (der Model-Tab hat keinen Skriptbaum): der Knopf oeffnet es mit der
+    // gewaehlten Animation, Einfuegen setzt die Zeile hinter die gewaehlte des aktiven Skripts (ohne Figur: ohne affect)
+    add(tu("Erste Zeile des Skripts waehlen", [] {
+        selectByPath(Path{0});
+        g_app->mtab.insFigur[0] = '\0';
+        g_app->mtab.insZiel = -2;
+    }));
     add(klick(tr(Str::ModelAnimToScript), "", 0, false));
+    add(pause(0.3));
+    add(pruefe("Ins Skript: das Fenster ist offen, mit der gewaehlten Animation", [=] {
+        return g_app->settings.insSkriptOffen && g_app->mtab.insAnim == g_app->animIndex;
+    }));
+    add(klick(tr(Str::MbInsSkriptEinfuegen), "", 0, false));
     add(pause(0.3));
     add(pruefe("Ins Skript: set ( SET_ANIM_..., Name ) hinter der Zeile", [=] {
         const auto& ns = g_app->doc.script().nodes;

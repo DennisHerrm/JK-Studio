@@ -1468,6 +1468,18 @@ std::vector<Schritt> teilerSchritte() {
         const std::string mn = namen[modus];
         add(tu("Teiler: Modus " + mn, [=] { g_app->leftMode = modus; }));
         add(pause(0.5));
+        if (modus == 2) {
+            // mb1a2 (Nachtrag shank 06.11.): der Model-Tab hat keine Skriptteile - nur seine eine Spalte, kein Script Flow,
+            // keine Actions, also kein Teiler zwischen ihnen (mb2e_mod1: "Breiten 2527 | 0 | 0", nichts zu ziehen)
+            add(pruefe("Teiler Model: nur die Spalte des Model-Tabs, kein Script Flow, keine Actions, kein Teiler", [] {
+                char z[160];
+                std::snprintf(z, sizeof z, "Knopftest: Teiler Model - Breiten %.0f | %.0f | %.0f", static_cast<double>(g_app->spaltenB[0]),
+                              static_cast<double>(g_app->spaltenB[1]), static_cast<double>(g_app->spaltenB[2]));
+                diag::detail(z);
+                return g_app->spaltenB[0] > 1000.0F && g_app->spaltenB[1] < 1.0F && g_app->spaltenB[2] < 1.0F;
+            }));
+            continue;
+        }
         const auto zeile = [=](const char* was) {
             char z[300];
             std::snprintf(z, sizeof(z),
