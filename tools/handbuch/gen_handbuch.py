@@ -188,6 +188,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mb1a2()})
             from i18n_mb2 import zeilen_vier as _mb2   # Modell-Block Stufe 2: Speichern, GLA, Karten-GLA, Marker
             texte.update({e[0]: e[1:] for e in _mb2()})
+            from i18n_mb3 import zeilen_vier as _mb3   # Modell-Block Stufe 3: Control Rig, Posen, Ghosts, Pfade
+            texte.update({e[0]: e[1:] for e in _mb3()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

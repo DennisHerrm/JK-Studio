@@ -351,6 +351,15 @@ std::vector<Schritt> uiSchritte() {
         g_app->animScrollen = true;
     }));
     add(pause(0.5));
+    add(tu("MB3 Plaetze: das Befehlsfeld zu den Plaetzen rollen (darueber stehen seit Stufe 3 die Rig-Rollouts)", [] {
+        const Element* e = finde(tr(Str::MbRKartenGla), "", 0, false);
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (e != nullptr && std::strstr(w->Name, "mtrollouts") != nullptr) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y, 0.0F, w->ScrollMax.y));
+            }
+        }
+    }));
+    add(pause(0.5));
     add(ziehenVonNach("BOTH_WALK1 auf den Platz BOTH_CIN_3", [] {
         const Element* e = finde("BOTH_WALK1", "", 0, false);
         return e != nullptr ? e->rect.GetCenter() : ImVec2{};

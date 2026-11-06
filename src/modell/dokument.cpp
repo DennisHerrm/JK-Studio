@@ -340,21 +340,24 @@ GlmModel zuGlm(const Inhalt& in, int stufe) {
 
 void Dokument::laden(Inhalt neu) {
     jetzt_ = std::move(neu);
+    jetzt_.netzStand = ++netzZaehler_;
     zurueck_.clear();
     vor_.clear();
     ++stand_;
 }
 
-void Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f) {
+void Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz) {
     zurueck_.emplace_back(was, jetzt_);
     if (zurueck_.size() > kTiefe) { zurueck_.erase(zurueck_.begin()); }
     vor_.clear();
     f(jetzt_);
+    if (netz) { jetzt_.netzStand = ++netzZaehler_; }
     ++stand_;
 }
 
-void Dokument::vorschau(const std::function<void(Inhalt&)>& f) {
+void Dokument::vorschau(const std::function<void(Inhalt&)>& f, bool netz) {
     f(jetzt_);
+    if (netz) { jetzt_.netzStand = ++netzZaehler_; }
     ++stand_;
 }
 

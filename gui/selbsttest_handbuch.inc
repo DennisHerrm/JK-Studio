@@ -2340,6 +2340,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb1a2.inc: Modell-Block
 namespace mb3 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb2.inc: Modell-Block Stufe 2, BHED_HB_NUR=mb2
 }  // namespace mb3
+namespace rig3 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_mb3.inc: Modell-Block Stufe 3, BHED_HB_NUR=mb3
+}  // namespace rig3
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2358,6 +2361,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb2") == 0) {
         return mb3::handbuchSchritte();   // Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb3") == 0) {
+        return rig3::handbuchSchritte();   // Modell-Block Stufe 3: Rig, Uebersicht, Ghosts/Pfade, Menue Animation
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

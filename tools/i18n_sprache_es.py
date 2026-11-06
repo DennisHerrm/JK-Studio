@@ -3040,6 +3040,8 @@ from i18n_mb1a2 import texte as _mb1a2  # noqa: E402
 TEXTE.update(_mb1a2("es"))
 from i18n_mb2 import texte as _mb2  # noqa: E402
 TEXTE.update(_mb2("es"))
+from i18n_mb3 import texte as _mb3  # noqa: E402
+TEXTE.update(_mb3("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 

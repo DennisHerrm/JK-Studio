@@ -2272,6 +2272,8 @@ from i18n_mb1a2 import zeilen_vier as _mb1a2  # noqa: E402  (Modell-Block 1a-2: 
 S += _mb1a2()
 from i18n_mb2 import zeilen_vier as _mb2  # noqa: E402  (Modell-Block Stufe 2: GLM speichern, GLA/animation.cfg, Karten-GLA, Plaetze, Marker)
 S += _mb2()
+from i18n_mb3 import zeilen_vier as _mb3  # noqa: E402  (Modell-Block Stufe 3: Knochen-Erkennung, Control Rig, Posen, Ghosts, Pfade)
+S += _mb3()
 from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
 S += _r3()
 

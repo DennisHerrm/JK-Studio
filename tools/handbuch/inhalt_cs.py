@@ -7545,3 +7545,5 @@ TEXTE.update(_MB2)
 # Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
 from inhalt_mb2 import CS as _MB3  # noqa: E402
 TEXTE.update(_MB3)
+from inhalt_mb3 import CS as _MB4  # noqa: E402
+TEXTE.update(_MB4)

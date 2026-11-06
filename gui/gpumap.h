@@ -225,11 +225,21 @@ inline constexpr int kModellZiele = 6;
 void modellZielWaehlen(int nr);
 // Wie das Modellfenster gezeichnet wird: Drahtgitter (F3), beidseitig, Kanten
 // ueber der Flaeche (F4).
+// Stufe 3: ein Ghost (Onion Skin) - das Modell in einer anderen Pose, einfarbig durchscheinend: erst nur die Tiefe, dann
+// die Farbe auf gleicher Tiefe, je Ghost jeder Bildpunkt einmal (Stencil), damit sich die Flaechen eines Ghosts nicht
+// gegenseitig abdunkeln. Alpha-getestete Flaechen (Haare) behalten ihre Form (Alpha der Textur unter 0,5 faellt weg).
+struct ModellGeist {
+    std::vector<BoneMatrix> knochen;
+    float farbe[4]{};
+};
 struct ModellAnsichtArt {
     bool drahtgitter = false;
     bool zweiseitig = false;
     bool kantenUeber = false;
     int hintergrund = -1;   // mb1a2: -1 der Verlauf, sonst 0xRRGGBB einfarbig (ModView: glClearColor mit AppVars._R/_G/_B)
+    // Stufe 3: Silhouette (Alpha > 0: die Figur und ihre Anbauten deckend in dieser Farbe), Ghosts nach der Figur
+    float silhouette[4]{};
+    std::vector<ModellGeist> geister;
 };
 // Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
 // `welt` 4x4 zeilenweise wie zeichneFigur.
@@ -238,6 +248,7 @@ struct ModellZusatz {
     const ModelTextures* texturen = nullptr;
     std::vector<BoneMatrix> knochen;
     float welt[16]{};
+    bool figur = true;   // Stufe 3: gehoert zur Figur (Silhouette); der Boden nicht
 };
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler, const ModellAnsichtArt& art,

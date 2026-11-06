@@ -25,6 +25,7 @@
 #include "bhed/gpuskin.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
+#include "bhed/modell/rig.h"
 
 #include <algorithm>
 #include <array>
@@ -127,6 +128,7 @@ bool aufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out, float* tie
 
 std::vector<BoneMatrix> g_knochen;           // skinM je Knochen (baueKnochenmatrizen)
 int g_poseStand = 0;                         // zaehlt jede neue Pose
+int g_posiertBeiStand = -1;                  // Stufe 3: dok.stand() beim letzten posieren()
 std::vector<std::vector<std::array<float, 3>>> g_haut;   // verformte Ecken der Anzeige je Flaeche
 int g_hautPose = -1;
 int g_hautAnzeige = -1;
@@ -168,7 +170,10 @@ void posieren() {
         }
         if (o.bone >= 0) { ueber.push_back(o); }
     }
-    a.worldMatricesLerp(fA, fB, anteil, ueber, g_app->modellWelt);
+    // Stufe 3: die Schluessel des Control Rigs (FK wie G2API_SetBoneAngles POSTMULT, siehe bhed/modell/rig.h)
+    std::vector<std::pair<int, BoneMatrix>> rigM;
+    modellRigNachMal(static_cast<float>(fA) + (fB != fA ? anteil : 0.0F), rigM);
+    a.worldMatricesLerp(fA, fB, anteil, ueber, rigM, g_app->modellWelt);
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
 }
 
@@ -619,12 +624,14 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
             }
         }
     }
+    modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
     dl->PopClipRect();
 }
 
 // --- Gizmo (W/E/R) ------------------------------------------------------------------------
 
 bool auswahlMitte(float m[3]) {
+    if (mt().bereich == ModellBereich::Animation && mt().griffWahl >= 0) { return modellRigGriffMitte(m); }   // Stufe 3
     float mn[3];
     float mx[3];
     const bool leer = mt().auswahlArt == AuswahlArt::Objekt ? mt().auswahl.empty() : mt().eckenWahl.empty();
@@ -869,6 +876,10 @@ void gizmoZiehen(const ModellAnsicht& a, const float m[3]) {
     } else if (t.gizmo == 3) {
         const float f = std::max(1.0F + dx * 0.01F, 0.01F);
         for (int k = 0; k < 3; ++k) { wert[k] = (achse < 0 || achse == k) ? f : 1.0F; }
+    }
+    if (t.bereich == ModellBereich::Animation && t.griffWahl >= 0) {   // Stufe 3: der Griff (FK), nicht das Netz
+        if (t.gizmo == 1 || t.gizmo == 2) { modellRigZiehen(t.gizmo, wert); }
+        return;
     }
     static const Str kNamen[4] = {Str::MbUndoBewegen, Str::MbUndoBewegen, Str::MbUndoDrehen, Str::MbUndoSkalieren};
     if (t.ziehVorher.empty()) {
@@ -1648,6 +1659,7 @@ std::vector<gpu::ModellZusatz> zusaetze() {
             if (raster ? !t.an.raster : !t.an.boden) { continue; }
             gpu::ModellZusatz x;
             x.modell = &bodenModell(t.an.bodenZ, raster, groesse);
+            x.figur = false;   // Stufe 3: keine Silhouette
             std::memcpy(x.welt, einheit, sizeof x.welt);
             z.push_back(std::move(x));
         }
@@ -1661,6 +1673,13 @@ gpu::ModellAnsichtArt zeichenArt() {
     art.drahtgitter = mt().an.drahtgitter;
     art.kantenUeber = mt().an.kanten;
     art.zweiseitig = mt().an.zweiseitig;
+    // Stufe 3: Silhouette (Figur schwarz auf hellem Grund) und Ghosts
+    if (mt().silhouette) {
+        art.silhouette[0] = art.silhouette[1] = art.silhouette[2] = 0.04F;
+        art.silhouette[3] = 1.0F;
+        art.hintergrund = 0xE8E8E8;
+    }
+    art.geister = modellGeister();
     return art;
 }
 
@@ -1758,7 +1777,15 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         } else {
             t.griff = 0;
             t.ziehVorher.clear();
+            modellRigZiehenEnde();   // Stufe 3
         }
+    }
+    // Stufe 3: im Bereich Animation waehlt ein Klick auf einen Griff des Rigs (vor dem Netz)
+    if (t.aktiv == n && t.rahmen && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && t.bereich == ModellBereich::Animation && modellRigDa() &&
+        std::hypot(io.MousePos.x - t.rahmenStart[0], io.MousePos.y - t.rahmenStart[1]) < 4.0F) {
+        const int griff = modellRigGriffUnter(a, io.MousePos);
+        if (griff >= 0) { t.rahmen = false; }
+        modellRigGriffWaehlen(griff);   // daneben: keiner (die Netz-Auswahl geht weiter)
     }
     if (t.aktiv == n && t.rahmen && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         t.rahmen = false;
@@ -1844,6 +1871,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
 
 }  // namespace
 
+bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { return aufSchirm(a, p, out); }
+
 void modellAnsichtEinpassenAktiv() {
     ModellTab& t = mt();
     einpassen(t.ansichten[t.aktiv]);
@@ -1862,10 +1891,19 @@ void drawModellArbeitsflaeche() {
         g_eingepasst = g_app->modelPath;
     }
     modellDrehteller();
-    const bool neu = g_app->modelDirty;
-    if (neu) { posieren(); }
+    // Stufe 3: ein Griff, der in der Ansicht gezogen wird, aendert das Dokument erst nach posieren() dieses Bilds - und
+    // modelDirty geht am Ende des Bilds aus. Darum: neu posieren, sobald sich das Dokument geaendert hat (mb4_rig1: der
+    // gezogene Griff drehte die Hand nicht, 0,00 Grad statt 30).
+    const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand;
+    if (neu) {
+        posieren();
+        g_posiertBeiStand = t.dok.stand();
+    }
     g_app->modellKnochenLinien = 0;
     for (int& u : t.ueber) { u = 0; }
+    t.griffeGezeichnet = 0;   // Stufe 3: Zaehler je Bild
+    t.pfadPunkte = 0;
+    t.pfadSchluessel = 0;
     modellKlickPruefen();
     // Die Bereiche (Ansehen/Pruefen, Modellieren, UV, Weights, Painting,
     // Animation) und die Tasten des Bedienmodus in einer Zeile.
@@ -1920,6 +1958,7 @@ void drawModellArbeitsflaeche() {
     drawModellBefehlsfeld();
     ImGui::EndChild();
     drawModellAktionen();
+    drawModellRigUebersicht();   // Stufe 3
     drawModellModusMenue();
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
@@ -2134,6 +2173,17 @@ bool modellGizmoGriffOrt(int griff, ImVec2& out) {
     float e[3] = {m[0], m[1], m[2]};
     e[griff - 1] += L * 0.8F;
     return aufSchirm(a, e, out);
+}
+
+// Stufe 3, Selbsttest: ein Punkt auf dem Ring der Achse (Drehen, E) unter dem Winkel `grad`.
+bool modellGizmoRingOrt(int achse, float grad, ImVec2& out) {
+    const ModellTab& t = mt();
+    float m[3];
+    if (achse < 0 || achse > 2 || !auswahlMitte(m)) { return false; }
+    const ModellAnsicht& a = t.ansichten[t.aktiv];
+    float p[3];
+    ringPunkt(m, achse, laengeFuerPx(a, m, 70.0F * t.gizmoGroesse) * 0.8F, grad * kPi / 180.0F, p);
+    return aufSchirm(a, p, out);
 }
 
 bool modellAnbauWelt(int anbau, float welt[16]) {

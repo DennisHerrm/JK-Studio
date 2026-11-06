@@ -132,6 +132,9 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MbSequenz: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;       // bernstein wie die Animation
         case UiIcon::MbLod: c = ImVec4{0.65F, 0.85F, 0.55F, 1.0F}; break;
         case UiIcon::MbG2Aus: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;         // rot wie "aus"
+        case UiIcon::MbRig: c = ImVec4{0.98F, 0.80F, 0.30F, 1.0F}; break;           // Stufe 3: wie die Knochen
+        case UiIcon::MbGriff: c = ImVec4{0.40F, 0.80F, 1.00F, 1.0F}; break;
+        case UiIcon::MbPol: c = ImVec4{0.85F, 0.65F, 1.00F, 1.0F}; break;
 
         default: break;
     }
@@ -215,6 +218,21 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
         case UiIcon::MbG2Aus:   // Kreis mit Schraegstrich (im Spiel abgeschaltet)
             z.kreis(8.0F, 8.0F, 6.0F);
             z.linie(3.8F, 12.2F, 12.2F, 3.8F);
+            break;
+        case UiIcon::MbRig:   // Stufe 3: Strichfigur (Control Rig)
+            z.kreis(8.0F, 3.0F, 2.0F);
+            z.linie(8.0F, 5.0F, 8.0F, 10.0F);
+            z.zug({ImVec2{3.0F, 7.5F}, ImVec2{8.0F, 6.0F}, ImVec2{13.0F, 7.5F}});
+            z.zug({ImVec2{4.5F, 14.5F}, ImVec2{8.0F, 10.0F}, ImVec2{11.5F, 14.5F}});
+            break;
+        case UiIcon::MbGriff:   // Stufe 3: Griff - Ring mit Drehpfeil
+            z.bogen(8.0F, 8.0F, 5.5F, 0.6F, 5.6F);
+            z.spitze(12.3F, 4.5F, 1.0F, -0.8F);
+            z.punkt(8.0F, 8.0F, 1.6F);
+            break;
+        case UiIcon::MbPol:   // Stufe 3: Pol-Ziel - Raute mit Punkt
+            z.zug({ImVec2{8.0F, 1.5F}, ImVec2{14.5F, 8.0F}, ImVec2{8.0F, 14.5F}, ImVec2{1.5F, 8.0F}}, true);
+            z.punkt(8.0F, 8.0F, 1.6F);
             break;
         case UiIcon::SpeichernUnter:   // kleine Diskette mit Stift
             z.zug({ImVec2{1.5F, 3.0F}, ImVec2{8.5F, 3.0F}, ImVec2{10.5F, 5.0F}, ImVec2{10.5F, 7.0F}});

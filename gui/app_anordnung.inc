@@ -5148,6 +5148,11 @@ void drawMenu() {
         ImGui::EndMenu();
     }
     dock::eigenesFensterWennVerdeckt();
+    // Stufe 3: im Model-Tab ein Menue "Animation" wie in 3ds Max (Rig, Posen, Auswahl, Ghosts, Pfade, Backen)
+    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::MbBereichAnimation))) {
+        modellAnimationMenue();
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu(tr(Str::MenuEdit))) {
         if (ImGui::BeginMenu(tr(Str::MenuBookmarks))) {
             if (ImGui::MenuItem(tr(Str::ActBookmarkToggle), chordName(keys::Action::BookmarkToggle))) {

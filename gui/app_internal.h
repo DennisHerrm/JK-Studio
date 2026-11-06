@@ -3034,6 +3034,8 @@ enum class UiIcon : int {
     SpeichernUnter,
     // mb1a2: die Arten im Szenen-Explorer des Model-Tabs (selbst gezeichnet) und der Ghoul2-Schalter "aus"
     MbModell, MbFlaeche, MbFlaecheKinder, MbKappe, MbTag, MbKnochen, MbWurzel, MbAnbau, MbSequenz, MbLod, MbG2Aus,
+    // Stufe 3: Control Rig (Figur), Griff (FK), Pol-Ziel/Fussrolle (IK, ab Stufe 4)
+    MbRig, MbGriff, MbPol,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

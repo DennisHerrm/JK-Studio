@@ -341,6 +341,43 @@ std::vector<Schritt> modellLeistungSchritte() {
         }));
         return s;
     }
+    // Stufe 3, BHED_MODELL1_NUR=rig: die Figur mit den meisten Ecken (clonetrooper_p2) laeuft, ohne und mit Rig, 10 Ghosts
+    // (5 davor, 5 danach) und 3 Bewegungspfaden (rhand, rtalus, ltalus; je 20 Bilder davor und danach).
+    if (nur != nullptr && std::strcmp(nur, "rig") == 0) {
+        add(tu("Modell1: clonetrooper_p2 laden, Bereich Animation", [] {
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/clonetrooper_p2/model.glm", &fehler)) { meldeFehler("Modell1: " + fehler); }
+            g_app->leftMode = 2;
+            g_app->mtab.bereich = ModellBereich::Animation;
+            m1Grundlage();
+        }));
+        add(pause(1.0));
+        add(m1Messblock("clonetrooper_p2", "Animation ohne Rig-Hilfen", [] { m1Abspielen(); }));
+        add(m1Messblock("clonetrooper_p2", "Animation mit Rig, 10 Ghosts, 3 Pfade", [] {
+            (void)modellRigAnlegen();
+            g_app->mtab.geister = ModellGeisterEinst{};
+            g_app->mtab.geister.an = true;
+            g_app->mtab.geister.davor = 5;
+            g_app->mtab.geister.danach = 5;
+            g_app->mtab.pfade.clear();
+            for (const char* n : {"rhand", "rtalus", "ltalus"}) {
+                g_app->mtab.tagWahl = -1;
+                g_app->mtab.knochenWahl = boneIndex(g_app->anim, n);
+                (void)modellPfadHinzu();
+            }
+            g_app->mtab.pfadDavor = 20;
+            g_app->mtab.pfadDanach = 20;
+            m1Abspielen();
+        }));
+        add(tu("Modell1: zurueck", [] {
+            g_app->mtab.geister.an = false;
+            g_app->mtab.pfade.clear();
+            g_app->mtab.bereich = ModellBereich::Ansehen;
+            g_app->leftMode = 1;
+            g_app->doc.markSaved();
+        }));
+        return s;
+    }
     if (!nurRuhe) { add(m1Messblock("ohne Figur", "ruhig", [] {})); }
     // JKA: Sturmtruppler; JKA mit vielen Flaechen (jedi_hf, 214); Movie Duels
     // mit den meisten Flaechen (jedi_hm, 236) und den meisten Ecken in LOD 0

@@ -25,6 +25,11 @@
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/gewichte.h"
+#include "bhed/modell/rig.h"
+
+namespace bhed::gpu {
+struct ModellGeist;
+}
 
 namespace bhed::gui {
 
@@ -45,6 +50,22 @@ struct ModellAnbau {
 struct ModellGlaQuelle {
     std::string name;
     GlaAnimation gla;
+};
+
+// Stufe 3: ein Bewegungspfad (Knochen oder Tag) mit Farbe.
+struct ModellPfad {
+    int knochen = -1;
+    int tag = -1;        // Teil-Index eines Tags (dann knochen = -1)
+    float farbe[4]{};
+};
+// Stufe 3: Ghosts (Onion Skin)
+struct ModellGeisterEinst {
+    bool an = false;
+    int davor = 3;
+    int danach = 3;
+    int abstand = 2;     // Bilder zwischen zwei Ghosts
+    float farbeDavor[4] = {0.30F, 0.60F, 1.00F, 0.35F};
+    float farbeDanach[4] = {1.00F, 0.55F, 0.25F, 0.35F};
 };
 
 enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4, Hinten = 5, Rechts = 6 };
@@ -222,6 +243,35 @@ struct ModellTab {
     int markerAenderungen = 0;
     int markerGriff = 0;          // 1 Anfang, 2 Ende des Balkens
     AnimEntry markerZug;
+    // Stufe 3: Control Rig, Posen, Ghosts, Pfade (app_modelltab_rig.cpp; Schluessel und Zuordnungen im Dokument)
+    modell::Rig rig;
+    std::string rigFuer;          // GLA + Modell, fuer die das Rig gilt
+    int griffWahl = -1;
+    std::vector<char> griffVersteckt;   // Auge im Explorer
+    bool rigZeigen = true;
+    bool uebersichtOffen = false;
+    int uebersichtRolle = -1;     // gewaehlter Fleck der Uebersicht (Rolle * 3 + Seite)
+    modell::RigPose kopie;
+    bool kopieDa = false;
+    ModellGeisterEinst geister;
+    bool silhouette = false;
+    std::vector<ModellPfad> pfade;
+    int pfadDavor = 10;
+    int pfadDanach = 10;
+    // Ziehen eines Griffs (Gizmo) und G/R wie Blender
+    bool rigZieht = false;
+    float rigZiehStart[2]{};
+    std::vector<BoneMatrix> rigWeltStart;
+    modell::RigSchicht rigSchichtStart;
+    int rigZiehBild = 0;
+    int rigModal = 0;             // 1 G, 2 R (Blender)
+    int rigModalAchse = -1;
+    // Selbsttest-Zaehler je Bild
+    int griffeGezeichnet = 0;
+    int geisterGezeichnet = 0;
+    int pfadPunkte = 0;
+    int pfadSchluessel = 0;
+    std::string rigMeldung;
 };
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
@@ -270,6 +320,49 @@ void drawModellKontextMenue();
 [[nodiscard]] const char* modellZusatzHinweis(int i);
 void modellZusatzAusloesen(int i);
 void modellBedienungSetzen(int b);
+// Stufe 3 (app_modelltab_rig.cpp): Knochen-Erkennung, Control Rig, Posen, Ghosts, Bewegungspfade
+bool modellRigAnlegen();
+void modellRigAktualisieren();    // das Rig zur GLA/zum Modell (nach Laden, Zuordnung)
+[[nodiscard]] bool modellRigDa();
+void drawModellRigBereich();      // Rollouts im Bereich Animation
+void drawModellRigUebersicht();   // Fenster "Rig-Uebersicht" (Figur-Schema)
+void modellAnimationMenue();      // Menueleiste "Animation" im Model-Tab
+void modellRigExplorer(const std::string& such);
+void modellRigKontextMenue();     // Untermenue "Rig" im Rechtsklick der Ansicht
+[[nodiscard]] int modellRigAktionZahl();
+[[nodiscard]] const char* modellRigAktionText(int i);
+[[nodiscard]] const char* modellRigAktionHinweis(int i);
+[[nodiscard]] const char* modellRigAktionTaste(int i, bool blender);
+void modellRigAktionAusloesen(int i);
+void modellRigGriffWaehlen(int griff);
+[[nodiscard]] modell::RigSchicht* modellRigSchicht(bool anlegen);   // die Schicht der gewaehlten Sequenz (im Dokument)
+[[nodiscard]] const modell::RigSchicht* modellRigSchichtJetzt();
+void modellRigNachMal(float bild, std::vector<std::pair<int, BoneMatrix>>& aus);
+[[nodiscard]] bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3]);
+[[nodiscard]] std::vector<gpu::ModellGeist> modellGeister();
+[[nodiscard]] bool modellRigGriffMitte(float m[3]);
+void modellRigZiehen(int gizmoArt, const float wert[3]);   // Gizmo: 1 verschieben (Einheiten je Weltachse), 2 drehen (Grad je Weltachse)
+[[nodiscard]] int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus);
+void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+[[nodiscard]] bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out);
+void modellRigZiehenEnde();
+bool modellRigModalStarten(int art);
+bool modellRigModalTasten();
+bool modellPoseKopieren();
+bool modellPoseEinfuegen(bool gespiegelt);
+bool modellBindepose(bool alle);
+bool modellHandpose(modell::Seite seite, int art);   // 0 offen, 1 Faust, 2 Saebelgriff
+bool modellAuswahlGegenseite();
+bool modellAuswahlEltern();
+bool modellAuswahlKinder();
+bool modellPfadHinzu();
+void modellPfadeLeeren();
+bool modellRigBacken();
+bool modellRigSchluesselLoeschen();
+void modellRigZuordnen(int knochen, modell::Rolle rolle, modell::Seite seite);
+bool modellRigTasten();                              // die Tasten der Rig-Aktionen (Bereich Animation)
+bool modellRigAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
+[[nodiscard]] bool modellRigGriffAufSchirm(int griff, ImVec2& out);
 // Stufe 2 (app_modelltab_mb3.cpp)
 void modellSpeichern(bool unter);
 [[nodiscard]] bool modellUngespeichert();
@@ -291,6 +384,8 @@ void modellGlaSpeichernFrage();
 void modellCfgSpeichernFrage();
 void modellKartenGlaBauenFrage();
 bool modellXsiAufnehmen(const std::string& datei);
+std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps);
+[[nodiscard]] std::string modellZielKopf();
 void modellXsiAufnehmenFrage();
 void modellPerspektiveUmschalten();
 void modellKreisenSchritt(float gier, float nick);
@@ -325,6 +420,7 @@ bool modellBmp(const std::string& pfad, int breite, int hoehe, const std::vector
 [[nodiscard]] bool modellFlaecheAufSchirm(int flaeche, ImVec2& out);
 [[nodiscard]] bool modellPunktAufSchirm(int ansicht, const GlmModel& m, ImVec2& out);
 [[nodiscard]] bool modellGizmoGriffOrt(int griff, ImVec2& out);
+[[nodiscard]] bool modellGizmoRingOrt(int achse, float grad, ImVec2& out);   // Stufe 3
 [[nodiscard]] bool modellAnbauWelt(int anbau, float welt[16]);
 [[nodiscard]] bool modellAuswahlMitte(float mitte[3]);
 

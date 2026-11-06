@@ -433,7 +433,6 @@ bool modellKartenGlaBauen(const std::string& datei, bool trotzdem) {
 
 // Eine dotXSI-Animation gegen das Skelett der GLA aufnehmen (Carcass-Weg, G2C) und auf den naechsten freien Platz legen.
 bool modellXsiAufnehmen(const std::string& datei) {
-    ModellTab& t = mt();
     plaetzeAnpassen();
     std::string text;
     if (g_app->anim.empty() || !readFromArchives(datei, text)) {
@@ -446,21 +445,34 @@ bool modellXsiAufnehmen(const std::string& datei) {
         melden(format(Str::MbSpFehler, br.fehler.empty() ? tr(Str::MbCfgKeine) : br.fehler.c_str()));
         return false;
     }
+    const int bilder = g.numFrames;
+    const std::string platz = modellGlaAufPlatz(std::move(g), name, -1, 20);
+    if (platz.empty()) { return false; }
+    melden(format(Str::MbXsiAufgenommen, name.c_str(), bilder, platz.c_str(), static_cast<int>(br.fehlendeKnochen.size())));
+    return true;
+}
+
+// Eine neue Quelle (XSI aufgenommen, Rig gebacken) auf den naechsten freien Platz des Ziels: die GLA als feste Kopie,
+// die Zeile mit allen Bildern, loopFrames und fps. Leer: kein Platz frei (gemeldet).
+std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps) {
+    ModellTab& t = mt();
+    plaetzeAnpassen();
     t.kgQuellen.push_back(ModellGlaQuelle{name, std::move(g)});
     const GlaAnimation* q = &t.kgQuellen.back().gla;
-    const modell::PlatzQuelle pq{q, name, AnimEntry{name, 0, q->numFrames, -1, 20}};
+    const modell::PlatzQuelle pq{q, name, AnimEntry{name, 0, q->numFrames, loopFrames, fps}};
     for (const modell::Platz& p : t.plaetze) {
         if (p.belegt && t.glaZiel != 2) { continue; }
         const std::string platz = t.glaZiel == 2 ? name : p.name;
         t.belegung[platz] = pq;
         ++t.kgStand;
         plaetzeAnpassen();
-        melden(format(Str::MbXsiAufgenommen, name.c_str(), q->numFrames, platz.c_str(), static_cast<int>(br.fehlendeKnochen.size())));
-        return true;
+        return platz;
     }
     melden(format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name));
-    return false;
+    return {};
 }
+
+std::string modellZielKopf() { return zielKopf(); }
 
 void modellXsiAufnehmenFrage() {
     const std::string p = platform::openFileDialog(tr(Str::MbXsiAufnehmen), "dotXSI (*.xsi)|*.xsi", g_app->settings.lastDir);

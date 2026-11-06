@@ -30,6 +30,7 @@
 #include "bhed/glm.h"
 #include "bhed/md3.h"
 #include "bhed/modell/animcfg.h"
+#include "bhed/modell/rigdaten.h"
 
 namespace bhed::modell {
 
@@ -136,6 +137,11 @@ struct Inhalt {
     // aendern sich ueber das Dokument (ein Rueckgaengig-Schritt je Aenderung).
     std::string cfgPfad;
     AnimCfg cfg;
+    // Stufe 3: Schluessel des Control Rigs und Zuordnungen von Hand (nicht in der .glm; gebacken wird in eine GLA).
+    RigDaten rig;
+    // Stufe 3: zaehlt jede Aenderung, die das Netz betrifft (aendern/vorschau mit netz = true, laden). Rig-Schluessel
+    // aendern ihn nicht - die Anzeige baut nur neu, wenn er wechselt. Rueckgaengig bringt den Stand mit zurueck.
+    int netzStand = 0;
 
     [[nodiscard]] bool leer() const noexcept { return teile.empty(); }
     [[nodiscard]] int teilIndex(const std::string& name) const;
@@ -166,10 +172,11 @@ public:
     [[nodiscard]] const Inhalt& inhalt() const noexcept { return jetzt_; }
     [[nodiscard]] int stand() const noexcept { return stand_; }
     void laden(Inhalt neu);
-    void aendern(const std::string& was, const std::function<void(Inhalt&)>& f);
+    // netz = false: die Aenderung betrifft nur das Rig (netzStand bleibt, die Anzeige baut nicht neu).
+    void aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz = true);
     // Den Inhalt ohne neuen Rueckgaengig-Schritt aendern - die Vorschau eines
     // Ziehens, dessen Schritt aendern() beim ersten Bewegen angelegt hat.
-    void vorschau(const std::function<void(Inhalt&)>& f);
+    void vorschau(const std::function<void(Inhalt&)>& f, bool netz = true);
     bool rueckgaengig();
     // mb1a2: den letzten Schritt verwerfen (zurueck, ohne Wiederholen) - ein abgebrochenes G/R/S.
     bool abbrechen();
@@ -184,6 +191,7 @@ private:
     std::vector<std::pair<std::string, Inhalt>> zurueck_;
     std::vector<std::pair<std::string, Inhalt>> vor_;
     int stand_ = 0;
+    int netzZaehler_ = 0;
 };
 
 }  // namespace bhed::modell

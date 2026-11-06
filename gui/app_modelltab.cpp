@@ -81,7 +81,7 @@ const char* bereichStufe(ModellBereich b) {
         case ModellBereich::Uv: return "1b";
         case ModellBereich::Weights: break;
         case ModellBereich::Painting: return "1c";
-        case ModellBereich::Animation: return "3-7";   // Stufe 2: GLA, animation.cfg, Karten-GLA, Marker
+        case ModellBereich::Animation: return "4-7";   // Stufe 2: GLA, animation.cfg, Karten-GLA, Marker; Stufe 3: Rig, Posen, Ghosts, Pfade
         case ModellBereich::Ansehen: break;
     }
     return "";
@@ -184,7 +184,8 @@ void modellAnzeigeAktualisieren() {
     // "Kappen" (_off-Flaechen) der Leiste: G2_SetSurfaceOnOff(..., 0) fuer jede
     // Flaeche mit OFF in der Datei, die der Anwender nicht selbst geschaltet hat.
     const modell::G2Zustand z = g_app->showCaps ? modell::mitKappen(in, t.g2) : t.g2;
-    std::string schluessel = g_app->modelPath + "|" + std::to_string(t.dok.stand()) + "|" + std::to_string(lod) + "|" +
+    // Stufe 3: der Netz-Stand des Dokuments (Rig-Schluessel aendern das Netz nicht und bauen nichts neu)
+    std::string schluessel = g_app->modelPath + "|" + std::to_string(in.netzStand) + "|" + std::to_string(lod) + "|" +
                              std::to_string(z.wurzel) + "|";
     for (const modell::FlaechenSchalter& s : z.slist) { schluessel += std::to_string(s.flaeche) + ":" + std::to_string(s.offFlags) + ","; }
     for (const GlmSurface& s : g_app->model.surfaces) { schluessel += s.texture + ";"; }
@@ -739,6 +740,7 @@ void drawModellExplorer(float hoehe) {
                 ImGui::TreePop();
             }
         }
+        modellRigExplorer(such);   // Stufe 3: die Griffe des Control Rigs
         ImGui::TreePop();
     }
     ImGui::Unindent(augeB);
@@ -1132,13 +1134,16 @@ void drawModellBefehlsfeld() {
     if (t.bereich == ModellBereich::Weights && !g_app->model.empty() && ImGui::CollapsingHeader(tr(Str::MbRGewichte), ImGuiTreeNodeFlags_DefaultOpen)) {
         drawModellGewichte();   // mb1a2
     }
-    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights) {
+    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights && t.bereich != ModellBereich::Animation) {
         ImGui::PushTextWrapPos(0.0F);
         ImGui::TextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
         ImGui::PopTextWrapPos();
         ImGui::Separator();
     }
-    if (t.bereich == ModellBereich::Animation && !g_app->model.empty()) { drawModellAnimationBereich(); }   // Stufe 2
+    if (t.bereich == ModellBereich::Animation && !g_app->model.empty()) {
+        drawModellRigBereich();       // Stufe 3: Rig, Posen, Ghosts, Pfade, Backen
+        drawModellAnimationBereich();   // Stufe 2
+    }
     if (!g_app->model.empty()) {
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRModell), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutModell(); }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRLod), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutLod(); }
@@ -1271,7 +1276,10 @@ struct BlenderTaste {
     const char* quelle;
 };
 
-void blenderModal(int art) { (void)modellModalStarten(art); }
+void blenderModal(int art) {
+    if (modellRigModalStarten(art)) { return; }   // Stufe 3: im Bereich Animation dreht R den gewaehlten Griff
+    (void)modellModalStarten(art);
+}
 
 void blenderAlle(bool an) {
     ModellTab& t = mt();
@@ -1505,6 +1513,7 @@ void drawModellKontextMenue() {
         ImGui::PopID();
     }
     if (unter) { ImGui::EndMenu(); }
+    modellRigKontextMenue();   // Stufe 3
     ImGui::EndPopup();
 }
 
@@ -1531,6 +1540,11 @@ bool modellTasten() {
         mt().modalEndeBild = ImGui::GetFrameCount();
         return true;
     }
+    if (modellRigModalTasten()) {   // Stufe 3: G/R auf einem Griff
+        mt().modalEndeBild = ImGui::GetFrameCount();
+        return true;
+    }
+    if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
     if (modellBlender()) {
         for (const BlenderTaste& k : blenderTasten()) {
             if (ImGui::IsKeyChordPressed(k.chord)) {
@@ -1606,16 +1620,19 @@ void drawModellAktionen() {
             }
         }
     }
+    bool rigAusgeloest = false;
     for (const ZusatzAktion& a : zusatzAktionen()) {   // mb1a2: auch die Funktionen ohne Taste des Vorbilds
         const std::string text = zusatzText(a);
         if (!passt(text, such)) { continue; }
         if (ImGui::Selectable(text.c_str())) {
             zusatzAusloesen(a);
             ImGui::CloseCurrentPopup();
+            rigAusgeloest = true;
             break;
         }
         ImGui::SetItemTooltip("%s", tr(a.hinweis));
     }
+    if (!rigAusgeloest && modellRigAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Stufe 3
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

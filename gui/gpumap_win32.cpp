@@ -74,6 +74,7 @@ namespace bhed::gpu {
 namespace {
 
 void gibUmrissFrei();  // Umriss der Auswahl, weiter unten
+void gibGeistFrei();   // Stufe 3: Ghosts im Model-Tab, weiter unten
 bool umrissAnlegen();
 
 // Ein uebersetztes Shaderpaar, nach Merkmalsbits abgelegt.
@@ -222,6 +223,16 @@ bool g_umrissNurSichtbar = false;            // Maske der Mover: nur Punkte mit 
 ID3D11DepthStencilState* g_dsUmrissSichtbar = nullptr;
 ID3D11Buffer* g_cbUmriss = nullptr;
 bool g_umrissVersucht = false;
+// Stufe 3: Ghosts und Silhouette im Model-Tab (ModellGeist, ModellAnsichtArt::silhouette). 0 aus, 1 nur Tiefe, 2 Farbe auf
+// gleicher Tiefe (Stencil != Nummer des Ghosts, dann Nummer), 3 deckend einfarbig (Silhouette).
+int g_geistModus = 0;
+UINT g_geistNummer = 0;
+ID3D11PixelShader* g_geistPs = nullptr;
+ID3D11Buffer* g_cbGeist = nullptr;
+ID3D11BlendState* g_geistOhneFarbe = nullptr;
+ID3D11DepthStencilState* g_dsGeistTiefe = nullptr;
+ID3D11DepthStencilState* g_dsGeistGleich = nullptr;
+bool g_geistVersucht = false;
 // Rauch dunkelt das Gluehen ab (rc597): alle Aufrufe schwarz mit ihrem Alpha.
 bool g_verdunkeln = false;
 ID3D11PixelShader* g_verdunkelnPs = nullptr;
@@ -2363,8 +2374,26 @@ void verdunkelnUeberschreiben(ID3D11DeviceContext* c) {
     if (g_dsUmriss != nullptr) { c->OMSetDepthStencilState(g_dsUmriss, 0); }
 }
 
+void geistUeberschreiben(ID3D11DeviceContext* c) {
+    if (g_geistModus == 0 || g_geistPs == nullptr) { return; }
+    c->PSSetShader(g_geistPs, nullptr, 0);
+    c->PSSetConstantBuffers(7, 1, &g_cbGeist);
+    const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    if (g_geistModus == 1) {
+        c->OMSetBlendState(g_geistOhneFarbe, faktor, 0xFFFFFFFFU);
+        c->OMSetDepthStencilState(g_dsGeistTiefe, 0);
+    } else if (g_geistModus == 2) {
+        if (ID3D11BlendState* bs = holeBlend(Blend::AlphaBlend)) { c->OMSetBlendState(bs, faktor, 0xFFFFFFFFU); }
+        c->OMSetDepthStencilState(g_dsGeistGleich, g_geistNummer);
+    } else {
+        if (ID3D11BlendState* bs = holeBlend(Blend::Opaque)) { c->OMSetBlendState(bs, faktor, 0xFFFFFFFFU); }
+        c->OMSetDepthStencilState(g_dsGeistTiefe, 0);
+    }
+}
+
 void umrissUeberschreiben(ID3D11DeviceContext* c) {
     verdunkelnUeberschreiben(c);
+    geistUeberschreiben(c);
     if (!g_umriss || g_umrissPs == nullptr) {
         return;
     }
@@ -6223,6 +6252,95 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     return zeichneModellAnsicht(model, textures, knochen, viewProj, kappen, fehler, ModellAnsichtArt{}, {});
 }
 
+namespace {
+// Stufe 3: Shader und Zustaende der Ghosts/Silhouette, einmal angelegt.
+bool geistAnlegen(ID3D11Device* d) {
+    if (g_geistVersucht) {
+        return g_geistPs != nullptr && g_cbGeist != nullptr && g_geistOhneFarbe != nullptr && g_dsGeistTiefe != nullptr && g_dsGeistGleich != nullptr;
+    }
+    g_geistVersucht = true;
+    const std::string ps = R"(
+cbuffer Geist : register(b7) { float4 gGeist; };
+Texture2D    gBild    : register(t0);
+SamplerState gSampler : register(s0);
+struct VSOut {
+    float4 pos    : SV_POSITION;
+    float2 uv     : TEXCOORD0;
+    float2 uvLm   : TEXCOORD1;
+    float4 farbe  : COLOR0;
+};
+float4 main(VSOut ein) : SV_TARGET {
+    if (gBild.Sample(gSampler, ein.uv).a < 0.5) { discard; }
+    return gGeist;
+}
+)";
+    ID3DBlob* b = nullptr;
+    ID3DBlob* err = nullptr;
+    if (SUCCEEDED(d3dUebersetzen(ps.data(), ps.size(), "geist", nullptr, nullptr, "main", "ps_4_0", uebersetzFahnen(), 0, &b, &err))) {
+        d->CreatePixelShader(b->GetBufferPointer(), b->GetBufferSize(), nullptr, &g_geistPs);
+        b->Release();
+    }
+    if (err != nullptr) {
+        diag::detail(std::string("Ghost: ") + static_cast<const char*>(err->GetBufferPointer()));
+        err->Release();
+    }
+    D3D11_BUFFER_DESC bd{};
+    bd.ByteWidth = 16;
+    bd.Usage = D3D11_USAGE_DYNAMIC;
+    bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    d->CreateBuffer(&bd, nullptr, &g_cbGeist);
+    D3D11_BLEND_DESC bl{};
+    bl.RenderTarget[0].BlendEnable = FALSE;
+    bl.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    bl.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO;
+    bl.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    bl.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    bl.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    bl.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    bl.RenderTarget[0].RenderTargetWriteMask = 0;   // nur die Tiefe
+    d->CreateBlendState(&bl, &g_geistOhneFarbe);
+    D3D11_DEPTH_STENCIL_DESC dd{};
+    dd.DepthEnable = TRUE;
+    dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    dd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    d->CreateDepthStencilState(&dd, &g_dsGeistTiefe);
+    dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    dd.DepthFunc = D3D11_COMPARISON_EQUAL;
+    dd.StencilEnable = TRUE;
+    dd.StencilReadMask = 0xFF;
+    dd.StencilWriteMask = 0xFF;
+    dd.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+    dd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    dd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.BackFace = dd.FrontFace;
+    d->CreateDepthStencilState(&dd, &g_dsGeistGleich);
+    return g_geistPs != nullptr && g_cbGeist != nullptr && g_geistOhneFarbe != nullptr && g_dsGeistTiefe != nullptr && g_dsGeistGleich != nullptr;
+}
+
+void geistFarbe(ID3D11DeviceContext* c, const float farbe[4], int modus) {
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (SUCCEEDED(c->Map(g_cbGeist, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
+        std::memcpy(m.pData, farbe, 4U * sizeof(float));
+        c->Unmap(g_cbGeist, 0);
+    }
+    g_geistModus = modus;
+}
+
+void gibGeistFrei() {
+    for (IUnknown** p : {reinterpret_cast<IUnknown**>(&g_geistPs), reinterpret_cast<IUnknown**>(&g_cbGeist), reinterpret_cast<IUnknown**>(&g_geistOhneFarbe),
+                         reinterpret_cast<IUnknown**>(&g_dsGeistTiefe), reinterpret_cast<IUnknown**>(&g_dsGeistGleich)}) {
+        if (*p != nullptr) {
+            (*p)->Release();
+            *p = nullptr;
+        }
+    }
+    g_geistVersucht = false;
+    g_geistModus = 0;
+}
+}  // namespace
+
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler, const ModellAnsichtArt& art,
                          const std::vector<ModellZusatz>& zusatz) {
@@ -6298,10 +6416,36 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
     // mb1a1: Drahtgitter (F3) und beidseitig ueber den Rasterzustand, die Kanten
     // (F4) als zweiter Durchgang ohne Bild, zur Kamera gezogen.
     g_modellRaster = (art.drahtgitter ? kRasterDraht : 0U) | (art.zweiseitig ? kRasterBeidseitig : 0U);
-    int n = zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    // Stufe 3: zuerst der Boden, dann die Ghosts, dann - nach dem Loeschen der Tiefe - die Figur deckend obenauf: die aktuelle
+    // Pose bleibt ganz sichtbar, die Ghosts zeigen sich daneben (mb4_hb_de: ueber der Figur gezeichnet faerbten sie sie ganz ein).
+    const bool silhouette = art.silhouette[3] > 0.0F && geistAnlegen(d);
+    const std::uint32_t raster = g_modellRaster;
+    int n = 0;
     for (const ModellZusatz& z : zusatz) {
-        if (z.modell != nullptr) { n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true); }
+        if (!z.figur && z.modell != nullptr) { n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true); }
     }
+    if (!art.geister.empty() && geistAnlegen(d)) {
+        c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_STENCIL, 1.0F, 0);
+        g_modellRaster = art.zweiseitig ? kRasterBeidseitig : 0U;
+        for (std::size_t i = 0; i < art.geister.size() && i < 250U; ++i) {
+            g_geistNummer = static_cast<UINT>(i + 1U);
+            geistFarbe(c, art.geister[i].farbe, 1);
+            n += zeichneFigurIn(model, textures, art.geister[i].knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+            g_geistModus = 2;
+            n += zeichneFigurIn(model, textures, art.geister[i].knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+        }
+        g_geistModus = 0;
+        g_modellRaster = raster;
+        c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
+    }
+    if (silhouette) { geistFarbe(c, art.silhouette, 3); }
+    n += zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    for (const ModellZusatz& z : zusatz) {
+        if (!z.figur || z.modell == nullptr) { continue; }
+        g_geistModus = silhouette ? 3 : 0;
+        n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true);
+    }
+    g_geistModus = 0;
     if (art.kantenUeber && !art.drahtgitter) {
         g_modellRaster = kRasterDraht | kRasterVorzug | (art.zweiseitig ? kRasterBeidseitig : 0U);
         n += zeichneFigurIn(model, nullptr, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
@@ -6675,6 +6819,7 @@ void shutdown() {
     if (g_cbStapel != nullptr) { g_cbStapel->Release(); g_cbStapel = nullptr; }
     if (g_cbRing != nullptr) { g_cbRing->Release(); g_cbRing = nullptr; }
     gibUmrissFrei();
+    gibGeistFrei();
     if (g_ctx1 != nullptr) { g_ctx1->Release(); g_ctx1 = nullptr; }
     g_ringGeht = -1;
     g_ringStand = kRingGroesse;
