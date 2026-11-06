@@ -478,6 +478,8 @@ std::vector<Schritt> testKarteSchritte() {
 // dort ist der Spiegel zu sehen. Ein zweiter Spiegel 2000 Einheiten weiter mit eigenem misc_portal_surface 16 ueber dem Boden.
 std::string testerQuelle() { return stufe2::laufDatei("r2a_spiegel_quelle"); }
 std::string testerKarte() { return karteTestPfad("r2a_spiegel.map"); }
+// rc610 R2b: dieselbe Halle fuer das Handbuchbild, mit einem hellen Wuerfel ueber dem Spiegel (im Spiegel gut zu sehen)
+std::string testerKarteHandbuch() { return karteTestPfad("r2b_spiegel_hb.map"); }
 constexpr const char* kTesterShader = "textures/r2a/spiegel_tester";
 
 // TGA 32 Bit, unkomprimiert, von unten nach oben; f(x, y) -> RGBA
@@ -502,10 +504,10 @@ std::string tga32(int w, int h, const std::function<std::array<unsigned char, 4>
     return t;
 }
 
-void testerSchreiben() {
+void testerSchreiben(bool handbuch = false) {
     // als .pk3 im Ordner des Laufs: der Editor liest ihn als Extra Resource Path, das Spielbild (Zeichner der Vorschau) als
     // Spielordner dieser Sitzung - wie ein Mod-Ordner mit dem Shader des Testers
-    std::vector<Pk3Datei> pk3(3);
+    std::vector<Pk3Datei> pk3(4);
     pk3[0].name = "shaders/r2a_spiegel.shader";
     pk3[0].inhalt = std::string(kTesterShader) +
                     "\n{\n\tqer_editorimage textures/r2a/floor2_alpha\n\tsurfaceparm trans\n\tsurfaceparm nonsolid\n\tsurfaceparm nolightmap\n"
@@ -517,6 +519,10 @@ void testerSchreiben() {
     pk3[2].name = "textures/r2a/floor2_alpha.tga";
     pk3[2].inhalt = tga32(64, 64, [](int x, int) {
         return x < 32 ? std::array<unsigned char, 4>{40, 200, 40, 255} : std::array<unsigned char, 4>{0, 0, 0, 0};
+    });
+    pk3[3].name = "textures/r2b/hell.tga";   // rc610 R2b: der helle Wuerfel des Handbuchbilds
+    pk3[3].inhalt = tga32(16, 16, [](int x, int y) {
+        return ((x / 4 + y / 4) % 2) == 0 ? std::array<unsigned char, 4>{255, 240, 120, 255} : std::array<unsigned char, 4>{255, 255, 255, 255};
     });
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(testerQuelle()), ec);
@@ -544,6 +550,7 @@ void testerSchreiben() {
         quader(karte::Vektor3f(x, 0, 1), karte::Vektor3f(128, 128, 1), kTesterShader);       // Spiegel, Oberseite z = 2
         quader(karte::Vektor3f(x + 200.0F, 0, 128), karte::Vektor3f(24, 24, 128), stein);    // eine Saeule daneben
     }
+    if (handbuch) { quader(karte::Vektor3f(250, 170, 230), karte::Vektor3f(56, 56, 56), "textures/r2b/hell"); }
     welt->setzen("_ambient", "150");
     const auto ent = [&k](const char* klasse, std::vector<std::pair<const char*, const char*>> werte) {
         auto e = k.neueEntitaet(klasse, false);
@@ -555,7 +562,7 @@ void testerSchreiben() {
     ent("info_player_start", {{"origin", "-400 -400 24"}});
     ent("misc_portal_surface", {{"origin", "0 0 18"}});   // 16 ueber dem Spiegel (Bild des Testers)
     ent("misc_portal_surface", {{"origin", "2000 0 18"}});
-    (void)karte::karteSpeichern(testerKarte(), k, false);
+    (void)karte::karteSpeichern(handbuch ? testerKarteHandbuch() : testerKarte(), k, false);
 }
 
 // Anteil der gruenen Bildpunkte (Stufe floor2_alpha) im Fenster 240 x 240 um die Bildmitte; das Bild nach BHED_FOTOS
@@ -897,7 +904,7 @@ std::vector<Schritt> r2aHandbuchSchritte() {
     s.push_back(hb::fotoTeil("h_r2a_gras", [] { return hb::fensterRect("##feldKamera"); }));
     s.push_back(tu("Handbuch R2a: Spiegel-Shader des Testers in einen Extra Resource Path", [] {
         ke::editor().karte.undo.alsGespeichertMarkieren();
-        editorportal::testerSchreiben();
+        editorportal::testerSchreiben(true);
         ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(editorportal::testerQuelle()); });
     }));
     s.push_back(warteBis("Handbuch R2a: Spieldaten mit dem Extra Resource Path", [] {
@@ -906,7 +913,7 @@ std::vector<Schritt> r2aHandbuchSchritte() {
         return ke::spielBereit() && e.karteSpiel && e.karteSpiel->inventar.shaderFinden(editorportal::kTesterShader) != nullptr;
     }, 20000));
     s.push_back(tu("Handbuch R2a: Karte mit dem Spiegel", [ohneTooltip] {
-        (void)ke::karteOeffnen(editorportal::testerKarte());
+        (void)ke::karteOeffnen(editorportal::testerKarteHandbuch());
         ke::Editor& e = ke::editor();
         e.kameraE.modus = karte::KameraModus::Textur;
         e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT;

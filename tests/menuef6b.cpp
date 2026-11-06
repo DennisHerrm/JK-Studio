@@ -9,9 +9,12 @@
 //   B6b-4 ItemParse_cvar: minVal/maxVal/defVal -1 je nach Typ (OJ SP :4394, OJ MP :7956, MD SP :4311)
 //   B6b-5 paketPfad: keine pk3 im Paket
 #include "bhed/menue/menue.h"
+#include "bhed/menue/modell.h"
+#include "bhed/menue/skript.h"
 #include "bhed/menue/projekt.h"
 #include "bhed/menue/vorschau.h"
 
+#include <cmath>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -195,12 +198,75 @@ void b6b5() {
 }
 }  // namespace
 
+// rc610 R2b: Movie Duels MP gegen md9 codemp/ui/ui_shared.c gelesen
+//   (a) ITEM_TYPE_MODEL_ITEM: Item_Paint (:7466) ruft Item_Model_Paint_Item (:6145-6200) - die Vorschau zeichnet es
+//       wie ein Modell, mit dessen Kamera: fov 45 x 45, Gier realTime / 20, ohne model_angle und Saeber-Hack
+//   (b) commandList (:2156-2189): delay, showMenu, setitemflag ... stehen nur in der SP-Liste - im MP gehen sie an
+//       DC->runScript (:2324-2327), das das NAECHSTE Wort als uiScript liest; der Rest laeuft weiter. Umgekehrt
+//       kennt die SP-Liste (code/ui/ui_shared.cpp) setcvartocvar nicht.
+void r2bMdMp() {
+    std::printf("--- R2b: Movie Duels MP ---\n");
+    {   // (a) ITEM_TYPE_MODEL_ITEM wird gezeichnet
+        const Datei md = lesen(menu("itemDef { name a type 17 asset_model \"models/map_objects/vjun/dot.md3\" rect 10 20 64 64 visible 1 }"), Dialekt::MP,
+                               Spiel::MD);
+        Umgebung u;
+        u.dialekt = Dialekt::MP;
+        std::vector<Prim> pr;
+        zeichneMenu(md, 0, u, pr);
+        bool modell = false;
+        for (const Prim& x : pr) { modell = modell || (x.item == 0 && x.art == PrimArt::Modell); }
+        pruefe(md.menus.size() == 1 && md.menus[0].ok && modell, "(a) MD MP: ITEM_TYPE_MODEL_ITEM zeichnet ein Modell (Item_Model_Paint_Item)");
+        MenueModell m;
+        m.ok = true;
+        m.md3 = true;
+        m.mins[2] = -10.0F;
+        m.maxs[2] = 30.0F;
+        Item it = md.menus[0].items[0];
+        it.angle = 90;
+        it.fovx = 70.0F;
+        std::vector<bhed::BoneMatrix> k;
+        const MenueModellBild b = menueModellBild(m, it, 2000, 0, 62, 62, k);
+        const float tx = 1.0F / -b.kamera[1];   // tan(fov_x / 2)
+        pruefe(std::fabs(b.yawGrad - 100.0F) < 0.01F && std::fabs(tx - std::tan(22.5F * 3.14159265F / 180.0F)) < 1e-4F,
+               "(a) Item_Model_Paint_Item: Gier realTime / 20 = 100, fov 45 (model_angle und model_fovx ohne Wirkung)");
+    }
+    const std::string t = "{ menuDef { name m rect 0 0 640 480 visible 1\n itemDef { name a rect 0 0 64 64 visible 1 }\n}\n"
+                          "menuDef { name m2 rect 0 0 640 480 visible 0\n itemDef { name b rect 0 0 64 64 visible 1 }\n} }\n";
+    {   // (b) delay und showMenu im MP: nicht in der commandList
+        const Datei d = lesen(t, Dialekt::MP, Spiel::MD);
+        Laufzeit l;
+        l.start(d);
+        l.oeffne("m");
+        l.fuehreAus(0, 0, "delay 500 ; setcvar x 1 ; showmenu m2");
+        pruefe(l.cvar("x") == "1" && (l.menuFlags[1] & WINDOW_VISIBLE) == 0,
+               "(b) MD MP: delay haelt das Skript nicht an, showMenu oeffnet nichts (DC->runScript liest das naechste Wort)");
+        const Datei sp = lesen(t, Dialekt::SP, Spiel::MD);
+        Laufzeit ls;
+        ls.start(sp);
+        ls.oeffne("m");
+        ls.fuehreAus(0, 0, "setcvar x 1 ; showmenu m2");
+        pruefe(ls.cvar("x") == "1" && (ls.menuFlags[1] & WINDOW_VISIBLE) != 0, "(b) Gegenprobe MD SP: showMenu oeffnet m2 (Script_ShowMenu)");
+    }
+    {   // (b) setcvartocvar: nur in den MP-Listen
+        for (const Dialekt dl : {Dialekt::SP, Dialekt::MP}) {
+            const Datei d = lesen(t, dl, Spiel::JA);
+            Laufzeit l;
+            l.start(d);
+            l.oeffne("m");
+            l.fuehreAus(0, 0, "setcvar y 5 ; setcvartocvar x y");
+            pruefe(l.cvar("x") == (dl == Dialekt::MP ? "5" : ""), std::string(dl == Dialekt::MP ? "(b) OpenJK MP" : "(b) OpenJK SP") +
+                                                                     ": setcvartocvar " + (dl == Dialekt::MP ? "setzt x" : "steht nicht in der commandList"));
+        }
+    }
+}
+
 int main() {
     b6b1();
     b6b2();
     b6b3();
     b6b4();
     b6b5();
+    r2bMdMp();
     std::printf("menuef6b: %d Fehler\n", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

@@ -622,6 +622,7 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
     };
     const auto kanteGeht = [&](int ca, const V& oa, int cb, const V& ob) { return kanteGrund(ca, oa, cb, ob) == 0; };
     std::vector<WegErzeugungInfo::Luecke> luecken;
+    std::vector<int> lueckeAnker;   // rc610 R2b: je Luecke der Punkt, an dem die Kette stehen blieb
     const auto verbinde = [&](int a, int b) {
         aus[static_cast<std::size_t>(a)].nachbarn.push_back(b);
         aus[static_cast<std::size_t>(b)].nachbarn.push_back(a);
@@ -758,6 +759,7 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
             }
             if (neu < 0) {
                 luecken.push_back(l);
+                lueckeAnker.push_back(a);
                 return false;
             }
             anker = neu;
@@ -867,13 +869,30 @@ std::vector<NeuerWegpunkt> erzeugeInnen(const std::vector<std::array<float, 3>>&
             }
         }
     };
+    // rc610 R2b: gemeldet wird je Teil, der am Ende nicht am Hauptteil haengt, die erste Kette, die in ihm stehen blieb.
+    // Vorher jede gescheiterte Kette: eine spaetere Kette verbindet oft, was vorher scheiterte, und viele Teile
+    // scheitern an derselben Stelle (taspir1 meldete 3241 Teile, das Netz hatte 38; t1_danger 5, es hing ganz zusammen).
+    const auto lueckenJeTeil = [&]() {
+        if (luecken.empty()) { return; }
+        const std::vector<int> t = teile();
+        std::set<int> gesehen;
+        std::vector<WegErzeugungInfo::Luecke> bleiben;
+        for (std::size_t i = 0; i < luecken.size(); ++i) {
+            const int teil = t[static_cast<std::size_t>(lueckeAnker[i])];
+            if (teil != t.front() && gesehen.insert(teil).second) { bleiben.push_back(luecken[i]); }
+        }
+        luecken = std::move(bleiben);
+        lueckeAnker.clear();
+    };
     const auto alles = [&](float raster) {
         abgehaengt.clear();
         luecken.clear();
+        lueckeAnker.clear();
         melde(0.3F, 2);
         punkte(raster);
         kanten(raster);
         ketten(raster);
+        lueckenJeTeil();
     };
     // Das Spiel nimmt hoechstens maxKnoten Punkte ("Max Nav points reached", NUM_NODES). Braucht das Raster mehr, wird
     // es weiter (die Flaeche je Punkt im Verhaeltnis), bis zur dreifachen Rasterweite; dann gilt die Grenze in der

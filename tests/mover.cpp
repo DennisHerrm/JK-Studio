@@ -373,6 +373,71 @@ void f6bMover() {
     }
 }
 
+// rc610 R2b: Slaves anderer Klassen. MatchTeam (g_mover.cpp:691-697 OpenJK, :711-717 MD) ruft SetMoverState fuer die
+// ganze teamchain mit pos1/pos2/trDuration des Slaves; SP_func_bobbing und SP_func_rotating setzen pos1/pos2 nie, also
+// (0,0,0). Use_BinaryMover bleibt bei func_bobbing ohne START_OFF und bei func_rotating ohne targetname beim Spawnen
+// (InitMover :1113, SP_func_rotating :2341-2344) - dann faehrt MatchTeam des Meisters auch seine Tueren.
+void r2bTeams() {
+    std::printf("R2b: Team-Slaves anderer Klassen\n");
+    const BspGeometry g = geometrie(4);
+    // (a) Tuer als Meister, func_rotating (START_ON, origin 100 0 0) als Slave: ab dem use auf (0,0,0), dreht weiter.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "d"}, {"team", "x"}}));
+        map.entities.push_back(ent("func_rotating", {{"model", "*3"}, {"spawnflags", "1"}, {"origin", "100 0 0"}, {"team", "x"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "d"}}, nullptr, 4000.0);
+        std::printf("        func_rotating-Slave: x bei 500 %.1f, 1500 %.1f; Gier bei 1500 %.1f; Tuer y bei 1500 %.1f\n",
+                    static_cast<double>(s.at(3, 500.0).origin[0]), static_cast<double>(s.at(3, 1500.0).origin[0]),
+                    static_cast<double>(s.at(3, 1500.0).angles[1]), static_cast<double>(s.at(1, 1500.0).origin[1]));
+        erwarte("(a) Tuer-Meister: der func_rotating-Slave steht ab MatchTeam auf pos1 = (0,0,0) und dreht weiter",
+                nah(s.at(3, 500.0).origin[0], 100.0F) && nah(s.at(3, 1500.0).origin[0], 0.0F) && nah(s.at(3, 1500.0).angles[1], 150.0F) &&
+                    nah(s.at(1, 1500.0).origin[1], 56.0F));
+    }
+    // (b) Tuer als Meister, func_bobbing (ohne START_OFF) als Slave: pendelt bis zum use, dann auf (0,0,0).
+    {
+        MapData map;
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "d"}, {"team", "y"}}));
+        map.entities.push_back(ent("func_bobbing", {{"model", "*2"}, {"team", "y"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "d"}}, nullptr, 4000.0);
+        std::printf("        func_bobbing-Slave: z bei 500 %.1f, 3000 %.1f\n", static_cast<double>(s.at(2, 500.0).origin[2]),
+                    static_cast<double>(s.at(2, 3000.0).origin[2]));
+        erwarte("(b) Tuer-Meister: der func_bobbing-Slave pendelt bis zum use, danach steht er auf (0,0,0)",
+                nah(s.at(2, 500.0).origin[2], 22.6F) && nah(s.at(2, 3000.0).origin[2], 0.0F));
+    }
+    // (c) func_bobbing als Meister, die Tuer als Slave: use d (der Name ging an den Meister) oeffnet die Tuer; nach
+    // trDuration 4000 und wait 0 faehrt MatchTeam(2TO1) sie zurueck.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_bobbing", {{"model", "*2"}, {"team", "z"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "d"}, {"team", "z"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "d"}}, nullptr, 8000.0);
+        std::printf("        Tuer-Slave eines func_bobbing: y bei 900 %.1f, 1500 %.1f, 4000 %.1f, 6000 %.1f\n",
+                    static_cast<double>(s.at(1, 900.0).origin[1]), static_cast<double>(s.at(1, 1500.0).origin[1]),
+                    static_cast<double>(s.at(1, 4000.0).origin[1]), static_cast<double>(s.at(1, 6000.0).origin[1]));
+        erwarte("(c) func_bobbing-Meister: MatchTeam oeffnet die Tuer und schliesst sie nach seiner Bahn",
+                nah(s.at(1, 900.0).origin[1], 0.0F) && nah(s.at(1, 1500.0).origin[1], 56.0F) && nah(s.at(1, 4000.0).origin[1], 56.0F) &&
+                    nah(s.at(1, 6000.0).origin[1], 0.0F));
+    }
+    // (d) func_rotating ohne targetname als Meister (wait 2000 = ms), die Tuer als Slave: Use_BinaryMover statt
+    // func_rotating_use - die Tuer oeffnet, der Meister steht auf (0,0,0) und dreht weiter.
+    {
+        MapData map;
+        map.entities.push_back(ent("func_rotating", {{"model", "*3"}, {"spawnflags", "1"}, {"origin", "100 0 0"}, {"wait", "2000"}, {"team", "r"}}));
+        map.entities.push_back(ent("func_door", {{"model", "*1"}, {"angle", "90"}, {"targetname", "d"}, {"team", "r"}}));
+        MoverSim s;
+        s.baue(map, g, {{1000.0, "d"}}, nullptr, 8000.0);
+        std::printf("        Tuer-Slave eines func_rotating: y bei 1500 %.1f, 5000 %.1f; Meister x bei 1500 %.1f, Gier %.1f\n",
+                    static_cast<double>(s.at(1, 1500.0).origin[1]), static_cast<double>(s.at(1, 5000.0).origin[1]),
+                    static_cast<double>(s.at(3, 1500.0).origin[0]), static_cast<double>(s.at(3, 1500.0).angles[1]));
+        erwarte("(d) func_rotating-Meister ohne targetname: Use_BinaryMover oeffnet die Tuer und schliesst sie nach wait",
+                nah(s.at(1, 1500.0).origin[1], 56.0F) && nah(s.at(1, 5000.0).origin[1], 0.0F) && nah(s.at(3, 1500.0).origin[0], 0.0F) &&
+                    nah(s.at(3, 1500.0).angles[1], 150.0F));
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -1351,6 +1416,7 @@ int main() {
 
     f4bTueren();
     f6bMover();
+    r2bTeams();
 
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);

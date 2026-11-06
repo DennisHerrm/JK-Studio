@@ -615,13 +615,21 @@ private:
         if (e.targetname.empty()) {
             return {};
         }
+        return hatVerhaltensSkript(e) ? e.targetname : std::string{};
+    }
+
+    // Ein behaviorSet (spawnscript, usescript ...): ValidEntity (Q3_Interface.cpp:7572-7592 OpenJK, :8105-8123 MD)
+    // gibt der Entity damit ICARUS, auch ohne Namen - script_targetname = G_NewString( targetname ) ist dann NULL
+    // (G_NewString, g_spawn.cpp:912-920), AssociateEntity traegt sie nicht ein, aber InitEntity gibt ihr eine
+    // ICARUS-Kennung, und G_ActivateBehavior laesst ihre Skripte laufen.
+    static bool hatVerhaltensSkript(const MapEntity& e) {
         for (const auto& [k, v] : e.keys) {
             const std::string kk = klein(k);
             if (!v.empty() && kk.size() > 6 && kk.compare(kk.size() - 6, 6, "script") == 0) {
-                return e.targetname;
+                return true;
             }
         }
-        return {};
+        return false;
     }
 
     // Die Buchfuehrung einer Karten-Entity (Zaehler, Sperren, usescript),
@@ -644,7 +652,9 @@ private:
         w->name = e.targetname.empty() ? e.classname : e.targetname;
         w->ent = &e;
         w->reihe = reiheVon(&e);
-        w->gibt = !ic.empty();   // nur mit ICARUS-Namen hat sie einen Ablauf
+        // Einen Ablauf hat sie mit ICARUS-Namen oder - rc610 R2b - mit einem Verhaltensskript auch ohne (ValidEntity,
+        // siehe hatVerhaltensSkript; vorher lief das usescript eines namenlosen Teammeisters nie).
+        w->gibt = !ic.empty() || (!istNpcSpawner(e) && hatVerhaltensSkript(e));
         bereite(*w, e);
         drehrateVorgabe(*w);
         const int i = static_cast<int>(wesen_.size());
@@ -2061,18 +2071,31 @@ private:
         // den Befehl ausfuehrt (CTaskManager::Get, TaskManager.cpp:637-652
         // OpenJK -> GetString( m_ownerID, ... )). Die Auswerter dahinter
         // (Szene, Mover) kennen den Ausfuehrenden nicht: hier eingesetzt.
+        // rc610 R2b: ebenso ein Argument, das selbst ein $get( TYP, "name" )$ ist - CTaskManager::Get/GetFloat/GetVector
+        // lesen es mit dem Besitzer (TaskManager.cpp:382-650 OpenJK); die Szene bekommt den Wert in der Art des Typs.
         if (n != nullptr && wi >= 0 && static_cast<std::size_t>(wi) < wesen_.size()) {
+            const Wesen& wer = *wesen_[static_cast<std::size_t>(wi)];
             std::shared_ptr<Node> kopie;
             for (std::size_t ai = 0; ai < n->args.size(); ++ai) {
                 const Arg& a = n->args[ai];
-                if (a.kind != Arg::Kind::Expr || a.text.rfind("get", 0) == 0) { continue; }
-                const std::string neu = innereGets(*wesen_[static_cast<std::size_t>(wi)], a.text);
-                if (neu == a.text) { continue; }
+                if (a.kind != Arg::Kind::Expr) { continue; }
+                Arg neu = a;
+                if (a.text.rfind("get", 0) == 0) {
+                    if (!getBekannt(wer, a.text)) { continue; }
+                    neu.text = wertArg(wer, a);
+                    const std::string typ = klein(a.text);
+                    neu.kind = typ.find("vector") != std::string::npos ? Arg::Kind::Vector
+                               : typ.find("float") != std::string::npos ? Arg::Kind::Number
+                                                                        : Arg::Kind::String;
+                } else {
+                    neu.text = innereGets(wer, a.text);
+                    if (neu.text == a.text) { continue; }
+                }
                 if (!kopie) {
                     kopie = std::make_shared<Node>(*n);
                     kopie->children.clear();
                 }
-                kopie->args[ai].text = neu;
+                kopie->args[ai] = neu;
             }
             if (kopie) {
                 e.eigen = kopie;
@@ -2085,6 +2108,15 @@ private:
         eintraege_.push_back(std::move(e));
         ++aus_.befehle;
         return static_cast<int>(eintraege_.size()) - 1;
+    }
+
+    // Ist der Name in get( TYP, "name" ) eine Variable oder ein parm des Ausfuehrenden?
+    [[nodiscard]] bool getBekannt(const Wesen& w, const std::string& q) const {
+        const auto q1 = q.find('"');
+        const auto q2 = (q1 == std::string::npos) ? q1 : q.find('"', q1 + 1);
+        if (q2 == std::string::npos) { return false; }
+        const std::string name = klein(q.substr(q1 + 1, q2 - q1 - 1));
+        return variablen_.count(name) != 0 || w.parm.count(name) != 0;
     }
 
     // rc605 (fix605): jedes get( TYP, "name" ) in einem Ausdruck durch den Wert
@@ -2108,20 +2140,26 @@ private:
             Arg a;
             a.kind = Arg::Kind::Expr;
             a.text = t.substr(g, zu + 1 - g);
-            const std::string q = a.text;
-            const auto q1 = q.find('"');
-            const auto q2 = (q1 == std::string::npos) ? q1 : q.find('"', q1 + 1);
-            bool bekannt = false;
-            if (q2 != std::string::npos) {
-                const std::string name = klein(q.substr(q1 + 1, q2 - q1 - 1));
-                bekannt = variablen_.count(name) != 0 || w.parm.count(name) != 0;
-            }
             aus += t.substr(i, g - i);
-            aus += bekannt ? "\"" + wertArg(w, a) + "\"" : a.text;
+            aus += getBekannt(w, a.text) ? "\"" + wertArg(w, a) + "\"" : a.text;
             i = zu + 1;
         }
         aus += t.substr(std::min(i, t.size()));
         return aus;
+    }
+
+    // rc610 R2b: der Text eines Arguments, wie CTaskManager::Get ihn liest - ein $get( TYP, "name" )$ mit dem Wert
+    // (TaskManager.cpp:548-650 OpenJK: ID_GET -> GetString/GetFloat/GetVector des Besitzers), sonst der Text.
+    // CTaskManager::Use, Kill, Remove, Signal, WaitSignal, Sound, Set, DeclareVariable, FreeVariable, Play, Print
+    // lesen jedes Argument so (TaskManager.cpp:1162-1630 OpenJK, MD gleich); Wait und Move/Rotate die Dauer mit
+    // GetFloat (ebenso ID_GET). Nur run nimmt den Text selbst (CSequencer::ParseRun, Sequencer.cpp:421-431).
+    [[nodiscard]] std::string argText(const Wesen& w, const Arg& a) const {
+        return (a.kind == Arg::Kind::Expr && a.text.rfind("get", 0) == 0) ? wertArg(w, a) : a.text;
+    }
+    // ... und eine Dauer (GetFloat): $get$ als Zahl, sonst wie bisher ueber readMs ($random$ die Mitte).
+    [[nodiscard]] double argMs(const Wesen& w, const Arg& a) const {
+        if (a.kind == Arg::Kind::Expr && a.text.rfind("get", 0) == 0) { return readMs(wertArg(w, a)); }
+        return readMs(a.kind == Arg::Kind::Expr ? "$" + a.text + "$" : a.text);
     }
 
     std::string wertArg(const Wesen& w, const Arg& a) const {
@@ -2248,15 +2286,13 @@ private:
             w.stempel = t;
             if (c == "waitsignal") {
                 w.warte = Wesen::kSignal;
-                w.warteName = n.args.empty() ? std::string{} : klein(n.args[0].text);
+                w.warteName = n.args.empty() ? std::string{} : klein(argText(w, n.args[0]));
             } else if (!n.args.empty() && n.args[0].kind == Arg::Kind::String) {
                 w.warte = Wesen::kGruppe;
                 w.warteName = klein(n.args[0].text);
             } else {
                 w.warte = Wesen::kZeit;
-                w.dauer = n.args.empty() ? 0.0 : readMs(n.args[0].kind == Arg::Kind::Expr
-                                                            ? "$" + n.args[0].text + "$"
-                                                            : n.args[0].text);
+                w.dauer = n.args.empty() ? 0.0 : argMs(w, n.args[0]);
             }
             return;
         }
@@ -2265,19 +2301,20 @@ private:
         bool fertig = true;
 
         if (c == "signal") {
-            if (!n.args.empty()) { signale_.insert(klein(n.args[0].text)); }
+            if (!n.args.empty()) { signale_.insert(klein(argText(w, n.args[0]))); }
         } else if (c == "declare") {
             if (n.args.size() >= 2) {
-                deklariert_.insert(klein(n.args[1].text));
-                variablen_[klein(n.args[1].text)] = "0";
+                const std::string name = klein(argText(w, n.args[1]));
+                deklariert_.insert(name);
+                variablen_[name] = "0";
             }
         } else if (c == "free") {
-            if (!n.args.empty()) { deklariert_.erase(klein(n.args[0].text)); }
+            if (!n.args.empty()) { deklariert_.erase(klein(argText(w, n.args[0]))); }
         } else if (c == "sound") {
             // CHAN_VOICE, CHAN_VOICE_ATTEN, CHAN_VOICE_GLOBAL halten die
             // Aufgabe, bis die Stimme verklungen ist (G_CheckTasksCompleted).
-            if (n.args.size() >= 2 && klein(n.args[0].text).rfind("chan_voice", 0) == 0) {
-                const double d = welt_.klangDauer ? welt_.klangDauer(n.args[1].text) : 0.0;
+            if (n.args.size() >= 2 && klein(argText(w, n.args[0])).rfind("chan_voice", 0) == 0) {
+                const double d = welt_.klangDauer ? welt_.klangDauer(argText(w, n.args[1])) : 0.0;
                 if (d > 0.0) {
                     setzeFach(w, kStimme, id, t + d, false);
                     fertig = false;
@@ -2294,9 +2331,7 @@ private:
             fertig = false;
         } else if (c == "move" || c == "rotate") {
             // Lerp2Pos / Lerp2Angles: fertig nach der Dauer.
-            const double d = n.args.empty() ? 0.0 : readMs(n.args.back().kind == Arg::Kind::Expr
-                                                               ? "$" + n.args.back().text + "$"
-                                                               : n.args.back().text);
+            const double d = n.args.empty() ? 0.0 : argMs(w, n.args.back());
             if (d > 0.0) {
                 setzeFach(w, c == "move" ? kWeg : kBlick, id, t + d, false);
                 fertig = false;
@@ -2350,10 +2385,11 @@ private:
                 }
             }
         } else if (c == "use") {
-            if (!n.args.empty()) { benutze(n.args[0].text, wi, 0); }
+            if (!n.args.empty()) { benutze(argText(w, n.args[0]), wi, 0); }
         } else if (c == "kill" || c == "remove") {
             if (!n.args.empty()) {
-                const std::string ziel = gleich(n.args[0].text, "self") ? w.name : n.args[0].text;
+                const std::string name = argText(w, n.args[0]);
+                const std::string ziel = gleich(name, "self") ? w.name : name;
                 const int zi = wesen(ziel, false);
                 if (zi >= 0) {
                     Wesen& z = *wesen_[static_cast<std::size_t>(zi)];
@@ -2383,7 +2419,7 @@ private:
     }
 
     bool fuehreSetAus(Wesen& w, int wi, const Node& n, int id) {
-        const std::string typ = n.args[0].text;
+        const std::string typ = argText(w, n.args[0]);
         const std::string wert = wertArg(w, n.args[1]);
         const std::string k = klein(typ);
         const double t = jetzt_;

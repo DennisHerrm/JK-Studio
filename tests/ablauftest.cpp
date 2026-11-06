@@ -1153,6 +1153,38 @@ void f6bKette() {
     regelwerkAnwendenSpiel(kRegelwerkOpenJK, -1);
 }
 
+// rc610 R2b: ICARUS - (3) ValidEntity ohne Namen, (4) $get$ in jedem Befehl, der Get/GetFloat nimmt.
+void r2bIcarus() {
+    using namespace f4b;
+    std::printf("R2b: ICARUS\n");
+    // (3) Ein namenloser Teammeister mit usescript: ValidEntity gibt ihm ICARUS (behaviorSet), G_FindTeams den Namen
+    // des Slaves - use "paar" laeuft sein usescript (Q3_Interface.cpp:7572-7592 OpenJK, :8105-8123 MD).
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {}), ent("func_door", {{"team", "tt"}, {"usescript", "f/m1"}}),
+                      ent("func_door", {{"team", "tt"}, {"targetname", "paar"}})};
+        const Ablauf a = lauf(m, "use ( \"paar\" );\nwait ( 500.000 );\n");
+        pruefe(zeiten(a, "marke_m1").size() == 1U, ("(3) usescript ohne Namen: marke_m1 bei" + liste(zeiten(a, "marke_m1"))).c_str());
+    }
+    // (4) $get$ in use, signal/waitsignal, wait (GetFloat), kill (CTaskManager::Use/Signal/WaitSignal/Wait/Kill,
+    // TaskManager.cpp:1078-1530 OpenJK - jedes Argument ueber Get mit ID_GET).
+    {
+        MapData m;
+        m.entities = {ent("worldspawn", {})};
+        const Ablauf a = lauf(m, "set ( \"SET_PARM1\", \"marke_get\" );\nuse ( $get( STRING, \"SET_PARM1\" )$ );\n"
+                                 "set ( \"SET_PARM2\", \"sig\" );\nsignal ( $get( STRING, \"SET_PARM2\" )$ );\n"
+                                 "waitsignal ( \"sig\" );\nuse ( \"marke_sig\" );\nwait ( 100.000 );\n");
+        // wait fuer sich (ohne waitsignal davor): mit $get( FLOAT )$ wie mit der Zahl
+        const std::string vorn = "declare ( FLOAT, \"dauer\" );\nset ( \"dauer\", \"500\" );\n";
+        const Ablauf w = lauf(m, vorn + "wait ( $get( FLOAT, \"dauer\" )$ );\nuse ( \"marke_wait\" );\nwait ( 100.000 );\n");
+        const Ablauf b = lauf(m, vorn + "wait ( 500.000 );\nuse ( \"marke_wait\" );\nwait ( 100.000 );\n");   // dasselbe mit der Zahl
+        pruefeZeiten(a, "marke_get", {0.0}, "(4) use ( $get( STRING, \"SET_PARM1\" )$ )");
+        pruefe(zeiten(a, "marke_sig").size() == 1U, ("(4) signal ( $get$ ): waitsignal kommt durch, marke_sig bei" + liste(zeiten(a, "marke_sig"))).c_str());
+        pruefeZeiten(w, "marke_wait", zeiten(b, "marke_wait"), "(4) wait ( $get( FLOAT, \"dauer\" )$ ) wie wait ( 500.000 )");
+        pruefe(zeiten(b, "marke_wait").size() == 1U, "(4) Gegenprobe wait ( 500.000 ): marke_wait einmal");
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -1169,6 +1201,7 @@ int main(int argc, char** argv) {
     wartenAufNamen();      // Zeitleiste 4
     zielKette();           // F4b
     f6bKette();            // F6b
+    r2bIcarus();           // rc610 R2b
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }

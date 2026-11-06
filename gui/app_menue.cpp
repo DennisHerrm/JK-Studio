@@ -2190,7 +2190,9 @@ void zeichnePrims(ImDrawList* dl, const std::vector<Prim>& prims, const Abbildun
                     const ImVec2 ia{a.x + sx, a.y + sy}, ib{b.x - sx, b.y - sy};
                     const int pw = std::clamp(static_cast<int>(ib.x - ia.x), 8, 2048);
                     const int ph = std::clamp(static_cast<int>(ib.y - ia.y), 8, 2048);
-                    if (mv.modell.ok && gpu::bereiteMenueZiel(mv.nr, pw, ph)) {
+                    // rc610 R2b: Item_Model_Paint_Item zeichnet nur ent.hModel = item->asset - ein .glm hat dort keins (ghoul2)
+                    const bool zeichnet = mv.modell.ok && (it.type != ITEM_TYPE_MODEL_ITEM || mv.modell.md3);
+                    if (zeichnet && gpu::bereiteMenueZiel(mv.nr, pw, ph)) {
                         if (!mv.texturenDa) {   // Bilder einmal je Modell und Haut (texturesFor wie die Kartenfiguren)
                             mv.texturen = texturesFor(mv.modell.glm);
                             mv.texturenDa = true;

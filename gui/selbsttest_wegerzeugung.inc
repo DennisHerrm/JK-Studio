@@ -31,6 +31,7 @@ struct Probe {
     int ix = 0;            // Spalte im Messraster
     int iy = 0;
     bool erreichbar = false;   // zu Fuss vom Spielerstart oder einer Figur aus (Tueren offen)
+    int saat = -1;             // rc610 R2b: von welchem Startpunkt aus (Index in Messung::saaten; erst der Spielerstart)
     float normaleZ = 1.0F;
 };
 struct Treppe {
@@ -41,6 +42,8 @@ struct Messung {
     std::vector<Probe> proben;
     std::vector<Treppe> treppen;
     int startGebiet = -1;   // Gebiet des Spielerstarts
+    // rc610 R2b: die Startpunkte der Messung (Spielerstart zuerst, dann die Figuren) mit Name und origin
+    std::vector<std::pair<std::string, std::array<float, 3>>> saaten;
 };
 
 TraceTreffer strahl(const std::array<float, 3>& a, const std::array<float, 3>& b) { return traceRay(g_app->geo, a.data(), b.data()); }
@@ -221,11 +224,22 @@ Messung messen() {
         }
     }
     // Zu Fuss erreichbar: vom Spielerstart und den Figuren der Karte aus (wie bei Mike: Startpunkte der Karte).
-    std::deque<int> offen;
-    for (const MapEntity& e : g_app->map.entities) {
+    // rc610 R2b: erst alles vom Spielerstart aus, dann je Figur, was noch offen ist - so weiss jede Probe, von wo aus sie
+    // zu Fuss erreichbar ist (taspir1: die Stockwerke ueber dem Start erreicht der Spieler nicht zu Fuss, nur ihre Figuren).
+    std::vector<const MapEntity*> reihe;
+    for (const int spieler : {1, 0}) {
+        for (const MapEntity& e : g_app->map.entities) {
+            const bool istSpieler = e.classname.rfind("info_player", 0) == 0;
+            const bool start = istSpieler || e.classname.rfind("NPC_", 0) == 0 || e.classname.rfind("npc_", 0) == 0;
+            if (start && istSpieler == (spieler == 1)) { reihe.push_back(&e); }
+        }
+    }
+    static const int kNachbar[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    for (const MapEntity* ep : reihe) {
+        const MapEntity& e = *ep;
         float o[3];
-        const bool start = e.classname.rfind("info_player", 0) == 0 || e.classname.rfind("NPC_", 0) == 0 || e.classname.rfind("npc_", 0) == 0;
-        if (!start || !entityOrt(e, o)) { continue; }
+        if (!entityOrt(e, o)) { continue; }
+        std::deque<int> offen;
         int best = -1;
         float bestD = 96.0F;
         for (std::size_t i = 0; i < m.proben.size(); ++i) {
@@ -237,23 +251,26 @@ Messung messen() {
             }
         }
         if (best < 0 || m.proben[static_cast<std::size_t>(best)].erreichbar) { continue; }
+        const int saat = static_cast<int>(m.saaten.size());
+        m.saaten.emplace_back(e.targetname.empty() ? e.classname : e.classname + " " + e.targetname, std::array<float, 3>{o[0], o[1], o[2]});
         m.proben[static_cast<std::size_t>(best)].erreichbar = true;
+        m.proben[static_cast<std::size_t>(best)].saat = saat;
         if (e.classname == "info_player_start" || m.startGebiet < 0) { m.startGebiet = m.proben[static_cast<std::size_t>(best)].gebiet; }
         offen.push_back(best);
-    }
-    static const int kNachbar[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    while (!offen.empty()) {
-        const int i = offen.front();
-        offen.pop_front();
-        const Probe a = m.proben[static_cast<std::size_t>(i)];
-        for (const auto& r : kNachbar) {
-            const auto it = spalten.find({a.ix + r[0], a.iy + r[1]});
-            if (it == spalten.end()) { continue; }
-            for (const int j : it->second) {
-                Probe& b = m.proben[static_cast<std::size_t>(j)];
-                if (b.erreichbar || std::fabs(b.boden[2] - a.boden[2]) > kProbe + kStufe || !gehbar(h, a, b)) { continue; }
-                b.erreichbar = true;
-                offen.push_back(j);
+        while (!offen.empty()) {
+            const int i = offen.front();
+            offen.pop_front();
+            const Probe a = m.proben[static_cast<std::size_t>(i)];
+            for (const auto& r : kNachbar) {
+                const auto it = spalten.find({a.ix + r[0], a.iy + r[1]});
+                if (it == spalten.end()) { continue; }
+                for (const int j : it->second) {
+                    Probe& b = m.proben[static_cast<std::size_t>(j)];
+                    if (b.erreichbar || std::fabs(b.boden[2] - a.boden[2]) > kProbe + kStufe || !gehbar(h, a, b)) { continue; }
+                    b.erreichbar = true;
+                    b.saat = saat;
+                    offen.push_back(j);
+                }
             }
         }
     }
@@ -547,64 +564,104 @@ std::vector<Schritt> wegerzeugungSchritte() {
                          ", Kantenpruefung des Spiels nein " + std::to_string(l.ohneKante));
         }
     }));
-    add(pruefe("WE: jeder zu Fuss erreichbare Innenraum hat einen Wegpunkt in Reichweite, den die Wegfindung des Spiels vom Spielerstart erreicht", [=] {
-        // Mikes Fall: Raeume ganz ausgelassen. Das Netz so, wie das Spiel es beim Laden baut (baueNavNetz: SP_waypoint
-        // ... NAV::TestEdge), dann NAV::FindPath (navAStar) vom Knoten nahe dem Spielerstart zu den Knoten je Raum.
-        const std::shared_ptr<NavNetz> netz = baueNavNetz(g_app->map.entities, navBauHilfeKarte());
-        float st[3] = {0.0F, 0.0F, 0.0F};
-        bool startDa = false;
-        for (const MapEntity& e : g_app->map.entities) {
-            if (!startDa && e.classname == "info_player_start" && entityOrt(e, st)) { startDa = true; }
-        }
-        for (const MapEntity& e : g_app->map.entities) {
-            if (!startDa && e.classname.rfind("info_player", 0) == 0 && entityOrt(e, st)) { startDa = true; }
-        }
-        int von = -1;
-        float bestD = 1.0e9F;
-        for (std::size_t k = 1; k < netz->knoten.size(); ++k) {
-            const NavVec& p = netz->knoten[k].punkt;
-            const float d = std::hypot(std::hypot(p[0] - st[0], p[1] - st[1]), p[2] - st[2]);
-            if (d < bestD) {
-                bestD = d;
-                von = static_cast<int>(k);
+    // rc610 R2b: die Meldung "N Teile des Netzes nicht angebunden" zaehlte jede gescheiterte Kette (taspir1 3241 bei
+    // 38 Teilen des Netzes, t1_danger 5 bei einem). Jede gemeldete Stelle liegt jetzt in einem eigenen Teil, der am Ende
+    // nicht am Hauptteil haengt (ueber die target-Felder).
+    add(pruefe("WE: jede gemeldete nicht angebundene Stelle liegt in einem eigenen Teil des Netzes", [] {
+        const std::map<int, std::vector<int>> n = we::netz();
+        const std::vector<we::Punkt> wp = we::punkte();
+        std::map<int, int> teil;   // Entity -> Teil
+        int zahl = 0;
+        for (const we::Punkt& w : wp) {
+            if (teil.count(w.entity) != 0U) { continue; }
+            std::vector<int> st{w.entity};
+            teil[w.entity] = zahl;
+            while (!st.empty()) {
+                const int i = st.back();
+                st.pop_back();
+                const auto it = n.find(i);
+                if (it == n.end()) { continue; }
+                for (const int j : it->second) {
+                    if (teil.emplace(j, zahl).second) { st.push_back(j); }
+                }
             }
+            ++zahl;
         }
-        // Je Raum die Knoten in Reichweite seiner erreichbaren Bodenproben (hoechstens eine Rasterweite, wie die Abdeckung).
+        std::set<int> belegt;
+        bool gut = true;
+        for (const WegErzeugungInfo::Luecke& l : g_app->wegLuecken) {
+            int t = -1;
+            for (const we::Punkt& w : wp) {
+                if (std::hypot(std::hypot(w.ort[0] - l.anker[0], w.ort[1] - l.anker[1]), w.ort[2] - l.anker[2]) < 0.5F) { t = teil[w.entity]; }
+            }
+            gut = gut && t >= 0 && belegt.insert(t).second;
+        }
+        diag::detail("Knopftest: WE - gemeldet nicht angebunden: " + std::to_string(g_app->wegLuecken.size()) + " Stellen in " + std::to_string(belegt.size()) +
+                     " Teilen, das Netz hat " + std::to_string(zahl) + " Teile");
+        // ... und nie im Hauptteil: hoechstens so viele, wie es Teile ausser einem gibt
+        return gut && (g_app->wegLuecken.empty() || static_cast<int>(g_app->wegLuecken.size()) < zahl);
+    }));
+    add(pruefe("WE: jeder zu Fuss erreichbare Innenraum hat einen Wegpunkt in Reichweite, den die Wegfindung des Spiels von dort erreicht, von wo aus er zu Fuss erreichbar ist", [=] {
+        // Mikes Fall: Raeume ganz ausgelassen. Das Netz so, wie das Spiel es beim Laden baut (baueNavNetz: SP_waypoint
+        // ... NAV::TestEdge), dann NAV::FindPath (navAStar) vom Knoten nahe dem Startpunkt, von dem aus der Raum zu Fuss
+        // erreichbar ist, zu den Knoten je Raum.
+        // rc610 R2b: vorher immer vom Spielerstart aus. Auf taspir1 erreicht der Spieler die Stockwerke ueber dem Start nicht
+        // zu Fuss (nur die Figuren dort) - die Pruefung verlangte einen Weg, den es zu Fuss nicht gibt.
+        const std::shared_ptr<NavNetz> netz = baueNavNetz(g_app->map.entities, navBauHilfeKarte());
+        const auto naechster = [&](const std::array<float, 3>& o) {
+            int k = -1;
+            float bestD = 1.0e9F;
+            for (std::size_t i = 1; i < netz->knoten.size(); ++i) {
+                const NavVec& q = netz->knoten[i].punkt;
+                const float d = std::hypot(std::hypot(q[0] - o[0], q[1] - o[1]), q[2] - o[2]);
+                if (d < bestD) {
+                    bestD = d;
+                    k = static_cast<int>(i);
+                }
+            }
+            return k;
+        };
+        // Je Raum und Startpunkt die Knoten in Reichweite seiner erreichbaren Bodenproben (hoechstens eine Rasterweite, wie
+        // die Abdeckung).
         const float S = g_app->wegAbstandGenutzt;
-        std::map<int, std::set<int>> raumKnoten;   // Gebiet -> Knoten
-        std::set<int> raeume;
+        std::map<std::pair<int, int>, std::set<int>> raumKnoten;   // (Gebiet, Startpunkt) -> Knoten
         for (const we::Probe& p : m->proben) {
             if (!p.erreichbar || !p.innen || p.gebiet == m->startGebiet) { continue; }
-            raeume.insert(p.gebiet);
+            std::set<int>& ks = raumKnoten[{p.gebiet, p.saat}];
             for (std::size_t k = 1; k < netz->knoten.size(); ++k) {
                 const NavVec& q = netz->knoten[k].punkt;
-                if (std::hypot(std::hypot(q[0] - p.boden[0], q[1] - p.boden[1]), q[2] - 25.0F - p.boden[2]) <= S) {
-                    raumKnoten[p.gebiet].insert(static_cast<int>(k));
-                }
+                if (std::hypot(std::hypot(q[0] - p.boden[0], q[1] - p.boden[1]), q[2] - 25.0F - p.boden[2]) <= S) { ks.insert(static_cast<int>(k)); }
             }
         }
         int erreicht = 0;
+        int vomSpieler = 0;
+        int vomSpielerErreicht = 0;
         const std::map<int, std::vector<int>> kanten = we::netz();
-        for (const int g : raeume) {
-            const auto it = raumKnoten.find(g);
-            const std::vector<int> liste = it != raumKnoten.end() ? std::vector<int>(it->second.begin(), it->second.end()) : std::vector<int>{};
-            const int zahl = static_cast<int>(liste.size());
+        for (const auto& [schl, ks] : raumKnoten) {
+            const auto& [g, saat] = schl;
+            const auto& [name, ort] = m->saaten[static_cast<std::size_t>(saat)];
+            const int von = naechster(ort);
+            const std::vector<int> liste(ks.begin(), ks.end());
             bool ja = false;
-            for (int i = 0; i < zahl && !ja && von > 0; ++i) { ja = liste[static_cast<std::size_t>(i)] == von || navAStar(*netz, von, liste[static_cast<std::size_t>(i)]); }
+            for (std::size_t i = 0; i < liste.size() && !ja && von > 0; ++i) { ja = liste[i] == von || navAStar(*netz, von, liste[i]); }
             // Zum Vergleich: ueber die target-Felder verbunden (ohne die Regeln der Laufzeit fuer Tueren)?
             int ueberZiele = -1;
-            for (int i = 0; i < zahl && ueberZiele < 0 && von > 0; ++i) {
-                ueberZiele = we::schritte(kanten, netz->knoten[static_cast<std::size_t>(von)].entity,
-                                          netz->knoten[static_cast<std::size_t>(liste[static_cast<std::size_t>(i)])].entity);
+            for (std::size_t i = 0; i < liste.size() && ueberZiele < 0 && von > 0; ++i) {
+                ueberZiele = we::schritte(kanten, netz->knoten[static_cast<std::size_t>(von)].entity, netz->knoten[static_cast<std::size_t>(liste[i])].entity);
             }
             erreicht += ja ? 1 : 0;
-            diag::detail("Knopftest: WE - Innenraum Gebiet " + std::to_string(g) + ": " + std::to_string(zahl) + " Knoten in Reichweite, Wegfindung vom Spielerstart " +
-                         (ja ? "ja" : "nein") + ", ueber die target-Felder " + std::to_string(ueberZiele) + " Kanten");
+            const bool spieler = name.rfind("info_player", 0) == 0;
+            vomSpieler += spieler ? 1 : 0;
+            vomSpielerErreicht += spieler && ja ? 1 : 0;
+            diag::detail("Knopftest: WE - Innenraum Gebiet " + std::to_string(g) + ", zu Fuss von " + name + " bei " + we::ortText(ort) + ": " +
+                         std::to_string(liste.size()) + " Knoten in Reichweite, Wegfindung von dort " + (ja ? "ja" : "nein") +
+                         ", ueber die target-Felder " + std::to_string(ueberZiele) + " Kanten");
         }
         diag::detail("Knopftest: WE - Wegfindung des Spiels: " + std::to_string(netz->knoten.size() - 1U) + " Knoten, " +
                      std::to_string(netz->zahlKanten()) + " Kanten, Innenraeume erreicht " + std::to_string(erreicht) + " von " +
-                     std::to_string(raeume.size()));
-        return erreicht == static_cast<int>(raeume.size());
+                     std::to_string(raumKnoten.size()) + ", davon zu Fuss vom Spielerstart " + std::to_string(vomSpielerErreicht) + " von " +
+                     std::to_string(vomSpieler));
+        return erreicht == static_cast<int>(raumKnoten.size());
     }));
     add(pruefe("WE: oben und unten an jeder Treppe ein Wegpunkt in Reichweite, die Wegfindung des Spiels kommt von unten nach oben", [=] {
         // Gleicher Massstab wie bei den Innenraeumen: in Reichweite = hoechstens eine Rasterweite vom Boden des Absatzes;

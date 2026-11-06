@@ -590,6 +590,9 @@ private:
             case ITEM_TYPE_MODEL:
                 platzhalter(it.window.rect, it.assetModel.empty() ? std::string("model") : it.assetModel, PrimArt::Modell);
                 break;
+            case ITEM_TYPE_MODEL_ITEM:   // rc610 R2b: Movie Duels MP Item_Model_Paint_Item (md9 codemp/ui/ui_shared.c:7466)
+                if (it.typeData) { platzhalter(it.window.rect, it.assetModel.empty() ? std::string("model") : it.assetModel, PrimArt::Modell); }
+                break;
             case ITEM_TYPE_YESNO: {   // Item_YesNo_Paint
                 const float value = it.cvar.empty() ? 0.0F : cvarWert(it.cvar);
                 const std::string ja = se("@MENUS_YES");

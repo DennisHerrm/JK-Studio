@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <initializer_list>
 #include <set>
 
 namespace bhed::menue {
@@ -41,20 +42,38 @@ std::string klein(std::string s) {
 }
 bool gleich(const std::string& a, const std::string& b) { return klein(a) == klein(b); }
 
-// Befehle, die nicht jede commandList hat (c klein): code/ui (JA SP) und Movie Duels haben
-// playlooped auskommentiert; Jedi Outcast SP (jk2sp.exe 1.04, Namen im Programm gelesen) kennt
-// setitemrect, setitemtext, setitembackground, transition2/3, delay, playVoice/stopVoice,
-// setitemexec und increment-/decrementfeeder nicht. Unbekanntes geht wie im Spiel an DC->runScript.
+// Die commandList des Spiels (c klein). Unbekanntes geht wie im Spiel an DC->runScript.
+// rc610 R2b: je Fassung die Liste der Quelle - vorher galt jeder Befehl in jeder Fassung (bis auf playlooped im SP):
+//   SP (code/ui/ui_shared.cpp OpenJK; Movie Duels code/ui dazu setitemexec; playlooped ist dort auskommentiert)
+//   MP (codemp/ui/ui_shared.c OpenJK; Movie Duels MP dazu playvoice, md9 codemp/ui/ui_shared.c:2156-2189)
+// Jedi Outcast SP (jk2sp.exe 1.04, Namen im Programm gelesen) hat die SP-Liste ohne setitemrect, setitemtext,
+// setitembackground, transition2/3, delay, playVoice/stopVoice, setitemexec und increment-/decrementfeeder, aber mit playlooped.
+// Jedi Outcast MP: keine Quelle hier - wie bisher jeder Befehl.
 bool inCommandList(const std::string& c, Dialekt dl, Spiel sp) {
-    if (dl == Dialekt::SP && sp != Spiel::JK2 && c == "playlooped") { return false; }
-    if (dl == Dialekt::SP && sp == Spiel::JK2) {
-        static const char* const fehlt[] = {"setitemrect", "setitemtext", "setitembackground", "transition2", "transition3", "delay", "playvoice",
-                                            "stopvoice", "setitemexec", "incrementfeeder", "decrementfeeder"};
-        for (const char* f : fehlt) {
-            if (c == f) { return false; }
+    const auto in = [&c](std::initializer_list<const char*> liste) {
+        for (const char* f : liste) {
+            if (c == f) { return true; }
         }
+        return false;
+    };
+    if (dl == Dialekt::MP) {
+        if (sp == Spiel::JK2) { return true; }
+        if (sp == Spiel::MD && c == "playvoice") { return true; }
+        return in({"fadein", "fadeout", "show", "hide", "setcolor", "open", "close", "setasset", "setbackground", "setitemrectcvar",
+                   "setitembackground", "setitemtext", "setitemcolor", "setitemcolorcvar", "setitemrect", "setteamcolor", "setfocus",
+                   "setplayermodel", "transition", "setcvar", "setcvartocvar", "exec", "play", "playlooped", "orbit", "scale", "disable",
+                   "defer", "rundeferred", "transition2"});
     }
-    return true;
+    if (sp == Spiel::JK2 && in({"setitemrect", "setitemtext", "setitembackground", "transition2", "transition3", "delay", "playvoice", "stopvoice",
+                                "setitemexec", "incrementfeeder", "decrementfeeder"})) {
+        return false;
+    }
+    if (sp == Spiel::JK2 && c == "playlooped") { return true; }
+    if (sp == Spiel::MD && c == "setitemexec") { return true; }
+    return in({"activate", "close", "exec", "fadein", "fadeout", "hide", "open", "opengotomenu", "orbit", "play", "playvoice", "stopvoice",
+               "setasset", "setbackground", "setcolor", "setcvar", "setfocus", "setitemcolor", "setitemflag", "show", "showmenu", "transition",
+               "transition2", "setitembackground", "setitemtext", "setitemrect", "defer", "rundeferred", "delay", "transition3",
+               "incrementfeeder", "decrementfeeder"});
 }
 
 // M3: wie viele Woerter UI_RunMenuScript nach dem Namen liest (String_Parse/Int_Parse auf

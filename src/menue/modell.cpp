@@ -176,17 +176,19 @@ MenueModellBild menueModellBild(const MenueModell& m, const Item& it, int zeitMs
     // refdef.fov_x: (int)(width / 640 * 90), fov_y aus atan2 (Bildpunkte des refdef)
     float fovX = it.fovx != 0 ? it.fovx : static_cast<float>(static_cast<int>(w / 640.0F * 90.0F));
     float fovY = it.fovy != 0 ? it.fovy : std::atan2(h, w / std::tan(fovX / 360.0F * kPi)) * (360.0F / kPi);
-    if (m.jk2Kamera) { fovX = fovY = 45.0F; }   // JK2_MODE: refdef.fov_x = refdef.fov_y = 45
+    // rc610 R2b: ebenso Movie Duels MP Item_Model_Paint_Item (md9 codemp/ui/ui_shared.c:6145-6200) fuer ITEM_TYPE_MODEL_ITEM
+    const bool festeKamera = m.jk2Kamera || it.type == ITEM_TYPE_MODEL_ITEM;
+    if (festeKamera) { fovX = fovY = 45.0F; }   // JK2_MODE: refdef.fov_x = refdef.fov_y = 45
     const float len = 0.5F * (maxs[2] - mins[2]);
     origin[0] = len / 0.268F;
     float yaw = static_cast<float>(it.angle);
     if (it.rotationSpeed != 0) { yaw += static_cast<float>(zeitMs) / static_cast<float>(it.rotationSpeed); }
-    if (m.jk2Kamera) { yaw = static_cast<float>(zeitMs) / 20.0F; }   // JK2_MODE: angles (0, refdef.time / 20, 0)
+    if (festeKamera) { yaw = static_cast<float>(zeitMs) / 20.0F; }   // JK2_MODE: angles (0, refdef.time / 20, 0)
     b.yawGrad = yaw;
     // "hack to put saber on it's side": ITF_ISANYSABER ohne ITF_ISCHARACTER -> (curYaw, 0, 90)
     // rc608 Punkt 12: Das Skelett einer gla steht 90 Grad gegen die Achsen des Spiels: model_angle 180 ist dort von vorn, 0 von hinten (Foto)
     float winkel[3] = {0, m.gla.empty() ? yaw : yaw + 90.0F, 0};
-    if ((it.itemFlags & ITF_ISANYSABER) != 0 && (it.itemFlags & ITF_ISCHARACTER) == 0) {
+    if ((it.itemFlags & ITF_ISANYSABER) != 0 && (it.itemFlags & ITF_ISCHARACTER) == 0 && it.type != ITEM_TYPE_MODEL_ITEM) {
         winkel[0] = yaw;
         winkel[1] = 0;
         winkel[2] = 90;
