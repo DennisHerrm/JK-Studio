@@ -1829,7 +1829,8 @@ void openModelFile() {
     diag::Step step("Modell laden: " + p);
     GlmModel gm;
     std::string err;
-    if (!readGlm(slurp(p), gm, &err)) {
+    const std::string bytes = slurp(p);
+    if (!readGlm(bytes, gm, &err)) {
         step.fail(err);
         platform::showError(p + "\n" + err, tr(Str::AppTitle));
         return;
@@ -1839,6 +1840,7 @@ void openModelFile() {
     g_app->model = std::move(gm);
     g_app->modelPath = p;
     g_app->modelDir = directoryOf(p);
+    modellDokumentLaden(bytes);   // Modell-Block 1a-1
 
     // ALLE Haeute daneben sammeln, nicht nur die erste.
     //

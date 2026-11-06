@@ -41,6 +41,14 @@ namespace bhed::gpu {
 void baueViewProj(const Camera& cam, int breite, int hoehe, float nearPlane,
                   float farPlane, float* ziel);
 
+// mb1a1: eine orthographische Ansicht (Oben, Vorne, Links des Model-Tabs),
+// zeilenweise wie baueViewProj. `rechts`, `hoch`, `vorn` sind die Achsen der
+// Ansicht (Einheitsvektoren, vorn = Blickrichtung), `mitte` der Punkt in der
+// Bildmitte, `halbHoehe` die halbe Bildhoehe in Welteinheiten. Die Tiefe
+// laeuft von 0 bei mitte - tiefe*vorn bis 1 bei mitte + tiefe*vorn; w ist 1.
+void baueOrtho(const float rechts[3], const float hoch[3], const float vorn[3], const float mitte[3], float halbHoehe,
+               int breite, int hoehe, float tiefe, float* ziel);
+
 // Zwei 4x4-Matrizen multiplizieren, zeilenweise: aus = a * b.
 //
 // Damit wird die Stellung eines Movers VOR dem Zeichnen in die Kameramatrix

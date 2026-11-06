@@ -4323,104 +4323,10 @@ void drawModelView() {
         ImGui::EndChild();
         return;
     }
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const int w = std::max(64, static_cast<int>(avail.x));
-    const int h = std::max(64, static_cast<int>(avail.y - panelH));
-
-    // Die Ansicht in einen EIGENEN Bereich: nur hier wirkt die Maus. Sonst
-    // zoomt das Rad auch dann, wenn man in der Animationsliste blaettert.
-    // OHNE Innenabstand: das Bild ist genau so gross wie sein Kind. Mit
-    // Abstand passt es nicht hinein, ImGui setzt einen Rollbalken daneben,
-    // und der Rahmen endet sichtbar hoeher als die Spalten rechts davon.
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    ImGui::BeginChild("modelcanvas", ImVec2{static_cast<float>(w),
-                                            static_cast<float>(h)},
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_NoScrollWithMouse |
-                      ImGuiWindowFlags_NoScrollbar);
-    ImGui::PopStyleVar();
-    const bool hovered = ImGui::IsWindowHovered();
-    ImGuiIO& io = ImGui::GetIO();
-    if (hovered && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        if (io.KeyAlt) {
-            g_app->modelOrbit.turn(g_app->modelCam, -io.MouseDelta.x * 0.4F,
-                                   -io.MouseDelta.y * 0.4F);
-        } else {
-            g_app->modelOrbit.pan(g_app->modelCam, io.MouseDelta.x, io.MouseDelta.y);
-        }
-    }
-    if (hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        // Bei einem einzelnen Modell ist die linke Taste frei - da erwartet
-        // man das Drehen, wie in jedem Modellbetrachter.
-        g_app->modelOrbit.turn(g_app->modelCam, -io.MouseDelta.x * 0.4F,
-                               -io.MouseDelta.y * 0.4F);
-    }
-    if (hovered && io.MouseWheel != 0.0F) {
-        g_app->modelOrbit.zoom(g_app->modelCam, io.MouseWheel);
-    }
-
-    modellDrehteller();
-    if (g_app->modelImage.width != w || g_app->modelImage.height != h) {
-        g_app->modelImage.width = w;
-        g_app->modelImage.height = h;
-        g_app->modelDirty = true;
-    }
-    const float now[7] = {g_app->modelCam.pos[0], g_app->modelCam.pos[1],
-                          g_app->modelCam.pos[2], g_app->modelCam.angles[0],
-                          g_app->modelCam.angles[1], g_app->modelCam.angles[2],
-                          g_app->modelOrbit.distance};
-    for (int k = 0; k < 7; ++k) {
-        if (std::fabs(now[k] - g_app->lastModelCam[k]) > 0.0001F) {
-            g_app->modelDirty = true;
-        }
-        g_app->lastModelCam[k] = now[k];
-    }
-
-    // --- Ueber die Grafikkarte, in ein eigenes Renderziel -----------------
-    //
-    // Bis rc568 zeichnete das Modellfenster der Software-Rasterer
-    // (renderModel). Jetzt derselbe Figuren-Shader wie in der Karte, mit dem
-    // Verlauf des alten Betrachters als Hintergrund.
-    if (!gpu::verfuegbar()) {
-        ImGui::TextWrapped("%s", tr(Str::MapNeedsD3d));
-    } else {
-        if (g_app->modelDirty && gpu::bereiteModellZiel(w, h)) {
-            const auto neuAb = std::chrono::steady_clock::now();
-            std::vector<BoneMatrix> knochen;
-            g_app->modellWelt.clear();
-            if (!g_app->anim.bones.empty() && g_app->anim.numFrames > 0) {
-                g_app->anim.worldMatrices(
-                    std::clamp(g_app->animFrame, 0, g_app->anim.numFrames - 1), g_app->modellWelt);
-                gpu::baueKnochenmatrizen(g_app->modellWelt, g_app->anim.bones, knochen);
-            }
-            float vp[16];
-            gpu::baueViewProj(g_app->modelCam, w, h, 1.0F, 8192.0F, vp);
-            std::string fehler;
-            const int n = gpu::zeichneModellAnsicht(
-                g_app->model, (g_app->showModelTextures && g_app->modelTextures.found != 0)
-                                  ? &g_app->modelTextures
-                                  : nullptr,
-                knochen, vp, g_app->showCaps, &fehler);
-            if (n == 0 && !fehler.empty()) {
-                diag::detail("Modellfenster: " + fehler);
-            }
-            for (const std::string& m : gpu::debugMeldungen()) {
-                diag::detail("Direct3D (Modellfenster): " + m);
-            }
-            g_app->modellAufrufe = n;
-            ++g_app->modellNeuGezeichnet;
-            g_app->modellCpuMsSumme +=
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - neuAb).count();
-            g_app->modelDirty = false;
-        }
-        if (gpu::modellZielTextur() != nullptr) {
-            ImGui::Image(reinterpret_cast<ImTextureID>(gpu::modellZielTextur()),
-                         ImVec2{static_cast<float>(w), static_cast<float>(h)});
-            modellUeberlagerung(ImGui::GetItemRectMin(), ImVec2{static_cast<float>(w), static_cast<float>(h)});
-        }
-    }
-    ImGui::EndChild();
-
+    // Modell-Block 1a-1: eine oder vier Ansichten und das Befehlsfeld
+    // (gui/app_modelltab_ansicht.cpp). Bis rc610 stand hier eine Ansicht mit
+    // linker Maustaste zum Kreisen; die Bedienung folgt jetzt 3ds Max.
+    drawModellArbeitsflaeche();
 }
 
 // drawModelToolbar und drawModelPanel stehen seit rc591 in gui/app_modell.cpp.

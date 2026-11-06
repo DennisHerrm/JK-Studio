@@ -1,0 +1,242 @@
+// modell/g2.cpp - eine Ghoul2-Instanz wie im Spiel (siehe bhed/modell/g2.h)
+#include "bhed/modell/g2.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <set>
+
+namespace bhed::modell {
+namespace {
+
+// G2_IsSurfaceLegal (G2_surfaces.cpp:137-156): Name ohne Gross/Klein (Q_stricmp).
+int flaecheNachName(const Inhalt& in, const std::string& name) {
+    for (std::size_t i = 0; i < in.teile.size(); ++i) {
+        const std::string& n = in.teile[i].name;
+        if (n.size() != name.size()) { continue; }
+        bool gleich = true;
+        for (std::size_t k = 0; k < n.size() && gleich; ++k) {
+            gleich = std::tolower(static_cast<unsigned char>(n[k])) == std::tolower(static_cast<unsigned char>(name[k]));
+        }
+        if (gleich) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+// G2_FindOverrideSurface (G2_surfaces.cpp:86-121): QuickOverride.Set laeuft
+// vorwaerts, der letzte Eintrag einer Flaeche gilt.
+const FlaechenSchalter* ueberschreibung(const G2Zustand& z, int flaeche) {
+    for (auto it = z.slist.rbegin(); it != z.slist.rend(); ++it) {
+        if (it->flaeche == flaeche) { return &*it; }
+    }
+    return nullptr;
+}
+
+void zeichneRekursiv(const Inhalt& in, const G2Zustand& z, int flaeche, std::vector<char>& aus, int tiefe) {
+    if (flaeche < 0 || static_cast<std::size_t>(flaeche) >= in.teile.size() || tiefe > static_cast<int>(in.teile.size())) { return; }
+    const std::uint32_t off = offFlags(in, z, flaeche);
+    if (off == 0U) { aus[static_cast<std::size_t>(flaeche)] = 1; }
+    if ((off & kG2OhneKinder) != 0U) { return; }
+    for (const int k : in.teile[static_cast<std::size_t>(flaeche)].kinder) { zeichneRekursiv(in, z, k, aus, tiefe + 1); }
+}
+
+}  // namespace
+
+bool setzeFlaecheAnAus(const Inhalt& in, G2Zustand& z, const std::string& name, std::uint32_t off) {
+    const int f = flaecheNachName(in, name);
+    if (f < 0) { return false; }
+    constexpr std::uint32_t kAussen = kG2Aus | kG2OhneKinder;
+    // Schon in der Liste (G2_FindSurface sucht von hinten): nur OFF und NODESCENDANTS tauschen.
+    for (auto it = z.slist.rbegin(); it != z.slist.rend(); ++it) {
+        if (it->flaeche == f) {
+            it->offFlags &= ~kAussen;
+            it->offFlags |= off & kAussen;
+            return true;
+        }
+    }
+    const std::uint32_t flags = in.teile[static_cast<std::size_t>(f)].flaggen;
+    std::uint32_t neu = flags;
+    neu &= ~kAussen;
+    neu |= off & kAussen;
+    // "insert here then because it changed, no need to add an override otherwise"
+    if (neu != flags) { z.slist.push_back(FlaechenSchalter{f, neu}); }
+    return true;
+}
+
+bool setzeWurzel(const Inhalt& in, G2Zustand& z, const std::string& name) {
+    const int f = flaecheNachName(in, name);
+    if (f < 0) { return false; }
+    z.wurzel = f;
+    return true;
+}
+
+void hautAnwenden(const Inhalt& in, G2Zustand& z, const std::vector<std::string>& hautAus) {
+    z.slist.clear();   // "remove any overrides we had before."
+    for (const std::string& n : hautAus) {
+        const int f = flaecheNachName(in, n);
+        // Eine Flaeche, die es nicht gibt, hat keine Flaggen; G2_SetSurfaceOnOff findet sie nicht.
+        if (f < 0) { continue; }
+        if ((in.teile[static_cast<std::size_t>(f)].flaggen & kG2Aus) == 0U) { (void)setzeFlaecheAnAus(in, z, n, kG2Aus); }
+    }
+}
+
+std::uint32_t offFlags(const Inhalt& in, const G2Zustand& z, int flaeche) {
+    if (flaeche < 0 || static_cast<std::size_t>(flaeche) >= in.teile.size()) { return kG2Aus; }
+    const FlaechenSchalter* u = ueberschreibung(z, flaeche);
+    return u != nullptr ? u->offFlags : in.teile[static_cast<std::size_t>(flaeche)].flaggen;
+}
+
+std::vector<char> gezeichnet(const Inhalt& in, const G2Zustand& z) {
+    std::vector<char> aus(in.teile.size(), 0);
+    if (in.herkunft == Herkunft::Md3) {
+        std::fill(aus.begin(), aus.end(), static_cast<char>(1));
+        return aus;
+    }
+    zeichneRekursiv(in, z, z.wurzel, aus, 0);
+    return aus;
+}
+
+float projiziereRadius(float r, float abstand, float projektion5) noexcept {
+    // ProjectRadius mit der Projektion von R_SetupProjection: width = |r| *
+    // projectionMatrix[5], depth = dist (projectionMatrix[11] = -1, [15] = 0).
+    if (abstand <= 0.0F) { return 0.0F; }
+    const float width = std::fabs(r) * projektion5;
+    const float pr = width / abstand;
+    return pr > 1.0F ? 1.0F : pr;
+}
+
+int lodWieImSpiel(const LodLage& l) noexcept {
+    if (l.stufenZahl < 2) { return 0; }   // "model has only 1 LOD level"
+    int lodBias = l.instanzBias;
+    if (l.lodbias > lodBias) { lodBias = l.lodbias; }
+    if (lodBias >= l.stufenZahl) { return l.stufenZahl - 1; }
+    const float groesste = l.skala != 0.0F ? l.skala : 1.0F;
+    float flod = 0.0F;
+    const float pr = projiziereRadius(0.75F * groesste * l.radius, l.abstand, l.projektion5);
+    if (pr != 0.0F) {
+        float lodscale = l.lodscale;
+        if (lodscale > 20.0F) { lodscale = 20.0F; }
+        flod = 1.0F - pr * lodscale;
+    }
+    flod *= static_cast<float>(l.stufenZahl);
+    int lod = static_cast<int>(flod);   // Q_ftol schneidet ab
+    if (lod < 0) {
+        lod = 0;
+    } else if (lod >= l.stufenZahl) {
+        lod = l.stufenZahl - 1;
+    }
+    lod += lodBias;
+    if (lod >= l.stufenZahl) { lod = l.stufenZahl - 1; }
+    if (lod < 0) { lod = 0; }
+    return lod;
+}
+
+const Grenzen& grenzen(Zielspiel s) noexcept {
+    // SHADER_MAX_VERTEXES: OpenJK code/qcommon/qfiles.h:33 und codemp/qcommon/qfiles.h:34 1000, Movie Duels
+    // Update 9 code/ und codemp/qcommon/qfiles.h:33/34 4000 ("raised from 1000"); SHADER_MAX_INDEXES = 6 *
+    // SHADER_MAX_VERTEXES. RB_CheckOverflow (tr_surface.cpp:53-66): ERR_DROP bei verts >= SHADER_MAX_VERTEXES
+    // oder indexes >= SHADER_MAX_INDEXES; RB_SurfaceGhoul gibt numTriangles als Indexzahl (tr_ghoul2.cpp:2906 SP,
+    // codemp 3604, MD 4950/5877). iMAX_G2_BONEREFS_PER_SURFACE 32 und iMAX_G2_BONEWEIGHTS_PER_VERT 4
+    // (rd-common/mdx_format.h:84-85, MD :81-82). MAX_G2_MODELS: code/rd-vanilla/G2_API.cpp:337 512,
+    // codemp/rd-vanilla/G2_API.cpp:297 1024, MD code :333 und codemp :298 1024. r_lodscale: code tr_init.cpp:1559
+    // "10", codemp :1650 "5", MD :1747 "10" und codemp :1748 "5". Figurradius: SP CG_Player legt den refEntity
+    // mit memset an (cg_players.cpp:6882), MP CG_RadiusForCent 64 (cg_players.c:8338-8358). T-Pose hinter dem
+    // Ende der GLA: in Movie Duels (OpenJK) gesehen, im Original-JKA nicht (Stufe 0, nachweise_im_spiel.md).
+    // JK2: OpenJK baut Jedi Outcast aus code/ (JK2_MODE) mit denselben Werten.
+    static const Grenzen kWerte[kZielspiele] = {
+        {"JKA SP", 1000, 6000, 32, 4, 512, 10.0F, 0.0F, false},
+        {"JKA MP", 1000, 6000, 32, 4, 1024, 5.0F, 64.0F, false},
+        {"JK2 SP", 1000, 6000, 32, 4, 512, 10.0F, 0.0F, false},
+        {"Movie Duels SP", 4000, 24000, 32, 4, 1024, 10.0F, 0.0F, true},
+        {"Movie Duels MP", 4000, 24000, 32, 4, 1024, 5.0F, 64.0F, true},
+    };
+    const auto i = static_cast<std::size_t>(s);
+    return kWerte[i < static_cast<std::size_t>(kZielspiele) ? i : 0U];
+}
+
+FlaechenMass mass(const Netz& n) {
+    FlaechenMass m;
+    m.ecken = static_cast<int>(n.ecken.size());
+    m.dreiecke = n.dreiecke();
+    std::set<int> knochen;
+    for (const Ecke& e : n.ecken) {
+        int g = 0;
+        for (int k = 0; k < 4; ++k) {
+            if (e.gewicht[k] > 0.0F) {
+                ++g;
+                knochen.insert(e.knochen[k]);
+            }
+        }
+        m.gewichteMax = std::max(m.gewichteMax, g);
+    }
+    m.knochen = static_cast<int>(knochen.size());
+    return m;
+}
+
+std::vector<Befund> pruefeMass(const FlaechenMass& m, const Grenzen& g) {
+    std::vector<Befund> b;
+    const auto melde = [&](BefundArt art, int wert, int grenze) {
+        Befund x;
+        x.art = art;
+        x.wert = wert;
+        x.grenze = grenze;
+        b.push_back(x);
+    };
+    // RB_CheckOverflow: ">=" der Grenze bricht ab.
+    if (m.ecken >= g.eckenJeFlaeche) { melde(BefundArt::Ecken, m.ecken, g.eckenJeFlaeche); }
+    if (m.dreiecke >= g.dreieckeJeFlaeche) { melde(BefundArt::Dreiecke, m.dreiecke, g.dreieckeJeFlaeche); }
+    // Knochenverweise: 5 Bit je Verweis (iG2_BITS_PER_BONEREF), also hoechstens 32.
+    if (m.knochen > g.knochenJeFlaeche) { melde(BefundArt::Knochen, m.knochen, g.knochenJeFlaeche); }
+    if (m.gewichteMax > g.gewichteJeEcke) { melde(BefundArt::Gewichte, m.gewichteMax, g.gewichteJeEcke); }
+    return b;
+}
+
+bool animInnerhalb(const AnimEntry& e, int glaBilder) noexcept {
+    return e.firstFrame >= 0 && e.numFrames >= 0 && e.firstFrame < glaBilder && e.firstFrame + e.numFrames <= glaBilder;
+}
+
+std::vector<Befund> pruefeModell(const Inhalt& in, Zielspiel s, const std::vector<AnimEntry>& anims, int glaBilder,
+                                 int g2Instanzen, const std::vector<char>& hatBild, const std::vector<char>& gez) {
+    const Grenzen& g = grenzen(s);
+    std::vector<Befund> alle;
+    for (std::size_t i = 0; i < in.teile.size(); ++i) {
+        const Teil& t = in.teile[i];
+        if (t.istTag()) { continue; }
+        for (std::size_t st = 0; st < t.stufen.size(); ++st) {
+            for (Befund b : pruefeMass(mass(t.stufen[st]), g)) {
+                b.flaeche = static_cast<int>(i);
+                b.stufe = static_cast<int>(st);
+                b.name = t.name;
+                alle.push_back(std::move(b));
+            }
+        }
+        if (i < hatBild.size() && i < gez.size() && gez[i] != 0 && hatBild[i] == 0) {
+            Befund b;
+            b.art = BefundArt::ShaderFehlt;
+            b.flaeche = static_cast<int>(i);
+            b.name = t.name;
+            alle.push_back(std::move(b));
+        }
+    }
+    if (g2Instanzen > g.g2Modelle) {
+        Befund b;
+        b.art = BefundArt::G2Modelle;
+        b.wert = g2Instanzen;
+        b.grenze = g.g2Modelle;
+        alle.push_back(std::move(b));
+    }
+    if (glaBilder > 0) {
+        for (const AnimEntry& e : anims) {
+            if (animInnerhalb(e, glaBilder)) { continue; }
+            Befund b;
+            b.art = BefundArt::AnimHinterGla;
+            b.wert = e.firstFrame + e.numFrames;
+            b.grenze = glaBilder;
+            b.name = e.name;
+            alle.push_back(std::move(b));
+        }
+    }
+    return alle;
+}
+
+}  // namespace bhed::modell

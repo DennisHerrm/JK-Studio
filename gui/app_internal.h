@@ -56,6 +56,7 @@
 #include "bhed/pmanim.h"   // Zeitleiste 4: aufnahmePmFigur
 #include "bhed/image.h"
 #include "bhed/gla.h"
+#include "modelltab.h"   // Modell-Block 1a-1: der neue Model-Tab
 #include "bhed/glm.h"
 #include "bhed/gpushader.h"   // rc608 Teil 11: kSpielLightmapFaktor
 #include "bhed/mapview.h"
@@ -494,6 +495,8 @@ struct App {
     // Knochenansicht zeichnet dieselbe Haltung, ohne sie jedes Bild neu zu
     // rechnen (leer ohne Skelett).
     std::vector<BoneMatrix> modellWelt;
+    // Modell-Block 1a-1: Dokument, Ghoul2-Zustand, Ansichten und Auswahl des Model-Tabs (gui/modelltab.h)
+    ModellTab mtab;
     // Mover animieren (gui/app_animation.cpp, rc592)
     bool animFensterOffen = false;
     int animEntity = -1;
@@ -2998,6 +3001,9 @@ void vergissEntities(const std::string& kennung);
 // 15: der Inspektor steht darin, und rechts neben der Ansicht ist die
 // Seitenleiste weggefallen.
 inline constexpr float kEntitySpalte = 18.0F;
+// Modell-Block 1a-1: der Szenen-Explorer des Model-Tabs ist schmaler - daneben stehen Ansicht(en) und Befehlsfeld.
+inline constexpr float kModellSpalte = 15.0F;
+inline float ebenenSpalte(int leftMode) { return leftMode == 2 ? kModellSpalte : kEntitySpalte; }
 
 // --- Bedien-Icons (gui/uiicons.cpp) ----------------------------------------
 // M4: kleinste Oberflaechengroesse (Grundschrift 16 px -> mindestens 12 px, wie die
@@ -3187,7 +3193,6 @@ bool npcLaden(const std::string& typ);
 const std::vector<std::string>& npcTypenListe();
 void drawNpcBrowser();
 void modellDrehteller();
-void modellUeberlagerung(ImVec2 lo, ImVec2 groesse);
 bool modellBrauchtBilder();
 void modellFlaechenProtokoll();
 // --- Mover animieren (gui/app_animation.cpp, rc592) ---------------------------
@@ -3896,6 +3901,8 @@ const TextureSet::Tex* bladeTexture(const std::string& farbe, bool glow);
 void bladeColorFor(const std::string& name, std::uint8_t out[3]);
 void insertCameraHere();
 void loadSkeletonForModel();
+// Die Abschnitte der animation.cfg zu einem .gla-Pfad (ohne Endung) aus den Archiven.
+std::vector<AnimEntry> animSectionsFor(const std::string& animFile);
 void openModelFile();
 void openSkinFile();
 void openSkeletonFile();

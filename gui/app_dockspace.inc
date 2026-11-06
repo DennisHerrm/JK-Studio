@@ -83,7 +83,7 @@ void innenMessen() {
                             std::max(g_app->modeBarW, ImGui::GetFontSize() * 4.0F));
     if (mitEbenen) {
         ImGui::TableSetupColumn("ebenen", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize,
-                                ImGui::GetFontSize() * kEntitySpalte);
+                                ImGui::GetFontSize() * ebenenSpalte(g_app->leftMode));
     }
     ImGui::TableSetupColumn("inhalt", ImGuiTableColumnFlags_WidthStretch, 1.0F);
     ImGui::TableNextRow();

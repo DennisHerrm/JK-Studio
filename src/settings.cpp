@@ -143,6 +143,8 @@ std::string writeSettings(const Settings& s) {
     put(o, "spielRahmenFrei", s.spielRahmenFrei);
     put(o, "difficulty", std::to_string(s.schwierigkeit));   // rc601 (bewegung, Durchsicht 2): g_spskill
     put(o, "r_picmip", std::to_string(s.bildPicmip));
+    put(o, "modelControls", s.modellBedienung == 1 ? "blender" : "max");   // mb1a1
+    put(o, "modelBoneFins", s.modellFlossen ? "1" : "0");
     put(o, "r_ext_multisample", std::to_string(s.rExtMultisample));
     put(o, "regelwerk", std::string(regelwerkSchluessel(s.regelwerk)));   // rc601 integ
     put(o, "flussAnsicht", std::to_string(s.flussAnsicht));
@@ -453,6 +455,8 @@ bool readSettings(const std::string& text, Settings& out) {
             out.schwierigkeit = (n >= -1 && n <= 3) ? n : -1;
         }
         else if (key == "r_picmip") { out.bildPicmip = std::clamp(std::atoi(value.c_str()), 0, 3); }
+        else if (key == "modelControls") { out.modellBedienung = value == "blender" ? 1 : 0; }   // mb1a1
+        else if (key == "modelBoneFins") { out.modellFlossen = value == "1"; }
         else if (key == "r_ext_multisample") {
             const int n = std::atoi(value.c_str());
             out.rExtMultisample = (n == 0 || n == 2 || n == 4 || n == 8) ? n : -1;

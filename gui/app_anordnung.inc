@@ -1440,7 +1440,8 @@ Layout computeLayout() {
         // Modell: zwei Zeilen - Bedienung und Zeitleiste. Beide sind
         // Elementzeilen, also genau zwei Mal rowH, plus die Aussenraender
         // des Bandes.
-        l.toolH = rowH * 2.0F + st.ItemSpacing.y * 2.0F;
+        // Modell-Block 1a-1: dazu die Zeile Primaer/Sekundaer.
+        l.toolH = rowH * 3.0F + st.ItemSpacing.y * 2.0F;
     } else if (g_app->leftMode == 1 && dock::zuhause("mission.zeitleiste")) {
         // IMMER Platz lassen, auch ohne Karte - sonst springt die Anordnung
         // beim Laden.
@@ -1856,16 +1857,26 @@ void drawEbenenInhalt(const Layout& l) {
         drawEntityLayers(l.frameH);
         ImGui::EndGroup();
     } else if (g_app->leftMode == 2) {
+        // Modell-Block 1a-1: oben der Szenen-Explorer (Flaechen, Tags,
+        // Knochen), darunter die Sequenzen (die Animationsliste seit rc591).
         ImGui::BeginGroup();
         const float top = ImGui::GetCursorPosY();
+        ImGui::TextUnformatted(tr(Str::MbExplorer));
+        ImGui::SetCursorPosY(top + l.headerH);
+        ImGui::Dummy(ImVec2{0.0F, 0.0F});   // Anker (siehe oben)
+        const float zeile = ImGui::GetTextLineHeightWithSpacing();
+        // Die Hoehe, die wirklich da ist: im Andockraum steht frameH auf
+        // -FLT_MIN ("bis an den Rand", panelInhalt) - dann der freie Platz.
+        const float frei = ImGui::GetContentRegionAvail().y;
+        const float hoehe = l.frameH > 0.0F ? std::min(l.frameH, frei) : frei;
+        const float baumH = std::floor(hoehe * 0.55F);
+        drawModellExplorer(baumH);
         ImGui::TextUnformatted(tr(Str::ModelAnimations));
         if (!g_app->animList.empty()) {
             ImGui::SameLine();
             ImGui::TextDisabled("%d", static_cast<int>(g_app->animList.size()));
         }
-        ImGui::SetCursorPosY(top + l.headerH);
-        ImGui::Dummy(ImVec2{0.0F, 0.0F});   // Anker (siehe oben)
-        drawAnimListe(l.frameH);
+        drawAnimListe(std::max(hoehe - baumH - zeile - ImGui::GetStyle().ItemSpacing.y, 40.0F));
         ImGui::EndGroup();
     }
 }
@@ -2125,7 +2136,7 @@ void drawEventsList(const Layout& l) {
         ImGui::TableSetupColumn("ebenen",
                                 ImGuiTableColumnFlags_WidthFixed |
                                     ImGuiTableColumnFlags_NoResize,
-                                ImGui::GetFontSize() * kEntitySpalte);
+                                ImGui::GetFontSize() * ebenenSpalte(g_app->leftMode));
     }
     if (mitInhalt) { ImGui::TableSetupColumn("inhalt", ImGuiTableColumnFlags_WidthStretch, 1.0F); }
     ImGui::TableNextRow();

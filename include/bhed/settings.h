@@ -151,7 +151,8 @@ struct Settings {
     //
     // shank: "die Position von Script Flow teilt sich mit allen 3 Modi eine
     // Position, und das ist das Problem. Jedes muss seine eigene haben."
-    float splitModel = 0.55F;
+    // Modell-Block 1a-1: 0.72 - der Model-Tab hat Explorer, Ansicht(en) und Befehlsfeld links vom Skript.
+    float splitModel = 0.72F;
     // --- Was der Anwender eingestellt hat, bleibt eingestellt -------------
     //
     // Gemeldet: "kann er nicht speichern wie weit ich was gezogen habe beim
@@ -208,6 +209,10 @@ struct Settings {
     int schwierigkeit = -1;
     // rc608 Teil 7: r_picmip der Vorschau, 0 wie OpenJK und Movie Duels (tr_init.cpp). Jede Stufe halbiert die Bilder.
     int bildPicmip = 0;
+    // Modell-Block 1a-1: Bedienmodus des Model-Tabs - 0 wie 3ds Max (Vorgabe, shank 04.11.), 1 wie Blender
+    // (Belegung kommt in 1a-2). Knochen als Bone-Kasten, mit Flossen schaltbar.
+    int modellBedienung = 0;
+    bool modellFlossen = false;
     // rc608 Teil 9b: r_ext_multisample der Vorschau (MSAA). -1 wie das Spiel (rExtMultisampleVorgabe), sonst 0, 2, 4, 8.
     int rExtMultisample = -1;
     // rc601 integ: das Regelwerk der Vorschau (bhed/regelwerk.h) -

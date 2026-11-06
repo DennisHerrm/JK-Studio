@@ -121,8 +121,11 @@ struct GlmModel {
     [[nodiscard]] bool empty() const noexcept { return surfaces.empty(); }
 };
 
+// mb1a1: `stufe` waehlt die LOD-Stufe (0 = feinste, bis numLods - 1); Grenzen
+// (mins/maxs) gelten fuer die gelesene Stufe, die groebste Stufe (grobVerts)
+// wird nur bei Stufe 0 mitgelesen.
 [[nodiscard]] bool readGlm(const std::string& bytes, GlmModel& out,
-                           std::string* error = nullptr);
+                           std::string* error = nullptr, int stufe = 0);
 
 // Eine .skin-Datei zuordnen.
 //

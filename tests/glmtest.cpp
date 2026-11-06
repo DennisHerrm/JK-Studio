@@ -56,6 +56,17 @@ int main(int argc, char** argv) {
         expect("kaputte Skins ueberstanden", true);
     }
 
+    // --- mb1a1: "_off" am Flaechennamen streicht R_LoadMDXM (tr_ghoul2.cpp:3722) ----
+    {
+        bhed::GlmModel m;
+        bhed::GlmSurface a;
+        a.name = "force_shield_off";   // Droideka (Movie Duels): Flagge 0, im Spiel "force_shield"
+        m.surfaces.push_back(a);
+        bhed::applySkin("force_shield_off,models/players/droideka/shield.jpg\n", m);
+        expect("Haut-Zeile x_off trifft die Flaeche x_off (beide heissen im Spiel x)",
+               m.surfaces[0].texture == "models/players/droideka/shield.jpg");
+    }
+
     // --- "*off" schaltet eine Flaeche ab ---------------------------------
     //
     // Der Fehler davor: applySkin setzte nur Texturen. Eine Zeile

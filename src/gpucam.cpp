@@ -89,6 +89,24 @@ void baueViewProj(const Camera& cam, int breite, int hoehe, float nearPlane,
     ziel[15] = -punkt(fwd);
 }
 
+void baueOrtho(const float rechts[3], const float hoch[3], const float vorn[3], const float mitte[3], float halbHoehe,
+               int breite, int hoehe, float tiefe, float* ziel) {
+    if (ziel == nullptr) { return; }
+    for (int i = 0; i < 16; ++i) { ziel[i] = 0.0F; }
+    if (breite <= 0 || hoehe <= 0 || halbHoehe <= 0.0F || tiefe <= 0.0F) { return; }
+    const float halbBreite = halbHoehe * static_cast<float>(breite) / static_cast<float>(hoehe);
+    const auto punkt = [&](const float* a) { return a[0] * mitte[0] + a[1] * mitte[1] + a[2] * mitte[2]; };
+    for (int k = 0; k < 3; ++k) {
+        ziel[k] = rechts[k] / halbBreite;
+        ziel[4 + k] = hoch[k] / halbHoehe;
+        ziel[8 + k] = vorn[k] / (2.0F * tiefe);
+    }
+    ziel[3] = -punkt(rechts) / halbBreite;
+    ziel[7] = -punkt(hoch) / halbHoehe;
+    ziel[11] = -punkt(vorn) / (2.0F * tiefe) + 0.5F;
+    ziel[15] = 1.0F;
+}
+
 void multipliziere(const float* a, const float* b, float* aus) {
     if (a == nullptr || b == nullptr || aus == nullptr) {
         return;

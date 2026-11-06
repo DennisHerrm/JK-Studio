@@ -215,6 +215,22 @@ int main() {
         erwarte("nullptr wird abgefangen", true);
     }
 
+    // mb1a1: orthographisch (Ansicht Oben des Model-Tabs): Mitte -> Bildmitte, halbe Hoehe -> Rand, Tiefe 0..1.
+    {
+        const float rechts[3] = {1.0F, 0.0F, 0.0F};
+        const float hoch[3] = {0.0F, 1.0F, 0.0F};
+        const float vorn[3] = {0.0F, 0.0F, -1.0F};
+        const float mitte[3] = {10.0F, 20.0F, 30.0F};
+        float o[16];
+        baueOrtho(rechts, hoch, vorn, mitte, 50.0F, 200, 100, 1000.0F, o);
+        const auto zeile = [&](int r, float x, float y, float z) { return o[r * 4] * x + o[r * 4 + 1] * y + o[r * 4 + 2] * z + o[r * 4 + 3]; };
+        erwarte("Ortho: Mitte in der Bildmitte, Tiefe 0.5", nah(zeile(0, 10, 20, 30), 0.0F, 1e-5F) && nah(zeile(1, 10, 20, 30), 0.0F, 1e-5F) &&
+                                                             nah(zeile(2, 10, 20, 30), 0.5F, 1e-5F) && nah(zeile(3, 10, 20, 30), 1.0F, 1e-6F));
+        erwarte("Ortho: halbe Hoehe oben am Rand, halbe Breite (100) rechts",
+                nah(zeile(1, 10, 70, 30), 1.0F, 1e-5F) && nah(zeile(0, 110, 20, 30), 1.0F, 1e-5F));
+        erwarte("Ortho: naeher an der Kamera (z hoeher) ist kleinere Tiefe", zeile(2, 10, 20, 530) < 0.5F && nah(zeile(2, 10, 20, 1030), 0.0F, 1e-5F));
+    }
+
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
         return 1;

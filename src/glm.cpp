@@ -86,7 +86,7 @@ bool GlmSurface::isOffByName() const noexcept {
     return name.size() > 4 && name.compare(name.size() - 4, 4, "_off") == 0;
 }
 
-bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
+bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe) {
     out = GlmModel{};
     // Kopf: Kennung(4) Fassung(4) Name(64) .gla-Pfad(64) + 7 int
     constexpr std::size_t kHeaderSize = 8 + 64 + 64 + 7 * 4;
@@ -177,11 +177,25 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
         p += 144 + static_cast<std::size_t>(numChildren) * 4;
     }
 
-    // --- LOD 0: die feinste Stufe ---
-    const std::size_t lod = static_cast<std::size_t>(ofsLods);
+    // --- LOD 0: die feinste Stufe (mb1a1: oder die verlangte) ---
+    std::size_t lod = static_cast<std::size_t>(ofsLods);
     if (lod + 4 + static_cast<std::size_t>(numSurfaces) * 4 > b.size()) {
         if (error != nullptr) { *error = "LOD-Verzeichnis abgeschnitten"; }
         return false;
+    }
+    // mb1a1: Stufe n folgt auf Stufe n-1, mdxmLOD_t::ofsEnd zaehlt ab ihrem
+    // Anfang (wie die groebste Stufe unten; R_LoadMDXM, tr_ghoul2.cpp OpenJK).
+    if (stufe < 0 || (stufe > 0 && stufe >= out.numLods)) {
+        if (error != nullptr) { *error = "keine LOD-Stufe " + std::to_string(stufe); }
+        return false;
+    }
+    for (int s = 0; s < stufe; ++s) {
+        const std::int32_t ende = i32(b, lod);
+        if (ende <= 0 || lod + static_cast<std::size_t>(ende) + 4 + static_cast<std::size_t>(numSurfaces) * 4 > b.size()) {
+            if (error != nullptr) { *error = "LOD-Stufe " + std::to_string(s + 1) + " abgeschnitten"; }
+            return false;
+        }
+        lod += static_cast<std::size_t>(ende);
     }
 
     bool first = true;
@@ -340,10 +354,10 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error) {
     // Pruefung 4b: die groebste Stufe - G2_DecideTraceLod nimmt fuer Spuren mit
     // traceLod 10 (Geschosse, G_RunMissile) die letzte (numLODs - 1). Die Stufen
     // folgen aufeinander, mdxmLOD_t::ofsEnd zaehlt ab ihrem Anfang.
-    if (out.numLods > 1 && out.numLods <= 16) {
+    if (stufe == 0 && out.numLods > 1 && out.numLods <= 16) {
         std::size_t grob = lod;
         bool da = true;
-        for (int stufe = 0; stufe + 1 < out.numLods && da; ++stufe) {
+        for (int s = 0; s + 1 < out.numLods && da; ++s) {
             const std::int32_t ende = i32(b, grob);
             da = ende > 0 && grob + static_cast<std::size_t>(ende) + 4 + static_cast<std::size_t>(numSurfaces) * 4 <= b.size();
             if (da) { grob += static_cast<std::size_t>(ende); }
@@ -421,7 +435,15 @@ void applySkin(const std::string& text, GlmModel& model) {
         }
 
         for (GlmSurface& s : model.surfaces) {
-            if (s.name != surface) {
+            // mb1a1: R_LoadMDXM streicht "_off" auch am Ende des FLAECHENnamens
+            // (tr_ghoul2.cpp:3722-3735 OpenJK; unter JK2_MODE nur bei einem
+            // JKA-Modell, isANewModelFile) - RenderSurfaces vergleicht die Haut
+            // mit diesem Namen. "force_shield_off" (Droideka, Movie Duels) heisst
+            // im Spiel "force_shield" und bekommt die Zeile "force_shield_off,...".
+            const bool streichen = !gGhoul2Jk2.load(std::memory_order_relaxed) || model.jkaUmgewandelt;
+            const bool offName = s.name.size() > 4 && s.name.compare(s.name.size() - 4, 4, "_off") == 0;
+            const std::string spielName = streichen && offName ? s.name.substr(0, s.name.size() - 4) : s.name;
+            if (spielName != surface) {
                 continue;
             }
             // "*off" schaltet die Flaeche ab, statt ihr eine Textur zu geben.

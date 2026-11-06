@@ -2731,6 +2731,7 @@ void klappeTeilbaum(const Path& weg, bool auf) {
 }
 
 void handleShortcuts() {
+    modellFokusAktualisieren();   // Modell-Block 1a-1: gilt der letzte Klick dem Model-Tab?
     // Stufe 1b: im Karten-Editor gelten NRCs Tastenkuerzel (Befehlstabelle des
     // Arbeitsbereichs) und nicht die von BehavEd - "Kuerzel gelten nur,
     // solange der Karten-Tab den Fokus hat", und umgekehrt.
@@ -2761,6 +2762,9 @@ void handleShortcuts() {
         g_app->pk3Open || g_app->aboutOpen || g_app->missionPickOpen) {
         return;   // waehrend einer Eingabe nicht dazwischenfunken
     }
+    // Modell-Block 1a-1: im Model-Tab (letzter Klick in Ansicht, Explorer,
+    // Befehlsfeld oder Leiste) gelten die Tasten von 3ds Max.
+    if (!nurRueckgaengig && modellTasten()) { return; }
     // Strg+Umschalt+Z gilt weiterhin als Wiederherstellen, auch wenn die
     // Belegung von Redo geaendert wurde - das erwartet jeder.
     // Strg+Umschalt+S sichert alle Reiter - so heisst es in jedem Editor,
@@ -3766,6 +3770,7 @@ bool oeffneModellAusArchiv(const std::string& name, std::string* fehler) {
         }
         g_app->model = std::move(gm);
         g_app->modelPath = name;
+        modellDokumentLaden(data);   // Modell-Block 1a-1: alle LOD-Stufen ins Modelldokument
         // Kamera vor die Figur, auf halbe Hoehe.
         for (int k = 0; k < 3; ++k) {
             g_app->modelCam.pos[k] =

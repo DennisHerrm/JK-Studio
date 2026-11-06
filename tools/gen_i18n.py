@@ -2268,6 +2268,8 @@ from i18n_rc610_modobj import zeilen_vier as _rc610_modobj  # noqa: E402  (rc610
 S += _rc610_modobj()
 from i18n_rc610_r2a import zeilen_vier as _rc610_r2a  # noqa: E402  (rc610 R2a: Karten-Editor-Reste vor rc610)
 S += _rc610_r2a()
+from i18n_mb1a1 import zeilen_vier as _mb1a1  # noqa: E402  (Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen, wie 3ds Max)
+S += _mb1a1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

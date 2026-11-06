@@ -181,6 +181,24 @@ void drawAnimListe(float hoehe) {
                 animWaehlen(static_cast<int>(i), true);
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { animInsSkript(static_cast<int>(i)); }
             }
+            // Modell-Block 1a-1: Primaer (ganzer Koerper) und Sekundaer (ab dem
+            // Sekundaer-Start, Vorgabe lower_lumbar wie SET_ANIM_UPPER) - ModView.
+            if (ImGui::BeginPopupContextItem("##animmenue")) {
+                if (ImGui::MenuItem(tr(Str::MbAlsPrimaer))) { animWaehlen(static_cast<int>(i), true); }
+                char sek[160];
+                std::snprintf(sek, sizeof sek, tr(Str::MbAlsSekundaer), g_app->mtab.sekundaerKnochen.c_str());
+                if (ImGui::MenuItem(sek, nullptr, g_app->mtab.sekundaer == static_cast<int>(i))) {
+                    g_app->mtab.sekundaer = static_cast<int>(i);
+                    g_app->mtab.sekFrame = e.firstFrame;
+                    g_app->mtab.sekZeit = 0.0F;
+                    g_app->modelDirty = true;
+                }
+                if (ImGui::MenuItem(tr(Str::MbSekundaerAus), nullptr, false, g_app->mtab.sekundaer >= 0)) {
+                    g_app->mtab.sekundaer = -1;
+                    g_app->modelDirty = true;
+                }
+                ImGui::EndPopup();
+            }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
                 ImGui::SetTooltip(trN(Str::ModelAnimRowHint, e.numFrames), e.numFrames,
                                   static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)), e.fps);
@@ -274,7 +292,13 @@ void modellAnsichtEinpassen() {
     g_app->modelOrbit.distance = std::max(size * 1.15F, 24.0F);
     g_app->modelCam.angles[0] = 0.0F;
     g_app->modelCam.angles[1] = 180.0F;
-    g_app->modelOrbit.turn(g_app->modelCam, 0.0F, 0.0F);
+    // mb1a1: die Kamera VOR die Mitte, nicht in sie hinein. Orbit::turn nimmt
+    // den Drehpunkt vor der Kamera (pos + vorn * Abstand); mit pos = Mitte lag
+    // er hinter der Figur, und die Kamera blieb in ihrer Mitte stehen (seit
+    // rc591, gefunden mit dem Selbsttest modellblock).
+    float vorn[3];
+    g_app->modelCam.forward(vorn);
+    for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] -= vorn[k] * g_app->modelOrbit.distance; }
     g_app->modelDirty = true;
 }
 
@@ -396,55 +420,35 @@ bool modellBrauchtBilder() {
     return spielt || g_app->modellDrehteller;
 }
 
-void modellUeberlagerung(ImVec2 lo, ImVec2 groesse) {
-    g_app->modellKnochenLinien = 0;
-    if (!g_app->modellKnochen || g_app->anim.bones.empty() || g_app->anim.numFrames <= 0) { return; }
-    // modell1: die Haltung vom letzten Neuzeichnen (drawModelView) - dieselbe
-    // wie im Bild darunter, ohne sie jedes Bild neu zu rechnen.
-    const std::vector<BoneMatrix>& welt = g_app->modellWelt;
-    const Camera& c = g_app->modelCam;
-    float f[3];
-    float r[3];
-    float u[3];
-    c.forward(f);
-    c.right(r);
-    c.up(u);
-    const float fy = 1.0F / std::tan(c.fovY * 3.14159265F / 360.0F);
-    const float halbB = groesse.x * 0.5F;
-    const float halbH = groesse.y * 0.5F;
-    const auto schirm = [&](const float w[3], ImVec2& out) {
-        const float d[3] = {w[0] - c.pos[0], w[1] - c.pos[1], w[2] - c.pos[2]};
-        const float z = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
-        if (z < 1.0F) { return false; }
-        const float x = d[0] * r[0] + d[1] * r[1] + d[2] * r[2];
-        const float y = d[0] * u[0] + d[1] * u[1] + d[2] * u[2];
-        out = ImVec2{lo.x + halbB + x * fy * halbH / z, lo.y + halbH - y * fy * halbH / z};
-        return true;
-    };
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->PushClipRect(lo, ImVec2{lo.x + groesse.x, lo.y + groesse.y}, true);
-    const std::size_t n = std::min(welt.size(), g_app->anim.bones.size());
-    for (std::size_t i = 0; i < n; ++i) {
-        const float p[3] = {welt[i].m[0][3], welt[i].m[1][3], welt[i].m[2][3]};
-        ImVec2 sp;
-        if (!schirm(p, sp)) { continue; }
-        dl->AddCircleFilled(sp, 2.5F, IM_COL32(255, 220, 90, 230));
-        const int par = g_app->anim.bones[i].parent;
-        if (par >= 0 && static_cast<std::size_t>(par) < n) {
-            const float q[3] = {welt[static_cast<std::size_t>(par)].m[0][3], welt[static_cast<std::size_t>(par)].m[1][3],
-                                welt[static_cast<std::size_t>(par)].m[2][3]};
-            ImVec2 sq;
-            if (schirm(q, sq)) {
-                dl->AddLine(sp, sq, IM_COL32(255, 200, 60, 200), 1.5F);
-                ++g_app->modellKnochenLinien;
-            }
+// Modell-Block 1a-1: die dritte Zeile - Primaer (ganzer Koerper) und
+// Sekundaer (ab dem Sekundaer-Start) wie ModView, dazu die Zaehlung.
+void modellSequenzZeile(const AnimEntry* e) {
+    const ModellTab& t = g_app->mtab;
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("%s", tr(Str::MbPrimaer));
+    ImGui::SameLine();
+    ImGui::TextUnformatted(e != nullptr ? e->name.c_str() : "-");
+    ImGui::SameLine(0.0F, ImGui::GetFontSize() * 1.5F);
+    char sek[160];
+    std::snprintf(sek, sizeof sek, tr(Str::MbSekundaer), t.sekundaerKnochen.c_str());
+    ImGui::TextDisabled("%s", sek);
+    ImGui::SameLine();
+    const bool hatSek = t.sekundaer >= 0 && static_cast<std::size_t>(t.sekundaer) < g_app->animList.size();
+    ImGui::TextUnformatted(hatSek ? g_app->animList[static_cast<std::size_t>(t.sekundaer)].name.c_str() : "-");
+    if (hatSek) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr(Str::MbSekundaerAus))) {
+            g_app->mtab.sekundaer = -1;
+            g_app->modelDirty = true;
         }
     }
-    dl->PopClipRect();
+    ImGui::SameLine(0.0F, ImGui::GetFontSize() * 1.5F);
+    ImGui::TextDisabled("%s", tr(Str::MbZeitHinweis));
 }
 
 // --- Die Leiste unter allen drei Spalten -------------------------------------------------
 void drawModelPanel() {
+    modellKlickPruefen();   // Modell-Block 1a-1: die Leiste gehoert zum Model-Tab (Tasten wie 3ds Max)
     const bool have = !g_app->model.empty();
     const float fs = ImGui::GetFontSize();
     const float sp = ImGui::GetStyle().ItemSpacing.x;
@@ -471,6 +475,24 @@ void drawModelPanel() {
                 }
             }
             g_app->modelDirty = true;
+        }
+        // Modell-Block 1a-1: gemischt zwischen zwei Bildern (Interpolation)
+        // aendert sich die Pose in jedem Bild, nicht nur beim Bildwechsel.
+        if (g_app->mtab.interpolieren) { g_app->modelDirty = true; }
+        // Die Sekundaeranimation im eigenen Takt (ab dem Sekundaer-Start).
+        ModellTab& t = g_app->mtab;
+        if (t.sekundaer >= 0 && static_cast<std::size_t>(t.sekundaer) < g_app->animList.size()) {
+            const AnimEntry& s2 = g_app->animList[static_cast<std::size_t>(t.sekundaer)];
+            const bool schleife = (g_app->loopMode == 1) || (g_app->loopMode == 0 && s2.loopFrame >= 0);
+            t.sekZeit += ImGui::GetIO().DeltaTime * g_app->animSpeed * static_cast<float>(std::max(s2.fps, 1));
+            while (t.sekZeit >= 1.0F) {
+                t.sekZeit -= 1.0F;
+                ++t.sekFrame;
+                if (t.sekFrame >= s2.firstFrame + s2.numFrames) {
+                    t.sekFrame = schleife ? s2.firstFrame + std::max(s2.loopFrame, 0) : s2.firstFrame + s2.numFrames - 1;
+                }
+                g_app->modelDirty = true;
+            }
         }
     }
 
@@ -505,11 +527,14 @@ void drawModelPanel() {
     // Bild und Zeit, gross
     ImGui::SameLine(0.0F, fs * 0.6F);
     {
+        // Modell-Block 1a-1: wie 3ds Max ab 0 gezaehlt - 12 / 39 heisst Bild 12
+        // von 0..39 (stufenplan.md, Entscheidung shank 04.11.: Zeitleiste im
+        // Max-Modus ab 0, passt direkt zur animation.cfg).
         const int rel = e != nullptr ? g_app->animFrame - e->firstFrame : 0;
         char jetzt[32];
         char gesamt[64];
-        std::snprintf(jetzt, sizeof(jetzt), "%d", e != nullptr ? rel + 1 : 0);
-        std::snprintf(gesamt, sizeof(gesamt), " / %d   %.2f s", e != nullptr ? e->numFrames : 0,
+        std::snprintf(jetzt, sizeof(jetzt), "%d", e != nullptr ? rel : 0);
+        std::snprintf(gesamt, sizeof(gesamt), " / %d   %.2f s", e != nullptr ? std::max(e->numFrames - 1, 0) : 0,
                       e != nullptr ? static_cast<double>(rel) / static_cast<double>(std::max(e->fps, 1)) : 0.0);
         const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
         const ImVec2 t2 = ImGui::CalcTextSize(gesamt);
@@ -543,6 +568,12 @@ void drawModelPanel() {
             ImGui::EndCombo();
         }
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSpeed)); }
+    }
+    ImGui::SameLine();
+    // Modell-Block 1a-1: Interpolation an/aus (ModView Interpolate).
+    if (iconKnopf(tr(Str::MbInterpolation), UiIcon::Animieren, tr(Str::MbInterpolationHint), g_app->mtab.interpolieren, true, true)) {
+        g_app->mtab.interpolieren = !g_app->mtab.interpolieren;
+        g_app->modelDirty = true;
     }
     ImGui::PopStyleVar();
     ImGui::EndDisabled();
@@ -599,15 +630,18 @@ void drawModelPanel() {
         ImGui::SetNextItemWidth(-FLT_MIN);
         ImGui::SliderInt("##frameoff", &none, 0, 0, "");
         ImGui::EndDisabled();
+        modellSequenzZeile(nullptr);
         return;
     }
     int rel = g_app->animFrame - e->firstFrame;
     ImGui::SetNextItemWidth(-FLT_MIN);
     if (ImGui::SliderInt("##frame", &rel, 0, std::max(e->numFrames - 1, 0), "")) {
         g_app->animFrame = e->firstFrame + rel;
+        g_app->animTime = 0.0F;
         g_app->animPlaying = false;
         g_app->modelDirty = true;
     }
+    modellSequenzZeile(e);
     (void)sp;
 }
 

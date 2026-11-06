@@ -133,6 +133,7 @@
 {"modell", "knopf:ModelTextures", "ViewModel>ModelTextures", "ModelTexturesHint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:ModelResetView", "ViewModel>ModelResetView", "ModelResetViewHint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"modell", "knopf:ModelLoop", "ViewModel>ModelLoop", "ModelLoopHint", "modus:2 < knopf:ViewModel@modebar", ""},
+{"modell", "knopf:MbInterpolation", "ViewModel>MbInterpolation", "MbInterpolationHint", "modus:2 < knopf:ViewModel@modebar", ""},
 {"karte", "gezeichnet:karte.einstseite.0", "KeLEdit>KeLPreferences>KePgGlobal", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgGlobalT"},
 {"karte", "gezeichnet:karte.einstseite.1", "KeLEdit>KeLPreferences>KePgGlobal>KePgGame", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgGame,KePrShowGlobal"},
 {"karte", "gezeichnet:karte.einstseite.2", "KeLEdit>KeLPreferences>KePgGame", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgGameSettingsT,KePrSpMode,KePrMpMode"},

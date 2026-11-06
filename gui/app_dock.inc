@@ -28,7 +28,7 @@ void drawSpaltenFrei(const Layout& l) {
                         dock::zuhause(g_app->leftMode == 1 ? "mission.ebenen" : "modell.animationen");
     const float fs = ImGui::GetFontSize();
     const float zelle = ImGui::GetStyle().CellPadding.x * 2.0F;
-    const float linksB = std::ceil(std::max(g_app->modeBarW, fs * 4.0F) + (ebenen ? fs * kEntitySpalte + zelle : 0.0F) + zelle);
+    const float linksB = std::ceil(std::max(g_app->modeBarW, fs * 4.0F) + (ebenen ? fs * ebenenSpalte(g_app->leftMode) + zelle : 0.0F) + zelle);
     char id[64];
     std::snprintf(id, sizeof(id), "##spaltenFrei%d.%d%d%d", g_app->leftMode, linksVoll ? 1 : 0, fluss ? 1 : 0, knoepfe ? 1 : 0);
     if (!ImGui::BeginTable(id, 1 + (fluss ? 1 : 0) + (knoepfe ? 1 : 0),

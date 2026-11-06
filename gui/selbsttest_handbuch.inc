@@ -2319,6 +2319,9 @@ std::vector<Schritt> kartemissionSchritte(bool handbuch);   // selbsttest_kartem
 std::vector<Schritt> modellsetzenHandbuchSchritte();   // selbsttest_modellsetzen.inc: rc609 M0, BHED_HB_NUR=modellsetzen
 void wegTreppeBlick();   // selbsttest_wegerzeugung.inc: rc609 W3b, die Kamera fuer h_weg_treppe   // selbsttest_wegmalen.inc: rc609 W3b, BHED_HB_NUR=wegmalen
 std::vector<Schritt> bspmergeHandbuchSchritte();   // selbsttest_bspmerge.inc: rc609 B1, BHED_HB_NUR=bspmerge
+namespace mb1 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_mb1a1.inc: Modell-Block 1a-1, BHED_HB_NUR=mb1a1
+}  // namespace mb1
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2328,6 +2331,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb1a1") == 0) {
+        return mb1::handbuchSchritte();   // Modell-Block 1a-1: die Bilder der Seite "Model-Tab: Ansehen und Pruefen"
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

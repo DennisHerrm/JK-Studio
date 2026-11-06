@@ -216,6 +216,31 @@ int zeichneKlingen(const std::vector<KlingenQuad>& quads, const float* viewProj,
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
                          const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler);
+// mb1a1: mehrere Modellziele (die vier Ansichten des Model-Tabs, das Foto).
+// modellZielWaehlen bestimmt das Ziel, auf das bereiteModellZiel,
+// modellZielTextur, zeichneModellAnsicht und leseModellZiel wirken (0..5).
+inline constexpr int kModellZiele = 6;
+void modellZielWaehlen(int nr);
+// Wie das Modellfenster gezeichnet wird: Drahtgitter (F3), beidseitig, Kanten
+// ueber der Flaeche (F4).
+struct ModellAnsichtArt {
+    bool drahtgitter = false;
+    bool zweiseitig = false;
+    bool kantenUeber = false;
+};
+// Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
+// `welt` 4x4 zeilenweise wie zeichneFigur.
+struct ModellZusatz {
+    const GlmModel* modell = nullptr;
+    const ModelTextures* texturen = nullptr;
+    std::vector<BoneMatrix> knochen;
+    float welt[16]{};
+};
+int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
+                         const float* viewProj, bool kappen, std::string* fehler, const ModellAnsichtArt& art,
+                         const std::vector<ModellZusatz>& zusatz);
+// Das Bild des gewaehlten Modellziels (RGBA, Zeilen von oben).
+[[nodiscard]] bool leseModellZiel(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe);
 // modell1: was das letzte fertig gemessene Neuzeichnen des Modellfensters auf
 // der Grafikkarte gekostet hat, in ms (Zeitmarken, zwei bis drei Bilder
 // spaeter); -1 ohne Messung.

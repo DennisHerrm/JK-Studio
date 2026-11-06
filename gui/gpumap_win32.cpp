@@ -271,6 +271,11 @@ ID3D11SamplerState* g_samplerLm = nullptr;
 std::map<std::uint32_t, ID3D11BlendState*> g_blend;
 std::map<std::uint32_t, ID3D11DepthStencilState*> g_depth;
 std::map<std::uint32_t, ID3D11RasterizerState*> g_raster;
+// mb1a1: Rasterzusatz des Modellfensters (holeRaster): Drahtgitter, beidseitig.
+constexpr std::uint32_t kRasterDraht = 1U << 30;
+constexpr std::uint32_t kRasterBeidseitig = 1U << 29;
+constexpr std::uint32_t kRasterVorzug = 1U << 28;   // Kanten ueber der Flaeche (F4): zur Kamera gezogen
+std::uint32_t g_modellRaster = 0;
 
 // --- Das Renderziel ---------------------------------------------------
 //
@@ -997,7 +1002,7 @@ ID3D11RasterizerState* holeRaster(std::uint32_t features) {
     // Rasterzustand nicht.
     // Im Spiegel ist die Wicklung umgedreht (rc593) - eigener Schluessel.
     const std::uint32_t schluessel =
-        (features & (kCullNone | kCullBack | kPolygonOffset)) | (g_spiegelnd ? (1U << 31) : 0U);
+        (features & (kCullNone | kCullBack | kPolygonOffset)) | (g_spiegelnd ? (1U << 31) : 0U) | g_modellRaster;
     const auto it = g_raster.find(schluessel);
     if (it != g_raster.end()) {
         return it->second;
@@ -1007,8 +1012,8 @@ ID3D11RasterizerState* holeRaster(std::uint32_t features) {
         return nullptr;
     }
     D3D11_RASTERIZER_DESC rd{};
-    rd.FillMode = D3D11_FILL_SOLID;
-    if ((schluessel & kCullNone) != 0U) {
+    rd.FillMode = (schluessel & kRasterDraht) != 0U ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;   // mb1a1
+    if ((schluessel & (kCullNone | kRasterBeidseitig)) != 0U) {
         rd.CullMode = D3D11_CULL_NONE;
     } else if ((schluessel & kCullBack) != 0U) {
         // `cull back` der Engine wirft die VORDERE Seite weg.
@@ -1045,7 +1050,7 @@ ID3D11RasterizerState* holeRaster(std::uint32_t features) {
     // der Schraege der Flaeche. Genau darum geht es auch dem Rasterer: "in
     // der Ferne muss der Vorsprung groesser sein als in der Naehe"
     // (mapview.cpp:2101).
-    if ((schluessel & kPolygonOffset) != 0U) {
+    if ((schluessel & (kPolygonOffset | kRasterVorzug)) != 0U) {
         rd.DepthBias = -2;
         rd.SlopeScaledDepthBias = -1.0F;
         rd.DepthBiasClamp = 0.0F;
@@ -1684,6 +1689,19 @@ int g_modellH = 0;
 ID3D11VertexShader* g_modellHgVs = nullptr;
 ID3D11PixelShader* g_modellHgPs = nullptr;
 bool g_modellHgVersucht = false;
+// mb1a1: mehrere Modellziele (vier Ansichten, Foto). Die Felder oben sind das
+// gewaehlte Ziel; die anderen ruhen hier (modellZielWaehlen tauscht).
+struct ModellZielSatz {
+    ID3D11Texture2D* tex = nullptr;
+    ID3D11RenderTargetView* rtv = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    ID3D11Texture2D* tiefeTex = nullptr;
+    ID3D11DepthStencilView* dsv = nullptr;
+    int w = 0;
+    int h = 0;
+};
+std::array<ModellZielSatz, kModellZiele> g_modellSaetze{};
+int g_modellAktiv = 0;
 // modell1: die Zeitmarken des Modellfensters. Es liegt ausserhalb der
 // Kartenbilder (deren Ring fuehren bildBeginnt/bildFertig), darum eigene
 // Abfragen: je Neuzeichnen ein Satz aus Takt, Anfang und Ende, vier im Ring;
@@ -1713,6 +1731,15 @@ void gibModellFrei() {
     if (g_modellTiefeTex != nullptr) { g_modellTiefeTex->Release(); g_modellTiefeTex = nullptr; }
     g_modellW = 0;
     g_modellH = 0;
+    for (ModellZielSatz& z : g_modellSaetze) {
+        if (z.srv != nullptr) { z.srv->Release(); }
+        if (z.rtv != nullptr) { z.rtv->Release(); }
+        if (z.tex != nullptr) { z.tex->Release(); }
+        if (z.dsv != nullptr) { z.dsv->Release(); }
+        if (z.tiefeTex != nullptr) { z.tiefeTex->Release(); }
+        z = ModellZielSatz{};
+    }
+    g_modellAktiv = 0;
 }
 
 void gibKlingenFrei() {
@@ -4722,7 +4749,10 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         }
                         if (sb == nullptr) { continue; }
                         ID3D11RasterizerState* rs = nullptr;
-                        if (keulenAn()) {
+                        if (keulenAn() && g_modellRaster != 0U) {
+                            // mb1a1: Drahtgitter/beidseitig nur im Modellfenster - nicht im Merker der Stufe.
+                            rs = holeRaster(st.features);
+                        } else if (keulenAn()) {
                             ID3D11RasterizerState*& r = st.rs[g_spiegelnd ? 1 : 0];
                             if (r == nullptr) { r = holeRaster(st.features); }
                             rs = r;
@@ -6013,6 +6043,54 @@ bool bereiteModellZiel(int breite, int hoehe) {
 
 void* modellZielTextur() { return g_modellSrv; }
 
+void modellZielWaehlen(int nr) {
+    if (nr < 0 || nr >= kModellZiele || nr == g_modellAktiv) { return; }
+    ModellZielSatz& alt = g_modellSaetze[static_cast<std::size_t>(g_modellAktiv)];
+    alt = ModellZielSatz{g_modellTex, g_modellRtv, g_modellSrv, g_modellTiefeTex, g_modellDsv, g_modellW, g_modellH};
+    ModellZielSatz& neu = g_modellSaetze[static_cast<std::size_t>(nr)];
+    g_modellTex = neu.tex;
+    g_modellRtv = neu.rtv;
+    g_modellSrv = neu.srv;
+    g_modellTiefeTex = neu.tiefeTex;
+    g_modellDsv = neu.dsv;
+    g_modellW = neu.w;
+    g_modellH = neu.h;
+    neu = ModellZielSatz{};   // gehoert jetzt den Feldern oben
+    g_modellAktiv = nr;
+}
+
+bool leseModellZiel(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || g_modellTex == nullptr) { return false; }
+    D3D11_TEXTURE2D_DESC td{};
+    g_modellTex->GetDesc(&td);
+    D3D11_TEXTURE2D_DESC ld = td;
+    ld.Usage = D3D11_USAGE_STAGING;
+    ld.BindFlags = 0;
+    ld.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ld.MiscFlags = 0;
+    ID3D11Texture2D* lesen = nullptr;
+    if (FAILED(d->CreateTexture2D(&ld, nullptr, &lesen)) || lesen == nullptr) { return false; }
+    ::bhed::render::kopieren(c, lesen, g_modellTex);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(lesen, 0, D3D11_MAP_READ, 0, &m))) {
+        lesen->Release();
+        return false;
+    }
+    breite = static_cast<int>(td.Width);
+    hoehe = static_cast<int>(td.Height);
+    const std::size_t zeile = static_cast<std::size_t>(breite) * 4U;
+    rgba.resize(zeile * static_cast<std::size_t>(hoehe));
+    for (int y = 0; y < hoehe; ++y) {
+        std::memcpy(rgba.data() + static_cast<std::size_t>(y) * zeile,
+                    static_cast<const unsigned char*>(m.pData) + static_cast<std::size_t>(y) * m.RowPitch, zeile);
+    }
+    c->Unmap(lesen, 0);
+    lesen->Release();
+    return true;
+}
+
 // Die Grundausstattung, falls noch keine Karte gezeichnet wurde: die beiden
 // Konstantenpuffer und der Sampler entstehen sonst erst dort (Modellfenster,
 // Menue-Figuren).
@@ -6054,6 +6132,12 @@ bool figurGrundausstattung(ID3D11Device* d, std::string* fehler) {
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
                          const std::vector<BoneMatrix>& knochen,
                          const float* viewProj, bool kappen, std::string* fehler) {
+    return zeichneModellAnsicht(model, textures, knochen, viewProj, kappen, fehler, ModellAnsichtArt{}, {});
+}
+
+int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
+                         const float* viewProj, bool kappen, std::string* fehler, const ModellAnsichtArt& art,
+                         const std::vector<ModellZusatz>& zusatz) {
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
     if (d == nullptr || c == nullptr || g_modellRtv == nullptr || g_modellDsv == nullptr ||
@@ -6120,7 +6204,18 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures,
     c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     // --- Das Modell, am Ursprung ------------------------------------------
     const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-    const int n = zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    // mb1a1: Drahtgitter (F3) und beidseitig ueber den Rasterzustand, die Kanten
+    // (F4) als zweiter Durchgang ohne Bild, zur Kamera gezogen.
+    g_modellRaster = (art.drahtgitter ? kRasterDraht : 0U) | (art.zweiseitig ? kRasterBeidseitig : 0U);
+    int n = zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    for (const ModellZusatz& z : zusatz) {
+        if (z.modell != nullptr) { n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true); }
+    }
+    if (art.kantenUeber && !art.drahtgitter) {
+        g_modellRaster = kRasterDraht | kRasterVorzug | (art.zweiseitig ? kRasterBeidseitig : 0U);
+        n += zeichneFigurIn(model, nullptr, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    }
+    g_modellRaster = 0;
     beendeModellMessung(messung);
     return n;
 }
@@ -8260,8 +8355,15 @@ int zeichneMenueKlingen(int, const std::vector<KlingenQuad>&, const float*, std:
     return 0;
 }
 void* modellZielTextur() { return nullptr; }
+void modellZielWaehlen(int) {}
+bool leseModellZiel(std::vector<std::uint8_t>&, int&, int&) { return false; }
 int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vector<BoneMatrix>&,
                          const float*, bool, std::string* fehler) {
+    if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
+    return 0;
+}
+int zeichneModellAnsicht(const GlmModel&, const ModelTextures*, const std::vector<BoneMatrix>&, const float*, bool,
+                         std::string* fehler, const ModellAnsichtArt&, const std::vector<ModellZusatz>&) {
     if (fehler != nullptr) { *fehler = "ohne Direct3D gebaut"; }
     return 0;
 }
