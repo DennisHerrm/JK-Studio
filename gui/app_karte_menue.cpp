@@ -713,6 +713,13 @@ void listeZeichnen(const std::string& name) {
         g.id = gi.c_str();
         g.tooltip = trK(Str::KeGiMenueTip);
         if (qtPunkt(g)) { geoImportOeffnen(); }
+        // ASEB (eigene Funktion): die gewaehlten misc_model in Brushes umwandeln (dasselbe Fenster)
+        const std::string mb = std::string(trK(Str::KeMbMenue)) + "###progmodellbrushes";
+        QtPunkt mp;
+        mp.id = mb.c_str();
+        mp.aktiv = modellZuBrushesMoeglich();
+        mp.tooltip = mp.aktiv ? std::string(trK(Str::KeMbTip)) : std::string(trK(Str::KeMbTip)) + "\n" + trK(Str::KeMbKeins);
+        if (qtPunkt(mp)) { modellZuBrushesOeffnen(); }
         // Stufe 9 Punkt 10 (eigene Funktion): fuer Blender exportieren (zurueck mit dem Eintrag davor)
         const std::string bl = std::string(trK(Str::KeBlMenue)) + "###progblender";
         QtPunkt b;

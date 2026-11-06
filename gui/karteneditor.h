@@ -242,6 +242,10 @@ struct GeoImportZustand {
     bool optimierer = true;
     char vorsatz[128] = "textures/import/";
     karte::EinfuegeErgebnis letztes;          // Selbsttest
+    // ASEB: ein Modell, wie q3map2 es einbackt (.ase, .md3 und die weiteren Formate, "Modell in Brushes umwandeln") - die Shader
+    // kommen aus dem Modell (kein Vorsatz, kein Y oben); ersetzt: die misc_model, die Einfuegen entfernt (gleiche Undo-Stufe)
+    bool modellNamen = false;
+    std::vector<std::weak_ptr<karte::Entitaet>> ersetzt;
 };
 
 struct TerrainZustand {
@@ -1554,6 +1558,10 @@ void autosaveJedeSekunde();
 void modelleLeeren();   // FlushReferences (Map_Free) / RefreshReferences
 void modellVergessen(const std::string& pfad);   // rc609 M0: nur dieses Modell neu laden (Live)
 [[nodiscard]] karte::ModellAnsicht kartenModellPfad(const std::string& pfad);
+// ASEB: der Modellpfad einer Entitaet (miscmodel_key der Klasse, sonst "model"; PathCleaned) und je Flaeche eines Modells dieser
+// Datei der Shader nach Skin und _remap der Entitaet (q3map2 InsertModel; "" = die Skin bildet die Flaeche nicht ab)
+[[nodiscard]] std::string kartenModellSchluessel(const karte::Entitaet& e);
+[[nodiscard]] std::vector<std::string> kartenModellShader(const karte::Entitaet& e, const karte::Modell& m);
 // Stufe 2, Punkt 10c (app_karte_modellbrowser.cpp): der Modell-Browser
 void modellBrowserZeichnen(int breite, int hoehe);
 void modellBrowserBaumBauen();      // ModelBrowser_constructTree
@@ -1928,11 +1936,17 @@ void meshTexDialogeZeichnen();
 // Stufe 8b Punkt 1: Terrain Generator (app_karte_terrain.cpp)
 [[nodiscard]] std::vector<PluginUmsetzung> terrainUmsetzungen();
 void terrainDialogZeichnen();
-// Stufe 9 Punkt 2: File > Import geometry as brushes (obj/fbx/glb/gltf; .bsp: Open .bsp mit dem Leser des Spiels)
+// Stufe 9 Punkt 2: File > Import geometry as brushes (obj/fbx/glb/gltf; .bsp: Open .bsp mit dem Leser des Spiels;
+// ASEB: .ase, .md3 und jedes weitere Format, das q3map2 liest, mit den Shadern, die q3map2 einbackt)
 void geoImportOeffnen();
 bool geoImportLaden(const std::string& pfad);
 void geoImportDialogZeichnen();
 void geoImportEinfuegen();
+// ASEB "Modell in Brushes umwandeln" (eigene Funktion, nicht in NetRadiant-Custom): die gewaehlten misc_model wie q3map2 sie
+// einbackt (Lage, Skin, _remap) ins Fenster Geometrie zu Brushes; Einfuegen ersetzt sie (ein Undo-Schritt). Im Rechtsklick-Menue
+// der Ansichten und unter File.
+[[nodiscard]] bool modellZuBrushesMoeglich();
+void modellZuBrushesOeffnen();
 // Stufe 9 Punkt 3: ein Modell aufs Fenster gezogen - als MD3 samt Shader und Texturen in den
 // Import-Ordner, als misc_model unter dem Mauszeiger (2D-Ansicht) bzw. vor der Kamera
 [[nodiscard]] bool istModellDatei(const std::string& pfad);

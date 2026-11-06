@@ -85,6 +85,12 @@ using ModellDateiLeser = std::function<bool(const std::string& pfad, std::string
 [[nodiscard]] const std::vector<std::string>& modellEndungenAssimp();
 [[nodiscard]] bool modellArtAssimp(const std::string& pfad);
 bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler = nullptr);
+// ASEB: ein Modell genau so, wie q3map2 es fuer misc_model einbackt (tools/quake3/q3map2/model.cpp LoadModel: assimp mit den
+// Einstellungen und Schritten von q3map2; AssModel/AssModelMesh: Netze mit Dreiecken, Shadername aus Material bzw. Diffuse-Bild).
+// q3map2 laedt jede Endung ueber assimp, auch .ase und .md3 (modellArtQ3map2; .glm nicht). Fuer "Geometrie zu Brushes" und
+// "In Brushes umwandeln": die Brushes tragen die Shader, die der Bau dem Modell gaebe.
+[[nodiscard]] bool modellArtQ3map2(const std::string& pfad);
+bool modellWieQ3map2(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler = nullptr);
 // updateAABB: die Grenzen der Flaechen und des Modells
 void modellGrenzenRechnen(Modell& m);
 

@@ -7531,6 +7531,10 @@ TEXTE.update(_TG)
 from inhalt_modobj import ES as _MO  # noqa: E402
 TEXTE.update(_MO)
 
+# ASEB: .ase, .md3 usw. zu Brushes, Rechtsklick "Modell in Brushes umwandeln"
+from inhalt_aseb import ES as _ASEB  # noqa: E402
+TEXTE.update(_ASEB)
+
 # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen, Nachfragen
 from inhalt_r2a import ES as _R2A  # noqa: E402
 TEXTE.update(_R2A)

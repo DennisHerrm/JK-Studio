@@ -2049,7 +2049,7 @@ TEXTE = {
     "KeStWegMod": "Probar en el juego: %s escrito en la carpeta del juego tras tu confirmación.",
     "KeStArchivFehler": "Probar en el juego: no se puede escribir %s (%s).",
     "KeGiMenue": "Importar geometría como brushes...",
-    "KeGiMenueTip": "Convierte modelos .obj, .fbx y .glb/.gltf en brushes: caras planas fusionadas, descomposición convexa, UV como matriz de textura, caras ocultas con caulk, decoración como detalle; por pieza brushes, modelo + colisión o Auto. Un .bsp de otro juego id Tech 3 se abre con el lector de ese juego (no está en NetRadiant-Custom)",
+    "KeGiMenueTip": "Convierte modelos en brushes (.obj, .fbx, .glb/.gltf de Blender y .ase, .md3 y cualquier otro formato que lea q3map2, con los nombres de shader que integra q3map2): caras planas fusionadas, descomposición convexa, UV como matriz de textura, caras ocultas con caulk, decoración como detalle; por pieza brushes, modelo + colisión o Auto. Un .bsp de otro juego id Tech 3 se abre con el lector de ese juego (no está en NetRadiant-Custom)",
     "KeGiTitel": "Geometría a brushes",
     "KeGiSkala": "Escala",
     "KeGiYOben": "Y arriba (Blender, glTF) a Z arriba",
@@ -3046,6 +3046,8 @@ from i18n_mb3b import texte as _mb3b  # noqa: E402
 TEXTE.update(_mb3b("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
+from i18n_aseb import texte as _aseb  # noqa: E402
+TEXTE.update(_aseb("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

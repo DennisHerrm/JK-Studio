@@ -2278,6 +2278,8 @@ from i18n_mb3b import zeilen_vier as _mb3b  # noqa: E402  (Modell-Block Stufe 3b
 S += _mb3b()
 from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
 S += _r3()
+from i18n_aseb import zeilen_vier as _aseb  # noqa: E402  (ASEB: .ase, .md3 usw. zu Brushes, misc_model in Brushes umwandeln)
+S += _aseb()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

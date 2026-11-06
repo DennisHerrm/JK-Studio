@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <map>
 #include <tuple>
 #include <unordered_map>
@@ -123,6 +124,7 @@ struct Daten {
     std::vector<std::array<double, 2>> uv;
     std::vector<std::array<std::uint32_t, 3>> tri;   // geschweisst (Position)
     std::vector<std::array<std::uint32_t, 3>> triUv; // Original-Indizes (uv)
+    std::vector<std::size_t> triQuelle;              // ASEB: das Dreieck in ImportTeil::dreiecke (dreieckShader)
     std::vector<int> triEbene;
     std::vector<Ebene> ebenen;
     std::vector<int> gegen;   // die entgegengesetzte Ebene (-1)
@@ -148,7 +150,8 @@ Daten vorbereiten(const ImportTeil& t) {
     const auto schluessel = [](V n, double dd) {
         return std::make_tuple(std::llround(n.x * 1e4), std::llround(n.y * 1e4), std::llround(n.z * 1e4), std::llround(dd * 16));
     };
-    for (const auto& tr : t.dreiecke) {
+    for (std::size_t q = 0; q < t.dreiecke.size(); ++q) {
+        const auto& tr = t.dreiecke[q];
         if (tr[0] >= t.punkte.size() || tr[1] >= t.punkte.size() || tr[2] >= t.punkte.size()) { continue; }
         const std::array<std::uint32_t, 3> w = {neu[tr[0]], neu[tr[1]], neu[tr[2]]};
         if (w[0] == w[1] || w[1] == w[2] || w[0] == w[2]) { continue; }
@@ -168,6 +171,7 @@ Daten vorbereiten(const ImportTeil& t) {
         }
         d.tri.push_back(w);
         d.triUv.push_back(tr);
+        d.triQuelle.push_back(q);
         d.triEbene.push_back(idx);
     }
     d.gegen.assign(d.ebenen.size(), -1);
@@ -226,6 +230,7 @@ struct Bauer {
     std::vector<std::vector<std::size_t>> triJeEbene;
     std::vector<ImportPinsel> aus;
     std::string shader;   // Material bzw. clip
+    std::vector<std::string> triShader;   // ASEB: je Dreieck (d.tri) der Shader seiner Modellflaeche (leer: shader)
     std::string caulk;
     bool alleClip = false;
     std::size_t knoten = 0;
@@ -268,7 +273,7 @@ struct Bauer {
                     }
                 }
                 if (treffer != static_cast<std::size_t>(-1)) {
-                    s.shader = shader;
+                    s.shader = alleClip || triShader.empty() ? shader : triShader[treffer];
                     if (t.hatUv && !alleClip) {
                         const std::array<V, 3> pp = {a, c, b};
                         for (std::size_t m = 0; m < 3; ++m) {
@@ -467,7 +472,91 @@ std::string materialShader(const std::string& material, const ZerlegOptionen& o)
     return o.shaderVorsatz + r;
 }
 
+std::string teilShader(const ImportTeil& t, const ZerlegOptionen& o) {
+    if (!t.shaderFest.empty()) { return t.shaderFest; }   // ASEB: der Shader, den q3map2 dem Modell gaebe
+    return t.material.empty() ? o.ohneMaterial : materialShader(t.material, o);
+}
+
 bool teilGeschlossen(const ImportTeil& t) { return geschlossenDaten(vorbereiten(t)); }
+
+ImportNetz nachKoerpern(const ImportNetz& n) {
+    // Punkte gleicher Lage (wie vorbereiten: auf 1/1000) verbinden die Dreiecke aller Teile; je Zusammenhang ein Koerper
+    std::vector<std::size_t> eltern;
+    const std::function<std::size_t(std::size_t)> wurzel = [&](std::size_t i) {
+        while (eltern[i] != i) {
+            eltern[i] = eltern[eltern[i]];
+            i = eltern[i];
+        }
+        return i;
+    };
+    std::vector<std::size_t> basis;   // erster Punkt je Teil in der gemeinsamen Zaehlung
+    std::map<std::tuple<long long, long long, long long>, std::size_t> lage;
+    std::vector<std::size_t> ort;     // je Punkt: der erste Punkt gleicher Lage
+    for (const ImportTeil& t : n.teile) {
+        basis.push_back(ort.size());
+        for (const ImportPunkt& p : t.punkte) {
+            const auto k = std::make_tuple(std::llround(p.x * 1000), std::llround(p.y * 1000), std::llround(p.z * 1000));
+            ort.push_back(lage.emplace(k, ort.size()).first->second);
+            eltern.push_back(eltern.size());
+        }
+    }
+    for (std::size_t i = 0; i < n.teile.size(); ++i) {
+        for (const auto& d : n.teile[i].dreiecke) {
+            if (d[0] >= n.teile[i].punkte.size() || d[1] >= n.teile[i].punkte.size() || d[2] >= n.teile[i].punkte.size()) { continue; }
+            const std::size_t a = wurzel(ort[basis[i] + d[0]]);
+            for (int k = 1; k < 3; ++k) { eltern[wurzel(ort[basis[i] + d[static_cast<std::size_t>(k)]])] = a; }
+        }
+    }
+    ImportNetz r;
+    std::map<std::size_t, std::size_t> koerper;   // Wurzel -> Teil in r
+    std::vector<std::map<std::size_t, std::uint32_t>> neu;   // je Teil in r: Punkt (gemeinsam) -> Index
+    for (std::size_t i = 0; i < n.teile.size(); ++i) {
+        const ImportTeil& t = n.teile[i];
+        for (const auto& d : t.dreiecke) {
+            if (d[0] >= t.punkte.size() || d[1] >= t.punkte.size() || d[2] >= t.punkte.size()) { continue; }
+            const std::size_t w = wurzel(ort[basis[i] + d[0]]);
+            auto [it, frisch] = koerper.emplace(w, r.teile.size());
+            if (frisch) {
+                r.teile.emplace_back();
+                r.teile.back().hatUv = true;
+                neu.emplace_back();
+            }
+            ImportTeil& z = r.teile[it->second];
+            z.hatUv = z.hatUv && t.hatUv;
+            std::array<std::uint32_t, 3> e{};
+            for (std::size_t k = 0; k < 3; ++k) {
+                const std::size_t g = basis[i] + d[k];
+                auto [pi, neuPunkt] = neu[it->second].emplace(g, static_cast<std::uint32_t>(z.punkte.size()));
+                if (neuPunkt) {
+                    z.punkte.push_back(t.punkte[d[k]]);
+                    z.uv.push_back(d[k] < t.uv.size() ? t.uv[d[k]] : std::array<double, 2>{0, 0});
+                }
+                e[k] = pi->second;
+            }
+            z.dreiecke.push_back(e);
+            z.dreieckShader.push_back(t.shaderFest.empty() ? t.material : t.shaderFest);
+        }
+    }
+    // Name und Shader (Modell+Clip ohne Dreiecks-Shader) nach dem haeufigsten; die uebrigen in Klammern gezaehlt
+    for (std::size_t i = 0; i < r.teile.size(); ++i) {
+        ImportTeil& z = r.teile[i];
+        std::map<std::string, std::size_t> zahl;
+        for (const std::string& s : z.dreieckShader) { ++zahl[s]; }
+        std::string meist;
+        std::size_t best = 0;
+        for (const auto& [s, k] : zahl) {
+            if (k > best) {
+                best = k;
+                meist = s;
+            }
+        }
+        z.shaderFest = meist;
+        const std::size_t sl = meist.find_last_of('/');
+        z.name = std::to_string(i + 1) + ": " + (sl == std::string::npos ? meist : meist.substr(sl + 1));
+        if (zahl.size() > 1) { z.name += " (+" + std::to_string(zahl.size() - 1) + ")"; }
+    }
+    return r;
+}
 
 TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOptionen& o) {
     TeilErgebnis r;
@@ -487,7 +576,10 @@ TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOption
     r.detail = !r.geschlossen || groesste < o.detailGroesse;
     if (d.tri.empty()) { return r; }
     const auto bauen = [&](bool clip, std::size_t grenze, bool& ok) {
-        Bauer b{d, t, {}, {}, clip ? o.clip : (t.material.empty() ? o.ohneMaterial : materialShader(t.material, o)), o.caulk, clip, 0, grenze, false};
+        Bauer b{d, t, {}, {}, clip ? o.clip : teilShader(t, o), {}, o.caulk, clip, 0, grenze, false};
+        if (!clip && t.dreieckShader.size() == t.dreiecke.size()) {
+            for (const std::size_t q : d.triQuelle) { b.triShader.push_back(t.dreieckShader[q]); }
+        }
         b.triJeEbene.assign(d.ebenen.size(), {});
         for (std::size_t i = 0; i < d.tri.size(); ++i) { b.triJeEbene[static_cast<std::size_t>(d.triEbene[i])].push_back(i); }
         if (r.geschlossen) {
@@ -516,10 +608,15 @@ TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOption
     return r;
 }
 
-EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad) {
+EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad,
+                                 const std::vector<const Entitaet*>& ersetzt) {
     EinfuegeErgebnis r;
     Befehl undo(k.undo, "importGeometry");
     k.auswahl.leeren();
+    // ASEB "In Brushes umwandeln": die misc_model weg (dieselbe Undo-Stufe)
+    for (const Entitaet* e : ersetzt) {
+        if (e != nullptr && k.entitaetEntfernen(e)) { ++r.ersetzt; }
+    }
     // Map_FindOrInsertWorldspawn (NRC map.cpp:539-554): eine neue Karte hat noch keinen worldspawn - rc610 TUT-GEO,
     // vorher stuerzte der Import in eine neue Karte hier ab (welt() leer)
     std::shared_ptr<Entitaet> welt;
@@ -575,8 +672,17 @@ std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegO
             std::snprintf(z, sizeof(z), "vt %.6f %.6f\n", uv[0], 1.0 - uv[1]);
             s += z;
         }
-        s += "usemtl " + (t->material.empty() ? o.ohneMaterial : materialShader(t->material, o)) + "\n";
-        for (const auto& d : t->dreiecke) {
+        // ASEB: ein Koerper aus mehreren Modellflaechen wechselt das Material je Dreieck
+        const bool jeDreieck = t->dreieckShader.size() == t->dreiecke.size();
+        const std::string teil = teilShader(*t, o);
+        std::string mtl;
+        for (std::size_t i = 0; i < t->dreiecke.size(); ++i) {
+            const std::string& sh = jeDreieck ? t->dreieckShader[i] : teil;
+            if (i == 0 || sh != mtl) {
+                mtl = sh;
+                s += "usemtl " + mtl + "\n";
+            }
+            const auto& d = t->dreiecke[i];
             std::snprintf(z, sizeof(z), "f %zu/%zu %zu/%zu %zu/%zu\n", basis + d[0], basis + d[0], basis + d[1], basis + d[1], basis + d[2], basis + d[2]);
             s += z;
         }

@@ -6,6 +6,8 @@
 // q3map2 laedt misc_model genauso (tools/quake3/q3map2/model.cpp: LoadModel, AssModelMesh) - darum zeigt der
 // Editor dieselben Flaechen und Shader, die der Bau einbackt. rc610 MODOBJ: alle Leser von assimp (wie NRCs
 // libassimp-6.dll und der q3map2), die Endungen wie Radiant_RegisterModules (plugin.cpp:304-319).
+// ASEB: modellWieQ3map2 - dasselbe mit den Einstellungen und Schritten von q3map2 LoadModel (tools/quake3/q3map2/model.cpp:
+// 165-181, 297-340), fuer jede Endung von assimp, auch .ase und .md3 (q3map2 hat keine eigenen Lader mehr).
 //
 //   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   This program is free software; you can redistribute it and/or modify it under
@@ -141,17 +143,26 @@ bool modellArtAssimp(const std::string& pfad) {
     return std::find(v.begin(), v.end(), e) != v.end();
 }
 
-bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler) {
-    Assimp::Importer importer;
-    // plugin.cpp:200-205 (die Einstellungen fuer md3/mdl spielen hier keine Rolle)
+namespace {
+
+// pico_initialise (assmodel/plugin.cpp:197-209) und q3map2 model.cpp:168-175: dieselben Einstellungen
+void grundEinstellungen(Assimp::Importer& importer) {
     importer.SetPropertyBool(AI_CONFIG_PP_PTV_ADD_ROOT_TRANSFORMATION, true);
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_POINT | aiPrimitiveType_LINE);
-    importer.SetIOHandler(new VfsIo(leser));
-    const unsigned flags = aiProcess_GenNormals | aiProcess_JoinIdenticalVertices | aiProcess_Triangulate | aiProcess_GenUVCoords |
-                           aiProcess_SortByPType | aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ValidateDataStructure |
-                           aiProcess_FlipUVs | aiProcess_FlipWindingOrder | aiProcess_PreTransformVertices;
+    importer.SetPropertyString(AI_CONFIG_IMPORT_MDL_COLORMAP, "gfx/palette.lmp");   // Q1 palette, default is fine too
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_MD3_LOAD_SHADERS, false);
+    importer.SetPropertyString(AI_CONFIG_IMPORT_MD3_SHADER_SRC, "scripts/");
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_MD3_HANDLE_MULTIPART, false);
     // rotate the whole scene 90 degrees around the x axis to convert assimp's Y = UP to Quakes's Z = UP
     importer.SetPropertyMatrix(AI_CONFIG_PP_PTV_ROOT_TRANSFORMATION, aiMatrix4x4(1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+}
+
+constexpr unsigned kFlags = aiProcess_GenNormals | aiProcess_JoinIdenticalVertices | aiProcess_Triangulate | aiProcess_GenUVCoords |
+                            aiProcess_SortByPType | aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ValidateDataStructure |
+                            aiProcess_FlipUVs | aiProcess_FlipWindingOrder | aiProcess_PreTransformVertices;
+
+bool lesen(Assimp::Importer& importer, const std::string& pfad, const ModellDateiLeser& leser, unsigned flags, Modell& m, std::string* fehler) {
+    importer.SetIOHandler(new VfsIo(leser));
     const aiScene* sc = importer.ReadFile(pfad, flags);
     if (sc == nullptr || sc->mRootNode == nullptr) {
         if (fehler != nullptr) { *fehler = importer.GetErrorString(); }
@@ -160,7 +171,8 @@ bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell&
     const std::size_t s = pfad.find_last_of('/');
     const std::string wurzel = s == std::string::npos ? std::string() : pfad.substr(0, s + 1);   // PathFilenameless
     m = Modell{};
-    // PicoModel::CopyPicoModel: die Flaechen in der Reihenfolge der Knoten (nach PreTransformVertices: die Wurzel)
+    // PicoModel::CopyPicoModel bzw. AssModel (q3map2 model.cpp:268-286): die Flaechen in der Reihenfolge der Knoten (nach
+    // PreTransformVertices: die Wurzel), nur Netze mit Dreiecken
     const auto durchlaufen = [&](const auto& selbst, const aiNode* k) -> void {
         for (unsigned n = 0; n < k->mNumMeshes; ++n) {
             const aiMesh* mesh = sc->mMeshes[k->mMeshes[n]];
@@ -184,6 +196,34 @@ bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell&
     durchlaufen(durchlaufen, sc->mRootNode);
     modellGrenzenRechnen(m);
     return true;
+}
+
+}  // namespace
+
+bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler) {
+    Assimp::Importer importer;
+    grundEinstellungen(importer);
+    return lesen(importer, pfad, leser, kFlags, m, fehler);   // loadPicoModel (model.cpp:665-693)
+}
+
+bool modellArtQ3map2(const std::string& pfad) {
+    const std::size_t p = pfad.find_last_of('.');
+    const std::size_t s = pfad.find_last_of("/\\");
+    if (p == std::string::npos || (s != std::string::npos && p < s)) { return false; }
+    const std::string e = kleinA(pfad.substr(p + 1));
+    const std::vector<std::string>& v = modellEndungenAssimp();
+    return std::find(v.begin(), v.end(), e) != v.end();
+}
+
+bool modellWieQ3map2(const std::string& pfad, const ModellDateiLeser& leser, Modell& m, std::string* fehler) {
+    Assimp::Importer importer;
+    grundEinstellungen(importer);
+    // q3map2 model.cpp:176 (varying tangents prevent aiProcess_JoinIdenticalVertices), :331-332 (LoadModel mit frame 0, wie
+    // misc_model ohne "_frame"); maxSurfaceVerts: q3map2.h:2053 (999, ohne -maxsurfaceverts)
+    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_TANGENTS_AND_BITANGENTS);
+    importer.SetPropertyInteger(AI_CONFIG_PP_SLM_VERTEX_LIMIT, 999);
+    importer.SetPropertyInteger(AI_CONFIG_IMPORT_GLOBAL_KEYFRAME, 0);
+    return lesen(importer, pfad, leser, kFlags | aiProcess_RemoveComponent | aiProcess_SplitLargeMeshes, m, fehler);
 }
 
 }  // namespace bhed::karte

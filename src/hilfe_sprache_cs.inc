@@ -148,6 +148,6 @@ const ZielRoh kZieleCs[] = {
     {"ort:menue:MenuHelp>TourMenu", "hilfe", "vsechny tutorialy seznam navodu"},
     {"ort:menue:MenuFile>FileBackupFolder", "programm", "slozka zaloh najit zalohy"},
     {"ort:menue:KeLEdit>KeLPreferences", "karte", "nastaveni editoru map predvolby editoru nastaveni editor map predvolby netradiant"},
-    {"tour:k-geometrie", "karte", "model na brushe udelat z modelu brushe importovat geometrii jako brushe importovat obj z blenderu"},   // rc610 TUT-GEO
+    {"tour:k-geometrie", "karte", "model na brushe udelat z modelu brushe importovat geometrii jako brushe importovat obj z blenderu ase na brush md3 na brush prevest misc_model na brushe model z 3ds max"},   // rc610 TUT-GEO, ASEB
     {nullptr, nullptr, nullptr},
 };

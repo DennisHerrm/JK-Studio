@@ -2051,7 +2051,7 @@ TEXTE = {
     "KeStWegMod": "Vyzkoušet ve hře: %s zapsáno do složky hry po vašem potvrzení.",
     "KeStArchivFehler": "Vyzkoušet ve hře: nelze zapsat %s (%s).",
     "KeGiMenue": "Importovat geometrii jako brushe...",
-    "KeGiMenueTip": "Převede modely .obj, .fbx a .glb/.gltf na brushe: rovinné stěny sloučené, konvexní rozklad, UV jako matice textury, skryté stěny caulk, dekorace detail - pro každou část brushe, model + clip nebo Auto. .bsp jiné hry na id Tech 3 se otevře čtečkou této hry (není v NetRadiant-Custom)",
+    "KeGiMenueTip": "Převede modely na brushe (.obj, .fbx, .glb/.gltf z Blenderu a .ase, .md3 a každý další formát, který q3map2 čte, s názvy shaderů, které q3map2 zapéká): rovinné stěny sloučené, konvexní rozklad, UV jako matice textury, skryté stěny caulk, dekorace detail - pro každou část brushe, model + clip nebo Auto. .bsp jiné hry na id Tech 3 se otevře čtečkou této hry (není v NetRadiant-Custom)",
     "KeGiTitel": "Geometrie na brushe",
     "KeGiSkala": "Měřítko",
     "KeGiYOben": "Y nahoru (Blender, glTF) na Z nahoru",
@@ -3048,6 +3048,8 @@ from i18n_mb3b import texte as _mb3b  # noqa: E402
 TEXTE.update(_mb3b("cs"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("cs"))
+from i18n_aseb import texte as _aseb  # noqa: E402
+TEXTE.update(_aseb("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

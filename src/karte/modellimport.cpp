@@ -327,33 +327,56 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     return p;
 }
 
-Md3Paket md3PaketAusModell(const Modell& m, const std::string& stamm, const ModellBildHolen& bildHolen) {
+ImportNetz netzVonModell(const Modell& m, const std::vector<std::string>* shader, const Matrix4* lage) {
     ImportNetz netz;
-    for (const ModellFlaeche& f : m.flaechen) {
-        if (f.shader.empty() || f.indizes.size() < 3) { continue; }
+    // InsertModel (q3map2 model.cpp:1216, 1430-1450): eine linkshaendige Lage (Spiegelung) dreht den Umlauf um
+    const bool spiegel = lage != nullptr && haendigkeit(*lage) == Haendigkeit::Links;
+    for (std::size_t i = 0; i < m.flaechen.size(); ++i) {
+        const ModellFlaeche& f = m.flaechen[i];
+        const std::string& name = shader != nullptr && i < shader->size() ? (*shader)[i] : f.shader;
+        if (name.empty() || f.indizes.size() < 3) { continue; }   // die Skin bildet die Flaeche nicht ab: InsertModel laesst sie weg
         ImportTeil t;
         t.name = "surf" + std::to_string(netz.teile.size());
         t.hatUv = true;
+        t.shaderFest = name;
         for (const ModellPunkt& q : f.punkte) {
-            t.punkte.push_back({q.ort[0], q.ort[1], q.ort[2]});
-            t.normalen.push_back({q.normale[0], q.normale[1], q.normale[2]});
+            Vektor3d o(q.ort[0], q.ort[1], q.ort[2]);
+            Vektor3d n(q.normale[0], q.normale[1], q.normale[2]);
+            if (lage != nullptr) {
+                o = transformierterPunkt(*lage, o);
+                n = transformierteRichtung(normalenMatrix(*lage), n);   // nTransform = matrix4_for_normal_transform
+            }
+            t.punkte.push_back({o[0], o[1], o[2]});
+            t.normalen.push_back({n[0], n[1], n[2]});
             t.uv.push_back({q.st[0], q.st[1]});
         }
-        // md3Paket dreht den Umlauf einer Datei von aussen gegen den Uhrzeiger um - das Modell laeuft schon wie Q3
-        // (FlipWindingOrder, MD3Model_read): hier zurueck, damit die .md3 genau seinen Umlauf hat
-        for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) { t.dreiecke.push_back({f.indizes[i], f.indizes[i + 2], f.indizes[i + 1]}); }
+        // ImportTeil laeuft von aussen gegen den Uhrzeiger, das Modell wie Q3 (FlipWindingOrder, MD3Model_read) - darum umgedreht,
+        // gespiegelt noch einmal
+        for (std::size_t k = 0; k + 2 < f.indizes.size(); k += 3) {
+            if (spiegel) {
+                t.dreiecke.push_back({f.indizes[k], f.indizes[k + 1], f.indizes[k + 2]});
+            } else {
+                t.dreiecke.push_back({f.indizes[k], f.indizes[k + 2], f.indizes[k + 1]});
+            }
+        }
+        netz.teile.push_back(std::move(t));
+    }
+    return netz;
+}
+
+Md3Paket md3PaketAusModell(const Modell& m, const std::string& stamm, const ModellBildHolen& bildHolen) {
+    ImportNetz netz = netzVonModell(m, nullptr, nullptr);
+    for (ImportTeil& t : netz.teile) {
         std::string bild;
         std::string bytes;
-        if (bildHolen && bildHolen(f.shader, bild, bytes) && !bytes.empty()) {
-            t.material = f.shader;
+        if (bildHolen && bildHolen(t.shaderFest, bild, bytes) && !bytes.empty()) {
+            t.material = t.shaderFest;
+            t.shaderFest.clear();
             t.textur = bild;
             t.texturDaten = std::move(bytes);
             const std::size_t pk = bild.find_last_of('.');
             t.texturEndung = pk == std::string::npos ? std::string("png") : bild.substr(pk + 1);
-        } else {
-            t.shaderFest = f.shader;
         }
-        netz.teile.push_back(std::move(t));
     }
     return md3Paket(netz, stamm);
 }

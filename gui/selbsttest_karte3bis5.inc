@@ -5672,7 +5672,8 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // Stufe 9 Punkt 2: dazu "Import geometry as brushes..." (eigene Funktion) - eine Zeile mehr, und der
         // laengste Eintrag bestimmt die Breite (QMenu: Text + Raender)
         // rc609 B2: dazu "Edit map of the mission" (eigene Funktion) - eine Zeile mehr, die Breite bleibt
-        {"File", {"File"}, 342, 285 + 24 + 24 + 24 + 24},   // Stufe 9 Punkt 10: "Export selection for Blender (.glb/.obj)..." ist der laengste Eintrag
+        // ASEB: dazu "Convert model to brushes..." (eigene Funktion) - eine Zeile mehr, die Breite bleibt
+        {"File", {"File"}, 342, 285 + 24 + 24 + 24 + 24 + 24},   // Stufe 9 Punkt 10: "Export selection for Blender (.glb/.obj)..." ist der laengste Eintrag
         {"Edit", {"Edit"}, 356, 549},
         // View: NRC + die Programm-Eintraege (Stufe 7 Punkt 6b, Abweichung): Trenner 7 + fuenf Untermenues je 24
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",

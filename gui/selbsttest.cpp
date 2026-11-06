@@ -77,6 +77,7 @@
 #include "bhed/kollision.h"
 #include "bhed/karte/ebenen.h"
 #include "bhed/karte/modell.h"
+#include "bhed/karte/modellrueck.h"   // ASEB: q3map2 -bhedmodels als Gegenprobe
 #include "bhed/karte/modellbrowser.h"
 #include "bhed/karte/modellimport.h"   // rc610 MODOBJ: Testmodelle (md3Paket)
 #include "bhed/karte/region.h"

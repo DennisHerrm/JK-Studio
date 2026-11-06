@@ -50,15 +50,26 @@ std::string klein(std::string s) {
 class KartenModelle final : public karte::ModellQuelle {
 public:
     [[nodiscard]] karte::ModellAnsicht ansicht(const karte::Entitaet& e) const override {
+        karte::ModellAnsicht a;
+        a.modell = modell(modellPfad(e));
+        a.shader = shaderNachSkin(e, *a.modell);
+        return a;
+    }
+
+    [[nodiscard]] static std::string modellPfad(const karte::Entitaet& e) {
         const karte::EntitaetsKlasse* kl = e.klasse();
         const std::string schluessel = kl != nullptr && !kl->miscmodelKey.empty() ? kl->miscmodelKey : std::string("model");
-        const std::string pfad = bereinigt(e.wert(schluessel));
-        karte::ModellAnsicht a;
-        a.modell = modell(pfad);
+        return bereinigt(e.wert(schluessel));
+    }
+
+    // InsertModel (q3map2 model.cpp:1227-1301): je Flaeche der Shader nach der .skin-Datei und _remap
+    [[nodiscard]] std::vector<std::string> shaderNachSkin(const karte::Entitaet& e, const karte::Modell& m) const {
+        const std::string pfad = modellPfad(e);
         // q3map2: e.read_keyvalue( skin, "_skin", "skin" )
         const std::string skin = !e.wert("_skin").empty() ? e.wert("_skin") : e.wert("skin");
         const karte::Umbenennungen* sk = skin.empty() || pfad.empty() ? nullptr : &skinFuer(karte::skinDateiName(pfad, skin));
-        for (const karte::ModellFlaeche& f : a.modell->flaechen) {
+        std::vector<std::string> v;
+        for (const karte::ModellFlaeche& f : m.flaechen) {
             std::string name = f.shader;
             if (sk != nullptr && !sk->empty()) {   // handle .skin file
                 const auto it = std::find_if(sk->begin(), sk->end(), [&](const auto& u) { return klein(u.first) == klein(f.shader); });
@@ -68,9 +79,9 @@ public:
                 const std::string r = karte::remapFuer(e, name);
                 if (!r.empty()) { name = r; }
             }
-            a.shader.push_back(name);
+            v.push_back(name);
         }
-        return a;
+        return v;
     }
 
     // ModelNode::setModel im Modell-Browser: das Modell ohne Skin und _remap
@@ -163,6 +174,10 @@ KartenModelle& ablage() {
 const karte::ModellQuelle& kartenModelle() { return ablage(); }
 
 karte::ModellAnsicht kartenModellPfad(const std::string& pfad) { return ablage().nachPfad(pfad); }
+
+std::string kartenModellSchluessel(const karte::Entitaet& e) { return KartenModelle::modellPfad(e); }
+
+std::vector<std::string> kartenModellShader(const karte::Entitaet& e, const karte::Modell& m) { return ablage().shaderNachSkin(e, m); }
 
 void modelleLeeren() {   // FlushReferences
     ablage().leeren();

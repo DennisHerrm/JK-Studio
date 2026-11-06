@@ -57,6 +57,8 @@ struct ImportTeil {
     // ohne Bild und ohne Eintrag im Shader-Skript des Pakets; und die Normalen des Modells (leer: aus den Dreiecken)
     std::string shaderFest;
     std::vector<ImportPunkt> normalen;
+    // ASEB (nachKoerpern): je Dreieck der Shader seiner Modellflaeche - ein Koerper aus mehreren Flaechen (leer: alle wie der Teil)
+    std::vector<std::string> dreieckShader;
 };
 
 struct ImportNetz {
@@ -106,6 +108,10 @@ struct TeilErgebnis {
 };
 
 [[nodiscard]] bool teilGeschlossen(const ImportTeil& t);
+// ASEB: die Flaechen eines Modells (je Shader ein Teil, netzVonModell) zu Koerpern - je Zusammenhang (Punkte gleicher Lage) ein
+// Teil mit dreieckShader. Ein Kasten mit zwei Materialien (3ds-Max-Multimaterial) bleibt so ein geschlossener Koerper und wird
+// Brushes statt zweier offener Flaechen. Name: Nummer und haeufigster Shader, shaderFest = dieser.
+[[nodiscard]] ImportNetz nachKoerpern(const ImportNetz& n);
 [[nodiscard]] TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOptionen& o);
 
 class Karte;
@@ -113,11 +119,15 @@ class Karte;
 // Einfuegen (eine Undo-Stufe "importGeometry"): alle Brushes in den worldspawn (gewaehlt,
 // detail wie berechnet, Texturmatrix aus den drei st-Punkten - texdefAusSt, im Format der
 // Karte), und wenn ein Teil Modell+Clip ist, ein misc_model mit modellPfad (leer: keins).
+// ASEB: ersetzt = misc_model, die "In Brushes umwandeln" zu diesen Brushes macht - in derselben Undo-Stufe entfernt.
 struct EinfuegeErgebnis {
     std::size_t pinsel = 0;
     std::size_t modelle = 0;
+    std::size_t ersetzt = 0;
 };
-EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad);
+class Entitaet;
+EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad,
+                                 const std::vector<const Entitaet*>& ersetzt = {});
 
 // Die Modell+Clip-Teile als .obj (Q3-Koordinaten, usemtl = Shader, vt = s, 1 - t) - so liest
 // q3map2 (assimp) das misc_model und nimmt die Shader der Brushes.
@@ -134,6 +144,9 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
 
 // Der Shadername eines Materials: Vorsatz + Name ohne Pfad und Endung, klein, nur [a-z0-9_/-].
 [[nodiscard]] std::string materialShader(const std::string& material, const ZerlegOptionen& o);
+// Der Shader eines Teils (Brush-Seiten, usemtl der Modell+Clip-.obj): shaderFest, wenn gesetzt (ASEB: ein Modell, wie q3map2 es
+// einbackt - netzVonModell), sonst materialShader bzw. ohneMaterial.
+[[nodiscard]] std::string teilShader(const ImportTeil& t, const ZerlegOptionen& o);
 
 }  // namespace bhed::karte
 

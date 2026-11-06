@@ -176,6 +176,7 @@ const Frage kFragen[] = {
     {"de", "Tastenk\xc3\xbcrzel \xc3\xa4ndern", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"de", "Raum aush\xc3\xb6hlen", "tour:tut-karte@5"},
     {"de", "wie benutzt man das model zu brush?", "tour:k-geometrie"},   // rc610 TUT-GEO: shanks Frage 05.11.
+    {"de", "misc_model in Brushes umwandeln", "tour:k-geometrie"},     // ASEB
     {"de", "Dunkles Design einschalten", "ort:menue:MenuView>ViewTheme"},
     {"de", "R\xc3\xbc" "ckg\xc3\xa4ngig machen", "seite:k-rueckgaengig|ort:menue:MenuEdit|ort:menue:KeLEdit>KeLUndo"},
     // --- English ---
@@ -200,6 +201,7 @@ const Frage kFragen[] = {
     {"en", "change keyboard shortcuts", "ort:menue:MenuEdit>KeysTitle|seite:tasten"},
     {"en", "hollow out a room", "tour:tut-karte@5"},
     {"en", "how do I turn a Blender model into brushes", "tour:k-geometrie"},
+    {"en", "ase to brush", "tour:k-geometrie"},   // ASEB: Tester GP "This update now have .ase to brush or not?"
     {"en", "the text is too small", "ort:menue:MenuView>ViewDpiScale"},
     // --- Chinesisch ---
     {"zh", "\xe6\x80\x8e\xe4\xb9\x88\xe5\x88\xb6\xe4\xbd\x9c\xe7\xac\xac\xe4\xb8\x80\xe5\xbc\xa0\xe5\x9c\xb0\xe5\x9b\xbe", "tour:tut-karte"},

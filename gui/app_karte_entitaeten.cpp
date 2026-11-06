@@ -1438,6 +1438,15 @@ void entitaetenMenueZeichnen() {
     // QMenu (app_karte_qtmenue.cpp): Escape schliesst das offene Untermenue,
     // das naechste das Menue.
     if (qtPopupAnfang("##entitaetenmenue")) {
+        // ASEB (eigene Funktion, nicht in NetRadiant-Custom): ein gewaehltes misc_model in Brushes umwandeln - oben, nur dann
+        if (modellZuBrushesMoeglich()) {
+            const std::string id = std::string(trK(Str::KeMbMenue)) + "###kmmodellbrushes";
+            QtPunkt m;
+            m.id = id.c_str();
+            m.tooltip = trK(Str::KeMbTip);
+            if (qtPunkt(m)) { modellZuBrushesOeffnen(); }
+            qtTrenner();
+        }
         for (const karte::EntitaetMenuePunkt& p : g_menue) {
             if (p.kinder.empty()) {
                 menueEintrag(p.name);

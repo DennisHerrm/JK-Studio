@@ -23,6 +23,7 @@
 #define BHED_KARTE_MODELLIMPORT_H
 
 #include "bhed/karte/geometrieimport.h"
+#include "bhed/karte/mathe.h"
 
 #include <functional>
 #include <string>
@@ -55,6 +56,11 @@ struct Md3Paket {
 using ModellBildHolen = std::function<bool(const std::string& shader, std::string& bild, std::string& bytes)>;
 struct Modell;
 [[nodiscard]] Md3Paket md3PaketAusModell(const Modell& m, const std::string& stamm, const ModellBildHolen& bildHolen);
+// ASEB: die Flaechen eines Modells (modell.h: Z oben, Umlauf und st wie Q3) als Netz fuer teilUmwandeln/md3Paket - je Flaeche
+// ein Teil mit shaderFest = shader[i] (nullptr: der Shader der Flaeche; leer: die Flaeche fehlt, wie InsertModel bei einer Skin,
+// die sie nicht abbildet), Punkte und Normalen mit lage (misc_model: miscModellMatrix; nullptr: wie sie sind), Umlauf wie ein
+// ImportTeil (gespiegelte Lage: wie InsertModel umgedreht).
+[[nodiscard]] ImportNetz netzVonModell(const Modell& m, const std::vector<std::string>* shader, const Matrix4* lage);
 // Der Stamm fuer ein Modell des Spiel-VFS: der Pfad ohne "models/", mit der Endung ("models/Pack/Baum.OBJ" ->
 // "pack_baum_obj"), wie md3Paket ihn kuerzt - verschiedene Dateien bekommen verschiedene Pakete.
 [[nodiscard]] std::string importStamm(const std::string& vfsPfad);

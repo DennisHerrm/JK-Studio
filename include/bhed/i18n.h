@@ -4620,6 +4620,12 @@ enum class Str {
     KeOptPrModellGespiegelt,
     KeOptPrModellGespiegeltE,
     KeLichtGrenzenTip3,
+    KeMbMenue,
+    KeMbTip,
+    KeMbKeins,
+    KeGiGlm,
+    KeGiModellNamen,
+    KeGiModellNamenTip,
     Count,
 };
 

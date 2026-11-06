@@ -114,7 +114,10 @@ const ZielRoh kZiele[] = {
     {"tour:k-geometrie", "karte",
      "modell zu brush modell zu brushes machen modell in brushes umwandeln geometrie als brushes importieren blender modell importieren obj importieren "
      "model to brush convert a model to brushes turn a mesh into brushes import geometry as brushes import obj fbx from blender "
-     "模型转画刷 把模型变成画刷 导入几何体 导入obj モデルをブラシに ジオメトリをブラシとして読み込む objを読み込む"},
+     "模型转画刷 把模型变成画刷 导入几何体 导入obj モデルをブラシに ジオメトリをブラシとして読み込む objを読み込む "
+     // ASEB (Tester GP: "This update now have .ase to brush or not?")
+     "ase to brush ase zu brush md3 to brush md3 zu brush 3ds max modell misc_model in brushes umwandeln convert misc_model to brushes "
+     "ase转画刷 md3转画刷 把misc_model转换为画刷 aseをブラシに md3をブラシに misc_modelをブラシに変換"},
     {"ort:knopf:ViewMapEditor@modebar", "karte", "karteneditor oeffnen open the map editor radiant 打开地图编辑器 マップエディターを開く"},
     // --- Skripte -----------------------------------------------------------------
     {"tour:k-neues-skript", "skript", "erstes skript schreiben neues skript anfangen write my first script new script 写第一个脚本 新建脚本 最初のスクリプト 新しいスクリプト"},

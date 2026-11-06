@@ -1,7 +1,10 @@
 // app_karte_geoimport.cpp - Karten-Editor, Stufe 9 Punkt 2: Geometrie zu Brushes
 // (eigene Funktion, nicht in NetRadiant-Custom).
 //
-// File > Import geometry as brushes...: eine .obj/.fbx/.glb/.gltf lesen (karte::netzLesen),
+// File > Import geometry as brushes...: eine .obj/.fbx/.glb/.gltf lesen (karte::netzLesen) - ASEB: .ase, .md3 und jedes
+// weitere Format, das q3map2 liest, genau wie q3map2 (karte::modellWieQ3map2, die Shadernamen von AssModelMesh), je Koerper ein
+// Teil (karte::nachKoerpern); .glm mit Meldung (Ghoul2, keine Kartengeometrie); "Modell in Brushes umwandeln" nimmt die gewaehlten
+// misc_model mit Lage, Skin und _remap und ersetzt sie beim Einfuegen -
 // je Teil Auto / Brushes / Modell + Clip waehlen, die Vorschau zeigt je Teil, was entsteht
 // (Brushes, detail), "Einfuegen" setzt alles als eine Undo-Stufe ein (karte::importEinfuegen),
 // danach auf Wunsch der Optimierer. Teile als Modell + Clip kommen als .obj in den
@@ -15,6 +18,7 @@
 
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/karte.h"
+#include "bhed/karte/modell.h"
 #include "bhed/karte/modellimport.h"
 #include "bhed/karte/rueckgaengig.h"
 #include "bhed/karte/spielbeschreibung.h"
@@ -55,6 +59,57 @@ std::string stammVon(const std::string& pfad) {
     return s.empty() ? std::string("import") : s;
 }
 
+bool dateiLesen(const std::string& pfad, std::string& bytes) {
+    std::ifstream f(pfadVon(pfad), std::ios::binary);
+    if (!f) { return false; }
+    std::ostringstream s;
+    s << f.rdbuf();
+    bytes = s.str();
+    return true;
+}
+
+std::string klein(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+
+// Die Formate von Blender (netzLesen: je Knoten ein Teil, Shader-Vorsatz, Y oben waehlbar)
+bool netzFormat(const std::string& x) { return x == "obj" || x == "fbx" || x == "glb" || x == "gltf"; }
+
+// ASEB: der Name, unter dem q3map2 die Datei als misc_model laede - er gibt die Wurzel der Shadernamen (AssModelMesh: rootPath):
+// relativ zu einem Ordner des Suchpfads; sonst ab "models/" (ein Spielordner, der nicht eingerichtet ist); sonst der Dateiname
+std::string vfsNameFuer(const std::string& pfad) {
+    std::string p = pfad;
+    std::replace(p.begin(), p.end(), '\\', '/');
+    const std::string k = klein(p);
+    if (const std::shared_ptr<Spielkontext>& sp = e().karteSpiel) {
+        for (const std::string& a : sp->fs.archive(false)) {
+            if (a.empty() || a.back() != '/') { continue; }   // nur Ordner, keine .pk3
+            std::string ka = klein(a);
+            std::replace(ka.begin(), ka.end(), '\\', '/');
+            if (k.size() > ka.size() && k.compare(0, ka.size(), ka) == 0) { return p.substr(ka.size()); }
+        }
+    }
+    if (const std::size_t m = k.rfind("/models/"); m != std::string::npos) { return p.substr(m + 1); }
+    return p.substr(p.find_last_of('/') + 1);
+}
+
+// ASEB: eine Modelldatei von der Platte wie q3map2 - die Datei und ihre Nachbarn (.mtl) unter ihrem VFS-Namen, alles andere aus dem Spiel
+bool modellDateiLesen(const std::string& pfad, karte::Modell& m, std::string& grund) {
+    const std::string vfs = vfsNameFuer(pfad);
+    const std::string vfsOrdner = vfs.substr(0, vfs.find_last_of('/') + 1);
+    std::string platte = pfad;
+    std::replace(platte.begin(), platte.end(), '\\', '/');
+    const std::string platteOrdner = platte.substr(0, platte.find_last_of('/') + 1);
+    const std::shared_ptr<Spielkontext> sp = e().karteSpiel;
+    const karte::ModellDateiLeser leser = [&](const std::string& p, std::string& b) {
+        if (klein(p) == klein(vfs)) { return dateiLesen(pfad, b); }
+        if (klein(p).compare(0, vfsOrdner.size(), klein(vfsOrdner)) == 0 && dateiLesen(platteOrdner + p.substr(vfsOrdner.size()), b)) { return true; }
+        return sp && sp->fs.dateiLesen(p, b);
+    };
+    return karte::modellWieQ3map2(vfs, leser, m, &grund);
+}
+
 karte::ZerlegOptionen optionen() {
     karte::ZerlegOptionen o;
     o.shaderVorsatz = e().geoImport.vorsatz;
@@ -83,25 +138,45 @@ std::string importOrdner() {
 
 bool geoImportLaden(const std::string& pfad) {
     GeoImportZustand& z = e().geoImport;
-    std::string bytes;
-    {
-        std::ifstream f(pfadVon(pfad), std::ios::binary);
-        std::ostringstream s;
-        s << f.rdbuf();
-        bytes = s.str();
+    const std::string x = endungVon(pfad);
+    char t[1400];
+    if (x == "glm") {   // ASEB: Ghoul2 - weder q3map2 noch assimp lesen es als Geometrie
+        std::snprintf(t, sizeof(t), trK(Str::KeGiGlm), pfad.c_str());
+        fehler(t);
+        return false;
     }
-    karte::NetzOptionen no;
-    no.skala = static_cast<double>(z.skala);
-    no.yOben = z.yOben;
     karte::ImportNetz netz;
     std::string grund;
-    if (!karte::netzLesen(bytes, endungVon(pfad), no, netz, &grund)) {
-        char t[1400];
+    bool ok = false;
+    const bool modellNamen = !netzFormat(x) && karte::modellArtQ3map2(pfad);
+    if (modellNamen) {
+        // ASEB: wie q3map2 das Modell als misc_model laede; die Flaechen eines Koerpers bleiben ein Teil
+        karte::Modell m;
+        ok = modellDateiLesen(pfad, m, grund);
+        if (ok) {
+            netz = karte::nachKoerpern(karte::netzVonModell(m, nullptr, nullptr));
+            for (karte::ImportTeil& teil : netz.teile) {
+                for (karte::ImportPunkt& p : teil.punkte) { p = {p.x * z.skala, p.y * z.skala, p.z * z.skala}; }
+            }
+            ok = !netz.teile.empty();
+            if (!ok) { grund = "no triangles"; }
+        }
+    } else {
+        std::string bytes;
+        (void)dateiLesen(pfad, bytes);
+        karte::NetzOptionen no;
+        no.skala = static_cast<double>(z.skala);
+        no.yOben = z.yOben;
+        ok = karte::netzLesen(bytes, x, no, netz, &grund);
+    }
+    if (!ok) {
         std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), grund.c_str());
         fehler(t);
         return false;
     }
     z.datei = pfad;
+    z.modellNamen = modellNamen;
+    z.ersetzt.clear();
     z.netz = std::move(netz);
     z.wahl.assign(z.netz.teile.size(), static_cast<int>(karte::TeilArt::Auto));
     z.offen = true;
@@ -110,8 +185,13 @@ bool geoImportLaden(const std::string& pfad) {
 }
 
 void geoImportOeffnen() {
-    const std::string pfad = kartenDateiDialog(true, "Import geometry", "*.obj;*.fbx;*.glb;*.gltf;*.bsp|*.obj;*.fbx;*.glb;*.gltf;*.bsp|*.*|*.*",
-                                               kartenStartOrdner());
+    // ASEB: dazu .ase, .md3 und jedes weitere Format, das q3map2 liest (die Endungen des Modell-Browsers)
+    std::string muster = "*.obj;*.fbx;*.glb;*.gltf";
+    for (const std::string& x : karte::modellEndungenAssimp()) {
+        if (!netzFormat(x)) { muster += ";*." + x; }
+    }
+    muster += ";*.bsp";
+    const std::string pfad = kartenDateiDialog(true, "Import geometry", (muster + "|" + muster + "|*.*|*.*").c_str(), kartenStartOrdner());
     if (pfad.empty()) { return; }
     if (endungVon(pfad) == "bsp") {   // BSPs (auch anderer id-Tech-3-Spiele): wie Open .bsp
         (void)bspOeffnenDatei(pfad);
@@ -146,7 +226,16 @@ void geoImportEinfuegen() {
             ausgabe(t);
         }
     }
-    z.letztes = karte::importEinfuegen(ed.karte, z.vorschau, modell);
+    std::vector<const karte::Entitaet*> weg;   // ASEB: die umgewandelten misc_model
+    std::vector<std::shared_ptr<karte::Entitaet>> halten;
+    for (const auto& w : z.ersetzt) {
+        if (auto en = w.lock()) {
+            weg.push_back(en.get());
+            halten.push_back(std::move(en));
+        }
+    }
+    z.letztes = karte::importEinfuegen(ed.karte, z.vorschau, modell, weg);
+    z.ersetzt.clear();
     ++ed.sichtStand;
     auswahlGeaendert();
     char t[1400];
@@ -154,6 +243,71 @@ void geoImportEinfuegen() {
     ausgabe(t);
     z.offen = false;
     if (z.optimierer) { optimiererOeffnen(); }
+}
+
+namespace {
+
+// ASEB: die gewaehlten misc_model mit einem Modell (nicht "*n")
+std::vector<std::shared_ptr<karte::Entitaet>> gewaehlteModelle() {
+    std::vector<std::shared_ptr<karte::Entitaet>> v;
+    for (const karte::AuswahlElement& a : e().karte.auswahl.elemente()) {
+        const auto en = a.entitaet.lock();
+        if (!en || !a.primitiv.expired() || klein(en->klassenname()) != "misc_model") { continue; }
+        const std::string m = kartenModellSchluessel(*en);
+        if (m.empty() || m[0] == '*' || std::find(v.begin(), v.end(), en) != v.end()) { continue; }
+        v.push_back(en);
+    }
+    return v;
+}
+
+}  // namespace
+
+bool modellZuBrushesMoeglich() { return !gewaehlteModelle().empty(); }
+
+void modellZuBrushesOeffnen() {
+    Editor& ed = e();
+    const std::vector<std::shared_ptr<karte::Entitaet>> modelle = gewaehlteModelle();
+    char t[1400];
+    if (modelle.empty()) {
+        fehler(trK(Str::KeMbKeins));
+        return;
+    }
+    const std::shared_ptr<Spielkontext> sp = ed.karteSpiel;
+    const karte::ModellDateiLeser leser = [sp](const std::string& p, std::string& b) { return sp && sp->fs.dateiLesen(p, b); };
+    karte::ImportNetz netz;
+    std::string namen;
+    for (const auto& en : modelle) {
+        const std::string pfad = kartenModellSchluessel(*en);
+        karte::Modell m;
+        std::string grund;
+        // InsertModel: LoadModel, Skin und _remap je Flaeche, die Lage des misc_model (ModelGetTransform)
+        if (!karte::modellWieQ3map2(pfad, leser, m, &grund)) {
+            std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), grund.c_str());
+            fehler(t);
+            return;
+        }
+        const std::vector<std::string> shader = kartenModellShader(*en, m);
+        const karte::Matrix4 lage = karte::miscModellMatrix(*en);
+        karte::ImportNetz teil = karte::nachKoerpern(karte::netzVonModell(m, &shader, &lage));
+        for (karte::ImportTeil& x : teil.teile) {
+            if (modelle.size() > 1) { x.name = pfad.substr(pfad.find_last_of('/') + 1) + " " + x.name; }
+            netz.teile.push_back(std::move(x));
+        }
+        namen += (namen.empty() ? "" : ", ") + pfad;
+    }
+    if (netz.teile.empty()) {
+        std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), namen.c_str(), "no triangles");
+        fehler(t);
+        return;
+    }
+    GeoImportZustand& z = ed.geoImport;
+    z.datei = namen;
+    z.modellNamen = true;
+    z.netz = std::move(netz);
+    z.ersetzt.assign(modelle.begin(), modelle.end());
+    z.wahl.assign(z.netz.teile.size(), static_cast<int>(karte::TeilArt::Auto));
+    z.offen = true;
+    vorschauRechnen();
 }
 
 bool blenderExport(const std::string& pfadWahl) {
@@ -379,14 +533,22 @@ void geoImportDialogZeichnen() {
     if (ImGui::Begin(titel.c_str(), &offen)) {
         ImGui::TextUnformatted(z.datei.c_str());
         bool neuLesen = false;
-        ImGui::SetNextItemWidth(std::round(120.0F * sk));
-        neuLesen |= ImGui::InputFloat((std::string(trK(Str::KeGiSkala)) + "##giskala").c_str(), &z.skala, 0.0F, 0.0F, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
-        ImGui::SameLine();
-        neuLesen |= ImGui::Checkbox((std::string(trK(Str::KeGiYOben)) + "##giyoben").c_str(), &z.yOben);
-        ImGui::SetNextItemWidth(std::round(260.0F * sk));
-        if (ImGui::InputText((std::string(trK(Str::KeGiVorsatz)) + "##givorsatz").c_str(), z.vorsatz, sizeof(z.vorsatz))) { z.neu = true; }
+        // ASEB: ein misc_model hat seine Lage schon (modelscale); ein Modell wie q3map2 hat Z oben und seine Shader
+        if (z.ersetzt.empty()) {
+            ImGui::SetNextItemWidth(std::round(120.0F * sk));
+            neuLesen |= ImGui::InputFloat((std::string(trK(Str::KeGiSkala)) + "##giskala").c_str(), &z.skala, 0.0F, 0.0F, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        }
+        if (!z.modellNamen) {
+            ImGui::SameLine();
+            neuLesen |= ImGui::Checkbox((std::string(trK(Str::KeGiYOben)) + "##giyoben").c_str(), &z.yOben);
+            ImGui::SetNextItemWidth(std::round(260.0F * sk));
+            if (ImGui::InputText((std::string(trK(Str::KeGiVorsatz)) + "##givorsatz").c_str(), z.vorsatz, sizeof(z.vorsatz))) { z.neu = true; }
+        } else {
+            ImGui::TextDisabled("%s", trK(Str::KeGiModellNamen));
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", trK(Str::KeGiModellNamenTip)); }
+        }
         ImGui::Checkbox((std::string(trK(Str::KeGiOptimierer)) + "##gioptimierer").c_str(), &z.optimierer);
-        if (neuLesen && z.skala > 0.0F) {
+        if (neuLesen && z.skala > 0.0F && z.ersetzt.empty()) {
             const std::vector<int> alt = z.wahl;
             if (geoImportLaden(z.datei) && alt.size() == z.wahl.size()) {
                 z.wahl = alt;
@@ -397,11 +559,16 @@ void geoImportDialogZeichnen() {
         float artBreite = 0.0F;   // die Klappliste so breit wie ihr laengster Eintrag (in jeder Sprache)
         for (const char* a : arten) { artBreite = std::max(artBreite, ImGui::CalcTextSize(a).x); }
         artBreite += ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0F;
+        // ASEB: der Teil so breit wie sein laengster Name (Koerper "1: holz (+1)"; in Japanisch schnitt die alte Dehnung ab),
+        // hoechstens 40 % der Tabelle - laengere zeigt der Tooltip ganz
+        float teilBreite = ImGui::CalcTextSize(trK(Str::KeGiTeil)).x;
+        for (const karte::ImportTeil& t : z.netz.teile) { teilBreite = std::max(teilBreite, ImGui::CalcTextSize(t.name.c_str()).x); }
+        teilBreite = std::min(teilBreite + ImGui::GetStyle().CellPadding.x * 2.0F, ImGui::GetContentRegionAvail().x * 0.4F);
         // die Tabelle fuellt das Fenster bis ueber die Knoepfe; Dreiecke und Geschlossen so breit wie ihr Inhalt
         if (ImGui::BeginTable("##giteile", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
                               ImVec2(0.0F, -ImGui::GetFrameHeightWithSpacing()))) {
             ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn(trK(Str::KeGiTeil), ImGuiTableColumnFlags_WidthStretch, 0.4F);
+            ImGui::TableSetupColumn(trK(Str::KeGiTeil), ImGuiTableColumnFlags_WidthFixed, teilBreite);
             ImGui::TableSetupColumn(trK(Str::KeGiDreiecke), ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn(trK(Str::KeGiGeschlossen), ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn(trK(Str::KeGiArt), ImGuiTableColumnFlags_WidthFixed, artBreite);
@@ -412,6 +579,7 @@ void geoImportDialogZeichnen() {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(z.netz.teile[i].name.c_str());
+                if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", z.netz.teile[i].name.c_str()); }
                 ImGui::TableNextColumn();
                 ImGui::Text("%d", static_cast<int>(r.dreiecke));
                 ImGui::TableNextColumn();
