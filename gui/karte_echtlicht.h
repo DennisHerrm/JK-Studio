@@ -10,6 +10,7 @@
 #include "bhed/karte/kamera.h"
 #include "bhed/karte/mathe.h"
 #include "bhed/portalsicht.h"
+#include "bhed/shaderscript.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +28,23 @@ namespace bhed::gui::karteneditor {
 // Stufe 9c: vp = Kameramatrix (spaltenweise, wie Zustand3::matrix), breite/hoehe
 // des Bilds (Kacheln); die Schattengeometrie baut die Funktion selbst aus der Karte.
 void echtLichtBildVorbereiten(const karte::Vektor3f& auge, const float* vp, int breite, int hoehe, std::size_t geoStand);
+// rc610 R2a: eine Stufe eines Shaders, wie die Echtzeit-Ansicht sie zeichnet (ParseStage, tr_shader.cpp): Bild ("?" + Pfad fuer das
+// Bildlager), blendFunc (Werte wie SpielDarstellung), alphaFunc, Farbe aus rgbGen/alphaGen const bzw. identity (sonst 1),
+// depthWrite (deckend immer), portalRange einer Stufe mit alphaGen portal.
+struct SpielStufe {
+    std::string bild;
+    int mischQuelle = 0;
+    int mischZiel = 0;
+    int alphaFunktion = 0;
+    float alphaRef = 0;
+    float farbe[4]{1, 1, 1, 1};
+    bool tiefeSchreiben = true;
+    float portalWeite = 0;
+};
+[[nodiscard]] SpielStufe spielStufe(const ShaderInfo::Stage& st);
+// rc610 R2a: alle Stufen eines Shaders aus den Spieldaten des Editors (parseShaderScript wie die Vorschau, je Datei einmal, neu
+// nach Flush & Reload Shaders); nullptr ohne Skript.
+[[nodiscard]] const ShaderInfo* echtShaderInfo(const std::string& shader);
 // "Wie im Spiel" (Stufe 9c, Echtzeit-Licht und gebacken): unsichtbar (nodraw),
 // Alpha-Test und blendFunc der ersten Stufe; ohne Licht bei blendFunc.
 struct SpielDarstellung {
@@ -41,6 +59,7 @@ struct SpielDarstellung {
     bool eckLicht = false;       // rc608 Teil 11: C_VERTEXLIT - q3map2 gibt ihr Eckfarben mit _minvertexlight statt einer Lightmap
     bool portal = false;         // rc609 P: sort portal (mit mindestens einer Stufe) - zeigt die Spiegel- bzw. Portalsicht unter ihren Stufen
     float portalWeite = 0;       //   ... portalRange (alphaGen portal)
+    std::vector<SpielStufe> weitere;   // rc610 R2a: bei Portalflaechen die Stufen nach der ersten (RB_StageIteratorGeneric)
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.
@@ -100,6 +119,8 @@ struct SpielbildStand {
 [[nodiscard]] bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtfeld, std::size_t geoStand, PortalSicht& aus);
 // rc608 Teil 12, fuer den Bildvergleich im Selbsttest: feste Shaderzeit des Spielbilds in Sekunden (< 0: die Uhr).
 void spielbildZeitFest(double sekunden);
+// rc610 R2a: die Shaderzeit des Spielbilds in Sekunden (fest oder die Uhr) - auch fuer die Halme der Echtzeit-Ansicht
+[[nodiscard]] double spielbildZeit();
 
 }  // namespace bhed::gui::karteneditor
 

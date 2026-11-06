@@ -658,6 +658,40 @@ std::vector<Schritt> bspmergeSchritte() {
         diag::detail("Knopftest: F23 Jb - Modelle " + std::to_string(z->modelleJ) + " -> " + std::to_string(modelle) + ", bm_drucker3 " + std::to_string(n) + "x");
         return modelle == z->modelleJ + 1 && n == 1 && ke::bspNeuePinselEntitaeten() == 0;
     }));
+    // rc610 R2a: waehrend des Teil-Compiles im Fenster "Shader und Flaechen" geaendert - beim Einfuegen fragen (behalten / ersetzen)
+    auto r2aShader = std::make_shared<std::string>();
+    add(tu("R2a: vierter Trigger, einfuegen", [z] {
+        bm::innenTrigger(*z, 24.0F, "bm_drucker4");
+        ke::editor().bspEinfuegenFertig.clear();
+        ke::bspInFertigeKarte();
+    }));
+    add(warteBis("R2a: der Teil-Compile laeuft", [] { return ke::bauLaeuft() || ke::editor().frageOffen; }, 600));
+    add(tu("R2a: waehrend des Teil-Compiles einen Shader tauschen (nicht speichern)", [z, r2aShader] {
+        *r2aShader = bm::fremderShader(bm::fremderShader(z->lumpShader));
+        lumpEditFlaecheSetzen(z->lumpFlaeche);
+        (void)lumpEditTauschen(*r2aShader, false);
+        diag::detail("Knopftest: R2a - Bau laeuft " + std::string(ke::bauLaeuft() ? "ja" : "nein") + ", Flaeche " + std::to_string(z->lumpFlaeche) + " -> " +
+                     *r2aShader + ", ungespeichert " + (lumpEditIstUngespeichert() ? "ja" : "nein"));
+    }));
+    add(warteBis("R2a: Rueckfrage oder eingefuegt", [] { return ke::editor().frageOffen || (!ke::bauLaeuft() && !ke::editor().bspEinfuegenFertig.empty()); }, 3600));
+    add(pruefe("R2a: die Aenderung waehrend des Teil-Compiles wird nicht ohne Frage ersetzt", [] {
+        diag::detail("Knopftest: R2a - Frage " + std::string(ke::editor().frageOffen ? "ja" : "nein") + " (Art " + std::to_string(ke::editor().frageArt) +
+                     "), fertig \"" + ke::editor().bspEinfuegenFertig + "\", Lumps ungespeichert " + (lumpEditIstUngespeichert() ? "ja" : "nein"));
+        return ke::editor().frageOffen && ke::editor().frageArt == 2;
+    }));
+    add(klick(tr(Str::KeLumpsBehalten), "kartefrage"));
+    add(warteBis("R2a: eingefuegt und gespeichert", [] { return !ke::bauLaeuft() && !ke::editor().bspEinfuegenFertig.empty(); }, 3600));
+    add(pruefe("R2a: Behalten - die gespeicherte Datei hat den waehrend des Baus getauschten Shader und den vierten Trigger", [z, r2aShader] {
+        const std::string lose = bm::lies(z->lose);
+        karte::BspLumps l;
+        const bool da = karte::bspLumpsLesen(lose, l) && z->lumpFlaeche >= 0 && static_cast<std::size_t>(z->lumpFlaeche) < l.flaechen.size();
+        const int nr = da ? l.flaechen[static_cast<std::size_t>(z->lumpFlaeche)].shaderNum : -1;
+        const std::string name = nr >= 0 && static_cast<std::size_t>(nr) < l.shader.size() ? l.shader[static_cast<std::size_t>(nr)].name : std::string();
+        const int trigger = bm::imEntityLump(lose, "\"target\" \"bm_drucker4\"");
+        diag::detail("Knopftest: R2a - Flaeche " + std::to_string(z->lumpFlaeche) + ": " + name + " (soll " + *r2aShader + "), Trigger " + std::to_string(trigger) +
+                     ", Lumps ungespeichert " + (lumpEditIstUngespeichert() ? "ja" : "nein"));
+        return !r2aShader->empty() && name == *r2aShader && trigger == 1 && !lumpEditIstUngespeichert();
+    }));
     add(tu("F23 Jc: Update entities only", [z] {
         z->befehle.clear();
         ke::editor().bspNurEntitaetenFertig.clear();

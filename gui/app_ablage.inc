@@ -1669,6 +1669,7 @@ void refreshPk3List() {
 
 bool readFromArchives(const std::string& name, std::string& out,
                       std::string* fromArchive, bool* istLose) {
+    ++g_app->archivLesen;   // rc610 R2a: Zaehler fuer den Selbsttest
     // RUECKWAERTS durch die Spielordner - der SPAETERE gewinnt.
     //
     // Das war ein handfester Fehler, und er hat still das halbe Programm
@@ -4089,6 +4090,10 @@ bool confirmQuit() {
     // Entities einer Mission, die noch nicht gespeichert sind - sie stehen in
     // keinem Reiter, die Skriptfragen unten saehen sie nicht.
     if (!missionBeendenFrage()) {
+        return false;
+    }
+    // rc610 R2a: die Karte des Map Editors - das Kreuz fragte sie bisher nicht (nur File > Exit)
+    if (!karteneditor::beendenFrage()) {
         return false;
     }
     // ALLE Reiter pruefen, nicht nur den aktiven.

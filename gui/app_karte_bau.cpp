@@ -334,7 +334,7 @@ void bauMenueEintraegeZeichnen() {
     l.art = QtArt::Pruefbar;
     l.haken = ed.echtLicht.an;
     // rc608 Teil 11: was die Echtzeit-Ansicht nicht wie im Spiel kann, steht dazu
-    const std::string lichtTip = std::string(trK(Str::KeLichtMenueTip)) + "\n\n" + trK(Str::KeLichtGrenzenTip);
+    const std::string lichtTip = std::string(trK(Str::KeLichtMenueTip)) + "\n\n" + trK(Str::KeLichtGrenzenTip2);   // rc610 R2a: Spiegel mit allen Stufen, Gras
     l.tooltip = lichtTip.c_str();
     if (qtPunkt(l)) { ed.echtLicht.an = !ed.echtLicht.an; }
     const std::string backen = std::string(trK(Str::KeBackenMenue)) + "##bauschnellbacken";

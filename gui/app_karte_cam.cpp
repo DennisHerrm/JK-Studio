@@ -30,6 +30,8 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/grasflaechen.h"
+#include "bhed/karte/echtlicht.h"
 #include "bhed/image.h"
 #include "bhed/karte/kameraszene.h"
 #include "bhed/karte/manipulator.h"
@@ -411,6 +413,7 @@ Bildlager& lager() {
 }  // namespace
 
 #include "app_karte_echtfx.inc"   // Stufe 9d: fx_runner in der Echtzeit-Ansicht
+#include "app_karte_echtgras.inc"   // rc610 R2a: surfaceSprites (Gras) in der Echtzeit-Ansicht
 
 namespace {
 
@@ -1155,7 +1158,8 @@ void kameraZeichnen() {
     const unsigned laeuft = (k.bewegung != 0U ? 2U : 0U) | (f.frei ? 4U : 0U) | (!lager().fertig() ? 8U : 0U) |
                             ((texturModus && ed.echtLicht.spielbildGezeigt) ? 16U : 0U) | ((echtLichtAktiv() && ed.echtLicht.effekte) ? 32U : 0U) |
                             (spielenAktiv() ? 64U : 0U) | (bauLaeuft() ? 128U : 0U) |
-                            ((echtLichtAktiv() && ed.echtLicht.wuerfelAusstehend > 0) ? 256U : 0U);   // rc610 LICHT1: Schattenwuerfel ausstehend
+                            ((echtLichtAktiv() && ed.echtLicht.wuerfelAusstehend > 0) ? 256U : 0U) |   // rc610 LICHT1: Schattenwuerfel ausstehend
+                            ((echtLichtAktiv() && ed.echtLicht.grasZeit) ? 512U : 0U);   // rc610 R2a: Halme mit ssWindIdle oder Effekt-Halme
     std::vector<float> lage(&vp[0], &vp[0] + 16);
     for (const float x : {static_cast<float>(f.breite), static_cast<float>(f.hoehe), static_cast<float>(c.msaa), hinten[0], hinten[1], hinten[2],
                           ed.farben.auswahl3d[0], ed.farben.auswahl3d[1], ed.farben.auswahl3d[2]}) {
@@ -1314,6 +1318,28 @@ void kameraZeichnen() {
             zaehlen(st.objekte, st.transforms);
             if (fuellen) {
                 kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, z);
+                // rc610 R2a: eine Portalflaeche mit allen Stufen ueber der Spiegel- bzw. Portalsicht (RB_StageIteratorGeneric), jede
+                // auf der Tiefe der ersten (GL_LEQUAL), ohne Licht wie die erste gemischte Stufe
+                if (spielBild && sd.portal && texturen) {
+                    for (const SpielStufe& w : sd.weitere) {
+                        const Bild* wb = lager().holen(w.bild);
+                        if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
+                        kartegpu::Zustand3 zw = z;
+                        zw.bild = wb->srv;
+                        zw.licht = false;
+                        zw.echtLicht = false;
+                        zw.alphaFunktion = w.alphaFunktion;
+                        zw.alphaRef = w.alphaRef;
+                        zw.portalWeite = w.portalWeite;
+                        zw.mischen = w.mischQuelle != 0 ? kartegpu::Mischen::Spiel : kartegpu::Mischen::Aus;
+                        zw.mischQuelle = w.mischQuelle;
+                        zw.mischZiel = w.mischZiel;
+                        zw.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                        zw.tiefeSchreiben = w.tiefeSchreiben;
+                        for (int c = 0; c < 4; ++c) { zw.farbe[c] = w.farbe[c]; }
+                        kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, zw);
+                    }
+                }
             } else {
                 // ohne RENDER_FILL: GL_LINE, ohne Licht und Textur
                 z.licht = false;
@@ -1459,6 +1485,8 @@ void kameraZeichnen() {
         // Stufe 3 Punkt 5: CPointfile ($POINTFILE, eSortFullbright: Tiefe testen und schreiben)
         punktdateiKameraZeichnen(&vp[0]);
         pluginKameraVoll(&vp[0], fuellen);   // Stufe 4 Punkt 3: DBobView (eSortFullbright)
+        // rc610 R2a: die Halme (surfaceSprites) nach dem Deckenden, wie das Spielbild (deckend nach der Karte)
+        if (echtJetzt && texturen && fuellen) { echtGrasZeichnen(k, &vp[0], f.breite, f.hoehe, geoStand, basis); }
         // eSortTranslucent: zuerst ohne Textur (Additiv), dann qer_trans
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {

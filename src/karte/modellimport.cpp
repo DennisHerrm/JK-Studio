@@ -119,6 +119,7 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     std::map<std::string, std::string> bildVon;   // Shader -> Bilddatei (mit Endung) oder leer
     double groesste = 0;
     std::set<std::string> fest;   // Shader des Spiels: ohne Eintrag im Skript
+    std::map<std::string, std::string> bildBytes;   // rc610 R2a: Shader eines Bilds -> seine Bytes
     for (const ImportTeil& t : netz.teile) {
         std::string shader;
         std::string bild;
@@ -132,8 +133,17 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
             const std::size_t pk = basis.rfind('.');
             if (pk != std::string::npos && pk > 0) { basis = basis.substr(0, pk); }
             if (basis.empty() || basis[0] == '*') { basis = "tex" + basis.substr(basis.empty() ? 0 : 1); }
-            // Bildpfad = Shader + ".endung" (hoechstens 4): beide unter MAX_QPATH
-            shader = ordner + "/" + gekuerzt(sauber(basis), kMaxQpath - 5 - ordner.size() - 1);
+            // Bildpfad = Shader + ".endung" (hoechstens 4): beide unter MAX_QPATH. rc610 R2a: zwei verschiedene Bilder gleichen
+            // Namens (aus verschiedenen Ordnern des Modells) bekaemen sonst denselben Shader und dieselbe Datei - das zweite
+            // heisst <name>_2 (_3 ...); dasselbe Bild (gleiche Bytes) bleibt ein Shader.
+            const std::size_t platz = kMaxQpath - 5 - ordner.size() - 1;
+            for (int nr = 1;; ++nr) {
+                const std::string anhang = nr == 1 ? std::string() : "_" + std::to_string(nr);
+                shader = ordner + "/" + gekuerzt(sauber(basis), platz - anhang.size()) + anhang;
+                const auto da = bildBytes.find(shader);
+                if (da == bildBytes.end() || da->second == t.texturDaten) { break; }
+            }
+            bildBytes.emplace(shader, t.texturDaten);
             bild = shader + "." + (t.texturEndung.empty() ? std::string("png") : sauber(t.texturEndung));
             bool schon = false;
             for (const Md3Paket::Datei& d : p.dateien) { schon = schon || d.pfad == bild; }

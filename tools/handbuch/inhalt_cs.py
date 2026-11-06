@@ -7527,3 +7527,7 @@ TEXTE.update(_TG)
 # rc610 MODOBJ: Modell-Browser mit .obj, .fbx usw., Setzen wandelt in .md3
 from inhalt_modobj import CS as _MO  # noqa: E402
 TEXTE.update(_MO)
+
+# rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen, Nachfragen
+from inhalt_r2a import CS as _R2A  # noqa: E402
+TEXTE.update(_R2A)

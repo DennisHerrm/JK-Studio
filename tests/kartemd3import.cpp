@@ -8,6 +8,7 @@
 // Flaechen geteilt (hoechstens 1000 Punkte).
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 
 #include "bhed/karte/modell.h"
@@ -186,6 +187,34 @@ int main() {
         expect("Umlauf, Orte, st und Normalen genau wie im Modell", gleich);
         expect("ohne Bild kein Skript-Eintrag; nur Spiel-Shader: keine .shader-Datei",
                md3PaketAusModell(Modell{{fb}, Kasten(), false}, "nur_spiel", [](const std::string&, std::string&, std::string&) { return false; }).dateien.size() == 1);
+    }
+    std::printf("--- rc610 R2a: gleichnamige Bilder aus verschiedenen Ordnern ---\n");
+    {
+        // drei Flaechen: Bild "holz.jpg" aus a/ und aus b/ (verschiedene Bytes), dann a/holz.jpg noch einmal
+        ModellFlaeche f1 = fa;
+        f1.shader = "models/a/holz";
+        ModellFlaeche f2 = fa;
+        f2.shader = "models/b/holz";
+        for (ModellPunkt& q : f2.punkte) { q.ort[2] = 16; }
+        ModellFlaeche f3 = fa;
+        f3.shader = "models/a/holz";
+        for (ModellPunkt& q : f3.punkte) { q.ort[2] = 48; }
+        Modell zwei;
+        zwei.flaechen = {f1, f2, f3};
+        const Md3Paket pz = md3PaketAusModell(zwei, "zwei_holz", [](const std::string& sh, std::string& bild, std::string& b) {
+            bild = sh + ".jpg";
+            b = sh == "models/a/holz" ? "bytes-a" : "bytes-b";
+            return true;
+        });
+        Md3Model mz;
+        const bool zok = pz.fehler.empty() && !pz.dateien.empty() && readMd3(pz.dateien[0].inhalt, mz, &err) && mz.surfaces.size() == 2;
+        std::set<std::string> bilder;
+        for (const Md3Paket::Datei& d : pz.dateien) {
+            if (d.pfad.size() > 4 && d.pfad.compare(d.pfad.size() - 4, 4, ".jpg") == 0) { bilder.insert(d.pfad + "=" + d.inhalt); }
+        }
+        expect("zwei verschiedene Bilder gleichen Namens: zwei Shader, zwei Bilddateien mit den eigenen Bytes; dasselbe Bild nochmal: derselbe Shader",
+               zok && mz.surfaces[0].shader != mz.surfaces[1].shader && bilder.size() == 2 && bilder.count("models/import/zwei_holz/holz.jpg=bytes-a") == 1);
+        if (zok) { std::printf("    Shader: %s, %s\n", mz.surfaces[0].shader.c_str(), mz.surfaces[1].shader.c_str()); }
     }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

@@ -768,7 +768,7 @@ struct Konstanten3 {
     float muster[4];       // x Muster, y Faktor, z/w Bildgroesse
     float linie[4];        // x Breite
     float nebel[4];        // rgb Farbe, a Dichte (GL_EXP; 0 = aus)
-    float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es); y Ecklicht; z rc609 P: portalRange
+    float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es); y Ecklicht; z rc609 P: portalRange; w rc610 R2a: graues Licht (Halme)
     float schnitt[4];      // rc609 P: Schnittebene der Spiegel-/Portalsicht (n, -d); (0 0 0 1) = aus
 };
 
@@ -1077,7 +1077,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->extra[0] = z.nebelNur ? 1.0F : 0.0F;
     k->extra[1] = z.eckLicht ? 1.0F : 0.0F;
     k->extra[2] = linie ? 0.0F : z.portalWeite;
-    k->extra[3] = 0;
+    k->extra[3] = z.grauLicht ? 1.0F : 0.0F;
     std::memcpy(k->schnitt, z.schnitt, sizeof(k->schnitt));
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
@@ -1616,6 +1616,7 @@ float4 ps4(VO4 i) : SV_Target {
 #endif
     }
     lm = max(lm, extra.y > 0.5 ? minimumEcken.rgb : minimum.rgb);
+    if (extra.w > 0.5) { lm = lm.bbb; }   // rc610 R2a: Halme - das Licht grau aus dem Blau (tr_surfacesprites.cpp:649)
     float mx = max(lm.r, max(lm.g, lm.b));
     if (mx > 255.0) { lm *= 255.0 / mx; }
     float4 c = i.farbe;

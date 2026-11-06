@@ -1482,6 +1482,9 @@ struct App {
         // Skelette dazukommen - bei std::vector waere er es nicht.
         const Skeleton* skeleton = nullptr;
         bool tried = false;
+        // rc610 R2a (B3-3): die Schluessel in texCache, die das Modell beim Laden nahm - ein Treffer im Zwischenspeicher meldet
+        // sie wieder als benutzt (RE_RegisterModel registriert die Shader eines behaltenen Modells neu, tr_model.cpp:212-230)
+        std::vector<std::string> bilder;
     };
     // rc604 fix604: je Figur ein Verweis auf das EINE geladene Modell
     // (modelCache) statt einer Kopie samt Bildern - fuenf Obi-Wans hielten
@@ -1650,6 +1653,8 @@ struct App {
     };
     std::vector<PickMover> pickMover;
     int umrissBilder = 0;         // wie oft ein Umriss der Auswahl gezeichnet wurde (Selbsttest)
+    int testOhneBrush = -1;       // rc610 R2a, Selbsttest umriss: dieses Brush-Modell nicht zeichnen (welche Bildpunkte es aendert)
+    std::atomic<std::uint64_t> archivLesen{0};   // rc610 R2a, Selbsttest: Aufrufe von readFromArchives (B3-3, Bilder nicht neu lesen)
     int vorschauEffektNetze = 0;  // Effektnetze fuer die Kameravorschau gebaut (Selbsttest)
     int vorschauEffektEcken = 0;  // Ecken im letzten davon
     int gizmoBox[4] = {0, 0, 0, 0};
@@ -3683,6 +3688,19 @@ void prepareScene();
 void medienLevelBeginnen();
 void medienLevelEnde();
 void figurBildGenutzt(const std::string& schluessel);
+// rc610 R2a (B3-3): die Bilder eines Modells aus dem Zwischenspeicher als benutzt melden; BildSammler: solange er lebt, sammelt
+// figurBildGenutzt die Schluessel in `ziel` (ActorAssets::bilder des Modells, das gerade geladen wird)
+void modellBilderGenutzt(const App::ActorAssets& a);
+class BildSammler {
+public:
+    explicit BildSammler(std::vector<std::string>& ziel);
+    ~BildSammler();
+    BildSammler(const BildSammler&) = delete;
+    BildSammler& operator=(const BildSammler&) = delete;
+
+private:
+    std::vector<std::string>* m_vorher;
+};
 
 // --- Paket bewegung (rc601): Schwerkraft der Figuren (app_bewegung.cpp) ---
 // Rechnet Actor::hoehe fuer die fertige Szene ein (scene.h,

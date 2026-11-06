@@ -209,6 +209,15 @@ ID3D11Texture2D* g_maskeAufTex = nullptr;
 ID3D11PixelShader* g_umrissPs = nullptr;     // weiss
 ID3D11PixelShader* g_umrissRandPs = nullptr; // die Linie
 ID3D11DepthStencilState* g_dsUmriss = nullptr;
+// rc610 R2a: der Umriss nur, wo die Auswahl im fertigen Bild zu sehen ist. Im Hauptbild schreibt jeder Aufruf, der Tiefe
+// schreibt, in den Stencil, wem der Bildpunkt gehoert (0); die Aufrufe der gewaehlten Mover schreiben 1, sobald sie den
+// Tiefentest bestehen (auch gemischte). Die Maske der Mover prueft dann Stencil == 1 - eine gleich hohe oder naehere
+// Flaeche, die spaeter kommt (Lava ueber dem Schild der Plattform in md_am_sith), nimmt den Punkt wieder weg; Glas ohne
+// depthWrite davor nicht. NRC prueft seine Auswahl ($CAM_HIGHLIGHT, renderstate.cpp:1820) nur mit GL_LEQUAL gegen die
+// Tiefe - gleich hohe verdeckte Flaechen leuchten dort mit; das wird hier nicht uebernommen.
+bool g_auswahlMarke = false;                 // die Aufrufe gehoeren zu einem gewaehlten Mover (Hauptbild)
+bool g_umrissNurSichtbar = false;            // Maske der Mover: nur Punkte mit Stencil 1
+ID3D11DepthStencilState* g_dsUmrissSichtbar = nullptr;
 ID3D11Buffer* g_cbUmriss = nullptr;
 bool g_umrissVersucht = false;
 // Rauch dunkelt das Gluehen ab (rc597): alle Aufrufe schwarz mit ihrem Alpha.
@@ -911,7 +920,8 @@ ID3D11DepthStencilState* holeTiefe(const PipelineState& p) {
     const std::uint32_t schluessel =
         (p.depthWrite ? 1U : 0U) | (p.depthTestEqual ? 2U : 0U) |
         (p.depthTestOff ? 4U : 0U) |
-        ((p.blend == Blend::Opaque) ? 8U : 0U);
+        ((p.blend == Blend::Opaque) ? 8U : 0U) |
+        (g_auswahlMarke ? 16U : 0U);
     const auto it = g_depth.find(schluessel);
     if (it != g_depth.end()) {
         return it->second;
@@ -964,7 +974,16 @@ ID3D11DepthStencilState* holeTiefe(const PipelineState& p) {
         // dafuer, dass Zusatzstufen ueberhaupt sichtbar werden koennen.
         dd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
     }
-    dd.StencilEnable = FALSE;
+    // rc610 R2a (siehe g_auswahlMarke): wer Tiefe schreibt, schreibt den Stencil-Bezug (0, beim gewaehlten Mover 1); ein
+    // gewaehlter Mover schreibt ihn auch ohne Tiefe. Gemischte Flaechen der anderen lassen ihn stehen.
+    dd.StencilEnable = (schreibt || g_auswahlMarke) ? TRUE : FALSE;
+    dd.StencilReadMask = 0xFF;
+    dd.StencilWriteMask = 0x01;
+    dd.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    dd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    dd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.BackFace = dd.FrontFace;
     ID3D11DepthStencilState* st = nullptr;
     if (FAILED(d->CreateDepthStencilState(&dd, &st))) {
         return nullptr;
@@ -2297,7 +2316,11 @@ void umrissUeberschreiben(ID3D11DeviceContext* c) {
         const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
         c->OMSetBlendState(bs, faktor, 0xFFFFFFFFU);
     }
-    if (g_dsUmriss != nullptr) { c->OMSetDepthStencilState(g_dsUmriss, 0); }
+    if (g_umrissNurSichtbar && g_dsUmrissSichtbar != nullptr) {
+        c->OMSetDepthStencilState(g_dsUmrissSichtbar, 1);   // rc610 R2a: nur, wo der Mover im Bild ist
+    } else if (g_dsUmriss != nullptr) {
+        c->OMSetDepthStencilState(g_dsUmriss, 0);
+    }
 }
 
 // Die Stapelkonstanten in den Ring schreiben und mit Versatz binden
@@ -2484,7 +2507,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
             }
             if (tiefeAn()) {
                 ID3D11DepthStencilState* ds = holeTiefe(call.state);
-                if (ds != nullptr) { c->OMSetDepthStencilState(ds, 0); }
+                if (ds != nullptr) { c->OMSetDepthStencilState(ds, g_auswahlMarke ? 1U : 0U); }
             }
             if (keulenAn()) {
                 ID3D11RasterizerState* rs = holeRaster(call.state.features);
@@ -2582,7 +2605,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
                     pd.depthWrite = true;
                     pd.depthTestEqual = false;
                     pd.depthTestOff = false;
-                    if (ID3D11DepthStencilState* dsd = holeTiefe(pd)) { c->OMSetDepthStencilState(dsd, 0); }
+                    if (ID3D11DepthStencilState* dsd = holeTiefe(pd)) { c->OMSetDepthStencilState(dsd, g_auswahlMarke ? 1U : 0U); }
                 }
                 ID3D11ShaderResourceView* vier[4] = {bild, lm, nullptr, spiegelBild};
                 c->PSSetShaderResources(0, 4, vier);
@@ -2603,7 +2626,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
                     c->OMSetBlendState(bsz, faktor, 0xFFFFFFFFU);
                 }
                 if (tiefeAn()) {
-                    if (ID3D11DepthStencilState* dsz = holeTiefe(call.state)) { c->OMSetDepthStencilState(dsz, 0); }
+                    if (ID3D11DepthStencilState* dsz = holeTiefe(call.state)) { c->OMSetDepthStencilState(dsz, g_auswahlMarke ? 1U : 0U); }
                 }
             }
         }
@@ -3205,6 +3228,38 @@ bool leseFarbe(std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     for (int y = 0; y < hoehe; ++y) {
         std::memcpy(rgba.data() + static_cast<std::size_t>(y) * zeile,
                     static_cast<const unsigned char*>(m.pData) + static_cast<std::size_t>(y) * m.RowPitch, zeile);
+    }
+    c->Unmap(lesen, 0);
+    lesen->Release();
+    return true;
+}
+
+bool leseUmrissMaske(std::vector<std::uint8_t>& maske, int& breite, int& hoehe) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    ID3D11Texture2D* bild = g_maskeAufTex != nullptr ? g_maskeAufTex : g_maskeTex;
+    if (d == nullptr || c == nullptr || bild == nullptr) { return false; }
+    D3D11_TEXTURE2D_DESC td{};
+    bild->GetDesc(&td);
+    D3D11_TEXTURE2D_DESC ld = td;
+    ld.Usage = D3D11_USAGE_STAGING;
+    ld.BindFlags = 0;
+    ld.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ld.MiscFlags = 0;
+    ID3D11Texture2D* lesen = nullptr;
+    if (FAILED(d->CreateTexture2D(&ld, nullptr, &lesen)) || lesen == nullptr) { return false; }
+    ::bhed::render::kopieren(c, lesen, bild);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(lesen, 0, D3D11_MAP_READ, 0, &m))) {
+        lesen->Release();
+        return false;
+    }
+    breite = static_cast<int>(td.Width);
+    hoehe = static_cast<int>(td.Height);
+    maske.resize(static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe));
+    for (int y = 0; y < hoehe; ++y) {
+        std::memcpy(maske.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(breite),
+                    static_cast<const unsigned char*>(m.pData) + static_cast<std::size_t>(y) * m.RowPitch, static_cast<std::size_t>(breite));
     }
     c->Unmap(lesen, 0);
     lesen->Release();
@@ -7975,13 +8030,22 @@ float4 main(VSOut ein) : SV_TARGET {
     dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     dd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
     d->CreateDepthStencilState(&dd, &g_dsUmriss);
+    dd.StencilEnable = TRUE;   // rc610 R2a: Stencil == 1 (der gewaehlte Mover war dort zuletzt im Bild)
+    dd.StencilReadMask = 0x01;
+    dd.StencilWriteMask = 0x00;
+    dd.FrontFace.StencilFunc = D3D11_COMPARISON_EQUAL;
+    dd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    dd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    dd.BackFace = dd.FrontFace;
+    d->CreateDepthStencilState(&dd, &g_dsUmrissSichtbar);
     D3D11_BUFFER_DESC bd{};
     bd.ByteWidth = 32;
     bd.Usage = D3D11_USAGE_DYNAMIC;
     bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     d->CreateBuffer(&bd, nullptr, &g_cbUmriss);
-    return g_umrissPs != nullptr && g_umrissRandPs != nullptr && g_dsUmriss != nullptr && g_cbUmriss != nullptr;
+    return g_umrissPs != nullptr && g_umrissRandPs != nullptr && g_dsUmriss != nullptr && g_cbUmriss != nullptr && g_dsUmrissSichtbar != nullptr;
 }
 
 void gibUmrissFrei() {
@@ -7989,6 +8053,7 @@ void gibUmrissFrei() {
                          reinterpret_cast<IUnknown**>(&g_maskeSrv), reinterpret_cast<IUnknown**>(&g_maskeAufTex),
                          reinterpret_cast<IUnknown**>(&g_umrissPs),
                          reinterpret_cast<IUnknown**>(&g_umrissRandPs), reinterpret_cast<IUnknown**>(&g_dsUmriss),
+                         reinterpret_cast<IUnknown**>(&g_dsUmrissSichtbar),
                          reinterpret_cast<IUnknown**>(&g_cbUmriss), reinterpret_cast<IUnknown**>(&g_verdunkelnPs)}) {
         if (*p != nullptr) {
             (*p)->Release();
@@ -8003,6 +8068,9 @@ void gibUmrissFrei() {
     g_verdunkeln = false;
 }
 }  // namespace
+
+void umrissMarke(bool an) { g_auswahlMarke = an; }
+void umrissNurSichtbar(bool an) { g_umrissNurSichtbar = an; }
 
 bool umrissBeginnen() {
     ID3D11Device* d = dev();
@@ -8062,6 +8130,7 @@ bool umrissBeginnen() {
 void umrissBeenden(const float farbe[4], float dicke) {
     ID3D11DeviceContext* c = ctx();
     g_umriss = false;
+    g_umrissNurSichtbar = false;
     if (c == nullptr || g_zielRtv == nullptr || g_maskeSrv == nullptr || g_umrissRandPs == nullptr) {
         return;
     }
@@ -8216,10 +8285,13 @@ void* zielTexturSatz(int) { return nullptr; }
 bool tiefeAbbilden(TiefenSicht& sicht, int, int, bool) { sicht = TiefenSicht{}; return false; }
 int shaderAngelegt() { return 0; }
 bool umrissBeginnen() { return false; }
+void umrissMarke(bool) {}
+void umrissNurSichtbar(bool) {}
 void umrissBeenden(const float*, float) {}
 int vorwaermen(const BspMesh&, const TextureSet*, const std::vector<int>&) { return 0; }
 void tiefeFreigeben() {}
 bool leseFarbe(std::vector<std::uint8_t>&, int&, int&) { return false; }
+bool leseUmrissMaske(std::vector<std::uint8_t>&, int&, int&) { return false; }
 const char* abschnittName(Abschnitt) { return "?"; }
 void bildBeginnt() {}
 void spielGammaAnwenden() {}

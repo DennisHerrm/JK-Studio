@@ -738,5 +738,6 @@ bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtf
                               (g_zeitFest >= 0.0 ? g_zeitFest : ImGui::GetTime()) * 1000.0, aus);
 }
 void spielbildZeitFest(double sekunden) { g_zeitFest = sekunden; }
+double spielbildZeit() { return g_zeitFest >= 0.0 ? g_zeitFest : ImGui::GetTime(); }
 
 }  // namespace bhed::gui::karteneditor

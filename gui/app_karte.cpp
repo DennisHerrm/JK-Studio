@@ -214,23 +214,26 @@ void zeichneRueckfrage() {
     const std::string id = e.frageTitel + "###kartefrage";
     if (!ImGui::IsPopupOpen(id.c_str())) { ImGui::OpenPopup(id.c_str()); }
     if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::TextUnformatted(tr(e.frageArt == 1 ? Str::KeLumpsUngespeichert : Str::KeConfirmModified));
+        const bool teilBau = e.frageArt == 2;   // rc610 R2a: Lumps, die sich waehrend des Teil-Compiles geaendert haben
+        ImGui::TextUnformatted(tr(teilBau ? Str::KeLumpsTeilBau : e.frageArt == 1 ? Str::KeLumpsUngespeichert : Str::KeConfirmModified));
         ImGui::Spacing();
         int wahl = -1;
-        if (ImGui::Button(tr(Str::KeSave))) { wahl = 0; }
+        if (ImGui::Button(tr(teilBau ? Str::KeLumpsBehalten : Str::KeSave))) { wahl = 0; }
         ImGui::SameLine();
-        if (ImGui::Button(tr(Str::KeDiscard))) { wahl = 1; }
+        if (ImGui::Button(tr(teilBau ? Str::KeLumpsErsetzen : Str::KeDiscard))) { wahl = 1; }
         ImGui::SameLine();
         if (ImGui::Button(tr(Str::KeCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { wahl = 2; }
         if (wahl >= 0) {
             e.frageOffen = false;
             ImGui::CloseCurrentPopup();
             std::function<void()> danach = std::move(e.nachFrage);
+            std::function<void()> abbruch = std::move(e.nachAbbruch);
             e.nachFrage = nullptr;
+            e.nachAbbruch = nullptr;
             bool weiter = wahl == 1;
-            if (e.frageArt == 1) {
-                // Lumps: Speichern wie der Knopf des Fensters (bei einer .pk3 erst nach dem Dialog der Speicherwege), Verwerfen
-                // setzt das Fenster auf den Stand der Datei zurueck
+            if (e.frageArt == 1 || teilBau) {
+                // Lumps: Speichern (behalten) wie der Knopf des Fensters (bei einer .pk3 erst nach dem Dialog der Speicherwege),
+                // Verwerfen (ersetzen) setzt das Fenster auf den Stand der Datei zurueck
                 if (wahl == 0) { lumpEditKarteSpeichern(std::move(danach)); }
                 if (wahl == 1) { lumpEditKarteVerwerfen(); }
             } else if (wahl == 0) {
@@ -238,6 +241,7 @@ void zeichneRueckfrage() {
                 weiter = e.name == "unnamed.map" ? karteSpeichernUnterDialog() : karteSpeichern();
             }
             if (weiter && danach) { danach(); }
+            if (wahl == 2 && abbruch) { abbruch(); }
         }
         ImGui::EndPopup();
     }
@@ -313,6 +317,21 @@ void lumpRueckfrage(const std::string& titel, std::function<void()> danach) {
 }
 
 void rueckfrageDann(const char* titel, std::function<void()> danach) { mitRueckfrage(titel, std::move(danach)); }
+
+bool beendenFrage() {
+    Editor& ed = g();
+    if (ed.beendenBeantwortet || (!geaendert() && !lumpEditKarteUngespeichert())) { return true; }
+    if (ed.frageOffen) { return false; }
+    tabfenster::zeigen(3);   // dort steht die Frage (zeichneRueckfrage), auch wenn der Map Editor ein eigenes Fenster hat
+    mitRueckfrage("Exit Radiant", [] {
+        g().beendenBeantwortet = true;
+        if (confirmQuit()) {
+            g_app->quitConfirmed = true;
+            g_app->wantQuit = true;
+        }
+    });
+    return false;
+}
 
 bool karteDateiSchreiben(const std::string& pfad, const std::string& text) { return dateiSchreibenMitMeldung(pfad, text); }
 

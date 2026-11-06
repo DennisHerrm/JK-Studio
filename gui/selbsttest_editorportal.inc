@@ -469,6 +469,297 @@ std::vector<Schritt> testKarteSchritte() {
     return s;
 }
 
+// --- rc610 R2a: der Spiegel-Shader des Testers (05.11.) ------------------------------------------------------------------
+//
+// Zwei Stufen ueber dem Spiegelbild: qer_mirror (blendFunc GL_ONE GL_ONE_MINUS_SRC_ALPHA, depthWrite), darueber floor2_alpha
+// (blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA, rgbGen identity, alphaGen identity). Das Spiel zeichnet die Portalflaeche
+// mit RB_StageIteratorGeneric, also beide Stufen ueber dem Bild der Spiegelsicht. Shader und Bilder schreibt der Test in einen
+// Extra Resource Path des Laufs (textures/r2a/...): floor2_alpha ist zur Haelfte deckend gruen, zur Haelfte durchsichtig -
+// dort ist der Spiegel zu sehen. Ein zweiter Spiegel 2000 Einheiten weiter mit eigenem misc_portal_surface 16 ueber dem Boden.
+std::string testerQuelle() { return stufe2::laufDatei("r2a_spiegel_quelle"); }
+std::string testerKarte() { return karteTestPfad("r2a_spiegel.map"); }
+constexpr const char* kTesterShader = "textures/r2a/spiegel_tester";
+
+// TGA 32 Bit, unkomprimiert, von unten nach oben; f(x, y) -> RGBA
+std::string tga32(int w, int h, const std::function<std::array<unsigned char, 4>(int, int)>& f) {
+    std::string t(18, '\0');
+    t[2] = 2;
+    t[12] = static_cast<char>(w & 255);
+    t[13] = static_cast<char>(w >> 8);
+    t[14] = static_cast<char>(h & 255);
+    t[15] = static_cast<char>(h >> 8);
+    t[16] = 32;
+    t[17] = 8;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const std::array<unsigned char, 4> c = f(x, y);
+            t.push_back(static_cast<char>(c[2]));
+            t.push_back(static_cast<char>(c[1]));
+            t.push_back(static_cast<char>(c[0]));
+            t.push_back(static_cast<char>(c[3]));
+        }
+    }
+    return t;
+}
+
+void testerSchreiben() {
+    // als .pk3 im Ordner des Laufs: der Editor liest ihn als Extra Resource Path, das Spielbild (Zeichner der Vorschau) als
+    // Spielordner dieser Sitzung - wie ein Mod-Ordner mit dem Shader des Testers
+    std::vector<Pk3Datei> pk3(3);
+    pk3[0].name = "shaders/r2a_spiegel.shader";
+    pk3[0].inhalt = std::string(kTesterShader) +
+                    "\n{\n\tqer_editorimage textures/r2a/floor2_alpha\n\tsurfaceparm trans\n\tsurfaceparm nonsolid\n\tsurfaceparm nolightmap\n"
+                    "\tportal\n\tsort portal\n\t{\n\t\tmap textures/r2a/qer_mirror\n\t\tblendFunc GL_ONE GL_ONE_MINUS_SRC_ALPHA\n\t\tdepthWrite\n\t}\n"
+                    "\t{\n\t\tmap textures/r2a/floor2_alpha\n\t\tblendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n\t\trgbGen identity\n"
+                    "\t\talphaGen identity\n\t}\n}\n";
+    pk3[1].name = "textures/r2a/qer_mirror.tga";
+    pk3[1].inhalt = tga32(16, 16, [](int, int) { return std::array<unsigned char, 4>{20, 20, 40, 64}; });
+    pk3[2].name = "textures/r2a/floor2_alpha.tga";
+    pk3[2].inhalt = tga32(64, 64, [](int x, int) {
+        return x < 32 ? std::array<unsigned char, 4>{40, 200, 40, 255} : std::array<unsigned char, 4>{0, 0, 0, 0};
+    });
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(testerQuelle()), ec);
+    std::string err;
+    if (!writePk3(testerQuelle() + "\\r2a_spiegel.pk3", pk3, &err)) { meldeFehler("R2a Spiegel: .pk3 nicht geschrieben: " + err); }
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    karte::TexturProjektion proj;
+    karte::texdefStandard(karte::TexdefArt::Quake, proj);
+    const auto quader = [&](const karte::Vektor3f& mitte, const karte::Vektor3f& halb, const char* shader) {
+        auto p = std::make_shared<karte::Pinsel>();
+        p->quaderBauen(karte::Kasten(mitte, halb), shader, proj, k.kontext);
+        welt->kindEinfuegen(p);
+    };
+    const char* stein = "textures/yavin/temple_stone2";
+    // Halle x -512 .. 2512, y -1536 .. 1536, 1024 hoch
+    quader(karte::Vektor3f(1000, 0, -8), karte::Vektor3f(1528, 1552, 8), stein);
+    quader(karte::Vektor3f(1000, 0, 1032), karte::Vektor3f(1528, 1552, 8), stein);
+    quader(karte::Vektor3f(-520, 0, 512), karte::Vektor3f(8, 1536, 512), stein);
+    quader(karte::Vektor3f(2520, 0, 512), karte::Vektor3f(8, 1536, 512), stein);
+    quader(karte::Vektor3f(1000, -1544, 512), karte::Vektor3f(1512, 8, 512), stein);
+    quader(karte::Vektor3f(1000, 1544, 512), karte::Vektor3f(1512, 8, 512), stein);
+    for (const float x : {0.0F, 2000.0F}) {
+        quader(karte::Vektor3f(x, 0, 1), karte::Vektor3f(128, 128, 1), kTesterShader);       // Spiegel, Oberseite z = 2
+        quader(karte::Vektor3f(x + 200.0F, 0, 128), karte::Vektor3f(24, 24, 128), stein);    // eine Saeule daneben
+    }
+    welt->setzen("_ambient", "150");
+    const auto ent = [&k](const char* klasse, std::vector<std::pair<const char*, const char*>> werte) {
+        auto e = k.neueEntitaet(klasse, false);
+        for (const auto& [a, b] : werte) { e->setzen(a, b); }
+        k.entitaetEinfuegen(e);
+    };
+    ent("light", {{"origin", "0 0 600"}, {"light", "3000"}});
+    ent("light", {{"origin", "2000 0 600"}, {"light", "3000"}});
+    ent("info_player_start", {{"origin", "-400 -400 24"}});
+    ent("misc_portal_surface", {{"origin", "0 0 18"}});   // 16 ueber dem Spiegel (Bild des Testers)
+    ent("misc_portal_surface", {{"origin", "2000 0 18"}});
+    (void)karte::karteSpeichern(testerKarte(), k, false);
+}
+
+// Anteil der gruenen Bildpunkte (Stufe floor2_alpha) im Fenster 240 x 240 um die Bildmitte; das Bild nach BHED_FOTOS
+double gruenJetzt(const std::string& name) {
+    std::vector<unsigned char> px;
+    int w = 0;
+    int h = 0;
+    if (!ke::kameraBild(px, w, h) || w < 480 || h < 480) { return -1.0; }
+    bmp(name, std::vector<std::uint8_t>(px.begin(), px.end()), w, h);
+    long n = 0;
+    long gruen = 0;
+    for (int y = h / 2 - 120; y < h / 2 + 120; ++y) {
+        for (int x = w / 2 - 120; x < w / 2 + 120; ++x) {
+            const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)) * 4U;
+            gruen += (px[i + 1] > px[i] + 60 && px[i + 1] > px[i + 2] + 60) ? 1 : 0;
+            ++n;
+        }
+    }
+    return static_cast<double>(gruen) / static_cast<double>(n);
+}
+
+// Die Sicht der Echtzeit-Ansicht fuer die jetzige Kamera: die gewaehlte Portalflaeche (ihre Nummer); -1: keine. Der
+// misc_portal_surface ist fuer beide Spiegel derselbe: R_GetPortalOrientations (tr_main.cpp) nimmt den ersten Portal-Eintrag
+// in 64 Einheiten der Ebene, und beide liegen auf z = 2.
+float sichtX() {
+    const ke::Editor& e = ke::editor();
+    PortalSicht ps;
+    if (!ke::echtPortalSicht(e.kamera, e.kamFenster.messBreite, e.kamFenster.messHoehe, e.kameraE.sichtfeld, ke::geometrieStand(), ps)) { return -1.0F; }
+    return static_cast<float>(ps.flaeche);
+}
+
+std::vector<Schritt> testerSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto gruen = std::make_shared<std::array<double, 3>>();   // Echtzeit, Echtzeit zweiter Spiegel, Spielbild
+    auto x = std::make_shared<std::array<float, 3>>();        // gewaehlte Sicht: Spiegel 1, Spiegel 2, beide im Bild
+    add(tu("R2a Spiegel: Shader des Testers und Bilder in einen Extra Resource Path", [] {
+        karteDialogeZu();
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        testerSchreiben();
+        ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(testerQuelle()); });
+    }));
+    add(warteBis("R2a Spiegel: Spieldaten mit dem Extra Resource Path", [] {
+        ke::spielPruefen();
+        const ke::Editor& e = ke::editor();
+        return ke::spielBereit() && e.karteSpiel && e.karteSpiel->inventar.shaderFinden(kTesterShader) != nullptr;
+    }, 20000));
+    add(tu("R2a Spiegel: Karte mit zwei Spiegeln, Echtzeit-Licht ueber dem ersten", [] {
+        (void)ke::karteOeffnen(testerKarte());
+        ke::Editor& e = ke::editor();
+        e.kamFenster.messBreite = 1920;
+        e.kamFenster.messHoehe = 1080;
+        e.kameraE.sichtfeld = 90.0F;
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        ke::spielbildZeitFest(0.0);
+        kamera(-60.0F, 0.0F, 220.0F, -60.0F, 0.0F);
+    }));
+    add(warteBis("R2a Spiegel: Texturen", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(pause(1.0));
+    add(tu("R2a Spiegel: Echtzeit-Licht ueber dem ersten Spiegel", [gruen, x] {
+        (*gruen)[0] = gruenJetzt("r2a_spiegel_echt");
+        (*x)[0] = sichtX();
+    }));
+    add(pruefe("R2a Spiegel: Echtzeit-Licht - Spiegelsicht da, beide Stufen darueber (die deckende Haelfte von floor2_alpha ist gruen)", [gruen, x] {
+        const ke::Editor& e = ke::editor();
+        const ke::SpielDarstellung sd = ke::spielDarstellung(kTesterShader);
+        diag::detail("Knopftest: R2a Spiegel Echtzeit - Portal " + std::to_string(sd.portal) + ", Sicht " + (e.echtLicht.spiegel ? "ja" : "nein") +
+                     " (Flaeche " + std::to_string((*x)[0]) + "), gruen " + std::to_string((*gruen)[0]));
+        return sd.portal && e.echtLicht.spiegel && (*x)[0] >= 0.0F && (*gruen)[0] > 0.3 && (*gruen)[0] < 0.7;
+    }));
+    add(tu("R2a Spiegel: ueber den zweiten Spiegel (der erste ist nicht im Bild)", [] { kamera(1940.0F, 0.0F, 220.0F, -60.0F, 0.0F); }));
+    add(pause(0.5));
+    add(tu("R2a Spiegel: Echtzeit-Licht ueber dem zweiten Spiegel", [gruen, x] {
+        (*gruen)[1] = gruenJetzt("r2a_spiegel_echt2");
+        (*x)[1] = sichtX();
+    }));
+    add(pruefe("R2a Spiegel: der zweite Spiegel wird benutzt, sobald er im Bild ist", [gruen, x] {
+        diag::detail("Knopftest: R2a Spiegel 2 - Sicht " + std::string(ke::editor().echtLicht.spiegel ? "ja" : "nein") + " (Flaeche " + std::to_string((*x)[1]) +
+                     "), gruen " + std::to_string((*gruen)[1]));
+        return ke::editor().echtLicht.spiegel && (*x)[1] >= 0.0F && (*x)[1] != (*x)[0] && (*gruen)[1] > 0.3;
+    }));
+    add(tu("R2a Spiegel: beide Spiegel im Bild", [x] {
+        kamera(1000.0F, -1400.0F, 700.0F, -30.0F, 90.0F);
+        (*x)[2] = -1.0F;
+    }));
+    add(pause(0.5));
+    add(tu("R2a Spiegel: welche Sicht", [x] {
+        (void)gruenJetzt("r2a_spiegel_beide");
+        (*x)[2] = sichtX();
+    }));
+    add(pruefe("R2a Spiegel: zwei im Bild - genau eine Spiegelsicht (R_SortDrawSurfs: only one mirror view at a time)", [x] {
+        diag::detail("Knopftest: R2a Spiegel beide - Sicht " + std::string(ke::editor().echtLicht.spiegel ? "ja" : "nein") + ", Flaeche " +
+                     std::to_string((*x)[2]));
+        const float v = (*x)[2];
+        return ke::editor().echtLicht.spiegel && (v == (*x)[0] || v == (*x)[1]);
+    }));
+    add(tu("R2a Spiegel: Schnell-Backen, Spielbild ueber dem ersten Spiegel (die .pk3 als Spielordner dieser Sitzung)", [] {
+        std::vector<std::string> ordner = aktiveSpielordner();
+        ordner.push_back(testerQuelle());
+        setzeSitzungsSpielordner(std::move(ordner));
+        rescanGamePaths();
+        kamera(-60.0F, 0.0F, 220.0F, -60.0F, 0.0F);
+        ke::Editor& e = ke::editor();
+        e.echtLicht.pauseSekunden = 0.2;
+        e.echtLicht.backen = true;
+        e.echtLicht.spielbild = true;
+    }));
+    add(stufe9c::langeWarten("R2a Spiegel: Schnell-Backen fertig", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.echtLicht.bauStand == 5) {
+            meldeFehler("R2a Spiegel: Schnell-Backen gescheitert");
+            return true;
+        }
+        return e.echtLicht.gebackenZeigen;
+    }, 400000));
+    add(stufe9c::langeWarten("R2a Spiegel: Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
+    add(pause(1.0));
+    add(tu("R2a Spiegel: Spielbild", [gruen] { (*gruen)[2] = gruenJetzt("r2a_spiegel_spielbild"); }));
+    add(pruefe("R2a Spiegel: Spielbild - Spiegelsicht und beide Stufen wie im Echtzeit-Licht (gruen gleich bis auf 0,1)", [gruen] {
+        const ke::SpielbildStand st = ke::spielbildStand();
+        diag::detail("Knopftest: R2a Spiegel Spielbild - Sicht " + std::string(st.spiegel ? "ja" : "nein") + ", gruen " + std::to_string((*gruen)[2]) +
+                     " (Echtzeit " + std::to_string((*gruen)[0]) + ")");
+        return st.spiegel && (*gruen)[2] > 0.3 && std::fabs((*gruen)[2] - (*gruen)[0]) < 0.1;
+    }));
+    // Bildzeit mit und ohne Spiegel (nur mit BHED_P_ZEIT=1, allein laufen lassen): Echtzeit-Licht, die Kamera ueber dem ersten
+    // Spiegel dreht sich; ohne Spiegel = der misc_portal_surface 100 hoeher (keine Portal-Entity in 64 Einheiten)
+    if (const char* zeit = std::getenv("BHED_P_ZEIT"); zeit != nullptr && zeit[0] == '1') {
+        add(tu("R2a Spiegel Zeit: Echtzeit-Licht", [] {
+            ke::Editor& e = ke::editor();
+            e.echtLicht.backen = false;
+            e.echtLicht.spielbild = false;
+            ke::spielbildZeitFest(-1.0);
+        }));
+        for (const bool mit : {true, false}) {
+            const std::string name = mit ? "mit Spiegel" : "ohne Spiegel";
+            if (!mit) {
+                // beide misc_portal_surface 100 hoeher: keine Portal-Entity mehr in 64 Einheiten der Ebene (R_GetPortalOrientations)
+                add(tu("R2a Spiegel Zeit: beide misc_portal_surface 100 hoeher", [] {
+                    ke::Editor& ed = ke::editor();
+                    ed.karte.auswahl.leeren();
+                    for (const auto& e : ed.karte.entitaeten()) {
+                        if (e->klassenname() == "misc_portal_surface") { ed.karte.auswahl.waehlen(e); }
+                    }
+                    karte::Befehl b(ed.karte.undo, "translateTool -xyz 0 0 100");
+                    for (const auto& e : ed.karte.entitaeten()) {
+                        if (e->klassenname() != "misc_portal_surface") { continue; }
+                        float o[3] = {0, 0, 0};
+                        (void)std::sscanf(e->wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+                        char t[64];
+                        std::snprintf(t, sizeof(t), "%g %g %g", static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2] + 100.0F));
+                        e->setzen("origin", t);
+                    }
+                    ed.karte.auswahl.leeren();
+                }));
+            }
+            add(pause(1.0));
+            auto bilder = std::make_shared<std::vector<double>>();
+            add({"R2a Spiegel Zeit: 240 Bilder " + name, [bilder](int b) {
+                     ke::Editor& e = ke::editor();
+                     if (b > 2) { bilder->push_back(static_cast<double>(ImGui::GetIO().DeltaTime) * 1000.0); }
+                     e.kamera.ursprung = karte::Vektor3f(-60.0F, 0.0F, 220.0F);
+                     e.kamera.winkel = karte::Vektor3f(-60.0F, static_cast<float>(b % 40) - 20.0F, 0.0F);
+                     return b >= 242;
+                 }});
+            add(tu("R2a Spiegel Zeit: Ergebnis " + name, [bilder, name] {
+                std::vector<double> v = *bilder;
+                std::sort(v.begin(), v.end());
+                double summe = 0;
+                for (const double t : v) { summe += t; }
+                char z[300];
+                std::snprintf(z, sizeof(z), "R2a-Spiegel-Bildzeit: %s Mittel %.2f ms, p99 %.2f ms, Sicht %s", name.c_str(),
+                              v.empty() ? 0.0 : summe / static_cast<double>(v.size()), v.empty() ? 0.0 : v[std::min(v.size() - 1, v.size() * 99 / 100)],
+                              ke::editor().echtLicht.spiegel ? "ja" : "nein");
+                diag::detail(z);
+            }));
+        }
+    }
+    add(tu("R2a Spiegel: aufraeumen", [] {
+        ke::spielbildZeitFest(-1.0);
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        e.echtLicht.an = false;
+        e.kamFenster.messBreite = 0;
+        e.kamFenster.messHoehe = 0;
+        e.filterMaske = 0;
+        e.karte.undo.alsGespeichertMarkieren();
+        std::vector<std::string> ordner = aktiveSpielordner();
+        if (!ordner.empty() && ordner.back() == testerQuelle()) { ordner.pop_back(); }
+        setzeSitzungsSpielordner(std::move(ordner));
+        rescanGamePaths();
+        ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0].clear(); });
+    }));
+    add(warteBis("R2a Spiegel: Spieldaten ohne den Extra Resource Path", [] {
+        ke::spielPruefen();
+        return ke::spielBereit();
+    }, 20000));
+    return s;
+}
+
 // BHED_P_SPIEL="name|karte|x y z nick gier;...": nur Editorbilder fuer den Spielvergleich - die .bsp als Vorlage im Spielbild,
 // Kamera wie viewpos im Spiel (cg_fov 80, 1920 x 1440), Bild nach BHED_FOTOS als p_spiel_<name>.bmp.
 std::vector<Schritt> spielvergleich(const char* liste) {
@@ -507,6 +798,12 @@ std::vector<Schritt> spielvergleich(const char* liste) {
 
 std::vector<Schritt> schritte() {
     if (const char* liste = std::getenv("BHED_P_SPIEL"); liste != nullptr && liste[0] != '\0') { return spielvergleich(liste); }
+    // rc610 R2a: nur der Spiegel-Shader des Testers (BHED_P_NUR=tester)
+    if (const char* nur = std::getenv("BHED_P_NUR"); nur != nullptr && std::strcmp(nur, "tester") == 0) {
+        std::vector<Schritt> t = stufe9c::einrichten();
+        for (Schritt& y : testerSchritte()) { t.push_back(std::move(y)); }
+        return t;
+    }
     std::vector<Schritt> s;
     // 1. und 2.: Vorschau, dann dieselbe Karte im Editor
     struct Fall {
@@ -531,6 +828,7 @@ std::vector<Schritt> schritte() {
     }
     s.push_back(tu("editorportal: Vorlage weg", [] { ke::vorlageEntfernen(); }));
     for (Schritt& x : testKarteSchritte()) { s.push_back(std::move(x)); }
+    for (Schritt& x : testerSchritte()) { s.push_back(std::move(x)); }   // rc610 R2a
     return s;
 }
 
@@ -564,6 +862,71 @@ std::vector<Schritt> portaleHandbuchSchritte() {
         e.filterMaske = 0;
         e.karte.undo.alsGespeichertMarkieren();
         ke::neueKarte();
+        g_app->leftMode = 0;
+    }));
+    return s;
+}
+
+// rc610 R2a, BHED_EDITORTEST=handbuch mit BHED_HB_NUR=r2a: Gras (surfaceSprites) im Echtzeit-Licht und der Spiegel-Shader des
+// Testers mit seinen zwei Stufen.
+std::vector<Schritt> r2aHandbuchSchritte() {
+    namespace ke = karteneditor;
+    std::vector<Schritt> s = stufe9c::einrichten();
+    const auto ohneTooltip = [] {
+        if (ImGuiWindow* w = karteFenster()) { setzeMaus(ImVec2{w->Pos.x + w->Size.x * 0.6F, w->Pos.y + w->Size.y - 4.0F}); }
+    };
+    s.push_back(tu("Handbuch R2a: Testraum mit Gras, Echtzeit-Licht", [ohneTooltip] {
+        karteDialogeZu();
+        ke::setzeNrcBegriffe(false);
+        r2a::grasKarteSchreiben();
+        (void)ke::karteOeffnen(r2a::grasKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        g_app->zeigeGras = true;
+        if (const auto welt = e.karte.welt()) { welt->setzen("_ambient", "320"); }   // fuers Bild heller als der Test
+        e.karte.undo.alsGespeichertMarkieren();
+        r2a::kamera(-760.0F, -700.0F, 90.0F, -10.0F, 42.0F);
+        ohneTooltip();
+    }));
+    s.push_back(warteBis("Handbuch R2a: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
+    s.push_back(pause(1.5));
+    s.push_back(hb::fotoTeil("h_r2a_gras", [] { return hb::fensterRect("##feldKamera"); }));
+    s.push_back(tu("Handbuch R2a: Spiegel-Shader des Testers in einen Extra Resource Path", [] {
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        editorportal::testerSchreiben();
+        ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(editorportal::testerQuelle()); });
+    }));
+    s.push_back(warteBis("Handbuch R2a: Spieldaten mit dem Extra Resource Path", [] {
+        ke::spielPruefen();
+        const ke::Editor& e = ke::editor();
+        return ke::spielBereit() && e.karteSpiel && e.karteSpiel->inventar.shaderFinden(editorportal::kTesterShader) != nullptr;
+    }, 20000));
+    s.push_back(tu("Handbuch R2a: Karte mit dem Spiegel", [ohneTooltip] {
+        (void)ke::karteOeffnen(editorportal::testerKarte());
+        ke::Editor& e = ke::editor();
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = false;
+        if (const auto welt = e.karte.welt()) { welt->setzen("_ambient", "320"); }   // fuers Bild heller als der Test
+        e.karte.undo.alsGespeichertMarkieren();
+        editorportal::kamera(-250.0F, -170.0F, 110.0F, -18.0F, 32.0F);
+        ohneTooltip();
+    }));
+    s.push_back(warteBis("Handbuch R2a: Texturen der Spiegelkarte", [] { return ke::kameraBilderFertig(); }, 6000));
+    s.push_back(pause(1.5));
+    s.push_back(hb::fotoTeil("h_r2a_spiegel", [] { return hb::fensterRect("##feldKamera"); }));
+    s.push_back(tu("Handbuch R2a: Ende", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.an = false;
+        e.filterMaske = 0;
+        e.karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0].clear(); });
         g_app->leftMode = 0;
     }));
     return s;

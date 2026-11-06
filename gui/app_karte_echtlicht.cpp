@@ -813,6 +813,79 @@ bool echtLichtAktiv() {
            kartegpu::echtLichtVerfuegbar();
 }
 
+// rc610 R2a: alle Stufen (parseShaderScript wie die Vorschau) je Datei der Spieldaten des Editors einmal zerlegt
+const ShaderInfo* echtShaderInfo(const std::string& shader) {
+    static std::map<std::string, ShaderMap> dateien;
+    static std::size_t neuGeladen = static_cast<std::size_t>(-1);
+    static const void* spiel = nullptr;
+    if (neuGeladen != ed().neuGeladen || spiel != ed().karteSpiel.get()) {   // Flush & Reload Shaders, anderes Spiel
+        neuGeladen = ed().neuGeladen;
+        spiel = ed().karteSpiel.get();
+        dateien.clear();
+    }
+    if (!ed().karteSpiel) { return nullptr; }
+    const karte::ShaderEintrag* e = ed().karteSpiel->inventar.shaderFinden(shader);
+    if (e == nullptr || e->istStandard()) { return nullptr; }
+    auto d = dateien.find(e->datei);
+    if (d == dateien.end()) {
+        std::string t;
+        (void)ed().karteSpiel->fs.textLesen(e->datei, t);
+        ShaderMap m;
+        parseShaderScript(t, m);
+        d = dateien.emplace(e->datei, std::move(m)).first;
+    }
+    std::string k = shader;
+    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    const auto it = d->second.find(k);
+    return it == d->second.end() ? nullptr : &it->second;
+}
+
+SpielStufe spielStufe(const ShaderInfo::Stage& st) {
+    SpielStufe s;
+    // GL_-Faktoren wie ShaderSkript::mischQuelle (1 ONE ... 10 ONE_MINUS_DST_ALPHA); GL_SRC_ALPHA_SATURATE wie der Leser als SRC_ALPHA
+    const auto code = [](BlendFactor f) {
+        switch (f) {
+            case BlendFactor::One: return 1;
+            case BlendFactor::Zero: return 2;
+            case BlendFactor::SrcAlpha:
+            case BlendFactor::SrcAlphaSaturate: return 3;
+            case BlendFactor::OneMinusSrcAlpha: return 4;
+            case BlendFactor::DstColor: return 5;
+            case BlendFactor::OneMinusDstColor: return 6;
+            case BlendFactor::SrcColor: return 7;
+            case BlendFactor::OneMinusSrcColor: return 8;
+            case BlendFactor::DstAlpha: return 9;
+            case BlendFactor::OneMinusDstAlpha: return 10;
+        }
+        return 1;
+    };
+    const bool deckend = st.srcFactor == BlendFactor::One && st.dstFactor == BlendFactor::Zero;
+    if (!deckend) {
+        s.mischQuelle = code(st.srcFactor);
+        s.mischZiel = code(st.dstFactor);
+    }
+    // tr_shader.cpp NameToAFunc: GT0 (> 0), LT128 (< 0.5), GE128 (>= 0.5), GE192 (>= 0.75)
+    switch (st.alphaTest) {
+        case AlphaTest::Gt0: s.alphaFunktion = 3; s.alphaRef = 0.0F; break;
+        case AlphaTest::Lt128: s.alphaFunktion = 2; s.alphaRef = 0.5F; break;
+        case AlphaTest::Ge128: s.alphaFunktion = 5; s.alphaRef = 0.5F; break;
+        case AlphaTest::Ge192: s.alphaFunktion = 5; s.alphaRef = 0.75F; break;
+        case AlphaTest::None: break;
+    }
+    // ParseStage: "Wer blendFunc schreibt, schreibt keine Tiefe" (ausser depthWrite)
+    s.tiefeSchreiben = deckend || st.depthWrite;
+    for (int c = 0; c < 3; ++c) {
+        if (st.rgbConst[c] >= 0.0F) { s.farbe[c] = st.rgbConst[c]; }
+    }
+    if (st.alphaConst >= 0.0F) { s.farbe[3] = st.alphaConst; }
+    if (st.alphaGen == AlphaGen::Portal) { s.portalWeite = st.portalWeite; }
+    std::string bild = st.image;
+    const std::size_t punkt = bild.find_last_of('.');
+    if (punkt != std::string::npos && punkt + 5 >= bild.size() && bild.find('/', punkt) == std::string::npos) { bild.resize(punkt); }
+    if (!bild.empty()) { s.bild = "?" + bild; }
+    return s;
+}
+
 SpielDarstellung spielDarstellung(const std::string& shader) {
     SpielDarstellung d;
     const karte::ShaderSkript& s = skript(shader);
@@ -839,6 +912,16 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     // rc609 P: SS_PORTAL; ohne jede Stufe setzt FinishShader (tr_shader.cpp) sort auf SS_FOG - dann ist es kein Portal
     d.portal = s.portal && s.stufeGefunden;
     d.portalWeite = static_cast<float>(s.portalWeite);
+    // rc610 R2a: eine Portalflaeche zeichnet das Spiel mit RB_StageIteratorGeneric - alle Stufen ueber der Spiegel- bzw.
+    // Portalsicht (Spiegel-Shader des Testers: die zweite Stufe ist der Boden darueber)
+    if (d.portal) {
+        if (const ShaderInfo* si = echtShaderInfo(shader)) {
+            for (std::size_t i = 1; i < si->stages.size(); ++i) {
+                if (si->stages[i].ss.aktiv() || si->stages[i].image.empty()) { continue; }   // surfaceSprites: keine Schicht
+                d.weitere.push_back(spielStufe(si->stages[i]));
+            }
+        }
+    }
     return d;
 }
 

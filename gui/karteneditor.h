@@ -699,7 +699,10 @@ struct Editor {
     bool frageOffen = false;
     std::string frageTitel;                // "New Map", "Open Map"
     std::function<void()> nachFrage;       // was danach geschieht
-    int frageArt = 0;                      // 0 die Karte (ConfirmModified), 1 die Lumps der .bsp (rc610 F23, Fenster "Shader und Flaechen")
+    std::function<void()> nachAbbruch;     // rc610 R2a: was bei "Abbrechen" geschieht (leer: nichts)
+    int frageArt = 0;                      // 0 die Karte (ConfirmModified), 1 die Lumps der .bsp (rc610 F23, Fenster "Shader und Flaechen"),
+                                           // 2 die Lumps, die sich waehrend eines Teil-Compiles geaendert haben (rc610 R2a: behalten / ersetzen)
+    bool beendenBeantwortet = false;       // rc610 R2a: beim Beenden schon nach der Karte gefragt (beendenFrage)
 
     // --- Konsole ---
     std::vector<KonsolenZeile> konsole;
@@ -1140,6 +1143,16 @@ struct Editor {
         bool spiegelPortal = false;        // rc609 P: ... und es war eine misc_portal_camera
         std::size_t schattenModellDreiecke = 0;   // Stufe 9d: Dreiecke der misc_model in der Schattengeometrie
         std::size_t schattenPatchDreiecke = 0;    // rc609 L: Dreiecke der Patches in der Schattengeometrie (Netz von -light)
+        // rc610 R2a: Halme (surfaceSprites) im letzten Bild der Echtzeit-Ansicht
+        std::size_t grasVierecke = 0;      // Halme (Vierecke)
+        std::size_t grasFlaechen = 0;      // Flaechen mit Halmen im Bild
+        std::size_t grasPatches = 0;       //   ... davon Patches
+        std::size_t grasNeu = 0;           // Flaechen, deren Halme gebaut wurden (gesamt; nur bei Aenderung der Flaeche oder ihres Shaders)
+        std::size_t grasAufrufe = 0;       // Zeichenaufrufe der Halme
+        std::size_t grasBytes = 0;         // Eckdaten der Halme auf der Grafikkarte
+        double grasMs = 0;                 // Halme im letzten Bild (Prozessor)
+        std::uint64_t grasPruefsumme = 0;  // Selbsttest: Pruefsumme der Halm-Ecken des letzten Netzes (gleiches Bild?)
+        bool grasZeit = false;             // die Halme im Bild haengen an der Zeit (ssWindIdle, Effekt-Halme): jedes Bild neu
         // Schnell-Backen
         int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
         double bauSekunden = 0;            // Dauer des letzten Baus
@@ -1664,6 +1677,10 @@ void zuletztOeffnen(std::size_t index);
 [[nodiscard]] bool geaendert();
 // ConfirmModified( titel ) und danach (Save / Discard / Cancel).
 void rueckfrageDann(const char* titel, std::function<void()> danach);
+// rc610 R2a: beim Beenden ueber das Kreuz des Hauptfensters (confirmQuit) wie File > Exit nach der ungespeicherten Karte und den
+// Lumps fragen (ConfirmModified "Exit Radiant"); der Map Editor kommt dazu nach vorn. true: weiter beenden; false: es wird gefragt,
+// die Antwort ruft confirmQuit wieder.
+[[nodiscard]] bool beendenFrage();
 // rc610 F23 (B2-3): nur die Frage nach den ungespeicherten Lumps der .bsp (Fenster "Shader und Flaechen"), dann danach.
 void lumpRueckfrage(const std::string& titel, std::function<void()> danach);
 // Entity_reloadDefinitions: die Klassen neu lesen und die Karte neu laden

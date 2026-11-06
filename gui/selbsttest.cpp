@@ -79,6 +79,7 @@
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/lichtschaetzung.h"   // Stufe 9c: Lichtmessung auf dekompilierten Karten
 #include "bhed/karte/echtlicht.h"         // Stufe 9d: Nebel, Modellflaechen
+#include "bhed/karte/auswahlbefehle.h"    // rc610 R2a: shaderSetzen
 #include "bhed/karte/patchbefehle.h"      // Stufe 9d: Patch-Bruecke
 
 #include <algorithm>
@@ -6579,6 +6580,7 @@ void selbsttest() {
                     }
                     if (nurUmriss) {
                         for (Schritt& x : folgeSchritte()) { a.schritte.push_back(std::move(x)); }
+                        for (Schritt& x : umrissR2aSchritte()) { a.schritte.push_back(std::move(x)); }   // rc610 R2a
                     }
                     // Paket kamera, rc601: Bildwinkel, Spielfenster, Rollen, PATH.
                     if (nurKamera) {

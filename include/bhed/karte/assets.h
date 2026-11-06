@@ -41,8 +41,8 @@ struct Asset {
 };
 
 // rc609 KEMD: laeuft im Asset-Browser in einem eigenen Faden; `schritt` (wenn gesetzt) zaehlt die fertigen Teile
-// (je Endung ein Teil, dann die Prefabs) bis kAssetSchritte.
-inline constexpr int kAssetSchritte = 7;
+// (die Modelle, je Klangendung ein Teil, dann die Prefabs) bis kAssetSchritte.
+inline constexpr int kAssetSchritte = 4;
 [[nodiscard]] std::vector<Asset> assetsSammeln(const Dateisystem* fs, const std::string& importOrdner, std::atomic<int>* schritt = nullptr);
 [[nodiscard]] std::vector<std::size_t> assetsFiltern(const std::vector<Asset>& a, AssetArt art, const std::string& suche);
 

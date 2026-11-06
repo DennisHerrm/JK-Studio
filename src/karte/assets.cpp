@@ -12,6 +12,7 @@
 
 #include "bhed/karte/karte.h"
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/modellbrowser.h"
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/texturen.h"
 #include "bhed/md3.h"
@@ -21,6 +22,7 @@
 #include <cctype>
 #include <cmath>
 #include <filesystem>
+#include <set>
 #include <sstream>
 
 namespace bhed::karte {
@@ -42,12 +44,24 @@ std::vector<Asset> assetsSammeln(const Dateisystem* fs, const std::string& impor
     const auto weiter = [schritt]() {
         if (schritt != nullptr) { ++*schritt; }
     };
-    for (const char* e : {"md3", "glm", "ase", "obj"}) {
-        if (fs != nullptr) {
-            for (const std::string& d : fs->dateien("models/", e, 99)) { dazu(AssetArt::Modell, "models/" + d); }
+    // rc610 R2a: dieselben Modellarten wie der Modell-Browser (modellBrowserEndungen: alle Leser wie NRCs assmodel, dazu glm),
+    // in einem Gang durch die Archive wie ModelBrowser_constructTree (forEachArchive, je Datei die Endung ohne Gross/klein);
+    // jeder Pfad einmal (GetFileList: eindeutig ohne Gross/klein, das erste Archiv gewinnt)
+    if (fs != nullptr) {
+        std::vector<std::string> endungen;
+        for (const std::string& e : modellBrowserEndungen()) { endungen.push_back(klein(e)); }
+        std::set<std::string> schon;
+        for (const std::string& archiv : fs->archive(false)) {
+            fs->dateienImArchiv(archiv, "models/", 99, [&](const std::string& name) {
+                const std::size_t punkt = name.find_last_of('.');
+                const std::size_t schraeg = name.find_last_of('/');
+                if (punkt == std::string::npos || (schraeg != std::string::npos && punkt < schraeg)) { return; }
+                if (std::find(endungen.begin(), endungen.end(), klein(name.substr(punkt + 1))) == endungen.end()) { return; }
+                if (schon.insert(klein(name)).second) { dazu(AssetArt::Modell, name); }
+            });
         }
-        weiter();
     }
+    weiter();
     for (const char* e : {"wav", "mp3"}) {
         if (fs != nullptr) {
             for (const std::string& d : fs->dateien("sound/", e, 99)) { dazu(AssetArt::Klang, "sound/" + d); }

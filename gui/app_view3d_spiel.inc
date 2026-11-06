@@ -2193,9 +2193,11 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad) {
     g_app->gegenstaendeGenutzt.insert(pfad);   // rc610 R1: in diesem Level benutzt
     const auto have = g_app->gegenstandGlmCache.find(pfad);
     if (have != g_app->gegenstandGlmCache.end()) {
+        modellBilderGenutzt(have->second);   // rc610 R2a (B3-3)
         return have->second.model.empty() ? nullptr : &have->second;
     }
     App::ActorAssets a;
+    const BildSammler sammler(a.bilder);   // rc610 R2a (B3-3)
     std::string data;
     if (readFromArchives(pfad, data)) {
         std::string err;
@@ -2225,6 +2227,7 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
     g_app->gegenstaendeGenutzt.insert(schluessel);   // rc610 R1
     const auto have = g_app->gegenstandGlmCache.find(schluessel);
     if (have != g_app->gegenstandGlmCache.end()) {
+        modellBilderGenutzt(have->second);   // rc610 R2a (B3-3)
         return have->second.model.empty() ? nullptr : &have->second;
     }
     const App::ActorAssets* basis = gegenstandGlmFuer(pfad);
@@ -2232,6 +2235,7 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
     if (basis != nullptr) {
         a.model = basis->model;
         a.textures = basis->textures;
+        a.bilder = basis->bilder;   // rc610 R2a (B3-3): dieselben Bilder
         a.textures.zeichenSpeicher.reset();
         for (auto& flaeche : a.textures.stufen) {
             for (ModelTextures::FigurStufe& fs : flaeche) {
@@ -3952,6 +3956,7 @@ void loadActorModels() {
         const std::string schluessel = dir + "|" + it->second.customSkin;
         const auto cached = g_app->modelCache.find(schluessel);
         if (cached != g_app->modelCache.end()) {
+            modellBilderGenutzt(*cached->second);   // rc610 R2a (B3-3)
             g_app->actorAssets[i] = cached->second;
             ++found;
             continue;
@@ -3959,6 +3964,7 @@ void loadActorModels() {
         const auto neu = std::make_shared<App::ActorAssets>();
         App::ActorAssets& assets = *neu;
         assets.tried = true;
+        const BildSammler sammler(assets.bilder);   // rc610 R2a (B3-3)
 
         std::string data;
         const auto tGlm = Uhr::now();
@@ -4157,6 +4163,11 @@ void loadActorModels() {
     g_app->mapDirty = true;
 }
 
+// rc610 R2a (B3-3): solange ein Modell geladen wird, sammelt figurBildGenutzt seine Bilder (BildSammler)
+std::vector<std::string>* g_bildSammler = nullptr;
+BildSammler::BildSammler(std::vector<std::string>& ziel) : m_vorher(g_bildSammler) { g_bildSammler = &ziel; }
+BildSammler::~BildSammler() { g_bildSammler = m_vorher; }
+
 // rc610 R1: ein neues Level der Medien (RE_RegisterMedia_LevelLoadBegin, tr_model.cpp OpenJK): was ab jetzt
 // genommen wird, gilt als "in diesem Level benutzt" (iLastLevelUsedOn).
 void medienLevelBeginnen() {
@@ -4170,6 +4181,14 @@ void medienLevelBeginnen() {
 void figurBildGenutzt(const std::string& schluessel) {
     g_app->figurBilderGenutzt.insert(schluessel);
     g_app->figurBilderVorrat.insert(schluessel);
+    if (g_bildSammler != nullptr) { g_bildSammler->push_back(schluessel); }
+}
+
+// rc610 R2a (B3-3): ein Modell aus dem Zwischenspeicher (Figur, Griff, Gegenstand) - RE_RegisterModel (OpenJK tr_model.cpp:212-230)
+// ruft fuer ein schon geladenes Modell R_FindShader fuer jeden seiner Shader; damit sind seine Bilder in diesem Level benutzt
+// (iLastLevelUsedOn) und bleiben bei RE_RegisterImages_LevelLoadEnd.
+void modellBilderGenutzt(const App::ActorAssets& a) {
+    for (const std::string& k : a.bilder) { figurBildGenutzt(k); }
 }
 
 // rc610 R1: Ende des Ladens eines Levels - RE_RegisterMedia_LevelLoadEnd (tr_model.cpp OpenJK) ruft

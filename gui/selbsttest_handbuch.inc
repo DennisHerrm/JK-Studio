@@ -322,6 +322,9 @@ namespace modobj {
 std::vector<Schritt> schritte();   // selbsttest_modobj.inc: rc610 MODOBJ, Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
 std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_modobj_browser (BHED_HB_NUR=modobj)
 }  // namespace modobj
+namespace r2a {
+std::vector<Schritt> schritte();   // selbsttest_r2a.inc: rc610 R2a, Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
+}  // namespace r2a
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -331,6 +334,7 @@ std::vector<Schritt> ruheOhneKarte();   // selbsttest_reste1.inc: Map-Tab ohne K
 }  // namespace reste1
 
 std::vector<Schritt> portaleHandbuchSchritte();   // selbsttest_editorportal.inc: rc609 P, Spiegel und Portalkamera
+std::vector<Schritt> r2aHandbuchSchritte();   // selbsttest_editorportal.inc: rc610 R2a, Gras und Spiegel mit zwei Stufen
 namespace kartenruhe {
 std::vector<Schritt> schritte();   // selbsttest_kartenruhe.inc: rc610 R1, nur bei Bedarf zeichnen
 }  // namespace kartenruhe
@@ -608,6 +612,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =r2a: rc610 R2a - Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen (BHED_R2A_ZEIT=1: nur die Bildzeit)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "r2a") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : r2a::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =reste1: Liste reste1 (Decals in der Echtzeit-Ansicht)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "reste1") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -664,6 +675,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }   // Stufe 9d: Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke
     for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
     for (Schritt& x : modobj::schritte()) { add(std::move(x)); }   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
+    for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
@@ -951,6 +963,7 @@ void skriptNeu() {
 #include "selbsttest_karte9d.inc"   // Stufe 9d: Nebel, Effekte, Skyportal, Modellschatten, Shader live, Patch-Bruecke
 #include "selbsttest_kartelicht1.inc"   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
 #include "selbsttest_modobj.inc"   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
+#include "selbsttest_r2a.inc"   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
 #include "selbsttest_optsicher.inc"
 #include "selbsttest_reste1.inc"   // Liste reste1: Decals in der Echtzeit-Ansicht
 
@@ -2351,6 +2364,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "portale") == 0) {
         return portaleHandbuchSchritte();   // rc609 P (selbsttest_editorportal.inc)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "r2a") == 0) {
+        return r2aHandbuchSchritte();   // rc610 R2a (selbsttest_editorportal.inc)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();

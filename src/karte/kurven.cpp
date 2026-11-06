@@ -177,10 +177,13 @@ std::size_t kurveEinfuegen(Karte& k, const std::vector<Vektor3f>& kontroll, Kurv
         }
         return n;
     }
+    // Map_FindOrInsertWorldspawn (NRC map.cpp:539-554): eine neue Karte hat noch keinen worldspawn - rc610 R2a, vorher stuerzte
+    // das Kurven-Werkzeug hier ab (welt() leer, wie importEinfuegen vor TUT-GEO)
+    const auto welt = k.weltHolenOderAnlegen();
     for (const auto& p : kurvenPatches(kontroll, art, o)) {
         p->schicht = static_cast<int>(k.aktuelleSchicht);
-        k.welt()->kindEinfuegen(p);
-        k.auswahl.waehlen(k.welt(), p);
+        welt->kindEinfuegen(p);
+        k.auswahl.waehlen(welt, p);
         ++n;
     }
     return n;

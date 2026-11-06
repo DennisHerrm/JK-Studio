@@ -153,6 +153,9 @@ struct Zustand3 {
     float schnitt[4]{0, 0, 0, 1};
     bool wicklungUmkehren = false;
     float portalWeite = 0;
+    // rc610 R2a: Halme (surfaceSprites) im Echtzeit-Licht - vom Licht nur der blaue Anteil, grau (die Engine nimmt die blaue
+    // Eckenfarbe, tr_surfacesprites.cpp:649)
+    bool grauLicht = false;
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).

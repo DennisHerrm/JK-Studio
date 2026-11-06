@@ -601,6 +601,17 @@ void bspEinfuegenAbschluss() {
         ed.bspEinfuegenFertig = "fehler";
         return;
     }
+    // rc610 R2a: Aenderungen im Fenster "Shader und Flaechen" waehrend des Teil-Compiles (vorher gefragt wird in
+    // bspInFertigeKarte) - nicht ohne Frage durch den Stand der Datei ersetzen: behalten (speichern, dann auf diesem Stand
+    // einfuegen) oder ersetzen (verwerfen); Abbrechen fuegt nichts ein
+    if (lumpEditKarteUngespeichert()) {
+        ed.frageOffen = true;
+        ed.frageArt = 2;
+        ed.frageTitel = karte::ohneMnemonik(trK(Str::KeBmEinfuegen));
+        ed.nachFrage = [] { bspEinfuegenAbschluss(); };
+        ed.nachAbbruch = [] { e().bspEinfuegenFertig = "abgebrochen"; };
+        return;
+    }
     std::string orig;
     std::string teil;
     if (!dateiLesen(h.ordner + "/" + h.stamm + "_original.bsp", orig) || !dateiLesen(g_teilBsp, teil)) {

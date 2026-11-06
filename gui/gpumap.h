@@ -530,7 +530,13 @@ int vorwaermen(const BspMesh& karte, const TextureSet* textures, const std::vect
 // zeichneFigur nur weiss hineinzeichnen; umrissBeenden legt um den Rand der
 // Maske eine Linie in `farbe` (RGBA 0..1), `dicke` in Bildpunkten (1..4).
 [[nodiscard]] bool umrissBeginnen();
+// rc610 R2a: umrissMarke(true) um die Aufrufe der gewaehlten Mover im Hauptbild (sie schreiben den Stencil 1, wo sie den
+// Tiefentest bestehen); umrissNurSichtbar(true) um die Mover in der Maske: nur Punkte, an denen sie zuletzt im Bild waren.
+void umrissMarke(bool an);
+void umrissNurSichtbar(bool an);
 void umrissBeenden(const float farbe[4], float dicke);
+// rc610 R2a, fuer den Selbsttest: die Maske des letzten Umrisses (ein Byte je Bildpunkt, > 0 = gewaehlt)
+[[nodiscard]] bool leseUmrissMaske(std::vector<std::uint8_t>& maske, int& breite, int& hoehe);
 void tiefeFreigeben();
 
 // Ein roher Tiefenwert als Abstand: Tiefe d = a + b / z mit a = f/(f-n),

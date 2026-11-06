@@ -341,6 +341,203 @@ int orangePunkte() {
 }
 }  // namespace
 
+// --- rc610 R2a: der Umriss nur, wo das gewaehlte Objekt im Bild ist; B3-3 Bilder beim Levelwechsel ------------------------
+//
+// Umriss: aus R1 offen - unter gleich hohen Flaechen (md_am_sith: die Plattform plat1 mit ihrem Schild unter der Lava) war der
+// Umriss zu gross. Gemessen: die Maske des Umrisses gegen die Bildpunkte, die das Objekt im fertigen Bild aendert (Bild ohne
+// das Objekt gegen Bild mit ihm). Maskenpunkte, an denen das Objekt nichts aendert (auch nicht zwei Punkte daneben), sind zu viel.
+// B3-3 (pruefung_b2b3_funde.md): eine Figur, die im naechsten Level wieder da ist, meldete ihre Bilder nicht als benutzt - ein
+// zweites Modell mit derselben Haut las sie danach neu. RE_RegisterModel (OpenJK tr_model.cpp:212-230) registriert die
+// Shader eines behaltenen Modells neu (R_FindShader beruehrt seine Bilder): 0 Lesezugriffe, dieselben Bildpunkte.
+std::vector<Schritt> umrissR2aSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Stand {
+        int entity = -1;
+        int brush = -1;
+        std::vector<std::uint8_t> maske;
+        std::vector<std::uint8_t> mit;
+        std::vector<std::uint8_t> mit2;
+        std::vector<std::uint8_t> ohne;
+        int w = 0;
+        int h = 0;
+    };
+    auto st = std::make_shared<Stand>();
+    add(tu("R2a Umriss: Kamera vor plat1 (func_static mit Schild unter der Lava)", [st] {
+        entityAuswahlSetzen(-1);
+        std::map<int, BrushStellung> stellung;
+        for (const BrushStellung& b : brushModelleImSpiel(g_app->map.entities, g_app->geo, g_app->moverSim, g_app->playMs, {})) { stellung[b.modell] = b; }
+        for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
+            const MapEntity& e = g_app->map.entities[i];
+            const std::string* mdl = e.find("model");
+            if (e.classname != "func_static" || e.targetname != "plat1" || mdl == nullptr || mdl->size() < 2 || (*mdl)[0] != '*') { continue; }
+            const int nr = std::atoi(mdl->c_str() + 1);
+            const auto b = stellung.find(nr);
+            if (b == stellung.end() || nr <= 0 || static_cast<std::size_t>(nr) >= g_app->geo.models.size()) { continue; }
+            st->entity = static_cast<int>(i);
+            st->brush = nr;
+            const auto& sm = g_app->geo.models[static_cast<std::size_t>(nr)];
+            float d2 = 0.0F;
+            float mitte[3];
+            for (int a = 0; a < 3; ++a) {
+                mitte[a] = b->second.ort[a] + (sm.mins[a] + sm.maxs[a]) * 0.5F;
+                d2 += (sm.maxs[a] - sm.mins[a]) * (sm.maxs[a] - sm.mins[a]);
+            }
+            // wie Objekt 2 im Umrisstest oben (dort die Linie unter der Lava gesehen)
+            const float gier = 1.5707963F + 0.6F;
+            const float abst = std::sqrt(d2) * 0.5F * 1.4F + 120.0F;
+            g_app->cam.pos[0] = mitte[0] - std::cos(gier) * abst;
+            g_app->cam.pos[1] = mitte[1] - std::sin(gier) * abst;
+            g_app->cam.pos[2] = mitte[2] + abst * 0.45F;
+            aimAngles(g_app->cam.pos, mitte, g_app->cam.angles);
+            break;
+        }
+        g_app->mapDirty = true;
+    }));
+    add(pruefe("R2a Umriss: plat1 gefunden", [st] { return st->entity >= 0; }));
+    add(tu("R2a Umriss: plat1 waehlen", [st] {
+        entityAuswahlSetzen(st->entity);
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(tu("R2a Umriss: Maske lesen", [st] {
+        if (!gpu::leseUmrissMaske(st->maske, st->w, st->h)) { st->maske.clear(); }
+    }));
+    add(foto("r2a_umriss_plat1"));
+    add(tu("R2a Umriss: abwaehlen", [] {
+        entityAuswahlSetzen(-1);
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(tu("R2a Umriss: Bild mit dem Objekt", [st] {
+        int w = 0;
+        int h = 0;
+        (void)gpu::leseFarbe(st->mit, w, h);
+    }));
+    add(pause(0.3));
+    add(tu("R2a Umriss: noch einmal (steht das Bild?)", [st] {
+        int w = 0;
+        int h = 0;
+        (void)gpu::leseFarbe(st->mit2, w, h);
+        g_app->testOhneBrush = st->brush;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.4));
+    add(tu("R2a Umriss: Bild ohne das Objekt", [st] {
+        int w = 0;
+        int h = 0;
+        (void)gpu::leseFarbe(st->ohne, w, h);
+        g_app->testOhneBrush = -1;
+        g_app->mapDirty = true;
+    }));
+    add(pause(0.3));
+    add(pruefe("R2a Umriss: die Maske liegt nur dort, wo das Objekt das Bild aendert (hoechstens 3 % daneben)", [st] {
+        const std::size_t n = static_cast<std::size_t>(st->w) * static_cast<std::size_t>(st->h);
+        if (n == 0 || st->maske.size() != n || st->mit.size() != n * 4U || st->ohne.size() != n * 4U || st->mit2.size() != n * 4U) {
+            diag::detail("Knopftest: R2a Umriss - Bilder fehlen");
+            return false;
+        }
+        const auto anders = [](const std::vector<std::uint8_t>& a, const std::vector<std::uint8_t>& b, std::size_t i) {
+            int d = 0;
+            for (std::size_t c = 0; c < 3; ++c) { d = std::max(d, std::abs(static_cast<int>(a[i * 4 + c]) - static_cast<int>(b[i * 4 + c]))); }
+            return d > 16;
+        };
+        std::vector<char> sicht(n, 0);
+        std::size_t rauschen = 0;
+        for (std::size_t i = 0; i < n; ++i) {
+            sicht[i] = anders(st->mit, st->ohne, i) ? 1 : 0;
+            rauschen += anders(st->mit, st->mit2, i) ? 1U : 0U;
+        }
+        std::size_t maske = 0;
+        std::size_t zuviel = 0;
+        std::size_t sichtbar = 0;
+        for (int y = 0; y < st->h; ++y) {
+            for (int x = 0; x < st->w; ++x) {
+                const std::size_t i = static_cast<std::size_t>(y) * static_cast<std::size_t>(st->w) + static_cast<std::size_t>(x);
+                sichtbar += sicht[i] != 0 ? 1U : 0U;
+                if (st->maske[i] == 0) { continue; }
+                ++maske;
+                bool nah = false;
+                for (int dy = -2; dy <= 2 && !nah; ++dy) {
+                    for (int dx = -2; dx <= 2 && !nah; ++dx) {
+                        const int xx = x + dx;
+                        const int yy = y + dy;
+                        if (xx < 0 || yy < 0 || xx >= st->w || yy >= st->h) { continue; }
+                        nah = sicht[static_cast<std::size_t>(yy) * static_cast<std::size_t>(st->w) + static_cast<std::size_t>(xx)] != 0;
+                    }
+                }
+                zuviel += nah ? 0U : 1U;
+            }
+        }
+        // mit BHED_FOTOS: Maske, Bild mit und ohne das Objekt als .pgm/.ppm (zum Ansehen)
+        if (const char* o = std::getenv("BHED_FOTOS"); o != nullptr && o[0] != '\0') {
+            const auto schreiben = [&](const char* name, const std::vector<std::uint8_t>& px, bool farbe) {
+                std::ofstream d(std::filesystem::path(std::string(o)) / name, std::ios::binary);
+                d << (farbe ? "P6\n" : "P5\n") << st->w << " " << st->h << "\n255\n";
+                for (std::size_t i = 0; i < n; ++i) {
+                    if (farbe) {
+                        d.write(reinterpret_cast<const char*>(&px[i * 4]), 3);
+                    } else {
+                        d.put(static_cast<char>(px[i] != 0 ? 255 : 0));
+                    }
+                }
+            };
+            schreiben("r2a_umriss_maske.pgm", st->maske, false);
+            schreiben("r2a_umriss_mit.ppm", st->mit, true);
+            schreiben("r2a_umriss_ohne.ppm", st->ohne, true);
+        }
+        char z[300];
+        std::snprintf(z, sizeof(z), "Knopftest: R2a Umriss - Maske %zu Punkte, davon ohne Wirkung des Objekts %zu (%.1f %%), Objekt aendert %zu Punkte, Rauschen %zu",
+                      maske, zuviel, maske > 0 ? 100.0 * static_cast<double>(zuviel) / static_cast<double>(maske) : 0.0, sichtbar, rauschen);
+        diag::detail(z);
+        return maske > 1000 && rauschen < 100 && static_cast<double>(zuviel) <= 0.03 * static_cast<double>(maske);
+    }));
+    // --- B3-3 ---
+    auto b33 = std::make_shared<std::array<double, 4>>();   // Lesezugriffe, ms, Hash vorher, Hash nachher
+    add(tu("R2a B3-3: ein Figurenmodell der Szene, neues Level mit denselben Figuren, ein zweites Modell mit derselben Haut", [b33] {
+        std::shared_ptr<const App::ActorAssets> modell;
+        for (const auto& [k, v] : g_app->modelCache) {
+            if (v && v.use_count() > 1 && !v->model.empty()) {
+                modell = v;
+                break;
+            }
+        }
+        if (!modell) {
+            (*b33)[0] = -1.0;
+            return;
+        }
+        const auto hash = [](const ModelTextures& t) {
+            std::uint64_t h = 1469598103934665603ULL;
+            for (const TextureSet::Tex& x : t.bySurface) {
+                for (const std::uint8_t c : x.rgba) {
+                    h ^= c;
+                    h *= 1099511628211ULL;
+                }
+            }
+            return static_cast<double>(h % 1000000007ULL);
+        };
+        (*b33)[2] = hash(texturesFor(modell->model));
+        medienLevelBeginnen();
+        loadActorModels();
+        medienLevelEnde();
+        const std::uint64_t vorher = g_app->archivLesen.load();
+        const auto t0 = std::chrono::steady_clock::now();
+        const ModelTextures t = texturesFor(modell->model);
+        (*b33)[1] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        (*b33)[0] = static_cast<double>(g_app->archivLesen.load() - vorher);
+        (*b33)[3] = hash(t);
+        g_app->mapDirty = true;
+    }));
+    add(pruefe("R2a B3-3: das zweite Modell liest die Haut nicht neu (0 Lesezugriffe), dieselben Bildpunkte", [b33] {
+        char z[240];
+        std::snprintf(z, sizeof(z), "Knopftest: R2a B3-3 - Lesezugriffe %.0f, texturesFor %.2f ms, Bildpunkte gleich %s", (*b33)[0], (*b33)[1],
+                      (*b33)[2] == (*b33)[3] ? "ja" : "nein");
+        diag::detail(z);
+        return (*b33)[0] == 0.0 && (*b33)[2] == (*b33)[3];
+    }));
+    return s;
+}
+
 std::vector<Schritt> umrissSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };

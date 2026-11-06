@@ -3383,6 +3383,8 @@ void drawMapView() {
             BspMesh effektNetzVorschau;
             const BspMesh* effektNetzBild = nullptr;
             auto gpuBild = [&](const Camera& bildCam, const int bildW, const int bildH, const bool nebenbild) {
+                // rc610 R2a: zeichnet dieses Bild den Umriss der Auswahl (dann markieren die gewaehlten Mover ihre Bildpunkte)
+                const bool umrissImBild = !nebenbild && !g_app->camViewActive && !auswahl.leer() && !g_app->playing;
                 float vp[16];
                 // Draufsicht: die vordere Ebene liegt auf der Schnitthoehe -
                 // alles darueber (Decken, Daecher) faellt weg.
@@ -3608,7 +3610,7 @@ void drawMapView() {
                                              : gpu::Abschnitt::MoverGemischt);
                     for (const MoverDraw& mv : movers) {
                         if (mv.mesh == nullptr || mv.mesh->indexes.empty() ||
-                            mv.mesh == &g_app->effectMesh) {
+                            mv.mesh == &g_app->effectMesh || (mv.brush > 0 && mv.brush == g_app->testOhneBrush)) {
                             continue;
                         }
                         float mw[16];
@@ -3620,6 +3622,8 @@ void drawMapView() {
                         gpu::baueMoverWelt(mv.pivot, mv.offset, mv.yaw,
                                            mv.pitch, mv.roll, taumelt, mw, mv.scale);
                         std::string fm;
+                        // rc610 R2a: der Umriss nur, wo der gewaehlte Mover im Bild ist (Stencil, siehe gpu::umrissMarke)
+                        gpu::umrissMarke(umrissImBild && auswahl.mover(mv));
                         const int nm = gpu::zeichneMover(
                             *mv.mesh, &g_app->textures, &g_app->geo, vp, mw,
                             bildCam.pos, gvorn, grechts, ghoch, gfokus, zeit,
@@ -3629,6 +3633,7 @@ void drawMapView() {
                         g_app->gpuMover += nm;
                         if (f.empty()) { f = fm; }
                     }
+                    gpu::umrissMarke(false);
                     gpu::beendeMessung(erst ? gpu::Abschnitt::MoverDeckend
                                             : gpu::Abschnitt::MoverGemischt);
 
@@ -4416,10 +4421,11 @@ void drawMapView() {
                 // Figuren bekommen eine Linie um ihren sichtbaren Rand. Nur im
                 // Hauptbild, nicht beim Blick durch die Kamera.
                 // mission1: beim Abspielen wie im Spiel - kein Umriss.
-                if (!nebenbild && !g_app->camViewActive && !auswahl.leer() && !g_app->playing) {
+                if (umrissImBild) {
                     bool etwas = !umrissFiguren.empty();
                     for (const MoverDraw& mv : movers) { etwas = etwas || auswahl.mover(mv); }
                     if (etwas && gpu::umrissBeginnen()) {
+                        gpu::umrissNurSichtbar(true);   // rc610 R2a
                         for (const MoverDraw& mv : movers) {
                             if (!auswahl.mover(mv) || mv.mesh == nullptr) { continue; }
                             float mw[16];
@@ -4431,6 +4437,7 @@ void drawMapView() {
                                                     grechts, ghoch, gfokus, zeit, g_app->mapBrightness,
                                                     g_app->mapMinLight, &fu, &ueb, gpu::Lage::Alles);
                         }
+                        gpu::umrissNurSichtbar(false);   // Figuren: wie bisher gegen die Tiefe
                         for (const UmrissFigur& uf : umrissFiguren) {
                             std::string fu;
                             (void)gpu::zeichneFigur(*uf.model, uf.textures, uf.knochen, uf.welt, vp, &fu, nullptr,

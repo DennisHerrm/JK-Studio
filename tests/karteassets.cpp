@@ -71,6 +71,10 @@ int main() {
     std::vector<std::int16_t> s(2205, 0);
     for (std::size_t i = 0; i < s.size() / 2; ++i) { s[i] = static_cast<std::int16_t>(16384.0 * std::sin(static_cast<double>(i) * 0.3)); }
     schreiben(o / "spiel" / "base" / "sound" / "ambience" / "wind.wav", wav(s));
+    // rc610 R2a: dieselbe Liste wie der Modell-Browser (modellBrowserEndungen) - .fbx, gross geschriebenes .OBJ; .mtl nicht
+    schreiben(o / "spiel" / "base" / "models" / "map_objects" / "platte.fbx", "; FBX 7.4.0 project file\n");
+    schreiben(o / "spiel" / "base" / "models" / "map_objects" / "KISTE2.OBJ", "v 0 0 0\n");
+    schreiben(o / "spiel" / "base" / "models" / "map_objects" / "kiste2.mtl", "newmtl a\n");
     schreiben(o / "import" / "prefabs" / "saeule.map",
               "{\n\"classname\" \"worldspawn\"\n{\n( 0 0 0 ) ( 0 1 0 ) ( 0 0 1 ) a 0 0 0 1 1 0 0 0\n( 32 0 0 ) ( 32 0 1 ) ( 32 1 0 ) a 0 0 0 1 1 0 0 0\n"
               "( 0 0 0 ) ( 0 0 1 ) ( 1 0 0 ) a 0 0 0 1 1 0 0 0\n( 0 32 0 ) ( 1 32 0 ) ( 0 32 1 ) a 0 0 0 1 1 0 0 0\n"
@@ -79,11 +83,13 @@ int main() {
     d.ordnerHinzufuegen(text(o / "spiel" / "base") + "/", "sp");
     const std::vector<Asset> a = assetsSammeln(&d, text(o / "import"));
     const auto f = [&](AssetArt art, const char* q) { return assetsFiltern(a, art, q); };
-    expect("ein Modell, ein Klang, ein Prefab", f(AssetArt::Modell, "").size() == 1 && f(AssetArt::Klang, "").size() == 1 && f(AssetArt::Prefab, "").size() == 1);
+    expect("drei Modelle (md3, fbx, OBJ wie der Modell-Browser; nicht die .mtl), ein Klang, ein Prefab",
+           f(AssetArt::Modell, "").size() == 3 && f(AssetArt::Klang, "").size() == 1 && f(AssetArt::Prefab, "").size() == 1 &&
+               f(AssetArt::Modell, "platte.fbx").size() == 1 && f(AssetArt::Modell, "kiste2.obj").size() == 1);
     expect("Pfade im Spiel bzw. voller Pfad des Prefabs",
-           !f(AssetArt::Modell, "").empty() && a[f(AssetArt::Modell, "")[0]].pfad == "models/map_objects/kiste.md3" &&
+           !f(AssetArt::Modell, "kiste.md3").empty() && a[f(AssetArt::Modell, "kiste.md3")[0]].pfad == "models/map_objects/kiste.md3" &&
                a[f(AssetArt::Klang, "")[0]].pfad == "sound/ambience/wind.wav" && a[f(AssetArt::Prefab, "")[0]].name == "saeule.map");
-    expect("Suche: alle Woerter ohne Gross/klein", f(AssetArt::Modell, "MAP kiste").size() == 1 && f(AssetArt::Modell, "map tisch").empty());
+    expect("Suche: alle Woerter ohne Gross/klein", f(AssetArt::Modell, "MAP kiste.md3").size() == 1 && f(AssetArt::Modell, "map tisch").empty());
     std::string md3;
     (void)d.dateiLesen("models/map_objects/kiste.md3", md3);
     expect("erster Shader des MD3", md3ErsterShader(md3) == "models/import/kiste/holz");

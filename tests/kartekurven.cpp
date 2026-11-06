@@ -83,6 +83,15 @@ int main() {
     expect("ein Undo nimmt die Kette zurueck", k.entitaeten().size() == vorher);
     const std::size_t np = kurveEinfuegen(k, {Vektor3f(0, 0, 0), Vektor3f(512, 0, 0)}, KurvenArt::Bruecke, o, "x");
     expect("Bruecke eingefuegt: zwei Patches im worldspawn", np == 2 && k.welt()->kinder().size() == 2);
+    std::printf("--- rc610 R2a: neue Karte ohne worldspawn ---\n");
+    {
+        Karte leer;
+        leer.anmelden();
+        const std::size_t nb = kurveEinfuegen(leer, {Vektor3f(0, 0, 0), Vektor3f(512, 0, 0)}, KurvenArt::Bruecke, o, "x");
+        const auto welt = leer.welt();
+        expect("Bruecke in eine neue Karte: worldspawn angelegt (als erste Entitaet), zwei Patches darin, gewaehlt",
+               nb == 2 && welt && !leer.entitaeten().empty() && leer.entitaeten().front() == welt && welt->kinder().size() == 2 && leer.auswahl.anzahl() == 2);
+    }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "OK" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

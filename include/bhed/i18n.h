@@ -3996,6 +3996,10 @@ enum class Str {
     KeOptPrModellFormat,
     KeOptPrModellFormatE,
     KeOptD36,
+    KeLumpsTeilBau,
+    KeLichtGrenzenTip2,
+    KeLumpsBehalten,
+    KeLumpsErsetzen,
     Count,
 };
 

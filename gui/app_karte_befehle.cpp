@@ -69,6 +69,7 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // (ungesicherte Skripte, "Exit?").
     m["Exit"] = {[] {
                      rueckfrageDann("Exit Radiant", [] {
+                         e().beendenBeantwortet = true;   // rc610 R2a: confirmQuit fragt die Karte nicht noch einmal
                          if (confirmQuit()) {
                              g_app->quitConfirmed = true;
                              g_app->wantQuit = true;

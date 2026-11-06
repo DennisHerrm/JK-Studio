@@ -4439,11 +4439,13 @@ const App::ActorAssets* hiltFor(const std::string& pfad) {
     g_app->griffeGenutzt.insert(pfad);   // rc610 R1: in diesem Level benutzt
     const auto have = g_app->hiltCache.find(pfad);
     if (have != g_app->hiltCache.end()) {
+        modellBilderGenutzt(have->second);   // rc610 R2a (B3-3)
         return have->second.model.empty() ? nullptr : &have->second;
     }
     // Ab hier wird MITTEN IM BILD geladen - siehe meldeNachladen.
     const auto ladeBeginn = std::chrono::steady_clock::now();
     App::ActorAssets a;
+    const BildSammler sammler(a.bilder);   // rc610 R2a (B3-3)
     std::string data;
     if (readFromArchives(pfad, data)) {
         std::string err;
