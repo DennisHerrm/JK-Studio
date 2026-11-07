@@ -558,6 +558,15 @@ ImportNetz nachKoerpern(const ImportNetz& n) {
     return r;
 }
 
+bool shaderUnterTextures(const std::string& shader) {
+    static constexpr char kT[] = "textures/";
+    if (shader.size() <= sizeof(kT) - 1) { return false; }
+    for (std::size_t i = 0; i + 1 < sizeof(kT); ++i) {
+        if (std::tolower(static_cast<unsigned char>(shader[i])) != kT[i]) { return false; }
+    }
+    return true;
+}
+
 TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOptionen& o) {
     TeilErgebnis r;
     const Daten d = vorbereiten(t);
@@ -597,8 +606,14 @@ TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOption
     bool ok = false;
     TeilArt art = wahl;
     if (wahl == TeilArt::Auto) {
+        // Brush-Seiten tragen im .map nur Shader unter textures/: q3map2 setzt "textures/" vor jeden Namen (map.cpp ParseRawBrush
+        // :1009 String64( "textures/", token )), der Editor schreibt ihn ohne diesen Teil (shader_get_textureName). Ein Shader wie
+        // models/aseb/griff (Bild ohne Ordner neben dem Modell, model.cpp AssModelMesh :221) kaeme als textures/eb/griff an - so
+        // ein Teil wird Modell+Clip, dort behaelt die Modellflaeche den Shader wie das misc_model.
+        bool nurTextures = shaderUnterTextures(teilShader(t, o));
+        for (const std::string& sh : t.dreieckShader) { nurTextures = nurTextures && shaderUnterTextures(sh); }
         r.pinsel = bauen(false, o.maxPinsel, ok);
-        art = (r.geschlossen && ok) ? TeilArt::Pinsel : TeilArt::ModellClip;
+        art = (r.geschlossen && ok && nurTextures) ? TeilArt::Pinsel : TeilArt::ModellClip;
         if (art == TeilArt::ModellClip) { r.pinsel = bauen(true, std::max<std::size_t>(o.maxPinsel, 4096), ok); }
     } else {
         r.pinsel = bauen(wahl == TeilArt::ModellClip, std::max<std::size_t>(o.maxPinsel, 4096), ok);
@@ -664,8 +679,11 @@ std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegO
     char z[160];
     for (const ImportTeil* t : teile) {
         s += "o " + (t->name.empty() ? std::string("part") : t->name) + "\n";
+        // Y oben wie jede .obj: q3map2 dreht jede assimp-Szene um +90 Grad um X (model.cpp LoadModel :323-329,
+        // AI_CONFIG_PP_PTV_ROOT_TRANSFORMATION, (x, y, z) -> (x, -z, y)), die .obj-Leser von assimp drehen nicht - darum
+        // (x, z, -y), dann kommt der Punkt in der Karte bei (x, y, z) an (vorher lag das Modell um 90 Grad gekippt im Boden).
         for (const ImportPunkt& p : t->punkte) {
-            std::snprintf(z, sizeof(z), "v %.6f %.6f %.6f\n", p.x, p.y, p.z);
+            std::snprintf(z, sizeof(z), "v %.6f %.6f %.6f\n", p.x, p.z, -p.y);
             s += z;
         }
         for (const auto& uv : t->uv) {

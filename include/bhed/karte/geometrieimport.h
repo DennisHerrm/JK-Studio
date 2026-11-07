@@ -112,6 +112,9 @@ struct TeilErgebnis {
 // Teil mit dreieckShader. Ein Kasten mit zwei Materialien (3ds-Max-Multimaterial) bleibt so ein geschlossener Koerper und wird
 // Brushes statt zweier offener Flaechen. Name: Nummer und haeufigster Shader, shaderFest = dieser.
 [[nodiscard]] ImportNetz nachKoerpern(const ImportNetz& n);
+// Ein Shader, den eine Brush-Seite im .map tragen kann: beginnt mit "textures/" (gross/klein egal) und hat einen Namen danach
+[[nodiscard]] bool shaderUnterTextures(const std::string& shader);
+// Auto: geschlossen, hoechstens maxPinsel Brushes und alle Shader unter textures/ -> Pinsel, sonst Modell+Clip
 [[nodiscard]] TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOptionen& o);
 
 class Karte;
@@ -129,7 +132,7 @@ class Entitaet;
 EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad,
                                  const std::vector<const Entitaet*>& ersetzt = {});
 
-// Die Modell+Clip-Teile als .obj (Q3-Koordinaten, usemtl = Shader, vt = s, 1 - t) - so liest
+// Die Modell+Clip-Teile als .obj (Y oben: Q3 (x, y, z) als (x, z, -y), usemtl = Shader, vt = s, 1 - t) - so liest
 // q3map2 (assimp) das misc_model und nimmt die Shader der Brushes.
 [[nodiscard]] std::string modellObj(const std::vector<const ImportTeil*>& teile, const ZerlegOptionen& o);
 

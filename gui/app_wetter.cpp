@@ -43,6 +43,7 @@
 #include <cstdio>
 #include <memory>
 #include <sstream>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -275,6 +276,18 @@ void wetterBauen() {
     }
     g_satz->wetter = Wetter{};
     g_satz->wetter.schluessel = schl;
+    // Jede Spawn-Funktion meldet ihre Befehle als Configstring an (G_FindConfigstringIndex, game/g_utils.cpp:78-99 MD9 und
+    // OpenJK: ein schon vorhandener Text - ohne Gross/Klein - gibt denselben Index); cgame fuehrt jeden CS_WORLD_FX-Eintrag
+    // einmal aus (cg_main.cpp:1542). Zwei fx_lava geben so EINE "lava"-Wolke und einen "fog", nicht zwei.
+    std::set<std::string> befehle;
+    const auto einmal = [&befehle](std::string befehl) {
+        for (char& c : befehl) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return befehle.insert(befehl).second;
+    };
+    const auto anzahl = [](const MapEntity& e, int vorgabe) {
+        const std::string* c = e.find("count");
+        return c != nullptr ? std::atoi(c->c_str()) : vorgabe;
+    };
     for (const MapEntity& e : *g_quelle->entities) {
         const int f = flags(e);
         if (regelwerkJediOutcast()) {
@@ -285,24 +298,26 @@ void wetterBauen() {
             // 1000 Tropfen mit 2000/s, "snow" der Schnee wie unten
             // (code/rd-vanilla/tr_WorldEffects.cpp:1767, 1891, 1964); count
             // bleibt ungelesen. fx_wind und fx_spacedust spawnen nicht.
+            // "rain init %i" / "snow init %i" mit count (Vorgabe 500 bzw. 1000, codeJK2/game/g_fx.cpp:281-315)
             if (e.classname == "fx_rain") {
-                g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
-                g_satz->wetter.wind[0] += 120.0F;   // "wind" wie oben
+                if (einmal("rain init " + std::to_string(anzahl(e, 500)))) { g_satz->wetter.wolken.push_back(regen(1000, 2000.0F)); }
+                if (einmal("wind")) { g_satz->wetter.wind[0] += 120.0F; }   // "wind" wie oben
             } else if (e.classname == "fx_snow") {
-                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
-                g_satz->wetter.wind[0] += 120.0F;
+                if (einmal("snow init " + std::to_string(anzahl(e, 1000)))) { g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1")); }
+                if (einmal("wind")) { g_satz->wetter.wind[0] += 120.0F; }
             }
             continue;
         }
         if (e.classname == "fx_rain") {
+            // SP_CreateRain (g_fx.cpp:575-617 MD9): lightrain / rain / heavyrain + heavyrainfog / acidrain / sonst lightrain + wind
             if ((f & 1) != 0) {
-                g_satz->wetter.wolken.push_back(regen(500, 2000.0F));
+                if (einmal("lightrain")) { g_satz->wetter.wolken.push_back(regen(500, 2000.0F)); }
             } else if ((f & 2) != 0) {
-                g_satz->wetter.wolken.push_back(regen(1000, 2000.0F));
+                if (einmal("rain")) { g_satz->wetter.wolken.push_back(regen(1000, 2000.0F)); }
             } else if ((f & 4) != 0) {
-                g_satz->wetter.wolken.push_back(regen(1000, 2800.0F));
-                g_satz->wetter.wolken.push_back(regenNebel());
-            } else if ((f & 8) != 0) {
+                if (einmal("heavyrain")) { g_satz->wetter.wolken.push_back(regen(1000, 2800.0F)); }
+                if (einmal("heavyrainfog")) { g_satz->wetter.wolken.push_back(regenNebel()); }
+            } else if ((f & 8) != 0 && einmal("acidrain")) {
                 Wolke w = regen(1000, 2000.0F);
                 w.breite = 2.0F;
                 w.farbe[0] = 0.34F;
@@ -310,18 +325,18 @@ void wetterBauen() {
                 w.farbe[2] = 0.34F;
                 w.alpha = 0.70F;
                 g_satz->wetter.wolken.push_back(w);
-            } else {
-                g_satz->wetter.wolken.push_back(regen(500, 2000.0F));   // lightrain + wind
-                g_satz->wetter.wind[0] += 120.0F;
+            } else if ((f & 8) == 0) {
+                if (einmal("lightrain")) { g_satz->wetter.wolken.push_back(regen(500, 2000.0F)); }   // lightrain + wind
+                if (einmal("wind")) { g_satz->wetter.wind[0] += 120.0F; }
             }
-            if ((f & 32) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 32) != 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_snow") {
             // lightsnow (1) und heavysnow (4) kennt der Renderer nicht.
             if ((f & 1) == 0 && (f & 4) == 0) {
-                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1"));
-                if ((f & 2) == 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // snow + fog
+                if (einmal("snow")) { g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake1")); }
+                if ((f & 2) == 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // snow + fog
             }
-            if ((f & 8) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 8) != 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_lava" && regelwerkMovieDuels()) {
             // rc604 fix604b (B6): SP_CreateLava (md_g_fx.cpp:318-350 MD, nur Movie
             // Duels): 1 "lightlava", 2 "lava", 4 "heavylava", sonst "lava" + "fog";
@@ -330,15 +345,15 @@ void wetterBauen() {
             // code/rd-vanilla/tr_WorldEffects.cpp:1909-1924 MD); "lightlava" und
             // "heavylava" uebergeht er (:2105-2112).
             if ((f & 1) == 0 && (f & 4) == 0) {
-                g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake2"));
-                if ((f & 2) == 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // lava + fog
+                if (einmal("lava")) { g_satz->wetter.wolken.push_back(flocken("gfx/effects/snowflake2")); }
+                if ((f & 2) == 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }   // lava + fog
             }
-            if ((f & 8) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 8) != 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
         } else if (e.classname == "fx_spacedust") {
             const std::string* c = e.find("count");
             g_satz->wetter.wolken.push_back(raumstaub(std::clamp(c != nullptr ? std::atoi(c->c_str()) : 1000, 0, 8000), 2.4F));
         } else if (e.classname == "fx_wind") {
-            if ((f & 1) != 0) { g_satz->wetter.wind[0] += 100.0F; }   // leichter Wind
+            if ((f & 1) != 0 && einmal("wind")) { g_satz->wetter.wind[0] += 100.0F; }   // leichter Wind
             if ((f & 2) != 0) {
                 // constantwind ( AngleVectors(angles) * speed )
                 float ang[3] = {0.0F, 0.0F, 0.0F};
@@ -351,12 +366,16 @@ void wetterBauen() {
                 const float tempo = sp != nullptr ? static_cast<float>(std::atof(sp->c_str())) : 500.0F;
                 const float p = ang[0] * 3.14159265F / 180.0F;
                 const float y = ang[1] * 3.14159265F / 180.0F;
-                g_satz->wetter.wind[0] += std::cos(p) * std::cos(y) * tempo;
-                g_satz->wetter.wind[1] += std::cos(p) * std::sin(y) * tempo;
-                g_satz->wetter.wind[2] += -std::sin(p) * tempo;
+                const float v[3] = {std::cos(p) * std::cos(y) * tempo, std::cos(p) * std::sin(y) * tempo, -std::sin(p) * tempo};
+                char text[160];
+                std::snprintf(text, sizeof(text), "constantwind ( %f %f %f )", static_cast<double>(v[0]), static_cast<double>(v[1]),
+                              static_cast<double>(v[2]));   // SP_CreateWind: sprintf( temp, "constantwind ( %f %f %f )", ... )
+                if (einmal(text)) {
+                    for (std::size_t i = 0; i < 3; ++i) { g_satz->wetter.wind[i] += v[i]; }
+                }
             }
-            if ((f & 32) != 0) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
-            if ((f & 64) != 0) { g_satz->wetter.wolken.push_back(nebel(0.1F)); }
+            if ((f & 32) != 0 && einmal("fog")) { g_satz->wetter.wolken.push_back(nebel(0.2F)); }
+            if ((f & 64) != 0 && einmal("light_fog")) { g_satz->wetter.wolken.push_back(nebel(0.1F)); }
         }
     }
     if (!g_satz->wetter.wolken.empty()) {

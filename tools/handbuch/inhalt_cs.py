@@ -7531,6 +7531,8 @@ TEXTE.update(_MO)
 # ASEB: .ase, .md3 usw. zu Brushes, Rechtsklick "Modell in Brushes umwandeln"
 from inhalt_aseb import CS as _ASEB  # noqa: E402
 TEXTE.update(_ASEB)
+from inhalt_kreste import CS as _KRESTE  # noqa: E402
+TEXTE.update(_KRESTE)
 
 # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen, Nachfragen
 from inhalt_r2a import CS as _R2A  # noqa: E402

@@ -393,6 +393,29 @@ std::vector<Schritt> teil6Schritte() {
             diag::detail("Knopftest: Teil 7 - " + karte + " Wolken " + w.bild + ": " + std::to_string(n) + ", erwartet " + std::to_string(erwartet));
             return regelwerkMovieDuels() && n == erwartet;
         }));
+        if (std::string(w.bild) != "gfx/effects/snowflake2") { continue; }
+        // p_karte Punkt 6: ein zweites fx_lava gleicher Art meldet dieselben Befehle "lava" und "fog" an (G_FindConfigstringIndex
+        // gibt den vorhandenen Index, game/g_utils.cpp:87-99 MD9) - im Spiel bleibt es bei einer Wolke je Befehl
+        add(pruefeMitDaten("Teil 7: " + karte + " mit einem zweiten fx_lava: gleich viele Wolken snowflake2 und alpha_smoke2b (je Befehl eine)", fehlt, [] {
+            const int lava = wetterWolkenMitBild("gfx/effects/snowflake2");
+            const int nebel = wetterWolkenMitBild("gfx/effects/alpha_smoke2b");
+            auto& ents = g_app->map.entities;
+            const auto it = std::find_if(ents.begin(), ents.end(), [](const MapEntity& e) { return e.classname == "fx_lava"; });
+            if (it == ents.end()) {
+                diag::detail("Knopftest: Teil 7 - kein fx_lava in der Karte");
+                return false;
+            }
+            const MapEntity zweites = *it;
+            ents.push_back(zweites);
+            ++g_app->entStand;
+            const int lava2 = wetterWolkenMitBild("gfx/effects/snowflake2");
+            const int nebel2 = wetterWolkenMitBild("gfx/effects/alpha_smoke2b");
+            ents.pop_back();
+            ++g_app->entStand;
+            diag::detail("Knopftest: Teil 7 - zweites fx_lava: snowflake2 " + std::to_string(lava) + " -> " + std::to_string(lava2) + ", alpha_smoke2b " +
+                         std::to_string(nebel) + " -> " + std::to_string(nebel2));
+            return lava > 0 && lava2 == lava && nebel2 == nebel;
+        }));
     }
     add(tu("Teil 6: Regelwerk zurueck", [=] {
         g_app->settings.regelwerk = *regelVorher;

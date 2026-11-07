@@ -326,6 +326,9 @@ namespace aseb {
 std::vector<Schritt> schritte();   // selbsttest_aseb.inc: ASEB, .ase/.md3 usw. zu Brushes, Rechtsklick "Modell in Brushes umwandeln"
 std::vector<Schritt> handbuchSchritte();   // dito: die Bilder h_aseb_menue, h_aseb_fenster (BHED_HB_NUR=aseb)
 }  // namespace aseb
+namespace kreste {
+std::vector<Schritt> schritte();
+}  // namespace kreste
 namespace r2a {
 std::vector<Schritt> schritte();   // selbsttest_r2a.inc: rc610 R2a, Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
 }  // namespace r2a
@@ -627,6 +630,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =kr: Karten-Editor-Reste (p_karte) - ASEB im echten Bau (misc_model, Brushes, Modell+Clip), Ladetest im Spielbild
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "kr") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : kreste::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =r2a: rc610 R2a - Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen (BHED_R2A_ZEIT=1: nur die Bildzeit)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "r2a") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -698,6 +708,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
     for (Schritt& x : modobj::schritte()) { add(std::move(x)); }   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
     for (Schritt& x : aseb::schritte()) { add(std::move(x)); }   // ASEB: .ase/.md3 usw. zu Brushes, misc_model in Brushes umwandeln
+    for (Schritt& x : kreste::schritte()) { add(std::move(x)); }   // p_karte: ASEB im echten Bau, Ladetest im Spielbild
     for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
     for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
@@ -988,6 +999,7 @@ void skriptNeu() {
 #include "selbsttest_kartelicht1.inc"   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
 #include "selbsttest_modobj.inc"   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
 #include "selbsttest_aseb.inc"   // ASEB: .ase/.md3 usw. zu Brushes, Rechtsklick "Modell in Brushes umwandeln"
+#include "selbsttest_kreste.inc"   // p_karte: ASEB im echten Bau (misc_model, Brushes, Modell+Clip), Ladetest im Spielbild
 #include "selbsttest_r2a.inc"   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
 #include "selbsttest_optsicher.inc"
 #include "selbsttest_reste1.inc"   // Liste reste1: Decals in der Echtzeit-Ansicht

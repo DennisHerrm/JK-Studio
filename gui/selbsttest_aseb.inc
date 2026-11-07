@@ -179,6 +179,29 @@ std::set<std::string> schluessel(const std::map<std::string, std::size_t>& m) {
     return s;
 }
 
+// p_karte: Auto macht einen Teil nur dann zu Brushes, wenn alle seine Shader unter textures/ liegen (map.cpp :1009) - sonst
+// Modell+Clip. Soll-Art je Teil und die Shader, die Brush-Seiten tragen (die unter textures/, dazu clip fuer Modell+Clip).
+bool artWieRegel(const karte::ImportTeil& t, const karte::TeilErgebnis& v) {
+    bool nurTextures = karte::shaderUnterTextures(t.shaderFest);
+    for (const std::string& sh : t.dreieckShader) { nurTextures = nurTextures && karte::shaderUnterTextures(sh); }
+    return v.geschlossen && v.art == (nurTextures ? karte::TeilArt::Pinsel : karte::TeilArt::ModellClip);
+}
+std::set<std::string> brushShader(const std::map<std::string, std::size_t>& m, bool mitClip) {
+    std::set<std::string> s;
+    for (const auto& [k, n] : m) {
+        (void)n;
+        if (karte::shaderUnterTextures(k)) { s.insert(k); }
+    }
+    if (mitClip) { s.insert("textures/system/clip"); }
+    return s;
+}
+bool mitModellClip(const ke::GeoImportZustand& g) {
+    for (const auto& v : g.vorschau) {
+        if (v.art == karte::TeilArt::ModellClip) { return true; }
+    }
+    return false;
+}
+
 // Der Huellkasten aller Brushes der Welt
 bool weltKasten(std::array<float, 3>& mn, std::array<float, 3>& mx) {
     mn = {1e30F, 1e30F, 1e30F};
@@ -278,7 +301,7 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         (void)ke::geoImportLaden(datei("truhe.ase"));
     }));
     add(pause(0.3));
-    add(pruefe("ASEB .ase: Fenster offen, je Koerper ein Teil (Truhe, Griff), beide geschlossen, Brushes", [] {
+    add(pruefe("ASEB .ase: Fenster offen, je Koerper ein Teil (Truhe, Griff), beide geschlossen; Truhe Brushes, Griff (models/aseb/griff) Modell+Clip", [] {
         const ke::GeoImportZustand& g = ke::editor().geoImport;
         std::string t;
         for (std::size_t i = 0; i < g.netz.teile.size() && i < g.vorschau.size(); ++i) {
@@ -286,10 +309,10 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         }
         diag::detail("Knopftest: ASEB - .ase offen " + std::to_string(g.offen ? 1 : 0) + ", Teile " + t + "Konsole: " + konsoleText().substr(0, 300));
         bool ok = g.offen && g.netz.teile.size() == 2 && g.vorschau.size() == 2;
-        for (std::size_t i = 0; ok && i < 2; ++i) { ok = g.vorschau[i].geschlossen && g.vorschau[i].art == karte::TeilArt::Pinsel && !g.vorschau[i].pinsel.empty(); }
-        return ok;
+        for (std::size_t i = 0; ok && i < 2; ++i) { ok = artWieRegel(g.netz.teile[i], g.vorschau[i]) && !g.vorschau[i].pinsel.empty(); }
+        return ok && mitModellClip(g);
     }));
-    add(pruefe("ASEB .ase: Dreiecke je Shader und die Shader der Brush-Seiten (ohne caulk) wie q3map2 fuer dieselbe Datei als misc_model", [z] {
+    add(pruefe("ASEB .ase: Dreiecke je Shader wie q3map2 fuer dieselbe Datei als misc_model; Brush-Seiten (ohne caulk) die Shader unter textures/ und clip", [z] {
         const ke::GeoImportZustand& g = ke::editor().geoImport;
         const Q3Modell& q = z->modelle["models/aseb/truhe.ase"];
         const auto ist = teilDreiecke(g);
@@ -297,7 +320,7 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         std::string st;
         for (const auto& x : seiten) { st += x + " "; }
         diag::detail("Knopftest: ASEB - .ase Teile " + shaderListe(ist) + "| q3map2 " + shaderListe(q.dreiecke) + "| Seiten " + st);
-        return !q.dreiecke.empty() && ist == q.dreiecke && seiten == schluessel(q.dreiecke);
+        return !q.dreiecke.empty() && ist == q.dreiecke && seiten == brushShader(q.dreiecke, mitModellClip(g));
     }));
     add(klick(std::string(ke::trK(Str::KeGiEinfuegen)) + "##gieinfuegen", fenster));
     add(pause(0.4));
@@ -321,7 +344,7 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         (void)ke::geoImportLaden(datei("stein.md3"));
     }));
     add(pause(0.3));
-    add(pruefe("ASEB .md3: ein geschlossener Koerper aus zwei Flaechen; Dreiecke je Shader und Seiten-Shader wie q3map2 (auch der Shader ohne Ordner)", [z] {
+    add(pruefe("ASEB .md3: ein geschlossener Koerper aus zwei Flaechen, Dreiecke je Shader wie q3map2 (auch der Shader ohne Ordner: models/aseb/kante) - darum Modell+Clip", [z] {
         const ke::GeoImportZustand& g = ke::editor().geoImport;
         const Q3Modell& q = z->modelle["models/aseb/stein.md3"];
         const auto ist = teilDreiecke(g);
@@ -330,8 +353,8 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         for (const auto& x : seiten) { st += x + " "; }
         diag::detail("Knopftest: ASEB - .md3 Teile " + std::to_string(g.netz.teile.size()) + ": " + shaderListe(ist) + "| q3map2 " + shaderListe(q.dreiecke) +
                      "| Seiten " + st + "| Konsole: " + konsoleText().substr(0, 300));
-        return g.offen && g.netz.teile.size() == 1 && g.vorschau.size() == 1 && g.vorschau[0].geschlossen && g.vorschau[0].art == karte::TeilArt::Pinsel &&
-               !q.dreiecke.empty() && ist == q.dreiecke && seiten == schluessel(q.dreiecke);
+        return g.offen && g.netz.teile.size() == 1 && g.vorschau.size() == 1 && artWieRegel(g.netz.teile[0], g.vorschau[0]) &&
+               g.vorschau[0].art == karte::TeilArt::ModellClip && !q.dreiecke.empty() && ist == q.dreiecke && seiten == brushShader({}, true);
     }));
     add(klick(std::string(ke::trK(Str::KeGiAbbrechen)) + "##giabbrechen", fenster));
     // 3. .glm: klare Meldung
@@ -430,7 +453,7 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         diag::detail("Knopftest: ASEB - Umwandeln: offen " + std::to_string(g.offen ? 1 : 0) + ", " + std::to_string(g.netz.teile.size()) + " Teile, " +
                      shaderListe(teilDreiecke(g)) + "Datei " + g.datei);
         bool ok = g.offen && g.netz.teile.size() == 2 && g.vorschau.size() == 2 && teilDreiecke(g) == q.dreiecke;
-        for (std::size_t i = 0; ok && i < 2; ++i) { ok = g.vorschau[i].geschlossen && g.vorschau[i].art == karte::TeilArt::Pinsel; }
+        for (std::size_t i = 0; ok && i < 2; ++i) { ok = artWieRegel(g.netz.teile[i], g.vorschau[i]); }
         return ok;
     }));
     if (handbuch) {
@@ -443,7 +466,7 @@ std::vector<Schritt> schritteMit(bool handbuch) {
     add(foto("aseb_umwandeln"));
     add(klick(std::string(ke::trK(Str::KeGiEinfuegen)) + "##gieinfuegen", fenster));
     add(pause(0.4));
-    add(pruefe("ASEB Rechtsklick: Brushes an derselben Stelle (Huellkasten gleich, gespiegelt und gedreht), das misc_model weg, Seiten-Shader wie q3map2", [z] {
+    add(pruefe("ASEB Rechtsklick: Brushes an derselben Stelle (Huellkasten gleich, gespiegelt und gedreht), das misc_model mit truhe.ase weg, Seiten-Shader wie q3map2 (Griff: clip und das Modell)", [z] {
         std::array<float, 3> mn{}, mx{};
         const bool da = weltKasten(mn, mx);
         const float w = abweichung(mn, mx, z->mn, z->mx);
@@ -453,7 +476,9 @@ std::vector<Schritt> schritteMit(bool handbuch) {
         diag::detail("Knopftest: ASEB - umgewandelt: " + std::to_string(tutgeo::weltPinsel().size()) + " Brushes, Kasten " + kastenText(mn, mx) + " gegen " +
                      kastenText(z->mn, z->mx) + ", Abweichung " + std::to_string(w) + ", misc_model " + (miscModel() ? "noch da" : "weg") + ", Seiten " + st +
                      ", Undo " + ke::editor().karte.undo.undoName());
-        return da && w < 0.01F && !miscModel() && weltShader() == schluessel(q.dreiecke) && ke::editor().karte.undo.undoName() == "importGeometry";
+        const auto mm = miscModel();
+        const bool altWeg = !mm || mm->wert("model") != "models/aseb/truhe.ase";
+        return da && w < 0.01F && altWeg && weltShader() == brushShader(q.dreiecke, true) && ke::editor().karte.undo.undoName() == "importGeometry";
     }));
     add(tu("ASEB: Optimierer zu (er hat die Karte geprueft); in den Karten-Editor (Tastatur)", [] {
         ke::optimiererSchliessen();

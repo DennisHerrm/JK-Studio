@@ -59,7 +59,8 @@ void spiegelEbeneAnAuswahl() {
     if (ed.karte.auswahl.anzahl() == 0) { return; }
     const karte::Kasten b = karte::auswahlGrenzenPivot(ed.karte);
     const double r = ed.raster.groesse();
-    s.ebene = std::round(static_cast<double>(b.origin[static_cast<std::size_t>(s.achse)]) / r) * r;
+    // aufs Raster wie NRC vector3_snap (float_snapped: llrint, bei genau halbem Raster zur geraden Zahl - std::round rundete weg von 0)
+    s.ebene = karte::zahlEingerastet(static_cast<double>(b.origin[static_cast<std::size_t>(s.achse)]), r);
     if (s.ebene == 0) { s.ebene = 0; }   // -0
     spiegelTick();
     melden();

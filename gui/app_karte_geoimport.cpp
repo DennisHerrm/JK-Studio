@@ -596,7 +596,8 @@ void geoImportDialogZeichnen() {
                               r.detail ? trK(Str::KeGiDetail) : trK(Str::KeGiStruktur));
                 std::string text = t;
                 if (r.art == karte::TeilArt::ModellClip) { text += std::string(" + ") + trK(Str::KeGiModellClip); }
-                ImGui::TextUnformatted(text.c_str());
+                // umbrechen statt abschneiden (p_karte: "1 個(detail) + モデル + クリップ" lief im Japanischen ueber den Rand)
+                ImGui::TextWrapped("%s", text.c_str());
             }
             ImGui::EndTable();
         }

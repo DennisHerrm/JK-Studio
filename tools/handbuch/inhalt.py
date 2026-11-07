@@ -11,6 +11,7 @@ import inhalt_hilfe2  # Stufe H2: neue Tutorials mit Tour
 import inhalt_tutgeo  # rc610 TUT-GEO: Tutorial "Ein Modell zu Brushes machen"
 import inhalt_modobj  # rc610 MODOBJ: Modell-Browser mit .obj, .fbx usw., Setzen wandelt in .md3
 import inhalt_aseb  # ASEB: .ase, .md3 usw. zu Brushes, Rechtsklick "Modell in Brushes umwandeln"
+import inhalt_kreste  # p_karte: Brush-Seiten nur mit Shadern unter textures/ (sonst Modell + Clip)
 import inhalt_r2a  # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen, Nachfragen
 import inhalt_r3  # rc610 R3: weitere Stufen und Glow im Echtzeit-Licht, gespiegelte Modelle
 import inhalt_mb1a1  # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen wie ModView, Bedienung wie 3ds Max
@@ -70,6 +71,7 @@ GRUPPEN = [
 
 inhalt_tutgeo.einhaengen(inhalt_karte9.KARTE_WERKZEUGE9, inhalt_tutorials.UEBERSICHT)
 inhalt_aseb.einhaengen(inhalt_karte9.KARTE_WERKZEUGE9)
+inhalt_kreste.einhaengen(inhalt_karte9.KARTE_WERKZEUGE9)
 inhalt_modobj.einhaengen(inhalt_karteneditor2.BAUEN)
 inhalt_r2a.einhaengen(inhalt_karte7.KARTE_TEMPO, inhalt_karteneditor.KARTENEDITOR, inhalt_bspmerge.BSPMERGE)
 inhalt_r3.einhaengen(inhalt_karte7.KARTE_TEMPO)

@@ -21,8 +21,14 @@ cases.json: jede Karte mit -game quake3 -bsp -meta bauen, dann
 Bekannte Fehlschlaege: known-failures.json (bleibt Fehlschlag, darf aber nicht bestehen).
 Rueckgabe: Anzahl unerwarteter Ergebnisse (fail oder unexpected_pass); mit --erwartet die Zahl
 der Faelle, deren Zustand von der Datei abweicht (ctest q3map2_pr316, tools/karte/q3map2_pr316_erwartet.json).
+
+Vor dem ersten Bau prueft --dateien (ctest: tools/karte/q3map2_pr316_dateien.json) den Datenordner gegen den
+Git-Stand des Forks (Blob-SHA je Datei unter regression_tests/): fehlt eine Datei oder weicht sie ab, endet der Lauf
+mit "Datenordner unvollstaendig" statt mit Proben-Fehlschlaegen (07.11.: die Windows-Speicheroptimierung hatte
+in %TEMP% die Shader aus gameroot/baseq3/scripts geloescht; R10 fiel dann ohne Hinweis auf die Ursache durch).
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -227,6 +233,21 @@ def fall(exe, daten, f, arbeit, threads, spielwurzel):
     return fehler, leck
 
 
+def daten_pruefen(daten, liste):
+    """Fehlende oder abweichende Dateien gegen die Liste Pfad -> Git-Blob-SHA (Pfade relativ zu regression_tests/)."""
+    wurzel = os.path.dirname(daten)
+    falsch = []
+    for rel, sha in sorted(json.load(open(liste, encoding='utf-8'))['dateien'].items()):
+        p = os.path.join(wurzel, *rel.split('/'))
+        if not os.path.isfile(p):
+            falsch.append('fehlt   ' + rel)
+            continue
+        b = open(p, 'rb').read()
+        if hashlib.sha1(b'blob %d\0' % len(b) + b).hexdigest() != sha:
+            falsch.append('anders  ' + rel)
+    return falsch
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument('exe')
@@ -235,9 +256,18 @@ def main(argv):
     ap.add_argument('--json')
     ap.add_argument('--threads', default='2')
     ap.add_argument('--erwartet', help='JSON mit dem erwarteten Zustand je Fall (ctest): Rueckgabe = Abweichungen davon')
+    ap.add_argument('--dateien', help='JSON Pfad -> Git-Blob-SHA der Testdaten (Stand des Forks): vorher pruefen')
     a = ap.parse_args(argv)
     exe = os.path.abspath(a.exe)
     daten = os.path.abspath(a.daten)
+    if a.dateien:
+        falsch = daten_pruefen(daten, a.dateien)
+        for z in falsch[:20]:
+            print('DATEN  ' + z)
+        if falsch:
+            print('q3map2_pr316: FEHLER Datenordner unvollstaendig (%d Datei(en) fehlen oder weichen ab, Stand siehe %s) - '
+                  'neu holen aus %s' % (len(falsch), os.path.basename(a.dateien), json.load(open(a.dateien, encoding='utf-8'))['quelle']))
+            return 1
     faelle = json.load(open(os.path.join(daten, 'cases.json'), encoding='utf-8'))['cases']
     bekannt = json.load(open(os.path.join(daten, 'known-failures.json'), encoding='utf-8'))['cases']
     arbeit = tempfile.mkdtemp(prefix='pr316_')
