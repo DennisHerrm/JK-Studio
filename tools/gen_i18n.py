@@ -2298,6 +2298,8 @@ from i18n_pjka import zeilen_vier as _pjka  # noqa: E402  (p_jka: Max-Tasten des
 S += _pjka()
 from i18n_animimp import zeilen_vier as _animimp  # noqa: E402  (Animations-Import FBX/glTF/BVH, Preset-Bibliothek)
 S += _animimp()
+from i18n_paint import zeilen_vier as _paint  # noqa: E402  (Modell-Block 1c: Texture Painting)
+S += _paint()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

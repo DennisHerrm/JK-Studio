@@ -210,6 +210,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _pjka()})
             from i18n_animimp import zeilen_vier as _animimp   # Animations-Import und Preset-Bibliothek
             texte.update({e[0]: e[1:] for e in _animimp()})
+            from i18n_paint import zeilen_vier as _paint   # Modell-Block 1c: Texture Painting
+            texte.update({e[0]: e[1:] for e in _paint()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

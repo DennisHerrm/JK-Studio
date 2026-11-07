@@ -2415,6 +2415,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_uv.inc: Modell-Block 1b
 namespace md1d {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_md.inc: Modell-Block 1d, BHED_HB_NUR=md
 }  // namespace md1d
+namespace pt1c {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_pt.inc: Modell-Block 1c, BHED_HB_NUR=pt
+}  // namespace pt1c
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2460,6 +2463,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "md") == 0) {
         return md1d::handbuchSchritte();   // Modell-Block 1d: Modellieren, Requisite in die Karte
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "pt") == 0) {
+        return pt1c::handbuchSchritte();   // Modell-Block 1c: Texture Painting
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

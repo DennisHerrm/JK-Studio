@@ -3060,6 +3060,8 @@ from i18n_md1d import texte as _md1d  # noqa: E402
 TEXTE.update(_md1d("es"))
 from i18n_pjka import texte as _pjka  # noqa: E402
 TEXTE.update(_pjka("es"))
+from i18n_paint import texte as _paint  # noqa: E402
+TEXTE.update(_paint("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 from i18n_render import texte as _render  # noqa: E402
