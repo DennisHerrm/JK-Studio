@@ -1,0 +1,2 @@
+models/players/tie_bomber/tie_bomber.gla	2	0.64	tie_bomber
+model_root	W	M	0	0

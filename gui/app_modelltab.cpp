@@ -137,6 +137,7 @@ void modellDokumentLaden(const std::string& bytes) {
     }
     t.dok.laden(std::move(in));
     t.dokModell = g_app->modelPath;
+    t.gespeichertStand = -1;   // pfix H3: ein neues Modell ist ungeaendert
     t.g2 = modell::G2Zustand{};
     t.verstecktTeil.clear();   // mb1a2
     t.verstecktKnochen.clear();
@@ -162,6 +163,9 @@ void modellAnzeigeAktualisieren() {
         }
         return;
     }
+    // pfix H2: eigene neue oder zurueckgenommene Teile (Detach/Grundkoerper in einen neuen Teil, Rueckgaengig davon) zieht
+    // das gezeichnete Modell nach - das Dokument bleibt samt Rueckgaengig (vorher baute es die .glm aus der Datei neu)
+    if (t.dokModell == g_app->modelPath && t.dok.inhalt().teile.size() != g_app->model.surfaces.size()) { modellFlaechenAbgleichen(); }
     // Ein Modell, das nicht ueber modellDokumentLaden kam (oder eines mit
     // anderer Flaechenzahl): das Dokument aus dem gelesenen Modell.
     if (t.dokModell != g_app->modelPath || t.dok.inhalt().teile.size() != g_app->model.surfaces.size()) {
@@ -227,7 +231,44 @@ void modellWurzelSetzen(int flaeche) {
     (void)modell::setzeWurzel(in, t.g2, modell::spielName(in, flaeche));
 }
 
+// pfix H1: ein offenes Werkzeugkaestchen, G/R/S, ein Regler oder Zug haelt einen eigenen Schritt oben auf dem Stapel - Strg+Z
+// (und Strg+Y) brechen zuerst ihn ab (wie Esc), statt ihn auf Wiederholen zu legen; sonst naehme das spaetere Esc einen
+// fremden Schritt weg
+bool modellOffenesAbbrechen() {
+    ModellTab& t = mt();
+    bool war = false;
+    // pfix M7: ein gezogener Regler (Physik, IK, Retarget) hat seinen Schritt schon - Strg+Z nimmt ihn, das Ziehen endet
+    t.physikZug = false;
+    t.ikZug = false;
+    t.rt.reglerZug = false;
+    if (t.mesh.kaestchenOffen) {
+        modellMeshAbbrechen();
+        war = true;
+    }
+    if (t.modal.art != 0) {
+        modellModalEnde(false);
+        war = true;
+    }
+    if (t.kvRegler != 0 || t.kvModal != 0) {
+        modellKvOffenesAbbrechen();
+        war = true;
+    }
+    if (t.uv.zug != 0) {
+        modellUvZugAbbrechen();
+        war = true;
+    }
+    if (t.rigZieht || t.rigModal != 0) {
+        if (t.rigZieht) { (void)t.dok.abbrechen(t.rigSchritt); }
+        t.rigZieht = false;
+        t.rigModal = 0;
+        war = true;
+    }
+    if (war) { g_app->modelDirty = true; }
+    return war;
+}
+
 bool modellRueckgaengig() {
+    if (modellOffenesAbbrechen()) { return true; }
     // Modell-Block 1c: im Bereich Painting gilt Strg+Z zuerst dem Bild (Rueckgaengig in Kacheln)
     if (mt().bereich == ModellBereich::Painting && modellMalenRueckgaengig()) { return true; }
     if (!mt().dok.rueckgaengig()) { return false; }
@@ -236,6 +277,7 @@ bool modellRueckgaengig() {
 }
 
 bool modellWiederholen() {
+    if (modellOffenesAbbrechen()) { return true; }
     if (mt().bereich == ModellBereich::Painting && modellMalenWiederholen()) { return true; }   // Modell-Block 1c
     if (!mt().dok.wiederholen()) { return false; }
     g_app->modelDirty = true;

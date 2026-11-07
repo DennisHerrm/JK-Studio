@@ -611,7 +611,7 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
         t.rigZieht = true;
         const AnimEntry* e = sequenz();
         const std::string name = e != nullptr ? e->name : std::string();
-        t.dok.aendern(tr(gizmoArt == 1 ? Str::MbRgUndoVerschieben : Str::MbRgUndoDrehen), [&](modell::Inhalt& in) { (void)in.rig.schichten[name]; }, false);
+        t.rigSchritt = t.dok.aendern(tr(gizmoArt == 1 ? Str::MbRgUndoVerschieben : Str::MbRgUndoDrehen), [&](modell::Inhalt& in) { (void)in.rig.schichten[name]; }, false);
         g_app->animPlaying = false;
     }
     BoneMatrix dreh = BoneMatrix::identity();
@@ -708,7 +708,7 @@ bool modellRigModalTasten() {
     const bool fertig = ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) || ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool abbruch = ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsMouseClicked(ImGuiMouseButton_Right);
     if (fertig || abbruch) {
-        if (abbruch && t.rigZieht) { (void)t.dok.abbrechen(); }
+        if (abbruch && t.rigZieht) { (void)t.dok.abbrechen(t.rigSchritt); }
         t.rigModal = 0;
         t.rigZieht = false;
         g_app->modelDirty = true;

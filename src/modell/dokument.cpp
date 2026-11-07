@@ -279,6 +279,7 @@ void ausMd3(const Md3Model& m, Inhalt& out, int bild) {
         Teil t;
         t.name = s.name;
         t.shader = s.shader;
+        t.dateiFlaeche = s.dateiFlaeche;   // pfix M1: der Schreiber legt den Teil wieder auf diese Flaeche
         const Md3Vertex* v = s.frame(bild);
         std::vector<Ecke> e;
         if (v != nullptr) {
@@ -358,13 +359,15 @@ void Dokument::laden(Inhalt neu) {
     ++stand_;
 }
 
-void Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz) {
-    zurueck_.emplace_back(was, jetzt_);
+std::uint64_t Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz) {
+    const std::uint64_t kennung = ++kennungZaehler_;
+    zurueck_.push_back(Schritt{was, jetzt_, kennung});
     if (zurueck_.size() > kTiefe) { zurueck_.erase(zurueck_.begin()); }
     vor_.clear();
     f(jetzt_);
     if (netz) { jetzt_.netzStand = ++netzZaehler_; }
     ++stand_;
+    return kennung;
 }
 
 void Dokument::vorschau(const std::function<void(Inhalt&)>& f, bool netz) {
@@ -375,7 +378,7 @@ void Dokument::vorschau(const std::function<void(Inhalt&)>& f, bool netz) {
 
 bool Dokument::rueckgaengig() {
     if (zurueck_.empty()) { return false; }
-    vor_.emplace_back(zurueck_.back().first, std::move(jetzt_));
+    vor_.push_back(Schritt{zurueck_.back().first, std::move(jetzt_), zurueck_.back().kennung});
     jetzt_ = std::move(zurueck_.back().second);
     zurueck_.pop_back();
     ++stand_;
@@ -390,9 +393,14 @@ bool Dokument::abbrechen() {
     return true;
 }
 
+bool Dokument::abbrechen(std::uint64_t schritt) {
+    if (zurueck_.empty() || zurueck_.back().kennung != schritt) { return false; }
+    return abbrechen();
+}
+
 bool Dokument::wiederholen() {
     if (vor_.empty()) { return false; }
-    zurueck_.emplace_back(vor_.back().first, std::move(jetzt_));
+    zurueck_.push_back(Schritt{vor_.back().first, std::move(jetzt_), vor_.back().kennung});
     jetzt_ = std::move(vor_.back().second);
     vor_.pop_back();
     ++stand_;

@@ -1,0 +1,2 @@
+models/players/x-wing/x-wing.gla	9	0.64	x-wing
+model_root	W	M	0	0

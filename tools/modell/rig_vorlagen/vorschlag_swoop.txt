@@ -1,0 +1,2 @@
+models/players/swoop/swoop.gla	5	0.64	swoop
+model_root	W	M	0	0

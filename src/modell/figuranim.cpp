@@ -273,7 +273,8 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
             const std::string& k = w[i];
             const std::string& v = w[i + 1];
             if (k == "basis") { aus.basis = v; }
-            if (k == "bilder") { aus.bilder = std::max(1, std::atoi(v.c_str())); }
+            // pfix N3: animation_t numFrames ist unsigned short, NPC_stats.cpp:952-979 assert(< 65536)
+            if (k == "bilder") { aus.bilder = std::clamp(std::atoi(v.c_str()), 1, 65535); }
             if (k == "fps") { aus.fps = std::atoi(v.c_str()); }
             if (k == "start") { aus.startMs = std::strtod(v.c_str(), nullptr); }
             if (k == "platz") { aus.platz = v; }
@@ -299,9 +300,12 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
             const int b = l.ganz();
             const int n = l.ganz();
             if (!l.ok || b < 0 || static_cast<std::size_t>(b) >= g.bones.size() || n < 0) { return falsch("Zeile " + std::to_string(zi) + ": Knochen"); }
-            std::vector<RigSchluessel> v(static_cast<std::size_t>(n));
-            for (RigSchluessel& k : v) {
+            // pfix N3: Schluessel fuer Schluessel lesen (wie ik) - die Zahl aus dem Text legt keinen Speicher an
+            std::vector<RigSchluessel> v;
+            for (int i = 0; i < n; ++i) {
+                RigSchluessel k;
                 if (!schluesselLesen(l, k)) { return falsch("Zeile " + std::to_string(zi) + ": Schluessel"); }
+                v.push_back(k);
             }
             henkelNeu(v);
             aus.schicht.knochen[static_cast<std::size_t>(b)] = std::move(v);
@@ -501,7 +505,12 @@ int fremdeEinrechnen(const GlaAnimation& basis, const FigurLage& selbst, const s
 
 // --- ICARUS -------------------------------------------------------------------------------------------------------------
 
+bool figurNameGueltig(const std::string& name) { return name.find_first_of("\"\r\n") == std::string::npos; }
+
 std::vector<Node> figurBlock(const FigurAnim& a, const std::array<float, 3>& u) {
+    for (const std::string* n : {&a.figur, &a.basis, &a.platz, &a.folge, &a.warteSignal, &a.sendeSignal}) {
+        if (!figurNameGueltig(*n)) { return {}; }
+    }
     const std::vector<std::string> zeilen = figurZeilen(a);
     std::string text;
     for (const std::string& z : zeilen) { text += z + "\n"; }
@@ -583,6 +592,12 @@ std::vector<std::string> figurZeilenImSkript(const Script& s, const std::string&
 }
 
 Script mitFigurBlock(const Script& s, const std::string& figur, const FigurAnim* a, const std::array<float, 3>& u) {
+    // pfix M4: ein Block, der nicht zu schreiben ist (figurBlock leer), ersetzt den alten nicht - das Skript bleibt
+    std::vector<Node> block;
+    if (a != nullptr) {
+        block = figurBlock(*a, u);
+        if (block.empty()) { return s; }
+    }
     Script neu = s;
     std::size_t at = 0;
     if (const auto alt = findeFigurBlock(neu, figur)) {
@@ -597,7 +612,6 @@ Script mitFigurBlock(const Script& s, const std::string& figur, const FigurAnim*
         }
     }
     if (a != nullptr) {
-        const std::vector<Node> block = figurBlock(*a, u);
         neu.nodes.insert(neu.nodes.begin() + static_cast<std::ptrdiff_t>(at), block.begin(), block.end());
     }
     return neu;

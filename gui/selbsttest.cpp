@@ -482,6 +482,40 @@ Schritt ziehe(const std::string& von, const std::string& vonFenster,
             }};
 }
 
+// pfix M7/M8: einen Regler oder ein Zugfeld mit der Maus ueber mehrere Bilder ziehen - packen bei `von`, in zehn Bildern
+// nach `bis` (Anteile der Breite), loslassen. So sieht das Programm jedes Bild des Ziehens wie bei der Hand des Anwenders.
+Schritt reglerZiehen(const std::string& label, const std::string& fenster, int nte, float von, float bis) {
+    auto r = std::make_shared<ImRect>();
+    const std::string was = "Regler \"" + label + "\" (" + fenster + ") ziehen";
+    return {was, [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    const Element* e = finde(label, fenster, nte, false);
+                    if (e == nullptr) {
+                        meldeFehler(was + ": nicht gefunden");
+                        return true;
+                    }
+                    *r = e->rect;
+                    setzeMaus(ImVec2{r->Min.x + r->GetWidth() * von, r->GetCenter().y});
+                    return false;
+                }
+                if (b == 1) {
+                    io.AddMouseButtonEvent(0, true);
+                    return false;
+                }
+                if (b >= 2 && b <= 11) {
+                    const float a = von + (bis - von) * static_cast<float>(b - 1) / 10.0F;
+                    setzeMaus(ImVec2{r->Min.x + r->GetWidth() * a, r->GetCenter().y});
+                    return false;
+                }
+                if (b == 12) {
+                    io.AddMouseButtonEvent(0, false);
+                    return false;
+                }
+                return b >= 14;
+            }};
+}
+
 // --- Ruhe des Hauptfensters -----------------------------------------------
 //
 // `bilder` lang jedes Bild die Rechtecke aller Elemente im Hauptfenster
@@ -5757,6 +5791,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_uv.inc"         // Modell-Block 1b: UV erstellen (modellblock, BHED_MODELL_NUR=uv|uvmd3|uvspiel|uvzeit|uvhb)
 #include "selbsttest_md.inc"         // Modell-Block 1d: Modellieren, Requisite in die Karte (modellblock, BHED_MODELL_NUR=md|mdkarte)
 #include "selbsttest_pt.inc"         // Modell-Block 1c: Texture Painting (modellblock, BHED_MODELL_NUR=pt|ptspiel)
+#include "selbsttest_pfix.inc"       // pfix: Funde der Code-Pruefung Modell-Block (modellblock, BHED_MODELL_NUR=pfix|pfixkarte)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6734,6 +6769,7 @@ void selbsttest() {
                     for (Schritt& x : uv1b::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1b
                     for (Schritt& x : md1d::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1d
                     for (Schritt& x : pt1c::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1c
+                    for (Schritt& x : pfix::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // pfix
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

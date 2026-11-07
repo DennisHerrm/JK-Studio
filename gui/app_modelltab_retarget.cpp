@@ -151,20 +151,28 @@ int gewaehlterKnochen() {
 
 const modell::RetargetDaten* modellRtDaten() { return &mt().dok.inhalt().rig.rt; }
 
-bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f) {
+// pfix M7: zug = ein Regler wird gezogen - der Schritt kommt beim ersten Bild, danach Vorschau (wie die Physik-Regler)
+bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f, bool zug) {
     ModellTab& t = mt();
     if (g_app->anim.bones.empty()) {
         melden(tr(Str::MbRgKeineGla));
         return false;
     }
-    t.dok.aendern(undo, [&](modell::Inhalt& in) { f(in.rig.rt); }, false);
+    const auto tun = [&](modell::Inhalt& in) { f(in.rig.rt); };
+    if (zug && t.rt.reglerZug) {
+        t.dok.vorschau(tun, false);
+    } else {
+        t.dok.aendern(undo, tun, false);
+        t.rt.reglerZug = zug;
+    }
     g_app->modelDirty = true;
     return true;
 }
 
+namespace {
 // Animations-Import (FBX/glTF/BVH/COLLADA, bhed/modell/animimport.h): Skelett und Bilder als Quelle, je Animation der Datei
-// eine Sequenz wie in einer animation.cfg; Vorlage (z. B. Mixamo) erkannt -> zugeordnet, Vorschau sofort auf der Figur
-bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz) {
+// eine Sequenz wie in einer animation.cfg - ohne Rueckgaengig-Schritt (auch das Nachladen nach Rueckgaengig, pfix M5)
+bool importLesen(const std::string& pfad) {
     ModellRetarget& r = rt();
     modell::AnimImport imp;
     std::string fehler;
@@ -184,6 +192,56 @@ bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz) {
     zielCharakter();
     r.stand = -1;
     r.bild = 0.0F;
+    return true;
+}
+
+// Die Quelle lesen (GLA, animation.cfg, Charakter) - ohne Rueckgaengig-Schritt
+bool quelleLesen(const std::string& pfad) {
+    if (modell::istAnimImportEndung(pfad)) { return importLesen(pfad); }
+    ModellRetarget& r = rt();
+    std::string bytes;
+    std::string fehler;
+    // eine Datei auf der Platte (Datei..., Selbsttest) zuerst - readFromArchives nimmt auch lose Dateien der Spielordner, die
+    // animation.cfg kaeme dann aus den Archiven des eingestellten Spiels (mit anderen Frames)
+    std::error_code ec;
+    const bool lose = std::filesystem::path(pfad).is_absolute() && std::filesystem::is_regular_file(pfad, ec);
+    if (lose) {
+        bytes = slurp(pfad);
+    } else if (!readFromArchives(pfad, bytes)) {
+        bytes.clear();
+    }
+    GlaAnimation g;
+    if (bytes.empty() || !readGla(bytes, g, &fehler)) {
+        r.quelleFehler = fehler.empty() ? pfad : fehler;
+        melden(format(Str::RtQuelleFehler, r.quelleFehler.c_str()));
+        return false;
+    }
+    r.quelle = std::move(g);
+    r.quelleFuer = pfad;
+    r.quelleFehler.clear();
+    r.quelleCfg.clear();
+    std::string text;
+    if (lose) {
+        text = slurp(directoryOf(pfad) + "/animation.cfg");
+    } else {
+        for (const std::string& k : animCfgCandidates(r.quelle.skeletonName)) {
+            if (readFromArchives(k, text)) { break; }
+            text.clear();
+        }
+    }
+    if (!text.empty()) { r.quelleCfg = parseAnimationCfg(text); }
+    r.cq = modell::rtCharakter(r.quelle, pfad);
+    zielCharakter();
+    r.stand = -1;
+    r.bild = 0.0F;
+    return true;
+}
+}  // namespace
+
+// Animations-Import: Datei als Quelle, Vorlage (z. B. Mixamo) erkannt -> zugeordnet, Vorschau sofort auf der Figur
+bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz) {
+    ModellRetarget& r = rt();
+    if (!importLesen(pfad)) { return false; }
     const modell::RtZuordnung zu = modell::rtZuordnen(r.cq, r.cz);
     std::string seq = r.quelleCfg.empty() ? std::string() : r.quelleCfg.front().name;
     for (const AnimEntry& e : r.quelleCfg) {
@@ -214,43 +272,9 @@ bool modellRtImportWaehlen() {
 }
 
 bool modellRtQuelleLaden(const std::string& pfad) {
-    ModellRetarget& r = rt();
-    std::string bytes;
-    std::string fehler;
-    // eine Datei auf der Platte (Datei..., Selbsttest) zuerst - readFromArchives nimmt auch lose Dateien der Spielordner, die
-    // animation.cfg kaeme dann aus den Archiven des eingestellten Spiels (mit anderen Frames)
-    std::error_code ec;
-    const bool lose = std::filesystem::path(pfad).is_absolute() && std::filesystem::is_regular_file(pfad, ec);
     if (modell::istAnimImportEndung(pfad)) { return modellRtImportLaden(pfad); }
-    if (lose) {
-        bytes = slurp(pfad);
-    } else if (!readFromArchives(pfad, bytes)) {
-        bytes.clear();
-    }
-    GlaAnimation g;
-    if (bytes.empty() || !readGla(bytes, g, &fehler)) {
-        r.quelleFehler = fehler.empty() ? pfad : fehler;
-        melden(format(Str::RtQuelleFehler, r.quelleFehler.c_str()));
-        return false;
-    }
-    r.quelle = std::move(g);
-    r.quelleFuer = pfad;
-    r.quelleFehler.clear();
-    r.quelleCfg.clear();
-    std::string text;
-    if (lose) {
-        text = slurp(directoryOf(pfad) + "/animation.cfg");
-    } else {
-        for (const std::string& k : animCfgCandidates(r.quelle.skeletonName)) {
-            if (readFromArchives(k, text)) { break; }
-            text.clear();
-        }
-    }
-    if (!text.empty()) { r.quelleCfg = parseAnimationCfg(text); }
-    r.cq = modell::rtCharakter(r.quelle, pfad);
-    zielCharakter();
-    r.stand = -1;
-    r.bild = 0.0F;
+    ModellRetarget& r = rt();
+    if (!quelleLesen(pfad)) { return false; }
     // die Quelle gehoert ins Dokument (Rueckgaengig); Zuordnung neu (nur leere: es gibt noch keine von Hand)
     const modell::RtZuordnung zu = modell::rtZuordnen(r.cq, r.cz);
     const std::string seq = r.quelleCfg.empty() ? std::string() : r.quelleCfg.front().name;
@@ -323,6 +347,9 @@ void modellRtAktualisieren() {
         g_app->modelDirty = true;
         return;
     }
+    // pfix M5: Rueckgaengig/Wiederholen von "Quelle laden" - das Dokument nennt eine andere Quelle als die gelesene: sie neu lesen
+    // (ohne Schritt), sonst traefe die Zuordnung der einen die Ketten der anderen
+    if (!d.quelle.empty() && d.quelle != r.quelleFuer && !quelleLesen(d.quelle)) { return; }
     const std::string fuer = r.quelleFuer + "|" + d.sequenz + "|" + r.czFuer;
     if (r.stand == t.dok.stand() && r.fuer == fuer) { return; }
     if (d.zu.quelle.size() != r.cz.ketten.size()) {
@@ -793,8 +820,9 @@ void drawModellRetargetBereich() {
             float v = wert;
             ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(text)).x - ImGui::GetStyle().ItemInnerSpacing.x);
             if (ImGui::SliderFloat(tr(text), &v, 0.0F, 1.0F, "%.2f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); });
+                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); }, true);
             }
+            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
             ImGui::SetItemTooltip("%s", tr(hinweis));
         };
         regler(Str::RtReachFuss, Str::RtReachHint, d.e.reachFuss, [](modell::RtEinstellung& x, float v) { x.reachFuss = v; });
@@ -815,8 +843,9 @@ void drawModellRetargetBereich() {
             ImGui::SameLine();
             ImGui::SetNextItemWidth(fs * 5.0F);
             if (ImGui::DragFloat("##rtk", &k, 0.005F, 0.05F, 20.0F, "%.3f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; });
+                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; }, true);
             }
+            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
             ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
         } else {
             ImGui::SameLine();

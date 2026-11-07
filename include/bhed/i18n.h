@@ -5479,6 +5479,9 @@ enum class Str {
     PtNichtsBemalt,
     PtGebaut,
     PtBemaltZahl,
+    MbVerwerfenFrage,
+    MbBeendenFrage,
+    FaNameUngueltig,
     Count,
 };
 

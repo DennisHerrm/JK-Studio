@@ -777,6 +777,44 @@ std::vector<Schritt> missionSchritte(bool handbuch) {
         const std::string text = writeScript(g_app->doc.script());
         return text.find("figur+ \"mb7_a\" physik 1") == std::string::npos;
     }));
+    // pfix M8: Regler und Zugfelder des Fensters mit der Maus - der beim Loslassen eingestellte Wert kommt ins Dokument
+    auto vorher = std::make_shared<modell::FigurAnim>();
+    add(tu("PF M8: Physik an", [vorher] {
+        (void)figurAnimPhysikAn(true);
+        *vorher = figurAnimKopie("mb7_a");
+    }));
+    add(pause(0.4));
+    const auto insBild = [](const std::string& label) {
+        return tu("PF M8: \"" + label + "\" ins Bild rollen", [label] {
+            ImGuiWindow* w = ImGui::FindWindowByName("###figuranim");
+            const Element* e = finde(label, "###figuranim", 0, false);
+            if (w != nullptr && e != nullptr) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y - ImGui::GetFontSize() * 4.0F, 0.0F, w->ScrollMax.y));
+            }
+        });
+    };
+    add(insBild(tr(Str::PhStaerke)));
+    add(pause(0.4));
+    add(reglerZiehen(tr(Str::PhStaerke), "###figuranim", 0, 0.9F, 0.3F));
+    add(pause(0.4));
+    add(pruefe("PF M8: Staerke nach dem Ziehen wie eingestellt (um 0,3), nicht der alte Wert", [vorher] {
+        const modell::FigurAnim a = figurAnimKopie("mb7_a");
+        diag::detail("Knopftest: PF M8 Staerke - " + std::to_string(a.schicht.physik.e.staerke) + " (vorher " + std::to_string(vorher->schicht.physik.e.staerke) + ")");
+        return a.schicht.physik.e.staerke < 0.5F && a.schicht.physik.e.staerke > 0.1F;
+    }));
+    add(tu("PF M8: Fenster nach oben rollen (das Feld Bilder steht oben)", [] {
+        if (ImGuiWindow* w = ImGui::FindWindowByName("###figuranim")) { ImGui::SetScrollY(w, 0.0F); }
+    }));
+    add(pause(0.3));
+    add(insBild("##fabilder"));
+    add(pause(0.4));
+    add(reglerZiehen("##fabilder", "###figuranim", 0, 0.2F, 0.9F));
+    add(pause(0.4));
+    add(pruefe("PF M8: Bilder nach dem Ziehen nach rechts mehr als vorher", [vorher] {
+        const modell::FigurAnim a = figurAnimKopie("mb7_a");
+        diag::detail("Knopftest: PF M8 Bilder - " + std::to_string(a.bilder) + " (vorher " + std::to_string(vorher->bilder) + ")");
+        return a.bilder > vorher->bilder;
+    }));
     return s;
 }
 

@@ -1,0 +1,2 @@
+models/map_objects/imp_mine/turret_chair.gla	5	1	turret_chair
+model_root	W	M	0	0

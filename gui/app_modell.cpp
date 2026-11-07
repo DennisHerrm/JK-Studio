@@ -373,7 +373,7 @@ void drawNpcBrowser() {
             const std::string& t = *treffer[static_cast<std::size_t>(r)];
             const auto it = g_app->npcMap.find(t);
             ImGui::PushID(t.c_str());
-            if (ImGui::Selectable(t.c_str(), geladen == t)) { npcLaden(t); }
+            if (ImGui::Selectable(t.c_str(), geladen == t)) { modellVerwerfenDann([t] { (void)npcLaden(t); }); }   // pfix H3
             if (it != g_app->npcMap.end()) {
                 ImGui::SameLine(fs * 11.0F);
                 ImGui::TextDisabled("%s%s%s", it->second.playerModel.c_str(), it->second.customSkin.empty() ? "" : " / ",

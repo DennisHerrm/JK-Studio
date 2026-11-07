@@ -1,0 +1,1176 @@
+{
+ "jka": [
+  {
+   "datei": "models/items/psgun.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/items/psgun",
+   "scale": 1.0,
+   "bilder": 11,
+   "knochen": 9
+  },
+  {
+   "datei": "models/map_objects/hoth/model.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/hoth/model",
+   "scale": 1.0,
+   "bilder": 21,
+   "knochen": 7
+  },
+  {
+   "datei": "models/map_objects/imp_mine/ion_cannon.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/imp_mine/ion_cannon",
+   "scale": 1.0,
+   "bilder": 8,
+   "knochen": 4
+  },
+  {
+   "datei": "models/map_objects/imp_mine/turret_cannon.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/imp_mine/turret_cannon",
+   "scale": 1.0,
+   "bilder": 3,
+   "knochen": 4
+  },
+  {
+   "datei": "models/map_objects/imp_mine/turret_chair.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/imp_mine/turret_chair",
+   "scale": 1.0,
+   "bilder": 3,
+   "knochen": 5
+  },
+  {
+   "datei": "models/map_objects/mp/mp.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/mp/mp",
+   "scale": 1.0,
+   "bilder": 4,
+   "knochen": 5
+  },
+  {
+   "datei": "models/map_objects/wedge/laser_cannon.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/map_objects/wedge/laser_cannon",
+   "scale": 1.0,
+   "bilder": 6,
+   "knochen": 5
+  },
+  {
+   "datei": "models/players/_humanoid/_humanoid.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 21376,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy1/_humanoid_academy1.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy1/_humanoid_academy1",
+   "scale": 0.6399999856948853,
+   "bilder": 774,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy2/_humanoid_academy2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy2/_humanoid_academy2",
+   "scale": 0.6399999856948853,
+   "bilder": 951,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy3/_humanoid_academy3.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy3/_humanoid_academy3",
+   "scale": 0.6399999856948853,
+   "bilder": 747,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy4/_humanoid_academy4.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy4/_humanoid_academy4",
+   "scale": 0.6399999856948853,
+   "bilder": 676,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy5/_humanoid_academy5.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy5/_humanoid_academy5",
+   "scale": 0.6399999856948853,
+   "bilder": 1111,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_academy6/_humanoid_academy6.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_academy6/_humanoid_academy6",
+   "scale": 0.6399999856948853,
+   "bilder": 676,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_hoth2/_humanoid_hoth2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_hoth2/_humanoid_hoth2",
+   "scale": 0.6399999856948853,
+   "bilder": 672,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_hoth3/_humanoid_hoth3.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_hoth3/_humanoid_hoth3",
+   "scale": 0.6399999856948853,
+   "bilder": 2194,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_kor1/_humanoid_kor1.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_kor1/_humanoid_kor1",
+   "scale": 0.6399999856948853,
+   "bilder": 1373,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_kor2/_humanoid_kor2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_kor2/_humanoid_kor2",
+   "scale": 0.6399999856948853,
+   "bilder": 24788,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_danger/_humanoid_t1_danger.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_danger/_humanoid_t1_danger",
+   "scale": 0.6399999856948853,
+   "bilder": 2027,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_fatal/_humanoid_t1_fatal.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_fatal/_humanoid_t1_fatal",
+   "scale": 0.6399999856948853,
+   "bilder": 321,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_inter/_humanoid_t1_inter.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_inter/_humanoid_t1_inter",
+   "scale": 0.6399999856948853,
+   "bilder": 331,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_rail/_humanoid_t1_rail.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_rail/_humanoid_t1_rail",
+   "scale": 0.6399999856948853,
+   "bilder": 419,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_sour/_humanoid_t1_sour.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_sour/_humanoid_t1_sour",
+   "scale": 0.6399999856948853,
+   "bilder": 3124,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t1_surprise/_humanoid_t1_surprise.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t1_surprise/_humanoid_t1_surprise",
+   "scale": 0.6399999856948853,
+   "bilder": 1024,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t2_dpred/_humanoid_t2_dpred.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t2_dpred/_humanoid_t2_dpred",
+   "scale": 0.6399999856948853,
+   "bilder": 329,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t2_rancor/_humanoid_t2_rancor.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t2_rancor/_humanoid_t2_rancor",
+   "scale": 0.6399999856948853,
+   "bilder": 968,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t2_rogue/_humanoid_t2_rogue.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t2_rogue/_humanoid_t2_rogue",
+   "scale": 0.6399999856948853,
+   "bilder": 2812,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t2_trip/_humanoid_t2_trip.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t2_trip/_humanoid_t2_trip",
+   "scale": 0.6399999856948853,
+   "bilder": 1945,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t3_bounty/_humanoid_t3_bounty.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t3_bounty/_humanoid_t3_bounty",
+   "scale": 0.6399999856948853,
+   "bilder": 2724,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t3_byss/_humanoid_t3_byss.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t3_byss/_humanoid_t3_byss",
+   "scale": 0.6399999856948853,
+   "bilder": 190,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t3_hevil/_humanoid_t3_hevil.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t3_hevil/_humanoid_t3_hevil",
+   "scale": 0.6399999856948853,
+   "bilder": 96,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_t3_stamp/_humanoid_t3_stamp.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_t3_stamp/_humanoid_t3_stamp",
+   "scale": 0.6399999856948853,
+   "bilder": 820,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_taspir1/_humanoid_taspir1.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_taspir1/_humanoid_taspir1",
+   "scale": 0.6399999856948853,
+   "bilder": 116,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_taspir2/_humanoid_taspir2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_taspir2/_humanoid_taspir2",
+   "scale": 0.6399999856948853,
+   "bilder": 12433,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_vjun1/_humanoid_vjun1.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_vjun1/_humanoid_vjun1",
+   "scale": 0.6399999856948853,
+   "bilder": 419,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_vjun2/_humanoid_vjun2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_vjun2/_humanoid_vjun2",
+   "scale": 0.6399999856948853,
+   "bilder": 2864,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_vjun3/_humanoid_vjun3.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_vjun3/_humanoid_vjun3",
+   "scale": 0.6399999856948853,
+   "bilder": 12509,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_yavin1/_humanoid_yavin1.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_yavin1/_humanoid_yavin1",
+   "scale": 0.6399999856948853,
+   "bilder": 3720,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_yavin1b/_humanoid_yavin1b.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_yavin1b/_humanoid_yavin1b",
+   "scale": 0.6399999856948853,
+   "bilder": 12030,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_yavin2/_humanoid_yavin2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/_humanoid_yavin2/_humanoid_yavin2",
+   "scale": 0.6399999856948853,
+   "bilder": 3248,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/assassin_droid/model.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/assassin_droid/model",
+   "scale": 0.6399999856948853,
+   "bilder": 239,
+   "knochen": 36
+  },
+  {
+   "datei": "models/players/atst/atst.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/atst/atst",
+   "scale": 1.0,
+   "bilder": 272,
+   "knochen": 23
+  },
+  {
+   "datei": "models/players/gonk/gonk.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/gonk/gonk",
+   "scale": 1.0,
+   "bilder": 41,
+   "knochen": 6
+  },
+  {
+   "datei": "models/players/hazardtrooper/hazardtrooper.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/hazardtrooper/hazardtrooper",
+   "scale": 0.800000011920929,
+   "bilder": 550,
+   "knochen": 34
+  },
+  {
+   "datei": "models/players/howler/howler.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/howler/howler",
+   "scale": 1.0,
+   "bilder": 695,
+   "knochen": 61
+  },
+  {
+   "datei": "models/players/interrogator/interrogator.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/interrogator/interrogator",
+   "scale": 1.0,
+   "bilder": 2,
+   "knochen": 8
+  },
+  {
+   "datei": "models/players/lambdashuttle/lambdashuttle.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/lambdashuttle/lambdashuttle",
+   "scale": 0.6399999856948853,
+   "bilder": 43,
+   "knochen": 7
+  },
+  {
+   "datei": "models/players/marka_ragnos/marka_ragnos.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/marka_ragnos/marka_ragnos",
+   "scale": 0.6399999856948853,
+   "bilder": 1318,
+   "knochen": 43
+  },
+  {
+   "datei": "models/players/probe/probe.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/probe/probe",
+   "scale": 1.0,
+   "bilder": 235,
+   "knochen": 37
+  },
+  {
+   "datei": "models/players/protocol/protocol.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/protocol/protocol",
+   "scale": 0.6000000238418579,
+   "bilder": 609,
+   "knochen": 54
+  },
+  {
+   "datei": "models/players/r2d2/r2d2.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/r2d2/r2d2",
+   "scale": 1.0,
+   "bilder": 59,
+   "knochen": 8
+  },
+  {
+   "datei": "models/players/rancor/rancor.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/rancor/rancor",
+   "scale": 0.6399999856948853,
+   "bilder": 3453,
+   "knochen": 56
+  },
+  {
+   "datei": "models/players/rockettrooper/rockettrooper.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/rockettrooper/rockettrooper",
+   "scale": 0.75,
+   "bilder": 942,
+   "knochen": 40
+  },
+  {
+   "datei": "models/players/rocks/rocks.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/rocks/rocks",
+   "scale": 1.0,
+   "bilder": 618,
+   "knochen": 30
+  },
+  {
+   "datei": "models/players/saber_droid/model.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/saber_droid/model",
+   "scale": 0.6399999856948853,
+   "bilder": 279,
+   "knochen": 27
+  },
+  {
+   "datei": "models/players/sand_creature/sand_creature.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/sand_creature/sand_creature",
+   "scale": 0.6399999856948853,
+   "bilder": 808,
+   "knochen": 33
+  },
+  {
+   "datei": "models/players/sentry/sentry.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/sentry/sentry",
+   "scale": 1.0,
+   "bilder": 12,
+   "knochen": 11
+  },
+  {
+   "datei": "models/players/swoop/swoop.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/swoop/swoop",
+   "scale": 0.6399999856948853,
+   "bilder": 426,
+   "knochen": 5
+  },
+  {
+   "datei": "models/players/tauntaun/model.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/tauntaun/model",
+   "scale": 0.5759999752044678,
+   "bilder": 478,
+   "knochen": 28
+  },
+  {
+   "datei": "models/players/tie_bomber/tie_bomber.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/tie_bomber/tie_bomber",
+   "scale": 0.6399999856948853,
+   "bilder": 2,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/tie_fighter/tie_fighter.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/tie_fighter/tie_fighter",
+   "scale": 0.6399999856948853,
+   "bilder": 2,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/wampa/wampa.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/wampa/wampa",
+   "scale": 1.440000057220459,
+   "bilder": 777,
+   "knochen": 34
+  },
+  {
+   "datei": "models/players/x-wing/x-wing.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/x-wing/x-wing",
+   "scale": 0.6399999856948853,
+   "bilder": 38,
+   "knochen": 9
+  },
+  {
+   "datei": "models/players/z-95/z-95.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/players/z-95/z-95",
+   "scale": 0.6399999856948853,
+   "bilder": 17,
+   "knochen": 4
+  },
+  {
+   "datei": "models/weapons2/jetpack/jetpack.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/weapons2/jetpack/jetpack",
+   "scale": 0.6399999856948853,
+   "bilder": 2,
+   "knochen": 2
+  },
+  {
+   "datei": "models/weapons2/sith_scepter/unused/sith_scepter_only.gla",
+   "archiv": "assets1.pk3",
+   "name": "models/weapons2/sith_scepter/unused/sith_scepter_only",
+   "scale": 0.6399999856948853,
+   "bilder": 2,
+   "knochen": 2
+  }
+ ],
+ "jk2": [
+  {
+   "datei": "models/items/psgun.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/items/psgun",
+   "scale": 1.0,
+   "bilder": 11,
+   "knochen": 9
+  },
+  {
+   "datei": "models/map_objects/imp_mine/ion_cannon.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/imp_mine/ion_cannon",
+   "scale": 1.0,
+   "bilder": 8,
+   "knochen": 4
+  },
+  {
+   "datei": "models/map_objects/imp_mine/ore_cart/ore_cart.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/imp_mine/ore_cart/ore_cart",
+   "scale": 1.0,
+   "bilder": 22,
+   "knochen": 4
+  },
+  {
+   "datei": "models/map_objects/imp_mine/turret_cannon.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/imp_mine/turret_cannon",
+   "scale": 1.0,
+   "bilder": 3,
+   "knochen": 4
+  },
+  {
+   "datei": "models/map_objects/imp_mine/turret_chair.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/imp_mine/turret_chair",
+   "scale": 1.0,
+   "bilder": 3,
+   "knochen": 5
+  },
+  {
+   "datei": "models/map_objects/nar_shaddar/jabacam/jabacam.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/nar_shaddar/jabacam/jabacam",
+   "scale": 1.0,
+   "bilder": 16,
+   "knochen": 5
+  },
+  {
+   "datei": "models/map_objects/nar_shaddar/turret/turret.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/map_objects/nar_shaddar/turret/turret",
+   "scale": 1.0,
+   "bilder": 3,
+   "knochen": 4
+  },
+  {
+   "datei": "models/players/_humanoid/_humanoid.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/_humanoid/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 17278,
+   "knochen": 72
+  },
+  {
+   "datei": "models/players/atst/atst.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/atst/atst",
+   "scale": 1.0,
+   "bilder": 272,
+   "knochen": 23
+  },
+  {
+   "datei": "models/players/galak_mech/galak_mech.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/galak_mech/galak_mech",
+   "scale": 0.6399999856948853,
+   "bilder": 817,
+   "knochen": 42
+  },
+  {
+   "datei": "models/players/glider/model.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/glider/model",
+   "scale": 1.0,
+   "bilder": 180,
+   "knochen": 19
+  },
+  {
+   "datei": "models/players/gonk/gonk.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/gonk/gonk",
+   "scale": 1.0,
+   "bilder": 82,
+   "knochen": 6
+  },
+  {
+   "datei": "models/players/interrogator/interrogator.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/interrogator/interrogator",
+   "scale": 1.0,
+   "bilder": 2,
+   "knochen": 8
+  },
+  {
+   "datei": "models/players/mark1/mark1.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/mark1/mark1",
+   "scale": 1.0,
+   "bilder": 572,
+   "knochen": 21
+  },
+  {
+   "datei": "models/players/mark2/mark2.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/mark2/mark2",
+   "scale": 0.5,
+   "bilder": 67,
+   "knochen": 9
+  },
+  {
+   "datei": "models/players/minemonster/minemonster.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/minemonster/minemonster",
+   "scale": 1.0,
+   "bilder": 435,
+   "knochen": 22
+  },
+  {
+   "datei": "models/players/probe/probe.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/probe/probe",
+   "scale": 1.0,
+   "bilder": 235,
+   "knochen": 37
+  },
+  {
+   "datei": "models/players/protocol/protocol.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/protocol/protocol",
+   "scale": 0.6000000238418579,
+   "bilder": 609,
+   "knochen": 54
+  },
+  {
+   "datei": "models/players/r2d2/r2d2.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/r2d2/r2d2",
+   "scale": 1.0,
+   "bilder": 66,
+   "knochen": 8
+  },
+  {
+   "datei": "models/players/r5d2/r5d2.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/r5d2/r5d2",
+   "scale": 1.0,
+   "bilder": 59,
+   "knochen": 7
+  },
+  {
+   "datei": "models/players/sentry/sentry.gla",
+   "archiv": "assets0.pk3",
+   "name": "models/players/sentry/sentry",
+   "scale": 1.0,
+   "bilder": 12,
+   "knochen": 11
+  }
+ ],
+ "md": [
+  {
+   "datei": "models/map_objects/es_vjun_bastcastle/turret.gla",
+   "archiv": "MD_Maps_Legends.pk3",
+   "name": "models/map_objects/es_vjun_bastcastle/turret",
+   "scale": 1.0,
+   "bilder": 250,
+   "knochen": 3
+  },
+  {
+   "datei": "models/map_objects/gunship/republicgunship.gla",
+   "archiv": "MD_Maps_Ep2.pk3",
+   "name": "/models/map_objects/republicgunship                             ",
+   "scale": 1.0009803771972656,
+   "bilder": 538970637,
+   "knochen": 538968608
+  },
+  {
+   "datei": "models/players/_humanoid/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 60861,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_ani/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_ani/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54778,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_bdroid/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_bdroid/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 53845,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_ben/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_ben/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54619,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_cal/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_cal/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54471,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_clo/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_clo/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54210,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_cloudy/_humanoid_cloudy.gla",
+   "archiv": "MD_Missions_ROTE_Extras.pk3",
+   "name": "models/players/_humanoid_cloudy/_humanoid_cloudy",
+   "scale": 0.6399999856948853,
+   "bilder": 1021,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_deka/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_deka/_humanoid",
+   "scale": 1.0,
+   "bilder": 285,
+   "knochen": 59
+  },
+  {
+   "datei": "models/players/_humanoid_df2/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_df2/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54949,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_dooku/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_dooku/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54612,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_galen/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_galen/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54961,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_gon/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_gon/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54433,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_grievous/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_grievous/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54561,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_jabba/_humanoid_jabba.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_jabba/_humanoid_jabba",
+   "scale": 1.0,
+   "bilder": 1963,
+   "knochen": 71
+  },
+  {
+   "datei": "models/players/_humanoid_jango/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_jango/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54225,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_kotor/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_kotor/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54731,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_luke/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_luke/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 53683,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_mace/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_mace/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54479,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_maul/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_maul/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 55244,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_md/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_md/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54281,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_melee/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_melee/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 30141,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_obi/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_obi/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54582,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_obi3/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_obi3/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54788,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_pal/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_pal/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54847,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_reb/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_reb/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 35971,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_ren/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_ren/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54708,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_rey/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_rey/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54519,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_sbd/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_sbd/_humanoid",
+   "scale": 0.6000000238418579,
+   "bilder": 2116,
+   "knochen": 43
+  },
+  {
+   "datei": "models/players/_humanoid_vader/_humanoid.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_vader/_humanoid",
+   "scale": 0.6399999856948853,
+   "bilder": 54758,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_humanoid_yoda/_humanoid_yoda.gla",
+   "archiv": "MD_Assets2.pk3",
+   "name": "models/players/_humanoid_yoda/_humanoid_yoda",
+   "scale": 0.6399999856948853,
+   "bilder": 54877,
+   "knochen": 53
+  },
+  {
+   "datei": "models/players/_throwable/_throwable.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "/models/players/_throwable/_throwable",
+   "scale": 1.0,
+   "bilder": 11,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/atst/atst.gla",
+   "archiv": "MD_Models_OT-ST.pk3",
+   "name": "models/players/atst/atst",
+   "scale": 1.0,
+   "bilder": 232,
+   "knochen": 28
+  },
+  {
+   "datei": "models/players/attevm/_atte.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/atte/_atte",
+   "scale": 1.2000000476837158,
+   "bilder": 101,
+   "knochen": 28
+  },
+  {
+   "datei": "models/players/bantha/bantha.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "/models/players/bantha/bantha",
+   "scale": 1.0,
+   "bilder": 201,
+   "knochen": 15
+  },
+  {
+   "datei": "models/players/droideka/droideka.gla",
+   "archiv": "MD_Models_PT.pk3",
+   "name": "models/players/droideka/droideka",
+   "scale": 1.0,
+   "bilder": 285,
+   "knochen": 59
+  },
+  {
+   "datei": "models/players/galak_mech/galak_mech.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/galak_mech/galak_mech",
+   "scale": 0.6399999856948853,
+   "bilder": 817,
+   "knochen": 42
+  },
+  {
+   "datei": "models/players/glider/model.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/glider/model",
+   "scale": 1.0,
+   "bilder": 180,
+   "knochen": 19
+  },
+  {
+   "datei": "models/players/lukespeeder/lukespeeder.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "/models/players/lukespeeder/lukespeeder",
+   "scale": 1.0,
+   "bilder": 101,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/mark1/mark1.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/mark1/mark1",
+   "scale": 1.0,
+   "bilder": 572,
+   "knochen": 21
+  },
+  {
+   "datei": "models/players/mark2/mark2.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/mark2/mark2",
+   "scale": 0.5,
+   "bilder": 67,
+   "knochen": 9
+  },
+  {
+   "datei": "models/players/minemonster/minemonster.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/minemonster/minemonster",
+   "scale": 1.0,
+   "bilder": 435,
+   "knochen": 22
+  },
+  {
+   "datei": "models/players/mini_can/model.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "models/players/mini_can/model",
+   "scale": 0.5,
+   "bilder": 1,
+   "knochen": 4
+  },
+  {
+   "datei": "models/players/protocol/protocol.gla",
+   "archiv": "MD_Models_PT.pk3",
+   "name": "models/players/protocol/protocol",
+   "scale": 0.6000000238418579,
+   "bilder": 609,
+   "knochen": 54
+  },
+  {
+   "datei": "models/players/r2d2/r2d2.gla",
+   "archiv": "MD_Models_PT.pk3",
+   "name": "models/players/r2d2/r2d2",
+   "scale": 1.0,
+   "bilder": 59,
+   "knochen": 8
+  },
+  {
+   "datei": "models/players/rancor_ice_spider/rancor_ice_spider.gla",
+   "archiv": "MD_Models_OT-ST.pk3",
+   "name": "models/players/rancor_ice_spider/rancor_ice_spider",
+   "scale": 0.25,
+   "bilder": 528,
+   "knochen": 49
+  },
+  {
+   "datei": "models/players/remote/remote.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/remote/remote",
+   "scale": 1.0,
+   "bilder": 2,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/remote_sp/remote_sp.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "/models/players/remote_sp/remote_sp",
+   "scale": 1.0,
+   "bilder": 6,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/sarlacc/model.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "models/players/sarlacc/model.gla",
+   "scale": 1.0,
+   "bilder": 251,
+   "knochen": 7
+  },
+  {
+   "datei": "models/players/sarlacc_tent1/model.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "models/players/sarlacc_tent1/model",
+   "scale": 1.0,
+   "bilder": 151,
+   "knochen": 7
+  },
+  {
+   "datei": "models/players/sarlacc_tent2/model.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "models/players/sarlacc_tent2/model",
+   "scale": 1.0,
+   "bilder": 151,
+   "knochen": 7
+  },
+  {
+   "datei": "models/players/sithspeeder_mst/sithspeeder_mst.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "/models/players/sithspeeder_mst/sithspeeder_mst",
+   "scale": 0.949999988079071,
+   "bilder": 11,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/sjc_tat_speeder/lukespeeder.gla",
+   "archiv": "MD_Maps_Ep6.pk3",
+   "name": "/models/players/lukespeeder/lukespeeder",
+   "scale": 1.0,
+   "bilder": 101,
+   "knochen": 2
+  },
+  {
+   "datei": "models/players/slave1_jango/slave1-beta.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/slave1-beta/slave1-beta",
+   "scale": 1.0,
+   "bilder": 16,
+   "knochen": 5
+  },
+  {
+   "datei": "models/players/slave1_jango/slave1_jango.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/slave1-beta/slave1-beta",
+   "scale": 1.0,
+   "bilder": 16,
+   "knochen": 5
+  },
+  {
+   "datei": "models/players/snoke_cinematic/custom_seat.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/snoke_cinematic/custom_seat",
+   "scale": 0.6399999856948853,
+   "bilder": 200,
+   "knochen": 87
+  },
+  {
+   "datei": "models/players/yt-1300/yt-1300.gla",
+   "archiv": "MD_Assets.pk3",
+   "name": "models/players/yt-1300/yt-1300",
+   "scale": 1.5,
+   "bilder": 26,
+   "knochen": 13
+  },
+  {
+   "datei": "models/weapons2/z6_rotary/z6_rotary.gla",
+   "archiv": "MD_Weapons.pk3",
+   "name": "models/weapons2/z6_rotary/z6_rotary",
+   "scale": 1.0,
+   "bilder": 11,
+   "knochen": 4
+  }
+ ]
+}

@@ -1,0 +1,6 @@
+models/players/r2d2/r2d2.gla	8	1	r2d2
+model_root	W	M	0	0
+cranium	K	M	0	0
+m_leg	B	M	0	0
+m_foot	B	M	0	1
+lr_legs	B	M	1	0

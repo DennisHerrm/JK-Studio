@@ -430,7 +430,10 @@ public:
             const float hb = welt_.halbBreite ? welt_.halbBreite(b.name) : 16.0F;
             const float ho = welt_.hoeheOben ? welt_.hoeheOben(b.name) : 40.0F;
             bool blockiert = false;
+            // pfix N8: nullDriver ohne SpotWouldTelefrag (NPC_spawn.cpp:996-999 OpenJK, :1723-1727 MD9)
+            const bool nullDriver = klein(wertVon(e, "NPC_type")) == "nulldriver";
             for (const Begonnen& g : begonnen) {
+                if (nullDriver) { break; }
                 // EntitiesInBox gegen absmin/absmax der anderen (SV_LinkEntity: je 1 weiter), DEFAULT_MINS_2 -24
                 const float gb = welt_.halbBreite ? welt_.halbBreite(g.name) : 16.0F;
                 const float gh = welt_.hoeheOben ? welt_.hoeheOben(g.name) : 40.0F;
@@ -1731,7 +1734,9 @@ private:
             f.anfangBekannt = f.ortBekannt;   // rc603 fix603
             f.anfang = {f.ort[0], f.ort[1], f.ort[2]};
         }
-        if (f.istClient && !f.sfbNichtFest && telefrag(f, t, true)) {
+        // pfix N8: Q_stricmp( ent->NPC_type, "nullDriver" ) == 0 prueft nicht (OpenJK code/game/NPC_spawn.cpp:996-999, MD9 :1723-1727)
+        const bool nullDriver = f.ent != nullptr && klein(wertVon(*f.ent, "NPC_type")) == "nulldriver";
+        if (f.istClient && !f.sfbNichtFest && !nullDriver && telefrag(f, t, true)) {
             const std::string ws = f.ent != nullptr ? wertVon(*f.ent, "wait") : std::string{};
             const auto wait = static_cast<float>(zahl(ws));
             const double warte = wait == 0.0F ? 500.0 : static_cast<double>(wait * 1000.0F);

@@ -1193,9 +1193,9 @@ void r2bIcarus() {
 void spawnBlockiert() {
     using namespace f4b;
     std::printf("mb7: blockierter Spawn\n");
-    const auto karte = [](const std::string& waitC, const std::string& flagsC) {
+    const auto karte = [](const std::string& waitC, const std::string& flagsC, const std::string& typC = "kyle") {
         MapData m;
-        std::vector<std::pair<std::string, std::string>> c = {{"NPC_type", "kyle"}, {"NPC_targetname", "c"}, {"origin", "528 0 24"},
+        std::vector<std::pair<std::string, std::string>> c = {{"NPC_type", typC}, {"NPC_targetname", "c"}, {"origin", "528 0 24"},
                                                               {"target3", "marke_weg"}};
         if (!waitC.empty()) { c.emplace_back("wait", waitC); }
         if (!flagsC.empty()) { c.emplace_back("spawnflags", flagsC); }
@@ -1238,6 +1238,11 @@ void spawnBlockiert() {
     bool weg = false;
     for (std::size_t i = 0; i < a4.skripte.size(); ++i) { weg = weg || (a4.skripte[i] == "k/weg" && a4.skriptBeginn[i] >= 550.0); }
     pruefe(erst(a4, "c") < 0.0 && weg, "wait -1: c spawnt nie, target3 wird benutzt");
+    // pfix N8: NPC_type nullDriver prueft nicht (OpenJK code/game/NPC_spawn.cpp:996-999, MD9 :1723-1727, Q_stricmp)
+    const MapData m5 = karte("", "", "NullDriver");
+    const Ablauf a5 = lauf2(m5);
+    std::printf("  nullDriver: c ab %.0f ms\n", erst(a5, "c"));
+    pruefe(erst(a5, "c") == 550.0, "NPC_type nullDriver: keine Telefrag-Pruefung, c bei 550");
     // Die Zwischensequenz (Startskript beginnt im Spiel bei 550): b und c vom Laden, c blockiert - affect auf c entfaellt,
     // c kommt bei der ersten Wiederholung nach dem SET_ORIGIN von b (Skriptzeit 2000 -> 550 + 5 x 500 - 550 = 2500).
     {

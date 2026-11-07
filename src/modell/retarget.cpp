@@ -728,7 +728,7 @@ float rtPoseAbweichung(const GlaAnimation& gq, const RtCharakter& q, const std::
     float groesste = 0.0F;
     for (std::size_t i = 0; i < z.ketten.size() && i < zu.quelle.size(); ++i) {
         const int j = zu.quelle[i];
-        if (j < 0) { continue; }
+        if (j < 0 || uz(j) >= q.ketten.size()) { continue; }   // pfix M5: wie rtKnochenZuordnung
         const RtKette& kz = z.ketten[i];
         const RtKette& kq = q.ketten[uz(j)];
         if (kz.art != KettenArt::Arm && kz.art != KettenArt::Bein) { continue; }
@@ -942,7 +942,7 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
     std::vector<IkKette> ikk;
     for (std::size_t i = 0; i < z.ketten.size() && i < zu.quelle.size(); ++i) {
         const RtKette& kz = z.ketten[i];
-        if ((kz.art != KettenArt::Arm && kz.art != KettenArt::Bein) || kz.knochen.size() < 3 || zu.quelle[i] < 0) { continue; }
+        if ((kz.art != KettenArt::Arm && kz.art != KettenArt::Bein) || kz.knochen.size() < 3 || zu.quelle[i] < 0 || uz(zu.quelle[i]) >= q.ketten.size()) { continue; }   // pfix M5
         IkKette ik;
         ik.a = kz.knochen[0];
         ik.b = kz.knochen[1];
@@ -1035,7 +1035,7 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
             if (s == RtSchritt::Becken && e.becken) {
                 const std::vector<BoneMatrix> vorher = w;
                 std::vector<std::uint8_t> ge(nz, 0);
-                const V3 neu = e.becken ? skaliert(z.becken, q.becken) : ort(xs[uz(q.becken)]);
+                const V3 neu = skaliert(z.becken, q.becken);   // pfix N12: e.becken ist hier immer wahr
                 w[uz(z.becken)] = mitOrt(nurDrehung(w[uz(z.becken)]), neu);
                 ge[uz(z.becken)] = 1;
                 mitnehmen(st, vorher, w, ge);

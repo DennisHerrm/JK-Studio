@@ -1,0 +1,2 @@
+models/players/sentry/sentry.gla	11	1	sentry
+model_root	W	M	0	0

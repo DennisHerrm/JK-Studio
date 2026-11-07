@@ -1,0 +1,2 @@
+models/map_objects/wedge/laser_cannon.gla	5	1	laser_cannon
+model_root	W	M	0	0

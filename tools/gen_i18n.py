@@ -2300,6 +2300,8 @@ from i18n_animimp import zeilen_vier as _animimp  # noqa: E402  (Animations-Impo
 S += _animimp()
 from i18n_paint import zeilen_vier as _paint  # noqa: E402  (Modell-Block 1c: Texture Painting)
 S += _paint()
+from i18n_pfix import zeilen_vier as _pfix  # noqa: E402  (pfix: Funde der Code-Pruefung Modell-Block)
+S += _pfix()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

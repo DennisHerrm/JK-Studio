@@ -128,6 +128,8 @@ struct Teil {
     std::vector<int> dateiKinder;
     std::uint32_t flaggen = 0;
     int eltern = -1;
+    // pfix M1: die Flaeche der gelesenen .md3, aus der der Teil stammt (readMd3 ueberspringt leere), -1 neu
+    int dateiFlaeche = -1;
     std::vector<int> kinder;
     std::vector<Netz> stufen;   // je LOD-Stufe ein Netz
 
@@ -193,13 +195,16 @@ public:
     [[nodiscard]] int stand() const noexcept { return stand_; }
     void laden(Inhalt neu);
     // netz = false: die Aenderung betrifft nur das Rig (netzStand bleibt, die Anzeige baut nicht neu).
-    void aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz = true);
+    // pfix H1: die Kennung des neuen Schritts - wer einen Schritt offen haelt (Werkzeugkaestchen, Regler, Zug), bricht mit ihr ab.
+    std::uint64_t aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz = true);
     // Den Inhalt ohne neuen Rueckgaengig-Schritt aendern - die Vorschau eines
     // Ziehens, dessen Schritt aendern() beim ersten Bewegen angelegt hat.
     void vorschau(const std::function<void(Inhalt&)>& f, bool netz = true);
     bool rueckgaengig();
     // mb1a2: den letzten Schritt verwerfen (zurueck, ohne Wiederholen) - ein abgebrochenes G/R/S.
     bool abbrechen();
+    // pfix H1: nur den Schritt `schritt` verwerfen - liegt er nicht mehr oben (Rueckgaengig, ein anderer Befehl), nichts.
+    bool abbrechen(std::uint64_t schritt);
     bool wiederholen();
     [[nodiscard]] bool kannRueckgaengig() const noexcept { return !zurueck_.empty(); }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !vor_.empty(); }
@@ -208,8 +213,14 @@ public:
 
 private:
     Inhalt jetzt_;
-    std::vector<std::pair<std::string, Inhalt>> zurueck_;
-    std::vector<std::pair<std::string, Inhalt>> vor_;
+    struct Schritt {
+        std::string first;   // Name
+        Inhalt second;       // der Inhalt davor
+        std::uint64_t kennung = 0;
+    };
+    std::vector<Schritt> zurueck_;
+    std::vector<Schritt> vor_;
+    std::uint64_t kennungZaehler_ = 0;
     int stand_ = 0;
     int netzZaehler_ = 0;
 };

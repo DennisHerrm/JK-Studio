@@ -1,0 +1,16 @@
+models/players/atst/atst.gla	23	1	atst
+Model_root	W	M	0	0
+pelvis	P	M	0	0
+thoracic	S	M	0	0
+cervical	H	M	0	0
+cranium	K	M	0	0
+l_clavical	C	L	0	0
+r_clavical	C	R	0	0
+l_femur	B	L	0	0
+l_tibia	B	L	0	1
+l_talus	B	L	0	2
+l_tarsal	B	L	0	3
+r_femur	B	R	0	0
+r_tibia	B	R	0	1
+r_talus	B	R	0	2
+r_tarsal	B	R	0	3

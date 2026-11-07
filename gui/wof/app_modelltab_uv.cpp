@@ -1079,7 +1079,7 @@ void zugAnwenden(const Bildschirm& s, ImVec2 maus) {
         return;
     }
     if (!u.zugAngelegt) {
-        t.dok.aendern(tr(zugName(std::abs(u.zug))), [&](modell::Inhalt& d) { d = std::move(x); });
+        u.zugSchritt = t.dok.aendern(tr(zugName(std::abs(u.zug))), [&](modell::Inhalt& d) { d = std::move(x); });
         u.zugAngelegt = true;
     } else {
         t.dok.vorschau([&](modell::Inhalt& d) { d = std::move(x); });
@@ -1113,7 +1113,7 @@ void zugBeginnen(int art, ImVec2 maus) {
 void zugEnde(bool behalten) {
     ModellUv& u = uvz();
     if (u.zug == 0) { return; }
-    if (!behalten && u.zugAngelegt) { (void)mt().dok.abbrechen(); }
+    if (!behalten && u.zugAngelegt) { (void)mt().dok.abbrechen(u.zugSchritt); }
     if (u.zugAngelegt && behalten) {
         ++u.befehle;
         u.letzterBefehl = tr(zugName(std::abs(u.zug)));
@@ -1126,6 +1126,9 @@ void zugEnde(bool behalten) {
 }
 
 }  // namespace
+
+// pfix H1: der Zug ohne Uebernehmen (Strg+Z waehrend des Ziehens)
+void modellUvZugAbbrechen() { zugEnde(false); }
 
 int modellUvGruppenZahl() { return static_cast<int>(gruppen().size()); }
 

@@ -3225,6 +3225,7 @@ bool figurAnimPhysik(const std::function<void(modell::PhysikEinstellung&)>& f);
 bool figurAnimPhysikFlugHier(bool landung);
 int figurAnimPhysikKetten();
 modell::PhysikBericht figurAnimPhysikBericht(const std::string& figur);
+[[nodiscard]] modell::FigurAnim figurAnimKopie(const std::string& figur);   // Selbsttest: die Einstellungen der Figur im Skript
 void figurAnimErsatz(std::size_t actor, ActorDraw& d);   // waehrend eines Zugs: die Knochen aus der Schicht des Zugs
 [[nodiscard]] bool figurAnimTastenAktiv();                // Griffe in der Ansicht: W/E/Q gehoeren ihnen (ohne rechte Taste)
 // Die Karten-GLA der Vorschau aus den Figurenbloecken; stand kommt in den Schluessel des Anhangs.

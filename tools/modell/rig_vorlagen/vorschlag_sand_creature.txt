@@ -1,0 +1,10 @@
+models/players/sand_creature/sand_creature.gla	33	0.64	sand_creature
+Model_Root	W	M	0	0
+Spine01	S	M	0	0
+Spine02	S	M	0	1
+Spine03	S	M	0	2
+Spine04	S	M	0	3
+Spine05	S	M	0	4
+Spine06	S	M	0	5
+Neck	H	M	0	0
+Head	K	M	0	0

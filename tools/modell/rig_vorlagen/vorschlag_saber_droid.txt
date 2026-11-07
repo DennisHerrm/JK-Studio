@@ -1,0 +1,26 @@
+models/players/saber_droid/model.gla	27	0.64	saber_droid
+Model_root	W	M	0	0
+pelvis	P	M	0	0
+thoracic	S	M	0	0
+cervical	H	M	0	0
+cranium	K	M	0	0
+Left_Shoulder_Bone	C	L	0	0
+Right_Shoulder_Bone	C	R	0	0
+lhumerus	A	L	0	0
+lradius	A	L	0	1
+rhumerus	A	R	0	0
+rradius	A	R	0	1
+Left_Thigh_Bone	B	L	0	0
+ltibia	B	L	0	1
+Left_heel_bone	B	L	0	2
+ltalus	B	L	1	0
+Right_Thigh_Bone	B	R	0	0
+rtibia	B	R	0	1
+Right_heel_bone	B	R	0	2
+rtalus	B	R	1	0
+top_finger01	F	R	1	0
+top_finger02	F	R	1	1
+inside_finger01	F	R	2	0
+inside_finger02	F	R	2	1
+outside_finger01	F	R	3	0
+outside_finger02	F	R	3	1

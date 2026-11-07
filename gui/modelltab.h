@@ -128,6 +128,7 @@ enum class AuswahlArt : int { Objekt = 0, Ecke, Kante, Dreieck, Rand, Element };
 // mb1a2: G/R/S wie Blender (transform.translate/rotate/resize, modal mit Achse und Zahl)
 struct ModellModal {
     int art = 0;            // 0 keins, 1 G, 2 R, 3 S
+    std::uint64_t schritt = 0;   // pfix H1: der Rueckgaengig-Schritt von G/R/S
     int achse = -1;         // 0..2 X/Y/Z
     int achsStufe = 0;      // 0 aus, 1 global, 2 lokal (Blender: zweimal dieselbe Taste)
     bool ebene = false;     // Umschalt+X: die Ebene ohne X
@@ -185,6 +186,7 @@ struct ModellRetarget {
     // Stufe 5b: Presets
     bool presetOeffnen = false;
     bool presetZug = false;          // Regler wird gezogen (ein Rueckgaengig-Schritt)
+    bool reglerZug = false;          // pfix M7: Regler Reach/Zugfeld Beinlaenge wird gezogen (ein Rueckgaengig-Schritt)
     int presetRolloutBild = -1;      // Selbsttest
     modell::GangBefund gang;         // Befund des letzten Zyklus
     int rolloutBild = -1;            // Selbsttest
@@ -225,6 +227,7 @@ struct ModellUv {
     std::vector<float> dehnung;
     // Ziehen / modal (G/R/S wie Blender)
     int zug = 0;                  // 0 keins, 1 Verschieben, 2 Drehen, 3 Skalieren
+    std::uint64_t zugSchritt = 0; // pfix H1: sein Rueckgaengig-Schritt
     bool modal = false;
     int modalArt = 0;
     bool zugAngelegt = false;
@@ -288,6 +291,7 @@ struct ModellMesh {
     // Werkzeugkaestchen
     MeshWerkzeug werkzeug = MeshWerkzeug::Keins;
     bool kaestchenOffen = false;
+    std::uint64_t schritt = 0;        // pfix H1: der Rueckgaengig-Schritt des offenen Kaestchens (Dokument::abbrechen)
     modell::Inhalt basis;             // der Inhalt vor dem Werkzeug
     modell::Inhalt basisMitTeil;      // dazu ein neuer Teil des Plans (Detach, Grundkoerper in einen neuen Teil)
     modell::wof::PolyNetz basisNetz;
@@ -480,6 +484,7 @@ struct ModellTab {
     // Stufe 2: Speichern, Frage im Programm, animation.cfg, Karten-GLA, Marker
     std::string speicherPfad;     // wohin Strg+S schreibt (nach dem ersten Speichern)
     int gespeichertStand = -1;    // dok.stand() beim letzten Speichern
+    bool beendenBeantwortet = false;   // pfix H3: "Verwerfen und beenden?" mit Ja beantwortet
     int frageArt = 0;             // 0 keine, 1 Modell speichern, 2 Karten-GLA bauen (trotz Befunden?)
     std::string frageZiel;
     std::vector<std::string> frageZeilen;
@@ -518,6 +523,7 @@ struct ModellTab {
     int pfadDanach = 10;
     // Ziehen eines Griffs (Gizmo) und G/R wie Blender
     bool rigZieht = false;
+    std::uint64_t rigSchritt = 0;     // pfix H1: der Rueckgaengig-Schritt des Ziehens
     float rigZiehStart[2]{};
     std::vector<BoneMatrix> rigWeltStart;
     modell::RigSchicht rigSchichtStart;
@@ -555,6 +561,7 @@ struct ModellTab {
     modell::RigSchicht kvZugStart;
     modell::Wahl kvZugWahl;
     bool kvZugAngelegt = false;
+    std::uint64_t kvZugSchritt = 0;   // pfix H1
     int kvZugKnochen = -1;
     int kvZugIndex = -1;
     int kvZugKanal = -1;
@@ -573,6 +580,7 @@ struct ModellTab {
     int kvReglerHinweis = 0;
     modell::RigSchicht kvReglerStart;
     bool kvReglerAngewandt = false;
+    std::uint64_t kvReglerSchritt = 0;   // pfix H1
     bool kvReglerOeffnen = false;
     int kvReglerSichtbar = -1;
     bool kvAnimOffset = false;
@@ -609,6 +617,7 @@ struct ModellTab {
     bool physikZeigen = true;     // Schwerpunkt, Weg und Stuetzflaeche in der Ansicht
     bool physikOeffnen = false;   // das Rollout aufklappen (Aktion)
     bool physikZug = false;       // Regler wird gezogen (ein Rueckgaengig-Schritt)
+    bool ikZug = false;           // pfix M7: Regler IK-FK/Rolle/Spitze wird gezogen (ein Rueckgaengig-Schritt)
     int physikRolloutBild = -1;   // Selbsttest
     int physikGezeichnet = 0;     // Selbsttest: gezeichnete Teile der Ueberlagerung je Bild
     int physikRechnungen = 0;     // Selbsttest: Zahl der Rechnungen
@@ -671,6 +680,11 @@ void modellMeshAktionAusloesen(int i);
 bool modellMeshWerkzeugStarten(MeshWerkzeug w);
 void modellMeshUebernehmen(bool weiter);
 void modellMeshAbbrechen();
+// pfix H1: Strg+Z / Strg+Y bei offenem Werkzeugkaestchen, Regler oder Zug - erst dieses abbrechen (true: es war etwas offen)
+bool modellOffenesAbbrechen();
+void modellFlaechenAbgleichen();   // pfix H2: die Flaechen des gezeichneten Modells nach den Teilen des Dokuments
+void modellKvOffenesAbbrechen();   // Kurven-Regler und Zug im Dopesheet/Kurveneditor
+void modellUvZugAbbrechen();       // Zug im UV-Editor
 void modellMeshVorschau();                  // nach einer Aenderung der Werte des Kaestchens
 bool modellNeuesRequisit();                 // ein leeres .md3-Dokument (ein Teil) zum Modellieren
 bool modellRequisitInKarte();               // als .md3 in den Import-Ordner und als misc_model in die offene Karte
@@ -810,8 +824,8 @@ bool modellIkWechselnRoh(int art, bool ik, bool einrasten);
 bool modellIkEinrasten(int art, bool zielAufFk);                // true: IK -> FK (Ziel/Pol auf FK), false: FK -> IK
 bool modellIkRaum(int art, int wahl);                           // 0 Welt, 1 Becken, 2 Brust, 3 Kopf, 4 andere Hand
 bool modellIkSaebelHand();
-bool modellIkReglerSetzen(int art, float regler);               // wie Blender (Rigify IK-FK): 0 IK, 1 FK, ohne Einrasten
-bool modellIkRolle(int art, float rolle, float spitze);
+bool modellIkReglerSetzen(int art, float regler, bool zug = false);               // wie Blender (Rigify IK-FK): 0 IK, 1 FK, ohne Einrasten
+bool modellIkRolle(int art, float rolle, float spitze, bool zug = false);
 bool modellIkSchluesselLoeschen(int art);
 bool modellIkBacken(int art);
 // Gizmo / G-R: 0 nicht IK (FK wie bisher), 1 erledigt, 2 weiter mit FK (auf FK gewechselt). `neu` ist die Schicht des Zugs.
@@ -827,7 +841,7 @@ bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz = {
 bool modellRtImportWaehlen();   // Dateidialog
 const std::vector<PresetEintrag>& modellPresetBibliothek();
 bool modellPresetBibliothekAuflegen(int i);   // Eintrag i: importieren, uebertragen, Vorschau abspielen
-bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f);
+bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f, bool zug = false);
 [[nodiscard]] const modell::RetargetDaten* modellRtDaten();
 int modellRtZuordnen(bool alle);
 bool modellRtHaltung(bool ziel, modell::RtHaltung h);
@@ -865,6 +879,10 @@ bool modellPosenLaden(const std::string& datei);
 // Stufe 2 (app_modelltab_mb3.cpp)
 void modellSpeichern(bool unter);
 [[nodiscard]] bool modellUngespeichert();
+// pfix H3: ungespeichert -> "Verwerfen?" (Ja: danach), sonst gleich danach; beim Beenden dieselbe Frage
+void modellVerwerfenDann(std::function<void()> danach);
+[[nodiscard]] bool modellBeendenFrage();
+void modellBeendenVergessen();
 void drawModellSpeichernFrage();
 void drawModellAnimationBereich();
 void modellMarkerZeile(const AnimEntry* e);

@@ -1,0 +1,2 @@
+models/players/lambdashuttle/lambdashuttle.gla	7	0.64	lambdashuttle
+model_root	W	M	0	0

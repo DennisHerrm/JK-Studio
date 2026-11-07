@@ -293,7 +293,8 @@ std::vector<Befund> pruefeMass(const FlaechenMass& m, const Grenzen& g) {
 }
 
 bool animInnerhalb(const AnimEntry& e, int glaBilder) noexcept {
-    return e.firstFrame >= 0 && e.numFrames >= 0 && e.firstFrame < glaBilder && e.firstFrame + e.numFrames <= glaBilder;
+    // pfix N9: ohne Ueberlauf (firstFrame + numFrames aus einer fremden animation.cfg bis INT_MAX)
+    return e.firstFrame >= 0 && e.numFrames >= 0 && e.firstFrame < glaBilder && e.numFrames <= glaBilder - e.firstFrame;
 }
 
 std::vector<Befund> pruefeModell(const Inhalt& in, Zielspiel s, const std::vector<AnimEntry>& anims, int glaBilder,
