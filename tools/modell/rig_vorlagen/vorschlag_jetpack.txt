@@ -1,0 +1,2 @@
+models/weapons2/jetpack/jetpack.gla	2	0.64	jetpack
+model_root	W	M	0	0

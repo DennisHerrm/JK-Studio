@@ -1820,6 +1820,10 @@ void insertCameraHere() {
 // Laden wird das Uebliche automatisch mitgesucht - zur .glm die .skin und
 // die im Modell vermerkte .gla, zur .bsp die Entities darin. Wer etwas
 // anderes will, waehlt es danach von Hand.
+namespace {
+void modellDateiOeffnen(const std::string& p);
+}  // namespace
+
 void openModelFile() {
     const std::string p = platform::openFileDialog(
         tr(Str::OpenGlm), "Ghoul2 models (*.glm)|*.glm|MD3 models (*.md3)|*.md3|All files (*.*)|*.*",
@@ -1827,6 +1831,11 @@ void openModelFile() {
     if (p.empty()) {
         return;
     }
+    modellVerwerfenDann([p] { modellDateiOeffnen(p); });   // pfix H3
+}
+
+namespace {
+void modellDateiOeffnen(const std::string& p) {
     if (p.size() > 4 && (p.compare(p.size() - 4, 4, ".md3") == 0 || p.compare(p.size() - 4, 4, ".MD3") == 0)) {
         // Modell-Block 1b: eine .md3 von der Platte in den Model-Tab
         std::string err;
@@ -1913,6 +1922,7 @@ void openModelFile() {
     // Das Skelett gleich mitsuchen - der Pfad steht im Modell.
     loadSkeletonForModel();
 }
+}  // namespace
 
 // Eine Haut aus der Liste anwenden.
 //

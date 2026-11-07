@@ -5325,6 +5325,9 @@ enum class Str {
     MdRequisitFehlt,
     MdRequisitGeholt,
     MdImModelTab,
+    MbVerwerfenFrage,
+    MbBeendenFrage,
+    FaNameUngueltig,
     Count,
 };
 

@@ -1,0 +1,2 @@
+models/map_objects/imp_mine/turret_cannon.gla	4	1	turret_cannon
+model_root	W	M	0	0

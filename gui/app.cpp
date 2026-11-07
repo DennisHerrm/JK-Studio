@@ -3954,10 +3954,10 @@ void drawPk3Browser() {
                 if (g_app->pk3Kind == 2) {
                     // Ein Modell. Die .skin dazu suchen wir gleich mit: sie
                     // liegt neben dem Modell und heisst model_<name>.skin.
-                    std::string gerr;
-                    if (!oeffneModellAusArchiv(f.name, &gerr)) {
-                        platform::showError(f.name + "\n" + gerr, tr(Str::AppTitle));
-                    }
+                    modellVerwerfenDann([name = f.name] {   // pfix H3
+                        std::string gerr;
+                        if (!oeffneModellAusArchiv(name, &gerr)) { platform::showError(name + "\n" + gerr, tr(Str::AppTitle)); }
+                    });
                 } else if (g_app->pk3Kind == 1) {
                     // Derselbe Weg wie beim Oeffnen von der Platte:
                     // Entities, Geometrie und Texturen.
@@ -4143,8 +4143,8 @@ void drawAbout() {
     ImGui::BulletText("%s", tr(Str::AboutIbi));
     ImGui::BulletText("%s", tr(Str::AboutIcarus));
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
-    ImGui::BulletText("%s", tr(Str::AboutUvLizenz));
-    ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge   // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
+    ImGui::BulletText("%s", tr(Str::AboutUvLizenz));     // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
+    ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge
     ImGui::PopTextWrapPos();
 
     ImGui::Separator();

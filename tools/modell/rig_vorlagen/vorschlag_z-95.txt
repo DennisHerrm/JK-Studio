@@ -1,0 +1,2 @@
+models/players/z-95/z-95.gla	4	0.64	z-95
+model_root	W	M	0	0

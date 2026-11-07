@@ -130,18 +130,27 @@ int gewaehlterKnochen() {
 
 const modell::RetargetDaten* modellRtDaten() { return &mt().dok.inhalt().rig.rt; }
 
-bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f) {
+// pfix M7: zug = ein Regler wird gezogen - der Schritt kommt beim ersten Bild, danach Vorschau (wie die Physik-Regler)
+bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f, bool zug) {
     ModellTab& t = mt();
     if (g_app->anim.bones.empty()) {
         melden(tr(Str::MbRgKeineGla));
         return false;
     }
-    t.dok.aendern(undo, [&](modell::Inhalt& in) { f(in.rig.rt); }, false);
+    const auto tun = [&](modell::Inhalt& in) { f(in.rig.rt); };
+    if (zug && t.rt.reglerZug) {
+        t.dok.vorschau(tun, false);
+    } else {
+        t.dok.aendern(undo, tun, false);
+        t.rt.reglerZug = zug;
+    }
     g_app->modelDirty = true;
     return true;
 }
 
-bool modellRtQuelleLaden(const std::string& pfad) {
+namespace {
+// Die Quelle lesen (GLA, animation.cfg, Charakter) - ohne Rueckgaengig-Schritt
+bool quelleLesen(const std::string& pfad) {
     ModellRetarget& r = rt();
     std::string bytes;
     std::string fehler;
@@ -178,6 +187,13 @@ bool modellRtQuelleLaden(const std::string& pfad) {
     zielCharakter();
     r.stand = -1;
     r.bild = 0.0F;
+    return true;
+}
+}  // namespace
+
+bool modellRtQuelleLaden(const std::string& pfad) {
+    ModellRetarget& r = rt();
+    if (!quelleLesen(pfad)) { return false; }
     // die Quelle gehoert ins Dokument (Rueckgaengig); Zuordnung neu (nur leere: es gibt noch keine von Hand)
     const modell::RtZuordnung zu = modell::rtZuordnen(r.cq, r.cz);
     const std::string seq = r.quelleCfg.empty() ? std::string() : r.quelleCfg.front().name;
@@ -250,6 +266,9 @@ void modellRtAktualisieren() {
         g_app->modelDirty = true;
         return;
     }
+    // pfix M5: Rueckgaengig/Wiederholen von "Quelle laden" - das Dokument nennt eine andere Quelle als die gelesene: sie neu lesen
+    // (ohne Schritt), sonst traefe die Zuordnung der einen die Ketten der anderen
+    if (!d.quelle.empty() && d.quelle != r.quelleFuer && !quelleLesen(d.quelle)) { return; }
     const std::string fuer = r.quelleFuer + "|" + d.sequenz + "|" + r.czFuer;
     if (r.stand == t.dok.stand() && r.fuer == fuer) { return; }
     if (d.zu.quelle.size() != r.cz.ketten.size()) {
@@ -713,8 +732,9 @@ void drawModellRetargetBereich() {
             float v = wert;
             ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(text)).x - ImGui::GetStyle().ItemInnerSpacing.x);
             if (ImGui::SliderFloat(tr(text), &v, 0.0F, 1.0F, "%.2f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); });
+                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); }, true);
             }
+            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
             ImGui::SetItemTooltip("%s", tr(hinweis));
         };
         regler(Str::RtReachFuss, Str::RtReachHint, d.e.reachFuss, [](modell::RtEinstellung& x, float v) { x.reachFuss = v; });
@@ -735,8 +755,9 @@ void drawModellRetargetBereich() {
             ImGui::SameLine();
             ImGui::SetNextItemWidth(fs * 5.0F);
             if (ImGui::DragFloat("##rtk", &k, 0.005F, 0.05F, 20.0F, "%.3f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; });
+                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; }, true);
             }
+            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
             ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
         } else {
             ImGui::SameLine();

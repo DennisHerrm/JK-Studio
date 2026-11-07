@@ -4115,6 +4115,7 @@ void beendenAbgebrochen() {
     g_app->quitAskFrom = 0;
     g_app->entFrageBeantwortet = false;
     karteneditor::beendenVergessen();
+    modellBeendenVergessen();   // pfix H3
     updater::neustartVergessen();   // "Neu starten" ebenso abgebrochen
 }
 
@@ -4199,6 +4200,10 @@ bool confirmQuit() {
                 g_app->homeTab = z;
             }
         });
+        return false;
+    }
+    // pfix H3: das Modell des Model-Tabs (nach den Skript-Reitern, vor "Exit?")
+    if (!modellBeendenFrage()) {
         return false;
     }
     // "Exit?" - nur mit "Yes/No query on Open/New/Exit" (Original), und nur,

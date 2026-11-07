@@ -1,0 +1,6 @@
+models/players/gonk/gonk.gla	6	1	gonk
+model_root	W	M	0	0
+ltibia	B	L	0	0
+ltalus	B	L	0	1
+rtibia	B	R	0	0
+rtalus	B	R	0	1

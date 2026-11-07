@@ -1,0 +1,6 @@
+models/items/psgun.gla	9	1	psgun
+model_root	W	M	0	0
+Bone_foot2	B	L	0	0
+Bone_foot4	B	L	1	0
+Bone_foot	B	R	0	0
+Bone_foot3	B	R	1	0

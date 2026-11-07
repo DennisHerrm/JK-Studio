@@ -1167,13 +1167,29 @@ int zeitenTeilen(RigSchicht& s, const std::vector<int>& knochen, int vomLetzten)
 Wahl werteAendern(RigSchicht& s, const Wahl& w, WertArt art, int cursor) {
     if (art == WertArt::Umkehren || art == WertArt::SpiegelnCursor) {
         Wahl neu = umsetzen(s, w, [=](int b, int erster, int letzter) { return art == WertArt::Umkehren ? erster + letzter - b : 2 * cursor - b; });
+        // pfix H5: IK-Schluessel (ikWahlCode) stehen in der Spur, nicht in s.knochen (liste() gibt fuer sie nullptr)
+        const auto spurVon = [&](int code) -> IkSpur* {
+            const int sp = ikWahlSpur(code);
+            return sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size() ? &s.ik[static_cast<std::size_t>(sp)] : nullptr;
+        };
         for (const SchluesselWahl& x : neu) {
             std::vector<RigSchluessel>* vp = liste(s, x.knochen);
+            if (vp == nullptr) {
+                IkSpur* sp = spurVon(x.knochen);
+                if (sp == nullptr) { continue; }
+                vp = &sp->ziel;
+            }
             for (RigSchluessel& k : *vp) {
                 if (k.bild == x.bild) { henkelZeitSpiegeln(k); }
             }
         }
-        for (const int k : wahlKnochen(neu)) { henkelNeu(*liste(s, k)); }
+        for (const int k : wahlKnochen(neu)) {
+            if (std::vector<RigSchluessel>* vp = liste(s, k); vp != nullptr) {
+                henkelNeu(*vp);
+            } else if (IkSpur* sp = spurVon(k); sp != nullptr) {
+                ikHenkelNeu(*sp);
+            }
+        }
         return neu;
     }
     for (const int k : wahlKnochen(w)) {

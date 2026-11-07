@@ -648,6 +648,19 @@ bool figurAnimBauenFrage() { return figurAnimBauen(ausgabeOrdner(), false); }
 
 // --- Ansicht: Griffe, Pfade, Maus ------------------------------------------------------------------------------------------
 
+// pfix M8: der Wert eines Reglers oder Zugfelds ueber die Bilder des Ziehens. ImGui setzt im Bild des Loslassens keinen
+// neuen Wert mehr, IsItemDeactivatedAfterEdit kommt genau dann - eine jedes Bild aus dem Dokument neu gesetzte Kopie truege
+// dort wieder den alten Wert, ein Zugfeld kaeme nie ueber den Mausweg eines Bilds hinaus. Neu aus dem Dokument nur, solange
+// das Element (gleiche Kennung wie das folgende Widget) nicht aktiv ist.
+template <class T>
+T& gehalten(const char* label, T ausDokument) {
+    static std::map<ImGuiID, T> werte;
+    const ImGuiID id = ImGui::GetID(label);
+    T& v = werte[id];
+    if (GImGui->ActiveId != id) { v = ausDokument; }
+    return v;
+}
+
 // --- Stufe 6: Auto-Physik ----------------------------------------------------------------------------------------------------
 
 void drawPhysik(const FigurDaten& d) {
@@ -677,7 +690,7 @@ void drawPhysik(const FigurDaten& d) {
         return;
     }
     ImGui::BeginDisabled(!e.an);
-    float staerke = e.staerke;
+    float& staerke = gehalten(tr(Str::PhStaerke), e.staerke);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.0F);
     ImGui::SliderFloat(tr(Str::PhStaerke), &staerke, 0.0F, 1.0F, "%.2f");
     if (ImGui::IsItemDeactivatedAfterEdit()) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.staerke = staerke; }); }
@@ -721,7 +734,7 @@ void drawPhysik(const FigurDaten& d) {
     ImGui::EndDisabled();
     ImGui::SetItemTooltip("%s", tr(Str::PhSchwerkraftHint));
     daneben(tr(Str::PhKontaktAbstand), ImGui::GetFontSize() * 5.0F + ImGui::GetStyle().ItemInnerSpacing.x);
-    float k = e.kontaktAbstand;
+    float& k = gehalten(tr(Str::PhKontaktAbstand), e.kontaktAbstand);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0F);
     ImGui::DragFloat(tr(Str::PhKontaktAbstand), &k, 0.1F, 0.0F, 32.0F, "%.1f");
     if (ImGui::IsItemDeactivatedAfterEdit()) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.kontaktAbstand = k; }); }
@@ -739,8 +752,7 @@ void drawPhysik(const FigurDaten& d) {
         ImGui::TextUnformatted(c.knochen >= 0 && static_cast<std::size_t>(c.knochen) < d.basis.bones.size() ? d.basis.bones[static_cast<std::size_t>(c.knochen)].name.c_str()
                                                                                                           : "-");
         ImGui::SameLine();
-        float fq = c.frequenz;
-        float dm = c.daempfung;
+        float& fq = gehalten(tr(Str::PhFrequenz), c.frequenz);
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.5F);
         ImGui::SliderFloat(tr(Str::PhFrequenz), &fq, 0.2F, 10.0F, "%.1f Hz");
         if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -750,6 +762,7 @@ void drawPhysik(const FigurDaten& d) {
         }
         ImGui::SetItemTooltip("%s", tr(Str::PhFrequenzHint));
         daneben(tr(Str::PhDaempfung), ImGui::GetFontSize() * 4.5F + ImGui::GetStyle().ItemInnerSpacing.x);
+        float& dm = gehalten(tr(Str::PhDaempfung), c.daempfung);
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.5F);
         ImGui::SliderFloat(tr(Str::PhDaempfung), &dm, 0.0F, 1.0F, "%.2f");
         if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -1281,8 +1294,7 @@ void drawFigurAnimFenster() {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(tr(Str::FaBilder));
         ImGui::SameLine(fs * 8.0F);
-        static int bilder = 0;
-        if (!ImGui::IsItemActive()) { bilder = a.bilder; }
+        int& bilder = gehalten("##fabilder", a.bilder);
         ImGui::SetNextItemWidth(fs * 6.0F);
         ImGui::DragInt("##fabilder", &bilder, 0.25F, 1, 65535);
         ImGui::SetItemTooltip("%s", tr(Str::FaBilderHint));
@@ -1339,7 +1351,11 @@ void drawFigurAnimFenster() {
         ImGui::SetItemTooltip("%s", tr(Str::FaWarteHint));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             const std::string s = warte;
-            (void)figurAnimEinstellen([&](modell::FigurAnim& x) { x.warteSignal = s; });
+            if (!modell::figurNameGueltig(s)) {   // pfix M4
+                melden(format(Str::FaNameUngueltig, s.c_str()));
+            } else {
+                (void)figurAnimEinstellen([&](modell::FigurAnim& x) { x.warteSignal = s; });
+            }
         }
         ImGui::SameLine();
         ImGui::TextUnformatted(tr(Str::FaSende));
@@ -1349,7 +1365,11 @@ void drawFigurAnimFenster() {
         ImGui::SetItemTooltip("%s", tr(Str::FaSendeHint));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             const std::string s = sende;
-            (void)figurAnimEinstellen([&](modell::FigurAnim& x) { x.sendeSignal = s; });
+            if (!modell::figurNameGueltig(s)) {   // pfix M4
+                melden(format(Str::FaNameUngueltig, s.c_str()));
+            } else {
+                (void)figurAnimEinstellen([&](modell::FigurAnim& x) { x.sendeSignal = s; });
+            }
         }
     }
     // --- Posieren ---

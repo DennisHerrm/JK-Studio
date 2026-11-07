@@ -864,6 +864,11 @@ modell::PhysikBericht figurAnimPhysikBericht(const std::string& figur) {
     return d->da ? d->physik : modell::PhysikBericht{};
 }
 
+modell::FigurAnim figurAnimKopie(const std::string& figur) {
+    const std::shared_ptr<FigurDaten> d = daten(figur);
+    return d->da ? d->anim : modell::FigurAnim{};
+}
+
 // --- Von aussen ------------------------------------------------------------------------------------------------------------
 
 bool figurAnimierbar(int ai) {

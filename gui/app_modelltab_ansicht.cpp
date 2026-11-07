@@ -34,6 +34,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -800,6 +801,82 @@ void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const std::fun
     }
 }
 
+// pfix M6: nach dem Umformen folgen die Normalen der Geometrie (wie 3ds Max Editable Poly / Blender Edit Mode). Neu gerechnet
+// werden nur Ecken an Dreiecken, die ihre Richtung geaendert haben (gegen die Drehung `rot` der Umformung - starr bewegte
+// behalten die Normale der Datei): Summe der Dreiecksnormalen (nach Flaeche gewichtet) ueber die Dreiecke der Ecke, also mit
+// den harten Kanten (getrennte Ecken) der Datei.
+void normalenNachUmformen(modell::Inhalt& x, const modell::Inhalt& vorher, const float rot[3][3]) {
+    const auto kreuz = [](const float* a, const float* b, const float* c, float* n) {
+        const float u[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+        const float v[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+        n[0] = u[1] * v[2] - u[2] * v[1];
+        n[1] = u[2] * v[0] - u[0] * v[2];
+        n[2] = u[0] * v[1] - u[1] * v[0];
+    };
+    for (std::size_t ti = 0; ti < x.teile.size() && ti < vorher.teile.size(); ++ti) {
+        for (std::size_t st = 0; st < x.teile[ti].stufen.size() && st < vorher.teile[ti].stufen.size(); ++st) {
+            modell::Netz& n = x.teile[ti].stufen[st];
+            const modell::Netz& v = vorher.teile[ti].stufen[st];
+            if (n.ecken.size() != v.ecken.size() || n.ecken.empty()) { continue; }
+            bool bewegt = false;
+            for (std::size_t i = 0; !bewegt && i < n.ecken.size(); ++i) { bewegt = std::memcmp(n.ecken[i].ort, v.ecken[i].ort, sizeof n.ecken[i].ort) != 0; }
+            if (!bewegt) { continue; }
+            const std::vector<std::uint32_t> idx = n.indizes();
+            std::vector<std::array<float, 3>> summe(n.ecken.size(), {0.0F, 0.0F, 0.0F});
+            std::vector<char> neu(n.ecken.size(), 0);
+            for (std::size_t d = 0; d + 2 < idx.size(); d += 3) {
+                const std::uint32_t e[3] = {idx[d], idx[d + 1], idx[d + 2]};
+                if (e[0] >= n.ecken.size() || e[1] >= n.ecken.size() || e[2] >= n.ecken.size()) { continue; }
+                float jetzt[3];
+                float alt[3];
+                kreuz(n.ecken[e[0]].ort, n.ecken[e[1]].ort, n.ecken[e[2]].ort, jetzt);
+                kreuz(v.ecken[e[0]].ort, v.ecken[e[1]].ort, v.ecken[e[2]].ort, alt);
+                float altGedreht[3];
+                for (int k = 0; k < 3; ++k) { altGedreht[k] = rot[k][0] * alt[0] + rot[k][1] * alt[1] + rot[k][2] * alt[2]; }
+                const float lj = std::sqrt(jetzt[0] * jetzt[0] + jetzt[1] * jetzt[1] + jetzt[2] * jetzt[2]);
+                const float la = std::sqrt(altGedreht[0] * altGedreht[0] + altGedreht[1] * altGedreht[1] + altGedreht[2] * altGedreht[2]);
+                const bool gedreht = lj > 1e-12F && la > 1e-12F &&
+                                     (jetzt[0] * altGedreht[0] + jetzt[1] * altGedreht[1] + jetzt[2] * altGedreht[2]) / (lj * la) < 1.0F - 1e-6F;
+                for (const std::uint32_t k : e) {
+                    for (int c = 0; c < 3; ++c) { summe[k][static_cast<std::size_t>(c)] += jetzt[c]; }
+                    if (gedreht || (lj > 1e-12F) != (la > 1e-12F)) { neu[k] = 1; }
+                }
+            }
+            // Ecken am selben Punkt mit derselben alten Normale (UV-Naht, nicht harte Kante) teilen ihre Dreiecke
+            std::vector<std::array<float, 3>> gruppe = summe;
+            if (n.punktVon.size() == n.ecken.size()) {
+                std::map<int, std::vector<std::size_t>> amPunkt;
+                for (std::size_t i = 0; i < n.ecken.size(); ++i) { amPunkt[n.punktVon[i]].push_back(i); }
+                for (const auto& [p, ecken] : amPunkt) {
+                    for (const std::size_t i : ecken) {
+                        if (neu[i] == 0) { continue; }
+                        std::array<float, 3> g = {0.0F, 0.0F, 0.0F};
+                        for (const std::size_t j : ecken) {
+                            const float* a = v.ecken[i].normale;
+                            const float* b = v.ecken[j].normale;
+                            if (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] < 0.9999F) { continue; }
+                            for (std::size_t c = 0; c < 3; ++c) { g[c] += summe[j][c]; }
+                        }
+                        gruppe[i] = g;
+                    }
+                }
+            }
+            for (std::size_t i = 0; i < n.ecken.size(); ++i) {
+                if (neu[i] == 0) { continue; }
+                const std::array<float, 3>& s = gruppe[i];
+                const float l = std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+                if (l < 1e-12F) { continue; }
+                // der Umlauf der Datei (Uhrzeigersinn von aussen): die Seite der alten Normale
+                float g[3];
+                for (int k = 0; k < 3; ++k) { g[k] = rot[k][0] * v.ecken[i].normale[0] + rot[k][1] * v.ecken[i].normale[1] + rot[k][2] * v.ecken[i].normale[2]; }
+                const float vz = s[0] * g[0] + s[1] * g[1] + s[2] * g[2] < 0.0F ? -1.0F : 1.0F;
+                for (int k = 0; k < 3; ++k) { n.ecken[i].normale[k] = vz * s[static_cast<std::size_t>(k)] / l; }
+            }
+            ++x.netzStand;
+        }
+    }
+}
+
 // Eine Drehung um eine beliebige Achse (Einheitsvektor, Grad) als Matrix (Rodrigues).
 void drehMatrix(const float achse[3], float grad, float r[3][3]) {
     const float w = grad * kPi / 180.0F;
@@ -848,6 +925,7 @@ void umformen(modell::Inhalt& x, const modell::Inhalt& vorher, int art, const fl
             for (int k = 0; k < 3; ++k) { e.ort[k] = m[k] + d[k] * wert[k]; }
         }
     });
+    normalenNachUmformen(x, vorher, rot);   // pfix M6
 }
 
 // Waehrend des Ziehens: Griff, Mausweg -> Wert (Verschiebung in Einheiten,
@@ -1442,6 +1520,7 @@ void fuerAuswahlDrehen(const modell::Inhalt& vorher, const float rot[3][3], cons
             }
             std::memcpy(e.normale, nn, sizeof nn);
         });
+        normalenNachUmformen(x, vorher, rot);   // pfix M6
     });
 }
 
@@ -1540,7 +1619,7 @@ bool modellModalStarten(int art) {
     std::memcpy(t.modal.mitte, m, sizeof m);
     t.modal.mausStart[0] = ImGui::GetIO().MousePos.x;
     t.modal.mausStart[1] = ImGui::GetIO().MousePos.y;
-    t.dok.aendern(tr(kNamen[std::clamp(art, 0, 3)]), [](modell::Inhalt&) {});
+    t.modal.schritt = t.dok.aendern(tr(kNamen[std::clamp(art, 0, 3)]), [](modell::Inhalt&) {});
     t.ziehVorher.clear();
     t.ziehVorher.push_back(t.dok.inhalt());
     return true;
@@ -1549,7 +1628,7 @@ bool modellModalStarten(int art) {
 void modellModalEnde(bool uebernehmen) {
     ModellTab& t = mt();
     if (t.modal.art == 0) { return; }
-    if (!uebernehmen) { (void)t.dok.abbrechen(); }   // Rechtsklick/Esc: wie vorher, ohne Schritt
+    if (!uebernehmen) { (void)t.dok.abbrechen(t.modal.schritt); }   // Rechtsklick/Esc: wie vorher, ohne Schritt
     t.modal = ModellModal{};
     t.ziehVorher.clear();
     g_app->modelDirty = true;

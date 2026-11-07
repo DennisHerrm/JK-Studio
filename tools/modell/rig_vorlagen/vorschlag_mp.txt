@@ -1,0 +1,2 @@
+models/map_objects/mp/mp.gla	5	1	mp
+model_root	W	M	0	0

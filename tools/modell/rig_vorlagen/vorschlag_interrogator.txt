@@ -1,0 +1,7 @@
+models/players/interrogator/interrogator.gla	8	1	interrogator
+model_root	W	M	0	0
+pelvis	P	M	0	0
+cranium	K	M	0	0
+left_arm	A	L	0	0
+cranial_arm	A	L	1	0
+right_arm	A	R	0	0

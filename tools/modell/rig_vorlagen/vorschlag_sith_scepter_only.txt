@@ -1,0 +1,2 @@
+models/weapons2/sith_scepter/unused/sith_scepter_only.gla	2	0.64	sith_scepter_only
+model_root	W	M	0	0

@@ -9,6 +9,7 @@
 #include "bhed/modell/g2.h"
 
 #include <algorithm>
+#include <climits>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -172,7 +173,8 @@ std::vector<CfgBefund> cfgPruefen(const std::vector<AnimEntry>& anims, int glaBi
         if (e.loopFrame < -1 || e.loopFrame > 127) { b.push_back({CfgBefundArt::Schleife, e.name, e.loopFrame, 127}); }
         // G2_bones.cpp:838-839: endFrame = firstFrame + numFrames muss <= numFrames der GLA sein (animInnerhalb, g2.h)
         if (glaBilder > 0 && !animInnerhalb(e, glaBilder)) {
-            b.push_back({CfgBefundArt::HinterGla, e.name, e.firstFrame + e.numFrames, glaBilder});
+            const long long ende = static_cast<long long>(e.firstFrame) + e.numFrames;   // pfix N9: ohne Ueberlauf
+            b.push_back({CfgBefundArt::HinterGla, e.name, static_cast<int>(std::clamp<long long>(ende, INT_MIN, INT_MAX)), glaBilder});
         }
         if (!bekannt.empty() && e.name != "ROOT" &&
             std::none_of(bekannt.begin(), bekannt.end(), [&](const std::string& n) { return gleichOhneGross(n, e.name); })) {

@@ -1,4 +1,4 @@
-// rig_vorlagen.inc - erzeugt von scratchpad/rt/vorlagen_gen.py (Modell-Block Stufe 5): Rig-Vorlagen fuer das Retargeting.
+// rig_vorlagen.inc - erzeugt von tools/modell/rig_vorlagen_gen.py (Modell-Block Stufe 5): Rig-Vorlagen fuer das Retargeting.
 // JKA/JK2 _humanoid von Hand; HumanIK/Mixamo und Biped nach MotionBuilder SDK (tasks/3ds Max Biped Template.py, bipedMap);
 // CAT nach 3ds Max 2016 CATRigs/Base Human.rig; die eigenen Skelette des Basisspiels (GameData original/base) aus dem
 // Kettenvorschlag (rtVorschlag), von Hand durchgesehen. Eingebunden in retarget.cpp.

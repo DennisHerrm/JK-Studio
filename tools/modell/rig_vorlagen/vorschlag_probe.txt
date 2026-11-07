@@ -1,0 +1,10 @@
+models/players/probe/probe.gla	37	1	probe
+model_root	W	M	0	0
+pelvis	P	M	0	0
+cranium	K	M	0	0
+arm_base2	A	L	0	0
+arm_base	A	L	0	1
+arm_base1	A	L	0	2
+arm_base4	A	R	0	0
+arm_base3	A	R	0	1
+arm_22	A	R	0	2

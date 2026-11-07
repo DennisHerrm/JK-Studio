@@ -404,6 +404,12 @@ bool readGla(const std::string& b, GlaAnimation& out, std::string* error) {
         bone.name = fixed(b, base, kMaxQPath);
         bone.flags = static_cast<std::uint32_t>(i32(b, base + kMaxQPath));
         bone.parent = i32(b, base + kMaxQPath + 4);
+        // pfix M3: das Spiel kennt nur Carcass-Dateien mit gueltigem Elternteil (G2 rechnet mit ihm als Index); ein Index
+        // ausserhalb liesse die Module (Rig, Retarget, Physik) hinter das Knochenfeld greifen
+        if (bone.parent < -1 || bone.parent >= numBones) {
+            if (error != nullptr) { *error = "Elternteil ausserhalb (Knochen " + std::to_string(i) + ")"; }
+            return false;
+        }
         std::size_t m = base + kMaxQPath + 8;
         for (int r = 0; r < 3; ++r) {
             for (int c = 0; c < 4; ++c) {

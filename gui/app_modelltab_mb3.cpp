@@ -180,6 +180,44 @@ bool modellUngespeichert() {
     return t.gespeichertStand >= 0 ? t.dok.stand() != t.gespeichertStand : t.dok.kannRueckgaengig();
 }
 
+namespace {
+std::string modellFrageName() {
+    const ModellTab& t = mt();
+    if (!t.speicherPfad.empty()) { return fileName(t.speicherPfad); }
+    return g_app->modelPath.empty() ? t.dok.inhalt().name : fileName(g_app->modelPath);
+}
+}  // namespace
+
+// pfix H3: wie missionBeendenFrage (Ja: weiter und verwerfen, Nein: zurueck) - vor dem Laden eines anderen Modells
+void modellVerwerfenDann(std::function<void()> danach) {
+    if (!modellUngespeichert()) {
+        danach();
+        return;
+    }
+    if (g_app->frageOffen) { return; }
+    g_app->leftMode = 2;   // man soll sehen, worueber man entscheidet
+    frage(format(Str::MbVerwerfenFrage, modellFrageName().c_str()), std::move(danach), {});
+}
+
+// pfix H3: beim Beenden (confirmQuit) - eine spaeter abgebrochene Frage vergisst die Antwort (beendenAbgebrochen)
+bool modellBeendenFrage() {
+    if (mt().beendenBeantwortet || !modellUngespeichert()) { return true; }
+    if (g_app->frageOffen) { return false; }
+    g_app->leftMode = 2;
+    frage(format(Str::MbBeendenFrage, modellFrageName().c_str()),
+          [] {
+              mt().beendenBeantwortet = true;
+              if (confirmQuit()) {
+                  g_app->quitConfirmed = true;
+                  g_app->wantQuit = true;
+              }
+          },
+          [] { beendenAbgebrochen(); });
+    return false;
+}
+
+void modellBeendenVergessen() { mt().beendenBeantwortet = false; }
+
 // --- Bereich Animation ---------------------------------------------------------------------------------------------
 namespace {
 

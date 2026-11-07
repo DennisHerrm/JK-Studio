@@ -124,6 +124,9 @@ int fremdeEinrechnen(const GlaAnimation& basis, const FigurLage& selbst, const s
 
 // --- ICARUS -------------------------------------------------------------------------------------------------------------
 // Der Block der Figur (Marke, Datenzeilen, affect). ursprung: SET_ORIGIN (nur mit setOrigin).
+// pfix M4: ein Name (Figur, Signal, Platz, Folge, Basis), der als ICARUS-Zeichenkette und in der Markenzeile steht -
+// ICARUS kennt keine Maskierung (Tokenizer: eine Zeichenkette endet am naechsten '"'), ein Zeilenumbruch beendet den Kommentar.
+[[nodiscard]] bool figurNameGueltig(const std::string& name);
 [[nodiscard]] std::vector<Node> figurBlock(const FigurAnim& a, const std::array<float, 3>& ursprung);
 // Index der Marke der Figur auf oberster Ebene (danach Datenzeilen und der affect).
 [[nodiscard]] std::optional<std::size_t> findeFigurBlock(const Script& s, const std::string& figur);

@@ -1,0 +1,2 @@
+models/map_objects/hoth/model.gla	7	1	hoth
+model_root	W	M	0	0

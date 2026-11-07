@@ -178,16 +178,19 @@ std::string ablehnung(w::Ablehnung a) {
 // Ein Befehl ohne Kaestchen: ein Rueckgaengig-Schritt, abgelehnt -> kein Schritt und eine Meldung
 bool befehl(Str name, const std::function<w::Plan(w::PolyNetz&)>& f) {
     ModellTab& t = mt();
+    // pfix H1: ein offenes Kaestchen zuerst uebernehmen (wie 3ds Max: ein anderer Befehl schliesst den Caddy) - sonst laege
+    // sein Schritt unter dem Befehl, der naechste Regelwert ueberschriebe den Befehl und Esc naehme ihn zurueck
+    if (mz().kaestchenOffen) { modellMeshUebernehmen(false); }
     modellMeshNetzAktualisieren();
     w::Plan p;
     w::PAuswahl neu;
-    t.dok.aendern(tr(name), [&](modell::Inhalt& x) {
+    const std::uint64_t schritt = t.dok.aendern(tr(name), [&](modell::Inhalt& x) {
         w::PolyNetz n = w::polyAus(x, t.lodJetzt);
         p = f(n);
         if (!p.abgelehnt()) { neu = abschliessen(n, p, x); }
     });
     if (p.abgelehnt()) {
-        (void)t.dok.abbrechen();
+        (void)t.dok.abbrechen(schritt);
         melden(format(Str::MdAbgelehnt, tr(name), ablehnung(p.grund).c_str()));
         return false;
     }
@@ -400,6 +403,36 @@ void md3TexturenAbgleichen() {
     loadModelTextures();
 }
 
+// pfix H2: eine .glm behaelt Haut und Flaechen der Datei; neue Teile des Dokuments kommen hinten dazu (mit dem Bild der
+// Flaeche, von der sie stammen: neuerTeil nennt sie nach ihr), zurueckgenommene fallen hinten weg
+void modellFlaechenAbgleichen() {
+    const modell::Inhalt& in = mt().dok.inhalt();
+    if (in.herkunft != modell::Herkunft::Glm) {
+        md3TexturenAbgleichen();
+        return;
+    }
+    std::vector<GlmSurface>& f = g_app->model.surfaces;
+    if (f.size() == in.teile.size()) { return; }
+    if (f.size() > in.teile.size()) {
+        f.resize(in.teile.size());
+    } else {
+        const GlmModel gm = modell::zuGlm(in, 0);
+        for (std::size_t i = f.size(); i < in.teile.size() && i < gm.surfaces.size(); ++i) {
+            GlmSurface s = gm.surfaces[i];
+            std::size_t laenge = 0;
+            for (const GlmSurface& v : f) {
+                if (!v.name.empty() && v.name.size() > laenge && s.name.rfind(v.name, 0) == 0) {
+                    s.texture = v.texture;
+                    laenge = v.name.size();
+                }
+            }
+            f.push_back(std::move(s));
+        }
+    }
+    mt().anzeigeSchluessel.clear();
+    loadModelTextures();
+}
+
 void modellMeshNetzAktualisieren() {
     ModellMesh& z = mz();
     const std::string k = netzSchluessel();
@@ -438,7 +471,7 @@ bool modellMeshWerkzeugStarten(MeshWerkzeug wz) {
         if (wz == MeshWerkzeug::Bevel) { z.betrag = -z.betrag; }
     }
     if (wz == MeshWerkzeug::Weld && z.schwelle <= 0.0F) { z.schwelle = w::weldSchwelleVorgabe(z.netz); }
-    t.dok.aendern(tr(werkzeugName(wz)), [](modell::Inhalt&) {});
+    z.schritt = t.dok.aendern(tr(werkzeugName(wz)), [](modell::Inhalt&) {});
     z.kaestchenOffen = true;
     z.neuPlanen = true;
     modellMeshVorschau();
@@ -480,7 +513,7 @@ void modellMeshUebernehmen(bool weiter) {
     z.kaestchenOffen = false;
     z.werkzeug = MeshWerkzeug::Keins;
     if (abgelehnt) {
-        (void)mt().dok.abbrechen();
+        (void)mt().dok.abbrechen(z.schritt);
         melden(format(Str::MdAbgelehnt, tr(werkzeugName(wz)), ablehnung(z.plan.grund).c_str()));
         auswahlSetzen(z.basisAuswahl);
         return;
@@ -497,7 +530,7 @@ void modellMeshAbbrechen() {
     if (!z.kaestchenOffen) { return; }
     z.kaestchenOffen = false;
     z.werkzeug = MeshWerkzeug::Keins;
-    (void)mt().dok.abbrechen();
+    (void)mt().dok.abbrechen(z.schritt);
     modellMeshNetzAktualisieren();
     auswahlSetzen(z.basisAuswahl);
     g_app->modelDirty = true;
@@ -649,7 +682,7 @@ const std::vector<MeshAktion>& aktionen() {
         {Str::MdBevel, Str::MdBevelHint, "", "", 0, 0, st(MW::Bevel), {}, 5},
         // Erstellen und Requisit
         {Str::MdCreate, Str::MdCreateHint, "", "Shift+A", 0, ImGuiMod_Shift | ImGuiKey_A, st(MW::Create), {}, 6},
-        {Str::MdNeuesRequisit, Str::MdNeuesRequisitHint, "", "", 0, 0, [] { (void)modellNeuesRequisit(); }, {}, 6},
+        {Str::MdNeuesRequisit, Str::MdNeuesRequisitHint, "", "", 0, 0, [] { modellVerwerfenDann([] { (void)modellNeuesRequisit(); }); }, {}, 6},   // pfix H3
         {Str::MdInDieKarte, Str::MdInDieKarteHint, "", "", 0, 0, [] { (void)modellRequisitInKarte(); }, {}, 6},
     };
     return kListe;
@@ -1338,7 +1371,25 @@ bool modellRequisitInKarte() {
     }
     // models/map_objects/<karte>/<name>.md3 im Import-Ordner (eigener Suchordner, kommt mit der Karte ins .pk3)
     std::string vfs = z.requisitVfs;
-    if (vfs.empty()) { vfs = "models/map_objects/" + karteneditor::requisitKarte() + "/" + requisitName() + ".md3"; }
+    if (vfs.empty()) {
+        // pfix H4: ein neues Requisit bekommt einen freien Namen (prop, prop_2, ... wie neuerTeil) - eine vorhandene Datei
+        // (im Import-Ordner oder im Suchpfad der Karte, z. B. ein frueheres Requisit) wird nie still ersetzt
+        const std::string ordner = "models/map_objects/" + karteneditor::requisitKarte() + "/";
+        const std::string stamm = requisitName();
+        for (int n = 1;; ++n) {
+            const std::string name = n == 1 ? stamm : stamm + "_" + std::to_string(n);
+            vfs = ordner + name + ".md3";
+            std::string platteDa = platform::settingsDirectory() + "\\import\\" + vfs;
+            std::replace(platteDa.begin(), platteDa.end(), '/', '\\');
+            std::string da;
+            std::error_code fe;
+            if (!std::filesystem::exists(platteDa, fe) && !karteneditor::requisitDateiLesen(vfs, da, nullptr)) {
+                if (n > 1) { std::snprintf(z.requisitName, sizeof z.requisitName, "%s", name.c_str()); }
+                break;
+            }
+            if (vfs.size() >= 64U) { break; }   // MAX_QPATH: unten gemeldet
+        }
+    }
     if (vfs.size() >= 64U) {   // MAX_QPATH
         melden(format(Str::MdPfadZuLang, vfs.c_str()));
         return false;
@@ -1368,8 +1419,8 @@ bool modellRequisitInKarte() {
 }
 
 bool modellRequisitBearbeiten(const std::string& vfsPfad) {
-    std::string bytes, platte;
-    if (!karteneditor::requisitDateiLesen(vfsPfad, bytes, &platte)) {
+    std::string bytes;
+    if (!karteneditor::requisitDateiLesen(vfsPfad, bytes, nullptr)) {
         melden(format(Str::MdRequisitFehlt, vfsPfad.c_str()));
         return false;
     }
@@ -1397,7 +1448,6 @@ bool modellRequisitBearbeiten(const std::string& vfsPfad) {
     t.bereich = ModellBereich::Modellieren;
     if (t.auswahlArt == AuswahlArt::Objekt) { modellAuswahlArtSetzen(AuswahlArt::Dreieck); }
     melden(format(Str::MdRequisitGeholt, vfsPfad.c_str()));
-    (void)platte;
     return true;
 }
 

@@ -234,6 +234,7 @@ bool readMd3(const std::string& b, Md3Model& out, std::string* error) {
             continue;   // nichts zu zeichnen, aber die Datei geht weiter
         }
         sf.numVerts = sVerts;
+        sf.dateiFlaeche = s;   // pfix M1
         sf.numFrames = sFrames;
 
         // Der Shadername der ersten Stufe.

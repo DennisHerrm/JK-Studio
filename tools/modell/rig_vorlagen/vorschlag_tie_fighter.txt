@@ -1,0 +1,2 @@
+models/players/tie_fighter/tie_fighter.gla	2	0.64	tie_fighter
+model_root	W	M	0	0

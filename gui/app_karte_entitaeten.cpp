@@ -882,7 +882,7 @@ void attributZeichnen(const std::string& schluessel, const karte::KlassenAttribu
         if (md3) {
             ImGui::SameLine(0.0F, 0.0F);
             const ImVec2 mp = ImGui::GetCursorScreenPos();
-            if (ImGui::InvisibleButton((id + "m").c_str(), ImVec2{knopfB, knopfB})) { (void)bhed::gui::modellRequisitBearbeiten(wert); }
+            if (ImGui::InvisibleButton((id + "m").c_str(), ImVec2{knopfB, knopfB})) { bhed::gui::modellVerwerfenDann([wert] { (void)bhed::gui::modellRequisitBearbeiten(wert); }); }   // pfix H3
             ImGui::SetItemTooltip("%s", trK(Str::MdImModelTab));
             karteIcon(ImGui::GetWindowDrawList(), "modify_vertices", ImVec2{mp.x + (knopfB - px(16.0F)) * 0.5F, mp.y + (knopfB - px(16.0F)) * 0.5F}, px(16.0F),
                       stil(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled));

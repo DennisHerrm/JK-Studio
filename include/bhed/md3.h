@@ -61,6 +61,7 @@ struct Md3Surface {
     std::string shader;
     int numVerts = 0;
     int numFrames = 0;
+    int dateiFlaeche = -1;   // pfix M1: Nummer der Flaeche in der Datei (leere ueberspringt readMd3)
     // numVerts * numFrames Ecken, bildweise hintereinander. Die
     // Texturkoordinaten gelten fuer ALLE Bilder und stehen deshalb nur
     // einmal je Ecke - hier trotzdem in jeder Ecke, das spart eine zweite

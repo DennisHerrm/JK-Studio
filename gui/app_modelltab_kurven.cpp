@@ -230,6 +230,20 @@ const std::vector<modell::RigSchluessel>* schluesselDer(const modell::RigSchicht
     return k >= 0 && static_cast<std::size_t>(k) < s.knochen.size() ? &s.knochen[static_cast<std::size_t>(k)] : nullptr;
 }
 
+// pfix H6: dasselbe zum Aendern - in der Wahl stehen auch IK-Schluessel (ikWahlCode, negativ), nie s.knochen[code]
+std::vector<modell::RigSchluessel>* schluesselDer(modell::RigSchicht& s, int k) {
+    return const_cast<std::vector<modell::RigSchluessel>*>(schluesselDer(static_cast<const modell::RigSchicht&>(s), k));
+}
+
+// pfix H6: die Henkel der IK-Spuren in der Wahl neu (modell::henkelNeu rechnet nur die Knochen)
+void ikHenkelDerWahl(modell::RigSchicht& s, const modell::Wahl& w) {
+    std::set<int> spuren;
+    for (const modell::SchluesselWahl& x : w) {
+        if (const int sp = modell::ikWahlSpur(x.knochen); sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size()) { spuren.insert(sp); }
+    }
+    for (const int sp : spuren) { modell::ikHenkelNeu(s.ik[static_cast<std::size_t>(sp)]); }
+}
+
 // Die Knochen einer Zeile (Zusammenfassung: alle gezeigten, Glied: seine)
 std::vector<int> knochenDer(const Zeile& z) {
     if (z.art >= 2) { return {z.knochen}; }   // Knochen, Kanal, IK-Spur
@@ -294,6 +308,8 @@ bool kopieren() {
     for (const modell::SchluesselWahl& w : t.kvWahl) { erster = std::min(erster, w.bild); }
     const modell::RigSchicht& s = schicht();
     for (const modell::SchluesselWahl& w : t.kvWahl) {
+        // pfix H6: nur Knochen-Schluessel (die Ablage traegt keinen IkWert - IK-Schluessel bleiben draussen)
+        if (w.knochen < 0 || static_cast<std::size_t>(w.knochen) >= s.knochen.size()) { continue; }
         for (const modell::RigSchluessel& k : s.knochen[static_cast<std::size_t>(w.knochen)]) {
             if (k.bild != w.bild) { continue; }
             modell::RigSchluessel x = k;
@@ -359,11 +375,14 @@ void interpSetzen(modell::Interp ip) {
     const modell::Wahl w = t.kvWahl;
     aendern(tr(Str::MbKvGruppeInterp), [&](modell::RigSchicht& s) {
         for (const modell::SchluesselWahl& x : w) {
-            for (modell::RigSchluessel& k : s.knochen[static_cast<std::size_t>(x.knochen)]) {
+            std::vector<modell::RigSchluessel>* v = schluesselDer(s, x.knochen);   // pfix H6
+            if (v == nullptr) { continue; }
+            for (modell::RigSchluessel& k : *v) {
                 if (k.bild == x.bild) { k.interp = ip; }
             }
         }
         modell::henkelNeu(s);
+        ikHenkelDerWahl(s, w);
     });
 }
 
@@ -373,13 +392,16 @@ void henkelSetzen(modell::Henkel h) {
     const modell::Wahl w = t.kvWahl;
     aendern(tr(Str::MbKvGruppeTangenten), [&](modell::RigSchicht& s) {
         for (const modell::SchluesselWahl& x : w) {
-            for (modell::RigSchluessel& k : s.knochen[static_cast<std::size_t>(x.knochen)]) {
+            std::vector<modell::RigSchluessel>* v = schluesselDer(s, x.knochen);   // pfix H6
+            if (v == nullptr) { continue; }
+            for (modell::RigSchluessel& k : *v) {
                 if (k.bild != x.bild) { continue; }
                 for (int c = 0; c < modell::kKanaele; ++c) { k.henkelL[c] = k.henkelR[c] = h; }
                 if (k.interp != modell::Interp::Bezier) { k.interp = modell::Interp::Bezier; }   // Tangenten wirken nur auf Bezier
             }
         }
         modell::henkelNeu(s);
+        ikHenkelDerWahl(s, w);
     });
 }
 
@@ -426,7 +448,7 @@ void reglerVorschau() {
     const modell::RigSchicht neu = reglerErgebnis();
     const std::string name = sequenzName();
     if (!t.kvReglerAngewandt) {
-        t.dok.aendern(tr(static_cast<Str>(t.kvReglerText)), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
+        t.kvReglerSchritt = t.dok.aendern(tr(static_cast<Str>(t.kvReglerText)), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
         t.kvReglerAngewandt = true;
     } else {
         t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
@@ -437,7 +459,7 @@ void reglerVorschau() {
 
 void reglerZu(bool behalten) {
     ModellTab& t = mt();
-    if (!behalten && t.kvReglerAngewandt) { (void)t.dok.abbrechen(); }
+    if (!behalten && t.kvReglerAngewandt) { (void)t.dok.abbrechen(t.kvReglerSchritt); }
     if (behalten && !t.kvReglerAngewandt) { reglerVorschau(); }
     if (behalten) {
         const ReglerArt art = static_cast<ReglerArt>(t.kvRegler);
@@ -672,6 +694,21 @@ std::string dateiName(std::string n) {
 }
 
 }  // namespace
+
+// pfix H1: Regler und Zug ohne Uebernehmen schliessen (Strg+Z bei offenem Regler)
+void modellKvOffenesAbbrechen() {
+    ModellTab& t = mt();
+    if (t.kvRegler != 0) { reglerZu(false); }
+    if (t.kvModal != 0) {
+        if (t.kvZugAngelegt) {
+            (void)t.dok.abbrechen(t.kvZugSchritt);
+            t.kvWahl = t.kvZugWahl;
+        }
+        t.kvModal = 0;
+        t.kvModalLaeuft = false;
+        t.kvModalEndeBild = ImGui::GetFrameCount();
+    }
+}
 
 std::string modellPosenOrdner() {
     // Dokumente\behaved\posen (wie die Missionen), im Selbsttest BHED_POSEN
@@ -1087,7 +1124,7 @@ void zeitZiehen(int d, float faktor, bool skalieren) {
     modell::Wahl w = skalieren ? modell::schluesselSkalieren(s, t.kvZugWahl, faktor, static_cast<float>(bildJetzt())) : modell::schluesselVerschieben(s, t.kvZugWahl, d);
     const std::string name = sequenzName();
     if (!t.kvZugAngelegt) {
-        t.dok.aendern(tr(skalieren ? Str::MbKvSkalieren : Str::MbKvVerschieben), [&](modell::Inhalt& in) { in.rig.schichten[name] = s; }, false);
+        t.kvZugSchritt = t.dok.aendern(tr(skalieren ? Str::MbKvSkalieren : Str::MbKvVerschieben), [&](modell::Inhalt& in) { in.rig.schichten[name] = s; }, false);
         t.kvZugAngelegt = true;
     } else {
         t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = s; }, false);
@@ -1616,7 +1653,9 @@ void drawKurven(const ImVec2 groesse) {
             if (t.kvZiehArt == 3) {
                 // Wert: der gezogene Kanal aller gewaehlten Schluessel; Zeit: alle gewaehlten (ganze Frames)
                 for (const modell::SchluesselWahl& x : w) {
-                    for (modell::RigSchluessel& k : neu.knochen[static_cast<std::size_t>(x.knochen)]) {
+                    std::vector<modell::RigSchluessel>* v = schluesselDer(neu, x.knochen);   // pfix H6
+                    if (v == nullptr) { continue; }
+                    for (modell::RigSchluessel& k : *v) {
                         if (k.bild == x.bild) { modell::kanalSetzen(k, c, modell::kanalWert(k, c) + dyWert); }
                     }
                 }
@@ -1701,7 +1740,7 @@ void modalSchritt() {
     const bool abbruch = ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsMouseClicked(ImGuiMouseButton_Right);
     if (fertig || abbruch) {
         if (abbruch && t.kvZugAngelegt) {
-            (void)t.dok.abbrechen();
+            (void)t.dok.abbrechen(t.kvZugSchritt);
             t.kvWahl = t.kvZugWahl;
         }
         t.kvModal = 0;
@@ -2030,15 +2069,6 @@ bool pfadOrt(const ModellPfad& p, const modell::RigSchicht& s, int bild, float w
     w[1] = x.m[1][3];
     w[2] = x.m[2][3];
     return true;
-}
-
-void ortAm(const modell::RigSchicht& s, int knochen, int bild, float w[3]) {
-    std::vector<BoneMatrix> welt;
-    modell::rigWelt(g_app->anim, s, bild, bild, 0.0F, welt);
-    const BoneMatrix& x = welt[static_cast<std::size_t>(knochen)];
-    w[0] = x.m[0][3];
-    w[1] = x.m[1][3];
-    w[2] = x.m[2][3];
 }
 
 // Der Pfadpunkt unter der Maus: Pfad, Bild

@@ -91,7 +91,8 @@ int artJetzt() {
 }
 
 // Eine Aenderung der Schicht als ein Rueckgaengig-Schritt; die Spur des Glieds legt sie bei Bedarf aus dem Rig an.
-bool ikAendern(Str undo, int art, const std::function<bool(modell::RigSchicht&, int)>& f) {
+// pfix M7: zug = ein Regler wird gezogen - der Schritt kommt beim ersten Bild, danach Vorschau (wie die Physik-Regler)
+bool ikAendern(Str undo, int art, const std::function<bool(modell::RigSchicht&, int)>& f, bool zug = false) {
     ModellTab& t = mt();
     if (!modellRigDa() && !modellRigAnlegen()) { return false; }
     if (art < 0) {
@@ -105,12 +106,18 @@ bool ikAendern(Str undo, int art, const std::function<bool(modell::RigSchicht&, 
     }
     bool ok = false;
     const std::string name = sequenzName();
-    t.dok.aendern(tr(undo), [&](modell::Inhalt& in) {
+    const auto tun = [&](modell::Inhalt& in) {
         modell::RigSchicht& s = in.rig.schichten[name];
         s.neuInterp = modell::Interp::Bezier;
         const int sp = modellIkSpur(art, s);
         ok = sp >= 0 && f(s, sp);
-    }, false);
+    };
+    if (zug && t.ikZug) {
+        t.dok.vorschau(tun, false);
+    } else {
+        t.dok.aendern(tr(undo), tun, false);
+        t.ikZug = zug;
+    }
     g_app->modelDirty = true;
     g_app->animPlaying = false;
     return ok;
@@ -208,7 +215,7 @@ bool modellIkWechselnRoh(int art, bool ik, bool einrasten) {
 
 bool modellIkWechseln(int art, bool ik) { return modellIkWechselnRoh(art, ik, mt().ikAutoEinrasten || modellBlender()); }
 
-bool modellIkReglerSetzen(int art, float regler) {
+bool modellIkReglerSetzen(int art, float regler, bool zug) {
     const int bild = bildJetzt();
     const float neu = 1.0F - std::clamp(regler, 0.0F, 1.0F);
     return ikAendern(Str::MbIkUndoWechsel, art, [&](modell::RigSchicht& sch, int sp) {
@@ -218,7 +225,7 @@ bool modellIkReglerSetzen(int art, float regler) {
             modell::ikFkWechseln(g_app->anim, sch, sp, bild, neu, false);
         }
         return true;
-    });
+    }, zug);
 }
 
 bool modellIkEinrasten(int art, bool zielAufFk) {
@@ -266,7 +273,7 @@ bool modellIkSaebelHand() {
     return modellIkRaum(art, 4);
 }
 
-bool modellIkRolle(int art, float rolle, float spitze) {
+bool modellIkRolle(int art, float rolle, float spitze, bool zug) {
     if (art >= 0 && modell::ikArm(static_cast<modell::IkArt>(art))) {
         melden(tr(Str::MbIkRolleNurBein));
         return false;
@@ -275,7 +282,7 @@ bool modellIkRolle(int art, float rolle, float spitze) {
     const bool ok = ikAendern(Str::MbIkUndoRolle, art, [&](modell::RigSchicht& s, int sp) {
         modell::ikRolleSetzen(g_app->anim, s, sp, bild, rolle, spitze);
         return true;
-    });
+    }, zug);
     if (ok) { melden(format(Str::MbIkRolleOk, artName(art), static_cast<double>(rolle), bild)); }
     return ok;
 }
@@ -586,7 +593,8 @@ void drawModellIkBereich() {
             // Rigify: IK-FK, 0 = IK, 1 = FK
             float regler = 1.0F - anteil;
             ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0F);
-            if (ImGui::SliderFloat("##ikfk", &regler, 0.0F, 1.0F, "%.2f")) { (void)modellIkReglerSetzen(art, regler); }
+            if (ImGui::SliderFloat("##ikfk", &regler, 0.0F, 1.0F, "%.2f")) { (void)modellIkReglerSetzen(art, regler, true); }
+            if (ImGui::IsItemDeactivated()) { t.ikZug = false; }
             ImGui::SetItemTooltip("%s", tr(Str::MbIkReglerHint));
             daneben(tr(Str::MbIkKnopfIkFk));
             if (ImGui::SmallButton(tr(Str::MbIkKnopfIkFk))) { (void)modellIkEinrasten(art, true); }
@@ -637,11 +645,14 @@ void drawModellIkBereich() {
         const float b = ImGui::GetContentRegionAvail().x * 0.5F;
         ImGui::SetNextItemWidth(b);
         const bool r1 = ImGui::SliderFloat(tr(Str::MbIkRolle), &rolle, -60.0F, 60.0F, "%.1f");
+        const bool los1 = ImGui::IsItemDeactivated();
         ImGui::SetItemTooltip("%s", tr(Str::MbIkRolleHint));
         ImGui::SetNextItemWidth(b);
         const bool r2 = ImGui::SliderFloat(tr(Str::MbIkSpitze), &spitze, 0.0F, 1.0F, "%.2f");
+        const bool los2 = ImGui::IsItemDeactivated();
         ImGui::SetItemTooltip("%s", tr(Str::MbIkSpitzeHint));
-        if (r1 || r2) { (void)modellIkRolle(jetzt, rolle, spitze); }
+        if (r1 || r2) { (void)modellIkRolle(jetzt, rolle, spitze, true); }
+        if (los1 || los2) { t.ikZug = false; }
     }
     if (ImGui::Button(tr(Str::MbIkLoeschen))) { (void)modellIkSchluesselLoeschen(jetzt); }
     ImGui::SetItemTooltip("%s", tr(Str::MbIkLoeschenHint));
