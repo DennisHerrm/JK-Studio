@@ -14,7 +14,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <set>
 #include <string>

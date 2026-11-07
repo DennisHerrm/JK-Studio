@@ -1179,7 +1179,7 @@ Plan schnitt(PolyNetz& n, const SchnittPunkt& von, const SchnittPunkt& nach) {
 // --- Slice ----------------------------------------------------------------------------------------------------------
 
 Plan schneidenEbene(PolyNetz& n, const std::vector<int>& flaechen, const float ursprung[3], const float normale[3]) {
-    // WL PlanSlice (§3.14, Max Slice Plane / QuickSlice): an der Polygon-/Element-Ebene nur die gewaehlten Vielecke, sonst
+    // WL PlanSlice (WL 3.14, Max Slice Plane / QuickSlice): an der Polygon-/Element-Ebene nur die gewaehlten Vielecke, sonst
     // alle. Jede Kante, die die Ebene echt kreuzt, bekommt einen Punkt (auch im Nachbarvieleck - keine T-Stelle, UV gemischt);
     // ein Punkt innerhalb der Toleranz des Netzes wird auf die Ebene gezogen und ist selbst der Kreuzungspunkt. Jedes
     // Vieleck wird zwischen seinen Kreuzungen geteilt, der Reihe nach entlang der Schnittlinie gepaart (ein nicht konvexes
@@ -1299,7 +1299,7 @@ std::vector<std::pair<int, int>> hingeKanten(PolyNetz& n, const std::vector<int>
 }
 
 Plan hinge(PolyNetz& n, const std::vector<int>& flaechen, std::pair<int, int> kante, float winkelGrad) {
-    // WL PlanHingeFaces (§3.8, Max Hinge From Edge): Extrudes Regionen, Kopien und Waende mit den zwei Punkten der
+    // WL PlanHingeFaces (WL 3.8, Max Hinge From Edge): Extrudes Regionen, Kopien und Waende mit den zwei Punkten der
     // Scharnierkante festgehalten - nie kopiert, nie bewegt: die Scharnierkante bekommt keine Wand, die Waende daneben sind
     // Dreiecke. Jede Region dreht sich um dieselbe Achse; der Betrag ist der Winkel in Grad, positiv hebt die Region in
     // Richtung ihrer Normale.
