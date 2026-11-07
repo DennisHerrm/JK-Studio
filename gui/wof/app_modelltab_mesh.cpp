@@ -170,6 +170,7 @@ std::string ablehnung(w::Ablehnung a) {
         {w::Ablehnung::Ungleich, Str::MdAblUngleich},       {w::Ablehnung::GleicheSchleife, Str::MdAblGleich},
         {w::Ablehnung::KeineQuelle, Str::MdAblQuelle},      {w::Ablehnung::KeinViereck, Str::MdAblViereck},
         {w::Ablehnung::Tag, Str::MdAblTag},                 {w::Ablehnung::VerschiedeneTeile, Str::MdAblTeile},
+        {w::Ablehnung::NichtsGeschnitten, Str::MdAblSchnitt}, {w::Ablehnung::HingeNichtAmRand, Str::MdAblHinge},
     };
     const auto it = k.find(a);
     return it == k.end() ? std::string() : std::string(tr(it->second));
@@ -235,6 +236,8 @@ Str werkzeugName(MeshWerkzeug wz) {
         case MeshWerkzeug::ToQuads: return Str::MdToQuads;
         case MeshWerkzeug::Merge: return Str::MdMerge;
         case MeshWerkzeug::Create: return Str::MdCreate;
+        case MeshWerkzeug::Slice: return Str::MdSlice;
+        case MeshWerkzeug::Hinge: return Str::MdHinge;
         case MeshWerkzeug::Keins: break;
     }
     return Str::MdMenue;
@@ -243,6 +246,25 @@ Str werkzeugName(MeshWerkzeug wz) {
 bool hatBetrag(MeshWerkzeug wz) {
     return wz == MeshWerkzeug::Extrude || wz == MeshWerkzeug::Inset || wz == MeshWerkzeug::Bevel || wz == MeshWerkzeug::Chamfer ||
            wz == MeshWerkzeug::Connect || wz == MeshWerkzeug::LoopCut;
+}
+
+// Slice: die Ebene durch die Mitte des Kastens der Auswahl (nichts gewaehlt: des ganzen Netzes) - wie Max die Slice Plane
+// in die Mitte des Objekts legt
+float schnittVorgabe(const w::PolyNetz& n, const w::PAuswahl& a, int achse) {
+    std::vector<int> p = w::auswahlPunkte(n, a);
+    if (p.empty()) {
+        for (std::size_t i = 0; i < n.punkte.size(); ++i) {
+            if (!n.punkte[i].weg) { p.push_back(zi(i)); }
+        }
+    }
+    if (p.empty()) { return 0.0F; }
+    const int ax = std::clamp(achse, 0, 2);
+    float lo = n.punkte[uz(p[0])].ort[ax], hi = lo;
+    for (const int x : p) {
+        lo = std::min(lo, n.punkte[uz(x)].ort[ax]);
+        hi = std::max(hi, n.punkte[uz(x)].ort[ax]);
+    }
+    return 0.5F * (lo + hi);
 }
 
 // Eine sinnvolle Vorgabe fuer den Betrag: ein Zehntel der Kantenlaenge der Auswahl (sofort sichtbar)
@@ -364,6 +386,19 @@ w::Plan planen(w::PolyNetz& n, const w::PAuswahl& a, modell::Inhalt& x) {
             if (teil < 0 || z.grundNeuerTeil) { teil = neuerTeil(x, teil, z.grundNeuerTeil ? "_" + std::to_string(x.teile.size()) : std::string()); }
             return w::grundkoerper(n, z.grund, teil);
         }
+        case MeshWerkzeug::Slice: return w::schneiden(n, flaechenEbene() ? a.flaechen : std::vector<int>{}, z.achse, z.schnittOrt);
+        case MeshWerkzeug::Hinge: {
+            // die Scharnierkante: eine Randkante der Auswahl (Max "Pick Hinge"); im Kaestchen durchzuschalten
+            const auto kanten = w::hingeKanten(n, a.flaechen);
+            z.hingeZahl = zi(kanten.size());
+            if (kanten.empty()) {
+                w::Plan p;
+                p.grund = w::Ablehnung::LeereAuswahl;
+                return p;
+            }
+            z.hingeNr = std::clamp(z.hingeNr, 0, z.hingeZahl - 1);
+            return w::hinge(n, a.flaechen, kanten[uz(z.hingeNr)], z.hingeWinkel);
+        }
         case MeshWerkzeug::Keins: break;
     }
     return {};
@@ -438,6 +473,14 @@ bool modellMeshWerkzeugStarten(MeshWerkzeug wz) {
         if (wz == MeshWerkzeug::Bevel) { z.betrag = -z.betrag; }
     }
     if (wz == MeshWerkzeug::Weld && z.schwelle <= 0.0F) { z.schwelle = w::weldSchwelleVorgabe(z.netz); }
+    if (wz == MeshWerkzeug::Slice) { z.schnittOrt = schnittVorgabe(z.netz, z.auswahl, z.achse); }
+    if (wz == MeshWerkzeug::Hinge) {   // eine gewaehlte Kante auf dem Rand der Auswahl ist das Scharnier, sonst die erste
+        z.hingeNr = 0;
+        const auto kanten = w::hingeKanten(z.netz, z.auswahl.flaechen);
+        for (std::size_t i = 0; i < kanten.size(); ++i) {
+            if (std::find(z.auswahl.kanten.begin(), z.auswahl.kanten.end(), kanten[i]) != z.auswahl.kanten.end()) { z.hingeNr = zi(i); }
+        }
+    }
     t.dok.aendern(tr(werkzeugName(wz)), [](modell::Inhalt&) {});
     z.kaestchenOffen = true;
     z.neuPlanen = true;
@@ -511,6 +554,29 @@ void entfernenBefehl(bool aufraeumen) {
     const w::PAuswahl a = mz().auswahl;
     const w::PEbene e = ebene();
     (void)befehl(aufraeumen ? Str::MdRemoveSauber : Str::MdRemove, [&](w::PolyNetz& n) { return w::entfernen(n, a, e, aufraeumen); });
+}
+void quickStarten() {
+    if (mt().dok.inhalt().leer()) {
+        melden(tr(Str::MdKeinModell));
+        return;
+    }
+    mt().bereich = ModellBereich::Modellieren;
+    ModellMesh& z = mz();
+    z.quickAn = true;
+    z.quickHatVon = false;
+    z.cutAn = z.zielWeldAn = false;
+    melden(tr(Str::MdQuickStart));
+}
+void collapseBefehl() {
+    // 3ds Max Collapse (Ctrl+Alt+C): jede zusammenhaengende Gruppe der Auswahl (Punkte, Kanten, Vielecke) wird ein Punkt in
+    // ihrer Mitte - WL PlanCollapse, hier mergen(Mitte)
+    const std::vector<int> p = w::auswahlPunkte(mz().netz, mz().auswahl);
+    (void)befehl(Str::MdCollapse, [&](w::PolyNetz& n) { return w::mergen(n, p, w::MergeArt::Mitte); });
+}
+void ebenBefehl() {
+    const w::PAuswahl a = mz().auswahl;
+    const w::PEbene e = ebene();
+    (void)befehl(Str::MdEben, [&](w::PolyNetz& n) { return w::ebenMachen(n, a, e); });
 }
 void loeschenBefehl() {
     const w::PAuswahl a = mz().auswahl;
@@ -609,14 +675,18 @@ const std::vector<MeshAktion>& aktionen() {
     using MW = MeshWerkzeug;
     const auto st = [](MW wz) { return [wz] { (void)modellMeshWerkzeugStarten(wz); }; };
     static const std::vector<MeshAktion> kListe = {
-        // Unterebenen (Max 1-5 laut Autodesk-Karte; Blender 1/2/3 mesh.select_mode)
+        // Unterebenen (Max 1-5 laut Autodesk-Karte; Blender 1/2/3 mesh.select_mode). Die Max-Tasten der Werkzeuge nach der
+        // Autodesk-Hilfe 3ds Max 2024 "Keyboard Shortcuts" (GUID-A73E1B09): Tabellen Edit Poly/Editable Poly (Extrude Mode
+        // Shift+E, Bevel Mode Ctrl+Shift+B, Chamfer Mode Ctrl+Shift+C, Connect Shift+Ctrl+E, Cut Alt+C, Target Weld Mode
+        // Shift+Ctrl+W, Make Planar Alt+M, Collapse Ctrl+Alt+C, Quickslice Mode Shift+Ctrl+Q) und Main UI/Editable Polygon Object (Select Sub-object Ring Alt+R, Loop Alt+L); Remove Backspace und
+        // Clean Remove Ctrl+Backspace laut "Editable Poly (Vertex/Edge)". Ohne Taste nennt der Tooltip den Weg im Menue.
         {Str::MdEbenePunkt, Str::MdEbenePunktHint, "1", "1", ImGuiKey_1, ImGuiKey_1, [] { ebeneSetzen(AuswahlArt::Ecke); }, [] { return mt().auswahlArt == AuswahlArt::Ecke; }, 0},
         {Str::MdEbeneKante, Str::MdEbeneKanteHint, "2", "2", ImGuiKey_2, ImGuiKey_2, [] { ebeneSetzen(AuswahlArt::Kante); }, [] { return mt().auswahlArt == AuswahlArt::Kante; }, 0},
         {Str::MdEbeneRand, Str::MdEbeneRandHint, "3", "", ImGuiKey_3, 0, [] { ebeneSetzen(AuswahlArt::Rand); }, [] { return mt().auswahlArt == AuswahlArt::Rand; }, 0},
         {Str::MdEbeneVieleck, Str::MdEbeneVieleckHint, "4", "3", ImGuiKey_4, ImGuiKey_3, [] { ebeneSetzen(AuswahlArt::Dreieck); }, [] { return mt().auswahlArt == AuswahlArt::Dreieck; }, 0},
         {Str::MdEbeneElement, Str::MdEbeneElementHint, "5", "", ImGuiKey_5, 0, [] { ebeneSetzen(AuswahlArt::Element); }, [] { return mt().auswahlArt == AuswahlArt::Element; }, 0},
-        {Str::MdRing, Str::MdRingHint, "", "", 0, 0, [] { ringLoop(true); }, {}, 0},
-        {Str::MdLoop, Str::MdLoopHint, "", "", 0, 0, [] { ringLoop(false); }, {}, 0},
+        {Str::MdRing, Str::MdRingHint, "Alt+R", "", ImGuiMod_Alt | ImGuiKey_R, 0, [] { ringLoop(true); }, {}, 0},
+        {Str::MdLoop, Str::MdLoopHint, "Alt+L", "", ImGuiMod_Alt | ImGuiKey_L, 0, [] { ringLoop(false); }, {}, 0},
         {Str::MdAlles, Str::MdAllesHint, "Ctrl+A", "A", ImGuiMod_Ctrl | ImGuiKey_A, ImGuiKey_A, [] { allesWaehlen(true); }, {}, 0},
         {Str::MdNichts, Str::MdNichtsHint, "", "Alt+A", 0, ImGuiMod_Alt | ImGuiKey_A, [] { allesWaehlen(false); }, {}, 0},
         // Geometrie bearbeiten
@@ -626,6 +696,10 @@ const std::vector<MeshAktion>& aktionen() {
         {Str::MdToQuads, Str::MdToQuadsHint, "", "", 0, 0, st(MW::ToQuads), {}, 1},
         {Str::MdMerge, Str::MdMergeHint, "", "M", 0, ImGuiKey_M, st(MW::Merge), {}, 1},
         {Str::MdDelete, Str::MdDeleteHint, "Delete", "X", ImGuiKey_Delete, ImGuiKey_X, [] { loeschenBefehl(); }, {}, 1},
+        {Str::MdEben, Str::MdEbenHint, "Alt+M", "", ImGuiMod_Alt | ImGuiKey_M, 0, [] { ebenBefehl(); }, {}, 1},
+        {Str::MdCollapse, Str::MdCollapseHint, "Ctrl+Alt+C", "", ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_C, 0, [] { collapseBefehl(); }, {}, 1},
+        {Str::MdSlice, Str::MdSliceHint, "", "", 0, 0, st(MW::Slice), {}, 1},
+        {Str::MdQuickSlice, Str::MdQuickSliceHint, "Ctrl+Shift+Q", "", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Q, 0, [] { quickStarten(); }, [] { return mz().quickAn; }, 1},
         {Str::MdLods, Str::MdLodsHint, "", "", 0, 0, [] { lodsAngleichen(); }, {}, 1},
         // Punkte
         {Str::MdWeld, Str::MdWeldHint, "", "", 0, 0, st(MW::Weld), {}, 2},
@@ -646,7 +720,8 @@ const std::vector<MeshAktion>& aktionen() {
         {Str::MdBridge, Str::MdBridgeHint, "", "", 0, 0, st(MW::Bridge), {}, 4},
         {Str::MdExtrude, Str::MdExtrudeHint, "Shift+E", "Alt+E", ImGuiMod_Shift | ImGuiKey_E, ImGuiMod_Alt | ImGuiKey_E, st(MW::Extrude), {}, 5},
         {Str::MdInset, Str::MdInsetHint, "", "I", 0, ImGuiKey_I, st(MW::Inset), {}, 5},
-        {Str::MdBevel, Str::MdBevelHint, "", "", 0, 0, st(MW::Bevel), {}, 5},
+        {Str::MdBevel, Str::MdBevelHint, "Ctrl+Shift+B", "", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_B, 0, st(MW::Bevel), {}, 5},
+        {Str::MdHinge, Str::MdHingeHint, "", "", 0, 0, st(MW::Hinge), {}, 5},
         // Erstellen und Requisit
         {Str::MdCreate, Str::MdCreateHint, "", "Shift+A", 0, ImGuiMod_Shift | ImGuiKey_A, st(MW::Create), {}, 6},
         {Str::MdNeuesRequisit, Str::MdNeuesRequisitHint, "", "", 0, 0, [] { (void)modellNeuesRequisit(); }, {}, 6},
@@ -672,14 +747,21 @@ void ausloesen(const MeshAktion& a) {
     g_app->modelDirty = true;
 }
 
+const Str kGruppen[7] = {Str::MdGrAuswahl, Str::MdGrGeometrie, Str::MdGrPunkte, Str::MdGrKanten, Str::MdGrRaender, Str::MdGrVielecke, Str::MdGrErstellen};
+
 std::string tooltip(const MeshAktion& a) {
     std::string s = tr(a.hinweis);
     const char* k = tasteVon(a);
-    if (k[0] != '\0') { s += "\n" + format(Str::UvTasteHint, k); }
+    if (k[0] != '\0') {
+        s += "\n" + format(Str::UvTasteHint, k);
+    } else {
+        // ohne Taste: der Weg ueber das Menue (Hauptmenue und Rechtsklick haben dieselben Gruppen)
+        const std::string weg = std::string(tr(Str::MdMenue)) + " > " + tr(kGruppen[uz(a.gruppe)]) + " > " + tr(a.text);
+        s += "\n" + format(Str::MdWegHint, weg.c_str());
+    }
     return s;
 }
 
-const Str kGruppen[7] = {Str::MdGrAuswahl, Str::MdGrGeometrie, Str::MdGrPunkte, Str::MdGrKanten, Str::MdGrRaender, Str::MdGrVielecke, Str::MdGrErstellen};
 
 void alsMenue(int nurGruppe) {
     const auto& liste = aktionen();
@@ -748,6 +830,8 @@ int modellMeshAktionGruppe(int i) { return aktionen()[uz(i)].gruppe; }
 const char* modellMeshAktionText(int i) { return tr(aktionen()[uz(i)].text); }
 const char* modellMeshAktionHinweis(int i) { return tr(aktionen()[uz(i)].hinweis); }
 const char* modellMeshAktionTaste(int i, bool blender) { return blender ? aktionen()[uz(i)].blenderTaste : aktionen()[uz(i)].maxTaste; }
+ImGuiKeyChord modellMeshAktionChord(int i, bool blender) { return blender ? aktionen()[uz(i)].blenderChord : aktionen()[uz(i)].maxChord; }
+std::string modellMeshAktionTooltip(int i) { return tooltip(aktionen()[uz(i)]); }
 void modellMeshAktionAusloesen(int i) { ausloesen(aktionen()[uz(i)]); }
 
 void modellMeshMenue() { alsMenue(-1); }
@@ -791,8 +875,9 @@ bool modellMeshTasten() {
             return true;
         }
     }
-    if ((z.cutAn || z.zielWeldAn) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-        z.cutAn = z.zielWeldAn = false;
+    if ((z.cutAn || z.zielWeldAn || z.quickAn) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        z.cutAn = z.zielWeldAn = z.quickAn = false;
+        z.quickHatVon = false;
         z.cutHatVon = false;
         melden(tr(Str::MdModusEnde));
         return true;
@@ -873,12 +958,81 @@ bool kanteUnter(const ModellAnsicht& a, ImVec2 m, std::pair<int, int>& kante, fl
 
 }  // namespace
 
+namespace {
+
+// Ein Schirmpunkt als zwei Weltpunkte (Tiefe 0 und 1 der Ansicht): viewProj zeilenweise (aufSchirm), invertiert
+bool schirmStrahl(const ModellAnsicht& a, ImVec2 s, double nah[3], double fern[3]) {
+    double m[4][8];
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            m[r][c] = static_cast<double>(a.viewProj[r * 4 + c]);
+            m[r][c + 4] = r == c ? 1.0 : 0.0;
+        }
+    }
+    for (int c = 0; c < 4; ++c) {   // Gauss-Jordan mit Spaltenpivot
+        int best = c;
+        for (int r = c + 1; r < 4; ++r) {
+            if (std::abs(m[r][c]) > std::abs(m[best][c])) { best = r; }
+        }
+        if (std::abs(m[best][c]) < 1e-12) { return false; }
+        for (int k = 0; k < 8; ++k) { std::swap(m[c][k], m[best][k]); }
+        const double d = m[c][c];
+        for (int k = 0; k < 8; ++k) { m[c][k] /= d; }
+        for (int r = 0; r < 4; ++r) {
+            if (r == c) { continue; }
+            const double f = m[r][c];
+            for (int k = 0; k < 8; ++k) { m[r][k] -= f * m[c][k]; }
+        }
+    }
+    if (a.groesse[0] <= 0.0F || a.groesse[1] <= 0.0F) { return false; }
+    const double nx = static_cast<double>((s.x - a.lo[0]) / a.groesse[0]) * 2.0 - 1.0;
+    const double ny = 1.0 - static_cast<double>((s.y - a.lo[1]) / a.groesse[1]) * 2.0;
+    for (int t = 0; t < 2; ++t) {
+        const double v[4] = {nx, ny, t == 0 ? 0.0 : 1.0, 1.0};
+        double w[4] = {0, 0, 0, 0};
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) { w[r] += m[r][c + 4] * v[c]; }
+        }
+        if (std::abs(w[3]) < 1e-12) { return false; }
+        double* z = t == 0 ? nah : fern;
+        for (int c = 0; c < 3; ++c) { z[c] = w[c] / w[3]; }
+    }
+    return true;
+}
+
+}  // namespace
+
+bool modellMeshQuickSlice(const ModellAnsicht& a, ImVec2 von, ImVec2 nach) {
+    // WL SliceParams: "The plane is the gizmo's widget, or QuickSlice's two clicks" - die Ebene enthaelt die Linie zwischen
+    // den Klicks und die Blickrichtung (beide Sichtstrahlen)
+    double a0[3], a1[3], b0[3], b1[3];
+    if (!schirmStrahl(a, von, a0, a1) || !schirmStrahl(a, nach, b0, b1)) { return false; }
+    const double u[3] = {a1[0] - a0[0], a1[1] - a0[1], a1[2] - a0[2]};
+    const double v[3] = {b0[0] - a0[0], b0[1] - a0[1], b0[2] - a0[2]};
+    const float nn[3] = {static_cast<float>(u[1] * v[2] - u[2] * v[1]), static_cast<float>(u[2] * v[0] - u[0] * v[2]), static_cast<float>(u[0] * v[1] - u[1] * v[0])};
+    const float o[3] = {static_cast<float>(a0[0]), static_cast<float>(a0[1]), static_cast<float>(a0[2])};
+    const std::vector<int> f = flaechenEbene() ? mz().auswahl.flaechen : std::vector<int>{};
+    return befehl(Str::MdQuickSlice, [&](w::PolyNetz& n) { return w::schneidenEbene(n, f, o, nn); });
+}
+
 bool modellMeshKlick(const ModellAnsicht& a, bool klick, ImVec2 start, ImVec2 ende) {
     ModellTab& t = mt();
     ModellMesh& z = mz();
     if (g_app->model.empty() || t.auswahlArt == AuswahlArt::Objekt) { return false; }
     modellMeshNetzAktualisieren();
     if (z.kaestchenOffen) { return true; }   // waehrend der Vorschau aendert ein Klick die Auswahl nicht
+    if (z.quickAn) {   // Max QuickSlice: erster Klick setzt den Anfang, der zweite schneidet
+        if (!klick) { return true; }
+        if (!z.quickHatVon) {
+            z.quickVon = ende;
+            z.quickHatVon = true;
+            melden(tr(Str::MdQuickWeiter));
+            return true;
+        }
+        z.quickAn = z.quickHatVon = false;
+        (void)modellMeshQuickSlice(a, z.quickVon, ende);
+        return true;
+    }
     if (z.cutAn || z.zielWeldAn) {
         if (!klick) { return true; }
         std::pair<int, int> k{-1, -1};
@@ -1043,6 +1197,7 @@ void modellMeshUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
             dl->AddRectFilled(ImVec2{s.x - 1.5F, s.y - 1.5F}, ImVec2{s.x + 1.5F, s.y + 1.5F}, IM_COL32(90, 150, 255, 220));
         }
     }
+    if (z.quickAn && z.quickHatVon) { dl->AddLine(z.quickVon, ImGui::GetIO().MousePos, orange, 1.5F); }   // QuickSlice: die Linie
     if (z.cutAn && z.cutHatVon && z.cutVon.punkt >= 0 && uz(z.cutVon.punkt) < da.size() && da[uz(z.cutVon.punkt)] != 0) {   // Cut: Linie vom letzten Punkt zur Maus
         dl->AddLine(schirm[uz(z.cutVon.punkt)], ImGui::GetIO().MousePos, orange, 1.5F);
     }
@@ -1134,6 +1289,17 @@ void drawModellMeshPopups() {
                 if (ImGui::Checkbox(tr(Str::MdNaehteAchten), &z.quad.naehteAchten)) { neu = true; }
                 break;
             case MeshWerkzeug::Merge: wahl(Str::MdArt, &z.art, {Str::MdMergeMitte, Str::MdMergeErster, Str::MdMergeLetzter}); break;
+            case MeshWerkzeug::Hinge:
+                ganz(Str::MdHingeKante, &z.hingeNr, 0, std::max(0, z.hingeZahl - 1));
+                zahl(Str::MdWinkel, &z.hingeWinkel, 1.0F, false);
+                break;
+            case MeshWerkzeug::Slice: {
+                const int vorher = z.achse;
+                wahl(Str::MdAchse, &z.achse, {Str::MdAchseX, Str::MdAchseY, Str::MdAchseZ});
+                if (z.achse != vorher) { z.schnittOrt = schnittVorgabe(z.basisNetz, z.basisAuswahl, z.achse); }
+                zahl(Str::MdSchnittOrt, &z.schnittOrt, schritt, false);
+                break;
+            }
             case MeshWerkzeug::Create: {
                 int form = static_cast<int>(z.grund.form);
                 wahl(Str::MdForm, &form, {Str::MdFormKasten, Str::MdFormEbene, Str::MdFormZylinder, Str::MdFormKugel, Str::MdFormKegel, Str::MdFormRohr, Str::MdFormTorus});
@@ -1208,7 +1374,7 @@ void drawModellMeshBereich() {
                             zi(z.auswahl.flaechen.size()));
     }
     if (ImGui::CollapsingHeader(tr(Str::MdGrGeometrie), ImGuiTreeNodeFlags_DefaultOpen)) {
-        knopfZeile({Str::MdCreate, Str::MdCut, Str::MdDetach, Str::MdSymmetrize, Str::MdToQuads, Str::MdMerge, Str::MdDelete});
+        knopfZeile({Str::MdCreate, Str::MdCut, Str::MdDetach, Str::MdSymmetrize, Str::MdToQuads, Str::MdMerge, Str::MdCollapse, Str::MdEben, Str::MdSlice, Str::MdQuickSlice, Str::MdDelete});
         if (t.dok.inhalt().stufenZahl > 1) { knopfZeile({Str::MdLods}); }
     }
     // die Werkzeuge der Ebene (Max: Scheitelpunkte / Kanten / Raender / Polygone bearbeiten)
@@ -1228,7 +1394,7 @@ void drawModellMeshBereich() {
             break;
         case w::PEbene::Vieleck:
         case w::PEbene::Element:
-            if (ImGui::CollapsingHeader(tr(Str::MdGrVielecke), ImGuiTreeNodeFlags_DefaultOpen)) { knopfZeile({Str::MdExtrude, Str::MdInset, Str::MdBevel, Str::MdBridge}); }
+            if (ImGui::CollapsingHeader(tr(Str::MdGrVielecke), ImGuiTreeNodeFlags_DefaultOpen)) { knopfZeile({Str::MdExtrude, Str::MdInset, Str::MdBevel, Str::MdHinge, Str::MdBridge}); }
             break;
     }
     // JKA-Grenzen live (je Teil der gezeichneten Stufe)

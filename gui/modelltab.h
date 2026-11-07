@@ -230,7 +230,7 @@ struct ModellUv {
 // Modell-Block 1d: Modellieren (gui/wof/app_modelltab_mesh.cpp) - das Arbeitsnetz der gezeichneten Stufe, die Auswahl je
 // Ebene (wie 3ds Max: jede Unterebene behaelt ihre), das Werkzeugkaestchen (Vorschau, Uebernehmen / + / Abbrechen)
 enum class MeshWerkzeug : int {
-    Keins = 0, Extrude, Inset, Bevel, Chamfer, Connect, LoopCut, Weld, Bridge, Detach, Symmetrize, ToQuads, Merge, Create,
+    Keins = 0, Extrude, Inset, Bevel, Chamfer, Connect, LoopCut, Weld, Bridge, Detach, Symmetrize, ToQuads, Merge, Create, Slice, Hinge,
 };
 struct ModellMesh {
     modell::wof::PolyNetz netz;
@@ -253,7 +253,14 @@ struct ModellMesh {
     float hoehe = 8.0F;               // Bevel
     float schwelle = 0.0F;            // Weld (0: Vorgabe)
     int verdrehen = 0;                // Bridge
-    int achse = 0;                    // Symmetrize
+    int achse = 0;                    // Symmetrize, Slice
+    float schnittOrt = 0.0F;          // Slice: Lage der Ebene auf der Achse
+    float hingeWinkel = 30.0F;        // Hinge: Winkel in Grad
+    int hingeNr = 0;                  // Hinge: welche Randkante der Auswahl (hingeKanten)
+    int hingeZahl = 0;
+    bool quickAn = false;             // QuickSlice: zwei Klicks in einer Ansicht
+    bool quickHatVon = false;
+    ImVec2 quickVon{};
     bool vonPlus = true;
     modell::wof::QuadParam quad;
     modell::wof::GrundParam grund;
@@ -554,6 +561,10 @@ void modellMeshNetzAktualisieren();
 [[nodiscard]] const char* modellMeshAktionText(int i);
 [[nodiscard]] const char* modellMeshAktionHinweis(int i);
 [[nodiscard]] const char* modellMeshAktionTaste(int i, bool blender);
+[[nodiscard]] ImGuiKeyChord modellMeshAktionChord(int i, bool blender);
+[[nodiscard]] std::string modellMeshAktionTooltip(int i);
+// QuickSlice: die Ebene durch zwei Schirmpunkte der Ansicht und ihre Blickrichtung (zwei Klicks); false ohne Schnitt
+bool modellMeshQuickSlice(const ModellAnsicht& a, ImVec2 von, ImVec2 nach);
 void modellMeshAktionAusloesen(int i);
 bool modellMeshWerkzeugStarten(MeshWerkzeug w);
 void modellMeshUebernehmen(bool weiter);

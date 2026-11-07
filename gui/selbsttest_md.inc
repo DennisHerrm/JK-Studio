@@ -333,6 +333,56 @@ std::vector<Schritt> modellSchritte() {
     add(pause(0.3));
     add(pruefe("MD To Quads: gelesen 8/18/12", [] { return zahlen() == "8/18/12"; }));
     werkzeug(s, st, Str::MdToQuads, [] { waehle(w::PAuswahl{}, AuswahlArt::Dreieck); }, {}, "8/12/6");
+    // p_jka Slice: nichts gewaehlt = das ganze Modell, Ebene in der Mitte der Hoehe (Vorgabe Z); 8 Kanten kreuzen (4 senkrechte,
+    // 4 Diagonalen der Seiten), 8 Seitendreiecke geteilt: 16/34/20
+    werkzeug(s, st, Str::MdSlice, [] { waehle(w::PAuswahl{}, AuswahlArt::Dreieck); mz().achse = 2; }, {}, "16/34/20");
+    // p_jka Hinge: ein Dreieck des Deckels um eine seiner Kanten (30 Grad): eine Kopie, zwei Dreieckswaende, keine Wand am
+    // Scharnier - 9/21/14
+    werkzeug(s, st, Str::MdHinge, oben, {}, "9/21/14");
+    // p_jka QuickSlice: zwei Klicks in der Ansicht von vorn, waagrecht durch die halbe Hoehe - dieselbe Ebene wie Slice oben
+    // (vier Ansichten wie 3ds Max, damit die Ansicht von vorn im Bild ist - sichtbar gilt ab dem naechsten Bild)
+    add(tu("MD QuickSlice: vier Ansichten", [] { g_app->mtab.vierAnsichten = true; }));
+    add(pause(0.3));
+    add(tu("MD QuickSlice: zwei Klicks in der Ansicht von vorn, waagrecht in halber Hoehe", [st] {
+        modellMeshNetzAktualisieren();
+        waehle(w::PAuswahl{}, AuswahlArt::Dreieck);
+        st->vorher = md3Jetzt();
+        const ModellAnsicht* vorn = nullptr;
+        for (const ModellAnsicht& a : g_app->mtab.ansichten) {
+            if (a.art == AnsichtArt::Vorne && a.sichtbar) { vorn = &a; }
+        }
+        if (vorn == nullptr) {
+            meldeFehler("MD QuickSlice: keine Ansicht von vorn sichtbar");
+            return;
+        }
+        float lo[3] = {1e30F, 1e30F, 1e30F}, hi[3] = {-1e30F, -1e30F, -1e30F};
+        for (const w::PPunkt& q : mz().netz.punkte) {
+            for (int c = 0; c < 3; ++c) {
+                lo[c] = std::min(lo[c], q.ort[c]);
+                hi[c] = std::max(hi[c], q.ort[c]);
+            }
+        }
+        const float z = 0.5F * (lo[2] + hi[2]), y = 0.5F * (lo[1] + hi[1]);
+        const float p0[3] = {lo[0] - 8.0F, y, z}, p1[3] = {hi[0] + 8.0F, y, z};
+        ImVec2 s0, s1;
+        if (!modellAufSchirm(*vorn, p0, s0) || !modellAufSchirm(*vorn, p1, s1)) {
+            meldeFehler("MD QuickSlice: Punkte nicht auf dem Schirm");
+            return;
+        }
+        (void)modellMeshQuickSlice(*vorn, s0, s1);
+    }));
+    add(pause(0.2));
+    add(pruefe("MD QuickSlice: 16/34/20 wie Slice in halber Hoehe, gueltig", [] {
+        modellMeshNetzAktualisieren();
+        std::string g;
+        const bool ok = mz().netz.pruefen(&g);
+        diag::detail("Knopftest: MD QuickSlice - " + zahlen() + (ok ? "" : " ungueltig: " + g) + " | " + mz().meldung);
+        return ok && zahlen() == "16/34/20";
+    }));
+    add(tu("MD: Rueckgaengig nach QuickSlice", [] { (void)g_app->mtab.dok.rueckgaengig(); }));
+    add(pause(0.2));
+    add(pruefe("MD QuickSlice: ein Rueckgaengig-Schritt bringt die Datei Byte fuer Byte zurueck", [st] { return md3Jetzt() == st->vorher; }));
+    add(tu("MD QuickSlice: eine Ansicht", [] { g_app->mtab.vierAnsichten = false; }));
     // --- Tasten ---
     add(tu("MD Tasten: Deckel waehlen, Fokus", [oben, st] {
         oben();
@@ -358,6 +408,63 @@ std::vector<Schritt> modellSchritte() {
     // der Kasten ist hier der gelesene aus To Quads (Rueckgaengig: 12 Dreiecke) - ein Dreieck eingefuegt: 11/24/15
     add(pruefe("MD Enter: Inset uebernommen (ein Dreieck des Deckels), 11/24/15", [] { return !mz().kaestchenOffen && zahlen() == "11/24/15"; }));
     add(tu("MD: wieder wie 3ds Max", [] { modellBedienungSetzen(0); }));
+    // p_jka: die Max-Tasten gegen die Autodesk-Hilfe 3ds Max 2024 "Keyboard Shortcuts" (GUID-A73E1B09, Tabellen Edit Poly,
+    // Editable Poly, Main UI/Editable Polygon Object) und "Editable Poly (Vertex/Edge)" (Remove, Clean Remove); jede
+    // Aktion ohne Max-Taste nennt im Tooltip den Weg ueber das Menue
+    {
+        struct Soll {
+            Str text;
+            ImGuiKeyChord chord;
+            const char* taste;
+        };
+        static const Soll kAutodesk[] = {
+            {Str::MdExtrude, ImGuiMod_Shift | ImGuiKey_E, "Shift+E"},
+            {Str::MdBevel, ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_B, "Ctrl+Shift+B"},
+            {Str::MdChamfer, ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_C, "Ctrl+Shift+C"},
+            {Str::MdConnect, ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_E, "Ctrl+Shift+E"},
+            {Str::MdCut, ImGuiMod_Alt | ImGuiKey_C, "Alt+C"},
+            {Str::MdTargetWeld, ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W, "Ctrl+Shift+W"},
+            {Str::MdRing, ImGuiMod_Alt | ImGuiKey_R, "Alt+R"},
+            {Str::MdLoop, ImGuiMod_Alt | ImGuiKey_L, "Alt+L"},
+            {Str::MdRemove, ImGuiKey_Backspace, "Backspace"},
+            {Str::MdRemoveSauber, ImGuiMod_Ctrl | ImGuiKey_Backspace, "Ctrl+Backspace"},
+            {Str::MdEben, ImGuiMod_Alt | ImGuiKey_M, "Alt+M"},
+            {Str::MdCollapse, ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_C, "Ctrl+Alt+C"},
+            {Str::MdQuickSlice, ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Q, "Ctrl+Shift+Q"},
+        };
+        for (const Soll& k : kAutodesk) {
+            add(pruefe(std::string("MD Max-Taste wie Autodesk: ") + tr(k.text) + " = " + k.taste, [k] {
+                for (int i = 0; i < modellMeshAktionZahl(); ++i) {
+                    if (std::string(modellMeshAktionText(i)) != tr(k.text)) { continue; }
+                    return modellMeshAktionChord(i, false) == k.chord && std::string(modellMeshAktionTaste(i, false)) == k.taste;
+                }
+                return false;
+            }));
+        }
+        add(pruefe("MD Max: jede Aktion ohne Taste nennt im Tooltip den Weg ueber das Menue", [] {
+            int ohne = 0;
+            for (int i = 0; i < modellMeshAktionZahl(); ++i) {
+                if (modellMeshAktionTaste(i, false)[0] != '\0') { continue; }
+                ++ohne;
+                const std::string t = modellMeshAktionTooltip(i);
+                if (t.find(std::string(tr(Str::MdMenue)) + " > ") == std::string::npos || t.find(modellMeshAktionText(i)) == std::string::npos) {
+                    meldeFehler(std::string("MD: kein Weg im Tooltip von ") + modellMeshAktionText(i));
+                    return false;
+                }
+            }
+            return ohne > 0;
+        }));
+    }
+    add(tu("MD Tasten: Deckel waehlen (Max), Fokus", [oben] {
+        oben();
+        g_app->mtab.fokus = true;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_B, "Strg+Umschalt+B (Max Bevel)"));
+    add(pause(0.3));
+    add(pruefe("MD Taste Max Strg+Umschalt+B: Bevel im Kaestchen", [] { return mz().kaestchenOffen && mz().werkzeug == MeshWerkzeug::Bevel; }));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.2));
+    add(pruefe("MD Esc: Bevel abgebrochen", [] { return !mz().kaestchenOffen; }));
     // --- Speichern ---
     add(tu("MD Speichern: als .md3 in den Laufordner", [] {
         g_app->mtab.speicherPfad = (std::filesystem::current_path() / "md_kiste.md3").string();
@@ -632,12 +739,15 @@ std::vector<Schritt> zeitSchritte() {
     return s;
 }
 
-// --- Im Spiel (BHED_MODELL_NUR=mdspiel): Requisit in den Testraum, Bau (-meta), Vorschau-Foto der Kamera von einem festen
-// Punkt vor dem Requisit (Blick +X, Neigung 0, Sichtfeld 80 waagrecht wie cg_fov 80); die Lage steht im Protokoll fuer
-// setviewpos im Spiel (g_cmds.cpp Cmd_SetViewpos_f: der Blick liegt auf dem angegebenen Punkt)
+// --- Im Spiel (BHED_MODELL_NUR=mdspiel): Requisit in den Testraum, Schnell-Backen (-meta, -vis -fast, -light -fast) mit und
+// ohne Requisit, je ein Foto der Kamera im Spielbild ("Built map as in the game") 1920 x 1440 von einem festen Augpunkt vor
+// dem Requisit (Blick +X, Neigung 0, Sichtfeld 80 waagrecht wie cg_fov 80 im 4:3-Fenster: CG_CalcFov rechnet fov_y aus der
+// Fensterhoehe). Beide .bsp kommen in den Laufordner (s3bau_mit, s3bau_ohne) fuer den Vergleich im Spiel; das Protokoll nennt
+// den Befehl setviewpos fuer denselben Augpunkt.
 std::vector<Schritt> spielSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto undo0 = std::make_shared<std::size_t>(0);   // Rueckgaengig-Schritte der Karte vor dem Requisit
     add(tu("MD Spiel: Spielordner, Modus Events", [] {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         g_app->leftMode = 0;
@@ -648,11 +758,12 @@ std::vector<Schritt> spielSchritte() {
         ke::spielPruefen();
         return ke::spielBereit();
     }, 20000));
-    add(tu("MD Spiel: Testraum, Blick von oben", [] {
+    add(tu("MD Spiel: Testraum, Blick von oben", [undo0] {
         karteDialogeZu();
         stufe3::q3map2Bereitstellen();
         (void)stufe3::raumKarteOeffnen("m0raum", false);
         ke::Editor& e = ke::editor();
+        *undo0 = e.karte.undo.undoAnzahl();
         e.kamera.ursprung = karte::Vektor3f(-120, -150, 200);
         e.kamera.winkel = karte::Vektor3f(-89.0F, 0.0F, 0.0F);
         ke::modellSetzKlasse() = 0;
@@ -677,7 +788,7 @@ std::vector<Schritt> spielSchritte() {
         ke::spielPruefen();
         return !ke::requisitWartet() && requisitEntitaeten() >= 1;
     }, 3000));
-    add(tu("MD Spiel: Kamera 96 vor dem Requisit, 40 hoch, Blick +X, Sichtfeld 80; Lage ins Protokoll", [] {
+    add(tu("MD Spiel: Augpunkt 96 vor dem Requisit, 40 hoch, Blick +X, Sichtfeld 80, Bild 1920 x 1440; Lage ins Protokoll", [] {
         ke::Editor& e = ke::editor();
         for (const auto& en : e.karte.entitaeten()) {
             if (en->wert("model") != vfs()) { continue; }
@@ -685,28 +796,73 @@ std::vector<Schritt> spielSchritte() {
             (void)std::sscanf(en->wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
             e.kamera.ursprung = karte::Vektor3f(o[0] - 96.0F, o[1], o[2] + 40.0F);
             e.kamera.winkel = karte::Vektor3f(0.0F, 0.0F, 0.0F);
-            e.kameraE.sichtfeld = 80.0F;
-            e.kamera.projektionAktualisieren(e.kameraE);
-            char b[200];
-            std::snprintf(b, sizeof b, "Knopftest: MD Spiel - setviewpos %g %g %g 0 (Requisit bei %g %g %g)", static_cast<double>(o[0] - 96.0F), static_cast<double>(o[1]),
-                          static_cast<double>(o[2] + 40.0F), static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2]));
+            // Cmd_SetViewpos_f (g_cmds.cpp): origin[2] -= 25, der Blick liegt dann viewheight hoeher - stehend
+            // DEFAULT_MAXS_2 40 + STANDARD_VIEWHEIGHT_OFFSET -4 = 36 (bg_pmove.cpp PM_CheckDuck); im Spiel mit viewpos geprueft
+            char b[240];
+            std::snprintf(b, sizeof b, "Knopftest: MD Spiel - Augpunkt %g %g %g, setviewpos %g %g %g 0 (Requisit bei %g %g %g)", static_cast<double>(o[0] - 96.0F),
+                          static_cast<double>(o[1]), static_cast<double>(o[2] + 40.0F), static_cast<double>(o[0] - 96.0F), static_cast<double>(o[1]),
+                          static_cast<double>(o[2] + 40.0F + 25.0F - 36.0F), static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2]));
             diag::detail(b);
         }
+        karte::auswahlAufheben(e.karte, e.bearbeitung.einstellung);   // ohne Auswahlfarbe, Griffe und Arbeitsbereich wie im Spiel
+        e.kameraE.sichtfeld = 80.0F;
+        e.kameraE.modus = karte::KameraModus::Textur;
+        e.kamFenster.messBreite = 1920;
+        e.kamFenster.messHoehe = 1440;
+        e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT;
+        e.echtLicht.pauseSekunden = 0.2;
+        e.echtLicht.an = true;
+        e.echtLicht.backen = true;
+        e.echtLicht.spielbild = true;
+        ke::spielbildZeitFest(0.0);
         const ke::KameraFenster& f = e.kamFenster;
         setzeMaus(ImVec2{f.bildX - 40.0F, f.bildY + 40.0F});
     }));
-    add(pause(1.5));
-    add(hb::fotoTeil("md_spiel_vorschau", [] {
-        const ke::KameraFenster& f = ke::editor().kamFenster;
-        return ImRect{f.bildX, f.bildY, f.bildX + static_cast<float>(f.breite), f.bildY + static_cast<float>(f.hoehe)};
+    // je Fassung: Schnell-Backen abwarten, Spielbild, Foto und die .bsp (schnell.bsp) in den Laufordner
+    const auto fassung = [&](const std::string& name) {
+        add(stufe9c::langeWarten("MD Spiel " + name + ": Schnell-Backen fertig", [] {
+            const ke::Editor& e = ke::editor();
+            if (e.echtLicht.bauStand == 5) {
+                meldeFehler("MD Spiel: Schnell-Backen gescheitert");
+                return true;
+            }
+            return e.echtLicht.bauStand == 3 && e.echtLicht.gebackenZeigen;
+        }, 400000));
+        add(stufe9c::langeWarten("MD Spiel " + name + ": Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt && ke::kameraBilderFertig(); }, 20000));
+        add(pause(1.0));
+        add(tu("MD Spiel " + name + ": Foto und .bsp", [name] {
+            stufe9c::Bild b;
+            if (!stufe9c::bildHolen(b)) {
+                meldeFehler("MD Spiel: kein Kamerabild");
+                return;
+            }
+            const char* o = std::getenv("BHED_FOTOS");
+            stufe9c::bmpSchreiben(((o != nullptr && o[0] != '\0') ? std::string(o) : std::filesystem::current_path().string()) + "\\md_spiel_vorschau_" + name + ".bmp", b);
+            diag::detail("Knopftest: MD Spiel " + name + " - Vorschau " + std::to_string(b.breite) + " x " + std::to_string(b.hoehe));
+            std::error_code ec;
+            const std::filesystem::path z = std::filesystem::current_path() / ("s3bau_" + name);
+            std::filesystem::create_directories(z, ec);
+            std::filesystem::copy_file(std::filesystem::path(ke::editor().echtLicht.bauOrdner) / "maps" / "schnell.bsp", z / "m0raum.bsp",
+                                       std::filesystem::copy_options::overwrite_existing, ec);
+        }));
+        add(pruefe("MD Spiel " + name + ": Foto 1920 x 1440 und .bsp im Laufordner", [name] {
+            return ke::editor().kamFenster.breite == 1920 && ke::editor().kamFenster.hoehe == 1440 &&
+                   std::filesystem::is_regular_file(std::filesystem::current_path() / ("s3bau_" + name) / "m0raum.bsp");
+        }));
+    };
+    fassung("mit");
+    add(tu("MD Spiel: das Requisit wieder aus der Karte (Rueckgaengig bis vor das Einsetzen)", [undo0] {
+        while (ke::editor().karte.undo.undoAnzahl() > *undo0) { (void)ke::editor().karte.undo.undo(); }
     }));
-    add(tu("MD Spiel: Bau (q3map2 -meta)", [] {
+    add(pruefe("MD Spiel: kein misc_model des Requisits mehr", [] { return requisitEntitaeten() == 0; }));
+    fassung("ohne");
+    add(tu("MD Spiel: aufraeumen (Messgroesse, Spielbild-Zeit, Schnell-Backen aus)", [] {
         ke::Editor& e = ke::editor();
-        e.bauProjekt.eintraege.push_back(karte::BauEintrag{"MD bsp", {"[q3map2] -meta \"[MapFile]\""}});
-        ke::bauStarten(e.bauProjekt.eintraege.size() - 1);
+        e.kamFenster.messBreite = 0;
+        e.kamFenster.messHoehe = 0;
+        e.echtLicht.backen = false;
+        ke::spielbildZeitFest(-1.0);
     }));
-    add(warteBis("MD Spiel: Bau fertig", [] { return !ke::bauLaeuft(); }, 30000));
-    add(pruefe("MD Spiel: .bsp gebaut", [] { return std::filesystem::is_regular_file(std::filesystem::current_path() / "s3bau" / "m0raum.bsp"); }));
     return s;
 }
 

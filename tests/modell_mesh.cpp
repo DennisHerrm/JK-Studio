@@ -23,6 +23,7 @@
 #include "bhed/modell/wof/poly.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -651,6 +652,138 @@ void grenzenTest(const std::string& glmPfad) {
 
 }  // namespace
 
+// p_jka: Max Make Planar - die Punkte in einer Ebene (Normale gemittelt, durch ihre Mitte), UV unveraendert
+// Abstand des vierten Punkts von der Ebene der ersten drei (-1: die drei liegen auf einer Linie)
+double abstandVierter(const PolyNetz& n, const std::vector<int>& pk) {
+    const auto o = [&](std::size_t i) { return n.punkte[uz(pk[i])].ort; };
+    const double ux = o(1)[0] - o(0)[0], uy = o(1)[1] - o(0)[1], uzz = o(1)[2] - o(0)[2];
+    const double vx = o(2)[0] - o(0)[0], vy = o(2)[1] - o(0)[1], vz = o(2)[2] - o(0)[2];
+    const double nx = uy * vz - uzz * vy, ny = uzz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const double l = std::sqrt(nx * nx + ny * ny + nz * nz);
+    if (!(l > 0.0)) { return -1.0; }
+    return std::abs((o(3)[0] - o(0)[0]) * nx + (o(3)[1] - o(0)[1]) * ny + (o(3)[2] - o(0)[2]) * nz) / l;
+}
+
+void ebenTest() {
+    std::printf("Make Planar\n");
+    {
+        PolyNetz n = kasten();
+        const int oben = vieleckBei(n, 2, 1.0F);
+        n.punkte[uz(punktBei(n, 0.5F, 0.5F, 1.0F))].ort[2] = 1.4F;   // eine Ecke des Deckels angehoben
+        std::vector<int> pk;
+        std::vector<std::array<float, 2>> uvVorher;
+        for (const PEcke& e : n.flaechen[uz(oben)].ecken) {
+            pk.push_back(e.punkt);
+            uvVorher.push_back({e.e.uv[0], e.e.uv[1]});
+        }
+        const double vorher = abstandVierter(n, pk);
+        const Plan p = ebenMachen(n, PAuswahl{{}, {}, {oben}}, PEbene::Vieleck);
+        const double nachher = abstandVierter(n, pk);
+        double mz = 0.0;
+        bool uvGleich = true;
+        for (std::size_t i = 0; i < pk.size(); ++i) {
+            mz += static_cast<double>(n.punkte[uz(pk[i])].ort[2]) / 4.0;
+            uvGleich = uvGleich && n.flaechen[uz(oben)].ecken[i].e.uv[0] == uvVorher[i][0] && n.flaechen[uz(oben)].ecken[i].e.uv[1] == uvVorher[i][1];
+        }
+        std::printf("        Abstand vorher %.4f nachher %.6f, Mitte z %.4f\n", vorher, nachher, mz);
+        expect("Make Planar am Deckel (eine Ecke 0,4 hoch): vier Ecken in einer Ebene, Mitte bleibt 1,1, UV gleich",
+               !p.abgelehnt() && p.geaendert == 4 && vorher > 0.1 && nachher >= 0.0 && nachher < 1e-4 && std::abs(mz - 1.1) < 1e-4 && uvGleich &&
+                   netzIst(n, 8, 12, 6, 0));
+    }
+    {
+        PolyNetz n = kasten();
+        // vier Punkte der Seite y -0,5, einer 0,3 heraus: die gemittelte Normale der Vielecke an den Punkten
+        const std::vector<int> pk = {punktBei(n, -0.5F, -0.5F, 0.0F), punktBei(n, 0.5F, -0.5F, 0.0F), punktBei(n, 0.5F, -0.5F, 1.0F), punktBei(n, -0.5F, -0.5F, 1.0F)};
+        n.punkte[uz(pk[2])].ort[1] = -0.8F;
+        const Plan p = ebenMachen(n, PAuswahl{pk, {}, {}}, PEbene::Punkt);
+        const double d = abstandVierter(n, pk);
+        std::printf("        Abstand des vierten Punkts %.6f\n", d);
+        expect("Make Planar an vier Punkten der Seite (einer 0,3 heraus): eine Ebene", !p.abgelehnt() && d >= 0.0 && d < 1e-4);
+        const Plan q = ebenMachen(n, PAuswahl{{pk[0], pk[1]}, {}, {}}, PEbene::Punkt);
+        expect("Make Planar mit zwei Punkten abgelehnt (leere Auswahl)", q.grund == Ablehnung::LeereAuswahl);
+    }
+}
+
+// p_jka: Max Slice - das ganze Modell oder die gewaehlten Vielecke an einer Ebene quer zur Achse geteilt
+void schnittTest() {
+    std::printf("Slice\n");
+    {
+        PolyNetz n = kasten();
+        const Plan p = schneiden(n, {}, 2, 0.25F);
+        // vier Seiten je zweigeteilt: 8 + 4 Punkte, 12 + 4 + 4 Kanten, 6 + 4 Vielecke, jeder neue Punkt auf z 0,25
+        bool aufEbene = true;
+        int neu = 0;
+        for (const PPunkt& q : n.punkte) {
+            if (q.weg || std::abs(q.ort[2]) < 1e-6F || std::abs(q.ort[2] - 1.0F) < 1e-6F) { continue; }
+            ++neu;
+            aufEbene = aufEbene && q.ort[2] == 0.25F;
+        }
+        expect("Slice des Kastens bei z 0,25: 12/20/10, vier neue Punkte genau auf der Ebene, 4 Teilungen",
+               !p.abgelehnt() && p.geaendert == 4 && neu == 4 && aufEbene && netzIst(n, 12, 20, 10, 0));
+    }
+    {
+        PolyNetz n = kasten();
+        const int vorn = vieleckBei(n, 1, -0.5F);
+        const Plan p = schneiden(n, {vorn}, 0, 0.0F);
+        // nur die Vorderseite geteilt; die neuen Punkte auf Ober- und Unterkante sitzen auch im Deckel und Boden (keine
+        // T-Stelle): 10 Punkte, 15 Kanten, 7 Vielecke
+        expect("Slice nur der gewaehlten Vorderseite bei x 0: 10/15/7, eine Teilung", !p.abgelehnt() && p.geaendert == 1 && netzIst(n, 10, 15, 7, 0));
+    }
+    {
+        PolyNetz n = kasten();
+        const Plan p = schneiden(n, {}, 2, 3.0F);
+        expect("Slice ausserhalb des Modells: abgelehnt (WL NothingToSlice), 8/12/6", p.grund == Ablehnung::NichtsGeschnitten && netzIst(n, 8, 12, 6, 0));
+    }
+    {
+        // QuickSlice-Ebene schraeg: durch (0, 0, 0,4), Normale (0, 1, 1) - jeder neue Punkt liegt auf ihr
+        PolyNetz n = kasten();
+        const float o[3] = {0.0F, 0.0F, 0.4F}, nn[3] = {0.0F, 1.0F, 1.0F};
+        const std::size_t vorher = n.punkte.size();
+        const Plan p = schneidenEbene(n, {}, o, nn);
+        double groesste = 0.0;
+        for (std::size_t i = vorher; i < n.punkte.size(); ++i) {
+            const float* q = n.punkte[i].ort;
+            groesste = std::max(groesste, std::abs((static_cast<double>(q[1]) + static_cast<double>(q[2]) - 0.4) / std::sqrt(2.0)));
+        }
+        std::printf("        schraeg: %zu neue Punkte, groesster Abstand %.2e\n", n.punkte.size() - vorher, groesste);
+        expect("Slice schraeg (Normale 0 1 1): neue Punkte auf der Ebene, Netz gueltig, geteilt",
+               !p.abgelehnt() && p.geaendert > 0 && n.punkte.size() > vorher && groesste < 1e-5 && netzIst(n, n.lebendePunkte(), n.kantenZahl(), n.lebendeFlaechen(), 0));
+    }
+}
+
+// p_jka: Max Hinge From Edge (WL PlanHingeFaces) - der Deckel um seine vordere Kante
+void hingeTest() {
+    std::printf("Hinge\n");
+    {
+        PolyNetz n = kasten();
+        const int oben = vieleckBei(n, 2, 1.0F);
+        const auto kanten = hingeKanten(n, {oben});
+        const std::pair<int, int> k = kantenPaar(punktBei(n, -0.5F, -0.5F, 1.0F), punktBei(n, 0.5F, -0.5F, 1.0F));
+        const Plan p = hinge(n, {oben}, k, 90.0F);
+        // zwei Kopien, an der Scharnierkante keine Wand, daneben zwei Dreiecke, gegenueber ein Viereck: 10/17/9; um 90 Grad
+        // steht der Deckel senkrecht, seine freie Kante bei z 2 ueber dem Scharnier
+        expect("Hinge des Deckels um die vordere Kante 90 Grad: 4 moegliche Scharniere, 10/17/9, freie Kante bei y -0,5 z 2",
+               kanten.size() == 4U && !p.abgelehnt() && punktBei(n, -0.5F, -0.5F, 2.0F) >= 0 && punktBei(n, 0.5F, -0.5F, 2.0F) >= 0 &&
+                   netzIst(n, 10, 17, 9, 0));
+    }
+    {
+        PolyNetz n = kasten();
+        const int oben = vieleckBei(n, 2, 1.0F);
+        const Plan p = hinge(n, {oben}, kantenPaar(punktBei(n, -0.5F, -0.5F, 0.0F), punktBei(n, 0.5F, -0.5F, 0.0F)), 45.0F);
+        expect("Hinge um eine Kante, die nicht am Rand der Auswahl liegt: abgelehnt (WL HingeNotOnBoundary), 8/12/6",
+               p.grund == Ablehnung::HingeNichtAmRand && netzIst(n, 8, 12, 6, 0));
+    }
+}
+
+// p_jka: Max Collapse (Ctrl+Alt+C) = mergen(Mitte) ueber die Punkte der Auswahl
+void collapseTest() {
+    std::printf("Collapse\n");
+    PolyNetz n = kasten();
+    const int oben = vieleckBei(n, 2, 1.0F);
+    const Plan p = mergen(n, auswahlPunkte(n, PAuswahl{{}, {}, {oben}}), MergeArt::Mitte);
+    expect("Collapse des Deckels: eine Spitze bei (0, 0, 1), 5/8/5", !p.abgelehnt() && punktBei(n, 0.0F, 0.0F, 1.0F) >= 0 && netzIst(n, 5, 8, 5, 0));
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::printf("Aufruf: modellmeshtest <model.glm>\n");
@@ -662,6 +795,10 @@ int main(int argc, char** argv) {
     chamferTest();
     zusammenTest();
     entfernenTest();
+    ebenTest();
+    schnittTest();
+    hingeTest();
+    collapseTest();
     grenzenTest(argv[1]);
     std::printf("%s (%d Fehler)\n", fails == 0 ? "OK" : "FEHLER", fails);
     return fails == 0 ? 0 : 1;

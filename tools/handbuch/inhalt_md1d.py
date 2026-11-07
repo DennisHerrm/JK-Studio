@@ -25,7 +25,7 @@ X = {
         "selects, Ctrl adds and Alt removes (Blender: Shift adds or removes), a drag selects everything it crosses. The view draws the polygons over the model - "
         "two triangles of the file that lie flat together are one quad, and **{{MdToQuads}}** joins them. W/E/R (Blender G/R/S) move, turn and scale the "
         "selection. The rollouts **{{MdRolloutMax}}** (Blender: **{{MdRolloutBlender}}**) list the tools of the level; the same tools are in the menu "
-        "**{{MdMenue}}**, in the right-click of the view and in the search (X, F3 in Blender mode), and every tooltip names its key. Without a model, "
+        "**{{MdMenue}}**, in the right-click of the view and in the search (X, F3 in Blender mode), and every tooltip names its key (3ds Max mode: the default keys of Autodesk's table, e.g. Shift+E Extrude, Ctrl+Shift+B Bevel, Ctrl+Shift+C Chamfer, Alt+L/Alt+R Loop/Ring) or, for a tool without a key, its way through the menu. Without a model, "
         "**{{MdNeuesRequisit}}** starts an empty .md3 with the texture currently chosen in the map editor.",
         "Wähle oben im Model-Tab den Bereich **{{MbBereichModellieren}}**. Die Tasten 1 bis 5 (Blender-Modus 1 bis 3) wählen die Ebene: **{{MdEbenePunkt}}**, "
         "**{{MdEbeneKante}}**, **{{MdEbeneRand}}**, **{{MdEbeneVieleck}}** und **{{MdEbeneElement}}**; jede Ebene behält ihre Auswahl wie in 3ds Max. Ein Klick "
@@ -33,31 +33,31 @@ X = {
         "Polygone über das Modell - zwei Dreiecke der Datei, die eben nebeneinander liegen, sind ein Viereck, **{{MdToQuads}}** fügt sie zusammen. W/E/R "
         "(Blender G/R/S) verschieben, drehen und skalieren die Auswahl. Die Rollouts **{{MdRolloutMax}}** (Blender: **{{MdRolloutBlender}}**) zeigen die "
         "Werkzeuge der Ebene; dieselben stehen im Menü **{{MdMenue}}**, im Rechtsklick der Ansicht und in der Suche (X, im Blender-Modus F3), und jeder Tooltip "
-        "nennt seine Taste. Ohne Modell beginnt **{{MdNeuesRequisit}}** eine leere .md3 mit der Textur, die im Karten-Editor gerade gewählt ist.",
+        "nennt seine Taste (3ds-Max-Modus: die Vorgaben der Autodesk-Tabelle, etwa Umschalt+E Extrude, Strg+Umschalt+B Bevel, Strg+Umschalt+C Chamfer, Alt+L/Alt+R Schleife/Ring) oder, bei einem Werkzeug ohne Taste, den Weg über das Menü. Ohne Modell beginnt **{{MdNeuesRequisit}}** eine leere .md3 mit der Textur, die im Karten-Editor gerade gewählt ist.",
         "在模型选项卡顶部选择 **{{MbBereichModellieren}}** 区域。按键 1 到 5 (Blender 模式 1 到 3) 选择层级: **{{MdEbenePunkt}}**、**{{MdEbeneKante}}**、**{{MdEbeneRand}}**、"
         "**{{MdEbeneVieleck}}** 和 **{{MdEbeneElement}}**; 与 3ds Max 一样, 每个层级保留自己的选择。单击选择, Ctrl 添加, Alt 移除 (Blender: Shift 添加或移除), 拖框选择所有经过的元素。"
         "视图在模型上绘制多边形 - 文件中平铺相邻的两个三角形就是一个四边形, **{{MdToQuads}}** 会合并它们。W/E/R (Blender G/R/S) 移动、旋转和缩放选择。卷展栏 **{{MdRolloutMax}}** "
-        "(Blender: **{{MdRolloutBlender}}**) 列出该层级的工具; 同样的工具在菜单 **{{MdMenue}}**、视图右键菜单和搜索 (X, Blender 模式为 F3) 中, 每个提示都写有按键。没有模型时, "
+        "(Blender: **{{MdRolloutBlender}}**) 列出该层级的工具; 同样的工具在菜单 **{{MdMenue}}**、视图右键菜单和搜索 (X, Blender 模式为 F3) 中, 每个提示都写有按键 (3ds Max 模式: Autodesk 表中的默认按键, 例如 Shift+E 挤出、Ctrl+Shift+B 倒角、Ctrl+Shift+C 切角、Alt+L/Alt+R 循环/环形), 没有按键的工具则写出菜单中的路径。没有模型时, "
         "**{{MdNeuesRequisit}}** 会以地图编辑器当前选择的纹理新建一个空 .md3。",
         "モデルタブ上部で領域 **{{MbBereichModellieren}}** を選びます。キー 1〜5 (Blender 風は 1〜3) でレベルを選択: **{{MdEbenePunkt}}**、**{{MdEbeneKante}}**、**{{MdEbeneRand}}**、"
         "**{{MdEbeneVieleck}}**、**{{MdEbeneElement}}**。3ds Max と同じく各レベルが自分の選択を保ちます。クリックで選択、Ctrl で追加、Alt で除外 (Blender: Shift で追加/除外)、"
         "ドラッグで交差する全てを選択。ビューはモデルの上にポリゴンを描きます - ファイルの平らに並ぶ 2 つの三角形は 1 つの四角形で、**{{MdToQuads}}** で結合します。"
         "W/E/R (Blender G/R/S) で選択を移動・回転・拡縮。ロールアウト **{{MdRolloutMax}}** (Blender: **{{MdRolloutBlender}}**) にレベルのツールがあり、同じものがメニュー "
-        "**{{MdMenue}}**、ビューの右クリック、検索 (X、Blender 風は F3) にもあり、ツールチップにキーが書かれています。モデルがなければ **{{MdNeuesRequisit}}** が、"
+        "**{{MdMenue}}**、ビューの右クリック、検索 (X、Blender 風は F3) にもあり、ツールチップにキーが書かれています (3ds Max 風: Autodesk の表の既定キー、例: Shift+E 押し出し、Ctrl+Shift+B ベベル、Ctrl+Shift+C 面取り、Alt+L/Alt+R ループ/リング)。キーのないツールはメニューでの場所が書かれています。モデルがなければ **{{MdNeuesRequisit}}** が、"
         "マップエディターで選択中のテクスチャで空の .md3 を始めます。",
         "Elige arriba en la pestaña Model el área **{{MbBereichModellieren}}**. Las teclas 1 a 5 (modo Blender 1 a 3) eligen el nivel: **{{MdEbenePunkt}}**, "
         "**{{MdEbeneKante}}**, **{{MdEbeneRand}}**, **{{MdEbeneVieleck}}** y **{{MdEbeneElement}}**; cada nivel guarda su selección como en 3ds Max. Un clic "
         "selecciona, Ctrl añade y Alt quita (Blender: Mayús añade o quita), un recuadro selecciona todo lo que cruza. La vista dibuja los polígonos sobre el modelo: "
         "dos triángulos del archivo que están planos uno junto a otro son un cuadrilátero, y **{{MdToQuads}}** los une. W/E/R (Blender G/R/S) mueven, giran y "
         "escalan la selección. Los paneles **{{MdRolloutMax}}** (Blender: **{{MdRolloutBlender}}**) muestran las herramientas del nivel; las mismas están en el "
-        "menú **{{MdMenue}}**, en el clic derecho de la vista y en la búsqueda (X, F3 en modo Blender), y cada ayuda nombra su tecla. Sin modelo, "
+        "menú **{{MdMenue}}**, en el clic derecho de la vista y en la búsqueda (X, F3 en modo Blender), y cada ayuda nombra su tecla (modo 3ds Max: las teclas por defecto de la tabla de Autodesk, p. ej. Mayús+E Extruir, Ctrl+Mayús+B Bisel, Ctrl+Mayús+C Chaflán, Alt+L/Alt+R Bucle/Anillo) o, si la herramienta no tiene tecla, su camino por el menú. Sin modelo, "
         "**{{MdNeuesRequisit}}** empieza un .md3 vacío con la textura elegida ahora en el editor de mapas.",
         "Nahoře v kartě Model zvolte oblast **{{MbBereichModellieren}}**. Klávesy 1 až 5 (režim Blender 1 až 3) volí úroveň: **{{MdEbenePunkt}}**, **{{MdEbeneKante}}**, "
         "**{{MdEbeneRand}}**, **{{MdEbeneVieleck}}** a **{{MdEbeneElement}}**; každá úroveň si drží svůj výběr jako v 3ds Max. Kliknutí vybírá, Ctrl přidává, "
         "Alt ubírá (Blender: Shift přidá nebo ubere), tažení vybere vše, co protne. Pohled kreslí polygony přes model - dva trojúhelníky souboru, které leží rovně "
         "vedle sebe, jsou jeden čtyřúhelník a **{{MdToQuads}}** je spojí. W/E/R (Blender G/R/S) posouvají, otáčejí a mění měřítko výběru. Rollouty "
         "**{{MdRolloutMax}}** (Blender: **{{MdRolloutBlender}}**) ukazují nástroje úrovně; stejné jsou v menu **{{MdMenue}}**, v pravém kliknutí pohledu a ve "
-        "vyhledávání (X, v režimu Blender F3) a každá nápověda uvádí klávesu. Bez modelu začne **{{MdNeuesRequisit}}** prázdné .md3 s texturou, která je právě "
+        "vyhledávání (X, v režimu Blender F3) a každá nápověda uvádí klávesu (režim 3ds Max: výchozí klávesy z tabulky Autodesk, např. Shift+E vysunutí, Ctrl+Shift+B zkosení, Ctrl+Shift+C sražení, Alt+L/Alt+R smyčka/prstenec), u nástroje bez klávesy cestu v nabídce. Bez modelu začne **{{MdNeuesRequisit}}** prázdné .md3 s texturou, která je právě "
         "zvolena v editoru map."),
     "bild_modell": ("A box with an extruded and inset top; the tool caddy of Extrude is open in the view.",
                     "Ein Kasten mit extrudiertem und eingefügtem Deckel; das Werkzeugkästchen von Extrudieren ist in der Ansicht offen.",
@@ -72,7 +72,7 @@ X = {
         "**{{MdExtrude}}** lifts polygons (group, local normal or by polygon) or grows a strip from a border; **{{MdInset}}** puts a smaller copy inside, every "
         "edge the same distance in; **{{MdBevel}}** extrudes and scales the outline; **{{MdChamfer}}** replaces edges by strips or cuts vertices off; "
         "**{{MdConnect}}** and **{{MdLoopCut}}** add edges across polygons; **{{MdCut}}** cuts by clicking edges and vertices one after another; **{{MdWeld}}**, "
-        "**{{MdTargetWeld}}** and **{{MdMerge}}** join vertices; **{{MdBridge}}** joins two borders or two polygons with a band of quads; **{{MdRemove}}** "
+        "**{{MdTargetWeld}}** and **{{MdMerge}}** join vertices; **{{MdEben}}** (Alt+M) moves the selection onto one plane (average normal, through its centre); **{{MdCollapse}}** (Ctrl+Alt+C) turns each connected group into one vertex; **{{MdSlice}}** cuts along a plane across an axis and **{{MdQuickSlice}}** (Ctrl+Shift+Q) along the line of two clicks in a view; **{{MdHinge}}** swings polygons about one of their border edges; **{{MdBridge}}** joins two borders or two polygons with a band of quads; **{{MdRemove}}** "
         "dissolves edges and vertices, **{{MdDelete}}** leaves a hole; **{{MdDetach}}** splits polygons off or into a new surface with its own texture; "
         "**{{MdSymmetrize}}** mirrors one half; **{{MdCreate}}** adds a box, plane, cylinder, sphere, cone, tube or torus with UVs. A tool that cannot work says "
         "why (for example: an edge would get a third polygon) and changes nothing. New vertices take the UVs of their polygon and blend the bone weights of their "
@@ -83,7 +83,7 @@ X = {
         "lässt einen Streifen am Rand wachsen; **{{MdInset}}** setzt eine kleinere Kopie hinein, jede Kante gleich weit; **{{MdBevel}}** extrudiert und ändert den "
         "Umriss; **{{MdChamfer}}** ersetzt Kanten durch Streifen oder schneidet Punkte ab; **{{MdConnect}}** und **{{MdLoopCut}}** legen Kanten quer durch "
         "Polygone; **{{MdCut}}** schneidet durch Klicks auf Kanten und Punkte nacheinander; **{{MdWeld}}**, **{{MdTargetWeld}}** und **{{MdMerge}}** legen Punkte "
-        "zusammen; **{{MdBridge}}** verbindet zwei Ränder oder zwei Polygone mit einem Band aus Vierecken; **{{MdRemove}}** löst Kanten und Punkte auf, "
+        "zusammen; **{{MdEben}}** (Alt+M) schiebt die Auswahl in eine Ebene (gemittelte Normale, durch ihre Mitte); **{{MdCollapse}}** (Strg+Alt+C) macht jede zusammenhängende Gruppe zu einem Punkt; **{{MdSlice}}** schneidet an einer Ebene quer zu einer Achse, **{{MdQuickSlice}}** (Strg+Umschalt+Q) an der Linie zweier Klicks in einer Ansicht; **{{MdHinge}}** dreht Polygone um eine ihrer Randkanten; **{{MdBridge}}** verbindet zwei Ränder oder zwei Polygone mit einem Band aus Vierecken; **{{MdRemove}}** löst Kanten und Punkte auf, "
         "**{{MdDelete}}** lässt ein Loch; **{{MdDetach}}** trennt Polygone ab oder in eine neue Fläche mit eigener Textur; **{{MdSymmetrize}}** spiegelt eine "
         "Hälfte; **{{MdCreate}}** fügt Kasten, Ebene, Zylinder, Kugel, Kegel, Rohr oder Torus mit UV ein. Ein Werkzeug, das nicht arbeiten kann, sagt warum "
         "(zum Beispiel: eine Kante bekäme ein drittes Polygon) und ändert nichts. Neue Punkte nehmen die UV ihres Polygons und mischen die Knochen-Gewichte ihrer "
@@ -91,14 +91,14 @@ X = {
         "带数值的工具会在视图左上角打开一个小工具框: 结果立即显示, 拖动数值时实时变化; **{{MdUebernehmen}}** (Enter) 保留, **+** 保留并在结果上再次运行同一工具, **{{MdAbbrechen}}** "
         "(Esc) 恢复原状。每个工具是一个撤销步骤。**{{MdExtrude}}** 抬起多边形 (组、局部法线或按多边形) 或从边界长出一条带; **{{MdInset}}** 在内部放入较小副本, 每条边同样距离; "
         "**{{MdBevel}}** 挤出并缩放轮廓; **{{MdChamfer}}** 用带替换边或切掉顶点; **{{MdConnect}}** 和 **{{MdLoopCut}}** 在多边形中加入边; **{{MdCut}}** 依次点击边和顶点进行切割; "
-        "**{{MdWeld}}**、**{{MdTargetWeld}}** 和 **{{MdMerge}}** 合并顶点; **{{MdBridge}}** 用四边形带连接两个边界或两个多边形; **{{MdRemove}}** 溶解边和顶点, **{{MdDelete}}** "
+        "**{{MdWeld}}**、**{{MdTargetWeld}}** 和 **{{MdMerge}}** 合并顶点; **{{MdEben}}** (Alt+M) 把选择移到同一平面 (平均法线, 经过其中心); **{{MdCollapse}}** (Ctrl+Alt+C) 把每个相连的组变为一个顶点; **{{MdSlice}}** 沿垂直于某轴的平面切开, **{{MdQuickSlice}}** (Ctrl+Shift+Q) 沿视图中两次点击的线切开; **{{MdHinge}}** 让多边形绕其一条边界边旋转; **{{MdBridge}}** 用四边形带连接两个边界或两个多边形; **{{MdRemove}}** 溶解边和顶点, **{{MdDelete}}** "
         "留下孔洞; **{{MdDetach}}** 分离多边形或放入有独立纹理的新表面; **{{MdSymmetrize}}** 镜像一半; **{{MdCreate}}** 添加带 UV 的盒子、平面、圆柱、球、圆锥、管或圆环。"
         "无法执行的工具会说明原因 (例如: 某条边会出现第三个多边形), 且不做任何更改。新顶点采用其多边形的 UV, 并混合相邻顶点的骨骼权重 (最多四个, 总和为 1)。",
         "値のあるツールはビューの左上に小さなボックスを開きます: 結果はすぐに見え、値をドラッグするとライブで変わります。**{{MdUebernehmen}}** (Enter) で確定、**+** は確定して結果に"
         "同じツールをもう一度、**{{MdAbbrechen}}** (Esc) で元通り。各ツールは 1 回の元に戻す単位です。**{{MdExtrude}}** はポリゴンを持ち上げ (グループ、ローカル法線、ポリゴンごと)、"
         "または境界から帯を伸ばします。**{{MdInset}}** は内側に小さなコピーを作り、各エッジを同じ距離だけ内へ。**{{MdBevel}}** は押し出して輪郭を変えます。**{{MdChamfer}}** は"
         "エッジを帯に置き換えるか頂点を切り落とします。**{{MdConnect}}** と **{{MdLoopCut}}** はポリゴンを横切るエッジを追加。**{{MdCut}}** はエッジや頂点を順にクリックして切ります。"
-        "**{{MdWeld}}**、**{{MdTargetWeld}}**、**{{MdMerge}}** は頂点を結合。**{{MdBridge}}** は 2 つの境界か 2 つのポリゴンを四角形の帯でつなぎます。**{{MdRemove}}** はエッジや"
+        "**{{MdWeld}}**、**{{MdTargetWeld}}**、**{{MdMerge}}** は頂点を結合。**{{MdEben}}** (Alt+M) は選択を一つの平面に移します (平均法線、その中心を通る)。**{{MdCollapse}}** (Ctrl+Alt+C) はつながった各グループを一つの頂点にし、**{{MdSlice}}** は軸に垂直な平面で、**{{MdQuickSlice}}** (Ctrl+Shift+Q) はビューで 2 回クリックした線で切ります。**{{MdHinge}}** はポリゴンを境界エッジの一つを軸に回します。**{{MdBridge}}** は 2 つの境界か 2 つのポリゴンを四角形の帯でつなぎます。**{{MdRemove}}** はエッジや"
         "頂点を溶解し、**{{MdDelete}}** は穴を残します。**{{MdDetach}}** はポリゴンを切り離すか、別テクスチャの新しいサーフェスへ。**{{MdSymmetrize}}** は半分をミラー。"
         "**{{MdCreate}}** は UV 付きのボックス、平面、円柱、球、円錐、チューブ、トーラスを追加します。動作できないツールは理由を示し (例: エッジに 3 つ目のポリゴンが付く)、何も変えません。"
         "新しい頂点はポリゴンの UV を受け継ぎ、隣接頂点のボーンウェイトを混ぜます (最大 4、合計 1)。",
@@ -107,7 +107,7 @@ X = {
         "deja todo como estaba. Cada herramienta es un paso de deshacer. **{{MdExtrude}}** eleva polígonos (grupo, normal local o por polígono) o hace crecer una "
         "franja desde un borde; **{{MdInset}}** pone dentro una copia más pequeña, cada arista a la misma distancia; **{{MdBevel}}** extruye y cambia el contorno; "
         "**{{MdChamfer}}** sustituye aristas por franjas o corta vértices; **{{MdConnect}}** y **{{MdLoopCut}}** añaden aristas a través de polígonos; **{{MdCut}}** "
-        "corta haciendo clic en aristas y vértices uno tras otro; **{{MdWeld}}**, **{{MdTargetWeld}}** y **{{MdMerge}}** unen vértices; **{{MdBridge}}** une dos "
+        "corta haciendo clic en aristas y vértices uno tras otro; **{{MdWeld}}**, **{{MdTargetWeld}}** y **{{MdMerge}}** unen vértices; **{{MdEben}}** (Alt+M) lleva la selección a un plano (normal media, por su centro); **{{MdCollapse}}** (Ctrl+Alt+C) convierte cada grupo conectado en un vértice; **{{MdSlice}}** corta por un plano perpendicular a un eje y **{{MdQuickSlice}}** (Ctrl+Mayús+Q) por la línea de dos clics en una vista; **{{MdHinge}}** gira polígonos alrededor de una de sus aristas de borde; **{{MdBridge}}** une dos "
         "bordes o dos polígonos con una banda de cuadriláteros; **{{MdRemove}}** disuelve aristas y vértices, **{{MdDelete}}** deja un agujero; **{{MdDetach}}** "
         "separa polígonos o los pasa a una nueva superficie con su propia textura; **{{MdSymmetrize}}** refleja una mitad; **{{MdCreate}}** añade caja, plano, "
         "cilindro, esfera, cono, tubo o toro con UV. Una herramienta que no puede actuar dice por qué (por ejemplo: una arista tendría un tercer polígono) y no "
@@ -117,7 +117,7 @@ X = {
         "**{{MdExtrude}}** zvedne polygony (skupina, lokální normála nebo po polygonech) nebo z okraje vytáhne pruh; **{{MdInset}}** vloží dovnitř menší kopii, "
         "každá hrana stejně daleko; **{{MdBevel}}** vysune a změní obrys; **{{MdChamfer}}** nahradí hrany pruhy nebo uřízne vrcholy; **{{MdConnect}}** a "
         "**{{MdLoopCut}}** přidají hrany přes polygony; **{{MdCut}}** řeže postupným klikáním na hrany a vrcholy; **{{MdWeld}}**, **{{MdTargetWeld}}** a "
-        "**{{MdMerge}}** slučují vrcholy; **{{MdBridge}}** spojí dva okraje nebo dva polygony pásem čtyřúhelníků; **{{MdRemove}}** rozpustí hrany a vrcholy, "
+        "**{{MdMerge}}** slučují vrcholy; **{{MdEben}}** (Alt+M) přesune výběr do jedné roviny (průměrná normála, přes jeho střed); **{{MdCollapse}}** (Ctrl+Alt+C) udělá z každé souvislé skupiny jeden vrchol; **{{MdSlice}}** řeže rovinou kolmou k ose a **{{MdQuickSlice}}** (Ctrl+Shift+Q) podél čáry ze dvou kliknutí v pohledu; **{{MdHinge}}** otočí polygony kolem jedné z jejich okrajových hran; **{{MdBridge}}** spojí dva okraje nebo dva polygony pásem čtyřúhelníků; **{{MdRemove}}** rozpustí hrany a vrcholy, "
         "**{{MdDelete}}** zanechá díru; **{{MdDetach}}** oddělí polygony nebo je přesune do nové plochy s vlastní texturou; **{{MdSymmetrize}}** zrcadlí polovinu; "
         "**{{MdCreate}}** přidá kvádr, rovinu, válec, kouli, kužel, trubku nebo torus s UV. Nástroj, který nemůže pracovat, řekne proč (například: hrana by "
         "dostala třetí polygon) a nic nezmění. Nové vrcholy převezmou UV svého polygonu a smíchají váhy kostí sousedů (nejvýše čtyři, součet 1)."),
