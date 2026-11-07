@@ -68,19 +68,27 @@ void kinderAusEltern(Inhalt& in) {
 }  // namespace
 
 void Netz::aufbauen(std::vector<Ecke> e, const std::vector<std::uint32_t>& indizes) {
-    ecken = std::move(e);
     // Punkte: gleicher Ort, gleicher Punkt (in der Reihenfolge der Ecken nummeriert).
-    punktVon.assign(ecken.size(), -1);
-    punktZahl = 0;
+    std::vector<int> punkte(e.size(), -1);
+    int zahl = 0;
     std::unordered_map<OrtSchluessel, int, OrtHash> orte;
-    orte.reserve(ecken.size());
-    for (std::size_t i = 0; i < ecken.size(); ++i) {
+    orte.reserve(e.size());
+    for (std::size_t i = 0; i < e.size(); ++i) {
         OrtSchluessel k{};
-        std::memcpy(k.b, ecken[i].ort, sizeof k.b);
-        const auto [it, neu] = orte.emplace(k, punktZahl);
-        if (neu) { ++punktZahl; }
-        punktVon[i] = it->second;
+        std::memcpy(k.b, e[i].ort, sizeof k.b);
+        const auto [it, neu] = orte.emplace(k, zahl);
+        if (neu) { ++zahl; }
+        punkte[i] = it->second;
     }
+    aufbauen(std::move(e), indizes, punkte);
+}
+
+void Netz::aufbauen(std::vector<Ecke> e, const std::vector<std::uint32_t>& indizes, const std::vector<int>& punkte) {
+    ecken = std::move(e);
+    punktVon = punkte;
+    punktVon.resize(ecken.size(), 0);
+    punktZahl = 0;
+    for (const int p : punktVon) { punktZahl = std::max(punktZahl, p + 1); }
     const std::size_t dreiecke = indizes.size() / 3U;
     kanten.assign(dreiecke * 3U, Halbkante{});
     for (std::size_t t = 0; t < dreiecke; ++t) {

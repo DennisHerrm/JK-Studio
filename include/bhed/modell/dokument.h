@@ -96,11 +96,17 @@ struct Netz {
     std::vector<std::uint8_t> uvDateiNaht;
     std::vector<std::uint8_t> uvPin;
     std::vector<std::uint8_t> uvFrei;
+    // Modell-Block 1d: je Dreieck das Vieleck, zu dem es gehoert (Modellieren arbeitet auf Vielecken wie 3ds Max Editable
+    // Poly; JKA kennt nur Dreiecke). Nicht in der Datei; leer oder falsch lang = jedes Dreieck ein Vieleck.
+    std::vector<int> polyVon;
 
     [[nodiscard]] int dreiecke() const noexcept { return static_cast<int>(kanten.size() / 3U); }
     // Ecken und Dreiecke (drei Eckindizes je Dreieck) uebernehmen und die
     // Halbkanten aufbauen. Ungueltige Indizes werden zu 0 (wie readGlm).
     void aufbauen(std::vector<Ecke> e, const std::vector<std::uint32_t>& indizes);
+    // Modell-Block 1d: mit festen Punkten je Ecke (das Arbeitsnetz des Modellierens kennt Punkte, die am selben Ort
+    // getrennt bleiben: Detach als Element, Extrude mit Hoehe 0). `punkte` gleich lang wie `e`, Nummern ab 0.
+    void aufbauen(std::vector<Ecke> e, const std::vector<std::uint32_t>& indizes, const std::vector<int>& punkte);
     // Die Dreiecke als Eckindizes, in der Reihenfolge der Datei.
     [[nodiscard]] std::vector<std::uint32_t> indizes() const;
     [[nodiscard]] int randKanten() const noexcept;

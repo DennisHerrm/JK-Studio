@@ -204,6 +204,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _aseb()})
             from i18n_uv1b import zeilen_vier as _uv1b   # Modell-Block 1b: UV erstellen
             texte.update({e[0]: e[1:] for e in _uv1b()})
+            from i18n_md1d import zeilen_vier as _md1d   # Modell-Block 1d: Modellieren
+            texte.update({e[0]: e[1:] for e in _md1d()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

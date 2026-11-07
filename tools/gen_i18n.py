@@ -2290,6 +2290,8 @@ from i18n_rt import zeilen_vier as _rt  # noqa: E402  (Modell-Block Stufe 5: Ret
 S += _rt()
 from i18n_uv1b import zeilen_vier as _uv1b  # noqa: E402  (Modell-Block 1b: UV erstellen)
 S += _uv1b()
+from i18n_md1d import zeilen_vier as _md1d  # noqa: E402  (Modell-Block 1d: Modellieren, Requisite in die Karte)
+S += _md1d()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

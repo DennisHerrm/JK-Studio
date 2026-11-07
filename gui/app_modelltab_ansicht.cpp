@@ -626,6 +626,7 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
         }
     }
     modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
+    if (t.bereich == ModellBereich::Modellieren) { modellMeshUeberlagerung(a, dl); }   // Modell-Block 1d: Vielecke, Auswahl
     // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor)
     t.uv.nahtStriche3d = 0;
     if (t.bereich == ModellBereich::Uv) {
@@ -1808,7 +1809,9 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         t.rahmen = false;
         const ImVec2 start{t.rahmenStart[0], t.rahmenStart[1]};
         const bool klick = std::hypot(io.MousePos.x - start.x, io.MousePos.y - start.y) < 4.0F;
-        if (t.auswahlArt != AuswahlArt::Objekt) {   // mb1a2: Ecke, Kante, Dreieck, Rand, Element
+        if (t.bereich == ModellBereich::Modellieren && modellMeshKlick(a, klick, start, io.MousePos)) {
+            // Modell-Block 1d: Punkte, Kanten, Raender, Vielecke, Elemente des Arbeitsnetzes (und Cut / Target Weld)
+        } else if (t.auswahlArt != AuswahlArt::Objekt) {   // mb1a2: Ecke, Kante, Dreieck, Rand, Element
             eckenWahlAendern(klick ? eckenUnter(a, io.MousePos) : eckenImRahmen(a, start, io.MousePos));
         } else if (klick) {
             const int f = flaecheUnter(a, io.MousePos);
@@ -1894,6 +1897,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
 }  // namespace
 
 bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { return aufSchirm(a, p, out); }
+// Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
+bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
+const std::vector<std::vector<std::array<float, 3>>>& modellHaut() { return haut(); }
+bool modellTeilGezeichnet(int teil) { return teil >= 0 && gezeichnet(static_cast<std::size_t>(teil)); }
 
 void modellAnsichtEinpassenAktiv() {
     ModellTab& t = mt();
@@ -1996,6 +2003,7 @@ void drawModellArbeitsflaeche() {
     drawModellAnimEditor();      // Stufe 3b: Dopesheet / Kurveneditor
     drawModellModusMenue();
     drawModellUvPopups();   // Modell-Block 1b
+    drawModellMeshPopups();   // Modell-Block 1d
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
         t.kontextOeffnen = false;

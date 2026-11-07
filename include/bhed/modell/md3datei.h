@@ -10,6 +10,11 @@
 //                           die Ecke stammt (Ecke::dateiIndex); die Reihenfolge der Abschnitte wie in der Datei
 //   alles andere            Kopf, Bilder, Tags und was hinter den Flaechen steht, wie gelesen; die Versaetze neu
 //
+// Modell-Block 1d (Modellieren): eine bewegte Ecke schreibt in Bild 0 den Ort des Dokuments, in den anderen Bildern den
+// der Datei um denselben Weg verschoben; neue Ecken in jedem Bild den Ort des Dokuments; neue Teile werden neue Flaechen;
+// Kasten und Radius der Bilder dann neu (RadiusFromBounds). Ohne gelesene Datei (Grundkoerper) entsteht eine neue .md3
+// mit einem Bild, ohne Tags, je Teil eine Flaeche mit seinem Shader.
+//
 // md3Paket (bhed/karte/modellimport.h) schreibt dagegen ein neues Requisit mit einem Bild und teilt Flaechen auf - fuer
 // ein unveraendertes Modell aus dem Spiel waere das nicht dieselbe Datei.
 #ifndef BHED_MODELL_MD3DATEI_H
@@ -23,8 +28,8 @@ struct Md3SchreibBericht {
     int ecken = 0;           // Ecken in allen Flaechen
     std::string fehler;
 };
-// false: nicht schreibbar (Grund in bericht.fehler) - keine gelesene .md3, Flaechen passen nicht zur Datei, eine Ecke
-// ohne Datei-Ecke, mehr Ecken als die Grenze (SHADER_MAX_VERTEXES: R_LoadMD3 weist die Flaeche ab).
+// false: nicht schreibbar (Grund in bericht.fehler) - keine .md3, weniger Teile als Flaechen in der Datei, mehr Ecken als
+// die Grenze (SHADER_MAX_VERTEXES: R_LoadMD3 weist die Flaeche ab).
 [[nodiscard]] bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3SchreibBericht* bericht = nullptr);
 }  // namespace bhed::modell
 #endif

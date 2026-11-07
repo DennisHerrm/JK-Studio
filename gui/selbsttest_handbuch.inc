@@ -2374,6 +2374,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_rt.inc: Modell-Block St
 namespace uv1b {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_uv.inc: Modell-Block 1b, BHED_HB_NUR=uv
 }  // namespace uv1b
+namespace md1d {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_md.inc: Modell-Block 1d, BHED_HB_NUR=md
+}  // namespace md1d
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2413,6 +2416,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "uv") == 0) {
         return uv1b::handbuchSchritte();   // Modell-Block 1b: UV erstellen im Model-Tab
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "md") == 0) {
+        return md1d::handbuchSchritte();   // Modell-Block 1d: Modellieren, Requisite in die Karte
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

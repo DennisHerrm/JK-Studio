@@ -874,7 +874,19 @@ void attributZeichnen(const std::string& schluessel, const karte::KlassenAttribu
         if (anwenden) { setzen(zahlText(alsZahl(t[0])) + ' ' + zahlText(alsZahl(t[1])) + ' ' + zahlText(alsZahl(t[2]))); }
     } else if (typ == "color" || typ == "sound" || typ == "model") {   // Feld mit "..." hinten
         const float knopfB = ImGui::GetFrameHeight();
-        if (nichtModal((id + "w").c_str(), wert, breite - knopfB, neu)) { setzen(neu); }
+        // Modell-Block 1d: ein .md3 laesst sich im Model-Tab bearbeiten (Knopf vor "...")
+        std::string klein = wert;
+        for (char& c : klein) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const bool md3 = typ == "model" && klein.size() > 4 && klein.compare(klein.size() - 4, 4, ".md3") == 0;
+        if (nichtModal((id + "w").c_str(), wert, breite - knopfB * (md3 ? 2.0F : 1.0F), neu)) { setzen(neu); }
+        if (md3) {
+            ImGui::SameLine(0.0F, 0.0F);
+            const ImVec2 mp = ImGui::GetCursorScreenPos();
+            if (ImGui::InvisibleButton((id + "m").c_str(), ImVec2{knopfB, knopfB})) { (void)bhed::gui::modellRequisitBearbeiten(wert); }
+            ImGui::SetItemTooltip("%s", trK(Str::MdImModelTab));
+            karteIcon(ImGui::GetWindowDrawList(), "modify_vertices", ImVec2{mp.x + (knopfB - px(16.0F)) * 0.5F, mp.y + (knopfB - px(16.0F)) * 0.5F}, px(16.0F),
+                      stil(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+        }
         ImGui::SameLine(0.0F, 0.0F);
         const ImVec2 kp = ImGui::GetCursorScreenPos();
         if (ImGui::InvisibleButton((id + "b").c_str(), ImVec2{knopfB, knopfB})) {

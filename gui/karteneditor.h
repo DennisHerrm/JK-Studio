@@ -1974,6 +1974,13 @@ struct ModellUmwandlung {
 // Unterkante auf dem Boden der Spielkollision; ein Rueckgaengig-Schritt. false: Klasse fehlt im Spiel (Grund in der
 // Konsole) oder Modell nicht lesbar.
 bool modellEinsetzen(const std::string& pfad, ImVec2 punkt);
+// Modell-Block 1d: Requisiten aus dem Model-Tab - Name der offenen Karte fuer models/map_objects/<karte>/, eine Datei
+// des Dateisystems der Karte (mit dem Ort auf der Platte, wenn sie lose in einem Ordner liegt), Einsetzen am Mittelpunkt
+// der Kamera, sobald das Dateisystem sie findet
+[[nodiscard]] std::string requisitKarte();
+bool requisitDateiLesen(const std::string& vfs, std::string& bytes, std::string* platte);
+void requisitEinsetzen(const std::string& vfs);
+[[nodiscard]] bool requisitWartet();
 // Klasse (misc_model / misc_model_static) und Kollision - im Asset-Browser unter "Modelle"
 void modellSetzOptionen();
 int& modellSetzKlasse();      // 0 misc_model, 1 misc_model_static

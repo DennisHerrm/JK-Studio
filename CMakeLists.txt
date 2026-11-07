@@ -135,6 +135,12 @@ add_library(bhed_core STATIC
   src/modell/wof/uv_pruefen.cpp
   src/modell/wof/uv_befehle.cpp
   src/modell/wof/uv_formkarten.cpp
+  # Modell-Block 1d: Modellieren (Vielecke, Werkzeuge, Grundkoerper) - ebenso aus WhiteoutLib/WhiteoutFlakes abgeleitet,
+  # siehe bhed/modell/wof/poly.h
+  src/modell/wof/mesh_netz.cpp
+  src/modell/wof/mesh_werkzeuge.cpp
+  src/modell/wof/mesh_werkzeuge2.cpp
+  src/modell/wof/mesh_grundkoerper.cpp
   src/camtrack.cpp
   src/scene.cpp
   # rc602: SP_NPC_* -> NPC_type (beide Regelwerke), siehe bhed/npcklasse.h.
@@ -490,6 +496,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_physik.cpp
     gui/app_modelltab_retarget.cpp
     gui/wof/app_modelltab_uv.cpp
+    gui/wof/app_modelltab_mesh.cpp
     gui/app_animation.cpp
     gui/app_figuranim.cpp
     gui/app_wetter.cpp
@@ -1022,6 +1029,10 @@ if(BEHAVED_TESTS)
   add_executable(modelluvtest tests/modell_uv.cpp)
   target_link_libraries(modelluvtest PRIVATE bhed_core)
   add_test(NAME modell_uv COMMAND modelluvtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+  # Modell-Block 1d: Modellieren (Werkzeuge, Grundkoerper, Grenzen, Rundlauf)
+  add_executable(modellmeshtest tests/modell_mesh.cpp)
+  target_link_libraries(modellmeshtest PRIVATE bhed_core)
+  add_test(NAME modell_mesh COMMAND modellmeshtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest

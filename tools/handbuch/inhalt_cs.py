@@ -7563,3 +7563,5 @@ from inhalt_rt import CS as _RT  # noqa: E402
 TEXTE.update(_RT)
 from inhalt_uv1b import CS as _UV1B  # noqa: E402
 TEXTE.update(_UV1B)
+from inhalt_md1d import CS as _MD1D  # noqa: E402
+TEXTE.update(_MD1D)

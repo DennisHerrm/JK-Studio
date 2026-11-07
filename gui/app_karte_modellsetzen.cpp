@@ -26,6 +26,7 @@
 #include "bhed/modellsetzen.h"
 #include "bhed/regelwerk.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -47,6 +48,7 @@ struct SetzZustand {
     bool kollision = false;
     std::map<std::string, std::pair<std::string, modellsetzen::DateiStand>> staende;   // Live: Fundort und Stand
     double uhr = -1.0;
+    std::string requisitWartet;   // Modell-Block 1d: ein Requisit, das eingesetzt wird, sobald das Dateisystem es findet
 };
 SetzZustand& z() {
     static SetzZustand s;
@@ -243,8 +245,60 @@ bool modellEinsetzen(const std::string& quellPfad, ImVec2 punkt) {
     return true;
 }
 
+// --- Modell-Block 1d: Requisiten aus dem Model-Tab ---------------------------------------------------------------
+
+std::string requisitKarte() {
+    // Map_Name ohne Ordner und Endung; "unnamed.map" (Map_Unnamed) -> "unnamed"
+    std::string n = fileName(e().name);
+    const std::size_t punkt = n.rfind('.');
+    if (punkt != std::string::npos) { n = n.substr(0, punkt); }
+    std::string aus;
+    for (const char c : n) {
+        const auto u = static_cast<unsigned char>(c);
+        aus += std::isalnum(u) != 0 || c == '_' || c == '-' ? static_cast<char>(std::tolower(u)) : '_';
+    }
+    return aus.empty() ? std::string("unnamed") : aus;
+}
+
+bool requisitDateiLesen(const std::string& vfs, std::string& bytes, std::string* platte) {
+    const auto& sp = spielKontext();
+    if (!sp || !sp->fs.dateiLesen(vfs, bytes)) { return false; }
+    if (platte != nullptr) {
+        bool ordner = false;
+        const std::string wurzel = sp->fs.finden(vfs, &ordner);
+        *platte = ordner && !wurzel.empty() ? wurzel + vfs : std::string();
+    }
+    return true;
+}
+
+// Am Mittelpunkt der Kamera einsetzen, sobald das Dateisystem der Karte die Datei findet (ein neuer Import-Ordner kommt
+// erst mit dem naechsten EnginePath_Realise in den Suchpfad: spielPruefen laedt im Hintergrund)
+void requisitEinsetzen(const std::string& vfs) {
+    modellVergessen(vfs);
+    z().requisitWartet = vfs;
+    z().staende.erase(vfs);
+}
+
+bool requisitWartet() { return !z().requisitWartet.empty(); }
+
+namespace {
+void requisitWeiter() {
+    Editor& ed = e();
+    if (z().requisitWartet.empty() || ed.spielLaden.valid()) { return; }
+    const auto& sp = spielKontext();
+    std::string b;
+    if (!sp || !sp->fs.dateiLesen(z().requisitWartet, b)) { return; }
+    const std::string vfs = z().requisitWartet;
+    z().requisitWartet.clear();
+    const KameraFenster& kf = ed.kamFenster;
+    const ImVec2 mitte{kf.bildX + static_cast<float>(kf.breite) * 0.5F, kf.bildY + static_cast<float>(kf.hoehe) * 0.5F};
+    (void)modellEinsetzen(vfs, mitte);
+}
+}  // namespace
+
 void modellLiveWacheKarte() {
     Editor& ed = e();
+    requisitWeiter();
     const double jetzt = ImGui::GetTime();
     if (z().uhr >= 0.0 && jetzt - z().uhr < 1.0) { return; }
     z().uhr = jetzt;

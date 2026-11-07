@@ -5153,6 +5153,11 @@ void drawMenu() {
         modellAnimationMenue();
         ImGui::EndMenu();
     }
+    // Modell-Block 1d: ein Menue "Modellieren" (3ds Max: Edit Poly; Blender: die Menues Mesh/Vertex/Edge/Face)
+    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::MdMenue))) {
+        modellMeshMenue();
+        ImGui::EndMenu();
+    }
     // Modell-Block 1b: ein Menue "UV" (3ds Max: Unwrap UVW; Blender: das Menue UV)
     if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::UvMenue))) {
         modellUvMenue();

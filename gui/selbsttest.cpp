@@ -40,6 +40,7 @@
 #include "bhed/gpucam.h"   // mb1a2: selbsttest_mb1a2.inc
 #include "bhed/modell/animcfg.h"    // Stufe 2: selbsttest_mb2.inc
 #include "bhed/modell/glmdatei.h"   // Stufe 2: selbsttest_mb2.inc
+#include "bhed/modell/md3datei.h"   // Modell-Block 1d: selbsttest_md.inc
 #include "bhed/modell/rig.h"        // Stufe 3: selbsttest_mb3.inc
 #include "bhed/modell/ik.h"         // Stufe 4: selbsttest_mb6.inc
 #include "bhed/gpuskin.h"  // mb1a2
@@ -5751,6 +5752,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ph.inc"         // Modell-Block Stufe 6: Auto-Physik (modellblock, BHED_MODELL_NUR=ph|phspiel|phzeit)
 #include "selbsttest_rt.inc"         // Modell-Block Stufe 5: Retargeting (modellblock, BHED_MODELL_NUR=rt|rtjka|rtspiel|rtzeit)
 #include "selbsttest_uv.inc"         // Modell-Block 1b: UV erstellen (modellblock, BHED_MODELL_NUR=uv|uvmd3|uvspiel|uvzeit|uvhb)
+#include "selbsttest_md.inc"         // Modell-Block 1d: Modellieren, Requisite in die Karte (modellblock, BHED_MODELL_NUR=md|mdkarte)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6725,6 +6727,7 @@ void selbsttest() {
                     for (Schritt& x : ph6::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 6
                     for (Schritt& x : rt5::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 5
                     for (Schritt& x : uv1b::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1b
+                    for (Schritt& x : md1d::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1d
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

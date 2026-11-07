@@ -32,6 +32,7 @@
 #include "bhed/modell/physik.h"
 #include "bhed/modell/retarget.h"
 #include "bhed/modell/rig.h"
+#include "bhed/modell/wof/poly.h"
 #include "bhed/modell/wof/uv.h"
 
 namespace bhed::gpu {
@@ -224,6 +225,56 @@ struct ModellUv {
     bool texturDa = false;
     float leinwand[4]{};          // Lage der Leinwand im letzten Bild (x, y, b, h)
     double bildMs = 0.0;          // CPU-Zeit des Editors im letzten Bild
+};
+
+// Modell-Block 1d: Modellieren (gui/wof/app_modelltab_mesh.cpp) - das Arbeitsnetz der gezeichneten Stufe, die Auswahl je
+// Ebene (wie 3ds Max: jede Unterebene behaelt ihre), das Werkzeugkaestchen (Vorschau, Uebernehmen / + / Abbrechen)
+enum class MeshWerkzeug : int {
+    Keins = 0, Extrude, Inset, Bevel, Chamfer, Connect, LoopCut, Weld, Bridge, Detach, Symmetrize, ToQuads, Merge, Create,
+};
+struct ModellMesh {
+    modell::wof::PolyNetz netz;
+    std::string fuer;                 // Dokument-Stand und Stufe des Netzes
+    modell::wof::PAuswahl auswahl;    // Punkte, Kanten, Vielecke (Nummern des Netzes)
+    std::vector<int> punktFolge;      // Punkte in der Reihenfolge des Waehlens (Merge erster/letzter, Target Weld)
+    // Werkzeugkaestchen
+    MeshWerkzeug werkzeug = MeshWerkzeug::Keins;
+    bool kaestchenOffen = false;
+    modell::Inhalt basis;             // der Inhalt vor dem Werkzeug
+    modell::Inhalt basisMitTeil;      // dazu ein neuer Teil des Plans (Detach, Grundkoerper in einen neuen Teil)
+    modell::wof::PolyNetz basisNetz;
+    modell::wof::PAuswahl basisAuswahl;
+    modell::wof::PolyNetz planNetz;   // nach dem Plan, Betrag 0
+    modell::wof::Plan plan;
+    bool neuPlanen = true;
+    float betrag = 0.0F;
+    int art = 0;                      // Extrude/Inset/Bevel: Art; Detach: 0 Element 1 neuer Teil; Merge: Art
+    int segmente = 1;
+    float hoehe = 8.0F;               // Bevel
+    float schwelle = 0.0F;            // Weld (0: Vorgabe)
+    int verdrehen = 0;                // Bridge
+    int achse = 0;                    // Symmetrize
+    bool vonPlus = true;
+    modell::wof::QuadParam quad;
+    modell::wof::GrundParam grund;
+    bool grundNeuerTeil = false;
+    // Auswahl-Modi in der Ansicht
+    bool cutAn = false;               // Max Cut / Blender Knife: Klicks auf Kanten und Punkte
+    modell::wof::SchnittPunkt cutVon;
+    bool cutHatVon = false;
+    bool zielWeldAn = false;          // Target Weld: Klick auf den Zielpunkt
+    int zielQuelle = -1;
+    // Requisit in die Karte
+    char requisitName[48] = "prop";
+    std::string requisitVfs;          // models/map_objects/<karte>/<name>.md3, wenn eingesetzt
+    // Meldung und Selbsttest
+    std::string meldung;
+    int befehle = 0;
+    std::string letzterBefehl;
+    int kantenGezeichnet = 0;         // Kanten der Ueberlagerung im letzten Bild
+    float kaestchenLage[4]{};         // Werkzeugkaestchen im letzten Bild (x, y, b, h)
+    bool menueOeffnen = false;        // Blender-Menues (Alt+E, M, X, Strg+F ...) und das Kontextmenue
+    int menueArt = 0;
 };
 
 struct ModellTab {
@@ -462,6 +513,7 @@ struct ModellTab {
     std::string posenOrdnerJetzt; // Selbsttest: der Ordner der letzten Posen-Datei
     ModellRetarget rt;            // Stufe 5
     ModellUv uv;                  // Modell-Block 1b
+    ModellMesh mesh;              // Modell-Block 1d
 };
 
 // Modell-Block 1b: UV (gui/wof/app_modelltab_uv.cpp)
@@ -485,6 +537,35 @@ void modellUvNetzAktualisieren();
 [[nodiscard]] int modellUvGruppenZahl();   // Texturen (Gruppen) der gezeichneten Stufe
 // .md3 im Model-Tab (Modell-Block 1b): lesen ins Dokument und als Modell zeigen; false mit Grund
 bool modellMd3Oeffnen(const std::string& bytes, const std::string& name, std::string* fehler);
+
+// Modell-Block 1d: Modellieren (gui/wof/app_modelltab_mesh.cpp)
+void drawModellMeshBereich();               // Rollouts im Befehlsfeld
+void modellMeshMenue();                     // Hauptmenue "Modellieren"
+void modellMeshKontextMenue();              // Rechtsklick in der Ansicht
+bool modellMeshTasten();
+bool modellMeshAktionenSuche(const std::string& such);
+void drawModellMeshPopups();                // Werkzeugkaestchen und Menues
+void modellMeshUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+// ein Klick oder Rahmen in der Ansicht im Bereich Modellieren (true: verbraucht)
+bool modellMeshKlick(const ModellAnsicht& a, bool klick, ImVec2 start, ImVec2 ende);
+void modellMeshNetzAktualisieren();
+[[nodiscard]] int modellMeshAktionZahl();
+[[nodiscard]] int modellMeshAktionGruppe(int i);
+[[nodiscard]] const char* modellMeshAktionText(int i);
+[[nodiscard]] const char* modellMeshAktionHinweis(int i);
+[[nodiscard]] const char* modellMeshAktionTaste(int i, bool blender);
+void modellMeshAktionAusloesen(int i);
+bool modellMeshWerkzeugStarten(MeshWerkzeug w);
+void modellMeshUebernehmen(bool weiter);
+void modellMeshAbbrechen();
+void modellMeshVorschau();                  // nach einer Aenderung der Werte des Kaestchens
+bool modellNeuesRequisit();                 // ein leeres .md3-Dokument (ein Teil) zum Modellieren
+bool modellRequisitInKarte();               // als .md3 in den Import-Ordner und als misc_model in die offene Karte
+bool modellRequisitBearbeiten(const std::string& vfsPfad);   // Rueckweg: ein .md3 der Karte im Model-Tab
+// fuer die Ansicht (gui/app_modelltab_ansicht.cpp)
+bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
+const std::vector<std::vector<std::array<float, 3>>>& modellHaut();
+bool modellTeilGezeichnet(int teil);
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
 void modellDokumentLaden(const std::string& bytes);
