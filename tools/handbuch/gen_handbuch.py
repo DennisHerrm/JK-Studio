@@ -206,6 +206,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _uv1b()})
             from i18n_md1d import zeilen_vier as _md1d   # Modell-Block 1d: Modellieren
             texte.update({e[0]: e[1:] for e in _md1d()})
+            from i18n_pjka import zeilen_vier as _pjka   # p_jka: Max-Tasten, Make Planar
+            texte.update({e[0]: e[1:] for e in _pjka()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

@@ -170,6 +170,8 @@ enum class Ablehnung : std::uint8_t {
     KeinViereck,     // Loop Cut: der Ring braucht Vierecke
     Tag,             // ein Tag (G2SURFACEFLAG_ISBOLT) ist genau ein Dreieck - Werkzeuge lassen ihn aus
     VerschiedeneTeile,  // DifferentMeshes
+    NichtsGeschnitten,  // NothingToSlice
+    HingeNichtAmRand,   // HingeNotOnBoundary
 };
 
 struct Bewegung {
@@ -249,6 +251,14 @@ struct QuadParam {
     bool naehteAchten = true;       // delimitFlagged: nie ueber UV-Naht oder harte Kante
 };
 [[nodiscard]] Plan zuVierecken(PolyNetz& n, const std::vector<int>& flaechen, const QuadParam& p);
+// Max Slice (Edit Geometry) / QuickSlice, WL PlanSlice: die Vielecke (leer: alle) an einer Ebene teilen
+[[nodiscard]] Plan schneidenEbene(PolyNetz& n, const std::vector<int>& flaechen, const float ursprung[3], const float normale[3]);
+[[nodiscard]] Plan schneiden(PolyNetz& n, const std::vector<int>& flaechen, int achse, float ort);   // Ebene quer zur Achse
+// Max Hinge From Edge, WL PlanHingeFaces: die Vielecke um eine Randkante der Auswahl gedreht (Winkel in Grad)
+[[nodiscard]] Plan hinge(PolyNetz& n, const std::vector<int>& flaechen, std::pair<int, int> kante, float winkelGrad);
+[[nodiscard]] std::vector<std::pair<int, int>> hingeKanten(PolyNetz& n, const std::vector<int>& flaechen);   // die moeglichen Scharniere
+// Max Make Planar (Alt+M): die Punkte der Auswahl in eine Ebene (Normale gemittelt, durch ihre Mitte)
+[[nodiscard]] Plan ebenMachen(PolyNetz& n, const PAuswahl& a, PEbene ebene);
 enum class MergeArt : std::uint8_t { Mitte = 0, Erster, Letzter };
 // Blender Merge (M) / Max Collapse: jede zusammenhaengende Gruppe der Auswahl wird ein Punkt
 [[nodiscard]] Plan mergen(PolyNetz& n, const std::vector<int>& punkte, MergeArt art);

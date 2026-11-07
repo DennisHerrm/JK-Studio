@@ -309,7 +309,7 @@ std::map<int, V> einrueckRichtungen(const PolyNetz& n, const std::vector<RandKan
 
 // Gemeinsamer Kern von Extrude und Inset: jede Region bekommt Kopien ihrer Randpunkte und Waende an jeder Randkante.
 // Gibt je Region die Abbildung alter -> neuer Punkt zurueck.
-std::vector<std::map<int, int>> hebeRegionen(PolyNetz& n, const std::vector<std::vector<int>>& rs, Plan& p) {
+std::vector<std::map<int, int>> hebeRegionen(PolyNetz& n, const std::vector<std::vector<int>>& rs, Plan& p, const std::set<int>& fest = {}) {
     std::vector<std::map<int, int>> kopien;
     std::vector<std::vector<RandKante>> raender;
     for (const auto& r : rs) { raender.push_back(regionsRand(n, r)); }
@@ -329,7 +329,9 @@ std::vector<std::map<int, int>> hebeRegionen(PolyNetz& n, const std::vector<std:
                 }
             }
         }
-        for (const int pt : randPunkte) { kopie[pt] = neuerPunkt(n, ort(n, pt), n.punkte[uz(pt)].teil); }
+        for (const int pt : randPunkte) {
+            if (fest.count(pt) == 0U) { kopie[pt] = neuerPunkt(n, ort(n, pt), n.punkte[uz(pt)].teil); }   // Hinge: fest bleibt
+        }
         kopien.push_back(kopie);
     }
     // Waende (alte Ecken aus dem Vieleck der Region), dann die Vielecke der Region auf die Kopien
@@ -340,16 +342,21 @@ std::vector<std::map<int, int>> hebeRegionen(PolyNetz& n, const std::vector<std:
             const int kk = zi(f.ecken.size());
             const Ecke ea = f.ecken[uz(k.ecke)].e;
             const Ecke eb = f.ecken[uz((k.ecke + 1) % kk)].e;
-            // Wand a -> b -> b' -> a' (teilt a-b mit dem Nachbarn, der b -> a hat; b'-a' mit der Region, die a' -> b' hat)
-            std::vector<PEcke> w(4);
-            w[0].punkt = k.a;
-            w[0].e = ea;
-            w[1].punkt = k.b;
-            w[1].e = eb;
-            w[2].punkt = kopie.at(k.b);
-            w[2].e = eb;
-            w[3].punkt = kopie.at(k.a);
-            w[3].e = ea;
+            // Wand a -> b -> b' -> a' (teilt a-b mit dem Nachbarn, der b -> a hat; b'-a' mit der Region, die a' -> b' hat);
+            // ein fester Punkt (Hinge) hat keine Kopie: die Wand wird ein Dreieck, zwischen zwei festen gibt es keine
+            const auto kopieVon = [&](int x) {
+                const auto it = kopie.find(x);
+                return it == kopie.end() ? x : it->second;
+            };
+            std::vector<PEcke> w;
+            for (const auto& [pt, e] : {std::pair<int, Ecke>{k.a, ea}, {k.b, eb}, {kopieVon(k.b), eb}, {kopieVon(k.a), ea}}) {
+                if (std::any_of(w.begin(), w.end(), [&](const PEcke& c) { return c.punkt == pt; })) { continue; }
+                PEcke c;
+                c.punkt = pt;
+                c.e = e;
+                w.push_back(c);
+            }
+            if (w.size() < 3U) { continue; }   // zwei feste Punkte: die Scharnierkante, keine Wand
             (void)neueFlaeche(n, std::move(w), f.teil);
             ++p.geaendert;
         }
@@ -1165,6 +1172,193 @@ Plan schnitt(PolyNetz& n, const SchnittPunkt& von, const SchnittPunkt& nach) {
     ++p.geaendert;
     p.auswahl.kanten.push_back(kantenPaar(a, b));
     p.auswahl.punkte.push_back(b);   // der naechste Schnitt beginnt hier (Max Cut laeuft weiter)
+    fertig(n, p);
+    return p;
+}
+
+// --- Slice ----------------------------------------------------------------------------------------------------------
+
+Plan schneidenEbene(PolyNetz& n, const std::vector<int>& flaechen, const float ursprung[3], const float normale[3]) {
+    // WL PlanSlice (§3.14, Max Slice Plane / QuickSlice): an der Polygon-/Element-Ebene nur die gewaehlten Vielecke, sonst
+    // alle. Jede Kante, die die Ebene echt kreuzt, bekommt einen Punkt (auch im Nachbarvieleck - keine T-Stelle, UV gemischt);
+    // ein Punkt innerhalb der Toleranz des Netzes wird auf die Ebene gezogen und ist selbst der Kreuzungspunkt. Jedes
+    // Vieleck wird zwischen seinen Kreuzungen geteilt, der Reihe nach entlang der Schnittlinie gepaart (ein nicht konvexes
+    // kreuzt viermal). Nichts gekreuzt: abgelehnt.
+    Plan p;
+    n.kantenBauen();
+    const V nrm = einheit(V{normale[0], normale[1], normale[2]});
+    const V o{ursprung[0], ursprung[1], ursprung[2]};
+    if (!(laenge(nrm) > 0.0)) {
+        p.grund = Ablehnung::LeereAuswahl;
+        return p;
+    }
+    std::vector<int> ziel;
+    if (flaechen.empty()) {
+        for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+            if (!n.flaechen[f].weg) { ziel.push_back(zi(f)); }
+        }
+    } else {
+        for (const int f : flaechen) {
+            if (f >= 0 && uz(f) < n.flaechen.size() && !n.flaechen[uz(f)].weg) { ziel.push_back(f); }
+        }
+    }
+    if (ziel.empty()) {
+        p.grund = Ablehnung::LeereAuswahl;
+        return p;
+    }
+    const auto abstand = [&](int pt) { return punkt(ort(n, pt) - o, nrm); };
+    // auf die Ebene: senkrecht projiziert; liegt die Normale auf einer Achse, ist die Koordinate genau die der Ebene
+    const auto aufEbene = [&](V q, float out[3]) {
+        vNach(q - nrm * punkt(q - o, nrm), out);
+        for (int c = 0; c < 3; ++c) {
+            if (std::abs(normale[c]) > 0.0F && std::abs(normale[(c + 1) % 3]) == 0.0F && std::abs(normale[(c + 2) % 3]) == 0.0F) { out[c] = ursprung[c]; }
+        }
+    };
+    // Toleranz wie WL CoincidenceTolerance in der Groessenordnung des Netzes (Diagonale * 1e-6)
+    double lo[3] = {1e300, 1e300, 1e300}, hi[3] = {-1e300, -1e300, -1e300};
+    for (const PPunkt& q : n.punkte) {
+        if (q.weg) { continue; }
+        for (int c = 0; c < 3; ++c) {
+            lo[c] = std::min(lo[c], static_cast<double>(q.ort[c]));
+            hi[c] = std::max(hi[c], static_cast<double>(q.ort[c]));
+        }
+    }
+    const double eps = std::max(1e-9, laenge(V{hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]}) * 1e-6);
+    std::set<std::pair<int, int>> kanten;
+    std::set<int> treffer;
+    for (const int fi : ziel) {
+        const PFlaeche& f = n.flaechen[uz(fi)];
+        for (int i = 0; i < zi(f.ecken.size()); ++i) {
+            const int a = punktVon(f, i), b = punktVon(f, i + 1);
+            const double da = abstand(a), db = abstand(b);
+            if (std::abs(da) <= eps) { treffer.insert(a); }
+            if ((da < -eps && db > eps) || (da > eps && db < -eps)) { kanten.insert(kantenPaar(a, b)); }
+        }
+    }
+    for (const int pt : treffer) { aufEbene(ort(n, pt), n.punkte[uz(pt)].ort); }
+    for (const auto& [a, b] : kanten) {
+        const double da = abstand(a), db = abstand(b);
+        const double t = da / (da - db);
+        const int neu = neuerPunkt(n, ort(n, a) + (ort(n, b) - ort(n, a)) * t, n.punkte[uz(a)].teil);
+        aufEbene(ort(n, neu), n.punkte[uz(neu)].ort);
+        inKanteEinsetzen(n, a, b, {neu}, {t}, nullptr, 0.0);
+        treffer.insert(neu);
+    }
+    for (const int fi : ziel) {
+        // die Kreuzungen dieses Vielecks entlang der Schnittlinie (Normale der Ebene x Normale des Vielecks)
+        const V linie = kreuz(nrm, newell(n, n.flaechen[uz(fi)]));
+        std::vector<std::pair<double, int>> folge;
+        for (const PEcke& c : n.flaechen[uz(fi)].ecken) {
+            if (treffer.count(c.punkt) != 0U) { folge.emplace_back(punkt(ort(n, c.punkt), linie), c.punkt); }
+        }
+        if (folge.size() < 2U || folge.size() % 2U != 0U) { continue; }
+        std::sort(folge.begin(), folge.end());
+        std::vector<int> teile = {fi};
+        for (std::size_t k = 0; k + 1 < folge.size(); k += 2) {
+            const int x = folge[k].second, y = folge[k + 1].second;
+            for (const int t : teile) {
+                const int i = eckeMit(n.flaechen[uz(t)], x), j = eckeMit(n.flaechen[uz(t)], y);
+                if (i < 0 || j < 0) { continue; }
+                const int neu = teileFlaeche(n, t, i, j);
+                if (neu >= 0) {
+                    teile.push_back(neu);
+                    p.auswahl.kanten.push_back(kantenPaar(x, y));
+                    n.beruehren(n.flaechen[uz(t)].teil);
+                    ++p.geaendert;
+                }
+                break;
+            }
+        }
+    }
+    if (p.geaendert == 0 && kanten.empty()) {
+        p.grund = Ablehnung::NichtsGeschnitten;
+        return p;
+    }
+    fertig(n, p);
+    return p;
+}
+
+Plan schneiden(PolyNetz& n, const std::vector<int>& flaechen, int achse, float ortAufAchse) {
+    float o[3] = {0.0F, 0.0F, 0.0F}, nn[3] = {0.0F, 0.0F, 0.0F};
+    o[std::clamp(achse, 0, 2)] = ortAufAchse;
+    nn[std::clamp(achse, 0, 2)] = 1.0F;
+    return schneidenEbene(n, flaechen, o, nn);
+}
+
+// --- Hinge ----------------------------------------------------------------------------------------------------------
+
+std::vector<std::pair<int, int>> hingeKanten(PolyNetz& n, const std::vector<int>& flaechen) {
+    n.kantenBauen();
+    std::vector<std::pair<int, int>> out;
+    for (const auto& r : regionen(n, flaechen, false)) {
+        for (const RandKante& k : regionsRand(n, r)) { out.push_back(kantenPaar(k.a, k.b)); }
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return out;
+}
+
+Plan hinge(PolyNetz& n, const std::vector<int>& flaechen, std::pair<int, int> kante, float winkelGrad) {
+    // WL PlanHingeFaces (§3.8, Max Hinge From Edge): Extrudes Regionen, Kopien und Waende mit den zwei Punkten der
+    // Scharnierkante festgehalten - nie kopiert, nie bewegt: die Scharnierkante bekommt keine Wand, die Waende daneben sind
+    // Dreiecke. Jede Region dreht sich um dieselbe Achse; der Betrag ist der Winkel in Grad, positiv hebt die Region in
+    // Richtung ihrer Normale.
+    Plan p;
+    n.kantenBauen();
+    const auto rs = regionen(n, flaechen, false);
+    if (rs.empty()) {
+        p.grund = Ablehnung::LeereAuswahl;
+        return p;
+    }
+    std::set<int> alle;
+    for (const auto& r : rs) { alle.insert(r.begin(), r.end()); }
+    const int k = n.kanteVon(kante.first, kante.second);
+    int drin = 0;
+    if (k >= 0) {
+        for (const auto& [g, gi] : n.kanten[uz(k)].seiten) {
+            (void)gi;
+            drin += alle.count(g) != 0U ? 1 : 0;
+        }
+    }
+    if (k < 0 || drin != 1) {   // eine Seite in der Auswahl, die andere nicht (oder keine: Rand des Netzes)
+        p.grund = Ablehnung::HingeNichtAmRand;
+        return p;
+    }
+    const V o = ort(n, kante.first);
+    V d = einheit(ort(n, kante.second) - o);
+    // Richtung so, dass ein positiver Winkel die Mitte der Auswahl entlang ihrer Normale hebt (rechte Hand um d)
+    V mitteSumme, normale;
+    int zahl = 0;
+    for (const int fi : alle) {
+        normale = normale + aussen(n, n.flaechen[uz(fi)]);
+        for (const PEcke& c : n.flaechen[uz(fi)].ecken) {
+            mitteSumme = mitteSumme + ort(n, c.punkt);
+            ++zahl;
+        }
+    }
+    const V m = mitteSumme * (1.0 / std::max(1, zahl));
+    if (punkt(kreuz(d, m - o), normale) < 0.0) { d = d * -1.0; }
+    const std::set<int> fest = {kante.first, kante.second};
+    (void)hebeRegionen(n, rs, p, fest);
+    std::set<int> dreh;
+    for (const auto& r : rs) {
+        for (const int fi : r) {
+            for (const PEcke& c : n.flaechen[uz(fi)].ecken) {
+                if (fest.count(c.punkt) == 0U) { dreh.insert(c.punkt); }
+            }
+            p.auswahl.flaechen.push_back(fi);
+        }
+    }
+    const double w = static_cast<double>(winkelGrad) * kPi / 180.0;
+    const double cw = std::cos(w), sw = std::sin(w);
+    for (const int pt : dreh) {
+        const V v = ort(n, pt) - o;
+        const V r = v * cw + kreuz(d, v) * sw + d * (punkt(d, v) * (1.0 - cw));   // Rodrigues
+        vNach(o + r, n.punkte[uz(pt)].ort);
+        for (const int f : n.punktFlaechen[uz(pt)]) { n.flaechen[uz(f)].neu = true; }
+    }
+    for (const int f : n.punktFlaechen[uz(kante.first)]) { n.flaechen[uz(f)].neu = true; }
+    for (const int f : n.punktFlaechen[uz(kante.second)]) { n.flaechen[uz(f)].neu = true; }
     fertig(n, p);
     return p;
 }

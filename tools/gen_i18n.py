@@ -2294,6 +2294,8 @@ from i18n_md1d import zeilen_vier as _md1d  # noqa: E402  (Modell-Block 1d: Mode
 S += _md1d()
 from i18n_render import zeilen_vier as _render  # noqa: E402  (p_render: bewegte Stufen und Gluehen im Echtzeit-Licht)
 S += _render()
+from i18n_pjka import zeilen_vier as _pjka  # noqa: E402  (p_jka: Max-Tasten des Modellierens, Weg im Tooltip)
+S += _pjka()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

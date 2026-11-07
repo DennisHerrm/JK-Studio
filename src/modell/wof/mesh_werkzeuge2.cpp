@@ -285,6 +285,52 @@ Plan mergen(PolyNetz& n, const std::vector<int>& punkte, MergeArt art) {
     return gruppenLegen(n, gruppen, false);
 }
 
+// --- Make Planar ----------------------------------------------------------------------------------------------------
+
+Plan ebenMachen(PolyNetz& n, const PAuswahl& a, PEbene ebene) {
+    n.kantenBauen();
+    Plan p;
+    const std::vector<int> punkte = auswahlPunkte(n, a);
+    if (punkte.size() < 3U) {
+        p.grund = Ablehnung::LeereAuswahl;
+        return p;
+    }
+    // Autodesk-Hilfe "Additional Panels"/Edit Geometry: "Forces all selected sub-objects to be coplanar. The plane's normal
+    // is the average surface normal of the selection." - an Vielecken die gewaehlten, sonst die Vielecke an den Punkten
+    // (je Vieleck die Einheitsnormale, Newell). Die Ebene liegt in der Mitte der Punkte; jeder Punkt wandert senkrecht
+    // auf sie, die UV jeder Ecke bleibt.
+    std::set<int> flaechen;
+    if (ebene == PEbene::Vieleck || ebene == PEbene::Element) {
+        flaechen.insert(a.flaechen.begin(), a.flaechen.end());
+    } else {
+        for (const int x : punkte) { flaechen.insert(n.punktFlaechen[uz(x)].begin(), n.punktFlaechen[uz(x)].end()); }
+    }
+    V nrm;
+    for (const int fi : flaechen) {
+        if (!n.flaechen[uz(fi)].weg) { nrm = nrm + einheit(newell(n, n.flaechen[uz(fi)])); }
+    }
+    nrm = einheit(nrm);
+    if (!(laenge(nrm) > 0.0)) {
+        p.grund = Ablehnung::LeereAuswahl;
+        return p;
+    }
+    V m;
+    for (const int x : punkte) { m = m + ort(n, x); }
+    m = m * (1.0 / static_cast<double>(punkte.size()));
+    for (const int x : punkte) {
+        const V o = ort(n, x);
+        const double d = punkt(o - m, nrm);
+        if (d == 0.0) { continue; }
+        vNach(o - nrm * d, n.punkte[uz(x)].ort);
+        ++p.geaendert;
+        n.beruehren(n.punkte[uz(x)].teil);
+        for (const int fi : n.punktFlaechen[uz(x)]) { flaecheGeaendert(n.flaechen[uz(fi)]); }
+    }
+    p.auswahl = a;
+    fertig(n, p);
+    return p;
+}
+
 // --- Bridge ---------------------------------------------------------------------------------------------------------
 
 Plan bridgeRaender(PolyNetz& n, std::pair<int, int> ersteKante, std::pair<int, int> zweiteKante, int segmente, int verdrehen) {
