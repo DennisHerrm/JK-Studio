@@ -383,7 +383,8 @@ struct Geplant {
     // F4b: Denken - das think einer Entity nach ihrem "delay" (target_relay_use_go, Think_Target_Delay,
     // scriptrunner_run); wesen = die Entity, ausloeser = ihr activator. Eine Entity hat EIN think: ein neues
     // ersetzt das alte (denkenSetzen).
-    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch, Frei, Denken } art = Art::Benutzen;
+    // mb7: Beginn - NPC_Begin noch einmal, nachdem SpotWouldTelefrag den Spawn verhindert hat (think der Figur, ent->wait spaeter).
+    enum class Art : std::uint8_t { Benutzen, Skript, Spawn, Toeten, Bruch, Frei, Denken, Beginn } art = Art::Benutzen;
     std::string name;         // Benutzen: targetname; Skript: Pfad
     int wesen = -1;           // Skript/Spawn/Denken: auf wem
     int ausloeser = -1;
@@ -406,6 +407,55 @@ public:
     std::set<std::string> vermisst;
 
     void lauf(const Script& start, const std::string& startPfad);
+    // mb7 (Fund 1): die Spawner ohne targetname rufen NPC_Begin beim Laden im ersten Spielbild (kErstesSpielbildMs) in
+    // Entity-Reihenfolge; SpotWouldTelefrag trifft dort die Kaesten der schon begonnenen (NPC_spawn.cpp:1727-1752 MD,
+    // g_client.cpp:284-316 MD). Eine so blockierte Figur mit NPC_targetname gibt es beim Skriptanfang noch nicht; ihr
+    // NPC_Begin kommt ent->wait spaeter wieder (npcBegin). Vor dem Skript ruht alles, die erste Wiederholung, die zaehlt, ist
+    // also die erste ab Skriptanfang (welt_.startImSpielMs).
+    void spawnBeimLadenBlockiert() {
+        if (kartenstart_ || welt_.startImSpielMs < 0.0 || welt_.karte == nullptr) { return; }
+        const std::vector<MapEntity>& ents = welt_.karte->entities;
+        struct Begonnen { float p[3]; std::string name; };
+        std::vector<Begonnen> begonnen;
+        for (std::size_t ei = 0; ei < ents.size(); ++ei) {
+            const MapEntity& e = ents[ei];
+            if (!istNpcSpawner(e) || !e.targetname.empty() || !npcSpawntBeimKartenstart(e)) { continue; }
+            if (welt_.spielstufe >= 0 && !spawntBeiSchwierigkeit(e, welt_.spielstufe)) { continue; }
+            Begonnen b;
+            if (!leseVek(e.origin, b.p)) { continue; }
+            const std::string nt = wertVon(e, "NPC_targetname");
+            b.name = nt.empty() ? e.classname + "#" + std::to_string(ei) : nt;
+            const std::string sf = wertVon(e, "spawnflags");
+            if (!sf.empty() && (std::atoi(sf.c_str()) & 64) != 0) { continue; }   // SFB_NOTSOLID: keine Pruefung, kein Koerper
+            const float hb = welt_.halbBreite ? welt_.halbBreite(b.name) : 16.0F;
+            const float ho = welt_.hoeheOben ? welt_.hoeheOben(b.name) : 40.0F;
+            bool blockiert = false;
+            for (const Begonnen& g : begonnen) {
+                // EntitiesInBox gegen absmin/absmax der anderen (SV_LinkEntity: je 1 weiter), DEFAULT_MINS_2 -24
+                const float gb = welt_.halbBreite ? welt_.halbBreite(g.name) : 16.0F;
+                const float gh = welt_.hoeheOben ? welt_.hoeheOben(g.name) : 40.0F;
+                bool trifft = true;
+                for (int k = 0; k < 2; ++k) { trifft = trifft && g.p[k] - gb - 1.0F <= b.p[k] + hb && g.p[k] + gb + 1.0F >= b.p[k] - hb; }
+                trifft = trifft && g.p[2] - 24.0F - 1.0F <= b.p[2] + ho && g.p[2] + gh + 1.0F >= b.p[2] - 24.0F;
+                blockiert = blockiert || trifft;
+            }
+            if (!blockiert) {
+                begonnen.push_back(std::move(b));
+                continue;
+            }
+            if (nt.empty()) { continue; }
+            const int wi = wesen(nt);
+            Wesen& f = *wesen_[static_cast<std::size_t>(wi)];
+            if (f.ent != &e) { continue; }
+            f.gibt = false;
+            const auto wait = static_cast<float>(zahl(wertVon(e, "wait")));
+            const double warte = wait == 0.0F ? 500.0 : static_cast<double>(wait * 1000.0F);
+            if (warte <= 0.0) { continue; }   // wait < 0: target3 beim Laden, die Figur kommt nie
+            double t = kErstesSpielbildMs + warte;
+            while (t < welt_.startImSpielMs) { t += warte; }
+            plane(Geplant{t - welt_.startImSpielMs, 0, Geplant::Art::Beginn, std::string{}, wi, -1});
+        }
+    }
     // rc603: die Karte vom Laden an (simuliereKartenstart).
     void kartenstartLauf();
 
@@ -1513,7 +1563,9 @@ private:
     }
 
     // Pruefung 4b: ein think eines func_breakable (laeuft an seinem Platz).
-    static bool istDenken(const Geplant& g) { return g.art == Geplant::Art::Bruch || g.art == Geplant::Art::Frei; }
+    static bool istDenken(const Geplant& g) {
+        return g.art == Geplant::Art::Bruch || g.art == Geplant::Art::Frei || g.art == Geplant::Art::Beginn;
+    }
 
     // F4b: e_ThinkFunc/nextthink setzen - eine Entity hat nur ein think, das neue ersetzt ein noch nicht gelaufenes
     // (Use_Target_Delay, g_target.cpp:78-85; target_relay_use mit delay, :447-452 OpenJK; MD gleich).
@@ -1665,6 +1717,43 @@ private:
 
     // G_RunThink einer Entity in Schritt 3 von takte (g_main.cpp:1062-1076
     // OpenJK): das faellige think eines func_breakable, vor ihrem ICARUS.
+    // NPC_Begin (NPC_spawn.cpp:1711-1752 MD / 985-1020 OpenJK): ohne SFB_NOTSOLID erst SpotWouldTelefrag( ent, TEAM_FREE ) -
+    // der Kasten der neuen Figur an ihrem Spawnort gegen jeden lebenden Client mit CONTENTS_BODY (telefrag). Trifft er, versucht
+    // es das think ent->wait spaeter wieder (newent->wait = Spawner-wait, :2703; Vorgabe 500 ms, sonst wait * 1000,
+    // :3062-3069 MD); mit wait < 0 benutzt die Figur target3 (G_UseTargets2( ent, ent, ent->target3 )) und wird frei.
+    void npcBegin(int wi, double t, int ausloeser) {
+        Wesen& f = *wesen_[static_cast<std::size_t>(wi)];
+        if (f.gibt) {
+            return;
+        }
+        if (f.ent != nullptr && !f.ent->origin.empty()) {
+            f.ortBekannt = leseVek(f.ent->origin, f.ort);
+            f.anfangBekannt = f.ortBekannt;   // rc603 fix603
+            f.anfang = {f.ort[0], f.ort[1], f.ort[2]};
+        }
+        if (f.istClient && !f.sfbNichtFest && telefrag(f, t, true)) {
+            const std::string ws = f.ent != nullptr ? wertVon(*f.ent, "wait") : std::string{};
+            const auto wait = static_cast<float>(zahl(ws));
+            const double warte = wait == 0.0F ? 500.0 : static_cast<double>(wait * 1000.0F);
+            if (warte < 0.0) {
+                if (f.ent != nullptr) { benutzeZiele(*f.ent, wi, "target3"); }
+                return;   // thinkF_G_FreeEntity: die Figur kommt nie
+            }
+            plane(Geplant{t + warte, 0, Geplant::Art::Beginn, std::string{}, wi, ausloeser});
+            return;
+        }
+        f.gibt = true;
+        f.stapel.clear();
+        f.warte = Wesen::kNichts;
+        aus_.erscheint[f.name] = t;
+        const auto it = f.verhalten.find("spawnscript");
+        if (it != f.verhalten.end()) {
+            // NPC_Begin: G_ActivateBehavior(BSET_SPAWN), dann
+            // gleich Update (NPC_spawn.cpp:1290-1296 OpenJK).
+            starteSkript(wi, it->second, ausloeser, f.figur);
+        }
+    }
+
     void denke(int wi, double t) {
         for (;;) {
             const auto it = std::find_if(geplant_.begin(), geplant_.end(), [wi, t](const Geplant& g) {
@@ -1677,6 +1766,8 @@ private:
             geplant_.erase(it);
             if (g.art == Geplant::Art::Bruch) {
                 bruchGo(wi, g.name, g.ausloeser, 1);
+            } else if (g.art == Geplant::Art::Beginn) {
+                npcBegin(wi, t, g.ausloeser);
             } else {
                 wesen_[static_cast<std::size_t>(wi)]->entfernt = true;   // G_FreeEntity
             }
@@ -2987,7 +3078,11 @@ private:
     // Zeit t (ortJetzt) und den Figuren vom Kartenstart, die kein Skript nennt,
     // an ihrem Spawner. Nur Figuren - andere Entities mit CONTENTS_BODY gibt es
     // in den Karten nicht.
-    bool telefrag(const Wesen& w, double t) const {
+    // gefallen (mb7, NPC_Begin): eine Figur ohne Plan steht im Spiel laengst auf dem Boden unter ihrem Ort - NPC_Begin laesst
+    // jede gleich fallen (ClientThink "to drop exactly to the floor", schwerkraft.cpp kSpawnSchrittMs); der Nachbau kennt nur den
+    // Spawnort. Der Boden kommt von NavWelt::boden (Ursprung = Boden - DEFAULT_MINS_2). Waehrend des Falls selbst (unter 1 s nach
+    // ihrem Spawn) ist das zu frueh unten.
+    bool telefrag(const Wesen& w, double t, bool gefallen = false) const {
         if (!w.plan && !w.ortBekannt) { return false; }
         float o[3];
         ortJetzt(w, t, o);
@@ -3009,6 +3104,10 @@ private:
             if (&g == &w || !koerperBei(g, t) || (!g.plan && !g.ortBekannt)) { continue; }
             float p[3];
             ortJetzt(g, t, p);
+            if (gefallen && !g.plan && welt_.nav && welt_.nav->boden) {
+                float bz = 0.0F;
+                if (welt_.nav->boden(p[0], p[1], p[2], p[2] - 4096.0F, bz)) { p[2] = bz - kMins2; }
+            }
             if (trifft(p, welt_.halbBreite ? welt_.halbBreite(g.name) : 16.0F,
                        welt_.hoeheOben ? welt_.hoeheOben(g.name) : 40.0F)) {
                 return true;
@@ -3425,6 +3524,7 @@ void Nachbau::lauf(const Script& start, const std::string& startPfad) {
         wesenNach_[klein(w->name)] = traeger_;
         wesen_.push_back(std::move(w));
     }
+    spawnBeimLadenBlockiert();   // mb7 (Fund 1)
     schiebeEin(traeger_, start.nodes, s0, Path{}, true);
     notiereStart(s0);   // rc603: das Startskript laeuft bei 0 los
     fallenPlanen();     // rc605
@@ -3548,24 +3648,7 @@ void Nachbau::takte() {
             } else if (g.art == Geplant::Art::Denken) {
                 denkeLos(g.wesen, g.ausloeser);
             } else if (g.art == Geplant::Art::Spawn && g.wesen >= 0) {
-                Wesen& f = *wesen_[static_cast<std::size_t>(g.wesen)];
-                if (!f.gibt) {
-                    f.gibt = true;
-                    f.stapel.clear();
-                    f.warte = Wesen::kNichts;
-                    aus_.erscheint[f.name] = t;
-                    if (f.ent != nullptr && !f.ent->origin.empty()) {
-                        f.ortBekannt = leseVek(f.ent->origin, f.ort);
-                        f.anfangBekannt = f.ortBekannt;   // rc603 fix603
-                        f.anfang = {f.ort[0], f.ort[1], f.ort[2]};
-                    }
-                    const auto it = f.verhalten.find("spawnscript");
-                    if (it != f.verhalten.end()) {
-                        // NPC_Begin: G_ActivateBehavior(BSET_SPAWN), dann
-                        // gleich Update (NPC_spawn.cpp:1290-1296 OpenJK).
-                        starteSkript(g.wesen, it->second, g.ausloeser, f.figur);
-                    }
-                }
+                npcBegin(g.wesen, t, g.ausloeser);
             }
         }
         // 3. Jede Entity einmal, in Entity-Reihenfolge (G_RunFrame).

@@ -3605,6 +3605,18 @@ void drawEntityInspector(float hoehe) {
                 }
             }
         }
+        // Modell-Block Stufe 7: eine Figur mit Ghoul2-Skelett animieren (Fenster "Figur animieren")
+        if (const int fig = figurFuerEntity(i); fig >= 0 && figurAnimierbar(fig)) {
+            ImGui::SameLine();
+            const std::string& fn = g_app->scene.actors[static_cast<std::size_t>(fig)].name;
+            if (iconKnopf(tr(Str::FaAnimieren), UiIcon::Animieren, tr(Str::FaAnimierenHint), g_app->figAnim.offen && g_app->figAnim.figur == fn, true, true)) {
+                if (g_app->figAnim.offen && g_app->figAnim.figur == fn) {
+                    g_app->figAnim.offen = false;
+                } else {
+                    (void)figurAnimStarten(fn);
+                }
+            }
+        }
         ImGui::SameLine(0.0F, sp * 1.2F);
         if (iconKnopf(tr(Str::EditUndo), UiIcon::Rueckgaengig, nullptr, false, entityUndoMoeglich())) {
             entityRueckgaengig();

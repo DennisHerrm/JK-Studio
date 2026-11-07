@@ -5747,6 +5747,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_mb3.inc"        // Modell-Block Stufe 3: Knochen-Erkennung, Control Rig, Posen, Ghosts, Pfade (modellblock)
 #include "selbsttest_mb5.inc"        // Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Animationswerkzeuge (modellblock)
 #include "selbsttest_mb6.inc"        // Modell-Block Stufe 4: IK/FK, Fussrolle, Raum, Pfade an Gliedern (modellblock)
+#include "selbsttest_mb7.inc"        // Modell-Block Stufe 7: Figuren im Mission-Tab animieren, fuer das Spiel bauen (modellblock)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6717,6 +6718,7 @@ void selbsttest() {
                     for (Schritt& x : rig3::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Stufe 3
                     for (Schritt& x : kv5::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 3b
                     for (Schritt& x : ik6::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 4
+                    for (Schritt& x : fa7::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 7
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

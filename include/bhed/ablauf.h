@@ -87,6 +87,10 @@ struct AblaufWelt {
     std::function<std::vector<std::pair<double, std::string>>(const std::string& name)> roffSkripte;
     // Takt der Spiellogik. 0 schaltet ihn ab (nur fuer Proben).
     double bildMs = 50.0;
+    // mb7 (Fund 1): wann das Startskript im Spiel beginnt, in ms ab dem Laden der Karte (Ablauf::skriptBeginn aus
+    // simuliereKartenstart); < 0 unbekannt. Damit kennt der Nachbau die Wiederholungen von NPC_Begin einer Figur, die beim
+    // Laden in einen anderen Koerper gespawnt waere (SpotWouldTelefrag), auf der Zeitachse des Skripts.
+    double startImSpielMs = -1.0;
     // rc601 (bewegung, Wege wie im Spiel): Wegnetz und Spuren der Karte fuer
     // NAV/STEER (bhed/navlauf.h) - dieselbe Welt wie SzenenHilfe::nav, sonst
     // endet dowait anders, als die Szene ankommt. Leer: das Netz aus den

@@ -2282,6 +2282,8 @@ from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Mod
 S += _r3()
 from i18n_aseb import zeilen_vier as _aseb  # noqa: E402  (ASEB: .ase, .md3 usw. zu Brushes, misc_model in Brushes umwandeln)
 S += _aseb()
+from i18n_mb7 import zeilen_vier as _mb7  # noqa: E402  (Modell-Block Stufe 7: Figuren im Mission-Tab animieren, fuer das Spiel bauen)
+S += _mb7()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

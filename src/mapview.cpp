@@ -643,7 +643,9 @@ bool figurKnochen(const ActorDraw& act, std::vector<BoneMatrix>& world,
                   std::vector<BoneMatrix>& hilf) {
     const bool skinned = (act.anim != nullptr) && !act.anim->bones.empty() &&
                          act.anim->numFrames > 0;
-    if (skinned) {
+    const bool ersetzt = skinned && act.weltErsatz != nullptr && act.weltErsatz->size() == act.anim->bones.size();
+    if (ersetzt) { world = *act.weltErsatz; }
+    if (skinned && !ersetzt) {
         // --- Ober- und Unterkoerper koennen verschiedene Bilder haben
         //
         // SET_ANIM_LOWER setzt die Animation auf "model_root" (das

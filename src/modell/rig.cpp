@@ -1019,6 +1019,11 @@ int RigSchicht::schluesselZahl() const noexcept {
 }
 
 bool RigSchicht::hatSchluessel(int k, int bild) const noexcept {
+    if (const int sp = ikWahlSpur(k); sp >= 0) {
+        if (static_cast<std::size_t>(sp) >= ik.size()) { return false; }
+        const auto& z = ik[static_cast<std::size_t>(sp)].ziel;
+        return std::any_of(z.begin(), z.end(), [&](const RigSchluessel& x) { return x.bild == bild; });
+    }
     if (k < 0 || static_cast<std::size_t>(k) >= knochen.size()) { return false; }
     const auto& v = knochen[static_cast<std::size_t>(k)];
     return std::any_of(v.begin(), v.end(), [&](const RigSchluessel& s) { return s.bild == bild; });
@@ -1108,6 +1113,10 @@ void rigSchluesselSetzen(RigSchicht& s, int k, int bild, const BoneMatrix& m) {
 }
 
 void rigSchluesselLoeschen(RigSchicht& s, int k, int bild) {
+    if (const int sp = ikWahlSpur(k); sp >= 0) {
+        if (static_cast<std::size_t>(sp) < s.ik.size()) { ikSchluesselLoeschen(s.ik[static_cast<std::size_t>(sp)], bild); }
+        return;
+    }
     if (k < 0 || static_cast<std::size_t>(k) >= s.knochen.size()) { return; }
     auto& v = s.knochen[static_cast<std::size_t>(k)];
     v.erase(std::remove_if(v.begin(), v.end(), [&](const RigSchluessel& x) { return x.bild == bild; }), v.end());

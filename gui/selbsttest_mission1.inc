@@ -1899,8 +1899,11 @@ std::vector<Schritt> mission1MiniSchritte(std::shared_ptr<mission1::Zustand> z) 
             for (const ActorStep& st : a.steps) {
                 if (m->typ.empty() && st.kind == ActorStep::Kind::WalkTo && !a.npcType.empty() && mission1::abstand3(st.from, st.to) > 150.0F &&
                     mission1::abstand3(st.from, st.to) < 380.0F && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
+                    // mb7: 40 Einheiten auf der Strecke vom Spawner der Figur weg - am selben Ort spawnte m1_held im Spiel erst,
+                    // wenn diese Figur weggeht (NPC_Begin, SpotWouldTelefrag; Kaesten 2 x 15 + 1 breit)
+                    const float d = mission1::abstand3(st.from, st.to);
                     for (int k = 0; k < 3; ++k) {
-                        m->von[k] = st.from[k];
+                        m->von[k] = st.from[k] + (st.to[k] - st.from[k]) * 40.0F / d;
                         m->bis[k] = st.to[k];
                     }
                     m->typ = a.npcType;

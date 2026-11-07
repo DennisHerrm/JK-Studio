@@ -10,6 +10,7 @@
 //   and licensed under the GNU General Public License version 2 or later (LICENSE). Uses G2C (third_party/g2c, GPL v2)
 //   for compressBone.
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/ik.h"
 
 #include <algorithm>
 #include <array>
@@ -749,13 +750,37 @@ int quatFolge(std::vector<RigSchluessel>& v) {
 
 std::vector<int> wahlIndizes(const RigSchicht& s, const Wahl& w, int knochen) {
     std::vector<int> aus;
-    if (knochen < 0 || static_cast<std::size_t>(knochen) >= s.knochen.size()) { return aus; }
-    const auto& v = s.knochen[static_cast<std::size_t>(knochen)];
+    const int sp = ikWahlSpur(knochen);
+    if (sp >= 0 ? static_cast<std::size_t>(sp) >= s.ik.size() : (knochen < 0 || static_cast<std::size_t>(knochen) >= s.knochen.size())) { return aus; }
+    const auto& v = sp >= 0 ? s.ik[static_cast<std::size_t>(sp)].ziel : s.knochen[static_cast<std::size_t>(knochen)];
     for (std::size_t i = 0; i < v.size(); ++i) {
         for (const SchluesselWahl& x : w) {
             if (x.knochen == knochen && x.bild == v[i].bild) {
                 aus.push_back(static_cast<int>(i));
                 break;
+            }
+        }
+    }
+    return aus;
+}
+
+Wahl wahlMitIk(const RigSchicht& s, const Wahl& w) {
+    Wahl aus = w;
+    for (std::size_t sp = 0; sp < s.ik.size(); ++sp) {
+        const IkSpur& spur = s.ik[sp];
+        const int code = ikWahlCode(static_cast<int>(sp));
+        for (const SchluesselWahl& x : w) {
+            const bool kette = x.knochen >= 0 && (x.knochen == spur.oben.knochen || x.knochen == spur.unten.knochen || x.knochen == spur.ende.knochen ||
+                                                  x.knochen == spur.zehen.knochen);
+            if (!kette || !s.hatSchluessel(code, x.bild) || std::find(aus.begin(), aus.end(), SchluesselWahl{code, x.bild}) != aus.end()) { continue; }
+            aus.push_back({code, x.bild});
+        }
+        // und umgekehrt: ein gewaehlter IK-Schluessel nimmt die FK-Schluessel der Kette am selben Bild mit
+        for (const SchluesselWahl& x : w) {
+            if (x.knochen != code) { continue; }
+            for (const int k : {spur.oben.knochen, spur.unten.knochen, spur.ende.knochen, spur.zehen.knochen}) {
+                if (k < 0 || !s.hatSchluessel(k, x.bild) || std::find(aus.begin(), aus.end(), SchluesselWahl{k, x.bild}) != aus.end()) { continue; }
+                aus.push_back({k, x.bild});
             }
         }
     }
@@ -948,9 +973,49 @@ int poseSchieben(RigSchicht& s, const std::vector<int>& knochen, int bild, Posen
 namespace {
 // Die gewaehlten Schluessel eines Knochens herausnehmen, mit f(bild) neu einsetzen; Treffer auf nicht gewaehlte ersetzen
 // sie (BKE_fcurve_merge_duplicate_keys behaelt den gewaehlten).
-Wahl umsetzen(RigSchicht& s, const Wahl& w, const std::function<int(int, int, int)>& f) {
+// Stufe 7: eine IK-Spur in der Wahl (Ziel und Wert je Schluessel gehoeren zusammen) - wie die Liste eines Knochens.
+void umsetzenIk(RigSchicht& s, const Wahl& w, int code, const std::function<int(int, int, int)>& f, Wahl& neu) {
+    const int sp = ikWahlSpur(code);
+    if (sp < 0 || static_cast<std::size_t>(sp) >= s.ik.size()) { return; }
+    IkSpur& spur = s.ik[static_cast<std::size_t>(sp)];
+    const std::vector<int> idx = wahlIndizes(s, w, code);
+    if (idx.empty() || spur.wert.size() != spur.ziel.size()) { return; }
+    const int erster = spur.ziel[static_cast<std::size_t>(idx.front())].bild;
+    const int letzter = spur.ziel[static_cast<std::size_t>(idx.back())].bild;
+    std::vector<std::pair<RigSchluessel, IkWert>> bleiben;
+    std::map<int, std::pair<RigSchluessel, IkWert>> neuJe;
+    for (std::size_t i = 0; i < spur.ziel.size(); ++i) {
+        if (std::find(idx.begin(), idx.end(), static_cast<int>(i)) != idx.end()) {
+            RigSchluessel x = spur.ziel[i];
+            x.bild = f(x.bild, erster, letzter);
+            neuJe[x.bild] = {x, spur.wert[i]};
+        } else {
+            bleiben.emplace_back(spur.ziel[i], spur.wert[i]);
+        }
+    }
+    bleiben.erase(std::remove_if(bleiben.begin(), bleiben.end(), [&](const auto& x) { return neuJe.count(x.first.bild) != 0U; }), bleiben.end());
+    for (const auto& [b, x] : neuJe) {
+        bleiben.push_back(x);
+        neu.push_back({code, b});
+    }
+    std::stable_sort(bleiben.begin(), bleiben.end(), [](const auto& a, const auto& b) { return a.first.bild < b.first.bild; });
+    spur.ziel.clear();
+    spur.wert.clear();
+    for (const auto& [z, v] : bleiben) {
+        spur.ziel.push_back(z);
+        spur.wert.push_back(v);
+    }
+    ikHenkelNeu(spur);
+}
+
+Wahl umsetzen(RigSchicht& s, const Wahl& wahl, const std::function<int(int, int, int)>& f) {
     Wahl neu;
+    const Wahl w = wahlMitIk(s, wahl);
     for (const int k : wahlKnochen(w)) {
+        if (ikWahlSpur(k) >= 0) {
+            umsetzenIk(s, w, k, f, neu);
+            continue;
+        }
         std::vector<RigSchluessel>* vp = liste(s, k);
         if (vp == nullptr) { continue; }
         std::vector<RigSchluessel>& v = *vp;

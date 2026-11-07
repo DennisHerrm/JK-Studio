@@ -268,6 +268,9 @@ public:
     // mit der Bezeichnung `was`. Fuer "nur diesen Schritt zuruecknehmen"
     // aus der Undo-Liste, das an mehreren Stellen zugleich aendern kann.
     bool ersetzeSkript(Script neu, const char* was);
+    // Stufe 7: das Skript im zuletzt angelegten Schritt ersetzen (kein neuer Rueckgaengig-Schritt) - abgeleitete Werte
+    // nachziehen, die erst nach dem Neuaufbau der Szene feststehen (SET_ORIGIN einer Figurenanimation).
+    void ersetzeImLetztenSchritt(Script neu) { s_ = std::move(neu); }
 
     // --- Zwischenablage ---------------------------------------------------
     bool copyAt(const Path& p);

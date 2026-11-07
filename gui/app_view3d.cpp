@@ -3741,6 +3741,34 @@ const TextureSet::Tex* gfxBild(const std::string& pfad) {
 // Kasten wird zu fuenf Strahlen (Mitte und vier Ecken), der hoechste
 // Treffer gilt wie beim Kasten. Nicht feste Flaechen (Wasser, Gras) laesst
 // MASK_PLAYERSOLID durchfallen - hier ebenso.
+// mb7: Wo CG_PlayerShadow die Spur beginnt (cg_players.cpp:4041-4055 MD, 3506-3513 OpenJK): spielt die Figur eine Animation
+// der Karten-GLA - G2API_SetAnimIndex mit deren glaIndex (bg_panimate.cpp:7120 MD), also animModelIndexOffset != 0 -, holt es
+// G2API_GetBoltMatrix( ghoul2, playerModel, ent->rootBone, ...) mit Gier legs.yawAngle, Nick und Roll 0, lerpOrigin und
+// modelScale. ent->rootBone ist aber die Nummer von "model_root" in der KNOCHENliste (G2API_GetBoneIndex(..., qtrue),
+// g_client.cpp:1898 MD) - als erster Eintrag 0 -, und GetBoltMatrix liest sie als BOLZENnummer: Bolzen 0 ist der erste
+// gelungene G2API_AddBolt, beim Standard-Humanoiden "*head_eyes" (g_client.cpp:1681 MD), sonst "cervical" (:1682). Der
+// Schatten liegt dann unter den Augen und geht mit dem Wurzelweg mit; im Spiel gemessen (mb7raum: kein Schatten am Spawner,
+// waehrend a 116 Einheiten weit geht). Sonst lerpOrigin. Die Vorschau haengt die Karten-GLA hinten an das Grundskelett
+// (kinoSkeletteAbgleichen): ein Bild ab numFrames ist eines der Karten-GLA - die gibt es nur fuer Standard-Humanoiden.
+void schattenUrsprung(const ActorDraw& a, const std::vector<BoneMatrix>& welt, float o[3]) {
+    for (int k = 0; k < 3; ++k) { o[k] = a.pos[k]; }
+    if (a.model == nullptr || a.anim == nullptr || a.anim->anhang == nullptr || a.frame < a.anim->numFrames || welt.empty()) { return; }
+    BoneMatrix m{};
+    const int sf = surfaceIndex(*a.model, "*head_eyes");
+    if (sf < 0 || !boltMatrix(*a.model, sf, welt, *a.anim, m)) {
+        const int k = boneIndex(*a.anim, "cervical");
+        if (k < 0 || static_cast<std::size_t>(k) >= welt.size()) { return; }
+        m = welt[static_cast<std::size_t>(k)];
+    }
+    float fw[16];
+    gpu::baueFigurWelt(a.yaw + a.yawOffset, a.pos, fw);
+    const float spalte[3] = {a.skala[1], a.skala[0], a.skala[2]};
+    for (int z = 0; z < 3; ++z) {
+        o[z] = fw[z * 4 + 3];
+        for (int c = 0; c < 3; ++c) { o[z] += fw[z * 4 + c] * spalte[c] * m.m[c][3]; }
+    }
+}
+
 bool blobSchattenFuer(const float ursprung[3], float radius, gpu::BlobSchatten& aus) {
     constexpr float kSchattenWeg = 128.0F;            // SHADOW_DISTANCE
     constexpr std::uint32_t kContentsSolid = 0x1U;    // CONTENTS_SOLID
@@ -4925,6 +4953,7 @@ bool figurPose(const Actor& a, const App::ActorAssets& assets, const ActorState&
     npcSkalaFuer(a.npcType, d.skala);
     figurKopfGier(a, st, d);
     d.yawOffset = static_cast<float>(g_app->actorYaw);
+    figurAnimErsatz(static_cast<std::size_t>(&a - g_app->scene.actors.data()), d);
     std::vector<BoneMatrix> hilf;
     if (!figurKnochen(d, welt, hilf) || welt.empty()) { return false; }
     figurWeltMatrix(d, fw);
@@ -6741,6 +6770,45 @@ std::vector<AblaufWelt::HurtTod> hurtTodeBerechnen() {
     return aus;
 }
 
+// mb7 (Fund 1): wann das offene Skript im Spiel beginnt (ms ab dem Laden der Karte) - der Nachbau des Kartenstarts
+// (simuliereKartenstart, wie die Reihenfolge der Reiter beim Laden einer Mission), einmal je Karte, Skript und Entity-Zahl.
+// -1, wenn der Kartenstart das Skript nicht startet (dann bleibt alles wie bisher: die Figuren vom Laden gibt es ab 0).
+double startImSpiel(const AblaufWelt& welt) {
+    static std::string schluessel;
+    static double beginn = -1.0;
+    std::string pfad = aktiverSkriptPfad();
+    for (char& c : pfad) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    if (const auto p = pfad.find_last_of('.'); p != std::string::npos && pfad.find('/', p) == std::string::npos) { pfad.resize(p); }
+    AblaufWelt kw = welt;
+    kw.spielstufe = regelwerkSpielstufe();   // wie beim Laden der Mission
+    const std::string k = g_app->map.path + "|" + pfad + "|" + std::to_string(g_app->map.entities.size()) + "|" +
+                          std::to_string(kw.spielstufe);
+    if (k == schluessel) { return beginn; }
+    schluessel = k;
+    beginn = -1.0;
+    if (pfad.empty() || welt.karte == nullptr) { return beginn; }
+    // das offene Skript selbst (eine neue Mission liegt noch in keinem Archiv, skriptFuerAblauf faende es nicht)
+    const auto alt = kw.skript;
+    kw.skript = [alt, pfad](const std::string& p) -> const Script* {
+        std::string q = p;
+        for (char& c : q) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (q == pfad) { return &g_app->doc.script(); }
+        return alt ? alt(p) : nullptr;
+    };
+    const Ablauf start = simuliereKartenstart(kw);
+    for (std::size_t i = 0; i < start.skripte.size() && i < start.skriptBeginn.size(); ++i) {
+        std::string s = start.skripte[i];
+        for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (s == pfad && (beginn < 0.0 || start.skriptBeginn[i] < beginn)) { beginn = start.skriptBeginn[i]; }
+    }
+    std::string liste;
+    for (std::size_t i = 0; i < start.skripte.size() && i < start.skriptBeginn.size(); ++i) {
+        liste += " " + start.skripte[i] + "@" + std::to_string(static_cast<long>(start.skriptBeginn[i]));
+    }
+    diag::detail("Kartenstart: " + pfad + " beginnt im Spiel bei " + std::to_string(static_cast<long>(beginn)) + " ms (Skripte:" + liste + ")");
+    return beginn;
+}
+
 AblaufWelt ablaufWelt() {
     AblaufWelt w;
     w.karte = g_app->map.empty() ? nullptr : &g_app->map;
@@ -6988,6 +7056,7 @@ void prepareScene() {
     // Kamerabahn, Zeitleiste und Szene entstehen - wie vorher, nur dass die
     // Zeiten jetzt die des Spiels sind.
     AblaufWelt welt = ablaufWelt();
+    welt.startImSpielMs = startImSpiel(welt);   // mb7 (Fund 1)
     // rc605 (Ende): die Tode durch trigger_hurt aus dem letzten Durchgang
     // dieses Skripts (hurtTodeBerechnen weiter unten).
     const std::string hurtSchluessel = g_app->map.path + "|" + aktiverSkriptPfad();

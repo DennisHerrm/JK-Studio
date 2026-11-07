@@ -62,6 +62,10 @@ using Wahl = std::vector<SchluesselWahl>;
 // Die gewaehlten Schluessel eines Knochens als Indizes in seine Liste (sortiert).
 [[nodiscard]] std::vector<int> wahlIndizes(const RigSchicht& s, const Wahl& w, int knochen);
 [[nodiscard]] std::vector<int> wahlKnochen(const Wahl& w);
+// Stufe 7: die Wahl samt den IK-Schluesseln (ikWahlCode) am Bild jedes gewaehlten FK-Schluessels eines Glieds ihrer
+// Kette und umgekehrt den FK-Schluesseln der Kette am Bild jedes gewaehlten IK-Schluessels - das Auto-Einrasten schreibt
+// beide zusammen, Verschieben/Skalieren/Einrasten nehmen sie gemeinsam mit.
+[[nodiscard]] Wahl wahlMitIk(const RigSchicht& s, const Wahl& w);
 
 // --- Werkzeuge auf den gewaehlten Schluesseln (je Kanal wie die Schieber im Graph Editor von Blender) ------------------
 enum class KurvenWerkzeug : std::uint8_t { Breakdown = 0, BlendNachbar, BlendVorgabe, PushPull, Ease, Glaetten };

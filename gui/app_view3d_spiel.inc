@@ -3249,7 +3249,7 @@ void kinoSkeletteAbgleichen() {
     const std::string schluessel = karte + "|" + std::to_string(spiel);
     const std::string kinoName = "models/players/_humanoid_" + karte + "/_humanoid_" + karte;
     // Das Kino-Skelett einmal lesen (auch "nicht da" merken: leeres anim).
-    App::Skeleton* kino = nullptr;
+    const App::Skeleton* kino = nullptr;
     if (!karte.empty()) {
         auto it = g_app->skeletons.find(kinoName);
         if (it == g_app->skeletons.end()) {
@@ -3270,6 +3270,13 @@ void kinoSkeletteAbgleichen() {
             kino = &it->second;
         }
     }
+    // Modell-Block Stufe 7: die Figurenbloecke des Skripts, gebacken und mit der Karten-GLA der Archive zusammengefuehrt
+    // (gui/app_figuranim.cpp) - die Vorschau spielt, was "Fuer das Spiel bauen" schreibt.
+    std::string figurStand;
+    if (!karte.empty()) {
+        kino = figurenKinoFuer(kinoName, kino, figurStand);
+    }
+    const std::string schluesselMitFiguren = schluessel + figurStand;
     for (auto& [name, sk] : g_app->skeletons) {
         if (&sk == kino) {
             continue;
@@ -3286,7 +3293,7 @@ void kinoSkeletteAbgleichen() {
         if (!anhang && !sk.grundGemerkt) {
             continue;   // nie angehaengt
         }
-        if (sk.kinoKarte == schluessel && sk.grundGemerkt) {
+        if (sk.kinoKarte == schluesselMitFiguren && sk.grundGemerkt) {
             continue;   // schon fuer diese Karte und dieses Regelwerk
         }
         if (!sk.grundGemerkt) {
@@ -3295,7 +3302,7 @@ void kinoSkeletteAbgleichen() {
         }
         sk.sections = sk.grundListe;
         sk.anim.anhang = nullptr;
-        sk.kinoKarte = schluessel;
+        sk.kinoKarte = schluesselMitFiguren;
         if (kino == nullptr || !anhang) {
             continue;
         }

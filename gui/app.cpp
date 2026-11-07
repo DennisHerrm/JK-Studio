@@ -6989,6 +6989,8 @@ void draw() {
         drawModellFenster();   // rc609 M0: Modell-Browser
         drawNpcBrowser();
         drawAnimFenster();
+        drawFigurAnimFenster();   // Modell-Block Stufe 7
+        drawFigurAnimKontext();
         drawEinblendungen();
         drawAbout();
     }

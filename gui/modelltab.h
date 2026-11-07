@@ -512,6 +512,7 @@ int modellAufFreienPlatz(int anim);
 void modellPlatzLeeren(int platz);
 void modellGlaZielSetzen(int ziel);
 [[nodiscard]] bool modellImSpielordner(const std::string& datei);
+[[nodiscard]] std::string modellCfgBefundText(const modell::CfgBefund& x, modell::Zielspiel s);   // Stufe 7
 bool modellVorhandeneKartenGla();
 bool modellKartenGlaBauen(const std::string& datei, bool trotzdem);
 bool modellGlaSpeichern(const std::string& datei);

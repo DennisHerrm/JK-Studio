@@ -57,6 +57,7 @@
 #include "bhed/image.h"
 #include "bhed/gla.h"
 #include "modelltab.h"   // Modell-Block 1a-1: der neue Model-Tab
+#include "figuranim.h"   // Modell-Block Stufe 7: Figuren im Mission-Tab animieren
 #include "bhed/glm.h"
 #include "bhed/gpushader.h"   // rc608 Teil 11: kSpielLightmapFaktor
 #include "bhed/mapview.h"
@@ -497,6 +498,8 @@ struct App {
     std::vector<BoneMatrix> modellWelt;
     // Modell-Block 1a-1: Dokument, Ghoul2-Zustand, Ansichten und Auswahl des Model-Tabs (gui/modelltab.h)
     ModellTab mtab;
+    // Modell-Block Stufe 7: Figuren im Mission-Tab animieren (gui/app_figuranim.cpp)
+    FigurAnimZustand figAnim;
     // Mover animieren (gui/app_animation.cpp, rc592)
     bool animFensterOffen = false;
     int animEntity = -1;
@@ -1031,6 +1034,10 @@ struct App {
     };
     // Schluessel ist der Pfad aus dem Modellkopf, ohne Endung.
     std::map<std::string, Skeleton> skeletons;
+    // Stufe 7: die Karten-GLA der Vorschau aus den Figurenbloecken des Skripts (gebacken, mit der vorhandenen
+    // zusammengefuehrt) - kinoSkeletteAbgleichen haengt sie statt der aus den Archiven an; leer: keine Figurenbloecke.
+    Skeleton figurKino;
+    std::string figurKinoStand;
     // Schon gemeldete Paare aus Skelett und unbekanntem Animationsnamen.
     // Ohne dieses Gedaechtnis stuende die Meldung in JEDEM Bild im
     // Protokoll - sechzig Zeilen je Sekunde.
@@ -3206,6 +3213,34 @@ int animSchluesselAmZeiger();
 void animUeberlagerung();
 void animMaus();
 void drawAnimFenster();
+// --- Modell-Block Stufe 7: Figuren im Mission-Tab animieren (gui/app_figuranim.cpp) ---------------
+bool skriptBlockErsetzen(const Script& neu, const char* was);   // app_animation.cpp: ein Rueckgaengig-Schritt
+[[nodiscard]] bool figurAnimierbar(int actor);
+bool figurAnimStarten(const std::string& figur);
+bool figurAnimEntfernen(const std::string& figur);
+bool figurAnimEinstellen(const std::function<void(modell::FigurAnim&)>& f);
+void figurAnimErsatz(std::size_t actor, ActorDraw& d);   // waehrend eines Zugs: die Knochen aus der Schicht des Zugs
+[[nodiscard]] bool figurAnimTastenAktiv();                // Griffe in der Ansicht: W/E/Q gehoeren ihnen (ohne rechte Taste)
+// Die Karten-GLA der Vorschau aus den Figurenbloecken; stand kommt in den Schluessel des Anhangs.
+const App::Skeleton* figurenKinoFuer(const std::string& kinoName, const App::Skeleton* archiv, std::string& stand);
+void figurAnimNachziehen();
+bool figurAnimBauen(const std::string& ordner, bool trotzdem);
+void figurAnimUeberlagerung();
+void figurAnimMaus();
+void drawFigurAnimFenster();
+void drawFigurAnimKontext();
+void figurAnimEntityMenue(std::size_t entity);
+// Selbsttest
+[[nodiscard]] std::vector<std::string> figurAnimAktionsTexte();
+bool figurAnimAktion(int i);
+[[nodiscard]] int figurAnimGriffSuchen(const std::string& name);
+[[nodiscard]] bool figurAnimGriffSchirm(int griff, ImVec2& out);
+[[nodiscard]] bool figurAnimWurzelSchirm(int bild, ImVec2& out);
+bool figurAnimWeltBei(const std::string& figur, int bild, std::vector<std::array<float, 3>>& orte, std::vector<std::string>* namen = nullptr);
+[[nodiscard]] double figurAnimStartMs(const std::string& figur);
+bool figurAnimIkZiel(const std::string& figur, int glied, int bild, float aus[3]);
+bool figurAnimHalten(int glied, const std::string& andere, const std::string& knochen);   // wie der Knopf Halten
+bool figurAnimBeckenWeg(const std::string& figur, int bild, const float wegKarte[3]);     // wie ein Punkt des Wurzelwegs gezogen
 // ROFF-Bahnen bauen und aendern (rc599): die Bahn aus der Marke eines
 // offenen Skripts (nullptr: keine Marke), die .rof-Dateien eines Skripts
 // beim Speichern (Anzahl geschrieben), wohin sie gehoeren, und eine fertige
@@ -3340,6 +3375,8 @@ void entityNummernPruefen();
 bool entityWiederholen();
 bool entityUndoMoeglich();
 bool entityRedoMoeglich();
+// mb7: Ursprung der Schattenspur einer Figur wie CG_PlayerShadow (model_root bei einer Animation der Karten-GLA)
+void schattenUrsprung(const ActorDraw& a, const std::vector<BoneMatrix>& welt, float o[3]);
 bool neueMissionAnlegen(const std::string& karte, const std::string& name, const std::string& ordner,
                         std::string* fehler);
 void missionAusGeladener(const Mission& m);

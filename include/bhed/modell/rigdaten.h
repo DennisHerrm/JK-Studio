@@ -109,6 +109,12 @@ struct IkSpur {
     std::vector<IkWert> wert;           // je Schluessel von `ziel`
 };
 
+// Stufe 7 (offen aus Stufe 4): eine IK-Spur als Zeile im Dopesheet. In einer Schluesselwahl (animkurven.h) steht ihr
+// Schluessel als Knochen kIkWahl - Spur; Verschieben, Skalieren, Einrasten und Loeschen nehmen ihn wie einen FK-Schluessel.
+inline constexpr int kIkWahl = -1000;
+[[nodiscard]] constexpr int ikWahlCode(int spur) noexcept { return kIkWahl - spur; }
+[[nodiscard]] constexpr int ikWahlSpur(int code) noexcept { return code <= kIkWahl ? kIkWahl - code : -1; }
+
 struct RigSchicht {
     std::vector<std::vector<RigSchluessel>> knochen;   // je Knochen, nach Bild sortiert
     std::vector<IkSpur> ik;                            // Stufe 4: IK je Glied (auf den FK-Schluesseln)

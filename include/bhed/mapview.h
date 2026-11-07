@@ -777,6 +777,9 @@ struct ActorDraw {
     bool schattenFuesse = false;
     // Die Groesse aus der .npc (`scale`, `scaleX/Y/Z`) - siehe NpcDef::skala.
     float skala[3] = {1.0F, 1.0F, 1.0F};
+    // Modell-Block Stufe 7: waehrend eines Zugs in "Figur animieren" die Weltmatrizen der Animation aus der Schicht des
+    // Zugs (statt der Bilder der gebackenen Karten-GLA); Rumpf-, Hals- und Kopfwinkel kommen wie sonst danach.
+    const std::vector<BoneMatrix>* weltErsatz = nullptr;
 
     // --- Was die Figur in den Haenden haelt ------------------------------
     //

@@ -175,7 +175,7 @@ ImU32 kanalFarbe(int c, float alpha = 1.0F) {
 
 // --- Zeilen ------------------------------------------------------------------------------------------------------------
 struct Zeile {
-    int art = 0;       // 0 Zusammenfassung, 1 Glied, 2 Knochen, 3 Kanal
+    int art = 0;       // 0 Zusammenfassung, 1 Glied, 2 Knochen, 3 Kanal, 4 IK-Spur (Stufe 7: knochen = ikWahlCode)
     int glied = -1;
     int knochen = -1;
     int kanal = -1;
@@ -215,12 +215,24 @@ std::vector<Zeile> zeilen(bool kanaele) {
             }
         }
     }
+    // Stufe 7 (offen aus Stufe 4): je IK-Spur mit Schluesseln eine Zeile; ihre Rauten verschieben sich wie die der Knochen
+    // (und mit den FK-Schluesseln ihrer Kette, modell::wahlMitIk); nur im Dopesheet, der Kurveneditor zeigt Knochenkanaele
+    const modell::RigSchicht& s = schicht();
+    for (std::size_t i = 0; i < s.ik.size() && !kanaele; ++i) {
+        if (!s.ik[i].ziel.empty()) { z.push_back(Zeile{4, -1, modell::ikWahlCode(static_cast<int>(i)), -1}); }
+    }
     return z;
+}
+
+// Die Schluessel einer Zeile: Knochen oder IK-Spur (nullptr: keine)
+const std::vector<modell::RigSchluessel>* schluesselDer(const modell::RigSchicht& s, int k) {
+    if (const int sp = modell::ikWahlSpur(k); sp >= 0) { return static_cast<std::size_t>(sp) < s.ik.size() ? &s.ik[static_cast<std::size_t>(sp)].ziel : nullptr; }
+    return k >= 0 && static_cast<std::size_t>(k) < s.knochen.size() ? &s.knochen[static_cast<std::size_t>(k)] : nullptr;
 }
 
 // Die Knochen einer Zeile (Zusammenfassung: alle gezeigten, Glied: seine)
 std::vector<int> knochenDer(const Zeile& z) {
-    if (z.art >= 2) { return {z.knochen}; }
+    if (z.art >= 2) { return {z.knochen}; }   // Knochen, Kanal, IK-Spur
     std::vector<int> k;
     for (const int b : gezeigteKnochen()) {
         if (z.art == 0 || gliedVon(b) == z.glied) { k.push_back(b); }
@@ -1131,6 +1143,11 @@ void drawDopesheet(const ImVec2 groesse) {
             if (z.art == 0) { name = tr(Str::MbKvZusammenfassung); }
             if (z.art == 1) { name = std::string(t.kvGliedZu[static_cast<std::size_t>(z.glied)] != 0 ? "+ " : "- ") + tr(gliedText(z.glied)); }
             if (z.art == 2) { name = "    " + g_app->anim.bones[static_cast<std::size_t>(z.knochen)].name; }
+            if (z.art == 4) {
+                static const Str kGlied[4] = {Str::MbIkArmL, Str::MbIkArmR, Str::MbIkBeinL, Str::MbIkBeinR};
+                const int sp = modell::ikWahlSpur(z.knochen);
+                name = "    IK " + std::string(tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)]));
+            }
             if ((i % 2U) == 0U) { dl->AddRectFilled(ImVec2{lo.x, y}, ImVec2{f.hi.x, y + zeileH}, ImGui::GetColorU32(ImGuiCol_TableRowBgAlt)); }
             const bool wahlZeile = z.art == 2 && !auswahlKnochen().empty() && auswahlKnochen().front() == z.knochen;
             dl->AddText(ImVec2{lo.x + fs * 0.3F, y + (zeileH - fs) * 0.5F}, ImGui::GetColorU32(z.art < 2 ? ImGuiCol_Text : (wahlZeile ? ImGuiCol_PlotHistogram : ImGuiCol_Text)), name.c_str());
@@ -1164,8 +1181,9 @@ void drawDopesheet(const ImVec2 groesse) {
         std::set<int> bilder;
         std::set<int> gew;
         for (const int b : ks) {
-            if (static_cast<std::size_t>(b) >= s.knochen.size()) { continue; }
-            for (const modell::RigSchluessel& k : s.knochen[static_cast<std::size_t>(b)]) {
+            const std::vector<modell::RigSchluessel>* liste = schluesselDer(s, b);
+            if (liste == nullptr) { continue; }
+            for (const modell::RigSchluessel& k : *liste) {
                 bilder.insert(k.bild);
                 if (gewaehlt(b, k.bild)) { gew.insert(k.bild); }
             }
@@ -1175,7 +1193,8 @@ void drawDopesheet(const ImVec2 groesse) {
             if (x < f.lo.x - r || x > f.hi.x + r) { continue; }
             const bool g = gew.count(b) != 0U;
             const float rr = g_zeilen[i].art < 2 ? r * 1.15F : r;
-            const ImU32 innen = g ? IM_COL32(255, 175, 60, 255) : (g_zeilen[i].art < 2 ? IM_COL32(150, 150, 150, 255) : IM_COL32(225, 225, 225, 255));
+            const ImU32 innen = g ? IM_COL32(255, 175, 60, 255)
+                                  : (g_zeilen[i].art < 2 ? IM_COL32(150, 150, 150, 255) : (g_zeilen[i].art == 4 ? IM_COL32(120, 200, 255, 255) : IM_COL32(225, 225, 225, 255)));
             dl->AddQuadFilled(ImVec2{x, ym - rr}, ImVec2{x + rr, ym}, ImVec2{x, ym + rr}, ImVec2{x - rr, ym}, innen);
             dl->AddQuad(ImVec2{x, ym - rr}, ImVec2{x + rr, ym}, ImVec2{x, ym + rr}, ImVec2{x - rr, ym}, IM_COL32(20, 20, 20, 255), 1.0F);
             ++t.kvRauten;
@@ -1274,8 +1293,9 @@ void drawDopesheet(const ImVec2 groesse) {
         for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
             if (g_zeileY[i] < y0 - zeileH * 0.3F || g_zeileY[i] > y1 + zeileH * 0.3F) { continue; }
             for (const int b : knochenDer(g_zeilen[i])) {
-                if (static_cast<std::size_t>(b) >= s.knochen.size()) { continue; }
-                for (const modell::RigSchluessel& k : s.knochen[static_cast<std::size_t>(b)]) {
+                const std::vector<modell::RigSchluessel>* liste = schluesselDer(s, b);
+                if (liste == nullptr) { continue; }
+                for (const modell::RigSchluessel& k : *liste) {
                     const float x = f.x(static_cast<float>(k.bild));
                     if (x >= x0 - r && x <= x1 + r && x1 - x0 >= 3.0F) { waehlen(b, k.bild, true); }
                 }

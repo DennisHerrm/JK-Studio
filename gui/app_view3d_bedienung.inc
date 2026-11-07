@@ -260,6 +260,10 @@ void entityMenue(std::size_t i) {
     if (!e.targetname.empty() && ImGui::MenuItem(tr(Str::EntityUse))) {
         einfuegen({befehl("use", {{Arg::Kind::String, e.targetname}})});
     }
+    if (kat == 3) {
+        ImGui::Separator();
+        figurAnimEntityMenue(i);   // Stufe 7
+    }
 }
 
 // Was zur angeklickten Entity gehoert.
@@ -2021,7 +2025,7 @@ void drawMapView() {
             g_app->cam.pos[2] = std::max(g_app->draufSchnitt + 64.0F,
                                          g_app->cam.pos[2] - io.MouseWheel * hoehe * 0.15F);
         }
-        if (hovered) {
+        if (hovered && !figurAnimTastenAktiv()) {
             const float schritt = (io.KeyShift ? 3.0F : 1.0F) * hoehe * 1.2F * std::max(io.DeltaTime, 0.001F);
             if (ImGui::IsKeyDown(ImGuiKey_W)) { schiebe(0.0F, schritt); }
             if (ImGui::IsKeyDown(ImGuiKey_S)) { schiebe(0.0F, -schritt); }
@@ -2044,7 +2048,7 @@ void drawMapView() {
         g_app->cam.angles[0] = std::clamp(
             g_app->cam.angles[0] - io.MouseDelta.y * 0.25F, -89.0F, 89.0F);
     }
-    if (hovered && !g_app->draufsicht) {
+    if (hovered && !g_app->draufsicht && !figurAnimTastenAktiv()) {
         const float base = io.KeyShift ? 40.0F : 12.0F;
         const float step = base * std::max(io.DeltaTime, 0.001F) * 60.0F;
         float fwd = 0.0F;
@@ -3149,6 +3153,7 @@ void drawMapView() {
                 blickFolgeRechnen(a, ai, assets, g_app->playMs);
                 figurKopfGier(a, st, d);   // rc601 saber: herausgezogen
                 d.yawOffset = static_cast<float>(g_app->actorYaw);
+                figurAnimErsatz(ai, d);    // Stufe 7: waehrend eines Zugs die Schicht des Zugs
                 draws.push_back(d);
             }
             if (!draws.empty()) {
@@ -3506,6 +3511,7 @@ void drawMapView() {
                 std::vector<gpu::FigurSchatten> figurSchatten;
                 // Die Fuesse des AT-ST fuer die beiden kleinen Flecken.
                 std::vector<std::array<float, 3>> fussSchatten;
+                std::vector<std::array<float, 3>> schattenOrte;   // mb7: je Figur in gpuFiguren (schattenUrsprung)
                 // rc604 surfaceSprites: die Halme (netzId 3, je Bild neu). Die
                 // Engine zeichnet sie im Shader ihrer FLAECHE - Gras ist deckend
                 // sortiert (erste Stufe deckend), also kommen auch gemischte
@@ -3706,6 +3712,12 @@ void drawMapView() {
                             gpu::setzeSchritt("Knochenmatrizen");
                             gpu::baueKnochenmatrizen(welt, a.anim->bones, skin);
                         }
+                        if (schattenOrte.size() != gpuFiguren.size()) {
+                            schattenOrte.clear();
+                            for (const ActorDraw& x : gpuFiguren) { schattenOrte.push_back({x.pos[0], x.pos[1], x.pos[2]}); }
+                        }
+                        schattenUrsprung(a, welt, schattenOrte[static_cast<std::size_t>(&a - gpuFiguren.data())].data());
+                        const float* schattenAb = schattenOrte[static_cast<std::size_t>(&a - gpuFiguren.data())].data();
                         // --- ZUSAMMENFASSEN, nicht aufzaehlen -----------
                         //
                         // Die erste Fassung schrieb eine Zeile je Flaeche und
@@ -3828,13 +3840,13 @@ void drawMapView() {
                         float schattenEbene = 0.0F;
                         if ((g_app->schattenArt == 2 || g_app->schattenArt == 3) &&
                             a.schattenRadius > 0.0F) {
-                            const float vorAus = (a.pos[0] - bildCam.pos[0]) * gvorn[0] +
-                                                 (a.pos[1] - bildCam.pos[1]) * gvorn[1] +
-                                                 (a.pos[2] - bildCam.pos[2]) * gvorn[2];
+                            const float vorAus = (schattenAb[0] - bildCam.pos[0]) * gvorn[0] +
+                                                 (schattenAb[1] - bildCam.pos[1]) * gvorn[1] +
+                                                 (schattenAb[2] - bildCam.pos[2]) * gvorn[2];
                             if (vorAus < 1000.0F) {
                                 gpu::BlobSchatten spur;
                                 const bool getroffen =
-                                    blobSchattenFuer(a.pos, a.schattenRadius, spur);
+                                    blobSchattenFuer(schattenAb, a.schattenRadius, spur);
                                 if (getroffen) {
                                     schattenEbene = spur.ort[2] + 1.0F;
                                 }
@@ -4246,15 +4258,17 @@ void drawMapView() {
                             if (a.model == nullptr || a.schattenRadius <= 0.0F) {
                                 continue;
                             }
+                            const std::size_t ai = static_cast<std::size_t>(&a - gpuFiguren.data());
+                            const float* ab = ai < schattenOrte.size() ? schattenOrte[ai].data() : a.pos;
                             // cg_shadowCullDistance = r_shadowRange, 1000.
-                            const float dx = a.pos[0] - bildCam.pos[0];
-                            const float dy = a.pos[1] - bildCam.pos[1];
-                            const float dz = a.pos[2] - bildCam.pos[2];
+                            const float dx = ab[0] - bildCam.pos[0];
+                            const float dy = ab[1] - bildCam.pos[1];
+                            const float dz = ab[2] - bildCam.pos[2];
                             if (dx * dx + dy * dy + dz * dz > 1000.0F * 1000.0F) {
                                 continue;
                             }
                             gpu::BlobSchatten b;
-                            if (blobSchattenFuer(a.pos, a.schattenRadius, b)) {
+                            if (blobSchattenFuer(ab, a.schattenRadius, b)) {
                                 blobs.push_back(b);
                             }
                         }
@@ -4979,6 +4993,7 @@ void drawMapView() {
         if (hilfen) {
             lumpEditMaus();   // rc609 J: "Flaeche waehlen" im Fenster Shader und Flaechen
             entTextMittelklick();   // rc609 Endrunde 1: Mittelklick setzt "x y z" in den Entity-Text
+            figurAnimMaus();   // Stufe 7: Griffe der Figurenanimation vor allem anderen
             animMaus();
             bahnGriffeMaus();
         }
@@ -4997,6 +5012,7 @@ void drawMapView() {
             kameraBahnZeichnen();
             wegUeberlagerung();
             animUeberlagerung();
+            figurAnimUeberlagerung();   // Stufe 7
         } else {
             g_app->skriptSchildText.clear();
         }

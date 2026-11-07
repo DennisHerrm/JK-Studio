@@ -67,8 +67,12 @@ std::string befundText(const modell::Befund& x) {
     return {};
 }
 
-std::string cfgBefundText(const modell::CfgBefund& x) {
-    const modell::Grenzen& g = modell::grenzen(zielspiel());
+std::string cfgBefundText(const modell::CfgBefund& x) { return modellCfgBefundText(x, zielspiel()); }
+}  // namespace
+
+// Stufe 7: auch fuer "Fuer das Spiel bauen" im Mission-Tab (Zielspiel aus dem Regelwerk)
+std::string modellCfgBefundText(const modell::CfgBefund& x, modell::Zielspiel s) {
+    const modell::Grenzen& g = modell::grenzen(s);
     switch (x.art) {
         case modell::CfgBefundArt::HinterGla:
             return format(Str::MbCfgHinterGla, x.name.c_str(), x.wert, x.grenze, tr(g.tPoseHinterGla ? Str::MbPrAnimTPose : Str::MbPrAnimStand));
@@ -86,6 +90,8 @@ std::string cfgBefundText(const modell::CfgBefund& x) {
     }
     return {};
 }
+
+namespace {
 
 bool schreibenNach(const std::string& ziel) {
     ModellTab& t = mt();

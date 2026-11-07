@@ -122,6 +122,7 @@ add_library(bhed_core STATIC
   src/modell/rig.cpp
   src/modell/animkurven.cpp
   src/modell/ik.cpp
+  src/modell/figuranim.cpp
   src/camtrack.cpp
   src/scene.cpp
   # rc602: SP_NPC_* -> NPC_type (beide Regelwerke), siehe bhed/npcklasse.h.
@@ -465,6 +466,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_kurven.cpp
     gui/app_modelltab_ik.cpp
     gui/app_animation.cpp
+    gui/app_figuranim.cpp
     gui/app_wetter.cpp
     gui/app_gras.cpp
     gui/app_ton.cpp
@@ -976,6 +978,11 @@ if(BEHAVED_TESTS)
   add_executable(modelliktest tests/modell_ik.cpp)
   target_link_libraries(modelliktest PRIVATE bhed_core)
   add_test(NAME modell_ik COMMAND modelliktest)
+  # Modell-Block Stufe 7: Figuren im Mission-Tab animieren - Zeilen im Skript, Grundanimation, Wurzelweg/SET_ORIGIN, ICARUS,
+  # Plaetze, Bauen (Rundlauf), fremde Raeume, IK-Schluessel im Dopesheet
+  add_executable(modellfiguranimtest tests/modell_figuranim.cpp)
+  target_link_libraries(modellfiguranimtest PRIVATE bhed_core)
+  add_test(NAME modell_figuranim COMMAND modellfiguranimtest)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest

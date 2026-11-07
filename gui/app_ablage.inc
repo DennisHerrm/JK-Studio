@@ -2721,6 +2721,26 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
                  " je Sekunde");
 }
 
+// tr.defaultShader (CreateInternalShaders, tr_shader.cpp:3836-3848 OpenJK): eine Stufe mit tr.defaultImage, GLS_DEFAULT,
+// ohne Lightmap; rgbGen bleibt CGEN_BAD, ComputeColors nimmt dafuer den default-Zweig CGEN_IDENTITY_LIGHTING
+// (tr_shade.cpp:1434-1436). tr.defaultImage (R_CreateDefaultImage, tr_image.cpp:1281-1310): 16x16, alles 32, die Randzeilen
+// und -spalten 255 ("a box, to allow you to see the mapping coordinates"), Mipmaps, GL_REPEAT. Movie Duels gleich.
+TextureSet::Tex standardShaderTextur() {
+    constexpr int kGroesse = 16;   // DEFAULT_SIZE
+    TextureSet::Tex t;
+    t.width = kGroesse;
+    t.height = kGroesse;
+    t.rgba.assign(static_cast<std::size_t>(kGroesse * kGroesse * 4), 32);
+    for (int x = 0; x < kGroesse; ++x) {
+        for (const int p : {x, x * kGroesse, (kGroesse - 1) * kGroesse + x, x * kGroesse + kGroesse - 1}) {
+            for (int k = 0; k < 4; ++k) { t.rgba[static_cast<std::size_t>(p * 4 + k)] = 255; }
+        }
+    }
+    t.buildMips();
+    t.ausSkript = true;   // eine Stufe ohne $lightmap
+    return t;
+}
+
 void loadMapTextures() {
     diag::Step step("Texturen suchen");
     // Was die vorige Karte benutzt hat - aufgeraeumt wird am Ende, wenn
@@ -3102,6 +3122,19 @@ void loadMapTextures() {
                 g_app->fehlendeTexturen.push_back(sh.name);
                 reportMissingTexture(sh.name);
             }
+            // mb7 (Fund 2): tr.defaultShader. Ohne Shaderskript sucht R_FindShader ein Bild des Namens; fehlt es, wird der
+            // Shader defaultShader (tr_shader.cpp:3500-3509 OpenJK), und ShaderForShaderNum gibt der Flaeche tr.defaultShader
+            // ("if the shader had errors, just use default shader", tr_bsp.cpp). Ebenso ein Skript, dessen Bildstufe ihr Bild
+            // nicht findet (ParseStage gibt qfalse, ParseShader scheitert -> defaultShader). Ein Skript nur mit $lightmap /
+            // $whiteimage ist kein Fehler. Die Karte zeigt dann das Kastenbild statt nichts - wie das Spiel.
+            std::string low = sh.name;
+            for (char& c : low) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const auto si = g_app->shaderMap.find(low);
+            bool standard = si == g_app->shaderMap.end();
+            if (!standard) {
+                for (const ShaderInfo::Stage& st : si->second.stages) { standard = standard || !st.image.empty(); }
+            }
+            if (standard) { ladeSatz().byShader[i] = standardShaderTextur(); }
         }
     }
     diag::info(std::to_string(ladeSatz().found) + " gefunden, " +

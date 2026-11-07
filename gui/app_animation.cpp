@@ -385,6 +385,9 @@ std::vector<const ActorStep*> roffSchritteVon(const std::string& entName) {
 
 }  // namespace
 
+// Stufe 7: dieselbe Ersetzung fuer die Figurenanimation (gui/app_figuranim.cpp)
+bool skriptBlockErsetzen(const Script& neu, const char* was) { return skriptErsetzen(neu, was); }
+
 bool entityAnimierbar(const MapEntity& e) {
     const std::string& c = e.classname;
     return c.rfind("func_", 0) == 0 || c == "misc_model_breakable" || c == "fx_runner";

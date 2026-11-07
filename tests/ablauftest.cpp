@@ -1185,6 +1185,82 @@ void r2bIcarus() {
     }
 }
 
+// mb7 (Fund 1): NPC_Begin spawnt nicht in einen anderen Koerper. SpotWouldTelefrag( ent, TEAM_FREE ) ueber den Kasten der
+// neuen Figur (NPC_spawn.cpp:1727-1752 MD / 999-1020 OpenJK, g_client.cpp:284-316 MD / 120-152 OpenJK): trifft er einen
+// lebenden Client mit CONTENTS_BODY, versucht NPC_Begin es ent->wait spaeter wieder (Spawner "wait", Vorgabe 500 ms, sonst
+// wait * 1000, NPC_spawn.cpp:3062-3069 MD); wait < 0 gibt die Figur frei und benutzt target3. SFB_NOTSOLID prueft nicht.
+// Im Spiel (Movie Duels, mb7raum, 28 Einheiten Abstand) erschien die Figur erst, als die andere per SET_ORIGIN wegging.
+void spawnBlockiert() {
+    using namespace f4b;
+    std::printf("mb7: blockierter Spawn\n");
+    const auto karte = [](const std::string& waitC, const std::string& flagsC) {
+        MapData m;
+        std::vector<std::pair<std::string, std::string>> c = {{"NPC_type", "kyle"}, {"NPC_targetname", "c"}, {"origin", "528 0 24"},
+                                                              {"target3", "marke_weg"}};
+        if (!waitC.empty()) { c.emplace_back("wait", waitC); }
+        if (!flagsC.empty()) { c.emplace_back("spawnflags", flagsC); }
+        m.entities = {ent("worldspawn", {}), ent("info_player_start", {{"origin", "0 0 24"}}),
+                      ent("NPC_spawner", {{"NPC_type", "kyle"}, {"NPC_targetname", "b"}, {"spawnscript", "k/b"}, {"origin", "500 0 24"}}),
+                      ent("NPC_spawner", c), ent("target_scriptrunner", {{"targetname", "marke_weg"}, {"usescript", "k/weg"}})};
+        return m;
+    };
+    const auto lauf2 = [](const MapData& m) {
+        static std::map<std::string, std::shared_ptr<Script>> sk;
+        sk["k/b"] = std::make_shared<Script>(lies("wait ( 2000.000 );\nset ( \"SET_ORIGIN\", \"500 200 24\" );\nwait ( 5000.000 );\n"));
+        sk["k/weg"] = std::make_shared<Script>(lies("wait ( 1.000 );\n"));
+        AblaufWelt w;
+        w.karte = &m;
+        w.skript = [](const std::string& p) -> const Script* {
+            const auto it = sk.find(p);
+            return it == sk.end() ? nullptr : it->second.get();
+        };
+        w.spielstufe = 1;
+        return simuliereKartenstart(w);
+    };
+    const auto erst = [](const Ablauf& a, const std::string& n) {
+        const auto it = a.erscheint.find(n);
+        return it == a.erscheint.end() ? -1.0 : it->second;
+    };
+    const MapData m1 = karte("", "");
+    const Ablauf a1 = lauf2(m1);
+    std::printf("  b ab %.0f, c ab %.0f ms\n", erst(a1, "b"), erst(a1, "c"));
+    // b: NPC_Begin und spawnscript im Bild 550, SET_ORIGIN nach dem wait (nach 2550); c: 550 blockiert, je 500 ms wieder - 3050 frei
+    pruefe(erst(a1, "b") == 550.0 && erst(a1, "c") == 3050.0,
+           "Spawn 28 Einheiten neben b: c erst, wenn b weg ist (550 + 5 x 500 ms)");
+    const MapData m2 = karte("0.3", "");
+    const Ablauf a2 = lauf2(m2);
+    pruefe(erst(a2, "c") == 2650.0, "Spawner wait 0.3: Wiederholung alle 300 ms (2650)");
+    const MapData m3 = karte("", "64");
+    const Ablauf a3 = lauf2(m3);
+    pruefe(erst(a3, "c") == 550.0, "SFB_NOTSOLID: keine Pruefung, c bei 550");
+    const MapData m4 = karte("-1", "");
+    const Ablauf a4 = lauf2(m4);
+    bool weg = false;
+    for (std::size_t i = 0; i < a4.skripte.size(); ++i) { weg = weg || (a4.skripte[i] == "k/weg" && a4.skriptBeginn[i] >= 550.0); }
+    pruefe(erst(a4, "c") < 0.0 && weg, "wait -1: c spawnt nie, target3 wird benutzt");
+    // Die Zwischensequenz (Startskript beginnt im Spiel bei 550): b und c vom Laden, c blockiert - affect auf c entfaellt,
+    // c kommt bei der ersten Wiederholung nach dem SET_ORIGIN von b (Skriptzeit 2000 -> 550 + 5 x 500 - 550 = 2500).
+    {
+        static std::map<std::string, std::shared_ptr<Script>> sk;
+        sk["k/weg"] = std::make_shared<Script>(lies("wait ( 1.000 );\n"));
+        AblaufWelt w;
+        w.karte = &m1;
+        w.skript = [](const std::string& p) -> const Script* {
+            const auto it = sk.find(p);
+            return it == sk.end() ? nullptr : it->second.get();
+        };
+        w.startImSpielMs = 550.0;
+        const Script s = lies("affect ( \"b\", FLUSH )\n{\n\twait ( 2000.000 );\n\tset ( \"SET_ORIGIN\", \"500 200 24\" );\n}\n"
+                              "affect ( \"c\", FLUSH )\n{\n\tset ( \"SET_ANIM_BOTH\", \"BOTH_SIT1\" );\n}\nwait ( 6000.000 );\n");
+        const Ablauf a = simuliereAblauf(s, "", w);
+        std::printf("  Zwischensequenz: c ab %.0f ms\n", erst(a, "c"));
+        bool ohneAffect = false;
+        for (const std::string& h : a.hinweise) { ohneAffect = ohneAffect || h.find("affect \"c\"") != std::string::npos; }
+        pruefe(erst(a, "c") == 2500.0 && ohneAffect,
+               "Zwischensequenz: c beim Laden blockiert - kein affect, erscheint bei der ersten Wiederholung nach b (2500)");
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc >= 3) {
         return werkzeug(argc, argv);
@@ -1202,6 +1278,7 @@ int main(int argc, char** argv) {
     zielKette();           // F4b
     f6bKette();            // F6b
     r2bIcarus();           // rc610 R2b
+    spawnBlockiert();      // mb7
     std::printf("%s\n", fehler == 0 ? "alle Proben bestanden" : "FEHLGESCHLAGEN");
     return fehler == 0 ? 0 : 1;
 }
