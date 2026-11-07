@@ -3054,6 +3054,8 @@ from i18n_ph import texte as _ph  # noqa: E402
 TEXTE.update(_ph("cs"))
 from i18n_rt import texte as _rt  # noqa: E402
 TEXTE.update(_rt("cs"))
+from i18n_animimp import texte as _animimp  # noqa: E402
+TEXTE.update(_animimp("cs"))
 from i18n_uv1b import texte as _uv1b  # noqa: E402
 TEXTE.update(_uv1b("cs"))
 from i18n_md1d import texte as _md1d  # noqa: E402

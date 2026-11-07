@@ -208,6 +208,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _md1d()})
             from i18n_pjka import zeilen_vier as _pjka   # p_jka: Max-Tasten, Make Planar
             texte.update({e[0]: e[1:] for e in _pjka()})
+            from i18n_animimp import zeilen_vier as _animimp   # Animations-Import und Preset-Bibliothek
+            texte.update({e[0]: e[1:] for e in _animimp()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

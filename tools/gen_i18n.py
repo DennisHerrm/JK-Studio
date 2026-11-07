@@ -2296,6 +2296,8 @@ from i18n_render import zeilen_vier as _render  # noqa: E402  (p_render: bewegte
 S += _render()
 from i18n_pjka import zeilen_vier as _pjka  # noqa: E402  (p_jka: Max-Tasten des Modellierens, Weg im Tooltip)
 S += _pjka()
+from i18n_animimp import zeilen_vier as _animimp  # noqa: E402  (Animations-Import FBX/glTF/BVH, Preset-Bibliothek)
+S += _animimp()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

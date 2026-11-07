@@ -1,0 +1,21 @@
+JK Studio - preset library (data/presets)
+
+The animations in this folder come from other authors. JK Studio ships them on
+their own skeletons (BVH, cut to one cycle and made in place by tools/presetbau);
+they are transferred to your figure only inside JK Studio, with the retargeting.
+No file of any game is part of this library.
+
+quaternius_ual/*.bvh
+  Quaternius - Universal Animation Library (Standard), https://quaternius.itch.io/universal-animation-library
+  Licence: CC0 1.0 Universal (Public Domain Dedication), https://creativecommons.org/publicdomain/zero/1.0/
+  (from License.txt of the download: "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication")
+
+100style/*.bvh
+  The 100STYLE Dataset - Ian Mason, https://www.ianxmason.com/100style/
+  (Zenodo record 8127870, 100STYLE.zip)
+  Licence: Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/
+  Changes: one walking cycle cut from the forward-walk take (Frame_Cuts.csv FW range), resampled from
+  60 to 30 frames per second, root moved in place, seam spread over the cycle.
+  Paper: I. Mason, S. Starke, T. Komura, "Real-Time Style Modelling of Human Locomotion via Feature-Wise
+  Transformations and Local Motion Phases", Proc. ACM Comput. Graph. Interact. Tech. 5(1), 2022,
+  doi:10.1145/3522618.

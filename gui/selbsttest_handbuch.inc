@@ -2406,6 +2406,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ph.inc: Modell-Block St
 namespace rt5 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_rt.inc: Modell-Block Stufe 5, BHED_HB_NUR=rt
 }  // namespace rt5
+namespace ai {
+std::vector<Schritt> handbuchSchritte();   // Animations-Import: Preset-Bibliothek (selbsttest_ai.inc)
+}  // namespace ai
 namespace uv1b {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_uv.inc: Modell-Block 1b, BHED_HB_NUR=uv
 }  // namespace uv1b
@@ -2448,6 +2451,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "rt") == 0) {
         return rt5::handbuchSchritte();   // Modell-Block Stufe 5: Retargeting im Model-Tab
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ai") == 0) {
+        return ai::handbuchSchritte();   // Animations-Import und Preset-Bibliothek im Model-Tab
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "uv") == 0) {
         return uv1b::handbuchSchritte();   // Modell-Block 1b: UV erstellen im Model-Tab

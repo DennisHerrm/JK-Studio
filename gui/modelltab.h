@@ -138,10 +138,30 @@ struct ModellModal {
 
 // Stufe 5: Retargeting (app_modelltab_retarget.cpp) - die Einstellungen stehen im Dokument (RigDaten::rt), hier die
 // geladene Quelle, die Charaktere und das Ergebnis der letzten Rechnung
+// Ein Eintrag der Preset-Bibliothek (data/presets/presets.txt)
+struct PresetEintrag {
+    std::string kategorie;   // idle, walk, run, combat, other
+    std::string name;
+    std::string datei;       // absoluter Pfad der BVH
+    std::string quelle;      // Urheber und Werk
+    std::string lizenz;      // CC0 1.0, CC BY 4.0
+    std::string platz;       // Vorgabe fuer den Platz (BOTH_WALK1 ...)
+    bool schleife = true;    // Zyklus (Schleife ab Bild 0), sonst einmal (Angriff, Tod ...)
+};
+
 struct ModellRetarget {
     GlaAnimation quelle;
     std::string quelleFuer;          // Pfad, zu dem `quelle` gehoert
     std::string quelleFehler;
+    std::string importInfo;      // Animations-Import: Format, Achsen, Einheit, fps der Datei ("" = .gla)
+    // Preset-Bibliothek (data/presets): Eintraege, gewaehlte Kategorie/Eintrag, Naht des uebertragenen Zyklus
+    std::vector<PresetEintrag> bibliothek;
+    bool bibliothekGeladen = false;
+    std::string bibliothekOrdner;
+    int bibliothekKategorie = 0;
+    int bibliothekWahl = -1;
+    float weltNaht = -1.0F;
+    float bibliothekY = -1.0F;   // Lage der Gruppe Bibliothek im Fenster der Rollouts (Inhalt, fuer das Rollen im Selbsttest)
     std::vector<AnimEntry> quelleCfg;
     modell::RtCharakter cq;
     modell::RtCharakter cz;
@@ -720,6 +740,11 @@ void modellIkUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 void drawModellIkBereich();
 // Stufe 5: Retargeting (app_modelltab_retarget.cpp)
 bool modellRtQuelleLaden(const std::string& pfad);
+// Animations-Import (FBX/glTF/BVH/COLLADA): Datei als Quelle, Vorlage zuordnen, uebertragen und Vorschau abspielen
+bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz = {});
+bool modellRtImportWaehlen();   // Dateidialog
+const std::vector<PresetEintrag>& modellPresetBibliothek();
+bool modellPresetBibliothekAuflegen(int i);   // Eintrag i: importieren, uebertragen, Vorschau abspielen
 bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f);
 [[nodiscard]] const modell::RetargetDaten* modellRtDaten();
 int modellRtZuordnen(bool alle);

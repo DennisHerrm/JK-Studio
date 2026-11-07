@@ -4,6 +4,13 @@ JK Studio is GPL v2 (see [LICENSE](LICENSE)). Everything below is compatible wit
 GPL v2; nothing is licensed under Apache 2.0 or GPL v3 only. The licence texts ship in
 `JK-Studio/licenses/` of every release zip (`tools/release_paket.py`, list `LIZENZEN`).
 
+## Animation data shipped in `data/presets` (preset library)
+
+| Work | Licence | Where | Notes |
+|---|---|---|---|
+| [Quaternius - Universal Animation Library](https://quaternius.itch.io/universal-animation-library) (Standard) | CC0 1.0 | `data/presets/quaternius_ual/*.bvh` | selected loops/actions, converted to BVH on their own skeleton by `tools/presetbau` |
+| [The 100STYLE Dataset - Ian Mason](https://www.ianxmason.com/100style/) (Zenodo 8127870) | CC BY 4.0 | `data/presets/100style/*.bvh` | one walking cycle per style cut from the FW take, 60 -> 30 fps, in place, seam spread; attribution in `data/presets/CREDITS.txt` and the About window |
+
 ## Compiled into `jkstudio.exe`
 
 | Component | Version | Licence | Where | Notes |

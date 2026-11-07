@@ -78,6 +78,9 @@ struct GlaAnimation {
     std::vector<std::uint8_t> bonePool;
     // Je Bild und Bone ein Verweis in den Vorrat.
     std::vector<std::uint32_t> indexes;
+    // Import aus glTF/FBX/BVH (modell/animimport.h): je Bild und Bone die lokale Stellung A unkomprimiert. Nicht leer:
+    // localMatrix liest von hier statt aus dem Vorrat (die Datei des Spiels hat diese Form nicht, schreibGla lehnt ab).
+    std::vector<BoneMatrix> roh;
 
     // Das Kino-Skelett der Karte, HINTER diesem angehaengt.
     //
