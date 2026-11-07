@@ -22,7 +22,7 @@ NEED = {
 
 root = pathlib.Path(__file__).resolve().parent.parent
 bad = 0
-for f in sorted(list((root/'src').glob('*.cpp')) + list((root/'include/bhed').glob('*.h'))
+for f in sorted(list((root/'src').glob('*.cpp')) + list((root/'src/modell/wof').glob('*.cpp')) + list((root/'include/bhed/modell/wof').glob('*.h')) + list((root/'include/bhed').glob('*.h'))
                 + list((root/'tests').glob('*.cpp')) + list((root/'tools').glob('*.cpp'))):
     t = f.read_text(encoding='utf-8', errors='replace')
     # Kommentare fuer die Include-Pruefung ausblenden.

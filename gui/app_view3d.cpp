@@ -1822,9 +1822,19 @@ void insertCameraHere() {
 // anderes will, waehlt es danach von Hand.
 void openModelFile() {
     const std::string p = platform::openFileDialog(
-        tr(Str::OpenGlm), "Ghoul2 models (*.glm)|*.glm|All files (*.*)|*.*",
+        tr(Str::OpenGlm), "Ghoul2 models (*.glm)|*.glm|MD3 models (*.md3)|*.md3|All files (*.*)|*.*",
         g_app->settings.lastDir);
     if (p.empty()) {
+        return;
+    }
+    if (p.size() > 4 && (p.compare(p.size() - 4, 4, ".md3") == 0 || p.compare(p.size() - 4, 4, ".MD3") == 0)) {
+        // Modell-Block 1b: eine .md3 von der Platte in den Model-Tab
+        std::string err;
+        if (!modellMd3Oeffnen(slurp(p), p, &err)) {
+            platform::showError(p + "\n" + err, tr(Str::AppTitle));
+            return;
+        }
+        g_app->settings.lastDir = directoryOf(p);
         return;
     }
     diag::Step step("Modell laden: " + p);

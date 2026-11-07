@@ -2288,6 +2288,8 @@ from i18n_ph import zeilen_vier as _ph  # noqa: E402  (Modell-Block Stufe 6: Aut
 S += _ph()
 from i18n_rt import zeilen_vier as _rt  # noqa: E402  (Modell-Block Stufe 5: Retargeting)
 S += _rt()
+from i18n_uv1b import zeilen_vier as _uv1b  # noqa: E402  (Modell-Block 1b: UV erstellen)
+S += _uv1b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

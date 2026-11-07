@@ -3052,6 +3052,8 @@ from i18n_ph import texte as _ph  # noqa: E402
 TEXTE.update(_ph("es"))
 from i18n_rt import texte as _rt  # noqa: E402
 TEXTE.update(_rt("es"))
+from i18n_uv1b import texte as _uv1b  # noqa: E402
+TEXTE.update(_uv1b("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 from i18n_aseb import texte as _aseb  # noqa: E402

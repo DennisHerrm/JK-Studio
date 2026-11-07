@@ -78,7 +78,7 @@ namespace {
 const char* bereichStufe(ModellBereich b) {
     switch (b) {
         case ModellBereich::Modellieren: return "1d";
-        case ModellBereich::Uv: return "1b";
+        case ModellBereich::Uv: break;   // Modell-Block 1b
         case ModellBereich::Weights: break;
         case ModellBereich::Painting: return "1c";
         case ModellBereich::Animation: return "4-7";   // Stufe 2: GLA, animation.cfg, Karten-GLA, Marker; Stufe 3: Rig, Posen, Ghosts, Pfade
@@ -1134,7 +1134,8 @@ void drawModellBefehlsfeld() {
     if (t.bereich == ModellBereich::Weights && !g_app->model.empty() && ImGui::CollapsingHeader(tr(Str::MbRGewichte), ImGuiTreeNodeFlags_DefaultOpen)) {
         drawModellGewichte();   // mb1a2
     }
-    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights && t.bereich != ModellBereich::Animation) {
+    if (t.bereich == ModellBereich::Uv && !g_app->model.empty()) { drawModellUvBereich(); }   // Modell-Block 1b
+    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights && t.bereich != ModellBereich::Animation && t.bereich != ModellBereich::Uv) {
         ImGui::PushTextWrapPos(0.0F);
         ImGui::TextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
         ImGui::PopTextWrapPos();
@@ -1515,6 +1516,7 @@ void drawModellKontextMenue() {
     }
     if (unter) { ImGui::EndMenu(); }
     modellRigKontextMenue();   // Stufe 3
+    modellUvKontextMenue();    // Modell-Block 1b
     ImGui::EndPopup();
 }
 
@@ -1547,6 +1549,7 @@ bool modellTasten() {
     }
     if (modellKurvenTasten()) { return true; }   // Stufe 3b: Schluessel, Editor-Tasten (Bereich Animation)
     if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
+    if (modellUvTasten()) { return true; }    // Modell-Block 1b: UV-Editor (Bereich UV)
     if (modellBlender()) {
         for (const BlenderTaste& k : blenderTasten()) {
             if (ImGui::IsKeyChordPressed(k.chord)) {
@@ -1638,7 +1641,11 @@ void drawModellAktionen() {
         ImGui::CloseCurrentPopup();
         rigAusgeloest = true;
     }
-    if (!rigAusgeloest && modellKurvenAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Stufe 3b
+    if (!rigAusgeloest && modellKurvenAktionenSuche(such)) {   // Stufe 3b
+        ImGui::CloseCurrentPopup();
+        rigAusgeloest = true;
+    }
+    if (!rigAusgeloest && modellUvAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1b
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

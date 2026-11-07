@@ -5153,6 +5153,11 @@ void drawMenu() {
         modellAnimationMenue();
         ImGui::EndMenu();
     }
+    // Modell-Block 1b: ein Menue "UV" (3ds Max: Unwrap UVW; Blender: das Menue UV)
+    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::UvMenue))) {
+        modellUvMenue();
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu(tr(Str::MenuEdit))) {
         if (ImGui::BeginMenu(tr(Str::MenuBookmarks))) {
             if (ImGui::MenuItem(tr(Str::ActBookmarkToggle), chordName(keys::Action::BookmarkToggle))) {

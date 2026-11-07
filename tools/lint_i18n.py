@@ -75,6 +75,8 @@ bad = 0
 # Ablage, Selbsttests ...) - vorher sah der Pruefer dort weder feste Texte noch
 # Benutzungen und meldete fast 700 Texte als "nirgends benutzt".
 _GUI = sorted((root / 'gui').glob('*.cpp')) + sorted((root / 'gui').glob('*.h')) + sorted((root / 'gui').glob('*.inc'))
+# Modell-Block 1b: die aus WhiteoutFlakes abgeleitete Oberflaeche liegt in gui/wof/ (eigener Ordner der Lizenz wegen)
+_GUI += sorted((root / 'gui' / 'wof').glob('*.cpp'))
 for f in _GUI:
     for n, line in enumerate(f.read_text(encoding='utf-8').split('\n'), 1):
         for m in CALL.finditer(line):

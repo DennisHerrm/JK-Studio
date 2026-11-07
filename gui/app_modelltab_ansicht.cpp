@@ -626,6 +626,17 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
         }
     }
     modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
+    // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor)
+    t.uv.nahtStriche3d = 0;
+    if (t.bereich == ModellBereich::Uv) {
+        const auto& hh = haut();
+        for (const std::array<int, 3>& st : modellUvNahtStriche()) {
+            const std::size_t teil = static_cast<std::size_t>(st[0]);
+            if (teil >= hh.size() || !gezeichnet(teil) || static_cast<std::size_t>(std::max(st[1], st[2])) >= hh[teil].size()) { continue; }
+            linie(dl, a, hh[teil][static_cast<std::size_t>(st[1])].data(), hh[teil][static_cast<std::size_t>(st[2])].data(), IM_COL32(230, 50, 40, 255), 2.0F);
+            ++t.uv.nahtStriche3d;
+        }
+    }
     dl->PopClipRect();
 }
 
@@ -1855,6 +1866,11 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     char kopf[200];
     std::snprintf(kopf, sizeof kopf, "[+] [%s] [%s]%s%s", tr(ansichtName(a.art)), tr(Str::MbAnsichtStandard), t.vierAnsichten ? "" : "  ",
                   t.vierAnsichten ? "" : tr(modellBlender() ? Str::MbAnsichtMaxBlender : Str::MbAnsichtMax));
+    // Modell-Block 1b: neben dem UV-Editor ist die Ansicht schmaler - passt der Hinweis "maximiert (Alt+W ...)" nicht,
+    // bleibt nur [+] [Ansicht] [Standard] stehen (nichts abgeschnitten)
+    if (ImGui::CalcTextSize(kopf).x > groesse.x - 12.0F) {
+        std::snprintf(kopf, sizeof kopf, "[+] [%s] [%s]", tr(ansichtName(a.art)), tr(Str::MbAnsichtStandard));
+    }
     dl->AddText(ImVec2{lo.x + 6.0F, lo.y + 4.0F}, IM_COL32(220, 220, 220, 230), kopf);
     if (t.an.statistik) {
         int fl = 0;
@@ -1950,7 +1966,14 @@ void drawModellArbeitsflaeche() {
     // Stufe 3b: Dopesheet/Kurveneditor unter den Ansichten, solange offen (die Ansichten werden so viel niedriger)
     if (t.kvOffen && t.kvHoehe <= 0.0F) { t.kvHoehe = fs * 16.0F; }
     const float editorH = modellAnimEditorHoehe(frei.y);
-    const ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y - (editorH > 0.0F ? editorH + ImGui::GetStyle().ItemSpacing.y : 0.0F), 64.0F)};
+    ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y - (editorH > 0.0F ? editorH + ImGui::GetStyle().ItemSpacing.y : 0.0F), 64.0F)};
+    // Modell-Block 1b: im Bereich UV der UV-Editor links neben den Ansichten (wie Blenders Arbeitsbereich "UV Editing" und
+    // der UV-Editor von WhiteoutFlakes); Platz nur, solange er offen ist
+    if (const float uvB = modellUvEditorBreite(ansichtenG.x); uvB > 0.0F) {
+        drawModellUvEditor(ImVec2{uvB, ansichtenG.y});
+        ImGui::SameLine(0.0F, sp);
+        ansichtenG.x = std::max(ansichtenG.x - uvB - sp - 5.0F, 64.0F);
+    }
     ImGui::BeginChild("mtansichten", ansichtenG, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     for (ModellAnsicht& a : t.ansichten) { a.sichtbar = false; }
     if (t.vierAnsichten) {
@@ -1972,6 +1995,7 @@ void drawModellArbeitsflaeche() {
     drawModellRigUebersicht();   // Stufe 3
     drawModellAnimEditor();      // Stufe 3b: Dopesheet / Kurveneditor
     drawModellModusMenue();
+    drawModellUvPopups();   // Modell-Block 1b
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
         t.kontextOeffnen = false;

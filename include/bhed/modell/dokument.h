@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,6 +51,9 @@ struct Ecke {
     std::uint32_t dateiPack = 0;
     std::uint8_t dateiGewicht[4]{};
     bool ausDatei = false;
+    // Modell-Block 1b: die Nummer der Ecke in der Datei (Kopien an UV-Naehten behalten die ihrer Vorlage; der
+    // MD3-Schreiber nimmt von dort Ort und Normale jedes Bilds). -1: keine Ecke einer Datei.
+    std::int32_t dateiIndex = -1;
 };
 
 // Eine Halbkante: vom Punkt ihrer Ecke zum Punkt der naechsten Kante im
@@ -85,6 +89,13 @@ struct Netz {
     std::vector<std::int32_t> dateiRefs;
     std::vector<std::int32_t> dateiRefsAufgeloest;
     bool ausDatei = false;   // die Flaeche dieser Stufe stand so in einer .glm (Rohfelder gelesen)
+    // Modell-Block 1b: der UV-Arbeitsstand (nicht in der Datei - JKA kennt je Ecke genau einen UV-Satz): Naht-Marken je
+    // Halbkante, ob eine Marke aus der Datei kam, Pins je Halbkante, "frei" je Dreieck (seit dem Laden bearbeitet). Leer =
+    // die Flaeche war noch nicht im UV-Bereich (bhed/modell/wof/uv.h, netzAus).
+    std::vector<std::uint8_t> uvNaht;
+    std::vector<std::uint8_t> uvDateiNaht;
+    std::vector<std::uint8_t> uvPin;
+    std::vector<std::uint8_t> uvFrei;
 
     [[nodiscard]] int dreiecke() const noexcept { return static_cast<int>(kanten.size() / 3U); }
     // Ecken und Dreiecke (drei Eckindizes je Dreieck) uebernehmen und die
@@ -129,6 +140,9 @@ struct Inhalt {
     bool jk2Umgewandelt = false;
     bool jkaUmgewandelt = false;
     std::vector<Teil> teile;
+    // Modell-Block 1b: die gelesene .md3 (der Schreiber nimmt Bilder, Tags und unveraenderte Flaechen von dort; geteilt,
+    // damit die Rueckgaengig-Schritte sie nicht kopieren). Leer: keine .md3.
+    std::shared_ptr<const std::string> md3Datei;
     // Stufe 2: Kopf der Datei roh (Name und Pfad der .gla je 64 Bytes, numBones vor dem Umlegen).
     std::string dateiName;
     std::string dateiGla;

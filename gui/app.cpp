@@ -3751,6 +3751,18 @@ bool oeffneModellAusArchiv(const std::string& name, std::string* fehler) {
     diag::Step ms("Modell laden: " + name);
     GlmModel gm;
     std::string gerr;
+    if (name.size() > 4 && (name.compare(name.size() - 4, 4, ".md3") == 0 || name.compare(name.size() - 4, 4, ".MD3") == 0)) {
+        // Modell-Block 1b: eine .md3 im Model-Tab (UV erstellen; Bild 0 wird gezeigt, gespeichert werden alle Bilder)
+        if (!modellMd3Oeffnen(data, name, &gerr)) {
+            ms.fail(gerr);
+            if (fehler != nullptr) { *fehler = gerr; }
+            return false;
+        }
+        g_app->modelSkins.clear();
+        g_app->modelSkinIndex = -1;
+        for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] = (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F; }
+        return true;
+    }
     if (!readGlm(data, gm, &gerr)) {
         ms.fail(gerr);
         if (fehler != nullptr) { *fehler = gerr; }
@@ -4130,6 +4142,9 @@ void drawAbout() {
     ImGui::BulletText("%s", tr(Str::AboutResources));
     ImGui::BulletText("%s", tr(Str::AboutIbi));
     ImGui::BulletText("%s", tr(Str::AboutIcarus));
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
+    ImGui::BulletText("%s", tr(Str::AboutUvLizenz));   // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
+    ImGui::PopTextWrapPos();
 
     ImGui::Separator();
     ImGui::TextDisabled("%s", tr(Str::AboutNotAffiliated));

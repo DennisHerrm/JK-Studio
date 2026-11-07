@@ -7564,3 +7564,5 @@ from inhalt_ph import ES as _PH  # noqa: E402
 TEXTE.update(_PH)
 from inhalt_rt import ES as _RT  # noqa: E402
 TEXTE.update(_RT)
+from inhalt_uv1b import ES as _UV1B  # noqa: E402
+TEXTE.update(_UV1B)

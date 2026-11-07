@@ -125,6 +125,16 @@ add_library(bhed_core STATIC
   src/modell/figuranim.cpp
   src/modell/physik.cpp
   src/modell/retarget.cpp
+  src/modell/md3datei.cpp
+  # Modell-Block 1b: UV erstellen - abgeleitet aus WhiteoutLib/WhiteoutFlakes (BSD-3 mit LICENSE-AI.md), eigener Ordner
+  # wof/ mit Lizenzkopf je Datei (licenses/WhiteoutFlakes-BSD-3.txt). Siehe bhed/modell/wof/uv.h.
+  src/modell/wof/uv_inseln.cpp
+  src/modell/wof/uv_abflachen.cpp
+  src/modell/wof/uv_anordnen.cpp
+  src/modell/wof/uv_naehte.cpp
+  src/modell/wof/uv_pruefen.cpp
+  src/modell/wof/uv_befehle.cpp
+  src/modell/wof/uv_formkarten.cpp
   src/camtrack.cpp
   src/scene.cpp
   # rc602: SP_NPC_* -> NPC_type (beide Regelwerke), siehe bhed/npcklasse.h.
@@ -212,6 +222,16 @@ else()
   target_compile_options(g2c PRIVATE -w)
 endif()
 target_link_libraries(bhed_core PRIVATE g2c)
+# Modell-Block 1b: xatlas (third_party/xatlas, jpcy/xatlas f700c779 wie WhiteoutFlakes, MIT) - Karten nach der Form
+# (Quick unwrap "Requisit", Naehte nach Form). Eine Uebersetzungseinheit, fremder Code ohne unsere Warnungspolitik.
+add_library(xatlas STATIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/xatlas/xatlas.cpp)
+target_include_directories(xatlas SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/xatlas)
+if(MSVC)
+  target_compile_options(xatlas PRIVATE /W0 /EHsc /bigobj /utf-8)
+else()
+  target_compile_options(xatlas PRIVATE -w)
+endif()
+target_link_libraries(bhed_core PRIVATE xatlas)
 
 if(MSVC)
   target_compile_options(bhed_core PUBLIC /W4 /permissive- /utf-8 /Zc:__cplusplus)
@@ -469,6 +489,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_ik.cpp
     gui/app_modelltab_physik.cpp
     gui/app_modelltab_retarget.cpp
+    gui/wof/app_modelltab_uv.cpp
     gui/app_animation.cpp
     gui/app_figuranim.cpp
     gui/app_wetter.cpp
@@ -995,6 +1016,12 @@ if(BEHAVED_TESTS)
   add_executable(modellretargettest tests/modell_retarget.cpp)
   target_link_libraries(modellretargettest PRIVATE bhed_core)
   add_test(NAME modell_retarget COMMAND modellretargettest)
+  # Modell-Block 1b: UV erstellen - Inseln/Keile, LSCM, minimale Dehnung, Entspannen, Begradigen, Projektion, Packen ohne
+  # Ueberlappung, Stapel, Naehte (Weg, Ring, Skelett, Winkel, Form), Pruefen; Abwickeln eines JKA-Modells mit Verzerrung und
+  # Dichte; Rundlauf GLM/MD3 ohne Aenderung Byte fuer Byte, UV -> Datei -> UV gleich, Naht-Teilung behaelt Gewichte, Grenze
+  add_executable(modelluvtest tests/modell_uv.cpp)
+  target_link_libraries(modelluvtest PRIVATE bhed_core)
+  add_test(NAME modell_uv COMMAND modelluvtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest

@@ -164,6 +164,9 @@ LIZENZEN = [
     ("OFL-Michroma.txt", "licenses/OFL-Michroma.txt", None),
     # Stufe 8d: was in jkstudio.exe selbst steckt (Dear ImGui, MIT; minimp3, CC0) - THIRD-PARTY.md
     ("imgui.txt", "licenses/imgui-MIT.txt", None),
+    # Modell-Block 1b: die UV-Werkzeuge (abgeleitet aus WhiteoutLib/WhiteoutFlakes, BSD-3 mit LICENSE-AI.md) und xatlas (MIT)
+    ("WhiteoutFlakes-BSD-3.txt", "licenses/WhiteoutFlakes-BSD-3.txt", None),
+    ("xatlas-MIT.txt", "third_party/xatlas/LICENSE", None),
     ("minimp3.txt", "third_party/minimp3.h", ("https://github.com/lieff/minimp3", "publicdomain/zero/1.0/>.")),
     ("q3map2-README.md", "third_party/q3map2/README.md", None),
     ("zlib.txt", "third_party/zlib/LICENSE", None),

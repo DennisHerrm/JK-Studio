@@ -12,6 +12,7 @@
 
 #include "bhed/modell/animcfg.h"
 #include "bhed/modell/glmdatei.h"
+#include "bhed/modell/md3datei.h"
 #include "bhed/modell/xsiaufnahme.h"
 #include "bhed/sicherschreiben.h"
 
@@ -97,6 +98,23 @@ bool schreibenNach(const std::string& ziel) {
     ModellTab& t = mt();
     std::string bytes;
     modell::GlmSchreibBericht br;
+    if (t.dok.inhalt().herkunft == modell::Herkunft::Md3) {
+        // Modell-Block 1b: eine .md3 (Bilder, Tags und unveraenderte Flaechen wie gelesen, siehe bhed/modell/md3datei.h)
+        modell::Md3SchreibBericht mb;
+        if (!modell::md3Schreiben(t.dok.inhalt(), bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &mb)) {
+            melden(format(Str::MbSpFehler, mb.fehler.c_str()));
+            return false;
+        }
+        std::string fehler;
+        if (!sicherSchreiben(ziel, bytes, &fehler)) {
+            melden(format(Str::MbSpFehler, fehler.c_str()));
+            return false;
+        }
+        t.speicherPfad = ziel;
+        t.gespeichertStand = t.dok.stand();
+        melden(format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu));
+        return true;
+    }
     if (!modell::glmSchreiben(t.dok.inhalt(), bytes, &br)) {
         melden(format(Str::MbSpFehler, br.fehler.c_str()));
         return false;
@@ -124,7 +142,8 @@ void cfgAbgleich();
 
 void modellSpeichern(bool unter) {
     ModellTab& t = mt();
-    if (t.dok.inhalt().herkunft != modell::Herkunft::Glm) {
+    const bool md3 = t.dok.inhalt().herkunft == modell::Herkunft::Md3 && t.dok.inhalt().md3Datei;   // Modell-Block 1b
+    if (t.dok.inhalt().herkunft != modell::Herkunft::Glm && !md3) {
         melden(tr(Str::MbSpNichtGlm));
         return;
     }
@@ -134,10 +153,11 @@ void modellSpeichern(bool unter) {
     } else if (!unter && aufPlatte(g_app->modelPath)) {
         ziel = g_app->modelPath;
     } else {
-        ziel = platform::saveFileDialog(tr(Str::MbDateiSpeichernUnter), "Ghoul2 models (*.glm)|*.glm", g_app->settings.lastDir,
-                                        fileName(g_app->modelPath.empty() ? std::string("model.glm") : g_app->modelPath));
+        const std::string endung = md3 ? ".md3" : ".glm";
+        ziel = platform::saveFileDialog(tr(Str::MbDateiSpeichernUnter), md3 ? "MD3 models (*.md3)|*.md3" : "Ghoul2 models (*.glm)|*.glm", g_app->settings.lastDir,
+                                        fileName(g_app->modelPath.empty() ? "model" + endung : g_app->modelPath));
         if (ziel.empty()) { return; }
-        if (kleinMb3(ziel).size() < 4 || kleinMb3(ziel).compare(ziel.size() - 4, 4, ".glm") != 0) { ziel += ".glm"; }
+        if (kleinMb3(ziel).size() < 4 || kleinMb3(ziel).compare(ziel.size() - 4, 4, endung) != 0) { ziel += endung; }
     }
     // Vor dem Schreiben die Grenzen des Zielspiels (g2.h): darueber fragt das Programm, Speichern bleibt moeglich. Die
     // Animationsliste erst nach dem Dokument (nach Rueckgaengig ohne gezeichnetes Bild nannte die Frage eine alte Zeile:

@@ -33,7 +33,10 @@ GlmVertex vertexAus(const Ecke& e) {
 std::vector<Ecke> eckenAus(const std::vector<GlmVertex>& v) {
     std::vector<Ecke> e;
     e.reserve(v.size());
-    for (const GlmVertex& x : v) { e.push_back(eckeAus(x)); }
+    for (const GlmVertex& x : v) {
+        e.push_back(eckeAus(x));
+        e.back().dateiIndex = static_cast<std::int32_t>(e.size() - 1U);   // Modell-Block 1b
+    }
     return e;
 }
 
@@ -278,6 +281,7 @@ void ausMd3(const Md3Model& m, Inhalt& out, int bild) {
                 std::memcpy(x.normale, v[i].normal, sizeof x.normale);
                 std::memcpy(x.uv, v[i].st, sizeof x.uv);
                 x.gewicht[0] = 1.0F;   // starr: alles an Knochen 0
+                x.dateiIndex = i;      // Modell-Block 1b: der MD3-Schreiber nimmt die Bilder dieser Ecke
             }
         }
         t.stufen.resize(1);

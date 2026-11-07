@@ -20,7 +20,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 cml = (root / 'CMakeLists.txt').read_text(encoding='utf-8')
 
 bad = 0
-for folder, note in (('src', 'bhed_core'), ('gui', 'Ziel behaved')):
+for folder, note in (('src', 'bhed_core'), ('src/modell/wof', 'bhed_core'), ('gui', 'Ziel behaved'), ('gui/wof', 'Ziel behaved')):
     for f in sorted((root / folder).glob('*.cpp')):
         rel = f"{folder}/{f.name}"
         if rel not in cml:

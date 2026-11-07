@@ -32,6 +32,7 @@
 #include "bhed/modell/physik.h"
 #include "bhed/modell/retarget.h"
 #include "bhed/modell/rig.h"
+#include "bhed/modell/wof/uv.h"
 
 namespace bhed::gpu {
 struct ModellGeist;
@@ -169,6 +170,60 @@ struct ModellRetarget {
     float versatz[3] = {};           // wo die Quelle neben der Figur steht (Handbuch: beide ins Bild)
     int rechnungen = 0;
     double ms = 0.0;                 // Dauer der letzten Rechnung
+};
+
+// Modell-Block 1b: UV erstellen (gui/wof/app_modelltab_uv.cpp) - der UV-Editor links neben den Ansichten, die Befehle,
+// der Zwischenstand des Arbeitsnetzes (eine Gruppe: die Flaechen, die eine Textur zeichnen, eine LOD-Stufe)
+struct ModellUv {
+    bool offen = true;            // der UV-Editor steht neben den Ansichten (nur im Bereich UV)
+    float breite = 0.0F;          // Breite des Editors (Kante zieht)
+    int gruppe = -1;              // Index in die Gruppen (-1: die der Auswahl)
+    int ebene = 2;                // modell::wof::UvEbene: 0 Ecke, 1 Kante, 2 Flaeche, 3 Insel
+    int werkzeug = 0;             // 0 Auswahl (Q), 1 Verschieben, 2 Drehen, 3 Skalieren
+    bool raster = true;
+    bool pixelFang = false;
+    int hintergrund = 0;          // 0 Textur, 1 Schachbrett, 2 nichts
+    bool dehnungZeigen = false;
+    bool ueberlappZeigen = true;
+    int methode = 1;              // modell::wof::UvMethode - wie WF UvViewOptions::unwrapMethod = 1 (minimale Dehnung)
+    int projAchse = 3;            // 0 X, 1 Y, 2 Z, 3 passend
+    int packUmfang = 0;           // modell::wof::PackUmfang
+    int abstand = 4;
+    bool drehen = true;
+    bool spiegeln = false;
+    float winkel = 60.0F;         // Naehte nach Winkel (WF seamAngle)
+    float zoom = 0.9F;            // Anteil der Kachel an der kleineren Seite
+    float mitte[2] = {0.5F, 0.5F};
+    // Arbeitsnetz und Befunde (neu, wenn sich Dokument, Stufe, Gruppe oder Haut aendern)
+    std::string fuer;
+    modell::wof::UvNetz netz;
+    modell::wof::UvInseln inseln;
+    modell::wof::UvBefunde befunde;
+    modell::wof::Verzerrung mass;
+    std::vector<float> dehnung;
+    // Ziehen / modal (G/R/S wie Blender)
+    int zug = 0;                  // 0 keins, 1 Verschieben, 2 Drehen, 3 Skalieren
+    bool modal = false;
+    int modalArt = 0;
+    bool zugAngelegt = false;
+    float zugStart[2]{};
+    float zugMitte[2]{};
+    modell::Inhalt zugInhalt;
+    modell::wof::UvNetz zugNetz;
+    bool rahmen = false;
+    float rahmenStart[2]{};
+    bool hover = false;           // die Maus ist ueber dem Editor
+    bool kontextOeffnen = false;
+    bool menueOeffnen = false;    // Blender U: das Abwickeln-Menue
+    // Selbsttest / Handbuch
+    int dreieckeGezeichnet = 0;
+    int nahtStriche3d = 0;        // Naht-Striche in der 3D-Ansicht im letzten Bild
+    int befehle = 0;
+    std::string letzterBefehl;
+    std::string meldung;
+    bool texturDa = false;
+    float leinwand[4]{};          // Lage der Leinwand im letzten Bild (x, y, b, h)
+    double bildMs = 0.0;          // CPU-Zeit des Editors im letzten Bild
 };
 
 struct ModellTab {
@@ -406,7 +461,30 @@ struct ModellTab {
     char posenDatei[64] = {};
     std::string posenOrdnerJetzt; // Selbsttest: der Ordner der letzten Posen-Datei
     ModellRetarget rt;            // Stufe 5
+    ModellUv uv;                  // Modell-Block 1b
 };
+
+// Modell-Block 1b: UV (gui/wof/app_modelltab_uv.cpp)
+void drawModellUvBereich();                 // Rollouts im Befehlsfeld
+float modellUvEditorBreite(float frei);     // 0: kein Editor
+void drawModellUvEditor(ImVec2 groesse);
+void modellUvMenue();                       // Hauptmenue "UV"
+void modellUvKontextMenue();                // Rechtsklick in der Ansicht
+bool modellUvTasten();
+bool modellUvAktionenSuche(const std::string& such);
+void drawModellUvPopups();
+// fuer die 3D-Ansicht: die Naht-Marken der gezeichneten Stufe als Eckenpaare (Teil, Ecke a, Ecke b)
+const std::vector<std::array<int, 3>>& modellUvNahtStriche();
+[[nodiscard]] int modellUvAktionZahl();
+[[nodiscard]] int modellUvAktionGruppe(int i);
+[[nodiscard]] const char* modellUvAktionText(int i);
+[[nodiscard]] const char* modellUvAktionHinweis(int i);
+[[nodiscard]] const char* modellUvAktionTaste(int i, bool blender);
+void modellUvAktionAusloesen(int i);
+void modellUvNetzAktualisieren();
+[[nodiscard]] int modellUvGruppenZahl();   // Texturen (Gruppen) der gezeichneten Stufe
+// .md3 im Model-Tab (Modell-Block 1b): lesen ins Dokument und als Modell zeigen; false mit Grund
+bool modellMd3Oeffnen(const std::string& bytes, const std::string& name, std::string* fehler);
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
 void modellDokumentLaden(const std::string& bytes);
