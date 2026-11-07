@@ -13,6 +13,7 @@
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -28,6 +29,7 @@
 #include "bhed/modell/g2.h"
 #include "bhed/modell/gewichte.h"
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/physik.h"
 #include "bhed/modell/rig.h"
 
 namespace bhed::gpu {
@@ -345,6 +347,20 @@ struct ModellTab {
     int ikRolloutBild = -1;       // Selbsttest: das letzte Bild, in dem das Rollout IK/FK offen war
     int ikGezeichnet = 0;         // Selbsttest: gezeichnete IK-Ziele je Bild
     int ikZugArt = 0;             // Selbsttest: letzte IK-Bedienung (1 Ziel, 2 Pol, 3 Rolle, 4 Wechsel auf FK, 5 Ziel drehen)
+    // Stufe 6: Auto-Physik (app_modelltab_physik.cpp) - die Einstellungen stehen in der Schicht (Dokument), hier die Rechnung
+    int physikStand = -1;         // Stand des Dokuments der letzten Rechnung
+    std::string physikSequenz;
+    float physikBoden = 0.0F;
+    modell::PhysikBericht physik; // Schwerpunkt, Kontakte, Stuetzflaeche, Fluege je Bild der Sequenz
+    modell::MassenModell physikMassen;
+    std::string physikRigFuer;    // fuer welches Rig das Massenmodell gilt
+    bool physikZeigen = true;     // Schwerpunkt, Weg und Stuetzflaeche in der Ansicht
+    bool physikOeffnen = false;   // das Rollout aufklappen (Aktion)
+    bool physikZug = false;       // Regler wird gezogen (ein Rueckgaengig-Schritt)
+    int physikRolloutBild = -1;   // Selbsttest
+    int physikGezeichnet = 0;     // Selbsttest: gezeichnete Teile der Ueberlagerung je Bild
+    int physikRechnungen = 0;     // Selbsttest: Zahl der Rechnungen
+    double physikMs = 0.0;        // Dauer der letzten Rechnung
     bool kvRedNurGewaehlte = false;
     bool kvRedSpanne = false;
     int kvRedVon = 0;
@@ -493,6 +509,17 @@ bool modellIkPolWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3
 [[nodiscard]] bool modellIkGriffMitte(int griff, float m[3]);
 void modellIkUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 void drawModellIkBereich();
+// Stufe 6: Auto-Physik (app_modelltab_physik.cpp)
+void modellPhysikAktualisieren();
+void modellPhysikUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+void drawModellPhysikBereich();
+bool modellPhysikAn(bool an);
+bool modellPhysikEinstellen(const char* undo, const std::function<void(modell::PhysikEinstellung&)>& f);
+bool modellPhysikFlugHier(bool landung);
+bool modellPhysikFlugAutomatisch();
+bool modellPhysikKetteHier();
+int modellPhysikKettenVorschlag();
+[[nodiscard]] const modell::PhysikEinstellung* modellPhysikEinstellung();
 bool modellPfadSpitzeHinzu();
 [[nodiscard]] bool modellSaebelSpitze(const ModellPfad& p, const std::vector<BoneMatrix>& welt, float ort[3], float* klingenAnfang = nullptr);
 // Stufe 4 (app_modelltab_kurven.cpp): Posen-Bibliothek als Datei

@@ -12,7 +12,7 @@ struct FaAktion {
     Str hinweis;
     const char* max;       // Taste im Modus wie 3ds Max (leer: keine)
     const char* blender;   // Taste im Modus wie Blender
-    int gruppe;            // 0 Figur, 1 Posieren, 2 IK/FK, 3 Pfade, 4 Bauen
+    int gruppe;            // 0 Figur, 1 Posieren, 2 IK/FK, 3 Pfade, 4 Bauen, 5 Auto-Physik (Stufe 6)
     std::function<void()> tun;
 };
 
@@ -96,6 +96,21 @@ std::vector<FaAktion> aktionen() {
         {Str::FaGliederZeigen, Str::FaGliederZeigenHint, "", "", 3, [] { fa().zeigeGlieder = !fa().zeigeGlieder; }},
         {Str::FaKurven, Str::FaKurvenHint, "", "", 3, [] { fa().kurvenZeigen = !fa().kurvenZeigen; }},
         {Str::FaBauen, Str::FaBauenHint, "", "", 4, [] { (void)figurAnimBauenFrage(); }},
+        // Stufe 6: Auto-Physik (keine Taste in max_hotkeys_de.txt und blender_keys.txt)
+        {Str::PhAn, Str::PhAnHint, "", "", 5, [] {
+             const std::shared_ptr<FigurDaten> d = daten(fa().figur);
+             (void)figurAnimPhysikAn(!(d->da && d->anim.schicht.physik.e.an));
+         }},
+        {Str::PhZeigen, Str::PhZeigenHint, "", "", 5, [] { fa().zeigePhysik = !fa().zeigePhysik; }},
+        {Str::PhAbsprungHier, Str::PhAbsprungHint, "", "", 5, [] { (void)figurAnimPhysikFlugHier(false); }},
+        {Str::PhLandungHier, Str::PhLandungHint, "", "", 5, [] { (void)figurAnimPhysikFlugHier(true); }},
+        {Str::PhFlugAutomatisch, Str::PhFlugAutomatischHint, "", "", 5, [] {
+             (void)figurAnimPhysik([](modell::PhysikEinstellung& e) {
+                 e.absprung = -1;
+                 e.landung = -1;
+             });
+         }},
+        {Str::PhKettenVorschlag, Str::PhKettenVorschlagHint, "", "", 5, [] { (void)figurAnimPhysikKetten(); }},
     };
 }
 
@@ -122,10 +137,10 @@ void aktionMenue(int gruppe) {
     }
 }
 
-const Str kGruppen[5] = {Str::FaGruppeFigur, Str::FaGruppePosieren, Str::MbIkGruppe, Str::FaGruppePfade, Str::FaGruppeBauen};
+const Str kGruppen[6] = {Str::FaGruppeFigur, Str::FaGruppePosieren, Str::MbIkGruppe, Str::FaGruppePfade, Str::FaGruppeBauen, Str::PhRollout};
 
 void alleMenues() {
-    for (int g = 0; g < 5; ++g) {
+    for (int g = 0; g < 6; ++g) {
         if (ImGui::BeginMenu(tr(kGruppen[g]))) {
             aktionMenue(g);
             ImGui::EndMenu();
@@ -461,6 +476,7 @@ std::string cfgKopf(const std::string& kopf, int bilder, std::size_t zeilen) {
 
 bool figurAnimBauen(const std::string& ordner, bool trotzdem) {
     FigurAnimZustand& z = fa();
+    z.bauenZeigen = true;
     const modell::Zielspiel zs = zielspiel();
     const std::vector<std::string> figuren = modell::figurenImSkript(g_app->doc.script());
     if (figuren.empty()) {
@@ -632,6 +648,196 @@ bool figurAnimBauenFrage() { return figurAnimBauen(ausgabeOrdner(), false); }
 
 // --- Ansicht: Griffe, Pfade, Maus ------------------------------------------------------------------------------------------
 
+// --- Stufe 6: Auto-Physik ----------------------------------------------------------------------------------------------------
+
+void drawPhysik(const FigurDaten& d) {
+    FigurAnimZustand& z = fa();
+    const bool offen = ImGui::CollapsingHeader(tr(Str::PhRollout), d.anim.schicht.physik.e.an ? ImGuiTreeNodeFlags_DefaultOpen : 0);
+    ImGui::SetItemTooltip("%s", tr(Str::PhRolloutHint));
+    if (!offen) { return; }
+    z.physikRolloutBild = ImGui::GetFrameCount();
+    // daneben, wenn der Platz reicht (sonst eine neue Zeile - nichts abschneiden, auch nicht in langen Sprachen)
+    const auto daneben = [](const char* text, float extra) {
+        ImGui::SameLine();
+        if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(text).x + extra) { ImGui::NewLine(); }
+    };
+    const float kasten = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x;
+    const modell::PhysikEinstellung e = d.anim.schicht.physik.e;
+    bool an = e.an;
+    if (ImGui::Checkbox(tr(Str::PhAn), &an)) { (void)figurAnimPhysikAn(an); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhAnHint));
+    daneben(tr(Str::PhZeigen), kasten);
+    ImGui::Checkbox(tr(Str::PhZeigen), &z.zeigePhysik);
+    ImGui::SetItemTooltip("%s", tr(Str::PhZeigenHint));
+    const modell::MassenModell mm = modell::massenModell(d.basis, d.rig);
+    if (!mm.gueltig()) {
+        ImGui::PushTextWrapPos(0.0F);
+        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, mm.fehler.c_str()).c_str());
+        ImGui::PopTextWrapPos();
+        return;
+    }
+    ImGui::BeginDisabled(!e.an);
+    float staerke = e.staerke;
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.0F);
+    ImGui::SliderFloat(tr(Str::PhStaerke), &staerke, 0.0F, 1.0F, "%.2f");
+    if (ImGui::IsItemDeactivatedAfterEdit()) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.staerke = staerke; }); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhStaerkeHint));
+    bool sprung = e.sprung;
+    if (ImGui::Checkbox(tr(Str::PhSprung), &sprung)) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.sprung = sprung; }); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhSprungHint));
+    daneben(tr(Str::PhKontakte), kasten);
+    bool kontakte = e.kontakte;
+    if (ImGui::Checkbox(tr(Str::PhKontakte), &kontakte)) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.kontakte = kontakte; }); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhKontakteHint));
+    ImGui::PushTextWrapPos(0.0F);
+    if (d.physik.fluege.empty()) {
+        ImGui::TextDisabled("%s", tr(Str::PhKeinFlug));
+    } else {
+        for (const auto& [a, l] : d.physik.fluege) {
+            ImGui::TextUnformatted((format(Str::PhFlug, a, l) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) + ")").c_str());
+        }
+    }
+    ImGui::PopTextWrapPos();
+    if (ImGui::SmallButton(tr(Str::PhAbsprungHier))) { (void)figurAnimPhysikFlugHier(false); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhAbsprungHint));
+    daneben(tr(Str::PhLandungHier), ImGui::GetStyle().FramePadding.x * 2.0F);
+    if (ImGui::SmallButton(tr(Str::PhLandungHier))) { (void)figurAnimPhysikFlugHier(true); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhLandungHint));
+    daneben(tr(Str::PhFlugAutomatisch), ImGui::GetStyle().FramePadding.x * 2.0F);
+    ImGui::BeginDisabled(e.absprung < 0);
+    if (ImGui::SmallButton(tr(Str::PhFlugAutomatisch))) {
+        (void)figurAnimPhysik([](modell::PhysikEinstellung& x) {
+            x.absprung = -1;
+            x.landung = -1;
+        });
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::PhFlugAutomatischHint));
+    ImGui::EndDisabled();
+    // Schwerkraft der Karte (g_gravity aus der worldspawn), nur zur Anzeige
+    float g = g_app->scene.schwerkraft;
+    ImGui::BeginDisabled();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0F);
+    ImGui::DragFloat(tr(Str::PhSchwerkraft), &g, 1.0F, 0.0F, 4000.0F, "%.0f");
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", tr(Str::PhSchwerkraftHint));
+    daneben(tr(Str::PhKontaktAbstand), ImGui::GetFontSize() * 5.0F + ImGui::GetStyle().ItemInnerSpacing.x);
+    float k = e.kontaktAbstand;
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0F);
+    ImGui::DragFloat(tr(Str::PhKontaktAbstand), &k, 0.1F, 0.0F, 32.0F, "%.1f");
+    if (ImGui::IsItemDeactivatedAfterEdit()) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.kontaktAbstand = k; }); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhKontaktAbstandHint));
+    bool federn = e.federn;
+    if (ImGui::Checkbox(tr(Str::PhFedern), &federn)) { (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) { x.federn = federn; }); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhFedernHint));
+    daneben(tr(Str::PhKettenVorschlag), ImGui::GetStyle().FramePadding.x * 2.0F);
+    if (ImGui::SmallButton(tr(Str::PhKettenVorschlag))) { (void)figurAnimPhysikKetten(); }
+    ImGui::SetItemTooltip("%s", tr(Str::PhKettenVorschlagHint));
+    for (std::size_t i = 0; i < e.ketten.size(); ++i) {
+        ImGui::PushID(static_cast<int>(i));
+        const modell::PhysikKette c = e.ketten[i];
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(c.knochen >= 0 && static_cast<std::size_t>(c.knochen) < d.basis.bones.size() ? d.basis.bones[static_cast<std::size_t>(c.knochen)].name.c_str()
+                                                                                                          : "-");
+        ImGui::SameLine();
+        float fq = c.frequenz;
+        float dm = c.daempfung;
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.5F);
+        ImGui::SliderFloat(tr(Str::PhFrequenz), &fq, 0.2F, 10.0F, "%.1f Hz");
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) {
+                if (i < x.ketten.size()) { x.ketten[i].frequenz = fq; }
+            });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::PhFrequenzHint));
+        daneben(tr(Str::PhDaempfung), ImGui::GetFontSize() * 4.5F + ImGui::GetStyle().ItemInnerSpacing.x);
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.5F);
+        ImGui::SliderFloat(tr(Str::PhDaempfung), &dm, 0.0F, 1.0F, "%.2f");
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) {
+                if (i < x.ketten.size()) { x.ketten[i].daempfung = dm; }
+            });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::PhDaempfungHint));
+        ImGui::SameLine();
+        if (ImGui::SmallButton("x")) {
+            (void)figurAnimPhysik([&](modell::PhysikEinstellung& x) {
+                if (i < x.ketten.size()) { x.ketten.erase(x.ketten.begin() + static_cast<std::ptrdiff_t>(i)); }
+            });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::PhKetteEntfernen));
+        ImGui::PopID();
+    }
+    ImGui::EndDisabled();
+    ImGui::PushTextWrapPos(0.0F);
+    if (d.physik.warnungen > 0) {
+        float weit = 0.0F;
+        for (const modell::PhysikBild& pb : d.physik.bilder) { weit = std::max(weit, pb.abstand); }
+        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::PhWarnung, d.physik.warnBild, d.physik.warnungen, static_cast<double>(weit)).c_str());
+    }
+    if (e.an && e.sprung && !d.physik.fluege.empty()) {
+        ImGui::TextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(d.physik.parabelAbw), static_cast<double>(d.physik.drehimpulsVorher * 100.0F),
+                                         static_cast<double>(d.physik.drehimpulsNachher * 100.0F))
+                                      .c_str());
+    }
+    ImGui::PopTextWrapPos();
+}
+
+// Schwerpunkt (jetzt), sein Weg und die Stuetzflaeche in der Karte
+void physikUeberlagerung(const FigurDaten& d, const std::vector<BoneMatrix>& welt, int bild, ImDrawList* dl, float px) {
+    FigurAnimZustand& z = fa();
+    z.physikGezeichnet = 0;
+    if (!z.zeigePhysik || !d.anim.schicht.physik.e.an || d.physik.bilder.empty() || welt.size() != d.basis.bones.size()) { return; }
+    const modell::MassenModell mm = modell::massenModell(d.basis, d.rig);
+    if (!mm.gueltig()) { return; }
+    const modell::PhysikBild* pb = bild >= 0 && static_cast<std::size_t>(bild) < d.physik.bilder.size() ? &d.physik.bilder[static_cast<std::size_t>(bild)] : nullptr;
+    const bool rot = pb != nullptr && pb->ausserhalb;
+    const ImU32 warn = IM_COL32(255, 70, 60, 240);
+    ImVec2 vor{};
+    bool vorDa = false;
+    for (const modell::PhysikBild& b : d.physik.bilder) {
+        float k[3];
+        inKarte(d.fw, b.spNeu.data(), k);
+        ImVec2 q;
+        const bool da = kartenPunktAufSchirm(k, q);
+        if (da && vorDa) { dl->AddLine(vor, q, b.flug ? IM_COL32(255, 170, 40, 230) : IM_COL32(200, 200, 210, 150), (b.flug ? 2.0F : 1.0F) * px); }
+        vor = q;
+        vorDa = da;
+    }
+    ++z.physikGezeichnet;
+    if (pb != nullptr && pb->stuetz.size() >= 2) {
+        std::vector<ImVec2> pts;
+        for (const auto& q2 : pb->stuetz) {
+            const float f[3] = {q2[0], q2[1], pb->bodenZ};
+            float k[3];
+            inKarte(d.fw, f, k);
+            ImVec2 q;
+            if (kartenPunktAufSchirm(k, q)) { pts.push_back(q); }
+        }
+        if (pts.size() == pb->stuetz.size()) {
+            dl->AddPolyline(pts.data(), static_cast<int>(pts.size()), rot ? warn : IM_COL32(90, 220, 120, 230), ImDrawFlags_Closed, 2.0F * px);
+            ++z.physikGezeichnet;
+        }
+    }
+    const modell::Vec3 c = modell::schwerpunkt(d.basis, mm, welt);
+    float ck[3];
+    inKarte(d.fw, c.data(), ck);
+    ImVec2 q;
+    if (kartenPunktAufSchirm(ck, q)) {
+        const float r = 6.0F * px;
+        const ImU32 f = rot ? warn : IM_COL32(250, 230, 80, 240);
+        dl->AddCircleFilled(q, r, IM_COL32(20, 20, 24, 200), 20);
+        dl->PathArcTo(q, r, 0.0F, 1.5707964F, 8);
+        dl->PathLineTo(q);
+        dl->PathFillConvex(f);
+        dl->PathArcTo(q, r, 3.1415927F, 4.712389F, 8);
+        dl->PathLineTo(q);
+        dl->PathFillConvex(f);
+        dl->AddCircle(q, r, f, 20, 1.5F * px);
+        if (rot) { dl->AddText(ImVec2{q.x + r * 1.4F, q.y - r}, warn, tr(Str::PhAusserhalb)); }
+        ++z.physikGezeichnet;
+    }
+}
+
 void figurAnimUeberlagerung() {
     FigurAnimZustand& z = fa();
     z.griffeGezeichnet = 0;
@@ -665,6 +871,7 @@ void figurAnimUeberlagerung() {
             vorDa = da;
         }
     }
+    physikUeberlagerung(*d, welt, bild, dl, px);   // Stufe 6
     if (z.zeigeGlieder) {
         for (const modell::IkArt art : {modell::IkArt::ArmLinks, modell::IkArt::ArmRechts, modell::IkArt::BeinLinks, modell::IkArt::BeinRechts}) {
             modell::IkSpur sp;
@@ -1002,8 +1209,12 @@ void drawFigurAnimFenster() {
     }
     const float fs = ImGui::GetFontSize();
     // rechts am Rand, damit die Figur in der Ansicht frei bleibt
-    ImGui::SetNextWindowPos(ImVec2{ImGui::GetIO().DisplaySize.x - fs * 35.0F, fs * 4.0F}, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2{fs * 34.0F, fs * 40.0F}, ImGuiCond_FirstUseEver);
+    // Stufe 6: in Bildschirmkoordinaten des Hauptfensters (mit Viewports ist die Lage absolut; DisplaySize allein setzte das Fenster
+    // ausserhalb, wenn das Hauptfenster nicht bei 0,0 steht - es wurde ein eigenes Fenster, die Handbuchbilder ph_hb7_* ohne es)
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x - fs * 35.0F, vp->WorkPos.y + fs * 4.0F}, ImGuiCond_FirstUseEver);
+    // nicht hoeher als das Hauptfenster (bei grosser Schrift ragte es heraus und wurde ein eigenes Fenster, ph_hb7c: 1440 in 1384)
+    ImGui::SetNextWindowSize(ImVec2{std::min(fs * 34.0F, vp->WorkSize.x - fs * 2.0F), std::min(fs * 40.0F, vp->WorkSize.y - fs * 5.0F)}, ImGuiCond_FirstUseEver);
     if (!ImGui::Begin((std::string(tr(Str::FaTitel)) + "###figuranim").c_str(), &z.offen, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
@@ -1175,6 +1386,7 @@ void drawFigurAnimFenster() {
         ImGui::SameLine();
         drawFremdZeile(*d);
     }
+    drawPhysik(*d);   // Stufe 6
     // --- Pfade ---
     if (ImGui::CollapsingHeader(tr(Str::FaGruppePfade))) {
         ImGui::Checkbox(tr(Str::FaWurzelZeigen), &z.zeigeWurzel);
@@ -1196,7 +1408,14 @@ void drawFigurAnimFenster() {
         if (z.kurvenZeigen) { drawKurven(*d); }
     }
     // --- Bauen ---
-    if (ImGui::CollapsingHeader(tr(Str::FaGruppeBauen), ImGuiTreeNodeFlags_DefaultOpen)) { drawBauen(); }
+    // Stufe 6: Bauen aus Menue, Suche oder Knopf klappt den Rollout auf und rollt zu ihm (die Meldung steht darunter)
+    if (z.bauenZeigen) { ImGui::SetNextItemOpen(true); }
+    const bool bauenOffen = ImGui::CollapsingHeader(tr(Str::FaGruppeBauen), ImGuiTreeNodeFlags_DefaultOpen);
+    if (z.bauenZeigen) {
+        ImGui::SetScrollHereY(0.0F);
+        z.bauenZeigen = false;
+    }
+    if (bauenOffen) { drawBauen(); }
     if (!z.meldung.empty()) {
         ImGui::Separator();
         ImGui::PushTextWrapPos(0.0F);

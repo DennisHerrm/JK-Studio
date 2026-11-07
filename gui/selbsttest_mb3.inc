@@ -827,7 +827,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         int da = 0;
         int alle = 0;   // Stufe 4: die Gruppe IK/FK steht im eigenen Untermenue (selbsttest_mb6.inc prueft sie)
         for (int i = 0; i < modellRigAktionZahl(); ++i) {
-            if (modellRigAktionGruppe(i) == 5) { continue; }
+            if (modellRigAktionGruppe(i) >= 5) { continue; }   // Stufe 6: Auto-Physik ebenso (selbsttest_ph.inc)
             ++alle;
             da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0;
         }
@@ -848,7 +848,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         int da = 0;
         int alle = 0;   // Stufe 4: die Gruppe IK/FK steht im eigenen Untermenue (selbsttest_mb6.inc prueft sie)
         for (int i = 0; i < modellRigAktionZahl(); ++i) {
-            if (modellRigAktionGruppe(i) == 5) { continue; }
+            if (modellRigAktionGruppe(i) >= 5) { continue; }   // Stufe 6: Auto-Physik ebenso (selbsttest_ph.inc)
             ++alle;
             da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0;
         }

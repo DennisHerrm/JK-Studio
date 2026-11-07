@@ -6,6 +6,7 @@
 
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/ik.h"
+#include "bhed/modell/physik.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1126,11 +1127,15 @@ void rigSchluesselLoeschen(RigSchicht& s, int k, int bild) {
 void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus,
                    const std::vector<BoneFrameOverride>& ueber) {
     rigNachMalFk(g, s, bildA, bildB, anteil, aus);
-    if (s.ik.empty()) { return; }
-    // Stufe 4: die IK auf der FK-Welt dieses Bilds
-    std::vector<BoneMatrix> welt;
-    g.worldMatricesLerp(bildA, bildB, anteil, ueber, aus, welt);
-    (void)ikAnwenden(g, s, static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F), welt, aus);
+    const float bild = static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F);
+    if (!s.ik.empty()) {
+        // Stufe 4: die IK auf der FK-Welt dieses Bilds
+        std::vector<BoneMatrix> welt;
+        g.worldMatricesLerp(bildA, bildB, anteil, ueber, aus, welt);
+        (void)ikAnwenden(g, s, bild, welt, aus);
+    }
+    // Stufe 6: die Physik-Spur als Filter danach (X'' = X' P)
+    physikAuf(s, bild, aus);
 }
 
 void rigNachMalFk(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
@@ -1317,7 +1322,9 @@ int handPoseSetzen(const GlaAnimation& g, const Rig& r, Seite seite, int quellBi
     std::vector<BoneMatrix> quelle;
     if (quellBild >= 0) { g.worldMatrices(std::clamp(quellBild, 0, g.bildZahl() - 1), quelle); }
     std::vector<BoneMatrix> jetzt;
-    rigWelt(g, s, bild, bild, 0.0F, jetzt);
+    RigSchicht ohnePhysik = s;   // Stufe 6: die Schluessel bekommen nur die Pose der Schicht (die Physik kaeme sonst doppelt)
+    ohnePhysik.physik.e.an = false;
+    rigWelt(g, ohnePhysik, bild, bild, 0.0F, jetzt);
     const BoneMatrix qHandInv = quellBild >= 0 ? starrInvers(quelle[static_cast<std::size_t>(hand)]) : g.bones[static_cast<std::size_t>(hand)].basePoseInv;
     std::vector<BoneMatrix> ziel = jetzt;
     std::vector<int> finger;
@@ -1386,6 +1393,25 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
                     }
                 }
                 if (!da) { nach.emplace_back(b, m); }
+            }
+        }
+        if (physikWirkt(s)) {
+            // Stufe 6: die Physik-Spur auf die M der Schicht (M P); ein Knochen ohne Schluessel bekommt P auf seiner Lage
+            // (Bindebasis: B^-1 A B wie wertOder)
+            std::vector<std::pair<int, BoneMatrix>> pk;
+            physikAuf(s, static_cast<float>(f), pk);
+            for (const auto& [b, p] : pk) {
+                bool da = false;
+                for (auto& [k, mm] : nach) {
+                    if (k == b) {
+                        mm = mm * p;
+                        da = true;
+                    }
+                }
+                if (!da && b >= 0 && b < nb) {
+                    const GlaBone& kb = q.bones[static_cast<std::size_t>(b)];
+                    nach.emplace_back(b, (s.bindeBasis ? kb.basePoseInv * q.localMatrix(f, b) * kb.basePose : BoneMatrix::identity()) * p);
+                }
             }
         }
         std::fill(mJe.begin(), mJe.end(), nullptr);

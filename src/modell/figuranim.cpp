@@ -226,6 +226,17 @@ std::vector<std::string> figurZeilen(const FigurAnim& a) {
         z.push_back(std::string(kDaten) + zitat(a.figur) + " fremd " + std::to_string(static_cast<int>(f.art)) + " " + zitat(f.figur) + " " +
                     zitat(f.knochen) + " " + std::to_string(f.von) + " " + std::to_string(f.bis) + matrixText(f.versatz));
     }
+    // Stufe 6: Auto-Physik (nur die Einstellungen; die Spur rechnet die Vorschau daraus)
+    const PhysikEinstellung& e = a.schicht.physik.e;
+    const PhysikEinstellung vorgabe;
+    if (e.an || !e.ketten.empty() || e.absprung >= 0 || e.staerke != vorgabe.staerke || e.sprung != vorgabe.sprung || e.kontakte != vorgabe.kontakte ||
+        e.federn != vorgabe.federn || e.kontaktAbstand != vorgabe.kontaktAbstand) {
+        std::string d = std::string(kDaten) + zitat(a.figur) + " physik " + (e.an ? "1" : "0") + " " + zahl(e.staerke) + " " + (e.sprung ? "1" : "0") + " " +
+                        (e.kontakte ? "1" : "0") + " " + (e.federn ? "1" : "0") + " " + std::to_string(e.absprung) + " " + std::to_string(e.landung) + " " +
+                        zahl(e.kontaktAbstand) + " " + std::to_string(e.ketten.size());
+        for (const PhysikKette& k : e.ketten) { d += " " + std::to_string(k.knochen) + " " + zahl(k.frequenz) + " " + zahl(k.daempfung); }
+        z.push_back(d);
+    }
     return z;
 }
 
@@ -331,6 +342,25 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
             }
             if (!l.ok || a < 0 || a >= kIkArten) { return falsch("Zeile " + std::to_string(zi) + ": fremd"); }
             aus.fremd.push_back(f);
+        } else if (art == "physik") {
+            PhysikEinstellung& e = aus.schicht.physik.e;
+            e.an = l.ganz() != 0;
+            e.staerke = l.fl();
+            e.sprung = l.ganz() != 0;
+            e.kontakte = l.ganz() != 0;
+            e.federn = l.ganz() != 0;
+            e.absprung = l.ganz();
+            e.landung = l.ganz();
+            e.kontaktAbstand = l.fl();
+            const int n = l.ganz();
+            for (int i = 0; i < n && l.ok; ++i) {
+                PhysikKette k;
+                k.knochen = l.ganz();
+                k.frequenz = l.fl();
+                k.daempfung = l.fl();
+                if (k.knochen >= 0 && static_cast<std::size_t>(k.knochen) < g.bones.size()) { e.ketten.push_back(k); }
+            }
+            if (!l.ok || n < 0) { return falsch("Zeile " + std::to_string(zi) + ": physik"); }
         }
     }
     return true;

@@ -410,6 +410,9 @@ std::vector<Schritt> mission1ZwischenSchritte(const std::string& teil, bool inse
     add(pruefe("Zwischenpunkt: eine laufende Figur mit Laufziel gefunden", [=] {
         return lp->figur >= 0 && lp->entity >= 0 && !lp->endName.empty() && mission1::entityNamens(lp->endName) >= 0;
     }));
+    // Stufe 6: ohne gefundene Figur (FEHLER eben gemeldet) tun die folgenden Schritte nichts - sie lasen sonst actors[-1] und
+    // map.entities[-1] (C++-Ausnahme, Absturz in mb7 mit m1_held auf dem Spawner einer anderen Figur)
+    const std::size_t mitFigurAb = s.size();
     add(tu("Zwischenpunkt: Kamera vor die Figur, ihr Spawner gewaehlt, Verschieben", [=] {
         FolgeZiel f;
         f.actor = lp->figur;
@@ -584,6 +587,10 @@ std::vector<Schritt> mission1ZwischenSchritte(const std::string& teil, bool inse
         g_app->mapDirty = true;
     }));
     add(pause(0.4));
+    for (std::size_t i = mitFigurAb; i < s.size(); ++i) {
+        std::function<bool(int)> tun = std::move(s[i].tun);
+        s[i].tun = [lp, tun](int b) { return lp->figur < 0 || lp->entity < 0 ? true : tun(b); };
+    }
     return s;
 }
 
@@ -1901,9 +1908,13 @@ std::vector<Schritt> mission1MiniSchritte(std::shared_ptr<mission1::Zustand> z) 
                     mission1::abstand3(st.from, st.to) < 380.0F && ai < g_app->actorAssets.size() && g_app->actorAssets[ai]) {
                     // mb7: 40 Einheiten auf der Strecke vom Spawner der Figur weg - am selben Ort spawnte m1_held im Spiel erst,
                     // wenn diese Figur weggeht (NPC_Begin, SpotWouldTelefrag; Kaesten 2 x 15 + 1 breit)
+                    // BHED_M1_MINI_ABSTAND: ein anderer Abstand (0 = genau auf dem Spawner wie vor mb7 - dann findet
+                    // "Zwischenpunkt" keine laufende Figur, die Probe der Stufe 6)
+                    const char* abstandText = std::getenv("BHED_M1_MINI_ABSTAND");
+                    const float abstand = abstandText != nullptr ? std::strtof(abstandText, nullptr) : 40.0F;
                     const float d = mission1::abstand3(st.from, st.to);
                     for (int k = 0; k < 3; ++k) {
-                        m->von[k] = st.from[k] + (st.to[k] - st.from[k]) * 40.0F / d;
+                        m->von[k] = st.from[k] + (st.to[k] - st.from[k]) * abstand / d;
                         m->bis[k] = st.to[k];
                     }
                     m->typ = a.npcType;

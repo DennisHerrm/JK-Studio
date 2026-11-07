@@ -220,6 +220,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         return [ik] {
             int n = 0;
             for (int i = 0; i < modellRigAktionZahl(); ++i) {
+                if (modellRigAktionGruppe(i) == 6) { continue; }   // Stufe 6: eigenes Untermenue Auto-Physik (selbsttest_ph.inc)
                 if ((modellRigAktionGruppe(i) == 5) != ik) { continue; }
                 const std::string text = modellRigAktionText(i);
                 if (imMenue(text) == nullptr || std::string(modellRigAktionHinweis(i)).size() < 10U) {

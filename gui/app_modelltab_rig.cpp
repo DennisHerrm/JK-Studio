@@ -197,7 +197,7 @@ struct RigAktion {
     const char* quelle;         // Herkunft der Taste
     std::function<void()> tun;
     std::function<bool()> an;   // Haken im Menue (leer: kein Umschalter)
-    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen, 5 IK/FK (Stufe 4)
+    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen, 5 IK/FK (Stufe 4), 6 Auto-Physik (Stufe 6)
 };
 
 int artJetztRig() {
@@ -266,6 +266,27 @@ const std::vector<RigAktion>& rigAktionen() {
         {Str::MbIkSaebelHand, Str::MbIkSaebelHandHint, "", "", 0, 0, "", [] { (void)modellIkSaebelHand(); }, {}, 5},
         {Str::MbIkLoeschen, Str::MbIkLoeschenHint, "", "", 0, 0, "", [] { (void)modellIkSchluesselLoeschen(artJetztRig()); }, {}, 5},
         {Str::MbIkBacken, Str::MbIkBackenHint, "", "", 0, 0, "", [] { (void)modellIkBacken(artJetztRig()); }, {}, 5},
+        // Stufe 6: Auto-Physik - weder 3ds Max (max_hotkeys_de.txt) noch Blender (blender_keys.txt) haben eine Taste dafuer
+        {Str::PhAn, Str::PhAnHint, "", "", 0, 0, "", [] {
+             const modell::PhysikEinstellung* e = modellPhysikEinstellung();
+             (void)modellPhysikAn(e == nullptr || !e->an);
+         },
+         [] {
+             const modell::PhysikEinstellung* e = modellPhysikEinstellung();
+             return e != nullptr && e->an;
+         },
+         6},
+        {Str::PhRolloutOeffnen, Str::PhRolloutOeffnenHint, "", "", 0, 0, "", [] { mt().physikOeffnen = true; }, {}, 6},
+        {Str::PhZeigen, Str::PhZeigenHint, "", "", 0, 0, "", [] {
+             mt().physikZeigen = !mt().physikZeigen;
+             g_app->modelDirty = true;
+         },
+         [] { return mt().physikZeigen; }, 6},
+        {Str::PhAbsprungHier, Str::PhAbsprungHint, "", "", 0, 0, "", [] { (void)modellPhysikFlugHier(false); }, {}, 6},
+        {Str::PhLandungHier, Str::PhLandungHint, "", "", 0, 0, "", [] { (void)modellPhysikFlugHier(true); }, {}, 6},
+        {Str::PhFlugAutomatisch, Str::PhFlugAutomatischHint, "", "", 0, 0, "", [] { (void)modellPhysikFlugAutomatisch(); }, {}, 6},
+        {Str::PhKetteHier, Str::PhKetteHierHint, "", "", 0, 0, "", [] { (void)modellPhysikKetteHier(); }, {}, 6},
+        {Str::PhKettenVorschlag, Str::PhKettenVorschlagHint, "", "", 0, 0, "", [] { (void)modellPhysikKettenVorschlag(); }, {}, 6},
     };
     return kListe;
 }
@@ -291,16 +312,17 @@ void aktionenAlsMenue(int gruppeNur) {
     for (std::size_t i = 0; i < liste.size(); ++i) {
         const RigAktion& a = liste[i];
         if (gruppeNur >= 0 && a.gruppe != gruppeNur) { continue; }
-        // Stufe 4: IK/FK als eigenes Untermenue (das Menue Animation passte sonst nicht mehr auf den Schirm, mb6_hb_en)
-        if (gruppeNur < 0 && a.gruppe == 5) {
-            if (gruppe == 5) { continue; }
-            gruppe = 5;
+        // Stufe 4: IK/FK als eigenes Untermenue (das Menue Animation passte sonst nicht mehr auf den Schirm, mb6_hb_en);
+        // Stufe 6: Auto-Physik ebenso
+        if (gruppeNur < 0 && a.gruppe >= 5) {
+            if (gruppe == a.gruppe) { continue; }
+            gruppe = a.gruppe;
             ImGui::Separator();
-            if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
-                aktionenAlsMenue(5);
+            if (ImGui::BeginMenu(tr(gruppe == 5 ? Str::MbIkGruppe : Str::PhRollout))) {
+                aktionenAlsMenue(gruppe);
                 ImGui::EndMenu();
             }
-            ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
+            ImGui::SetItemTooltip("%s", tr(gruppe == 5 ? Str::MbIkRolloutHint : Str::PhRolloutHint));
             continue;
         }
         if (a.gruppe != gruppe) {
@@ -973,6 +995,8 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     if (t.bereich != ModellBereich::Animation) { return; }
     modellRigAktualisieren();
     for (const ModellPfad& p : t.pfade) { pfadZeichnen(a, dl, p); }
+    modellPhysikAktualisieren();         // Stufe 6: die Physik-Spur nach jeder Aenderung des Dokuments
+    modellPhysikUeberlagerung(a, dl);    // Stufe 6: Schwerpunkt, Weg, Stuetzflaeche
     if (!modellRigDa() || !t.rigZeigen) { return; }
     modellIkUeberlagerung(a, dl);   // Stufe 4: IK-Ziele, Raum
     const float r = ImGui::GetFontSize() * 0.45F;
@@ -1106,6 +1130,12 @@ void modellRigExplorer(const std::string& such) {
                 }
                 ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
             }
+            ImGui::Separator();   // Stufe 6: Auto-Physik (Federkette ab diesem Knochen)
+            if (ImGui::BeginMenu(tr(Str::PhRollout))) {
+                aktionenAlsMenue(6);
+                ImGui::EndMenu();
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::PhRolloutHint));
             ImGui::EndPopup();
         }
         ImGui::PopID();
@@ -1176,6 +1206,7 @@ void drawModellRigBereich() {
         if (knopf(Str::MbRgSchluesselLoeschen, Str::MbRgSchluesselLoeschenHint, rig)) { (void)modellRigSchluesselLoeschen(); }
     }
     drawModellIkBereich();   // Stufe 4: IK/FK (wie 3ds Max Bewegung > IK-Solver, wie Rigify IK-FK)
+    drawModellPhysikBereich();   // Stufe 6: Auto-Physik (wie die Rollouts von Bewegung in 3ds Max)
     // Pose, Ghosts, Pfade und Backen ab Werk zu: Platz nur, wenn gebraucht - darunter folgen GLA, animation.cfg und die
     // Plaetze aus Stufe 2 (mb4e_mb3: offen schoben sie die Plaetze aus dem Bild).
     if (ImGui::CollapsingHeader(tr(Str::MbRgGruppePose))) {

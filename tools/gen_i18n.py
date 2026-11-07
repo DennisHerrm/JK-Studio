@@ -2284,6 +2284,8 @@ from i18n_aseb import zeilen_vier as _aseb  # noqa: E402  (ASEB: .ase, .md3 usw.
 S += _aseb()
 from i18n_mb7 import zeilen_vier as _mb7  # noqa: E402  (Modell-Block Stufe 7: Figuren im Mission-Tab animieren, fuer das Spiel bauen)
 S += _mb7()
+from i18n_ph import zeilen_vier as _ph  # noqa: E402  (Modell-Block Stufe 6: Auto-Physik)
+S += _ph()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

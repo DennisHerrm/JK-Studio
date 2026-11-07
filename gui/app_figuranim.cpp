@@ -22,6 +22,7 @@
 #include "bhed/modell/figuranim.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/ik.h"
+#include "bhed/modell/physik.h"
 #include "bhed/modell/rig.h"
 #include "bhed/sicherschreiben.h"
 #include "bhed/utf8pfad.h"
@@ -104,8 +105,9 @@ struct FigurDaten {
     double startMs = 0.0;
     int becken = -1;
     int folgeBild = -1;
-    modell::RigSchicht wirk;   // mit fremden Raeumen eingerechnet
+    modell::RigSchicht wirk;   // mit fremden Raeumen eingerechnet (und der Physik-Spur, Stufe 6)
     std::vector<std::array<float, 3>> wurzel;
+    modell::PhysikBericht physik;   // Stufe 6
 };
 
 struct RigSpeicher {
@@ -216,6 +218,8 @@ std::shared_ptr<FigurDaten> datenRoh(const std::string& figur) {
     return d;
 }
 
+void physikEinrechnen(const FigurDaten& d, modell::RigSchicht& s, modell::PhysikBericht* bericht);   // Stufe 6, unten
+
 // Mit fremden Raeumen und Wurzelweg
 std::shared_ptr<FigurDaten> daten(const std::string& figur) {
     std::shared_ptr<FigurDaten> d = datenRoh(figur);
@@ -236,6 +240,7 @@ std::shared_ptr<FigurDaten> daten(const std::string& figur) {
         std::memcpy(selbst.fw, d->fw, sizeof selbst.fw);
         (void)modell::fremdeEinrechnen(d->basis, selbst, andere, d->wirk);
     }
+    physikEinrechnen(*d, d->wirk, &d->physik);   // Stufe 6
     d->wurzel = modell::wurzelPfad(d->basis, d->wirk, d->becken, d->fw);
     return d;
 }
@@ -278,6 +283,39 @@ void richtungInFigur(const float fw[16], const float v[3], float o[3]) {
     for (int r = 0; r < 3; ++r) { o[r] = inv.m[r][0] * v[0] + inv.m[r][1] * v[1] + inv.m[r][2] * v[2]; }
 }
 
+// Stufe 6: die Physik-Spur der Figur. Boden: traceRay der Karte senkrecht unter dem Punkt (der Raum der Figur ist gedreht
+// und skaliert, die Senkrechte bleibt), Schwerkraft: g_gravity der Karte (Scene::schwerkraft, worldspawn "gravity") im Raum
+// der Figur (geteilt durch ihre Groesse aus der .npc), Takt: frameLerp der Figur.
+void physikEinrechnen(const FigurDaten& d, modell::RigSchicht& s, modell::PhysikBericht* bericht) {
+    if (!s.physik.e.an || d.basis.empty()) {
+        s.physik.knochen.clear();
+        return;
+    }
+    const BoneMatrix fwm = fwMatrix(d.fw);
+    const BoneMatrix inv = modell::starrInvers(fwm);
+    const float skala = std::hypot(fwm.m[0][0], fwm.m[1][0], fwm.m[2][0]);
+    modell::PhysikUmgebung u;
+    const float sohle[3] = {0.0F, 0.0F, d.start[2] - 24.0F};   // ohne Treffer: die Sohle (DEFAULT_MINS_2, bg_public.h)
+    float sohleF[3];
+    for (int r = 0; r < 3; ++r) { sohleF[r] = inv.m[r][0] * d.start[0] + inv.m[r][1] * d.start[1] + inv.m[r][2] * sohle[2] + inv.m[r][3]; }
+    u.bodenZ = sohleF[2];
+    u.bildMs = modell::figurBildMs(d.anim);
+    u.boden = [&](float x, float y, float zOben, float& z) {
+        const float pf[3] = {x, y, zOben};
+        float pk[3];
+        inKarte(d.fw, pf, pk);
+        const float von[3] = {pk[0], pk[1], pk[2]};
+        const float bis[3] = {pk[0], pk[1], pk[2] - 1024.0F};
+        if (g_app->geo.empty()) { return false; }
+        const TraceTreffer t = traceRay(g_app->geo, von, bis);
+        if (!t.hit) { return false; }
+        z = inv.m[2][0] * t.point[0] + inv.m[2][1] * t.point[1] + inv.m[2][2] * t.point[2] + inv.m[2][3];
+        return true;
+    };
+    s.physik.e.schwerkraft = g_app->scene.schwerkraft / std::max(skala, 1e-3F);
+    (void)modell::physikRechnen(d.basis, d.rig, s, 0, std::min(d.anim.bilder, d.basis.bildZahl()), u, bericht);
+}
+
 // --- Schreiben ins Skript ------------------------------------------------------------------------------------------------
 
 // SET_ORIGIN fuer eine Figur aus den aktuellen Daten
@@ -299,6 +337,7 @@ std::array<float, 3> ursprungFuer(const modell::FigurAnim& a, const FigurDaten& 
         std::memcpy(selbst.fw, d.fw, sizeof selbst.fw);
         (void)modell::fremdeEinrechnen(d.basis, selbst, andere, wirk);
     }
+    physikEinrechnen(d, wirk, nullptr);   // Stufe 6
     int folge = -1;
     for (const AnimEntry& e : eigeneAbschnitte(*d.skelett)) {
         if (e.name == a.folge) { folge = e.firstFrame; }
@@ -777,7 +816,53 @@ bool fremdLoesen(modell::IkArt art) {
     });
 }
 
+// Stufe 6: Auto-Physik der Figur (Einstellungen in der Schicht, ein Rueckgaengig-Schritt im Skript)
+bool physikEinstellen(Str was, const std::function<void(modell::PhysikEinstellung&, const FigurDaten&)>& f) {
+    return schichtAendern(was, [&](modell::FigurAnim& a, const FigurDaten& d) { f(a.schicht.physik.e, d); });
+}
+
 }  // namespace
+
+bool figurAnimPhysikAn(bool an) {
+    return physikEinstellen(Str::PhUndoAn, [&](modell::PhysikEinstellung& e, const FigurDaten&) { e.an = an; });
+}
+
+bool figurAnimPhysik(const std::function<void(modell::PhysikEinstellung&)>& f) {
+    return physikEinstellen(Str::PhUndoEinstellung, [&](modell::PhysikEinstellung& e, const FigurDaten&) { f(e); });
+}
+
+bool figurAnimPhysikFlugHier(bool landung) {
+    return physikEinstellen(Str::PhUndoFlug, [&](modell::PhysikEinstellung& e, const FigurDaten& d) {
+        const int b = bildJetzt(d);
+        if (e.absprung < 0 || e.landung < 0) {
+            const std::pair<int, int> fl = d.physik.fluege.empty() ? std::pair<int, int>{b, b} : d.physik.fluege.front();
+            e.absprung = fl.first;
+            e.landung = fl.second;
+        }
+        (landung ? e.landung : e.absprung) = b;
+    });
+}
+
+int figurAnimPhysikKetten() {
+    int neu = 0;
+    (void)physikEinstellen(Str::PhUndoKette, [&](modell::PhysikEinstellung& e, const FigurDaten& d) {
+        for (const int k : modell::kettenVorschlag(d.rig, d.basis)) {
+            if (std::any_of(e.ketten.begin(), e.ketten.end(), [&](const modell::PhysikKette& c) { return c.knochen == k; })) { continue; }
+            modell::PhysikKette c;
+            c.knochen = k;
+            e.ketten.push_back(c);
+            ++neu;
+        }
+        e.federn = true;
+    });
+    melden(format(Str::PhKettenNeu, neu));
+    return neu;
+}
+
+modell::PhysikBericht figurAnimPhysikBericht(const std::string& figur) {
+    const std::shared_ptr<FigurDaten> d = daten(figur);
+    return d->da ? d->physik : modell::PhysikBericht{};
+}
 
 // --- Von aussen ------------------------------------------------------------------------------------------------------------
 

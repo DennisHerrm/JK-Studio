@@ -80,6 +80,30 @@ std::array<float, 3> knochenInKarte(const std::vector<BoneMatrix>& w, const floa
 float ab(const std::array<float, 3>& a, const std::array<float, 3>& b) { return std::hypot(std::hypot(a[0] - b[0], a[1] - b[1]), a[2] - b[2]); }
 float ab2(const std::array<float, 3>& a, const std::array<float, 3>& b) { return std::hypot(a[0] - b[0], a[1] - b[1]); }
 
+// Stufe 6: das Fenster "Figur animieren" fuer ein Foto ganz ins Hauptfenster (die Handbuchbilder ph_hb7_* zeigten es nicht:
+// es lag ausserhalb des Hauptfensters, mit Viewports ein eigenes Fenster) - meldet die Lage vorher
+Schritt fensterImBild() {
+    return tu("Fenster Figur animieren ganz im Hauptfenster", [] {
+        ImGuiWindow* w = ImGui::FindWindowByName("###figuranim");
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        if (w == nullptr) {
+            diag::detail("Knopftest: Fenster Figur animieren - nicht da");
+            return;
+        }
+        const bool innen = w->Viewport == vp && w->Pos.x >= vp->WorkPos.x && w->Pos.y >= vp->WorkPos.y &&
+                           w->Pos.x + w->Size.x <= vp->WorkPos.x + vp->WorkSize.x && w->Pos.y + w->Size.y <= vp->WorkPos.y + vp->WorkSize.y;
+        diag::detail("Knopftest: Fenster Figur animieren - Lage " + std::to_string(w->Pos.x) + " " + std::to_string(w->Pos.y) + ", Groesse " +
+                     std::to_string(w->Size.x) + " " + std::to_string(w->Size.y) + ", Hauptfenster " + std::to_string(vp->WorkPos.x) + " " +
+                     std::to_string(vp->WorkPos.y) + " " + std::to_string(vp->WorkSize.x) + " " + std::to_string(vp->WorkSize.y) + ", eigenes Fenster " +
+                     std::to_string(w->Viewport != vp) + ", ganz innen " + std::to_string(innen));
+        if (innen) { return; }
+        const float fs = ImGui::GetFontSize();
+        const ImVec2 groesse{std::min(w->Size.x, vp->WorkSize.x - 2.0F * fs), std::min(w->Size.y, vp->WorkSize.y - 5.0F * fs)};
+        ImGui::SetWindowSize(w, groesse);
+        ImGui::SetWindowPos(w, ImVec2{vp->WorkPos.x + vp->WorkSize.x - groesse.x - fs, vp->WorkPos.y + 4.0F * fs});
+    });
+}
+
 std::vector<std::string> zeilen(const std::string& f) { return modell::figurZeilenImSkript(g_app->doc.script(), f); }
 
 // SET_ORIGIN im Block der Figur
@@ -849,6 +873,8 @@ std::vector<Schritt> handbuchSchritte() {
     }));
     add(warteBis("MB7 Handbuch: Szene", [] { return g_app->camTrackValid; }, 600));
     add(pause(0.6));
+    add(fensterImBild());
+    add(pause(0.4));
     add(hilfe2::schrittFoto("h_mb7_posieren"));
     add(tu("MB7 Handbuch: b wartet auf a, c haelt b; Bauen aufklappen", [] {
         g_app->playMs = 0.0;
@@ -871,6 +897,8 @@ std::vector<Schritt> handbuchSchritte() {
     }));
     add(warteBis("MB7 Handbuch: Szene", [] { return g_app->camTrackValid; }, 600));
     add(pause(0.6));
+    add(fensterImBild());
+    add(pause(0.4));
     add(hilfe2::schrittFoto("h_mb7_mehrere"));
     add(tu("MB7 Handbuch: Fuer das Spiel bauen (Fenster mit der Meldung)", [=] {
         g_app->figAnim.zeigeGlieder = false;
@@ -880,6 +908,8 @@ std::vector<Schritt> handbuchSchritte() {
         (void)figurAnimBauen(g_app->figAnim.ordner, false);
     }));
     add(pause(0.6));
+    add(fensterImBild());
+    add(pause(0.4));
     add(hilfe2::schrittFoto("h_mb7_bauen"));
     return s;
 }

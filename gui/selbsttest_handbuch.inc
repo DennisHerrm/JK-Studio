@@ -2365,6 +2365,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb6.inc: Modell-Block S
 namespace fa7 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb7.inc: Modell-Block Stufe 7, BHED_HB_NUR=mb7
 }  // namespace fa7
+namespace ph6 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ph.inc: Modell-Block Stufe 6, BHED_HB_NUR=ph
+}  // namespace ph6
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2395,6 +2398,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb7") == 0) {
         return fa7::handbuchSchritte();   // Modell-Block Stufe 7: Figuren im Mission-Tab animieren
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ph") == 0) {
+        return ph6::handbuchSchritte();   // Modell-Block Stufe 6: Auto-Physik im Model-Tab und im Fenster Figur animieren
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

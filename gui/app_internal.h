@@ -3219,6 +3219,12 @@ bool skriptBlockErsetzen(const Script& neu, const char* was);   // app_animation
 bool figurAnimStarten(const std::string& figur);
 bool figurAnimEntfernen(const std::string& figur);
 bool figurAnimEinstellen(const std::function<void(modell::FigurAnim&)>& f);
+// Stufe 6: Auto-Physik der Figur (gui/app_figuranim.cpp)
+bool figurAnimPhysikAn(bool an);
+bool figurAnimPhysik(const std::function<void(modell::PhysikEinstellung&)>& f);
+bool figurAnimPhysikFlugHier(bool landung);
+int figurAnimPhysikKetten();
+modell::PhysikBericht figurAnimPhysikBericht(const std::string& figur);
 void figurAnimErsatz(std::size_t actor, ActorDraw& d);   // waehrend eines Zugs: die Knochen aus der Schicht des Zugs
 [[nodiscard]] bool figurAnimTastenAktiv();                // Griffe in der Ansicht: W/E/Q gehoeren ihnen (ohne rechte Taste)
 // Die Karten-GLA der Vorschau aus den Figurenbloecken; stand kommt in den Schluessel des Anhangs.

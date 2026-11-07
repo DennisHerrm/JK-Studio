@@ -1249,8 +1249,10 @@ int animationSpiegeln(const GlaAnimation& g, const Rig& r, RigSchicht& s, int er
     // erst alle Posen der Sequenz (die Schicht aendert sich beim Einfuegen)
     std::vector<RigPose> posen;
     std::vector<BoneMatrix> welt;
+    RigSchicht ohnePhysik = s;   // Stufe 6: gespiegelt wird die Schicht ohne die Physik-Spur (sie kaeme sonst doppelt)
+    ohnePhysik.physik.e.an = false;
     for (int f = erstes; f < erstes + anzahl; ++f) {
-        rigWelt(g, s, f, f, 0.0F, welt);
+        rigWelt(g, ohnePhysik, f, f, 0.0F, welt);
         posen.push_back(poseAus(g, welt));
     }
     int gesetzt = 0;

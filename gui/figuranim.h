@@ -54,6 +54,10 @@ struct FigurAnimZustand {
     std::vector<std::string> befunde;   // Fragen vor dem Bauen
     bool frage = false;
     std::string meldung;
+    bool zeigePhysik = true;        // Stufe 6: Schwerpunkt, Weg und Stuetzflaeche in der Karte
+    int physikGezeichnet = 0;       // Selbsttest
+    int physikRolloutBild = -1;     // Selbsttest
+    bool bauenZeigen = false;       // Stufe 6: nach dem Bauen den Rollout aufklappen und in Sicht rollen (Meldung sichtbar)
     // Aktionssuche (X wie 3ds Max, F3 wie Blender)
     bool sucheOeffnen = false;
     bool sucheSichtbar = false;

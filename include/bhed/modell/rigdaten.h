@@ -115,6 +115,34 @@ inline constexpr int kIkWahl = -1000;
 [[nodiscard]] constexpr int ikWahlCode(int spur) noexcept { return kIkWahl - spur; }
 [[nodiscard]] constexpr int ikWahlSpur(int code) noexcept { return code <= kIkWahl ? kIkWahl - code : -1; }
 
+// Stufe 6: Auto-Physik als Filter ueber der Schicht (Rechnung in bhed/modell/physik.h). Die Einstellungen gehoeren zum
+// Dokument (Rueckgaengig); die erzeugten Schluessel stehen in einer eigenen Spur `knochen` (je Bild einer, die Korrektur
+// P je Knochen nach FK und IK: X'' = X' P) - die Schluessel der Schicht bleiben unangetastet.
+struct PhysikKette {
+    int knochen = -1;          // erster Knochen der Kette (Umhang, Haare, Riemen); seine Kinder gehoeren dazu
+    float frequenz = 2.0F;     // Eigenfrequenz der Feder in Hz (Vorgabe des Reglers, kein Spielwert)
+    float daempfung = 0.3F;    // Daempfungsgrad (1 = aperiodischer Grenzfall)
+};
+struct PhysikEinstellung {
+    bool an = false;           // Filter an/aus (aus: Anzeige und Backen ohne die Physik-Spur)
+    float staerke = 1.0F;      // 0..1, mischt die Korrektur je Knochen (Drehung slerp, Ort linear)
+    bool sprung = true;        // Flugphase: Schwerpunkt auf der Parabel, Drehimpuls konstant
+    bool kontakte = true;      // Fuesse im Kontakt rutschen nicht (Bein-IK aus Stufe 4)
+    bool federn = true;        // Federketten als Nachlauf
+    int absprung = -1;         // Bild (absolut); -1 = aus den Kontakten
+    int landung = -1;
+    float schwerkraft = 800.0F;     // g_gravity (Model-Tab 800, Mission-Tab die der Karte)
+    // Fuss im Kontakt: tiefster Fusspunkt hoechstens so weit ueber seinem tiefsten Stand in der Sequenz. Messgrund (Selbsttest ph,
+    // Sturmtruppler ueber dem ModView-Boden -24): im Stand ruht er (BOTH_STAND1 0,30, BOTH_STAND2 -0,31 je ein Bild), beim Gehen hebt
+    // sich der schwingende Fuss 3,6 ueber seinen tiefsten Stand (BOTH_WALK1 -2,41 bis 1,28) - die Grenze nahe am Stand.
+    float kontaktAbstand = 0.5F;
+    std::vector<PhysikKette> ketten;
+};
+struct PhysikSchicht {
+    PhysikEinstellung e;
+    std::vector<std::vector<RigSchluessel>> knochen;   // erzeugt (physikRechnen), je Knochen ein Schluessel je Bild
+};
+
 struct RigSchicht {
     std::vector<std::vector<RigSchluessel>> knochen;   // je Knochen, nach Bild sortiert
     std::vector<IkSpur> ik;                            // Stufe 4: IK je Glied (auf den FK-Schluesseln)
@@ -123,6 +151,7 @@ struct RigSchicht {
     bool bindeBasis = false;
     // Interpolation neuer Schluessel (die Oberflaeche setzt die Vorgabe des Modus: Bezier wie Max und Blender)
     Interp neuInterp = Interp::Linear;
+    PhysikSchicht physik;   // Stufe 6
     [[nodiscard]] bool leer() const noexcept;
     [[nodiscard]] int schluesselZahl() const noexcept;
     [[nodiscard]] bool hatSchluessel(int knochen, int bild) const noexcept;
