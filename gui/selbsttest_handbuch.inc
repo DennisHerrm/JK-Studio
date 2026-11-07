@@ -2368,6 +2368,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb7.inc: Modell-Block S
 namespace ph6 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ph.inc: Modell-Block Stufe 6, BHED_HB_NUR=ph
 }  // namespace ph6
+namespace rt5 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_rt.inc: Modell-Block Stufe 5, BHED_HB_NUR=rt
+}  // namespace rt5
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2401,6 +2404,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ph") == 0) {
         return ph6::handbuchSchritte();   // Modell-Block Stufe 6: Auto-Physik im Model-Tab und im Fenster Figur animieren
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "rt") == 0) {
+        return rt5::handbuchSchritte();   // Modell-Block Stufe 5: Retargeting im Model-Tab
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

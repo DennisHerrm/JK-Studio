@@ -3052,6 +3052,8 @@ from i18n_mb7 import texte as _mb7  # noqa: E402
 TEXTE.update(_mb7("cs"))
 from i18n_ph import texte as _ph  # noqa: E402
 TEXTE.update(_ph("cs"))
+from i18n_rt import texte as _rt  # noqa: E402
+TEXTE.update(_rt("cs"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("cs"))
 from i18n_aseb import texte as _aseb  # noqa: E402

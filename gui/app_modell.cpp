@@ -399,7 +399,9 @@ bool modellBrauchtBilder() {
     if (g_app->modellAnsichtBild != ImGui::GetFrameCount() || g_app->model.empty()) { return false; }
     const bool spielt = g_app->animPlaying && !g_app->anim.empty() && g_app->animIndex >= 0 &&
                         static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size();
-    return spielt || g_app->modellDrehteller;
+    // Stufe 5: die Vorschau des Retargetings / Presets spielt ebenso aus sich heraus (sonst blieb sie im Leerlauf stehen, rt_zeit1)
+    const bool rtSpielt = g_app->mtab.rt.vorschau && g_app->mtab.rt.spielt && !g_app->mtab.rt.welt.empty();
+    return spielt || rtSpielt || g_app->modellDrehteller;
 }
 
 // Modell-Block 1a-1: die dritte Zeile - Primaer (ganzer Koerper) und
@@ -439,6 +441,7 @@ void drawModelPanel() {
     const AnimEntry* e = animDa ? &g_app->animList[static_cast<std::size_t>(g_app->animIndex)] : nullptr;
 
     // --- Abspielen (die Uhr) -----------------------------------------------------
+    modellRtUhr();   // Stufe 5: die Vorschau des Retargetings / Presets
     if (e != nullptr && g_app->animPlaying) {
         const bool wantLoop = (g_app->loopMode == 1) || (g_app->loopMode == 0 && e->loopFrame >= 0);
         g_app->animTime += ImGui::GetIO().DeltaTime * g_app->animSpeed * static_cast<float>(std::max(e->fps, 1));

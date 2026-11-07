@@ -460,12 +460,27 @@ bool modellXsiAufnehmen(const std::string& datei) {
 
 // Eine neue Quelle (XSI aufgenommen, Rig gebacken) auf den naechsten freien Platz des Ziels: die GLA als feste Kopie,
 // die Zeile mit allen Bildern, loopFrames und fps. Leer: kein Platz frei (gemeldet).
-std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps) {
+std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps, const std::string& wunsch) {
     ModellTab& t = mt();
     plaetzeAnpassen();
     t.kgQuellen.push_back(ModellGlaQuelle{name, std::move(g)});
     const GlaAnimation* q = &t.kgQuellen.back().gla;
     const modell::PlatzQuelle pq{q, name, AnimEntry{name, 0, q->numFrames, loopFrames, fps}};
+    // Stufe 5: ein gewuenschter Platz (BOTH_WALK1 der _humanoid.gla, ein Name der eigenen GLA), auch wenn er belegt ist
+    if (!wunsch.empty()) {
+        const bool da = t.glaZiel == 2 ||
+                        std::any_of(t.plaetze.begin(), t.plaetze.end(), [&](const modell::Platz& p) { return kleinMb3(p.name) == kleinMb3(wunsch); });
+        if (da) {
+            std::string platz = wunsch;
+            for (const modell::Platz& p : t.plaetze) {
+                if (kleinMb3(p.name) == kleinMb3(wunsch)) { platz = p.name; }
+            }
+            t.belegung[platz] = pq;
+            ++t.kgStand;
+            plaetzeAnpassen();
+            return platz;
+        }
+    }
     for (const modell::Platz& p : t.plaetze) {
         if (p.belegt && t.glaZiel != 2) { continue; }
         const std::string platz = t.glaZiel == 2 ? name : p.name;

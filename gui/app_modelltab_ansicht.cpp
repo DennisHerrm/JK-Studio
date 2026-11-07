@@ -174,6 +174,7 @@ void posieren() {
     std::vector<std::pair<int, BoneMatrix>> rigM;
     modellRigNachMal(fA, fB, anteil, rigM, ueber);   // Stufe 4: mit IK (auf derselben Welt wie unten)
     a.worldMatricesLerp(fA, fB, anteil, ueber, rigM, g_app->modellWelt);
+    (void)modellRtPose(g_app->modellWelt);   // Stufe 5: die Vorschau des Retargetings (gepackt wie im Spiel)
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
 }
 

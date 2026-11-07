@@ -164,10 +164,67 @@ struct BibliothekPose {
     std::vector<std::array<float, 12>> welt;
 };
 
+// Stufe 5: Retargeting (Rechnung in bhed/modell/retarget.h). Was der Anwender einstellt, gehoert zum Dokument
+// (Rueckgaengig): Quelle, Zuordnung der Ketten, Retarget-Posen, Schritte.
+struct RtZuordnung {
+    std::vector<int> quelle;        // je Kette des Ziels: Index der Kette der Quelle (-1 keine)
+    std::vector<std::uint8_t> vonHand;
+};
+enum class RtHaltung : std::uint8_t { Bindepose = 0, T, A };
+struct RtPose {
+    std::string name = "T";
+    RtHaltung haltung = RtHaltung::T;
+    std::vector<std::array<float, 4>> vonHand;   // je Knochen zusaetzlich (w x y z, im Rahmen des Knochens), leer = keine
+};
+enum class RtSchritt : std::uint8_t { Becken = 0, Fk, Ik, Wurzel };
+struct RtEinstellung {
+    RtPose poseQuelle;
+    RtPose poseZiel;
+    std::array<RtSchritt, 4> reihenfolge{RtSchritt::Becken, RtSchritt::Fk, RtSchritt::Ik, RtSchritt::Wurzel};
+    bool becken = true;            // Becken skalieren (aus: k = 1, Ort der Quelle ungeaendert)
+    bool fk = true;
+    bool ik = true;
+    bool wurzel = true;
+    float reachHand = 0.0F;        // HumanIK Reach T der Haende (0 = FK)
+    float reachFuss = 1.0F;
+    bool kontakte = true;          // Fusskontakte halten (nur mit IK)
+    float kontaktAbstand = 0.5F;   // Regel und Messgrund wie PhysikEinstellung::kontaktAbstand (Stufe 6)
+    float laengeVonHand = 0.0F;    // > 0: dieses k statt dem Verhaeltnis der Beinlaengen
+};
+// Stufe 5b: die Regler des Geh-/Laufzyklus (Rechnung und Quellen der Vorgaben in bhed/modell/retarget.h)
+enum class GangArt : std::uint8_t { Gehen = 0, Laufen };
+enum class GangHaltung : std::uint8_t { Normal = 0, Schwer, Schleichend, Verletzt, Saebel };
+inline constexpr int kGangHaltungen = 5;
+struct GangRegler {
+    GangArt art = GangArt::Gehen;
+    GangHaltung haltung = GangHaltung::Normal;
+    float tempo = 90.0F;          // Einheiten/s (walkSpeed 90, runSpeed 300)
+    float schritt = 20.0F;        // Schrittlaenge in Einheiten (die Oberflaeche misst sie an BOTH_WALK1/BOTH_RUN1 der Figur)
+    float armschwung = 1.0F;      // Faktor auf die Vorgabe der Haltung
+    float hueftschwung = 1.0F;    // Faktor auf Beckendrehung und -kippen
+    float hub = 1.0F;             // Faktor auf die Hoehe des Schwungfusses
+};
+struct RtBenanntePose {
+    std::string name;
+    bool ziel = true;            // Pose des Ziels (sonst der Quelle)
+    RtPose pose;
+};
+struct RetargetDaten {
+    std::string quelle;          // Pfad der Quell-GLA (Archiv oder Datei)
+    std::string sequenz;         // Zeile der animation.cfg der Quelle ("" = alle Bilder)
+    RtEinstellung e;
+    RtZuordnung zu;
+    std::vector<RtBenanntePose> posen;   // gespeicherte Retarget-Posen (benannt)
+    std::string platz;           // Ziel-Platz beim Backen ("" = Name der Sequenz)
+    GangRegler gang;             // Stufe 5b: Generator
+    bool vonPreset = false;      // das Ergebnis kommt aus dem Generator (sonst aus der Quelle)
+};
+
 struct RigDaten {
     std::map<std::string, RigSchicht> schichten;   // je Sequenz (Name der animation.cfg-Zeile, "" ohne Sequenz)
     std::vector<Zuordnung> zuordnung;
     std::vector<BibliothekPose> posen;             // Stufe 3b
+    RetargetDaten rt;                              // Stufe 5
 };
 
 }  // namespace bhed::modell

@@ -197,7 +197,7 @@ struct RigAktion {
     const char* quelle;         // Herkunft der Taste
     std::function<void()> tun;
     std::function<bool()> an;   // Haken im Menue (leer: kein Umschalter)
-    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen, 5 IK/FK (Stufe 4), 6 Auto-Physik (Stufe 6)
+    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen, 5 IK/FK (Stufe 4), 6 Auto-Physik (Stufe 6), 7 Retargeting (Stufe 5), 8 Presets (5b)
 };
 
 int artJetztRig() {
@@ -287,6 +287,37 @@ const std::vector<RigAktion>& rigAktionen() {
         {Str::PhFlugAutomatisch, Str::PhFlugAutomatischHint, "", "", 0, 0, "", [] { (void)modellPhysikFlugAutomatisch(); }, {}, 6},
         {Str::PhKetteHier, Str::PhKetteHierHint, "", "", 0, 0, "", [] { (void)modellPhysikKetteHier(); }, {}, 6},
         {Str::PhKettenVorschlag, Str::PhKettenVorschlagHint, "", "", 0, 0, "", [] { (void)modellPhysikKettenVorschlag(); }, {}, 6},
+        // Stufe 5: Retargeting - keine Tasten in max_hotkeys_de.txt und blender_keys.txt
+        {Str::RtQuelleWaehlen, Str::RtQuelleWaehlenHint, "", "", 0, 0, "", [] {
+             mt().rt.quelleWaehlen = true;
+             mt().rt.oeffnen = true;
+         },
+         {}, 7},
+        {Str::RtUebertragen, Str::RtUebertragenHint, "", "", 0, 0, "", [] { (void)modellRtUebertragen(); }, {}, 7},
+        {Str::RtVorschau, Str::RtVorschauHint, "", "", 0, 0, "", [] { (void)modellRtVorschau(!mt().rt.vorschau); }, [] { return mt().rt.vorschau; }, 7},
+        {Str::RtQuelleZeigen, Str::RtQuelleZeigenHint, "", "", 0, 0, "", [] {
+             mt().rt.quelleZeigen = !mt().rt.quelleZeigen;
+             g_app->modelDirty = true;
+         },
+         [] { return mt().rt.quelleZeigen; }, 7},
+        {Str::RtAutoLeer, Str::RtAutoLeerHint, "", "", 0, 0, "", [] { (void)modellRtZuordnen(false); }, {}, 7},
+        {Str::RtAutoAlle, Str::RtAutoAlleHint, "", "", 0, 0, "", [] { (void)modellRtZuordnen(true); }, {}, 7},
+        {Str::RtTBeide, Str::RtHaltungHint, "", "", 0, 0, "", [] {
+             (void)modellRtHaltung(false, modell::RtHaltung::T);
+             (void)modellRtHaltung(true, modell::RtHaltung::T);
+         },
+         {}, 7},
+        {Str::RtABeide, Str::RtHaltungHint, "", "", 0, 0, "", [] {
+             (void)modellRtHaltung(false, modell::RtHaltung::A);
+             (void)modellRtHaltung(true, modell::RtHaltung::A);
+         },
+         {}, 7},
+        {Str::RtBackenMax, Str::RtBackenHint, "", "", 0, 0, "", [] { (void)modellRtBacken(); }, {}, 7},
+        {Str::RtRolloutOeffnen, Str::RtRolloutHint, "", "", 0, 0, "", [] { mt().rt.oeffnen = true; }, {}, 7},
+        // Stufe 5b: Presets
+        {Str::PrRolloutOeffnen, Str::PrRolloutHint, "", "", 0, 0, "", [] { mt().rt.presetOeffnen = true; }, {}, 8},
+        {Str::PrAuflegen, Str::PrAuflegenHint, "", "", 0, 0, "", [] { (void)modellPresetAuflegen(); }, {}, 8},
+        {Str::PrMessenAktion, Str::PrMessenHint, "", "", 0, 0, "", [] { (void)modellPresetMessen(); }, {}, 8},
     };
     return kListe;
 }
@@ -318,17 +349,21 @@ void aktionenAlsMenue(int gruppeNur) {
             if (gruppe == a.gruppe) { continue; }
             gruppe = a.gruppe;
             ImGui::Separator();
-            if (ImGui::BeginMenu(tr(gruppe == 5 ? Str::MbIkGruppe : Str::PhRollout))) {
+            // Stufe 5: Retargeting ebenso
+            const Str menue = gruppe == 5 ? Str::MbIkGruppe : (gruppe == 6 ? Str::PhRollout : (gruppe == 7 ? Str::RtRollout : Str::PrRollout));
+            const Str hinweis = gruppe == 5 ? Str::MbIkRolloutHint : (gruppe == 6 ? Str::PhRolloutHint : (gruppe == 7 ? Str::RtRolloutHint : Str::PrRolloutHint));
+            if (ImGui::BeginMenu(tr(menue))) {
                 aktionenAlsMenue(gruppe);
                 ImGui::EndMenu();
             }
-            ImGui::SetItemTooltip("%s", tr(gruppe == 5 ? Str::MbIkRolloutHint : Str::PhRolloutHint));
+            ImGui::SetItemTooltip("%s", tr(hinweis));
             continue;
         }
         if (a.gruppe != gruppe) {
             if (gruppe >= 0) { ImGui::Separator(); }
             gruppe = a.gruppe;
-            ImGui::TextDisabled("%s", tr(kGruppen[std::clamp(gruppe, 0, 5)]));
+            // die Untermenues tragen ihre eigene Ueberschrift (Auto-Physik zeigte "IK/FK", kGruppen endet bei 5)
+            ImGui::TextDisabled("%s", tr(gruppe <= 5 ? kGruppen[std::max(gruppe, 0)] : (gruppe == 6 ? Str::PhRollout : (gruppe == 7 ? Str::RtRollout : Str::PrRollout))));
         }
         ImGui::PushID(static_cast<int>(i));
         const char* taste = modellBlender() ? a.blenderTaste : a.maxTaste;
@@ -997,6 +1032,7 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     for (const ModellPfad& p : t.pfade) { pfadZeichnen(a, dl, p); }
     modellPhysikAktualisieren();         // Stufe 6: die Physik-Spur nach jeder Aenderung des Dokuments
     modellPhysikUeberlagerung(a, dl);    // Stufe 6: Schwerpunkt, Weg, Stuetzflaeche
+    modellRtUeberlagerung(a, dl);        // Stufe 5: die Quelle des Retargetings neben der Figur
     if (!modellRigDa() || !t.rigZeigen) { return; }
     modellIkUeberlagerung(a, dl);   // Stufe 4: IK-Ziele, Raum
     const float r = ImGui::GetFontSize() * 0.45F;
@@ -1207,6 +1243,8 @@ void drawModellRigBereich() {
     }
     drawModellIkBereich();   // Stufe 4: IK/FK (wie 3ds Max Bewegung > IK-Solver, wie Rigify IK-FK)
     drawModellPhysikBereich();   // Stufe 6: Auto-Physik (wie die Rollouts von Bewegung in 3ds Max)
+    drawModellRetargetBereich();   // Stufe 5: Retargeting (wie MotionBuilder Character Controls / Retarget in Blender)
+    drawModellPresetBereich();     // Stufe 5b: Presets (Generator fuer Geh-/Laufzyklen)
     // Pose, Ghosts, Pfade und Backen ab Werk zu: Platz nur, wenn gebraucht - darunter folgen GLA, animation.cfg und die
     // Plaetze aus Stufe 2 (mb4e_mb3: offen schoben sie die Plaetze aus dem Bild).
     if (ImGui::CollapsingHeader(tr(Str::MbRgGruppePose))) {

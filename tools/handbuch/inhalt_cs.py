@@ -7559,3 +7559,5 @@ from inhalt_mb7 import CS as _MB7  # noqa: E402
 TEXTE.update(_MB7)
 from inhalt_ph import CS as _PH  # noqa: E402
 TEXTE.update(_PH)
+from inhalt_rt import CS as _RT  # noqa: E402
+TEXTE.update(_RT)

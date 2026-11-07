@@ -2286,6 +2286,8 @@ from i18n_mb7 import zeilen_vier as _mb7  # noqa: E402  (Modell-Block Stufe 7: F
 S += _mb7()
 from i18n_ph import zeilen_vier as _ph  # noqa: E402  (Modell-Block Stufe 6: Auto-Physik)
 S += _ph()
+from i18n_rt import zeilen_vier as _rt  # noqa: E402  (Modell-Block Stufe 5: Retargeting)
+S += _rt()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

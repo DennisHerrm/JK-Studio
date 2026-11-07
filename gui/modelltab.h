@@ -30,6 +30,7 @@
 #include "bhed/modell/gewichte.h"
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/physik.h"
+#include "bhed/modell/retarget.h"
 #include "bhed/modell/rig.h"
 
 namespace bhed::gpu {
@@ -131,6 +132,43 @@ struct ModellModal {
     float mausStart[2]{};
     float mitte[3]{};
     int ansicht = 3;
+};
+
+// Stufe 5: Retargeting (app_modelltab_retarget.cpp) - die Einstellungen stehen im Dokument (RigDaten::rt), hier die
+// geladene Quelle, die Charaktere und das Ergebnis der letzten Rechnung
+struct ModellRetarget {
+    GlaAnimation quelle;
+    std::string quelleFuer;          // Pfad, zu dem `quelle` gehoert
+    std::string quelleFehler;
+    std::vector<AnimEntry> quelleCfg;
+    modell::RtCharakter cq;
+    modell::RtCharakter cz;
+    std::string czFuer;              // Skelett, zu dem `cz` gehoert
+    std::vector<std::vector<BoneMatrix>> welt;        // Ziel je Bild
+    std::vector<std::vector<BoneMatrix>> weltQuelle;  // Quelle je Bild (Ueberlagerung)
+    modell::RtBericht bericht;
+    int stand = -1;                  // Dokument-Stand der Rechnung
+    std::string fuer;                // Quelle|Sequenz|Ziel der Rechnung
+    bool vorschau = false;           // die Figur zeigt das Ergebnis
+    bool spielt = false;
+    float bild = 0.0F;               // Abspielort (Bild des Ergebnisses, mit Bruchteil)
+    double bildMs = 50.0;            // frameLerp der Quellsequenz
+    bool quelleZeigen = true;        // die Quelle als Skelett neben der Figur
+    bool oeffnen = false;            // Rollout aufklappen (Aktion)
+    bool quelleWaehlen = false;      // Auswahlfenster oeffnen
+    bool baeumeOeffnen = false;      // Ketten, Pose und Schritte aufklappen (Handbuch, Aktion)
+    int poseKnochen = -1;            // Knochen fuer die Pose von Hand
+    char poseName[48] = {};
+    // Stufe 5b: Presets
+    bool presetOeffnen = false;
+    bool presetZug = false;          // Regler wird gezogen (ein Rueckgaengig-Schritt)
+    int presetRolloutBild = -1;      // Selbsttest
+    modell::GangBefund gang;         // Befund des letzten Zyklus
+    int rolloutBild = -1;            // Selbsttest
+    int gezeichnet = 0;              // Selbsttest: gezeichnete Knochen der Quelle
+    float versatz[3] = {};           // wo die Quelle neben der Figur steht (Handbuch: beide ins Bild)
+    int rechnungen = 0;
+    double ms = 0.0;                 // Dauer der letzten Rechnung
 };
 
 struct ModellTab {
@@ -367,6 +405,7 @@ struct ModellTab {
     int kvRedBis = 0;
     char posenDatei[64] = {};
     std::string posenOrdnerJetzt; // Selbsttest: der Ordner der letzten Posen-Datei
+    ModellRetarget rt;            // Stufe 5
 };
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
@@ -509,6 +548,26 @@ bool modellIkPolWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3
 [[nodiscard]] bool modellIkGriffMitte(int griff, float m[3]);
 void modellIkUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 void drawModellIkBereich();
+// Stufe 5: Retargeting (app_modelltab_retarget.cpp)
+bool modellRtQuelleLaden(const std::string& pfad);
+bool modellRtEinstellen(const char* undo, const std::function<void(modell::RetargetDaten&)>& f);
+[[nodiscard]] const modell::RetargetDaten* modellRtDaten();
+int modellRtZuordnen(bool alle);
+bool modellRtHaltung(bool ziel, modell::RtHaltung h);
+bool modellRtUebertragen();
+bool modellRtVorschau(bool an);
+bool modellRtBacken();
+bool modellRtPoseSpeichern(const std::string& name);
+bool modellRtPose(std::vector<BoneMatrix>& welt);   // posieren(): die Figur zeigt das Ergebnis (Vorschau)
+void modellRtAktualisieren();
+void modellRtUhr();   // je Bild: die Vorschau weiter (drawModelPanel)
+void modellRtUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+void drawModellRetargetBereich();
+void drawModellRtQuelleFenster();
+// Stufe 5b: Presets (Generator)
+bool modellPresetMessen();
+bool modellPresetAuflegen();
+void drawModellPresetBereich();
 // Stufe 6: Auto-Physik (app_modelltab_physik.cpp)
 void modellPhysikAktualisieren();
 void modellPhysikUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
@@ -548,7 +607,7 @@ void modellGlaSpeichernFrage();
 void modellCfgSpeichernFrage();
 void modellKartenGlaBauenFrage();
 bool modellXsiAufnehmen(const std::string& datei);
-std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps);
+std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopFrames, int fps, const std::string& wunsch = {});
 [[nodiscard]] std::string modellZielKopf();
 void modellXsiAufnehmenFrage();
 void modellPerspektiveUmschalten();

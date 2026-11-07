@@ -198,6 +198,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mb7()})
             from i18n_ph import zeilen_vier as _ph   # Modell-Block Stufe 6: Auto-Physik
             texte.update({e[0]: e[1:] for e in _ph()})
+            from i18n_rt import zeilen_vier as _rt   # Modell-Block Stufe 5: Retargeting und Presets
+            texte.update({e[0]: e[1:] for e in _rt()})
             from i18n_aseb import zeilen_vier as _aseb   # ASEB: .ase, .md3 usw. zu Brushes, Modell in Brushes umwandeln
             texte.update({e[0]: e[1:] for e in _aseb()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
