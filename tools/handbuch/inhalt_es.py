@@ -7568,3 +7568,5 @@ from inhalt_uv1b import ES as _UV1B  # noqa: E402
 TEXTE.update(_UV1B)
 from inhalt_md1d import ES as _MD1D  # noqa: E402
 TEXTE.update(_MD1D)
+from inhalt_paint import ES as _PAINT  # noqa: E402
+TEXTE.update(_PAINT)

@@ -22,6 +22,7 @@
 {"programm", "menue:MenuFile>AppExit", "MenuFile>AppExit", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"programm", "menue:MbBereichAnimation", "MbBereichAnimation", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"programm", "menue:MdMenue", "MdMenue", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
+{"programm", "menue:PtMenue", "PtMenue", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"programm", "menue:UvMenue", "UvMenue", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"programm", "menue:MenuEdit", "MenuEdit", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"programm", "menue:MenuEdit>MenuBookmarks", "MenuEdit>MenuBookmarks", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},

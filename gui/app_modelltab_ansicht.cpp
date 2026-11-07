@@ -627,6 +627,7 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     }
     modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
     if (t.bereich == ModellBereich::Modellieren) { modellMeshUeberlagerung(a, dl); }   // Modell-Block 1d: Vielecke, Auswahl
+    modellMalenUeberlagerung(a, dl);   // Modell-Block 1c: der Pinsel
     // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor)
     t.uv.nahtStriche3d = 0;
     if (t.bereich == ModellBereich::Uv) {
@@ -1760,10 +1761,20 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     // mb1a2: G/R/S wie Blender laufen ueber die Maus, bis Klick/Enter/Esc (modellModalTasten)
     if (t.modal.art != 0 && t.modal.ansicht == n) { modalAnwenden(); }
     // mb1a2: im Bereich Weights malt die linke Taste mit dem Pinsel (ein Strich = ein Rueckgaengig-Schritt)
-    const bool malen = gewichtsAnsicht() && t.modal.art == 0;
-    if (malen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+    const bool gewMalen = gewichtsAnsicht() && t.modal.art == 0;
+    // Modell-Block 1c: im Bereich Painting malt die linke Taste auf das Bild (ein Strich = ein Rueckgaengig-Schritt in Kacheln)
+    const bool texMalen = modellMalenAktiv() && t.modal.art == 0 && !modellMalenModal();
+    if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+        if (!modellMalenAufnehmen(a, io.MousePos)) { (void)modellMalenAnsicht(a, io.MousePos, true); }
+        t.aktiv = n;
+    } else if (texMalen && t.aktiv == n && ImGui::IsMouseDown(ImGuiMouseButton_Left) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
+        (void)modellMalenAnsicht(a, io.MousePos, false);
+    }
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && !mt().malen.strich2d) { modellMalenEnde(); }
+    const bool malen = gewMalen || texMalen;
+    if (gewMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
         (void)modellTupfer(n, io.MousePos, true);
-    } else if (malen && t.malStrich && t.aktiv == n && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    } else if (gewMalen && t.malStrich && t.aktiv == n && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         // Blender: ein neuer Tupfer nach einem Zehntel des Radius Weg (Pinsel "Spacing" 10 %)
         if (std::hypot(io.MousePos.x - t.letzterTupfer[0], io.MousePos.y - t.letzterTupfer[1]) >= t.pinselRadius * 0.1F) {
             (void)modellTupfer(n, io.MousePos, false);
@@ -1980,6 +1991,12 @@ void drawModellArbeitsflaeche() {
         drawModellUvEditor(ImVec2{uvB, ansichtenG.y});
         ImGui::SameLine(0.0F, sp);
         ansichtenG.x = std::max(ansichtenG.x - uvB - sp - 5.0F, 64.0F);
+    }
+    // Modell-Block 1c: im Bereich Painting das 2D-Bild links (wie Blenders Arbeitsbereich "Texture Paint")
+    if (const float malB = modellMalEditorBreite(ansichtenG.x); malB > 0.0F) {
+        drawModellMalEditor(ImVec2{malB, ansichtenG.y});
+        ImGui::SameLine(0.0F, sp);
+        ansichtenG.x = std::max(ansichtenG.x - malB - sp - 5.0F, 64.0F);
     }
     ImGui::BeginChild("mtansichten", ansichtenG, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     for (ModellAnsicht& a : t.ansichten) { a.sichtbar = false; }

@@ -3058,6 +3058,8 @@ from i18n_uv1b import texte as _uv1b  # noqa: E402
 TEXTE.update(_uv1b("cs"))
 from i18n_md1d import texte as _md1d  # noqa: E402
 TEXTE.update(_md1d("cs"))
+from i18n_paint import texte as _paint  # noqa: E402
+TEXTE.update(_paint("cs"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("cs"))
 from i18n_aseb import texte as _aseb  # noqa: E402

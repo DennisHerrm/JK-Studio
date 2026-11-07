@@ -34,6 +34,7 @@
 #include "bhed/modell/rig.h"
 #include "bhed/modell/wof/poly.h"
 #include "bhed/modell/wof/uv.h"
+#include "bhed/modell/malen.h"
 
 namespace bhed::gpu {
 struct ModellGeist;
@@ -227,6 +228,33 @@ struct ModellUv {
     double bildMs = 0.0;          // CPU-Zeit des Editors im letzten Bild
 };
 
+// Modell-Block 1c: Texture Painting (gui/app_modelltab_malen.cpp)
+[[nodiscard]] bool modellMalenAktiv();       // Bereich Painting mit Modell
+void drawModellMalenBereich();               // Rollouts im Befehlsfeld
+float modellMalEditorBreite(float frei);     // 0: kein 2D-Bild
+void drawModellMalEditor(ImVec2 groesse);
+void modellMalenMenue();                     // Hauptmenue "Painting"
+void modellMalenKontextMenue();
+bool modellMalenTasten();
+[[nodiscard]] bool modellMalenModal();       // F / Umschalt+F laufen (die Ansicht malt nicht)
+bool modellMalenAktionenSuche(const std::string& such);
+bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu);   // ein Tupfer (neu: Strich beginnt)
+bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus);          // nach S: Farbe unter der Maus
+void modellMalenEnde();
+void modellMalenUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+bool modellMalenRueckgaengig();
+bool modellMalenWiederholen();
+int modellMalenBauen();                      // Bilder geschrieben, -1 Fehler
+void modellStiftDruck(float druck);
+// Selbsttest: die Leinwand der gewaehlten Gruppe (laedt sie; nullptr ohne Bild)
+[[nodiscard]] const modell::texmalen::Leinwand* modellMalenLeinwand();
+[[nodiscard]] int modellMalenAktionZahl();
+[[nodiscard]] int modellMalenAktionGruppe(int i);
+[[nodiscard]] const char* modellMalenAktionText(int i);
+[[nodiscard]] const char* modellMalenAktionHinweis(int i);
+[[nodiscard]] const char* modellMalenAktionTaste(int i, bool blender);
+void modellMalenAktionAusloesen(int i);
+
 // Modell-Block 1d: Modellieren (gui/wof/app_modelltab_mesh.cpp) - das Arbeitsnetz der gezeichneten Stufe, die Auswahl je
 // Ebene (wie 3ds Max: jede Unterebene behaelt ihre), das Werkzeugkaestchen (Vorschau, Uebernehmen / + / Abbrechen)
 enum class MeshWerkzeug : int {
@@ -275,6 +303,59 @@ struct ModellMesh {
     float kaestchenLage[4]{};         // Werkzeugkaestchen im letzten Bild (x, y, b, h)
     bool menueOeffnen = false;        // Blender-Menues (Alt+E, M, X, Strg+F ...) und das Kontextmenue
     int menueArt = 0;
+};
+
+// Modell-Block 1c: Texture Painting (gui/app_modelltab_malen.cpp) - Werkzeug, Pinsel, Farbe, Spiegeln, die 2D-Ansicht; die
+// Leinwaende (je Bild eine, mit Ebenen, Maske und Rueckgaengig) leben in der .cpp
+struct ModellMalen {
+    int gruppe = -1;                  // Textur (Flaechen mit demselben Bild), -1: die der Auswahl
+    int stufe = 0;                    // Bildstufe des Shaders (0: das Bild der Flaeche)
+    int werkzeug = 0;                 // modell::texmalen::Werkzeug
+    modell::texmalen::Pinsel pinsel;
+    std::array<float, 4> farbe2{0.0F, 0.0F, 0.0F, 1.0F};
+    float radiusPx = 24.0F;           // Pinselradius in Bildpunkten des Schirms (3D und 2D)
+    bool druckGroesse = false;
+    bool druckStaerke = true;
+    bool stiftDa = false;             // ein Stift hat Druck gemeldet (WM_POINTER)
+    float stiftDruck = 1.0F;
+    bool spiegeln = false;
+    int spiegelAchse = 0;             // 0 x (wie das Spiegeln der Gewichte), 1 y, 2 z
+    int ausbluten = 4;                // Texel ueber die UV-Grenzen (wie das Umbacken in 1b)
+    bool editorOffen = true;
+    bool uvZeigen = true;
+    bool maskeZeigen = true;
+    float breite = 0.0F;
+    float zoom = 1.0F;
+    float versatz[2]{};
+    float klonQuelle[2]{};
+    bool klonQuelleDa = false;
+    float klonVersatz[2]{};
+    bool klonErster = false;
+    modell::texmalen::Strich strich;
+    bool strichLaeuft = false;
+    bool strich2d = false;
+    float letzteUv[2]{};
+    int modalArt = 0;                 // 1 Radius (F), 2 Staerke (Umschalt+F)
+    float modalStart = 0.0F;
+    float modalWert = 0.0F;
+    int modalEndeBild = -1;
+    bool aufnehmen = false;           // S: der naechste Klick nimmt die Farbe auf
+    char ordner[260] = {};            // Ausgabe ("Fuer das Spiel bauen"), leer: Vorgabe
+    float deckVorher = 1.0F;
+    // Meldung und Selbsttest
+    std::string meldung;
+    int befehle = 0;
+    std::string letzterBefehl;
+    int tupfer = 0;
+    int texelGemalt = 0;
+    double hochladenMs = 0.0;
+    int hochgeladen = 0;
+    bool hover = false;
+    float leinwand[4]{};
+    int dreieckeGezeichnet = 0;
+    int gebaut = 0;
+    std::string gebautOrdner;
+    bool testTupfen = false;          // Selbsttest ptzeit: je Bild ein Tupfer auf die Mitte der aktiven Ansicht
 };
 
 struct ModellTab {
@@ -514,6 +595,7 @@ struct ModellTab {
     ModellRetarget rt;            // Stufe 5
     ModellUv uv;                  // Modell-Block 1b
     ModellMesh mesh;              // Modell-Block 1d
+    ModellMalen malen;            // Modell-Block 1c
 };
 
 // Modell-Block 1b: UV (gui/wof/app_modelltab_uv.cpp)

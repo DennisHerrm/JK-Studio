@@ -63,6 +63,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
 namespace bhed::gui {
+void modellStiftDruck(float druck);   // Modell-Block 1c (app_modelltab_malen.cpp)
 struct App;
 App* createApp();
 void destroyApp(App* a);
@@ -253,6 +254,16 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     static const bool imSelbsttestFokus = std::getenv("BHED_EDITORTEST") != nullptr;
     if (imSelbsttestFokus && (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)) {
         return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+    if (msg == WM_POINTERDOWN || msg == WM_POINTERUPDATE) {
+        // Modell-Block 1c: der Druck eines Stifts fuer den Pinsel im Bereich Painting (0..1024, POINTER_PEN_INFO);
+        // die Nachricht geht danach unveraendert weiter (Windows macht daraus wie bisher Mausnachrichten)
+        POINTER_INPUT_TYPE art = PT_POINTER;
+        const UINT32 id = GET_POINTERID_WPARAM(wParam);
+        POINTER_PEN_INFO stift{};
+        if (GetPointerType(id, &art) != FALSE && art == PT_PEN && GetPointerPenInfo(id, &stift) != FALSE && (stift.penMask & PEN_MASK_PRESSURE) != 0U) {
+            bhed::gui::modellStiftDruck(static_cast<float>(stift.pressure) / 1024.0F);
+        }
     }
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam) != 0) {
         return 1;

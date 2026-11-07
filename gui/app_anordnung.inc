@@ -5158,6 +5158,11 @@ void drawMenu() {
         modellMeshMenue();
         ImGui::EndMenu();
     }
+    // Modell-Block 1c: ein Menue "Painting" (3ds Max: Viewport Canvas; Blender: Texture Paint)
+    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::PtMenue))) {
+        modellMalenMenue();
+        ImGui::EndMenu();
+    }
     // Modell-Block 1b: ein Menue "UV" (3ds Max: Unwrap UVW; Blender: das Menue UV)
     if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::UvMenue))) {
         modellUvMenue();
