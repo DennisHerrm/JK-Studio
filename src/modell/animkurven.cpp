@@ -12,8 +12,10 @@
 #include "bhed/modell/animkurven.h"
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -1248,6 +1250,85 @@ int schleifeSchliessen(RigSchicht& s, const std::vector<int>& knochen, int vonBi
     return n;
 }
 
+// --- Posen-Bibliothek als Datei (Stufe 4) --------------------------------------------------------------------------------
+
+std::string posenText(const std::vector<BibliothekPose>& posen) {
+    std::string t = "JKStudioPosen 1\n";
+    char z[64];
+    for (const BibliothekPose& p : posen) {
+        t += "pose " + p.name + "\n";
+        t += "knochen " + std::to_string(p.namen.size()) + "\n";
+        for (std::size_t k = 0; k < p.namen.size() && k < p.welt.size(); ++k) {
+            t += p.namen[k];
+            for (const float v : p.welt[k]) {
+                std::snprintf(z, sizeof z, " %.9g", static_cast<double>(v));
+                t += z;
+            }
+            t += "\n";
+        }
+    }
+    return t;
+}
+
+bool posenAusText(const std::string& text, std::vector<BibliothekPose>& posen, std::string& fehler) {
+    std::vector<std::string> zeilen;
+    std::size_t a = 0;
+    while (a <= text.size()) {
+        std::size_t e = text.find('\n', a);
+        if (e == std::string::npos) { e = text.size(); }
+        std::string z = text.substr(a, e - a);
+        if (!z.empty() && z.back() == '\r') { z.pop_back(); }
+        if (!z.empty()) { zeilen.push_back(z); }
+        a = e + 1;
+    }
+    if (zeilen.empty() || zeilen[0] != "JKStudioPosen 1") {
+        fehler = "kopf";
+        return false;
+    }
+    std::vector<BibliothekPose> neu;
+    for (std::size_t i = 1; i < zeilen.size();) {
+        if (zeilen[i].rfind("pose ", 0) != 0 || i + 1 >= zeilen.size() || zeilen[i + 1].rfind("knochen ", 0) != 0) {
+            fehler = "zeile " + std::to_string(i + 1);
+            return false;
+        }
+        BibliothekPose p;
+        p.name = zeilen[i].substr(5);
+        const long n = std::strtol(zeilen[i + 1].c_str() + 8, nullptr, 10);
+        i += 2;
+        if (n < 0 || static_cast<std::size_t>(n) > zeilen.size() - i) {
+            fehler = "knochen";
+            return false;
+        }
+        for (long k = 0; k < n; ++k, ++i) {
+            const std::string& z = zeilen[i];
+            const std::size_t leer = z.find(' ');
+            if (leer == std::string::npos) {
+                fehler = "zeile " + std::to_string(i + 1);
+                return false;
+            }
+            std::array<float, 12> w{};
+            const char* c = z.c_str() + leer;
+            for (float& v : w) {
+                char* ende = nullptr;
+                v = std::strtof(c, &ende);
+                if (ende == c) {
+                    fehler = "zeile " + std::to_string(i + 1);
+                    return false;
+                }
+                c = ende;
+            }
+            p.namen.push_back(z.substr(0, leer));
+            p.welt.push_back(w);
+        }
+        neu.push_back(std::move(p));
+    }
+    for (BibliothekPose& p : neu) {
+        posen.erase(std::remove_if(posen.begin(), posen.end(), [&](const BibliothekPose& x) { return x.name == p.name; }), posen.end());
+        posen.push_back(std::move(p));
+    }
+    return true;
+}
+
 // --- Aufraeumen ----------------------------------------------------------------------------------------------------------
 
 namespace {
@@ -1428,7 +1509,8 @@ double pruefe(const BoneMatrix& a, const Ziel& z, bool genau) {
 
 }  // namespace
 
-bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, int anzahl, RigSchicht& aus, ReduzierBericht* bericht) {
+bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, int anzahl, RigSchicht& aus, ReduzierBericht* bericht,
+                   const ReduzierAuswahl* auswahl) {
     ReduzierBericht leer;
     ReduzierBericht& br = bericht != nullptr ? *bericht : leer;
     br = ReduzierBericht{};
@@ -1446,11 +1528,32 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
     aus.bindeBasis = true;
     aus.neuInterp = Interp::Bezier;
     aus.knochen.resize(static_cast<std::size_t>(nb));
+    aus.ik = quelle.ik;   // Stufe 4: die IK wirkt auf den reduzierten Schluesseln wie vorher
+    // Stufe 4: die Spanne (relativ) und die Bytes der Quell-GLA (Anhang: Karten-GLA hinter _humanoid)
+    int sv = 0;
+    int sb = anzahl - 1;
+    if (auswahl != nullptr && auswahl->von >= 0) { sv = std::clamp(auswahl->von - erstes, 0, anzahl - 1); }
+    if (auswahl != nullptr && auswahl->bis >= 0) { sb = std::clamp(auswahl->bis - erstes, 0, anzahl - 1); }
+    if (sb < sv) { std::swap(sv, sb); }
+    const bool ganz = sv == 0 && sb == anzahl - 1;
+    const auto quellBytes = [&](int f, int b) -> const std::uint8_t* {
+        const GlaAnimation* q = &g;
+        int fl = erstes + f;
+        while (fl >= q->numFrames && q->anhang != nullptr) {
+            fl -= q->numFrames;
+            q = q->anhang;
+        }
+        const std::size_t at = static_cast<std::size_t>(fl) * static_cast<std::size_t>(nb) + static_cast<std::size_t>(b);
+        if (at >= q->indexes.size() || static_cast<std::size_t>(q->indexes[at]) * 14U + 14U > q->bonePool.size()) { return nullptr; }
+        return q->bonePool.data() + static_cast<std::size_t>(q->indexes[at]) * 14U;
+    };
+    static const std::vector<RigSchluessel> kKeine;
     for (int b = 0; b < nb; ++b) {
         const GlaBone& kb = g.bones[static_cast<std::size_t>(b)];
         std::vector<Ziel> ziel(static_cast<std::size_t>(anzahl));
         std::vector<RigSchluessel> wert(static_cast<std::size_t>(anzahl));   // M je Bild (Bindebasis)
         bool statisch = true;
+        bool wieGla = true;   // die gebackenen Bytes sind die der GLA (keine Schluessel, keine IK an diesem Knochen)
         for (int f = 0; f < anzahl; ++f) {
             Ziel& z = ziel[static_cast<std::size_t>(f)];
             z.bytes = gebacken.bonePool.data() + static_cast<std::size_t>(gebacken.indexes[static_cast<std::size_t>(f) * static_cast<std::size_t>(nb) + static_cast<std::size_t>(b)]) * 14U;
@@ -1476,15 +1579,63 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
                 }
                 statisch = statisch && std::memcmp(z.bytes, ziel[0].bytes, 14U) == 0;
             }
+            const std::uint8_t* qb = quellBytes(f, b);
+            wieGla = wieGla && qb != nullptr && std::memcmp(qb, z.bytes, 14U) == 0;
         }
-        // gierig: Schluessel an Anfang und Ende, dann an das Bild mit dem groessten Anteil
-        // die Schluessel zu einer Wahl der Bilder; das schlimmste Bild ohne Schluessel (-1: alle innerhalb der Grenze; an den
-        // Schluesseln selbst prueft reduziertPruefen mit compressBone). von/bis: nur dort pruefen (linear wirkt ein Schluessel
-        // nur bis zu seinen Nachbarn)
+        const auto& qk = static_cast<std::size_t>(b) < quelle.knochen.size() ? quelle.knochen[static_cast<std::size_t>(b)] : kKeine;
+        wieGla = wieGla && qk.empty();
+        const bool gewaehlt = auswahl == nullptr || auswahl->knochen.empty() || std::find(auswahl->knochen.begin(), auswahl->knochen.end(), b) != auswahl->knochen.end();
+        auto& ziele = aus.knochen[static_cast<std::size_t>(b)];
+        if (!gewaehlt) {
+            // nicht gewaehlt: bleibt (ohne Schluessel die GLA; Bindebasis: die Schluessel der Quelle; sonst je Bild einer)
+            if (wieGla) {
+                ziele.clear();
+            } else if (quelle.bindeBasis) {
+                ziele = qk;
+                br.behalten += static_cast<long long>(qk.size());
+            } else {
+                ziele = wert;
+                for (RigSchluessel& k : ziele) { k.interp = Interp::Linear; }
+                henkelNeu(ziele);
+                br.dicht += anzahl;
+            }
+            br.nachher += static_cast<long long>(ziele.size());
+            continue;
+        }
+        ++br.gewaehlt;
+        // Stufe 4, Spanne: ausserhalb feste Schluessel - die der Quelle (Bindebasis) oder einer je Bild
+        std::vector<char> fest(static_cast<std::size_t>(anzahl), 0);
+        std::vector<const RigSchluessel*> orig(static_cast<std::size_t>(anzahl), nullptr);
+        if (!ganz) {
+            if (quelle.bindeBasis && !qk.empty()) {
+                for (const RigSchluessel& k : qk) {
+                    const int f = k.bild - erstes;
+                    if (f >= 0 && f < anzahl && (f < sv || f > sb)) {
+                        fest[static_cast<std::size_t>(f)] = 1;
+                        orig[static_cast<std::size_t>(f)] = &k;
+                        ++br.behalten;
+                    }
+                }
+            } else {
+                for (int f = 0; f < anzahl; ++f) {
+                    if (f < sv || f > sb) {
+                        fest[static_cast<std::size_t>(f)] = 1;
+                        ++br.dicht;
+                    }
+                }
+            }
+        }
+        // die Schluessel zu einer Wahl der Bilder (feste Schluessel der Quelle unveraendert); das schlimmste Bild ohne
+        // Schluessel (-1: alle innerhalb der Grenze; an den Schluesseln selbst prueft reduziertPruefen mit compressBone).
+        // von/bis: nur dort pruefen (linear wirkt ein Schluessel nur bis zu seinen Nachbarn)
         const auto bauen = [&](Interp art, const std::vector<char>& ist, std::vector<RigSchluessel>& v) {
             v.clear();
             for (int f = 0; f < anzahl; ++f) {
                 if (ist[static_cast<std::size_t>(f)] == 0) { continue; }
+                if (orig[static_cast<std::size_t>(f)] != nullptr) {
+                    v.push_back(*orig[static_cast<std::size_t>(f)]);
+                    continue;
+                }
                 RigSchluessel k = wert[static_cast<std::size_t>(f)];
                 k.interp = art;
                 v.push_back(k);
@@ -1506,12 +1657,12 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
             }
             return wo;
         };
-        // gierig: Schluessel an Anfang und Ende, dann an das Bild mit dem groessten Anteil; danach jeden inneren Schluessel
-        // probeweise entfernen und nur behalten, wenn ohne ihn ein Bild die Grenze reisst
-        const auto gierig = [&](Interp art, std::vector<RigSchluessel>& v) {
-            std::vector<char> ist(static_cast<std::size_t>(anzahl), 0);
-            ist[0] = 1;
-            if (!statisch) { ist[static_cast<std::size_t>(anzahl - 1)] = 1; }
+        // gierig: Schluessel an Anfang und Ende (der Spanne), dann an das Bild mit dem groessten Anteil; danach jeden inneren
+        // Schluessel der Spanne probeweise entfernen und nur behalten, wenn ohne ihn ein Bild die Grenze reisst
+        const auto gierig = [&](Interp art, std::vector<RigSchluessel>& v, std::vector<char>& ist) {
+            ist = fest;
+            ist[static_cast<std::size_t>(sv)] = 1;
+            if (!statisch || !ganz) { ist[static_cast<std::size_t>(sb)] = 1; }
             for (;;) {
                 bauen(art, ist, v);
                 const int wo = schlimmstes(ist, v, 0, anzahl - 1);
@@ -1519,13 +1670,13 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
                 ist[static_cast<std::size_t>(wo)] = 1;
             }
             std::vector<RigSchluessel> probe;
-            for (int f = 1; f + 1 < anzahl; ++f) {
+            for (int f = std::max(sv + 1, 1); f < std::min(sb, anzahl - 1); ++f) {
                 if (ist[static_cast<std::size_t>(f)] == 0) { continue; }
                 ist[static_cast<std::size_t>(f)] = 0;
                 bauen(art, ist, probe);
                 int von = 0;
                 int bis = anzahl - 1;
-                if (art == Interp::Linear) {
+                if (art == Interp::Linear && ganz) {
                     von = f - 1;
                     while (von > 0 && ist[static_cast<std::size_t>(von)] == 0) { --von; }
                     bis = f + 1;
@@ -1537,18 +1688,25 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
         };
         std::vector<RigSchluessel> lin;
         std::vector<RigSchluessel> bz;
-        gierig(Interp::Linear, lin);
-        if (statisch) {
+        std::vector<char> istLin;
+        std::vector<char> istBz;
+        gierig(Interp::Linear, lin, istLin);
+        const std::vector<char>* ist = &istLin;
+        if (statisch && ganz) {
             ++br.statisch;
-            aus.knochen[static_cast<std::size_t>(b)] = lin;
+            ziele = lin;
         } else {
-            gierig(Interp::Bezier, bz);
+            gierig(Interp::Bezier, bz, istBz);
             const bool nimmLinear = lin.size() < bz.size();
             br.linear += nimmLinear ? 1 : 0;
             br.bezier += nimmLinear ? 0 : 1;
-            aus.knochen[static_cast<std::size_t>(b)] = nimmLinear ? lin : bz;
+            ziele = nimmLinear ? lin : bz;
+            ist = nimmLinear ? &istLin : &istBz;
         }
-        br.nachher += static_cast<long long>(aus.knochen[static_cast<std::size_t>(b)].size());
+        for (int f = 0; f < anzahl; ++f) {
+            if ((f < sv || f > sb) && (*ist)[static_cast<std::size_t>(f)] != 0 && fest[static_cast<std::size_t>(f)] == 0) { ++br.aussen; }
+        }
+        br.nachher += static_cast<long long>(ziele.size());
     }
     ReduzierBericht pr;
     if (!reduziertPruefen(g, quelle, aus, erstes, anzahl, pr)) {

@@ -172,7 +172,7 @@ void posieren() {
     }
     // Stufe 3: die Schluessel des Control Rigs (FK wie G2API_SetBoneAngles POSTMULT, siehe bhed/modell/rig.h)
     std::vector<std::pair<int, BoneMatrix>> rigM;
-    modellRigNachMal(fA, fB, anteil, rigM);
+    modellRigNachMal(fA, fB, anteil, rigM, ueber);   // Stufe 4: mit IK (auf derselben Welt wie unten)
     a.worldMatricesLerp(fA, fB, anteil, ueber, rigM, g_app->modellWelt);
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
 }
@@ -1907,6 +1907,7 @@ void drawModellArbeitsflaeche() {
     g_app->modellKnochenLinien = 0;
     for (int& u : t.ueber) { u = 0; }
     t.griffeGezeichnet = 0;   // Stufe 3: Zaehler je Bild
+    t.ikGezeichnet = 0;       // Stufe 4
     t.pfadPunkte = 0;
     t.pfadSchluessel = 0;
     modellKlickPruefen();

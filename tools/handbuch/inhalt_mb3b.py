@@ -255,21 +255,21 @@ X = {
     "pfade": (
         "On the path of the pelvis or the root (**{{MbRgPfadHinzu}}**) every dot can be dragged in the view: the bone moves there at that frame, in the plane "
         "of the view through the dot, and gets a key (Ctrl+Z undoes it). With **{{MbKvAnimOffset}}** the other keys move along. The paths of hands, feet and "
-        "the saber tip stay display only until IK (stage 4); their tooltip says so.",
+        "the saber tip move their IK target instead (page IK/FK).",
         "Auf dem Pfad des Beckens oder der Wurzel (**{{MbRgPfadHinzu}}**) lässt sich jeder Punkt in der Ansicht ziehen: der Knochen geht an diesem Frame "
         "dorthin, in der Bildebene durch den Punkt, und bekommt einen Schlüssel (Strg+Z nimmt ihn zurück). Mit **{{MbKvAnimOffset}}** gehen die anderen "
-        "Schlüssel mit. Die Pfade von Händen, Füßen und Säbelspitze bleiben bis IK (Stufe 4) nur Anzeige; ihr Tooltip sagt es.",
+        "Schlüssel mit. An den Pfaden von Händen, Füßen und Säbelspitze bewegt der Punkt das IK-Ziel (Seite IK/FK).",
         "在骨盆或根部的路径上 (**{{MbRgPfadHinzu}}**), 视图中的每个点都可以拖动: 骨骼在该帧移到那里 (在穿过该点的视图平面内) 并获得一个关键帧 (Ctrl+Z "
-        "撤销)。开启 **{{MbKvAnimOffset}}** 时其他关键帧随之移动。手、脚和光剑尖端的路径在 IK (第 4 阶段) 之前仅供显示, 其提示会说明。",
+        "撤销)。开启 **{{MbKvAnimOffset}}** 时其他关键帧随之移动。在手、脚和光剑尖端的路径上, 点移动的是 IK 目标 (见 IK/FK 页)。",
         "骨盤またはルートのパス (**{{MbRgPfadHinzu}}**) では、ビューで各点をドラッグできます: そのフレームでボーンがそこへ動き (点を通るビューの平面"
-        "内)、キーが付きます (Ctrl+Z で取り消し)。**{{MbKvAnimOffset}}** がオンなら他のキーも一緒に動きます。手、足、セーバーの先端のパスは IK "
-        "(ステージ 4) まで表示のみで、ツールチップがそう示します。",
+        "内)、キーが付きます (Ctrl+Z で取り消し)。**{{MbKvAnimOffset}}** がオンなら他のキーも一緒に動きます。手、足、セーバーの先端のパスでは点が IK "
+        "ターゲットを動かします (IK/FK のページ)。",
         "En la trayectoria de la pelvis o la raíz (**{{MbRgPfadHinzu}}**) cada punto se puede arrastrar en la vista: el hueso va allí en ese fotograma, en el "
-        "plano de la vista que pasa por el punto, y recibe una clave (Ctrl+Z la deshace). Con **{{MbKvAnimOffset}}** las demás claves acompañan. Las "
-        "trayectorias de manos, pies y punta del sable solo se muestran hasta tener IK (etapa 4); su descripción lo dice.",
+        "plano de la vista que pasa por el punto, y recibe una clave (Ctrl+Z la deshace). Con **{{MbKvAnimOffset}}** las demás claves acompañan. En las "
+        "trayectorias de manos, pies y punta del sable el punto mueve su objetivo IK (página IK/FK).",
         "Na dráze pánve nebo kořene (**{{MbRgPfadHinzu}}**) lze každý bod v pohledu táhnout: kost se na tom snímku přesune tam, v rovině pohledu procházející "
-        "bodem, a dostane klíč (Ctrl+Z ho vrátí). Se **{{MbKvAnimOffset}}** jdou ostatní klíče s ní. Dráhy rukou, chodidel a hrotu meče zůstávají do IK "
-        "(fáze 4) jen zobrazením; jejich nápověda to říká."),
+        "bodem, a dostane klíč (Ctrl+Z ho vrátí). Se **{{MbKvAnimOffset}}** jdou ostatní klíče s ní. Na drahách rukou, chodidel a hrotu meče bod posouvá "
+        "cíl IK (stránka IK/FK)."),
 }
 
 # Die Messwerte der Reduktion (Schluss mb5e_kr_<spiel>) in jeder Sprache

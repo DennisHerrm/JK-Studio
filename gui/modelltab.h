@@ -60,6 +60,7 @@ struct ModellPfad {
     int knochen = -1;
     int tag = -1;        // Teil-Index eines Tags (dann knochen = -1)
     float farbe[4]{};
+    bool spitze = false; // Stufe 4: die Spitze des Saebels, der an diesem Tag angebaut ist
 };
 // Stufe 3: Ghosts (Onion Skin)
 struct ModellGeisterEinst {
@@ -337,6 +338,19 @@ struct ModellTab {
     int kvAenderungen = 0;
     int kvGezeichnet = -1;
     double kvZeitMs = 0.0;
+    // Stufe 4: IK/FK (app_modelltab_ik.cpp), Reduzieren mit Auswahl, Posen-Datei (app_modelltab_kurven.cpp)
+    bool ikAutoEinrasten = true;  // wie 3ds Max "Automatisch einrasten" (HI-Solver): ein Wechsel ohne Sprung
+    int ikWahl = -1;              // Glied im Rollout IK/FK (modell::IkArt), -1: aus dem gewaehlten Griff
+    int ikZuletztGriff = -2;      // das Rollout geht auf, wenn ein Glied neu gewaehlt wird (wie Max)
+    int ikRolloutBild = -1;       // Selbsttest: das letzte Bild, in dem das Rollout IK/FK offen war
+    int ikGezeichnet = 0;         // Selbsttest: gezeichnete IK-Ziele je Bild
+    int ikZugArt = 0;             // Selbsttest: letzte IK-Bedienung (1 Ziel, 2 Pol, 3 Rolle, 4 Wechsel auf FK, 5 Ziel drehen)
+    bool kvRedNurGewaehlte = false;
+    bool kvRedSpanne = false;
+    int kvRedVon = 0;
+    int kvRedBis = 0;
+    char posenDatei[64] = {};
+    std::string posenOrdnerJetzt; // Selbsttest: der Ordner der letzten Posen-Datei
 };
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)
@@ -395,6 +409,7 @@ void modellAnimationMenue();      // Menueleiste "Animation" im Model-Tab
 void modellRigExplorer(const std::string& such);
 void modellRigKontextMenue();     // Untermenue "Rig" im Rechtsklick der Ansicht
 [[nodiscard]] int modellRigAktionZahl();
+[[nodiscard]] int modellRigAktionGruppe(int i);   // 0 Rig .. 5 IK/FK (Stufe 4)
 [[nodiscard]] const char* modellRigAktionText(int i);
 [[nodiscard]] const char* modellRigAktionHinweis(int i);
 [[nodiscard]] const char* modellRigAktionTaste(int i, bool blender);
@@ -402,7 +417,7 @@ void modellRigAktionAusloesen(int i);
 void modellRigGriffWaehlen(int griff);
 [[nodiscard]] modell::RigSchicht* modellRigSchicht(bool anlegen);   // die Schicht der gewaehlten Sequenz (im Dokument)
 [[nodiscard]] const modell::RigSchicht* modellRigSchichtJetzt();
-void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
+void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus, const std::vector<BoneFrameOverride>& ueber = {});
 [[nodiscard]] bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3]);
 [[nodiscard]] std::vector<gpu::ModellGeist> modellGeister();
 [[nodiscard]] bool modellRigGriffMitte(float m[3]);
@@ -459,6 +474,31 @@ void modellPfadTooltip(const ModellAnsicht& a, ImVec2 maus);
 [[nodiscard]] float modellKvBildAufSchirm(float bild);
 [[nodiscard]] bool modellKvFeldEnthaelt(ImVec2 p);   // im Zeitfeld des Editors (letztes Bild)
 [[nodiscard]] bool modellPfadPunktAufSchirm(int pfad, int bild, ImVec2& out);
+// Stufe 4 (app_modelltab_ik.cpp): IK/FK, Fussrolle, Einrasten, Space Switching, Pfade an Haenden/Fuessen/Saebel
+[[nodiscard]] int modellIkArtFuerGriff(int griff);              // modell::IkArt des Glieds eines Griffs, -1 keins
+int modellIkSpur(int art, modell::RigSchicht& s);               // die Spur des Glieds (legt sie aus dem Rig an), -1 ohne
+[[nodiscard]] float modellIkAnteil(int art);                    // IK-Anteil am aktuellen Bild
+bool modellIkWechseln(int art, bool ik);                        // eingerastet mit Auto-Einrasten (Max) bzw. immer (Blender)
+bool modellIkWechselnRoh(int art, bool ik, bool einrasten);
+bool modellIkEinrasten(int art, bool zielAufFk);                // true: IK -> FK (Ziel/Pol auf FK), false: FK -> IK
+bool modellIkRaum(int art, int wahl);                           // 0 Welt, 1 Becken, 2 Brust, 3 Kopf, 4 andere Hand
+bool modellIkSaebelHand();
+bool modellIkReglerSetzen(int art, float regler);               // wie Blender (Rigify IK-FK): 0 IK, 1 FK, ohne Einrasten
+bool modellIkRolle(int art, float rolle, float spitze);
+bool modellIkSchluesselLoeschen(int art);
+bool modellIkBacken(int art);
+// Gizmo / G-R: 0 nicht IK (FK wie bisher), 1 erledigt, 2 weiter mit FK (auf FK gewechselt). `neu` ist die Schicht des Zugs.
+int modellIkZiehen(int gizmoArt, const BoneMatrix& dreh, const float weg[3], modell::RigSchicht& neu);
+bool modellIkPolWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3], const modell::RigSchicht* s);
+[[nodiscard]] bool modellIkGriffMitte(int griff, float m[3]);
+void modellIkUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
+void drawModellIkBereich();
+bool modellPfadSpitzeHinzu();
+[[nodiscard]] bool modellSaebelSpitze(const ModellPfad& p, const std::vector<BoneMatrix>& welt, float ort[3], float* klingenAnfang = nullptr);
+// Stufe 4 (app_modelltab_kurven.cpp): Posen-Bibliothek als Datei
+[[nodiscard]] std::string modellPosenOrdner();
+bool modellPosenSpeichern();
+bool modellPosenLaden(const std::string& datei);
 // Stufe 2 (app_modelltab_mb3.cpp)
 void modellSpeichern(bool unter);
 [[nodiscard]] bool modellUngespeichert();

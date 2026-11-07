@@ -2276,6 +2276,8 @@ from i18n_mb3 import zeilen_vier as _mb3  # noqa: E402  (Modell-Block Stufe 3: K
 S += _mb3()
 from i18n_mb3b import zeilen_vier as _mb3b  # noqa: E402  (Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Animationswerkzeuge, Aufraeumen)
 S += _mb3b()
+from i18n_mb4 import zeilen_vier as _mb4  # noqa: E402  (Modell-Block Stufe 4: IK/FK, Fussrolle, Einrasten, Space Switching, Pfade an Gliedern)
+S += _mb4()
 from i18n_r3 import zeilen_vier as _r3  # noqa: E402  (rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht)
 S += _r3()
 from i18n_aseb import zeilen_vier as _aseb  # noqa: E402  (ASEB: .ase, .md3 usw. zu Brushes, misc_model in Brushes umwandeln)

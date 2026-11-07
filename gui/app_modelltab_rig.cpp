@@ -17,6 +17,7 @@
 #include "gpumap.h"
 
 #include "bhed/gpuskin.h"
+#include "bhed/modell/ik.h"
 #include "bhed/modell/rig.h"
 
 #include <algorithm>
@@ -77,6 +78,16 @@ std::string rigSchluessel() {
 bool rigSicher() {
     if (modellRigDa()) { return true; }
     return modellRigAnlegen();
+}
+
+// Der Hinweis zu einem Griff (Stufe 4: Hand/Fuss mit IK, Pol, Fussrolle)
+Str griffHinweis(const modell::Griff& g) {
+    using G = modell::GriffArt;
+    const bool blender = modellBlender();
+    if (g.art == G::PolEllbogen || g.art == G::PolKnie) { return Str::MbIkPolHint; }
+    if (g.art == G::Ferse || g.art == G::Ballen || g.art == G::Zehe) { return Str::MbIkRolleGriffHint; }
+    if (g.art == G::Hand || g.art == G::Fuss || g.art == G::Saebelgriff) { return blender ? Str::MbIkGriffHintBlender : Str::MbIkGriffHintMax; }
+    return blender ? Str::MbRgGriffHintBlender : Str::MbRgGriffHintMax;
 }
 
 Str griffText(modell::GriffArt a) {
@@ -186,8 +197,14 @@ struct RigAktion {
     const char* quelle;         // Herkunft der Taste
     std::function<void()> tun;
     std::function<bool()> an;   // Haken im Menue (leer: kein Umschalter)
-    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen
+    int gruppe;                 // 0 Rig, 1 Pose, 2 Auswahl, 3 Anzeige, 4 Backen, 5 IK/FK (Stufe 4)
 };
+
+int artJetztRig() {
+    const ModellTab& t = mt();
+    if (t.ikWahl >= 0) { return t.ikWahl; }
+    return modellIkArtFuerGriff(t.griffWahl);
+}
 
 const std::vector<RigAktion>& rigAktionen() {
     static const std::vector<RigAktion> kListe = {
@@ -232,8 +249,23 @@ const std::vector<RigAktion>& rigAktionen() {
          },
          [] { return mt().silhouette; }, 3},
         {Str::MbRgPfadHinzu, Str::MbRgPfadHinzuHint, "", "", 0, 0, "", [] { (void)modellPfadHinzu(); }, {}, 3},
+        {Str::MbIkPfadSpitze, Str::MbIkPfadSpitzeHint, "", "", 0, 0, "", [] { (void)modellPfadSpitzeHinzu(); }, {}, 3},
         {Str::MbRgPfadeLeeren, Str::MbRgPfadeLeerenHint, "", "", 0, 0, "", [] { modellPfadeLeeren(); }, {}, 3},
         {Str::MbRgBacken, Str::MbRgBackenHint, "", "", 0, 0, "", [] { (void)modellRigBacken(); }, {}, 4},
+        // Stufe 4: IK/FK - keine eigenen Tasten in max_hotkeys_de.txt und blender_keys.txt; in der Ansicht W/E bzw. G/R
+        {Str::MbIkAufIk, Str::MbIkAufIkHint, "", "", 0, 0, "", [] { (void)modellIkWechseln(artJetztRig(), true); }, {}, 5},
+        {Str::MbIkAufFk, Str::MbIkAufFkHint, "", "", 0, 0, "", [] { (void)modellIkWechseln(artJetztRig(), false); }, {}, 5},
+        {Str::MbIkZielAufFk, Str::MbIkZielAufFkHint, "", "", 0, 0, "", [] { (void)modellIkEinrasten(artJetztRig(), true); }, {}, 5},
+        {Str::MbIkFkAufIk, Str::MbIkFkAufIkHint, "", "", 0, 0, "", [] { (void)modellIkEinrasten(artJetztRig(), false); }, {}, 5},
+        {Str::MbIkAuto, Str::MbIkAutoHint, "", "", 0, 0, "", [] { mt().ikAutoEinrasten = !mt().ikAutoEinrasten; }, [] { return mt().ikAutoEinrasten; }, 5},
+        {Str::MbIkRaumWelt, Str::MbIkRaumHint, "", "", 0, 0, "", [] { (void)modellIkRaum(artJetztRig(), 0); }, {}, 5},
+        {Str::MbIkRaumBecken, Str::MbIkRaumHint, "", "", 0, 0, "", [] { (void)modellIkRaum(artJetztRig(), 1); }, {}, 5},
+        {Str::MbIkRaumBrust, Str::MbIkRaumHint, "", "", 0, 0, "", [] { (void)modellIkRaum(artJetztRig(), 2); }, {}, 5},
+        {Str::MbIkRaumKopf, Str::MbIkRaumHint, "", "", 0, 0, "", [] { (void)modellIkRaum(artJetztRig(), 3); }, {}, 5},
+        {Str::MbIkRaumHand, Str::MbIkRaumHint, "", "", 0, 0, "", [] { (void)modellIkRaum(artJetztRig(), 4); }, {}, 5},
+        {Str::MbIkSaebelHand, Str::MbIkSaebelHandHint, "", "", 0, 0, "", [] { (void)modellIkSaebelHand(); }, {}, 5},
+        {Str::MbIkLoeschen, Str::MbIkLoeschenHint, "", "", 0, 0, "", [] { (void)modellIkSchluesselLoeschen(artJetztRig()); }, {}, 5},
+        {Str::MbIkBacken, Str::MbIkBackenHint, "", "", 0, 0, "", [] { (void)modellIkBacken(artJetztRig()); }, {}, 5},
     };
     return kListe;
 }
@@ -254,15 +286,27 @@ void aktionAusloesen(const RigAktion& a) {
 
 void aktionenAlsMenue(int gruppeNur) {
     int gruppe = -1;
-    static const Str kGruppen[5] = {Str::MbRgGruppeRig, Str::MbRgGruppePose, Str::MbRgGruppeAuswahl, Str::MbRgGruppeAnzeige, Str::MbRgGruppeBacken};
+    static const Str kGruppen[6] = {Str::MbRgGruppeRig, Str::MbRgGruppePose, Str::MbRgGruppeAuswahl, Str::MbRgGruppeAnzeige, Str::MbRgGruppeBacken, Str::MbIkGruppe};
     const auto& liste = rigAktionen();
     for (std::size_t i = 0; i < liste.size(); ++i) {
         const RigAktion& a = liste[i];
         if (gruppeNur >= 0 && a.gruppe != gruppeNur) { continue; }
+        // Stufe 4: IK/FK als eigenes Untermenue (das Menue Animation passte sonst nicht mehr auf den Schirm, mb6_hb_en)
+        if (gruppeNur < 0 && a.gruppe == 5) {
+            if (gruppe == 5) { continue; }
+            gruppe = 5;
+            ImGui::Separator();
+            if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
+                aktionenAlsMenue(5);
+                ImGui::EndMenu();
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
+            continue;
+        }
         if (a.gruppe != gruppe) {
             if (gruppe >= 0) { ImGui::Separator(); }
             gruppe = a.gruppe;
-            ImGui::TextDisabled("%s", tr(kGruppen[std::clamp(gruppe, 0, 4)]));
+            ImGui::TextDisabled("%s", tr(kGruppen[std::clamp(gruppe, 0, 5)]));
         }
         ImGui::PushID(static_cast<int>(i));
         const char* taste = modellBlender() ? a.blenderTaste : a.maxTaste;
@@ -275,6 +319,7 @@ void aktionenAlsMenue(int gruppeNur) {
 }  // namespace
 
 int modellRigAktionZahl() { return static_cast<int>(rigAktionen().size()); }
+int modellRigAktionGruppe(int i) { return rigAktionen()[static_cast<std::size_t>(i)].gruppe; }
 const char* modellRigAktionText(int i) { return tr(rigAktionen()[static_cast<std::size_t>(i)].text); }
 const char* modellRigAktionHinweis(int i) { return tr(rigAktionen()[static_cast<std::size_t>(i)].hinweis); }
 const char* modellRigAktionTaste(int i, bool blender) {
@@ -408,7 +453,7 @@ const modell::RigSchicht* modellRigSchichtJetzt() {
     return it == in.rig.schichten.end() ? nullptr : &it->second;
 }
 
-void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
+void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus, const std::vector<BoneFrameOverride>& ueber) {
     aus.clear();
     const modell::RigSchicht* s = modellRigSchichtJetzt();
     if (s == nullptr) { return; }
@@ -418,7 +463,7 @@ void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<
     // die Schicht gehoert zur Sequenz: ausserhalb ihrer Bilder wirkt sie nicht
     const float bild = static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F);
     if (bild < static_cast<float>(erstes) || bild > static_cast<float>(erstes + anzahl)) { return; }
-    modell::rigNachMalAuf(g_app->anim, *s, bildA, bildB, anteil, aus);   // Stufe 3b: mit Bindebasis umgerechnet
+    modell::rigNachMalAuf(g_app->anim, *s, bildA, bildB, anteil, aus, ueber);   // Stufe 3b: mit Bindebasis umgerechnet, Stufe 4: IK
 }
 
 namespace {
@@ -449,19 +494,44 @@ bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float or
         ortAus(x, ort);
         return true;
     }
-    // Pol, Fussrolle, Saebelgriff: der Ort der Grundstellung, starr am Knochen (X * B^-1 * Ort)
+    // Stufe 4: der Pol steht, wo die IK-Spur ihn hat
+    if (g.art == modell::GriffArt::PolEllbogen || g.art == modell::GriffArt::PolKnie) { return modellIkPolWelt(griff, welt, ort, nullptr); }
+    // Fussrolle, Saebelgriff: der Ort der Grundstellung, starr am Knochen (X * B^-1 * Ort)
     float lokal[3];
     g_app->anim.bones[static_cast<std::size_t>(g.knochen)].basePoseInv.transform(g.ort, lokal);
     x.transform(lokal, ort);
     return true;
 }
 
+namespace {
+
+// Ein Zug am gewaehlten Griff (Gizmo oder G/R wie Blender) auf die Schicht beim Anfassen: Stufe 4 zuerst die IK (Hand,
+// Fuss, Saebelgriff, Pol, Fussrolle; ein Glied unter IK wechselt wie 3ds Max auf FK), sonst FK wie Stufe 3.
+void rigZugAnwenden(int gizmoArt, const BoneMatrix& dreh, const float weg[3]) {
+    ModellTab& t = mt();
+    modell::RigSchicht neu = t.rigSchichtStart;
+    neu.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
+    const int ik = modellIkZiehen(gizmoArt, dreh, weg, neu);
+    if (ik != 1) {
+        modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
+        modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);   // Stufe 3b
+    }
+    const AnimEntry* e = sequenz();
+    const std::string name = e != nullptr ? e->name : std::string();
+    t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
+    g_app->modelDirty = true;
+}
+
+}  // namespace
+
 bool modellRigGriffMitte(float m[3]) {
     const ModellTab& t = mt();
     if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
-    if (g.ik) { return false; }   // Pol-Ziele und Fussrolle wirken erst mit IK (Stufe 4)
-    if (t.gizmo == 1 && g.art != modell::GriffArt::Becken) { return false; }   // FK: verschieben nur das Becken
+    if (g.ik) { return modellIkGriffMitte(t.griffWahl, m); }   // Stufe 4: Pol (W), Fussrolle (E)
+    // verschieben: das Becken (FK) und Hand/Fuss/Saebelgriff (IK, Stufe 4); die anderen Griffe drehen
+    const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
+    if (t.gizmo == 1 && g.art != modell::GriffArt::Becken && !ende) { return false; }
     return modellRigGriffWelt(t.griffWahl, g_app->modellWelt, m);
 }
 
@@ -492,14 +562,7 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
     } else {
         std::memcpy(weg, wert, sizeof weg);
     }
-    modell::RigSchicht neu = t.rigSchichtStart;
-    neu.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
-    modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
-    modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);   // Stufe 3b
-    const AnimEntry* e = sequenz();
-    const std::string name = e != nullptr ? e->name : std::string();
-    t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
-    g_app->modelDirty = true;
+    rigZugAnwenden(gizmoArt, dreh, weg);
 }
 
 void modellRigZiehenEnde() { mt().rigZieht = false; }
@@ -510,8 +573,20 @@ bool modellRigModalStarten(int art) {
     ModellTab& t = mt();
     if (t.bereich != ModellBereich::Animation || t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
-    if (g.ik || art == 3 || (art == 1 && g.art != modell::GriffArt::Becken)) {
-        melden(tr(g.ik ? Str::MbRgIkSpaeter : Str::MbRgNurDrehen));
+    // Stufe 4: G bewegt auch Hand, Fuss, Saebelgriff und Pol (IK), R rollt an Ferse/Ballen/Zehe
+    const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
+    const bool pol = g.art == modell::GriffArt::PolEllbogen || g.art == modell::GriffArt::PolKnie;
+    if (art == 3 || (art == 1 && g.art != modell::GriffArt::Becken && !ende && !pol) || (art == 2 && pol)) {
+        melden(tr(pol ? Str::MbIkPolNurVerschieben : (g.ik ? Str::MbIkRolleNurDrehen : Str::MbRgNurDrehen)));
+        return true;
+    }
+    // wie Blender (Rigify): G greift das IK-Ziel nur bei IK - sonst eine Meldung statt eines Modals, das nichts tut
+    if (art == 1 && (ende || pol) && modellBlender() && modellIkAnteil(modellIkArtFuerGriff(t.griffWahl)) < 0.5F) {
+        char b[400];
+        std::snprintf(b, sizeof b, tr(Str::MbIkNurIk), tr(modell::ikArm(static_cast<modell::IkArt>(std::max(modellIkArtFuerGriff(t.griffWahl), 0))) ?
+                                                           (g.seite == modell::Seite::Links ? Str::MbIkArmL : Str::MbIkArmR) :
+                                                           (g.seite == modell::Seite::Links ? Str::MbIkBeinL : Str::MbIkBeinR)));
+        melden(b);
         return true;
     }
     t.rigModal = art;
@@ -552,15 +627,8 @@ bool modellRigModalTasten() {
         } else {
             // um die Blickachse: als Drehung zerlegt in die Weltachsen geht nicht - eigene Drehung
             if (!t.rigZieht) { modellRigZiehen(2, wert); }
-            modell::RigSchicht neu = t.rigSchichtStart;
-            neu.neuInterp = modell::Interp::Bezier;
             const float nichts[3] = {0.0F, 0.0F, 0.0F};
-            modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, modell::drehungUm(blick, grad), nichts, neu);
-            modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);
-            const AnimEntry* e = sequenz();
-            const std::string name = e != nullptr ? e->name : std::string();
-            t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
-            g_app->modelDirty = true;
+            rigZugAnwenden(2, modell::drehungUm(blick, grad), nichts);
         }
     } else {
         const float proPx = 2.0F * std::max(a.halbHoehe, 1.0F) / std::max(a.groesse[1], 1.0F);
@@ -848,20 +916,14 @@ void pfadZeichnen(const ModellAnsicht& a, ImDrawList* dl, const ModellPfad& p) {
     const ImU32 farbe = ImGui::ColorConvertFloat4ToU32(ImVec4{p.farbe[0], p.farbe[1], p.farbe[2], p.farbe[3]});
     const ImU32 blass = ImGui::ColorConvertFloat4ToU32(ImVec4{p.farbe[0], p.farbe[1], p.farbe[2], p.farbe[3] * 0.55F});
     int knochen = p.knochen;
-    float tagLokal[3] = {0.0F, 0.0F, 0.0F};
     if (p.tag >= 0) {
-        // das Tag-Dreieck haengt starr an seinem Knochen: Weltort = X(b) * B(b)^-1 * Mitte des Dreiecks
+        // Stufe 4: der Ort des Tags ist sein Bolzen (boltMatrix wie G2_ProcessSurfaceBolt2), mit Saebel dessen Spitze;
+        // die Schluessel zeigt der Knochen des Tags
         const modell::Inhalt& in = t.dok.inhalt();
         if (static_cast<std::size_t>(p.tag) >= in.teile.size() || in.teile[static_cast<std::size_t>(p.tag)].stufen.empty()) { return; }
         const modell::Netz& n = in.teile[static_cast<std::size_t>(p.tag)].stufen[0];
         if (n.ecken.empty()) { return; }
         knochen = n.ecken[0].knochen[0];
-        float mitte[3] = {0.0F, 0.0F, 0.0F};
-        for (const modell::Ecke& e : n.ecken) {
-            for (int k = 0; k < 3; ++k) { mitte[k] += e.ort[k] / static_cast<float>(n.ecken.size()); }
-        }
-        if (static_cast<std::size_t>(knochen) >= g_app->anim.bones.size()) { return; }
-        g_app->anim.bones[static_cast<std::size_t>(knochen)].basePoseInv.transform(mitte, tagLokal);
     }
     if (knochen < 0 || static_cast<std::size_t>(knochen) >= g_app->anim.bones.size()) { return; }
     std::vector<BoneMatrix> welt;
@@ -871,7 +933,7 @@ void pfadZeichnen(const ModellAnsicht& a, ImDrawList* dl, const ModellPfad& p) {
         weltBei(f, welt);
         float w[3];
         if (p.tag >= 0) {
-            welt[static_cast<std::size_t>(knochen)].transform(tagLokal, w);
+            if (!modellSaebelSpitze(p, welt, w)) { continue; }   // Stufe 4: Bolzen des Tags bzw. Spitze des angebauten Saebels
         } else {
             ortAus(welt[static_cast<std::size_t>(knochen)], w);
         }
@@ -893,6 +955,15 @@ void pfadZeichnen(const ModellAnsicht& a, ImDrawList* dl, const ModellPfad& p) {
         vor = sp;
         hatVor = true;
     }
+    if (p.spitze) {
+        // Stufe 4: die Klinge am aktuellen Frame als Linie (das Modell des Griffs zeigt sie nicht), damit die Spitze zu sehen ist
+        weltBei(jetzt, welt);
+        float sp3[3];
+        float an3[3];
+        ImVec2 s0;
+        ImVec2 s1;
+        if (modellSaebelSpitze(p, welt, sp3, an3) && modellAufSchirm(a, an3, s0) && modellAufSchirm(a, sp3, s1)) { dl->AddLine(s0, s1, blass, 3.0F); }
+    }
 }
 
 }  // namespace
@@ -903,6 +974,7 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     modellRigAktualisieren();
     for (const ModellPfad& p : t.pfade) { pfadZeichnen(a, dl, p); }
     if (!modellRigDa() || !t.rigZeigen) { return; }
+    modellIkUeberlagerung(a, dl);   // Stufe 4: IK-Ziele, Raum
     const float r = ImGui::GetFontSize() * 0.45F;
     const bool blender = modellBlender();
     for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
@@ -1018,7 +1090,7 @@ void modellRigExplorer(const std::string& such) {
         if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), name.c_str()); }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
             ImGui::SetTooltip("%s\n%s", g.knochen >= 0 ? g_app->anim.bones[static_cast<std::size_t>(g.knochen)].name.c_str() : "-",
-                              tr(g.ik ? Str::MbRgIkSpaeter : (modellBlender() ? Str::MbRgGriffHintBlender : Str::MbRgGriffHintMax)));
+                              tr(griffHinweis(g)));
         }
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) { modellRigGriffWaehlen(static_cast<int>(i)); }
         if (ImGui::BeginPopupContextItem("##griffmenue")) {
@@ -1026,6 +1098,14 @@ void modellRigExplorer(const std::string& such) {
             aktionenAlsMenue(1);
             ImGui::Separator();
             aktionenAlsMenue(2);
+            if (modellIkArtFuerGriff(static_cast<int>(i)) >= 0) {   // Stufe 4: IK/FK als Untermenue wie im Menue Animation
+                ImGui::Separator();
+                if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
+                    aktionenAlsMenue(5);
+                    ImGui::EndMenu();
+                }
+                ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
+            }
             ImGui::EndPopup();
         }
         ImGui::PopID();
@@ -1076,7 +1156,9 @@ void drawModellRigBereich() {
             if (t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size()) {
                 const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
                 ImGui::Text("%s", griffName(t.griffWahl).c_str());
-                ImGui::TextDisabled("%s", tr(g.ik ? Str::MbRgIkSpaeter : (modellBlender() ? Str::MbRgGriffHintBlender : Str::MbRgGriffHintMax)));
+                ImGui::PushTextWrapPos(0.0F);
+                ImGui::TextDisabled("%s", tr(griffHinweis(g)));
+                ImGui::PopTextWrapPos();
                 if (g.twist >= 0) {
                     ImGui::TextDisabled("%s", format(Str::MbRgTwistInfo, g_app->anim.bones[static_cast<std::size_t>(g.twist)].name.c_str(),
                                                      static_cast<double>(g.twistAnteil * 100.0F))
@@ -1093,6 +1175,7 @@ void drawModellRigBereich() {
         ImGui::PopTextWrapPos();
         if (knopf(Str::MbRgSchluesselLoeschen, Str::MbRgSchluesselLoeschenHint, rig)) { (void)modellRigSchluesselLoeschen(); }
     }
+    drawModellIkBereich();   // Stufe 4: IK/FK (wie 3ds Max Bewegung > IK-Solver, wie Rigify IK-FK)
     // Pose, Ghosts, Pfade und Backen ab Werk zu: Platz nur, wenn gebraucht - darunter folgen GLA, animation.cfg und die
     // Plaetze aus Stufe 2 (mb4e_mb3: offen schoben sie die Plaetze aus dem Bild).
     if (ImGui::CollapsingHeader(tr(Str::MbRgGruppePose))) {
@@ -1155,6 +1238,8 @@ void drawModellRigBereich() {
     }
     if (ImGui::CollapsingHeader(tr(Str::MbRgPfade))) {
         if (knopf(Str::MbRgPfadHinzu, Str::MbRgPfadHinzuHint, !g_app->anim.bones.empty())) { (void)modellPfadHinzu(); }
+        daneben(Str::MbIkPfadSpitze);
+        if (knopf(Str::MbIkPfadSpitze, Str::MbIkPfadSpitzeHint, !g_app->anim.bones.empty())) { (void)modellPfadSpitzeHinzu(); }
         daneben(Str::MbRgPfadeLeeren);
         if (knopf(Str::MbRgPfadeLeeren, Str::MbRgPfadeLeerenHint, !t.pfade.empty())) { modellPfadeLeeren(); }
         const float b = ImGui::GetContentRegionAvail().x * 0.45F;
@@ -1171,7 +1256,7 @@ void drawModellRigBereich() {
             neu |= ImGui::ColorEdit4("##farbe", p.farbe, ImGuiColorEditFlags_NoInputs);
             ImGui::SameLine();
             const modell::Inhalt& in = t.dok.inhalt();
-            const std::string name = p.tag >= 0 && static_cast<std::size_t>(p.tag) < in.teile.size() ? in.teile[static_cast<std::size_t>(p.tag)].name
+            const std::string name = p.tag >= 0 && static_cast<std::size_t>(p.tag) < in.teile.size() ? in.teile[static_cast<std::size_t>(p.tag)].name + (p.spitze ? std::string(" ") + tr(Str::MbIkSpitzeName) : std::string())
                                      : p.knochen >= 0 && static_cast<std::size_t>(p.knochen) < g_app->anim.bones.size()
                                          ? g_app->anim.bones[static_cast<std::size_t>(p.knochen)].name
                                          : std::string("-");

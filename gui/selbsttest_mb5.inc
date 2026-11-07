@@ -808,10 +808,10 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     }));
     // --- Bewegungspfad des Beckens ziehen ----------------------------------------------------------------------------
     auto pfadVorher = std::make_shared<std::array<float, 3>>();
-    add(tu("MB5 Pfad: Schicht leer, Pfad pelvis und rhand, Frame +8, Ansicht Vorne", [pfadVorher] {
+    add(tu("MB5 Pfad: Schicht leer, Pfad pelvis und upper_lumbar, Frame +8, Ansicht Vorne", [pfadVorher] {
         g_app->mtab.dok.aendern("MB5 leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
         g_app->mtab.pfade.clear();
-        for (const char* n : {"pelvis", "rhand"}) {
+        for (const char* n : {"pelvis", "upper_lumbar"}) {   // Stufe 4: Haende/Fuesse ziehen per IK (mb6), ein Wirbel bleibt Anzeige
             modellRigGriffWaehlen(-1);
             g_app->mtab.knochenWahl = boneIndex(g_app->anim, n);
             (void)modellPfadHinzu();
@@ -857,13 +857,13 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"));
     add(pause(0.3));
     add(pruefe("MB5 Pfad: Strg+Z nimmt den Zug zurueck (kein Schluessel am Becken)", [] { return schl(boneIndex(g_app->anim, "pelvis"), f0() + 8) == nullptr; }));
-    add(klickAn("auf einen Punkt des Handpfads", [] {
+    add(klickAn("auf einen Punkt des Wirbelpfads", [] {
         ImVec2 p;
         (void)modellPfadPunktAufSchirm(1, f0() + 8, p);
         return p;
     }));
     add(pause(0.3));
-    add(pruefe("MB5 Pfad der Hand: nur Anzeige bis IK (Meldung), kein Schluessel", [] {
+    add(pruefe("MB5 Pfad eines Wirbels: nur Anzeige (Meldung), kein Schluessel", [] {
         return g_app->mtab.rigMeldung == tr(Str::MbKvPfadNurAnzeige) && sch().schluesselZahl() == 0;
     }));
     add(tu("MB5: Pfade leer", [] { g_app->mtab.pfade.clear(); }));

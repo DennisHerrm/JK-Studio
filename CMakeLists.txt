@@ -121,6 +121,7 @@ add_library(bhed_core STATIC
   src/modell/xsiaufnahme.cpp
   src/modell/rig.cpp
   src/modell/animkurven.cpp
+  src/modell/ik.cpp
   src/camtrack.cpp
   src/scene.cpp
   # rc602: SP_NPC_* -> NPC_type (beide Regelwerke), siehe bhed/npcklasse.h.
@@ -462,6 +463,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_mb3.cpp
     gui/app_modelltab_rig.cpp
     gui/app_modelltab_kurven.cpp
+    gui/app_modelltab_ik.cpp
     gui/app_animation.cpp
     gui/app_wetter.cpp
     gui/app_gras.cpp
@@ -970,6 +972,10 @@ if(BEHAVED_TESTS)
   add_executable(modellkurventest tests/modell_kurven.cpp)
   target_link_libraries(modellkurventest PRIVATE bhed_core)
   add_test(NAME modell_kurven COMMAND modellkurventest)
+  # Modell-Block Stufe 4: Zwei-Glied-IK, Fussrolle, Einrasten IK<->FK, Space Switching, Reduzieren mit Auswahl, Posen-Datei
+  add_executable(modelliktest tests/modell_ik.cpp)
+  target_link_libraries(modelliktest PRIVATE bhed_core)
+  add_test(NAME modell_ik COMMAND modelliktest)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest

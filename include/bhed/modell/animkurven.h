@@ -118,6 +118,12 @@ int animationSpiegeln(const GlaAnimation& g, const Rig& r, RigSchicht& s, int er
 int markerSchluessel(RigSchicht& s, const std::vector<int>& knochen, int erstes, int letztes);
 int schleifeSchliessen(RigSchicht& s, const std::vector<int>& knochen, int vonBild, int letztes);
 
+// --- Posen-Bibliothek als Datei (Stufe 4) ------------------------------------------------------------------------------
+// Text, UTF-8: "JKStudioPosen 1", je Pose "pose <Name>", "knochen <n>", je Knochen "<Name> m00 m01 m02 m03 m10 ... m23".
+// Laden ersetzt Posen gleichen Namens und haengt neue an. fehler: der Grund.
+[[nodiscard]] std::string posenText(const std::vector<BibliothekPose>& posen);
+[[nodiscard]] bool posenAusText(const std::string& text, std::vector<BibliothekPose>& posen, std::string& fehler);
+
 // --- Aufraeumen ------------------------------------------------------------------------------------------------------
 // Ueberfluessige Schluessel wie clean_fcurve (Schwelle 0,001): ein Schluessel faellt, wenn jeder seiner Kanaele ihn
 // entfernen wuerde. Gibt die Zahl der entfernten.
@@ -148,13 +154,29 @@ struct ReduzierBericht {
     long long eineStufe = 0;   // Knochen-Bilder mit genau einer Stufe Verschiebung (Rundung, innerhalb der Grenze)
     std::string schlimmster;   // Knochen und Bild zu maxAnteil
     std::string fehler;
+    // Stufe 4 (Auswahl): reduzierte Knochen, unveraendert uebernommene Schluessel, Schluessel ausserhalb der Spanne, die die
+    // Grenze dort brauchte (die Henkel der Nachbarn aendern sich mit), dicht gesetzte Knochen-Bilder ausserhalb
+    int gewaehlt = 0;
+    long long behalten = 0;
+    int aussen = 0;
+    long long dicht = 0;
+};
+// Stufe 4: nur einige Knochen und/oder eine Zeitspanne reduzieren (aus Stufe 3b offen). Ausserhalb der Auswahl bleibt die
+// Schicht: mit Bindebasis die Schluessel der Quelle, sonst (ueber der GLA kann ein Knochen mit Schluesseln in der Bindebasis
+// nicht duenn bleiben) ein Schluessel je Bild aus dem Backen; Knochen ohne Schluessel und ohne IK bleiben ohne.
+struct ReduzierAuswahl {
+    std::vector<int> knochen;   // leer = alle
+    int von = -1;               // erstes Bild der Spanne (absolut), -1 = Anfang der Sequenz
+    int bis = -1;               // letztes Bild, -1 = Ende
 };
 // Die Bilder [erstes, erstes + anzahl) wie rigBacken sie mit der Schicht `quelle` schreiben wuerde, als neue Schicht mit
 // Bindebasis und wenigen Schluesseln: je Knochen gierig (Schluessel an das Bild mit dem groessten Anteil an der Grenze),
 // linear und Bezier (Auto Clamped), das mit weniger Schluesseln. Gebacken bleibt jedes Knochen-Bild innerhalb der
 // Grenze (Drehung) und hoechstens eine Stufe Verschiebung.
 // Die Schluessel liegen bei den Bildern der Sequenz (absolut).
-[[nodiscard]] bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, int anzahl, RigSchicht& aus, ReduzierBericht* bericht = nullptr);
+// Stufe 4: die IK-Spuren der Quelle gehen mit (sie wirken auf den reduzierten Schluesseln wie vorher).
+[[nodiscard]] bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, int anzahl, RigSchicht& aus, ReduzierBericht* bericht = nullptr,
+                                 const ReduzierAuswahl* auswahl = nullptr);
 // Nachpruefen: die Schicht `reduziert` gebacken gegen `quelle` gebacken (dieselben Bilder), Anteil und Abweichungen.
 [[nodiscard]] bool reduziertPruefen(const GlaAnimation& g, const RigSchicht& quelle, const RigSchicht& reduziert, int erstes, int anzahl,
                                     ReduzierBericht& bericht);

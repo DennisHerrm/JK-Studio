@@ -3044,6 +3044,8 @@ from i18n_mb3 import texte as _mb3  # noqa: E402
 TEXTE.update(_mb3("es"))
 from i18n_mb3b import texte as _mb3b  # noqa: E402
 TEXTE.update(_mb3b("es"))
+from i18n_mb4 import texte as _mb4  # noqa: E402
+TEXTE.update(_mb4("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 from i18n_aseb import texte as _aseb  # noqa: E402

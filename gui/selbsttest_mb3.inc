@@ -825,10 +825,15 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(pause(0.3));
     add(pruefe("MB4 Finden: das Menue Animation zeigt jede Rig-Aktion", [] {
         int da = 0;
-        for (int i = 0; i < modellRigAktionZahl(); ++i) { da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0; }
-        diag::detail("Knopftest: MB4 Menue - " + std::to_string(da) + " von " + std::to_string(modellRigAktionZahl()) + "; " +
+        int alle = 0;   // Stufe 4: die Gruppe IK/FK steht im eigenen Untermenue (selbsttest_mb6.inc prueft sie)
+        for (int i = 0; i < modellRigAktionZahl(); ++i) {
+            if (modellRigAktionGruppe(i) == 5) { continue; }
+            ++alle;
+            da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0;
+        }
+        diag::detail("Knopftest: MB4 Menue - " + std::to_string(da) + " von " + std::to_string(alle) + "; " +
                      tr(Str::MbRgKopieren) + " steht in " + woIst(tr(Str::MbRgKopieren)));
-        return da == modellRigAktionZahl();
+        return da == alle && alle > 0;
     }));
     add(taste(ImGuiKey_Escape, "Esc"));
     add(pause(0.2));
@@ -841,10 +846,15 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(pause(0.3));
     add(pruefe("MB4 Finden: der Rechtsklick hat das Untermenue Control Rig mit jeder Aktion", [] {
         int da = 0;
-        for (int i = 0; i < modellRigAktionZahl(); ++i) { da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0; }
-        diag::detail("Knopftest: MB4 Rechtsklick - " + std::to_string(da) + " von " + std::to_string(modellRigAktionZahl()) + "; " +
+        int alle = 0;   // Stufe 4: die Gruppe IK/FK steht im eigenen Untermenue (selbsttest_mb6.inc prueft sie)
+        for (int i = 0; i < modellRigAktionZahl(); ++i) {
+            if (modellRigAktionGruppe(i) == 5) { continue; }
+            ++alle;
+            da += imMenue(modellRigAktionText(i)) != nullptr ? 1 : 0;
+        }
+        diag::detail("Knopftest: MB4 Rechtsklick - " + std::to_string(da) + " von " + std::to_string(alle) + "; " +
                      tr(Str::MbRgKopieren) + " steht in " + woIst(tr(Str::MbRgKopieren)) + ", Kontext offen " + std::to_string(g_app->mtab.kontextSichtbar ? 1 : 0));
-        return da == modellRigAktionZahl();
+        return da == alle && alle > 0;
     }));
     add(taste(ImGuiKey_Escape, "Esc"));
     add(taste(ImGuiKey_Escape, "Esc"));

@@ -11,12 +11,15 @@
 //   Werkzeuge     ueber Menue "Animation" > Animationswerkzeuge, Rechtsklick im Editor und in der Ansicht, Suche X/F3; die
 //                 Schieber mit einem Regler (Vorschau sofort, Uebernehmen = ein Rueckgaengig-Schritt).
 //   Pfade         Punkte des Becken- und Wurzelpfads in der Ansicht ziehen: der Knochen geht an diesem Frame dorthin
-//                 (Verschiebung in der Bildebene, ein Schluessel); Haende, Fuesse, Saebelspitze bleiben bis IK (Stufe 4)
-//                 nur Anzeige.
+//                 (Verschiebung in der Bildebene, ein Schluessel); Stufe 4: an Haenden, Fuessen und der Saebelspitze ist der
+//                 gezogene Punkt das IK-Ziel an diesem Frame (wie 3ds Max Bewegung > Trajektorien: Schluessel auf der Bahn
+//                 verschieben), ein Rueckgaengig-Schritt.
 #include "app_internal.h"
 
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/ik.h"
 #include "bhed/modell/rig.h"
+#include "bhed/utf8pfad.h"
 
 #include <algorithm>
 #include <cctype>
@@ -24,7 +27,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <sstream>
 #include <set>
 #include <string>
 #include <vector>
@@ -529,7 +535,22 @@ bool reduzieren() {
     }
     modell::RigSchicht neu;
     modell::ReduzierBericht br;
-    if (!modell::rigReduzieren(g_app->anim, schicht(), erstes, anzahl, neu, &br)) {
+    // Stufe 4: nur die gewaehlten Knochen und/oder eine Spanne (aus 3b offen)
+    modell::ReduzierAuswahl aw;
+    const bool mitAuswahl = t.kvRedNurGewaehlte || t.kvRedSpanne;
+    if (t.kvRedNurGewaehlte) {
+        aw.knochen = modell::wahlKnochen(t.kvWahl);
+        if (aw.knochen.empty()) { aw.knochen = auswahlKnochen(); }
+        if (aw.knochen.empty()) {
+            melden(tr(Str::MbRgKeineAuswahl));
+            return false;
+        }
+    }
+    if (t.kvRedSpanne) {
+        aw.von = std::clamp(std::min(t.kvRedVon, t.kvRedBis), erstes, erstes + anzahl - 1);
+        aw.bis = std::clamp(std::max(t.kvRedVon, t.kvRedBis), erstes, erstes + anzahl - 1);
+    }
+    if (!modell::rigReduzieren(g_app->anim, schicht(), erstes, anzahl, neu, &br, mitAuswahl ? &aw : nullptr)) {
         melden(format(Str::MbSpFehler, br.fehler.c_str()));
         return false;
     }
@@ -539,8 +560,30 @@ bool reduzieren() {
     t.kvWahl.clear();
     ++t.kvAenderungen;
     g_app->modelDirty = true;
-    melden(format(Str::MbKvReduziert, e->name.c_str(), br.nachher, br.vorher, br.linear, br.bezier, br.statisch, br.maxAnteil * 100.0, br.eineStufe));
+    if (mitAuswahl) {
+        melden(format(Str::MbIkReduziert, e->name.c_str(), br.gewaehlt, br.nachher, br.behalten, br.dicht, br.aussen, br.maxAnteil * 100.0));
+    } else {
+        melden(format(Str::MbKvReduziert, e->name.c_str(), br.nachher, br.vorher, br.linear, br.bezier, br.statisch, br.maxAnteil * 100.0, br.eineStufe));
+    }
     return true;
+}
+
+// Stufe 4: die Spanne aus den gewaehlten Schluesseln (sonst das aktuelle Bild bis zum Ende der Sequenz)
+void spanneAusWahl() {
+    ModellTab& t = mt();
+    int erstes = 0;
+    int anzahl = 0;
+    bereich(erstes, anzahl);
+    if (!t.kvWahl.empty()) {
+        t.kvRedVon = t.kvRedBis = t.kvWahl.front().bild;
+        for (const modell::SchluesselWahl& w : t.kvWahl) {
+            t.kvRedVon = std::min(t.kvRedVon, w.bild);
+            t.kvRedBis = std::max(t.kvRedBis, w.bild);
+        }
+    } else {
+        t.kvRedVon = bildJetzt();
+        t.kvRedBis = erstes + anzahl - 1;
+    }
 }
 
 void aufraeumen(Str text, int art) {
@@ -599,6 +642,108 @@ void poseLoeschen() {
     const int i = t.kvPoseWahl;
     t.dok.aendern(tr(Str::MbKvPoseLoeschen), [&](modell::Inhalt& in) { in.rig.posen.erase(in.rig.posen.begin() + i); }, false);
     t.kvPoseWahl = -1;
+}
+
+// --- Stufe 4: Posen-Bibliothek als Datei (eigener Ordner, nie im Spielordner) ------------------------------------------
+
+std::string pfadPlus(const std::string& a, const std::string& b) {
+    const std::u8string r = (utf8Pfad(a) / utf8Pfad(b)).u8string();
+    return std::string(r.begin(), r.end());
+}
+
+std::string dateiName(std::string n) {
+    for (char& c : n) {
+        if (c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') { c = '_'; }
+    }
+    while (!n.empty() && (n.back() == ' ' || n.back() == '.')) { n.pop_back(); }
+    return n.empty() ? std::string("posen") : n;
+}
+
+}  // namespace
+
+std::string modellPosenOrdner() {
+    // Dokumente\behaved\posen (wie die Missionen), im Selbsttest BHED_POSEN
+    if (const char* p = std::getenv("BHED_POSEN"); p != nullptr && p[0] != '\0') { return p; }
+    const std::string d = platform::dokumenteOrdner();
+    return d.empty() ? std::string() : pfadPlus(d, "behaved\\posen");
+}
+
+bool modellPosenSpeichern() {
+    ModellTab& t = mt();
+    const auto& posen = t.dok.inhalt().rig.posen;
+    if (posen.empty()) {
+        melden(tr(Str::MbKvPoseLeer));
+        return false;
+    }
+    const std::string ordner = modellPosenOrdner();
+    if (ordner.empty()) {
+        melden(tr(Str::MbIkPosenKeinOrdner));
+        return false;
+    }
+    const std::string name = dateiName(t.posenDatei[0] != '\0' ? std::string(t.posenDatei) : std::string("posen"));
+    const std::string datei = pfadPlus(ordner, name + ".jkposen");
+    if (modellImSpielordner(datei)) {
+        melden(format(Str::MbIkPosenSpielordner, datei.c_str()));
+        return false;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(utf8Pfad(ordner), ec);
+    std::ofstream f(utf8Pfad(datei), std::ios::binary);
+    const std::string text = modell::posenText(posen);
+    f.write(text.data(), static_cast<std::streamsize>(text.size()));
+    f.close();
+    if (!f) {
+        melden(format(Str::MbSpFehler, datei.c_str()));
+        return false;
+    }
+    t.posenOrdnerJetzt = ordner;
+    melden(format(Str::MbIkPosenGespeichert, static_cast<int>(posen.size()), datei.c_str()));
+    return true;
+}
+
+bool modellPosenLaden(const std::string& datei) {
+    ModellTab& t = mt();
+    std::ifstream f(utf8Pfad(datei), std::ios::binary);
+    std::stringstream b;
+    b << f.rdbuf();
+    std::vector<modell::BibliothekPose> posen = t.dok.inhalt().rig.posen;
+    const std::size_t vorher = posen.size();
+    std::string fehler;
+    if (!f || !modell::posenAusText(b.str(), posen, fehler)) {
+        melden(format(Str::MbIkPosenFehler, datei.c_str(), fehler.c_str()));
+        return false;
+    }
+    t.dok.aendern(tr(Str::MbIkUndoPosen), [&](modell::Inhalt& in) { in.rig.posen = posen; }, false);
+    t.kvPoseWahl = posen.empty() ? -1 : 0;
+    melden(format(Str::MbIkPosenGeladen, static_cast<int>(posen.size() - std::min(vorher, posen.size())), static_cast<int>(posen.size()), datei.c_str()));
+    return true;
+}
+
+namespace {
+
+// Die Posen-Dateien des Ordners (Name ohne Endung, ganzer Pfad)
+std::vector<std::pair<std::string, std::string>> posenDateien() {
+    std::vector<std::pair<std::string, std::string>> d;
+    std::error_code ec;
+    const std::string ordner = modellPosenOrdner();
+    if (ordner.empty()) { return d; }
+    for (const auto& e : std::filesystem::directory_iterator(utf8Pfad(ordner), ec)) {
+        if (!e.is_regular_file(ec) || e.path().extension() != ".jkposen") { continue; }
+        const std::u8string n = e.path().stem().u8string();
+        const std::u8string v = e.path().u8string();
+        d.emplace_back(std::string(n.begin(), n.end()), std::string(v.begin(), v.end()));
+    }
+    std::sort(d.begin(), d.end());
+    return d;
+}
+
+void posenLadenMenue() {
+    const auto d = posenDateien();
+    if (d.empty()) { ImGui::TextDisabled("%s", format(Str::MbIkPosenKeine, modellPosenOrdner().c_str()).c_str()); }
+    for (const auto& [n, pfad] : d) {
+        if (ImGui::MenuItem(n.c_str())) { (void)modellPosenLaden(pfad); }
+        ImGui::SetItemTooltip("%s", pfad.c_str());
+    }
 }
 
 void markerGrenzen() {
@@ -755,10 +900,25 @@ const std::vector<KvAktion>& kvAktionen() {
         {Str::MbKvPoseSpeichern, Str::MbKvPoseSpeichernHint, "", "", 0, 0, "", [] { (void)poseSpeichern(); }, {}, 8},
         {Str::MbKvPoseAnwenden, Str::MbKvPoseAnwendenHint, "", "", 0, 0, "", [] { (void)poseAnwenden(false); }, {}, 8},
         {Str::MbKvPoseGespiegelt, Str::MbKvPoseAnwendenHint, "", "", 0, 0, "", [] { (void)poseAnwenden(true); }, {}, 8},
+        {Str::MbIkPosenSpeichern, Str::MbIkPosenSpeichernHint, "", "", 0, 0, "", [] { (void)modellPosenSpeichern(); }, {}, 8},
+        {Str::MbIkPosenOrdner, Str::MbIkPosenOrdnerHint, "", "", 0, 0, "", [] {
+             const std::string o = modellPosenOrdner();
+             std::error_code ec;
+             if (!o.empty()) { std::filesystem::create_directories(utf8Pfad(o), ec); }
+             if (!o.empty()) { platform::openInExplorer(o); }
+         },
+         {}, 8},
         {Str::MbKvMkGrenzen, Str::MbKvMkGrenzenHint, "", "", 0, 0, "", [] { markerGrenzen(); }, {}, 9},
         {Str::MbKvMkSchleife, Str::MbKvMkSchleifeHint, "", "", 0, 0, "", [] { markerSchleife(); }, {}, 9},
         {Str::MbKvMkWaehlen, Str::MbKvMkWaehlenHint, "", "", 0, 0, "", [] { markerWaehlen(); }, {}, 9},
         {Str::MbKvReduzieren, Str::MbKvReduzierenHint, "", "", 0, 0, "", [] { (void)reduzieren(); }, {}, 10},
+        {Str::MbIkRedNurGewaehlte, Str::MbIkRedNurGewaehlteHint, "", "", 0, 0, "", [] { mt().kvRedNurGewaehlte = !mt().kvRedNurGewaehlte; },
+         [] { return mt().kvRedNurGewaehlte; }, 10},
+        {Str::MbIkRedSpanne, Str::MbIkRedSpanneHint, "", "", 0, 0, "", [] {
+             mt().kvRedSpanne = !mt().kvRedSpanne;
+             if (mt().kvRedSpanne) { spanneAusWahl(); }
+         },
+         [] { return mt().kvRedSpanne; }, 10},
         {Str::MbKvUeberfluessig, Str::MbKvUeberfluessigHint, "", "", 0, 0, "", [] { aufraeumen(Str::MbKvUeberfluessig, 0); }, {}, 10},
         {Str::MbKvStatisch, Str::MbKvStatischHint, "", "", 0, 0, "", [] { aufraeumen(Str::MbKvStatisch, 1); }, {}, 10},
         {Str::MbKvQuatFilter, Str::MbKvQuatFilterHint, "", "", 0, 0, "", [] { aufraeumen(Str::MbKvQuatFilter, 2); }, {}, 10},
@@ -836,6 +996,10 @@ void alleAlsUntermenues() {
     for (int g = 0; g < kKvGruppen; ++g) {
         if (ImGui::BeginMenu(tr(kKvGruppenText[g]))) {
             gruppeAlsMenue(g);
+            if (g == 8 && ImGui::BeginMenu(tr(Str::MbIkPosenLaden))) {   // Stufe 4: die Bibliothek aus einer Datei
+                posenLadenMenue();
+                ImGui::EndMenu();
+            }
             ImGui::EndMenu();
         }
     }
@@ -1706,6 +1870,16 @@ void drawModellKurvenBereich() {
     ImGui::SameLine();
     if (knopf(Str::MbKvKeOeffnen, Str::MbKvOeffnenHint, t.kvOffen && t.kvArt == 1)) { editorOeffnen(1); }
     if (knopf(Str::MbKvReduzieren, Str::MbKvReduzierenHint, false)) { (void)reduzieren(); }
+    // Stufe 4: nur gewaehlte Knochen / eine Spanne
+    ImGui::Checkbox(tr(Str::MbIkRedNurGewaehlte), &t.kvRedNurGewaehlte);
+    ImGui::SetItemTooltip("%s", tr(Str::MbIkRedNurGewaehlteHint));
+    if (ImGui::Checkbox(tr(Str::MbIkRedSpanne), &t.kvRedSpanne) && t.kvRedSpanne) { spanneAusWahl(); }
+    ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
+    if (t.kvRedSpanne) {
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::DragIntRange2("##redspanne", &t.kvRedVon, &t.kvRedBis, 1.0F, 0, std::max(g_app->anim.bildZahl() - 1, 0), tr(Str::MbIkRedVon), tr(Str::MbIkRedBis));
+        ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
+    }
     if (knopf(Str::MbKvAnimSpiegeln, Str::MbKvAnimSpiegelnHint, false)) { (void)animationSpiegeln(); }
     if (ImGui::Checkbox(tr(Str::MbKvAnimOffset), &t.kvAnimOffset)) { g_app->modelDirty = true; }
     ImGui::SetItemTooltip("%s", tr(Str::MbKvAnimOffsetHint));
@@ -1728,6 +1902,20 @@ void drawModellKurvenBereich() {
     ImGui::SameLine();
     if (ImGui::Button(tr(Str::MbKvPoseLoeschen))) { poseLoeschen(); }
     ImGui::EndDisabled();
+    // Stufe 4: die Bibliothek als Datei (Dokumente\behaved\posen)
+    ImGui::SetNextItemWidth(-1.0F);
+    ImGui::InputTextWithHint("##posendatei", tr(Str::MbIkPosenDatei), t.posenDatei, sizeof t.posenDatei);
+    ImGui::SetItemTooltip("%s", tr(Str::MbIkPosenSpeichernHint));
+    ImGui::BeginDisabled(posen.empty());
+    if (knopf(Str::MbIkPosenSpeichern, Str::MbIkPosenSpeichernHint, false)) { (void)modellPosenSpeichern(); }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button(tr(Str::MbIkPosenLaden))) { ImGui::OpenPopup("##posenladen"); }
+    ImGui::SetItemTooltip("%s", tr(Str::MbIkPosenLadenHint));
+    if (ImGui::BeginPopup("##posenladen")) {
+        posenLadenMenue();
+        ImGui::EndPopup();
+    }
 }
 
 // Anim Offset (Griff gezogen): die Aenderung am Zugbild auf die anderen Schluessel der betroffenen Knochen.
@@ -1758,12 +1946,70 @@ void modellKurvenAnimOffset(const modell::RigSchicht& vorher, modell::RigSchicht
 // --- Bewegungspfade ziehen -------------------------------------------------------------------------------------------------
 namespace {
 
-// Ein Pfad, der sich ziehen laesst: Becken, Wurzel, Bewegung (Verschiebung; Glieder brauchen IK, Stufe 4)
+// Ein Pfad, der sich ziehen laesst: Becken, Wurzel, Bewegung (Verschiebung); Stufe 4: Hand, Fuss, Saebelspitze und die
+// Saebel-Tags (das IK-Ziel des Glieds an diesem Bild)
+int pfadGlied(const ModellPfad& p) {
+    const ModellTab& t = mt();
+    if (!modellRigDa()) { return -1; }
+    int k = p.knochen;
+    if (p.tag >= 0) {
+        const modell::Inhalt& in = t.dok.inhalt();
+        if (static_cast<std::size_t>(p.tag) >= in.teile.size() || in.teile[static_cast<std::size_t>(p.tag)].stufen.empty() ||
+            in.teile[static_cast<std::size_t>(p.tag)].stufen[0].ecken.empty()) {
+            return -1;
+        }
+        k = in.teile[static_cast<std::size_t>(p.tag)].stufen[0].ecken[0].knochen[0];   // der Knochen des Tags (*r_hand: rhand)
+    }
+    // ein Tag haengt an einem Tag-Knochen unter der Hand (JKA: *r_hand an rhang_tag_bone unter rradius): die Hand derselben
+    // Seite; ein Knochen ist selbst Hand oder Fuss
+    if (k < 0 || static_cast<std::size_t>(k) >= t.rig.erkennung.knochen.size()) { return -1; }
+    if (p.tag >= 0) {
+        const modell::Seite se = t.rig.erkennung.knochen[static_cast<std::size_t>(k)].seite;
+        for (const modell::TagErkennung& tg : t.rig.tags) {
+            if (tg.teil == p.tag && (tg.art == modell::TagArt::SaebelRechts || tg.art == modell::TagArt::SaebelLinks)) {
+                return static_cast<int>(tg.seite == modell::Seite::Links ? modell::IkArt::ArmLinks : modell::IkArt::ArmRechts);
+            }
+        }
+        if (se == modell::Seite::Mitte) { return -1; }
+        return static_cast<int>(se == modell::Seite::Links ? modell::IkArt::ArmLinks : modell::IkArt::ArmRechts);
+    }
+    const modell::Rolle r = t.rig.erkennung.knochen[static_cast<std::size_t>(k)].rolle;
+    if (r != modell::Rolle::Hand && r != modell::Rolle::Fuss) { return -1; }
+    for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
+        const modell::Griff& g = t.rig.griffe[i];
+        if ((g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss) && g.knochen == k) { return modellIkArtFuerGriff(static_cast<int>(i)); }
+    }
+    return -1;
+}
+
+std::string pfadName(const ModellPfad& p) {
+    const modell::Inhalt& in = mt().dok.inhalt();
+    if (p.tag >= 0 && static_cast<std::size_t>(p.tag) < in.teile.size()) {
+        return in.teile[static_cast<std::size_t>(p.tag)].name + (p.spitze ? std::string(" ") + tr(Str::MbIkSpitzeName) : std::string());
+    }
+    return p.knochen >= 0 && static_cast<std::size_t>(p.knochen) < g_app->anim.bones.size() ? g_app->anim.bones[static_cast<std::size_t>(p.knochen)].name : std::string("-");
+}
+
 bool ziehbar(const ModellPfad& p) {
     const ModellTab& t = mt();
-    if (p.knochen < 0 || !modellRigDa() || static_cast<std::size_t>(p.knochen) >= t.rig.erkennung.knochen.size()) { return false; }
+    if (!modellRigDa()) { return false; }
+    if (pfadGlied(p) >= 0) { return true; }
+    if (p.knochen < 0 || static_cast<std::size_t>(p.knochen) >= t.rig.erkennung.knochen.size()) { return false; }
     const modell::Rolle r = t.rig.erkennung.knochen[static_cast<std::size_t>(p.knochen)].rolle;
     return r == modell::Rolle::Becken || r == modell::Rolle::Wurzel || r == modell::Rolle::Bewegung;
+}
+
+// Der Weltort eines Pfads am Bild (Knochen, Tag, Saebelspitze)
+bool pfadOrt(const ModellPfad& p, const modell::RigSchicht& s, int bild, float w[3]) {
+    std::vector<BoneMatrix> welt;
+    modell::rigWelt(g_app->anim, s, bild, bild, 0.0F, welt);
+    if (p.tag >= 0) { return modellSaebelSpitze(p, welt, w); }
+    if (p.knochen < 0 || static_cast<std::size_t>(p.knochen) >= welt.size()) { return false; }
+    const BoneMatrix& x = welt[static_cast<std::size_t>(p.knochen)];
+    w[0] = x.m[0][3];
+    w[1] = x.m[1][3];
+    w[2] = x.m[2][3];
+    return true;
 }
 
 void ortAm(const modell::RigSchicht& s, int knochen, int bild, float w[3]) {
@@ -1788,10 +2034,9 @@ bool punktUnter(const ModellAnsicht& a, ImVec2 maus, int& pfad, int& bild) {
     float bd = ImGui::GetFontSize() * 0.5F;
     pfad = -1;
     for (std::size_t i = 0; i < t.pfade.size(); ++i) {
-        if (t.pfade[i].knochen < 0) { continue; }
         for (int f = von; f <= bis; ++f) {
             float w[3];
-            ortAm(s, t.pfade[i].knochen, f, w);
+            if (!pfadOrt(t.pfade[i], s, f, w)) { continue; }
             ImVec2 sp;
             if (!modellAufSchirm(a, w, sp)) { continue; }
             const float d = std::hypot(maus.x - sp.x, maus.y - sp.y);
@@ -1823,7 +2068,7 @@ bool modellPfadZiehenStart(const ModellAnsicht& a, ImVec2 maus) {
     t.kvPfadAngelegt = false;
     t.kvPfadMaus[0] = maus.x;
     t.kvPfadMaus[1] = maus.y;
-    ortAm(t.kvPfadStart, t.pfade[static_cast<std::size_t>(pfad)].knochen, bild, t.kvPfadOrt);
+    (void)pfadOrt(t.pfade[static_cast<std::size_t>(pfad)], t.kvPfadStart, bild, t.kvPfadOrt);
     g_app->animPlaying = false;
     return true;
 }
@@ -1834,9 +2079,7 @@ void modellPfadZiehenWeiter(const ModellAnsicht& a) {
     ModellTab& t = mt();
     if (t.kvPfadZug < 0) { return; }
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        if (t.kvPfadAngelegt) {
-            melden(format(Str::MbKvPfadGezogen, g_app->anim.bones[static_cast<std::size_t>(t.pfade[static_cast<std::size_t>(t.kvPfadZug)].knochen)].name.c_str(), t.kvPfadBild));
-        }
+        if (t.kvPfadAngelegt) { melden(format(Str::MbKvPfadGezogen, pfadName(t.pfade[static_cast<std::size_t>(t.kvPfadZug)]).c_str(), t.kvPfadBild)); }
         t.kvPfadZug = -1;
         return;
     }
@@ -1875,13 +2118,43 @@ void modellPfadZiehenWeiter(const ModellAnsicht& a) {
     neu.neuInterp = kNeuInterp;
     std::vector<BoneMatrix> welt;
     modell::rigWelt(g_app->anim, t.kvPfadStart, t.kvPfadBild, t.kvPfadBild, 0.0F, welt);
-    const int knochen = t.pfade[static_cast<std::size_t>(t.kvPfadZug)].knochen;
-    modell::rigKnochenVerschieben(g_app->anim, neu, knochen, t.kvPfadBild, welt, weg);
-    modellKurvenAnimOffset(t.kvPfadStart, neu, {knochen}, t.kvPfadBild);
+    const ModellPfad& pf = t.pfade[static_cast<std::size_t>(t.kvPfadZug)];
+    const int glied = pfadGlied(pf);
+    if (glied >= 0) {
+        // Stufe 4: der Punkt ist das IK-Ziel an diesem Bild (Hand/Fuss bzw. die Hand des Saebels: der Saebel geht mit, seine
+        // Spitze um denselben Weg) - wie 3ds Max Trajektorien, Schluessel auf der Bahn verschieben
+        const int sp = modellIkSpur(glied, neu);
+        if (sp >= 0) {
+            // nur dieser Punkt der Bahn: die Nachbarn halten ihre Pose (Max: Schluessel auf der Trajektorie verschieben)
+            int erstes = 0;
+            int anzahl = 0;
+            bereich(erstes, anzahl);
+            modell::ikNurAmBild(g_app->anim, neu, sp, t.kvPfadBild, erstes, erstes + anzahl - 1);
+            BoneMatrix ziel = modell::starr(welt[static_cast<std::size_t>(neu.ik[static_cast<std::size_t>(sp)].ende.knochen)]);
+            for (int k = 0; k < 3; ++k) { ziel.m[k][3] += weg[k]; }
+            modell::ikZielSetzen(g_app->anim, neu, sp, t.kvPfadBild, ziel);
+            if (pf.tag >= 0) {
+                // ein Tag (Saebelspitze) haengt ueber seine Ecken auch am Unterarm (boltMatrix mischt die Gewichte): das Ziel der
+                // Hand so nachfuehren, bis der Punkt dort steht (Newton-freie Festpunkt-Schritte, bis 1/1000 Einheit)
+                const float soll[3] = {t.kvPfadOrt[0] + weg[0], t.kvPfadOrt[1] + weg[1], t.kvPfadOrt[2] + weg[2]};
+                for (int schritt = 0; schritt < 12; ++schritt) {
+                    float ist[3];
+                    if (!pfadOrt(pf, neu, t.kvPfadBild, ist)) { break; }
+                    const float d[3] = {soll[0] - ist[0], soll[1] - ist[1], soll[2] - ist[2]};
+                    if (std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) < 1e-3F) { break; }
+                    for (int k = 0; k < 3; ++k) { ziel.m[k][3] += d[k]; }
+                    modell::ikZielSetzen(g_app->anim, neu, sp, t.kvPfadBild, ziel);
+                }
+            }
+        }
+    } else {
+        const int knochen = pf.knochen;
+        modell::rigKnochenVerschieben(g_app->anim, neu, knochen, t.kvPfadBild, welt, weg);
+        modellKurvenAnimOffset(t.kvPfadStart, neu, {knochen}, t.kvPfadBild);
+    }
     const std::string name = sequenzName();
     if (!t.kvPfadAngelegt) {
-        t.dok.aendern(format(Str::MbKvPfadGezogen, g_app->anim.bones[static_cast<std::size_t>(knochen)].name.c_str(), t.kvPfadBild), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; },
-                      false);
+        t.dok.aendern(format(Str::MbKvPfadGezogen, pfadName(pf).c_str(), t.kvPfadBild), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
         t.kvPfadAngelegt = true;
     } else {
         t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
@@ -1936,9 +2209,9 @@ bool modellKvFeldEnthaelt(ImVec2 p) { return p.x >= g_feld.lo.x && p.x <= g_feld
 
 bool modellPfadPunktAufSchirm(int pfad, int bild, ImVec2& out) {
     ModellTab& t = mt();
-    if (pfad < 0 || static_cast<std::size_t>(pfad) >= t.pfade.size() || t.pfade[static_cast<std::size_t>(pfad)].knochen < 0) { return false; }
+    if (pfad < 0 || static_cast<std::size_t>(pfad) >= t.pfade.size()) { return false; }
     float w[3];
-    ortAm(schicht(), t.pfade[static_cast<std::size_t>(pfad)].knochen, bild, w);
+    if (!pfadOrt(t.pfade[static_cast<std::size_t>(pfad)], schicht(), bild, w)) { return false; }
     return modellAufSchirm(t.ansichten[t.aktiv], w, out);
 }
 

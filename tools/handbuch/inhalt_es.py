@@ -7556,3 +7556,5 @@ from inhalt_mb3 import ES as _MB4  # noqa: E402
 TEXTE.update(_MB4)
 from inhalt_mb3b import ES as _MB5  # noqa: E402
 TEXTE.update(_MB5)
+from inhalt_mb4 import ES as _MB6  # noqa: E402
+TEXTE.update(_MB6)

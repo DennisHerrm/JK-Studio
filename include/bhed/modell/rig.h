@@ -136,8 +136,12 @@ struct Rig {
 [[nodiscard]] bool schluesselWert(const std::vector<RigSchluessel>& v, float bild, BoneMatrix& m);
 // Alle M zum Bild, fuer worldMatricesLerp (nachMal).
 void rigNachMal(const RigSchicht& s, float bild, std::vector<std::pair<int, BoneMatrix>>& aus);
-// Dasselbe fuer worldMatricesLerp(bildA, bildB, anteil): mit Bindebasis umgerechnet (M_eff = B^-1 A^-1 B M, Stufe 3b).
-void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
+// Dasselbe fuer worldMatricesLerp(bildA, bildB, anteil): mit Bindebasis umgerechnet (M_eff = B^-1 A^-1 B M, Stufe 3b),
+// Stufe 4: dazu die IK der Spuren (bhed/modell/ik.h; `ueber` wie bei worldMatricesLerp, z. B. der Oberkoerper).
+void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus,
+                   const std::vector<BoneFrameOverride>& ueber = {});
+// Nur die FK-Schluessel (ohne IK), wie rigNachMalAuf bis Stufe 3b.
+void rigNachMalFk(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
 // Einen Schluessel setzen (ersetzt einen am selben Bild).
 void rigSchluesselSetzen(RigSchicht& s, int knochen, int bild, const BoneMatrix& m);
 void rigSchluesselLoeschen(RigSchicht& s, int knochen, int bild);

@@ -5,6 +5,7 @@
 #include "bhed/modell/rig.h"
 
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/ik.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1113,7 +1114,17 @@ void rigSchluesselLoeschen(RigSchicht& s, int k, int bild) {
     henkelNeu(v);
 }
 
-void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
+void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus,
+                   const std::vector<BoneFrameOverride>& ueber) {
+    rigNachMalFk(g, s, bildA, bildB, anteil, aus);
+    if (s.ik.empty()) { return; }
+    // Stufe 4: die IK auf der FK-Welt dieses Bilds
+    std::vector<BoneMatrix> welt;
+    g.worldMatricesLerp(bildA, bildB, anteil, ueber, aus, welt);
+    (void)ikAnwenden(g, s, static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F), welt, aus);
+}
+
+void rigNachMalFk(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus) {
     rigNachMal(s, static_cast<float>(bildA) + (bildB != bildA ? anteil : 0.0F), aus);
     if (!s.bindeBasis) { return; }
     // Bindebasis: X = X(p) B(p)^-1 B M soll gelten; worldMatricesLerp rechnet X(p) B(p)^-1 A B M_eff, also
@@ -1340,8 +1351,34 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
     const g2::CompressOptions co{};   // wie xsiAufnehmen (G2C-Vorgabe: Nearest, Vorzeichen, optimizeQuat)
     std::vector<std::pair<int, BoneMatrix>> nach;
     std::vector<const BoneMatrix*> mJe(static_cast<std::size_t>(nb), nullptr);
+    std::vector<std::pair<int, BoneMatrix>> eff;
+    std::vector<BoneMatrix> welt;
     for (int f = erstes; f < erstes + anzahl; ++f) {
         rigNachMal(s, static_cast<float>(f), nach);
+        if (!s.ik.empty()) {
+            // Stufe 4: die Knochen, die die IK aendert, bekommen ihr M aus der IK (M = B^-1 A B M_eff mit Bindebasis);
+            // die anderen bleiben die Schluessel der Schicht Bit fuer Bit
+            rigNachMalFk(q, s, f, f, 0.0F, eff);
+            q.worldMatricesLerp(f, f, 0.0F, {}, eff, welt);
+            for (const int b : ikAnwenden(q, s, static_cast<float>(f), welt, eff)) {
+                BoneMatrix m = BoneMatrix::identity();
+                for (const auto& [k, mm] : eff) {
+                    if (k == b) { m = mm; }
+                }
+                if (s.bindeBasis) {
+                    const GlaBone& kb = q.bones[static_cast<std::size_t>(b)];
+                    m = kb.basePoseInv * q.localMatrix(f, b) * kb.basePose * m;
+                }
+                bool da = false;
+                for (auto& [k, mm] : nach) {
+                    if (k == b) {
+                        mm = m;
+                        da = true;
+                    }
+                }
+                if (!da) { nach.emplace_back(b, m); }
+            }
+        }
         std::fill(mJe.begin(), mJe.end(), nullptr);
         for (const auto& [k, m] : nach) {
             if (k >= 0 && k < nb) { mJe[static_cast<std::size_t>(k)] = &m; }

@@ -192,6 +192,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mb3()})
             from i18n_mb3b import zeilen_vier as _mb3b   # Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Werkzeuge
             texte.update({e[0]: e[1:] for e in _mb3b()})
+            from i18n_mb4 import zeilen_vier as _mb4   # Modell-Block Stufe 4: IK/FK, Fussrolle, Raumwechsel
+            texte.update({e[0]: e[1:] for e in _mb4()})
             from i18n_aseb import zeilen_vier as _aseb   # ASEB: .ase, .md3 usw. zu Brushes, Modell in Brushes umwandeln
             texte.update({e[0]: e[1:] for e in _aseb()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).

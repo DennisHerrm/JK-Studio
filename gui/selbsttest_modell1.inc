@@ -434,6 +434,69 @@ std::vector<Schritt> modellLeistungSchritte() {
         }));
         return s;
     }
+    // Stufe 4, BHED_MODELL1_NUR=ik: Sturmtruppler, die Sequenz der Messung laeuft: ohne IK, dann IK an allen vier Gliedern
+    // (IK-Schluessel an Anfang, Mitte und Ende, Ziele bewegt), Pfade an beiden Haenden und einem Fuss, Kurveneditor offen.
+    if (nur != nullptr && std::strcmp(nur, "ik") == 0) {
+        add(tu("Modell1: stormtrooper laden, Bereich Animation", [] {
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Modell1: " + fehler); }
+            g_app->leftMode = 2;
+            g_app->mtab.bereich = ModellBereich::Animation;
+            m1Grundlage();
+        }));
+        add(pause(1.0));
+        add(m1Messblock("stormtrooper", "Animation ohne IK", [] {
+            g_app->mtab.kvOffen = false;
+            m1Abspielen();
+        }));
+        add(tu("Modell1: IK an vier Gliedern, Pfade, Kurveneditor", [] {
+            m1Grundlage();
+            (void)modellRigAnlegen();
+            const AnimEntry& e = g_app->animList[static_cast<std::size_t>(g_app->animIndex)];
+            modell::RigSchicht s;
+            for (int a = 0; a < modell::kIkArten; ++a) {
+                const int sp = modellIkSpur(a, s);
+                if (sp < 0) { continue; }
+                for (const int f : {e.firstFrame, e.firstFrame + e.numFrames / 2, e.firstFrame + e.numFrames - 1}) {
+                    modell::ikAufFk(g_app->anim, s, sp, f, 1.0F);
+                    std::vector<BoneMatrix> w;
+                    modell::rigWelt(g_app->anim, s, f, f, 0.0F, w);
+                    BoneMatrix z = modell::starr(w[static_cast<std::size_t>(s.ik[static_cast<std::size_t>(sp)].ende.knochen)]);
+                    z.m[2][3] += 1.5F;
+                    modell::ikZielSetzen(g_app->anim, s, sp, f, z);
+                }
+            }
+            g_app->mtab.dok.aendern("Modell1 IK", [&](modell::Inhalt& in) { in.rig.schichten[e.name] = s; }, false);
+            g_app->mtab.pfade.clear();
+            for (const char* n : {"rhand", "lhand", "rtalus"}) {
+                modellRigGriffWaehlen(-1);
+                g_app->mtab.knochenWahl = boneIndex(g_app->anim, n);
+                (void)modellPfadHinzu();
+            }
+            modellRigGriffWaehlen(-1);
+            g_app->mtab.kvOffen = true;
+            g_app->mtab.kvArt = 1;
+            g_app->mtab.kvNurGewaehlte = false;
+            g_app->mtab.kvEinpassen = true;
+            diag::detail("Knopftest: Modell1 ik - " + e.name + " " + std::to_string(e.numFrames) + " Frames, " + std::to_string(s.ik.size()) + " Glieder, " +
+                         std::to_string(s.schluesselZahl()) + " FK-Schluessel");
+        }));
+        add(pause(0.5));
+        add(m1Messblock("stormtrooper", "IK an 4 Gliedern, 3 Pfade, Kurveneditor offen", [] { m1Abspielen(); }));
+        add(pruefe("Modell1 ik: IK-Ziele, Pfade und Kurven gezeichnet", [] {
+            diag::detail("Knopftest: Modell1 ik - IK-Ziele " + std::to_string(g_app->mtab.ikGezeichnet) + ", Pfadpunkte " + std::to_string(g_app->mtab.pfadPunkte) + ", Kurven " +
+                         std::to_string(g_app->mtab.kvKurvenPunkte) + " Punkte, Editor " + std::to_string(g_app->mtab.kvZeitMs) + " ms");
+            return g_app->mtab.ikGezeichnet >= 4 && g_app->mtab.pfadPunkte > 0 && g_app->mtab.kvKurvenPunkte > 0;
+        }));
+        add(tu("Modell1: zurueck", [] {
+            g_app->mtab.kvOffen = false;
+            g_app->mtab.pfade.clear();
+            g_app->mtab.bereich = ModellBereich::Ansehen;
+            g_app->leftMode = 1;
+            g_app->doc.markSaved();
+        }));
+        return s;
+    }
     if (!nurRuhe) { add(m1Messblock("ohne Figur", "ruhig", [] {})); }
     // JKA: Sturmtruppler; JKA mit vielen Flaechen (jedi_hf, 214); Movie Duels
     // mit den meisten Flaechen (jedi_hm, 236) und den meisten Ecken in LOD 0

@@ -73,8 +73,45 @@ struct RigSchluessel {
     float hl[kKanaele][2] = {{-1.0F, 0.0F}, {-1.0F, 0.0F}, {-1.0F, 0.0F}, {-1.0F, 0.0F}, {-1.0F, 0.0F}, {-1.0F, 0.0F}, {-1.0F, 0.0F}};
     float hr[kKanaele][2] = {{1.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 0.0F}};
 };
+// Stufe 4: IK (Rechnung in bhed/modell/ik.h). Ein Glied der Kette, wie der FK-Griff aus dem Rig (Knochen, mitgedrehte
+// Knochen, Drehknochen mit seinem Anteil) - kopiert, damit Ansicht und Backen ohne das Rig rechnen.
+struct IkGlied {
+    int knochen = -1;
+    std::vector<int> mit;
+    int twist = -1;
+    int twistVon = -1;
+    float twistAnteil = 0.0F;
+};
+enum class IkArt : std::uint8_t { ArmLinks = 0, ArmRechts, BeinLinks, BeinRechts };
+inline constexpr int kIkArten = 4;
+// Was ein IK-Schluessel ausser dem Ziel traegt (je Schluessel, Bild wie IkSpur::ziel).
+struct IkWert {
+    float ik = 1.0F;       // 1 IK, 0 FK (Blender: 1 - Regler IK-FK von Rigify); gilt bis zum naechsten Schluessel
+    int raum = -1;         // Child Of / Space Switching: -1 Welt, sonst der Knochen; gilt bis zum naechsten Schluessel
+    float pol[3]{};        // Pol-Ziel (Max: Schwenkziel) im Raum von IkSpur::polRaum
+    float rolle = 0.0F;    // Fussrolle in Grad wie der Fersen-Regler von Rigify: < 0 um die Ferse, > 0 um den Ballen
+    float spitze = 0.0F;   // Anteil einer Rolle > 0 um die Zehenspitze (Rigify Toe_Roll)
+    float zehen[4] = {1.0F, 0.0F, 0.0F, 0.0F};   // Drehung der Zehen zum ungerollten Fuss (w x y z, aus der FK-Pose)
+};
+struct IkSpur {
+    IkArt art = IkArt::ArmRechts;
+    IkGlied oben, unten, ende, zehen;   // Ober-/Unterarm (-schenkel), Hand/Fuss, Zehen (knochen -1: keine)
+    int polRaum = -1;                   // der Knochen ueber dem Glied (Schluesselbein, Becken)
+    float ferse[3]{};                   // Drehpunkte der Fussrolle in der Grundstellung
+    float ballen[3]{};
+    float spitzePunkt[3]{};
+    bool hatFerse = false;
+    bool hatBallen = false;
+    bool hatSpitze = false;
+    float rollAchse[3]{};               // Achse der Fussrolle in der Grundstellung (oben x vorn)
+    float polAbstand = 0.0F;            // Abstand des Pols vom Gelenk (Laenge des oberen Glieds)
+    std::vector<RigSchluessel> ziel;    // Ort (t) und Drehung (q) des Endknochens im Raum; Bezier wie die Schicht
+    std::vector<IkWert> wert;           // je Schluessel von `ziel`
+};
+
 struct RigSchicht {
     std::vector<std::vector<RigSchluessel>> knochen;   // je Knochen, nach Bild sortiert
+    std::vector<IkSpur> ik;                            // Stufe 4: IK je Glied (auf den FK-Schluesseln)
     // Stufe 3b: false - die Schluessel liegen ueber den Bildern der GLA (A' = A B M B^-1, Stufe 3); true - ein Knochen
     // mit Schluesseln ist ganz durch sie beschrieben, ueber der Bindepose (A' = B M B^-1, "Reduzieren" legt so an).
     bool bindeBasis = false;

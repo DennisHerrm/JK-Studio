@@ -25,7 +25,7 @@ X = {
         "to the head, the side comes from the side axis of the skeleton. Where name and position disagree, the position wins and the bone is marked unclear. "
         "It works for the skeletons of Jedi Academy (53 bones), Jedi Outcast (72, everything flat under pelvis and thoracic) and the creatures and droids of "
         "Movie Duels. The rig then has controls for every part of the body, pole targets for elbows and knees, the foot roll (heel, ball, toe tip) and the "
-        "saber grip at *r_hand; pole targets and foot roll work with IK from stage 4.",
+        "saber grip at *r_hand; pole targets and foot roll work with IK (page IK/FK).",
         "Im Bereich **{{MbBereichAnimation}}** erkennt **{{MbRgAnlegen}}** (auch im Menü **{{MbBereichAnimation}}**, im Rechtsklick der Ansicht und in der "
         "Suche X/F3) jeden Knochen: seine Rolle (Becken, Wirbel, Hals, Kopf, Schlüsselbein, Ober- und Unterarm, Hand, Finger, Ober- und Unterschenkel, Fuß, "
         "Zehen, Drehknochen, Tag-Knochen, Gesicht) und seine Seite. Der Name gibt eine erste Antwort (pelvis, lhumerus, r_d1_j1, L_thigh, leg_left_bone01 ...); "
@@ -33,20 +33,20 @@ X = {
         "die Wirbelsäule steigt vom Becken zum Kopf, die Seite kommt von der Seitenachse des Skeletts. Wo Name und Lage sich widersprechen, gilt die Lage, "
         "und der Knochen ist als unklar markiert. Das geht für die Skelette von Jedi Academy (53 Knochen), Jedi Outcast (72, alles flach unter pelvis und "
         "thoracic) und die Kreaturen und Droiden von Movie Duels. Das Rig hat dann Griffe für jeden Teil des Körpers, Pol-Ziele für Ellbogen und Knie, die "
-        "Fußrolle (Ferse, Ballen, Zehenspitze) und den Säbelgriff an *r_hand; Pol-Ziele und Fußrolle wirken mit IK ab Stufe 4.",
+        "Fußrolle (Ferse, Ballen, Zehenspitze) und den Säbelgriff an *r_hand; Pol-Ziele und Fußrolle wirken mit IK (Seite IK/FK).",
         "在 **{{MbBereichAnimation}}** 区域, **{{MbRgAnlegen}}** (也在菜单 **{{MbBereichAnimation}}**、视图右键和搜索 X/F3 中) 识别每根骨骼: "
         "它的角色 (骨盆、脊柱、颈、头、锁骨、上臂、前臂、手、手指、大腿、小腿、脚、脚趾、扭转骨骼、标签骨骼、面部) 和它的侧别。名称给出第一个答案 "
         "(pelvis、lhumerus、r_d1_j1、L_thigh、leg_left_bone01 ...); 层次和绑定姿势进行检查——腿挂在肢体伸得最低的地方, 肢体的各部分向外依次相连, "
         "脊柱从骨盆升到头, 侧别来自骨架的侧轴。名称与位置矛盾时以位置为准, 并把骨骼标记为不确定。这适用于 Jedi Academy (53 根骨骼)、"
         "Jedi Outcast (72 根, 全部平铺在 pelvis 和 thoracic 下) 以及 Movie Duels 的生物和机器人的骨架。绑定随后为身体每个部分提供控制器、"
-        "肘和膝的极向目标、脚部滚动 (脚跟、脚掌、脚尖) 以及 *r_hand 处的光剑握把; 极向目标和脚部滚动从第 4 阶段起随 IK 生效。",
+        "肘和膝的极向目标、脚部滚动 (脚跟、脚掌、脚尖) 以及 *r_hand 处的光剑握把; 极向目标和脚部滚动随 IK 生效 (见 IK/FK 页)。",
         "**{{MbBereichAnimation}}** 領域で **{{MbRgAnlegen}}** (メニュー **{{MbBereichAnimation}}**、ビューの右クリック、検索 X/F3 にもあります) が"
         "すべてのボーンを認識します: 役割 (骨盤、背骨、首、頭、鎖骨、上腕、前腕、手、指、太もも、すね、足、つま先、ツイストボーン、タグボーン、顔) と左右。"
         "名前が最初の答えを出し (pelvis、lhumerus、r_d1_j1、L_thigh、leg_left_bone01 ...)、階層とバインドポーズがそれを確かめます - 脚は肢が最も"
         "低く届く所に付き、肢の各部は外側へ順に続き、背骨は骨盤から頭へ上り、左右はスケルトンの左右軸から決まります。名前と位置が食い違う所では位置を"
         "優先し、ボーンを不明として示します。Jedi Academy (ボーン 53)、Jedi Outcast (72、すべて pelvis と thoracic の下に平らに並ぶ)、Movie Duels "
         "のクリーチャーとドロイドのスケルトンで動きます。リグは体の各部のコントロール、肘と膝のポールターゲット、フットロール (かかと、母指球、つま先の先)、"
-        "*r_hand のセーバーグリップを持ちます。ポールターゲットとフットロールはステージ 4 から IK で働きます。",
+        "*r_hand のセーバーグリップを持ちます。ポールターゲットとフットロールは IK で働きます (IK/FK のページ)。",
         "En el área **{{MbBereichAnimation}}**, **{{MbRgAnlegen}}** (también en el menú **{{MbBereichAnimation}}**, en el clic derecho de la vista y en la "
         "búsqueda X/F3) reconoce cada hueso: su función (pelvis, columna, cuello, cabeza, clavícula, brazo, antebrazo, mano, dedos, muslo, pierna, pie, dedos "
         "del pie, huesos de giro, huesos de tag, cara) y su lado. El nombre da una primera respuesta (pelvis, lhumerus, r_d1_j1, L_thigh, leg_left_bone01 ...); "
@@ -54,14 +54,14 @@ X = {
         "hacia fuera, la columna sube de la pelvis a la cabeza y el lado sale del eje lateral del esqueleto. Donde nombre y posición no coinciden, manda la "
         "posición y el hueso se marca como dudoso. Funciona con los esqueletos de Jedi Academy (53 huesos), Jedi Outcast (72, todo plano bajo pelvis y "
         "thoracic) y las criaturas y droides de Movie Duels. El rig tiene entonces controles para cada parte del cuerpo, objetivos de polo para codos y "
-        "rodillas, el balanceo del pie (talón, planta, punta) y el agarre del sable en *r_hand; los polos y el balanceo funcionan con IK desde la etapa 4.",
+        "rodillas, el balanceo del pie (talón, planta, punta) y el agarre del sable en *r_hand; los polos y el balanceo funcionan con IK (página IK/FK).",
         "V oblasti **{{MbBereichAnimation}}** rozpozná **{{MbRgAnlegen}}** (také v nabídce **{{MbBereichAnimation}}**, v pravém tlačítku pohledu a ve "
         "vyhledávání X/F3) každou kost: její roli (pánev, páteř, krk, hlava, klíční kost, nadloktí, předloktí, ruka, prsty, stehno, lýtko, chodidlo, prsty "
         "nohy, kroutící kosti, tagové kosti, obličej) a stranu. Jméno dá první odpověď (pelvis, lhumerus, r_d1_j1, L_thigh, leg_left_bone01 ...); hierarchie "
         "a vazná póza ji ověří - nohy visí tam, kam končetiny sahají nejníž, části končetiny jdou ven za sebou, páteř stoupá od pánve k hlavě a strana plyne "
         "z boční osy kostry. Kde si jméno a poloha odporují, platí poloha a kost je označena jako nejasná. Funguje to pro kostry Jedi Academy (53 kostí), "
         "Jedi Outcast (72, vše plošně pod pelvis a thoracic) a pro tvory a droidy Movie Duels. Rig má pak ovladače pro každou část těla, cíle pólů loktů "
-        "a kolen, odval chodidla (pata, bříško, špička) a úchop meče na *r_hand; póly a odval působí s IK od fáze 4."),
+        "a kolen, odval chodidla (pata, bříško, špička) a úchop meče na *r_hand; póly a odval působí s IK (stránka IK/FK)."),
     "h_uebersicht": ("The overview: assign by clicking", "Die Übersicht: zuordnen per Klick", "概览: 点击指定", "概要: クリックで割り当て",
                      "La vista general: asignar con clics", "Přehled: přiřazení kliknutím"),
     "uebersicht": (
