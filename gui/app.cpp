@@ -4145,6 +4145,7 @@ void drawAbout() {
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
     ImGui::BulletText("%s", tr(Str::AboutUvLizenz));
     ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge   // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
+    ImGui::BulletText("%s", tr(Str::AboutAnimLizenz));   // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
     ImGui::PopTextWrapPos();
 
     ImGui::Separator();

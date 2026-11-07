@@ -104,6 +104,17 @@ int main(int argc, char** argv) {
             }
         }
     }
+    // Preset-Bibliothek (Animations-Import): data/presets/*.txt als "presets/<name>", data/presets/<quelle>/* als
+    // "presets/<quelle>/<name>"
+    for (const auto& e : fs::directory_iterator(quelle.parent_path() / "presets", ec)) {
+        if (e.is_regular_file() && e.path().extension() == ".txt") {
+            namen.push_back("presets/" + e.path().filename().string());
+        } else if (e.is_directory()) {
+            for (const auto& d : fs::directory_iterator(e.path(), ec)) {
+                if (d.is_regular_file()) { namen.push_back("presets/" + e.path().filename().string() + "/" + d.path().filename().string()); }
+            }
+        }
+    }
     std::sort(namen.begin(), namen.end());
     // Quelle bzw. ausgepackter Ort eines Namens: mit Ordner relativ zu data/.
     const auto ort = [](const fs::path& basis, const std::string& n) {

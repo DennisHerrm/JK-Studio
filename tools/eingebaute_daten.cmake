@@ -38,6 +38,11 @@ function(behaved_eingebaute_daten ziel ausgabe)
     # ZUERST pruefen: data/karte/jk2 heisst sonst wie data/jk2.
     if(_oben STREQUAL "karte")
       set(_name "karte/${_ordner}/${_name}")
+    elseif(_oben STREQUAL "presets")
+      # Preset-Bibliothek (Animations-Import): data/presets/<quelle>/<datei> -> "presets/<quelle>/<datei>"
+      set(_name "presets/${_ordner}/${_name}")
+    elseif(_ordner STREQUAL "presets")
+      set(_name "presets/${_name}")
     elseif(_ordner STREQUAL "jk2")
       set(_name "jk2/${_name}")
     endif()

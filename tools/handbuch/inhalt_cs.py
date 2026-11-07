@@ -7561,6 +7561,8 @@ from inhalt_ph import CS as _PH  # noqa: E402
 TEXTE.update(_PH)
 from inhalt_rt import CS as _RT  # noqa: E402
 TEXTE.update(_RT)
+from inhalt_animimp import CS as _ANIMIMP  # noqa: E402
+TEXTE.update(_ANIMIMP)
 from inhalt_uv1b import CS as _UV1B  # noqa: E402
 TEXTE.update(_UV1B)
 from inhalt_md1d import CS as _MD1D  # noqa: E402

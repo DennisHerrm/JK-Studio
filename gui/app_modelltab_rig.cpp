@@ -293,6 +293,12 @@ const std::vector<RigAktion>& rigAktionen() {
              mt().rt.oeffnen = true;
          },
          {}, 7},
+        // Animations-Import: Mixamo/glTF/BVH auf einen Klick (keine Taste in Max/Blender: dort Datei > Importieren)
+        {Str::AiImport, Str::AiImportHint, "", "", 0, 0, "", [] {
+             mt().rt.oeffnen = true;
+             (void)modellRtImportWaehlen();
+         },
+         {}, 7},
         {Str::RtUebertragen, Str::RtUebertragenHint, "", "", 0, 0, "", [] { (void)modellRtUebertragen(); }, {}, 7},
         {Str::RtVorschau, Str::RtVorschauHint, "", "", 0, 0, "", [] { (void)modellRtVorschau(!mt().rt.vorschau); }, [] { return mt().rt.vorschau; }, 7},
         {Str::RtQuelleZeigen, Str::RtQuelleZeigenHint, "", "", 0, 0, "", [] {
@@ -317,6 +323,7 @@ const std::vector<RigAktion>& rigAktionen() {
         // Stufe 5b: Presets
         {Str::PrRolloutOeffnen, Str::PrRolloutHint, "", "", 0, 0, "", [] { mt().rt.presetOeffnen = true; }, {}, 8},
         {Str::PrAuflegen, Str::PrAuflegenHint, "", "", 0, 0, "", [] { (void)modellPresetAuflegen(); }, {}, 8},
+        {Str::AiBibliothekOeffnen, Str::AiBibliothekHint, "", "", 0, 0, "", [] { mt().rt.presetOeffnen = true; }, {}, 8},
         {Str::PrMessenAktion, Str::PrMessenHint, "", "", 0, 0, "", [] { (void)modellPresetMessen(); }, {}, 8},
     };
     return kListe;

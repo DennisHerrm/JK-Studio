@@ -102,6 +102,9 @@ BoneMatrix GlaAnimation::localMatrix(int frame, int bone) const {
     }
     const std::size_t at = static_cast<std::size_t>(frame) * nb +
                            static_cast<std::size_t>(bone);
+    if (!roh.empty()) {
+        return at < roh.size() ? roh[at] : out;
+    }
     if (at >= indexes.size()) {
         return out;
     }
@@ -496,6 +499,7 @@ bool schreibGla(const GlaAnimation& a, std::string& o, std::string* fehler) {
         if (fehler != nullptr) { *fehler = f; }
         return false;
     };
+    if (!a.roh.empty()) { return falsch("unkomprimierte Bilder (Import) - erst backen"); }
     const auto nb = static_cast<std::int32_t>(a.bones.size());
     if (nb <= 0) { return falsch("kein Skelett"); }
     if (a.skeletonName.size() >= kMaxQPath) { return falsch("Name im Kopf laenger als 63 Zeichen"); }

@@ -125,6 +125,7 @@ add_library(bhed_core STATIC
   src/modell/figuranim.cpp
   src/modell/physik.cpp
   src/modell/retarget.cpp
+  src/modell/animimport.cpp
   src/modell/md3datei.cpp
   # Modell-Block 1b: UV erstellen - abgeleitet aus WhiteoutLib/WhiteoutFlakes (BSD-3 mit LICENSE-AI.md), eigener Ordner
   # wof/ mit Lizenzkopf je Datei (licenses/WhiteoutFlakes-BSD-3.txt). Siehe bhed/modell/wof/uv.h.
@@ -315,6 +316,9 @@ list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_JK2})
 # im Programm unter "karte/<spiel>/<name>", ausgepackt nach data/karte.
 file(GLOB BEHAVED_EINGEBAUT_KARTE CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/karte/*/*")
 list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_KARTE})
+# Preset-Bibliothek (Animations-Import): data/presets/presets.txt und data/presets/<quelle>/*.bvh, ausgepackt nach data/presets
+file(GLOB BEHAVED_EINGEBAUT_PRESETS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/data/presets/*.txt" "${CMAKE_CURRENT_SOURCE_DIR}/data/presets/*/*")
+list(APPEND BEHAVED_EINGEBAUT ${BEHAVED_EINGEBAUT_PRESETS})
 behaved_eingebaute_daten(bhed_core ${CMAKE_BINARY_DIR}/eingebaut/eingebaute_daten.inc ${BEHAVED_EINGEBAUT})
 
 # Werkzeug
@@ -672,7 +676,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
             $<TARGET_FILE_DIR:behaved>/data/jk2
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data/karte
-            $<TARGET_FILE_DIR:behaved>/data/karte)
+            $<TARGET_FILE_DIR:behaved>/data/karte
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/presets
+            $<TARGET_FILE_DIR:behaved>/data/presets)
 elseif(WIN32)
   message(STATUS "Oberflaeche wird nicht gebaut: -DIMGUI_DIR=<pfad> setzen")
 endif()
@@ -1023,6 +1030,15 @@ if(BEHAVED_TESTS)
   add_executable(modellretargettest tests/modell_retarget.cpp)
   target_link_libraries(modellretargettest PRIVATE bhed_core)
   add_test(NAME modell_retarget COMMAND modellretargettest)
+  # Animations-Import (p_animimport): FBX/glTF/BVH/COLLADA aus einer eigenen Blender-Szene gegen Blenders Weltorte, BVH
+  # gegen assimp, BVH-Rundlauf, Retargeting Mixamo-Namen -> JKA mit Fussrutschen; Preset-Bibliothek data/presets (Naht,
+  # Quelle/Lizenz, Uebertragung)
+  add_executable(modellanimimporttest tests/modell_animimport.cpp)
+  target_link_libraries(modellanimimporttest PRIVATE bhed_core assimp)
+  add_test(NAME modell_animimport COMMAND modellanimimporttest ${CMAKE_CURRENT_SOURCE_DIR}/tests/animimport ${CMAKE_CURRENT_SOURCE_DIR}/data/presets)
+  # Werkzeug fuer die Preset-Bibliothek data/presets (kein Test, nicht ausgeliefert): tools/presetbau/presetbau.cpp
+  add_executable(presetbau tools/presetbau/presetbau.cpp)
+  target_link_libraries(presetbau PRIVATE bhed_core)
   # Modell-Block 1b: UV erstellen - Inseln/Keile, LSCM, minimale Dehnung, Entspannen, Begradigen, Projektion, Packen ohne
   # Ueberlappung, Stapel, Naehte (Weg, Ring, Skelett, Winkel, Form), Pruefen; Abwickeln eines JKA-Modells mit Verzerrung und
   # Dichte; Rundlauf GLM/MD3 ohne Aenderung Byte fuer Byte, UV -> Datei -> UV gleich, Naht-Teilung behaelt Gewichte, Grenze

@@ -36,6 +36,21 @@ std::string glaOrdner() {
     return d != nullptr ? d : "";
 }
 std::string glaDatei(const std::string& spiel, const std::string& pfad) { return mb::verbinde(mb::verbinde(glaOrdner(), spiel), pfad); }
+// Ohne BHED_RT_GLA (oder mit einem Ordner, den es nicht gibt) laufen die Gruppen nicht los: die Schritte danach greifen auf
+// die Quelle und ihre Ergebnisse zu (r.welt[0], Ketten-Indizes) - ohne Quelle stuerzte der Selbsttest mit 0xC0000005 ab statt
+// FEHLER-Zeilen zu schreiben (Altbestand Stufe 5, Zusatz p_animimport). Eine Zeile mit Meldung, sonst nichts.
+bool glaOrdnerDa() {
+    std::error_code ec;
+    return !glaOrdner().empty() && std::filesystem::is_directory(glaOrdner(), ec);
+}
+std::vector<Schritt> ohneGlaOrdner(const std::string& n) {
+    std::vector<Schritt> s;
+    s.push_back(pruefe("RT " + n + ": BHED_RT_GLA zeigt auf die GLAs der Spiele (<dir>/<jka|jk2|md>/models/...)", [n] {
+        meldeFehler("RT " + n + ": BHED_RT_GLA fehlt oder ist kein Ordner (\"" + glaOrdner() + "\") - Gruppe nicht gelaufen");
+        return false;
+    }));
+    return s;
+}
 
 struct Zustand {
     std::string vorher;           // gebackene eigene Sequenz vor dem Retargeting (Rundlauf)
@@ -477,7 +492,7 @@ std::vector<Schritt> presetSchritte() {
             }
             ++n;
         }
-        return n == 3;
+        return n == 4;   // Presets oeffnen, Auf Figur legen, Messen; dazu Preset-Bibliothek oeffnen (Animations-Import)
     }));
     add(taste(ImGuiKey_Escape, "Esc"));
     add(taste(ImGuiKey_Escape, "Esc"));
@@ -538,6 +553,7 @@ std::vector<Schritt> presetSchritte() {
 
 // Die Bilder der Handbuchseite (BHED_HB_NUR=rt): der JK2-Gang auf dem Sturmtruppler mit der Quelle daneben; Ketten, Pose, Schritte
 std::vector<Schritt> handbuchSchritte() {
+    if (!glaOrdnerDa()) { return ohneGlaOrdner("Handbuch"); }
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     figurLaden(s, "models/players/stormtrooper/model.glm", "BOTH_STAND1");
@@ -597,6 +613,7 @@ std::vector<Schritt> handbuchSchritte() {
 }
 
 std::vector<Schritt> schritte(const std::string& n) {
+    if ((n == "rt" || n == "rtjka" || n == "rtspiel" || n == "rtzeit") && !glaOrdnerDa()) { return ohneGlaOrdner(n); }
     if (n == "rt") { return modellSchritte(); }
     if (n == "rtjka") { return jkaSchritte(); }
     if (n == "rtspiel") { return spielSchritte(); }

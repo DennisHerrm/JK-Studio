@@ -11,6 +11,7 @@
 #include "app_internal.h"
 #include "platform.h"
 
+#include "bhed/modell/animimport.h"
 #include "bhed/modell/retarget.h"
 
 #include <algorithm>
@@ -19,6 +20,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -94,6 +96,24 @@ void bereich(const modell::RetargetDaten& d, int& erstes, int& anzahl, double& m
 
 std::string glaPfad() { return g_app->anim.skeletonName + ".gla"; }
 
+// Naht eines Zyklus: Sprung vom letzten Bild zum ersten (groesster Ort eines Knochens) im Verhaeltnis zum groessten Schritt
+// zwischen zwei Bildern im Zyklus - bis etwa 1 faellt die Naht nicht auf (nicht groesser als ein gewoehnlicher Schritt)
+float zyklusNaht(const std::vector<std::vector<BoneMatrix>>& w) {
+    if (w.size() < 3) { return -1.0F; }
+    auto schritt = [&](std::size_t a, std::size_t b) {
+        float m = 0.0F;
+        for (std::size_t k = 0; k < w[a].size() && k < w[b].size(); ++k) {
+            float d = 0.0F;
+            for (int i = 0; i < 3; ++i) { d += (w[a][k].m[i][3] - w[b][k].m[i][3]) * (w[a][k].m[i][3] - w[b][k].m[i][3]); }
+            m = std::max(m, std::sqrt(d));
+        }
+        return m;
+    };
+    float innen = 0.0F;
+    for (std::size_t f = 1; f < w.size(); ++f) { innen = std::max(innen, schritt(f - 1, f)); }
+    return innen > 1e-6F ? schritt(w.size() - 1, 0) / innen : 0.0F;
+}
+
 void zielCharakter() {
     ModellRetarget& r = rt();
     const std::string fuer = g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.bones.size());
@@ -141,6 +161,57 @@ bool modellRtEinstellen(const char* undo, const std::function<void(modell::Retar
     return true;
 }
 
+// Animations-Import (FBX/glTF/BVH/COLLADA, bhed/modell/animimport.h): Skelett und Bilder als Quelle, je Animation der Datei
+// eine Sequenz wie in einer animation.cfg; Vorlage (z. B. Mixamo) erkannt -> zugeordnet, Vorschau sofort auf der Figur
+bool modellRtImportLaden(const std::string& pfad, const std::string& sequenz) {
+    ModellRetarget& r = rt();
+    modell::AnimImport imp;
+    std::string fehler;
+    if (!modell::animImportieren(pfad, imp, &fehler)) {
+        r.quelleFehler = fehler.empty() ? pfad : fehler;
+        melden(format(Str::RtQuelleFehler, r.quelleFehler.c_str()));
+        return false;
+    }
+    r.quelle = std::move(imp.anim);
+    r.quelleFuer = pfad;
+    r.quelleFehler.clear();
+    r.quelleCfg = std::move(imp.sequenzen);
+    r.importInfo = format(Str::AiImportInfo, imp.format.c_str(), imp.oben.c_str(), imp.vorn.c_str(), static_cast<double>(imp.zentimeter),
+                          r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps);
+    for (const std::string& h : imp.hinweise) { r.importInfo += "; " + h; }
+    r.cq = modell::rtCharakter(r.quelle, pfad);
+    zielCharakter();
+    r.stand = -1;
+    r.bild = 0.0F;
+    const modell::RtZuordnung zu = modell::rtZuordnen(r.cq, r.cz);
+    std::string seq = r.quelleCfg.empty() ? std::string() : r.quelleCfg.front().name;
+    for (const AnimEntry& e : r.quelleCfg) {
+        if (e.name == sequenz) { seq = sequenz; }
+    }
+    (void)modellRtEinstellen(tr(Str::RtUndoQuelle), [&](modell::RetargetDaten& d) {
+        d.quelle = pfad;
+        d.vonPreset = false;
+        d.zu = zu;
+        d.sequenz = seq;
+    });
+    melden(format(Str::AiImportGeladen, fileName(pfad).c_str(), static_cast<int>(r.quelle.bones.size()), static_cast<int>(r.quelleCfg.size()),
+                  charakterText(r.cq).c_str(), r.importInfo.c_str()));
+    // auf einen Klick: uebertragen und die Vorschau auf der Figur abspielen
+    if (modellRtUebertragen()) { r.spielt = true; }
+    return true;
+}
+
+bool modellRtImportWaehlen() {
+    if (g_app->anim.bones.empty()) {
+        melden(tr(Str::MbRgKeineGla));
+        return false;
+    }
+    const std::string p = platform::openFileDialog(tr(Str::AiImport), "FBX, glTF, BVH, COLLADA (*.fbx;*.glb;*.gltf;*.bvh;*.dae)|*.fbx;*.glb;*.gltf;*.bvh;*.dae",
+                                                   g_app->settings.lastDir);
+    if (p.empty()) { return false; }
+    return modellRtImportLaden(p);
+}
+
 bool modellRtQuelleLaden(const std::string& pfad) {
     ModellRetarget& r = rt();
     std::string bytes;
@@ -149,6 +220,7 @@ bool modellRtQuelleLaden(const std::string& pfad) {
     // animation.cfg kaeme dann aus den Archiven des eingestellten Spiels (mit anderen Frames)
     std::error_code ec;
     const bool lose = std::filesystem::path(pfad).is_absolute() && std::filesystem::is_regular_file(pfad, ec);
+    if (modell::istAnimImportEndung(pfad)) { return modellRtImportLaden(pfad); }
     if (lose) {
         bytes = slurp(pfad);
     } else if (!readFromArchives(pfad, bytes)) {
@@ -264,6 +336,7 @@ void modellRtAktualisieren() {
     bereich(d, erstes, anzahl, r.bildMs, schleife, fps);
     const auto t0 = std::chrono::steady_clock::now();
     (void)modell::rtUebertragen(r.quelle, r.cq, g_app->anim, r.cz, t.dok.inhalt().rig.rt.zu, d.e, erstes, anzahl, r.welt, &r.bericht);
+    r.weltNaht = schleife >= 0 ? zyklusNaht(r.welt) : -1.0F;
     r.weltQuelle.assign(static_cast<std::size_t>(r.welt.size()), {});
     for (std::size_t f = 0; f < r.welt.size(); ++f) { r.quelle.worldMatrices(erstes + static_cast<int>(f), r.weltQuelle[f]); }
     std::string fehler;
@@ -465,7 +538,9 @@ void drawModellRtQuelleFenster() {
     }
     ImGui::EndChild();
     if (ImGui::Button(tr(Str::RtDatei))) {
-        const std::string p = platform::openFileDialog(tr(Str::RtFensterTitel), "Ghoul2 animation (*.gla)|*.gla", g_app->settings.lastDir);
+        const std::string p = platform::openFileDialog(tr(Str::RtFensterTitel),
+                                                       "Ghoul2 animation (*.gla)|*.gla|FBX, glTF, BVH, COLLADA (*.fbx;*.glb;*.gltf;*.bvh;*.dae)|*.fbx;*.glb;*.gltf;*.bvh;*.dae",
+                                                       g_app->settings.lastDir);
         if (!p.empty()) {
             (void)modellRtQuelleLaden(p);
             ImGui::CloseCurrentPopup();
@@ -499,6 +574,10 @@ void drawModellRetargetBereich() {
     // Quelle und Ziel
     if (ImGui::Button(tr(Str::RtQuelleWaehlen))) { r.quelleWaehlen = true; }
     ImGui::SetItemTooltip("%s", tr(Str::RtQuelleWaehlenHint));
+    daneben(tr(Str::AiImport));
+    if (ImGui::Button(tr(Str::AiImport))) { (void)modellRtImportWaehlen(); }
+    ImGui::SetItemTooltip("%s", tr(Str::AiImportHint));
+    if (!r.importInfo.empty() && modell::istAnimImportEndung(r.quelleFuer)) { ImGui::TextDisabled("%s", r.importInfo.c_str()); }
     if (r.quelle.bones.empty()) {
         ImGui::TextDisabled("%s", tr(Str::RtQuelleKeine));
         ImGui::PopTextWrapPos();
@@ -840,6 +919,65 @@ bool modellPresetMessen() {
     return false;
 }
 
+// --- Preset-Bibliothek (data/presets/presets.txt): freie Animationen anderer Urheber als BVH auf ihrem eigenen Skelett ---
+// Zeile: kategorie|name|datei (relativ zu data/presets)|quelle|lizenz|platz|schleife (1/0). Ausgeliefert wird nur die Quelle (CC0 bzw.
+// CC BY 4.0), keine Datei des Spiels: auf die Figur kommt sie erst hier, mit dem Retargeting auf deren Skelett.
+const std::vector<PresetEintrag>& modellPresetBibliothek() {
+    ModellRetarget& r = rt();
+    if (!r.bibliothekGeladen) {
+        r.bibliothekGeladen = true;
+        r.bibliothek.clear();
+        const std::filesystem::path d = std::filesystem::path(g_app->dataDir).parent_path() / "presets";
+        r.bibliothekOrdner = d.string();
+        std::istringstream in(slurp((d / "presets.txt").string()));
+        for (std::string z; std::getline(in, z);) {
+            if (!z.empty() && z.back() == '\r') { z.pop_back(); }
+            if (z.empty() || z[0] == '#') { continue; }
+            std::vector<std::string> f;
+            std::size_t a0 = 0;
+            for (std::size_t i = 0; i <= z.size(); ++i) {
+                if (i == z.size() || z[i] == '|') {
+                    f.push_back(z.substr(a0, i - a0));
+                    a0 = i + 1;
+                }
+            }
+            if (f.size() < 7) { continue; }
+            r.bibliothek.push_back(PresetEintrag{f[0], f[1], (d / f[2]).string(), f[3], f[4], f[5], f[6] == "1"});
+        }
+    }
+    return r.bibliothek;
+}
+
+const char* presetKategorieText(const std::string& k) {
+    if (k == "idle") { return tr(Str::AiKatStehen); }
+    if (k == "walk") { return tr(Str::PrGehen); }
+    if (k == "run") { return tr(Str::PrLaufen); }
+    if (k == "combat") { return tr(Str::AiKatKampf); }
+    return tr(Str::AiKatSonst);
+}
+
+bool modellPresetBibliothekAuflegen(int i) {
+    const std::vector<PresetEintrag>& b = modellPresetBibliothek();
+    if (i < 0 || static_cast<std::size_t>(i) >= b.size()) {
+        melden(tr(Str::AiKeineBibliothek));
+        return false;
+    }
+    const PresetEintrag& e = b[static_cast<std::size_t>(i)];
+    ModellRetarget& r = rt();
+    r.bibliothekWahl = i;
+    if (!modellRtImportLaden(e.datei)) { return false; }
+    // ein Zyklus: Schleife ab Bild 0 (wie die Gaenge des Spiels), sonst einmal; Platz aus der Bibliothek
+    for (AnimEntry& a : r.quelleCfg) { a.loopFrame = e.schleife ? 0 : -1; }
+    (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = e.platz; });
+    r.stand = -1;
+    modellRtAktualisieren();
+    r.vorschau = !r.welt.empty();
+    r.spielt = r.vorschau;
+    r.presetOeffnen = true;
+    melden(format(Str::AiQuelle, e.quelle.c_str(), e.lizenz.c_str()));
+    return r.vorschau;
+}
+
 bool modellPresetAuflegen() {
     if (g_app->anim.bones.empty()) {
         melden(tr(Str::MbRgKeineGla));
@@ -861,6 +999,91 @@ bool modellPresetAuflegen() {
     r.presetOeffnen = true;
     g_app->modelDirty = true;
     return true;
+}
+
+void drawModellPresetBibliothekInhalt(ModellRetarget& r, const std::vector<PresetEintrag>& b);
+
+// Gruppe Bibliothek: Kategorie -> Animation (Vorschau beim Auflegen) -> Platz -> Auf Figur legen -> Backen
+void drawModellPresetBibliothek() {
+    ModellRetarget& r = rt();
+    const std::vector<PresetEintrag>& b = modellPresetBibliothek();
+    // eigene Kennungen: Platz und Backen heissen wie im Rollout Retargeting (ImGui-Kennung sonst doppelt)
+    ImGui::PushID("aibibliothek");
+    drawModellPresetBibliothekInhalt(r, b);
+    ImGui::PopID();
+}
+
+void drawModellPresetBibliothekInhalt(ModellRetarget& r, const std::vector<PresetEintrag>& b) {
+    r.bibliothekY = ImGui::GetCursorPosY();
+    ImGui::SeparatorText(tr(Str::AiBibliothek));
+    ImGui::SetItemTooltip("%s", tr(Str::AiBibliothekHint));
+    if (b.empty()) {
+        ImGui::TextDisabled("%s", tr(Str::AiKeineBibliothek));
+        return;
+    }
+    std::vector<std::string> kat;
+    for (const PresetEintrag& e : b) {
+        if (std::find(kat.begin(), kat.end(), e.kategorie) == kat.end()) { kat.push_back(e.kategorie); }
+    }
+    r.bibliothekKategorie = std::clamp(r.bibliothekKategorie, 0, static_cast<int>(kat.size()) - 1);
+    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::AiKategorie)).x - ImGui::GetStyle().ItemInnerSpacing.x);
+    if (ImGui::BeginCombo(tr(Str::AiKategorie), presetKategorieText(kat[static_cast<std::size_t>(r.bibliothekKategorie)]))) {
+        for (std::size_t k = 0; k < kat.size(); ++k) {
+            if (ImGui::Selectable(presetKategorieText(kat[k]), static_cast<int>(k) == r.bibliothekKategorie)) { r.bibliothekKategorie = static_cast<int>(k); }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::AiBibliothekHint));
+    const std::string& wk = kat[static_cast<std::size_t>(r.bibliothekKategorie)];
+    const float fs = ImGui::GetFontSize();
+    int zeilen = 0;
+    for (const PresetEintrag& e : b) { zeilen += e.kategorie == wk ? 1 : 0; }
+    ImGui::BeginChild("##aibib", ImVec2{-1.0F, std::min(static_cast<float>(zeilen), 6.0F) * ImGui::GetTextLineHeightWithSpacing() + fs * 0.6F},
+                      ImGuiChildFlags_Borders);
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        if (b[i].kategorie != wk) { continue; }
+        ImGui::PushID(static_cast<int>(i));
+        // ein Klick waehlt, ein Doppelklick legt auf die Figur
+        if (ImGui::Selectable(b[i].name.c_str(), r.bibliothekWahl == static_cast<int>(i), ImGuiSelectableFlags_AllowDoubleClick)) {
+            r.bibliothekWahl = static_cast<int>(i);
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { (void)modellPresetBibliothekAuflegen(static_cast<int>(i)); }
+        }
+        ImGui::SetItemTooltip("%s", format(Str::AiQuelle, b[i].quelle.c_str(), b[i].lizenz.c_str()).c_str());
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    const bool gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
+    if (gewaehlt) {
+        const PresetEintrag& e = b[static_cast<std::size_t>(r.bibliothekWahl)];
+        ImGui::TextDisabled("%s", format(Str::AiQuelle, e.quelle.c_str(), e.lizenz.c_str()).c_str());
+    }
+    ImGui::BeginDisabled(!gewaehlt);
+    if (ImGui::Button(tr(Str::AiAuflegen))) { (void)modellPresetBibliothekAuflegen(r.bibliothekWahl); }
+    ImGui::SetItemTooltip("%s", tr(Str::AiAuflegenHint));
+    ImGui::EndDisabled();
+    const modell::RetargetDaten& d = *modellRtDaten();
+    const bool vonBibliothek = gewaehlt && r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset;
+    if (vonBibliothek) {
+        // Platz (wie im Rollout Retargeting) und Backen
+        char platz[64];
+        std::snprintf(platz, sizeof platz, "%s", d.platz.c_str());
+        // daneben nur, wenn Feld und Beschriftung ganz passen (sonst stand "Slot" in langen Sprachen hinter dem Rand)
+        ImGui::SameLine();
+        if (ImGui::GetContentRegionAvail().x < fs * 8.0F + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(tr(Str::RtPlatz)).x) { ImGui::NewLine(); }
+        ImGui::SetNextItemWidth(fs * 8.0F);
+        if (ImGui::InputText(tr(Str::RtPlatz), platz, sizeof platz, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsUppercase)) {
+            const std::string p = platz;
+            (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::RtPlatzHint));
+        daneben(tr(Str::RtBackenMax));
+        if (ImGui::Button(tr(Str::RtBackenMax))) { (void)modellRtBacken(); }
+        ImGui::SetItemTooltip("%s", tr(Str::RtBackenHint));
+        if (!r.welt.empty() && r.weltNaht >= 0.0F) {
+            ImGui::TextDisabled("%s", format(Str::AiNahtlos, static_cast<int>(r.welt.size()), r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps,
+                                             static_cast<double>(r.weltNaht)).c_str());
+        }
+    }
 }
 
 void drawModellPresetBereich() {
@@ -931,6 +1154,7 @@ void drawModellPresetBereich() {
                                       .c_str());
         ImGui::TextDisabled("%s", tr(Str::PrLizenz));
     }
+    drawModellPresetBibliothek();
     ImGui::PopTextWrapPos();
 }
 

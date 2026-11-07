@@ -5751,6 +5751,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_mb7.inc"        // Modell-Block Stufe 7: Figuren im Mission-Tab animieren, fuer das Spiel bauen (modellblock)
 #include "selbsttest_ph.inc"         // Modell-Block Stufe 6: Auto-Physik (modellblock, BHED_MODELL_NUR=ph|phspiel|phzeit)
 #include "selbsttest_rt.inc"         // Modell-Block Stufe 5: Retargeting (modellblock, BHED_MODELL_NUR=rt|rtjka|rtspiel|rtzeit)
+#include "selbsttest_ai.inc"         // Animations-Import und Preset-Bibliothek (modellblock, BHED_MODELL_NUR=ai)
 #include "selbsttest_uv.inc"         // Modell-Block 1b: UV erstellen (modellblock, BHED_MODELL_NUR=uv|uvmd3|uvspiel|uvzeit|uvhb)
 #include "selbsttest_md.inc"         // Modell-Block 1d: Modellieren, Requisite in die Karte (modellblock, BHED_MODELL_NUR=md|mdkarte)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
@@ -6726,6 +6727,7 @@ void selbsttest() {
                     for (Schritt& x : fa7::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 7
                     for (Schritt& x : ph6::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 6
                     for (Schritt& x : rt5::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // Stufe 5
+                    for (Schritt& x : ai::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // Animations-Import
                     for (Schritt& x : uv1b::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1b
                     for (Schritt& x : md1d::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1d
                 }
