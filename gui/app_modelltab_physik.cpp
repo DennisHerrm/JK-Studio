@@ -9,6 +9,7 @@
 // modellPhysikAktualisieren nach jeder Aenderung des Dokuments neu und legt sie ohne eigenen Rueckgaengig-Schritt in die
 // Schicht (sie folgt nur aus Schicht und Einstellung - Rueckgaengig bringt beides gemeinsam zurueck).
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/modell/ik.h"
 #include "bhed/modell/physik.h"
@@ -314,7 +315,7 @@ void drawModellPhysikBereich() {
     ImGui::SetItemTooltip("%s", tr(Str::PhZeigenHint));
     if (!t.physikMassen.gueltig()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, t.physikMassen.fehler.c_str()).c_str());
+        cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, t.physikMassen.fehler.c_str()).c_str());
         ImGui::PopTextWrapPos();
         return;
     }
@@ -336,11 +337,11 @@ void drawModellPhysikBereich() {
     // Flug
     ImGui::PushTextWrapPos(0.0F);
     if (t.physik.fluege.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::PhKeinFlug));
+        cjkTextDisabled("%s", tr(Str::PhKeinFlug));
     } else {
         // Bilder wie die Zeitleiste des Model-Tabs: ab dem ersten der Sequenz gezaehlt
         for (const auto& [a, l] : t.physik.fluege) {
-            ImGui::TextUnformatted((format(Str::PhFlug, a - t.physik.erstes, l - t.physik.erstes) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) +
+            cjkTextUnformatted((format(Str::PhFlug, a - t.physik.erstes, l - t.physik.erstes) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) +
                                     ")").c_str());
         }
     }
@@ -380,14 +381,14 @@ void drawModellPhysikBereich() {
     ImGui::SetItemTooltip("%s", tr(Str::PhKettenVorschlagHint));
     if (e.ketten.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::PhKeineKette));
+        cjkTextDisabled("%s", tr(Str::PhKeineKette));
         ImGui::PopTextWrapPos();
     }
     for (std::size_t i = 0; i < e.ketten.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         const modell::PhysikKette c = e.ketten[i];
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(knochenName(c.knochen));
+        cjkTextUnformatted(knochenName(c.knochen));
         ImGui::SameLine();
         if (ImGui::SmallButton("x")) {
             (void)einstellen(tr(Str::PhUndoKette), [&](modell::PhysikEinstellung& x) {
@@ -422,13 +423,13 @@ void drawModellPhysikBereich() {
     if (t.physik.warnungen > 0) {
         float weit = 0.0F;
         for (const modell::PhysikBild& pb : t.physik.bilder) { weit = std::max(weit, pb.abstand); }
-        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s",
+        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s",
                            format(Str::PhWarnung, t.physik.warnBild - t.physik.erstes, t.physik.warnungen, static_cast<double>(weit)).c_str());
     } else if (std::any_of(t.physik.bilder.begin(), t.physik.bilder.end(), [](const modell::PhysikBild& pb) { return pb.imStand; })) {
-        ImGui::TextDisabled("%s", tr(Str::PhImStand));
+        cjkTextDisabled("%s", tr(Str::PhImStand));
     }
     if (e.an && !t.physik.fluege.empty() && e.sprung) {
-        ImGui::TextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(t.physik.parabelAbw), static_cast<double>(t.physik.drehimpulsVorher * 100.0F),
+        cjkTextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(t.physik.parabelAbw), static_cast<double>(t.physik.drehimpulsVorher * 100.0F),
                                          static_cast<double>(t.physik.drehimpulsNachher * 100.0F))
                                       .c_str());
     }

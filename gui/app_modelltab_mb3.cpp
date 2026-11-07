@@ -8,6 +8,7 @@
 //   Marker                     die Zeile der animation.cfg zur Sequenz in der Zeitleiste: Zahlen und Balkenenden, ueber das
 //                              Dokument (ein Rueckgaengig-Schritt je Aenderung)
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "platform.h"
 
 #include "bhed/modell/animcfg.h"
@@ -572,11 +573,11 @@ void drawModellSpeichernFrage() {
     }
     t.frageSichtbar = true;
     ImGui::PushTextWrapPos(fs * 33.0F);
-    ImGui::TextUnformatted(format(Str::MbSpFrageText, modell::grenzen(zielspiel()).name).c_str());
+    cjkTextUnformatted(format(Str::MbSpFrageText, modell::grenzen(zielspiel()).name).c_str());
     const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
-    for (std::size_t i = 0; i < t.frageZeilen.size() && i < 12U; ++i) { ImGui::TextColored(warn, "- %s", t.frageZeilen[i].c_str()); }
-    if (t.frageZeilen.size() > 12U) { ImGui::TextDisabled("... %d", static_cast<int>(t.frageZeilen.size() - 12U)); }
-    ImGui::TextDisabled("%s", t.frageZiel.c_str());
+    for (std::size_t i = 0; i < t.frageZeilen.size() && i < 12U; ++i) { cjkTextColored(warn, "- %s", t.frageZeilen[i].c_str()); }
+    if (t.frageZeilen.size() > 12U) { cjkTextDisabled("... %d", static_cast<int>(t.frageZeilen.size() - 12U)); }
+    cjkTextDisabled("%s", t.frageZiel.c_str());
     ImGui::PopTextWrapPos();
     if (ImGui::Button(tr(Str::MbSpTrotzdem))) {
         const int art = t.frageArt;
@@ -599,7 +600,7 @@ void modellSequenzZiehen(int anim) {
     if (anim < 0 || static_cast<std::size_t>(anim) >= g_app->animList.size()) { return; }
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
         ImGui::SetDragDropPayload("MB_SEQ", &anim, sizeof anim);
-        ImGui::TextUnformatted(g_app->animList[static_cast<std::size_t>(anim)].name.c_str());
+        cjkTextUnformatted(g_app->animList[static_cast<std::size_t>(anim)].name.c_str());
         mt().ziehtSequenz = anim;
         ImGui::EndDragDropSource();
     }
@@ -614,7 +615,7 @@ void drawModellAnimationBereich() {
     const GlaAnimation& a = g_app->anim;
     if (ImGui::CollapsingHeader(tr(Str::MbRGla), ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", format(Str::MbGlaInfo, a.skeletonName.empty() ? "-" : a.skeletonName.c_str(), a.numFrames,
+        cjkTextDisabled("%s", format(Str::MbGlaInfo, a.skeletonName.empty() ? "-" : a.skeletonName.c_str(), a.numFrames,
                                          static_cast<int>(a.bones.size()), static_cast<int>(a.bonePool.size() / 14U))
                                       .c_str());
         ImGui::PopTextWrapPos();
@@ -627,16 +628,16 @@ void drawModellAnimationBereich() {
         const modell::Inhalt& in = t.dok.inhalt();
         ImGui::PushTextWrapPos(0.0F);
         if (in.cfgPfad.empty()) {
-            ImGui::TextDisabled("%s", tr(Str::MbCfgKeine));
+            cjkTextDisabled("%s", tr(Str::MbCfgKeine));
         } else {
             const std::string text = modell::animCfgSchreiben(in.cfg);
             const std::vector<AnimEntry> e = in.cfg.eintraege();
-            ImGui::TextDisabled("%s", format(Str::MbCfgInfo, in.cfgPfad.c_str(), static_cast<int>(e.size()), static_cast<int>(text.size())).c_str());
+            cjkTextDisabled("%s", format(Str::MbCfgInfo, in.cfgPfad.c_str(), static_cast<int>(e.size()), static_cast<int>(text.size())).c_str());
             const std::vector<modell::CfgBefund> b = modell::cfgPruefen(e, a.numFrames, text.size(), zielspiel());
             t.cfgBefunde = static_cast<int>(b.size());
-            if (b.empty()) { ImGui::TextDisabled(tr(Str::MbCfgOk), modell::grenzen(zielspiel()).name); }
-            for (std::size_t i = 0; i < b.size() && i < 40U; ++i) { ImGui::TextColored(warn, "%s", cfgBefundText(b[i]).c_str()); }
-            if (b.size() > 40U) { ImGui::TextDisabled("... %d", static_cast<int>(b.size() - 40U)); }
+            if (b.empty()) { cjkTextDisabled(tr(Str::MbCfgOk), modell::grenzen(zielspiel()).name); }
+            for (std::size_t i = 0; i < b.size() && i < 40U; ++i) { cjkTextColored(warn, "%s", cfgBefundText(b[i]).c_str()); }
+            if (b.size() > 40U) { cjkTextDisabled("... %d", static_cast<int>(b.size() - 40U)); }
         }
         ImGui::PopTextWrapPos();
         ImGui::BeginDisabled(in.cfgPfad.empty());
@@ -649,7 +650,7 @@ void drawModellAnimationBereich() {
         static const Str kZiele[3] = {Str::MbZielKarte, Str::MbZielHumanoid, Str::MbZielEigen};
         static const Str kZielHinweise[3] = {Str::MbZielKarteHint, Str::MbZielHumanoidHint, Str::MbZielEigenHint};
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(tr(Str::MbZiel));
+        cjkTextUnformatted(tr(Str::MbZiel));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(-1.0F);
         if (ImGui::BeginCombo("##glaziel", tr(kZiele[t.glaZiel]))) {
@@ -661,11 +662,11 @@ void drawModellAnimationBereich() {
         }
         ImGui::SetItemTooltip("%s", tr(kZielHinweise[t.glaZiel]));
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(kZielHinweise[t.glaZiel]));
+        cjkTextDisabled("%s", tr(kZielHinweise[t.glaZiel]));
         ImGui::PopTextWrapPos();
         if (t.glaZiel == 0) {
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(tr(Str::MbKgKarte));
+            cjkTextUnformatted(tr(Str::MbKgKarte));
             ImGui::SameLine();
             ImGui::SetNextItemWidth(-1.0F);
             ImGui::InputText("##kgkarte", t.kgKarte, sizeof t.kgKarte);
@@ -673,23 +674,23 @@ void drawModellAnimationBereich() {
         }
         if (t.glaZiel == 2) {
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(tr(Str::MbZielEigenName));
+            cjkTextUnformatted(tr(Str::MbZielEigenName));
             ImGui::SameLine();
             ImGui::SetNextItemWidth(-1.0F);
             ImGui::InputText("##kgeigen", t.eigenName, sizeof t.eigenName);
             ImGui::SetItemTooltip("%s", tr(Str::MbZielEigenHint));
         }
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", format(Str::MbKgPfad, zielKopf().c_str()).c_str());
+        cjkTextDisabled("%s", format(Str::MbKgPfad, zielKopf().c_str()).c_str());
         if (t.plaetze.empty() && t.glaZiel == 0) {
-            ImGui::TextColored(warn, "%s", format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name).c_str());
+            cjkTextColored(warn, "%s", format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name).c_str());
             ImGui::PopTextWrapPos();
             return;
         }
         int belegt = 0;
         for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
-        ImGui::TextDisabled("%s", format(Str::MbKgPlaetze, static_cast<int>(t.plaetze.size()), belegt, static_cast<int>(t.plaetze.size()) - belegt).c_str());
-        ImGui::TextDisabled("%s", tr(Str::MbKgZiehen));
+        cjkTextDisabled("%s", format(Str::MbKgPlaetze, static_cast<int>(t.plaetze.size()), belegt, static_cast<int>(t.plaetze.size()) - belegt).c_str());
+        cjkTextDisabled("%s", tr(Str::MbKgZiehen));
         ImGui::PopTextWrapPos();
         // Die Knoepfe nebeneinander, solange sie passen (es: "Crear para el juego..." ragte ueber den Rand, Handbuchfoto mb3_hb4_es).
         const auto daneben = [](const char* text) {
@@ -791,7 +792,7 @@ void modellMarkerZeile(const AnimEntry* e) {
     cfgAbgleich();
     const float fs = ImGui::GetFontSize();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%s", tr(Str::MbMarker));
+    cjkTextDisabled("%s", tr(Str::MbMarker));
     ImGui::SetItemTooltip("%s", tr(Str::MbMarkerHint));
     const bool da = e != nullptr && !t.dok.inhalt().cfgPfad.empty() && t.dok.inhalt().cfg.zeileVon(e->name) >= 0;
     ImGui::BeginDisabled(!da);
@@ -799,7 +800,7 @@ void modellMarkerZeile(const AnimEntry* e) {
     bool fertig = false;
     const auto feld = [&](const char* id, Str text, int& wert, int lo, int hi) {
         ImGui::SameLine(0.0F, fs * 0.6F);
-        ImGui::TextUnformatted(tr(text));
+        cjkTextUnformatted(tr(text));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(fs * 5.5F);
         int v = wert;

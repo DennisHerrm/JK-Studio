@@ -15,44 +15,19 @@ namespace bhed::gpu {
 // kuerzt so, damit die Koordinaten nicht unbegrenzt wachsen.
 float kuerze(float x) { return x - std::floor(x); }
 
-void packeKonstanten(const BatchState& bs, float* ziel,
-                     float zeitSekunden) {
-    if (ziel == nullptr) {
-        return;
-    }
-    // Erst alles auf Null. Ein nicht beschriebenes Feld enthielte sonst den
-    // Wert des vorigen Stapels - ein Fehler, der nur manchmal auftritt und
-    // sich deshalb kaum einkreisen laesst.
-    std::fill(ziel, ziel + kKonstFloats, 0.0F);
+void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase) {
+    mat[0] = 1.0F;   // m0, m1, m2, m3
+    mat[1] = 0.0F;
+    mat[2] = 0.0F;
+    mat[3] = 1.0F;
+    off[0] = 0.0F;   // m4, m5
+    off[1] = 0.0F;
+    turbAmp = 0.0F;
+    turbPhase = 0.0F;
 
-    // --- gTexMod: je Schritt ein Viererblock, Art in .w -------------------
-    // --- Die tcMod-Kette zu EINER Abbildung zusammenrechnen --------------
-    //
-    // Nach `ComputeTexMods` aus rd-rend2 (tr_shade.cpp:177). Jeder Schritt
-    // liefert eine affine 2x3-Abbildung
-    //
-    //     | m0  m2  m4 |        neu.x = st.x*m0 + st.y*m2 + m4
-    //     | m1  m3  m5 |        neu.y = st.x*m1 + st.y*m3 + m5
-    //
-    // und die Schritte werden der Reihe nach hintereinandergehaengt. Uebrig
-    // bleiben vier Werte fuer die Matrix und zwei fuer die Verschiebung -
-    // fuer BELIEBIG VIELE Schritte.
-    //
-    // `turb` ist der einzige, der nicht in eine Matrix passt: er verschiebt
-    // je nach ORT, nicht linear in st. Er steht deshalb daneben, mit
-    // Amplitude und Phase, und wird im Shader danach aufgeschlagen - genau
-    // wie in rend2.
-    //
-    // Damit erledigt sich `tcMod transform`: es IST eine 2x3-Abbildung und
-    // passt hinein wie jeder andere Schritt. Bis rc442 stand es auf null.
-    float mat[4] = {1.0F, 0.0F, 0.0F, 1.0F};   // m0, m1, m2, m3
-    float off[2] = {0.0F, 0.0F};               // m4, m5
-    float turbAmp = 0.0F;
-    float turbPhase = 0.0F;
-
-    const int n = std::min(bs.numTexMods, kMaxTexMods);
+    const int n = std::min(anzahl, kMaxTexMods);
     for (int i = 0; i < n; ++i) {
-        const TexMod& m = bs.texMods[i];
+        const TexMod& m = mods[i];
         // Der Schritt als 2x3, in derselben Anordnung wie rend2:
         //   s[0] s[2] s[4]
         //   s[1] s[3] s[5]
@@ -130,6 +105,43 @@ void packeKonstanten(const BatchState& bs, float* ziel,
         off[0] = o0;
         off[1] = o1;
     }
+}
+
+void packeKonstanten(const BatchState& bs, float* ziel,
+                     float zeitSekunden) {
+    if (ziel == nullptr) {
+        return;
+    }
+    // Erst alles auf Null. Ein nicht beschriebenes Feld enthielte sonst den
+    // Wert des vorigen Stapels - ein Fehler, der nur manchmal auftritt und
+    // sich deshalb kaum einkreisen laesst.
+    std::fill(ziel, ziel + kKonstFloats, 0.0F);
+
+    // --- gTexMod: je Schritt ein Viererblock, Art in .w -------------------
+    // --- Die tcMod-Kette zu EINER Abbildung zusammenrechnen --------------
+    //
+    // Nach `ComputeTexMods` aus rd-rend2 (tr_shade.cpp:177). Jeder Schritt
+    // liefert eine affine 2x3-Abbildung
+    //
+    //     | m0  m2  m4 |        neu.x = st.x*m0 + st.y*m2 + m4
+    //     | m1  m3  m5 |        neu.y = st.x*m1 + st.y*m3 + m5
+    //
+    // und die Schritte werden der Reihe nach hintereinandergehaengt. Uebrig
+    // bleiben vier Werte fuer die Matrix und zwei fuer die Verschiebung -
+    // fuer BELIEBIG VIELE Schritte.
+    //
+    // `turb` ist der einzige, der nicht in eine Matrix passt: er verschiebt
+    // je nach ORT, nicht linear in st. Er steht deshalb daneben, mit
+    // Amplitude und Phase, und wird im Shader danach aufgeschlagen - genau
+    // wie in rend2.
+    //
+    // Damit erledigt sich `tcMod transform`: es IST eine 2x3-Abbildung und
+    // passt hinein wie jeder andere Schritt. Bis rc442 stand es auf null.
+    float mat[4];
+    float off[2];
+    float turbAmp = 0.0F;
+    float turbPhase = 0.0F;
+    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turbAmp, turbPhase);
     ziel[kTexMatrixAt + 0] = mat[0];
     ziel[kTexMatrixAt + 1] = mat[1];
     ziel[kTexMatrixAt + 2] = mat[2];

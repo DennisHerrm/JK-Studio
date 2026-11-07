@@ -1235,6 +1235,7 @@ void kameraZeichnen() {
         };
         std::vector<GluehStapel> gluehStapel;
         ed.echtLicht.weitereStufen = 0;
+        ed.echtLicht.bewegteStufen = 0;
         ed.echtLicht.gluehAufrufe = 0;
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
             const Bild* b = lager().holen(st.shader);
@@ -1321,6 +1322,14 @@ void kameraZeichnen() {
                         if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) { z.bild = sb->srv; }
                     }
                     farbeSetzen(z, 1, 1, 1, alpha);
+                    // p_render: die Bildstufe der Grundstufe bewegt sich (tcMod, tcGen, Welle, animMap) - im Echtzeit-Licht wie im
+                    // Spiel ihre Koordinaten, ihre Farbe und ihr Bild dieser Zeit (das Bild der Stufe, nicht qer_editorimage: das
+                    // Spiel zeichnet die Stufe; das Licht je Bildpunkt steht fuer die Lightmap)
+                    if (spielBild && echtJetzt && sd.grundBewegt) {
+                        stufeJetzt(sd.grund, spielbildZeit(), z, true);
+                        const Bild* ab = lager().holen(stufeBildJetzt(sd.grund, spielbildZeit()));
+                        if (ab != nullptr && ab->fertig && !ab->ersatz && ab->srv != nullptr) { z.bild = ab->srv; }
+                    }
                 } else {
                     farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);
                 }
@@ -1332,11 +1341,12 @@ void kameraZeichnen() {
                 // auf der Tiefe der ersten (GL_LEQUAL), ohne Licht wie die erste gemischte Stufe. rc610 R3: im Echtzeit-Licht jeder
                 // Shader mit seinen weiteren Stufen (spielDarstellung: nach der Grundstufe bzw. Lightmap und Bild)
                 if (spielBild && texturen && (sd.portal || echtJetzt)) {
-                    if (!sd.glueh.empty() && echtJetzt && !imSpiegel) { gluehStapel.push_back({&q, &st, z.wegschneiden}); }
+                    if (!sd.glueh.empty() && echtJetzt) { gluehStapel.push_back({&q, &st, z.wegschneiden}); }
                     for (const SpielStufe& w : sd.weitere) {
-                        const Bild* wb = lager().holen(w.bild);
+                        const Bild* wb = lager().holen(stufeBildJetzt(w, spielbildZeit()));
                         if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
                         if (!sd.portal) { ++ed.echtLicht.weitereStufen; }
+                        if (!sd.portal && w.bewegt()) { ++ed.echtLicht.bewegteStufen; }
                         kartegpu::Zustand3 zw = z;
                         zw.bild = wb->srv;
                         zw.licht = false;
@@ -1351,6 +1361,7 @@ void kameraZeichnen() {
                         zw.tiefe = kartegpu::TiefenTest::KleinerGleich;
                         zw.tiefeSchreiben = w.tiefeSchreiben;
                         for (int c = 0; c < 4; ++c) { zw.farbe[c] = w.farbe[c]; }
+                        stufeJetzt(w, spielbildZeit(), zw, true);
                         kartegpu::dreiecke(q.dreiecke, st.dreiecke.erstes, st.dreiecke.anzahl, zw);
                     }
                 }
@@ -1390,6 +1401,46 @@ void kameraZeichnen() {
         // rc609 P: Spiegel und Portalkamera wie im Spiel (R_MirrorViewBySurface, bhed/portalsicht wie Vorschau und Spielbild):
         // erst die zweite Sicht - die Welt durch ihre Abbildung, Schnitt auf portalPlane, im Spiegel die Wicklung umgekehrt, Licht
         // und Schatten fuer diese Sicht eigens vorbereitet; dann zeigen die Portalflaechen sie an derselben Bildstelle.
+        // p_render: das Gluehen eines Durchgangs (RB_DrawSurfs glueht jede Sicht: Hauptbild, Spiegel- bzw. Portalsicht, Himmelsportal -
+        // R_MirrorViewBySurface und CG_DrawSkyBoxPortal rendern ihre Szene mit eigenem RB_DrawSurfs) in das gerade aktive Ziel
+        const auto gluehenZeichnen = [&] {
+            if (echtJetzt && texturen && fuellen && (!gluehStapel.empty() || !echtEffekteGlueh().empty()) && kartegpu::gluehenBeginnen()) {
+                for (const GluehStapel& gs : gluehStapel) {
+                    const SpielDarstellung sd = spielDarstellung(gs.st->shader);
+                    for (const SpielStufe& w : sd.glueh) {
+                        const Bild* wb = lager().holen(stufeBildJetzt(w, spielbildZeit()));
+                        if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
+                        kartegpu::Zustand3 zg = basis;
+                        zg.bild = wb->srv;
+                        zg.licht = false;
+                        zg.echtLicht = false;
+                        zg.wegschneiden = gs.wegschneiden;
+                        zg.alphaFunktion = w.alphaFunktion;
+                        zg.alphaRef = w.alphaRef;
+                        zg.mischen = w.mischQuelle != 0 ? kartegpu::Mischen::Spiel : kartegpu::Mischen::Aus;
+                        zg.mischQuelle = w.mischQuelle;
+                        zg.mischZiel = w.mischZiel;
+                        zg.tiefe = kartegpu::TiefenTest::KleinerGleich;
+                        zg.tiefeSchreiben = false;
+                        for (int c4 = 0; c4 < 4; ++c4) { zg.farbe[c4] = w.farbe[c4]; }
+                        stufeJetzt(w, spielbildZeit(), zg, true);
+                        kartegpu::dreiecke(gs.q->dreiecke, gs.st->dreiecke.erstes, gs.st->dreiecke.anzahl, zg);
+                        ++ed.echtLicht.gluehAufrufe;
+                    }
+                }
+                // p_render: die Effektteilchen mit glow (echtEffekteZeichnen hat sie gesammelt) wie RB_IterateStagesGeneric im Gluehdurchgang
+                for (const EffektGlueh& eg : echtEffekteGlueh()) {
+                    kartegpu::Zustand3 zg = eg.z;
+                    zg.matrix = basis.matrix;
+                    kartegpu::dreiecke(eg.ecken, zg);
+                    ++ed.echtLicht.gluehAufrufe;
+                }
+                int gw = 0;
+                int gh = 0;
+                void* voll = kartegpu::gluehenVoll(gw, gh);
+                kartegpu::gluehenAuflegen(gpu::gluehenWeichzeichnen(voll, gw, gh, gpu::kGluehBreite, gpu::kGluehHoehe, true), true);
+            }
+        };
         ed.echtLicht.spiegel = false;
         ed.echtLicht.spiegelPortal = false;
         if (echtJetzt && texturen && fuellen) {
@@ -1414,6 +1465,8 @@ void kameraZeichnen() {
                     for (int i = 0; i < 4; ++i) { basis.schnitt[i] = ps.schnitt[i]; }
                     basis.wicklungUmkehren = ps.umkehren;
                     imSpiegel = true;
+                    gluehStapel.clear();
+                    echtEffekteGluehLeeren();
                     for (const bool durch : {false, true}) {
                         for (const Szene3* q : teile) {
                             for (const Stapel3& st : q->stapel) {
@@ -1421,6 +1474,8 @@ void kameraZeichnen() {
                             }
                         }
                     }
+                    if (!gluehenNurHauptbild()) { gluehenZeichnen(); }   // p_render: RB_DrawSurfs der Spiegel-/Portalsicht
+                    ed.echtLicht.spiegelGlueh = gluehStapel.size();
                     imSpiegel = false;
                     basis = merk;
                     kartegpu::beenden();
@@ -1450,6 +1505,8 @@ void kameraZeichnen() {
                 echtLichtBildVorbereiten(portalOrt, &vpPortal[0], f.breite, f.hoehe, geoStand);
                 if (kartegpu::beginnen(201, f.breite, f.hoehe, c.msaa, hinten, true)) {
                     const kartegpu::Zustand3 merk = basis;
+                    gluehStapel.clear();
+                    echtEffekteGluehLeeren();
                     basis.matrix = &vpPortal[0];
                     basis.auge[0] = portalOrt[0];
                     basis.auge[1] = portalOrt[1];
@@ -1464,6 +1521,7 @@ void kameraZeichnen() {
                             if (st.art == karte::StapelArt::Shader) { shaderZiehen(*q, st, true); }
                         }
                     }
+                    if (!gluehenNurHauptbild()) { gluehenZeichnen(); }   // p_render: RB_DrawSurfs der Szene des Himmelsportals
                     basis = merk;
                     kartegpu::beenden();
                     portalBild = kartegpu::textur(201);
@@ -1479,6 +1537,7 @@ void kameraZeichnen() {
             spielbildTiefe(&vp[0]);
         }
         gluehStapel.clear();   // rc610 R3: was Himmelsportal und Spiegel gesammelt haben, gehoert nicht ins Hauptbild
+        echtEffekteGluehLeeren();
         // eSortFullbright: deckende Shader, Himmel, Fuellungen
         for (const Szene3* q : teile) {
             for (const Stapel3& st : q->stapel) {
@@ -1519,34 +1578,7 @@ void kameraZeichnen() {
         // Puffer mit der Tiefe der Szene (g_bRenderGlowingObjects: RB_IterateStagesGeneric laesst Stufen ohne glow weg, jede mit
         // ihrem blendFunc, ohne Tiefe zu schreiben), weichzeichnen mit demselben Code wie das Spielbild (RB_BlurGlowTexture) und
         // mit r_DynamicGlowSoft 1 auflegen (RB_DrawGlowOverlay: GL_ONE GL_ONE_MINUS_SRC_COLOR). Vor Auswahl und Griffen (2D).
-        if (echtJetzt && texturen && fuellen && !gluehStapel.empty() && kartegpu::gluehenBeginnen()) {
-            for (const GluehStapel& gs : gluehStapel) {
-                const SpielDarstellung sd = spielDarstellung(gs.st->shader);
-                for (const SpielStufe& w : sd.glueh) {
-                    const Bild* wb = lager().holen(w.bild);
-                    if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
-                    kartegpu::Zustand3 zg = basis;
-                    zg.bild = wb->srv;
-                    zg.licht = false;
-                    zg.echtLicht = false;
-                    zg.wegschneiden = gs.wegschneiden;
-                    zg.alphaFunktion = w.alphaFunktion;
-                    zg.alphaRef = w.alphaRef;
-                    zg.mischen = w.mischQuelle != 0 ? kartegpu::Mischen::Spiel : kartegpu::Mischen::Aus;
-                    zg.mischQuelle = w.mischQuelle;
-                    zg.mischZiel = w.mischZiel;
-                    zg.tiefe = kartegpu::TiefenTest::KleinerGleich;
-                    zg.tiefeSchreiben = false;
-                    for (int c4 = 0; c4 < 4; ++c4) { zg.farbe[c4] = w.farbe[c4]; }
-                    kartegpu::dreiecke(gs.q->dreiecke, gs.st->dreiecke.erstes, gs.st->dreiecke.anzahl, zg);
-                    ++ed.echtLicht.gluehAufrufe;
-                }
-            }
-            int gw = 0;
-            int gh = 0;
-            void* voll = kartegpu::gluehenVoll(gw, gh);
-            kartegpu::gluehenAuflegen(gpu::gluehenWeichzeichnen(voll, gw, gh, gpu::kGluehBreite, gpu::kGluehHoehe, true), true);
-        }
+        gluehenZeichnen();
         const auto& sel = ed.farben.auswahl3d;
         // gewaehlte Flaechen (Komponenten): Polygone, Kanten, Schwerpunkte
         std::vector<kartegpu::Punkt3> flaechenTint;

@@ -333,6 +333,11 @@ namespace r3 {
 std::vector<Schritt> schritte();   // selbsttest_r3.inc: rc610 R3, gespiegelte Modelle und Glow im Echtzeit-Licht
 std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_r3_glow (BHED_HB_NUR=r3)
 }  // namespace r3
+namespace rd {   // p_render (selbsttest_rd.inc)
+std::vector<Schritt> schritte();
+std::vector<Schritt> cjkSchritte();
+std::vector<Schritt> npcSchritte();
+}  // namespace rd
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -641,6 +646,23 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =rdnpc: p_render - doppelte NPC-Namen (Movie Duels), der erste Block gilt
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdnpc") == 0) {
+        for (Schritt& x : rd::npcSchritte()) { add(std::move(x)); }
+        return s;
+    }
+    // =rdcjk: p_render - CJK-Umbruch im Hinweis des Befehlsfelds (Lauf mit SPRACHE=ja bzw. zh-Hans)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdcjk") == 0) {
+        for (Schritt& x : rd::cjkSchritte()) { add(std::move(x)); }
+        return s;
+    }
+    // =rd: p_render - bewegte Stufen (tcMod, tcGen, Wellen, animMap), Gluehen im Spiegel und an Effekten im Echtzeit-Licht
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rd") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : rd::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =reste1: Liste reste1 (Decals in der Echtzeit-Ansicht)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "reste1") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -700,6 +722,7 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : aseb::schritte()) { add(std::move(x)); }   // ASEB: .ase/.md3 usw. zu Brushes, misc_model in Brushes umwandeln
     for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
     for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
+    for (Schritt& x : rd::schritte()) { add(std::move(x)); }   // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS

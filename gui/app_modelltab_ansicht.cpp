@@ -19,6 +19,7 @@
 //   or later). This file is part of BehavEd-Remake and licensed under the GNU General Public License version 2 or later
 //   (LICENSE).
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "gpumap.h"
 
 #include "bhed/gpucam.h"
@@ -1962,7 +1963,7 @@ void drawModellArbeitsflaeche() {
             }
             zeigen = teil + (teil.size() < ganz.size() ? trenner + "..." : std::string());
         }
-        ImGui::TextDisabled("%s", zeigen.c_str());
+        cjkTextDisabled("%s", zeigen.c_str());
         if (zeigen != ganz) { ImGui::SetItemTooltip("%s", ganz.c_str()); }
     }
     const ImVec2 frei = ImGui::GetContentRegionAvail();

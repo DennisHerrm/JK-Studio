@@ -8,6 +8,7 @@
 // Das Malen selbst (Pinsel in der Ansicht, Farbe je Knochen) steht in app_modelltab_ansicht.cpp, die Regeln fuer die
 // Gewichte in bhed/modell/gewichte.h.
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "fenster_dock.h"
 #include "hilfe.h"
 #include "platform.h"
@@ -133,7 +134,7 @@ void drawModellInsSkriptFenster() {
     if (dock::fensterBeginnen("modell.insskript")) {
         ImGui::PushTextWrapPos(0.0F);
         // Animation
-        ImGui::TextDisabled("%s", tr(Str::MbInsSkriptAnim));
+        cjkTextDisabled("%s", tr(Str::MbInsSkriptAnim));
         ImGui::SameLine();
         const bool hatAnim = t.insAnim >= 0 && static_cast<std::size_t>(t.insAnim) < g_app->animList.size();
         ImGui::SetNextItemWidth(-1.0F);
@@ -147,7 +148,7 @@ void drawModellInsSkriptFenster() {
         }
         if (ImGui::Button(tr(Str::MbInsSkriptGewaehlte))) { modellInsSkriptOeffnen(g_app->animIndex); }
         // Befehl
-        ImGui::TextDisabled("%s", tr(Str::MbInsSkriptBefehl));
+        cjkTextDisabled("%s", tr(Str::MbInsSkriptBefehl));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(-1.0F);
         ImGui::Combo("##insbefehl", &t.insBefehl, kBefehle, kBefehlZahl);
@@ -157,7 +158,7 @@ void drawModellInsSkriptFenster() {
             t.insHalteMs = std::max(t.insHalteMs, -1);
         }
         // Figur (affect) - leer: ohne affect, in den gewaehlten Block
-        ImGui::TextDisabled("%s", tr(Str::MbInsSkriptFigur));
+        cjkTextDisabled("%s", tr(Str::MbInsSkriptFigur));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(-fs * 2.0F);
         ImGui::InputTextWithHint("##insfigur", tr(Str::MbInsSkriptFigurHint), t.insFigur, sizeof t.insFigur);
@@ -174,7 +175,7 @@ void drawModellInsSkriptFenster() {
             ImGui::EndPopup();
         }
         // Zielskript: die offenen Reiter und ein neues
-        ImGui::TextDisabled("%s", tr(Str::MbInsSkriptZiel));
+        cjkTextDisabled("%s", tr(Str::MbInsSkriptZiel));
         ImGui::SameLine();
         const std::string zielName = t.insZiel == -1 ? std::string(tr(Str::MbInsSkriptNeu))
                                                      : reiterName(t.insZiel < 0 ? g_app->activeTab : t.insZiel);
@@ -192,10 +193,10 @@ void drawModellInsSkriptFenster() {
         }
         // Vorschau und Einfuegen
         ImGui::Separator();
-        ImGui::TextDisabled("%s", tr(Str::MbInsSkriptVorschau));
+        cjkTextDisabled("%s", tr(Str::MbInsSkriptVorschau));
         const std::string zeile = modellInsSkriptZeile();
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_PlotLines));
-        ImGui::TextUnformatted(zeile.empty() ? "-" : zeile.c_str());
+        cjkTextUnformatted(zeile.empty() ? "-" : zeile.c_str());
         ImGui::PopStyleColor();
         ImGui::BeginDisabled(zeile.empty());
         if (ImGui::Button(tr(Str::MbInsSkriptEinfuegen))) { (void)modellInsSkriptEinfuegen(); }
@@ -203,7 +204,7 @@ void drawModellInsSkriptFenster() {
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) {
             ImGui::SetTooltip("%s", tr(Str::MbInsSkriptEinfuegenHint));
         }
-        if (!t.insMeldung.empty()) { ImGui::TextDisabled("%s", t.insMeldung.c_str()); }
+        if (!t.insMeldung.empty()) { cjkTextDisabled("%s", t.insMeldung.c_str()); }
         ImGui::PopTextWrapPos();
         // Schwebend so hoch wie der Inhalt: die Startlage der Panels (startLage) ist niedriger, und Einfuegen lag unter dem
         // Rand (Handbuchfoto mb2_hb_mb1a2: nur halb zu sehen). Angedockt bestimmt der Knoten die Hoehe.
@@ -299,7 +300,7 @@ void drawModellGewichte() {
     const bool blender = g_app->settings.modellBedienung == 1;
     ImGui::PushTextWrapPos(0.0F);
     // Knochen
-    ImGui::TextDisabled("%s", tr(Str::MbGwKnochen));
+    cjkTextDisabled("%s", tr(Str::MbGwKnochen));
     ImGui::SameLine();
     const bool hatKnochen = t.knochenWahl >= 0 && static_cast<std::size_t>(t.knochenWahl) < a.bones.size();
     ImGui::SetNextItemWidth(-1.0F);
@@ -312,7 +313,7 @@ void drawModellGewichte() {
         }
         ImGui::EndCombo();
     }
-    if (!hatKnochen) { ImGui::TextDisabled("%s", tr(Str::MbGwKnochenWaehlen)); }
+    if (!hatKnochen) { cjkTextDisabled("%s", tr(Str::MbGwKnochenWaehlen)); }
     // Werkzeug
     static const Str kArten[modell::kPinselArten] = {Str::MbGwHinzu, Str::MbGwAbziehen, Str::MbGwGlaetten, Str::MbGwSetzen};
     static const Str kHinweise[modell::kPinselArten] = {Str::MbGwHinzuHint, Str::MbGwAbziehenHint, Str::MbGwGlaettenHint, Str::MbGwSetzenHint};
@@ -378,18 +379,18 @@ void drawModellGewichte() {
         }
     }
     ImGui::Separator();
-    ImGui::TextDisabled(tr(Str::MbGwPruef), g.name, g.gewichteJeEcke, g.knochenJeFlaeche);
+    cjkTextDisabled(tr(Str::MbGwPruef), g.name, g.gewichteJeEcke, g.knochenJeFlaeche);
     const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
-    if (ueber4 > 0) { ImGui::TextColored(warn, tr(Str::MbGwUeber4), ueber4); }
-    for (const std::string& n : ueber32) { ImGui::TextColored(warn, tr(Str::MbGwUeber32), n.c_str(), g.knochenJeFlaeche); }
-    if (ueber4 == 0 && ueber32.empty()) { ImGui::TextDisabled("%s", tr(Str::MbGwPruefOk)); }
+    if (ueber4 > 0) { cjkTextColored(warn, tr(Str::MbGwUeber4), ueber4); }
+    for (const std::string& n : ueber32) { cjkTextColored(warn, tr(Str::MbGwUeber32), n.c_str(), g.knochenJeFlaeche); }
+    if (ueber4 == 0 && ueber32.empty()) { cjkTextDisabled("%s", tr(Str::MbGwPruefOk)); }
     ImGui::BeginDisabled(malend == 0);
     if (ImGui::Button(tr(Str::MbGwUebernehmen))) { (void)modellUebernehmen(); }
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("%s", tr(Str::MbGwUebernehmenHint));
     }
-    ImGui::TextDisabled("%s", tr(blender ? Str::MbGwTastenBlender : Str::MbGwTastenMax));
+    cjkTextDisabled("%s", tr(blender ? Str::MbGwTastenBlender : Str::MbGwTastenMax));
     ImGui::PopTextWrapPos();
 }
 

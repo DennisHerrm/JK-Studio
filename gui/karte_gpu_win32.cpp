@@ -801,6 +801,10 @@ struct Konstanten3 {
     float nebel[4];        // rgb Farbe, a Dichte (GL_EXP; 0 = aus)
     float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es); y Ecklicht; z rc609 P: portalRange; w rc610 R2a: graues Licht (Halme)
     float schnitt[4];      // rc609 P: Schnittebene der Spiegel-/Portalsicht (n, -d); (0 0 0 1) = aus
+    float tcMat[4];        // p_render: tcMod-Kette m0..m3
+    float tcOff[4];        //   ... m4 m5, turb Amplitude, Phase
+    float tcGenS[4];       //   ... tcGen vector s, w: tcGen (0 base, 1 environment, 2 vector)
+    float tcGenT[4];       //   ... tcGen vector t
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -809,8 +813,32 @@ struct Konstanten3 {
 const char* const kShader3 = R"(
 cbuffer B3 : register(b0) {
     float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
-    float4 schnitt;
+    float4 schnitt; float4 tcMat; float4 tcOff; float4 tcGenS; float4 tcGenT;
 };
+// p_render: ComputeTexCoords (code/rd-vanilla/tr_shade.cpp) - tcGen environment wie RB_CalcEnvironmentTexCoords
+// (tr_shade_calc.cpp, MD gleich: st = n.xy * d - 0.5 * viewer.xy, viewer per Q_rsqrt), tcGen vector, dann die tcMod-Kette und turb
+// (RB_CalcTurbulentTexCoords: (x + z) und y durch 1024, sin) wie die Vorschau (gpushader.cpp)
+float2 stufeSt(float3 p, float3 n, float2 st) {
+    float2 s = st;
+    if (tcGenS.w > 1.5) {
+        s = float2(dot(p, tcGenS.xyz), dot(p, tcGenT.xyz));
+    } else if (tcGenS.w > 0.5) {
+        float3 zur = augeHimmel.xyz - p;
+        float zahl = dot(zur, zur);
+        float y = asfloat(0x5f3759df - (asint(zahl) >> 1));
+        float3 v = zur * (y * (1.5 - (zahl * 0.5 * y * y)));
+        float d = dot(n, v);
+        s = float2(n.x * d - 0.5 * v.x, n.y * d - 0.5 * v.y);
+    }
+    float2 s2;
+    s2.x = s.x * tcMat.x + (s.y * tcMat.z + tcOff.x);
+    s2.y = s.x * tcMat.y + (s.y * tcMat.w + tcOff.y);
+    if (tcOff.z != 0.0) {
+        float2 tx = frac(float2(p.x + p.z, p.y) * 0.0009765625 + tcOff.w.xx);
+        s2 += sin(tx * 6.2831853) * tcOff.z;
+    }
+    return s2;
+}
 Texture2D bild : register(t0);
 TextureCube wuerfel : register(t1);
 SamplerState abtaster : register(s0);
@@ -834,7 +862,7 @@ VO3 vs3(VI3 i) {
     // rc609 P: alphaGen portal (RB_CalcAlphaFromPortal, je Ecke): Abstand zum Auge durch portalRange, hoechstens 1
     if (extra.z > 0.0) { c.a = saturate(length(i.pos - augeHimmel.xyz) / extra.z); }
     o.farbe = c;
-    o.st = i.st;
+    o.st = stufeSt(i.pos, i.n, i.st);
     o.richtung = i.pos - augeHimmel.xyz;
     o.tiefe = o.pos.w;
     o.schnitt = dot(float4(i.pos, 1.0), schnitt);
@@ -1110,6 +1138,16 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     k->extra[2] = linie ? 0.0F : z.portalWeite;
     k->extra[3] = z.grauLicht ? 1.0F : 0.0F;
     std::memcpy(k->schnitt, z.schnitt, sizeof(k->schnitt));
+    std::memcpy(k->tcMat, z.tcMatrix, sizeof(k->tcMat));
+    std::memcpy(k->tcOff, z.tcVersatz, sizeof(k->tcOff));
+    k->tcGenS[0] = z.tcGenVec[0];
+    k->tcGenS[1] = z.tcGenVec[1];
+    k->tcGenS[2] = z.tcGenVec[2];
+    k->tcGenS[3] = linie ? 0.0F : static_cast<float>(z.tcGen);
+    k->tcGenT[0] = z.tcGenVec[3];
+    k->tcGenT[1] = z.tcGenVec[4];
+    k->tcGenT[2] = z.tcGenVec[5];
+    k->tcGenT[3] = 0.0F;
     c->Unmap(g.cb3, 0);
     const float faktor[4] = {0, 0, 0, 0};
     c->OMSetBlendState(z.mischen == Mischen::Spiel      ? spielMischung(z.mischQuelle, z.mischZiel)
@@ -1324,8 +1362,32 @@ struct KonstantenSchatten {
 const char* const kShader4 = R"(
 cbuffer B3 : register(b0) {
     float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
-    float4 schnitt;
+    float4 schnitt; float4 tcMat; float4 tcOff; float4 tcGenS; float4 tcGenT;
 };
+// p_render: ComputeTexCoords (code/rd-vanilla/tr_shade.cpp) - tcGen environment wie RB_CalcEnvironmentTexCoords
+// (tr_shade_calc.cpp, MD gleich: st = n.xy * d - 0.5 * viewer.xy, viewer per Q_rsqrt), tcGen vector, dann die tcMod-Kette und turb
+// (RB_CalcTurbulentTexCoords: (x + z) und y durch 1024, sin) wie die Vorschau (gpushader.cpp)
+float2 stufeSt(float3 p, float3 n, float2 st) {
+    float2 s = st;
+    if (tcGenS.w > 1.5) {
+        s = float2(dot(p, tcGenS.xyz), dot(p, tcGenT.xyz));
+    } else if (tcGenS.w > 0.5) {
+        float3 zur = augeHimmel.xyz - p;
+        float zahl = dot(zur, zur);
+        float y = asfloat(0x5f3759df - (asint(zahl) >> 1));
+        float3 v = zur * (y * (1.5 - (zahl * 0.5 * y * y)));
+        float d = dot(n, v);
+        s = float2(n.x * d - 0.5 * v.x, n.y * d - 0.5 * v.y);
+    }
+    float2 s2;
+    s2.x = s.x * tcMat.x + (s.y * tcMat.z + tcOff.x);
+    s2.y = s.x * tcMat.y + (s.y * tcMat.w + tcOff.y);
+    if (tcOff.z != 0.0) {
+        float2 tx = frac(float2(p.x + p.z, p.y) * 0.0009765625 + tcOff.w.xx);
+        s2 += sin(tx * 6.2831853) * tcOff.z;
+    }
+    return s2;
+}
 cbuffer B5 : register(b3) {
     int4 nebelZahl; float4 nebelVorn; float4 nebelFarbe[16]; float4 nebelFlaeche[16]; float4 nebelInfo[16]; float4 nebelEbene[128];
 };
@@ -1346,6 +1408,8 @@ Buffer<float4> eckenB : register(t9);
 Buffer<uint> kachelB : register(t10);
 SamplerState abtaster : register(s0);
 SamplerState punktAbtaster : register(s2);
+)"  // p_render: zwei Literale (MSVC C2026: hoechstens 16380 Zeichen je Literal)
+    R"(
 float4 clip3(float3 p) { float4 c = mul(mvp, float4(p, 1.0)); c.z = (c.z + c.w) * 0.5; return c; }
 struct VI3 { float3 pos : POSITION; float3 n : NORMAL; float2 st : TEXCOORD0; float4 farbe : COLOR; };
 struct VO4 { float4 pos : SV_Position; float4 farbe : COLOR; float2 st : TEXCOORD0; float3 welt : TEXCOORD1; float3 n : TEXCOORD2; float tiefe : TEXCOORD3;
@@ -1354,7 +1418,7 @@ VO4 vs4(VI3 i) {
     VO4 o;
     o.pos = clip3(i.pos);
     o.farbe = i.farbe * farbe;
-    o.st = i.st;
+    o.st = stufeSt(i.pos, i.n, i.st);
     o.welt = i.pos;
     o.n = i.n;
     o.tiefe = o.pos.w;

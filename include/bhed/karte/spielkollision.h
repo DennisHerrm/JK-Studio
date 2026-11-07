@@ -51,6 +51,8 @@ struct Q3ShaderFlags {
 // AllocShaderInfo ("default") und ApplySurfaceParm je surfaceparm, wie
 // game_sof2 (JK2) bzw. game_ja (dazu "inside", "forcesight").
 [[nodiscard]] Q3ShaderFlags q3map2ShaderFlags(const std::vector<std::string>& surfaceparms, bool ja);
+// p_render: steht der Name (klein) in der surfaceparm-Tafel von game_sof2 bzw. game_ja (ApplySurfaceParm findet ihn)?
+[[nodiscard]] bool istSurfaceparm(const std::string& name);
 
 // SetBrushContents (map.cpp:455-503): welche Seite den Inhalt des Brushes
 // bestimmt (contentShader), die vereinigten compileFlags, und ob es ein

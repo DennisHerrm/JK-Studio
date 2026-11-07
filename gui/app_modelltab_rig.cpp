@@ -14,6 +14,7 @@
 //   Backen             die Sequenz mit der Schicht ueber compressBone in eine GLA, auf den naechsten freien Platz des Ziels
 //                      aus Stufe 2 (Karten-GLA, _humanoid.gla, eigene GLA)
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "gpumap.h"
 
 #include "bhed/gpuskin.h"
@@ -363,7 +364,7 @@ void aktionenAlsMenue(int gruppeNur) {
             if (gruppe >= 0) { ImGui::Separator(); }
             gruppe = a.gruppe;
             // die Untermenues tragen ihre eigene Ueberschrift (Auto-Physik zeigte "IK/FK", kGruppen endet bei 5)
-            ImGui::TextDisabled("%s", tr(gruppe <= 5 ? kGruppen[std::max(gruppe, 0)] : (gruppe == 6 ? Str::PhRollout : (gruppe == 7 ? Str::RtRollout : Str::PrRollout))));
+            cjkTextDisabled("%s", tr(gruppe <= 5 ? kGruppen[std::max(gruppe, 0)] : (gruppe == 6 ? Str::PhRollout : (gruppe == 7 ? Str::RtRollout : Str::PrRollout))));
         }
         ImGui::PushID(static_cast<int>(i));
         const char* taste = modellBlender() ? a.blenderTaste : a.maxTaste;
@@ -1211,32 +1212,32 @@ void drawModellRigBereich() {
         if (rig) {
             int ik = 0;
             for (const modell::Griff& g : t.rig.griffe) { ik += g.ik ? 1 : 0; }
-            ImGui::TextDisabled("%s", format(Str::MbRgStand, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt,
+            cjkTextDisabled("%s", format(Str::MbRgStand, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt,
                                              static_cast<int>(g_app->anim.bones.size()), t.rig.erkennung.unklar)
                                           .c_str());
             if (t.rig.erkennung.unklar > 0) {
-                ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::MbRgUnklarHinweis, t.rig.erkennung.unklar).c_str());
+                cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::MbRgUnklarHinweis, t.rig.erkennung.unklar).c_str());
             }
             if (ImGui::Checkbox(tr(Str::MbRgGriffeZeigen), &t.rigZeigen)) { g_app->modelDirty = true; }
             ImGui::SetItemTooltip("%s", tr(Str::MbRgGriffeZeigenHint));
             if (t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size()) {
                 const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
-                ImGui::Text("%s", griffName(t.griffWahl).c_str());
+                cjkText("%s", griffName(t.griffWahl).c_str());
                 ImGui::PushTextWrapPos(0.0F);
-                ImGui::TextDisabled("%s", tr(griffHinweis(g)));
+                cjkTextDisabled("%s", tr(griffHinweis(g)));
                 ImGui::PopTextWrapPos();
                 if (g.twist >= 0) {
-                    ImGui::TextDisabled("%s", format(Str::MbRgTwistInfo, g_app->anim.bones[static_cast<std::size_t>(g.twist)].name.c_str(),
+                    cjkTextDisabled("%s", format(Str::MbRgTwistInfo, g_app->anim.bones[static_cast<std::size_t>(g.twist)].name.c_str(),
                                                      static_cast<double>(g.twistAnteil * 100.0F))
                                                   .c_str());
                 }
             } else {
-                ImGui::TextDisabled("%s", tr(Str::MbRgGriffWaehlen));
+                cjkTextDisabled("%s", tr(Str::MbRgGriffWaehlen));
             }
             const modell::RigSchicht* s = modellRigSchichtJetzt();
-            ImGui::TextDisabled("%s", format(Str::MbRgSchluesselZahl, s != nullptr ? s->schluesselZahl() : 0).c_str());
+            cjkTextDisabled("%s", format(Str::MbRgSchluesselZahl, s != nullptr ? s->schluesselZahl() : 0).c_str());
         } else {
-            ImGui::TextDisabled("%s", tr(Str::MbRgNochKeins));
+            cjkTextDisabled("%s", tr(Str::MbRgNochKeins));
         }
         ImGui::PopTextWrapPos();
         if (knopf(Str::MbRgSchluesselLoeschen, Str::MbRgSchluesselLoeschenHint, rig)) { (void)modellRigSchluesselLoeschen(); }
@@ -1257,13 +1258,13 @@ void drawModellRigBereich() {
         if (knopf(Str::MbRgBindeAuswahl, Str::MbRgBindeAuswahlHint, anim)) { (void)modellBindepose(false); }
         daneben(Str::MbRgBindeAlle);
         if (knopf(Str::MbRgBindeAlle, Str::MbRgBindeAlleHint, anim)) { (void)modellBindepose(true); }
-        ImGui::TextDisabled("%s", tr(Str::MbRgHandposen));
+        cjkTextDisabled("%s", tr(Str::MbRgHandposen));
         ImGui::SetItemTooltip("%s", tr(Str::MbRgHandHint));
         static const Str kArten[3] = {Str::MbRgOffen, Str::MbRgFaust, Str::MbRgSaebel};
         for (const modell::Seite se : {modell::Seite::Links, modell::Seite::Rechts}) {
             ImGui::PushID(static_cast<int>(se));
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(tr(se == modell::Seite::Links ? Str::MbRgL : Str::MbRgR));
+            cjkTextUnformatted(tr(se == modell::Seite::Links ? Str::MbRgL : Str::MbRgR));
             for (int a = 0; a < 3; ++a) {
                 ImGui::SameLine();
                 ImGui::PushID(a);
@@ -1272,7 +1273,7 @@ void drawModellRigBereich() {
             }
             ImGui::PopID();
         }
-        ImGui::TextDisabled("%s", tr(Str::MbRgGruppeAuswahl));
+        cjkTextDisabled("%s", tr(Str::MbRgGruppeAuswahl));
         if (knopf(Str::MbRgGegenseite, Str::MbRgGegenseiteHint, anim)) { (void)modellAuswahlGegenseite(); }
         daneben(Str::MbRgEltern);
         if (knopf(Str::MbRgEltern, Str::MbRgElternHint, anim)) { (void)modellAuswahlEltern(); }
@@ -1329,7 +1330,7 @@ void drawModellRigBereich() {
                                      : p.knochen >= 0 && static_cast<std::size_t>(p.knochen) < g_app->anim.bones.size()
                                          ? g_app->anim.bones[static_cast<std::size_t>(p.knochen)].name
                                          : std::string("-");
-            ImGui::TextUnformatted(name.c_str());
+            cjkTextUnformatted(name.c_str());
             ImGui::SameLine();
             if (ImGui::SmallButton("x")) { weg = static_cast<int>(i); }
             ImGui::SetItemTooltip("%s", tr(Str::MbRgPfadWeg));
@@ -1343,7 +1344,7 @@ void drawModellRigBereich() {
     }
     if (ImGui::CollapsingHeader(tr(Str::MbRgGruppeBacken))) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::MbRgBackenInfo));
+        cjkTextDisabled("%s", tr(Str::MbRgBackenInfo));
         ImGui::PopTextWrapPos();
         if (knopf(Str::MbRgBacken, Str::MbRgBackenHint, sequenz() != nullptr)) { (void)modellRigBacken(); }
     }
@@ -1423,7 +1424,7 @@ void drawModellRigUebersicht() {
     }
     modellRigAktualisieren();
     if (!modellRigDa()) {
-        ImGui::TextDisabled("%s", tr(Str::MbRgNochKeins));
+        cjkTextDisabled("%s", tr(Str::MbRgNochKeins));
         if (knopf(Str::MbRgAnlegen, Str::MbRgAnlegenHint, !g_app->anim.bones.empty())) { (void)modellRigAnlegen(); }
         ImGui::End();
         return;
@@ -1477,7 +1478,7 @@ void drawModellRigUebersicht() {
     // rechts: der gewaehlte Fleck mit seinen Knochen, darunter alle unklaren und alle ohne Rolle
     ImGui::BeginChild("##rollen", ImVec2{-1.0F, -1.0F});
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s", tr(Str::MbRgUebersichtHint));
+    cjkTextDisabled("%s", tr(Str::MbRgUebersichtHint));
     ImGui::PopTextWrapPos();
     if (t.uebersichtRolle >= 0) {
         const auto rolle = static_cast<modell::Rolle>(t.uebersichtRolle / 3);

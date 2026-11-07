@@ -85,7 +85,14 @@ public:
     }
 
     // ModelNode::setModel im Modell-Browser: das Modell ohne Skin und _remap
-    [[nodiscard]] karte::ModellAnsicht nachPfad(const std::string& pfad) const {
+    [[nodiscard]] bool ursprungsShader(const std::string& shader) const override {
+        const Editor& ed = editor();
+        const auto& sp = ed.karteSpiel ? ed.karteSpiel : ed.spiel;   // wie surfaceparmsVon (app_karte_spielen.cpp)
+        const karte::ShaderEintrag* se = sp ? sp->inventar.shaderFinden(shader) : nullptr;
+        return se != nullptr && std::find(se->surfaceparms.begin(), se->surfaceparms.end(), "origin") != se->surfaceparms.end();
+    }
+
+    [[nodiscard]] karte::ModellAnsicht nachPfad(const std::string& pfad) const override {
         karte::ModellAnsicht a;
         a.modell = modell(bereinigt(pfad));
         for (const karte::ModellFlaeche& f : a.modell->flaechen) { a.shader.push_back(f.shader); }

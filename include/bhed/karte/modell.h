@@ -115,6 +115,10 @@ class ModellQuelle {
 public:
     virtual ~ModellQuelle() = default;
     [[nodiscard]] virtual ModellAnsicht ansicht(const Entitaet& e) const = 0;
+    // p_render: ein Modell nach seinem Pfad, ohne Skin und _remap (model2 an Brush-Entities: CG_Mover nimmt die Shader der Datei)
+    [[nodiscard]] virtual ModellAnsicht nachPfad(const std::string& /*pfad*/) const { return {}; }
+    // p_render: traegt der Shader surfaceparm origin (C_ORIGIN, q3map2 SetBrushContents)?
+    [[nodiscard]] virtual bool ursprungsShader(const std::string& /*shader*/) const { return false; }
 };
 // MiscModel::updateTransform: Ursprung, angle/angles, modelscale(_vec)
 [[nodiscard]] Matrix4 miscModellMatrix(const Entitaet& e);

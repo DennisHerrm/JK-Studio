@@ -16,6 +16,7 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "bhed/karte/texturen.h"
+#include "bhed/karte/spielkollision.h"
 
 #include "bhed/karte/spielbeschreibung.h"
 
@@ -294,6 +295,11 @@ bool quake3Parsen(Tokenizer& t, ShaderEintrag& s) {
             } else if (a == "botclip") {
                 s.flags |= QER_BOTCLIP;
             }
+        } else if (k.size() > 6 && k.compare(0, 6, "q3map_") == 0 && istSurfaceparm(k.substr(6))) {
+            // p_render: q3map2 ParseShaderFile (shaders.cpp:1706-1711, "default to searching for q3map_<surfaceparm>"): ein sonst
+            // unbekanntes q3map_<name> wirkt wie surfaceparm <name> - Jedi Academy textures/system/origin hat nur q3map_origin.
+            // Nur fuer die Inhalte wie q3map2 (surfaceparms), die Editor-Flaggen (QER_*) liest NRC nur aus surfaceparm.
+            s.surfaceparms.push_back(k.substr(6));
         }
     }
     return true;

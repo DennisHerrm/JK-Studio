@@ -524,6 +524,38 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
         }
         if (!rest) { continue; }   // nur Geometrie: keine Punktentitaeten, Gruppen, Namen
         const Farbe kf = klassenFarbe(kl);
+        // die Flaechen eines Modells mit Matrix m in ihre Shader-Stapel (umkehren: Wicklung umgekehrt)
+        const auto modellFlaechen = [&](const ModellAnsicht& a, const Matrix4& m, bool umkehren) {
+            if (!a.modell) { return; }
+            for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
+                const ModellFlaeche& f = a.modell->flaechen[fi];
+                const std::string& sh = fi < a.shader.size() ? a.shader[fi] : f.shader;
+                if (sh.empty()) { continue; }
+                KameraStapel& st = stapel(StapelArt::Shader, sh, 0xFFFFFFFFU);
+                const std::size_t vorher = st.dreiecke.size();
+                for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
+                    std::vector<KameraPunkt> d(3);
+                    for (std::size_t j = 0; j < 3; ++j) {
+                        const ModellPunkt& p = f.punkte[f.indizes[i + (umkehren && j > 0 ? 3 - j : j)]];
+                        Vektor3f n = transformierteRichtung(m, p.normale);
+                        const float l = static_cast<float>(laenge(n));
+                        if (l > 0) { n = n * (1.0F / l); }
+                        d[j] = {transformierterPunkt(m, p.ort), n, p.st, 0xFFFFFFFFU};
+                    }
+                    polygonFuellung(d, st.dreiecke, o.kanten ? (entGew ? &st.kantenGewaehlt : &st.kanten) : nullptr);
+                    if (entGew) {
+                        std::vector<KameraPunkt> leer;
+                        polygonFuellung(d, leer, &s.wahlKanten);
+                    }
+                }
+                objekt(st, ent.get());
+                if (entGew) {
+                    tintObjekt(ent.get());
+                    overlayObjekt(ent.get());
+                    wahlDazu(vorher, st.dreiecke, true);
+                }
+            }
+        };
         if (!ent->istBehaelter() && k.modelle != nullptr && kl != nullptr && kl->miscmodelIs) {
             // MiscModel: das Modell (PicoModel/md3 Model::render mit den Shadern der
             // Flaechen, Skin und _remap), der Name am Ursprung
@@ -537,36 +569,7 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             // der Renderer ohne Umkehr (GL_Cull, tr_backend.cpp:126-165: nur viewParms.isMirror) - dort sieht man im Spiel die
             // Innenseite, die Kamera zeigt es ebenso (Kartenpruefung "modellgespiegelt").
             const bool umkehren = haendigkeit(m) == Haendigkeit::Links && klein(ent->klassenname()) == "misc_model";
-            if (a.modell) {
-                for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
-                    const ModellFlaeche& f = a.modell->flaechen[fi];
-                    const std::string& sh = fi < a.shader.size() ? a.shader[fi] : f.shader;
-                    if (sh.empty()) { continue; }
-                    KameraStapel& st = stapel(StapelArt::Shader, sh, 0xFFFFFFFFU);
-                    const std::size_t vorher = st.dreiecke.size();
-                    for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
-                        std::vector<KameraPunkt> d(3);
-                        for (std::size_t j = 0; j < 3; ++j) {
-                            const ModellPunkt& p = f.punkte[f.indizes[i + (umkehren && j > 0 ? 3 - j : j)]];
-                            Vektor3f n = transformierteRichtung(m, p.normale);
-                            const float l = static_cast<float>(laenge(n));
-                            if (l > 0) { n = n * (1.0F / l); }
-                            d[j] = {transformierterPunkt(m, p.ort), n, p.st, 0xFFFFFFFFU};
-                        }
-                        polygonFuellung(d, st.dreiecke, o.kanten ? (entGew ? &st.kantenGewaehlt : &st.kanten) : nullptr);
-                        if (entGew) {
-                            std::vector<KameraPunkt> leer;
-                            polygonFuellung(d, leer, &s.wahlKanten);
-                        }
-                    }
-                    objekt(st, ent.get());
-                    if (entGew) {
-                        tintObjekt(ent.get());
-                        overlayObjekt(ent.get());
-                        wahlDazu(vorher, st.dreiecke, true);
-                    }
-                }
-            }
+            modellFlaechen(a, m, umkehren);
             if (o.namen || entGew) {
                 const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({ursprungVon(*ent), tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : 0});
@@ -640,6 +643,53 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                 s.namen.push_back({namePos, tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : 0});
             }
         } else if (!welt) {
+            // p_render: "model2" an einem Brush-Mover (NRC zeichnet es nicht). Das Spiel: InitMover bzw. InitBBrush setzen
+            // s.modelindex2 (MD9 code/game/g_mover.cpp:1104-1124, g_breakable.cpp:302-307; OpenJK gleich), CG_Mover zeichnet das
+            // Modell an lerpOrigin/lerpAngles der Entity, dazu modelAngles (cg_ents.cpp:1702-1718), mit den Shadern der Datei.
+            // Im Ruhestand: der Ursprung wie q3map2 ihn setzt (ParseBrush: Mitte des Ursprungs-Brushes mit C_ORIGIN, sonst der
+            // Schluessel origin), die Winkel nur bei func_static/func_wall (G_SetAngles) und func_pendulum (apos.trBase =
+            // s.angles), sonst 0 (func_door/func_button: G_SetMovedir loescht sie; func_rotating dreht erst ab trTime).
+            // .glm (Ghoul2 am Mover) zeichnet die Kamera nicht.
+            if (k.modelle != nullptr) {
+                static const char* const kMover[] = {"func_bobbing", "func_breakable", "func_button", "func_door", "func_pendulum", "func_plat",
+                                                     "func_rotating", "func_static", "func_train", "func_usable", "func_wall"};
+                const std::string klasse = klein(ent->klassenname());
+                std::string m2 = ent->wert("model2");
+                std::replace(m2.begin(), m2.end(), '\\', '/');
+                const std::string m2k = klein(m2);
+                if (std::find(std::begin(kMover), std::end(kMover), klasse) != std::end(kMover) && m2k.size() > 4 &&
+                    m2k.compare(m2k.size() - 4, 4, ".md3") == 0) {
+                    Vektor3f ursprung(0, 0, 0);
+                    if (ent->hat("origin")) { ursprung = ursprungVon(*ent); }
+                    for (const auto& p : ent->kinder()) {   // C_ORIGIN: irgendeine Seite mit surfaceparm origin
+                        if (p->art() != Primitiv::Art::Pinsel) { continue; }
+                        const auto& pinsel = static_cast<const Pinsel&>(*p);
+                        bool istUrsprung = false;
+                        for (const auto& fl : pinsel.flaechen()) { istUrsprung = istUrsprung || k.modelle->ursprungsShader(fl->shader()); }
+                        if (istUrsprung) { ursprung = pinsel.grenzen(k).origin; }
+                    }
+                    const bool mitWinkeln = klasse == "func_static" || klasse == "func_wall" || klasse == "func_pendulum";
+                    float w[3] = {0, 0, 0};   // PITCH YAW ROLL wie s.angles (F_ANGLEHACK: "angle" nur die Gier)
+                    if (mitWinkeln) {
+                        if (ent->hat("angles")) {
+                            (void)std::sscanf(ent->wert("angles").c_str(), "%f %f %f", &w[0], &w[1], &w[2]);
+                        } else if (ent->hat("angle")) {
+                            w[1] = static_cast<float>(std::atof(ent->wert("angle").c_str()));
+                        }
+                    }
+                    float ma[3] = {0, 0, 0};
+                    if (ent->hat("modelAngles")) { (void)std::sscanf(ent->wert("modelAngles").c_str(), "%f %f %f", &ma[0], &ma[1], &ma[2]); }
+                    char winkel[96];
+                    std::snprintf(winkel, sizeof(winkel), "%g %g %g", static_cast<double>(w[0] + ma[0]), static_cast<double>(w[1] + ma[1]),
+                                  static_cast<double>(w[2] + ma[2]));
+                    Matrix4 m = verschiebungsMatrix(ursprung);
+                    multipliziere(m, drehungEulerXyzGrad(entitaetsWinkel("", winkel, true, false)));
+                    const ModellAnsicht a = k.modelle->nachPfad(m2);
+                    s.etagen.push_back({modellWeltKasten(a, m), entGew});
+                    modellFlaechen(a, m, false);
+                    ++s.model2Anzahl;
+                }
+            }
             // Group: Name und Pfeil in der Mitte der Kinder (group.cpp:169-190)
             const Vektor3f mitte = kastenGueltig(kinderBox) && ausdehnungGueltig(kinderBox.extents.x()) ? kinderBox.origin : ursprungVon(*ent);
             if (entGew || kindGew || o.namen) {

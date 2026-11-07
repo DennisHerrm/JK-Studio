@@ -126,6 +126,7 @@ struct KameraSzene {
     std::size_t overlayObjekte = 0;
     std::size_t overlayTransforms = 0;
     std::size_t wahlPrimitive = 0;   // ausgewaehlte Pinselflaechen und Patches (nicht in $CAM_WIRE)
+    std::size_t model2Anzahl = 0;    // p_render: gezeichnete model2 an Brush-Entities
 };
 
 [[nodiscard]] KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o);

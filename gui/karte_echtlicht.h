@@ -40,8 +40,25 @@ struct SpielStufe {
     float farbe[4]{1, 1, 1, 1};
     bool tiefeSchreiben = true;
     float portalWeite = 0;
+    // p_render: was sich mit der Zeit bzw. dem Ort aendert (tr_shade.cpp ComputeTexCoords/ComputeColors, tr_shade_calc.cpp):
+    // animMap mit allen Bildern ("?" + Pfad; R_BindAnimatedImage), tcGen environment/vector, die tcMod-Kette, rgbGen/alphaGen wave
+    std::vector<std::string> bilder;
+    float animFreq = 0;
+    bool animEinmal = false;
+    TexGen texGen = TexGen::Base;
+    float tcGenVec[6]{0, 0, 0, 0, 0, 0};
+    TexMod texMods[kMaxTexMods];
+    int numTexMods = 0;
+    Wave rgbWave;
+    Wave alphaWave;
+    [[nodiscard]] bool bewegt() const {
+        return bilder.size() > 1U || texGen != TexGen::Base || numTexMods > 0 || rgbWave.active() || alphaWave.active();
+    }
 };
 [[nodiscard]] SpielStufe spielStufe(const ShaderInfo::Stage& st);
+// p_render: das Bild der Stufe zu dieser Zeit (animMap) und Koordinaten (tcGen, tcMod) samt Farbwelle (farbeAuch) in z
+[[nodiscard]] std::string stufeBildJetzt(const SpielStufe& w, double zeit);
+void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool farbeAuch);
 // rc610 R2a: alle Stufen eines Shaders aus den Spieldaten des Editors (parseShaderScript wie die Vorschau, je Datei einmal, neu
 // nach Flush & Reload Shaders); nullptr ohne Skript.
 [[nodiscard]] const ShaderInfo* echtShaderInfo(const std::string& shader);
@@ -63,6 +80,10 @@ struct SpielDarstellung {
     // rc610 R3: auch sonst (das Echtzeit-Licht zeichnet sie) - die Stufen nach der Grundstufe bzw. dem Paar aus Lightmap und Bild,
     // soweit die Echtzeit-Ansicht sie genau zeichnen kann (stufeDarstellbar); glueh: alle Stufen mit glow davon (RB_DrawSurfs)
     std::vector<SpielStufe> glueh;
+    // p_render: die Bildstufe der Grundstufe (Bild bzw. das Bild des Paars mit der Lightmap), wenn sie sich bewegt (tcMod, tcGen,
+    // Wellen, animMap) - das Echtzeit-Licht nimmt ihre Koordinaten, ihre Farbwelle und ihr Bild der Zeit
+    bool grundBewegt = false;
+    SpielStufe grund;
 };
 [[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.
@@ -108,6 +129,7 @@ struct SpielbildStand {
     int portalEffektEcken = 0; // die Effekte der Portal-Entities in der Szene des Himmelsportals
     bool spiegel = false;      // rc609 P: eine Spiegel- oder Portalsicht stand unter den Portalflaechen
     bool portalKamera = false; //   ... und es war eine misc_portal_camera
+    int spiegelGlueh = 0;      // p_render: Gluehaufrufe der Spiegel-/Portalsicht (RB_DrawSurfs je Sicht)
     float spiegelWelt[16]{};   //   ... ihre Abbildung (PortalSicht::welt) und Schnittebene
     float spiegelSchnitt[4]{};
     // rc610 F23 (B3-1): Plaetze der Szene (Bilder samt Modellbildern, Lightmaps) und der hoechste belegte Platz im Grafikspeicher

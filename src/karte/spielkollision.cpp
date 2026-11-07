@@ -385,6 +385,11 @@ std::string klein(std::string s) {
 
 }  // namespace
 
+bool istSurfaceparm(const std::string& name) {
+    Q3ShaderFlags f;
+    return surfaceParmAnwenden(name, true, f);   // game_ja enthaelt die Tafel von game_sof2
+}
+
 Q3ShaderFlags q3map2ShaderFlags(const std::vector<std::string>& surfaceparms, bool ja) {
     Q3ShaderFlags f;
     (void)surfaceParmAnwenden("default", ja, f);   // AllocShaderInfo
