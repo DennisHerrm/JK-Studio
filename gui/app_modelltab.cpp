@@ -7,6 +7,7 @@
 // Gliederung und Funktionen, gezeichnet wird wie im Spiel ueber den
 // Ghoul2-Weg des Mission-Tabs; die Regeln dafuer stehen in bhed/modell/g2.h.
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "gpumap.h"
 
 #include "bhed/modell/dokument.h"
@@ -199,6 +200,11 @@ void modellAnzeigeAktualisieren() {
         // Zeichner als von der Haut abgeschaltet (er zeichnet mit kappen).
         // mb1a2: ein im Explorer ausgeblendetes Teil zeichnet die Ansicht nicht (nur die Ansicht - gezeichnet bleibt die Regel)
         neu.surfaces[i].skinnedOff = t.gezeichnet[i] == 0 || modellTeilVersteckt(static_cast<int>(i));
+        // p_render: bleibt eine Flaeche nach den Ghoul2-Regeln an, obwohl die Haut sie mit "*off" belegt (Movie Duels imperial:
+        // zwei Flaechen "hips", G2_IsSurfaceLegal findet die erste, schon OFF), sucht RenderSurfaces ihren Shader in der Haut
+        // (tr_ghoul2.cpp:2276-2288) - "*off": R_FindShader findet kein Bild und gibt einen Shader ohne Stufe zurueck
+        // (tr_shader.cpp:3502-3509, MD9 :3457-3466), RB_StageIteratorGeneric zeichnet nichts. Das Spiel zeigt sie nicht.
+        if (g_app->model.surfaces[i].skinnedOff) { neu.surfaces[i].skinnedOff = true; }
     }
     t.anzeige = std::move(neu);
     t.lodJetzt = lod;
@@ -511,7 +517,7 @@ void anbautenUnter(const std::string& ziel) {
             g_app->modelDirty = true;
         }
         ImGui::Indent();
-        ImGui::TextDisabled("%s%s", kSymbolPlatz, fileName(a.pfad).c_str());
+        cjkTextDisabled("%s%s", kSymbolPlatz, fileName(a.pfad).c_str());
         {
             const float h = ImGui::GetTextLineHeight();
             uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbAnbau, ImGui::GetItemRectMin(), h, ImGui::GetColorU32(uiIconFarbe(UiIcon::MbAnbau)));
@@ -623,7 +629,7 @@ void drawModellExplorer(float hoehe) {
     ImGui::BeginChild("mtexplorer", ImVec2{-1.0F, hoehe}, ImGuiChildFlags_Borders);
     if (g_app->model.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::ModelNoneH2));
+        cjkTextDisabled("%s", tr(Str::ModelNoneH2));
         ImGui::PopTextWrapPos();
         ImGui::EndChild();
         return;
@@ -888,12 +894,12 @@ void glaFenster() {
 void rolloutModell() {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
-    ImGui::TextDisabled("%s", tr(Str::MbDatei));
+    cjkTextDisabled("%s", tr(Str::MbDatei));
     ImGui::SameLine();
-    ImGui::TextUnformatted(fileName(g_app->modelPath).c_str());
-    ImGui::TextDisabled("%s", tr(Str::MbGla));
+    cjkTextUnformatted(fileName(g_app->modelPath).c_str());
+    cjkTextDisabled("%s", tr(Str::MbGla));
     ImGui::SameLine();
-    ImGui::TextUnformatted(g_app->anim.name.empty() ? in.glaPfad.c_str() : g_app->anim.name.c_str());
+    cjkTextUnformatted(g_app->anim.name.empty() ? in.glaPfad.c_str() : g_app->anim.name.c_str());
     int flaechen = 0;
     int dreiecke = 0;
     int ecken = 0;
@@ -904,11 +910,11 @@ void rolloutModell() {
         ecken += static_cast<int>(in.teile[i].stufen[static_cast<std::size_t>(t.lodJetzt)].ecken.size());
     }
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled(trN(Str::MbZahlen, flaechen, dreiecke, ecken), flaechen, dreiecke, ecken, t.lodJetzt + 1);
-    ImGui::TextDisabled(trN(Str::MbKnochenZahl, in.knochenZahl, in.stufenZahl), in.knochenZahl, in.stufenZahl);
+    cjkTextDisabled(trN(Str::MbZahlen, flaechen, dreiecke, ecken), flaechen, dreiecke, ecken, t.lodJetzt + 1);
+    cjkTextDisabled(trN(Str::MbKnochenZahl, in.knochenZahl, in.stufenZahl), in.knochenZahl, in.stufenZahl);
     if (!t.auswahl.empty()) {
         const int n = static_cast<int>(t.auswahl.size());
-        ImGui::TextDisabled(trN(Str::MbAuswahl, n), n);
+        cjkTextDisabled(trN(Str::MbAuswahl, n), n);
     }
     ImGui::PopTextWrapPos();
     if (ImGui::Button(tr(Str::MbAndereGla))) { ImGui::OpenPopup("###mtgla"); }
@@ -946,10 +952,10 @@ void rolloutLod() {
         ImGui::PopID();
     }
     ImGui::PopStyleVar(2);
-    ImGui::TextDisabled(tr(Str::MbLodJetzt), t.lodJetzt + 1, in.stufenZahl);
+    cjkTextDisabled(tr(Str::MbLodJetzt), t.lodJetzt + 1, in.stufenZahl);
     // Picmip wie die Vorschau (r_picmip, Einstellung).
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(tr(Str::MbPicmip));
+    cjkTextUnformatted(tr(Str::MbPicmip));
     for (int p = 0; p <= 3; ++p) {
         ImGui::SameLine();
         char n[8];
@@ -1043,7 +1049,7 @@ void rolloutAnbauten() {
     ModellTab& t = mt();
     if (t.anbauten.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::MbAnbauKeine));
+        cjkTextDisabled("%s", tr(Str::MbAnbauKeine));
         ImGui::PopTextWrapPos();
         return;
     }
@@ -1056,7 +1062,7 @@ void rolloutAnbauten() {
             break;
         }
         ImGui::SameLine();
-        ImGui::Text("%s -> %s", fileName(t.anbauten[i].pfad).c_str(), t.anbauten[i].ziel.c_str());
+        cjkText("%s -> %s", fileName(t.anbauten[i].pfad).c_str(), t.anbauten[i].ziel.c_str());
         ImGui::PopID();
     }
     if (ImGui::Button(tr(Str::MbAlleLoesen))) { modellAnbautenLoesen(); }
@@ -1077,11 +1083,11 @@ void rolloutPruefen() {
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbZielspiel)); }
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled(tr(Str::MbPrGrenzen), g.name, g.eckenJeFlaeche, g.dreieckeJeFlaeche, g.knochenJeFlaeche, g.gewichteJeEcke);
-    ImGui::TextDisabled(tr(Str::MbPrInstanzen), 1, g.g2Modelle);
+    cjkTextDisabled(tr(Str::MbPrGrenzen), g.name, g.eckenJeFlaeche, g.dreieckeJeFlaeche, g.knochenJeFlaeche, g.gewichteJeEcke);
+    cjkTextDisabled(tr(Str::MbPrInstanzen), 1, g.g2Modelle);
     const std::vector<modell::Befund> b = modellBefunde();
     if (b.empty()) {
-        ImGui::Text(tr(Str::MbPrOk), g.name);
+        cjkText(tr(Str::MbPrOk), g.name);
     }
     const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
     for (const modell::Befund& x : b) {
@@ -1110,7 +1116,7 @@ void rolloutPruefen() {
                 std::snprintf(z, sizeof z, tr(Str::MbPrShader), x.name.c_str());
                 break;
         }
-        ImGui::TextColored(warn, "%s", z);
+        cjkTextColored(warn, "%s", z);
     }
     ImGui::PopTextWrapPos();
 }
@@ -1120,11 +1126,11 @@ void rolloutPruefen() {
 void drawModellBefehlsfeld() {
     ModellTab& t = mt();
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s - %s", tr(Str::MbBefehlsfeld), tr(bereichText(static_cast<int>(t.bereich))));
+    cjkTextDisabled("%s - %s", tr(Str::MbBefehlsfeld), tr(bereichText(static_cast<int>(t.bereich))));
     ImGui::PopTextWrapPos();
     // Bedienmodus: wie 3ds Max (Vorgabe) oder wie Blender (Belegung in 1a-2).
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%s", tr(Str::MbBedienung));
+    cjkTextDisabled("%s", tr(Str::MbBedienung));
     if (reiterKnopf(tr(Str::MbWieMax), g_app->settings.modellBedienung == 0)) { modellBedienungSetzen(0); }
     ImGui::SameLine(0.0F, 2.0F);
     if (reiterKnopf(tr(Str::MbWieBlender), g_app->settings.modellBedienung == 1)) { modellBedienungSetzen(1); }
@@ -1139,7 +1145,7 @@ void drawModellBefehlsfeld() {
     if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights && t.bereich != ModellBereich::Animation && t.bereich != ModellBereich::Uv &&
         t.bereich != ModellBereich::Modellieren) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
+        cjkTextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
         ImGui::PopTextWrapPos();
         ImGui::Separator();
     }
@@ -1164,7 +1170,7 @@ void drawModellBefehlsfeld() {
     if (!t.meldung.empty()) {
         ImGui::Separator();
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", t.meldung.c_str());
+        cjkTextDisabled("%s", t.meldung.c_str());
         ImGui::PopTextWrapPos();
     }
     ImGui::EndChild();
@@ -1475,7 +1481,7 @@ void drawModellKontextMenue() {
     t.kontextSichtbar = ImGui::BeginPopup("##mtkontext");
     if (!t.kontextSichtbar) { return; }
     const bool blender = modellBlender();
-    ImGui::TextDisabled("%s", tr(Str::MbKontextAuswahl));
+    cjkTextDisabled("%s", tr(Str::MbKontextAuswahl));
     static const Str kArten[6] = {Str::MbMaxObjekt, Str::MbMaxEcke, Str::MbMaxKante, Str::MbMaxPolygon, Str::MbMaxRand, Str::MbMaxElement};
     static const Str kArtenBl[4] = {Str::MbBlObjektModus, Str::MbBlEcke, Str::MbBlKante, Str::MbBlFlaeche};
     for (int a = 0; a < (blender ? 4 : 6); ++a) {

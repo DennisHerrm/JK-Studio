@@ -22,14 +22,17 @@
 #include "platform.h"
 
 #include "bhed/bspgeo.h"
+#include "bhed/gpuconst.h"
 #include "bhed/i18n.h"
 #include "bhed/karte/echtlicht.h"
 #include "bhed/karte/kartenformat.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
+#include "bhed/mapview.h"
 #include "bhed/schattenatlas.h"
 #include "bhed/regelwerk.h"
+#include "bhed/wave.h"
 
 #include <process.h>
 
@@ -886,7 +889,47 @@ SpielStufe spielStufe(const ShaderInfo::Stage& st) {
     const std::size_t punkt = bild.find_last_of('.');
     if (punkt != std::string::npos && punkt + 5 >= bild.size() && bild.find('/', punkt) == std::string::npos) { bild.resize(punkt); }
     if (!bild.empty()) { s.bild = "?" + bild; }
+    // p_render: animMap (R_BindAnimatedImage, tr_shade.cpp), tcGen, tcMod, Wellen - je Bild in stufeJetzt
+    if (st.animImages.size() > 1U) {
+        for (const std::string& a : st.animImages) {
+            std::string n = a;
+            const std::size_t pk = n.find_last_of('.');
+            if (pk != std::string::npos && pk + 5 >= n.size() && n.find('/', pk) == std::string::npos) { n.resize(pk); }
+            s.bilder.push_back("?" + n);
+        }
+        s.animFreq = st.animFreq;
+        s.animEinmal = st.animOneShot;
+    }
+    s.texGen = st.texGen;
+    for (int k = 0; k < 6; ++k) { s.tcGenVec[k] = st.tcGenVec[k]; }
+    s.numTexMods = std::min(st.numTexMods, kMaxTexMods);
+    for (int k = 0; k < s.numTexMods; ++k) { s.texMods[k] = st.texMods[k]; }
+    s.rgbWave = st.rgbWave;
+    s.alphaWave = st.alphaWave;
     return s;
+}
+
+std::string stufeBildJetzt(const SpielStufe& w, double zeit) {
+    if (w.bilder.size() <= 1U) { return w.bild; }
+    // R_BindAnimatedImage: index = Q_ftol(shaderTime * speed * FUNCTABLE_SIZE) >> FUNCTABLE_SIZE2, % bzw. oneShot klemmen
+    return w.bilder[animBildIndex(static_cast<float>(zeit), w.animFreq, w.bilder.size(), w.animEinmal)];
+}
+
+void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool farbeAuch) {
+    const auto t = static_cast<float>(zeit);
+    // ComputeTexCoords (code/rd-vanilla/tr_shade.cpp): erst tcGen, dann die tcMod-Kette (RB_CalcScrollTexCoords usw.,
+    // tr_shade_calc.cpp) - zusammengerechnet wie die Vorschau (gpu::texModAbbildung), turb im Shader nach dem Ort
+    z.tcGen = w.texGen == TexGen::Environment ? 1 : w.texGen == TexGen::Vector ? 2 : 0;
+    for (int k = 0; k < 6; ++k) { z.tcGenVec[k] = w.tcGenVec[k]; }
+    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, z.tcVersatz[2], z.tcVersatz[3]);
+    if (!farbeAuch) { return; }
+    // ComputeColors: rgbGen wave (RB_CalcWaveColor) ersetzt die Farbe, auf 0..1 geklemmt; alphaGen wave (RB_CalcWaveAlpha,
+    // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus)
+    if (w.rgbWave.active()) {
+        const float g = std::clamp(waveValue(w.rgbWave, t), 0.0F, 1.0F);
+        z.farbe[0] = z.farbe[1] = z.farbe[2] = g;
+    }
+    if (w.alphaWave.active()) { z.farbe[3] = std::clamp(waveValue(w.alphaWave, t), 0.0F, 1.0F); }
 }
 
 namespace {
@@ -910,12 +953,13 @@ std::size_t basisStufen(const ShaderInfo& si) {
 // rc610 R3: eine Stufe, die die Echtzeit-Ansicht genau so zeichnet wie RB_IterateStagesGeneric: ein festes Bild (kein animMap mit
 // mehreren, kein Video), tcGen base ohne tcMod, rgbGen identity/identityLighting/const bzw. keins (ParseStage: identity oder
 // identityLighting, beide am Schirm 1 - gpustate.h, Licht), alphaGen aus dem Bild, identity oder const; sonst bleibt sie weg.
+// p_render: dazu animMap, tcGen environment/vector, jede tcMod-Kette und rgbGen/alphaGen wave (stufeJetzt); weiter nicht: Video,
+// rgbGen vertex/lightingDiffuse/entity, alphaGen entity/vertex/specular.
 bool stufeDarstellbar(const ShaderInfo::Stage& s) {
     const bool farbe = s.rgbArt == RgbGenArt::Keins || s.rgbArt == RgbGenArt::Identity || s.rgbArt == RgbGenArt::IdentityLighting ||
-                       s.rgbArt == RgbGenArt::Const;
+                       s.rgbArt == RgbGenArt::Const || s.rgbArt == RgbGenArt::Wave;
     const bool alpha = s.alphaGen == AlphaGen::FromImage || s.alphaGen == AlphaGen::Identity || s.alphaGen == AlphaGen::Const;
-    return !s.lightmap && !s.weiss && !s.image.empty() && s.video.empty() && !s.ss.aktiv() && s.texGen == TexGen::Base && s.numTexMods == 0 &&
-           s.animImages.size() <= 1 && farbe && !s.rgbWave.active() && alpha && !s.alphaWave.active() && !s.alphaEntity;
+    return !s.lightmap && !s.weiss && !s.image.empty() && s.video.empty() && !s.ss.aktiv() && farbe && alpha && !s.alphaEntity;
 }
 
 }  // namespace
@@ -969,6 +1013,15 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
     if (const ShaderInfo* si = echtShaderInfo(shader); si != nullptr && !si->stages.empty() && si->stages[0].glow && basisStufen(*si) == 1U &&
                                                        stufeDarstellbar(si->stages[0])) {
         d.glueh.insert(d.glueh.begin(), spielStufe(si->stages[0]));
+    }
+    // p_render: die Bildstufe der Grundstufe (ohne Lightmap die erste, sonst die des Paars) mit tcMod, tcGen, Welle oder animMap
+    if (const ShaderInfo* si = echtShaderInfo(shader); si != nullptr && !d.portal) {
+        const std::size_t ab = basisStufen(*si);
+        const ShaderInfo::Stage* g = ab == 1U ? &si->stages[0] : ab == 2U ? (si->stages[0].lightmap ? &si->stages[1] : &si->stages[0]) : nullptr;
+        if (g != nullptr && stufeDarstellbar(*g)) {
+            d.grund = spielStufe(*g);
+            d.grundBewegt = d.grund.bewegt();
+        }
     }
     return d;
 }

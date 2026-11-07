@@ -2292,6 +2292,8 @@ from i18n_uv1b import zeilen_vier as _uv1b  # noqa: E402  (Modell-Block 1b: UV e
 S += _uv1b()
 from i18n_md1d import zeilen_vier as _md1d  # noqa: E402  (Modell-Block 1d: Modellieren, Requisite in die Karte)
 S += _md1d()
+from i18n_render import zeilen_vier as _render  # noqa: E402  (p_render: bewegte Stufen und Gluehen im Echtzeit-Licht)
+S += _render()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

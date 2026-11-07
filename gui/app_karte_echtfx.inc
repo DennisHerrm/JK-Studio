@@ -264,6 +264,28 @@ void fxLaeuferBauen() {
 
 }  // namespace
 
+// p_render: die Teilchen, deren Shader eine Stufe mit glow hat (tr_shade.cpp: im Gluehdurchgang zeichnet RB_IterateStagesGeneric nur
+// diese Stufen) - Ecken und Zustand fuer gluehenZeichnen in app_karte_cam.cpp
+struct EffektGlueh {
+    kartegpu::Zustand3 z;
+    std::vector<kartegpu::Punkt3> ecken;
+};
+std::vector<EffektGlueh>& effektGluehListe() {
+    static std::vector<EffektGlueh> l;
+    return l;
+}
+const std::vector<EffektGlueh>& echtEffekteGlueh() { return effektGluehListe(); }
+// p_render, nur fuer den Selbsttest (BHED_RD_VORHER=1, Vergleich im selben Lauf): das Gluehen wie vor p_render - nur im Hauptbild,
+// ohne die Effekte
+bool gluehenNurHauptbild() {
+    static const bool an = [] {
+        const char* v = std::getenv("BHED_RD_VORHER");
+        return v != nullptr && v[0] == '1';
+    }();
+    return an;
+}
+void echtEffekteGluehLeeren() { effektGluehListe().clear(); }
+
 // Die Effekte dieses Bilds zeichnen (nach dem Deckenden, im durchscheinenden Teil)
 void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t geoStand, const kartegpu::Zustand3& basis) {
     Editor& ed = e();
@@ -366,6 +388,14 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
         }
         d.resize(d.size() - d.size() % 3);
         if (!d.empty()) { kartegpu::dreiecke(d, z); }
+        // die erste Stufe ist die, die die Effekte zeichnen (RE_RegisterShader): leuchtet sie, geht das Teilchen ins Gluehen
+        if (const ShaderInfo* si = !name.empty() && se != nullptr && !se->istStandard() ? echtShaderInfo(name) : nullptr;
+            si != nullptr && !si->stages.empty() && si->stages[0].glow && !d.empty() && !gluehenNurHauptbild()) {
+            EffektGlueh eg;
+            eg.z = z;
+            eg.ecken = std::move(d);
+            effektGluehListe().push_back(std::move(eg));
+        }
     }
     ed.echtLicht.effektMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }

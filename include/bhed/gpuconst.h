@@ -112,6 +112,11 @@ inline constexpr std::size_t kKonstFloats = kTcGenTAt + 4U;           // 44
 // also braucht sie der Packer.
 void packeKonstanten(const BatchState& bs, float* ziel, float zeitSekunden);
 
+// p_render: die tcMod-Kette als EINE affine Abbildung (ComputeTexMods, rd-rend2 tr_shade.cpp:177), wie packeKonstanten sie
+// schreibt: mat = m0 m1 m2 m3, off = m4 m5, turb: Amplitude und Phase (RB_CalcTurbulentFactors). Auch fuer die Stufen im
+// Echtzeit-Licht des Karten-Editors.
+void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase);
+
 }  // namespace bhed::gpu
 
 #endif  // BHED_GPUCONST_H

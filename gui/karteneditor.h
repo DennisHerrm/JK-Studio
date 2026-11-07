@@ -1159,7 +1159,9 @@ struct Editor {
         bool grasZeit = false;             // die Halme im Bild haengen an der Zeit (ssWindIdle, Effekt-Halme): jedes Bild neu
         // rc610 R3: die Stufen nach der ersten (RB_StageIteratorGeneric) und das Gluehen (RB_BlurGlowTexture) im letzten Bild
         std::size_t weitereStufen = 0;     // Zeichenaufrufe weiterer Stufen (ohne Portalflaechen)
+        std::size_t bewegteStufen = 0;     // p_render: davon Stufen mit tcMod, tcGen, Welle oder animMap
         std::size_t gluehAufrufe = 0;      // Zeichenaufrufe der Stufen mit glow in den Gluehpuffer
+        std::size_t spiegelGlueh = 0;      // p_render: Stapel mit glow in der Spiegel-/Portalsicht
         // Schnell-Backen
         int bauStand = 0;                  // 0 aus, 1 wartet, 2 laeuft, 3 fertig, 4 abgebrochen, 5 Fehler
         double bauSekunden = 0;            // Dauer des letzten Baus

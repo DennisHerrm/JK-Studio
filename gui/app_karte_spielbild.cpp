@@ -570,20 +570,27 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
                 aufrufe += gpu::zeichneKlingen(teilchen, vp, &fk);
             }
         }
-        if (g_app->showGlow && s.bilder.found > 0 && aufrufe > 0) {
-            std::vector<gpu::GluehQuelle> gluehModelle;
-            for (const ModellBild& m : modelle) {
-                gpu::GluehQuelle q;
-                q.mesh = m.netz;
-                std::copy(m.welt, m.welt + 16, q.welt);
-                q.modellLicht = m.licht;
-                gluehModelle.push_back(q);
-            }
-            // Die Effektteilchen mit glow-Stufe gehen mit ins Gluehen, der Rauch nach dem Schalter der Vorschau.
-            gpu::gluehenEffekte(g_app->showEffects ? &effekte : nullptr);
-            aufrufe += gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, gpu::kGluehBreite, gpu::kGluehHoehe, true, &f,
-                                           (g_app->showEffects && g_app->rauchImGluehen) ? &effekte : nullptr, gluehModelle);
+    }
+    // p_render: das Gluehen in jeder Sicht - RB_DrawSurfs (tr_backend.cpp:1335-1389) laeuft fuer jedes RE_RenderScene bzw. jede
+    // Spiegelsicht (R_MirrorViewBySurface -> R_RenderView -> eigenes drawSurfs-Kommando), auch fuer die Szene des Himmelsportals
+    // (CG_DrawSkyBoxPortal) - jeweils in ihr Ziel, im Spiegel mit dessen Schnitt und Wicklung (setzeSpiegelung gilt noch)
+    if (g_app->showGlow && s.bilder.found > 0 && aufrufe > 0) {
+        std::vector<gpu::GluehQuelle> gluehModelle;
+        for (const ModellBild& m : modelle) {
+            gpu::GluehQuelle q;
+            q.mesh = m.netz;
+            std::copy(m.welt, m.welt + 16, q.welt);
+            q.modellLicht = m.licht;
+            gluehModelle.push_back(q);
         }
+        // Die Effektteilchen mit glow-Stufe gehen mit ins Gluehen, der Rauch nach dem Schalter der Vorschau.
+        gpu::gluehenEffekte(g_app->showEffects ? &effekte : nullptr);
+        const int gl = gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, gpu::kGluehBreite, gpu::kGluehHoehe, true, &f,
+                                           (g_app->showEffects && g_app->rauchImGluehen) ? &effekte : nullptr, gluehModelle);
+        aufrufe += gl;
+        if (art == Sicht::Spiegel) { g_stand.spiegelGlueh = gl; }
+    }
+    if (!portal) {
         // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht) - wie die Vorschau.
         if (regelwerkMovieDuels()) { gpu::spielGammaAnwenden(); }
     }
@@ -629,6 +636,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
     // ihren Satz, ohne Himmelsportal (wie der Spiegeldurchgang der Vorschau, der vor dem Himmelsportal kommt).
     g_stand.spiegel = false;
     g_stand.portalKamera = false;
+    g_stand.spiegelGlueh = 0;
     if (s.portalNummer != s.nummer || s.portalBilder != s.bilder.byShader.size()) {
         s.portalNummer = s.nummer;
         s.portalBilder = s.bilder.byShader.size();

@@ -48,36 +48,6 @@ ZEILEN = [
      "Tyto entity hra načítá za běhu s měřítkem, které je zrcadlí (modelscale_vec s jednou nebo třemi zápornými osami, např. po Flip X). "
      "Hra je kreslí bez otočení trojúhelníků, takže je vidět jejich vnitřek - kamera to ukazuje stejně. Jen misc_model otočí q3map2 při "
      "zapečení. Náprava: použít misc_model, nebo místo zrcadlení otočit (dvě zrcadlené osy jsou otočení)."),
-    ("KeLichtGrenzenTip3",
-     "The real-time light is a preview without a build: no bounce, no filter, no supersampling, shadows from shadow maps instead of "
-     "traced rays. The first stage of a shader (or $lightmap with its texture) gets the light; the further stages follow as in the game "
-     "when they have a fixed image without tcMod, tcGen and waves (e.g. GL_ONE GL_ONE), stages with glow also glow like in the game "
-     "(blur and overlay from \"Built map as in the game\"). Mirrors and portals with all their stages, surface sprites (grass) as sprites. "
-     "What the build gives is shown as in the game by \"Built map as in the game\".",
-     "Das Echtzeit-Licht ist eine Vorschau ohne Bau: kein Bounce, kein Filter, kein Supersampling, Schatten aus Schattenkarten statt "
-     "aus Strahlen. Die erste Stufe eines Shaders (bzw. $lightmap mit ihrer Textur) bekommt das Licht; die weiteren Stufen folgen wie im "
-     "Spiel, wenn sie ein festes Bild ohne tcMod, tcGen und Wellen haben (z. B. GL_ONE GL_ONE), Stufen mit glow leuchten auch wie im "
-     "Spiel (Weichzeichnen und Auflegen aus „Gebaute Karte wie im Spiel“). Spiegel und Portale mit allen Stufen, surfaceSprites (Gras) "
-     "als Halme. Was der Bau ergibt, zeigt „Gebaute Karte wie im Spiel“ wie im Spiel.",
-     "实时光照是无需构建的预览:没有反弹、没有滤波、没有超采样,阴影来自阴影贴图而非光线追踪。着色器的第一阶段(或 $lightmap 及其纹理)获得光照;"
-     "后续阶段若使用固定图像且没有 tcMod、tcGen 和波形(例如 GL_ONE GL_ONE),则与游戏中一样叠加,带 glow 的阶段也与游戏中一样发光"
-     "(模糊和叠加与“已构建的地图如游戏中显示”相同)。镜子和传送门显示全部阶段,表面精灵(草)显示为精灵。构建的结果由“已构建的地图如游戏中显示”"
-     "按游戏中的样子显示。",
-     "リアルタイムライトはビルドなしのプレビューです。バウンスなし、フィルターなし、スーパーサンプリングなし、影はレイではなくシャドウマップから。"
-     "シェーダーの最初のステージ (または $lightmap とそのテクスチャ) が光を受け、以降のステージは tcMod・tcGen・波形のない固定画像なら "
-     "(例: GL_ONE GL_ONE) ゲームと同じように重なり、glow 付きのステージもゲームと同じように光ります (ぼかしと合成は「ビルドしたマップを"
-     "ゲームと同じ表示に」と共通)。鏡とポータルは全ステージ、サーフェススプライト (草) はスプライトとして表示します。ビルドの結果は"
-     "「ビルドしたマップをゲームと同じ表示に」でゲームと同じように表示されます。",
-     "La luz en tiempo real es una vista previa sin compilar: sin rebote, sin filtro, sin supermuestreo, sombras de mapas de sombras en "
-     "lugar de rayos. La primera etapa de un shader (o $lightmap con su textura) recibe la luz; las etapas siguientes se suman como en el "
-     "juego cuando tienen una imagen fija sin tcMod, tcGen ni ondas (p. ej. GL_ONE GL_ONE), y las etapas con glow brillan también como en "
-     "el juego (desenfoque y superposición de «Mapa compilado como en el juego»). Los espejos y portales con todas sus etapas, los surface "
-     "sprites (hierba) como sprites. Lo que da la compilación lo muestra como en el juego «Mapa compilado como en el juego».",
-     "Světlo v reálném čase je náhled bez sestavení: bez odrazů, bez filtru, bez supersamplingu, stíny ze stínových map místo paprsků. "
-     "První fáze shaderu (nebo $lightmap s její texturou) dostane světlo; další fáze se přidají jako ve hře, pokud mají pevný obrázek bez "
-     "tcMod, tcGen a vln (např. GL_ONE GL_ONE), fáze s glow také září jako ve hře (rozmazání a překrytí z „Sestavená mapa jako ve hře“). "
-     "Zrcadla a portály se všemi fázemi, surface sprity (tráva) jako sprity. Co dá sestavení, ukazuje jako ve hře „Sestavená mapa jako ve "
-     "hře“."),
 ]
 
 

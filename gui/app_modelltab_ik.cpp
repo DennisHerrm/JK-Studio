@@ -13,6 +13,7 @@
 //                  anderen Hand ("Saebel an die andere Hand"); das Spiel haengt den Saebel per Code an *r_hand/*l_hand
 //                  (G2API_AttachG2Model, cg_players.cpp) - die Animation bewegt die Haende.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/ik.h"
@@ -608,15 +609,15 @@ void drawModellIkBereich() {
     ImGui::Separator();
     if (jetzt < 0) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::MbIkGliedWaehlen));
+        cjkTextDisabled("%s", tr(Str::MbIkGliedWaehlen));
         ImGui::PopTextWrapPos();
         return;
     }
-    ImGui::TextUnformatted(artName(jetzt));
+    cjkTextUnformatted(artName(jetzt));
     const int i = modell::ikSpurIndex(s, static_cast<modell::IkArt>(jetzt));
     const modell::IkZiel z = i >= 0 ? modell::ikZielAm(s.ik[static_cast<std::size_t>(i)], static_cast<float>(bildJetzt()), g_app->modellWelt) : modell::IkZiel{};
     ImGui::SameLine();
-    ImGui::TextDisabled("%s", format(Str::MbIkStand, z.da && z.ik >= 0.5F ? "IK" : "FK", i >= 0 ? static_cast<int>(s.ik[static_cast<std::size_t>(i)].ziel.size()) : 0).c_str());
+    cjkTextDisabled("%s", format(Str::MbIkStand, z.da && z.ik >= 0.5F ? "IK" : "FK", i >= 0 ? static_cast<int>(s.ik[static_cast<std::size_t>(i)].ziel.size()) : 0).c_str());
     // Raum (Child Of / Space Switching)
     static const Str kRaum[5] = {Str::MbIkRaumWelt, Str::MbIkRaumBecken, Str::MbIkRaumBrust, Str::MbIkRaumKopf, Str::MbIkRaumHand};
     int raumJetzt = 0;

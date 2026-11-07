@@ -9,6 +9,7 @@
 // ModellTab::rt. Das Ergebnis wird sofort wie im Spiel gepackt (rtBacken, compressBone) - die Vorschau zeigt die gepackte
 // GLA, so wie das Spiel sie spielt.
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "platform.h"
 
 #include "bhed/modell/retarget.h"
@@ -500,7 +501,7 @@ void drawModellRetargetBereich() {
     if (ImGui::Button(tr(Str::RtQuelleWaehlen))) { r.quelleWaehlen = true; }
     ImGui::SetItemTooltip("%s", tr(Str::RtQuelleWaehlenHint));
     if (r.quelle.bones.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::RtQuelleKeine));
+        cjkTextDisabled("%s", tr(Str::RtQuelleKeine));
         ImGui::PopTextWrapPos();
         return;
     }
@@ -515,9 +516,9 @@ void drawModellRetargetBereich() {
         }
         quellText = ".../" + kurz;
     }
-    ImGui::TextUnformatted(format(Str::RtQuelle, quellText.c_str(), static_cast<int>(r.quelle.bones.size()), charakterText(r.cq).c_str()).c_str());
+    cjkTextUnformatted(format(Str::RtQuelle, quellText.c_str(), static_cast<int>(r.quelle.bones.size()), charakterText(r.cq).c_str()).c_str());
     ImGui::SetItemTooltip("%s", r.quelleFuer.c_str());
-    ImGui::TextUnformatted(format(Str::RtZiel, glaPfad().c_str(), static_cast<int>(g_app->anim.bones.size()), charakterText(r.cz).c_str()).c_str());
+    cjkTextUnformatted(format(Str::RtZiel, glaPfad().c_str(), static_cast<int>(g_app->anim.bones.size()), charakterText(r.cz).c_str()).c_str());
     // Sequenz der Quelle
     ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::RtSequenz)).x - ImGui::GetStyle().ItemInnerSpacing.x);
     if (ImGui::BeginCombo(tr(Str::RtSequenz), d.sequenz.empty() ? tr(Str::RtSequenzAlle) : d.sequenz.c_str(), ImGuiComboFlags_HeightLarge)) {
@@ -567,7 +568,7 @@ void drawModellRetargetBereich() {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 const std::string zn = ketteName(r.cz, static_cast<int>(i), g_app->anim);
-                ImGui::TextUnformatted(zn.c_str());
+                cjkTextUnformatted(zn.c_str());
                 if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", zn.c_str()); }
                 ImGui::TableNextColumn();
                 const int j = i < d.zu.quelle.size() ? d.zu.quelle[i] : -1;
@@ -609,14 +610,14 @@ void drawModellRetargetBereich() {
         }
         const float ab = r.bericht.poseAbweichung;
         if (ab > 5.0F) {
-            ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
+            cjkTextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
         } else {
-            ImGui::TextDisabled("%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
+            cjkTextDisabled("%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
         }
         // von Hand: der gewaehlte Knochen des Ziels um seine Achsen
         const int k = gewaehlterKnochen();
         if (k >= 0 && static_cast<std::size_t>(k) < g_app->anim.bones.size()) {
-            ImGui::TextUnformatted(format(Str::RtPoseKnochen, g_app->anim.bones[static_cast<std::size_t>(k)].name.c_str()).c_str());
+            cjkTextUnformatted(format(Str::RtPoseKnochen, g_app->anim.bones[static_cast<std::size_t>(k)].name.c_str()).c_str());
             static const char* const kAchsen[3] = {"X", "Y", "Z"};
             for (int ach = 0; ach < 3; ++ach) {
                 for (const float grad : {-5.0F, 5.0F}) {
@@ -641,7 +642,7 @@ void drawModellRetargetBereich() {
                 }
             }
         } else {
-            ImGui::TextDisabled("%s", tr(Str::RtKnochenWahl));
+            cjkTextDisabled("%s", tr(Str::RtKnochenWahl));
         }
         if (ImGui::SmallButton(tr(Str::RtPoseZurueck))) {
             (void)modellRtEinstellen(tr(Str::RtUndoPose), [](modell::RetargetDaten& x) {
@@ -740,7 +741,7 @@ void drawModellRetargetBereich() {
             ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
         } else {
             ImGui::SameLine();
-            ImGui::TextDisabled("%s", format(Str::RtLaengeWert, static_cast<double>(r.bericht.k)).c_str());
+            cjkTextDisabled("%s", format(Str::RtLaengeWert, static_cast<double>(r.bericht.k)).c_str());
         }
         ImGui::TreePop();
     } else {
@@ -749,17 +750,17 @@ void drawModellRetargetBereich() {
     // Pruefen
     ImGui::Separator();
     if (!r.bericht.fehler.empty()) {
-        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtQuelleFehler, r.bericht.fehler.c_str()).c_str());
+        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtQuelleFehler, r.bericht.fehler.c_str()).c_str());
     } else if (!r.welt.empty()) {
-        ImGui::TextDisabled("%s", format(Str::RtErgebnis, r.bericht.knochenMitQuelle, static_cast<int>(g_app->anim.bones.size()), r.bericht.kettenZugeordnet,
+        cjkTextDisabled("%s", format(Str::RtErgebnis, r.bericht.knochenMitQuelle, static_cast<int>(g_app->anim.bones.size()), r.bericht.kettenZugeordnet,
                                          static_cast<double>(r.bericht.k), r.ms)
                                       .c_str());
         const bool rutscht = r.bericht.rutschenMax > std::max(0.5F, r.bericht.rutschenQuelle * 1.5F);
         const std::string rt_ = format(Str::RtRutschen, static_cast<double>(r.bericht.rutschenMax), static_cast<double>(r.bericht.rutschenQuelle));
         if (rutscht) {
-            ImGui::TextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", rt_.c_str());
+            cjkTextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", rt_.c_str());
         } else {
-            ImGui::TextUnformatted(rt_.c_str());
+            cjkTextUnformatted(rt_.c_str());
         }
         ImGui::SetItemTooltip("%s", tr(Str::RtRutschenHint));
         // Fussrutsch-Messer je Bild (links + rechts), Spruenge rot darunter
@@ -780,9 +781,9 @@ void drawModellRetargetBereich() {
             dl->AddLine(ImVec2{x, lo.y}, ImVec2{x, lo.y + h}, IM_COL32(250, 230, 80, 230), 1.0F);
         }
         if (r.bericht.spruenge.empty()) {
-            ImGui::TextDisabled("%s", tr(Str::RtKeineSpruenge));
+            cjkTextDisabled("%s", tr(Str::RtKeineSpruenge));
         } else {
-            ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtSpruenge, static_cast<int>(r.bericht.spruenge.size())).c_str());
+            cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtSpruenge, static_cast<int>(r.bericht.spruenge.size())).c_str());
             for (std::size_t i = 0; i < r.bericht.spruenge.size() && i < 12; ++i) {
                 ImGui::PushID(static_cast<int>(i));
                 if (i > 0) { daneben("0000"); }
@@ -926,10 +927,10 @@ void drawModellPresetBereich() {
     ImGui::SetItemTooltip("%s", tr(Str::PrAuflegenHint));
     if (d.vonPreset && !r.welt.empty()) {
         const modell::GangBefund& b = r.gang;
-        ImGui::TextDisabled("%s", format(Str::PrBefund, static_cast<double>(modell::gangZyklus(d.gang)), static_cast<int>(r.welt.size()), presetFps(d.gang),
+        cjkTextDisabled("%s", format(Str::PrBefund, static_cast<double>(modell::gangZyklus(d.gang)), static_cast<int>(r.welt.size()), presetFps(d.gang),
                                          static_cast<double>(b.bodenAbw), static_cast<double>(b.gleitAbw), static_cast<double>(b.naht))
                                       .c_str());
-        ImGui::TextDisabled("%s", tr(Str::PrLizenz));
+        cjkTextDisabled("%s", tr(Str::PrLizenz));
     }
     ImGui::PopTextWrapPos();
 }

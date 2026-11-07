@@ -15,6 +15,7 @@
 //                 gezogene Punkt das IK-Ziel an diesem Frame (wie 3ds Max Bewegung > Trajektorien: Schluessel auf der Bahn
 //                 verschieben), ein Rueckgaengig-Schritt.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/ik.h"
@@ -464,9 +465,9 @@ void drawRegler() {
         return;
     }
     t.kvReglerSichtbar = ImGui::GetFrameCount();
-    ImGui::TextUnformatted(tr(static_cast<Str>(t.kvReglerText)));
+    cjkTextUnformatted(tr(static_cast<Str>(t.kvReglerText)));
     ImGui::PushTextWrapPos(fs * 21.0F);
-    ImGui::TextDisabled("%s", tr(static_cast<Str>(t.kvReglerHinweis)));
+    cjkTextDisabled("%s", tr(static_cast<Str>(t.kvReglerHinweis)));
     ImGui::PopTextWrapPos();
     const ReglerArt art = static_cast<ReglerArt>(t.kvRegler);
     ImGui::SetNextItemWidth(-1.0F);
@@ -751,7 +752,7 @@ std::vector<std::pair<std::string, std::string>> posenDateien() {
 
 void posenLadenMenue() {
     const auto d = posenDateien();
-    if (d.empty()) { ImGui::TextDisabled("%s", format(Str::MbIkPosenKeine, modellPosenOrdner().c_str()).c_str()); }
+    if (d.empty()) { cjkTextDisabled("%s", format(Str::MbIkPosenKeine, modellPosenOrdner().c_str()).c_str()); }
     for (const auto& [n, pfad] : d) {
         if (ImGui::MenuItem(n.c_str())) { (void)modellPosenLaden(pfad); }
         ImGui::SetItemTooltip("%s", pfad.c_str());
@@ -1819,7 +1820,7 @@ void drawModellAnimEditorUnten(ImVec2 groesse) {
     modellKlickPruefen();   // ein Klick hier gehoert zum Model-Tab (Tasten, Fokus)
     const auto ab = std::chrono::steady_clock::now();
     if (ImGui::BeginMenuBar()) {
-        ImGui::TextUnformatted(tr(titel));
+        cjkTextUnformatted(tr(titel));
         ImGui::Separator();
         // die Ansichten umschalten wie die Editor-Art in Blender bzw. der Modus der Track View
         if (ImGui::MenuItem(tr(blender ? Str::MbKvDsBl : Str::MbKvDsOeffnen), nullptr, t.kvArt == 0)) {
@@ -1858,10 +1859,10 @@ void drawModellAnimEditorUnten(ImVec2 groesse) {
         ImGui::EndMenuBar();
     }
     const modell::RigSchicht& s = schicht();
-    ImGui::TextDisabled("%s  |  %s", sequenzName().c_str(), tr(s.bindeBasis ? Str::MbKvBasisBinde : Str::MbKvBasisQuelle));
+    cjkTextDisabled("%s  |  %s", sequenzName().c_str(), tr(s.bindeBasis ? Str::MbKvBasisBinde : Str::MbKvBasisQuelle));
     if (s.leer()) {
         ImGui::SameLine();
-        ImGui::TextDisabled("  %s", tr(Str::MbKvKeineSchluessel));
+        cjkTextDisabled("  %s", tr(Str::MbKvKeineSchluessel));
     }
     const ImVec2 rest = ImGui::GetContentRegionAvail();
     if (rest.x > fs * 4.0F && rest.y > fs * 3.0F) {
@@ -1908,7 +1909,7 @@ void drawModellKurvenBereich() {
     ImGui::InputTextWithHint("##kvposename", tr(Str::MbKvPoseName), t.kvPoseName, sizeof t.kvPoseName);
     if (knopf(Str::MbKvPoseSpeichern, Str::MbKvPoseSpeichernHint, false)) { (void)poseSpeichern(); }
     const auto& posen = t.dok.inhalt().rig.posen;
-    if (posen.empty()) { ImGui::TextDisabled("%s", tr(Str::MbKvPoseLeer)); }
+    if (posen.empty()) { cjkTextDisabled("%s", tr(Str::MbKvPoseLeer)); }
     for (std::size_t i = 0; i < posen.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         if (ImGui::Selectable(posen[i].name.c_str(), t.kvPoseWahl == static_cast<int>(i))) { t.kvPoseWahl = static_cast<int>(i); }

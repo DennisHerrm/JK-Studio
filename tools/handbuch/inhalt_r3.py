@@ -13,35 +13,40 @@ X = {
         "like the game (RB_StageIteratorGeneric) - for example `{ map $lightmap } { map texture blendFunc GL_DST_COLOR GL_ZERO } "
         "{ map texture_glw blendFunc GL_ONE GL_ONE glow }`: the first two become the lit texture, the third is added on top. Stages with "
         "`glow` also glow like in the game: they go into a glow buffer with the depth of the scene, which is blurred and laid over the "
-        "picture with the same code as **{{KeSpielbildMenue}}**. Drawn are stages with a fixed image and without tcMod, tcGen and waves; "
-        "the others stay away until the build. The editor light (without real-time light) shows only the editor image, like NetRadiant-Custom.",
+        "picture with the same code as **{{KeSpielbildMenue}}**. Stages with tcMod, tcGen environment/vector, rgbGen/alphaGen wave or animMap "
+        "move as in the game (at the shader time of **{{KeSpielbildMenue}}**), and glow also shows in mirrors, portals and on effects; video "
+        "stages and rgbGen vertex/lightingDiffuse stay away until the build. The editor light (without real-time light) shows only the editor image, like NetRadiant-Custom.",
         "**Weitere Stufen und Glow:** neben der ersten Stufe mit ihrem Licht zeichnet das Echtzeit-Licht die weiteren Stufen eines Shaders "
         "wie das Spiel (RB_StageIteratorGeneric) - zum Beispiel `{ map $lightmap } { map textur blendFunc GL_DST_COLOR GL_ZERO } "
         "{ map textur_glw blendFunc GL_ONE GL_ONE glow }`: die ersten beiden werden die beleuchtete Textur, die dritte kommt obendrauf. "
         "Stufen mit `glow` leuchten auch wie im Spiel: sie gehen mit der Tiefe der Szene in einen Leuchtpuffer, der mit demselben Code wie "
-        "**{{KeSpielbildMenue}}** weichgezeichnet und über das Bild gelegt wird. Gezeichnet werden Stufen mit festem Bild ohne tcMod, tcGen "
-        "und Wellen; die übrigen fehlen bis zum Bau. Das Editor-Licht (ohne Echtzeit-Licht) zeigt nur das Editorbild, wie NetRadiant-Custom.",
+        "**{{KeSpielbildMenue}}** weichgezeichnet und über das Bild gelegt wird. Stufen mit tcMod, tcGen environment/vector, rgbGen/alphaGen "
+        "wave oder animMap bewegen sich wie im Spiel (zur Shaderzeit von **{{KeSpielbildMenue}}**), und das Leuchten zeigt sich auch im "
+        "Spiegel, im Portal und an Effekten; Videostufen und rgbGen vertex/lightingDiffuse fehlen bis zum Bau. Das Editor-Licht (ohne Echtzeit-Licht) zeigt nur das Editorbild, wie NetRadiant-Custom.",
         "**后续阶段和发光:**除了带光照的第一阶段,实时光照还会像游戏一样(RB_StageIteratorGeneric)绘制着色器的后续阶段——例如 "
         "`{ map $lightmap } { map texture blendFunc GL_DST_COLOR GL_ZERO } { map texture_glw blendFunc GL_ONE GL_ONE glow }`:前两个阶段成为受光照的纹理,"
         "第三个叠加在上面。带 `glow` 的阶段也像游戏中一样发光:它们带着场景深度进入发光缓冲区,再用与 **{{KeSpielbildMenue}}** 相同的代码模糊并叠加到画面上。"
-        "绘制的是使用固定图像、没有 tcMod、tcGen 和波形的阶段;其他阶段要到构建后才显示。编辑器光照(不开实时光照)只显示编辑器图像,与 NetRadiant-Custom 相同。",
+        "带 tcMod、tcGen environment/vector、rgbGen/alphaGen wave 或 animMap 的阶段会像游戏中一样运动(使用 **{{KeSpielbildMenue}}** 的着色器时间),发光在镜子、传送门中和特效上也会显示;视频阶段和 rgbGen vertex/lightingDiffuse 要到构建后才显示。编辑器光照(不开实时光照)只显示编辑器图像,与 NetRadiant-Custom 相同。",
         "**後続ステージとグロー:**リアルタイムライトは、光を受ける最初のステージに加えて、シェーダーの後続ステージもゲームと同じように"
         "(RB_StageIteratorGeneric)描きます。たとえば `{ map $lightmap } { map texture blendFunc GL_DST_COLOR GL_ZERO } "
         "{ map texture_glw blendFunc GL_ONE GL_ONE glow }` では、最初の 2 つが照らされたテクスチャになり、3 つ目が上に加わります。`glow` 付きのステージも"
         "ゲームと同じように光ります。シーンの深度を使ってグローバッファーに描かれ、**{{KeSpielbildMenue}}** と同じコードでぼかされて画面に重ねられます。"
-        "描かれるのは固定画像で tcMod・tcGen・波形のないステージで、それ以外はビルドまで表示されません。エディターライト(リアルタイムライトなし)は"
+        "tcMod、tcGen environment/vector、rgbGen/alphaGen wave、animMap のステージもゲームと同じように動き (**{{KeSpielbildMenue}}** のシェーダー時間)、グローは鏡やポータルの中、エフェクトでも表示されます。ビデオステージと rgbGen vertex/lightingDiffuse はビルドまで表示されません。エディターライト(リアルタイムライトなし)は"
         "NetRadiant-Custom と同じくエディター画像だけを表示します。",
         "**Etapas siguientes y glow:** además de la primera etapa con su luz, la luz en tiempo real dibuja las etapas siguientes de un shader "
         "como el juego (RB_StageIteratorGeneric); por ejemplo `{ map $lightmap } { map textura blendFunc GL_DST_COLOR GL_ZERO } "
         "{ map textura_glw blendFunc GL_ONE GL_ONE glow }`: las dos primeras forman la textura iluminada y la tercera se suma encima. Las "
         "etapas con `glow` también brillan como en el juego: van con la profundidad de la escena a un búfer de brillo que se desenfoca y se "
-        "superpone a la imagen con el mismo código que **{{KeSpielbildMenue}}**. Se dibujan las etapas con imagen fija y sin tcMod, tcGen ni "
-        "ondas; las demás faltan hasta compilar. La luz del editor (sin luz en tiempo real) muestra solo la imagen del editor, como NetRadiant-Custom.",
+        "superpone a la imagen con el mismo código que **{{KeSpielbildMenue}}**. Las etapas con tcMod, tcGen environment/vector, rgbGen/alphaGen "
+        "wave o animMap se mueven como en el juego (con el tiempo de shader de **{{KeSpielbildMenue}}**), y el brillo también se ve en "
+        "espejos, portales y efectos; las etapas de vídeo y rgbGen vertex/lightingDiffuse faltan hasta compilar. La luz del editor (sin luz en tiempo real) muestra solo la imagen del editor, como NetRadiant-Custom.",
         "**Další fáze a glow:** kromě první fáze s jejím světlem kreslí světlo v reálném čase další fáze shaderu jako hra "
         "(RB_StageIteratorGeneric) - například `{ map $lightmap } { map textura blendFunc GL_DST_COLOR GL_ZERO } "
         "{ map textura_glw blendFunc GL_ONE GL_ONE glow }`: první dvě tvoří osvětlenou texturu, třetí se přidá navrch. Fáze s `glow` také "
         "září jako ve hře: jdou s hloubkou scény do zářícího bufferu, který se rozmaže a položí přes obraz stejným kódem jako "
-        "**{{KeSpielbildMenue}}**. Kreslí se fáze s pevným obrázkem bez tcMod, tcGen a vln; ostatní chybí až do sestavení. Světlo editoru (bez "
+        "**{{KeSpielbildMenue}}**. Fáze s tcMod, tcGen environment/vector, rgbGen/alphaGen wave nebo animMap se "
+        "pohybují jako ve hře (v čase shaderu z **{{KeSpielbildMenue}}**) a záře je vidět i v zrcadle, v portálu a na efektech; video fáze a "
+        "rgbGen vertex/lightingDiffuse chybí až do sestavení. Světlo editoru (bez "
         "světla v reálném čase) ukazuje jen obrázek editoru, jako NetRadiant-Custom."),
     "glow_bild": (
         "A panel with a glow shader in real-time light: the added glow texture and the soft glow around it.",

@@ -4392,7 +4392,10 @@ void drawMapView() {
                     if (nk2 == 0 && f.empty()) { f = fk; }
                 }
                 // --- Das Gluehen, ganz zuletzt -------------------------
-                if (!nebenbild && g_app->gpuAufrufe > 0 && g_app->showGlow &&
+                // p_render: auch in der Spiegel-/Portalsicht und der Szene des Himmelsportals - RB_DrawSurfs (tr_backend.cpp:
+                // 1335-1389) laeuft je drawSurfs-Kommando, R_MirrorViewBySurface und CG_DrawSkyBoxPortal haben ihr eigenes (die
+                // Leuchtstufen der Figuren dort weiter nicht, gluehenFigurenBeginnen)
+                if ((!nebenbild || g_app->imSpiegelDurchgang || g_app->imPortalDurchgang) && g_app->gpuAufrufe > 0 && g_app->showGlow &&
                     g_app->textures.found > 0) {
                     gpu::beginneMessung(gpu::Abschnitt::Gluehen);
                     std::string fg;

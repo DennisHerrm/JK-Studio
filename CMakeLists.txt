@@ -42,6 +42,8 @@ add_library(bhed_core STATIC
   # rc601 tour: Tutorials im Programm - Daten, Zielangaben, Pruefungen,
   # Ablauf, Fortschritt, Suche im Handbuch (die Oberflaeche: gui/tour.cpp).
   src/tour.cpp
+  # p_render: Zeilenumbruch mit CJK-Zeichen (gui/textumbruch.cpp nutzt ihn fuer ImGui-Text).
+  src/umbruch.cpp
   # H1: der Helfer - Index ueber Touren, Handbuch, Menues und Einstellungen.
   src/hilfe.cpp
   # H1: die freiwillige KI-Anbindung - Werkzeuge, MCP (JSON-RPC), HTTP-Pruefung, Chat.
@@ -578,6 +580,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # rc601 tour: das Element-Register (bis rc600 in selbsttest.cpp) - auch
     # fuer die Tutorials im Programm, gefiltert.
     gui/elemente.cpp
+    # p_render: ImGui-Text mit Umbruch zwischen CJK-Zeichen.
+    gui/textumbruch.cpp
     # rc601 tour: Tutorials im Programm - Fenster, Hervorhebung, Auswertung.
     gui/tour.cpp
     # H1: Messwerte aller Bereiche fuer die Tutorials (zahl:<name>).
@@ -824,6 +828,10 @@ if(BEHAVED_TESTS)
   add_executable(tourtest tests/tourtest.cpp)
   target_link_libraries(tourtest PRIVATE bhed_core)
   add_test(NAME tour COMMAND tourtest ${CMAKE_CURRENT_SOURCE_DIR}/handbuch)
+  # p_render: Zeilenumbruch mit CJK-Zeichen (Zeilenanfang/-ende-Sperren, lateinisch wie ImGui).
+  add_executable(umbruchtest tests/umbruchtest.cpp)
+  target_link_libraries(umbruchtest PRIVATE bhed_core)
+  add_test(NAME umbruch COMMAND umbruchtest)
   # H1: der Helfer - Woerter, Ortskatalog, Trefferquote (Top 3, vier Sprachen).
   add_executable(hilfetest tests/hilfetest.cpp)
   target_link_libraries(hilfetest PRIVATE bhed_core)

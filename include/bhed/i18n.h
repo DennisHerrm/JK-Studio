@@ -4713,7 +4713,6 @@ enum class Str {
     MeMdMpFehlt,
     KeOptPrModellGespiegelt,
     KeOptPrModellGespiegeltE,
-    KeLichtGrenzenTip3,
     KeMbMenue,
     KeMbTip,
     KeMbKeins,
@@ -5325,6 +5324,7 @@ enum class Str {
     MdRequisitFehlt,
     MdRequisitGeholt,
     MdImModelTab,
+    KeLichtGrenzenTip4,
     Count,
 };
 

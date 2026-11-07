@@ -1957,8 +1957,11 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
                     cur.customSkin = "default";
                 }
                 // rc604 jk2: der erste Eintrag gewinnt (NPC_ParseParms sucht
-                // von vorn im Puffer aus NPCs.cfg und *.npc).
-                if (!jk2 || out.find(key) == out.end()) {
+                // von vorn im Puffer aus NPCs.cfg und *.npc). p_render: in Jedi Academy und Movie Duels ebenso - NPC_LoadParms
+                // haengt die .npc-Dateien in der Reihenfolge von FS_GetFileList hintereinander (MD9 code/game/NPC_stats.cpp:
+                // 4740-4800, OpenJK gleich), NPC_ParseParms sucht den Namen von vorn (:2407-2425). StOfficerAlt: Movie Duels nimmt
+                // den Block aus MD_Assets.pk3 z_JO_NPCs.npc (customSkin officer), JKA den aus stofficer.npc - nicht stofficeralt.npc.
+                if (out.find(key) == out.end()) {
                     out[key] = cur;
                 }
             }
