@@ -217,6 +217,43 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Original-JKA grosse GLA (Punkt 5): Skript startet im Original seit 08.11. auch ohne Karten-GLA nicht; Ursache offen.
 - Menue-Editor-Bildlauf ja/zh: 6/7 rote Zeilen (Altbestand seit 03.11.), die Bilder danach blieben alt.
 
+# MR6 (08.11.2026, gleicher Worktree, Basis 02dfe2d5a, Laeufe `m6_*`)
+
+## MR6 Punkt 1: Original-JKA startet das ICARUS-Skript nicht - Ursache gefunden, grosse GLA gemessen
+
+- Kein Unterschied in den Dateien: Karte, `kam3.IBI`, `ms0.cfg` und das geschriebene `jaconfig.cfg` sind bytegleich mit dem Lauf vom
+  04.11. (`sp_654alt/ms0/home_oa`), die Konsolenlogs bis auf Serverkennung und Karten-GLA-Zeilen gleich. Auch nicht der Pfad nach dem
+  Umzug: `m6_y` (fs_basepath ueber das subst-Laufwerk Y:) und `m6_c` (derselbe Ordner ueber den echten C:-Pfad) schlagen beide fehl.
+  Seit 05.11. liegen Steam-Cloud-Spielstaende in `GameData\base\saves` (shanks, vom April) - im Lauf nicht beteiligt.
+- Ursache ist ein Wettlauf in der Ablauf-cfg, kein Spielfehler: `runscript ms0npc ms0/kam3` kam, bevor das NPC skriptfaehig war.
+  `npc spawn` legt das NPC sofort mit targetname an (NPC_Spawn_Do, OpenJK `code/game/NPC_spawn.cpp:1688-1689`), die ICARUS-Nummer
+  bekommt es aber erst in NPC_Begin (`NPC_spawn.cpp:1245` -> `Q3_Interface.cpp:7517-7526` InitEntity), eine Denkrunde spaeter
+  (`:1758-1759`) bzw. bei belegter Stelle in Schritten von 0,5 s (`:1012-1016`). Davor findet runscript das NPC, aber
+  `Run(ICARUS_INVALID, ...)` tut nichts und meldet nichts (`Q3_Interface.cpp:7768-7785`, DebugPrint nur im Debug-Bau).
+- Die cfg wartet in Bildern (`wait 120` nach dem Spawn, `wait 60` vor runscript). Gemessen mit Zeitmarken im Konsolenlog
+  (`orig_m6.py`, logfile 2): das Original laeuft hier mit rund 180 Bildern/s (1000 Bilder = 5,53 s, com_maxfps 85 greift nicht),
+  also 180 Bilder = 1,0 s vom Spawn bis runscript. `m6_k` (runscript alle 100 Bilder): der Versuch 1,0 s nach dem Spawn bleibt
+  wirkungslos, der bei 1,55 s startet das Skript. `m6_j`: erster Aufruf wirkungslos, zweiter 5,5 s spaeter startet. `m6_e`
+  (Skript auf dem Spieler, der schon eine Nummer hat): startet sofort. In `m6_y`/`m6_c` kam dazu "NPC ms0npc ... couldn't spawn,
+  waiting 0.50 secs" (Stelle belegt). Movie Duels (OpenJK) haelt com_maxfps 85 ein - 180 Bilder = 2,1 s, darum lief es dort.
+  Am 04.11. reichte die Zeit; die Bildrate von damals ist nicht mehr messbar (Fotos ohne Zeitbezug), Last durch parallele Laeufe
+  ist die naheliegende Erklaerung.
+- Behebung (Laufskript, nicht Programm): `cfg_m6o.cfg` = Aufbau wie MR4, aber `wait 600` nach dem Spawn und `wait 300` vor runscript.
+  JK Studio selbst erzeugt keine runscript-Befehle (gesucht in src/), betroffen waren nur diese Spielnachweise.
+
+| Lauf | Aufbau | Ergebnis |
+|---|---|---|
+| `m6_y` (rot) | wie MR5 `o0` (ohne Karten-GLA), wait 120/60 | Kamera bleibt beim Spieler, 9 Fotos gleich |
+| `m6_g` (gruen) | ohne Karten-GLA, wait 600/300 | Kamera von oben ab 14 s |
+| `m6_o131070` (gruen) | Karten-GLA 131070 Frames, 118 MB, BOTH_CIN_16 ab 63801 | geladen (sucht `_humanoid_ms0kart.cfg`), Figur 607,1173 -> 492,270, nach dem Skript zurueck |
+| `m6_okreuz` (gruen) | dieselbe GLA, BOTH_CIN_16 ab 65400 (bis 65603) | spielt ueber 65535 hinaus, kurze Bahn 657,1140 -> 601,1175 wie in MD (`gkreuz`) |
+
+- Ergebnis Original-JKA: die groesste moegliche Karten-GLA (131070 Frames, Vorrat 6946710 Eintraege) laedt und spielt, ohne
+  Speichermeldung. Die Endlage 492,270 ist auf 1-2 Bildpunkte gleich wie mit der kleinen GLA (3124 Frames) im Lauf vom 04.11.
+  (`oa`: 493,270). Damit gilt die Aussage aus MR4 Punkt 6 (keine weitere Groessengrenze, Pruefung im Tool: Anfang/Anzahl <= 65535,
+  Vorrat 24 Bit) auch im Original. GameData nach jedem Lauf gleich, vor jedem Start Steam/ActiveUser geprueft, kein fremder jasp.
+- Laeufe und Skripte: `Y:\werkzeuge\m4\ms6\` (`orig_m6.py`, `cfg_m6*.cfg`, `laeufe\m6_*`).
+
 ## Changelog
 
 ## English
