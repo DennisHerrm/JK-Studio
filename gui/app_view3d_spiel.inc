@@ -4220,6 +4220,9 @@ void loadActorModels() {
         // G2_ComputeLOD gewaehlte. Gemessen in Movie Duels (Testkarte p27g, Sturmtruppler scale 70 in 500 Einheiten):
         // die kleine Figur zeichnet das Spiel in Stufe 1 (mit r_lodscale 20 in Stufe 0 gleich der Vorschau). Jede Stufe
         // hat dieselben Flaechen (mdxmLOD_t je Flaeche), Haut und Ghoul2-Zustand kommen aus Stufe 0.
+        // FIX6 P52: aus einer Huelle von Stufe 0 ohne Netz - vorher kopierte jede Stufe erst alle Ecken und Indizes von
+        // Stufe 0 (sofort verworfen) und behielt die groebste Stufe (grobVerts, nur fuer Spuren am Stufe-0-Modell).
+        const GlmModel huelle = assets.model.numLods > 1 ? glmOhneNetz(assets.model) : GlmModel{};
         for (int n = 1; n < assets.model.numLods && n < 16; ++n) {
             GlmModel g;
             std::string fehlerStufe;
@@ -4227,7 +4230,7 @@ void loadActorModels() {
                 diag::info("Modell " + assets.model.name + ": Detailstufe " + std::to_string(n) + " nicht lesbar - " + fehlerStufe);
                 break;
             }
-            GlmModel stufe = assets.model;
+            GlmModel stufe = huelle;
             for (std::size_t s = 0; s < stufe.surfaces.size(); ++s) {
                 stufe.surfaces[s].verts = std::move(g.surfaces[s].verts);
                 stufe.surfaces[s].indexes = std::move(g.surfaces[s].indexes);

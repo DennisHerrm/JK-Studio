@@ -86,6 +86,42 @@ int main(int argc, char** argv) {
                m.surfaces[3].texture == "models/players/x/torso.tga");
     }
 
+    // --- FIX6 P52: glmOhneNetz - Huelle fuer die Detailstufen, ohne Netz, alles andere wie Stufe 0 ----
+    {
+        bhed::GlmModel m;
+        m.name = "models/players/x/model";
+        m.animFile = "models/players/_humanoid/_humanoid";
+        m.numBones = 53;
+        m.numLods = 4;
+        m.maxs[2] = 64.0F;
+        bhed::GlmSurface s;
+        s.name = "torso";
+        s.texture = "models/players/x/torso.tga";
+        s.hautZeile = 2;
+        s.parent = 0;
+        s.flags = bhed::GlmSurface::kFlagOff;
+        s.skinnedOff = true;
+        s.g2An = 1;
+        s.g2Kappen = 0;
+        s.verts.resize(30);
+        s.indexes.resize(90, 7U);
+        s.grobVerts.resize(6);
+        s.grobIndexes.resize(12, 1U);
+        m.surfaces.push_back(s);
+        const bhed::GlmModel h = bhed::glmOhneNetz(m);
+        const bhed::GlmSurface& t = h.surfaces.empty() ? s : h.surfaces[0];
+        expect("glmOhneNetz: Kopf und Flaechenzustand wie das Original",
+               h.surfaces.size() == 1 && h.name == m.name && h.animFile == m.animFile && h.numBones == 53 && h.numLods == 4 &&
+                   h.maxs[2] == 64.0F && t.name == "torso" && t.texture == s.texture && t.hautZeile == 2 && t.parent == 0 &&
+                   t.flags == s.flags && t.skinnedOff && t.g2An == 1 && t.g2Kappen == 0);
+        expect("glmOhneNetz: ohne Ecken, Indizes und groebste Stufe",
+               t.verts.empty() && t.indexes.empty() && t.grobVerts.empty() && t.grobIndexes.empty());
+        const bhed::GlmSurface& o = m.surfaces[0];
+        expect("glmOhneNetz: das Original behaelt sein Netz",
+               o.verts.size() == 30 && o.indexes.size() == 90 && o.indexes[89] == 7U && o.grobVerts.size() == 6 &&
+                   o.grobIndexes.size() == 12);
+    }
+
     // --- mb1a1: "_off" am Flaechennamen streicht R_LoadMDXM (tr_ghoul2.cpp:3722) ----
     {
         bhed::GlmModel m;
