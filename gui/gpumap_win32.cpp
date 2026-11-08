@@ -4967,11 +4967,12 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 for (std::size_t q = 0; q < 20; ++q) { sd[48 + q] = k[kTcM1At + q]; }
             };
             // rc604: deformVertexes des Shaders (RB_DeformTessGeometry, code/rd-vanilla/tr_shade_calc.cpp OpenJK). FIX5: [32..47]
-            // gDef0..3 aus gpu::verformung, dieselben Werte und dieselbe Rechnung (verformeEcke) wie an der Karte - wave, normal, bulge,
-            // move in der Reihenfolge des Shaders; die autosprites bleiben aussen vor. Zeit der Stufe: refdef.floatTime.
+            // gDef0..3 aus gpu::verformung, dieselben Werte und dieselbe Rechnung (verformeEcke) wie an der Karte - die Eintraege in der
+            // Reihenfolge des Shaders; autosprite/autosprite2 drehen an einer Figur nichts (Kartenpruefung "figur: deformvertexes
+            // autosprite"). Zeit der Stufe: refdef.floatTime.
             auto deformWerte = [&](const TextureSet::Tex& tex, float* sd) {
                 if (g_figurDeformAus) { return; }
-                const Verformung v = verformung(tex.deformWave, tex.deformSpread, tex.deform2, zeitS);
+                const Verformung v = verformung(tex.deform2, zeitS);
                 if (!v.an) { return; }
                 std::copy(v.d, v.d + 16, sd + 32);
                 ++g_figurDeformAufrufe;

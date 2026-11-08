@@ -226,11 +226,13 @@ std::vector<SpriteEcke> baueAutosprites(const BspMesh& mesh,
         static const float st[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
         std::uint32_t schreib = first;
         for (std::size_t q = 0; q + 3 < ids.size(); q += 4) {
+            // DEF1: mid = 0.25f * (xyz[0] + xyz[4] + xyz[8] + xyz[12]) wie AutospriteDeform (tr_shade_calc.cpp:409) - erst die Summe,
+            // dann das Viertel (vorher je Ecke ein Viertel: andere Rundung)
             float mitte[3]{};
-            for (int w = 0; w < 4; ++w) {
-                for (int k = 0; k < 3; ++k) {
-                    mitte[k] += 0.25F * mesh.verts[ids[q + static_cast<std::size_t>(w)]].xyz[k];
-                }
+            for (int k = 0; k < 3; ++k) {
+                float summe = 0.0F;
+                for (int w = 0; w < 4; ++w) { summe += mesh.verts[ids[q + static_cast<std::size_t>(w)]].xyz[k]; }
+                mitte[k] = 0.25F * summe;
             }
             const BspVertex& v0 = mesh.verts[ids[q]];
             const float dx = v0.xyz[0] - mitte[0];

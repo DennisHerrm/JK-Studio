@@ -401,34 +401,44 @@ enum class AlphaGen : std::uint8_t {
 //                Zufallstafel des Spiels (wave.h rauschen4), vorher eine
 //                Streufunktion.
 //
-// FIX5: Die Engine wendet die deformVertexes in der Reihenfolge des Shaders
-// an (RB_DeformTessGeometry, tr_shade_calc.cpp:553) - eine Welle nach
-// "normal" wandert entlang der gewackelten Normalen. `folge` haelt diese
-// Reihenfolge (wave steht in ShaderInfo::deformWave, zaehlt hier mit).
+// FIX5/DEF1 P44: Die Engine wendet die deformVertexes in der Reihenfolge des Shaders an (RB_DeformTessGeometry,
+// tr_shade_calc.cpp:553, MD9 gleich), jeden Eintrag von shader.deforms[] mit seinen eigenen Werten - eine Welle nach "normal"
+// wandert entlang der gewackelten Normalen, zwei Wellen wirken beide, autosprite/autosprite2 an ihrer Stelle der Folge.
+// `eintraege` haelt diese Folge (hoechstens MAX_SHADER_DEFORMS, tr_local.h); die Einzelfelder (bulge, move, normal und
+// ShaderInfo::deformWave) sind die Zusammenfassung je Art - der letzte Eintrag dieser Art - fuer die Merkmale der Shader-Varianten
+// (gpustate.cpp) und die Pruefungen. Eintraege ohne Wirkung (DEFORM_NONE, projectionShadow, text) stehen nicht in der Liste.
 inline constexpr std::uint8_t kFolgeWelle = 1;
 inline constexpr std::uint8_t kFolgeNormal = 2;
 inline constexpr std::uint8_t kFolgeBeule = 3;
 inline constexpr std::uint8_t kFolgeWeg = 4;
+inline constexpr std::uint8_t kFolgeSprite = 5;    // autosprite (AutospriteDeform)
+inline constexpr std::uint8_t kFolgeSprite2 = 6;   // autosprite2 (Autosprite2Deform)
+inline constexpr int kMaxShaderDeforms = 3;        // MAX_SHADER_DEFORMS (tr_local.h)
+struct DeformEintrag {
+    std::uint8_t art = 0;   // kFolgeWelle ... kFolgeSprite2
+    Wave welle;             // wave: die Welle; move: die Welle des Versatzes
+    float spread = 0.0F;    // wave: deformationSpread (Kehrwert der Zahl in der Datei)
+    float werte[3]{};       // bulge: width, height, speed; move: der Vektor; normal: amplitude, frequency
+};
 struct DeformZusatz {
     bool autosprite2 = false;
     float bulge[3]{};      // breite, hoehe, tempo - hoehe 0 heisst keine
     float move[3]{};       // Richtung, die Laenge zaehlt mit
     Wave moveWave;
-    float normal[2]{};     // amplitude, frequenz - amplitude 0 heisst keins
-    // FIX5: je Platz 0 (leer) oder kFolgeWelle ... kFolgeWeg; jede Art einmal, an ihrer ersten Stelle (eine zweite Zeile
-    // derselben Art ersetzt hier nur die Werte). Leer: wave, normal, bulge, move.
-    std::uint8_t folge[4]{};
+    float normal[2]{};     // amplitude, frequenz
+    DeformEintrag eintraege[kMaxShaderDeforms];
+    int anzahl = 0;
 
     [[nodiscard]] bool bulgeAn() const noexcept { return bulge[1] != 0.0F; }
-    [[nodiscard]] bool normalAn() const noexcept { return normal[0] != 0.0F; }
-    void merkeFolge(std::uint8_t art) noexcept {
-        for (std::uint8_t& f : folge) {
-            if (f == art) { return; }
-            if (f == 0U) {
-                f = art;
-                return;
-            }
+    // normal wirkt auch mit amplitude 0: VectorNormalizeFast (Q_rsqrt) rechnet die Normale neu (RB_CalcDeformNormals :182)
+    [[nodiscard]] bool normalAn() const noexcept {
+        for (int i = 0; i < anzahl; ++i) {
+            if (eintraege[i].art == kFolgeNormal) { return true; }
         }
+        return false;
+    }
+    void dazu(const DeformEintrag& e) noexcept {
+        if (anzahl < kMaxShaderDeforms) { eintraege[anzahl++] = e; }
     }
 };
 

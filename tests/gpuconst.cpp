@@ -337,32 +337,105 @@ int main() {
                 buf[kAlphaAt] > 0.501F && buf[kAlphaAt] < 0.503F);
     }
 
-    // --- deformVertexes: ein float4, dicht gepackt --------------------------
+    // --- deformVertexes: je Eintrag ein float4, dicht gepackt (DEF1 P44) --------
     {
         BatchState bs;
-        bs.deformWave.func = WaveFunc::Sin;
-        bs.deformWave.base = 1.0F;
-        bs.deformWave.amplitude = 2.0F;
-        bs.deformWave.phase = 3.0F;
-        bs.deformWave.frequency = 4.0F;
-        bs.deformSpread = 0.4F;
+        DeformEintrag w;
+        w.art = kFolgeWelle;
+        w.welle.func = WaveFunc::Sin;
+        w.welle.base = 1.0F;
+        w.welle.amplitude = 2.0F;
+        w.welle.phase = 3.0F;
+        w.welle.frequency = 4.0F;
+        w.spread = 0.4F;
+        bs.deform2.dazu(w);
         packeKonstanten(bs, buf.data(), 1.25F);
         erwarte("base bei +0", buf[kDeformAt + 0] == 1.0F);
         erwarte("amplitude bei +1", buf[kDeformAt + 1] == 2.0F);
         erwarte("phase bei +2", buf[kDeformAt + 2] == 3.0F);
         // FIX5: floatTime * frequency (fuer alle Ecken dasselbe Produkt, gpu::verformung)
         erwarte("floatTime * frequency bei +3", buf[kDeformAt + 3] == 1.25F * 4.0F);
-        erwarte("spread dahinter bei 20", buf[kDeformSpreadAt] == 0.4F);
-        erwarte("FIX5: die Tafel (sin = 1) bei 23", buf[kDeformArtAt] == 1.0F);
-        erwarte("FIX5: die Folge (nur wave) in gDeformMove.w", buf[kDeformMoveAt + 3] == 1.0F);
+        erwarte("P44: der Spread des ersten Platzes in gDeformMove.x", buf[kDeformMoveAt] == 0.4F);
+        erwarte("P44: die Folge (wave mit Tafel sin = Code 2) in gDeformMove.w", buf[kDeformMoveAt + 3] == 2.0F);
     }
     {
-        // Ohne Welle darf nichts stehenbleiben.
+        // P44: zwei Wellen und ein move - jeder Eintrag auf seinem Platz (gDeform, gDeformSpread/Art/Normal.xy, gBulge), die Spreads
+        // in gDeformMove.xyz, die Folge zu je vier Bit
+        BatchState bs;
+        DeformEintrag w1;
+        w1.art = kFolgeWelle;
+        w1.welle.func = WaveFunc::Triangle;
+        w1.welle.base = 5.0F;
+        w1.welle.frequency = 1.0F;
+        w1.spread = 0.25F;
+        DeformEintrag m;
+        m.art = kFolgeWeg;
+        m.welle.func = WaveFunc::Square;
+        m.welle.base = 2.0F;
+        m.werte[0] = 1.0F;
+        m.werte[2] = -3.0F;
+        DeformEintrag w2 = w1;
+        w2.welle.func = WaveFunc::Sawtooth;
+        w2.welle.base = 7.0F;
+        w2.spread = 0.125F;
+        bs.deform2.dazu(w1);
+        bs.deform2.dazu(m);
+        bs.deform2.dazu(w2);
+        packeKonstanten(bs, buf.data(), 0.5F);
+        erwarte("P44: erste Welle auf Platz 0", buf[kDeformAt] == 5.0F && buf[kDeformMoveAt] == 0.25F);
+        erwarte("P44: move auf Platz 1 (Versatz = Vektor * WAVEVALUE)",
+                buf[kDeformSpreadAt] == 1.0F * waveValue(m.welle, 0.5F) && buf[kDeformNormalAt] == -3.0F * waveValue(m.welle, 0.5F));
+        erwarte("P44: zweite Welle auf Platz 2", buf[kBulgeAt] == 7.0F && buf[kDeformMoveAt + 2] == 0.125F);
+        erwarte("P44: Folge 3 (triangle), 9 (move), 5 (sawtooth)", buf[kDeformMoveAt + 3] == static_cast<float>(3U | (9U << 4) | (5U << 8)));
+    }
+    {
+        // P44: autosprite an seiner Stelle; was davor nur auf der Mitte nicht stimmen kann, bleibt weg und heisst "Fehlt"
+        DeformZusatz z;
+        DeformEintrag w;
+        w.art = kFolgeWelle;
+        w.welle.func = WaveFunc::Sin;
+        w.welle.frequency = 1.0F;
+        DeformEintrag s;
+        s.art = kFolgeSprite;
+        DeformEintrag m;
+        m.art = kFolgeWeg;
+        m.welle.func = WaveFunc::Sin;
+        z.dazu(w);
+        z.dazu(s);
+        z.dazu(m);
+        erwarte("P44: wave vor autosprite fehlt, autosprite und move gezeigt",
+                deformLage(z, 0) == DeformLage::Fehlt && deformLage(z, 1) == DeformLage::Gezeigt && deformLage(z, 2) == DeformLage::Gezeigt);
+        const Verformung v = verformung(z, 0.0F);
+        erwarte("P44: gepackt autosprite (10), dann move (9)", v.d[15] == static_cast<float>(10U | (9U << 4)));
+        DeformZusatz z2;
+        DeformEintrag n;
+        n.art = kFolgeNormal;
+        z2.dazu(n);
+        z2.dazu(s);
+        z2.dazu(w);
+        erwarte("P44: normal vor autosprite wirkt nicht, wave dahinter gezeigt",
+                deformLage(z2, 0) == DeformLage::Wirkungslos && deformLage(z2, 2) == DeformLage::Gezeigt);
+        DeformZusatz z3;
+        s.art = kFolgeSprite2;
+        z3.dazu(s);
+        z3.dazu(w);
+        z3.dazu(m);
+        erwarte("P44: an autosprite2 fehlt wave, move gezeigt", deformLage(z3, 1) == DeformLage::Fehlt && deformLage(z3, 2) == DeformLage::Gezeigt);
+        DeformZusatz z4;
+        m.welle.func = WaveFunc::Noise;
+        z4.dazu(m);
+        w.welle.func = WaveFunc::Random;
+        z4.dazu(w);
+        erwarte("P44: move mit noise und wave mit random und frequency bricht im Spiel ab",
+                deformLage(z4, 0) == DeformLage::Abbruch && deformLage(z4, 1) == DeformLage::Abbruch && !verformung(z4, 0.0F).an);
+    }
+    {
+        // Ohne Eintrag darf nichts stehenbleiben.
         BatchState bs;
         bs.deformSpread = 0.4F;
         packeKonstanten(bs, buf.data(), 0.0F);
         erwarte("ohne deformVertexes bleibt alles null",
-                buf[kDeformAt] == 0.0F && buf[kDeformSpreadAt] == 0.0F);
+                buf[kDeformAt] == 0.0F && buf[kDeformSpreadAt] == 0.0F && buf[kDeformMoveAt + 3] == 0.0F);
     }
 
     // --- FIX5 P36: tcMod stretch wie RB_CalcStretchTexCoords (tr_shade_calc.cpp:101) -----------------

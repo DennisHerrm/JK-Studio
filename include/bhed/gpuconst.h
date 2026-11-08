@@ -152,24 +152,37 @@ void tcKetteOhneTurb(const TcKette& k, float st[2]);
 // FIX2 P16: tr.sinTable[i & 1023] (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727)
 [[nodiscard]] float sinTafel(int i);
 
-// FIX5: die deformVertexes eines Shaders (wave, normal, bulge, move) zur Zeit `zeitSekunden`, so gepackt, wie die Shader sie lesen
-// (verformeEcke, gpushader.cpp; Karte und Figurenstufe gleich). Je Ecke rechnet der Shader wie RB_DeformTessGeometry
-// (code/rd-vanilla/tr_shade_calc.cpp:553, MD9 gleich) in der Reihenfolge des Shaders; was fuer alle Ecken gleich ist, rechnet die
-// CPU hier in float wie das Spiel:
+// FIX5/DEF1 P44: die deformVertexes eines Shaders (DeformZusatz::eintraege) zur Zeit `zeitSekunden`, so gepackt, wie die Shader sie
+// lesen (verformeEcke, gpushader.cpp; Karte und Figurenstufe gleich). Je Ecke rechnet der Shader wie RB_DeformTessGeometry
+// (code/rd-vanilla/tr_shade_calc.cpp:553, MD9 gleich) Eintrag fuer Eintrag in der Reihenfolge des Shaders; was fuer alle Ecken gleich
+// ist, rechnet die CPU hier in float wie das Spiel. Drei Plaetze (MAX_SHADER_DEFORMS), dicht gepackt, je Platz k ein float4 d[4k..4k+3]:
 //
-//   d0  wave: base, amplitude, phase, floatTime * frequency - bei frequency 0 steht in .x EvalWaveForm (RB_CalcDeformVertexes
-//       nimmt dann fuer alle Ecken diesen Wert, auch noise und random)
-//   d1  wave: deformationSpread, Tafel (0 = der feste Wert aus .x, sonst WaveFunc sin ... inversesawtooth);
-//       normal: amplitude, floatTime * frequency (RB_CalcDeformNormals)
-//   d2  bulge: width, height, speed, now = refdef.time * speed * 0.001f (RB_CalcBulgeVertexes, ganze ms)
-//   d3  move: moveVector * WAVEVALUE (RB_CalcMoveVertexes); .w die Folge: je drei Bit kFolgeWelle ... kFolgeWeg
+//   wave       base, amplitude, phase, floatTime * frequency; d[12 + k] deformationSpread - bei frequency 0 steht in .x
+//              EvalWaveForm (RB_CalcDeformVertexes nimmt dann fuer alle Ecken diesen Wert, auch noise und random)
+//   normal     amplitude, floatTime * frequency (RB_CalcDeformNormals)
+//   bulge      width, height, speed, now = refdef.time * speed * 0.001f (RB_CalcBulgeVertexes, ganze ms)
+//   move       moveVector * WAVEVALUE (RB_CalcMoveVertexes)
+//   autosprite, autosprite2: nur die Stelle (der Vertex-Shader der Karte dreht dort die Ecke)
 //
-// wave mit frequency ungleich 0 und move mit noise/random bleiben weg: TableForFunc bricht dort im Spiel mit ERR_DROP ab.
+// d[15] die Folge: je Platz vier Bit, kDefCode...; 0 beendet die Folge.
+inline constexpr std::uint32_t kDefCodeWelleFest = 1;   // wave mit frequency 0; 2..6: wave mit der Tafel WaveFunc sin ... inversesawtooth
+inline constexpr std::uint32_t kDefCodeNormal = 7;
+inline constexpr std::uint32_t kDefCodeBeule = 8;
+inline constexpr std::uint32_t kDefCodeWeg = 9;
+inline constexpr std::uint32_t kDefCodeSprite = 10;
+inline constexpr std::uint32_t kDefCodeSprite2 = 11;
 struct Verformung {
     float d[16]{};
     bool an = false;
 };
-[[nodiscard]] Verformung verformung(const Wave& welle, float spread, const DeformZusatz& zusatz, float zeitSekunden);
+[[nodiscard]] Verformung verformung(const DeformZusatz& z, float zeitSekunden);
+
+// DEF1 P44: was aus Eintrag i in der Vorschau wird. Abbruch: TableForFunc bricht im Spiel mit ERR_DROP ab, sobald die Flaeche
+// gezeichnet wird (wave mit frequency ungleich 0 und noise/random, move mit noise/random, eine fehlende Form). Fehlt: das Spiel
+// verformt hier, die Vorschau nicht (wave/bulge vor autosprite; wave, bulge, normal an autosprite2; ein zweites autosprite) - die
+// Kartenpruefung meldet beides.
+enum class DeformLage : std::uint8_t { Gezeigt, Wirkungslos, Abbruch, Fehlt };
+[[nodiscard]] DeformLage deformLage(const DeformZusatz& z, int i);
 
 }  // namespace bhed::gpu
 

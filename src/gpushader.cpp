@@ -267,55 +267,57 @@ float qRsqrtSpiel(float zahl) {
     precise float r = y * (1.5 - ((x2 * y) * y));
     return r;
 }
-// Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]); d0..d3 aus gpu::verformung. Die Folge
-// (d3.w, je drei Bit) wie die deformVertexes im Shader.
-float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d1, float4 d2, float4 d3) {
+// Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]) durch die Eintraege von..bis-1 der Folge;
+// d0..d3 aus gpu::verformung (je Platz ein float4, d3.xyz die Spreads der Wellen, d3.w die Folge zu je vier Bit, kDefCode...).
+// autosprite/autosprite2 (Code 10, 11) dreht der Vertex-Shader der Karte selbst - hier stehen sie nur an ihrer Stelle.
+float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d1, float4 d2, float4 d3, int von, int bis) {
     precise float3 p = xyz;
     precise float3 n = nrm;
     uint folge = (uint)d3.w;
-    // [loop]: jede Art steht einmal im Code (abgerollt wuerde das Rauschen viermal eingesetzt - die Uebersetzung dauerte Minuten)
-    [loop] for (int k = 0; k < 4; ++k) {
-        uint art = (folge >> (3 * k)) & 7u;
-        if (art == 1u) {
-            // RB_CalcDeformVertexes (:129): bei frequency 0 EvalWaveForm fuer alle (d0.x), sonst
-            // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency)
-            precise float scale = d0.x;
-            if (d1.y > 0.5) {
-                precise float off = (p.x + p.y + p.z) * d1.x;
-                scale = wellenWert(d0, d1.y, off);
+    // [loop]: jede Art steht einmal im Code (abgerollt wuerde das Rauschen dreimal eingesetzt - die Uebersetzung dauerte Minuten)
+    [loop] for (int k = von; k < bis; ++k) {
+        uint art = (folge >> (4 * k)) & 15u;
+        float4 d = (k == 0) ? d0 : ((k == 1) ? d1 : d2);
+        if (art <= 6u && art != 0u) {
+            // RB_CalcDeformVertexes (:129): bei frequency 0 EvalWaveForm fuer alle (Code 1, d.x), sonst
+            // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency) mit der Tafel art - 1
+            precise float scale = d.x;
+            if (art > 1u) {
+                precise float off = (p.x + p.y + p.z) * d3[k];
+                scale = wellenWert(d, (float)(art - 1u), off);
             }
             precise float3 v = n * scale;
             p = p + v;
-        } else if (art == 2u) {
+        } else if (art == 7u) {
             // RB_CalcDeformNormals (:182): normal += amplitude * R_NoiseGet4f(xyz * 0.98f (+100/+200), floatTime * frequency),
             // dann VectorNormalizeFast (q_math.cpp:1147) mit Q_rsqrt
             precise float3 q = p * kNormalSchritt;
             precise float3 rr = float3(0.0, 0.0, 0.0);
             [loop] for (int a = 0; a < 3; ++a) {
                 precise float x = (a == 0) ? q.x : (((a == 1) ? 100.0 : 200.0) + q.x);
-                precise float v = rauschen4(x, q.y, q.z, d1.w);
+                precise float v = rauschen4(x, q.y, q.z, d.y);
                 if (a == 0) { rr.x = v; } else if (a == 1) { rr.y = v; } else { rr.z = v; }
             }
-            precise float n0 = n.x + d1.z * rr.x;
-            precise float n1 = n.y + d1.z * rr.y;
-            precise float n2 = n.z + d1.z * rr.z;
+            precise float n0 = n.x + d.x * rr.x;
+            precise float n1 = n.y + d.x * rr.y;
+            precise float n2 = n.z + d.x * rr.z;
             precise float il = qRsqrtSpiel(n0 * n0 + n1 * n1 + n2 * n2);
             n = float3(n0 * il, n1 * il, n2 * il);
-        } else if (art == 3u) {
+        } else if (art == 8u) {
             // RB_CalcBulgeVertexes (:216): ohne speed und width xyz += normal * height, sonst
             // off = (int)(FUNCTABLE_SIZE / (M_PI * 2) * (st[0] * width + now)), scale = sinTable[off & MASK] * height
-            precise float scale = d2.y;
-            if (!(d2.z == 0.0 && d2.x == 0.0)) {
-                precise float a = st.x * d2.x + d2.w;
+            precise float scale = d.y;
+            if (!(d.z == 0.0 && d.x == 0.0)) {
+                precise float a = st.x * d.x + d.w;
                 precise float o = kBeulenFaktor * a;
-                precise float t = asfloat(kSinTafel[ganzWieX86(o) & 1023]) * d2.y;
+                precise float t = asfloat(kSinTafel[ganzWieX86(o) & 1023]) * d.y;
                 scale = t;
             }
             precise float3 v = n * scale;
             p = p + v;
-        } else if (art == 4u) {
-            // RB_CalcMoveVertexes (:263): xyz += moveVector * WAVEVALUE (d3.xyz von der CPU)
-            p = p + d3.xyz;
+        } else if (art == 9u) {
+            // RB_CalcMoveVertexes (:263): xyz += moveVector * WAVEVALUE (d.xyz von der CPU)
+            p = p + d.xyz;
         }
     }
     nrm = n;
@@ -1166,7 +1168,7 @@ VSOut main(VSIn ein) {
     // (verformeEcke: RB_DeformTessGeometry je Ecke in der Reihenfolge des Shaders, Tafeln und Rauschen des Spiels); bis FIX5 eine
     // eigene Fassung mit sin der Grafikkarte, bulge mit Sekunden statt ms, ohne normal.
     if (gDef3.w > 0.5) {
-        welt = verformeEcke(welt, nrm, ein.uv, gDef0, gDef1, gDef2, gDef3);
+        welt = verformeEcke(welt, nrm, ein.uv, gDef0, gDef1, gDef2, gDef3, 0, 3);
     }
     // Danach die Stellung der Figur in der Welt.
     float4 w4 = mul(gFigurWelt, float4(welt, 1.0));
@@ -1377,8 +1379,21 @@ struct VSOut {
     // (verformeEcke, kVerformText), die Welle aus den Tafeln des Spiels, normal mit R_NoiseGet4f, bulge mit refdef.time. Bis FIX5
     // stand hier je Art ein eigener Block: wave mit frac() und sin(t * 2 pi) der Grafikkarte (jede Form als Sinus, frequency 0 wie
     // jede andere), normal mit einer Streufunktion, bulge mit sin(s * breite + Sekunden * tempo), feste Reihenfolge.
-    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) {
-        s += "    welt = verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove);\n";
+    // DEF1 P44: autosprite/autosprite2 an ihrer Stelle der Folge (RB_DeformTessGeometry): die Eintraege davor auf der Ecke, wie sie
+    // hochgeladen wurde (gpu::deformLage laesst dort nur zu, was fuer alle vier Ecken gleich wirkt), die dahinter auf dem Plaettchen.
+    const bool verform = (features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U;
+    const bool sprite = (features & (kAutosprite | kAutosprite2)) != 0U;
+    const char* const kVerformAufruf =
+        "verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove, ";
+    if (verform && sprite) {
+        s += "    int spriteStelle = 3;\n";
+        s += "    [unroll] for (int k = 2; k >= 0; --k) {\n";
+        s += "        uint c = ((uint)gDeformMove.w >> (4 * k)) & 15u;\n";
+        s += "        if (c == 10u || c == 11u) { spriteStelle = k; }\n";
+        s += "    }\n";
+        s += std::string("    welt = ") + kVerformAufruf + "0, spriteStelle);\n";
+    } else if (verform) {
+        s += std::string("    welt = ") + kVerformAufruf + "0, 3);\n";
     }
 
     // autosprite: die Ecke zur Kamera drehen. Nur 34 Vorkommen in allen 43
@@ -1395,9 +1410,16 @@ struct VSOut {
     // Flaechen in md_am_sith blieben so stehen, wie sie gebaut sind: das
     // Palpatine-Hologramm als grosses Rechteck, das die Figuren dahinter
     // ueberdeckte.
+    //
+    // DEF1 P44: die Normale des Plaettchens ist -vorn (RB_AddQuadStampExt, tr_surface.cpp:112), st steht schon beim Hochladen da.
+    // Bit fuer Bit wie RB_AddQuadStampExt (tr_surface.cpp:78): left = leftDir * radius, up = upDir * radius (VectorScale), dann
+    // origin +- left +- up von links nach rechts (DEF1; vorher (links * x + hoch * y) * radius, anders gerundet).
     wenn(s, features, kAutosprite, R"(    {
-        float3 links = -gRechts;
-        welt += (links * ein.normal.x + gHoch * ein.normal.y) * ein.normal.z;
+        precise float3 links = -gRechts * ein.normal.z;
+        precise float3 hoch = gHoch * ein.normal.z;
+        precise float3 halb = welt + links * ein.normal.x;
+        welt = halb + hoch * ein.normal.y;
+        nrm = -gVorn;
     }
 )");
 
@@ -1408,15 +1430,21 @@ struct VSOut {
     // der Blickrichtung, nicht der Richtung zur Ecke. Steht die Achse genau
     // in Blickrichtung, laesst VectorNormalize die Null stehen: dann
     // klappt das Viereck zur Linie, hier ebenso.
+    // DEF1: precise, damit jede Variante (mit und ohne deformVertexes dahinter) dieselbe Ecke rechnet - die Intel UHD rechnete sie
+    // sonst je Variante anders (ctest defgpu "autosprite2, move": 328 von 8192 Ecken).
     wenn(s, features, kAutosprite2, R"(    {
-        float l = length(ein.normal);
-        float3 q = cross(ein.normal, gVorn);
-        float ql = length(q);
+        precise float l = length(ein.normal);
+        precise float3 q = cross(ein.normal, gVorn);
+        precise float ql = length(q);
         if (ql > 1e-6) {
-            welt += q * (l / ql);
+            precise float3 v = q * (l / ql);
+            precise float3 w2 = welt + v;
+            welt = w2;
         }
     }
 )");
+    // DEF1 P44: die Eintraege hinter dem autosprite
+    if (verform && sprite) { s += std::string("    welt = ") + kVerformAufruf + "spriteStelle + 1, 3);\n"; }
 
     // --- Die Stellung des Netzes steckt in gViewProj ---------------------
     //

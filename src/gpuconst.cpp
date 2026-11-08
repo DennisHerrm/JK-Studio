@@ -88,69 +88,101 @@ TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden) {
     return k;
 }
 
-Verformung verformung(const Wave& welle, float spread, const DeformZusatz& zusatz, float zeitSekunden) {
-    Verformung v;
-    const bool welleAn = welle.active() && (welle.frequency == 0.0F || welle.mitTafel());
-    const bool wegAn = zusatz.moveWave.mitTafel();
-    const auto dabei = [&](std::uint8_t art) {
-        switch (art) {
-            case kFolgeWelle: return welleAn;
-            case kFolgeNormal: return zusatz.normalAn();
-            case kFolgeBeule: return zusatz.bulgeAn();
-            case kFolgeWeg: return wegAn;
-            default: return false;
-        }
-    };
-    // Die Folge: wie im Shader, sonst (ohne Folge, z. B. von Hand gebaute Zustaende) wave, normal, bulge, move
-    std::uint8_t folge[4] = {zusatz.folge[0], zusatz.folge[1], zusatz.folge[2], zusatz.folge[3]};
-    if (folge[0] == 0U) {
-        folge[0] = kFolgeWelle;
-        folge[1] = kFolgeNormal;
-        folge[2] = kFolgeBeule;
-        folge[3] = kFolgeWeg;
+DeformLage deformLage(const DeformZusatz& z, int i) {
+    if (i < 0 || i >= z.anzahl) { return DeformLage::Wirkungslos; }
+    const DeformEintrag& e = z.eintraege[i];
+    switch (e.art) {
+        case kFolgeWelle:
+            // RB_CalcDeformVertexes (:129): frequency 0 -> EvalWaveForm (noise und random gehen, GF_NONE nicht), sonst TableForFunc
+            if (!(e.welle.active() && (e.welle.frequency == 0.0F || e.welle.mitTafel()))) { return DeformLage::Abbruch; }
+            break;
+        case kFolgeWeg:
+            // RB_CalcMoveVertexes (:263): immer TableForFunc
+            if (!e.welle.mitTafel()) { return DeformLage::Abbruch; }
+            break;
+        case kFolgeBeule:
+            // height 0: xyz += normal * 0 (RB_CalcBulgeVertexes :216)
+            if (e.werte[1] == 0.0F) { return DeformLage::Wirkungslos; }
+            break;
+        default:
+            break;
     }
+    // Die Stelle in der Folge gegenueber autosprite/autosprite2. Der Vertex-Shader sieht je Ecke nur, was beim Hochladen in ihr steht
+    // (baueAutosprites, gpudraw.h): die Mitte des Vierecks und die Richtung der Ecke bzw. die Mitte der kurzen Kante und die lange Achse.
+    int sprite = -1;
+    for (int k = 0; k < z.anzahl; ++k) {
+        if (z.eintraege[k].art == kFolgeSprite || z.eintraege[k].art == kFolgeSprite2) {
+            if (sprite < 0) {
+                sprite = k;
+            } else if (k == i) {
+                return DeformLage::Fehlt;   // ein zweites autosprite rechnet die schon gedrehten Plaettchen noch einmal
+            }
+        }
+    }
+    if (sprite < 0 || i == sprite) { return DeformLage::Gezeigt; }
+    const bool sprite2 = z.eintraege[sprite].art == kFolgeSprite2;
+    if (e.art == kFolgeWeg) { return DeformLage::Gezeigt; }         // derselbe Versatz fuer alle vier Ecken: Mitte und Masse bleiben
+    if (!sprite2 && i > sprite) { return DeformLage::Gezeigt; }     // auf dem Plaettchen (RB_AddQuadStampExt): Normale -vorn, st 0..1
+    // AutospriteDeform ersetzt die Normalen (RB_AddQuadStampExt :112): ein normal davor wirkt nicht
+    if (!sprite2 && e.art == kFolgeNormal) { return DeformLage::Wirkungslos; }
+    // wave und bulge vor autosprite verschieben die Ecken einzeln (Mitte und Radius kommen aus den verformten Ecken); an autosprite2
+    // brauchen wave, bulge und normal die Normale der Ecke, die beim Hochladen der langen Achse weicht.
+    return DeformLage::Fehlt;
+}
+
+Verformung verformung(const DeformZusatz& z, float zeitSekunden) {
+    Verformung v;
     std::uint32_t code = 0;
     int platz = 0;
-    for (const std::uint8_t art : folge) {
-        if (dabei(art)) {
-            code |= static_cast<std::uint32_t>(art) << (3 * platz);
-            ++platz;
+    for (int i = 0; i < z.anzahl; ++i) {
+        if (deformLage(z, i) != DeformLage::Gezeigt) { continue; }
+        const DeformEintrag& e = z.eintraege[i];
+        float* d = v.d + 4 * platz;
+        std::uint32_t c = 0;
+        switch (e.art) {
+            case kFolgeWelle:
+                // RB_CalcDeformVertexes (:129): frequency 0 -> EvalWaveForm fuer alle Ecken, sonst WAVEVALUE mit phase + off je Ecke;
+                // floatTime * frequency ist fuer alle Ecken dasselbe Produkt in float
+                if (e.welle.frequency == 0.0F) {
+                    d[0] = waveValue(e.welle, zeitSekunden);
+                    c = kDefCodeWelleFest;
+                } else {
+                    d[0] = e.welle.base;
+                    d[1] = e.welle.amplitude;
+                    d[2] = e.welle.phase;
+                    d[3] = zeitSekunden * e.welle.frequency;
+                    c = kDefCodeWelleFest + static_cast<std::uint32_t>(e.welle.func);
+                }
+                v.d[12 + platz] = e.spread;
+                break;
+            case kFolgeNormal:
+                // RB_CalcDeformNormals (:182): amplitude, floatTime * frequency
+                d[0] = e.werte[0];
+                d[1] = zeitSekunden * e.werte[1];
+                c = kDefCodeNormal;
+                break;
+            case kFolgeBeule:
+                // RB_CalcBulgeVertexes (:216): now = backEnd.refdef.time * bulgeSpeed * 0.001f - refdef.time ist int (ms)
+                std::copy(e.werte, e.werte + 3, d);
+                d[3] = static_cast<float>(spielZeitMs(zeitSekunden)) * e.werte[2] * 0.001F;
+                c = kDefCodeBeule;
+                break;
+            case kFolgeWeg: {
+                // RB_CalcMoveVertexes (:263): VectorScale(moveVector, WAVEVALUE, offset) - fuer alle Ecken derselbe Versatz
+                const float w = waveValue(e.welle, zeitSekunden);
+                for (int k = 0; k < 3; ++k) { d[k] = e.werte[k] * w; }
+                c = kDefCodeWeg;
+                break;
+            }
+            case kFolgeSprite: c = kDefCodeSprite; break;
+            case kFolgeSprite2: c = kDefCodeSprite2; break;
+            default: continue;
         }
+        code |= c << (4 * platz);
+        ++platz;
     }
     if (code == 0U) { return v; }
     v.an = true;
-    if (welleAn) {
-        // RB_CalcDeformVertexes (tr_shade_calc.cpp:129): frequency 0 -> EvalWaveForm fuer alle Ecken, sonst WAVEVALUE mit
-        // phase + off je Ecke; floatTime * frequency ist fuer alle Ecken dasselbe Produkt in float
-        if (welle.frequency == 0.0F) {
-            v.d[0] = waveValue(welle, zeitSekunden);
-            v.d[5] = 0.0F;
-        } else {
-            v.d[0] = welle.base;
-            v.d[1] = welle.amplitude;
-            v.d[2] = welle.phase;
-            v.d[3] = zeitSekunden * welle.frequency;
-            v.d[5] = static_cast<float>(welle.func);
-        }
-        v.d[4] = spread;
-    }
-    if (zusatz.normalAn()) {
-        // RB_CalcDeformNormals (:182): amplitude, floatTime * frequency
-        v.d[6] = zusatz.normal[0];
-        v.d[7] = zeitSekunden * zusatz.normal[1];
-    }
-    if (zusatz.bulgeAn()) {
-        // RB_CalcBulgeVertexes (:216): now = backEnd.refdef.time * bulgeSpeed * 0.001f - refdef.time ist int (ms)
-        v.d[8] = zusatz.bulge[0];
-        v.d[9] = zusatz.bulge[1];
-        v.d[10] = zusatz.bulge[2];
-        v.d[11] = static_cast<float>(spielZeitMs(zeitSekunden)) * zusatz.bulge[2] * 0.001F;
-    }
-    if (wegAn) {
-        // RB_CalcMoveVertexes (:263): VectorScale(moveVector, WAVEVALUE, offset) - fuer alle Ecken derselbe Versatz
-        const float w = waveValue(zusatz.moveWave, zeitSekunden);
-        for (int k = 0; k < 3; ++k) { v.d[12 + k] = zusatz.move[k] * w; }
-    }
     v.d[15] = static_cast<float>(code);
     return v;
 }
@@ -247,10 +279,11 @@ void packeKonstanten(const BatchState& bs, float* ziel,
 
     // --- deformVertexes ---------------------------------------------------
     //
-    // FIX5: wave, normal, bulge und move wie RB_DeformTessGeometry - die Werte aus `verformung` (gpuconst.h), verteilt auf die
-    // Felder, die es seit rc592 gibt: d0 gDeform, d1 gDeformSpread/gDeformArt/gDeformNormal.xy, d2 gBulge, d3 gDeformMove.
+    // FIX5/DEF1 P44: die Eintraege wie RB_DeformTessGeometry - die Werte aus `verformung` (gpuconst.h), verteilt auf die Felder, die
+    // es seit rc592 gibt: Platz 0 gDeform, Platz 1 gDeformSpread/gDeformArt/gDeformNormal.xy, Platz 2 gBulge, die Spreads und die
+    // Folge gDeformMove.
     {
-        const Verformung v = verformung(bs.deformWave, bs.deformSpread, bs.deform2, zeitSekunden);
+        const Verformung v = verformung(bs.deform2, zeitSekunden);
         std::copy(v.d, v.d + 4, ziel + kDeformAt);
         ziel[kDeformSpreadAt] = v.d[4];
         ziel[kDeformArtAt] = v.d[5];

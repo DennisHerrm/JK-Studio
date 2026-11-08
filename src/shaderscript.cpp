@@ -686,7 +686,6 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // fehlenden Wert auf, der Eintrag wirkt trotzdem.
                 const std::vector<std::string> dw = ssWoerter(secondWord(line));
                 if (dw.empty()) { continue; }
-                constexpr int kMaxShaderDeforms = 3;
                 if (deformAnzahl == kMaxShaderDeforms) { continue; }
                 ++deformAnzahl;
                 const auto welleAus = [&](std::size_t i) {
@@ -702,43 +701,49 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // Flaechen als grosse Rechtecke, die zur Laufzeit zu Sprites zusammenklappen). `autosprite2` ist NICHT dasselbe,
                 // es dreht das Viereck um seine lange Achse (siehe DeformZusatz) - Vergleich auf Gleichheit (Q_stricmp).
                 const std::string art = lower(dw[0]);
+                // DEF1 P44: jeder Eintrag mit seinen eigenen Werten an seiner Stelle (deform2.eintraege); die Einzelfelder fassen je
+                // Art zusammen (der letzte wirksame Eintrag - ein wirkungsloser zweiter loescht das Merkmal nicht).
+                DeformEintrag e;
                 if (art == "autosprite") {
                     autosprite = true;
-                    continue;
-                }
-                if (art == "autosprite2") {
+                    e.art = kFolgeSprite;
+                } else if (art == "autosprite2") {
                     deform2.autosprite2 = true;
-                    continue;
-                }
-                if (art == "bulge") {
+                    e.art = kFolgeSprite2;
+                } else if (art == "bulge") {
                     if (dw.size() < 4) { continue; }
-                    deform2.merkeFolge(kFolgeBeule);
-                    for (std::size_t k = 0; k < 3; ++k) { deform2.bulge[k] = readNum(dw[1 + k]); }
-                    continue;
-                }
-                if (art == "move") {
+                    e.art = kFolgeBeule;
+                    for (std::size_t k = 0; k < 3; ++k) { e.werte[k] = readNum(dw[1 + k]); }
+                    if (e.werte[1] != 0.0F) { std::copy(e.werte, e.werte + 3, deform2.bulge); }
+                } else if (art == "move") {
                     if (dw.size() < 4) { continue; }
-                    deform2.merkeFolge(kFolgeWeg);
-                    for (std::size_t k = 0; k < 3; ++k) { deform2.move[k] = readNum(dw[1 + k]); }
-                    deform2.moveWave = welleAus(4);
-                    continue;
-                }
-                if (art == "normal") {
+                    e.art = kFolgeWeg;
+                    for (std::size_t k = 0; k < 3; ++k) { e.werte[k] = readNum(dw[1 + k]); }
+                    e.welle = welleAus(4);
+                    if (e.welle.active()) {
+                        std::copy(e.werte, e.werte + 3, deform2.move);
+                        deform2.moveWave = e.welle;
+                    }
+                } else if (art == "normal") {
                     if (dw.size() < 3) { continue; }
-                    deform2.merkeFolge(kFolgeNormal);
-                    deform2.normal[0] = readNum(dw[1]);
-                    deform2.normal[1] = readNum(dw[2]);
-                    continue;
-                }
-                if (art == "wave") {
+                    e.art = kFolgeNormal;
+                    for (std::size_t k = 0; k < 2; ++k) { e.werte[k] = deform2.normal[k] = readNum(dw[1 + k]); }
+                } else if (art == "wave") {
                     if (dw.size() < 2) { continue; }
-                    deform2.merkeFolge(kFolgeWelle);
+                    e.art = kFolgeWelle;
                     // tr_shader.cpp:1888-1895: deformationSpread = 1.0f / atof(token), bei 0 nimmt die Engine 100 mit einer
                     // Warnung. FIX5: atof ist double, 1.0f / double rechnet in double und rundet erst beim Ablegen auf float.
                     const double div = std::strtod(dw[1].c_str(), nullptr);
-                    deformSpread = (div != 0.0) ? static_cast<float>(1.0F / div) : 100.0F;
-                    deformWave = welleAus(2);
+                    e.spread = (div != 0.0) ? static_cast<float>(1.0F / div) : 100.0F;
+                    e.welle = welleAus(2);
+                    if (e.welle.active()) {
+                        deformSpread = e.spread;
+                        deformWave = e.welle;
+                    }
+                } else {
+                    continue;
                 }
+                deform2.dazu(e);
                 continue;
             }
         }
