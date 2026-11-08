@@ -2239,6 +2239,8 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                         t.rgbConst[k] = it->second.rgbConst[k];
                     }
                     t.ausSkript = true;
+                    // MR7 P43: auch aus der Tabelle (dort stehen nur die Bildpunkte, keinTc kam nie dazu)
+                    t.keinTc = it->second.bildKeinTc;
                     t.lightmapStufe = it->second.lightmapStufe;
                     t.rgbVertex = it->second.rgbVertex;
                     t.srcFactor = it->second.srcFactor;
@@ -2360,7 +2362,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                     t.rgbConst[k] = it->second.rgbConst[k];
                 }
                 t.ausSkript = true;
-                t.keinTc = it->second.noTC;
+                t.keinTc = it->second.bildKeinTc;   // MR7 P43: noTC beim Lesen der Bildstufe
                 t.lightmapStufe = it->second.lightmapStufe;
                 t.rgbVertex = it->second.rgbVertex;
                 t.srcFactor = it->second.srcFactor;
@@ -2415,6 +2417,7 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
         wolke.depthWrite = st.depthWrite;
         wolke.depthFunc = st.depthFunc;
         wolke.ausSkript = true;
+        wolke.keinTc = st.keinTc;   // MR7 P43: ParseStage, allowTC = !noTC beim Lesen der Stufe
         wolke.lightmapStufe = false;
         wolke.wolkenHoehe = info.wolkenHoehe;
         himmel.extraStages.push_back(static_cast<int>(ladeSatz().byShader.size()));
@@ -2554,6 +2557,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     zusatz.texGen = st.texGen;
     for (int k = 0; k < 6; ++k) { zusatz.tcGenVec[k] = st.tcGenVec[k]; }   // rc605
     zusatz.clamp = st.clamp;
+    zusatz.keinTc = st.keinTc;   // MR7 P43: ParseStage, allowTC = !noTC beim Lesen dieser Stufe
     zusatz.depthWrite = st.depthWrite;
     zusatz.depthFunc = st.depthFunc;
     zusatz.alphaGen = st.alphaGen;
@@ -2703,6 +2707,7 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
             bild.rgbConst[k] = t.rgbConst[k];
         }
         bild.ausSkript = t.ausSkript;
+        bild.keinTc = t.keinTc;   // MR7 P43: dieselbe Stufe, dasselbe allowTC
         bild.lightmapStufe = t.lightmapStufe;
         bild.rgbVertex = t.rgbVertex;
         bild.srcFactor = t.srcFactor;
@@ -2900,7 +2905,7 @@ void loadMapTextures() {
                     TextureSet::Tex seite;
                     if (loadImageFile(sk->second.skyBox + "_" + suf,
                                        seite)) {
-                        seite.keinTc = sk->second.noTC;   // MR6 P21: allowTC der Seiten = !noTC des Himmelsshaders
+                        seite.keinTc = sk->second.himmelKeinTc;   // MR6 P21 / MR7 P43: allowTC = !noTC beim Lesen von skyParms
                         letzte = static_cast<int>(
                             ladeSatz().byShader.size());
                         ladeSatz().byShader.push_back(std::move(seite));

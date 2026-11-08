@@ -348,7 +348,11 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     float deformSpread = 0.0F;
     DeformZusatz deform2;
     bool polygonOffset = false;
-    bool noTC = false;   // MR4 Punkt 7
+    // MR4 Punkt 7 / MR7 P43: noTC, wie es GERADE steht (shader.noTC, tr_shader.cpp:2324) - die Stufen und skyParms nehmen den
+    // Wert beim Lesen (ParseStage :1263/1288/1329, ParseSkyParms :1970), nicht den am Ende des Shaders.
+    bool noTC = false;
+    bool bildKeinTc = false;
+    bool himmelKeinTc = false;
     std::string skyBox;
     float wolkenHoehe = 0.0F;
     bool hatSonne = false;
@@ -430,6 +434,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // hat - sonst ueberschreibt eine spaetere Stufe sie, und
                 // genau das haben in rc342 zwei bestehende Proben gemeldet.
                 if (inImageStage && stageHatFound) {
+                    bildKeinTc = noTC;
                     for (int k = 0; k < stageNumTexMods; ++k) {
                         texMods[k] = stageTexMods[k];
                     }
@@ -504,6 +509,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     st.depthWrite = stageDepthWrite;
                     st.depthFunc = stageDepthFunc;
                     st.ss = stageSS;
+                    st.keinTc = noTC;
                     stages.push_back(std::move(st));
                 }
                 if (stageGlow) {
@@ -599,7 +605,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.deformSpread = deformSpread;
                     info.deform2 = deform2;
                     info.polygonOffset = polygonOffset;
-                    info.noTC = noTC;
+                    info.bildKeinTc = bildKeinTc;
+                    info.himmelKeinTc = himmelKeinTc;
                     info.glow = glow;
                     info.hasGlow = hasGlow;
                     info.texGen = texGen;
@@ -838,6 +845,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 if (!box.empty() && box != "-") {
                     skyBox = box;
                 }
+                himmelKeinTc = noTC;
                 // Die Wolkenhoehe (rc592): `if (!cloudHeight) cloudHeight
                 // = 512` - auch bei "-". FEHLT die Zahl, kehrt ParseSkyParms
                 // vorher zurueck: dann keine Wolken (Code-Pruefung).
@@ -915,6 +923,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             deform2 = DeformZusatz{};
             polygonOffset = false;
             noTC = false;
+            bildKeinTc = false;
+            himmelKeinTc = false;
             inImageStage = false;
             continue;
         }

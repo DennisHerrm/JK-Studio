@@ -885,6 +885,31 @@ int main() {
                        smh["textures/h/e"].alphaGen == bhed::AlphaGen::Vertex && !smh["textures/h/e"].alphaWave.active() &&
                            smh["textures/h/e"].alphaConst < 0.0F);
             }
+            // MR7 P43: noTC gilt ab dem Schluesselwort - ParseStage und ParseSkyParms lesen shader.noTC, wie es beim Lesen
+            // gerade steht (rd-vanilla tr_shader.cpp:1263/1288/1329/1970, gesetzt :2324).
+            {
+                const char* nt =
+                    "textures/n/nach\n{\n{\nmap x.tga\n}\nnoTC\n}\n"
+                    "textures/n/vor\n{\nnoTC\n{\nmap x.tga\n}\n}\n"
+                    "textures/n/mitte\n{\n{\nmap a.tga\n}\nnoTC\n{\nmap b.tga\nblendFunc GL_ONE GL_ONE\n}\n}\n"
+                    "textures/n/himmel\n{\nskyParms textures/skies/x 512 -\nnoTC\n{\nmap wolke\n}\n}\n"
+                    "textures/n/himmel2\n{\nnoTC\nskyParms textures/skies/x 512 -\n}\n";
+                bhed::ShaderMap smn;
+                bhed::parseShaderScript(nt, smn);
+                const bhed::ShaderInfo& nach = smn["textures/n/nach"];
+                const bhed::ShaderInfo& vor = smn["textures/n/vor"];
+                const bhed::ShaderInfo& mitte = smn["textures/n/mitte"];
+                expect("noTC nach der Stufe: Stufe und Bild werden komprimiert",
+                       nach.stages.size() == 1U && !nach.stages[0].keinTc && !nach.bildKeinTc);
+                expect("noTC vor der Stufe: Stufe und Bild bleiben unkomprimiert",
+                       vor.stages.size() == 1U && vor.stages[0].keinTc && vor.bildKeinTc);
+                expect("noTC zwischen zwei Stufen: nur die zweite unkomprimiert",
+                       mitte.stages.size() == 2U && !mitte.stages[0].keinTc && mitte.stages[1].keinTc && !mitte.bildKeinTc);
+                expect("noTC nach skyParms: Himmelsseiten komprimiert, die Wolkenstufe nicht",
+                       !smn["textures/n/himmel"].himmelKeinTc && smn["textures/n/himmel"].stages.size() == 1U &&
+                           smn["textures/n/himmel"].stages[0].keinTc);
+                expect("noTC vor skyParms: Himmelsseiten unkomprimiert", smn["textures/n/himmel2"].himmelKeinTc);
+            }
             // deformVertexes autosprite2/bulge/move/normal (rc592) - Werte
             // wie ParseDeform in tr_shader.cpp.
             {

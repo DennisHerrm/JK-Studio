@@ -584,6 +584,9 @@ struct ShaderInfo {
         // zurueckzuspringen. 143 Shader der neun pk3, in den 43 Karten
         // auf 3314 Flaechen.
         bool clamp = false;
+        // MR7 P43: noTC, wie es beim Lesen DIESER Stufe stand - ParseStage laedt ihr Bild mit allowTC = !shader.noTC
+        // (rd-vanilla tr_shader.cpp:1263/1288/1329), gesetzt wird shader.noTC erst beim Schluesselwort (:2324).
+        bool keinTc = false;
         // Die beiden Faktoren aus glBlendFunc - siehe BlendFactor.
         // Vorgabe GL_ONE, GL_ZERO: deckend, also gar kein Mischen.
         BlendFactor srcFactor = BlendFactor::One;
@@ -778,7 +781,10 @@ struct ShaderInfo {
     // In den Shadern von MD_Maps_Ep3 stehen 21 solche Flaechen.
     bool polygonOffset = false;
     // MR4 Punkt 7: noTC (tr_shader.cpp:2324) - R_FindImageFile mit allowTC = false, die Bilder bleiben unkomprimiert.
-    bool noTC = false;
+    // MR7 P43: in der Reihenfolge des Skripts wie das Spiel - bildKeinTc fuer `image` (die Stufe, die es geliefert hat),
+    // himmelKeinTc fuer die Seiten aus skyParms (ParseSkyParms, tr_shader.cpp:1970); die Stufen tragen Stage::keinTc.
+    bool bildKeinTc = false;
+    bool himmelKeinTc = false;
 };
 
 // Shadername -> was wir davon wissen.
