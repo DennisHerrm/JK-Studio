@@ -420,6 +420,10 @@ VSOut main(uint id : SV_VertexID) {
 
 std::string vollbildVertexShaderHlsl() { return kVollbildVs; }
 std::string tcModHlsl() { return tcTextMitTafel(); }   // FIX3, FIX4 P33
+
+// DEF1 P46: wie kartenVsZiel - ps_4_x kennt kein precise je Anweisung; die Intel UHD Graphics rechnete die Wolkenkette im ps_4_0
+// anders als das Spiel (ctest turbgpu: bis 12867 von 32768 Werten), ps_5_0 traegt [precise] und rechnet bitgleich.
+const char* wolkenPsZiel(bool ab11) { return ab11 ? "ps_5_0" : "ps_4_0"; }
 std::string verformHlsl() { return tcTextMitTafel() + "#define VERFORM_NORMAL\n" + verformText(); }   // FIX5
 
 // --- Die Klinge eines Lichtschwerts --------------------------------------

@@ -232,6 +232,124 @@ bool laufen(D3D_DRIVER_TYPE art, const std::vector<Eingabe>& ein, std::vector<st
 
 }  // namespace
 
+// DEF1 P46: die tcMod-Kette der Wolkenstufe rechnet im Pixel-Shader (pixelShaderHlsl mit kWolke: st erst je Bildpunkt, turb aussen vor).
+// Ein Bildpunkt je Probe: der Pixel-Shader liest seine Werte aus Buffer<float4> t0 (Index aus SV_Position) und schreibt st in ein
+// R32G32-Ziel; Profil wie die Vorschau (wolkenPsZiel, gpushader.h) oder ps_4_0 (bis DEF1).
+const char* const kPsHuelle = R"(
+Buffer<float4> gEin : register(t0);
+float4 main(float4 pos : SV_POSITION) : SV_Target {
+    uint b = ((uint)pos.x + (uint)pos.y * 256u) * 8u;
+    float4 a = gEin[b];
+    return float4(tcKette(a.zw, gEin[b + 1], gEin[b + 2], gEin[b + 3], gEin[b + 4], gEin[b + 5], gEin[b + 6], gEin[b + 7], float2(0.0, 0.0), false), 0.0, 0.0);
+}
+)";
+const char* const kPsDreieck = R"(
+float4 main(uint id : SV_VertexID) : SV_POSITION {
+    float2 p = float2((id == 1) ? 3.0 : -1.0, (id == 2) ? -3.0 : 1.0);
+    return float4(p, 0.0, 1.0);
+}
+)";
+bool psLaufen(D3D_DRIVER_TYPE art, const char* profil, const std::vector<float>& zusatz, UINT zeilen, std::vector<std::uint32_t>& aus,
+              std::string& name, std::string* zerlegung) {
+    ID3D11Device* dev = nullptr;
+    ID3D11DeviceContext* ctx = nullptr;
+    const D3D_FEATURE_LEVEL stufe = D3D_FEATURE_LEVEL_11_0;
+    name.clear();
+    if (FAILED(D3D11CreateDevice(nullptr, art, nullptr, 0, &stufe, 1, D3D11_SDK_VERSION, &dev, nullptr, &ctx))) { return false; }
+    IDXGIDevice* dx = nullptr;
+    IDXGIAdapter* ad = nullptr;
+    DXGI_ADAPTER_DESC ds{};
+    if (SUCCEEDED(dev->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dx))) && SUCCEEDED(dx->GetAdapter(&ad))) { ad->GetDesc(&ds); }
+    frei(ad);
+    frei(dx);
+    char n[128];
+    std::snprintf(n, sizeof n, "%ls", ds.Description);
+    name = n;
+    const std::string ps = tcModHlsl() + kPsHuelle;
+    ID3DBlob* vb = nullptr;
+    ID3DBlob* pb = nullptr;
+    ID3DBlob* err = nullptr;
+    const bool ueb = SUCCEEDED(D3DCompile(kPsDreieck, std::strlen(kPsDreieck), "vs", nullptr, nullptr, "main", "vs_4_0", 0, 0, &vb, &err)) &&
+                     SUCCEEDED(D3DCompile(ps.data(), ps.size(), "ps", nullptr, nullptr, "main", profil, 0, 0, &pb, &err));
+    if (!ueb) {
+        std::printf("%s\n", err != nullptr ? static_cast<const char*>(err->GetBufferPointer()) : "D3DCompile");
+        frei(err);
+        frei(vb);
+        frei(pb);
+        frei(ctx);
+        frei(dev);
+        return false;
+    }
+    frei(err);
+    if (zerlegung != nullptr) { *zerlegung = vsstrom::zerlegt(pb); }
+    ID3D11VertexShader* vs = nullptr;
+    ID3D11PixelShader* pxs = nullptr;
+    dev->CreateVertexShader(vb->GetBufferPointer(), vb->GetBufferSize(), nullptr, &vs);
+    dev->CreatePixelShader(pb->GetBufferPointer(), pb->GetBufferSize(), nullptr, &pxs);
+    frei(vb);
+    frei(pb);
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = 256;
+    td.Height = zeilen;
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R32G32_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.BindFlags = D3D11_BIND_RENDER_TARGET;
+    ID3D11Texture2D* ziel = nullptr;
+    dev->CreateTexture2D(&td, nullptr, &ziel);
+    td.BindFlags = 0;
+    td.Usage = D3D11_USAGE_STAGING;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ID3D11Texture2D* lesen = nullptr;
+    dev->CreateTexture2D(&td, nullptr, &lesen);
+    ID3D11RenderTargetView* rtv = nullptr;
+    if (ziel != nullptr) { dev->CreateRenderTargetView(ziel, nullptr, &rtv); }
+    D3D11_BUFFER_DESC bz{};
+    bz.ByteWidth = static_cast<UINT>(zusatz.size() * 4U);
+    bz.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA sz{zusatz.data(), 0, 0};
+    ID3D11Buffer* zb = nullptr;
+    dev->CreateBuffer(&bz, &sz, &zb);
+    D3D11_SHADER_RESOURCE_VIEW_DESC sr{};
+    sr.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    sr.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    sr.Buffer.NumElements = static_cast<UINT>(zusatz.size() / 4U);
+    ID3D11ShaderResourceView* srv = nullptr;
+    if (zb != nullptr) { dev->CreateShaderResourceView(zb, &sr, &srv); }
+    const bool gut0 = vs != nullptr && pxs != nullptr && rtv != nullptr && srv != nullptr && lesen != nullptr;
+    if (gut0) {
+        ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ctx->VSSetShader(vs, nullptr, 0);
+        ctx->PSSetShader(pxs, nullptr, 0);
+        ctx->PSSetShaderResources(0, 1, &srv);
+        ctx->OMSetRenderTargets(1, &rtv, nullptr);
+        const D3D11_VIEWPORT vp{0.0F, 0.0F, 256.0F, static_cast<float>(zeilen), 0.0F, 1.0F};
+        ctx->RSSetViewports(1, &vp);
+        ctx->Draw(3, 0);
+        ctx->CopyResource(lesen, ziel);
+    }
+    D3D11_MAPPED_SUBRESOURCE map{};
+    const bool gut = gut0 && SUCCEEDED(ctx->Map(lesen, 0, D3D11_MAP_READ, 0, &map));
+    if (gut) {
+        aus.assign(static_cast<std::size_t>(256U * zeilen) * 2U, 0U);
+        for (UINT y = 0; y < zeilen; ++y) {
+            std::memcpy(aus.data() + static_cast<std::size_t>(y) * 512U, static_cast<const char*>(map.pData) + static_cast<std::size_t>(y) * map.RowPitch, 2048);
+        }
+        ctx->Unmap(lesen, 0);
+    }
+    frei(srv);
+    frei(zb);
+    frei(rtv);
+    frei(lesen);
+    frei(ziel);
+    frei(pxs);
+    frei(vs);
+    frei(ctx);
+    frei(dev);
+    return gut;
+}
+
 int main() {
     std::printf("turbgpu\n");
     std::mt19937 zz(20261109U);
@@ -394,6 +512,62 @@ int main() {
             std::snprintf(z, sizeof z, "P33 %s (%s): %s bitgleich zu rd-vanilla: %d von %zu Werten abweichend", wer, name.c_str(), k.was, falsch,
                           soll.size());
             erwarte(z, falsch == 0);
+        }
+    }
+    // --- DEF1 P46: die Kette der Wolkenstufe im Pixel-Shader (ohne turb, st beliebig wie die Kuppel sie liefert) ---------------------
+    {
+        const Kette wolken[] = {{"scroll", {rollen, {}, {}, {}}, 1},
+                                {"rotate 30, scale 2 3", {dreh, skal, {}, {}}, 2},
+                                {"scale 2 3, scroll, rotate 30, transform", {skal, rollen, dreh, trans}, 4}};
+        for (const Kette& k : wolken) {
+            const UINT zeilen = 64;
+            std::vector<float> zusatz;
+            std::vector<float> soll;
+            for (UINT i = 0; i < 256U * zeilen; ++i) {
+                const float zeit = (i % 2 == 0) ? zahl(0.0, 100.0) : zahl(0.0, 50000.0);
+                float st[2] = {zahl(0.0, 3.2), zahl(0.0, 3.2)};   // acos: 0 .. pi
+                BatchState bs{};
+                bs.numTexMods = k.n;
+                for (int j = 0; j < k.n; ++j) { bs.texMods[j] = k.m[j]; }
+                float konst[kKonstFloats];
+                packeKonstanten(bs, konst, zeit);
+                const float vorn[4] = {0.0F, 0.0F, st[0], st[1]};
+                zusatz.insert(zusatz.end(), vorn, vorn + 4);
+                zusatz.insert(zusatz.end(), konst + kTcM0At, konst + kTcM0At + 8);
+                zusatz.insert(zusatz.end(), konst + kTcM1At, konst + kTcM1At + 20);
+                const float ort[2] = {0.0F, 0.0F};
+                spielSt(k.m, k.n, zeit, ort, st);
+                soll.push_back(st[0]);
+                soll.push_back(st[1]);
+            }
+            for (int welches = 0; welches < 2; ++welches) {
+                const char* const profil = welches == 0 ? "ps_4_0" : wolkenPsZiel(true);
+                for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                    const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
+                    std::vector<std::uint32_t> aus;
+                    std::string name;
+                    std::string dis;
+                    if (!psLaufen(art, profil, zusatz, zeilen, aus, name, &dis)) {
+                        erwarte((std::string("P46 ") + wer + " " + profil + ": Geraet nicht da oder Shader nicht uebersetzt").c_str(),
+                                art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
+                        continue;
+                    }
+                    int falsch = 0;
+                    for (std::size_t i = 0; i < soll.size(); ++i) {
+                        std::uint32_t s = 0;
+                        std::memcpy(&s, &soll[i], 4);
+                        if (aus[i] != s) { ++falsch; }
+                    }
+                    char z[300];
+                    std::snprintf(z, sizeof z, "P46 Wolkenstufe %s (%s), %s: %s bitgleich zu rd-vanilla: %d von %zu Werten abweichend", wer, name.c_str(),
+                                  profil, k.was, falsch, soll.size());
+                    if (welches == 0) {
+                        std::printf("  Hinweis  %s (bis DEF1)\n", z);
+                    } else {
+                        erwarte(z, falsch == 0);
+                    }
+                }
+            }
         }
     }
     if (fehler != 0) {

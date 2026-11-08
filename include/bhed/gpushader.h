@@ -72,6 +72,9 @@ inline constexpr float kSpielLightmapFaktor = 1.0F;
 // FIX5: die HLSL-Funktionen der deformVertexes (verformeEcke: wave, normal, bulge, move je Ecke wie rd-vanilla RB_DeformTessGeometry,
 // mit den Tafeln des Spiels; Werte aus gpu::verformung) samt Sinustafel - fuer die Probe tests/defgpu.cpp.
 [[nodiscard]] std::string verformHlsl();
+// DEF1 P46: das Profil des Pixel-Shaders der Wolkenstufe (kWolke) - ihre tcMod-Kette (tcKette mit precise) rechnet dort je
+// Bildpunkt; ab Merkmalsstufe 11_0 (ab11) wie kartenVsZiel (gpumap_win32.cpp).
+[[nodiscard]] const char* wolkenPsZiel(bool ab11);
 // Die Klingen der Lichtschwerter: fertige Weltecken, Textur oder Farbe.
 [[nodiscard]] std::string klingeVertexShaderHlsl();
 [[nodiscard]] std::string klingePixelShaderHlsl();

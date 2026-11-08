@@ -828,8 +828,10 @@ ShaderPaar* holeShader(std::uint32_t features, int numTexMods,
     if ((features & kDeform) != 0U) {
         pruefeStapelLagen(vsBlob);
     }
+    // DEF1 P46: die Wolkenstufe rechnet ihre tcMod-Kette im Pixel-Shader (wolkenPsZiel)
+    const char* const psZiel = (features & kWolke) != 0U ? wolkenPsZiel(d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0) : "ps_4_0";
     if (FAILED(d3dUebersetzen(psSrc.data(), psSrc.size(), name.c_str(), nullptr,
-                          nullptr, "main", "ps_4_0", uebersetzFahnen(), 0, &psBlob, &err))) {
+                          nullptr, "main", psZiel, uebersetzFahnen(), 0, &psBlob, &err))) {
         meldung("Pixel-Shader nicht uebersetzbar");
         kaputt.insert(name);
         if (err != nullptr) { err->Release(); }

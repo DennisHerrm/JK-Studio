@@ -94,6 +94,9 @@ int main() {
     uebersetze("oneMinusVertex ps", pixelShaderHlsl(kAlphaKonst | kAlphaEins), "ps_4_0");
     uebersetze("ohne Merkmal vs", vertexShaderHlsl(kNichts, 0), "vs_4_0");
     uebersetze("ohne Merkmal ps", pixelShaderHlsl(kNichts), "ps_4_0");
+    // DEF1 P46: die Wolkenstufe mit dem Profil der Vorschau ab Merkmalsstufe 11_0
+    uebersetze("Wolkenstufe ps (wolkenPsZiel)", pixelShaderHlsl(kWolke), wolkenPsZiel(true));
+    uebersetze("Wolkenstufe ps mit tcMod (wolkenPsZiel)", pixelShaderHlsl(kWolke | kTexMod), wolkenPsZiel(true));
     // Die festen Shader.
     uebersetze("vollbild", vollbildVertexShaderHlsl(), "vs_4_0");
     uebersetze("klinge vs", klingeVertexShaderHlsl(), "vs_4_0");
