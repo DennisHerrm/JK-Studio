@@ -575,7 +575,7 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             g_app->cam.angles[0] = kam[3] + nr * fahrt[3];
             g_app->cam.angles[1] = kam[4] + nr * fahrt[4];
             g_app->cam.angles[2] = 0.0F;
-            g_app->cam.fovY = 64.3727F;   // CalcFov: 2 * atan(tan(40 Grad) * 3 / 4)
+            g_app->cam.fovY = 64.366444F;   // CG_CalcFov: atan2(1440, 1920 / tan(40 Grad)) * 360 / pi (REST3b: vorher 64,3727, verrechnet)
             g_app->playMs = ms;
             g_app->playing = sauber;
             g_app->abspielTempo = sauber ? 0.0F : 1.0F;

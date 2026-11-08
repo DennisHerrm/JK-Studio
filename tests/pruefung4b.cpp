@@ -869,7 +869,7 @@ void objektWurf() {
 // Spiel. rc608 Teil 13e: Die Hoehen kommen aus dem Spiel selbst (Movie Duels, Karte g13d_reit in SP/g13d, swoop
 // mit hoverHeight 30, hoverStrength 35, friction 1.5; Ort je Serverbild per ICARUS-print, g_ICARUSDebug 4):
 // Spawn 61 ueber dem Boden, NPC_Begin und erstes NPC_Think je 200 ms, dann 50. Index k gilt fuer level.time
-// 3900 + 50 k, der Wert ist die Hoehe ueber der Ruhelage (Boden + 24,125 im Spiel, Boden + 24 in der Vorschau).
+// 3900 + 50 k, der Wert ist die Hoehe ueber der Ruhelage (Boden + 24,125: SURFACE_CLIP_EPSILON, REST3b auch in der Vorschau).
 // kSchwebenLeer: niemand steigt auf (log_c); kSchwebenRitt: ein Reiter steigt im Bild 4650 (k 15) auf, 550 ms
 // (log_d).
 struct SchwebeWert {
@@ -918,23 +918,23 @@ void fahrzeuge() {
     sc.actors.push_back(fahrzeug("swoop", "VH_SPEEDER", 30.0F, 35.0F));
     sc.actors.push_back(fahrzeug("x-wing", "VH_FIGHTER", 80.0F, 10.0F));
     sc.actors.push_back(fahrzeug("swoop", "VH_SPEEDER", 30.0F, 35.0F));
-    // Gleich hoch ueber der Ruhelage wie im Spiel (61 - 0,125).
-    sc.actors[1].start[2] = 60.875F;
-    sc.actors[3].start[2] = 60.875F;
+    // Wie im Spiel 61 ueber dem Boden.
+    sc.actors[1].start[2] = 61.0F;
+    sc.actors[3].start[2] = 61.0F;
     sc.actors[3].aufsteigFenster.emplace_back(750.0, 1300.0);
     schwerkraftEinrechnen(sc, h);
     const auto hoeheBei = [](const Actor& a, std::size_t k) {
         return k < a.hoehe.size() ? a.hoehe[k] : a.start[2];
     };
     // hoehe[k] gilt fuer t = k * 50 ab dem Skriptanfang; davor zwei Spawn-Takte.
-    pruefe(std::fabs(hoeheBei(sc.actors[0], 40U) - 24.0F) < 0.01F && std::fabs(hoeheBei(sc.actors[2], 40U) - 24.0F) < 0.01F,
+    pruefe(std::fabs(hoeheBei(sc.actors[0], 40U) - 24.125F) < 0.0001F && std::fabs(hoeheBei(sc.actors[2], 40U) - 24.125F) < 0.0001F,
            "Laeufer und Jaeger fallen auf den Boden (z " + std::to_string(hoeheBei(sc.actors[0], 40U)) + ", " +
                std::to_string(hoeheBei(sc.actors[2], 40U)) + ")");
     const auto vergleich = [&](const Actor& a, const auto& werte, const char* was) {
         bool gleich = true;
         std::string text;
         for (const SchwebeWert& w : werte) {
-            const float v = hoeheBei(a, w.k) - 24.0F;
+            const float v = hoeheBei(a, w.k) - 24.125F;
             gleich = gleich && std::fabs(v - w.h) < 0.01F;
             char z[64];
             std::snprintf(z, sizeof(z), " %zu:%.3f/%.3f", w.k, static_cast<double>(v), static_cast<double>(w.h));

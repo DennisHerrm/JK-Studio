@@ -349,7 +349,7 @@ std::vector<Schritt> mission() {
         return false;
     }));
     // --- Spielvergleich (nur mit BHED_M0_KAMERA "x y z nicken gier"): die Vorschau so, wie das Spiel durch dieselbe
-    // Kamera sieht (cg_fov 80 auf 4:3: CalcFov 64,3727 Grad senkrecht), ohne Bearbeitungshilfen, Ansicht BHED_M0_ANSICHT.
+    // Kamera sieht (cg_fov 80 auf 4:3: CG_CalcFov 64,36644 Grad senkrecht), ohne Bearbeitungshilfen, Ansicht BHED_M0_ANSICHT.
     if (const char* k = std::getenv("BHED_M0_KAMERA")) {
         float kam[5] = {0, 0, 0, 0, 0};
         (void)std::sscanf(k, "%f %f %f %f %f", &kam[0], &kam[1], &kam[2], &kam[3], &kam[4]);
@@ -373,7 +373,7 @@ std::vector<Schritt> mission() {
             g_app->cam.angles[0] = kam[3];
             g_app->cam.angles[1] = kam[4];
             g_app->cam.angles[2] = 0.0F;
-            g_app->cam.fovY = 64.3727F;
+            g_app->cam.fovY = 64.366444F;
             g_app->throughCamera = false;
             g_app->followCam = false;
             g_app->showEntities = false;   // keine Marken und kein Gizmo im Bild

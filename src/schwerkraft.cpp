@@ -63,6 +63,11 @@ constexpr double kKartenSpawnMs = -200.0;
 // Q3_SetBState: wer BS_NOCLIP verlaesst, wird 0,125 gehoben ("need to rise
 // up out of the floor after noclipping", Q3_Interface.cpp:2654-2659).
 constexpr float kNoclipHeben = 0.125F;
+// REST3b: die Ruhelage. Jede Spur (PM_SlideMove, PM_GroundTrace, G_CheckInSolid) endet SURFACE_CLIP_EPSILON vor der Flaeche
+// (cm_local.h:152, CM_TraceThroughBrush cm_trace.cpp: enterFrac = (d1 - SURFACE_CLIP_EPSILON) / (d1 - d2)) - eine stehende Figur
+// hat ihren Ursprung 24,125 ueber dem Boden, nicht 24 (gemessen: Gleiter in pruefung4b, Figur p27f im Spielbild 0,6 Bildpunkte
+// = 0,126 Einheiten hoeher als die Vorschau mit 24). Alle Hoehen dieser Rechnung gehen von der Ruhelage aus.
+constexpr float kRuhe = kFussTiefe + 0.125F;
 
 struct Pmove {
     float z = 0.0F;
@@ -170,10 +175,10 @@ bool bodenFragen(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float hb
 // origin bis origin - 3 * hoverHeight; bei normal[2] >= maxSlope und fraction < 0.3 Schub (0.3 - fraction) *
 // hoverStrength * m_fTimeModifier (frametime * 60, bg_pmove.cpp:33815 MD) und VEH_FLYING aus, sonst VEH_FLYING an.
 // Ebener Boden (das Raster kennt keine Normale): 1. fraction = (d1 - SURFACE_CLIP_EPSILON) / (d1 - d2) mit d1 =
-// Kastenboden ueber dem Boden: Die Ruhelage der Engine steht SURFACE_CLIP_EPSILON ueber dem Boden, die der Vorschau
-// auf ihm (Boden + kFussTiefe), fraction ist also der Abstand ueber der Ruhelage durch 3 * hoverHeight.
+// Kastenboden ueber dem Boden: Die Ruhelage steht SURFACE_CLIP_EPSILON ueber dem Boden (Boden + kRuhe), fraction ist
+// also der Abstand ueber der Ruhelage durch 3 * hoverHeight.
 void schwebeSpur(Pmove& p, float boden, bool da, float dt) {
-    const float f = da ? std::max(0.0F, (p.z - kFussTiefe - boden) / (3.0F * p.schwebeHoehe)) : 1.0F;
+    const float f = da ? std::max(0.0F, (p.z - kRuhe - boden) / (3.0F * p.schwebeHoehe)) : 1.0F;
     const bool ebene = da && f < 0.3F && 1.0F >= p.hang;
     if (ebene) { p.vz += (0.3F - f) * p.schwebeKraft * (dt * 60.0F); }
     p.fliegt = !ebene;
@@ -222,8 +227,8 @@ void schwebeSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float
     }
     const float vNeu = p.vz - g * dt;
     const float zNeu = p.z + 0.5F * (p.vz + vNeu) * dt;
-    if (da && zNeu - kFussTiefe <= boden) {
-        p.z = boden + kFussTiefe;
+    if (da && zNeu - kRuhe <= boden) {
+        p.z = boden + kRuhe;
         p.vz = 0.0F;
     } else {
         p.z = zNeu;
@@ -281,7 +286,7 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
     }
     const bool warBoden = p.amBoden;   // rc605 (Rest)
     const float vorherVz = p.vz;
-    const float fuss = p.z - kFussTiefe;
+    const float fuss = p.z - kRuhe;
     // Steckt der Kasten im Boden und bewegt sich nicht, bleibt er stecken:
     // PM_GroundTrace meldet allsolid, PM_CorrectAllSolid rueckt hoechstens
     // eine Einheit (bg_pmove.cpp:6323 ff.), PM_SlideMove bewegt nichts.
@@ -305,7 +310,7 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
         }
     }
     if (boden >= fuss - halt) {
-        p.z = boden + kFussTiefe;
+        p.z = boden + kRuhe;
         p.vz = 0.0F;
         p.amBoden = true;
         if (!warBoden) { landung(p, t, vorherVz); }   // rc605 (Rest): PM_CrashLand
@@ -321,10 +326,10 @@ void pmoveSchritt(const SchwerkraftHilfe& h, Pmove& p, float x, float y, float w
     // Luft bremst PM_Friction nicht - es wirkt nur am Boden). Unter 0: oben.
     const float vNeu = p.vz - g * dt;
     const float zNeu = p.z + 0.5F * (p.vz + vNeu) * dt;
-    if (zNeu - kFussTiefe <= boden) {
+    if (zNeu - kRuhe <= boden) {
         // Gelandet: PM_SlideMove bleibt am Boden haengen, PM_GroundTrace
         // setzt groundEntityNum (PM_CrashLand).
-        p.z = boden + kFussTiefe;
+        p.z = boden + kRuhe;
         p.vz = 0.0F;
         p.amBoden = true;
         landung(p, t, vorherVz);   // rc605 (Rest)
@@ -590,7 +595,7 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
                     float boden = 0.0F;
                     if ((a.spawnflags & 128) == 0 &&
                         bodenUnter(h.strahl, a.start[0], a.start[1], p.z, p.z - kFussTiefe, hb, kKartenSpawnMs, boden)) {
-                        p.z = boden + kFussTiefe;
+                        p.z = boden + kRuhe;
                     }
                     pmoveSchritt(h, p, a.start[0], a.start[1], 0.0F, hb, kKartenSpawnMs,
                                  static_cast<float>(kSpawnSchrittMs / 1000.0), g);
@@ -611,7 +616,7 @@ std::vector<float> backen(const Actor& a, const SchwerkraftHilfe& h, float karte
                     float boden = 0.0F;
                     if ((a.spawnflags & 128) == 0 &&
                         bodenUnter(h.strahl, x, y, p.z, p.z - kFussTiefe, hb, t, boden)) {
-                        p.z = boden + kFussTiefe;
+                        p.z = boden + kRuhe;
                     }
                     pmoveSchritt(h, p, x, y, 0.0F, hb, t, static_cast<float>(kSpawnSchrittMs / 1000.0), g);
                     naechstesPmove = t + kErstesDenkenMs;

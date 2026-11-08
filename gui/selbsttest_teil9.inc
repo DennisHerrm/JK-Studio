@@ -524,7 +524,7 @@ std::vector<Schritt> teil9Schritte() {
         g_app->cam.angles[0] = 0.0F;
         g_app->cam.angles[1] = 90.0F;
         g_app->cam.angles[2] = 0.0F;
-        g_app->cam.fovY = 64.3727F;
+        g_app->cam.fovY = 64.366444F;
         g_app->followCam = false;
         g_app->throughCamera = false;
         g_app->playing = false;

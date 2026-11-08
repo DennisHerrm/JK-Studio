@@ -38,7 +38,7 @@ inline HimmelProbe himmelProbe(const float kam[4], bool offen) {
     sicht.links[1] = std::cos(w);
     sicht.hoch[2] = 1.0F;
     sicht.fovX = 80.0F;
-    sicht.fovY = 64.3727F;
+    sicht.fovY = 64.366444F;
     sicht.portale = &p;
     sicht.gebiet = punktGebiet(g_app->geo, kam);
     HimmelProbe aus;

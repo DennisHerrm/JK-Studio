@@ -104,7 +104,7 @@ HimmelSicht blickNachX(float aufX = 1.0F) {
     s.links[1] = aufX;
     s.hoch[2] = 1.0F;
     s.fovX = 80.0F;
-    s.fovY = 64.3727F;
+    s.fovY = 64.366444F;
     return s;
 }
 
