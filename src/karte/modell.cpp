@@ -17,6 +17,7 @@
 
 #include "bhed/glm.h"
 #include "bhed/md3.h"
+#include "bhed/modell/g2.h"
 #include "bhed/karte/auswahlsystem.h"
 #include "bhed/karte/auswahltest.h"
 #include "bhed/karte/eklasse.h"
@@ -281,9 +282,8 @@ bool modellArtBekannt(const std::string& pfad) {
 
 void modellGrenzenRechnen(Modell& m) { grenzenRechnen(m); }
 
-bool md3Lesen(const std::string& bytes, Modell& m, std::string* fehler) {   // MD3Model_read
-    Md3Model md3;
-    if (!readMd3(bytes, md3, fehler)) { return false; }
+namespace {
+void md3Uebernehmen(const Md3Model& md3, Modell& m) {
     m = Modell{};
     for (const Md3Surface& s : md3.surfaces) {
         ModellFlaeche f;
@@ -299,6 +299,33 @@ bool md3Lesen(const std::string& bytes, Modell& m, std::string* fehler) {   // M
         m.flaechen.push_back(std::move(f));
     }
     grenzenRechnen(m);
+}
+}  // namespace
+
+bool md3Lesen(const std::string& bytes, Modell& m, std::string* fehler) {   // MD3Model_read
+    Md3Model md3;
+    if (!readMd3(bytes, md3, fehler)) { return false; }
+    md3Uebernehmen(md3, m);
+    return true;
+}
+
+bool glmLesenImSpiel(const std::string& bytes, const ModellDateiLeser& leser, Modell& m, std::string* fehler) {
+    GlmModel g;
+    if (!readGlm(bytes, g, fehler, 0)) { return false; }
+    std::string glaDaten;
+    GlaAnimation gla;
+    if (g.animFile == bhed::modell::kStandardGlaName) {
+        gla = bhed::modell::standardGla();   // FakeGLAFile (RE_RegisterModels_GetDiskFile)
+    } else if (!leser(g.animFile + ".gla", glaDaten) || !readGla(glaDaten, gla, fehler)) {
+        if (fehler != nullptr && fehler->empty()) { *fehler = "missing animation file " + g.animFile; }
+        return false;
+    }
+    Md3Model md3;
+    if (!bhed::modell::glmStandbild(g, gla, md3)) {
+        if (fehler != nullptr) { *fehler = "different bones than anim"; }
+        return false;
+    }
+    md3Uebernehmen(md3, m);
     return true;
 }
 

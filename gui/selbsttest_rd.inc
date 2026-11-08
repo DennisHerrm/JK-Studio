@@ -648,6 +648,203 @@ std::vector<Schritt> model2Schritte() {
     return s;
 }
 
+// --- MRESTE 4: Ghoul2 als model2 und misc_model_ghoul -------------------------------------------------------
+//
+// Dunkler Raum, ein Licht. A: func_static mit model2 = turret_canon.glm (InitMover: G2API_InitGhoul2Model), B: misc_model_ghoul
+// mit demselben Modell, C: func_breakable mit demselben model2 (InitBBrush: nur s.modelindex2 - das Spiel zeichnet nichts).
+// Gemessen der Anteil der Bildpunkte, die sich vom Raum um das Rechteck abheben, im Rechteck des erwarteten Netzes
+// (modell::glmStandbild: Bild 0 der GLA, Wurzel) im Editor-Licht und in "Built map as in the game".
+
+constexpr const char* kGlmModell = "models/map_objects/imp_mine/turret_canon.glm";
+constexpr float kGlmY = 320;
+constexpr float kGlmZ = 150;
+const karte::Vektor3f kGlmA(-170, kGlmY, kGlmZ);
+const karte::Vektor3f kGlmB(170, kGlmY, kGlmZ);
+const karte::Vektor3f kGlmC(0, kGlmY + 330, kGlmZ);
+
+std::string glmKarte() { return karteTestPfad("rd_glm.map"); }
+
+void glmKarteSchreiben() {
+    karte::Karte k;
+    k.klassen = &ke::editor().spiel->klassen;
+    auto welt = k.weltHolenOderAnlegen();
+    r3::raum(k, welt, r3::kDunkel);
+    welt->setzen("_ambient", "60");
+    r3::ent(k, "light", {{"origin", "0 100 360"}, {"light", "1200"}});
+    r3::ent(k, "info_player_start", {{"origin", "0 -300 24"}});
+    for (const auto& [klasse, ort] : {std::pair<const char*, karte::Vektor3f>{"func_static", kGlmA}, {"func_breakable", kGlmC}}) {
+        auto e = k.neueEntitaet(klasse, true);
+        e->setzen("model2", kGlmModell);
+        k.entitaetEinfuegen(e);
+        r3::quader(k, e, karte::Vektor3f(ort[0], ort[1] + 250, 380), karte::Vektor3f(8, 8, 8), r3::kDunkel);
+        // ein kleiner Ursprungs-Brush (q3map2 setzt damit "origin"; der Schluessel allein verschiebt die Brushes nicht, das
+        // Spiel stellte das Brush-Modell dann ausserhalb der Karte auf und schickte die Entity nie)
+        r3::quader(k, e, ort, karte::Vektor3f(1, 1, 1), "textures/system/origin");
+    }
+    char o[64];
+    std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(kGlmB[0]), static_cast<double>(kGlmB[1]), static_cast<double>(kGlmB[2]));
+    r3::ent(k, "misc_model_ghoul", {{"origin", o}, {"model", kGlmModell}});
+    (void)karte::karteSpeichern(glmKarte(), k, false);
+}
+
+// Mitte und halbe Groesse des Netzes, das das Spiel zeichnet (Stufe 0), im Raum der Entity
+bool glmKasten(karte::Vektor3f& mitte, karte::Vektor3f& halb) {
+    std::string data;
+    std::map<std::string, Md3Model> dateien;
+    std::string fehler;
+    if (!readFromArchives(kGlmModell, data) || glmStufenLaden(data, kGlmModell, dateien, fehler) == 0) {
+        meldeFehler(std::string("RD glm: ") + kGlmModell + " nicht geladen: " + fehler);
+        return false;
+    }
+    float mn[3] = {1e30F, 1e30F, 1e30F};
+    float mx[3] = {-1e30F, -1e30F, -1e30F};
+    for (const Md3Surface& sf : dateien[kGlmModell].surfaces) {
+        for (const Md3Vertex& v : sf.verts) {
+            for (int i = 0; i < 3; ++i) {
+                mn[i] = std::min(mn[i], v.xyz[i]);
+                mx[i] = std::max(mx[i], v.xyz[i]);
+            }
+        }
+    }
+    mitte = karte::Vektor3f((mn[0] + mx[0]) * 0.5F, (mn[1] + mx[1]) * 0.5F, (mn[2] + mx[2]) * 0.5F);
+    halb = karte::Vektor3f((mx[0] - mn[0]) * 0.5F, (mx[1] - mn[1]) * 0.5F, (mx[2] - mn[2]) * 0.5F);
+    return mx[0] >= mn[0];
+}
+
+// Anteil der Bildpunkte im inneren Rechteck des Netzes, deren Helligkeit um mehr als 8 vom Median des Randstreifens (bis 40 %
+// ausserhalb des Rechtecks: nur Raum) abweicht - ohne Modell ist das Rechteck Raum wie sein Rand; `mittel`: die mittlere
+// Helligkeit dieser Bildpunkte
+double glmHell(const stufe9c::Bild& b, const karte::Vektor3f& ort, const karte::Vektor3f& mitte, const karte::Vektor3f& halb, long& n,
+               double& mittel) {
+    const r3::Rechteck innen = r3::rechteck(ort + mitte, halb, b.breite, b.hoehe, 0.2F);
+    const r3::Rechteck kasten = r3::rechteck(ort + mitte, halb, b.breite, b.hoehe, 0.0F);
+    const r3::Rechteck aussen = r3::rechteck(ort + mitte, halb, b.breite, b.hoehe, -0.4F);
+    const auto hell = [&b](int x, int y) {
+        const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(b.breite) + static_cast<std::size_t>(x)) * 4U;
+        return (static_cast<int>(b.rgba[i]) + b.rgba[i + 1] + b.rgba[i + 2]) / 3;
+    };
+    std::vector<int> rand;
+    for (int y = aussen.y0; y <= aussen.y1; ++y) {
+        for (int x = aussen.x0; x <= aussen.x1; ++x) {
+            if (x >= kasten.x0 && x <= kasten.x1 && y >= kasten.y0 && y <= kasten.y1) { continue; }
+            rand.push_back(hell(x, y));
+        }
+    }
+    n = 0;
+    mittel = 0.0;
+    if (rand.empty()) { return 0.0; }
+    std::nth_element(rand.begin(), rand.begin() + static_cast<std::ptrdiff_t>(rand.size() / 2), rand.end());
+    const int median = rand[rand.size() / 2];
+    long anders = 0;
+    for (int y = innen.y0; y <= innen.y1; ++y) {
+        for (int x = innen.x0; x <= innen.x1; ++x) {
+            if (std::abs(hell(x, y) - median) > 8) {
+                ++anders;
+                mittel += hell(x, y);
+            }
+            ++n;
+        }
+    }
+    if (anders > 0) { mittel /= static_cast<double>(anders); }
+    return n > 0 ? static_cast<double>(anders) / static_cast<double>(n) : 0.0;
+}
+
+Schritt glmMessen(const std::string& name, std::shared_ptr<std::array<double, 6>> wert) {
+    return tu("RD glm: " + name + " messen", [name, wert] {
+        stufe9c::Bild b;
+        if (!stufe9c::bildHolen(b) || b.breite < 640) {
+            meldeFehler("RD glm: Kamerabild " + name + " nicht lesbar");
+            return;
+        }
+        bmp("rd_glm_" + name, b);
+        karte::Vektor3f mitte;
+        karte::Vektor3f halb;
+        if (!glmKasten(mitte, halb)) { return; }
+        long n[3] = {0, 0, 0};
+        const karte::Vektor3f orte[3] = {kGlmA, kGlmB, kGlmC};
+        for (int i = 0; i < 3; ++i) {
+            const auto u = static_cast<std::size_t>(i);
+            (*wert)[u] = glmHell(b, orte[i], mitte, halb, n[i], (*wert)[u + 3]);
+        }
+        char z[320];
+        std::snprintf(z, sizeof(z), "Knopftest: RD glm %s - abgehoben A (func_static) %.3f (%ld, Helligkeit %.1f), B (misc_model_ghoul) %.3f (%ld, %.1f), "
+                      "C (func_breakable) %.3f (%ld)", name.c_str(), (*wert)[0], n[0], (*wert)[3], (*wert)[1], n[1], (*wert)[4], (*wert)[2], n[2]);
+        diag::detail(z);
+    });
+}
+
+std::vector<Schritt> glmSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto editor = std::make_shared<std::array<double, 6>>();
+    auto spiel = std::make_shared<std::array<double, 6>>();
+    add(tu("RD glm: Testdaten (Raum-Bilder) als Extra Resource Path", [] {
+        karteDialogeZu();
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        pk3Schreiben();
+        ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(quelle()); });
+    }));
+    add(warteBis("RD glm: Spieldaten mit dem Extra Resource Path", [] {
+        ke::spielPruefen();
+        const ke::Editor& e = ke::editor();
+        return ke::spielBereit() && e.karteSpiel && e.karteSpiel->inventar.shaderFinden("textures/rd/scroll") != nullptr;
+    }, 20000));
+    add(tu("RD glm: model2 und misc_model_ghoul mit .glm, Editor-Licht", [] {
+        glmKarteSchreiben();
+        (void)ke::karteOeffnen(glmKarte());
+        kameraFest(karte::Vektor3f(0.0F, -40.0F, kGlmZ + 40.0F), karte::Vektor3f(0.0F, 90.0F, 0.0F));
+        ke::Editor& e = ke::editor();
+        e.echtLicht.an = false;
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+    }));
+    add(warteBis("RD glm: Texturen", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(pause(1.0));
+    add(glmMessen("editor", editor));
+    add(tu("RD glm: Schnell-Backen, Spielbild", [] {
+        std::vector<std::string> ordner = aktiveSpielordner();
+        if (ordner.empty() || ordner.back() != quelle()) {
+            ordner.push_back(quelle());
+            setzeSitzungsSpielordner(std::move(ordner));
+            rescanGamePaths();
+        }
+        ke::Editor& e = ke::editor();
+        e.echtLicht.an = true;
+        e.echtLicht.pauseSekunden = 0.2;
+        e.echtLicht.backen = true;
+        e.echtLicht.spielbild = true;
+        e.filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT | karte::EXCLUDE_MODELS;
+    }));
+    add(stufe9c::langeWarten("RD glm: Schnell-Backen fertig", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.echtLicht.bauStand == 5) {
+            meldeFehler("RD glm: Schnell-Backen gescheitert");
+            return true;
+        }
+        return e.echtLicht.gebackenZeigen;
+    }, 400000));
+    add(stufe9c::langeWarten("RD glm: Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
+    add(pause(1.5));
+    add(glmMessen("spielbild", spiel));
+    add(pruefe("RD glm: die Kamera des Editors zeichnet das .glm am func_static (A ueber 25 % abgehoben), nicht am func_breakable (C unter 5 %)",
+               [editor] { return (*editor)[0] > 0.25 && (*editor)[2] < 0.05; }));
+    add(pruefe("RD glm: das Spielbild zeichnet A und den misc_model_ghoul B (ueber 25 % abgehoben), C nicht (unter 5 %) - wie das Spiel",
+               [spiel] { return (*spiel)[0] > 0.25 && (*spiel)[1] > 0.25 && (*spiel)[2] < 0.05; }));
+    // Movie Duels mit derselben Karte und Kamera (Y:/werkzeuge/mr/spiel_glm.py): A 15,0, B 14,5 - gleich hell
+    add(pruefe("RD glm: im Spielbild sind A und B gleich hell wie im Spiel (Verhaeltnis 0,8 bis 1,25; das model2 liegt nicht noch einmal im "
+               "Editor-Licht darueber)",
+               [spiel] { return (*spiel)[4] > 0.0 && (*spiel)[3] / (*spiel)[4] > 0.8 && (*spiel)[3] / (*spiel)[4] < 1.25; }));
+    add(tu("RD glm: aufraeumen", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        e.echtLicht.an = false;
+        e.filterMaske = 0;
+        e.karte.undo.alsGespeichertMarkieren();
+    }));
+    return s;
+}
+
 // --- Movie-Duels-Figuren: doppelte NPC-Namen ----------------------------------------------------------
 //
 // StOfficerAlt steht in Movie Duels dreimal: MD_Assets.pk3 ext_data/npcs/z_JO_NPCs.npc (customSkin officer, surfOn/surfOff

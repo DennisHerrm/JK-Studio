@@ -96,6 +96,22 @@ struct LodLage {
 [[nodiscard]] float projiziereRadius(float r, float abstand, float projektion5) noexcept;   // ProjectRadius
 [[nodiscard]] int lodWieImSpiel(const LodLage& l) noexcept;                                    // G2_ComputeLOD
 
+// --- MRESTE 4: ein Ghoul2-Kartenmodell ohne Animation als starres Netz --------
+// model2 an einem Brush-Mover (InitMover, code/game/g_mover.cpp:1069-1080 OpenJK, codeJK2 :1061-1073; s.radius 120)
+// und misc_model_ghoul (SP_misc_model_ghoul, g_misc_model.cpp:180-216; s.radius 50): G2API_InitGhoul2Model ohne Haut
+// und ohne Animation. R_AddGhoulSurfaces zeichnet jede Flaeche, die RenderSurfaces ohne Ueberschreibung zeichnet, mit
+// dem Shader aus der Datei (tr_ghoul2.cpp:2260-2295: offFlags = Flaggen der Flaeche, kein RS.skin); die Knochen stehen
+// auf Bild 0 der GLA (G2_TransformGhoulBones ohne Knochenliste: TB.newFrame = currentFrame = 0, :1922-1924), davor die
+// Wurzel rootMatrix = identityMatrix (:92-99, (x, y, z) -> (-y, x, z)). RB_SurfaceGhoul (:2992-3060): Ort = Summe
+// Gewicht * (Knochen * Ecke + Verschiebung), Normale nur mit dem ersten Knochen. Das Netz steht im Raum der Entity wie
+// ein .md3 mit einem Bild (ent.axis und origin stellen es, R_RotateForEntity). false: GLA leer oder mit anderen
+// Knochen (R_LoadMDXM :3670-3699: "missing animation file" / "different bones than anim" - das Spiel zeichnet nichts).
+[[nodiscard]] bool glmStandbild(const GlmModel& stufe, const GlaAnimation& gla, Md3Model& aus);
+// Die GLA eines Modells mit animName "*default" (sDEFAULT_GLA_NAME, mdx_format.h:91): RE_RegisterModels_GetDiskFile gibt
+// fuer "*default.gla" die eingebaute FakeGLAFile zurueck (tr_model.cpp:112-131, 155-163 OpenJK) - ein Knochen, ein Bild.
+[[nodiscard]] const GlaAnimation& standardGla();
+inline constexpr const char* kStandardGlaName = "*default";
+
 // --- Grenzen je Zielspiel ----------------------------------------------------
 enum class Zielspiel : std::uint8_t { JkaSp, JkaMp, Jk2Sp, MdSp, MdMp };
 inline constexpr int kZielspiele = 5;

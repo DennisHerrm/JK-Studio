@@ -2814,6 +2814,61 @@ void objektWuerfeSetzen() {
     }
 }
 
+// MRESTE 4: ein Ghoul2-Kartenmodell je LOD-Stufe als starres Netz (modell::glmStandbild: Bild 0 der GLA, Shader der
+// Datei) nach `dateien` - Stufe 0 unter `low`, Stufe n unter "low|lod<n>". Die GLA nennt die Datei (mdxm->animName,
+// R_LoadMDXM laedt "<animName>.gla"). Zurueck die Zahl der Stufen; 0: nicht lesbar oder ohne passende GLA (dann steht ein
+// leeres Modell unter `low`, das Spiel zeichnet nichts).
+int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler) {
+    GlmModel erste;
+    if (!readGlm(data, erste, &fehler, 0)) {
+        dateien[low] = Md3Model{};
+        return 0;
+    }
+    std::string glaDaten;
+    GlaAnimation gla;
+    if (erste.animFile == modell::kStandardGlaName) {
+        gla = modell::standardGla();   // FakeGLAFile (RE_RegisterModels_GetDiskFile)
+    } else if (!readFromArchives(erste.animFile + ".gla", glaDaten) || !readGla(glaDaten, gla, &fehler)) {
+        if (fehler.empty()) { fehler = "missing animation file " + erste.animFile; }
+        dateien[low] = Md3Model{};
+        return 0;
+    }
+    const int stufen = std::max(erste.numLods, 1);
+    for (int n = 0; n < stufen; ++n) {
+        GlmModel g;
+        if (n == 0) {
+            g = std::move(erste);
+        } else if (!readGlm(data, g, &fehler, n)) {
+            return n;
+        }
+        Md3Model m;
+        if (!modell::glmStandbild(g, gla, m)) {
+            fehler = "different bones than anim (" + std::to_string(g.numBones) + " != " + std::to_string(gla.bones.size()) + ")";
+            dateien[low] = Md3Model{};
+            return 0;
+        }
+        dateien[n == 0 ? low : low + "|lod" + std::to_string(n)] = std::move(m);
+    }
+    return stufen;
+}
+
+int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam) {
+    if (mm.glmStufen < 2) { return 0; }
+    const modell::Zielspiel ziel = regelwerkJediOutcast() ? modell::Zielspiel::Jk2Sp
+                                   : regelwerkMovieDuels() ? modell::Zielspiel::MdSp
+                                                           : modell::Zielspiel::JkaSp;
+    float vorn[3];
+    cam.forward(vorn);
+    modell::LodLage l;
+    l.stufenZahl = mm.glmStufen;
+    l.radius = mm.glmRadius;
+    l.skala = std::max({mm.scale[0], mm.scale[1], mm.scale[2]});   // largestScale (CG_Mover: 0 -> 1)
+    l.lodscale = modell::grenzen(ziel).lodscale;                   // r_lodscale, r_lodbias "0" (tr_init.cpp:1557-1559)
+    l.abstand = vorn[0] * (ort[0] - cam.pos[0]) + vorn[1] * (ort[1] - cam.pos[1]) + vorn[2] * (ort[2] - cam.pos[2]);
+    l.projektion5 = 1.0F / std::tan(cam.fovY * 3.14159265F / 360.0F);
+    return modell::lodWieImSpiel(l);
+}
+
 // rc608 Teil 13b: die Kartenmodelle einer Entity-Liste aufstellen (misc_model_static, _breakable, die festen Modelle,
 // model2 an Brush-Movern) - fuer die Vorschau und fuer das Spielbild des Karten-Editors mit demselben Code. Die
 // Bilder kommen hinten an z.textures (modellBlockIn), die Dateien nach z.dateien.
@@ -2872,6 +2927,11 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         // haengt am Mover und faehrt mit ihm - etwa ein Schiffsmodell an
         // einem unsichtbaren Brush (rc592; vorher fehlte es ganz).
         int anBrush = 0;
+        // MRESTE 4: ein .glm als model2 macht nur InitMover zum Ghoul2-Modell (strstr( ent->model2, ".glm" ),
+        // g_mover.cpp:1069-1080 OpenJK, codeJK2 :1061-1073); InitBBrush (func_breakable, g_breakable.cpp:281-284) setzt nur
+        // s.modelindex2 - CG_Mover reicht dann ein leeres ghoul2 weiter, R_AddGhoulSurfaces zeichnet nichts
+        // (G2_SetupModelPointers, tr_ghoul2.cpp:2580-2583).
+        bool glmAmMover = false;
         if (const std::string* m2 = e.find("model2");
             m2 != nullptr && m2->size() > 4 && mp != nullptr && !mp->empty() && (*mp)[0] == '*' &&
             e.classname.rfind("func_", 0) == 0) {
@@ -2879,6 +2939,11 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
             if (parseInt(mp->substr(1), nr) && nr > 0) {
                 anBrush = nr;
                 mp = m2;
+                static const char* const kInitMover[] = {"func_door",     "func_plat",    "func_button",   "func_train",
+                                                         "func_static",   "func_rotating", "func_bobbing", "func_pendulum",
+                                                         "func_wall",     "func_usable"};
+                glmAmMover = m2->find(".glm") != std::string::npos &&
+                             std::find(std::begin(kInitMover), std::end(kInitMover), e.classname) != std::end(kInitMover);
             }
         }
         // rc604 fix604b (B6): ohne "origin" steht eine gespawnte Entity am
@@ -2900,7 +2965,11 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         for (char& c : low) {
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         }
-        if (low.size() < 4 || low.compare(low.size() - 4, 4, ".md3") != 0) {
+        // MRESTE 4: ein Ghoul2-Modell zeichnet das Spiel als model2 eines InitMover-Movers und als misc_model_ghoul
+        // (G2API_InitGhoul2Model, CG_Mover / CG_General mit ent.ghoul2).
+        const bool glm = low.size() >= 4 && low.compare(low.size() - 4, 4, ".glm") == 0 &&
+                         (anBrush > 0 ? glmAmMover : e.classname == "misc_model_ghoul");
+        if (!glm && (low.size() < 4 || low.compare(low.size() - 4, 4, ".md3") != 0)) {
             continue;   // "*12" ist ein Brush-Modell, das laeuft anderswo
         }
 
@@ -2912,14 +2981,22 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
                 ++fehlt;
                 continue;
             }
-            Md3Model mm;
             std::string err;
-            if (!readMd3(data, mm, &err)) {
-                diag::info("Modell nicht lesbar: " + *mp + " - " + err);
-                ++fehlt;
-                continue;
+            if (glm) {
+                if (glmStufenLaden(data, low, *z.dateien, err) == 0) {
+                    diag::info("Ghoul2-Kartenmodell nicht gezeichnet: " + *mp + " - " + err);
+                    ++fehlt;
+                    continue;
+                }
+            } else {
+                Md3Model mm;
+                if (!readMd3(data, mm, &err)) {
+                    diag::info("Modell nicht lesbar: " + *mp + " - " + err);
+                    ++fehlt;
+                    continue;
+                }
+                (*z.dateien)[low] = std::move(mm);
             }
-            (*z.dateien)[low] = std::move(mm);
         }
         const Md3Model& mm = (*z.dateien)[low];
         if (mm.empty()) {
@@ -2929,6 +3006,11 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         App::MapModel item;
         item.path = low;
         item.frames = mm.numFrames;
+        if (glm) {
+            item.glmStufen = 1;
+            while (z.dateien->count(low + "|lod" + std::to_string(item.glmStufen)) != 0U) { ++item.glmStufen; }
+            item.glmRadius = anBrush > 0 ? 120.0F : 50.0F;   // s.radius: InitMover / SP_misc_model_ghoul
+        }
         item.entity = static_cast<std::size_t>(&e - z.entities->data());
         item.anBrush = anBrush;
         (void)std::sscanf(e.origin.c_str(), "%f %f %f", &item.origin[0],
@@ -2941,10 +3023,19 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         float einheitlich = 0.0F;
         const bool statisch = e.classname == "misc_model_static";
         if (statisch) { item.lichtHoehe = 1.0F; }
+        bool skalaVec = false;
+        float minsZ = 0.0F;
         for (const auto& [k, v] : e.keys) {
             std::string lk = k;
             for (char& c : lk) {
                 c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (lk == "modelangles" && anBrush > 0 && !regelwerkJediOutcast()) {   // MRESTE 4 (F_VECTOR, nicht in JK2)
+                (void)std::sscanf(v.c_str(), "%f %f %f", &item.modellWinkel[0], &item.modellWinkel[1], &item.modellWinkel[2]);
+            } else if (lk == "mins") {
+                float mn[3] = {0, 0, 0};
+                (void)std::sscanf(v.c_str(), "%f %f %f", &mn[0], &mn[1], &mn[2]);
+                minsZ = mn[2];
             }
             if (lk == "angles") {
                 float a[3] = {0, 0, 0};
@@ -2958,10 +3049,20 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
                 float s[3] = {1, 1, 1};
                 (void)std::sscanf(v.c_str(), "%f %f %f", &s[0], &s[1], &s[2]);
                 for (int q = 0; q < 3; ++q) { item.scale[q] = s[q]; }
+                skalaVec = true;
             } else if (lk == "modelscale") {
                 einheitlich = static_cast<float>(std::atof(v.c_str()));
             } else if (lk == "zoffset" && statisch) {
                 item.lichtHoehe += static_cast<float>(std::atof(v.c_str()));
+            }
+        }
+        if (e.classname == "misc_model_ghoul") {
+            // MRESTE 4: SP_misc_model_ghoul (g_misc_model.cpp:195-215 OpenJK): "modelscale" nur ohne "modelscale_vec"; mit
+            // einer Groesse hebt es den Ursprung um mins[2] * (1 - Groesse[2]) (mins aus dem Schluessel, sonst 0).
+            if (skalaVec) { einheitlich = 0.0F; }
+            if (skalaVec || einheitlich != 0.0F) {
+                const float sz = einheitlich != 0.0F ? einheitlich : item.scale[2];
+                item.origin[2] += minsZ - minsZ * sz;
             }
         }
         if (einheitlich != 0.0F) {

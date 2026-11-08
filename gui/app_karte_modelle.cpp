@@ -94,7 +94,8 @@ public:
 
     [[nodiscard]] karte::ModellAnsicht nachPfad(const std::string& pfad) const override {
         karte::ModellAnsicht a;
-        a.modell = modell(bereinigt(pfad));
+        const std::string p = bereinigt(pfad);
+        a.modell = p.size() > 4 && klein(p.substr(p.size() - 4)) == ".glm" ? ghoul2ImSpiel(p) : modell(p);
         for (const karte::ModellFlaeche& f : a.modell->flaechen) { a.shader.push_back(f.shader); }
         return a;
     }
@@ -108,9 +109,39 @@ public:
     void vergessen(const std::string& pfad) {   // rc609 M0
         std::lock_guard<std::mutex> l(m_sperre);
         m_modelle.erase(bereinigt(pfad));
+        m_modelle.erase(kGhoul2Vorsatz + bereinigt(pfad));
     }
 
 private:
+    static constexpr const char* kGhoul2Vorsatz = "model2|";
+
+    // MRESTE 4: ein .glm als model2 eines Movers - so, wie das Spiel es zeichnet (karte::glmLesenImSpiel: Bild 0 der GLA,
+    // Shader der Datei), nicht in der Grundhaltung mit model_default.skin wie ein misc_model des Editors.
+    [[nodiscard]] std::shared_ptr<const karte::Modell> ghoul2ImSpiel(const std::string& pfad) const {
+        std::lock_guard<std::mutex> l(m_sperre);
+        const std::string schluessel = kGhoul2Vorsatz + pfad;
+        const auto it = m_modelle.find(schluessel);
+        if (it != m_modelle.end()) { return it->second; }
+        const std::shared_ptr<Spielkontext>& spiel = editor().karteSpiel;
+        auto m = std::make_shared<karte::Modell>(karte::nullModell());
+        if (!spiel) { return m; }   // noch kein Spiel: nicht merken
+        std::string bytes;
+        if (spiel->fs.dateiLesen(pfad, bytes)) {
+            karte::Modell neu;
+            std::string fehlerText;
+            if (karte::glmLesenImSpiel(bytes, [&spiel](const std::string& p, std::string& b) { return spiel->fs.dateiLesen(p, b); }, neu, &fehlerText)) {
+                ausgabe("Loaded Model: \"" + pfad + "\"");
+                *m = std::move(neu);
+            } else {
+                fehler("Model load failed: \"" + pfad + "\" " + fehlerText);
+            }
+        } else {
+            fehler("Model load failed: \"" + pfad + "\"");
+        }
+        m_modelle.emplace(schluessel, m);
+        return m;
+    }
+
     // ModelResource_load ueber das Dateisystem des Spiels
     [[nodiscard]] std::shared_ptr<const karte::Modell> modell(const std::string& pfad) const {
         std::lock_guard<std::mutex> l(m_sperre);

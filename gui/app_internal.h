@@ -1415,6 +1415,14 @@ struct App {
         int anBrush = 0;
         // misc_model_static: zoffset + 1 ueber origin steht das Licht (CG_DrawMiscEnts).
         float lichtHoehe = 0.0F;
+        // MRESTE 4: ein Ghoul2-Modell (model2 eines Movers, misc_model_ghoul) als starres Netz je LOD-Stufe
+        // (modell::glmStandbild) - stufen > 0: die Datei der Stufe n steht unter path + "|lod<n>" (n > 0), gewaehlt je
+        // Bild wie G2_ComputeLOD mit dem Radius der Entity (s.radius: InitMover 120, SP_misc_model_ghoul 50).
+        int glmStufen = 0;
+        float glmRadius = 0.0F;
+        // MRESTE 4: "modelAngles" eines Movers mit model2 (CG_Mover: AnglesToAxis(lerpAngles + modelAngles),
+        // cg_ents.cpp:1356-1361 OpenJK; JK2 kennt den Schluessel nicht).
+        float modellWinkel[3]{};
     };
     std::map<std::string, Md3Model> md3Files;          // Pfad -> Modell
     std::map<std::string, BspMesh> md3Meshes;          // "Pfad#Bild" -> Netz
@@ -2972,6 +2980,12 @@ struct KartenModellZiel {
     std::vector<std::string>* fehlend = nullptr;
 };
 void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehlt);
+// MRESTE 4: die LOD-Stufe eines Ghoul2-Kartenmodells in diesem Bild nach G2_ComputeLOD (tr_ghoul2.cpp:834-905) fuer die
+// Sicht `cam` am Ort `ort` (0 auch fuer jedes andere Modell); die Datei der Stufe n > 0 steht unter path + "|lod<n>".
+int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam);
+// MRESTE 4: ein Ghoul2-Kartenmodell (.glm-Bytes `data`) je LOD-Stufe als starres Netz nach `dateien` (Stufe 0 unter `low`,
+// Stufe n unter "low|lod<n>"); zurueck die Zahl der Stufen, 0: nicht lesbar oder ohne passende GLA (Grund in `fehler`).
+int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler);
 // rc604: G_SpawnGEntityFromSpawnVars entfernt jede Entity mit "notsingle" oder dem Bit der Schwierigkeit
 // (spawnflags & (1 << (8 + g_spskill)), code/game/g_spawn.cpp:1064-1075, 1096-1101 OpenJK, :1260-1265 MD) - vor ihrer
 // Spawnfunktion. Vorschau und Spielbild des Karten-Editors zeigen sie dann nicht.

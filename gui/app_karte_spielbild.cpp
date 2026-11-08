@@ -331,7 +331,7 @@ Camera alsSpielKamera(const karte::Kamera& k, int breite, int hoehe, float sicht
 // brushModelleImSpiel (dieselbe Regel) mit ihren Lightmaps, ein model2 in der Stellung seines Brush-Modells (CG_Mover:
 // lerpOrigin/lerpAngles), die Kartenmodelle mit dem Bild der Animation nach der Zeit (20 je Sekunde); Stellung mit
 // baueMoverWelt, Licht der Modelle aus dem Lichtgitter am Ort plus lichtHoehe (CG_DrawMiscEnts: origin + zoffset + 1).
-std::vector<ModellBild> modelleImBild(Szene& s, float zeit) {
+std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
     std::vector<ModellBild> aus;
     std::map<int, BrushStellung> brushStand;
     s.grasBrush.clear();
@@ -357,26 +357,34 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit) {
     for (const App::MapModel& mm : s.modelle) {
         if (mm.anBrush > 0) {
             const auto st = brushStand.find(mm.anBrush);
-            const auto datei = s.md3.find(mm.path);
-            if (st == brushStand.end() || datei == s.md3.end()) { continue; }
-            auto netz = s.modellNetze.find(mm.path + "#0");
-            if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(mm.path + "#0", md3ToMesh(datei->second, 0, mm.shaderBase)).first; }
+            if (st == brushStand.end()) { continue; }
+            // MRESTE 4: Ghoul2-model2 in der LOD-Stufe dieser Sicht, modelAngles zu den Winkeln des Movers (CG_Mover)
+            const int stufe = kartenModellStufe(mm, st->second.ort, cam);
+            const std::string pfad = stufe == 0 ? mm.path : mm.path + "|lod" + std::to_string(stufe);
+            const auto datei = s.md3.find(pfad);
+            if (datei == s.md3.end()) { continue; }
+            auto netz = s.modellNetze.find(pfad + "#0");
+            if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(pfad + "#0", md3ToMesh(datei->second, 0, mm.shaderBase)).first; }
             if (netz->second.indexes.empty()) { continue; }
             const BrushStellung& b = st->second;
             ModellBild m;
             m.netz = &netz->second;
-            gpu::baueMoverWelt(nullptr, b.ort, b.winkel[1], b.winkel[0], b.winkel[2], b.winkel[0] != 0.0F || b.winkel[2] != 0.0F, m.welt);
+            const float w[3] = {b.winkel[0] + mm.modellWinkel[0], b.winkel[1] + mm.modellWinkel[1], b.winkel[2] + mm.modellWinkel[2]};
+            gpu::baueMoverWelt(nullptr, b.ort, w[1], w[0], w[2], w[0] != 0.0F || w[2] != 0.0F, m.welt);
             for (int k = 0; k < 3; ++k) { m.ort[k] = b.ort[k]; }
             m.licht = sampleLightGrid(s.geo, b.ort, false, gpu::kSpielLightmapFaktor);
             aus.push_back(m);
             continue;
         }
-        const auto datei = s.md3.find(mm.path);
+        const int stufe = kartenModellStufe(mm, mm.origin, cam);   // MRESTE 4: misc_model_ghoul
+        std::string stufenPfad;
+        const std::string& pfad = stufe == 0 ? mm.path : (stufenPfad = mm.path + "|lod" + std::to_string(stufe));
+        const auto datei = s.md3.find(pfad);
         if (datei == s.md3.end()) { continue; }
         int bild = 0;
         const int bilder = datei->second.numFrames;
         if (bilder > 1 && !mm.standbild) { bild = static_cast<int>(static_cast<double>(zeit) * 1000.0 * 0.020) % bilder; }
-        const std::string key = mm.path + "#" + std::to_string(bild);
+        const std::string key = pfad + "#" + std::to_string(bild);
         auto netz = s.modellNetze.find(key);
         if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(key, md3ToMesh(datei->second, bild, mm.shaderBase)).first; }
         if (netz->second.indexes.empty()) { continue; }
@@ -470,7 +478,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
         }
     }
     const float fokus = 1.0F / std::tan(cam.fovY * 3.14159265F / 180.0F * 0.5F);
-    const std::vector<ModellBild> modelle = modelleImBild(s, zeit);
+    const std::vector<ModellBild> modelle = modelleImBild(s, zeit, cam);
     if (!portal) { g_stand.modelle = static_cast<int>(modelle.size()); }
     WetterQuelle wq;
     wq.entities = &s.entities;

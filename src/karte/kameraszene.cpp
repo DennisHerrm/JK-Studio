@@ -522,7 +522,8 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                 }
             }
         }
-        if (!rest) { continue; }   // nur Geometrie: keine Punktentitaeten, Gruppen, Namen
+        // nur Geometrie: keine Punktentitaeten, Gruppen, Namen - ausser dem model2 einer Brush-Entity (MRESTE 4, unten)
+        if (!rest && (welt || !ent->istBehaelter() || !ent->hat("model2"))) { continue; }
         const Farbe kf = klassenFarbe(kl);
         // die Flaechen eines Modells mit Matrix m in ihre Shader-Stapel (umkehren: Wicklung umgekehrt)
         const auto modellFlaechen = [&](const ModellAnsicht& a, const Matrix4& m, bool umkehren) {
@@ -649,16 +650,22 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             // Im Ruhestand: der Ursprung wie q3map2 ihn setzt (ParseBrush: Mitte des Ursprungs-Brushes mit C_ORIGIN, sonst der
             // Schluessel origin), die Winkel nur bei func_static/func_wall (G_SetAngles) und func_pendulum (apos.trBase =
             // s.angles), sonst 0 (func_door/func_button: G_SetMovedir loescht sie; func_rotating dreht erst ab trTime).
-            // .glm (Ghoul2 am Mover) zeichnet die Kamera nicht.
-            if (k.modelle != nullptr) {
+            // MRESTE 4: ein .glm macht nur InitMover zum Ghoul2-Modell (strstr( ent->model2, ".glm" ), g_mover.cpp:1069-1080
+            // OpenJK) - nicht func_breakable (InitBBrush: nur s.modelindex2, CG_Mover zeichnet dann nichts). Gezeichnet wie
+            // im Spiel: Bild 0 der GLA, Wurzel, Shader der Datei (ModellQuelle::nachPfad, karte::glmLesenImSpiel).
+            // MRESTE 4: das model2 gehoert zur Geometrie wie die Pinsel seiner Entity - das Spielbild (gebaute Karte) enthaelt es
+            // schon (kartenModelleAufstellen) und laesst die Geometrie des Editors weg; sonst laege es ein zweites Mal im
+            // Editor-Licht darueber (gemessen: dreimal so hell wie im Spiel). Gewaehlt zeichnet es auch der Rest, wie die Pinsel.
+            if (k.modelle != nullptr && (geometrie || entGew)) {   // gewaehlt auch im Rest (Farbe der Auswahl) wie die Pinsel
                 static const char* const kMover[] = {"func_bobbing", "func_breakable", "func_button", "func_door", "func_pendulum", "func_plat",
                                                      "func_rotating", "func_static", "func_train", "func_usable", "func_wall"};
                 const std::string klasse = klein(ent->klassenname());
                 std::string m2 = ent->wert("model2");
                 std::replace(m2.begin(), m2.end(), '\\', '/');
                 const std::string m2k = klein(m2);
-                if (std::find(std::begin(kMover), std::end(kMover), klasse) != std::end(kMover) && m2k.size() > 4 &&
-                    m2k.compare(m2k.size() - 4, 4, ".md3") == 0) {
+                const bool md3 = m2k.size() > 4 && m2k.compare(m2k.size() - 4, 4, ".md3") == 0;
+                const bool glm = !md3 && klasse != "func_breakable" && m2.find(".glm") != std::string::npos;
+                if (std::find(std::begin(kMover), std::end(kMover), klasse) != std::end(kMover) && (md3 || glm)) {
                     Vektor3f ursprung(0, 0, 0);
                     if (ent->hat("origin")) { ursprung = ursprungVon(*ent); }
                     for (const auto& p : ent->kinder()) {   // C_ORIGIN: irgendeine Seite mit surfaceparm origin
@@ -692,12 +699,12 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             }
             // Group: Name und Pfeil in der Mitte der Kinder (group.cpp:169-190)
             const Vektor3f mitte = kastenGueltig(kinderBox) && ausdehnungGueltig(kinderBox.extents.x()) ? kinderBox.origin : ursprungVon(*ent);
-            if (entGew || kindGew || o.namen) {
+            if (rest && (entGew || kindGew || o.namen)) {
                 const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({mitte, tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : kindGew ? 2 : 0});
             }
             const bool winkelZeigen = (kl != nullptr && kl->hasAngles) || ent->hat("angle") || ent->hat("angles");
-            if (winkelZeigen && o.winkel) {
+            if (rest && winkelZeigen && o.winkel) {
                 const Vektor3f w = entitaetsWinkel(ent->wert("angle"), ent->wert("angles"), ent->hat("angles"), true);
                 std::vector<KameraKante> pfeilL;
                 pfeilLinien(mitte, w, kf, kPfeilNormale, pfeilL);

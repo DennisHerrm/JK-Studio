@@ -340,6 +340,7 @@ namespace rd {   // p_render (selbsttest_rd.inc)
 std::vector<Schritt> schritte();
 std::vector<Schritt> cjkSchritte();
 std::vector<Schritt> npcSchritte();
+std::vector<Schritt> glmSchritte();   // MRESTE 4
 }  // namespace rd
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
@@ -653,6 +654,13 @@ std::vector<Schritt> karteneditorSchritte() {
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "r3") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
         for (Schritt& x : r3::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =rdglm: MRESTE 4 - Ghoul2 als model2 und misc_model_ghoul im Editor und im Spielbild
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdglm") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : rd::glmSchritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }

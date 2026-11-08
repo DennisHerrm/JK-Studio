@@ -2559,6 +2559,9 @@ void drawMapView() {
                 pfad = bruch.modell;
                 basis = nb->second;
             }
+            if (const int stufe = kartenModellStufe(mm, bewegt ? figStand.pos : mm.origin, useCam); stufe > 0) {   // MRESTE 4
+                pfad += "|lod" + std::to_string(stufe);
+            }
             const auto have = g_app->md3Files.find(pfad);
             if (have == g_app->md3Files.end()) {
                 continue;
@@ -2829,9 +2832,12 @@ void drawMapView() {
             if (mm.anBrush <= 0) { continue; }
             const auto st = brushStand.find(mm.anBrush);
             if (st == brushStand.end()) { continue; }
-            const auto have = g_app->md3Files.find(mm.path);
+            // MRESTE 4: ein Ghoul2-model2 in der LOD-Stufe dieses Bildes (am Ursprung des Movers).
+            const int stufe = kartenModellStufe(mm, st->second.offset, useCam);
+            const std::string datei = stufe == 0 ? mm.path : mm.path + "|lod" + std::to_string(stufe);
+            const auto have = g_app->md3Files.find(datei);
             if (have == g_app->md3Files.end()) { continue; }
-            const std::string key = mm.path + "#0";
+            const std::string key = datei + "#0";
             auto netz = g_app->md3Meshes.find(key);
             if (netz == g_app->md3Meshes.end()) {
                 netz = g_app->md3Meshes.emplace(key, md3ToMesh(have->second, 0, mm.shaderBase)).first;
@@ -2844,6 +2850,10 @@ void drawMapView() {
                 d.pivot[k] = 0.0F;
                 d.scale[k] = 1.0F;
             }
+            // MRESTE 4: modelAngles kommen zu den Winkeln des Movers (CG_Mover: AnglesToAxis(lerpAngles + modelAngles)).
+            d.pitch += mm.modellWinkel[0];
+            d.yaw += mm.modellWinkel[1];
+            d.roll += mm.modellWinkel[2];
             d.modellLicht = true;
             movers.push_back(d);
         }

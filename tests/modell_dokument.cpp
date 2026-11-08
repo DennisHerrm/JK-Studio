@@ -377,6 +377,110 @@ int main(int argc, char** argv) {
         expect("MD3: jede Flaeche gezeichnet (kein Ghoul2)", an(gezeichnet(md, z)) == "11");
     }
 
+    // --- MRESTE 4: Ghoul2-Kartenmodell ohne Animation (model2, misc_model_ghoul) -------
+    // Zwei Knochen: 0 (Wurzel, Bild 0 verschiebt um +10 x) und 1 (Kind, Grundstellung +4 z, Bild 0 dreht 90 Grad um z).
+    // Erwartet nach RB_SurfaceGhoul: Ort = Summe Gewicht * (Bild-0-Knochen * Grundstellung^-1 * Ecke), Normale nur mit
+    // dem ersten Knochen, danach rootMatrix (x, y, z) -> (-y, x, z); Flaeche mit G2SURFACEFLAG_OFF und Tag fehlen.
+    {
+        GlaAnimation gla;
+        gla.numFrames = 2;
+        gla.bones.resize(2);
+        gla.bones[0].name = "model_root";
+        gla.bones[0].basePose = BoneMatrix::identity();
+        gla.bones[0].basePoseInv = BoneMatrix::identity();
+        gla.bones[1].name = "arm";
+        gla.bones[1].parent = 0;
+        gla.bones[1].basePose = BoneMatrix::identity();
+        gla.bones[1].basePose.m[2][3] = 4.0F;
+        gla.bones[1].basePoseInv = BoneMatrix::identity();
+        gla.bones[1].basePoseInv.m[2][3] = -4.0F;
+        gla.roh.assign(4, BoneMatrix::identity());
+        gla.roh[0].m[0][3] = 10.0F;   // Bild 0, Knochen 0: +10 x
+        gla.roh[1].m[0][0] = 0.0F;    // Bild 0, Knochen 1: 90 Grad um z, am Ort +4 z
+        gla.roh[1].m[0][1] = -1.0F;
+        gla.roh[1].m[1][0] = 1.0F;
+        gla.roh[1].m[1][1] = 0.0F;
+        gla.roh[1].m[2][3] = 4.0F;
+        gla.roh[2].m[0][3] = 99.0F;   // Bild 1 darf nicht gelten
+        GlmModel g;
+        g.numBones = 2;
+        GlmSurface teil;
+        teil.name = "kiste";
+        teil.shader = "models/map_objects/test/kiste";
+        teil.verts.resize(3);
+        teil.verts[0].xyz[0] = 1.0F;
+        teil.verts[0].weights[0] = 1.0F;
+        teil.verts[0].normal[0] = 1.0F;
+        teil.verts[1].xyz[1] = 2.0F;
+        teil.verts[1].xyz[2] = 4.0F;
+        teil.verts[1].bones[0] = 1;
+        teil.verts[1].weights[0] = 1.0F;
+        teil.verts[1].normal[0] = 1.0F;
+        teil.verts[2].xyz[2] = 4.0F;   // halb und halb
+        teil.verts[2].bones[0] = 0;
+        teil.verts[2].bones[1] = 1;
+        teil.verts[2].weights[0] = 0.5F;
+        teil.verts[2].weights[1] = 0.5F;
+        teil.verts[2].normal[1] = 1.0F;
+        teil.indexes = {0, 1, 2};
+        g.surfaces.push_back(teil);
+        GlmSurface aus = teil;
+        aus.name = "kappe_off";
+        aus.parent = 0;
+        aus.flags = GlmSurface::kFlagOff;
+        g.surfaces.push_back(aus);
+        GlmSurface bolzen = teil;
+        bolzen.name = "*flash";
+        bolzen.parent = 0;
+        bolzen.flags = GlmSurface::kFlagBolt;
+        g.surfaces.push_back(bolzen);
+        Md3Model m;
+        const bool ok = glmStandbild(g, gla, m);
+        const auto nah = [](const float* a, float x, float y, float z) {
+            return std::fabs(a[0] - x) < 1e-5F && std::fabs(a[1] - y) < 1e-5F && std::fabs(a[2] - z) < 1e-5F;
+        };
+        expect("Standbild: ein Bild, nur die gezeichnete Flaeche (OFF und Tag fehlen), Shader der Datei",
+               ok && m.numFrames == 1 && m.surfaces.size() == 1U && m.surfaces[0].name == "kiste" &&
+                   m.surfaces[0].shader == teil.shader && m.surfaces[0].numVerts == 3 && m.surfaces[0].indexes == teil.indexes &&
+                   m.surfaces[0].dateiFlaeche == 0);
+        if (ok && m.surfaces.size() == 1U && m.surfaces[0].verts.size() == 3U) {
+            const std::vector<Md3Vertex>& v = m.surfaces[0].verts;
+            // Ecke 0 an Knochen 0: (1,0,0) + 10 x = (11,0,0), Wurzel -> (0,11,0)
+            expect("Standbild: Bild 0 der GLA und Wurzel ((1,0,0) -> (0,11,0))", nah(v[0].xyz, 0.0F, 11.0F, 0.0F));
+            // Ecke 1 an Knochen 1: X(1) = X(0) * B(0)^-1 * A(1) * B(1), Haut = X(1) * B(1)^-1 = (+10 x) * A(1):
+            // (0,2,4) gedreht (-2,0,4), +4 z, +10 x = (8,0,8), Wurzel -> (0,8,8)
+            expect("Standbild: Kindknochen ueber die Kette ((0,2,4) -> (0,8,8))", nah(v[1].xyz, 0.0F, 8.0F, 8.0F));
+            // Ecke 2: 0,5 * (10,0,4) + 0,5 * (10,0,8) = (10,0,6), Wurzel -> (0,10,6)
+            expect("Standbild: zwei Gewichte gemischt ((0,0,4) -> (0,10,6))", nah(v[2].xyz, 0.0F, 10.0F, 6.0F));
+            // Normalen: Ecke 0 (1,0,0) -> (0,1,0); Ecke 1 nur Knochen 1: (1,0,0) -> (0,1,0) -> (-1,0,0); Ecke 2 nur Knochen 0: (0,1,0) -> (-1,0,0)
+            expect("Standbild: Normale mit dem ersten Knochen und der Wurzel", nah(v[0].normal, 0.0F, 1.0F, 0.0F) &&
+                                                                                    nah(v[1].normal, -1.0F, 0.0F, 0.0F) &&
+                                                                                    nah(v[2].normal, -1.0F, 0.0F, 0.0F));
+        }
+        GlmModel falsch = g;
+        falsch.numBones = 3;
+        expect("Standbild: andere Knochenzahl als die GLA -> nichts (R_LoadMDXM)", !glmStandbild(falsch, gla, m) && m.surfaces.empty());
+        expect("Standbild: ohne GLA -> nichts (missing animation file)", !glmStandbild(g, GlaAnimation{}, m));
+        // "*default": die eingebaute FakeGLAFile - ein Knochen, ein Bild, Bild 0 (fast) die Einheit
+        const GlaAnimation& st = standardGla();
+        GlmModel eins;
+        eins.numBones = 1;
+        GlmSurface e1 = teil;
+        e1.verts.resize(1);
+        e1.verts[0] = GlmVertex{};
+        e1.verts[0].xyz[0] = 1.0F;
+        e1.verts[0].xyz[1] = 2.0F;
+        e1.verts[0].xyz[2] = 3.0F;
+        e1.verts[0].weights[0] = 1.0F;
+        e1.indexes = {0, 0, 0};
+        eins.surfaces.push_back(e1);
+        const bool okSt = glmStandbild(eins, st, m);
+        expect("*default: FakeGLAFile mit einem Knochen und einem Bild, (1,2,3) -> (-2,1,3)",
+               st.bones.size() == 1U && st.numFrames == 1 && okSt && m.surfaces.size() == 1U &&
+                   std::fabs(m.surfaces[0].verts[0].xyz[0] + 2.0F) < 1e-3F && std::fabs(m.surfaces[0].verts[0].xyz[1] - 1.0F) < 1e-3F &&
+                   std::fabs(m.surfaces[0].verts[0].xyz[2] - 3.0F) < 1e-3F);
+    }
+
     std::printf("%s (%d Fehler)\n", fails == 0 ? "OK" : "FEHLER", fails);
     return fails == 0 ? 0 : 1;
 }
