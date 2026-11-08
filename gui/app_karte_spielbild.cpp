@@ -258,7 +258,7 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
             kartenModelleAufstellen({&s.entities, &s.geo, &s.bilder, &s.md3, &s.modelle, &s.fehlendeModelle}, modelleDa, modelleFehlen);
             effekteAufstellen(s);
         },
-        GrasStufenZiel{&s.grasStufen, &s.grasStand});
+        GrasStufenZiel{&s.grasStufen, &s.grasStand}, &s.entities);
     gpu::szeneWaehlen(0);
     // CG_DrawSkyBoxPortal: der Ort des misc_skyportal (himmelPortalOrt der Vorschau).
     s.portal = false;

@@ -521,6 +521,88 @@ fuenf Ursachen - drei im Programm, zwei im Test:
   Shader.
 - Kein Spielfoto zu Punkt 1 (Movie Duels komprimiert nicht, Original-JKA nur nach der Steam-Regel).
 
+# MR9 (08.11.2026, gleicher Worktree, Basis bcf7f31de, Laeufe `m9_*`, Skripte `Y:\werkzeuge\m4\m9\`)
+
+Auftrag nach 3 von 5 Punkten plus P58 abgebrochen (shank: nur noch ein Agent). Fertig: Punkt 1, 2, 3 und P58. Offen siehe unten.
+
+## MR9 Punkt 1: Registrierreihenfolge vor der Welt
+
+- Quelle (OpenJK SP, MD9 und codeJK2 gleich gebaut): SV_SpawnServer (server/sv_init.cpp:311-350, MD9 :321-364) ruft
+  G_SpawnEntitiesFromString (level.time 1000) und fuenf ge->RunFrame (1000-1400); G2API_InitGhoul2Model laedt sofort
+  (G2_TestModelPointers -> RE_RegisterModel, G2_API.cpp:771-825), R_LoadMDXM registriert je Flaeche den Shader
+  (tr_ghoul2.cpp:3751), RE_RegisterModel .md3 die Stufen rueckwaerts (Name_2, Name_1, Name; tr_model.cpp:630-700), auch aus
+  dem Zwischenspeicher (:217-232). Danach CG_Init -> CG_RegisterEffects (cg_main.cpp:1327-1329, MD9 :2270, codeJK2 :1209) in
+  CS_EFFECTS-Reihenfolge, erst dann cgi_R_LoadWorldMap.
+- Gebaut: `BildRegister::modell/haut/effekt` (RE_RegisterModel, RE_RegisterSkin mit drei Teilen und CommaParse,
+  RegisterEffect mit Eigenschaften in Dateireihenfolge und Untereffekten sofort) und `vorWeltRegistrieren` (app_ablage.inc) vor
+  der Welt: (1) Spawnfunktionen in Entity-Reihenfolge - misc_turret/misc_turretG2/misc_ns_turret/emplaced_gun/emplaced_eweb/
+  misc_sentry_turret/misc_model_ghoul/misc_trip_mine (`serverG2Modell`, dieselben Pfade wie geschuetzeAufstellen), fx_runner
+  und finish_spawning_turret/SP_PAS als G_EffectIndex; (2) RunFrame 1300 FinishSpawningItem (alle Gegenstaende ohne
+  targetname, auch ITMSF_INVISIBLE, `gegenstandWeltModell`); (3) RunFrame 1400 NPC_Spawn_Go der Spawner ohne targetname ->
+  G_SetG2PlayerModel (Haut, dann model.glm, sonst stormtrooper); (4) CG_RegisterEffects. NPC-/Klingendaten werden dafuer frueher
+  gelesen (`npcDatenSicherstellen`, aus loadActorModels herausgezogen). Spielbild des Karten-Editors mit seinen Entities.
+- ctest bilder (imagetest): md3-Stufen rueckwaerts, alle Shader einer Flaeche, glm-Hierarchie mit [nomaterial], Haut in drei
+  Teilen (Kopf vor Rumpf, ohne tag_/_off,*off, fehlender Kopf laedt nichts weiter), Effekt mit Untereffekt/Modell/unbekannter
+  Gruppe - 7 neue Pruefungen.
+- Selbsttest geschuetze (t1_sour, OpenJK, DXT): erster Shader des ersten Gegenstands (models/items/medpac) und erster
+  Weltshader (textures/desert/stucco_portalsky1) bekommen dasselbe Bild, einer mit noTC. Rot `m9_rot1_sour`: "Welt DXT5 1,
+  zuerst geladen von textures/desert/stucco_portalsky1" bzw. "DXT5 0" - FEHLER/FEHLER. Gruen `m9_gr1_sour`: siehe Schluss.
+
+## MR9 Punkt 2: fehlendes Stufenbild
+
+- ParseStage bricht ab, wenn R_FindImageFile ein Bild von map/clampMap/animMap nicht findet (tr_shader.cpp:1263-1268,
+  1288-1293, 1329-1334); ParseShader scheitert, defaultShader (:3489-3493), ShaderForShaderNum gibt tr.defaultShader
+  (tr_bsp.cpp:352). Register: `setzeVorhanden` (Datei in Archiv oder lose, Endungen wie textureCandidates, ohne Entpacken),
+  danach keine weiteren Stufen, `fehlerhaft(shader)`; die Weltflaeche zeigt dann standardShaderTextur (Figuren hatten das schon
+  seit rc604).
+- Rot `m9_rot1_sour`: "512x512, Kasten 0" (FEHLER). Gruen siehe Schluss.
+
+## MR9 Punkt 3: nopicmip
+
+- Upload32 halbiert nur mit allowPicmip (tr_image.cpp:575-580); das Bild hat das allowPicmip des Ersten. `bildPicmipFuer(bild)`
+  (Register: !picmip -> 0) fuer texCache-Schluessel und Verkleinerung (Vorrat, bildLesen, Karten- und Figurenwege).
+- Rot `m9_rot1_sour` (r_picmip 1): "nopicmip 256 (Datei 512), mit picmip 256 (Datei 512)" (FEHLER). Gruen siehe Schluss.
+
+## P58 (PRUEF8): noTC in Figuren- und Modellshadern
+
+- figurStufenListe, Gluehstufen und bySurface (Datei, texCache, Skript) setzen keinTc der Stufe bzw. bildKeinTc des
+  Hautshaders. Rot `m9_rot1_sour`: "Grundflaeche noTC 0, Stufen 0/2 ohne TC" (FEHLER).
+
+## MR9 Schluss
+
+- Rot `m9_rot1_sour` (neue Pruefungen, altes Verhalten): 11 OK / 5 FEHLER (P1 zweimal, P2, P3, P58). Gruen `m9_gr5_sour`:
+  16 OK / 0 FEHLER - "noTC am Gegenstand - Welt DXT5 0, zuerst geladen von models/items/medpac", "noTC an der Welt - Welt DXT5 1,
+  zuerst geladen von models/items/medpac", "P2 - 16x16, Kasten 1, Stufe danach registriert 0", "P3 - nopicmip 512 (Datei 512),
+  mit picmip 256 (Datei 512)", "P58 - Grundflaeche noTC 1, ohne noTC 0; Stufen 2/2 ohne TC". t1_sour: vor der Welt 19
+  Ghoul2-Modelle (Server) und 3 Effekte, 40 Bilder.
+- Unterwegs: die Registrierung steht jetzt VOR dem Bildvorrat (P3: der Vorrat verkleinerte sonst mit r_picmip, bevor das
+  allowPicmip des Ersten bekannt war - `m9_gr4_sour` zeigte "nopicmip 256"). Die Probe P3 nimmt das eigene Bild des ersten
+  Weltshaders (der erste Entwurf nahm m8->bild, das P2 beiden Shadern gab - dann war 512/512 richtig).
+- Bau `--parallel 8 -- /nodeReuse:false` rc 0, 0 Warnungen; ctest 237/237 (-j 16 ohne q3map2_pr316), bilder danach 1/1.
+  Kein sauberer Neubau, kein Modus 1, keine weiteren Selbsttests (Auftrag verkuerzt).
+
+## MR9 Offen
+
+- Punkt 4 (Echtzeit-Licht) nicht eingebaut. Vorbereitet, nicht angewendet: `Y:\werkzeuge\m4\m9\patch_p4a.py` (+`patch_p4as.py`
+  Test): eigener CLAMP-Abtaster `abtasterKlemm`, Zustand3::klammern aus SpielLaden (Klammern des Ersten). 4b (Reihenfolge ohne
+  Spielbild) nicht begonnen. 4c = P57.
+- P57/P55/P56 vorbereitet, nicht angewendet: `patch_p57.py` (+`patch_p57s.py` Test rd mit Gamma 2 unter Movie Duels): Fassung des
+  Spiels im Bildlager unabhaengig von dxt (Pyramide wie Upload32, ohne Gamma/Basisstufe), Bild verschieben statt kopieren,
+  DXT im Bildlager ohne gemeinsame Mannschaft (`dxt5Rundlauf(..., mitMannschaft)`), Bildlager-Faeden vor dem Ende von wWinMain
+  anhalten (P56). Der doppelte Editor-Eintrag in shaderZiehen (P55) ist nicht angefasst.
+- P59: das Register deckt "der erste R_FindImageFile entscheidet" fuer Karte, Echtzeit-Licht und dieselbe Datei zweimal im
+  Shader ab (MR8, wieErsterLaden je Stufe). Figuren stehen nicht im Register; fuer dieselbe Datei zweimal im Figurenshader ist
+  `patch_p59.py` vorbereitet (mit ctest und Selbsttest), nicht angewendet.
+- texCache und JK2-Endungsfolge (Hinweis PRUEF8): in mr4 gibt es keine JK2-eigene Endungsfolge (textureCandidates fest jpg,
+  png, tga, jpeg); gilt fuer den Zweig mit FIX6, beim Merge pruefen.
+- Vor der Welt nicht nachgebaut: G_EffectIndex/G2 weiterer Spawnfunktionen (NPC_PrecacheByClassName, emplaced-Effekte,
+  Fahrzeug-RegisterAssets), Waffen- und Klingenmodelle der NPC (NPC_Begin bei 1500, ob vor CG_Init ist unbelegt), Bilder aus
+  Menues und voriger Karte. Freigegebene Entity-Plaetze (G_Spawn) koennen die Reihenfolge der Denkbilder aendern; genommen ist
+  die Reihenfolge der Entity-Zeichenkette. Skyparms nach einer gescheiterten Stufe: im Spiel fehlt dann auch der Himmel; die
+  Vorschau zeichnet Himmelsflaechen weiter. Modelle/Effekte mit gescheitertem Shader (Shader 0) in der Vorschau nur fuer
+  Figuren. Echtzeit-Licht-Register ohne setzeVorhanden (alle Bilder gelten als da).
+- Handbuch nicht geaendert (keine sichtbare Bedienung neu). Keine Bildzeit gemessen.
+
 ## Changelog
 
 ## English
@@ -540,6 +622,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Japanese and Chinese: after changing the OpenGL font in the map editor, texts are wrapped with the new font.
 - Preview, real-time light and built map under Jedi Academy and Jedi Outcast: a picture that several shaders use is loaded once, as in the game - the shader that loads it first decides compression, mipmaps and clamping for all (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` now takes effect.
 - Preview and map editor: a picture that several views show with the same bytes lies only once on the graphics card (a map in the preview and as built map: 257 instead of 526 MB of textures), the picture stays exactly the same.
+- Preview: models the game loads while the level starts (items, turrets, map figures) and effects decide a shared picture before the map itself, as in the game; a shader whose stage picture is missing shows the default box like the game; `nopicmip` pictures keep their size with texture detail (r_picmip); `noTC` also applies to figure and model shaders.
 
 ## Deutsch
 
@@ -558,6 +641,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Japanisch und Chinesisch: Nach dem Umstellen der OpenGL-Schrift im Karten-Editor werden Texte mit der neuen Schrift umbrochen.
 - Vorschau, Echtzeit-Licht und gebaute Karte unter Jedi Academy und Jedi Outcast: ein Bild, das mehrere Shader benutzen, wird wie im Spiel nur einmal geladen - der Shader, der es zuerst lädt, entscheidet für alle über Kompression, Mip-Stufen und Klammern (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` wirkt jetzt.
 - Vorschau und Karten-Editor: ein Bild, das mehrere Ansichten mit gleichen Bytes zeigen, liegt nur einmal auf der Grafikkarte (eine Karte in der Vorschau und als gebaute Karte: 257 statt 526 MB Texturen), das Bild bleibt genau gleich.
+- Vorschau: Modelle, die das Spiel beim Levelstart lädt (Gegenstände, Geschütze, Kartenfiguren), und Effekte bestimmen ein gemeinsames Bild vor der Karte selbst, wie im Spiel; ein Shader, dessen Stufenbild fehlt, zeigt wie im Spiel das Standardkästchen; Bilder mit `nopicmip` behalten bei der Bildstufe (r_picmip) ihre Größe; `noTC` gilt auch für Figuren- und Modellshader.
 
 ## 中文
 
@@ -576,6 +660,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 日文和中文:在地图编辑器中更改 OpenGL 字体后,文本会按新字体换行。
 - Jedi Academy 与 Jedi Outcast 规则下的预览、实时光照和已编译地图:多个着色器共用的图像与游戏中一样只加载一次——最先加载它的着色器为所有着色器决定压缩、mipmap 和边缘钳制(`noTC`、`nomipmaps`、`clampMap`);`nomipmaps` 现在生效。
 - 预览与地图编辑器:多个视图显示的字节相同的图像在显卡上只保存一份(同一张地图在预览中和作为已编译地图:纹理 257 MB 而非 526 MB),图像完全不变。
+- 预览：与游戏一致，关卡开始时游戏加载的模型（物品、炮塔、地图角色）和特效会先于地图本身决定共享图片；缺少阶段图片的着色器与游戏一样显示默认方框；带 `nopicmip` 的图片在纹理细节 (r_picmip) 下保持原尺寸；`noTC` 也适用于角色和模型着色器。
 
 ## 日本語
 
@@ -594,6 +679,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 日本語と中国語:マップエディターで OpenGL フォントを変更すると、テキストは新しいフォントで折り返されます。
 - Jedi Academy と Jedi Outcast のルールでのプレビュー、リアルタイムライト、ビルド済みマップ:複数のシェーダーが使う画像はゲームと同じく一度だけ読み込まれ、最初に読み込んだシェーダーが圧縮、ミップマップ、クランプをすべてについて決めます(`noTC`、`nomipmaps`、`clampMap`)。`nomipmaps` が有効になりました。
 - プレビューとマップエディター:複数のビューが同じバイトで表示する画像はグラフィックカード上に一つだけ置かれます(プレビューとビルド済みマップの同じマップ:テクスチャ 526 MB ではなく 257 MB)。画像はまったく同じです。
+- プレビュー：ゲームと同じく、レベル開始時にゲームが読み込むモデル（アイテム、タレット、マップのキャラクター）とエフェクトが、マップ本体より先に共有画像を決めます。ステージ画像が欠けたシェーダーはゲーム同様デフォルトの枠を表示します。`nopicmip` の画像はテクスチャ詳細 (r_picmip) でもサイズを保ちます。`noTC` はキャラクターとモデルのシェーダーにも適用されます。
 
 ## Español
 
@@ -612,6 +698,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Japonés y chino: tras cambiar la fuente OpenGL en el editor de mapas, los textos se cortan con la nueva fuente.
 - Vista previa, luz en tiempo real y mapa compilado con las reglas de Jedi Academy y Jedi Outcast: una imagen que usan varios shaders se carga una sola vez, como en el juego; el shader que la carga primero decide para todos la compresión, los mipmaps y el ajuste al borde (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` ahora tiene efecto.
 - Vista previa y editor de mapas: una imagen que varias vistas muestran con los mismos bytes está una sola vez en la tarjeta gráfica (un mapa en la vista previa y como mapa compilado: 257 en lugar de 526 MB de texturas); la imagen queda exactamente igual.
+- Vista previa: los modelos que el juego carga al iniciar el nivel (objetos, torretas, figuras del mapa) y los efectos deciden una imagen compartida antes que el propio mapa, como en el juego; un shader al que le falta la imagen de una etapa muestra la caja por defecto como el juego; las imágenes con `nopicmip` conservan su tamaño con el detalle de texturas (r_picmip); `noTC` también se aplica a los shaders de figuras y modelos.
 
 ## Čeština
 
@@ -630,3 +717,4 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Japonština a čínština: po změně písma OpenGL v editoru map se texty zalamují novým písmem.
 - Náhled, světlo v reálném čase a sestavená mapa podle pravidel Jedi Academy a Jedi Outcast: obrázek, který používá více shaderů, se jako ve hře načte jen jednou - shader, který ho načte první, rozhodne za všechny o kompresi, mipmapách a upnutí u okraje (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` nyní platí.
 - Náhled a editor map: obrázek, který více pohledů zobrazuje se stejnými bajty, leží na grafické kartě jen jednou (mapa v náhledu a jako sestavená mapa: 257 místo 526 MB textur), obraz zůstává přesně stejný.
+- Náhled: modely, které hra načte při startu úrovně (předměty, věže, postavy mapy), a efekty určují sdílený obrázek před samotnou mapou, jako ve hře; shader, jemuž chybí obrázek fáze, zobrazí jako hra výchozí rámeček; obrázky s `nopicmip` si při detailu textur (r_picmip) zachovají velikost; `noTC` platí i pro shadery postav a modelů.

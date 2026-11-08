@@ -3615,11 +3615,18 @@ void withUnsaved(std::function<void()> then,
                  std::function<void()> onCancel = nullptr);
 void drawAskSave();
 void loadMapTextures();
+// tr.defaultShader: 16x16 Grau 32 mit weissem Rand (app_ablage.inc; MR9 Punkt 2 auch fuer den Selbsttest).
+[[nodiscard]] TextureSet::Tex standardShaderTextur();
 // rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors).
 // rc608 Teil 13c: mit `gras` auch die Halm-Stufen (surfaceSprites) in dieses Ziel.
+// MR9 Punkt 1: `entities` die Entities dieser Karte (was der Server vor der Welt laedt, vorWeltRegistrieren).
 void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
                          const std::function<void()>& danach = {},   // rc608 Teil 13b: danach, solange das Ziel gilt
-                         const GrasStufenZiel& gras = {});
+                         const GrasStufenZiel& gras = {}, const std::vector<MapEntity>* entities = nullptr);
+// MR9 Punkt 1 (app_view3d_spiel.inc): das Ghoul2-Modell, das die Spawnfunktion einer Klasse auf dem Server laedt (leer: keins),
+// und die NPC-, Klingen- und Waffendaten einmal einlesen.
+[[nodiscard]] std::string serverG2Modell(const MapEntity& e);
+void npcDatenSicherstellen();
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
@@ -3837,8 +3844,13 @@ bool regelwerkPruefen();
 inline constexpr int kBildGrenze = 4096;
 // Fuer image::shrinkTo: die Kantenlaenge, die genau um 2^bildPicmip verkleinert.
 [[nodiscard]] int bildGrenzeFuer(const image::Image& im);
+// MR9 Punkt 3: r_picmip nur fuer Bilder mit allowPicmip (Upload32 tr_image.cpp:575-580: "if ( picmip )"). Das Bild hat das
+// allowPicmip dessen, der es zuerst geladen hat (R_FindImageFile_NoLoad, bhed/bildregister.h); nopicmip und nomipmaps setzen
+// es aus (tr_shader.cpp:2301-2311), Shader ohne Skript mit RegisterShaderNoMip ebenso (:3502). Unbekannte Bilder: r_picmip.
+[[nodiscard]] int bildPicmipFuer(const std::string& bild);
+[[nodiscard]] int bildGrenzeFuer(const image::Image& im, const std::string& bild);
 // Fuer die Schluessel in texCache: dasselbe Bild in einer anderen Stufe ist ein anderes.
-[[nodiscard]] std::string bildStufeText();
+[[nodiscard]] std::string bildStufeText(const std::string& bild);
 void regelwerkAnwendenJetzt();
 void areaPortaleJetzt(const float auge[3], const float* vorn = nullptr);
 // CM_SnapPVS(ort): die Gebietsmaske dieser Sicht in den Indexpuffer der Karte (nur wenn sie sich aendert).

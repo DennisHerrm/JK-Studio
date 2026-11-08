@@ -912,6 +912,93 @@ int main() {
                            smn["textures/n/himmel"].stages[0].keinTc);
                 expect("noTC vor skyParms: Himmelsseiten unkomprimiert", smn["textures/n/himmel2"].himmelKeinTc);
             }
+            // MR9 Punkt 1: was vor der Welt registriert - RE_RegisterModel (.md3 mit Stufen rueckwaerts, .glm), RE_RegisterSkin
+            // (drei Teile), RegisterEffect (Eigenschaften in Dateireihenfolge, Untereffekte sofort, jeder Name einmal).
+            {
+                const auto i32 = [](std::string& d, std::size_t at, std::int32_t v) {
+                    if (d.size() < at + 4) { d.resize(at + 4, '\0'); }
+                    const auto u = static_cast<std::uint32_t>(v);
+                    for (int k = 0; k < 4; ++k) { d[at + static_cast<std::size_t>(k)] = static_cast<char>((u >> (8U * static_cast<unsigned>(k))) & 0xFFU); }
+                };
+                const auto n64 = [](std::string& d, std::size_t at, const std::string& t) {
+                    if (d.size() < at + 64) { d.resize(at + 64, '\0'); }
+                    for (std::size_t k = 0; k < t.size() && k < 63; ++k) { d[at + k] = t[k]; }
+                };
+                // md3: eine Flaeche mit zwei Shadern (md3Surface_t ofsShaders 108, ofsEnd 108 + 2 * 68)
+                const auto md3 = [&](const std::vector<std::string>& shader) {
+                    std::string d = "IDP3";
+                    i32(d, 4, 15);
+                    i32(d, 76, 1);    // numFrames
+                    i32(d, 84, 1);    // numSurfaces
+                    i32(d, 100, 108); // ofsSurfaces
+                    i32(d, 108 + 76, static_cast<std::int32_t>(shader.size()));
+                    i32(d, 108 + 92, 108);
+                    i32(d, 108 + 104, 108 + 68 * static_cast<std::int32_t>(shader.size()));
+                    for (std::size_t k = 0; k < shader.size(); ++k) { n64(d, 108 + 108 + 68 * k, shader[k]); }
+                    return d;
+                };
+                // glm: zwei Flaechen der Hierarchie, die erste "[nomaterial]" mit einem Kind
+                std::string glm = "2LGM";
+                i32(glm, 4, 6);
+                i32(glm, 152, 2);
+                i32(glm, 156, 168);
+                n64(glm, 168 + 68, "[nomaterial]");
+                i32(glm, 168 + 140, 1);
+                n64(glm, 168 + 148 + 68, "models/m9/glmflaeche");
+                i32(glm, 168 + 148 + 140, 0);
+                std::map<std::string, std::string> dateien = {
+                    {"models/m9/kiste_2.md3", md3({"models/m9/stufe2"})},
+                    {"models/m9/kiste.md3", md3({"models/m9/grund.tga", "models/m9/zweit"})},
+                    {"models/m9/figur.glm", glm},
+                    {"models/players/m9/h.skin", "head,models/m9/kopf\nhead_off,*off\ntag_x,models/m9/nie\n"},
+                    {"models/players/m9/t.skin", "torso,\"models/m9/rumpf\"  // Kommentar\n"},
+                    {"effects/m9/a.efx", "repeatDelay 10\nParticle\n{\nshaders\n[\nm9/fx1\nm9/fx2\n]\nplayfx m9/b.efx\nmodels models/m9/kiste.md3\n}\n"
+                                         "Unbekannt\n{\nshader m9/nie\n}\n"},
+                    {"effects/m9/b.efx", "Line\n{\nshader m9/fxb\nplayfx m9/a\n}\n"},
+                };
+                const bhed::BildRegister::Leser lies = [&dateien](const std::string& n, std::string& out) {
+                    const auto it = dateien.find(n);
+                    if (it == dateien.end()) { return false; }
+                    out = it->second;
+                    return true;
+                };
+                const char* t9 =
+                    "models/m9/stufe2\n{\nnoTC\n{\nmap textures/m9/geteilt\n}\n}\n"
+                    "models/m9/grund\n{\n{\nmap textures/m9/geteilt\n}\n}\n"
+                    "models/m9/kopf\n{\nnoTC\n{\nmap textures/m9/haut\n}\n}\n"
+                    "models/m9/rumpf\n{\n{\nclampMap textures/m9/haut\n}\n}\n"
+                    "m9/fx2\n{\nnoTC\n{\nmap textures/m9/fx\n}\n}\n"
+                    "m9/fxb\n{\n{\nmap textures/m9/fx\n}\n}\n";
+                bhed::ShaderMap s9;
+                bhed::parseShaderScript(t9, s9);
+                const bhed::BildRegister::Skripte sk9 = [&s9](const std::string& n) -> const bhed::ShaderInfo* {
+                    const auto it = s9.find(n);
+                    return it == s9.end() ? nullptr : &it->second;
+                };
+                bhed::BildRegister m9r;
+                m9r.modell("models/m9/kiste.md3", lies, sk9);
+                const bhed::BildWahl* wm = m9r.wahl("textures/m9/geteilt");
+                expect("RE_RegisterModel .md3: Name_2.md3 vor dem Namen (MD3_MAX_LODS rueckwaerts)", wm != nullptr && wm->shader == "models/m9/stufe2" && !wm->tc);
+                expect("RE_RegisterModel .md3: alle Shader einer Flaeche", m9r.kenntShader("models/m9/zweit") && m9r.wahl("models/m9/zweit") != nullptr);
+                m9r.modell("models/m9/figur.glm", lies, sk9);
+                expect("RE_RegisterModel .glm: Shader der Hierarchie, [nomaterial] leer", m9r.wahl("models/m9/glmflaeche") != nullptr &&
+                       !m9r.kenntShader("[nomaterial]"));
+                bhed::BildRegister h;
+                h.haut("models/players/m9/|h|t|t", lies, sk9);
+                const bhed::BildWahl* wh = h.wahl("textures/m9/haut");
+                expect("RE_RegisterSkin drei Teile: Kopf vor Rumpf, ohne tag_ und _off,*off, Rumpf nur einmal",
+                       wh != nullptr && wh->shader == "models/m9/kopf" && !h.kenntShader("models/m9/nie") && !h.kenntShader("*off") &&
+                           h.warnungen().size() == 1U);
+                bhed::BildRegister h2;
+                h2.haut("models/players/m9/|fehlt|t|t", lies, sk9);
+                expect("RE_RegisterSkin: fehlt der Kopf, laedt der Rumpf nicht", !h2.kenntShader("models/m9/rumpf"));
+                bhed::BildRegister f;
+                f.effekt("m9/a.efx", lies, sk9);
+                const bhed::BildWahl* wf = f.wahl("textures/m9/fx");
+                expect("RegisterEffect: shaders vor playfx, Untereffekt sofort, jeder Effekt einmal, unbekannte Gruppe ohne Wirkung",
+                       wf != nullptr && wf->shader == "m9/fx2" && !wf->tc && f.kenntShader("m9/fxb") && !f.kenntShader("m9/nie") &&
+                           f.wahl("textures/m9/geteilt") != nullptr && f.wahl("textures/m9/geteilt")->shader == "models/m9/stufe2");
+            }
             // MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das
             // Bild des ERSTEN Ladens zurueck, mit dessen mipmap/allowPicmip/allowTC/glWrapClampMode; spaetere warnen nur.
             {

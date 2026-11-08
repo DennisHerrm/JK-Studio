@@ -185,8 +185,8 @@ std::vector<Schritt> teil10bSchritte() {
                 if (!as.textures.bySurface[i].rgba.empty()) { ++gefunden; }
             }
         }
-        const bool unterShader = g_app->texCache.count(image::mappingName(shader) + "@" + bildStufeText()) != 0;
-        const bool unterDatei = g_app->texCache.count(image::mappingName(datei) + "@" + bildStufeText()) != 0;
+        const bool unterShader = g_app->texCache.count(image::mappingName(shader) + "@" + bildStufeText(shader)) != 0;
+        const bool unterDatei = g_app->texCache.count(image::mappingName(datei) + "@" + bildStufeText(datei)) != 0;
         const bool stufe = ladeStufenBild(shader) != nullptr;
         diag::detail("Knopftest: Teil 10b - extras_shiny Flaechen " + std::to_string(flaechen) + ", mit Bild " + std::to_string(gefunden) +
                      ", Zwischenspeicher unter Shadername " + std::to_string(unterShader) + ", unter Datei " + std::to_string(unterDatei) +

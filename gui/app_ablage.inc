@@ -2032,6 +2032,7 @@ struct TexturLadeZiel {
     std::unordered_set<std::string>* kartenBilder = nullptr;
     GrasStufenZiel gras;
     BildRegister* bildRegister = nullptr;   // MR8 Punkt 1
+    const std::vector<MapEntity>* entities = nullptr;   // MR9 Punkt 1
 };
 TexturLadeZiel g_ladeZiel;
 TextureSet& ladeSatz() { return g_ladeZiel.textures != nullptr ? *g_ladeZiel.textures : g_app->textures; }
@@ -2039,11 +2040,103 @@ BildRegister& ladeRegister() { return g_ladeZiel.bildRegister != nullptr ? *g_la
 
 // MR8 Punkt 1: R_FindShader zum ersten Mal - die Bilder des Shaders kommen in der Reihenfolge von ParseShader ins Register
 // (bhed/bildregister.h). Ein schon bekannter Shader aendert nichts.
-void bildRegistrieren(const std::string& shaderName) {
-    ladeRegister().shader(shaderName, [](const std::string& n) -> const ShaderInfo* {
-        const auto it = g_app->shaderMap.find(n);
-        return it == g_app->shaderMap.end() ? nullptr : &it->second;
-    });
+const ShaderInfo* skriptZu(const std::string& n) {
+    const auto it = g_app->shaderMap.find(n);
+    return it == g_app->shaderMap.end() ? nullptr : &it->second;
+}
+void bildRegistrieren(const std::string& shaderName) { ladeRegister().shader(shaderName, skriptZu); }
+
+// MR9 Punkt 1: was das Spiel VOR RE_LoadWorldMap registriert, in seiner Reihenfolge (alle Shader mit mipRawImage qtrue).
+// SV_SpawnServer (server/sv_init.cpp:311-350 OpenJK, :321-364 MD9): SV_InitGameProgs -> G_SpawnEntitiesFromString (level.time
+// 1000) und fuenf ge->RunFrame (1000 ... 1400). Ghoul2-Modelle laden dabei sofort (G2API_InitGhoul2Model -> RE_RegisterModel,
+// Haut vorher RE_RegisterSkin). Erst danach laedt der Client cgame: CG_Init -> CG_RegisterGraphics -> CG_RegisterEffects
+// (cg_main.cpp:1327-1329, MD9 :2270-2271, codeJK2 :1209-1210) in der Reihenfolge von CS_EFFECTS, dann cgi_R_LoadWorldMap.
+// Nachgebaut fuer alles, was die Vorschau aus der Karte aufstellt; was sonst noch registriert, steht in NOTIZEN_mr4.md (MR9).
+// `vorschau` false (Spielbild des Karten-Editors): ohne misc_trip_mine (tripMineLage rechnet mit der Karte der Vorschau).
+void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
+    BildRegister& reg = ladeRegister();
+    const BildRegister::Leser lies = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
+    const bool jo = regelwerkJediOutcast();
+    const bool md = regelwerkMovieDuels();
+    std::vector<std::string> effekte;   // CS_EFFECTS: G_EffectIndex -> G_FindConfigstringIndex (Q_stricmp)
+    const auto effektIndex = [&effekte](const std::string& n) {
+        const auto klein = [](std::string x) {
+            for (char& c : x) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            return x;
+        };
+        if (n.empty()) { return; }
+        for (const std::string& x : effekte) {
+            if (klein(x) == klein(n)) { return; }
+        }
+        effekte.push_back(n);
+    };
+    int g2 = 0;
+    // 1. G_SpawnEntitiesFromString: die Spawnfunktionen in der Reihenfolge der Entities
+    for (const MapEntity& e : ents) {
+        if (!gespawntImSpiel(e) || (!vorschau && e.classname == "misc_trip_mine")) { continue; }
+        const std::string m = serverG2Modell(e);
+        if (!m.empty()) {
+            reg.modell(m, lies, skriptZu);
+            ++g2;
+        }
+        if (e.classname == "fx_runner") {
+            // SP_fx_runner (g_fx.cpp:248-257 OpenJK, codeJK2 :253): ohne fxFile kein Index
+            if (const std::string* f = e.find("fxFile")) { effektIndex(*f); }
+        } else if (e.classname == "misc_turret" || e.classname == "misc_ns_turret" || e.classname == "misc_sentry_turret" ||
+                   (e.classname == "misc_turretG2" && !m.empty())) {
+            // finish_spawning_turret (g_turret.cpp:917-918 OpenJK, :1311-1312 MD9) und SP_PAS (:1833-1834); Jedi Outcast
+            // nennt den Funken ohne Ordner (codeJK2 g_turret.cpp:620-621, 1446-1447)
+            effektIndex("turret/explode");
+            effektIndex(jo ? "spark_exp_nosnd" : "sparks/spark_exp_nosnd");
+        }
+    }
+    // 2. RunFrame 1300: FinishSpawningItem (G_SpawnItem: level.time + START_TIME_MOVERS_SPAWNED + 50 = 1250; g_items.cpp:1366
+    //    OpenJK, :1811 MD9, codeJK2 :1043) - Gegenstaende ohne targetname
+    std::string dat;
+    if (readFromArchives("ext_data/items.dat", dat)) {
+        const Gegenstandsliste liste = leseGegenstaende(dat, md, jo);
+        bool schwerter = false;
+        for (const MapEntity& e : ents) {
+            const Gegenstand* g = gespawntImSpiel(e) && e.targetname.empty() && e.find("targetname") == nullptr ? liste.spawnbar(e.classname)
+                                                                                                                : nullptr;
+            if (g == nullptr) { continue; }
+            if (!schwerter && !jo && g->typ == "IT_WEAPON" && g->tag == "WP_SABER" && e.find("NPC_type") != nullptr) {
+                npcDatenSicherstellen();   // die .sab-Dateien (WP_SaberParseParms)
+                schwerter = true;
+            }
+            reg.modell(gegenstandWeltModell(e, *g, &g_app->saberMap, jo), lies, skriptZu);
+            ++g2;
+        }
+    }
+    // 3. RunFrame 1400: NPC_Spawn_Go der Spawner ohne targetname (level.time + START_TIME_REMOVE_ENTS + 50 = 1350;
+    //    NPC_spawn.cpp:2049 OpenJK, :3104 MD9, codeJK2 :1629) -> NPC_ParseParms -> G_SetG2PlayerModel (g_client.cpp:1741-1790,
+    //    MD9 :2283-2365): RE_RegisterSkin, dann model.glm; fehlt das Modell, stormtrooper mit model_default.skin.
+    for (const MapEntity& e : ents) {
+        if (!gespawntImSpiel(e) || !npcSpawntBeimKartenstart(e)) { continue; }
+        npcDatenSicherstellen();
+        std::string typ = effektiverNpcTyp(e);
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = g_app->npcMap.find(typ);
+        if (it == g_app->npcMap.end() || it->second.playerModel.empty()) { continue; }
+        const std::string& pm = it->second.playerModel;
+        const std::string& cs = it->second.customSkin;
+        const std::string ordner = "models/players/" + pm + "/";
+        reg.haut(cs.empty() ? ordner + "model_default.skin"
+                            : (cs.find('|') != std::string::npos ? ordner + "|" + cs : ordner + "model_" + cs + ".skin"),
+                 lies, skriptZu);
+        std::string probe;
+        if (readFromArchives(ordner + "model.glm", probe)) {
+            reg.modell(ordner + "model.glm", lies, skriptZu);
+        } else {
+            reg.haut("models/players/stormtrooper/model_default.skin", lies, skriptZu);
+            reg.modell("models/players/stormtrooper/model.glm", lies, skriptZu);
+        }
+        ++g2;
+    }
+    // 4. CG_RegisterEffects: CS_EFFECTS + 1 ... in der Reihenfolge der Indizes (RegisterEffect, samt Untereffekten)
+    for (const std::string& n : effekte) { reg.effekt(n, lies, skriptZu); }
+    diag::detail("Bild je Name: vor der Welt " + std::to_string(g2) + " Ghoul2-Modelle (Server) und " + std::to_string(effekte.size()) +
+                 " Effekte (CG_RegisterEffects), " + std::to_string(reg.bilder()) + " Bilder");
 }
 
 // MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das image_t des
@@ -2205,7 +2298,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
             //    bewegen. Gemerkt werden darum nur die Bildpunkte; die
             //    Werte kommen danach jedes Mal frisch dazu.
             const std::string key =
-                image::mappingName(name) + "@" + bildStufeText();
+                image::mappingName(name) + "@" + bildStufeText(name);
             ladeBilder().insert(key);
             TextureSet::Tex t;
             const auto hit = g_app->texCache.find(key);
@@ -2808,6 +2901,20 @@ void loadMapTextures() {
     // Die hochgeladenen Bilder hingen an den alten Nummern (nur die der gewaehlten Szene, gpu::szeneWaehlen).
     gpu::vergissKarte();
     ladeRegister().leeren();   // MR8 Punkt 1: neue Karte (RE_RegisterMedia_LevelLoadBegin)
+    // MR9 Punkt 2: R_FindImageFile findet ein Bild, wenn eine der Dateien da ist, die auch das Laden versucht (textureCandidates:
+    // die Endungen von R_LoadImage) - in einem Archiv oder lose in einem Spielordner; ohne zu entpacken
+    ladeRegister().setzeVorhanden([](const std::string& b) {
+        for (const std::string& c : textureCandidates(b)) {
+            for (const GamePath& gp : g_app->gamePaths) {
+                for (const Pk3& a : gp.archives) {
+                    if (a.find(c) != nullptr) { return true; }
+                }
+                std::error_code ec;
+                if (std::filesystem::is_regular_file(utf8Pfad(gp.directory) / utf8Pfad(c), ec)) { return true; }
+            }
+        }
+        return false;
+    });
     if (ladeGeo().shaders.empty() || g_app->gamePaths.empty()) {
         return;
     }
@@ -2843,6 +2950,13 @@ void loadMapTextures() {
     }
 
     ladeSatz().byShader.resize(ladeGeo().shaders.size());
+
+    // MR8 Punkt 1: wer ein Bild zuerst laedt, bestimmt es fuer alle (bhed/bildregister.h). Die Welt registriert ihre Shader in
+    // der Reihenfolge von RE_LoadWorldMap - Nebel, dann die Flaechen der Datei -, nicht in der Reihenfolge der Shaderliste.
+    // MR9 Punkt 3: VOR dem Vorrat - dessen Verkleinerung haengt am allowPicmip des Ersten (bildPicmipFuer).
+    vorWeltRegistrieren(g_ladeZiel.entities != nullptr ? *g_ladeZiel.entities : g_app->map.entities, g_ladeZiel.entities == nullptr);   // MR9 P1
+    for (const std::string& n : weltShaderReihenfolge(ladeGeo())) { bildRegistrieren(n); }
+    for (const std::string& w : ladeRegister().warnungen()) { diag::detail("Bild je Name: " + w); }
 
     // --- Die Bilder NEBENLAEUFIG vorwaermen -----------------------------
     //
@@ -2908,10 +3022,6 @@ void loadMapTextures() {
                    std::to_string(st.faeden) + " Faeden");
     }
 
-    // MR8 Punkt 1: wer ein Bild zuerst laedt, bestimmt es fuer alle (bhed/bildregister.h). Die Welt registriert ihre Shader in
-    // der Reihenfolge von RE_LoadWorldMap - Nebel, dann die Flaechen der Datei -, nicht in der Reihenfolge der Shaderliste.
-    for (const std::string& n : weltShaderReihenfolge(ladeGeo())) { bildRegistrieren(n); }
-    for (const std::string& w : ladeRegister().warnungen()) { diag::detail("Bild je Name: " + w); }
     for (std::size_t i = 0; i < ladeGeo().shaders.size(); ++i) {
         const BspShader& sh = ladeGeo().shaders[i];
         if (!sh.isDrawn()) {
@@ -3166,6 +3276,11 @@ void loadMapTextures() {
             }
             ladeSatz().byShader[i] = std::move(t);
             ++ladeSatz().found;
+            if (ladeRegister().fehlerhaft(sh.name)) {
+                // MR9 Punkt 2: ein Stufenbild fehlt - ParseShader scheitert, die Flaeche zeigt tr.defaultShader (tr_bsp.cpp:352)
+                diag::detail("Shader " + sh.name + ": ein Stufenbild fehlt, tr.defaultShader wie im Spiel");
+                ladeSatz().byShader[i] = standardShaderTextur();
+            }
         } else {
             ++ladeSatz().missing;
             diag::info("keine Textur fuer " + sh.name);
@@ -3208,8 +3323,9 @@ void loadMapTextures() {
 }
 
 void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
-                         const std::function<void()>& danach, const GrasStufenZiel& gras) {
+                         const std::function<void()>& danach, const GrasStufenZiel& gras, const std::vector<MapEntity>* entities) {
     g_ladeZiel.geo = &geo;
+    g_ladeZiel.entities = entities;
     g_ladeZiel.textures = &ziel;
     g_ladeZiel.kartenBilder = &bilder;
     g_ladeZiel.gras = gras;
