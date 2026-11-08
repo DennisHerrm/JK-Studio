@@ -193,15 +193,14 @@ struct StufenBindung {
 struct MalBild {
     mm::Leinwand l;
     mm::Verlauf v;
-    std::string schluessel;               // Shader | Datei
-    std::vector<int> teile;
+    std::string schluessel;               // die Datei (klein): eine Leinwand je Bild, wie die Engine jedes Bild einmal laedt
+    std::vector<int> teile;               // alle Flaechen, deren Shader das Bild in einer Stufe zeichnet
     std::vector<std::array<int, 2>> herkunft;   // je Dreieck der Leinwand: Teil, Dreieck des Netzes
     std::vector<std::array<float, 3>> normalen; // je Dreieck in der Ruhelage
     int netzStand = -1;
     int lod = -1;                         // P1: Detailstufe der Dreiecke
     int bemaltFuer = -1;                  // P6: l.stand des letzten Vergleichs mit dem Original
     bool bemaltAnders = false;
-    bool grundStufe = true;               // das Bild der Flaeche (bySurface in der 3D-Ansicht), sonst eine weitere Stufe
     mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
     const void* bindungenFuer = nullptr;  // gesucht fuer diese Stufenliste (ModelTextures::stufen.data())
@@ -272,6 +271,19 @@ void bilderPruefen() {
     }
 }
 
+// Punkt 2 (MRESTE Teil 4): die Flaechen aller Gruppen, deren Shader dieses Bild in einer Stufe zeichnet. Das Spiel laedt jedes
+// Bild einmal (R_FindImageFile sucht nach dem Namen, tr_image.cpp OpenJK) und jede Stufe, die es nennt, zeigt die bemalte Datei -
+// bis hier gehoerte die Leinwand zu Shader und Datei: Aayla torso.tga (Shader torso und torso_cull) hatte zwei Leinwaende, die
+// Flaechen des anderen Shaders zeigten das Original, und "Fuer das Spiel bauen" schrieb die Datei zweimal (die letzte gewann).
+std::vector<int> teileMitBild(const std::vector<Gruppe>& g, const std::string& datei) {
+    std::vector<int> t;
+    for (const Gruppe& x : g) {
+        const std::vector<BildStufe>& st = bildStufen(x.shader);
+        if (std::any_of(st.begin(), st.end(), [&](const BildStufe& b) { return klein(b.datei) == klein(datei); })) { t.insert(t.end(), x.teile.begin(), x.teile.end()); }
+    }
+    return t;
+}
+
 MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     bilderPruefen();
     const std::vector<Gruppe> g = gruppen();
@@ -279,7 +291,7 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     const std::vector<BildStufe>& st = bildStufen(g[uz(gruppe)].shader);
     if (st.empty()) { return nullptr; }
     const int s = std::clamp(stufe, 0, static_cast<int>(st.size()) - 1);
-    const std::string schl = g[uz(gruppe)].shader + "|" + st[uz(s)].datei;
+    const std::string schl = klein(st[uz(s)].datei);
     for (auto& b : g_bilder) {
         if (b->schluessel == schl) {
             if (b->netzStand != mt().dok.inhalt().netzStand || b->lod != mt().lodJetzt) { dreieckeAus(*b); }
@@ -297,8 +309,7 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     }
     m->l.ausbluten = mz().ausbluten;
     m->schluessel = schl;
-    m->teile = g[uz(gruppe)].teile;
-    m->grundStufe = s == 0;
+    m->teile = teileMitBild(g, st[uz(s)].datei);
     dreieckeAus(*m);
     g_bilder.push_back(std::move(m));
     return g_bilder.back().get();
@@ -411,11 +422,13 @@ void anzeigeNachfuehren(MalBild& m) {
     m.texSchmutzig.dazu(m.l.schmutzig);
     const mm::Rechteck r{std::max(m.l.schmutzig.x0, 0), std::max(m.l.schmutzig.y0, 0), std::min(m.l.schmutzig.x1, m.l.b - 1), std::min(m.l.schmutzig.y1, m.l.h - 1)};
     bool ansicht = stufenNachfuehren(m, r);
-    if (m.grundStufe) {
-        auto& by = g_app->modelTextures.bySurface;
-        for (const int t : m.teile) {
-            if (t >= 0 && uz(t) < by.size()) { bildNachfuehren(by[uz(t)], m, r); }
-        }
+    // das Bild der Flaeche (bySurface: Flaechen ohne Shader-Stufen) - je Flaeche, deren erstes Bild diese Datei ist
+    auto& by = g_app->modelTextures.bySurface;
+    for (const int t : m.teile) {
+        if (t < 0 || uz(t) >= by.size()) { continue; }
+        const std::vector<BildStufe>& st = bildStufen(shaderVon(t));
+        if (st.empty() || klein(st[0].datei) != klein(m.l.datei)) { continue; }
+        bildNachfuehren(by[uz(t)], m, r);
         ansicht = true;
     }
     if (ansicht) {
