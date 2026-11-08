@@ -477,7 +477,10 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
     const std::string karte = kk != nullptr ? kk : "gv_turm";
     float kam[5] = {269.7F, 6916.7F, 76.0F, 8.0F, 326.0F};
     if (const char* k = std::getenv("BHED_GV_KAMERA")) { (void)std::sscanf(k, "%f %f %f %f %f", &kam[0], &kam[1], &kam[2], &kam[3], &kam[4]); }
+    // MR7 P42: das Regelwerk vor dem Vergleich ("Auto" aus den Einstellungen) - am Ende wieder so
+    auto regelAnfang = std::make_shared<int>(0);
     add(tu("Geschuetze Vergleich: Karte " + karte, [=] {
+        *regelAnfang = g_app->settings.regelwerk;
         if (const char* f = std::getenv("BHED_GV_FENSTER")) {
             int b = 0;
             int h = 0;
@@ -681,6 +684,16 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             return md ? b.komprimiert == 0 : b.lightmapStufeKomprimiert == b.lightmapStufe;
         }));
     }
+    add(tu("Geschuetze Vergleich: Regelwerk wie vor dem Vergleich", [=] {
+        g_app->settings.regelwerk = *regelAnfang;
+        (void)regelwerkPruefen();
+        g_app->mapDirty = true;
+    }));
+    add(pruefe("Geschuetze Vergleich: P42 - das Regelwerk steht am Ende wieder wie vor dem Vergleich", [=] {
+        diag::detail("Knopftest: Geschuetze Vergleich - Regelwerk am Ende " + std::to_string(g_app->settings.regelwerk) + ", vorher " +
+                     std::to_string(*regelAnfang));
+        return g_app->settings.regelwerk == *regelAnfang;
+    }));
     return s;
 }
 
