@@ -541,16 +541,20 @@ std::vector<Schritt> modellSchritte() {
         mz().radiusPx = st->radius;
     }));
     // --- waehrend die Animation laeuft ---
-    add(tu("PT Animation: abspielen", [] {
+    // REST: mit dem Pinsel - zuletzt war der Radierer gewaehlt (PT Radieren); auf der untersten Ebene stellt er das Original her.
+    // Bis M9 lief der Strich ueber den Ruecken und aenderte dort 885 Texel, seit die Ansicht Vorne die Brust zeigt keine.
+    add(werkzeug(Str::PtWzPinsel));
+    add(tu("PT Animation: abspielen", [st] {
+        st->n1 = mz().tupfer;
         g_app->animPlaying = true;
         g_app->modelDirty = true;
     }));
     add(pause(0.5));
     add(mb3::ziehenVonNach("PT Animation: Strich waehrend die Figur sich bewegt", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
     add(pause(0.3));
-    add(pruefe("PT Animation: der Strich malt in der Pose (Texel geaendert)", [] {
+    add(pruefe("PT Animation: der Strich malt in der Pose (Texel geaendert)", [st] {
         const int n = geaendert(lw());
-        diag::detail("Knopftest: PT Animation - " + std::to_string(n) + " Texel, Bild " + std::to_string(g_app->animFrame));
+        diag::detail("Knopftest: PT Animation - " + std::to_string(n) + " Texel, Bild " + std::to_string(g_app->animFrame) + ", " + std::to_string(mz().tupfer - st->n1) + " Tupfer");
         return n > 50;
     }));
     add(tu("PT Animation: anhalten", [] { g_app->animPlaying = false; }));
