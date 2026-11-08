@@ -499,6 +499,12 @@ void glaMatrix(std::string& o, const BoneMatrix& m) {
 void glaFlicken(std::string& o, std::size_t at, std::int32_t v) { std::memcpy(o.data() + at, &v, 4); }
 }  // namespace
 
+std::uint64_t glaDateiGroesse(std::uint64_t knochen, std::uint64_t kinder, std::uint64_t bilder, std::uint64_t vorrat) noexcept {
+    const std::uint64_t vorBildern = 100U + knochen * 4U + knochen * 172U + kinder * 4U;
+    const std::uint64_t bis = vorBildern + bilder * knochen * 3U;
+    return (bis + 3U) / 4U * 4U + vorrat * 14U;
+}
+
 bool schreibGla(const GlaAnimation& a, std::string& o, std::string* fehler) {
     o.clear();
     const auto falsch = [&](const std::string& f) {
@@ -512,6 +518,17 @@ bool schreibGla(const GlaAnimation& a, std::string& o, std::string* fehler) {
     if (a.indexes.size() != static_cast<std::size_t>(a.numFrames) * a.bones.size()) { return falsch("Bildverweise passen nicht zu Bildern x Knochen"); }
     if (a.bonePool.size() % 14U != 0U) { return falsch("Vorrat ist kein Vielfaches von 14 Bytes"); }
     if (a.bonePool.size() / 14U > 0xFFFFFFU) { return falsch("Vorrat groesser als ein 24-Bit-Verweis erreicht"); }
+    {
+        // FIX5 P37: die ganze Datei muss in die int-Offsets des Kopfs passen (die Knochenzahl ist die des Skeletts, auf das
+        // geschrieben wird - nach dem Uebertragen die des Ziels, nicht die des Imports)
+        std::uint64_t kinder = 0;
+        for (const GlaBone& k : a.bones) { kinder += k.kinder.size(); }
+        const std::uint64_t groesse = glaDateiGroesse(a.bones.size(), kinder, static_cast<std::uint64_t>(a.numFrames), a.bonePool.size() / 14U);
+        if (groesse > kGlaHoechstens) {
+            return falsch("Datei zu gross fuer eine GLA: " + std::to_string(groesse) + " Byte, die Verweise im Kopf sind int (hoechstens " +
+                          std::to_string(kGlaHoechstens) + ")");
+        }
+    }
     o.reserve(100U + a.bones.size() * 200U + a.indexes.size() * 3U + a.bonePool.size() + 4U);
     o += "2LGA";
     glaI32(o, 6);   // MDXA_VERSION

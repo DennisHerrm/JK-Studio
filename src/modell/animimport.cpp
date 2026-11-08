@@ -559,8 +559,13 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
     //     dazu je Bild ein Vektor - mehr als eingebaut ist, liefe nur ueber die Auslagerungsdatei. Das Commit-Limit
     //     (ullTotalPageFile) waechst mit der Auslagerungsdatei und waere wieder vom Augenblick abhaengig.
     // bad_alloc beim Abtasten (der Prozess bekommt den Speicher nicht) gibt weiter die Meldung (2).
+    // FIX5 P37: (1) fuer die ganze Datei bis zum Vorrat (Kopf, Verzeichnis, Hierarchie, Bilder; glaDateiGroesse) - vorher nur der
+    // Bildteil, dahinter lief ofsEnd ueber. Den Vorrat kennt erst das Backen; schreibGla prueft die ganze Datei noch einmal.
+    std::uint64_t kinder = 0;
+    for (const GlaBone& k : g.bones) { kinder += k.kinder.size(); }
     const double knochen = static_cast<double>(std::max<std::size_t>(g.bones.size(), 1U));
-    const double hoechstens = std::floor(static_cast<double>(std::numeric_limits<int>::max()) / (knochen * 3.0));
+    const auto vorBildern = static_cast<double>(glaDateiGroesse(g.bones.size(), kinder, 0U, 0U));
+    const double hoechstens = std::floor((static_cast<double>(kGlaHoechstens) - 3.0 - vorBildern) / (knochen * 3.0));
     if (!(alleBilder <= hoechstens)) {
         return falsch(ModellFehler{FehlerArt::AnimZuLangGla, {}, std::llround(std::min(alleBilder, 9.0e18)), std::llround(knochen), {},
                                    std::llround(hoechstens)});

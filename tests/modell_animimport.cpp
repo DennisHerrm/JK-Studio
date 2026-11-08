@@ -560,13 +560,14 @@ int main(int argc, char** argv) {
                        fehler + "\", c = " + std::to_string(a.fehlerArt.c) + " MB",
                    !ok && a.fehlerArt.art == FehlerArt::AnimZuLang && a.fehlerArt.c == 16);
         }
-        // GLA: Bilder x Knochen x 3 Byte muessen in die int-Offsets passen (mdx_format.h) - bei 8 Knochen hoechstens 89478485 Bilder.
-        // Knapp darunter lehnt nicht das Format ab, sondern (vorgetaeuscht 16 MB) der Arbeitsspeicher - ohne die 70 GB anzulegen.
+        // GLA: die ganze Datei muss in die int-Offsets passen (mdx_format.h) - FIX5 P37: Kopf, Verzeichnis und Hierarchie zaehlen mit
+        // (vorher nur Bilder x Knochen x 3: bei 8 Knochen 89478485 Bilder, dahinter lief ofsEnd ueber). Knapp darunter lehnt nicht das
+        // Format ab, sondern (vorgetaeuscht 16 MB) der Arbeitsspeicher - ohne die 70 GB anzulegen.
         struct Grenze {
             float ende;   // s; glTF-Zeiten float, assimp x 1000 in float (2982616000 -> 2982616064 ms)
             bool gla;
         };
-        for (const Grenze& gr : {Grenze{2982616.0F, false}, Grenze{2982616.5F, true}}) {
+        for (const Grenze& gr : {Grenze{2982600.0F, false}, Grenze{2982616.0F, true}, Grenze{2982616.5F, true}}) {
             gGesamtVorgabe = 16ULL << 20U;
             AnimImport a;
             std::string fehler;
@@ -575,8 +576,9 @@ int main(int argc, char** argv) {
             std::snprintf(z, sizeof z, "P34 %.1f s: %s, %lld Bilder x 8 x 3 = %lld Byte ", static_cast<double>(gr.ende),
                           gr.gla ? "ueber der GLA-Grenze" : "knapp unter der GLA-Grenze", a.fehlerArt.a, a.fehlerArt.a * 24LL);
             expect(std::string(z) + "\"" + fehler + "\"",
-                   !ok && (gr.gla ? (a.fehlerArt.art == FehlerArt::AnimZuLangGla && a.fehlerArt.c == 89478485 && a.fehlerArt.a * 24LL > 2147483647LL)
-                                  : (a.fehlerArt.art == FehlerArt::AnimZuLang && a.fehlerArt.a * 24LL <= 2147483647LL)));
+                   !ok && (gr.gla ? (a.fehlerArt.art == FehlerArt::AnimZuLangGla && a.fehlerArt.c < 89478485 && a.fehlerArt.c * 24LL > 2147481000LL &&
+                                     a.fehlerArt.a > a.fehlerArt.c)
+                                  : (a.fehlerArt.art == FehlerArt::AnimZuLang && a.fehlerArt.a * 24LL <= 2147481000LL)));
         }
         gGesamtVorgabe = 0ULL;
         gFreiVorgabe = 0ULL;

@@ -189,6 +189,12 @@ struct GlaAnimation {
 // Umkehrung, Flaggen, Kinder und Vorrat werden geschrieben, wie sie im Speicher stehen - eine gelesene Datei wird
 // Byte fuer Byte dieselbe. Der Anhang (anhang) wird nicht mitgeschrieben. false: nicht schreibbar (Grund in fehler).
 [[nodiscard]] bool schreibGla(const GlaAnimation& a, std::string& aus, std::string* fehler = nullptr);
+// FIX5 P37: die Groesse der Datei, die schreibGla schreibt, ohne die Daten anzulegen: Kopf 100 Byte, Verzeichnis 4 je Knochen, je
+// Knochen mdxaSkel_t 172 Byte (Name 64, Flaggen, Eltern, zwei 3x4-Matrizen, Kinderzahl) und 4 je Kind, Bilder x Knochen x 3 auf 4
+// ausgerichtet, Vorrat 14 je Eintrag. Alle Offsets im Kopf sind int (mdxaHeader_t, code/rd-common/mdx_format.h:389-395): mehr als
+// kGlaHoechstens Byte passen nicht in eine GLA - schreibGla lehnt dann ab, statt ofsCompBonePool/ofsEnd still abzuschneiden.
+inline constexpr std::uint64_t kGlaHoechstens = 0x7FFFFFFFULL;
+[[nodiscard]] std::uint64_t glaDateiGroesse(std::uint64_t knochen, std::uint64_t kinder, std::uint64_t bilder, std::uint64_t vorrat) noexcept;
 
 // Ein Abschnitt aus der animation.cfg.
 //
