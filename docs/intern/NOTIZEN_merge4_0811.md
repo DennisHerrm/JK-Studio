@@ -46,6 +46,12 @@ Build `Y:/karte/build-test` (`--parallel 8 -- /nodeReuse:false`), Laeufe `m4_*` 
    Leeren beim Wechsel ist noetig.
 - Gruen gesamt: rd 36/0, geschuetze 18/0, ctest 243/243 (inkrementeller Bau 0 Warnungen).
 
+## Schluss (`Y:\werkzeuge\mg4\schluss.sh`, Summe `schluss_summe.txt`)
+
+- Sauberer Neubau 0 Warnungen (804 s), ctest 243/243, figurlicht 8/0, mission1 98/0, karteneditor r3 22/0, editorportal 19/0,
+  Modus 1 2635/0; rd 36/0 und geschuetze 18/0 auf demselben Quellstand (Gruenlauf Teil 2); Lints wie die Basis
+  (portability 99, pruefcodes 11), Handbuch `--pruefen` ok (keine sichtbare Bedienung neu, Handbuch unveraendert).
+
 ## Teil 3: Chamfer-Feinheiten - nicht bearbeitet (Kontext), siehe Offen
 
 ## Offen
