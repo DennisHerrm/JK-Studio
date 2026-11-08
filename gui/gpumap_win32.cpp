@@ -585,6 +585,14 @@ void holeMessung() {
 // NICHT immer an: der Shader wird groesser und langsamer, und behaved soll
 // im Alltag schnell sein. `BHED_D3D_SHADERDEBUG=1` schaltet sie ein, wenn
 // jemand tatsaechlich eine Aufnahme macht.
+// FIX5 P35: das Profil der Vertex-Shader von Karte und Figuren. Ihre tcMod-Kette, turb und deformVertexes sind mit precise
+// geschrieben (Bit fuer Bit wie das Spiel). vs_4_x kennt kein precise je Anweisung, nur den Kopf ohne refactoringAllowed - der
+// Treiber der Intel UHD Graphics hielt sich daran nicht (ctest turbgpu/defgpu: vs_4_0 bis 38000 von 131072 Werten daneben, WARP 0);
+// vs_5_0 traegt [precise] an jeder Anweisung und rechnet auf beiden bitgleich. Ab Merkmalsstufe 11_0 also vs_5_0, darunter vs_4_0.
+const char* kartenVsZiel(ID3D11Device* d) {
+    return (d != nullptr && d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0) ? "vs_5_0" : "vs_4_0";
+}
+
 UINT uebersetzFahnen() {
     static UINT wert = 0xFFFFFFFFU;
     if (wert == 0xFFFFFFFFU) {
@@ -807,7 +815,7 @@ ShaderPaar* holeShader(std::uint32_t features, int numTexMods,
     };
 
     if (FAILED(d3dUebersetzen(vsSrc.data(), vsSrc.size(), name.c_str(), nullptr,
-                          nullptr, "main", "vs_4_0", uebersetzFahnen(), 0, &vsBlob, &err))) {
+                          nullptr, "main", kartenVsZiel(d), uebersetzFahnen(), 0, &vsBlob, &err))) {
         meldung("Vertex-Shader nicht uebersetzbar");
         if (err != nullptr) { err->Release(); }
         kaputt.insert(name);
@@ -2357,7 +2365,7 @@ ShaderPaar* holeFigurShader(std::string* fehler) {
     ID3DBlob* psBlob = nullptr;
     ID3DBlob* err = nullptr;
     if (FAILED(d3dUebersetzen(vsSrc.data(), vsSrc.size(), "figur", nullptr,
-                          nullptr, "main", "vs_4_0", uebersetzFahnen(), 0, &vsBlob, &err))) {
+                          nullptr, "main", kartenVsZiel(d), uebersetzFahnen(), 0, &vsBlob, &err))) {
         if (fehler != nullptr && err != nullptr) {
             *fehler = std::string("Figuren-Vertex-Shader: ") +
                       static_cast<const char*>(err->GetBufferPointer());

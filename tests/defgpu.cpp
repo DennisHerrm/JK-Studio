@@ -1,8 +1,8 @@
 // Probe: rechnen die Vertex-Shader der Karte und der Figuren deformVertexes bitgleich wie rd-vanilla? (nur Windows/MSVC)
 //
-// FIX5: Die echten Vertex-Shader (gpu::vertexShaderHlsl mit den deform-Merkmalen, gpu::figurVertexShaderHlsl) laufen als
-// Compute-Shader - ihr `main` aus einem Kern gerufen, die Kamera die Einheitsmatrix, also kommt die verformte Ecke unveraendert
-// heraus. Auf WARP (der Software-Grafikkarte von Direct3D 11) und, wenn vorhanden, der Grafikkarte des Rechners. Die Werte packen
+// FIX5: Die echten Vertex-Shader (gpu::vertexShaderHlsl mit den deform-Merkmalen, gpu::figurVertexShaderHlsl) laufen so, wie die
+// Vorschau sie baut - vs_5_0 (ab Merkmalsstufe 11_0, kartenVsZiel), Fahnen 0 (P35) - ueber Stream-Output (tests/vsstrom.h); die Kamera
+// ist die Einheitsmatrix, also kommt die verformte Ecke unveraendert heraus. Der Bytecode wird mitgeprueft ([precise] je Anweisung). Auf WARP (der Software-Grafikkarte von Direct3D 11) und, wenn vorhanden, der Grafikkarte des Rechners. Die Werte packen
 // die Wege des Programms (Karte: gpu::packeKonstanten; Figur: gpu::verformung wie deformWerte in gpumap_win32.cpp). Verglichen
 // wird Bit fuer Bit mit RB_DeformTessGeometry (code/rd-vanilla/tr_shade_calc.cpp:553, MD9 gleich), hier abgeschrieben:
 // RB_CalcDeformVertexes (:129), RB_CalcDeformNormals (:182), RB_CalcBulgeVertexes (:216), RB_CalcMoveVertexes (:263) mit WAVEVALUE,
@@ -12,6 +12,7 @@
 #include "bhed/gpuconst.h"
 #include "bhed/gpushader.h"
 #include "bhed/gpustate.h"
+#include "vsstrom.h"
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -341,60 +342,6 @@ bool laufen(D3D_DRIVER_TYPE art, const std::string& quelle, const std::vector<Pu
 }
 
 // Die Kerne: je Probe zwei float4 Eingabe (pos.xyz, s; normal.xyz, t), zwei float4 Ausgabe (verformte Ecke, Normale bzw. 0)
-const char* const kKernKarte = R"(
-StructuredBuffer<float4> gEin : register(t0);
-RWStructuredBuffer<float4> gAus : register(u0);
-[numthreads(64, 1, 1)]
-void kern(uint3 id : SV_DispatchThreadID) {
-    float4 a = gEin[id.x * 2];
-    float4 b = gEin[id.x * 2 + 1];
-    VSIn e;
-    e.pos = a.xyz;
-    e.normal = b.xyz;
-    e.uv = float2(a.w, b.w);
-    e.uvLm = float2(0.0, 0.0);
-    e.farbe = float4(1.0, 1.0, 1.0, 1.0);
-    VSOut o = main(e);
-    gAus[id.x * 2] = o.pos;
-    gAus[id.x * 2 + 1] = float4(0.0, 0.0, 0.0, 0.0);
-}
-)";
-const char* const kKernKarteUv = R"(
-StructuredBuffer<float4> gEin : register(t0);
-RWStructuredBuffer<float4> gAus : register(u0);
-[numthreads(64, 1, 1)]
-void kern(uint3 id : SV_DispatchThreadID) {
-    float4 a = gEin[id.x * 2];
-    float4 b = gEin[id.x * 2 + 1];
-    VSIn e;
-    e.pos = a.xyz;
-    e.normal = b.xyz;
-    e.uv = float2(a.w, b.w);
-    e.uvLm = float2(0.0, 0.0);
-    e.farbe = float4(1.0, 1.0, 1.0, 1.0);
-    VSOut o = main(e);
-    gAus[id.x * 2] = float4(o.uv, 0.0, 0.0);
-    gAus[id.x * 2 + 1] = float4(0.0, 0.0, 0.0, 0.0);
-}
-)";
-const char* const kKernFigur = R"(
-StructuredBuffer<float4> gEin : register(t0);
-RWStructuredBuffer<float4> gAus : register(u0);
-[numthreads(64, 1, 1)]
-void kern(uint3 id : SV_DispatchThreadID) {
-    float4 a = gEin[id.x * 2];
-    float4 b = gEin[id.x * 2 + 1];
-    VSIn e;
-    e.pos = a.xyz;
-    e.normal = b.xyz;
-    e.uv = float2(a.w, b.w);
-    e.bones = float4(0.0, 0.0, 0.0, 0.0);
-    e.weights = float4(1.0, 0.0, 0.0, 0.0);
-    VSOut o = main(e);
-    gAus[id.x * 2] = o.pos;
-    gAus[id.x * 2 + 1] = float4(0.0, 0.0, 0.0, 0.0);
-}
-)";
 const char* const kKernEcke = R"(
 StructuredBuffer<float4> gEin : register(t0);
 RWStructuredBuffer<float4> gAus : register(u0);
@@ -532,6 +479,7 @@ int main() {
             std::string quelle;
             std::vector<Puffer> cbs;
             bool normale;
+            int vs;   // 0 Compute-Kern, 1 Vertex-Shader der Karte, 2 der Figur
         };
         std::vector<float> figur(1568, 0.0F);
         for (int r = 0; r < 3; ++r) { figur[static_cast<std::size_t>(r * 5)] = 1.0F; }        // gKnochen[0..2]: Einheit
@@ -542,30 +490,57 @@ int main() {
             std::memcpy(werte.data(), v.d, sizeof v.d);
         }
         const Weg wege[] = {
-            {"Karte", vertexShaderHlsl(merkmale, 0) + kKernKarte, {{0, jeBild(zeit)}, {1, konst}}, false},
-            {"Figur", figurVertexShaderHlsl(0) + kKernFigur, {{0, jeBild(zeit)}, {2, figur}, {3, jeStufe(f, zeit)}}, false},
-            {"verformeEcke", verformHlsl() + kKernEcke, {{0, werte}}, true},
+            {"Karte", vertexShaderHlsl(merkmale, 0), {{0, jeBild(zeit)}, {1, konst}}, false, 1},
+            {"Figur", figurVertexShaderHlsl(0), {{0, jeBild(zeit)}, {2, figur}, {3, jeStufe(f, zeit)}}, false, 2},
+            {"verformeEcke", verformHlsl() + kKernEcke, {{0, werte}}, true, 0},
         };
         for (const Weg& w : wege) {
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;
-                if (!laufen(art, w.quelle, w.cbs, ein, proben, aus, name)) {
+                std::string dis;
+                UINT je = 8U;   // Werte je Ecke in aus
+                bool lief = false;
+                if (w.vs == 0) {
+                    lief = laufen(art, w.quelle, w.cbs, ein, proben, aus, name);
+                } else {
+                    je = 6U;
+                    std::vector<vsstrom::Ecke> ecken(proben);
+                    for (UINT i = 0; i < proben; ++i) {
+                        vsstrom::Ecke& e = ecken[i];
+                        const float* q = &ein[i * 8U];
+                        e = vsstrom::Ecke{{q[0], q[1], q[2]}, {q[4], q[5], q[6]}, {q[3], q[7]}, {0.0F, 0.0F, 0.0F, 0.0F}, {0.0F, 0.0F, 0.0F, 0.0F}};
+                        if (w.vs == 1) {
+                            e.a[2] = e.a[3] = e.b[0] = e.b[1] = 1.0F;   // farbe
+                        } else {
+                            e.b[0] = 1.0F;   // ein Knochen, Gewicht 1
+                        }
+                    }
+                    std::vector<vsstrom::Puffer> cbs;
+                    for (const Puffer& p : w.cbs) { cbs.push_back({p.slot, p.daten}); }
+                    lief = vsstrom::laufen(art, w.quelle, "vs_5_0", 0, w.vs == 1 ? vsstrom::Eingabe::Karte : vsstrom::Eingabe::Figur, cbs, ecken, aus, name, &dis);
+                }
+                if (!lief) {
                     erwarte(std::string(w.name) + " " + wer + ": Geraet nicht da oder Shader nicht uebersetzt", art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
                     continue;
+                }
+                if (w.vs != 0 && art == D3D_DRIVER_TYPE_WARP) {
+                    const std::string u = vsstrom::umstellbar(dis, "vs_5_0");
+                    erwarte(std::string("P35 Bytecode ") + w.name + " vs_5_0 (" + f.was + "): precise je Anweisung" + (u.empty() ? "" : " - " + u),
+                            u.empty());
                 }
                 int falsch = 0;
                 for (UINT i = 0; i < proben; ++i) {
                     bool ok = true;
-                    for (int k = 0; k < 3; ++k) { ok = ok && gleichBits(soll[i * 8U + static_cast<UINT>(k)], aus[i * 8U + static_cast<UINT>(k)]); }
+                    for (UINT k = 0; k < 3U; ++k) { ok = ok && gleichBits(soll[i * 8U + k], aus[i * je + k]); }
                     if (w.normale) {
                         for (int k = 4; k < 7; ++k) { ok = ok && gleichBits(soll[i * 8U + static_cast<UINT>(k)], aus[i * 8U + static_cast<UINT>(k)]); }
                     }
                     if (!ok) {
                         if (falsch < 2) {
                             float g[3];
-                            std::memcpy(g, &aus[i * 8U], 12);
+                            std::memcpy(g, &aus[i * je], 12);
                             std::printf("        %s %s %s t=%d ms: GPU %.9g %.9g %.9g, Spiel %.9g %.9g %.9g\n", w.name, wer, f.was, ms, static_cast<double>(g[0]),
                                         static_cast<double>(g[1]), static_cast<double>(g[2]), static_cast<double>(soll[i * 8U]),
                                         static_cast<double>(soll[i * 8U + 1U]), static_cast<double>(soll[i * 8U + 2U]));
@@ -634,18 +609,24 @@ int main() {
                 soll.insert(soll.end(), {st[0], st[1], 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F});
             }
             const std::uint32_t merkmale = pipelineFor(bs, false).features & (kTexMod | kTurb);
-            const std::string quelle = vertexShaderHlsl(merkmale, k.n) + kKernKarteUv;
+            const std::string quelle = vertexShaderHlsl(merkmale, k.n);
+            std::vector<vsstrom::Ecke> ecken(proben);
+            for (UINT i = 0; i < proben; ++i) {
+                const float* q = &ein[i * 8U];
+                ecken[i] = vsstrom::Ecke{{q[0], q[1], q[2]}, {q[4], q[5], q[6]}, {q[3], q[7]}, {0.0F, 0.0F, 1.0F, 1.0F}, {1.0F, 1.0F, 0.0F, 0.0F}};
+            }
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;
-                if (!laufen(art, quelle, {{0, jeBild(zeit)}, {1, konst}}, ein, proben, aus, name)) {
+                std::string dis;
+                if (!vsstrom::laufen(art, quelle, "vs_5_0", 0, vsstrom::Eingabe::Karte, {{0, jeBild(zeit)}, {1, konst}}, ecken, aus, name, &dis)) {
                     erwarte(std::string("tcMod ") + wer + ": Geraet nicht da oder Shader nicht uebersetzt", art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
                     continue;
                 }
                 int falsch = 0;
                 for (UINT i = 0; i < proben; ++i) {
-                    if (!gleichBits(soll[i * 8U], aus[i * 8U]) || !gleichBits(soll[i * 8U + 1U], aus[i * 8U + 1U])) { ++falsch; }
+                    if (!gleichBits(soll[i * 8U], aus[i * 6U + 4U]) || !gleichBits(soll[i * 8U + 1U], aus[i * 6U + 5U])) { ++falsch; }
                 }
                 char z[300];
                 std::snprintf(z, sizeof z, "Karte %s (%s): tcMod %s (%s%d Schritte) bitgleich zu ComputeTexCoords: %d von %u Ecken abweichend", wer,

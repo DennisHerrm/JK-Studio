@@ -996,7 +996,10 @@ bool bereit3() {
         return SUCCEEDED(hr);
     };
     ID3DBlob* b[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-    if (!uebersetzen("vs3", "vs_4_0", &b[0]) || !uebersetzen("ps3", "ps_4_0", &b[1]) || !uebersetzen("vsl", "vs_4_0", &b[2]) ||
+    // FIX5 P35: vs3 rechnet die tcMod-Kette (precise) - vs_5_0 traegt [precise] je Anweisung; vs_4_0 rechnete auf der Intel UHD
+    // Graphics nicht bitgleich (ctest turbgpu), also ab Merkmalsstufe 11_0 vs_5_0
+    const char* const vs3Ziel = d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0 ? "vs_5_0" : "vs_4_0";
+    if (!uebersetzen("vs3", vs3Ziel, &b[0]) || !uebersetzen("ps3", "ps_4_0", &b[1]) || !uebersetzen("vsl", "vs_4_0", &b[2]) ||
         !uebersetzen("gsl", "gs_4_0", &b[3]) || !uebersetzen("psl", "ps_4_0", &b[4]) || !uebersetzen("gslBreit", "gs_4_0", &b[5])) {
         for (auto*& x : b) { los(x); }
         return false;

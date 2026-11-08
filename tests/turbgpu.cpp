@@ -9,6 +9,7 @@
 
 #include "bhed/gpuconst.h"
 #include "bhed/gpushader.h"
+#include "vsstrom.h"
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -108,6 +109,35 @@ void main(uint3 id : SV_DispatchThreadID) {
     gAus[id.x] = asuint(tcKette(a.zw, gEin[b + 1], gEin[b + 2], gEin[b + 3], gEin[b + 4], gEin[b + 5], gEin[b + 6], gEin[b + 7], a.xy, true));
 }
 )";
+
+// FIX5 P35: dieselbe Kette als Vertex-Shader mit den Profilen und Fahnen des Echtzeit-Lichts (karte_gpu_win32.cpp: vs_4_0 und
+// vs_4_1/vs_5_0 mit D3DCOMPILE_OPTIMIZATION_LEVEL3) und der Vorschau (vs_4_0, Fahnen 0); die Werte je Ecke aus Buffer<float4> t0
+const char* const kVsHuelle = R"(
+Buffer<float4> gEin : register(t0);
+struct VSIn { float3 pos : POSITION; };
+struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
+VSOut main(VSIn e, uint id : SV_VertexID) {
+    uint b = id * 8;
+    float4 a = gEin[b];
+    VSOut o;
+    o.pos = float4(e.pos, 1.0);
+    o.uv = tcKette(a.zw, gEin[b + 1], gEin[b + 2], gEin[b + 3], gEin[b + 4], gEin[b + 5], gEin[b + 6], gEin[b + 7], a.xy, true);
+    return o;
+}
+)";
+// ab Merkmalsstufe 11_0 (jede Grafikkarte, auf der das hier laeuft, und WARP) vs_5_0; vs_4_x nur auf aelteren Karten (unter 11_0) -
+// dort gemessen auf WARP, auf der Grafikkarte nur als Hinweis (sie nimmt es nicht)
+struct Profil {
+    const char* profil;
+    UINT fahnen;
+    const char* wo;
+    bool ab11;
+};
+const Profil kProfile[] = {{"vs_5_0", 0, "Vorschau", true},
+                           {"vs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, "Echtzeit-Licht vs3/vs4", true},
+                           {"vs_4_0", 0, "Vorschau unter 11_0", false},
+                           {"vs_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, "Echtzeit-Licht vs3 unter 11_0", false},
+                           {"vs_4_1", D3DCOMPILE_OPTIMIZATION_LEVEL3, "Echtzeit-Licht vs4 unter 11_0", false}};
 
 // Den Kern auf einem Geraet laufen lassen; false: Geraet nicht da (name leer) oder Shader nicht uebersetzt
 bool laufen(D3D_DRIVER_TYPE art, const std::vector<Eingabe>& ein, std::vector<std::uint32_t>& aus, std::string& name) {
@@ -294,6 +324,49 @@ int main() {
             spielSt(m, k.n, zeit, ort, st);
             soll.push_back(st[0]);
             soll.push_back(st[1]);
+        }
+        // FIX5 P35: als Vertex-Shader mit den echten Profilen und Fahnen, dazu der Bytecode (kein Umstellen/Verschmelzen erlaubt)
+        {
+            std::vector<float> zusatz;
+            for (const Eingabe& e : ein) { zusatz.insert(zusatz.end(), e.v, e.v + 32); }
+            const std::vector<vsstrom::Ecke> ecken(ein.size(), vsstrom::Ecke{});
+            for (const Profil& pr : kProfile) {
+                for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                    const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
+                    std::vector<std::uint32_t> aus;
+                    std::string name;
+                    std::string dis;
+                    if (!vsstrom::laufen(art, tcModHlsl() + kVsHuelle, pr.profil, pr.fahnen, vsstrom::Eingabe::Karte, {}, ecken, aus, name, &dis,
+                                         &zusatz)) {
+                        erwarte((std::string(wer) + " " + pr.profil + ": Geraet nicht da oder Shader nicht uebersetzt").c_str(),
+                                art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
+                        continue;
+                    }
+                    int falsch = 0;
+                    for (std::size_t i = 0; i < ein.size(); ++i) {
+                        for (std::size_t a = 0; a < 2U; ++a) {
+                            std::uint32_t sb = 0;
+                            std::memcpy(&sb, &soll[i * 2U + a], 4);
+                            if (aus[i * 6U + 4U + a] != sb) { ++falsch; }
+                        }
+                    }
+                    char z[300];
+                    std::snprintf(z, sizeof z, "P35 %s (%s), %s %s%s: %s bitgleich zu rd-vanilla: %d von %zu Werten abweichend", wer, name.c_str(),
+                                  pr.wo, pr.profil, pr.fahnen != 0U ? " O3" : "", k.was, falsch, soll.size());
+                    if (!pr.ab11 && art == D3D_DRIVER_TYPE_HARDWARE) {
+                        std::printf("  Hinweis  %s (nimmt diese Karte nicht)\n", z);
+                    } else {
+                        erwarte(z, falsch == 0);
+                    }
+                    if (art == D3D_DRIVER_TYPE_WARP) {
+                        const std::string u = vsstrom::umstellbar(dis, pr.profil, true);
+                        erwarte((std::string("P35 Bytecode ") + pr.profil + (pr.fahnen != 0U ? " O3" : "") + " (" + k.was +
+                                 "): der Treiber darf nichts umstellen" + (u.empty() ? "" : " - " + u))
+                                    .c_str(),
+                                u.empty());
+                    }
+                }
+            }
         }
         for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
             const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
