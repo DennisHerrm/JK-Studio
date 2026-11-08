@@ -17,6 +17,7 @@
 #include "bhed/utf8pfad.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -53,6 +54,44 @@ std::string klein(std::string s) {
     for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     std::replace(s.begin(), s.end(), '\\', '/');
     return s;
+}
+
+// PTFIX3 P29: der Name, unter dem das Spiel ein Bild fuehrt (GenerateImageMappingName, rd-vanilla tr_image.cpp:95-111 OpenJK,
+// MD9 :92-107): klein, '\' -> '/', bis zum ersten Punkt, hoechstens MAX_QPATH - 1 = 63 Zeichen. R_FindImageFile_NoLoad sucht
+// danach - "torso.tga" und "torso.jpg" sind im Spiel EIN Bild, das zuerst geladene (bis hier eine Leinwand je Datei).
+std::string bildSchluessel(const std::string& name) {
+    std::string s;
+    for (std::size_t i = 0; i < name.size() && i < 63U; ++i) {
+        char c = static_cast<char>(std::tolower(static_cast<unsigned char>(name[i])));
+        if (c == '.') { break; }
+        if (c == '\\') { c = '/'; }
+        s.push_back(c);
+    }
+    return s;
+}
+
+// PTFIX3 P29: die Dateien, die R_LoadImage fuer einen Namen der Reihe nach versucht (rd-common tr_image_load.cpp:106-140 OpenJK,
+// MD9 :124-170 gleich): die genannte Endung zuerst, wenn es fuer sie einen Leser gibt (FindImageLoader mit Q_stricmp), danach
+// die Leser in der Folge von R_ImageLoader_Init (jpg, png, tga) ohne den schon versuchten, je am Namen ohne Endung
+// (COM_GetExtension/COM_StripExtension: der letzte Punkt hinter dem letzten '/'). textureCandidates versucht dazu ".jpeg" und
+// jede andere Endung zuerst - beides laedt das Spiel nicht.
+std::vector<std::string> bildDateienWieEngine(const std::string& name) {
+    static constexpr std::array<const char*, 3> kLeser{"jpg", "png", "tga"};
+    const std::size_t punkt = name.find_last_of('.');
+    const std::size_t strich = name.find_last_of('/');
+    const bool endung = punkt != std::string::npos && (strich == std::string::npos || strich < punkt);
+    const std::string ext = endung ? klein(name.substr(punkt + 1)) : std::string();
+    const std::string ohne = endung ? name.substr(0, punkt) : name;
+    std::size_t versucht = kLeser.size();
+    for (std::size_t i = 0; i < kLeser.size(); ++i) {
+        if (ext == kLeser[i]) { versucht = i; }
+    }
+    std::vector<std::string> out;
+    if (versucht < kLeser.size()) { out.push_back(name); }
+    for (std::size_t i = 0; i < kLeser.size(); ++i) {
+        if (i != versucht) { out.push_back(ohne + "." + kLeser[i]); }
+    }
+    return out;
 }
 
 // --- Gruppen: die Flaechen, die ein Bild zeichnen (Haut vor Shader, wie die Vorschau und der UV-Editor) -----------------
@@ -101,8 +140,10 @@ int gruppeVonTeil(const std::vector<Gruppe>& g, int teil) {
 // --- Die Bilder eines Shaders: die Datei, die die Engine laedt -----------------------------------------------------------
 
 struct BildStufe {
-    std::string name;    // Name im Shader (Anzeige)
-    std::string datei;   // gefundene Datei (VFS)
+    std::string name;         // Name im Shader (Anzeige)
+    std::string datei;        // gefundene Datei (VFS)
+    std::string schluessel;   // P29: der Name ohne Endung, unter dem das Spiel das Bild fuehrt (bildSchluessel)
+    bool grundUv = true;      // P30: eine Stufe zeichnet das Bild mit der UV der Flaeche (tcGen base, kein tcMod)
 };
 
 // Die Suche liest jede Kandidatendatei ganz aus den Archiven (readFromArchives entpackt); der Bereich, das 2D-Bild und
@@ -126,13 +167,13 @@ void merkerPruefen() {
     }
 }
 
-// die Datei, die die Engine fuer einen Bildnamen laedt (R_FindImageFile: die Endungen der Reihe nach)
+// die Datei, die die Engine fuer einen Bildnamen laedt (R_FindImageFile -> R_LoadImage: die Endungen der Reihe nach, P29)
 const std::string& dateiVon(const std::string& name) {
     merkerPruefen();
     const auto it = g_stufen.datei.find(name);
     if (it != g_stufen.datei.end()) { return it->second; }
     std::string gefunden;
-    for (const std::string& k : textureCandidates(name)) {
+    for (const std::string& k : bildDateienWieEngine(name)) {
         std::string d;
         if (readFromArchives(k, d)) {
             gefunden = k;
@@ -154,30 +195,92 @@ const ShaderInfo* shaderInfoVon(const std::string& shader) {
     return nullptr;
 }
 
+// P30: die Stufe zeichnet ihr Bild mit der UV der Flaeche - tcGen base und keine tcMod-Kette (ComputeTexCoords, tr_shade.cpp:
+// tcGen environment/vector und jeder tcMod bilden die Ecken anders auf das Bild ab, der Pinsel traefe andere Inseln)
+bool stufeMitGrundUv(const ShaderInfo::Stage& st) {
+    return st.texGen == TexGen::Base && st.numTexMods == 0;
+}
+
 // [0] das Bild der Flaeche (Haut/Shader direkt, sonst die erste map-Stufe des gleichnamigen Skripts wie texturesFor in
-// app_view3d.cpp), danach die weiteren Bildstufen des Skripts (ohne $lightmap/$whiteimage) - ParseStage in tr_shader.cpp
+// app_view3d.cpp), danach die weiteren Bildstufen des Skripts (ohne $lightmap/$whiteimage) - ParseStage in tr_shader.cpp.
+// PTFIX3: zusammengefasst nach dem Namen ohne Endung, wie das Spiel jedes Bild einmal fuehrt (P29); grundUv (P30) fuer [0] aus
+// den Stufen des Skripts, wenn es eines gibt (R_FindShader nimmt es vor dem Bild), sonst wahr (Shader aus dem Bild: eine
+// Stufe mit tcGen base).
 const std::vector<BildStufe>& bildStufen(const std::string& shader) {
     merkerPruefen();
     if (const auto it = g_stufen.je.find(shader); it != g_stufen.je.end()) { return it->second; }
     std::vector<BildStufe> out;
     const std::string direkt = dateiVon(shader);
     const ShaderInfo* info = shaderInfoVon(shader);
+    const auto grundIn = [info](const std::string& schl) {
+        return info == nullptr || std::any_of(info->stages.begin(), info->stages.end(), [&](const ShaderInfo::Stage& st) {
+                   return !st.lightmap && !st.image.empty() && bildSchluessel(st.image) == schl && stufeMitGrundUv(st);
+               });
+    };
     if (!direkt.empty()) {
-        out.push_back(BildStufe{shader, direkt});
+        const std::string schl = bildSchluessel(shader);
+        out.push_back(BildStufe{shader, direkt, schl, grundIn(schl)});
     } else if (info != nullptr && !info->image.empty()) {
         const std::string d = dateiVon(info->image);
-        if (!d.empty()) { out.push_back(BildStufe{info->image, d}); }
+        const std::string schl = bildSchluessel(info->image);
+        if (!d.empty()) { out.push_back(BildStufe{info->image, d, schl, grundIn(schl)}); }
     }
     if (info != nullptr) {
         for (const ShaderInfo::Stage& st : info->stages) {
             if (st.lightmap || st.image.empty()) { continue; }
             const std::string d = dateiVon(st.image);
             if (d.empty()) { continue; }
-            if (std::any_of(out.begin(), out.end(), [&](const BildStufe& b) { return klein(b.datei) == klein(d); })) { continue; }
-            out.push_back(BildStufe{st.image, d});
+            const std::string schl = bildSchluessel(st.image);
+            const auto da = std::find_if(out.begin(), out.end(), [&](const BildStufe& b) { return b.schluessel == schl; });
+            if (da != out.end()) {
+                da->grundUv = da->grundUv || stufeMitGrundUv(st);
+                continue;
+            }
+            out.push_back(BildStufe{st.image, d, schl, stufeMitGrundUv(st)});
         }
     }
     return g_stufen.je.emplace(shader, std::move(out)).first->second;
+}
+
+// P29: die Bildnamen eines Shadernamens in der Folge, in der das Spiel sie laedt - R_FindShader nimmt das Skript (gesucht ohne
+// Endung), dessen Stufen je R_FindImageFile rufen (ParseStage; animMap jedes Bild der Folge), sonst das Bild des Namens
+std::vector<std::string> registrierteBilder(const std::string& shader) {
+    const ShaderInfo* info = shaderInfoVon(shader);
+    if (info == nullptr) { return {shader}; }
+    std::vector<std::string> out;
+    for (const ShaderInfo::Stage& st : info->stages) {
+        if (st.lightmap || st.weiss) { continue; }
+        if (!st.animImages.empty()) {
+            out.insert(out.end(), st.animImages.begin(), st.animImages.end());
+        } else if (!st.image.empty()) {
+            out.push_back(st.image);
+        }
+    }
+    return out;
+}
+
+// P29: die Datei des Bilds `schl` wie im Spiel - die der ersten Registrierung, die ein Bild laedt: R_LoadMDXM die Shader der
+// Flaechen in ihrer Folge (tr_ghoul2.cpp:5404-5416 MD9, "[nomaterial]" geleert), danach RE_RegisterSkin die Zeilen der Haut in
+// der Folge der Datei (tr_skin.cpp:290-337, GlmSurface::hautZeile). Laedt ein Name nichts, legt R_FindImageFile kein Bild an.
+// Leer: keine Registrierung laedt es (dann die Datei der Stufe).
+std::string dateiFuerSchluessel(const std::string& schl) {
+    std::vector<std::string> namen;
+    for (const GlmSurface& f : g_app->model.surfaces) {
+        if (!f.shader.empty() && f.shader[0] != '[') { namen.push_back(f.shader); }
+    }
+    std::vector<const GlmSurface*> haut;
+    for (const GlmSurface& f : g_app->model.surfaces) {
+        if (!f.texture.empty() && f.hautZeile >= 0) { haut.push_back(&f); }
+    }
+    std::stable_sort(haut.begin(), haut.end(), [](const GlmSurface* a, const GlmSurface* b) { return a->hautZeile < b->hautZeile; });
+    for (const GlmSurface* f : haut) { namen.push_back(f->texture); }
+    for (const std::string& n : namen) {
+        for (const std::string& b : registrierteBilder(n)) {
+            if (bildSchluessel(b) != schl) { continue; }
+            if (const std::string& d = dateiVon(b); !d.empty()) { return d; }
+        }
+    }
+    return {};
 }
 
 // --- Leinwaende (eine je Bild) ---------------------------------------------------------------------------------------
@@ -191,11 +294,20 @@ struct StufenBindung {
     std::shared_ptr<TextureSet::Tex> eigen;
 };
 
+// P24: die Dreiecke einer Detailstufe, als die Leinwand sie das erste Mal zeigte - "Auf neue UV umbacken" paart je Index
+// nur mit denselben Dreiecken derselben Stufe (herkunft gleich)
+struct Ladestand {
+    std::vector<mm::Dreieck> d;
+    std::vector<std::array<int, 2>> herkunft;
+};
+
 struct MalBild {
     mm::Leinwand l;
     mm::Verlauf v;
-    std::string schluessel;               // die Datei (klein): eine Leinwand je Bild, wie die Engine jedes Bild einmal laedt
-    std::vector<int> teile;               // alle Flaechen, deren Shader das Bild in einer Stufe zeichnet
+    std::string schluessel;               // P29: der Name ohne Endung - eine Leinwand je Bild, wie das Spiel jedes Bild einmal fuehrt
+    std::vector<int> teile;               // P30: die Flaechen des Pinsels - Shader mit dem Bild in einer Stufe mit Grund-UV
+    std::vector<int> anzeigeTeile;        // alle Flaechen, deren Shader das Bild in einer Stufe zeichnet (Vorschau)
+    std::map<int, Ladestand> beimLaden;   // P24: je Detailstufe
     std::vector<std::array<int, 2>> herkunft;   // je Dreieck der Leinwand: Teil, Dreieck des Netzes
     std::vector<std::array<float, 3>> normalen; // je Dreieck in der Ruhelage
     int netzStand = -1;
@@ -204,13 +316,13 @@ struct MalBild {
     bool bemaltAnders = false;
     mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
-    const void* bindungenFuer = nullptr;  // gesucht fuer diese Stufenliste (ModelTextures::stufen.data())
+    std::uint64_t bindungenFuer = 0;      // P31: gesucht fuer diese Texturen (ModelTextures::ladeNummer, 0: neu suchen)
     int maskeFuer = -1;                   // P8: l.stand der gemerkten Maskenflaechen (-1: neu bestimmen)
     std::vector<std::array<int, 4>> maskeFlaechen;   // P8: maskierte Texel als Rechtecke x0, y0, x1, y1 (x1, y1 ausschliesslich)
 };
 
 std::vector<std::unique_ptr<MalBild>> g_bilder;
-std::string g_bilderFuer;
+int g_bilderLadung = -1;      // P23: der Ladestand des Modelldokuments, zu dem die Leinwaende gehoeren (Dokument::ladeStand)
 int g_bilderLod = -1;         // P1: die Detailstufe, deren Dreiecke die Leinwaende tragen
 int g_bilderGeneration = 0;   // zaehlt jedes Leeren (die 2D-Ansicht merkt sich Bilder nach Adresse)
 
@@ -247,22 +359,28 @@ void dreieckeAus(MalBild& m) {
             m.normalen.push_back(nn);
         }
     }
-    mm::dreieckeSetzen(m.l, d, m.netzStand < 0);
+    mm::dreieckeSetzen(m.l, d, false);
+    // P24: der Ladestand je Stufe (das erste Zeigen); passen die Dreiecke nicht mehr dazu (Detach, neuer Teil), bleibt nichts
+    // zum Umbacken - vorher galt fuer alle Stufen der Stand der ersten Anzeige, und Umbacken paarte Dreiecke verschiedener Stufen
+    const auto lst = m.beimLaden.try_emplace(stufe, Ladestand{d, m.herkunft}).first;
+    m.l.dreieckeBeimLaden = lst->second.herkunft == m.herkunft ? lst->second.d : std::vector<mm::Dreieck>{};
     m.netzStand = in.netzStand;
     m.lod = stufe;
 }
 
 // Pruefung seit rc610 P1: die Leinwaende gehoeren zum Modell, nicht zur Detailstufe oder Haut - eine Leinwand haengt an ihrem
-// Bild (Schluessel Shader | Datei), nur ihre Dreiecke an der Stufe (beim Wechsel neu wie bei einem neuen Netz). Vorher leerte
-// ein Sprung der automatischen Stufe (Zoomen) oder ein Hautwechsel alle Leinwaende samt Ebenen und Rueckgaengig ohne Frage.
+// Bild, nur ihre Dreiecke an der Stufe (beim Wechsel neu wie bei einem neuen Netz). Vorher leerte ein Sprung der automatischen
+// Stufe (Zoomen) oder ein Hautwechsel alle Leinwaende samt Ebenen und Rueckgaengig ohne Frage.
+// PTFIX3 P23: ein neu geladenes Modell verwirft sie, auch dieselbe Datei noch einmal (nach "verwerfen" oder einer Aenderung auf
+// der Platte) - vorher verglich das den Pfad, die Leinwaende blieben, und die Frage kam bei jedem Laden wieder.
 void bilderPruefen() {
-    const std::string& fuer = g_app->modelPath;
-    if (fuer != g_bilderFuer) {
+    const int geladen = mt().dok.ladeStand();
+    if (geladen != g_bilderLadung) {
         g_bilder.clear();
         g_stufen.je.clear();
         g_stufen.datei.clear();
         ++g_bilderGeneration;
-        g_bilderFuer = fuer;
+        g_bilderLadung = geladen;
         mz().gruppe = -1;
         mz().stufe = 0;
     }
@@ -276,12 +394,31 @@ void bilderPruefen() {
 // Bild einmal (R_FindImageFile sucht nach dem Namen, tr_image.cpp OpenJK) und jede Stufe, die es nennt, zeigt die bemalte Datei -
 // bis hier gehoerte die Leinwand zu Shader und Datei: Aayla torso.tga (Shader torso und torso_cull) hatte zwei Leinwaende, die
 // Flaechen des anderen Shaders zeigten das Original, und "Fuer das Spiel bauen" schrieb die Datei zweimal (die letzte gewann).
-std::vector<int> teileMitBild(const std::vector<Gruppe>& g, const std::string& datei) {
-    std::vector<int> t;
+// PTFIX3 P30: der Pinsel nur auf den Flaechen, deren Shader das Bild mit ihrer UV zeichnet (eine Stufe ohne tcGen/tcMod); zeichnen
+// es alle nur verschoben (Rauch mit tcMod rotate), die Flaechen, deren eigenes Bild es ist. Die Vorschau bekommt alle.
+struct BildTeile {
+    std::vector<int> pinsel;
+    std::vector<int> anzeige;
+};
+
+BildTeile teileMitBild(const std::vector<Gruppe>& g, const std::string& schl) {
+    BildTeile t;
+    std::vector<int> eigen;
     for (const Gruppe& x : g) {
         const std::vector<BildStufe>& st = bildStufen(x.shader);
-        if (std::any_of(st.begin(), st.end(), [&](const BildStufe& b) { return klein(b.datei) == klein(datei); })) { t.insert(t.end(), x.teile.begin(), x.teile.end()); }
+        bool nennt = false;
+        bool grund = false;
+        for (const BildStufe& b : st) {
+            if (b.schluessel != schl) { continue; }
+            nennt = true;
+            grund = grund || b.grundUv;
+        }
+        if (!nennt) { continue; }
+        t.anzeige.insert(t.anzeige.end(), x.teile.begin(), x.teile.end());
+        if (grund) { t.pinsel.insert(t.pinsel.end(), x.teile.begin(), x.teile.end()); }
+        if (st.front().schluessel == schl) { eigen.insert(eigen.end(), x.teile.begin(), x.teile.end()); }
     }
+    if (t.pinsel.empty()) { t.pinsel = std::move(eigen); }
     return t;
 }
 
@@ -292,25 +429,40 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     const std::vector<BildStufe>& st = bildStufen(g[uz(gruppe)].shader);
     if (st.empty()) { return nullptr; }
     const int s = std::clamp(stufe, 0, static_cast<int>(st.size()) - 1);
-    const std::string schl = klein(st[uz(s)].datei);
+    const std::string schl = st[uz(s)].schluessel;
+    const std::string stufenDatei = st[uz(s)].datei;
+    // P30: die Flaechen jedes Mal neu (Detach/Grundkoerper in einen neuen Teil, Hautwechsel: weitere Flaechen zeigen das Bild) -
+    // vorher nur beim Anlegen, Tupfer auf den neuen Flaechen malten nichts
+    BildTeile bt = teileMitBild(g, schl);
     for (auto& b : g_bilder) {
         if (b->schluessel == schl) {
-            if (b->netzStand != mt().dok.inhalt().netzStand || b->lod != mt().lodJetzt) { dreieckeAus(*b); }
+            if (b->teile != bt.pinsel || b->anzeigeTeile != bt.anzeige) {
+                b->teile = std::move(bt.pinsel);
+                b->anzeigeTeile = std::move(bt.anzeige);
+                b->bindungenFuer = 0;
+                dreieckeAus(*b);
+            } else if (b->netzStand != mt().dok.inhalt().netzStand || b->lod != mt().lodJetzt) {
+                dreieckeAus(*b);
+            }
             return b.get();
         }
     }
     if (!laden) { return nullptr; }
+    // P29: die Datei der ersten Registrierung im Spiel (Yoda: Haut hair.tga, das Skript hair laedt hair.png)
+    std::string datei = dateiFuerSchluessel(schl);
+    if (datei.empty()) { datei = stufenDatei; }
     std::string bytes;
-    if (!readFromArchives(st[uz(s)].datei, bytes)) { return nullptr; }
+    if (!readFromArchives(datei, bytes)) { return nullptr; }
     auto m = std::make_unique<MalBild>();
     std::string fehler;
-    if (!mm::leinwandAusDatei(m->l, st[uz(s)].datei, bytes, &fehler)) {
-        melden(format(Str::PtBildFehler, st[uz(s)].datei.c_str(), fehler.empty() ? tr(Str::PtFeUnlesbar) : fehler.c_str()));
+    if (!mm::leinwandAusDatei(m->l, datei, bytes, &fehler)) {
+        melden(format(Str::PtBildFehler, datei.c_str(), fehler.empty() ? tr(Str::PtFeUnlesbar) : fehler.c_str()));
         return nullptr;
     }
     m->l.ausbluten = mz().ausbluten;
     m->schluessel = schl;
-    m->teile = teileMitBild(g, st[uz(s)].datei);
+    m->teile = std::move(bt.pinsel);
+    m->anzeigeTeile = std::move(bt.anzeige);
     dreieckeAus(*m);
     g_bilder.push_back(std::move(m));
     return g_bilder.back().get();
@@ -374,20 +526,20 @@ void bildNachfuehren(TextureSet::Tex& x, const MalBild& m, const mm::Rechteck& r
     x.wache = TexWache{};   // meldet den neuen Inhalt (die Grafikkarte laedt neu, gpumap_win32.cpp figurBildWeg)
 }
 
-// Die Stufen der Vorschau suchen, deren Bild diese Leinwand ist (je Flaeche der Gruppe: die Stufen des Shaders, deren
-// Bild dieselbe Datei laedt; animMap mit mehreren Bildern und $whiteimage nicht)
+// Die Stufen der Vorschau suchen, deren Bild diese Leinwand ist (je Flaeche, die das Bild zeigt: die Stufen des Shaders, deren
+// Bild dasselbe Bild des Spiels ist - P29 nach dem Namen ohne Endung; animMap mit mehreren Bildern und $whiteimage nicht)
 void bindungenSuchen(MalBild& m) {
     const auto& st = g_app->modelTextures.stufen;
     m.bindungen.clear();
-    m.bindungenFuer = st.data();
-    for (const int t : m.teile) {
+    m.bindungenFuer = g_app->modelTextures.ladeNummer;
+    for (const int t : m.anzeigeTeile) {
         if (t < 0 || uz(t) >= st.size() || st[uz(t)].empty()) { continue; }
         const ShaderInfo* info = shaderInfoVon(shaderVon(t));
         if (info == nullptr) { continue; }
         for (std::size_t k = 0; k < st[uz(t)].size(); ++k) {
             const ModelTextures::FigurStufe& fs = st[uz(t)][k];
             if (fs.art.weiss || fs.pixel.size() != 1U || fs.pixel[0] == nullptr || fs.art.stufe >= info->stages.size()) { continue; }
-            if (klein(dateiVon(info->stages[fs.art.stufe].image)) == klein(m.l.datei)) { m.bindungen.push_back(StufenBindung{t, k, nullptr}); }
+            if (bildSchluessel(info->stages[fs.art.stufe].image) == m.schluessel) { m.bindungen.push_back(StufenBindung{t, k, nullptr}); }
         }
     }
 }
@@ -396,7 +548,7 @@ void bindungenSuchen(MalBild& m) {
 // Texturen) bekommt sie und das ganze Bild. true, wenn eine Stufe da ist.
 bool stufenNachfuehren(MalBild& m, mm::Rechteck r) {
     auto& st = g_app->modelTextures.stufen;
-    if (m.bindungenFuer != st.data()) { bindungenSuchen(m); }
+    if (m.bindungenFuer != g_app->modelTextures.ladeNummer) { bindungenSuchen(m); }   // P31: nach der Ladenummer, nicht der Adresse
     bool da = false;
     for (StufenBindung& b : m.bindungen) {
         if (uz(b.teil) >= st.size() || b.stufe >= st[uz(b.teil)].size()) { continue; }
@@ -425,10 +577,10 @@ void anzeigeNachfuehren(MalBild& m) {
     bool ansicht = stufenNachfuehren(m, r);
     // das Bild der Flaeche (bySurface: Flaechen ohne Shader-Stufen) - je Flaeche, deren erstes Bild diese Datei ist
     auto& by = g_app->modelTextures.bySurface;
-    for (const int t : m.teile) {
+    for (const int t : m.anzeigeTeile) {
         if (t < 0 || uz(t) >= by.size()) { continue; }
         const std::vector<BildStufe>& st = bildStufen(shaderVon(t));
-        if (st.empty() || klein(st[0].datei) != klein(m.l.datei)) { continue; }
+        if (st.empty() || st[0].schluessel != m.schluessel) { continue; }
         bildNachfuehren(by[uz(t)], m, r);
         ansicht = true;
     }
@@ -725,11 +877,20 @@ bool modellMalenRueckgaengig() {
     return true;
 }
 
+// PTFIX3 P25: eine lineare Kette ueber alle Leinwaende - jede neue Handlung verwirft das Wiederholen auf jedem Bild (ein Schritt
+// mit kleinerer Nummer als der juengste abgelegte wurde vor ihr zurueckgenommen); vorher leerte ein Strich nur `vor` der eigenen
+// Leinwand, und Strg+Y brachte den Strich eines anderen Bilds zurueck.
 bool modellMalenWiederholen() {
-    MalBild* m = nullptr;
+    long long juengster = 0;
     for (auto& b : g_bilder) {
         mm::schrittEnde(b->v, b->l);
-        if (!b->v.vor.empty() && (m == nullptr || b->v.vor.back().nummer < m->v.vor.back().nummer)) { m = b.get(); }
+        if (!b->v.zurueck.empty()) { juengster = std::max(juengster, b->v.zurueck.back().nummer); }
+    }
+    MalBild* m = nullptr;
+    for (auto& b : g_bilder) {
+        auto& vor = b->v.vor;
+        vor.erase(std::remove_if(vor.begin(), vor.end(), [juengster](const mm::UndoSchritt& x) { return x.nummer < juengster; }), vor.end());
+        if (!vor.empty() && (m == nullptr || vor.back().nummer < m->v.vor.back().nummer)) { m = b.get(); }
     }
     if (m == nullptr || !mm::wiederholen(m->v, m->l)) { return false; }
     anzeigeNachfuehren(*m);
@@ -825,10 +986,17 @@ void maskeAendern(Str name, bool umkehren) {
 void umbackenBefehl() {
     MalBild* m = jetzt(true);
     if (m == nullptr) { return; }
+    // P24: nur mit denselben Dreiecken derselben Stufe (vorher still nichts bei ungleicher Zahl, bei gleicher Zahl verzerrt)
+    const auto lst = m->beimLaden.find(m->lod);
+    if (lst == m->beimLaden.end() || lst->second.herkunft != m->herkunft) {
+        melden(tr(Str::PtUmbackenAnders));
+        return;
+    }
     if (!mm::leinwandUmbacken(m->l, m->v, tr(Str::PtUmbacken))) {
         melden(tr(Str::PtUmbackenNichts));
         return;
     }
+    lst->second.d = m->l.dreiecke;   // der neue Stand dieser Stufe (leinwandUmbacken setzt dreieckeBeimLaden)
     anzeigeNachfuehren(*m);
     ++mz().befehle;
     mz().letzterBefehl = tr(Str::PtUmbacken);
@@ -1119,9 +1287,9 @@ bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
 // Modellieren): die bemalten Bilder wieder in ihre Stufen - in jedem Bereich, jedes Bild (vorher nur im Bereich Painting,
 // bis dahin zeigte die Ansicht das Original). Nur fuer die Leinwaende des geladenen Modells.
 void modellMalenVorschauAbgleich() {
-    if (g_bilderFuer != g_app->modelPath) { return; }
+    if (g_bilderLadung != mt().dok.ladeStand()) { return; }
     for (auto& b : g_bilder) {
-        if (b->l.bemalt() && b->bindungenFuer != g_app->modelTextures.stufen.data()) {
+        if (b->l.bemalt() && b->bindungenFuer != g_app->modelTextures.ladeNummer) {   // P31
             b->l.schmutzig = mm::Rechteck{0, 0, b->l.b - 1, b->l.h - 1};
             anzeigeNachfuehren(*b);
         }

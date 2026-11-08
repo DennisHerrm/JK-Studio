@@ -2308,6 +2308,8 @@ from i18n_mreste import zeilen_vier as _mreste  # noqa: E402  (MRESTE: Reste des
 S += _mreste()
 from i18n_fix2 import zeilen_vier as _fix2  # noqa: E402  (FIX2: Animations-Import in 6 Sprachen, Blender-Lizenz)
 S += _fix2()
+from i18n_ptfix3 import zeilen_vier as _ptfix3  # noqa: E402  (PTFIX3: Painting-Funde P23-P31)
+S += _ptfix3()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

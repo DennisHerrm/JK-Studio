@@ -504,17 +504,30 @@ void stapelAendern(Verlauf& v, Leinwand& l, const std::string& name, const std::
     UndoSchritt s;
     s.name = name;
     s.struktur = true;
-    s.stapelVorher = l.ebenen;
     s.aktivVorher = l.aktiv;
-    s.stapelNachher = neu;
     s.aktivNachher = aktivNeu;
-    // P2: aendert der Schritt keine Bildpunkte (gleiche Ebenen, gleiche rgba), merkt er nur die Eigenschaften
+    // P2: aendert der Schritt keine Bildpunkte (gleiche Ebenen, gleiche rgba), merkt er nur die Eigenschaften. PTFIX3 P26: erst
+    // vergleichen, dann kopieren - vorher entstanden beide Stapel samt Bildpunkten und wurden danach geleert (4096er Bild mit
+    // vier Ebenen: 512 MB Spitze fuer einen Klick auf "Sichtbar").
     bool gleicheBilder = neu.size() == l.ebenen.size();
     for (std::size_t i = 0; gleicheBilder && i < neu.size(); ++i) { gleicheBilder = neu[i].rgba == l.ebenen[i].rgba; }
     if (gleicheBilder) {
         s.nurEigenschaften = true;
-        for (Ebene& e : s.stapelVorher) { std::vector<std::uint8_t>().swap(e.rgba); }
-        for (Ebene& e : s.stapelNachher) { std::vector<std::uint8_t>().swap(e.rgba); }
+        const auto ohneBild = [](const std::vector<Ebene>& st) {
+            std::vector<Ebene> out(st.size());
+            for (std::size_t i = 0; i < st.size(); ++i) {
+                out[i].name = st[i].name;
+                out[i].deckkraft = st[i].deckkraft;
+                out[i].misch = st[i].misch;
+                out[i].sichtbar = st[i].sichtbar;
+            }
+            return out;
+        };
+        s.stapelVorher = ohneBild(l.ebenen);
+        s.stapelNachher = ohneBild(neu);
+    } else {
+        s.stapelVorher = l.ebenen;
+        s.stapelNachher = neu;
     }
     l.ebenen = neu;
     l.aktiv = std::clamp(aktivNeu, 0, static_cast<int>(l.ebenen.size()) - 1);

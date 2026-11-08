@@ -198,6 +198,9 @@ public:
 
     [[nodiscard]] const Inhalt& inhalt() const noexcept { return jetzt_; }
     [[nodiscard]] int stand() const noexcept { return stand_; }
+    // PTFIX3 P23: zaehlt nur laden() - ein neu geladenes Modell, auch dieselbe Datei noch einmal (wer am Modell haengt, z. B. die
+    // Leinwaende des Paintings, verwirft dann seinen Stand; der Pfad allein bleibt beim Neuladen gleich)
+    [[nodiscard]] int ladeStand() const noexcept { return ladeStand_; }
     void laden(Inhalt neu);
     // netz = false: die Aenderung betrifft nur das Rig (netzStand bleibt, die Anzeige baut nicht neu).
     // pfix H1: die Kennung des neuen Schritts - wer einen Schritt offen haelt (Werkzeugkaestchen, Regler, Zug), bricht mit ihr ab.
@@ -228,6 +231,7 @@ private:
     std::uint64_t kennungZaehler_ = 0;
     int stand_ = 0;
     int netzZaehler_ = 0;
+    int ladeStand_ = 0;
 };
 
 }  // namespace bhed::modell

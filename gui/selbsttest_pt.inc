@@ -16,6 +16,8 @@
 //   ptzeit    Bildzeit (allein, BHED_D3D_DEBUG=0): Ansehen, Painting, Painting mit einem Tupfer je Bild (Pinsel und
 //             Weichzeichnen), Painting mit voller Maske gezeigt
 //   ptfix     Pruefung seit rc610 P1, P3, P4;  ptfix2 (mit SPRACHE=ja) P8, P13, P19
+//   ptfix3    PTFIX3: P23 Verwerfen, P24 Umbacken je Stufe, P25 Wiederholen, P29 ein Bild je Name ohne Endung, P30 Flaechen
+//             der Leinwand, P31 neu geladene Stufen (Movie-Duels-Daten: Yoda, Yoda-Schatten)
 //   ptstufen  alle Shader-Stufen wie im Spiel: Aayla (Movie Duels), torso.tga zeichnen die Shader torso und torso_cull -
 //             nach einem Strich zeigt jede Stufe jeder Flaeche mit diesem Bild das bemalte, eine Leinwand je Datei, ein
 //             gebautes Bild mit beiden Strichen
@@ -957,7 +959,269 @@ std::vector<Schritt> stufenSchritte() {
     return s;
 }
 
+// --- PTFIX3 (BHED_MODELL_NUR=ptfix3): Funde der Pruefung seit rc610 P23, P24, P25, P29, P30, P31 (Movie-Duels-Daten fuer P29/P30b)
+//   P25  Strich auf dem Helm, Strg+Z, Strich auf der Brust, Strg+Y: der verworfene Helm-Strich bleibt weg (eine lineare Kette)
+//   P31  die Stufen der Vorschau neu geladen, bis ihre Liste wieder an derselben Adresse liegt: sie zeigen das bemalte Bild
+//   P23  dasselbe Modell mit "verwerfen" neu laden: kein bemaltes Bild mehr, nichts ungespeichert, keine zweite Frage
+//   P24  Detailstufe 2 (Ladestand dieser Stufe), UV des Rumpfs dort verschoben, "Auf neue UV umbacken": gebacken innerhalb der Stufe
+//   P30a Detach eines Rumpf-Polygons in einen neuen Teil: die Leinwand behaelt alle Dreiecke (der neue Teil gehoert dazu);
+//        Umbacken danach meldet die geaenderten Dreiecke statt "UV nicht geaendert"
+//   P29  Yoda (MD): head_hair zeigt "hair.tga", das Skript "hair" laedt hair.png (R_LoadImage: png vor tga) - EIN Bild "hair"
+//        (GenerateImageMappingName ohne Endung), die Leinwand traegt hair.png
+//   P30b Yoda-Schatten (MD): "smoke" nennen body/head/caps nur in Stufen mit tcMod - der Pinsel malt nur auf den Rauchflaechen
+Schritt helmUndRumpf(const std::string& was, std::shared_ptr<int> helm, std::shared_ptr<int> rumpf) {
+    return tu("PT fix3: bemalte Texel " + was, [helm, rumpf] {
+        g_app->mtab.auswahl = {teilVon("head")};
+        mz().gruppe = -1;
+        *helm = geaendert(lw());
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+        *rumpf = geaendert(lw());
+    });
+}
+
+std::string kleinPt(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+
+// Dreiecke der Flaechen, deren Shader (Haut vor Shader) auf `endung` endet, in der aktuellen Stufe
+int dreieckeMitShader(const std::string& endung) {
+    const modell::Inhalt& in = g_app->mtab.dok.inhalt();
+    const auto st = static_cast<std::size_t>(g_app->mtab.lodJetzt);
+    int n = 0;
+    for (std::size_t i = 0; i < in.teile.size() && i < g_app->model.surfaces.size(); ++i) {
+        const GlmSurface& f = g_app->model.surfaces[i];
+        const std::string sh = kleinPt(!f.texture.empty() ? f.texture : f.shader);
+        if (in.teile[i].istTag() || st >= in.teile[i].stufen.size() || sh.size() < endung.size() || sh.compare(sh.size() - endung.size(), endung.size(), endung) != 0) {
+            continue;
+        }
+        n += in.teile[i].stufen[st].dreiecke();
+    }
+    return n;
+}
+
+std::vector<Schritt> fix3Schritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto helm = std::make_shared<int>(0);
+    auto rumpf = std::make_shared<int>(0);
+    auto zahl = std::make_shared<int>(0);
+    figurLaden(s, "max");
+    // --- P25 ---
+    add(gruppeVon("head"));
+    add(pause(0.3));
+    add(werkzeug(Str::PtWzPinsel));
+    add(mb3::ziehenVonNach("PT fix3 P25: Strich ueber den Helm", [] { return teilMitte("head", -6.0F); }, [] { return teilMitte("head", 6.0F); }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.2));
+    add(gruppeVon("torso"));
+    add(pause(0.3));
+    add(mb3::ziehenVonNach("PT fix3 P25: Strich ueber die Brust", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
+    add(pause(0.3));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Y, "Strg+Y"));
+    add(pause(0.2));
+    add(helmUndRumpf("nach Strg+Y", helm, rumpf));
+    add(pruefe("PT fix3 P25: Strg+Y nach einem neuen Strich bringt den verworfenen Helm-Strich nicht zurueck", [helm, rumpf] {
+        diag::detail("Knopftest: PT fix3 P25 - Helm " + std::to_string(*helm) + ", Rumpf " + std::to_string(*rumpf) + " Texel bemalt");
+        return *helm == 0 && *rumpf > 50;
+    }));
+    // --- P31 ---
+    add(gruppeVon("torso"));
+    add(pause(0.3));
+    add(tu("PT fix3 P31: Stufen der Vorschau neu laden, bis ihre Liste wieder an derselben Adresse liegt", [zahl] {
+        const void* vorher = g_app->modelTextures.stufen.data();
+        *zahl = -1;
+        for (int i = 1; i <= 400; ++i) {
+            loadModelTextures();
+            if (g_app->modelTextures.stufen.data() == vorher) {
+                *zahl = i;
+                break;
+            }
+        }
+        diag::detail("Knopftest: PT fix3 P31 - Adresse der Stufenliste " +
+                     (*zahl > 0 ? "nach " + std::to_string(*zahl) + " Ladevorgaengen wieder gleich" : std::string("in 400 Ladevorgaengen nie gleich")));
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix3 P31: nach dem Neuladen zeigen die Stufen torso das bemalte Bild", [zahl] {
+        const int t = teilVon("torso");
+        const mm::Leinwand* l = lw();
+        const auto& sf = g_app->modelTextures.stufen;
+        if (t < 0 || static_cast<std::size_t>(t) >= sf.size() || l == nullptr) {
+            meldeFehler("PT fix3 P31: kein Bild");
+            return false;
+        }
+        int stufen = 0;
+        int mitBild = 0;
+        for (const auto& fs : sf[static_cast<std::size_t>(t)]) {
+            if (fs.pixel.size() != 1U || fs.pixel[0] == nullptr || fs.pixel[0]->width != l->b) { continue; }
+            ++stufen;
+            mitBild += fs.pixel[0]->rgba == l->bild ? 1 : 0;
+        }
+        diag::detail("Knopftest: PT fix3 P31 - " + std::to_string(geaendert(l)) + " Texel bemalt, Stufen mit dem Bild " + std::to_string(mitBild) + " von " +
+                     std::to_string(stufen) + " (Adresse gleich nach " + std::to_string(*zahl) + ")");
+        return geaendert(l) > 50 && stufen > 0 && mitBild > 0;
+    }));
+    // --- P23 ---
+    add(pruefe("PT fix3 P23: bemalt gilt das Modell als ungespeichert", [] { return modellUngespeichert(); }));
+    add(tu("PT fix3 P23: dasselbe Modell oeffnen (fragt nach dem Verwerfen)", [] {
+        modellVerwerfenDann([] {
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("PT fix3 P23: " + fehler); }
+        });
+    }));
+    add(pause(0.3));
+    add(pruefe("PT fix3 P23: die Frage nach dem Verwerfen ist offen", [] { return g_app->frageOffen; }));
+    add(klick(tr(Str::AnswerYes), "###frage"));
+    add(pause(0.8));
+    add(tu("PT fix3 P23: Bereich Painting, Gruppe torso", [] {
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+    }));
+    add(pause(0.3));
+    add(pruefe("PT fix3 P23: nach \"verwerfen\" ist kein Bild bemalt und nichts ungespeichert", [] {
+        const int n = geaendert(lw());
+        diag::detail("Knopftest: PT fix3 P23 - Rumpf " + std::to_string(n) + " Texel bemalt, ungespeichert " + (modellUngespeichert() ? "ja" : "nein"));
+        return n == 0 && !modellUngespeichert();
+    }));
+    add(tu("PT fix3 P23: noch einmal dasselbe Modell oeffnen", [] {
+        modellVerwerfenDann([] {
+            std::string fehler;
+            (void)oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler);
+        });
+    }));
+    add(pause(0.3));
+    add(pruefe("PT fix3 P23: keine zweite Frage (das Verwerfen hat gewirkt)", [] {
+        const bool offen = g_app->frageOffen;
+        if (offen) {   // aufraeumen wie die Startfrage des Selbsttests
+            g_app->frageOffen = false;
+            g_app->frageJa = nullptr;
+            g_app->frageNein = nullptr;
+        }
+        diag::detail(std::string("Knopftest: PT fix3 P23 - zweite Frage ") + (offen ? "offen" : "keine"));
+        return !offen;
+    }));
+    add(pause(0.8));
+    // --- P24 ---
+    add(tu("PT fix3 P24: Bereich Painting, Gruppe torso, Detailstufe 2", [] {
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+        g_app->mtab.lodWahl = 2;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix3 P24: Detailstufe 2 angezeigt, Leinwand torso da", [] {
+        diag::detail("Knopftest: PT fix3 P24 - LOD jetzt " + std::to_string(g_app->mtab.lodJetzt) + ", Leinwand " + (lw() != nullptr ? "da" : "fehlt"));
+        return g_app->mtab.lodJetzt == 1 && lw() != nullptr;
+    }));
+    add(tu("PT fix3 P24: UV des Rumpfs in Stufe 2 um 1/8 nach rechts (wie im UV-Editor)", [] {
+        const int t = teilVon("torso");
+        (void)g_app->mtab.dok.aendern("PT fix3 UV", [t](modell::Inhalt& in) {
+            for (modell::Ecke& e : in.teile[static_cast<std::size_t>(t)].stufen[1].ecken) { e.uv[0] += 0.125F; }
+        });
+    }));
+    add(pause(0.3));
+    add(ausloesen(Str::PtUmbacken));
+    add(pause(0.3));
+    add(pruefe("PT fix3 P24: \"Auf neue UV umbacken\" backt innerhalb der Stufe 2 (das Bild folgt der UV)", [] {
+        const int n = geaendert(lw());
+        diag::detail("Knopftest: PT fix3 P24 - " + std::to_string(n) + " Texel anders als das Original | " + mz().meldung);
+        return n > 1000 && mz().meldung == tr(Str::PtUmbackenFertig);
+    }));
+    add(zurueckAufOriginal());
+    add(tu("PT fix3 P24: UV-Schritt zurueck, Detailstufe 1", [] {
+        g_app->mtab.bereich = ModellBereich::Modellieren;
+        (void)modellRueckgaengig();
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.lodWahl = 1;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    // --- P30a ---
+    add(tu("PT fix3 P30: Dreiecke der Leinwand torso merken", [zahl] {
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+        *zahl = lw() != nullptr ? static_cast<int>(lw()->dreiecke.size()) : -1;
+    }));
+    add(tu("PT fix3 P30: Bereich Modellieren, ein Polygon des Rumpfs, Detach in einen neuen Teil", [] {
+        ModellTab& t = g_app->mtab;
+        t.bereich = ModellBereich::Modellieren;
+        modellMeshNetzAktualisieren();
+        const int rumpfTeil = teilVon("torso");
+        int f = -1;
+        for (std::size_t i = 0; f < 0 && i < t.mesh.netz.flaechen.size(); ++i) {
+            const modell::wof::PFlaeche& pf = t.mesh.netz.flaechen[i];
+            if (!pf.weg && pf.teil == rumpfTeil) { f = static_cast<int>(i); }
+        }
+        md1d::waehle(modell::wof::PAuswahl{{}, {}, {f}}, AuswahlArt::Dreieck);
+        t.mesh.art = 1;
+        (void)modellMeshWerkzeugStarten(MeshWerkzeug::Detach);
+    }));
+    add(pause(0.5));
+    add(tu("PT fix3 P30: Uebernehmen, zurueck nach Painting", [] {
+        modellMeshUebernehmen(false);
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix3 P30: nach dem Detach traegt die Leinwand torso alle Dreiecke (auch die des neuen Teils)", [zahl] {
+        const int n = lw() != nullptr ? static_cast<int>(lw()->dreiecke.size()) : -1;
+        diag::detail("Knopftest: PT fix3 P30 - Dreiecke der Leinwand " + std::to_string(n) + " (vorher " + std::to_string(*zahl) + "), Teile " +
+                     std::to_string(g_app->mtab.dok.inhalt().teile.size()));
+        return n == *zahl && n > 0;
+    }));
+    add(ausloesen(Str::PtUmbacken));
+    add(pause(0.3));
+    add(pruefe("PT fix3 P24: Umbacken nach dem Detach meldet die geaenderten Dreiecke", [] {
+        diag::detail("Knopftest: PT fix3 P24 Meldung - " + mz().meldung);
+        return mz().meldung == tr(Str::PtUmbackenAnders);
+    }));
+    // --- P29 ---
+    for (Schritt& x : mb1::laden("models/players/yoda/model.glm")) { add(std::move(x)); }
+    add(tu("PT fix3 P29: Bereich Painting, Gruppe head_hair", [] {
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.auswahl = {teilVon("head_hair")};
+        mz().gruppe = -1;
+        mz().stufe = 0;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix3 P29: hair.tga (Haut) und das Skript hair sind EIN Bild, die Leinwand traegt hair.png wie im Spiel", [] {
+        const mm::Leinwand* a = lw();
+        mz().stufe = 1;
+        const mm::Leinwand* b = lw();
+        mz().stufe = 0;
+        const std::string da = a != nullptr ? a->datei : std::string("-");
+        const std::string db = b != nullptr ? b->datei : std::string("-");
+        diag::detail("Knopftest: PT fix3 P29 - Stufe 1 " + da + ", Stufe 2 " + db + (a == b ? " (dieselbe Leinwand)" : " (zwei Leinwaende)"));
+        return a != nullptr && a == b && kleinPt(da) == "models/players/yoda/hair.png";
+    }));
+    // --- P30b ---
+    for (Schritt& x : mb1::laden("models/players/yoda_shadow/model.glm")) { add(std::move(x)); }
+    add(tu("PT fix3 P30: Bereich Painting, Gruppe torso_smoke", [] {
+        g_app->mtab.bereich = ModellBereich::Painting;
+        g_app->mtab.auswahl = {teilVon("torso_smoke")};
+        mz().gruppe = -1;
+        mz().stufe = 0;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix3 P30: der Pinsel der Leinwand smoke liegt nur auf den Rauchflaechen (body/head/caps nennen smoke nur mit tcMod)", [] {
+        const mm::Leinwand* l = lw();
+        const int n = l != nullptr ? static_cast<int>(l->dreiecke.size()) : -1;
+        // smoke_top.tga gibt es nicht als Datei: head_smoke zeigt ueber das Skript smoke_top das Bild smoke
+        const int rauch = dreieckeMitShader("yoda_shadow/smoke.tga") + dreieckeMitShader("yoda_shadow/smoke_top.tga");
+        diag::detail("Knopftest: PT fix3 P30 - Leinwand " + (l != nullptr ? l->datei : std::string("-")) + ", " + std::to_string(n) + " Dreiecke, Rauchflaechen " +
+                     std::to_string(rauch));
+        return l != nullptr && n == rauch && n > 0;
+    }));
+    return s;
+}
+
 std::vector<Schritt> schritte(const std::string& n) {
+    if (n == "ptfix3") { return fix3Schritte(); }
     if (n == "ptstufen") { return stufenSchritte(); }
     if (n == "ptfix") { return fixSchritte(); }
     if (n == "ptfix2") { return fix2Schritte(); }

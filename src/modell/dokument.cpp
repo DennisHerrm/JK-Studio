@@ -357,6 +357,7 @@ void Dokument::laden(Inhalt neu) {
     zurueck_.clear();
     vor_.clear();
     ++stand_;
+    ++ladeStand_;
 }
 
 std::uint64_t Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz) {

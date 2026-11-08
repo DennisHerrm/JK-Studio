@@ -2287,6 +2287,8 @@ ModelTextures texturesFor(const GlmModel& model) {
     if (model.empty()) {
         return out;
     }
+    static std::atomic<std::uint64_t> ladeZaehler{0};   // PTFIX3 P31 (die Figuren der Karte laden auch ausserhalb des Hauptfadens)
+    out.ladeNummer = ++ladeZaehler;
     if (g_app->gamePaths.empty()) {
         rescanGamePaths();
     }

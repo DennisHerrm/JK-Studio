@@ -506,6 +506,9 @@ struct ModelTextures {
     mutable std::shared_ptr<void> zeichenSpeicher;
     int found = 0;
     int missing = 0;
+    // PTFIX3 P31: jedes texturesFor vergibt eine neue Nummer (0: nichts geladen) - wer Stufen dieser Texturen gemerkt hat
+    // (Painting), sucht neu, wenn sie wechselt; die Adresse von `stufen` kann nach zwei Ladevorgaengen wieder dieselbe sein
+    std::uint64_t ladeNummer = 0;
 };
 
 // --- Das Lichtschwert ----------------------------------------------------

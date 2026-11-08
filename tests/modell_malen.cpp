@@ -9,6 +9,8 @@
 //   Umbacken                  verschobene UV: die Farbe folgt
 //   Speichern/Laden           TGA (24/32, roh/RLE), JPEG, PNG: unbemalt bytegleich, bemalt im Format des Originals, JPEG mit
 //                             den Tabellen des Originals, wieder gelesen gleich bzw. nahe
+//   Speicherspitze            PTFIX3 P26: ein Eigenschafts-Schritt (Sichtbar) kopiert keine Bildpunkte - gezaehlt ueber den
+//                             ersetzten operator new dieses Programms
 #include "bhed/image.h"
 #include "bhed/modell/malen.h"
 
@@ -19,9 +21,33 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
+#include <new>
 #include <set>
 #include <string>
 #include <vector>
+
+// PTFIX3 P26: lebende und hoechste Bytes aller operator new dieses Programms (ein Faden; die Bibliothek ist hineingelinkt)
+namespace {
+long long g_lebend = 0;
+long long g_spitze = 0;
+constexpr std::size_t kKopf = 16;
+}  // namespace
+
+void* operator new(std::size_t n) {
+    void* p = std::malloc(n + kKopf);
+    if (p == nullptr) { throw std::bad_alloc(); }
+    *static_cast<std::size_t*>(p) = n;
+    g_lebend += static_cast<long long>(n);
+    g_spitze = std::max(g_spitze, g_lebend);
+    return static_cast<char*>(p) + kKopf;
+}
+void operator delete(void* p) noexcept {
+    if (p == nullptr) { return; }
+    char* k = static_cast<char*>(p) - kKopf;
+    g_lebend -= static_cast<long long>(*reinterpret_cast<std::size_t*>(k));
+    std::free(k);
+}
+void operator delete(void* p, std::size_t) noexcept { operator delete(p); }
 
 namespace {
 namespace m = bhed::modell::texmalen;
@@ -561,6 +587,34 @@ void ebenenGrenzeTest() {
     pruefe(verlaufBytes(v) <= v.grenzeBytes || v.zurueck.size() == 1U, t);
 }
 
+// PTFIX3 P26: "Sichtbar" auf einem Bild mit vier Ebenen (1024 x 1024, je 4 MB) - der Schritt merkt nur die Eigenschaften; bis
+// hier kopierte stapelAendern erst beide Stapel samt Bildpunkten (32 MB Spitze) und leerte sie nach dem Vergleich.
+void eigenschaftSpitzeTest() {
+    m::Leinwand l;
+    m::leinwandLeer(l, 1024, 1024, {10, 20, 30, 255});
+    m::Verlauf v;
+    std::vector<m::Ebene> st = l.ebenen;
+    for (int i = 0; i < 3; ++i) {
+        m::Ebene e;
+        e.name = "e" + std::to_string(i);
+        e.rgba.assign(1024U * 1024U * 4U, static_cast<std::uint8_t>(40 * i));
+        st.push_back(e);
+    }
+    m::stapelAendern(v, l, "neu", st, 1);
+    st = l.ebenen;
+    st[1].sichtbar = false;
+    const long long vorher = g_lebend;
+    g_spitze = g_lebend;
+    m::stapelAendern(v, l, "sicht", st, 1);
+    const long long spitze = g_spitze - vorher;
+    char t[240];
+    std::snprintf(t, sizeof t, "Sichtbar auf 4 Ebenen 1024x1024 (je 4 MB): Spitze im Schritt %.2f MB (Grenze 1 MB), Ebene 1 unsichtbar %s", static_cast<double>(spitze) / 1048576.0,
+                  l.ebenen[1].sichtbar ? "nein" : "ja");
+    pruefe(spitze < 1048576 && !l.ebenen[1].sichtbar && v.zurueck.back().nurEigenschaften, t);
+    (void)m::rueckgaengig(v, l);
+    pruefe(l.ebenen.size() == 4U && l.ebenen[1].sichtbar && l.ebenen[1].rgba == st[1].rgba && l.ebenen[2].name == "e1", "Rueckgaengig: Ebene 1 wieder sichtbar, Bildpunkte und Namen unveraendert");
+}
+
 // Pruefung seit rc610 P7: Weichzeichnen und Verwischen kopierten je Tupfer die ganze Ebene (2048er Bild: 16 MB). Je ein Zug
 // kleiner Tupfer auf einem 2048er Rauschbild, ueber den Rand (Wickeln) hinweg: das Ergebnis bytegleich zum Stand vor der
 // Behebung (Pruefsumme aus dem Rotlauf), die Zeit je Tupfer weit unter einer Kopie der Ebene.
@@ -618,6 +672,7 @@ int main() {
     undoBlutTest();
     ebenenTest();
     ebenenGrenzeTest();
+    eigenschaftSpitzeTest();
     werkzeugTest();
     umbackTest();
     dateiTest();

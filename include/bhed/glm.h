@@ -49,6 +49,9 @@ struct GlmSurface {
     std::string name;
     std::string shader;      // aus der Hierarchie, oft leer
     std::string texture;     // aus der .skin-Datei nachgetragen
+    // PTFIX3 P29: die Zeile der .skin, die `texture` gesetzt hat - RE_RegisterSkin registriert die Shader in der Folge der
+    // Datei (tr_skin.cpp:290-337 MD9), das zuerst geladene Bild eines Namens gilt fuer alle Endungen (Painting)
+    int hautZeile = -1;
     int parent = -1;
     std::uint32_t flags = 0;
     std::vector<GlmVertex> verts;

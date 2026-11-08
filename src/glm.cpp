@@ -398,6 +398,7 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
 
 void applySkin(const std::string& text, GlmModel& model) {
     std::size_t at = 0;
+    int zeile = -1;
     while (at < text.size()) {
         std::size_t eol = text.find('\n', at);
         if (eol == std::string::npos) {
@@ -405,6 +406,7 @@ void applySkin(const std::string& text, GlmModel& model) {
         }
         const std::string line = trim(text.substr(at, eol - at));
         at = eol + 1;
+        ++zeile;
         if (line.empty() || line[0] == '/') {
             continue;
         }
@@ -474,6 +476,7 @@ void applySkin(const std::string& text, GlmModel& model) {
             }
             s.skinnedOff = false;
             s.texture = tex;
+            s.hautZeile = zeile;
         }
     }
 }
