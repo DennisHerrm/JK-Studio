@@ -10,6 +10,7 @@
 #ifndef BHED_DXT_H
 #define BHED_DXT_H
 
+#include <cstddef>
 #include <cstdint>
 
 namespace bhed::dxt {
@@ -17,6 +18,16 @@ namespace bhed::dxt {
 // Ein Bild (RGBA8, Zeile fuer Zeile) durch DXT5 packen und wieder auspacken - an Ort und Stelle. Teilbloecke am Rand (Kanten
 // unter 4 oder nicht durch 4 teilbar) packen nur die vorhandenen Punkte.
 void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe);
+
+// MR5 Punkt 2: mehrere Bilder in einem Auftrag (ladeMitStufen: alle Stufen einer Pyramide). Die Blockzeilen aller Bilder gehen
+// zusammen an die Arbeitsfaeden (bhed/arbeiter.h); jeder Block rechnet fuer sich, also Byte fuer Byte dasselbe wie nacheinander
+// (ctest dxt gegen die Fassung aus MR4).
+struct Ebene {
+    std::uint8_t* rgba = nullptr;
+    int breite = 0;
+    int hoehe = 0;
+};
+void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl);
 
 }  // namespace bhed::dxt
 

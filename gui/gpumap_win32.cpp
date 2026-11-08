@@ -1240,8 +1240,10 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
         kopie.mips = quelle.mips;
         kopie.buildMips();
         if (dxt) {
-            dxt::dxt5Rundlauf(kopie.rgba.data(), kopie.width, kopie.height);
-            for (TextureSet::Tex::Mip& m : kopie.mips) { dxt::dxt5Rundlauf(m.rgba.data(), m.width, m.height); }
+            // MR5 Punkt 2: alle Stufen in einem Auftrag, Blockzeilen auf die Arbeitsfaeden (gleiche Bytes, ctest dxt)
+            std::vector<dxt::Ebene> ebenen{{kopie.rgba.data(), kopie.width, kopie.height}};
+            for (TextureSet::Tex::Mip& m : kopie.mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
+            dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
         }
         t = &kopie;
     }

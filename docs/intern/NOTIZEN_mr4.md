@@ -128,6 +128,25 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 | `m5_me_m6_rot2` (vorher) | 17/1: "200 Wechsel, Fluss falsch 200, Tab-Folge falsch 200" |
 | `m5_me_gr_en` / `_ja` / `_es` (nachher, voll) | je 2784/0 (vorher 2780/4), "Fluss falsch 0, Tab-Folge falsch 0" |
 
+## MR5 Punkt 2: DXT-Vorschau schneller, Bild gleich
+
+- Die Kompression lief je Bild im Grafikfaden beim ersten Zeichnen (ladeMitStufen), jede Stufe nacheinander, je Block mit
+  Potenzverfahren in double: 1024 x 1024 samt Pyramide rund 35 ms (unter Fremdlast gemessen).
+- Jetzt (src/dxt.cpp): `dxt5Rundlauf(const Ebene*, n)` nimmt alle Stufen einer Pyramide in einem Auftrag und verteilt die
+  Blockzeilen auf die festen Arbeitsfaeden (bhed/arbeiter.h, kleine Bilder unter 16 Blockzeilen ohne Faeden); jeder Block rechnet fuer
+  sich, die Plaetze teilen keinen Punkt. Bloecke in einer Farbe (Alpha egal) nehmen direkt e(q(Farbe)) - genau der Wert, auf den der
+  allgemeine Weg dort kommt (Mittel exakt, Streuung 0, Achse (1,1,1), t = 0, Zwischenstufen (3e+1)/3 = e).
+- "Ergebnis je Bild merken" nicht gebaut: nach dem Kartenwechsel gibt gpumap alle Bilder frei, ein Zwischenspeicher haette die Bilder
+  im Hauptspeicher verdoppelt; mit den Faeden bleibt pro 1024er-Bild wenige ms.
+- ctest `dxt` erweitert: die Fassung aus MR4 liegt wortgleich im Test (`referenz`); 48 Einzelbilder (1x1 bis 512x512, Rauschen,
+  Verlauf, Flaechen, gleiche Farbe mit anderem Alpha, Kanten, Teilbloecke) und 3 Pyramiden (1024x1024, 300x77, 8x512; 30 Stufen) Byte
+  fuer Byte gleich. Gegenprobe, dass der Test anschlaegt: absichtlich falscher Gruenkanal im schnellen Weg -> "Pyramiden: 30 Stufen,
+  davon abweichend 11", 4 Fehler; zurueck -> 0.
+- Im Programm: dasselbe Kartenbild mit der MR4-exe und der neuen exe (`m5_sour_mit`, `m5_sour_neu`, t1_sour unter JKA-Regeln) - die
+  Kartenansicht 1920 x 1440 ist Bildpunkt fuer Bildpunkt gleich (Unterschied nur in der Statuszeile ausserhalb der Ansicht).
+- Zeit (ctest-Ausgabe, Fremdlast durch andere Agenten - nur Anhalt): 1024 x 1024 samt Pyramide 35,0 -> 3,4 ms (MR4 -> jetzt).
+  Ladezeit einer Karte allein: offen (Hauptchat, ohne Fremdlast).
+
 ## Changelog
 
 ## English
