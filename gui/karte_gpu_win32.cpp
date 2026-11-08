@@ -2807,6 +2807,30 @@ void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe
     return srv;
 }
 
+void* bildStufenAnlegen(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl) {
+    if (!bereit() || stufen == nullptr || anzahl <= 0 || breiten[0] <= 0 || hoehen[0] <= 0) { return nullptr; }
+    std::vector<D3D11_SUBRESOURCE_DATA> sd(static_cast<std::size_t>(anzahl));
+    for (int i = 0; i < anzahl; ++i) {
+        sd[static_cast<std::size_t>(i)].pSysMem = stufen[i];
+        sd[static_cast<std::size_t>(i)].SysMemPitch = static_cast<UINT>(breiten[i]) * 4U;
+    }
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(breiten[0]);
+    td.Height = static_cast<UINT>(hoehen[0]);
+    td.MipLevels = static_cast<UINT>(anzahl);
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_IMMUTABLE;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(geraet()->CreateTexture2D(&td, sd.data(), &tex)) || tex == nullptr) { return nullptr; }
+    ID3D11ShaderResourceView* srv = nullptr;
+    ::bhed::render::sichtAnlegen(geraet(), tex, nullptr, &srv);
+    tex->Release();
+    return srv;
+}
+
 void abtasterSetzen(int modus, bool anisotropie) {
     if (!bereit()) { return; }
     D3D11_SAMPLER_DESC sd{};
@@ -2923,6 +2947,53 @@ bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& 
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(geraet()->CreateTexture2D(&td, nullptr, &tex))) { return false; }
     ::bhed::render::kopieren(kontext(), tex, z.aufgeloest);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    const bool ok = SUCCEEDED(kontext()->Map(tex, 0, D3D11_MAP_READ, 0, &m));
+    if (ok) {
+        breite = static_cast<int>(td.Width);
+        hoehe = static_cast<int>(td.Height);
+        rgba.resize(static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe) * 4U);
+        for (int y = 0; y < hoehe; ++y) {
+            std::memcpy(rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(breite) * 4U,
+                        static_cast<const unsigned char*>(m.pData) + static_cast<std::size_t>(y) * m.RowPitch, static_cast<std::size_t>(breite) * 4U);
+        }
+        kontext()->Unmap(tex, 0);
+    }
+    tex->Release();
+    return ok;
+}
+
+bool texturLesen(void* srv, int stufe, std::vector<unsigned char>& rgba, int& breite, int& hoehe, int& stufen) {
+    if (!bereit() || srv == nullptr || stufe < 0) { return false; }
+    ID3D11Resource* res = nullptr;
+    static_cast<ID3D11ShaderResourceView*>(srv)->GetResource(&res);
+    ID3D11Texture2D* quelle = nullptr;
+    if (res == nullptr || FAILED(res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&quelle))) || quelle == nullptr) {
+        if (res != nullptr) { res->Release(); }
+        return false;
+    }
+    res->Release();
+    D3D11_TEXTURE2D_DESC td{};
+    quelle->GetDesc(&td);
+    stufen = static_cast<int>(td.MipLevels);
+    if (td.Format != DXGI_FORMAT_R8G8B8A8_UNORM || stufe >= stufen || td.ArraySize != 1U) {
+        quelle->Release();
+        return false;
+    }
+    td.Width = std::max(1U, td.Width >> static_cast<UINT>(stufe));
+    td.Height = std::max(1U, td.Height >> static_cast<UINT>(stufe));
+    td.MipLevels = 1;
+    td.BindFlags = 0;
+    td.MiscFlags = 0;
+    td.Usage = D3D11_USAGE_STAGING;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(geraet()->CreateTexture2D(&td, nullptr, &tex)) || tex == nullptr) {
+        quelle->Release();
+        return false;
+    }
+    kontext()->CopySubresourceRegion(tex, 0, 0, 0, 0, quelle, static_cast<UINT>(stufe), nullptr);
+    quelle->Release();
     D3D11_MAPPED_SUBRESOURCE m{};
     const bool ok = SUCCEEDED(kontext()->Map(tex, 0, D3D11_MAP_READ, 0, &m));
     if (ok) {

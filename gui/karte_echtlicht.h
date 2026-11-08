@@ -40,6 +40,7 @@ struct SpielStufe {
     float farbe[4]{1, 1, 1, 1};
     bool tiefeSchreiben = true;
     float portalWeite = 0;
+    bool keinTc = false;   // MR7 P40: noTC beim Lesen der Stufe (ShaderInfo::Stage::keinTc) - ihr Bild bleibt unkomprimiert
     // p_render: was sich mit der Zeit bzw. dem Ort aendert (tr_shade.cpp ComputeTexCoords/ComputeColors, tr_shade_calc.cpp):
     // animMap mit allen Bildern ("?" + Pfad; R_BindAnimatedImage), tcGen environment/vector, die tcMod-Kette, rgbGen/alphaGen wave
     std::vector<std::string> bilder;
@@ -71,6 +72,8 @@ struct SpielDarstellung {
     int mischQuelle = 0;
     int mischZiel = 0;
     std::string bild;        // mit alphaFunc/blendFunc: das Bild der ersten Stufe ("?" + Pfad fuer kameraTexturBild)
+    bool keinTc = false;         // MR7 P40: noTC der Bildstufe (ShaderInfo::bildKeinTc) - fuer bild bzw. das Shaderbild
+    bool himmelKeinTc = false;   // MR7 P40: noTC beim Lesen von skyParms (ShaderInfo::himmelKeinTc) - fuer die Himmelsbox
     bool nebelFlaeche = false;   // Stufe 9d: fogParms ohne Stufe: nur der Nebel (RB_FogPass)
     bool himmel = false;         // Stufe 9d: C_SKY (surfaceparm sky, Sonne) - mit misc_skyportal zeigt sie das Portalbild
     bool eckLicht = false;       // rc608 Teil 11: C_VERTEXLIT - q3map2 gibt ihr Eckfarben mit _minvertexlight statt einer Lightmap

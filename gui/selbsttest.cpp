@@ -61,6 +61,7 @@
 #include "bhed/saberkontakt.h"
 #include "bhed/roffanim.h"
 #include "bhed/kartenpruefung.h"   // rc602
+#include "bhed/dxt.h"             // MR7 P40: die Stufen der Vorschau als Vergleich
 #include "karteneditor.h"           // Stufe 1b: der Karten-Editor
 #include "fenster_dock.h"           // dock1: Panels herausnehmen, Anordnungen
 #include "dockvorgabe.h"            // dock4: Map Editor und Menu Editor im DockSpace

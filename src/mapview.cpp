@@ -4,6 +4,7 @@
 // renderModel). Gezeichnet wird seitdem nur noch ueber die Grafikkarte
 // (gui/gpumap_win32.cpp); geblieben ist, was beide Wege teilten.
 #include "bhed/mapview.h"
+#include "bhed/dxt.h"
 #include "bhed/rumpfwinkel.h"
 #include "bhed/saberspuren.h"   // Pruefung 4a: spurRsqrt (VectorNormalizeFast)
 
@@ -411,6 +412,15 @@ void drawVollblende(MapImage& out, const float farbe[4]) {
         p[2] = misch(b, p[2]);
         p[3] = static_cast<std::uint8_t>(std::lround(oa * 255.0F));
     }
+}
+
+void TextureSet::Tex::stufenWieUpload32(bool dxt) {
+    buildMips();
+    if (!dxt || rgba.empty()) { return; }
+    // MR5 Punkt 2: alle Stufen in einem Auftrag, Blockzeilen auf die Arbeitsfaeden (gleiche Bytes, ctest dxt)
+    std::vector<dxt::Ebene> ebenen{{rgba.data(), width, height}};
+    for (Mip& m : mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
+    dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
 }
 
 void TextureSet::Tex::buildMips() {

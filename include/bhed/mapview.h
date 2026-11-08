@@ -218,6 +218,10 @@ struct TextureSet {
         std::vector<Mip> mips;
         // Die Pyramide erzeugen. Mehrfaches Rufen ist harmlos.
         void buildMips();
+        // MR7 P40: die Stufen, wie das Spiel sie hochlaedt (Upload32, rd-vanilla tr_image.cpp:629-689): die Pyramide aus dem
+        // unkomprimierten Bild (buildMips), mit dxt jede Stufe durch DXT5 (bhed/dxt.h). Vorschau (ladeMitStufen) und Echtzeit-Licht
+        // des Karten-Editors rechnen damit dieselben Bytes.
+        void stufenWieUpload32(bool dxt);
         // Die Stufe `level` - 0 ist das Bild selbst. Zu grosse Werte geben
         // die kleinste vorhandene Stufe, statt ins Leere zu greifen.
         [[nodiscard]] const std::uint8_t* levelData(int level, int& w,

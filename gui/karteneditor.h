@@ -1433,6 +1433,10 @@ void dialogSchriftAus();
 // Fuer den Selbsttest (Stufe 7 Punkt 6f): zeigt die Kamera fuer den Shader das
 // Ersatzbild (notex / shadernotex, "SHADER NOT FOUND")? -1 noch nicht geladen.
 [[nodiscard]] int kameraBildErsatz(const std::string& shader);
+// MR7 P40 (Selbsttest): die Mip-Stufen (RGBA, je Breite und Hoehe) des Bilds, mit dem das Echtzeit-Licht im Spielbild `bild`
+// ("?" + Pfad bzw. Shader) zeichnet, wenn die Stufe noTC `keinTc` hat; false, solange es laedt.
+[[nodiscard]] bool echtBildStufen(const std::string& bild, bool keinTc, std::vector<std::vector<unsigned char>>& stufen,
+                                  std::vector<std::array<int, 2>>& groessen);
 void texturBilderAbholen();
 // Der Zustand eines Shaders wie in der Kamera (Textured): Bild, Alphatest,
 // Durchsicht; false, solange das Bild noch geladen wird (app_karte_cam.cpp).

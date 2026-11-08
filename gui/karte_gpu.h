@@ -178,6 +178,9 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z);
 // Das Ergebnis gilt, solange geraetStand() gleich bleibt.
 // mipStufe: GL_TEXTURE_BASE_LEVEL ("Texture Quality"), als MostDetailedMip
 [[nodiscard]] void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe = 0);
+// MR7 P40: ein Bild mit fertigen Mip-Stufen (Echtzeit-Licht unter JKA/JK2-Regeln: die Stufen wie Upload32), ohne Gamma und
+// Basisstufe des Editors - wie die Vorschau (gpumap ladeMitStufen).
+[[nodiscard]] void* bildStufenAnlegen(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl);
 // SetTexParameters / SetTexAnisotropy (textures.cpp:89-128): der Abtaster der Texturen
 void abtasterSetzen(int modus, bool anisotropie);
 // Fuer Bilder, die ImGui zeichnet (Texturbrowser): ab hier ohne Mischen
@@ -322,6 +325,8 @@ void gluehenAuflegen(void* weich, bool soft);
 bool pixel(int kennung, int x, int y, unsigned char rgba[4]);
 // Stufe 9c: das ganze Bild (RGBA, Zeilen von oben) fuer die Lichtmessung.
 bool bildLesen(int kennung, std::vector<unsigned char>& rgba, int& breite, int& hoehe);
+// MR7 P40 (Selbsttest): eine Mip-Stufe eines Bilds aus bildAnlegen (RGBA, Zeilen von oben); stufen: wie viele es hat.
+bool texturLesen(void* srv, int stufe, std::vector<unsigned char>& rgba, int& breite, int& hoehe, int& stufen);
 // Fuer den Selbsttest: die Abtastungen (MSAA) des Renderziels, 0 ohne Ziel.
 [[nodiscard]] int abtastungen(int kennung);
 
