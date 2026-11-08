@@ -139,6 +139,12 @@ struct TessEcke {
 // TableForFunc abbricht (gpu::deformLage Abbruch), bleibt aus wie im Vertex-Shader.
 [[nodiscard]] bool verformeTess(const DeformZusatz& z, float zeitSekunden, const SpriteSicht& sicht, std::vector<TessEcke>& ecken,
                                 std::vector<std::uint32_t>& idx);
+// REST3b: tess eines Patches wie RB_SurfaceGrid (tr_surface.cpp:1428-1560 OpenJK, MD9 gleich): aus dem vollen Gitter (`gitter`,
+// `breite` Ecken je Zeile) die gewaehlten Zeilen (`zeilen`, heightTable) und Spalten (`spalten`, widthTable) Zeile fuer Zeile,
+// je Zelle die Indizes v2, v3, v1, v1, v3, v4 (lokal). Ein Durchgang - das Teilen sehr grosser Gitter auf mehrere tess
+// (SHADER_MAX_VERTEXES) bildet es nicht nach.
+void gitterTess(const std::vector<TessEcke>& gitter, int breite, const std::vector<int>& spalten, const std::vector<int>& zeilen,
+                std::vector<TessEcke>& te, std::vector<std::uint32_t>& idx);
 
 // --- Die Lage: deckend oder gemischt -----------------------------------
 //

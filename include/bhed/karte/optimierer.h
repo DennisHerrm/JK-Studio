@@ -217,6 +217,7 @@ struct Befund {
 struct ShaderArt {
     bool bekannt = true;       // Shader oder Bild gefunden
     std::string spielAbbruch;  // DEF1 P45: ShaderSkript::spielAbbruch
+    bool autospriteEins = false;   // REST3b: ShaderSkript::autospriteEins
     bool undurchsichtig = true;   // deckt, was dahinter liegt (nicht trans, nonsolid, fog, liquid, ...)
     bool sichtbar = true;      // erzeugt eine Zeichenflaeche (nicht nodraw/caulk, kein Werkzeug)
     bool werkzeug = false;     // clip, trigger, hint, skip, areaportal, origin, ...
@@ -245,6 +246,10 @@ struct ShaderSkript {
     // DEF1 P45: warum das Spiel mit ERR_DROP abbricht, sobald es eine Flaeche mit diesem Shader zeichnet (leer: tut es nicht) -
     // TableForFunc (tr_shade_calc.cpp:32) ohne Tafel fuer die Form, ParseTexMod (tr_shader.cpp:504) mit mehr als TR_MAX_TEXMODS
     std::string spielAbbruch;
+    // REST3b: deformVertexes autosprite (nicht autosprite2) gilt im Spiel (ParseDeform, eine der ersten drei Zeilen) - auf einem Patch
+    // bricht AutospriteDeform ab (tr_shade_calc.cpp:385-390 OpenJK: ERR_DROP "odd vertex count"; RB_SurfaceGrid legt breite x hoehe
+    // Ecken in tess, durch vier teilbar mit sechs Indizes je vier nur bei 2 x 2)
+    bool autospriteEins = false;
     double flaechenlicht = 0.0;
     double backsplashAnteil = 0.05;
     double backsplashWeite = 23.0;

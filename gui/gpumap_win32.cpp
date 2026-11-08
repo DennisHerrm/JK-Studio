@@ -171,8 +171,11 @@ struct Netzpuffer {
         std::uint32_t eckenZahl = 0;
         std::uint32_t cpuStart = 0;
         std::uint32_t batch = 0;
+        std::int32_t patch = -1;   // REST3b: ein Patch (mesh.patches) - tess je Bild wie RB_SurfaceGrid in seiner Detailstufe
+        std::uint32_t run = 0;
     };
     std::vector<CpuAbschnitt> cpuAbschnitte;
+    std::vector<char> cpuPatchRun;   // REST3b: je Abschnitt in mesh.runs - ein Patch auf dem CPU-Weg (nicht in patchRuns)
     std::size_t cpuEcken = 0;
     std::vector<std::uint32_t> cpuIdx;
     std::vector<float> cpuStand;
@@ -3741,6 +3744,8 @@ int g_moverSpriteAufrufe = 0;   // rc605: autosprite an Movern/Modellen
 int moverSpriteAufrufe() { return g_moverSpriteAufrufe; }
 long long g_spriteCpuEcken = 0;   // REST3: von der CPU verformte Ecken (verformeTess) seit dem Start
 long long spriteCpuEcken() { return g_spriteCpuEcken; }
+long long g_spritePatchEcken = 0;   // REST3b: von der CPU verformte Ecken von Patches (RB_SurfaceGrid-tess) seit dem Start
+long long spritePatchEcken() { return g_spritePatchEcken; }
 // REST3: die letzte Sicht, mit der verformeTess an einem Mover rechnete, samt Stellung und Weltachsen (Selbsttest)
 struct SpriteSichtProbe {
     bool da = false;
@@ -8249,6 +8254,7 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         np.cpuIdx.clear();
         np.cpuEcken = 0;
         np.cpuStand.clear();
+        np.cpuPatchRun.assign(mesh.runs.size(), 0);
         const auto abschnitt = [&](std::size_t b, std::uint32_t first, std::uint32_t count) {
             if (count == 0U || static_cast<std::size_t>(first) + count > nIdx) { return; }
             std::uint32_t lo = ~0U;
@@ -8274,8 +8280,22 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                 for (std::uint32_t k = 0; k < bt.numRuns; ++k) {
                     const std::size_t at = static_cast<std::size_t>(bt.firstRun) + k;
                     if (at >= mesh.runs.size()) { break; }
-                    if (mesh.runs[at].patch >= 0) { continue; }
-                    abschnitt(b, mesh.runs[at].firstIndex, mesh.runs[at].numIndexes);
+                    const BspMesh::Run& r = mesh.runs[at];
+                    if (r.patch >= 0) {
+                        // REST3b: RB_DeformTessGeometry gilt fuer jede Flaeche, auch ein Gitter (RB_SurfaceGrid legt es in tess). Platz
+                        // fuer das volle Gitter; welche Zeilen und Spalten, waehlt jedes Bild (rechnePatch). AutospriteDeform bricht dort im
+                        // Spiel ab, ausser bei 2 x 2 Ecken (ERR_DROP) - dann zeichnet die Vorschau das Gitter unverformt.
+                        if (static_cast<std::size_t>(r.patch) >= mesh.patches.size() || static_cast<std::size_t>(r.firstIndex) + r.numIndexes > nIdx) { continue; }
+                        const BspMesh::PatchGitter& g = mesh.patches[static_cast<std::size_t>(r.patch)];
+                        const auto n = static_cast<std::uint32_t>(g.breite * g.hoehe);
+                        if (n == 0U || static_cast<std::size_t>(g.ersteEcke) + n > nVerts) { continue; }
+                        np.cpuAbschnitte.push_back({r.firstIndex, r.numIndexes, g.ersteEcke, n, static_cast<std::uint32_t>(np.cpuEcken),
+                                                    static_cast<std::uint32_t>(b), r.patch, static_cast<std::uint32_t>(at)});
+                        np.cpuEcken += n;
+                        np.cpuPatchRun[at] = 1;
+                        continue;
+                    }
+                    abschnitt(b, r.firstIndex, r.numIndexes);
                 }
             } else {
                 abschnitt(b, bt.firstIndex, bt.numIndexes);
@@ -8307,12 +8327,75 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         cpuStand = {zeitSekunden, sicht.links[0], sicht.links[1], sicht.links[2], sicht.hoch[0], sicht.hoch[1], sicht.hoch[2],
                     sicht.vorn[0], sicht.vorn[1], sicht.vorn[2], sicht.vornWelt[0], sicht.vornWelt[1], sicht.vornWelt[2],
                     sicht.spiegel ? 1.0F : 0.0F};
+        if (std::any_of(np.cpuAbschnitte.begin(), np.cpuAbschnitte.end(), [](const Netzpuffer::CpuAbschnitt& a) { return a.patch >= 0; })) {
+            // REST3b: die Detailstufe eines Patches haengt am Augpunkt und an der Stellung (LodErrorForVolume)
+            for (int k = 0; k < 3; ++k) { cpuStand.push_back(kameraPos != nullptr ? kameraPos[k] : 0.0F); }
+            if (netzId == 2 && g_moverLod != nullptr && g_moverLod->welt != nullptr) {
+                cpuStand.insert(cpuStand.end(), g_moverLod->welt, g_moverLod->welt + 16);
+            }
+        }
     }
+    // REST3b: ein Patch auf dem CPU-Weg - Zeilen und Spalten wie patchLodSchreiben (LodErrorForVolume, am Mover mit seiner Stellung),
+    // tess wie RB_SurfaceGrid (gitterTess), dann RB_DeformTessGeometry (verformeTess). Bricht AutospriteDeform im Spiel ab, bleibt das
+    // Gitter unverformt. Die Indizes zeigen auf die Ecken ab cpuStart, der Rest des Abschnitts wird leer (0) wie bei patchLodIndizes.
+    const auto rechnePatch = [&](const Netzpuffer::CpuAbschnitt& a, Ecke* ziel) {
+        const BspMesh::PatchGitter& g = mesh.patches[static_cast<std::size_t>(a.patch)];
+        float lodOrt[3] = {g.lodOrt[0], g.lodOrt[1], g.lodOrt[2]};
+        const bool amMover = netzId == 2 && g_moverLod != nullptr && g_moverLod->welt != nullptr;
+        if (amMover) {
+            const float* w = g_moverLod->welt;
+            for (int k = 0; k < 3; ++k) { lodOrt[k] = w[k * 4] * g.lodOrt[0] + w[k * 4 + 1] * g.lodOrt[1] + w[k * 4 + 2] * g.lodOrt[2] + w[k * 4 + 3]; }
+        }
+        const float* blick = amMover && g_moverLod->vorn != nullptr ? g_moverLod->vorn : vorn;
+        std::vector<int> spalten;
+        std::vector<int> zeilen;
+        if (kameraPos != nullptr && blick != nullptr) {
+            patchLodTabellen(g, lodOrt, kameraPos, blick, kRLodCurveError, spalten, zeilen);
+        } else {
+            for (int s = 0; s < g.breite; ++s) { spalten.push_back(s); }
+            for (int z2 = 0; z2 < g.hoehe; ++z2) { zeilen.push_back(z2); }
+        }
+        std::vector<TessEcke> gitter(a.eckenZahl);
+        for (std::uint32_t i = 0; i < a.eckenZahl; ++i) {
+            const BspVertex& v = mesh.verts[a.ersteEcke + i];
+            TessEcke& e = gitter[i];
+            std::copy(v.xyz, v.xyz + 3, e.xyz);
+            std::copy(v.normal, v.normal + 3, e.normal);
+            std::copy(v.st, v.st + 2, e.st);
+            std::copy(v.lightmap, v.lightmap + 2, e.lm);
+            std::copy(v.colour, v.colour + 4, e.farbe);
+        }
+        std::vector<TessEcke> te;
+        std::vector<std::uint32_t> idx;
+        gitterTess(gitter, g.breite, spalten, zeilen, te, idx);
+        const DeformZusatz& z = textures->byShader[static_cast<std::size_t>(mesh.batches[a.batch].shader)].deform2;
+        if (verformeTess(z, zeitSekunden, sicht, te, idx)) {
+            g_spritePatchEcken += static_cast<long long>(te.size());
+        } else {
+            gitterTess(gitter, g.breite, spalten, zeilen, te, idx);   // im Spiel ERR_DROP
+        }
+        for (std::size_t i = 0; i < te.size() && i < a.eckenZahl; ++i) {
+            const TessEcke& tq = te[i];
+            Ecke& e = ziel[a.cpuStart + i];
+            std::copy(tq.xyz, tq.xyz + 3, e.pos);
+            std::copy(tq.normal, tq.normal + 3, e.normal);
+            std::copy(tq.st, tq.st + 2, e.uv);
+            std::copy(tq.lm, tq.lm + 2, e.uvLm);
+            std::copy(tq.farbe, tq.farbe + 4, e.farbe);
+        }
+        for (std::uint32_t q = 0; q < a.numIndexes; ++q) {
+            np.cpuIdx[a.firstIndex + q] = q < idx.size() ? static_cast<std::uint32_t>(nVerts) + a.cpuStart + idx[q] : 0U;
+        }
+    };
     // Die verformten Ecken der Abschnitte (ab cpuStart) und ihre Indizes in np.cpuIdx (auf nVerts + cpuStart + Nummer in tess).
     const auto rechneCpu = [&](Ecke* ziel) {
         std::vector<TessEcke> te;
         std::vector<std::uint32_t> idx;
         for (const Netzpuffer::CpuAbschnitt& a : np.cpuAbschnitte) {
+            if (a.patch >= 0) {
+                rechnePatch(a, ziel);
+                continue;
+            }
             g_spriteCpuEcken += a.eckenZahl;
             te.assign(a.eckenZahl, TessEcke{});
             for (std::uint32_t i = 0; i < a.eckenZahl; ++i) {
@@ -8536,7 +8619,8 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         np.patchRuns.clear();
         for (std::size_t i = 0; i < mesh.runs.size(); ++i) {
             const BspMesh::Run& r = mesh.runs[i];
-            if (r.patch >= 0 && static_cast<std::size_t>(r.patch) < mesh.patches.size() && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx) {
+            if (r.patch >= 0 && static_cast<std::size_t>(r.patch) < mesh.patches.size() && static_cast<std::size_t>(r.firstIndex) + r.numIndexes <= nIdx &&
+                (i >= np.cpuPatchRun.size() || np.cpuPatchRun[i] == 0)) {   // REST3b: ohne die Patches auf dem CPU-Weg
                 np.patchRuns.push_back(static_cast<std::uint32_t>(i));
             }
         }
@@ -8614,6 +8698,20 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     // rc608 Teil 13b: Patch-LOD wie im Spiel (patchLodSchreiben), fuer die Welt und fuer Mover (rc608 Teil 13c).
     if ((netzId == 0 || netzId == 2) && !np.patchRuns.empty()) {
         patchLodSchreiben(mesh, np, nIdx, kameraPos, vorn, netzId == 2 ? g_moverLod : nullptr, nullptr, c);
+    }
+    // REST3b: die Indizes der Patches auf dem CPU-Weg (ihre Detailstufe dieses Bildes, rechnePatch); verdeckte bleiben leer
+    if (!dyn && np.ib != nullptr && !np.cpuIdx.empty()) {
+        for (const Netzpuffer::CpuAbschnitt& a : np.cpuAbschnitte) {
+            if (a.patch < 0) { continue; }
+            const BspMesh::Run& r = mesh.runs[a.run];
+            if (r.surface < np.ibMaske.size() && np.ibMaske[r.surface] != 0) { continue; }
+            D3D11_BOX box{};
+            box.left = a.firstIndex * 4U;
+            box.right = (a.firstIndex + a.numIndexes) * 4U;
+            box.bottom = 1;
+            box.back = 1;
+            ::bhed::render::hochladen(c, np.ib, 0, &box, np.cpuIdx.data() + a.firstIndex, 0, 0);
+        }
     }
     np.quelleVerts = mesh.verts.data();
     np.quelleIdx = mesh.indexes.data();

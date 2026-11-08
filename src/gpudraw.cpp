@@ -395,6 +395,28 @@ bool verformeTess(const DeformZusatz& z, float zeitSekunden, const SpriteSicht& 
     return true;
 }
 
+void gitterTess(const std::vector<TessEcke>& gitter, int breite, const std::vector<int>& spalten, const std::vector<int>& zeilen,
+                std::vector<TessEcke>& te, std::vector<std::uint32_t>& idx) {
+    te.clear();
+    idx.clear();
+    const std::size_t lodWidth = spalten.size();
+    for (const int z : zeilen) {
+        for (const int s : spalten) {
+            te.push_back(gitter[static_cast<std::size_t>(z) * static_cast<std::size_t>(breite) + static_cast<std::size_t>(s)]);
+        }
+    }
+    for (std::size_t i = 0; i + 1 < zeilen.size(); ++i) {
+        for (std::size_t j = 0; j + 1 < lodWidth; ++j) {
+            // "vertex order to be reckognized as tristrips"
+            const auto v1 = static_cast<std::uint32_t>(i * lodWidth + j + 1U);
+            const std::uint32_t v2 = v1 - 1U;
+            const auto v3 = static_cast<std::uint32_t>(v2 + lodWidth);
+            const std::uint32_t v4 = v3 + 1U;
+            idx.insert(idx.end(), {v2, v3, v1, v1, v3, v4});
+        }
+    }
+}
+
 std::size_t countStateChanges(const std::vector<DrawCall>& calls) {
     if (calls.empty()) {
         return 0U;

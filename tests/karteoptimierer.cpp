@@ -1203,6 +1203,42 @@ void testeBekannteFehler(const std::string& q3dir) {
         o.shader["textures/test/abbruch"] = ShaderArt{};
         pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch") == 0, "Optimierer (P45): ohne Abbruch kein Befund");
     }
+    // REST3b: deformVertexes autosprite auf einem Patch - AutospriteDeform bricht mit ERR_DROP ab (odd vertex count), sobald
+    // RB_SurfaceGrid mehr als 2 x 2 Ecken in tess legt; autosprite2 meldet nur (ri.Printf), Flaechen aus Pinseln sind Vierecke
+    {
+        const auto lies = [](const char* rumpf) { return shaderSkriptLesen(std::string("textures/r3b/x\n{\n") + rumpf + "}\n", "textures/r3b/x"); };
+        pruefe(lies("deformVertexes autosprite\n{\nmap x\n}\n").autospriteEins && !lies("deformVertexes autosprite2\n{\nmap x\n}\n").autospriteEins &&
+                   !lies("deformVertexes wave 8 sin 0 1 0 1\ndeformVertexes wave 8 sin 0 1 0 1\ndeformVertexes wave 8 sin 0 1 0 1\n"
+                         "deformVertexes autosprite\n").autospriteEins,
+               "Shader-Skript (REST3b): deformVertexes autosprite erkannt, nicht autosprite2 und nicht als vierte Zeile (MAX_SHADER_DEFORMS)");
+        std::vector<std::array<float, 3>> pkt;
+        for (int j = 0; j < 3; ++j) {
+            for (int i = 0; i < 3; ++i) { pkt.push_back({static_cast<float>(i * 32), static_cast<float>(j * 32), (i == 1 ? 24.0F : 0.0F) + 32.0F}); }
+        }
+        const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/x") + patchText(3, 3, pkt));
+        PruefOptionen o = pruefOpt();
+        ShaderArt art;
+        art.autospriteEins = true;
+        std::string patchShader = "textures/test/x";   // wie der Leser ihn ablegt
+        const KartenAbbild abbild = abbildAus(welt);
+        for (const AbbildPrimitiv& pr : abbild.ents.front().prims) {
+            if (pr.patch) {
+                patchShader.clear();
+                for (const char ch : pr.shader) { patchShader += static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); }
+            }
+        }
+        o.shader[patchShader] = art;
+        o.shader["textures/test/x"] = art;
+        const long long mit = anzahlVon(pruefeKarte(abbild, o), "spielabbruch");
+        const std::string ohnePatch = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/x"));
+        const long long ohne = anzahlVon(pruefeKarte(abbildAus(ohnePatch), o), "spielabbruch");
+        art.autospriteEins = false;
+        o.shader[patchShader] = art;
+        o.shader["textures/test/x"] = art;
+        const long long zwei = anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch");
+        pruefe(mit == 1 && ohne == 0 && zwei == 0, "Optimierer (REST3b): spielabbruch fuer autosprite auf einem Patch (" + std::to_string(mit) +
+                                                    "), nicht an Pinselflaechen (" + std::to_string(ohne) + "), nicht ohne autosprite (" + std::to_string(zwei) + ")");
+    }
     // Stufe 8a Punkt 2: Entity-Lump gegen die Grenzen ("enttext"), -keeplights in der Zaehlung
     {
         const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden"));

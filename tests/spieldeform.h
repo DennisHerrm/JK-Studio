@@ -301,6 +301,35 @@ inline void spielDeformTess(const DeformZusatz& z, int time, const SpielBlick& v
     }
 }
 
+// REST3b: RB_SurfaceGrid (code/rd-vanilla/tr_surface.cpp:1428-1560 OpenJK) ohne das Teilen auf mehrere tess: die Ecken der
+// gewaehlten Zeilen (heightTable) und Spalten (widthTable) Zeile fuer Zeile, dann je Zelle die Indizes v2, v3, v1, v1, v3, v4.
+inline void spielSurfaceGrid(const SpielTess& cv, int width, const std::vector<int>& widthTable, const std::vector<int>& heightTable, SpielTess& t) {
+    const int lodWidth = static_cast<int>(widthTable.size());
+    const int rows = static_cast<int>(heightTable.size());
+    const int numVertexes = static_cast<int>(t.xyz.size());
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < lodWidth; j++) {
+            const std::size_t dv = static_cast<std::size_t>(heightTable[static_cast<std::size_t>(i)] * width + widthTable[static_cast<std::size_t>(j)]);
+            t.xyz.push_back(cv.xyz[dv]);
+            t.st.push_back(cv.st[dv]);
+            t.lm.push_back(cv.lm[dv]);
+            t.normal.push_back(cv.normal[dv]);
+            t.farbe.push_back(cv.farbe[dv]);
+        }
+    }
+    const int h = rows - 1;
+    const int w = lodWidth - 1;
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            const int v1 = numVertexes + i * lodWidth + j + 1;
+            const int v2 = v1 - 1;
+            const int v3 = v2 + lodWidth;
+            const int v4 = v3 + 1;
+            for (const int v : {v2, v3, v1, v1, v3, v4}) { t.idx.push_back(static_cast<std::uint32_t>(v)); }
+        }
+    }
+}
+
 }  // namespace spieldeform
 
 #endif  // BHED_TESTS_SPIELDEFORM_H

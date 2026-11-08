@@ -305,6 +305,7 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
             const ShaderSkript sk = shaderSkriptLesen(text->second, n);
             if (sk.gefunden) {
                 art.spielAbbruch = sk.spielAbbruch;   // DEF1 P45
+                art.autospriteEins = sk.autospriteEins;   // REST3b
                 art.flaechenlicht = sk.flaechenlicht;
                 art.backsplashAnteil = sk.backsplashAnteil;
                 art.backsplashWeite = sk.backsplashWeite;

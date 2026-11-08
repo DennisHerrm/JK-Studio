@@ -381,6 +381,8 @@ void moverSpriteAchsenAus(bool aus);
 // REST3: wie viele Ecken die CPU seit dem Start wie RB_DeformTessGeometry verformt hat (autosprite/autosprite2, verformeTess) -
 // Selbsttest.
 long long spriteCpuEcken();
+// REST3b: wie viele Ecken von Patches die CPU so verformt hat (tess wie RB_SurfaceGrid in der Detailstufe des Bildes) - Selbsttest.
+long long spritePatchEcken();
 // REST3: die letzte Sicht von verformeTess an einem Mover (links, hoch, vorn im Raum des Modells, vornWelt), dazu seine Stellung
 // (welt, Zeilen) und die Kameraachsen der Welt (vorn, rechts, hoch); false: noch keine.
 bool spriteSichtProbe(float welt[16], float weltAchsen[9], float sicht[12]);

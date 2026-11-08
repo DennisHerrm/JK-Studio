@@ -945,6 +945,16 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
                 };
                 if (pr.patch) { pruefen(pr.shader); }
                 for (const AbbildFlaeche& f : pr.flaechen) { pruefen(f.shader); }
+                // REST3b: deformVertexes autosprite auf einem Patch - AutospriteDeform (tr_shade_calc.cpp:385-390 OpenJK, MD9 gleich)
+                // bricht ab, sobald RB_SurfaceGrid das Gitter mit mehr als 2 x 2 Ecken in tess legt (nicht durch vier teilbar oder
+                // nicht sechs Indizes je vier Ecken)
+                if (pr.patch && artVon(o, pr.shader, vorrat).autospriteEins) {
+                    const std::string g = "deformVertexes autosprite on a patch (AutospriteDeform: odd vertex count)";
+                    if (treffer.emplace(klein(pr.shader) + "|patch", ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, pr.shader + ": " + g}).second &&
+                        grund.empty()) {
+                        grund = g;
+                    }
+                }
             }
         }
         for (const auto& [k, r] : treffer) { add(b, r); }
@@ -1611,6 +1621,7 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
             const std::vector<std::string> v = werte(j);
             if (t == 1 && !v.empty() && deformZahl < 3) {
                 ++deformZahl;
+                if (d == "autosprite") { r.autospriteEins = true; }   // REST3b: DEFORM_AUTOSPRITE (tr_shader.cpp ParseDeform)
                 if (d == "wave" && v.size() >= 2) {
                     const int f = wellenForm(v, 2);
                     const float frequenz = v.size() > 6 ? static_cast<float>(std::atof(v[6].c_str())) : 0.0F;

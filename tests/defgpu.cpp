@@ -587,6 +587,115 @@ int main() {
                 erwarte(zl, anders == 0);
             }
         }
+        // --- REST3b: autosprite/autosprite2 auf Patches - RB_DeformTessGeometry gilt fuer jede Flaeche, auch das Gitter, das
+        // RB_SurfaceGrid in der Detailstufe des Bildes in tess legt (spielSurfaceGrid, abgeschrieben). Vorschau: gitterTess +
+        // verformeTess (zeichneKarte, rechnePatch). AutospriteDeform bricht ab (ERR_DROP), ausser bei 2 x 2 Ecken - verformeTess meldet
+        // es (false). Bis REST3b blieben Patches unverformt ("vorher": so viele Ecken lagen anders als im Spiel).
+        struct PatchFall {
+            const char* was;
+            const char* text;
+            int breite;
+            int hoehe;
+            bool mover;
+            bool abbruch;
+        };
+        const PatchFall faelleP[] = {
+            {"Patch 9 x 5: autosprite2", "autosprite2", 9, 5, false, false},
+            {"Patch 7 x 7: autosprite2, wave", "autosprite2\ndeformVertexes wave 80 triangle 0 3 0.3 0.5", 7, 7, false, false},
+            {"Patch 5 x 9 am Mover: bulge, autosprite2", "bulge 0.5 3 1.3\ndeformVertexes autosprite2", 5, 9, true, false},
+            {"Patch 2 x 2: autosprite", "autosprite", 2, 2, false, false},
+            {"Patch 3 x 3: autosprite (ERR_DROP)", "autosprite", 3, 3, false, true},
+        };
+        for (const PatchFall& pf : faelleP) {
+            SpielTess gitter;
+            std::vector<TessEcke> gitterV;
+            for (int i = 0; i < pf.breite * pf.hoehe; ++i) {
+                TessEcke e;
+                for (int k = 0; k < 3; ++k) {
+                    e.xyz[k] = zahl(-900.0, 900.0);
+                    e.normal[k] = zahl(-1.0, 1.0);
+                }
+                e.st[0] = zahl(-4.0, 4.0);
+                e.st[1] = zahl(-4.0, 4.0);
+                e.lm[0] = zahl(0.0, 1.0);
+                e.lm[1] = zahl(0.0, 1.0);
+                for (int k = 0; k < 4; ++k) { e.farbe[k] = static_cast<std::uint8_t>(zz() & 255U); }
+                gitterV.push_back(e);
+                gitter.xyz.push_back({e.xyz[0], e.xyz[1], e.xyz[2]});
+                gitter.normal.push_back({e.normal[0], e.normal[1], e.normal[2]});
+                gitter.st.push_back({e.st[0], e.st[1]});
+                gitter.lm.push_back({e.lm[0], e.lm[1]});
+                gitter.farbe.push_back({e.farbe[0], e.farbe[1], e.farbe[2], e.farbe[3]});
+            }
+            // eine Detailstufe: erste und letzte Zeile/Spalte immer, die inneren zufaellig (widthLodError <= lodError)
+            const auto tafel = [&](int n) {
+                std::vector<int> r{0};
+                for (int i = 1; i < n - 1; ++i) {
+                    if ((zz() & 1U) != 0U) { r.push_back(i); }
+                }
+                r.push_back(n - 1);
+                return r;
+            };
+            // Ein unvollstaendiges letztes Viereck (Eckenzahl nicht durch vier teilbar) liest Autosprite2Deform im Spiel aus dem Rest
+            // von tess (hinter numVertexes) - nicht nachbildbar; die Faelle nehmen Stufen mit vollen Vierecken, der Abbruchfall das
+            // volle Gitter.
+            std::vector<int> spalten;
+            std::vector<int> zeilen;
+            do {
+                spalten = tafel(pf.breite);
+                zeilen = tafel(pf.hoehe);
+                if (pf.abbruch) {
+                    spalten.clear();
+                    zeilen.clear();
+                    for (int i = 0; i < pf.breite; ++i) { spalten.push_back(i); }
+                    for (int i = 0; i < pf.hoehe; ++i) { zeilen.push_back(i); }
+                }
+            } while (!pf.abbruch && (spalten.size() * zeilen.size()) % 4U != 0U);
+            const ShaderInfo info = lese(pf.text);
+            const int ms = static_cast<int>(zz() % 3600000U);
+            const auto zeit = static_cast<float>(ms * 0.001);
+            SpielTess spiel;
+            spielSurfaceGrid(gitter, pf.breite, spalten, zeilen, spiel);
+            const SpielTess unverformt = spiel;
+            SpielBlick blick{};
+            std::memcpy(blick.axis, achsen, sizeof achsen);
+            blick.ent = pf.mover ? ent : nullptr;
+            if (!pf.abbruch) { spielDeformTess(info.deform2, ms, blick, spiel); }
+            SpriteSicht sicht;
+            for (int k = 0; k < 3; ++k) {
+                const auto lokal = [&](int ax) {
+                    return pf.mover ? achsen[ax][0] * ent[3 * k] + achsen[ax][1] * ent[3 * k + 1] + achsen[ax][2] * ent[3 * k + 2] : achsen[ax][k];
+                };
+                sicht.vorn[k] = lokal(0);
+                sicht.links[k] = lokal(1);
+                sicht.hoch[k] = lokal(2);
+                sicht.vornWelt[k] = achsen[0][k];
+            }
+            std::vector<TessEcke> te;
+            std::vector<std::uint32_t> idx;
+            gitterTess(gitterV, pf.breite, spalten, zeilen, te, idx);
+            const bool tessGleich = idx == unverformt.idx && te.size() == unverformt.xyz.size();
+            const bool lief = verformeTess(info.deform2, zeit, sicht, te, idx);
+            int falsch = 0;
+            int vorher = 0;
+            for (std::size_t i = 0; i < te.size() && i < spiel.xyz.size(); ++i) {
+                const bool ok = std::memcmp(te[i].xyz, spiel.xyz[i].data(), 12) == 0 && std::memcmp(te[i].normal, spiel.normal[i].data(), 12) == 0 &&
+                                std::memcmp(te[i].st, spiel.st[i].data(), 8) == 0 && std::memcmp(te[i].lm, spiel.lm[i].data(), 8) == 0 &&
+                                std::memcmp(te[i].farbe, spiel.farbe[i].data(), 4) == 0;
+                falsch += ok ? 0 : 1;
+                vorher += std::memcmp(unverformt.xyz[i].data(), spiel.xyz[i].data(), 12) == 0 ? 0 : 1;
+            }
+            char zl[320];
+            if (pf.abbruch) {
+                std::snprintf(zl, sizeof zl, "REST3b %s: tess wie RB_SurfaceGrid (%zu Ecken, %zu Indizes), verformeTess meldet den Abbruch des Spiels",
+                              pf.was, te.size(), idx.size());
+                erwarte(zl, tessGleich && !lief);
+                continue;
+            }
+            std::snprintf(zl, sizeof zl, "REST3b %s (%zu x %zu): tess wie RB_SurfaceGrid, verformt bitgleich wie RB_DeformTessGeometry: %d von %zu Ecken "
+                          "abweichend (vorher unverformt: %d)", pf.was, spalten.size(), zeilen.size(), falsch, te.size(), vorher);
+            erwarte(zl, tessGleich && lief && te.size() == spiel.xyz.size() && falsch == 0 && idx == spiel.idx && vorher > 0);
+        }
     }
     // --- FIX5 Tempo: die tcMod-Kette im Vertex-Shader der Karte, nur mit den Schritten der Stufe und turb nur mit kTurb -----------
     {
