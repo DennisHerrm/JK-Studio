@@ -6,6 +6,13 @@ Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt
 """
 
 X = {
+    "mr_blender": (
+        "In Blender mode the UV editor also takes Blender's keys: Ctrl+E marks seams, P pins, Shift+W opens **{{MrUvAusrichten}}** with **{{UvBegradigen}}** and **{{UvAusrichten}}**, U opens the Unwrap menu. Commands without a key in Blender are in the menu and the search.",
+        'Im Blender-Modus nimmt der UV-Editor auch Blenders Tasten: Strg+E markiert Nähte, P pinnt, Umschalt+W öffnet **{{MrUvAusrichten}}** mit **{{UvBegradigen}}** und **{{UvAusrichten}}**, U öffnet das Menü Abwickeln. Befehle ohne Taste in Blender stehen im Menü und in der Suche.',
+        '在 Blender 模式下 UV 编辑器也接受 Blender 的按键: Ctrl+E 标记接缝, P 固定, Shift+W 打开 **{{MrUvAusrichten}}** (含 **{{UvBegradigen}}** 和 **{{UvAusrichten}}**), U 打开展开菜单。Blender 中没有按键的命令在菜单和搜索中。',
+        'Blender 風では UV エディターも Blender のキーを受け付けます: Ctrl+E でシームを付け、P でピン留め、Shift+W で **{{UvBegradigen}}** と **{{UvAusrichten}}** のある **{{MrUvAusrichten}}** を開き、U で展開メニューを開きます。Blender でキーのないコマンドはメニューと検索にあります。',
+        'En modo Blender el editor UV acepta también las teclas de Blender: Ctrl+E marca costuras, P fija, Mayús+W abre **{{MrUvAusrichten}}** con **{{UvBegradigen}}** y **{{UvAusrichten}}**, U abre el menú Desplegar. Los comandos sin tecla en Blender están en el menú y en la búsqueda.',
+        'V režimu Blender přijímá editor UV i klávesy Blenderu: Ctrl+E označí švy, P připíchne, Shift+W otevře **{{MrUvAusrichten}}** s **{{UvBegradigen}}** a **{{UvAusrichten}}**, U otevře nabídku Rozbalit. Příkazy bez klávesy v Blenderu jsou v nabídce a ve vyhledávání.'),
     "titel": ("Model tab: create UVs", "Model-Tab: UV erstellen", "模型选项卡: 创建 UV", "モデルタブ: UV 作成", "Pestaña Model: crear UV", "Karta Model: vytvoření UV"),
     "kurz": (
         "Lay the surfaces of a .glm or .md3 flat over their texture: cut seams, unwrap, straighten, stack mirrored halves, match the texel density and pack the "
@@ -219,6 +226,7 @@ def seite():
             ("p", _t("auswahl")),
             ("h2", "arbeit", _t("h_arbeit")),
             ("p", _t("arbeit")),
+            ("p", _t("mr_blender")),
             ("h2", "schnell", _t("h_schnell")),
             ("p", _t("schnell")),
             ("img", "h_uv_schnell", _t("bild_schnell"), "breit"),

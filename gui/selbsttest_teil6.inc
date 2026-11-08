@@ -237,17 +237,46 @@ std::vector<Schritt> teil6Schritte() {
                 }
             }
         }
+        // MRESTE Punkt 8: was gewaehlt wurde (leer: keine laufende Figur mit Modell - dann entsteht keine Zielfigur)
+        diag::detail("Knopftest: Teil 6 - Figuren " + std::to_string(g_app->scene.actors.size()) + ", Ziel \"" + z->typ + "\" bei " + std::to_string(z->ort[0]) + " " +
+                     std::to_string(z->ort[1]) + " " + std::to_string(z->ort[2]) + (z->fehler.empty() ? std::string() : ", Fehler" + z->fehler));
     }));
+    // MRESTE Punkt 8: die Figuren der Grundkarte am Zielort weg (NPC_* naeher als 600 Einheiten, ausser t6_ziel) - sonst trifft
+    // das Wachgeschuetz (es nimmt den naechsten Feind) oder der Knall der Kiste sie statt t6_ziel. Seit dem Wechsel der
+    // Movie-Duels-Daten (05.11.) ist die erste laufende Figur ani1, und ihr NPC_spawner steht genau am Zielort.
+    const auto nachbarnWeg = [=] {
+        for (int i = static_cast<int>(g_app->map.entities.size()) - 1; i >= 0; --i) {
+            const MapEntity& e = g_app->map.entities[static_cast<std::size_t>(i)];
+            if (e.classname.rfind("NPC_", 0) != 0) { continue; }
+            const std::string* tn = e.find("NPC_targetname");
+            if (tn == nullptr) { tn = e.find("npc_targetname"); }
+            if (tn != nullptr && *tn == "t6_ziel") { continue; }
+            float o[3] = {0, 0, 0};
+            if (std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]) != 3) { continue; }
+            if (std::hypot(o[0] - z->ort[0], o[1] - z->ort[1]) < 600.0F && std::fabs(o[2] - z->ort[2]) < 200.0F) {
+                diag::detail("Knopftest: Teil 6 - Figur der Grundkarte am Zielort entfernt: " + (tn != nullptr ? *tn : e.classname));
+                (void)entityLoeschen(i);
+            }
+        }
+    };
     const auto treffer = [&](const char* name) {
         add(tu(std::string("Teil 6: Mission ") + name + " - Wachgeschuetz neben der Figur", [=] {
             pruefung3::szeneBauen(*z, std::string("t6") + name, {{"t6_ziel", 0.0F, 0.0F}}, gp::ziel("t6_ziel", 2000));
             const float o[3] = {z->ort[0] + 96.0F, z->ort[1] - 96.0F, z->ort[2] - 24.0F};
             (void)gp::neue("misc_sentry_turret", o, {{"angles", "0 135 0"}});
+            nachbarnWeg();
             g_app->camTrackValid = false;
             g_app->mapDirty = true;
         }));
         add(warteBis(std::string("Teil 6: Szene ") + name, [=] { return !z->bereit || (g_app->camTrackValid && pruefung3::figur("t6_ziel") >= 0 && jk2probe::figurenGeladen()); }, 3000));
         add(pause(0.5));
+        add(tu(std::string("Teil 6: Szene ") + name + " - Zustand", [=] {
+            diag::detail("Knopftest: Teil 6 - bereit " + std::to_string(z->bereit ? 1 : 0) + ", t6_ziel Figur " + std::to_string(pruefung3::figur("t6_ziel")) + ", Schmerzen " +
+                         std::to_string(g_app->schmerzen.size()) + (z->fehler.empty() ? std::string() : ", Fehler" + z->fehler));
+            for (const SchmerzAufruf& sch : g_app->schmerzen) {
+                diag::detail("Knopftest: Teil 6 - Schmerz " + sch.figur + " bei " + std::to_string(sch.ms) + " ms, \"" + sch.anim + "\" Torso " + std::to_string(sch.torsoMs));
+            }
+        }));
     };
     treffer("md");
     add(pruefe("Teil 6: Movie Duels - G_MissileImpacted: Animation nach Trefferort, Torso 400, 2 s Pause, kein Stoss", [] {
@@ -308,6 +337,7 @@ std::vector<Schritt> teil6Schritte() {
         (void)gp::neue("fx_target_beam", q, {{"target", "t6strahlziel"}, {"damage", "50"}, {"wait", "1000"}, {"fxFile", "env/hevil_bolt"}});
         const float ziel[3] = {k[0], k[1], k[2] + 8.0F};
         (void)gp::neue("info_null", ziel, {{"targetname", "t6strahlziel"}});
+        nachbarnWeg();
         g_app->camTrackValid = false;
         g_app->mapDirty = true;
     }));

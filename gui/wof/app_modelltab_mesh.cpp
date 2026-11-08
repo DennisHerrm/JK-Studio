@@ -325,7 +325,7 @@ w::Plan planen(w::PolyNetz& n, const w::PAuswahl& a, modell::Inhalt& x) {
             return w::extrudeFlaechen(n, a.flaechen, static_cast<w::ExtrudeArt>(std::clamp(z.art, 0, 2)));
         case MeshWerkzeug::Inset: return w::inset(n, a.flaechen, z.art == 1 ? w::InsetArt::JeVieleck : w::InsetArt::Gruppe);
         case MeshWerkzeug::Bevel: return w::bevel(n, a.flaechen, static_cast<w::ExtrudeArt>(std::clamp(z.art, 0, 2)), z.hoehe);
-        case MeshWerkzeug::Chamfer: return e == w::PEbene::Punkt ? w::chamferPunkte(n, a.punkte) : w::chamferKanten(n, a.kanten);
+        case MeshWerkzeug::Chamfer: return e == w::PEbene::Punkt ? w::chamferPunkte(n, a.punkte) : w::chamferKanten(n, a.kanten, z.segmente, z.profil);
         case MeshWerkzeug::Connect: return w::connectKanten(n, a.kanten, z.segmente);
         case MeshWerkzeug::LoopCut: {
             if (a.kanten.empty()) {
@@ -663,6 +663,45 @@ void ringLoop(bool ring) {
     }
     auswahlSetzen(a);
 }
+// MRESTE: Blender Strg+L (mesh.select_linked): die Auswahl waechst auf alles, was ueber Kanten an ihr haengt (die
+// Elemente der gewaehlten Punkte, Kanten und Vielecke), in der Ebene der Auswahl
+void verbundeneWaehlen() {
+    ModellMesh& z = mz();
+    modellMeshNetzAktualisieren();
+    const w::PolyNetz& n = z.netz;
+    std::set<int> flaechen;
+    const auto vonPunkt = [&](int p) {
+        if (p < 0 || uz(p) >= n.punktFlaechen.size()) { return; }
+        for (const int f : n.punktFlaechen[uz(p)]) {
+            if (flaechen.count(f) != 0U) { continue; }
+            for (const int g : w::element(n, f)) { flaechen.insert(g); }
+        }
+    };
+    for (const int p : w::auswahlPunkte(n, z.auswahl)) { vonPunkt(p); }
+    if (flaechen.empty()) {
+        melden(tr(Str::MrNichtsGewaehlt));
+        return;
+    }
+    std::set<int> punkte;
+    std::set<std::pair<int, int>> kanten;
+    for (const int f : flaechen) {
+        const auto& e = n.flaechen[uz(f)].ecken;
+        for (std::size_t i = 0; i < e.size(); ++i) {
+            punkte.insert(e[i].punkt);
+            kanten.insert(w::kantenPaar(e[i].punkt, e[(i + 1) % e.size()].punkt));
+        }
+    }
+    w::PAuswahl a;
+    if (ebene() == w::PEbene::Punkt) {
+        a.punkte.assign(punkte.begin(), punkte.end());
+    } else if (kantenEbene()) {
+        a.kanten.assign(kanten.begin(), kanten.end());
+    } else {
+        a.flaechen.assign(flaechen.begin(), flaechen.end());
+    }
+    z.punktFolge = a.punkte;
+    auswahlSetzen(a);
+}
 void allesWaehlen(bool alles) {
     ModellMesh& z = mz();
     modellMeshNetzAktualisieren();
@@ -713,13 +752,18 @@ const std::vector<MeshAktion>& aktionen() {
         // Shift+E, Bevel Mode Ctrl+Shift+B, Chamfer Mode Ctrl+Shift+C, Connect Shift+Ctrl+E, Cut Alt+C, Target Weld Mode
         // Shift+Ctrl+W, Make Planar Alt+M, Collapse Ctrl+Alt+C, Quickslice Mode Shift+Ctrl+Q) und Main UI/Editable Polygon Object (Select Sub-object Ring Alt+R, Loop Alt+L); Remove Backspace und
         // Clean Remove Ctrl+Backspace laut "Editable Poly (Vertex/Edge)". Ohne Taste nennt der Tooltip den Weg im Menue.
+        // MRESTE: die Blender-Tasten aus Blender 5.0 keymap_data/blender_default.py km_edit_mesh: mesh.loop_select Alt+Klick,
+        // mesh.edgering_select Strg+Alt+Klick, mesh.select_linked Strg+L, mesh.vert_connect_path J, mesh.dissolve_mode Strg+X.
+        // Ohne Blender-Taste (dort nur im Menue): Rand, Element, Make Planar, Collapse (M > Collapse), QuickSlice (Bisect),
+        // Target Weld, Clean Remove, Bevel der Vielecke.
         {Str::MdEbenePunkt, Str::MdEbenePunktHint, "1", "1", ImGuiKey_1, ImGuiKey_1, [] { ebeneSetzen(AuswahlArt::Ecke); }, [] { return mt().auswahlArt == AuswahlArt::Ecke; }, 0},
         {Str::MdEbeneKante, Str::MdEbeneKanteHint, "2", "2", ImGuiKey_2, ImGuiKey_2, [] { ebeneSetzen(AuswahlArt::Kante); }, [] { return mt().auswahlArt == AuswahlArt::Kante; }, 0},
         {Str::MdEbeneRand, Str::MdEbeneRandHint, "3", "", ImGuiKey_3, 0, [] { ebeneSetzen(AuswahlArt::Rand); }, [] { return mt().auswahlArt == AuswahlArt::Rand; }, 0},
         {Str::MdEbeneVieleck, Str::MdEbeneVieleckHint, "4", "3", ImGuiKey_4, ImGuiKey_3, [] { ebeneSetzen(AuswahlArt::Dreieck); }, [] { return mt().auswahlArt == AuswahlArt::Dreieck; }, 0},
         {Str::MdEbeneElement, Str::MdEbeneElementHint, "5", "", ImGuiKey_5, 0, [] { ebeneSetzen(AuswahlArt::Element); }, [] { return mt().auswahlArt == AuswahlArt::Element; }, 0},
-        {Str::MdRing, Str::MdRingHint, "Alt+R", "", ImGuiMod_Alt | ImGuiKey_R, 0, [] { ringLoop(true); }, {}, 0},
-        {Str::MdLoop, Str::MdLoopHint, "Alt+L", "", ImGuiMod_Alt | ImGuiKey_L, 0, [] { ringLoop(false); }, {}, 0},
+        {Str::MdRing, Str::MdRingHint, "Alt+R", "Ctrl+Alt+Click", ImGuiMod_Alt | ImGuiKey_R, 0, [] { ringLoop(true); }, {}, 0},
+        {Str::MdLoop, Str::MdLoopHint, "Alt+L", "Alt+Click", ImGuiMod_Alt | ImGuiKey_L, 0, [] { ringLoop(false); }, {}, 0},
+        {Str::MrVerbunden, Str::MrVerbundenHint, "", "Ctrl+L", 0, ImGuiMod_Ctrl | ImGuiKey_L, [] { verbundeneWaehlen(); }, {}, 0},
         {Str::MdAlles, Str::MdAllesHint, "Ctrl+A", "A", ImGuiMod_Ctrl | ImGuiKey_A, ImGuiKey_A, [] { allesWaehlen(true); }, {}, 0},
         {Str::MdNichts, Str::MdNichtsHint, "", "Alt+A", 0, ImGuiMod_Alt | ImGuiKey_A, [] { allesWaehlen(false); }, {}, 0},
         // Geometrie bearbeiten
@@ -745,9 +789,9 @@ const std::vector<MeshAktion>& aktionen() {
          {}, 2},
         // Kanten (Chamfer und Connect handeln je Ebene wie in Max: an Punkten oder an Kanten)
         {Str::MdChamfer, Str::MdChamferHint, "Ctrl+Shift+C", "Ctrl+B", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_C, ImGuiMod_Ctrl | ImGuiKey_B, st(MW::Chamfer), {}, 3},
-        {Str::MdConnect, Str::MdConnectHint, "Ctrl+Shift+E", "", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_E, 0, [] { connectBefehl(); }, {}, 3},
+        {Str::MdConnect, Str::MdConnectHint, "Ctrl+Shift+E", "J", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_E, ImGuiKey_J, [] { connectBefehl(); }, {}, 3},
         {Str::MdLoopCut, Str::MdLoopCutHint, "", "Ctrl+R", 0, ImGuiMod_Ctrl | ImGuiKey_R, st(MW::LoopCut), {}, 3},
-        {Str::MdRemove, Str::MdRemoveHint, "Backspace", "", ImGuiKey_Backspace, 0, [] { entfernenBefehl(false); }, {}, 3},
+        {Str::MdRemove, Str::MdRemoveHint, "Backspace", "Ctrl+X", ImGuiKey_Backspace, ImGuiMod_Ctrl | ImGuiKey_X, [] { entfernenBefehl(false); }, {}, 3},
         {Str::MdRemoveSauber, Str::MdRemoveSauberHint, "Ctrl+Backspace", "", ImGuiMod_Ctrl | ImGuiKey_Backspace, 0, [] { entfernenBefehl(true); }, {}, 3},
         // Raender und Vielecke (Extrude handelt je Ebene: am Rand ein Streifen, an Vielecken die Region)
         {Str::MdBridge, Str::MdBridgeHint, "", "", 0, 0, st(MW::Bridge), {}, 4},
@@ -1128,6 +1172,31 @@ bool modellMeshKlick(const ModellAnsicht& a, bool klick, ImVec2 start, ImVec2 en
                 case w::PEbene::Vieleck: treffer.flaechen.push_back(f); break;
                 case w::PEbene::Element: treffer.flaechen = w::element(n, f); break;
             }
+            // MRESTE: wie Blender Alt+Klick (mesh.loop_select) bzw. Strg+Alt+Klick (mesh.edgering_select) an der Kante unter
+            // der Maus: die Kantenschleife bzw. der Kantenring; Punkte: deren Punkte; Vielecke: die Vielecke am Ring (die
+            // Flaechenschleife quer zur Kante, wie Blender im Flaechenmodus)
+            if (blender && io.KeyAlt) {
+                const int ki = n.kanteVon(k.first, k.second);
+                const bool ring = io.KeyCtrl;
+                if (ki >= 0) {
+                    treffer = w::PAuswahl{};
+                    const std::vector<int> kk = (ring || e == w::PEbene::Vieleck || e == w::PEbene::Element) ? w::kantenRing(n, ki) : w::kantenSchleife(n, ki);
+                    std::set<int> pp;
+                    std::set<int> ff;
+                    for (const int r : kk) {
+                        const w::PKante& kr = n.kanten[uz(r)];
+                        pp.insert(kr.a);
+                        pp.insert(kr.b);
+                        for (const auto& [fl, i] : kr.seiten) {
+                            (void)i;
+                            ff.insert(fl);
+                        }
+                        if (e == w::PEbene::Kante || e == w::PEbene::Rand) { treffer.kanten.emplace_back(kr.a, kr.b); }
+                    }
+                    if (e == w::PEbene::Punkt) { treffer.punkte.assign(pp.begin(), pp.end()); }
+                    if (e == w::PEbene::Vieleck || e == w::PEbene::Element) { treffer.flaechen.assign(ff.begin(), ff.end()); }
+                }
+            }
         }
     } else {   // Rahmen: Kreuzen wie Max (ein Punkt im Rahmen genuegt)
         const ImVec2 lo{std::min(start.x, ende.x), std::min(start.y, ende.y)};
@@ -1299,7 +1368,15 @@ void drawModellMeshPopups() {
                 zahl(Str::MdHoehe, &z.hoehe, schritt, false);
                 zahl(Str::MdUmriss, &z.betrag, schritt, true);
                 break;
-            case MeshWerkzeug::Chamfer: zahl(Str::MdBetrag, &z.betrag, schritt, true); break;
+            case MeshWerkzeug::Chamfer:
+                zahl(Str::MdBetrag, &z.betrag, schritt, true);
+                if (ebene() != w::PEbene::Punkt) {   // MRESTE: Max Chamfer Segments/Tension, Blender Bevel Segments/Shape
+                    ganz(Str::MdSegmente, &z.segmente, 1, 16);
+                    ImGui::SetNextItemWidth(feld);
+                    if (ImGui::SliderFloat(tr(blenderModus() ? Str::MrProfilBlender : Str::MrProfilMax), &z.profil, 0.0F, 1.0F, "%.2f")) { neu = true; }
+                    ImGui::SetItemTooltip("%s", tr(Str::MrProfilHint));
+                }
+                break;
             case MeshWerkzeug::Connect:
             case MeshWerkzeug::LoopCut:
                 ganz(Str::MdSegmente, &z.segmente, 1, 16);

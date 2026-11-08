@@ -1392,7 +1392,19 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
     if (zahl == 0) { return false; }
     const int spiegelK = modell::spiegelKnochen(knochenNamen(), t.knochenWahl);
     const int knochen = t.knochenWahl;
-    const auto art = static_cast<modell::PinselArt>(t.pinselArt);
+    if (neuerStrich) {
+        // MRESTE: wie Blender (km_weight_paint paint.weight_paint): Strg+Linksklick malt umgekehrt (mode INVERT: Hinzufuegen
+        // <-> Abziehen), Umschalt+Linksklick glaettet (mode SMOOTH) - fuer den ganzen Strich. Wie 3ds Max: das gewaehlte Werkzeug.
+        t.strichArt = t.pinselArt;
+        const ImGuiIO& io = ImGui::GetIO();
+        if (modellBlender() && io.KeyShift) {
+            t.strichArt = static_cast<int>(modell::PinselArt::Glaetten);
+        } else if (modellBlender() && io.KeyCtrl) {
+            const auto p = static_cast<modell::PinselArt>(t.pinselArt);
+            t.strichArt = static_cast<int>(p == modell::PinselArt::Abziehen ? modell::PinselArt::Hinzufuegen : modell::PinselArt::Abziehen);
+        }
+    }
+    const auto art = static_cast<modell::PinselArt>(t.strichArt);
     const float wert = t.pinselGewicht;
     const bool spiegeln = t.pinselSpiegeln;
     const auto& karte = t.spiegel;
@@ -1422,6 +1434,122 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
 }
 
 void modellStrichEnde() { mt().malStrich = false; }
+
+// MRESTE: Blender Umschalt+X (paint.weight_sample): das Gewicht des gewaehlten Knochens an der Ecke unter der Maus (die
+// naechste Ecke des getroffenen Dreiecks) wird das Gewicht des Pinsels
+bool modellGewichtAufnehmen(int ansicht, ImVec2 maus) {
+    ModellTab& t = mt();
+    if (ansicht < 0 || ansicht >= 4 || t.knochenWahl < 0) {
+        t.meldung = tr(Str::MbGwKnochenWaehlen);
+        return false;
+    }
+    // die naechste zur Kamera zeigende Ecke unter der Maus - dieselben Ecken, die ein Tupfer dort trifft (modellTupfer)
+    const ModellAnsicht& a = t.ansichten[ansicht];
+    const auto& h = haut();
+    int bestTeil = -1;
+    int bestEcke = -1;
+    float bd = t.pinselRadius;
+    for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
+        if (!gezeichnet(i)) { continue; }
+        for (std::size_t k = 0; k < h[i].size(); ++k) {
+            ImVec2 sp;
+            if (!aufSchirm(a, h[i][k].data(), sp)) { continue; }
+            const float d = std::hypot(sp.x - maus.x, sp.y - maus.y);
+            if (d >= bd || !zurKamera(a, t.anzeige.surfaces[i].verts[k], h[i][k].data())) { continue; }
+            bd = d;
+            bestTeil = static_cast<int>(i);
+            bestEcke = static_cast<int>(k);
+        }
+    }
+    const modell::Inhalt& in = t.dok.inhalt();
+    if (bestTeil < 0 || static_cast<std::size_t>(bestTeil) >= in.teile.size() ||
+        static_cast<std::size_t>(t.lodJetzt) >= in.teile[static_cast<std::size_t>(bestTeil)].stufen.size()) {
+        return false;
+    }
+    t.pinselGewicht = modell::gewichtVon(in.teile[static_cast<std::size_t>(bestTeil)].stufen[static_cast<std::size_t>(t.lodJetzt)], bestEcke, t.knochenWahl);
+    char z[160];
+    std::snprintf(z, sizeof z, tr(Str::MrGwAufgenommen), static_cast<double>(t.pinselGewicht));
+    t.meldung = z;
+    return true;
+}
+
+// MRESTE: das Ziehen von F / Umschalt+F / Strg+F (wm.radial_control) folgt der Maus in jedem Bild - auch wenn der Klick,
+// der es beendet, den Tasten des Model-Tabs nicht gilt (die Ansicht ruft es auf); Klick uebernimmt, Rechtsklick bricht ab.
+static void gewichtRadialSchritt() {
+    ModellTab& t = mt();
+    if (t.gwModal == 0) { return; }
+    const ImGuiIO& io = ImGui::GetIO();
+    const float dx = io.MousePos.x - t.gwModalStart;
+    float* ziel = t.gwModal == 1 ? &t.pinselRadius : t.gwModal == 2 ? &t.pinselStaerke : &t.pinselGewicht;
+    if (t.gwModal == 1) {
+        *ziel = std::clamp(t.gwModalWert + dx, 2.0F, 400.0F);   // die Grenzen des Reglers im Rollout
+    } else {
+        *ziel = std::clamp(t.gwModalWert + dx / 200.0F, 0.0F, 1.0F);
+    }
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        *ziel = t.gwModalWert;
+        t.gwModal = 0;
+        t.gwModalEnde = ImGui::GetFrameCount();
+    } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        t.gwModal = 0;
+        t.gwModalEnde = ImGui::GetFrameCount();
+    }
+    g_app->modelDirty = true;
+}
+
+// MRESTE: die Tasten im Bereich Weights wie Blender (km_weight_paint): Umschalt+X Gewicht aufnehmen, Strg+X Gewicht auf
+// die Auswahl (paint.weight_set), F / Umschalt+F / Strg+F Radius / Staerke / Gewicht ziehen (wm.radial_control). 3ds Max
+// hat im Skin-Modifier keine eigenen Tasten dafuer (Weight Tool, Festwerte im Rollout).
+bool modellGewichteTasten() {
+    ModellTab& t = mt();
+    if (!gewichtsAnsicht() || !modellBlender() || ImGui::GetIO().WantTextInput) { return false; }
+    const ImGuiIO& io = ImGui::GetIO();
+    if (t.gwModal != 0) {   // Esc / Enter; die Maus folgt in gewichtRadialSchritt (die Ansicht)
+        float* ziel = t.gwModal == 1 ? &t.pinselRadius : t.gwModal == 2 ? &t.pinselStaerke : &t.pinselGewicht;
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+            *ziel = t.gwModalWert;
+            t.gwModal = 0;
+            t.gwModalEnde = ImGui::GetFrameCount();
+        } else if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)) {
+            t.gwModal = 0;
+            t.gwModalEnde = ImGui::GetFrameCount();
+        }
+        return true;
+    }
+    const auto radial = [&](int art, float wert) {
+        t.gwModal = art;
+        t.gwModalStart = io.MousePos.x;
+        t.gwModalWert = wert;
+        t.meldung = tr(Str::MrRadialHinweis);
+    };
+    const auto zaehlen = [&](Str text) {
+        ++t.tastenZaehler;
+        t.letzteTaste = tr(text);
+        g_app->modelDirty = true;
+        return true;
+    };
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_X)) {
+        (void)modellGewichtAufnehmen(t.aktiv, io.MousePos);
+        return zaehlen(Str::MrGwAufnehmen);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_X)) {
+        (void)modellAufAuswahlSetzen();
+        return zaehlen(Str::MbGwAufAuswahl);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiKey_F)) {
+        radial(1, t.pinselRadius);
+        return zaehlen(Str::MbGwRadius);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_F)) {
+        radial(2, t.pinselStaerke);
+        return zaehlen(Str::MbGwStaerke);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) {
+        radial(3, t.pinselGewicht);
+        return zaehlen(Str::MbGwGewicht);
+    }
+    return false;
+}
 
 bool modellUebernehmen() {
     ModellTab& t = mt();
@@ -1841,7 +1969,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     // mb1a2: G/R/S wie Blender laufen ueber die Maus, bis Klick/Enter/Esc (modellModalTasten)
     if (t.modal.art != 0 && t.modal.ansicht == n) { modalAnwenden(); }
     // mb1a2: im Bereich Weights malt die linke Taste mit dem Pinsel (ein Strich = ein Rueckgaengig-Schritt)
-    const bool gewMalen = gewichtsAnsicht() && t.modal.art == 0;
+    if (t.aktiv == n) { gewichtRadialSchritt(); }   // MRESTE: F / Umschalt+F / Strg+F
+    const bool gewMalen = gewichtsAnsicht() && t.modal.art == 0 && t.gwModal == 0 && t.gwModalEnde != ImGui::GetFrameCount();
     // Modell-Block 1c: im Bereich Painting malt die linke Taste auf das Bild (ein Strich = ein Rueckgaengig-Schritt in Kacheln)
     const bool texMalen = modellMalenAktiv() && t.modal.art == 0 && !modellMalenModal();
     if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
@@ -1852,7 +1981,11 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     }
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && !mt().malen.strich2d) { modellMalenEnde(); }
     const bool malen = gewMalen || texMalen;
-    if (gewMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+    if (gewMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt && t.gwAufnehmenKlick) {
+        t.gwAufnehmenKlick = false;
+        (void)modellGewichtAufnehmen(n, io.MousePos);
+        t.aktiv = n;
+    } else if (gewMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
         (void)modellTupfer(n, io.MousePos, true);
     } else if (gewMalen && t.malStrich && t.aktiv == n && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         // Blender: ein neuer Tupfer nach einem Zehntel des Radius Weg (Pinsel "Spacing" 10 %)

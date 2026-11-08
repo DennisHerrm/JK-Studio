@@ -272,6 +272,13 @@ std::vector<Schritt> modellSchritte() {
     werkzeug(s, st, Str::MdInset, oben, [] { mz().betrag = 8.0F; mz().art = 0; }, "12/20/10");
     werkzeug(s, st, Str::MdBevel, oben, [] { mz().hoehe = 8.0F; mz().betrag = -8.0F; mz().art = 0; }, "12/20/10");
     werkzeug(s, st, Str::MdChamfer, kante(32, 32, 0, 32, 32, 64), [] { mz().betrag = 4.0F; }, "10/15/7");
+    // MRESTE Punkt 3: Chamfer mit 3 Segmenten (Max Segments, Blender Segments) - zwei Bogenpunkte je Ende, drei Vierecke
+    werkzeug(s, st, Str::MdChamfer, kante(32, 32, 0, 32, 32, 64), [] {
+        mz().betrag = 4.0F;
+        mz().segmente = 3;
+        mz().profil = 0.5F;
+    }, "14/21/9");
+    s.push_back(tu("MD: Segmente wieder 1", [] { mz().segmente = 1; }));
     werkzeug(s, st, Str::MdChamferPunkt, [] { waehle(w::PAuswahl{{punktBei(32, 32, 64)}, {}, {}}, AuswahlArt::Ecke); }, [] { mz().betrag = 8.0F; }, "10/15/7");
     werkzeug(s, st, Str::MdConnect,
              [] {

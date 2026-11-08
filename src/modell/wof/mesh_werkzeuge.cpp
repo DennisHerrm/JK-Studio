@@ -41,6 +41,7 @@
 #include "mesh_intern.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -611,8 +612,162 @@ Plan bevel(PolyNetz& n, const std::vector<int>& flaechen, ExtrudeArt art, float 
 
 namespace {
 
+// MRESTE Punkt 3: Chamfer mit Segmenten (3ds Max Chamfer "Segments"/"Tension", Blender Bevel "Segments"/"Shape"). Jeder
+// Streifen [X1, X2, Y2, Y1] wird in `segmente` Vierecke geteilt; auf jeder Endkante X1-X2 (am alten Punkt v) liegen die
+// Bogenpunkte wie Blenders Profil (bmesh_bevel.cc: Superellipse x^r + y^r = 1 im Einheitsquadrat, (0,1) -> X1, (1,0) -> X2,
+// (1,1) -> v; r = -2 ln 2 / ln(profil), profil 0,5 = Kreis). Mit X = v + a d (a = Betrag) ist jeder Bogenpunkt
+// v + a ((1 - x) d1 + (1 - y) d2): linear im Betrag wie alle Bewegungen des Plans. Die Punkte stehen bei gleichen
+// Parameterwinkeln (x = cos^(2/r), y = sin^(2/r)); beim Kreis sind das Blenders gleiche Winkel.
+// Jede andere Flaeche mit der Endkante (Endflaeche, Flicken, der Nachbarstreifen) bekommt dieselben Bogenpunkte.
+void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil) {
+    profil = std::clamp(profil, 0.01F, 0.99F);
+    const double r = -2.0 * std::log(2.0) / std::log(static_cast<double>(profil));
+    std::unordered_map<int, std::size_t> bewVon;
+    for (std::size_t i = 0; i < p.bewegungen.size(); ++i) { bewVon[p.bewegungen[i].punkt] = i; }
+    std::map<std::pair<int, int>, std::vector<int>> boegen;   // (A, B) mit A < B -> Punkte von A nach B ohne A und B
+    const auto bogen = [&](int a, int b) {   // A, Bogen ..., B
+        const bool vorwaerts = a < b;
+        const std::pair<int, int> k = vorwaerts ? std::pair<int, int>{a, b} : std::pair<int, int>{b, a};
+        auto it = boegen.find(k);
+        if (it == boegen.end()) {
+            std::vector<int> neu;
+            const auto ia = bewVon.find(k.first);
+            const auto ib = bewVon.find(k.second);
+            if (ia != bewVon.end() && ib != bewVon.end()) {
+                const Bewegung ba = p.bewegungen[ia->second];
+                const Bewegung bb = p.bewegungen[ib->second];
+                const V v = vAus(ba.basis);
+                if (laenge(v - vAus(bb.basis)) < 1e-4) {   // beide vom selben alten Punkt
+                    const V d1 = vAus(ba.richtung);
+                    const V d2 = vAus(bb.richtung);
+                    for (int s = 1; s < segmente; ++s) {
+                        const double th = kPi * 0.5 * (1.0 - static_cast<double>(s) / static_cast<double>(segmente));
+                        const double x = std::pow(std::max(std::cos(th), 0.0), 2.0 / r);
+                        const double y = std::pow(std::max(std::sin(th), 0.0), 2.0 / r);
+                        const int q = neuerPunkt(n, v, n.punkte[uz(k.first)].teil);
+                        Bewegung m;
+                        m.punkt = q;
+                        vNach(v, m.basis);
+                        vNach(d1 * (1.0 - x) + d2 * (1.0 - y), m.richtung);
+                        p.bewegungen.push_back(m);
+                        bewVon[q] = p.bewegungen.size() - 1U;
+                        neu.push_back(q);
+                    }
+                }
+            }
+            it = boegen.emplace(k, std::move(neu)).first;
+        }
+        std::vector<int> folge{a};
+        if (vorwaerts) {
+            folge.insert(folge.end(), it->second.begin(), it->second.end());
+        } else {
+            folge.insert(folge.end(), it->second.rbegin(), it->second.rend());
+        }
+        folge.push_back(b);
+        return folge;
+    };
+    // die Streifen in Vierecke
+    std::vector<int> neueAuswahl;
+    std::set<int> streifenNeu;
+    for (const int f : p.auswahl.flaechen) {
+        const PFlaeche alt = n.flaechen[uz(f)];
+        if (alt.ecken.size() != 4U) {
+            neueAuswahl.push_back(f);
+            streifenNeu.insert(f);
+            continue;
+        }
+        const std::vector<int> oben = bogen(alt.ecken[0].punkt, alt.ecken[1].punkt);    // X1 .. X2
+        const std::vector<int> unten = bogen(alt.ecken[3].punkt, alt.ecken[2].punkt);   // Y1 .. Y2
+        if (oben.size() != unten.size() || oben.size() < 3U) {
+            neueAuswahl.push_back(f);
+            streifenNeu.insert(f);
+            continue;
+        }
+        n.flaechen[uz(f)].weg = true;
+        const int k = zi(oben.size()) - 1;
+        const auto ecke = [k](const PEcke& c0, const PEcke& c1, int punktNr, int i) {
+            PEcke e;
+            e.punkt = punktNr;
+            e.e = mischen(c0.e, c1.e, static_cast<double>(i) / static_cast<double>(k));
+            return e;
+        };
+        for (int s = 0; s < k; ++s) {
+            std::vector<PEcke> q = {ecke(alt.ecken[0], alt.ecken[1], oben[uz(s)], s), ecke(alt.ecken[0], alt.ecken[1], oben[uz(s + 1)], s + 1),
+                                    ecke(alt.ecken[3], alt.ecken[2], unten[uz(s + 1)], s + 1), ecke(alt.ecken[3], alt.ecken[2], unten[uz(s)], s)};
+            const int nf = neueFlaeche(n, std::move(q), alt.teil);
+            neueAuswahl.push_back(nf);
+            streifenNeu.insert(nf);
+        }
+        p.geaendert += k - 1;
+    }
+    p.auswahl.flaechen = neueAuswahl;
+    // die Bogenpunkte in jede andere Flaeche mit einer Endkante; ihre UV wandert mit denselben Anteilen wie der Ort
+    std::map<std::pair<int, int>, UvBewegung> uvVon;   // (Flaeche, Punkt)
+    for (const UvBewegung& u : p.uvBewegungen) { uvVon[{u.flaeche, u.punkt}] = u; }
+    std::vector<UvBewegung> uvNeu;
+    for (std::size_t fi = 0; fi < n.flaechen.size(); ++fi) {
+        PFlaeche& f = n.flaechen[fi];
+        if (f.weg || streifenNeu.count(zi(fi)) != 0U) { continue; }
+        std::vector<PEcke> neu;
+        bool anders = false;
+        const std::size_t ke = f.ecken.size();
+        for (std::size_t i = 0; i < ke; ++i) {
+            const PEcke c = f.ecken[i];
+            const PEcke d = f.ecken[(i + 1) % ke];
+            neu.push_back(c);
+            const std::pair<int, int> key = c.punkt < d.punkt ? std::pair<int, int>{c.punkt, d.punkt} : std::pair<int, int>{d.punkt, c.punkt};
+            const auto it = boegen.find(key);
+            if (it == boegen.end() || it->second.empty()) { continue; }
+            const std::vector<int> folge = bogen(c.punkt, d.punkt);
+            const auto uc = uvVon.find({zi(fi), c.punkt});
+            const auto ud = uvVon.find({zi(fi), d.punkt});
+            for (std::size_t j = 1; j + 1 < folge.size(); ++j) {
+                PEcke e;
+                e.punkt = folge[j];
+                e.e = mischen(c.e, d.e, static_cast<double>(j) / static_cast<double>(folge.size() - 1U));
+                if (uc != uvVon.end() && ud != uvVon.end()) {
+                    // die Richtung des Punkts als s1 r1 + s2 r2 der Richtungen der Enden (kleinste Quadrate), die UV ebenso
+                    const V r1 = vAus(p.bewegungen[bewVon[c.punkt]].richtung);
+                    const V r2 = vAus(p.bewegungen[bewVon[d.punkt]].richtung);
+                    const V rq = vAus(p.bewegungen[bewVon[folge[j]]].richtung);
+                    const double a11 = punkt(r1, r1);
+                    const double a12 = punkt(r1, r2);
+                    const double a22 = punkt(r2, r2);
+                    const double det = a11 * a22 - a12 * a12;
+                    double s1 = 0.5;
+                    double s2 = 0.5;
+                    if (std::fabs(det) > 1e-12) {
+                        s1 = (punkt(rq, r1) * a22 - punkt(rq, r2) * a12) / det;
+                        s2 = (punkt(rq, r2) * a11 - punkt(rq, r1) * a12) / det;
+                    }
+                    UvBewegung u;
+                    u.flaeche = zi(fi);
+                    u.punkt = folge[j];
+                    for (int z = 0; z < 2; ++z) {
+                        u.basis[z] = uc->second.basis[z];
+                        u.richtung[z] = static_cast<float>(s1 * static_cast<double>(uc->second.richtung[z]) + s2 * static_cast<double>(ud->second.richtung[z]));
+                        e.e.uv[z] = u.basis[z];
+                    }
+                    uvNeu.push_back(u);
+                }
+                neu.push_back(e);
+                anders = true;
+            }
+        }
+        if (!anders) { continue; }
+        f.ecken = std::move(neu);
+        flaecheGeaendert(f);
+        n.beruehren(f.teil);
+    }
+    for (UvBewegung& u : uvNeu) {
+        u.ecke = eckeMit(n.flaechen[uz(u.flaeche)], u.punkt);
+        p.uvBewegungen.push_back(u);
+    }
+    n.kantenBauen();
+}
+
 // Kern von Chamfer an Kanten und Punkten (WL PlanChamferEdges/PlanChamferVertices)
-Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std::pair<int, int>>& gewaehlt, bool kantenModus) {
+Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std::pair<int, int>>& gewaehlt, bool kantenModus, int segmente, float profil) {
     Plan p;
     const auto istGewaehlt = [&](int a, int b) { return gewaehlt.count(kantenPaar(a, b)) != 0U; };
     // je beruehrtem Punkt: ein Punkt auf jeder ungewaehlten Kante, ein Gehrungspunkt je Vieleck mit zwei gewaehlten
@@ -852,6 +1007,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             for (const int q : rp) { p.auswahl.punkte.push_back(q); }
         }
     }
+    if (kantenModus && segmente > 1) { segmentieren(n, p, segmente, profil); }
     p.betragMin = 0.0F;
     betragGrenzen(n, p);
     fertig(n, p);
@@ -860,7 +1016,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
 
 }  // namespace
 
-Plan chamferKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten) {
+Plan chamferKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten, int segmente, float profil) {
     Plan p;
     n.kantenBauen();
     std::set<std::pair<int, int>> g;
@@ -880,7 +1036,7 @@ Plan chamferKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten) 
         p.grund = Ablehnung::LeereAuswahl;
         return p;
     }
-    return chamferKern(n, b, g, true);
+    return chamferKern(n, b, g, true, std::clamp(segmente, 1, 64), profil);
 }
 
 Plan chamferPunkte(PolyNetz& n, const std::vector<int>& punkte) {
@@ -894,7 +1050,7 @@ Plan chamferPunkte(PolyNetz& n, const std::vector<int>& punkte) {
         p.grund = Ablehnung::LeereAuswahl;
         return p;
     }
-    return chamferKern(n, b, {}, false);
+    return chamferKern(n, b, {}, false, 1, 0.5F);
 }
 
 // --- Connect, Loop Cut, Cut ---------------------------------------------------------------------------------------

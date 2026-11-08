@@ -2304,6 +2304,8 @@ from i18n_pfix import zeilen_vier as _pfix  # noqa: E402  (pfix: Funde der Code-
 S += _pfix()
 from i18n_rest import zeilen_vier as _rest  # noqa: E402  (REST: Fehler der Modell-Bibliothek, N6)
 S += _rest()
+from i18n_mreste import zeilen_vier as _mreste  # noqa: E402  (MRESTE: Reste des Modell-Blocks vor rc611)
+S += _mreste()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

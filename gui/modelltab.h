@@ -241,6 +241,7 @@ struct ModellUv {
     bool hover = false;           // die Maus ist ueber dem Editor
     bool kontextOeffnen = false;
     bool menueOeffnen = false;    // Blender U: das Abwickeln-Menue
+    bool ausrichtenOeffnen = false;   // MRESTE: Blender Umschalt+W, das Menue Ausrichten
     // Selbsttest / Handbuch
     int dreieckeGezeichnet = 0;
     int nahtStriche3d = 0;        // Naht-Striche in der 3D-Ansicht im letzten Bild
@@ -303,6 +304,7 @@ struct ModellMesh {
     float betrag = 0.0F;
     int art = 0;                      // Extrude/Inset/Bevel: Art; Detach: 0 Element 1 neuer Teil; Merge: Art
     int segmente = 1;
+    float profil = 0.5F;              // MRESTE: Chamfer Max Tension / Blender Shape (0,5 Kreis)
     float hoehe = 8.0F;               // Bevel
     float schwelle = 0.0F;            // Weld (0: Vorgabe)
     int verdrehen = 0;                // Bridge
@@ -430,6 +432,14 @@ struct ModellTab {
     int spiegelStand = -1;        // dok.stand, fuer den die Karte gilt
     int tupferZahl = 0;           // Selbsttest
     int gemalteEcken = 0;         // Selbsttest: Ecken des letzten Tupfers
+    // MRESTE: wie Blender (km_weight_paint) - Strg malt umgekehrt, Umschalt glaettet (fuer den ganzen Strich), F/Umschalt+F/
+    // Strg+F ziehen Radius, Staerke, Gewicht (wm.radial_control: Klick/Enter uebernimmt, Esc/Rechtsklick bricht ab)
+    int strichArt = 0;            // modell::PinselArt des laufenden Strichs
+    int gwModal = 0;              // 0 aus, 1 Radius, 2 Staerke, 3 Gewicht
+    float gwModalStart = 0.0F;    // Maus x beim Start
+    float gwModalWert = 0.0F;     // Wert beim Start (Esc stellt ihn wieder her)
+    int gwModalEnde = -1;         // das Bild, in dem ein Klick das Ziehen beendet hat (malt dann nicht)
+    bool gwAufnehmenKlick = false;   // "Gewicht aufnehmen" aus Menue/Suche: der naechste Klick in die Ansicht nimmt auf
     // --- mb1a2: Unterobjekte, Blender ---------------------------------------------------------------------
     AuswahlArt auswahlArt = AuswahlArt::Objekt;
     AuswahlArt editArt = AuswahlArt::Ecke;   // Tab kehrt zu ihr zurueck
@@ -718,6 +728,8 @@ void drawModellGewichte();
 [[nodiscard]] ImGuiKeyChord modellBlenderTasteChord(int i);
 [[nodiscard]] const char* modellBlenderTasteText(int i);
 bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich);
+bool modellGewichtAufnehmen(int ansicht, ImVec2 maus);   // MRESTE: Blender Umschalt+X (paint.weight_sample)
+bool modellGewichteTasten();                              // MRESTE: Tasten im Bereich Weights wie Blender
 void modellStrichEnde();
 bool modellUebernehmen();
 int modellAufAuswahlSetzen();

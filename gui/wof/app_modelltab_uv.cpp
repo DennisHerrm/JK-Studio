@@ -405,7 +405,7 @@ const std::vector<UvAktion>& aktionen() {
          },
          {}, 0},
         // Naehte (WF uv.md: C, Umschalt+C; die Tabellen haben fuer den UV-Editor keine)
-        {Str::UvNahtMarkieren, Str::UvNahtMarkierenHint, "C", "", ImGuiKey_C, 0, "WF guide/markdown/uv.md",
+        {Str::UvNahtMarkieren, Str::UvNahtMarkierenHint, "C", "Ctrl+E", ImGuiKey_C, ImGuiMod_Ctrl | ImGuiKey_E, "WF guide/markdown/uv.md | blender_default.py km_uv_editor uv.mark_seam",
          [] { (void)befehl(Str::UvNahtMarkieren, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlNaehte(n, a, true, k); }); }, {}, 1},
         {Str::UvNahtLoeschen, Str::UvNahtLoeschenHint, "Shift+C", "", ImGuiMod_Shift | ImGuiKey_C, 0, "WF guide/markdown/uv.md",
          [] { (void)befehl(Str::UvNahtLoeschen, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlNaehte(n, a, false, k); }); }, {}, 1},
@@ -434,7 +434,7 @@ const std::vector<UvAktion>& aktionen() {
          [] { (void)befehl(Str::UvProjKugel, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlProjizieren(n, a, Form::Kugel, uvz().projAchse, k); }); }, {}, 2},
         {Str::UvEntspannen, Str::UvEntspannenHint, "Shift+U", "", ImGuiMod_Shift | ImGuiKey_U, 0, "WF guide/markdown/uv.md",
          [] { (void)befehl(Str::UvEntspannen, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlEntspannen(n, a, 10); }); }, {}, 2},
-        {Str::UvPin, Str::UvPinHint, "P", "", ImGuiKey_P, 0, "WF guide/markdown/uv.md",
+        {Str::UvPin, Str::UvPinHint, "P", "P", ImGuiKey_P, ImGuiKey_P, "WF guide/markdown/uv.md | blender_default.py km_uv_editor uv.pin",
          [] { (void)befehl(Str::UvPin, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlPin(n, a); }); }, {}, 2},
         {Str::UvPinsLoesen, Str::UvPinsLoesenHint, "", "", 0, 0, "",
          [] { (void)befehl(Str::UvPinsLoesen, [](w::UvNetz& n, const w::UvAuswahl&, const w::UvKontext&) { return w::befehlAllePinsLoesen(n); }); }, {}, 2},
@@ -442,6 +442,11 @@ const std::vector<UvAktion>& aktionen() {
          [] { (void)befehl(Str::UvBegradigen, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlBegradigen(n, a); }); }, {}, 2},
         {Str::UvRechteck, Str::UvRechteckHint, "", "", 0, 0, "",
          [] { (void)befehl(Str::UvRechteck, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlRechteck(n, a); }); }, {}, 2},
+        // MRESTE: Blender Umschalt+W (blender_default.py km_uv_editor op_menu IMAGE_MT_uvs_align): das Menue Ausrichten mit
+        // Begradigen und Ausrichten. Ohne Blender-Taste (Blender 5.0 nur im Menue UV; Strg+V/P/A nur in der Legacy-Belegung):
+        // Entspannen, Stapeln, Dichte, Sperren, Packen, Raster, Einpassen (Blender Pos1 view_all gilt im Bild, nicht im UV-Werkzeug)
+        {Str::MrUvAusrichten, Str::MrUvAusrichtenHint, "", "Shift+W", 0, ImGuiMod_Shift | ImGuiKey_W, "blender_default.py km_uv_editor IMAGE_MT_uvs_align",
+         [] { uvz().ausrichtenOeffnen = true; }, {}, 3},
         // Anordnen (WF Umschalt+S, D, Strg+L, Umschalt+P)
         {Str::UvStapeln, Str::UvStapelnHint, "Shift+S", "", ImGuiMod_Shift | ImGuiKey_S, 0, "WF guide/markdown/uv.md",
          [] { (void)befehl(Str::UvStapeln, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlStapelnGespiegelt(n, a, k); }); }, {}, 3},
@@ -627,6 +632,20 @@ void drawModellUvPopups() {
     }
     if (ImGui::BeginPopup("###uvkontext")) {
         alsMenue(-1);
+        ImGui::EndPopup();
+    }
+    // MRESTE: Blender Umschalt+W - Begradigen und Ausrichten (IMAGE_MT_uvs_align)
+    if (u.ausrichtenOeffnen) {
+        ImGui::OpenPopup("###uvausrichten");
+        u.ausrichtenOeffnen = false;
+    }
+    if (ImGui::BeginPopup("###uvausrichten")) {
+        ImGui::TextDisabled("%s", tr(Str::MrUvAusrichten));
+        for (const UvAktion& a : aktionen()) {
+            if (a.text != Str::UvBegradigen && a.text != Str::UvAusrichten) { continue; }
+            if (ImGui::MenuItem(tr(a.text))) { ausloesen(a); }
+            ImGui::SetItemTooltip("%s", tooltip(a).c_str());
+        }
         ImGui::EndPopup();
     }
 }

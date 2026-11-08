@@ -390,7 +390,7 @@ void drawModellGewichte() {
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("%s", tr(Str::MbGwUebernehmenHint));
     }
-    cjkTextDisabled("%s", tr(blender ? Str::MbGwTastenBlender : Str::MbGwTastenMax));
+    cjkTextDisabled("%s", tr(blender ? Str::MrGwTastenBlender : Str::MbGwTastenMax));   // MRESTE: Blender-Tasten km_weight_paint
     ImGui::PopTextWrapPos();
 }
 

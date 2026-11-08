@@ -276,6 +276,61 @@ void chamferTest() {
         expect("Chamfer alle zwoelf Kanten: 24/48/26, Grenze 0,5 (WL: der Wuerfel stoppt bei 0,5)",
                !p.abgelehnt() && std::abs(p.betragMax - 0.5F) < 1e-4F && netzIst(n, 24, 48, 26, 0));
     }
+    // MRESTE Punkt 3: Segmente und Profil (3ds Max Chamfer Segments/Tension, Blender Bevel Segments/Shape)
+    {
+        PolyNetz n = kasten();
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.5F, 0.5F, 0.0F, 0.5F, 0.5F, 1.0F)}, 3, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        // die Bogenpunkte unten (z = 0) liegen auf dem Kreis mit Radius 0,2 um (0,3 / 0,3), der beide Seiten beruehrt
+        int aufKreis = 0;
+        for (const PPunkt& q : n.punkte) {
+            if (q.weg || std::abs(q.ort[2]) > 1e-4F || q.ort[0] < 0.29F || q.ort[1] < 0.29F) { continue; }
+            if (std::abs(std::hypot(q.ort[0] - 0.3F, q.ort[1] - 0.3F) - 0.2F) < 1e-4F) { ++aufKreis; }
+        }
+        expect("Chamfer eine Kante, 3 Segmente, Profil 0,5: 14/21/9, 3 Vierecke gewaehlt, unten 4 Punkte auf dem Kreis (r = Betrag)",
+               !p.abgelehnt() && p.auswahl.flaechen.size() == 3U && netzIst(n, 14, 21, 9, 0) && aufKreis == 4);
+    }
+    {
+        PolyNetz n = kasten();
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.5F, 0.5F, 0.0F, 0.5F, 0.5F, 1.0F)}, 2, 0.25F);
+        betragAnwenden(n, p, 0.2F);
+        // Profil 0,25 (r = 1): der Bogenpunkt liegt auf der Geraden zwischen den Enden (0,3 / 0,5) und (0,5 / 0,3)
+        bool gerade = false;
+        for (const PPunkt& q : n.punkte) {
+            if (!q.weg && std::abs(q.ort[2]) < 1e-4F && std::abs(q.ort[0] - 0.4F) < 1e-4F && std::abs(q.ort[1] - 0.4F) < 1e-4F) { gerade = true; }
+        }
+        expect("Chamfer 2 Segmente, Profil 0,25: 12/18/8, der Bogenpunkt auf der Geraden (0,4 / 0,4)", !p.abgelehnt() && netzIst(n, 12, 18, 8, 0) && gerade);
+    }
+    {
+        PolyNetz n = kasten();
+        std::vector<std::pair<int, int>> deckel;
+        for (const PKante& k : n.kanten) {
+            if (std::abs(n.punkte[static_cast<std::size_t>(k.a)].ort[2] - 1.0F) < 1e-4F && std::abs(n.punkte[static_cast<std::size_t>(k.b)].ort[2] - 1.0F) < 1e-4F) {
+                deckel.emplace_back(k.a, k.b);
+            }
+        }
+        Plan p1 = chamferKanten(n, deckel, 1, 0.5F);
+        PolyNetz m = kasten();
+        std::vector<std::pair<int, int>> deckel2;
+        for (const PKante& k : m.kanten) {
+            if (std::abs(m.punkte[static_cast<std::size_t>(k.a)].ort[2] - 1.0F) < 1e-4F && std::abs(m.punkte[static_cast<std::size_t>(k.b)].ort[2] - 1.0F) < 1e-4F) {
+                deckel2.emplace_back(k.a, k.b);
+            }
+        }
+        Plan p2 = chamferKanten(m, deckel2, 2, 0.5F);
+        betragAnwenden(n, p1, 0.1F);
+        betragAnwenden(m, p2, 0.1F);
+        expect("Chamfer der vier Deckelkanten: 1 Segment 12/20/10, 2 Segmente 16/28/14 (Nachbarstreifen teilen die Bogenpunkte)",
+               !p1.abgelehnt() && !p2.abgelehnt() && netzIst(n, 12, 20, 10, 0) && netzIst(m, 16, 28, 14, 0) && p2.auswahl.flaechen.size() == 8U);
+    }
+    {
+        PolyNetz n = kasten();
+        std::vector<std::pair<int, int>> alle;
+        for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+        Plan p = chamferKanten(n, alle, 2, 0.5F);
+        betragAnwenden(n, p, 0.1F);
+        expect("Chamfer alle zwoelf Kanten, 2 Segmente: 48/84/38, Grenze 0,5", !p.abgelehnt() && std::abs(p.betragMax - 0.5F) < 1e-4F && netzIst(n, 48, 84, 38, 0));
+    }
     {
         PolyNetz n = kasten();
         Plan p = chamferPunkte(n, {punktBei(n, 0.5F, 0.5F, 1.0F)});

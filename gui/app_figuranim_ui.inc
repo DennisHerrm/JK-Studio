@@ -785,7 +785,7 @@ void drawPhysik(const FigurDaten& d) {
     if (d.physik.warnungen > 0) {
         float weit = 0.0F;
         for (const modell::PhysikBild& pb : d.physik.bilder) { weit = std::max(weit, pb.abstand); }
-        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::PhWarnung, d.physik.warnBild, d.physik.warnungen, static_cast<double>(weit)).c_str());
+        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::PhWarnung, d.physik.warnBild + (modellBlender() ? 1 : 0), d.physik.warnungen, static_cast<double>(weit)).c_str());
     }
     if (e.an && e.sprung && !d.physik.fluege.empty()) {
         ImGui::TextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(d.physik.parabelAbw), static_cast<double>(d.physik.drehimpulsVorher * 100.0F),

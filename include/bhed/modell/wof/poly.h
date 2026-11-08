@@ -213,7 +213,9 @@ enum class InsetArt : std::uint8_t { Gruppe = 0, JeVieleck };
 [[nodiscard]] Plan inset(PolyNetz& n, const std::vector<int>& flaechen, InsetArt art);
 // Max Bevel: Extrude um `hoehe` (fest), der Betrag ist der Umriss (Outline: + weiter, - enger)
 [[nodiscard]] Plan bevel(PolyNetz& n, const std::vector<int>& flaechen, ExtrudeArt art, float hoehe);
-[[nodiscard]] Plan chamferKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten);
+// MRESTE: `segmente` Vierecke je Kante (Max Chamfer Segments, Blender Bevel Segments), `profil` die Form des Bogens
+// (Blender Shape / Max Tension: 0,5 Kreis, 0,25 gerade, gegen 1 eckig, darunter hohl)
+[[nodiscard]] Plan chamferKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten, int segmente = 1, float profil = 0.5F);
 [[nodiscard]] Plan chamferPunkte(PolyNetz& n, const std::vector<int>& punkte);
 // Connect an Kanten (`segmente` neue Punkte je Kante, Betrag = Slide in [-1, 1] entlang first -> second) und an Punkten
 [[nodiscard]] Plan connectKanten(PolyNetz& n, const std::vector<std::pair<int, int>>& kanten, int segmente);

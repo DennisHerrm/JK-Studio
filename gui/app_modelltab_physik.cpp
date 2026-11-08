@@ -62,6 +62,9 @@ void bereich(int& erstes, int& anzahl) {
     anzahl = std::min(anzahl, std::max(g_app->anim.bildZahl() - erstes, 0));
 }
 
+// MRESTE: Frames wie die Zeitleiste - wie 3ds Max ab 0 in der Sequenz, wie Blender ab 1 (vorbilder_max_blender.md)
+int abEins() { return modellBlender() ? 1 : 0; }
+
 int bildJetzt() { return std::clamp(g_app->animFrame, 0, std::max(g_app->anim.bildZahl() - 1, 0)); }
 
 modell::PhysikUmgebung umgebung() {
@@ -341,7 +344,7 @@ void drawModellPhysikBereich() {
     } else {
         // Bilder wie die Zeitleiste des Model-Tabs: ab dem ersten der Sequenz gezaehlt
         for (const auto& [a, l] : t.physik.fluege) {
-            cjkTextUnformatted((format(Str::PhFlug, a - t.physik.erstes, l - t.physik.erstes) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) +
+            cjkTextUnformatted((format(Str::PhFlug, a - t.physik.erstes + abEins(), l - t.physik.erstes + abEins()) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) +
                                     ")").c_str());
         }
     }
@@ -424,7 +427,7 @@ void drawModellPhysikBereich() {
         float weit = 0.0F;
         for (const modell::PhysikBild& pb : t.physik.bilder) { weit = std::max(weit, pb.abstand); }
         cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s",
-                           format(Str::PhWarnung, t.physik.warnBild - t.physik.erstes, t.physik.warnungen, static_cast<double>(weit)).c_str());
+                           format(Str::PhWarnung, t.physik.warnBild - t.physik.erstes + abEins(), t.physik.warnungen, static_cast<double>(weit)).c_str());
     } else if (std::any_of(t.physik.bilder.begin(), t.physik.bilder.end(), [](const modell::PhysikBild& pb) { return pb.imStand; })) {
         cjkTextDisabled("%s", tr(Str::PhImStand));
     }

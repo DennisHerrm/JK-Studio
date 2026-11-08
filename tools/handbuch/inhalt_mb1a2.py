@@ -5,6 +5,13 @@ Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt
 """
 
 X = {
+    "mr_blender": (
+        "In Blender mode the keys of Blender's weight paint apply: a stroke with Ctrl subtracts, with Shift it smooths; Shift+X samples the weight under the mouse (**{{MrGwAufnehmen}}**), Ctrl+X sets it on the selection; F, Shift+F and Ctrl+F drag radius, strength and weight - a click confirms, Esc or a right-click cancels.",
+        'Im Blender-Modus gelten die Tasten aus Blenders Weight Paint: ein Strich mit Strg zieht ab, mit Umschalt glättet er; Umschalt+X nimmt das Gewicht unter der Maus auf (**{{MrGwAufnehmen}}**), Strg+X setzt es auf die Auswahl; F, Umschalt+F und Strg+F ziehen Radius, Stärke und Gewicht - ein Klick übernimmt, Esc oder Rechtsklick bricht ab.',
+        '在 Blender 模式下适用 Blender 权重绘制的按键: 按住 Ctrl 绘制为减去, 按住 Shift 为平滑; Shift+X 采样鼠标下的权重 (**{{MrGwAufnehmen}}**), Ctrl+X 把它设置到所选; F、Shift+F 和 Ctrl+F 拖动半径、强度和权重——单击确认, Esc 或右键取消。',
+        'Blender 風では Blender のウェイトペイントのキーが使えます: Ctrl を押しながらのストロークは減算、Shift でスムーズ。Shift+X でマウスの下のウェイトを取得 (**{{MrGwAufnehmen}}**)、Ctrl+X で選択に設定。F、Shift+F、Ctrl+F で半径・強さ・ウェイトをドラッグし、クリックで確定、Esc か右クリックで取り消します。',
+        'En modo Blender valen las teclas del weight paint de Blender: un trazo con Ctrl resta, con Mayús suaviza; Mayús+X muestrea el peso bajo el ratón (**{{MrGwAufnehmen}}**), Ctrl+X lo aplica a la selección; F, Mayús+F y Ctrl+F arrastran radio, intensidad y peso: un clic confirma, Esc o clic derecho cancela.',
+        'V režimu Blender platí klávesy weight paint z Blenderu: tah s Ctrl odečítá, se Shift vyhlazuje; Shift+X odebere váhu pod myší (**{{MrGwAufnehmen}}**), Ctrl+X ji nastaví na výběr; F, Shift+F a Ctrl+F táhnou poloměr, sílu a váhu - klepnutí potvrdí, Esc nebo pravé tlačítko zruší.'),
     "w_titel": ("Model tab: Weights", "Model-Tab: Weights", "模型选项卡:权重", "モデルタブ: ウェイト", "Pestaña Model: Pesos", "Karta Model: Váhy"),
     "w_kurz": (
         "Paint the bone weights of a model while the animation runs - the pose shows at once what the game will do with them.",
@@ -244,6 +251,7 @@ def seiten():
             "bloecke": [
                 ("img", "h_mb2_weights", _t("w_bild"), "breit"),
                 ("p", _t("w_text")),
+                ("p", _t("mr_blender")),
                 ("h2", "spiel", _t("w_h_spiel")),
                 ("p", _t("w_spiel")),
                 ("img", "h_mb2_kontext", _t("w_bild_kontext")),

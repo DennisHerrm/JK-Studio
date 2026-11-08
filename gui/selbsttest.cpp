@@ -5792,6 +5792,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_md.inc"         // Modell-Block 1d: Modellieren, Requisite in die Karte (modellblock, BHED_MODELL_NUR=md|mdkarte)
 #include "selbsttest_pt.inc"         // Modell-Block 1c: Texture Painting (modellblock, BHED_MODELL_NUR=pt|ptspiel)
 #include "selbsttest_pfix.inc"       // pfix: Funde der Code-Pruefung Modell-Block (modellblock, BHED_MODELL_NUR=pfix|pfixkarte)
+#include "selbsttest_mr.inc"         // MRESTE: Blender-Modus in allen Stufen (modellblock, BHED_MODELL_NUR=blender)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -6770,6 +6771,7 @@ void selbsttest() {
                     for (Schritt& x : md1d::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1d
                     for (Schritt& x : pt1c::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // Modell-Block 1c
                     for (Schritt& x : pfix::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // pfix
+                    for (Schritt& x : mr::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // MRESTE
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

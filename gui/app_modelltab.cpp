@@ -1476,6 +1476,12 @@ const std::vector<ZusatzAktion>& zusatzAktionen() {
         {Str::MbGwGlaetten, Str::MbGwGlaettenHint, "", [] { weights(static_cast<int>(modell::PinselArt::Glaetten)); }, 0},
         {Str::MbGwSetzen, Str::MbGwSetzenHint, "", [] { weights(static_cast<int>(modell::PinselArt::Setzen)); }, 0},
         {Str::MbGwAufAuswahl, Str::MbGwAufAuswahlHint, "", [] { (void)modellAufAuswahlSetzen(); }, 0},
+        {Str::MrGwAufnehmen, Str::MrGwAufnehmenHint, "", [] {
+             weights(-1);
+             mt().gwAufnehmenKlick = true;   // der naechste Klick in die Ansicht nimmt auf (aus dem Menue steht die Maus nicht auf dem Modell)
+             mt().meldung = tr(Str::MrGwAufnehmenKlick);
+         },
+         0},
         {Str::MbGwSpiegelnPlus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(1); }, 0},
         {Str::MbGwSpiegelnMinus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(-1); }, 0},
         {Str::MbGwUebernehmen, Str::MbGwUebernehmenHint, "", [] { (void)modellUebernehmen(); }, 0},
@@ -1610,6 +1616,7 @@ bool modellTasten() {
     if (modellUvTasten()) { return true; }    // Modell-Block 1b: UV-Editor (Bereich UV)
     if (modellMeshTasten()) { return true; }  // Modell-Block 1d: Werkzeuge (Bereich Modellieren)
     if (modellMalenTasten()) { return true; } // Modell-Block 1c: Pinsel (Bereich Painting)
+    if (modellGewichteTasten()) { return true; }   // MRESTE: Bereich Weights wie Blender (km_weight_paint)
     if (modellBlender()) {
         for (const BlenderTaste& k : blenderTasten()) {
             if (ImGui::IsKeyChordPressed(k.chord)) {

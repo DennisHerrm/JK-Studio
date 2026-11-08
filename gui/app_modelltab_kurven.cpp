@@ -1936,7 +1936,17 @@ void drawModellKurvenBereich() {
     ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
     if (t.kvRedSpanne) {
         ImGui::SetNextItemWidth(-1.0F);
-        ImGui::DragIntRange2("##redspanne", &t.kvRedVon, &t.kvRedBis, 1.0F, 0, std::max(g_app->anim.bildZahl() - 1, 0), tr(Str::MbIkRedVon), tr(Str::MbIkRedBis));
+        // MRESTE: die Spanne in der Zaehlung der Zeitleiste (wie Max ab 0 in der Sequenz, wie Blender ab 1); intern GLA-Frames
+        int erstes = 0;
+        int anzahl = 0;
+        bereich(erstes, anzahl);
+        const int versatz = (modellBlender() ? 1 : 0) - erstes;
+        int von = t.kvRedVon + versatz;
+        int bis = t.kvRedBis + versatz;
+        if (ImGui::DragIntRange2("##redspanne", &von, &bis, 1.0F, versatz, std::max(g_app->anim.bildZahl() - 1, 0) + versatz, tr(Str::MbIkRedVon), tr(Str::MbIkRedBis))) {
+            t.kvRedVon = von - versatz;
+            t.kvRedBis = bis - versatz;
+        }
         ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
     }
     if (knopf(Str::MbKvAnimSpiegeln, Str::MbKvAnimSpiegelnHint, false)) { (void)animationSpiegeln(); }
