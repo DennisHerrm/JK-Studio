@@ -91,7 +91,28 @@ Build `Y:/karte/build-test` (`--parallel 8 -- /nodeReuse:false`), Laeufe `m2_*` 
 
 - Abgabe nach Punkt 4 wegen Kontext; die Blender-Stellen stehen in `NOTIZEN_ptfix3_0811.md` Abschnitt "Punkt 3".
 
-GRUEN_SCHLUSS
+## Schluss
+
+- Gruenlauf nach Punkt 1-4 (`m2_g1_*`, parallel): ctest 240/240, mission1 98/0, Modus 1 2635/0, menueeditor en 2787/0,
+  figurlicht 8/0, modellblock funktionen 61/0, pt 41/0, ptfix3 12/0, karteneditor rd 21/0, r3 22/0, Vorschaufotos p27e/p27g/p27f.
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen, 19 min 9 s; ctest 240/240; Lints wie die
+  Basis (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung bekannt, cjkumbruch 0, i18n_erzeugt ok); Handbuch
+  `--pruefen --pflicht=es --pflicht=cs` ok. Modus 1 und mission1 nicht noch einmal: der Quelltext ist derselbe wie im Gruenlauf
+  (der Rotzweig fuer p27f war nur zwischen Gruenlauf und Neubau abgeschaltet und ist bytegleich zurueck).
+- Keine Bildzeit-Messung (laut Auftrag). Spielordner unveraendert (spiel.py: "Spielordner MD gleich: True" in allen 4 Laeufen),
+  vor jedem Start keine fremde MovieDuels-/jasp-Instanz.
+
+## Offen
+
+- Punkt 5 Chamfer-Feinheiten (siehe oben).
+- Umgebung p27f: an den Chrom-Bildpunkten bleiben 9,5 von 255 Abweichung (Kanten, Glanzspitzen) - nicht weiter verfolgt.
+- Skalierte Figuren mit ungleichem Massstab je Achse (scaleX/Y/Z): die Normale im Raum der Entity ist R^T n (genau nur bei
+  gleichem Massstab); Ursprung und Massstab je Achse sind genau.
+- Detailstufe: nur der Koerper der Figur im Hauptbild; Anbauten (Griffe, Waffen), Fahrzeuge, Geschuetze und Bolzen/Tags bleiben
+  in Stufe 0. JK2: Spieler im AT-ST hat s.radius 320 (codeJK2 g_client.cpp:1466) - nicht nachgebildet.
+- JK2_MODE: RE_RegisterIndividualSkin streicht "_off" am Hautnamen nur ausserhalb von JK2_MODE (tr_skin.cpp:308-316) -
+  applySkin streicht immer; nicht Teil dieses Auftrags.
+- "Skin oeffnen" (openSkinFile) setzt die Flaechen vorher nicht zurueck (G2API_SetSkin leert mSlist) - Altbestand.
 
 ## Changelog
 
