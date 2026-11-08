@@ -702,6 +702,174 @@ void chamferTest() {
     }
 }
 
+// REST2 Punkt 1: Chamfer-Feinheiten wie Blender 5.0 bmesh_bevel.cc. Jede Flaeche des Kastens bekommt eine eigene affine UV
+// (Versatz 10 je Flaeche), damit jede Kante eine Naht ist (contig_ldata_across_edge falsch) und jede Flaeche eine eigene
+// UV-Insel (math_layer_info_init: die oberste Flaeche Insel 0, die unterste 1).
+struct UvFlaeche {
+    int achse = 0;          // Normale entlang dieser Achse
+    float ebene = 0.0F;     // Lage der Ebene
+    int a1 = 0, a2 = 0;     // die Achsen in der Ebene
+    float versatz = 0.0F;
+    std::vector<std::array<float, 3>> ecken;
+    [[nodiscard]] std::array<double, 2> uv(const std::array<double, 3>& p) const {
+        return {p[uz(a1)] + static_cast<double>(versatz), p[uz(a2)] * 0.5 + 0.25 * p[uz(a1)]};
+    }
+};
+std::vector<UvFlaeche> nahtUv(PolyNetz& n) {
+    std::vector<UvFlaeche> r;
+    for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+        PFlaeche& fl = n.flaechen[f];
+        UvFlaeche u;
+        for (int a = 0; a < 3; ++a) {
+            bool gleich = true;
+            for (const PEcke& e : fl.ecken) { gleich = gleich && std::abs(n.punkte[uz(e.punkt)].ort[a] - n.punkte[uz(fl.ecken[0].punkt)].ort[a]) < 1e-5F; }
+            if (gleich) { u.achse = a; }
+        }
+        u.ebene = n.punkte[uz(fl.ecken[0].punkt)].ort[u.achse];
+        u.a1 = (u.achse + 1) % 3;
+        u.a2 = (u.achse + 2) % 3;
+        u.versatz = 10.0F * static_cast<float>(f);
+        for (PEcke& e : fl.ecken) {
+            const float* o = n.punkte[uz(e.punkt)].ort;
+            u.ecken.push_back({o[0], o[1], o[2]});
+            const auto w = u.uv({o[0], o[1], o[2]});
+            e.e.uv[0] = static_cast<float>(w[0]);
+            e.e.uv[1] = static_cast<float>(w[1]);
+        }
+        r.push_back(u);
+    }
+    return r;
+}
+// Stammt die UV jeder Ecke der Flaeche aus EINER alten Flaeche X (BM_loop_interp_from_face: affine UV am Ort, oder am auf
+// eine alte Kante gezogenen Ort, closest_to_line_segment_v3; Blender zieht Ecken der Mitte auch auf Kanten, die nicht zu X
+// gehoeren, snap_edge_for_center_vmesh_vert)? Rueckgabe: X oder -1.
+int uvAusEiner(const PolyNetz& n, const PFlaeche& f, const std::vector<UvFlaeche>& alt) {
+    // je Ecke die Orte: der eigene und seine Fusspunkte auf allen alten Kanten
+    std::vector<std::vector<std::array<double, 3>>> orte;
+    for (const PEcke& e : f.ecken) {
+        const float* o = n.punkte[uz(e.punkt)].ort;
+        std::vector<std::array<double, 3>> liste = {{o[0], o[1], o[2]}};
+        for (const UvFlaeche& w : alt) {
+            for (std::size_t k = 0; k < w.ecken.size(); ++k) {
+                const auto& a = w.ecken[k];
+                const auto& b = w.ecken[(k + 1) % w.ecken.size()];
+                double d[3], dd = 0.0, t = 0.0;
+                for (int c = 0; c < 3; ++c) {
+                    d[c] = static_cast<double>(b[uz(c)]) - a[uz(c)];
+                    dd += d[c] * d[c];
+                    t += (static_cast<double>(o[c]) - a[uz(c)]) * d[c];
+                }
+                t = dd > 0.0 ? std::clamp(t / dd, 0.0, 1.0) : 0.0;
+                liste.push_back({a[0] + d[0] * t, a[1] + d[1] * t, a[2] + d[2] * t});
+            }
+        }
+        orte.push_back(liste);
+    }
+    for (std::size_t x = 0; x < alt.size(); ++x) {
+        bool alle = true;
+        for (std::size_t i = 0; i < f.ecken.size(); ++i) {
+            bool eine = false;
+            for (const auto& q : orte[i]) {
+                const auto uv = alt[x].uv(q);
+                eine = eine || (std::abs(uv[0] - f.ecken[i].e.uv[0]) < 1e-4 && std::abs(uv[1] - f.ecken[i].e.uv[1]) < 1e-4);
+            }
+            alle = alle && eine;
+        }
+        if (alle) { return static_cast<int>(x); }
+    }
+    return -1;
+}
+
+void chamferFeinTest() {
+    std::printf("Chamfer-Feinheiten (Blender bmesh_bevel.cc)\n");
+    // (c) build_boundary :3153: zwischen zwei gefasten Kanten teilen alle ungewaehlten Kanten EINEN Randpunkt. 2x2-Kasten,
+    // oben in der Mitte zwei benachbarte Kanten (+x, +y): die zwei Kanten -x, -y liegen in der Ebene (eh_on_plane) ->
+    // offset_meet wie ohne Kanten dazwischen, der Punkt bei (-Betrag, -Betrag). 1 Segment: 26 - 1 + 2 - 2 + 2 * 3 = 31
+    // Punkte, 24 + 2 Streifen + 2 Dreiecke an den Enden = 28 Flaechen, 57 Kanten (vorher ein Punkt je Kante: 32/59/29).
+    // 2 Segmente: zwei Randpunkte am Mittelpunkt -> weld (ein Bogenpunkt fuer beide Streifen), die Enden Faecher:
+    // 31 + 1 + 2 = 34 Punkte, 24 + 4 + 4 = 32 Flaechen, 64 Kanten.
+    for (const int seg : {1, 2}) {
+        PolyNetz n = kasten(1.0F, 2);
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.0F, 0.0F, 1.0F, 0.5F, 0.0F, 1.0F), kanteZwischen(n, 0.0F, 0.0F, 1.0F, 0.0F, 0.5F, 1.0F)}, seg, 0.5F);
+        betragAnwenden(n, p, 0.1F);
+        const bool ecke = punktBei(n, -0.1F, -0.1F, 1.0F) >= 0 && punktBei(n, 0.1F, 0.1F, 1.0F) >= 0;
+        const bool zahl = seg == 1 ? netzIst(n, 31, 57, 28, 0) : netzIst(n, 34, 64, 32, 0);
+        expect(std::string("Chamfer zwei benachbarter Kanten, ") + std::to_string(seg) + " Segment(e): " + (seg == 1 ? "31/57/28" : "34/64/32") +
+                   ", ein Randpunkt fuer -x und -y bei (-0,1 / -0,1) (Blender build_boundary)",
+               !p.abgelehnt() && zahl && ecke);
+    }
+    // (a) bevel_build_rings :5517 bei ungerader Segmentzahl: Mittelspalte an einer Naht ganz in fc = choose_rep_face (:1211,
+    // kleinere UV-Insel), die Ecken der anderen Haelfte auf die Kante gezogen (snap_edges_for_vmesh_vert :5453), die Mitte an
+    // einem Punkt mit Naht in center_frep (frep_for_center_poly :5034). Wuerfelecke, 3 Segmente: alle 7 Gitterflaechen aus je
+    // EINER alten Flaeche, 4 davon aus der Deckflaeche (Insel 0). Vorher: Mittelspalte halb/halb, Mitte je Randpunkt.
+    {
+        PolyNetz n = kasten();
+        const std::vector<UvFlaeche> alt = nahtUv(n);
+        const int deck = vieleckBei(n, 2, 1.0F);
+        std::vector<std::pair<int, int>> alle;
+        for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+        Plan p = chamferKanten(n, alle, 3, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        int gitter = 0, eine = 0, ausDeck = 0;
+        for (const PFlaeche& f : n.flaechen) {
+            if (f.weg) { continue; }
+            bool inEcke = true;
+            for (const PEcke& e : f.ecken) {
+                const float* o = n.punkte[uz(e.punkt)].ort;
+                inEcke = inEcke && o[0] > 0.3F - 1e-4F && o[1] > 0.3F - 1e-4F && o[2] > 0.8F - 1e-4F;
+            }
+            if (!inEcke) { continue; }
+            ++gitter;
+            const int x = uvAusEiner(n, f, alt);
+            eine += x >= 0 ? 1 : 0;
+            ausDeck += x == deck ? 1 : 0;
+        }
+        if (gitter != 7 || eine != 7 || ausDeck != 4) { std::printf("        Gitter %d, aus einer Flaeche %d, aus der Deckflaeche %d\n", gitter, eine, ausDeck); }
+        expect("Chamfer alle Kanten, 3 Segmente, Naht an jeder Kante: die 7 Gitterflaechen einer Ecke je aus einer alten Flaeche, 4 aus der Deckflaeche (Blender)",
+               !p.abgelehnt() && gitter == 7 && eine == 7 && ausDeck == 4);
+    }
+    // (b) bev_create_ngon mit Vertreter-Flaechen auch fuer die Streifen (bevel_build_edge_polygons :7077: gerade Segmentzahl
+    // links f1, rechts f2, an der Mittellinie auf die Kante gezogen; ungerade mit Naht: der Mittelstreifen in choose_rep_face),
+    // die Ecke mit 1 Segment (bevel_build_poly :5892: mit Naht alles in frep_for_center_poly, aussen auf deren Kanten gezogen)
+    // und die Faecher (bevel_build_trifan :5971). Jede neue Flaeche nimmt ihre UV aus einer alten Flaeche. Vorher: die Streifen
+    // trugen die festen UV des alten Punkts aus beiden Nachbarn, die Ecke die Ecken der Nachbarn.
+    for (const int seg : {1, 2}) {
+        PolyNetz n = kasten();
+        const std::vector<UvFlaeche> alt = nahtUv(n);
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.5F, 0.5F, 0.0F, 0.5F, 0.5F, 1.0F)}, seg, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        int neu = 0, eine = 0;
+        for (const int f : p.auswahl.flaechen) {
+            ++neu;
+            eine += uvAusEiner(n, n.flaechen[uz(f)], alt) >= 0 ? 1 : 0;
+        }
+        expect(std::string("Chamfer eine Kante, ") + std::to_string(seg) + " Segment(e), Naht: jeder Streifen nimmt die UV aus einer alten Flaeche (Blender)",
+               !p.abgelehnt() && neu == seg && eine == seg);
+    }
+    {
+        PolyNetz n = kasten();
+        const std::vector<UvFlaeche> alt = nahtUv(n);
+        std::vector<std::pair<int, int>> alle;
+        for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+        Plan p = chamferKanten(n, alle, 1, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        int neu = 0, eine = 0;
+        for (const PFlaeche& f : n.flaechen) {
+            if (f.weg || f.ecken.size() != 3U) { continue; }
+            ++neu;
+            eine += uvAusEiner(n, f, alt) >= 0 ? 1 : 0;
+        }
+        expect("Chamfer alle Kanten, 1 Segment, Naht: die 8 Eckdreiecke nehmen ihre UV aus einer alten Flaeche (Blender bevel_build_poly)", !p.abgelehnt() && neu == 8 && eine == 8);
+        int streifen = 0, sEine = 0;
+        for (const int f : p.auswahl.flaechen) {
+            if (n.flaechen[uz(f)].ecken.size() != 4U) { continue; }
+            ++streifen;
+            sEine += uvAusEiner(n, n.flaechen[uz(f)], alt) >= 0 ? 1 : 0;
+        }
+        expect("Chamfer alle Kanten, 1 Segment, Naht: die 12 Streifen nehmen ihre UV aus einer alten Flaeche", streifen == 12 && sEine == 12);
+    }
+}
+
 void zusammenTest() {
     std::printf("Weld, Target Weld, Merge, Bridge\n");
     {
@@ -1154,6 +1322,7 @@ int main(int argc, char** argv) {
     grundkoerperTest();
     extrudeTest();
     chamferTest();
+    chamferFeinTest();
     zusammenTest();
     entfernenTest();
     ebenTest();
