@@ -45,12 +45,11 @@ BlendFactor faktor(const std::string& name, BlendFactor wenn_unbekannt) {
 }  // namespace
 namespace {
 
-// Eine Zahl aus einem Wort. Kein Wert heisst null - so macht es auch
-// atof(), auf das sich der Shaderleser der Engine stuetzt.
+// Eine Zahl aus einem Wort wie `(float)atof(token)` im Shaderleser der Engine (ParseWaveForm, ParseDeform, ... tr_shader.cpp):
+// atof ist strtod (C-Locale, das Programm setzt keine andere), in double gelesen und erst beim Ablegen auf float gerundet - nicht
+// strtof/from_chars<float> (MERGE3 Punkt 5: doppelte Rundung, "+0.5", Hex-Zahlen). Kein Wert heisst null.
 float readNum(const std::string& w) {
-    float v = 0.0F;
-    (void)parseFloat(w, v);
-    return v;
+    return static_cast<float>(std::strtod(w.c_str(), nullptr));
 }
 
 // Die Woerter einer Zeile (COM_ParseExt mit allowLineBreaks = qfalse).
@@ -254,7 +253,7 @@ void parseFogParms(const std::string& text, NebelMap& out) {
             while (n < 4 && pos < zahlen.size()) {
                 const char* anfang = zahlen.c_str() + pos;
                 char* ende = nullptr;
-                const float x = std::strtof(anfang, &ende);
+                const auto x = static_cast<float>(std::strtod(anfang, &ende));   // atof (ParseVector)
                 if (ende == anfang) {
                     ++pos;
                     continue;
@@ -1054,7 +1053,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 if (firstWord(rest) == "const") {
                     const std::string v = trim(secondWord(rest));
                     if (!v.empty()) {
-                        stageAlphaConst = std::strtof(v.c_str(), nullptr);
+                        stageAlphaConst = readNum(v);   // atof wie ParseStage
                         stageAlphaGen = AlphaGen::Const;
                     }
                 } else if (lower(firstWord(rest)) == "lightingspecular") {

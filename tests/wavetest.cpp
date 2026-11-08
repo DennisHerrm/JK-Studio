@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <random>
 #include <string>
@@ -177,7 +178,37 @@ int main() {
     expect("inversesawtooth", bhed::waveFuncFromName("inversesawtooth") == WaveFunc::InverseSawtooth);
     expect("noise", bhed::waveFuncFromName("noise") == WaveFunc::Noise);
     expect("random (GF_RAND)", bhed::waveFuncFromName("random") != WaveFunc::None);
-    expect("ein unbekannter Name ergibt None - die Engine warnt nur", bhed::waveFuncFromName("gibtsnicht") == WaveFunc::None);
+    // MERGE3 P45: NameToGenFunc (tr_shader.cpp:404-437 OpenJK, MD9 gleich) vergleicht mit Q_stricmp und gibt fuer einen unbekannten
+    // Namen nach der Warnung GF_SIN zurueck; ein fehlendes Wort (ParseWaveForm :450-455) laesst func auf GF_NONE
+    expect("P45: ein unbekannter Name ergibt sin wie NameToGenFunc", bhed::waveFuncFromName("sine") == WaveFunc::Sin);
+    expect("P45: Gross- und Kleinschreibung zaehlt nicht (Q_stricmp)", bhed::waveFuncFromName("SawTooth") == WaveFunc::Sawtooth);
+    expect("P45: ohne Wort bleibt die Welle aus", bhed::waveFuncFromName("") == WaveFunc::None);
+#ifdef _MSC_VER
+    // MERGE3 P48: die Zufallstafel des Programms gegen das echte rand() der MSVC-Laufzeit wie R_NoiseInit (rd-common/tr_noise.cpp:56-67)
+    {
+        std::srand(1001);
+        int tafelFalsch = 0;
+        int permFalsch = 0;
+        for (int i = 0; i < 256; ++i) {
+            const auto t = static_cast<float>(((std::rand() / static_cast<float>(RAND_MAX)) * 2.0 - 1.0));
+            const auto pm = static_cast<int>(static_cast<unsigned char>(std::rand() / static_cast<float>(RAND_MAX) * 255));
+            if (!gleich(bhed::rauschTafel()[i], t)) { ++tafelFalsch; }
+            if (bhed::rauschPerm()[i] != pm) { ++permFalsch; }
+        }
+        char z[160];
+        std::snprintf(z, sizeof z, "P48: s_noise_table/s_noise_perm gleich dem echten rand() (%d / %d von 256 abweichend)", tafelFalsch, permFalsch);
+        expect(z, tafelFalsch == 0 && permFalsch == 0);
+        // Gegenprobe, dass der Vergleich greift: mit srand(1002) weicht die Tafel ab
+        std::srand(1002);
+        int anders = 0;
+        for (int i = 0; i < 256; ++i) {
+            const auto t = static_cast<float>(((std::rand() / static_cast<float>(RAND_MAX)) * 2.0 - 1.0));
+            (void)std::rand();
+            if (!gleich(bhed::rauschTafel()[i], t)) { ++anders; }
+        }
+        expect("P48: Gegenprobe srand(1002) weicht ab", anders > 200);
+    }
+#endif
 
     // --- waveValue und die Farbe Bit fuer Bit gegen EvalWaveForm ----------------------------------------------------------
     // Feste Ziehung: Werte wie in den Shadern der Spiele und daneben, Zeiten in ganzen ms (floatTime = time * 0.001 in double,

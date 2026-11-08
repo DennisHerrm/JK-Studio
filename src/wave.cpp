@@ -2,6 +2,7 @@
 #include "bhed/wave.h"
 
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -88,14 +89,24 @@ float rauschLerp(float a, float b, float w) { return a * (1.0F - w) + b * w; }
 }  // namespace
 
 WaveFunc waveFuncFromName(std::string_view name) noexcept {
-    if (name == "sin") { return WaveFunc::Sin; }
-    if (name == "triangle") { return WaveFunc::Triangle; }
-    if (name == "square") { return WaveFunc::Square; }
-    if (name == "sawtooth") { return WaveFunc::Sawtooth; }
-    if (name == "inversesawtooth") { return WaveFunc::InverseSawtooth; }
-    if (name == "noise") { return WaveFunc::Noise; }
-    if (name == "random") { return WaveFunc::Random; }
-    return WaveFunc::None;
+    // MERGE3 P45: NameToGenFunc (tr_shader.cpp:404-437 OpenJK, MD9 gleich) vergleicht mit Q_stricmp und gibt nach der Warnung
+    // "invalid genfunc name" GF_SIN zurueck. Ohne Wort bricht ParseWaveForm (:450-455) ab, func bleibt GF_NONE.
+    if (name.empty()) { return WaveFunc::None; }
+    const auto gleich = [&](std::string_view w) {
+        if (w.size() != name.size()) { return false; }
+        for (std::size_t i = 0; i < w.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(name[i])) != w[i]) { return false; }
+        }
+        return true;
+    };
+    if (gleich("sin")) { return WaveFunc::Sin; }
+    if (gleich("square")) { return WaveFunc::Square; }
+    if (gleich("triangle")) { return WaveFunc::Triangle; }
+    if (gleich("sawtooth")) { return WaveFunc::Sawtooth; }
+    if (gleich("inversesawtooth")) { return WaveFunc::InverseSawtooth; }
+    if (gleich("noise")) { return WaveFunc::Noise; }
+    if (gleich("random")) { return WaveFunc::Random; }
+    return WaveFunc::Sin;
 }
 
 float funcTafel(WaveFunc f, int i) noexcept {

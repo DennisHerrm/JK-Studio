@@ -58,8 +58,10 @@ struct Wave {
 };
 
 // "sin", "triangle", "square", "sawtooth", "inversesawtooth", "noise",
-// "random". Alles andere ergibt None - so wie die Engine dann mit einer
-// Warnung weitermacht, statt den Shader zu verwerfen.
+// "random", ohne Ruecksicht auf Gross- und Kleinschreibung. Ein anderer Name
+// ergibt Sin wie NameToGenFunc (tr_shader.cpp:404-437: Warnung, dann
+// GF_SIN), ein leeres Wort None (ParseWaveForm bricht ab, func bleibt
+// GF_NONE).
 [[nodiscard]] WaveFunc waveFuncFromName(std::string_view name) noexcept;
 
 // FIX5: tr.sinTable, triangleTable, squareTable, sawToothTable und
