@@ -184,6 +184,18 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 | stormtrooper Knochen und Animation | 0.48 / 0.91 | 0.43 / 0.73 |
 | jedi_hf Animation | 1.00 / 2.31 | 0.96 / 1.30 |
 
+## Schluss Teil 3 (Laeufe `mr3_s_*`, Summe `Y:/werkzeuge/mr/schluss3_summe.txt`)
+
+- Bau 0 Warnungen (inkrementell nach den Kopfdateien, kein --clean-first in Teil 3); ctest 235/235; parallel: Modus 1 2635/0,
+  modellblock ptfix 5/0, pt 41/0, md 86/0; karteneditor rdglm 19/0, rdm2 14/0, rd 21/0, r3 22/0 (r3 misst das Spielbild mit den
+  Modellen des Editors darueber - nach der Behebung weiter gruen). Lints wie die Basis (portability 99, pruefcodes 11,
+  fremdprogramm 1 bekannt), i18n ok.
+- Bildzeit nicht gemessen: waehrend der Schlussrunde liefen fremde Baue (cl.exe/cmake anderer Agenten) - offen, allein
+  nachholen (`leistung` fuer Editor-Kamera und Vorschau, `ptzeit` fuer P6/P15).
+- Offen aus Punkt 2 (Painting): Paarbild Spiel gegen Vorschau mit gleicher Haltung und Kamera (ICARUS-Skriptkamera in Movie
+  Duels) nicht gemacht; "alle Shader-Stufen in 3D" nicht eigens geprueft (REST Punkt 1: die Stufen mit dem bemalten Bild
+  bekommen ihre Kopie, pt "PT Grafikkarte" prueft Flaeche und zwei Shader-Stufen). Funde P7, P8, P13, P19 offen.
+
 ## Offen (nicht bearbeitet, Kontext)
 
 - Siehe Teil 3 (Abschnitte unten bzw. oben je Punkt).
