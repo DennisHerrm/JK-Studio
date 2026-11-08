@@ -342,6 +342,75 @@ fuenf Ursachen - drei im Programm, zwei im Test:
   nicht gefunden (t1_sour ohne Himmelsbox im Bild, t1_fatal nach oben schwarz).
 - Statuszeile der Menue-Editor-Bilder zeigt den Pfad des Laufordners (`Y:\mr4\laeufe\...`, wie schon in MR5).
 
+## MR7: Pruefungsfunde P39-P43 (Nachtrag PRUEF5, plaene/codepruefung_seit_rc610.md)
+
+- **P39** Regelwerk umstellen: `gpu::bilderNeuHochladen` verwirft die Bilder BEIDER Szenen (Vorschau und Spielbild des
+  Karten-Editors, die geparkte ueber `tauscheSzene` wie `gibAlleSzenenFrei`). Selbsttest geschuetze (BHED_GV_DXT=1, t1_sour aus
+  er1.pk3, OpenJK-Regeln): das Spielbild des Karten-Editors (`spielbildZeichnen`, gpu-Szene 1) mit derselben Karte vor und nach
+  dem Wechsel auf Movie Duels.
+  - rot `m7_rot3_sour`: Szene 1 vor dem Wechsel 259 Bilder (259 DXT5), nach dem Wechsel 0 Bilder neu (alle blieben DXT5).
+  - gruen `m7_gr3_sour` (geschuetze 4/0): siehe Tabelle unten. Der erste Lauf `m7_rot_sour`/`m7_gr_sour` las die .bsp aus
+    `App::mapBytes` (nie gefuellt) und zeichnete kein Spielbild - Test korrigiert (.bsp aus BHED_GV_PK3), zaehlt nicht.
+- **P40** Echtzeit-Licht (und die gebackene Karte) des Karten-Editors unter JKA/JK2-Regeln wie Vorschau und Spiel: das Bildlager
+  haelt je Bild eine zweite Fassung "wie im Spiel" (`holen(name, spielDxt(keinTc))`), im Arbeitsfaden mit
+  `TextureSet::Tex::stufenWieUpload32` (R_MipMap-Pyramide aus dem unkomprimierten Bild, jede Stufe DXT5 - dieselbe Funktion nimmt
+  jetzt `ladeMitStufen` der Vorschau), ohne Gamma und Basisstufe des Editors; Himmelsseiten DXT5 wie `holeHimmel`. noTC je Stufe
+  (`SpielStufe::keinTc`, `SpielDarstellung::keinTc/himmelKeinTc` aus P43). Der Editor selbst (Radiant-Ansicht) bleibt unkomprimiert.
+  Gilt fuer Grundstufe, erste Stufe, bewegte Grundstufe, weitere Stufen, Gluehen, Himmel, Effekte, Halme und gebackene Flaechen.
+  Selbsttest karteneditor rd, neuer Teil "RD DXT" (OpenJK-Regeln, Echtzeit-Licht ohne gebackene Karte): die Mip-Stufen der Bilder,
+  mit denen das Echtzeit-Licht zeichnet (von der Grafikkarte gelesen, `kartegpu::texturLesen`), Byte fuer Byte gegen die Stufen der
+  Vorschau; danach die fuenf Platten gegen "Built map as in the game" (Spalten, 8 %).
+  - rot `m7_rot2_rd`: 4 Bilder je 0 von 8/5/8/5 Stufen gleich (erste Abweichung Stufe 0: 210 statt 211, 40 statt 41); Platten
+    scroll/welle/anim/umwelt/grund 0,0015/0,0007/0,0108/0,0029/0,0187 (bestanden, DXT ist klein gegen 8 %).
+  - gruen `m7_gr_rd`: alle Stufen gleich (8/8, 5/5, 8/8, 5/5); Platten 0,0003/0,0003/0,0001/0,0002/0,0185; rd 29/0.
+  - Fotos `laeufe/m7_gr_rd/fotos/rd_stufen_echtzeit_ojk.bmp` und `rd_stufen_spielbild_ojk.bmp` (1920 x 1080), angesehen.
+  - Der erste Rotlauf `m7_rot_rd` mass das Echtzeit-Licht noch mit gebackener Karte (spielGebacken, die Pinsel ruhten) - Test
+    korrigiert (backen aus, Schattenwuerfel abwarten), zaehlt nicht.
+- **P43** noTC in der Reihenfolge des Skripts: `ShaderInfo::Stage::keinTc` (noTC beim Lesen der Stufe), `bildKeinTc` (der Stufe, die
+  `image` lieferte), `himmelKeinTc` (beim Lesen von skyParms) statt `noTC` am Ende des Shaders (ParseStage :1263/1288/1329,
+  ParseSkyParms :1970, gesetzt :2324). Die Vorschau nimmt den Wert jetzt auch bei einem Treffer im Bildspeicher (`texCache`, vorher
+  fehlte keinTc dort ganz), fuer Zusatzstufen, Bildfolgen der Grundstufe und Wolkenschichten (vorher immer komprimiert).
+  - ctest bilder: rot `m7_rot_ctest_bilder` 3 Fehlschlaege (noTC nach der Stufe, zwischen zwei Stufen, nach skyParms), gruen
+    `m7_gr_ctest_bilder` 1/1.
+- **P41** CJK-Umbruch-Speicher: Schluessel mit der Nummer der Schrift im Atlas statt ihrer Adresse, `buildFonts` leert den Speicher
+  (`cjkSchriftenNeu`). Selbsttest cjkweit (ja): 12 Mal umbrechen, Schriften neu bauen, wieder umbrechen; gezaehlt: Ergebnisse des
+  Testtexts, die direkt nach dem Neubau noch gemerkt sind, und Runden ohne neuen Umbruch.
+  - rot `m7_rot2_cjk_ja`: nach den Neubauten noch 61 Ergebnisse der alten Schriften gemerkt; einmal lag die neue Schrift an derselben
+    Adresse (im ersten Rotlauf `m7_rot_cjk_ja` nie - Windows verteilt kleine Bloecke zufaellig, deshalb die Zaehlung der gemerkten).
+  - gruen `m7_gr_cjk_ja`: 0 gemerkt, 0 Runden ohne Umbruch; cjkweit 19/0.
+- **P42** Selbsttest geschuetze (Vergleich): das Regelwerk vor dem Vergleich wird gemerkt und am Ende zurueckgestellt, neue Pruefung.
+  rot `m7_rot_sour` "Regelwerk am Ende 2, vorher 1", gruen `m7_gr_sour` und `m7_gr3_sour` "1, vorher 1".
+
+| Lauf | Szene 1 vor dem Wechsel | Szene 1 nach dem Wechsel auf Movie Duels |
+|---|---|---|
+| `m7_rot3_sour` (ohne P39) | 259 Bilder, 259 DXT5 | 0 Bilder neu |
+| `m7_gr3_sour` | 259 Bilder, 259 DXT5 | 260 Bilder neu, davon DXT5 0 (32 mit $lightmap-Stufe) |
+
+## MR7 Schluss
+
+- Commits je Punkt: P39 b6328c5a4, P43 4e81224e2, P40 6fa53e6aa, P41 26a7a9876, P42 93f4bb4bb (P43 vor P40, weil P40 noTC je Stufe
+  aus P43 nimmt - so baut jeder Stand).
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 237/237 mit -j 8 ohne `q3map2_pr316`,
+  `q3map2_pr316` allein 1/1.
+- Selbsttests nach dem Neubau: geschuetze (BHED_GV_DXT=1, t1_sour) 4/0 `m7_ende_sour`, cjkweit ja 19/0 `m7_ende_cjk_ja`,
+  karteneditor r3 22/0 `m7_ende_r3`, rd 29/0 `m7_ende_rd` (RD DXT wie `m7_gr_rd`), editorportal 19/0 `m7_ende_portal`, Modus 1
+  2635/0 `m7_ende_modus1`.
+- Lints wie MR6 (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, sonst ok);
+  Handbuch neu erzeugt (karte.html, suche.js in 6 Sprachen), `--pruefen` ok.
+
+## MR7 Offen
+
+- Keine Bildzeit gemessen (Auftrag): Echtzeit-Licht unter JKA-Regeln laedt je Bild eine zweite Fassung (DXT5 im Arbeitsfaden,
+  Speicher doppelt fuer die Bilder, die beide Ansichten zeigen).
+- Gegen das Spiel selbst nicht neu verglichen: die Stufen sind Byte fuer Byte die der Vorschau, deren DXT5 in MR4-MR6 gegen
+  Original-JKA geprueft wurde.
+- Das Spiel laedt ein Bild nur einmal je Name (R_FindImageFile_NoLoad: der erste Shader entscheidet allowTC); Vorschau und
+  Echtzeit-Licht entscheiden je Shader bzw. Stufe. Ein Bild, das ein noTC-Shader und ein anderer Shader teilen, kann daher je nach
+  Ladereihenfolge im Spiel anders aussehen - nicht nachgebaut.
+- Die Schatten des Echtzeit-Lichts (Alpha-Masken, kameraTexturBild) nehmen ebenfalls die Spielfassung; die Vorlage (vorlageZeichnen)
+  auch.
+- `App::mapBytes` wird nirgends gefuellt (toter Eintrag, nicht von MR7).
+
 ## Changelog
 
 ## English
@@ -355,6 +424,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chinese: "Duplicate" in right-click menus now reads 创建副本 and no longer looks like "Copy" (复制).
 - Preview under Jedi Academy and Jedi Outcast: the pictures of shaders with a lightmap stage and the sky boxes are compressed like in the game too, and switching between Movie Duels and OpenJK rules uploads the pictures again.
 - Japanese and Chinese: long texts are no longer wrapped again in every frame.
+- Real-time light and built map in the map editor under Jedi Academy and Jedi Outcast: textures are compressed like in the preview and the game (S3TC), the same surface looks the same in both views.
+- Preview and map editor: `noTC` takes effect only from the line where it stands, as in the game; extra stages, image sequences and cloud layers of a `noTC` shader stay uncompressed.
+- Switching between Movie Duels and OpenJK rules also uploads the pictures of the built map in the map editor again.
+- Japanese and Chinese: after changing the OpenGL font in the map editor, texts are wrapped with the new font.
 
 ## Deutsch
 
@@ -367,6 +440,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chinesisch: „Duplizieren“ heißt in Rechtsklickmenüs jetzt 创建副本 und sieht nicht mehr aus wie „Kopieren“ (复制).
 - Vorschau unter Jedi Academy und Jedi Outcast: Auch die Bilder von Shadern mit Lightmap-Stufe und die Himmelsboxen werden wie im Spiel komprimiert, und der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt die Bilder neu.
 - Japanisch und Chinesisch: Lange Texte werden nicht mehr in jedem Bild neu umbrochen.
+- Echtzeit-Licht und gebaute Karte im Karten-Editor unter Jedi Academy und Jedi Outcast: Texturen werden wie in der Vorschau und im Spiel komprimiert (S3TC), dieselbe Fläche sieht in beiden Ansichten gleich aus.
+- Vorschau und Karten-Editor: `noTC` gilt wie im Spiel erst ab der Zeile, in der es steht; Zusatzstufen, Bildfolgen und Wolkenschichten eines `noTC`-Shaders bleiben unkomprimiert.
+- Der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt auch die Bilder der gebauten Karte im Karten-Editor neu.
+- Japanisch und Chinesisch: Nach dem Umstellen der OpenGL-Schrift im Karten-Editor werden Texte mit der neuen Schrift umbrochen.
 
 ## 中文
 
@@ -379,6 +456,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 中文:右键菜单中的“Duplicate”现在显示为“创建副本”,不再与“复制”(Copy)相同。
 - Jedi Academy 和 Jedi Outcast 下的预览:带光照贴图阶段的着色器图片和天空盒也像游戏中一样压缩;在 Movie Duels 与 OpenJK 规则之间切换时会重新上传图片。
 - 日文和中文:长文本不再在每一帧重新换行。
+- Jedi Academy 和 Jedi Outcast 下地图编辑器的实时光照和已构建地图:纹理像预览和游戏中一样压缩(S3TC),同一表面在两个视图中看起来相同。
+- 预览和地图编辑器:`noTC` 与游戏中一样从其所在的行开始生效;`noTC` 着色器的附加阶段、图像序列和云层保持不压缩。
+- 在 Movie Duels 与 OpenJK 规则之间切换时,也会重新上传地图编辑器中已构建地图的图片。
+- 日文和中文:在地图编辑器中更改 OpenGL 字体后,文本会按新字体换行。
 
 ## 日本語
 
@@ -391,6 +472,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 中国語:右クリックメニューの「Duplicate」は「创建副本」と表示され、「Copy」(复制)と同じに見えなくなりました。
 - Jedi Academy と Jedi Outcast でのプレビュー:ライトマップステージを持つシェーダーの画像とスカイボックスもゲームと同じように圧縮され、Movie Duels と OpenJK のルールを切り替えると画像を読み込み直します。
 - 日本語と中国語:長いテキストを毎フレーム折り返し直すことはなくなりました。
+- Jedi Academy と Jedi Outcast でのマップエディターのリアルタイムライトとビルド済みマップ:テクスチャをプレビューやゲームと同じように圧縮(S3TC)するため、同じ面がどちらのビューでも同じに見えます。
+- プレビューとマップエディター:`noTC` はゲームと同じく書かれた行から有効になります。`noTC` シェーダーの追加ステージ、画像シーケンス、雲のレイヤーは非圧縮のままです。
+- Movie Duels と OpenJK のルールを切り替えると、マップエディターのビルド済みマップの画像も読み込み直します。
+- 日本語と中国語:マップエディターで OpenGL フォントを変更すると、テキストは新しいフォントで折り返されます。
 
 ## Español
 
@@ -403,6 +488,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chino: «Duplicar» en los menús del botón derecho ahora es 创建副本 y ya no se ve igual que «Copiar» (复制).
 - Vista previa con Jedi Academy y Jedi Outcast: las imágenes de shaders con etapa de lightmap y las cajas de cielo también se comprimen como en el juego, y al cambiar entre las reglas de Movie Duels y OpenJK las imágenes se vuelven a cargar.
 - Japonés y chino: los textos largos ya no se vuelven a cortar en cada fotograma.
+- Luz en tiempo real y mapa compilado del editor de mapas con Jedi Academy y Jedi Outcast: las texturas se comprimen como en la vista previa y en el juego (S3TC), la misma superficie se ve igual en ambas vistas.
+- Vista previa y editor de mapas: `noTC` actúa, como en el juego, solo desde la línea donde está; las etapas adicionales, secuencias de imágenes y capas de nubes de un shader con `noTC` quedan sin comprimir.
+- Al cambiar entre las reglas de Movie Duels y OpenJK también se vuelven a cargar las imágenes del mapa compilado en el editor de mapas.
+- Japonés y chino: tras cambiar la fuente OpenGL en el editor de mapas, los textos se cortan con la nueva fuente.
 
 ## Čeština
 
@@ -415,3 +504,7 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Čínština: „Duplikovat“ v nabídkách pravého tlačítka je nyní 创建副本 a už nevypadá stejně jako „Kopírovat“ (复制).
 - Náhled pro Jedi Academy a Jedi Outcast: obrázky shaderů s fází lightmapy a nebeské boxy se také komprimují jako ve hře a přepnutí mezi pravidly Movie Duels a OpenJK nahraje obrázky znovu.
 - Japonština a čínština: dlouhé texty se už nezalamují znovu v každém snímku.
+- Světlo v reálném čase a sestavená mapa v editoru map pro Jedi Academy a Jedi Outcast: textury se komprimují jako v náhledu a ve hře (S3TC), stejná plocha vypadá v obou pohledech stejně.
+- Náhled a editor map: `noTC` platí jako ve hře až od řádku, kde stojí; další fáze, sekvence obrázků a vrstvy mraků shaderu s `noTC` zůstávají nekomprimované.
+- Přepnutí mezi pravidly Movie Duels a OpenJK nahraje znovu i obrázky sestavené mapy v editoru map.
+- Japonština a čínština: po změně písma OpenGL v editoru map se texty zalamují novým písmem.
