@@ -9,6 +9,8 @@
 #include <cmath>
 #include <algorithm>
 #include "bhed/shaderscript.h"
+#include "bhed/bildregister.h"
+#include "bhed/bspgeo.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -909,6 +911,94 @@ int main() {
                        !smn["textures/n/himmel"].himmelKeinTc && smn["textures/n/himmel"].stages.size() == 1U &&
                            smn["textures/n/himmel"].stages[0].keinTc);
                 expect("noTC vor skyParms: Himmelsseiten unkomprimiert", smn["textures/n/himmel2"].himmelKeinTc);
+            }
+            // MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das
+            // Bild des ERSTEN Ladens zurueck, mit dessen mipmap/allowPicmip/allowTC/glWrapClampMode; spaetere warnen nur.
+            {
+                const char* bt =
+                    "textures/m8/ohnetc\n{\nnoTC\n{\nmap textures/m8/geteilt.tga\n}\n}\n"
+                    "textures/m8/normal\n{\n{\nmap textures/m8/geteilt\nblendFunc GL_ONE GL_ONE\n}\n}\n"
+                    "textures/m8/klemme\n{\n{\nclampmap textures/m8/geteilt\n}\n}\n"
+                    "textures/m8/ohnemip\n{\nnomipmaps\n{\nmap textures/m8/b2\n}\n}\n"
+                    "textures/m8/mipdanach\n{\n{\nmap textures/m8/b3\n}\nnomipmaps\n{\nanimMap 2 textures/m8/b4 textures/m8/b5\n}\n}\n"
+                    "textures/m8/picmip\n{\nnopicmip\n{\nmap textures/m8/b6\n}\n}\n"
+                    "textures/m8/himmel\n{\n{\nmap textures/skies/m8_rt\n}\nskyParms textures/skies/m8 512 -\n}\n";
+                bhed::ShaderMap smb;
+                bhed::parseShaderScript(bt, smb);
+                const bhed::BildRegister::Skripte sk = [&smb](const std::string& n) -> const bhed::ShaderInfo* {
+                    const auto it = smb.find(n);
+                    return it == smb.end() ? nullptr : &it->second;
+                };
+                expect("nomipmaps setzt keinMip und keinPicmip der Stufe danach", smb["textures/m8/ohnemip"].stages.size() == 1U &&
+                       smb["textures/m8/ohnemip"].stages[0].keinMip && smb["textures/m8/ohnemip"].stages[0].keinPicmip);
+                expect("nomipmaps nach der ersten Stufe gilt nur fuer die zweite", smb["textures/m8/mipdanach"].stages.size() == 2U &&
+                       !smb["textures/m8/mipdanach"].stages[0].keinMip && smb["textures/m8/mipdanach"].stages[1].keinMip);
+                expect("nopicmip setzt nur keinPicmip", smb["textures/m8/picmip"].stages.size() == 1U &&
+                       !smb["textures/m8/picmip"].stages[0].keinMip && smb["textures/m8/picmip"].stages[0].keinPicmip);
+                // noTC zuerst: beide Shader zeigen das Bild unkomprimiert
+                bhed::BildRegister a;
+                a.shader("textures/m8/ohnetc", sk);
+                a.shader("textures/m8/normal", sk);
+                const bhed::BildWahl* wa = a.wahl("TEXTURES/M8/GETEILT.jpg");
+                expect("noTC-Shader zuerst: das geteilte Bild bleibt unkomprimiert (allowTC des Ersten)",
+                       wa != nullptr && !wa->tc && wa->shader == "textures/m8/ohnetc" && a.warnungen().empty());
+                // der normale zuerst: beide komprimiert, keine Warnung (allowTC warnt nicht)
+                bhed::BildRegister b;
+                b.shader("textures/m8/normal", sk);
+                b.shader("textures/m8/ohnetc", sk);
+                const bhed::BildWahl* wb = b.wahl("textures/m8/geteilt");
+                expect("normaler Shader zuerst: das geteilte Bild wird komprimiert, auch fuer den noTC-Shader",
+                       wb != nullptr && wb->tc && wb->shader == "textures/m8/normal" && b.warnungen().empty());
+                // ohne Skript (R_FindShader :3502): allowTC, mipmap, GL_REPEAT
+                bhed::BildRegister c;
+                c.shader("textures/m8/geteilt.tga", sk);
+                c.shader("textures/m8/klemme", sk);
+                c.shader("textures/m8/ohnetc", sk);
+                const bhed::BildWahl* wc = c.wahl("textures/m8/geteilt");
+                expect("Shader ohne Skript zuerst: das Bild mit allowTC, mipmap, GL_REPEAT; clampmap danach warnt wie die Engine",
+                       wc != nullptr && wc->tc && wc->mip && !wc->klammern && c.warnungen().size() == 1U &&
+                           c.warnungen()[0] == "WARNING: reused image textures/m8/geteilt with mixed glWrapClampMode parm");
+                // ein Shader zaehlt einmal (sh_hashTable)
+                c.shader("TEXTURES/M8/KLEMME", sk);
+                expect("ein schon registrierter Shader laedt nichts neu", c.warnungen().size() == 1U && c.kenntShader("textures/m8/klemme.tga"));
+                // RE_RegisterShaderNoMip ohne Skript: mipmap/picmip nein, GL_CLAMP
+                bhed::BildRegister dd;
+                dd.shader("gfx/2d/m8", sk, false);
+                const bhed::BildWahl* wd = dd.wahl("gfx/2d/m8");
+                expect("RegisterShaderNoMip ohne Skript: ohne Mipmaps, ohne Picmip, GL_CLAMP", wd != nullptr && !wd->mip && !wd->picmip && wd->klammern);
+                // animMap nach nomipmaps, und mixed mipmap gegen einen spaeteren normalen Shader
+                dd.shader("textures/m8/mipdanach", sk);
+                dd.shader("textures/m8/b5", sk);
+                const bhed::BildWahl* w3 = dd.wahl("textures/m8/b3");
+                const bhed::BildWahl* w5 = dd.wahl("textures/m8/b5");
+                expect("animMap nach nomipmaps: jedes Bild ohne Mipmaps; das Bild der Stufe davor mit", w3 != nullptr && w3->mip &&
+                       w5 != nullptr && !w5->mip && !w5->picmip && dd.wahl("textures/m8/b4") != nullptr &&
+                       dd.warnungen().size() == 2U && dd.warnungen()[0] == "WARNING: reused image textures/m8/b5 with mixed mipmap parm" &&
+                       dd.warnungen()[1] == "WARNING: reused image textures/m8/b5 with mixed allowPicmip parm");
+                // skyParms nach der ersten Stufe: die Stufe laedt m8_rt zuerst (GL_REPEAT), die Seite danach warnt
+                bhed::BildRegister e;
+                e.shader("textures/m8/himmel", sk);
+                const bhed::BildWahl* we = e.wahl("textures/skies/m8_rt");
+                expect("skyParms nach einer Stufe: die Stufe laedt zuerst, die Himmelsseite warnt (GL_CLAMP)",
+                       we != nullptr && !we->klammern && e.wahl("textures/skies/m8_dn") != nullptr && e.wahl("textures/skies/m8_dn")->klammern &&
+                       e.warnungen().size() == 1U);
+                // Reihenfolge der Welt: erst die Nebel, dann die Flaechen der Datei
+                bhed::BspGeometry g;
+                g.shaders.resize(3);
+                g.shaders[0].name = "textures/m8/a";
+                g.shaders[1].name = "textures/m8/b";
+                g.shaders[2].name = "textures/m8/nebel";
+                for (const int sh : {1, 0, 1, 2}) {
+                    bhed::BspSurface f;
+                    f.type = bhed::BspSurface::Type::Planar;
+                    f.shader = sh;
+                    g.surfaces.push_back(f);
+                }
+                g.nebel.resize(1);
+                g.nebel[0].shader = "textures/m8/nebel";
+                const std::vector<std::string> r = bhed::weltShaderReihenfolge(g);
+                expect("Welt: R_LoadFogs vor R_LoadSurfaces, Flaechen in Dateireihenfolge, jeder Name einmal",
+                       r.size() == 3U && r[0] == "textures/m8/nebel" && r[1] == "textures/m8/b" && r[2] == "textures/m8/a");
             }
             // deformVertexes autosprite2/bulge/move/normal (rc592) - Werte
             // wie ParseDeform in tr_shader.cpp.

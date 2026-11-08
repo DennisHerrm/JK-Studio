@@ -113,6 +113,8 @@ add_library(bhed_core STATIC
   src/image_jpeg.cpp
   src/image_png.cpp
   src/shaderscript.cpp
+  # MR8 Punkt 1: ein Bild je Name wie im Spiel (R_FindImageFile_NoLoad). Siehe bhed/bildregister.h.
+  src/bildregister.cpp
   src/glm.cpp
   src/gla.cpp
   # Modell-Block 1a-1: das Modelldokument (Halbkanten, LOD, Undo) und die Ghoul2-Regeln

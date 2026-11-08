@@ -424,6 +424,10 @@ void TextureSet::Tex::stufenWieUpload32(bool dxt) {
 }
 
 void TextureSet::Tex::buildMips() {
+    if (keinMip) {   // MR8 Punkt 1: ohne Mipmaps geladen (Upload32 mit mipmap false)
+        mips.clear();
+        return;
+    }
     if (!mips.empty() || rgba.empty() || width <= 0 || height <= 0) {
         return;
     }

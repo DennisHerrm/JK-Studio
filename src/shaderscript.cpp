@@ -353,6 +353,10 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     bool noTC = false;
     bool bildKeinTc = false;
     bool himmelKeinTc = false;
+    // MR8 Punkt 1: nomipmaps (setzt auch nopicmip) und nopicmip, ebenso in der Reihenfolge des Skripts (tr_shader.cpp:2301-2311)
+    bool noMip = false;
+    bool noPicmip = false;
+    std::size_t himmelVorStufe = 0;
     std::string skyBox;
     float wolkenHoehe = 0.0F;
     bool hatSonne = false;
@@ -510,6 +514,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     st.depthFunc = stageDepthFunc;
                     st.ss = stageSS;
                     st.keinTc = noTC;
+                    st.keinMip = noMip;
+                    st.keinPicmip = noPicmip;
                     stages.push_back(std::move(st));
                 }
                 if (stageGlow) {
@@ -607,6 +613,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.polygonOffset = polygonOffset;
                     info.bildKeinTc = bildKeinTc;
                     info.himmelKeinTc = himmelKeinTc;
+                    info.himmelVorStufe = himmelVorStufe;
                     info.glow = glow;
                     info.hasGlow = hasGlow;
                     info.texGen = texGen;
@@ -846,6 +853,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     skyBox = box;
                 }
                 himmelKeinTc = noTC;
+                himmelVorStufe = stages.size();   // MR8 Punkt 1: ParseSkyParms laedt die Seiten nach den Stufen davor
                 // Die Wolkenhoehe (rc592): `if (!cloudHeight) cloudHeight
                 // = 512` - auch bei "-". FEHLT die Zahl, kehrt ParseSkyParms
                 // vorher zurueck: dann keine Wolken (Code-Pruefung).
@@ -879,6 +887,17 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             // MR4 Punkt 7: noTC - die Bilder des Shaders werden nicht komprimiert (ParseShader, tr_shader.cpp:2324)
             if (key == "notc") {
                 noTC = true;
+                continue;
+            }
+            // MR8 Punkt 1: ParseShader (tr_shader.cpp:2301-2311) - nomipmaps setzt noMipMaps und noPicMip, nopicmip nur noPicMip; die
+            // Stufen danach laden ihre Bilder mit mipmap = !noMipMaps, allowPicmip = !noPicMip (ParseStage :1261-1262)
+            if (key == "nomipmaps") {
+                noMip = true;
+                noPicmip = true;
+                continue;
+            }
+            if (key == "nopicmip") {
+                noPicmip = true;
                 continue;
             }
             // `portal` / `sort portal` (rc593): Spiegel- oder Portalflaeche.
@@ -925,6 +944,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             noTC = false;
             bildKeinTc = false;
             himmelKeinTc = false;
+            noMip = false;
+            noPicmip = false;
+            himmelVorStufe = 0;
             inImageStage = false;
             continue;
         }

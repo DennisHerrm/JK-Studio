@@ -60,6 +60,7 @@
 #include "figuranim.h"   // Modell-Block Stufe 7: Figuren im Mission-Tab animieren
 #include "bhed/glm.h"
 #include "bhed/gpushader.h"   // rc608 Teil 11: kSpielLightmapFaktor
+#include "bhed/bildregister.h"
 #include "bhed/mapview.h"
 #include "bhed/efxdraw.h"
 #include "bhed/geschuetz.h"
@@ -1594,6 +1595,10 @@ struct App {
     // mit jeder Karte (Kartenpruefung 27.09.: 8 Karten, 91 -> 857 MB).
     // Figuren (@256) und Klingenbilder stehen nie hier drin.
     std::unordered_set<std::string> kartenBilder;
+    // MR8 Punkt 1: ein Bild je Name wie im Spiel (bhed/bildregister.h) - wer ein Bild zuerst laedt, bestimmt Kompression,
+    // Mipmaps und Klammern fuer alle. loadMapTextures fuellt es in der Reihenfolge von RE_LoadWorldMap, danach kommt jeder
+    // Shader beim ersten loadTextureFor dazu.
+    BildRegister bildRegister;
     // Welcher Knoten wurde zuletzt durch EINFUEGEN angewaehlt (nicht durch
     // einen Klick)? Ein angewaehlter Block nimmt neue Befehle nur auf, wenn
     // DU ihn angeklickt hast - sonst liefe der naechste Klick in der
@@ -3301,6 +3306,8 @@ void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::si
                     std::size_t shaderNr, const GrasStufenZiel& ziel);
 // Der Satz, in den loadMapTextures gerade laedt (die Vorschau oder das Ziel von loadMapTexturesFuer).
 TextureSet& ladeSatz();
+// MR8 Punkt 1: das Register dazu (bhed/bildregister.h).
+BildRegister& ladeRegister();
 // rc608 Teil 13c: woraus die Halme eines Bildes entstehen - dieselbe Rechnung (RB_DrawSurfaceSprites) fuer die Vorschau
 // und das Spielbild des Karten-Editors (editor: eigener Zwischenspeicher der Flaechen).
 struct GrasQuelle {
@@ -3611,7 +3618,7 @@ void drawAskSave();
 void loadMapTextures();
 // rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors).
 // rc608 Teil 13c: mit `gras` auch die Halm-Stufen (surfaceSprites) in dieses Ziel.
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder,
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
                          const std::function<void()>& danach = {},   // rc608 Teil 13b: danach, solange das Ziel gilt
                          const GrasStufenZiel& gras = {});
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -

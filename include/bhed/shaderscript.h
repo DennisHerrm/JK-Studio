@@ -18,6 +18,7 @@
 
 #include "bhed/wave.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -587,6 +588,10 @@ struct ShaderInfo {
         // MR7 P43: noTC, wie es beim Lesen DIESER Stufe stand - ParseStage laedt ihr Bild mit allowTC = !shader.noTC
         // (rd-vanilla tr_shader.cpp:1263/1288/1329), gesetzt wird shader.noTC erst beim Schluesselwort (:2324).
         bool keinTc = false;
+        // MR8 Punkt 1: nomipmaps / nopicmip, wie es beim Lesen DIESER Stufe stand (ParseStage mipmap = !shader.noMipMaps,
+        // allowPicmip = !shader.noPicMip, tr_shader.cpp:1261-1262; gesetzt :2301-2311, nomipmaps setzt beide).
+        bool keinMip = false;
+        bool keinPicmip = false;
         // Die beiden Faktoren aus glBlendFunc - siehe BlendFactor.
         // Vorgabe GL_ONE, GL_ZERO: deckend, also gar kein Mischen.
         BlendFactor srcFactor = BlendFactor::One;
@@ -785,6 +790,9 @@ struct ShaderInfo {
     // himmelKeinTc fuer die Seiten aus skyParms (ParseSkyParms, tr_shader.cpp:1970); die Stufen tragen Stage::keinTc.
     bool bildKeinTc = false;
     bool himmelKeinTc = false;
+    // MR8 Punkt 1: wie viele Stufen vor skyParms standen - ParseShader laedt die Himmelsseiten an dieser Stelle (fuer die
+    // Ladereihenfolge der Bilder, bhed/bildregister.h).
+    std::size_t himmelVorStufe = 0;
 };
 
 // Shadername -> was wir davon wissen.

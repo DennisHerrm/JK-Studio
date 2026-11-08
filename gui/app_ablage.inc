@@ -2031,9 +2031,32 @@ struct TexturLadeZiel {
     TextureSet* textures = nullptr;
     std::unordered_set<std::string>* kartenBilder = nullptr;
     GrasStufenZiel gras;
+    BildRegister* bildRegister = nullptr;   // MR8 Punkt 1
 };
 TexturLadeZiel g_ladeZiel;
 TextureSet& ladeSatz() { return g_ladeZiel.textures != nullptr ? *g_ladeZiel.textures : g_app->textures; }
+BildRegister& ladeRegister() { return g_ladeZiel.bildRegister != nullptr ? *g_ladeZiel.bildRegister : g_app->bildRegister; }
+
+// MR8 Punkt 1: R_FindShader zum ersten Mal - die Bilder des Shaders kommen in der Reihenfolge von ParseShader ins Register
+// (bhed/bildregister.h). Ein schon bekannter Shader aendert nichts.
+void bildRegistrieren(const std::string& shaderName) {
+    ladeRegister().shader(shaderName, [](const std::string& n) -> const ShaderInfo* {
+        const auto it = g_app->shaderMap.find(n);
+        return it == g_app->shaderMap.end() ? nullptr : &it->second;
+    });
+}
+
+// MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das image_t des
+// ERSTEN Ladens zurueck: dessen allowTC (Upload32), mipmap und glWrapClampMode gelten fuer jeden Shader, der das Bild nimmt.
+// Ohne Eintrag im Register (noch kein Shader hat es geladen) bleiben die eigenen Werte der Stufe.
+void wieErsterLaden(const std::string& bild, TextureSet::Tex& t) {
+    const BildWahl* w = ladeRegister().wahl(bild);
+    if (w == nullptr) { return; }
+    t.keinTc = !w->tc;
+    t.clamp = w->klammern;
+    t.keinMip = !w->mip;
+    if (t.keinMip) { t.mips.clear(); }
+}
 const BspGeometry& ladeGeo() { return g_ladeZiel.geo != nullptr ? *g_ladeZiel.geo : g_app->geo; }
 std::unordered_set<std::string>& ladeBilder() { return g_ladeZiel.kartenBilder != nullptr ? *g_ladeZiel.kartenBilder : g_app->kartenBilder; }
 
@@ -2150,6 +2173,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         }
         const auto it = nurBild ? shaderMap.end() : shaderMap.find(lowered);
+        if (!nurBild) { bildRegistrieren(shaderName); }   // MR8 Punkt 1: R_FindShader
         if (it != shaderMap.end() && !it->second.image.empty()) {
             tries = textureCandidates(it->second.image);
         }
@@ -2159,6 +2183,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
 
         std::string data;
         bool got = false;
+        std::string gefunden;   // MR8 Punkt 1: welches Bild es wurde
         for (const std::string& name : tries) {
             // --- Schon entziffert? ------------------------------------
             //
@@ -2286,6 +2311,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                 t.buildMips();
             out = std::move(t);
                 got = true;
+                gefunden = name;
                 break;
             }
 
@@ -2371,8 +2397,10 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
             t.buildMips();
             out = std::move(t);
             got = true;
+            gefunden = name;
             break;
         }
+        if (got && !nurBild) { wieErsterLaden(gefunden, out); }   // MR8 Punkt 1; die Stufenbilder setzen ihre Aufrufer
         return got;
 }
 }  // namespace
@@ -2418,6 +2446,8 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
         wolke.depthFunc = st.depthFunc;
         wolke.ausSkript = true;
         wolke.keinTc = st.keinTc;   // MR7 P43: ParseStage, allowTC = !noTC beim Lesen der Stufe
+        wolke.keinMip = st.keinMip;
+        wieErsterLaden(st.image, wolke);   // MR8 Punkt 1
         wolke.lightmapStufe = false;
         wolke.wolkenHoehe = info.wolkenHoehe;
         himmel.extraStages.push_back(static_cast<int>(ladeSatz().byShader.size()));
@@ -2558,6 +2588,8 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     for (int k = 0; k < 6; ++k) { zusatz.tcGenVec[k] = st.tcGenVec[k]; }   // rc605
     zusatz.clamp = st.clamp;
     zusatz.keinTc = st.keinTc;   // MR7 P43: ParseStage, allowTC = !noTC beim Lesen dieser Stufe
+    zusatz.keinMip = st.keinMip;
+    wieErsterLaden(st.image, zusatz);   // MR8 Punkt 1
     zusatz.depthWrite = st.depthWrite;
     zusatz.depthFunc = st.depthFunc;
     zusatz.alphaGen = st.alphaGen;
@@ -2654,6 +2686,9 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             bild.rgbVertex = erst.rgbVertex;
             bild.srcFactor = erst.srcFactor;
             bild.dstFactor = erst.dstFactor;
+            bild.keinTc = st.keinTc;   // MR8 Punkt 1: die Stufe der Folge, dann der Erste je Bild
+            bild.keinMip = st.keinMip;
+            wieErsterLaden(st.animImages[bi], bild);
             bild.animFrames.clear();
             bild.animFreq = 0.0F;
             erst.animFrames.push_back(static_cast<int>(
@@ -2708,6 +2743,8 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
         }
         bild.ausSkript = t.ausSkript;
         bild.keinTc = t.keinTc;   // MR7 P43: dieselbe Stufe, dasselbe allowTC
+        bild.keinMip = t.keinMip;
+        wieErsterLaden(info.animImages[bi], bild);   // MR8 Punkt 1: jedes Bild der Folge hat seinen Ersten
         bild.lightmapStufe = t.lightmapStufe;
         bild.rgbVertex = t.rgbVertex;
         bild.srcFactor = t.srcFactor;
@@ -2770,6 +2807,7 @@ void loadMapTextures() {
     }
     // Die hochgeladenen Bilder hingen an den alten Nummern (nur die der gewaehlten Szene, gpu::szeneWaehlen).
     gpu::vergissKarte();
+    ladeRegister().leeren();   // MR8 Punkt 1: neue Karte (RE_RegisterMedia_LevelLoadBegin)
     if (ladeGeo().shaders.empty() || g_app->gamePaths.empty()) {
         return;
     }
@@ -2870,6 +2908,10 @@ void loadMapTextures() {
                    std::to_string(st.faeden) + " Faeden");
     }
 
+    // MR8 Punkt 1: wer ein Bild zuerst laedt, bestimmt es fuer alle (bhed/bildregister.h). Die Welt registriert ihre Shader in
+    // der Reihenfolge von RE_LoadWorldMap - Nebel, dann die Flaechen der Datei -, nicht in der Reihenfolge der Shaderliste.
+    for (const std::string& n : weltShaderReihenfolge(ladeGeo())) { bildRegistrieren(n); }
+    for (const std::string& w : ladeRegister().warnungen()) { diag::detail("Bild je Name: " + w); }
     for (std::size_t i = 0; i < ladeGeo().shaders.size(); ++i) {
         const BspShader& sh = ladeGeo().shaders[i];
         if (!sh.isDrawn()) {
@@ -2897,6 +2939,7 @@ void loadMapTextures() {
             }
             const auto sk = g_app->shaderMap.find(lowSky);
             if (sk != g_app->shaderMap.end() && !sk->second.skyBox.empty()) {
+                bildRegistrieren(sh.name);   // MR8 Punkt 1: R_FindShader des Himmels (loadTextureFor kommt hier nicht vorbei)
                 static const char* kSuf[6] = {"rt", "lf", "bk",
                                               "ft", "up", "dn"};
                 int letzte = -1;
@@ -2906,6 +2949,7 @@ void loadMapTextures() {
                     if (loadImageFile(sk->second.skyBox + "_" + suf,
                                        seite)) {
                         seite.keinTc = sk->second.himmelKeinTc;   // MR6 P21 / MR7 P43: allowTC = !noTC beim Lesen von skyParms
+                        wieErsterLaden(sk->second.skyBox + "_" + suf, seite);   // MR8 Punkt 1
                         letzte = static_cast<int>(
                             ladeSatz().byShader.size());
                         ladeSatz().byShader.push_back(std::move(seite));
@@ -3163,12 +3207,13 @@ void loadMapTextures() {
     if (vorschau) { g_app->mapDirty = true; }
 }
 
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, const std::function<void()>& danach,
-                         const GrasStufenZiel& gras) {
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
+                         const std::function<void()>& danach, const GrasStufenZiel& gras) {
     g_ladeZiel.geo = &geo;
     g_ladeZiel.textures = &ziel;
     g_ladeZiel.kartenBilder = &bilder;
     g_ladeZiel.gras = gras;
+    g_ladeZiel.bildRegister = &reg;
     loadMapTextures();
     if (danach) { danach(); }
     g_ladeZiel = TexturLadeZiel{};

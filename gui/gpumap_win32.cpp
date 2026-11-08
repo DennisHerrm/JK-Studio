@@ -1244,11 +1244,12 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
         ++g_bilderDxt.lightmapStufe;
         g_bilderDxt.lightmapStufeKomprimiert += dxt ? 1 : 0;
     }
-    if (dxt || (quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
+    if (dxt || (!quelle.keinMip && quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
         kopie.width = quelle.width;
         kopie.height = quelle.height;
         kopie.rgba = quelle.rgba;
         kopie.mips = quelle.mips;
+        kopie.keinMip = quelle.keinMip;   // MR8 Punkt 1: ohne Mipmaps nur Stufe 0
         kopie.stufenWieUpload32(dxt);
         t = &kopie;
     }
@@ -2291,14 +2292,15 @@ bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1) 
 
 // Selbsttest (REST Punkt 1): Stufe `stufe` der Grafikkarten-Textur eines Figurenbilds zuruecklesen (Kopie in eine
 // Staging-Textur). false, wenn das Bild nicht hochgeladen ist.
-bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+namespace {
+
+// Stufe `stufe` der Textur hinter `srv` zuruecklesen (RGBA8).
+bool leseSicht(ID3D11ShaderResourceView* srv, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
-    if (d == nullptr || c == nullptr || t == nullptr) { return false; }
-    const auto it = g_figurBilder.find(&t->wache);
-    if (it == g_figurBilder.end() || it->second == nullptr) { return false; }
+    if (d == nullptr || c == nullptr || srv == nullptr) { return false; }
     ID3D11Resource* res = nullptr;
-    it->second->GetResource(&res);
+    srv->GetResource(&res);
     if (res == nullptr) { return false; }
     ID3D11Texture2D* quelle = nullptr;
     const HRESULT hq = res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&quelle));
@@ -2341,6 +2343,32 @@ bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t
     }
     staging->Release();
     return ok;
+}
+
+}  // namespace
+
+bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+    if (t == nullptr) { return false; }
+    const auto it = g_figurBilder.find(&t->wache);
+    return it != g_figurBilder.end() && leseSicht(it->second, stufe, rgba, breite, hoehe);
+}
+
+bool leseKartenBild(const TextureSet* textures, int platz, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe, int* stufen) {
+    ID3D11ShaderResourceView* srv = holeBild(textures, platz);
+    if (srv == nullptr) { return false; }
+    if (stufen != nullptr) {
+        ID3D11Resource* res = nullptr;
+        srv->GetResource(&res);
+        ID3D11Texture2D* tex = nullptr;
+        if (res != nullptr && SUCCEEDED(res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tex))) && tex != nullptr) {
+            D3D11_TEXTURE2D_DESC td{};
+            tex->GetDesc(&td);
+            *stufen = static_cast<int>(td.MipLevels);
+            tex->Release();
+        }
+        if (res != nullptr) { res->Release(); }
+    }
+    return leseSicht(srv, stufe, rgba, breite, hoehe);
 }
 
 namespace {
@@ -8796,6 +8824,7 @@ void figurBilderZahlen(int& hochgeladen, int& geteilt) {
 }
 bool figurBildBereich(const TextureSet::Tex*, int, int, int, int) { return false; }
 bool leseFigurBild(const TextureSet::Tex*, int, std::vector<std::uint8_t>&, int&, int&) { return false; }
+bool leseKartenBild(const TextureSet*, int, int, std::vector<std::uint8_t>&, int&, int&, int*) { return false; }
 int gluehenFigurAufrufe() { return 0; }
 void gluehenFigurenBeginnen(bool, int, int) {}
 void gluehenFigurenEnde() {}

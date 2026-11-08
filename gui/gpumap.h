@@ -397,6 +397,10 @@ void figurBilderZahlen(int& hochgeladen, int& geteilt);
 bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1);
 // Selbsttest: Stufe `stufe` der Grafikkarten-Textur des Figurenbilds `t` zuruecklesen; false, wenn nicht hochgeladen.
 bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe);
+// MR8 Punkt 1 (Selbsttest): Stufe `stufe` des Kartenbilds an Platz `platz` (in der gewaehlten Szene) hochladen und zuruecklesen;
+// `stufen` bekommt die Zahl der Mip-Stufen auf der Grafikkarte.
+bool leseKartenBild(const TextureSet* textures, int platz, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe,
+                    int* stufen = nullptr);
 // rc602: Figuren geben ihre Leuchtstufen (ModelTextures::gluehStufen) dem
 // Gluehen. Vor den Figuren des Hauptbildes `gluehenFigurenBeginnen(true)`:
 // legt den Gluehpuffer an und loescht ihn; zeichneFigur schreibt dann jede

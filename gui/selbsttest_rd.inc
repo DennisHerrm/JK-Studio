@@ -54,7 +54,15 @@ void pk3Schreiben() {
     // ein Spiegel ohne alphaGen portal (die Sicht ganz, darueber nur ein fast schwarzes GL_ONE GL_ONE)
     sh += std::string(kSpiegel) + "\n{\n\tportal\n\t{\n\t\tmap textures/r3/dunkel\n\t\tblendFunc GL_ONE GL_ONE\n\t}\n}\n";
     sh += std::string(kFxGlow) + "\n{\n\t{\n\t\tmap textures/r3/licht_glw\n\t\tblendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n\t\tglow\n\t}\n}\n";
+    // MR8 Punkt 1: zwei Shader mit demselben Bild, einer mit noTC (nicht auf der Karte - das Echtzeit-Licht holt sie fuer die Probe)
+    sh += "textures/rd/m8tc\n{\n\tqer_editorimage textures/rd/m8bild\n\tnoTC\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
+    sh += "textures/rd/m8normal\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
     pk3.push_back({"shaders/rd.shader", sh});
+    // ein Verlauf mit Rauschen, den DXT5 sichtbar aendert
+    pk3.push_back({"textures/rd/m8bild.tga", editorportal::tga32(64, 64, [](int x, int y) {
+                       const auto v = [](int a) { return static_cast<unsigned char>(a & 255); };
+                       return std::array<unsigned char, 4>{v(x * 4 + ((x * 7 + y * 13) % 11)), v(y * 4 + ((x * 5 + y * 3) % 7)), v((x ^ y) * 4), 255};
+                   })});
     // die Grundstufe mit qer_editorimage: ohne bestimmt der Editor die Texturkoordinaten nach seinem Ersatzbild, q3map2 nach dem
     // Bild der Stufe - dann waeren es zwei verschiedene Flaechen
     // Streifen: 128 breit, links gelb, rechts schwarz (je 64 Einheiten auf der Platte)
@@ -260,6 +268,43 @@ std::vector<Schritt> dxtSchritte() {
             diag::detail("Knopftest: RD DXT " + b + " - Stufen Echtzeit " + std::to_string(echtSt.size()) + ", Vorschau " + std::to_string(vorSt.size()) +
                          ", gleich " + std::to_string(gleich) + erste);
             return echtSt.size() == vorSt.size() && gleich == static_cast<int>(vorSt.size());
+        }));
+    }
+    // MR8 Punkt 1: ein Bild je Name wie im Spiel - zwei Shader mit demselben Bild, einer mit noTC: das Echtzeit-Licht zeigt es
+    // fuer beide so, wie der Erste es geladen hat (R_FindImageFile_NoLoad, rd-vanilla tr_image.cpp:936-971), in beiden Reihenfolgen.
+    for (int fall = 0; fall < 2; ++fall) {
+        const std::string erst = fall == 0 ? "textures/rd/m8tc" : "textures/rd/m8normal";
+        const std::string zweit = fall == 0 ? "textures/rd/m8normal" : "textures/rd/m8tc";
+        const std::string was = fall == 0 ? "noTC zuerst" : "noTC danach";
+        add(tu("RD DXT: MR8 " + was, [erst, zweit] {
+            ke::echtRegisterNeu();
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            (void)ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", st, gr);
+            (void)ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", st, gr);
+        }));
+        add(warteBis("RD DXT: MR8 " + was + " geladen", [erst, zweit] {
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            ke::texturBilderAbholen();
+            return ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", st, gr) &&
+                   ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", st, gr);
+        }, 10000));
+        add(pruefe("RD DXT: MR8 " + was + " - beide Shader zeigen das Bild, wie der erste es lud", [erst, zweit, fall, was] {
+            std::vector<std::vector<unsigned char>> a;
+            std::vector<std::vector<unsigned char>> b;
+            std::vector<std::vector<unsigned char>> dxt;
+            std::vector<std::array<int, 2>> ga;
+            std::vector<std::array<int, 2>> gb;
+            std::vector<std::array<int, 2>> gd;
+            if (!ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", a, ga) ||
+                !ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", b, gb) || !vorschauStufen("textures/rd/m8bild", dxt, gd)) {
+                diag::detail("Knopftest: RD DXT MR8 - nicht lesbar");
+                return false;
+            }
+            diag::detail("Knopftest: RD DXT MR8 " + was + " - erster DXT5 " + std::to_string(a == dxt ? 1 : 0) + ", zweiter DXT5 " +
+                         std::to_string(b == dxt ? 1 : 0) + ", gleich " + std::to_string(a == b ? 1 : 0));
+            return a == b && ga == gb && (fall == 0 ? a != dxt : a == dxt);
         }));
     }
     add(tu("RD DXT: Schnell-Backen, Spielbild", [] {

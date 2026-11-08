@@ -255,11 +255,13 @@ inline Schritt vorratGegenprobe(const std::string& was, bool figuren) {
             TextureSet ohne;
             std::unordered_set<std::string> bilderMit;
             std::unordered_set<std::string> bilderOhne;
+            BildRegister regMit;
+            BildRegister regOhne;
             g_app->texCache.clear();
-            loadMapTexturesFuer(g_app->geo, mit, bilderMit);
+            loadMapTexturesFuer(g_app->geo, mit, bilderMit, regMit);
             g_app->texCache.clear();
             bildVorratAbschalten(true);
-            loadMapTexturesFuer(g_app->geo, ohne, bilderOhne);
+            loadMapTexturesFuer(g_app->geo, ohne, bilderOhne, regOhne);
             bildVorratAbschalten(false);
             anders += mit.byShader.size() != ohne.byShader.size() || mit.found != ohne.found || bilderMit != bilderOhne ? 1U : 0U;
             for (std::size_t i = 0; i < std::min(mit.byShader.size(), ohne.byShader.size()); ++i) {

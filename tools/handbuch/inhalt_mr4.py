@@ -1,5 +1,5 @@
 """MR4/MR5: Hinweis auf der Seite "Die Karte" zur Texturkompression der Vorschau unter Jedi Academy und Jedi Outcast (S3TC wie
-r_ext_compress_textures 1, src/dxt.cpp); MR7: Echtzeit-Licht des Karten-Editors (P40) und noTC in Skript-Reihenfolge (P43).
+r_ext_compress_textures 1, src/dxt.cpp); MR7: Echtzeit-Licht des Karten-Editors (P40) und noTC in Skript-Reihenfolge (P43); MR8: ein Bild je Name.
 
 Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_paint.py.
 """
@@ -40,9 +40,27 @@ DXT = (
 )
 
 
+# MR8 Punkt 1: ein Bild je Name wie im Spiel (R_FindImageFile_NoLoad) - der erste Shader entscheidet
+BILD = (
+    "A picture that several shaders use is loaded only once, as in the game: the shader that loads it first decides for all of "
+    "them whether it is compressed, has mipmaps and is clamped (`noTC`, `nomipmaps`, `clampMap`).",
+    "Ein Bild, das mehrere Shader benutzen, lädt das Spiel nur einmal: Der Shader, der es zuerst lädt, entscheidet für alle, ob es "
+    "komprimiert wird, Mip-Stufen hat und am Rand klemmt (`noTC`, `nomipmaps`, `clampMap`).",
+    "多个着色器共用的图像与游戏中一样只加载一次:最先加载它的着色器为所有着色器决定它是否压缩、是否有 mipmap 以及是否钳制边缘"
+    "(`noTC`、`nomipmaps`、`clampMap`)。",
+    "複数のシェーダーが使う画像は、ゲームと同じく一度だけ読み込まれます。最初に読み込んだシェーダーが、圧縮するか、ミップマップを"
+    "持つか、端をクランプするかをすべてのシェーダーについて決めます(`noTC`、`nomipmaps`、`clampMap`)。",
+    "Una imagen que usan varios shaders se carga una sola vez, como en el juego: el shader que la carga primero decide para todos si "
+    "se comprime, si tiene mipmaps y si se fija en el borde (`noTC`, `nomipmaps`, `clampMap`).",
+    "Obrázek, který používá více shaderů, se jako ve hře načte jen jednou: shader, který ho načte první, rozhodne za všechny, zda se "
+    "komprimuje, má mipmapy a je u okraje upnutý (`noTC`, `nomipmaps`, `clampMap`).",
+)
+TEXTE = tuple(a + " " + b for a, b in zip(DXT, BILD))
+
+
 def dxt_notiz():
-    return ("note", T(*DXT[:4]))
+    return ("note", T(*TEXTE[:4]))
 
 
-ES = {DXT[0]: DXT[4]}
-CS = {DXT[0]: DXT[5]}
+ES = {TEXTE[0]: TEXTE[4]}
+CS = {TEXTE[0]: TEXTE[5]}

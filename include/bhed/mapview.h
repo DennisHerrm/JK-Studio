@@ -195,6 +195,9 @@ struct TextureSet {
         std::vector<std::uint8_t> rgba;
         // MR4 Punkt 7: Shader mit noTC (tr_shader.cpp:2324) - beim Hochladen nicht wie das Spiel komprimieren (bhed/dxt.h)
         bool keinTc = false;
+        // MR8 Punkt 1: das Bild wurde ohne Mipmaps geladen (nomipmaps des Ersten, der es lud - bhed/bildregister.h): Upload32 laedt
+        // nur Stufe 0 (tr_image.cpp, mipmap false), buildMips baut dann keine Pyramide.
+        bool keinMip = false;
 
         // --- Die Bildpyramide -------------------------------------------
         //
