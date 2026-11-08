@@ -4198,7 +4198,6 @@ enum class Str {
     MbGwUebernehmenHint,
     MbGwUebernommen,
     MbGwTastenMax,
-    MbGwTastenBlender,
     MbUndoMalen,
     MbUndoSetzen,
     MbUndoSpiegeln,
