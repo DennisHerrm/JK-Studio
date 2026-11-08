@@ -67,6 +67,7 @@
 #include "bhed/gpuconst.h"
 #include "bhed/gpudraw.h"
 #include "bhed/gpushader.h"
+#include "bhed/cblagen_win32.h"
 #include "bhed/gpucam.h"
 #include "bhed/gpuskin.h"
 #include "bhed/utf8pfad.h"
@@ -255,11 +256,10 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // und je Stapel nur ein Versatz (VSSetConstantBuffers1). DISCARD nur, wenn
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
-// rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 72;   // FIX4 P33: + gStufeTcM1..3, gStufeTcO23, gStufeTcArt; FIX5: deformVertexes vier statt fuenf float4; MERGE3: + gEntSkala
+// rc604: die Werte einer Figurstufe in b3 (JeStufe), Lagen und Groesse seit P60 aus gpushader.h (kStufeFloats).
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
 // FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (72 float: zwei)
-constexpr UINT kStufeRingEintraege = (kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag;
+constexpr UINT kStufeRingEintraege = static_cast<UINT>((kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag);
 constexpr UINT kRingGroesse = 1024U * 1024U;    // 4096 Stapel bis zum naechsten DISCARD
 ID3D11Buffer* g_cbRing = nullptr;
 ID3D11DeviceContext1* g_ctx1 = nullptr;
@@ -732,47 +732,42 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
     if (geprueft || vsBlob == nullptr) {
         return;
     }
-    ID3D11ShaderReflection* r = nullptr;
-    if (FAILED(D3DReflect(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
-                          __uuidof(ID3D11ShaderReflection),
-                          reinterpret_cast<void**>(&r))) || r == nullptr) {
+    geprueft = true;
+    struct Soll { const char* name; std::size_t at; };
+    const Soll soll[] = {{"gTcM0", kTcM0At}, {"gTcO01", kTcO01At},
+                         {"gRgb", kRgbAt}, {"gAlphaSchwelle", kAlphaAt},
+                         {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
+                         {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
+                         {"gDeformArt", kDeformArtAt}, {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
+                         {"gDeformNormal", kDeformNormalAt},
+                         {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTcM1", kTcM1At},
+                         {"gTcM2", kTcM2At}, {"gTcM3", kTcM3At}, {"gTcO23", kTcO23At}, {"gTcArt", kTcArtAt}};
+    std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
+    const bool gut = cbLagenPruefen(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), "JeStapel", soll, 0U, false, z);
+    z += gut ? " - passt" : " - WEICHT AB";
+    diag::detail(z);
+    if (!gut) {
+        diag::write(diag::Level::Error, z);
+    }
+}
+
+// P60: dasselbe fuer den Stufenpuffer der Figuren (JeStufe, b3) - die Schreiber unten (stufenWerte, texModWerte,
+// deformWerte, entityWerte, Auge und Achsen) nehmen die Lagen aus gpushader.h, der Figur-Vertex-Shader muss sie ebenso
+// packen. Einmal beim ersten Figurenshader; eine Abweichung ist ein Fehler im Protokoll.
+void pruefeStufenLagen(ID3DBlob* vsBlob) {
+    static bool geprueft = false;
+    if (geprueft || vsBlob == nullptr) {
         return;
     }
     geprueft = true;
-    ID3D11ShaderReflectionConstantBuffer* cb = r->GetConstantBufferByName("JeStapel");
-    D3D11_SHADER_BUFFER_DESC bd{};
-    if (cb != nullptr && SUCCEEDED(cb->GetDesc(&bd))) {
-        struct Soll { const char* name; std::size_t at; };
-        const Soll soll[] = {{"gTcM0", kTcM0At}, {"gTcO01", kTcO01At},
-                             {"gRgb", kRgbAt}, {"gAlphaSchwelle", kAlphaAt},
-                             {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
-                             {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
-                             {"gDeformArt", kDeformArtAt}, {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
-                             {"gDeformNormal", kDeformNormalAt},
-                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTcM1", kTcM1At},
-                             {"gTcM2", kTcM2At}, {"gTcM3", kTcM3At}, {"gTcO23", kTcO23At}, {"gTcArt", kTcArtAt}};
-        std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
-        bool gut = true;
-        for (const Soll& s : soll) {
-            ID3D11ShaderReflectionVariable* v = cb->GetVariableByName(s.name);
-            D3D11_SHADER_VARIABLE_DESC vd{};
-            if (v == nullptr || FAILED(v->GetDesc(&vd))) {
-                continue;
-            }
-            const std::size_t ist = vd.StartOffset / 4U;
-            z += " " + std::string(s.name) + "@" + std::to_string(ist);
-            if (ist != s.at) {
-                z += "(soll " + std::to_string(s.at) + ")";
-                gut = false;
-            }
-        }
-        z += gut ? " - passt" : " - WEICHT AB";
-        diag::detail(z);
-        if (!gut) {
-            diag::write(diag::Level::Error, z);
-        }
+    std::string z = "GPU-Stufenpuffer (aus dem Shader gelesen):";
+    const bool gut = cbLagenPruefen(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), "JeStufe", kStufenLagen,
+                                    kStufeFloats, true, z);
+    z += gut ? " - passt" : " - WEICHT AB";
+    diag::detail(z);
+    if (!gut) {
+        diag::write(diag::Level::Error, z);
     }
-    r->Release();
 }
 
 ShaderPaar* holeShader(std::uint32_t features, int numTexMods,
@@ -2409,6 +2404,7 @@ ShaderPaar* holeFigurShader(std::string* fehler) {
         if (err != nullptr) { err->Release(); }
         return nullptr;
     }
+    pruefeStufenLagen(vsBlob);   // P60
     if (FAILED(d3dUebersetzen(psSrc.data(), psSrc.size(), "figur", nullptr,
                           nullptr, "main", "ps_4_0", uebersetzFahnen(), 0, &psBlob, &err))) {
         if (fehler != nullptr && err != nullptr) {
@@ -4637,14 +4633,13 @@ int zeichneLichtUndSchatten(const BspMesh& mesh, const TextureSet* textures,
     return abgesetzt;
 }
 
-// MERGE2: Ursprung und Massstab der Entity in die Figurstufe (b3) - gEntSkala.xyz (68..70, MERGE3: FIX4 hat gStufeTurbQ4
-// aufgeloest) die Massstaebe von axis[0..2], gAchse0..2.w der Ursprung. Ohne Angabe bleiben sie 0, und der Shader nimmt die
-// Weltmatrix des Aufrufs.
-void entityWerte(const FigurLicht* licht, float* sd) {
-    if (licht == nullptr || licht->entSkala[0] <= 0.0F) { return; }
-    static_assert(kStufeFloats >= 71U, "gEntSkala liegt bei 68..70");
-    for (int a2 = 0; a2 < 3; ++a2) { sd[68 + a2] = licht->entSkala[a2]; }
-    for (int a2 = 0; a2 < 3; ++a2) { sd[15 + a2 * 4] = licht->entUrsprung[a2]; }
+// MERGE2: Ursprung und Massstab der Entity in die Figurstufe (b3) - gEntSkala.xyz (kStufeEntSkalaAt, MERGE3: FIX4 hat gStufeTurbQ4
+// aufgeloest) die Massstaebe von axis[0..2], gAchse0..2.w der Ursprung. `skala` nullptr: keine Angabe, sie bleiben 0, und der
+// Shader nimmt die Weltmatrix des Aufrufs (Spalte i = axis[i]).
+void entityWerte(const float* skala, const float* ursprung, float* sd) {
+    if (skala == nullptr) { return; }
+    for (std::size_t a2 = 0; a2 < 3; ++a2) { sd[kStufeEntSkalaAt + a2] = skala[a2]; }
+    for (std::size_t a2 = 0; a2 < 3; ++a2) { sd[kStufeAchse0At + 3U + a2 * 4U] = ursprung[a2]; }
 }
 
 int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
@@ -4754,20 +4749,25 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
     // rc602 kartenpruefung: b3, die Stufe - Vorgabe alles 0 (der alte Weg).
     float stufenDaten[kStufeFloats] = {};
     float achsen[3][3];
+    // MERGE2 / P61: Massstab und Ursprung der Entity fuer entityWerte (nullptr: keine Angabe)
+    float weltSkala[3] = {};
+    float weltUrsprung[3] = {};
+    const float* entSkala = (licht != nullptr && licht->entSkala[0] > 0.0F) ? licht->entSkala : nullptr;
+    const float* entUrsprung = licht != nullptr ? licht->entUrsprung : nullptr;
     if (licht != nullptr && licht->achsenGesetzt) {
         std::memcpy(achsen, licht->achsen, sizeof(achsen));
     } else {
         // Ohne Angabe: die Spalten von welt (G2_GenerateWorldMatrix - so bei
         // Gegenstaenden, die eine eigene Entity sind), normiert. Griffe in der
         // Hand bringen die Achsen ihrer Figur mit (rc603 Durchsicht).
-        for (int k = 0; k < 3; ++k) {
-            const float x = welt[0 * 4 + k];
-            const float y = welt[1 * 4 + k];
-            const float z = welt[2 * 4 + k];
-            const float l = std::sqrt(x * x + y * y + z * z);
-            achsen[k][0] = l > 0.0F ? x / l : 0.0F;
-            achsen[k][1] = l > 0.0F ? y / l : 0.0F;
-            achsen[k][2] = l > 0.0F ? z / l : 0.0F;
+        // P61: traegt welt die Ghoul2-Wurzel (Gegenstaende, Geschuetze, Abwuerfe ueber g2WurzelWelt), sind Spalte 0 und 1
+        // axis[1] und -axis[0]; Achsen, Massstab und Ursprung kommen dann als Angabe wie bei einer Figur (gEntSkala), sonst
+        // teilte der Ersatzweg des Shaders durch |Spalte 0| = |axis[1]| statt |axis[0]| und drehte tcGen environment um die Wurzel.
+        const bool mitWurzel = licht != nullptr && licht->weltMitWurzel;
+        entityAusWelt(welt, mitWurzel, achsen, weltSkala, weltUrsprung);
+        if (mitWurzel && entSkala == nullptr) {
+            entSkala = weltSkala;
+            entUrsprung = weltUrsprung;
         }
     }
     if (g_figurAchsenProbe != nullptr) {   // rc603 Durchsicht, Selbsttest
@@ -4780,12 +4780,15 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
             }
         }
         std::memcpy(e.achsen, achsen, sizeof(achsen));
+        std::memcpy(e.welt, welt, sizeof(e.welt));   // P61
+        e.entSkala = entSkala != nullptr;
+        if (entSkala != nullptr) { std::memcpy(e.skala, entSkala, sizeof(e.skala)); }
         g_figurAchsenProbe->push_back(e);
     }
     auto schreibeStufe = [&](const float* daten) {
         if (g_cbStufe == nullptr) {
             D3D11_BUFFER_DESC bd{};
-            bd.ByteWidth = kStufeFloats * 4U;   // rc604 fix604b (B4): + tcMod; rc604: + deformVertexes
+            bd.ByteWidth = static_cast<UINT>(kStufeFloats * 4U);   // rc604 fix604b (B4): + tcMod; rc604: + deformVertexes
             bd.Usage = D3D11_USAGE_DYNAMIC;
             bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
             bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -4927,31 +4930,31 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
             // [4..6] rgb, [7] a.
             auto stufenWerte = [&](const FigurStufenArt& art, float* sd) {
                 switch (art.farbe) {
-                    case FigurFarbe::Licht: sd[0] = 0.0F; break;
-                    case FigurFarbe::Weiss: sd[0] = 1.0F; break;
-                    case FigurFarbe::Schwarz: sd[0] = 3.0F; break;
+                    case FigurFarbe::Licht: sd[kStufeArtAt] = 0.0F; break;
+                    case FigurFarbe::Weiss: sd[kStufeArtAt] = 1.0F; break;
+                    case FigurFarbe::Schwarz: sd[kStufeArtAt] = 3.0F; break;
                     case FigurFarbe::Fest:
-                        sd[0] = 2.0F;
-                        for (int q = 0; q < 3; ++q) { sd[4 + q] = art.rgb[q]; }
+                        sd[kStufeArtAt] = 2.0F;
+                        for (std::size_t q = 0; q < 3; ++q) { sd[kStufeFarbeAt + q] = art.rgb[q]; }
                         break;
                     case FigurFarbe::Welle: {
-                        sd[0] = 2.0F;
+                        sd[kStufeArtAt] = 2.0F;
                         const float w = figurWelle(art.rgbWelle, zeitS);
-                        for (int q = 0; q < 3; ++q) { sd[4 + q] = w; }
+                        for (std::size_t q = 0; q < 3; ++q) { sd[kStufeFarbeAt + q] = w; }
                         break;
                     }
                     case FigurFarbe::Entity:   // Pruefung 4b: RF_RGB_TINT
-                        sd[0] = 2.0F;
-                        for (int q = 0; q < 3; ++q) { sd[4 + q] = licht != nullptr ? licht->entityFarbe[q] : 1.0F; }
+                        sd[kStufeArtAt] = 2.0F;
+                        for (std::size_t q = 0; q < 3; ++q) { sd[kStufeFarbeAt + q] = licht != nullptr ? licht->entityFarbe[q] : 1.0F; }
                         break;
                 }
                 switch (art.alpha) {
-                    case FigurAlpha::Eins: sd[1] = 0.0F; break;
-                    case FigurAlpha::Spekular: sd[1] = 1.0F; break;
-                    case FigurAlpha::Fest: sd[1] = 2.0F; sd[7] = art.a; break;
-                    case FigurAlpha::Welle: sd[1] = 2.0F; sd[7] = figurWelle(art.alphaWelle, zeitS); break;
+                    case FigurAlpha::Eins: sd[kStufeArtAt + 1U] = 0.0F; break;
+                    case FigurAlpha::Spekular: sd[kStufeArtAt + 1U] = 1.0F; break;
+                    case FigurAlpha::Fest: sd[kStufeArtAt + 1U] = 2.0F; sd[kStufeFarbeAt + 3U] = art.a; break;
+                    case FigurAlpha::Welle: sd[kStufeArtAt + 1U] = 2.0F; sd[kStufeFarbeAt + 3U] = figurWelle(art.alphaWelle, zeitS); break;
                 }
-                sd[2] = art.umgebung ? 1.0F : 0.0F;
+                sd[kStufeArtAt + 2U] = art.umgebung ? 1.0F : 0.0F;
             };
             // rc604 fix604b (B4): tcMod der Stufe - [3] an, [24..31] gStufeTcM0 und
             // gStufeTcO01 aus packeKonstanten (dieselbe Kette wie an der Karte, zur
@@ -4961,10 +4964,10 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 ++g_figurTexModAufrufe;
                 float k[kKonstFloats + 8] = {};
                 packeKonstanten(batchStateFor(tex, zeitS), k, zeitS);
-                sd[3] = 1.0F;
-                for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
+                sd[kStufeArtAt + 3U] = 1.0F;
+                for (std::size_t q = 0; q < 8; ++q) { sd[kStufeTcM0At + q] = k[q]; }
                 // FIX4 P33: [48..67] gStufeTcM1..3, gStufeTcO23, gStufeTcArt - im Stapelblock am Stueck ab kTcM1At
-                for (std::size_t q = 0; q < 20; ++q) { sd[48 + q] = k[kTcM1At + q]; }
+                for (std::size_t q = 0; q < 20; ++q) { sd[kStufeTcM1At + q] = k[kTcM1At + q]; }
             };
             // rc604: deformVertexes des Shaders (RB_DeformTessGeometry, code/rd-vanilla/tr_shade_calc.cpp OpenJK). FIX5: [32..47]
             // gDef0..3 aus gpu::verformung, dieselben Werte und dieselbe Rechnung (verformeEcke) wie an der Karte - wave, normal, bulge,
@@ -4973,8 +4976,18 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 if (g_figurDeformAus) { return; }
                 const Verformung v = verformung(tex.deformWave, tex.deformSpread, tex.deform2, zeitS);
                 if (!v.an) { return; }
-                std::copy(v.d, v.d + 16, sd + 32);
+                std::copy(v.d, v.d + 16, sd + kStufeDefAt);
                 ++g_figurDeformAufrufe;
+            };
+            // Auge, Achsen der Entity und (MERGE2) Ursprung und Massstab - in beiden Wegen gleich.
+            auto raumWerte = [&](float* sd) {
+                if (licht != nullptr) {
+                    for (std::size_t q = 0; q < 3; ++q) { sd[kStufeAugeAt + q] = licht->auge[q]; }
+                }
+                for (std::size_t a2 = 0; a2 < 3; ++a2) {
+                    for (std::size_t q = 0; q < 3; ++q) { sd[kStufeAchse0At + a2 * 4U + q] = achsen[a2][q]; }
+                }
+                entityWerte(entSkala, entUrsprung, sd);
             };
             // --- rc603: der schnelle Stufenweg ------------------------------
             //
@@ -5035,13 +5048,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                             std::memcpy(sd, sf.stufen[k].sd, sizeof(sf.stufen[k].sd));
                         }
                         deformWerte(stufen[k].bilder.front(), sd);   // rc604
-                        if (licht != nullptr) {
-                            for (int q = 0; q < 3; ++q) { sd[8 + q] = licht->auge[q]; }
-                        }
-                        for (int a2 = 0; a2 < 3; ++a2) {
-                            for (int q = 0; q < 3; ++q) { sd[12 + a2 * 4 + q] = achsen[a2][q]; }
-                        }
-                        entityWerte(licht, sd);   // MERGE2
+                        raumWerte(sd);
                         std::memcpy(ring + k * kStufeRingEintraege * (kRingEintrag / 4U), sd, sizeof(sd));
                     }
                     ringFertig(c);
@@ -5155,13 +5162,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 stufenWerte(fs.art, sd);
                 texModWerte(tex, sd);   // rc604 fix604b (B4)
                 deformWerte(tex, sd);   // rc604
-                if (licht != nullptr) {
-                    for (int q = 0; q < 3; ++q) { sd[8 + q] = licht->auge[q]; }
-                }
-                for (int a2 = 0; a2 < 3; ++a2) {
-                    for (int q = 0; q < 3; ++q) { sd[12 + a2 * 4 + q] = achsen[a2][q]; }
-                }
-                entityWerte(licht, sd);   // MERGE2
+                raumWerte(sd);
                 if (std::memcmp(sd, letzteDaten, sizeof(sd)) != 0) {
                     (void)schreibeStufe(sd);
                     std::memcpy(letzteDaten, sd, sizeof(sd));

@@ -2261,9 +2261,10 @@ std::map<std::size_t, std::string> g_gegenstandGrund;
 // RF_RGB_TINT (wv, wv, 0); vierzehn Sprites yellowDroppedSaberShader
 // (gfx/effects/yellow_glow) entlang -ent.axis[2] (i = -4 .. 9), Groesse 10,
 // Alpha wv * 0.5 (FX_USE_ALPHA), ein Bild lang; ein Licht (1, 1, 0) mit
-// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels).
+// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels). `welt`: die des Gegenstands samt Ghoul2-Wurzel (g2WurzelWelt) - die
+// Huelle ist derselbe refEntity mit customShader und liegt genau auf ihm (vorher gg.welt ohne Wurzel: um 90 Grad verdreht).
 void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAssets& as,
-                             const std::vector<BoneMatrix>& knochen, const gpu::FigurLicht& licht, const float* vp,
+                             const std::vector<BoneMatrix>& knochen, const float* welt, const gpu::FigurLicht& licht, const float* vp,
                              const float rechts[3], const float hoch[3], std::vector<gpu::KlingenQuad>& sprites,
                              std::vector<gpu::WeltLicht>& lichter) {
     const float cgZeit = std::floor(licht.zeit * 1000.0F);   // cg.time, ganze ms
@@ -2280,7 +2281,7 @@ void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAsset
         l.entityFarbe[1] = wv;
         l.entityFarbe[2] = 0.0F;
         std::string f;
-        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, gg.welt, vp, &f, &l, g_app->showCaps);
+        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, welt, vp, &f, &l, g_app->showCaps);
         g_app->gpuAufrufe += n;
         g_app->gpuFiguren2 += n;
     }

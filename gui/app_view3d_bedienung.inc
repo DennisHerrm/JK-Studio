@@ -4203,12 +4203,13 @@ void drawMapView() {
                             }
                             float ggWurzel[16];
                             g2WurzelWelt(ggWelt, ggWurzel);
+                            gl.weltMitWurzel = true;   // P61
                             const int ng = gpu::zeichneFigur(as->model, &as->textures, *knochen, ggWurzel, vp,
                                                              &fg, &gl, g_app->showCaps);
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;
                             if (gg.schwertLeuchten) {
-                                schwertLeuchtenZeichnen(gg, *as, *knochen, gl, vp, grechts, ghoch, klingen,
+                                schwertLeuchtenZeichnen(gg, *as, *knochen, ggWurzel, gl, vp, grechts, ghoch, klingen,
                                                         schwertLichter);
                             }
                         }
@@ -4232,6 +4233,7 @@ void drawMapView() {
                             abWelt[15] = 1.0F;
                             g2WurzelWelt(abWelt, abWelt);
                             gpu::FigurLicht gl;
+                            gl.weltMitWurzel = true;   // P61
                             for (int k = 0; k < 3; ++k) { gl.auge[k] = bildCam.pos[k]; }
                             gl.zeit = zeit;
                             const float of[3] = {o[0], o[1], o[2]};

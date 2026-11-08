@@ -79,6 +79,25 @@ void baueFigurWelt(float yawGrad, const float pos[3], float* ziel) {
     ziel[15] = 1.0F;
 }
 
+void entityAusWelt(const float* welt, bool mitWurzel, float achsen[3][3], float skala[3], float ursprung[3]) {
+    // Spalte (Index, Vorzeichen) je Achse: mit Wurzel axis[0] = -Spalte 1, axis[1] = Spalte 0.
+    const int spalte[3] = {mitWurzel ? 1 : 0, mitWurzel ? 0 : 1, 2};
+    const float zeichen[3] = {mitWurzel ? -1.0F : 1.0F, 1.0F, 1.0F};
+    for (int k = 0; k < 3; ++k) {
+        const int c = spalte[k];
+        const float x = welt[0 * 4 + c];
+        const float y = welt[1 * 4 + c];
+        const float z = welt[2 * 4 + c];
+        const float l = std::sqrt(x * x + y * y + z * z);
+        // geteilt wie bisher (bildpunktgleich), das Vorzeichen ist exakt
+        achsen[k][0] = l > 0.0F ? x / l * zeichen[k] : 0.0F;
+        achsen[k][1] = l > 0.0F ? y / l * zeichen[k] : 0.0F;
+        achsen[k][2] = l > 0.0F ? z / l * zeichen[k] : 0.0F;
+        skala[k] = l;
+        ursprung[k] = welt[k * 4 + 3];
+    }
+}
+
 void baueGriffWelt(const float* figurWelt, const BoneMatrix& hand, float* ziel) {
     if (figurWelt == nullptr || ziel == nullptr) {
         return;

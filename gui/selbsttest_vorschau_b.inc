@@ -1465,6 +1465,63 @@ std::vector<Schritt> tripMineSchritte() {
         diag::detail(z);
         return fallen > 0 && strahlen > 0 && laenge > 16.0 && mittel > 4.0;
     }));
+    // P61: Ghoul2-Gegenstaende (G2_GenerateWorldMatrix, dazu die Ghoul2-Wurzel in welt) rechnen Glanz und tcGen environment in
+    // den Achsen ihrer Entity (tess.normal liegt im Spiel samt Wurzel im Raum von ent->e.axis, tr_ghoul2.cpp:1811 MD9), mit
+    // Massstab und Ursprung als Angabe; die Huelle des Schwertleuchtens (CG_Item: derselbe refEntity) liegt auf demselben welt.
+    // Fuer die Huelle wird die erste Falle einmal zum leuchtenden Schwert erklaert (nur Zeichnen, keine Spielregel).
+    auto probe = std::make_shared<std::vector<gpu::FigurAchsenEintrag>>();
+    add(tu("Gegenstandachsen: ein Bild mit Probe, die erste Falle mit Schwertleuchten", [=] {
+        probe->clear();
+        gpu::figurAchsenProbe(probe.get());
+        if (*gi >= 0) { g_app->gegenstandGlm[static_cast<std::size_t>(*gi)].schwertLeuchten = true; }
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pruefe("Gegenstandachsen: Fallen in den Achsen ihrer Entity, Huelle auf ihrem welt (P61)", [=] {
+        gpu::figurAchsenProbe(nullptr);
+        if (*gi >= 0) { g_app->gegenstandGlm[static_cast<std::size_t>(*gi)].schwertLeuchten = false; }
+        g_app->mapDirty = true;
+        int aufrufe = 0;
+        int huelle = 0;
+        float achsAbw = 0.0F;
+        float weltAbw = 0.0F;
+        float skalaAbw = 0.0F;
+        int ohneSkala = 0;
+        for (std::size_t k = 0; k < g_app->gegenstandGlm.size(); ++k) {
+            const App::GegenstandGlm& gg = g_app->gegenstandGlm[k];
+            if (gg.entity >= g_app->map.entities.size() || g_app->map.entities[gg.entity].classname != "misc_trip_mine") { continue; }
+            // g2WurzelWelt: Spalte 0 = Spalte 1, Spalte 1 = -Spalte 0
+            float wurzel[16];
+            for (int r = 0; r < 4; ++r) {
+                wurzel[r * 4 + 0] = gg.welt[r * 4 + 1];
+                wurzel[r * 4 + 1] = -gg.welt[r * 4 + 0];
+                wurzel[r * 4 + 2] = gg.welt[r * 4 + 2];
+                wurzel[r * 4 + 3] = gg.welt[r * 4 + 3];
+            }
+            for (const gpu::FigurAchsenEintrag& e : *probe) {
+                if (e.welt[3] != gg.welt[3] || e.welt[7] != gg.welt[7] || e.welt[11] != gg.welt[11]) { continue; }
+                ++aufrufe;
+                if (static_cast<int>(k) == *gi) { ++huelle; }
+                for (int i = 0; i < 12; ++i) { weltAbw = std::max(weltAbw, std::fabs(e.welt[i] - wurzel[i])); }
+                for (int r = 0; r < 3; ++r) {
+                    const float l = std::sqrt(gg.welt[0 * 4 + r] * gg.welt[0 * 4 + r] + gg.welt[1 * 4 + r] * gg.welt[1 * 4 + r] +
+                                              gg.welt[2 * 4 + r] * gg.welt[2 * 4 + r]);
+                    for (int c = 0; c < 3; ++c) { achsAbw = std::max(achsAbw, std::fabs(e.achsen[r][c] - gg.welt[c * 4 + r] / l)); }
+                    if (e.entSkala) { skalaAbw = std::max(skalaAbw, std::fabs(e.skala[r] - l)); }
+                }
+                if (!e.entSkala) { ++ohneSkala; }
+            }
+        }
+        char z[320];
+        std::snprintf(z, sizeof(z),
+                      "Knopftest: Gegenstandachsen - Aufrufe der Fallen %d (davon an der ersten %d, mit Huelle 2), Abweichung "
+                      "Achsen %.5f, welt %.5f, Massstab %.5f, ohne Massstab %d",
+                      aufrufe, huelle, static_cast<double>(achsAbw), static_cast<double>(weltAbw), static_cast<double>(skalaAbw),
+                      ohneSkala);
+        diag::detail(z);
+        return aufrufe > 1 && achsAbw < 1e-5F && weltAbw < 1e-5F && skalaAbw < 1e-5F && ohneSkala == 0;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     // rc604: laserTrapThink macht scharf (wp_trip_mine.cpp:140-146 OpenJK) -
     // je Falle mit Strahl einmal warning.wav und die Schleife hum_loop.wav.
     add(pruefe("Laserfalle: Scharf-Klang und Summen", [] {

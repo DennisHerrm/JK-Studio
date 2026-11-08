@@ -99,6 +99,14 @@ void packeKnochen(const std::vector<BoneMatrix>& matrizen, float* ziel);
 // Figuren, die alle um einen Viertelkreis verdreht stehen.
 void baueFigurWelt(float yawGrad, const float pos[3], float* ziel);
 
+// P61: Achsen (Zeilen axis[0..2], normiert), Massstab je Achse und Ursprung der Entity aus der Weltmatrix eines Figurenaufrufs
+// (4x4 zeilenweise), fuer Glanz und tcGen environment im Raum der Entity (R_RotateForEntity, tr_main.cpp:384-403 MD9).
+// mitWurzel: welt = A * Wurzel wie baueFigurWelt und g2WurzelWelt - die Ghoul2-Wurzel (rootMatrix = identityMatrix
+// "0 -1 0 / 1 0 0 / 0 0 1", tr_ghoul2.cpp:102-108 MD9) liegt in welt, im Spiel aber in den Knochen (G2_TransformGhoulBones,
+// :1811), tess.xyz und tess.normal also im Raum von A. Dann ist Spalte 0 = axis[1] * s1, Spalte 1 = -axis[0] * s0 und der
+// Teiler |axis[0]| die Laenge von Spalte 1. Sonst Spalte i = axis[i] * si (G2_GenerateWorldMatrix ohne Wurzel).
+void entityAusWelt(const float* welt, bool mitWurzel, float achsen[3][3], float skala[3], float ursprung[3]);
+
 // Die Stellung eines Griffs in der Hand: Figurstellung mal Bolzenmatrix.
 //
 // Der Bolzen "*r_hand" steht im Bezug der Figur, VOR ihrer Drehung und

@@ -1082,6 +1082,7 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     // rc604 fix604b (B4): .w 1 = tcMod - gStufeTcM0..3, gStufeTcO01/23 und
     // gStufeTcArt wie gTcM0.. der Karte (packeKonstanten, FIX4 P33 je Schritt).
     s += R"(
+// P60: die Lagen stehen in bhed/gpushader.h (kStufenLagen, kStufeFloats) - gpumap_win32.cpp prueft sie per D3DReflect.
 cbuffer JeStufe : register(b3) {
     float4 gStufe;
     float4 gStufeFarbe;

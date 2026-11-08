@@ -194,6 +194,9 @@ struct FigurLicht {
     // Weltmatrix des Aufrufs (Ursprung und Spaltenlaengen).
     float entUrsprung[3]{};
     float entSkala[3]{};
+    // P61: welt traegt die Ghoul2-Wurzel (g2WurzelWelt, baueFigurWelt: Spalte 1 ist -axis[0]). Ohne achsenGesetzt und entSkala
+    // kommen Achsen, Massstab und Ursprung dann aus gpu::entityAusWelt(welt, true, ...) - Gegenstaende, Geschuetze, Abwuerfe.
+    bool weltMitWurzel = false;
     // Pruefung 4b: shaderRGBA / 255 fuer Stufen mit FigurFarbe::Entity.
     float entityFarbe[3]{1.0F, 1.0F, 1.0F};
     // rc603 Durchsicht, nur fuer den Selbsttest (figurAchsenProbe): zu welcher
@@ -386,6 +389,9 @@ struct FigurAchsenEintrag {
     int besitzer = -1;
     bool umgebung = false;
     float achsen[3][3]{};
+    float welt[16]{};       // P61: die Weltmatrix des Aufrufs
+    bool entSkala = false;  // P61: Massstab der Entity als Angabe (gEntSkala), dann in skala
+    float skala[3]{};
 };
 void figurAchsenProbe(std::vector<FigurAchsenEintrag>* ziel);
 // rc603: Figurenbilder nach Inhalt teilen (gleiche Bildpunkte = eine
