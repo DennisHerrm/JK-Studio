@@ -5,6 +5,7 @@
 #include "bhed/image.h"
 
 #include <cctype>
+#include <cstddef>
 
 namespace bhed {
 namespace {
