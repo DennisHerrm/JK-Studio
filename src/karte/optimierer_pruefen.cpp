@@ -269,7 +269,8 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s keys or values longer than 1023 characters (q3map2 stops with \"Token too large\", the game cuts them off)",
     "entity text about %s bytes of %s (%s bytes from kept lights)",
     "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map",
-    "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)"
+    "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)",
+    "%s shaders stop the game with ERR_DROP when it loads or draws them (%s)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -924,6 +925,35 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
     }
 
     messen("textur");
+    // --- DEF1 P45: Shader, an denen das Spiel mit ERR_DROP abbricht, wenn es sie laedt oder eine Flaeche damit zeichnet ------------
+    {
+        Befund b = neu("spielabbruch", Schwere::Fehler,
+                       "OpenJK/MD9 code/rd-vanilla/tr_shade_calc.cpp:32-52 TableForFunc (ERR_DROP), :60-75 EvalWaveForm, :129-170 "
+                       "RB_CalcDeformVertexes, :263-280 RB_CalcMoveVertexes; tr_shader.cpp:446-490 ParseWaveForm, :504-506 ParseTexMod");
+        std::map<std::string, ObjektRef> treffer;
+        std::string grund;
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
+                const AbbildPrimitiv& pr = ents[e].prims[k];
+                auto pruefen = [&](const std::string& s) {
+                    const ShaderArt& art = artVon(o, s, vorrat);
+                    if (art.spielAbbruch.empty()) { return; }
+                    if (treffer.emplace(klein(s), ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, s + ": " + art.spielAbbruch}).second &&
+                        grund.empty()) {
+                        grund = art.spielAbbruch;
+                    }
+                };
+                if (pr.patch) { pruefen(pr.shader); }
+                for (const AbbildFlaeche& f : pr.flaechen) { pruefen(f.shader); }
+            }
+        }
+        for (const auto& [k, r] : treffer) { add(b, r); }
+        if (b.anzahl > 0) {
+            detailSetzen(b, "%s shaders stop the game with ERR_DROP when it loads or draws them (%s)", {std::to_string(b.anzahl), grund});
+            out.push_back(b);
+        }
+    }
+    messen("spielabbruch");
     // --- 9. Brush-Entities ohne Pinsel (SV_SetBrushModel: NULL) ------------------------------
     {
         Befund b = neu("leereentity", Schwere::Fehler, "OpenJK code/server/sv_game.cpp SV_SetBrushModel (\"SV_SetBrushModel: NULL\"); q3map2 map.cpp (origin brushes are removed)");
@@ -1313,30 +1343,44 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
 
 // Die Woerter einer .shader-Datei wie q3map2s Skript-Leser (scriplib.cpp
 // GetToken: // und /* */ sind Kommentar, "..." ein Wort, { } eigene Woerter).
-std::vector<std::string> shaderWoerter(const std::string& t) {
+// DEF1 P45: `zeilen` bekommt die Zeile jedes Worts (die Engine liest die Werte einer Anweisung nur bis zum Zeilenende).
+std::vector<std::string> shaderWoerter(const std::string& t, std::vector<int>* zeilen = nullptr) {
     std::vector<std::string> w;
     std::size_t i = 0;
     const std::size_t n = t.size();
+    int zeile = 0;
+    const auto dazu = [&](std::string s) {
+        w.push_back(std::move(s));
+        if (zeilen != nullptr) { zeilen->push_back(zeile); }
+    };
+    const auto zaehle = [&](std::size_t von, std::size_t bis) {
+        zeile += static_cast<int>(std::count(t.begin() + static_cast<std::ptrdiff_t>(von), t.begin() + static_cast<std::ptrdiff_t>(bis), '\n'));
+    };
     while (i < n) {
         const char c = t[i];
         if (std::isspace(static_cast<unsigned char>(c)) != 0) {
+            if (c == '\n') { ++zeile; }
             ++i;
         } else if (c == '/' && i + 1 < n && t[i + 1] == '/') {
             while (i < n && t[i] != '\n') { ++i; }
         } else if (c == '/' && i + 1 < n && t[i + 1] == '*') {
             const std::size_t e = t.find("*/", i + 2);
-            i = e == std::string::npos ? n : e + 2;
+            const std::size_t bis = e == std::string::npos ? n : e + 2;
+            zaehle(i, bis);
+            i = bis;
         } else if (c == '{' || c == '}') {
-            w.emplace_back(1, c);
+            dazu(std::string(1, c));
             ++i;
         } else if (c == '"') {
             const std::size_t e = t.find('"', i + 1);
-            w.push_back(t.substr(i + 1, (e == std::string::npos ? n : e) - i - 1));
-            i = e == std::string::npos ? n : e + 1;
+            dazu(t.substr(i + 1, (e == std::string::npos ? n : e) - i - 1));
+            const std::size_t bis = e == std::string::npos ? n : e + 1;
+            zaehle(i, bis);
+            i = bis;
         } else {
             const std::size_t a = i;
             while (i < n && std::isspace(static_cast<unsigned char>(t[i])) == 0 && t[i] != '{' && t[i] != '}') { ++i; }
-            w.push_back(t.substr(a, i - a));
+            dazu(t.substr(a, i - a));
         }
     }
     return w;
@@ -1345,20 +1389,84 @@ std::vector<std::string> shaderWoerter(const std::string& t) {
 namespace {
 // Der Block eines Shaders ab seinem Namen w[i] (w[i + 1] == "{"):
 // shaders.cpp ParseShaderFile, nur die oberste Ebene des Blocks
-ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
+// DEF1 P45: die Form einer Welle wie NameToGenFunc (tr_shader.cpp:404-437, MD9 gleich): 0 fehlt (GF_NONE), 1 mit Tafel (sin ...
+// inversesawtooth, ein unbekannter Name ist sin), 2 noise oder random
+int wellenForm(const std::vector<std::string>& v, std::size_t k) {
+    if (k >= v.size()) { return 0; }
+    const std::string n = klein(v[k]);
+    return (n == "noise" || n == "random") ? 2 : 1;
+}
+
+ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<int>& zeilen, std::size_t i) {
     ShaderSkript r;
     r.gefunden = true;
     int t = 0;
     int stufe = 0;   // die wievielte Stufe ({ ... } auf Ebene 2)
+    // DEF1 P45: was das Spiel beim Zeichnen mit ERR_DROP abbrechen laesst. Die Werte einer Anweisung stehen auf ihrer Zeile
+    // (COM_ParseExt(text, qfalse)); je Stufe die letzte rgbGen/alphaGen-Art und die Form ihrer Welle (stage->rgbWave/alphaWave
+    // bleiben ueber ein zweites "wave" ohne Form stehen), die Zahl der tcMod.
+    int deformZahl = 0;
+    bool rgbWelle = false;
+    bool alphaWelle = false;
+    int rgbForm = 0;
+    int alphaForm = 0;
+    int tcModZahl = 0;
+    const auto abbruch = [&](const char* grund) {
+        if (r.spielAbbruch.empty()) { r.spielAbbruch = grund; }
+    };
+    const auto werte = [&](std::size_t j) {
+        std::vector<std::string> v;
+        for (std::size_t x = j + 1; x < w.size() && x < zeilen.size() && zeilen[x] == zeilen[j] && w[x] != "{" && w[x] != "}"; ++x) {
+            v.push_back(w[x]);
+        }
+        return v;
+    };
     for (std::size_t j = i + 1; j < w.size(); ++j) {
         if (w[j] == "{") {
             ++t;
-            if (t == 2) { ++stufe; }
+            if (t == 2) {
+                ++stufe;
+                rgbWelle = alphaWelle = false;
+                rgbForm = alphaForm = tcModZahl = 0;
+            }
             continue;
         }
         if (w[j] == "}") {
+            if (t == 2) {
+                // RB_CalcWaveColor / RB_CalcWaveAlpha (tr_shade_calc.cpp:700, :730) -> EvalWaveForm -> TableForFunc(GF_NONE)
+                if (rgbWelle && rgbForm == 0) { abbruch("rgbGen wave without a wave function"); }
+                if (alphaWelle && alphaForm == 0) { abbruch("alphaGen wave without a wave function"); }
+            }
             if (--t == 0) { break; }
             continue;
+        }
+        // DEF1 P45: ParseStage (tr_shader.cpp:1453-1640, MD9 gleich) - rgbGen/alphaGen: "wave" setzt die Art (ParseWaveForm
+        // laesst die Form stehen, wenn sie fehlt), jede andere bekannte Art ersetzt sie, eine unbekannte nicht; tcMod: ParseTexMod
+        // (:498-510) bricht beim fuenften ab (TR_MAX_TEXMODS), tcMod stretch -> RB_CalcStretchTexCoords -> EvalWaveForm.
+        if (t == 2) {
+            const std::string k2 = klein(w[j]);
+            if (k2 == "rgbgen" || k2 == "alphagen") {
+                static const std::set<std::string> kRgb = {"const", "identity", "identitylighting", "entity", "oneminusentity", "vertex",
+                                                           "exactvertex", "lightingdiffuse", "lightingdiffuseentity", "oneminusvertex"};
+                static const std::set<std::string> kAlpha = {"const", "identity", "entity", "oneminusentity", "vertex", "lightingspecular",
+                                                             "oneminusvertex", "dot", "oneminusdot", "portal"};
+                const std::vector<std::string> v = werte(j);
+                const bool rgb = k2 == "rgbgen";
+                if (!v.empty()) {
+                    const std::string a = klein(v[0]);
+                    if (a == "wave") {
+                        (rgb ? rgbWelle : alphaWelle) = true;
+                        if (v.size() > 1) { (rgb ? rgbForm : alphaForm) = wellenForm(v, 1); }
+                    } else if ((rgb ? kRgb : kAlpha).count(a) != 0U) {
+                        (rgb ? rgbWelle : alphaWelle) = false;
+                    }
+                }
+            } else if (k2 == "tcmod") {
+                if (tcModZahl == 4) { abbruch("more than 4 tcMod in one stage"); }
+                ++tcModZahl;
+                const std::vector<std::string> v = werte(j);
+                if (!v.empty() && klein(v[0]) == "stretch" && wellenForm(v, 1) == 0) { abbruch("tcMod stretch without a wave function"); }
+            }
         }
         // rc609 P: alphaGen portal in jeder Stufe setzt shader.portalRange (ParseStage; die Zahl steht auf derselben Zeile, ohne sie 256)
         if (t == 2 && klein(w[j]) == "alphagen" && j + 1 < w.size() && klein(w[j + 1]) == "portal") {
@@ -1497,6 +1605,22 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
         } else if (k == "deformvertexes" && j + 1 < w.size()) {
             const std::string d = klein(w[j + 1]);
             r.autosprite = r.autosprite || d == "autosprite" || d == "autosprite2";
+            // DEF1 P45: ParseDeform (tr_shader.cpp:1814-1943): ohne Art zaehlt die Zeile nicht, ab MAX_SHADER_DEFORMS (3) wird sie
+            // verworfen; ohne div bzw. dritte Zahl bleibt DEFORM_NONE. RB_CalcDeformVertexes nimmt bei frequency 0 EvalWaveForm
+            // (noise und random gehen), sonst TableForFunc; RB_CalcMoveVertexes immer TableForFunc.
+            const std::vector<std::string> v = werte(j);
+            if (t == 1 && !v.empty() && deformZahl < 3) {
+                ++deformZahl;
+                if (d == "wave" && v.size() >= 2) {
+                    const int f = wellenForm(v, 2);
+                    const float frequenz = v.size() > 6 ? static_cast<float>(std::atof(v[6].c_str())) : 0.0F;
+                    if (frequenz == 0.0F ? f == 0 : f != 1) {
+                        abbruch(f == 0 ? "deformVertexes wave without a wave function" : "deformVertexes wave with noise or random and a frequency");
+                    }
+                } else if (d == "move" && v.size() >= 4 && wellenForm(v, 4) != 1) {
+                    abbruch(wellenForm(v, 4) == 0 ? "deformVertexes move without a wave function" : "deformVertexes move with noise or random");
+                }
+            }
         } else if (k == "q3map_lightrgb" && j + 3 < w.size()) {   // shaders.cpp: si.lightColor (Stufe 7)
             r.lichtFarbe = true;
             for (int c = 0; c < 3; ++c) { r.lichtRGB[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
@@ -1525,7 +1649,7 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, std::size_t i) {
 // Je Name zaehlt der erste Block auf oberster Ebene (wie die Suche je Name)
 ShaderDatei shaderDateiZerlegen(const std::string& text) {
     ShaderDatei d;
-    d.woerter = shaderWoerter(text);
+    d.woerter = shaderWoerter(text, &d.zeilen);
     const std::vector<std::string>& w = d.woerter;
     int tiefe = 0;
     for (std::size_t i = 0; i < w.size(); ++i) {
@@ -1545,7 +1669,7 @@ ShaderDatei shaderDateiZerlegen(const std::string& text) {
 
 ShaderSkript shaderSkriptLesen(const ShaderDatei& datei, const std::string& name) {
     const auto it = datei.anfang.find(klein(name));
-    return it == datei.anfang.end() ? ShaderSkript{} : skriptBlock(datei.woerter, it->second);
+    return it == datei.anfang.end() ? ShaderSkript{} : skriptBlock(datei.woerter, datei.zeilen, it->second);
 }
 
 ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name) { return shaderSkriptLesen(shaderDateiZerlegen(text), name); }

@@ -5545,6 +5545,9 @@ enum class Str {
     MbHwUngleicheSkalierung,
     AiVornAusSkelett,
     PtUmbackenAnders,
+    KeOptPrSpielAbbruch,
+    KeOptPrSpielAbbruchE,
+    KeOptD37,
     Count,
 };
 

@@ -216,6 +216,7 @@ struct Befund {
 // Hauptfaden gesammelt). Ohne Angabe: nach dem Namen (textures/common/...).
 struct ShaderArt {
     bool bekannt = true;       // Shader oder Bild gefunden
+    std::string spielAbbruch;  // DEF1 P45: ShaderSkript::spielAbbruch
     bool undurchsichtig = true;   // deckt, was dahinter liegt (nicht trans, nonsolid, fog, liquid, ...)
     bool sichtbar = true;      // erzeugt eine Zeichenflaeche (nicht nodraw/caulk, kein Werkzeug)
     bool werkzeug = false;     // clip, trigger, hint, skip, areaportal, origin, ...
@@ -241,6 +242,9 @@ extern const std::size_t kOptimiererDetailVorlagenAnzahl;
 // surfaceparm sky / origin). text = der Inhalt der .shader-Datei.
 struct ShaderSkript {
     bool gefunden = false;
+    // DEF1 P45: warum das Spiel mit ERR_DROP abbricht, sobald es eine Flaeche mit diesem Shader zeichnet (leer: tut es nicht) -
+    // TableForFunc (tr_shade_calc.cpp:32) ohne Tafel fuer die Form, ParseTexMod (tr_shader.cpp:504) mit mehr als TR_MAX_TEXMODS
+    std::string spielAbbruch;
     double flaechenlicht = 0.0;
     double backsplashAnteil = 0.05;
     double backsplashWeite = 23.0;
@@ -319,6 +323,7 @@ struct ShaderSkript {
 // neu zu zerlegen.
 struct ShaderDatei {
     std::vector<std::string> woerter;
+    std::vector<int> zeilen;   // DEF1 P45: die Zeile jedes Worts (COM_ParseExt(text, qfalse) liest nur bis zum Zeilenende)
     std::unordered_map<std::string, std::size_t> anfang;
 };
 [[nodiscard]] ShaderDatei shaderDateiZerlegen(const std::string& text);

@@ -1151,6 +1151,58 @@ void testeBekannteFehler(const std::string& q3dir) {
         const ShaderSkript sk = shaderSkriptLesen("textures/test/gross\n{\n\tq3map_lightmapSize 256 512 // extern\n}\n", "textures/test/gross");
         pruefe(sk.gefunden && sk.lightmapBreite == 256 && sk.lightmapHoehe == 512, "Shader-Skript: q3map_lightmapSize 256 512 gelesen");
     }
+    // DEF1 P45: Shader, bei denen das Spiel mit ERR_DROP abbricht, sobald es sie zeichnet - TableForFunc (tr_shade_calc.cpp:32) ohne
+    // Tafel fuer die Form (deformVertexes wave/move, rgbGen/alphaGen wave, tcMod stretch), ParseTexMod mit mehr als 4 tcMod (:504)
+    {
+        const auto abbruch = [](const char* rumpf) {
+            return shaderSkriptLesen(std::string("textures/p45/x\n{\n") + rumpf + "}\n", "textures/p45/x").spielAbbruch;
+        };
+        struct Fall {
+            const char* rumpf;
+            bool bricht;
+            const char* was;
+        };
+        const Fall faelle[] = {
+            {"deformVertexes move 0 0 4\n", true, "move ohne Form (GF_NONE)"},
+            {"deformVertexes move 0 0 4 noise 0 1 0 1\n", true, "move mit noise"},
+            {"deformVertexes move 0 0 4 sine 0 1 0 1\n", false, "move mit unbekanntem Namen (NameToGenFunc: sin)"},
+            {"deformVertexes wave 100 random 0 1 0 2\n", true, "wave mit random und frequency 2"},
+            {"deformVertexes wave 100 noise 0 1 0 0\n", false, "wave mit noise und frequency 0 (EvalWaveForm)"},
+            {"deformVertexes wave 100\n", true, "wave ohne Form (frequency 0, GF_NONE)"},
+            {"deformVertexes wave\n", false, "wave ohne div (DEFORM_NONE)"},
+            {"deformVertexes move 0 0\n", false, "move ohne dritte Zahl (DEFORM_NONE)"},
+            {"deformVertexes wave 100 sin 0 1 0 1\ndeformVertexes normal 0.1 1\ndeformVertexes bulge 1 2 3\ndeformVertexes move 0 0 4\n", false,
+             "vierte Zeile (MAX_SHADER_DEFORMS) wird verworfen"},
+            {"deformVertexes autosprite\ndeformVertexes text0\ndeformVertexes projectionShadow\ndeformVertexes move 0 0 4\n", false,
+             "autosprite, text und projectionShadow zaehlen mit"},
+            {"{\nmap x\nrgbGen wave\n}\n", true, "rgbGen wave ohne Form"},
+            {"{\nmap x\nrgbGen wave\nrgbGen identity\n}\n", false, "rgbGen wave, danach rgbGen identity"},
+            {"{\nmap x\nalphaGen wave noise 0 1 0 5\n}\n", false, "alphaGen wave noise (EvalWaveForm)"},
+            {"{\nmap x\nalphaGen wave\n}\n", true, "alphaGen wave ohne Form"},
+            {"{\nmap x\ntcMod stretch\n}\n", true, "tcMod stretch ohne Form"},
+            {"{\nmap x\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\n}\n", true, "fuenf tcMod in einer Stufe"},
+            {"{\nmap x\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\n}\n{\nmap y\ntcMod scale 2 2\n}\n", false,
+             "vier tcMod je Stufe"},
+            {"deformVertexes move 0 0 4\n sin 0 1 0 1\n", true, "die Form auf der naechsten Zeile zaehlt nicht (COM_ParseExt qfalse)"},
+        };
+        int falsch = 0;
+        for (const Fall& f : faelle) {
+            const std::string a = abbruch(f.rumpf);
+            if (a.empty() == f.bricht) {
+                std::printf("FEHL  P45 %s: %s\n", f.was, a.empty() ? "kein Abbruch gemeldet" : a.c_str());
+                ++falsch;
+            }
+        }
+        pruefe(falsch == 0, "Shader-Skript (P45): ERR_DROP wie TableForFunc/ParseTexMod erkannt, Faelle ohne Abbruch frei");
+        const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/abbruch") + kastenText(-64, -64, 64, 64, 64, 80, "test/x"));
+        PruefOptionen o = pruefOpt();
+        ShaderArt art;
+        art.spielAbbruch = "deformVertexes move without a wave function";
+        o.shader["textures/test/abbruch"] = art;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch") == 1, "Optimierer (P45): Befund spielabbruch fuer einen Shader, der das Spiel abbricht");
+        o.shader["textures/test/abbruch"] = ShaderArt{};
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch") == 0, "Optimierer (P45): ohne Abbruch kein Befund");
+    }
     // Stufe 8a Punkt 2: Entity-Lump gegen die Grenzen ("enttext"), -keeplights in der Zaehlung
     {
         const std::string welt = entText("worldspawn", "", kastenText(-64, -64, -16, 64, 64, 0, "test/boden"));
@@ -1277,7 +1329,7 @@ void testeBekannteFehler(const std::string& q3dir) {
 
 int main(int argc, char** argv) {
     {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
-        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 36;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat)
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 37;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat); DEF1 P45: 37 (spielabbruch)
         for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
             char name[16];
             std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);

@@ -216,6 +216,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mreste()})
             from i18n_fix2 import zeilen_vier as _fix2   # FIX2: Animations-Import, Blender-Lizenz
             texte.update({e[0]: e[1:] for e in _fix2()})
+            from i18n_def1 import zeilen_vier as _def1   # DEF1: Optimierer meldet Shader mit ERR_DROP
+            texte.update({e[0]: e[1:] for e in _def1()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

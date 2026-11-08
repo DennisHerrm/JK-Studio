@@ -29,6 +29,7 @@ _PRUEFUNGEN = [
     ("KeOptPrPatchGitter", "KeOptBhPatch", False),
     ("KeOptPrClip", None, False),
     ("KeOptPrTextur", None, False),
+    ("KeOptPrSpielAbbruch", None, False),   # DEF1 P45
     ("KeOptPrLeereEnt", "KeOptBhEntitaet", False),
     ("KeOptPrLichtgitter", "KeOptBhWelt", False),
     ("KeOptPrLightmaps", "KeOptBhWelt", False),

@@ -2310,6 +2310,8 @@ from i18n_fix2 import zeilen_vier as _fix2  # noqa: E402  (FIX2: Animations-Impo
 S += _fix2()
 from i18n_ptfix3 import zeilen_vier as _ptfix3  # noqa: E402  (PTFIX3: Painting-Funde P23-P31)
 S += _ptfix3()
+from i18n_def1 import zeilen_vier as _def1  # noqa: E402  (DEF1: Optimierer meldet Shader mit ERR_DROP)
+S += _def1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
