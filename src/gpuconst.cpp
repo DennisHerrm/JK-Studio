@@ -20,20 +20,14 @@ float sinTafel(int i) {
     return static_cast<float>(std::sin(static_cast<double>(static_cast<float>(i & 1023) * 360.0F / 1023.0F) * 3.14159265358979323846 / 180.0));
 }
 
-void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase,
-                     float turbMat[4]) {
+void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], TurbKette& turb) {
     mat[0] = 1.0F;   // m0, m1, m2, m3
     mat[1] = 0.0F;
     mat[2] = 0.0F;
     mat[3] = 1.0F;
     off[0] = 0.0F;   // m4, m5
     off[1] = 0.0F;
-    turbAmp = 0.0F;
-    turbPhase = 0.0F;
-    turbMat[0] = 1.0F;
-    turbMat[1] = 0.0F;
-    turbMat[2] = 0.0F;
-    turbMat[3] = 1.0F;
+    turb = TurbKette{};
 
     const int n = std::min(anzahl, kMaxTexMods);
     for (int i = 0; i < n; ++i) {
@@ -46,13 +40,11 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
             case TexModKind::Turb:
                 // RB_CalcTurbulentFactors: now = phase + zeit * frequenz,
                 // amplitude unveraendert. `base` geht NICHT ein.
-                turbAmp = m.wave.amplitude;
-                turbPhase = m.wave.phase + zeitSekunden * m.wave.frequency;
-                // FIX2 P16: die Schritte danach nehmen den Versatz mit (turbMat ab hier neu)
-                turbMat[0] = 1.0F;
-                turbMat[1] = 0.0F;
-                turbMat[2] = 0.0F;
-                turbMat[3] = 1.0F;
+                // FIX2 P16: die Schritte danach nehmen den Versatz mit (mat ab hier die Einheit); FIX3: jeder turb
+                // bekommt seinen Platz (ComputeTexCoords, tr_shade.cpp:1725, ruft RB_CalcTurbulentTexCoords je turb)
+                turb.s[turb.anzahl].amp = m.wave.amplitude;
+                turb.s[turb.anzahl].phase = m.wave.phase + zeitSekunden * m.wave.frequency;
+                ++turb.anzahl;
                 continue;   // keine Matrix - nicht anhaengen
             case TexModKind::Scroll: {
                 // RB_CalcScrollTexMatrix kuerzt auf [0,1), damit die
@@ -121,22 +113,31 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
         mat[3] = n3;
         off[0] = o0;
         off[1] = o1;
-        const float t0 = s6[0] * turbMat[0] + s6[2] * turbMat[1];
-        const float t1 = s6[1] * turbMat[0] + s6[3] * turbMat[1];
-        const float t2 = s6[0] * turbMat[2] + s6[2] * turbMat[3];
-        const float t3 = s6[1] * turbMat[2] + s6[3] * turbMat[3];
-        turbMat[0] = t0;
-        turbMat[1] = t1;
-        turbMat[2] = t2;
-        turbMat[3] = t3;
+        for (int k = 0; k < turb.anzahl; ++k) {   // FIX3: jeder turb davor geht durch diesen Schritt
+            float* tm = turb.s[k].mat;
+            const float t0 = s6[0] * tm[0] + s6[2] * tm[1];
+            const float t1 = s6[1] * tm[0] + s6[3] * tm[1];
+            const float t2 = s6[0] * tm[2] + s6[2] * tm[3];
+            const float t3 = s6[1] * tm[2] + s6[3] * tm[3];
+            tm[0] = t0;
+            tm[1] = t1;
+            tm[2] = t2;
+            tm[3] = t3;
+        }
     }
 }
 
-void turbWerte(float turbAmp, float turbPhase, const float turbMat[4], float& q, float& qRest, float matAmp[4]) {
-    const double qd = static_cast<double>(turbPhase) * 1024.0;   // now ist float (RB_CalcTurbulentTexCoords), das Produkt in double
+void turbWerte(const TurbSchritt& t, float& q, float& qRest, float matAmp[4]) {
+    const double qd = static_cast<double>(t.phase) * 1024.0;   // now ist float (RB_CalcTurbulentTexCoords), das Produkt in double
     q = static_cast<float>(qd);
     qRest = static_cast<float>(qd - 1024.0 * std::floor(qd / 1024.0));
-    for (int k = 0; k < 4; ++k) { matAmp[k] = turbMat[k] * turbAmp; }
+    for (int k = 0; k < 4; ++k) { matAmp[k] = t.mat[k] * t.amp; }
+}
+
+void turbFelder(const TurbKette& t, float qq[2 * kMaxTexMods], float mats[4 * kMaxTexMods]) {
+    std::fill(qq, qq + 2 * kMaxTexMods, 0.0F);
+    std::fill(mats, mats + 4 * kMaxTexMods, 0.0F);
+    for (int k = 0; k < std::min(t.anzahl, kMaxTexMods); ++k) { turbWerte(t.s[k], qq[2 * k], qq[2 * k + 1], mats + 4 * k); }
 }
 
 void packeKonstanten(const BatchState& bs, float* ziel,
@@ -171,17 +172,26 @@ void packeKonstanten(const BatchState& bs, float* ziel,
     // passt hinein wie jeder andere Schritt. Bis rc442 stand es auf null.
     float mat[4];
     float off[2];
-    float turbAmp = 0.0F;
-    float turbPhase = 0.0F;
-    float turbMat[4];
-    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turbAmp, turbPhase, turbMat);
+    TurbKette turb;
+    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turb);
     ziel[kTexMatrixAt + 0] = mat[0];
     ziel[kTexMatrixAt + 1] = mat[1];
     ziel[kTexMatrixAt + 2] = mat[2];
     ziel[kTexMatrixAt + 3] = mat[3];
     ziel[kTexOffTurbAt + 0] = off[0];
     ziel[kTexOffTurbAt + 1] = off[1];
-    turbWerte(turbAmp, turbPhase, turbMat, ziel[kTexOffTurbAt + 2], ziel[kTexOffTurbAt + 3], ziel + kTexTurbMatAt);   // FIX2 P16
+    static_assert(kMaxTexMods == 4, "gTurbMat2..4 und gTurbQ23/Q4 fassen drei turb neben dem ersten");
+    // FIX2 P16 / FIX3: der erste turb in gTexOffTurb.zw und gTexTurbMat, der zweite bis vierte in gTurbMat2..4, gTurbQ23, gTurbQ4
+    float qq[2 * kMaxTexMods];
+    float mats[4 * kMaxTexMods];
+    turbFelder(turb, qq, mats);
+    ziel[kTexOffTurbAt + 2] = qq[0];
+    ziel[kTexOffTurbAt + 3] = qq[1];
+    std::copy(mats, mats + 4, ziel + kTexTurbMatAt);
+    std::copy(mats + 4, mats + 16, ziel + kTurbMat2At);
+    std::copy(qq + 2, qq + 6, ziel + kTurbQ23At);
+    ziel[kTurbQ4At + 0] = qq[6];
+    ziel[kTurbQ4At + 1] = qq[7];
 
     // --- gRgb: Farbe und alphaConst ---------------------------------------
     //

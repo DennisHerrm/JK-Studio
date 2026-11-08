@@ -164,6 +164,9 @@ struct Zustand3 {
     float tcMatrix[4]{1, 0, 0, 1};
     float tcVersatz[4]{0, 0, 0, 0};
     float tcTurb[4]{0, 0, 0, 0};   // FIX2 P16: linearer Teil der Schritte hinter turb mal Amplitude (gpu::turbWerte); 0 = kein turb
+    // FIX3: der zweite bis vierte turb der Stufe (gpu::turbFelder): je vier float wie tcTurb, dazu je 1024 now und Rest
+    float tcTurbMehr[12]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    float tcTurbQ[6]{0, 0, 0, 0, 0, 0};
 };
 // Punkte wie punkte(), aber mit Tiefentest gegen die Tiefe der Kamera (fuer
 // $DEEPPOINT: erst die verdeckten mit GL_GREATER, dann die sichtbaren).

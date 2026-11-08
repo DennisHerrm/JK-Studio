@@ -82,30 +82,39 @@ void spielSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]
         }
     }
 }
-// Was die Shader aus texModAbbildung machen (gpushader.cpp kTexMod/JeStufe, karte_gpu_win32.cpp stufeSt): die Matrix und die
-// Verschiebung, dazu der turb-Versatz am Ort
+// Was die Shader aus dem gepackten Block machen (gpushader.cpp kTexMod und turbVersatz; JeStufe und karte_gpu_win32.cpp stufeSt
+// lesen dieselben Werte): die Matrix und die Verschiebung, dazu FIX3 jeder turb an seinem Platz (der erste in gTexOffTurb.zw und
+// gTexTurbMat, der zweite bis vierte in gTurbQ23/gTurbQ4 und gTurbMat2..4) mit seinem Versatz am Ort
 void shaderSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]) {
-    float mat[4];
-    float off[2];
-    float amp = 0.0F;
-    float phase = 0.0F;
-    float tm[4];
-    texModAbbildung(m, n, zeit, mat, off, amp, phase, tm);
+    BatchState bs{};
+    bs.numTexMods = n;
+    for (int i = 0; i < n; ++i) { bs.texMods[i] = m[i]; }
+    std::vector<float> k(kKonstFloats, 0.0F);
+    packeKonstanten(bs, k.data(), zeit);
+    const float* mat = &k[kTexMatrixAt];
+    const float* off = &k[kTexOffTurbAt];
     float s2[2] = {st[0] * mat[0] + (st[1] * mat[2] + off[0]), st[0] * mat[1] + (st[1] * mat[3] + off[1])};
     const float ort[2] = {xyz[0] + xyz[2], xyz[1]};
-    float q = 0.0F;
-    float qr = 0.0F;
-    float ma[4];
-    turbWerte(amp, phase, tm, q, qr, ma);
-    float tv[2];
-    for (int k = 0; k < 2; ++k) {
-        const float w = ort[k] + qr;
-        float f = std::floor(w);
-        if (ort[k] + q < 0.0F && w != f) { f += 1.0F; }
-        tv[k] = static_cast<float>(std::sin(static_cast<double>(static_cast<int>(f) & 1023) * (6.283185307179586 / 1023.0)));
+    struct Turb {
+        float q;
+        float qr;
+        const float* ma;
+    };
+    const Turb turbs[4] = {{k[kTexOffTurbAt + 2], k[kTexOffTurbAt + 3], &k[kTexTurbMatAt]},
+                           {k[kTurbQ23At + 0], k[kTurbQ23At + 1], &k[kTurbMat2At]},
+                           {k[kTurbQ23At + 2], k[kTurbQ23At + 3], &k[kTurbMat2At + 4]},
+                           {k[kTurbQ4At + 0], k[kTurbQ4At + 1], &k[kTurbMat2At + 8]}};
+    for (const Turb& t : turbs) {
+        float tv[2];
+        for (int j = 0; j < 2; ++j) {
+            const float w = ort[j] + t.qr;
+            float f = std::floor(w);
+            if (ort[j] + t.q < 0.0F && w != f) { f += 1.0F; }
+            tv[j] = static_cast<float>(std::sin(static_cast<double>(static_cast<int>(f) & 1023) * (6.283185307179586 / 1023.0)));
+        }
+        s2[0] += t.ma[0] * tv[0] + t.ma[2] * tv[1];
+        s2[1] += t.ma[1] * tv[0] + t.ma[3] * tv[1];
     }
-    s2[0] += ma[0] * tv[0] + ma[2] * tv[1];
-    s2[1] += ma[1] * tv[0] + ma[3] * tv[1];
     st[0] = s2[0];
     st[1] = s2[1];
 }
@@ -131,8 +140,11 @@ int main() {
     // bei 29 (D3DReflect), gerechnet war 32 - der Lavafall pulsierte nur.
     erwarte("gDeformSpread steht bei 20", kDeformSpreadAt == 20U);
     erwarte("gWolkenHoehe gleich dahinter bei 21", kWolkenAt == 21U);
-    erwarte("der Block ist 48 float gross", kKonstFloats == 48U);   // rc605: gTcGenS/gTcGenT; FIX2 P16: gTexTurbMat
+    // rc605: gTcGenS/gTcGenT; FIX2 P16: gTexTurbMat; FIX3: gTurbMat2..4, gTurbQ23 - genau ein Eintrag im Ring (256 Bytes)
+    erwarte("der Block ist 64 float gross", kKonstFloats == 64U);
     erwarte("gTexTurbMat steht bei 44", kTexTurbMatAt == 44U);
+    erwarte("gTurbQ4 steht hinter gAlphaSchwelle bei 13 (FIX3)", kTurbQ4At == 13U);
+    erwarte("gTurbMat2 steht bei 48, gTurbQ23 bei 60 (FIX3)", kTurbMat2At == 48U && kTurbQ23At == 60U);
     {
         // rc605: tcGen vector - die zwei Vektoren landen bei 36 und 40, der
         // Vertexshader rechnet st aus dem Ort.
@@ -337,7 +349,7 @@ int main() {
     {
         struct Fall {
             const char* was;
-            TexMod m[3];
+            TexMod m[4];
             int n;
         };
         TexMod turb;
@@ -357,10 +369,27 @@ int main() {
         rollen.kind = TexModKind::Scroll;
         rollen.a[0] = 0.25F;
         rollen.a[1] = 0.5F;
-        const Fall faelle[] = {{"turb, scale 2 3", {turb, skal, {}}, 2},
-                               {"rotate 30", {dreh, {}, {}}, 1},
-                               {"scroll, turb", {rollen, turb, {}}, 2},
-                               {"turb, rotate 30, scale 2 3", {turb, dreh, skal}, 3}};
+        // FIX3 Punkt 1: mehrere turb in einer Stufe - rd-vanilla wendet jeden an seiner Stelle an (TR_MAX_TEXMODS 4)
+        TexMod turb2 = turb;
+        turb2.wave.amplitude = 0.07F;
+        turb2.wave.phase = 0.6F;
+        turb2.wave.frequency = 2.25F;
+        TexMod turb3 = turb;
+        turb3.wave.amplitude = 0.11F;
+        turb3.wave.phase = -0.35F;
+        turb3.wave.frequency = -1.5F;
+        TexMod turb4 = turb;
+        turb4.wave.amplitude = 0.02F;
+        turb4.wave.phase = 0.0F;
+        turb4.wave.frequency = 7.0F;
+        const Fall faelle[] = {{"turb, scale 2 3", {turb, skal, {}, {}}, 2},
+                               {"rotate 30", {dreh, {}, {}, {}}, 1},
+                               {"scroll, turb", {rollen, turb, {}, {}}, 2},
+                               {"turb, rotate 30, scale 2 3", {turb, dreh, skal, {}}, 3},
+                               {"turb, scale 2 3, turb", {turb, skal, turb2, {}}, 3},
+                               {"turb, turb, rotate 30", {turb, turb2, dreh, {}}, 3},
+                               {"turb, rotate 30, turb, scale 2 3", {turb, dreh, turb3, skal}, 4},
+                               {"turb, turb, turb, turb", {turb, turb2, turb3, turb4}, 4}};
         const float ecken[3][3] = {{37.0F, 211.0F, 90.0F}, {-512.5F, 64.25F, 1000.0F}, {3.0F, -700.0F, -41.0F}};
         for (const Fall& f : faelle) {
             float gross = 0.0F;
@@ -391,6 +420,16 @@ int main() {
         erwarte("der Shader kennt gTexOffTurb",
                 hlsl.find("gTexOffTurb") != std::string::npos);
         erwarte("der Shader kennt gTexTurbMat (FIX2 P16)", hlsl.find("gTexTurbMat") != std::string::npos);
+        // FIX3: jeder der vier turb-Plaetze wird gelesen, in der Karte und an der Figur
+        const auto zaehle = [](const std::string& h, const char* was) {
+            std::size_t n = 0;
+            for (std::size_t p = h.find(was); p != std::string::npos; p = h.find(was, p + 1)) { ++n; }
+            return n;
+        };
+        erwarte("der Kartenshader addiert vier turb (FIX3)", zaehle(hlsl, "+= turbVersatz(") == 4U && hlsl.find("gTurbQ4") != std::string::npos);
+        const std::string fig = figurVertexShaderHlsl(0U);
+        erwarte("der Figurenshader addiert vier turb (FIX3)",
+                zaehle(fig, "+= turbVersatz(") == 4U && fig.find("gStufeTurbQ4") != std::string::npos);
         erwarte("der Shader kennt gDeform", hlsl.find("gDeform[") != std::string::npos);
         erwarte("der Shader kennt gDeformSpread",
                 hlsl.find("gDeformSpread") != std::string::npos);

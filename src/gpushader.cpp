@@ -75,6 +75,7 @@ cbuffer JeStapel : register(b1) {
     float4 gTexOffTurb;    // Verschiebung x,y + Amplitude,Phase von turb
     float4 gRgb;           // rgbGen const / wave, .a = alphaConst
     float  gAlphaSchwelle;
+    float2 gTurbQ4;        // FIX3: vierter turb, 1024 now und Rest (gpuconst.h 13)
     // EIN float4, kein `float gDeform[4]`. Das Feld belegte vier
     // Viererbloecke, das letzte Element davon aber nur .x - und
     // gDeformSpread rutschte in .y dahinter (Lage 29). Der Packer schrieb
@@ -92,7 +93,28 @@ cbuffer JeStapel : register(b1) {
     float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
     float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
     float4 gTexTurbMat;    // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb (44)
+    float4 gTurbMat2;      // FIX3: zweiter bis vierter turb der Stufe (48, 52, 56)
+    float4 gTurbMat3;
+    float4 gTurbMat4;
+    float4 gTurbQ23;       // FIX3: 1024 now und Rest des zweiten und dritten turb (60)
 };
+)";
+
+// FIX2 P16 / FIX3: der Versatz EINES tcMod turb an seiner Stelle der Kette (in vertexShaderHlsl, figurVertexShaderHlsl und den
+// Shadern des Echtzeit-Lichts, karte_gpu_win32.cpp).
+const char* kTurb = R"(
+// RB_CalcTurbulentTexCoords (code/rd-vanilla/tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
+// die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + qr hat denselben floor modulo 1024 wie ort + 1024 now (qr: die
+// Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + q negativ und w nicht ganz, eins mehr. Der Versatz
+// geht durch den linearen Teil der Schritte hinter diesem turb, mal Amplitude (m; ComputeTexCoords, tr_shade.cpp:1725, wendet jeden
+// turb an seiner Stelle an). m = 0: kein turb, Versatz 0.
+float2 turbVersatz(float2 ort, float q, float qr, float4 m) {
+    float2 tw = ort + qr;
+    float2 tf = floor(tw);
+    tf += ((ort + q < 0.0) && (tw != tf)) ? 1.0 : 0.0;
+    float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
+    return float2(m.x * tv.x + m.z * tv.y, m.y * tv.x + m.w * tv.y);
+}
 )";
 
 // Eine Zeile nur anhaengen, wenn das Bit gesetzt ist. Die Pruefung liest
@@ -146,6 +168,7 @@ VSOut main(uint id : SV_VertexID) {
 }  // namespace
 
 std::string vollbildVertexShaderHlsl() { return kVollbildVs; }
+std::string turbHlsl() { return kTurb; }   // FIX3
 
 // --- Die Klinge eines Lichtschwerts --------------------------------------
 //
@@ -806,6 +829,7 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     std::string s;
     s += kKonstanten;
     s += kKnochen;
+    s += kTurb;   // FIX3
     // rc602 kartenpruefung: die Shaderstufe einer Figurenflaeche (b3), siehe
     // bhed/figurstufen.h. gStufe.x Farbe (0 wie bisher, 1 weiss, 2 gStufeFarbe,
     // 3 schwarz), .y Alpha (0 eins, 1 lightingSpecular, 2 gStufeFarbe.a),
@@ -830,6 +854,11 @@ cbuffer JeStufe : register(b3) {
     float4 gDefWeg;       // moveVector, refdef.floatTime
     float4 gDefWegWelle;  // base, amplitude, phase, frequency der move-Welle
     float4 gStufeTurbMat; // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb
+    float4 gStufeTurbMat2; // FIX3: zweiter bis vierter turb (wie gTurbMat2..4)
+    float4 gStufeTurbMat3;
+    float4 gStufeTurbMat4;
+    float4 gStufeTurbQ23;  // FIX3: 1024 now und Rest des zweiten und dritten turb
+    float4 gStufeTurbQ4;   // FIX3: ... des vierten (xy)
 };
 // rc604: die Tabellen der Engine (R_InitFuncTables, code/rd-vanilla/
 // tr_init.cpp:1724-1747 OpenJK), FUNCTABLE_SIZE 1024; i schon & FUNCTABLE_MASK.
@@ -1044,15 +1073,11 @@ VSOut main(VSIn ein) {
             st2.x = aus.uv.x * gStufeTexMatrix.x + (aus.uv.y * gStufeTexMatrix.z + gStufeTexOffTurb.x);
             st2.y = aus.uv.x * gStufeTexMatrix.y + (aus.uv.y * gStufeTexMatrix.w + gStufeTexOffTurb.y);
             float2 ort = float2(welt.x + welt.z, welt.y);
-            // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
-            // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
-            // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
-            // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
-            float2 tw = ort + gStufeTexOffTurb.w;
-            float2 tf = floor(tw);
-            tf += ((ort + gStufeTexOffTurb.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
-            float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
-            st2 += float2(gStufeTurbMat.x * tv.x + gStufeTurbMat.z * tv.y, gStufeTurbMat.y * tv.x + gStufeTurbMat.w * tv.y);
+            // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz)
+            st2 += turbVersatz(ort, gStufeTexOffTurb.z, gStufeTexOffTurb.w, gStufeTurbMat);
+            if (any(gStufeTurbMat2 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ23.x, gStufeTurbQ23.y, gStufeTurbMat2); }
+            if (any(gStufeTurbMat3 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ23.z, gStufeTurbQ23.w, gStufeTurbMat3); }
+            if (any(gStufeTurbMat4 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ4.x, gStufeTurbQ4.y, gStufeTurbMat4); }
             aus.uv = st2;
         }
     }
@@ -1066,6 +1091,7 @@ VSOut main(VSIn ein) {
 std::string vertexShaderHlsl(std::uint32_t features, int numTexMods) {
     std::string s;
     s += kKonstanten;
+    s += kTurb;   // FIX3
     s += R"(
 struct VSIn {
     float3 pos    : POSITION;
@@ -1282,15 +1308,11 @@ float rausch4(float4 q) {
         st2.y = aus.uv.x * gTexMatrix.y + (aus.uv.y * gTexMatrix.w
                                            + gTexOffTurb.y);
         float2 ort = float2(welt.x + welt.z, welt.y);
-        // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
-        // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
-        // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
-        // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
-        float2 tw = ort + gTexOffTurb.w;
-        float2 tf = floor(tw);
-        tf += ((ort + gTexOffTurb.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
-        float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
-        st2 += float2(gTexTurbMat.x * tv.x + gTexTurbMat.z * tv.y, gTexTurbMat.y * tv.x + gTexTurbMat.w * tv.y);
+        // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz)
+        st2 += turbVersatz(ort, gTexOffTurb.z, gTexOffTurb.w, gTexTurbMat);
+        if (any(gTurbMat2 != 0.0)) { st2 += turbVersatz(ort, gTurbQ23.x, gTurbQ23.y, gTurbMat2); }
+        if (any(gTurbMat3 != 0.0)) { st2 += turbVersatz(ort, gTurbQ23.z, gTurbQ23.w, gTurbMat3); }
+        if (any(gTurbMat4 != 0.0)) { st2 += turbVersatz(ort, gTurbQ4.x, gTurbQ4.y, gTurbMat4); }
         aus.uv = st2;
     }
 )";

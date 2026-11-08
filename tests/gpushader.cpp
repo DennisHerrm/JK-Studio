@@ -357,9 +357,10 @@ int main() {
         // ausgeschriebenen Koordinaten - gekuerzt wird weiter.
         const std::string t = vertexShaderHlsl(kTexMod, 1);
         // FIX2 P16: gekuerzt wird auf der CPU (gTexOffTurb.w = 1024 now modulo 1024, in double), der Index wie
-        // (int)(...) & FUNCTABLE_MASK
+        // (int)(...) & FUNCTABLE_MASK; FIX3: in turbVersatz, je turb mit seinem Rest
         erwarte("tcMod turb kuerzt ebenfalls",
-                t.find("ort + gTexOffTurb.w") != std::string::npos && t.find("& 1023") != std::string::npos);
+                t.find("turbVersatz(ort, gTexOffTurb.z, gTexOffTurb.w") != std::string::npos && t.find("ort + qr") != std::string::npos &&
+                    t.find("& 1023") != std::string::npos);
     }
 
     // --- alphaGen: was VOR dem Alphakanal der Textur steht ---------------

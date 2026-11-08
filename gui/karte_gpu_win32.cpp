@@ -806,6 +806,9 @@ struct Konstanten3 {
     float tcGenS[4];       //   ... tcGen vector s, w: tcGen (0 base, 1 environment, 2 vector)
     float tcGenT[4];       //   ... tcGen vector t
     float tcTurb[4];       // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb
+    float tcTurbMehr[12];  // FIX3: zweiter bis vierter turb (tcTurb2..4)
+    float tcTurbQ23[4];    // FIX3: 1024 now und Rest des zweiten und dritten turb
+    float tcTurbQ4[4];     // FIX3: ... des vierten (xy)
 };
 
 // renderstate.cpp: Licht (abgeleitet aus Cam_Draw: Umgebung 0,2 + 0,4,
@@ -815,6 +818,7 @@ const char* const kShader3 = R"(
 cbuffer B3 : register(b0) {
     float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
     float4 schnitt; float4 tcMat; float4 tcOff; float4 tcGenS; float4 tcGenT; float4 tcTurb;
+    float4 tcTurb2; float4 tcTurb3; float4 tcTurb4; float4 tcTurbQ23; float4 tcTurbQ4;
 };
 // p_render: ComputeTexCoords (code/rd-vanilla/tr_shade.cpp) - tcGen environment wie RB_CalcEnvironmentTexCoords
 // (tr_shade_calc.cpp, MD gleich: st = n.xy * d - 0.5 * viewer.xy, viewer per Q_rsqrt), tcGen vector, dann die tcMod-Kette und turb
@@ -834,18 +838,12 @@ float2 stufeSt(float3 p, float3 n, float2 st) {
     float2 s2;
     s2.x = s.x * tcMat.x + (s.y * tcMat.z + tcOff.x);
     s2.y = s.x * tcMat.y + (s.y * tcMat.w + tcOff.y);
-    if (any(tcTurb != 0.0)) {
-        float2 ort = float2(p.x + p.z, p.y);
-        // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
-        // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
-        // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
-        // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
-        float2 tw = ort + tcOff.w;
-        float2 tf = floor(tw);
-        tf += ((ort + tcOff.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
-        float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
-        s2 += float2(tcTurb.x * tv.x + tcTurb.z * tv.y, tcTurb.y * tv.x + tcTurb.w * tv.y);
-    }
+    // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz, gpu::turbHlsl)
+    float2 ort = float2(p.x + p.z, p.y);
+    if (any(tcTurb != 0.0)) { s2 += turbVersatz(ort, tcOff.z, tcOff.w, tcTurb); }
+    if (any(tcTurb2 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ23.x, tcTurbQ23.y, tcTurb2); }
+    if (any(tcTurb3 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ23.z, tcTurbQ23.w, tcTurb3); }
+    if (any(tcTurb4 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ4.x, tcTurbQ4.y, tcTurb4); }
     return s2;
 }
 Texture2D bild : register(t0);
@@ -1002,7 +1000,8 @@ bool bereit3() {
     ID3D11Device* d = geraet();
     const auto uebersetzen = [](const char* einstieg, const char* ziel, ID3DBlob** code) {
         ID3DBlob* fehler = nullptr;
-        const HRESULT hr = D3DCompile(kShader3, std::strlen(kShader3), "karte3", nullptr, nullptr, einstieg, ziel,
+        static const std::string quelle = bhed::gpu::turbHlsl() + kShader3;   // FIX3: turbVersatz
+        const HRESULT hr = D3DCompile(quelle.data(), quelle.size(), "karte3", nullptr, nullptr, einstieg, ziel,
                                       D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, code, &fehler);
         los(fehler);
         return SUCCEEDED(hr);
@@ -1150,6 +1149,15 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
     std::memcpy(k->tcMat, z.tcMatrix, sizeof(k->tcMat));
     std::memcpy(k->tcOff, z.tcVersatz, sizeof(k->tcOff));
     std::memcpy(k->tcTurb, z.tcTurb, sizeof(k->tcTurb));
+    std::memcpy(k->tcTurbMehr, z.tcTurbMehr, sizeof(k->tcTurbMehr));   // FIX3
+    k->tcTurbQ23[0] = z.tcTurbQ[0];
+    k->tcTurbQ23[1] = z.tcTurbQ[1];
+    k->tcTurbQ23[2] = z.tcTurbQ[2];
+    k->tcTurbQ23[3] = z.tcTurbQ[3];
+    k->tcTurbQ4[0] = z.tcTurbQ[4];
+    k->tcTurbQ4[1] = z.tcTurbQ[5];
+    k->tcTurbQ4[2] = 0.0F;
+    k->tcTurbQ4[3] = 0.0F;
     k->tcGenS[0] = z.tcGenVec[0];
     k->tcGenS[1] = z.tcGenVec[1];
     k->tcGenS[2] = z.tcGenVec[2];
@@ -1373,6 +1381,7 @@ const char* const kShader4 = R"(
 cbuffer B3 : register(b0) {
     float4x4 mvp; float4 farbe; float4 vpnLicht; float4 augeHimmel; float4 alpha; float4 versatz; float4 muster; float4 linie; float4 nebel; float4 extra;
     float4 schnitt; float4 tcMat; float4 tcOff; float4 tcGenS; float4 tcGenT; float4 tcTurb;
+    float4 tcTurb2; float4 tcTurb3; float4 tcTurb4; float4 tcTurbQ23; float4 tcTurbQ4;
 };
 // p_render: ComputeTexCoords (code/rd-vanilla/tr_shade.cpp) - tcGen environment wie RB_CalcEnvironmentTexCoords
 // (tr_shade_calc.cpp, MD gleich: st = n.xy * d - 0.5 * viewer.xy, viewer per Q_rsqrt), tcGen vector, dann die tcMod-Kette und turb
@@ -1392,18 +1401,12 @@ float2 stufeSt(float3 p, float3 n, float2 st) {
     float2 s2;
     s2.x = s.x * tcMat.x + (s.y * tcMat.z + tcOff.x);
     s2.y = s.x * tcMat.y + (s.y * tcMat.w + tcOff.y);
-    if (any(tcTurb != 0.0)) {
-        float2 ort = float2(p.x + p.z, p.y);
-        // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
-        // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
-        // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
-        // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
-        float2 tw = ort + tcOff.w;
-        float2 tf = floor(tw);
-        tf += ((ort + tcOff.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
-        float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
-        s2 += float2(tcTurb.x * tv.x + tcTurb.z * tv.y, tcTurb.y * tv.x + tcTurb.w * tv.y);
-    }
+    // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz, gpu::turbHlsl)
+    float2 ort = float2(p.x + p.z, p.y);
+    if (any(tcTurb != 0.0)) { s2 += turbVersatz(ort, tcOff.z, tcOff.w, tcTurb); }
+    if (any(tcTurb2 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ23.x, tcTurbQ23.y, tcTurb2); }
+    if (any(tcTurb3 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ23.z, tcTurbQ23.w, tcTurb3); }
+    if (any(tcTurb4 != 0.0)) { s2 += turbVersatz(ort, tcTurbQ4.x, tcTurbQ4.y, tcTurb4); }
     return s2;
 }
 cbuffer B5 : register(b3) {
@@ -1900,9 +1903,10 @@ bool bereit4() {
     ID3DBlob* b[9] = {};
     HRESULT ergebnis[9] = {};
     std::string meldung[9];
+    const std::string quelle4 = bhed::gpu::turbHlsl() + kShader4;   // FIX3: turbVersatz
     arbeiter::verteilt(9, [&](std::size_t i) {
         ID3DBlob* fehler = nullptr;
-        ergebnis[i] = D3DCompile(kShader4, std::strlen(kShader4), "karte4", sm5 ? mit : ohne, nullptr, einstiege[i][0], einstiege[i][1],
+        ergebnis[i] = D3DCompile(quelle4.data(), quelle4.size(), "karte4", sm5 ? mit : ohne, nullptr, einstiege[i][0], einstiege[i][1],
                                  D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &b[i], &fehler);
         if (fehler != nullptr && FAILED(ergebnis[i])) { meldung[i] = static_cast<const char*>(fehler->GetBufferPointer()); }
         los(fehler);
