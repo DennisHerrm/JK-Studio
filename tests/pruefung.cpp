@@ -364,6 +364,29 @@ int main(int argc, char** argv) {
         pruefe(it != m.end() && it->second.skala[0] == 1.0F && it->second.skala[2] == 1.0F,
                "NPC: scale 0 gilt wie in der Engine als 'nicht skaliert' (CG_Player prueft != 0)");
     }
+    // FIX6 P51: largestScale (G2_ComputeLOD) aus s.modelScale, wie NPC_ParseParms es hinterlaesst. Jedi Academy und Movie Duels
+    // setzen vor dem Lesen alle drei Achsen auf 1 (NPC_stats.cpp:2041 OpenJK, :2386 MD9), Jedi Outcast nicht (codeJK2
+    // NPC_ParseParms: s.modelScale bleibt aus G_Spawn 0); eine genannte 0 bleibt 0 (nur n < 0 und n == 100 werden uebergangen).
+    {
+        const auto lies = [](const char* text, bool jk2) {
+            bhed::NpcMap m;
+            bhed::parseNpcFile(text, m, jk2);
+            const auto it = m.find("n");
+            return it != m.end() ? bhed::npcGroessteSkala(it->second) : -1.0F;
+        };
+        pruefe(lies("n\n{\n\tplayerModel jedi\n\tscaleX 50\n}\n", false) == 1.0F,
+               "P51: JKA nur scaleX 50 - die anderen Achsen 1 (NPC_ParseParms), largestScale 1");
+        pruefe(lies("n\n{\n\tplayerModel jedi\n\tscaleX 0\n\tscaleY 50\n\tscaleZ 50\n}\n", false) == 0.5F,
+               "P51: JKA scaleX 0, scaleY/Z 50 - die genannte 0 zaehlt als 0, largestScale 0,5");
+        pruefe(lies("n\n{\n\tplayerModel jedi\n\tscaleX 50\n}\n", true) == 0.5F,
+               "P51: JK2 nur scaleX 50 - die anderen Achsen 0 (G_Spawn), largestScale 0,5");
+        pruefe(lies("n\n{\n\tplayerModel jedi\n}\n", true) == 0.0F,
+               "P51: JK2 ohne scale - alle Achsen 0 (lodWieImSpiel nimmt dann 1)");
+        bhed::NpcMap m;
+        bhed::parseNpcFile("n\n{\n\tplayerModel jedi\n\tscaleX 50\n}\n", m, true);
+        pruefe(m.count("n") == 1 && m["n"].skala[0] == 0.5F && m["n"].skala[1] == 1.0F && m["n"].skala[2] == 1.0F,
+               "P51: JK2 nur scaleX 50 - gezeichnet 0,5/1/1 (CG_Player skaliert nur Achsen ungleich 0)");
+    }
 
     // ---- Einstellungen ---------------------------------------------------
     {

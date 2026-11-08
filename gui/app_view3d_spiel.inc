@@ -2874,14 +2874,17 @@ int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera&
 // "height" n (NPC_stats.cpp:3659-3686 MD9: s.radius = n), sonst G_SetG2PlayerModelInfo am Ende des Lesens
 // (g_client.cpp:2218-2270 MD9): CLASS_SAND_CREATURE 256, CLASS_RANCOR 300 (spawnflags 1) / 150, sonst der groesste
 // Betrag von mins/maxs (DEFAULT_MINS_0/1 -16 bzw. "width", DEFAULT_MINS_2 -24, maxs[2] 40 bzw. height - 24), 0 -> 60.
-float figurLodRadius(const Actor& a) {
+const NpcDef* figurNpcDef(const Actor& a) {
     auto it = g_app->npcMap.find(a.npcType);
     if (it == g_app->npcMap.end()) {
         std::string k = a.npcType;
         for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
         it = g_app->npcMap.find(k);
     }
-    const NpcDef* npc = it != g_app->npcMap.end() ? &it->second : nullptr;
+    return it != g_app->npcMap.end() ? &it->second : nullptr;
+}
+
+float figurLodRadius(const Actor& a, const NpcDef* npc) {
     if (npc != nullptr && npc->klasse == "class_sand_creature") { return 256.0F; }
     if (npc != nullptr && npc->klasse == "class_rancor") { return (a.spawnflags & 1) != 0 ? 300.0F : 150.0F; }
     if (npc != nullptr && npc->hoehe >= 0.0F && static_cast<int>(npc->hoehe) > 0) { return static_cast<float>(static_cast<int>(npc->hoehe)); }
@@ -2905,8 +2908,11 @@ const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Ca
     cam.forward(vorn);
     modell::LodLage l;
     l.stufenZahl = static_cast<int>(as->lodModelle.size()) + 1;
-    l.radius = figurLodRadius(g_app->scene.actors[static_cast<std::size_t>(a.figur)]);
-    l.skala = std::max({a.skala[0], a.skala[1], a.skala[2]});   // largestScale (0 -> 1 in lodWieImSpiel)
+    const Actor& akteur = g_app->scene.actors[static_cast<std::size_t>(a.figur)];
+    const NpcDef* npc = figurNpcDef(akteur);
+    l.radius = figurLodRadius(akteur, npc);
+    // FIX6 P51: largestScale aus s.modelScale (0 -> 1 in lodWieImSpiel), nicht aus dem gezeichneten Massstab a.skala
+    l.skala = npc != nullptr ? npcGroessteSkala(*npc) : 1.0F;
     l.lodscale = modell::grenzen(ziel).lodscale;                  // r_lodscale, r_lodbias "0"
     // ProjectRadius mit ent->e.origin (samt 24 * (scale - 1), CG_Player) entlang der Blickachse
     l.abstand = vorn[0] * (fw[3] - cam.pos[0]) + vorn[1] * (fw[7] - cam.pos[1]) + vorn[2] * (fw[11] - cam.pos[2]);
