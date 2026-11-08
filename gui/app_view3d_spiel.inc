@@ -3577,7 +3577,8 @@ int npcDateienLesen(NpcMap& m) {
 // des Modells. MERGE2: RE_RegisterSkin haengt sie an EINE Haut an - Kopf, dann Rumpf, wenn er anders heisst, dann Beine,
 // wenn sie anders heissen (tr_skin.cpp:413-424 OpenJK) - darum ein applySkin ueber den Text in dieser Folge: bei doppelten
 // Flaechen gilt der erste Eintrag, ein "*off" in irgendeinem Teil schaltet ab. false: kein solcher Name, eine Datei fehlt oder
-// die Haut hat nach einem Teil noch keinen Eintrag (hSkin 0 wie im Spiel).
+// die Haut hat nach einem Teil noch keinen Eintrag (hSkin 0 wie im Spiel). Bei false ist gm unveraendert: alle Dateien werden
+// vor dem ersten applySkin gelesen, und ein Teil ohne Eintrag hat nichts eingetragen.
 bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel& gm) {
     if (name.empty() || name[0] != '|') { return false; }
     const std::size_t a = name.find('|', 1);
@@ -3592,7 +3593,8 @@ bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel
         dabei[i] = true;
     }
     // MERGE3 P53: jeder Teil an dieselbe Haut, die Eintraege zaehlen zusammen (128 je Haut); hat die Haut nach einem Teil noch
-    // keinen Eintrag, gibt RE_RegisterIndividualSkin 0 zurueck (tr_skin.cpp:331-334) und die Figur bleibt ohne Haut
+    // keinen Eintrag, gibt RE_RegisterIndividualSkin 0 zurueck (tr_skin.cpp:331-334) - G2API_SetSkin(..., 0), siehe
+    // figurHautAnwenden
     int eintraege = 0;
     for (int i = 0; i < 3; ++i) {
         if (!dabei[i]) { continue; }
@@ -3625,22 +3627,30 @@ bool figurMitSchluessel(const Actor& a) {
     return m != nullptr && !m->empty();
 }
 
-// Die Haut einer Figur wie die Engine: "|kopf|rumpf|beine", sonst model_<customSkin>.skin (NPC_stats.cpp:1908), dann
-// die Vorgabe model_default.skin (ebenda:1597), zuletzt model.skin (alte Modelle). mb1a2: aus loadActorModels
-// herausgezogen, damit der Selbsttest die Figur genauso baut.
+// Die Haut einer Figur wie G_SetG2PlayerModel (g_client.cpp:2287-2370 MD9, :1730-1789 OpenJK, codeJK2 :788-802): ein
+// customSkin mit '|' ist dreiteilig ("models/players/<m>/|kopf|rumpf|beine", RE_SplitSkins), sonst model_<customSkin>.skin;
+// ohne customSkin model_default.skin (NPC_stats.cpp:1788 "default"). P62: findet RE_RegisterSkin nichts (Datei fehlt, ein Teil
+// fehlt oder die Haut bleibt ohne Eintrag), ist der Griff 0 und G2API_SetSkin(..., 0) setzt keine Haut und keine Flaechen
+// (G2_API.cpp:907-929) - die Figur zeichnet die Shader der .glm ("it still loads the default skin's tga's because they're
+// referenced in the .glm"), mit den Ein/Aus-Flaggen der .glm. Kein Rueckfall auf model_default.skin oder model.skin (den
+// gibt es nur, wenn das MODELL fehlt, mit stormtrooper). false: ohne Haut, gm unveraendert. `figur` leer: ohne Meldung.
+// mb1a2: aus loadActorModels herausgezogen, damit der Selbsttest die Figur genauso baut; das Vorwaermen nimmt sie ebenso.
 bool figurHautAnwenden(const std::string& dir, const std::string& customSkin, GlmModel& gm, const std::string& figur) {
-    if (hautAusDreiTeilen(dir, customSkin, gm)) { return true; }
-    for (const std::string& which : {"model_" + customSkin + ".skin", std::string("model_default.skin"), std::string("model.skin")}) {
+    const std::string name = customSkin.empty() ? std::string("default") : customSkin;
+    bool gefunden = false;
+    if (name.find('|') != std::string::npos) {
+        gefunden = hautAusDreiTeilen(dir, name[0] == '|' ? name : "|" + name, gm);
+    } else {
         std::string skin;
-        if (readFromArchives(dir + "/" + which, skin)) {
-            applySkin(skin, gm);
-            if (which != "model_" + customSkin + ".skin") {
-                diag::detail("Figur " + figur + ": Skin \"" + customSkin + "\" nicht gefunden, " + which + " genommen");
-            }
-            return true;
+        if (readFromArchives(dir + "/model_" + name + ".skin", skin)) {
+            gefunden = applySkin(skin, gm) > 0;
         }
     }
-    return false;
+    if (!gefunden && !figur.empty()) {
+        diag::detail("Figur " + figur + ": Haut \"" + name + "\" unter " + dir +
+                     " nicht gefunden oder ohne Eintrag - ohne Haut (Shader der .glm) wie im Spiel");
+    }
+    return gefunden;
 }
 
 bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln, std::string* ordner) {
@@ -3998,27 +4008,8 @@ void loadActorModels() {
             // Faeden". Die Skelette wurden trotzdem vorgewaermt, weil ihr
             // Pfad im Kopf des Modells steht.
             //
-            // Dieselbe Reihenfolge wie im Hauptdurchgang: erst
-            // model_default.skin, sonst model.skin.
-            // Erst der genannte Skin, dann default, dann model.skin.
-            //
-            // Die Reihenfolge ist die der Engine: sie baut
-            // model_<customSkin>.skin (NPC_stats.cpp:1908) und faellt auf
-            // die Vorgabe "default" zurueck, wenn keiner genannt ist
-            // (ebenda:1597). Der dritte Schritt ist unserer - alte Modelle
-            // haben nur model.skin.
-            if (!hautAusDreiTeilen(pfad, skinName, modelle[k])) {
-                for (const std::string& which :
-                     {"model_" + skinName + ".skin",
-                      std::string("model_default.skin"),
-                      std::string("model.skin")}) {
-                    std::string skin;
-                    if (readFromArchives(pfad + "/" + which, skin)) {
-                        applySkin(skin, modelle[k]);
-                        break;
-                    }
-                }
-            }
+            // Dieselbe Funktion wie im Hauptdurchgang (figurHautAnwenden, P62).
+            (void)figurHautAnwenden(pfad, skinName, modelle[k], std::string());
             heil[k] = 1;
         });
 
@@ -4212,16 +4203,10 @@ void loadActorModels() {
             ++badModel;
             continue;
         }
-        // Die uebliche Haut daneben.
-        // Erst der genannte Skin, dann default, dann model.skin - dieselbe
-        // Reihenfolge wie im Vorwaermen weiter oben. Zwei Stellen, die
-        // dasselbe tun, muessen es GLEICH tun; laufen sie auseinander,
-        // haengt das Aussehen davon ab, welcher Weg zuerst drankam.
-        const bool skinGefunden = figurHautAnwenden(dir, it->second.customSkin, gm, a.name);
-        if (!skinGefunden) {
-            diag::detail("Figur " + a.name + ": KEINE .skin unter " + dir +
-                         " - die Flaechen bleiben ohne Texturnamen");
-        }
+        // Die uebliche Haut daneben - dieselbe Funktion wie im Vorwaermen weiter oben. Zwei Stellen, die dasselbe tun, muessen
+        // es GLEICH tun; laufen sie auseinander, haengt das Aussehen davon ab, welcher Weg zuerst drankam. Ohne Haut meldet
+        // figurHautAnwenden es selbst (P62).
+        (void)figurHautAnwenden(dir, it->second.customSkin, gm, a.name);
         figurG2Regeln(gm, &it->second, mitSchluessel);
         assets.model = std::move(gm);
         // MERGE2 Punkt 4: R_LoadMDXM laedt alle Detailstufen (tr_ghoul2.cpp MD9), RenderSurfaces zeichnet die von
