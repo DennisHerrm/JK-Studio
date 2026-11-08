@@ -1242,7 +1242,8 @@ void kameraZeichnen() {
             if (b == nullptr || !b->fertig) { return; }
             const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
             const unsigned flags = se != nullptr ? se->flags : 0U;
-            const SpielDarstellung sd = spielBild ? spielDarstellung(st.shader) : SpielDarstellung{};
+            static const SpielDarstellung kOhneSpielbild;
+            const SpielDarstellung& sd = spielBild ? spielDarstellung(st.shader) : kOhneSpielbild;
             if (sd.unsichtbar) { return; }
             // rc609 P: wie die Vorschau - im Spiegeldurchgang die Portalflaechen selbst nicht (sie liegen auf der Ebene); sonst
             // liegt die Sicht unter ihnen (R_MirrorViewBySurface zeichnet sie vor der Hauptszene in dasselbe Bild), ihre erste
@@ -1406,7 +1407,7 @@ void kameraZeichnen() {
         const auto gluehenZeichnen = [&] {
             if (echtJetzt && texturen && fuellen && (!gluehStapel.empty() || !echtEffekteGlueh().empty()) && kartegpu::gluehenBeginnen()) {
                 for (const GluehStapel& gs : gluehStapel) {
-                    const SpielDarstellung sd = spielDarstellung(gs.st->shader);
+                    const SpielDarstellung& sd = spielDarstellung(gs.st->shader);
                     for (const SpielStufe& w : sd.glueh) {
                         const Bild* wb = lager().holen(stufeBildJetzt(w, spielbildZeit()));
                         if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }

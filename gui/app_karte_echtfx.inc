@@ -346,7 +346,7 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
         z.mischen = kartegpu::Mischen::Alpha;
         const karte::ShaderEintrag* se = ed.karteSpiel && !name.empty() ? ed.karteSpiel->inventar.shaderFinden(name) : nullptr;
         if (se != nullptr && !se->istStandard()) {
-            const SpielDarstellung sd = spielDarstellung(name);
+            const SpielDarstellung& sd = spielDarstellung(name);
             if (sd.unsichtbar) { continue; }
             if (sd.mischQuelle != 0) {
                 z.mischen = kartegpu::Mischen::Spiel;

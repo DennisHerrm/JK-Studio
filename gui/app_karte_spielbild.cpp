@@ -723,7 +723,7 @@ bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtf
                 pinsel.bRep(ed.karte.kontext);
                 for (const auto& fl : pinsel.flaechen()) {
                     if (!fl || !fl->traegtBei()) { continue; }
-                    const SpielDarstellung sd = spielDarstellung(fl->shader());
+                    const SpielDarstellung& sd = spielDarstellung(fl->shader());
                     if (!sd.portal || sd.unsichtbar) { continue; }
                     const karte::Wicklung& w = fl->wicklung();
                     if (w.numpoints < 3) { continue; }
