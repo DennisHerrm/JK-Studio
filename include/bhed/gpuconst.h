@@ -63,7 +63,8 @@ namespace bhed::gpu {
 // eine 2x2-Matrix und eine Verschiebung. Uebrig bleiben:
 //
 //   gTexMatrix   float4   die 2x2-Matrix (m00, m10, m01, m11)
-//   gTexOffTurb  float4   Verschiebung x, y  +  Amplitude, Phase von turb
+//   gTexOffTurb  float4   Verschiebung x, y  +  turb: 1024 now und 1024 now modulo 1024 (FIX2 P16, turbWerte)
+//   gTexTurbMat  float4   turb: linearer Teil der Schritte dahinter mal Amplitude (FIX2 P16, am Ende des Blocks)
 //
 // Acht float statt zweiunddreissig, fuer BELIEBIG VIELE Schritte - und
 // `transform` passt hinein wie jeder andere Schritt auch.
@@ -92,7 +93,10 @@ inline constexpr std::size_t kDeformNormalAt = kBulgeAt + 4U;         // 32
 // rc605: tcGen vector - die zwei Vektoren (tcGenVectors[0], [1]) je ein float4.
 inline constexpr std::size_t kTcGenSAt = kDeformNormalAt + 4U;        // 36
 inline constexpr std::size_t kTcGenTAt = kTcGenSAt + 4U;              // 40
-inline constexpr std::size_t kKonstFloats = kTcGenTAt + 4U;           // 44
+// FIX2 P16: der lineare Teil der tcMod-Schritte hinter turb (m0 m1 m2 m3): der turb-Versatz geht hindurch wie im Spiel
+// (ComputeTexCoords, tr_shade.cpp:1725: jeder Schritt der Reihe nach)
+inline constexpr std::size_t kTexTurbMatAt = kTcGenTAt + 4U;         // 44
+inline constexpr std::size_t kKonstFloats = kTexTurbMatAt + 4U;      // 48
 
 // Die Art eines tcMod-Schritts stand hier als Aufzaehlung, weil der Shader
 // sie in .w des jeweiligen Viererblocks las. Seit rc443 wird die Kette auf
@@ -115,7 +119,14 @@ void packeKonstanten(const BatchState& bs, float* ziel, float zeitSekunden);
 // p_render: die tcMod-Kette als EINE affine Abbildung (ComputeTexMods, rd-rend2 tr_shade.cpp:177), wie packeKonstanten sie
 // schreibt: mat = m0 m1 m2 m3, off = m4 m5, turb: Amplitude und Phase (RB_CalcTurbulentFactors). Auch fuer die Stufen im
 // Echtzeit-Licht des Karten-Editors.
-void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase);
+// FIX2 P16: turbMat = der lineare Teil der Schritte hinter turb (Einheit ohne turb); die Shader rechnen
+// st' = mat st + off + turbMat (turbAmp sinTable(ort)) - so wie rd-vanilla die Kette der Reihe nach anwendet. rotate liest
+// wie RB_CalcRotateTexCoords die Sinustafel. Mehrere turb in einer Stufe: der letzte zaehlt (wie bisher).
+void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase,
+                     float turbMat[4]);
+// FIX2 P16: was die Shader fuer turb brauchen (gTexOffTurb.zw, gTexTurbMat): q = 1024 now (Vorzeichen des Index), qRest = q
+// modulo 1024 in double (der Index ohne Stellenverlust), matAmp = turbMat * Amplitude.
+void turbWerte(float turbAmp, float turbPhase, const float turbMat[4], float& q, float& qRest, float matAmp[4]);
 
 }  // namespace bhed::gpu
 

@@ -91,6 +91,7 @@ cbuffer JeStapel : register(b1) {
     float4 gDeformNormal;  // amplitude, frequenz
     float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
     float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
+    float4 gTexTurbMat;    // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb (44)
 };
 )";
 
@@ -828,6 +829,7 @@ cbuffer JeStufe : register(b3) {
     float4 gDefBeule;     // bulge width, height, speed; Tabelle der move-Welle
     float4 gDefWeg;       // moveVector, refdef.floatTime
     float4 gDefWegWelle;  // base, amplitude, phase, frequency der move-Welle
+    float4 gStufeTurbMat; // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb
 };
 // rc604: die Tabellen der Engine (R_InitFuncTables, code/rd-vanilla/
 // tr_init.cpp:1724-1747 OpenJK), FUNCTABLE_SIZE 1024; i schon & FUNCTABLE_MASK.
@@ -1042,8 +1044,16 @@ VSOut main(VSIn ein) {
             st2.x = aus.uv.x * gStufeTexMatrix.x + (aus.uv.y * gStufeTexMatrix.z + gStufeTexOffTurb.x);
             st2.y = aus.uv.x * gStufeTexMatrix.y + (aus.uv.y * gStufeTexMatrix.w + gStufeTexOffTurb.y);
             float2 ort = float2(welt.x + welt.z, welt.y);
-            float2 tx = frac(ort * 0.0009765625 + gStufeTexOffTurb.w.xx);
-            aus.uv = st2 + sin(tx * 6.2831853) * gStufeTexOffTurb.z;
+            // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
+            // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
+            // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
+            // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
+            float2 tw = ort + gStufeTexOffTurb.w;
+            float2 tf = floor(tw);
+            tf += ((ort + gStufeTexOffTurb.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
+            float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
+            st2 += float2(gStufeTurbMat.x * tv.x + gStufeTurbMat.z * tv.y, gStufeTurbMat.y * tv.x + gStufeTurbMat.w * tv.y);
+            aus.uv = st2;
         }
     }
     return aus;
@@ -1271,8 +1281,16 @@ float rausch4(float4 q) {
         st2.y = aus.uv.x * gTexMatrix.y + (aus.uv.y * gTexMatrix.w
                                            + gTexOffTurb.y);
         float2 ort = float2(welt.x + welt.z, welt.y);
-        float2 tx = frac(ort * 0.0009765625 + gTexOffTurb.w.xx);
-        aus.uv = st2 + sin(tx * 6.2831853) * gTexOffTurb.z;
+        // FIX2 P16: RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
+        // die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + Qr hat denselben floor modulo 1024 wie ort + 1024 now (Qr: die
+        // Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + Q negativ und w nicht ganz, eins mehr.
+        // Der Versatz geht durch den linearen Teil der Schritte hinter turb, mal Amplitude (ComputeTexCoords, tr_shade.cpp:1725).
+        float2 tw = ort + gTexOffTurb.w;
+        float2 tf = floor(tw);
+        tf += ((ort + gTexOffTurb.z < 0.0) && (tw != tf)) ? 1.0 : 0.0;
+        float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
+        st2 += float2(gTexTurbMat.x * tv.x + gTexTurbMat.z * tv.y, gTexTurbMat.y * tv.x + gTexTurbMat.w * tv.y);
+        aus.uv = st2;
     }
 )";
     }

@@ -254,7 +254,7 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
 // rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 52;
+constexpr UINT kStufeFloats = 56;   // FIX2 P16: + gStufeTurbMat
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
 constexpr UINT kRingGroesse = 1024U * 1024U;    // 4096 Stapel bis zum naechsten DISCARD
 ID3D11Buffer* g_cbRing = nullptr;
@@ -737,7 +737,7 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
                              {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
                              {"gDeformNormal", kDeformNormalAt},
-                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}};
+                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTexTurbMat", kTexTurbMatAt}};
         std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
         bool gut = true;
         for (const Soll& s : soll) {
@@ -4906,6 +4906,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 packeKonstanten(batchStateFor(tex, zeitS), k, zeitS);
                 sd[3] = 1.0F;
                 for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
+                for (std::size_t q = 0; q < 4; ++q) { sd[52 + q] = k[kTexTurbMatAt + q]; }   // FIX2 P16: gStufeTurbMat
             };
             // rc604: deformVertexes des Shaders (RB_DeformTessGeometry,
             // code/rd-vanilla/tr_shade_calc.cpp OpenJK) - [32..35] wave base,

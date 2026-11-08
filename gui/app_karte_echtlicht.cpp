@@ -929,7 +929,11 @@ void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool fa
     // tr_shade_calc.cpp) - zusammengerechnet wie die Vorschau (gpu::texModAbbildung), turb im Shader nach dem Ort
     z.tcGen = w.texGen == TexGen::Environment ? 1 : w.texGen == TexGen::Vector ? 2 : 0;
     for (int k = 0; k < 6; ++k) { z.tcGenVec[k] = w.tcGenVec[k]; }
-    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, z.tcVersatz[2], z.tcVersatz[3]);
+    float turbAmp = 0.0F;
+    float turbPhase = 0.0F;
+    float turbMat[4];
+    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, turbAmp, turbPhase, turbMat);
+    gpu::turbWerte(turbAmp, turbPhase, turbMat, z.tcVersatz[2], z.tcVersatz[3], z.tcTurb);   // FIX2 P16
     if (!farbeAuch) { return; }
     // ComputeColors: rgbGen wave (RB_CalcWaveColor) ersetzt die Farbe, auf 0..1 geklemmt; alphaGen wave (RB_CalcWaveAlpha,
     // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus)
