@@ -15,6 +15,8 @@
 
 #include "bhed/gpushader.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <string>
@@ -32,6 +34,80 @@ void erwarte(const char* was, bool ok) {
     if (!ok) {
         ++fehler;
     }
+}
+
+// FIX2 P16: die tcMod-Kette wie rd-vanilla - ComputeTexCoords (code/rd-vanilla/tr_shade.cpp:1725ff) wendet jeden Schritt der
+// Reihe nach an, turb (RB_CalcTurbulentTexCoords, tr_shade_calc.cpp:936) und rotate (RB_CalcRotateTexCoords :1009) ueber
+// tr.sinTable (tr_init.cpp:1727: sin(DEG2RAD(i * 360 / (FUNCTABLE_SIZE - 1))), 1024 Eintraege, Index & FUNCTABLE_MASK).
+float sinTab(int i) {
+    return static_cast<float>(std::sin(static_cast<double>(static_cast<float>(i & 1023) * 360.0F / 1023.0F) * 3.14159265358979323846 / 180.0));
+}
+void spielSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]) {
+    for (int k = 0; k < n; ++k) {
+        const TexMod& t = m[k];
+        switch (t.kind) {
+            case TexModKind::Turb: {
+                const float now = t.wave.phase + zeit * t.wave.frequency;
+                const float s = st[0];
+                const float u = st[1];
+                st[0] = s + sinTab(static_cast<int>(((xyz[0] + xyz[2]) * 1.0 / 128 * 0.125 + now) * 1024)) * t.wave.amplitude;
+                st[1] = u + sinTab(static_cast<int>((xyz[1] * 1.0 / 128 * 0.125 + now) * 1024)) * t.wave.amplitude;
+                break;
+            }
+            case TexModKind::Scale:
+                st[0] *= t.a[0];
+                st[1] *= t.a[1];
+                break;
+            case TexModKind::Scroll: {
+                float a = t.a[0] * zeit;
+                float b = t.a[1] * zeit;
+                a = a - std::floor(a);
+                b = b - std::floor(b);
+                st[0] += a;
+                st[1] += b;
+                break;
+            }
+            case TexModKind::Rotate: {
+                const float degs = -t.a[0] * zeit;
+                const int index = static_cast<int>(degs * (1024 / 360.0F));
+                const float sn = sinTab(index);
+                const float cs = sinTab(index + 1024 / 4);
+                const float s = st[0];
+                const float u = st[1];
+                st[0] = s * cs + u * -sn + (0.5F - 0.5F * cs + 0.5F * sn);
+                st[1] = s * sn + u * cs + (0.5F - 0.5F * sn - 0.5F * cs);
+                break;
+            }
+            default: break;
+        }
+    }
+}
+// Was die Shader aus texModAbbildung machen (gpushader.cpp kTexMod/JeStufe, karte_gpu_win32.cpp stufeSt): die Matrix und die
+// Verschiebung, dazu der turb-Versatz am Ort
+void shaderSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]) {
+    float mat[4];
+    float off[2];
+    float amp = 0.0F;
+    float phase = 0.0F;
+    float tm[4];
+    texModAbbildung(m, n, zeit, mat, off, amp, phase, tm);
+    float s2[2] = {st[0] * mat[0] + (st[1] * mat[2] + off[0]), st[0] * mat[1] + (st[1] * mat[3] + off[1])};
+    const float ort[2] = {xyz[0] + xyz[2], xyz[1]};
+    float q = 0.0F;
+    float qr = 0.0F;
+    float ma[4];
+    turbWerte(amp, phase, tm, q, qr, ma);
+    float tv[2];
+    for (int k = 0; k < 2; ++k) {
+        const float w = ort[k] + qr;
+        float f = std::floor(w);
+        if (ort[k] + q < 0.0F && w != f) { f += 1.0F; }
+        tv[k] = static_cast<float>(std::sin(static_cast<double>(static_cast<int>(f) & 1023) * (6.283185307179586 / 1023.0)));
+    }
+    s2[0] += ma[0] * tv[0] + ma[2] * tv[1];
+    s2[1] += ma[1] * tv[0] + ma[3] * tv[1];
+    st[0] = s2[0];
+    st[1] = s2[1];
 }
 
 }  // namespace
@@ -55,7 +131,8 @@ int main() {
     // bei 29 (D3DReflect), gerechnet war 32 - der Lavafall pulsierte nur.
     erwarte("gDeformSpread steht bei 20", kDeformSpreadAt == 20U);
     erwarte("gWolkenHoehe gleich dahinter bei 21", kWolkenAt == 21U);
-    erwarte("der Block ist 44 float gross", kKonstFloats == 44U);   // rc605: gTcGenS/gTcGenT
+    erwarte("der Block ist 48 float gross", kKonstFloats == 48U);   // rc605: gTcGenS/gTcGenT; FIX2 P16: gTexTurbMat
+    erwarte("gTexTurbMat steht bei 44", kTexTurbMatAt == 44U);
     {
         // rc605: tcGen vector - die zwei Vektoren landen bei 36 und 40, der
         // Vertexshader rechnet st aus dem Ort.
@@ -120,11 +197,13 @@ int main() {
         erwarte("scroll steht in der Verschiebung, gekuerzt",
                 buf[kTexOffTurbAt + 0] == 0.5F &&
                 buf[kTexOffTurbAt + 1] == 0.0F);
-        erwarte("turb steht daneben: Amplitude",
-                buf[kTexOffTurbAt + 2] == 0.3F);
+        // FIX2 P16: die Amplitude steckt in gTexTurbMat (der lineare Teil hinter turb, hier die Einheit)
+        erwarte("turb steht daneben: Amplitude in gTexTurbMat",
+                buf[kTexTurbMatAt + 0] == 0.3F && buf[kTexTurbMatAt + 1] == 0.0F && buf[kTexTurbMatAt + 2] == 0.0F && buf[kTexTurbMatAt + 3] == 0.3F);
         // now = phase + zeit * frequenz = 1.0 + 2.0*0.1 = 1.2
+        // FIX2 P16: .z = 1024 now = 1228,8, .w = 1024 now modulo 1024 = 204,8
         erwarte("turb steht daneben: Phase mit der Zeit",
-                buf[kTexOffTurbAt + 3] > 1.19F && buf[kTexOffTurbAt + 3] < 1.21F);
+                buf[kTexOffTurbAt + 2] > 1228.7F && buf[kTexOffTurbAt + 2] < 1228.9F && buf[kTexOffTurbAt + 3] > 204.7F && buf[kTexOffTurbAt + 3] < 204.9F);
     }
     {
         // DER PUNKT DER GANZEN UMSTELLUNG: tcMod transform.
@@ -252,6 +331,54 @@ int main() {
         erwarte("nullptr wird abgefangen", true);
     }
 
+    // --- FIX2 P16: die Kette wie rd-vanilla an einer Ecke ------------------
+    //
+    // turb vor scale: im Spiel wird der Versatz mitskaliert ((st + turb) * 2); rotate und turb lesen die Sinustafel.
+    {
+        struct Fall {
+            const char* was;
+            TexMod m[3];
+            int n;
+        };
+        TexMod turb;
+        turb.kind = TexModKind::Turb;
+        turb.wave.func = WaveFunc::Sin;
+        turb.wave.amplitude = 0.3F;
+        turb.wave.phase = 0.1F;
+        turb.wave.frequency = 0.5F;
+        TexMod skal;
+        skal.kind = TexModKind::Scale;
+        skal.a[0] = 2.0F;
+        skal.a[1] = 3.0F;
+        TexMod dreh;
+        dreh.kind = TexModKind::Rotate;
+        dreh.a[0] = 30.0F;
+        TexMod rollen;
+        rollen.kind = TexModKind::Scroll;
+        rollen.a[0] = 0.25F;
+        rollen.a[1] = 0.5F;
+        const Fall faelle[] = {{"turb, scale 2 3", {turb, skal, {}}, 2},
+                               {"rotate 30", {dreh, {}, {}}, 1},
+                               {"scroll, turb", {rollen, turb, {}}, 2},
+                               {"turb, rotate 30, scale 2 3", {turb, dreh, skal}, 3}};
+        const float ecken[3][3] = {{37.0F, 211.0F, 90.0F}, {-512.5F, 64.25F, 1000.0F}, {3.0F, -700.0F, -41.0F}};
+        for (const Fall& f : faelle) {
+            float gross = 0.0F;
+            for (const auto& e : ecken) {
+                for (const float zeit : {0.0F, 1.3F, 17.77F}) {
+                    float a[2] = {0.3F, 0.7F};
+                    float b[2] = {0.3F, 0.7F};
+                    spielSt(f.m, f.n, zeit, e, a);
+                    shaderSt(f.m, f.n, zeit, e, b);
+                    gross = std::max(gross, std::max(std::fabs(a[0] - b[0]), std::fabs(a[1] - b[1])));
+                }
+            }
+            char z[160];
+            std::snprintf(z, sizeof z, "P16 %s: Shader gegen rd-vanilla, groesste Abweichung %.6f (Grenze 1e-4)", f.was, static_cast<double>(gross));
+            erwarte(z, gross < 1e-4F);
+        }
+    }
+
     // --- Der Shader und dieser Packer muessen denselben Block meinen ------
     //
     // Sie stehen in zwei Dateien. Diese Probe haelt sie zusammen: was hier
@@ -263,6 +390,7 @@ int main() {
                 hlsl.find("gTexMatrix") != std::string::npos);
         erwarte("der Shader kennt gTexOffTurb",
                 hlsl.find("gTexOffTurb") != std::string::npos);
+        erwarte("der Shader kennt gTexTurbMat (FIX2 P16)", hlsl.find("gTexTurbMat") != std::string::npos);
         erwarte("der Shader kennt gDeform", hlsl.find("gDeform[") != std::string::npos);
         erwarte("der Shader kennt gDeformSpread",
                 hlsl.find("gDeformSpread") != std::string::npos);

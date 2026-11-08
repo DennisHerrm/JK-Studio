@@ -1,5 +1,11 @@
-// SPDX-License-Identifier: BSD-3-Clause
-// Copyright (c) 2026, Fernando Sahmkow
+// SPDX-License-Identifier: BSD-3-Clause AND GPL-2.0-or-later
+// Copyright (c) 2026, Fernando Sahmkow (BSD-3-Clause, unten): die ganze Datei ausser den Blender-Teilen.
+// Blender-Teile (GPL-2.0-or-later, Copyright 2023 Blender Authors): portiert aus Blender 5.0
+// source/blender/bmesh/tools/bmesh_bevel.cc (Tag v5.0.0) - FaseEnde/FaseInfo und segmentieren (bevel_build_rings mit dem
+// Gitter M_ADJ, weld/build_vmesh, pipe_test :3979) und in chamferKern die Sammlung fuer die Segmente (selcount,
+// tri_corner_test :4634, Normalen fuer pipe_test). Sie stehen zwischen den Marken "Blender-Teil Anfang" und "Blender-Teil
+// Ende" (FIX2 P10, Code-Pruefung seit rc610). GPL-2.0-or-later ist mit der GPL v2 von JK Studio (LICENSE) vereinbar; die
+// Datei als Ganzes steht damit unter der GPL v2. Eine Rueckgabe nach WhiteoutFlakes (BSD) laesst die Blender-Teile weg.
 //
 // modell/wof/mesh_werkzeuge.cpp - Werkzeuge, die Flaechen heben, einruecken, abkanten und teilen (Modell-Block 1d):
 // Extrude (Vielecke, Rand), Inset, Bevel, Chamfer (Kanten, Punkte), Connect (Kanten, Punkte), Loop Cut, Cut.
@@ -614,6 +620,7 @@ Plan bevel(PolyNetz& n, const std::vector<int>& flaechen, ExtrudeArt art, float 
 
 namespace {
 
+// --- Blender-Teil Anfang (GPL-2.0-or-later, bmesh_bevel.cc; siehe Kopf) ---
 // MRESTE Punkt 3 / 3b: Chamfer mit Segmenten (3ds Max Chamfer "Segments"/"Tension", Blender Bevel "Segments"/"Shape").
 // Die Geometrie kommt aus fase_blender.cpp (Blender bmesh_bevel.cc, GPL-2.0-or-later): jedes Streifenende bekommt
 // Blenders Profil der Kante (set_profile_params: die Mitte auf der Kante, gleiche Sehnen der Superellipse), zwei
@@ -930,6 +937,7 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
     }
     n.kantenBauen();
 }
+// --- Blender-Teil Ende ---
 
 // Kern von Chamfer an Kanten und Punkten (WL PlanChamferEdges/PlanChamferVertices)
 Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std::pair<int, int>>& gewaehlt, bool kantenModus, int segmente, float profil) {
@@ -1007,6 +1015,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             }
         }
     }
+    // --- Blender-Teil Anfang (GPL-2.0-or-later, bmesh_bevel.cc; siehe Kopf) ---
     // MRESTE 3b: was Blenders Segmente vom alten Netz brauchen (selcount, tri_corner_test, Normalen fuer pipe_test)
     FaseInfo info;
     const bool mitSegmenten = kantenModus && segmente > 1;
@@ -1063,6 +1072,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             info.triTest[v] = tt;
         }
     }
+    // --- Blender-Teil Ende ---
     std::unordered_map<int, const Bewegung*> bew;
     for (const Bewegung& b : p.bewegungen) { bew[b.punkt] = &b; }
     // die Vielecke an den beruehrten Punkten: die Ecke v wird zur Liste ihrer neuen Punkte

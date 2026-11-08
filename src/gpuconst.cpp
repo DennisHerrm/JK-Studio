@@ -15,7 +15,13 @@ namespace bhed::gpu {
 // kuerzt so, damit die Koordinaten nicht unbegrenzt wachsen.
 float kuerze(float x) { return x - std::floor(x); }
 
-void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase) {
+// FIX2 P16: tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727): sin(DEG2RAD(i * 360 / (FUNCTABLE_SIZE - 1)))
+float sinTafel(int i) {
+    return static_cast<float>(std::sin(static_cast<double>(static_cast<float>(i & 1023) * 360.0F / 1023.0F) * 3.14159265358979323846 / 180.0));
+}
+
+void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], float& turbAmp, float& turbPhase,
+                     float turbMat[4]) {
     mat[0] = 1.0F;   // m0, m1, m2, m3
     mat[1] = 0.0F;
     mat[2] = 0.0F;
@@ -24,6 +30,10 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
     off[1] = 0.0F;
     turbAmp = 0.0F;
     turbPhase = 0.0F;
+    turbMat[0] = 1.0F;
+    turbMat[1] = 0.0F;
+    turbMat[2] = 0.0F;
+    turbMat[3] = 1.0F;
 
     const int n = std::min(anzahl, kMaxTexMods);
     for (int i = 0; i < n; ++i) {
@@ -38,6 +48,11 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
                 // amplitude unveraendert. `base` geht NICHT ein.
                 turbAmp = m.wave.amplitude;
                 turbPhase = m.wave.phase + zeitSekunden * m.wave.frequency;
+                // FIX2 P16: die Schritte danach nehmen den Versatz mit (turbMat ab hier neu)
+                turbMat[0] = 1.0F;
+                turbMat[1] = 0.0F;
+                turbMat[2] = 0.0F;
+                turbMat[3] = 1.0F;
                 continue;   // keine Matrix - nicht anhaengen
             case TexModKind::Scroll: {
                 // RB_CalcScrollTexMatrix kuerzt auf [0,1), damit die
@@ -66,10 +81,12 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
             case TexModKind::Rotate: {
                 // RB_CalcRotateTexMatrix: NEGATIVE Grad je Sekunde, und die
                 // Drehung geht um die Mitte.
+                // FIX2 P16: ueber die Sinustafel wie RB_CalcRotateTexCoords (tr_shade_calc.cpp:1009): index = degs * (1024 / 360),
+                // sin = sinTable[index & MASK], cos = sinTable[(index + 256) & MASK]
                 const float grad = -m.a[0] * zeitSekunden;
-                const float bog = grad * 0.01745329251F;
-                const float c = std::cos(bog);
-                const float si = std::sin(bog);
+                const auto index = static_cast<int>(grad * (1024 / 360.0F));
+                const float c = sinTafel(index + 1024 / 4);
+                const float si = sinTafel(index);
                 s6[0] = c;
                 s6[1] = si;
                 s6[2] = -si;
@@ -104,7 +121,22 @@ void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float m
         mat[3] = n3;
         off[0] = o0;
         off[1] = o1;
+        const float t0 = s6[0] * turbMat[0] + s6[2] * turbMat[1];
+        const float t1 = s6[1] * turbMat[0] + s6[3] * turbMat[1];
+        const float t2 = s6[0] * turbMat[2] + s6[2] * turbMat[3];
+        const float t3 = s6[1] * turbMat[2] + s6[3] * turbMat[3];
+        turbMat[0] = t0;
+        turbMat[1] = t1;
+        turbMat[2] = t2;
+        turbMat[3] = t3;
     }
+}
+
+void turbWerte(float turbAmp, float turbPhase, const float turbMat[4], float& q, float& qRest, float matAmp[4]) {
+    const double qd = static_cast<double>(turbPhase) * 1024.0;   // now ist float (RB_CalcTurbulentTexCoords), das Produkt in double
+    q = static_cast<float>(qd);
+    qRest = static_cast<float>(qd - 1024.0 * std::floor(qd / 1024.0));
+    for (int k = 0; k < 4; ++k) { matAmp[k] = turbMat[k] * turbAmp; }
 }
 
 void packeKonstanten(const BatchState& bs, float* ziel,
@@ -141,15 +173,15 @@ void packeKonstanten(const BatchState& bs, float* ziel,
     float off[2];
     float turbAmp = 0.0F;
     float turbPhase = 0.0F;
-    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turbAmp, turbPhase);
+    float turbMat[4];
+    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turbAmp, turbPhase, turbMat);
     ziel[kTexMatrixAt + 0] = mat[0];
     ziel[kTexMatrixAt + 1] = mat[1];
     ziel[kTexMatrixAt + 2] = mat[2];
     ziel[kTexMatrixAt + 3] = mat[3];
     ziel[kTexOffTurbAt + 0] = off[0];
     ziel[kTexOffTurbAt + 1] = off[1];
-    ziel[kTexOffTurbAt + 2] = turbAmp;
-    ziel[kTexOffTurbAt + 3] = turbPhase;
+    turbWerte(turbAmp, turbPhase, turbMat, ziel[kTexOffTurbAt + 2], ziel[kTexOffTurbAt + 3], ziel + kTexTurbMatAt);   // FIX2 P16
 
     // --- gRgb: Farbe und alphaConst ---------------------------------------
     //

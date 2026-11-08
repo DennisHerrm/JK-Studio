@@ -85,7 +85,10 @@ struct SpielDarstellung {
     bool grundBewegt = false;
     SpielStufe grund;
 };
-[[nodiscard]] SpielDarstellung spielDarstellung(const std::string& shader);
+// FIX2 P11 (Code-Pruefung seit rc610): je Shader einmal gerechnet und behalten - neu nach Flush & Reload Shaders
+// (Editor::neuGeladen), einem anderen Spielkontext und dem Leeren der Shader-Skripte (weltAktualisieren). Die Referenz
+// gilt bis zum naechsten dieser Ereignisse (nicht ueber Bilder hinweg merken).
+[[nodiscard]] const SpielDarstellung& spielDarstellung(const std::string& shader);
 // Der Hinweis in der Kamera-Ecke (Programmsprache): "Vorschau, ohne Bounce und Filter" usw.
 [[nodiscard]] std::string echtLichtHinweis();
 // Jedes Bild (auch ohne Kamera): Schnell-Backen nach einer Pause ohne Aenderung

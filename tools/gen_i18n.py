@@ -2306,6 +2306,8 @@ from i18n_rest import zeilen_vier as _rest  # noqa: E402  (REST: Fehler der Mode
 S += _rest()
 from i18n_mreste import zeilen_vier as _mreste  # noqa: E402  (MRESTE: Reste des Modell-Blocks vor rc611)
 S += _mreste()
+from i18n_fix2 import zeilen_vier as _fix2  # noqa: E402  (FIX2: Animations-Import in 6 Sprachen, Blender-Lizenz)
+S += _fix2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

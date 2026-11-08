@@ -132,6 +132,31 @@ std::vector<Schritt> schritte(const std::string& n) {
             return r.quelle.bones.size() == soll && r.cq.vorlage.find("Mixamo") != std::string::npos && r.vorschau && r.welt.size() >= 30;
         }));
     }
+    // --- FIX2 P14: Meldungen des Imports in der Sprache der Oberflaeche (vorher deutsch in jeder Sprache) ---
+    add(tu("AI P14: testgang.bvh importieren (vorn aus dem Skelett, Hinweis Grundstellung)", [d] { (void)modellRtImportLaden(d + "/testgang.bvh"); }));
+    add(pruefe("AI P14: Import-Hinweise ohne deutsche Saetze ausserhalb von de", [] {
+        const std::string& t = g_app->mtab.rt.importInfo;
+        diag::detail("Knopftest: AI P14 Hinweise (" + std::string(i18n::currentLanguage() == i18n::Language::German ? "de" : "nicht de") + "): " + t);
+        if (i18n::currentLanguage() == i18n::Language::German) { return true; }
+        return t.find("aus dem Skelett") == std::string::npos && t.find("Grundstellung") == std::string::npos && t.find("Skalierung") == std::string::npos;
+    }));
+    add(tu("AI P14: glTF ohne Animation importieren", [] {
+        std::error_code ec;
+        const std::filesystem::path p = std::filesystem::current_path(ec) / "ai_p14_ohne_anim.gltf";
+        {
+            std::ofstream o(p, std::ios::binary);
+            o << R"({"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"a","children":[1]},{"name":"b"}]})";
+        }
+        (void)modellRtImportLaden(p.string());
+        std::filesystem::remove(p, ec);
+    }));
+    add(pruefe("AI P14: Fehler \"keine Animation\" in der Sprache der Oberflaeche", [] {
+        const std::string& t = g_app->mtab.rt.quelleFehler;
+        diag::detail("Knopftest: AI P14 Fehler: " + t);
+        if (t.empty()) { return false; }
+        if (i18n::currentLanguage() == i18n::Language::German) { return true; }
+        return t.find("keine Animation") == std::string::npos;
+    }));
     // --- Preset-Bibliothek ---
     add(pruefe("AI Bibliothek: Eintraege da, je Eintrag Datei, Quelle, Lizenz, Platz", [] {
         const std::vector<PresetEintrag>& b = modellPresetBibliothek();

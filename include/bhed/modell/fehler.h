@@ -5,6 +5,7 @@
 #ifndef BHED_MODELL_FEHLER_H
 #define BHED_MODELL_FEHLER_H
 
+#include <cstdio>
 #include <string>
 
 namespace bhed::modell {
@@ -48,6 +49,13 @@ enum class FehlerArt : int {
     SequenzNichtInQuelle,  // animcfg: name Platz, a erster Frame, b Anzahl, name2 GLA, c Frames der GLA
     QuellVerweis,          // animcfg: name GLA
     BereichAusserhalb,     // rig: Bereich ausserhalb der GLA
+    // FIX2 P5/P14: Animations-Import (animimport.h); die drei letzten sind Hinweise, keine Fehler
+    KeineAnimation,
+    AchsenUnbestimmt,      // name: oben, name2: vorn
+    AnimZuLang,            // a: Bilder, b: MB noetig, c: MB frei (0: unbekannt)
+    BvhOhneSeiten,
+    BvhBoden,              // a: Zehntel cm
+    UngleicheSkalierung,
     Anzahl
 };
 
@@ -103,6 +111,16 @@ struct ModellFehler {
         case FehlerArt::SequenzNichtInQuelle: return f.name + ": frames " + a + "+" + b + " not in " + f.name2 + " (" + std::to_string(f.c) + " frames)";
         case FehlerArt::QuellVerweis: return f.name + ": reference behind the pool";
         case FehlerArt::BereichAusserhalb: return "range outside the GLA";
+        case FehlerArt::KeineAnimation: return "no animation in the file";
+        case FehlerArt::AchsenUnbestimmt: return "the axes of the file are left-handed or undetermined (up " + f.name + ", front " + f.name2 + ")";
+        case FehlerArt::AnimZuLang: return "animation too long: " + a + " frames would need " + b + " MB (" + std::to_string(f.c) + " MB free)";
+        case FehlerArt::BvhOhneSeiten: return "BVH: no sides in the bone names, left = +X assumed";
+        case FehlerArt::BvhBoden: {
+            char t[48];
+            std::snprintf(t, sizeof t, "%.1f", static_cast<double>(f.a) / 10.0);
+            return std::string("BVH: base pose set onto the floor of the frames (") + t + " cm)";
+        }
+        case FehlerArt::UngleicheSkalierung: return "non-uniform scaling removed (only rotation and position taken)";
         case FehlerArt::Anzahl: break;
     }
     return {};
@@ -116,7 +134,8 @@ struct ModellFehler {
         const auto art = static_cast<FehlerArt>(i);
         if (art == FehlerArt::FlaecheAbgeschnitten || art == FehlerArt::FlaecheUnbrauchbar || art == FehlerArt::FlaecheOhneNetz ||
             art == FehlerArt::ZuVieleEcken || art == FehlerArt::ZuVieleDreiecke || art == FehlerArt::ZuVieleKnochen || art == FehlerArt::QuellKnochenFehlt ||
-            art == FehlerArt::QuellGrundstellung || art == FehlerArt::SequenzNichtInQuelle || art == FehlerArt::QuellVerweis) {
+            art == FehlerArt::QuellGrundstellung || art == FehlerArt::SequenzNichtInQuelle || art == FehlerArt::QuellVerweis ||
+            art == FehlerArt::AchsenUnbestimmt || art == FehlerArt::AnimZuLang || art == FehlerArt::BvhBoden) {
             continue;   // mit Zahlen oder zwei Namen: die Berichte tragen ModellFehler selbst
         }
         const std::string muster = fehlerText(ModellFehler{art, std::string(1, kPlatz)});

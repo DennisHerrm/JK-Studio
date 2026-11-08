@@ -5535,6 +5535,14 @@ enum class Str {
     PtEbeneOriginal,
     PtFeUnlesbar,
     PtFeKeinBild,
+    AboutBlenderLizenz,
+    MbFeKeineAnimation,
+    MbFeAchsenUnbestimmt,
+    MbFeAnimZuLang,
+    MbHwBvhOhneSeiten,
+    MbHwBvhBoden,
+    MbHwUngleicheSkalierung,
+    AiVornAusSkelett,
     Count,
 };
 

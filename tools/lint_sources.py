@@ -76,5 +76,27 @@ for _doc in ('BAUEN.md', 'TESTING.md'):
             print(f"   {_d}")
         bad += 1
 
+# --- Lizenzkopf portierter Blender-Logik (FIX2 P10) -------------------------
+#
+# Anlass: src/modell/wof/mesh_werkzeuge.cpp trug nur den BSD-3-Kopf von WhiteoutFlakes, enthielt aber aus Blenders
+# bmesh_bevel.cc (GPL-2.0-or-later) portierte Logik (Code-Pruefung seit rc610, P10). Wer die Datei nach WhiteoutFlakes
+# (BSD) zurueckgibt, truege GPL-Code hinein. Jede Datei, die eine Stelle aus Blenders Quellen nennt (bmesh_*.cc), muss
+# GPL-2.0-or-later im Kopf tragen und in THIRD-PARTY.md in der Zeile von Blender stehen.
+_tp = (root / 'THIRD-PARTY.md').read_text(encoding='utf-8')
+_blenderZeile = next((z for z in _tp.splitlines() if 'bmesh_bevel.cc' in z), '')
+for _ordner in ('src', 'src/modell', 'src/modell/wof', 'include/bhed/modell/wof', 'gui', 'gui/wof'):
+    for _f in sorted(list((root / _ordner).glob('*.cpp')) + list((root / _ordner).glob('*.h'))):
+        _t = _f.read_text(encoding='utf-8', errors='replace')
+        if not _re.search(r'bmesh_\w+\.cc', _t):
+            continue
+        _rel = _f.relative_to(root).as_posix()
+        _kopf = ' '.join(_t.splitlines()[:3])
+        if 'GPL-2.0-or-later' not in _kopf:
+            print(f"{_rel}: nennt Blenders Quellen (bmesh_*.cc), aber der Kopf traegt kein GPL-2.0-or-later")
+            bad += 1
+        if _rel not in _blenderZeile and _f.name not in _blenderZeile:
+            print(f"{_rel}: nennt Blenders Quellen, steht aber nicht in der Blender-Zeile von THIRD-PARTY.md")
+            bad += 1
+
 print("Quellenpruefung:", "ok" if bad == 0 else f"{bad} Beanstandung(en)")
 sys.exit(1 if bad else 0)

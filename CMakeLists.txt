@@ -1054,6 +1054,10 @@ if(BEHAVED_TESTS)
   # Werkzeug fuer die Preset-Bibliothek data/presets (kein Test, nicht ausgeliefert): tools/presetbau/presetbau.cpp
   add_executable(presetbau tools/presetbau/presetbau.cpp)
   target_link_libraries(presetbau PRIVATE bhed_core)
+  # FIX2 P17: --von/--bis ausserhalb der Animation (testgang.bvh: 31 Bilder) gibt eine Meldung statt Lesen ausserhalb von roh
+  add_test(NAME presetbau_bereich COMMAND presetbau ${CMAKE_CURRENT_SOURCE_DIR}/tests/animimport/testgang.bvh "#0" presetbau_bereich.bvh --von 50 --einmal)
+  add_test(NAME presetbau_bereich2 COMMAND presetbau ${CMAKE_CURRENT_SOURCE_DIR}/tests/animimport/testgang.bvh "#0" presetbau_bereich2.bvh --von 20 --bis 10)
+  set_tests_properties(presetbau_bereich presetbau_bereich2 PROPERTIES PASS_REGULAR_EXPRESSION "FEHLER --von/--bis")
   # Modell-Block 1b: UV erstellen - Inseln/Keile, LSCM, minimale Dehnung, Entspannen, Begradigen, Projektion, Packen ohne
   # Ueberlappung, Stapel, Naehte (Weg, Ring, Skelett, Winkel, Form), Pruefen; Abwickeln eines JKA-Modells mit Verzerrung und
   # Dichte; Rundlauf GLM/MD3 ohne Aenderung Byte fuer Byte, UV -> Datei -> UV gleich, Naht-Teilung behaelt Gewichte, Grenze

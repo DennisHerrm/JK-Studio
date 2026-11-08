@@ -172,6 +172,8 @@ std::size_t lichtSignatur() {
 }
 
 std::size_t g_neuGeladenStand = 0;   // Stufe 9d: ed.neuGeladen beim letzten Leeren der Shader-Zwischenspeicher
+// FIX2 P11: spielDarstellung je Shader (haengt an skript() und echtShaderInfo, also an denselben Ereignissen wie deren Speicher)
+std::map<std::string, SpielDarstellung> g_darstellungen;
 
 void weltAktualisieren(std::size_t geoStand) {
     LichtWelt& w = g_welt;
@@ -179,6 +181,7 @@ void weltAktualisieren(std::size_t geoStand) {
         g_neuGeladenStand = ed().neuGeladen;
         g_dateien.clear();
         g_skripte.clear();
+        g_darstellungen.clear();
         g_lichtBildFarben.clear();
         g_himmelsProben.clear();
         w.geoStand = static_cast<std::size_t>(-1);
@@ -926,7 +929,11 @@ void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool fa
     // tr_shade_calc.cpp) - zusammengerechnet wie die Vorschau (gpu::texModAbbildung), turb im Shader nach dem Ort
     z.tcGen = w.texGen == TexGen::Environment ? 1 : w.texGen == TexGen::Vector ? 2 : 0;
     for (int k = 0; k < 6; ++k) { z.tcGenVec[k] = w.tcGenVec[k]; }
-    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, z.tcVersatz[2], z.tcVersatz[3]);
+    float turbAmp = 0.0F;
+    float turbPhase = 0.0F;
+    float turbMat[4];
+    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, turbAmp, turbPhase, turbMat);
+    gpu::turbWerte(turbAmp, turbPhase, turbMat, z.tcVersatz[2], z.tcVersatz[3], z.tcTurb);   // FIX2 P16
     if (!farbeAuch) { return; }
     // ComputeColors: rgbGen wave (RB_CalcWaveColor) ersetzt die Farbe, auf 0..1 geklemmt; alphaGen wave (RB_CalcWaveAlpha,
     // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus)
@@ -969,7 +976,9 @@ bool stufeDarstellbar(const ShaderInfo::Stage& s) {
 
 }  // namespace
 
-SpielDarstellung spielDarstellung(const std::string& shader) {
+namespace {
+
+SpielDarstellung spielDarstellungRechnen(const std::string& shader) {
     SpielDarstellung d;
     const karte::ShaderSkript& s = skript(shader);
     d.unsichtbar = s.nichtZeichnen;   // C_NODRAW: q3map2 laesst die Flaeche weg
@@ -1029,6 +1038,24 @@ SpielDarstellung spielDarstellung(const std::string& shader) {
         }
     }
     return d;
+}
+
+}  // namespace
+
+const SpielDarstellung& spielDarstellung(const std::string& shader) {
+    // dieselben Ereignisse wie echtShaderInfo (Flush & Reload Shaders, anderer Spielkontext); das Leeren von skript() in
+    // weltAktualisieren leert g_darstellungen mit. Der Spielkontext als weak_ptr: ein neuer an derselben Adresse zaehlt als neu.
+    static std::size_t neuGeladen = static_cast<std::size_t>(-1);
+    static std::weak_ptr<Spielkontext> spiel;
+    const std::shared_ptr<Spielkontext>& jetzt = ed().karteSpiel;
+    if (neuGeladen != ed().neuGeladen || spiel.owner_before(jetzt) || jetzt.owner_before(spiel)) {
+        neuGeladen = ed().neuGeladen;
+        spiel = jetzt;
+        g_darstellungen.clear();
+    }
+    const auto it = g_darstellungen.find(shader);
+    if (it != g_darstellungen.end()) { return it->second; }
+    return g_darstellungen.emplace(shader, spielDarstellungRechnen(shader)).first->second;
 }
 
 namespace {

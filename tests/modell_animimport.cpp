@@ -19,6 +19,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdlib>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -49,6 +51,17 @@ std::string z(double v) {
     return b;
 }
 std::size_t uz(int i) { return static_cast<std::size_t>(i); }
+// FIX2 P5/P9: FNV-1a 64 ueber alle Bytes der Bilder (roh) und der Grundstellungen
+unsigned long long rohHash(const GlaAnimation& g) {
+    unsigned long long h = 1469598103934665603ULL;
+    const auto dazu = [&h](const void* p, std::size_t n) {
+        const auto* b = static_cast<const unsigned char*>(p);
+        for (std::size_t i = 0; i < n; ++i) { h = (h ^ b[i]) * 1099511628211ULL; }
+    };
+    if (!g.roh.empty()) { dazu(g.roh.data(), g.roh.size() * sizeof(BoneMatrix)); }
+    for (const GlaBone& b : g.bones) { dazu(&b.basePose, sizeof(BoneMatrix)); }
+    return h;
+}
 
 struct Ref {
     std::vector<std::string> namen;
@@ -163,6 +176,53 @@ void schreibDatei(const std::string& pfad, const std::string& inhalt) {
     std::filesystem::create_directories(std::filesystem::path(pfad).parent_path());
     std::ofstream o(pfad, std::ios::binary);
     o << inhalt;
+}
+
+// FIX2 P5: ein glTF mit einer Kette aus `knochen` Knoten, alle mit derselben Ortsspur (Schluessel bei den Zeiten `zeiten`,
+// Sekunden), Puffer als data:-URI (glTF 2.0 5.10 "uri")
+std::string base64(const std::vector<std::uint8_t>& b) {
+    static const char* const kZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string s;
+    for (std::size_t i = 0; i < b.size(); i += 3) {
+        const std::uint32_t v = (static_cast<std::uint32_t>(b[i]) << 16) | (i + 1 < b.size() ? static_cast<std::uint32_t>(b[i + 1]) << 8 : 0U) |
+                                (i + 2 < b.size() ? static_cast<std::uint32_t>(b[i + 2]) : 0U);
+        s += kZ[(v >> 18) & 63U];
+        s += kZ[(v >> 12) & 63U];
+        s += i + 1 < b.size() ? kZ[(v >> 6) & 63U] : '=';
+        s += i + 2 < b.size() ? kZ[v & 63U] : '=';
+    }
+    return s;
+}
+std::string gltfKette(int knochen, const std::vector<float>& zeiten) {
+    std::vector<std::uint8_t> puffer;
+    auto f32 = [&](float v) {
+        std::uint8_t b[4];
+        std::memcpy(b, &v, 4);
+        puffer.insert(puffer.end(), b, b + 4);
+    };
+    for (const float t : zeiten) { f32(t); }
+    for (std::size_t i = 0; i < zeiten.size(); ++i) {
+        f32(static_cast<float>(i));
+        f32(0.0F);
+        f32(1.0F);
+    }
+    const std::size_t nz = zeiten.size();
+    std::string knoten;
+    std::string kanaele;
+    for (int i = 0; i < knochen; ++i) {
+        knoten += std::string(i > 0 ? "," : "") + "{\"name\":\"k" + std::to_string(i) + "\",\"translation\":[0,0,1]" +
+                  (i + 1 < knochen ? ",\"children\":[" + std::to_string(i + 1) + "]" : std::string()) + "}";
+        kanaele += std::string(i > 0 ? "," : "") + "{\"sampler\":0,\"target\":{\"node\":" + std::to_string(i) + ",\"path\":\"translation\"}}";
+    }
+    char mm[64];
+    std::snprintf(mm, sizeof mm, "\"min\":[%.9g],\"max\":[%.9g]", static_cast<double>(zeiten.front()), static_cast<double>(zeiten.back()));
+    return "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[" + knoten + "],\"buffers\":[{\"byteLength\":" +
+           std::to_string(puffer.size()) + ",\"uri\":\"data:application/octet-stream;base64," + base64(puffer) +
+           "\"}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":" + std::to_string(nz * 4) + "},{\"buffer\":0,\"byteOffset\":" + std::to_string(nz * 4) +
+           ",\"byteLength\":" + std::to_string(nz * 12) + "}],\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":" + std::to_string(nz) +
+           ",\"type\":\"SCALAR\"," + mm + "},{\"bufferView\":1,\"componentType\":5126,\"count\":" + std::to_string(nz) +
+           ",\"type\":\"VEC3\"}],\"animations\":[{\"name\":\"lang\",\"samplers\":[{\"input\":0,\"output\":1,\"interpolation\":\"LINEAR\"}],\"channels\":[" + kanaele +
+           "]}]}";
 }
 
 // Punkt 4: eine eigene Figur auf eigenem Skelett fuer Movie Duels SP - das importierte Skelett (Mixamo-Namen), auf die Groesse
@@ -338,6 +398,7 @@ int main(int argc, char** argv) {
         expect(std::string(fa.datei) + " gelesen " + fehler, ok);
         if (!ok) { continue; }
         const std::string pre = std::string(fa.format) + ": ";
+        std::printf("roh %s: %d Bilder, FNV %016llx\n", fa.datei, a.anim.numFrames, rohHash(a.anim));   // FIX2 P5/P9: bytegleich vorher/nachher
         expect(pre + "Format " + a.format + ", oben " + a.oben + ", vorn " + a.vorn + ", cm je Einheit " + z(a.zentimeter), a.format == fa.format);
         // 22 Knochen, dazu das Objekt "Armature" als Wurzel, wenn der Exporter es als Knoten schreibt (FBX, COLLADA)
         const std::size_t soll = 22U + (boneIndex(a.anim, "Armature") >= 0 ? 1U : 0U);
@@ -374,6 +435,37 @@ int main(int argc, char** argv) {
             const aiVector3D p = da ? na->mPositionKeys[10].mValue : aiVector3D();
             const float dd = da ? abst(ort(w[uz(h)]), {p.x, p.y, p.z}) : 1e9F;
             expect(pre + "Wurzel Bild 10 gegen assimp-Schluessel " + z(dd) + " cm", dd < 1e-3F);
+        }
+    }
+
+    // FIX2 P5: Bildzahl aus dem letzten Schluessel begrenzt. Ein verirrter Schluessel (Zeit in ms statt s) gibt eine Meldung statt
+    // bad_alloc; eine Zeit ueber int (GlaAnimation::numFrames) gibt keinen Ueberlauf (vorher n = 1 und "gelesen"). Die kurze
+    // Kette (3 Schluessel, 2 s) bleibt lesbar: 61 Bilder bei 30 fps.
+    {
+        struct Lang {
+            const char* was;
+            float ende;   // s
+            bool gut;
+        };
+        const Lang lang[] = {{"2 s", 2.0F, true}, {"2e7 s (6e8 Bilder x 8 Knochen)", 2.0e7F, false}, {"1e9 s (3e10 Bilder, ueber int)", 1.0e9F, false}};
+        for (const Lang& l : lang) {
+            const std::string pfad = "animimport_lang.gltf";
+            {
+                std::ofstream o(pfad, std::ios::binary);
+                o << gltfKette(8, {0.0F, 1.0F / 30.0F, l.ende});
+            }
+            AnimImport a;
+            std::string fehler;
+            const bool ok = animImportieren(pfad, a, &fehler);
+            std::remove(pfad.c_str());
+            if (l.gut) {
+                expect(std::string("P5 ") + l.was + ": gelesen, " + std::to_string(a.anim.numFrames) + " Bilder (61), " + std::to_string(a.anim.bones.size()) +
+                           " Knochen (8) " + fehler,
+                       ok && a.anim.numFrames == 61 && a.anim.bones.size() == 8U);
+            } else {
+                expect(std::string("P5 ") + l.was + ": abgelehnt mit Meldung \"" + fehler + "\" (" + std::to_string(a.anim.numFrames) + " Bilder)",
+                       !ok && !fehler.empty() && a.fehlerArt.art == FehlerArt::AnimZuLang);
+            }
         }
     }
 
@@ -503,6 +595,16 @@ int main(int argc, char** argv) {
                        (t[0] == "other" || std::fabs(boden) < 3.0F));
         }
         expect("Bibliothek: " + std::to_string(eintraege) + " Eintraege, " + std::to_string(bytes) + " Bytes", eintraege >= 4);
+    }
+    // FIX2 P9: eine lange Aufnahme (BHED_AI_LANG=<datei>): Zeit des Imports und Pruefsumme der Bilder (vorher/nachher bytegleich)
+    if (const char* lang = std::getenv("BHED_AI_LANG"); lang != nullptr && *lang != 0) {
+        AnimImport a;
+        std::string fehler;
+        const auto t0 = std::chrono::steady_clock::now();
+        const bool ok = animImportieren(lang, a, &fehler);
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        std::printf("lang %s: %s, %d Bilder, %zu Knochen, %.1f ms, FNV %016llx\n", lang, ok ? "gelesen" : fehler.c_str(), a.anim.numFrames,
+                    a.anim.bones.size(), ms, rohHash(a.anim));
     }
     std::printf("%s (%d Fehler)\n", g_fehler == 0 ? "alles ok" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;

@@ -14,9 +14,18 @@
 #include <cstdio>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
+#include <new>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace bhed::modell {
 namespace {
@@ -137,31 +146,52 @@ Mat4 einheit4() {
 
 // Schluessel abtasten wie assimp es meint: Ort/Skalierung linear, Drehung sphaerisch (aiQuaternion::Interpolate), vor dem
 // ersten und nach dem letzten Schluessel der Randwert.
+// FIX2 P9: der Schluessel vor t ist der erste i mit k[i + 1].mTime > t, von vorn gesucht. Die Bilder einer Animation laufen in
+// steigender Zeit: bei aufsteigenden Schluesselzeiten beginnt die Suche dort, wo sie im letzten Bild stand (`ab`, je Spur) -
+// dasselbe i, aber linear statt quadratisch in der Laenge der Aufnahme. Ohne Ordnung (ab == nullptr) von vorn wie bisher.
 template <typename K>
-std::size_t schluesselVor(const K* k, unsigned n, double t) {
-    std::size_t i = 0;
+std::size_t schluesselVor(const K* k, unsigned n, double t, std::size_t* ab) {
+    std::size_t i = ab != nullptr ? *ab : 0;
     while (i + 1 < n && k[i + 1].mTime <= t) { ++i; }
+    if (ab != nullptr) { *ab = i; }
     return i;
 }
-aiVector3D tasteV(const aiVectorKey* k, unsigned n, double t, const aiVector3D& vorgabe) {
+template <typename K>
+bool aufsteigend(const K* k, unsigned n) {
+    for (unsigned i = 1; i < n; ++i) {
+        if (k[i].mTime < k[i - 1].mTime) { return false; }
+    }
+    return true;
+}
+aiVector3D tasteV(const aiVectorKey* k, unsigned n, double t, const aiVector3D& vorgabe, std::size_t* ab) {
     if (n == 0) { return vorgabe; }
     if (n == 1 || t <= k[0].mTime) { return k[0].mValue; }
     if (t >= k[n - 1].mTime) { return k[n - 1].mValue; }
-    const std::size_t i = schluesselVor(k, n, t);
+    const std::size_t i = schluesselVor(k, n, t, ab);
     const double d = k[i + 1].mTime - k[i].mTime;
     const auto f = static_cast<ai_real>(d > 0.0 ? (t - k[i].mTime) / d : 0.0);
     return k[i].mValue + (k[i + 1].mValue - k[i].mValue) * f;
 }
-aiQuaternion tasteQ(const aiQuatKey* k, unsigned n, double t, const aiQuaternion& vorgabe) {
+aiQuaternion tasteQ(const aiQuatKey* k, unsigned n, double t, const aiQuaternion& vorgabe, std::size_t* ab) {
     if (n == 0) { return vorgabe; }
     if (n == 1 || t <= k[0].mTime) { return k[0].mValue; }
     if (t >= k[n - 1].mTime) { return k[n - 1].mValue; }
-    const std::size_t i = schluesselVor(k, n, t);
+    const std::size_t i = schluesselVor(k, n, t, ab);
     const double d = k[i + 1].mTime - k[i].mTime;
     const auto f = static_cast<ai_real>(d > 0.0 ? (t - k[i].mTime) / d : 0.0);
     aiQuaternion q;
     aiQuaternion::Interpolate(q, k[i].mValue, k[i + 1].mValue, f);
     return q.Normalize();
+}
+
+// FIX2 P5: freier Arbeitsspeicher in Bytes (0: unbekannt)
+std::uint64_t freierSpeicher() {
+#ifdef _WIN32
+    MEMORYSTATUSEX m{};
+    m.dwLength = sizeof(m);
+    if (GlobalMemoryStatusEx(&m) != 0) { return m.ullAvailPhys; }
+#endif
+    return 0;
 }
 
 std::string klein(std::string s) {
@@ -243,9 +273,13 @@ bool istAnimImportEndung(const std::string& pfad) {
 
 bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehler, int fpsVorgabe) {
     aus = AnimImport{};
-    auto falsch = [&](const std::string& f) {
+    auto falschText = [&](const std::string& f) {
         if (fehler != nullptr) { *fehler = f; }
         return false;
+    };
+    auto falsch = [&](const ModellFehler& f) {
+        aus.fehlerArt = f;
+        return falschText(fehlerText(f));
     };
     Assimp::Importer imp;
     // die Lage nicht von assimp umrechnen lassen (correctRootTransform nur mit Netzen; Achsen unten aus den Metadaten),
@@ -257,8 +291,8 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
     // Namen der Knochen, nicht die ids; AI_CONFIG_IMPORT_COLLADA_USE_COLLADA_NAMES, config.h)
     imp.SetPropertyBool(AI_CONFIG_IMPORT_COLLADA_USE_COLLADA_NAMES, true);
     const aiScene* sc = imp.ReadFile(pfad, aiProcess_ValidateDataStructure);
-    if (sc == nullptr || sc->mRootNode == nullptr) { return falsch(std::string("assimp: ") + imp.GetErrorString()); }
-    if (sc->mNumAnimations == 0) { return falsch("keine Animation in der Datei"); }
+    if (sc == nullptr || sc->mRootNode == nullptr) { return falschText(std::string("assimp: ") + imp.GetErrorString()); }
+    if (sc->mNumAnimations == 0) { return falsch(ModellFehler{FehlerArt::KeineAnimation}); }
     const std::string e = endung(pfad);
 
     // Achsen und Einheit der Datei
@@ -338,7 +372,7 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
             g.bones.push_back(std::move(b));
         }
     }
-    if (g.bones.empty()) { return falsch("kein Skelett in der Datei"); }
+    if (g.bones.empty()) { return falsch(ModellFehler{FehlerArt::KeinSkelett}); }
     for (std::size_t b = 0; b < g.bones.size(); ++b) {
         const int p = g.bones[b].parent;
         if (p >= 0) { g.bones[static_cast<std::size_t>(p)].kinder.push_back(static_cast<int>(b)); }
@@ -410,7 +444,7 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
             for (std::size_t k = 0; k < 3; ++k) { links[k] = s[k] / l; }
             vorn = kreuz(links, oben);   // rechtshaendig: links x oben = vorn (JKA: +X x +Z = -Y, glTF: +X x +Y = +Z)
         } else {
-            aus.hinweise.push_back("BVH: keine Seiten in den Knochennamen, links = +X angenommen");
+            aus.hinweise.push_back(ModellFehler{FehlerArt::BvhOhneSeiten});
         }
     }
     // Umrechnung Datei -> JK Studio (JKA): links -> +X, vorn -> -Y, oben -> +Z, Laengen in cm
@@ -422,9 +456,14 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
     }
     const double det = c.r[0][0] * (c.r[1][1] * c.r[2][2] - c.r[1][2] * c.r[2][1]) - c.r[0][1] * (c.r[1][0] * c.r[2][2] - c.r[1][2] * c.r[2][0]) +
                        c.r[0][2] * (c.r[1][0] * c.r[2][1] - c.r[1][1] * c.r[2][0]);
-    if (det < 0.5) { return falsch("Achsen der Datei sind linkshaendig oder unbestimmt (oben " + achsText(oben) + ", vorn " + achsText(vorn) + ")"); }
+    if (det < 0.5) {
+        ModellFehler f{FehlerArt::AchsenUnbestimmt, achsText(oben)};
+        f.name2 = achsText(vorn);
+        return falsch(f);
+    }
     aus.oben = achsText(oben);
-    aus.vorn = linksAusNamen ? achsText(vorn) + " (aus dem Skelett)" : achsText(vorn);
+    aus.vorn = achsText(vorn);
+    aus.vornAusSkelett = linksAusNamen;
     aus.zentimeter = static_cast<float>(cm);
 
     bool ungleich = false;
@@ -451,13 +490,16 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
     knochenWelt(wRuhe, basis);
     std::vector<std::vector<Starr>> alleX;   // je Bild die Welt der Knochen (die lokalen Stellungen erst nach der Grundstellung)
 
-    // Bilder je Animation
+    // Bilder je Animation: erst Bildrate, Anfang und Zahl aller Animationen, dann begrenzen (FIX2 P5), dann abtasten
     aus.ticksJeSekunde = sc->mAnimations[0]->mTicksPerSecond;
-    std::vector<Mat4> lokal(kn.size());
-    std::vector<Mat4> w;
-    std::vector<Starr> x;
-    g.roh.clear();
-    int bilder = 0;
+    struct Abtastung {
+        double tps = 25.0;
+        double fps = 25.0;
+        double anfang = 0.0;
+        double n = 1.0;
+    };
+    std::vector<Abtastung> abt(sc->mNumAnimations);
+    double alleBilder = 0.0;
     for (unsigned a = 0; a < sc->mNumAnimations; ++a) {
         const aiAnimation* an = sc->mAnimations[a];
         const double tps = an->mTicksPerSecond > 0.0 ? an->mTicksPerSecond : 25.0;   // assimp: 0 = nicht angegeben
@@ -503,84 +545,133 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
         anfang = std::max(anfang, 0.0);
         ende = std::max(ende, anfang);
         const double sekunden = (ende - anfang) / tps;
-        // + 1e-3: die Zeiten sind float (glTF in Sekunden, assimp x 1000), 1000 ms kommen als 999,99997 an
-        const int n = std::max(1, static_cast<int>(std::floor(sekunden * fps + 1e-3)) + 1);
-        std::vector<const aiNodeAnim*> spur(kn.size(), nullptr);
-        for (unsigned ch = 0; ch < an->mNumChannels; ++ch) {
-            const auto it = nachName.find(an->mChannels[ch]->mNodeName.C_Str());
-            if (it != nachName.end()) { spur[static_cast<std::size_t>(it->second)] = an->mChannels[ch]; }
-        }
-        for (int f = 0; f < n; ++f) {
-            const double t = anfang + static_cast<double>(f) / fps * tps;
-            for (std::size_t i = 0; i < kn.size(); ++i) {
-                const aiNodeAnim* na = spur[i];
-                if (na == nullptr) {
-                    lokal[i] = ruhe[i];
-                    continue;
-                }
-                aiVector3D s0;
-                aiQuaternion r0;
-                aiVector3D p0;
-                kn[i].n->mTransformation.Decompose(s0, r0, p0);
-                const aiVector3D p = tasteV(na->mPositionKeys, na->mNumPositionKeys, t, p0);
-                const aiQuaternion r = tasteQ(na->mRotationKeys, na->mNumRotationKeys, t, r0);
-                const aiVector3D s = tasteV(na->mScalingKeys, na->mNumScalingKeys, t, s0);
-                const aiMatrix4x4 m(s, r, p);
-                lokal[i] = ausAi(m);
+        // + 1e-3: die Zeiten sind float (glTF in Sekunden, assimp x 1000), 1000 ms kommen als 999,99997 an; in double, damit eine
+        // ferne Zeit nicht ueber int laeuft (FIX2 P5: vorher undefiniert, unter MSVC n = 1)
+        abt[a] = Abtastung{tps, fps, anfang, std::max(1.0, std::floor(sekunden * fps + 1e-3) + 1.0)};
+        alleBilder += abt[a].n;
+    }
+    // FIX2 P5: je Bild und Knochen eine Welt (Starr) und eine lokale Stellung (roh), dazu je Bild ein Vektor
+    const double jeBild = static_cast<double>(g.bones.size()) * static_cast<double>(sizeof(Starr) + sizeof(BoneMatrix)) +
+                          static_cast<double>(sizeof(std::vector<Starr>));
+    const double noetig = alleBilder * jeBild;
+    const auto frei = static_cast<double>(freierSpeicher());
+    const auto zuLang = [&] {
+        return falsch(ModellFehler{FehlerArt::AnimZuLang, {}, std::llround(std::min(alleBilder, 9.0e18)), std::llround(std::min(noetig / 1048576.0, 9.0e18)), {},
+                                   std::llround(frei / 1048576.0)});
+    };
+    if (!(alleBilder <= static_cast<double>(std::numeric_limits<int>::max())) || (frei > 0.0 && noetig > frei)) { return zuLang(); }
+    std::vector<Mat4> lokal(kn.size());
+    std::vector<Mat4> w;
+    std::vector<Starr> x;
+    // FIX2 P9: die Ruhe jedes Knotens zerlegt (Vorgabe fehlender Spuren) - einmal, nicht je Bild
+    struct Zerlegt {
+        aiVector3D s;
+        aiQuaternion r;
+        aiVector3D p;
+    };
+    std::vector<Zerlegt> ruheZerlegt(kn.size());
+    for (std::size_t i = 0; i < kn.size(); ++i) { kn[i].n->mTransformation.Decompose(ruheZerlegt[i].s, ruheZerlegt[i].r, ruheZerlegt[i].p); }
+    g.roh.clear();
+    int bilder = 0;
+    try {
+        for (unsigned a = 0; a < sc->mNumAnimations; ++a) {
+            const aiAnimation* an = sc->mAnimations[a];
+            const double tps = abt[a].tps;
+            const double fps = abt[a].fps;
+            const double anfang = abt[a].anfang;
+            const int n = static_cast<int>(abt[a].n);
+            std::vector<const aiNodeAnim*> spur(kn.size(), nullptr);
+            for (unsigned ch = 0; ch < an->mNumChannels; ++ch) {
+                const auto it = nachName.find(an->mChannels[ch]->mNodeName.C_Str());
+                if (it != nachName.end()) { spur[static_cast<std::size_t>(it->second)] = an->mChannels[ch]; }
             }
-            welten(lokal, w);
-            knochenWelt(w, x);
-            alleX.push_back(x);
+            // FIX2 P9: je Spur und Art der laufende Schluessel (nur bei aufsteigenden Zeiten, sonst nullptr: von vorn)
+            struct Lauf {
+                std::size_t p = 0;
+                std::size_t r = 0;
+                std::size_t s = 0;
+                bool pAuf = false;
+                bool rAuf = false;
+                bool sAuf = false;
+            };
+            std::vector<Lauf> lauf(kn.size());
+            for (std::size_t i = 0; i < kn.size(); ++i) {
+                if (const aiNodeAnim* na = spur[i]) {
+                    lauf[i].pAuf = aufsteigend(na->mPositionKeys, na->mNumPositionKeys);
+                    lauf[i].rAuf = aufsteigend(na->mRotationKeys, na->mNumRotationKeys);
+                    lauf[i].sAuf = aufsteigend(na->mScalingKeys, na->mNumScalingKeys);
+                }
+            }
+            for (int f = 0; f < n; ++f) {
+                const double t = anfang + static_cast<double>(f) / fps * tps;
+                for (std::size_t i = 0; i < kn.size(); ++i) {
+                    const aiNodeAnim* na = spur[i];
+                    if (na == nullptr) {
+                        lokal[i] = ruhe[i];
+                        continue;
+                    }
+                    const Zerlegt& z0 = ruheZerlegt[i];
+                    Lauf& l = lauf[i];
+                    const aiVector3D p = tasteV(na->mPositionKeys, na->mNumPositionKeys, t, z0.p, l.pAuf ? &l.p : nullptr);
+                    const aiQuaternion r = tasteQ(na->mRotationKeys, na->mNumRotationKeys, t, z0.r, l.rAuf ? &l.r : nullptr);
+                    const aiVector3D s = tasteV(na->mScalingKeys, na->mNumScalingKeys, t, z0.s, l.sAuf ? &l.s : nullptr);
+                    const aiMatrix4x4 m(s, r, p);
+                    lokal[i] = ausAi(m);
+                }
+                welten(lokal, w);
+                knochenWelt(w, x);
+                alleX.push_back(x);
+            }
+            AnimEntry en;
+            en.name = an->mName.length > 0 ? an->mName.C_Str() : ("Take " + std::to_string(a + 1));
+            // "Armature|Walk" (Blender) -> "Walk"
+            const std::size_t bar = en.name.find_last_of('|');
+            if (bar != std::string::npos && bar + 1 < en.name.size()) { en.name = en.name.substr(bar + 1); }
+            en.firstFrame = bilder;
+            en.numFrames = n;
+            en.loopFrame = -1;
+            en.fps = static_cast<int>(std::lround(fps));
+            aus.sequenzen.push_back(en);
+            bilder += n;
         }
-        AnimEntry en;
-        en.name = an->mName.length > 0 ? an->mName.C_Str() : ("Take " + std::to_string(a + 1));
-        // "Armature|Walk" (Blender) -> "Walk"
-        const std::size_t bar = en.name.find_last_of('|');
-        if (bar != std::string::npos && bar + 1 < en.name.size()) { en.name = en.name.substr(bar + 1); }
-        en.firstFrame = bilder;
-        en.numFrames = n;
-        en.loopFrame = -1;
-        en.fps = static_cast<int>(std::lround(fps));
-        aus.sequenzen.push_back(en);
-        bilder += n;
-    }
-    // BVH: die Grundstellung (OFFSET-Hierarchie) hat keine Lage im Raum - ROOT OFFSET ist oft 0, die Wurzel steht in den
-    // Bildern absolut (100STYLE: Becken in der Grundstellung auf dem Boden, in den Bildern 90 cm hoch). Das Retargeting setzt das
-    // Becken des Ziels auf z(P) + k (q(f) - q(P)) (retarget.h) - die Figur schwebte um k mal diesen Abstand (100STYLE auf
-    // _humanoid: 32 Einheiten, ctest "Boden"). Darum steht die Grundstellung hier, wo die Wurzel im ersten Bild steht (waagrecht),
-    // und ihr tiefster Knochen auf dem tiefsten Stand der Bilder (senkrecht); die Bilder selbst bleiben, wie sie sind.
-    if (e == "bvh" && !alleX.empty() && !g.bones.empty()) {
-        double tiefRuhe = 1e300;
-        double tiefBild = 1e300;
-        for (const Starr& b : basis) { tiefRuhe = std::min(tiefRuhe, b.o[2]); }
-        for (const std::vector<Starr>& xs : alleX) {
-            for (const Starr& b : xs) { tiefBild = std::min(tiefBild, b.o[2]); }
+        // BVH: die Grundstellung (OFFSET-Hierarchie) hat keine Lage im Raum - ROOT OFFSET ist oft 0, die Wurzel steht in den
+        // Bildern absolut (100STYLE: Becken in der Grundstellung auf dem Boden, in den Bildern 90 cm hoch). Das Retargeting setzt das
+        // Becken des Ziels auf z(P) + k (q(f) - q(P)) (retarget.h) - die Figur schwebte um k mal diesen Abstand (100STYLE auf
+        // _humanoid: 32 Einheiten, ctest "Boden"). Darum steht die Grundstellung hier, wo die Wurzel im ersten Bild steht (waagrecht),
+        // und ihr tiefster Knochen auf dem tiefsten Stand der Bilder (senkrecht); die Bilder selbst bleiben, wie sie sind.
+        if (e == "bvh" && !alleX.empty() && !g.bones.empty()) {
+            double tiefRuhe = 1e300;
+            double tiefBild = 1e300;
+            for (const Starr& b : basis) { tiefRuhe = std::min(tiefRuhe, b.o[2]); }
+            for (const std::vector<Starr>& xs : alleX) {
+                for (const Starr& b : xs) { tiefBild = std::min(tiefBild, b.o[2]); }
+            }
+            const std::array<double, 3> d{alleX[0][0].o[0] - basis[0].o[0], alleX[0][0].o[1] - basis[0].o[1], tiefBild - tiefRuhe};
+            for (Starr& b : basis) {
+                for (std::size_t i = 0; i < 3; ++i) { b.o[i] += d[i]; }
+            }
+            if (std::fabs(d[2]) > 1.0) { aus.hinweise.push_back(ModellFehler{FehlerArt::BvhBoden, {}, std::llround(d[2] * 10.0)}); }
         }
-        const std::array<double, 3> d{alleX[0][0].o[0] - basis[0].o[0], alleX[0][0].o[1] - basis[0].o[1], tiefBild - tiefRuhe};
-        for (Starr& b : basis) {
-            for (std::size_t i = 0; i < 3; ++i) { b.o[i] += d[i]; }
-        }
-        if (std::fabs(d[2]) > 1.0) {
-            char t[120];
-            std::snprintf(t, sizeof t, "BVH: Grundstellung auf den Boden der Bilder gesetzt (%.1f cm)", d[2]);
-            aus.hinweise.emplace_back(t);
-        }
-    }
-    for (std::size_t b = 0; b < g.bones.size(); ++b) {
-        g.bones[b].basePose = alsBone(basis[b]);
-        g.bones[b].basePoseInv = alsBone(invS(basis[b]));
-    }
-    // lokale Stellung wie die .gla: X(b) = X(p) B(p)^-1 A(b) B(b) -> A(b) = B(p) X(p)^-1 X(b) B(b)^-1 (gla.h)
-    g.roh.reserve(alleX.size() * g.bones.size());
-    for (const std::vector<Starr>& xs : alleX) {
         for (std::size_t b = 0; b < g.bones.size(); ++b) {
-            const int p = g.bones[b].parent;
-            Starr lk = malS(xs[b], invS(basis[b]));
-            if (p >= 0) { lk = malS(malS(basis[static_cast<std::size_t>(p)], invS(xs[static_cast<std::size_t>(p)])), lk); }
-            g.roh.push_back(alsBone(lk));
+            g.bones[b].basePose = alsBone(basis[b]);
+            g.bones[b].basePoseInv = alsBone(invS(basis[b]));
         }
+        // lokale Stellung wie die .gla: X(b) = X(p) B(p)^-1 A(b) B(b) -> A(b) = B(p) X(p)^-1 X(b) B(b)^-1 (gla.h)
+        g.roh.reserve(alleX.size() * g.bones.size());
+        for (const std::vector<Starr>& xs : alleX) {
+            for (std::size_t b = 0; b < g.bones.size(); ++b) {
+                const int p = g.bones[b].parent;
+                Starr lk = malS(xs[b], invS(basis[b]));
+                if (p >= 0) { lk = malS(malS(basis[static_cast<std::size_t>(p)], invS(xs[static_cast<std::size_t>(p)])), lk); }
+                g.roh.push_back(alsBone(lk));
+            }
+        }
+    } catch (const std::bad_alloc&) {   // FIX2 P5: der freie Speicher kann zwischen Pruefung und Abtasten schrumpfen
+        g.roh.clear();
+        g.roh.shrink_to_fit();
+        return zuLang();
     }
-    if (ungleich) { aus.hinweise.push_back("ungleichmaessige Skalierung entfernt (nur Drehung und Ort uebernommen)"); }
+    if (ungleich) { aus.hinweise.push_back(ModellFehler{FehlerArt::UngleicheSkalierung}); }
     g.numFrames = bilder;
     g.scale = 1.0F;
     const std::size_t sl = pfad.find_last_of("/\\");

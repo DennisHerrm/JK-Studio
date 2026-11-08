@@ -43,7 +43,7 @@
 <p><strong><span class="ui">小道具をマップへ</span></strong> で小道具に名前を付け、<strong><span class="ui">マップへ</span></strong> をクリック: JK Studio は自身のインポートフォルダー (ゲームフォルダーには決して書かない) の models/map_objects/&lt;マップ&gt;/&lt;名前&gt;.md3 に .md3 として書き、マップタブに切り替えてカメラ中央の床に misc_model として置きます。そこで他のエンティティと同じく移動・回転・拡縮できます。インポートフォルダーはエディターと q3map2 の検索パスにあり、テストやパッケージ時にマップの .pk3 に入るので、小道具は他の misc_model と同じくライトマップ付きでマップに焼き込まれます。変更するには、エンティティの model キーの横の編集ボタンをクリック (またはモデルタブから再開) - Ctrl+S の後、マップエディターが全コピーを読み直し、位置・角度・スケールは保たれます。</p>
 <figure class="bild breit"><a href="../bilder/ja/h_md_karte.webp" class="zoom"><img src="../bilder/ja/h_md_karte.webp" alt="モデルタブの小道具がマップエディターに misc_model として。" loading="lazy"></a><figcaption>モデルタブの小道具がマップエディターに misc_model として。</figcaption></figure>
 <h2 id="lizenz">由来とライセンス<a class="anker" href="#lizenz">#</a></h2>
-<p>モデリングツールは WhiteoutLib と WhiteoutFlakes に由来します (BSD 3-Clause ライセンス、AI 派生物の注記付き、Copyright (c) 2026 Fernando Sahmkow)。Jedi Academy のデータ (.glm と .md3 のサーフェス) だけを扱います。ライセンス文は licenses/、THIRD-PARTY.md、ヘルプ &gt; バージョン情報 にあります。</p>
+<p>モデリングツールは WhiteoutLib と WhiteoutFlakes に由来します (BSD 3-Clause ライセンス、AI 派生物の注記付き、Copyright (c) 2026 Fernando Sahmkow)。Jedi Academy のデータ (.glm と .md3 のサーフェス) だけを扱います。ライセンス文は licenses/、THIRD-PARTY.md、ヘルプ &gt; バージョン情報 にあります。2 セグメント以上の面取りは Blender のベベルから移植しています (bmesh_bevel.cc、GPL-2.0-or-later、Copyright Blender Authors)。これらの部分は JK Studio と同じく GPL v2 で使用します。</p>
     <nav class="blaettern"><a class="vor" href="modell-uv.html"><span>前へ</span>モデルタブ: UV 作成</a><a class="nach" href="mission-animieren.html"><span>次へ</span>ミッションタブ: フィギュアのアニメーション</a></nav>
   </article>
   <footer>JK Studio ガイド - Jedi Knight: Jedi Academy と Jedi Outcast 向けの MOD ツール。画像はプログラム自身の画面で、セルフテストが撮影しています。Lucasfilm、Disney、Raven Software とは関係ありません。</footer>

@@ -214,6 +214,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _paint()})
             from i18n_mreste import zeilen_vier as _mreste   # MRESTE: Blender-Modus in allen Stufen, Chamfer mit Segmenten
             texte.update({e[0]: e[1:] for e in _mreste()})
+            from i18n_fix2 import zeilen_vier as _fix2   # FIX2: Animations-Import, Blender-Lizenz
+            texte.update({e[0]: e[1:] for e in _fix2()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
