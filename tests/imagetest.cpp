@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <algorithm>
+#include "bhed/regelwerk.h"
 #include "bhed/shaderscript.h"
 
 #include <cstddef>
@@ -1149,6 +1150,20 @@ int main() {
         const std::vector<std::string> sollPunkt{"textures/a.b/y.jpg", "textures/a.b/y.png", "textures/a.b/y.tga"};
         expect("Punkt nur im Ordnernamen ist keine Endung (COM_GetExtension)",
                bhed::textureCandidates("textures/a.b/y") == sollPunkt);
+        // FIX6 P54: Jedi Outcast 1.04 (jk2sp.exe, Raven-Quelle codeJK2/renderer/tr_image.cpp R_LoadImage, OpenJK a09d4827):
+        // nur jpg, dann tga - kein png, die genannte Endung nicht zuerst; COM_StripExtension (codeJK2/game/q_shared.cpp:43)
+        // schneidet am ERSTEN Punkt ab, auch in einem Ordnernamen.
+        bhed::regelwerkAnwendenSpiel(bhed::kRegelwerkJediOutcast, -1);
+        const std::vector<std::string> jk2Tga{"textures/x/y.jpg", "textures/x/y.tga"};
+        expect("P54 JK2: y.tga - jpg, tga", bhed::textureCandidates("textures/x/y.tga") == jk2Tga);
+        expect("P54 JK2: y.png - jpg, tga (kein png)", bhed::textureCandidates("textures/x/y.png") == jk2Tga);
+        expect("P54 JK2: ohne Endung - jpg, tga", bhed::textureCandidates("textures/x/y") == jk2Tga);
+        const std::vector<std::string> jk2Punkt{"textures/a.jpg", "textures/a.tga"};
+        expect("P54 JK2: Punkt im Ordnernamen - am ersten Punkt abgeschnitten", bhed::textureCandidates("textures/a.b/y") == jk2Punkt);
+        bhed::regelwerkAnwendenSpiel(bhed::kRegelwerkOpenJK, -1);
+        expect("P54 OpenJK: y.tga - tga, jpg, png", bhed::textureCandidates("textures/x/y.tga") == sollTga);
+        bhed::regelwerkAnwenden(true, -1);
+        expect("P54 Movie Duels: y.tga - tga, jpg, png", bhed::textureCandidates("textures/x/y.tga") == sollTga);
     }
 
     // --- Der Schluessel der Bildtabelle ---------------------------------

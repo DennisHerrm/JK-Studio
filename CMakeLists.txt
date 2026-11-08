@@ -792,6 +792,12 @@ if(BEHAVED_TESTS)
     target_link_libraries(${t}_probe PRIVATE bhed_core)
     add_test(NAME ${t} COMMAND ${t}_probe)
   endforeach()
+  # FIX6 P50: Glanz/Umgebung einer skalierten Figur - der Figur-Vertex-Shader auf WARP, ohne entSkala wie mit (MSVC, D3D11).
+  if(MSVC)
+    add_executable(figurglanz_probe tests/figurglanz.cpp)
+    target_link_libraries(figurglanz_probe PRIVATE bhed_core d3d11 d3dcompiler)
+    add_test(NAME figurglanz COMMAND figurglanz_probe)
+  endif()
   # Uebersetzt jeder erzeugte Shader wirklich? Braucht d3dcompiler (MSVC).
   if(MSVC)
     add_executable(hlslprobe tests/hlslprobe.cpp)

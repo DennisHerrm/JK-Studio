@@ -607,6 +607,61 @@ std::vector<Schritt> mb2Schritte() {
 }
 
 // Je Taste der Blender-Belegung eine Pruefzeile: Taste -> Wirkung (die Quelle steht in blenderTasten()).
+// P62: die Haut wie G_SetG2PlayerModel (g_client.cpp:2287-2370 MD9) - findet RE_RegisterSkin nichts, setzt G2API_SetSkin(..., 0)
+// keine Haut, die Figur zeichnet die Shader der .glm; kein Rueckfall auf model_default.skin. Ein customSkin mit '|' ist auch
+// ohne fuehrenden Strich dreiteilig (strchr, "models/players/<m>/|<customSkin>").
+std::vector<Schritt> hautSchritte() {
+    std::vector<Schritt> s;
+    s.push_back(tu("P62: Spielpfade", [] {
+        if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+    }));
+    s.push_back(pruefe("P62: fehlende oder unvollstaendige Haut -> ohne Haut (Shader der .glm), dreiteilig auch ohne fuehrenden Strich", [] {
+        struct Ergebnis {
+            bool gelesen = false;
+            bool haut = false;
+            int mitTextur = 0;
+            int anders = 0;   // Flaechen, deren Haut-Felder vom rohen .glm abweichen
+            std::string texturen;
+        };
+        const auto lauf = [](const std::string& dir, const std::string& customSkin) {
+            Ergebnis e;
+            std::string data;
+            GlmModel roh;
+            std::string err;
+            if (!readFromArchives(dir + "/model.glm", data) || !readGlm(data, roh, &err)) { return e; }
+            e.gelesen = true;
+            GlmModel gm = roh;
+            e.haut = figurHautAnwenden(dir, customSkin, gm, "p62");
+            for (std::size_t k = 0; k < gm.surfaces.size(); ++k) {
+                const GlmSurface& a = gm.surfaces[k];
+                const GlmSurface& b = roh.surfaces[k];
+                if (!a.texture.empty()) { ++e.mitTextur; }
+                if (a.texture != b.texture || a.skinnedOff != b.skinnedOff || a.hautZeile != b.hautZeile) { ++e.anders; }
+                e.texturen += a.texture + ";";
+            }
+            return e;
+        };
+        const Ergebnis fehlt = lauf("models/players/stormtrooper", "p62_gibtesnicht");
+        const Ergebnis vorgabe = lauf("models/players/stormtrooper", "default");
+        const Ergebnis teilFehlt = lauf("models/players/jedi_hm", "|head_a1|p62_gibtesnicht|lower_a1");
+        const Ergebnis drei = lauf("models/players/jedi_hm", "|head_a1|torso_a1|lower_a1");
+        const Ergebnis dreiNpc = lauf("models/players/jedi_hm", "head_a1|torso_a1|lower_a1");
+        char z[420];
+        std::snprintf(z, sizeof z,
+                      "Knopftest: P62 - stormtrooper model_p62_gibtesnicht: Haut %d, Flaechen mit Textur %d, anders als .glm %d; "
+                      "default: Haut %d, mit Textur %d; jedi_hm Teil fehlt: Haut %d, mit Textur %d, anders %d; dreiteilig: Haut %d, "
+                      "mit Textur %d; ohne fuehrenden Strich: Haut %d, gleich %d",
+                      fehlt.haut ? 1 : 0, fehlt.mitTextur, fehlt.anders, vorgabe.haut ? 1 : 0, vorgabe.mitTextur, teilFehlt.haut ? 1 : 0,
+                      teilFehlt.mitTextur, teilFehlt.anders, drei.haut ? 1 : 0, drei.mitTextur, dreiNpc.haut ? 1 : 0,
+                      dreiNpc.texturen == drei.texturen ? 1 : 0);
+        diag::detail(z);
+        return fehlt.gelesen && vorgabe.gelesen && teilFehlt.gelesen && drei.gelesen && !fehlt.haut && fehlt.anders == 0 &&
+               vorgabe.haut && vorgabe.mitTextur > 0 && !teilFehlt.haut && teilFehlt.anders == 0 && drei.haut && drei.mitTextur > 0 &&
+               dreiNpc.haut && dreiNpc.texturen == drei.texturen;
+    }));
+    return s;
+}
+
 std::vector<Schritt> blenderSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
@@ -1159,6 +1214,9 @@ std::vector<Schritt> schritte(const std::string& n) {
     }
     if (n == "blender") {
         for (Schritt& x : blenderSchritte()) { s.push_back(std::move(x)); }
+    }
+    if (n == "haut") {   // P62
+        for (Schritt& x : hautSchritte()) { s.push_back(std::move(x)); }
     }
     return s;
 }

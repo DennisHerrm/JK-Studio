@@ -30,10 +30,41 @@
 #ifndef BHED_GPUSHADER_H
 #define BHED_GPUSHADER_H
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
 namespace bhed::gpu {
+
+// --- Die Lagen im Stufenpuffer der Figuren (JeStufe, b3) in float --------
+//
+// P60: Die Lagen standen von Hand im HLSL (figurVertexShaderHlsl), in den Schreibern von gpumap_win32.cpp und in den
+// Testkopien. Ein Merge verschob gEntSkala (MERGE3: 68..70 statt 11/74/75), der ctest figurglanz schrieb weiter an die alte
+// Stelle und verglich danach den Ersatzweg mit sich selbst - immer gruen. Jetzt stehen sie einmal hier; gpumap und die Proben
+// nutzen sie, und pruefeStufenLagen (gpumap_win32.cpp) wie figurglanz lesen die Versaetze per D3DReflect aus dem
+// uebersetzten Shader und vergleichen mit kStufenLagen (wie pruefeStapelLagen fuer JeStapel).
+inline constexpr std::size_t kStufeArtAt = 0U;          // gStufe: Farbe, Alpha, tcGen environment, tcMod an
+inline constexpr std::size_t kStufeFarbeAt = 4U;        // gStufeFarbe: rgb, a
+inline constexpr std::size_t kStufeAugeAt = 8U;         // gAuge.xyz
+inline constexpr std::size_t kStufeAchse0At = 12U;      // gAchse0..2 je float4: Achse in xyz, Ursprung der Entity in w
+inline constexpr std::size_t kStufeTcM0At = 24U;        // gStufeTcM0, gStufeTcO01 (8 float wie kTcM0At/kTcO01At)
+inline constexpr std::size_t kStufeDefAt = 32U;         // gDef0..3 (16 float, gpu::verformung)
+inline constexpr std::size_t kStufeTcM1At = 48U;        // gStufeTcM1..3, gStufeTcO23, gStufeTcArt (20 float wie ab kTcM1At)
+inline constexpr std::size_t kStufeEntSkalaAt = 68U;    // gEntSkala.xyz: Massstab von axis[0..2], .x 0 = keiner
+inline constexpr std::size_t kStufeFloats = 72U;        // 18 float4
+
+struct StufenLage {
+    const char* name;
+    std::size_t at;
+};
+inline constexpr StufenLage kStufenLagen[] = {
+    {"gStufe", kStufeArtAt},             {"gStufeFarbe", kStufeFarbeAt},       {"gAuge", kStufeAugeAt},
+    {"gAchse0", kStufeAchse0At},         {"gAchse1", kStufeAchse0At + 4U},     {"gAchse2", kStufeAchse0At + 8U},
+    {"gStufeTcM0", kStufeTcM0At},        {"gStufeTcO01", kStufeTcM0At + 4U},   {"gDef0", kStufeDefAt},
+    {"gDef1", kStufeDefAt + 4U},         {"gDef2", kStufeDefAt + 8U},          {"gDef3", kStufeDefAt + 12U},
+    {"gStufeTcM1", kStufeTcM1At},        {"gStufeTcM2", kStufeTcM1At + 4U},    {"gStufeTcM3", kStufeTcM1At + 8U},
+    {"gStufeTcO23", kStufeTcM1At + 12U}, {"gStufeTcArt", kStufeTcM1At + 16U},  {"gEntSkala", kStufeEntSkalaAt},
+};
 
 // rc608 Teil 11: Das Licht im Spielbild ist Bild mal Lightmap mal diesem Faktor. Im Spiel gemessen (Teil 5 bis 8,
 // Movie Duels, screenshot_tga gegen die Vorschau: Boden und Waende 1,00) - r_mapOverBrightBits verschiebt die

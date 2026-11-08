@@ -376,11 +376,11 @@ std::vector<float> jeBild(float zeit, const float* achsen = nullptr) {
     return b;
 }
 
-// Die Figurenstufe (b3): deformVertexes ab 32 wie deformWerte (gpumap_win32.cpp)
+// Die Figurenstufe (b3): deformVertexes ab kStufeDefAt wie deformWerte (gpumap_win32.cpp), Lagen aus gpushader.h (P60)
 std::vector<float> jeStufe(const Fall& f, float zeit) {
-    std::vector<float> sd(72, 0.0F);   // kStufeFloats (MERGE3: + gEntSkala)
+    std::vector<float> sd(kStufeFloats, 0.0F);
     const Verformung v = verformung(f.info.deform2, zeit);
-    if (v.an) { std::memcpy(sd.data() + 32, v.d, sizeof v.d); }
+    if (v.an) { std::memcpy(sd.data() + kStufeDefAt, v.d, sizeof v.d); }
     return sd;
 }
 

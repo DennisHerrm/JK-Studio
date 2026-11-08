@@ -1095,6 +1095,7 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     // rc604 fix604b (B4): .w 1 = tcMod - gStufeTcM0..3, gStufeTcO01/23 und
     // gStufeTcArt wie gTcM0.. der Karte (packeKonstanten, FIX4 P33 je Schritt).
     s += R"(
+// P60: die Lagen stehen in bhed/gpushader.h (kStufenLagen, kStufeFloats) - gpumap_win32.cpp prueft sie per D3DReflect.
 cbuffer JeStufe : register(b3) {
     float4 gStufe;
     float4 gStufeFarbe;
@@ -1270,13 +1271,14 @@ VSOut main(VSIn ein) {
         // tr_main.cpp:384-403 MD9): A = R diag(s), der Augpunkt viewOrigin = A^T delta / |axis[0]|, die Ecke tess.xyz
         // unskaliert = diag(1/s) R^T (Weltort - Ursprung), lightDir = A^T l (R_SetupEntityLighting, tr_light.cpp:492-496),
         // die Normale die des Modells. R sind die Achsen der Entity (gAchse, ohne den Zeichnerausgleich), Ursprung und s
-        // kommen aus gAchse0..2.w / gEntSkala.xyz (Griffe in der Hand: die der Figur), sonst aus gFigurWelt
-        // (Spalte 1 ist wegen des 90-Grad-Zuschlags in baueFigurWelt axis[0]). Unskaliert ist es dieselbe Rechnung wie
-        // in Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
+        // kommen aus gAchse0..2.w / gEntSkala.xyz (Griffe in der Hand: die der Figur), sonst aus gFigurWelt:
+        // FIX6 P50: dann sind gAchse0..2 die normierten Spalten 0, 1, 2 von welt (zeichneFigurIn ohne achsenGesetzt), die
+        // Massstaebe daher die Spaltenlaengen in derselben Reihenfolge. Unskaliert ist es dieselbe Rechnung wie in
+        // Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
         float3x3 mw = (float3x3)gFigurWelt;
         float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
         bool entGegeben = gEntSkala.x > 0.0;
-        float3 sE = entGegeben ? gEntSkala.xyz : achsLaenge.yxz;
+        float3 sE = entGegeben ? gEntSkala.xyz : achsLaenge;
         float3 oE = entGegeben ? float3(gAchse0.w, gAchse1.w, gAchse2.w)
                                : float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
         bool skaliert = any(abs(sE - 1.0) > 1e-4);

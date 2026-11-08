@@ -2261,9 +2261,10 @@ std::map<std::size_t, std::string> g_gegenstandGrund;
 // RF_RGB_TINT (wv, wv, 0); vierzehn Sprites yellowDroppedSaberShader
 // (gfx/effects/yellow_glow) entlang -ent.axis[2] (i = -4 .. 9), Groesse 10,
 // Alpha wv * 0.5 (FX_USE_ALPHA), ein Bild lang; ein Licht (1, 1, 0) mit
-// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels).
+// wv * 350 + 180 (OpenJK) bzw. wv * 100 (Movie Duels). `welt`: die des Gegenstands samt Ghoul2-Wurzel (g2WurzelWelt) - die
+// Huelle ist derselbe refEntity mit customShader und liegt genau auf ihm (vorher gg.welt ohne Wurzel: um 90 Grad verdreht).
 void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAssets& as,
-                             const std::vector<BoneMatrix>& knochen, const gpu::FigurLicht& licht, const float* vp,
+                             const std::vector<BoneMatrix>& knochen, const float* welt, const gpu::FigurLicht& licht, const float* vp,
                              const float rechts[3], const float hoch[3], std::vector<gpu::KlingenQuad>& sprites,
                              std::vector<gpu::WeltLicht>& lichter) {
     const float cgZeit = std::floor(licht.zeit * 1000.0F);   // cg.time, ganze ms
@@ -2280,7 +2281,7 @@ void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAsset
         l.entityFarbe[1] = wv;
         l.entityFarbe[2] = 0.0F;
         std::string f;
-        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, gg.welt, vp, &f, &l, g_app->showCaps);
+        const int n = gpu::zeichneFigur(as.model, &huelle->second, knochen, welt, vp, &f, &l, g_app->showCaps);
         g_app->gpuAufrufe += n;
         g_app->gpuFiguren2 += n;
     }
@@ -2874,14 +2875,17 @@ int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera&
 // "height" n (NPC_stats.cpp:3659-3686 MD9: s.radius = n), sonst G_SetG2PlayerModelInfo am Ende des Lesens
 // (g_client.cpp:2218-2270 MD9): CLASS_SAND_CREATURE 256, CLASS_RANCOR 300 (spawnflags 1) / 150, sonst der groesste
 // Betrag von mins/maxs (DEFAULT_MINS_0/1 -16 bzw. "width", DEFAULT_MINS_2 -24, maxs[2] 40 bzw. height - 24), 0 -> 60.
-float figurLodRadius(const Actor& a) {
+const NpcDef* figurNpcDef(const Actor& a) {
     auto it = g_app->npcMap.find(a.npcType);
     if (it == g_app->npcMap.end()) {
         std::string k = a.npcType;
         for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
         it = g_app->npcMap.find(k);
     }
-    const NpcDef* npc = it != g_app->npcMap.end() ? &it->second : nullptr;
+    return it != g_app->npcMap.end() ? &it->second : nullptr;
+}
+
+float figurLodRadius(const Actor& a, const NpcDef* npc) {
     if (npc != nullptr && npc->klasse == "class_sand_creature") { return 256.0F; }
     if (npc != nullptr && npc->klasse == "class_rancor") { return (a.spawnflags & 1) != 0 ? 300.0F : 150.0F; }
     if (npc != nullptr && npc->hoehe >= 0.0F && static_cast<int>(npc->hoehe) > 0) { return static_cast<float>(static_cast<int>(npc->hoehe)); }
@@ -2905,8 +2909,11 @@ const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Ca
     cam.forward(vorn);
     modell::LodLage l;
     l.stufenZahl = static_cast<int>(as->lodModelle.size()) + 1;
-    l.radius = figurLodRadius(g_app->scene.actors[static_cast<std::size_t>(a.figur)]);
-    l.skala = std::max({a.skala[0], a.skala[1], a.skala[2]});   // largestScale (0 -> 1 in lodWieImSpiel)
+    const Actor& akteur = g_app->scene.actors[static_cast<std::size_t>(a.figur)];
+    const NpcDef* npc = figurNpcDef(akteur);
+    l.radius = figurLodRadius(akteur, npc);
+    // FIX6 P51: largestScale aus s.modelScale (0 -> 1 in lodWieImSpiel), nicht aus dem gezeichneten Massstab a.skala
+    l.skala = npc != nullptr ? npcGroessteSkala(*npc) : 1.0F;
     l.lodscale = modell::grenzen(ziel).lodscale;                  // r_lodscale, r_lodbias "0"
     // ProjectRadius mit ent->e.origin (samt 24 * (scale - 1), CG_Player) entlang der Blickachse
     l.abstand = vorn[0] * (fw[3] - cam.pos[0]) + vorn[1] * (fw[7] - cam.pos[1]) + vorn[2] * (fw[11] - cam.pos[2]);
@@ -3570,7 +3577,8 @@ int npcDateienLesen(NpcMap& m) {
 // des Modells. MERGE2: RE_RegisterSkin haengt sie an EINE Haut an - Kopf, dann Rumpf, wenn er anders heisst, dann Beine,
 // wenn sie anders heissen (tr_skin.cpp:413-424 OpenJK) - darum ein applySkin ueber den Text in dieser Folge: bei doppelten
 // Flaechen gilt der erste Eintrag, ein "*off" in irgendeinem Teil schaltet ab. false: kein solcher Name, eine Datei fehlt oder
-// die Haut hat nach einem Teil noch keinen Eintrag (hSkin 0 wie im Spiel).
+// die Haut hat nach einem Teil noch keinen Eintrag (hSkin 0 wie im Spiel). Bei false ist gm unveraendert: alle Dateien werden
+// vor dem ersten applySkin gelesen, und ein Teil ohne Eintrag hat nichts eingetragen.
 bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel& gm) {
     if (name.empty() || name[0] != '|') { return false; }
     const std::size_t a = name.find('|', 1);
@@ -3585,7 +3593,8 @@ bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel
         dabei[i] = true;
     }
     // MERGE3 P53: jeder Teil an dieselbe Haut, die Eintraege zaehlen zusammen (128 je Haut); hat die Haut nach einem Teil noch
-    // keinen Eintrag, gibt RE_RegisterIndividualSkin 0 zurueck (tr_skin.cpp:331-334) und die Figur bleibt ohne Haut
+    // keinen Eintrag, gibt RE_RegisterIndividualSkin 0 zurueck (tr_skin.cpp:331-334) - G2API_SetSkin(..., 0), siehe
+    // figurHautAnwenden
     int eintraege = 0;
     for (int i = 0; i < 3; ++i) {
         if (!dabei[i]) { continue; }
@@ -3618,22 +3627,30 @@ bool figurMitSchluessel(const Actor& a) {
     return m != nullptr && !m->empty();
 }
 
-// Die Haut einer Figur wie die Engine: "|kopf|rumpf|beine", sonst model_<customSkin>.skin (NPC_stats.cpp:1908), dann
-// die Vorgabe model_default.skin (ebenda:1597), zuletzt model.skin (alte Modelle). mb1a2: aus loadActorModels
-// herausgezogen, damit der Selbsttest die Figur genauso baut.
+// Die Haut einer Figur wie G_SetG2PlayerModel (g_client.cpp:2287-2370 MD9, :1730-1789 OpenJK, codeJK2 :788-802): ein
+// customSkin mit '|' ist dreiteilig ("models/players/<m>/|kopf|rumpf|beine", RE_SplitSkins), sonst model_<customSkin>.skin;
+// ohne customSkin model_default.skin (NPC_stats.cpp:1788 "default"). P62: findet RE_RegisterSkin nichts (Datei fehlt, ein Teil
+// fehlt oder die Haut bleibt ohne Eintrag), ist der Griff 0 und G2API_SetSkin(..., 0) setzt keine Haut und keine Flaechen
+// (G2_API.cpp:907-929) - die Figur zeichnet die Shader der .glm ("it still loads the default skin's tga's because they're
+// referenced in the .glm"), mit den Ein/Aus-Flaggen der .glm. Kein Rueckfall auf model_default.skin oder model.skin (den
+// gibt es nur, wenn das MODELL fehlt, mit stormtrooper). false: ohne Haut, gm unveraendert. `figur` leer: ohne Meldung.
+// mb1a2: aus loadActorModels herausgezogen, damit der Selbsttest die Figur genauso baut; das Vorwaermen nimmt sie ebenso.
 bool figurHautAnwenden(const std::string& dir, const std::string& customSkin, GlmModel& gm, const std::string& figur) {
-    if (hautAusDreiTeilen(dir, customSkin, gm)) { return true; }
-    for (const std::string& which : {"model_" + customSkin + ".skin", std::string("model_default.skin"), std::string("model.skin")}) {
+    const std::string name = customSkin.empty() ? std::string("default") : customSkin;
+    bool gefunden = false;
+    if (name.find('|') != std::string::npos) {
+        gefunden = hautAusDreiTeilen(dir, name[0] == '|' ? name : "|" + name, gm);
+    } else {
         std::string skin;
-        if (readFromArchives(dir + "/" + which, skin)) {
-            applySkin(skin, gm);
-            if (which != "model_" + customSkin + ".skin") {
-                diag::detail("Figur " + figur + ": Skin \"" + customSkin + "\" nicht gefunden, " + which + " genommen");
-            }
-            return true;
+        if (readFromArchives(dir + "/model_" + name + ".skin", skin)) {
+            gefunden = applySkin(skin, gm) > 0;
         }
     }
-    return false;
+    if (!gefunden && !figur.empty()) {
+        diag::detail("Figur " + figur + ": Haut \"" + name + "\" unter " + dir +
+                     " nicht gefunden oder ohne Eintrag - ohne Haut (Shader der .glm) wie im Spiel");
+    }
+    return gefunden;
 }
 
 bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln, std::string* ordner) {
@@ -3991,27 +4008,8 @@ void loadActorModels() {
             // Faeden". Die Skelette wurden trotzdem vorgewaermt, weil ihr
             // Pfad im Kopf des Modells steht.
             //
-            // Dieselbe Reihenfolge wie im Hauptdurchgang: erst
-            // model_default.skin, sonst model.skin.
-            // Erst der genannte Skin, dann default, dann model.skin.
-            //
-            // Die Reihenfolge ist die der Engine: sie baut
-            // model_<customSkin>.skin (NPC_stats.cpp:1908) und faellt auf
-            // die Vorgabe "default" zurueck, wenn keiner genannt ist
-            // (ebenda:1597). Der dritte Schritt ist unserer - alte Modelle
-            // haben nur model.skin.
-            if (!hautAusDreiTeilen(pfad, skinName, modelle[k])) {
-                for (const std::string& which :
-                     {"model_" + skinName + ".skin",
-                      std::string("model_default.skin"),
-                      std::string("model.skin")}) {
-                    std::string skin;
-                    if (readFromArchives(pfad + "/" + which, skin)) {
-                        applySkin(skin, modelle[k]);
-                        break;
-                    }
-                }
-            }
+            // Dieselbe Funktion wie im Hauptdurchgang (figurHautAnwenden, P62).
+            (void)figurHautAnwenden(pfad, skinName, modelle[k], std::string());
             heil[k] = 1;
         });
 
@@ -4205,22 +4203,19 @@ void loadActorModels() {
             ++badModel;
             continue;
         }
-        // Die uebliche Haut daneben.
-        // Erst der genannte Skin, dann default, dann model.skin - dieselbe
-        // Reihenfolge wie im Vorwaermen weiter oben. Zwei Stellen, die
-        // dasselbe tun, muessen es GLEICH tun; laufen sie auseinander,
-        // haengt das Aussehen davon ab, welcher Weg zuerst drankam.
-        const bool skinGefunden = figurHautAnwenden(dir, it->second.customSkin, gm, a.name);
-        if (!skinGefunden) {
-            diag::detail("Figur " + a.name + ": KEINE .skin unter " + dir +
-                         " - die Flaechen bleiben ohne Texturnamen");
-        }
+        // Die uebliche Haut daneben - dieselbe Funktion wie im Vorwaermen weiter oben. Zwei Stellen, die dasselbe tun, muessen
+        // es GLEICH tun; laufen sie auseinander, haengt das Aussehen davon ab, welcher Weg zuerst drankam. Ohne Haut meldet
+        // figurHautAnwenden es selbst (P62).
+        (void)figurHautAnwenden(dir, it->second.customSkin, gm, a.name);
         figurG2Regeln(gm, &it->second, mitSchluessel);
         assets.model = std::move(gm);
         // MERGE2 Punkt 4: R_LoadMDXM laedt alle Detailstufen (tr_ghoul2.cpp MD9), RenderSurfaces zeichnet die von
         // G2_ComputeLOD gewaehlte. Gemessen in Movie Duels (Testkarte p27g, Sturmtruppler scale 70 in 500 Einheiten):
         // die kleine Figur zeichnet das Spiel in Stufe 1 (mit r_lodscale 20 in Stufe 0 gleich der Vorschau). Jede Stufe
         // hat dieselben Flaechen (mdxmLOD_t je Flaeche), Haut und Ghoul2-Zustand kommen aus Stufe 0.
+        // FIX6 P52: aus einer Huelle von Stufe 0 ohne Netz - vorher kopierte jede Stufe erst alle Ecken und Indizes von
+        // Stufe 0 (sofort verworfen) und behielt die groebste Stufe (grobVerts, nur fuer Spuren am Stufe-0-Modell).
+        const GlmModel huelle = assets.model.numLods > 1 ? glmOhneNetz(assets.model) : GlmModel{};
         for (int n = 1; n < assets.model.numLods && n < 16; ++n) {
             GlmModel g;
             std::string fehlerStufe;
@@ -4228,7 +4223,7 @@ void loadActorModels() {
                 diag::info("Modell " + assets.model.name + ": Detailstufe " + std::to_string(n) + " nicht lesbar - " + fehlerStufe);
                 break;
             }
-            GlmModel stufe = assets.model;
+            GlmModel stufe = huelle;
             for (std::size_t s = 0; s < stufe.surfaces.size(); ++s) {
                 stufe.surfaces[s].verts = std::move(g.surfaces[s].verts);
                 stufe.surfaces[s].indexes = std::move(g.surfaces[s].indexes);

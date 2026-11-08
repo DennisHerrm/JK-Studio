@@ -3979,6 +3979,8 @@ void addGamePathDirectory(const std::string& dir);
 int npcDateienLesen(NpcMap& m);
 // mb1a2: eine Figur eines NPC-Typs genau wie der Mission-Tab sie baut (Modell, Haut, mit `regeln` die Ghoul2-Regeln).
 bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln, std::string* ordner);
+// P62: die Haut wie G_SetG2PlayerModel (dreiteilig oder model_<customSkin>.skin); false: ohne Haut, gm unveraendert.
+bool figurHautAnwenden(const std::string& dir, const std::string& customSkin, GlmModel& gm, const std::string& figur);
 // Stufe 7: dasselbe in zwei Teilen. npcLeseAuftrag (Hauptfaden) bestimmt die
 // Dateien und je Datei die Archive in der Reihenfolge von readFromArchives;
 // npcAuftragLesen liest und zerlegt sie - ohne g_app und ohne diag, also in
