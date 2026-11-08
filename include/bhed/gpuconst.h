@@ -28,6 +28,7 @@
 #define BHED_GPUCONST_H
 
 #include <cstddef>
+#include <cstdint>
 
 #include "bhed/gpustate.h"
 #include "bhed/mapview.h"
