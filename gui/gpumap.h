@@ -43,6 +43,7 @@ void shutdown();
 void vergissKarte();
 // MR6 P22: alle hochgeladenen Bilder der Karte, des Himmels und der Figuren verwerfen (die Lightmaps bleiben); das naechste
 // Bild laedt sie neu. Fuer den Wechsel Movie Duels <-> Jedi Academy/Outcast: die Bilder werden dort anders hochgeladen (DXT).
+// MR7 P39: in beiden Szenen (Vorschau und Spielbild des Karten-Editors, szeneWaehlen).
 void bilderNeuHochladen();
 // MR6 P20-P22 (Selbsttest): gezaehlte Hochlade-Vorgaenge seit dem letzten Zuruecksetzen - wie viele Bilder als DXT5 gingen,
 // davon die Bilder von Shadern mit einer $lightmap-Stufe und die Himmelsseiten (ohne noTC).

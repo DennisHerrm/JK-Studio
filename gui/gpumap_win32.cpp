@@ -6982,14 +6982,6 @@ BilderDxt himmelProbe(bool keinTc) {
     return b;
 }
 
-void bilderNeuHochladen() {
-    for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
-    g_bilder.clear();
-    g_bildQuelle.clear();
-    vergissHimmel();
-    figurBilderAllesLoesen();
-}
-
 void kartenPlaetze(int& bild, int& lightmap) {
     bild = g_bilder.empty() ? -1 : g_bilder.rbegin()->first;
     lightmap = g_lightmaps.empty() ? -1 : g_lightmaps.rbegin()->first;
@@ -7660,6 +7652,20 @@ void gibAlleSzenenFrei() {
         gibNetzpufferFrei();
         if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
     }
+}
+
+// MR6 P22 / MR7 P39: Regelwerk umgestellt - die Bilder BEIDER Szenen (Vorschau und Karten-Editor, die andere ueber Tauschen wie
+// gibAlleSzenenFrei) und die Figurenbilder verwerfen; Lightmaps bleiben (r_ext_compress_lightmaps 0 in jedem Regelwerk).
+void bilderNeuHochladen() {
+    for (int s = 0; s < kSzenen; ++s) {
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+        for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
+        g_bilder.clear();
+        g_bildQuelle.clear();
+        vergissHimmel();
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+    }
+    figurBilderAllesLoesen();
 }
 
 std::uint64_t patchLodAenderungen() { return g_patchLodAenderungen; }

@@ -633,6 +633,28 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             if (md) { return himmel && b.bilder > 0 && b.komprimiert == 0 && b.himmelKomprimiert == 0; }
             return himmel && b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe && b.himmelKomprimiert == b.himmelSeiten;
         }));
+        // MR7 P39: das Spielbild des Karten-Editors (gpu-Szene 1, "Built map as in the game") mit derselben Karte - seine Bilder
+        // liegen geparkt, solange die Vorschau zeichnet. Nach dem Wechsel muessen auch sie nach der neuen Regel neu hoch.
+        constexpr std::uint64_t kP39Nummer = 0x5039000000000001ULL;
+        auto bspP39 = std::make_shared<std::shared_ptr<const std::string>>();
+        const auto spielbildP39 = [kam, archiv, bspP39] {
+            if (!*bspP39) {   // die .bsp der Vorschau aus dem Archiv (BHED_GV_PK3)
+                Pk3 arc;
+                std::string bytes;
+                const Pk3Entry* e = readPk3Directory(archiv, arc) ? arc.find(g_app->map.path) : nullptr;
+                if (e == nullptr || !readPk3File(arc, *e, bytes)) { return false; }
+                *bspP39 = std::make_shared<const std::string>(std::move(bytes));
+            }
+            karte::Kamera k;
+            k.ursprung = karte::Vektor3f(kam[0], kam[1], kam[2]);
+            k.winkel = karte::Vektor3f(-kam[3], kam[4], 0.0F);
+            return karteneditor::spielbildZeichnen(*bspP39, kP39Nummer, g_app->map.path, k, 640, 480) != nullptr;
+        };
+        add(tu("Geschuetze Vergleich: P39 - Spielbild des Karten-Editors (Szene 1) mit derselben Karte", [=] {
+            const bool bild = spielbildP39();
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            bezeichne(bild ? "Szene 1 (Spielbild) vor dem Wechsel" : "Szene 1 (Spielbild) vor dem Wechsel, KEIN BILD", b);
+        }));
         auto vorher = std::make_shared<bool>(false);
         add(tu("Geschuetze Vergleich: Regelwerk wechseln (Movie Duels <-> OpenJK)", [=] {
             *vorher = regelwerkMovieDuels();
@@ -648,6 +670,15 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             if (md == *vorher) { return false; }
             if (md) { return b.lightmapStufe > 0 && b.komprimiert == 0; }
             return b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe;
+        }));
+        add(pruefe("Geschuetze Vergleich: P39 - nach dem Wechsel laedt auch das Spielbild des Karten-Editors (Szene 1) neu, nach der neuen Regel", [=] {
+            (void)gpu::bilderDxt(true);
+            const bool bild = spielbildP39();
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            const bool md = regelwerkMovieDuels();
+            bezeichne(md ? "Szene 1 nach dem Wechsel, Movie Duels" : "Szene 1 nach dem Wechsel, JKA/JK2", b);
+            if (!bild || b.lightmapStufe == 0) { return false; }
+            return md ? b.komprimiert == 0 : b.lightmapStufeKomprimiert == b.lightmapStufe;
         }));
     }
     return s;
