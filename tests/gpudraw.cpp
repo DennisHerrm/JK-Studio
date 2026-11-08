@@ -404,113 +404,74 @@ int main() {
                 countStateChanges(buildDrawCalls(m, &ts, 0.0F)) == 1U);
     }
 
-    // --- Autosprite: Mitte, Radius, Richtung, Wicklung --------------------
+    // --- REST3: autosprite auf der CPU (verformeTess): Mitte, Radius, Richtung, Wicklung ------------------------------------------
     //
-    // Ein Viereck 40 breit, 100 hoch, stehend in der x-z-Ebene um (10,20,30)
-    // - wie das Palpatine-Hologramm. Die Engine (AutospriteDeform): Mitte,
-    // Radius = |Ecke - Mitte| * 0,707, Wicklung 0,1,3 / 3,1,2.
+    // Ein Viereck 40 breit, 100 hoch, stehend in der x-z-Ebene um (10,20,30) - wie das Palpatine-Hologramm. AutospriteDeform: Mitte,
+    // Radius = |Ecke 0 - Mitte| * 0,707, Ecken mid +- left +- up entlang der Kameraachsen, Wicklung 0,1,3 / 3,1,2, st und Lightmap-st
+    // 0..1, Normale -vorn der Welt, Farbe der ersten Ecke (RB_AddQuadStampExt).
     {
-        BspMesh m;
+        DeformZusatz z;
+        DeformEintrag e;
+        e.art = kFolgeSprite;
+        z.dazu(e);
         const float ecken[4][3] = {{-10, 20, -20}, {30, 20, -20}, {30, 20, 80}, {-10, 20, 80}};
-        for (const auto& e : ecken) {
-            BspVertex v;
-            for (int k = 0; k < 3; ++k) { v.xyz[k] = e[k]; }
-            m.verts.push_back(v);
+        std::vector<TessEcke> te(4);
+        for (int w = 0; w < 4; ++w) {
+            for (int k = 0; k < 3; ++k) { te[static_cast<std::size_t>(w)].xyz[k] = ecken[w][k]; }
+            te[static_cast<std::size_t>(w)].farbe[0] = static_cast<std::uint8_t>(10 * (w + 1));
         }
-        m.indexes = {0, 1, 2, 0, 2, 3};
-        BspMesh::Batch b;
-        b.firstIndex = 0;
-        b.numIndexes = 6;
-        m.batches.push_back(b);
-        std::vector<std::uint32_t> idx = m.indexes;
-        const std::vector<SpriteEcke> sp = baueAutosprites(m, {1}, idx);
-        erwarte("Autosprite: vier Ecken umgebaut", sp.size() == 4U);
+        std::vector<std::uint32_t> idx = {0, 1, 2, 0, 2, 3};
+        SpriteSicht sicht;
+        sicht.links[0] = 1.0F;   // links = +x, hoch = +z, vorn = +y (Mover: vornWelt anders als vorn)
+        sicht.hoch[2] = 1.0F;
+        sicht.vorn[1] = 1.0F;
+        sicht.vornWelt[0] = 1.0F;
+        erwarte("Autosprite: verformeTess rechnet", verformeTess(z, 0.0F, sicht, te, idx));
         const float r = std::sqrt(20.0F * 20.0F + 50.0F * 50.0F) * 0.707F;
-        bool gut = sp.size() == 4U;
-        for (const SpriteEcke& e : sp) {
-            gut = gut && e.mitte[0] == 10.0F && e.mitte[1] == 20.0F && e.mitte[2] == 30.0F &&
-                  std::fabs(e.radius - r) < 1e-3F;
+        erwarte("Mitte des Vierecks, Radius = halbe Diagonale x 0,707, +links+hoch zuerst",
+                te[0].xyz[0] == 10.0F + r && te[0].xyz[1] == 20.0F && te[0].xyz[2] == 30.0F + r && te[2].xyz[0] == 10.0F - r &&
+                    te[2].xyz[2] == 30.0F - r);
+        erwarte("st und Lightmap-st wie RB_AddQuadStampExt, Normale -vorn der Welt, Farbe der ersten Ecke",
+                te[2].st[0] == 1.0F && te[2].st[1] == 1.0F && te[3].lm[0] == 0.0F && te[3].lm[1] == 1.0F && te[1].normal[0] == -1.0F &&
+                    te[1].normal[1] == 0.0F && te[3].farbe[0] == 10U);
+        erwarte("Wicklung 0,1,3 / 3,1,2", idx == std::vector<std::uint32_t>({0, 1, 3, 3, 1, 2}));
+        sicht.spiegel = true;
+        std::vector<TessEcke> te2(4);
+        for (int w = 0; w < 4; ++w) {
+            for (int k = 0; k < 3; ++k) { te2[static_cast<std::size_t>(w)].xyz[k] = ecken[w][k]; }
         }
-        erwarte("Mitte des Vierecks, Radius = halbe Diagonale x 0,707", gut);
-        erwarte("Richtung und st wie RB_AddQuadStamp",
-                sp.size() == 4U && sp[0].links == 1.0F && sp[0].hoch == 1.0F && sp[1].links == -1.0F &&
-                    sp[2].hoch == -1.0F && sp[2].st[0] == 1.0F && sp[2].st[1] == 1.0F &&
-                    sp[3].st[0] == 0.0F && sp[3].st[1] == 1.0F);
-        // Ecken in der Reihenfolge des ersten Auftretens: 0,1,2,3.
-        erwarte("Wicklung 0,1,3 / 3,1,2",
-                idx.size() == 6U && idx[0] == 0U && idx[1] == 1U && idx[2] == 3U && idx[3] == 3U &&
-                    idx[4] == 1U && idx[5] == 2U);
-
-        std::vector<std::uint32_t> idx2 = m.indexes;
-        erwarte("ohne Autosprite bleibt alles, wie es ist",
-                baueAutosprites(m, {0}, idx2).empty() && idx2 == m.indexes);
-        BspMesh ungerade = m;
-        ungerade.indexes = {0, 1, 2};
-        ungerade.batches[0].numIndexes = 3;
-        std::vector<std::uint32_t> idx3 = ungerade.indexes;
-        erwarte("ein Abschnitt, der nicht in Vierecke passt, bleibt stehen",
-                baueAutosprites(ungerade, {1}, idx3).empty() && idx3 == ungerade.indexes);
-
-        erwarte("autosprite2: andere Stapel bleiben unberuehrt", baueAutosprites2(m, {1}).empty() &&
-                                                                       baueAutosprites2(m, {0}).empty());
+        std::vector<std::uint32_t> idx2 = {0, 1, 2, 0, 2, 3};
+        erwarte("im Spiegel left = -left (AutospriteDeform :400)", verformeTess(z, 0.0F, sicht, te2, idx2) && te2[0].xyz[0] == 10.0F - r);
+        std::vector<TessEcke> drei(3);
+        std::vector<std::uint32_t> idx3 = {0, 1, 2};
+        erwarte("eine Flaeche, die nicht in Vierecke passt: das Spiel bricht ab (ERR_DROP), nichts veraendert",
+                !verformeTess(z, 0.0F, sicht, drei, idx3) && idx3 == std::vector<std::uint32_t>({0, 1, 2}));
     }
 
-    // --- autosprite2 (rc592): Drehung um die LANGE Achse -------------------
+    // --- autosprite2: Drehung um die LANGE Achse (REST3: auf der CPU wie Autosprite2Deform) ---------------------------------------
     //
-    // Eine Kette aus kor1 (textures/korriban/chain), genau so in der .bsp:
-    // 8 breit, 32 hoch, Indizes 3,0,2 / 2,0,1 - die Reihenfolge von q3map2.
-    // Mit einer anderen Indexfolge (etwa 0,1,2 / 0,2,3) verdreht die Rechnung
-    // der Engine das Viereck - sie verlaesst sich auf diese.
-    //
-    // Autosprite2Deform: die kuerzesten Kanten 0-1 (unten) und 2-3 (oben),
-    // ihre Mitten (640,-32,-800) und (640,-32,-768). Jede Ecke bekommt die
-    // Mitte ihrer Kante als Ort und die Achse mal halbe Kantenlaenge (4) mit
-    // Vorzeichen als Normale.
+    // Eine Kette aus kor1 (textures/korriban/chain), genau so in der .bsp: 8 breit, 32 hoch, Indizes 3,0,2 / 2,0,1 - die Reihenfolge
+    // von q3map2. Mit einer anderen Indexfolge verdreht die Rechnung der Engine das Viereck - sie verlaesst sich auf diese. Mit dem
+    // Blick von -y (vorn = 0,1,0) liegen die Ecken wieder wie gebaut.
     {
-        BspMesh m;
+        DeformZusatz z;
+        DeformEintrag e;
+        e.art = kFolgeSprite2;
+        z.dazu(e);
         const float ecken[4][3] = {{644, -32, -800}, {636, -32, -800}, {636, -32, -768}, {644, -32, -768}};
-        for (const auto& e : ecken) {
-            BspVertex v;
-            for (int k = 0; k < 3; ++k) { v.xyz[k] = e[k]; }
-            m.verts.push_back(v);
+        std::vector<TessEcke> te(4);
+        for (int w = 0; w < 4; ++w) {
+            for (int k = 0; k < 3; ++k) { te[static_cast<std::size_t>(w)].xyz[k] = ecken[w][k]; }
         }
-        m.indexes = {3, 0, 2, 2, 0, 1};
-        BspMesh::Batch b;
-        b.firstIndex = 0;
-        b.numIndexes = 6;
-        m.batches.push_back(b);
-        const std::vector<SpriteEcke2> s2 = baueAutosprites2(m, {2});
-        erwarte("autosprite2: vier Ecken", s2.size() == 4U);
-        bool mitten = s2.size() == 4U;
-        for (const SpriteEcke2& e : s2) {
-            const float zSoll = (e.ecke < 2U) ? -800.0F : -768.0F;
-            const float l = std::sqrt(e.achse[0] * e.achse[0] + e.achse[1] * e.achse[1] +
-                                      e.achse[2] * e.achse[2]);
-            mitten = mitten && e.mitte[0] == 640.0F && e.mitte[1] == -32.0F && e.mitte[2] == zSoll &&
-                     std::fabs(l - 4.0F) < 1e-3F && std::fabs(e.achse[0]) < 1e-4F &&
-                     std::fabs(e.achse[1]) < 1e-4F;
+        std::vector<std::uint32_t> idx = {3, 0, 2, 2, 0, 1};
+        SpriteSicht sicht;
+        sicht.vorn[1] = 1.0F;
+        erwarte("autosprite2: verformeTess rechnet", verformeTess(z, 0.0F, sicht, te, idx));
+        bool lage = true;
+        for (int w = 0; w < 4; ++w) {
+            for (int k = 0; k < 3; ++k) { lage = lage && te[static_cast<std::size_t>(w)].xyz[k] == ecken[w][k]; }
         }
-        erwarte("autosprite2: Mitte der kurzen Kante, Achse x halbe Laenge", mitten);
-        // Gezeichnet ergibt sich (Ecke - Mitte) = normalize(cross(achse,
-        // vorn)) * |achse|. Quake 3 zeigt Dreiecke, die im Uhrzeigersinn
-        // erscheinen; 3,0,2 tut das von -y aus gesehen. Mit dem Blick von
-        // dort (vorn = 0,1,0) muessen die Ecken wieder liegen wie gebaut.
-        auto gezeichnetX = [](const SpriteEcke2& e) {
-            const float vorn[3] = {0.0F, 1.0F, 0.0F};
-            const float c[3] = {e.achse[1] * vorn[2] - e.achse[2] * vorn[1],
-                                e.achse[2] * vorn[0] - e.achse[0] * vorn[2],
-                                e.achse[0] * vorn[1] - e.achse[1] * vorn[0]};
-            const float cl = std::sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
-            const float l = std::sqrt(e.achse[0] * e.achse[0] + e.achse[1] * e.achse[1] +
-                                      e.achse[2] * e.achse[2]);
-            return e.mitte[0] + c[0] / cl * l;
-        };
-        bool lage = s2.size() == 4U;
-        for (const SpriteEcke2& e : s2) {
-            const float soll = m.verts[e.ecke].xyz[0];
-            lage = lage && std::fabs(gezeichnetX(e) - soll) < 1e-3F;
-        }
-        erwarte("autosprite2: von vorn gesehen liegen die Ecken wie gebaut", lage);
+        erwarte("autosprite2: von vorn gesehen liegen die Ecken wie gebaut, Wicklung bleibt", lage && idx == std::vector<std::uint32_t>({3, 0, 2, 2, 0, 1}));
     }
 
     // rc608: Stapel eines .md3: rgbGen lightingDiffuse rechnet das Licht der Entity

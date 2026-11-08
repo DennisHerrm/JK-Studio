@@ -403,24 +403,23 @@ int main() {
         z.dazu(w);
         z.dazu(s);
         z.dazu(m);
-        erwarte("P44: wave vor autosprite fehlt, autosprite und move gezeigt",
-                deformLage(z, 0) == DeformLage::Fehlt && deformLage(z, 1) == DeformLage::Gezeigt && deformLage(z, 2) == DeformLage::Gezeigt);
-        const Verformung v = verformung(z, 0.0F);
-        erwarte("P44: gepackt autosprite (10), dann move (9)", v.d[15] == static_cast<float>(10U | (9U << 4)));
-        DeformZusatz z2;
-        DeformEintrag n;
-        n.art = kFolgeNormal;
-        z2.dazu(n);
-        z2.dazu(s);
-        z2.dazu(w);
-        erwarte("P44: normal vor autosprite wirkt nicht, wave dahinter gezeigt",
-                deformLage(z2, 0) == DeformLage::Wirkungslos && deformLage(z2, 2) == DeformLage::Gezeigt);
+        // REST3: kein "Fehlt" mehr - Shader mit autosprite/autosprite2 rechnet die CPU ganz (spriteAufCpu, verformeTess)
+        erwarte("REST3: wave vor autosprite, autosprite und move gezeigt; der Shader geht auf die CPU",
+                deformLage(z, 0) == DeformLage::Gezeigt && deformLage(z, 1) == DeformLage::Gezeigt && deformLage(z, 2) == DeformLage::Gezeigt &&
+                    spriteAufCpu(z));
+        BatchState sb;
+        sb.deform2 = z;
+        sb.deformWave = w.welle;
+        sb.autosprite = true;
+        const std::uint32_t mk = pipelineFor(sb, false).features;
+        erwarte("REST3: pipelineFor setzt fuer autosprite + wave + move nur kAutosprite (keine Verformung im Vertex-Shader)",
+                (mk & kAutosprite) != 0U && (mk & (kDeform | kDeformMove | kBulge | kDeformNormal)) == 0U);
         DeformZusatz z3;
         s.art = kFolgeSprite2;
-        z3.dazu(s);
         z3.dazu(w);
-        z3.dazu(m);
-        erwarte("P44: an autosprite2 fehlt wave, move gezeigt", deformLage(z3, 1) == DeformLage::Fehlt && deformLage(z3, 2) == DeformLage::Gezeigt);
+        erwarte("REST3: wave allein bleibt im Vertex-Shader", !spriteAufCpu(z3));
+        z3.dazu(s);
+        erwarte("REST3: wave, autosprite2 geht auf die CPU", spriteAufCpu(z3));
         DeformZusatz z4;
         m.welle.func = WaveFunc::Noise;
         z4.dazu(m);

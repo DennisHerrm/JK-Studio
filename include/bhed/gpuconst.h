@@ -164,7 +164,7 @@ void tcKetteOhneTurb(const TcKette& k, float st[2]);
 //   normal     amplitude, floatTime * frequency (RB_CalcDeformNormals)
 //   bulge      width, height, speed, now = refdef.time * speed * 0.001f (RB_CalcBulgeVertexes, ganze ms)
 //   move       moveVector * WAVEVALUE (RB_CalcMoveVertexes)
-//   autosprite, autosprite2: nur die Stelle (der Vertex-Shader der Karte dreht dort die Ecke)
+//   autosprite, autosprite2: nur die Stelle (an der Karte rechnet die CPU solche Shader ganz, gpu::verformeTess)
 //
 // d[15] die Folge: je Platz vier Bit, kDefCode...; 0 beendet die Folge.
 inline constexpr std::uint32_t kDefCodeWelleFest = 1;   // wave mit frequency 0; 2..6: wave mit der Tafel WaveFunc sin ... inversesawtooth
@@ -180,10 +180,10 @@ struct Verformung {
 [[nodiscard]] Verformung verformung(const DeformZusatz& z, float zeitSekunden);
 
 // DEF1 P44: was aus Eintrag i in der Vorschau wird. Abbruch: TableForFunc bricht im Spiel mit ERR_DROP ab, sobald die Flaeche
-// gezeichnet wird (wave mit frequency ungleich 0 und noise/random, move mit noise/random, eine fehlende Form). Fehlt: das Spiel
-// verformt hier, die Vorschau nicht (wave/bulge vor autosprite; wave, bulge, normal an autosprite2; ein zweites autosprite) - die
-// Kartenpruefung meldet beides.
-enum class DeformLage : std::uint8_t { Gezeigt, Wirkungslos, Abbruch, Fehlt };
+// gezeichnet wird (wave mit frequency ungleich 0 und noise/random, move mit noise/random, eine fehlende Form) - die Vorschau laesst
+// den Eintrag aus. Wirkungslos: bulge mit height 0. REST3: Shader mit autosprite/autosprite2 verformt die CPU ganz
+// (gpu::verformeTess, gpudraw.h) - an der Karte gibt es kein "Fehlt" mehr; an Figuren stehen Code 10/11 nur als Platz.
+enum class DeformLage : std::uint8_t { Gezeigt, Wirkungslos, Abbruch };
 [[nodiscard]] DeformLage deformLage(const DeformZusatz& z, int i);
 
 }  // namespace bhed::gpu

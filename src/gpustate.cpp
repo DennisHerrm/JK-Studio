@@ -114,6 +114,13 @@ Licht lichtFuer(const BatchState& bs, int lightmap, bool vertexColour,
     return l;
 }
 
+bool spriteAufCpu(const DeformZusatz& z) noexcept {
+    for (int i = 0; i < z.anzahl; ++i) {
+        if (z.eintraege[i].art == kFolgeSprite || z.eintraege[i].art == kFolgeSprite2) { return true; }
+    }
+    return false;
+}
+
 PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
                           bool rohEcke, bool zusatzstufe, bool festeFarbe) {
     PipelineState p;
@@ -229,22 +236,25 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
     if (bs.autosprite) {
         f |= kAutosprite;
     }
-    // deformVertexes gilt fuer den GANZEN Shader, nicht je Stufe - das war
-    // der Fehler aus rc383. Hier steht es deshalb einmal, nicht je Stufe.
-    if (bs.deformWave.active()) {
-        f |= kDeform;
-    }
     if (bs.deform2.autosprite2) {
         f |= kAutosprite2;
     }
-    if (bs.deform2.bulgeAn()) {
-        f |= kBulge;
-    }
-    if (bs.deform2.moveWave.active()) {
-        f |= kDeformMove;
-    }
-    if (bs.deform2.normalAn()) {
-        f |= kDeformNormal;
+    // deformVertexes gilt fuer den GANZEN Shader, nicht je Stufe - das war
+    // der Fehler aus rc383. Hier steht es deshalb einmal, nicht je Stufe.
+    // REST3: mit autosprite/autosprite2 rechnet die CPU die ganze Folge (spriteAufCpu).
+    if (!spriteAufCpu(bs.deform2)) {
+        if (bs.deformWave.active()) {
+            f |= kDeform;
+        }
+        if (bs.deform2.bulgeAn()) {
+            f |= kBulge;
+        }
+        if (bs.deform2.moveWave.active()) {
+            f |= kDeformMove;
+        }
+        if (bs.deform2.normalAn()) {
+            f |= kDeformNormal;
+        }
     }
     switch (bs.cull) {
         // "Two" heisst zweiseitig - die Engine nennt es cull disable oder

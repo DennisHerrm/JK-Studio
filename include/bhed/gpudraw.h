@@ -105,58 +105,40 @@ struct DrawCall {
 [[nodiscard]] std::vector<DrawCall> nurGluehende(
     const std::vector<DrawCall>& calls);
 
-// --- deformVertexes autosprite fuer den GPU-Weg ---------------------------
+// --- deformVertexes autosprite/autosprite2 auf der CPU (REST3) -------------
 //
-// Die Engine klappt jedes Viereck einer Autosprite-Flaeche zur Laufzeit zu
-// einem kamerazugewandten Plaettchen zusammen (AutospriteDeform,
-// tr_shade_calc.cpp): Mitte der vier Ecken, Radius = halbe Diagonale x
-// 0,707, neue Ecken entlang der LINKS- und HOCH-Achse der Kamera, neue
-// Texturkoordinaten 0..1 und eine feste Wicklung 0,1,3 / 3,1,2
-// (RB_AddQuadStamp). Der Rasterer macht es genauso (mapview.cpp,
-// autospriteQuad).
-//
-// Der Vertexshader sieht nur eine Ecke auf einmal. Deshalb steht beim
-// Hochladen, was er braucht: die Mitte als Position, die Richtung der Ecke
-// (+-1 links, +-1 hoch) und den Radius statt der Normalen, die neuen
-// Texturkoordinaten. Die Kameraachsen kommen aus dem Bildpuffer.
-struct SpriteEcke {
-    std::uint32_t ecke = 0;   // Nummer in mesh.verts
-    float mitte[3]{};
-    float links = 0.0F;       // +1 oder -1
-    float hoch = 0.0F;        // +1 oder -1
-    float radius = 0.0F;
+// Das Spiel rechnet RB_DeformTessGeometry (code/rd-vanilla/tr_shade_calc.cpp:549, MD9 gleich) auf der CPU ueber tess: die
+// Eintraege der Reihe nach, AutospriteDeform (:377) klappt je vier Ecken zu einem kamerazugewandten Plaettchen aus Mitte und
+// Radius der schon VERFORMTEN Ecken (RB_AddQuadStampExt, tr_surface.cpp:77: Normale -axis[0] der Welt, st und Lightmap-st 0..1,
+// Farbe der ersten Ecke, Wicklung 0,1,3 / 3,1,2), Autosprite2Deform (:444) dreht um die lange Achse mit sqrt und VectorNormalize.
+// Beides braucht alle vier Ecken und genaue Wurzeln; der Vertex-Shader sieht eine Ecke, und sqrt/Division sind in D3D11 nicht
+// genau gerundet. Deshalb rechnet die Vorschau Flaechen mit autosprite oder autosprite2 hier mit denselben float-Ausdruecken wie
+// das Spiel, und der Vertex-Shader reicht die Ecken nur durch (gpumap_win32.cpp, zeichneKarte; die Merkmale kAutosprite und
+// kAutosprite2 tragen dann keine Verformung, gpustate.cpp). Bis REST3 drehte der Vertex-Shader die beim Hochladen vorbereiteten
+// Ecken (baueAutosprites/baueAutosprites2): wave/bulge vor autosprite, wave/bulge/normal an autosprite2 und ein zweites autosprite
+// fehlten, autosprite2 war nicht bitgleich (Achse normiert beim Hochladen, Startwert 999999 statt WORLD_SIZE), an Movern stand die
+// Normale des Plaettchens im Raum des Modells, im Spiegel fehlte left = -left, die Ecken folgten dem ersten Auftreten in den
+// Indizes statt der Reihenfolge der Flaeche.
+struct SpriteSicht {
+    float links[3]{};      // backEnd.viewParms.ori.axis[1], an einer Entity im Raum des Modells (GlobalVectorToLocal :363)
+    float hoch[3]{};       // axis[2], ebenso
+    float vorn[3]{};       // axis[0], ebenso (Autosprite2Deform :457)
+    float vornWelt[3]{};   // axis[0] in der Welt: RB_AddQuadStampExt (tr_surface.cpp:112) nimmt sie ungedreht als Normale
+    bool spiegel = false;  // viewParms.isMirror: left = -left (AutospriteDeform :400)
+};
+struct TessEcke {
+    float xyz[3]{};
+    float normal[3]{};
     float st[2]{};
+    float lm[2]{};
+    std::uint8_t farbe[4]{};
 };
-
-// `istSprite[b]` sagt, ob Stapel b einen Autosprite-Shader hat. `indizes`
-// kommt als Kopie von mesh.indexes herein; die Abschnitte der Sprite-Stapel
-// werden darin mit der Wicklung der Engine neu geschrieben (gleiche Anzahl:
-// sechs je Viereck). Abschnitt = eine Flaeche der Karte (mesh.runs), ohne
-// Tabelle der ganze Stapel. Passt ein Abschnitt nicht in Vierecke (die
-// Engine bricht dort ab), bleibt er unveraendert - wie im Rasterer.
-[[nodiscard]] std::vector<SpriteEcke> baueAutosprites(
-    const BspMesh& mesh, const std::vector<char>& istSprite,
-    std::vector<std::uint32_t>& indizes);
-
-// --- deformVertexes autosprite2 (rc592) ----------------------------------
-//
-// Autosprite2Deform (tr_shade_calc.cpp): je Viereck die beiden kuerzesten
-// Kanten, ihre Mitten, die lange Achse dazwischen. Jede Ecke der kurzen
-// Kante wird zu Mitte +- halbe Kantenlaenge x Nebenachse, die Nebenachse
-// ist normalize(cross(Achse, Blickrichtung)). Das Vorzeichen haengt daran,
-// ob die Kante in dieser Richtung in der Indexliste steht.
-//
-// Fuer den Vertexshader: Ort = Mitte der kurzen Kante, Normale = Richtung
-// der langen Achse x halbe Kantenlaenge x Vorzeichen. Texturkoordinaten und
-// Wicklung bleiben. `art[b] == 2` heisst: Stapel b hat einen
-// autosprite2-Shader (1 ist autosprite, siehe baueAutosprites).
-struct SpriteEcke2 {
-    std::uint32_t ecke = 0;   // Nummer in mesh.verts
-    float mitte[3]{};
-    float achse[3]{};
-};
-[[nodiscard]] std::vector<SpriteEcke2> baueAutosprites2(
-    const BspMesh& mesh, const std::vector<char>& art);
+// Eine Flaeche (ein Abschnitt von tess): `ecken` in der Reihenfolge der Flaeche, `idx` lokal (0..n-1). Danach stehen Ecken und
+// Indizes wie in tess nach RB_DeformTessGeometry. false: AutospriteDeform bricht im Spiel ab (ERR_DROP: Eckenzahl nicht durch vier
+// teilbar oder nicht sechs Indizes je Viereck) - der Aufrufer zeichnet die Flaeche dann unverformt. Ein Eintrag, an dem
+// TableForFunc abbricht (gpu::deformLage Abbruch), bleibt aus wie im Vertex-Shader.
+[[nodiscard]] bool verformeTess(const DeformZusatz& z, float zeitSekunden, const SpriteSicht& sicht, std::vector<TessEcke>& ecken,
+                                std::vector<std::uint32_t>& idx);
 
 // --- Die Lage: deckend oder gemischt -----------------------------------
 //

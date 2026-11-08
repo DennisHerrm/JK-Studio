@@ -107,27 +107,7 @@ DeformLage deformLage(const DeformZusatz& z, int i) {
         default:
             break;
     }
-    // Die Stelle in der Folge gegenueber autosprite/autosprite2. Der Vertex-Shader sieht je Ecke nur, was beim Hochladen in ihr steht
-    // (baueAutosprites, gpudraw.h): die Mitte des Vierecks und die Richtung der Ecke bzw. die Mitte der kurzen Kante und die lange Achse.
-    int sprite = -1;
-    for (int k = 0; k < z.anzahl; ++k) {
-        if (z.eintraege[k].art == kFolgeSprite || z.eintraege[k].art == kFolgeSprite2) {
-            if (sprite < 0) {
-                sprite = k;
-            } else if (k == i) {
-                return DeformLage::Fehlt;   // ein zweites autosprite rechnet die schon gedrehten Plaettchen noch einmal
-            }
-        }
-    }
-    if (sprite < 0 || i == sprite) { return DeformLage::Gezeigt; }
-    const bool sprite2 = z.eintraege[sprite].art == kFolgeSprite2;
-    if (e.art == kFolgeWeg) { return DeformLage::Gezeigt; }         // derselbe Versatz fuer alle vier Ecken: Mitte und Masse bleiben
-    if (!sprite2 && i > sprite) { return DeformLage::Gezeigt; }     // auf dem Plaettchen (RB_AddQuadStampExt): Normale -vorn, st 0..1
-    // AutospriteDeform ersetzt die Normalen (RB_AddQuadStampExt :112): ein normal davor wirkt nicht
-    if (!sprite2 && e.art == kFolgeNormal) { return DeformLage::Wirkungslos; }
-    // wave und bulge vor autosprite verschieben die Ecken einzeln (Mitte und Radius kommen aus den verformten Ecken); an autosprite2
-    // brauchen wave, bulge und normal die Normale der Ecke, die beim Hochladen der langen Achse weicht.
-    return DeformLage::Fehlt;
+    return DeformLage::Gezeigt;
 }
 
 Verformung verformung(const DeformZusatz& z, float zeitSekunden) {

@@ -70,12 +70,11 @@ int main() {
     // --- Jedes Merkmal, in beide Richtungen ------------------------------
     // FIX5: alle deformVertexes ueber verformeEcke (RB_DeformTessGeometry je Ecke, Tafeln des Spiels)
     beideRichtungen("deformVertexes", kDeform, "welt = verformeEcke(welt, nrm, ein.uv,", true);
-    // Wie AutospriteDeform: entlang der Kameraachsen, Richtung und Radius
-    // aus der Normalen (baueAutosprites beim Hochladen).
-    beideRichtungen("autosprite", kAutosprite, "welt + links * ein.normal.x", true);
+    // REST3: autosprite/autosprite2 rechnet die CPU (verformeTess) - der Vertex-Shader reicht die Ecke durch.
+    erwarte("autosprite/autosprite2: der Vertex-Shader ist der ohne Merkmal",
+            vertexShaderHlsl(kAutosprite, 0) == vertexShaderHlsl(kNichts, 0) && vertexShaderHlsl(kAutosprite2, 0) == vertexShaderHlsl(kNichts, 0));
     beideRichtungen("tcGen environment", kTexGenEnv, "nrm.x * d - 0.5 * v.x", true);
     // rc592: die uebrigen deformVertexes-Formen (RB_DeformTessGeometry).
-    beideRichtungen("autosprite2", kAutosprite2, "cross(ein.normal, gVorn)", true);
     beideRichtungen("deformVertexes bulge", kBulge, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     beideRichtungen("deformVertexes move", kDeformMove, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     beideRichtungen("deformVertexes normal", kDeformNormal, "welt = verformeEcke(welt, nrm, ein.uv,", true);

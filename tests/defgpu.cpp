@@ -13,6 +13,7 @@
 #include "bhed/gpudraw.h"
 #include "bhed/gpushader.h"
 #include "bhed/gpustate.h"
+#include "spieldeform.h"
 #include "vsstrom.h"
 
 #include <d3d11.h>
@@ -31,6 +32,7 @@
 
 using namespace bhed;
 using namespace bhed::gpu;
+using namespace spieldeform;
 
 namespace {
 
@@ -47,88 +49,6 @@ void frei(T*& p) {
         p->Release();
         p = nullptr;
     }
-}
-
-// --- Das Spiel ---------------------------------------------------------------------------------------------------------------
-float sinTable[1024];
-float triangleTable[1024];
-float squareTable[1024];
-float sawToothTable[1024];
-float inverseSawToothTable[1024];
-float noiseTable[256];
-int noisePerm[256];
-void spielInit() {
-    for (int i = 0; i < 1024; i++) {
-        sinTable[i] = std::sin((static_cast<float>(i) * 360.0F / static_cast<float>(1024 - 1)) * 0.017453292519943295769236907684886F);
-        squareTable[i] = (i < 512) ? 1.0F : -1.0F;
-        sawToothTable[i] = static_cast<float>(i) / 1024;
-        inverseSawToothTable[i] = 1.0F - sawToothTable[i];
-        if (i < 512) {
-            triangleTable[i] = (i < 256) ? static_cast<float>(i) / 256 : 1.0F - triangleTable[i - 256];
-        } else {
-            triangleTable[i] = -triangleTable[i - 512];
-        }
-    }
-    std::uint32_t halt = 1001U;   // srand(1001), rand() der MSVC-Laufzeit
-    const auto zufall = [&halt] {
-        halt = halt * 214013U + 2531011U;
-        return static_cast<int>((halt >> 16U) & 0x7fffU);
-    };
-    for (int i = 0; i < 256; i++) {
-        noiseTable[i] = static_cast<float>(((static_cast<float>(zufall()) / 32767.0F) * 2.0 - 1.0));
-        noisePerm[i] = static_cast<unsigned char>(static_cast<float>(zufall()) / 32767.0F * 255);
-    }
-}
-int qFtol(float f) { return (std::fabs(f) < 2147483648.0F) ? static_cast<int>(f) : (-2147483647 - 1); }
-unsigned val(unsigned a) { return static_cast<unsigned>(noisePerm[a & 255U]); }
-float noiseValue(int x, int y, int z, int t) {
-    const auto u = [](int v) { return static_cast<unsigned>(v); };
-    return noiseTable[val(u(x) + val(u(y) + val(u(z) + val(u(t)))))];
-}
-float lerp(float a, float b, float w) { return a * (1.0F - w) + b * w; }
-float rNoiseGet4f(float x, float y, float z, float t) {
-    const int ix = qFtol(std::floor(x));
-    const float fx = x - static_cast<float>(ix);
-    const int iy = qFtol(std::floor(y));
-    const float fy = y - static_cast<float>(iy);
-    const int iz = qFtol(std::floor(z));
-    const float fz = z - static_cast<float>(iz);
-    const int it = qFtol(std::floor(t));
-    const float ft = t - static_cast<float>(it);
-    float value[2];
-    for (int i = 0; i < 2; i++) {
-        const float fv = lerp(lerp(noiseValue(ix, iy, iz, it + i), noiseValue(ix + 1, iy, iz, it + i), fx),
-                              lerp(noiseValue(ix, iy + 1, iz, it + i), noiseValue(ix + 1, iy + 1, iz, it + i), fx), fy);
-        const float bv = lerp(lerp(noiseValue(ix, iy, iz + 1, it + i), noiseValue(ix + 1, iy, iz + 1, it + i), fx),
-                              lerp(noiseValue(ix, iy + 1, iz + 1, it + i), noiseValue(ix + 1, iy + 1, iz + 1, it + i), fx), fy);
-        value[i] = lerp(fv, bv, fz);
-    }
-    return lerp(value[0], value[1], ft);
-}
-const float* tableForFunc(WaveFunc f) {
-    switch (f) {
-        case WaveFunc::Sin: return sinTable;
-        case WaveFunc::Triangle: return triangleTable;
-        case WaveFunc::Square: return squareTable;
-        case WaveFunc::Sawtooth: return sawToothTable;
-        default: return inverseSawToothTable;
-    }
-}
-float waveValueSpiel(const Wave& w, float phase, float floatTime) {
-    return w.base + tableForFunc(w.func)[qFtol((phase + floatTime * w.frequency) * 1024) & 1023] * w.amplitude;
-}
-float evalWaveForm(const Wave& w, float floatTime) {
-    if (w.func == WaveFunc::Noise) { return (w.base + rNoiseGet4f(0, 0, 0, (floatTime + w.phase) * w.frequency) * w.amplitude); }
-    return waveValueSpiel(w, w.phase, floatTime);
-}
-float qRsqrt(float number) {
-    const float x2 = number * 0.5F;
-    std::int32_t i = 0;
-    std::memcpy(&i, &number, 4);
-    i = 0x5f3759df - (i >> 1);
-    float y = 0.0F;
-    std::memcpy(&y, &i, 4);
-    return y * (1.5F - (x2 * y * y));
 }
 
 // ComputeTexCoords (tr_shade.cpp:1725) fuer die tcMod-Kette, wie tests/turbgpu.cpp: jeder Schritt der Reihe nach in float
@@ -182,50 +102,6 @@ struct Fall {
     const char* was;
     ShaderInfo info;
 };
-
-// RB_DeformTessGeometry an einer Ecke, Eintraege von..bis-1 (autosprite/autosprite2 rechnet der Aufrufer): xyz, normal, st[0];
-// time in ms, floatTime = time * 0.001 als float
-void spielVerformen(const DeformZusatz& z, int time, float xyz[3], float normal[3], float s, int von = 0, int bis = kMaxShaderDeforms) {
-    const auto floatTime = static_cast<float>(time * 0.001);
-    for (int i = von; i < bis && i < z.anzahl; ++i) {
-        const DeformEintrag& e = z.eintraege[i];
-        if (e.art == kFolgeWelle) {
-            float scale = 0.0F;
-            if (e.welle.frequency == 0) {
-                scale = evalWaveForm(e.welle, floatTime);
-            } else {
-                const float off = (xyz[0] + xyz[1] + xyz[2]) * e.spread;
-                scale = waveValueSpiel(e.welle, e.welle.phase + off, floatTime);
-            }
-            for (int k = 0; k < 3; ++k) { xyz[k] += normal[k] * scale; }
-        } else if (e.art == kFolgeNormal) {
-            float scale = 0.98F;
-            scale = rNoiseGet4f(xyz[0] * scale, xyz[1] * scale, xyz[2] * scale, floatTime * e.werte[1]);
-            normal[0] += e.werte[0] * scale;
-            scale = 0.98F;
-            scale = rNoiseGet4f(100 + xyz[0] * scale, xyz[1] * scale, xyz[2] * scale, floatTime * e.werte[1]);
-            normal[1] += e.werte[0] * scale;
-            scale = 0.98F;
-            scale = rNoiseGet4f(200 + xyz[0] * scale, xyz[1] * scale, xyz[2] * scale, floatTime * e.werte[1]);
-            normal[2] += e.werte[0] * scale;
-            const float il = qRsqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
-            for (int k = 0; k < 3; ++k) { normal[k] *= il; }
-        } else if (e.art == kFolgeBeule) {
-            const float* b = e.werte;
-            if (b[2] == 0.0F && b[0] == 0.0F) {
-                for (int k = 0; k < 3; ++k) { xyz[k] += normal[k] * b[1]; }
-            } else {
-                const float now = static_cast<float>(time) * b[2] * 0.001F;
-                const int off = qFtol(static_cast<float>(1024) / (3.14159265358979323846F * 2) * (s * b[0] + now));
-                const float scale = sinTable[off & 1023] * b[1];
-                for (int k = 0; k < 3; ++k) { xyz[k] += normal[k] * scale; }
-            }
-        } else if (e.art == kFolgeWeg) {
-            const float scale = waveValueSpiel(e.welle, e.welle.phase, floatTime);
-            for (int k = 0; k < 3; ++k) { xyz[k] += e.werte[k] * scale; }
-        }
-    }
-}
 
 // Der Zustand eines Stapels aus dem gelesenen Shader (wie batchStateFor aus TextureSet::Tex)
 BatchState stapel(const ShaderInfo& info) {
@@ -531,14 +407,16 @@ int main() {
             }
         }
     }
-    // --- DEF1 P44: autosprite/autosprite2 an ihrer Stelle der Folge (RB_DeformTessGeometry, tr_shade_calc.cpp:553) ---------------
+    // --- REST3: Shader mit autosprite/autosprite2 rechnet die CPU wie das Spiel (gpu::verformeTess) -------------------------------
     //
-    // Die Ecken kommen wie im Programm aus baueAutosprites/baueAutosprites2 (gpudraw.cpp) in den echten Vertex-Shader der Karte. Das
-    // Spiel: AutospriteDeform (:377) auf den vier Ecken, RB_AddQuadStampExt (tr_surface.cpp:78: Normale -axis[0], st 0..1), danach die
-    // Eintraege hinter dem autosprite. "move, autosprite": die Mitte rechnet die Vorschau aus den unverschobenen Ecken (beim Hochladen),
-    // das Spiel aus den verschobenen - gleich bis auf die Rundung (hoechstens 16 ulp der groessten Koordinate verlangt).
+    // Gegen RB_DeformTessGeometry mit AutospriteDeform/Autosprite2Deform und RB_AddQuadStampExt (spieldeform.h, abgeschrieben): Ort,
+    // Normale, st, Lightmap-st, Farbe und Indizes Bit fuer Bit, an der Welt, an einer gedrehten und skalierten Entity
+    // (GlobalVectorToLocal wie zeichneMover, Normale des Plaettchens aus der Welt) und im Spiegel. Danach reicht der echte Vertex-Shader
+    // der Karte die Ecken unveraendert durch (WARP und Grafikkarte). Bis REST3 drehte der Vertex-Shader (Rotbeleg
+    // Y:\werkzeuge\r3\rot_p123.txt: wave, bulge oder ein zweites autosprite vor autosprite, autosprite2 mit wave, autosprite2 allein
+    // 1895/1908 von 8192 Ecken, lange Kanten 7676/7684, Mover mit wave hinter autosprite, Spiegel - je WARP/Intel UHD abweichend).
     {
-        float achsen[9];
+        float achsen[3][3];
         {
             const float gier = zahl(0.0, 6.2831853);
             const float nick = zahl(-1.2, 1.2);
@@ -546,200 +424,167 @@ int main() {
             const float cy = std::cos(gier);
             const float sp = std::sin(nick);
             const float cp = std::cos(nick);
-            const float a[9] = {cp * cy, cp * sy, -sp, -sy, cy, 0.0F, sp * cy, sp * sy, cp};   // vorn, links (axis[1]), hoch
-            std::copy(a, a + 9, achsen);
+            const float a[3][3] = {{cp * cy, cp * sy, -sp}, {-sy, cy, 0.0F}, {sp * cy, sp * sy, cp}};   // vorn, links (axis[1]), hoch
+            std::memcpy(achsen, a, sizeof a);
         }
-        const UINT vierecke = 2048;
-        BspMesh netz;
-        for (UINT q = 0; q < vierecke; ++q) {
-            const float mitte[3] = {zahl(-8000.0, 8000.0), zahl(-8000.0, 8000.0), zahl(-2000.0, 2000.0)};
-            for (int w = 0; w < 4; ++w) {
-                BspVertex v;
-                for (int k = 0; k < 3; ++k) {
-                    v.xyz[k] = mitte[k] + zahl(-64.0, 64.0);
-                    v.normal[k] = zahl(-1.0, 1.0);
-                }
-                v.st[0] = zahl(-4.0, 4.0);
-                v.st[1] = zahl(-4.0, 4.0);
-                netz.verts.push_back(v);
-            }
-            const std::uint32_t b0 = q * 4U;
-            for (const std::uint32_t i : {b0, b0 + 1U, b0 + 2U, b0, b0 + 2U, b0 + 3U}) { netz.indexes.push_back(i); }
+        float ent[9];   // eine gedrehte und skalierte Entity (Zeile k = backEnd.ori.axis[k], nonNormalizedAxes)
+        {
+            const float g = zahl(0.3, 2.9);
+            const float c = std::cos(g);
+            const float sn = std::sin(g);
+            const float e[9] = {1.5F * c, 1.5F * sn, 0.0F, -sn, c, 0.0F, 0.0F, 0.0F, 0.75F};
+            std::memcpy(ent, e, sizeof e);
         }
-        BspMesh::Batch stp;
-        stp.numIndexes = static_cast<std::uint32_t>(netz.indexes.size());
-        netz.batches.push_back(stp);
-        std::vector<std::uint32_t> idx = netz.indexes;
-        const std::vector<SpriteEcke> sprite = baueAutosprites(netz, {1}, idx);
-        const std::vector<SpriteEcke2> sprite2 = baueAutosprites2(netz, {2});
-        erwarte("P44: baueAutosprites/baueAutosprites2 liefern jede Ecke", sprite.size() == netz.verts.size() && sprite2.size() == netz.verts.size());
-        const auto ecken = [&](bool zwei) {
-            std::vector<vsstrom::Ecke> e(netz.verts.size());
-            for (std::size_t i = 0; i < e.size(); ++i) {
-                const BspVertex& v = netz.verts[i];
-                e[i] = vsstrom::Ecke{{v.xyz[0], v.xyz[1], v.xyz[2]}, {v.normal[0], v.normal[1], v.normal[2]}, {v.st[0], v.st[1]},
-                                     {0.0F, 0.0F, 1.0F, 1.0F}, {1.0F, 1.0F, 0.0F, 0.0F}};
-            }
-            if (zwei) {
-                for (const SpriteEcke2& s : sprite2) {
-                    std::copy(s.mitte, s.mitte + 3, e[s.ecke].pos);
-                    std::copy(s.achse, s.achse + 3, e[s.ecke].normal);
-                }
-            } else {
-                for (const SpriteEcke& s : sprite) {
-                    std::copy(s.mitte, s.mitte + 3, e[s.ecke].pos);
-                    e[s.ecke].normal[0] = s.links;
-                    e[s.ecke].normal[1] = s.hoch;
-                    e[s.ecke].normal[2] = s.radius;
-                    std::copy(s.st, s.st + 2, e[s.ecke].uv);
-                }
-            }
-            return e;
-        };
         const auto lese = [](const char* text) {
             ShaderMap sm;
             parseShaderScript(std::string("textures/defgpu/s\n{\ndeformVertexes ") + text + "\n{\nmap x\n}\n}\n", sm);
             return sm["textures/defgpu/s"];
         };
-        constexpr std::uint32_t kMaske = kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite | kAutosprite2;
-        // 16 ulp der groessten Koordinate der Ecke (die Mitte rundet in der Groesse der Koordinaten, nicht der einzelnen Achse)
-        const auto ulp = [](float a, std::uint32_t b, float gross) {
-            float g = 0.0F;
-            std::memcpy(&g, &b, 4);
-            return std::fabs(a - g) <= 16.0F * (std::nextafter(gross, 1e30F) - gross);
-        };
         struct SpriteFall {
             const char* was;
             const char* text;
-            bool genau;
+            bool mover;
+            bool spiegel;
+            double weite;   // halbe Kantenlaenge der Vierecke; 600: Kanten ueber sqrt(WORLD_SIZE) = 362
         };
         const SpriteFall faelleS[] = {
-            {"autosprite", "autosprite", true},
-            {"autosprite, wave, bulge", "autosprite\ndeformVertexes wave 64 sin 1 4 0.2 0.9\ndeformVertexes bulge 0.5 3 1.3", true},
-            {"autosprite, normal, wave", "autosprite\ndeformVertexes normal 0.3 1.1\ndeformVertexes wave 80 triangle 0 3 0.3 0.5", true},
-            {"move, autosprite", "move 3 -2 7.5 sin 0 1 0.15 0.8\ndeformVertexes autosprite", false},
+            {"autosprite", "autosprite", false, false, 64.0},
+            {"autosprite, wave, bulge", "autosprite\ndeformVertexes wave 64 sin 1 4 0.2 0.9\ndeformVertexes bulge 0.5 3 1.3", false, false, 64.0},
+            {"autosprite, normal, wave", "autosprite\ndeformVertexes normal 0.3 1.1\ndeformVertexes wave 80 triangle 0 3 0.3 0.5", false, false, 64.0},
+            {"move, autosprite", "move 3 -2 7.5 sin 0 1 0.15 0.8\ndeformVertexes autosprite", false, false, 64.0},
+            {"wave, autosprite", "wave 64 sin 1 4 0.2 0.9\ndeformVertexes autosprite", false, false, 64.0},
+            {"bulge, autosprite", "bulge 0.5 3 1.3\ndeformVertexes autosprite", false, false, 64.0},
+            {"autosprite, autosprite", "autosprite\ndeformVertexes autosprite", false, false, 64.0},
+            {"autosprite2", "autosprite2", false, false, 64.0},
+            {"autosprite2, lange Kanten", "autosprite2", false, false, 600.0},
+            {"autosprite2, wave", "autosprite2\ndeformVertexes wave 80 triangle 0 3 0.3 0.5", false, false, 64.0},
+            {"bulge, autosprite2, normal", "bulge 0.5 3 1.3\ndeformVertexes autosprite2\ndeformVertexes normal 0.3 1.1", false, false, 64.0},
+            {"autosprite2, move", "autosprite2\ndeformVertexes move 0 3 -1 sin 0.5 2 0.1 0.7", false, false, 64.0},
+            {"Mover: autosprite, wave", "autosprite\ndeformVertexes wave 64 sin 1 4 0.2 0.9", true, false, 64.0},
+            {"Mover: autosprite2", "autosprite2", true, false, 64.0},
+            {"Spiegel: autosprite", "autosprite", false, true, 64.0},
         };
+        const UINT vierecke = 2048;
         for (const SpriteFall& sf : faelleS) {
+            BspMesh netz;
+            for (UINT q = 0; q < vierecke; ++q) {
+                const float mitte[3] = {zahl(-8000.0, 8000.0), zahl(-8000.0, 8000.0), zahl(-2000.0, 2000.0)};
+                for (int w = 0; w < 4; ++w) {
+                    BspVertex v;
+                    for (int k = 0; k < 3; ++k) {
+                        v.xyz[k] = mitte[k] + zahl(-sf.weite, sf.weite);
+                        v.normal[k] = zahl(-1.0, 1.0);
+                    }
+                    v.st[0] = zahl(-4.0, 4.0);
+                    v.st[1] = zahl(-4.0, 4.0);
+                    v.lightmap[0] = zahl(0.0, 1.0);
+                    v.lightmap[1] = zahl(0.0, 1.0);
+                    for (int k = 0; k < 4; ++k) { v.colour[k] = static_cast<std::uint8_t>(zz() & 255U); }
+                    netz.verts.push_back(v);
+                }
+                const std::uint32_t b0 = q * 4U;
+                // q3map2 schreibt die Vierecke verschieden (kor1: 3,0,2 / 2,0,1) - Autosprite2Deform haengt an der Indexfolge
+                if ((q & 1U) == 0U) {
+                    for (const std::uint32_t i : {b0, b0 + 1U, b0 + 2U, b0, b0 + 2U, b0 + 3U}) { netz.indexes.push_back(i); }
+                } else {
+                    for (const std::uint32_t i : {b0 + 3U, b0, b0 + 2U, b0 + 2U, b0, b0 + 1U}) { netz.indexes.push_back(i); }
+                }
+            }
             const ShaderInfo info = lese(sf.text);
             const DeformZusatz& z = info.deform2;
-            int stelle = 0;
-            while (stelle < z.anzahl && z.eintraege[stelle].art != kFolgeSprite) { ++stelle; }
             const int ms = static_cast<int>(zz() % 3600000U);
             const auto zeit = static_cast<float>(ms * 0.001);
             // Das Spiel
-            std::vector<float> soll;
-            for (UINT q = 0; q < vierecke; ++q) {
-                float xyz[4][3];
-                for (int w = 0; w < 4; ++w) {
-                    BspVertex v = netz.verts[q * 4U + static_cast<UINT>(w)];
-                    spielVerformen(z, ms, v.xyz, v.normal, v.st[0], 0, stelle);
-                    std::copy(v.xyz, v.xyz + 3, xyz[w]);
-                }
-                float mid[3];
-                for (int k = 0; k < 3; ++k) { mid[k] = 0.25F * (xyz[0][k] + xyz[1][k] + xyz[2][k] + xyz[3][k]); }
-                const float d[3] = {xyz[0][0] - mid[0], xyz[0][1] - mid[1], xyz[0][2] - mid[2]};
-                const float radius = static_cast<float>(std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])) * 0.707F;
-                float left[3];
-                float up[3];
-                for (int k = 0; k < 3; ++k) {
-                    left[k] = achsen[3 + k] * radius;
-                    up[k] = achsen[6 + k] * radius;
-                }
-                static const float kRicht[4][2] = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-                static const float kSt[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-                for (int w = 0; w < 4; ++w) {
-                    float p[3];
-                    float n[3];
-                    for (int k = 0; k < 3; ++k) {
-                        p[k] = (kRicht[w][0] > 0 ? mid[k] + left[k] : mid[k] - left[k]);
-                        p[k] = (kRicht[w][1] > 0 ? p[k] + up[k] : p[k] - up[k]);
-                        n[k] = -achsen[k];
+            SpielTess t;
+            for (const BspVertex& v : netz.verts) {
+                t.xyz.push_back({v.xyz[0], v.xyz[1], v.xyz[2]});
+                t.normal.push_back({v.normal[0], v.normal[1], v.normal[2]});
+                t.st.push_back({v.st[0], v.st[1]});
+                t.lm.push_back({v.lightmap[0], v.lightmap[1]});
+                t.farbe.push_back({v.colour[0], v.colour[1], v.colour[2], v.colour[3]});
+            }
+            t.idx = netz.indexes;
+            SpielBlick blick{};
+            std::memcpy(blick.axis, achsen, sizeof achsen);
+            blick.ent = sf.mover ? ent : nullptr;
+            blick.isMirror = sf.spiegel;
+            spielDeformTess(z, ms, blick, t);
+            // Die Vorschau: verformeTess mit der Sicht wie zeichneKarte (links = -gRechts) und zeichneMover (die Achsen mal den Spalten
+            // der Stellung), vornWelt aus der Welt
+            SpriteSicht sicht;
+            for (int k = 0; k < 3; ++k) {
+                const auto lokal = [&](int a) {
+                    return sf.mover ? achsen[a][0] * ent[3 * k] + achsen[a][1] * ent[3 * k + 1] + achsen[a][2] * ent[3 * k + 2] : achsen[a][k];
+                };
+                sicht.vorn[k] = lokal(0);
+                sicht.links[k] = lokal(1);
+                sicht.hoch[k] = lokal(2);
+                sicht.vornWelt[k] = achsen[0][k];
+            }
+            sicht.spiegel = sf.spiegel;
+            std::vector<TessEcke> te(netz.verts.size());
+            for (std::size_t i = 0; i < te.size(); ++i) {
+                const BspVertex& v = netz.verts[i];
+                std::copy(v.xyz, v.xyz + 3, te[i].xyz);
+                std::copy(v.normal, v.normal + 3, te[i].normal);
+                std::copy(v.st, v.st + 2, te[i].st);
+                std::copy(v.lightmap, v.lightmap + 2, te[i].lm);
+                std::copy(v.colour, v.colour + 4, te[i].farbe);
+            }
+            std::vector<std::uint32_t> idx = netz.indexes;
+            const bool lief = verformeTess(z, zeit, sicht, te, idx);
+            int falsch = 0;
+            for (std::size_t i = 0; lief && i < te.size() && i < t.xyz.size(); ++i) {
+                const bool ok = std::memcmp(te[i].xyz, t.xyz[i].data(), 12) == 0 && std::memcmp(te[i].normal, t.normal[i].data(), 12) == 0 &&
+                                std::memcmp(te[i].st, t.st[i].data(), 8) == 0 && std::memcmp(te[i].lm, t.lm[i].data(), 8) == 0 &&
+                                std::memcmp(te[i].farbe, t.farbe[i].data(), 4) == 0;
+                if (!ok) {
+                    if (falsch < 2) {
+                        std::printf("        %s: Ecke %zu Vorschau %.9g %.9g %.9g, Spiel %.9g %.9g %.9g\n", sf.was, i, static_cast<double>(te[i].xyz[0]),
+                                    static_cast<double>(te[i].xyz[1]), static_cast<double>(te[i].xyz[2]), static_cast<double>(t.xyz[i][0]),
+                                    static_cast<double>(t.xyz[i][1]), static_cast<double>(t.xyz[i][2]));
                     }
-                    spielVerformen(z, ms, p, n, kSt[w][0], stelle + 1, kMaxShaderDeforms);
-                    soll.insert(soll.end(), {p[0], p[1], p[2]});
+                    ++falsch;
                 }
             }
-            // Die Vorschau: die Ecken in der Reihenfolge von baueAutosprites (je Viereck die erste Ecke zuerst)
-            const BatchState bs = stapel(info);
+            char zl[300];
+            std::snprintf(zl, sizeof zl, "REST3 %s: verformeTess zu RB_DeformTessGeometry bitgleich (Ort, Normale, st, Lightmap-st, Farbe): %d von %zu Ecken abweichend",
+                          sf.was, falsch, te.size());
+            erwarte(zl, lief && te.size() == t.xyz.size() && falsch == 0);
+            erwarte(std::string("REST3 ") + sf.was + ": Indizes wie im Spiel", idx == t.idx);
+            // Der Vertex-Shader der Karte mit den Merkmalen des Stapels reicht die Ecken durch
+            BatchState bs{};
+            bs.deformWave = info.deformWave;
+            bs.deformSpread = info.deformSpread;
+            bs.deform2 = info.deform2;
+            bs.autosprite = info.autosprite;
             std::vector<float> konst(kKonstFloats, 0.0F);
             packeKonstanten(bs, konst.data(), zeit);
-            const std::uint32_t merkmale = pipelineFor(bs, false).features & kMaske;
+            const std::uint32_t merkmale = pipelineFor(bs, false).features & (kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite | kAutosprite2);
+            std::vector<vsstrom::Ecke> ein(te.size());
+            for (std::size_t i = 0; i < te.size(); ++i) {
+                ein[i] = vsstrom::Ecke{{te[i].xyz[0], te[i].xyz[1], te[i].xyz[2]}, {te[i].normal[0], te[i].normal[1], te[i].normal[2]},
+                                       {te[i].st[0], te[i].st[1]}, {te[i].lm[0], te[i].lm[1], 1.0F, 1.0F}, {1.0F, 1.0F, 0.0F, 0.0F}};
+            }
+            const float vsAchsen[9] = {sicht.vorn[0], sicht.vorn[1], sicht.vorn[2], sicht.links[0], sicht.links[1], sicht.links[2],
+                                       sicht.hoch[0], sicht.hoch[1], sicht.hoch[2]};
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;
-                std::string dis;
-                if (!vsstrom::laufen(art, vertexShaderHlsl(merkmale, 0), "vs_5_0", 0, vsstrom::Eingabe::Karte,
-                                     {{0, jeBild(zeit, achsen)}, {1, konst}}, ecken(false), aus, name, &dis)) {
-                    erwarte(std::string("P44 ") + sf.was + " " + wer + ": Geraet nicht da oder Shader nicht uebersetzt",
+                if (!vsstrom::laufen(art, vertexShaderHlsl(merkmale, 0), "vs_5_0", 0, vsstrom::Eingabe::Karte, {{0, jeBild(zeit, vsAchsen)}, {1, konst}},
+                                     ein, aus, name, nullptr)) {
+                    erwarte(std::string("REST3 ") + sf.was + " " + wer + ": Geraet nicht da oder Shader nicht uebersetzt",
                             art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
                     continue;
                 }
-                int falsch = 0;
-                for (std::size_t i = 0; i < netz.verts.size(); ++i) {
-                    bool ok = true;
-                    const float gross = std::max({std::fabs(soll[i * 3]), std::fabs(soll[i * 3 + 1]), std::fabs(soll[i * 3 + 2])});
-                    for (std::size_t k = 0; k < 3; ++k) {
-                        ok = ok && (sf.genau ? gleichBits(soll[i * 3 + k], aus[i * 6 + k]) : ulp(soll[i * 3 + k], aus[i * 6 + k], gross));
-                    }
-                    if (!ok) {
-                        if (falsch < 2) {
-                            float g[3];
-                            std::memcpy(g, &aus[i * 6], 12);
-                            std::printf("        P44 %s %s: GPU %.9g %.9g %.9g, Spiel %.9g %.9g %.9g\n", sf.was, wer, static_cast<double>(g[0]),
-                                        static_cast<double>(g[1]), static_cast<double>(g[2]), static_cast<double>(soll[i * 3]),
-                                        static_cast<double>(soll[i * 3 + 1]), static_cast<double>(soll[i * 3 + 2]));
-                        }
-                        ++falsch;
-                    }
+                int anders = 0;
+                for (std::size_t i = 0; i < te.size(); ++i) {
+                    if (std::memcmp(&aus[i * 6], te[i].xyz, 12) != 0) { ++anders; }
                 }
-                char zl[300];
-                std::snprintf(zl, sizeof zl, "P44 Karte %s (%s): %s %s zu AutospriteDeform und RB_DeformTessGeometry: %d von %zu Ecken abweichend",
-                              wer, name.c_str(), sf.was, sf.genau ? "bitgleich" : "bis 16 ulp gleich", falsch, netz.verts.size());
-                erwarte(zl, falsch == 0);
-            }
-        }
-        // autosprite2 und move dahinter: dieselben Ecken mit und ohne move - der Unterschied ist genau der Versatz des Spiels
-        {
-            const ShaderInfo info = lese("autosprite2\ndeformVertexes move 0 3 -1 sin 0.5 2 0.1 0.7");
-            const ShaderInfo ohne = lese("autosprite2");
-            const int ms = static_cast<int>(zz() % 3600000U);
-            const auto zeit = static_cast<float>(ms * 0.001);
-            float versatz[3] = {0.0F, 0.0F, 0.0F};
-            float nullN[3] = {0.0F, 0.0F, 0.0F};
-            spielVerformen(info.deform2, ms, versatz, nullN, 0.0F, 1, kMaxShaderDeforms);
-            for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
-                const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
-                std::vector<std::uint32_t> aus[2];
-                std::string name;
-                bool lief = true;
-                for (int j = 0; j < 2 && lief; ++j) {
-                    const BatchState bs = stapel(j == 0 ? info : ohne);
-                    std::vector<float> konst(kKonstFloats, 0.0F);
-                    packeKonstanten(bs, konst.data(), zeit);
-                    lief = vsstrom::laufen(art, vertexShaderHlsl(pipelineFor(bs, false).features & kMaske, 0), "vs_5_0", 0, vsstrom::Eingabe::Karte,
-                                           {{0, jeBild(zeit, achsen)}, {1, konst}}, ecken(true), aus[j], name, nullptr);
-                }
-                if (!lief) {
-                    erwarte(std::string("P44 autosprite2, move ") + wer + ": Geraet nicht da oder Shader nicht uebersetzt",
-                            art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
-                    continue;
-                }
-                int falsch = 0;
-                for (std::size_t i = 0; i < netz.verts.size(); ++i) {
-                    for (std::size_t k = 0; k < 3; ++k) {
-                        float o = 0.0F;
-                        std::memcpy(&o, &aus[1][i * 6 + k], 4);
-                        if (!gleichBits(o + versatz[k], aus[0][i * 6 + k])) {
-                            ++falsch;
-                            break;
-                        }
-                    }
-                }
-                char zl[300];
-                std::snprintf(zl, sizeof zl, "P44 Karte %s (%s): autosprite2, move - move nach Autosprite2Deform: %d von %zu Ecken abweichend", wer,
-                              name.c_str(), falsch, netz.verts.size());
-                erwarte(zl, falsch == 0);
+                std::snprintf(zl, sizeof zl, "REST3 Karte %s (%s): %s - der Vertex-Shader reicht die Ecken der CPU durch: %d von %zu Ecken veraendert",
+                              wer, name.c_str(), sf.was, anders, te.size());
+                erwarte(zl, anders == 0);
             }
         }
     }

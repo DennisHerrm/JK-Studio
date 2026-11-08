@@ -228,6 +228,11 @@ struct PipelineState {
                                         bool zusatzstufe = false,
                                         bool festeFarbe = false);
 
+// REST3: Steht autosprite oder autosprite2 in der Folge der deformVertexes? Dann rechnet die CPU alle deformVertexes des Shaders
+// wie das Spiel (gpu::verformeTess, gpudraw.h); pipelineFor setzt nur kAutosprite/kAutosprite2 (keine Rechnung im Vertex-Shader,
+// Licht- und Nebeldurchgang lassen die Flaeche aus wie bisher), keine Merkmale der Verformung je Ecke.
+[[nodiscard]] bool spriteAufCpu(const DeformZusatz& z) noexcept;
+
 // --- Woher kommt das Licht einer Stufe? ----------------------------------
 //
 // Nach der Engine (tr_shader.cpp):

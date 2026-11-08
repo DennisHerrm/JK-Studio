@@ -375,6 +375,12 @@ void figurDeformAus(bool aus);
 // moverSpriteAchsenAus(true) zeichnet sie mit den Weltachsen (Selbsttest).
 int moverSpriteAufrufe();
 void moverSpriteAchsenAus(bool aus);
+// REST3: wie viele Ecken die CPU seit dem Start wie RB_DeformTessGeometry verformt hat (autosprite/autosprite2, verformeTess) -
+// Selbsttest.
+long long spriteCpuEcken();
+// REST3: die letzte Sicht von verformeTess an einem Mover (links, hoch, vorn im Raum des Modells, vornWelt), dazu seine Stellung
+// (welt, Zeilen) und die Kameraachsen der Welt (vorn, rechts, hoch); false: noch keine.
+bool spriteSichtProbe(float welt[16], float weltAchsen[9], float sicht[12]);
 // rc603: der schnelle Stufenweg - dieselben Aufrufe wie rc602, die Werte
 // einer Flaeche mit einem Map im Ring, die Zustaende gemerkt.
 // figurStufenSchnellAufrufe: seine Stufenaufrufe im letzten Hauptbild;

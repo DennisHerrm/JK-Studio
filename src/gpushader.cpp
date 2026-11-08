@@ -272,7 +272,8 @@ float qRsqrtSpiel(float zahl) {
 #endif
 // Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]) durch die Eintraege von..bis-1 der Folge;
 // d0..d3 aus gpu::verformung (je Platz ein float4, d3.xyz die Spreads der Wellen, d3.w die Folge zu je vier Bit, kDefCode...).
-// autosprite/autosprite2 (Code 10, 11) dreht der Vertex-Shader der Karte selbst - hier stehen sie nur an ihrer Stelle.
+// autosprite/autosprite2 (Code 10, 11) stehen nur an ihrer Stelle: an der Karte rechnet solche Shader die CPU (gpu::verformeTess),
+// an Figuren fehlen sie (Kartenpruefung).
 float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d1, float4 d2, float4 d3, int von, int bis) {
     precise float3 p = xyz;
     precise float3 n = nrm;
@@ -1396,72 +1397,13 @@ struct VSOut {
     // (verformeEcke, kVerformText), die Welle aus den Tafeln des Spiels, normal mit R_NoiseGet4f, bulge mit refdef.time. Bis FIX5
     // stand hier je Art ein eigener Block: wave mit frac() und sin(t * 2 pi) der Grafikkarte (jede Form als Sinus, frequency 0 wie
     // jede andere), normal mit einer Streufunktion, bulge mit sin(s * breite + Sekunden * tempo), feste Reihenfolge.
-    // DEF1 P44: autosprite/autosprite2 an ihrer Stelle der Folge (RB_DeformTessGeometry): die Eintraege davor auf der Ecke, wie sie
-    // hochgeladen wurde (gpu::deformLage laesst dort nur zu, was fuer alle vier Ecken gleich wirkt), die dahinter auf dem Plaettchen.
+    // REST3: autosprite/autosprite2 (kAutosprite, kAutosprite2) rechnet die CPU samt aller deformVertexes des Shaders wie das Spiel
+    // (gpu::verformeTess, gpudraw.h; pipelineFor setzt dann keine Verformungsmerkmale) - die Ecke kommt fertig an. Bis REST3 drehte
+    // dieser Shader die beim Hochladen vorbereiteten Ecken zur Kamera (Mitte/Richtung/Radius bzw. Mitte der kurzen Kante/Achse).
     const bool verform = (features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U;
-    const bool sprite = (features & (kAutosprite | kAutosprite2)) != 0U;
-    const char* const kVerformAufruf =
-        "verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove, ";
-    if (verform && sprite) {
-        s += "    int spriteStelle = 3;\n";
-        s += "    [unroll] for (int k = 2; k >= 0; --k) {\n";
-        s += "        uint c = ((uint)gDeformMove.w >> (4 * k)) & 15u;\n";
-        s += "        if (c == 10u || c == 11u) { spriteStelle = k; }\n";
-        s += "    }\n";
-        s += std::string("    welt = ") + kVerformAufruf + "0, spriteStelle);\n";
-    } else if (verform) {
-        s += std::string("    welt = ") + kVerformAufruf + "0, 3);\n";
+    if (verform) {
+        s += "    welt = verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove, 0, 3);\n";
     }
-
-    // autosprite: die Ecke zur Kamera drehen. Nur 34 Vorkommen in allen 43
-    // Karten, aber ohne sie stehen Flammen und Rauchfahnen quer.
-    //
-    // Wie AutospriteDeform (tr_shade_calc.cpp): das Plaettchen steht entlang
-    // der LINKS- und HOCH-Achse der Kamera, nicht zur Ecke gedreht. Beim
-    // Hochladen (baueAutosprites, gpudraw.cpp) ist die Position schon die
-    // Mitte des Vierecks, und in der Normalen stehen Richtung (x: +-1 links,
-    // y: +-1 hoch) und Radius (z).
-    //
-    // Vorher stand hier `welt += rechts * uv.x + hoch * uv.y` - ein Versatz
-    // um die Texturkoordinate, also um null bis eine Einheit. Die Holo-
-    // Flaechen in md_am_sith blieben so stehen, wie sie gebaut sind: das
-    // Palpatine-Hologramm als grosses Rechteck, das die Figuren dahinter
-    // ueberdeckte.
-    //
-    // DEF1 P44: die Normale des Plaettchens ist -vorn (RB_AddQuadStampExt, tr_surface.cpp:112), st steht schon beim Hochladen da.
-    // Bit fuer Bit wie RB_AddQuadStampExt (tr_surface.cpp:78): left = leftDir * radius, up = upDir * radius (VectorScale), dann
-    // origin +- left +- up von links nach rechts (DEF1; vorher (links * x + hoch * y) * radius, anders gerundet).
-    wenn(s, features, kAutosprite, R"(    {
-        precise float3 links = -gRechts * ein.normal.z;
-        precise float3 hoch = gHoch * ein.normal.z;
-        precise float3 halb = welt + links * ein.normal.x;
-        welt = halb + hoch * ein.normal.y;
-        nrm = -gVorn;
-    }
-)");
-
-    // autosprite2 - Autosprite2Deform: die Ecke steht beim Hochladen auf der
-    // Mitte ihrer kurzen Kante, in der Normalen die lange Achse mal halbe
-    // Kantenlaenge, mit dem Vorzeichen der Seite (baueAutosprites2). Die
-    // Nebenachse ist normalize(cross(achse, vorn)) - wie in der Engine mit
-    // der Blickrichtung, nicht der Richtung zur Ecke. Steht die Achse genau
-    // in Blickrichtung, laesst VectorNormalize die Null stehen: dann
-    // klappt das Viereck zur Linie, hier ebenso.
-    // DEF1: precise, damit jede Variante (mit und ohne deformVertexes dahinter) dieselbe Ecke rechnet - die Intel UHD rechnete sie
-    // sonst je Variante anders (ctest defgpu "autosprite2, move": 328 von 8192 Ecken).
-    wenn(s, features, kAutosprite2, R"(    {
-        precise float l = length(ein.normal);
-        precise float3 q = cross(ein.normal, gVorn);
-        precise float ql = length(q);
-        if (ql > 1e-6) {
-            precise float3 v = q * (l / ql);
-            precise float3 w2 = welt + v;
-            welt = w2;
-        }
-    }
-)");
-    // DEF1 P44: die Eintraege hinter dem autosprite
-    if (verform && sprite) { s += std::string("    welt = ") + kVerformAufruf + "spriteStelle + 1, 3);\n"; }
 
     // --- Die Stellung des Netzes steckt in gViewProj ---------------------
     //

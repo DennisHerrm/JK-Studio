@@ -160,6 +160,21 @@ struct Netzpuffer {
     // Shader kommen mit den Texturen, und die koennen NACH dem ersten
     // Hochladen kommen oder neu geladen werden - dann muss der Puffer neu.
     std::size_t spriteZeichen = 0;
+    // REST3: die Flaechen, deren deformVertexes die CPU rechnet (spriteAufCpu, verformeTess). Ihre verformten Ecken stehen hinter
+    // den nVerts Ecken des Netzes im Vertexpuffer (cpuEcken je Abschnitt ab cpuStart), ihre Indizes zeigen dorthin (cpuIdx: die
+    // Indizes des Netzes mit diesen Abschnitten umgeschrieben). cpuStand: Zeit und Sicht des letzten Hochladens.
+    struct CpuAbschnitt {
+        std::uint32_t firstIndex = 0;
+        std::uint32_t numIndexes = 0;
+        std::uint32_t ersteEcke = 0;
+        std::uint32_t eckenZahl = 0;
+        std::uint32_t cpuStart = 0;
+        std::uint32_t batch = 0;
+    };
+    std::vector<CpuAbschnitt> cpuAbschnitte;
+    std::size_t cpuEcken = 0;
+    std::vector<std::uint32_t> cpuIdx;
+    std::vector<float> cpuStand;
 };
 // Drei Plaetze: Karte, Effektnetz, Mover. Mover teilen sich einen Platz -
 // sie werden nacheinander gezeichnet, und jeder bringt seine eigenen Ecken
@@ -3707,6 +3722,30 @@ bool leseUmrissMaske(std::vector<std::uint8_t>& maske, int& breite, int& hoehe) 
 
 int g_moverSpriteAufrufe = 0;   // rc605: autosprite an Movern/Modellen
 int moverSpriteAufrufe() { return g_moverSpriteAufrufe; }
+long long g_spriteCpuEcken = 0;   // REST3: von der CPU verformte Ecken (verformeTess) seit dem Start
+long long spriteCpuEcken() { return g_spriteCpuEcken; }
+// REST3: die letzte Sicht, mit der verformeTess an einem Mover rechnete, samt Stellung und Weltachsen (Selbsttest)
+struct SpriteSichtProbe {
+    bool da = false;
+    float welt[16]{};
+    float weltAchsen[9]{};
+    SpriteSicht sicht;
+};
+SpriteSichtProbe g_spriteProbe;
+float g_spriteProbeWelt[9]{};
+bool spriteSichtProbe(float welt[16], float weltAchsen[9], float sicht[12]) {
+    if (!g_spriteProbe.da) { return false; }
+    std::copy(g_spriteProbe.welt, g_spriteProbe.welt + 16, welt);
+    std::copy(g_spriteProbe.weltAchsen, g_spriteProbe.weltAchsen + 9, weltAchsen);
+    const SpriteSicht& v = g_spriteProbe.sicht;
+    for (int k = 0; k < 3; ++k) {
+        sicht[k] = v.links[k];
+        sicht[3 + k] = v.hoch[k];
+        sicht[6 + k] = v.vorn[k];
+        sicht[9 + k] = v.vornWelt[k];
+    }
+    return true;
+}
 bool g_moverSpriteAchsenAus = false;
 void moverSpriteAchsenAus(bool aus) { g_moverSpriteAchsenAus = aus; }
 // --- rc608: Licht der Entity fuer ein .md3 ------------------------------------
@@ -3793,18 +3832,24 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
     // - die Achsen der Entity, wie R_RotateForEntity sie kopiert, bei
     // nonNormalizedAxes (Emittermodelle: mit radius skaliert, CEmitter::Draw
     // FxPrimitives.cpp:1387-1395 MD; Kartenmodelle mit modelscale) OHNE
-    // Ausgleich. Die Spalten von `welt` sind genau diese Achsen. Der
-    // Vertexshader liest gVorn/gRechts/gHoch nur dafuer (gpushader.cpp) -
-    // also hier die Achsen im Raum des Modells.
+    // Ausgleich. Die Spalten von `welt` sind genau diese Achsen. REST3:
+    // verformeTess (zeichneKarte) nimmt sie als Sicht - also hier die Achsen
+    // im Raum des Modells; die Normale des Plaettchens kommt aus der Welt
+    // (g_moverLod->vorn, RB_AddQuadStampExt).
     if (vorn != nullptr && rechts != nullptr && hoch != nullptr && textures != nullptr) {
         bool sprite = false;
         for (const BspMesh::Batch& b : mesh.batches) {
             if (b.shader < 0 || static_cast<std::size_t>(b.shader) >= textures->byShader.size()) { continue; }
             const TextureSet::Tex& t = textures->byShader[static_cast<std::size_t>(b.shader)];
-            sprite = sprite || t.autosprite || t.deform2.autosprite2;
+            sprite = sprite || spriteAufCpu(t.deform2);   // REST3: dieselbe Frage wie zeichneKarte
         }
         if (sprite) {
             ++g_moverSpriteAufrufe;
+            for (int k = 0; k < 3; ++k) {
+                g_spriteProbeWelt[k] = vorn[k];
+                g_spriteProbeWelt[3 + k] = rechts[k];
+                g_spriteProbeWelt[6 + k] = hoch[k];
+            }
             if (!g_moverSpriteAchsenAus) {
                 float vL[3];
                 float rL[3];
@@ -8097,7 +8142,6 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     setzeSchritt("Karte: Groessen lesen");
     const std::size_t nVerts = mesh.verts.size();
     const std::size_t nIdx = mesh.indexes.size();
-    const std::size_t vbBytes = nVerts * sizeof(Ecke);
     const std::size_t ibBytes = nIdx * sizeof(std::uint32_t);
 
     // Neu anlegen, wenn sich die Groesse geaendert hat - also bei einem
@@ -8125,23 +8169,18 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     // Compiler gefunden, weil der Zeiger gueltig AUSSAH; hier bricht der Bau,
     // und das ist der bessere Fall.
     std::vector<Ecke> ecken;
-    // --- Autosprite: welche Stapel? ----------------------------------------
-    // Siehe baueAutosprites (gpudraw.cpp) und den Vertexshader.
-    std::vector<char> istSprite(mesh.batches.size(), 0);
+    // --- REST3: welche Stapel verformt die CPU? ------------------------------
+    // Shader mit autosprite/autosprite2 (spriteAufCpu): verformeTess (gpudraw.h) rechnet ihre ganze deformVertexes-Folge wie
+    // RB_DeformTessGeometry, der Vertex-Shader reicht die Ecken durch.
+    std::vector<char> cpuStapel(mesh.batches.size(), 0);
     std::size_t spriteZeichen = 0;
     if (textures != nullptr) {
         for (std::size_t b = 0; b < mesh.batches.size(); ++b) {
-            // Nur zwei Merker - direkt aus dem Eintrag statt eines ganzen
-            // BatchState je Stapel und Aufruf (Code-Pruefung rc592).
             const int platz = mesh.batches[b].shader;
             if (platz < 0 || static_cast<std::size_t>(platz) >= textures->byShader.size()) { continue; }
-            const TextureSet::Tex& sb = textures->byShader[static_cast<std::size_t>(platz)];
-            if (sb.autosprite) {
-                istSprite[b] = 1;
+            if (spriteAufCpu(textures->byShader[static_cast<std::size_t>(platz)].deform2)) {
+                cpuStapel[b] = 1;
                 spriteZeichen += (b + 1U) * 7919U + 1U;
-            } else if (sb.deform2.autosprite2) {
-                istSprite[b] = 2;
-                spriteZeichen += (b + 1U) * 104729U + 2U;
             }
         }
     }
@@ -8150,6 +8189,111 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                               np.quelleIdx != mesh.indexes.data() ||
                               np.nVerts != nVerts || np.nIdx != nIdx ||
                               np.spriteZeichen != spriteZeichen);
+    // --- REST3: die Abschnitte der CPU-Stapel -------------------------------
+    //
+    // Einmal je Netz: je Flaeche (mesh.runs; ohne Tabelle der ganze Stapel) die Ecken von der kleinsten bis zur groessten Nummer -
+    // bspgeo.cpp legt die Ecken einer Flaeche in ihrer Reihenfolge hintereinander, also wie RB_SurfaceFace sie nach tess kopiert.
+    // Patches (ihr Gitter waehlt je Bild seine Detailstufe) und Abschnitte, an denen AutospriteDeform im Spiel mit ERR_DROP
+    // abbricht (Eckenzahl nicht durch vier teilbar, nicht sechs Indizes je Viereck), bleiben unverformt.
+    if (anderesNetz || dyn) {
+        np.cpuAbschnitte.clear();
+        np.cpuIdx.clear();
+        np.cpuEcken = 0;
+        np.cpuStand.clear();
+        const auto abschnitt = [&](std::size_t b, std::uint32_t first, std::uint32_t count) {
+            if (count == 0U || static_cast<std::size_t>(first) + count > nIdx) { return; }
+            std::uint32_t lo = ~0U;
+            std::uint32_t hi = 0U;
+            for (std::uint32_t q = 0; q < count; ++q) {
+                const std::uint32_t id = mesh.indexes[first + q];
+                if (id >= nVerts) { return; }
+                lo = std::min(lo, id);
+                hi = std::max(hi, id);
+            }
+            const std::uint32_t n = hi - lo + 1U;
+            const DeformZusatz& z = textures->byShader[static_cast<std::size_t>(mesh.batches[b].shader)].deform2;
+            bool sprite1 = false;
+            for (int i = 0; i < z.anzahl; ++i) { sprite1 = sprite1 || z.eintraege[i].art == kFolgeSprite; }
+            if (sprite1 && ((n & 3U) != 0U || count != (n >> 2U) * 6U)) { return; }
+            np.cpuAbschnitte.push_back({first, count, lo, n, static_cast<std::uint32_t>(np.cpuEcken), static_cast<std::uint32_t>(b)});
+            np.cpuEcken += n;
+        };
+        for (std::size_t b = 0; b < mesh.batches.size() && spriteZeichen != 0U; ++b) {
+            if (cpuStapel[b] == 0) { continue; }
+            const BspMesh::Batch& bt = mesh.batches[b];
+            if (bt.numRuns > 0U && !mesh.runs.empty()) {
+                for (std::uint32_t k = 0; k < bt.numRuns; ++k) {
+                    const std::size_t at = static_cast<std::size_t>(bt.firstRun) + k;
+                    if (at >= mesh.runs.size()) { break; }
+                    if (mesh.runs[at].patch >= 0) { continue; }
+                    abschnitt(b, mesh.runs[at].firstIndex, mesh.runs[at].numIndexes);
+                }
+            } else {
+                abschnitt(b, bt.firstIndex, bt.numIndexes);
+            }
+        }
+        if (!np.cpuAbschnitte.empty()) { np.cpuIdx = mesh.indexes; }
+    }
+    // Die Sicht wie backEnd.viewParms.ori fuer verformeTess: left = axis[1] = -rechts, up = axis[2], forward = axis[0]; an einem
+    // Mover im Raum des Modells (zeichneMover dreht sie wie GlobalVectorToLocal), die Normale des Plaettchens aus der Welt.
+    SpriteSicht sicht;
+    {
+        const float* vw = (netzId == 2 && g_moverLod != nullptr && g_moverLod->vorn != nullptr) ? g_moverLod->vorn : vorn;
+        for (int k = 0; k < 3; ++k) {
+            sicht.links[k] = (rechts != nullptr) ? -rechts[k] : 0.0F;
+            sicht.hoch[k] = (hoch != nullptr) ? hoch[k] : 0.0F;
+            sicht.vorn[k] = (vorn != nullptr) ? vorn[k] : 0.0F;
+            sicht.vornWelt[k] = (vw != nullptr) ? vw[k] : 0.0F;
+        }
+        sicht.spiegel = g_spiegelnd;
+    }
+    if (netzId == 2 && np.cpuEcken > 0U && g_moverLod != nullptr && g_moverLod->welt != nullptr) {
+        g_spriteProbe.da = true;
+        std::copy(g_moverLod->welt, g_moverLod->welt + 16, g_spriteProbe.welt);
+        std::copy(g_spriteProbeWelt, g_spriteProbeWelt + 9, g_spriteProbe.weltAchsen);
+        g_spriteProbe.sicht = sicht;
+    }
+    std::vector<float> cpuStand;
+    if (np.cpuEcken > 0U) {
+        cpuStand = {zeitSekunden, sicht.links[0], sicht.links[1], sicht.links[2], sicht.hoch[0], sicht.hoch[1], sicht.hoch[2],
+                    sicht.vorn[0], sicht.vorn[1], sicht.vorn[2], sicht.vornWelt[0], sicht.vornWelt[1], sicht.vornWelt[2],
+                    sicht.spiegel ? 1.0F : 0.0F};
+    }
+    // Die verformten Ecken der Abschnitte (ab cpuStart) und ihre Indizes in np.cpuIdx (auf nVerts + cpuStart + Nummer in tess).
+    const auto rechneCpu = [&](Ecke* ziel) {
+        std::vector<TessEcke> te;
+        std::vector<std::uint32_t> idx;
+        for (const Netzpuffer::CpuAbschnitt& a : np.cpuAbschnitte) {
+            g_spriteCpuEcken += a.eckenZahl;
+            te.assign(a.eckenZahl, TessEcke{});
+            for (std::uint32_t i = 0; i < a.eckenZahl; ++i) {
+                const BspVertex& v = mesh.verts[a.ersteEcke + i];
+                TessEcke& t = te[i];
+                std::copy(v.xyz, v.xyz + 3, t.xyz);
+                std::copy(v.normal, v.normal + 3, t.normal);
+                std::copy(v.st, v.st + 2, t.st);
+                std::copy(v.lightmap, v.lightmap + 2, t.lm);
+                std::copy(v.colour, v.colour + 4, t.farbe);
+            }
+            idx.resize(a.numIndexes);
+            for (std::uint32_t q = 0; q < a.numIndexes; ++q) { idx[q] = mesh.indexes[a.firstIndex + q] - a.ersteEcke; }
+            const DeformZusatz& z = textures->byShader[static_cast<std::size_t>(mesh.batches[a.batch].shader)].deform2;
+            (void)verformeTess(z, zeitSekunden, sicht, te, idx);   // die Abbruchfaelle sind oben schon ausgelassen
+            for (std::uint32_t i = 0; i < a.eckenZahl; ++i) {
+                const TessEcke& t = te[i];
+                Ecke& e = ziel[a.cpuStart + i];
+                std::copy(t.xyz, t.xyz + 3, e.pos);
+                std::copy(t.normal, t.normal + 3, e.normal);
+                std::copy(t.st, t.st + 2, e.uv);
+                std::copy(t.lm, t.lm + 2, e.uvLm);
+                std::copy(t.farbe, t.farbe + 4, e.farbe);
+            }
+            for (std::uint32_t q = 0; q < a.numIndexes; ++q) {
+                np.cpuIdx[a.firstIndex + q] = static_cast<std::uint32_t>(nVerts) + a.cpuStart + idx[q];
+            }
+        }
+    };
+    const std::size_t vbBytes = (nVerts + np.cpuEcken) * sizeof(Ecke);
     // --- EINE Bedingung, aus der die andere folgt ----------------------
     //
     // Hier standen zwei Ausdruecke, die dasselbe entscheiden sollten:
@@ -8183,9 +8327,18 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
                             (!dyn && anderesNetz));
     // Das Effektnetz ist im selben Bild dasselbe - Deckend, Gemischt und die
     // Nebenbilder (Spiegel, Portal, Vorschau) laden es nicht noch einmal hoch.
+    // REST3: ausser die CPU-Ecken gehoeren zu einer anderen Sicht (Spiegel, Portal).
     const bool schonDiesesBild = dyn && !vbZuKlein && np.ib != nullptr && np.dynBild == g_bildNummer &&
-                                 !anderesNetz && np.ibGroesse >= ibBytes;
+                                 !anderesNetz && np.ibGroesse >= ibBytes && cpuStand == np.cpuStand;
     const bool brauchtEcken = (vbZuKlein || (dyn && !schonDiesesBild));
+    // REST3: die CPU-Ecken neu rechnen, wenn der Puffer neu gefuellt wird oder sich Zeit oder Sicht geaendert haben.
+    std::vector<Ecke> cpuDaten;
+    if (np.cpuEcken > 0U && (brauchtEcken || cpuStand != np.cpuStand)) {
+        setzeSchritt("Karte: deformVertexes auf der CPU");
+        cpuDaten.resize(np.cpuEcken);
+        rechneCpu(cpuDaten.data());
+        np.cpuStand = cpuStand;
+    }
     if (brauchtEcken) {
         setzeSchritt("Karte: Ecken umsortieren");
         // --- Zeiger und Anzahl ZUSAMMEN festhalten ------------------------
@@ -8221,38 +8374,15 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
             e.uvLm[1] = v.lightmap[1];
             for (int k = 0; k < 4; ++k) { e.farbe[k] = v.colour[k]; }
         }
+        // REST3: hinter den Ecken des Netzes die von der CPU verformten
+        ecken.resize(nVerts + np.cpuEcken);
+        std::copy(cpuDaten.begin(), cpuDaten.end(), ecken.begin() + static_cast<std::ptrdiff_t>(nVerts));
     }
-    // Autosprite-Vierecke umbauen - Ecken UND Wicklung, beides aus einem
-    // Aufruf, damit sie zusammenpassen.
-    std::vector<std::uint32_t> spriteIdx;
     const bool ibNeu = (np.ib == nullptr || np.ibGroesse < ibBytes ||
                         (!dyn && anderesNetz));
-    if (spriteZeichen != 0U && (brauchtEcken || ibNeu || (dyn && !schonDiesesBild))) {
-        setzeSchritt("Karte: Autosprite");
-        spriteIdx = mesh.indexes;
-        const std::vector<SpriteEcke> sp = baueAutosprites(mesh, istSprite, spriteIdx);
-        for (const SpriteEcke& s : sp) {
-            if (s.ecke >= ecken.size()) { continue; }
-            Ecke& e = ecken[s.ecke];
-            for (int k = 0; k < 3; ++k) { e.pos[k] = s.mitte[k]; }
-            e.normal[0] = s.links;
-            e.normal[1] = s.hoch;
-            e.normal[2] = s.radius;
-            e.uv[0] = s.st[0];
-            e.uv[1] = s.st[1];
-        }
-        // autosprite2: Ort und Achse, Wicklung und st bleiben.
-        for (const SpriteEcke2& s : baueAutosprites2(mesh, istSprite)) {
-            if (s.ecke >= ecken.size()) { continue; }
-            Ecke& e = ecken[s.ecke];
-            for (int k = 0; k < 3; ++k) {
-                e.pos[k] = s.mitte[k];
-                e.normal[k] = s.achse[k];
-            }
-        }
-    }
-    const std::uint32_t* idxDaten =
-        spriteIdx.empty() ? mesh.indexes.data() : spriteIdx.data();
+    // REST3: die Indizes der CPU-Abschnitte zeigen hinter die Ecken des Netzes (rechneCpu)
+    const std::uint32_t* idxDaten = np.cpuIdx.empty() ? mesh.indexes.data() : np.cpuIdx.data();
+
     // --- Nicht bei jeder Groessenaenderung neu anlegen -------------------
     //
     // Das Effektnetz aendert seine Groesse in JEDEM Bild. Mit einer Pruefung
@@ -8272,7 +8402,8 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         D3D11_BUFFER_DESC bd{};
         // Beim festen Netz genau passend, beim dynamischen mit Reserve.
         bd.ByteWidth = static_cast<UINT>(dyn ? vbPlatz : vbBytes);
-        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_IMMUTABLE;
+        // REST3: mit CPU-Ecken DEFAULT - sie werden je Sicht nachgeschrieben (UpdateSubresource unten)
+        bd.Usage = dyn ? D3D11_USAGE_DYNAMIC : (np.cpuEcken > 0U ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE);
         bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         // Nicht `: 0U` - der eine Zweig waere ein Aufzaehlungswert, der
         // andere eine Zahl. GCC beanstandet das unter -Wextra, MSVC bei /W4.
@@ -8314,6 +8445,14 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
             std::memcpy(m.pData, ecken.data(), vbBytes);
             c->Unmap(np.vb, 0);
         }
+    } else if (!dyn && !vbZuKlein && !cpuDaten.empty()) {
+        // REST3: nur die CPU-Ecken hinter dem Netz nachschreiben
+        D3D11_BOX box{};
+        box.left = static_cast<UINT>(nVerts * sizeof(Ecke));
+        box.right = static_cast<UINT>(vbBytes);
+        box.bottom = 1;
+        box.back = 1;
+        c->UpdateSubresource(np.vb, 0, &box, cpuDaten.data(), 0, 0);
     }
     setzeSchritt("Karte: Indexpuffer");
     const std::size_t ibPlatz = ((ibBytes + 65535U) / 65536U) * 65536U;

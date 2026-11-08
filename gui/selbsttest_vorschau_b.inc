@@ -2642,7 +2642,26 @@ std::vector<Schritt> moverSpriteSchritte() {
     auto bw = std::make_shared<int>(0);
     auto bh = std::make_shared<int>(0);
     auto aufrufe = std::make_shared<int>(0);
-    add(tu("Effektmodell-Autosprite: duel_exegol laden", [] {
+    auto cpuVorher = std::make_shared<long long>(0);
+    auto cpuEcken = std::make_shared<long long>(0);
+    // REST3: die Sicht von verformeTess am Mover wie AutospriteDeform: links/hoch/vorn = GlobalVectorToLocal (Punktprodukt mit den
+    // Spalten der Stellung, :363), die Normale des Plaettchens -axis[0] der Welt (RB_AddQuadStampExt, tr_surface.cpp:112)
+    auto sichtMit = std::make_shared<std::string>();
+    const auto sichtPruefen = [](bool lokal) {
+        float w[16];
+        float a[9];
+        float v[12];
+        if (!gpu::spriteSichtProbe(w, a, v)) { return std::string("keine Probe"); }
+        float abw = 0.0F;
+        for (int k = 0; k < 3; ++k) {
+            const auto dreh = [&](const float* x) { return lokal ? x[0] * w[k] + x[1] * w[4 + k] + x[2] * w[8 + k] : x[k]; };
+            abw = std::max({abw, std::fabs(v[k] + dreh(a + 3)), std::fabs(v[3 + k] - dreh(a + 6)), std::fabs(v[6 + k] - dreh(a)),
+                            std::fabs(v[9 + k] - a[k])});
+        }
+        return abw == 0.0F ? std::string() : "Abweichung " + std::to_string(abw);
+    };
+    add(tu("Effektmodell-Autosprite: duel_exegol laden", [=] {
+        *cpuVorher = gpu::spriteCpuEcken();
         gpu::moverSpriteAchsenAus(false);
         g_app->leftMode = 1;
         (void)loadMapFromArchive("maps/duel_exegol.bsp");
@@ -2720,9 +2739,12 @@ std::vector<Schritt> moverSpriteSchritte() {
         g_app->mapDirty = true;
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(foto("nebel_sprites_mit"));
     add(tu("Effektmodell-Autosprite: messen, dann mit Weltachsen", [=] {
         (void)gpu::leseFarbe(*mit, *bw, *bh);
         *aufrufe = gpu::moverSpriteAufrufe();
+        *cpuEcken = gpu::spriteCpuEcken() - *cpuVorher;   // REST3: die CPU hat die Vierecke verformt (verformeTess)
+        *sichtMit = sichtPruefen(true);
         int flug = 0;
         int sprite = 0;
         for (const EmitterModelDraw& em : g_app->emitterFlug) {
@@ -2749,6 +2771,7 @@ std::vector<Schritt> moverSpriteSchritte() {
         int w = 0;
         int h = 0;
         const bool gelesen = gpu::leseFarbe(ohne, w, h);
+        const std::string sichtOhne = sichtPruefen(false);
         gpu::moverSpriteAchsenAus(false);
         g_app->mapDirty = true;
         long long anders = 0;
@@ -2759,11 +2782,16 @@ std::vector<Schritt> moverSpriteSchritte() {
                 if (d > 6) { ++anders; }
             }
         }
-        char z[200];
-        std::snprintf(z, sizeof(z), "Knopftest: Effektmodell-Autosprite - Mover-Aufrufe mit autosprite %d, Bildpunkte mit/ohne anders %lld",
-                      *aufrufe, anders);
+        char z[400];
+        std::snprintf(z, sizeof(z), "Knopftest: Effektmodell-Autosprite - Mover-Aufrufe mit autosprite %d, Bildpunkte mit/ohne anders %lld, "
+                      "Ecken von der CPU verformt %lld, Sicht im Raum des Modells %s, mit Weltachsen %s",
+                      *aufrufe, anders, *cpuEcken, sichtMit->empty() ? "wie im Spiel" : sichtMit->c_str(),
+                      sichtOhne.empty() ? "wie gesetzt" : sichtOhne.c_str());
         diag::detail(z);
-        return *aufrufe > 0 && anders > 1000;
+        // REST3: Die Bildpunkte allein belegen es nicht mehr: bis DEF1 rechnete das Licht (rgbGen lightingDiffuse) mit der
+        // Hochlade-Normalen (Richtung und Radius, Laenge um 50) und machte den Nebel hell; seit DEF1 mit -vorn wie das Spiel - der
+        // Nebel ist dort dunkel und die Emitter kaum gedreht (d7efd8cf9: 0 Bildpunkte). Geprueft wird die Sicht selbst.
+        return *aufrufe > 0 && *cpuEcken > 0 && sichtMit->empty() && sichtOhne.empty();
     }));
     return s;
 }
