@@ -190,19 +190,27 @@ X = {
     "h_lizenz": ("Origin and licence", "Herkunft und Lizenz", "来源与许可", "由来とライセンス", "Origen y licencia", "Původ a licence"),
     "lizenz": (
         "The modelling tools are derived from WhiteoutLib and WhiteoutFlakes (BSD 3-Clause licence with AI-derived works notice, Copyright (c) 2026 Fernando "
-        "Sahmkow). They work only with Jedi Academy data: the surfaces of .glm and .md3. The licence text is in licenses/, THIRD-PARTY.md and Help > About.",
+        "Sahmkow). They work only with Jedi Academy data: the surfaces of .glm and .md3. The licence text is in licenses/, THIRD-PARTY.md and Help > About. Chamfer with more than one segment is ported from Blender's Bevel (bmesh_bevel.cc, GPL-2.0-or-later, "
+        "Copyright Blender Authors); these parts are used under the GPL v2 like JK Studio.",
         "Die Modellier-Werkzeuge sind aus WhiteoutLib und WhiteoutFlakes abgeleitet (BSD-3-Clause-Lizenz mit Hinweis zu KI-abgeleiteten Werken, Copyright (c) "
         "2026 Fernando Sahmkow). Sie arbeiten nur mit Daten von Jedi Academy: den Flächen von .glm und .md3. Der Lizenztext steht in licenses/, THIRD-PARTY.md und "
-        "Hilfe > Über.",
+        "Hilfe > Über. Chamfer mit mehr als einem Segment ist aus Blenders Bevel portiert (bmesh_bevel.cc, GPL-2.0-or-later, Copyright "
+        "Blender Authors); diese Teile stehen wie JK Studio unter der GPL v2.",
         "建模工具源自 WhiteoutLib 和 WhiteoutFlakes (BSD 3-Clause 许可, 附 AI 衍生作品声明, Copyright (c) 2026 Fernando Sahmkow)。它们只处理 Jedi Academy 的数据: .glm 和 .md3 的面。"
-        "许可文本见 licenses/、THIRD-PARTY.md 和 帮助 > 关于。",
+        "许可文本见 licenses/、THIRD-PARTY.md 和 帮助 > 关于。多于一个分段的倒角移植自 Blender 的倒角 (bmesh_bevel.cc, GPL-2.0-or-later, "
+        "Copyright Blender Authors); 这些部分与 JK Studio 一样按 GPL v2 使用。",
         "モデリングツールは WhiteoutLib と WhiteoutFlakes に由来します (BSD 3-Clause ライセンス、AI 派生物の注記付き、Copyright (c) 2026 Fernando Sahmkow)。Jedi Academy のデータ "
-        "(.glm と .md3 のサーフェス) だけを扱います。ライセンス文は licenses/、THIRD-PARTY.md、ヘルプ > バージョン情報 にあります。",
+        "(.glm と .md3 のサーフェス) だけを扱います。ライセンス文は licenses/、THIRD-PARTY.md、ヘルプ > バージョン情報 にあります。"
+        "2 セグメント以上の面取りは Blender のベベルから移植しています (bmesh_bevel.cc、GPL-2.0-or-later、Copyright Blender Authors)。"
+        "これらの部分は JK Studio と同じく GPL v2 で使用します。",
         "Las herramientas de modelado derivan de WhiteoutLib y WhiteoutFlakes (licencia BSD 3-Clause con aviso de obras derivadas por IA, Copyright (c) 2026 "
         "Fernando Sahmkow). Solo trabajan con datos de Jedi Academy: las superficies de .glm y .md3. El texto de la licencia está en licenses/, THIRD-PARTY.md y "
-        "Ayuda > Acerca de.",
+        "Ayuda > Acerca de. El chaflán con más de un segmento está portado del Bevel de Blender (bmesh_bevel.cc, GPL-2.0-or-later, "
+        "Copyright Blender Authors); esas partes se usan bajo la GPL v2 como JK Studio.",
         "Modelovací nástroje jsou odvozeny z WhiteoutLib a WhiteoutFlakes (licence BSD 3-Clause s upozorněním na díla odvozená AI, Copyright (c) 2026 Fernando "
-        "Sahmkow). Pracují jen s daty Jedi Academy: plochami .glm a .md3. Text licence je v licenses/, THIRD-PARTY.md a Nápověda > O programu."),
+        "Sahmkow). Pracují jen s daty Jedi Academy: plochami .glm a .md3. Text licence je v licenses/, THIRD-PARTY.md a Nápověda > O programu. "
+        "Zkosení s více než jedním segmentem je převzato z Bevel v Blenderu (bmesh_bevel.cc, GPL-2.0-or-later, Copyright Blender Authors); "
+        "tyto části se používají pod GPL v2 jako JK Studio."),
 }
 
 

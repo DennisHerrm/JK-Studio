@@ -4145,6 +4145,7 @@ void drawAbout() {
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
     ImGui::BulletText("%s", tr(Str::AboutUvLizenz));     // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
     ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge
+    ImGui::BulletText("%s", tr(Str::AboutBlenderLizenz));   // FIX2 P10: aus Blender portierte Teile (GPL-2.0-or-later)
     ImGui::BulletText("%s", tr(Str::AboutAnimLizenz));   // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
     ImGui::PopTextWrapPos();
 
