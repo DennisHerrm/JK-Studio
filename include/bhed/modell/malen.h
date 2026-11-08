@@ -63,7 +63,7 @@ struct Leinwand {
     bool alpha = false;                      // Original hatte einen Alphakanal
     int tgaBits = 0;                         // 24/32, 0 kein TGA
     bool tgaRle = false;
-    std::vector<Ebene> ebenen;               // [0] = das Original
+    std::vector<Ebene> ebenen;               // [0] = das Original (Name leer: die GUI zeigt ihn in ihrer Sprache)
     int aktiv = 0;
     std::vector<std::uint8_t> grund;         // die Bildpunkte des Originals (Radierer auf der untersten Ebene)
     std::vector<std::uint8_t> maske;         // b*h
@@ -88,7 +88,8 @@ struct Leinwand {
     }
 };
 
-// Das Original lesen (Bytes der Datei, wie die Engine sie findet). false mit Grund.
+// Das Original lesen (Bytes der Datei, wie die Engine sie findet). false mit dem Grund des Bildlesers (technisch, kann leer
+// sein; den Satz in der Sprache der Oberflaeche setzt die GUI, P13).
 bool leinwandAusDatei(Leinwand& l, const std::string& vfsPfad, const std::string& bytes, std::string* fehler);
 // Leinwand ohne Datei (Tests): einfarbig
 void leinwandLeer(Leinwand& l, int b, int h, std::array<std::uint8_t, 4> farbe);
@@ -192,7 +193,7 @@ bool leinwandUmbacken(Leinwand& l, Verlauf& v, const std::string& name);
 
 // --- Schreiben ------------------------------------------------------------------------------------------------------
 // Das Ergebnis im Format des Originals (TGA mit gleicher Tiefe und Kompression, JPEG mit den Quantisierungstabellen des
-// Originals, PNG als TGA nicht - siehe malen.cpp). Unbemalt: die Bytes des Originals.
+// Originals, PNG als TGA nicht - siehe malen.cpp). Unbemalt: die Bytes des Originals. false (kein Bild): fehler leer.
 bool leinwandBytes(const Leinwand& l, std::string& out, std::string* fehler);
 std::string tgaSchreiben(const std::uint8_t* rgba, int b, int h, int bits, bool rle);
 // Baseline-JPEG 4:4:4 (8 Bit, Huffman-Tabellen aus ITU T.81 Anhang K); quant: 2 x 64 Werte in Zickzack-Folge wie im

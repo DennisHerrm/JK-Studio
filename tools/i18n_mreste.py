@@ -62,6 +62,11 @@ ZEILEN = [
      "セグメントが 2 つ以上のときの丸みの形: 0.5 で円、0.25 で直線、1 に近いほど角、0.25 未満でくぼみ。",
      "Forma del redondeo con más de un segmento: 0,5 redondo, 0,25 recto, hacia 1 en ángulo, por debajo de 0,25 hueco.",
      "Tvar zaoblení u více než jednoho segmentu: 0,5 kulaté, 0,25 rovné, k 1 hranaté, pod 0,25 duté."),
+    # Teil 4, Pruefung seit rc610 P13: Painting ohne feste englische Texte
+    ("PtEbeneOriginal", "Original", "Original", "原图", "元の画像", "Original", "Originál"),
+    ("PtFeUnlesbar", "unknown image format or empty image", "unbekanntes Bildformat oder leeres Bild", "未知的图像格式或空图像",
+     "不明な画像形式または空の画像", "formato de imagen desconocido o imagen vacía", "neznámý formát obrázku nebo prázdný obrázek"),
+    ("PtFeKeinBild", "no image data", "keine Bilddaten", "没有图像数据", "画像データがありません", "sin datos de imagen", "žádná data obrázku"),
 ]
 
 

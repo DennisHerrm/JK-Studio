@@ -256,6 +256,7 @@ struct ModellUv {
 // Modell-Block 1c: Texture Painting (gui/app_modelltab_malen.cpp)
 [[nodiscard]] bool modellMalenAktiv();       // Bereich Painting mit Modell
 void drawModellMalenBereich();               // Rollouts im Befehlsfeld
+void modellMalenVorschauAbgleich();          // P19: jedes Bild, in jedem Bereich - bemalte Bilder in neu geladene Stufen
 float modellMalEditorBreite(float frei);     // 0: kein 2D-Bild
 void drawModellMalEditor(ImVec2 groesse);
 void modellMalenMenue();                     // Hauptmenue "Painting"
@@ -392,6 +393,8 @@ struct ModellMalen {
     int gebaut = 0;
     std::string gebautOrdner;
     bool testTupfen = false;          // Selbsttest ptzeit: je Bild ein Tupfer auf die Mitte der aktiven Ansicht
+    int maskeTexel = 0;               // P8 (Selbsttest): im letzten Bild fuer "Maske zeigen" gelesene Texel
+    int maskeRechtecke = 0;           // P8: im letzten Bild gezeichnete Rechtecke der Maske
 };
 
 struct ModellTab {

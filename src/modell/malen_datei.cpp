@@ -480,7 +480,7 @@ std::string pngSchreiben(const std::uint8_t* rgba, int b, int h, bool alpha) {
 
 bool leinwandBytes(const Leinwand& l, std::string& out, std::string* fehler) {
     if (l.bild.size() != uz(l.b) * uz(l.h) * 4U) {
-        if (fehler != nullptr) { *fehler = "no image"; }
+        if (fehler != nullptr) { fehler->clear(); }   // P13: kein Bild - den Satz setzt die GUI
         return false;
     }
     // unbemalt (das Ergebnis gleich dem Original): die Bytes der Datei, bytegleich

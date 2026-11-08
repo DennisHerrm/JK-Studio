@@ -2161,6 +2161,7 @@ void drawModellArbeitsflaeche() {
     t.pfadPunkte = 0;
     t.pfadSchluessel = 0;
     modellKlickPruefen();
+    modellMalenVorschauAbgleich();   // P19
     // Die Bereiche (Ansehen/Pruefen, Modellieren, UV, Weights, Painting,
     // Animation) und die Tasten des Bedienmodus in einer Zeile.
     drawModellBereiche();

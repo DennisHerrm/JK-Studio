@@ -13,7 +13,9 @@
 //     Animation       ein Strich, waehrend die Animation laeuft (Pose aus dem GPU-Skinning, Tupfer in der Ruhelage)
 //     Bauen           "Fuer das Spiel bauen" schreibt nur bemalte Bilder, unter ihrem Spielpfad, in Groesse und Format des
 //                     Originals (JPEG mit dessen Tabellen); unbemalt schreibt es nichts
-//   ptzeit    Bildzeit (allein, BHED_D3D_DEBUG=0): Ansehen, Painting, Painting mit einem Tupfer je Bild
+//   ptzeit    Bildzeit (allein, BHED_D3D_DEBUG=0): Ansehen, Painting, Painting mit einem Tupfer je Bild (Pinsel und
+//             Weichzeichnen), Painting mit voller Maske gezeigt
+//   ptfix     Pruefung seit rc610 P1, P3, P4;  ptfix2 (mit SPRACHE=ja) P8, P13, P19
 //   ptspiel   der Sturmtruppler mit einem roten Streifen ueber Brust und Ruecken als Mod in BHED_PAINT_MOD; Foto der Vorschau
 //             von vorn fuer den Vergleich im Spiel (Movie Duels, eigener fs_homepath)
 //   pthb      Handbuchbilder (BHED_HB_NUR=pt)
@@ -665,10 +667,15 @@ std::vector<Schritt> zeitSchritte() {
         mz().gruppe = -1;
         (void)lw();
     }));
-    const auto messung = [&](const std::string& was, ModellBereich b, bool tupfen) {
-        add(m1Messblock("Sturmtruppler", "PT Zeit: " + was, [b, tupfen] {
+    const auto messung = [&](const std::string& was, ModellBereich b, bool tupfen, mm::Werkzeug w = mm::Werkzeug::Pinsel, bool maske = false) {
+        add(m1Messblock("Sturmtruppler", "PT Zeit: " + was, [b, tupfen, w, maske] {
             g_app->mtab.bereich = b;
             mz().testTupfen = tupfen;
+            mz().werkzeug = static_cast<int>(w);
+            mz().maskeZeigen = true;
+            if (const mm::Leinwand* l = lw(); l != nullptr && (l->maske.empty() || (l->maske[0] >= 128) != maske)) {
+                modellMalenAktionAusloesen(aktion(Str::PtMaskeUmkehren));   // P8: volle bzw. wieder leere Maske
+            }
             g_app->animPlaying = true;   // die Figur bewegt sich: jedes Bild neu
         }));
         add(tu("PT Zeit: Ende " + was, [] {
@@ -679,6 +686,8 @@ std::vector<Schritt> zeitSchritte() {
     messung("Bereich Ansehen", ModellBereich::Ansehen, false);
     messung("Bereich Painting (2D-Bild offen)", ModellBereich::Painting, false);
     messung("Bereich Painting, je Bild ein Tupfer", ModellBereich::Painting, true);
+    messung("Bereich Painting, je Bild ein Tupfer Weichzeichnen", ModellBereich::Painting, true, mm::Werkzeug::Weichzeichnen);   // P7
+    messung("Bereich Painting, volle Maske gezeigt", ModellBereich::Painting, false, mm::Werkzeug::Pinsel, true);               // P8
     add(zurueckAufOriginal());
     return s;
 }
@@ -775,8 +784,89 @@ std::vector<Schritt> fixSchritte() {
     return s;
 }
 
+// --- Pruefung seit rc610, Rest (BHED_MODELL_NUR=ptfix2, mit SPRACHE=ja): P13 Name der Grundebene in der Sprache der
+// Oberflaeche, P8 "Maske zeigen" liest nicht jedes Bild alle Texel, P19 neu geladene Texturen in einem anderen Bereich ------
+std::vector<Schritt> fix2Schritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    figurLaden(s, "max");
+    add(gruppeVon("torso"));
+    add(pause(0.3));
+    add(pruefe("PT fix2 P13: die Grundebene heisst in der Sprache der Oberflaeche, nicht englisch \"Original\"", [] {
+        const bool liste = finde(tr(Str::PtGrEbenen), "", 0, false) != nullptr;
+        const bool englisch = finde("Original", "", 0, false) != nullptr;
+        diag::detail(std::string("Knopftest: PT fix2 P13 - Ebenenliste ") + (liste ? "da" : "fehlt") + ", \"Original\" " + (englisch ? "angezeigt" : "nicht angezeigt"));
+        return liste && !englisch;
+    }));
+    // P8: volle Maske (Umkehren der leeren), dann wieder leer, dann Strg+Z (wieder voll, ueber den Verlauf)
+    const auto maskeStand = [](const std::string& was, int rechteckeHoechstens) {
+        return pruefe("PT fix2 P8: " + was + " - im ruhigen Bild keine Texel gelesen, hoechstens " + std::to_string(rechteckeHoechstens) + " Rechtecke", [was, rechteckeHoechstens] {
+            const mm::Leinwand* l = lw();
+            int maskiert = 0;
+            if (l != nullptr) {
+                for (const std::uint8_t x : l->maske) { maskiert += x >= 128 ? 1 : 0; }
+            }
+            diag::detail("Knopftest: PT fix2 P8 " + was + " - " + std::to_string(maskiert) + " Texel maskiert, im letzten Bild " + std::to_string(mz().maskeTexel) +
+                         " Texel gelesen, " + std::to_string(mz().maskeRechtecke) + " Rechtecke");
+            return l != nullptr && mz().maskeZeigen && mz().maskeTexel == 0 && mz().maskeRechtecke <= rechteckeHoechstens &&
+                   (rechteckeHoechstens == 0 ? maskiert == 0 : maskiert == l->b * l->h);
+        });
+    };
+    add(ausloesen(Str::PtMaskeUmkehren));
+    add(pause(0.3));
+    add(maskeStand("volle Maske", 1));
+    add(ausloesen(Str::PtMaskeLeeren));
+    add(pause(0.3));
+    add(maskeStand("leere Maske", 0));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(maskeStand("Strg+Z: wieder volle Maske", 1));
+    add(ausloesen(Str::PtMaskeLeeren));
+    add(pause(0.3));
+    // P19: bemalen, im Bereich Modellieren die Texturen neu laden (wie Detach/Grundkoerper in einen neuen Teil,
+    // modellFlaechenAbgleichen) - die Vorschau zeigt weiter das bemalte Bild, ohne zurueck nach Painting
+    add(werkzeug(Str::PtWzPinsel));
+    add(mb3::ziehenVonNach("PT fix2: Strich ueber die Brust", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
+    add(pause(0.3));
+    add(tu("PT fix2 P19: Bereich Modellieren, Texturen der Vorschau neu geladen", [] {
+        g_app->mtab.bereich = ModellBereich::Modellieren;
+        loadModelTextures();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix2 P19: nach neu geladenen Texturen im Bereich Modellieren zeigen Flaeche und Shader-Stufen torso das bemalte Bild", [] {
+        const int t = teilVon("torso");
+        const auto& by = g_app->modelTextures.bySurface;
+        const mm::Leinwand* l = lw();
+        if (t < 0 || static_cast<std::size_t>(t) >= by.size() || l == nullptr) {
+            meldeFehler("PT fix2 P19: kein Bild");
+            return false;
+        }
+        const TextureSet::Tex& x = by[static_cast<std::size_t>(t)];
+        const bool flaeche = x.width != l->b || x.rgba == l->bild;
+        int stufen = 0;
+        int mitBild = 0;
+        const auto& sf = g_app->modelTextures.stufen;
+        if (static_cast<std::size_t>(t) < sf.size()) {
+            for (const auto& fs : sf[static_cast<std::size_t>(t)]) {
+                if (fs.pixel.size() != 1U || fs.pixel[0] == nullptr || fs.pixel[0]->width != l->b) { continue; }
+                ++stufen;
+                mitBild += fs.pixel[0]->rgba == l->bild ? 1 : 0;
+            }
+        }
+        diag::detail("Knopftest: PT fix2 P19 - " + std::to_string(geaendert(l)) + " Texel bemalt, Flaeche " + (flaeche ? "bemalt" : "Original") + ", Stufen mit dem Bild " +
+                     std::to_string(mitBild) + " von " + std::to_string(stufen) + " in Bildgroesse");
+        return geaendert(l) > 50 && flaeche && (stufen == 0 || mitBild > 0);
+    }));
+    add(tu("PT fix2: zurueck nach Painting", [] { g_app->mtab.bereich = ModellBereich::Painting; }));
+    add(pause(0.3));
+    add(zurueckAufOriginal());
+    return s;
+}
+
 std::vector<Schritt> schritte(const std::string& n) {
     if (n == "ptfix") { return fixSchritte(); }
+    if (n == "ptfix2") { return fix2Schritte(); }
     if (n == "pt") { return modellSchritte(); }
     if (n == "ptspiel") { return spielSchritte(); }
     if (n == "ptzeit") { return zeitSchritte(); }

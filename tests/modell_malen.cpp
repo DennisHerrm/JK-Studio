@@ -13,6 +13,7 @@
 #include "bhed/modell/malen.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -560,8 +561,56 @@ void ebenenGrenzeTest() {
     pruefe(verlaufBytes(v) <= v.grenzeBytes || v.zurueck.size() == 1U, t);
 }
 
+// Pruefung seit rc610 P7: Weichzeichnen und Verwischen kopierten je Tupfer die ganze Ebene (2048er Bild: 16 MB). Je ein Zug
+// kleiner Tupfer auf einem 2048er Rauschbild, ueber den Rand (Wickeln) hinweg: das Ergebnis bytegleich zum Stand vor der
+// Behebung (Pruefsumme aus dem Rotlauf), die Zeit je Tupfer weit unter einer Kopie der Ebene.
+void weichTempoTest() {
+    constexpr int kN = 2048;
+    m::Leinwand l;
+    m::leinwandLeer(l, kN, kN, {0, 0, 0, 255});
+    std::uint32_t z = 12345U;
+    for (std::uint8_t& b : l.ebenen[0].rgba) {
+        z = z * 1664525U + 1013904223U;
+        b = static_cast<std::uint8_t>(z >> 24U);
+    }
+    m::zusammensetzen(l);
+    m::dreieckeSetzen(l, quadrat(0.0F, static_cast<float>(kN)), true);
+    m::Verlauf v;
+    m::Pinsel w;
+    w.werkzeug = m::Werkzeug::Weichzeichnen;
+    w.radius = 6.0F;
+    w.haerte = 0.3F;
+    w.staerke = 0.8F;
+    m::Pinsel s = w;
+    s.werkzeug = m::Werkzeug::Verwischen;
+    const float r[2] = {1.5F / static_cast<float>(kN), -0.75F / static_cast<float>(kN)};
+    constexpr int kTupfer = 30;
+    const auto ab = std::chrono::steady_clock::now();
+    m::schrittBeginnen(v, l, "weich");
+    for (int i = 0; i < kTupfer; ++i) {
+        (void)m::tupfer2d(l, v, w, (3.0F + 9.0F * static_cast<float>(i)) / static_cast<float>(kN), (5.0F + 4.0F * static_cast<float>(i)) / static_cast<float>(kN), 1.0F, nullptr);
+    }
+    m::schrittEnde(v, l);
+    m::schrittBeginnen(v, l, "wisch");
+    for (int i = 0; i < kTupfer; ++i) {
+        (void)m::tupfer2d(l, v, s, (1000.0F + 3.0F * static_cast<float>(i)) / static_cast<float>(kN), (2040.0F + static_cast<float>(i)) / static_cast<float>(kN), 1.0F, r);
+    }
+    m::schrittEnde(v, l);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count() / (2.0 * kTupfer);
+    std::uint64_t summe = 1469598103934665603ULL;   // FNV-1a
+    for (const std::uint8_t b : l.ebenen[0].rgba) { summe = (summe ^ b) * 1099511628211ULL; }
+    constexpr std::uint64_t kSumme = 0xe24c66efd93e17eeULL;   // Pruefsumme des Stands vor der Behebung (Rotlauf, 7,1 ms je Tupfer)
+    char t[200];
+    std::snprintf(t, sizeof t, "Weichzeichnen/Verwischen auf 2048x2048: Pruefsumme %016llx (vorher %016llx)", static_cast<unsigned long long>(summe),
+                  static_cast<unsigned long long>(kSumme));
+    pruefe(summe == kSumme, t);
+    std::snprintf(t, sizeof t, "Weichzeichnen/Verwischen auf 2048x2048: %.3f ms je Tupfer (Grenze 2,5 ms; vorher 7,1 ms mit der Kopie der Ebene, 16 MB)", ms);
+    pruefe(ms < 2.5, t);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
+    weichTempoTest();
     strichTest();
     blutenTest();
     spiegelTest();

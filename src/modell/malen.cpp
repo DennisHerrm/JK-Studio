@@ -218,7 +218,13 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
     const Rechteck geschrieben = erweitert(l, r);
     sichern(v, l, ebene, geschrieben);
     std::vector<std::uint8_t>& px = ebenenBytes(l, ebene);
-    const std::vector<std::uint8_t> vorher = (p.werkzeug == Werkzeug::Weichzeichnen || p.werkzeug == Werkzeug::Verwischen) ? px : std::vector<std::uint8_t>{};
+    // P7 (Pruefung seit rc610): Weichzeichnen und Verwischen lesen ihre Nachbarn im Stand vor dem Tupfer. Bis hier kopierten
+    // sie dafuer je Tupfer die ganze Ebene (2048er Bild: 16 MB, 7 ms je Tupfer); jetzt entstehen die neuen Werte zuerst in
+    // `neu` und werden erst nach allen Treffern geschrieben - gelesen wird nur unveraendertes px, dieselben Bytes.
+    const bool liestNachbarn = p.werkzeug == Werkzeug::Weichzeichnen || p.werkzeug == Werkzeug::Verwischen;
+    const std::vector<std::uint8_t>& vorher = px;
+    std::vector<std::uint8_t> neu(liestNachbarn ? tr.size() * 4U : 0U);
+    std::vector<std::size_t> neuZiel;   // je Eintrag in `neu` der Ort in px
     const float farbe[3] = {p.farbe[0], p.farbe[1], p.farbe[2]};
     int n = 0;
     for (const Treffer& t : tr) {
@@ -229,6 +235,10 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
         const int x = t.i % l.b;
         const int y = t.i / l.b;
         std::uint8_t* q = maske ? &px[i] : &px[i * 4U];
+        if (liestNachbarn) {
+            q = &neu[neuZiel.size() * 4U];
+            neuZiel.push_back(i * 4U);
+        }
         switch (p.werkzeug) {
             case Werkzeug::Pinsel: ueber(q, farbe, f * p.farbe[3]); break;
             case Werkzeug::Radierer:
@@ -279,6 +289,7 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
         }
         ++n;
     }
+    for (std::size_t k = 0; k < neuZiel.size(); ++k) { std::memcpy(&px[neuZiel[k]], &neu[k * 4U], 4U); }
     blutenIn(l, px, maske ? 1 : 4, r, !maske);
     geaendert(l, geschrieben);
     zusammensetzen(l, geschrieben);
@@ -339,7 +350,7 @@ bool leinwandAusDatei(Leinwand& l, const std::string& vfsPfad, const std::string
     const auto* d = reinterpret_cast<const unsigned char*>(bytes.data());
     const image::Image im = image::decode(d, bytes.size());
     if (!im.ok || im.width <= 0 || im.height <= 0) {
-        if (fehler != nullptr) { *fehler = im.error.empty() ? std::string("unreadable image") : im.error; }
+        if (fehler != nullptr) { *fehler = im.error; }   // P13: leer - den Satz in der Sprache der Oberflaeche setzt die GUI
         return false;
     }
     l = Leinwand{};
@@ -353,7 +364,7 @@ bool leinwandAusDatei(Leinwand& l, const std::string& vfsPfad, const std::string
         l.tgaBits = d[16];
         l.tgaRle = d[2] >= 9;
     }
-    l.ebenen.push_back(Ebene{"Original", im.rgba, 1.0F, Mischart::Normal, true});
+    l.ebenen.push_back(Ebene{std::string(), im.rgba, 1.0F, Mischart::Normal, true});   // P13: Name leer = die Grundebene
     l.grund = im.rgba;
     l.bild = im.rgba;
     l.maske.assign(uz(l.b) * uz(l.h), 0);
@@ -369,7 +380,7 @@ void leinwandLeer(Leinwand& l, int b, int h, std::array<std::uint8_t, 4> farbe) 
     l.alpha = true;
     std::vector<std::uint8_t> px(uz(b) * uz(h) * 4U);
     for (std::size_t i = 0; i < px.size(); i += 4U) { std::memcpy(&px[i], farbe.data(), 4); }
-    l.ebenen.push_back(Ebene{"Original", px, 1.0F, Mischart::Normal, true});
+    l.ebenen.push_back(Ebene{std::string(), px, 1.0F, Mischart::Normal, true});
     l.grund = px;
     l.bild = px;
     l.maske.assign(uz(b) * uz(h), 0);

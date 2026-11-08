@@ -5532,6 +5532,9 @@ enum class Str {
     MrProfilMax,
     MrProfilBlender,
     MrProfilHint,
+    PtEbeneOriginal,
+    PtFeUnlesbar,
+    PtFeKeinBild,
     Count,
 };
 

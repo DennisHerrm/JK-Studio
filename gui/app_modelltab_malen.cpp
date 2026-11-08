@@ -205,6 +205,8 @@ struct MalBild {
     mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
     const void* bindungenFuer = nullptr;  // gesucht fuer diese Stufenliste (ModelTextures::stufen.data())
+    int maskeFuer = -1;                   // P8: l.stand der gemerkten Maskenflaechen (-1: neu bestimmen)
+    std::vector<std::array<int, 4>> maskeFlaechen;   // P8: maskierte Texel als Rechtecke x0, y0, x1, y1 (x1, y1 ausschliesslich)
 };
 
 std::vector<std::unique_ptr<MalBild>> g_bilder;
@@ -290,7 +292,7 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     auto m = std::make_unique<MalBild>();
     std::string fehler;
     if (!mm::leinwandAusDatei(m->l, st[uz(s)].datei, bytes, &fehler)) {
-        melden(format(Str::PtBildFehler, st[uz(s)].datei.c_str(), fehler.c_str()));
+        melden(format(Str::PtBildFehler, st[uz(s)].datei.c_str(), fehler.empty() ? tr(Str::PtFeUnlesbar) : fehler.c_str()));
         return nullptr;
     }
     m->l.ausbluten = mz().ausbluten;
@@ -800,6 +802,7 @@ void maskeAendern(Str name, bool umkehren) {
     mm::sichern(m->v, m->l, -1, mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1});
     for (std::uint8_t& x : m->l.maske) { x = umkehren ? static_cast<std::uint8_t>(255 - x) : 0; }
     mm::schrittEnde(m->v, m->l);
+    m->maskeFuer = -1;   // P8: die Maske hat sich ohne Strich geaendert (l.stand bleibt)
     ++mz().befehle;
     mz().letzterBefehl = tr(name);
     melden(tr(name));
@@ -859,7 +862,7 @@ int modellMalenBauen() {
         std::string bytes;
         std::string fehler;
         if (!mm::leinwandBytes(b->l, bytes, &fehler)) {
-            melden(format(Str::PtBauFehler, b->l.datei.c_str(), fehler.c_str()));
+            melden(format(Str::PtBauFehler, b->l.datei.c_str(), tr(Str::PtFeKeinBild)));
             return -1;
         }
         const std::filesystem::path ziel = std::filesystem::path(utf8Pfad(ordner)) / utf8Pfad(b->l.datei);
@@ -1098,16 +1101,22 @@ bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
 
 // --- Rollouts im Befehlsfeld -------------------------------------------------------------------------------------------
 
-void drawModellMalenBereich() {
-    ModellMalen& z = mz();
-    bilderPruefen();
-    // neu geladene Texturen der Vorschau (Haut, Neu laden): die bemalten Bilder wieder in ihre Stufen
+// P19 (Pruefung seit rc610): neu geladene Texturen der Vorschau (Haut, Neu laden, Detach/Grundkoerper im Bereich
+// Modellieren): die bemalten Bilder wieder in ihre Stufen - in jedem Bereich, jedes Bild (vorher nur im Bereich Painting,
+// bis dahin zeigte die Ansicht das Original). Nur fuer die Leinwaende des geladenen Modells.
+void modellMalenVorschauAbgleich() {
+    if (g_bilderFuer != g_app->modelPath) { return; }
     for (auto& b : g_bilder) {
         if (b->l.bemalt() && b->bindungenFuer != g_app->modelTextures.stufen.data()) {
             b->l.schmutzig = mm::Rechteck{0, 0, b->l.b - 1, b->l.h - 1};
             anzeigeNachfuehren(*b);
         }
     }
+}
+
+void drawModellMalenBereich() {
+    ModellMalen& z = mz();
+    bilderPruefen();
     const float fs = ImGui::GetFontSize();
     const std::vector<Gruppe> g = gruppen();
     MalBild* m = jetzt(true);
@@ -1240,7 +1249,8 @@ void drawModellMalenBereich() {
                 ImGui::SetItemTooltip("%s", tr(Str::PtEbeneSichtHint));
                 ImGui::SameLine();
             }
-            if (ImGui::Selectable(e.name.c_str(), m->l.aktiv == i, 0, ImVec2{fs * 6.0F, 0.0F})) { m->l.aktiv = i; }
+            // P13: die Grundebene (Name leer) in der Sprache der Oberflaeche
+            if (ImGui::Selectable(e.name.empty() ? tr(Str::PtEbeneOriginal) : e.name.c_str(), m->l.aktiv == i, 0, ImVec2{fs * 6.0F, 0.0F})) { m->l.aktiv = i; }
             ImGui::SetItemTooltip("%s", tr(i == 0 ? Str::PtEbeneGrundHint : Str::PtEbeneWahlHint));
             if (i > 0) {
                 ImGui::SameLine();
@@ -1327,6 +1337,39 @@ float modellMalEditorBreite(float frei) {
     if (z.breite <= 0.0F) { z.breite = frei * 0.42F; }
     z.breite = std::clamp(z.breite, fs * 12.0F, std::max(frei - fs * 12.0F, fs * 12.0F));
     return z.breite;
+}
+
+// P8 (Pruefung seit rc610): die maskierten Texel (>= 128) als Rechtecke - je Zeile die Laeufe, ein Lauf mit gleichem Anfang
+// und Ende wie einer der Zeile darueber verlaengert dessen Rechteck. Dieselbe Flaeche wie ein Rechteck je Lauf und Zeile;
+// bestimmt nur bei neuem Stand (vorher jedes Bild alle Texel gelesen, je Lauf und Zeile ein Rechteck).
+void maskeFlaechenNeu(MalBild& m) {
+    m.maskeFlaechen.clear();
+    std::vector<std::size_t> offen;   // Rechtecke bis zur vorigen Zeile, nach x0 geordnet
+    std::vector<std::size_t> weiter;
+    for (int y = 0; y < m.l.h; ++y) {
+        weiter.clear();
+        std::size_t k = 0;
+        int x = 0;
+        while (x < m.l.b) {
+            if (m.l.maske[m.l.texel(x, y)] < 128) {
+                ++x;
+                continue;
+            }
+            const int x0 = x;
+            while (x < m.l.b && m.l.maske[m.l.texel(x, y)] >= 128) { ++x; }
+            while (k < offen.size() && m.maskeFlaechen[offen[k]][0] < x0) { ++k; }
+            if (k < offen.size() && m.maskeFlaechen[offen[k]][0] == x0 && m.maskeFlaechen[offen[k]][2] == x) {
+                m.maskeFlaechen[offen[k]][3] = y + 1;
+                weiter.push_back(offen[k]);
+                ++k;
+            } else {
+                m.maskeFlaechen.push_back({x0, y, x, y + 1});
+                weiter.push_back(m.maskeFlaechen.size() - 1U);
+            }
+        }
+        std::swap(offen, weiter);
+    }
+    m.maskeFuer = m.l.stand;
 }
 
 void drawModellMalEditor(ImVec2 groesse) {
@@ -1423,22 +1466,19 @@ void drawModellMalEditor(ImVec2 groesse) {
         z.dreieckeGezeichnet = gez;
     }
     if (z.maskeZeigen) {
-        // die Maske als rote Flaeche (geschuetzt): Zeilen zu Streifen zusammengefasst
-        for (int y = 0; y < m->l.h; ++y) {
-            int x = 0;
-            while (x < m->l.b) {
-                if (m->l.maske[m->l.texel(x, y)] < 128) {
-                    ++x;
-                    continue;
-                }
-                const int x0 = x;
-                while (x < m->l.b && m->l.maske[m->l.texel(x, y)] >= 128) { ++x; }
-                const float y0f = static_cast<float>(y) / static_cast<float>(m->l.h);
-                const float y1f = static_cast<float>(y + 1) / static_cast<float>(m->l.h);
-                dl->AddRectFilled(nachSchirm2(static_cast<float>(x0) / static_cast<float>(m->l.b), y0f), nachSchirm2(static_cast<float>(x) / static_cast<float>(m->l.b), y1f),
-                                  IM_COL32(230, 40, 40, 90));
-            }
+        // die Maske als rote Flaeche (geschuetzt), Rechtecke gemerkt je Stand (P8)
+        z.maskeTexel = 0;
+        if (m->maskeFuer != m->l.stand) {
+            maskeFlaechenNeu(*m);
+            z.maskeTexel = m->l.b * m->l.h;
         }
+        const float fb = static_cast<float>(m->l.b);
+        const float fh = static_cast<float>(m->l.h);
+        for (const std::array<int, 4>& r : m->maskeFlaechen) {
+            dl->AddRectFilled(nachSchirm2(static_cast<float>(r[0]) / fb, static_cast<float>(r[1]) / fh), nachSchirm2(static_cast<float>(r[2]) / fb, static_cast<float>(r[3]) / fh),
+                              IM_COL32(230, 40, 40, 90));
+        }
+        z.maskeRechtecke = static_cast<int>(m->maskeFlaechen.size());
     }
     // Malen in 2D: Radius in Bildpunkten des Schirms -> Texel
     const float texelJePixel = static_cast<float>(m->l.b) / bw;
