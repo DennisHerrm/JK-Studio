@@ -7,7 +7,7 @@
 // Geometrie: das Profil einer Kante (set_profile_params, calculate_profile, get_profile_point), die gleichen Sehnen der
 // Superellipse (find_even_superellipse_chords, set_profile_spacing, find_profile_fullness) und das Gitter einer Ecke mit
 // drei und mehr Randpunkten (bevel_build_rings: adj_vmesh, cubic_subdiv, interp_vmesh, tri_corner_adj_vmesh,
-// make_cube_corner_adj_vmesh, pipe_adj_vmesh). Die Netz-Seite (welche Punkte, welche Vielecke) bleibt in
+// make_cube_corner_adj_vmesh, pipe_adj_vmesh, square_out_adj_vmesh). Die Netz-Seite (welche Punkte, welche Vielecke) bleibt in
 // mesh_werkzeuge.cpp. Alle Orte liegen im Raum "Betrag 1": der Randpunkt i ist v + d_i; jede Formel ist affin und
 // homogen um v, ein Ort bei Betrag a ist also v + a (P - v) (der Plan bewegt linear wie jedes Werkzeug).
 #ifndef BHED_MODELL_WOF_FASE_BLENDER_H
@@ -87,16 +87,29 @@ struct Gitter {
     [[nodiscard]] static bool istKanon(int ns, int i, int j, int k);
 };
 
+// je Randpunkt die gefasten Kanten davor und danach (BoundVert efirst/elast; a = der alte Punkt, b = das andere Ende)
+// und die Normale des Vielecks nach efirst (e1->fnext->no) - fuer square_out_adj_vmesh
+struct RandKanten {
+    bool e1 = false;
+    bool e2 = false;
+    V e1a, e1b, e2a, e2b;
+    V normale;
+};
+
 struct EckDaten {
     V v;
     std::vector<Profil> seiten;   // je Randpunkt das Profil zum naechsten (berechnet)
+    std::vector<RandKanten> rand; // je Randpunkt (leer: kein square_out_adj_vmesh)
     int gewaehlt = 0;             // selcount
     int triTest = -1;             // tri_corner_test (braucht das Netz: Kantenwinkel), -1/0/1
     int pipe = -1;                // pipe_test: Index des Randpunkts vpipe, -1 keiner
     V pipeA, pipeB;               // die Enden der Kante vpipe->ebev
 };
-// bevel_build_rings: welches Gitter (square_out_adj_vmesh ist nicht portiert - dann adj_vmesh)
+// bevel_build_rings: welches Gitter (square_out_adj_vmesh, pipe_adj_vmesh, tri_corner_adj_vmesh oder adj_vmesh)
 [[nodiscard]] Gitter eckenGitter(const EckDaten& e, const Abstaende& a);
+// move_profile_plane (:2027): das Ende einer einzelnen gefasten Kante an einem Punkt mit drei und mehr Kanten legt die
+// Ebene des Profils durch den alten Punkt v (build_boundary_terminal_edge :3031); vor berechnen()
+void endEbene(Profil& p, V v);
 
 }  // namespace bhed::modell::wof::fase
 

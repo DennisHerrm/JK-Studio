@@ -386,7 +386,8 @@ void chamferTest() {
     {
         // Kreuzung im 2x2-Kasten (oben Mitte, vier Kanten in einer Ebene): pipe_test (zwei Kanten auf einer Geraden, alle
         // Vielecke parallel dazu) -> pipe_adj_vmesh, n = 4, ns = 2: 4 Vierecke um einen Mittelpunkt, alles bleibt in der
-        // Ebene z = 1. 26 - 5 + 9 + 4 * 4 = 46 Punkte, 24 + 8 + 4 + 4 = 40 Flaechen, 84 Kanten
+        // Ebene z = 1. 26 - 5 + 9 + 4 * 4 = 46 Punkte; die vier Kantenenden aussen (selcount 1, vier Kanten) sind Faecher aus
+        // zwei Dreiecken (M_TRI_FAN): 24 + 8 + 4 + 4 * 2 = 44 Flaechen, 88 Kanten (vorher ein Viereck je Ende: 40/84)
         PolyNetz n = kasten(1.0F, 2);
         std::vector<std::pair<int, int>> kreuz;
         for (const auto& [x, y] : {std::pair<float, float>{0.5F, 0.0F}, {-0.5F, 0.0F}, {0.0F, 0.5F}, {0.0F, -0.5F}}) {
@@ -398,7 +399,7 @@ void chamferTest() {
         for (const PPunkt& q : n.punkte) {
             if (!q.weg && std::abs(q.ort[0]) < 0.2F && std::abs(q.ort[1]) < 0.2F && q.ort[2] > 0.5F) { eben = eben && std::abs(q.ort[2] - 1.0F) < 1e-5F; }
         }
-        expect("Chamfer Kreuzung (4 Kanten in der Ebene), 2 Segmente: 46/84/40, Gitter eben", !p.abgelehnt() && netzIst(n, 46, 84, 40, 0) && eben);
+        expect("Chamfer Kreuzung (4 Kanten in der Ebene), 2 Segmente: 46/88/44, Gitter eben", !p.abgelehnt() && netzIst(n, 46, 88, 44, 0) && eben);
     }
     {
         // Spitze einer hohen dreiseitigen Pyramide: n = 3, aber tri_corner_test -1 (die Kanten sind keine Wuerfelecke) ->
@@ -430,6 +431,211 @@ void chamferTest() {
             expect(std::string("Chamfer Pyramidenspitze, ") + std::to_string(seg) + " Segmente: " + (seg == 2 ? "16/27/13, Mitte auf der Achse" : "24/42/20") + " (Blender adj_vmesh)",
                    !p.abgelehnt() && seiten.size() == 3U && zahl && mitteAufAchse);
         }
+    }
+    {
+        // MERGE1 Chamfer-Rest: Profil >= 0,95 an einer Ecke mit drei gefasten Kanten und gerader Segmentzahl ->
+        // square_out_adj_vmesh (bmesh_bevel.cc:5183; Blender prueft es vor tri_corner_test). Die Mittellinien laufen von den
+        // Treffpunkten der versetzten Linien auf den Kanten zum alten Punkt, die inneren Punkte sind Schnitte paralleler
+        // Linien: bei ns = 4 und Betrag 0,2 liegen alle 19 Punkte der Ecke auf der Wuerfelflaeche im Raster 0,1 (die Ecke
+        // bleibt eckig, die Mitte ist der alte Punkt). Vorher: Wuerfelecke mit Superellipsoid r = 1e4 (nicht im Raster).
+        for (const int seg : {2, 4}) {
+            PolyNetz n = kasten();
+            std::vector<std::pair<int, int>> alle;
+            for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+            Plan p = chamferKanten(n, alle, seg, 1.0F);
+            betragAnwenden(n, p, 0.2F);
+            int inEcke = 0, imRaster = 0;
+            bool mitte = false;
+            for (const PPunkt& q : n.punkte) {
+                if (q.weg || q.ort[0] < 0.3F - 1e-4F || q.ort[1] < 0.3F - 1e-4F || q.ort[2] < 0.8F - 1e-4F) { continue; }
+                ++inEcke;
+                const auto raster = [](float x) { return std::abs(x * 10.0F - std::round(x * 10.0F)) < 1e-4F; };
+                const bool aufFlaeche = std::abs(q.ort[0] - 0.5F) < 1e-4F || std::abs(q.ort[1] - 0.5F) < 1e-4F || std::abs(q.ort[2] - 1.0F) < 1e-4F;
+                if (aufFlaeche && raster(q.ort[0]) && raster(q.ort[1]) && raster(q.ort[2])) { ++imRaster; }
+                if (std::abs(q.ort[0] - 0.5F) < 1e-5F && std::abs(q.ort[1] - 0.5F) < 1e-5F && std::abs(q.ort[2] - 1.0F) < 1e-5F) { mitte = true; }
+            }
+            const int jeEcke = seg == 2 ? 7 : 19;
+            if (inEcke != jeEcke || imRaster != jeEcke || !mitte) { std::printf("        Ecke: %d Punkte, %d im Raster, Mitte %d\n", inEcke, imRaster, mitte ? 1 : 0); }
+            expect(std::string("Chamfer alle zwoelf Kanten, ") + std::to_string(seg) + " Segmente, Profil 1: eine Ecke " + std::to_string(jeEcke) +
+                       " Punkte auf der Wuerfelflaeche im Raster, Mitte = alter Punkt (Blender square_out_adj_vmesh)",
+                   !p.abgelehnt() && inEcke == jeEcke && imRaster == jeEcke && mitte);
+        }
+    }
+    {
+        // Dasselbe an der Spitze einer hohen dreiseitigen Pyramide (keine Wuerfelecke, vorher adj_vmesh mit Rechteckprofil):
+        // square_out_adj_vmesh setzt die Mitte (0, ns/2, ns/2) auf den alten Punkt, die Spitze bleibt spitz
+        for (const int seg : {2, 4}) {
+            PolyNetz n = leer();
+            GrundParam g;
+            g.form = Grundform::Kegel;
+            g.laenge = 1.0F;
+            g.breite = 0.0F;
+            g.hoehe = 3.0F;
+            g.segL = 3;
+            g.segH = 1;
+            (void)grundkoerper(n, g, 0);
+            n.verdichten();
+            n.kantenBauen();
+            std::vector<std::pair<int, int>> seiten;
+            for (const PKante& k : n.kanten) {
+                if (n.punkte[uz(k.a)].ort[2] > 2.9F || n.punkte[uz(k.b)].ort[2] > 2.9F) { seiten.emplace_back(k.a, k.b); }
+            }
+            Plan p = chamferKanten(n, seiten, seg, 1.0F);
+            betragAnwenden(n, p, 0.2F);
+            bool spitze = false;
+            float hoechst = 0.0F;
+            for (const PPunkt& q : n.punkte) {
+                if (q.weg) { continue; }
+                hoechst = std::max(hoechst, q.ort[2]);
+                if (std::abs(q.ort[0]) < 1e-5F && std::abs(q.ort[1]) < 1e-5F && std::abs(q.ort[2] - 3.0F) < 1e-5F) { spitze = true; }
+            }
+            if (!spitze) { std::printf("        hoechster Punkt z %.5f\n", static_cast<double>(hoechst)); }
+            expect(std::string("Chamfer Pyramidenspitze, ") + std::to_string(seg) + " Segmente, Profil 1: die Mitte ist die alte Spitze (Blender square_out_adj_vmesh)",
+                   !p.abgelehnt() && seiten.size() == 3U && spitze);
+        }
+    }
+    {
+        // Ende einer einzelnen gefasten Kante (selcount 1, build_boundary_terminal_edge :2923): am Punkt mit vier Kanten drei
+        // Randpunkte -> M_TRI_FAN (bevel_build_trifan :5971: Faecher vom Punkt auf der gegenueberliegenden Kante), mit fuenf
+        // und mehr M_POLY. 2x2-Kasten, Kante oben von der Mitte (0/0/1) zur Kantenmitte (0,5/0/1), beide Enden mit vier
+        // Kanten, 2 Segmente: 26 - 2 + 2 * (3 + 1) = 32 Punkte, 24 + 2 + 2 * 2 = 30 Flaechen (4 Dreiecke), 60 Kanten
+        // (vorher je Ende ein Viereck: 28 Flaechen, 58 Kanten). Profil unter 0,25: der Punkt auf der gegenueberliegenden
+        // Kante rueckt um Betrag * Wurzel 2 statt Betrag (d *= sqrtf(2.0f)).
+        for (const float prof : {0.5F, 0.2F}) {
+            PolyNetz n = kasten(1.0F, 2);
+            Plan p = chamferKanten(n, {kanteZwischen(n, 0.0F, 0.0F, 1.0F, 0.5F, 0.0F, 1.0F)}, 2, prof);
+            betragAnwenden(n, p, 0.1F);
+            int dreiecke = 0;
+            for (const PFlaeche& f : n.flaechen) { dreiecke += (!f.weg && f.ecken.size() == 3U) ? 1 : 0; }
+            const float soll = prof < 0.25F ? 0.1F * std::sqrt(2.0F) : 0.1F;
+            bool gegenueber = false;
+            for (const PPunkt& q : n.punkte) {
+                if (!q.weg && std::abs(q.ort[0] + soll) < 1e-5F && std::abs(q.ort[1]) < 1e-5F && std::abs(q.ort[2] - 1.0F) < 1e-5F) { gegenueber = true; }
+            }
+            if (dreiecke != 4 || !gegenueber) { std::printf("        Profil %.2f: %d Dreiecke, gegenueber %d\n", static_cast<double>(prof), dreiecke, gegenueber ? 1 : 0); }
+            expect(std::string("Chamfer einer Kante an Punkten mit vier Kanten, 2 Segmente, Profil ") + (prof < 0.25F ? "0,2" : "0,5") +
+                       ": 32/60/30, je Ende ein Faecher aus 2 Dreiecken, gegenueber bei " + (prof < 0.25F ? "0,1 Wurzel 2" : "0,1") + " (Blender M_TRI_FAN)",
+                   !p.abgelehnt() && netzIst(n, 32, 60, 30, 0) && dreiecke == 4 && gegenueber);
+        }
+    }
+    {
+        // Ende einer einzelnen gefasten Kante an einem Punkt mit drei und mehr Kanten: Blender legt die Ebene des Profils
+        // durch den alten Punkt und die beiden Randpunkte (build_boundary_terminal_edge -> move_profile_plane :2027).
+        // Spitze einer hohen dreiseitigen Pyramide, eine Seitenkante, 3 Segmente: die zwei Bogenpunkte an der Spitze liegen
+        // in der Ebene durch die Spitze und die beiden Randpunkte (vorher in der Ebene durch den Fusspunkt auf der Kante).
+        PolyNetz n = leer();
+        GrundParam g;
+        g.form = Grundform::Kegel;
+        g.laenge = 1.0F;
+        g.breite = 0.0F;
+        g.hoehe = 3.0F;
+        g.segL = 3;
+        g.segH = 1;
+        (void)grundkoerper(n, g, 0);
+        n.verdichten();
+        n.kantenBauen();
+        using D3 = std::array<double, 3>;
+        const auto von = [](const float* o) { return D3{o[0], o[1], o[2]}; };
+        const auto minus = [](D3 a, D3 b) { return D3{a[0] - b[0], a[1] - b[1], a[2] - b[2]}; };
+        const auto kreuz3 = [](D3 a, D3 b) { return D3{a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]}; };
+        const auto punkt3 = [](D3 a, D3 b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+        std::pair<int, int> seite{-1, -1};
+        D3 spitze{};
+        for (const PKante& k : n.kanten) {
+            const bool aOben = n.punkte[uz(k.a)].ort[2] > 2.9F, bOben = n.punkte[uz(k.b)].ort[2] > 2.9F;
+            if (aOben != bOben && seite.first < 0) {
+                seite = {k.a, k.b};
+                spitze = von(n.punkte[uz(aOben ? k.a : k.b)].ort);
+            }
+        }
+        Plan p = chamferKanten(n, {seite}, 3, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        std::vector<D3> oben;
+        for (const PPunkt& q : n.punkte) {
+            if (!q.weg && q.ort[2] > 2.0F) { oben.push_back(von(q.ort)); }
+        }
+        // die Ebene aus der Spitze und den zwei Punkten mit dem groessten Dreieck, alle anderen darauf
+        double best = 0.0;
+        D3 nrm{};
+        for (std::size_t i = 0; i < oben.size(); ++i) {
+            for (std::size_t j = i + 1; j < oben.size(); ++j) {
+                const D3 c = kreuz3(minus(oben[i], spitze), minus(oben[j], spitze));
+                const double l = std::sqrt(punkt3(c, c));
+                if (l > best) {
+                    best = l;
+                    nrm = D3{c[0] / l, c[1] / l, c[2] / l};
+                }
+            }
+        }
+        double abw = 0.0;
+        for (const D3& q : oben) { abw = std::max(abw, std::fabs(punkt3(minus(q, spitze), nrm))); }
+        if (abw > 1e-5) { std::printf("        Abstand zur Ebene durch die Spitze %.6f\n", abw); }
+        expect("Chamfer einer Pyramidenkante, 3 Segmente: die Bogenpunkte an der Spitze in der Ebene durch Spitze und Randpunkte (Blender move_profile_plane)",
+               !p.abgelehnt() && oben.size() == 4U && best > 1e-6 && abw < 1e-5);
+    }
+    {
+        // UV der Gitterpunkte wie Blender (bevel_build_rings, gerade Segmentzahl): jede Ecke eines Gitter-Vierecks wird in der
+        // Vertreter-Flaeche seines Randpunkts (boundvert_rep_face: ebev->fprev) mit Mittelwert-Koordinaten interpoliert
+        // (BM_loop_interp_from_face), die Ecken (i, j, ns/2) und (i, ns/2, k) vorher auf ihre Kante gezogen (se[1], se[3]).
+        // Kasten alle Kanten, 2 Segmente, Betrag 0,2: das Viereck am Randpunkt (0,3/0,3/1) der Deckflaeche traegt die UV der
+        // Deckflaeche bei (0,3/0,3), (0,5/0,3), (0,3/0,5) und an der Mitte die UV ihres Fusspunkts auf einer Deckkante
+        // (0,5/c oder c/0,5, c = 0,3 + 0,2 / Wurzel 3). Vorher: nach Abstand gemischte Ecken der alten Flaechen.
+        PolyNetz n = kasten();
+        const int deck = vieleckBei(n, 2, 1.0F);
+        std::array<std::array<double, 2>, 3> po{};
+        std::array<std::array<double, 2>, 3> pu{};
+        for (int i = 0; i < 3; ++i) {
+            const PEcke& c = n.flaechen[uz(deck)].ecken[uz(i)];
+            po[uz(i)] = {n.punkte[uz(c.punkt)].ort[0], n.punkte[uz(c.punkt)].ort[1]};
+            pu[uz(i)] = {c.e.uv[0], c.e.uv[1]};
+        }
+        const auto uvDeck = [&](double x, double y) {   // affin aus drei Ecken der Deckflaeche (z = 1)
+            const double d = (po[1][0] - po[0][0]) * (po[2][1] - po[0][1]) - (po[2][0] - po[0][0]) * (po[1][1] - po[0][1]);
+            const double s = ((x - po[0][0]) * (po[2][1] - po[0][1]) - (po[2][0] - po[0][0]) * (y - po[0][1])) / d;
+            const double t = ((po[1][0] - po[0][0]) * (y - po[0][1]) - (x - po[0][0]) * (po[1][1] - po[0][1])) / d;
+            return std::array<double, 2>{pu[0][0] + s * (pu[1][0] - pu[0][0]) + t * (pu[2][0] - pu[0][0]),
+                                         pu[0][1] + s * (pu[1][1] - pu[0][1]) + t * (pu[2][1] - pu[0][1])};
+        };
+        std::vector<std::pair<int, int>> alle;
+        for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+        Plan p = chamferKanten(n, alle, 2, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        const double c = 0.3 + 0.2 / std::sqrt(3.0);
+        const auto bei = [&](const PEcke& e, double x, double y, double z) {
+            const float* o = n.punkte[uz(e.punkt)].ort;
+            return std::abs(o[0] - x) < 1e-4 && std::abs(o[1] - y) < 1e-4 && std::abs(o[2] - z) < 1e-4;
+        };
+        const auto uvGleich = [](const PEcke& e, std::array<double, 2> u) { return std::abs(e.e.uv[0] - u[0]) < 1e-4 && std::abs(e.e.uv[1] - u[1]) < 1e-4; };
+        int gefunden = 0, richtig = 0;
+        for (const PFlaeche& f : n.flaechen) {
+            if (f.weg || f.ecken.size() != 4U) { continue; }
+            bool hatRand = false, hatMitte = false;
+            for (const PEcke& e : f.ecken) {
+                hatRand = hatRand || bei(e, 0.3, 0.3, 1.0);
+                hatMitte = hatMitte || bei(e, c, c, 0.8 + 0.2 / std::sqrt(3.0));
+            }
+            if (!hatRand || !hatMitte) { continue; }
+            ++gefunden;
+            int ok = 0;
+            for (const PEcke& e : f.ecken) {
+                if (bei(e, 0.3, 0.3, 1.0)) { ok += uvGleich(e, uvDeck(0.3, 0.3)) ? 1 : 0; }
+                if (bei(e, c, c, 0.8 + 0.2 / std::sqrt(3.0))) { ok += (uvGleich(e, uvDeck(0.5, c)) || uvGleich(e, uvDeck(c, 0.5))) ? 1 : 0; }
+                const float* o = n.punkte[uz(e.punkt)].ort;
+                if (o[2] > 0.9F && o[2] < 0.99F) {   // Bogenpunkte: Fusspunkt auf der Deckkante x = 0,5 bzw. y = 0,5
+                    ok += (uvGleich(e, uvDeck(0.5, o[1])) || uvGleich(e, uvDeck(o[0], 0.5))) ? 1 : 0;
+                }
+            }
+            richtig += ok == 4 ? 1 : 0;
+            if (ok != 4) {
+                for (const PEcke& e : f.ecken) {
+                    const float* o = n.punkte[uz(e.punkt)].ort;
+                    std::printf("        (%.4f %.4f %.4f) uv %.4f %.4f\n", static_cast<double>(o[0]), static_cast<double>(o[1]), static_cast<double>(o[2]),
+                                static_cast<double>(e.e.uv[0]), static_cast<double>(e.e.uv[1]));
+                }
+            }
+        }
+        expect("Chamfer alle Kanten, 2 Segmente: die UV des Gitter-Vierecks der Deckflaeche aus der Deckflaeche an den auf die Kanten gezogenen Orten (Blender)",
+               !p.abgelehnt() && gefunden == 1 && richtig == 1);
     }
     {
         PolyNetz n = kasten();

@@ -3,7 +3,10 @@
 // Blender-Teile (GPL-2.0-or-later, Copyright 2023 Blender Authors): portiert aus Blender 5.0
 // source/blender/bmesh/tools/bmesh_bevel.cc (Tag v5.0.0) - FaseEnde/FaseInfo und segmentieren (bevel_build_rings mit dem
 // Gitter M_ADJ, weld/build_vmesh, pipe_test :3979) und in chamferKern die Sammlung fuer die Segmente (selcount,
-// tri_corner_test :4634, Normalen fuer pipe_test). Sie stehen zwischen den Marken "Blender-Teil Anfang" und "Blender-Teil
+// tri_corner_test :4634, Normalen fuer pipe_test, Vertreter-Flaechen, Punkte am Ende einer einzelnen Kante :3010), dazu
+// mittelwertGewichte/eckeInFlaeche aus source/blender/blenlib/intern/math_geom.cc (interp_weights_poly_v2) und
+// source/blender/bmesh/intern/bmesh_interp.cc (BM_loop_interp_from_face), die Faecher (bevel_build_trifan) und das Mitteln
+// der UV (bevel_merge_uvs). Sie stehen zwischen den Marken "Blender-Teil Anfang" und "Blender-Teil
 // Ende" (FIX2 P10, Code-Pruefung seit rc610). GPL-2.0-or-later ist mit der GPL v2 von JK Studio (LICENSE) vereinbar; die
 // Datei als Ganzes steht damit unter der GPL v2. Eine Rueckgabe nach WhiteoutFlakes (BSD) laesst die Blender-Teile weg.
 //
@@ -631,7 +634,21 @@ namespace {
 struct FaseEnde {   // ein Streifenende am alten Punkt: X1 im Vieleck mit a -> b, X2 im anderen
     int x1 = -1;
     int x2 = -1;
+    int anderes = -1;   // das andere Ende der Kante (Punktnummer)
     fase::KantenDaten k;
+};
+struct RingFlaeche {   // ein altes Vieleck an einem Ringpunkt: Nummer, Nachbarn des alten Punkts darin, Normale
+    int flaeche = -1;
+    int vor = -1;
+    int nach = -1;
+    V normale;
+};
+// BM_loop_interp_from_face braucht das alte Vieleck, wie es vor dem Umbau war (Orte und Ecken-Daten)
+struct AlteFlaeche {
+    std::vector<V> orte;
+    std::vector<Ecke> ecken;
+    std::vector<int> punkte;
+    V normale;
 };
 struct FaseInfo {
     std::vector<FaseEnde> enden;
@@ -639,7 +656,134 @@ struct FaseInfo {
     std::map<int, int> gewaehlt;              // alter Punkt -> gefaste Kanten (selcount)
     std::map<int, int> triTest;               // alter Punkt -> tri_corner_test
     std::map<int, std::vector<V>> normalen;   // alter Punkt -> Normalen seiner alten Vielecke (pipe_test)
+    std::map<int, std::vector<RingFlaeche>> ringFlaechen;   // Ringpunkt -> die alten Vielecke, in denen er liegt
+    std::map<int, AlteFlaeche> alte;          // alte Vielecke an den beruehrten Punkten
+    std::set<int> faecher;                    // alte Punkte mit Faecher (selcount 1, vier Kanten: M_TRI_FAN)
 };
+
+// interp_weights_poly_v2 (BLI math_geom.cc): Mittelwert-Koordinaten des Orts im Vieleck, in dessen Ebene (axis_dominant_v3_to_m3;
+// die Gewichte haengen nicht von der Drehung in der Ebene ab)
+std::vector<double> mittelwertGewichte(const AlteFlaeche& f, V ort) {
+    const int n = zi(f.orte.size());
+    std::vector<double> w(uz(n), 0.0);
+    if (n < 3) { return w; }
+    const V z = einheit(f.normale);
+    const V hilf = std::fabs(z.x) < 0.9 ? V{1.0, 0.0, 0.0} : V{0.0, 1.0, 0.0};
+    const V ax = einheit(kreuz(hilf, z));
+    const V ay = kreuz(z, ax);
+    std::vector<std::array<double, 2>> v;
+    for (const V& q : f.orte) { v.push_back({punkt(q, ax), punkt(q, ay)}); }
+    const std::array<double, 2> co{punkt(ort, ax), punkt(ort, ay)};
+    struct Dir {
+        double x = 0.0, y = 0.0, len = 0.0;
+    };
+    const auto dir = [&](int i) {   // DIR_V2_SET(d, v[i], co)
+        Dir d;
+        d.x = v[uz(i)][0] - co[0];
+        d.y = v[uz(i)][1] - co[1];
+        d.len = std::sqrt(d.x * d.x + d.y * d.y);
+        return d;
+    };
+    const auto halbTan = [](const Dir& a, const Dir& b) {   // mean_value_half_tan_v2
+        const double flaeche = a.x * b.y - a.y * b.x;
+        if (flaeche != 0.0) {
+            const double r = (a.len * b.len - (a.x * b.x + a.y * b.y)) / flaeche;
+            if (std::isfinite(r)) { return r; }
+        }
+        return 0.0;
+    };
+    const auto anteil = [&](int a, int b) {   // line_point_factor_v2
+        const double ux = v[uz(b)][0] - v[uz(a)][0], uy = v[uz(b)][1] - v[uz(a)][1];
+        const double d = ux * ux + uy * uy;
+        return d == 0.0 ? 0.0 : ((co[0] - v[uz(a)][0]) * ux + (co[1] - v[uz(a)][1]) * uy) / d;
+    };
+    const auto abstandQ = [&](int a, int b) {   // dist_squared_to_line_segment_v2
+        const double t = std::clamp(anteil(a, b), 0.0, 1.0);
+        const double px = v[uz(a)][0] + (v[uz(b)][0] - v[uz(a)][0]) * t - co[0];
+        const double py = v[uz(a)][1] + (v[uz(b)][1] - v[uz(a)][1]) * t - co[1];
+        return px * px + py * py;
+    };
+    constexpr double kEps = 1e-5;   // "take care, low values cause #36105"
+    int iCurr = n - 1;
+    int iNext = 0;
+    Dir dCurr = dir(n - 2);
+    Dir dNext = dir(n - 1);
+    double htVor = halbTan(dCurr, dNext);
+    double summe = 0.0;
+    int treffer = 0;   // 1: auf einem Punkt (IS_POINT_IX), 2: auf einer Seite (IS_SEGMENT_IX)
+    while (iNext < n) {
+        if (dNext.len < kEps) {
+            treffer = 1;
+            break;
+        }
+        if (abstandQ(iCurr, iNext) < kEps * kEps) {
+            treffer = 2;
+            break;
+        }
+        dCurr = dNext;
+        dNext = dir(iNext);
+        const double ht = halbTan(dCurr, dNext);
+        w[uz(iCurr)] = (htVor + ht) / dCurr.len;
+        summe += w[uz(iCurr)];
+        iCurr = iNext++;
+        htVor = ht;
+    }
+    if (treffer != 0) {
+        std::fill(w.begin(), w.end(), 0.0);
+        if (treffer == 1) {
+            w[uz(iCurr)] = 1.0;
+        } else {
+            const double fac = std::clamp(anteil(iCurr, iNext), 0.0, 1.0);
+            w[uz(iCurr)] = 1.0 - fac;
+            w[uz(iNext)] = fac;
+        }
+    } else if (summe != 0.0) {
+        for (double& x : w) { x /= summe; }
+    }
+    return w;
+}
+
+// BM_loop_interp_from_face (bmesh_interp.cc): UV und Gewichte (CustomData_bmesh_interp der Ecken- und Punktdaten) mit
+// den Mittelwert-Koordinaten gemischt; die Normale rechnet normalenNeu danach aus der Form (wie Blender)
+Ecke eckeInFlaeche(const AlteFlaeche& f, V ort) {
+    const std::vector<double> w = mittelwertGewichte(f, ort);
+    std::size_t best = 0;
+    for (std::size_t i = 1; i < w.size(); ++i) {
+        if (w[i] > w[best]) { best = i; }
+    }
+    Ecke e = f.ecken[best];
+    double uv[2] = {0.0, 0.0};
+    V nn;
+    std::map<int, double> g;
+    for (std::size_t i = 0; i < w.size(); ++i) {
+        const Ecke& c = f.ecken[i];
+        for (int k = 0; k < 2; ++k) { uv[k] += w[i] * static_cast<double>(c.uv[k]); }
+        nn = nn + V{c.normale[0], c.normale[1], c.normale[2]} * w[i];
+        for (int k = 0; k < 4; ++k) {
+            if (c.gewicht[k] > 0.0F) { g[c.knochen[k]] += static_cast<double>(c.gewicht[k]) * w[i]; }
+        }
+    }
+    for (int k = 0; k < 2; ++k) { e.uv[k] = static_cast<float>(uv[k]); }
+    if (laenge(nn) > 0.0) { vNach(einheit(nn), e.normale); }
+    // die vier groessten Einfluesse, Summe 1 (iMAX_G2_BONEWEIGHTS_PER_VERT, wie mischen)
+    std::vector<std::pair<double, int>> l;
+    for (const auto& [kn, x] : g) {
+        if (x > 0.0) { l.emplace_back(x, kn); }
+    }
+    std::stable_sort(l.begin(), l.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
+    if (l.size() > 4U) { l.resize(4U); }
+    double sum = 0.0;
+    for (const auto& x : l) { sum += x.first; }
+    for (int k = 0; k < 4; ++k) {
+        e.knochen[k] = 0;
+        e.gewicht[k] = 0.0F;
+    }
+    for (std::size_t k = 0; k < l.size(); ++k) {
+        e.knochen[k] = static_cast<std::uint8_t>(l[k].second);
+        e.gewicht[k] = sum > 0.0 ? static_cast<float>(l[k].first / sum) : 0.0F;
+    }
+    return e;
+}
 
 void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseInfo& info) {
     const fase::Abstaende abst = fase::abstaende(segmente, std::max(profil, 0.01F));
@@ -681,6 +825,7 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
     }
     std::map<std::pair<int, int>, std::vector<int>> boegen;   // (A, B) mit A < B -> Punkte von A nach B ohne A und B
     std::set<int> gitterFlaechen;
+    std::vector<UvBewegung> gitterUv;
     // 1. die Ecken mit Gitter (ihre Randpunkte gibt das Gitter vor, wie bevel_build_rings)
     for (const auto& [v, fl] : info.flicken) {
         const auto gw = info.gewaehlt.find(v);
@@ -692,10 +837,8 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
         if (!alleBewegt) { continue; }
         // Blenders Reihenfolge (gegen den Uhrzeiger von aussen) ist die umgekehrte des Vielecks
         std::vector<int> rp;
-        std::vector<Ecke> re;
         for (int i = m - 1; i >= 0; --i) {
             rp.push_back(alt.ecken[uz(i)].punkt);
-            re.push_back(alt.ecken[uz(i)].e);
         }
         fase::EckDaten ed;
         ed.v = ort(n, v);
@@ -715,6 +858,39 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
             }
             fase::berechnen(pr, abst);
             ed.seiten.push_back(std::move(pr));
+        }
+        // je Randpunkt i: efirst = die Kante der Seite i - 1, elast = ebev = die Kante der Seite i (build_boundary :3239);
+        // e1->fnext ist das alte Vieleck des Randpunkts mit der Kante e1, ebev->fprev (boundvert_rep_face :843) das mit ebev
+        const auto vieleckMit = [&](int q, int nachbar) {
+            const auto it = info.ringFlaechen.find(q);
+            if (it == info.ringFlaechen.end()) { return -1; }
+            for (const RingFlaeche& r : it->second) {
+                if (r.vor == nachbar || r.nach == nachbar) { return r.flaeche; }
+            }
+            return -1;
+        };
+        std::vector<int> vertreter(uz(m), -1);
+        for (int i = 0; i < m; ++i) {
+            fase::RandKanten r;
+            const int k1 = kanteVon[uz((i + m - 1) % m)], k2 = kanteVon[uz(i)];
+            if (k1 >= 0) {
+                r.e1 = true;
+                r.e1a = info.enden[uz(k1)].k.v;
+                r.e1b = info.enden[uz(k1)].k.anderes;
+                const int f1 = vieleckMit(rp[uz(i)], info.enden[uz(k1)].anderes);
+                if (f1 >= 0) { r.normale = info.alte.at(f1).normale; }
+            }
+            if (k2 >= 0) {
+                r.e2 = true;
+                r.e2a = info.enden[uz(k2)].k.v;
+                r.e2b = info.enden[uz(k2)].k.anderes;
+                vertreter[uz(i)] = vieleckMit(rp[uz(i)], info.enden[uz(k2)].anderes);
+            }
+            if (vertreter[uz(i)] < 0) {
+                const auto it = info.ringFlaechen.find(rp[uz(i)]);
+                if (it != info.ringFlaechen.end() && !it->second.empty()) { vertreter[uz(i)] = it->second.front().flaeche; }
+            }
+            ed.rand.push_back(r);
         }
         // pipe_test (:3979): drei Seiten mit Kante, die erste und dritte Kante auf einer Geraden, alle Vielecke parallel dazu
         if ((m == 3 || m == 4) && (ed.gewaehlt == 3 || ed.gewaehlt == 4)) {
@@ -766,41 +942,154 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
             innen[s] = q;
             return q;
         };
-        // Ecken-Daten (UV, Normale, Gewichte): nach Abstand zu den Ringpunkten gemischt
-        const auto eckeBei = [&](int q) {
+        // Ecken-Daten wie bevel_build_rings (:5629) mit bev_create_ngon (:907): jede Ecke in ihrer Vertreter-Flaeche
+        // (BM_loop_interp_from_face), vorher auf die Kante se gezogen (closest_to_line_segment_v3). Der Ort waechst linear
+        // mit dem Betrag und ist bei 0 der alte Punkt; die UV wandert mit (Betrag 0: die UV der Ecke am alten Punkt).
+        struct GitterEcke {
+            int punkt = -1;
+            int vertreter = -1;
+            float uv0[2]{};
+            float uvR[2]{};
+        };
+        std::vector<std::pair<int, std::vector<GitterEcke>>> gitterEcken;   // neues Vieleck -> seine Ecken
+        const auto eckeBei = [&](int q, int fr, int kante, GitterEcke& ge) {
             PEcke c;
             c.punkt = q;
-            const V o = bei1(q);
-            double summe = 0.0;
-            bool erst = true;
-            for (int i = 0; i < m; ++i) {
-                const double d2 = punkt(o - bei1(rp[uz(i)]), o - bei1(rp[uz(i)]));
-                if (d2 < 1e-18) {
-                    c.e = re[uz(i)];
-                    return c;
-                }
-                const double w = 1.0 / d2;
-                summe += w;
-                c.e = erst ? re[uz(i)] : mischen(c.e, re[uz(i)], w / summe);
-                erst = false;
+            ge.punkt = q;
+            ge.vertreter = fr;
+            if (fr < 0) { return c; }
+            const AlteFlaeche& af = info.alte.at(fr);
+            const auto gezogen = [&](V o) {   // closest_to_line_segment_v3 auf die alte Kante
+                if (kante < 0) { return o; }
+                const V a = info.enden[uz(kante)].k.v, d = info.enden[uz(kante)].k.anderes - a;
+                const double dd = punkt(d, d);
+                return a + d * (dd > 0.0 ? std::clamp(punkt(o - a, d) / dd, 0.0, 1.0) : 0.0);
+            };
+            c.e = eckeInFlaeche(af, gezogen(bei1(q)));
+            const Ecke e0 = eckeInFlaeche(af, gezogen(ed.v));
+            for (int z = 0; z < 2; ++z) {
+                ge.uv0[z] = e0.uv[z];
+                ge.uvR[z] = c.e.uv[z] - e0.uv[z];
+                c.e.uv[z] = e0.uv[z];
             }
             return c;
         };
         n.flaechen[uz(fl)].weg = true;
         const int ungerade = ns % 2;
         for (int i = 0; i < m; ++i) {
+            const int f = vertreter[uz(i)], f2 = vertreter[uz((i + 1) % m)];
+            const int bme = kanteVon[uz(i)], bmePrev = kanteVon[uz((i + m - 1) % m)];
             for (int j = 0; j < ns2; ++j) {
                 for (int k = 0; k < ns2 + ungerade; ++k) {
                     // Blender (i,j,k), (i,j,k+1), (i,j+1,k+1), (i,j+1,k) gegen den Uhrzeiger - hier umgekehrt
-                    std::vector<PEcke> q = {eckeBei(id(i, j + 1, k)), eckeBei(id(i, j + 1, k + 1)), eckeBei(id(i, j, k + 1)), eckeBei(id(i, j, k))};
-                    gitterFlaechen.insert(neueFlaeche(n, std::move(q), teil));
+                    int fr[4] = {f, f, f, f};
+                    int se[4] = {-1, -1, -1, -1};
+                    if (ungerade == 0) {
+                        if (k == ns2 - 1) { se[1] = bme; }
+                        if (j == ns2 - 1 && bmePrev >= 0) { se[3] = bmePrev; }
+                        se[2] = se[1] >= 0 ? se[1] : se[3];
+                    } else if (k == ns2) {
+                        // ohne Naht: die Mittelspalte halb in f, halb in f2 (Naehte: siehe Notizen)
+                        fr[1] = fr[2] = f2;
+                    }
+                    std::vector<GitterEcke> ge(4);
+                    std::vector<PEcke> q = {eckeBei(id(i, j + 1, k), fr[3], se[3], ge[0]), eckeBei(id(i, j + 1, k + 1), fr[2], se[2], ge[1]),
+                                            eckeBei(id(i, j, k + 1), fr[1], se[1], ge[2]), eckeBei(id(i, j, k), fr[0], se[0], ge[3])};
+                    const int nf = neueFlaeche(n, std::move(q), teil);
+                    gitterFlaechen.insert(nf);
+                    gitterEcken.emplace_back(nf, std::move(ge));
                 }
             }
         }
         if (ungerade != 0) {
+            // die Mitte: je Randpunkt die Ecke (i, ns/2, ns/2) in dessen Vertreter-Flaeche (center_face_interps = f)
             std::vector<PEcke> mitte;
-            for (int i = m - 1; i >= 0; --i) { mitte.push_back(eckeBei(id(i, ns2, ns2))); }
-            gitterFlaechen.insert(neueFlaeche(n, std::move(mitte), teil));
+            std::vector<GitterEcke> ge;
+            for (int i = m - 1; i >= 0; --i) {
+                GitterEcke g1;
+                mitte.push_back(eckeBei(id(i, ns2, ns2), vertreter[uz(i)], -1, g1));
+                ge.push_back(g1);
+            }
+            const int nf = neueFlaeche(n, std::move(mitte), teil);
+            gitterFlaechen.insert(nf);
+            gitterEcken.emplace_back(nf, std::move(ge));
+        }
+        // bevel_merge_uvs (:808): die Ecken eines neuen Punkts teilen eine UV, wenn ihre Vertreter-Flaeche gleich ist oder
+        // die Vertreter-Flaechen am alten Punkt dieselbe UV haben (update_uv_vert_map :1023); dann gemittelt
+        {
+            const auto uvAm = [&](int fr, float out[2]) {
+                const AlteFlaeche& af = info.alte.at(fr);
+                for (std::size_t z = 0; z < af.punkte.size(); ++z) {
+                    if (af.punkte[z] == v) {
+                        out[0] = af.ecken[z].uv[0];
+                        out[1] = af.ecken[z].uv[1];
+                        return;
+                    }
+                }
+            };
+            std::map<int, std::vector<GitterEcke*>> jePunkt;
+            for (auto& [nf, liste] : gitterEcken) {
+                (void)nf;
+                for (GitterEcke& g1 : liste) {
+                    if (g1.vertreter >= 0) { jePunkt[g1.punkt].push_back(&g1); }
+                }
+            }
+            for (auto& [q, liste] : jePunkt) {
+                (void)q;
+                const std::size_t k = liste.size();
+                std::vector<std::size_t> wurzel(k);
+                for (std::size_t a = 0; a < k; ++a) { wurzel[a] = a; }
+                const auto finde = [&](std::size_t a) {
+                    while (wurzel[a] != a) { a = wurzel[a]; }
+                    return a;
+                };
+                for (std::size_t a = 0; a < k; ++a) {
+                    for (std::size_t b = a + 1; b < k; ++b) {
+                        bool gleich = liste[a]->vertreter == liste[b]->vertreter;
+                        if (!gleich) {
+                            float ua[2]{}, ub[2]{};
+                            uvAm(liste[a]->vertreter, ua);
+                            uvAm(liste[b]->vertreter, ub);
+                            gleich = ua[0] == ub[0] && ua[1] == ub[1];
+                        }
+                        if (gleich) { wurzel[finde(b)] = finde(a); }
+                    }
+                }
+                std::map<std::size_t, std::vector<std::size_t>> gruppen;
+                for (std::size_t a = 0; a < k; ++a) { gruppen[finde(a)].push_back(a); }
+                for (const auto& [w, glieder] : gruppen) {
+                    (void)w;
+                    if (glieder.size() < 2U) { continue; }
+                    double s0[2] = {0.0, 0.0}, sr[2] = {0.0, 0.0};
+                    for (const std::size_t a : glieder) {
+                        for (int z = 0; z < 2; ++z) {
+                            s0[z] += liste[a]->uv0[z];
+                            sr[z] += liste[a]->uvR[z];
+                        }
+                    }
+                    for (const std::size_t a : glieder) {
+                        for (int z = 0; z < 2; ++z) {
+                            liste[a]->uv0[z] = static_cast<float>(s0[z] / static_cast<double>(glieder.size()));
+                            liste[a]->uvR[z] = static_cast<float>(sr[z] / static_cast<double>(glieder.size()));
+                        }
+                    }
+                }
+            }
+            for (const auto& [nf, liste] : gitterEcken) {
+                for (const GitterEcke& g1 : liste) {
+                    if (g1.vertreter < 0) { continue; }
+                    const int e = eckeMit(n.flaechen[uz(nf)], g1.punkt);
+                    UvBewegung u;
+                    u.flaeche = nf;
+                    u.punkt = g1.punkt;
+                    for (int z = 0; z < 2; ++z) {
+                        u.basis[z] = g1.uv0[z];
+                        u.richtung[z] = g1.uvR[z];
+                        if (e >= 0) { n.flaechen[uz(nf)].ecken[uz(e)].e.uv[z] = g1.uv0[z]; }
+                    }
+                    gitterUv.push_back(u);
+                }
+            }
         }
         p.geaendert += zi(gitterFlaechen.size());
     }
@@ -817,6 +1106,7 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
             fase::berechnen(p2, abst);
             pkt = fase::weldPunkte(p1, p2, abst);
         } else {
+            if (e0.k.gewaehlt == 1) { fase::endEbene(p1, e0.k.v); }   // build_boundary_terminal_edge (edgecount >= 3)
             fase::berechnen(p1, abst);
             for (int k = 1; k < segmente; ++k) { pkt.push_back(fase::profilPunkt(p1, k, segmente, abst)); }
         }
@@ -931,6 +1221,41 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseIn
         flaecheGeaendert(f);
         n.beruehren(f.teil);
     }
+    // bevel_build_trifan (:5971): das Ende einer einzelnen gefasten Kante an einem Punkt mit vier Kanten (drei Randpunkte)
+    // wird ein Faecher vom Randpunkt auf der gegenueberliegenden Kante (dem letzten, BM_FACE_FIRST_LOOP(f)->prev)
+    for (const int v : info.faecher) {
+        const auto fi = info.flicken.find(v);
+        if (fi == info.flicken.end() || n.flaechen[uz(fi->second)].weg) { continue; }
+        const PFlaeche alt = n.flaechen[uz(fi->second)];
+        const int k = zi(alt.ecken.size());
+        if (k <= 3) { continue; }
+        int spitze = -1;
+        for (int i = 0; i < k && spitze < 0; ++i) {
+            const int q = alt.ecken[uz(i)].punkt;
+            bool amBogen = false;
+            for (const auto& [key, ids] : boegen) {
+                amBogen = amBogen || key.first == q || key.second == q || std::find(ids.begin(), ids.end(), q) != ids.end();
+            }
+            if (!amBogen) { spitze = i; }
+        }
+        if (spitze < 0) { continue; }
+        n.flaechen[uz(fi->second)].weg = true;
+        std::vector<UvBewegung> mit = p.uvBewegungen;
+        mit.insert(mit.end(), uvNeu.begin(), uvNeu.end());
+        for (int i = 1; i + 1 < k; ++i) {
+            std::vector<PEcke> d = {alt.ecken[uz(spitze)], alt.ecken[uz((spitze + i) % k)], alt.ecken[uz((spitze + i + 1) % k)]};
+            const int nf = neueFlaeche(n, std::move(d), alt.teil);
+            for (UvBewegung u : mit) {
+                if (u.flaeche == fi->second) {
+                    u.flaeche = nf;
+                    u.ecke = eckeMit(n.flaechen[uz(nf)], u.punkt);
+                    if (u.ecke >= 0) { uvNeu.push_back(u); }
+                }
+            }
+        }
+        p.geaendert += k - 3;
+    }
+    for (UvBewegung& u : gitterUv) { uvNeu.push_back(u); }
     for (UvBewegung& u : uvNeu) {
         u.ecke = eckeMit(n.flaechen[uz(u.flaeche)], u.punkt);
         p.uvBewegungen.push_back(u);
@@ -959,15 +1284,20 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
     for (const int v : beruehrt) {
         const V pv = ort(n, v);
         std::map<int, double> laengeAuf;   // anderer Punkt -> Faktor (1 / sin theta, der kleinste gewinnt)
+        std::set<int> gefastNeben, gefastAm;   // ungewaehlte Kanten neben einer gefasten; die gefasten Kanten am Punkt
         for (const int fi : n.punktFlaechen[uz(v)]) {
             const PFlaeche& f = n.flaechen[uz(fi)];
             const int i = eckeMit(f, v);
             const int vor = punktVon(f, i - 1), nach = punktVon(f, i + 1);
             for (const int w : {vor, nach}) {
-                if (istGewaehlt(v, w)) { continue; }
+                if (istGewaehlt(v, w)) {
+                    gefastAm.insert(w);
+                    continue;
+                }
                 double fak = 1.0;
                 const int andere = w == vor ? nach : vor;
                 if (kantenModus && istGewaehlt(v, andere)) {
+                    gefastNeben.insert(w);
                     const double th = winkel(ort(n, w) - pv, ort(n, andere) - pv);
                     if (th >= kPi / 180.0 && th <= kPi * 179.0 / 180.0) { fak = 1.0 / std::sin(th); }
                 }
@@ -979,6 +1309,15 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
                 }
             }
         }
+        // --- Blender-Teil Anfang (GPL-2.0-or-later, bmesh_bevel.cc; siehe Kopf) ---
+        // build_boundary_terminal_edge (:3010): am Ende einer einzelnen gefasten Kante rueckt der Punkt auf den nicht
+        // anliegenden Kanten bei Profil unter 0,25 um Betrag * Wurzel 2 ("make room for full profile area")
+        if (kantenModus && segmente > 1 && profil < 0.25F && gefastAm.size() == 1U) {
+            for (auto& [w, fak] : laengeAuf) {
+                if (gefastNeben.count(w) == 0U) { fak = std::sqrt(2.0); }
+            }
+        }
+        // --- Blender-Teil Ende ---
         for (const auto& [w, fak] : laengeAuf) {
             const int neu = neuerPunkt(n, pv, n.punkte[uz(v)].teil);
             aufKante[{v, w}] = neu;
@@ -1034,6 +1373,35 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             int sel = 0;
             for (const int w : nachbarn) { sel += istGewaehlt(v, w) ? 1 : 0; }
             info.gewaehlt[v] = sel;
+            // die alten Vielecke (Vertreter-Flaechen fuer die UV) und je Ringpunkt die Vielecke, in denen er liegt
+            for (const int fi : n.punktFlaechen[uz(v)]) {
+                const PFlaeche& f = n.flaechen[uz(fi)];
+                if (info.alte.count(fi) == 0U) {
+                    AlteFlaeche af;
+                    for (const PEcke& c : f.ecken) {
+                        af.orte.push_back(ort(n, c.punkt));
+                        af.ecken.push_back(c.e);
+                        af.punkte.push_back(c.punkt);
+                    }
+                    af.normale = aussen(n, f);
+                    info.alte[fi] = std::move(af);
+                }
+                const int i = eckeMit(f, v);
+                RingFlaeche rf;
+                rf.flaeche = fi;
+                rf.vor = punktVon(f, i - 1);
+                rf.nach = punktVon(f, i + 1);
+                rf.normale = aussen(n, f);
+                const auto g = gehrung.find({v, fi});
+                if (g != gehrung.end()) { info.ringFlaechen[g->second].push_back(rf); }
+                for (const int w : {rf.vor, rf.nach}) {
+                    const auto a = aufKante.find({v, w});
+                    if (a != aufKante.end()) { info.ringFlaechen[a->second].push_back(rf); }
+                }
+            }
+            // bevel_build_trifan: selcount 1 an einem Punkt mit vier Kanten (drei Randpunkte, M_TRI_FAN)
+            const auto ri4 = ring.find(v);
+            if (sel == 1 && nachbarn.size() == 4U && ri4 != ring.end() && ri4->second.size() == 3U) { info.faecher.insert(v); }
             // tri_corner_test (bmesh_bevel.cc:4634); BM_edge_calc_face_angle_signed_ex: Winkel der Normalen, negativ
             // an einer hohlen Kante (die andere Flaeche liegt vor der Ebene der ersten), ohne zwei Flaechen 0
             int tt = 0;
@@ -1191,6 +1559,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
                         FaseEnde e;
                         e.x1 = s1;
                         e.x2 = s2;
+                        e.anderes = anderes;
                         e.k.v = ort(n, v);
                         e.k.anderes = ort(n, anderes);
                         e.k.dVor = ort(n, w1) - e.k.v;

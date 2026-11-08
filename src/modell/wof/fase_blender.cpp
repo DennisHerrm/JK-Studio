@@ -25,6 +25,7 @@ constexpr double kWurzel2 = 1.41421356237309504880;
 constexpr double kEpsWinkel = 2.0 * kPi / 180.0;   // BEVEL_EPSILON_ANG = DEG2RADF(2)
 constexpr double kEps = 1e-6;                      // BEVEL_EPSILON
 constexpr double kEpsQ = 1e-12;                    // BEVEL_EPSILON_SQ
+constexpr double kEpsGross = 1e-4;                 // BEVEL_EPSILON_BIG
 
 bool istNull(V a) { return a.x == 0.0 && a.y == 0.0 && a.z == 0.0; }
 V mitteVon(V a, V b) { return (a + b) * 0.5; }
@@ -751,6 +752,120 @@ Gitter rohrGitter(const EckDaten& e, const Abstaende& a) {
     return g;
 }
 
+// isect_line_line_v3 mit beiden naechsten Punkten (r1 auf v1-v2, r2 auf v3-v4): 0 parallel, 1 schneiden sich, 2 windschief
+int geradenSchnitt2(V v1, V v2, V v3, V v4, V& r1, V& r2) {
+    const int art = geradenSchnitt(v1, v2, v3, v4, r1);
+    if (art != 2) {
+        r2 = r1;
+        return art;
+    }
+    // windschief: die zweite Gerade um t (Anteil von v1 - v3 entlang a x b) verschoben, r2 = r1 - t
+    const V nab = kreuz(v2 - v1, v4 - v3);
+    const V t = nab * (punkt(v1 - v3, nab) / punkt(nab, nab));
+    r2 = r1 - t;
+    return 2;
+}
+
+enum class WinkelArt { Kleiner, Gerade, Groesser };   // AngleKind
+
+// edges_angle_kind (:1300): e1 = (v, a), e2 = (v, b), normale = e1->fnext->no
+WinkelArt winkelArt(V v, V a, V b, V normale) {
+    const V d1 = einheit(v - a);
+    const V d2 = einheit(v - b);
+    if (fastParallel(d1, d2)) { return WinkelArt::Gerade; }
+    const V k = einheit(kreuz(d1, d2));
+    return punkt(k, normale) < 0.0 ? WinkelArt::Groesser : WinkelArt::Kleiner;
+}
+
+// closer_v3_v3v3v3
+V naeher(V a, V b, V v) { return punkt(a - v, a - v) <= punkt(b - v, b - v) ? a : b; }
+
+// square_out_adj_vmesh (:5183): Profil >= 0,95 (PRO_SQUARE_R), drei und mehr gefaste Kanten, gerade Segmentzahl. Die
+// Mittellinien laufen von dem Punkt auf der Kante, an dem sich die versetzten Linien treffen, zum alten Punkt; die
+// inneren Punkte sind die Schnitte der dazu parallelen Linien (Gehrungen ohne Rundung). Ohne Gehrungen (miter
+// sharp): is_patch_start und is_arc_start sind nie gesetzt, die ungerade Segmentzahl ruft Blender hier nicht auf.
+Gitter quadratAussen(const EckDaten& e, const Abstaende& a) {
+    const int n = static_cast<int>(e.seiten.size());
+    const int ns = a.seg;
+    const int ns2 = ns / 2;
+    const double ns2inv = 1.0 / static_cast<double>(ns2);
+    Gitter g = neuesGitter(n, ns);
+    std::vector<std::vector<V>> linie(static_cast<std::size_t>(n), std::vector<V>(static_cast<std::size_t>(ns2 + 1)));
+    std::vector<char> gesetzt(static_cast<std::size_t>(n), 0);
+    const auto rk = [&](int i) -> const RandKanten& { return e.rand[static_cast<std::size_t>(i)]; };
+    const auto lin = [&](int i) -> V& { return linie[static_cast<std::size_t>(i)][0]; };
+    // on_edge: auf elast von Randpunkt i, wo die versetzte Linie trifft; von zwei Kandidaten der naehere zu v
+    for (int i = 0; i < n; ++i) {
+        const V bnd = e.seiten[static_cast<std::size_t>(i)].start;
+        const RandKanten& r = rk(i);
+        WinkelArt art = WinkelArt::Gerade;
+        if (r.e1 && r.e2) { art = winkelArt(e.v, r.e1b, r.e2b, r.normale); }
+        if (art != WinkelArt::Kleiner) { continue; }
+        const V co1 = bnd + (r.e1a - r.e1b);
+        const V co2 = bnd + (r.e2a - r.e2b);
+        V m1, m2;
+        // e1 mit der Linie durch bnd parallel zu e2 -> v1co; e2 mit der Linie parallel zu e1 -> v2co
+        const bool v1da = geradenSchnitt2(r.e1a, r.e1b, bnd, co2, m1, m2) != 0;
+        const V v1co = m1;
+        const bool v2da = geradenSchnitt2(r.e2a, r.e2b, bnd, co1, m1, m2) != 0;
+        const V v2co = m1;
+        const int iv = i == 0 ? n - 1 : i - 1;
+        if (v2da) {
+            lin(i) = gesetzt[static_cast<std::size_t>(i)] != 0 ? naeher(lin(i), v2co, e.v) : v2co;
+            gesetzt[static_cast<std::size_t>(i)] = 1;
+        }
+        if (v1da) {
+            lin(iv) = gesetzt[static_cast<std::size_t>(iv)] != 0 ? naeher(lin(iv), v1co, e.v) : v1co;
+            gesetzt[static_cast<std::size_t>(iv)] = 1;
+        }
+    }
+    // was die Schleife nicht gesetzt hat: der naechste Punkt von bndv->next auf bndv->next->efirst, sonst die Mitte
+    for (int i = 0; i < n; ++i) {
+        if (gesetzt[static_cast<std::size_t>(i)] != 0) { continue; }
+        const int in = (i + 1) % n;
+        const RandKanten& r = rk(in);
+        const V co1 = e.seiten[static_cast<std::size_t>(i)].start;
+        const V co2 = e.seiten[static_cast<std::size_t>(in)].start;
+        lin(i) = r.e1 ? aufStrecke(co2, r.e1a, r.e1b) : mitteVon(co1, co2);
+    }
+    // die Mittellinien bis zum alten Punkt
+    for (int i = 0; i < n; ++i) {
+        const V c1 = lin(i);
+        for (int j = 1; j <= ns2; ++j) { linie[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)] = c1 + (e.v - c1) * (j * ns2inv); }
+    }
+    // der Rand: von bndv zu den Mittellinien davor und dahinter
+    for (int i = 0; i < n; ++i) {
+        const V c1 = e.seiten[static_cast<std::size_t>(i)].start;
+        V c2 = lin(i == 0 ? n - 1 : i - 1);
+        for (int j = 0; j < ns2; ++j) { g.at(i, j, 0) = c1 + (c2 - c1) * (j * ns2inv); }
+        c2 = lin(i);
+        for (int k = 1; k <= ns2; ++k) { g.at(i, 0, k) = c1 + (c2 - c1) * (k * ns2inv); }
+    }
+    g.at(0, ns2, ns2) = e.v;
+    gleichwertigeKopieren(g);
+    // innen: Schnitt der Linie (i,0,k) -> Mittellinie davor bei k mit (i,j,0) -> Mittellinie i bei j
+    for (int i = 0; i < n; ++i) {
+        const int im1 = i == 0 ? n - 1 : i - 1;
+        for (int j = 1; j < ns2; ++j) {
+            for (int k = 1; k <= ns2; ++k) {
+                const V a1 = g.at(i, 0, k);
+                const V a2 = linie[static_cast<std::size_t>(im1)][static_cast<std::size_t>(k)];
+                V m1, m2;
+                const int art = geradenSchnitt2(a1, a2, g.at(i, j, 0), linie[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)], m1, m2);
+                if (art == 0) {
+                    g.at(i, j, k) = a1 + (a2 - a1) * (j * ns2inv);
+                } else if (art == 1) {
+                    g.at(i, j, k) = m1;
+                } else {
+                    g.at(i, j, k) = mitteVon(m1, m2);
+                }
+            }
+        }
+    }
+    gleichwertigeKopieren(g);
+    return g;
+}
+
 }  // namespace
 
 float superR(float profil) {
@@ -841,6 +956,20 @@ void linienProfil(Profil& p, V start, V ende) {
     p.projRichtung = V{};
 }
 
+void endEbene(Profil& p, V v) {
+    if (istNull(p.projRichtung)) { return; }
+    const V d1 = einheit(v - p.start);
+    const V d2 = einheit(v - p.ende);
+    const V no = kreuz(d1, d2);
+    const V no2 = kreuz(d1, p.projRichtung);
+    const V no3 = kreuz(d2, p.projRichtung);
+    if (laenge(no) > kEpsGross && laenge(no2) > kEpsGross && laenge(no3) > kEpsGross) {
+        const double dot2 = punkt(einheit(no), einheit(no2));
+        const double dot3 = punkt(einheit(no), einheit(no3));
+        if (std::fabs(dot2) < 1.0 - kEpsGross && std::fabs(dot3) < 1.0 - kEpsGross) { p.ebeneNormale = einheit(no); }
+    }
+}
+
 void weldEbenen(Profil& p1, Profil& p2, V v) {
     if (istNull(p1.projRichtung) || istNull(p2.projRichtung)) { return; }
     const V d1 = v - p1.start;
@@ -910,7 +1039,10 @@ bool Gitter::istKanon(int ns, int i, int j, int k) {   // is_canon (:4062)
 
 Gitter eckenGitter(const EckDaten& e, const Abstaende& a) {
     Gitter g;
-    if (e.pipe >= 0) {
+    // bevel_build_rings (:5528): square_out vor pipe und tri_corner (pro_super_r == PRO_SQUARE_R, selcount >= 3, ns gerade)
+    if (a.r == kRQuadrat && e.gewaehlt >= 3 && a.seg % 2 == 0 && e.rand.size() == e.seiten.size()) {
+        g = quadratAussen(e, a);
+    } else if (e.pipe >= 0) {
         g = rohrGitter(e, a);
     } else if (e.triTest == 1) {
         g = dreiEcke(e, a);

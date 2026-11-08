@@ -267,7 +267,7 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 
 ## Offen (nicht bearbeitet, Kontext)
 
-- Teil 4: Punkt 4 (Chamfer-Abweichungen, siehe oben); Bildzeit allein (`leistung`, `ptzeit` mit den neuen Messungen Weichzeichnen und volle Maske) - waehrend Teil 4 liefen fremde Baue.
+- Teil 4: Punkt 4 (Chamfer-Abweichungen, siehe oben; erledigt in MERGE1, `NOTIZEN_merge1_0811.md`); Bildzeit allein (`leistung`, `ptzeit` mit den neuen Messungen Weichzeichnen und volle Maske) - waehrend Teil 4 liefen fremde Baue.
 
 ## Changelog
 
