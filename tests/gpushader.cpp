@@ -430,8 +430,12 @@ int main() {
         erwarte("P27: gerichtetes Licht mit der ungekuerzten Weltnormale (skalierte Achsen)",
                 f.find("float3 nLicht = nw;") != std::string::npos);
         erwarte("P27: Glanz einer skalierten Figur im Raum des Modells",
-                f.find("float3 lM = mul(transpose(mw), l);") != std::string::npos &&
-                    f.find("float3 viewer = mul(transpose(mw), delta) / max(achsLaenge.y, 1e-6) - welt;") != std::string::npos);
+                f.find("float3 rE = nE * (2.0 * dot(nE, lE)) - lE;") != std::string::npos &&
+                    f.find("float3 viewerE = eL - mE;") != std::string::npos);
+        // MERGE2: die Umgebungs-Abbildung einer skalierten Figur ebenso im Raum des Modells (RB_CalcEnvironmentTexCoords mit
+        // tess.normal und backEnd.ori.viewOrigin)
+        erwarte("MERGE2: tcGen environment einer skalierten Figur im Raum des Modells",
+                f.find("aus.uv = float2(nE.x * dM - 0.5 * vM.x, nE.y * dM - 0.5 * vM.y);") != std::string::npos);
         erwarte("ohne Lichtgitter die alte Formel",
                 f.find("0.22 + 0.78 * abs(dot(n, licht))") !=
                     std::string::npos);

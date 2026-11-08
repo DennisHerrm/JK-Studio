@@ -4630,6 +4630,16 @@ int zeichneLichtUndSchatten(const BspMesh& mesh, const TextureSet* textures,
     return abgesetzt;
 }
 
+// MERGE2: Ursprung und Massstab der Entity in die Figurstufe (b3) - gAuge.w und gStufeTurbQ4.zw die Massstaebe von
+// axis[0..2], gAchse0..2.w der Ursprung. Ohne Angabe bleiben sie 0, und der Shader nimmt die Weltmatrix des Aufrufs.
+void entityWerte(const FigurLicht* licht, float* sd) {
+    if (licht == nullptr || licht->entSkala[0] <= 0.0F) { return; }
+    sd[11] = licht->entSkala[0];
+    sd[74] = licht->entSkala[1];
+    sd[75] = licht->entSkala[2];
+    for (int a2 = 0; a2 < 3; ++a2) { sd[15 + a2 * 4] = licht->entUrsprung[a2]; }
+}
+
 int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                    const std::vector<BoneMatrix>& knochen, const float* welt,
                    const float* viewProj, std::string* fehler,
@@ -5056,6 +5066,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         for (int a2 = 0; a2 < 3; ++a2) {
                             for (int q = 0; q < 3; ++q) { sd[12 + a2 * 4 + q] = achsen[a2][q]; }
                         }
+                        entityWerte(licht, sd);   // MERGE2
                         std::memcpy(ring + k * kStufeRingEintraege * (kRingEintrag / 4U), sd, sizeof(sd));
                     }
                     ringFertig(c);
@@ -5175,6 +5186,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 for (int a2 = 0; a2 < 3; ++a2) {
                     for (int q = 0; q < 3; ++q) { sd[12 + a2 * 4 + q] = achsen[a2][q]; }
                 }
+                entityWerte(licht, sd);   // MERGE2
                 if (std::memcmp(sd, letzteDaten, sizeof(sd)) != 0) {
                     (void)schreibeStufe(sd);
                     std::memcpy(letzteDaten, sd, sizeof(sd));

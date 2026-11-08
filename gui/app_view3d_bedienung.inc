@@ -3794,6 +3794,12 @@ void drawMapView() {
                             const float ax[3][3] = {{cg, sg, 0.0F}, {-sg, cg, 0.0F}, {0.0F, 0.0F, 1.0F}};
                             std::memcpy(licht.achsen, ax, sizeof(ax));
                             licht.achsenGesetzt = true;
+                            // MERGE2: ent.origin (samt 24 * (scale - 1)) und modelScale der Figur fuer Glanz und
+                            // Umgebung im Raum des Modells - auch fuer die Griffe in ihrer Hand (gleiches licht).
+                            for (int k = 0; k < 3; ++k) {
+                                licht.entUrsprung[k] = fw[k * 4 + 3];
+                                licht.entSkala[k] = a.skala[k] != 0.0F ? a.skala[k] : 1.0F;
+                            }
                         }
                         if (a.light.ok) {
                             licht.gitter = true;

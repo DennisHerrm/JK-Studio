@@ -1040,6 +1040,27 @@ VSOut main(VSIn ein) {
         float3 zumAuge = gAuge.xyz - w4.xyz;
         // rc603 Durchsicht: 1/|viewer| ueber Q_rsqrt wie die Engine (siehe oben).
         float il = qRsqrt(dot(zumAuge, zumAuge));
+        // PTFIX3 P27 / MERGE2: eine skalierte Entity (ScaleModelAxis, cg_ents.cpp:332-351 MD9: die Achsen tragen den Massstab,
+        // nonNormalizedAxes) rechnet die Engine fuer Glanz und Umgebung im Raum des Modells (R_RotateForEntity,
+        // tr_main.cpp:384-403 MD9): A = R diag(s), der Augpunkt viewOrigin = A^T delta / |axis[0]|, die Ecke tess.xyz
+        // unskaliert = diag(1/s) R^T (Weltort - Ursprung), lightDir = A^T l (R_SetupEntityLighting, tr_light.cpp:492-496),
+        // die Normale die des Modells. R sind die Achsen der Entity (gAchse, ohne den Zeichnerausgleich), Ursprung und s
+        // kommen aus gAchse0..2.w / gAuge.w, gStufeTurbQ4.zw (Griffe in der Hand: die der Figur), sonst aus gFigurWelt
+        // (Spalte 1 ist wegen des 90-Grad-Zuschlags in baueFigurWelt axis[0]). Unskaliert ist es dieselbe Rechnung wie
+        // in Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
+        float3x3 mw = (float3x3)gFigurWelt;
+        float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
+        bool entGegeben = gAuge.w > 0.0;
+        float3 sE = entGegeben ? float3(gAuge.w, gStufeTurbQ4.z, gStufeTurbQ4.w) : achsLaenge.yxz;
+        float3 oE = entGegeben ? float3(gAchse0.w, gAchse1.w, gAchse2.w)
+                               : float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
+        bool skaliert = any(abs(sE - 1.0) > 1e-4);
+        float3 dE = gAuge.xyz - oE;
+        float3 pE = w4.xyz - oE;
+        float3 eL = float3(dot(dE, gAchse0.xyz), dot(dE, gAchse1.xyz), dot(dE, gAchse2.xyz)) * sE / max(sE.x, 1e-6);
+        float3 mE = float3(dot(pE, gAchse0.xyz), dot(pE, gAchse1.xyz), dot(pE, gAchse2.xyz)) / max(sE, 1e-6);
+        float3 viewerE = eL - mE;
+        float3 nE = float3(dot(n, gAchse0.xyz), dot(n, gAchse1.xyz), dot(n, gAchse2.xyz));
         if (gStufe.y > 0.5 && gStufe.y < 1.5) {
             // RB_CalcSpecularAlpha (tr_shade_calc.cpp:994 MD): ein Modell nimmt
             // die Lichtrichtung der Entity (ent->lightDir, aus dem Gitter).
@@ -1055,14 +1076,10 @@ VSOut main(VSIn ein) {
             // gegen die unskalierte Ecke. Gemessen in Movie Duels (Testkarte p27, scale 150): der Glanz ist deutlich staerker.
             // Unskaliert ist es dieselbe Rechnung wie oben in Weltkoordinaten (die feste Drehung der Figur aendert kein
             // Punktprodukt) - dort bleibt der alte Weg, damit sich kein Bildpunkt aendert.
-            float3x3 mw = (float3x3)gFigurWelt;
-            float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
-            if (any(abs(achsLaenge - 1.0) > 1e-4)) {
-                float3 lM = mul(transpose(mw), l);
-                float3 rM = nrm * (2.0 * dot(nrm, lM)) - lM;
-                float3 delta = gAuge.xyz - float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
-                float3 viewer = mul(transpose(mw), delta) / max(achsLaenge.y, 1e-6) - welt;
-                sp = dot(rM, viewer) * qRsqrt(dot(viewer, viewer));
+            if (skaliert) {
+                float3 lE = float3(dot(l, gAchse0.xyz), dot(l, gAchse1.xyz), dot(l, gAchse2.xyz)) * sE;
+                float3 rE = nE * (2.0 * dot(nE, lE)) - lE;
+                sp = dot(rE, viewerE) * qRsqrt(dot(viewerE, viewerE));
             }
             float sp2 = sp * sp;
             sp2 = sp2 * sp2;
@@ -1081,6 +1098,13 @@ VSOut main(VSIn ein) {
             float3 vL = float3(dot(v, gAchse0.xyz), dot(v, gAchse1.xyz), dot(v, gAchse2.xyz));
             float dd = dot(nL, vL);
             aus.uv = float2(nL.x * dd - 0.5 * vL.x, nL.y * dd - 0.5 * vL.y);
+            if (skaliert) {
+                // MERGE2: RB_CalcEnvironmentTexCoords (tr_shade_calc.cpp:902-931 OpenJK) mit tess.normal und dem Blick
+                // viewOrigin - tess.xyz im Raum der skalierten Entity (siehe oben).
+                float3 vM = viewerE * qRsqrt(dot(viewerE, viewerE));
+                float dM = dot(nE, vM);
+                aus.uv = float2(nE.x * dM - 0.5 * vM.x, nE.y * dM - 0.5 * vM.y);
+            }
         }
         if (gStufe.w > 0.5) {
             // rc604 fix604b (B4): tcMod der Stufe nach ComputeTexCoords

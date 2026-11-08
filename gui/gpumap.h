@@ -189,6 +189,11 @@ struct FigurLicht {
     float achsen[3][3]{{1.0F, 0.0F, 0.0F}, {0.0F, 1.0F, 0.0F}, {0.0F, 0.0F, 1.0F}};
     bool achsenGesetzt = false;
     float zeit = 0.0F;
+    // MERGE2: Ursprung (ent->e.origin) und Massstab (modelScale je Achse, axis[0..2]) der Entity, deren Raum Glanz und
+    // tcGen environment rechnen (R_RotateForEntity) - auch fuer Griffe in ihrer Hand. entSkala[0] == 0: aus der
+    // Weltmatrix des Aufrufs (Ursprung und Spaltenlaengen).
+    float entUrsprung[3]{};
+    float entSkala[3]{};
     // Pruefung 4b: shaderRGBA / 255 fuer Stufen mit FigurFarbe::Entity.
     float entityFarbe[3]{1.0F, 1.0F, 1.0F};
     // rc603 Durchsicht, nur fuer den Selbsttest (figurAchsenProbe): zu welcher
