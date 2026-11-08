@@ -3138,13 +3138,18 @@ void drawMapView() {
                 // Mitte des Modells - eine Figur wird also nach dem Licht
                 // an ihren Fuessen beleuchtet. Das ist grob, aber es ist,
                 // was das Spiel zeigt.
-                d.light = sampleLightGrid(g_app->geo, d.pos, st.mehrLicht, g_app->mapBrightness);
+                npcSkalaFuer(a.npcType, d.skala);
+                // PTFIX3 P27: eine skalierte Figur hebt CG_Player um 24 * (modelScale[2] - 1) und nimmt diesen Ort als
+                // lightingOrigin (RF_LIGHTING_ORIGIN, cg_players.cpp:16889-16895 MD9) - die Figur mit scale 150 der
+                // Testkarte p27 steht im Licht 12 Einheiten hoeher
+                float lichtOrt[3] = {d.pos[0], d.pos[1], d.pos[2]};
+                if (d.skala[2] != 0.0F && d.skala[2] != 1.0F) { lichtOrt[2] += 24.0F * (d.skala[2] - 1.0F); }
+                d.light = sampleLightGrid(g_app->geo, lichtOrt, st.mehrLicht, g_app->mapBrightness);
                 // Dazu die Lichter, die Effekte gerade werfen. Die Engine
                 // rechnet sie an derselben Stelle drauf
                 // (R_SetupEntityLighting, tr_light.cpp:435 ff.).
-                addDynamicLights(d.light, d.pos, figurLichter);
+                addDynamicLights(d.light, lichtOrt, figurLichter);
                 d.schattenRadius = schattenRadiusFuer(a.npcType, &d.schattenFuesse);
-                npcSkalaFuer(a.npcType, d.skala);
 
                 // --- Waffe, Lichtschwerter, Kinomodelle -------------
                 //

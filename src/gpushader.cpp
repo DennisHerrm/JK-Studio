@@ -1006,12 +1006,18 @@ VSOut main(VSIn ein) {
         // RB_SurfaceGhoul legt die gewichtete Summe ungekuerzt in tess.normal: Zwischen zwei Knochen ist sie kuerzer als 1,
         // und RB_CalcDiffuseColor nimmt das Punktprodukt damit. Mit der Laenge 1 waren die Figuren 2 bis 9 Prozent zu hell.
         float3 n = (nl > 1e-6) ? nw / nl * length(nrm) : float3(0, 0, 0);
+        // PTFIX3 P27: R_SetupEntityLighting dreht die Lichtrichtung mit den Achsen der Entity in den Raum des Modells
+        // (tr_light.cpp:492-496 OpenJK, MD9 :486-489), ohne die Laenge auszugleichen - die Achsen tragen den Massstab
+        // (ScaleModelAxis, cg_players.cpp:16901 MD9: die "scale" der .npc), die Normalen nicht: dot(n_Modell, A^T l) ist
+        // dot(A n_Modell, l), das gerichtete Licht waechst mit der Groesse (gemessen in Movie Duels, Testkarte p27).
+        // Glanz und Umgebung rechnen im Spiel mit der Normalen des Modells (n).
+        float3 nLicht = nw;
         if (gLichtRichtung.w > 1.5) {
             // rc602: eine Leuchtstufe ohne rgbGen - identityLighting, am
             // Schirm die Bildfarbe selbst (siehe lichtFuer, gpustate.h).
             aus.farbe = float4(1.0, 1.0, 1.0, 1.0);
         } else if (gLichtRichtung.w > 0.5) {
-            float ein = max(0.0, dot(n, gLichtRichtung.xyz));
+            float ein = max(0.0, dot(nLicht, gLichtRichtung.xyz));
             // RB_CalcDiffuseColor: Q_ftol, dann auf 255 geklemmt. Das 0.001 faengt die Rundung
             // ab, weil die Werte hier durch 255 geteilt ankommen.
             float3 lit = min(float3(1, 1, 1),
@@ -1044,6 +1050,20 @@ VSOut main(VSIn ein) {
             // ilength = Q_rsqrt(viewer.viewer); l = (reflected . viewer) * ilength;
             // l = l*l; l = l*l; b = l * 255 (abgeschnitten), hoechstens 255.
             float sp = dot(r, zumAuge) * il;
+            // PTFIX3 P27: eine skalierte Entity rechnet die Engine im Raum des Modells - lightDir = A^T l mit den skalierten
+            // Achsen (tr_light.cpp:492-496), der Augpunkt A^T delta / |axis[0]| (R_RotateForEntity, tr_main.cpp:384-403 MD9)
+            // gegen die unskalierte Ecke. Gemessen in Movie Duels (Testkarte p27, scale 150): der Glanz ist deutlich staerker.
+            // Unskaliert ist es dieselbe Rechnung wie oben in Weltkoordinaten (die feste Drehung der Figur aendert kein
+            // Punktprodukt) - dort bleibt der alte Weg, damit sich kein Bildpunkt aendert.
+            float3x3 mw = (float3x3)gFigurWelt;
+            float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
+            if (any(abs(achsLaenge - 1.0) > 1e-4)) {
+                float3 lM = mul(transpose(mw), l);
+                float3 rM = nrm * (2.0 * dot(nrm, lM)) - lM;
+                float3 delta = gAuge.xyz - float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
+                float3 viewer = mul(transpose(mw), delta) / max(achsLaenge.y, 1e-6) - welt;
+                sp = dot(rM, viewer) * qRsqrt(dot(viewer, viewer));
+            }
             float sp2 = sp * sp;
             sp2 = sp2 * sp2;
             sp = (sp < 0.0) ? 0.0 : min(1.0, floor(sp2 * 255.0) / 255.0);
