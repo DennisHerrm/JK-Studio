@@ -61,6 +61,31 @@ int main() {
     const std::uint32_t alle = kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite2 |
                                kTexGenEnv | kTexMod | kLightmap;
     uebersetze("Verformungen zusammen vs", vertexShaderHlsl(alle, 2), "vs_4_0");
+    // FIX5 P38: ohne turb faellt der turb-Teil samt Sinustafel (16 KB als Immediate-Constant-Buffer) aus dem Vertexshader der Karte
+    {
+        const auto tafel = [](const std::string& src) {
+            ID3DBlob* blob = nullptr;
+            ID3DBlob* err = nullptr;
+            ID3DBlob* dis = nullptr;
+            bool mit = false;
+            if (SUCCEEDED(D3DCompile(src.data(), src.size(), "p38", nullptr, nullptr, "main", "vs_4_0", 0, 0, &blob, &err)) &&
+                SUCCEEDED(D3DDisassemble(blob->GetBufferPointer(), blob->GetBufferSize(), 0, nullptr, &dis))) {
+                const std::string t(static_cast<const char*>(dis->GetBufferPointer()), dis->GetBufferSize());
+                mit = t.find("dcl_immediateConstantBuffer") != std::string::npos;
+            }
+            if (dis != nullptr) { dis->Release(); }
+            if (blob != nullptr) { blob->Release(); }
+            if (err != nullptr) { err->Release(); }
+            return mit;
+        };
+        for (int n = 1; n <= 4; ++n) {
+            const bool ohne = tafel(vertexShaderHlsl(kTexMod, n));
+            const bool mit = tafel(vertexShaderHlsl(kTexMod | kTurb, n));
+            std::printf("  %-4s  P38 tcMod %d Schritte: Sinustafel ohne turb %s, mit turb %s\n", (!ohne && mit) ? "ok" : "FEHL", n,
+                        ohne ? "drin" : "weg", mit ? "drin" : "weg");
+            if (!ohne && mit) { ++gut; } else { ++fehler; }
+        }
+    }
     // FIX5: tcMod mit 1..4 Schritten, mit und ohne turb
     for (int n = 1; n <= 4; ++n) {
         uebersetze("tcMod " + std::to_string(n) + " vs", vertexShaderHlsl(kTexMod, n), "vs_4_0");

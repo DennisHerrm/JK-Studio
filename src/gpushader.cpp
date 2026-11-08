@@ -146,12 +146,14 @@ float2 turbVersatz(float2 ort, float q, float amp) {
 // Ein Schritt der Kette, wie ComputeTexCoords (tr_shade.cpp:1725) ihn rechnet (art: gpu::kTcAffin 1 RB_CalcTransformTexCoords
 // st[0] = s * m[0][0] + t * m[1][0] + translate[0] fuer rotate, stretch und transform; 2 turb; 3 RB_CalcScaleTexCoords st *= scale;
 // 4 RB_CalcScrollTexCoords st += scroll; 0 kein Schritt). Ohne turb (mitTurb false) bleibt st bei turb unveraendert.
+// FIX5 P38: [branch] - die Art ist fuer alle Ecken eines Aufrufs dieselbe (Konstantenpuffer); verzweigt statt eingeebnet rechnet eine
+// Ecke ohne turb den turb-Teil nicht mit (Bild unveraendert, nur der Weg)
 float2 tcSchritt(float2 st, float art, float4 m, float2 o, float2 ort, bool mitTurb) {
     precise float2 r = st;
-    if (art == 1.0) {
+    [branch] if (art == 1.0) {
         r = float2(st.x * m.x + st.y * m.z + o.x, st.x * m.y + st.y * m.w + o.y);
     } else if (art == 2.0) {
-        if (mitTurb) { r = st + turbVersatz(ort, m.x, m.y); }
+        [branch] if (mitTurb) { r = st + turbVersatz(ort, m.x, m.y); }
     } else if (art == 3.0) {
         r = st * m.xy;
     } else if (art == 4.0) {
