@@ -171,6 +171,18 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Handbuch "Die Karte": neuer Hinweis zur Texturkompression unter JKA/JK2 (S3TC wie r_ext_compress_textures 1, noTC und Lightmaps
   nicht, Movie Duels aus) in 6 Sprachen (`tools/handbuch/inhalt_mr4.py`), `--pruefen` ok, Handbuch neu erzeugt (karte.html, suche.js).
 
+## MR5 Punkt 4: Menue-Editor-Bilder ja/zh neu
+
+- Bildlauf `menueeditor` mit BHED_MENUE_BILDER=1 (Fenster 2560 x 1500) je Sprache: `m5_mb_ja` 571/6, `m5_mb_zh` 570/7. Die 6 bzw. 7
+  roten Zeilen sind dieselben wie im Bildlauf vom 03.11. (`Y:\karte\laeufe\gjambilder` 567/6, `gzhHansmbilder` 566/7, gleiche Namen):
+  Codebereich im Reiter Text 154 Punkte zu schmal (waagrechter Bildlauf), "レイアウトを解除"/"解除布局" und "次の場合は隠す"/"在以下情况隐藏"
+  nicht gefunden, Eng-Spalte, "##wx" nicht ganz sichtbar, zh Kontext Duplizieren - Altbestand, hier nicht behoben.
+- Uebernommen: alle Bilder, die das Handbuch schon hat, ausser den Bildern nach einem Fehlschlag im selben Teil (menue_reiter_properties,
+  menue_ereignisse, menue_eng_auf, menue_eng_beide, menue_felder_mehrfach, menue_felder_ownerdraw, zh dazu menue_kontext_leer - die
+  bleiben wie vorher): je 56 Bilder ja und zh (darunter alle menue_leiste_*), Ausschnitte 2538 x 1444 aus dem Fenster 2560 x 1500,
+  zusammen 13,1 -> 13,3 MB. Angesehen: ja menue_leiste_properties (Ereigniszeile bricht zwischen den Zeichen um), zh
+  menue_leiste_events, ja menue_reiter_text.
+
 ## Changelog
 
 ## English
