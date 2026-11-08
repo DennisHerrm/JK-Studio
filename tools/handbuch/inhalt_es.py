@@ -7576,3 +7576,5 @@ from inhalt_paint import ES as _PAINT  # noqa: E402
 TEXTE.update(_PAINT)
 from inhalt_mr4 import ES as _MR4  # noqa: E402
 TEXTE.update(_MR4)
+from inhalt_merge2 import ES as _MERGE2  # noqa: E402
+TEXTE.update(_MERGE2)

@@ -124,7 +124,7 @@ struct Grenzen {
     int gewichteJeEcke;     // iMAX_G2_BONEWEIGHTS_PER_VERT
     int g2Modelle;          // MAX_G2_MODELS
     float lodscale;         // r_lodscale (Vorgabe)
-    float figurRadius;      // ent->e.radius einer Figur (SP: 0, MP: CG_RadiusForCent 64)
+    float figurRadius;      // ent->e.radius einer Figur (SP: s.radius 40 aus mins/maxs, MP: CG_RadiusForCent 64)
     bool tPoseHinterGla;    // Animation hinter dem Ende der GLA: T-Pose (OpenJK-Fassungen)
 };
 [[nodiscard]] const Grenzen& grenzen(Zielspiel s) noexcept;

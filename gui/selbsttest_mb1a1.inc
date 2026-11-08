@@ -307,7 +307,19 @@ std::vector<Schritt> funktionenSchritte() {
     }));
     add(klick(tr(Str::MbLodAuto), "###main"));
     add(pause(0.2));
-    add(pruefe("MB1 LOD: automatisch, SP-Figur (Radius 0) zeichnet LOD 1", [] { return g_app->mtab.lodWahl == 0 && g_app->mtab.lodJetzt == 0; }));
+    add(pruefe("MB1 LOD: automatisch, SP-Figur eingepasst (nah) zeichnet LOD 1", [] { return g_app->mtab.lodWahl == 0 && g_app->mtab.lodJetzt == 0; }));
+    // MERGE2: im Einzelspieler waehlt der Abstand ebenso (Radius 40 = s.radius aus mins/maxs, r_lodscale 10)
+    add(tu("MB1 LOD: SP, Kamera 3000 weit", [] {
+        g_app->modelOrbit.distance = 3000.0F;
+        float v[3];
+        g_app->modelCam.forward(v);
+        for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] = -v[k] * 3000.0F; }
+        g_app->mtab.anzeigeSchluessel.clear();
+    }));
+    add(pause(0.2));
+    add(pruefe("MB1 LOD: SP in 3000 Einheiten - letzte Stufe (Radius 40, r_lodscale 10)", [] {
+        return g_app->mtab.lodJetzt == g_app->mtab.dok.inhalt().stufenZahl - 1;
+    }));
     add(tu("MB1 LOD: Zielspiel JKA MP, Kamera 3000 weit", [] {
         g_app->mtab.zielspiel = static_cast<int>(modell::Zielspiel::JkaMp);
         g_app->modelOrbit.distance = 3000.0F;

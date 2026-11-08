@@ -1503,6 +1503,9 @@ struct App {
         // rc610 R2a (B3-3): die Schluessel in texCache, die das Modell beim Laden nahm - ein Treffer im Zwischenspeicher meldet
         // sie wieder als benutzt (RE_RegisterModel registriert die Shader eines behaltenen Modells neu, tr_model.cpp:212-230)
         std::vector<std::string> bilder;
+        // MERGE2 Punkt 4: die Detailstufen 1 .. numLods-1 des Modells (R_LoadMDXM laedt alle), mit Haut und Ghoul2-Zustand
+        // der Stufe 0 - G2_ComputeLOD waehlt je Bild eine davon (figurNetzImBild).
+        std::vector<GlmModel> lodModelle;
     };
     // rc604 fix604: je Figur ein Verweis auf das EINE geladene Modell
     // (modelCache) statt einer Kopie samt Bildern - fuenf Obi-Wans hielten
@@ -2983,6 +2986,8 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
 // MRESTE 4: die LOD-Stufe eines Ghoul2-Kartenmodells in diesem Bild nach G2_ComputeLOD (tr_ghoul2.cpp:834-905) fuer die
 // Sicht `cam` am Ort `ort` (0 auch fuer jedes andere Modell); die Datei der Stufe n > 0 steht unter path + "|lod<n>".
 int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam);
+// MERGE2 Punkt 4: das Netz der Detailstufe, die G2_ComputeLOD fuer diese Figur in diesem Bild waehlt (fw: ihre Weltmatrix).
+const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam);
 // MRESTE 4: ein Ghoul2-Kartenmodell (.glm-Bytes `data`) je LOD-Stufe als starres Netz nach `dateien` (Stufe 0 unter `low`,
 // Stufe n unter "low|lod<n>"); zurueck die Zahl der Stufen, 0: nicht lesbar oder ohne passende GLA (Grund in `fehler`).
 int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler);

@@ -3811,12 +3811,14 @@ void drawMapView() {
                         }
                         std::string ff;
                         // Pruefung 4b: ohne Ghoul2-Modell 0 kein Koerper.
+                        // MERGE2 Punkt 4: das Netz der Detailstufe wie G2_ComputeLOD (Koerper, Umriss, Schatten, Nebel)
+                        const GlmModel& netz = figurNetzImBild(a, fw, bildCam);
                         const int n = a.ohneKoerper ? 0 : gpu::zeichneFigur(
-                            *a.model, a.textures, skin, fw, vp, &ff, &licht,
+                            netz, a.textures, skin, fw, vp, &ff, &licht,
                             g_app->showCaps);
                         if (!nebenbild && !a.ohneKoerper && auswahl.figur(a.figur)) {
                             UmrissFigur uf;
-                            uf.model = a.model;
+                            uf.model = &netz;
                             uf.textures = a.textures;
                             uf.knochen = skin;
                             std::copy(fw, fw + 16, uf.welt);
@@ -3883,7 +3885,7 @@ void drawMapView() {
                             g_app->showFog ? nebelFuer(a.pos) : -1;
                         if ((mitSchatten || figurNebel >= 0) && !a.ohneKoerper) {
                             gpu::FigurSchatten fs;
-                            fs.model = a.model;
+                            fs.model = &netz;
                             fs.textures = a.textures;
                             fs.knochen = skin;
                             std::memcpy(fs.welt, fw, sizeof(fs.welt));

@@ -327,14 +327,18 @@ const Grenzen& grenzen(Zielspiel s) noexcept {
     // (rd-common/mdx_format.h:84-85, MD :81-82). MAX_G2_MODELS: code/rd-vanilla/G2_API.cpp:337 512,
     // codemp/rd-vanilla/G2_API.cpp:297 1024, MD code :333 und codemp :298 1024. r_lodscale: code tr_init.cpp:1559
     // "10", codemp :1650 "5", MD :1747 "10" und codemp :1748 "5". Figurradius: SP CG_Player legt den refEntity
-    // mit memset an (cg_players.cpp:6882), MP CG_RadiusForCent 64 (cg_players.c:8338-8358). T-Pose hinter dem
+    // mit memset an und setzt gleich danach CG_SetGhoul2Info -> ent->radius = currentState.radius (cg_players.cpp:6882-6885,
+    // cg_ents.cpp:244-250 OpenJK, MD9 cg_ents.cpp:287-293, codeJK2 cg_ents.cpp:215-219): fuer den Spieler und einen NPC ohne
+    // "width"/"height" der groesste Betrag von mins/maxs (-16, -16, -24) / (16, 16, 40) = 40 (G_SetG2PlayerModelInfo,
+    // g_client.cpp:1693-1727 OpenJK, codeJK2 :1236-1270; MERGE2, gemessen in Movie Duels mit r_lodscale 20). MP
+    // CG_RadiusForCent 64 (cg_players.c:8338-8358). T-Pose hinter dem
     // Ende der GLA: in Movie Duels (OpenJK) gesehen, im Original-JKA nicht (Stufe 0, nachweise_im_spiel.md).
     // JK2: OpenJK baut Jedi Outcast aus code/ (JK2_MODE) mit denselben Werten.
     static const Grenzen kWerte[kZielspiele] = {
-        {"JKA SP", 1000, 6000, 32, 4, 512, 10.0F, 0.0F, false},
+        {"JKA SP", 1000, 6000, 32, 4, 512, 10.0F, 40.0F, false},
         {"JKA MP", 1000, 6000, 32, 4, 1024, 5.0F, 64.0F, false},
-        {"JK2 SP", 1000, 6000, 32, 4, 512, 10.0F, 0.0F, false},
-        {"Movie Duels SP", 4000, 24000, 32, 4, 1024, 10.0F, 0.0F, true},
+        {"JK2 SP", 1000, 6000, 32, 4, 512, 10.0F, 40.0F, false},
+        {"Movie Duels SP", 4000, 24000, 32, 4, 1024, 10.0F, 40.0F, true},
         {"Movie Duels MP", 4000, 24000, 32, 4, 1024, 5.0F, 64.0F, true},
     };
     const auto i = static_cast<std::size_t>(s);

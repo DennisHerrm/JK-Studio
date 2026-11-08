@@ -281,9 +281,19 @@ int main(int argc, char** argv) {
         expect("r_lodbias 1 bei 480 -> 3, Bias ueber der Zahl -> letzte", bei(480, 1) == 3 && bei(100, 5) == 3);
         expect("hinter der Kamera: Stufe 0", bei(-50) == 0);
         LodLage sp = l;
-        sp.radius = 0.0F;   // SP: CG_Player legt den refEntity mit memset an
+        sp.radius = 0.0F;   // ohne Radius: ProjectRadius 0, flod 0
         sp.abstand = 5000.0F;
-        expect("SP-Figur (Radius 0): immer Stufe 0", lodWieImSpiel(sp) == 0);
+        expect("Radius 0: immer Stufe 0", lodWieImSpiel(sp) == 0);
+        // MERGE2: eine SP-Figur hat ent->e.radius = s.radius (CG_SetGhoul2Info gleich nach dem memset in CG_Player,
+        // cg_players.cpp:6882-6885 OpenJK) - 40 aus mins/maxs, r_lodscale 10: weit weg die letzte Stufe, nah die erste.
+        const Grenzen& gsp = grenzen(Zielspiel::MdSp);
+        LodLage spf = l;
+        spf.radius = gsp.figurRadius;
+        spf.lodscale = gsp.lodscale;
+        spf.abstand = 5000.0F;
+        LodLage spn = spf;
+        spn.abstand = 240.0F;
+        expect("SP-Figur (Radius 40, r_lodscale 10): 5000 -> letzte Stufe, 240 -> 0", lodWieImSpiel(spf) == 3 && lodWieImSpiel(spn) == 0);
         LodLage eins = l;
         eins.stufenZahl = 1;
         eins.lodbias = 3;

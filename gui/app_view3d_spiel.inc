@@ -2869,6 +2869,52 @@ int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera&
     return modell::lodWieImSpiel(l);
 }
 
+// MERGE2 Punkt 4: ent->e.radius einer Figur. CG_SetGhoul2Info nimmt currentState.radius (cg_ents.cpp:287-293 MD9, OpenJK
+// :244-250; CG_Player ruft es gleich nach dem memset, cg_players.cpp:6882-6885 OpenJK). Den setzt NPC_ParseParms mit
+// "height" n (NPC_stats.cpp:3659-3686 MD9: s.radius = n), sonst G_SetG2PlayerModelInfo am Ende des Lesens
+// (g_client.cpp:2218-2270 MD9): CLASS_SAND_CREATURE 256, CLASS_RANCOR 300 (spawnflags 1) / 150, sonst der groesste
+// Betrag von mins/maxs (DEFAULT_MINS_0/1 -16 bzw. "width", DEFAULT_MINS_2 -24, maxs[2] 40 bzw. height - 24), 0 -> 60.
+float figurLodRadius(const Actor& a) {
+    auto it = g_app->npcMap.find(a.npcType);
+    if (it == g_app->npcMap.end()) {
+        std::string k = a.npcType;
+        for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        it = g_app->npcMap.find(k);
+    }
+    const NpcDef* npc = it != g_app->npcMap.end() ? &it->second : nullptr;
+    if (npc != nullptr && npc->klasse == "class_sand_creature") { return 256.0F; }
+    if (npc != nullptr && npc->klasse == "class_rancor") { return (a.spawnflags & 1) != 0 ? 300.0F : 150.0F; }
+    if (npc != nullptr && npc->hoehe >= 0.0F && static_cast<int>(npc->hoehe) > 0) { return static_cast<float>(static_cast<int>(npc->hoehe)); }
+    const float breite = npc != nullptr && npc->breite >= 0.0F ? npc->breite : 16.0F;
+    const float oben = npc != nullptr && npc->hoehe >= 0.0F ? npc->hoehe - 24.0F : 40.0F;
+    const int r = static_cast<int>(std::max({breite, 24.0F, oben}));
+    return r != 0 ? static_cast<float>(r) : 60.0F;
+}
+
+const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam) {
+    if (a.figur < 0 || static_cast<std::size_t>(a.figur) >= g_app->actorAssets.size() ||
+        static_cast<std::size_t>(a.figur) >= g_app->scene.actors.size()) {
+        return *a.model;
+    }
+    const std::shared_ptr<const App::ActorAssets>& as = g_app->actorAssets[static_cast<std::size_t>(a.figur)];
+    if (!as || as->lodModelle.empty() || a.model != &as->model) { return *a.model; }
+    const modell::Zielspiel ziel = regelwerkJediOutcast() ? modell::Zielspiel::Jk2Sp
+                                   : regelwerkMovieDuels() ? modell::Zielspiel::MdSp
+                                                           : modell::Zielspiel::JkaSp;
+    float vorn[3];
+    cam.forward(vorn);
+    modell::LodLage l;
+    l.stufenZahl = static_cast<int>(as->lodModelle.size()) + 1;
+    l.radius = figurLodRadius(g_app->scene.actors[static_cast<std::size_t>(a.figur)]);
+    l.skala = std::max({a.skala[0], a.skala[1], a.skala[2]});   // largestScale (0 -> 1 in lodWieImSpiel)
+    l.lodscale = modell::grenzen(ziel).lodscale;                  // r_lodscale, r_lodbias "0"
+    // ProjectRadius mit ent->e.origin (samt 24 * (scale - 1), CG_Player) entlang der Blickachse
+    l.abstand = vorn[0] * (fw[3] - cam.pos[0]) + vorn[1] * (fw[7] - cam.pos[1]) + vorn[2] * (fw[11] - cam.pos[2]);
+    l.projektion5 = 1.0F / std::tan(cam.fovY * 3.14159265F / 360.0F);
+    const int stufe = modell::lodWieImSpiel(l);
+    return stufe <= 0 ? as->model : as->lodModelle[static_cast<std::size_t>(stufe - 1)];
+}
+
 // rc608 Teil 13b: die Kartenmodelle einer Entity-Liste aufstellen (misc_model_static, _breakable, die festen Modelle,
 // model2 an Brush-Movern) - fuer die Vorschau und fuer das Spielbild des Karten-Editors mit demselben Code. Die
 // Bilder kommen hinten an z.textures (modellBlockIn), die Dateien nach z.dateien.
@@ -4164,6 +4210,24 @@ void loadActorModels() {
         }
         figurG2Regeln(gm, &it->second, mitSchluessel);
         assets.model = std::move(gm);
+        // MERGE2 Punkt 4: R_LoadMDXM laedt alle Detailstufen (tr_ghoul2.cpp MD9), RenderSurfaces zeichnet die von
+        // G2_ComputeLOD gewaehlte. Gemessen in Movie Duels (Testkarte p27g, Sturmtruppler scale 70 in 500 Einheiten):
+        // die kleine Figur zeichnet das Spiel in Stufe 1 (mit r_lodscale 20 in Stufe 0 gleich der Vorschau). Jede Stufe
+        // hat dieselben Flaechen (mdxmLOD_t je Flaeche), Haut und Ghoul2-Zustand kommen aus Stufe 0.
+        for (int n = 1; n < assets.model.numLods && n < 16; ++n) {
+            GlmModel g;
+            std::string fehlerStufe;
+            if (!readGlm(data, g, &fehlerStufe, n) || g.surfaces.size() != assets.model.surfaces.size()) {
+                diag::info("Modell " + assets.model.name + ": Detailstufe " + std::to_string(n) + " nicht lesbar - " + fehlerStufe);
+                break;
+            }
+            GlmModel stufe = assets.model;
+            for (std::size_t s = 0; s < stufe.surfaces.size(); ++s) {
+                stufe.surfaces[s].verts = std::move(g.surfaces[s].verts);
+                stufe.surfaces[s].indexes = std::move(g.surfaces[s].indexes);
+            }
+            assets.lodModelle.push_back(std::move(stufe));
+        }
         msGlm += zeitAb(tGlm);
         // Texturen dazu, ueber denselben Weg wie beim einzelnen Modell.
         const auto tTex = Uhr::now();
