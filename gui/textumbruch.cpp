@@ -12,7 +12,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <string_view>
+#include <unordered_map>
 
 namespace bhed::gui {
 
@@ -24,19 +26,59 @@ float breiteIn(ImFont* schrift, float groesse, std::string_view s) {
     return schrift->CalcTextSizeA(groesse, FLT_MAX, 0.0F, s.data(), s.data() + s.size()).x;
 }
 
+// MR6 P28: das Ergebnis je (Schrift, Groesse, Breite, Text). Vorher brach jeder lange CJK-Text (Changelog im Update-Fenster,
+// Helfertexte) in jedem Bild neu um, je Stueck mit CalcTextSizeA. Was 120 Bilder lang nicht gefragt war, faellt heraus.
+struct Gemerkt {
+    std::string fertig;
+    int bild = 0;
+};
+std::unordered_map<std::string, Gemerkt>& gemerkt() {
+    static std::unordered_map<std::string, Gemerkt> m;
+    return m;
+}
+
+std::string schluesselVon(std::string_view t, float breite, const ImFont* schrift, float groesse) {
+    std::string k(sizeof(schrift) + sizeof(float) * 2, '\0');
+    std::memcpy(k.data(), static_cast<const void*>(&schrift), sizeof(schrift));
+    std::memcpy(k.data() + sizeof(schrift), &groesse, sizeof(float));
+    std::memcpy(k.data() + sizeof(schrift) + sizeof(float), &breite, sizeof(float));
+    k.append(t);
+    return k;
+}
+
+std::string zeilenText(std::string_view t, const std::vector<std::pair<std::size_t, std::size_t>>& zeilen) {
+    std::string fertig;
+    fertig.reserve(t.size() + zeilen.size());
+    for (std::size_t i = 0; i < zeilen.size(); ++i) {
+        if (i > 0) { fertig += '\n'; }
+        fertig.append(t.substr(zeilen[i].first, zeilen[i].second - zeilen[i].first));
+    }
+    return fertig;
+}
+
 // Die Zeilen fuer `breite` als ein Text mit '\n' (bhed::umbruchZeilen); Stand und Protokoll des Selbsttests
-std::string umbrechen(std::string_view t, float breite, const std::function<float(std::string_view)>& messen) {
+std::string umbrechen(std::string_view t, float breite, ImFont* schrift, float groesse) {
+    const auto messen = [schrift, groesse](std::string_view s) { return breiteIn(schrift, groesse, s); };
+    CjkUmbruchStand& st = cjkUmbruchStand();
+    ++st.umbruchAufrufe;
+    if (!st.messen) {   // P18: ausserhalb des Selbsttests nur die Zeilen, keine Messdaten
+        auto& m = gemerkt();
+        const int bild = std::max(1, ImGui::GetFrameCount());
+        if (m.size() > 64U && bild % 120 == 0) {
+            for (auto it = m.begin(); it != m.end();) { it = bild - it->second.bild > 120 ? m.erase(it) : std::next(it); }
+        }
+        Gemerkt& g = m[schluesselVon(t, breite, schrift, groesse)];
+        if (g.bild == 0) {
+            ++st.umbruchGerechnet;
+            g.fertig = zeilenText(t, umbruchZeilen(t, breite, messen));
+        }
+        g.bild = bild;
+        return g.fertig;
+    }
+    ++st.umbruchGerechnet;
     const auto zeilen = umbruchZeilen(t, breite, messen);
     std::string fertig;
     fertig.reserve(t.size() + zeilen.size());
-    CjkUmbruchStand& st = cjkUmbruchStand();
-    if (!st.messen) {   // P18: ausserhalb des Selbsttests nur die Zeilen, keine Messdaten
-        for (std::size_t i = 0; i < zeilen.size(); ++i) {
-            if (i > 0) { fertig += '\n'; }
-            fertig.append(t.substr(zeilen[i].first, zeilen[i].second - zeilen[i].first));
-        }
-        return fertig;
-    }
     st.breitesteZeile = 0.0F;
     st.zeilenBreiten.clear();
     for (std::size_t i = 0; i < zeilen.size(); ++i) {
@@ -73,8 +115,6 @@ std::string umbrechen(std::string_view t, float breite, const std::function<floa
     return fertig;
 }
 
-float messenJetzt(std::string_view s) { return breiteIn(ImGui::GetFont(), ImGui::GetFontSize(), s); }
-
 // wrapPos wie ImGui (TextWrapPos des Fensters; < 0 kein Umbruch). Wie TextEx (imgui_widgets.cpp): Breite bis wrapPos ab dem Cursor
 void zeichnen(const char* text, const char* ende, float wrapPos) {
     const std::string_view t(text, ende != nullptr ? static_cast<std::size_t>(ende - text) : std::char_traits<char>::length(text));
@@ -87,7 +127,7 @@ void zeichnen(const char* text, const char* ende, float wrapPos) {
     }
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     const float breite = std::max(1.0F, ImGui::CalcWrapWidthForPos(w->DC.CursorPos, wrapPos));
-    const std::string fertig = umbrechen(t, breite, messenJetzt);
+    const std::string fertig = umbrechen(t, breite, ImGui::GetFont(), ImGui::GetFontSize());
     ImGui::PushTextWrapPos(-1.0F);
     ImGui::TextUnformatted(fertig.c_str(), fertig.c_str() + fertig.size());
     ImGui::PopTextWrapPos();
@@ -159,7 +199,7 @@ ImVec2 cjkTextSize(const char* text, const char* ende, bool verstecken, float br
     const char* sichtbar = verstecken ? ImGui::FindRenderedTextEnd(text, ende) : (ende != nullptr ? ende : text + std::strlen(text));
     const std::string_view t(text, static_cast<std::size_t>(sichtbar - text));
     if (breite <= 0.0F || !hatCjk(t)) { return ImGui::CalcTextSize(text, ende, verstecken, breite); }
-    const std::string fertig = umbrechen(t, breite, messenJetzt);
+    const std::string fertig = umbrechen(t, breite, ImGui::GetFont(), ImGui::GetFontSize());
     return ImGui::CalcTextSize(fertig.c_str(), fertig.c_str() + fertig.size());
 }
 
@@ -173,7 +213,7 @@ void cjkAddText(ImDrawList* dl, ImFont* schrift, float groesse, const ImVec2& or
         dl->AddText(f, g, ort, farbe, text, ende, breite);
         return;
     }
-    const std::string fertig = umbrechen(t, breite, [f, g](std::string_view s) { return breiteIn(f, g, s); });
+    const std::string fertig = umbrechen(t, breite, f, g);
     dl->AddText(f, g, ort, farbe, fertig.c_str(), fertig.c_str() + fertig.size());
 }
 

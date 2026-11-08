@@ -50,6 +50,10 @@ struct CjkUmbruchStand {
     };
     bool protokollieren = false;
     std::vector<Eintrag> protokoll;
+    // MR6 P28: ohne messen merkt sich der Umbruch sein Ergebnis je (Text, Breite, Schrift, Groesse); gezaehlt werden die Aufrufe
+    // und wie oft wirklich umbrochen wurde (Selbsttest cjkweit: ein stehendes Fenster rechnet nicht in jedem Bild neu)
+    long long umbruchAufrufe = 0;
+    long long umbruchGerechnet = 0;
 };
 [[nodiscard]] CjkUmbruchStand& cjkUmbruchStand();
 

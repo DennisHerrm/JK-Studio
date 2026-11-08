@@ -112,6 +112,23 @@ std::vector<Schritt> schritte() {
     add(pause(0.5));
     add(foto("cjkw_helfer"));
     add(pruefeStelle("Helfer", ""));
+    // MR6 P28: ausserhalb des Selbsttests (messen aus) merkt sich der Umbruch sein Ergebnis - der stehende Helfer bricht seine
+    // CJK-Texte einmal um, nicht in jedem Bild (vorher je Bild und Text umbruchZeilen mit CalcTextSizeA je Stueck)
+    auto p28 = std::make_shared<std::array<long long, 2>>();
+    add(tu("CJK weit: P28 - messen aus, Zaehler merken", [p28] {
+        CjkUmbruchStand& st = cjkUmbruchStand();
+        st.messen = false;
+        *p28 = {st.umbruchAufrufe, st.umbruchGerechnet};
+    }));
+    add(pause(0.6));
+    add(pruefe("CJK weit: P28 - der stehende Helfer bricht seine Texte nicht in jedem Bild neu um", [p28] {
+        CjkUmbruchStand& st = cjkUmbruchStand();
+        const long long aufrufe = st.umbruchAufrufe - (*p28)[0];
+        const long long gerechnet = st.umbruchGerechnet - (*p28)[1];
+        st.messen = true;
+        diag::detail("Knopftest: CJK weit - P28: " + std::to_string(aufrufe) + " Aufrufe in 0,6 s, davon umbrochen " + std::to_string(gerechnet));
+        return aufrufe > 0 && gerechnet * 10 <= aufrufe;
+    }));
     add(tu("CJK weit: aufraeumen", [] {
         hilfeErsteSchritte(false);
         hilfeSchliessen();
