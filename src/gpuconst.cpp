@@ -49,9 +49,9 @@ TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden) {
                 m[1] = t.a[1];
                 break;
             case TexModKind::Stretch: {
-                // RB_CalcStretchTexCoords: p = 1 / Welle, um die Mitte (0,5) statt um den Ursprung (translate in float)
-                const float w = waveValue(t.wave, zeitSekunden);
-                const float p = (w != 0.0F) ? (1.0F / w) : 1.0F;
+                // RB_CalcStretchTexCoords (tr_shade_calc.cpp:101): p = 1.0f / EvalWaveForm, um die Mitte (0,5) statt um den Ursprung
+                // (translate in float). FIX5 P36: ohne Pruefung wie dort - Welle 0 gibt inf (vorher p = 1)
+                const float p = 1.0F / waveValue(t.wave, zeitSekunden);
                 k.art[i] = kTcAffin;
                 m[0] = p;
                 m[3] = p;

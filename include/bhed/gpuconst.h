@@ -133,8 +133,11 @@ void packeKonstanten(const BatchState& bs, float* ziel, float zeitSekunden);
 // FIX4 P33: die tcMod-Kette einer Stufe zur Zeit `zeitSekunden`, je Schritt die Werte, die rd-vanilla in ComputeTexCoords
 // (tr_shade.cpp:1725) an die Rechenfunktion gibt (tr_shade_calc.cpp, MD9 gleich), Bit fuer Bit: turb 1024 now (now in float wie
 // RB_CalcTurbulentTexCoords, mal 1024 exakt) und amplitude; scroll gekuerzt; rotate aus der Sinustafel mit translate in double;
-// stretch, transform. Die Shader wenden die Schritte der Reihe nach an (tcKette, gpushader.cpp). Fuer Karte, Figurenstufe und das
-// Echtzeit-Licht des Karten-Editors.
+// stretch (FIX5: EvalWaveForm ueber die Tafeln, p = 1.0f / Welle ohne Pruefung), transform. Die Shader wenden die Schritte der
+// Reihe nach an (tcKette, gpushader.cpp). Fuer Karte, Figurenstufe und das Echtzeit-Licht des Karten-Editors. Bitgleich heisst: bei
+// derselben Ecke (Ort fuer turb, st) dasselbe Ergebnis (ctest gpuconst, turbgpu, defgpu). An Figuren kommt der Ort aus der Haut auf
+// der Grafikkarte (nicht aus RB_SurfaceGhoul), an Flaechen mit deformVertexes aus der Verformung davor - dort ist schon die Ecke
+// nicht Bit fuer Bit die des Spiels (FIX5 P36).
 struct TcKette {
     float art[kMaxTexMods]{};      // kTcKeine ... kTcRoll
     float m[4 * kMaxTexMods]{};    // je Schritt vier (gTcM0..3)

@@ -12,6 +12,7 @@
 // ist es eine Zahl, die man vergleichen kann.
 
 #include "bhed/gpuconst.h"
+#include "bhed/wave.h"
 
 #include "bhed/gpushader.h"
 
@@ -362,6 +363,41 @@ int main() {
         packeKonstanten(bs, buf.data(), 0.0F);
         erwarte("ohne deformVertexes bleibt alles null",
                 buf[kDeformAt] == 0.0F && buf[kDeformSpreadAt] == 0.0F);
+    }
+
+    // --- FIX5 P36: tcMod stretch wie RB_CalcStretchTexCoords (tr_shade_calc.cpp:101) -----------------
+    //
+    // p = 1.0f / EvalWaveForm(wf) ohne Pruefung (Welle 0 -> inf), matrix p / 0 / 0 / p, translate 0.5f - 0.5f * p. Bis FIX5 nahm der
+    // Packer bei Welle 0 p = 1 (die Textur stand still statt zu verschwinden).
+    {
+        BatchState bs;
+        bs.numTexMods = 1;
+        bs.texMods[0].kind = TexModKind::Stretch;
+        bs.texMods[0].wave.func = WaveFunc::Sin;
+        bs.texMods[0].wave.base = 0.0F;
+        bs.texMods[0].wave.amplitude = 0.0F;
+        packeKonstanten(bs, buf.data(), 2.0F);
+        erwarte("stretch mit Welle 0: p = 1.0f / 0 = inf wie im Spiel",
+                std::isinf(buf[kTcM0At + 0]) && buf[kTcM0At + 0] > 0.0F && std::isinf(buf[kTcM0At + 3]) && std::isinf(buf[kTcO01At + 0]) &&
+                    buf[kTcO01At + 0] < 0.0F);
+        bs.texMods[0].wave.base = 1.0F;
+        bs.texMods[0].wave.amplitude = 0.3F;
+        bs.texMods[0].wave.phase = 0.1F;
+        bs.texMods[0].wave.frequency = 0.7F;
+        int falsch = 0;
+        for (int ms = 0; ms < 20000; ms += 7) {
+            const auto zeit = static_cast<float>(ms * 0.001);
+            packeKonstanten(bs, buf.data(), zeit);
+            const float pSpiel = 1.0F / waveValue(bs.texMods[0].wave, zeit);
+            const float trSpiel = 0.5F - 0.5F * pSpiel;
+            if (buf[kTcM0At + 0] != pSpiel || buf[kTcM0At + 1] != 0.0F || buf[kTcM0At + 2] != 0.0F || buf[kTcM0At + 3] != pSpiel ||
+                buf[kTcO01At + 0] != trSpiel || buf[kTcO01At + 1] != trSpiel) {
+                ++falsch;
+            }
+        }
+        erwarte(("stretch sin 1 0.3 0.1 0.7: matrix und translate wie RB_CalcStretchTexCoords, " + std::to_string(falsch) + " Zeiten abweichend")
+                    .c_str(),
+                falsch == 0);
     }
 
     // --- Ein Nullzeiger stuerzt nicht ab -----------------------------------
