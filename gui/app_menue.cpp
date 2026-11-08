@@ -519,7 +519,7 @@ struct Zustand {
         bool add = false, addNeu = false;
         std::string addq;
         std::vector<int> auswahl;       // zuletzt gesehene Auswahl
-        const Dokument* auswahlDok = nullptr;
+        std::uint64_t auswahlDok = 0;   // MR6 P32: Dokument::nummer (eine Adresse kehrt nach dem Schliessen wieder)
         int tablett = 0;                // Fuss: 0 zu, 1 Component, 2 Preview cvars, 3 Engine messages
         std::map<int, Item> vorgabe;    // Item_Init je Dialekt und Spiel
         std::vector<std::string> vorschlaege;
@@ -4384,7 +4384,8 @@ const Texte& vorschauTexte(Dokument& d) {
     const Texte& basis = texte();
     eigeneTexteLesen(d);
     if (d.eigeneTexte.empty()) { return basis; }
-    const std::string schl = d.name + "|" + std::to_string(d.textStand) + "|" + z.sprache + "|" + std::to_string(z.texteVersion);
+    // MR6 P32: die Nummer statt des Namens - zwei Dokumente gleichen Namens (auch nacheinander) haben beide textStand 0
+    const std::string schl = std::to_string(d.nummer) + "|" + std::to_string(d.textStand) + "|" + z.sprache + "|" + std::to_string(z.texteVersion);
     if (z.texteMitSchluessel != schl) {
         z.texteMit = basis;
         for (const TextZeile& r : d.eigeneTexte) {
@@ -7835,6 +7836,8 @@ void leisteVorgabe() {
     l.tablett = 0;
 }
 void leisteTablett(int nr) { Z().leiste.tablett = nr; }
+void leisteFarbeAuf(const std::string& zeile) { Z().leiste.farbeOffen = zeile; }
+const void* dokumentAdresse() { return doc(); }
 bool bildWahlOffen() { return Z().wahl.istOffen; }
 void setzeTextScroll(float zeile) {
     if (Dokument* d = doc()) {

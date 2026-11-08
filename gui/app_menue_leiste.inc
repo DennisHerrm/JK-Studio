@@ -2173,9 +2173,9 @@ void zeichneHilfezeile() {
 void leisteSeite(Dokument& d, int art) {
     Zustand& z = Z();
     Zustand::Leiste& l = z.leiste;
-    if (l.auswahl != d.auswahl || l.auswahlDok != &d) {
+    if (l.auswahl != d.auswahl || l.auswahlDok != d.nummer) {
         l.auswahl = d.auswahl;
-        l.auswahlDok = &d;
+        l.auswahlDok = d.nummer;
         l.auf = 0;
         l.add = false;
         l.farbeOffen.clear();

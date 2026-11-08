@@ -2927,6 +2927,67 @@ std::vector<Schritt> schritteM6() {
                    ", Tab-Folge falsch " + std::to_string((*wechsel)[2]));
         return (*wechsel)[0] == 200 && (*wechsel)[1] == 0 && (*wechsel)[2] == 0;
     }));
+    // MR6 P32: zwei weitere Zwischenspeicher hingen an Name bzw. Adresse des Dokuments. (a) Die Texte der Vorschau unter
+    // "Name|textStand|...": zwei Dokumente gleichen Namens mit eigenen Texten haben nach dem ersten Text beide Stand 1 - die
+    // Vorschau zeigte den Text des geschlossenen. (b) Die Leiste merkte sich die Auswahl unter der Adresse: ein neues Dokument an
+    // der Adresse des geschlossenen behielt offenen Ereignisschritt, Ausloeser und offene Farbzeile.
+    auto p32 = std::make_shared<std::array<int, 3>>();
+    add(tu("M6 P32: zwei gleichnamige Dokumente mit verschiedenen eigenen Texten nacheinander - 50 Mal", [p32] {
+        *p32 = {0, 0, 0};
+        me::setzeVorschauSprache("English");
+        const char* const t = "{\n\tmenuDef\n\t{\n\t\tname gleich\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                              "\t\titemDef\n\t\t{\n\t\t\tname t\n\t\t\ttext @MYMENU_P32\n\t\t\trect 10 10 100 20\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n";
+        for (int i = 0; i < 50; ++i) {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneText("ui/gleich.menu", t);
+            (void)me::legeTextAn("P32", {{"English", "Erster"}});
+            const bool erster = me::loeseText("@MYMENU_P32") == "Erster";
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneText("ui/gleich.menu", t);
+            (void)me::legeTextAn("P32", {{"English", "Zweiter"}});
+            ++(*p32)[0];
+            (*p32)[1] += erster ? 0 : 1;
+            (*p32)[2] += me::loeseText("@MYMENU_P32") == "Zweiter" ? 0 : 1;
+        }
+    }));
+    add(pruefe("M6 P32: die Vorschau zeigt immer die Texte des offenen Dokuments", [p32] {
+        diag::info("Menue-Editor M6 P32 Texte: " + std::to_string((*p32)[0]) + " Wechsel, erster falsch " + std::to_string((*p32)[1]) +
+                   ", zweiter falsch " + std::to_string((*p32)[2]));
+        return (*p32)[0] == 50 && (*p32)[1] == 0 && (*p32)[2] == 0;
+    }));
+    auto p32b = std::make_shared<std::array<int, 3>>();
+    auto p32adr = std::make_shared<const void*>(nullptr);
+    add(Schritt{"M6 P32: Leiste - Farbzeile offen, alles zu, neues Dokument mit derselben Auswahl - 40 Runden", [p32b, p32adr](int b) {
+                    const auto oeffne = [] {
+                        me::schliesseAlleOhneSpeichern();
+                        (void)me::oeffneText("ui/flussprobe.menu", kFlussProbe);
+                        me::setzeReiter(2);
+                        me::waehle(0, false);
+                    };
+                    if (b == 0) { *p32b = {0, 0, 0}; }
+                    switch (b % 4) {
+                    case 0:
+                        if (b > 0) {
+                            ++(*p32b)[0];
+                            (*p32b)[1] += me::leisteStand().farbeOffen.empty() ? 0 : 1;
+                        }
+                        oeffne();
+                        *p32adr = me::dokumentAdresse();
+                        break;
+                    case 1: me::leisteFarbeAuf("##p32"); break;
+                    case 2:
+                        oeffne();
+                        (*p32b)[2] += me::dokumentAdresse() == *p32adr ? 1 : 0;
+                        break;
+                    default: break;
+                    }
+                    return b >= 160;
+                }});
+    add(pruefe("M6 P32: ein neues Dokument beginnt die Leiste ohne die offene Farbzeile des alten", [p32b] {
+        diag::info("Menue-Editor M6 P32 Leiste: " + std::to_string((*p32b)[0]) + " Runden, Farbzeile uebernommen " + std::to_string((*p32b)[1]) +
+                   ", neues Dokument an derselben Adresse " + std::to_string((*p32b)[2]));
+        return (*p32b)[0] == 40 && (*p32b)[1] == 0;
+    }));
     add(tu("M6 Fluss: Probe oeffnen", [] {
         me::schliesseAlleOhneSpeichern();
         (void)me::oeffneText("ui/flussprobe.menu", kFlussProbe);
