@@ -45,16 +45,17 @@ struct AnimImport {
     // FIX2 P14: Hinweise und Fehler als Art (bhed/modell/fehler.h): den Text in der Sprache der Oberflaeche setzt die GUI
     // (modellFehlerText), fehlerText gibt den englischen Satz; vorher deutsche Saetze in jeder Sprache
     std::vector<ModellFehler> hinweise; // BvhOhneSeiten, BvhBoden, UngleicheSkalierung
-    ModellFehler fehlerArt;            // nach false: KeineAnimation, KeinSkelett, AchsenUnbestimmt, AnimZuLang (sonst Keiner)
+    ModellFehler fehlerArt;            // nach false: KeineAnimation, KeinSkelett, AchsenUnbestimmt, AnimZuLang, AnimZuLangGla (sonst Keiner)
 };
 
 // Endung .fbx .glb .gltf .bvh .dae (klein oder gross).
 [[nodiscard]] bool istAnimImportEndung(const std::string& pfad);
 // Die Datei lesen. false: keine Animation/kein Skelett oder nicht lesbar (Grund englisch in fehler, als Art in
 // aus.fehlerArt). fpsVorgabe > 0 erzwingt die Bildrate (sonst aus der Datei).
-// FIX2 P5: die Bildzahl kommt aus dem letzten Schluessel; eine verirrte Zeit (ms statt s) gaebe Gigabytes. Abgelehnt
-// (AnimZuLang), wenn alle Bilder nicht in int passen (GlaAnimation::numFrames) oder die Bilder (je Bild und Knochen eine
-// Welt und eine lokale Stellung) mehr Speicher braeuchten als frei ist (GlobalMemoryStatusEx ullAvailPhys).
+// FIX2 P5: die Bildzahl kommt aus dem letzten Schluessel; eine verirrte Zeit (ms statt s) gaebe Gigabytes. FIX4 P34: feste
+// Grenzen - abgelehnt mit AnimZuLangGla, wenn Bilder x Knochen x 3 Byte nicht in die int-Offsets einer GLA passen
+// (mdx_format.h), mit AnimZuLang, wenn die Bilder (je Bild und Knochen eine Welt und eine lokale Stellung) mehr brauchen, als
+// der Rechner Arbeitsspeicher hat (GlobalMemoryStatusEx ullTotalPhys), oder der Speicher beim Lesen ausgeht (bad_alloc).
 [[nodiscard]] bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehler = nullptr, int fpsVorgabe = 0);
 
 // BVH schreiben (fuer die Preset-Bibliothek): Hierarchie mit den Orten der Grundstellung als OFFSET, Wurzel und Knochen mit

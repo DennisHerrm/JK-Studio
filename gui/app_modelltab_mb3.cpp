@@ -380,6 +380,7 @@ std::string modellFehlerText(const modell::ModellFehler& f) {
         case A::KeineAnimation: return tr(Str::MbFeKeineAnimation);
         case A::AchsenUnbestimmt: return format(Str::MbFeAchsenUnbestimmt, n, f.name2.c_str());
         case A::AnimZuLang: return format(Str::MbFeAnimZuLang, static_cast<double>(f.a), static_cast<double>(f.b), static_cast<double>(f.c));
+        case A::AnimZuLangGla: return format(Str::MbFeAnimZuLangGla, static_cast<double>(f.a), static_cast<double>(f.b), static_cast<double>(f.c));
         case A::BvhOhneSeiten: return tr(Str::MbHwBvhOhneSeiten);
         case A::BvhBoden: return format(Str::MbHwBvhBoden, static_cast<double>(f.a) / 10.0);
         case A::UngleicheSkalierung: return tr(Str::MbHwUngleicheSkalierung);

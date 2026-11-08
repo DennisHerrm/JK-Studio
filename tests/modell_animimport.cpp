@@ -33,6 +33,13 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 using namespace bhed;
 using namespace bhed::modell;
 using V3 = std::array<float, 3>;
@@ -177,6 +184,44 @@ void schreibDatei(const std::string& pfad, const std::string& inhalt) {
     std::ofstream o(pfad, std::ios::binary);
     o << inhalt;
 }
+
+#ifdef _WIN32
+// FIX4 P34: GlobalMemoryStatusEx in der Importtabelle dieses Programms umgelenkt - der freie und der gesamte Arbeitsspeicher
+// vorgetaeuscht, ohne den Rechner zu fuellen. Eine Jobgrenze (JOB_OBJECT_LIMIT_PROCESS_MEMORY/JOB_MEMORY) aendert die Werte von
+// GlobalMemoryStatusEx nicht (gemessen 08.11.: ullAvailPhys 43 GB unter einer 300-MB-Grenze).
+std::uint64_t gFreiVorgabe = 0;     // ullAvailPhys, 0: echt
+std::uint64_t gGesamtVorgabe = 0;   // ullTotalPhys, 0: echt
+using GmsFn = BOOL(WINAPI*)(LPMEMORYSTATUSEX);
+GmsFn gEchtGms = nullptr;
+BOOL WINAPI vorgetaeuscht(LPMEMORYSTATUSEX m) {
+    const BOOL r = gEchtGms(m);
+    if (r != 0 && gFreiVorgabe != 0) { m->ullAvailPhys = gFreiVorgabe; }
+    if (r != 0 && gGesamtVorgabe != 0) { m->ullTotalPhys = gGesamtVorgabe; }
+    return r;
+}
+bool speicherUmlenken() {
+    auto* basis = reinterpret_cast<std::uint8_t*>(GetModuleHandleW(nullptr));
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(basis);
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(basis + dos->e_lfanew);
+    const IMAGE_DATA_DIRECTORY& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    for (auto* d = reinterpret_cast<const IMAGE_IMPORT_DESCRIPTOR*>(basis + dir.VirtualAddress); d->Name != 0; ++d) {
+        const auto* namen = reinterpret_cast<const IMAGE_THUNK_DATA*>(basis + d->OriginalFirstThunk);
+        auto* adressen = reinterpret_cast<IMAGE_THUNK_DATA*>(basis + d->FirstThunk);
+        for (; namen->u1.AddressOfData != 0; ++namen, ++adressen) {
+            if (IMAGE_SNAP_BY_ORDINAL(namen->u1.Ordinal)) { continue; }
+            const auto* n = reinterpret_cast<const IMAGE_IMPORT_BY_NAME*>(basis + namen->u1.AddressOfData);
+            if (std::strcmp(reinterpret_cast<const char*>(n->Name), "GlobalMemoryStatusEx") != 0) { continue; }
+            DWORD alt = 0;
+            if (VirtualProtect(&adressen->u1.Function, sizeof(void*), PAGE_READWRITE, &alt) == 0) { return false; }
+            gEchtGms = reinterpret_cast<GmsFn>(adressen->u1.Function);
+            adressen->u1.Function = reinterpret_cast<ULONG_PTR>(&vorgetaeuscht);
+            VirtualProtect(&adressen->u1.Function, sizeof(void*), alt, &alt);
+            return true;
+        }
+    }
+    return false;
+}
+#endif
 
 // FIX2 P5: ein glTF mit einer Kette aus `knochen` Knoten, alle mit derselben Ortsspur (Schluessel bei den Zeiten `zeiten`,
 // Sekunden), Puffer als data:-URI (glTF 2.0 5.10 "uri")
@@ -463,11 +508,80 @@ int main(int argc, char** argv) {
                            " Knochen (8) " + fehler,
                        ok && a.anim.numFrames == 61 && a.anim.bones.size() == 8U);
             } else {
+                // FIX4 P34: Bilder x 8 Knochen x 3 Byte passen nicht in die int-Offsets einer GLA - abgelehnt vor jedem Speichertest
                 expect(std::string("P5 ") + l.was + ": abgelehnt mit Meldung \"" + fehler + "\" (" + std::to_string(a.anim.numFrames) + " Bilder)",
-                       !ok && !fehler.empty() && a.fehlerArt.art == FehlerArt::AnimZuLang);
+                       !ok && !fehler.empty() && a.fehlerArt.art == FehlerArt::AnimZuLangGla && a.fehlerArt.b == 8);
             }
         }
     }
+
+#ifdef _WIN32
+    // FIX4 P34: gleiche Datei, gleiches Ergebnis - unabhaengig davon, wie viel Speicher gerade frei ist (vorher lehnte der Import
+    // ab, sobald die Bilder mehr brauchten als ullAvailPhys: mit offenem Browser abgelehnt, nach dem Schliessen gelesen)
+    {
+        expect("P34 GlobalMemoryStatusEx in der Importtabelle umgelenkt", speicherUmlenken());
+        const auto lies = [](float ende, AnimImport& a, std::string& fehler) {
+            const std::string pfad = "animimport_p34.gltf";
+            {
+                std::ofstream o(pfad, std::ios::binary);
+                o << gltfKette(8, {0.0F, 1.0F / 30.0F, ende});
+            }
+            const bool ok = animImportieren(pfad, a, &fehler);
+            std::remove(pfad.c_str());
+            return ok;
+        };
+        struct Lage {
+            const char* was;
+            std::uint64_t frei;
+        };
+        const Lage lagen[] = {{"freier Speicher echt", 0ULL}, {"16 MB frei", 16ULL << 20U}, {"1 MB frei", 1ULL << 20U}};
+        unsigned long long h0 = 0;
+        for (const Lage& l : lagen) {
+            gFreiVorgabe = l.frei;
+            AnimImport a;
+            std::string fehler;
+            const bool ok = lies(1000.0F, a, fehler);
+            const unsigned long long h = ok ? rohHash(a.anim) : 0ULL;
+            if (l.frei == 0ULL) { h0 = h; }
+            char z[64];
+            std::snprintf(z, sizeof z, "FNV %016llx", h);
+            expect(std::string("P34 1000 s (30001 Bilder x 8 Knochen), ") + l.was + ": gelesen, " + std::to_string(a.anim.numFrames) + " Bilder, " + z +
+                       " wie mit echtem Speicher " + fehler,
+                   ok && a.anim.numFrames == 30001 && h == h0 && h != 0ULL);
+        }
+        // Weniger Arbeitsspeicher im Rechner, als die Bilder brauchen: abgelehnt, wie viel auch frei ist
+        gGesamtVorgabe = 16ULL << 20U;
+        for (const std::uint64_t frei : {0ULL, 8ULL << 20U}) {
+            gFreiVorgabe = frei;
+            AnimImport a;
+            std::string fehler;
+            const bool ok = lies(1000.0F, a, fehler);
+            expect(std::string("P34 1000 s auf einem Rechner mit 16 MB Arbeitsspeicher (frei ") + (frei == 0ULL ? "echt" : "8 MB") + "): abgelehnt \"" +
+                       fehler + "\", c = " + std::to_string(a.fehlerArt.c) + " MB",
+                   !ok && a.fehlerArt.art == FehlerArt::AnimZuLang && a.fehlerArt.c == 16);
+        }
+        // GLA: Bilder x Knochen x 3 Byte muessen in die int-Offsets passen (mdx_format.h) - bei 8 Knochen hoechstens 89478485 Bilder.
+        // Knapp darunter lehnt nicht das Format ab, sondern (vorgetaeuscht 16 MB) der Arbeitsspeicher - ohne die 70 GB anzulegen.
+        struct Grenze {
+            float ende;   // s; glTF-Zeiten float, assimp x 1000 in float (2982616000 -> 2982616064 ms)
+            bool gla;
+        };
+        for (const Grenze& gr : {Grenze{2982616.0F, false}, Grenze{2982616.5F, true}}) {
+            gGesamtVorgabe = 16ULL << 20U;
+            AnimImport a;
+            std::string fehler;
+            const bool ok = lies(gr.ende, a, fehler);
+            char z[200];
+            std::snprintf(z, sizeof z, "P34 %.1f s: %s, %lld Bilder x 8 x 3 = %lld Byte ", static_cast<double>(gr.ende),
+                          gr.gla ? "ueber der GLA-Grenze" : "knapp unter der GLA-Grenze", a.fehlerArt.a, a.fehlerArt.a * 24LL);
+            expect(std::string(z) + "\"" + fehler + "\"",
+                   !ok && (gr.gla ? (a.fehlerArt.art == FehlerArt::AnimZuLangGla && a.fehlerArt.c == 89478485 && a.fehlerArt.a * 24LL > 2147483647LL)
+                                  : (a.fehlerArt.art == FehlerArt::AnimZuLang && a.fehlerArt.a * 24LL <= 2147483647LL)));
+        }
+        gGesamtVorgabe = 0ULL;
+        gFreiVorgabe = 0ULL;
+    }
+#endif
 
     // Unkomprimiert: ein Weg der Wurzel ueber 512 Einheiten bleibt (die 14 Bytes des Spiels kappen bei +-512)
     if (!glb.anim.bones.empty()) {

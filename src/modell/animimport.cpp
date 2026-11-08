@@ -184,12 +184,13 @@ aiQuaternion tasteQ(const aiQuatKey* k, unsigned n, double t, const aiQuaternion
     return q.Normalize();
 }
 
-// FIX2 P5: freier Arbeitsspeicher in Bytes (0: unbekannt)
-std::uint64_t freierSpeicher() {
+// FIX4 P34: der Arbeitsspeicher des Rechners in Bytes (0: unbekannt) - fest je Rechner, nicht der gerade freie (FIX2 P5 nahm
+// ullAvailPhys: dieselbe Datei mit offenem Browser abgelehnt, nach dem Schliessen gelesen)
+std::uint64_t speicherGesamt() {
 #ifdef _WIN32
     MEMORYSTATUSEX m{};
     m.dwLength = sizeof(m);
-    if (GlobalMemoryStatusEx(&m) != 0) { return m.ullAvailPhys; }
+    if (GlobalMemoryStatusEx(&m) != 0) { return m.ullTotalPhys; }
 #endif
     return 0;
 }
@@ -550,16 +551,28 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
         abt[a] = Abtastung{tps, fps, anfang, std::max(1.0, std::floor(sekunden * fps + 1e-3) + 1.0)};
         alleBilder += abt[a].n;
     }
-    // FIX2 P5: je Bild und Knochen eine Welt (Starr) und eine lokale Stellung (roh), dazu je Bild ein Vektor
+    // FIX4 P34: zwei feste Grenzen, keine vom Augenblick (vorher der gerade freie Speicher, ullAvailPhys):
+    // (1) das Zielformat GLA: je Bild und Knochen ein Verweis von 3 Byte ((iFrameNum * numBones * 3) + (iBoneNum * 3),
+    //     code/rd-common/mdx_format.h:426-439), Bildzahl und alle Offsets der Datei sind int (mdxaHeader_t numFrames, ofsFrames,
+    //     ofsCompBonePool, ofsEnd, :389-395) - Bilder x Knochen x 3 muss in int passen (damit auch die Bildzahl selbst);
+    // (2) der Arbeitsspeicher des Rechners (ullTotalPhys): je Bild und Knochen eine Welt (Starr) und eine lokale Stellung (roh),
+    //     dazu je Bild ein Vektor - mehr als eingebaut ist, liefe nur ueber die Auslagerungsdatei. Das Commit-Limit
+    //     (ullTotalPageFile) waechst mit der Auslagerungsdatei und waere wieder vom Augenblick abhaengig.
+    // bad_alloc beim Abtasten (der Prozess bekommt den Speicher nicht) gibt weiter die Meldung (2).
+    const double knochen = static_cast<double>(std::max<std::size_t>(g.bones.size(), 1U));
+    const double hoechstens = std::floor(static_cast<double>(std::numeric_limits<int>::max()) / (knochen * 3.0));
+    if (!(alleBilder <= hoechstens)) {
+        return falsch(ModellFehler{FehlerArt::AnimZuLangGla, {}, std::llround(std::min(alleBilder, 9.0e18)), std::llround(knochen), {},
+                                   std::llround(hoechstens)});
+    }
     const double jeBild = static_cast<double>(g.bones.size()) * static_cast<double>(sizeof(Starr) + sizeof(BoneMatrix)) +
                           static_cast<double>(sizeof(std::vector<Starr>));
     const double noetig = alleBilder * jeBild;
-    const auto frei = static_cast<double>(freierSpeicher());
+    const auto gesamt = static_cast<double>(speicherGesamt());
     const auto zuLang = [&] {
-        return falsch(ModellFehler{FehlerArt::AnimZuLang, {}, std::llround(std::min(alleBilder, 9.0e18)), std::llround(std::min(noetig / 1048576.0, 9.0e18)), {},
-                                   std::llround(frei / 1048576.0)});
+        return falsch(ModellFehler{FehlerArt::AnimZuLang, {}, std::llround(alleBilder), std::llround(noetig / 1048576.0), {}, std::llround(gesamt / 1048576.0)});
     };
-    if (!(alleBilder <= static_cast<double>(std::numeric_limits<int>::max())) || (frei > 0.0 && noetig > frei)) { return zuLang(); }
+    if (gesamt > 0.0 && noetig > gesamt) { return zuLang(); }
     std::vector<Mat4> lokal(kn.size());
     std::vector<Mat4> w;
     std::vector<Starr> x;
@@ -666,7 +679,7 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
                 g.roh.push_back(alsBone(lk));
             }
         }
-    } catch (const std::bad_alloc&) {   // FIX2 P5: der freie Speicher kann zwischen Pruefung und Abtasten schrumpfen
+    } catch (const std::bad_alloc&) {   // FIX2 P5 / FIX4 P34: der Prozess bekommt den Speicher nicht (Auslagerungsdatei voll)
         g.roh.clear();
         g.roh.shrink_to_fit();
         return zuLang();

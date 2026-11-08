@@ -52,7 +52,8 @@ enum class FehlerArt : int {
     // FIX2 P5/P14: Animations-Import (animimport.h); die drei letzten sind Hinweise, keine Fehler
     KeineAnimation,
     AchsenUnbestimmt,      // name: oben, name2: vorn
-    AnimZuLang,            // a: Bilder, b: MB noetig, c: MB frei (0: unbekannt)
+    AnimZuLang,            // a: Bilder, b: MB noetig, c: MB Arbeitsspeicher des Rechners (0: unbekannt; FIX4 P34)
+    AnimZuLangGla,         // FIX4 P34: a: Bilder, b: Knochen, c: hoechstens Bilder (GLA: Bilder x Knochen x 3 Byte in int)
     BvhOhneSeiten,
     BvhBoden,              // a: Zehntel cm
     UngleicheSkalierung,
@@ -113,7 +114,10 @@ struct ModellFehler {
         case FehlerArt::BereichAusserhalb: return "range outside the GLA";
         case FehlerArt::KeineAnimation: return "no animation in the file";
         case FehlerArt::AchsenUnbestimmt: return "the axes of the file are left-handed or undetermined (up " + f.name + ", front " + f.name2 + ")";
-        case FehlerArt::AnimZuLang: return "animation too long: " + a + " frames would need " + b + " MB (" + std::to_string(f.c) + " MB free)";
+        case FehlerArt::AnimZuLang:
+            return "animation too long: " + a + " frames would need " + b + " MB of memory, this computer has " + std::to_string(f.c) + " MB";
+        case FehlerArt::AnimZuLangGla:
+            return "animation too long for a GLA: " + a + " frames x " + b + " bones (at most " + std::to_string(f.c) + " frames)";
         case FehlerArt::BvhOhneSeiten: return "BVH: no sides in the bone names, left = +X assumed";
         case FehlerArt::BvhBoden: {
             char t[48];
@@ -135,7 +139,7 @@ struct ModellFehler {
         if (art == FehlerArt::FlaecheAbgeschnitten || art == FehlerArt::FlaecheUnbrauchbar || art == FehlerArt::FlaecheOhneNetz ||
             art == FehlerArt::ZuVieleEcken || art == FehlerArt::ZuVieleDreiecke || art == FehlerArt::ZuVieleKnochen || art == FehlerArt::QuellKnochenFehlt ||
             art == FehlerArt::QuellGrundstellung || art == FehlerArt::SequenzNichtInQuelle || art == FehlerArt::QuellVerweis ||
-            art == FehlerArt::AchsenUnbestimmt || art == FehlerArt::AnimZuLang || art == FehlerArt::BvhBoden) {
+            art == FehlerArt::AchsenUnbestimmt || art == FehlerArt::AnimZuLang || art == FehlerArt::AnimZuLangGla || art == FehlerArt::BvhBoden) {
             continue;   // mit Zahlen oder zwei Namen: die Berichte tragen ModellFehler selbst
         }
         const std::string muster = fehlerText(ModellFehler{art, std::string(1, kPlatz)});

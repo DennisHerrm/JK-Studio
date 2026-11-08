@@ -5536,6 +5536,7 @@ enum class Str {
     MbFeKeineAnimation,
     MbFeAchsenUnbestimmt,
     MbFeAnimZuLang,
+    MbFeAnimZuLangGla,
     MbHwBvhOhneSeiten,
     MbHwBvhBoden,
     MbHwUngleicheSkalierung,
