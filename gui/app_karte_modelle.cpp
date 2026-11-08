@@ -50,6 +50,9 @@ std::string klein(std::string s) {
 class KartenModelle final : public karte::ModellQuelle {
 public:
     [[nodiscard]] karte::ModellAnsicht ansicht(const karte::Entitaet& e) const override {
+        // MRESTE Teil 4: misc_model_ghoul wie im Spiel - G2API_InitGhoul2Model ohne Haut (g_misc_model.cpp:184-185 OpenJK), also
+        // Bild 0 der GLA und die Shader der Datei wie ein .glm-model2 (nachPfad), keine model_default.skin
+        if (klein(e.klassenname()) == "misc_model_ghoul") { return nachPfad(modellPfad(e)); }
         karte::ModellAnsicht a;
         a.modell = modell(modellPfad(e));
         a.shader = shaderNachSkin(e, *a.modell);

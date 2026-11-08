@@ -259,6 +259,17 @@ void matrixUndGrenzen() {
     k.kontext.modelle = nullptr;
     const Kasten ohne = instanzGrenzen(*e, k.kontext);
     pruefe(nah(ohne.extents[0], 8), "ohne Modellquelle: der Kasten der Klasse");
+    // MRESTE Teil 4: misc_model_ghoul ist ein Modell (das Spiel zeichnet sein Ghoul2, SP_misc_model_ghoul), an seinem Ursprung -
+    // die Hebung um mins[2] * (1 - Groesse) aendert im Spiel nur s.origin, gezeichnet wird an s.pos (CG_General)
+    EntitaetsKlasse gk;
+    gk.setzeName("misc_model_ghoul");
+    pruefe(gk.miscmodelIs, "misc_model_ghoul: ein Modell (miscmodelIs), kein Kasten");
+    auto gh = k.neueEntitaet("misc_model_ghoul", false);
+    gh->setzen("origin", "0 0 100");
+    gh->setzen("modelscale", "0.5");
+    gh->setzen("mins", "-16 -16 -40");
+    const Vektor3f u = transformierterPunkt(miscModellMatrix(*gh), Vektor3f(0, 0, 10));
+    pruefe(nah(u[2], 105), "misc_model_ghoul: modelscale 0.5 am Ursprung, ohne Hebung");
 }
 
 }  // namespace

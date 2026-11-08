@@ -3024,7 +3024,6 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         const bool statisch = e.classname == "misc_model_static";
         if (statisch) { item.lichtHoehe = 1.0F; }
         bool skalaVec = false;
-        float minsZ = 0.0F;
         for (const auto& [k, v] : e.keys) {
             std::string lk = k;
             for (char& c : lk) {
@@ -3032,10 +3031,6 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
             }
             if (lk == "modelangles" && anBrush > 0 && !regelwerkJediOutcast()) {   // MRESTE 4 (F_VECTOR, nicht in JK2)
                 (void)std::sscanf(v.c_str(), "%f %f %f", &item.modellWinkel[0], &item.modellWinkel[1], &item.modellWinkel[2]);
-            } else if (lk == "mins") {
-                float mn[3] = {0, 0, 0};
-                (void)std::sscanf(v.c_str(), "%f %f %f", &mn[0], &mn[1], &mn[2]);
-                minsZ = mn[2];
             }
             if (lk == "angles") {
                 float a[3] = {0, 0, 0};
@@ -3057,13 +3052,10 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
             }
         }
         if (e.classname == "misc_model_ghoul") {
-            // MRESTE 4: SP_misc_model_ghoul (g_misc_model.cpp:195-215 OpenJK): "modelscale" nur ohne "modelscale_vec"; mit
-            // einer Groesse hebt es den Ursprung um mins[2] * (1 - Groesse[2]) (mins aus dem Schluessel, sonst 0).
+            // MRESTE 4: SP_misc_model_ghoul (g_misc_model.cpp:195-215 OpenJK): "modelscale" nur ohne "modelscale_vec".
+            // MRESTE Teil 4: die Hebung um mins[2] * (1 - Groesse) aendert dort nur s.origin, nach G_SetOrigin (s.pos.trBase,
+            // g_utils.cpp:1212-1224); gezeichnet wird an lerpOrigin aus s.pos (CG_General, cg_ents.cpp:381) - also ohne Hebung.
             if (skalaVec) { einheitlich = 0.0F; }
-            if (skalaVec || einheitlich != 0.0F) {
-                const float sz = einheitlich != 0.0F ? einheitlich : item.scale[2];
-                item.origin[2] += minsZ - minsZ * sz;
-            }
         }
         if (einheitlich != 0.0F) {
             for (int q = 0; q < 3; ++q) { item.scale[q] = einheitlich; }

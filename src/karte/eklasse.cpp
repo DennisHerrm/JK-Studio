@@ -67,10 +67,12 @@ bool EntitaetsKlassen::OhneFall::operator()(const std::string& a, const std::str
 // rc609 M0: dazu misc_model_static - Jedi Academy und Movie Duels zeichnen es als Modell (CG_DrawMiscEnts, mit angles und
 // modelscale/modelscale_vec wie misc_model); NRCs Regel kennt nur "model_static" anderer Spiele, der Editor zeigte einen
 // Kasten und konnte es weder drehen noch skalieren wie das Spiel.
+// MRESTE Teil 4: ebenso misc_model_ghoul - das Spiel zeichnet sein Ghoul2-Modell (SP_misc_model_ghoul, g_misc_model.cpp:182-216
+// OpenJK, MD9 gleich), die Editor-Kamera zeigte einen Kasten.
 void EntitaetsKlasse::setzeName(const std::string& n) {
     name = n;
     miscmodelIs = (beginntOhneFall(name, "misc_") && endetOhneFall(name, "model")) || gleichOhneFall(name, "model_static") ||
-                  gleichOhneFall(name, "misc_model_static");
+                  gleichOhneFall(name, "misc_model_static") || gleichOhneFall(name, "misc_model_ghoul");
 }
 
 // EntityClass_valueForKey (eclasslib.h:156-163)

@@ -688,6 +688,9 @@ const karte::Vektor3f kGlmC(0, kGlmY + 330, kGlmZ);
 constexpr const char* kGlmMd3 = "models/map_objects/imp_mine/crate_open.md3";
 const karte::Vektor3f kGlmD(-80, kGlmY - 150, kGlmZ - 100);
 const karte::Vektor3f kGlmE(80, kGlmY - 150, kGlmZ - 100);
+// MRESTE Teil 4: B2 misc_model_ghoul mit modelscale 0.5 und mins (hinter der Kamera, ausserhalb der Messung) - das Spiel zeichnet
+// es an seinem Ursprung (CG_General: lerpOrigin aus s.pos; die Hebung in SP_misc_model_ghoul aendert nur s.origin)
+const karte::Vektor3f kGlmB2(0, -400, 100);
 
 std::string glmKarte() { return karteTestPfad("rd_glm.map"); }
 
@@ -711,6 +714,8 @@ void glmKarteSchreiben() {
     char o[64];
     std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(kGlmB[0]), static_cast<double>(kGlmB[1]), static_cast<double>(kGlmB[2]));
     r3::ent(k, "misc_model_ghoul", {{"origin", o}, {"model", kGlmModell}});
+    std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(kGlmB2[0]), static_cast<double>(kGlmB2[1]), static_cast<double>(kGlmB2[2]));
+    r3::ent(k, "misc_model_ghoul", {{"origin", o}, {"model", kGlmModell}, {"modelscale", "0.5"}, {"mins", "-16 -16 -40"}});
     for (const auto& [klasse, ort] : {std::pair<const char*, karte::Vektor3f>{"misc_model_static", kGlmD}, {"misc_model", kGlmE}}) {
         std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(ort[0]), static_cast<double>(ort[1]), static_cast<double>(ort[2]));
         r3::ent(k, klasse, {{"origin", o}, {"model", kGlmMd3}});
@@ -903,6 +908,8 @@ std::vector<Schritt> glmSchritte() {
     add(glmMessen("spielbild", spiel));
     add(pruefe("RD glm: die Kamera des Editors zeichnet das .glm am func_static (A ueber 25 % abgehoben), nicht am func_breakable (C unter 5 %)",
                [editor] { return (*editor)[0] > 0.25 && (*editor)[2] < 0.05; }));
+    add(pruefe("RD glm: die Kamera des Editors zeichnet auch den misc_model_ghoul B wie A (ueber 25 % abgehoben, Verhaeltnis 0,8 bis 1,25)",
+               [editor] { return (*editor)[1] > 0.25 && (*editor)[1] > 0.8 * (*editor)[0] && (*editor)[1] < 1.25 * (*editor)[0]; }));
     add(pruefe("RD glm: das Spielbild zeichnet A und den misc_model_ghoul B (ueber 25 % abgehoben), C nicht (unter 5 %) - wie das Spiel",
                [spiel] { return (*spiel)[0] > 0.25 && (*spiel)[1] > 0.25 && (*spiel)[2] < 0.05; }));
     // Movie Duels mit derselben Karte und Kamera (Y:/werkzeuge/mr/spiel_glm.py): A 15,0, B 14,5 - gleich hell
@@ -981,13 +988,18 @@ std::vector<Schritt> glmSchritte() {
         diag::detail("Knopftest: RD glm Mission-Vorschau " + std::to_string(b.breite) + " x " + std::to_string(b.hoehe) + ", Kartenmodelle " +
                      std::to_string(g_app->mapModels.size()) + ", davon Ghoul2 " + std::to_string(glm));
     }));
-    add(pruefe("RD glm: die Mission-Vorschau stellt A (model2 am func_static) und B (misc_model_ghoul) als Ghoul2 auf, C nicht", [] {
+    add(pruefe("RD glm: die Mission-Vorschau stellt A (model2 am func_static) und B, B2 (misc_model_ghoul) als Ghoul2 auf, C nicht; B2 "
+               "an seinem Ursprung (modelscale 0.5, mins: keine Hebung wie im Spiel)", [] {
         int a = 0, b = 0;
+        float b2z = -1.0e9F;
         for (const App::MapModel& mm : g_app->mapModels) {
             if (mm.glmStufen <= 0) { continue; }
             (mm.anBrush > 0 ? a : b) += 1;
+            if (mm.anBrush <= 0 && std::fabs(mm.origin[1] - kGlmB2[1]) < 1.0F) { b2z = mm.origin[2]; }
         }
-        return a == 1 && b == 1;
+        diag::detail("Knopftest: RD glm Mission-Vorschau - Ghoul2 an Movern " + std::to_string(a) + ", misc_model_ghoul " + std::to_string(b) + ", B2 bei z " +
+                     std::to_string(b2z) + " (Ursprung " + std::to_string(kGlmB2[2]) + ")");
+        return a == 1 && b == 2 && std::fabs(b2z - kGlmB2[2]) < 0.01F;
     }));
     add(tu("RD glm: zurueck in den Karten-Editor", [linksVorher] { g_app->leftMode = *linksVorher; }));
     add(tu("RD glm: aufraeumen", [] {
