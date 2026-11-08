@@ -73,6 +73,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -104,7 +105,16 @@ struct TextZeile {
     std::map<std::string, std::string> text;   // "English", "German" ... -> Text
 };
 
+// MR5 Punkt 1: jedes Dokument bekommt eine eigene, nie wiederkehrende Nummer. Die Zwischenspeicher (Fluss, Tab-Folge,
+// Lesbarkeit) hingen an Adresse + Pufferversion; ein neu geoeffnetes Dokument lag nach dem Schliessen an derselben Adresse und hat
+// nach dem Oeffnen wieder Version 1 - der Menuefluss zeigte dann das Menue des vorigen Dokuments (menueeditor M6, 200 von 200).
+std::uint64_t naechsteDokumentNummer() {
+    static std::uint64_t n = 0;
+    return ++n;
+}
+
 struct Dokument {
+    std::uint64_t nummer = naechsteDokumentNummer();
     std::string name;          // Spielpfad (ui/main.menu) - bestimmt Dialekt
     std::string platte;        // Datei auf der Platte ("" = aus dem Spiel)
     bool ausSpiel = false;     // rc609 ME2: aus den Spieldaten gelesen (Aus dem Spiel, Menuesatz), nicht neu angelegt
@@ -4704,7 +4714,7 @@ void zeichnePruefFenster() {
         ImGui::SameLine();
         // rc608 Teil 3b: Die Liste gehoert zum jetzigen Stand; eine alte nannte Dateien und Zeilen, die es so nicht mehr gibt
         std::string stand;
-        for (const auto& od : z.docs) { stand += std::to_string(reinterpret_cast<std::uintptr_t>(od.get())) + ":" + std::to_string(od->puffer.version()) + ";"; }
+        for (const auto& od : z.docs) { stand += std::to_string(od->nummer) + ":" + std::to_string(od->puffer.version()) + ";"; }   // MR5: Nummer statt Adresse
         if (ImGui::Button(tr(Str::MePruefen)) || !z.pruefGelaufen || stand != z.pruefStand) {
             (void)pruefeAlleMenues();
             z.pruefStand = stand;

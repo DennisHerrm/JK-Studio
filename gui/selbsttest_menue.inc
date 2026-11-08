@@ -2892,6 +2892,32 @@ std::vector<Schritt> schritteM6() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = [] { return me::stand(); };
+    // MR5 Punkt 1: Fluss und Tab-Folge merken sich ihr Ergebnis je Dokument. Ein neues Dokument liegt nach dem Schliessen oft an
+    // derselben Adresse und hat nach dem Oeffnen dieselbe Pufferversion (1) - im vollen Lauf zeigte der Fluss danach das Menue des
+    // vorigen Dokuments ("1 Menues"). Wechsel vielfach wiederholt, weil die Heap-Adresse nur manchmal gleich ist.
+    auto wechsel = std::make_shared<std::array<int, 3>>();
+    add(tu("M6 Fluss: anderes Menue, Fluss und Tab-Folge gerechnet, zu, Probe auf - 200 Mal", [wechsel] {
+        *wechsel = {0, 0, 0};
+        const char* const vorher = "{\n\tmenuDef\n\t{\n\t\tname vorher\n\t\trect 0 0 640 480\n\t\tvisible 1\n"
+                                   "\t\titemDef\n\t\t{\n\t\t\tname v1\n\t\t\ttype ITEM_TYPE_BUTTON\n\t\t\trect 10 10 50 20\n\t\t\tvisible 1\n\t\t}\n\t}\n}\n";
+        for (int i = 0; i < 200; ++i) {
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneText("ui/flussvorher.menu", vorher);
+            (void)me::flussInfo();
+            (void)me::tabFolge();
+            me::schliesseAlleOhneSpeichern();
+            (void)me::oeffneText("ui/flussprobe.menu", kFlussProbe);
+            ++(*wechsel)[0];
+            (*wechsel)[1] += me::flussInfo().menues != 4 ? 1 : 0;
+            const std::vector<std::string> t = me::tabFolge();
+            (*wechsel)[2] += (t.empty() || std::find(t.begin(), t.end(), "v1") != t.end()) ? 1 : 0;
+        }
+    }));
+    add(pruefe("M6 Fluss: nach jedem Wechsel Fluss und Tab-Folge der Probe, nicht des vorigen Dokuments", [wechsel] {
+        diag::info("Menue-Editor M6 Wechsel: " + std::to_string((*wechsel)[0]) + " Wechsel, Fluss falsch " + std::to_string((*wechsel)[1]) +
+                   ", Tab-Folge falsch " + std::to_string((*wechsel)[2]));
+        return (*wechsel)[0] == 200 && (*wechsel)[1] == 0 && (*wechsel)[2] == 0;
+    }));
     add(tu("M6 Fluss: Probe oeffnen", [] {
         me::schliesseAlleOhneSpeichern();
         (void)me::oeffneText("ui/flussprobe.menu", kFlussProbe);

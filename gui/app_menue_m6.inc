@@ -13,7 +13,7 @@ const Fluss& flussAktuell() {
     for (const auto& dp : z.docs) {
         neuParsen(*dp);
         dat.push_back(&dp->datei);
-        schluessel += std::to_string(reinterpret_cast<std::uintptr_t>(dp.get())) + ":" + std::to_string(dp->geparst) + ";";
+        schluessel += std::to_string(dp->nummer) + ":" + std::to_string(dp->geparst) + ";";
     }
     if (schluessel != z.flussSchluessel) {
         z.flussSchluessel = schluessel;
@@ -189,7 +189,7 @@ void zeichneFlussFenster(Dokument* aktivDok) {
 // Die Tab-Folge des Menues der Seite (Laufzeit nach onOpen mit den Vorschau-Cvars), zwischengespeichert
 const std::vector<int>& tabFolgeVon(Dokument& d, int mi) {
     Zustand& z = Z();
-    const std::string schluessel = std::to_string(reinterpret_cast<std::uintptr_t>(&d)) + ":" + std::to_string(d.geparst) + ":" + std::to_string(mi);
+    const std::string schluessel = std::to_string(d.nummer) + ":" + std::to_string(d.geparst) + ":" + std::to_string(mi);
     if (schluessel != z.tabSchluessel) {
         z.tabSchluessel = schluessel;
         z.tabAlt.clear();
@@ -281,7 +281,7 @@ bool tabFolgeKlick(Dokument& d, int mi, float vx, float vy, const Umgebung& u) {
 // Befunde des Menues der Seite (je Stand, Seite und Sprache der Vorschau zwischengespeichert)
 const std::vector<LesbarkeitsBefund>& lesbarkeitVon(Dokument& d, int mi) {
     Zustand& z = Z();
-    const std::string schluessel = std::to_string(reinterpret_cast<std::uintptr_t>(&d)) + ":" + std::to_string(d.geparst) + ":" + std::to_string(mi) + ":" +
+    const std::string schluessel = std::to_string(d.nummer) + ":" + std::to_string(d.geparst) + ":" + std::to_string(mi) + ":" +
                                    z.sprache + ":" + std::to_string(z.texteVersion);
     if (schluessel != z.lesbarSchluessel) {
         z.lesbarSchluessel = schluessel;

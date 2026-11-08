@@ -108,6 +108,26 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Handbuchtext zur Vorschau (DXT unter JKA/JK2) nicht ergaenzt; Changelog steht unten.
 - Menue-Editor-Seitenleisten in ja/zh nicht neu fotografiert (nur Startflaeche, Helfer, KI, Ueber).
 
+# MR5 (08.11.2026, gleicher Worktree, Basis c5d16c76b, Laeufe `m5_*`)
+
+## MR5 Punkt 1: menueeditor "M6 Fluss" (4 FEHLER seit 06.11.)
+
+- Ursache (Programmfehler, nicht der Test): Menuefluss, Tab-Folge, Lesbarkeit und das Pruefen-Fenster merkten sich ihr Ergebnis
+  unter "Adresse des Dokuments + Pufferversion". Nach `schliesseAlleOhneSpeichern` legt `oeffne` das neue Dokument an derselben
+  Heap-Adresse an, und ein frisch geoeffneter Puffer hat immer Version 1 (`setzeText`). Im vollen Lauf war vorher ein anderes,
+  unveraendertes Dokument offen - der Fluss zeigte dessen Menue ("1 Menues, 1 unerreichbar, 0 Kanten"), "credits" fehlte im
+  Fenster, der Zurueck-Knopf landete im falschen Menue. Allein (`BHED_MENUE_NUR=m6`, `m5b+m6`) gruen, weil kein passender
+  Vorgaenger da war (`m5_me_m6_rot`, `m5_me_m5bm6_rot` 17/0, 65/0).
+- Behebung: jedes Dokument bekommt eine eigene, nie wiederkehrende Nummer (`Dokument::nummer`); alle vier Schluessel nehmen sie statt
+  der Adresse (app_menue_m6.inc flussAktuell/tabFolgeVon/lesbarkeitVon, Pruefen-Fenster in app_menue.cpp).
+- Neue Pruefung in M6 (vor der Probe): 200 Mal anderes Menue oeffnen, Fluss und Tab-Folge rechnen, alles schliessen, Probe oeffnen -
+  Fluss muss 4 Menues zeigen, die Tab-Folge darf das Item des vorigen Dokuments nicht enthalten.
+
+| Lauf | Ergebnis |
+|---|---|
+| `m5_me_m6_rot2` (vorher) | 17/1: "200 Wechsel, Fluss falsch 200, Tab-Folge falsch 200" |
+| `m5_me_gr_en` / `_ja` / `_es` (nachher, voll) | je 2784/0 (vorher 2780/4), "Fluss falsch 0, Tab-Folge falsch 0" |
+
 ## Changelog
 
 ## English
