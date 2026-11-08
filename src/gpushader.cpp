@@ -228,6 +228,8 @@ float wellenWert(float4 w, float art, float zusatz) {
     precise float r = w.x + funcTafel(art, funcIndex(x)) * w.y;
     return r;
 }
+// DEF1 P47: R_NoiseGet4f und Q_rsqrt braucht nur deformVertexes normal - nur in Varianten mit VERFORM_NORMAL (kDeformNormal, Figur)
+#ifdef VERFORM_NORMAL
 // R_NoiseGet4f (rd-common/tr_noise.cpp:60): VAL/INDEX ueber s_noise_perm, LERP(a, b, w) = a * (1.0f - w) + b * w
 uint rauschVal(uint a) { return kRauschPerm[a & 255u]; }
 float rauschWert(uint x, uint y, uint z, uint t) {
@@ -267,6 +269,7 @@ float qRsqrtSpiel(float zahl) {
     precise float r = y * (1.5 - ((x2 * y) * y));
     return r;
 }
+#endif
 // Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]) durch die Eintraege von..bis-1 der Folge;
 // d0..d3 aus gpu::verformung (je Platz ein float4, d3.xyz die Spreads der Wellen, d3.w die Folge zu je vier Bit, kDefCode...).
 // autosprite/autosprite2 (Code 10, 11) dreht der Vertex-Shader der Karte selbst - hier stehen sie nur an ihrer Stelle.
@@ -277,8 +280,9 @@ float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d
     // [loop]: jede Art steht einmal im Code (abgerollt wuerde das Rauschen dreimal eingesetzt - die Uebersetzung dauerte Minuten)
     [loop] for (int k = von; k < bis; ++k) {
         uint art = (folge >> (4 * k)) & 15u;
+        if (art == 0u) { break; }   // DEF1 P47: die Folge ist dicht gepackt (gpu::verformung)
         float4 d = (k == 0) ? d0 : ((k == 1) ? d1 : d2);
-        if (art <= 6u && art != 0u) {
+        if (art <= 6u) {
             // RB_CalcDeformVertexes (:129): bei frequency 0 EvalWaveForm fuer alle (Code 1, d.x), sonst
             // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency) mit der Tafel art - 1
             precise float scale = d.x;
@@ -288,6 +292,7 @@ float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d
             }
             precise float3 v = n * scale;
             p = p + v;
+#ifdef VERFORM_NORMAL
         } else if (art == 7u) {
             // RB_CalcDeformNormals (:182): normal += amplitude * R_NoiseGet4f(xyz * 0.98f (+100/+200), floatTime * frequency),
             // dann VectorNormalizeFast (q_math.cpp:1147) mit Q_rsqrt
@@ -303,6 +308,7 @@ float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d
             precise float n2 = n.z + d.x * rr.z;
             precise float il = qRsqrtSpiel(n0 * n0 + n1 * n1 + n2 * n2);
             n = float3(n0 * il, n1 * il, n2 * il);
+#endif
         } else if (art == 8u) {
             // RB_CalcBulgeVertexes (:216): ohne speed und width xyz += normal * height, sonst
             // off = (int)(FUNCTABLE_SIZE / (M_PI * 2) * (st[0] * width + now)), scale = sinTable[off & MASK] * height
@@ -414,7 +420,7 @@ VSOut main(uint id : SV_VertexID) {
 
 std::string vollbildVertexShaderHlsl() { return kVollbildVs; }
 std::string tcModHlsl() { return tcTextMitTafel(); }   // FIX3, FIX4 P33
-std::string verformHlsl() { return tcTextMitTafel() + verformText(); }   // FIX5
+std::string verformHlsl() { return tcTextMitTafel() + "#define VERFORM_NORMAL\n" + verformText(); }   // FIX5
 
 // --- Die Klinge eines Lichtschwerts --------------------------------------
 //
@@ -1076,6 +1082,7 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     s += kKonstanten;
     s += kKnochen;
     s += tcTextMitTafel();   // FIX3, FIX4 P33
+    s += "#define VERFORM_NORMAL\n";   // DEF1 P47: ein Figuren-Shader fuer alle Stufen, also mit deformVertexes normal
     s += verformText();      // FIX5: deformVertexes wie an der Karte (verformeEcke)
     // rc602 kartenpruefung: die Shaderstufe einer Figurenflaeche (b3), siehe
     // bhed/figurstufen.h. gStufe.x Farbe (0 wie bisher, 1 weiss, 2 gStufeFarbe,
@@ -1359,7 +1366,11 @@ struct VSOut {
 };
 )";
     // FIX5: deformVertexes (verformeEcke) - die Funktionen samt Zufallstafel nur in den Varianten, die sie brauchen
-    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) { s += verformText(); }
+    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) {
+        // DEF1 P47: ohne kDeformNormal kommt Code 7 nie vor - der Zweig samt Rauschen faellt beim Uebersetzen weg
+        if ((features & kDeformNormal) != 0U) { s += "#define VERFORM_NORMAL\n"; }
+        s += verformText();
+    }
     // rc608: R_SetupEntityLighting legt ambientLight, directedLight und lightDir an die
     // Entity. lightDir ist im Raum des Modells: das Punktprodukt mit e.axis, und die Achsen
     // tragen den Massstab (ScaleModelAxis), die Normalen nicht.
