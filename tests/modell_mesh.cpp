@@ -329,7 +329,107 @@ void chamferTest() {
         for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
         Plan p = chamferKanten(n, alle, 2, 0.5F);
         betragAnwenden(n, p, 0.1F);
-        expect("Chamfer alle zwoelf Kanten, 2 Segmente: 48/84/38, Grenze 0,5", !p.abgelehnt() && std::abs(p.betragMax - 0.5F) < 1e-4F && netzIst(n, 48, 84, 38, 0));
+        // MRESTE 3b, Blender bevel_build_rings (M_ADJ): je Ecke n = 3 Randpunkte, ns = 2 -> 3 Vierecke (n * (ns/2)^2) um
+        // einen Mittelpunkt; Punkte je Ecke 3 + 3 * (ns - 1) + 1 = 7 -> 8 * 7 = 56, Flaechen 6 + 12 * 2 + 8 * 3 = 54,
+        // Kanten nach Euler 56 + 54 - 2 = 108 (vorher ein Vieleck je Ecke: 48/84/38)
+        expect("Chamfer alle zwoelf Kanten, 2 Segmente: 56/108/54 (Gitter an jeder Ecke wie Blender), Grenze 0,5",
+               !p.abgelehnt() && std::abs(p.betragMax - 0.5F) < 1e-4F && netzIst(n, 56, 108, 54, 0));
+    }
+    {
+        // ns = 3 (ungerade): je Ecke n * (ns/2) * (ns/2 + 1) = 6 Vierecke und ein Dreieck in der Mitte, Punkte je Ecke
+        // 3 + 3 * 2 + 3 = 12 -> 96, Flaechen 6 + 12 * 3 + 8 * 7 = 98, Kanten 192. ns = 4: je Ecke 12 Vierecke, Punkte
+        // 3 + 3 * 3 + 3 * 2 + 1 = 19 -> 152, Flaechen 6 + 48 + 96 = 150, Kanten 300. Wuerfelecke (tri_corner_adj_vmesh):
+        // alle Punkte einer Ecke auf der Kugel mit Radius = Betrag um v - Betrag * (1, 1, 1) (Kreisprofil, snap_to_superellipsoid)
+        for (const int seg : {3, 4}) {
+            PolyNetz n = kasten();
+            std::vector<std::pair<int, int>> alle;
+            for (const PKante& k : n.kanten) { alle.emplace_back(k.a, k.b); }
+            Plan p = chamferKanten(n, alle, seg, 0.5F);
+            betragAnwenden(n, p, 0.2F);
+            int inEcke = 0, aufKugel = 0;
+            for (const PPunkt& q : n.punkte) {
+                if (q.weg || q.ort[0] < 0.3F - 1e-4F || q.ort[1] < 0.3F - 1e-4F || q.ort[2] < 0.8F - 1e-4F) { continue; }
+                ++inEcke;
+                const float d = std::sqrt((q.ort[0] - 0.3F) * (q.ort[0] - 0.3F) + (q.ort[1] - 0.3F) * (q.ort[1] - 0.3F) + (q.ort[2] - 0.8F) * (q.ort[2] - 0.8F));
+                if (std::abs(d - 0.2F) < 1e-4F) { ++aufKugel; }
+            }
+            const bool zahl = seg == 3 ? netzIst(n, 96, 192, 98, 0) : netzIst(n, 152, 300, 150, 0);
+            const int jeEcke = seg == 3 ? 12 : 19;
+            if (inEcke != jeEcke || aufKugel != jeEcke) { std::printf("        Ecke: %d Punkte, %d auf der Kugel\n", inEcke, aufKugel); }
+            expect(std::string("Chamfer alle zwoelf Kanten, ") + std::to_string(seg) + " Segmente: " + (seg == 3 ? "96/192/98" : "152/300/150") +
+                       ", eine Ecke " + std::to_string(jeEcke) + " Punkte alle auf der Kugel (Blender Wuerfelecke)",
+                   !p.abgelehnt() && zahl && inEcke == jeEcke && aufKugel == jeEcke);
+        }
+    }
+    {
+        // Profil 0,7 (r = -2 ln 2 / ln 0,7): Blenders gleiche Sehnen (find_even_superellipse_chords), die Punkte auf der
+        // Superellipse u^r + w^r = 1 um (0,3 / 0,3) mit Radius 0,2
+        PolyNetz n = kasten();
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.5F, 0.5F, 0.0F, 0.5F, 0.5F, 1.0F)}, 3, 0.7F);
+        betragAnwenden(n, p, 0.2F);
+        const double r = -2.0 * std::log(2.0) / std::log(0.7);
+        std::vector<std::array<double, 2>> bogen;
+        bool aufKurve = true;
+        for (const PPunkt& q : n.punkte) {
+            if (q.weg || std::abs(q.ort[2]) > 1e-4F || q.ort[0] < 0.29F || q.ort[1] < 0.29F) { continue; }
+            const double u = (q.ort[0] - 0.3) / 0.2, w = (q.ort[1] - 0.3) / 0.2;
+            aufKurve = aufKurve && std::abs(std::pow(std::max(u, 0.0), r) + std::pow(std::max(w, 0.0), r) - 1.0) < 1e-3;
+            bogen.push_back({q.ort[0], q.ort[1]});
+        }
+        std::sort(bogen.begin(), bogen.end());
+        std::vector<double> sehnen;
+        for (std::size_t i = 0; i + 1 < bogen.size(); ++i) { sehnen.push_back(std::hypot(bogen[i + 1][0] - bogen[i][0], bogen[i + 1][1] - bogen[i][1])); }
+        const bool gleich = sehnen.size() == 3U && std::abs(sehnen[0] - sehnen[1]) < 2e-5 && std::abs(sehnen[1] - sehnen[2]) < 2e-5;
+        if (!gleich && sehnen.size() == 3U) { std::printf("        Sehnen %.6f %.6f %.6f\n", sehnen[0], sehnen[1], sehnen[2]); }
+        expect("Chamfer 3 Segmente, Profil 0,7: drei gleiche Sehnen auf der Superellipse (Blender)", !p.abgelehnt() && bogen.size() == 4U && aufKurve && gleich);
+    }
+    {
+        // Kreuzung im 2x2-Kasten (oben Mitte, vier Kanten in einer Ebene): pipe_test (zwei Kanten auf einer Geraden, alle
+        // Vielecke parallel dazu) -> pipe_adj_vmesh, n = 4, ns = 2: 4 Vierecke um einen Mittelpunkt, alles bleibt in der
+        // Ebene z = 1. 26 - 5 + 9 + 4 * 4 = 46 Punkte, 24 + 8 + 4 + 4 = 40 Flaechen, 84 Kanten
+        PolyNetz n = kasten(1.0F, 2);
+        std::vector<std::pair<int, int>> kreuz;
+        for (const auto& [x, y] : {std::pair<float, float>{0.5F, 0.0F}, {-0.5F, 0.0F}, {0.0F, 0.5F}, {0.0F, -0.5F}}) {
+            kreuz.push_back(kanteZwischen(n, 0.0F, 0.0F, 1.0F, x, y, 1.0F));
+        }
+        Plan p = chamferKanten(n, kreuz, 2, 0.5F);
+        betragAnwenden(n, p, 0.1F);
+        bool eben = true;
+        for (const PPunkt& q : n.punkte) {
+            if (!q.weg && std::abs(q.ort[0]) < 0.2F && std::abs(q.ort[1]) < 0.2F && q.ort[2] > 0.5F) { eben = eben && std::abs(q.ort[2] - 1.0F) < 1e-5F; }
+        }
+        expect("Chamfer Kreuzung (4 Kanten in der Ebene), 2 Segmente: 46/84/40, Gitter eben", !p.abgelehnt() && netzIst(n, 46, 84, 40, 0) && eben);
+    }
+    {
+        // Spitze einer hohen dreiseitigen Pyramide: n = 3, aber tri_corner_test -1 (die Kanten sind keine Wuerfelecke) ->
+        // adj_vmesh (kubische Teilung, sabin_gamma(3)). ns = 2: 7 + 3 * 3 = 16 Punkte, 4 + 6 + 3 = 13 Flaechen, 27 Kanten;
+        // ns = 3: 12 + 3 * 4 = 24 Punkte, 4 + 9 + 7 = 20 Flaechen, 42 Kanten; die Mitte (ns = 2) liegt auf der Achse
+        for (const int seg : {2, 3}) {
+            PolyNetz n = leer();
+            GrundParam g;
+            g.form = Grundform::Kegel;
+            g.laenge = 1.0F;
+            g.breite = 0.0F;
+            g.hoehe = 3.0F;
+            g.segL = 3;
+            g.segH = 1;
+            (void)grundkoerper(n, g, 0);
+            n.verdichten();
+            n.kantenBauen();
+            std::vector<std::pair<int, int>> seiten;
+            for (const PKante& k : n.kanten) {
+                if (n.punkte[uz(k.a)].ort[2] > 2.9F || n.punkte[uz(k.b)].ort[2] > 2.9F) { seiten.emplace_back(k.a, k.b); }
+            }
+            Plan p = chamferKanten(n, seiten, seg, 0.5F);
+            betragAnwenden(n, p, 0.2F);
+            bool mitteAufAchse = seg != 2;
+            for (const PPunkt& q : n.punkte) {
+                if (!q.weg && std::abs(q.ort[0]) < 1e-4F && std::abs(q.ort[1]) < 1e-4F && q.ort[2] < 3.0F - 1e-3F && q.ort[2] > 2.0F) { mitteAufAchse = true; }
+            }
+            const bool zahl = seg == 2 ? netzIst(n, 16, 27, 13, 0) : netzIst(n, 24, 42, 20, 0);
+            expect(std::string("Chamfer Pyramidenspitze, ") + std::to_string(seg) + " Segmente: " + (seg == 2 ? "16/27/13, Mitte auf der Achse" : "24/42/20") + " (Blender adj_vmesh)",
+                   !p.abgelehnt() && seiten.size() == 3U && zahl && mitteAufAchse);
+        }
     }
     {
         PolyNetz n = kasten();

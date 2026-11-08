@@ -144,6 +144,9 @@ add_library(bhed_core STATIC
   src/modell/wof/mesh_werkzeuge.cpp
   src/modell/wof/mesh_werkzeuge2.cpp
   src/modell/wof/mesh_grundkoerper.cpp
+  # MRESTE 3b: Chamfer-Segmente wie Blenders Bevel (Profile, gleiche Sehnen, Eckengitter) - aus Blender 5.0
+  # bmesh_bevel.cc portiert, GPL-2.0-or-later, siehe src/modell/wof/fase_blender.h
+  src/modell/wof/fase_blender.cpp
   # Modell-Block 1c: Texture Painting (neu geschrieben) - siehe bhed/modell/malen.h
   src/modell/malen.cpp
   src/modell/malen_datei.cpp

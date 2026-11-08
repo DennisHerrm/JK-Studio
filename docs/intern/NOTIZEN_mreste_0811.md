@@ -35,9 +35,8 @@ Blender-Modus keine einzige Taste von Blenders Weight Paint. Quelle der Blender-
 - ctest `modell_mesh`: rot (Segmentieren abgeschaltet) 4 FEHL, gruen alle ok - eine Kante 3 Segmente 14/21/9 mit 4 Punkten auf dem
   Kreis Radius = Betrag, Profil 0,25 Bogenpunkt auf der Geraden, vier Deckelkanten 12/20/10 bzw. 16/28/14, alle zwoelf Kanten
   48/84/38. Selbsttest md 86/0 (neu: Chamfer 3 Segmente ueber das Kaestchen 14/21/9, Rueckgaengig bytegleich).
-- Abweichung: Ecken mit drei und mehr gewaehlten Kanten schliesst ein Vieleck ueber die Bogenpunkte (Blender und Max fuellen dort
-  ein Gitter); die Punkte stehen bei gleichen Parameterwinkeln (beim Kreis wie Blender, sonst nicht Blenders gleiche Sehnen).
-  Chamfer an Punkten hat keine Segmente (wie Max).
+- Abweichung (Teil 1, in Punkt 3b behoben): Ecken mit drei und mehr gewaehlten Kanten schlossen ein Vieleck, Profile != 0,5
+  standen bei gleichen Parameterwinkeln. Chamfer an Punkten hat keine Segmente (wie Max).
 
 ## Punkt 8: teil6 3 FEHLER
 
@@ -89,6 +88,40 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - Erst gelernt: ein "origin"-Schluessel ohne Ursprungs-Brush verschiebt die Brushes beim Bau nicht - das Spiel stellt das
   Brush-Modell dann ausserhalb der Karte auf und zeichnet weder Brush noch model2 (der Test nimmt einen Ursprungs-Brush).
 
+## Punkt 3b: Chamfer wie Blender (Teil 3)
+
+Quelle: Blender 5.0 `source/blender/bmesh/tools/bmesh_bevel.cc` (Tag v5.0.0, GPL-2.0-or-later, nur gelesen; Blender nicht
+gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in die neue Datei
+`src/modell/wof/fase_blender.cpp` (GPL-Kopf, THIRD-PARTY.md); die Netz-Seite bleibt in `mesh_werkzeuge.cpp`.
+
+- Profil je Streifenende wie `set_profile_params` (:1901): die Mitte ist der naechste Punkt der Kante zur Geraden Start-Ende
+  (project_to_edge), bei kollinearem Start-Mitte-Ende v bzw. der Treffpunkt der versetzten Nachbarlinien (selcount >= 3);
+  vorher lag die Mitte immer auf v - an einer Wuerfelecke lag der Bogen damit schraeg (Rotlauf: 3 von 9 Punkten auf der
+  Kugel). Profil `superR` wie :7890/:7928 (>= 0,95 Rechteck), gleiche Sehnen `find_even_superellipse_chords` (:7403,
+  :7307 mit find_superellipse_chord_endpoint), seg2 = Zweierpotenz >= seg (mindestens 4) fuer das Gitter.
+- Zwei gefaste Kanten ohne Ecke (selcount 2, zwei Ringpunkte, z. B. die Deckelkanten): beide Profile auf die Ebene durch
+  v und die Ringpunkte (move_weld_profile_planes :2067), die Punkte gemittelt (build_vmesh :6150).
+- Ecke mit Ring >= 3 und selcount >= 2: Gitter wie `bevel_build_rings` (:5517): pipe_test -> pipe_adj_vmesh (:4829,
+  snap_to_pipe_profile), tri_corner_test == 1 -> tri_corner_adj_vmesh (Wuerfelecke make_cube_corner_adj_vmesh :4550 mit
+  kubischer Teilung, interp_vmesh, snap_to_superellipsoid, make_unit_cube_map), sonst adj_vmesh (:4714, Startmitte mit
+  find_profile_fullness, cubic_subdiv :4296 mit sabin_gamma). Vierecke (i,j,k)..(i,j+1,k) je Randpunkt, bei ungerader
+  Segmentzahl ein n-Eck in der Mitte; die Randpunkte der Ecke kommen aus dem Gitter (wie Blender: build_rings kopiert
+  j = 0 aus vm1). tri_corner_test braucht die Kantenwinkel (BM_edge_calc_face_angle_signed_ex, hohl = die andere
+  Flaeche vor der Ebene der ersten). Reihenfolge der Randpunkte gegen den Uhrzeiger wie Blender (unsere Vielecke laufen im
+  Uhrzeiger: umgekehrt). Alles im Raum "Betrag 1"; jede Formel ist homogen um v, der Plan bewegt linear.
+- ctest `modell_mesh`: rot `Y:/werkzeuge/mr/p3b/ct_rot.txt` (Testcode gegen den alten Stand gebaut) 7 FEHL, gruen
+  `ct_g1.txt` 0 FEHL. Zahlen aus Blenders Regeln: alle zwoelf Kanten ns 2 56/108/54 (je Ecke n (ns/2)^2 = 3 Vierecke,
+  3 + 3 (ns - 1) + 1 = 7 Punkte), ns 3 96/192/98 (6 Vierecke + Dreieck, 12 Punkte), ns 4 152/300/150 (12 Vierecke, 19 Punkte),
+  bei ns 3 und 4 alle Punkte einer Ecke auf der Kugel r = Betrag um v - Betrag (1,1,1); Profil 0,7 drei gleiche Sehnen auf
+  u^r + w^r = 1 (vorher 0,1407 / 0,0647 / 0,1407); Kreuzung im 2x2-Kasten (pipe) 46/84/40 eben; Spitze einer hohen
+  dreiseitigen Pyramide (adj_vmesh, n = 3) ns 2 16/27/13 mit Mitte auf der Achse, ns 3 24/42/20. Selbsttest md `mr3_md` 86/0.
+- Abweichungen: square_out_adj_vmesh (Profil >= 0,95 an Ecken mit selcount >= 3 und gerader Segmentzahl, keine
+  Wuerfelecke) nicht portiert - dort adj_vmesh mit Rechteckprofil; Profil unter 0,01 zaehlt als 0,01 (Blender: bei 0
+  build_square_in_vmesh); die Ecken-Daten (UV, Normale) der Gitterpunkte nach Abstand zu den Ringpunkten gemischt
+  (Blender: interpoliert in einer Vertreter-Flaeche); Blenders Startpunkt des Rings (boundstart) ist nicht bekannt - bei
+  Segmentzahlen ohne Zweierpotenz kann interp_vmesh dadurch winzig anders runden. Enden einer einzelnen gefasten Kante an
+  Punkten mit vier und mehr Kanten (Blender M_POLY/M_TRI_FAN) bleiben ein Vieleck mit den Bogenpunkten.
+
 ## Schluss fuer die Punkte 1, 3, 8 (Laeufe `mr_s_*`)
 
 - Sauberer Neubau `build-test` (--clean-first) 0 Warnungen, 12 min 24 s; ctest 235/235.
@@ -107,8 +140,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 
 ## Offen (nicht bearbeitet, Kontext)
 
-- Punkt 2 Painting: 3D-Vorschau weiterer Shader-Stufen, Paarbild mit gleicher Haltung und Kamera.
-- Punkt 5 CJK-Umbruch ausserhalb des Model-Tabs, Punkt 6 offene Spielnachweise, Punkt 7 Helligkeit Original-JKA.
+- Siehe Teil 3 (Abschnitte unten bzw. oben je Punkt).
 
 ## Changelog
 
@@ -119,6 +151,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - Model tab, Blender mode: weight painting takes Blender's keys - Ctrl and Shift strokes subtract and smooth, Shift+X samples the weight, Ctrl+X sets it on the selection, F, Shift+F and Ctrl+F drag radius, strength and weight.
 - Model tab: Chamfer has Segments and Tension (Blender: Shape) for rounded edges.
 - Map preview and map editor: Ghoul2 models (.glm) as "model2" of a brush entity and as misc_model_ghoul are drawn like in the game (first frame of their animation, level of detail by distance); "modelAngles" now turns a model2 in the preview too, and the game view no longer draws a model2 a second time in editor light.
+- Model tab: Chamfer with segments fills corners where three or more chamfered edges meet with a grid of quads like Blender's bevel, places the round edge in the plane across the edge and spaces other shapes in equal steps.
 
 ## Deutsch
 
@@ -127,6 +160,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - Model-Tab, Blender-Modus: Weights nimmt Blenders Tasten - Striche mit Strg und Umschalt ziehen ab und glätten, Umschalt+X nimmt das Gewicht auf, Strg+X setzt es auf die Auswahl, F, Umschalt+F und Strg+F ziehen Radius, Stärke und Gewicht.
 - Model-Tab: Chamfer hat Segmente und Spannung (Blender: Form) für runde Kanten.
 - Kartenvorschau und Karten-Editor: Ghoul2-Modelle (.glm) als „model2“ einer Brush-Entity und als misc_model_ghoul werden wie im Spiel gezeichnet (erstes Bild ihrer Animation, Detailstufe nach Abstand); „modelAngles“ dreht ein model2 jetzt auch in der Vorschau, und das Spielbild zeichnet ein model2 nicht mehr ein zweites Mal im Editor-Licht.
+- Model-Tab: Chamfer mit Segmenten füllt Ecken, an denen drei oder mehr gefaste Kanten zusammenkommen, mit einem Gitter aus Vierecken wie Blenders Bevel, legt die Rundung in die Ebene quer zur Kante und verteilt andere Formen in gleichen Schritten.
 
 ## 中文
 
@@ -135,6 +169,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - 模型选项卡, Blender 模式: 权重绘制接受 Blender 的按键——按住 Ctrl 和 Shift 绘制为减去和平滑, Shift+X 采样权重, Ctrl+X 设置到所选, F、Shift+F 和 Ctrl+F 拖动半径、强度和权重。
 - 模型选项卡: 倒角有分段和张力 (Blender: 形状), 可做圆角边。
 - 地图预览和地图编辑器: 作为画刷实体 "model2" 和 misc_model_ghoul 的 Ghoul2 模型 (.glm) 按游戏方式绘制 (动画第一帧, 按距离选择细节级别); "modelAngles" 现在在预览中也会旋转 model2, 游戏画面不再以编辑器光照再绘制一次 model2。
+- 模型选项卡: 带分段的倒角在三条或更多倒角边相交的角落像 Blender 的倒角一样用四边形网格填充, 圆弧位于垂直于边的平面内, 其他形状等距分布。
 
 ## 日本語
 
@@ -143,6 +178,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - モデルタブ、Blender 風: ウェイトペイントで Blender のキーが使えます - Ctrl と Shift のストロークで減算とスムーズ、Shift+X でウェイト取得、Ctrl+X で選択に設定、F・Shift+F・Ctrl+F で半径・強さ・ウェイトをドラッグ。
 - モデルタブ: 面取りにセグメントとテンション (Blender: シェイプ) が付き、丸い辺を作れます。
 - マッププレビューとマップエディター: ブラシエンティティの「model2」と misc_model_ghoul の Ghoul2 モデル (.glm) をゲームと同じく描画します (アニメーションの最初のフレーム、距離による詳細度)。「modelAngles」はプレビューでも model2 を回転させ、ゲーム画面で model2 がエディター照明で二重に描かれなくなりました。
+- モデルタブ: セグメント付きの面取りは、面取りした辺が 3 本以上集まる角を Blender のベベルと同じく四角形の格子で埋め、丸みを辺に垂直な面に置き、他の形は等間隔に並べます。
 
 ## Español
 
@@ -151,6 +187,7 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - Pestaña Model, modo Blender: los pesos aceptan las teclas de Blender: trazos con Ctrl y Mayús restan y suavizan, Mayús+X muestrea el peso, Ctrl+X lo aplica a la selección, F, Mayús+F y Ctrl+F arrastran radio, intensidad y peso.
 - Pestaña Model: Chamfer tiene Segmentos y Tensión (Blender: Forma) para aristas redondeadas.
 - Vista previa del mapa y editor de mapas: los modelos Ghoul2 (.glm) como "model2" de una entidad de brush y como misc_model_ghoul se dibujan como en el juego (primer fotograma de su animación, nivel de detalle según la distancia); "modelAngles" ya gira un model2 también en la vista previa, y la vista de juego ya no dibuja un model2 por segunda vez con la luz del editor.
+- Pestaña Model: Chamfer con segmentos rellena las esquinas donde se juntan tres o más aristas biseladas con una rejilla de cuadriláteros como el bisel de Blender, coloca el redondeo en el plano transversal a la arista y reparte las demás formas a pasos iguales.
 
 ## Čeština
 
@@ -159,3 +196,4 @@ ent.axis (CG_Mover: lerpAngles + modelAngles; CG_General: AnglesToAxis + ScaleMo
 - Karta Model, režim Blender: váhy přijímají klávesy Blenderu - tahy s Ctrl a Shift odečítají a vyhlazují, Shift+X odebere váhu, Ctrl+X ji nastaví na výběr, F, Shift+F a Ctrl+F táhnou poloměr, sílu a váhu.
 - Karta Model: Chamfer má segmenty a napětí (Blender: tvar) pro zaoblené hrany.
 - Náhled mapy a editor map: modely Ghoul2 (.glm) jako „model2“ entity ze štětců a jako misc_model_ghoul se kreslí jako ve hře (první snímek animace, úroveň detailu podle vzdálenosti); „modelAngles“ nyní otáčí model2 i v náhledu a herní pohled už nekreslí model2 podruhé ve světle editoru.
+- Karta Model: Chamfer se segmenty vyplní rohy, kde se setkají tři a více zkosených hran, mřížkou čtyřúhelníků jako zkosení v Blenderu, klade zaoblení do roviny napříč hranou a ostatní tvary rozloží ve stejných krocích.

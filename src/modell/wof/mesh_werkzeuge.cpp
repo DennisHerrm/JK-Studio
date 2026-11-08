@@ -38,9 +38,11 @@
 // software as input shall be considered a derivative work. Redistributions of such AI-derived works must retain the
 // original copyright notice, license conditions, and disclaimer as required by the BSD-3-Clause License.
 // (Diese Datei ist ein solches Werk: von einer KI nach dem Lesen der genannten Quellen geschrieben.)
+#include "fase_blender.h"
 #include "mesh_intern.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -612,56 +614,219 @@ Plan bevel(PolyNetz& n, const std::vector<int>& flaechen, ExtrudeArt art, float 
 
 namespace {
 
-// MRESTE Punkt 3: Chamfer mit Segmenten (3ds Max Chamfer "Segments"/"Tension", Blender Bevel "Segments"/"Shape"). Jeder
-// Streifen [X1, X2, Y2, Y1] wird in `segmente` Vierecke geteilt; auf jeder Endkante X1-X2 (am alten Punkt v) liegen die
-// Bogenpunkte wie Blenders Profil (bmesh_bevel.cc: Superellipse x^r + y^r = 1 im Einheitsquadrat, (0,1) -> X1, (1,0) -> X2,
-// (1,1) -> v; r = -2 ln 2 / ln(profil), profil 0,5 = Kreis). Mit X = v + a d (a = Betrag) ist jeder Bogenpunkt
-// v + a ((1 - x) d1 + (1 - y) d2): linear im Betrag wie alle Bewegungen des Plans. Die Punkte stehen bei gleichen
-// Parameterwinkeln (x = cos^(2/r), y = sin^(2/r)); beim Kreis sind das Blenders gleiche Winkel.
-// Jede andere Flaeche mit der Endkante (Endflaeche, Flicken, der Nachbarstreifen) bekommt dieselben Bogenpunkte.
-void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil) {
-    profil = std::clamp(profil, 0.01F, 0.99F);
-    const double r = -2.0 * std::log(2.0) / std::log(static_cast<double>(profil));
+// MRESTE Punkt 3 / 3b: Chamfer mit Segmenten (3ds Max Chamfer "Segments"/"Tension", Blender Bevel "Segments"/"Shape").
+// Die Geometrie kommt aus fase_blender.cpp (Blender bmesh_bevel.cc, GPL-2.0-or-later): jedes Streifenende bekommt
+// Blenders Profil der Kante (set_profile_params: die Mitte auf der Kante, gleiche Sehnen der Superellipse), zwei
+// gefaste Kanten ohne Ecke (selcount 2, zwei Ringpunkte) mitteln ihre Profile (weld), und eine Ecke mit drei und mehr
+// Ringpunkten und mindestens zwei gefasten Kanten fuellt Blenders Gitter (bevel_build_rings, M_ADJ) statt eines
+// Vielecks. Alles im Raum "Betrag 1" (Ringpunkt = basis + richtung); jede Formel ist homogen um den alten Punkt v,
+// also bewegt jeder neue Punkt linear mit dem Betrag: basis v, richtung P - v.
+struct FaseEnde {   // ein Streifenende am alten Punkt: X1 im Vieleck mit a -> b, X2 im anderen
+    int x1 = -1;
+    int x2 = -1;
+    fase::KantenDaten k;
+};
+struct FaseInfo {
+    std::vector<FaseEnde> enden;
+    std::map<int, int> flicken;               // alter Punkt -> Flicken-Vieleck (Ring >= 3)
+    std::map<int, int> gewaehlt;              // alter Punkt -> gefaste Kanten (selcount)
+    std::map<int, int> triTest;               // alter Punkt -> tri_corner_test
+    std::map<int, std::vector<V>> normalen;   // alter Punkt -> Normalen seiner alten Vielecke (pipe_test)
+};
+
+void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil, const FaseInfo& info) {
+    const fase::Abstaende abst = fase::abstaende(segmente, std::max(profil, 0.01F));
     std::unordered_map<int, std::size_t> bewVon;
     for (std::size_t i = 0; i < p.bewegungen.size(); ++i) { bewVon[p.bewegungen[i].punkt] = i; }
+    const auto bei1 = [&](int q) {   // Ort beim Betrag 1
+        const Bewegung& b = p.bewegungen[bewVon.at(q)];
+        return vAus(b.basis) + vAus(b.richtung);
+    };
+    const auto neuBei = [&](V v, V ziel, int teil) {
+        const int q = neuerPunkt(n, v, teil);
+        Bewegung m;
+        m.punkt = q;
+        vNach(v, m.basis);
+        vNach(ziel - v, m.richtung);
+        p.bewegungen.push_back(m);
+        bewVon[q] = p.bewegungen.size() - 1U;
+        return q;
+    };
+    const auto schluessel = [](int a, int b) { return a < b ? std::pair<int, int>{a, b} : std::pair<int, int>{b, a}; };
+    // das Profil eines Streifenendes von `von` zum anderen Ringpunkt
+    const auto profilVon = [&](const FaseEnde& e, int von) {
+        fase::Profil pr;
+        if (von == e.x1) {
+            fase::kantenProfil(pr, bei1(e.x1), bei1(e.x2), e.k, abst.r);
+        } else {
+            fase::KantenDaten k = e.k;
+            std::swap(k.dVor, k.dNach);
+            std::swap(k.vorGefast, k.nachGefast);
+            fase::kantenProfil(pr, bei1(e.x2), bei1(e.x1), k, abst.r);
+        }
+        return pr;
+    };
+    std::map<std::pair<int, int>, std::vector<std::size_t>> endenVon;   // Ringpunktpaar -> Streifenenden
+    for (std::size_t i = 0; i < info.enden.size(); ++i) {
+        const FaseEnde& e = info.enden[i];
+        if (bewVon.count(e.x1) == 0U || bewVon.count(e.x2) == 0U) { continue; }
+        endenVon[schluessel(e.x1, e.x2)].push_back(i);
+    }
     std::map<std::pair<int, int>, std::vector<int>> boegen;   // (A, B) mit A < B -> Punkte von A nach B ohne A und B
-    const auto bogen = [&](int a, int b) {   // A, Bogen ..., B
-        const bool vorwaerts = a < b;
-        const std::pair<int, int> k = vorwaerts ? std::pair<int, int>{a, b} : std::pair<int, int>{b, a};
-        auto it = boegen.find(k);
-        if (it == boegen.end()) {
-            std::vector<int> neu;
-            const auto ia = bewVon.find(k.first);
-            const auto ib = bewVon.find(k.second);
-            if (ia != bewVon.end() && ib != bewVon.end()) {
-                const Bewegung ba = p.bewegungen[ia->second];
-                const Bewegung bb = p.bewegungen[ib->second];
-                const V v = vAus(ba.basis);
-                if (laenge(v - vAus(bb.basis)) < 1e-4) {   // beide vom selben alten Punkt
-                    const V d1 = vAus(ba.richtung);
-                    const V d2 = vAus(bb.richtung);
-                    for (int s = 1; s < segmente; ++s) {
-                        const double th = kPi * 0.5 * (1.0 - static_cast<double>(s) / static_cast<double>(segmente));
-                        const double x = std::pow(std::max(std::cos(th), 0.0), 2.0 / r);
-                        const double y = std::pow(std::max(std::sin(th), 0.0), 2.0 / r);
-                        const int q = neuerPunkt(n, v, n.punkte[uz(k.first)].teil);
-                        Bewegung m;
-                        m.punkt = q;
-                        vNach(v, m.basis);
-                        vNach(d1 * (1.0 - x) + d2 * (1.0 - y), m.richtung);
-                        p.bewegungen.push_back(m);
-                        bewVon[q] = p.bewegungen.size() - 1U;
-                        neu.push_back(q);
-                    }
+    std::set<int> gitterFlaechen;
+    // 1. die Ecken mit Gitter (ihre Randpunkte gibt das Gitter vor, wie bevel_build_rings)
+    for (const auto& [v, fl] : info.flicken) {
+        const auto gw = info.gewaehlt.find(v);
+        if (gw == info.gewaehlt.end() || gw->second < 2 || n.flaechen[uz(fl)].weg) { continue; }
+        const PFlaeche alt = n.flaechen[uz(fl)];
+        const int m = zi(alt.ecken.size());
+        bool alleBewegt = m >= 3;
+        for (const PEcke& c : alt.ecken) { alleBewegt = alleBewegt && bewVon.count(c.punkt) != 0U; }
+        if (!alleBewegt) { continue; }
+        // Blenders Reihenfolge (gegen den Uhrzeiger von aussen) ist die umgekehrte des Vielecks
+        std::vector<int> rp;
+        std::vector<Ecke> re;
+        for (int i = m - 1; i >= 0; --i) {
+            rp.push_back(alt.ecken[uz(i)].punkt);
+            re.push_back(alt.ecken[uz(i)].e);
+        }
+        fase::EckDaten ed;
+        ed.v = ort(n, v);
+        ed.gewaehlt = gw->second;
+        const auto tt = info.triTest.find(v);
+        ed.triTest = tt == info.triTest.end() ? 0 : tt->second;
+        std::vector<int> kanteVon(uz(m), -1);   // je Seite das Streifenende (oder -1: gerade)
+        for (int i = 0; i < m; ++i) {
+            const int a = rp[uz(i)], b = rp[uz((i + 1) % m)];
+            fase::Profil pr;
+            const auto it = endenVon.find(schluessel(a, b));
+            if (it != endenVon.end() && it->second.size() == 1U) {
+                kanteVon[uz(i)] = zi(it->second[0]);
+                pr = profilVon(info.enden[it->second[0]], a);
+            } else {
+                fase::linienProfil(pr, bei1(a), bei1(b));
+            }
+            fase::berechnen(pr, abst);
+            ed.seiten.push_back(std::move(pr));
+        }
+        // pipe_test (:3979): drei Seiten mit Kante, die erste und dritte Kante auf einer Geraden, alle Vielecke parallel dazu
+        if ((m == 3 || m == 4) && (ed.gewaehlt == 3 || ed.gewaehlt == 4)) {
+            for (int i = 0; i < m && ed.pipe < 0; ++i) {
+                const int e1 = kanteVon[uz(i)], e2 = kanteVon[uz((i + 1) % m)], e3 = kanteVon[uz((i + 2) % m)];
+                if (e1 < 0 || e2 < 0 || e3 < 0) { continue; }
+                const V d1 = einheit(info.enden[uz(e1)].k.v - info.enden[uz(e1)].k.anderes);
+                const V d3 = einheit(info.enden[uz(e3)].k.anderes - info.enden[uz(e3)].k.v);
+                if (winkel(d1, d3) >= 2.0 * kPi / 180.0) { continue; }
+                bool parallel = true;
+                const auto nv = info.normalen.find(v);
+                if (nv != info.normalen.end()) {
+                    for (const V& q : nv->second) { parallel = parallel && std::fabs(punkt(d1, q)) <= 1e-4; }
+                }
+                if (!parallel) { break; }
+                ed.pipe = i;
+                ed.pipeA = info.enden[uz(e1)].k.v;
+                ed.pipeB = info.enden[uz(e1)].k.anderes;
+            }
+        }
+        const fase::Gitter g = fase::eckenGitter(ed, abst);
+        const int ns = g.ns;
+        const int ns2 = ns / 2;
+        const int teil = alt.teil;
+        // die Randpunkte jeder Seite aus dem Gitter
+        std::vector<std::vector<int>> rand(uz(m));
+        for (int i = 0; i < m; ++i) {
+            const int a = rp[uz(i)], b = rp[uz((i + 1) % m)];
+            std::vector<int> ids;
+            for (int k = 1; k < ns; ++k) {
+                int ci = 0, cj = 0, ck = 0;
+                g.kanon(i, 0, k, ci, cj, ck);
+                ids.push_back(neuBei(ed.v, g.at(ci, cj, ck), teil));
+            }
+            rand[uz(i)] = ids;
+            if (a > b) { std::reverse(ids.begin(), ids.end()); }
+            boegen[schluessel(a, b)] = ids;
+        }
+        std::map<std::array<int, 3>, int> innen;
+        const auto id = [&](int i, int j, int k) {
+            int ci = 0, cj = 0, ck = 0;
+            g.kanon(i, j, k, ci, cj, ck);
+            if (cj == 0) { return ck == 0 ? rp[uz(ci)] : rand[uz(ci)][uz(ck - 1)]; }
+            if (ck == 0) { return rand[uz((ci + m - 1) % m)][uz(ns - cj - 1)]; }
+            const std::array<int, 3> s = {ci, cj, ck};
+            const auto it = innen.find(s);
+            if (it != innen.end()) { return it->second; }
+            const int q = neuBei(ed.v, g.at(ci, cj, ck), teil);
+            innen[s] = q;
+            return q;
+        };
+        // Ecken-Daten (UV, Normale, Gewichte): nach Abstand zu den Ringpunkten gemischt
+        const auto eckeBei = [&](int q) {
+            PEcke c;
+            c.punkt = q;
+            const V o = bei1(q);
+            double summe = 0.0;
+            bool erst = true;
+            for (int i = 0; i < m; ++i) {
+                const double d2 = punkt(o - bei1(rp[uz(i)]), o - bei1(rp[uz(i)]));
+                if (d2 < 1e-18) {
+                    c.e = re[uz(i)];
+                    return c;
+                }
+                const double w = 1.0 / d2;
+                summe += w;
+                c.e = erst ? re[uz(i)] : mischen(c.e, re[uz(i)], w / summe);
+                erst = false;
+            }
+            return c;
+        };
+        n.flaechen[uz(fl)].weg = true;
+        const int ungerade = ns % 2;
+        for (int i = 0; i < m; ++i) {
+            for (int j = 0; j < ns2; ++j) {
+                for (int k = 0; k < ns2 + ungerade; ++k) {
+                    // Blender (i,j,k), (i,j,k+1), (i,j+1,k+1), (i,j+1,k) gegen den Uhrzeiger - hier umgekehrt
+                    std::vector<PEcke> q = {eckeBei(id(i, j + 1, k)), eckeBei(id(i, j + 1, k + 1)), eckeBei(id(i, j, k + 1)), eckeBei(id(i, j, k))};
+                    gitterFlaechen.insert(neueFlaeche(n, std::move(q), teil));
                 }
             }
-            it = boegen.emplace(k, std::move(neu)).first;
         }
-        std::vector<int> folge{a};
-        if (vorwaerts) {
-            folge.insert(folge.end(), it->second.begin(), it->second.end());
+        if (ungerade != 0) {
+            std::vector<PEcke> mitte;
+            for (int i = m - 1; i >= 0; --i) { mitte.push_back(eckeBei(id(i, ns2, ns2))); }
+            gitterFlaechen.insert(neueFlaeche(n, std::move(mitte), teil));
+        }
+        p.geaendert += zi(gitterFlaechen.size());
+    }
+    // 2. die uebrigen Streifenenden: ein Profil, oder zwei gemittelt (weld, build_vmesh)
+    for (const auto& [key, liste] : endenVon) {
+        if (boegen.count(key) != 0U) { continue; }
+        const FaseEnde& e0 = info.enden[liste[0]];
+        fase::Profil p1 = profilVon(e0, key.first);
+        std::vector<V> pkt;
+        if (liste.size() == 2U) {
+            fase::Profil p2 = profilVon(info.enden[liste[1]], key.second);
+            fase::weldEbenen(p1, p2, e0.k.v);
+            fase::berechnen(p1, abst);
+            fase::berechnen(p2, abst);
+            pkt = fase::weldPunkte(p1, p2, abst);
         } else {
-            folge.insert(folge.end(), it->second.rbegin(), it->second.rend());
+            fase::berechnen(p1, abst);
+            for (int k = 1; k < segmente; ++k) { pkt.push_back(fase::profilPunkt(p1, k, segmente, abst)); }
+        }
+        std::vector<int> ids;
+        const int teil = n.punkte[uz(key.first)].teil;
+        for (const V& q : pkt) { ids.push_back(neuBei(e0.k.v, q, teil)); }
+        boegen[key] = ids;
+    }
+    const auto bogen = [&](int a, int b) {   // A, Bogen ..., B
+        std::vector<int> folge{a};
+        const auto it = boegen.find(schluessel(a, b));
+        if (it != boegen.end()) {
+            if (a < b) {
+                folge.insert(folge.end(), it->second.begin(), it->second.end());
+            } else {
+                folge.insert(folge.end(), it->second.rbegin(), it->second.rend());
+            }
         }
         folge.push_back(b);
         return folge;
@@ -707,7 +872,7 @@ void segmentieren(PolyNetz& n, Plan& p, int segmente, float profil) {
     std::vector<UvBewegung> uvNeu;
     for (std::size_t fi = 0; fi < n.flaechen.size(); ++fi) {
         PFlaeche& f = n.flaechen[fi];
-        if (f.weg || streifenNeu.count(zi(fi)) != 0U) { continue; }
+        if (f.weg || streifenNeu.count(zi(fi)) != 0U || gitterFlaechen.count(zi(fi)) != 0U) { continue; }
         std::vector<PEcke> neu;
         bool anders = false;
         const std::size_t ke = f.ecken.size();
@@ -842,10 +1007,67 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             }
         }
     }
+    // MRESTE 3b: was Blenders Segmente vom alten Netz brauchen (selcount, tri_corner_test, Normalen fuer pipe_test)
+    FaseInfo info;
+    const bool mitSegmenten = kantenModus && segmente > 1;
+    if (mitSegmenten) {
+        const float r = fase::superR(std::max(profil, 0.01F));
+        for (const int v : beruehrt) {
+            std::set<int> nachbarn;
+            std::vector<V>& nrm = info.normalen[v];
+            for (const int fi : n.punktFlaechen[uz(v)]) {
+                const PFlaeche& f = n.flaechen[uz(fi)];
+                const int i = eckeMit(f, v);
+                nachbarn.insert(punktVon(f, i - 1));
+                nachbarn.insert(punktVon(f, i + 1));
+                nrm.push_back(aussen(n, f));
+            }
+            int sel = 0;
+            for (const int w : nachbarn) { sel += istGewaehlt(v, w) ? 1 : 0; }
+            info.gewaehlt[v] = sel;
+            // tri_corner_test (bmesh_bevel.cc:4634); BM_edge_calc_face_angle_signed_ex: Winkel der Normalen, negativ
+            // an einer hohlen Kante (die andere Flaeche liegt vor der Ebene der ersten), ohne zwei Flaechen 0
+            int tt = 0;
+            const auto ri = ring.find(v);
+            if (ri != ring.end() && ri->second.size() == 3U) {
+                int inEbene = 0;
+                double summe = 0.0;
+                for (const int w : nachbarn) {
+                    double ang = 0.0;
+                    const int k = n.kanteVon(v, w);
+                    if (k >= 0 && n.kanten[uz(k)].seiten.size() == 2U) {
+                        const PFlaeche& f1 = n.flaechen[uz(n.kanten[uz(k)].seiten[0].first)];
+                        const PFlaeche& f2 = n.flaechen[uz(n.kanten[uz(k)].seiten[1].first)];
+                        const V n1 = aussen(n, f1), n2 = aussen(n, f2);
+                        ang = winkel(n1, n2);
+                        if (punkt(n1, mitte(n, f2) - ort(n, v)) > 0.0) { ang = -ang; }
+                    }
+                    const double absAng = std::fabs(ang);
+                    if (absAng <= kPi / 4.0) {
+                        ++inEbene;
+                    } else if (absAng >= 3.0 * kPi / 4.0) {
+                        tt = -1;
+                        break;
+                    }
+                    summe += ang;
+                }
+                if (tt == 0) {
+                    const double diff = std::fabs(std::fabs(summe) - 3.0 * kPi / 2.0);
+                    if (inEbene != zi(nachbarn.size()) - 3 || (r == fase::kRQuadrat && diff > kPi / 16.0) || diff > kPi / 4.0) {
+                        tt = -1;
+                    } else if (nachbarn.size() == 3U && sel == 3) {
+                        tt = 1;
+                    }
+                }
+            }
+            info.triTest[v] = tt;
+        }
+    }
     std::unordered_map<int, const Bewegung*> bew;
     for (const Bewegung& b : p.bewegungen) { bew[b.punkt] = &b; }
     // die Vielecke an den beruehrten Punkten: die Ecke v wird zur Liste ihrer neuen Punkte
     std::map<std::pair<int, int>, std::vector<int>> ersatz;   // (Vieleck, Punkt) -> neue Punkte in der Reihenfolge des Vielecks
+    std::map<std::pair<int, int>, std::pair<int, int>> nachbarnIn;   // (Vieleck, Punkt) -> (vor, nach) im alten Vieleck
     std::vector<std::vector<PEcke>> neueEcken(n.flaechen.size());
     std::vector<char> geaendert(n.flaechen.size(), 0);
     const std::size_t alteFlaechen = n.flaechen.size();
@@ -865,6 +1087,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             }
             const int v = c.punkt;
             const int vor = punktVon(f, i - 1), nach = punktVon(f, i + 1);
+            nachbarnIn[{zi(fi), v}] = {vor, nach};
             std::vector<int> liste;
             if (kantenModus && istGewaehlt(v, vor) && istGewaehlt(v, nach)) {
                 liste.push_back(gehrung[{v, zi(fi)}]);
@@ -947,6 +1170,29 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             if (s.size() >= 3U) {
                 streifen.push_back(std::move(s));
                 streifenTeil.push_back(F1.teil);
+                if (mitSegmenten) {
+                    // je Ende die Kante und ihre Nachbarkanten in F1 (Start) und F2 (Ende) wie EdgeHalf prev/next
+                    const auto ende = [&](int v, int anderes, int s1, int s2) {
+                        const auto andererNachbar = [&](int fi) {
+                            const auto [vor, nach] = nachbarnIn[{fi, v}];
+                            return vor == anderes ? nach : vor;
+                        };
+                        const int w1 = andererNachbar(f1), w2 = andererNachbar(f2);
+                        FaseEnde e;
+                        e.x1 = s1;
+                        e.x2 = s2;
+                        e.k.v = ort(n, v);
+                        e.k.anderes = ort(n, anderes);
+                        e.k.dVor = ort(n, w1) - e.k.v;
+                        e.k.dNach = ort(n, w2) - e.k.v;
+                        e.k.vorGefast = istGewaehlt(v, w1);
+                        e.k.nachGefast = istGewaehlt(v, w2);
+                        e.k.gewaehlt = info.gewaehlt[v];
+                        if (s1 != s2) { info.enden.push_back(e); }
+                    };
+                    ende(a, b, x1, x2);
+                    ende(b, a, y1, y2);
+                }
             }
         }
     }
@@ -999,6 +1245,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
         }
         const int f = neueFlaeche(n, std::move(fl), teil);
         if (!kantenModus) { p.auswahl.flaechen.push_back(f); }
+        if (mitSegmenten) { info.flicken[v] = f; }
         n.kantenBauen();
     }
     if (!kantenModus) {
@@ -1007,7 +1254,7 @@ Plan chamferKern(PolyNetz& n, const std::set<int>& beruehrt, const std::set<std:
             for (const int q : rp) { p.auswahl.punkte.push_back(q); }
         }
     }
-    if (kantenModus && segmente > 1) { segmentieren(n, p, segmente, profil); }
+    if (mitSegmenten) { segmentieren(n, p, segmente, profil, info); }
     p.betragMin = 0.0F;
     betragGrenzen(n, p);
     fertig(n, p);
