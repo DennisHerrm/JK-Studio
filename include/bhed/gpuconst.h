@@ -17,8 +17,8 @@
 // Der Aufbau muss zu `kKonstanten` in src/gpushader.cpp passen:
 //
 //     cbuffer JeStapel : register(b1) {
-//         float4 gTexMatrix;
-//         float4 gTexOffTurb;
+//         float4 gTcM0;
+//         float4 gTcO01;
 //         float4 gRgb;
 //         float  gAlphaSchwelle;
 //         float  gDeform[4];
@@ -36,8 +36,8 @@ namespace bhed::gpu {
 
 // Die Groesse des Blocks in float.
 //
-//   gTexMatrix           =  4
-//   gTexOffTurb          =  4
+//   gTcM0                =  4
+//   gTcO01               =  4
 //   gRgb                 =  4
 //   gAlphaSchwelle       =  1  -> beginnt einen neuen Viererblock
 //   gDeform              =  4  -> float4, beginnt auf der Blockgrenze 16
@@ -50,31 +50,31 @@ namespace bhed::gpu {
 // Nachgemessen mit D3DReflect (gpumap_win32.cpp, pruefeStapelLagen). Seitdem
 // ist es ein float4: keine Packregel mehr, die man falsch erraten kann.
 //
-// --- Warum aus 32 float acht wurden ----------------------------------
+// --- Die tcMod-Kette: Schritt fuer Schritt wie rd-vanilla ------------
 //
-// Bis rc442 stand hier `float4 gTexMod[8]`: EIN Viererblock je Schritt der
-// tcMod-Kette, die Art in .w, und der Shader lief die Kette zur Laufzeit ab.
-// Das kostete 32 der 60 float und hatte einen Schritt, der nicht hineinpasste:
-// `tcMod transform` braucht sechs Werte und stand deshalb auf null (13
-// Vorkommen in 43 Karten).
+// Bis rc442 stand hier `float4 gTexMod[8]`: EIN Viererblock je Schritt, die
+// Art in .w - `tcMod transform` braucht sechs Werte und stand auf null. Von
+// rc443 bis FIX3 wurde die Kette wie in rd-rend2 (`ComputeTexMods`) auf der
+// CPU zu EINER affinen Abbildung zusammengerechnet, turb daneben. Das rundet
+// anders als das Spiel: rd-vanilla (`ComputeTexCoords`, tr_shade.cpp:1725)
+// wendet jeden Schritt der Reihe nach in float auf st an - eine Kette wie
+// "turb, scale 2 3" wich um bis zu 48 float-Stufen ab, "turb, turb,
+// rotate" um 5120 (FIX4 P33, ctest gpuconst).
 //
-// rd-rend2 macht es anders (`ComputeTexMods`, tr_shade.cpp:177): ALLE
-// Schritte werden auf der CPU zu EINER affinen Abbildung zusammengerechnet -
-// eine 2x2-Matrix und eine Verschiebung. Uebrig bleiben:
+// Seit FIX4 P33 wieder je Schritt, jetzt mit allen sechs Werten
+// (TR_MAX_TEXMODS 4, tr_local.h:279):
 //
-//   gTexMatrix   float4   die 2x2-Matrix (m00, m10, m01, m11)
-//   gTexOffTurb  float4   Verschiebung x, y  +  turb: 1024 now und 1024 now modulo 1024 (FIX2 P16, turbWerte)
-//   gTexTurbMat  float4   turb: linearer Teil der Schritte dahinter mal Amplitude (FIX2 P16, am Ende des Blocks)
-//   gTurbMat2..4, gTurbQ23, gTurbQ4: der zweite bis vierte turb einer Stufe (FIX3, siehe kTurbMat2At)
+//   gTcM0, gTcM1..3  float4   je Schritt: rotate/stretch/transform tmi.matrix (m00, m01, m10, m11), scale (s, t),
+//                             turb (1024 now, amplitude)
+//   gTcO01, gTcO23   float4   je Schritt zwei: tmi.translate bzw. scroll
+//   gTcArt           float4   die Art je Schritt (kTcKeine ... kTcRoll)
 //
-// Acht float statt zweiunddreissig, fuer BELIEBIG VIELE Schritte - und
-// `transform` passt hinein wie jeder andere Schritt auch.
-inline constexpr std::size_t kTexMatrixAt = 0U;
-inline constexpr std::size_t kTexOffTurbAt = 4U;
+// gTcM0 und gTcO01 stehen vorn (0, 4), der Rest am Ende des Blocks (44..63)
+// - 28 float, zwei weniger als die zusammengerechnete Kette mit vier turb.
+inline constexpr std::size_t kTcM0At = 0U;
+inline constexpr std::size_t kTcO01At = 4U;
 inline constexpr std::size_t kRgbAt = 8U;
 inline constexpr std::size_t kAlphaAt = kRgbAt + 4U;          // 12
-// FIX3: 1024 now und Rest des vierten turb (float2 gTurbQ4) in der Luecke hinter gAlphaSchwelle (13, 14)
-inline constexpr std::size_t kTurbQ4At = kAlphaAt + 1U;        // 13
 // Ein float4 darf keine Blockgrenze ueberschreiten: nach gAlphaSchwelle
 // (12) waere 13 frei, HLSL schiebt auf 16.
 inline constexpr std::size_t kDeformAt = 16U;
@@ -96,21 +96,23 @@ inline constexpr std::size_t kDeformNormalAt = kBulgeAt + 4U;         // 32
 // rc605: tcGen vector - die zwei Vektoren (tcGenVectors[0], [1]) je ein float4.
 inline constexpr std::size_t kTcGenSAt = kDeformNormalAt + 4U;        // 36
 inline constexpr std::size_t kTcGenTAt = kTcGenSAt + 4U;              // 40
-// FIX2 P16: der lineare Teil der tcMod-Schritte hinter turb (m0 m1 m2 m3): der turb-Versatz geht hindurch wie im Spiel
-// (ComputeTexCoords, tr_shade.cpp:1725: jeder Schritt der Reihe nach)
-inline constexpr std::size_t kTexTurbMatAt = kTcGenTAt + 4U;         // 44
-// FIX3: mehrere turb in einer Stufe (rd-vanilla ComputeTexCoords wendet jeden an seiner Stelle an, bis TR_MAX_TEXMODS 4,
-// tr_local.h:279): der zweite bis vierte turb mit seiner Matrix (gTurbMat2..4: 48, 52, 56), 1024 now und Rest des zweiten
-// und dritten in gTurbQ23 (60), des vierten in gTurbQ4 (13). Der Block bleibt 64 float - ein Eintrag im Ring (256 Bytes).
-inline constexpr std::size_t kTurbMat2At = kTexTurbMatAt + 4U;       // 48, je turb ein float4
-inline constexpr std::size_t kTurbQ23At = kTurbMat2At + 12U;         // 60
-inline constexpr std::size_t kKonstFloats = kTurbQ23At + 4U;         // 64
+// FIX4 P33: der zweite bis vierte Schritt der tcMod-Kette, ihre Verschiebungen und die Arten (siehe oben). Der Block bleibt
+// 64 float - ein Eintrag im Ring (256 Bytes).
+inline constexpr std::size_t kTcM1At = kTcGenTAt + 4U;              // 44
+inline constexpr std::size_t kTcM2At = kTcM1At + 4U;                // 48
+inline constexpr std::size_t kTcM3At = kTcM2At + 4U;                // 52
+inline constexpr std::size_t kTcO23At = kTcM3At + 4U;               // 56
+inline constexpr std::size_t kTcArtAt = kTcO23At + 4U;              // 60
+inline constexpr std::size_t kKonstFloats = kTcArtAt + 4U;          // 64
 
-// Die Art eines tcMod-Schritts stand hier als Aufzaehlung, weil der Shader
-// sie in .w des jeweiligen Viererblocks las. Seit rc443 wird die Kette auf
-// der CPU zusammengerechnet - der Shader kennt keine Arten mehr, und die
-// Aufzaehlung mit ihr ist weg. Die Zuordnung steht jetzt allein im
-// `switch` in packeKonstanten, an einer Stelle statt an dreien.
+// FIX4 P33: die Art eines Schritts, wie der Shader sie in gTcArt liest (tcSchritt, gpushader.cpp), je nach der Funktion, die
+// rd-vanilla dafuer ruft (tr_shade_calc.cpp): RB_CalcTransformTexCoords (rotate, stretch, transform), RB_CalcTurbulentTexCoords,
+// RB_CalcScaleTexCoords, RB_CalcScrollTexCoords.
+inline constexpr float kTcKeine = 0.0F;
+inline constexpr float kTcAffin = 1.0F;
+inline constexpr float kTcTurb = 2.0F;
+inline constexpr float kTcSkal = 3.0F;
+inline constexpr float kTcRoll = 4.0F;
 
 // Fuellt `ziel` (mindestens kKonstFloats Werte) aus dem Zustand.
 //
@@ -124,28 +126,24 @@ inline constexpr std::size_t kKonstFloats = kTurbQ23At + 4U;         // 64
 // also braucht sie der Packer.
 void packeKonstanten(const BatchState& bs, float* ziel, float zeitSekunden);
 
-// p_render: die tcMod-Kette als EINE affine Abbildung (ComputeTexMods, rd-rend2 tr_shade.cpp:177), wie packeKonstanten sie
-// schreibt: mat = m0 m1 m2 m3, off = m4 m5, turb: Amplitude und Phase (RB_CalcTurbulentFactors). Auch fuer die Stufen im
+// FIX4 P33: die tcMod-Kette einer Stufe zur Zeit `zeitSekunden`, je Schritt die Werte, die rd-vanilla in ComputeTexCoords
+// (tr_shade.cpp:1725) an die Rechenfunktion gibt (tr_shade_calc.cpp, MD9 gleich), Bit fuer Bit: turb 1024 now (now in float wie
+// RB_CalcTurbulentTexCoords, mal 1024 exakt) und amplitude; scroll gekuerzt; rotate aus der Sinustafel mit translate in double;
+// stretch, transform. Die Shader wenden die Schritte der Reihe nach an (tcKette, gpushader.cpp). Fuer Karte, Figurenstufe und das
 // Echtzeit-Licht des Karten-Editors.
-// FIX2 P16: je turb mat = der lineare Teil der Schritte hinter ihm; die Shader rechnen
-// st' = mat st + off + Summe ueber die turb (mat_k (amp_k sinTable(ort, now_k))) - so wie rd-vanilla die Kette der Reihe nach
-// anwendet (FIX3: jeder turb an seiner Stelle, nicht nur der letzte). rotate liest wie RB_CalcRotateTexCoords die Sinustafel.
-struct TurbSchritt {
-    float amp = 0.0F;     // wave.amplitude
-    float phase = 0.0F;   // now = phase + zeit * frequency (RB_CalcTurbulentTexCoords)
-    float mat[4]{1.0F, 0.0F, 0.0F, 1.0F};
+struct TcKette {
+    float art[kMaxTexMods]{};      // kTcKeine ... kTcRoll
+    float m[4 * kMaxTexMods]{};    // je Schritt vier (gTcM0..3)
+    float o[2 * kMaxTexMods]{};    // je Schritt zwei (gTcO01, gTcO23)
 };
-struct TurbKette {
-    int anzahl = 0;
-    TurbSchritt s[kMaxTexMods];
-};
-void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], TurbKette& turb);
-// FIX2 P16: was die Shader fuer einen turb brauchen: q = 1024 now (Vorzeichen des Index), qRest = q modulo 1024 in double
-// (der Index ohne Stellenverlust), matAmp = mat * Amplitude.
-void turbWerte(const TurbSchritt& t, float& q, float& qRest, float matAmp[4]);
-// FIX3: alle turb der Kette: qq[2k], qq[2k + 1] = q und qRest, mats[4k..4k + 3] = matAmp des k-ten; die fehlenden 0 (der Shader
-// addiert dann nichts).
-void turbFelder(const TurbKette& t, float qq[2 * kMaxTexMods], float mats[4 * kMaxTexMods]);
+[[nodiscard]] TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden);
+// Die Lage in den Konstanten der Shader: vorn gTcM0, gTcO01 (8 float), hinten gTcM1, gTcM2, gTcM3, gTcO23, gTcArt (20 float) -
+// im Stapelblock, in der Figurenstufe und im Echtzeit-Licht in dieser Reihenfolge.
+void tcKetteLegen(const TcKette& k, float vorn[8], float hinten[20]);
+// Die Kette auf der CPU ohne turb (die Ecken im Menue-Editor haben keinen Ort im Raum): st der Reihe nach wie die Shader.
+void tcKetteOhneTurb(const TcKette& k, float st[2]);
+// FIX2 P16: tr.sinTable[i & 1023] (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727)
+[[nodiscard]] float sinTafel(int i);
 
 }  // namespace bhed::gpu
 

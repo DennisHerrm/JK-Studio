@@ -84,10 +84,10 @@ int main() {
     beideRichtungen("Himmelswuerfel", kSky, "gHimmel.SampleLevel(gSampler, float3(huv, face), 0.0)", false);
     beideRichtungen("alphaGen portal", kAlphaPortal, "/ max(gPortalWeite", true);
     beideRichtungen("Spiegelbild", kSpiegelBild, "float4 c = float4(gPortal.Load(", false);
-    // NICHT auf "gTexMatrix" pruefen: der Name steht ohnehin in der
-    // Erklaerung des Konstantenpuffers, also auch ohne das Bit. `st2` gibt
-    // es nur im erzeugten Block.
-    beideRichtungen("tcMod", kTexMod, "float2 st2;", true);
+    // NICHT auf "gTcM0" pruefen: der Name steht ohnehin in der
+    // Erklaerung des Konstantenpuffers, also auch ohne das Bit. Den Aufruf
+    // der Kette gibt es nur im erzeugten Block (FIX4 P33).
+    beideRichtungen("tcMod", kTexMod, "aus.uv = tcKette(aus.uv,", true);
     beideRichtungen("rgbGen const", kRgbConst, "aus.farbe.rgb = gRgb.rgb", true);
     // Seit rc440 ERSETZT auch die Welle die Eckenfarbe - dieselbe Zeile wie
     // rgbGen const, denn beide meinen dasselbe (mapview.cpp:1818).
@@ -217,24 +217,21 @@ int main() {
                 enthaelt(v, "aus.uvLm = float2(0.0, 0.0)"));
     }
 
-    // --- Es gibt keine tcMod-Schleife mehr --------------------------------
+    // --- Die tcMod-Kette je Schritt (FIX4 P33) ------------------------------
     //
-    // Bis rc442 lief der Shader die Kette Schritt fuer Schritt ab, und diese
-    // Proben pruefte die Grenze der Schleife. Seit rc443 rechnet die CPU die
-    // Kette zusammen (nach ComputeTexMods aus rd-rend2); im Shader steht nur
-    // noch EINE affine Abbildung.
-    //
-    // Die Proben pruefen deshalb jetzt das Gegenteil: dass keine Schleife
-    // mehr entsteht, egal wie viele Schritte gemeldet werden.
+    // Bis rc442 eine Schleife ueber acht Schritte ohne transform, von rc443
+    // bis FIX3 EINE zusammengerechnete Abbildung (rd-rend2). Seit FIX4 P33
+    // vier feste Schritte (TR_MAX_TEXMODS) wie rd-vanilla, jeder mit seiner
+    // Art - keine Schleife, und die Zahl der Schritte aendert den Text nicht.
     {
         for (int n : {0, 1, 3, 8}) {
             const std::string v = vertexShaderHlsl(kTexMod, n);
-            erwarte("keine tcMod-Schleife mehr",
+            erwarte("keine tcMod-Schleife",
                     !enthaelt(v, "gTexMod[i]") && !enthaelt(v, "for (int i"));
         }
-        erwarte("dafuer die zusammengerechnete Abbildung",
-                enthaelt(vertexShaderHlsl(kTexMod, 1), "gTexMatrix.x"));
-        erwarte("die Zahl der Stufen aendert den Quelltext NICHT mehr",
+        erwarte("dafuer die Kette je Schritt (tcSchritt viermal)",
+                enthaelt(vertexShaderHlsl(kTexMod, 1), "r = tcSchritt(r, art.w, m3, o23.zw, ort, mitTurb);"));
+        erwarte("die Zahl der Stufen aendert den Quelltext NICHT",
                 vertexShaderHlsl(kTexMod, 1) == vertexShaderHlsl(kTexMod, 4));
     }
 
@@ -353,14 +350,11 @@ int main() {
         erwarte("und wirft nicht mehr den vollen Wert hinein",
                 d.find("sin((gDeform[2] + off") == std::string::npos);
 
-        // turb steckt jetzt in derselben Abbildung, mit `ort` statt der
-        // ausgeschriebenen Koordinaten - gekuerzt wird weiter.
+        // turb: FIX4 P33 der Index wie (int)(double) & FUNCTABLE_MASK (turbIndex), der Wert aus der Tafel des Spiels
         const std::string t = vertexShaderHlsl(kTexMod, 1);
-        // FIX2 P16: gekuerzt wird auf der CPU (gTexOffTurb.w = 1024 now modulo 1024, in double), der Index wie
-        // (int)(...) & FUNCTABLE_MASK; FIX3: in turbVersatz, je turb mit seinem Rest
-        erwarte("tcMod turb kuerzt ebenfalls",
-                t.find("turbVersatz(ort, gTexOffTurb.z, gTexOffTurb.w") != std::string::npos && t.find("ort + qr") != std::string::npos &&
-                    t.find("& 1023") != std::string::npos);
+        erwarte("tcMod turb: Index & 1023 aus der Tafel",
+                t.find("turbVersatz(ort, m.x, m.y)") != std::string::npos && t.find("& 1023") != std::string::npos &&
+                    t.find("kSinTafel[turbIndex(ort.x, q)]") != std::string::npos);
     }
 
     // --- alphaGen: was VOR dem Alphakanal der Textur steht ---------------

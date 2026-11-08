@@ -254,9 +254,9 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
 // rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 76;   // FIX2 P16: + gStufeTurbMat; FIX3: + gStufeTurbMat2..4, gStufeTurbQ23, gStufeTurbQ4
+constexpr UINT kStufeFloats = 72;   // FIX4 P33: + gStufeTcM1..3, gStufeTcO23, gStufeTcArt (die tcMod-Kette je Schritt)
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
-// FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (76 float: zwei)
+// FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (72 float: zwei)
 constexpr UINT kStufeRingEintraege = (kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag;
 constexpr UINT kRingGroesse = 1024U * 1024U;    // 4096 Stapel bis zum naechsten DISCARD
 ID3D11Buffer* g_cbRing = nullptr;
@@ -733,15 +733,14 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
     D3D11_SHADER_BUFFER_DESC bd{};
     if (cb != nullptr && SUCCEEDED(cb->GetDesc(&bd))) {
         struct Soll { const char* name; std::size_t at; };
-        const Soll soll[] = {{"gTexMatrix", kTexMatrixAt}, {"gTexOffTurb", kTexOffTurbAt},
+        const Soll soll[] = {{"gTcM0", kTcM0At}, {"gTcO01", kTcO01At},
                              {"gRgb", kRgbAt}, {"gAlphaSchwelle", kAlphaAt},
                              {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
                              {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
                              {"gDeformNormal", kDeformNormalAt},
-                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTexTurbMat", kTexTurbMatAt},
-                             {"gTurbQ4", kTurbQ4At}, {"gTurbMat2", kTurbMat2At}, {"gTurbMat3", kTurbMat2At + 4U},
-                             {"gTurbMat4", kTurbMat2At + 8U}, {"gTurbQ23", kTurbQ23At}};
+                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTcM1", kTcM1At},
+                             {"gTcM2", kTcM2At}, {"gTcM3", kTcM3At}, {"gTcO23", kTcO23At}, {"gTcArt", kTcArtAt}};
         std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
         bool gut = true;
         for (const Soll& s : soll) {
@@ -4900,8 +4899,8 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 }
                 sd[2] = art.umgebung ? 1.0F : 0.0F;
             };
-            // rc604 fix604b (B4): tcMod der Stufe - [3] an, [24..31] gTexMatrix und
-            // gTexOffTurb aus packeKonstanten (dieselbe Kette wie an der Karte, zur
+            // rc604 fix604b (B4): tcMod der Stufe - [3] an, [24..31] gStufeTcM0 und
+            // gStufeTcO01 aus packeKonstanten (dieselbe Kette wie an der Karte, zur
             // Zeit der Stufe: tess.shaderTime, an Figuren refdef.floatTime).
             auto texModWerte = [&](const TextureSet::Tex& tex, float* sd) {
                 if (tex.numTexMods <= 0 || g_figurTexModAus) { return; }
@@ -4910,11 +4909,8 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 packeKonstanten(batchStateFor(tex, zeitS), k, zeitS);
                 sd[3] = 1.0F;
                 for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
-                for (std::size_t q = 0; q < 4; ++q) { sd[52 + q] = k[kTexTurbMatAt + q]; }   // FIX2 P16: gStufeTurbMat
-                // FIX3: der zweite bis vierte turb - [56..67] gStufeTurbMat2..4, [68..71] gStufeTurbQ23, [72..73] gStufeTurbQ4
-                for (std::size_t q = 0; q < 12; ++q) { sd[56 + q] = k[kTurbMat2At + q]; }
-                for (std::size_t q = 0; q < 4; ++q) { sd[68 + q] = k[kTurbQ23At + q]; }
-                for (std::size_t q = 0; q < 2; ++q) { sd[72 + q] = k[kTurbQ4At + q]; }
+                // FIX4 P33: [52..71] gStufeTcM1..3, gStufeTcO23, gStufeTcArt - im Stapelblock am Stueck ab kTcM1At
+                for (std::size_t q = 0; q < 20; ++q) { sd[52 + q] = k[kTcM1At + q]; }
             };
             // rc604: deformVertexes des Shaders (RB_DeformTessGeometry,
             // code/rd-vanilla/tr_shade_calc.cpp OpenJK) - [32..35] wave base,

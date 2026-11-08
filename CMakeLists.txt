@@ -795,6 +795,10 @@ if(BEHAVED_TESTS)
     add_executable(hlslprobe tests/hlslprobe.cpp)
     target_link_libraries(hlslprobe PRIVATE bhed_core d3dcompiler)
     add_test(NAME hlsl COMMAND hlslprobe)
+    # FIX4 P33: der HLSL-Text von tcMod turb als Compute-Shader auf WARP (und der Grafikkarte) gegen rd-vanilla, bitgleich
+    add_executable(turbgpu_probe tests/turbgpu.cpp)
+    target_link_libraries(turbgpu_probe PRIVATE bhed_core d3d11 d3dcompiler)
+    add_test(NAME turbgpu COMMAND turbgpu_probe)
   endif()
   # Alle Modelle und Karten der Spielordner laden und pruefen (lange Probe).
   # Ohne Ordner meldet sie "uebersprungen". Setzen mit:

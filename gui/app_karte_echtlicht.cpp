@@ -926,19 +926,10 @@ std::string stufeBildJetzt(const SpielStufe& w, double zeit) {
 void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool farbeAuch) {
     const auto t = static_cast<float>(zeit);
     // ComputeTexCoords (code/rd-vanilla/tr_shade.cpp): erst tcGen, dann die tcMod-Kette (RB_CalcScrollTexCoords usw.,
-    // tr_shade_calc.cpp) - zusammengerechnet wie die Vorschau (gpu::texModAbbildung), turb im Shader nach dem Ort
+    // tr_shade_calc.cpp) - FIX4 P33 je Schritt wie die Vorschau (gpu::tcKette), turb im Shader nach dem Ort
     z.tcGen = w.texGen == TexGen::Environment ? 1 : w.texGen == TexGen::Vector ? 2 : 0;
     for (int k = 0; k < 6; ++k) { z.tcGenVec[k] = w.tcGenVec[k]; }
-    gpu::TurbKette turb;
-    gpu::texModAbbildung(w.texMods, w.numTexMods, t, z.tcMatrix, z.tcVersatz, turb);
-    float qq[2 * kMaxTexMods];   // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette
-    float mats[4 * kMaxTexMods];
-    gpu::turbFelder(turb, qq, mats);
-    z.tcVersatz[2] = qq[0];
-    z.tcVersatz[3] = qq[1];
-    std::copy(mats, mats + 4, z.tcTurb);
-    std::copy(mats + 4, mats + 16, z.tcTurbMehr);
-    std::copy(qq + 2, qq + 8, z.tcTurbQ);
+    gpu::tcKetteLegen(gpu::tcKette(w.texMods, w.numTexMods, t), z.tcVorn, z.tcHinten);
     if (!farbeAuch) { return; }
     // ComputeColors: rgbGen wave (RB_CalcWaveColor) ersetzt die Farbe, auf 0..1 geklemmt; alphaGen wave (RB_CalcWaveAlpha,
     // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus)

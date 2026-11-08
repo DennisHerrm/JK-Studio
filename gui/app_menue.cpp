@@ -1955,17 +1955,13 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
             alpha = p.farbe.a;   // rgbGen vertex setzt ohne alphaGen AGEN_VERTEX
         } else if (s.alphaGen == AlphaGen::OneMinusVertex) { alpha = 1 - p.farbe.a; }
         if (s.alphaWave.active()) { alpha = std::clamp(waveValue(s.alphaWave, zeit), 0.0F, 1.0F); }
-        // tcMod: dieselbe Rechnung wie die Karte (packeKonstanten)
-        BatchState bs;
-        bs.numTexMods = std::min(s.numTexMods, kMaxTexMods);
-        for (int k = 0; k < bs.numTexMods; ++k) { bs.texMods[k] = s.texMods[k]; }
-        float konst[gpu::kKonstFloats] = {};
-        gpu::packeKonstanten(bs, konst, zeit);
-        const float* m = konst + gpu::kTexMatrixAt;
-        const float* o = konst + gpu::kTexOffTurbAt;
+        // tcMod: dieselbe Kette wie die Karte (gpu::tcKette, FIX4 P33 je Schritt); turb wie bisher aussen vor
+        const gpu::TcKette kette = gpu::tcKette(s.texMods, std::min(s.numTexMods, kMaxTexMods), zeit);
         ImVec2 uv[4];
         for (int k = 0; k < 4; ++k) {
-            uv[k] = ImVec2{st[k][0] * m[0] + st[k][1] * m[2] + o[0], st[k][0] * m[1] + st[k][1] * m[3] + o[1]};
+            float e[2] = {st[k][0], st[k][1]};
+            gpu::tcKetteOhneTurb(kette, e);
+            uv[k] = ImVec2{e[0], e[1]};
         }
         const bool opak = s.srcFactor == BlendFactor::One && s.dstFactor == BlendFactor::Zero;
         const ImU32 col = ImGui::ColorConvertFloat4ToU32(
