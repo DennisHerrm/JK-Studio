@@ -1045,13 +1045,14 @@ VSOut main(VSIn ein) {
         // tr_main.cpp:384-403 MD9): A = R diag(s), der Augpunkt viewOrigin = A^T delta / |axis[0]|, die Ecke tess.xyz
         // unskaliert = diag(1/s) R^T (Weltort - Ursprung), lightDir = A^T l (R_SetupEntityLighting, tr_light.cpp:492-496),
         // die Normale die des Modells. R sind die Achsen der Entity (gAchse, ohne den Zeichnerausgleich), Ursprung und s
-        // kommen aus gAchse0..2.w / gAuge.w, gStufeTurbQ4.zw (Griffe in der Hand: die der Figur), sonst aus gFigurWelt
-        // (Spalte 1 ist wegen des 90-Grad-Zuschlags in baueFigurWelt axis[0]). Unskaliert ist es dieselbe Rechnung wie
-        // in Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
+        // kommen aus gAchse0..2.w / gAuge.w, gStufeTurbQ4.zw (Griffe in der Hand: die der Figur), sonst aus gFigurWelt:
+        // FIX6 P50: dann sind gAchse0..2 die normierten Spalten 0, 1, 2 von welt (zeichneFigurIn ohne achsenGesetzt), die
+        // Massstaebe daher die Spaltenlaengen in derselben Reihenfolge. Unskaliert ist es dieselbe Rechnung wie in
+        // Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
         float3x3 mw = (float3x3)gFigurWelt;
         float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
         bool entGegeben = gAuge.w > 0.0;
-        float3 sE = entGegeben ? float3(gAuge.w, gStufeTurbQ4.z, gStufeTurbQ4.w) : achsLaenge.yxz;
+        float3 sE = entGegeben ? float3(gAuge.w, gStufeTurbQ4.z, gStufeTurbQ4.w) : achsLaenge;
         float3 oE = entGegeben ? float3(gAchse0.w, gAchse1.w, gAchse2.w)
                                : float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
         bool skaliert = any(abs(sE - 1.0) > 1e-4);
