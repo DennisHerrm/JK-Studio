@@ -802,7 +802,7 @@ struct Konstanten3 {
     float extra[4];        // Stufe 9d: x 1 = nur Nebel (Nebelflaeche, nur kShader4 liest es); y Ecklicht; z rc609 P: portalRange; w rc610 R2a: graues Licht (Halme)
     float schnitt[4];      // rc609 P: Schnittebene der Spiegel-/Portalsicht (n, -d); (0 0 0 1) = aus
     float tcMat[4];        // p_render: tcMod-Kette m0..m3
-    float tcOff[4];        //   ... m4 m5, turb Amplitude, Phase
+    float tcOff[4];        //   ... m4 m5, turb 1024 now und Rest modulo 1024 (gpu::turbWerte)
     float tcGenS[4];       //   ... tcGen vector s, w: tcGen (0 base, 1 environment, 2 vector)
     float tcGenT[4];       //   ... tcGen vector t
     float tcTurb[4];       // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb

@@ -1271,8 +1271,9 @@ float rausch4(float4 q) {
     //     st2.y = st.x*M.y + (st.y*M.w + off.y)
     //
     // `turb` passt als einziger nicht in eine Matrix - er verschiebt je nach
-    // ORT. Er kommt danach obendrauf, mit Amplitude und Phase aus
-    // gTexOffTurb.zw.
+    // ORT. Er kommt danach obendrauf (FIX2 P16: durch gTexTurbMat, den
+    // linearen Teil der Schritte hinter ihm mal Amplitude; die Phase in
+    // gTexOffTurb.zw, siehe gpu::turbWerte).
     if ((features & kTexMod) != 0U) {
         s += R"(    {
         float2 st2;

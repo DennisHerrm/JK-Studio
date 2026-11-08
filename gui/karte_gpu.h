@@ -158,7 +158,7 @@ struct Zustand3 {
     bool grauLicht = false;
     // p_render: Koordinaten der Stufe (ComputeTexCoords, tr_shade.cpp): tcGen 0 base, 1 environment (RB_CalcEnvironmentTexCoords),
     // 2 vector (tcGenVec s, t); danach die tcMod-Kette als affine Abbildung (gpu::texModAbbildung: tcMatrix m0..m3, tcVersatz
-    // m4 m5, turb Amplitude und Phase)
+    // m4 m5, turb 1024 now und Rest modulo 1024: gpu::turbWerte; tcTurb)
     int tcGen = 0;
     float tcGenVec[6]{0, 0, 0, 0, 0, 0};
     float tcMatrix[4]{1, 0, 0, 1};
