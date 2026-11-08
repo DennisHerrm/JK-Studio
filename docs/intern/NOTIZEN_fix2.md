@@ -170,6 +170,23 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Geprueft ist damit die Vorschau Karte (Stapelblock). Figurenstufe und Echtzeit-Licht rechnen mit denselben Werten
   (`turbFelder`, `turbVersatz`) - geprueft per ctest gegen die Spielformel, nicht per Spielfoto.
 
+## FIX3 Punkt 3: Codepruefung MRESTE Teil 3 und MR4 (nur gelesen)
+
+- Funde P20-P28 (4 M, 5 N) angehaengt an `JKStudio_Uebergabe/plaene/codepruefung_seit_rc610.md` ("Nachtrag FIX3"), nichts
+  behoben: P20 Texturkompression laesst alle Shader mit `$lightmap`-Stufe aus, P23 dasselbe Modell neu laden verwirft die
+  Bilder nie, P24 Umbacken nach LOD-Wechsel, P27 model2scale-Licht im Spiel s-fach, P21 Himmel unkomprimiert, P22
+  Regelwerkwechsel laedt Bilder nicht neu, P25 Wiederholen ueber Leinwaende, P26 Speicherspitze bei Eigenschafts-Schritten,
+  P28 CJK-Umbruch je Bild neu.
+
+## FIX3 Schluss
+
+- Sauberer Neubau (`--clean-first`, `f3_neubau.log`): 0 Warnungen. ctest 237/237 (`f3_s_ctest.txt`).
+- karteneditor r3 22/0, rd 20/0, editorportal 19/0 (`f3_s_*`), Fotos bytegleich mit `f3_p1_*` (8, 9, 15). Modus 1 2635/0.
+- Lints (`f3_lints.txt`): wie nach FIX2 (portability 99, pruefcodes 11, fremdprogramm 1, efxflags ohne Tafel, sonst ok), keine
+  Meldung zu geaenderten Dateien. Adressen ab fe1f374c3: 0.
+- Offen: Bildzeit allein (Stapelblock 64 statt 48 float - noch ein Ring-Eintrag je Stapel; Figurenstufe zwei Eintraege; je
+  weiterem turb ein Zweig im Vertexshader) - nicht gemessen, andere Agenten bauten und testeten; ebenso P9/P11 aus FIX2.
+
 ## Changelog
 
 ## English
