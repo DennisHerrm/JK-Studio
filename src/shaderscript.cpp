@@ -346,6 +346,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     Wave deformWave;
     float deformSpread = 0.0F;
     DeformZusatz deform2;
+    int deformAnzahl = 0;   // MERGE3 P44: shader.numDeforms
     bool polygonOffset = false;
     bool noTC = false;   // MR4 Punkt 7
     std::string skyBox;
@@ -678,81 +679,65 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
         if (depth == 1) {
             const std::string key = lower(firstWord(line));
             if (key == "deformvertexes") {
-                std::string rest = secondWord(line);
-                // autosprite: jedes Viereck wird durch ein
-                // kamerazugewandtes Plaettchen um seinen Mittelpunkt
-                // ersetzt (AutospriteDeform, tr_shade_calc.cpp:377).
-                //
-                // Gemeldet: eine grosse blaue Scheibe quer durchs Bild.
-                // Die Holo-Flaechen sind als grosse Rechtecke gebaut und
-                // sollen zur Laufzeit zu Sprites zusammenklappen.
-                //
-                // `autosprite2` ist NICHT dasselbe - es dreht das Viereck
-                // um seine lange Achse (siehe DeformZusatz). Der Vergleich
-                // ist deshalb auf Gleichheit, nicht auf einen Praefix.
-                if (lower(firstWord(rest)) == "autosprite") {
+                // MERGE3 P44: ParseDeform (tr_shader.cpp:1814-1990 OpenJK, MD9 :1777 gleich). Ohne Art ("missing deform parm")
+                // zaehlt die Zeile nicht; sonst zaehlt jede - auch projectionShadow, text0..7 und unbekannte Arten - gegen
+                // MAX_SHADER_DEFORMS (3, tr_local.h), die vierte wird mit Warnung verworfen. Fehlt ein Wert von bulge, normal,
+                // move (Richtung) oder der div von wave, bleibt der Eintrag DEFORM_NONE; ParseWaveForm (:446) hoert beim ersten
+                // fehlenden Wert auf, der Eintrag wirkt trotzdem.
+                const std::vector<std::string> dw = ssWoerter(secondWord(line));
+                if (dw.empty()) { continue; }
+                constexpr int kMaxShaderDeforms = 3;
+                if (deformAnzahl == kMaxShaderDeforms) { continue; }
+                ++deformAnzahl;
+                const auto welleAus = [&](std::size_t i) {
+                    Wave w;
+                    if (i >= dw.size()) { return w; }
+                    w.func = waveFuncFromName(dw[i]);
+                    float* werte[4] = {&w.base, &w.amplitude, &w.phase, &w.frequency};
+                    for (std::size_t k = 0; k < 4 && i + 1 + k < dw.size(); ++k) { *werte[k] = readNum(dw[i + 1 + k]); }
+                    return w;
+                };
+                // autosprite: jedes Viereck wird durch ein kamerazugewandtes Plaettchen um seinen Mittelpunkt ersetzt
+                // (AutospriteDeform, tr_shade_calc.cpp:377) - gemeldet: eine grosse blaue Scheibe quer durchs Bild (Holo-
+                // Flaechen als grosse Rechtecke, die zur Laufzeit zu Sprites zusammenklappen). `autosprite2` ist NICHT dasselbe,
+                // es dreht das Viereck um seine lange Achse (siehe DeformZusatz) - Vergleich auf Gleichheit (Q_stricmp).
+                const std::string art = lower(dw[0]);
+                if (art == "autosprite") {
                     autosprite = true;
                     continue;
                 }
-                // Die Werte wie ParseDeform (tr_shader.cpp).
-                const std::string art = lower(firstWord(rest));
                 if (art == "autosprite2") {
                     deform2.autosprite2 = true;
                     continue;
                 }
                 if (art == "bulge") {
+                    if (dw.size() < 4) { continue; }
                     deform2.merkeFolge(kFolgeBeule);
-                    for (float& v : deform2.bulge) {
-                        rest = secondWord(rest);
-                        v = readNum(firstWord(rest));
-                    }
+                    for (std::size_t k = 0; k < 3; ++k) { deform2.bulge[k] = readNum(dw[1 + k]); }
                     continue;
                 }
                 if (art == "move") {
+                    if (dw.size() < 4) { continue; }
                     deform2.merkeFolge(kFolgeWeg);
-                    for (float& v : deform2.move) {
-                        rest = secondWord(rest);
-                        v = readNum(firstWord(rest));
-                    }
-                    rest = secondWord(rest);
-                    deform2.moveWave.func = waveFuncFromName(lower(firstWord(rest)));
-                    rest = secondWord(rest);
-                    deform2.moveWave.base = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deform2.moveWave.amplitude = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deform2.moveWave.phase = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deform2.moveWave.frequency = readNum(firstWord(rest));
+                    for (std::size_t k = 0; k < 3; ++k) { deform2.move[k] = readNum(dw[1 + k]); }
+                    deform2.moveWave = welleAus(4);
                     continue;
                 }
                 if (art == "normal") {
+                    if (dw.size() < 3) { continue; }
                     deform2.merkeFolge(kFolgeNormal);
-                    for (float& v : deform2.normal) {
-                        rest = secondWord(rest);
-                        v = readNum(firstWord(rest));
-                    }
+                    deform2.normal[0] = readNum(dw[1]);
+                    deform2.normal[1] = readNum(dw[2]);
                     continue;
                 }
-                if (lower(firstWord(rest)) == "wave") {
+                if (art == "wave") {
+                    if (dw.size() < 2) { continue; }
                     deform2.merkeFolge(kFolgeWelle);
-                    rest = secondWord(rest);
-                    // tr_shader.cpp:1888-1895: deformationSpread = 1.0f / atof(token), und
-                    // bei 0 nimmt die Engine 100 mit einer Warnung. FIX5: atof ist double,
-                    // 1.0f / double rechnet in double und rundet erst beim Ablegen auf float.
-                    double div = 0.0;
-                    (void)parseDouble(firstWord(rest), div);
+                    // tr_shader.cpp:1888-1895: deformationSpread = 1.0f / atof(token), bei 0 nimmt die Engine 100 mit einer
+                    // Warnung. FIX5: atof ist double, 1.0f / double rechnet in double und rundet erst beim Ablegen auf float.
+                    const double div = std::strtod(dw[1].c_str(), nullptr);
                     deformSpread = (div != 0.0) ? static_cast<float>(1.0F / div) : 100.0F;
-                    rest = secondWord(rest);
-                    deformWave.func = waveFuncFromName(lower(firstWord(rest)));
-                    rest = secondWord(rest);
-                    deformWave.base = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deformWave.amplitude = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deformWave.phase = readNum(firstWord(rest));
-                    rest = secondWord(rest);
-                    deformWave.frequency = readNum(firstWord(rest));
+                    deformWave = welleAus(2);
                 }
                 continue;
             }
@@ -918,6 +903,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             deformWave = Wave{};
             deformSpread = 0.0F;
             deform2 = DeformZusatz{};
+            deformAnzahl = 0;
             polygonOffset = false;
             noTC = false;
             inImageStage = false;

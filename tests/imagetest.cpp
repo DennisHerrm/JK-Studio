@@ -908,6 +908,39 @@ int main() {
                 expect("normal: Amplitude und Frequenz",
                        no.normal[0] == 0.1F && no.normal[1] == 1.85F && no.normalAn());
             }
+            // MERGE3 P44/P45/Punkt 5: ParseDeform (tr_shader.cpp:1814 OpenJK, MD9 :1777) und ParseWaveForm (:446) wie im Spiel
+            {
+                const char* df =
+                    // P44 (a): hoechstens MAX_SHADER_DEFORMS (3), autosprite2 zaehlt mit - move ist der vierte und faellt weg
+                    "textures/m3/vier\n{\ndeformVertexes autosprite2\ndeformVertexes normal 0.1 2\n"
+                    "deformVertexes wave 100 sin 0 2 0 1\ndeformVertexes move 0 0 4 sin 0 1 0 0.5\n{\nmap x\n}\n}\n"
+                    // P44 (c): bulge mit zwei Zahlen und normal mit einer - die Zeile zaehlt, wirkt aber nicht
+                    "textures/m3/halb\n{\ndeformVertexes bulge 3 10\ndeformVertexes normal 0.1\n{\nmap x\n}\n}\n"
+                    // P44: text, projectionShadow und unbekannte Arten zaehlen mit - die Welle ist die vierte
+                    "textures/m3/text\n{\ndeformVertexes text0\ndeformVertexes projectionShadow\ndeformVertexes gibtsnicht\n"
+                    "deformVertexes wave 100 sin 0 2 0 1\n{\nmap x\n}\n}\n"
+                    // P45: ein unbekannter Wellenname ist sin (NameToGenFunc), auch an rgbGen
+                    "textures/m3/sine\n{\ndeformVertexes wave 100 sine 0 2 0 1\n{\nmap x\nrgbGen wave sine 0.5 0.5 0 1\n}\n}\n"
+                    // Punkt 5: Zahlen wie (float)atof - "+0.5" und die doppelte Rundung ueber double
+                    "textures/m3/atof\n{\ndeformVertexes bulge 1.0000001788139343261718749 +0.5 2\n{\nmap x\n}\n}\n";
+                bhed::ShaderMap smd;
+                bhed::parseShaderScript(df, smd);
+                const bhed::ShaderInfo& vier = smd["textures/m3/vier"];
+                expect("P44: der vierte deformVertexes (move) faellt weg wie MAX_SHADER_DEFORMS",
+                       !vier.deform2.moveWave.active() && vier.deform2.normalAn() && vier.deformWave.active());
+                const bhed::ShaderInfo& halb = smd["textures/m3/halb"];
+                expect("P44: bulge mit zwei Zahlen wirkt nicht", !halb.deform2.bulgeAn());
+                expect("P44: normal mit einer Zahl wirkt nicht", !halb.deform2.normalAn());
+                expect("P44: text, projectionShadow und unbekannte Arten zaehlen mit", !smd["textures/m3/text"].deformWave.active());
+                const bhed::ShaderInfo& sine = smd["textures/m3/sine"];
+                expect("P45: deformVertexes wave mit unbekanntem Namen wogt als sin",
+                       sine.deformWave.func == bhed::WaveFunc::Sin);
+                expect("P45: rgbGen wave mit unbekanntem Namen pulsiert als sin", sine.rgbWave.func == bhed::WaveFunc::Sin);
+                const bhed::DeformZusatz& at = smd["textures/m3/atof"].deform2;
+                expect("Punkt 5: Zahlen wie (float)atof (doppelte Rundung ueber double)",
+                       at.bulge[0] == std::ldexp(1.0F, 0) + std::ldexp(1.0F, -22));
+                expect("Punkt 5: \"+0.5\" wie atof", at.bulge[1] == 0.5F);
+            }
             expect("clampmap wird als geklemmt gemerkt",
                    sm["textures/p/geklemmt"].clamp);
             expect("map bleibt gekachelt",
