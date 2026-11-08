@@ -3521,19 +3521,24 @@ int npcDateienLesen(NpcMap& m) {
 }
 
 // RE_SplitSkins + RE_RegisterSkin (tr_skin.cpp): "|kopf|rumpf|beine" sind drei .skin-Dateien im Ordner
-// des Modells. Bei doppelten Flaechen gilt in der Engine der erste Eintrag, hier der zuletzt
-// angewandte: darum Beine, Rumpf, Kopf. false: kein solcher Name oder eine Datei fehlt.
+// des Modells. MERGE2: RE_RegisterSkin haengt sie an EINE Haut an - Kopf, dann Rumpf, wenn er anders heisst, dann Beine,
+// wenn sie anders heissen (tr_skin.cpp:413-424 OpenJK) - darum ein applySkin ueber den Text in dieser Folge: bei doppelten
+// Flaechen gilt der erste Eintrag, ein "*off" in irgendeinem Teil schaltet ab. false: kein solcher Name oder eine Datei fehlt.
 bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel& gm) {
     if (name.empty() || name[0] != '|') { return false; }
     const std::size_t a = name.find('|', 1);
     const std::size_t b = a == std::string::npos ? a : name.find('|', a + 1);
     if (b == std::string::npos) { return false; }
-    const std::string teile[3] = {name.substr(b + 1), name.substr(a + 1, b - a - 1), name.substr(1, a - 1)};
-    std::string text[3];
+    const std::string teile[3] = {name.substr(1, a - 1), name.substr(a + 1, b - a - 1), name.substr(b + 1)};
+    std::string gesamt;
     for (int i = 0; i < 3; ++i) {
-        if (!readFromArchives(dir + "/" + teile[i] + ".skin", text[i])) { return false; }
+        std::string text;
+        if (!readFromArchives(dir + "/" + teile[i] + ".skin", text)) { return false; }
+        if ((i >= 1 && teile[i] == teile[0]) || (i == 2 && teile[2] == teile[1])) { continue; }
+        gesamt += text;
+        gesamt += '\n';
     }
-    for (const std::string& t : text) { applySkin(t, gm); }
+    applySkin(gesamt, gm);
     return true;
 }
 

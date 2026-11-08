@@ -56,6 +56,36 @@ int main(int argc, char** argv) {
         expect("kaputte Skins ueberstanden", true);
     }
 
+    // --- MERGE2: doppelte Hautzeilen derselben Flaeche wie die Engine -----------------------------------------------------
+    // RE_RegisterIndividualSkin haengt jede Zeile an skin->surfaces an (tr_skin.cpp:286-334 OpenJK), RenderSurfaces nimmt den
+    // ERSTEN Eintrag mit dem Namen (tr_ghoul2.cpp:2279-2289, break), G2API_SetSurfaceOnOffFromSkin schaltet bei JEDER Zeile
+    // "*off" ab (tr_ghoul2.cpp:2207-2234, ohne break). Die Namen sind beide klein (Q_strlwr in tr_skin.cpp:293 und R_LoadMDXM).
+    // Faelle aus den Spieldaten: reborn/model_blue.skin (head_eyes_mouth erst reborn/, dann kyle/mouth_eyes.tga),
+    // tarados_gon/model_robed.skin (hips erst *off, dann hips.png), corran/model_default.skin (l_hand erst arms.tga, dann *off).
+    {
+        bhed::GlmModel m;
+        for (const char* n : {"head_eyes_mouth", "hips", "l_hand", "torso"}) {
+            bhed::GlmSurface s;
+            s.name = n;
+            s.verts.resize(3);
+            m.surfaces.push_back(s);
+        }
+        bhed::applySkin("head_eyes_mouth,models/players/reborn/mouth_eyes.tga\n"
+                        "hips,*off\n"
+                        "l_hand,models/players/corran/arms.tga\n"
+                        "Torso,models/players/x/torso.tga\n"
+                        "head_eyes_mouth,models/players/kyle/mouth_eyes.tga\n"
+                        "hips,models/players/tarados_gon/hips.png\n"
+                        "l_hand,*off\n", m);
+        expect("doppelte Zeile: die erste gilt (reborn/mouth_eyes.tga)",
+               m.surfaces[0].texture == "models/players/reborn/mouth_eyes.tga" && m.surfaces[0].hautZeile == 0);
+        expect("erst *off, dann ein Bild: bleibt aus", m.surfaces[1].skinnedOff);
+        expect("erst ein Bild, dann *off: aus, das Bild der ersten Zeile", m.surfaces[2].skinnedOff &&
+               m.surfaces[2].texture == "models/players/corran/arms.tga");
+        expect("Flaechenname der Haut gross geschrieben trifft (beide klein)",
+               m.surfaces[3].texture == "models/players/x/torso.tga");
+    }
+
     // --- mb1a1: "_off" am Flaechennamen streicht R_LoadMDXM (tr_ghoul2.cpp:3722) ----
     {
         bhed::GlmModel m;

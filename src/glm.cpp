@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -399,6 +400,15 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
 void applySkin(const std::string& text, GlmModel& model) {
     std::size_t at = 0;
     int zeile = -1;
+    // MERGE2: RE_RegisterIndividualSkin haengt jede Zeile an die Liste der Haut (tr_skin.cpp:286-334 OpenJK, MD9 gleich);
+    // RenderSurfaces nimmt den ERSTEN Eintrag einer Flaeche (tr_ghoul2.cpp:2279-2289, break), G2API_SetSurfaceOnOffFromSkin
+    // schaltet bei JEDER Zeile "*off" ab (tr_ghoul2.cpp:2207-2234, ohne break). Beide Namen sind klein (Q_strlwr in
+    // tr_skin.cpp:293, R_LoadMDXM tr_ghoul2.cpp:3723). Vorher galt die letzte Zeile, und ein spaeteres Bild schaltete "*off" an.
+    std::vector<char> vergeben(model.surfaces.size(), 0);
+    const auto klein = [](std::string s) {
+        for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        return s;
+    };
     while (at < text.size()) {
         std::size_t eol = text.find('\n', at);
         if (eol == std::string::npos) {
@@ -414,7 +424,7 @@ void applySkin(const std::string& text, GlmModel& model) {
         if (comma == std::string::npos) {
             continue;
         }
-        std::string surface = trim(line.substr(0, comma));
+        std::string surface = klein(trim(line.substr(0, comma)));
         const std::string tex = trim(line.substr(comma + 1));
 
         // --- Die Endung "_off" im FLAECHENnamen ---------------------------
@@ -447,7 +457,8 @@ void applySkin(const std::string& text, GlmModel& model) {
             surface.resize(surface.size() - 4);
         }
 
-        for (GlmSurface& s : model.surfaces) {
+        for (std::size_t si = 0; si < model.surfaces.size(); ++si) {
+            GlmSurface& s = model.surfaces[si];
             // mb1a1: R_LoadMDXM streicht "_off" auch am Ende des FLAECHENnamens
             // (tr_ghoul2.cpp:3722-3735 OpenJK; unter JK2_MODE nur bei einem
             // JKA-Modell, isANewModelFile) - RenderSurfaces vergleicht die Haut
@@ -455,10 +466,17 @@ void applySkin(const std::string& text, GlmModel& model) {
             // im Spiel "force_shield" und bekommt die Zeile "force_shield_off,...".
             const bool streichen = !gGhoul2Jk2.load(std::memory_order_relaxed) || model.jkaUmgewandelt;
             const bool offName = s.name.size() > 4 && s.name.compare(s.name.size() - 4, 4, "_off") == 0;
-            const std::string spielName = streichen && offName ? s.name.substr(0, s.name.size() - 4) : s.name;
+            const std::string spielName = klein(streichen && offName ? s.name.substr(0, s.name.size() - 4) : s.name);
             if (spielName != surface) {
                 continue;
             }
+            if (tex == "*off") {
+                s.skinnedOff = true;   // jede Zeile "*off" schaltet ab, auch hinter einem Bild
+            }
+            if (vergeben[si] != 0) {
+                continue;   // die Flaeche hat ihren Shader schon aus einer frueheren Zeile
+            }
+            vergeben[si] = 1;
             // "*off" schaltet die Flaeche ab, statt ihr eine Textur zu geben.
             //
             // Belegt in tr_ghoul2.cpp: dort wird bei shader->name == "*off"
