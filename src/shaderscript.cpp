@@ -1369,19 +1369,27 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
 }
 
 std::vector<std::string> textureCandidates(const std::string& name) {
-    std::vector<std::string> out;
-    // Traegt der Name schon eine Endung, zuerst so versuchen.
+    // MERGE2: die Dateien, die R_LoadImage fuer einen Namen der Reihe nach versucht (rd-common/tr_image_load.cpp:106-140
+    // OpenJK, MD9 :678-716 gleich; R_FindImageFile ruft es mit dem Namen des Shaders bzw. der Stufe): die genannte Endung
+    // zuerst, aber nur, wenn es fuer sie einen Leser gibt (FindImageLoader mit Q_stricmp), danach die Leser in der Folge von
+    // R_ImageLoader_Init (jpg, png, tga, :90-98) ohne den schon versuchten, je am Namen ohne Endung (COM_GetExtension und
+    // COM_StripExtension, q_shared.cpp:53-77: der letzte Punkt hinter dem letzten '/'). Vorher kam jede Endung zuerst und
+    // zusaetzlich ".jpeg" - beides laedt das Spiel nicht.
+    static constexpr const char* kLeser[3] = {"jpg", "png", "tga"};
     const std::size_t dot = name.find_last_of('.');
     const std::size_t slash = name.find_last_of('/');
-    const bool hasExt = dot != std::string::npos &&
-                        (slash == std::string::npos || dot > slash);
-    if (hasExt) {
-        out.push_back(name);
-    }
+    const bool hasExt = dot != std::string::npos && (slash == std::string::npos || dot > slash);
+    std::string ext = hasExt ? name.substr(dot + 1) : std::string();
+    for (char& ch : ext) { ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); }
     const std::string base = hasExt ? name.substr(0, dot) : name;
-    // Reihenfolge wie in JKA: erst jpg, dann png, dann tga.
-    for (const char* ext : {".jpg", ".png", ".tga", ".jpeg"}) {
-        out.push_back(base + ext);
+    std::size_t versucht = 3;
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (ext == kLeser[i]) { versucht = i; }
+    }
+    std::vector<std::string> out;
+    if (versucht < 3) { out.push_back(name); }
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (i != versucht) { out.push_back(base + "." + kLeser[i]); }
     }
     return out;
 }

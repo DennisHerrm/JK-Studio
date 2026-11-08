@@ -1101,6 +1101,21 @@ int main() {
         expect("ein Name mit Endung wird zuerst so versucht",
                !d.empty() && d[0] == "textures/x/y.tga");
         expect("und danach die anderen Endungen", d.size() > 1);
+        // MERGE2: genau die Folge von R_LoadImage (rd-common/tr_image_load.cpp:106-140 OpenJK, MD9 :678-716 gleich): die
+        // genannte Endung nur, wenn es fuer sie einen Leser gibt (FindImageLoader, Q_stricmp), dann die Leser von
+        // R_ImageLoader_Init (jpg, png, tga) ohne den schon versuchten, am Namen ohne Endung (COM_StripExtension).
+        const std::vector<std::string> sollTga{"textures/x/y.tga", "textures/x/y.jpg", "textures/x/y.png"};
+        expect("y.tga: tga, jpg, png - keine Endung doppelt, kein .jpeg", d == sollTga);
+        const std::vector<std::string> sollOhne{"textures/yavin/stone.jpg", "textures/yavin/stone.png", "textures/yavin/stone.tga"};
+        expect("ohne Endung: jpg, png, tga", c == sollOhne);
+        const std::vector<std::string> sollJpeg{"textures/x/y.jpg", "textures/x/y.png", "textures/x/y.tga"};
+        expect("y.jpeg: kein Leser fuer jpeg - nie y.jpeg, sondern jpg, png, tga",
+               bhed::textureCandidates("textures/x/y.jpeg") == sollJpeg);
+        const std::vector<std::string> sollGross{"textures/x/y.PNG", "textures/x/y.jpg", "textures/x/y.tga"};
+        expect("y.PNG: Leser per Q_stricmp gefunden, zuerst so, dann jpg, tga", bhed::textureCandidates("textures/x/y.PNG") == sollGross);
+        const std::vector<std::string> sollPunkt{"textures/a.b/y.jpg", "textures/a.b/y.png", "textures/a.b/y.tga"};
+        expect("Punkt nur im Ordnernamen ist keine Endung (COM_GetExtension)",
+               bhed::textureCandidates("textures/a.b/y") == sollPunkt);
     }
 
     // --- Der Schluessel der Bildtabelle ---------------------------------

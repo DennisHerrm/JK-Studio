@@ -70,29 +70,6 @@ std::string bildSchluessel(const std::string& name) {
     return s;
 }
 
-// PTFIX3 P29: die Dateien, die R_LoadImage fuer einen Namen der Reihe nach versucht (rd-common tr_image_load.cpp:106-140 OpenJK,
-// MD9 :124-170 gleich): die genannte Endung zuerst, wenn es fuer sie einen Leser gibt (FindImageLoader mit Q_stricmp), danach
-// die Leser in der Folge von R_ImageLoader_Init (jpg, png, tga) ohne den schon versuchten, je am Namen ohne Endung
-// (COM_GetExtension/COM_StripExtension: der letzte Punkt hinter dem letzten '/'). textureCandidates versucht dazu ".jpeg" und
-// jede andere Endung zuerst - beides laedt das Spiel nicht.
-std::vector<std::string> bildDateienWieEngine(const std::string& name) {
-    static constexpr std::array<const char*, 3> kLeser{"jpg", "png", "tga"};
-    const std::size_t punkt = name.find_last_of('.');
-    const std::size_t strich = name.find_last_of('/');
-    const bool endung = punkt != std::string::npos && (strich == std::string::npos || strich < punkt);
-    const std::string ext = endung ? klein(name.substr(punkt + 1)) : std::string();
-    const std::string ohne = endung ? name.substr(0, punkt) : name;
-    std::size_t versucht = kLeser.size();
-    for (std::size_t i = 0; i < kLeser.size(); ++i) {
-        if (ext == kLeser[i]) { versucht = i; }
-    }
-    std::vector<std::string> out;
-    if (versucht < kLeser.size()) { out.push_back(name); }
-    for (std::size_t i = 0; i < kLeser.size(); ++i) {
-        if (i != versucht) { out.push_back(ohne + "." + kLeser[i]); }
-    }
-    return out;
-}
 
 // --- Gruppen: die Flaechen, die ein Bild zeichnen (Haut vor Shader, wie die Vorschau und der UV-Editor) -----------------
 
@@ -173,7 +150,8 @@ const std::string& dateiVon(const std::string& name) {
     const auto it = g_stufen.datei.find(name);
     if (it != g_stufen.datei.end()) { return it->second; }
     std::string gefunden;
-    for (const std::string& k : bildDateienWieEngine(name)) {
+    // PTFIX3 P29 / MERGE2: die Dateien in der Folge von R_LoadImage (textureCandidates)
+    for (const std::string& k : textureCandidates(name)) {
         std::string d;
         if (readFromArchives(k, d)) {
             gefunden = k;
