@@ -7571,3 +7571,5 @@ from inhalt_md1d import CS as _MD1D  # noqa: E402
 TEXTE.update(_MD1D)
 from inhalt_paint import CS as _PAINT  # noqa: E402
 TEXTE.update(_PAINT)
+from inhalt_mr4 import CS as _MR4  # noqa: E402
+TEXTE.update(_MR4)

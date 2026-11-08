@@ -147,34 +147,70 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Zeit (ctest-Ausgabe, Fremdlast durch andere Agenten - nur Anhalt): 1024 x 1024 samt Pyramide 35,0 -> 3,4 ms (MR4 -> jetzt).
   Ladezeit einer Karte allein: offen (Hauptchat, ohne Fremdlast).
 
+## MR5 Punkt 3: DXT-Gegenprobe auf einer zweiten Original-Karte, Handbuchtext
+
+- Kein neuer Spielstart: vorhandenes Spielfoto des Original-JKA (jasp.exe, 03.11., Endrunde rc608) `SP/er1/fotos/er1_sour.png` -
+  t1_sour (Entities wie in er1.pk3), 1920 x 1440, Protokoll "using GL_EXT_texture_compression_s3tc", "compressed textures: enabled".
+  Die Karte diente nicht zum Finden der DXT-Regel (gefunden auf m0raum, MR4).
+- Vorschau gleich aufgebaut (Selbsttest `geschuetze` mit BHED_GV_*, er1.pk3, Daten "GameData original/base", Regelwerk OpenJK =
+  JKA-Regeln, Kamera aus viewpos 9133 -4842 100 Gier 225, Nachkommastellen unbekannt -> je +0,5, Nick 0 wie die dritte Person mit
+  Nick 0), einmal mit der exe vor MR4 Punkt 7 (`m5_sour_ohne`), einmal mit DXT (`m5_sour_neu`; `m5_sour_mit` = MR4-exe, gleich).
+- Auswertung `Y:\werkzeuge\m4\m5\dxtvgl.py`, Paarbild `Y:\werkzeuge\m4\m5\paar_sour.png` (Spiel, ohne, mit; 1:1, angesehen):
+
+| Mass | Spiel | ohne DXT | mit DXT |
+|---|---|---|---|
+| R-G / B-G im Mittel | +5,956 / -14,929 | +5,863 / -15,101 | +5,898 / -15,084 |
+| haeufigste Farbe (25,21,14) | 27551 | 39055 | 27602 |
+| (20,17,10) | 22424 | 22967 | 19332 |
+| Abstand der Farbhistogramme zum Spiel | - | 0,2111 | 0,1966 |
+| Abstand der (R-G, B-G)-Verteilung | - | 0,1043 | 0,0950 |
+| Bloecke 480x480, R-G/B-G naeher am Spiel | - | - | 11 von 12 |
+
+- Ergebnis: mit DXT naeher am Original, wie auf m0raum. Gleiche Punkte nur 2,6 % (Kamera auf 1 Einheit ungenau, viewpos schneidet ab) -
+  darum Verteilungen statt Punktgleichheit. Block 2,2 (Spieler, Twi'lek) mit DXT 0,03 weiter weg.
+- Handbuch "Die Karte": neuer Hinweis zur Texturkompression unter JKA/JK2 (S3TC wie r_ext_compress_textures 1, noTC und Lightmaps
+  nicht, Movie Duels aus) in 6 Sprachen (`tools/handbuch/inhalt_mr4.py`), `--pruefen` ok, Handbuch neu erzeugt (karte.html, suche.js).
+
 ## Changelog
 
 ## English
 
 - Interface: Chinese and Japanese text wraps between characters in every window and tab (Mission, map editor, menu editor, helper, tutorials, timeline and more), no longer only after the first comma.
 - Preview under Jedi Academy and Jedi Outcast: textures are compressed like in the game (S3TC), so colours match the original exactly; Movie Duels stays uncompressed like the game.
+- Menu editor: the menu flow and the tab order no longer show the menus of a document that was closed before.
+- Preview under Jedi Academy and Jedi Outcast: the texture compression is about ten times faster, with exactly the same picture.
 
 ## Deutsch
 
 - Oberfläche: Chinesischer und japanischer Text bricht in allen Fenstern und Tabs zwischen den Zeichen um (Mission, Karten-Editor, Menü-Editor, Helfer, Tutorials, Zeitleiste und mehr), nicht mehr erst nach dem ersten Komma.
 - Vorschau unter Jedi Academy und Jedi Outcast: Texturen werden wie im Spiel komprimiert (S3TC), die Farben stimmen jetzt genau mit dem Original überein; Movie Duels bleibt wie das Spiel unkomprimiert.
+- Menü-Editor: Menüfluss und Tab-Reihenfolge zeigen nicht mehr die Menüs eines vorher geschlossenen Dokuments.
+- Vorschau unter Jedi Academy und Jedi Outcast: Die Texturkompression ist etwa zehnmal schneller, das Bild bleibt genau gleich.
 
 ## 中文
 
 - 界面:中文和日文文本在所有窗口和标签页中按字符换行(任务、地图编辑器、菜单编辑器、助手、教程、时间轴等),不再只在第一个逗号后换行。
 - Jedi Academy 和 Jedi Outcast 下的预览:纹理像游戏中一样压缩(S3TC),颜色与原版完全一致;Movie Duels 与游戏一样保持不压缩。
+- 菜单编辑器:菜单流程和 Tab 顺序不再显示之前已关闭文档的菜单。
+- Jedi Academy 和 Jedi Outcast 下的预览:纹理压缩快了约十倍,画面完全相同。
 
 ## 日本語
 
 - インターフェース:中国語と日本語のテキストは、すべてのウィンドウとタブ(ミッション、マップエディター、メニューエディター、ヘルパー、チュートリアル、タイムラインなど)で文字の間で折り返されます。最初の読点の後だけで折り返すことはなくなりました。
 - Jedi Academy と Jedi Outcast でのプレビュー:テクスチャをゲームと同じように圧縮(S3TC)するため、色がオリジナルと正確に一致します。Movie Duels はゲームと同じく非圧縮のままです。
+- メニューエディター:メニューフローとタブ順序に、前に閉じたドキュメントのメニューが表示されなくなりました。
+- Jedi Academy と Jedi Outcast でのプレビュー:テクスチャ圧縮が約 10 倍速くなり、画面はまったく同じです。
 
 ## Español
 
 - Interfaz: el texto chino y japonés se corta entre caracteres en todas las ventanas y pestañas (Misión, editor de mapas, editor de menús, ayudante, tutoriales, línea de tiempo y más), ya no solo después de la primera coma.
 - Vista previa con Jedi Academy y Jedi Outcast: las texturas se comprimen como en el juego (S3TC), así los colores coinciden exactamente con el original; Movie Duels sigue sin comprimir, como el juego.
+- Editor de menús: el flujo de menús y el orden de tabulación ya no muestran los menús de un documento cerrado antes.
+- Vista previa con Jedi Academy y Jedi Outcast: la compresión de texturas es unas diez veces más rápida, con exactamente la misma imagen.
 
 ## Čeština
 
 - Rozhraní: čínský a japonský text se ve všech oknech a kartách (Mise, editor map, editor nabídek, pomocník, výukové lekce, časová osa a další) zalamuje mezi znaky, už ne až za první čárkou.
 - Náhled pro Jedi Academy a Jedi Outcast: textury se komprimují jako ve hře (S3TC), takže barvy přesně odpovídají originálu; Movie Duels zůstává jako hra bez komprese.
+- Editor nabídek: tok nabídek a pořadí tabulátoru už neukazují nabídky dříve zavřeného dokumentu.
+- Náhled pro Jedi Academy a Jedi Outcast: komprese textur je zhruba desetkrát rychlejší, obraz zůstává přesně stejný.
