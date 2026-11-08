@@ -84,7 +84,8 @@ inline constexpr std::size_t kDeformSpreadAt = kDeformAt + 4U;  // 20
 inline constexpr std::size_t kWolkenAt = kDeformSpreadAt + 1U;  // 21
 // Die Weite aus alphaGen portal (rc593), gleich dahinter.
 inline constexpr std::size_t kPortalWeiteAt = kWolkenAt + 1U;  // 22
-// FIX5: die Tafel der Welle von deformVertexes wave (gDeformArt, siehe Verformung), im Rest desselben Viererblocks.
+// FIX5/DEF1 P44: gDeformArt, im Rest desselben Viererblocks - mit gDeformSpread und gDeformNormal.xy der zweite Platz von
+// `Verformung` (d[4..7]).
 inline constexpr std::size_t kDeformArtAt = kPortalWeiteAt + 1U;  // 23
 // Die Stellung eines Movers steht NICHT hier: sie wird vor dem Zeichnen in
 // die Kameramatrix multipliziert (siehe gpushader.cpp). Eine eigene Matrix
@@ -92,8 +93,8 @@ inline constexpr std::size_t kDeformArtAt = kPortalWeiteAt + 1U;  // 23
 // Ecken in einen Punkt liefen.
 // rc592: deformVertexes move (Versatz, auf der CPU aus der Welle), bulge
 // (breite, hoehe, tempo) und normal (amplitude, frequenz) - je ein float4.
-// FIX5: so belegt, wie `Verformung` es beschreibt (gDeformMove.w die Folge,
-// gBulge.w now, gDeformNormal amplitude und floatTime * frequency).
+// FIX5/DEF1 P44: so belegt, wie `Verformung` es beschreibt - gDeform Platz 0, (gDeformSpread, gDeformArt,
+// gDeformNormal.xy) Platz 1, gBulge Platz 2, gDeformMove.xyz die Spreads der Wellen, .w die Folge.
 inline constexpr std::size_t kDeformMoveAt = kDeformSpreadAt + 4U;    // 24
 inline constexpr std::size_t kBulgeAt = kDeformMoveAt + 4U;           // 28
 inline constexpr std::size_t kDeformNormalAt = kBulgeAt + 4U;         // 32

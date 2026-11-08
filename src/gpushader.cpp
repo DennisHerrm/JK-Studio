@@ -85,17 +85,17 @@ cbuffer JeStapel : register(b1) {
     // nach 32, der Shader las fuer den Ortsanteil der Welle null: der
     // Lavafall in md_am_sith pulsierte im Gleichtakt, statt zu wogen.
     // Mit float4 gibt es keine Packregel zu erraten: 16..19, dann 20.
-    // FIX5: die deformVertexes wie gpu::verformung (gpuconst.h) sie packt - d0 gDeform, d1 (gDeformSpread, gDeformArt,
-    // gDeformNormal.xy), d2 gBulge, d3 gDeformMove.
-    float4 gDeform;        // base (bei frequency 0 EvalWaveForm), amplitude, phase, floatTime * frequency
-    float  gDeformSpread;
+    // FIX5/DEF1 P44: die deformVertexes wie gpu::verformung (gpuconst.h) sie packt - Platz 0 gDeform, Platz 1 (gDeformSpread,
+    // gDeformArt, gDeformNormal.xy), Platz 2 gBulge, gDeformMove.xyz die Spreads, .w die Folge. Die Namen stammen aus rc592.
+    float4 gDeform;        // Platz 0
+    float  gDeformSpread;  // Platz 1 .x (20)
     float  gWolkenHoehe;   // Wolkenkuppel, siehe gpuconst.h (21)
     float  gPortalWeite;   // alphaGen portal, siehe gpuconst.h (22)
-    float  gDeformArt;     // FIX5: Tafel der Welle (0 = fester Wert, 1..5 WaveFunc), 23
+    float  gDeformArt;     // Platz 1 .y (23)
     // rc592, siehe gpuconst.h: jedes ein eigener Viererblock (24, 28, 32).
-    float4 gDeformMove;    // xyz Versatz, .w die Folge (FIX5)
-    float4 gBulge;         // breite, hoehe, tempo, now (FIX5)
-    float4 gDeformNormal;  // amplitude, floatTime * frequenz (FIX5)
+    float4 gDeformMove;    // die Spreads der drei Plaetze, .w die Folge
+    float4 gBulge;         // Platz 2
+    float4 gDeformNormal;  // .xy: Platz 1 .zw
     float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
     float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
     float4 gTcM1;          // FIX4 P33: zweiter bis vierter Schritt der tcMod-Kette (44, 48, 52)
