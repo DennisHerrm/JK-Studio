@@ -73,6 +73,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -104,7 +105,16 @@ struct TextZeile {
     std::map<std::string, std::string> text;   // "English", "German" ... -> Text
 };
 
+// MR5 Punkt 1: jedes Dokument bekommt eine eigene, nie wiederkehrende Nummer. Die Zwischenspeicher (Fluss, Tab-Folge,
+// Lesbarkeit) hingen an Adresse + Pufferversion; ein neu geoeffnetes Dokument lag nach dem Schliessen an derselben Adresse und hat
+// nach dem Oeffnen wieder Version 1 - der Menuefluss zeigte dann das Menue des vorigen Dokuments (menueeditor M6, 200 von 200).
+std::uint64_t naechsteDokumentNummer() {
+    static std::uint64_t n = 0;
+    return ++n;
+}
+
 struct Dokument {
+    std::uint64_t nummer = naechsteDokumentNummer();
     std::string name;          // Spielpfad (ui/main.menu) - bestimmt Dialekt
     std::string platte;        // Datei auf der Platte ("" = aus dem Spiel)
     bool ausSpiel = false;     // rc609 ME2: aus den Spieldaten gelesen (Aus dem Spiel, Menuesatz), nicht neu angelegt
@@ -509,7 +519,7 @@ struct Zustand {
         bool add = false, addNeu = false;
         std::string addq;
         std::vector<int> auswahl;       // zuletzt gesehene Auswahl
-        const Dokument* auswahlDok = nullptr;
+        std::uint64_t auswahlDok = 0;   // MR6 P32: Dokument::nummer (eine Adresse kehrt nach dem Schliessen wieder)
         int tablett = 0;                // Fuss: 0 zu, 1 Component, 2 Preview cvars, 3 Engine messages
         std::map<int, Item> vorgabe;    // Item_Init je Dialekt und Spiel
         std::vector<std::string> vorschlaege;
@@ -3627,17 +3637,22 @@ float hakenBreite(const char* text) {
 
 void zeichneSuchleiste(Dokument& d) {
     Zustand& z = Z();
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    const float fs = ImGui::GetFontSize();
+    // MR6: In der schmalen Spalte (ab 16 Zeichen) schoben die 14 Zeichen des Felds "Aa" und "ab" ueber den Rand (154 Punkte
+    // im Bildlauf, nicht zu erreichen). Das Feld gibt bis 6 Zeichen nach, danach brechen die Schalter um.
+    const float sp = ImGui::GetStyle().ItemSpacing.x;
+    const float haken = hakenBreite(".*") + hakenBreite("Aa") + hakenBreite("ab") + sp * 3.0F;
+    ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x - haken, fs * 6.0F, fs * 14.0F));
     if (z.suchFokus) {
         ImGui::SetKeyboardFocusHere();
         z.suchFokus = false;
     }
     bool neu = eingabe("##such", &z.such);
-    ImGui::SameLine();
+    daneben(hakenBreite(".*"));
     neu |= ImGui::Checkbox(".*", &z.suchOpt.regex);
-    ImGui::SameLine();
+    daneben(hakenBreite("Aa"));
     neu |= ImGui::Checkbox("Aa", &z.suchOpt.gross);
-    ImGui::SameLine();
+    daneben(hakenBreite("ab"));
     neu |= ImGui::Checkbox("ab", &z.suchOpt.wort);
     daneben(hakenBreite(tr(Str::MeInAllen)));
     ImGui::Checkbox(tr(Str::MeInAllen), &z.inAllen);
@@ -3677,7 +3692,7 @@ void zeichneSuchleiste(Dokument& d) {
     if (ImGui::ArrowButton("##vor", ImGuiDir_Down) || (neu && !t.empty())) { naechster(true); }
     if (ImGui::IsKeyPressed(ImGuiKey_Enter) && ImGui::IsItemFocused()) { naechster(!ImGui::GetIO().KeyShift); }
     // rc608 Punkt 17: Suchen und Ersetzen gehoeren zusammen, mit den Beschriftungen des Skript-Bereichs (drawFindDialog)
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    ImGui::SetNextItemWidth(std::min(fs * 14.0F, ImGui::GetContentRegionAvail().x));
     if (z.ersatzFokus) {
         ImGui::SetKeyboardFocusHere();
         z.ersatzFokus = false;
@@ -4369,7 +4384,8 @@ const Texte& vorschauTexte(Dokument& d) {
     const Texte& basis = texte();
     eigeneTexteLesen(d);
     if (d.eigeneTexte.empty()) { return basis; }
-    const std::string schl = d.name + "|" + std::to_string(d.textStand) + "|" + z.sprache + "|" + std::to_string(z.texteVersion);
+    // MR6 P32: die Nummer statt des Namens - zwei Dokumente gleichen Namens (auch nacheinander) haben beide textStand 0
+    const std::string schl = std::to_string(d.nummer) + "|" + std::to_string(d.textStand) + "|" + z.sprache + "|" + std::to_string(z.texteVersion);
     if (z.texteMitSchluessel != schl) {
         z.texteMit = basis;
         for (const TextZeile& r : d.eigeneTexte) {
@@ -4704,7 +4720,7 @@ void zeichnePruefFenster() {
         ImGui::SameLine();
         // rc608 Teil 3b: Die Liste gehoert zum jetzigen Stand; eine alte nannte Dateien und Zeilen, die es so nicht mehr gibt
         std::string stand;
-        for (const auto& od : z.docs) { stand += std::to_string(reinterpret_cast<std::uintptr_t>(od.get())) + ":" + std::to_string(od->puffer.version()) + ";"; }
+        for (const auto& od : z.docs) { stand += std::to_string(od->nummer) + ":" + std::to_string(od->puffer.version()) + ";"; }   // MR5: Nummer statt Adresse
         if (ImGui::Button(tr(Str::MePruefen)) || !z.pruefGelaufen || stand != z.pruefStand) {
             (void)pruefeAlleMenues();
             z.pruefStand = stand;
@@ -7280,6 +7296,9 @@ void zeichneInnen(float hoehe) {
     d = doc();
     if (d == nullptr) {
         z.halt = {};
+        // MR6: Ohne Dokument gibt es keine Spalten, die Enge wird nicht gerechnet. Blieb sie stehen, ging die linke Spalte beim
+        // naechsten Oeffnen bei wenig Platz nicht mehr zu (offen gelassen vom Dokument davor, Bildlauf "3b Eng").
+        z.spaltenEng = false;
         zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
         menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
@@ -7817,6 +7836,8 @@ void leisteVorgabe() {
     l.tablett = 0;
 }
 void leisteTablett(int nr) { Z().leiste.tablett = nr; }
+void leisteFarbeAuf(const std::string& zeile) { Z().leiste.farbeOffen = zeile; }
+const void* dokumentAdresse() { return doc(); }
 bool bildWahlOffen() { return Z().wahl.istOffen; }
 void setzeTextScroll(float zeile) {
     if (Dokument* d = doc()) {

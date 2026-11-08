@@ -174,6 +174,8 @@ LeisteStand leisteStand();
 void leisteAlleOffen();         // alle Gruppen aufklappen
 void leisteVorgabe();           // Gruppen wie ab Werk, der Fuss zu
 void leisteTablett(int nr);     // den Fuss oeffnen (LeisteStand::tablett)
+void leisteFarbeAuf(const std::string& zeile);   // MR6 P32 (Selbsttest): eine Farbzeile aufklappen (LeisteStand::farbeOffen)
+[[nodiscard]] const void* dokumentAdresse();       // MR6 P32 (Selbsttest): wo das offene Dokument liegt (nullptr: keins)
 [[nodiscard]] bool bildWahlOffen();   // das Fenster "Bild waehlen" oder "Video waehlen"
 void setzeTextScroll(float zeile);    // Text-Editor: nach oben
 // rc608 Teil 3a (Selbsttest): die Kacheln links im letzten Bild

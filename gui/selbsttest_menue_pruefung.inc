@@ -160,6 +160,11 @@ std::vector<Schritt> schritteKontext() {
                 diag::info(std::string("Knopftest: Rechtsklick ohne ") + tr(t));
                 alle = false;
             }
+            // MR6: jeder Befehl nur einmal so beschriftet (zh hiess "Duplizieren" wie "Kopieren": 复制)
+            if (finde(tr(t), "##Popup_", 1, false) != nullptr) {
+                diag::info(std::string("Knopftest: Rechtsklick: \"") + tr(t) + "\" steht zweimal im Menue");
+                alle = false;
+            }
         }
         return alle;
     }));
@@ -1048,13 +1053,23 @@ std::vector<Schritt> schritteFelderNeu() {
             if (ImGuiWindow* w = inhaltFenster()) { ImGui::SetScrollY(w, 0.0F); }
         });
     };
+    // MR6: In der schmalen Spalte des Bildlaufs liegt das Feld unter dem Rand und wird gar nicht gezeichnet (vorher blieb die
+    // Spalte dann oben stehen: Foto ohne das Feld, Klick daneben). Erst seitenweise suchen, dann ganz ins Bild holen - auch nach oben.
     const auto insBild = [](const char* id) {
         return Schritt{std::string("3b Felder: ins Bild rollen ") + id, [id](int b) {
                            if (b < 2) { return false; }
                            const Element* e = finde(id, "", 0, false);
                            ImGuiWindow* w = inhaltFenster();
-                           if (e != nullptr && w != nullptr && (e->rect.Max.y > w->InnerRect.Max.y - 40.0F || e->rect.Min.y < w->InnerRect.Min.y)) {
-                               ImGui::SetScrollY(w, w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y - 20.0F);
+                           if (w == nullptr) { return b >= 5; }
+                           if (e == nullptr) {
+                               if (b > 120) { return true; }   // nicht da: der folgende Klick meldet es
+                               if (b % 3 == 0) { ImGui::SetScrollY(w, std::min(w->ScrollMax.y, w->Scroll.y + w->InnerRect.GetHeight() * 0.5F)); }
+                               return false;
+                           }
+                           const float ziel = std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y - 20.0F, 0.0F, w->ScrollMax.y);
+                           if ((e->rect.Max.y > w->InnerRect.Max.y - 40.0F || e->rect.Min.y < w->InnerRect.Min.y) && std::fabs(ziel - w->Scroll.y) > 1.0F && b <= 120) {
+                               ImGui::SetScrollY(w, ziel);
+                               return false;
                            }
                            return b >= 5;
                        }};
@@ -1104,6 +1119,7 @@ std::vector<Schritt> schritteFelderNeu() {
     add(klick(tr(Str::MlWerteNeu)));
     add(pause(0.2));
     add(pruefe("3b Felder: Ein Eintrag mehr", [] { return zeileDa(me::stand().text, "\"2\" }"); }));
+    add(insBild("##wx"));   // MR6: "Neuer Wert" oben an den Rand gerollt - der erste Eintrag liegt darueber
     add(klick("##wx"));
     add(pause(0.2));
     add(pruefe("3b Felder: Der erste Eintrag ist weg", [] { return !zeileDa(me::stand().text, "\"Eins\""); }));
@@ -1233,6 +1249,26 @@ std::vector<Schritt> schritteEng() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto skala = std::make_shared<float>(1.0F);
     auto groesse = std::make_shared<std::pair<int, int>>();
+    // MR6: Vorzustand wie im Bildlauf nach "Links": bei wenig Platz die linke Spalte von Hand geoeffnet, dann alles geschlossen
+    // und wieder viel Platz. Danach muss das naechste Dokument bei wenig Platz die Spalte wieder zuklappen.
+    add(tu("3b Eng: Vorzustand: eng, linke Spalte offen", [=] {
+        me::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 4;
+        tourSchliessen();
+        (void)me::oeffneText("ui/leiste.menu", kLeisteText);
+        me::setzeSpalten(0.0F, 0.0F);
+        *skala = g_app->uiScale;
+        *groesse = platform::hauptfensterGroesse(1920, 1080);
+        g_app->uiScale = 2.0F;
+    }));
+    add(pause(0.5));
+    add(tu("3b Eng: Vorzustand: Spalte oeffnen, alles schliessen, wieder viel Platz", [=] {
+        if (me::linkeSpalteZu()) { me::oeffneLinkeSpalte(); }
+        me::schliesseAlleOhneSpeichern();
+        g_app->uiScale = *skala;
+        if (groesse->first > 0) { (void)platform::hauptfensterGroesse(groesse->first, groesse->second); }
+    }));
+    add(pause(0.5));
     add(tu("3b Eng: Probe bei 1920 x 1080, 200 %", [=] {
         me::schliesseAlleOhneSpeichern();
         g_app->leftMode = 4;

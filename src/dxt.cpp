@@ -2,12 +2,16 @@
 
 #include "bhed/dxt.h"
 
+#include "bhed/arbeiter.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <utility>
+#include <vector>
 
 namespace bhed::dxt {
 
@@ -25,6 +29,21 @@ struct Punkt {
 
 // Farbblock: zwei Endfarben in 5:6:5 auf der Hauptachse der Punkte, dazu (2a+b)/3 und (a+2b)/3; jeder Punkt die naechste
 void farbe(std::array<Punkt, 16>& b, int n) {
+    // MR5 Punkt 2: Block in einer Farbe (Alpha gleichgueltig) - der allgemeine Weg kommt genau hierhin: Mittel = die Farbe (exakt),
+    // Streuung 0, Achse bleibt (1,1,1), t = 0, beide Enden e(q(Farbe)), die Zwischenstufen (3e+1)/3 = e. Also gleich das Ergebnis.
+    bool eineFarbe = true;
+    for (int i = 1; i < n && eineFarbe; ++i) { eineFarbe = b[i].p[0] == b[0].p[0] && b[i].p[1] == b[0].p[1] && b[i].p[2] == b[0].p[2]; }
+    if (eineFarbe) {
+        const std::uint8_t r = static_cast<std::uint8_t>(e5(q5(b[0].p[0])));
+        const std::uint8_t g = static_cast<std::uint8_t>(e6(q6(b[0].p[1])));
+        const std::uint8_t bl = static_cast<std::uint8_t>(e5(q5(b[0].p[2])));
+        for (int i = 0; i < n; ++i) {
+            b[i].p[0] = r;
+            b[i].p[1] = g;
+            b[i].p[2] = bl;
+        }
+        return;
+    }
     double m[3] = {0, 0, 0};
     for (int i = 0; i < n; ++i) {
         for (int k = 0; k < 3; ++k) { m[k] += b[i].p[k]; }
@@ -104,23 +123,41 @@ void alpha(std::array<Punkt, 16>& b, int n) {
     }
 }
 
+// Eine Zeile Bloecke (Punkte by .. by+3) eines Bildes
+void blockZeile(std::uint8_t* rgba, int breite, int hoehe, int by) {
+    std::array<Punkt, 16> b{};
+    for (int bx = 0; bx < breite; bx += 4) {
+        int n = 0;
+        for (int y = by; y < std::min(by + 4, hoehe); ++y) {
+            for (int x = bx; x < std::min(bx + 4, breite); ++x) {
+                b[static_cast<std::size_t>(n++)].p = rgba + (static_cast<std::size_t>(y) * static_cast<std::size_t>(breite) + static_cast<std::size_t>(x)) * 4U;
+            }
+        }
+        farbe(b, n);
+        alpha(b, n);
+    }
+}
+
 }  // namespace
 
 void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe) {
-    if (rgba == nullptr || breite <= 0 || hoehe <= 0) { return; }
-    std::array<Punkt, 16> b{};
-    for (int by = 0; by < hoehe; by += 4) {
-        for (int bx = 0; bx < breite; bx += 4) {
-            int n = 0;
-            for (int y = by; y < std::min(by + 4, hoehe); ++y) {
-                for (int x = bx; x < std::min(bx + 4, breite); ++x) {
-                    b[static_cast<std::size_t>(n++)].p = rgba + (static_cast<std::size_t>(y) * static_cast<std::size_t>(breite) + static_cast<std::size_t>(x)) * 4U;
-                }
-            }
-            farbe(b, n);
-            alpha(b, n);
-        }
+    const Ebene e{rgba, breite, hoehe};
+    dxt5Rundlauf(&e, 1);
+}
+
+void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl) {
+    if (ebenen == nullptr) { return; }
+    // Alle Blockzeilen aller Bilder: (Bild, erste Zeile). Ein Faden je Platz; die Plaetze teilen sich keinen Punkt.
+    std::vector<std::pair<std::size_t, int>> zeilen;
+    for (std::size_t i = 0; i < anzahl; ++i) {
+        const Ebene& e = ebenen[i];
+        if (e.rgba == nullptr || e.breite <= 0 || e.hoehe <= 0) { continue; }
+        for (int by = 0; by < e.hoehe; by += 4) { zeilen.emplace_back(i, by); }
     }
+    arbeiter::verteilt(zeilen.size(), [&](std::size_t k) {
+        const Ebene& e = ebenen[zeilen[k].first];
+        blockZeile(e.rgba, e.breite, e.hoehe, zeilen[k].second);
+    });
 }
 
 }  // namespace bhed::dxt

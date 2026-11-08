@@ -108,34 +108,310 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Handbuchtext zur Vorschau (DXT unter JKA/JK2) nicht ergaenzt; Changelog steht unten.
 - Menue-Editor-Seitenleisten in ja/zh nicht neu fotografiert (nur Startflaeche, Helfer, KI, Ueber).
 
+# MR5 (08.11.2026, gleicher Worktree, Basis c5d16c76b, Laeufe `m5_*`)
+
+## MR5 Punkt 1: menueeditor "M6 Fluss" (4 FEHLER seit 06.11.)
+
+- Ursache (Programmfehler, nicht der Test): Menuefluss, Tab-Folge, Lesbarkeit und das Pruefen-Fenster merkten sich ihr Ergebnis
+  unter "Adresse des Dokuments + Pufferversion". Nach `schliesseAlleOhneSpeichern` legt `oeffne` das neue Dokument an derselben
+  Heap-Adresse an, und ein frisch geoeffneter Puffer hat immer Version 1 (`setzeText`). Im vollen Lauf war vorher ein anderes,
+  unveraendertes Dokument offen - der Fluss zeigte dessen Menue ("1 Menues, 1 unerreichbar, 0 Kanten"), "credits" fehlte im
+  Fenster, der Zurueck-Knopf landete im falschen Menue. Allein (`BHED_MENUE_NUR=m6`, `m5b+m6`) gruen, weil kein passender
+  Vorgaenger da war (`m5_me_m6_rot`, `m5_me_m5bm6_rot` 17/0, 65/0).
+- Behebung: jedes Dokument bekommt eine eigene, nie wiederkehrende Nummer (`Dokument::nummer`); alle vier Schluessel nehmen sie statt
+  der Adresse (app_menue_m6.inc flussAktuell/tabFolgeVon/lesbarkeitVon, Pruefen-Fenster in app_menue.cpp).
+- Neue Pruefung in M6 (vor der Probe): 200 Mal anderes Menue oeffnen, Fluss und Tab-Folge rechnen, alles schliessen, Probe oeffnen -
+  Fluss muss 4 Menues zeigen, die Tab-Folge darf das Item des vorigen Dokuments nicht enthalten.
+
+| Lauf | Ergebnis |
+|---|---|
+| `m5_me_m6_rot2` (vorher) | 17/1: "200 Wechsel, Fluss falsch 200, Tab-Folge falsch 200" |
+| `m5_me_gr_en` / `_ja` / `_es` (nachher, voll) | je 2784/0 (vorher 2780/4), "Fluss falsch 0, Tab-Folge falsch 0" |
+
+## MR5 Punkt 2: DXT-Vorschau schneller, Bild gleich
+
+- Die Kompression lief je Bild im Grafikfaden beim ersten Zeichnen (ladeMitStufen), jede Stufe nacheinander, je Block mit
+  Potenzverfahren in double: 1024 x 1024 samt Pyramide rund 35 ms (unter Fremdlast gemessen).
+- Jetzt (src/dxt.cpp): `dxt5Rundlauf(const Ebene*, n)` nimmt alle Stufen einer Pyramide in einem Auftrag und verteilt die
+  Blockzeilen auf die festen Arbeitsfaeden (bhed/arbeiter.h, kleine Bilder unter 16 Blockzeilen ohne Faeden); jeder Block rechnet fuer
+  sich, die Plaetze teilen keinen Punkt. Bloecke in einer Farbe (Alpha egal) nehmen direkt e(q(Farbe)) - genau der Wert, auf den der
+  allgemeine Weg dort kommt (Mittel exakt, Streuung 0, Achse (1,1,1), t = 0, Zwischenstufen (3e+1)/3 = e).
+- "Ergebnis je Bild merken" nicht gebaut: nach dem Kartenwechsel gibt gpumap alle Bilder frei, ein Zwischenspeicher haette die Bilder
+  im Hauptspeicher verdoppelt; mit den Faeden bleibt pro 1024er-Bild wenige ms.
+- ctest `dxt` erweitert: die Fassung aus MR4 liegt wortgleich im Test (`referenz`); 48 Einzelbilder (1x1 bis 512x512, Rauschen,
+  Verlauf, Flaechen, gleiche Farbe mit anderem Alpha, Kanten, Teilbloecke) und 3 Pyramiden (1024x1024, 300x77, 8x512; 30 Stufen) Byte
+  fuer Byte gleich. Gegenprobe, dass der Test anschlaegt: absichtlich falscher Gruenkanal im schnellen Weg -> "Pyramiden: 30 Stufen,
+  davon abweichend 11", 4 Fehler; zurueck -> 0.
+- Im Programm: dasselbe Kartenbild mit der MR4-exe und der neuen exe (`m5_sour_mit`, `m5_sour_neu`, t1_sour unter JKA-Regeln) - die
+  Kartenansicht 1920 x 1440 ist Bildpunkt fuer Bildpunkt gleich (Unterschied nur in der Statuszeile ausserhalb der Ansicht).
+- Zeit (ctest-Ausgabe, Fremdlast durch andere Agenten - nur Anhalt): 1024 x 1024 samt Pyramide 35,0 -> 3,4 ms (MR4 -> jetzt).
+  Ladezeit einer Karte allein: offen (Hauptchat, ohne Fremdlast).
+
+## MR5 Punkt 3: DXT-Gegenprobe auf einer zweiten Original-Karte, Handbuchtext
+
+- Kein neuer Spielstart: vorhandenes Spielfoto des Original-JKA (jasp.exe, 03.11., Endrunde rc608) `SP/er1/fotos/er1_sour.png` -
+  t1_sour (Entities wie in er1.pk3), 1920 x 1440, Protokoll "using GL_EXT_texture_compression_s3tc", "compressed textures: enabled".
+  Die Karte diente nicht zum Finden der DXT-Regel (gefunden auf m0raum, MR4).
+- Vorschau gleich aufgebaut (Selbsttest `geschuetze` mit BHED_GV_*, er1.pk3, Daten "GameData original/base", Regelwerk OpenJK =
+  JKA-Regeln, Kamera aus viewpos 9133 -4842 100 Gier 225, Nachkommastellen unbekannt -> je +0,5, Nick 0 wie die dritte Person mit
+  Nick 0), einmal mit der exe vor MR4 Punkt 7 (`m5_sour_ohne`), einmal mit DXT (`m5_sour_neu`; `m5_sour_mit` = MR4-exe, gleich).
+- Auswertung `Y:\werkzeuge\m4\m5\dxtvgl.py`, Paarbild `Y:\werkzeuge\m4\m5\paar_sour.png` (Spiel, ohne, mit; 1:1, angesehen):
+
+| Mass | Spiel | ohne DXT | mit DXT |
+|---|---|---|---|
+| R-G / B-G im Mittel | +5,956 / -14,929 | +5,863 / -15,101 | +5,898 / -15,084 |
+| haeufigste Farbe (25,21,14) | 27551 | 39055 | 27602 |
+| (20,17,10) | 22424 | 22967 | 19332 |
+| Abstand der Farbhistogramme zum Spiel | - | 0,2111 | 0,1966 |
+| Abstand der (R-G, B-G)-Verteilung | - | 0,1043 | 0,0950 |
+| Bloecke 480x480, R-G/B-G naeher am Spiel | - | - | 11 von 12 |
+
+- Ergebnis: mit DXT naeher am Original, wie auf m0raum. Gleiche Punkte nur 2,6 % (Kamera auf 1 Einheit ungenau, viewpos schneidet ab) -
+  darum Verteilungen statt Punktgleichheit. Block 2,2 (Spieler, Twi'lek) mit DXT 0,03 weiter weg.
+- Handbuch "Die Karte": neuer Hinweis zur Texturkompression unter JKA/JK2 (S3TC wie r_ext_compress_textures 1, noTC und Lightmaps
+  nicht, Movie Duels aus) in 6 Sprachen (`tools/handbuch/inhalt_mr4.py`), `--pruefen` ok, Handbuch neu erzeugt (karte.html, suche.js).
+
+## MR5 Punkt 4: Menue-Editor-Bilder ja/zh neu
+
+- Bildlauf `menueeditor` mit BHED_MENUE_BILDER=1 (Fenster 2560 x 1500) je Sprache: `m5_mb_ja` 571/6, `m5_mb_zh` 570/7. Die 6 bzw. 7
+  roten Zeilen sind dieselben wie im Bildlauf vom 03.11. (`Y:\karte\laeufe\gjambilder` 567/6, `gzhHansmbilder` 566/7, gleiche Namen):
+  Codebereich im Reiter Text 154 Punkte zu schmal (waagrechter Bildlauf), "レイアウトを解除"/"解除布局" und "次の場合は隠す"/"在以下情况隐藏"
+  nicht gefunden, Eng-Spalte, "##wx" nicht ganz sichtbar, zh Kontext Duplizieren - Altbestand, hier nicht behoben.
+- Uebernommen: alle Bilder, die das Handbuch schon hat, ausser den Bildern nach einem Fehlschlag im selben Teil (menue_reiter_properties,
+  menue_ereignisse, menue_eng_auf, menue_eng_beide, menue_felder_mehrfach, menue_felder_ownerdraw, zh dazu menue_kontext_leer - die
+  bleiben wie vorher): je 56 Bilder ja und zh (darunter alle menue_leiste_*), Ausschnitte 2538 x 1444 aus dem Fenster 2560 x 1500,
+  zusammen 13,1 -> 13,3 MB. Angesehen: ja menue_leiste_properties (Ereigniszeile bricht zwischen den Zeichen um), zh
+  menue_leiste_events, ja menue_reiter_text.
+
+## MR5 Punkt 5: Original-JKA grosse GLA - offen
+
+- Quelle: `com_unfocused`/`com_minimized` gibt es nur in OpenJK (SDL-Fenster); dort drosseln sie nur die Bildrate
+  (common.cpp:1405-1408 `com_maxfpsUnfocused`/`com_maxfpsMinimized`), sie halten nichts an. Das Original (jasp.exe, Raven-Quelle
+  win32/win_main.cpp, win_wndproc.cpp) kennt sie nicht: VID_AppActivate setzt nur `g_wv.activeApp`/`isMinimized`, die Hauptschleife
+  schlaeft nur minimiert (Sleep 5) und im Debug-Bau ohne Fokus (Sleep 50). Auch cl_main.cpp pausiert nicht nach dem Fokus.
+  Stufe 6/7 liefen im Original ohne Fokus (Endlage < 1 px).
+- Neu gemessen (Steam angemeldet, vor jedem Start geprueft, kein fremder jasp, GameData danach gleich):
+  - `o0`: derselbe Aufbau wie MR4 (`ms0kart`, `npc spawn kyle ms0npc`, `runscript ms0npc ms0/kam3`), aber ganz OHNE Karten-GLA - das
+    Skript startet ebenso nicht (Kamera bleibt, 20 Fotos 15-72 s). Also nicht die GLA und nicht ihre Groesse.
+  - `o0a`: wie o0, dazu dem eigenen Spielfenster dreimal WM_ACTIVATE (WA_ACTIVE) geschickt (nur die Nachricht, Vordergrund blieb bei
+    der fremden PID): keine Wirkung, kein "AppActivate" im Protokoll (developer 1).
+  - Der Lauf vom 04.11. (Stufe 0) mit gleicher cfg und gleichem Skript lief; sein Protokoll endet genauso (runscript erscheint nie im
+    Protokoll). Was sich seitdem unterscheidet, ist nicht gefunden.
+- Offen: Ursache, warum das Skript im Original seit dem 08.11. nicht anlaeuft; damit bleibt die grosse GLA im Original ungemessen.
+  Fokus wird nicht gebraucht (Quelle), ein Weg mit Fokus waere ohnehin nicht erlaubt. Skripte `Y:\werkzeuge\m4\ms6\orig_akt.py`,
+  Laeufe `Y:\werkzeuge\m4\ms6\laeufe\o0`, `o0a`, Uebersichten `Y:\werkzeuge\m4\m5\o0_uebersicht.png`, `o0a_uebersicht.png`.
+
+## MR5 Schluss
+
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 238/238 (237 mit -j 12, `q3map2_pr316`
+  allein danach).
+- Selbsttests nach dem Neubau: Modus 1 `m5_modus1` 2635/0, `m5_cjk_ja` / `m5_cjk_zh` (cjkweit) je 17/0; menueeditor en/ja/es je
+  2784/0 (Punkt 1, danach nur DXT/Handbuch geaendert).
+- Lints wie die Basis: portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, alle anderen ok.
+  Handbuch `--pruefen` ok.
+
+## MR5 Offen
+
+- Zeit allein (Fremdlast durch andere Agenten die ganze Zeit): DXT-Kosten beim Laden einer Karte unter JKA/JK2 (ctest-Ausgabe nur
+  als Anhalt 35,0 -> 3,4 ms je 1024er-Bild samt Pyramide), dazu weiter Bild-/Ladezeit CJK aus MR4.
+- Original-JKA grosse GLA (Punkt 5): Skript startet im Original seit 08.11. auch ohne Karten-GLA nicht; Ursache offen.
+- Menue-Editor-Bildlauf ja/zh: 6/7 rote Zeilen (Altbestand seit 03.11.), die Bilder danach blieben alt.
+
+# MR6 (08.11.2026, gleicher Worktree, Basis 02dfe2d5a, Laeufe `m6_*`)
+
+## MR6 Punkt 1: Original-JKA startet das ICARUS-Skript nicht - Ursache gefunden, grosse GLA gemessen
+
+- Kein Unterschied in den Dateien: Karte, `kam3.IBI`, `ms0.cfg` und das geschriebene `jaconfig.cfg` sind bytegleich mit dem Lauf vom
+  04.11. (`sp_654alt/ms0/home_oa`), die Konsolenlogs bis auf Serverkennung und Karten-GLA-Zeilen gleich. Auch nicht der Pfad nach dem
+  Umzug: `m6_y` (fs_basepath ueber das subst-Laufwerk Y:) und `m6_c` (derselbe Ordner ueber den echten C:-Pfad) schlagen beide fehl.
+  Seit 05.11. liegen Steam-Cloud-Spielstaende in `GameData\base\saves` (shanks, vom April) - im Lauf nicht beteiligt.
+- Ursache ist ein Wettlauf in der Ablauf-cfg, kein Spielfehler: `runscript ms0npc ms0/kam3` kam, bevor das NPC skriptfaehig war.
+  `npc spawn` legt das NPC sofort mit targetname an (NPC_Spawn_Do, OpenJK `code/game/NPC_spawn.cpp:1688-1689`), die ICARUS-Nummer
+  bekommt es aber erst in NPC_Begin (`NPC_spawn.cpp:1245` -> `Q3_Interface.cpp:7517-7526` InitEntity), eine Denkrunde spaeter
+  (`:1758-1759`) bzw. bei belegter Stelle in Schritten von 0,5 s (`:1012-1016`). Davor findet runscript das NPC, aber
+  `Run(ICARUS_INVALID, ...)` tut nichts und meldet nichts (`Q3_Interface.cpp:7768-7785`, DebugPrint nur im Debug-Bau).
+- Die cfg wartet in Bildern (`wait 120` nach dem Spawn, `wait 60` vor runscript). Gemessen mit Zeitmarken im Konsolenlog
+  (`orig_m6.py`, logfile 2): das Original laeuft hier mit rund 180 Bildern/s (1000 Bilder = 5,53 s, com_maxfps 85 greift nicht),
+  also 180 Bilder = 1,0 s vom Spawn bis runscript. `m6_k` (runscript alle 100 Bilder): der Versuch 1,0 s nach dem Spawn bleibt
+  wirkungslos, der bei 1,55 s startet das Skript. `m6_j`: erster Aufruf wirkungslos, zweiter 5,5 s spaeter startet. `m6_e`
+  (Skript auf dem Spieler, der schon eine Nummer hat): startet sofort. In `m6_y`/`m6_c` kam dazu "NPC ms0npc ... couldn't spawn,
+  waiting 0.50 secs" (Stelle belegt). Movie Duels (OpenJK) haelt com_maxfps 85 ein - 180 Bilder = 2,1 s, darum lief es dort.
+  Am 04.11. reichte die Zeit; die Bildrate von damals ist nicht mehr messbar (Fotos ohne Zeitbezug), Last durch parallele Laeufe
+  ist die naheliegende Erklaerung.
+- Behebung (Laufskript, nicht Programm): `cfg_m6o.cfg` = Aufbau wie MR4, aber `wait 600` nach dem Spawn und `wait 300` vor runscript.
+  JK Studio selbst erzeugt keine runscript-Befehle (gesucht in src/), betroffen waren nur diese Spielnachweise.
+
+| Lauf | Aufbau | Ergebnis |
+|---|---|---|
+| `m6_y` (rot) | wie MR5 `o0` (ohne Karten-GLA), wait 120/60 | Kamera bleibt beim Spieler, 9 Fotos gleich |
+| `m6_g` (gruen) | ohne Karten-GLA, wait 600/300 | Kamera von oben ab 14 s |
+| `m6_o131070` (gruen) | Karten-GLA 131070 Frames, 118 MB, BOTH_CIN_16 ab 63801 | geladen (sucht `_humanoid_ms0kart.cfg`), Figur 607,1173 -> 492,270, nach dem Skript zurueck |
+| `m6_okreuz` (gruen) | dieselbe GLA, BOTH_CIN_16 ab 65400 (bis 65603) | spielt ueber 65535 hinaus, kurze Bahn 657,1140 -> 601,1175 wie in MD (`gkreuz`) |
+
+- Ergebnis Original-JKA: die groesste moegliche Karten-GLA (131070 Frames, Vorrat 6946710 Eintraege) laedt und spielt, ohne
+  Speichermeldung. Die Endlage 492,270 ist auf 1-2 Bildpunkte gleich wie mit der kleinen GLA (3124 Frames) im Lauf vom 04.11.
+  (`oa`: 493,270). Damit gilt die Aussage aus MR4 Punkt 6 (keine weitere Groessengrenze, Pruefung im Tool: Anfang/Anzahl <= 65535,
+  Vorrat 24 Bit) auch im Original. GameData nach jedem Lauf gleich, vor jedem Start Steam/ActiveUser geprueft, kein fremder jasp.
+- Laeufe und Skripte: `Y:\werkzeuge\m4\ms6\` (`orig_m6.py`, `cfg_m6*.cfg`, `laeufe\m6_*`).
+
+## MR6 Punkt 2: Bildlauf des Menue-Editors ja/zh gruen, Bilder neu
+
+Die 6 (ja) bzw. 7 (zh) roten Zeilen aus `m5_mb_ja`/`m5_mb_zh` (seit 03.11. auch in en, `er1mbilder`: "Codebereich 154 Punkte") hatten
+fuenf Ursachen - drei im Programm, zwei im Test:
+
+- **Suchzeile des Text-Editors (Programm):** Feld fest 14 Zeichen breit, dahinter `.*`, `Aa`, `ab` ohne Umbruch - in der schmalen
+  Spalte (Bildlauf 17 Zeichen, von Hand ab 16) lagen `Aa` und `ab` rechts ausserhalb (ScrollMax.x 154, nicht erreichbar). Jetzt gibt
+  das Feld bis 6 Zeichen nach, danach brechen die Schalter um (`daneben`); das Ersetzen-Feld hoechstens so breit wie die Spalte.
+- **Linke Spalte bei wenig Platz (Programm):** die Enge wird nur gerechnet, solange ein Dokument offen ist. "Links" endet bei 200 % mit
+  offener linker Spalte und schliesst alles; "Eng" oeffnet bei 1920 x 1080 / 200 % ein neues Dokument - die Enge stand noch von vorher,
+  der Wechsel "eng" fand nicht statt, die Spalte blieb offen. Jetzt vergisst der Zustand die Enge ohne Dokument. Neue Vorstufe in
+  `schritteEng` stellt genau diese Folge nach (bisher nur im vollen Bildlauf sichtbar).
+- **zh "复制" zweimal im Rechtsklickmenue (Programm/Uebersetzung):** EntDuplicate hiess wie ActCopy; der Test klickte zweimal "Kopieren".
+  zh EntDuplicate jetzt "创建副本" (wie Windows/Office), Handbuch zh neu erzeugt; die Pruefung des Kontextmenues verlangt jetzt in jeder
+  Sprache, dass kein Befehl zweimal gleich heisst.
+- **M5 Layout "Aufloesen" (Test):** nach der neuen Auswahl beginnt die Spalte oben; in der schmalen Spalte lag der Abschnitt Layout
+  darunter. Wie vor dem Spacer wird jetzt zum Abschnitt gerollt.
+- **3b Felder (Test):** `insBild` fand das Feld nicht, wenn es unter dem Rand lag (wird nicht gezeichnet), und rollte dann gar nicht -
+  das Foto `menue_felder_bedingung` zeigte das Feld nicht, der Klick auf die Auswahl ging daneben; "##wx" lag nach dem Rollen auf
+  "Neuer Wert" oberhalb. Jetzt rollt `insBild` seitenweise, bis das Feld da ist, und holt es ganz ins Bild (auch nach oben).
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| voller Bildlauf ja / zh | `m5_mb_ja` 571/6, `m5_mb_zh` 570/7 | `m6_mb_ja` 579/0, `m6_mb_zh` 579/0 (keine "nicht gewertet"-Zeile) |
+| Teil m5 ja / zh | `m6_rot_m5_ja` 9/1 | `m6_gr_m5_ja`, `_zh` je 10/0 |
+| Teil feldneu ja / zh | `m6_rot_feldneu_ja`, `_zh` je 6/2 | `m6_gr_feldneu_ja`, `_zh` je 8/0 |
+| Teil kontext zh | `m6_rot_kontext_zh` 50/1 | `m6_gr_kontext_zh` 51/0 |
+| Teil eng (neue Vorstufe, Programm ohne die Behebung) | `m6_rot2_eng_en` 4/3 (normaler Lauf), `m6_rot2_eng_ja` 4/2 (Bildlauf) | `m6_gr_eng_ja`, `_zh` je 7/0 |
+
+- Bilder: alle 59 Handbuchbilder des Menue-Editors, die der Bildlauf erzeugt, je Sprache ja und zh neu (2538 x 1444, darunter die bisher
+  ausgelassenen `menue_reiter_properties`, `menue_ereignisse`, `menue_felder_mehrfach`; `menue_eng_auf/_beide`, `menue_felder_ownerdraw`,
+  `menue_kontext_leer` hat das Handbuch nicht). Angesehen: ja `menue_reiter_text` (Suchzeile mit `.*` `Aa` `ab` ganz), ja
+  `menue_felder_mehrfach` (jetzt mit der Liste One/Two statt dem Kopf der Spalte), ja `menue_reiter_properties`, zh `menue_kontext`
+  (复制 und 创建副本 getrennt).
+
+## MR6 Punkt 3: ja "ファイルのキー" in der rechten Leiste
+
+- Nicht abgeschnitten: neue strenge Pruefung im Teil Leiste ("File keys steht ganz in der Spalte", ohne die halbe Lueckenbreite, die
+  `klick` zulaesst). Bildlauf (schmalste Spalte, 17 Zeichen) ja: Schalter 2327..2493, sichtbar bis 2493 - endet genau am Rand; zh
+  ebenso gruen (`m6_mb_ja`/`_zh`, `m6_gr_leiste_ja` 104/0). In der Vergroesserung stehen "ファイルのキー" und "文件键" ganz da; das Suchfeld
+  davor gibt den Platz ab (`breit - sb`). Keine Aenderung am Programm noetig; die Bilder sind mit Punkt 2 neu.
+
+## MR6 Nachtrag: Pruefungsfunde P20, P21, P22, P28, P32 (plaene/codepruefung_seit_rc610.md)
+
+- **P20 [M]** DXT liess die Bilder aller Shader mit `$lightmap`-Stufe unkomprimiert (`!quelle.lightmapStufe`). Das ist das Bild einer
+  normalen Stufe (R_FindImageFile aus ParseStage mit allowTC); unkomprimiert bleiben im Spiel nur die Lightmaps selbst
+  (r_ext_compress_lightmaps 0), und die laufen nie durch ladeMitStufen. Bedingung gestrichen.
+- **P21 [N]** Himmelsseiten: ParseSkyParms laedt sie mit allowTC = !noTC (rd-vanilla tr_shader.cpp:1970) - jetzt DXT5 wie jedes Bild,
+  die Seiten tragen noTC des Himmelsshaders (app_ablage.inc).
+- **P22 [N]** Regelwerk Movie Duels <-> OpenJK/JK2: `gpu::bilderNeuHochladen()` verwirft Karten-, Himmels- und Figurenbilder
+  (Lightmaps bleiben), das naechste Bild laedt nach der neuen Regel.
+- Pruefung (Selbsttest geschuetze, BHED_GV_DXT=1, t1_sour aus er1.pk3 unter den Daten des Originals, OpenJK-Regeln): Zaehlung je
+  Hochladen (`gpu::bilderDxt`), Himmelsprobe mit sechs Seiten ohne/mit noTC (`gpu::himmelProbe`, t1_sour zeigt in dieser Kamera keinen
+  Himmel; t1_fatal mit Himmelsbox zeigte ihn nach oben auch nicht - `m6_nrot_fatal`), danach Wechsel auf Movie Duels.
+
+| Lauf | $lightmap-Stufe DXT5 | Himmelsprobe DXT5 | nach Wechsel auf MD |
+|---|---|---|---|
+| `m6_nrot2_sour` (rot, ohne die drei Behebungen) | 0 von 32 | 0 von 6 | 0 Bilder neu |
+| `m6_ngr_sour` (gruen) | 32 von 32 (305 von 305 Bildern) | 6 von 6, mit noTC 0 | 277 neu, davon DXT5 0 |
+
+- Bildvergleich gegen das Spielfoto (`SP/er1/fotos/er1_sour.png`, jasp.exe; `dxtvgl.py`, gleiche Kamera rot/gruen): Mittel R-G
+  +5,871 -> +5,894 (Spiel +5,956), B-G -15,118 -> -15,112 (-14,929), mittlere Abw. 4,964 -> 4,956, gleiche Punkte 1,90 -> 1,93 %;
+  Bloecke naeher 5 von 12 (die 32 Bilder mit $lightmap-Stufe nehmen in dieser Ansicht wenig Flaeche ein). Paarbild
+  `Y:\werkzeuge\m4\m6\paar_sour_p20.png`.
+- **P28 [N]** CJK-Umbruch je Bild: ausserhalb des Selbsttests merkt sich `umbrechen` das Ergebnis je (Schrift, Groesse, Breite, Text),
+  was 120 Bilder nicht gefragt war, faellt heraus. Selbsttest cjkweit: stehender Helfer 0,6 s mit messen aus - rot `m6_nrot_cjk_ja`
+  798 Aufrufe / 798 umbrochen, gruen `m6_ngr_cjk_ja` 798 / 6 (18/0). Bildzeit allein nicht gemessen (Fremdlast).
+- **P32 [N]** Menue-Editor: Texte der Vorschau unter `Dokument::nummer` statt Name, Leiste merkt `Dokument::nummer` statt der Adresse.
+  M6: (a) 50 Mal zwei gleichnamige Dokumente mit verschiedenen eigenen Texten - rot `m6_nrot3_m6` "zweiter falsch 50", gruen
+  `m6_ngr_m6` 0; (b) 40 Runden Farbzeile offen, alles zu, neues Dokument mit derselben Auswahl - rot 7 von 7 Runden mit gleicher Adresse
+  uebernommen, gruen 0 (wieder 7 Runden an derselben Adresse). `m6_ngr_m6` 20/0.
+
+## MR6 Schluss
+
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 237/237 mit -j 8 ohne `q3map2_pr316`,
+  `q3map2_pr316` allein danach 1/1.
+- Selbsttests nach dem Neubau: menueeditor en / ja je 2787/0 (`m6_ende_me_en`, `_ja`; vorher 2784, dazu die drei neuen Pruefungen),
+  cjkweit ja / zh je 18/0 (`m6_ende_cjk_ja`, `_zh`), Modus 1 `m6_ende_modus1` 2635/0; Bildlauf ja/zh 579/0 (Punkt 2).
+- Lints wie MR5 (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, sonst ok);
+  Handbuch `--pruefen` ok.
+
+## MR6 Offen
+
+- Bildzeit allein (Fremdlast durch zwei andere Agenten die ganze Zeit): CJK-Umbruch mit Zwischenspeicher (P28), DXT beim Laden.
+- P21 nur ueber die Himmelsprobe belegt (sechs Seiten 8 x 8); eine Kartenansicht mit sichtbarer Himmelsbox unter JKA-Regeln wurde
+  nicht gefunden (t1_sour ohne Himmelsbox im Bild, t1_fatal nach oben schwarz).
+- Statuszeile der Menue-Editor-Bilder zeigt den Pfad des Laufordners (`Y:\mr4\laeufe\...`, wie schon in MR5).
+
 ## Changelog
 
 ## English
 
 - Interface: Chinese and Japanese text wraps between characters in every window and tab (Mission, map editor, menu editor, helper, tutorials, timeline and more), no longer only after the first comma.
 - Preview under Jedi Academy and Jedi Outcast: textures are compressed like in the game (S3TC), so colours match the original exactly; Movie Duels stays uncompressed like the game.
+- Menu editor: the menu flow and the tab order no longer show the menus of a document that was closed before.
+- Preview under Jedi Academy and Jedi Outcast: the texture compression is about ten times faster, with exactly the same picture.
+- Menu editor: in a narrow right column the search line of the text editor wraps its switches (Aa, ab) instead of pushing them out of view.
+- Menu editor: with little space the left column closes again for every newly opened menu, also after all menus were closed.
+- Chinese: "Duplicate" in right-click menus now reads 创建副本 and no longer looks like "Copy" (复制).
+- Preview under Jedi Academy and Jedi Outcast: the pictures of shaders with a lightmap stage and the sky boxes are compressed like in the game too, and switching between Movie Duels and OpenJK rules uploads the pictures again.
+- Japanese and Chinese: long texts are no longer wrapped again in every frame.
 
 ## Deutsch
 
 - Oberfläche: Chinesischer und japanischer Text bricht in allen Fenstern und Tabs zwischen den Zeichen um (Mission, Karten-Editor, Menü-Editor, Helfer, Tutorials, Zeitleiste und mehr), nicht mehr erst nach dem ersten Komma.
 - Vorschau unter Jedi Academy und Jedi Outcast: Texturen werden wie im Spiel komprimiert (S3TC), die Farben stimmen jetzt genau mit dem Original überein; Movie Duels bleibt wie das Spiel unkomprimiert.
+- Menü-Editor: Menüfluss und Tab-Reihenfolge zeigen nicht mehr die Menüs eines vorher geschlossenen Dokuments.
+- Vorschau unter Jedi Academy und Jedi Outcast: Die Texturkompression ist etwa zehnmal schneller, das Bild bleibt genau gleich.
+- Menü-Editor: In einer schmalen rechten Spalte bricht die Suchzeile des Text-Editors ihre Schalter (Aa, ab) um, statt sie aus dem Bild zu schieben.
+- Menü-Editor: Bei wenig Platz geht die linke Spalte für jedes neu geöffnete Menü wieder zu, auch nachdem alle Menüs geschlossen waren.
+- Chinesisch: „Duplizieren“ heißt in Rechtsklickmenüs jetzt 创建副本 und sieht nicht mehr aus wie „Kopieren“ (复制).
+- Vorschau unter Jedi Academy und Jedi Outcast: Auch die Bilder von Shadern mit Lightmap-Stufe und die Himmelsboxen werden wie im Spiel komprimiert, und der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt die Bilder neu.
+- Japanisch und Chinesisch: Lange Texte werden nicht mehr in jedem Bild neu umbrochen.
 
 ## 中文
 
 - 界面:中文和日文文本在所有窗口和标签页中按字符换行(任务、地图编辑器、菜单编辑器、助手、教程、时间轴等),不再只在第一个逗号后换行。
 - Jedi Academy 和 Jedi Outcast 下的预览:纹理像游戏中一样压缩(S3TC),颜色与原版完全一致;Movie Duels 与游戏一样保持不压缩。
+- 菜单编辑器:菜单流程和 Tab 顺序不再显示之前已关闭文档的菜单。
+- Jedi Academy 和 Jedi Outcast 下的预览:纹理压缩快了约十倍,画面完全相同。
+- 菜单编辑器:右侧栏较窄时,文本编辑器的搜索行会把开关(Aa、ab)换到下一行,而不是挤出视野。
+- 菜单编辑器:空间不足时,每个新打开的菜单都会再次收起左侧栏,即使之前关闭了所有菜单。
+- 中文:右键菜单中的“Duplicate”现在显示为“创建副本”,不再与“复制”(Copy)相同。
+- Jedi Academy 和 Jedi Outcast 下的预览:带光照贴图阶段的着色器图片和天空盒也像游戏中一样压缩;在 Movie Duels 与 OpenJK 规则之间切换时会重新上传图片。
+- 日文和中文:长文本不再在每一帧重新换行。
 
 ## 日本語
 
 - インターフェース:中国語と日本語のテキストは、すべてのウィンドウとタブ(ミッション、マップエディター、メニューエディター、ヘルパー、チュートリアル、タイムラインなど)で文字の間で折り返されます。最初の読点の後だけで折り返すことはなくなりました。
 - Jedi Academy と Jedi Outcast でのプレビュー:テクスチャをゲームと同じように圧縮(S3TC)するため、色がオリジナルと正確に一致します。Movie Duels はゲームと同じく非圧縮のままです。
+- メニューエディター:メニューフローとタブ順序に、前に閉じたドキュメントのメニューが表示されなくなりました。
+- Jedi Academy と Jedi Outcast でのプレビュー:テクスチャ圧縮が約 10 倍速くなり、画面はまったく同じです。
+- メニューエディター:右の列が狭いとき、テキストエディターの検索行はスイッチ(Aa、ab)を見えない所へ押し出さず、次の行に折り返します。
+- メニューエディター:スペースが少ないとき、すべてのメニューを閉じた後でも、新しく開いたメニューごとに左の列が再び閉じます。
+- 中国語:右クリックメニューの「Duplicate」は「创建副本」と表示され、「Copy」(复制)と同じに見えなくなりました。
+- Jedi Academy と Jedi Outcast でのプレビュー:ライトマップステージを持つシェーダーの画像とスカイボックスもゲームと同じように圧縮され、Movie Duels と OpenJK のルールを切り替えると画像を読み込み直します。
+- 日本語と中国語:長いテキストを毎フレーム折り返し直すことはなくなりました。
 
 ## Español
 
 - Interfaz: el texto chino y japonés se corta entre caracteres en todas las ventanas y pestañas (Misión, editor de mapas, editor de menús, ayudante, tutoriales, línea de tiempo y más), ya no solo después de la primera coma.
 - Vista previa con Jedi Academy y Jedi Outcast: las texturas se comprimen como en el juego (S3TC), así los colores coinciden exactamente con el original; Movie Duels sigue sin comprimir, como el juego.
+- Editor de menús: el flujo de menús y el orden de tabulación ya no muestran los menús de un documento cerrado antes.
+- Vista previa con Jedi Academy y Jedi Outcast: la compresión de texturas es unas diez veces más rápida, con exactamente la misma imagen.
+- Editor de menús: con la columna derecha estrecha, la línea de búsqueda del editor de texto pasa sus interruptores (Aa, ab) a la línea siguiente en lugar de sacarlos de la vista.
+- Editor de menús: con poco espacio, la columna izquierda vuelve a cerrarse para cada menú abierto, también después de cerrar todos los menús.
+- Chino: «Duplicar» en los menús del botón derecho ahora es 创建副本 y ya no se ve igual que «Copiar» (复制).
+- Vista previa con Jedi Academy y Jedi Outcast: las imágenes de shaders con etapa de lightmap y las cajas de cielo también se comprimen como en el juego, y al cambiar entre las reglas de Movie Duels y OpenJK las imágenes se vuelven a cargar.
+- Japonés y chino: los textos largos ya no se vuelven a cortar en cada fotograma.
 
 ## Čeština
 
 - Rozhraní: čínský a japonský text se ve všech oknech a kartách (Mise, editor map, editor nabídek, pomocník, výukové lekce, časová osa a další) zalamuje mezi znaky, už ne až za první čárkou.
 - Náhled pro Jedi Academy a Jedi Outcast: textury se komprimují jako ve hře (S3TC), takže barvy přesně odpovídají originálu; Movie Duels zůstává jako hra bez komprese.
+- Editor nabídek: tok nabídek a pořadí tabulátoru už neukazují nabídky dříve zavřeného dokumentu.
+- Náhled pro Jedi Academy a Jedi Outcast: komprese textur je zhruba desetkrát rychlejší, obraz zůstává přesně stejný.
+- Editor nabídek: v úzkém pravém sloupci vyhledávací řádek textového editoru zalomí své přepínače (Aa, ab) na další řádek, místo aby je vysunul z obrazu.
+- Editor nabídek: při nedostatku místa se levý sloupec znovu zavře pro každou nově otevřenou nabídku, i když byly předtím všechny nabídky zavřené.
+- Čínština: „Duplikovat“ v nabídkách pravého tlačítka je nyní 创建副本 a už nevypadá stejně jako „Kopírovat“ (复制).
+- Náhled pro Jedi Academy a Jedi Outcast: obrázky shaderů s fází lightmapy a nebeské boxy se také komprimují jako ve hře a přepnutí mezi pravidly Movie Duels a OpenJK nahraje obrázky znovu.
+- Japonština a čínština: dlouhé texty se už nezalamují znovu v každém snímku.

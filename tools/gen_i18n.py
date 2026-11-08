@@ -1568,7 +1568,7 @@ S = [
     ("EntNpcSearch", "Search NPC types...", "NPC-Typen suchen...", "搜索 NPC 类型...", "NPC タイプを検索..."),
     ("EntNpcTypeMissing", "No NPC_type - nothing will spawn.", "Kein NPC_type - es erscheint niemand.",
      "没有 NPC_type - 不会生成任何角色。", "NPC_type がありません - 何も出現しません。"),
-    ("EntDuplicate", "Duplicate", "Duplizieren", "复制", "複製"),
+    ("EntDuplicate", "Duplicate", "Duplizieren", "创建副本", "複製"),
     ("EntDelete", "Delete", "Löschen", "删除", "削除"),
     ("EntDragHint", "In the view: drag the entity over the floor, the coloured arrows move it along one axis, the yellow ring turns it.",
      "In der Ansicht: die Entity über den Boden ziehen, die farbigen Pfeile verschieben entlang einer Achse, der gelbe Ring dreht sie.",

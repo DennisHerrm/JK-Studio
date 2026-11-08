@@ -1,5 +1,6 @@
 """Karte und Szene: Karte, Entities, Wegpunkte (dazu inhalt_szene)."""
 from inhalt_basis import T
+import inhalt_mr4
 import inhalt_szene
 
 KARTE = {
@@ -57,6 +58,7 @@ KARTE = {
             "在 Movie Duels 下,地图的天气文件 (Weather/<地图>.cfg) 与游戏中一样生效:duel_mustafar 上空气中的余烬、duel_hoth 的雪、duel_kamino 的雨。粒子以游戏中的速度下落,只避开固体和水。枪套中的武器按 holster.cfg 的距离悬挂。纹理细节 (r_picmip) 与该变量一样每级将纹理减半并节省显存;0 是 OpenJK 和 Movie Duels 的默认值,原版 Jedi Academy 从 1 开始。在关闭的门后面也不再看到那一区域的天空。",
             "Movie Duels では、マップの天候ファイル (Weather/<マップ>.cfg) がゲームと同じように適用されます。duel_mustafar の空中の火の粉、duel_hoth の雪、duel_kamino の雨です。粒子はゲームと同じ速さで落ち、固体と水の中だけを避けます。ホルスターの武器は holster.cfg の距離で下がります。テクスチャ詳細 (r_picmip) はこの変数と同じく 1 段階ごとにテクスチャを半分にし、ビデオメモリを節約します。0 が OpenJK と Movie Duels の既定値で、オリジナルの Jedi Academy は 1 から始まります。閉じたドアの向こうの区域の空も見えなくなります。",
         )),
+        inhalt_mr4.dxt_notiz(),   # MR5: Texturkompression wie das Spiel (JKA/JK2)
         ("note", T(
             "**{{MapMsaa}}** in the view settings smooths the edges of surfaces with several samples per pixel, like r_ext_multisample in the game; textures stay as they are. Like the game is 8 under Movie Duels (asked in the game) and off under OpenJK, the original Jedi Academy and Jedi Outcast. It costs about 0.4 ms per picture at 1350 x 930.",
             "**{{MapMsaa}}** in den Ansichtseinstellungen glättet die Kanten der Flächen mit mehreren Proben je Bildpunkt, wie r_ext_multisample im Spiel; die Texturen bleiben, wie sie sind. Wie das Spiel heißt unter Movie Duels 8 (im Spiel abgefragt) und unter OpenJK, dem Original-Jedi-Academy und Jedi Outcast aus. Es kostet bei 1350 x 930 rund 0,4 ms je Bild.",

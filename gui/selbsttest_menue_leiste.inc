@@ -185,6 +185,14 @@ std::vector<Schritt> schritteLeiste() {
     add(tasteMit(ImGuiMod_Ctrl, ImGuiKey_A, "Strg+A"));
     add(taste(ImGuiKey_Delete, "Entf"));
     add(pause(0.2));
+    // MR6: der Schalter samt Beschriftung ganz in der Spalte - streng, ohne die halbe Lueckenbreite, die klick() zulaesst
+    add(pruefe("rc608 Leiste: File keys steht ganz in der Spalte", [] {
+        const Element* e = finde(tr(Str::MlDateiSchluessel), "", 0, false);
+        if (e == nullptr) { return false; }
+        diag::info("Knopftest: File keys " + std::to_string(e->rect.Min.x) + ".." + std::to_string(e->rect.Max.x) + ", sichtbar " + std::to_string(e->clip.Min.x) + ".." +
+                   std::to_string(e->clip.Max.x));
+        return e->rect.Min.x >= e->clip.Min.x - 0.5F && e->rect.Max.x <= e->clip.Max.x + 0.5F;
+    }));
     add(klick(tr(Str::MlDateiSchluessel)));
     add(pause(0.2));
     add(pruefe("rc608 Leiste: File keys zeigt die Schluessel", [] { return g_app->settings.menueDateiSchluessel && me::leisteStand().schluesselZeilen > 3; }));
