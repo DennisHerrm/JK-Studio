@@ -187,6 +187,75 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Offen: Bildzeit allein (Stapelblock 64 statt 48 float - noch ein Ring-Eintrag je Stapel; Figurenstufe zwei Eintraege; je
   weiterem turb ein Zweig im Vertexshader) - nicht gemessen, andere Agenten bauten und testeten; ebenso P9/P11 aus FIX2.
 
+## FIX4 P33: tcMod-Kette, turb und rotate bitgleich zu rd-vanilla
+
+Auftrag `auftrag_fix4_0811.md`, Laufnamen `f4_`, Skripte `Y:\werkzeuge\f2\f4\`.
+
+- Quelle: rd-vanilla `ComputeTexCoords` (tr_shade.cpp:1725) wendet jede tcMod der Reihe nach in float auf st an;
+  `RB_CalcTurbulentTexCoords` (tr_shade_calc.cpp:936-951, MD9 :903-915) Index `(int)(((x + z) * 1.0/128 * 0.125 + now) * 1024)` in
+  double, Wert `sinTable[...] * amplitude` in float; `tr.sinTable` (tr_init.cpp:1727) ganz in float (`DEG2RAD` mit `PI_DIV_180` als
+  float, q_math.h:85-88; `sin` ueber die float-Ueberladung aus <cmath>, q_shared.h:120); `RB_CalcRotateTexCoords` (:1009) translate
+  in double (0.5 ist double), als float abgelegt; `RB_CalcTransformTexCoords` `s * m00 + t * m10 + tr`.
+- Vorher (FIX2/FIX3): Tafel in double mit genauem pi (580 von 1024 Eintraegen um eine float-Stelle daneben), im Shader `sin` der
+  Grafikkarte; Index `floor(ort + qr)` in float (kippte bei ort + 1024 now dicht an einer ganzen Zahl); rotate-translate in float;
+  die Kette wie rd-rend2 zu EINER Abbildung zusammengerechnet (rundet anders: "turb, scale 2 3" bis 48 float-Stufen, "turb, turb,
+  rotate" bis 5120). Der Kommentar "denselben floor" stimmte nicht.
+- Jetzt:
+  - `gpu::sinTafel` in float wie R_InitFuncTables; die Shader lesen die Tafel als Bitmuster (`static const uint kSinTafel[1024]`,
+    von der CPU in den HLSL-Text geschrieben) statt `sin` zu rechnen.
+  - `turbIndex` (HLSL): (int) des auf double gerundeten ort + 1024 now ohne double auf der GPU - TwoSum gibt s + e = p + q exakt;
+    ist |s| nicht ganz, bleibt floor(|s|); ist |s| ganz, entscheidet die halbe double-Stufe unter |s| + c (Gleichstand gerade);
+    ausserhalb von int 0 wie 0x80000000 & 1023. `precise` (kein mad, nichts umgestellt).
+  - Die Kette je Schritt wie rd-vanilla (`gpu::tcKette`, HLSL `tcKette`/`tcSchritt`): Art (affin = transform/rotate/stretch,
+    turb, scale, scroll) und die Werte, die das Spiel an die Rechenfunktion gibt; turb mit 1024 now (in float exakt) und
+    Amplitude. Stapelblock: gTcM0 (0), gTcO01 (4), gTcM1..3 (44, 48, 52), gTcO23 (56), gTcArt (60) - 28 statt 30 float, Block
+    weiter 64 float (ein Ring-Eintrag); gTurbQ4 bei 13 entfaellt. Figurenstufe gStufeTcM0.. (kStufeFloats 76 -> 72), Echtzeit-Licht
+    B3 tcM0.. (eine float4 weniger), Wolkenstufe (turb wie bisher aussen vor), Menue-Editor `tcKetteOhneTurb` (turb wie bisher
+    aussen vor). rotate: erster Schritt uebernommen statt mit der Einheit malgenommen (-sin(0) = -0 bleibt -0).
+- Rot `f4_rot/f4_rot_ctest.txt` (Stand faec3e7eb, neue Pruefungen): ctest gpuconst 7 FEHL - Tafel 580/1024, turb-Versatz 82984 von
+  100000 Ecken (feste Ziehung inkl. Vorzeichenwechsel, 1024 now ueber 2^24, dicht an ganz), rotate-Werte 28/30, Shader "turb"
+  1155/4000, "scroll, turb" 1158/4000, "rotate 30" 3443/4000, "transform" 2235/4000; neuer ctest turbgpu (der HLSL-Text als
+  Compute-Shader) WARP 105867 von 131072 Werten, Intel UHD Graphics 82231 von 131072. Zwischenstand (Index und Tafel exakt, Kette
+  noch zusammengerechnet): Ketten aus mehreren Schritten 5 FEHL (48 bis 5120 float-Stufen) - daher je Schritt.
+- Gruen `f4_p33_2.txt`: gpuconst alle bitgleich (Tafel 0/1024, turb 0/100000, rotate 0/30, sechs einzelne Schritte je 0/4000, acht
+  Ketten aus FIX2/FIX3 je 0/4009 an festen und gezogenen Ecken bis 50000 s, vorher Grenze 1e-4); turbgpu WARP und Intel UHD
+  Graphics: turb allein 0/131072, fuenf Ketten (turb, scale; turb, rotate, scale; scroll, turb, transform; turb, rotate, turb,
+  scale; scale, scroll, rotate, transform) je 0/32768; hlsl 96/96 uebersetzt (vs_4_0 mit precise), gpushader, figurstufen gruen.
+- Fotos auf dem Neubau (`f4_s_r3`, `f4_s_rd`, `f4_s_ep`) gegen `f3_s_*`: r3 8, rd 9, editorportal 15 bytegleich (auch
+  `karteneditor_start.bmp`); die Testkarten zeigen kein turb - turb gegen das Spiel war FIX3 Punkt 2, jetzt per ctest bitgleich.
+
+## FIX4 P34: Grenze des Animationsimports fest statt am freien Speicher
+
+- Vorher (FIX2 P5): abgelehnt, sobald die Bilder mehr brauchten als `ullAvailPhys` - dieselbe Datei mit offenem Browser
+  abgelehnt, nach dem Schliessen gelesen.
+- Jetzt zwei feste Grenzen: (1) Zielformat GLA - je Bild und Knochen ein Verweis von 3 Byte (mdx_format.h:426-439), Bildzahl und
+  alle Offsets int (:389-395): Bilder x Knochen x 3 muss in int passen (`FehlerArt::AnimZuLangGla`, neue Meldung "zu lang fuer
+  eine GLA: Bilder x Knochen, hoechstens ..."); (2) der Arbeitsspeicher des Rechners (`ullTotalPhys`, fest je Rechner;
+  `AnimZuLang` "braeuchten X MB Arbeitsspeicher, dieser Rechner hat Y MB"). Das Commit-Limit (`ullTotalPageFile`) waechst mit der
+  Auslagerungsdatei und waere wieder vom Augenblick abhaengig. `bad_alloc` beim Abtasten bleibt gefangen (Meldung 2). Texte in 6
+  Sprachen (`tools/i18n_fix2.py`, i18n mit gen_i18n.py erzeugt).
+- Test: eine Jobgrenze aendert `GlobalMemoryStatusEx` nicht (gemessen: ullAvailPhys 43 GB unter 300-MB-Grenze, PROCESS_MEMORY und
+  JOB_MEMORY, `Y:\werkzeuge\f2\f4\gms.py`); der ctest lenkt deshalb `GlobalMemoryStatusEx` in seiner Importtabelle um und taeuscht
+  freien und gesamten Speicher vor, ohne den Rechner zu fuellen.
+- Rot `f4_rot/f4_rot_ctest.txt` (ctest modell_animimport, 1000 s = 30001 Bilder x 8 Knochen, 34 MB): mit 16 MB und 1 MB frei
+  abgelehnt "(16 MB free)" statt gelesen; 16 MB Arbeitsspeicher vorgetaeuscht: gelesen bzw. "8 MB free" - 4 FEHLER.
+- Gruen `f4_p34_gruen.txt`: frei echt/16 MB/1 MB alle gelesen, 30001 Bilder, FNV 4afff20baa6cc0d4 gleich; 16 MB Arbeitsspeicher:
+  abgelehnt (c = 16) bei freiem Speicher echt und 8 MB; GLA-Grenze bei 8 Knochen 89478485 Bilder: 2982616 s (89478482 Bilder,
+  2147483568 Byte) nicht die GLA-Grenze, 2982616,5 s (89478498 Bilder) AnimZuLangGla; 2e7 s und 1e9 s AnimZuLangGla.
+
+## FIX4 Schluss
+
+- Sauberer Neubau (`--clean-first`, `f4_neubau.log`): 0 Warnungen. ctest 238/238 (`f4_s_ctest.txt`, neu: turbgpu).
+- Selbsttests auf dem Neubau: modellblock ai 31/0, karteneditor r3 22/0, rd 20/0, editorportal 19/0, Modus 1 2635/0
+  (`f4_schluss_summe.txt`); Fotos bytegleich wie oben.
+- Lints (`f4_lints.txt`): wie nach FIX3 (portability 99, pruefcodes 11, fremdprogramm 1, efxflags ohne Tafel, sonst ok), keine
+  Meldung zu geaenderten Dateien. Adressen ab fe1f374c3: 0.
+- Nicht gemacht: Handbuch (kein Abschnitt beschreibt die tcMod-Rechnung oder die Importgrenze); Bildzeit allein (Vertexshader je
+  Schritt mit Zweig, turbIndex etwa 30 Rechenschritte je turb und Achse) nicht gemessen - andere Agenten bauten und testeten.
+- Gesehen, nicht geaendert: `defTabelle` (deformVertexes der Figurenstufe, gpushader.cpp) rechnet die Sinuswelle weiter mit `sin`
+  der Grafikkarte statt der Tafel des Spiels; `waveValue` (src/wave.cpp: stretch, rgbGen/alphaGen wave) rechnet die Welle
+  mit der Formel statt ueber die Tafeln wie WAVEVALUE (tr_shade_calc.cpp:30) - beides eigene Funde, nicht Teil von P33.
+
 ## Changelog
 
 ## English
@@ -198,6 +267,8 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Preview and map editor: "tcMod turb" acts at its place in the chain (a following "tcMod scale" scales the wave like in the game) and, like "tcMod rotate", reads the game's sine table.
 - Preview and map editor: several "tcMod turb" in one shader stage each act at their own place, as in the game (before, only the last one counted).
 - About window, guide and THIRD-PARTY.md name the parts ported from Blender (chamfer with segments, weight colours, octahedral bones, weight brush falloff) and their licence GPL-2.0-or-later.
+- Preview and map editor: the tcMod chain is computed step by step like the game, bit for bit (turb with the game's sine table and index, rotate, scale, scroll, transform, stretch).
+- Animation import: the limit no longer depends on how much memory is free at the moment - a file is too long only if it does not fit into a GLA or into the memory of the computer.
 
 ## Deutsch
 
@@ -208,6 +279,8 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Vorschau und Karten-Editor: „tcMod turb“ wirkt an seiner Stelle der Kette (ein folgendes „tcMod scale“ skaliert die Welle wie im Spiel) und liest wie „tcMod rotate“ die Sinustafel des Spiels.
 - Vorschau und Karten-Editor: mehrere „tcMod turb“ in einer Shaderstufe wirken jeder an seiner Stelle wie im Spiel (bisher zählte nur der letzte).
 - Fenster Über, Handbuch und THIRD-PARTY.md nennen die aus Blender portierten Teile (Chamfer mit Segmenten, Gewichtsfarben, Oktaeder-Knochen, Abfall des Gewichtspinsels) und ihre Lizenz GPL-2.0-or-later.
+- Vorschau und Karten-Editor: die tcMod-Kette wird wie im Spiel Schritt für Schritt gerechnet, Bit für Bit (turb mit Sinustafel und Index des Spiels, rotate, scale, scroll, transform, stretch).
+- Animations-Import: die Grenze hängt nicht mehr davon ab, wie viel Speicher gerade frei ist - zu lang ist eine Datei nur, wenn sie nicht in eine GLA oder nicht in den Arbeitsspeicher des Rechners passt.
 
 ## 中文
 
@@ -218,6 +291,8 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - 预览和地图编辑器: "tcMod turb" 在链中自己的位置起作用 (随后的 "tcMod scale" 像游戏中一样缩放波动), 并像 "tcMod rotate" 一样读取游戏的正弦表。
 - 预览和地图编辑器: 同一着色器阶段中的多个 "tcMod turb" 像游戏中一样各自在自己的位置起作用 (以前只有最后一个有效)。
 - 关于窗口、手册和 THIRD-PARTY.md 列出从 Blender 移植的部分 (带分段的倒角、权重颜色、八面体骨骼、权重笔刷衰减) 及其许可 GPL-2.0-or-later。
+- 预览和地图编辑器: tcMod 链像游戏中一样逐步计算, 逐位一致 (turb 使用游戏的正弦表和索引, rotate、scale、scroll、transform、stretch)。
+- 动画导入: 限制不再取决于当前可用内存的多少 - 只有当文件无法存入 GLA 或超出计算机内存时才算过长。
 
 ## 日本語
 
@@ -228,6 +303,8 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - プレビューとマップエディター: 「tcMod turb」がチェーンの自分の位置で働き (後に続く「tcMod scale」がゲームと同じく波を拡大縮小)、「tcMod rotate」と同じくゲームのサインテーブルを使います。
 - プレビューとマップエディター: 1 つのシェーダーステージにある複数の「tcMod turb」が、ゲームと同じくそれぞれ自分の位置で働きます (以前は最後の 1 つだけが有効でした)。
 - バージョン情報、ガイド、THIRD-PARTY.md に Blender から移植した部分 (セグメント付きの面取り、ウェイトの色、八面体ボーン、ウェイトブラシの減衰) とそのライセンス GPL-2.0-or-later を記載しました。
+- プレビューとマップエディター: tcMod チェーンをゲームと同じく 1 ステップずつ、ビット単位で同じに計算します (turb はゲームのサインテーブルとインデックス、rotate、scale、scroll、transform、stretch)。
+- アニメーションのインポート: 制限がその時点の空きメモリに左右されなくなりました - GLA に収まらない場合かコンピューターのメモリに収まらない場合だけ長すぎると判断します。
 
 ## Español
 
@@ -238,6 +315,8 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Vista previa y editor de mapas: "tcMod turb" actúa en su lugar de la cadena (un "tcMod scale" posterior escala la onda como en el juego) y, como "tcMod rotate", lee la tabla de senos del juego.
 - Vista previa y editor de mapas: varios "tcMod turb" en una misma etapa de shader actúan cada uno en su lugar, como en el juego (antes solo contaba el último).
 - La ventana Acerca de, la guía y THIRD-PARTY.md nombran las partes portadas de Blender (chaflán con segmentos, colores de peso, huesos octaédricos, caída del pincel de pesos) y su licencia GPL-2.0-or-later.
+- Vista previa y editor de mapas: la cadena tcMod se calcula paso a paso como en el juego, bit a bit (turb con la tabla de senos y el índice del juego, rotate, scale, scroll, transform, stretch).
+- Importación de animaciones: el límite ya no depende de cuánta memoria esté libre en ese momento; un archivo solo es demasiado largo si no cabe en un GLA o en la memoria del equipo.
 
 ## Čeština
 
@@ -248,3 +327,5 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
 - Náhled a editor map: „tcMod turb“ působí na svém místě v řetězci (následující „tcMod scale“ škáluje vlnu jako ve hře) a stejně jako „tcMod rotate“ čte sinusovou tabulku hry.
 - Náhled a editor map: více „tcMod turb“ v jedné fázi shaderu působí každý na svém místě jako ve hře (dříve platil jen poslední).
 - Okno O programu, příručka a THIRD-PARTY.md uvádějí části převzaté z Blenderu (zkosení se segmenty, barvy vah, osmistěnné kosti, útlum štětce vah) a jejich licenci GPL-2.0-or-later.
+- Náhled a editor map: řetězec tcMod se počítá krok za krokem jako ve hře, bit po bitu (turb se sinusovou tabulkou a indexem hry, rotate, scale, scroll, transform, stretch).
+- Import animací: limit už nezávisí na tom, kolik paměti je právě volné - soubor je příliš dlouhý, jen když se nevejde do GLA nebo do paměti počítače.
