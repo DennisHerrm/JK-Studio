@@ -122,6 +122,29 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
   Segmentzahlen ohne Zweierpotenz kann interp_vmesh dadurch winzig anders runden. Enden einer einzelnen gefasten Kante an
   Punkten mit vier und mehr Kanten (Blender M_POLY/M_TRI_FAN) bleiben ein Vieleck mit den Bogenpunkten.
 
+## Altbestand aus Punkt 4 (Teil 3)
+
+- misc_model/misc_model_static im Spielbild ("Built map as in the game") lagen mit Filter "Models" an ein zweites Mal im
+  Editor-Licht ueber der gebauten Karte. Jetzt gehoert das Modell von misc_model (von q3map2 eingebacken) und misc_model_*
+  (vom Spiel aufgestellt, dieselbe Regel wie kartenModelleAufstellen) zur Geometrie der Kamera wie das model2 und die Pinsel;
+  der Rest (Spielbild) zeichnet es nur gewaehlt in der Auswahlfarbe (`kameraszene.cpp`, auch das gewaehlte model2 nicht mehr
+  im Editor-Licht). Selbsttest `karteneditor` BHED_KARTE_NUR=rdglm um D (misc_model_static) und E (misc_model,
+  crate_open.md3) erweitert, Filter Models an und erst nach dem neuen Schnell-Backen gemessen: rot `mr3_glm_rot2` 17/1
+  (D 42,6 gegen 26,8 ohne Filter), gruen `mr3_glm_g4` 19/0 (alle Helligkeiten gleich). Ein erster Rotlauf `mr3_glm_rot` mass
+  ohne das Abwarten des Backens (Editor-Geometrie statt Spielbild) und zaehlt nicht.
+- Movie Duels "model2scale" (G_SpawnModel2Scale, MD9 `code/game/g_mover.cpp:1083-1097`, aus InitMover ohne .glm und
+  InitBBrush; CG_Mover skaliert die Achsen, `cg_ents.cpp:1719-1727`): Prozent, nur > 0, hoechstens 1023; nur im
+  Movie-Duels-Regelwerk (OpenJK-SP und JK2 kennen den Schluessel nicht). `karte::model2Groesse`, benutzt von
+  kartenModelleAufstellen (Vorschau und Spielbild) und der Editor-Kamera. Selbsttest neu BHED_KARTE_NUR=rdm2 (zweiter Wuerfel
+  mit model2scale 50): rot `mr3_m2_rot` 13/1 (Rot 1,000), gruen `mr3_m2_g1`/`mr3_m2_g2` 14/0 (Editor und Spielbild 0,465;
+  Erwartung hoechstens 0,58 aus Perspektive und innerem Rechteck).
+- Mission-Vorschau mit .glm-model2: dieselbe gebaute Karte (Schnell-Backen) in der Mission-Vorschau, Kamera wie die
+  Editor-Kamera; Pruefung A und B als Ghoul2 aufgestellt (rdglm). Foto `Y:/werkzeuge/mr/fotos_glm/rd_glm_mission.png`
+  (2355 x 1498, Lauf `mr3_glm_foto2` mit BHED_GLM_FENSTER=3840x2160, angesehen): A und B gleich gross in derselben Haltung,
+  C fehlt wie im Spiel, D und E da. Die LOD-Wahl je Sicht (Spiegel/Portal) laeuft ueber kartenModellStufe mit der Kamera
+  der jeweiligen Sicht; ein Spiegel ist in dieser Karte nicht fotografiert.
+- Offen: misc_model_ghoul zeichnet die Editor-Kamera im Editor-Licht nicht (B 0,000 im Editor, Altbestand aus Punkt 4).
+
 ## Schluss fuer die Punkte 1, 3, 8 (Laeufe `mr_s_*`)
 
 - Sauberer Neubau `build-test` (--clean-first) 0 Warnungen, 12 min 24 s; ctest 235/235.
@@ -152,6 +175,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Model tab: Chamfer has Segments and Tension (Blender: Shape) for rounded edges.
 - Map preview and map editor: Ghoul2 models (.glm) as "model2" of a brush entity and as misc_model_ghoul are drawn like in the game (first frame of their animation, level of detail by distance); "modelAngles" now turns a model2 in the preview too, and the game view no longer draws a model2 a second time in editor light.
 - Model tab: Chamfer with segments fills corners where three or more chamfered edges meet with a grid of quads like Blender's bevel, places the round edge in the plane across the edge and spaces other shapes in equal steps.
+- Map editor: in "Built map as in the game" misc_model and misc_model_static are no longer drawn a second time in editor light; Movie Duels maps scale a model2 by "model2scale" in the preview, the game view and the editor camera.
 
 ## Deutsch
 
@@ -161,6 +185,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Model-Tab: Chamfer hat Segmente und Spannung (Blender: Form) für runde Kanten.
 - Kartenvorschau und Karten-Editor: Ghoul2-Modelle (.glm) als „model2“ einer Brush-Entity und als misc_model_ghoul werden wie im Spiel gezeichnet (erstes Bild ihrer Animation, Detailstufe nach Abstand); „modelAngles“ dreht ein model2 jetzt auch in der Vorschau, und das Spielbild zeichnet ein model2 nicht mehr ein zweites Mal im Editor-Licht.
 - Model-Tab: Chamfer mit Segmenten füllt Ecken, an denen drei oder mehr gefaste Kanten zusammenkommen, mit einem Gitter aus Vierecken wie Blenders Bevel, legt die Rundung in die Ebene quer zur Kante und verteilt andere Formen in gleichen Schritten.
+- Karten-Editor: in „Gebaute Karte wie im Spiel“ werden misc_model und misc_model_static nicht mehr ein zweites Mal im Editor-Licht gezeichnet; Movie-Duels-Karten skalieren ein model2 mit „model2scale“ in der Vorschau, im Spielbild und in der Editor-Kamera.
 
 ## 中文
 
@@ -170,6 +195,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - 模型选项卡: 倒角有分段和张力 (Blender: 形状), 可做圆角边。
 - 地图预览和地图编辑器: 作为画刷实体 "model2" 和 misc_model_ghoul 的 Ghoul2 模型 (.glm) 按游戏方式绘制 (动画第一帧, 按距离选择细节级别); "modelAngles" 现在在预览中也会旋转 model2, 游戏画面不再以编辑器光照再绘制一次 model2。
 - 模型选项卡: 带分段的倒角在三条或更多倒角边相交的角落像 Blender 的倒角一样用四边形网格填充, 圆弧位于垂直于边的平面内, 其他形状等距分布。
+- 地图编辑器: 在"按游戏方式显示构建的地图"中 misc_model 和 misc_model_static 不再以编辑器光照再绘制一次; Movie Duels 地图在预览、游戏画面和编辑器相机中按 "model2scale" 缩放 model2。
 
 ## 日本語
 
@@ -179,6 +205,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - モデルタブ: 面取りにセグメントとテンション (Blender: シェイプ) が付き、丸い辺を作れます。
 - マッププレビューとマップエディター: ブラシエンティティの「model2」と misc_model_ghoul の Ghoul2 モデル (.glm) をゲームと同じく描画します (アニメーションの最初のフレーム、距離による詳細度)。「modelAngles」はプレビューでも model2 を回転させ、ゲーム画面で model2 がエディター照明で二重に描かれなくなりました。
 - モデルタブ: セグメント付きの面取りは、面取りした辺が 3 本以上集まる角を Blender のベベルと同じく四角形の格子で埋め、丸みを辺に垂直な面に置き、他の形は等間隔に並べます。
+- マップエディター: 「ゲーム同様のビルド済みマップ」で misc_model と misc_model_static がエディター照明で二重に描かれなくなりました。Movie Duels のマップはプレビュー、ゲーム画面、エディターカメラで model2 を「model2scale」で拡大縮小します。
 
 ## Español
 
@@ -188,6 +215,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Pestaña Model: Chamfer tiene Segmentos y Tensión (Blender: Forma) para aristas redondeadas.
 - Vista previa del mapa y editor de mapas: los modelos Ghoul2 (.glm) como "model2" de una entidad de brush y como misc_model_ghoul se dibujan como en el juego (primer fotograma de su animación, nivel de detalle según la distancia); "modelAngles" ya gira un model2 también en la vista previa, y la vista de juego ya no dibuja un model2 por segunda vez con la luz del editor.
 - Pestaña Model: Chamfer con segmentos rellena las esquinas donde se juntan tres o más aristas biseladas con una rejilla de cuadriláteros como el bisel de Blender, coloca el redondeo en el plano transversal a la arista y reparte las demás formas a pasos iguales.
+- Editor de mapas: en "Mapa compilado como en el juego" misc_model y misc_model_static ya no se dibujan por segunda vez con la luz del editor; los mapas de Movie Duels escalan un model2 con "model2scale" en la vista previa, la vista de juego y la cámara del editor.
 
 ## Čeština
 
@@ -197,3 +225,4 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Karta Model: Chamfer má segmenty a napětí (Blender: tvar) pro zaoblené hrany.
 - Náhled mapy a editor map: modely Ghoul2 (.glm) jako „model2“ entity ze štětců a jako misc_model_ghoul se kreslí jako ve hře (první snímek animace, úroveň detailu podle vzdálenosti); „modelAngles“ nyní otáčí model2 i v náhledu a herní pohled už nekreslí model2 podruhé ve světle editoru.
 - Karta Model: Chamfer se segmenty vyplní rohy, kde se setkají tři a více zkosených hran, mřížkou čtyřúhelníků jako zkosení v Blenderu, klade zaoblení do roviny napříč hranou a ostatní tvary rozloží ve stejných krocích.
+- Editor map: v „Sestavená mapa jako ve hře“ se misc_model a misc_model_static už nekreslí podruhé ve světle editoru; mapy Movie Duels zvětšují model2 podle „model2scale“ v náhledu, herním pohledu i kameře editoru.

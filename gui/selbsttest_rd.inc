@@ -543,6 +543,7 @@ std::vector<Schritt> cjkSchritte() {
 
 constexpr float kM2Y = 300;
 constexpr float kM2Z = 160;
+constexpr float kM2X2 = 120;   // der Wuerfel mit model2scale 50
 
 std::string model2Karte() { return karteTestPfad("rd_model2.map"); }
 
@@ -560,11 +561,18 @@ void model2KarteSchreiben() {
     k.entitaetEinfuegen(e);
     r3::quader(k, e, karte::Vektor3f(0, kM2Y + 200, 380), karte::Vektor3f(8, 8, 8), r3::kDunkel);
     r3::quader(k, e, karte::Vektor3f(0, kM2Y, kM2Z), karte::Vektor3f(8, 8, 8), "textures/system/origin");
+    // MRESTE Teil 3: derselbe Wuerfel mit "model2scale" 50 (Movie Duels G_SpawnModel2Scale: halb so gross; OpenJK kennt es nicht)
+    auto h = k.neueEntitaet("func_static", true);
+    h->setzen("model2", r3::wuerfelPfad());
+    h->setzen("model2scale", "50");
+    k.entitaetEinfuegen(h);
+    r3::quader(k, h, karte::Vektor3f(kM2X2, kM2Y + 200, 380), karte::Vektor3f(8, 8, 8), r3::kDunkel);
+    r3::quader(k, h, karte::Vektor3f(kM2X2, kM2Y, kM2Z), karte::Vektor3f(1, 1, 1), "textures/system/origin");
     (void)karte::karteSpeichern(model2Karte(), k, false);
 }
 
-double model2Rot(const stufe9c::Bild& b, long& n) {
-    const r3::Rechteck r = r3::rechteck(karte::Vektor3f(0, kM2Y - 32.0F, kM2Z), karte::Vektor3f(32, 0, 32), b.breite, b.hoehe, 0.2F);
+double model2Rot(const stufe9c::Bild& b, long& n, float ortX = 0.0F) {
+    const r3::Rechteck r = r3::rechteck(karte::Vektor3f(ortX, kM2Y - 32.0F, kM2Z), karte::Vektor3f(32, 0, 32), b.breite, b.hoehe, 0.2F);
     long rot = 0;
     n = 0;
     for (int y = r.y0; y <= r.y1; ++y) {
@@ -577,8 +585,8 @@ double model2Rot(const stufe9c::Bild& b, long& n) {
     return n > 0 ? static_cast<double>(rot) / static_cast<double>(n) : 0.0;
 }
 
-Schritt model2Messen(const std::string& name, std::shared_ptr<double> wert) {
-    return tu("RD model2: " + name + " messen", [name, wert] {
+Schritt model2Messen(const std::string& name, std::shared_ptr<double> wert, std::shared_ptr<double> halb) {
+    return tu("RD model2: " + name + " messen", [name, wert, halb] {
         stufe9c::Bild b;
         if (!stufe9c::bildHolen(b) || b.breite < 640) {
             meldeFehler("RD model2: Kamerabild " + name + " nicht lesbar");
@@ -587,8 +595,11 @@ Schritt model2Messen(const std::string& name, std::shared_ptr<double> wert) {
         bmp("rd_model2_" + name, b);
         long n = 0;
         *wert = model2Rot(b, n);
-        char z[160];
-        std::snprintf(z, sizeof(z), "Knopftest: RD model2 %s - Anteil Rot %.3f (%ld Bildpunkte)", name.c_str(), *wert, n);
+        long n2 = 0;
+        *halb = model2Rot(b, n2, kM2X2);
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: RD model2 %s - Anteil Rot %.3f (%ld Bildpunkte), mit model2scale 50 %.3f (%ld)%s", name.c_str(), *wert, n,
+                      *halb, n2, regelwerkMovieDuels() ? " (Movie Duels)" : "");
         diag::detail(z);
     });
 }
@@ -598,6 +609,8 @@ std::vector<Schritt> model2Schritte() {
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     auto editor = std::make_shared<double>(0.0);
     auto spiel = std::make_shared<double>(0.0);
+    auto editorHalb = std::make_shared<double>(0.0);
+    auto spielHalb = std::make_shared<double>(0.0);
     add(tu("RD model2: func_static mit model2 (Wuerfel), Editor-Licht", [] {
         model2KarteSchreiben();
         (void)ke::karteOeffnen(model2Karte());
@@ -609,7 +622,7 @@ std::vector<Schritt> model2Schritte() {
     }));
     add(warteBis("RD model2: Texturen", [] { return ke::kameraBilderFertig(); }, 20000));
     add(pause(1.0));
-    add(model2Messen("editor", editor));
+    add(model2Messen("editor", editor, editorHalb));
     add(tu("RD model2: Schnell-Backen, Spielbild", [] {
         std::vector<std::string> ordner = aktiveSpielordner();
         if (ordner.empty() || ordner.back() != quelle()) {
@@ -634,7 +647,16 @@ std::vector<Schritt> model2Schritte() {
     }, 400000));
     add(stufe9c::langeWarten("RD model2: Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
     add(pause(1.5));
-    add(model2Messen("spielbild", spiel));
+    add(model2Messen("spielbild", spiel, spielHalb));
+    // halb so gross: die Vorderseite liegt 16 statt 32 vor dem Ursprung und ist halb so breit - im inneren Rechteck (60 % der
+    // vollen Seite) hoechstens (0,5 * 168 / 184 / 0,6)^2 = 0,58 Rot (gemessen 0,465 in Editor und Spielbild, ohne model2scale 1,0);
+    // ohne den Schluessel (OpenJK) der ganze Wuerfel
+    add(pruefe("RD model2: \"model2scale\" 50 zeichnet den Wuerfel im Editor und im Spielbild halb so gross (Movie Duels; Rot 0,30 bis 0,62, "
+               "OpenJK ganz)",
+               [editorHalb, spielHalb] {
+                   const auto passt = [](double r) { return regelwerkMovieDuels() ? r > 0.30 && r < 0.62 : r > 0.8; };
+                   return passt(*editorHalb) && passt(*spielHalb);
+               }));
     add(pruefe("RD model2: der Editor zeichnet das model2 am Ursprung des func_static wie das Spiel (Rot der Vorderseite beidemal ueber 80 %)",
                [editor, spiel] { return *spiel > 0.8 && *editor > 0.8; }));
     add(tu("RD model2: aufraeumen", [] {
@@ -661,6 +683,11 @@ constexpr float kGlmZ = 150;
 const karte::Vektor3f kGlmA(-170, kGlmY, kGlmZ);
 const karte::Vektor3f kGlmB(170, kGlmY, kGlmZ);
 const karte::Vektor3f kGlmC(0, kGlmY + 330, kGlmZ);
+// MRESTE Teil 3 (Altbestand aus Punkt 4): D misc_model_static, E misc_model (q3map2 backt es ein) mit einem .md3 - im Spielbild
+// mit Filter "Models" an lagen beide zusaetzlich im Editor-Licht ueber der gebauten Karte
+constexpr const char* kGlmMd3 = "models/map_objects/imp_mine/crate_open.md3";
+const karte::Vektor3f kGlmD(-80, kGlmY - 150, kGlmZ - 100);
+const karte::Vektor3f kGlmE(80, kGlmY - 150, kGlmZ - 100);
 
 std::string glmKarte() { return karteTestPfad("rd_glm.map"); }
 
@@ -684,6 +711,10 @@ void glmKarteSchreiben() {
     char o[64];
     std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(kGlmB[0]), static_cast<double>(kGlmB[1]), static_cast<double>(kGlmB[2]));
     r3::ent(k, "misc_model_ghoul", {{"origin", o}, {"model", kGlmModell}});
+    for (const auto& [klasse, ort] : {std::pair<const char*, karte::Vektor3f>{"misc_model_static", kGlmD}, {"misc_model", kGlmE}}) {
+        std::snprintf(o, sizeof(o), "%g %g %g", static_cast<double>(ort[0]), static_cast<double>(ort[1]), static_cast<double>(ort[2]));
+        r3::ent(k, klasse, {{"origin", o}, {"model", kGlmMd3}});
+    }
     (void)karte::karteSpeichern(glmKarte(), k, false);
 }
 
@@ -703,6 +734,30 @@ bool glmKasten(karte::Vektor3f& mitte, karte::Vektor3f& halb) {
             for (int i = 0; i < 3; ++i) {
                 mn[i] = std::min(mn[i], v.xyz[i]);
                 mx[i] = std::max(mx[i], v.xyz[i]);
+            }
+        }
+    }
+    mitte = karte::Vektor3f((mn[0] + mx[0]) * 0.5F, (mn[1] + mx[1]) * 0.5F, (mn[2] + mx[2]) * 0.5F);
+    halb = karte::Vektor3f((mx[0] - mn[0]) * 0.5F, (mx[1] - mn[1]) * 0.5F, (mx[2] - mn[2]) * 0.5F);
+    return mx[0] >= mn[0];
+}
+
+// ebenso fuer das .md3 von D und E (Bild 0)
+bool md3Kasten(karte::Vektor3f& mitte, karte::Vektor3f& halb) {
+    std::string data;
+    Md3Model m;
+    if (!readFromArchives(kGlmMd3, data) || !readMd3(data, m) || m.empty()) {
+        meldeFehler(std::string("RD glm: ") + kGlmMd3 + " nicht geladen");
+        return false;
+    }
+    float mn[3] = {1e30F, 1e30F, 1e30F};
+    float mx[3] = {-1e30F, -1e30F, -1e30F};
+    for (const Md3Surface& sf : m.surfaces) {
+        const Md3Vertex* v = sf.frame(0);
+        for (int j = 0; v != nullptr && j < sf.numVerts; ++j) {
+            for (int i = 0; i < 3; ++i) {
+                mn[i] = std::min(mn[i], v[j].xyz[i]);
+                mx[i] = std::max(mx[i], v[j].xyz[i]);
             }
         }
     }
@@ -749,7 +804,8 @@ double glmHell(const stufe9c::Bild& b, const karte::Vektor3f& ort, const karte::
     return n > 0 ? static_cast<double>(anders) / static_cast<double>(n) : 0.0;
 }
 
-Schritt glmMessen(const std::string& name, std::shared_ptr<std::array<double, 6>> wert) {
+// wert: abgehoben A, B, C, D, E und ihre Helligkeit (5 + i)
+Schritt glmMessen(const std::string& name, std::shared_ptr<std::array<double, 10>> wert) {
     return tu("RD glm: " + name + " messen", [name, wert] {
         stufe9c::Bild b;
         if (!stufe9c::bildHolen(b) || b.breite < 640) {
@@ -760,35 +816,54 @@ Schritt glmMessen(const std::string& name, std::shared_ptr<std::array<double, 6>
         karte::Vektor3f mitte;
         karte::Vektor3f halb;
         if (!glmKasten(mitte, halb)) { return; }
-        long n[3] = {0, 0, 0};
-        const karte::Vektor3f orte[3] = {kGlmA, kGlmB, kGlmC};
-        for (int i = 0; i < 3; ++i) {
+        karte::Vektor3f mitteMd3;
+        karte::Vektor3f halbMd3;
+        if (!md3Kasten(mitteMd3, halbMd3)) { return; }
+        long n[5] = {0, 0, 0, 0, 0};
+        const karte::Vektor3f orte[5] = {kGlmA, kGlmB, kGlmC, kGlmD, kGlmE};
+        for (int i = 0; i < 5; ++i) {
             const auto u = static_cast<std::size_t>(i);
-            (*wert)[u] = glmHell(b, orte[i], mitte, halb, n[i], (*wert)[u + 3]);
+            (*wert)[u] = glmHell(b, orte[i], i < 3 ? mitte : mitteMd3, i < 3 ? halb : halbMd3, n[i], (*wert)[u + 5]);
         }
-        char z[320];
+        char z[480];
         std::snprintf(z, sizeof(z), "Knopftest: RD glm %s - abgehoben A (func_static) %.3f (%ld, Helligkeit %.1f), B (misc_model_ghoul) %.3f (%ld, %.1f), "
-                      "C (func_breakable) %.3f (%ld)", name.c_str(), (*wert)[0], n[0], (*wert)[3], (*wert)[1], n[1], (*wert)[4], (*wert)[2], n[2]);
+                      "C (func_breakable) %.3f (%ld), D (misc_model_static) %.3f (%ld, %.1f), E (misc_model) %.3f (%ld, %.1f)", name.c_str(), (*wert)[0], n[0],
+                      (*wert)[5], (*wert)[1], n[1], (*wert)[6], (*wert)[2], n[2], (*wert)[3], n[3], (*wert)[8], (*wert)[4], n[4], (*wert)[9]);
         diag::detail(z);
     });
 }
 
-std::vector<Schritt> glmSchritte() {
+// die Testdaten (Raum-Bilder, Wuerfel) als Extra Resource Path - fuer die Laeufe, die nicht mit den Stufen beginnen
+std::vector<Schritt> testdatenSchritte(const std::string& name) {
     std::vector<Schritt> s;
-    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
-    auto editor = std::make_shared<std::array<double, 6>>();
-    auto spiel = std::make_shared<std::array<double, 6>>();
-    add(tu("RD glm: Testdaten (Raum-Bilder) als Extra Resource Path", [] {
+    s.push_back(tu(name + ": Testdaten (Raum-Bilder) als Extra Resource Path", [] {
         karteDialogeZu();
         ke::editor().karte.undo.alsGespeichertMarkieren();
         pk3Schreiben();
         ke::spielNeuRealisieren("Edit Project Settings", [] { ke::editor().zusatzPfade[0] = karte::ordnerBereinigt(quelle()); });
     }));
-    add(warteBis("RD glm: Spieldaten mit dem Extra Resource Path", [] {
+    s.push_back(warteBis(name + ": Spieldaten mit dem Extra Resource Path", [] {
         ke::spielPruefen();
         const ke::Editor& e = ke::editor();
         return ke::spielBereit() && e.karteSpiel && e.karteSpiel->inventar.shaderFinden("textures/rd/scroll") != nullptr;
     }, 20000));
+    return s;
+}
+
+// =rdm2: nur model2 (MRESTE Teil 3: model2scale)
+std::vector<Schritt> model2Allein() {
+    std::vector<Schritt> s = testdatenSchritte("RD model2");
+    for (Schritt& x : model2Schritte()) { s.push_back(std::move(x)); }
+    return s;
+}
+
+std::vector<Schritt> glmSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto editor = std::make_shared<std::array<double, 10>>();
+    auto spiel = std::make_shared<std::array<double, 10>>();
+    auto spielModelle = std::make_shared<std::array<double, 10>>();
+    for (Schritt& x : testdatenSchritte("RD glm")) { add(std::move(x)); }
     add(tu("RD glm: model2 und misc_model_ghoul mit .glm, Editor-Licht", [] {
         glmKarteSchreiben();
         (void)ke::karteOeffnen(glmKarte());
@@ -833,7 +908,88 @@ std::vector<Schritt> glmSchritte() {
     // Movie Duels mit derselben Karte und Kamera (Y:/werkzeuge/mr/spiel_glm.py): A 15,0, B 14,5 - gleich hell
     add(pruefe("RD glm: im Spielbild sind A und B gleich hell wie im Spiel (Verhaeltnis 0,8 bis 1,25; das model2 liegt nicht noch einmal im "
                "Editor-Licht darueber)",
-               [spiel] { return (*spiel)[4] > 0.0 && (*spiel)[3] / (*spiel)[4] > 0.8 && (*spiel)[3] / (*spiel)[4] < 1.25; }));
+               [spiel] { return (*spiel)[6] > 0.0 && (*spiel)[5] / (*spiel)[6] > 0.8 && (*spiel)[5] / (*spiel)[6] < 1.25; }));
+    // MRESTE Teil 3: mit Filter "Models" an darf der Editor die Kartenmodelle nicht noch einmal ueber das Spielbild legen
+    add(tu("RD glm: Filter Models an", [] { ke::editor().filterMaske = karte::EXCLUDE_LIGHTS | karte::EXCLUDE_POINT_ENT; }));
+    add(pause(1.0));
+    // der Filter aendert den Stand der Karte: das Schnell-Backen laeuft noch einmal (wie R3 Spiegeln) - erst danach zeigt die
+    // Kamera wieder das Spielbild (vorher die Geometrie des Editors)
+    add(stufe9c::langeWarten("RD glm: Schnell-Backen nach dem Filter", [] {
+        const ke::Editor& e = ke::editor();
+        return e.echtLicht.bauStand == 5 || (e.echtLicht.bauStand != 1 && e.echtLicht.bauStand != 2 && e.echtLicht.gebackenZeigen && e.echtLicht.spielbildGezeigt);
+    }, 400000));
+    add(pause(1.5));
+    add(glmMessen("spielbild_modelle", spielModelle));
+    add(pruefe("RD glm: die Kamera des Editors zeichnet D (misc_model_static) und E (misc_model) - ueber 25 % abgehoben",
+               [editor] { return (*editor)[3] > 0.25 && (*editor)[4] > 0.25; }));
+    add(pruefe("RD glm: das Spielbild zeichnet D (misc_model_static) und E (misc_model, eingebacken) - ueber 25 % abgehoben",
+               [spiel] { return (*spiel)[3] > 0.25 && (*spiel)[4] > 0.25; }));
+    add(pruefe("RD glm: mit Filter Models an sind A, B, D, E im Spielbild so hell wie ohne (Verhaeltnis 0,9 bis 1,1; kein zweites Modell im "
+               "Editor-Licht)",
+               [spiel, spielModelle] {
+                   for (const std::size_t i : {5U, 6U, 8U, 9U}) {
+                       if (!((*spiel)[i] > 0.0) || (*spielModelle)[i] / (*spiel)[i] < 0.9 || (*spielModelle)[i] / (*spiel)[i] > 1.1) { return false; }
+                   }
+                   return true;
+               }));
+    // MRESTE Teil 3: dieselbe gebaute Karte in der Mission-Vorschau (kartenModelleAufstellen/kartenModellStufe je Sicht), ein Foto
+    // von derselben Stelle wie die Editor-Kamera
+    auto linksVorher = std::make_shared<int>(0);
+    add(tu("RD glm: die gebaute Karte in der Mission-Vorschau", [linksVorher] {
+        *linksVorher = g_app->leftMode;
+        // BHED_GLM_FENSTER=3840x2160: das Foto mit mindestens 1920 breiter Vorschau (nur im eigenen Lauf, wie BHED_GV_FENSTER)
+        if (const char* f = std::getenv("BHED_GLM_FENSTER")) {
+            int fb = 0, fh = 0;
+            if (std::sscanf(f, "%dx%d", &fb, &fh) == 2 && fb > 0 && fh > 0) { (void)platform::hauptfensterGroesse(fb, fh); }
+        }
+        const std::string bsp = ke::schnellBspFuer(ke::geometrieStand());
+        if (bsp.empty()) {
+            meldeFehler("RD glm: keine gebaute .bsp fuer die Mission-Vorschau");
+            return;
+        }
+        g_app->leftMode = 1;
+        loadMap(bsp);
+    }));
+    add(warteBis("RD glm: Mission-Vorschau bereit", [] { return g_app->mapBereit; }, 900));
+    add(tu("RD glm: Vorschaukamera wie die Editor-Kamera", [] {
+        g_app->throughCamera = false;
+        g_app->cameraSelected = false;
+        g_app->draufsicht = false;
+        g_app->playing = false;
+        g_app->camViewActive = false;
+        g_app->followCam = false;
+        g_app->playMs = 0.0;
+        g_app->cam.pos[0] = 0.0F;
+        g_app->cam.pos[1] = -40.0F;
+        g_app->cam.pos[2] = kGlmZ + 40.0F;
+        g_app->cam.angles[0] = 0.0F;
+        g_app->cam.angles[1] = 90.0F;
+        g_app->cam.angles[2] = 0.0F;
+        g_app->mapDirty = true;
+    }));
+    add(stufe9c::langeWarten("RD glm: Mission-Vorschau gezeichnet", [] { return g_app->mapBereit && !g_app->mapDirty; }, 20000));
+    add(pause(1.0));
+    add(tu("RD glm: Foto der Mission-Vorschau", [] {
+        stufe9c::Bild b;
+        if (!gpu::leseFarbe(b.rgba, b.breite, b.hoehe)) {
+            meldeFehler("RD glm: Vorschaubild nicht lesbar");
+            return;
+        }
+        bmp("rd_glm_mission", b);
+        int glm = 0;
+        for (const App::MapModel& mm : g_app->mapModels) { glm += mm.glmStufen > 0 ? 1 : 0; }
+        diag::detail("Knopftest: RD glm Mission-Vorschau " + std::to_string(b.breite) + " x " + std::to_string(b.hoehe) + ", Kartenmodelle " +
+                     std::to_string(g_app->mapModels.size()) + ", davon Ghoul2 " + std::to_string(glm));
+    }));
+    add(pruefe("RD glm: die Mission-Vorschau stellt A (model2 am func_static) und B (misc_model_ghoul) als Ghoul2 auf, C nicht", [] {
+        int a = 0, b = 0;
+        for (const App::MapModel& mm : g_app->mapModels) {
+            if (mm.glmStufen <= 0) { continue; }
+            (mm.anBrush > 0 ? a : b) += 1;
+        }
+        return a == 1 && b == 1;
+    }));
+    add(tu("RD glm: zurueck in den Karten-Editor", [linksVorher] { g_app->leftMode = *linksVorher; }));
     add(tu("RD glm: aufraeumen", [] {
         ke::Editor& e = ke::editor();
         e.echtLicht.backen = false;

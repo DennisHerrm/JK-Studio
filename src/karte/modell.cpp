@@ -653,4 +653,12 @@ void modellTesten(const ModellAnsicht& a, const Matrix4& lokalZuWelt, AuswahlVol
     }
 }
 
+float model2Groesse(const std::string& wert, bool movieDuels) {
+    if (!movieDuels) { return 1.0F; }
+    int prozent = std::atoi(wert.c_str());
+    if (prozent <= 0) { return 1.0F; }
+    prozent = std::min(prozent, 1023);
+    return static_cast<float>(prozent) / 100.0F;
+}
+
 }  // namespace bhed::karte

@@ -2848,7 +2848,7 @@ void drawMapView() {
             d.entity = static_cast<int>(mm.entity);
             for (int k = 0; k < 3; ++k) {
                 d.pivot[k] = 0.0F;
-                d.scale[k] = 1.0F;
+                d.scale[k] = mm.scale[k];   // 1, ausser Movie Duels "model2scale" (kartenModelleAufstellen)
             }
             // MRESTE 4: modelAngles kommen zu den Winkeln des Movers (CG_Mover: AnglesToAxis(lerpAngles + modelAngles)).
             d.pitch += mm.modellWinkel[0];

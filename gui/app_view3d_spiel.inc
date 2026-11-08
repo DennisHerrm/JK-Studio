@@ -3071,9 +3071,12 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
         if (anBrush > 0) {
             // "angle" ist bei Tueren die Bewegungsrichtung, keine Drehung -
             // das model2 dreht nur mit den Winkeln des Movers.
+            // MRESTE Teil 3: Movie Duels "model2scale" fuer ein .md3-model2 (G_SpawnModel2Scale, InitMover/InitBBrush)
+            const std::string* m2s = e.find("model2scale");
+            const float g = glm || m2s == nullptr ? 1.0F : bhed::karte::model2Groesse(*m2s, regelwerkMovieDuels());
             for (int q = 0; q < 3; ++q) {
                 item.angles[q] = 0.0F;
-                item.scale[q] = 1.0F;
+                item.scale[q] = g;
             }
         }
 

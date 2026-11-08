@@ -341,6 +341,7 @@ std::vector<Schritt> schritte();
 std::vector<Schritt> cjkSchritte();
 std::vector<Schritt> npcSchritte();
 std::vector<Schritt> glmSchritte();   // MRESTE 4
+std::vector<Schritt> model2Allein();   // MRESTE Teil 3
 }  // namespace rd
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
@@ -661,6 +662,13 @@ std::vector<Schritt> karteneditorSchritte() {
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdglm") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
         for (Schritt& x : rd::glmSchritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =rdm2: MRESTE Teil 3 - nur model2 (mit Movie Duels "model2scale")
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdm2") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : rd::model2Allein()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }

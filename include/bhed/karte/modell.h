@@ -130,6 +130,11 @@ public:
 // PicoModelInstance::testSelect / NullModel::testSelect
 void modellTesten(const ModellAnsicht& a, const Matrix4& lokalZuWelt, AuswahlVolumen& test, Treffer& bester);
 
+// MRESTE Teil 3: Movie Duels G_SpawnModel2Scale (code/game/g_mover.cpp:1083-1097 MD9, aus InitMover ohne .glm und InitBBrush): der
+// Schluessel "model2scale" ist die Groesse des model2 in Prozent (G_SpawnInt; nur > 0 zaehlt, hoechstens 1023), CG_Mover skaliert die
+// Achsen (cg_ents.cpp:1719-1727). OpenJK-SP und JK2 kennen ihn nicht. Gibt 1 zurueck, wenn nichts gilt.
+[[nodiscard]] float model2Groesse(const std::string& wert, bool movieDuels);
+
 }  // namespace bhed::karte
 
 #endif

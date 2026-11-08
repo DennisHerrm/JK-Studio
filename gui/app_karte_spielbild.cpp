@@ -370,7 +370,7 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
             ModellBild m;
             m.netz = &netz->second;
             const float w[3] = {b.winkel[0] + mm.modellWinkel[0], b.winkel[1] + mm.modellWinkel[1], b.winkel[2] + mm.modellWinkel[2]};
-            gpu::baueMoverWelt(nullptr, b.ort, w[1], w[0], w[2], w[0] != 0.0F || w[2] != 0.0F, m.welt);
+            gpu::baueMoverWelt(nullptr, b.ort, w[1], w[0], w[2], w[0] != 0.0F || w[2] != 0.0F, m.welt, mm.scale);   // MD model2scale
             for (int k = 0; k < 3; ++k) { m.ort[k] = b.ort[k]; }
             m.licht = sampleLightGrid(s.geo, b.ort, false, gpu::kSpielLightmapFaktor);
             aus.push_back(m);

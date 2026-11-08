@@ -19,6 +19,7 @@
 #include "bhed/karte/karte.h"
 #include "bhed/karte/patch.h"
 #include "bhed/karte/pinsel.h"
+#include "bhed/regelwerk.h"
 
 #include <algorithm>
 #include <cctype>
@@ -522,16 +523,42 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                 }
             }
         }
-        // nur Geometrie: keine Punktentitaeten, Gruppen, Namen - ausser dem model2 einer Brush-Entity (MRESTE 4, unten)
-        if (!rest && (welt || !ent->istBehaelter() || !ent->hat("model2"))) { continue; }
+        // MRESTE Teil 3: misc_model (von q3map2 eingebacken) und misc_model_* (vom Spiel aufgestellt, kartenModelleAufstellen) zeigt das
+        // Spielbild selbst - ihr Modell gehoert zur Geometrie wie das model2 und die Pinsel; der Rest allein zeichnet nur die Auswahl,
+        // sonst lag es im Spielbild ein zweites Mal im Editor-Licht darueber
+        const bool spielbildModell = !ent->istBehaelter() && k.modelle != nullptr && kl != nullptr && kl->miscmodelIs &&
+                                     klein(ent->klassenname()).rfind("misc_model", 0) == 0;
+        // nur Geometrie: keine Punktentitaeten, Gruppen, Namen - ausser dem model2 einer Brush-Entity (MRESTE 4, unten) und den
+        // Kartenmodellen (spielbildModell)
+        if (!rest && !spielbildModell && (welt || !ent->istBehaelter() || !ent->hat("model2"))) { continue; }
         const Farbe kf = klassenFarbe(kl);
-        // die Flaechen eines Modells mit Matrix m in ihre Shader-Stapel (umkehren: Wicklung umgekehrt)
-        const auto modellFlaechen = [&](const ModellAnsicht& a, const Matrix4& m, bool umkehren) {
-            if (!a.modell) { return; }
+        // die Flaechen eines Modells mit Matrix m in ihre Shader-Stapel (umkehren: Wicklung umgekehrt). MRESTE Teil 3: `nurAuswahl`
+        // (nur der Rest, Modell gehoert zur gebauten Karte): kein Shader-Stapel im Editor-Licht, nur die Auswahl wie bei den
+        // Pinseln - das Spielbild enthaelt das Modell schon.
+        const auto modellFlaechen = [&](const ModellAnsicht& a, const Matrix4& m, bool umkehren, bool nurAuswahl) {
+            if (!a.modell || (nurAuswahl && !entGew)) { return; }
             for (std::size_t fi = 0; fi < a.modell->flaechen.size(); ++fi) {
                 const ModellFlaeche& f = a.modell->flaechen[fi];
                 const std::string& sh = fi < a.shader.size() ? a.shader[fi] : f.shader;
                 if (sh.empty()) { continue; }
+                if (nurAuswahl) {
+                    std::vector<KameraPunkt> wahl;
+                    for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
+                        std::vector<KameraPunkt> d(3);
+                        for (std::size_t j = 0; j < 3; ++j) {
+                            const ModellPunkt& p = f.punkte[f.indizes[i + (umkehren && j > 0 ? 3 - j : j)]];
+                            Vektor3f n = transformierteRichtung(m, p.normale);
+                            const float l = static_cast<float>(laenge(n));
+                            if (l > 0) { n = n * (1.0F / l); }
+                            d[j] = {transformierterPunkt(m, p.ort), n, p.st, 0xFFFFFFFFU};
+                        }
+                        polygonFuellung(d, wahl, &s.wahlKanten);
+                    }
+                    tintObjekt(ent.get());
+                    overlayObjekt(ent.get());
+                    wahlDazu(0, wahl, true);
+                    continue;
+                }
                 KameraStapel& st = stapel(StapelArt::Shader, sh, 0xFFFFFFFFU);
                 const std::size_t vorher = st.dreiecke.size();
                 for (std::size_t i = 0; i + 2 < f.indizes.size(); i += 3) {
@@ -562,7 +589,7 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             // Flaechen, Skin und _remap), der Name am Ursprung
             const ModellAnsicht a = k.modelle->ansicht(*ent);
             const Matrix4 m = miscModellMatrix(*ent);
-            s.etagen.push_back({modellWeltKasten(a, m), entGew});
+            if (rest) { s.etagen.push_back({modellWeltKasten(a, m), entGew}); }
             // rc610 R3: gespiegelt (Determinante < 0, z. B. Flip X: modelscale_vec "-1 1 1") dreht die Matrix die Wicklung um.
             // q3map2 backt misc_model mit umgekehrter Wicklung ein (model.cpp:1216 transform_lefthanded, :1430-1432 swap der
             // Indizes), NRC zeichnet es mit glFrontFace( GL_CCW ) (renderstate.cpp:1561) - beide zeigen die Vorderseite. Was das
@@ -570,8 +597,8 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
             // der Renderer ohne Umkehr (GL_Cull, tr_backend.cpp:126-165: nur viewParms.isMirror) - dort sieht man im Spiel die
             // Innenseite, die Kamera zeigt es ebenso (Kartenpruefung "modellgespiegelt").
             const bool umkehren = haendigkeit(m) == Haendigkeit::Links && klein(ent->klassenname()) == "misc_model";
-            modellFlaechen(a, m, umkehren);
-            if (o.namen || entGew) {
+            modellFlaechen(a, m, umkehren, !geometrie && spielbildModell);
+            if (rest && (o.namen || entGew)) {
                 const std::string tn = o.zielnamen ? ent->wert("targetname") : std::string();
                 s.namen.push_back({ursprungVon(*ent), tn.empty() ? ent->klassenname() : tn, kf, entGew ? 1 : 0});
             }
@@ -691,9 +718,13 @@ KameraSzene kameraSzeneBauen(const Karte& karte, const KameraSzenenOptionen& o) 
                                   static_cast<double>(w[2] + ma[2]));
                     Matrix4 m = verschiebungsMatrix(ursprung);
                     multipliziere(m, drehungEulerXyzGrad(entitaetsWinkel("", winkel, true, false)));
+                    // MRESTE Teil 3: Movie Duels "model2scale" fuer ein .md3 (G_SpawnModel2Scale)
+                    if (const float g = md3 ? model2Groesse(ent->wert("model2scale"), regelwerkMovieDuels()) : 1.0F; g != 1.0F) {
+                        skaliereUm(m, Vektor3f(g, g, g));
+                    }
                     const ModellAnsicht a = k.modelle->nachPfad(m2);
                     s.etagen.push_back({modellWeltKasten(a, m), entGew});
-                    modellFlaechen(a, m, false);
+                    modellFlaechen(a, m, false, !geometrie);
                     ++s.model2Anzahl;
                 }
             }
