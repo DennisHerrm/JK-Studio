@@ -116,7 +116,7 @@ Skripte `Y:\werkzeuge\f2\`.
 ## Offen
 
 - Bildzeit P11 (Karten-Editor Echtzeit-Licht) und Zeit P9 ohne fremde Last (andere Agenten bauten/spielten).
-- P16 Spielfoto mit turb-Shader (FIX3 Punkt 2).
+- P16 Spielfoto mit turb-Shader: erledigt in FIX3 Punkt 2.
 
 ## FIX3 Punkt 1: mehrere tcMod turb in einer Stufe
 
@@ -141,6 +141,34 @@ Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
   figurlicht 8/0. Fotos gegen FIX2-P16: r3 7, rd 8, editorportal 15 bytegleich; nur `karteneditor_start.bmp` weicht wie in FIX2
   ab (Mauskoordinaten in der Statusleiste). Die Testkarten dort zeigen kein turb - geprueft gegen die Spielformel per ctest,
   im Spiel per Punkt 2.
+
+## FIX3 Punkt 2: Spielfoto mit turb- und rotate-Shader
+
+- Testkarte `f3turb` (`Y:/werkzeuge/f2/f3/karte.py`, bhed_q3map2 aus build-fix2): geschlossener Raum 1024 x 1024 x 512, alle
+  Innenflaechen `textures/f3/turbrot` ohne Lightmap (`surfaceparm nolightmap`, Farbe = Bild), Stufe
+  `tcMod turb 0 0.3 0.15 0.05`, `tcMod rotate 9`, `tcMod turb 0 0.2 0.6 0.11`, `tcMod scale 1.25 1.25` (zwei turb, der erste
+  durch rotate und scale, der zweite durch scale); Muster 256 x 256 mit 8 x 8 farbigen Feldern. Karte, Shader und Bild im
+  eigenen fs_homepath (`home_<lauf>/MD`) bzw. `f3turb.pk3` fuer die Vorschau.
+- Spiel (`spiel.py`): Movie Duels SP per Popen (vorher keine fremden MovieDuels-/jasp-Prozesse), ICARUS-Skriptkamera
+  (MOVE -480 0 256, PAN 8 15, ZOOM 80), 1920 x 1440. Zeit festgehalten: nach dem Laden `timescale 0.05` (1 ms Spielzeit je Bild,
+  Com_ModifyMsec MD9 common.cpp:1391) und `sv_fps 1000`; das Kameraskript schreibt in einer Schleife `print`, mit
+  `g_ICARUSDebug 4` steht jede Zeile mit level.time im Protokoll; drei Bilder per `screenshot_tga` (das PNG von Movie Duels war
+  bei 2 von 3 Bildern nicht lesbar). level.time vor den Bildern 8692, 8722, 8752 (Lauf `f3s5`).
+- Vorschau (`vorschau.sh`, Selbsttest geschuetze mit BHED_GV_PK3/KARTE/KAMERA/ANSICHT 1920x1440/ZEITEN): dieselbe Kamera,
+  Fotos zu vielen Zeiten (`f3_p2_vorschau_weit`, `_fein`); die Kartenansicht 1920 x 1440 ausgeschnitten (`vergleich.py`).
+  Das Spielbild liegt 48-50 ms vor der gedruckten level.time (cg.time laeuft der Serverzeit nach); bestes Bild je Spielbild:
+  f3a 8644 ms, f3b 8672 ms, f3c 8706 ms - mittlere Abweichung 0,83/0,84/0,84 (0..255), Pixel mit Abweichung ueber 48:
+  0,002 % (nur einzelne Kantenpixel, Filterung). Die Vorschau zeigt wie das Spiel Stufen: ueber 3-5 ms bleibt das Bild gleich
+  (der Index in die Sinustafel springt nur alle paar ms), daneben steigt die Abweichung sofort auf 5,6-25.
+- Gegenproben zur selben Zeit: Bau FIX2 d04f18e5d (nur der letzte turb; aus `git checkout d04f18e5d --` gebaut,
+  `Y:/werkzeuge/f2/f3/bin_fix2`, Lauf `f3_p2_vorschau_fix2`) 86,95/87,46/88,42, Pixel ueber 48: 86,8/87,5/89,1 %;
+  Basis vor FIX2 fe1f374c3 (`f3_p2_vorschau_basis`) 85,9/86,8/87,6, 88,7-90,3 % - das Bild ist sichtbar verschoben.
+- Paarbilder (Spiel oben, Vorschau unten, ungeskaliert 1920 x 2880): `Y:/werkzeuge/f2/f3/laeufe/f3s5/vergleich/`
+  `paar_f3[abc]_spiel_oben_vorschau_<ms>_unten.png`, Gegenprobe `paar_f3b_spiel_oben_vorschau_FIX2_d04f18e5d_unten.png`;
+  angesehen (verkleinert und ein Ausschnitt in voller Groesse): gleich, nur Kantenpixel; die Gegenprobe ist um mehrere Felder
+  verschoben. Spielordner Movie Duels vorher = nachher.
+- Geprueft ist damit die Vorschau Karte (Stapelblock). Figurenstufe und Echtzeit-Licht rechnen mit denselben Werten
+  (`turbFelder`, `turbVersatz`) - geprueft per ctest gegen die Spielformel, nicht per Spielfoto.
 
 ## Changelog
 
