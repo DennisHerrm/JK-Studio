@@ -170,7 +170,9 @@ void umwandeln(std::vector<Schritt>& s, const std::string& basis, bool clip) {
             g.wahl.assign(g.netz.teile.size(), static_cast<int>(karte::TeilArt::ModellClip));
             g.neu = true;
         }));
-        s.push_back(pause(0.4));
+        // REST Punkt 4: die Vorschau rechnet das Fenster beim Zeichnen neu (vorschauRechnen) - abwarten statt fester Pause
+        // (im Volllauf unter Last war sie nach 0,4 s noch die alte: "Art/Brushes 1/1 2/1")
+        s.push_back(warteBis("KR " + basis + ": Vorschau mit der neuen Wahl", [] { return !ke::editor().geoImport.neu; }, 600));
     }
     s.push_back(pruefe("KR " + basis + (clip ? ": Modell+Clip" : ": Auto") + " - Fenster offen mit Teilen", [basis, clip] {
         const ke::GeoImportZustand& g = ke::editor().geoImport;

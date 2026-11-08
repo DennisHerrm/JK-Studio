@@ -730,10 +730,21 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
     for (Schritt& x : modobj::schritte()) { add(std::move(x)); }   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
     for (Schritt& x : aseb::schritte()) { add(std::move(x)); }   // ASEB: .ase/.md3 usw. zu Brushes, misc_model in Brushes umwandeln
+    // REST Punkt 4: die Gruppen ab hier enden in Events (leftMode 0) - jede beginnt wie ihr Einzellauf (BHED_KARTE_NUR) mit
+    // stufe9c::einrichten() im Karten-Editor. Ohne das lief kreste in Events: der Editor zeichnete nicht, die Vorschau der
+    // Teile und das Schnell-Backen standen still ("haengt bei Schnell-Backen fertig", KR truhe/punkt nur im Volllauf).
+    const auto einrichten = [&] {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+    };
+    einrichten();
     for (Schritt& x : kreste::schritte()) { add(std::move(x)); }   // p_karte: ASEB im echten Bau, Ladetest im Spielbild
+    einrichten();
     for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
+    einrichten();
     for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
+    einrichten();
     for (Schritt& x : rd::schritte()) { add(std::move(x)); }   // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten
+    einrichten();
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS

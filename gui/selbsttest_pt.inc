@@ -641,6 +641,7 @@ std::vector<Schritt> spielSchritte() {
         diag::detail("Knopftest: PT Spiel - " + std::to_string(n) + " Bild(er) nach " + mz().gebautOrdner + " | " + mz().meldung);
         if (n != 1) { meldeFehler("PT Spiel: " + std::to_string(n) + " Bilder gebaut"); }
         g_app->mtab.bereich = ModellBereich::Ansehen;
+        g_app->mtab.auswahl.clear();   // REST Punkt 3: das Foto ohne den Auswahlrahmen ueber dem Rumpf (Paarbild mit dem Spiel)
         g_app->modelDirty = true;
     }));
     add(pause(0.8));

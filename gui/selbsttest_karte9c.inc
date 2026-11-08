@@ -92,8 +92,24 @@ void bmpSchreiben(const std::string& pfad, const Bild& b) {
 }
 
 // warteBis ohne die Grenze von 4000 Bildern je Schritt (Backen grosser Karten)
+// REST Punkt 4: das Schnell-Backen abwarten - hoechstens maxBilder Bilder UND hoechstens 600 s Uhrzeit (unter Volllast
+// werden Bilder langsam: 400000 Bilder waren Stunden, der karteneditor-Volllauf "hing"). Die laengste gemessene Wartezeit
+// waren 974 Bilder (62 Wartezeiten in allen Laeufen bis 08.11., auch unter paralleler Last); 600 s wie die Wegpunkte im
+// Hintergrund. Bei Ablauf FEHLER mit dem Zustand des Baus (welcher Schritt seit wann).
 Schritt langeWarten(const std::string& was, std::function<bool()> bedingung, int maxBilder) {
-    Schritt x = warteBis(was, std::move(bedingung), maxBilder);
+    auto bis = std::make_shared<double>(-1.0);
+    Schritt x{"Warte: " + was, [=](int b) {
+                  if (*bis < 0.0) { *bis = ImGui::GetTime() + 600.0; }
+                  if (bedingung()) {
+                      diag::detail("Knopftest: " + was + " nach " + std::to_string(b) + " Bildern");
+                      return true;
+                  }
+                  if (b >= maxBilder || ImGui::GetTime() > *bis) {
+                      meldeFehler(was + ": nicht nach " + std::to_string(b) + " Bildern / 600 s | " + ke::echtLichtBauZustand());
+                      return true;
+                  }
+                  return false;
+              }};
     x.eigeneZeitgrenze = true;
     return x;
 }

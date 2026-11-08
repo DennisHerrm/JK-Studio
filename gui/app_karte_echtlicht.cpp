@@ -580,6 +580,9 @@ struct Backen {
     double sekunden = 0;
     std::size_t kartenStand = 0;       // der gebaute Stand
     std::string wahl;                  // Stufe 8d: was GPU bake Auto gewaehlt hat und warum
+    // REST Punkt 4: welcher Schritt laeuft (0 -meta, 1 -vis, 2 -light, -1 keiner) und seit wann (Selbsttest: Zustand beim Warten)
+    std::atomic<int> schritt{-1};
+    std::atomic<long long> schrittSeitMs{0};
 };
 Backen g_backen;
 std::size_t g_letzterStand = static_cast<std::size_t>(-1);
@@ -692,6 +695,8 @@ void schnellBauStarten(std::size_t kartenStand) {
             const std::string& b = befehle[schritt];
             std::error_code ec;
             if (schritt == 1 && !fs::exists(fs::path(bsp.substr(0, bsp.size() - 4) + ".prt"), ec)) { continue; }
+            g_backen.schritt = static_cast<int>(schritt);
+            g_backen.schrittSeitMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             bauplattform::Prozess p;
             p.niedrigePrioritaet(true);
             std::string grund;
@@ -1729,6 +1734,21 @@ void echtLichtSchritt(std::size_t kartenStand) {
 }
 
 void echtLichtWuerfelFest(int groesse) { g_wuerfelFest = groesse; }
+
+std::string echtLichtBauZustand() {
+    const Editor& e = ed();
+    const long long jetzt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const int st = g_backen.stand.load();
+    std::string z = "bauStand " + std::to_string(e.echtLicht.bauStand) + ", Faden " + std::to_string(st);
+    if (st == 2 && g_backen.schritt.load() >= 0) {
+        static const char* const kName[3] = {"-meta", "-vis", "-light"};
+        z += ", Schritt " + std::string(kName[std::clamp(g_backen.schritt.load(), 0, 2)]) + " seit " +
+             std::to_string((jetzt - g_backen.schrittSeitMs.load()) / 1000) + " s";
+    }
+    z += ", gebacken " + std::to_string(g_gebackenStand == static_cast<std::size_t>(-1) ? 0 : 1) + ", gescheitert " +
+         std::to_string(g_fehlerStand == static_cast<std::size_t>(-1) ? 0 : 1) + ", abgebrochen " + std::to_string(e.echtLicht.baueAbgebrochen);
+    return z;
+}
 
 void echtLichtBeenden() {
     fadenAbwarten();   // die Grafik-Teile bleiben (das Geraet kann schon weg sein)

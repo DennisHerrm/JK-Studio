@@ -91,6 +91,8 @@ struct SpielDarstellung {
 // Jedes Bild (auch ohne Kamera): Schnell-Backen nach einer Pause ohne Aenderung
 // starten, abbrechen, Ergebnis abholen.
 void echtLichtSchritt(std::size_t kartenStand);
+// REST Punkt 4 (Selbsttest): der Zustand des Schnell-Backens als Text (Stand, laufender Schritt und seit wann)
+[[nodiscard]] std::string echtLichtBauZustand();
 void echtLichtBeenden();   // beim Beenden: einen laufenden Bau abbrechen
 // rc610 LICHT1, fuer den Selbsttest: alle Schattenwuerfel in dieser Groesse (512, 256, 128, 64; 0: nach der Huelle)
 void echtLichtWuerfelFest(int groesse);
