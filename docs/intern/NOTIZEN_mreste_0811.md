@@ -145,6 +145,29 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
   der jeweiligen Sicht; ein Spiegel ist in dieser Karte nicht fotografiert.
 - Offen: misc_model_ghoul zeichnet die Editor-Kamera im Editor-Licht nicht (B 0,000 im Editor, Altbestand aus Punkt 4).
 
+## Painting: Funde der Pruefung seit rc610 (Teil 3)
+
+Quelle `JKStudio_Uebergabe/plaene/codepruefung_seit_rc610.md` (PRUEF3). Neue Selbsttest-Gruppe `modellblock` BHED_MODELL_NUR=ptfix,
+ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
+
+- P1 (H): die Leinwaende gehoeren zum Modell (Schluessel nur der Pfad), nicht zu Detailstufe oder Haut; bei einem Wechsel der
+  Stufe holen sie nur ihre Dreiecke neu (`dreieckeAus`, wie bei neuem Netz). `modellUngespeichert()` zaehlt bemalte, nicht
+  gebaute Bilder mit (`modellMalenUngespeichert`: `l.stand != l.gespeichert`) - Beenden und anderes Modell fragen dann wie beim
+  Dokument. Rot `mr3_ptfix_rot2` (alle vier Pruefungen FEHLER), gruen `mr3_s_ptfix` 5/0: "ungespeichert nein" nach 2629 bemalten Texeln, nach LOD 2 "0 Texel bemalt".
+- P4 (M): jeder Schritt traegt eine fortlaufende Nummer ueber alle Leinwaende (`UndoSchritt::nummer`); Strg+Z nimmt den
+  juengsten aller Bilder, Strg+Y den zuletzt zurueckgenommenen; im Bereich Painting nie mehr auf das Modelldokument durch.
+  Rot: Helm 0, Rumpf 2629 Texel nach sechsmal Strg+Z.
+- P3 (M): der Deckkraft-Regler merkt den alten Wert vor `SliderFloat` (ImGui setzt ihn schon im Klickbild). Rot: nach Klick
+  auf die Reglermitte und Strg+Z 0,5 statt 1,0.
+- P2 (M): Ebenen-Schritte ohne neue Bildpunkte (Sichtbar, Mischart, Deckkraft, Name) merken nur die Eigenschaften; jeder
+  Schritt (auch Neu/Loeschen/Umbacken) wird auf `grenzeBytes` gekuerzt (`schrittAblegen`). ctest `modell_malen` rot (3 Fehler): 50 x Sichtbar 106 MB,
+  10 x Neue Ebene 151 MB bei 4 MB Grenze; gruen in der Grenze, Rueckgaengig stellt Sichtbarkeit her, Bildpunkte gleich.
+- P6 (M, Tempo): der Vergleich "bemalt" mit dem Original nur bei geaendertem `l.stand` (je Leinwand gemerkt) - gleiche Anzeige.
+- P15 (N, Tempo): Mitte und Umkreis je Dreieck einmal in `dreieckeSetzen` (`Leinwand::kugeln`), dieselbe Rechnung wie vorher
+  je Tupfer - Treffer bytegleich (pt gruen).
+- P12 (N): Kopf von `fuellen` berichtigt (fuellt im ganzen Bild, auch ueber die UV-Inseln hinaus; die Maske schuetzt).
+- Nicht bearbeitet (Kontext): P7, P8, P13, P19.
+
 ## Schluss fuer die Punkte 1, 3, 8 (Laeufe `mr_s_*`)
 
 - Sauberer Neubau `build-test` (--clean-first) 0 Warnungen, 12 min 24 s; ctest 235/235.
@@ -176,6 +199,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Map preview and map editor: Ghoul2 models (.glm) as "model2" of a brush entity and as misc_model_ghoul are drawn like in the game (first frame of their animation, level of detail by distance); "modelAngles" now turns a model2 in the preview too, and the game view no longer draws a model2 a second time in editor light.
 - Model tab: Chamfer with segments fills corners where three or more chamfered edges meet with a grid of quads like Blender's bevel, places the round edge in the plane across the edge and spaces other shapes in equal steps.
 - Map editor: in "Built map as in the game" misc_model and misc_model_static are no longer drawn a second time in editor light; Movie Duels maps scale a model2 by "model2scale" in the preview, the game view and the editor camera.
+- Painting: painted images are no longer lost when the level of detail or the skin changes, and closing or loading another model asks about unbuilt paintings; Ctrl+Z/Ctrl+Y step through the strokes of all images and never undo a model edit in the Painting area; undoing an opacity click restores the old value; layer steps stay within the undo memory limit.
 
 ## Deutsch
 
@@ -186,6 +210,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Kartenvorschau und Karten-Editor: Ghoul2-Modelle (.glm) als „model2“ einer Brush-Entity und als misc_model_ghoul werden wie im Spiel gezeichnet (erstes Bild ihrer Animation, Detailstufe nach Abstand); „modelAngles“ dreht ein model2 jetzt auch in der Vorschau, und das Spielbild zeichnet ein model2 nicht mehr ein zweites Mal im Editor-Licht.
 - Model-Tab: Chamfer mit Segmenten füllt Ecken, an denen drei oder mehr gefaste Kanten zusammenkommen, mit einem Gitter aus Vierecken wie Blenders Bevel, legt die Rundung in die Ebene quer zur Kante und verteilt andere Formen in gleichen Schritten.
 - Karten-Editor: in „Gebaute Karte wie im Spiel“ werden misc_model und misc_model_static nicht mehr ein zweites Mal im Editor-Licht gezeichnet; Movie-Duels-Karten skalieren ein model2 mit „model2scale“ in der Vorschau, im Spielbild und in der Editor-Kamera.
+- Painting: bemalte Bilder gehen beim Wechsel der Detailstufe oder der Haut nicht mehr verloren, Schließen und ein anderes Modell fragen nach nicht gebauten Bildern; Strg+Z/Strg+Y gehen durch die Striche aller Bilder und nehmen im Bereich Painting nie eine Modelländerung zurück; Rückgängig nach einem Klick auf die Deckkraft stellt den alten Wert her; Ebenen-Schritte bleiben in der Speichergrenze des Rückgängig.
 
 ## 中文
 
@@ -196,6 +221,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - 地图预览和地图编辑器: 作为画刷实体 "model2" 和 misc_model_ghoul 的 Ghoul2 模型 (.glm) 按游戏方式绘制 (动画第一帧, 按距离选择细节级别); "modelAngles" 现在在预览中也会旋转 model2, 游戏画面不再以编辑器光照再绘制一次 model2。
 - 模型选项卡: 带分段的倒角在三条或更多倒角边相交的角落像 Blender 的倒角一样用四边形网格填充, 圆弧位于垂直于边的平面内, 其他形状等距分布。
 - 地图编辑器: 在"按游戏方式显示构建的地图"中 misc_model 和 misc_model_static 不再以编辑器光照再绘制一次; Movie Duels 地图在预览、游戏画面和编辑器相机中按 "model2scale" 缩放 model2。
+- 绘制: 切换细节级别或皮肤时不再丢失已绘制的图像, 关闭或加载其他模型时会询问未构建的绘制; Ctrl+Z/Ctrl+Y 按顺序撤销/重做所有图像的笔画, 在绘制区域中不会撤销模型修改; 单击不透明度后撤销会恢复旧值; 图层步骤保持在撤销内存上限内。
 
 ## 日本語
 
@@ -206,6 +232,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - マッププレビューとマップエディター: ブラシエンティティの「model2」と misc_model_ghoul の Ghoul2 モデル (.glm) をゲームと同じく描画します (アニメーションの最初のフレーム、距離による詳細度)。「modelAngles」はプレビューでも model2 を回転させ、ゲーム画面で model2 がエディター照明で二重に描かれなくなりました。
 - モデルタブ: セグメント付きの面取りは、面取りした辺が 3 本以上集まる角を Blender のベベルと同じく四角形の格子で埋め、丸みを辺に垂直な面に置き、他の形は等間隔に並べます。
 - マップエディター: 「ゲーム同様のビルド済みマップ」で misc_model と misc_model_static がエディター照明で二重に描かれなくなりました。Movie Duels のマップはプレビュー、ゲーム画面、エディターカメラで model2 を「model2scale」で拡大縮小します。
+- ペイント: 詳細度やスキンを切り替えても描いた画像が失われなくなり、閉じるときや別のモデルを読み込むときに未ビルドの画像について確認します。Ctrl+Z/Ctrl+Y はすべての画像のストロークを順にたどり、ペイント領域でモデルの変更を取り消すことはありません。不透明度をクリックした後の元に戻すで以前の値に戻ります。レイヤー操作は元に戻すメモリの上限内に収まります。
 
 ## Español
 
@@ -216,6 +243,7 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Vista previa del mapa y editor de mapas: los modelos Ghoul2 (.glm) como "model2" de una entidad de brush y como misc_model_ghoul se dibujan como en el juego (primer fotograma de su animación, nivel de detalle según la distancia); "modelAngles" ya gira un model2 también en la vista previa, y la vista de juego ya no dibuja un model2 por segunda vez con la luz del editor.
 - Pestaña Model: Chamfer con segmentos rellena las esquinas donde se juntan tres o más aristas biseladas con una rejilla de cuadriláteros como el bisel de Blender, coloca el redondeo en el plano transversal a la arista y reparte las demás formas a pasos iguales.
 - Editor de mapas: en "Mapa compilado como en el juego" misc_model y misc_model_static ya no se dibujan por segunda vez con la luz del editor; los mapas de Movie Duels escalan un model2 con "model2scale" en la vista previa, la vista de juego y la cámara del editor.
+- Painting: las imágenes pintadas ya no se pierden al cambiar el nivel de detalle o la piel, y cerrar o cargar otro modelo pregunta por las pinturas sin construir; Ctrl+Z/Ctrl+Y recorren los trazos de todas las imágenes y en el área Painting nunca deshacen un cambio del modelo; deshacer tras un clic en la opacidad restaura el valor anterior; los pasos de capas respetan el límite de memoria del deshacer.
 
 ## Čeština
 
@@ -226,3 +254,4 @@ gestartet), Kopie `Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`. Portiert in d
 - Náhled mapy a editor map: modely Ghoul2 (.glm) jako „model2“ entity ze štětců a jako misc_model_ghoul se kreslí jako ve hře (první snímek animace, úroveň detailu podle vzdálenosti); „modelAngles“ nyní otáčí model2 i v náhledu a herní pohled už nekreslí model2 podruhé ve světle editoru.
 - Karta Model: Chamfer se segmenty vyplní rohy, kde se setkají tři a více zkosených hran, mřížkou čtyřúhelníků jako zkosení v Blenderu, klade zaoblení do roviny napříč hranou a ostatní tvary rozloží ve stejných krocích.
 - Editor map: v „Sestavená mapa jako ve hře“ se misc_model a misc_model_static už nekreslí podruhé ve světle editoru; mapy Movie Duels zvětšují model2 podle „model2scale“ v náhledu, herním pohledu i kameře editoru.
+- Painting: pomalované obrázky se už neztratí při změně úrovně detailu nebo skinu, zavření a načtení jiného modelu se ptá na nesestavené malby; Ctrl+Z/Ctrl+Y procházejí tahy všech obrázků a v oblasti Painting nikdy nevrátí změnu modelu; zpět po klepnutí na krytí obnoví starou hodnotu; kroky vrstev zůstávají v paměťovém limitu historie.

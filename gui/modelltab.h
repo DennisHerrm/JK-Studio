@@ -268,6 +268,7 @@ bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus);          // nach
 void modellMalenEnde();
 void modellMalenUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 bool modellMalenRueckgaengig();
+[[nodiscard]] bool modellMalenUngespeichert();   // Pruefung seit rc610 P1: ein bemaltes Bild ist nicht gebaut
 bool modellMalenWiederholen();
 int modellMalenBauen();                      // Bilder geschrieben, -1 Fehler
 void modellStiftDruck(float druck);

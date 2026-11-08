@@ -178,7 +178,8 @@ void modellSpeichern(bool unter) {
 
 bool modellUngespeichert() {
     const ModellTab& t = mt();
-    return t.gespeichertStand >= 0 ? t.dok.stand() != t.gespeichertStand : t.dok.kannRueckgaengig();
+    // P1: auch bemalte, nicht gebaute Bilder (Beenden und anderes Modell fragen dann wie beim Dokument)
+    return (t.gespeichertStand >= 0 ? t.dok.stand() != t.gespeichertStand : t.dok.kannRueckgaengig()) || modellMalenUngespeichert();
 }
 
 namespace {

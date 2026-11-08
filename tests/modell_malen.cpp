@@ -510,6 +510,56 @@ void dateiTest() {
 
 }  // namespace
 
+// Pruefung seit rc610 P2: Ebenen-Schritte (Sichtbar, Neu ...) bleiben in der Grenze des Verlaufs; reine Eigenschaften ohne Bildpunkte
+std::size_t verlaufBytes(const m::Verlauf& v) {
+    std::size_t n = 0;
+    for (const m::UndoSchritt& s : v.zurueck) {
+        n += s.maskeVorher.size() + s.maskeNachher.size();
+        for (const m::Kachel& k : s.kacheln) { n += k.vorher.size() + k.nachher.size(); }
+        for (const m::Ebene& e : s.stapelVorher) { n += e.rgba.size(); }
+        for (const m::Ebene& e : s.stapelNachher) { n += e.rgba.size(); }
+    }
+    return n;
+}
+
+void ebenenGrenzeTest() {
+    m::Leinwand l;
+    m::leinwandLeer(l, 256, 256, {10, 20, 30, 255});
+    m::dreieckeSetzen(l, quadrat(0.0F, 256.0F), true);
+    m::Verlauf v;
+    v.grenzeBytes = 4U * 1024U * 1024U;
+    std::vector<m::Ebene> st = l.ebenen;
+    for (int i = 0; i < 3; ++i) {
+        m::Ebene e;
+        e.name = "e" + std::to_string(i);
+        e.rgba.assign(256U * 256U * 4U, static_cast<std::uint8_t>(40 * i));
+        st.push_back(e);
+    }
+    m::stapelAendern(v, l, "neu", st, 1);
+    const std::vector<std::uint8_t> bild1 = l.ebenen[1].rgba;
+    for (int i = 0; i < 50; ++i) {
+        st = l.ebenen;
+        st[1].sichtbar = !st[1].sichtbar;
+        m::stapelAendern(v, l, "sicht", st, 1);
+    }
+    char t[200];
+    std::snprintf(t, sizeof t, "50 x Sichtbar umschalten (4 Ebenen 256x256): Verlauf %zu Bytes, Grenze %zu", verlaufBytes(v), v.grenzeBytes);
+    pruefe(verlaufBytes(v) <= v.grenzeBytes, t);
+    (void)m::rueckgaengig(v, l);
+    // nach 50 Umschaltungen sichtbar; Rueckgaengig nimmt die letzte (unsichtbar -> sichtbar) zurueck
+    pruefe(l.ebenen.size() == 4U && !l.ebenen[1].sichtbar && l.ebenen[1].rgba == bild1, "Rueckgaengig der Sichtbarkeit: Ebene wieder unsichtbar, ihre Bildpunkte unveraendert");
+    for (int i = 0; i < 10; ++i) {
+        st = l.ebenen;
+        m::Ebene e;
+        e.name = "n";
+        e.rgba.assign(256U * 256U * 4U, 7);
+        st.push_back(e);
+        m::stapelAendern(v, l, "neu", st, 1);
+    }
+    std::snprintf(t, sizeof t, "10 x Neue Ebene: Verlauf %zu Bytes, Grenze %zu (gekuerzt wie nach einem Strich)", verlaufBytes(v), v.grenzeBytes);
+    pruefe(verlaufBytes(v) <= v.grenzeBytes || v.zurueck.size() == 1U, t);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     strichTest();
@@ -518,6 +568,7 @@ int main() {
     undoTest();
     undoBlutTest();
     ebenenTest();
+    ebenenGrenzeTest();
     werkzeugTest();
     umbackTest();
     dateiTest();

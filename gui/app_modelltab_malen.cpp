@@ -198,6 +198,9 @@ struct MalBild {
     std::vector<std::array<int, 2>> herkunft;   // je Dreieck der Leinwand: Teil, Dreieck des Netzes
     std::vector<std::array<float, 3>> normalen; // je Dreieck in der Ruhelage
     int netzStand = -1;
+    int lod = -1;                         // P1: Detailstufe der Dreiecke
+    int bemaltFuer = -1;                  // P6: l.stand des letzten Vergleichs mit dem Original
+    bool bemaltAnders = false;
     bool grundStufe = true;               // das Bild der Flaeche (bySurface in der 3D-Ansicht), sonst eine weitere Stufe
     mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
@@ -206,6 +209,7 @@ struct MalBild {
 
 std::vector<std::unique_ptr<MalBild>> g_bilder;
 std::string g_bilderFuer;
+int g_bilderLod = -1;         // P1: die Detailstufe, deren Dreiecke die Leinwaende tragen
 int g_bilderGeneration = 0;   // zaehlt jedes Leeren (die 2D-Ansicht merkt sich Bilder nach Adresse)
 
 void dreieckeAus(MalBild& m) {
@@ -243,10 +247,14 @@ void dreieckeAus(MalBild& m) {
     }
     mm::dreieckeSetzen(m.l, d, m.netzStand < 0);
     m.netzStand = in.netzStand;
+    m.lod = stufe;
 }
 
+// Pruefung seit rc610 P1: die Leinwaende gehoeren zum Modell, nicht zur Detailstufe oder Haut - eine Leinwand haengt an ihrem
+// Bild (Schluessel Shader | Datei), nur ihre Dreiecke an der Stufe (beim Wechsel neu wie bei einem neuen Netz). Vorher leerte
+// ein Sprung der automatischen Stufe (Zoomen) oder ein Hautwechsel alle Leinwaende samt Ebenen und Rueckgaengig ohne Frage.
 void bilderPruefen() {
-    const std::string fuer = g_app->modelPath + "|" + std::to_string(g_app->modelSkinIndex) + "|" + std::to_string(mt().lodJetzt);
+    const std::string& fuer = g_app->modelPath;
     if (fuer != g_bilderFuer) {
         g_bilder.clear();
         g_stufen.je.clear();
@@ -255,6 +263,10 @@ void bilderPruefen() {
         g_bilderFuer = fuer;
         mz().gruppe = -1;
         mz().stufe = 0;
+    }
+    if (g_bilderLod != mt().lodJetzt) {
+        g_bilderLod = mt().lodJetzt;
+        for (auto& b : g_bilder) { dreieckeAus(*b); }
     }
 }
 
@@ -268,7 +280,7 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     const std::string schl = g[uz(gruppe)].shader + "|" + st[uz(s)].datei;
     for (auto& b : g_bilder) {
         if (b->schluessel == schl) {
-            if (b->netzStand != mt().dok.inhalt().netzStand) { dreieckeAus(*b); }
+            if (b->netzStand != mt().dok.inhalt().netzStand || b->lod != mt().lodJetzt) { dreieckeAus(*b); }
             return b.get();
         }
     }
@@ -678,8 +690,19 @@ const mm::Leinwand* modellMalenLeinwand() {
     return m != nullptr ? &m->l : nullptr;
 }
 
+// P1: ein bemaltes Bild, das noch nicht fuer das Spiel gebaut ist (Stand seit dem Laden oder dem letzten Bauen geaendert)
+bool modellMalenUngespeichert() {
+    return std::any_of(g_bilder.begin(), g_bilder.end(), [](const std::unique_ptr<MalBild>& b) { return b->l.stand != b->l.gespeichert; });
+}
+
+// P4: Strg+Z/Strg+Y gelten dem juengsten Schritt ueber alle Leinwaende (fortlaufende Nummer der Schritte), nicht nur dem
+// gerade gewaehlten Bild - vorher nahm Strg+Z nach den Strichen des gewaehlten Bilds einen Schritt des Modelldokuments zurueck
 bool modellMalenRueckgaengig() {
-    MalBild* m = jetzt(false);
+    MalBild* m = nullptr;
+    for (auto& b : g_bilder) {
+        mm::schrittEnde(b->v, b->l);
+        if (!b->v.zurueck.empty() && (m == nullptr || b->v.zurueck.back().nummer > m->v.zurueck.back().nummer)) { m = b.get(); }
+    }
     if (m == nullptr || !mm::rueckgaengig(m->v, m->l)) { return false; }
     anzeigeNachfuehren(*m);
     melden(tr(Str::PtRueckgaengig));
@@ -687,7 +710,11 @@ bool modellMalenRueckgaengig() {
 }
 
 bool modellMalenWiederholen() {
-    MalBild* m = jetzt(false);
+    MalBild* m = nullptr;
+    for (auto& b : g_bilder) {
+        mm::schrittEnde(b->v, b->l);
+        if (!b->v.vor.empty() && (m == nullptr || b->v.vor.back().nummer < m->v.vor.back().nummer)) { m = b.get(); }
+    }
     if (m == nullptr || !mm::wiederholen(m->v, m->l)) { return false; }
     anzeigeNachfuehren(*m);
     return true;
@@ -1235,13 +1262,14 @@ void drawModellMalenBereich() {
                 }
                 ImGui::SetNextItemWidth(-fs * 0.5F);
                 float d = e.deckkraft * 100.0F;
+                const float deckAlt = e.deckkraft;   // P3: der Regler setzt den Wert schon im Klickbild - den alten vorher merken
                 if (ImGui::SliderFloat("##deck", &d, 0.0F, 100.0F, "%.0f %%")) {
                     e.deckkraft = d / 100.0F;   // live; der Rueckgaengig-Schritt beim Loslassen
                     mm::zusammensetzen(m->l);
                     m->l.schmutzig = mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1};
                     anzeigeNachfuehren(*m);
                 }
-                if (ImGui::IsItemActivated()) { z.deckVorher = e.deckkraft; }
+                if (ImGui::IsItemActivated()) { z.deckVorher = deckAlt; }
                 if (ImGui::IsItemDeactivatedAfterEdit()) {
                     const float neu = e.deckkraft;
                     e.deckkraft = z.deckVorher;
@@ -1273,7 +1301,14 @@ void drawModellMalenBereich() {
         ImGui::SetItemTooltip("%s", tr(Str::PtOrdnerHint));
         knopf(Str::PtBauen, -fs * 0.5F);
         int bemalt = 0;
-        for (const auto& b : g_bilder) { bemalt += b->l.bild != b->l.grund ? 1 : 0; }
+        // P6: der Vergleich mit dem Original nur, wenn sich das Bild geaendert hat (vorher jedes Bild alle Leinwaende ganz)
+        for (const auto& b : g_bilder) {
+            if (b->bemaltFuer != b->l.stand) {
+                b->bemaltFuer = b->l.stand;
+                b->bemaltAnders = b->l.bild != b->l.grund;
+            }
+            bemalt += b->bemaltAnders ? 1 : 0;
+        }
         ImGui::TextDisabled("%s", format(Str::PtBemaltZahl, bemalt).c_str());
     }
     if (!z.meldung.empty()) {

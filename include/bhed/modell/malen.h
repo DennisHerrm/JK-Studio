@@ -72,6 +72,7 @@ struct Leinwand {
     std::vector<std::uint8_t> bedeckt;       // je Texel 1, wenn ein UV-Dreieck es bedeckt
     std::vector<Dreieck> dreiecke;           // die Dreiecke, die dieses Bild zeichnen
     std::vector<Dreieck> dreieckeBeimLaden;  // fuer "Auf neue UV umbacken"
+    std::vector<std::array<float, 4>> kugeln; // P15: je Dreieck Mitte und Umkreis (dreieckeSetzen), fuer das schnelle Verwerfen
     Rechteck schmutzig;                      // Ergebnis neu zusammensetzen/hochladen
     int stand = 0;                           // zaehlt jede Aenderung
     int gespeichert = 0;                     // stand beim Laden/letzten Bauen
@@ -110,6 +111,11 @@ struct UndoSchritt {
     std::vector<Kachel> kacheln;
     // ganze Ebenen (neu, geloescht, Eigenschaften, Umbacken): der Stapel vorher/nachher mit Bildpunkten, wenn struktur
     bool struktur = false;
+    // Pruefung seit rc610 P2: nur Eigenschaften (Sichtbar, Mischart, Deckkraft, Name, Reihenfolge gleich): die Stapel ohne
+    // Bildpunkte, Anwenden behaelt die Bildpunkte der Ebenen
+    bool nurEigenschaften = false;
+    // P4: fortlaufende Nummer ueber alle Leinwaende (das Rueckgaengig des Bereichs nimmt den juengsten Schritt aller Bilder)
+    long long nummer = 0;
     std::vector<Ebene> stapelVorher;
     std::vector<Ebene> stapelNachher;
     int aktivVorher = 0;
@@ -157,7 +163,8 @@ int tupfer3d(Leinwand& l, Verlauf& v, const Pinsel& p, const float mitte[3], flo
              const float richtung[2]);
 // Ein Tupfer in 2D um (u, v) in UV
 int tupfer2d(Leinwand& l, Verlauf& v, const Pinsel& p, float u, float vv, float druck, const float richtung[2]);
-// Fuellen ab Texel (x, y): zusammenhaengend, Farbe des Ergebnisses innerhalb der Toleranz, nur bedeckte Texel und ihr Rand
+// Fuellen ab Texel (x, y): zusammenhaengend, Farbe des Ergebnisses innerhalb der Toleranz - im ganzen Bild, auch ueber die
+// UV-Inseln hinaus (Pruefung seit rc610 P12: der Kopf sagte vorher "nur bedeckte Texel"); die Maske schuetzt wie bei jedem Werkzeug
 int fuellen(Leinwand& l, Verlauf& v, const Pinsel& p, int x, int y);
 
 // Abstand im Strich: aus der Folge der Mauspositionen (Welt oder UV) die Tupferstellen mit festem Abstand

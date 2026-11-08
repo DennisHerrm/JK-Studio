@@ -375,8 +375,19 @@ void leinwandLeer(Leinwand& l, int b, int h, std::array<std::uint8_t, 4> farbe) 
     l.maske.assign(uz(b) * uz(h), 0);
 }
 
+namespace {
+std::array<float, 4> kugelVon(const Dreieck& d) {
+    std::array<float, 4> k{};
+    for (int i = 0; i < 3; ++i) { k[uz(i)] = (d.ort[0][i] + d.ort[1][i] + d.ort[2][i]) / 3.0F; }
+    for (const auto& e : d.ort) { k[3] = std::max(k[3], std::hypot(e[0] - k[0], e[1] - k[1], e[2] - k[2])); }
+    return k;
+}
+}  // namespace
+
 void dreieckeSetzen(Leinwand& l, const std::vector<Dreieck>& d, bool alsLadestand) {
     l.dreiecke = d;
+    l.kugeln.clear();   // P15: einmal je Satz Dreiecke statt je Tupfer
+    for (const Dreieck& x : d) { l.kugeln.push_back(kugelVon(x)); }
     if (alsLadestand) { l.dreieckeBeimLaden = d; }
     l.bedeckt.assign(uz(l.b) * uz(l.h), 0);
     for (const Dreieck& x : d) {
@@ -448,6 +459,23 @@ void sichern(Verlauf& v, const Leinwand& l, int ebene, const Rechteck& r) {
     }
 }
 
+namespace {
+long long g_schrittNummer = 0;   // P4: ueber alle Leinwaende fortlaufend
+
+// ein fertiger Schritt in den Verlauf; danach auf grenzeBytes gekuerzt (P2: fuer jeden Schritt, nicht nur Pinselstriche)
+void schrittAblegen(Verlauf& v, UndoSchritt&& s) {
+    s.nummer = ++g_schrittNummer;
+    v.zurueck.push_back(std::move(s));
+    v.vor.clear();
+    std::size_t summe = 0;
+    for (const UndoSchritt& x : v.zurueck) { summe += schrittBytes(x); }
+    while (v.zurueck.size() > 1U && summe > v.grenzeBytes) {
+        summe -= schrittBytes(v.zurueck.front());
+        v.zurueck.erase(v.zurueck.begin());
+    }
+}
+}  // namespace
+
 void schrittEnde(Verlauf& v, Leinwand& l) {
     if (!v.laeuft) { return; }
     v.laeuft = false;
@@ -455,15 +483,9 @@ void schrittEnde(Verlauf& v, Leinwand& l) {
     for (Kachel& k : v.offen.kacheln) {
         kachelKopieren(l, k.ebene < 0 ? l.maske : l.ebenen[uz(k.ebene)].rgba, k.ebene < 0 ? 1 : 4, k.kx, k.ky, k.nachher);
     }
-    v.zurueck.push_back(std::move(v.offen));
+    UndoSchritt s = std::move(v.offen);
     v.offen = UndoSchritt{};
-    v.vor.clear();
-    std::size_t summe = 0;
-    for (const UndoSchritt& s : v.zurueck) { summe += schrittBytes(s); }
-    while (v.zurueck.size() > 1U && summe > v.grenzeBytes) {
-        summe -= schrittBytes(v.zurueck.front());
-        v.zurueck.erase(v.zurueck.begin());
-    }
+    schrittAblegen(v, std::move(s));
 }
 
 void stapelAendern(Verlauf& v, Leinwand& l, const std::string& name, const std::vector<Ebene>& neu, int aktivNeu) {
@@ -475,16 +497,36 @@ void stapelAendern(Verlauf& v, Leinwand& l, const std::string& name, const std::
     s.aktivVorher = l.aktiv;
     s.stapelNachher = neu;
     s.aktivNachher = aktivNeu;
+    // P2: aendert der Schritt keine Bildpunkte (gleiche Ebenen, gleiche rgba), merkt er nur die Eigenschaften
+    bool gleicheBilder = neu.size() == l.ebenen.size();
+    for (std::size_t i = 0; gleicheBilder && i < neu.size(); ++i) { gleicheBilder = neu[i].rgba == l.ebenen[i].rgba; }
+    if (gleicheBilder) {
+        s.nurEigenschaften = true;
+        for (Ebene& e : s.stapelVorher) { std::vector<std::uint8_t>().swap(e.rgba); }
+        for (Ebene& e : s.stapelNachher) { std::vector<std::uint8_t>().swap(e.rgba); }
+    }
     l.ebenen = neu;
     l.aktiv = std::clamp(aktivNeu, 0, static_cast<int>(l.ebenen.size()) - 1);
-    v.zurueck.push_back(std::move(s));
-    v.vor.clear();
+    schrittAblegen(v, std::move(s));
     geaendert(l, ganz(l));
     zusammensetzen(l);
 }
 
 namespace {
 void anwenden(Leinwand& l, const UndoSchritt& s, bool rueck) {
+    if (s.struktur && s.nurEigenschaften) {   // P2: die Bildpunkte bleiben
+        const std::vector<Ebene>& st = rueck ? s.stapelVorher : s.stapelNachher;
+        for (std::size_t i = 0; i < st.size() && i < l.ebenen.size(); ++i) {
+            l.ebenen[i].name = st[i].name;
+            l.ebenen[i].deckkraft = st[i].deckkraft;
+            l.ebenen[i].misch = st[i].misch;
+            l.ebenen[i].sichtbar = st[i].sichtbar;
+        }
+        l.aktiv = std::clamp(rueck ? s.aktivVorher : s.aktivNachher, 0, static_cast<int>(l.ebenen.size()) - 1);
+        geaendert(l, ganz(l));
+        zusammensetzen(l);
+        return;
+    }
     if (s.struktur) {
         l.ebenen = rueck ? s.stapelVorher : s.stapelNachher;
         l.aktiv = std::clamp(rueck ? s.aktivVorher : s.aktivNachher, 0, static_cast<int>(l.ebenen.size()) - 1);
@@ -549,12 +591,9 @@ int tupfer3d(Leinwand& l, Verlauf& v, const Pinsel& p, const float mitte[3], flo
     for (std::size_t di = 0; di < l.dreiecke.size(); ++di) {
         if (!p.rueckseiten && zugewandt != nullptr && di < zugewandt->size() && (*zugewandt)[di] == 0) { continue; }
         const Dreieck& d = l.dreiecke[di];
-        // schnell verwerfen: Kugel um das Dreieck
-        float m[3];
-        for (int k = 0; k < 3; ++k) { m[k] = (d.ort[0][k] + d.ort[1][k] + d.ort[2][k]) / 3.0F; }
-        float rr = 0.0F;
-        for (const auto& e : d.ort) { rr = std::max(rr, std::hypot(e[0] - m[0], e[1] - m[1], e[2] - m[2])); }
-        if (std::hypot(m[0] - mitte[0], m[1] - mitte[1], m[2] - mitte[2]) > radius + rr) { continue; }
+        // schnell verwerfen: Kugel um das Dreieck (P15: aus dreieckeSetzen; ohne sie wie vorher je Tupfer gerechnet)
+        const std::array<float, 4> kg = di < l.kugeln.size() && l.kugeln.size() == l.dreiecke.size() ? l.kugeln[di] : kugelVon(d);
+        if (std::hypot(kg[0] - mitte[0], kg[1] - mitte[1], kg[2] - mitte[2]) > radius + kg[3]) { continue; }
         texelImDreieck(d, l.b, l.h, [&](int x, int y, float l0, float l1, float l2) {
             float uv[2];
             float o[3];
@@ -689,8 +728,7 @@ bool leinwandUmbacken(Leinwand& l, Verlauf& v, const std::string& name) {
     s.maskeNachher = maskeNeu;
     l.ebenen = std::move(neu);
     l.maske = std::move(maskeNeu);
-    v.zurueck.push_back(std::move(s));
-    v.vor.clear();
+    schrittAblegen(v, std::move(s));
     l.dreieckeBeimLaden = l.dreiecke;
     geaendert(l, ganz(l));
     zusammensetzen(l);

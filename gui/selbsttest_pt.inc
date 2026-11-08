@@ -685,7 +685,98 @@ std::vector<Schritt> zeitSchritte() {
 
 std::vector<Schritt> handbuchSchritte();   // unten
 
+// --- Pruefung seit rc610 (BHED_MODELL_NUR=ptfix): P1 Leinwaende bei LOD-Wechsel und Frage, P4 Rueckgaengig ueber alle Bilder,
+// P3 Deckkraft-Regler ------------------------------------------------------------------------------------------------------------
+ImVec2 teilMitte(const char* teil, float dx) {
+    ImVec2 m;
+    if (!modellFlaecheAufSchirm(teilVon(teil), m)) {
+        meldeFehler(std::string("PT: ") + teil + " nicht auf dem Schirm");
+        return ImVec2{};
+    }
+    return ImVec2{m.x + dx, m.y};
+}
+
+Schritt gruppeVon(const char* teil) {
+    return tu(std::string("PT fix: Gruppe der Flaeche ") + teil, [teil] {
+        g_app->mtab.auswahl = {teilVon(teil)};
+        mz().gruppe = -1;
+    });
+}
+
+std::vector<Schritt> fixSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto dokStand = std::make_shared<long long>(0);
+    figurLaden(s, "max");
+    add(gruppeVon("torso"));
+    add(pause(0.3));
+    add(werkzeug(Str::PtWzPinsel));
+    add(mb3::ziehenVonNach("PT fix: Strich ueber die Brust", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
+    add(pause(0.3));
+    add(pruefe("PT fix P1: nach einem Strich gilt das Modell als ungespeichert (Beenden und anderes Modell fragen)", [] {
+        diag::detail("Knopftest: PT fix P1 - " + std::to_string(geaendert(lw())) + " Texel, ungespeichert " + (modellUngespeichert() ? "ja" : "nein"));
+        return geaendert(lw()) > 50 && modellUngespeichert();
+    }));
+    add(gruppeVon("head"));
+    add(pause(0.3));
+    add(mb3::ziehenVonNach("PT fix: Strich ueber den Helm", [] { return teilMitte("head", -6.0F); }, [] { return teilMitte("head", 6.0F); }));
+    add(pause(0.3));
+    add(tu("PT fix P4: Stand des Modelldokuments", [dokStand] { *dokStand = static_cast<long long>(g_app->mtab.dok.stand()); }));
+    for (int i = 0; i < 6; ++i) {
+        add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+        add(pause(0.15));
+    }
+    add(pruefe("PT fix P4: Strg+Z nimmt die Striche beider Bilder zurueck (Helm, dann Rumpf), das Modelldokument bleibt", [dokStand] {
+        const int helm = geaendert(lw());
+        g_app->mtab.auswahl = {teilVon("torso")};
+        mz().gruppe = -1;
+        const int rumpf = geaendert(lw());
+        const bool dok = static_cast<long long>(g_app->mtab.dok.stand()) == *dokStand;
+        diag::detail("Knopftest: PT fix P4 - Helm " + std::to_string(helm) + ", Rumpf " + std::to_string(rumpf) + " Texel anders, Dokument " + (dok ? "gleich" : "geaendert"));
+        return helm == 0 && rumpf == 0 && dok;
+    }));
+    add(gruppeVon("torso"));
+    add(pause(0.3));
+    add(mb3::ziehenVonNach("PT fix: noch ein Strich ueber die Brust", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
+    add(pause(0.3));
+    add(tu("PT fix P1: andere Detailstufe (wie ein Sprung der automatischen Stufe beim Zoomen)", [] {
+        g_app->mtab.lodWahl = 2;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe("PT fix P1: die Leinwand torso behaelt den Strich ueber den Wechsel der Detailstufe", [] {
+        const int n = geaendert(lw());
+        diag::detail("Knopftest: PT fix P1 - nach LOD 2: " + std::to_string(n) + " Texel bemalt, LOD jetzt " + std::to_string(g_app->mtab.lodJetzt));
+        return n > 50;
+    }));
+    add(tu("PT fix: zurueck auf LOD 0", [] {
+        g_app->mtab.lodWahl = 1;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    // P3: auf einer neuen Ebene die Mitte des Deckkraft-Reglers anklicken, Strg+Z stellt 100 % her
+    add(ausloesen(Str::PtEbeneNeu));
+    add(pause(0.3));
+    add(klickAn("PT fix P3: Klick auf die Mitte des Deckkraft-Reglers", stufe2::elementOrt("##deck")));
+    add(pause(0.3));
+    add(pruefe("PT fix P3: der Klick setzt die Deckkraft (etwa 50 %)", [] {
+        const float d = lw() != nullptr && lw()->aktiv >= 0 ? lw()->ebenen[static_cast<std::size_t>(lw()->aktiv)].deckkraft : -1.0F;
+        diag::detail("Knopftest: PT fix P3 - Deckkraft nach dem Klick " + std::to_string(d));
+        return d > 0.2F && d < 0.8F;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(pruefe("PT fix P3: Strg+Z stellt die Deckkraft vor dem Klick her (100 %)", [] {
+        const float d = lw() != nullptr && lw()->aktiv >= 0 ? lw()->ebenen[static_cast<std::size_t>(lw()->aktiv)].deckkraft : -1.0F;
+        diag::detail("Knopftest: PT fix P3 - Deckkraft nach Strg+Z " + std::to_string(d));
+        return std::fabs(d - 1.0F) < 1e-4F;
+    }));
+    add(zurueckAufOriginal());
+    return s;
+}
+
 std::vector<Schritt> schritte(const std::string& n) {
+    if (n == "ptfix") { return fixSchritte(); }
     if (n == "pt") { return modellSchritte(); }
     if (n == "ptspiel") { return spielSchritte(); }
     if (n == "ptzeit") { return zeitSchritte(); }
