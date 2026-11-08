@@ -183,6 +183,40 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
   zusammen 13,1 -> 13,3 MB. Angesehen: ja menue_leiste_properties (Ereigniszeile bricht zwischen den Zeichen um), zh
   menue_leiste_events, ja menue_reiter_text.
 
+## MR5 Punkt 5: Original-JKA grosse GLA - offen
+
+- Quelle: `com_unfocused`/`com_minimized` gibt es nur in OpenJK (SDL-Fenster); dort drosseln sie nur die Bildrate
+  (common.cpp:1405-1408 `com_maxfpsUnfocused`/`com_maxfpsMinimized`), sie halten nichts an. Das Original (jasp.exe, Raven-Quelle
+  win32/win_main.cpp, win_wndproc.cpp) kennt sie nicht: VID_AppActivate setzt nur `g_wv.activeApp`/`isMinimized`, die Hauptschleife
+  schlaeft nur minimiert (Sleep 5) und im Debug-Bau ohne Fokus (Sleep 50). Auch cl_main.cpp pausiert nicht nach dem Fokus.
+  Stufe 6/7 liefen im Original ohne Fokus (Endlage < 1 px).
+- Neu gemessen (Steam angemeldet, vor jedem Start geprueft, kein fremder jasp, GameData danach gleich):
+  - `o0`: derselbe Aufbau wie MR4 (`ms0kart`, `npc spawn kyle ms0npc`, `runscript ms0npc ms0/kam3`), aber ganz OHNE Karten-GLA - das
+    Skript startet ebenso nicht (Kamera bleibt, 20 Fotos 15-72 s). Also nicht die GLA und nicht ihre Groesse.
+  - `o0a`: wie o0, dazu dem eigenen Spielfenster dreimal WM_ACTIVATE (WA_ACTIVE) geschickt (nur die Nachricht, Vordergrund blieb bei
+    der fremden PID): keine Wirkung, kein "AppActivate" im Protokoll (developer 1).
+  - Der Lauf vom 04.11. (Stufe 0) mit gleicher cfg und gleichem Skript lief; sein Protokoll endet genauso (runscript erscheint nie im
+    Protokoll). Was sich seitdem unterscheidet, ist nicht gefunden.
+- Offen: Ursache, warum das Skript im Original seit dem 08.11. nicht anlaeuft; damit bleibt die grosse GLA im Original ungemessen.
+  Fokus wird nicht gebraucht (Quelle), ein Weg mit Fokus waere ohnehin nicht erlaubt. Skripte `Y:\werkzeuge\m4\ms6\orig_akt.py`,
+  Laeufe `Y:\werkzeuge\m4\ms6\laeufe\o0`, `o0a`, Uebersichten `Y:\werkzeuge\m4\m5\o0_uebersicht.png`, `o0a_uebersicht.png`.
+
+## MR5 Schluss
+
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 238/238 (237 mit -j 12, `q3map2_pr316`
+  allein danach).
+- Selbsttests nach dem Neubau: Modus 1 `m5_modus1` 2635/0, `m5_cjk_ja` / `m5_cjk_zh` (cjkweit) je 17/0; menueeditor en/ja/es je
+  2784/0 (Punkt 1, danach nur DXT/Handbuch geaendert).
+- Lints wie die Basis: portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, alle anderen ok.
+  Handbuch `--pruefen` ok.
+
+## MR5 Offen
+
+- Zeit allein (Fremdlast durch andere Agenten die ganze Zeit): DXT-Kosten beim Laden einer Karte unter JKA/JK2 (ctest-Ausgabe nur
+  als Anhalt 35,0 -> 3,4 ms je 1024er-Bild samt Pyramide), dazu weiter Bild-/Ladezeit CJK aus MR4.
+- Original-JKA grosse GLA (Punkt 5): Skript startet im Original seit 08.11. auch ohne Karten-GLA nicht; Ursache offen.
+- Menue-Editor-Bildlauf ja/zh: 6/7 rote Zeilen (Altbestand seit 03.11.), die Bilder danach blieben alt.
+
 ## Changelog
 
 ## English
