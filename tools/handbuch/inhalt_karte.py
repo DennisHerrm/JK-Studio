@@ -1,6 +1,7 @@
 """Karte und Szene: Karte, Entities, Wegpunkte (dazu inhalt_szene)."""
 from inhalt_basis import T
 import inhalt_merge2
+import inhalt_rest3
 import inhalt_mr4
 import inhalt_szene
 
@@ -61,6 +62,8 @@ KARTE = {
         )),
         inhalt_mr4.dxt_notiz(),   # MR5: Texturkompression wie das Spiel (JKA/JK2)
         inhalt_merge2.lod_notiz(),   # MERGE2: Detailstufen der Figuren wie G2_ComputeLOD
+        inhalt_rest3.sprite_notiz(),   # REST3: autosprite/autosprite2 auf dem Prozessor wie im Spiel
+        inhalt_rest3.grafikkarte_notiz(),   # REST3 Punkt 7: Bitgleichheit auf anderen Grafikkarten
         ("note", T(
             "**{{MapMsaa}}** in the view settings smooths the edges of surfaces with several samples per pixel, like r_ext_multisample in the game; textures stay as they are. Like the game is 8 under Movie Duels (asked in the game) and off under OpenJK, the original Jedi Academy and Jedi Outcast. It costs about 0.4 ms per picture at 1350 x 930.",
             "**{{MapMsaa}}** in den Ansichtseinstellungen glättet die Kanten der Flächen mit mehreren Proben je Bildpunkt, wie r_ext_multisample im Spiel; die Texturen bleiben, wie sie sind. Wie das Spiel heißt unter Movie Duels 8 (im Spiel abgefragt) und unter OpenJK, dem Original-Jedi-Academy und Jedi Outcast aus. Es kostet bei 1350 x 930 rund 0,4 ms je Bild.",

@@ -288,7 +288,10 @@ float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d
             // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency) mit der Tafel art - 1
             precise float scale = d.x;
             if (art > 1u) {
-                precise float off = (p.x + p.y + p.z) * d3[k];
+                // REST3 Punkt 7: der Spread des Platzes als Auswahl - d3[k] mit laufendem k uebersetzte fxc als dp4 mit einer
+                // Einheitszeile (D3D11.3 3.1.3.2: dp4 ist nicht genau gerundet; mit 0 und 1 zwar genau, aber nicht zugesichert)
+                precise float spread = (k == 0) ? d3.x : ((k == 1) ? d3.y : d3.z);
+                precise float off = (p.x + p.y + p.z) * spread;
                 scale = wellenWert(d, (float)(art - 1u), off);
             }
             precise float3 v = n * scale;
@@ -1436,7 +1439,13 @@ struct VSOut {
         // (code/rd-vanilla/tr_shade.cpp:1675-1680 MD): st = (xyz . v0, xyz . v1)
         // mit tess.xyz nach den deformVertexes; an einem Brush-Modell im Raum
         // des Modells - wie `welt` hier (die Stellung steckt in gViewProj).
-        s += "    aus.uv = float2(dot(welt, gTcGenS.xyz), dot(welt, gTcGenT.xyz));\n";
+        // REST3 Punkt 7: DotProduct (q_math.h) wie im Spiel x*v0 + y*v1 + z*v2 von links, getrennt und precise - dot() wurde dp3
+        // (D3D11.3 3.1.3.2: verschmolzen, nicht genau gerundet)
+        s += "    {\n";
+        s += "        precise float tvS = welt.x * gTcGenS.x + welt.y * gTcGenS.y + welt.z * gTcGenS.z;\n";
+        s += "        precise float tvT = welt.x * gTcGenT.x + welt.y * gTcGenT.y + welt.z * gTcGenT.z;\n";
+        s += "        aus.uv = float2(tvS, tvT);\n";
+        s += "    }\n";
     } else {
         s += "    aus.uv = ein.uv;\n";
     }

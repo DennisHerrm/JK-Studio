@@ -210,7 +210,7 @@ int main() {
         erwarte("tcGen vector: s-Vektor bei 36", f[kTcGenSAt + 1] == v[1] && f[kTcGenSAt + 0] == 0.0F && f[kTcGenSAt + 2] == 0.0F);
         erwarte("tcGen vector: t-Vektor bei 40", f[kTcGenTAt + 2] == v[5] && f[kTcGenTAt + 1] == 0.0F);
         erwarte("tcGen vector: der Shader rechnet dot(welt, ...)",
-                vertexShaderHlsl(kTexGenVec, 0).find("dot(welt, gTcGenS.xyz)") != std::string::npos);
+                vertexShaderHlsl(kTexGenVec, 0).find("precise float tvS = welt.x * gTcGenS.x + welt.y * gTcGenS.y + welt.z * gTcGenS.z;") != std::string::npos);
     }
     erwarte("der Shader hat gDeform als float4",
             vertexShaderHlsl(kDeform, 0).find("float4 gDeform;") != std::string::npos);

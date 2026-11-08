@@ -7575,3 +7575,5 @@ from inhalt_mr4 import CS as _MR4  # noqa: E402
 TEXTE.update(_MR4)
 from inhalt_merge2 import CS as _MERGE2  # noqa: E402
 TEXTE.update(_MERGE2)
+from inhalt_rest3 import CS as _REST3  # noqa: E402
+TEXTE.update(_REST3)
