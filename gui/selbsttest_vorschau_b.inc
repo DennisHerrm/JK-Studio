@@ -1519,7 +1519,8 @@ std::vector<Schritt> tripMineSchritte() {
                       aufrufe, huelle, static_cast<double>(achsAbw), static_cast<double>(weltAbw), static_cast<double>(skalaAbw),
                       ohneSkala);
         diag::detail(z);
-        return aufrufe > 1 && achsAbw < 1e-5F && weltAbw < 1e-5F && skalaAbw < 1e-5F && ohneSkala == 0;
+        // REST3 Punkt 6: an der ersten Falle zwei Aufrufe - der Gegenstand und seine Huelle (gfx/effects/solidWhite_cull, CG_Item)
+        return aufrufe > 1 && huelle == 2 && achsAbw < 1e-5F && weltAbw < 1e-5F && skalaAbw < 1e-5F && ohneSkala == 0;
     }));
     add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
     // rc604: laserTrapThink macht scharf (wp_trip_mine.cpp:140-146 OpenJK) -

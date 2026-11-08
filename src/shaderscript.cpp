@@ -583,7 +583,11 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // Blick auf die Bedingung selbst hat es gezeigt.
                 // Menue-Editor M2: auch ein Shader nur aus videoMap-Stufen (gfx/menus/videologo)
                 const bool nurVideo = std::any_of(stages.begin(), stages.end(), [](const ShaderInfo::Stage& s) { return !s.video.empty(); });
-                if (!name.empty() && (!found.empty() || !skyBox.empty() || nurVideo)) {
+                // REST3 Punkt 6: auch ein Shader nur aus "map $whiteimage"-Stufen (gfx/effects/solidWhite_cull, die Huelle eines
+                // liegenden Lichtschwerts, CG_Item cg_ents.cpp:1075-1100 OpenJK) - ParseStage bindet tr.whiteImage
+                // (tr_shader.cpp:1236-1255), der Shader ist gueltig. Bis REST3 fehlte er in der Tabelle.
+                const bool nurWeiss = std::any_of(stages.begin(), stages.end(), [](const ShaderInfo::Stage& s) { return s.weiss; });
+                if (!name.empty() && (!found.empty() || !skyBox.empty() || nurVideo || nurWeiss)) {
                     ShaderInfo info;
                     info.image = found;
                     for (int k = 0; k < numTexMods; ++k) {

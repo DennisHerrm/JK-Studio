@@ -78,6 +78,17 @@ int main() {
         pruefe(lm.size() == 3U && lm[0].stufe == 0U, "$lightmap an einer Figur: tr.whiteImage, Stufe 0 bleibt (" +
                                                        std::to_string(lm.size()) + " Stufen)");
     }
+    // REST3 Punkt 6: ein Shader nur aus $whiteimage (wortgleich aus assets1.pk3 shaders/gfx2.shader) - die Huelle eines liegenden
+    // Lichtschwerts (CG_Item). Bis REST3 legte parseShaderScript ihn nicht ab (kein Bild), die Huelle fehlte.
+    {
+        ShaderMap w;
+        parseShaderScript("gfx/effects/solidWhite_cull\n{\n\tnomipmaps\n    {\n        map $whiteimage\n        blendFunc GL_ONE GL_ONE\n"
+                          "        rgbGen vertex\n    }\n}\n",
+                          w);
+        const auto it = w.find("gfx/effects/solidwhite_cull");
+        pruefe(it != w.end() && figurStufen(it->second).size() == 1U && figurStufen(it->second)[0].weiss,
+               "solidWhite_cull: Shader nur aus $whiteimage steht in der Tabelle, eine weisse Stufe");
+    }
     const auto& bd = figurStufen(m["models/players/battledroid/arms"]);
     pruefe(bd.size() == 4U, "Kampfdroide: vier Stufen");
     if (bd.size() == 4U) {

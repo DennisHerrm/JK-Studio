@@ -2274,6 +2274,13 @@ void schwertLeuchtenZeichnen(const App::GegenstandGlm& gg, const App::ActorAsset
         huelle = g_app->schwertHuellen
                      .emplace(gg.pfad, texturenMitShader(as.model, "gfx/effects/solidWhite_cull", FigurFarbe::Entity))
                      .first;
+        if (huelle->second.stufen.empty()) {
+            const auto sh = g_app->shaderMap.find("gfx/effects/solidwhite_cull");
+            diag::info("Schwertleuchten: Huelle gfx/effects/solidWhite_cull fuer " + gg.pfad + " nicht zeichenbar - Shader " +
+                       (sh == g_app->shaderMap.end() ? std::string("nicht in der Tabelle (") + std::to_string(g_app->shaderMap.size()) + " Eintraege)"
+                                                     : "da, " + std::to_string(sh->second.stages.size()) + " Stufen") +
+                       ", Modellflaechen " + std::to_string(as.model.surfaces.size()));
+        }
     }
     if (!huelle->second.stufen.empty()) {
         gpu::FigurLicht l = licht;
