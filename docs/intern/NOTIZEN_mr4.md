@@ -91,7 +91,22 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 
 ## Schluss
 
+- Sauberer Neubau (`--clean-first`) 0 Warnungen; ctest 238/238 (237 mit -j 12, `q3map2_pr316` allein danach). Rot dabei:
+  `hilfe_orte` - der Generator las `ImGui::TextDisabled(tr(...))` im Pfade-Dialog, nach der Umstellung fehlte `PathsJk2Note` im
+  Helfer-Index; `tools/gen_hilfe_orte.py` liest jetzt auch `cjkText*` (Index wieder gleich). Ebenso `lint_imgui_context` 3 ->
+  0 (cjkText* schicken immer ein Element ab) und `lint_doppelanzeige` (liest auch cjkText*).
+- Selbsttests: Modus 1 `m4_modus1` 2635/0, `m4_rdcjk_ja`/`_zh` 13/0, `m4_cjk_gr3_*` 17/0, `m4_hell_gr`/`m4_hell_md` 5/0,
+  `m4_mission1` 98/0, `m4_menueeditor` 2780/4 (nur M6 Fluss: "1 Menues" statt 4 - dasselbe Bild schon am 06.11. in
+  `e10_menueeditor_es` und `r2be_me_ja` unter `Y:\karte\laeufe`, also Altbestand; der Fluss rechnet ohne Text). Lints wie die Basis (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung
+  wie vorher), `lint_cjkumbruch` 0, Handbuch `--pruefen` ok.
+
 ## Offen
+
+- Original-JKA: grosse Karten-GLA nicht gemessen (Spiel haelt ohne Fokus an, Ausnahme nur fuer Movie Duels).
+- Bildzeit und Ladezeit: CJK-Umbruch (nur ja/zh mit Umbruch) und DXT beim Hochladen unter JKA/JK2 nicht gemessen (allein, Hauptchat).
+- Gegenprobe DXT auf einer weiteren Karte des Originals (hier nur Standardbild und Requisit).
+- Handbuchtext zur Vorschau (DXT unter JKA/JK2) nicht ergaenzt; Changelog steht unten.
+- Menue-Editor-Seitenleisten in ja/zh nicht neu fotografiert (nur Startflaeche, Helfer, KI, Ueber).
 
 ## Changelog
 

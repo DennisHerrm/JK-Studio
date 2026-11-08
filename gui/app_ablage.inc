@@ -2360,6 +2360,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                     t.rgbConst[k] = it->second.rgbConst[k];
                 }
                 t.ausSkript = true;
+                t.keinTc = it->second.noTC;
                 t.lightmapStufe = it->second.lightmapStufe;
                 t.rgbVertex = it->second.rgbVertex;
                 t.srcFactor = it->second.srcFactor;

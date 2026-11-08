@@ -756,6 +756,8 @@ std::vector<Schritt> spielSchritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto undo0 = std::make_shared<std::size_t>(0);   // Rueckgaengig-Schritte der Karte vor dem Requisit
     add(tu("MD Spiel: Spielordner, Modus Events", [] {
+        // MR4 Punkt 7: BHED_MB_SPIEL=jka - Daten und Regeln des Original-JKA (Vergleich mit dem Spielfoto des Originals)
+        if (const char* sp = std::getenv("BHED_MB_SPIEL"); sp != nullptr && std::string(sp) == "jka") { mb1::spielSetzen("jka"); }
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         g_app->leftMode = 0;
     }));

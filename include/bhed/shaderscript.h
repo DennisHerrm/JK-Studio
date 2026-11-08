@@ -777,6 +777,8 @@ struct ShaderInfo {
     //
     // In den Shadern von MD_Maps_Ep3 stehen 21 solche Flaechen.
     bool polygonOffset = false;
+    // MR4 Punkt 7: noTC (tr_shader.cpp:2324) - R_FindImageFile mit allowTC = false, die Bilder bleiben unkomprimiert.
+    bool noTC = false;
 };
 
 // Shadername -> was wir davon wissen.
