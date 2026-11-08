@@ -254,6 +254,48 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
   Vorrat 24 Bit) auch im Original. GameData nach jedem Lauf gleich, vor jedem Start Steam/ActiveUser geprueft, kein fremder jasp.
 - Laeufe und Skripte: `Y:\werkzeuge\m4\ms6\` (`orig_m6.py`, `cfg_m6*.cfg`, `laeufe\m6_*`).
 
+## MR6 Punkt 2: Bildlauf des Menue-Editors ja/zh gruen, Bilder neu
+
+Die 6 (ja) bzw. 7 (zh) roten Zeilen aus `m5_mb_ja`/`m5_mb_zh` (seit 03.11. auch in en, `er1mbilder`: "Codebereich 154 Punkte") hatten
+fuenf Ursachen - drei im Programm, zwei im Test:
+
+- **Suchzeile des Text-Editors (Programm):** Feld fest 14 Zeichen breit, dahinter `.*`, `Aa`, `ab` ohne Umbruch - in der schmalen
+  Spalte (Bildlauf 17 Zeichen, von Hand ab 16) lagen `Aa` und `ab` rechts ausserhalb (ScrollMax.x 154, nicht erreichbar). Jetzt gibt
+  das Feld bis 6 Zeichen nach, danach brechen die Schalter um (`daneben`); das Ersetzen-Feld hoechstens so breit wie die Spalte.
+- **Linke Spalte bei wenig Platz (Programm):** die Enge wird nur gerechnet, solange ein Dokument offen ist. "Links" endet bei 200 % mit
+  offener linker Spalte und schliesst alles; "Eng" oeffnet bei 1920 x 1080 / 200 % ein neues Dokument - die Enge stand noch von vorher,
+  der Wechsel "eng" fand nicht statt, die Spalte blieb offen. Jetzt vergisst der Zustand die Enge ohne Dokument. Neue Vorstufe in
+  `schritteEng` stellt genau diese Folge nach (bisher nur im vollen Bildlauf sichtbar).
+- **zh "复制" zweimal im Rechtsklickmenue (Programm/Uebersetzung):** EntDuplicate hiess wie ActCopy; der Test klickte zweimal "Kopieren".
+  zh EntDuplicate jetzt "创建副本" (wie Windows/Office), Handbuch zh neu erzeugt; die Pruefung des Kontextmenues verlangt jetzt in jeder
+  Sprache, dass kein Befehl zweimal gleich heisst.
+- **M5 Layout "Aufloesen" (Test):** nach der neuen Auswahl beginnt die Spalte oben; in der schmalen Spalte lag der Abschnitt Layout
+  darunter. Wie vor dem Spacer wird jetzt zum Abschnitt gerollt.
+- **3b Felder (Test):** `insBild` fand das Feld nicht, wenn es unter dem Rand lag (wird nicht gezeichnet), und rollte dann gar nicht -
+  das Foto `menue_felder_bedingung` zeigte das Feld nicht, der Klick auf die Auswahl ging daneben; "##wx" lag nach dem Rollen auf
+  "Neuer Wert" oberhalb. Jetzt rollt `insBild` seitenweise, bis das Feld da ist, und holt es ganz ins Bild (auch nach oben).
+
+| Pruefung | rot | gruen |
+|---|---|---|
+| voller Bildlauf ja / zh | `m5_mb_ja` 571/6, `m5_mb_zh` 570/7 | `m6_mb_ja` 579/0, `m6_mb_zh` 579/0 (keine "nicht gewertet"-Zeile) |
+| Teil m5 ja / zh | `m6_rot_m5_ja` 9/1 | `m6_gr_m5_ja`, `_zh` je 10/0 |
+| Teil feldneu ja / zh | `m6_rot_feldneu_ja`, `_zh` je 6/2 | `m6_gr_feldneu_ja`, `_zh` je 8/0 |
+| Teil kontext zh | `m6_rot_kontext_zh` 50/1 | `m6_gr_kontext_zh` 51/0 |
+| Teil eng (neue Vorstufe, Programm ohne die Behebung) | `m6_rot2_eng_en` 4/3 (normaler Lauf), `m6_rot2_eng_ja` 4/2 (Bildlauf) | `m6_gr_eng_ja`, `_zh` je 7/0 |
+
+- Bilder: alle 59 Handbuchbilder des Menue-Editors, die der Bildlauf erzeugt, je Sprache ja und zh neu (2538 x 1444, darunter die bisher
+  ausgelassenen `menue_reiter_properties`, `menue_ereignisse`, `menue_felder_mehrfach`; `menue_eng_auf/_beide`, `menue_felder_ownerdraw`,
+  `menue_kontext_leer` hat das Handbuch nicht). Angesehen: ja `menue_reiter_text` (Suchzeile mit `.*` `Aa` `ab` ganz), ja
+  `menue_felder_mehrfach` (jetzt mit der Liste One/Two statt dem Kopf der Spalte), ja `menue_reiter_properties`, zh `menue_kontext`
+  (复制 und 创建副本 getrennt).
+
+## MR6 Punkt 3: ja "ファイルのキー" in der rechten Leiste
+
+- Nicht abgeschnitten: neue strenge Pruefung im Teil Leiste ("File keys steht ganz in der Spalte", ohne die halbe Lueckenbreite, die
+  `klick` zulaesst). Bildlauf (schmalste Spalte, 17 Zeichen) ja: Schalter 2327..2493, sichtbar bis 2493 - endet genau am Rand; zh
+  ebenso gruen (`m6_mb_ja`/`_zh`, `m6_gr_leiste_ja` 104/0). In der Vergroesserung stehen "ファイルのキー" und "文件键" ganz da; das Suchfeld
+  davor gibt den Platz ab (`breit - sb`). Keine Aenderung am Programm noetig; die Bilder sind mit Punkt 2 neu.
+
 ## Changelog
 
 ## English
@@ -262,6 +304,9 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Preview under Jedi Academy and Jedi Outcast: textures are compressed like in the game (S3TC), so colours match the original exactly; Movie Duels stays uncompressed like the game.
 - Menu editor: the menu flow and the tab order no longer show the menus of a document that was closed before.
 - Preview under Jedi Academy and Jedi Outcast: the texture compression is about ten times faster, with exactly the same picture.
+- Menu editor: in a narrow right column the search line of the text editor wraps its switches (Aa, ab) instead of pushing them out of view.
+- Menu editor: with little space the left column closes again for every newly opened menu, also after all menus were closed.
+- Chinese: "Duplicate" in right-click menus now reads 创建副本 and no longer looks like "Copy" (复制).
 
 ## Deutsch
 
@@ -269,6 +314,9 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Vorschau unter Jedi Academy und Jedi Outcast: Texturen werden wie im Spiel komprimiert (S3TC), die Farben stimmen jetzt genau mit dem Original überein; Movie Duels bleibt wie das Spiel unkomprimiert.
 - Menü-Editor: Menüfluss und Tab-Reihenfolge zeigen nicht mehr die Menüs eines vorher geschlossenen Dokuments.
 - Vorschau unter Jedi Academy und Jedi Outcast: Die Texturkompression ist etwa zehnmal schneller, das Bild bleibt genau gleich.
+- Menü-Editor: In einer schmalen rechten Spalte bricht die Suchzeile des Text-Editors ihre Schalter (Aa, ab) um, statt sie aus dem Bild zu schieben.
+- Menü-Editor: Bei wenig Platz geht die linke Spalte für jedes neu geöffnete Menü wieder zu, auch nachdem alle Menüs geschlossen waren.
+- Chinesisch: „Duplizieren“ heißt in Rechtsklickmenüs jetzt 创建副本 und sieht nicht mehr aus wie „Kopieren“ (复制).
 
 ## 中文
 
@@ -276,6 +324,9 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Jedi Academy 和 Jedi Outcast 下的预览:纹理像游戏中一样压缩(S3TC),颜色与原版完全一致;Movie Duels 与游戏一样保持不压缩。
 - 菜单编辑器:菜单流程和 Tab 顺序不再显示之前已关闭文档的菜单。
 - Jedi Academy 和 Jedi Outcast 下的预览:纹理压缩快了约十倍,画面完全相同。
+- 菜单编辑器:右侧栏较窄时,文本编辑器的搜索行会把开关(Aa、ab)换到下一行,而不是挤出视野。
+- 菜单编辑器:空间不足时,每个新打开的菜单都会再次收起左侧栏,即使之前关闭了所有菜单。
+- 中文:右键菜单中的“Duplicate”现在显示为“创建副本”,不再与“复制”(Copy)相同。
 
 ## 日本語
 
@@ -283,6 +334,9 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Jedi Academy と Jedi Outcast でのプレビュー:テクスチャをゲームと同じように圧縮(S3TC)するため、色がオリジナルと正確に一致します。Movie Duels はゲームと同じく非圧縮のままです。
 - メニューエディター:メニューフローとタブ順序に、前に閉じたドキュメントのメニューが表示されなくなりました。
 - Jedi Academy と Jedi Outcast でのプレビュー:テクスチャ圧縮が約 10 倍速くなり、画面はまったく同じです。
+- メニューエディター:右の列が狭いとき、テキストエディターの検索行はスイッチ(Aa、ab)を見えない所へ押し出さず、次の行に折り返します。
+- メニューエディター:スペースが少ないとき、すべてのメニューを閉じた後でも、新しく開いたメニューごとに左の列が再び閉じます。
+- 中国語:右クリックメニューの「Duplicate」は「创建副本」と表示され、「Copy」(复制)と同じに見えなくなりました。
 
 ## Español
 
@@ -290,6 +344,9 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Vista previa con Jedi Academy y Jedi Outcast: las texturas se comprimen como en el juego (S3TC), así los colores coinciden exactamente con el original; Movie Duels sigue sin comprimir, como el juego.
 - Editor de menús: el flujo de menús y el orden de tabulación ya no muestran los menús de un documento cerrado antes.
 - Vista previa con Jedi Academy y Jedi Outcast: la compresión de texturas es unas diez veces más rápida, con exactamente la misma imagen.
+- Editor de menús: con la columna derecha estrecha, la línea de búsqueda del editor de texto pasa sus interruptores (Aa, ab) a la línea siguiente en lugar de sacarlos de la vista.
+- Editor de menús: con poco espacio, la columna izquierda vuelve a cerrarse para cada menú abierto, también después de cerrar todos los menús.
+- Chino: «Duplicar» en los menús del botón derecho ahora es 创建副本 y ya no se ve igual que «Copiar» (复制).
 
 ## Čeština
 
@@ -297,3 +354,6 @@ Build `Y:/mr4/build-mr4` (wie `Y:/karte/build-test`), Laeufe `m4_*` unter `Y:\mr
 - Náhled pro Jedi Academy a Jedi Outcast: textury se komprimují jako ve hře (S3TC), takže barvy přesně odpovídají originálu; Movie Duels zůstává jako hra bez komprese.
 - Editor nabídek: tok nabídek a pořadí tabulátoru už neukazují nabídky dříve zavřeného dokumentu.
 - Náhled pro Jedi Academy a Jedi Outcast: komprese textur je zhruba desetkrát rychlejší, obraz zůstává přesně stejný.
+- Editor nabídek: v úzkém pravém sloupci vyhledávací řádek textového editoru zalomí své přepínače (Aa, ab) na další řádek, místo aby je vysunul z obrazu.
+- Editor nabídek: při nedostatku místa se levý sloupec znovu zavře pro každou nově otevřenou nabídku, i když byly předtím všechny nabídky zavřené.
+- Čínština: „Duplikovat“ v nabídkách pravého tlačítka je nyní 创建副本 a už nevypadá stejně jako „Kopírovat“ (复制).

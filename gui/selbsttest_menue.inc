@@ -799,6 +799,15 @@ std::vector<Schritt> schritteM5() {
     // Aufloesen: Kommentar weg, rects bleiben
     add(tu("M5 Layout: knopf1 waehlen", [] { me::waehle(me::itemNummer("knopf1"), false); }));
     add(pause(0.2));
+    // MR6: Die neue Auswahl beginnt die Spalte oben; in der schmalen Spalte des Bildlaufs lag der Abschnitt Layout darunter
+    // ("Aufloesen" nicht gefunden) - wie vor dem Spacer zum Abschnitt rollen
+    add(tu("M5 Layout: wieder zum Abschnitt rollen", [] {
+        for (ImGuiWindow* x : GImGui->Windows) {
+            const std::string n = x->Name;
+            if (x->WasActive && n.find("/##inhalt_") != std::string::npos && n.find("##rechts") != std::string::npos) { ImGui::SetScrollY(x, x->ScrollMax.y); }
+        }
+    }));
+    add(pause(0.3));
     add(klick(tr(Str::MeLayoutAufloesen)));
     add(pause(0.3));
     add(pruefe("M5 Layout: Aufloesen entfernt nur die Kommentarzeile", [st, rect] {

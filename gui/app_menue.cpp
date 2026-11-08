@@ -3637,17 +3637,22 @@ float hakenBreite(const char* text) {
 
 void zeichneSuchleiste(Dokument& d) {
     Zustand& z = Z();
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    const float fs = ImGui::GetFontSize();
+    // MR6: In der schmalen Spalte (ab 16 Zeichen) schoben die 14 Zeichen des Felds "Aa" und "ab" ueber den Rand (154 Punkte
+    // im Bildlauf, nicht zu erreichen). Das Feld gibt bis 6 Zeichen nach, danach brechen die Schalter um.
+    const float sp = ImGui::GetStyle().ItemSpacing.x;
+    const float haken = hakenBreite(".*") + hakenBreite("Aa") + hakenBreite("ab") + sp * 3.0F;
+    ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x - haken, fs * 6.0F, fs * 14.0F));
     if (z.suchFokus) {
         ImGui::SetKeyboardFocusHere();
         z.suchFokus = false;
     }
     bool neu = eingabe("##such", &z.such);
-    ImGui::SameLine();
+    daneben(hakenBreite(".*"));
     neu |= ImGui::Checkbox(".*", &z.suchOpt.regex);
-    ImGui::SameLine();
+    daneben(hakenBreite("Aa"));
     neu |= ImGui::Checkbox("Aa", &z.suchOpt.gross);
-    ImGui::SameLine();
+    daneben(hakenBreite("ab"));
     neu |= ImGui::Checkbox("ab", &z.suchOpt.wort);
     daneben(hakenBreite(tr(Str::MeInAllen)));
     ImGui::Checkbox(tr(Str::MeInAllen), &z.inAllen);
@@ -3687,7 +3692,7 @@ void zeichneSuchleiste(Dokument& d) {
     if (ImGui::ArrowButton("##vor", ImGuiDir_Down) || (neu && !t.empty())) { naechster(true); }
     if (ImGui::IsKeyPressed(ImGuiKey_Enter) && ImGui::IsItemFocused()) { naechster(!ImGui::GetIO().KeyShift); }
     // rc608 Punkt 17: Suchen und Ersetzen gehoeren zusammen, mit den Beschriftungen des Skript-Bereichs (drawFindDialog)
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    ImGui::SetNextItemWidth(std::min(fs * 14.0F, ImGui::GetContentRegionAvail().x));
     if (z.ersatzFokus) {
         ImGui::SetKeyboardFocusHere();
         z.ersatzFokus = false;
@@ -7290,6 +7295,9 @@ void zeichneInnen(float hoehe) {
     d = doc();
     if (d == nullptr) {
         z.halt = {};
+        // MR6: Ohne Dokument gibt es keine Spalten, die Enge wird nicht gerechnet. Blieb sie stehen, ging die linke Spalte beim
+        // naechsten Oeffnen bei wenig Platz nicht mehr zu (offen gelassen vom Dokument davor, Bildlauf "3b Eng").
+        z.spaltenEng = false;
         zeichneProjektLeer();   // M5b: Neues Projekt / Projekt oeffnen
         menueDockOhneMenue();   // dock4: Panels in eigenen Fenstern
         return;
