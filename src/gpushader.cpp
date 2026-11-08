@@ -1400,7 +1400,7 @@ struct VSOut {
     // (verformeEcke, kVerformText), die Welle aus den Tafeln des Spiels, normal mit R_NoiseGet4f, bulge mit refdef.time. Bis FIX5
     // stand hier je Art ein eigener Block: wave mit frac() und sin(t * 2 pi) der Grafikkarte (jede Form als Sinus, frequency 0 wie
     // jede andere), normal mit einer Streufunktion, bulge mit sin(s * breite + Sekunden * tempo), feste Reihenfolge.
-    // REST3: autosprite/autosprite2 (kAutosprite, kAutosprite2) rechnet die CPU samt aller deformVertexes des Shaders wie das Spiel
+    // REST3: autosprite/autosprite2 (beide kAutosprite) rechnet die CPU samt aller deformVertexes des Shaders wie das Spiel
     // (gpu::verformeTess, gpudraw.h; pipelineFor setzt dann keine Verformungsmerkmale) - die Ecke kommt fertig an. Bis REST3 drehte
     // dieser Shader die beim Hochladen vorbereiteten Ecken zur Kamera (Mitte/Richtung/Radius bzw. Mitte der kurzen Kante/Achse).
     const bool verform = (features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U;
@@ -1773,7 +1773,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         // alphaGen: DREI verschiedene Quelltexte, also drei Kuerzel.
         {kAlphaKonst, "_ak"},    {kAlphaEins, "_a1"},
         {kSky, "_sky"},
-        {kAutosprite2, "_a2"},   {kBulge, "_bu"},
+        {kBulge, "_bu"},
         {kDeformMove, "_mv"},    {kDeformNormal, "_dn"},
         {kWolke, "_wk"},
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},

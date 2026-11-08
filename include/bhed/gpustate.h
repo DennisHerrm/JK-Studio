@@ -81,7 +81,7 @@ enum Feature : std::uint32_t {
     kTexGenEnv     = 1U << 5,   //  373 - tcGen environment
     kAlphaTest     = 1U << 6,   //  174 - alphaFunc
     kPolygonOffset = 1U << 7,   //  173 - polygonOffset
-    kAutosprite    = 1U << 8,   //   34 - Ecken zur Kamera drehen
+    kAutosprite    = 1U << 8,   //   34 - autosprite/autosprite2: die Ecken kommen fertig von der CPU (REST3, verformeTess)
     kDeform        = 1U << 9,   //   29 - deformVertexes wave
     kRgbConst      = 1U << 10,  //        rgbGen const
     kSpecular      = 1U << 11,  //        alphaGen lightingSpecular
@@ -122,7 +122,6 @@ enum Feature : std::uint32_t {
     kAlphaEins     = 1U << 16,  //        alphaGen identity   -> 1.0
 
     // --- Die uebrigen deformVertexes (rc592), siehe DeformZusatz --------
-    kAutosprite2   = 1U << 17,  //   98 - um die lange Achse zur Kamera
     kBulge         = 1U << 18,  //   17 - Beulen entlang s
     kDeformMove    = 1U << 19,  //    8 - die Flaeche verschiebt sich
     kDeformNormal  = 1U << 20,  //   11 - die Normalen wackeln
@@ -147,7 +146,7 @@ enum Feature : std::uint32_t {
     // Alles, was Ecken woanders hinlegt als die Datei - Licht- und
     // Nebeldurchgang zeichnen die Flaeche ohne diese Rechnung und lassen
     // sie deshalb aus.
-    kBewegteEcken  = kDeform | kAutosprite | kAutosprite2 | kBulge | kDeformMove,
+    kBewegteEcken  = kDeform | kAutosprite | kBulge | kDeformMove,
 };
 
 struct PipelineState {
@@ -229,7 +228,7 @@ struct PipelineState {
                                         bool festeFarbe = false);
 
 // REST3: Steht autosprite oder autosprite2 in der Folge der deformVertexes? Dann rechnet die CPU alle deformVertexes des Shaders
-// wie das Spiel (gpu::verformeTess, gpudraw.h); pipelineFor setzt nur kAutosprite/kAutosprite2 (keine Rechnung im Vertex-Shader,
+// wie das Spiel (gpu::verformeTess, gpudraw.h); pipelineFor setzt nur kAutosprite (fuer beide; keine Rechnung im Vertex-Shader,
 // Licht- und Nebeldurchgang lassen die Flaeche aus wie bisher), keine Merkmale der Verformung je Ecke.
 [[nodiscard]] bool spriteAufCpu(const DeformZusatz& z) noexcept;
 

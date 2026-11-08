@@ -29,6 +29,8 @@
 #include <d3dcompiler.h>
 #include <windows.h>
 
+#include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <set>

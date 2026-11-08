@@ -58,7 +58,7 @@ int main() {
         uebersetze(n + " figur", figurVertexShaderHlsl(f), "vs_4_0");
     }
     // Zusammen, wie sie auf einer Flaeche stehen koennen.
-    const std::uint32_t alle = kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite2 |
+    const std::uint32_t alle = kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite |
                                kTexGenEnv | kTexMod | kLightmap;
     uebersetze("Verformungen zusammen vs", vertexShaderHlsl(alle, 2), "vs_4_0");
     // FIX5 P38: ohne turb faellt der turb-Teil samt Sinustafel (16 KB als Immediate-Constant-Buffer) aus dem Vertexshader der Karte

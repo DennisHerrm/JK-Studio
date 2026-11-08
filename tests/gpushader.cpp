@@ -72,7 +72,7 @@ int main() {
     beideRichtungen("deformVertexes", kDeform, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     // REST3: autosprite/autosprite2 rechnet die CPU (verformeTess) - der Vertex-Shader reicht die Ecke durch.
     erwarte("autosprite/autosprite2: der Vertex-Shader ist der ohne Merkmal",
-            vertexShaderHlsl(kAutosprite, 0) == vertexShaderHlsl(kNichts, 0) && vertexShaderHlsl(kAutosprite2, 0) == vertexShaderHlsl(kNichts, 0));
+            vertexShaderHlsl(kAutosprite, 0) == vertexShaderHlsl(kNichts, 0));
     beideRichtungen("tcGen environment", kTexGenEnv, "nrm.x * d - 0.5 * v.x", true);
     // rc592: die uebrigen deformVertexes-Formen (RB_DeformTessGeometry).
     beideRichtungen("deformVertexes bulge", kBulge, "welt = verformeEcke(welt, nrm, ein.uv,", true);

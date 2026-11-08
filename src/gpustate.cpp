@@ -233,11 +233,9 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
     } else if (bs.wolkenHoehe > 0.0F) {
         f |= kWolke;
     }
-    if (bs.autosprite) {
+    // REST3: kAutosprite heisst "die Ecken kommen fertig von der CPU" - fuer autosprite und autosprite2 (gpu::verformeTess)
+    if (bs.autosprite || bs.deform2.autosprite2) {
         f |= kAutosprite;
-    }
-    if (bs.deform2.autosprite2) {
-        f |= kAutosprite2;
     }
     // deformVertexes gilt fuer den GANZEN Shader, nicht je Stufe - das war
     // der Fehler aus rc383. Hier steht es deshalb einmal, nicht je Stufe.

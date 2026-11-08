@@ -560,7 +560,7 @@ int main() {
             bs.autosprite = info.autosprite;
             std::vector<float> konst(kKonstFloats, 0.0F);
             packeKonstanten(bs, konst.data(), zeit);
-            const std::uint32_t merkmale = pipelineFor(bs, false).features & (kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite | kAutosprite2);
+            const std::uint32_t merkmale = pipelineFor(bs, false).features & (kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite);
             std::vector<vsstrom::Ecke> ein(te.size());
             for (std::size_t i = 0; i < te.size(); ++i) {
                 ein[i] = vsstrom::Ecke{{te[i].xyz[0], te[i].xyz[1], te[i].xyz[2]}, {te[i].normal[0], te[i].normal[1], te[i].normal[2]},

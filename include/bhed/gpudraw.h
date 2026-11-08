@@ -113,8 +113,8 @@ struct DrawCall {
 // Farbe der ersten Ecke, Wicklung 0,1,3 / 3,1,2), Autosprite2Deform (:444) dreht um die lange Achse mit sqrt und VectorNormalize.
 // Beides braucht alle vier Ecken und genaue Wurzeln; der Vertex-Shader sieht eine Ecke, und sqrt/Division sind in D3D11 nicht
 // genau gerundet. Deshalb rechnet die Vorschau Flaechen mit autosprite oder autosprite2 hier mit denselben float-Ausdruecken wie
-// das Spiel, und der Vertex-Shader reicht die Ecken nur durch (gpumap_win32.cpp, zeichneKarte; die Merkmale kAutosprite und
-// kAutosprite2 tragen dann keine Verformung, gpustate.cpp). Bis REST3 drehte der Vertex-Shader die beim Hochladen vorbereiteten
+// das Spiel, und der Vertex-Shader reicht die Ecken nur durch (gpumap_win32.cpp, zeichneKarte; das Merkmal kAutosprite
+// steht fuer beide und traegt keine Verformung, gpustate.cpp). Bis REST3 drehte der Vertex-Shader die beim Hochladen vorbereiteten
 // Ecken (baueAutosprites/baueAutosprites2): wave/bulge vor autosprite, wave/bulge/normal an autosprite2 und ein zweites autosprite
 // fehlten, autosprite2 war nicht bitgleich (Achse normiert beim Hochladen, Startwert 999999 statt WORLD_SIZE), an Movern stand die
 // Normale des Plaettchens im Raum des Modells, im Spiegel fehlte left = -left, die Ecken folgten dem ersten Auftreten in den
