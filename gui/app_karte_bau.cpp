@@ -34,6 +34,7 @@
 #include "app_internal.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/auswahlsystem.h"
@@ -2082,17 +2083,17 @@ void bauFortschrittZeichnen() {
         ed.bauFortschrittText = rest;
         if (!g_lauf.visWarnung.empty() && st.stufe == "VIS") {   // Stufe 9d
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));   // wie Warnungen in der Konsole
-            ImGui::TextWrapped("%s", g_lauf.visWarnung.c_str());
+            cjkTextWrapped("%s", g_lauf.visWarnung.c_str());
             ImGui::PopStyleColor();
         }
         if (!g_lauf.patchWarnung.empty() && st.stufe == "LIGHT") {   // rc609 L
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));
-            ImGui::TextWrapped("%s", g_lauf.patchWarnung.c_str());
+            cjkTextWrapped("%s", g_lauf.patchWarnung.c_str());
             ImGui::PopStyleColor();
         }
         if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str())) { bauAbbrechen(); }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("%s", trK(Str::KeFsHinweis));
+        cjkTextWrapped("%s", trK(Str::KeFsHinweis));
         ImGui::PopStyleColor();
         // waechst das Fenster nach unten ueber den Arbeitsbereich, rueckt es nach oben
         const ImVec2 pos = ImGui::GetWindowPos();

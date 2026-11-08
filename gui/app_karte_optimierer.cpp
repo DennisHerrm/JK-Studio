@@ -36,6 +36,7 @@
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/texturen.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -994,25 +995,25 @@ void zeichneOptimierer() {
     // Einzelheiten, die Knoepfe sind gesperrt)
     const bool rueck = bspRueckLaeuft();
     if (rueck) {
-        ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", trK(Str::KeRkWarten));
+        cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", trK(Str::KeRkWarten));
         merke("RueckHinweis");
         ImGui::Separator();
     }
     if (g_z.reiter == 0) {
         if (const Bewertung* b = gewaehlteGrenze()) {
             const karte::Grenze& g = *b->grenze;
-            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ampelFarbe(b->ampel)), "%s - %s: %lld / %lld", ampelText(b->ampel), trK(g.titel), b->zaehlung.wert, g.erlaubt);
-            ImGui::TextDisabled("%s", trK(Str::KeOptDefine));
+            cjkTextColored(ImGui::ColorConvertU32ToFloat4(ampelFarbe(b->ampel)), "%s - %s: %lld / %lld", ampelText(b->ampel), trK(g.titel), b->zaehlung.wert, g.erlaubt);
+            cjkTextDisabled("%s", trK(Str::KeOptDefine));
             for (const karte::GrenzStelle& s : g.stellen) {
                 ImGui::BulletText("%s %s:%d  %s = %lld%s", s.baum.c_str(), s.datei.c_str(), s.zeile, s.name.c_str(), s.wert, s.jk2 ? "  (JK2_MODE)" : "");
             }
-            ImGui::Text("%s %s", trK(Str::KeOptPruefstelle), g.pruefstelle.c_str());
-            ImGui::Text("%s %s", trK(Str::KeOptRechnung), g.rechnung.c_str());
-            if (!g.vanillaQuelle.empty()) { ImGui::Text("%s %lld - %s", trK(Str::KeOptVanilla), g.vanilla, g.vanillaQuelle.c_str()); }
-            if (!g.hart) { ImGui::TextDisabled("%s", trK(Str::KeOptWeich)); }
-            if (!b->zaehlung.hinweis.empty()) { ImGui::Text("%s %s", trK(Str::KeOptGezaehlt), b->zaehlung.hinweis.c_str()); }
+            cjkText("%s %s", trK(Str::KeOptPruefstelle), g.pruefstelle.c_str());
+            cjkText("%s %s", trK(Str::KeOptRechnung), g.rechnung.c_str());
+            if (!g.vanillaQuelle.empty()) { cjkText("%s %lld - %s", trK(Str::KeOptVanilla), g.vanilla, g.vanillaQuelle.c_str()); }
+            if (!g.hart) { cjkTextDisabled("%s", trK(Str::KeOptWeich)); }
+            if (!b->zaehlung.hinweis.empty()) { cjkText("%s %s", trK(Str::KeOptGezaehlt), b->zaehlung.hinweis.c_str()); }
             if (!b->zaehlung.beitraege.empty()) {
-                ImGui::TextDisabled("%s", trK(Str::KeOptBeitraege));
+                cjkTextDisabled("%s", trK(Str::KeOptBeitraege));
                 for (std::size_t i = 0; i < b->zaehlung.beitraege.size(); ++i) {
                     const karte::Beitrag& x = b->zaehlung.beitraege[i];
                     const std::string t = std::to_string(x.wert) + "  " + x.ref.text + "##beitrag" + std::to_string(i);
@@ -1021,23 +1022,23 @@ void zeichneOptimierer() {
             }
         }
     } else if (const Befund* b = gewaehlterBefund()) {
-        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ampelFarbe(ampelVonSchwere(b->schwere))), "%s - %s: %lld", schwereText(b->schwere), befundTitel(*b), b->anzahl);
-        if (const PruefText* p = pruefText(b->pruefung)) { ImGui::TextUnformatted(trK(p->erklaerung)); }
-        ImGui::Text("%s %s", trK(Str::KeOptQuelle), b->quelle.c_str());
-        if (!b->detail.empty()) { ImGui::TextDisabled("%s", befundDetail(*b).c_str()); }   // Stufe 6: uebersetzt
-        ImGui::Text("%s %s - %s%s", trK(Str::KeOptVorschau), behebungText(b->behebung), karte::behebungsVorschau(*b).c_str(),
+        cjkTextColored(ImGui::ColorConvertU32ToFloat4(ampelFarbe(ampelVonSchwere(b->schwere))), "%s - %s: %lld", schwereText(b->schwere), befundTitel(*b), b->anzahl);
+        if (const PruefText* p = pruefText(b->pruefung)) { cjkTextUnformatted(trK(p->erklaerung)); }
+        cjkText("%s %s", trK(Str::KeOptQuelle), b->quelle.c_str());
+        if (!b->detail.empty()) { cjkTextDisabled("%s", befundDetail(*b).c_str()); }   // Stufe 6: uebersetzt
+        cjkText("%s %s - %s%s", trK(Str::KeOptVorschau), behebungText(b->behebung), karte::behebungsVorschau(*b).c_str(),
                     b->sicher ? (std::string(" (") + trK(Str::KeOptSicher) + ")").c_str() : "");
-        ImGui::TextDisabled("%s", trK(Str::KeOptObjekte));
+        cjkTextDisabled("%s", trK(Str::KeOptObjekte));
         const std::size_t zeigen = std::min<std::size_t>(b->objekte.size(), 300);
         for (std::size_t i = 0; i < zeigen; ++i) {
             const std::string t = b->objekte[i].text + "##obj" + std::to_string(i);
             if (ImGui::Selectable(t.c_str(), false)) { auswaehlen({b->objekte[i]}); }
         }
-        if (b->objekte.size() > zeigen) { ImGui::TextDisabled("... (%zu)", b->objekte.size()); }
+        if (b->objekte.size() > zeigen) { cjkTextDisabled("... (%zu)", b->objekte.size()); }
     }
     if (!g_z.meldung.empty()) {
         ImGui::Separator();
-        ImGui::TextDisabled("%s", g_z.meldung.c_str());
+        cjkTextDisabled("%s", g_z.meldung.c_str());
     }
     ImGui::PopTextWrapPos();
     ImGui::EndChild();

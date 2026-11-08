@@ -36,7 +36,8 @@ ERLAUBT = {
     # "gpuAufrufe": "Kurzfassung im Menue, Aufstellung in der Leiste",
 }
 
-TEXT = re.compile(r"ImGui::Text\w*\s*\(")
+# MR4 Punkt 5: auch die Texte mit CJK-Umbruch (gui/textumbruch.h: cjkText, cjkTextDisabled, ...)
+TEXT = re.compile(r"(?:ImGui::|\bcjk)Text\w*\s*\(")
 
 
 def main() -> int:

@@ -557,7 +557,7 @@ void zeichneKarte(Dokument& d, int art) {
         lsKartenSymbol(Ls::Gruppe);
         ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextWrapped(trN(Str::MlAuswahlAnzahl, d.auswahl.size()), static_cast<int>(d.auswahl.size()));
+        cjkTextWrapped(trN(Str::MlAuswahlAnzahl, d.auswahl.size()), static_cast<int>(d.auswahl.size()));
     } else if (d.auswahl.empty()) {
         lsKartenSymbol(Ls::Menue);
         ImGui::SameLine();
@@ -570,7 +570,7 @@ void zeichneKarte(Dokument& d, int art) {
         ImGui::EndGroup();
         if (art == 0) {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlNichtsGewaehlt));
+            cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlNichtsGewaehlt));
             ImGui::PopTextWrapPos();
         }
     } else if (static_cast<std::size_t>(d.auswahl[0]) < m.items.size()) {
@@ -757,7 +757,7 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
         const float breit = ImGui::GetContentRegionAvail().x;
         ImGui::AlignTextToFramePadding();
         ImGui::PushTextWrapPos(tw + kb + fs <= breit ? 0.0F : breit);
-        ImGui::TextColored(ImColor(kLsLeise), "%s", b);
+        cjkTextColored(ImColor(kLsLeise), "%s", b);
         ImGui::PopTextWrapPos();
         if (tw + kb + fs <= breit) { ImGui::SameLine(ImGui::GetCursorPosX() + breit - kb); }
         if (ImGui::Button(tr(Str::MlEvBearbeiten))) { z.reiterGewollt = 3; }
@@ -883,7 +883,7 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
             }
             if (video && !l.zaehlen) {
                 ImGui::PushTextWrapPos(0.0F);
-                ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlVideoStumm));
+                cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlVideoStumm));
                 ImGui::PopTextWrapPos();
             }
             if (!l.zaehlen) {
@@ -971,7 +971,7 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
         gruppe("auswahlen", tr(Str::MlFWerteListe), zus, [&] {
             if (l.zaehlen) { return; }
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlFWerteListeTip));
+            cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlFWerteListeTip));
             ImGui::PopTextWrapPos();
             const float x = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x;
             const float breit = (ImGui::GetContentRegionAvail().x - x - ImGui::GetStyle().ItemSpacing.x) * 0.5F;
@@ -1193,14 +1193,14 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
             if (l.zaehlen) { return; }
             ImGui::PushTextWrapPos(0.0F);
             if (n == 0) {
-                ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlMehrNichts));
+                cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlMehrNichts));
             } else {
                 for (const std::string& zeile : z.weitereEintraege) {
                     std::string s = anzeige(zeile);
                     if (!s.empty() && s.back() == '\r') { s.pop_back(); }
-                    ImGui::TextDisabled("%s", s.c_str());
+                    cjkTextDisabled("%s", s.c_str());
                 }
-                ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MeWeitereEintraegeTip));
+                cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MeWeitereEintraegeTip));
                 if (ImGui::Button(tr(Str::MlImTextOeffnen))) {
                     z.reiterGewollt = 1;
                     springe(d, it.anfang);
@@ -1210,7 +1210,7 @@ void eigenschaftenElement(Dokument& d, int mi, int i, const Item& it) {
         }, false);
     } else if (l.trefferGesamt == 0) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImColor(kLsLeise), tr(Str::MlKeinFeld), l.suchRoh.c_str());
+        cjkTextColored(ImColor(kLsLeise), tr(Str::MlKeinFeld), l.suchRoh.c_str());
         ImGui::PopTextWrapPos();
     }
     lsZeilenEnde();
@@ -1242,7 +1242,7 @@ void eigenschaftenMenue(Dokument& d, int mi, const Menu& m) {
         if (!Z().leiste.zaehlen) {
             lsZeilenEnde();
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextColored(ImColor(kLsLeise), "%s", tr(voll ? (d.datei.dialekt == Dialekt::MP ? Str::MeVollbildSatzMp : Str::MeVollbildSatzSp) : Str::MeUeberlagerungSatz));
+            cjkTextColored(ImColor(kLsLeise), "%s", tr(voll ? (d.datei.dialekt == Dialekt::MP ? Str::MeVollbildSatzMp : Str::MeVollbildSatzSp) : Str::MeUeberlagerungSatz));
             ImGui::PopTextWrapPos();
         }
         if (feldKopf(tr(Str::MlFHintergrund), "background", tr(Str::MlFHintergrundTip))) {
@@ -1272,7 +1272,7 @@ void eigenschaftenMehrere(Dokument& d, int mi, const Menu& m) {
         gruppe("alle", tr(Str::MlGrAlle), {}, [&] {
             if (!Z().leiste.zaehlen) {
                 ImGui::PushTextWrapPos(0.0F);
-                ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlAlleSatz));
+                cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlAlleSatz));
                 ImGui::PopTextWrapPos();
             }
             const auto alleSetzen = [dp, mi, mitText](const char* k, const std::string& wert) {
@@ -1301,7 +1301,7 @@ void eigenschaftenMehrere(Dokument& d, int mi, const Menu& m) {
     gruppe("ordnen", tr(Str::MlGrOrdnen), {}, [&] {
         if (Z().leiste.zaehlen) { return; }
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImColor(kLsLeise), "%s", tr(Str::MlOrdnenSatz));
+        cjkTextColored(ImColor(kLsLeise), "%s", tr(Str::MlOrdnenSatz));
         ImGui::PopTextWrapPos();
         layoutKnoepfe(d);
         ImGui::Dummy(ImVec2{1.0F, fs * 0.2F});
@@ -1725,8 +1725,8 @@ int schrittKopf(std::size_t k, std::size_t anzahl, const Baustein& x, bool offen
     if (zielFehlt) { std::snprintf(warn, sizeof(warn), tr(Str::MlZielFehlt), x.args[0].c_str()); }
     const bool keys = g_app->settings.menueDateiSchluessel;
     float h = ImGui::GetTextLineHeight();
-    if (!eineZeile && !zus.empty()) { h += ImGui::CalcTextSize(zus.c_str(), nullptr, false, innen - tupfer).y; }
-    if (warn[0] != '\0') { h += ImGui::CalcTextSize(warn, nullptr, false, innen).y; }
+    if (!eineZeile && !zus.empty()) { h += cjkTextSize(zus.c_str(), nullptr, false, innen - tupfer).y; }
+    if (warn[0] != '\0') { h += cjkTextSize(warn, nullptr, false, innen).y; }
     if (keys) { h += ImGui::GetTextLineHeight(); }
     h = std::max(h + fs * 0.3F, kn);
     const std::string id = "##st" + std::to_string(k);
@@ -1749,17 +1749,17 @@ int schrittKopf(std::size_t k, std::size_t anzahl, const Baustein& x, bool offen
     } else {
         p.y += ImGui::GetTextLineHeight();
         if (!zus.empty()) {
-            dl->AddText(ImGui::GetFont(), fs, p, kLsLeise, zus.c_str(), nullptr, innen - tupfer);
+            cjkAddText(dl, ImGui::GetFont(), fs, p, kLsLeise, zus.c_str(), nullptr, innen - tupfer);
             if (hatFarbe) {
                 const float qx = p.x + innen - tupfer + fs * 0.1F;
                 dl->AddRectFilled(ImVec2{qx, p.y + fs * 0.1F}, ImVec2{qx + fs * 0.8F, p.y + fs * 0.9F}, ImColor(farbe.r, farbe.g, farbe.b, std::max(farbe.a, 0.25F)), 2.0F);
             }
-            p.y += ImGui::CalcTextSize(zus.c_str(), nullptr, false, innen - tupfer).y;
+            p.y += cjkTextSize(zus.c_str(), nullptr, false, innen - tupfer).y;
         }
     }
     if (warn[0] != '\0') {
-        dl->AddText(ImGui::GetFont(), fs, p, kLsGelb, warn, nullptr, innen);
-        p.y += ImGui::CalcTextSize(warn, nullptr, false, innen).y;
+        cjkAddText(dl, ImGui::GetFont(), fs, p, kLsGelb, warn, nullptr, innen);
+        p.y += cjkTextSize(warn, nullptr, false, innen).y;
     }
     if (keys) { dl->AddText(p, IM_COL32(0x94, 0xBF, 0xE9, 255), x.befehl.c_str()); }
     (void)offen;
@@ -2164,7 +2164,7 @@ void zeichneHilfezeile() {
     l.hilfeNeu.clear();
     ImGui::BeginChild("##hilfe", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextColored(ImColor(kLsLeise), "%s", text.c_str());
+    cjkTextColored(ImColor(kLsLeise), "%s", text.c_str());
     ImGui::PopTextWrapPos();
     ImGui::EndChild();
 }

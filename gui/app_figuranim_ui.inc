@@ -685,7 +685,7 @@ void drawPhysik(const FigurDaten& d) {
     const modell::MassenModell mm = modell::massenModell(d.basis, d.rig);
     if (!mm.gueltig()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, modellFehlerText(mm.fehler).c_str()).c_str());
+        cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, modellFehlerText(mm.fehler).c_str()).c_str());
         ImGui::PopTextWrapPos();
         return;
     }
@@ -704,10 +704,10 @@ void drawPhysik(const FigurDaten& d) {
     ImGui::SetItemTooltip("%s", tr(Str::PhKontakteHint));
     ImGui::PushTextWrapPos(0.0F);
     if (d.physik.fluege.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::PhKeinFlug));
+        cjkTextDisabled("%s", tr(Str::PhKeinFlug));
     } else {
         for (const auto& [a, l] : d.physik.fluege) {
-            ImGui::TextUnformatted((format(Str::PhFlug, a, l) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) + ")").c_str());
+            cjkTextUnformatted((format(Str::PhFlug, a, l) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) + ")").c_str());
         }
     }
     ImGui::PopTextWrapPos();
@@ -785,10 +785,10 @@ void drawPhysik(const FigurDaten& d) {
     if (d.physik.warnungen > 0) {
         float weit = 0.0F;
         for (const modell::PhysikBild& pb : d.physik.bilder) { weit = std::max(weit, pb.abstand); }
-        ImGui::TextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::PhWarnung, d.physik.warnBild + (modellBlender() ? 1 : 0), d.physik.warnungen, static_cast<double>(weit)).c_str());
+        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::PhWarnung, d.physik.warnBild + (modellBlender() ? 1 : 0), d.physik.warnungen, static_cast<double>(weit)).c_str());
     }
     if (e.an && e.sprung && !d.physik.fluege.empty()) {
-        ImGui::TextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(d.physik.parabelAbw), static_cast<double>(d.physik.drehimpulsVorher * 100.0F),
+        cjkTextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(d.physik.parabelAbw), static_cast<double>(d.physik.drehimpulsVorher * 100.0F),
                                          static_cast<double>(d.physik.drehimpulsNachher * 100.0F))
                                       .c_str());
     }
@@ -1198,7 +1198,7 @@ void drawBauen() {
     }
     if (ImGui::BeginPopupModal((std::string(tr(Str::FaBauen)) + "###fafrage").c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::PushTextWrapPos(fs * 30.0F);
-        ImGui::TextUnformatted(tr(Str::FaBefunde));
+        cjkTextUnformatted(tr(Str::FaBefunde));
         for (const std::string& b : z.befunde) { ImGui::BulletText("%s", b.c_str()); }
         ImGui::PopTextWrapPos();
         if (ImGui::Button(tr(Str::MbSpTrotzdem))) {
@@ -1439,7 +1439,7 @@ void drawFigurAnimFenster() {
     if (!z.meldung.empty()) {
         ImGui::Separator();
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", z.meldung.c_str());
+        cjkTextDisabled("%s", z.meldung.c_str());
         ImGui::PopTextWrapPos();
     }
     ImGui::End();

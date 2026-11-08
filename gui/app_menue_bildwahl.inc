@@ -210,7 +210,7 @@ void zeichneBildWahl() {
     if (ImGui::Button(abbrechen) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { schliessen = true; }
     if (w.art == 1) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::MlVideoStumm));
+        cjkTextDisabled("%s", tr(Str::MlVideoStumm));
         ImGui::PopTextWrapPos();
     }
     const std::string f = kleinPfad(w.filter);
@@ -285,7 +285,7 @@ void rahmenPlatzhalter(ImDrawList* dl, const Dokument& d, const Menu& m, const A
         const ImVec2 a{aussen.x + ab.x(r.x), aussen.y + ab.y(r.y)}, b{aussen.x + ab.x(r.x + r.w), aussen.y + ab.y(r.y + r.h)};
         const char* text = tr(istVideoRahmen(d, it) ? Str::MlPlatzVideo : Str::MlPlatzBild);
         const float breit = b.x - a.x - fs * 0.5F;
-        const ImVec2 g = ImGui::CalcTextSize(text, nullptr, false, breit);
+        const ImVec2 g = cjkTextSize(text, nullptr, false, breit);
         // Ein spaeterer Rahmen liegt ueber dem Text: Im Bild sieht man nur ihn, und zwei Texte uebereinander waeren unlesbar
         const ImVec2 ta{a.x + (b.x - a.x - g.x) * 0.5F, a.y + (b.y - a.y - g.y) * 0.5F}, tb{ta.x + g.x, ta.y + g.y};
         bool verdeckt = false;
@@ -299,7 +299,7 @@ void rahmenPlatzhalter(ImDrawList* dl, const Dokument& d, const Menu& m, const A
         if (verdeckt) { continue; }
         z.rahmenTexteGezeigt.push_back(static_cast<int>(i));
         dl->PushClipRect(a, b, true);
-        dl->AddText(ImGui::GetFont(), fs, ta, IM_COL32(0xD8, 0xDB, 0xE2, 255), text, nullptr, breit);
+        cjkAddText(dl, ImGui::GetFont(), fs, ta, IM_COL32(0xD8, 0xDB, 0xE2, 255), text, nullptr, breit);
         dl->PopClipRect();
     }
 }

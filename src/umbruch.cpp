@@ -89,8 +89,9 @@ bool hatCjk(std::string_view text) {
     return false;
 }
 
-std::vector<std::pair<std::size_t, std::size_t>> umbruchZeilen(std::string_view text, float breite,
-                                                               const std::function<float(std::string_view)>& messen) {
+namespace {
+// Schritt 1 und 2 von umbruchZeilen: die Stuecke mit den Sperren zu Gruppen zusammengefasst
+std::vector<Stueck> gruppenBilden(std::string_view text) {
     // 1. Stuecke: Leerraum, Zeilenwechsel, je CJK-Zeichen eins, sonst Woerter bis zum naechsten Leerraum oder CJK-Zeichen
     std::vector<Stueck> st;
     for (std::size_t i = 0; i < text.size();) {
@@ -140,6 +141,20 @@ std::vector<std::pair<std::size_t, std::size_t>> umbruchZeilen(std::string_view 
             g.push_back(s);
         }
     }
+    return g;
+}
+}  // namespace
+
+std::size_t gruppeEnde(std::string_view text, std::size_t ab) {
+    for (const Stueck& s : gruppenBilden(text)) {
+        if (s.a >= ab && !s.leer && !s.zeile) { return s.e; }
+    }
+    return text.size();
+}
+
+std::vector<std::pair<std::size_t, std::size_t>> umbruchZeilen(std::string_view text, float breite,
+                                                               const std::function<float(std::string_view)>& messen) {
+    const std::vector<Stueck> g = gruppenBilden(text);
     // 3. gierig fuellen
     std::vector<std::pair<std::size_t, std::size_t>> zeilen;
     std::size_t za = 0;

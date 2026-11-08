@@ -34,6 +34,7 @@
 
 #include "app_internal.h"
 #include "karte_gpu.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/eklasse.h"
@@ -529,7 +530,7 @@ void modellBrowserZeichnen(int breite, int hoehe) {
             if (ImGui::IsItemHovered()) {
                 ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 34.0F, 0.0F});
                 if (ImGui::BeginTooltip()) {
-                    ImGui::TextWrapped("%s", trK(Str::KeModBroMd3Hint));
+                    cjkTextWrapped("%s", trK(Str::KeModBroMd3Hint));
                     ImGui::EndTooltip();
                 }
             }

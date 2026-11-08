@@ -14,6 +14,7 @@
 #include "hilfe.h"
 #include "karteneditor.h"
 #include "platform.h"
+#include "textumbruch.h"
 #include "tour.h"
 #include "menueeditor.h"
 #include "bhed/hilfe.h"
@@ -586,9 +587,9 @@ void frageZeichnen() {
     if (ImGui::Begin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextDisabled("%s", a->quelle.c_str());
         ImGui::PushTextWrapPos(fs * 27.0F);
-        ImGui::TextUnformatted(tr(Str::KiConfirmIntro));
+        cjkTextUnformatted(tr(Str::KiConfirmIntro));
         // Die Zusammenfassung stammt von der KI: als Zitat, nicht als Programmtext.
-        ImGui::TextColored(ImVec4{0.6F, 0.8F, 1.0F, 1.0F}, "\"%s\"", a->zusammenfassung.c_str());
+        cjkTextColored(ImVec4{0.6F, 0.8F, 1.0F, 1.0F}, "\"%s\"", a->zusammenfassung.c_str());
         ImGui::PopTextWrapPos();
         for (const ki::Befehl& b : a->befehle) {
             const std::string text = befehlText(b);
@@ -627,7 +628,7 @@ void protokollZeichnen() {
         for (const Protokoll& p : s.protokoll) {
             ImGui::TextDisabled("%s", p.zeit.c_str());
             ImGui::SameLine();
-            ImGui::TextWrapped("%s | %s -> %s", p.quelle.c_str(), p.was.c_str(), p.ergebnis.c_str());
+            cjkTextWrapped("%s | %s -> %s", p.quelle.c_str(), p.was.c_str(), p.ergebnis.c_str());
         }
     }
     ImGui::End();
@@ -862,7 +863,7 @@ void kiAbschnitt(const char* frage, float breite) {
     const float fs = ImGui::GetFontSize();
     if (ImGui::CollapsingHeader(tr(Str::KiSection))) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-        ImGui::TextDisabled("%s", tr(Str::KiExplain));
+        cjkTextDisabled("%s", tr(Str::KiExplain));
         ImGui::PopTextWrapPos();
         if (ImGui::SmallButton(tr(Str::KiSafety))) { handbuchOeffnen("helfer.html#sicher"); }
         ImGui::Checkbox(tr(Str::KiEnable), &g_app->settings.kiChat);
@@ -929,8 +930,8 @@ void kiAbschnitt(const char* frage, float breite) {
                 if (ImGui::BeginChild("##kiverlauf", ImVec2{breite, fs * 9.0F}, ImGuiChildFlags_Borders)) {
                     ImGui::PushTextWrapPos(0.0F);
                     for (const auto& [q, a] : anzeige) {
-                        ImGui::TextDisabled("%s", q.c_str());
-                        ImGui::TextUnformatted(a.c_str());
+                        cjkTextDisabled("%s", q.c_str());
+                        cjkTextUnformatted(a.c_str());
                         ImGui::Spacing();
                     }
                     ImGui::PopTextWrapPos();
@@ -951,7 +952,7 @@ void kiAbschnitt(const char* frage, float breite) {
             if (!fehler.empty()) { ImGui::TextColored(ImVec4{1.0F, 0.5F, 0.4F, 1.0F}, tr(Str::KiError), fehler.c_str()); }
             if (!antwort.empty() && (laeuft || !fehler.empty() || anzeige.empty() || anzeige.back().second != antwort)) {
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-                ImGui::TextUnformatted(antwort.c_str());
+                cjkTextUnformatted(antwort.c_str());
                 ImGui::PopTextWrapPos();
             }
             if (ImGui::SmallButton(tr(Str::KiLog))) { s.protokollOffen = true; }
@@ -959,7 +960,7 @@ void kiAbschnitt(const char* frage, float breite) {
     }
     if (ImGui::CollapsingHeader(tr(Str::McpSection))) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-        ImGui::TextDisabled("%s", tr(Str::McpExplain));
+        cjkTextDisabled("%s", tr(Str::McpExplain));
         ImGui::PopTextWrapPos();
         static const char* const apps[] = {"Claude Desktop", "Claude Code", "Cursor", "VS Code"};
         for (int i = 0; i < 4; ++i) {

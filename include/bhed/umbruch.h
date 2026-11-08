@@ -25,6 +25,9 @@ namespace bhed {
 // '\n' beendet eine Zeile; ohne CJK-Zeichen bricht die Regel nur an Leerzeichen (wie ImGui).
 [[nodiscard]] std::vector<std::pair<std::size_t, std::size_t>> umbruchZeilen(std::string_view text, float breite,
                                                                             const std::function<float(std::string_view)>& messen);
+// MR4 Punkt 5 (Selbsttest): das Ende der Gruppe, die als erste an oder nach `ab` beginnt (ein Stueck mit den Zeichen, die nach
+// den Sperren an ihm haengen) - so viel muesste in eine Zeile passen, damit sie nicht vorher umbricht.
+[[nodiscard]] std::size_t gruppeEnde(std::string_view text, std::size_t ab);
 
 }  // namespace bhed
 

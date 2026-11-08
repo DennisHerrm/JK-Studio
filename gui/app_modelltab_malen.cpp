@@ -8,6 +8,7 @@
 #include "app_internal.h"
 #include "backend.h"
 #include "gpumap.h"
+#include "textumbruch.h"
 
 #include "bhed/image.h"
 #include "bhed/modell/malen.h"
@@ -1143,7 +1144,7 @@ void drawModellMalenBereich() {
         ImGui::Checkbox(tr(Str::PtDruckStaerke), &z.druckStaerke);
         ImGui::SetItemTooltip("%s", tr(Str::PtDruckStaerkeHint));
         ImGui::PushTextWrapPos(0.0F);   // umbrechen statt am Rand abschneiden (alle Sprachen)
-        ImGui::TextDisabled("%s", z.stiftDa ? format(Str::PtStiftDa, static_cast<double>(z.stiftDruck)).c_str() : tr(Str::PtStiftFehlt));
+        cjkTextDisabled("%s", z.stiftDa ? format(Str::PtStiftDa, static_cast<double>(z.stiftDruck)).c_str() : tr(Str::PtStiftFehlt));
         ImGui::PopTextWrapPos();
         ImGui::Checkbox(tr(Str::PtRueckseiten), &z.pinsel.rueckseiten);
         ImGui::SetItemTooltip("%s", tr(Str::PtRueckseitenHint));
@@ -1189,7 +1190,7 @@ void drawModellMalenBereich() {
         }
         if (m != nullptr) {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextDisabled("%s", format(Str::PtBildInfo, m->l.datei.c_str(), m->l.b, m->l.h, image::formatName(static_cast<image::Format>(m->l.format)),
+            cjkTextDisabled("%s", format(Str::PtBildInfo, m->l.datei.c_str(), m->l.b, m->l.h, image::formatName(static_cast<image::Format>(m->l.format)),
                                              m->l.tgaBits > 0 ? m->l.tgaBits : (m->l.alpha ? 32 : 24))
                                           .c_str());
             ImGui::PopTextWrapPos();
@@ -1278,7 +1279,7 @@ void drawModellMalenBereich() {
     }
     if (!z.meldung.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", z.meldung.c_str());
+        cjkTextDisabled("%s", z.meldung.c_str());
         ImGui::PopTextWrapPos();
     }
 }

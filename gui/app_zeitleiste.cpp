@@ -12,6 +12,7 @@
 // Navigationsleiste und die Erklaerung "Was passiert hier?" fuer die rechte
 // Seitenleiste.
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "tour.h"
 
 #include "bhed/edit.h"
@@ -380,7 +381,7 @@ bool block(Rahmen& r, const Clip& c, const BlockArgs& a) {
     ImGui::TextUnformatted(a.text.empty() ? c.befehl.c_str() : a.text.c_str());
     if (!a.zweite.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0F);
-        ImGui::TextDisabled("%s", a.zweite.c_str());
+        cjkTextDisabled("%s", a.zweite.c_str());
         ImGui::PopTextWrapPos();
     }
     if (!c.befehl.empty() && c.befehl != a.text) { ImGui::TextDisabled("%s", c.befehl.c_str()); }
@@ -1788,16 +1789,16 @@ void zeitleisteErklaerung(float breite, float hoehe) {
     g_app->zlErklaerungTitel = e.titel;
     ImGui::PushTextWrapPos(0.0F);
     ImGui::PushFont(nullptr, fs * 1.15F);
-    ImGui::TextUnformatted(e.titel.c_str());
+    cjkTextUnformatted(e.titel.c_str());
     ImGui::PopFont();
     const std::string zeit = c.endMs > c.startMs + 0.5 ? zeitText(c.startMs) + " – " + zeitText(c.endMs) : zeitText(c.startMs);
-    ImGui::TextDisabled("%s", zeit.c_str());
+    cjkTextDisabled("%s", zeit.c_str());
     ImGui::PopTextWrapPos();
     erklaerungSkriptzeile(c);
     ImGui::PushTextWrapPos(0.0F);
-    if (!e.text.empty()) { ImGui::TextUnformatted(e.text.c_str()); }
-    if (!e.warn.empty()) { ImGui::TextColored(ImVec4{0.95F, 0.4F, 0.36F, 1.0F}, "%s", e.warn.c_str()); }
-    if (!e.meta.empty()) { ImGui::TextDisabled("%s", e.meta.c_str()); }
+    if (!e.text.empty()) { cjkTextUnformatted(e.text.c_str()); }
+    if (!e.warn.empty()) { cjkTextColored(ImVec4{0.95F, 0.4F, 0.36F, 1.0F}, "%s", e.warn.c_str()); }
+    if (!e.meta.empty()) { cjkTextDisabled("%s", e.meta.c_str()); }
     ImGui::PopTextWrapPos();
     if (!c.befehl.empty()) {
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
@@ -1868,12 +1869,12 @@ void erklaerungSkriptzeile(const Clip& c) {
             if (ImGui::Button(tr(Str::ZlZeileOeffnen))) { fremdeZeileOeffnen(c.fremd, c.fremdPfad); }
         } else {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextDisabled(tr(Str::ZlAusSkript), c.fremd.c_str());
+            cjkTextDisabled(tr(Str::ZlAusSkript), c.fremd.c_str());
             ImGui::PopTextWrapPos();
         }
     } else if (!istKamera(c.art) && c.art != Art::Musik) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::ZlNachbau));
+        cjkTextDisabled("%s", tr(Str::ZlNachbau));
         ImGui::PopTextWrapPos();
     }
 }

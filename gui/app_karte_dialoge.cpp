@@ -29,6 +29,7 @@
 
 #include "bhed/fassung.h"
 #include "tastatur.h"
+#include "textumbruch.h"
 #include "tour.h"   // H2: Seiten der Einstellungen als Ziele des Helfers
 
 #include <algorithm>
@@ -402,7 +403,7 @@ void layoutSeite() {
         // Hinweis dieses Programms zu Floating (keine Zeile bei NRC)
         ImGui::SetCursorScreenPos(bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y)));
         ImGui::PushTextWrapPos(bp(static_cast<float>(g_form.x1 + g_form.b1), 0.0F).x - ImGui::GetWindowPos().x);
-        ImGui::TextDisabled("%s", tr(Str::KeFloatingHinweis));
+        cjkTextDisabled("%s", tr(Str::KeFloatingHinweis));
         ImGui::PopTextWrapPos();
         g_form.y += static_cast<int>(std::lround((ImGui::GetItemRectSize().y) / g_sk)) + kAbstand;
     }
@@ -917,7 +918,7 @@ void buildSeite() {
         const float b = px(static_cast<float>(g_form.b1));
         ImVec2 p = bp(static_cast<float>(g_form.x1), static_cast<float>(g_form.y));
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), p, ImGui::GetColorU32(ImGuiCol_Text),
+        cjkAddText(ImGui::GetWindowDrawList(), ImGui::GetFont(), ImGui::GetFontSize(), p, ImGui::GetColorU32(ImGuiCol_Text),
                                             trK(Str::KePrBuildZielHinweis), nullptr, b);
         ImGui::PopStyleColor();
         (void)p;
@@ -1157,7 +1158,7 @@ void zeichneUeber() {
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
         ImGui::BeginChild("##uebermerkmale", ImVec2{px(static_cast<float>(kB - 2 * kRand - 2 * kInhaltRand)), px(191.0F)}, ImGuiChildFlags_Borders);
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextUnformatted(merkmale.c_str());
+        cjkTextUnformatted(merkmale.c_str());
         ImGui::PopTextWrapPos();
         ImGui::EndChild();
         ImGui::PopStyleColor();

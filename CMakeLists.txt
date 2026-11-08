@@ -1178,6 +1178,11 @@ if(BEHAVED_TESTS)
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py)
     add_test(NAME lint_endtable_selbsttest
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py --selbsttest)
+    # MR4 Punkt 5: jeder umbrochene Text der Oberflaeche geht durch gui/textumbruch.h (CJK zwischen den Zeichen)
+    add_test(NAME lint_cjkumbruch
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_cjkumbruch.py)
+    add_test(NAME lint_cjkumbruch_selbsttest
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_cjkumbruch.py --selbsttest)
     # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
     # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
     # was NRCs q3map2.exe unter denselben Bedingungen schreibt

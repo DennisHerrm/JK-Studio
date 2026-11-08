@@ -80,7 +80,7 @@ void zeichneBeispielWerte(const Dokument& d) {
     Zustand& z = Z();
     if (z.beispielPrims == 0) { return; }
     ImGui::SeparatorText(tr(Str::MeOdBeispiel));
-    ImGui::TextWrapped("%s", tr(Str::MeOdBeispielTip));
+    cjkTextWrapped("%s", tr(Str::MeOdBeispielTip));
     const float breit = ImGui::GetFontSize() * 9;
     if (istLadebild(d.datei) || istVerbindung(d.datei)) { ImGui::Checkbox(tr(Str::MeHudWie), &z.hudWie); }
     if (istLadebild(d.datei)) {   // M7 Punkt 11: CG_DrawInformation
@@ -216,7 +216,7 @@ void zeichneKomponente(Dokument& d) {
         }
         const int kopien = k != nullptr ? static_cast<int>(k->instanzen.size()) : 0;
         std::snprintf(buf, sizeof(buf), trN(Str::MeKompOriginal, kopien), name.c_str(), kopien);
-        ImGui::TextWrapped("%s", buf);
+        cjkTextWrapped("%s", buf);
         if (k != nullptr && ImGui::Button(tr(Str::MeKompKopie))) {
             // neben das letzte Stueck der Komponente, Name <original>_<n>
             const Rechteck r = it.window.rect;
@@ -229,7 +229,7 @@ void zeichneKomponente(Dokument& d) {
         tipp(Str::MeKompKopieTip);
     } else if (rolle == 'i') {
         std::snprintf(buf, sizeof(buf), tr(Str::MeKompKopieVon), name.c_str());
-        ImGui::TextWrapped("%s", buf);
+        cjkTextWrapped("%s", buf);
         ImGui::TextDisabled("%s", tr(Str::MeKompKopieHinweis));
         for (const Komponente& k : komponenten(d.datei, text)) {
             if (k.menu == mi && k.name == name && ImGui::Button(tr(Str::MeKompZumOriginal))) { d.auswahl.assign(1, k.original); }

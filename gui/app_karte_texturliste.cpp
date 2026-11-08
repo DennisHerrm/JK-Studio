@@ -23,6 +23,7 @@
 #include "bhed/karte/auswahlbefehle.h"
 #include "bhed/karte/texturliste.h"
 #include "fenster_dock.h"
+#include "textumbruch.h"
 
 #include "imgui.h"
 
@@ -365,7 +366,7 @@ void texturListeZeichnen() {
             if (s.meldungFehler) {
                 ImGui::TextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", s.meldung.c_str());
             } else {
-                ImGui::TextWrapped("%s", s.meldung.c_str());
+                cjkTextWrapped("%s", s.meldung.c_str());
             }
         }
         s.untenHoehe = ImGui::GetCursorPosY() - untenAb;

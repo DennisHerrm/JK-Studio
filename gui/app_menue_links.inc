@@ -92,7 +92,7 @@ void kachelBildMalen(ImDrawList* dl, KachelBild art, ImVec2 o, float k) {
 }
 
 // Der Name bricht um, darum ist eine Kachel so hoch, wie die laengste Beschriftung ihrer Gruppe es braucht: nichts wird abgeschnitten
-float kachelTextHoehe(const char* name, float breite) { return ImGui::CalcTextSize(name, nullptr, true, breite).y; }
+float kachelTextHoehe(const char* name, float breite) { return cjkTextSize(name, nullptr, true, breite).y; }
 
 // Eine Kachel. ablage: was gezogen wird (Bibliothek-Nummer oder ablageWidget). true = Doppelklick
 bool bauteilKachel(const char* name, int ablage, ImVec2 groesse, const char* hinweis, const std::function<void(ImDrawList*, ImVec2, float)>& bild) {
@@ -312,7 +312,7 @@ void kachelnEigene(Dokument& d, const std::string& filter) {
         char b[300];
         std::snprintf(b, sizeof(b), tr(Str::MlVorlageGeloescht), anzeige(z.vorlageWeg.name).c_str());
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", b);
+        cjkTextDisabled("%s", b);
         ImGui::PopTextWrapPos();
         if (ImGui::Button(tr(Str::MlVorlageZurueck))) {
             (void)speichereVorlage(vorlagenOrdner(), z.vorlageWeg.name, z.vorlageWeg.text);
@@ -394,7 +394,7 @@ void zeichnePalette(Dokument& d) {
     // rc608 Teil 3b: Bei wenig Hoehe braucht die Liste den Platz; der Name jeder Kachel und ihr Tipp sagen dasselbe
     if (!g_app->settings.menueTeileHinweisWeg && ImGui::GetContentRegionAvail().y >= fs * 14.0F) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::MlTeileHinweis));
+        cjkTextDisabled("%s", tr(Str::MlTeileHinweis));
         ImGui::PopTextWrapPos();
     }
     const std::string f = kleinPfad(z.teileSuche);

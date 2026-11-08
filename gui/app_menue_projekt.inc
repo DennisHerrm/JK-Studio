@@ -277,7 +277,7 @@ void zeichneSicherungFrage() {
     char b[400];
     std::snprintf(b, sizeof(b), trN(Str::MePrjSicherungText, z.sicherungListe.size()), static_cast<int>(z.sicherungListe.size()), zeit);
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
-    ImGui::TextWrapped("%s", b);
+    cjkTextWrapped("%s", b);
     for (const SicherungsEintrag& e : z.sicherungListe) { ImGui::BulletText("%s", e.name.c_str()); }
     ImGui::PopTextWrapPos();
     if (ImGui::Button(tr(Str::MePrjWiederherstellen))) {
@@ -449,7 +449,7 @@ void zeichneZuordnungFrage() {
     ImGui::TextUnformatted(tr(Str::MePrjZuordnen));
     ImGui::Separator();
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
-    ImGui::TextWrapped("%s", tr(Str::MePrjZuordnenFrage));
+    cjkTextWrapped("%s", tr(Str::MePrjZuordnenFrage));
     ImGui::PopTextWrapPos();
     if (ImGui::Button(tr(Str::MePrjZuordnenJa))) {
         std::vector<platform::RegWert> werte;
@@ -530,15 +530,15 @@ void zeichneProjektLeer() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetCursorPosX(sp.links);
     ImGui::PushTextWrapPos(sp.links + sp.breite);
-    ImGui::TextDisabled("%s", tr(Str::MePrjLeer));
+    cjkTextDisabled("%s", tr(Str::MePrjLeer));
     ImGui::Dummy(ImVec2{0.0F, fs * 0.8F});
     // Einzelspieler oder Mehrspieler: gilt fuer das neue Projekt
     ImGui::SetCursorPosX(sp.links);
-    ImGui::TextUnformatted(tr(Str::MeStartFormat));
+    cjkTextUnformatted(tr(Str::MeStartFormat));
     ImGui::SetCursorPosX(sp.links);
     zeichneNeuDialekt();
     ImGui::SetCursorPosX(sp.links);
-    ImGui::TextDisabled("%s", tr(Str::MeStartFormatSatz));
+    cjkTextDisabled("%s", tr(Str::MeStartFormatSatz));
     ImGui::PopTextWrapPos();
     ImGui::Dummy(ImVec2{0.0F, fs * 0.6F});
 

@@ -14,6 +14,7 @@
 //   Erreichbar Inspektor der Figur, Rechtsklick (Entity und Ansicht), Aktionssuche (X wie Max, F3 wie Blender), Menue im
 //             Fenster, Tooltip mit Taste an jeder Zeile
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/ibi.h"
 #include "bhed/modell/animcfg.h"

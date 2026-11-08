@@ -22,6 +22,7 @@
 //     ref_tag selbst - so arbeitet das Spiel damit
 #include "app_internal.h"
 #include "gpumap.h"
+#include "textumbruch.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1078,7 +1079,7 @@ void drawKameraInspector(float hoehe) {
         }
         if (n == 0) {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextDisabled("%s", tr(Str::CamNoShots));
+            cjkTextDisabled("%s", tr(Str::CamNoShots));
             ImGui::PopTextWrapPos();
         }
     }
@@ -1126,7 +1127,7 @@ void drawKameraInspector(float hoehe) {
         ImGui::EndDisabled();
         if (!s.marke.empty()) {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextDisabled(tr(Str::CamOnTag), s.marke.c_str());
+            cjkTextDisabled(tr(Str::CamOnTag), s.marke.c_str());
             ImGui::PopTextWrapPos();
         }
     }

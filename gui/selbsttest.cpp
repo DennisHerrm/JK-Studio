@@ -5777,6 +5777,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_editorportal.inc"   // rc609 P: Spiegel und Portalkameras im Karten-Editor
 #include "selbsttest_r3.inc"            // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht (karteneditor, BHED_KARTE_NUR=r3)
 #include "selbsttest_rd.inc"            // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten (karteneditor, BHED_KARTE_NUR=rd)
+#include "selbsttest_cjkweit.inc"       // MR4 Punkt 5: CJK-Umbruch ausserhalb des Model-Tabs (karteneditor, BHED_KARTE_NUR=cjkweit)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_mb1a1.inc"      // Modell-Block 1a-1: der neue Model-Tab (modellblock)
 #include "selbsttest_mb1a2.inc"      // Modell-Block 1a-2: Weights, wie Blender, Model-Tab ohne Skriptteile (modellblock)

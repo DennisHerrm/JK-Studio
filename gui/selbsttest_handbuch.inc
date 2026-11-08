@@ -342,6 +342,9 @@ std::vector<Schritt> cjkSchritte();
 std::vector<Schritt> npcSchritte();
 std::vector<Schritt> glmSchritte();   // MRESTE 4
 }  // namespace rd
+namespace cjkweit {   // MR4 Punkt 5 (selbsttest_cjkweit.inc)
+std::vector<Schritt> schritte();
+}  // namespace cjkweit
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -667,6 +670,11 @@ std::vector<Schritt> karteneditorSchritte() {
     // =rdnpc: p_render - doppelte NPC-Namen (Movie Duels), der erste Block gilt
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdnpc") == 0) {
         for (Schritt& x : rd::npcSchritte()) { add(std::move(x)); }
+        return s;
+    }
+    // =cjkweit: MR4 Punkt 5 - CJK-Umbruch in Startflaeche, Tutorials und Helfer (Lauf mit SPRACHE=ja bzw. zh-Hans)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "cjkweit") == 0) {
+        for (Schritt& x : cjkweit::schritte()) { add(std::move(x)); }
         return s;
     }
     // =rdcjk: p_render - CJK-Umbruch im Hinweis des Befehlsfelds (Lauf mit SPRACHE=ja bzw. zh-Hans)

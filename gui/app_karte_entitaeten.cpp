@@ -43,6 +43,7 @@
 
 #include "app_internal.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "imgui_internal.h"
 
@@ -458,7 +459,7 @@ void tooltipAttribut(const EntitaetsKlasse* kl, int attribut) {   // EntityAttri
         }
         if (!a.beschreibung.empty()) {
             ImGui::PushTextWrapPos(px(400.0F));
-            ImGui::TextUnformatted(a.beschreibung.c_str());
+            cjkTextUnformatted(a.beschreibung.c_str());
             ImGui::PopTextWrapPos();
         }
         ImGui::EndTooltip();

@@ -15,6 +15,7 @@
 #include "app_internal.h"
 #include "tabfenster.h"   // rc609 T1
 #include "karteneditor.h"
+#include "textumbruch.h"
 
 #include "bhed/kartemission.h"
 #include "bhed/karte/editordaten.h"
@@ -313,9 +314,9 @@ void drawKarteMission() {
     const auto& z = g_stand.zusammenfassung;
     char t[512];
     std::snprintf(t, sizeof(t), tr(Str::KmZusammenfassung), z[0], z[1], z[2], z[3], z[4]);
-    ImGui::TextWrapped("%s", t);
+    cjkTextWrapped("%s", t);
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", tr(Str::KmRegel));   // umbrochen: die Regel ist laenger als das Fenster breit
+    cjkTextWrapped("%s", tr(Str::KmRegel));   // umbrochen: die Regel ist laenger als das Fenster breit
     ImGui::PopStyleColor();
     if (ImGui::BeginTable("##kmbefunde", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable,
                           ImVec2{0.0F, -ImGui::GetFrameHeightWithSpacing()})) {

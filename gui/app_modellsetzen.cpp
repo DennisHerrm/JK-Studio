@@ -15,6 +15,7 @@
 //   Live                je Sekunde der Stand (Zeit, Groesse) der Modelldateien der Karte, dort wo das Spiel sie
 //                       findet; eine neuere Fassung laedt die Vorschau neu, alle Exemplare behalten ihre Schluessel.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/kollision.h"
 #include "bhed/modellsetzen.h"
@@ -271,7 +272,7 @@ void drawModellFenster() {
             char t[700];
             std::snprintf(t, sizeof(t), tr(Str::M0KlasseFehlt), a.klasse.c_str(), a.grund.c_str());
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.35F, 1.0F});
-            ImGui::TextWrapped("%s", t);
+            cjkTextWrapped("%s", t);
             ImGui::PopStyleColor();
         }
         ImGui::SetNextItemWidth(-fs * 7.0F);
@@ -281,7 +282,7 @@ void drawModellFenster() {
         const std::vector<std::size_t> treffer = modellBrowserTreffer(g_app->modellSuche);
         const auto& liste = modellBrowserListe();
         ImGui::TextDisabled(trN(Str::M0Anzahl, treffer.size()), static_cast<int>(treffer.size()));
-        ImGui::TextWrapped("%s", tr(Str::M0Hinweis));
+        cjkTextWrapped("%s", tr(Str::M0Hinweis));
         if (ImGui::BeginChild("##m0liste", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders)) {
             ImGuiListClipper clip;
             clip.Begin(static_cast<int>(treffer.size()));

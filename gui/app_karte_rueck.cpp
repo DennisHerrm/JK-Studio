@@ -21,6 +21,7 @@
 #include "app_internal.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/ebenen.h"
@@ -500,7 +501,7 @@ void bspRueckSchritt() {
         }
         if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##bsprueckabbrechen").c_str())) { bspRueckAbbrechen(); }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("%s", trK(Str::KeRkHinweis));
+        cjkTextWrapped("%s", trK(Str::KeRkHinweis));
         ImGui::PopStyleColor();
     }
     ImGui::End();

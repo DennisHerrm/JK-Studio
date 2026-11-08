@@ -19,6 +19,7 @@
 //   F3/F4    Karte neu laden fragt bei ungespeicherten Entities und leert den
 //            Verlauf; ".ent oeffnen" raeumt Verlauf, Auswahl und Skriptliste
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/bsplumps.h"
@@ -220,7 +221,7 @@ void drawSpeicherWeg() {
     const App::SpeicherAuftrag& a = g_app->speicherFragen.front();
     const float breite = ImGui::GetFontSize() * 35.0F;
     ImGui::PushTextWrapPos(breite);
-    ImGui::TextWrapped("%s", fmt(tr(Str::DoSpeicherWegText), a.anzeige).c_str());
+    cjkTextWrapped("%s", fmt(tr(Str::DoSpeicherWegText), a.anzeige).c_str());
     ImGui::Spacing();
     int gewaehlt = 0;
     const auto weg = [&](int nr, Str knopf, const std::string& hinweis, bool moeglich) {
@@ -228,7 +229,7 @@ void drawSpeicherWeg() {
         if (ImGui::Button(tr(knopf), ImVec2{breite, 0.0F})) { gewaehlt = nr; }
         ImGui::EndDisabled();
         ImGui::Indent();
-        ImGui::TextDisabled("%s", hinweis.c_str());
+        cjkTextDisabled("%s", hinweis.c_str());
         ImGui::Unindent();
         ImGui::Spacing();
     };
