@@ -88,7 +88,7 @@ int main() {
     // NICHT auf "gTcM0" pruefen: der Name steht ohnehin in der
     // Erklaerung des Konstantenpuffers, also auch ohne das Bit. Den Aufruf
     // der Kette gibt es nur im erzeugten Block (FIX4 P33).
-    beideRichtungen("tcMod", kTexMod, "aus.uv = tcKette(aus.uv,", true);
+    beideRichtungen("tcMod", kTexMod, "precise float2 r = aus.uv;", true);
     beideRichtungen("rgbGen const", kRgbConst, "aus.farbe.rgb = gRgb.rgb", true);
     // Seit rc440 ERSETZT auch die Welle die Eckenfarbe - dieselbe Zeile wie
     // rgbGen const, denn beide meinen dasselbe (mapview.cpp:1818).
@@ -223,17 +223,28 @@ int main() {
     // Bis rc442 eine Schleife ueber acht Schritte ohne transform, von rc443
     // bis FIX3 EINE zusammengerechnete Abbildung (rd-rend2). Seit FIX4 P33
     // vier feste Schritte (TR_MAX_TEXMODS) wie rd-vanilla, jeder mit seiner
-    // Art - keine Schleife, und die Zahl der Schritte aendert den Text nicht.
+    // Art - keine Schleife. FIX5 Tempo: nur so viele Schritte, wie die Stufe
+    // hat (numTexMods im Shadernamen), und turb nur mit kTurb.
     {
         for (int n : {0, 1, 3, 8}) {
             const std::string v = vertexShaderHlsl(kTexMod, n);
             erwarte("keine tcMod-Schleife",
                     !enthaelt(v, "gTexMod[i]") && !enthaelt(v, "for (int i"));
         }
-        erwarte("dafuer die Kette je Schritt (tcSchritt viermal)",
-                enthaelt(vertexShaderHlsl(kTexMod, 1), "r = tcSchritt(r, art.w, m3, o23.zw, ort, mitTurb);"));
-        erwarte("die Zahl der Stufen aendert den Quelltext NICHT",
-                vertexShaderHlsl(kTexMod, 1) == vertexShaderHlsl(kTexMod, 4));
+        const auto zahl = [](const std::string& v, const char* was) {
+            int k = 0;
+            for (std::size_t p = v.find(was); p != std::string::npos; p = v.find(was, p + 1)) { ++k; }
+            return k;
+        };
+        erwarte("ein Schritt: einmal tcSchritt im Rumpf", zahl(vertexShaderHlsl(kTexMod, 1), "        r = tcSchritt(r, gTcArt.") == 1);
+        erwarte("vier Schritte: viermal, der letzte mit gTcM3",
+                zahl(vertexShaderHlsl(kTexMod, 4), "        r = tcSchritt(r, gTcArt.") == 4 &&
+                    enthaelt(vertexShaderHlsl(kTexMod, 4), "r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, false);"));
+        erwarte("mehr als TR_MAX_TEXMODS: vier", zahl(vertexShaderHlsl(kTexMod, 8), "        r = tcSchritt(r, gTcArt.") == 4);
+        erwarte("turb nur mit kTurb",
+                enthaelt(vertexShaderHlsl(kTexMod | kTurb, 2), "r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, true);") &&
+                    !enthaelt(vertexShaderHlsl(kTexMod, 2), "ort, true);"));
+        erwarte("kTurb aendert den Namen", shaderName(kTexMod, 1) != shaderName(kTexMod | kTurb, 1));
     }
 
     // --- Gleiche Bits, gleicher Quelltext --------------------------------

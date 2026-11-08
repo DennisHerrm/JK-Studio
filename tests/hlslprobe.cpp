@@ -61,6 +61,11 @@ int main() {
     const std::uint32_t alle = kDeform | kDeformNormal | kBulge | kDeformMove | kAutosprite2 |
                                kTexGenEnv | kTexMod | kLightmap;
     uebersetze("Verformungen zusammen vs", vertexShaderHlsl(alle, 2), "vs_4_0");
+    // FIX5: tcMod mit 1..4 Schritten, mit und ohne turb
+    for (int n = 1; n <= 4; ++n) {
+        uebersetze("tcMod " + std::to_string(n) + " vs", vertexShaderHlsl(kTexMod, n), "vs_4_0");
+        uebersetze("tcMod turb " + std::to_string(n) + " vs", vertexShaderHlsl(kTexMod | kTurb, n), "vs_4_0");
+    }
     uebersetze("oneMinusVertex ps", pixelShaderHlsl(kAlphaKonst | kAlphaEins), "ps_4_0");
     uebersetze("ohne Merkmal vs", vertexShaderHlsl(kNichts, 0), "vs_4_0");
     uebersetze("ohne Merkmal ps", pixelShaderHlsl(kNichts), "ps_4_0");

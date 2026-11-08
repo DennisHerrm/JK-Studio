@@ -136,6 +136,52 @@ constexpr std::uint8_t kBeule = 3;
 constexpr std::uint8_t kWeg = 4;
 static_assert(kWelle == kFolgeWelle && kNormal == kFolgeNormal && kBeule == kFolgeBeule && kWeg == kFolgeWeg, "dieselben Arten");
 
+// ComputeTexCoords (tr_shade.cpp:1725) fuer die tcMod-Kette, wie tests/turbgpu.cpp: jeder Schritt der Reihe nach in float
+void spielSt(const TexMod* m, int n, float zeit, const float ort[2], float st[2]) {
+    for (int k = 0; k < n; ++k) {
+        const TexMod& t = m[k];
+        const float s = st[0];
+        const float u = st[1];
+        switch (t.kind) {
+            case TexModKind::Turb: {
+                const float now = t.wave.phase + zeit * t.wave.frequency;
+                st[0] = s + sinTable[static_cast<int>((ort[0] * 1.0 / 128 * 0.125 + now) * 1024) & 1023] * t.wave.amplitude;
+                st[1] = u + sinTable[static_cast<int>((ort[1] * 1.0 / 128 * 0.125 + now) * 1024) & 1023] * t.wave.amplitude;
+                break;
+            }
+            case TexModKind::Scale:
+                st[0] = s * t.a[0];
+                st[1] = u * t.a[1];
+                break;
+            case TexModKind::Scroll: {
+                float a = t.a[0] * zeit;
+                float b = t.a[1] * zeit;
+                a = a - std::floor(a);
+                b = b - std::floor(b);
+                st[0] = s + a;
+                st[1] = u + b;
+                break;
+            }
+            case TexModKind::Rotate: {
+                const float degs = -t.a[0] * zeit;
+                const auto index = static_cast<int>(degs * (1024 / 360.0F));
+                const float sn = sinTable[index & 1023];
+                const float cs = sinTable[(index + 1024 / 4) & 1023];
+                const auto tr0 = static_cast<float>(0.5 - 0.5 * cs + 0.5 * sn);
+                const auto tr1 = static_cast<float>(0.5 - 0.5 * sn - 0.5 * cs);
+                st[0] = s * cs + u * -sn + tr0;
+                st[1] = s * sn + u * cs + tr1;
+                break;
+            }
+            case TexModKind::Transform:
+                st[0] = s * t.a[0] + u * t.a[2] + t.a[4];
+                st[1] = s * t.a[1] + u * t.a[3] + t.a[5];
+                break;
+            default: break;
+        }
+    }
+}
+
 // Ein Fall: der Shader (wave, Zusatz, die deformVertexes in Shader-Reihenfolge)
 struct Fall {
     const char* was;
@@ -310,6 +356,24 @@ void kern(uint3 id : SV_DispatchThreadID) {
     e.farbe = float4(1.0, 1.0, 1.0, 1.0);
     VSOut o = main(e);
     gAus[id.x * 2] = o.pos;
+    gAus[id.x * 2 + 1] = float4(0.0, 0.0, 0.0, 0.0);
+}
+)";
+const char* const kKernKarteUv = R"(
+StructuredBuffer<float4> gEin : register(t0);
+RWStructuredBuffer<float4> gAus : register(u0);
+[numthreads(64, 1, 1)]
+void kern(uint3 id : SV_DispatchThreadID) {
+    float4 a = gEin[id.x * 2];
+    float4 b = gEin[id.x * 2 + 1];
+    VSIn e;
+    e.pos = a.xyz;
+    e.normal = b.xyz;
+    e.uv = float2(a.w, b.w);
+    e.uvLm = float2(0.0, 0.0);
+    e.farbe = float4(1.0, 1.0, 1.0, 1.0);
+    VSOut o = main(e);
+    gAus[id.x * 2] = float4(o.uv, 0.0, 0.0);
     gAus[id.x * 2 + 1] = float4(0.0, 0.0, 0.0, 0.0);
 }
 )";
@@ -516,6 +580,81 @@ int main() {
             }
         }
     }
+    // --- FIX5 Tempo: die tcMod-Kette im Vertex-Shader der Karte, nur mit den Schritten der Stufe und turb nur mit kTurb -----------
+    {
+        TexMod turb;
+        turb.kind = TexModKind::Turb;
+        turb.wave.func = WaveFunc::Sin;
+        turb.wave.amplitude = 0.3F;
+        turb.wave.phase = 0.1F;
+        turb.wave.frequency = 0.5F;
+        TexMod skal;
+        skal.kind = TexModKind::Scale;
+        skal.a[0] = 2.0F;
+        skal.a[1] = 3.0F;
+        TexMod dreh;
+        dreh.kind = TexModKind::Rotate;
+        dreh.a[0] = 30.0F;
+        TexMod rollen;
+        rollen.kind = TexModKind::Scroll;
+        rollen.a[0] = 0.25F;
+        rollen.a[1] = 0.5F;
+        TexMod trans;
+        trans.kind = TexModKind::Transform;
+        const float tw[6] = {0.7F, 0.2F, -0.3F, 1.1F, 0.05F, 0.4F};
+        for (int j = 0; j < 6; ++j) { trans.a[j] = tw[j]; }
+        struct Kette {
+            const char* was;
+            TexMod m[4];
+            int n;
+        };
+        const Kette ketten[] = {{"scroll", {rollen, {}, {}, {}}, 1},
+                                {"rotate 30, scale 2 3", {dreh, skal, {}, {}}, 2},
+                                {"scale, scroll, rotate, transform", {skal, rollen, dreh, trans}, 4},
+                                {"turb", {turb, {}, {}, {}}, 1},
+                                {"scroll, turb, transform", {rollen, turb, trans, {}}, 3}};
+        for (const Kette& k : ketten) {
+            const UINT proben = 8192;
+            const auto zeit = static_cast<float>(static_cast<int>(zz() % 3600000U) * 0.001);
+            BatchState bs{};
+            bs.numTexMods = k.n;
+            for (int j = 0; j < k.n; ++j) { bs.texMods[j] = k.m[j]; }
+            std::vector<float> konst(kKonstFloats, 0.0F);
+            packeKonstanten(bs, konst.data(), zeit);
+            std::vector<float> ein;
+            std::vector<float> soll;
+            for (UINT i = 0; i < proben; ++i) {
+                const float x = zahl(-18000.0, 18000.0);
+                const float y = zahl(-9000.0, 9000.0);
+                const float z = zahl(-4000.0, 4000.0);
+                float st[2] = {zahl(-4.0, 4.0), zahl(-4.0, 4.0)};
+                ein.insert(ein.end(), {x, y, z, st[0], 0.0F, 0.0F, 1.0F, st[1]});
+                const float ort[2] = {x + z, y};
+                spielSt(k.m, k.n, zeit, ort, st);
+                soll.insert(soll.end(), {st[0], st[1], 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F});
+            }
+            const std::uint32_t merkmale = pipelineFor(bs, false).features & (kTexMod | kTurb);
+            const std::string quelle = vertexShaderHlsl(merkmale, k.n) + kKernKarteUv;
+            for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
+                std::vector<std::uint32_t> aus;
+                std::string name;
+                if (!laufen(art, quelle, {{0, jeBild(zeit)}, {1, konst}}, ein, proben, aus, name)) {
+                    erwarte(std::string("tcMod ") + wer + ": Geraet nicht da oder Shader nicht uebersetzt", art == D3D_DRIVER_TYPE_HARDWARE && name.empty());
+                    continue;
+                }
+                int falsch = 0;
+                for (UINT i = 0; i < proben; ++i) {
+                    if (!gleichBits(soll[i * 8U], aus[i * 8U]) || !gleichBits(soll[i * 8U + 1U], aus[i * 8U + 1U])) { ++falsch; }
+                }
+                char z[300];
+                std::snprintf(z, sizeof z, "Karte %s (%s): tcMod %s (%s%d Schritte) bitgleich zu ComputeTexCoords: %d von %u Ecken abweichend", wer,
+                              name.c_str(), k.was, (merkmale & kTurb) != 0U ? "turb, " : "", k.n, falsch, proben);
+                erwarte(z, falsch == 0);
+            }
+        }
+    }
+
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
         return 1;

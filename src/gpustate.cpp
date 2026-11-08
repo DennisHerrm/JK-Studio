@@ -184,6 +184,9 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
     }
     if (bs.numTexMods > 0) {
         f |= kTexMod;
+        for (int i = 0; i < bs.numTexMods && i < kMaxTexMods; ++i) {
+            if (bs.texMods[i].kind == TexModKind::Turb) { f |= kTurb; }   // FIX5
+        }
     }
     if (bs.haveRgbWave) {
         f |= kRgbWave;

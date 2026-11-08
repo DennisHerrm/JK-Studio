@@ -651,8 +651,14 @@ int main() {
             for (std::size_t p = h.find(was); p != std::string::npos; p = h.find(was, p + 1)) { ++n; }
             return n;
         };
-        erwarte("der Kartenshader rechnet die Kette je Schritt (FIX4 P33)",
-                zaehle(hlsl, "aus.uv = tcKette(aus.uv, gTcM0, gTcO01, gTcM1, gTcM2, gTcM3, gTcO23, gTcArt, ort, true);") == 1U);
+        // FIX5 Tempo: nur die Schritte der Stufe, turb nur mit kTurb - mit vier Schritten und turb jedes Feld genau einmal
+        const std::string vier = vertexShaderHlsl(kTexMod | kTurb, 4);
+        erwarte("der Kartenshader rechnet die Kette je Schritt (FIX4 P33, FIX5)",
+                zaehle(vier, "r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.z, gTcM2, gTcO23.xy, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, true);") == 1U &&
+                    zaehle(hlsl, "r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, false);") == 1U);
         const std::string fig = figurVertexShaderHlsl(0U);
         erwarte("der Figurenshader addiert vier turb (FIX3)",
                 zaehle(fig, "tcKette(aus.uv, gStufeTcM0, gStufeTcO01, gStufeTcM1, gStufeTcM2, gStufeTcM3, gStufeTcO23, gStufeTcArt, ort, true)") == 1U);

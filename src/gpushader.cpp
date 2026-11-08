@@ -1416,18 +1416,26 @@ struct VSOut {
     // Schritte hinter ihm. Das rundet anders als das Spiel. FIX4 P33: wieder
     // je Schritt, alle sechs Werte, in der Reihenfolge und den Typen von
     // rd-vanilla ComputeTexCoords (tcKette, gpuconst.h kTcM0At).
+    // FIX5 Tempo (gleiche Bits): nur so viele Schritte, wie die Stufe hat (numTexMods steht ohnehin im Shadernamen; ein Schritt
+    // dahinter hat die Art 0 und laesst st, wie es ist), und der turb-Teil (turbIndex, je turb und Achse rund 30 Rechenschritte) nur
+    // in Varianten mit kTurb - ohne turb kommt die Art 2 nie vor, der Zweig faellt beim Uebersetzen weg.
     if ((features & kTexMod) != 0U) {
-        s += R"(    {
-        precise float2 ort = float2(welt.x + welt.z, welt.y);
-        aus.uv = tcKette(aus.uv, gTcM0, gTcO01, gTcM1, gTcM2, gTcM3, gTcO23, gTcArt, ort, true);
+        static const char* const kSchritt[kMaxTexMods] = {
+            "        r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.z, gTcM2, gTcO23.xy, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, %s);\n",
+        };
+        const char* mitTurb = (features & kTurb) != 0U ? "true" : "false";
+        s += "    {\n        precise float2 ort = float2(welt.x + welt.z, welt.y);\n        precise float2 r = aus.uv;\n";
+        const int schritte = std::clamp(numTexMods, 1, kMaxTexMods);
+        for (int i = 0; i < schritte; ++i) {
+            char z[128];
+            std::snprintf(z, sizeof z, kSchritt[i], mitTurb);
+            s += z;
+        }
+        s += "        aus.uv = r;\n    }\n";
     }
-)";
-    }
-    // Die Zahl der Schritte steht nicht im erzeugten Quelltext - ein
-    // fehlender Schritt hat die Art 0. Sie bleibt im Shadernamen, damit
-    // dieser Kopf sich nicht aendert; zwei Namen fuer denselben Quelltext
-    // kosten hoechstens eine Uebersetzung zu viel.
-    (void)numTexMods;
 
     wenn(s, features, kLightmap, "    aus.uvLm = ein.uvLm;\n");
     if ((features & kLightmap) == 0U) {
@@ -1728,6 +1736,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},
         {kTexGenVec, "_tcv"},   // rc605
         {kModellLicht, "_ml"},  // rc608
+        {kTurb, "_tb"},         // FIX5
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten
         // Quelltext (kein Helligkeitsfaktor auf der Eckenfarbe). Ohne
         // Kuerzel bekaemen zwei verschiedene Shader denselben Namen und
