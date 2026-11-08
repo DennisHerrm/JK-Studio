@@ -58,6 +58,7 @@
 #include <filesystem>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -175,6 +176,8 @@ struct Netzpuffer {
     std::size_t cpuEcken = 0;
     std::vector<std::uint32_t> cpuIdx;
     std::vector<float> cpuStand;
+    // REST3b: die Bytes der CPU-Ecken zu cpuStand (cpuEcken * schrittweite), fuer den Gluehdurchgang (CpuInstanz)
+    std::shared_ptr<const std::vector<std::uint8_t>> cpuDaten;
 };
 // Drei Plaetze: Karte, Effektnetz, Mover. Mover teilen sich einen Platz -
 // sie werden nacheinander gezeichnet, und jeder bringt seine eigenen Ecken
@@ -201,6 +204,20 @@ Netzpuffer g_netz[3];   // Karte, Effekte, Gras (rc604)
 //
 // Das ist nebenbei schneller: kein Neuanlegen je Bild.
 std::map<const BspMesh*, Netzpuffer> g_moverNetze;
+// REST3b: Instanzen eines Netzes teilen seinen Puffer (g_moverNetze), die CPU-Ecken (autosprite, verformeTess) haengen aber an
+// der Stellung jeder Instanz (GlobalVectorToLocal). Je Instanz (Netz und Stellung) des Bildes stehen hier Sicht und Ecken aus
+// zeichneKarte; zeichneGluehen schreibt sie vor dem Zeichnen jeder Instanz zurueck in den Puffer - im Spiel rechnet
+// RB_DeformTessGeometry je Flaeche und Durchgang neu (RB_BeginSurface/RB_EndSurface, tr_shade.cpp), auch im Gluehdurchgang.
+struct CpuInstanz {
+    const BspMesh* mesh = nullptr;
+    std::array<float, 16> welt{};
+    std::uint64_t bild = 0;
+    std::vector<float> stand;
+    std::shared_ptr<const std::vector<std::uint8_t>> daten;
+};
+std::vector<CpuInstanz> g_cpuInstanzen;
+int g_gluehCpuEigen = 0;   // Gluehaufrufe mit CPU-Ecken der eigenen Instanz (Selbsttest)
+int g_gluehCpuFremd = 0;   // ... mit denen einer anderen Instanz
 // rc608 Teil 13c: Stellung und Blickrichtung (Welt) des Movers, den zeichneMover gerade an zeichneKarte gibt - fuer das
 // Patch-LOD (LodErrorForVolume rechnet lodOrigin mit backEnd.ori in die Welt). Nur waehrend dieses Aufrufs gesetzt.
 struct MoverLod {
@@ -3927,6 +3944,11 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
 
 int gluehenMoverAufrufe() { return g_gluehenMover; }
 
+void gluehenCpuInstanzen(int& eigen, int& fremd) {
+    eigen = g_gluehCpuEigen;
+    fremd = g_gluehCpuFremd;
+}
+
 int gluehenFigurAufrufe() { return g_figurGluehen; }
 
 void gluehenFigurenBeginnen(bool an, int breite, int hoehe) {
@@ -4023,6 +4045,8 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     const std::vector<KlingenQuad>* const gluehKlingen = std::exchange(g_gluehKlingen, nullptr);
     g_gluehenRauch = 0;
     g_gluehenMover = 0;
+    g_gluehCpuEigen = 0;
+    g_gluehCpuFremd = 0;
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
     if (d == nullptr || c == nullptr || g_zielRtv == nullptr ||
@@ -4180,6 +4204,31 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
             }
             const UINT schritt = wg.np->schrittweite;
             const UINT versatz = 0;
+            if (wg.np->cpuEcken > 0U) {
+                // REST3b: die CPU-Ecken dieser Instanz (zeichneKarte hat zuletzt die einer anderen hochgeladen)
+                std::array<float, 16> w{};
+                std::copy(wg.quelle->welt, wg.quelle->welt + 16, w.begin());
+                const auto ci = std::find_if(g_cpuInstanzen.begin(), g_cpuInstanzen.end(), [&](const CpuInstanz& i) {
+                    return i.mesh == wg.quelle->mesh && i.welt == w && i.bild == g_bildNummer;
+                });
+                const std::size_t vorn = wg.np->nVerts * schritt;
+                const std::size_t laenge = wg.np->cpuEcken * schritt;
+                if (ci != g_cpuInstanzen.end() && ci->daten && ci->daten->size() == laenge && ci->stand != wg.np->cpuStand) {
+                    D3D11_BOX box{};
+                    box.left = static_cast<UINT>(vorn);
+                    box.right = static_cast<UINT>(vorn + laenge);
+                    box.bottom = 1;
+                    box.back = 1;
+                    c->UpdateSubresource(wg.np->vb, 0, &box, ci->daten->data(), 0, 0);
+                    wg.np->cpuStand = ci->stand;
+                    wg.np->cpuDaten = ci->daten;
+                }
+                if (ci != g_cpuInstanzen.end() && ci->stand == wg.np->cpuStand) {
+                    ++g_gluehCpuEigen;
+                } else {
+                    ++g_gluehCpuFremd;
+                }
+            }
             c->IASetVertexBuffers(0, 1, &wg.np->vb, &schritt, &versatz);
             c->IASetIndexBuffer(wg.np->ib, DXGI_FORMAT_R32_UINT, 0);
             c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -8338,6 +8387,25 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
         cpuDaten.resize(np.cpuEcken);
         rechneCpu(cpuDaten.data());
         np.cpuStand = cpuStand;
+        const auto* roh = reinterpret_cast<const std::uint8_t*>(cpuDaten.data());
+        np.cpuDaten = std::make_shared<const std::vector<std::uint8_t>>(roh, roh + cpuDaten.size() * sizeof(Ecke));
+    }
+    if (netzId == 2 && np.cpuEcken > 0U && np.cpuDaten && g_moverLod != nullptr && g_moverLod->welt != nullptr) {
+        // REST3b: Sicht und Ecken dieser Instanz fuer den Gluehdurchgang (CpuInstanz); aeltere Bilder fallen weg
+        std::erase_if(g_cpuInstanzen, [](const CpuInstanz& i) { return i.bild != g_bildNummer; });
+        CpuInstanz neu;
+        neu.mesh = &mesh;
+        std::copy(g_moverLod->welt, g_moverLod->welt + 16, neu.welt.begin());
+        neu.bild = g_bildNummer;
+        neu.stand = np.cpuStand;
+        neu.daten = np.cpuDaten;
+        const auto gleich = std::find_if(g_cpuInstanzen.begin(), g_cpuInstanzen.end(),
+                                         [&](const CpuInstanz& i) { return i.mesh == neu.mesh && i.welt == neu.welt; });
+        if (gleich != g_cpuInstanzen.end()) {
+            *gleich = std::move(neu);
+        } else {
+            g_cpuInstanzen.push_back(std::move(neu));
+        }
     }
     if (brauchtEcken) {
         setzeSchritt("Karte: Ecken umsortieren");
@@ -9077,6 +9145,10 @@ int zeichneGluehen(const BspMesh&, const TextureSet*, const BspGeometry*,
     return 0;
 }
 int gluehenMoverAufrufe() { return 0; }
+void gluehenCpuInstanzen(int& eigen, int& fremd) {
+    eigen = 0;
+    fremd = 0;
+}
 void gluehenEffekte(const BspMesh*) {}
 int gluehenEffektAufrufe() { return 0; }
 void gluehenKlingen(const std::vector<KlingenQuad>*) {}

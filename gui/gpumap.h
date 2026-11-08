@@ -342,6 +342,9 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const std::vector<GluehQuelle>& weitere);
 // Wie viele Aufrufe der weiteren Quellen das letzte Gluehen gezeichnet hat.
 int gluehenMoverAufrufe();
+// REST3b: im letzten Gluehen die Aufrufe von Instanzen mit CPU-Ecken (autosprite), die mit den eigenen Ecken (eigen) bzw.
+// mit denen einer anderen Instanz desselben Netzes (fremd) zeichneten.
+void gluehenCpuInstanzen(int& eigen, int& fremd);
 // rc610 R3: Durchgang 2 von zeichneGluehen (RB_BlurGlowTexture, derselbe Code) fuer einen fremden vollen Gluehpuffer -
 // das Echtzeit-Licht des Karten-Editors. vollSrv: ID3D11ShaderResourceView* (vollW x vollH, ohne Mehrfachabtastung),
 // breite x hoehe: kGluehBreite x kGluehHoehe. Gibt die ID3D11ShaderResourceView* des weichen Puffers zurueck (nullptr:

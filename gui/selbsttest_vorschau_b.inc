@@ -2794,6 +2794,27 @@ std::vector<Schritt> moverSpriteSchritte() {
         // Nebel ist dort dunkel und die Emitter kaum gedreht (d7efd8cf9: 0 Bildpunkte). Geprueft wird die Sicht selbst.
         return *aufrufe > 0 && *cpuEcken > 0 && sichtMit->empty() && sichtOhne.empty();
     }));
+    // REST3b: die Nebelmodelle (maps/fogsprite_1..4.md3, textures/exegol_sh/fog_gfx_*: autosprite und glow) stehen vielfach und
+    // verschieden gedreht im Bild und teilen je Modell einen Puffer. Im Gluehdurchgang zeichnet jede Instanz mit ihren eigenen
+    // CPU-Ecken (im Spiel rechnet RB_DeformTessGeometry je Flaeche und Durchgang neu), nicht mit denen der zuletzt gezeichneten.
+    auto gluehVorher = std::make_shared<bool>(true);
+    add(tu("Effektmodell-Autosprite: Gluehen an", [=] {
+        *gluehVorher = g_app->showGlow;
+        g_app->showGlow = true;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pause(0.3));
+    add(pruefe("Effektmodell-Autosprite: im Gluehen zeichnet jede Nebelinstanz mit ihren eigenen CPU-Ecken", [=] {
+        int eigen = 0;
+        int fremd = 0;
+        gpu::gluehenCpuInstanzen(eigen, fremd);
+        g_app->showGlow = *gluehVorher;
+        g_app->mapDirty = true;
+        diag::detail("Knopftest: Effektmodell-Autosprite - Gluehaufrufe mit CPU-Ecken: eigene " + std::to_string(eigen) +
+                     ", fremde " + std::to_string(fremd) + " (Mover im Gluehen " + std::to_string(gpu::gluehenMoverAufrufe()) + ")");
+        return eigen > 1 && fremd == 0;
+    }));
     return s;
 }
 
