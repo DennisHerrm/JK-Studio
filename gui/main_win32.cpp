@@ -15,6 +15,7 @@
 #include "backend.h"
 #include "fenster_dock.h"
 #include "gpumap.h"
+#include "textumbruch.h"
 
 #include "bhed/gpustate.h"
 #include "bhed/diag.h"
@@ -643,6 +644,7 @@ bool addFontIfPresent(ImGuiIO& io, const char* path, float size, bool merge) {
 void buildFonts() {
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
+    bhed::gui::cjkSchriftenNeu();   // MR7 P41: alle ImFont neu, gemerkte Umbrueche der alten gelten nicht mehr
     const float size = 16.0F;
 
     // --- Die Schrift des Originals ----------------------------------------

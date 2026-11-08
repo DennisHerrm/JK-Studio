@@ -60,6 +60,7 @@
 #include "figuranim.h"   // Modell-Block Stufe 7: Figuren im Mission-Tab animieren
 #include "bhed/glm.h"
 #include "bhed/gpushader.h"   // rc608 Teil 11: kSpielLightmapFaktor
+#include "bhed/bildregister.h"
 #include "bhed/mapview.h"
 #include "bhed/efxdraw.h"
 #include "bhed/geschuetz.h"
@@ -1597,6 +1598,10 @@ struct App {
     // mit jeder Karte (Kartenpruefung 27.09.: 8 Karten, 91 -> 857 MB).
     // Figuren (@256) und Klingenbilder stehen nie hier drin.
     std::unordered_set<std::string> kartenBilder;
+    // MR8 Punkt 1: ein Bild je Name wie im Spiel (bhed/bildregister.h) - wer ein Bild zuerst laedt, bestimmt Kompression,
+    // Mipmaps und Klammern fuer alle. loadMapTextures fuellt es in der Reihenfolge von RE_LoadWorldMap, danach kommt jeder
+    // Shader beim ersten loadTextureFor dazu.
+    BildRegister bildRegister;
     // Welcher Knoten wurde zuletzt durch EINFUEGEN angewaehlt (nicht durch
     // einen Klick)? Ein angewaehlter Block nimmt neue Befehle nur auf, wenn
     // DU ihn angeklickt hast - sonst liefe der naechste Klick in der
@@ -1698,7 +1703,6 @@ struct App {
     // Zeit fuers letzte Bild, geglaettet - eine ungeglaettete Anzeige
     // springt so, dass man sie nicht lesen kann.
     float mapFrameMs = 0.0F;
-    std::string mapBytes;      // fuer den erneuten Netzbau bei anderer Feinheit
     // .pk3-Blaetterei
     std::vector<GamePath> gamePaths;
     std::vector<FoundFile> pk3Files;
@@ -3306,6 +3310,8 @@ void grasStufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, std::si
                     std::size_t shaderNr, const GrasStufenZiel& ziel);
 // Der Satz, in den loadMapTextures gerade laedt (die Vorschau oder das Ziel von loadMapTexturesFuer).
 TextureSet& ladeSatz();
+// MR8 Punkt 1: das Register dazu (bhed/bildregister.h).
+BildRegister& ladeRegister();
 // rc608 Teil 13c: woraus die Halme eines Bildes entstehen - dieselbe Rechnung (RB_DrawSurfaceSprites) fuer die Vorschau
 // und das Spielbild des Karten-Editors (editor: eigener Zwischenspeicher der Flaechen).
 struct GrasQuelle {
@@ -3614,11 +3620,18 @@ void withUnsaved(std::function<void()> then,
                  std::function<void()> onCancel = nullptr);
 void drawAskSave();
 void loadMapTextures();
+// tr.defaultShader: 16x16 Grau 32 mit weissem Rand (app_ablage.inc; MR9 Punkt 2 auch fuer den Selbsttest).
+[[nodiscard]] TextureSet::Tex standardShaderTextur();
 // rc608 Teil 11: dieselben Regeln fuer eine andere Karte (die gebaute Karte des Karten-Editors).
 // rc608 Teil 13c: mit `gras` auch die Halm-Stufen (surfaceSprites) in dieses Ziel.
-void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder,
+// MR9 Punkt 1: `entities` die Entities dieser Karte (was der Server vor der Welt laedt, vorWeltRegistrieren).
+void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
                          const std::function<void()>& danach = {},   // rc608 Teil 13b: danach, solange das Ziel gilt
-                         const GrasStufenZiel& gras = {});
+                         const GrasStufenZiel& gras = {}, const std::vector<MapEntity>* entities = nullptr);
+// MR9 Punkt 1 (app_view3d_spiel.inc): das Ghoul2-Modell, das die Spawnfunktion einer Klasse auf dem Server laedt (leer: keins),
+// und die NPC-, Klingen- und Waffendaten einmal einlesen.
+[[nodiscard]] std::string serverG2Modell(const MapEntity& e);
+void npcDatenSicherstellen();
 // Die Textur zu EINEM Shadernamen. Auch die .md3-Modelle gehen diesen Weg -
 // zwei getrennte waeren zwei Gelegenheiten, verschieden falsch zu liegen.
 bool loadTextureFor(const std::string& shaderName, TextureSet::Tex& out);
@@ -3836,8 +3849,13 @@ bool regelwerkPruefen();
 inline constexpr int kBildGrenze = 4096;
 // Fuer image::shrinkTo: die Kantenlaenge, die genau um 2^bildPicmip verkleinert.
 [[nodiscard]] int bildGrenzeFuer(const image::Image& im);
+// MR9 Punkt 3: r_picmip nur fuer Bilder mit allowPicmip (Upload32 tr_image.cpp:575-580: "if ( picmip )"). Das Bild hat das
+// allowPicmip dessen, der es zuerst geladen hat (R_FindImageFile_NoLoad, bhed/bildregister.h); nopicmip und nomipmaps setzen
+// es aus (tr_shader.cpp:2301-2311), Shader ohne Skript mit RegisterShaderNoMip ebenso (:3502). Unbekannte Bilder: r_picmip.
+[[nodiscard]] int bildPicmipFuer(const std::string& bild);
+[[nodiscard]] int bildGrenzeFuer(const image::Image& im, const std::string& bild);
 // Fuer die Schluessel in texCache: dasselbe Bild in einer anderen Stufe ist ein anderes.
-[[nodiscard]] std::string bildStufeText();
+[[nodiscard]] std::string bildStufeText(const std::string& bild);
 void regelwerkAnwendenJetzt();
 void areaPortaleJetzt(const float auge[3], const float* vorn = nullptr);
 // CM_SnapPVS(ort): die Gebietsmaske dieser Sicht in den Indexpuffer der Karte (nur wenn sie sich aendert).

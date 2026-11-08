@@ -233,6 +233,38 @@ bool spawntBeiSchwierigkeit(const MapEntity& e, int spielstufe) {
     return (flags & (1 << (8 + stufe))) == 0;
 }
 
+std::string gegenstandWeltModell(const MapEntity& e, const Gegenstand& g, const std::map<std::string, SaberDef>* sabers,
+                                 bool jediOutcast, bool* schwertNpc) {
+    std::string modell = g.worldmodel;
+    // Pruefung 4b: FinishSpawningItem, Schritt 5 (g_items.cpp:1138-1158
+    // OpenJK, 1589-1616 MD): weapon_saber mit NPC_type nimmt das Modell aus
+    // WP_SaberParseParms - "player" das von g_saber ("single_1", ausser
+    // "none"/"NULL"); ein unbekannter Name oder einer ohne saberModel die
+    // Vorgabe DEFAULT_SABER_MODEL. Jedi Outcast kennt das nicht.
+    if (!jediOutcast && g.typ == "IT_WEAPON" && g.tag == "WP_SABER") {
+        const std::string* npc = e.find("NPC_type");
+        if (npc != nullptr && !npc->empty()) {
+            std::string name = *npc;
+            const auto gleich = [](const std::string& x, const char* y) {
+                std::string k = x;
+                for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                return k == y;
+            };
+            if (gleich(name, "player") && !gleich(kSpielerSchwert, "none") && !gleich(kSpielerSchwert, "null")) {
+                name = kSpielerSchwert;
+            }
+            for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            modell = kStandardGriff;
+            if (sabers != nullptr) {
+                const auto it = sabers->find(name);
+                if (it != sabers->end() && !it->second.model.empty()) { modell = it->second.model; }
+            }
+            if (schwertNpc != nullptr) { *schwertNpc = true; }
+        }
+    }
+    return modell;
+}
+
 GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand& g, int spielstufe, bool movieDuels,
                                            const GegenstandSpur& spur, const std::map<std::string, SaberDef>* sabers,
                                            bool jediOutcast) {
@@ -253,33 +285,7 @@ GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand&
         a.grund = "ITMSF_INVISIBLE";
         return a;
     }
-    a.modell = g.worldmodel;
-    // Pruefung 4b: FinishSpawningItem, Schritt 5 (g_items.cpp:1138-1158
-    // OpenJK, 1589-1616 MD): weapon_saber mit NPC_type nimmt das Modell aus
-    // WP_SaberParseParms - "player" das von g_saber ("single_1", ausser
-    // "none"/"NULL"); ein unbekannter Name oder einer ohne saberModel die
-    // Vorgabe DEFAULT_SABER_MODEL. Jedi Outcast kennt das nicht.
-    if (!jediOutcast && g.typ == "IT_WEAPON" && g.tag == "WP_SABER") {
-        const std::string* npc = e.find("NPC_type");
-        if (npc != nullptr && !npc->empty()) {
-            std::string name = *npc;
-            const auto gleich = [](const std::string& x, const char* y) {
-                std::string k = x;
-                for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-                return k == y;
-            };
-            if (gleich(name, "player") && !gleich(kSpielerSchwert, "none") && !gleich(kSpielerSchwert, "null")) {
-                name = kSpielerSchwert;
-            }
-            for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-            a.modell = kStandardGriff;
-            if (sabers != nullptr) {
-                const auto it = sabers->find(name);
-                if (it != sabers->end() && !it->second.model.empty()) { a.modell = it->second.model; }
-            }
-            a.schwertNpc = true;
-        }
-    }
+    a.modell = gegenstandWeltModell(e, g, sabers, jediOutcast, &a.schwertNpc);
     if (a.modell.empty()) {
         a.grund = "kein worldmodel";
         return a;

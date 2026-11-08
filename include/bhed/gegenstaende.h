@@ -91,6 +91,12 @@ using GegenstandSpur = std::function<void(const std::array<float, 3>& start, con
 // (targetname: erst per use) und FinishSpawningItem (JKA-Zweig) fuer EINEN
 // Gegenstand. spielstufe = g_spskill (regelwerkSpielstufe()). sabers: die
 // .sab-Eintraege (Schluessel klein) fuer weapon_saber mit NPC_type.
+// MR9 Punkt 1: das Modell, das FinishSpawningItem dem Gegenstand per G2API_InitGhoul2Model laedt (g_items.cpp:1138-1163
+// OpenJK, 1589-1625 MD, codeJK2 :848) - VOR der Pruefung auf ITMSF_INVISIBLE und dem Fallen auf den Boden; weapon_saber mit
+// NPC_type das Modell seiner Klinge. schwertNpc (optional): so ein weapon_saber.
+[[nodiscard]] std::string gegenstandWeltModell(const MapEntity& e, const Gegenstand& g,
+                                               const std::map<std::string, SaberDef>* sabers = nullptr,
+                                               bool jediOutcast = false, bool* schwertNpc = nullptr);
 [[nodiscard]] GegenstandAufstellung gegenstandAufstellen(const MapEntity& e, const Gegenstand& g, int spielstufe,
                                                          bool movieDuels, const GegenstandSpur& spur,
                                                          const std::map<std::string, SaberDef>* sabers = nullptr,

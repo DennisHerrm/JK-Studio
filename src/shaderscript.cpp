@@ -349,7 +349,15 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     DeformZusatz deform2;
     int deformAnzahl = 0;   // MERGE3 P44: shader.numDeforms
     bool polygonOffset = false;
-    bool noTC = false;   // MR4 Punkt 7
+    // MR4 Punkt 7 / MR7 P43: noTC, wie es GERADE steht (shader.noTC, tr_shader.cpp:2324) - die Stufen und skyParms nehmen den
+    // Wert beim Lesen (ParseStage :1263/1288/1329, ParseSkyParms :1970), nicht den am Ende des Shaders.
+    bool noTC = false;
+    bool bildKeinTc = false;
+    bool himmelKeinTc = false;
+    // MR8 Punkt 1: nomipmaps (setzt auch nopicmip) und nopicmip, ebenso in der Reihenfolge des Skripts (tr_shader.cpp:2301-2311)
+    bool noMip = false;
+    bool noPicmip = false;
+    std::size_t himmelVorStufe = 0;
     std::string skyBox;
     float wolkenHoehe = 0.0F;
     bool hatSonne = false;
@@ -431,6 +439,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // hat - sonst ueberschreibt eine spaetere Stufe sie, und
                 // genau das haben in rc342 zwei bestehende Proben gemeldet.
                 if (inImageStage && stageHatFound) {
+                    bildKeinTc = noTC;
                     for (int k = 0; k < stageNumTexMods; ++k) {
                         texMods[k] = stageTexMods[k];
                     }
@@ -505,6 +514,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     st.depthWrite = stageDepthWrite;
                     st.depthFunc = stageDepthFunc;
                     st.ss = stageSS;
+                    st.keinTc = noTC;
+                    st.keinMip = noMip;
+                    st.keinPicmip = noPicmip;
                     stages.push_back(std::move(st));
                 }
                 if (stageGlow) {
@@ -600,7 +612,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.deformSpread = deformSpread;
                     info.deform2 = deform2;
                     info.polygonOffset = polygonOffset;
-                    info.noTC = noTC;
+                    info.bildKeinTc = bildKeinTc;
+                    info.himmelKeinTc = himmelKeinTc;
+                    info.himmelVorStufe = himmelVorStufe;
                     info.glow = glow;
                     info.hasGlow = hasGlow;
                     info.texGen = texGen;
@@ -834,6 +848,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 if (!box.empty() && box != "-") {
                     skyBox = box;
                 }
+                himmelKeinTc = noTC;
+                himmelVorStufe = stages.size();   // MR8 Punkt 1: ParseSkyParms laedt die Seiten nach den Stufen davor
                 // Die Wolkenhoehe (rc592): `if (!cloudHeight) cloudHeight
                 // = 512` - auch bei "-". FEHLT die Zahl, kehrt ParseSkyParms
                 // vorher zurueck: dann keine Wolken (Code-Pruefung).
@@ -867,6 +883,17 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             // MR4 Punkt 7: noTC - die Bilder des Shaders werden nicht komprimiert (ParseShader, tr_shader.cpp:2324)
             if (key == "notc") {
                 noTC = true;
+                continue;
+            }
+            // MR8 Punkt 1: ParseShader (tr_shader.cpp:2301-2311) - nomipmaps setzt noMipMaps und noPicMip, nopicmip nur noPicMip; die
+            // Stufen danach laden ihre Bilder mit mipmap = !noMipMaps, allowPicmip = !noPicMip (ParseStage :1261-1262)
+            if (key == "nomipmaps") {
+                noMip = true;
+                noPicmip = true;
+                continue;
+            }
+            if (key == "nopicmip") {
+                noPicmip = true;
                 continue;
             }
             // `portal` / `sort portal` (rc593): Spiegel- oder Portalflaeche.
@@ -912,6 +939,11 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             deformAnzahl = 0;
             polygonOffset = false;
             noTC = false;
+            bildKeinTc = false;
+            himmelKeinTc = false;
+            noMip = false;
+            noPicmip = false;
+            himmelVorStufe = 0;
             inImageStage = false;
             continue;
         }

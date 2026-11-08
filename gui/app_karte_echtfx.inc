@@ -358,13 +358,15 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
             }
             z.alphaFunktion = sd.alphaFunktion;
             z.alphaRef = sd.alphaRef;
-            const Bild* bild = lager().holen(!sd.bild.empty() ? sd.bild : name);
+            const SpielLaden l = spielLaden(name, !sd.bild.empty() ? sd.bild : name, sd.keinTc);   // MR8 Punkt 1
+            const Bild* bild = lager().holen(!sd.bild.empty() ? sd.bild : name, l.dxt, l.keinMip);   // MR7 P40
             if (bild == nullptr || !bild->fertig) { continue; }
             z.bild = bild->srv;
         } else if (!name.empty()) {
             // LIGHTMAP_2D ohne Skript: GLS_DEPTHTEST_DISABLE | SRC_ALPHA ONE_MINUS_SRC_ALPHA
             z.tiefe = kartegpu::TiefenTest::Aus;
-            const Bild* bild = lager().holen("?" + name);
+            const SpielLaden l = spielLaden(name, "?" + name, false);   // MR8 Punkt 1
+            const Bild* bild = lager().holen("?" + name, l.dxt, l.keinMip);   // MR7 P40: ohne Skript mit allowTC
             if (bild == nullptr || !bild->fertig) { continue; }
             z.bild = bild->srv;
         }

@@ -914,6 +914,7 @@ SpielStufe spielStufe(const ShaderInfo::Stage& st) {
     for (int k = 0; k < s.numTexMods; ++k) { s.texMods[k] = st.texMods[k]; }
     s.rgbWave = st.rgbWave;
     s.alphaWave = st.alphaWave;
+    s.keinTc = st.keinTc;
     return s;
 }
 
@@ -997,6 +998,12 @@ SpielDarstellung spielDarstellungRechnen(const std::string& shader) {
     // Stufe 9d: fogParms ohne Stufe - das Spiel zeichnet nur den Nebel darueber (RB_FogPass, FP_LE)
     d.nebelFlaeche = s.nebelParms && !s.stufeGefunden;
     d.himmel = s.himmel;
+    // MR7 P40: allowTC der Bilder (ParseStage / ParseSkyParms mit !shader.noTC, wie es beim Lesen stand); ohne Skript nimmt das
+    // Spiel das Bild mit allowTC (R_FindShader -> R_FindImageFile(..., qtrue, ...))
+    if (const ShaderInfo* si = echtShaderInfo(shader)) {
+        d.keinTc = si->bildKeinTc;
+        d.himmelKeinTc = si->himmelKeinTc;
+    }
     // rc609 P: SS_PORTAL; ohne jede Stufe setzt FinishShader (tr_shader.cpp) sort auf SS_FOG - dann ist es kein Portal
     d.portal = s.portal && s.stufeGefunden;
     d.portalWeite = static_cast<float>(s.portalWeite);

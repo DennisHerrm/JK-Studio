@@ -477,7 +477,10 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
     const std::string karte = kk != nullptr ? kk : "gv_turm";
     float kam[5] = {269.7F, 6916.7F, 76.0F, 8.0F, 326.0F};
     if (const char* k = std::getenv("BHED_GV_KAMERA")) { (void)std::sscanf(k, "%f %f %f %f %f", &kam[0], &kam[1], &kam[2], &kam[3], &kam[4]); }
+    // MR7 P42: das Regelwerk vor dem Vergleich ("Auto" aus den Einstellungen) - am Ende wieder so
+    auto regelAnfang = std::make_shared<int>(0);
     add(tu("Geschuetze Vergleich: Karte " + karte, [=] {
+        *regelAnfang = g_app->settings.regelwerk;
         if (const char* f = std::getenv("BHED_GV_FENSTER")) {
             int b = 0;
             int h = 0;
@@ -633,6 +636,380 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             if (md) { return himmel && b.bilder > 0 && b.komprimiert == 0 && b.himmelKomprimiert == 0; }
             return himmel && b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe && b.himmelKomprimiert == b.himmelSeiten;
         }));
+        // MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das Bild des
+        // ERSTEN Ladens zurueck, mit dessen allowTC, mipmap und glWrapClampMode. Zwei Shader der Karte (die ersten beiden mit Bild in
+        // der Reihenfolge von RE_LoadWorldMap: Nebel, dann die Flaechen der Datei) bekommen fuer die Probe ein Skript mit DEMSELBEN
+        // Bild; je Fall hat einer noTC / nomipmaps / clampMap - einmal der erste, einmal der zweite. Wie das Spiel: beide Flaechen
+        // zeigen dasselbe Bild (gleiche Bytes und Stufen auf der Grafikkarte), so wie der Erste es geladen hat.
+        struct M8Probe {
+            int platz[2] = {-1, -1};
+            std::string name[2];
+            std::string bild;
+            bool alt[2] = {false, false};
+            ShaderInfo altInfo[2];
+        };
+        auto m8 = std::make_shared<M8Probe>();
+        const auto m8klein = [](std::string n) {
+            for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            return n;
+        };
+        add(tu("Geschuetze Vergleich: MR8 - zwei Shader der Karte und ein Bild fuer beide", [m8, m8klein] {
+            // Reihenfolge wie RE_LoadWorldMap: R_LoadFogs, dann R_LoadSurfaces (tr_bsp.cpp:1420-1427)
+            std::vector<int> folge;
+            for (const BspGeometry::Nebel& n : g_app->geo.nebel) {
+                for (std::size_t i = 0; i < g_app->geo.shaders.size(); ++i) {
+                    if (m8klein(g_app->geo.shaders[i].name) == m8klein(n.shader)) { folge.push_back(static_cast<int>(i)); }
+                }
+            }
+            for (const BspSurface& f : g_app->geo.surfaces) {
+                if (f.type != BspSurface::Type::Bad) { folge.push_back(f.shader); }
+            }
+            int k = 0;
+            for (const int i : folge) {
+                if (k == 2 || i < 0 || static_cast<std::size_t>(i) >= g_app->geo.shaders.size() ||
+                    static_cast<std::size_t>(i) >= g_app->textures.byShader.size()) { continue; }
+                const BspShader& sh = g_app->geo.shaders[static_cast<std::size_t>(i)];
+                const TextureSet::Tex& t = g_app->textures.byShader[static_cast<std::size_t>(i)];
+                if (!sh.isDrawn() || sh.isSky() || t.rgba.empty() || t.width < 16 || t.height < 16 || !t.skyFaces.empty() ||
+                    (k == 1 && i == m8->platz[0])) { continue; }
+                m8->platz[k] = i;
+                m8->name[k] = sh.name;
+                ++k;
+            }
+            if (k < 2) { return; }
+            // das Bild des zweiten (Skript: seine Bildstufe, sonst der Name - R_FindShader tr_shader.cpp:3502)
+            const auto it = g_app->shaderMap.find(m8klein(m8->name[1]));
+            m8->bild = it != g_app->shaderMap.end() && !it->second.image.empty() ? it->second.image : m8->name[1];
+            for (int j = 0; j < 2; ++j) {
+                const auto a = g_app->shaderMap.find(m8klein(m8->name[j]));
+                m8->alt[j] = a != g_app->shaderMap.end();
+                if (m8->alt[j]) { m8->altInfo[j] = a->second; }
+            }
+            diag::detail("Knopftest: MR8 - Platz " + std::to_string(m8->platz[0]) + " " + m8->name[0] + ", Platz " + std::to_string(m8->platz[1]) + " " +
+                         m8->name[1] + ", Bild " + m8->bild);
+        }));
+        struct M8Fall {
+            const char* name;
+            const char* erst;    // Zeilen vor der Stufe des ersten
+            const char* zweit;   // ... des zweiten
+            const char* art1;    // map / clampMap
+            const char* art2;
+        };
+        static constexpr M8Fall kM8Faelle[6] = {{"noTC beim ersten", "noTC\n", "", "map", "map"},
+                                                {"noTC beim zweiten", "", "noTC\n", "map", "map"},
+                                                {"nomipmaps beim ersten", "nomipmaps\n", "", "map", "map"},
+                                                {"nomipmaps beim zweiten", "", "nomipmaps\n", "map", "map"},
+                                                {"clampMap beim ersten", "", "", "clampMap", "map"},
+                                                {"clampMap beim zweiten", "", "", "map", "clampMap"}};
+        for (int f = 0; f < 6; ++f) {
+            const M8Fall fall = kM8Faelle[f];
+            add(tu(std::string("Geschuetze Vergleich: MR8 - ") + fall.name, [m8, m8klein, fall] {
+                if (m8->platz[1] < 0) { return; }
+                const std::string text = m8->name[0] + "\n{\n" + fall.erst + "{\n" + fall.art1 + " " + m8->bild + "\n}\n}\n" + m8->name[1] + "\n{\n" +
+                                         fall.zweit + "{\n" + fall.art2 + " " + m8->bild + "\n}\n}\n";
+                ShaderMap probe;
+                parseShaderScript(text, probe);
+                for (int j = 0; j < 2; ++j) { g_app->shaderMap[m8klein(m8->name[j])] = probe[m8klein(m8->name[j])]; }
+                loadMapTextures();
+            }));
+            add(pruefe(std::string("Geschuetze Vergleich: MR8 - ") + fall.name + ": beide Flaechen zeigen das Bild, wie der erste es lud", [m8, fall, f] {
+                if (m8->platz[1] < 0) {
+                    diag::detail("Knopftest: MR8 - keine zwei Shader mit Bild");
+                    return false;
+                }
+                std::vector<std::uint8_t> px[2];
+                int b[2] = {0, 0};
+                int h[2] = {0, 0};
+                int stufen[2] = {0, 0};
+                bool klammern[2] = {false, false};
+                for (int j = 0; j < 2; ++j) {
+                    if (!gpu::leseKartenBild(&g_app->textures, m8->platz[j], 0, px[j], b[j], h[j], &stufen[j])) {
+                        diag::detail("Knopftest: MR8 - Platz " + std::to_string(m8->platz[j]) + " nicht lesbar");
+                        return false;
+                    }
+                    klammern[j] = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[j])].clamp;
+                }
+                const std::vector<std::uint8_t>& roh = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])].rgba;
+                const bool dxt[2] = {px[0] != roh, px[1] != roh};
+                char z[300];
+                std::snprintf(z, sizeof(z), "Knopftest: MR8 %s - erster: DXT5 %d, Stufen %d, Klammern %d; zweiter: DXT5 %d, Stufen %d, Klammern %d; Bytes gleich %d",
+                              fall.name, dxt[0] ? 1 : 0, stufen[0], klammern[0] ? 1 : 0, dxt[1] ? 1 : 0, stufen[1], klammern[1] ? 1 : 0, px[0] == px[1] ? 1 : 0);
+                diag::detail(z);
+                const bool gleich = px[0] == px[1] && b[0] == b[1] && h[0] == h[1] && stufen[0] == stufen[1] && klammern[0] == klammern[1];
+                const int volleStufen = 1 + static_cast<int>(std::floor(std::log2(static_cast<double>(std::max(b[0], h[0])))));
+                switch (f) {
+                    case 0: return gleich && !dxt[0];                                            // noTC zuerst: unkomprimiert
+                    case 1: return gleich && dxt[0];                                             // allowTC zuerst: DXT5
+                    case 2: return gleich && stufen[0] == 1;                                     // ohne Mipmaps zuerst
+                    case 3: return gleich && stufen[0] == volleStufen;                           // mit Mipmaps zuerst
+                    case 4: return gleich && klammern[0];                                        // GL_CLAMP zuerst
+                    default: return gleich && !klammern[0];                                      // GL_REPEAT zuerst
+                }
+            }));
+        }
+        add(tu("Geschuetze Vergleich: MR8 - die Shader wie vorher", [m8, m8klein] {
+            if (m8->platz[1] < 0) { return; }
+            for (int j = 0; j < 2; ++j) {
+                if (m8->alt[j]) {
+                    g_app->shaderMap[m8klein(m8->name[j])] = m8->altInfo[j];
+                } else {
+                    g_app->shaderMap.erase(m8klein(m8->name[j]));
+                }
+            }
+            loadMapTextures();
+        }));
+        // MR9 Punkt 1: das Spiel registriert VOR der Welt, was der Server beim Spawnen laedt (G2API_InitGhoul2Model ->
+        // RE_RegisterModel; FinishSpawningItem im RunFrame 1300 von SV_SpawnServer) und die Effekte (CG_RegisterEffects vor
+        // cgi_R_LoadWorldMap). Probe: der erste Shader des ersten Gegenstands der Karte und der erste Weltshader mit Bild (MR8)
+        // nennen dasselbe Bild, einer davon mit noTC. Wie im Spiel entscheidet der Gegenstand, nicht die Welt.
+        struct M9Probe {
+            std::string shader;   // Shader des Gegenstands (klein, ohne Endung)
+            std::string bild;     // Bild des Weltshaders
+            bool alt = false;
+            ShaderInfo altInfo;
+        };
+        auto m9 = std::make_shared<M9Probe>();
+        add(tu("Geschuetze Vergleich: MR9 - ein Gegenstand der Karte und ein Weltshader mit demselben Bild", [m8, m9, m8klein] {
+            if (m8->platz[0] < 0) { return; }
+            std::string dat;
+            if (!readFromArchives("ext_data/items.dat", dat)) { return; }
+            const Gegenstandsliste liste = leseGegenstaende(dat, regelwerkMovieDuels(), regelwerkJediOutcast());
+            for (const MapEntity& e : g_app->map.entities) {
+                const Gegenstand* g = liste.spawnbar(e.classname);
+                if (g == nullptr || !e.targetname.empty() || !gespawntImSpiel(e)) { continue; }
+                std::string d;
+                Md3Model mm;
+                std::string err;
+                if (!readFromArchives(gegenstandWeltModell(e, *g), d) || !readMd3(d, mm, &err) || mm.surfaces.empty()) { continue; }
+                std::string sh = m8klein(mm.surfaces[0].shader);
+                const std::size_t punkt = sh.find_last_of('.');
+                if (punkt != std::string::npos && sh.find('/', punkt) == std::string::npos) { sh.resize(punkt); }
+                m9->shader = sh;
+                break;
+            }
+            if (m9->shader.empty()) { return; }
+            const auto w = g_app->shaderMap.find(m8klein(m8->name[0]));
+            m9->bild = w != g_app->shaderMap.end() && !w->second.image.empty() ? w->second.image : m8->name[0];
+            const auto a = g_app->shaderMap.find(m9->shader);
+            m9->alt = a != g_app->shaderMap.end();
+            if (m9->alt) { m9->altInfo = a->second; }
+            diag::detail("Knopftest: MR9 - Gegenstand " + m9->shader + ", Welt Platz " + std::to_string(m8->platz[0]) + " " + m8->name[0] +
+                         ", Bild " + m9->bild);
+        }));
+        struct M9Fall {
+            const char* name;
+            const char* gegenstand;   // Zeilen vor der Stufe
+            const char* welt;
+        };
+        static constexpr M9Fall kM9Faelle[2] = {{"noTC am Gegenstand", "noTC\n", ""}, {"noTC an der Welt", "", "noTC\n"}};
+        for (int f = 0; f < 2; ++f) {
+            const M9Fall fall = kM9Faelle[f];
+            add(tu(std::string("Geschuetze Vergleich: MR9 - ") + fall.name, [m8, m9, m8klein, fall] {
+                if (m9->shader.empty()) { return; }
+                const std::string text = m9->shader + "\n{\n" + fall.gegenstand + "{\nmap " + m9->bild + "\n}\n}\n" + m8->name[0] + "\n{\n" +
+                                         fall.welt + "{\nmap " + m9->bild + "\n}\n}\n";
+                ShaderMap probe;
+                parseShaderScript(text, probe);
+                g_app->shaderMap[m9->shader] = probe[m9->shader];
+                g_app->shaderMap[m8klein(m8->name[0])] = probe[m8klein(m8->name[0])];
+                loadMapTextures();
+            }));
+            add(pruefe(std::string("Geschuetze Vergleich: MR9 - ") + fall.name + ": der Gegenstand laedt das Bild vor der Welt", [m8, m9, fall, f] {
+                if (m9->shader.empty()) {
+                    diag::detail("Knopftest: MR9 - kein Gegenstand mit .md3 oder kein Weltshader mit Bild");
+                    return false;
+                }
+                std::vector<std::uint8_t> px;
+                int b = 0;
+                int h = 0;
+                int stufen = 0;
+                if (!gpu::leseKartenBild(&g_app->textures, m8->platz[0], 0, px, b, h, &stufen)) { return false; }
+                const bool dxt = px != g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])].rgba;
+                const BildWahl* w = g_app->bildRegister.wahl(m9->bild);
+                diag::detail(std::string("Knopftest: MR9 ") + fall.name + " - Welt DXT5 " + (dxt ? "1" : "0") + ", zuerst geladen von " +
+                             (w != nullptr ? w->shader : std::string("-")));
+                return f == 0 ? !dxt : dxt;
+            }));
+        }
+        add(tu("Geschuetze Vergleich: MR9 - die Shader wie vorher", [m8, m9, m8klein] {
+            if (m9->shader.empty()) { return; }
+            if (m9->alt) {
+                g_app->shaderMap[m9->shader] = m9->altInfo;
+            } else {
+                g_app->shaderMap.erase(m9->shader);
+            }
+            if (m8->alt[0]) {
+                g_app->shaderMap[m8klein(m8->name[0])] = m8->altInfo[0];
+            } else {
+                g_app->shaderMap.erase(m8klein(m8->name[0]));
+            }
+            loadMapTextures();
+        }));
+        // MR9 Punkt 2: fehlt das Bild einer Stufe, bricht ParseStage ab (tr_shader.cpp:1263-1268), ParseShader scheitert, der
+        // Shader wird defaultShader und die Flaeche zeigt tr.defaultShader (tr_bsp.cpp:352) - 16x16 Grau mit weissem Rand.
+        // Die Stufe danach registriert nichts. MR9 Punkt 3: r_picmip nur fuer Bilder mit allowPicmip (Upload32, nopicmip).
+        struct M9b {
+            int picmip = 0;
+            int breite[2] = {0, 0};   // Dateibreite der Bilder von Platz 0 und 1
+        };
+        auto m9b = std::make_shared<M9b>();
+        add(tu("Geschuetze Vergleich: MR9 P2 - Stufenbild fehlt, danach eine Stufe mit vorhandenem Bild", [m8, m9b, m8klein] {
+            if (m8->platz[1] < 0) { return; }
+            const std::string text = m8->name[0] + "\n{\n{\nmap " + m8->bild + "\n}\n{\nmap textures/m9/gibt_es_nicht\n}\n{\nmap textures/m9/danach\n}\n}\n";
+            ShaderMap probe;
+            parseShaderScript(text, probe);
+            g_app->shaderMap[m8klein(m8->name[0])] = probe[m8klein(m8->name[0])];
+            loadMapTextures();
+        }));
+        add(pruefe("Geschuetze Vergleich: MR9 P2 - die Flaeche zeigt tr.defaultShader, die Stufe danach ist nicht registriert", [m8] {
+            if (m8->platz[1] < 0) { return false; }
+            const TextureSet::Tex& t = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])];
+            const TextureSet::Tex std = standardShaderTextur();
+            const bool kasten = t.width == 16 && t.height == 16 && t.rgba == std.rgba;
+            const bool danach = g_app->bildRegister.wahl("textures/m9/danach") != nullptr;
+            diag::detail(std::string("Knopftest: MR9 P2 - ") + std::to_string(t.width) + "x" + std::to_string(t.height) + ", Kasten " +
+                         (kasten ? "1" : "0") + ", Stufe danach registriert " + (danach ? "1" : "0") + ", erstes Bild registriert " +
+                         (g_app->bildRegister.wahl(m8->bild) != nullptr ? "1" : "0"));
+            return kasten && !danach && g_app->bildRegister.wahl(m8->bild) != nullptr;
+        }));
+        add(tu("Geschuetze Vergleich: MR9 P3 - nopicmip am ersten Weltshader, r_picmip 1", [m8, m9b, m8klein] {
+            if (m8->platz[1] < 0) { return; }
+            // das eigene Bild des ersten Weltshaders aus seinem urspruenglichen Skript (m8->bild ist das des zweiten, und P2 hat dem
+            // ersten noch sein Probeskript gegeben)
+            const std::string b0 = m8->alt[0] && !m8->altInfo[0].image.empty() ? m8->altInfo[0].image : m8->name[0];
+            const std::string text = m8->name[0] + "\n{\nnopicmip\n{\nmap " + b0 + "\n}\n}\n";
+            ShaderMap probe;
+            parseShaderScript(text, probe);
+            g_app->shaderMap[m8klein(m8->name[0])] = probe[m8klein(m8->name[0])];
+            for (int j = 0; j < 2; ++j) {
+                const auto it = g_app->shaderMap.find(m8klein(m8->name[j]));
+                const std::string b = j == 0 ? b0 : (it != g_app->shaderMap.end() && !it->second.image.empty() ? it->second.image : m8->name[1]);
+                for (const std::string& c : textureCandidates(b)) {
+                    std::string data;
+                    if (!readFromArchives(c, data)) { continue; }
+                    const image::Image im = image::decode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
+                    if (im.ok) { m9b->breite[j] = std::max(im.width, im.height); }
+                    break;
+                }
+            }
+            m9b->picmip = g_app->settings.bildPicmip;
+            g_app->settings.bildPicmip = 1;
+            loadMapTextures();
+        }));
+        add(pruefe("Geschuetze Vergleich: MR9 P3 - das nopicmip-Bild bleibt gross, das andere halbiert r_picmip", [m8, m9b] {
+            if (m8->platz[1] < 0 || m9b->breite[0] <= 0 || m9b->breite[1] <= 0) { return false; }
+            const TextureSet::Tex& a = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])];
+            const TextureSet::Tex& b = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[1])];
+            const int ka = std::max(a.width, a.height);
+            const int kb = std::max(b.width, b.height);
+            diag::detail("Knopftest: MR9 P3 - nopicmip " + std::to_string(ka) + " (Datei " + std::to_string(m9b->breite[0]) + "), mit picmip " +
+                         std::to_string(kb) + " (Datei " + std::to_string(m9b->breite[1]) + ")");
+            return ka == std::min(m9b->breite[0], kBildGrenze) && kb == std::clamp(m9b->breite[1] >> 1, 1, kBildGrenze);
+        }));
+        add(tu("Geschuetze Vergleich: MR9 P2/P3 - Shader und r_picmip wie vorher", [m8, m9b, m8klein] {
+            if (m8->platz[1] < 0) { return; }
+            g_app->settings.bildPicmip = m9b->picmip;
+            if (m8->alt[0]) {
+                g_app->shaderMap[m8klein(m8->name[0])] = m8->altInfo[0];
+            } else {
+                g_app->shaderMap.erase(m8klein(m8->name[0]));
+            }
+            loadMapTextures();
+        }));
+        // P58 (PRUEF8): noTC im Hautshader einer Figur gilt fuer ihre Bilder wie bei der Karte (ParseStage allowTC = !shader.noTC,
+        // tr_shader.cpp:1263/1288/1329) - die Grundflaeche (bySurface), die Stufen (figurStufenListe) und die Gluehstufen.
+        add(pruefe("Geschuetze Vergleich: P58 - noTC im Hautshader einer Figur", [m8] {
+            if (m8->platz[1] < 0) { return false; }
+            const std::string text = "m9/figurnotc\n{\nnoTC\n{\nmap " + m8->bild + "\n}\n}\n" +
+                                     "m9/figurnotc2\n{\nnoTC\n{\nmap " + m8->bild + "\n}\n{\nmap " + m8->bild + "\nblendFunc GL_ONE GL_ONE\nglow\n}\n}\n" +
+                                     "m9/figurtc\n{\n{\nmap " + m8->bild + "\n}\n}\n";
+            ShaderMap probe;
+            parseShaderScript(text, probe);
+            const char* namen[3] = {"m9/figurnotc", "m9/figurnotc2", "m9/figurtc"};
+            for (const char* n : namen) { g_app->shaderMap[n] = probe[n]; }
+            GlmModel gm;
+            gm.surfaces.resize(3);
+            for (int k = 0; k < 3; ++k) { gm.surfaces[static_cast<std::size_t>(k)].texture = namen[k]; }
+            const ModelTextures mt = texturesFor(gm);
+            for (const char* n : namen) { g_app->shaderMap.erase(n); }
+            int stufen = 0;
+            int stufenOhneTc = 0;
+            if (mt.stufen.size() > 1U) {
+                for (const ModelTextures::FigurStufe& fs : mt.stufen[1]) {
+                    for (const TextureSet::Tex& z : fs.bilder) {
+                        ++stufen;
+                        stufenOhneTc += z.keinTc ? 1 : 0;
+                    }
+                }
+            }
+            int glueh = 0;
+            int gluehOhneTc = 0;
+            if (mt.gluehStufen.size() > 1U) {
+                for (const TextureSet::Tex& z : mt.gluehStufen[1]) {
+                    ++glueh;
+                    gluehOhneTc += z.keinTc ? 1 : 0;
+                }
+            }
+            const bool grund = mt.bySurface.size() == 3U && !mt.bySurface[0].rgba.empty() && mt.bySurface[0].keinTc && !mt.bySurface[2].keinTc;
+            diag::detail("Knopftest: P58 - Grundflaeche noTC " + std::string(mt.bySurface.size() == 3U && mt.bySurface[0].keinTc ? "1" : "0") +
+                         ", ohne noTC " + std::string(mt.bySurface.size() == 3U && mt.bySurface[2].keinTc ? "1" : "0") + "; Stufen " +
+                         std::to_string(stufenOhneTc) + "/" + std::to_string(stufen) + " ohne TC; Gluehstufen " + std::to_string(gluehOhneTc) +
+                         "/" + std::to_string(glueh));
+            return grund && stufen > 0 && stufenOhneTc == stufen && gluehOhneTc == glueh;   // Gluehstufen nur, wenn die Figur welche hat
+        }));
+        // MR7 P39: das Spielbild des Karten-Editors (gpu-Szene 1, "Built map as in the game") mit derselben Karte - seine Bilder
+        // liegen geparkt, solange die Vorschau zeichnet. Nach dem Wechsel muessen auch sie nach der neuen Regel neu hoch.
+        constexpr std::uint64_t kP39Nummer = 0x5039000000000001ULL;
+        auto bspP39 = std::make_shared<std::shared_ptr<const std::string>>();
+        const auto spielbildP39 = [kam, archiv, bspP39] {
+            if (!*bspP39) {   // die .bsp der Vorschau aus dem Archiv (BHED_GV_PK3)
+                Pk3 arc;
+                std::string bytes;
+                const Pk3Entry* e = readPk3Directory(archiv, arc) ? arc.find(g_app->map.path) : nullptr;
+                if (e == nullptr || !readPk3File(arc, *e, bytes)) { return false; }
+                *bspP39 = std::make_shared<const std::string>(std::move(bytes));
+            }
+            karte::Kamera k;
+            k.ursprung = karte::Vektor3f(kam[0], kam[1], kam[2]);
+            k.winkel = karte::Vektor3f(-kam[3], kam[4], 0.0F);
+            return karteneditor::spielbildZeichnen(*bspP39, kP39Nummer, g_app->map.path, k, 640, 480) != nullptr;
+        };
+        add(tu("Geschuetze Vergleich: P39 - Spielbild des Karten-Editors (Szene 1) mit derselben Karte", [=] {
+            const bool bild = spielbildP39();
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            bezeichne(bild ? "Szene 1 (Spielbild) vor dem Wechsel" : "Szene 1 (Spielbild) vor dem Wechsel, KEIN BILD", b);
+        }));
+        // MR8 Punkt 2: Vorschau (Szene 0) und Spielbild (Szene 1) zeigen dieselbe Karte nach denselben Regeln - gleiche Bytes liegen
+        // nur einmal auf der Grafikkarte.
+        add(pruefe("Geschuetze Vergleich: MR8 P2 - Vorschau und Spielbild teilen die Kartenbilder mit gleichen Bytes", [] {
+            const auto a = gpu::kartenBildTexturen(0);
+            const auto b = gpu::kartenBildTexturen(1);
+            std::set<const void*> res;
+            long long summe = 0;
+            long long eindeutig = 0;
+            for (const auto* liste : {&a, &b}) {
+                for (const auto& [r, n] : *liste) {
+                    summe += n;
+                    if (res.insert(r).second) { eindeutig += n; }
+                }
+            }
+            std::set<const void*> nullRes;
+            for (const auto& [r, n] : a) { (void)n; nullRes.insert(r); }
+            int gemeinsam = 0;
+            for (const auto& [r, n] : b) { (void)n; gemeinsam += nullRes.count(r) != 0U ? 1 : 0; }
+            char z[300];
+            std::snprintf(z, sizeof(z), "Knopftest: MR8 P2 - Szene 0: %zu Bilder, Szene 1: %zu Bilder, davon gemeinsam %d; Bytes zusammen %.1f MB, belegt %.1f MB; DXGI %.1f MB",
+                          a.size(), b.size(), gemeinsam, static_cast<double>(summe) / 1048576.0, static_cast<double>(eindeutig) / 1048576.0,
+                          static_cast<double>(gpu::speicherStand().grafikBytes) / 1048576.0);
+            diag::detail(z);
+            const std::size_t weniger = std::min(a.size(), b.size());   // die Vorschau laedt nur, was sie gezeichnet hat
+            const gpu::BilderTeilen tb = gpu::bilderTeilen();
+            std::snprintf(z, sizeof(z), "Knopftest: MR8 P2 - geteilt %d Bilder (%.1f MB), angelegt %d (%.1f MB), jetzt auf der Grafikkarte %d (%.1f MB)", tb.geteilt,
+                          static_cast<double>(tb.geteiltBytes) / 1048576.0, tb.angelegt, static_cast<double>(tb.angelegtBytes) / 1048576.0, tb.lebend,
+                          static_cast<double>(tb.lebendBytes) / 1048576.0);
+            diag::detail(z);
+            return weniger > 0U && static_cast<std::size_t>(gemeinsam) * 10U >= weniger * 9U;
+        }));
         auto vorher = std::make_shared<bool>(false);
         add(tu("Geschuetze Vergleich: Regelwerk wechseln (Movie Duels <-> OpenJK)", [=] {
             *vorher = regelwerkMovieDuels();
@@ -649,7 +1026,26 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             if (md) { return b.lightmapStufe > 0 && b.komprimiert == 0; }
             return b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe;
         }));
+        add(pruefe("Geschuetze Vergleich: P39 - nach dem Wechsel laedt auch das Spielbild des Karten-Editors (Szene 1) neu, nach der neuen Regel", [=] {
+            (void)gpu::bilderDxt(true);
+            const bool bild = spielbildP39();
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            const bool md = regelwerkMovieDuels();
+            bezeichne(md ? "Szene 1 nach dem Wechsel, Movie Duels" : "Szene 1 nach dem Wechsel, JKA/JK2", b);
+            if (!bild || b.lightmapStufe == 0) { return false; }
+            return md ? b.komprimiert == 0 : b.lightmapStufeKomprimiert == b.lightmapStufe;
+        }));
     }
+    add(tu("Geschuetze Vergleich: Regelwerk wie vor dem Vergleich", [=] {
+        g_app->settings.regelwerk = *regelAnfang;
+        (void)regelwerkPruefen();
+        g_app->mapDirty = true;
+    }));
+    add(pruefe("Geschuetze Vergleich: P42 - das Regelwerk steht am Ende wieder wie vor dem Vergleich", [=] {
+        diag::detail("Knopftest: Geschuetze Vergleich - Regelwerk am Ende " + std::to_string(g_app->settings.regelwerk) + ", vorher " +
+                     std::to_string(*regelAnfang));
+        return g_app->settings.regelwerk == *regelAnfang;
+    }));
     return s;
 }
 

@@ -2009,12 +2009,22 @@ void openSkeletonFile() {
 // Eine Editoransicht braucht keine 1024er-Textur; bei siebzig Shadern spart
 // das ein Vielfaches an Speicher. Der Code stand dreimal woertlich da -
 // einmal fuer die Karte, zweimal fuer das Modell.
-int bildGrenzeFuer(const image::Image& im) {
-    const int stufe = std::clamp(g_app->settings.bildPicmip, 0, 8);
-    return std::clamp(std::max(im.width, im.height) >> stufe, 1, kBildGrenze);
+namespace {
+int grenzeMitStufe(const image::Image& im, int stufe) {
+    return std::clamp(std::max(im.width, im.height) >> std::clamp(stufe, 0, 8), 1, kBildGrenze);
+}
+}  // namespace
+
+int bildGrenzeFuer(const image::Image& im) { return grenzeMitStufe(im, g_app->settings.bildPicmip); }
+
+int bildPicmipFuer(const std::string& bild) {
+    const BildWahl* w = ladeRegister().wahl(bild);
+    return w != nullptr && !w->picmip ? 0 : g_app->settings.bildPicmip;
 }
 
-std::string bildStufeText() { return std::to_string(g_app->settings.bildPicmip); }
+int bildGrenzeFuer(const image::Image& im, const std::string& bild) { return grenzeMitStufe(im, bildPicmipFuer(bild)); }
+
+std::string bildStufeText(const std::string& bild) { return std::to_string(bildPicmipFuer(bild)); }
 
 TextureSet::Tex shrink(const image::Image& im, int maxSize) {
     // Die Rechnung selbst steht im Bildmodul - sie wird an drei Stellen
@@ -2059,7 +2069,6 @@ BildVorratStand bildVorratFuellen(const std::vector<std::vector<std::string>>& a
         }
     }
     std::atomic<std::size_t> naechste{0};
-    const std::string stufe = bildStufeText();
     const auto arbeit = [&](std::size_t fach) {
         for (;;) {
             const std::size_t n = naechste.fetch_add(1);
@@ -2069,7 +2078,7 @@ BildVorratStand bildVorratFuellen(const std::vector<std::vector<std::string>>& a
             for (const std::string& name : auftraege[liste[n]]) {
                 // Liegt das Bild SCHON in der Tabelle? Dann gar nicht erst lesen (die Aufrufer fragen dort zuerst).
                 // Nur LESEN aus der Tabelle; geschrieben wird erst hinterher von einem Faden.
-                if (g_app->texCache.count(image::mappingName(name) + "@" + stufe) != 0U) {
+                if (g_app->texCache.count(image::mappingName(name) + "@" + bildStufeText(name)) != 0U) {
                     break;
                 }
                 // Schon im Vorrat (nur gelesen, geschrieben wird erst nach dem Zusammenfuehren)?
@@ -2090,7 +2099,7 @@ BildVorratStand bildVorratFuellen(const std::vector<std::vector<std::string>>& a
                     faecher[fach].emplace_back(name, std::move(t));
                     continue;
                 }
-                faecher[fach].emplace_back(name, shrink(im, bildGrenzeFuer(im)));
+                faecher[fach].emplace_back(name, shrink(im, bildGrenzeFuer(im, name)));
                 break;
             }
         }
@@ -2132,7 +2141,7 @@ bool bildLesen(const std::string& datei, TextureSet::Tex& t) {
     if (!im.ok || im.width <= 0 || im.height <= 0) {
         return false;
     }
-    t = shrink(im, bildGrenzeFuer(im));
+    t = shrink(im, bildGrenzeFuer(im, datei));
     return true;
 }
 
@@ -2174,7 +2183,7 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
         }();
         return kWeiss;
     }
-    const std::string sk = image::mappingName(bildName) + "@" + bildStufeText();
+    const std::string sk = image::mappingName(bildName) + "@" + bildStufeText(bildName);
     figurBildGenutzt(sk);   // rc610 R1
     if (const auto da = g_app->figurStufenBilder.find(sk); da != g_app->figurStufenBilder.end()) {
         if (auto lebt = da->second.lock()) { return lebt; }
@@ -2236,6 +2245,7 @@ bool figurStufenListe(const ShaderInfo& info, std::size_t stufenZahl, std::vecto
             z.cull = info.cull;
             z.depthWrite = st.depthWrite;
             z.depthFunc = st.depthFunc;
+            z.keinTc = st.keinTc;   // P58: allowTC = !shader.noTC wie bei der Karte (ParseStage tr_shader.cpp:1263/1288/1329)
             // rc604 fix604b (B4): tcMod der Stufe (turb, rotate, scroll ...) -
             // gpumap_win32.cpp packt die Kette je Bild wie bei der Karte.
             z.numTexMods = st.numTexMods;
@@ -2450,11 +2460,18 @@ ModelTextures texturesFor(const GlmModel& model) {
         // Die GROESSE gehoert in den Schluessel, damit eine andere Grenze
         // nie ein Bild aus dem Zwischenspeicher der ersten bekommt.
         const std::string schluessel =
-            image::mappingName(name) + "@" + bildStufeText();
+            image::mappingName(name) + "@" + bildStufeText(name);
         figurBildGenutzt(schluessel);   // rc610 R1
         const auto imCache = g_app->texCache.find(schluessel);
+        // P58: das Bild des Hautshaders mit dessen noTC (bildKeinTc, R_FindShader sucht das Skript zuerst); ohne Skript allowTC
+        const auto skriptKeinTc = [&shaderMap = g_app->shaderMap](const std::string& sh) {
+            std::string k = image::mappingName(sh);
+            const auto s2 = shaderMap.find(k);
+            return s2 != shaderMap.end() && s2->second.bildKeinTc;
+        };
         if (imCache != g_app->texCache.end()) {
             out.bySurface[i] = imCache->second;
+            out.bySurface[i].keinTc = skriptKeinTc(name);
             ++out.found;
             continue;
         }
@@ -2466,6 +2483,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             }
             g_app->texCache[schluessel] = t;
             out.bySurface[i] = std::move(t);
+            out.bySurface[i].keinTc = skriptKeinTc(name);
             ++out.found;
             got = true;
             break;
@@ -2498,7 +2516,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                     // im Protokoll). rc608 Teil 10: unter dem Namen der gelesenen DATEI, nicht unter dem
                     // Shadernamen - sonst faende eine Bildstufe "map <Shadername>" (ladeStufenBild, wie
                     // R_FindImageFile nur Dateien) das Bild des Skripts, das es als Datei gar nicht gibt.
-                    const std::string dateiSchluessel = image::mappingName(kandidat) + "@" + bildStufeText();
+                    const std::string dateiSchluessel = image::mappingName(kandidat) + "@" + bildStufeText(kandidat);
                     figurBildGenutzt(dateiSchluessel);   // rc610 R1
                     TextureSet::Tex t2;
                     if (const auto da = g_app->texCache.find(dateiSchluessel); da != g_app->texCache.end()) {
@@ -2522,6 +2540,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                     // Shadern verschieden getestet werden.
                     out.bySurface[i] = std::move(t2);
                     out.bySurface[i].alphaTest = it->second.alphaTest;
+                    out.bySurface[i].keinTc = it->second.bildKeinTc;   // P58
                     ++out.found;
                     got = true;
                     ++viaShader;
@@ -2584,7 +2603,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             if (!st.glow || st.lightmap || st.image.empty()) {
                 continue;
             }
-            const std::string sk = image::mappingName(st.image) + "@" + bildStufeText();
+            const std::string sk = image::mappingName(st.image) + "@" + bildStufeText(st.image);
             figurBildGenutzt(sk);   // rc610 R1
             TextureSet::Tex z;
             const auto hit = g_app->texCache.find(sk);
@@ -2613,6 +2632,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             z.cull = it->second.cull;
             z.depthWrite = st.depthWrite;
             z.depthFunc = st.depthFunc;
+            z.keinTc = st.keinTc;   // P58
             out.gluehStufen[i].push_back(std::move(z));
             ++leuchtStufen;
         }

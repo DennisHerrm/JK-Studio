@@ -2409,6 +2409,50 @@ bool tripMineLage(const MapEntity& e, TripMineLage& l) {
 // die sie setzen (Bone_body, swivel_bone, cannon_Yrot ... mit vec3_origin),
 // lassen die Grundhaltung stehen. Ohne Spieler und Feind bewegt sich nichts.
 // misc_panel_turret (ein md3) steht in der Liste der festen md3 oben.
+}  // namespace
+
+// MR9 Punkt 1: das Ghoul2-Modell, das die Spawnfunktion dieser Klasse auf dem Server laedt - G2API_InitGhoul2Model ruft
+// RE_RegisterModel sofort (G2_TestModelPointers, rd-vanilla G2_API.cpp:771-825), also waehrend G_SpawnEntitiesFromString und
+// VOR CG_Init und der Welt. Leer fuer alle anderen Klassen. geschuetzeAufstellen zeichnet dieselben Modelle.
+std::string serverG2Modell(const MapEntity& e) {
+    const std::string& c = e.classname;
+    int sf = 0;
+    if (const std::string* s = e.find("spawnflags")) { sf = std::atoi(s->c_str()); }
+    if (c == "misc_turret") {
+        // SP_misc_turret -> turret_set_models (g_turret.cpp:755-812, 865-877 OpenJK; md_g_turret.cpp:1014 MD):
+        // SPF_TURRETG2_TURBO (4, nicht in Jedi Outcast) laser_cannon_model.glm, sonst turret_canon.glm.
+        return (sf & 4) != 0 && !regelwerkJediOutcast() ? "models/map_objects/wedge/laser_cannon_model.glm"
+                                                        : "models/map_objects/imp_mine/turret_canon.glm";
+    }
+    if (c == "misc_turretG2") {
+        // SP_misc_turretG2 -> turretG2_set_models (g_turret.cpp:1044-1090, 1151-1182 MD, nur Movie Duels): 8 turbo.
+        if (!kartenpruefung::imSpiel(c, regelwerkMovieDuels())) { return {}; }
+        return (sf & 8) != 0 ? "models/map_objects/wedge/laser_cannon_model.glm" : "models/map_objects/imp_mine/turret_canon.glm";
+    }
+    // SP_misc_ns_turret (g_turret.cpp:1115-1126 OpenJK, :1517 MD)
+    if (c == "misc_ns_turret") { return "models/map_objects/nar_shaddar/turret/turret.glm"; }
+    // SP_emplaced_gun (g_emplaced.cpp:786-860 OpenJK): turret_chair.glm.
+    if (c == "emplaced_gun") { return "models/map_objects/imp_mine/turret_chair.glm"; }
+    // SP_emplaced_eweb (g_emplaced.cpp:416-490 OpenJK): eweb_model.glm.
+    if (c == "emplaced_eweb") { return "models/map_objects/hoth/eweb_model.glm"; }
+    // SP_PAS (g_turret.cpp:1784-1800 OpenJK): models/items/psgun.glm.
+    if (c == "misc_sentry_turret") { return "models/items/psgun.glm"; }
+    // SP_misc_model_ghoul (g_misc_model.cpp:182-186): das Modell der Entity.
+    if (c == "misc_model_ghoul") {
+        const std::string* m = e.find("model");
+        return m != nullptr ? *m : std::string();
+    }
+    // SP_misc_trip_mine -> CreateLaserTrap (g_misc.cpp:1819-1850, wp_trip_mine.cpp:177-214): missileMdl von WP_TRIP_MINE.
+    if (c == "misc_trip_mine") {
+        TripMineLage tl;
+        if (!kartenpruefung::imSpiel(c, regelwerkMovieDuels()) || !tripMineLage(e, tl)) { return {}; }
+        return "models/weapons2/laser_trap/laser_trap_w.glm";
+    }
+    return {};
+}
+
+namespace {
+
 void geschuetzeAufstellen(int& gefunden, int& fehlt) {
     const bool md = regelwerkMovieDuels();
     for (std::size_t i = 0; i < g_app->map.entities.size(); ++i) {
@@ -2426,8 +2470,7 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             // turret_set_models -> turret_canon.glm; finish_spawning_turret; Start_Off
             // (spawnflags 1) s.frame 1 "black", sonst 0 "glow", EF_SHADER_ANIM.
             // Rc608: SPF_TURRETG2_TURBO (4, nicht in Jedi Outcast): laser_cannon_model.glm (turret_set_models).
-            pfad = (sf & 4) != 0 && !regelwerkJediOutcast() ? "models/map_objects/wedge/laser_cannon_model.glm"
-                                                            : "models/map_objects/imp_mine/turret_canon.glm";
+            pfad = serverG2Modell(e);
             kopfueber = (sf & 2) != 0;
             bild = (sf & 1) != 0 ? 1 : 0;
         } else if (c == "misc_turretG2") {
@@ -2435,8 +2478,7 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             // der Karte - 8 turbo (laser_cannon_model.glm), 2 kopfueber, 1 Start_Off;
             // "customscale" (bis 1023) / 100 als s.modelScale.
             if (!kartenpruefung::imSpiel(c, md)) { continue; }
-            pfad = (sf & 8) != 0 ? "models/map_objects/wedge/laser_cannon_model.glm"
-                                 : "models/map_objects/imp_mine/turret_canon.glm";
+            pfad = serverG2Modell(e);
             kopfueber = (sf & 2) != 0;
             bild = (sf & 1) != 0 ? 1 : 0;
             int cs = 0;
@@ -2444,19 +2486,16 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             cs = std::min(cs, 1023);
             if (cs > 0) { skala = static_cast<float>(cs) / 100.0F; }
         } else if (c == "emplaced_gun") {
-            // SP_emplaced_gun (code/game/g_emplaced.cpp:786-860 OpenJK): turret_chair.glm.
-            pfad = "models/map_objects/imp_mine/turret_chair.glm";
+            pfad = serverG2Modell(e);
         } else if (c == "emplaced_eweb") {
-            // SP_emplaced_eweb (g_emplaced.cpp:416-490 OpenJK): eweb_model.glm.
-            pfad = "models/map_objects/hoth/eweb_model.glm";
+            pfad = serverG2Modell(e);
         } else if (c == "misc_sentry_turret") {
-            // SP_PAS (g_turret.cpp:1784-1800 OpenJK): models/items/psgun.glm, modelScale 1.
-            pfad = "models/items/psgun.glm";
+            pfad = serverG2Modell(e);
         } else if (c == "misc_trip_mine") {
             // rc604 fix604b (B5): siehe tripMineLage.
             TripMineLage tl;
             if (!kartenpruefung::imSpiel(c, md) || !tripMineLage(e, tl)) { continue; }
-            static const std::string kFalle = "models/weapons2/laser_trap/laser_trap_w.glm";
+            const std::string kFalle = serverG2Modell(e);
             if (gegenstandGlmFuer(kFalle) == nullptr) {
                 ++fehlt;
                 continue;
@@ -3668,6 +3707,190 @@ bool figurModellWieMission(const std::string& npcTyp, GlmModel& gm, bool regeln,
     return true;
 }
 
+// MR9 Punkt 1: die NPC-Beschreibungen, Klingen und Waffen einmal einlesen - aus loadActorModels herausgezogen, weil
+// vorWeltRegistrieren (app_ablage.inc) sie schon beim Laden der Kartenbilder braucht (NPC_Spawn_Go vor CG_Init).
+void npcDatenSicherstellen() {
+    if (g_app->npcMapRead) { return; }
+    g_app->npcMapRead = true;
+    // Ueber ALLE Spielordner, nicht nur den zuletzt gewaehlten. Was
+    // wo gefunden wurde, kommt ins Protokoll - sonst laesst sich
+    // hinterher nicht sagen, ob ein Ordner ueberhaupt durchsucht wurde.
+    // rc604 jk2: ueber npcDateienLesen (Jedi Outcast: NPCs.cfg).
+    const int files = npcDateienLesen(g_app->npcMap);
+    diag::info(std::to_string(files) + (regelwerkJediOutcast() ? " NPC-Dateien (NPCs.cfg, Jedi Outcast) in "
+                                                               : " .npc-Dateien in ") +
+               std::to_string(g_app->gamePaths.size()) + " Spielordnern -> " +
+               std::to_string(g_app->npcMap.size()) + " NPC-Typen");
+    // Der Typ "player" (NPC_Player-Spawner und die Spielerfigur selbst)
+    // steht in keiner .npc: NPC_ParseParms nimmt dafuer die Cvars des
+    // Spielers - g_char_model "jedi_hm", g_saber "single_1"
+    // (g_main.cpp:801, 808). Deren Vorgaben, solange keine .npc
+    // "player" etwas anderes sagt.
+    // "playerModel player" in einer .npc heisst dasselbe: das Modell des
+    // Spielers (NPC_stats.cpp:1364: Q_stricmp("player", ...) ->
+    // g_char_model). Movie Duels hat so einen Eintrag - behaved suchte
+    // vorher models/players/player/ und fand nichts (270 Szenen ohne
+    // Spielerfigur im Szenenlauf vom 27.09.).
+    // rc604 jk2: in Jedi Outcast ist der Spieler immer "kyle"
+    // (G_SetG2PlayerModel(ent, "kyle", ...), codeJK2/game/g_client.cpp:1414,
+    // 1727) - es gibt kein g_char_model.
+    //
+    // G_InitPlayerFromCvars: Modell und drei Haeute aus den Cvars, Vorgaben g_main.cpp: OpenJK
+    // "jedi_tf" (:686), Movie Duels "jedi_hm" (:822), beide head_a1, torso_a1, lower_a1.
+    const char* const spielerModell = regelwerkJediOutcast() ? "kyle" : (regelwerkMovieDuels() ? "jedi_hm" : "jedi_tf");
+    const char* const spielerHaut = regelwerkJediOutcast() ? "default" : "|head_a1|torso_a1|lower_a1";
+    for (auto& [typ, def] : g_app->npcMap) {
+        (void)typ;
+        std::string pm = def.playerModel;
+        for (char& c : pm) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (pm == "player") {
+            def.playerModel = spielerModell;
+            def.customSkin = spielerHaut;
+            if (!regelwerkJediOutcast()) { spielerSchwertAusCvars(def); }
+        }
+    }
+    // --- Fahrzeuge: das Modell aus ext_data/vehicles/*.veh -------------
+    //
+    // NPC_ParseParms nimmt bei CLASS_VEHICLE g_vehicleInfo[...].model
+    // (NPC_stats.cpp:4562 ff.), gefunden ueber den NPC_type als `name`
+    // der .veh (BG_VehicleGetIndex). Der Skin: bei einer Liste der, den
+    // soundSet nennt, sonst ein zufaelliger - hier der erste.
+    {
+        std::map<std::string, std::pair<std::string, std::string>> fahrzeuge;   // name -> model, skin
+        std::map<std::string, FahrzeugDaten> fahrzeugDaten;                      // Pruefung 4b
+        for (const GamePath& gp : g_app->gamePaths) {
+            for (const FoundFile& f : findByExtension(gp, {".veh"})) {
+                std::string text;
+                if (!readFromArchives(f.name, text)) {
+                    continue;
+                }
+                std::string vname;
+                std::string vmodel;
+                std::string vskin;
+                FahrzeugDaten fd;   // Pruefung 4b: BG_VehicleSetDefaults, dann die Schluessel
+                fd.da = true;
+                std::istringstream is(text);
+                std::string zeile;
+                while (std::getline(is, zeile)) {
+                    std::istringstream zs(zeile);
+                    std::string k;
+                    std::string v;
+                    zs >> k >> v;
+                    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                    if (v.size() >= 2 && v.front() == '"' && v.back() == '"') { v = v.substr(1, v.size() - 2); }
+                    if (k == "name" && vname.empty()) { vname = v; }
+                    if (k == "model" && vmodel.empty()) { vmodel = v; }
+                    if (k == "skin" && vskin.empty()) { vskin = v; }
+                    // Pruefung 4b: VF_INT gravity, VF_FLOAT die anderen, type als Name
+                    if (k == "type") { fd.typ = v; }
+                    if (k == "gravity") { fd.schwerkraft = static_cast<float>(std::atoi(v.c_str())); }
+                    if (k == "hoverheight") { fd.schwebeHoehe = static_cast<float>(std::atof(v.c_str())); }
+                    if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
+                    if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
+                    if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
+                    if (k == "acceleration") { fd.beschleunigung = static_cast<float>(std::atof(v.c_str())); }
+                    if (k == "hiderider") { fd.reiterVerbergen = std::atoi(v.c_str()) != 0; }
+                    if (k == "numhands") { fd.haende = std::atoi(v.c_str()); }
+                }
+                for (char& c : vname) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                if (!vname.empty() && !vmodel.empty()) {
+                    fahrzeuge[vname] = {vmodel, vskin.substr(0, vskin.find('|'))};
+                }
+                if (!vname.empty()) { fahrzeugDaten[vname] = fd; }
+            }
+        }
+        for (auto& [typ, def] : g_app->npcMap) {
+            if (!def.playerModel.empty()) {
+                continue;
+            }
+            std::string kl = def.klasse;
+            for (char& c : kl) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+            if (kl != "CLASS_VEHICLE") {
+                continue;
+            }
+            if (const auto fd = fahrzeugDaten.find(typ); fd != fahrzeugDaten.end()) { def.fahrzeug = fd->second; }
+            const auto v = fahrzeuge.find(typ);
+            if (v == fahrzeuge.end()) {
+                continue;
+            }
+            def.playerModel = v->second.first;
+            def.customSkin = v->second.second.empty() ? "default" : v->second.second;
+        }
+        diag::info(std::to_string(fahrzeuge.size()) + " Fahrzeuge (.veh)");
+    }
+    if (g_app->npcMap.find("player") == g_app->npcMap.end() && regelwerkJediOutcast()) {
+        // rc604 jk2: der Spieler von Jedi Outcast - NPC_type "kyle",
+        // NPC_class CLASS_KYLE (g_client.cpp:1620-1624), Modell kyle
+        // (:1727), TEAM_PLAYER (:1626), saberColor SABER_BLUE (:1666).
+        // Das Schwert kommt in JK2 aus der Klasse (WP_SaberInitBladeData).
+        NpcDef spieler;
+        const auto kyle = g_app->npcMap.find("kyle");
+        if (kyle != g_app->npcMap.end()) { spieler = kyle->second; }
+        spieler.playerModel = "kyle";
+        spieler.customSkin = "default";
+        spieler.klasse = "CLASS_KYLE";
+        spieler.team = "TEAM_PLAYER";
+        spieler.weapon = "WP_SABER";
+        spieler.saberFarbe = {};
+        spieler.saberFarbe[0][0] = "blue";
+        g_app->npcMap["player"] = spieler;
+    }
+    if (g_app->npcMap.find("player") == g_app->npcMap.end()) {
+        NpcDef spieler;
+        spieler.playerModel = spielerModell;
+        spieler.customSkin = spielerHaut;
+        spielerSchwertAusCvars(spieler);
+        spieler.weapon = "WP_SABER";
+        g_app->npcMap["player"] = spieler;
+    }
+
+    // --- Und die Klingen -------------------------------------------
+    //
+    // Gemeldet: "weder die Lichtschwerter werden geladen und
+    // ordentlich angezeigt als auch die Sounds."
+    //
+    // Derselbe Weg wie bei den .npc-Dateien, eine Stufe weiter: der
+    // `saber`-Schluessel eines NPC nennt einen Eintrag in einer
+    // .sab-Datei, und der traegt Modell, Klaenge, Farbe und Laenge.
+    int sabs = 0;
+    for (const GamePath& gp : g_app->gamePaths) {
+        for (const FoundFile& f : findByExtension(gp, {".sab"})) {
+            std::string text;
+            if (readFromArchives(f.name, text)) {
+                parseSaberFile(text, g_app->saberMap);
+                ++sabs;
+            }
+        }
+    }
+    diag::info(std::to_string(sabs) + " .sab-Dateien -> " +
+               std::to_string(g_app->saberMap.size()) + " Klingen");
+
+    // --- Und die Waffen ---------------------------------------------
+    //
+    // Gefragt: "wo bekommen wir das Projektil her?" Von hier.
+    // ext_data/weapons.dat nennt je Waffe das Modell und den
+    // Muendungsblitz; der Blitz ist eine gewoehnliche .efx, und das
+    // Modell traegt den Tag "tag_flash", an dem die Muendung sitzt.
+    std::string wdat;
+    if (readFromArchives("ext_data/weapons.dat", wdat)) {
+        parseWeaponsDat(wdat, g_app->weaponMap);
+    }
+    int mitBlitz = 0;
+    int ohneBlitz = 0;
+    for (const auto& [typ, def] : g_app->weaponMap) {
+        (void)typ;
+        if (def.muzzleEffect.empty()) { ++ohneBlitz; } else { ++mitBlitz; }
+    }
+    diag::info(std::to_string(g_app->weaponMap.size()) +
+               " Waffen aus weapons.dat, " + std::to_string(mitBlitz) +
+               " mit Muendungsblitz, " + std::to_string(ohneBlitz) +
+               " ohne");
+    if (g_app->weaponMap.empty()) {
+        diag::info("   ext_data/weapons.dat NICHT GEFUNDEN - ohne sie "
+                   "gibt es keine Muendungsblitze und keine Geschosse");
+    }
+}
+
 void loadActorModels() {
     diag::Step step("Figurenmodelle suchen");
     static const std::shared_ptr<const App::ActorAssets> kOhneModell = std::make_shared<const App::ActorAssets>();
@@ -3704,186 +3927,7 @@ void loadActorModels() {
 
     // Die NPC-Beschreibungen einmal einlesen.
     const auto tNpc = Uhr::now();
-    if (!g_app->npcMapRead) {
-        g_app->npcMapRead = true;
-        // Ueber ALLE Spielordner, nicht nur den zuletzt gewaehlten. Was
-        // wo gefunden wurde, kommt ins Protokoll - sonst laesst sich
-        // hinterher nicht sagen, ob ein Ordner ueberhaupt durchsucht wurde.
-        // rc604 jk2: ueber npcDateienLesen (Jedi Outcast: NPCs.cfg).
-        const int files = npcDateienLesen(g_app->npcMap);
-        diag::info(std::to_string(files) + (regelwerkJediOutcast() ? " NPC-Dateien (NPCs.cfg, Jedi Outcast) in "
-                                                                   : " .npc-Dateien in ") +
-                   std::to_string(g_app->gamePaths.size()) + " Spielordnern -> " +
-                   std::to_string(g_app->npcMap.size()) + " NPC-Typen");
-        // Der Typ "player" (NPC_Player-Spawner und die Spielerfigur selbst)
-        // steht in keiner .npc: NPC_ParseParms nimmt dafuer die Cvars des
-        // Spielers - g_char_model "jedi_hm", g_saber "single_1"
-        // (g_main.cpp:801, 808). Deren Vorgaben, solange keine .npc
-        // "player" etwas anderes sagt.
-        // "playerModel player" in einer .npc heisst dasselbe: das Modell des
-        // Spielers (NPC_stats.cpp:1364: Q_stricmp("player", ...) ->
-        // g_char_model). Movie Duels hat so einen Eintrag - behaved suchte
-        // vorher models/players/player/ und fand nichts (270 Szenen ohne
-        // Spielerfigur im Szenenlauf vom 27.09.).
-        // rc604 jk2: in Jedi Outcast ist der Spieler immer "kyle"
-        // (G_SetG2PlayerModel(ent, "kyle", ...), codeJK2/game/g_client.cpp:1414,
-        // 1727) - es gibt kein g_char_model.
-        //
-        // G_InitPlayerFromCvars: Modell und drei Haeute aus den Cvars, Vorgaben g_main.cpp: OpenJK
-        // "jedi_tf" (:686), Movie Duels "jedi_hm" (:822), beide head_a1, torso_a1, lower_a1.
-        const char* const spielerModell = regelwerkJediOutcast() ? "kyle" : (regelwerkMovieDuels() ? "jedi_hm" : "jedi_tf");
-        const char* const spielerHaut = regelwerkJediOutcast() ? "default" : "|head_a1|torso_a1|lower_a1";
-        for (auto& [typ, def] : g_app->npcMap) {
-            (void)typ;
-            std::string pm = def.playerModel;
-            for (char& c : pm) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-            if (pm == "player") {
-                def.playerModel = spielerModell;
-                def.customSkin = spielerHaut;
-                if (!regelwerkJediOutcast()) { spielerSchwertAusCvars(def); }
-            }
-        }
-        // --- Fahrzeuge: das Modell aus ext_data/vehicles/*.veh -------------
-        //
-        // NPC_ParseParms nimmt bei CLASS_VEHICLE g_vehicleInfo[...].model
-        // (NPC_stats.cpp:4562 ff.), gefunden ueber den NPC_type als `name`
-        // der .veh (BG_VehicleGetIndex). Der Skin: bei einer Liste der, den
-        // soundSet nennt, sonst ein zufaelliger - hier der erste.
-        {
-            std::map<std::string, std::pair<std::string, std::string>> fahrzeuge;   // name -> model, skin
-            std::map<std::string, FahrzeugDaten> fahrzeugDaten;                      // Pruefung 4b
-            for (const GamePath& gp : g_app->gamePaths) {
-                for (const FoundFile& f : findByExtension(gp, {".veh"})) {
-                    std::string text;
-                    if (!readFromArchives(f.name, text)) {
-                        continue;
-                    }
-                    std::string vname;
-                    std::string vmodel;
-                    std::string vskin;
-                    FahrzeugDaten fd;   // Pruefung 4b: BG_VehicleSetDefaults, dann die Schluessel
-                    fd.da = true;
-                    std::istringstream is(text);
-                    std::string zeile;
-                    while (std::getline(is, zeile)) {
-                        std::istringstream zs(zeile);
-                        std::string k;
-                        std::string v;
-                        zs >> k >> v;
-                        for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-                        if (v.size() >= 2 && v.front() == '"' && v.back() == '"') { v = v.substr(1, v.size() - 2); }
-                        if (k == "name" && vname.empty()) { vname = v; }
-                        if (k == "model" && vmodel.empty()) { vmodel = v; }
-                        if (k == "skin" && vskin.empty()) { vskin = v; }
-                        // Pruefung 4b: VF_INT gravity, VF_FLOAT die anderen, type als Name
-                        if (k == "type") { fd.typ = v; }
-                        if (k == "gravity") { fd.schwerkraft = static_cast<float>(std::atoi(v.c_str())); }
-                        if (k == "hoverheight") { fd.schwebeHoehe = static_cast<float>(std::atof(v.c_str())); }
-                        if (k == "hoverstrength") { fd.schwebeKraft = static_cast<float>(std::atof(v.c_str())); }
-                        if (k == "maxslope") { fd.hang = static_cast<float>(std::atof(v.c_str())); }
-                        if (k == "friction") { fd.reibung = static_cast<float>(std::atof(v.c_str())); }
-                        if (k == "acceleration") { fd.beschleunigung = static_cast<float>(std::atof(v.c_str())); }
-                        if (k == "hiderider") { fd.reiterVerbergen = std::atoi(v.c_str()) != 0; }
-                        if (k == "numhands") { fd.haende = std::atoi(v.c_str()); }
-                    }
-                    for (char& c : vname) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-                    if (!vname.empty() && !vmodel.empty()) {
-                        fahrzeuge[vname] = {vmodel, vskin.substr(0, vskin.find('|'))};
-                    }
-                    if (!vname.empty()) { fahrzeugDaten[vname] = fd; }
-                }
-            }
-            for (auto& [typ, def] : g_app->npcMap) {
-                if (!def.playerModel.empty()) {
-                    continue;
-                }
-                std::string kl = def.klasse;
-                for (char& c : kl) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
-                if (kl != "CLASS_VEHICLE") {
-                    continue;
-                }
-                if (const auto fd = fahrzeugDaten.find(typ); fd != fahrzeugDaten.end()) { def.fahrzeug = fd->second; }
-                const auto v = fahrzeuge.find(typ);
-                if (v == fahrzeuge.end()) {
-                    continue;
-                }
-                def.playerModel = v->second.first;
-                def.customSkin = v->second.second.empty() ? "default" : v->second.second;
-            }
-            diag::info(std::to_string(fahrzeuge.size()) + " Fahrzeuge (.veh)");
-        }
-        if (g_app->npcMap.find("player") == g_app->npcMap.end() && regelwerkJediOutcast()) {
-            // rc604 jk2: der Spieler von Jedi Outcast - NPC_type "kyle",
-            // NPC_class CLASS_KYLE (g_client.cpp:1620-1624), Modell kyle
-            // (:1727), TEAM_PLAYER (:1626), saberColor SABER_BLUE (:1666).
-            // Das Schwert kommt in JK2 aus der Klasse (WP_SaberInitBladeData).
-            NpcDef spieler;
-            const auto kyle = g_app->npcMap.find("kyle");
-            if (kyle != g_app->npcMap.end()) { spieler = kyle->second; }
-            spieler.playerModel = "kyle";
-            spieler.customSkin = "default";
-            spieler.klasse = "CLASS_KYLE";
-            spieler.team = "TEAM_PLAYER";
-            spieler.weapon = "WP_SABER";
-            spieler.saberFarbe = {};
-            spieler.saberFarbe[0][0] = "blue";
-            g_app->npcMap["player"] = spieler;
-        }
-        if (g_app->npcMap.find("player") == g_app->npcMap.end()) {
-            NpcDef spieler;
-            spieler.playerModel = spielerModell;
-            spieler.customSkin = spielerHaut;
-            spielerSchwertAusCvars(spieler);
-            spieler.weapon = "WP_SABER";
-            g_app->npcMap["player"] = spieler;
-        }
-
-        // --- Und die Klingen -------------------------------------------
-        //
-        // Gemeldet: "weder die Lichtschwerter werden geladen und
-        // ordentlich angezeigt als auch die Sounds."
-        //
-        // Derselbe Weg wie bei den .npc-Dateien, eine Stufe weiter: der
-        // `saber`-Schluessel eines NPC nennt einen Eintrag in einer
-        // .sab-Datei, und der traegt Modell, Klaenge, Farbe und Laenge.
-        int sabs = 0;
-        for (const GamePath& gp : g_app->gamePaths) {
-            for (const FoundFile& f : findByExtension(gp, {".sab"})) {
-                std::string text;
-                if (readFromArchives(f.name, text)) {
-                    parseSaberFile(text, g_app->saberMap);
-                    ++sabs;
-                }
-            }
-        }
-        diag::info(std::to_string(sabs) + " .sab-Dateien -> " +
-                   std::to_string(g_app->saberMap.size()) + " Klingen");
-
-        // --- Und die Waffen ---------------------------------------------
-        //
-        // Gefragt: "wo bekommen wir das Projektil her?" Von hier.
-        // ext_data/weapons.dat nennt je Waffe das Modell und den
-        // Muendungsblitz; der Blitz ist eine gewoehnliche .efx, und das
-        // Modell traegt den Tag "tag_flash", an dem die Muendung sitzt.
-        std::string wdat;
-        if (readFromArchives("ext_data/weapons.dat", wdat)) {
-            parseWeaponsDat(wdat, g_app->weaponMap);
-        }
-        int mitBlitz = 0;
-        int ohneBlitz = 0;
-        for (const auto& [typ, def] : g_app->weaponMap) {
-            (void)typ;
-            if (def.muzzleEffect.empty()) { ++ohneBlitz; } else { ++mitBlitz; }
-        }
-        diag::info(std::to_string(g_app->weaponMap.size()) +
-                   " Waffen aus weapons.dat, " + std::to_string(mitBlitz) +
-                   " mit Muendungsblitz, " + std::to_string(ohneBlitz) +
-                   " ohne");
-        if (g_app->weaponMap.empty()) {
-            diag::info("   ext_data/weapons.dat NICHT GEFUNDEN - ohne sie "
-                       "gibt es keine Muendungsblitze und keine Geschosse");
-        }
-    }
+    npcDatenSicherstellen();
     msNpc = zeitAb(tNpc);
 
     // --- Vorwaermen in drei Stufen ---------------------------------------
@@ -4053,7 +4097,7 @@ void loadActorModels() {
         const std::size_t texFaeden =
             trupp(texNamen.size(), [&](std::size_t k, std::size_t) {
                 const std::string key =
-                    image::mappingName(texNamen[k]) + "@" + bildStufeText();
+                    image::mappingName(texNamen[k]) + "@" + bildStufeText(texNamen[k]);
                 // Schon da? Dann nicht noch einmal entziffern - derselbe
                 // Fehler wie bei den Kartentexturen, nur hier.
                 if (g_app->texCache.count(key) != 0U) {
@@ -4071,7 +4115,7 @@ void loadActorModels() {
                         continue;
                     }
                     TextureSet::Tex t;
-                    image::shrinkTo(im, bildGrenzeFuer(im), t.width, t.height, t.rgba);
+                    image::shrinkTo(im, bildGrenzeFuer(im, texNamen[k]), t.width, t.height, t.rgba);
                     texErgebnis[k] = {key, std::move(t)};
                     texOk[k] = 1;
                     return;

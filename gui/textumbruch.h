@@ -11,7 +11,9 @@
 
 #include "imgui.h"
 
+#include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bhed::gui {
@@ -56,6 +58,10 @@ struct CjkUmbruchStand {
     long long umbruchGerechnet = 0;
 };
 [[nodiscard]] CjkUmbruchStand& cjkUmbruchStand();
+// MR7 P41: aus buildFonts (main_win32.cpp) - alle ImFont sind neu, der Speicher des Umbruchs vergisst seine Ergebnisse
+void cjkSchriftenNeu();
+// MR7 P41 (Selbsttest): wie viele gemerkte Ergebnisse (ausserhalb des Selbsttests, MR6 P28) es fuer genau diesen Text gibt
+[[nodiscard]] std::size_t cjkUmbruchGemerkt(std::string_view text);
 
 }  // namespace bhed::gui
 

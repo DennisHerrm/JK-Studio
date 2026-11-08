@@ -129,6 +129,53 @@ std::vector<Schritt> schritte() {
         diag::detail("Knopftest: CJK weit - P28: " + std::to_string(aufrufe) + " Aufrufe in 0,6 s, davon umbrochen " + std::to_string(gerechnet));
         return aufrufe > 0 && gerechnet * 10 <= aufrufe;
     }));
+    // MR7 P41: nach einem Neubau der Schriften (buildFonts, z. B. OpenGL Font... im Karten-Editor) sind alle ImFont neu - ein
+    // Ergebnis, das der Speicher unter der alten Schrift abgelegt hat, darf nicht mehr gelten, auch wenn die neue Schrift an
+    // derselben Adresse liegt. Je Runde: umbrechen, Schriften neu bauen, wieder umbrechen - das zweite Mal muss neu umbrochen werden.
+    struct P41 {
+        long long gerechnet = 0;
+        const void* schrift = nullptr;
+        int runden = 0;
+        int gleicheAdresse = 0;
+        int alt = 0;
+        std::size_t ueberlebt = 0;   // gemerkte Ergebnisse des Testtexts unter der alten Schrift, direkt nach dem Neubau
+    };
+    auto p41 = std::make_shared<P41>();
+    const auto p41Umbrechen = [] {
+        CjkUmbruchStand& st = cjkUmbruchStand();
+        const bool vorher = st.messen;
+        st.messen = false;
+        ImGui::SetNextWindowPos(ImVec2{-4000.0F, -4000.0F});
+        ImGui::Begin("##cjkweit_p41", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing);
+        const void* schrift = ImGui::GetFont();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 6.0F);
+        cjkTextUnformatted(tr(Str::TourListIntro));
+        ImGui::PopTextWrapPos();
+        ImGui::End();
+        st.messen = vorher;
+        return schrift;
+    };
+    for (int runde = 0; runde < 12; ++runde) {
+        add(tu("CJK weit: P41 - Runde " + std::to_string(runde) + ": umbrechen", [p41, p41Umbrechen] {
+            p41->schrift = p41Umbrechen();
+            p41->gerechnet = cjkUmbruchStand().umbruchGerechnet;
+        }));
+        add(tu("CJK weit: P41 - Schriften neu bauen", [] { schriftenNeuBauen(); }));
+        add(pause(0.2));
+        add(tu("CJK weit: P41 - nach dem Neubau umbrechen", [p41, p41Umbrechen] {
+            p41->ueberlebt += cjkUmbruchGemerkt(tr(Str::TourListIntro));
+            const void* jetzt = p41Umbrechen();
+            ++p41->runden;
+            p41->gleicheAdresse += jetzt == p41->schrift ? 1 : 0;
+            p41->alt += cjkUmbruchStand().umbruchGerechnet == p41->gerechnet ? 1 : 0;
+        }));
+    }
+    add(pruefe("CJK weit: P41 - nach jedem Neubau der Schriften wird neu umbrochen (kein Ergebnis der alten Schrift)", [p41] {
+        diag::detail("Knopftest: CJK weit - P41: " + std::to_string(p41->runden) + " Neubauten, Schrift an derselben Adresse " +
+                     std::to_string(p41->gleicheAdresse) + ", Ergebnis der alten Schrift genommen " + std::to_string(p41->alt) +
+                     ", nach dem Neubau noch gemerkt " + std::to_string(p41->ueberlebt));
+        return p41->runden == 12 && p41->alt == 0 && p41->ueberlebt == 0;
+    }));
     add(tu("CJK weit: aufraeumen", [] {
         hilfeErsteSchritte(false);
         hilfeSchliessen();

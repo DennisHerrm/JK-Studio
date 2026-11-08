@@ -63,6 +63,7 @@ struct Szene {
     BspMesh netz;
     TextureSet bilder;
     std::unordered_set<std::string> bildNamen;
+    BildRegister bildRegister;   // MR8 Punkt 1: ein Bild je Name wie im Spiel, in der Reihenfolge dieser Karte
     std::map<std::pair<int, int>, std::vector<char>> pvs;   // je Gebiet und Cluster des Auges
     int pvsGebiet = -3;
     int pvsCluster = -3;
@@ -252,12 +253,12 @@ bool aufbauen(const std::string& daten, std::uint64_t nummer) {
     gpu::szeneWaehlen(1);
     // Die Modelle haengen ihre Bilder hinten an, solange das Ladeziel noch die Szene des Editors ist.
     loadMapTexturesFuer(
-        s.geo, s.bilder, s.bildNamen,
+        s.geo, s.bilder, s.bildNamen, s.bildRegister,
         [&s, &modelleDa, &modelleFehlen] {
             kartenModelleAufstellen({&s.entities, &s.geo, &s.bilder, &s.md3, &s.modelle, &s.fehlendeModelle}, modelleDa, modelleFehlen);
             effekteAufstellen(s);
         },
-        GrasStufenZiel{&s.grasStufen, &s.grasStand});
+        GrasStufenZiel{&s.grasStufen, &s.grasStand}, &s.entities);
     gpu::szeneWaehlen(0);
     // CG_DrawSkyBoxPortal: der Ort des misc_skyportal (himmelPortalOrt der Vorschau).
     s.portal = false;
@@ -755,5 +756,11 @@ bool echtPortalSicht(const karte::Kamera& k, int breite, int hoehe, float sichtf
 }
 void spielbildZeitFest(double sekunden) { g_zeitFest = sekunden; }
 double spielbildZeit() { return g_zeitFest >= 0.0 ? g_zeitFest : ImGui::GetTime(); }
+
+const BildRegister* spielbildRegister(std::uint64_t& nummer) {
+    if (!g_szene.gueltig) { return nullptr; }
+    nummer = g_szene.nummer;
+    return &g_szene.bildRegister;
+}
 
 }  // namespace bhed::gui::karteneditor

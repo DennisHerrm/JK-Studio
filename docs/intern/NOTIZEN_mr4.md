@@ -342,6 +342,267 @@ fuenf Ursachen - drei im Programm, zwei im Test:
   nicht gefunden (t1_sour ohne Himmelsbox im Bild, t1_fatal nach oben schwarz).
 - Statuszeile der Menue-Editor-Bilder zeigt den Pfad des Laufordners (`Y:\mr4\laeufe\...`, wie schon in MR5).
 
+## MR7: Pruefungsfunde P39-P43 (Nachtrag PRUEF5, plaene/codepruefung_seit_rc610.md)
+
+- **P39** Regelwerk umstellen: `gpu::bilderNeuHochladen` verwirft die Bilder BEIDER Szenen (Vorschau und Spielbild des
+  Karten-Editors, die geparkte ueber `tauscheSzene` wie `gibAlleSzenenFrei`). Selbsttest geschuetze (BHED_GV_DXT=1, t1_sour aus
+  er1.pk3, OpenJK-Regeln): das Spielbild des Karten-Editors (`spielbildZeichnen`, gpu-Szene 1) mit derselben Karte vor und nach
+  dem Wechsel auf Movie Duels.
+  - rot `m7_rot3_sour`: Szene 1 vor dem Wechsel 259 Bilder (259 DXT5), nach dem Wechsel 0 Bilder neu (alle blieben DXT5).
+  - gruen `m7_gr3_sour` (geschuetze 4/0): siehe Tabelle unten. Der erste Lauf `m7_rot_sour`/`m7_gr_sour` las die .bsp aus
+    `App::mapBytes` (nie gefuellt) und zeichnete kein Spielbild - Test korrigiert (.bsp aus BHED_GV_PK3), zaehlt nicht.
+- **P40** Echtzeit-Licht (und die gebackene Karte) des Karten-Editors unter JKA/JK2-Regeln wie Vorschau und Spiel: das Bildlager
+  haelt je Bild eine zweite Fassung "wie im Spiel" (`holen(name, spielDxt(keinTc))`), im Arbeitsfaden mit
+  `TextureSet::Tex::stufenWieUpload32` (R_MipMap-Pyramide aus dem unkomprimierten Bild, jede Stufe DXT5 - dieselbe Funktion nimmt
+  jetzt `ladeMitStufen` der Vorschau), ohne Gamma und Basisstufe des Editors; Himmelsseiten DXT5 wie `holeHimmel`. noTC je Stufe
+  (`SpielStufe::keinTc`, `SpielDarstellung::keinTc/himmelKeinTc` aus P43). Der Editor selbst (Radiant-Ansicht) bleibt unkomprimiert.
+  Gilt fuer Grundstufe, erste Stufe, bewegte Grundstufe, weitere Stufen, Gluehen, Himmel, Effekte, Halme und gebackene Flaechen.
+  Selbsttest karteneditor rd, neuer Teil "RD DXT" (OpenJK-Regeln, Echtzeit-Licht ohne gebackene Karte): die Mip-Stufen der Bilder,
+  mit denen das Echtzeit-Licht zeichnet (von der Grafikkarte gelesen, `kartegpu::texturLesen`), Byte fuer Byte gegen die Stufen der
+  Vorschau; danach die fuenf Platten gegen "Built map as in the game" (Spalten, 8 %).
+  - rot `m7_rot2_rd`: 4 Bilder je 0 von 8/5/8/5 Stufen gleich (erste Abweichung Stufe 0: 210 statt 211, 40 statt 41); Platten
+    scroll/welle/anim/umwelt/grund 0,0015/0,0007/0,0108/0,0029/0,0187 (bestanden, DXT ist klein gegen 8 %).
+  - gruen `m7_gr_rd`: alle Stufen gleich (8/8, 5/5, 8/8, 5/5); Platten 0,0003/0,0003/0,0001/0,0002/0,0185; rd 29/0.
+  - Fotos `laeufe/m7_gr_rd/fotos/rd_stufen_echtzeit_ojk.bmp` und `rd_stufen_spielbild_ojk.bmp` (1920 x 1080), angesehen.
+  - Der erste Rotlauf `m7_rot_rd` mass das Echtzeit-Licht noch mit gebackener Karte (spielGebacken, die Pinsel ruhten) - Test
+    korrigiert (backen aus, Schattenwuerfel abwarten), zaehlt nicht.
+- **P43** noTC in der Reihenfolge des Skripts: `ShaderInfo::Stage::keinTc` (noTC beim Lesen der Stufe), `bildKeinTc` (der Stufe, die
+  `image` lieferte), `himmelKeinTc` (beim Lesen von skyParms) statt `noTC` am Ende des Shaders (ParseStage :1263/1288/1329,
+  ParseSkyParms :1970, gesetzt :2324). Die Vorschau nimmt den Wert jetzt auch bei einem Treffer im Bildspeicher (`texCache`, vorher
+  fehlte keinTc dort ganz), fuer Zusatzstufen, Bildfolgen der Grundstufe und Wolkenschichten (vorher immer komprimiert).
+  - ctest bilder: rot `m7_rot_ctest_bilder` 3 Fehlschlaege (noTC nach der Stufe, zwischen zwei Stufen, nach skyParms), gruen
+    `m7_gr_ctest_bilder` 1/1.
+- **P41** CJK-Umbruch-Speicher: Schluessel mit der Nummer der Schrift im Atlas statt ihrer Adresse, `buildFonts` leert den Speicher
+  (`cjkSchriftenNeu`). Selbsttest cjkweit (ja): 12 Mal umbrechen, Schriften neu bauen, wieder umbrechen; gezaehlt: Ergebnisse des
+  Testtexts, die direkt nach dem Neubau noch gemerkt sind, und Runden ohne neuen Umbruch.
+  - rot `m7_rot2_cjk_ja`: nach den Neubauten noch 61 Ergebnisse der alten Schriften gemerkt; einmal lag die neue Schrift an derselben
+    Adresse (im ersten Rotlauf `m7_rot_cjk_ja` nie - Windows verteilt kleine Bloecke zufaellig, deshalb die Zaehlung der gemerkten).
+  - gruen `m7_gr_cjk_ja`: 0 gemerkt, 0 Runden ohne Umbruch; cjkweit 19/0.
+- **P42** Selbsttest geschuetze (Vergleich): das Regelwerk vor dem Vergleich wird gemerkt und am Ende zurueckgestellt, neue Pruefung.
+  rot `m7_rot_sour` "Regelwerk am Ende 2, vorher 1", gruen `m7_gr_sour` und `m7_gr3_sour` "1, vorher 1".
+
+| Lauf | Szene 1 vor dem Wechsel | Szene 1 nach dem Wechsel auf Movie Duels |
+|---|---|---|
+| `m7_rot3_sour` (ohne P39) | 259 Bilder, 259 DXT5 | 0 Bilder neu |
+| `m7_gr3_sour` | 259 Bilder, 259 DXT5 | 260 Bilder neu, davon DXT5 0 (32 mit $lightmap-Stufe) |
+
+## MR7 Schluss
+
+- Commits je Punkt: P39 b6328c5a4, P43 4e81224e2, P40 6fa53e6aa, P41 26a7a9876, P42 93f4bb4bb (P43 vor P40, weil P40 noTC je Stufe
+  aus P43 nimmt - so baut jeder Stand).
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 237/237 mit -j 8 ohne `q3map2_pr316`,
+  `q3map2_pr316` allein 1/1.
+- Selbsttests nach dem Neubau: geschuetze (BHED_GV_DXT=1, t1_sour) 4/0 `m7_ende_sour`, cjkweit ja 19/0 `m7_ende_cjk_ja`,
+  karteneditor r3 22/0 `m7_ende_r3`, rd 29/0 `m7_ende_rd` (RD DXT wie `m7_gr_rd`), editorportal 19/0 `m7_ende_portal`, Modus 1
+  2635/0 `m7_ende_modus1`.
+- Lints wie MR6 (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, sonst ok);
+  Handbuch neu erzeugt (karte.html, suche.js in 6 Sprachen), `--pruefen` ok.
+
+## MR7 Offen
+
+- Keine Bildzeit gemessen (Auftrag): Echtzeit-Licht unter JKA-Regeln laedt je Bild eine zweite Fassung (DXT5 im Arbeitsfaden,
+  Speicher doppelt fuer die Bilder, die beide Ansichten zeigen).
+- Gegen das Spiel selbst nicht neu verglichen: die Stufen sind Byte fuer Byte die der Vorschau, deren DXT5 in MR4-MR6 gegen
+  Original-JKA geprueft wurde.
+- Das Spiel laedt ein Bild nur einmal je Name (R_FindImageFile_NoLoad: der erste Shader entscheidet allowTC); Vorschau und
+  Echtzeit-Licht entscheiden je Shader bzw. Stufe. Ein Bild, das ein noTC-Shader und ein anderer Shader teilen, kann daher je nach
+  Ladereihenfolge im Spiel anders aussehen - nicht nachgebaut.
+- Die Schatten des Echtzeit-Lichts (Alpha-Masken, kameraTexturBild) nehmen ebenfalls die Spielfassung; die Vorlage (vorlageZeichnen)
+  auch.
+- `App::mapBytes` wird nirgends gefuellt (toter Eintrag, nicht von MR7).
+
+# MR8 (08.11.2026, gleicher Worktree, Basis fcc7d3cbe, Laeufe `m8_*`, Skripte `Y:\werkzeuge\m4\m8\`)
+
+## MR8 Punkt 1: ein Bild je Name wie im Spiel
+
+- Quelle (OpenJK rd-vanilla, Movie Duels 9 gleich): `R_FindImageFile` fragt zuerst `R_FindImageFile_NoLoad` (tr_image.cpp:936-971,
+  MD9 :920-965). Das sucht in `AllocatedImages` nach `GenerateImageMappingName` (klein, ohne Endung, `\` -> `/`) und gibt das
+  vorhandene `image_t` zurueck - mit mipmap, allowPicmip, glWrapClampMode des ERSTEN (R_CreateImage :983-1053, glTexParameter WRAP
+  einmal beim Anlegen) und dessen Upload32 (allowTC des Ersten, :629-689). Warnungen nur fuer mipmap/allowPicmip/glWrapClampMode
+  ("WARNING: reused image %s with mixed ... parm", :955-962; MD9 nur mit `g_DebugSaberCombat`, :941-953), fuer allowTC keine.
+- Werte je Aufruf: ParseStage map/clampMap/animMap mit `!shader.noMipMaps, !shader.noPicMip, !shader.noTC, GL_REPEAT|GL_CLAMP`
+  (tr_shader.cpp:1259-1335), ParseSkyParms `qtrue, qtrue, !noTC, GL_CLAMP` (:1970), Shader ohne Skript `mipRawImage, mipRawImage,
+  qtrue, mipRawImage ? GL_REPEAT : GL_CLAMP` (:3502). `nomipmaps` setzt noMipMaps und noPicMip, `nopicmip` nur noPicMip
+  (:2301-2311) - beides wie noTC in der Reihenfolge des Skripts (vorher las JK Studio `nomipmaps` gar nicht).
+- Ladereihenfolge im Spiel (SP): SV_SpawnServer -> Spielmodul spawnt die Entities und laeuft 4 Bilder (Ghoul2-Modelle
+  registrieren ihre Flaechen-Shader beim Laden, tr_ghoul2.cpp:3751) -> CG_Init/CG_RegisterGraphics: CG_RegisterEffects (Effekte
+  vor der Welt, cg_main.cpp:1328) -> `cgi_R_LoadWorldMap` (:1338): RE_LoadWorldMap R_LoadFogs je Nebel (tr_bsp.cpp:1088), dann
+  R_LoadSurfaces je Flaeche der Datei (ShaderForShaderNum :389/477/547/622) -> HUD-Shader, Modelle (CS_MODELS), Gegenstaende.
+- Gebaut: `bhed/bildregister.h` - spielt R_FindShader/ParseShader/R_FindImageFile nach (je Shadername einmal, Bilder in Stufen-
+  reihenfolge, Himmelsseiten an der Stelle von skyParms) und merkt je Bild die Werte des Ersten samt Warnungen. Die Vorschau
+  (loadMapTextures, auch Spielbild des Karten-Editors ueber loadMapTexturesFuer) fuellt es beim Kartenwechsel in der Reihenfolge
+  von RE_LoadWorldMap (`weltShaderReihenfolge`: Nebel, dann Flaechen), danach kommt jeder Shader beim ersten loadTextureFor dazu
+  (Modelle, Effekte, Klingen). Jedes Bild (Grundstufe, Zusatzstufen, animMap je Bild, Himmel, Wolken) nimmt keinTc, Klammern und
+  keinMip des Ersten (`wieErsterLaden`); ohne Mipmaps laedt ladeMitStufen nur Stufe 0 (Tex::keinMip). Das Echtzeit-Licht nimmt
+  das Register des Spielbilds (Reihenfolge der .bsp), sonst registriert es jeden Shader beim ersten Zeichnen (`spielLaden`);
+  noTC und nomipmaps des Ersten gelten fuer die Fassung des Spiels im Bildlager. Die Warnungen der Engine stehen im Protokoll
+  ("Bild je Name: WARNING: reused image ...").
+- ctest bilder (imagetest): Register beide Reihenfolgen, Shader ohne Skript, RegisterShaderNoMip, animMap nach nomipmaps,
+  skyParms nach einer Stufe, Warnungstexte, Weltreihenfolge (Nebel vor Flaechen) - 10 neue Pruefungen gruen.
+- Selbsttest geschuetze (t1_sour aus er1.pk3, OpenJK-Regeln, BHED_GV_DXT=1): die ersten zwei Shader mit Bild in Weltreihenfolge
+  (Platz 14 textures/desert/stucco_portalsky1, Platz 26 textures/desert/stucco_ceiling_512_seamless) bekommen fuer die Probe ein
+  Skript mit demselben Bild, je Fall noTC / nomipmaps / clampMap einmal beim ersten, einmal beim zweiten; von der Grafikkarte
+  gelesen: Stufe 0, Stufenzahl, Klammern beider Plaetze.
+
+| Fall | rot `m8_rot1_sour` (erster / zweiter) | gruen `m8_gr1_sour` |
+|---|---|---|
+| noTC beim ersten | DXT5 0 / 1, Bytes verschieden | beide unkomprimiert, Bytes gleich |
+| noTC beim zweiten | DXT5 1 / 0, Bytes verschieden | beide DXT5, Bytes gleich |
+| nomipmaps beim ersten | Stufen 10 / 10 (nomipmaps nicht gelesen) | Stufen 1 / 1, Warnung mixed mipmap + allowPicmip |
+| nomipmaps beim zweiten | 10 / 10 (gruen) | 10 / 10, dieselben Warnungen |
+| clampMap beim ersten | Klammern 1 / 0 | 1 / 1, Warnung mixed glWrapClampMode |
+| clampMap beim zweiten | Klammern 0 / 1 | 0 / 0, dieselbe Warnung |
+
+  geschuetze rot 5 OK / 5 FEHLER, gruen 10/0. t1_sour selbst laedt kein Bild mit gemischten Werten (keine Warnung beim Laden).
+- Selbsttest karteneditor rd (Echtzeit-Licht, OpenJK-Regeln): `textures/rd/m8tc` (noTC) und `textures/rd/m8normal` mit demselben
+  Bild (64 x 64, Verlauf mit Rauschen), beide Reihenfolgen: rot `m8_rot1_rd` "erster DXT5 0, zweiter DXT5 1, gleich 0" bzw.
+  "1, 0, 0" (29/2); gruen `m8_gr1_rd` "0, 0, 1" bzw. "1, 1, 1" (31/0).
+- Original-JKA-Shader (assets0-3.pk3) durchsucht (`notc_suche.py`): kein Bild, das ein noTC-Shader und ein Shader ohne noTC per
+  Stufe teilen - der Fall entsteht in Mods und eigenen Karten. Kein Spielfoto (unter Movie Duels ist die Kompression aus,
+  Original-JKA nur nach der Steam-Regel; die Regel ist in der Quelle eindeutig).
+
+## MR8 Punkt 2: Speicher ohne Qualitaetsverlust
+
+- Vorher: Vorschau (gpu-Szene 0), Spielbild des Karten-Editors (Szene 1) und Echtzeit-Licht (Bildlager, Fassung des Spiels seit
+  MR7 P40) legten fuer dasselbe Bild je eine eigene Textur an, Byte fuer Byte gleich.
+- Jetzt (gui/gpumap_win32.cpp `stufenGeteilt`): ladeMitStufen und kartegpu::bildStufenAnlegen geben die FERTIGEN Stufen (nach
+  DXT5-Rundlauf bzw. Pyramide) ab; gesucht wird nach zwei XXH64-Werten (zwei Startwerte, wie die Figurenbilder seit rc603) ueber
+  Groesse, Stufenzahl und alle Bytes. Gleiche Bytes -> dieselbe Textur (eigene Referenz je Nutzer, Freigabe wie bisher mit
+  Release); die Liste haelt eine Referenz und raeumt Bilder ohne Nutzer alle 64 neuen Bilder, beim Kartenwechsel und bei der
+  Abfrage auf, bei neuem Grafikgeraet und beim Herunterfahren gibt sie alles frei. Format (RGBA8, unveraenderlich) und Stufen
+  bleiben, am Bild aendert sich nichts.
+- Selbsttest geschuetze (t1_sour, Vorschau und Spielbild mit derselben Karte, P39-Schritt), neue Pruefung "MR8 P2":
+
+| Lauf | Szene 0 / Szene 1 | gemeinsame Texturen | Bytes beider Szenen / belegt | DXGI belegt |
+|---|---|---|---|---|
+| rot `m8_rot2_sour` | 109 / 258 | 0 | 525,8 / 525,8 MB | 799,1 MB |
+| gruen `m8_gr2_sour` | 109 / 258 | 125 | 525,8 / 256,5 MB | 522,7 MB |
+
+  Liste im gruenen Lauf: 1032 Mal geteilt (1189,8 MB nicht noch einmal belegt, ueber alle Kartenladungen des Laufs), 301 angelegt,
+  am Ende 187 Bilder mit 270,1 MB. Kartenansicht 1920 x 1440 (`er1_sour_4000.bmp`) rot gegen gruen gleich; abweichend nur 206
+  Punkte unten rechts ausserhalb der Ansicht (Statuszeile).
+- Selbsttest karteneditor rd (Echtzeit-Licht und Spielbild): "MR8 P2 - Echtzeit-Licht und Spielbild teilen textures/rd/streifen":
+  rot `m8_rot2_rd` "dieselbe Textur 0" (31/1), gruen `m8_gr2_rd` "1" (32/0).
+- Keine Bildzeit gemessen (Auftrag). Die Pruefwerte kosten je Bild einmal zwei XXH64 ueber die Stufen (beim Hochladen).
+
+## MR8 Punkt 3: App::mapBytes
+
+- Seit dem ersten Stand (rc568, d0ed723c1) nie gefuellt und nie gelesen; der Netzbau bei anderer Feinheit rechnet aus `App::geo`
+  (app_view3d.cpp, buildMesh/buildModelMesh), nicht aus den Bytes. Der einzige Leser war der erste P39-Test in MR7 (dort schon
+  berichtigt, .bsp aus BHED_GV_PK3). Entfernt; der saubere Neubau zeigt, dass ihn nichts mehr nennt.
+
+## MR8 Schluss
+
+- Commits: Punkt 1 751a42842, Punkt 2 1e3d98525, Punkt 3 (mapBytes) 2fbf01613, dazu `<cstddef>` in src/bildregister.cpp
+  (lint_portability 100 -> 99) und diese Notizen.
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) rc 0, 0 Warnungen; ctest 237/237 (-j 8 ohne
+  `q3map2_pr316`), `q3map2_pr316` allein 1/1.
+- Selbsttests nach dem Neubau: geschuetze (BHED_GV_DXT=1, t1_sour) 11/0 `m8_ende_sour`, karteneditor rd 32/0 `m8_ende_rd`, r3 22/0
+  `m8_ende_r3`, editorportal 19/0 `m8_ende_portal`, menueeditor en 2787/0 `m8_ende_me_en`, figurlicht 8/0 `m8_ende_figurlicht`,
+  Modus 1 2635/0 `m8_ende_modus1`.
+- Lints wie MR7 (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, sonst ok).
+  Handbuch: Hinweis auf der Seite "Die Karte" um "ein Bild je Name" ergaenzt (tools/handbuch/inhalt_mr4.py, 6 Sprachen),
+  `gen_handbuch.py` und `--pruefen` ok.
+- Keine Bildzeit gemessen (Auftrag).
+
+## MR8 Offen
+
+- Registrierungen VOR der Welt sind nicht vorangestellt: im Spiel laden die Ghoul2-Modelle der beim Start gespawnten Entities
+  (Server, 4 Bilder) und die Effekte (CG_RegisterEffects) ihre Bilder vor RE_LoadWorldMap; im Programm kommen Modelle und Effekte
+  nach der Welt ins Register (beim ersten loadTextureFor). Teilt ein Effekt- oder Figurenbild seinen Namen mit einem Weltbild und
+  hat andere Werte, entscheidet im Spiel der Effekt bzw. die Figur. Ebenso nicht nachgebaut: Bilder, die aus der vorigen Karte
+  oder den Menues stehen bleiben (AllocatedImages ueberlebt den Kartenwechsel, R_ImageList_LevelLoadEnd raeumt nur Ungenutztes).
+- Fehlt das Bild einer Stufe, bricht ParseShader im Spiel dort ab (die Stufen danach laden nichts); das Register nimmt alle
+  Stufen.
+- `nopicmip` / allowPicmip des Ersten wird gemerkt und gewarnt, aber die Vorschau wendet r_picmip (Einstellung, Vorgabe 0) weiter
+  auf alle Bilder an.
+- Echtzeit-Licht: Klammern des Ersten nicht (der Editor-Abtaster wiederholt immer); unter Movie Duels zeigt es weiter die
+  Editor-Fassung der Bilder. Ohne gebautes Spielbild gibt es keine Reihenfolge der .bsp - dann entscheidet der zuerst gezeichnete
+  Shader.
+- Kein Spielfoto zu Punkt 1 (Movie Duels komprimiert nicht, Original-JKA nur nach der Steam-Regel).
+
+# MR9 (08.11.2026, gleicher Worktree, Basis bcf7f31de, Laeufe `m9_*`, Skripte `Y:\werkzeuge\m4\m9\`)
+
+Auftrag nach 3 von 5 Punkten plus P58 abgebrochen (shank: nur noch ein Agent). Fertig: Punkt 1, 2, 3 und P58. Offen siehe unten.
+
+## MR9 Punkt 1: Registrierreihenfolge vor der Welt
+
+- Quelle (OpenJK SP, MD9 und codeJK2 gleich gebaut): SV_SpawnServer (server/sv_init.cpp:311-350, MD9 :321-364) ruft
+  G_SpawnEntitiesFromString (level.time 1000) und fuenf ge->RunFrame (1000-1400); G2API_InitGhoul2Model laedt sofort
+  (G2_TestModelPointers -> RE_RegisterModel, G2_API.cpp:771-825), R_LoadMDXM registriert je Flaeche den Shader
+  (tr_ghoul2.cpp:3751), RE_RegisterModel .md3 die Stufen rueckwaerts (Name_2, Name_1, Name; tr_model.cpp:630-700), auch aus
+  dem Zwischenspeicher (:217-232). Danach CG_Init -> CG_RegisterEffects (cg_main.cpp:1327-1329, MD9 :2270, codeJK2 :1209) in
+  CS_EFFECTS-Reihenfolge, erst dann cgi_R_LoadWorldMap.
+- Gebaut: `BildRegister::modell/haut/effekt` (RE_RegisterModel, RE_RegisterSkin mit drei Teilen und CommaParse,
+  RegisterEffect mit Eigenschaften in Dateireihenfolge und Untereffekten sofort) und `vorWeltRegistrieren` (app_ablage.inc) vor
+  der Welt: (1) Spawnfunktionen in Entity-Reihenfolge - misc_turret/misc_turretG2/misc_ns_turret/emplaced_gun/emplaced_eweb/
+  misc_sentry_turret/misc_model_ghoul/misc_trip_mine (`serverG2Modell`, dieselben Pfade wie geschuetzeAufstellen), fx_runner
+  und finish_spawning_turret/SP_PAS als G_EffectIndex; (2) RunFrame 1300 FinishSpawningItem (alle Gegenstaende ohne
+  targetname, auch ITMSF_INVISIBLE, `gegenstandWeltModell`); (3) RunFrame 1400 NPC_Spawn_Go der Spawner ohne targetname ->
+  G_SetG2PlayerModel (Haut, dann model.glm, sonst stormtrooper); (4) CG_RegisterEffects. NPC-/Klingendaten werden dafuer frueher
+  gelesen (`npcDatenSicherstellen`, aus loadActorModels herausgezogen). Spielbild des Karten-Editors mit seinen Entities.
+- ctest bilder (imagetest): md3-Stufen rueckwaerts, alle Shader einer Flaeche, glm-Hierarchie mit [nomaterial], Haut in drei
+  Teilen (Kopf vor Rumpf, ohne tag_/_off,*off, fehlender Kopf laedt nichts weiter), Effekt mit Untereffekt/Modell/unbekannter
+  Gruppe - 7 neue Pruefungen.
+- Selbsttest geschuetze (t1_sour, OpenJK, DXT): erster Shader des ersten Gegenstands (models/items/medpac) und erster
+  Weltshader (textures/desert/stucco_portalsky1) bekommen dasselbe Bild, einer mit noTC. Rot `m9_rot1_sour`: "Welt DXT5 1,
+  zuerst geladen von textures/desert/stucco_portalsky1" bzw. "DXT5 0" - FEHLER/FEHLER. Gruen `m9_gr1_sour`: siehe Schluss.
+
+## MR9 Punkt 2: fehlendes Stufenbild
+
+- ParseStage bricht ab, wenn R_FindImageFile ein Bild von map/clampMap/animMap nicht findet (tr_shader.cpp:1263-1268,
+  1288-1293, 1329-1334); ParseShader scheitert, defaultShader (:3489-3493), ShaderForShaderNum gibt tr.defaultShader
+  (tr_bsp.cpp:352). Register: `setzeVorhanden` (Datei in Archiv oder lose, Endungen wie textureCandidates, ohne Entpacken),
+  danach keine weiteren Stufen, `fehlerhaft(shader)`; die Weltflaeche zeigt dann standardShaderTextur (Figuren hatten das schon
+  seit rc604).
+- Rot `m9_rot1_sour`: "512x512, Kasten 0" (FEHLER). Gruen siehe Schluss.
+
+## MR9 Punkt 3: nopicmip
+
+- Upload32 halbiert nur mit allowPicmip (tr_image.cpp:575-580); das Bild hat das allowPicmip des Ersten. `bildPicmipFuer(bild)`
+  (Register: !picmip -> 0) fuer texCache-Schluessel und Verkleinerung (Vorrat, bildLesen, Karten- und Figurenwege).
+- Rot `m9_rot1_sour` (r_picmip 1): "nopicmip 256 (Datei 512), mit picmip 256 (Datei 512)" (FEHLER). Gruen siehe Schluss.
+
+## P58 (PRUEF8): noTC in Figuren- und Modellshadern
+
+- figurStufenListe, Gluehstufen und bySurface (Datei, texCache, Skript) setzen keinTc der Stufe bzw. bildKeinTc des
+  Hautshaders. Rot `m9_rot1_sour`: "Grundflaeche noTC 0, Stufen 0/2 ohne TC" (FEHLER).
+
+## MR9 Schluss
+
+- Rot `m9_rot1_sour` (neue Pruefungen, altes Verhalten): 11 OK / 5 FEHLER (P1 zweimal, P2, P3, P58). Gruen `m9_gr5_sour`:
+  16 OK / 0 FEHLER - "noTC am Gegenstand - Welt DXT5 0, zuerst geladen von models/items/medpac", "noTC an der Welt - Welt DXT5 1,
+  zuerst geladen von models/items/medpac", "P2 - 16x16, Kasten 1, Stufe danach registriert 0", "P3 - nopicmip 512 (Datei 512),
+  mit picmip 256 (Datei 512)", "P58 - Grundflaeche noTC 1, ohne noTC 0; Stufen 2/2 ohne TC". t1_sour: vor der Welt 19
+  Ghoul2-Modelle (Server) und 3 Effekte, 40 Bilder.
+- Unterwegs: die Registrierung steht jetzt VOR dem Bildvorrat (P3: der Vorrat verkleinerte sonst mit r_picmip, bevor das
+  allowPicmip des Ersten bekannt war - `m9_gr4_sour` zeigte "nopicmip 256"). Die Probe P3 nimmt das eigene Bild des ersten
+  Weltshaders (der erste Entwurf nahm m8->bild, das P2 beiden Shadern gab - dann war 512/512 richtig).
+- Bau `--parallel 8 -- /nodeReuse:false` rc 0, 0 Warnungen; ctest 237/237 (-j 16 ohne q3map2_pr316), bilder danach 1/1.
+  Kein sauberer Neubau, kein Modus 1, keine weiteren Selbsttests (Auftrag verkuerzt).
+
+## MR9 Offen
+
+- Punkt 4 (Echtzeit-Licht) nicht eingebaut. Vorbereitet, nicht angewendet: `Y:\werkzeuge\m4\m9\patch_p4a.py` (+`patch_p4as.py`
+  Test): eigener CLAMP-Abtaster `abtasterKlemm`, Zustand3::klammern aus SpielLaden (Klammern des Ersten). 4b (Reihenfolge ohne
+  Spielbild) nicht begonnen. 4c = P57.
+- P57/P55/P56 vorbereitet, nicht angewendet: `patch_p57.py` (+`patch_p57s.py` Test rd mit Gamma 2 unter Movie Duels): Fassung des
+  Spiels im Bildlager unabhaengig von dxt (Pyramide wie Upload32, ohne Gamma/Basisstufe), Bild verschieben statt kopieren,
+  DXT im Bildlager ohne gemeinsame Mannschaft (`dxt5Rundlauf(..., mitMannschaft)`), Bildlager-Faeden vor dem Ende von wWinMain
+  anhalten (P56). Der doppelte Editor-Eintrag in shaderZiehen (P55) ist nicht angefasst.
+- P59: das Register deckt "der erste R_FindImageFile entscheidet" fuer Karte, Echtzeit-Licht und dieselbe Datei zweimal im
+  Shader ab (MR8, wieErsterLaden je Stufe). Figuren stehen nicht im Register; fuer dieselbe Datei zweimal im Figurenshader ist
+  `patch_p59.py` vorbereitet (mit ctest und Selbsttest), nicht angewendet.
+- texCache und JK2-Endungsfolge (Hinweis PRUEF8): in mr4 gibt es keine JK2-eigene Endungsfolge (textureCandidates fest jpg,
+  png, tga, jpeg); gilt fuer den Zweig mit FIX6, beim Merge pruefen.
+- Vor der Welt nicht nachgebaut: G_EffectIndex/G2 weiterer Spawnfunktionen (NPC_PrecacheByClassName, emplaced-Effekte,
+  Fahrzeug-RegisterAssets), Waffen- und Klingenmodelle der NPC (NPC_Begin bei 1500, ob vor CG_Init ist unbelegt), Bilder aus
+  Menues und voriger Karte. Freigegebene Entity-Plaetze (G_Spawn) koennen die Reihenfolge der Denkbilder aendern; genommen ist
+  die Reihenfolge der Entity-Zeichenkette. Skyparms nach einer gescheiterten Stufe: im Spiel fehlt dann auch der Himmel; die
+  Vorschau zeichnet Himmelsflaechen weiter. Modelle/Effekte mit gescheitertem Shader (Shader 0) in der Vorschau nur fuer
+  Figuren. Echtzeit-Licht-Register ohne setzeVorhanden (alle Bilder gelten als da).
+- Handbuch nicht geaendert (keine sichtbare Bedienung neu). Keine Bildzeit gemessen.
+
 ## Changelog
 
 ## English
@@ -355,6 +616,13 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chinese: "Duplicate" in right-click menus now reads 创建副本 and no longer looks like "Copy" (复制).
 - Preview under Jedi Academy and Jedi Outcast: the pictures of shaders with a lightmap stage and the sky boxes are compressed like in the game too, and switching between Movie Duels and OpenJK rules uploads the pictures again.
 - Japanese and Chinese: long texts are no longer wrapped again in every frame.
+- Real-time light and built map in the map editor under Jedi Academy and Jedi Outcast: textures are compressed like in the preview and the game (S3TC), the same surface looks the same in both views.
+- Preview and map editor: `noTC` takes effect only from the line where it stands, as in the game; extra stages, image sequences and cloud layers of a `noTC` shader stay uncompressed.
+- Switching between Movie Duels and OpenJK rules also uploads the pictures of the built map in the map editor again.
+- Japanese and Chinese: after changing the OpenGL font in the map editor, texts are wrapped with the new font.
+- Preview, real-time light and built map under Jedi Academy and Jedi Outcast: a picture that several shaders use is loaded once, as in the game - the shader that loads it first decides compression, mipmaps and clamping for all (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` now takes effect.
+- Preview and map editor: a picture that several views show with the same bytes lies only once on the graphics card (a map in the preview and as built map: 257 instead of 526 MB of textures), the picture stays exactly the same.
+- Preview: models the game loads while the level starts (items, turrets, map figures) and effects decide a shared picture before the map itself, as in the game; a shader whose stage picture is missing shows the default box like the game; `nopicmip` pictures keep their size with texture detail (r_picmip); `noTC` also applies to figure and model shaders.
 
 ## Deutsch
 
@@ -367,6 +635,13 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chinesisch: „Duplizieren“ heißt in Rechtsklickmenüs jetzt 创建副本 und sieht nicht mehr aus wie „Kopieren“ (复制).
 - Vorschau unter Jedi Academy und Jedi Outcast: Auch die Bilder von Shadern mit Lightmap-Stufe und die Himmelsboxen werden wie im Spiel komprimiert, und der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt die Bilder neu.
 - Japanisch und Chinesisch: Lange Texte werden nicht mehr in jedem Bild neu umbrochen.
+- Echtzeit-Licht und gebaute Karte im Karten-Editor unter Jedi Academy und Jedi Outcast: Texturen werden wie in der Vorschau und im Spiel komprimiert (S3TC), dieselbe Fläche sieht in beiden Ansichten gleich aus.
+- Vorschau und Karten-Editor: `noTC` gilt wie im Spiel erst ab der Zeile, in der es steht; Zusatzstufen, Bildfolgen und Wolkenschichten eines `noTC`-Shaders bleiben unkomprimiert.
+- Der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt auch die Bilder der gebauten Karte im Karten-Editor neu.
+- Japanisch und Chinesisch: Nach dem Umstellen der OpenGL-Schrift im Karten-Editor werden Texte mit der neuen Schrift umbrochen.
+- Vorschau, Echtzeit-Licht und gebaute Karte unter Jedi Academy und Jedi Outcast: ein Bild, das mehrere Shader benutzen, wird wie im Spiel nur einmal geladen - der Shader, der es zuerst lädt, entscheidet für alle über Kompression, Mip-Stufen und Klammern (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` wirkt jetzt.
+- Vorschau und Karten-Editor: ein Bild, das mehrere Ansichten mit gleichen Bytes zeigen, liegt nur einmal auf der Grafikkarte (eine Karte in der Vorschau und als gebaute Karte: 257 statt 526 MB Texturen), das Bild bleibt genau gleich.
+- Vorschau: Modelle, die das Spiel beim Levelstart lädt (Gegenstände, Geschütze, Kartenfiguren), und Effekte bestimmen ein gemeinsames Bild vor der Karte selbst, wie im Spiel; ein Shader, dessen Stufenbild fehlt, zeigt wie im Spiel das Standardkästchen; Bilder mit `nopicmip` behalten bei der Bildstufe (r_picmip) ihre Größe; `noTC` gilt auch für Figuren- und Modellshader.
 
 ## 中文
 
@@ -379,6 +654,13 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 中文:右键菜单中的“Duplicate”现在显示为“创建副本”,不再与“复制”(Copy)相同。
 - Jedi Academy 和 Jedi Outcast 下的预览:带光照贴图阶段的着色器图片和天空盒也像游戏中一样压缩;在 Movie Duels 与 OpenJK 规则之间切换时会重新上传图片。
 - 日文和中文:长文本不再在每一帧重新换行。
+- Jedi Academy 和 Jedi Outcast 下地图编辑器的实时光照和已构建地图:纹理像预览和游戏中一样压缩(S3TC),同一表面在两个视图中看起来相同。
+- 预览和地图编辑器:`noTC` 与游戏中一样从其所在的行开始生效;`noTC` 着色器的附加阶段、图像序列和云层保持不压缩。
+- 在 Movie Duels 与 OpenJK 规则之间切换时,也会重新上传地图编辑器中已构建地图的图片。
+- 日文和中文:在地图编辑器中更改 OpenGL 字体后,文本会按新字体换行。
+- Jedi Academy 与 Jedi Outcast 规则下的预览、实时光照和已编译地图:多个着色器共用的图像与游戏中一样只加载一次——最先加载它的着色器为所有着色器决定压缩、mipmap 和边缘钳制(`noTC`、`nomipmaps`、`clampMap`);`nomipmaps` 现在生效。
+- 预览与地图编辑器:多个视图显示的字节相同的图像在显卡上只保存一份(同一张地图在预览中和作为已编译地图:纹理 257 MB 而非 526 MB),图像完全不变。
+- 预览：与游戏一致，关卡开始时游戏加载的模型（物品、炮塔、地图角色）和特效会先于地图本身决定共享图片；缺少阶段图片的着色器与游戏一样显示默认方框；带 `nopicmip` 的图片在纹理细节 (r_picmip) 下保持原尺寸；`noTC` 也适用于角色和模型着色器。
 
 ## 日本語
 
@@ -391,6 +673,13 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 中国語:右クリックメニューの「Duplicate」は「创建副本」と表示され、「Copy」(复制)と同じに見えなくなりました。
 - Jedi Academy と Jedi Outcast でのプレビュー:ライトマップステージを持つシェーダーの画像とスカイボックスもゲームと同じように圧縮され、Movie Duels と OpenJK のルールを切り替えると画像を読み込み直します。
 - 日本語と中国語:長いテキストを毎フレーム折り返し直すことはなくなりました。
+- Jedi Academy と Jedi Outcast でのマップエディターのリアルタイムライトとビルド済みマップ:テクスチャをプレビューやゲームと同じように圧縮(S3TC)するため、同じ面がどちらのビューでも同じに見えます。
+- プレビューとマップエディター:`noTC` はゲームと同じく書かれた行から有効になります。`noTC` シェーダーの追加ステージ、画像シーケンス、雲のレイヤーは非圧縮のままです。
+- Movie Duels と OpenJK のルールを切り替えると、マップエディターのビルド済みマップの画像も読み込み直します。
+- 日本語と中国語:マップエディターで OpenGL フォントを変更すると、テキストは新しいフォントで折り返されます。
+- Jedi Academy と Jedi Outcast のルールでのプレビュー、リアルタイムライト、ビルド済みマップ:複数のシェーダーが使う画像はゲームと同じく一度だけ読み込まれ、最初に読み込んだシェーダーが圧縮、ミップマップ、クランプをすべてについて決めます(`noTC`、`nomipmaps`、`clampMap`)。`nomipmaps` が有効になりました。
+- プレビューとマップエディター:複数のビューが同じバイトで表示する画像はグラフィックカード上に一つだけ置かれます(プレビューとビルド済みマップの同じマップ:テクスチャ 526 MB ではなく 257 MB)。画像はまったく同じです。
+- プレビュー：ゲームと同じく、レベル開始時にゲームが読み込むモデル（アイテム、タレット、マップのキャラクター）とエフェクトが、マップ本体より先に共有画像を決めます。ステージ画像が欠けたシェーダーはゲーム同様デフォルトの枠を表示します。`nopicmip` の画像はテクスチャ詳細 (r_picmip) でもサイズを保ちます。`noTC` はキャラクターとモデルのシェーダーにも適用されます。
 
 ## Español
 
@@ -403,6 +692,13 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Chino: «Duplicar» en los menús del botón derecho ahora es 创建副本 y ya no se ve igual que «Copiar» (复制).
 - Vista previa con Jedi Academy y Jedi Outcast: las imágenes de shaders con etapa de lightmap y las cajas de cielo también se comprimen como en el juego, y al cambiar entre las reglas de Movie Duels y OpenJK las imágenes se vuelven a cargar.
 - Japonés y chino: los textos largos ya no se vuelven a cortar en cada fotograma.
+- Luz en tiempo real y mapa compilado del editor de mapas con Jedi Academy y Jedi Outcast: las texturas se comprimen como en la vista previa y en el juego (S3TC), la misma superficie se ve igual en ambas vistas.
+- Vista previa y editor de mapas: `noTC` actúa, como en el juego, solo desde la línea donde está; las etapas adicionales, secuencias de imágenes y capas de nubes de un shader con `noTC` quedan sin comprimir.
+- Al cambiar entre las reglas de Movie Duels y OpenJK también se vuelven a cargar las imágenes del mapa compilado en el editor de mapas.
+- Japonés y chino: tras cambiar la fuente OpenGL en el editor de mapas, los textos se cortan con la nueva fuente.
+- Vista previa, luz en tiempo real y mapa compilado con las reglas de Jedi Academy y Jedi Outcast: una imagen que usan varios shaders se carga una sola vez, como en el juego; el shader que la carga primero decide para todos la compresión, los mipmaps y el ajuste al borde (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` ahora tiene efecto.
+- Vista previa y editor de mapas: una imagen que varias vistas muestran con los mismos bytes está una sola vez en la tarjeta gráfica (un mapa en la vista previa y como mapa compilado: 257 en lugar de 526 MB de texturas); la imagen queda exactamente igual.
+- Vista previa: los modelos que el juego carga al iniciar el nivel (objetos, torretas, figuras del mapa) y los efectos deciden una imagen compartida antes que el propio mapa, como en el juego; un shader al que le falta la imagen de una etapa muestra la caja por defecto como el juego; las imágenes con `nopicmip` conservan su tamaño con el detalle de texturas (r_picmip); `noTC` también se aplica a los shaders de figuras y modelos.
 
 ## Čeština
 
@@ -415,3 +711,10 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Čínština: „Duplikovat“ v nabídkách pravého tlačítka je nyní 创建副本 a už nevypadá stejně jako „Kopírovat“ (复制).
 - Náhled pro Jedi Academy a Jedi Outcast: obrázky shaderů s fází lightmapy a nebeské boxy se také komprimují jako ve hře a přepnutí mezi pravidly Movie Duels a OpenJK nahraje obrázky znovu.
 - Japonština a čínština: dlouhé texty se už nezalamují znovu v každém snímku.
+- Světlo v reálném čase a sestavená mapa v editoru map pro Jedi Academy a Jedi Outcast: textury se komprimují jako v náhledu a ve hře (S3TC), stejná plocha vypadá v obou pohledech stejně.
+- Náhled a editor map: `noTC` platí jako ve hře až od řádku, kde stojí; další fáze, sekvence obrázků a vrstvy mraků shaderu s `noTC` zůstávají nekomprimované.
+- Přepnutí mezi pravidly Movie Duels a OpenJK nahraje znovu i obrázky sestavené mapy v editoru map.
+- Japonština a čínština: po změně písma OpenGL v editoru map se texty zalamují novým písmem.
+- Náhled, světlo v reálném čase a sestavená mapa podle pravidel Jedi Academy a Jedi Outcast: obrázek, který používá více shaderů, se jako ve hře načte jen jednou - shader, který ho načte první, rozhodne za všechny o kompresi, mipmapách a upnutí u okraje (`noTC`, `nomipmaps`, `clampMap`); `nomipmaps` nyní platí.
+- Náhled a editor map: obrázek, který více pohledů zobrazuje se stejnými bajty, leží na grafické kartě jen jednou (mapa v náhledu a jako sestavená mapa: 257 místo 526 MB textur), obraz zůstává přesně stejný.
+- Náhled: modely, které hra načte při startu úrovně (předměty, věže, postavy mapy), a efekty určují sdílený obrázek před samotnou mapou, jako ve hře; shader, jemuž chybí obrázek fáze, zobrazí jako hra výchozí rámeček; obrázky s `nopicmip` si při detailu textur (r_picmip) zachovají velikost; `noTC` platí i pro shadery postav a modelů.

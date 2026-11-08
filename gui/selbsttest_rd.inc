@@ -54,7 +54,15 @@ void pk3Schreiben() {
     // ein Spiegel ohne alphaGen portal (die Sicht ganz, darueber nur ein fast schwarzes GL_ONE GL_ONE)
     sh += std::string(kSpiegel) + "\n{\n\tportal\n\t{\n\t\tmap textures/r3/dunkel\n\t\tblendFunc GL_ONE GL_ONE\n\t}\n}\n";
     sh += std::string(kFxGlow) + "\n{\n\t{\n\t\tmap textures/r3/licht_glw\n\t\tblendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n\t\tglow\n\t}\n}\n";
+    // MR8 Punkt 1: zwei Shader mit demselben Bild, einer mit noTC (nicht auf der Karte - das Echtzeit-Licht holt sie fuer die Probe)
+    sh += "textures/rd/m8tc\n{\n\tqer_editorimage textures/rd/m8bild\n\tnoTC\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
+    sh += "textures/rd/m8normal\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
     pk3.push_back({"shaders/rd.shader", sh});
+    // ein Verlauf mit Rauschen, den DXT5 sichtbar aendert
+    pk3.push_back({"textures/rd/m8bild.tga", editorportal::tga32(64, 64, [](int x, int y) {
+                       const auto v = [](int a) { return static_cast<unsigned char>(a & 255); };
+                       return std::array<unsigned char, 4>{v(x * 4 + ((x * 7 + y * 13) % 11)), v(y * 4 + ((x * 5 + y * 3) % 7)), v((x ^ y) * 4), 255};
+                   })});
     // die Grundstufe mit qer_editorimage: ohne bestimmt der Editor die Texturkoordinaten nach seinem Ersatzbild, q3map2 nach dem
     // Bild der Stufe - dann waeren es zwei verschiedene Flaechen
     // Streifen: 128 breit, links gelb, rechts schwarz (je 64 Einheiten auf der Platte)
@@ -179,6 +187,176 @@ double abweichung(const Spalten& a, const Spalten& b, bool verlauf) {
     return verlauf ? d / 2.0 : d;   // Verlauf: Werte um 1 statt 0..1 - halbiert, damit 8 % dasselbe heissen wie bei den Stufen
 }
 
+// MR7 P40: das Bild, wie die Vorschau es hochlaedt (ladeMitStufen): die Pyramide aus dem unkomprimierten Bild (R_MipMap,
+// TextureSet::Tex::buildMips), jede Stufe durch DXT5 (Upload32, rd-vanilla tr_image.cpp:629-689 unter Jedi Academy / Outcast).
+bool vorschauStufen(const std::string& pfad, std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen) {
+    std::vector<unsigned char> rgba;
+    TextureSet::Tex t;
+    if (!ke::kartenBildRgba(pfad, rgba, t.width, t.height)) { return false; }
+    t.rgba.assign(rgba.begin(), rgba.end());
+    t.buildMips();
+    std::vector<dxt::Ebene> ebenen{{t.rgba.data(), t.width, t.height}};
+    for (TextureSet::Tex::Mip& m : t.mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
+    dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
+    stufen.clear();
+    groessen.clear();
+    for (const dxt::Ebene& e : ebenen) {
+        stufen.emplace_back(e.rgba, e.rgba + static_cast<std::size_t>(e.breite) * static_cast<std::size_t>(e.hoehe) * 4U);
+        groessen.push_back({e.breite, e.hoehe});
+    }
+    return true;
+}
+
+// MR7 P40: unter den Regeln von Jedi Academy / Jedi Outcast laedt das Spiel jedes Bild einer Stufe ohne noTC als DXT5 hoch - das
+// Echtzeit-Licht im Spielbild wie die Vorschau: dieselben Stufen Byte fuer Byte (Stufenbilder "?" und die Shaderbilder, deren
+// qer_editorimage es fuer die Grundstufe zeichnet), danach dieselben Platten wie oben gegen "Built map as in the game".
+std::vector<Schritt> dxtSchritte() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto regelVorher = std::make_shared<int>(0);
+    auto echt = std::make_shared<StufenMessung>();
+    auto spiel = std::make_shared<StufenMessung>();
+    add(tu("RD DXT: Regelwerk OpenJK, Echtzeit-Licht", [regelVorher] {
+        *regelVorher = g_app->settings.regelwerk;
+        g_app->settings.regelwerk = kRegelwerkOpenJK;
+        (void)regelwerkPruefen();
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;   // die gebackene Karte ersetzte sonst die Pinsel (spielGebacken), das Echtzeit-Licht ruhte
+        e.echtLicht.spielbild = false;
+    }));
+    add(warteBis("RD DXT: Texturen (Echtzeit)", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(warteBis("RD DXT: Schattenwuerfel", [] { return ke::editor().echtLicht.wuerfelAusstehend == 0 && ke::editor().echtLicht.gezeichnet > 0; }, 6000));
+    add(pause(1.0));
+    add(stufenBild("echtzeit_ojk", echt));
+    // Bild im Lager -> Datei, aus der die Vorschau es laedt (Shader: ihr qer_editorimage, das Bild der Grundstufe)
+    const std::array<std::pair<const char*, const char*>, 4> bilder = {{{"?textures/rd/streifen", "textures/rd/streifen"},
+                                                                        {"?textures/rd/gelb", "textures/rd/gelb"},
+                                                                        {"textures/rd/grund", "textures/rd/streifen"},
+                                                                        {"textures/rd/scroll", "textures/r3/licht"}}};
+    for (const auto& [bild, datei] : bilder) {
+        const std::string b = bild;
+        const std::string d = datei;
+        add(warteBis("RD DXT: " + b + " geladen", [b] {
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            ke::texturBilderAbholen();
+            return ke::echtBildStufen(b, false, st, gr);
+        }, 10000));
+        add(pruefe("RD DXT: " + b + " - im Echtzeit-Licht dieselben Mip-Stufen wie die Vorschau (R_MipMap, jede Stufe DXT5)", [b, d] {
+            std::vector<std::vector<unsigned char>> echtSt;
+            std::vector<std::array<int, 2>> echtGr;
+            std::vector<std::vector<unsigned char>> vorSt;
+            std::vector<std::array<int, 2>> vorGr;
+            if (!ke::echtBildStufen(b, false, echtSt, echtGr) || !vorschauStufen(d, vorSt, vorGr)) {
+                diag::detail("Knopftest: RD DXT " + b + " - nicht lesbar");
+                return false;
+            }
+            int gleich = 0;
+            std::string erste;
+            for (std::size_t i = 0; i < std::min(echtSt.size(), vorSt.size()); ++i) {
+                if (echtGr[i] == vorGr[i] && echtSt[i] == vorSt[i]) {
+                    ++gleich;
+                } else if (erste.empty()) {
+                    std::size_t k = 0;
+                    while (k < std::min(echtSt[i].size(), vorSt[i].size()) && echtSt[i][k] == vorSt[i][k]) { ++k; }
+                    char z[200];
+                    std::snprintf(z, sizeof(z), ", erste Abweichung Stufe %zu (%d x %d) Byte %zu: %d statt %d", i, echtGr[i][0], echtGr[i][1], k,
+                                  k < echtSt[i].size() ? echtSt[i][k] : -1, k < vorSt[i].size() ? vorSt[i][k] : -1);
+                    erste = z;
+                }
+            }
+            diag::detail("Knopftest: RD DXT " + b + " - Stufen Echtzeit " + std::to_string(echtSt.size()) + ", Vorschau " + std::to_string(vorSt.size()) +
+                         ", gleich " + std::to_string(gleich) + erste);
+            return echtSt.size() == vorSt.size() && gleich == static_cast<int>(vorSt.size());
+        }));
+    }
+    // MR8 Punkt 1: ein Bild je Name wie im Spiel - zwei Shader mit demselben Bild, einer mit noTC: das Echtzeit-Licht zeigt es
+    // fuer beide so, wie der Erste es geladen hat (R_FindImageFile_NoLoad, rd-vanilla tr_image.cpp:936-971), in beiden Reihenfolgen.
+    for (int fall = 0; fall < 2; ++fall) {
+        const std::string erst = fall == 0 ? "textures/rd/m8tc" : "textures/rd/m8normal";
+        const std::string zweit = fall == 0 ? "textures/rd/m8normal" : "textures/rd/m8tc";
+        const std::string was = fall == 0 ? "noTC zuerst" : "noTC danach";
+        add(tu("RD DXT: MR8 " + was, [erst, zweit] {
+            ke::echtRegisterNeu();
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            (void)ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", st, gr);
+            (void)ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", st, gr);
+        }));
+        add(warteBis("RD DXT: MR8 " + was + " geladen", [erst, zweit] {
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            ke::texturBilderAbholen();
+            return ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", st, gr) &&
+                   ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", st, gr);
+        }, 10000));
+        add(pruefe("RD DXT: MR8 " + was + " - beide Shader zeigen das Bild, wie der erste es lud", [erst, zweit, fall, was] {
+            std::vector<std::vector<unsigned char>> a;
+            std::vector<std::vector<unsigned char>> b;
+            std::vector<std::vector<unsigned char>> dxt;
+            std::vector<std::array<int, 2>> ga;
+            std::vector<std::array<int, 2>> gb;
+            std::vector<std::array<int, 2>> gd;
+            if (!ke::echtBildStufenFuer(erst, "?textures/rd/m8bild", erst == "textures/rd/m8tc", a, ga) ||
+                !ke::echtBildStufenFuer(zweit, "?textures/rd/m8bild", zweit == "textures/rd/m8tc", b, gb) || !vorschauStufen("textures/rd/m8bild", dxt, gd)) {
+                diag::detail("Knopftest: RD DXT MR8 - nicht lesbar");
+                return false;
+            }
+            diag::detail("Knopftest: RD DXT MR8 " + was + " - erster DXT5 " + std::to_string(a == dxt ? 1 : 0) + ", zweiter DXT5 " +
+                         std::to_string(b == dxt ? 1 : 0) + ", gleich " + std::to_string(a == b ? 1 : 0));
+            return a == b && ga == gb && (fall == 0 ? a != dxt : a == dxt);
+        }));
+    }
+    add(tu("RD DXT: Schnell-Backen, Spielbild", [] {
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = true;
+        e.echtLicht.spielbild = true;
+    }));
+    add(stufe9c::langeWarten("RD DXT: Schnell-Backen fertig", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.echtLicht.bauStand == 5) {
+            meldeFehler("RD DXT: Schnell-Backen gescheitert");
+            return true;
+        }
+        return e.echtLicht.gebackenZeigen;
+    }, 400000));
+    // MR8 Punkt 2: das Bild im Lager (Echtzeit-Licht, Fassung des Spiels) und dasselbe Bild im Spielbild (Szene 1, Zusatzstufe von
+    // textures/rd/scroll) haben gleiche Bytes - eine Textur auf der Grafikkarte.
+    add(pruefe("RD DXT: MR8 P2 - Echtzeit-Licht und Spielbild teilen textures/rd/streifen", [] {
+        ke::texturBilderAbholen();
+        const void* echt = ke::echtBildTextur("?textures/rd/streifen", false);
+        const auto spiel = gpu::kartenBildTexturen(1);
+        bool drin = false;
+        for (const auto& [r, n] : spiel) {
+            (void)n;
+            drin = drin || r == echt;
+        }
+        diag::detail("Knopftest: RD DXT MR8 P2 - Echtzeit-Bild da " + std::to_string(echt != nullptr ? 1 : 0) + ", Spielbild-Bilder " +
+                     std::to_string(spiel.size()) + ", dieselbe Textur " + std::to_string(drin ? 1 : 0));
+        return echt != nullptr && drin;
+    }));
+    add(stufe9c::langeWarten("RD DXT: Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
+    add(pause(1.5));
+    add(stufenBild("spielbild_ojk", spiel));
+    for (std::size_t i = 0; i < 5; ++i) {
+        const Platte& p = kPlatten[i];
+        add(pruefe(std::string("RD DXT: ") + p.name + " - unter OpenJK-Regeln Echtzeit-Licht wie das Spielbild (" + (p.verlauf ? "Verlauf" : "Farbe") +
+                       " je Spalte bis auf 8 %)",
+                   [i, echt, spiel] {
+                       const double d = abweichung((*echt)[i], (*spiel)[i], kPlatten[i].verlauf);
+                       char z[160];
+                       std::snprintf(z, sizeof(z), "Knopftest: RD DXT %s - Abweichung %.4f", kPlatten[i].name, d);
+                       diag::detail(z);
+                       return d < 0.08;
+                   }));
+    }
+    add(tu("RD DXT: Regelwerk zurueck", [regelVorher] {
+        g_app->settings.regelwerk = *regelVorher;
+        (void)regelwerkPruefen();
+    }));
+    return s;
+}
+
 std::vector<Schritt> stufenSchritte() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
@@ -245,6 +423,7 @@ std::vector<Schritt> stufenSchritte() {
                        return d < 0.08;
                    }));
     }
+    for (Schritt& x : dxtSchritte()) { add(std::move(x)); }
     add(tu("RD Stufen: aufraeumen", [] {
         ke::Editor& e = ke::editor();
         e.echtLicht.backen = false;

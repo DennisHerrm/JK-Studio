@@ -1231,6 +1231,114 @@ ID3D11BlendState* holeBlend(Blend b, BlendFactor src = BlendFactor::One,
 // Fehlt sie (Figurenbilder), wird sie hier auf einer Kopie gebaut.
 BilderDxt g_bilderDxt;   // MR6: Selbsttest (bilderDxt)
 
+// --- MR8 Punkt 2: ein fertiges Bild nur einmal auf der Grafikkarte -----------------------------------
+//
+// Unter den Regeln von Jedi Academy / Jedi Outcast zeigten Vorschau, Spielbild des Karten-Editors (gpu-Szene 1) und das
+// Echtzeit-Licht (Bildlager, Fassung "wie im Spiel") dieselben Bilder - jede Ansicht mit eigener Textur, Byte fuer Byte
+// gleich. Jetzt teilen sie eine: gesucht wird nach den FERTIGEN Stufen (nach DXT5-Rundlauf bzw. Pyramide), mit zwei
+// 64-Bit-Pruefwerten (XXH64 mit zwei Startwerten, wie die Figurenbilder seit rc603) ueber Groesse, Stufenzahl und alle
+// Bytes. Am Bild aendert sich nichts: dieselben Bytes, dasselbe Format (RGBA8, unveraenderlich), dieselben Stufen. Die Liste
+// haelt eine Referenz je Bild; wer ein Bild bekommt, haelt eine eigene und gibt sie wie bisher mit Release frei. Bilder, die
+// nur noch die Liste haelt, gehen beim Aufraeumen (alle 64 neuen Bilder, beim Kartenwechsel, mit bilderTeilen).
+std::uint64_t xxh64(const std::uint8_t* p, std::size_t n, std::uint64_t saat);
+struct TeilSchluessel {
+    std::uint64_t a = 0;
+    std::uint64_t b = 0;
+    int w = 0;
+    int h = 0;
+    int stufen = 0;
+    bool operator==(const TeilSchluessel& o) const { return a == o.a && b == o.b && w == o.w && h == o.h && stufen == o.stufen; }
+};
+struct TeilHash {
+    std::size_t operator()(const TeilSchluessel& k) const { return static_cast<std::size_t>(k.a ^ (k.b * 31U)); }
+};
+struct TeilEintrag {
+    ID3D11ShaderResourceView* srv = nullptr;
+    long long bytes = 0;
+};
+std::unordered_map<TeilSchluessel, TeilEintrag, TeilHash> g_geteilt;
+unsigned g_geteiltGeraet = 0;
+int g_geteiltSeitAufraeumen = 0;
+BilderTeilen g_teilen;
+
+void geteilteAufraeumen() {
+    for (auto it = g_geteilt.begin(); it != g_geteilt.end();) {
+        it->second.srv->AddRef();
+        if (it->second.srv->Release() == 1U) {   // nur noch die Liste
+            it->second.srv->Release();
+            it = g_geteilt.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void geteilteFreigeben() {
+    for (auto& [k, e] : g_geteilt) {
+        (void)k;
+        e.srv->Release();
+    }
+    g_geteilt.clear();
+}
+
+ID3D11ShaderResourceView* stufenGeteilt(const std::uint8_t* const* px, const int* breiten, const int* hoehen, int anzahl) {
+    ID3D11Device* d = dev();
+    if (d == nullptr || anzahl <= 0 || breiten[0] <= 0 || hoehen[0] <= 0) { return nullptr; }
+    if (g_geteiltGeraet != render::texturStand()) {   // neues Geraet: die alten Bilder taugen dort nicht
+        geteilteFreigeben();
+        g_geteiltGeraet = render::texturStand();
+    }
+    TeilSchluessel k;
+    k.w = breiten[0];
+    k.h = hoehen[0];
+    k.stufen = anzahl;
+    k.a = 0x803ULL;
+    k.b = 0xB5ED0803ULL;
+    long long bytes = 0;
+    for (int i = 0; i < anzahl; ++i) {
+        const std::size_t n = static_cast<std::size_t>(breiten[i]) * static_cast<std::size_t>(hoehen[i]) * 4U;
+        k.a = xxh64(px[i], n, k.a);
+        k.b = xxh64(px[i], n, k.b);
+        bytes += static_cast<long long>(n);
+    }
+    const auto gleich = g_geteilt.find(k);
+    if (gleich != g_geteilt.end()) {
+        gleich->second.srv->AddRef();
+        ++g_teilen.geteilt;
+        g_teilen.geteiltBytes += bytes;
+        return gleich->second.srv;
+    }
+    std::vector<D3D11_SUBRESOURCE_DATA> sd(static_cast<std::size_t>(anzahl));
+    for (int i = 0; i < anzahl; ++i) {
+        sd[static_cast<std::size_t>(i)].pSysMem = px[i];
+        sd[static_cast<std::size_t>(i)].SysMemPitch = static_cast<UINT>(breiten[i]) * 4U;
+    }
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(breiten[0]);
+    td.Height = static_cast<UINT>(hoehen[0]);
+    td.MipLevels = static_cast<UINT>(anzahl);
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_IMMUTABLE;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(d->CreateTexture2D(&td, sd.data(), &tex)) || tex == nullptr) { return nullptr; }
+    ID3D11ShaderResourceView* srv = nullptr;
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
+    tex->Release();
+    if (srv == nullptr) { return nullptr; }
+    srv->AddRef();   // die Liste
+    g_geteilt[k] = TeilEintrag{srv, bytes};
+    ++g_teilen.angelegt;
+    g_teilen.angelegtBytes += bytes;
+    if (++g_geteiltSeitAufraeumen >= 64) {
+        g_geteiltSeitAufraeumen = 0;
+        geteilteAufraeumen();
+    }
+    return srv;
+}
+
 ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
     ID3D11Device* d = dev();
     if (d == nullptr || quelle.width <= 0 || quelle.height <= 0 || quelle.rgba.empty()) {
@@ -1252,46 +1360,23 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
         ++g_bilderDxt.lightmapStufe;
         g_bilderDxt.lightmapStufeKomprimiert += dxt ? 1 : 0;
     }
-    if (dxt || (quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
+    if (dxt || (!quelle.keinMip && quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
         kopie.width = quelle.width;
         kopie.height = quelle.height;
         kopie.rgba = quelle.rgba;
         kopie.mips = quelle.mips;
-        kopie.buildMips();
-        if (dxt) {
-            // MR5 Punkt 2: alle Stufen in einem Auftrag, Blockzeilen auf die Arbeitsfaeden (gleiche Bytes, ctest dxt)
-            std::vector<dxt::Ebene> ebenen{{kopie.rgba.data(), kopie.width, kopie.height}};
-            for (TextureSet::Tex::Mip& m : kopie.mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
-            dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
-        }
+        kopie.keinMip = quelle.keinMip;   // MR8 Punkt 1: ohne Mipmaps nur Stufe 0
+        kopie.stufenWieUpload32(dxt);
         t = &kopie;
     }
-    const UINT stufen = 1U + static_cast<UINT>(t->mips.size());
-    std::vector<D3D11_SUBRESOURCE_DATA> sd(stufen);
-    for (UINT s = 0; s < stufen; ++s) {
-        int w = 0;
-        int h = 0;
-        const std::uint8_t* px = t->levelData(static_cast<int>(s), w, h);
-        sd[s].pSysMem = px;
-        sd[s].SysMemPitch = static_cast<UINT>(w) * 4U;
+    const int stufen = 1 + static_cast<int>(t->mips.size());
+    std::vector<const std::uint8_t*> px(static_cast<std::size_t>(stufen));
+    std::vector<int> br(static_cast<std::size_t>(stufen));
+    std::vector<int> ho(static_cast<std::size_t>(stufen));
+    for (int s = 0; s < stufen; ++s) {
+        px[static_cast<std::size_t>(s)] = t->levelData(s, br[static_cast<std::size_t>(s)], ho[static_cast<std::size_t>(s)]);
     }
-    D3D11_TEXTURE2D_DESC td{};
-    td.Width = static_cast<UINT>(t->width);
-    td.Height = static_cast<UINT>(t->height);
-    td.MipLevels = stufen;
-    td.ArraySize = 1;
-    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    td.SampleDesc.Count = 1;
-    td.Usage = D3D11_USAGE_IMMUTABLE;
-    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    ID3D11Texture2D* tex = nullptr;
-    if (FAILED(d->CreateTexture2D(&td, sd.data(), &tex)) || tex == nullptr) {
-        return nullptr;
-    }
-    ID3D11ShaderResourceView* srv = nullptr;
-    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
-    tex->Release();
-    return srv;
+    return stufenGeteilt(px.data(), br.data(), ho.data(), stufen);   // MR8 Punkt 2
 }
 
 // Eine Textur des Satzes hochladen, falls noch nicht geschehen - mit
@@ -2305,14 +2390,15 @@ bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1) 
 
 // Selbsttest (REST Punkt 1): Stufe `stufe` der Grafikkarten-Textur eines Figurenbilds zuruecklesen (Kopie in eine
 // Staging-Textur). false, wenn das Bild nicht hochgeladen ist.
-bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+namespace {
+
+// Stufe `stufe` der Textur hinter `srv` zuruecklesen (RGBA8).
+bool leseSicht(ID3D11ShaderResourceView* srv, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
     ID3D11Device* d = dev();
     ID3D11DeviceContext* c = ctx();
-    if (d == nullptr || c == nullptr || t == nullptr) { return false; }
-    const auto it = g_figurBilder.find(&t->wache);
-    if (it == g_figurBilder.end() || it->second == nullptr) { return false; }
+    if (d == nullptr || c == nullptr || srv == nullptr) { return false; }
     ID3D11Resource* res = nullptr;
-    it->second->GetResource(&res);
+    srv->GetResource(&res);
     if (res == nullptr) { return false; }
     ID3D11Texture2D* quelle = nullptr;
     const HRESULT hq = res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&quelle));
@@ -2355,6 +2441,47 @@ bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t
     }
     staging->Release();
     return ok;
+}
+
+}  // namespace
+
+bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+    if (t == nullptr) { return false; }
+    const auto it = g_figurBilder.find(&t->wache);
+    return it != g_figurBilder.end() && leseSicht(it->second, stufe, rgba, breite, hoehe);
+}
+
+void* stufenBildGeteilt(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl) {
+    return stufenGeteilt(stufen, breiten, hoehen, anzahl);
+}
+
+BilderTeilen bilderTeilen() {
+    geteilteAufraeumen();
+    BilderTeilen b = g_teilen;
+    for (const auto& [k, e] : g_geteilt) {
+        (void)k;
+        ++b.lebend;
+        b.lebendBytes += e.bytes;
+    }
+    return b;
+}
+
+bool leseKartenBild(const TextureSet* textures, int platz, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe, int* stufen) {
+    ID3D11ShaderResourceView* srv = holeBild(textures, platz);
+    if (srv == nullptr) { return false; }
+    if (stufen != nullptr) {
+        ID3D11Resource* res = nullptr;
+        srv->GetResource(&res);
+        ID3D11Texture2D* tex = nullptr;
+        if (res != nullptr && SUCCEEDED(res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tex))) && tex != nullptr) {
+            D3D11_TEXTURE2D_DESC td{};
+            tex->GetDesc(&td);
+            *stufen = static_cast<int>(td.MipLevels);
+            tex->Release();
+        }
+        if (res != nullptr) { res->Release(); }
+    }
+    return leseSicht(srv, stufe, rgba, breite, hoehe);
 }
 
 namespace {
@@ -6922,6 +7049,7 @@ void gibNetzpufferFrei();
 
 void vergissKarte() {
     vergissKastenSaetze();
+    geteilteAufraeumen();   // MR8 Punkt 2
     // rc610 R1: was es nur fuer DIESE Karte gab, geht mit ihr (allekarten: nach der Rueckkehr auf academy1 lagen noch 82 MB
     // Zielsatz des Himmelsportals von yavin2). Die Puffer des Netzes, der Effekte und des Grases legt das naechste Bild
     // in der Groesse der neuen Karte an; der Effekt- und der Graspuffer wuchsen bisher nur. Das Himmelsportal
@@ -6980,14 +7108,6 @@ BilderDxt himmelProbe(bool keinTc) {
     g_bilderDxt = vorher;
     vergissHimmel();
     return b;
-}
-
-void bilderNeuHochladen() {
-    for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
-    g_bilder.clear();
-    g_bildQuelle.clear();
-    vergissHimmel();
-    figurBilderAllesLoesen();
 }
 
 void kartenPlaetze(int& bild, int& lightmap) {
@@ -7158,6 +7278,7 @@ void shutdown() {
     g_zielProben = 1;
     g_zielVeraendert = false;
     for (ZielFelder& z : g_geparkt) { gibZielFelderFrei(z); }
+    geteilteFreigeben();   // MR8 Punkt 2
     g_zielSatz = 0;
     g_himmelPortalSatz = -1;
     g_spiegelSatz = -1;
@@ -7662,6 +7783,20 @@ void gibAlleSzenenFrei() {
     }
 }
 
+// MR6 P22 / MR7 P39: Regelwerk umgestellt - die Bilder BEIDER Szenen (Vorschau und Karten-Editor, die andere ueber Tauschen wie
+// gibAlleSzenenFrei) und die Figurenbilder verwerfen; Lightmaps bleiben (r_ext_compress_lightmaps 0 in jedem Regelwerk).
+void bilderNeuHochladen() {
+    for (int s = 0; s < kSzenen; ++s) {
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+        for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
+        g_bilder.clear();
+        g_bildQuelle.clear();
+        vergissHimmel();
+        if (s != g_szene) { tauscheSzene(g_szenenGeparkt[s]); }
+    }
+    figurBilderAllesLoesen();
+}
+
 std::uint64_t patchLodAenderungen() { return g_patchLodAenderungen; }
 std::uint64_t moverPatchLodAenderungen() { return g_patchLodMover; }
 
@@ -7673,6 +7808,31 @@ void szeneWaehlen(int nr) {
 }
 
 int szeneJetzt() { return g_szene; }
+
+std::vector<std::pair<const void*, long long>> kartenBildTexturen(int szene) {
+    std::vector<std::pair<const void*, long long>> out;
+    if (szene < 0 || szene >= kSzenen) { return out; }
+    for (const auto& [platz, srv] : szene == g_szene ? g_bilder : g_szenenGeparkt[szene].bilder) {
+        (void)platz;
+        if (srv == nullptr) { continue; }
+        ID3D11Resource* res = nullptr;
+        srv->GetResource(&res);
+        if (res == nullptr) { continue; }
+        long long bytes = 0;
+        ID3D11Texture2D* tex = nullptr;
+        if (SUCCEEDED(res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tex))) && tex != nullptr) {
+            D3D11_TEXTURE2D_DESC td{};
+            tex->GetDesc(&td);
+            for (UINT m = 0; m < td.MipLevels; ++m) {
+                bytes += static_cast<long long>(std::max(1U, td.Width >> m)) * static_cast<long long>(std::max(1U, td.Height >> m)) * 4LL;
+            }
+            tex->Release();
+        }
+        out.emplace_back(res, bytes);
+        res->Release();
+    }
+    return out;
+}
 
 namespace {
 // RB_StageIteratorSky fuer ein Netz der Karte: qglDepthRange(1, 1), GL_State(0), die Rechtecke der Box. Die Stufen
@@ -8796,6 +8956,9 @@ void figurBilderZahlen(int& hochgeladen, int& geteilt) {
 }
 bool figurBildBereich(const TextureSet::Tex*, int, int, int, int) { return false; }
 bool leseFigurBild(const TextureSet::Tex*, int, std::vector<std::uint8_t>&, int&, int&) { return false; }
+bool leseKartenBild(const TextureSet*, int, int, std::vector<std::uint8_t>&, int&, int&, int*) { return false; }
+void* stufenBildGeteilt(const unsigned char* const*, const int*, const int*, int) { return nullptr; }
+BilderTeilen bilderTeilen() { return {}; }
 int gluehenFigurAufrufe() { return 0; }
 void gluehenFigurenBeginnen(bool, int, int) {}
 void gluehenFigurenEnde() {}
@@ -8914,6 +9077,7 @@ void szeneWaehlen(int) {}
 std::uint64_t patchLodAenderungen() { return 0; }
 std::uint64_t moverPatchLodAenderungen() { return 0; }
 int szeneJetzt() { return 0; }
+std::vector<std::pair<const void*, long long>> kartenBildTexturen(int) { return {}; }
 int zeichneKarte(const BspMesh&, const TextureSet*, const BspGeometry*,
                  const float*, const float*, float, float, float, int,
                  const float*, const float*, const float*, float,

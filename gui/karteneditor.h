@@ -20,6 +20,7 @@
 #ifndef BHED_GUI_KARTENEDITOR_H
 #define BHED_GUI_KARTENEDITOR_H
 
+#include "bhed/bildregister.h"
 #include "bhed/i18n.h"
 #include "bhed/karte/prefabverbund.h"
 #include "bhed/karte/wiederherstellen.h"
@@ -1433,7 +1434,21 @@ void dialogSchriftAus();
 // Fuer den Selbsttest (Stufe 7 Punkt 6f): zeigt die Kamera fuer den Shader das
 // Ersatzbild (notex / shadernotex, "SHADER NOT FOUND")? -1 noch nicht geladen.
 [[nodiscard]] int kameraBildErsatz(const std::string& shader);
+// MR7 P40 (Selbsttest): die Mip-Stufen (RGBA, je Breite und Hoehe) des Bilds, mit dem das Echtzeit-Licht im Spielbild `bild`
+// ("?" + Pfad bzw. Shader) zeichnet, wenn die Stufe noTC `keinTc` hat; false, solange es laedt.
+[[nodiscard]] bool echtBildStufen(const std::string& bild, bool keinTc, std::vector<std::vector<unsigned char>>& stufen,
+                                  std::vector<std::array<int, 2>>& groessen);
+// MR8 Punkt 1 (Selbsttest): dasselbe fuer das Bild einer Stufe des Shaders `shader` - der Shader registriert zuerst seine Bilder
+// (ein Bild je Name, der Erste entscheidet); echtRegisterNeu faengt das Register des Echtzeit-Lichts neu an.
+void echtRegisterNeu();
+// MR8 Punkt 2 (Selbsttest): die Grafikkarten-Ressource des Bilds im Lager (Fassung des Spiels), nullptr solange es laedt.
+[[nodiscard]] const void* echtBildTextur(const std::string& bild, bool keinTc);
+[[nodiscard]] bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool keinTc,
+                                      std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen);
 void texturBilderAbholen();
+// MR8 Punkt 1: das Register (ein Bild je Name, bhed/bildregister.h) des Spielbilds und seine Nummer; nullptr ohne gueltiges
+// Spielbild.
+[[nodiscard]] const BildRegister* spielbildRegister(std::uint64_t& nummer);
 // Der Zustand eines Shaders wie in der Kamera (Textured): Bild, Alphatest,
 // Durchsicht; false, solange das Bild noch geladen wird (app_karte_cam.cpp).
 bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durchsichtig);
