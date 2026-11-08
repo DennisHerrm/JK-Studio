@@ -196,9 +196,78 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
   Duels) nicht gemacht; "alle Shader-Stufen in 3D" nicht eigens geprueft (REST Punkt 1: die Stufen mit dem bemalten Bild
   bekommen ihre Kopie, pt "PT Grafikkarte" prueft Flaeche und zwei Shader-Stufen). Funde P7, P8, P13, P19 offen.
 
+## Teil 4 (Stand 78d90dafe, Laeufe `mr4k_*`, Skripte und Protokolle `Y:/werkzeuge/mr/p4k/`)
+
+### Punkt 1: Painting-Funde P7, P8, P13, P19 (473edc4eb)
+
+- P7: Weichzeichnen/Verwischen rechnen die neuen Werte erst in einen kleinen Puffer (gelesen nur unveraendertes px) und
+  schreiben sie nach allen Treffern - dieselben Bytes ohne Kopie der ganzen Ebene. ctest `modell_malen` `weichTempoTest`
+  (2048er Rauschbild, je 30 Tupfer ueber den Rand): rot 7,139 ms je Tupfer (`p4k/ct_p7_rot.txt`), gruen 0,41 ms, Pruefsumme
+  e24c66efd93e17ee aus dem Rotlauf gleich (Grenze 2,5 ms, unter Last 0,69 ms gemessen).
+- P8: Maske zeigen merkt die Rechtecke je `l.stand` (Umkehren/Leeren ohne Strich setzen den Merker zurueck), gleiche Laeufe
+  untereinander zu einem Rechteck - dieselbe Flaeche. Rot `mr4k_fix2_rot`: 524288 Texel je Bild gelesen, 1024 Rechtecke;
+  gruen `mr4k_fix2_g1`: im ruhigen Bild 0 Texel, 1 Rechteck (volle Maske), 0 (leer), nach Strg+Z wieder 1.
+- P13: Grundebene ohne Namen (die GUI zeigt `Str::PtEbeneOriginal`), Lese-/Baufehler als leerer Grund mit Satz der GUI
+  (`PtFeUnlesbar`, `PtFeKeinBild`); der technische Grund des Bildlesers (image::decode) bleibt englisch wie Systemfehler.
+  Rot in ja: "Original" angezeigt; gruen nicht.
+- P19: `modellMalenVorschauAbgleich` jedes Bild in jedem Bereich (vorher nur im Bereich Painting). Rot: nach
+  loadModelTextures im Bereich Modellieren "Flaeche Original, Stufen mit dem Bild 0 von 3"; gruen "bemalt, 2 von 3" (die
+  dritte Stufe in Bildgroesse ist trooper-armor_spec).
+- ptfix 5/0, pt 41/0 (`mr4k_ptfix_g1`, `mr4k_pt_g1`).
+
+### Punkt 2: alle Shader-Stufen in 3D, Paarbild (0362741cb)
+
+- Fund: die Leinwand gehoerte zu Shader und Datei. Das Spiel laedt jedes Bild einmal (R_FindImageFile nach dem Namen), jede
+  Stufe jedes Shaders zeigt die bemalte Datei. In den Spieldaten teilen 263 von 4610 Haeuten ein Bild zwischen Shadern
+  (meist X und X_cull, `p4k/geteilt.py`), z. B. Aayla torso.tga (torso, torso_cull an hips_cloth). Jetzt eine Leinwand je
+  Datei ueber die Flaechen aller Gruppen, deren Shader sie zeichnet (`teileMitBild`), bySurface je Flaeche, deren erstes
+  Bild die Datei ist.
+- Selbsttest `modellblock` BHED_MODELL_NUR=ptstufen: rot `mr4k_stufen_rot` 1/3 (hips_cloth zeigte das Original, die Gruppe
+  hatte eine leere Leinwand), gruen `mr4k_stufen_g1` 4/0 (10 von 10 Flaechen mit dem bemalten Bild, eine Leinwand, gebaut
+  ein Bild mit beiden Strichen).
+- Paarbild Spiel gegen Vorschau, gleiche Haltung und Kamera: `p4k/paar/paar_spiel_vorschau.png` (1920 x 2880, oben Movie
+  Duels, unten Mission-Vorschau, ungeskaliert; Ausschnitt `paar_ausschnitt.png`, angesehen). Karte `pt_paar` (Raum aus
+  rd_glm, NPC_Stormtrooper "st" bei 0 300 40, Blick 270) mit bhed_q3map2 gebaut, Mod aus `ptspiel` (Streifen ueber die
+  Brust). Spiel: `spiel_glm.py` mit ICARUS-Skriptkamera (camera ENABLE/MOVE 0 160 64/PAN 0 90 0/ZOOM 80) und `pt_st`
+  (BS_CINEMATIC, SET_ANIM_BOTH BOTH_STAND1, Haltezeit -1); Vorschau: Selbsttest `geschuetze` mit derselben Karte im pk3,
+  BHED_GV_KAMERA "0 160 64 0 90", demselben Skript (BHED_GV_SKRIPT), Bild bei 6000 ms. Gemessen: Figur in beiden x 844-1047,
+  y 721-1271 bzw. 722-1272, Helligkeit 57,4 / 56,5, Streifen 1111 / 1084 rote Bildpunkte bei y 850-867 / 851-868.
+  Spielordner unveraendert (Liste vorher/nachher gleich).
+- Handbuch: Abschnitt Painting in 6 Sprachen (jede Stufe jeder Flaeche mit dem Bild).
+
+### Punkt 3: misc_model_ghoul in der Editor-Kamera (f6f2d2803)
+
+- misc_model_ghoul ist ein Modell (miscmodelIs wie misc_model_static), gezeichnet wie das Spiel: G2API_InitGhoul2Model ohne
+  Haut, Bild 0 der GLA, Shader der Datei (`nachPfad` wie das .glm-model2).
+- Dabei gefunden: das Spielbild/die Vorschau hob einen skalierten misc_model_ghoul um mins[2] * (1 - Groesse). Im Spiel aendert
+  das nur s.origin nach G_SetOrigin (s.pos.trBase), CG_General zeichnet an lerpOrigin aus s.pos (cg_ents.cpp:381) - entfernt.
+- karteneditor rdglm: rot `mr4k_glm_rot` 18/2 (Editor B 0,000; B2 bei z 80 statt 100), gruen `mr4k_glm_g1` 20/0 (Editor A 0,502,
+  B 0,463; B2 bei z 100). ctest `kartemodell` rot 1 Fehler (miscmodelIs), gruen 0.
+
+### Punkt 4: Chamfer-Abweichungen
+
+- Nicht bearbeitet (Kontext). square_out_adj_vmesh (Blender bmesh_bevel.cc:5183, ~220 Zeilen) braucht je Randpunkt die
+  beiden Kanten (efirst/elast mit Endpunkten), den Kantenwinkel (edges_angle_kind mit Flaechennormale) und die Ebenenpunkte
+  der Nachbarn; `EckDaten` traegt das nicht, die Netzseite (`mesh_werkzeuge.cpp`) muesste es liefern - deren Lizenzkopf
+  aendert FIX2 gleichzeitig (P10). Ebenso offen: UV/Normalen der Gitterpunkte (Blender: interp in einer Vertreter-Flaeche),
+  Ende einer einzelnen gefasten Kante an Punkten mit >= 4 Kanten (M_POLY/M_TRI_FAN). Hinweis aus dem Lesen: Blender prueft
+  square_out VOR tri_corner, also auch an Wuerfelecken mit Profil >= 0,95 und gerader Segmentzahl.
+
+### Schluss Teil 4 (Laeufe `mr4k_s_*`, Summe `Y:/werkzeuge/mr/p4k/schluss4_summe.txt`)
+
+- Sauberer Neubau `build-test` (--clean-first, --parallel 8) 0 Warnungen, 17 min 52 s; ctest 235/235.
+- Welle A parallel: modellblock pt 41/0, ptfix 5/0, ptfix2 (ja) 5/0, ptstufen 4/0, blender 67/0, md 86/0, uv 50/0,
+  funktionen 60/0, mb5 159/0; karteneditor rdglm 20/0. Welle B: Modus 1 2635/0; karteneditor rd 21/0, rdm2 14/0, r3 22/0;
+  modellblock mb2 37/0, mb7 24/0, rig 26/0, rt 19/0, ph 29/0, tasten 43/0, pfix 17/0; modell 14/0, kuerzel 202/0.
+- Lints wie die Basis (portability 99, pruefcodes 11 bekannt), i18n ok; Handbuch erzeugt, `--pruefen --pflicht=es --pflicht=cs`
+  ok. Handbuchbild h_pt_malen in 6 Sprachen neu (2538 x 1472, ja angesehen: Grundebene "元の画像"); en, de, es bytegleich,
+  cs, ja, zh geaendert (Name der Grundebene).
+- Bildzeit nicht gemessen: waehrend der ganzen Schlussrunde liefen fremde Baue (cl.exe/cmake) und Tests anderer Agenten -
+  offen (`leistung`, `ptzeit` vorher/nachher allein).
+
 ## Offen (nicht bearbeitet, Kontext)
 
-- Siehe Teil 3 (Abschnitte unten bzw. oben je Punkt).
+- Teil 4: Punkt 4 (Chamfer-Abweichungen, siehe oben); Bildzeit allein (`leistung`, `ptzeit` mit den neuen Messungen Weichzeichnen und volle Maske) - waehrend Teil 4 liefen fremde Baue.
 
 ## Changelog
 
@@ -212,6 +281,9 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - Model tab: Chamfer with segments fills corners where three or more chamfered edges meet with a grid of quads like Blender's bevel, places the round edge in the plane across the edge and spaces other shapes in equal steps.
 - Map editor: in "Built map as in the game" misc_model and misc_model_static are no longer drawn a second time in editor light; Movie Duels maps scale a model2 by "model2scale" in the preview, the game view and the editor camera.
 - Painting: painted images are no longer lost when the level of detail or the skin changes, and closing or loading another model asks about unbuilt paintings; Ctrl+Z/Ctrl+Y step through the strokes of all images and never undo a model edit in the Painting area; undoing an opacity click restores the old value; layer steps stay within the undo memory limit.
+- Painting: Blur and Smudge are much faster on large images, showing the mask no longer costs time in every frame, the base layer is named in the language of the interface, and painted images stay in the preview when textures are reloaded in another area.
+- Painting: an image used by several shaders (for example torso and torso_cull) is one canvas - every surface and shader stage with it shows the painting, and "Build for the game" writes it once with all strokes.
+- Map editor: misc_model_ghoul is drawn as its Ghoul2 model in the editor camera; the map preview no longer raises a scaled misc_model_ghoul (the game draws it at its origin).
 
 ## Deutsch
 
@@ -223,6 +295,9 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - Model-Tab: Chamfer mit Segmenten füllt Ecken, an denen drei oder mehr gefaste Kanten zusammenkommen, mit einem Gitter aus Vierecken wie Blenders Bevel, legt die Rundung in die Ebene quer zur Kante und verteilt andere Formen in gleichen Schritten.
 - Karten-Editor: in „Gebaute Karte wie im Spiel“ werden misc_model und misc_model_static nicht mehr ein zweites Mal im Editor-Licht gezeichnet; Movie-Duels-Karten skalieren ein model2 mit „model2scale“ in der Vorschau, im Spielbild und in der Editor-Kamera.
 - Painting: bemalte Bilder gehen beim Wechsel der Detailstufe oder der Haut nicht mehr verloren, Schließen und ein anderes Modell fragen nach nicht gebauten Bildern; Strg+Z/Strg+Y gehen durch die Striche aller Bilder und nehmen im Bereich Painting nie eine Modelländerung zurück; Rückgängig nach einem Klick auf die Deckkraft stellt den alten Wert her; Ebenen-Schritte bleiben in der Speichergrenze des Rückgängig.
+- Painting: Weichzeichnen und Verwischen sind auf großen Bildern viel schneller, „Maske zeigen“ kostet nicht mehr jedes Bild Zeit, die Grundebene heißt in der Sprache der Oberfläche, und bemalte Bilder bleiben in der Vorschau, wenn ein anderer Bereich die Texturen neu lädt.
+- Painting: ein Bild, das mehrere Shader nutzen (etwa torso und torso_cull), ist eine Leinwand - jede Fläche und Shader-Stufe damit zeigt das Gemalte, und „Für das Spiel bauen“ schreibt es einmal mit allen Strichen.
+- Karten-Editor: misc_model_ghoul zeigt die Editor-Kamera als sein Ghoul2-Modell; die Kartenvorschau hebt einen skalierten misc_model_ghoul nicht mehr an (das Spiel zeichnet ihn an seinem Ursprung).
 
 ## 中文
 
@@ -234,6 +309,9 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - 模型选项卡: 带分段的倒角在三条或更多倒角边相交的角落像 Blender 的倒角一样用四边形网格填充, 圆弧位于垂直于边的平面内, 其他形状等距分布。
 - 地图编辑器: 在"按游戏方式显示构建的地图"中 misc_model 和 misc_model_static 不再以编辑器光照再绘制一次; Movie Duels 地图在预览、游戏画面和编辑器相机中按 "model2scale" 缩放 model2。
 - 绘制: 切换细节级别或皮肤时不再丢失已绘制的图像, 关闭或加载其他模型时会询问未构建的绘制; Ctrl+Z/Ctrl+Y 按顺序撤销/重做所有图像的笔画, 在绘制区域中不会撤销模型修改; 单击不透明度后撤销会恢复旧值; 图层步骤保持在撤销内存上限内。
+- 绘制: 在大图像上模糊和涂抹快了很多, “显示遮罩”不再每帧耗时, 底层图层以界面语言命名, 在其他区域重新加载纹理后预览仍显示已绘制的图像。
+- 绘制: 被多个着色器使用的图像 (例如 torso 和 torso_cull) 只有一张画布 - 使用它的每个表面和着色器阶段都显示所绘内容, “为游戏构建”只写一次并包含所有笔画。
+- 地图编辑器: 编辑器相机将 misc_model_ghoul 绘制为其 Ghoul2 模型; 地图预览不再抬高缩放后的 misc_model_ghoul (游戏在其原点绘制)。
 
 ## 日本語
 
@@ -245,6 +323,9 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - モデルタブ: セグメント付きの面取りは、面取りした辺が 3 本以上集まる角を Blender のベベルと同じく四角形の格子で埋め、丸みを辺に垂直な面に置き、他の形は等間隔に並べます。
 - マップエディター: 「ゲーム同様のビルド済みマップ」で misc_model と misc_model_static がエディター照明で二重に描かれなくなりました。Movie Duels のマップはプレビュー、ゲーム画面、エディターカメラで model2 を「model2scale」で拡大縮小します。
 - ペイント: 詳細度やスキンを切り替えても描いた画像が失われなくなり、閉じるときや別のモデルを読み込むときに未ビルドの画像について確認します。Ctrl+Z/Ctrl+Y はすべての画像のストロークを順にたどり、ペイント領域でモデルの変更を取り消すことはありません。不透明度をクリックした後の元に戻すで以前の値に戻ります。レイヤー操作は元に戻すメモリの上限内に収まります。
+- ペイント: 大きな画像でぼかしとこすりが大幅に速くなり、「マスクを表示」が毎フレーム時間を取らなくなり、ベースレイヤーがインターフェースの言語で表示され、別の領域でテクスチャを再読み込みしても塗った画像がプレビューに残ります。
+- ペイント: 複数のシェーダーが使う画像 (例: torso と torso_cull) は 1 枚のキャンバスになり、それを使うすべてのサーフェスとシェーダーステージに塗った内容が表示され、「ゲーム用にビルド」は全ストロークを含めて 1 回だけ書き出します。
+- マップエディター: エディターカメラは misc_model_ghoul を Ghoul2 モデルとして描画します。マッププレビューは拡大縮小した misc_model_ghoul を持ち上げなくなりました (ゲームは原点に描画します)。
 
 ## Español
 
@@ -256,6 +337,9 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - Pestaña Model: Chamfer con segmentos rellena las esquinas donde se juntan tres o más aristas biseladas con una rejilla de cuadriláteros como el bisel de Blender, coloca el redondeo en el plano transversal a la arista y reparte las demás formas a pasos iguales.
 - Editor de mapas: en "Mapa compilado como en el juego" misc_model y misc_model_static ya no se dibujan por segunda vez con la luz del editor; los mapas de Movie Duels escalan un model2 con "model2scale" en la vista previa, la vista de juego y la cámara del editor.
 - Painting: las imágenes pintadas ya no se pierden al cambiar el nivel de detalle o la piel, y cerrar o cargar otro modelo pregunta por las pinturas sin construir; Ctrl+Z/Ctrl+Y recorren los trazos de todas las imágenes y en el área Painting nunca deshacen un cambio del modelo; deshacer tras un clic en la opacidad restaura el valor anterior; los pasos de capas respetan el límite de memoria del deshacer.
+- Pintura: Desenfocar y Difuminar son mucho más rápidos en imágenes grandes, «Mostrar máscara» ya no cuesta tiempo en cada fotograma, la capa base se nombra en el idioma de la interfaz y las imágenes pintadas siguen en la vista previa cuando otra área recarga las texturas.
+- Pintura: una imagen que usan varios shaders (por ejemplo torso y torso_cull) es un solo lienzo: cada superficie y etapa de shader con ella muestra lo pintado, y «Construir para el juego» la escribe una vez con todos los trazos.
+- Editor de mapas: la cámara del editor dibuja misc_model_ghoul como su modelo Ghoul2; la vista previa del mapa ya no eleva un misc_model_ghoul escalado (el juego lo dibuja en su origen).
 
 ## Čeština
 
@@ -267,3 +351,6 @@ ctest `modell_malen` erweitert (`ebenenGrenzeTest`).
 - Karta Model: Chamfer se segmenty vyplní rohy, kde se setkají tři a více zkosených hran, mřížkou čtyřúhelníků jako zkosení v Blenderu, klade zaoblení do roviny napříč hranou a ostatní tvary rozloží ve stejných krocích.
 - Editor map: v „Sestavená mapa jako ve hře“ se misc_model a misc_model_static už nekreslí podruhé ve světle editoru; mapy Movie Duels zvětšují model2 podle „model2scale“ v náhledu, herním pohledu i kameře editoru.
 - Painting: pomalované obrázky se už neztratí při změně úrovně detailu nebo skinu, zavření a načtení jiného modelu se ptá na nesestavené malby; Ctrl+Z/Ctrl+Y procházejí tahy všech obrázků a v oblasti Painting nikdy nevrátí změnu modelu; zpět po klepnutí na krytí obnoví starou hodnotu; kroky vrstev zůstávají v paměťovém limitu historie.
+- Malování: Rozmazání a Rozmazání tahem jsou na velkých obrázcích mnohem rychlejší, „Zobrazit masku“ už nestojí čas v každém snímku, základní vrstva se jmenuje v jazyce rozhraní a namalované obrázky zůstanou v náhledu, když jiná oblast znovu načte textury.
+- Malování: obrázek, který používá více shaderů (třeba torso a torso_cull), je jedno plátno - každá plocha a fáze shaderu s ním ukáže namalované a „Sestavit pro hru“ ho zapíše jednou se všemi tahy.
+- Editor map: kamera editoru kreslí misc_model_ghoul jako jeho model Ghoul2; náhled mapy už nezvedá zmenšený či zvětšený misc_model_ghoul (hra ho kreslí v jeho počátku).
