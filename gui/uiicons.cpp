@@ -10,6 +10,7 @@
 // Die Befehlssymbole des Skriptbaums (vektoricons.cpp) bleiben die des
 // Originals; diese hier sind fuer Bedienknoepfe.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include <cmath>
 #include <initializer_list>
@@ -606,7 +607,7 @@ bool iconKnopf(const char* text, UiIcon icon, const char* hinweis, bool an, bool
         ImGui::TextUnformatted(text, ImGui::FindRenderedTextEnd(text));
         if (hinweis != nullptr && hinweis[0] != '\0') {
             ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
-            ImGui::TextDisabled("%s", hinweis);
+            cjkTextDisabled("%s", hinweis);
             ImGui::PopTextWrapPos();
         }
         ImGui::EndTooltip();

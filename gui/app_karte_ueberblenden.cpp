@@ -12,6 +12,7 @@
 
 #include "app_internal.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/karte.h"
 #include "bhed/karte/patch.h"
@@ -211,7 +212,7 @@ void ueberblendenZeichnen() {
     if (ImGui::Begin(titel.c_str(), &offen)) {
         const auto gr = gruppeDerAuswahl();
         if (gr && gr != g_b.ent.lock()) { (void)aufnehmen(gr); }   // schon eingerichtet: weiter malen
-        ImGui::TextWrapped("%s", gr ? trK(Str::KeUbGruppe) : trK(Str::KeUbKeineGruppe));
+        cjkTextWrapped("%s", gr ? trK(Str::KeUbGruppe) : trK(Str::KeUbKeineGruppe));
         ImGui::SetNextItemWidth(120);
         ImGui::SliderInt((std::string(trK(Str::KeUbSchichten)) + "##ubsch").c_str(), &g_b.schichten, 2, 4);
         for (int i = 0; i < g_b.schichten; ++i) {

@@ -19,6 +19,7 @@
 #include "fenster_dock.h"
 #include "gpumap.h"
 #include "karteneditor.h"
+#include "textumbruch.h"
 
 #include "bhed/bspgeo.h"
 #include "bhed/diag.h"
@@ -517,9 +518,9 @@ void shaderEintragZeichnen(LumpDok& d, int nr) {
     }
     d.nutzungText = b;
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s", b);
+    cjkTextDisabled("%s", b);
     if (regelwerkJediOutcast() && (s.surfaceFlags & 0x00004000U) != 0U && u.brushes > 0) {
-        ImGui::TextDisabled("%s", tr(Str::LeJk2Slick));   // cm_load.cpp:272 JK2_MODE
+        cjkTextDisabled("%s", tr(Str::LeJk2Slick));   // cm_load.cpp:272 JK2_MODE
     }
     ImGui::PopTextWrapPos();
 }
@@ -574,7 +575,7 @@ void nebelZeichnen(LumpDok& d) {
     }
     if (!nebelParmsDa(f.shader)) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", textMit(tr(Str::LeWarnKeinNebel), f.shader).c_str());
+        cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", textMit(tr(Str::LeWarnKeinNebel), f.shader).c_str());
         ImGui::PopTextWrapPos();
     }
 }
@@ -607,7 +608,7 @@ void neuerShaderZeichnen(LumpDok& d) {
         const int r = lightmapRegel(fl.lightmap, d.gewaehlt);
         if (r != 0) {
             ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", lightmapWarnung(r, fl.lightmap, d.gewaehlt).c_str());
+            cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", lightmapWarnung(r, fl.lightmap, d.gewaehlt).c_str());
             ImGui::PopTextWrapPos();
         }
     }
@@ -624,7 +625,7 @@ void neuerShaderZeichnen(LumpDok& d) {
 void flaecheReiter(LumpDok& d) {
     if (d.flaeche < 0) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::LeKeineFlaeche));
+        cjkTextDisabled("%s", tr(Str::LeKeineFlaeche));
         ImGui::PopTextWrapPos();
         if (d.hervorShader >= 0) { shaderEintragZeichnen(d, d.hervorShader); }
         return;
@@ -644,11 +645,11 @@ void flaecheReiter(LumpDok& d) {
     std::snprintf(b, sizeof(b), tr(Str::LeShader), fl.shaderNum, d.lumps.shader[static_cast<std::size_t>(fl.shaderNum)].name.c_str());
     ImGui::TextUnformatted(b);
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled(tr(Str::LeFlaecheKollision), artName(fl.typ));   // CMod_LoadPatches
+    cjkTextDisabled(tr(Str::LeFlaecheKollision), artName(fl.typ));   // CMod_LoadPatches
     if (const int r = lightmapRegel(fl.lightmap, d.lumps.shader[static_cast<std::size_t>(fl.shaderNum)].name); r != 0) {
-        ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", lightmapWarnung(r, fl.lightmap, d.lumps.shader[static_cast<std::size_t>(fl.shaderNum)].name).c_str());
+        cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", lightmapWarnung(r, fl.lightmap, d.lumps.shader[static_cast<std::size_t>(fl.shaderNum)].name).c_str());
     }
-    if (!d.warnung.empty()) { ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", d.warnung.c_str()); }
+    if (!d.warnung.empty()) { cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", d.warnung.c_str()); }
     ImGui::PopTextWrapPos();
     neuerShaderZeichnen(d);
     shaderEintragZeichnen(d, fl.shaderNum);
@@ -849,7 +850,7 @@ void inhalt(LumpDok* dp) {
     fe().fokus = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
     if (dp == nullptr) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(g_app->leftMode == 3 ? Str::LeKarteKeineBsp : Str::EtKeineKarte));
+        cjkTextDisabled("%s", tr(g_app->leftMode == 3 ? Str::LeKarteKeineBsp : Str::EtKeineKarte));
         ImGui::PopTextWrapPos();
         return;
     }
@@ -886,7 +887,7 @@ void inhalt(LumpDok* dp) {
     }
     if (!d.meldung.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(d.meldungFehler ? ImVec4{1.0F, 0.45F, 0.4F, 1.0F} : ImVec4{0.6F, 0.85F, 0.6F, 1.0F}, "%s", d.meldung.c_str());
+        cjkTextColored(d.meldungFehler ? ImVec4{1.0F, 0.45F, 0.4F, 1.0F} : ImVec4{0.6F, 0.85F, 0.6F, 1.0F}, "%s", d.meldung.c_str());
         ImGui::PopTextWrapPos();
     }
     if (ImGui::BeginTabBar("##lumpreiter")) {

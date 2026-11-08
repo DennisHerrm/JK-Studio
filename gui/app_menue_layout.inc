@@ -459,7 +459,7 @@ void zeichneLayoutFelder(Dokument& d, int mi, const std::vector<Layout>& ls, int
     tipp(Str::MeLayoutNeuRechnenTip);
     for (const std::string& w : z.layoutWarnungen) { ImGui::TextColored(ImVec4{1, 0.75F, 0.3F, 1}, "%s", w.c_str()); }
     if (!z.layoutZustaende.empty() && l.versteckteAuslassen) {
-        ImGui::TextWrapped(trN(Str::MeLayoutZustaende, z.layoutZustaende.size()), static_cast<int>(z.layoutZustaende.size()));
+        cjkTextWrapped(trN(Str::MeLayoutZustaende, z.layoutZustaende.size()), static_cast<int>(z.layoutZustaende.size()));
         if (ImGui::IsItemHovered()) {
             std::string liste;
             for (const std::string& x : z.layoutZustaende) { liste += "\n" + x; }

@@ -21,6 +21,7 @@
 // beim Speichern des Skripts. Eine fertige Datei aus den Spielarchiven wird
 // in Schluessel zerlegt und als Kopie unter neuem Namen bearbeitet.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include "bhed/moveranim.h"
 #include "bhed/roffanim.h"
@@ -896,12 +897,12 @@ void drawAnimFenster() {
     ImGui::TextDisabled("%s", e->classname.c_str());
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 27.0F);
     if (roffModus()) {
-        ImGui::TextDisabled("%s", tr(Str::AnimRoffHint));
+        cjkTextDisabled("%s", tr(Str::AnimRoffHint));
     } else {
-        ImGui::TextDisabled(tr(Str::AnimHint), g_app->shownName.empty() ? "unnamed.txt" : g_app->shownName.c_str());
+        cjkTextDisabled(tr(Str::AnimHint), g_app->shownName.empty() ? "unnamed.txt" : g_app->shownName.c_str());
     }
     if (e->classname.rfind("func_", 0) == 0 && e->find("origin") == nullptr) {
-        ImGui::TextColored(ImVec4{1.0F, 0.7F, 0.35F, 1.0F}, "%s", tr(Str::AnimNoOrigin));
+        cjkTextColored(ImVec4{1.0F, 0.7F, 0.35F, 1.0F}, "%s", tr(Str::AnimNoOrigin));
     }
     ImGui::PopTextWrapPos();
     roffTeil(*e, fs);
@@ -945,7 +946,7 @@ void drawAnimFenster() {
     // Die Schluessel als Tabelle
     if (k.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 27.0F);
-        ImGui::TextDisabled("%s", tr(Str::AnimNoKeys));
+        cjkTextDisabled("%s", tr(Str::AnimNoKeys));
         ImGui::PopTextWrapPos();
     } else if (ImGui::BeginChild("##animschluesselrahmen", ImVec2{0.0F, std::min(fs * 22.0F, fs * 1.75F * static_cast<float>(k.size() + 2U))},
                                  ImGuiChildFlags_AutoResizeX) &&

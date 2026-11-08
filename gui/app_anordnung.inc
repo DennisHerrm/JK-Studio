@@ -3421,7 +3421,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
             // H2: ein leerer Zustand, der sagt, wie es weitergeht - mit einem
             // Knopf, der das passende Tutorial startet.
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite * 0.9F);
-            ImGui::TextDisabled("%s", tr(pane == 0 && !g_app->tabs.empty() ? Str::ScriptEmptyHint : Str::MsgNoScript));
+            cjkTextDisabled("%s", tr(pane == 0 && !g_app->tabs.empty() ? Str::ScriptEmptyHint : Str::MsgNoScript));
             ImGui::PopTextWrapPos();
             if (pane == 0 && ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-neues-skript", 1); }
         }
@@ -3532,7 +3532,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                             }
                         }
                         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0F);
-                        ImGui::TextUnformatted(tr(Str::HintGutter));
+                        cjkTextUnformatted(tr(Str::HintGutter));
                         ImGui::PopTextWrapPos();
                         ImGui::EndTooltip();
                         g_app->randVorschauZeile = static_cast<int>(i);
@@ -4972,9 +4972,9 @@ void drawMessages() {
                 }
             }
             if (muster != nullptr) {
-                ImGui::TextWrapped(muster, i.arg1.c_str(), i.arg2.c_str());
+                cjkTextWrapped(muster, i.arg1.c_str(), i.arg2.c_str());
             } else {
-                ImGui::TextWrapped("%s", i.message.c_str());
+                cjkTextWrapped("%s", i.message.c_str());
             }
         }
     }

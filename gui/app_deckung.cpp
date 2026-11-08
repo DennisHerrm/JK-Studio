@@ -6,6 +6,7 @@
 // Auftrag im Hintergrund wie die Abdeckung (W4), die Zuordnung zum Netz wie im Spiel (navKampfPunkte, W4), Annehmen in
 // EINEM Rueckgaengig-Schritt, die Geisterpunkte in der Ansicht.
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include <algorithm>
 #include <atomic>
@@ -315,7 +316,7 @@ void wegDeckungFenster() {
     }
     if (!g_app->wegDeckMeldung.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 23.0F);
-        ImGui::TextDisabled("%s", g_app->wegDeckMeldung.c_str());
+        cjkTextDisabled("%s", g_app->wegDeckMeldung.c_str());
         ImGui::PopTextWrapPos();
     }
     // Annehmen und Verwerfen aendern die Liste: erst nach dem Zeichnen (-1 alle annehmen, -2 verwerfen, >= 0 einen).

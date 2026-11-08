@@ -16,6 +16,7 @@
 // ueberschreiben, wohl aber umbenennen: sie wird zu "<exe>.alt", die neue kommt an
 // ihren Platz; beim naechsten Start wird die alte geloescht.
 
+#include "textumbruch.h"
 #include "update.h"
 
 #include <windows.h>
@@ -642,7 +643,7 @@ void zeichneFenster() {
                     if (ImGui::BeginChild("##notizen", ImVec2{ImGui::GetFontSize() * 32.0F, ImGui::GetFontSize() * 12.0F},
                                           ImGuiChildFlags_Borders)) {
                         ImGui::PushTextWrapPos(0.0F);
-                        ImGui::TextUnformatted(z.release.body.c_str());
+                        cjkTextUnformatted(z.release.body.c_str());
                         ImGui::PopTextWrapPos();
                     }
                     ImGui::EndChild();
@@ -660,7 +661,7 @@ void zeichneFenster() {
                 char z4[600];
                 std::snprintf(z4, sizeof(z4), tr(Str::UpdError), z.meldung.c_str());
                 ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0F);
-                ImGui::TextUnformatted(z4);
+                cjkTextUnformatted(z4);
                 ImGui::PopTextWrapPos();
                 break;
             }

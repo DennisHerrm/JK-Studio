@@ -4945,7 +4945,7 @@ void drawMapView() {
         const ImVec2 hier = ImGui::GetCursorPos();
         ImGui::Dummy(ImVec2{static_cast<float>(w), static_cast<float>(h)});
         ImGui::SetCursorPos(ImVec2{hier.x + 12.0F, hier.y + 12.0F});
-        ImGui::TextWrapped("%s", tr(Str::MapNeedsD3d));
+        cjkTextWrapped("%s", tr(Str::MapNeedsD3d));
     }
     if (zeigeTextur != nullptr) {
         const ImVec2 topLeft = ImGui::GetCursorScreenPos();

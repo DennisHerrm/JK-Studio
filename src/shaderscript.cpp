@@ -348,6 +348,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     float deformSpread = 0.0F;
     DeformZusatz deform2;
     bool polygonOffset = false;
+    bool noTC = false;   // MR4 Punkt 7
     std::string skyBox;
     float wolkenHoehe = 0.0F;
     bool hatSonne = false;
@@ -598,6 +599,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     info.deformSpread = deformSpread;
                     info.deform2 = deform2;
                     info.polygonOffset = polygonOffset;
+                    info.noTC = noTC;
                     info.glow = glow;
                     info.hasGlow = hasGlow;
                     info.texGen = texGen;
@@ -866,6 +868,11 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 polygonOffset = true;
                 continue;
             }
+            // MR4 Punkt 7: noTC - die Bilder des Shaders werden nicht komprimiert (ParseShader, tr_shader.cpp:2324)
+            if (key == "notc") {
+                noTC = true;
+                continue;
+            }
             // `portal` / `sort portal` (rc593): Spiegel- oder Portalflaeche.
             if (key == "portal" ||
                 (key == "sort" && lower(firstWord(secondWord(line))) == "portal")) {
@@ -907,6 +914,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             deformSpread = 0.0F;
             deform2 = DeformZusatz{};
             polygonOffset = false;
+            noTC = false;
             inImageStage = false;
             continue;
         }

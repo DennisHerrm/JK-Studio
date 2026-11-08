@@ -607,7 +607,7 @@ void drawModellRetargetBereich() {
     daneben(tr(Str::AiImport));
     if (ImGui::Button(tr(Str::AiImport))) { (void)modellRtImportWaehlen(); }
     ImGui::SetItemTooltip("%s", tr(Str::AiImportHint));
-    if (!r.importInfo.empty() && modell::istAnimImportEndung(r.quelleFuer)) { ImGui::TextDisabled("%s", r.importInfo.c_str()); }
+    if (!r.importInfo.empty() && modell::istAnimImportEndung(r.quelleFuer)) { cjkTextDisabled("%s", r.importInfo.c_str()); }
     if (r.quelle.bones.empty()) {
         cjkTextDisabled("%s", tr(Str::RtQuelleKeine));
         ImGui::PopTextWrapPos();

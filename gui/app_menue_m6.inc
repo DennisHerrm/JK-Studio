@@ -69,7 +69,7 @@ void zeichneFlussFenster(Dokument* aktivDok) {
         return;
     }
     if (z.docs.empty()) {
-        ImGui::TextWrapped("%s", tr(Str::MeFlussLeer));
+        cjkTextWrapped("%s", tr(Str::MeFlussLeer));
         ImGui::End();
         return;
     }
@@ -94,7 +94,7 @@ void zeichneFlussFenster(Dokument* aktivDok) {
     const bool nurDatei = z.docs.size() == 1 && z.docs[0]->satz < 0;
     if (nurDatei) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.3F, 1});
-        ImGui::TextWrapped("%s", tr(Str::MeFlussNurDatei));
+        cjkTextWrapped("%s", tr(Str::MeFlussNurDatei));
         ImGui::PopStyleColor();
         if (ImGui::Button(tr(Str::MeMenuesatzOeffnen))) { (void)oeffneMenuesatzFuer(aktivDok); }
     }
@@ -216,12 +216,12 @@ void zeichneTabLeiste(Dokument& d) {
         z.tabNeuFuer = z.tabSchluessel;
     }
     if (alt.empty()) {
-        ImGui::TextWrapped("%s", tr(Str::MeTabFolgeLeer));
+        cjkTextWrapped("%s", tr(Str::MeTabFolgeLeer));
         return;
     }
     std::vector<char> b(512);
     std::snprintf(b.data(), b.size(), tr(Str::MeTabFolgeKlick), static_cast<int>(z.tabNeu.size()) + 1, static_cast<int>(alt.size()));
-    ImGui::TextWrapped("%s", b.data());
+    cjkTextWrapped("%s", b.data());
     if (!z.tabNeu.empty()) {
         if (ImGui::SmallButton(tr(Str::MeTabFolgeNeu))) { z.tabNeu.clear(); }
         ImGui::SameLine();
@@ -560,7 +560,7 @@ void zeichneStileFenster(Dokument* d) {
         ImGui::End();
         return;
     }
-    ImGui::TextWrapped("%s", tr(Str::MeStileTip));
+    cjkTextWrapped("%s", tr(Str::MeStileTip));
     const std::vector<StilWert> v = stileImMenue(d->datei);
     if (v.empty()) { ImGui::TextDisabled("%s", tr(Str::MeStileLeer)); }
     int gesperrt = 0;
@@ -695,7 +695,7 @@ void zeichneAssistentFenster(Dokument* d) {
         ImGui::End();
         return;
     }
-    ImGui::TextWrapped("%s", tr(Str::MeAssistentTip));
+    cjkTextWrapped("%s", tr(Str::MeAssistentTip));
     const std::vector<CvarSteuerung>& kat = assistentKatalog(d->datei.dialekt);
     if (kat.empty()) {
         ImGui::TextColored(ImVec4{1, 0.7F, 0.3F, 1}, "%s", tr(Str::MeAssistentLeer));
@@ -802,7 +802,7 @@ void zeichneOriginal(Dokument& d) {
     }
     if (omi < 0) { return; }
     if (oii < 0) {
-        gruppe("original", tr(Str::MeOriginal), tr(Str::MlOrigNeu), [] { ImGui::TextWrapped("%s", tr(Str::MeOriginalNeu)); }, false);
+        gruppe("original", tr(Str::MeOriginal), tr(Str::MlOrigNeu), [] { cjkTextWrapped("%s", tr(Str::MeOriginalNeu)); }, false);
         return;
     }
     const std::vector<std::string> u = itemUnterschiede(d.datei, it, *o, o->menus[static_cast<std::size_t>(omi)].items[static_cast<std::size_t>(oii)]);
@@ -817,7 +817,7 @@ void zeichneOriginal(Dokument& d) {
         for (const std::string& k : u) { liste += (liste.empty() ? "" : ", ") + k; }
         std::vector<char> b(1024);
         std::snprintf(b.data(), b.size(), tr(Str::MeOriginalAnders), liste.c_str());
-        ImGui::TextWrapped("%s", b.data());
+        cjkTextWrapped("%s", b.data());
         if (ImGui::Button(tr(Str::MeOriginalZuruecksetzen))) {
             std::vector<Ersetzung> e;
             if (itemErsetzen(d.datei, mi, ii, itemText(*o, omi, oii), e)) { aendere(std::move(e)); }

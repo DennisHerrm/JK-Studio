@@ -180,7 +180,8 @@ def pfade(zeilen):
         if z.startswith("}"):
             break
         # uebersetzung1: Zaehltexte kommen ueber trN(Str::X, zahl, ...)
-        for m in re.finditer(r"ImGui::(?:SeparatorText|TextDisabled|TextUnformatted)\((?:\"%s\", )?trN?\(Str::(\w+)[,)]", z):
+        # MR4 Punkt 5: umbrochene Texte gehen ueber gui/textumbruch.h (cjkTextDisabled, cjkTextUnformatted, ...)
+        for m in re.finditer(r"(?:ImGui::|cjk)(?:SeparatorText|TextDisabled|TextUnformatted|TextWrapped)\((?:\"%s\", )?trN?\(Str::(\w+)[,)]", z):
             inhalt.append(m.group(1))
         m = re.search(r"ImGui::(?:Button|Checkbox)\(tr\(Str::(\w+)\)", z)
         if m:

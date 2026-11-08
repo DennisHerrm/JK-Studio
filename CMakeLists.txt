@@ -44,6 +44,8 @@ add_library(bhed_core STATIC
   src/tour.cpp
   # p_render: Zeilenumbruch mit CJK-Zeichen (gui/textumbruch.cpp nutzt ihn fuer ImGui-Text).
   src/umbruch.cpp
+  # MR4 Punkt 7: Texturkompression wie das Spiel (DXT5) fuer die Vorschau unter Jedi Academy / Jedi Outcast.
+  src/dxt.cpp
   # H1: der Helfer - Index ueber Touren, Handbuch, Menues und Einstellungen.
   src/hilfe.cpp
   # H1: die freiwillige KI-Anbindung - Werkzeuge, MCP (JSON-RPC), HTTP-Pruefung, Chat.
@@ -846,6 +848,10 @@ if(BEHAVED_TESTS)
   add_executable(umbruchtest tests/umbruchtest.cpp)
   target_link_libraries(umbruchtest PRIVATE bhed_core)
   add_test(NAME umbruch COMMAND umbruchtest)
+  # MR4 Punkt 7: Texturkompression wie das Spiel (DXT5, bhed/dxt.h) - Grau 32 des Standardbilds wie im Spielfoto 33 32 33.
+  add_executable(dxttest tests/dxttest.cpp)
+  target_link_libraries(dxttest PRIVATE bhed_core)
+  add_test(NAME dxt COMMAND dxttest)
   # H1: der Helfer - Woerter, Ortskatalog, Trefferquote (Top 3, vier Sprachen).
   add_executable(hilfetest tests/hilfetest.cpp)
   target_link_libraries(hilfetest PRIVATE bhed_core)
@@ -1182,6 +1188,11 @@ if(BEHAVED_TESTS)
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py)
     add_test(NAME lint_endtable_selbsttest
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_endtable.py --selbsttest)
+    # MR4 Punkt 5: jeder umbrochene Text der Oberflaeche geht durch gui/textumbruch.h (CJK zwischen den Zeichen)
+    add_test(NAME lint_cjkumbruch
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_cjkumbruch.py)
+    add_test(NAME lint_cjkumbruch_selbsttest
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint_cjkumbruch.py --selbsttest)
     # Stufe 3 Punkt 1/2: bhed_q3map2.exe bindet nur Windows-DLLs fest (statische
     # Laufzeit wie behaved.exe), und jede Stufe (-bsp, -vis, -light) schreibt,
     # was NRCs q3map2.exe unter denselben Bedingungen schreibt

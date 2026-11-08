@@ -90,6 +90,15 @@ int main() {
         const auto z = zeilen("\u65E5\u672C\n\u4E2D\u6587", 100.0F);
         pruefe(z.size() == 2 && z[0] == "\u65E5\u672C" && z[1] == "\u4E2D\u6587", "Zeilenwechsel");
     }
+    // MR4 Punkt 5: gruppeEnde - "(ICARUS)\u3002" haengt zusammen (oeffnende Klammer am Wort, schliessende und \u3002 davor), "\u30E5\u30FC\u30FB" am Zeichen davor
+    {
+        const std::string t = "\u4F1D\u3048\u307E\u3059(ICARUS)\u30025";   // \u4F1D\u3048\u307E\u3059(ICARUS)\u30025
+        const std::size_t a = t.find('(');
+        pruefe(bhed::gruppeEnde(t, a) == t.size() - 1, "gruppeEnde: (ICARUS) und Punkt sind eine Gruppe");
+        const std::string m = "\u30E1\u30CB\u30E5\u30FC\u30FB\u8A2D";   // \u30E1\u30CB\u30E5\u30FC\u30FB\u8A2D
+        pruefe(bhed::gruppeEnde(m, 3) == m.size() - 3, "gruppeEnde: Kana mit kleinem Kana, Laengezeichen und Mittelpunkt");
+        pruefe(bhed::gruppeEnde(m, m.size() - 3) == m.size(), "gruppeEnde: letztes Zeichen");
+    }
     std::printf("umbruch: %s (%d Fehler)\n", g_fehler == 0 ? "ok" : "FEHLER", g_fehler);
     return g_fehler == 0 ? 0 : 1;
 }

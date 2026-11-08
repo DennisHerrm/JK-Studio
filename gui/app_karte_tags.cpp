@@ -27,6 +27,7 @@
 #include "bhed/karte/auswahlbefehle.h"
 #include "imgui_internal.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include <algorithm>
 #include <cmath>
@@ -149,7 +150,7 @@ void zeichneQtMeldung() {
         uiIcon(ImGui::GetWindowDrawList(), symbole[static_cast<int>(m.art)], p, g, ImGui::GetColorU32(uiIconFarbe(symbole[static_cast<int>(m.art)])));
         ImGui::SetCursorScreenPos(ImVec2{p.x + g + ImGui::GetStyle().ItemSpacing.x * 2.0F, p.y});
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 28.0F);
-        ImGui::TextUnformatted(m.text.c_str());
+        cjkTextUnformatted(m.text.c_str());
         ImGui::PopTextWrapPos();
         ImGui::Dummy(ImVec2{0.0F, std::max(0.0F, p.y + g - ImGui::GetCursorScreenPos().y)});
         ImGui::Spacing();

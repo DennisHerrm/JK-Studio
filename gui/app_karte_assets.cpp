@@ -12,6 +12,7 @@
 
 #include "app_internal.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/assets.h"
 #include "bhed/karte/bearbeitung.h"
@@ -321,7 +322,7 @@ void assetBrowserZeichnen() {
                         }
                         vorschau(ImGui::GetWindowDrawList(), a, o, zelle);
                         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + zelle);
-                        ImGui::TextUnformatted(a.name.c_str());
+                        cjkTextUnformatted(a.name.c_str());
                         ImGui::PopTextWrapPos();
                         ImGui::EndGroup();
                     }

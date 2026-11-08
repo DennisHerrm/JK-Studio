@@ -6,6 +6,7 @@
 #include "hilfe.h"
 #include "app_internal.h"
 #include "ki.h"
+#include "textumbruch.h"
 #include "tour.h"
 #include "bhed/hilfe.h"
 
@@ -106,13 +107,13 @@ void trefferZeichnen(const hilfe::Index& ix) {
         ImGui::TextDisabled("%s", art);
         ImGui::SameLine();
         ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
-        ImGui::TextUnformatted(e.titel.c_str());
+        cjkTextUnformatted(e.titel.c_str());
         ImGui::PopTextWrapPos();
         ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
-        if (e.art == hilfe::Art::Ort && !e.pfad.empty()) { ImGui::TextDisabled(tr(Str::HlfWhere), e.pfad.c_str()); }
-        if (e.art == hilfe::Art::Tour && e.ab > 0) { ImGui::TextDisabled(tr(Str::HlfFromStep), e.ab + 1); }
+        if (e.art == hilfe::Art::Ort && !e.pfad.empty()) { cjkTextDisabled(tr(Str::HlfWhere), e.pfad.c_str()); }
+        if (e.art == hilfe::Art::Tour && e.ab > 0) { cjkTextDisabled(tr(Str::HlfFromStep), e.ab + 1); }
         const std::string satz = ersterSatz(e.text);
-        if (!satz.empty()) { ImGui::TextWrapped("%s", satz.c_str()); }
+        if (!satz.empty()) { cjkTextWrapped("%s", satz.c_str()); }
         ImGui::PopTextWrapPos();
         if (e.art != hilfe::Art::Seite) {
             if (ImGui::Button(tr(Str::HlfShowMe))) {
@@ -159,7 +160,7 @@ void fensterZeichnen() {
     }
     if (s.frage[0] == '\0') {
         ImGui::PushTextWrapPos(0.0F);   // am Fensterrand umbrechen
-        ImGui::TextDisabled("%s", tr(Str::HlfMenuHint));
+        cjkTextDisabled("%s", tr(Str::HlfMenuHint));
         ImGui::PopTextWrapPos();
         if (ImGui::Button(tr(Str::HlfAllTutorials))) { tourFensterOeffnen(); }
         ImGui::SameLine();
@@ -200,14 +201,14 @@ void ersteSchritteZeichnen() {
     const std::string titel = std::string(tr(Str::EsTitle)) + "###erstestart";
     if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::PushTextWrapPos(fs * 25.0F);
-        ImGui::TextUnformatted(tr(Str::EsIntro));
+        cjkTextUnformatted(tr(Str::EsIntro));
         ImGui::PopTextWrapPos();
         ImGui::Spacing();
         int wahl = -1;
         const auto knopf = [&](int nr, Str text, Str tip) {
             if (ImGui::Button(tr(text), ImVec2{fs * 25.0F, 0.0F})) { wahl = nr; }
             ImGui::PushTextWrapPos(fs * 25.0F);
-            ImGui::TextDisabled("%s", tr(tip));
+            cjkTextDisabled("%s", tr(tip));
             ImGui::PopTextWrapPos();
         };
         knopf(0, Str::EsScript, Str::EsScriptTip);

@@ -193,6 +193,8 @@ struct TextureSet {
         int width = 0;
         int height = 0;
         std::vector<std::uint8_t> rgba;
+        // MR4 Punkt 7: Shader mit noTC (tr_shader.cpp:2324) - beim Hochladen nicht wie das Spiel komprimieren (bhed/dxt.h)
+        bool keinTc = false;
 
         // --- Die Bildpyramide -------------------------------------------
         //

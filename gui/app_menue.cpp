@@ -14,6 +14,7 @@
 // Text und Vorschau sind dasselbe: jede Aenderung an der Flaeche ersetzt nur
 // ihre Spanne im Text, jede Textaenderung liest das Menue neu.
 #include "menueeditor.h"
+#include "textumbruch.h"
 #include "videoimport.h"
 #include "karte_bau_plattform.h"
 #include "schrift_ttf.h"
@@ -1304,11 +1305,11 @@ bool feldKopf(const char* label, const char* key = nullptr, const char* tip = nu
     ImGui::PushTextWrapPos(zweiSpalten ? startX + spalte - st.ItemSpacing.x - marke : startX + breit - marke - st.ItemSpacing.x);
     ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0xA6, 0xA9, 0xB1, 255));
-    ImGui::TextUnformatted(label);
+    cjkTextUnformatted(label);
     ImGui::PopStyleColor();
     if (mitKey && g_app->settings.menueDateiSchluessel) {
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0x94, 0xBF, 0xE9, 255));
-        ImGui::TextUnformatted(key);
+        cjkTextUnformatted(key);
         ImGui::PopStyleColor();
         ++l.schluesselGezaehlt;
     }
@@ -2926,9 +2927,9 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
     if (mdMpHinweis) {   // TD1: ohne MD-MP-Menuesatz oben ueber dem Bild, umbrochen auf die Breite der Flaeche
         const char* t = tr(Str::MeMdMpFehlt);
         const float rand = ImGui::GetFontSize() * 0.5F;
-        const ImVec2 groesseT = ImGui::CalcTextSize(t, nullptr, false, bw - 2.0F * rand);
+        const ImVec2 groesseT = cjkTextSize(t, nullptr, false, bw - 2.0F * rand);
         dl->AddRectFilled(o, ImVec2{o.x + bw, o.y + groesseT.y + 2.0F * rand}, IM_COL32(40, 30, 0, 230));
-        dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{o.x + rand, o.y + rand}, IM_COL32(255, 217, 102, 255), t, nullptr, bw - 2.0F * rand);
+        cjkAddText(dl, ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{o.x + rand, o.y + rand}, IM_COL32(255, 217, 102, 255), t, nullptr, bw - 2.0F * rand);
         z.mdMpHinweisBild = ImGui::GetFrameCount();
     }
     // Raster
@@ -4160,13 +4161,13 @@ void zeigeDiagnoseTipp(const Dokument& d, const Diagnose& x) {
     ImGui::BeginTooltip();
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(schwereFarbe(x.schwere)));
-    ImGui::TextUnformatted(tr(x.schwere == Schwere::Fehler ? Str::MeDiagFehler1 : x.schwere == Schwere::Warnung ? Str::MeDiagWarnung1 : Str::MeDiagHinweis1));
+    cjkTextUnformatted(tr(x.schwere == Schwere::Fehler ? Str::MeDiagFehler1 : x.schwere == Schwere::Warnung ? Str::MeDiagWarnung1 : Str::MeDiagHinweis1));
     ImGui::PopStyleColor();
-    ImGui::TextUnformatted(diagMeldung(x).c_str());   // schon UTF-8
+    cjkTextUnformatted(diagMeldung(x).c_str());   // schon UTF-8
     const std::string e = diagErklaerung(x);
-    if (!e.empty()) { ImGui::TextDisabled("%s", e.c_str()); }
+    if (!e.empty()) { cjkTextDisabled("%s", e.c_str()); }
     const std::string k = korrekturText(x, d.puffer.text());
-    if (!k.empty()) { ImGui::TextColored(ImVec4{0.5F, 0.85F, 0.5F, 1}, "%s", fmt(Str::MeDiagFixTaste, k).c_str()); }
+    if (!k.empty()) { cjkTextColored(ImVec4{0.5F, 0.85F, 0.5F, 1}, "%s", fmt(Str::MeDiagFixTaste, k).c_str()); }
     ImGui::PopTextWrapPos();
     ImGui::EndTooltip();
 }
@@ -4517,7 +4518,7 @@ void zeichneTexteFenster(Dokument& d) {
         }
         char buf[1024];
         std::snprintf(buf, sizeof(buf), trN(Str::MeTexteImPaket, d.eigeneTexte.size()), static_cast<int>(d.eigeneTexte.size()), liste.c_str());
-        ImGui::TextWrapped("%s", buf);
+        cjkTextWrapped("%s", buf);
         (void)dateien;
     }
     ImGui::End();
@@ -4725,10 +4726,10 @@ void zeichnePruefFenster() {
             const std::string t = z.docs[static_cast<std::size_t>(r.dok)]->name + ":" + std::to_string(r.x.zeile) + "  " + diagMeldung(r.x);
             // rc608 Teil 3b: Lange Meldungen brechen um, die ganze Meldung ist die Klickflaeche
             const float breit = std::max(fs * 4.0F, ImGui::GetContentRegionAvail().x);
-            const float hoch = ImGui::CalcTextSize(t.c_str(), nullptr, false, breit).y;
+            const float hoch = cjkTextSize(t.c_str(), nullptr, false, breit).y;
             const ImVec2 oben = ImGui::GetCursorScreenPos();
             const bool gewaehlt = ImGui::Selectable(("##zeile" + std::to_string(i)).c_str(), false, ImGuiSelectableFlags_None, ImVec2{breit, hoch});
-            ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), fs, oben, ImGui::GetColorU32(ImGuiCol_Text), t.c_str(), nullptr, breit);
+            cjkAddText(ImGui::GetWindowDrawList(), ImGui::GetFont(), fs, oben, ImGui::GetColorU32(ImGuiCol_Text), t.c_str(), nullptr, breit);
             z.pruefZeilen.push_back(t);
             if (gewaehlt) {
                 z.aktiv = r.dok;
@@ -4837,7 +4838,7 @@ void zeichneTestFrage() {
         if (z.testFrageZu) { ImGui::CloseCurrentPopup(); }
         z.testFrageZu = false;
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
-        ImGui::TextUnformatted(tr(Str::MeTestModFrage));
+        cjkTextUnformatted(tr(Str::MeTestModFrage));
         ImGui::PopTextWrapPos();
         if (ImGui::Button(tr(Str::MeJa))) {
             ImGui::CloseCurrentPopup();
@@ -4890,7 +4891,7 @@ void zeichneSchriftFenster() {
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 24, 0}, ImGuiCond_Appearing);
     bool offen = true;
     if (ImGui::Begin(tr(Str::MeSchriftBauen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::TextWrapped("%s", anzeige(z.schriftTtf).c_str());
+        cjkTextWrapped("%s", anzeige(z.schriftTtf).c_str());
         eingabe(tr(Str::MeSchriftName), &z.schriftName);
         ImGui::SliderInt(tr(Str::MeSchriftGroesse), &z.schriftGroesse, 8, 64);
         if (ImGui::Button(tr(Str::MeSchriftBauen))) {
@@ -5760,13 +5761,13 @@ void zeichneVideoFenster() {
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 30, 0}, ImGuiCond_Appearing);
     bool offen = true;
     if (ImGui::Begin(tr(Str::MeVideoTitel), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::TextWrapped("%s", anzeige(z.videoQuelle).c_str());
+        cjkTextWrapped("%s", anzeige(z.videoQuelle).c_str());
         const gui::VideoInfo& vi = z.videoInfo;
         const std::string fehler = videoFehlerText(vi);
         char buf[512];
         if (!fehler.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
-            ImGui::TextWrapped("%s", fehler.c_str());
+            cjkTextWrapped("%s", fehler.c_str());
             ImGui::PopStyleColor();
         } else if (z.videoArt == 0) {
             std::snprintf(buf, sizeof(buf), tr(Str::MeVideoQuelle), vi.breite, vi.hoehe, vi.fps, zeitText(vi.dauerMs).c_str());
@@ -5783,10 +5784,10 @@ void zeichneVideoFenster() {
         ImGui::BeginDisabled(laeuft || !fehler.empty());
         if (z.videoArt == 2) {
             std::snprintf(buf, sizeof(buf), tr(Str::MeVideoRoqDirekt), vi.breite, vi.hoehe, z.videoRoqFps);
-            ImGui::TextWrapped("%s", buf);
+            cjkTextWrapped("%s", buf);
             if (roqGroessePruefen(vi.breite, vi.hoehe) != RoqGroesse::Ok) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.3F, 1.0F});
-                ImGui::TextWrapped("%s", tr(Str::MeVideoGroesseTip));
+                cjkTextWrapped("%s", tr(Str::MeVideoGroesseTip));
                 ImGui::PopStyleColor();
             }
         } else {
@@ -5811,7 +5812,7 @@ void zeichneVideoFenster() {
             if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeVideoGroesseTip)); }
             if (roqGroessePruefen(e.ziel.breite, e.ziel.hoehe) != RoqGroesse::Ok) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
-                ImGui::TextWrapped("%s", tr(Str::MeVideoGroesseUngueltig));
+                cjkTextWrapped("%s", tr(Str::MeVideoGroesseUngueltig));
                 ImGui::PopStyleColor();
             }
             int ep = static_cast<int>(e.ziel.einpassen);
@@ -5827,7 +5828,7 @@ void zeichneVideoFenster() {
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                     ImGui::BeginTooltip();
                     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26);
-                    ImGui::TextUnformatted(tr(Str::MeVideoTonTip));
+                    cjkTextUnformatted(tr(Str::MeVideoTonTip));
                     ImGui::PopTextWrapPos();
                     ImGui::EndTooltip();
                 }
@@ -5840,8 +5841,8 @@ void zeichneVideoFenster() {
         }
         // rc608 Teil 3a: Das Video kommt vom Rahmen (behaelt Lage und Groesse) oder ueber den Knopf der Leiste nur ins Paket; Menue-Videos sind stumm
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(z.videoVerwendung == VideoVerwendung::Hintergrund ? Str::MlVideoInRahmen : Str::MeVideoNurPaketTip));
-        ImGui::TextDisabled("%s", tr(Str::MlVideoStumm));
+        cjkTextDisabled("%s", tr(z.videoVerwendung == VideoVerwendung::Hintergrund ? Str::MlVideoInRahmen : Str::MeVideoNurPaketTip));
+        cjkTextDisabled("%s", tr(Str::MlVideoStumm));
         ImGui::PopTextWrapPos();
         // Laenge und Groesse vorher (die ersten Takte kodiert und hochgerechnet)
         if (fehler.empty() && z.videoArt != 2) {
@@ -6328,7 +6329,7 @@ void zeichneModellFelder(Dokument& d, int mi, int i, const Item& it) {
             if (suchListe("##anims", tr(Str::MeModellAnimWaehlen), z.listenFilter, z.animListe, gewaehlt)) { setzeModellAnim(d, mi, i, it, gewaehlt); }
             if (it.g2animOhneWirkung && (it.itemFlags & ITF_ISCHARACTER) == 0 && !it.g2anim.empty()) {
                 ImGui::PushTextWrapPos(0.0F);
-                ImGui::TextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", tr(Str::MeModellAnimOhneWirkung));
+                cjkTextColored(ImVec4{1.0F, 0.75F, 0.3F, 1.0F}, "%s", tr(Str::MeModellAnimOhneWirkung));
                 ImGui::PopTextWrapPos();
             }
         }
@@ -6469,7 +6470,7 @@ void zeichneCvars(Dokument& d) {
     zeichneHudWerte(d);
     zeichneBeispielWerte(d);
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s", tr(Str::MeCvarsNurVorschau));
+    cjkTextDisabled("%s", tr(Str::MeCvarsNurVorschau));
     ImGui::PopTextWrapPos();
     if (ImGui::SmallButton(tr(Str::MeCvarsZuruecksetzen))) {
         z.vorschauCvars.clear();
@@ -6501,14 +6502,14 @@ void zeichneMeldungen(Dokument& d) {
     Zustand& z = Z();
     // rc608 (shank fragte, was der Abschnitt macht, weil er leer dastand)
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s", tr(Str::MeMeldungenSatz));
+    cjkTextDisabled("%s", tr(Str::MeMeldungenSatz));
     // TD1: Movie Duels ohne MP-Menuesatz - die Meldung "global defines ui/MD_MP/menudef.h not found" allein sagt nicht, warum
     if (d.datei.dialekt == Dialekt::MP && mdMpSatzFehlt()) {
-        ImGui::TextColored(ImVec4{1, 0.85F, 0.4F, 1}, "%s", tr(Str::MeMdMpFehlt));
+        cjkTextColored(ImVec4{1, 0.85F, 0.4F, 1}, "%s", tr(Str::MeMdMpFehlt));
         z.mdMpHinweisBild = ImGui::GetFrameCount();
     }
     if (d.datei.meldungen.empty()) {
-        ImGui::TextUnformatted(tr(Str::MeMeldungenKeine));
+        cjkTextUnformatted(tr(Str::MeMeldungenKeine));
         z.meldungenLeerBild = ImGui::GetFrameCount();
     }
     ImGui::PopTextWrapPos();
@@ -6519,10 +6520,10 @@ void zeichneMeldungen(Dokument& d) {
         const ImU32 farbe = ImGui::ColorConvertFloat4ToU32(m.fehler ? ImVec4{1, 0.45F, 0.45F, 1} : ImVec4{1, 0.85F, 0.4F, 1});
         // Umbricht statt abzuschneiden; die ganze Meldung ist die Klickflaeche, ein Klick springt zur Zeile
         const float breite = ImGui::GetContentRegionAvail().x;
-        const float hoehe = ImGui::CalcTextSize(t.c_str(), nullptr, false, breite).y;
+        const float hoehe = cjkTextSize(t.c_str(), nullptr, false, breite).y;
         // NoPadWithHalfSpacing: sonst ragt die Flaeche ueber das Feld hinaus und der Text laege um den halben Abstand daneben
         const bool klick = ImGui::Selectable("##meldung", false, ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2{0.0F, hoehe});
-        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImGui::GetItemRectMin(), farbe, t.c_str(), nullptr, breite);
+        cjkAddText(ImGui::GetWindowDrawList(), ImGui::GetFont(), ImGui::GetFontSize(), ImGui::GetItemRectMin(), farbe, t.c_str(), nullptr, breite);
         if (klick && m.datei == 0 && m.zeile > 0) { springe(d, d.puffer.zeilenAnfang(m.zeile - 1)); }
         ImGui::PopID();
     }
@@ -6708,7 +6709,7 @@ void zeichneFremdZeile(Dokument& d) {
     std::vector<char> b(800);
     std::snprintf(b.data(), b.size(), tr(Str::MeFremdText), d.platte.c_str());
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.3F, 1.0F});
-    ImGui::TextWrapped("%s", b.data());
+    cjkTextWrapped("%s", b.data());
     ImGui::PopStyleColor();
     if (ImGui::SmallButton(tr(Str::MeFremdLaden))) {
         d.fremd = false;
@@ -6961,7 +6962,7 @@ void zeichneSeitenKontext(Dokument& d, const std::vector<Seite>& s) {
         std::vector<char> b(600);
         std::snprintf(b.data(), b.size(), tr(Str::MsZustandTip), anzeige(sei.cvar).c_str(), anzeige(sei.wert).c_str());
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
-        ImGui::TextDisabled("%s", b.data());
+        cjkTextDisabled("%s", b.data());
         ImGui::PopTextWrapPos();
         ImGui::Separator();
     }
@@ -7104,7 +7105,7 @@ void zeichneAbbruchZeile(Dokument& d) {
     std::vector<char> b(512);
     std::snprintf(b.data(), b.size(), tr(Str::MeMenuVerworfen), m.abbruchZeile);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.45F, 0.35F, 1.0F});
-    ImGui::TextWrapped("%s", b.data());
+    cjkTextWrapped("%s", b.data());
     ImGui::PopStyleColor();
     if (ImGui::SmallButton(tr(Str::MeZurZeile))) {
         Z().reiterGewollt = 1;
@@ -7121,7 +7122,7 @@ void panelFlaeche(Dokument& d) {
     zeichneFremdZeile(d);
     if (Z().kinoZweiBild + 2 >= ImGui::GetFrameCount()) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 0.75F, 0.3F, 1.0F});
-        ImGui::TextWrapped("%s", tr(Str::MeZweiVideos));
+        cjkTextWrapped("%s", tr(Str::MeZweiVideos));
         ImGui::PopStyleColor();
     }
     zeichneFlaeche(d, ImGui::GetContentRegionAvail());

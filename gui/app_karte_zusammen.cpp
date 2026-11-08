@@ -18,6 +18,7 @@
 #include "app_internal.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/kartenformat.h"
@@ -326,7 +327,7 @@ void zusammenDialogZeichnen() {
     const std::string titel = std::string(trK(Str::KeZfTitel)) + "###kartezusammen";
     bool offen = true;
     if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
-        ImGui::TextWrapped("%s", trK(Str::KeZfErklaerung));
+        cjkTextWrapped("%s", trK(Str::KeZfErklaerung));
         ImGui::Separator();
         ImGui::Text("%s %s", trK(Str::KeZfVorlage), g_d.vorlageName.empty() ? "-" : g_d.vorlageName.c_str());
         if (ImGui::BeginCombo("##zfspiel", trK(Str::KeZfAusSpiel))) {
@@ -368,14 +369,14 @@ void zusammenDialogZeichnen() {
         if (ImGui::Button((std::string(trK(Str::KeZfBauen)) + "##zfbauen").c_str())) { starten(g_d.ebene, true); }
         if (baut) { ImGui::EndDisabled(); }
         ImGui::Separator();
-        for (const std::string& b : g_st.befunde) { ImGui::TextWrapped("%s", b.c_str()); }
+        for (const std::string& b : g_st.befunde) { cjkTextWrapped("%s", b.c_str()); }
         if (!g_st.ergebnis.empty()) {
             char z[1024];
             std::snprintf(z, sizeof(z), trK(Str::KeZfFertig), mitSchraeg(g_st.ergebnis).c_str());
-            ImGui::TextWrapped("%s", z);
+            cjkTextWrapped("%s", z);
         }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("%s", trK(Str::KeZfWetter));
+        cjkTextWrapped("%s", trK(Str::KeZfWetter));
         ImGui::PopStyleColor();
     }
     ImGui::End();

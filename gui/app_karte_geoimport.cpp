@@ -15,6 +15,7 @@
 
 #include "app_internal.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/karte.h"
@@ -597,7 +598,7 @@ void geoImportDialogZeichnen() {
                 std::string text = t;
                 if (r.art == karte::TeilArt::ModellClip) { text += std::string(" + ") + trK(Str::KeGiModellClip); }
                 // umbrechen statt abschneiden (p_karte: "1 個(detail) + モデル + クリップ" lief im Japanischen ueber den Rand)
-                ImGui::TextWrapped("%s", text.c_str());
+                cjkTextWrapped("%s", text.c_str());
             }
             ImGui::EndTable();
         }

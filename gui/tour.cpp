@@ -27,6 +27,7 @@
 // als sicher markiert ist (inhalt_touren.py) - direkt am Programmzustand,
 // ohne simulierte Maus (die kaempfte mit der echten, selbsttest.cpp oben)
 // und nie bei Schritten mit Dateidialog.
+#include "textumbruch.h"
 #include "tour.h"
 
 #include "app_internal.h"
@@ -818,13 +819,13 @@ void sucheZeichnen(float breite);
 void listeZeichnen(float breite) {
     Zustand& s = z();
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-    ImGui::TextUnformatted(tr(Str::TourListIntro));
+    cjkTextUnformatted(tr(Str::TourListIntro));
     ImGui::PopTextWrapPos();
     if (!s.ladeFehler.empty()) {
         char t[700];
         std::snprintf(t, sizeof(t), tr(Str::TourMissing), s.ladeFehler.c_str());
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-        ImGui::TextColored(ImVec4{0.95F, 0.45F, 0.35F, 1.0F}, "%s", t);
+        cjkTextColored(ImVec4{0.95F, 0.45F, 0.35F, 1.0F}, "%s", t);
         ImGui::PopTextWrapPos();
     }
     ImGui::Spacing();
@@ -930,14 +931,14 @@ void schrittZeichnen(float breite) {
     }
     if (s.zeigtOeffner) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite);
-        ImGui::TextColored(kKennungFarbe, "%s", tr(Str::TourFirst));
+        cjkTextColored(kKennungFarbe, "%s", tr(Str::TourFirst));
         ImGui::PopTextWrapPos();
     } else if (s.zielErwartet && s.ziele.empty() && ImGui::GetTime() > s.pulsBis - 0.9) {
         // Erst nach einem Moment: im ersten Bild nach einem Schrittwechsel hat
         // das Register die neuen Beschriftungen noch nicht (sie werden fuer das
         // naechste Bild angemeldet).
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("%s", tr(Str::TourNotVisible));   // rc608 Teil 3b: war am Fensterrand abgeschnitten
+        cjkTextWrapped("%s", tr(Str::TourNotVisible));   // rc608 Teil 3b: war am Fensterrand abgeschnitten
         ImGui::PopStyleColor();
     }
     if (a.erfuellt()) {
@@ -1039,7 +1040,7 @@ void sucheZeichnen(float breite) {
         }
         ImGui::SameLine();
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + breite * 0.7F);
-        ImGui::TextUnformatted(titel.c_str());
+        cjkTextUnformatted(titel.c_str());
         ImGui::PopTextWrapPos();
         ImGui::PopID();
     }

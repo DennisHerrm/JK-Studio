@@ -14,6 +14,7 @@
 // Er ist Latin-1 wie die .ent; das Feld zeigt ihn als UTF-8 (F13).
 #include "app_internal.h"
 #include "fenster_dock.h"
+#include "textumbruch.h"
 
 #include "bhed/diag.h"
 #include "bhed/enttext.h"
@@ -410,7 +411,7 @@ void kopfzeile() {
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::EtSpeichernHint)); }
     if (!s.meldung.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(s.meldungFehler ? ImVec4{1.0F, 0.45F, 0.4F, 1.0F} : ImVec4{0.6F, 0.85F, 0.6F, 1.0F}, "%s", s.meldung.c_str());
+        cjkTextColored(s.meldungFehler ? ImVec4{1.0F, 0.45F, 0.4F, 1.0F} : ImVec4{0.6F, 0.85F, 0.6F, 1.0F}, "%s", s.meldung.c_str());
         s.meldungRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         ImGui::PopTextWrapPos();
     } else if (s.geaendert) {

@@ -22,6 +22,7 @@
 // Vorbilder: Hammers Objekteigenschaften (SmartEdit, Flags als Haekchen),
 // Radiants Entity-Inspektor, Unreals "auf die Oberflaeche ziehen".
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "update.h"
 #include "tour.h"   // rc601 tour: "Interaktive Tour" auf der Startflaeche
 
@@ -3534,7 +3535,7 @@ void drawEntityInspector(float hoehe) {
     const int i = inspektorZiel();
     if (i < 0) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(g_app->map.entities.empty() ? Str::MissionKeine : Str::EntPickHint));
+        cjkTextDisabled("%s", tr(g_app->map.entities.empty() ? Str::MissionKeine : Str::EntPickHint));
         ImGui::PopTextWrapPos();
         ImGui::EndChild();
         return;
@@ -3560,8 +3561,8 @@ void drawEntityInspector(float hoehe) {
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
         ImGui::BeginTooltip();
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
-        ImGui::TextUnformatted(d != nullptr && entText(d->text)[0] != '\0' ? entText(d->text) : tr(Str::EntUnknownClass));
-        if (d != nullptr && d->brush) { ImGui::TextDisabled("%s", tr(Str::EntBrushClass)); }
+        cjkTextUnformatted(d != nullptr && entText(d->text)[0] != '\0' ? entText(d->text) : tr(Str::EntUnknownClass));
+        if (d != nullptr && d->brush) { cjkTextDisabled("%s", tr(Str::EntBrushClass)); }
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     }
@@ -3646,8 +3647,8 @@ void drawEntityInspector(float hoehe) {
         if (!ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { return; }
         ImGui::BeginTooltip();
         ImGui::PushTextWrapPos(hilfeBreite);
-        ImGui::TextUnformatted(titel);
-        if (hilfe != nullptr && hilfe[0] != '\0') { ImGui::TextDisabled("%s", hilfe); }
+        cjkTextUnformatted(titel);
+        if (hilfe != nullptr && hilfe[0] != '\0') { cjkTextDisabled("%s", hilfe); }
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     };
@@ -3770,9 +3771,9 @@ void drawEntityInspector(float hoehe) {
             if (z[0] != '\0') {
                 ImGui::PushTextWrapPos(0.0F);
                 if (warnung) {
-                    ImGui::TextColored(gelb, "%s", z);
+                    cjkTextColored(gelb, "%s", z);
                 } else {
-                    ImGui::TextDisabled("%s", z);
+                    cjkTextDisabled("%s", z);
                 }
                 ImGui::PopTextWrapPos();
             }
@@ -3943,7 +3944,7 @@ void drawEntityInspector(float hoehe) {
     ImGui::PopStyleColor(3);
     ImGui::Spacing();
     ImGui::PushTextWrapPos(0.0F);
-    ImGui::TextDisabled("%s", tr(Str::EntDragHint));
+    cjkTextDisabled("%s", tr(Str::EntDragHint));
     ImGui::PopTextWrapPos();
     ImGui::EndChild();
     ImGui::PopID();
@@ -4778,7 +4779,7 @@ void missionsOrdnerWaehlen() {
 float startKarteHoehe(const char* titel, const char* unter, float breite) {
     const float fs = ImGui::GetFontSize();
     const float w = breite - fs * 2.0F;
-    return fs * 4.3F + ImGui::CalcTextSize(titel, nullptr, false, w).y + ImGui::CalcTextSize(unter, nullptr, false, w).y + fs;
+    return fs * 4.3F + cjkTextSize(titel, nullptr, false, w).y + cjkTextSize(unter, nullptr, false, w).y + fs;
 }
 
 StartSpalte startKopf(const char* fensterId, ImVec2 groesse, const char* titel, const char* unter) {
@@ -4800,10 +4801,10 @@ StartSpalte startKopf(const char* fensterId, ImVec2 groesse, const char* titel, 
     ImGui::SetCursorPosX(sp.links);
     ImGui::PushTextWrapPos(sp.links + sp.breite);
     ImGui::PushFont(nullptr, fs * 1.6F);
-    ImGui::TextUnformatted(titel);
+    cjkTextUnformatted(titel);
     ImGui::PopFont();
     ImGui::SetCursorPosX(sp.links);
-    ImGui::TextDisabled("%s", unter);
+    cjkTextDisabled("%s", unter);
     ImGui::PopTextWrapPos();
     return sp;
 }
@@ -4839,9 +4840,9 @@ int startKarten(const StartSpalte& sp, const StartKarte* karten, int anzahl) {
         const float ig = fs * 2.4F;
         const float w = kb - fs * 2.0F;
         uiIcon(dl, c.icon, ImVec2{std::floor(a.x + fs), std::floor(a.y + fs)}, ig, ImGui::GetColorU32(farbe));
-        dl->AddText(nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.6F + ig}, ImGui::GetColorU32(ImGuiCol_Text), c.titel, nullptr, w);
-        const float titelH = ImGui::CalcTextSize(c.titel, nullptr, false, w).y;
-        dl->AddText(nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.9F + ig + titelH}, ImGui::GetColorU32(ImGuiCol_TextDisabled), c.unter, nullptr, w);
+        cjkAddText(dl, nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.6F + ig}, ImGui::GetColorU32(ImGuiCol_Text), c.titel, nullptr, w);
+        const float titelH = cjkTextSize(c.titel, nullptr, false, w).y;
+        cjkAddText(dl, nullptr, 0.0F, ImVec2{a.x + fs, a.y + fs * 1.9F + ig + titelH}, ImGui::GetColorU32(ImGuiCol_TextDisabled), c.unter, nullptr, w);
     }
     return geklickt;
 }
@@ -4978,7 +4979,7 @@ void drawEinblendungen() {
         ImGui::Dummy(ImVec2{fs, fs});
         ImGui::SameLine();
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 26.0F);
-        ImGui::TextUnformatted(e.text.c_str());
+        cjkTextUnformatted(e.text.c_str());
         ImGui::PopTextWrapPos();
         ImGui::SameLine();
         if (iconKnopf(tr(Str::ToastClose), UiIcon::Schliessen, nullptr)) { e.bis = 0.0; }
@@ -5063,13 +5064,13 @@ void drawNeueMission() {
         char t[700];
         std::snprintf(t, sizeof(t), tr(Str::MissionProject), missionStandardOrdner(name).c_str());
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 33.0F);
-        ImGui::TextDisabled("%s", t);
-        ImGui::TextWrapped("%s", tr(Str::MissionNewHint));
+        cjkTextDisabled("%s", t);
+        cjkTextWrapped("%s", tr(Str::MissionNewHint));
         ImGui::PopTextWrapPos();
     }
     if (!fehler.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 33.0F);
-        ImGui::TextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", fehler.c_str());
+        cjkTextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", fehler.c_str());
         ImGui::PopTextWrapPos();
     }
     ImGui::Separator();
@@ -5105,16 +5106,16 @@ void drawMissionSpeichern() {
     if (!ImGui::BeginPopupModal("##missionspeichern", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
     const float wrap = ImGui::GetFontSize() * 39.0F;
     ImGui::PushTextWrapPos(wrap);
-    ImGui::TextUnformatted(tr(Str::MissionSaveTitle));
+    cjkTextUnformatted(tr(Str::MissionSaveTitle));
     ImGui::Separator();
     if (!g_app->missionAktiv) {
-        ImGui::TextWrapped("%s", tr(Str::MissionKeine));
+        cjkTextWrapped("%s", tr(Str::MissionKeine));
     } else {
-        ImGui::Text("%s  (%s)", g_app->mission.name.c_str(), g_app->mission.ordner.c_str());
+        cjkText("%s  (%s)", g_app->mission.name.c_str(), g_app->mission.ordner.c_str());
         char t[700];
         std::snprintf(t, sizeof(t), tr(Str::MissionProject), g_app->mission.projektOrdner.c_str());
-        ImGui::TextDisabled("%s", t);
-        ImGui::TextDisabled("%s", tr(Str::MissionTarget));
+        cjkTextDisabled("%s", t);
+        cjkTextDisabled("%s", tr(Str::MissionTarget));
         ImGui::SetNextItemWidth(wrap - ImGui::CalcTextSize(tr(Str::MissionChoose)).x - ImGui::GetFontSize() * 2.0F);
         ImGui::InputText("##zielpk3", ziel, sizeof(ziel));
         ImGui::SameLine();
@@ -5128,22 +5129,22 @@ void drawMissionSpeichern() {
         char zeile[120];
         std::snprintf(zeile, sizeof(zeile), trN(Str::MissionFiles, z.dateien.size()), static_cast<int>(z.dateien.size()),
                       groesse(summe).c_str());
-        ImGui::TextDisabled("%s", zeile);
+        cjkTextDisabled("%s", zeile);
         ImGui::BeginChild("##missionsdateien", ImVec2{wrap, ImGui::GetFontSize() * 8.0F}, ImGuiChildFlags_Borders);
         for (const Pk3Datei& d : z.dateien) {
-            ImGui::TextUnformatted(d.name.c_str());
+            cjkTextUnformatted(d.name.c_str());
             ImGui::SameLine(wrap - ImGui::GetFontSize() * 5.0F);
-            ImGui::TextDisabled("%s", groesse(d.inhalt.size()).c_str());
+            cjkTextDisabled("%s", groesse(d.inhalt.size()).c_str());
         }
         ImGui::EndChild();
         bool fehlerDa = false;
         for (const MissionBefund& b : z.befunde) {
             fehlerDa = fehlerDa || b.fehler;
-            ImGui::TextColored(b.fehler ? ImVec4{1.0F, 0.45F, 0.35F, 1.0F} : ImVec4{1.0F, 0.8F, 0.35F, 1.0F}, "%s",
+            cjkTextColored(b.fehler ? ImVec4{1.0F, 0.45F, 0.35F, 1.0F} : ImVec4{1.0F, 0.8F, 0.35F, 1.0F}, "%s",
                                befundText(b).c_str());
         }
-        if (fehlerDa) { ImGui::TextWrapped("%s", tr(Str::MissionHasErrors)); }
-        if (!fehler.empty()) { ImGui::TextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", fehler.c_str()); }
+        if (fehlerDa) { cjkTextWrapped("%s", tr(Str::MissionHasErrors)); }
+        if (!fehler.empty()) { cjkTextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", fehler.c_str()); }
         ImGui::Separator();
         ImGui::BeginDisabled(fehlerDa || ziel[0] == '\0');
         if (ImGui::Button(tr(Str::MissionSaveNow))) {
@@ -5835,12 +5836,12 @@ void aufnahmeBild(ImDrawList* dl, ImVec2 a, ImVec2 b) {
     const ImVec2 sb = dl->GetClipRectMax();
     const float rand = ImGui::GetFrameHeight() + fs * 1.4F;   // platzierLeiste: 0,4 fs + Knopf + Rahmen
     const float umbruch = std::max(fs * 8.0F, sb.x - sa.x - 2.0F * rand);
-    const ImVec2 gr = ImGui::CalcTextSize(t, nullptr, false, umbruch);
+    const ImVec2 gr = cjkTextSize(t, nullptr, false, umbruch);
     const ImVec2 o{std::max(sa.x + rand, std::floor(sa.x + (sb.x - sa.x - gr.x) * 0.5F)), std::floor(sb.y - gr.y - fs * 0.8F)};
     r.hinweisA = ImVec2{o.x - fs * 0.3F, o.y - fs * 0.2F};
     r.hinweisB = ImVec2{o.x + gr.x + fs * 0.3F, o.y + gr.y + fs * 0.2F};
     dl->AddRectFilled(r.hinweisA, r.hinweisB, IM_COL32(0, 0, 0, 180), fs * 0.2F);
-    dl->AddText(ImGui::GetFont(), fs, o, IM_COL32(255, 230, 140, 255), t, nullptr, umbruch);
+    cjkAddText(dl, ImGui::GetFont(), fs, o, IM_COL32(255, 230, 140, 255), t, nullptr, umbruch);
     dl->PopClipRect();
 }
 

@@ -12,6 +12,7 @@
 //            Abspielen, Bild vor, grosse Bildanzeige, Schleife, Tempo,
 //            Haut, Flaechen, Schieberegler
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "tour.h"   // H2: Ziele der Tour k-skins
 
 #include <algorithm>
@@ -58,7 +59,7 @@ void drawAnimListe(float hoehe) {
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     if (g_app->animList.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(g_app->model.empty() ? Str::ModelNoneH2 : Str::ModelNoAnim));
+        cjkTextDisabled("%s", tr(g_app->model.empty() ? Str::ModelNoneH2 : Str::ModelNoAnim));
         ImGui::PopTextWrapPos();
         // H2: ohne Modell zeigt ein Knopf den Weg (Tour "Ein Figurenmodell ansehen" ab Schritt 2).
         if (g_app->model.empty() && ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-modell", 1); }

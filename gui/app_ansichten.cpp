@@ -17,6 +17,7 @@
 // (selectedPath). Umschalten verliert nichts.
 #include "app_internal.h"
 #include "tabfenster.h"   // rc609 T1
+#include "textumbruch.h"
 
 #include "bhed/missionsgraph.h"
 
@@ -544,7 +545,7 @@ void befehlsListe(Path& editorFuer, float rest) {
     const std::vector<Node>& wurzel = g_app->doc.script().nodes;
     if (wurzel.empty()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::GraphCommandsEmpty));
+        cjkTextDisabled("%s", tr(Str::GraphCommandsEmpty));
         ImGui::PopTextWrapPos();
     }
     ImGui::BeginChild("##befehlsliste", ImVec2{-1.0F, std::max(ImGui::GetFontSize() * 6.0F, ImGui::GetContentRegionAvail().y - rest)},
@@ -614,7 +615,7 @@ void graphBefehle(const std::string& skript, Path& editorFuer) {
     ImGui::TextUnformatted(tr(Str::GraphCommands));
     if (klein(skript) != klein(aktiverSkriptRef())) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::GraphCommandsOpen));
+        cjkTextDisabled("%s", tr(Str::GraphCommandsOpen));
         ImGui::PopTextWrapPos();
         if (iconTextKnopf(tr(Str::GraphEditHere), UiIcon::Skript, nullptr)) { skriptOeffnen(skript, false); }
         return;
@@ -1008,7 +1009,7 @@ void drawGraphAnsicht() {
     }
     dl->PopClipRect();
     ImGui::PushTextWrapPos(o.x - ImGui::GetWindowPos().x + flaecheGr.x);
-    ImGui::TextDisabled("%s", tr(Str::GraphHint));
+    cjkTextDisabled("%s", tr(Str::GraphHint));
     ImGui::PopTextWrapPos();
 
     // --- Details des gewaehlten Knotens -------------------------------------------------
@@ -1020,7 +1021,7 @@ void drawGraphAnsicht() {
     const int sel = knotenIndex(z.auswahl);
     if (sel < 0) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::GraphPickHint));
+        cjkTextDisabled("%s", tr(Str::GraphPickHint));
         ImGui::PopTextWrapPos();
     } else {
         const GraphKnoten k = z.g.knoten[static_cast<std::size_t>(sel)];
@@ -1216,7 +1217,7 @@ void drawSpurenAnsicht() {
     if (leer) {
         ImGui::Spacing();
         ImGui::PushTextWrapPos(oben.x - ImGui::GetWindowPos().x + linksB);
-        ImGui::TextDisabled("%s", tr(Str::TracksEmpty));
+        cjkTextDisabled("%s", tr(Str::TracksEmpty));
         ImGui::PopTextWrapPos();
         liste();
         if (!editorFuer.empty()) { openEditorForNode(editorFuer); }
@@ -1236,7 +1237,7 @@ void drawSpurenAnsicht() {
         const float g = fs;
         uiIcon(ImGui::GetWindowDrawList(), sp.icon, ImVec2{std::floor(q.x + 2.0F), std::floor(q.y + (zeileH - g) * 0.5F)}, g,
                ImGui::GetColorU32(uiIconFarbe(sp.icon)));
-        ImGui::GetWindowDrawList()->AddText(nullptr, 0.0F, ImVec2{q.x + g + 8.0F, q.y + (zeileH - fs) * 0.5F},
+        cjkAddText(ImGui::GetWindowDrawList(), nullptr, 0.0F, ImVec2{q.x + g + 8.0F, q.y + (zeileH - fs) * 0.5F},
                                             ImGui::GetColorU32(ImGuiCol_Text), sp.name.c_str(), nullptr, namenB - g - 12.0F);
         ImGui::Dummy(ImVec2{namenB, zeileH});
     }
@@ -1392,7 +1393,7 @@ void drawSpurenAnsicht() {
     const Node* n = g_app->selectedPath.empty() ? nullptr : nodeAt(g_app->doc.script(), g_app->selectedPath);
     if (n == nullptr || n->kind != Node::Kind::Command) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::TracksHint));
+        cjkTextDisabled("%s", tr(Str::TracksHint));
         ImGui::PopTextWrapPos();
     } else {
         std::string zeile = n->name + " (";
@@ -1402,7 +1403,7 @@ void drawSpurenAnsicht() {
         zeile += " )";
         ImGui::TextColored(ImVec4{1.0F, 0.65F, 0.16F, 1.0F}, "%s", zeile.c_str());
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", tr(Str::TracksHint));
+        cjkTextDisabled("%s", tr(Str::TracksHint));
         ImGui::PopTextWrapPos();
     }
     (void)st;

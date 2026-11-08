@@ -22,6 +22,7 @@
 #include "bhed/changelog.h"
 #include "bhed/fassung.h"
 #include "bhed/image.h"   // Stufe 8c: das Logo von JK Studio (PNG-Ressource)
+#include "textumbruch.h"
 #include "update.h"
 #include "app_internal.h"
 #include "bhed/sicherschreiben.h"
@@ -1875,7 +1876,7 @@ void drawEditor() {
         // Breiter als das Fenster (siehe `platz`): umbrechen statt abschneiden.
         ImGui::SetCursorPosX(linksrand);
         ImGui::PushTextWrapPos(fensterW - linksrand);
-        ImGui::TextWrapped("( %s )", help.c_str());
+        cjkTextWrapped("( %s )", help.c_str());
         ImGui::PopTextWrapPos();
     }
 
@@ -3226,7 +3227,7 @@ void drawPrefs() {
         st.tonMusik = vorgabe.musik;
     }
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + w);
-    ImGui::TextDisabled("%s", tr(Str::PrefsTonHinweis));
+    cjkTextDisabled("%s", tr(Str::PrefsTonHinweis));
     ImGui::PopTextWrapPos();
     // rc601 (bewegung, Durchsicht 2): die Schwierigkeit wie g_spskill. Sie
     // aendert, wie schnell manche NPCs drehen und laufen (NPC_Begin,
@@ -3559,7 +3560,7 @@ void drawGamePaths() {
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::EtDirVorPakHint)); }
     ImGui::SeparatorText(tr(Str::PathsJk2));
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 38.0F);
-    ImGui::TextDisabled("%s", tr(Str::PathsJk2Note));
+    cjkTextDisabled("%s", tr(Str::PathsJk2Note));
     ImGui::PopTextWrapPos();
     ImGui::PushID("jk2");
     zeichneListe(st.gamePathsJk2, !sitzung && jk2Liste);
@@ -3609,7 +3610,7 @@ void drawKeyBindings() {
     // Zum Aufnehmen der neuen Taste laeuft man ueber die benannten Tasten
     // (ImGuiKey_NamedKey_BEGIN bis _END) und nimmt die erste gedrueckte.
     ImGui::SeparatorText(tr(Str::KeysTitle));
-    ImGui::TextWrapped("%s", tr(Str::KeysHint));
+    cjkTextWrapped("%s", tr(Str::KeysHint));
 
     // Welche Zeile wartet gerade auf eine Taste? Nur eine zur Zeit.
     keys::Action& waiting = g_kuerzelZeile;
@@ -4027,7 +4028,7 @@ void drawChangelog() {
         char kopf[300];
         std::snprintf(kopf, sizeof(kopf), tr(Str::ChangelogIntro), kFassung);
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextDisabled("%s", kopf);
+        cjkTextDisabled("%s", kopf);
         ImGui::PopTextWrapPos();
         ImGui::Separator();
         const int sprache = static_cast<int>(i18n::currentLanguage());
@@ -4052,7 +4053,7 @@ void drawChangelog() {
                             ImGui::PushTextWrapPos(0.0F);
                             for (const std::string& punkt : g.punkte) {
                                 ImGui::Bullet();
-                                ImGui::TextWrapped("%s", punkt.c_str());
+                                cjkTextWrapped("%s", punkt.c_str());
                             }
                             ImGui::PopTextWrapPos();
                             ImGui::TreePop();

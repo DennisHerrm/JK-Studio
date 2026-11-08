@@ -9,6 +9,7 @@
 // steht, braucht die Grafikschnittstelle und die Formatleser; was in
 // app.cpp bleibt, ist Baum, Dialoge und Dateiverwaltung.
 #include "app_internal.h"
+#include "textumbruch.h"
 #include "tour.h"   // H2: die Kamerazeile der Zeitleiste als Ziel der Touren
 
 #include "gpumap.h"
@@ -8728,7 +8729,7 @@ void drawKartenStatistik() {
     }
     if (!g_app->gpuFehler.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
-        ImGui::TextDisabled("GPU: %s", g_app->gpuFehler.c_str());
+        cjkTextDisabled("GPU: %s", g_app->gpuFehler.c_str());
         ImGui::PopTextWrapPos();
     }
     ImGui::End();

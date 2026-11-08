@@ -39,6 +39,7 @@
 #include "bhed/sicherschreiben.h"
 #include "karte_bau_plattform.h"
 #include "platform.h"
+#include "textumbruch.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -400,7 +401,7 @@ void zeichneBspDialog() {
     const int hinweisY = listeY + listeH + 6 + 3 * 22;
     ImGui::SetCursorScreenPos(bp(11, static_cast<float>(hinweisY)));
     ImGui::PushTextWrapPos(bp(static_cast<float>(kB - 11), 0).x);
-    ImGui::TextDisabled("%s", trK(Str::KeBspHinweis));
+    cjkTextDisabled("%s", trK(Str::KeBspHinweis));
     ImGui::PopTextWrapPos();
     // Knoepfe: "Aus Datei..." links, Oeffnen / Abbrechen rechts
     const int knopfY = kH - 11 - 22;

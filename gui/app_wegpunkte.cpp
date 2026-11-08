@@ -22,6 +22,7 @@
 //     angebundene Teile farbig mit "Anschliessen"; die Erzeugung rechnet im
 //     Hintergrund mit Fortschritt und "Abbrechen"
 #include "app_internal.h"
+#include "textumbruch.h"
 
 #include <algorithm>
 #include <atomic>
@@ -1861,7 +1862,7 @@ void drawWegFenster() {
     // Feste Umbruchbreite: im mitwachsenden Fenster schaukelte sich ein
     // Umbruch "bis zum Rand" mit der Fensterbreite auf.
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 23.0F);
-    ImGui::TextDisabled("%s", g_app->wegWerkzeug == 1   ? tr(Str::WegSetzenHint)
+    cjkTextDisabled("%s", g_app->wegWerkzeug == 1   ? tr(Str::WegSetzenHint)
                               : g_app->wegWerkzeug == 2 ? tr(Str::WegVerbindenHint)
                                                         : tr(Str::WegWerkzeugHint));
     ImGui::PopTextWrapPos();
@@ -1897,7 +1898,7 @@ void drawWegFenster() {
     ImGui::SeparatorText(tr(Str::WegErzeugenTitel));
     if (g_app->geo.empty()) {   // H2: warum "Erzeugen" grau ist
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 23.0F);
-        ImGui::TextDisabled("%s", tr(Str::WegOhneKarte));
+        cjkTextDisabled("%s", tr(Str::WegOhneKarte));
         ImGui::PopTextWrapPos();
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0F);
@@ -1924,7 +1925,7 @@ void drawWegFenster() {
     }
     if (!g_app->wegMeldung.empty()) {
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 23.0F);
-        ImGui::TextDisabled("%s", g_app->wegMeldung.c_str());
+        cjkTextDisabled("%s", g_app->wegMeldung.c_str());
         ImGui::PopTextWrapPos();
     }
     // rc609 W3b (Mike): Bereiche und Pfade malen, Startpunkt per Klick

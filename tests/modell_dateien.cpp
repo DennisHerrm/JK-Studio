@@ -243,6 +243,13 @@ void grenzenTeil() {
     expect("ein Frame dahinter: HinterGla (T-Pose)", pr({"X", 91, 10, -1, 20}, 100, CfgBefundArt::HinterGla));
     expect("erster Frame 65535 geht", !pr({"X", 65535, 1, -1, 20}, 0, CfgBefundArt::ErsterFrame));
     expect("erster Frame 65536 nicht", pr({"X", 65536, 1, -1, 20}, 0, CfgBefundArt::ErsterFrame));
+    // MR4 Punkt 6, im Spiel gemessen (Movie Duels, Karten-GLA mit 131070 Frames, 118 MB, 6946710 Vorratseintraegen, Laeufe
+    // g131070/gkreuz/gunter): sie laedt, BOTH_CIN_16 ab 63801 spielt wie ab 1321, eine Sequenz ueber 65535 hinaus (65400 + 204)
+    // wie dieselben Frames ab 59152 - die Grenze ist nur der Anfang (unsigned short), nicht das Ende und nicht die Groesse.
+    for (const Zielspiel s : {Zielspiel::MdSp, Zielspiel::JkaSp}) {
+        const std::vector<CfgBefund> b = cfgPruefen({{"BOTH_CIN_16", 65400, 204, -1, 20}, {"BOTH_CIN_1", 63801, 65535, -1, 20}}, 131070, 100, s);
+        expect(std::string(grenzen(s).name) + ": Karten-GLA mit 131070 Frames, Sequenzen ueber 65535 hinaus - kein Befund", b.empty());
+    }
     expect("Anzahl 65536 nicht", pr({"X", 0, 65536, -1, 20}, 0, CfgBefundArt::Anzahl));
     expect("loopFrames 127 und -1 gehen", !pr({"X", 0, 1, 127, 20}, 0, CfgBefundArt::Schleife) && !pr({"X", 0, 1, -1, 20}, 0, CfgBefundArt::Schleife));
     expect("loopFrames 128 und -2 nicht", pr({"X", 0, 1, 128, 20}, 0, CfgBefundArt::Schleife) && pr({"X", 0, 1, -2, 20}, 0, CfgBefundArt::Schleife));

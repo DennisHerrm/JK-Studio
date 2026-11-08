@@ -101,6 +101,8 @@ for name in VOR_KONTEXT:
 #
 # Das ist zur UEBERSETZUNGSZEIT unsichtbar und faellt erst auf, wenn jemand
 # die Taste drueckt. Hier gefunden.
+_CJK_TEXT = re.compile(r'\bcjkText(Wrapped|Disabled|Colored|Unformatted)?\s*\(')
+
 _SUBMITS = ('Button', 'Text', 'Selectable', 'Checkbox', 'Combo', 'Slider',
             'Input', 'Dummy', 'Image', 'TreeNode', 'MenuItem', 'Separator',
             'ProgressBar', 'ColorEdit', 'RadioButton', 'BeginChild',
@@ -133,7 +135,8 @@ for _p in sorted(root.glob('gui/*.cpp')):
             _t = _l.strip()
             if _t.startswith(('for ', 'for(', 'while ', 'while(')):
                 _inSchleife = True
-            if any(('ImGui::' + _x) in _l for _x in _SUBMITS):
+            # MR4 Punkt 5: cjkText* (gui/textumbruch.h) schicken in jedem Zweig genau ein Textelement ab (TextUnformatted)
+            if any(('ImGui::' + _x) in _l for _x in _SUBMITS) or _CJK_TEXT.search(_l):
                 if _inSchleife:
                     print(f"{_p.name}:{_j + 1}: das Element nach SetCursorPos "
                           f"steht in einer Schleife - die kann null Durchlaeufe "

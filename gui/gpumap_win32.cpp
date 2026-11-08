@@ -31,6 +31,8 @@
 #include "bhed/fassung.h"
 #include "bhed/messpunkt.h"
 #include "bhed/diag.h"
+#include "bhed/dxt.h"
+#include "bhed/regelwerk.h"
 
 #ifdef BHED_WITH_D3D11
 
@@ -1226,11 +1228,21 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
     }
     const TextureSet::Tex* t = &quelle;
     TextureSet::Tex kopie;
-    if (quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1)) {
+    // MR4 Punkt 7: Jedi Academy und Jedi Outcast laden jede Mip-Stufe als DXT5 hoch (Upload32, rd-vanilla/tr_image.cpp:629-689;
+    // r_ext_compress_textures 1 ab Werk, tr_init.cpp:296-388 "using GL_EXT_texture_compression_s3tc" im Protokoll des Originals),
+    // ausser Bildern von Shadern mit noTC und den Lightmaps (r_ext_compress_lightmaps 0). Movie Duels: r_ext_compress_textures 0.
+    // Die Pyramide entsteht vorher aus dem unkomprimierten Bild (R_MipMap auf data, dann qglTexImage2D je Stufe).
+    const bool dxt = !regelwerkMovieDuels() && !quelle.keinTc && !quelle.lightmapStufe;
+    if (dxt || (quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
         kopie.width = quelle.width;
         kopie.height = quelle.height;
         kopie.rgba = quelle.rgba;
+        kopie.mips = quelle.mips;
         kopie.buildMips();
+        if (dxt) {
+            dxt::dxt5Rundlauf(kopie.rgba.data(), kopie.width, kopie.height);
+            for (TextureSet::Tex::Mip& m : kopie.mips) { dxt::dxt5Rundlauf(m.rgba.data(), m.width, m.height); }
+        }
         t = &kopie;
     }
     const UINT stufen = 1U + static_cast<UINT>(t->mips.size());
