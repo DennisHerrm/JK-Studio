@@ -1700,7 +1700,6 @@ struct App {
     // Zeit fuers letzte Bild, geglaettet - eine ungeglaettete Anzeige
     // springt so, dass man sie nicht lesen kann.
     float mapFrameMs = 0.0F;
-    std::string mapBytes;      // fuer den erneuten Netzbau bei anderer Feinheit
     // .pk3-Blaetterei
     std::vector<GamePath> gamePaths;
     std::vector<FoundFile> pk3Files;
