@@ -1026,13 +1026,15 @@ SpielDarstellung spielDarstellungRechnen(const std::string& shader) {
         d.glueh.insert(d.glueh.begin(), spielStufe(si->stages[0]));
     }
     // p_render: die Bildstufe der Grundstufe (ohne Lightmap die erste, sonst die des Paars) mit tcMod, tcGen, Welle oder animMap
-    if (const ShaderInfo* si = echtShaderInfo(shader); si != nullptr && !d.portal) {
+    if (const ShaderInfo* si = echtShaderInfo(shader)) {
         const std::size_t ab = basisStufen(*si);
         const ShaderInfo::Stage* g = ab == 1U ? &si->stages[0] : ab == 2U ? (si->stages[0].lightmap ? &si->stages[1] : &si->stages[0]) : nullptr;
-        if (g != nullptr && stufeDarstellbar(*g)) {
+        if (g != nullptr && stufeDarstellbar(*g) && !d.portal) {
             d.grund = spielStufe(*g);
             d.grundBewegt = d.grund.bewegt();
         }
+        // REST2 P2: ihr Bild auch fuer das ruhende Spielbild (sonst lud es qer_editorimage)
+        if (g != nullptr && d.bild.empty() && !g->lightmap && !g->weiss && !g->image.empty() && g->video.empty()) { d.grundBild = "?" + g->image; }
     }
     return d;
 }

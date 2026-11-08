@@ -3628,6 +3628,9 @@ void loadMapTextures();
 void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordered_set<std::string>& bilder, BildRegister& reg,
                          const std::function<void()>& danach = {},   // rc608 Teil 13b: danach, solange das Ziel gilt
                          const GrasStufenZiel& gras = {}, const std::vector<MapEntity>* entities = nullptr);
+// REST2 4b: das Register "ein Bild je Name" (bhed/bildregister.h), wie das Spiel es beim Laden der .bsp `bspPfad` fuellt (was der
+// Server vor der Welt laedt, dann die Shader der Welt in der Reihenfolge von RE_LoadWorldMap) - ohne Bilder zu laden.
+bool bspBildRegisterBauen(const std::string& bspPfad, BildRegister& reg);
 // MR9 Punkt 1 (app_view3d_spiel.inc): das Ghoul2-Modell, das die Spawnfunktion einer Klasse auf dem Server laedt (leer: keins),
 // und die NPC-, Klingen- und Waffendaten einmal einlesen.
 [[nodiscard]] std::string serverG2Modell(const MapEntity& e);

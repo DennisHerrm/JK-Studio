@@ -58,6 +58,11 @@ void pk3Schreiben() {
     sh += "textures/rd/m8tc\n{\n\tqer_editorimage textures/rd/m8bild\n\tnoTC\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
     sh += "textures/rd/m8normal\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
     sh += "textures/rd/m9klemme\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tclampMap textures/rd/m8bild\n\t}\n}\n";   // MR9 Punkt 4
+    // REST2 P2: zwei Shader ohne alphaFunc/blendFunc der ersten Stufe, deren qer_editorimage (gelb) ein anderes Bild ist als das
+    // der Bildstufe - mit Lightmap (rot, die zweite Stufe) und ohne (gruen, die erste)
+    sh += "textures/rd/r2licht\n{\n\tqer_editorimage textures/rd/gelb\n\t{\n\t\tmap $lightmap\n\t}\n\t{\n\t\tmap textures/rd/rot.tga\n"
+          "\t\tblendFunc GL_DST_COLOR GL_ZERO\n\t}\n}\n";
+    sh += "textures/rd/r2erste\n{\n\tqer_editorimage textures/rd/gelb\n\t{\n\t\tmap textures/rd/gruen\n\t}\n}\n";
     pk3.push_back({"shaders/rd.shader", sh});
     // ein Verlauf mit Rauschen, den DXT5 sichtbar aendert
     // MERGE4: dieselbe Datei als .png (gruen) und .tga (blau), und eine nur als .png (gruen) - fuer die Endungsfolge von R_LoadImage
@@ -130,6 +135,9 @@ void stufenKarteSchreiben() {
     auto welt = k.weltHolenOderAnlegen();
     r3::raum(k, welt, r3::kDunkel);
     for (const Platte& p : kPlatten) { r3::quader(k, welt, karte::Vektor3f(p.x, kPlatteY + 8, 160), karte::Vektor3f(60, 8, 64), p.shader); }
+    // REST2 4b: zwei Wuerfel hinter der Kamera mit demselben Bild, einer mit clampMap (die .bsp bestimmt, wer es zuerst laedt)
+    r3::quader(k, welt, karte::Vektor3f(-400, -350, 16), karte::Vektor3f(8, 8, 8), "textures/rd/m9klemme");
+    r3::quader(k, welt, karte::Vektor3f(400, -350, 16), karte::Vektor3f(8, 8, 8), "textures/rd/m8normal");
     welt->setzen("_ambient", "40");
     r3::ent(k, "light", {{"origin", "0 100 300"}, {"light", "600"}});
     r3::ent(k, "info_player_start", {{"origin", "0 -300 24"}});
@@ -360,6 +368,31 @@ std::vector<Schritt> dxtSchritte() {
         (void)regelwerkPruefen();
     }));
     add(warteBis("RD DXT: MERGE4 - Texturen nach dem Wechsel", [] { return ke::kameraBilderFertig(); }, 20000));
+    // REST2 P2: ein Shader, dessen erste Stufe weder mischt noch ausschneidet, zeigt im Spielbild das Bild seiner Bildstufe wie das
+    // Spiel (RB_IterateStagesGeneric bindet bundle[0] der Stufe, rd-vanilla tr_shade.cpp:2001; qer_editorimage ueberliest
+    // ParseShader, tr_shader.cpp:2220) - nicht qer_editorimage des Editors (gelb)
+    auto r2Farben = std::make_shared<std::array<std::array<int, 3>, 2>>();
+    add(warteBis("RD DXT: REST2 P2 - Spielbild der zwei Shader geladen", [ersteFarbe, r2Farben] {
+        return ersteFarbe(ke::echtSpielbildName("textures/rd/r2licht"), (*r2Farben)[0]) && ersteFarbe(ke::echtSpielbildName("textures/rd/r2erste"), (*r2Farben)[1]);
+    }, 10000));
+    add(pruefe("RD DXT: REST2 P2 - Spielbild ohne Stufenbild nimmt das Bild der Bildstufe (rot nach $lightmap, gruen als erste Stufe)", [r2Farben] {
+        const auto& f = *r2Farben;
+        const auto txt = [](const std::array<int, 3>& c) {
+            return std::to_string(c[0]) + "/" + std::to_string(c[1]) + "/" + std::to_string(c[2]);
+        };
+        // die Farben, wie das Spiel die Dateien hochlaedt (DXT5 unter OpenJK, vorschauStufen)
+        std::array<std::array<int, 3>, 3> soll{};
+        const char* dateien[3] = {"textures/rd/rot", "textures/rd/gruen", "textures/rd/gelb"};
+        for (int i = 0; i < 3; ++i) {
+            std::vector<std::vector<unsigned char>> st;
+            std::vector<std::array<int, 2>> gr;
+            if (!vorschauStufen(dateien[i], st, gr) || st.empty() || st[0].size() < 4U) { return false; }
+            soll[static_cast<std::size_t>(i)] = {st[0][0], st[0][1], st[0][2]};
+        }
+        diag::detail("Knopftest: RD DXT REST2 P2 - r2licht " + txt(f[0]) + " (soll rot " + txt(soll[0]) + "), r2erste " + txt(f[1]) + " (soll gruen " +
+                     txt(soll[1]) + "; gelb " + txt(soll[2]) + " ist qer_editorimage)");
+        return f[0] == soll[0] && f[1] == soll[1] && soll[0] != soll[2] && soll[1] != soll[2];
+    }));
     // MR9 Punkt 4: das Echtzeit-Licht klemmt ein Bild, wie der Erste es lud (GL_CLAMP aus clampMap, R_CreateImage), in beiden
     // Reihenfolgen - auch fuer den Shader mit map, wenn der clampMap-Shader das Bild zuerst lud.
     add(pruefe("RD DXT: MR9 P4 - Klammern des Ersten im Echtzeit-Licht", [] {
@@ -420,6 +453,59 @@ std::vector<Schritt> dxtSchritte() {
     // P57 (PRUEF8): unter Movie-Duels-Regeln zeigt das Spielbild des Echtzeit-Lichts die Fassung des Spiels - die Pyramide wie
     // Upload32 ohne Kompression, ohne die Gamma-Tabelle des Editors. Probe mit Gamma 2 im Editor und einem Bild, das unter diesen
     // Regeln noch niemand angefordert hat.
+    // REST2 4b: die gebaute Karte (Schnell-Backen) als .bsp geoeffnet, ohne Spielbild: das Echtzeit-Licht nimmt die Register-
+    // Reihenfolge dieser .bsp (vorWelt + RE_LoadWorldMap) - hier klemmt m8bild fuer beide Shader, wenn m9klemme in der .bsp zuerst
+    // kommt, sonst fuer keinen. Gefragt wird zuerst der Shader, der in der .bsp spaeter kommt (ohne .bsp entschiede er).
+    auto bsp4b = std::make_shared<std::string>();
+    auto klemmeZuerst = std::make_shared<int>(-1);
+    add(tu("RD DXT: REST2 4b - die gebaute .bsp oeffnen, ohne Spielbild", [bsp4b, klemmeZuerst] {
+        const std::string schnell = ke::schnellBspFuer(ke::geometrieStand());
+        *bsp4b = (std::filesystem::current_path() / "rd_4b.bsp").string();
+        std::error_code ec;
+        std::filesystem::copy_file(::bhed::utf8Pfad(schnell), ::bhed::utf8Pfad(*bsp4b), std::filesystem::copy_options::overwrite_existing, ec);
+        BspGeometry g;
+        if (!ec && readBspGeometry(dateiInhalt(*bsp4b), g)) {
+            const std::vector<std::string> folge = weltShaderReihenfolge(g);
+            const auto pos = [&folge](const char* n) { return std::find(folge.begin(), folge.end(), std::string(n)) - folge.begin(); };
+            if (pos("textures/rd/m9klemme") < static_cast<std::ptrdiff_t>(folge.size()) && pos("textures/rd/m8normal") < static_cast<std::ptrdiff_t>(folge.size())) {
+                *klemmeZuerst = pos("textures/rd/m9klemme") < pos("textures/rd/m8normal") ? 1 : 0;
+            }
+        }
+        ke::Editor& e = ke::editor();
+        e.echtLicht.backen = false;
+        e.echtLicht.spielbild = false;
+        e.karte.undo.alsGespeichertMarkieren();
+        (void)ke::bspOeffnenDatei(*bsp4b);
+    }));
+    add(warteBis("RD DXT: REST2 4b - Texturen", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(pruefe("RD DXT: REST2 4b - ohne Spielbild die Register-Reihenfolge der geoeffneten .bsp", [klemmeZuerst] {
+        ke::echtRegisterNeu();
+        const bool klemme = *klemmeZuerst == 1;
+        const char* spaeter = klemme ? "textures/rd/m8normal" : "textures/rd/m9klemme";
+        const char* frueher = klemme ? "textures/rd/m9klemme" : "textures/rd/m8normal";
+        const bool k1 = ke::echtBildKlammern(spaeter, "?textures/rd/m8bild");
+        const bool k2 = ke::echtBildKlammern(frueher, "?textures/rd/m8bild");
+        diag::detail("Knopftest: RD DXT REST2 4b - .bsp offen " + std::to_string(ke::editor().bspHerkunft.aktiv ? 1 : 0) + ", m9klemme zuerst in der .bsp " +
+                     std::to_string(*klemmeZuerst) + ", geklemmt (spaeterer zuerst gefragt) " + std::to_string(k1 ? 1 : 0) + " " + std::to_string(k2 ? 1 : 0));
+        return *klemmeZuerst >= 0 && ke::editor().bspHerkunft.aktiv && k1 == klemme && k2 == klemme;
+    }));
+    add(tu("RD DXT: REST2 4b - die Karte wieder, Schnell-Backen", [] {
+        ke::Editor& e = ke::editor();
+        e.karte.undo.alsGespeichertMarkieren();
+        (void)ke::karteOeffnen(stufenKarte());
+        kameraFest(karte::Vektor3f(0.0F, -160.0F, 160.0F), karte::Vektor3f(0.0F, 90.0F, 0.0F));
+        e.echtLicht.an = true;
+        e.echtLicht.backen = true;
+        e.echtLicht.spielbild = true;
+    }));
+    add(stufe9c::langeWarten("RD DXT: REST2 4b - Schnell-Backen fertig", [] {
+        const ke::Editor& e = ke::editor();
+        if (e.echtLicht.bauStand == 5) {
+            meldeFehler("RD DXT: REST2 4b - Schnell-Backen gescheitert");
+            return true;
+        }
+        return e.echtLicht.gebackenZeigen;
+    }, 400000));
     auto gammaVorher = std::make_shared<float>(1.0F);
     add(tu("RD DXT: P57 - Regelwerk Movie Duels, Gamma 2 im Editor", [gammaVorher] {
         *gammaVorher = ke::editor().texQual.gamma;
@@ -488,6 +574,11 @@ std::vector<Schritt> stufenSchritte() {
     add(stufenBild("echtzeit", echt));
     add(tu("RD Stufen: Zaehler", [] {
         diag::detail("Knopftest: RD Stufen Echtzeit - weitere Stufen " + std::to_string(ke::editor().echtLicht.weitereStufen));
+        // REST2 P3: was das Echtzeit-Licht im Bildlager haelt (vorher: je Shader auch die Fassung des Editors)
+        std::size_t ed = 0, edB = 0, sp = 0, spB = 0;
+        ke::echtBildlagerZahlen(ed, edB, sp, spB);
+        diag::detail("Knopftest: RD P55 Bildlager - Editor " + std::to_string(ed) + " Eintraege (" + std::to_string(edB) + " Byte), Spiel " +
+                     std::to_string(sp) + " Eintraege (" + std::to_string(spB) + " Byte)");
     }));
     add(tu("RD Stufen: Schnell-Backen, Spielbild (die .pk3 als Spielordner dieser Sitzung)", [] {
         std::vector<std::string> ordner = aktiveSpielordner();

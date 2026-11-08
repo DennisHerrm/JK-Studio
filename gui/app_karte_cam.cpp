@@ -87,6 +87,7 @@ struct Bild {
     void* himmel = nullptr;     // m_textureSkyBox (0 = nicht geladen)
     std::array<float, 3> farbe{1, 1, 1};   // qtexture_t::color
     bool ersatz = false;        // notex.png / shadernotex.png statt des Bildes (Selbsttest, Stufe 7 Punkt 6f)
+    std::size_t bytes = 0;      // REST2 P3 (Messung): die Bildpunkte aller hochgeladenen Stufen, RGBA
 };
 
 struct Auftrag {
@@ -119,18 +120,29 @@ struct Ergebnis {
 // laedt, also gilt fuer jedes Bild der Shader, der es zuerst geladen hat. Ist die Karte "wie im Spiel" gebaut (Spielbild), dessen
 // Register in der Reihenfolge der .bsp; danach kommt jeder Shader beim ersten Zeichnen dazu. Neu bei anderem Spiel, nach
 // "Flush & Reload Shaders" und mit jedem neuen Spielbild.
+// REST2 4b: ein Spielbild dieser Karte gibt es nur mit "Built map as in the game" (backen) - ein frueheres (auch einer anderen
+// Karte) zaehlt sonst nicht. Ohne Spielbild nimmt eine aus einer .bsp geoeffnete Karte die Reihenfolge dieser .bsp (das Original im
+// Arbeitsordner), denn ihre Flaechen stehen dort in der Folge, die das Spiel laedt; eine .map hat keine solche Folge (q3map2
+// ordnet beim Bauen um: Patches, Pinselseiten, Modelle, Decals, mit -meta neu) - dort entscheidet weiter, wer zuerst zeichnet.
+bool g_echtRegisterNeu = false;
 BildRegister& echtRegister() {
     static BildRegister reg;
     static const void* spiel = nullptr;
     static std::size_t neu = static_cast<std::size_t>(-1);
     static std::uint64_t nummer = 0;
+    static std::string quelle;
     std::uint64_t sbNummer = 0;
-    const BildRegister* sb = spielbildRegister(sbNummer);
-    if (spiel != e().karteSpiel.get() || neu != e().neuGeladen || nummer != sbNummer) {
+    const BildRegister* sb = e().echtLicht.backen ? spielbildRegister(sbNummer) : nullptr;
+    const BspHerkunft& h = e().bspHerkunft;
+    const std::string bsp = sb == nullptr && h.aktiv ? h.ordner + "/" + h.stamm + "_original.bsp" : std::string();
+    if (g_echtRegisterNeu || spiel != e().karteSpiel.get() || neu != e().neuGeladen || nummer != sbNummer || quelle != bsp) {
+        g_echtRegisterNeu = false;
         spiel = e().karteSpiel.get();
         neu = e().neuGeladen;
         nummer = sbNummer;
+        quelle = bsp;
         reg = sb != nullptr ? *sb : BildRegister{};
+        if (sb == nullptr && !bsp.empty()) { (void)bspBildRegisterBauen(bsp, reg); }
     }
     return reg;
 }
@@ -343,6 +355,7 @@ public:
                     ho.push_back(m.height);
                 }
                 b.srv = kartegpu::bildStufenAnlegen(px.data(), br.data(), ho.data(), static_cast<int>(px.size()));
+                for (std::size_t i = 0; i < br.size(); ++i) { b.bytes += static_cast<std::size_t>(br[i]) * static_cast<std::size_t>(ho[i]) * 4U; }
             } else if (r.bild.ok) {   // LoadTextureRGBA: Gamma der Einstellung, GL_TEXTURE_BASE_LEVEL
                 const Editor& ed = e();
                 if (ed.texQual.gamma != 1.0F) {
@@ -353,6 +366,7 @@ public:
                     }
                 }
                 b.srv = kartegpu::bildAnlegen(r.bild.rgba.data(), r.bild.width, r.bild.height, ed.texQual.mipStufe);
+                b.bytes = r.bild.rgba.size();
             }
             if (r.himmelGroesse > 0) {
                 const unsigned char* s[6];
@@ -368,6 +382,17 @@ public:
     [[nodiscard]] bool fertig() const {
         std::lock_guard<std::mutex> l(m_sperre);
         return m_offen == 0;
+    }
+
+    // REST2 P3 (Messung): die Eintraege des Editors und die der Fassung des Spiels (Schluessel mit "\n"), fertig, mit Bildpunkten
+    void zaehlen(std::size_t& editor, std::size_t& editorBytes, std::size_t& spiel, std::size_t& spielBytes) const {
+        editor = editorBytes = spiel = spielBytes = 0;
+        for (const auto& [schl, b] : m_bilder) {
+            if (!b.fertig) { continue; }
+            const bool sp = schl.find('\n') != std::string::npos;
+            (sp ? spiel : editor) += 1;
+            (sp ? spielBytes : editorBytes) += b.bytes;
+        }
     }
 
     // RefreshShaders: die Bilder neu laden (unrealise/realise der Texturen).
@@ -1101,8 +1126,24 @@ bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durch
     return true;
 }
 
-// MR8 Punkt 1 (Selbsttest): das Register des Echtzeit-Lichts neu anfangen (wie nach einem neuen Spielbild).
-void echtRegisterNeu() { echtRegister() = BildRegister{}; }
+void echtBildlagerZahlen(std::size_t& editor, std::size_t& editorBytes, std::size_t& spiel, std::size_t& spielBytes) {
+    lager().zaehlen(editor, editorBytes, spiel, spielBytes);
+}
+
+// REST2 P2: das Bild, das das Spielbild des Echtzeit-Lichts fuer die Grundstufe des Shaders laedt - mit alphaFunc/blendFunc das
+// Bild der ersten Stufe (Stufe 9c), sonst das der Bildstufe; ohne beides (kein Skript: R_FindShader nimmt das Bild des Namens,
+// tr_shader.cpp:3502) der Shader selbst
+std::string spielGrundBild(const std::string& shader, const SpielDarstellung& sd) {
+    return !sd.bild.empty() ? sd.bild : !sd.grundBild.empty() ? sd.grundBild : shader;
+}
+std::string echtSpielbildName(const std::string& shader) { return spielGrundBild(shader, spielDarstellung(shader)); }
+
+// MR8 Punkt 1 (Selbsttest): das Register des Echtzeit-Lichts neu anfangen (wie nach einem neuen Spielbild; REST2 4b: mit der
+// Reihenfolge des Spielbilds bzw. der geoeffneten .bsp, sonst leer).
+void echtRegisterNeu() {
+    g_echtRegisterNeu = true;
+    (void)echtRegister();
+}
 
 bool echtBildKlammern(const std::string& shader, const std::string& bild) { return spielLaden(shader, bild, false).klammern; }
 
@@ -1391,12 +1432,26 @@ void kameraZeichnen() {
         ed.echtLicht.bewegteStufen = 0;
         ed.echtLicht.gluehAufrufe = 0;
         const auto shaderZiehen = [&](const Szene3& q, const Stapel3& st, bool durchsichtig) {
-            const Bild* b = lager().holen(st.shader);
-            if (b == nullptr || !b->fertig) { return; }
             const karte::ShaderEintrag* se = ed.karteSpiel ? ed.karteSpiel->inventar.shaderFinden(st.shader) : nullptr;
             const unsigned flags = se != nullptr ? se->flags : 0U;
             static const SpielDarstellung kOhneSpielbild;
             const SpielDarstellung& sd = spielBild ? spielDarstellung(st.shader) : kOhneSpielbild;
+            // REST2 P3 (P55 Rest): im Spielbild braucht die Flaeche nur die Fassung des Spiels - die des Editors (ein zweites Lesen
+            // und Entpacken je Bild) nur fuer den Himmel (Farbe und Wuerfel des Editors) und als Ersatz, wenn die Datei fehlt
+            const bool nurSpiel = spielBild && (se == nullptr || se->himmel.empty()) && !(portalBild != nullptr && sd.himmel);
+            const Bild* b = nullptr;
+            const Bild* sb = nullptr;
+            SpielLaden sl;
+            if (nurSpiel) {
+                sl = spielLaden(st.shader, spielGrundBild(st.shader, sd), sd.keinTc);   // MR8 Punkt 1
+                sb = lager().holen(spielGrundBild(st.shader, sd), sl);
+                if (sb == nullptr || !sb->fertig) { return; }
+                if (sb->ersatz || sb->srv == nullptr) { sb = nullptr; }
+            }
+            if (sb == nullptr) {
+                b = lager().holen(st.shader);
+                if (b == nullptr || !b->fertig) { return; }
+            }
             if (sd.unsichtbar) { return; }
             // rc609 P: wie die Vorschau - im Spiegeldurchgang die Portalflaechen selbst nicht (sie liegen auf der Ebene); sonst
             // liegt die Sicht unter ihnen (R_MirrorViewBySurface zeichnet sie vor der Hauptszene in dasselbe Bild), ihre erste
@@ -1431,7 +1486,7 @@ void kameraZeichnen() {
             if (trans != durchsichtig) { return; }
             kartegpu::Zustand3 z = basis;
             // m_shader->getSkyBox()->texture_number != 0; Stufe 9d: mit misc_skyportal jede Himmelsflaeche (RDF_SKYBOXPORTAL)
-            const bool himmel = b->himmel != nullptr || (spielBild && portalBild != nullptr && sd.himmel);
+            const bool himmel = (b != nullptr && b->himmel != nullptr) || (spielBild && portalBild != nullptr && sd.himmel);
             const float alpha = (trans && !spielBild) ? se->trans : 1.0F;
             if (himmel) {
                 // RENDER_FILL | CULLFACE | TEXTURE | DEPTHTEST | DEPTHWRITE | COLOURWRITE | PROGRAM
@@ -1442,8 +1497,8 @@ void kameraZeichnen() {
                 if (texturen) { z.himmel = b->himmel; }
                 if (texturen && spielBild) {   // MR7 P40: die Seiten wie im Spiel
                     const SpielLaden l = spielLaden(st.shader, st.shader, sd.himmelKeinTc);   // MR8 Punkt 1
-                    const Bild* sb = lager().holen(st.shader, l);
-                    if (sb != nullptr && sb->fertig && sb->himmel != nullptr) { z.himmel = sb->himmel; }
+                    const Bild* hb = lager().holen(st.shader, l);
+                    if (hb != nullptr && hb->fertig && hb->himmel != nullptr) { z.himmel = hb->himmel; }
                 }
                 // Stufe 9d: misc_skyportal - der Himmel zeigt das Bild aus dem Portalraum (CG_DrawSkyBoxPortal)
                 if (texturen && portalBild != nullptr) { z.himmelPortal = portalBild; }
@@ -1475,22 +1530,17 @@ void kameraZeichnen() {
                     z.tiefeSchreiben = false;
                 }
                 if (texturen) {
-                    z.bild = b->srv;
-                    if (spielBild && sd.bild.empty()) {   // MR7 P40: das Shaderbild wie im Spiel hochgeladen
-                        const SpielLaden l = spielLaden(st.shader, st.shader, sd.keinTc);   // MR8 Punkt 1
-                        const Bild* sb = lager().holen(st.shader, l);
-                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) {
-                            z.bild = sb->srv;
-                            z.klammern = l.klammern;   // MR9 Punkt 4
-                        }
+                    z.bild = b != nullptr ? b->srv : nullptr;
+                    // MR7 P40, Stufe 9c, REST2 P2: das Bild der Grundstufe wie im Spiel hochgeladen (mit alphaFunc/blendFunc das der
+                    // ersten Stufe samt Alpha, sonst das der Bildstufe); fehlt die Datei, bleibt das Bild des Editors
+                    if (spielBild && sb == nullptr && !nurSpiel) {
+                        sl = spielLaden(st.shader, spielGrundBild(st.shader, sd), sd.keinTc);   // MR8 Punkt 1
+                        const Bild* x = lager().holen(spielGrundBild(st.shader, sd), sl);
+                        if (x != nullptr && x->fertig && !x->ersatz && x->srv != nullptr) { sb = x; }
                     }
-                    if (spielBild && !sd.bild.empty()) {   // Stufe 9c: das Bild der ersten Stufe (Alpha wie im Spiel)
-                        const SpielLaden l = spielLaden(st.shader, sd.bild, sd.keinTc);   // MR8 Punkt 1
-                        const Bild* sb = lager().holen(sd.bild, l);
-                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) {
-                            z.bild = sb->srv;
-                            z.klammern = l.klammern;   // MR9 Punkt 4
-                        }
+                    if (sb != nullptr) {
+                        z.bild = sb->srv;
+                        z.klammern = sl.klammern;   // MR9 Punkt 4
                     }
                     farbeSetzen(z, 1, 1, 1, alpha);
                     // p_render: die Bildstufe der Grundstufe bewegt sich (tcMod, tcGen, Welle, animMap) - im Echtzeit-Licht wie im

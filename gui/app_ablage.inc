@@ -2038,6 +2038,21 @@ TexturLadeZiel g_ladeZiel;
 TextureSet& ladeSatz() { return g_ladeZiel.textures != nullptr ? *g_ladeZiel.textures : g_app->textures; }
 BildRegister& ladeRegister() { return g_ladeZiel.bildRegister != nullptr ? *g_ladeZiel.bildRegister : g_app->bildRegister; }
 
+// MR9 Punkt 2: R_FindImageFile findet ein Bild, wenn eine der Dateien da ist, die auch das Laden versucht (textureCandidates: die
+// Endungen von R_LoadImage) - in einem Archiv oder lose in einem Spielordner; ohne zu entpacken
+bool bildVorhanden(const std::string& b) {
+    for (const std::string& c : textureCandidates(b)) {
+        for (const GamePath& gp : g_app->gamePaths) {
+            for (const Pk3& a : gp.archives) {
+                if (a.find(c) != nullptr) { return true; }
+            }
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(utf8Pfad(gp.directory) / utf8Pfad(c), ec)) { return true; }
+        }
+    }
+    return false;
+}
+
 // MR8 Punkt 1: R_FindShader zum ersten Mal - die Bilder des Shaders kommen in der Reihenfolge von ParseShader ins Register
 // (bhed/bildregister.h). Ein schon bekannter Shader aendert nichts.
 const ShaderInfo* skriptZu(const std::string& n) {
@@ -2903,18 +2918,7 @@ void loadMapTextures() {
     ladeRegister().leeren();   // MR8 Punkt 1: neue Karte (RE_RegisterMedia_LevelLoadBegin)
     // MR9 Punkt 2: R_FindImageFile findet ein Bild, wenn eine der Dateien da ist, die auch das Laden versucht (textureCandidates:
     // die Endungen von R_LoadImage) - in einem Archiv oder lose in einem Spielordner; ohne zu entpacken
-    ladeRegister().setzeVorhanden([](const std::string& b) {
-        for (const std::string& c : textureCandidates(b)) {
-            for (const GamePath& gp : g_app->gamePaths) {
-                for (const Pk3& a : gp.archives) {
-                    if (a.find(c) != nullptr) { return true; }
-                }
-                std::error_code ec;
-                if (std::filesystem::is_regular_file(utf8Pfad(gp.directory) / utf8Pfad(c), ec)) { return true; }
-            }
-        }
-        return false;
-    });
+    ladeRegister().setzeVorhanden(bildVorhanden);
     if (ladeGeo().shaders.empty() || g_app->gamePaths.empty()) {
         return;
     }
@@ -3333,6 +3337,29 @@ void loadMapTexturesFuer(const BspGeometry& geo, TextureSet& ziel, std::unordere
     loadMapTextures();
     if (danach) { danach(); }
     g_ladeZiel = TexturLadeZiel{};
+}
+
+bool bspBildRegisterBauen(const std::string& bspPfad, BildRegister& reg) {
+    std::string daten;
+    {
+        std::ifstream f(utf8Pfad(bspPfad), std::ios::binary);
+        if (!f) { return false; }
+        daten.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+    }
+    BspGeometry geo;
+    MapData m;
+    if (!readBspGeometry(daten, geo, nullptr) || !readBsp(daten, m, nullptr)) { return false; }
+    const TexturLadeZiel vorher = g_ladeZiel;
+    g_ladeZiel = TexturLadeZiel{};
+    g_ladeZiel.geo = &geo;
+    g_ladeZiel.entities = &m.entities;
+    g_ladeZiel.bildRegister = &reg;
+    reg.leeren();   // RE_RegisterMedia_LevelLoadBegin
+    reg.setzeVorhanden(bildVorhanden);
+    vorWeltRegistrieren(m.entities, false);
+    for (const std::string& n : weltShaderReihenfolge(geo)) { bildRegistrieren(n); }
+    g_ladeZiel = vorher;
+    return true;
 }
 
 // Was aus der Geometrie und den Entities der Karte aufgestellt wird; prepareScene baut es neu

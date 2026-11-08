@@ -72,6 +72,10 @@ struct SpielDarstellung {
     int mischQuelle = 0;
     int mischZiel = 0;
     std::string bild;        // mit alphaFunc/blendFunc: das Bild der ersten Stufe ("?" + Pfad fuer kameraTexturBild)
+    // REST2 P2: sonst das Bild der Bildstufe der Grundstufe ("?" + Pfad mit Endung; ohne Lightmap die erste Stufe, sonst die des
+    // Paars mit $lightmap) - das Spiel bindet bundle[0] der Stufe (RB_IterateStagesGeneric, rd-vanilla tr_shade.cpp:2001),
+    // qer_editorimage ueberliest es (ParseShader, tr_shader.cpp:2220); leer: das Bild des Shaders wie bisher
+    std::string grundBild;
     bool keinTc = false;         // MR7 P40: noTC der Bildstufe (ShaderInfo::bildKeinTc) - fuer bild bzw. das Shaderbild
     bool himmelKeinTc = false;   // MR7 P40: noTC beim Lesen von skyParms (ShaderInfo::himmelKeinTc) - fuer die Himmelsbox
     bool nebelFlaeche = false;   // Stufe 9d: fogParms ohne Stufe: nur der Nebel (RB_FogPass)

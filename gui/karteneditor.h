@@ -1447,6 +1447,10 @@ void echtRegisterNeu();
 [[nodiscard]] const void* echtBildTextur(const std::string& bild, bool keinTc);
 // MR9 Punkt 4 (Selbsttest): zeichnet das Spielbild des Echtzeit-Lichts `bild` des Shaders `shader` geklemmt (GL_CLAMP des Ersten)?
 [[nodiscard]] bool echtBildKlammern(const std::string& shader, const std::string& bild);
+// REST2 P2 (Selbsttest): das Bild ("?" + Pfad bzw. der Shader), das das Spielbild des Echtzeit-Lichts fuer die Grundstufe laedt
+[[nodiscard]] std::string echtSpielbildName(const std::string& shader);
+// REST2 P3 (Selbsttest, Messung): fertige Eintraege im Bildlager - Fassung des Editors und des Spiels, je mit Bildpunkten (RGBA)
+void echtBildlagerZahlen(std::size_t& editor, std::size_t& editorBytes, std::size_t& spiel, std::size_t& spielBytes);
 [[nodiscard]] bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool keinTc,
                                       std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen);
 void texturBilderAbholen();
