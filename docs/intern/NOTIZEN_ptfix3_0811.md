@@ -86,6 +86,36 @@ MovieDuels-Instanz lief einmal mit eigenem fs_homepath (erlaubt), `spiel.py` bee
 - Offen: Umgebungs-Abbildung (tcGen environment) einer skalierten Figur rechnet die Engine ebenfalls mit dem Augpunkt
   A^T delta / |axis[0]| gegen die unskalierte Ecke - nicht portiert, nicht gemessen.
 
+## Schlussrunde (Skript `Y:\werkzeuge\p3\schluss.sh`, Summe `schluss_summe.txt`)
+
+- Sauberer Neubau (`--clean-first`, `--parallel 8`, `/nodeReuse:false`) 0 Warnungen, 21 min 40 s.
+- ctest 239/240: `gpushader` pruefte den alten Shadertext (`dot(n, gLichtRichtung.xyz)`) - Erwartung auf `nLicht` nachgezogen,
+  dazu zwei Pruefzeilen fuer P27 (Normale ungekuerzt, Glanz im Raum des Modells); `gpushader_probe` neu gebaut: 1/1. Die
+  HLSL-Uebersetzung (`hlsl`) war gruen.
+- Welle 1 parallel: modellblock pt 41/0, ptfix 5/0, ptfix2 (ja) 5/0, ptfix3 12/0, ptstufen 4/0, md 86/0, blender 67/0; figurlicht 8/0.
+- Welle 2 parallel: karteneditor rdm2 14/0, rd 21/0, r3 22/0; mission1 98/0; Modus 1 2635/0.
+- Lints wie die Basis (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung bekannt), cjkumbruch 0; Handbuch
+  `--pruefen --pflicht=es --pflicht=cs` ok. Keine Bildzeit-Messung (laut Auftrag).
+
+## Punkt 3: Chamfer-Feinheiten - nicht bearbeitet (Abgabe wegen Kontext nach Punkt 1 und 2)
+
+Gelesen in Blender 5.0 (`Y:/werkzeuge/mr/blender_src/bmesh_bevel_50.cc`), fuer den naechsten Auftrag (Netz-Seite
+`src/modell/wof/mesh_werkzeuge.cpp` ab "Blender-Teil Anfang", Zeile ~626; Geometrie `fase_blender.cpp`):
+
+- Naehte bei ungerader Segmentzahl (bevel_build_rings :5517-5700): je Randpunkt i `frep_beats_next[i]` = choose_rep_face (:1211)
+  zwischen bndv_rep_faces[i] und [i+1]; die Mittelspalte (k == ns2) nimmt fc (den Gewinner), wenn die Kante e eine Naht ist
+  (`e->is_seam`, UV nicht durchgehend ueber die Kante: BM_edge_is_contiguous_loop_cd), sonst halb f, halb f2 (heute immer so);
+  Ecken auf Nahtkanten ziehen (snap_edges_for_vmesh_vert :5453, snap_edge_for_center_vmesh_vert :5408); die Mitte nimmt
+  center_frep (frep_for_center_poly :5034), wenn am Punkt eine Naht liegt (bv->any_seam), sonst f. choose_rep_face entscheidet
+  der Reihe nach: kleinere UV-Insel-Nummer (math_layer_info_init :1081, Inseln ueber das ganze Netz), gewaehlte Flaeche,
+  kleinere Materialnummer, Mittelpunkt (BM_face_calc_center_bounds) z, x, y.
+- UV an Ecken/Faechern/Streifen: bev_create_ngon mit Vertreter-Flaechen auch fuer M_POLY (bevel_build_poly), M_TRI_FAN
+  (bevel_build_trifan :5971) und die Streifen (bevel_build_edge_polys), danach bevel_merge_uvs (:808) ueber alle neuen Ecken -
+  heute nur unter den Gitter-Vierecken.
+- Ein Ringpunkt zwischen zwei gefasten Kanten (build_boundary :3153): alle ungewaehlten Kanten dazwischen teilen EINEN
+  Randpunkt (offset_meet, mit loop_slide auf der einzigen nicht ebenen Kante: offset_on_edge_between) - heute einer je
+  ungewaehlter Kante; bei genau einer ungewaehlten Kante ist es dasselbe.
+
 ## Changelog
 
 ## English

@@ -424,7 +424,14 @@ int main() {
                 f.find("float3 n = (nl > 1e-6) ? nw / nl * length(nrm) : float3(0, 0, 0);") != std::string::npos);
         erwarte("mit Lichtgitter: Umgebung + max(0, n.l) * gerichtet",
                 f.find("gLichtUmgebung.rgb + ein * gLichtGerichtet.rgb") != std::string::npos &&
-                    f.find("float ein = max(0.0, dot(n, gLichtRichtung.xyz));") != std::string::npos);
+                    f.find("float ein = max(0.0, dot(nLicht, gLichtRichtung.xyz));") != std::string::npos);
+        // PTFIX3 P27: die Normale ungekuerzt (skalierte Achsen wie R_SetupEntityLighting), der Glanz einer skalierten Figur im
+        // Raum des Modells (RB_CalcSpecularAlpha mit A^T l und dem Augpunkt aus R_RotateForEntity)
+        erwarte("P27: gerichtetes Licht mit der ungekuerzten Weltnormale (skalierte Achsen)",
+                f.find("float3 nLicht = nw;") != std::string::npos);
+        erwarte("P27: Glanz einer skalierten Figur im Raum des Modells",
+                f.find("float3 lM = mul(transpose(mw), l);") != std::string::npos &&
+                    f.find("float3 viewer = mul(transpose(mw), delta) / max(achsLaenge.y, 1e-6) - welt;") != std::string::npos);
         erwarte("ohne Lichtgitter die alte Formel",
                 f.find("0.22 + 0.78 * abs(dot(n, licht))") !=
                     std::string::npos);
